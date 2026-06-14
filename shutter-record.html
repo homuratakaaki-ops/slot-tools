@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>シャッターなし台記録｜北斗の拳 転生の章2</title>
+<style>
+:root{
+  --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;
+  --gold:#c9a84c;--gold-light:#e8c96a;--red:#c94c4c;--green:#4caf7d;
+  --yellow:#d4a017;--text:#e8e4d9;--text-muted:#7a7a8a;--text-dim:#4a4a5a;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.6;min-height:100vh;padding-bottom:60px;}
+header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 16px;}
+header h1{font-size:16px;font-weight:700;color:var(--gold-light);}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--surface);}
+.tab{flex:1;padding:12px;text-align:center;font-size:13px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;}
+.tab.active{color:var(--gold-light);border-bottom-color:var(--gold);}
+.page{display:none;padding:0 16px;max-width:480px;margin:0 auto;}
+.page.active{display:block;}
+.section{margin-top:16px;}
+.section-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold);}
+.section-note{font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;}
+.input-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
+.input-row:last-child{border-bottom:none;padding-bottom:0;}
+.input-row:first-child{padding-top:0;}
+.input-label{font-size:13px;color:var(--text);flex:1;}
+.input-hint{font-size:11px;color:var(--text-muted);margin-top:2px;}
+input[type="number"],input[type="text"],input[type="date"]{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:15px;padding:8px 10px;outline:none;transition:border-color .2s;}
+input[type="number"]{width:80px;text-align:center;-moz-appearance:textfield;}
+input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;}
+input[type="text"]{width:100%;}
+input[type="date"]{width:100%;color-scheme:dark;}
+input:focus{border-color:var(--gold);}
+select{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;padding:8px 10px;outline:none;width:100%;}
+textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:10px;outline:none;resize:vertical;min-height:70px;line-height:1.6;}
+textarea:focus{border-color:var(--gold);}
+.unit{font-size:12px;color:var(--text-muted);white-space:nowrap;margin-left:4px;}
+.btn-primary{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:10px;}
+.btn-primary:active{opacity:.8;}
+.btn-secondary{width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:14px;padding:11px;cursor:pointer;margin-top:8px;}
+.btn-danger{background:transparent;border:1px solid rgba(201,76,76,.4);border-radius:6px;color:#e07070;font-size:12px;padding:5px 10px;cursor:pointer;}
+.btn-small{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;}
+.btn-small.gold{border-color:var(--gold);color:var(--gold);}
+.btn-copy{width:100%;background:transparent;border:1px solid var(--gold);border-radius:6px;color:var(--gold);font-size:14px;padding:10px;margin-top:8px;cursor:pointer;}
+.copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
+.toggle-group{display:flex;gap:5px;flex-wrap:wrap;}
+.toggle-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:12px;padding:5px 11px;cursor:pointer;white-space:nowrap;}
+.toggle-btn.active{background:rgba(201,168,76,.15);border-color:var(--gold);color:var(--gold-light);}
+.store-item{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 14px;margin-bottom:8px;}
+.empty-hint{font-size:12px;color:var(--text-dim);text-align:center;padding:16px 0;}
+
+/* ── 台リスト ── */
+.slot-list{margin-top:8px;}
+.pin-section-label{font-size:11px;color:var(--gold);font-weight:700;letter-spacing:.08em;padding:8px 0 6px;display:flex;align-items:center;gap:6px;}
+.pin-section-label::after{content:'';flex:1;height:1px;background:var(--gold);opacity:.3;}
+.normal-section-label{font-size:11px;color:var(--text-dim);padding:8px 0 6px;display:flex;align-items:center;gap:6px;}
+.normal-section-label::after{content:'';flex:1;height:1px;background:var(--border);}
+
+.slot-row{background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;overflow:hidden;transition:border-color .2s;}
+.slot-row.pinned{border-color:rgba(201,168,76,.4);}
+.slot-row.s-over{border-left:3px solid var(--red);}
+.slot-row.s-ok{border-left:3px solid var(--green);}
+.slot-row.s-unknown{border-left:3px solid var(--yellow);}
+
+/* 台ヘッダー（常時表示） */
+.slot-header{display:flex;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;}
+.slot-num{font-size:16px;font-weight:700;color:var(--text);min-width:44px;}
+.slot-summary{flex:1;font-size:12px;color:var(--text-muted);}
+.slot-summary strong{color:var(--text);font-size:13px;}
+.slot-actions{display:flex;gap:6px;flex-shrink:0;}
+.btn-pin{background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-dim);font-size:14px;width:30px;height:30px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.btn-pin.pinned{border-color:var(--gold);color:var(--gold);}
+.btn-expand{background:none;border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;padding:4px 8px;cursor:pointer;white-space:nowrap;}
+.btn-expand.open{border-color:var(--gold);color:var(--gold-light);}
+
+/* 台展開エリア */
+.slot-body{display:none;border-top:1px solid var(--border);padding:12px;}
+.slot-body.open{display:block;}
+
+/* 一括入力行 */
+.quick-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;}
+.quick-label{font-size:12px;color:var(--text-muted);min-width:60px;}
+.over-btns{display:flex;gap:4px;}
+.over-btn{background:var(--surface2);border:1px solid var(--border);border-radius:16px;color:var(--text-muted);font-size:11px;padding:4px 10px;cursor:pointer;white-space:nowrap;}
+.over-btn.active-over{border-color:var(--red);background:rgba(201,76,76,.15);color:#e07070;}
+.over-btn.active-not{border-color:var(--green);background:rgba(76,175,125,.15);color:var(--green);}
+.over-btn.active-unknown{border-color:var(--yellow);background:rgba(212,160,23,.15);color:var(--yellow);}
+.quick-save-row{display:flex;gap:6px;margin-top:4px;}
+.btn-quick-save{flex:1;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:6px;color:#0d0d0f;font-size:13px;font-weight:700;padding:9px;cursor:pointer;}
+.btn-detail{flex:1;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:13px;padding:9px;cursor:pointer;}
+
+/* 履歴 */
+.history-item{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:6px;}
+.history-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;}
+.history-no{font-size:11px;font-weight:700;color:var(--gold);background:rgba(201,168,76,.1);border:1px solid var(--gold);border-radius:20px;padding:2px 8px;}
+.history-body{font-size:12px;color:var(--text-muted);line-height:1.8;}
+.history-body strong{color:var(--text);}
+.divider{height:1px;background:var(--border);margin:16px 0;}
+
+/* モーダル */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:100;display:none;align-items:flex-end;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:20px 16px;width:100%;max-width:480px;max-height:92vh;overflow-y:auto;}
+.modal-title{font-size:16px;font-weight:700;color:var(--gold-light);margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
+.modal-close{background:none;border:none;color:var(--text-muted);font-size:22px;cursor:pointer;}
+.memo-btns{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px;}
+.memo-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:12px;padding:6px 14px;cursor:pointer;white-space:nowrap;}
+.memo-btn:active{background:rgba(201,168,76,.15);border-color:var(--gold);color:var(--gold-light);}
+.memo-btn.need-game{border-style:dashed;}
+.game-input-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--gold);border-radius:8px;flex-wrap:wrap;}
+.memo-record{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:6px;}
+.cell-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.cell-tag{display:flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 8px 4px 12px;font-size:13px;}
+.cell-tag-del{background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;line-height:1;padding:0 2px;}
+.cell-tag-del:active{color:var(--red);}
+</style>
+</head>
+<body>
+<header><h1>シャッターなし台記録｜北斗の拳 転生の章2</h1></header>
+<div class="tab-bar">
+  <div class="tab active" onclick="showPage('pageList')">台リスト</div>
+  <div class="tab" onclick="showPage('pageStore')">店舗管理</div>
+  <div class="tab" onclick="showPage('pageStats')">集計</div>
+</div>
+
+<!-- 台リスト -->
+<div class="page active" id="pageList">
+  <div class="section">
+    <div style="display:flex;gap:8px;margin-bottom:8px;align-items:center;">
+      <select id="listStoreSelect" onchange="loadList()" style="flex:1;"></select>
+      <button class="btn-small" onclick="openEditMap()">配置編集</button>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;background:var(--surface);border:1px solid var(--gold);border-radius:8px;padding:10px 14px;">
+      <span style="font-size:12px;color:var(--gold);font-weight:700;white-space:nowrap;">📅 日付</span>
+      <input type="date" id="globalDate" style="flex:1;color-scheme:dark;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:15px;padding:7px 10px;outline:none;" onchange="loadList()">
+    </div>
+    <div id="slotList" class="slot-list"><div class="empty-hint">店舗を選択してください</div></div>
+  </div>
+</div>
+
+<!-- 店舗管理 -->
+<div class="page" id="pageStore">
+  <div class="section">
+    <div class="section-label">店舗を追加</div>
+    <div class="card">
+      <div class="input-row">
+        <div class="input-label">店舗名（略称可）</div>
+        <input type="text" id="newStoreName" placeholder="例：A店" style="width:140px;">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="addStore()">追加</button>
+  </div>
+  <div class="section">
+    <div class="section-label">登録済み店舗</div>
+    <div id="storeList"><div class="empty-hint">まだ店舗なし</div></div>
+  </div>
+</div>
+
+<!-- 集計 -->
+<div class="page" id="pageStats">
+  <div class="section">
+    <select id="statsStoreSelect" onchange="renderStats()" style="margin-bottom:12px;"></select>
+    <div id="statsList"><div class="empty-hint">店舗を選択してください</div></div>
+  </div>
+</div>
+
+<!-- 詳細入力モーダル -->
+<div class="modal-overlay" id="detailModal">
+  <div class="modal">
+    <div class="modal-title">
+      <span id="detailTitle">詳細入力</span>
+      <button class="modal-close" onclick="closeModal('detailModal')">×</button>
+    </div>
+
+    <div id="detailHistorySection" style="display:none;">
+      <div class="section-label">過去の記録</div>
+      <div id="detailHistoryList" style="margin-top:8px;"></div>
+      <div class="divider"></div>
+    </div>
+
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+      <div class="section-label" style="margin-bottom:0;">新規入力</div>
+      <button class="btn-small" onclick="closeModal('detailModal')">閉じる</button>
+    </div>
+
+    <div class="card">
+      <div class="input-row">
+        <div class="input-label">日付</div>
+        <input type="date" id="detailDate" style="width:160px;">
+      </div>
+      <div class="input-row">
+        <div class="input-label">初当たり 〇回目<div class="input-hint">データカウンターの初当たり回数</div></div>
+        <div style="display:flex;align-items:center;"><input type="number" id="detailFirst" placeholder="1以上" min="1"><span class="unit">回目</span></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">推定896超え</div>
+        <div class="toggle-group" id="detailOverGroup">
+          <button class="toggle-btn" onclick="setDetailOver('over',this)">超える</button>
+          <button class="toggle-btn" onclick="setDetailOver('not',this)">超えない</button>
+          <button class="toggle-btn active" onclick="setDetailOver('unknown',this)">不明</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-label" style="margin-top:14px;">メモ</div>
+    <div class="card" style="margin-top:8px;">
+      <p class="section-note">点線枠はゲーム数入力あり。</p>
+      <div class="memo-btns">
+        <button class="memo-btn" onclick="addDetailMemo('リセット')">リセット</button>
+        <button class="memo-btn" onclick="addDetailMemo('据え置き')">据え置き</button>
+        <button class="memo-btn" onclick="addDetailMemo('奇数示唆')">奇数示唆</button>
+        <button class="memo-btn" onclick="addDetailMemo('偶数示唆')">偶数示唆</button>
+        <button class="memo-btn" onclick="addDetailMemo('高設定示唆弱')">高設定示唆弱</button>
+        <button class="memo-btn" onclick="addDetailMemo('高設定示唆強')">高設定示唆強</button>
+        <button class="memo-btn need-game" onclick="selectDetailMemoGame('銅トロ')">銅トロ</button>
+        <button class="memo-btn need-game" onclick="selectDetailMemoGame('銀トロ')">銀トロ</button>
+        <button class="memo-btn need-game" onclick="selectDetailMemoGame('金トロ')">金トロ</button>
+        <button class="memo-btn need-game" onclick="selectDetailMemoGame('キリントロ')">キリントロ</button>
+        <button class="memo-btn need-game" onclick="selectDetailMemoGame('虹トロ')">虹トロ</button>
+        <button class="memo-btn" onclick="addDetailMemo('設定4以上確定')">設定4以上確定</button>
+        <button class="memo-btn" onclick="addDetailMemo('設定5以上確定')">設定5以上確定</button>
+        <button class="memo-btn" onclick="addDetailMemo('設定6確定')">設定6確定</button>
+      </div>
+      <div class="game-input-row" id="detailGameRow" style="display:none;">
+        <span style="font-size:13px;color:var(--gold-light);flex:1;" id="detailGameLabel"></span>
+        <input type="number" id="detailGameInput" placeholder="G数" min="0" style="width:80px;">
+        <span class="unit">G</span>
+        <button class="btn-small" onclick="addDetailMemoChoki()">朝イチ</button>
+        <button class="btn-small gold" onclick="addDetailMemoWithGame()">追加</button>
+        <button class="btn-small" onclick="cancelDetailMemoGame()">×</button>
+      </div>
+      <div id="detailMemoItems"></div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);">
+        <div class="input-label" style="margin-bottom:6px;">自由記入</div>
+        <textarea id="detailMemo" placeholder="その他メモ"></textarea>
+      </div>
+    </div>
+
+    <button class="btn-primary" onclick="saveDetail()">この内容を保存</button>
+    <button class="btn-secondary" onclick="clearDetailForm()">入力をクリア</button>
+
+    <div class="divider"></div>
+    <div class="section-label">共有テキスト（全記録）</div>
+    <textarea id="detailShareText" style="margin-top:8px;" readonly></textarea>
+    <button class="btn-copy" onclick="copyDetailShare()">コピーする</button>
+    <div class="copy-done" id="detailCopyDone">コピーしました！</div>
+
+    <div style="margin-top:16px;text-align:center;">
+      <button class="btn-danger" id="btnDeleteDetail" onclick="deleteAllDetail()" style="display:none;">この台の全データを削除</button>
+    </div>
+    <button class="btn-secondary" onclick="closeModal('detailModal')">閉じる</button>
+  </div>
+</div>
+
+<!-- 配置編集モーダル -->
+<div class="modal-overlay" id="editMapModal">
+  <div class="modal">
+    <div class="modal-title">
+      <span>台番号の登録・編集</span>
+      <button class="modal-close" onclick="closeModal('editMapModal')">×</button>
+    </div>
+    <p class="section-note">開始・終了番号を入力すると連番で追加。×で個別削除。1台だけ追加する場合は開始・終了を同じ番号に。</p>
+    <div class="card">
+      <div class="input-row">
+        <div class="input-label">開始番号</div>
+        <input type="number" id="colStart" placeholder="例:100" min="0" style="width:90px;">
+      </div>
+      <div class="input-row">
+        <div class="input-label">終了番号</div>
+        <input type="number" id="colEnd" placeholder="例:107" min="0" style="width:90px;">
+      </div>
+      <button class="btn-small" style="width:100%;margin-top:8px;" onclick="addColRange()">＋ 追加</button>
+    </div>
+    <div class="section-label" style="margin-top:12px;">登録台番号（×で削除）</div>
+    <div class="cell-tags" id="cellTagsEdit"></div>
+    <button class="btn-primary" style="margin-top:16px;" onclick="saveLayout()">保存</button>
+    <button class="btn-secondary" onclick="closeModal('editMapModal')">キャンセル</button>
+  </div>
+</div>
+
+<script>
+// ── ストレージ ──
+function load(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch{return null;}}
+function save(k,v){localStorage.setItem(k,JSON.stringify(v));}
+function getStores(){return load('sr_final_stores')||[];}
+function saveStores(s){save('sr_final_stores',s);}
+function getSlots(sid){return load('sr_final_slots_'+sid)||{};}
+function saveSlots(sid,s){save('sr_final_slots_'+sid,s);}
+function getCells(sid){return load('sr_final_cells_'+sid)||[];}
+function saveCells(sid,c){save('sr_final_cells_'+sid,c);}
+function getPins(sid){return load('sr_final_pins_'+sid)||[];}
+function savePins(sid,p){save('sr_final_pins_'+sid,p);}
+
+// ── タブ ──
+function showPage(id){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const idx={pageList:0,pageStore:1,pageStats:2}[id];
+  document.querySelectorAll('.tab')[idx].classList.add('active');
+  if(id==='pageList'){syncSelects();loadList();}
+  if(id==='pageStore'){renderStoreList();}
+  if(id==='pageStats'){syncSelects();renderStats();}
+}
+
+// ── 店舗 ──
+function addStore(){
+  const name=document.getElementById('newStoreName').value.trim();
+  if(!name){alert('店舗名を入力してください');return;}
+  const stores=getStores();
+  if(stores.find(s=>s.name===name)){alert('同じ名前が既にあります');return;}
+  stores.push({id:'s'+Date.now(),name});
+  saveStores(stores);
+  document.getElementById('newStoreName').value='';
+  renderStoreList();syncSelects();
+}
+function deleteStore(id){
+  if(!confirm('この店舗と台データをすべて削除しますか？'))return;
+  saveStores(getStores().filter(s=>s.id!==id));
+  ['sr_final_slots_','sr_final_cells_','sr_final_pins_'].forEach(p=>localStorage.removeItem(p+id));
+  renderStoreList();syncSelects();
+}
+function renameStore(id){
+  const stores=getStores();const s=stores.find(s=>s.id===id);if(!s)return;
+  const name=prompt('新しい店舗名',s.name);
+  if(!name||!name.trim())return;
+  s.name=name.trim();saveStores(stores);renderStoreList();syncSelects();
+}
+function renderStoreList(){
+  const el=document.getElementById('storeList');const stores=getStores();
+  if(!stores.length){el.innerHTML='<div class="empty-hint">まだ店舗なし</div>';return;}
+  el.innerHTML=stores.map(s=>`
+    <div class="store-item">
+      <div style="flex:1;"><div style="font-size:14px;font-weight:700;">${s.name}</div>
+      <div style="font-size:11px;color:var(--text-muted);">台${getCells(s.id).length}件 / データ${Object.keys(getSlots(s.id)).length}件</div></div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn-small" onclick="renameStore('${s.id}')">名称変更</button>
+        <button class="btn-danger" onclick="deleteStore('${s.id}')">削除</button>
+      </div>
+    </div>`).join('');
+}
+function syncSelects(){
+  const stores=getStores();
+  ['listStoreSelect','statsStoreSelect'].forEach(id=>{
+    const el=document.getElementById(id);const cur=el.value;
+    el.innerHTML='<option value="">店舗を選択</option>'+stores.map(s=>`<option value="${s.id}"${s.id===cur?' selected':''}>${s.name}</option>`).join('');
+  });
+}
+
+// ── 台リスト ──
+let currentSid=null;
+
+function getGlobalDate(){
+  const el=document.getElementById('globalDate');
+  return el&&el.value?el.value:today();
+}
+
+function loadList(){
+  const sid=document.getElementById('listStoreSelect').value;
+  currentSid=sid||null;
+  const el=document.getElementById('slotList');
+  if(!sid){el.innerHTML='<div class="empty-hint">店舗を選択してください</div>';return;}
+  const cells=getCells(sid);
+  if(!cells.length){el.innerHTML='<div class="empty-hint">台番号が未登録です。「配置編集」から登録してください。</div>';return;}
+  const slots=getSlots(sid);
+  const pins=getPins(sid);
+  const gDate=getGlobalDate();
+  const pinned=cells.filter(n=>pins.includes(n));
+  const normal=cells.filter(n=>!pins.includes(n));
+  let html='';
+  if(pinned.length){
+    html+=`<div class="pin-section-label">📌 ピン留め</div>`;
+    html+=pinned.map(n=>renderSlotRow(n,slots[n]||{},true,gDate)).join('');
+  }
+  if(normal.length){
+    if(pinned.length)html+=`<div class="normal-section-label">全台</div>`;
+    html+=normal.map(n=>renderSlotRow(n,slots[n]||{},false,gDate)).join('');
+  }
+  el.innerHTML=html;
+}
+
+function renderSlotRow(num,d,pinned,gDate){
+  const history=d.history||[];
+  const sortedH=[...history].sort((a,b)=>(a.first||0)-(b.first||0));
+  // その日の記録を取得
+  const dayHistory=history.filter(h=>h.date===gDate).sort((a,b)=>(a.first||0)-(b.first||0));
+  const lastDay=dayHistory.length?dayHistory[dayHistory.length-1]:null;
+  // サマリーはその日の最後の記録
+  const ov=lastDay?lastDay.over||'unknown':'';
+  const ovClass=ov==='over'?'s-over':ov==='not'?'s-ok':ov==='unknown'?'s-unknown':'';
+  const ovLabel={over:'⚠️896超え',not:'✅超えない',unknown:'❔不明'}[ov]||'';
+  const firstVal=lastDay?lastDay.first||0:0;
+  const dayCount=dayHistory.length;
+    const cntLabel=dayCount>1?' ('+dayCount+'件)':'';  const summaryText=lastDay?('<strong>初当たり '+firstVal+'回目</strong>　'+ovLabel+cntLabel):'<span style="color:var(--text-dim);">未入力</span>';
+  // quickFirstはその日の最後+1（なければ1）
+  const lastDay2=dayHistory.length?dayHistory[dayHistory.length-1]:null;
+  const lastFirst=lastDay2?lastDay2.first||0:0;
+  const quickFirst=lastFirst>0?lastFirst+1:1;
+  const quickOver=lastDay?lastDay.over||'unknown':'unknown';
+  // 896以内当選率（その日のデータ）
+  const overCnt=dayHistory.filter(h=>h.over==='over').length;
+  const notCnt=dayHistory.filter(h=>h.over==='not').length;
+  const winTotal=overCnt+notCnt;
+  const winRate=winTotal>0?Math.round(notCnt/winTotal*100):null;
+  const winRateLabel=winRate!==null?winRate+'%':'－';
+  const winRateColor=winRate===null?'var(--text-dim)':winRate>=70?'var(--green)':winRate>=50?'var(--yellow)':'var(--red)';
+  return`<div class="slot-row ${pinned?'pinned':''} ${ovClass}" id="row_${num}">
+    <div class="slot-header" onclick="toggleExpand('${num}')">
+      <div class="slot-num">${num}</div>
+      <div class="slot-summary">${summaryText}</div>
+      <div class="slot-actions" onclick="event.stopPropagation();">
+        <span style="font-size:12px;font-weight:700;color:${winRateColor};min-width:36px;text-align:right;">${winRateLabel}</span>
+        <button class="btn-pin ${pinned?'pinned':''}" onclick="togglePin('${num}')" title="ピン留め">📌</button>
+        <button class="btn-expand" id="exp_${num}">▼</button>
+      </div>
+    </div>
+    <div class="slot-body" id="body_${num}">
+      <div class="quick-row">
+        <span class="quick-label">初当たり</span>
+        <input type="number" id="qf_${num}" value="${quickFirst}" placeholder="回目" min="1" style="width:70px;">
+        <span class="unit">回目</span>
+      </div>
+      <div class="quick-row">
+        <span class="quick-label">896超え</span>
+        <div class="over-btns" id="qo_${num}">
+          <button class="over-btn ${quickOver==='over'?'active-over':''}" onclick="setQuickOver('${num}','over')">超える</button>
+          <button class="over-btn ${quickOver==='not'?'active-not':''}" onclick="setQuickOver('${num}','not')">超えない</button>
+          <button class="over-btn ${quickOver==='unknown'?'active-unknown':''}" onclick="setQuickOver('${num}','unknown')">不明</button>
+        </div>
+      </div>
+      <div class="quick-save-row">
+        <button class="btn-quick-save" onclick="quickSave('${num}')">保存</button>
+        <button class="btn-detail" onclick="openDetail('${num}')">詳細入力</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function onQuickDateChange(num){
+  const sid=currentSid;if(!sid)return;
+  const date=document.getElementById('qd_'+num).value;
+  const slots=getSlots(sid);
+  const d=slots[num]||{};
+  const history=d.history||[];
+  // その日付の記録を検索（最新のもの）
+  const rec=history.filter(h=>h.date===date).sort((a,b)=>(b.first||0)-(a.first||0))[0];
+  const firstEl=document.getElementById('qf_'+num);
+  const qoEl=document.getElementById('qo_'+num);
+  if(rec){
+    firstEl.value=rec.first||'';
+    // 896超えボタンを更新
+    qoEl.querySelectorAll('.over-btn').forEach(b=>{
+      b.className='over-btn';
+    });
+    const map={over:'active-over',not:'active-not',unknown:'active-unknown'};
+    const target=map[rec.over||'unknown'];
+    const btns=qoEl.querySelectorAll('.over-btn');
+    const idx={over:0,not:1,unknown:2}[rec.over||'unknown'];
+    if(btns[idx])btns[idx].classList.add(target);
+  } else {
+    // その日の記録なし→次の初当たり回数を計算して表示
+    const sortedH=[...history].sort((a,b)=>(a.first||0)-(b.first||0));
+    const lastFirst=sortedH.length?sortedH[sortedH.length-1].first||0:0;
+    firstEl.value=lastFirst>0?lastFirst+1:'';
+    // 896超えリセット
+    qoEl.querySelectorAll('.over-btn').forEach((b,i)=>{
+      b.className='over-btn'+(i===2?' active-unknown':'');
+    });
+  }
+}
+
+function toggleExpand(num){
+  const body=document.getElementById('body_'+num);
+  const btn=document.getElementById('exp_'+num);
+  const open=body.classList.toggle('open');
+  btn.textContent=open?'▲':'▼';
+  btn.classList.toggle('open',open);
+}
+
+function togglePin(num){
+  const sid=currentSid;if(!sid)return;
+  const pins=getPins(sid);
+  const idx=pins.indexOf(num);
+  if(idx>=0)pins.splice(idx,1);else pins.unshift(num);
+  savePins(sid,pins);
+  loadList();
+}
+
+// 一括入力の一時保存（_quickフィールド）
+function saveQuick(num){}// 入力値はDOMから直接取得するので保存不要
+
+function setQuickOver(num,val){
+  const btns=document.getElementById('qo_'+num).querySelectorAll('.over-btn');
+  btns.forEach(b=>b.className='over-btn');
+  const map={over:'active-over',not:'active-not',unknown:'active-unknown'};
+  event.target.classList.add(map[val]);
+  // 一時保存
+  const sid=currentSid;const slots=getSlots(sid);
+  const d=slots[num]||{};d._quick_over=val;slots[num]=d;saveSlots(sid,slots);
+}
+
+function quickSave(num){
+  const sid=currentSid;if(!sid)return;
+  const first=parseInt(document.getElementById('qf_'+num).value)||0;
+  if(first<1){alert('初当たり回数は1以上を入力してください');return;}
+  const date=getGlobalDate();
+  const overBtns=document.getElementById('qo_'+num).querySelectorAll('.over-btn');
+  let over='unknown';
+  overBtns.forEach(b=>{
+    if(b.classList.contains('active-over'))over='over';
+    if(b.classList.contains('active-not'))over='not';
+    if(b.classList.contains('active-unknown'))over='unknown';
+  });
+  const slots=getSlots(sid);
+  const d=slots[num]||{history:[]};
+  if(!d.history)d.history=[];
+  // 同日同回数の重複チェック
+  const existing=d.history.find(h=>h.date===date&&h.first===first);
+  if(existing){
+    if(!confirm(`${date} の初当たり${first}回目は既に記録されています。上書きしますか？`))return;
+    existing.over=over;
+  } else {
+    d.history.push({date,recordType:'first',first,at:0,over,memoItems:[],memo:''});
+  }
+  // 初当たり回数順にソート
+  d.history.sort((a,b)=>(a.first||0)-(b.first||0));
+  updateShareTextForSlot(sid,num,d);
+  slots[num]=d;saveSlots(sid,slots);
+  loadList();
+}
+
+// ── 詳細入力 ──
+let detailNum=null;
+let detailRecordType='first';
+let detailOver='unknown';
+let detailMemoItems=[];
+let detailPendingMemo=null;
+
+function openDetail(num){
+  detailNum=num;
+  const sid=currentSid;
+  const slots=getSlots(sid);const d=slots[num]||{};
+  document.getElementById('detailTitle').textContent=`台番号 ${num} 詳細入力`;
+  const gDate=getGlobalDate();
+  const dayRecs=(d.history||[]).filter(h=>h.date===gDate).sort((a,b)=>(a.first||0)-(b.first||0));
+  renderDetailHistory(dayRecs);
+  clearDetailForm();
+  document.getElementById('detailDate').value=gDate;
+  document.getElementById('detailShareText').value=d.shareText||'';
+  document.getElementById('btnDeleteDetail').style.display=(d.history&&d.history.length)?'inline-block':'none';
+  // 次の初当たり回数はその日の最後+1（なければ1）
+  const dayRecsForNext=(d.history||[]).filter(h=>h.date===gDate).sort((a,b)=>(a.first||0)-(b.first||0));
+  const nextFirst=dayRecsForNext.length?((dayRecsForNext[dayRecsForNext.length-1].first||0)+1):1;
+  document.getElementById('detailFirst').value=nextFirst;
+  openModal('detailModal');
+}
+
+function renderDetailHistory(dayRecs){
+  const sec=document.getElementById('detailHistorySection');
+  const list=document.getElementById('detailHistoryList');
+  if(!dayRecs||!dayRecs.length){sec.style.display='none';return;}
+  sec.style.display='block';
+  const ovLabel={over:'超える',not:'超えない',unknown:'不明'};
+  const sorted=[...dayRecs].sort((a,b)=>(a.first||0)-(b.first||0));
+  const slots=getSlots(currentSid);
+  const fullHistory=(slots[detailNum]||{}).history||[];
+  list.innerHTML=sorted.map((h,i)=>{
+    const fullIdx=fullHistory.findIndex(fh=>fh.date===h.date&&fh.first===h.first);
+    return`<div class="history-item">
+      <div class="history-header">
+        <span class="history-no">${i+1}回目</span>
+        <span style="font-size:11px;color:var(--text-muted);">${h.date||''}</span>
+        <button class="btn-danger" onclick="deleteDetailHistory(${fullIdx})">削除</button>
+      </div>
+      <div class="history-body">
+        <div>初当たり：<strong>${h.first||0}回目</strong></div>
+        <div>896超え：<strong>${ovLabel[h.over||'unknown']}</strong></div>
+        ${h.memoItems&&h.memoItems.length?`<div>メモ：${h.memoItems.map(m=>m.label+(m.asChoki?' 朝イチ':m.game!=null?' '+m.game+'G':'')).join(' / ')}</div>`:''}
+        ${h.memo?`<div>備考：${h.memo}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function deleteDetailHistory(idx){
+  if(!confirm(`${idx+1}回目の記録を削除しますか？`))return;
+  const sid=currentSid;const slots=getSlots(sid);
+  const d=slots[detailNum]||{};
+  if(!d.history||!d.history.length)return;
+  d.history.splice(idx,1);
+  if(!d.history.length){
+    delete slots[detailNum];
+    saveSlots(sid,slots);
+    renderDetailHistory([]);
+    document.getElementById('detailShareText').value='';
+    document.getElementById('btnDeleteDetail').style.display='none';
+  } else {
+    updateShareTextForSlot(sid,detailNum,d);
+    slots[detailNum]=d;
+    saveSlots(sid,slots);
+    renderDetailHistory(d.history);
+    document.getElementById('detailShareText').value=d.shareText||'';
+    document.getElementById('btnDeleteDetail').style.display='inline-block';
+  }
+  loadList();
+}
+
+function clearDetailForm(){
+  detailRecordType='first';detailOver='unknown';detailMemoItems=[];detailPendingMemo=null;
+  setDetailOver('unknown',null);
+  ['detailFirst','detailMemo'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('detailDate').value=getGlobalDate();
+  document.getElementById('detailMemoItems').innerHTML='';
+  document.getElementById('detailGameRow').style.display='none';
+}
+
+function setDetailRecordType(type,el){detailRecordType='first';}
+function setDetailOver(val,el){
+  detailOver=val;
+  document.querySelectorAll('#detailOverGroup .toggle-btn').forEach(b=>b.classList.remove('active'));
+  if(el)el.classList.add('active');
+  else{const m={over:0,not:1,unknown:2};document.querySelectorAll('#detailOverGroup .toggle-btn')[m[val]]?.classList.add('active');}
+}
+function addDetailMemo(label){detailMemoItems.push({label,game:null,asChoki:false});renderDetailMemoItems();}
+function selectDetailMemoGame(label){
+  detailPendingMemo=label;
+  document.getElementById('detailGameLabel').textContent=label;
+  document.getElementById('detailGameInput').value='';
+  document.getElementById('detailGameRow').style.display='flex';
+  document.getElementById('detailGameInput').focus();
+}
+function addDetailMemoWithGame(){
+  if(!detailPendingMemo)return;
+  const g=document.getElementById('detailGameInput').value;
+  detailMemoItems.push({label:detailPendingMemo,game:g?parseInt(g):null,asChoki:false});
+  document.getElementById('detailGameRow').style.display='none';
+  detailPendingMemo=null;renderDetailMemoItems();
+}
+function addDetailMemoChoki(){
+  if(!detailPendingMemo)return;
+  detailMemoItems.push({label:detailPendingMemo,game:null,asChoki:true});
+  document.getElementById('detailGameRow').style.display='none';
+  detailPendingMemo=null;renderDetailMemoItems();
+}
+function cancelDetailMemoGame(){document.getElementById('detailGameRow').style.display='none';detailPendingMemo=null;}
+function deleteDetailMemoItem(i){detailMemoItems.splice(i,1);renderDetailMemoItems();}
+function renderDetailMemoItems(){
+  const el=document.getElementById('detailMemoItems');
+  if(!detailMemoItems.length){el.innerHTML='';return;}
+  el.innerHTML=detailMemoItems.map((m,i)=>`
+    <div class="memo-record">
+      <div style="flex:1;">
+        <div style="font-size:13px;">${m.label}</div>
+        <div style="font-size:11px;color:var(--text-muted);">${m.asChoki?'朝イチ':m.game!=null?m.game+'G':''}</div>
+      </div>
+      <button class="btn-danger" onclick="deleteDetailMemoItem(${i})">削除</button>
+    </div>`).join('');
+}
+
+function saveDetail(){
+  if(!currentSid||!detailNum)return;
+  const first=parseInt(document.getElementById('detailFirst').value)||0;
+  if(first<1){alert('初当たり回数は1以上を入力してください');return;}
+  const slots=getSlots(currentSid);
+  const d=slots[detailNum]||{history:[]};
+  if(!d.history)d.history=[];
+  const detailSaveDate=document.getElementById('detailDate').value;
+  // 同日同回数の重複チェック
+  if(d.history.some(h=>h.date===detailSaveDate&&h.first===first)){
+    if(!confirm(`${detailSaveDate} の初当たり${first}回目は既に記録されています。それでも保存しますか？`))return;
+  }
+  d.history.push({
+    date:detailSaveDate,
+    recordType:'first',
+    first,
+    at:0,
+    over:detailOver,
+    memoItems:[...detailMemoItems],
+    memo:document.getElementById('detailMemo').value,
+  });
+  d.history.sort((a,b)=>(a.first||0)-(b.first||0));
+  updateShareTextForSlot(currentSid,detailNum,d);
+  slots[detailNum]=d;saveSlots(currentSid,slots);
+  // その日の記録のみ表示
+  const gDateAfter=getGlobalDate();
+  const dayRecsAfter=(d.history||[]).filter(h=>h.date===gDateAfter).sort((a,b)=>(a.first||0)-(b.first||0));
+  renderDetailHistory(dayRecsAfter);
+  document.getElementById('detailShareText').value=d.shareText||'';
+  document.getElementById('btnDeleteDetail').style.display='inline-block';
+  // 次の初当たり回数はその日の最後+1
+  const dayRecsAfter2=(d.history||[]).filter(h=>h.date===gDateAfter).sort((a,b)=>(a.first||0)-(b.first||0));
+  const nextAfter=dayRecsAfter2.length?((dayRecsAfter2[dayRecsAfter2.length-1].first||0)+1):1;
+  clearDetailForm();
+  document.getElementById('detailDate').value=gDateAfter;
+  document.getElementById('detailFirst').value=nextAfter;
+  loadList();
+}
+
+function deleteAllDetail(){
+  if(!confirm('この台の全データを削除しますか？'))return;
+  const slots=getSlots(currentSid);delete slots[detailNum];
+  saveSlots(currentSid,slots);closeModal('detailModal');loadList();
+}
+
+function copyDetailShare(){
+  const text=document.getElementById('detailShareText').value;
+  if(!text){alert('先に保存してください');return;}
+  navigator.clipboard.writeText(text).then(()=>{
+    const done=document.getElementById('detailCopyDone');
+    done.style.display='block';setTimeout(()=>done.style.display='none',2000);
+  });
+}
+
+function updateShareTextForSlot(sid,num,d){
+  const stores=getStores();const store=stores.find(s=>s.id===sid);
+  const ovLabel={over:'超える',not:'超えない',unknown:'不明'};
+  const sortedHistory=[...(d.history||[])].sort((a,b)=>(a.first||0)-(b.first||0));
+  // 示唆カウント
+  let even=0,odd=0,highW=0,highS=0;
+  sortedHistory.forEach(h=>{
+    (h.memoItems||[]).forEach(m=>{
+      if(m.label==='偶数示唆')even++;
+      if(m.label==='奇数示唆')odd++;
+      if(m.label==='高設定示唆弱')highW++;
+      if(m.label==='高設定示唆強')highS++;
+    });
+  });
+  const eoTotal=even+odd;
+  const allTotal=even+odd+highW+highS;
+  const lines=[`【台番号 ${num}】`];
+  if(store)lines.push(`店舗：${store.name}`);
+  // 示唆集計を最初に
+  if(allTotal>0){
+    lines.push('');
+    lines.push('■設定示唆集計');
+    if(eoTotal>0){
+      const ePct=Math.round(even/eoTotal*100);
+      const oPct=Math.round(odd/eoTotal*100);
+      lines.push(`偶数示唆：${even}回 / 奇数示唆：${odd}回（偶数${ePct}% : 奇数${oPct}%）`);
+    }
+    if(highW>0||highS>0){
+      const wPct=Math.round(highW/allTotal*100);
+      const sPct=Math.round(highS/allTotal*100);
+      lines.push(`高設定示唆弱：${highW}回(${wPct}%) / 高設定示唆強：${highS}回(${sPct}%)　※全${allTotal}件中`);
+    }
+  }
+  // 履歴
+  sortedHistory.forEach((h,i)=>{
+    lines.push('');lines.push(`■${i+1}回目（${h.date||''}）`);
+    lines.push(`初当たり：${h.first||0}回目`);
+    lines.push(`896超え：${ovLabel[h.over||'unknown']}`);
+    if(h.memoItems&&h.memoItems.length)
+      h.memoItems.forEach(m=>lines.push(`${m.label}${m.asChoki?' 朝イチ':m.game!=null?' '+m.game+'G':''}`));
+    if(h.memo)lines.push(`備考：${h.memo}`);
+  });
+  d.shareText=lines.join('\n');
+}
+
+// ── 配置編集 ──
+let editCells=[];
+function addColRange(){
+  const s=parseInt(document.getElementById('colStart').value);
+  const e=parseInt(document.getElementById('colEnd').value);
+  if(isNaN(s)||isNaN(e)){alert('開始番号と終了番号を入力してください');return;}
+  const nums=s<=e?Array.from({length:e-s+1},(_,i)=>String(s+i)):Array.from({length:s-e+1},(_,i)=>String(s-i));
+  nums.forEach(n=>{if(!editCells.includes(n))editCells.push(n);});
+  document.getElementById('colStart').value='';document.getElementById('colEnd').value='';
+  renderCellTags();
+}
+function removeEditCell(n){editCells=editCells.filter(c=>c!==n);renderCellTags();}
+function renderCellTags(){
+  const el=document.getElementById('cellTagsEdit');
+  if(!editCells.length){el.innerHTML='<div class="empty-hint" style="width:100%;">まだ台番号なし</div>';return;}
+  el.innerHTML=editCells.map(n=>`<div class="cell-tag">${n}<button class="cell-tag-del" onclick="removeEditCell('${n}')">×</button></div>`).join('');
+}
+function openEditMap(){
+  if(!currentSid){alert('店舗を選択してください');return;}
+  editCells=[...getCells(currentSid)];renderCellTags();openModal('editMapModal');
+}
+function saveLayout(){
+  if(!currentSid)return;
+  saveCells(currentSid,editCells);closeModal('editMapModal');loadList();
+}
+
+// ── 集計 ──
+function renderStats(){
+  const sid=document.getElementById('statsStoreSelect').value;
+  const el=document.getElementById('statsList');
+  if(!sid){el.innerHTML='<div class="empty-hint">店舗を選択してください</div>';return;}
+  const slots=getSlots(sid);const cells=getCells(sid);
+  const withData=cells.filter(n=>slots[n]&&slots[n].history&&slots[n].history.length);
+  if(!withData.length){el.innerHTML='<div class="empty-hint">台データなし</div>';return;}
+  const ovLabel={over:'⚠️896超え',not:'✅超えない',unknown:'❔不明'};
+  const colors={over:'var(--red)',not:'var(--green)',unknown:'var(--yellow)'};
+  const groups={over:[],not:[],unknown:[]};
+  withData.forEach(n=>{
+    const last=slots[n].history[slots[n].history.length-1];
+    groups[last.over||'unknown'].push({n,d:slots[n],last});
+  });
+  let html='';
+  ['over','not','unknown'].forEach(key=>{
+    if(!groups[key].length)return;
+    html+=`<div style="font-size:11px;font-weight:700;color:${colors[key]};margin:12px 0 6px;">${ovLabel[key]}</div>`;
+    html+=groups[key].map(({n,d,last})=>`
+      <div class="card" style="cursor:pointer;margin-bottom:8px;" onclick="showPage('pageList');setTimeout(()=>{document.getElementById('listStoreSelect').value='${sid}';loadList();setTimeout(()=>toggleExpand('${n}'),100);},100);">
+        <div style="display:flex;justify-content:space-between;">
+          <span style="font-size:15px;font-weight:700;">台番号 ${n}</span>
+          <span style="font-size:11px;color:var(--text-muted);">${d.history.length}件 / ${last.date||''}</span>
+        </div>
+        ${last.recordType!=='at'?`<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">初当たり ${last.first||0}回目</div>`:''}
+        ${last.memoItems&&last.memoItems.length?`<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${last.memoItems.map(m=>m.label+(m.asChoki?' 朝イチ':m.game!=null?' '+m.game+'G':'')).join(' / ')}</div>`:''}
+      </div>`).join('');
+  });
+  el.innerHTML=html;
+}
+
+function today(){const d=new Date();return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
+function openModal(id){document.getElementById(id).classList.add('open');}
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+syncSelects();renderStoreList();renderCellTags();
+document.getElementById('globalDate').value=today();
+</script>
+</body>
+</html>

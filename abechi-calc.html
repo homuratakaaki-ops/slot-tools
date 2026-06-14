@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>あべしズレ判別ツール｜北斗の拳 転生の章2</title>
+<style>
+  :root {
+    --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;
+    --gold:#c9a84c;--gold-light:#e8c96a;--red:#c94c4c;--green:#4caf7d;
+    --yellow:#d4a017;--text:#e8e4d9;--text-muted:#7a7a8a;--text-dim:#4a4a5a;
+    --custom:#3a2a5a;--custom-border:#7a5aaa;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.6;min-height:100vh;padding-bottom:60px;}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:16px 20px;text-align:center;}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.05em;}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px;}
+  .container{max-width:480px;margin:0 auto;padding:0 16px;}
+  .section{margin-top:20px;}
+  .section-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold);}
+  .section-note{font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.6;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;}
+  .input-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);}
+  .input-row:last-child{border-bottom:none;padding-bottom:0;}
+  .input-row:first-child{padding-top:0;}
+  .input-label{font-size:13px;color:var(--text);flex:1;}
+  .input-hint{font-size:11px;color:var(--text-muted);margin-top:2px;}
+  .input-field-wrap{display:flex;align-items:center;gap:6px;flex-shrink:0;}
+  input[type="number"]{width:80px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:16px;padding:8px 10px;text-align:center;-moz-appearance:textfield;outline:none;transition:border-color .2s;}
+  input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;}
+  input[type="number"]:focus{border-color:var(--gold);}
+  input[type="text"]{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;padding:8px 10px;outline:none;transition:border-color .2s;}
+  input[type="text"]:focus{border-color:var(--gold);}
+  textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:10px;outline:none;resize:vertical;min-height:120px;line-height:1.6;}
+  textarea:focus{border-color:var(--gold);}
+  .unit{font-size:12px;color:var(--text-muted);white-space:nowrap;}
+
+  /* イベントボタン */
+  .event-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
+  .event-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:13px;padding:7px 14px;cursor:pointer;transition:all .15s;white-space:nowrap;}
+  .event-btn:active,.event-btn.selected{background:rgba(201,168,76,.15);border-color:var(--gold);color:var(--gold-light);}
+  .event-btn-custom-wrap{position:relative;display:inline-flex;align-items:center;}
+  .event-btn-custom{background:var(--custom);border:1px solid var(--custom-border);border-radius:20px;color:#c8a8ff;font-size:13px;padding:7px 30px 7px 14px;cursor:pointer;white-space:nowrap;}
+  .event-btn-custom.selected{background:rgba(122,90,170,.4);border-color:#c8a8ff;color:#fff;}
+  .event-btn-del{position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:#7a5aaa;font-size:14px;cursor:pointer;line-height:1;padding:0 2px;}
+  .event-btn-del:hover{color:#c8a8ff;}
+
+  /* あべし入力エリア */
+  .memo-abechi-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+  .memo-abechi-row input[type="number"]{width:90px;}
+  .incr-btns{display:flex;gap:4px;}
+  .incr-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:13px;padding:8px 12px;cursor:pointer;white-space:nowrap;}
+  .incr-btn:active{border-color:var(--gold);color:var(--gold-light);}
+  .at-game-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
+
+  .btn-memo-add{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:6px;color:#0d0d0f;font-size:14px;font-weight:700;padding:10px;cursor:pointer;}
+  .btn-memo-add:active{opacity:.8;}
+
+  /* カスタム追加 */
+  .custom-add-row{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+  .btn-custom-add{background:transparent;border:1px solid var(--custom-border);border-radius:6px;color:#c8a8ff;font-size:13px;padding:9px 12px;cursor:pointer;white-space:nowrap;}
+
+  /* プリセット */
+  .preset-row{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
+  .preset-row select{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;padding:8px 10px;outline:none;}
+  .btn-preset{background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;padding:8px 10px;cursor:pointer;white-space:nowrap;}
+  .btn-preset:active{border-color:var(--gold);color:var(--gold-light);}
+
+  /* 記録リスト */
+  .record-list{margin-top:8px;}
+  .record-item{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:6px;}
+  .record-item-label{font-size:12px;color:var(--text-muted);flex:1;}
+  .record-item-val{font-size:15px;font-weight:700;color:var(--gold-light);margin:0 10px;white-space:nowrap;}
+  .btn-del{background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0;}
+  .btn-add{width:100%;background:transparent;border:1px dashed var(--gold);border-radius:8px;color:var(--gold);font-size:14px;padding:12px;margin-top:4px;cursor:pointer;}
+  .btn-calc{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;padding:16px;margin-top:20px;cursor:pointer;letter-spacing:.05em;}
+  .btn-calc:active{opacity:.8;}
+  .btn-reset{width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:14px;padding:12px;margin-top:10px;cursor:pointer;}
+  .empty-hint{font-size:12px;color:var(--text-dim);text-align:center;padding:10px 0;}
+
+  /* 結果 */
+  .result-area{display:none;margin-top:20px;}
+  .result-area.show{display:block;}
+  .result-main{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px;}
+  .result-title{font-size:12px;color:var(--text-muted);margin-bottom:6px;}
+  .result-value{font-size:26px;font-weight:700;color:var(--gold-light);line-height:1.3;}
+  .result-value span{font-size:13px;color:var(--text-muted);font-weight:400;}
+  .result-sub{font-size:11px;color:var(--text-muted);margin-top:6px;line-height:1.6;}
+  .confidence-badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:6px;vertical-align:middle;}
+  .confidence-high{background:rgba(76,175,125,.2);color:var(--green);border:1px solid var(--green);}
+  .confidence-mid{background:rgba(212,160,23,.2);color:var(--yellow);border:1px solid var(--yellow);}
+  .confidence-low{background:rgba(201,76,76,.2);color:var(--red);border:1px solid var(--red);}
+  .zone-table{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden;margin-bottom:10px;}
+  .zone-table-title{font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--text-muted);padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);}
+  table{width:100%;border-collapse:collapse;}
+  th{font-size:11px;color:var(--text-muted);font-weight:400;padding:8px 12px;text-align:left;border-bottom:1px solid var(--border);background:var(--surface2);}
+  td{font-size:13px;padding:10px 12px;border-bottom:1px solid var(--border);}
+  tr:last-child td{border-bottom:none;}
+  .td-zone{color:var(--text-muted);}
+  .td-base{color:var(--text);}
+  .td-next{font-weight:700;color:var(--gold-light);}
+  .notice-box{background:rgba(201,76,76,.1);border:1px solid rgba(201,76,76,.3);border-radius:8px;padding:12px 14px;margin-bottom:10px;}
+  .notice-box p{font-size:12px;color:#e07070;line-height:1.7;}
+  .info-note{font-size:11px;color:var(--text-dim);text-align:center;margin-top:16px;line-height:1.7;}
+
+  /* テキストまとめ */
+  .btn-copy{width:100%;background:transparent;border:1px solid var(--gold);border-radius:6px;color:var(--gold);font-size:14px;padding:10px;margin-top:8px;cursor:pointer;}
+  .btn-copy:active{background:rgba(201,168,76,.1);}
+  .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
+</style>
+</head>
+<body>
+<header>
+  <h1>あべしズレ判別ツール</h1>
+  <p>北斗の拳 転生の章2｜リセット加算推定</p>
+</header>
+
+<div class="container">
+
+  <!-- ① メモ -->
+  <div class="section">
+    <div class="section-label">メモ</div>
+    <p class="section-note">起きたことをタップして選び、あべし数を入力して追加。<br><span style="color:var(--text-dim);font-size:11px;">※メモ欄の記録はすべて判別計算に影響しません。記録・共有用のメモです。</span></p>
+    <div class="card">
+      <!-- イベントボタン -->
+      <div class="event-buttons" id="eventButtons"></div>
+
+      <!-- あべし入力 + ±ボタン -->
+      <div class="memo-abechi-row">
+        <input type="number" id="inMemoAbechi" placeholder="あべし" min="0" max="900">
+        <span class="unit">あべし</span>
+        <div class="incr-btns">
+          <button class="incr-btn" onclick="incrAbechi(1)">+1</button>
+          <button class="incr-btn" onclick="incrAbechi(5)">+5</button>
+          <button class="incr-btn" onclick="incrAbechi(10)">+10</button>
+        </div>
+      </div>
+
+      <!-- AT当選のみゲーム数 -->
+      <div class="at-game-row" id="atGameRow" style="display:none">
+        <span class="unit" style="color:var(--text-muted);white-space:nowrap;font-size:13px;">ATゲーム数</span>
+        <input type="number" id="inAtGames" placeholder="例:200" min="0" max="9999" style="width:100px;">
+        <span class="unit">G</span>
+      </div>
+
+      <button class="btn-memo-add" onclick="addMemo()">追加</button>
+
+      <!-- カスタム項目追加 -->
+      <div class="custom-add-row">
+        <input type="text" id="inCustomEvent" placeholder="項目を追加（例：演出名）">
+        <button class="btn-custom-add" onclick="addCustomEvent()">＋追加</button>
+      </div>
+
+      <!-- プリセット -->
+      <div class="preset-row">
+        <select id="presetSelect"><option value="">── プリセットを選択 ──</option></select>
+        <button class="btn-preset" onclick="savePreset()">保存</button>
+        <button class="btn-preset" onclick="loadPreset()">読込</button>
+        <button class="btn-preset" onclick="deletePreset()">削除</button>
+      </div>
+    </div>
+    <div class="record-list" id="memoList">
+      <div class="empty-hint">まだ記録なし</div>
+    </div>
+  </div>
+
+  <!-- ④ 天破の刻 -->
+  <div class="section">
+    <div class="section-label">天破の刻（任意・複数記録可）</div>
+    <p class="section-note">天破突入あべしと終了後の開始あべしをセットで記録。何回でも追加できます。</p>
+    <div class="card">
+      <div class="input-row">
+        <div class="input-label">突入あべし<div class="input-hint">天破に入った表示あべし数</div></div>
+        <div class="input-field-wrap">
+          <input type="number" id="inTenpaStart" placeholder="例:45" min="0" max="900">
+          <span class="unit">あべし</span>
+        </div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">終了後の開始あべし<div class="input-hint">天破抜け後の表示あべし数</div></div>
+        <div class="input-field-wrap">
+          <input type="number" id="inTenpaEnd" placeholder="例:140" min="0" max="900">
+          <span class="unit">あべし</span>
+        </div>
+      </div>
+    </div>
+    <button class="btn-add" onclick="addTenpa()">＋ この天破を記録する</button>
+    <div class="record-list" id="tenpaList"><div class="empty-hint">まだ記録なし</div></div>
+  </div>
+
+  <!-- ② 必ずシャッターが発生する区間 -->
+  <div class="section">
+    <div class="section-label">必ずシャッターが発生する区間の記録</div>
+    <p class="section-note">
+      896あべし超えでも<strong style="color:var(--gold-light)">必ずシャッターが発生する区間（本来98〜110あべし）</strong>があります。<br>
+      台の表示あべしがこのあたりに近づいたときにシャッター演出が出たら、その表示あべし数を記録してください。複数回記録するほど推定精度が上がります。
+    </p>
+    <div class="card">
+      <div class="input-row">
+        <div class="input-label">シャッター発生あべし<div class="input-hint">表示されているあべし数をそのまま入力</div></div>
+        <div class="input-field-wrap">
+          <input type="number" id="fixedShutterInput" placeholder="例:82" min="0" max="200">
+          <span class="unit">あべし</span>
+        </div>
+      </div>
+    </div>
+    <button class="btn-add" onclick="addFixed()">＋ この発生あべし数を記録する</button>
+    <div class="record-list" id="fixedList"><div class="empty-hint">まだ記録なし</div></div>
+  </div>
+
+  <!-- ③ 128ゾーン 天命の刻 -->
+  <div class="section">
+    <div class="section-label">128ゾーン 天命の刻バトル終了（任意）</div>
+    <p class="section-note">天命の刻のバトル終了あべし数（本来122〜127）を入力。</p>
+    <div class="card">
+      <div class="input-row">
+        <div class="input-label">バトル終了あべし<div class="input-hint">本来 122〜127あべし</div></div>
+        <div class="input-field-wrap">
+          <input type="number" id="in128battle" placeholder="例:104" min="0" max="200">
+          <span class="unit">あべし</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⑤ 256ゾーン -->
+  <div class="section">
+    <div class="section-label">256ゾーン バトル終了（任意）</div>
+    <p class="section-note">256ゾーンは必ずバトル演出まで発展する。終了あべし数（本来250〜255）を入力。</p>
+    <div class="card">
+      <div class="input-row">
+        <div class="input-label">バトル終了あべし<div class="input-hint">本来 250〜255あべし</div></div>
+        <div class="input-field-wrap">
+          <input type="number" id="in256battle" placeholder="例:228" min="0" max="300">
+          <span class="unit">あべし</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <button class="btn-calc" onclick="calculate()">判別する</button>
+  <button class="btn-reset" onclick="resetAll()">すべてリセット</button>
+
+  <!-- 結果エリア -->
+  <div class="result-area" id="resultArea">
+    <div class="section">
+      <div class="section-label">判別結果</div>
+
+      <div class="result-main">
+        <div class="result-title">推定リセット加算量</div>
+        <div class="result-value" id="resultOffset">－</div>
+        <div class="result-sub" id="resultSub"></div>
+      </div>
+
+      <div class="notice-box" id="noticeBox" style="display:none">
+        <p id="noticeText"></p>
+      </div>
+
+      <div class="zone-table">
+        <div class="zone-table-title">シャッター狙いゾーンの表示目安（この台）</div>
+        <table>
+          <tr><th>ゾーン</th><th>本来区間</th><th>この台の目安</th></tr>
+          <tr><td class="td-zone">第1ゾーン</td><td class="td-base">32〜48</td><td class="td-next" id="nz1">－</td></tr>
+          <tr><td class="td-zone">第2ゾーン</td><td class="td-base">160〜176</td><td class="td-next" id="nz2">－</td></tr>
+          <tr><td class="td-zone">第3ゾーン</td><td class="td-base">288〜304</td><td class="td-next" id="nz3">－</td></tr>
+          <tr><td class="td-zone">第4ゾーン</td><td class="td-base">416〜432</td><td class="td-next" id="nz4">－</td></tr>
+          <tr><td class="td-zone">第5ゾーン</td><td class="td-base">480〜496</td><td class="td-next" id="nz5">－</td></tr>
+        </table>
+      </div>
+
+      <!-- メモ一覧（ゾーン表の直下） -->
+      <div id="memoResult" style="display:none">
+        <div class="zone-table">
+          <div class="zone-table-title">メモ一覧</div>
+          <table>
+            <tr><th>あべし</th><th>内容</th><th></th></tr>
+            <tbody id="memoResultBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="zone-table">
+        <div class="zone-table-title">参考：判別区間の表示目安</div>
+        <table>
+          <tr><th>区間</th><th>本来</th><th>この台の目安</th></tr>
+          <tr><td class="td-zone">必ずシャッター区間</td><td class="td-base">98〜110</td><td class="td-next" id="nzFixed">－</td></tr>
+          <tr><td class="td-zone">128天命終了</td><td class="td-base">122〜127</td><td class="td-next" id="nz128">－</td></tr>
+          <tr><td class="td-zone">256バトル終了</td><td class="td-base">250〜255</td><td class="td-next" id="nz256">－</td></tr>
+        </table>
+      </div>
+
+      <div id="tenpaResult" style="display:none">
+        <div class="result-main">
+          <div class="result-title">天破の刻 記録</div>
+          <div id="tenpaList2"></div>
+        </div>
+      </div>
+
+      <!-- テキストまとめ -->
+      <div class="section">
+        <div class="section-label">テキストまとめ</div>
+        <p class="section-note">LINEやDiscordへの共有・自分用メモ用にテキスト化します。</p>
+        <textarea id="summaryText" placeholder="「判別する」を押すと自動生成されます。手動で追記もできます。"></textarea>
+        <button class="btn-copy" onclick="copyText()">コピーする</button>
+        <div class="copy-done" id="copyDone">コピーしました！</div>
+      </div>
+
+    </div>
+    <p class="info-note">推定は確率的な目安です。実戦では前後5あべし程度の誤差を見てください。</p>
+  </div>
+
+</div>
+
+<script>
+// ── 定数 ──
+const FIXED_SHUTTER={min:98,max:110};
+const ZONE_128={min:122,max:127};
+const ZONE_256={min:250,max:255};
+const SNIPE_ZONES=[
+  {id:'nz1',name:'第1ゾーン',min:32,max:48},
+  {id:'nz2',name:'第2ゾーン',min:160,max:176},
+  {id:'nz3',name:'第3ゾーン',min:288,max:304},
+  {id:'nz4',name:'第4ゾーン',min:416,max:432},
+  {id:'nz5',name:'第5ゾーン',min:480,max:496},
+];
+const DEFAULT_EVENTS=['第一停止系','第二停止系','第三停止系','天破煽り','燭台に火をともせ','シャッター','場面切り替え演出','チャンスアップ','レア役','弱チェリー','強チェリー','スイカ','チャンス目/勝負揃い','AT当選'];
+const AT_EVENT='AT当選';
+
+// ── 状態 ──
+let fixedRecords=[];
+let tenpaRecords=[];
+let memoRecords=[];
+let selectedEvent=null;
+let customEvents=[];
+
+// ── イベントボタン初期化 ──
+function initEventButtons(){
+  const wrap=document.getElementById('eventButtons');
+  wrap.innerHTML='';
+  DEFAULT_EVENTS.forEach(name=>wrap.appendChild(makeEventBtn(name,false)));
+  customEvents.forEach(name=>wrap.appendChild(makeEventBtn(name,true)));
+}
+
+function makeEventBtn(name,isCustom){
+  if(isCustom){
+    const wrap=document.createElement('div');
+    wrap.className='event-btn-custom-wrap';
+    const btn=document.createElement('button');
+    btn.className='event-btn-custom';
+    btn.textContent=name;
+    btn.onclick=()=>selectEvent(btn,name);
+    const del=document.createElement('button');
+    del.className='event-btn-del';
+    del.textContent='×';
+    del.title='削除';
+    del.onclick=(e)=>{e.stopPropagation();deleteCustomEvent(name);};
+    wrap.appendChild(btn);
+    wrap.appendChild(del);
+    return wrap;
+  } else {
+    const btn=document.createElement('button');
+    btn.className='event-btn';
+    btn.textContent=name;
+    btn.onclick=()=>selectEvent(btn,name);
+    return btn;
+  }
+}
+
+function selectEvent(el,name){
+  document.querySelectorAll('.event-btn,.event-btn-custom').forEach(b=>b.classList.remove('selected'));
+  el.classList.add('selected');
+  selectedEvent=name;
+  document.getElementById('atGameRow').style.display=(name===AT_EVENT)?'flex':'none';
+}
+
+function addCustomEvent(){
+  const input=document.getElementById('inCustomEvent');
+  const val=input.value.trim();
+  if(!val){alert('項目名を入力してください');return;}
+  if(DEFAULT_EVENTS.includes(val)||customEvents.includes(val)){alert('同じ名前の項目が既にあります');return;}
+  customEvents.push(val);
+  input.value='';
+  initEventButtons();
+}
+
+function deleteCustomEvent(name){
+  customEvents=customEvents.filter(e=>e!==name);
+  if(selectedEvent===name)selectedEvent=null;
+  initEventButtons();
+}
+
+// ── あべし増減 ──
+function incrAbechi(n){
+  const input=document.getElementById('inMemoAbechi');
+  const cur=input.value===''?0:parseInt(input.value,10);
+  input.value=isNaN(cur)?n:cur+n;
+}
+
+// ── メモ追加 ──
+function addMemo(){
+  const a=document.getElementById('inMemoAbechi').value;
+  const abechi=a===''?null:parseInt(a,10);
+  if(!selectedEvent){alert('起きたことを選択してください');return;}
+  if(abechi===null||isNaN(abechi)){alert('あべし数を入力してください');return;}
+  let label=selectedEvent;
+  if(selectedEvent===AT_EVENT){
+    const g=document.getElementById('inAtGames').value;
+    if(g!=='')label+=` (${g}G)`;
+  }
+  memoRecords.push({abechi,event:label});
+  memoRecords.sort((a,b)=>a.abechi-b.abechi);
+  // あべし数を残して+1（連続入力用）
+  const inputEl=document.getElementById('inMemoAbechi');
+  const cur=inputEl.value===''?0:parseInt(inputEl.value,10);
+  inputEl.value=isNaN(cur)?1:cur+1;
+  renderMemoList();
+}
+
+function deleteMemo(idx){
+  memoRecords.splice(idx,1);
+  renderMemoList();
+  if(document.getElementById('resultArea').classList.contains('show'))renderMemoResult();
+}
+
+function renderMemoList(){
+  const list=document.getElementById('memoList');
+  if(memoRecords.length===0){list.innerHTML='<div class="empty-hint">まだ記録なし</div>';return;}
+  list.innerHTML=memoRecords.map((r,i)=>`
+    <div class="record-item">
+      <div class="record-item-label">${r.event}</div>
+      <div class="record-item-val">${r.abechi}あべし</div>
+      <button class="btn-del" onclick="deleteMemo(${i})">削除</button>
+    </div>`).join('');
+}
+
+function renderMemoResult(){
+  const el=document.getElementById('memoResult');
+  if(memoRecords.length>0){
+    document.getElementById('memoResultBody').innerHTML=memoRecords.map((r,i)=>`
+      <tr>
+        <td class="td-base">${r.abechi}</td>
+        <td class="td-zone">${r.event}</td>
+        <td><button class="btn-del" onclick="deleteMemo(${i})">削除</button></td>
+      </tr>`).join('');
+    el.style.display='block';
+  }else{el.style.display='none';}
+}
+
+// ── プリセット ──
+function getPresets(){return JSON.parse(localStorage.getItem('abechi_presets')||'{}');}
+function savePresets(p){localStorage.setItem('abechi_presets',JSON.stringify(p));}
+
+function renderPresetSelect(){
+  const sel=document.getElementById('presetSelect');
+  const p=getPresets();
+  const keys=Object.keys(p);
+  sel.innerHTML='<option value="">── プリセットを選択 ──</option>'+keys.map(k=>`<option value="${k}">${k}</option>`).join('');
+}
+
+function savePreset(){
+  const name=prompt('プリセット名を入力してください');
+  if(!name||!name.trim())return;
+  const p=getPresets();
+  p[name.trim()]={memoRecords:[...memoRecords],customEvents:[...customEvents]};
+  savePresets(p);
+  renderPresetSelect();
+  alert(`「${name.trim()}」を保存しました`);
+}
+
+function loadPreset(){
+  const sel=document.getElementById('presetSelect');
+  const key=sel.value;
+  if(!key){alert('プリセットを選択してください');return;}
+  const p=getPresets();
+  if(!p[key])return;
+  memoRecords=[...p[key].memoRecords];
+  customEvents=[...p[key].customEvents];
+  initEventButtons();
+  renderMemoList();
+}
+
+function deletePreset(){
+  const sel=document.getElementById('presetSelect');
+  const key=sel.value;
+  if(!key){alert('削除するプリセットを選択してください');return;}
+  if(!confirm(`「${key}」を削除しますか？`))return;
+  const p=getPresets();
+  delete p[key];
+  savePresets(p);
+  renderPresetSelect();
+}
+
+// ── 必ずシャッター区間 ──
+function addFixed(){
+  const input=document.getElementById('fixedShutterInput');
+  const val=input.value===''?null:parseInt(input.value,10);
+  if(val===null||isNaN(val)){alert('あべし数を入力してください');return;}
+  fixedRecords.push(val);
+  input.value='';
+  renderFixedList();
+}
+
+function deleteFixed(idx){fixedRecords.splice(idx,1);renderFixedList();}
+
+function renderFixedList(){
+  const list=document.getElementById('fixedList');
+  if(fixedRecords.length===0){list.innerHTML='<div class="empty-hint">まだ記録なし</div>';return;}
+  list.innerHTML=fixedRecords.map((v,i)=>`
+    <div class="record-item">
+      <div class="record-item-label">必ずシャッター区間で発生</div>
+      <div class="record-item-val">${v}あべし</div>
+      <button class="btn-del" onclick="deleteFixed(${i})">削除</button>
+    </div>`).join('');
+}
+
+// ── 天破 ──
+function addTenpa(){
+  const s=document.getElementById('inTenpaStart').value;
+  const e=document.getElementById('inTenpaEnd').value;
+  const start=s===''?null:parseInt(s,10);
+  const end=e===''?null:parseInt(e,10);
+  if(start===null||end===null||isNaN(start)||isNaN(end)){alert('両方入力してください');return;}
+  if(end<=start){alert('終了後の開始あべしは突入あべしより大きい値を入力してください');return;}
+  tenpaRecords.push({start,end});
+  document.getElementById('inTenpaStart').value='';
+  document.getElementById('inTenpaEnd').value='';
+  renderTenpaList();
+}
+
+function deleteTenpa(idx){tenpaRecords.splice(idx,1);renderTenpaList();}
+
+function renderTenpaList(){
+  const list=document.getElementById('tenpaList');
+  if(tenpaRecords.length===0){list.innerHTML='<div class="empty-hint">まだ記録なし</div>';return;}
+  list.innerHTML=tenpaRecords.map((r,i)=>`
+    <div class="record-item">
+      <div class="record-item-label">${i+1}回目：+${r.end-r.start}あべし加算</div>
+      <div class="record-item-val">${r.start}→${r.end}</div>
+      <button class="btn-del" onclick="deleteTenpa(${i})">削除</button>
+    </div>`).join('');
+}
+
+// ── 計算 ──
+function calcRange(obs,zMin,zMax){return{min:zMin-obs,max:zMax-obs};}
+function intersect(ranges){
+  let lo=-Infinity,hi=Infinity;
+  for(const r of ranges){lo=Math.max(lo,r.min);hi=Math.min(hi,r.max);}
+  return{min:lo,max:hi};
+}
+function nextDisplay(zMin,zMax,offMin,offMax){
+  const lo=Math.max(0,zMin-offMax);
+  const hi=Math.max(0,zMax-offMin);
+  return lo===hi?`${lo}あべし`:`${lo}〜${hi}あべし`;
+}
+function getVal(id){const v=document.getElementById(id).value;return v===''?null:parseInt(v,10);}
+
+function calculate(){
+  const ranges=[];const sources=[];
+  for(const v of fixedRecords){ranges.push(calcRange(v,FIXED_SHUTTER.min,FIXED_SHUTTER.max));sources.push(`必ずシャッター区間(${v}あべし)`);}
+  const b128=getVal('in128battle');const b256=getVal('in256battle');
+  if(b128!==null){ranges.push(calcRange(b128,ZONE_128.min,ZONE_128.max));sources.push(`128天命終了(${b128}あべし)`);}
+  if(b256!==null){ranges.push(calcRange(b256,ZONE_256.min,ZONE_256.max));sources.push(`256バトル終了(${b256}あべし)`);}
+  if(ranges.length===0){alert('必ずシャッター区間・128天命・256バトルのいずれかを入力してください。');return;}
+
+  const inter=intersect(ranges);
+  const hasConflict=inter.min>inter.max;
+  let confidence,confidenceClass;
+  if(hasConflict){confidence='低（矛盾あり）';confidenceClass='confidence-low';}
+  else if(ranges.length>=2&&(inter.max-inter.min)<=4){confidence='高';confidenceClass='confidence-high';}
+  else if(ranges.length>=2){confidence='中';confidenceClass='confidence-mid';}
+  else{confidence='中（1項目）';confidenceClass='confidence-mid';}
+
+  let offMin,offMax;
+  if(hasConflict){offMin=Math.min(...ranges.map(r=>r.min));offMax=Math.max(...ranges.map(r=>r.max));}
+  else{offMin=inter.min;offMax=inter.max;}
+
+  const offText=offMin===offMax?`+${offMin}あべし`:`+${offMin}〜+${offMax}あべし`;
+  document.getElementById('resultOffset').innerHTML=`${offText} <span>推定</span><span class="confidence-badge ${confidenceClass}">信頼度：${confidence}</span>`;
+  document.getElementById('resultSub').textContent=`参照：${sources.join('、')}`;
+
+  for(const z of SNIPE_ZONES)document.getElementById(z.id).textContent=nextDisplay(z.min,z.max,offMin,offMax);
+  document.getElementById('nzFixed').textContent=nextDisplay(FIXED_SHUTTER.min,FIXED_SHUTTER.max,offMin,offMax);
+  document.getElementById('nz128').textContent=nextDisplay(ZONE_128.min,ZONE_128.max,offMin,offMax);
+  document.getElementById('nz256').textContent=nextDisplay(ZONE_256.min,ZONE_256.max,offMin,offMax);
+
+  const notices=[];
+  if(hasConflict)notices.push('入力値から推定した加算量に矛盾があります。天破通過の影響や入力ミスの可能性があります。');
+  if(ranges.length===1)notices.push('入力が1項目のみです。複数入力すると精度が上がります。');
+  const noticeBox=document.getElementById('noticeBox');
+  if(notices.length>0){document.getElementById('noticeText').innerHTML=notices.map(n=>`・${n}`).join('<br>');noticeBox.style.display='block';}
+  else{noticeBox.style.display='none';}
+
+  // 天破
+  const allZones=[...SNIPE_ZONES,{name:'必ずシャッター区間',min:FIXED_SHUTTER.min,max:FIXED_SHUTTER.max},{name:'128天命終了',min:ZONE_128.min,max:ZONE_128.max},{name:'256バトル終了',min:ZONE_256.min,max:ZONE_256.max}];
+  const tenpaResult=document.getElementById('tenpaResult');
+  if(tenpaRecords.length>0){
+    document.getElementById('tenpaList2').innerHTML=tenpaRecords.map((r,i)=>{
+      const add=r.end-r.start;
+      const skipped=allZones.filter(z=>{const lo=z.min-offMax;const hi=z.max-offMin;return r.start<hi&&r.end>lo;}).map(z=>z.name);
+      const skipText=skipped.length>0?`飛び越えた可能性：${skipped.join('、')}`:'判別ゾーンの飛び越えなし';
+      return`<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
+        <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">${i+1}回目（${r.start}→${r.end}あべし）</div>
+        <div style="font-size:18px;font-weight:700;color:var(--gold-light)">+${add}あべし加算</div>
+        <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${skipText}</div>
+      </div>`;
+    }).join('');
+    tenpaResult.style.display='block';
+  }else{tenpaResult.style.display='none';}
+
+  renderMemoResult();
+  generateSummary(offMin,offMax,confidence);
+
+  document.getElementById('resultArea').classList.add('show');
+  document.getElementById('resultArea').scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+// ── テキストまとめ生成 ──
+function generateSummary(offMin,offMax,confidence){
+  const offText=offMin===offMax?`+${offMin}あべし`:`+${offMin}〜+${offMax}あべし`;
+  const lines=[];
+  lines.push('【あべしズレ判別結果】');
+  lines.push(`推定リセット加算量：${offText}（信頼度：${confidence}）`);
+  lines.push('');
+  lines.push('■シャッター狙いゾーン目安');
+  for(const z of SNIPE_ZONES){
+    const disp=nextDisplay(z.min,z.max,offMin,offMax);
+    lines.push(`${z.name}：${disp}`);
+  }
+  if(tenpaRecords.length>0){
+    lines.push('');
+    lines.push('■天破の刻');
+    tenpaRecords.forEach((r,i)=>lines.push(`${i+1}回目：${r.start}→${r.end}あべし（+${r.end-r.start}）`));
+  }
+  if(memoRecords.length>0){
+    lines.push('');
+    lines.push('■メモ');
+    memoRecords.forEach(r=>lines.push(`${r.abechi}あべし：${r.event}`));
+  }
+  document.getElementById('summaryText').value=lines.join('\n');
+}
+
+function copyText(){
+  const text=document.getElementById('summaryText').value;
+  navigator.clipboard.writeText(text).then(()=>{
+    const done=document.getElementById('copyDone');
+    done.style.display='block';
+    setTimeout(()=>done.style.display='none',2000);
+  });
+}
+
+// ── リセット ──
+function resetAll(){
+  fixedRecords=[];tenpaRecords=[];memoRecords=[];
+  selectedEvent=null;customEvents=[];
+  initEventButtons();
+  renderFixedList();renderTenpaList();renderMemoList();
+  ['fixedShutterInput','in256battle','in128battle','inTenpaStart','inTenpaEnd','inMemoAbechi','inCustomEvent','inAtGames']
+    .forEach(id=>document.getElementById(id).value='');
+  document.getElementById('atGameRow').style.display='none';
+  document.getElementById('resultArea').classList.remove('show');
+  document.getElementById('summaryText').value='';
+}
+
+// ── 初期化 ──
+initEventButtons();
+renderPresetSelect();
+</script>
+</body>
+</html>
