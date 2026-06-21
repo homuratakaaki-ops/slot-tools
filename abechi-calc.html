@@ -13,7 +13,9 @@
   }
   *{box-sizing:border-box;margin:0;padding:0;}
   body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.6;min-height:100vh;padding-bottom:60px;}
-  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:16px 20px;text-align:center;}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center;}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px;}
+  .top-link:active{background:rgba(201,168,76,.12);color:var(--gold-light);}
   header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.05em;}
   header p{font-size:12px;color:var(--text-muted);margin-top:4px;}
   .container{max-width:480px;margin:0 auto;padding:0 16px;}
@@ -40,6 +42,8 @@
   .event-buttons{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;}
   .event-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:13px;padding:7px 14px;cursor:pointer;transition:all .15s;white-space:nowrap;}
   .event-btn:active,.event-btn.selected{background:rgba(201,168,76,.15);border-color:var(--gold);color:var(--gold-light);}
+  .event-btn-shutter{background:rgba(201,76,76,.18);border-color:#d85a5a;color:#ff9a9a;font-size:15px;font-weight:700;padding:9px 18px;box-shadow:0 0 0 1px rgba(216,90,90,.18);}
+  .event-btn-shutter:active,.event-btn-shutter.selected{background:rgba(201,76,76,.32);border-color:#ff6b6b;color:#ffd0d0;}
   .event-btn-custom-wrap{position:relative;display:inline-flex;align-items:center;}
   .event-btn-custom{background:var(--custom);border:1px solid var(--custom-border);border-radius:20px;color:#c8a8ff;font-size:13px;padding:7px 30px 7px 14px;cursor:pointer;white-space:nowrap;}
   .event-btn-custom.selected{background:rgba(122,90,170,.4);border-color:#c8a8ff;color:#fff;}
@@ -70,8 +74,11 @@
   /* 記録リスト */
   .record-list{margin-top:8px;}
   .record-item{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:6px;}
+  .record-item-shutter{border-color:rgba(201,76,76,.75);background:rgba(201,76,76,.12);}
   .record-item-label{font-size:12px;color:var(--text-muted);flex:1;}
+  .record-item-shutter .record-item-label{color:#ffb0b0;font-weight:700;}
   .record-item-val{font-size:15px;font-weight:700;color:var(--gold-light);margin:0 10px;white-space:nowrap;}
+  .record-item-shutter .record-item-val{color:#ffd0d0;}
   .btn-del{background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text-muted);font-size:12px;padding:4px 8px;cursor:pointer;flex-shrink:0;}
   .btn-add{width:100%;background:transparent;border:1px dashed var(--gold);border-radius:8px;color:var(--gold);font-size:14px;padding:12px;margin-top:4px;cursor:pointer;}
   .btn-calc{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;padding:16px;margin-top:20px;cursor:pointer;letter-spacing:.05em;}
@@ -98,6 +105,7 @@
   td{font-size:13px;padding:10px 12px;border-bottom:1px solid var(--border);}
   tr:last-child td{border-bottom:none;}
   .td-zone{color:var(--text-muted);}
+  .td-shutter{color:#ffb0b0;font-weight:700;}
   .td-base{color:var(--text);}
   .td-next{font-weight:700;color:var(--gold-light);}
   .notice-box{background:rgba(201,76,76,.1);border:1px solid rgba(201,76,76,.3);border-radius:8px;padding:12px 14px;margin-bottom:10px;}
@@ -112,6 +120,7 @@
 </head>
 <body>
 <header>
+  <a class="top-link" href="index.html">← TOP</a>
   <h1>あべしズレ判別ツール</h1>
   <p>北斗の拳 転生の章2｜リセット加算推定</p>
 </header>
@@ -128,13 +137,13 @@
 
       <!-- あべし入力 + ±ボタン -->
       <div class="memo-abechi-row">
-        <input type="number" id="inMemoAbechi" placeholder="あべし" min="0" max="900">
-        <span class="unit">あべし</span>
         <div class="incr-btns">
           <button class="incr-btn" onclick="incrAbechi(1)">+1</button>
           <button class="incr-btn" onclick="incrAbechi(5)">+5</button>
           <button class="incr-btn" onclick="incrAbechi(10)">+10</button>
         </div>
+        <input type="number" id="inMemoAbechi" placeholder="あべし" min="0" max="900">
+        <span class="unit">あべし</span>
       </div>
 
       <!-- AT当選のみゲーム数 -->
@@ -154,7 +163,7 @@
 
       <!-- プリセット -->
       <div class="preset-row">
-        <select id="presetSelect"><option value="">── プリセットを選択 ──</option></select>
+        <select id="presetSelect"><option value="">── 登録した設定 ──</option></select>
         <button class="btn-preset" onclick="savePreset()">保存</button>
         <button class="btn-preset" onclick="loadPreset()">読込</button>
         <button class="btn-preset" onclick="deletePreset()">削除</button>
@@ -326,6 +335,7 @@ const SNIPE_ZONES=[
 ];
 const DEFAULT_EVENTS=['第一停止系','第二停止系','第三停止系','天破煽り','燭台に火をともせ','シャッター','場面切り替え演出','チャンスアップ','レア役','弱チェリー','強チェリー','スイカ','チャンス目/勝負揃い','AT当選'];
 const AT_EVENT='AT当選';
+const SHUTTER_EVENT='シャッター';
 
 // ── 状態 ──
 let fixedRecords=[];
@@ -361,7 +371,8 @@ function makeEventBtn(name,isCustom){
   } else {
     const btn=document.createElement('button');
     btn.className='event-btn';
-    btn.textContent=name;
+    if(name===SHUTTER_EVENT)btn.classList.add('event-btn-shutter');
+    btn.textContent=name===SHUTTER_EVENT?'✕ シャッター':name;
     btn.onclick=()=>selectEvent(btn,name);
     return btn;
   }
@@ -427,8 +438,8 @@ function renderMemoList(){
   const list=document.getElementById('memoList');
   if(memoRecords.length===0){list.innerHTML='<div class="empty-hint">まだ記録なし</div>';return;}
   list.innerHTML=memoRecords.map((r,i)=>`
-    <div class="record-item">
-      <div class="record-item-label">${r.event}</div>
+    <div class="record-item ${r.event.includes(SHUTTER_EVENT)?'record-item-shutter':''}">
+      <div class="record-item-label">${r.event.includes(SHUTTER_EVENT)?'🔴 ':''}${r.event}</div>
       <div class="record-item-val">${r.abechi}あべし</div>
       <button class="btn-del" onclick="deleteMemo(${i})">削除</button>
     </div>`).join('');
@@ -440,7 +451,7 @@ function renderMemoResult(){
     document.getElementById('memoResultBody').innerHTML=memoRecords.map((r,i)=>`
       <tr>
         <td class="td-base">${r.abechi}</td>
-        <td class="td-zone">${r.event}</td>
+        <td class="td-zone ${r.event.includes(SHUTTER_EVENT)?'td-shutter':''}">${r.event.includes(SHUTTER_EVENT)?'🔴 ':''}${r.event}</td>
         <td><button class="btn-del" onclick="deleteMemo(${i})">削除</button></td>
       </tr>`).join('');
     el.style.display='block';
@@ -455,11 +466,11 @@ function renderPresetSelect(){
   const sel=document.getElementById('presetSelect');
   const p=getPresets();
   const keys=Object.keys(p);
-  sel.innerHTML='<option value="">── プリセットを選択 ──</option>'+keys.map(k=>`<option value="${k}">${k}</option>`).join('');
+  sel.innerHTML='<option value="">── 登録した設定 ──</option>'+keys.map(k=>`<option value="${k}">${k}</option>`).join('');
 }
 
 function savePreset(){
-  const name=prompt('プリセット名を入力してください');
+  const name=prompt('設定名を入力してください');
   if(!name||!name.trim())return;
   const p=getPresets();
   p[name.trim()]={memoRecords:[...memoRecords],customEvents:[...customEvents]};
@@ -471,7 +482,7 @@ function savePreset(){
 function loadPreset(){
   const sel=document.getElementById('presetSelect');
   const key=sel.value;
-  if(!key){alert('プリセットを選択してください');return;}
+  if(!key){alert('登録した設定を選択してください');return;}
   const p=getPresets();
   if(!p[key])return;
   memoRecords=[...p[key].memoRecords];
@@ -483,7 +494,7 @@ function loadPreset(){
 function deletePreset(){
   const sel=document.getElementById('presetSelect');
   const key=sel.value;
-  if(!key){alert('削除するプリセットを選択してください');return;}
+  if(!key){alert('削除する登録済み設定を選択してください');return;}
   if(!confirm(`「${key}」を削除しますか？`))return;
   const p=getPresets();
   delete p[key];
