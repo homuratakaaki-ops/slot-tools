@@ -507,9 +507,12 @@ function nowTime(){
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 function calcMoney(money){
-  const invest=Number(money.invest)||0;
-  const recover=Number(money.recover)||0;
-  const diff=recover-invest;
+  const hasInvest=money.invest!==null&&money.invest!==undefined&&money.invest!=='';
+  const hasRecover=money.recover!==null&&money.recover!==undefined&&money.recover!=='';
+  const invest=hasInvest?Number(money.invest):null;
+  const recover=hasRecover?Number(money.recover):null;
+  const hasResult=hasInvest&&hasRecover&&!Number.isNaN(invest)&&!Number.isNaN(recover);
+  const diff=hasResult?recover-invest:null;
   let workMinutes=null;
   let invalidTime=false;
   if(money.startTime&&money.endTime){
@@ -519,10 +522,16 @@ function calcMoney(money){
     invalidTime=raw<0;
     workMinutes=Math.max(raw,0);
   }
-  const hourlyRate=workMinutes>0?Math.round(diff/workMinutes*60):null;
-  return {workMinutes,diff,balance:diff,hourlyRate,invalidTime};
+  const hourlyRate=hasResult&&workMinutes>0?Math.round(diff/workMinutes*60):null;
+  return {workMinutes,diff,balance:diff,hourlyRate,invalidTime,hasResult};
 }
-function formatDiff(n){const num=Number(n)||0;return (num>0?'+':'')+num+'枚';}
+function formatDiff(n){
+  if(n===null||n===undefined||n==='')return '-';
+  const num=Number(n);
+  if(Number.isNaN(num))return '-';
+  return (num>0?'+':'')+num+'枚';
+}
+function formatMoneyAmount(n){return n===null||n===undefined||n===''?'-':(Number(n)||0)+'枚';}
 function sectionLabel(section){return section==='play'?'実戦中':'打ち始め';}
 function fieldTypeLabel(type){return {text:'テキスト',number:'数値',select:'選択式',checkbox:'チェックボックス',memo:'メモ欄',time:'時間',date:'日付'}[type]||'テキスト';}
 
@@ -1494,8 +1503,8 @@ function saveLog(){
     publishMachineNo:document.getElementById('publishMachineNo').checked,
     startTime:document.getElementById('moneyStart').value,
     endTime:document.getElementById('moneyEnd').value,
-    invest:Number(document.getElementById('moneyInvest').value)||0,
-    recover:Number(document.getElementById('moneyRecover').value)||0
+    invest:document.getElementById('moneyInvest').value===''?null:Number(document.getElementById('moneyInvest').value),
+    recover:document.getElementById('moneyRecover').value===''?null:Number(document.getElementById('moneyRecover').value)
   };
   const c=calcMoney(baseMoney);
   const log={
@@ -1706,7 +1715,7 @@ function buildShareText(log){
     lines.push('');
     lines.push(`実測：${practiceStatsLine(stats)}`);
   }
-  lines.push(`結果：投資${log.money?.invest||0}枚 / 回収${log.money?.recover||0}枚 / 差枚${formatDiff(log.money?.diff||0)}`);
+  lines.push(`結果：投資${formatMoneyAmount(log.money?.invest)} / 回収${formatMoneyAmount(log.money?.recover)} / 差枚${formatDiff(log.money?.diff)}`);
   if(log.publicMemo)lines.push(`メモ：${log.publicMemo}`);
   return lines.join('\n');
 }
@@ -1714,12 +1723,28 @@ function renderLogsList(){
   const el=document.getElementById('logsList');
   if(!db.logs.length){el.innerHTML='<div class="empty-hint">まだログなし</div>';return;}
   const logs=[...db.logs].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
-  el.innerHTML=logs.map(log=>`
+  const groups={};
+  logs.forEach(log=>{
+    const date=log.money?.date||'日付なし';
+    if(!groups[date])groups[date]=[];
+    groups[date].push(log);
+  });
+  const dates=Object.keys(groups).sort((a,b)=>{
+    if(a==='日付なし')return 1;
+    if(b==='日付なし')return -1;
+    return String(b).localeCompare(String(a));
+  });
+  el.innerHTML=dates.map(date=>`
+    <div class="section-label" style="margin-top:18px;">${escapeHtml(date)}</div>
+    ${groups[date].map(log=>renderLogItem(log)).join('')}`).join('');
+}
+function renderLogItem(log){
+  return `
     <div class="list-item">
       <div class="item-head">
         <div>
           <div class="item-title">${escapeHtml(log.machineName)} / ${escapeHtml(log.aimName)}</div>
-          <div class="item-sub">${escapeHtml(log.money?.date||'日付なし')}　差枚 ${formatDiff(log.money?.diff||0)}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件</div>
+          <div class="item-sub">差枚 ${formatDiff(log.money?.diff)}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件</div>
           <div class="item-sub">${escapeHtml(practiceStatsLine(calculatePracticeStats(log)))}</div>
           <div style="margin-top:6px;">
             ${(log.startLog||[]).slice(0,2).map(x=>`<span class="pill gold">${escapeHtml(startLogLine(x))}</span>`).join('')}
@@ -1736,7 +1761,7 @@ function renderLogsList(){
       <textarea id="share_${log.id}" style="margin-top:10px;min-height:180px;">${escapeHtml(buildShareText(log))}</textarea>
       <button class="btn-copy" onclick="copyLog('${log.id}')">編集した内容をコピー</button>
       <div class="copy-done" id="copied_${log.id}">コピーしました</div>
-    </div>`).join('');
+    </div>`;
 }
 function copyText(text,doneId){
   if(navigator.clipboard&&navigator.clipboard.writeText){
