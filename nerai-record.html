@@ -158,30 +158,30 @@ footer a:hover{color:var(--gold-light);}
     <div class="card">
       <div class="input-row">
         <div class="input-label">日付</div>
-        <div class="inline-field"><input type="date" id="moneyDate" onchange="updateCalc()"><button class="btn-small" onclick="setToday()">今日</button></div>
+        <div class="inline-field"><input type="date" id="moneyDate" onchange="syncHeaderFromMoney()"><button class="btn-small" onclick="setToday()">今日</button></div>
       </div>
       <div class="input-row">
         <div class="input-label">店舗名<div class="input-hint">公開出力には含めません</div></div>
-        <div class="inline-field"><select id="moneyStore"></select><button class="btn-small" onclick="addStoreFromInput()">追加</button></div>
+        <div class="inline-field"><select id="moneyStore" onchange="syncHeaderFromMoney()"></select><button class="btn-small" onclick="addStoreFromInput()">追加</button></div>
       </div>
       <label class="input-row" style="cursor:pointer;">
         <div class="input-label">店舗名を公開する<div class="input-hint">チェック時のみコピペ出力に含めます</div></div>
-        <input type="checkbox" id="publishStore">
+        <input type="checkbox" id="publishStore" onchange="syncHeaderFromMoney()">
       </label>
       <div class="input-row">
         <div class="input-label fixed-label">台番号</div>
         <div class="field-stack">
-          <input type="text" id="moneyMachineNo" class="numeric-input" inputmode="none" readonly placeholder="例：123">
+          <input type="text" id="moneyMachineNo" class="numeric-input" inputmode="none" readonly placeholder="例：123" oninput="syncHeaderFromMoney()" onchange="syncHeaderFromMoney()">
           <div class="input-hint">公開出力には含めません</div>
         </div>
       </div>
       <label class="input-row" style="cursor:pointer;">
         <div class="input-label">台番号を公開する<div class="input-hint">チェック時のみコピペ出力に含めます</div></div>
-        <input type="checkbox" id="publishMachineNo">
+        <input type="checkbox" id="publishMachineNo" onchange="syncHeaderFromMoney()">
       </label>
       <div class="input-row">
         <div class="input-label">開始時間</div>
-        <div class="inline-field"><input type="time" id="moneyStart" onchange="updateCalc()"><button class="btn-small" onclick="setNow('moneyStart')">現在</button></div>
+        <div class="inline-field"><input type="time" id="moneyStart" onchange="syncHeaderFromMoney()"><button class="btn-small" onclick="setNow('moneyStart')">現在</button></div>
       </div>
       <div class="input-row">
         <div class="input-label">終了時間</div>
@@ -410,6 +410,7 @@ let currentTimeline=[];
 let currentEndLog=null;
 let pendingTimelineTagIds=[];
 let editingLogId=null;
+let continuedFromLog=null;
 
 function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9000+1000);}
 function clone(value){return JSON.parse(JSON.stringify(value));}
@@ -921,17 +922,52 @@ function selectLogAim(){
   renderAll();
 }
 function renderStoreSelect(){
-  const sel=document.getElementById('moneyStore');
-  sel.innerHTML='<option value="">店舗未選択</option>'+db.stores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  const options='<option value="">店舗未選択</option>'+db.stores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  ['moneyStore','startMoneyStore'].forEach(id=>{
+    const sel=document.getElementById(id);
+    if(!sel)return;
+    const current=sel.value;
+    sel.innerHTML=options;
+    if(current)sel.value=current;
+  });
 }
-function addStoreFromInput(){
+function addStoreFromInput(source='money'){
   const name=prompt('追加する店舗名');
   if(name===null)return;
   const trimmed=name.trim();
   if(!trimmed)return;
   if(!db.stores.includes(trimmed))db.stores.push(trimmed);
   persist();renderStoreSelect();
-  document.getElementById('moneyStore').value=trimmed;
+  const targetId=source==='start'?'startMoneyStore':'moneyStore';
+  const target=document.getElementById(targetId);
+  if(target)target.value=trimmed;
+  source==='start'?syncHeaderFromStart():syncHeaderFromMoney();
+}
+function setFieldValue(id,value){
+  const el=document.getElementById(id);
+  if(el)el.value=value||'';
+}
+function setFieldChecked(id,value){
+  const el=document.getElementById(id);
+  if(el)el.checked=!!value;
+}
+function syncHeaderFromStart(){
+  setFieldValue('moneyDate',document.getElementById('startMoneyDate')?.value||'');
+  setFieldValue('moneyStore',document.getElementById('startMoneyStore')?.value||'');
+  setFieldChecked('publishStore',document.getElementById('startPublishStore')?.checked);
+  setFieldValue('moneyMachineNo',document.getElementById('startMoneyMachineNo')?.value||'');
+  setFieldChecked('publishMachineNo',document.getElementById('startPublishMachineNo')?.checked);
+  setFieldValue('moneyStart',document.getElementById('startMoneyStart')?.value||'');
+  updateCalc();
+}
+function syncHeaderFromMoney(){
+  setFieldValue('startMoneyDate',document.getElementById('moneyDate')?.value||'');
+  setFieldValue('startMoneyStore',document.getElementById('moneyStore')?.value||'');
+  setFieldChecked('startPublishStore',document.getElementById('publishStore')?.checked);
+  setFieldValue('startMoneyMachineNo',document.getElementById('moneyMachineNo')?.value||'');
+  setFieldChecked('startPublishMachineNo',document.getElementById('publishMachineNo')?.checked);
+  setFieldValue('startMoneyStart',document.getElementById('moneyStart')?.value||'');
+  updateCalc();
 }
 function renderLogFields(){
   const aim=currentAim();
@@ -951,6 +987,8 @@ function renderLogFields(){
   renderCurrentTimeline();
   renderEndLog();
   renderPracticeStats();
+  renderStoreSelect();
+  syncHeaderFromMoney();
 }
 function renderFieldInput(f){
   const id='logfield_'+f.id;
@@ -981,6 +1019,7 @@ function renderStartLogArea(){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">打ち始めログは機種選択後に使えます</div>';
   return `
+    ${renderStartHeaderArea()}
     <div class="input-row">
       <div class="input-label no-wrap-label">ラベル<div class="input-hint">数値の意味</div></div>
       <input type="text" id="startLogLabel" placeholder="例：AT間ゲーム数" oninput="this.dataset.labelTagId=''">
@@ -994,6 +1033,39 @@ function renderStartLogArea(){
     <textarea id="startLogText" placeholder="例：CZ2スルー"></textarea>
     <button class="btn-primary" onclick="addStartLogEntry()">打ち始めに追加</button>
     <div id="startLogList" style="margin-top:10px;"></div>`;
+}
+function renderStartHeaderArea(){
+  return `
+    ${continuedFromLog?`<div class="calc-box" style="margin-bottom:12px;"><div class="calc-label">続行元</div><div class="timeline-text" style="margin-top:4px;">${escapeHtml(continuedFromLog.summary)}</div></div>`:''}
+    <div class="section-label" style="margin-top:0;">稼働ヘッダー</div>
+    <div class="input-row">
+      <div class="input-label no-wrap-label">日付</div>
+      <div class="inline-field"><input type="date" id="startMoneyDate" onchange="syncHeaderFromStart()"><button class="btn-small" onclick="setToday('start')">今日</button></div>
+    </div>
+    <div class="input-row">
+      <div class="input-label no-wrap-label">店舗名</div>
+      <div class="inline-field"><select id="startMoneyStore" onchange="syncHeaderFromStart()"></select><button class="btn-small" onclick="addStoreFromInput('start')">追加</button></div>
+    </div>
+    <label class="input-row" style="cursor:pointer;">
+      <div class="input-label no-wrap-label">店舗公開<div class="input-hint">チェック時のみ出力</div></div>
+      <input type="checkbox" id="startPublishStore" onchange="syncHeaderFromStart()">
+    </label>
+    <div class="input-row">
+      <div class="input-label no-wrap-label">台番号</div>
+      <div class="field-stack">
+        <input type="text" id="startMoneyMachineNo" class="numeric-input" inputmode="none" readonly placeholder="例：123" oninput="syncHeaderFromStart()" onchange="syncHeaderFromStart()">
+        <div class="input-hint">公開出力には含めません</div>
+      </div>
+    </div>
+    <label class="input-row" style="cursor:pointer;">
+      <div class="input-label no-wrap-label">台番号公開<div class="input-hint">チェック時のみ出力</div></div>
+      <input type="checkbox" id="startPublishMachineNo" onchange="syncHeaderFromStart()">
+    </label>
+    <div class="input-row">
+      <div class="input-label no-wrap-label">開始時間</div>
+      <div class="inline-field"><input type="time" id="startMoneyStart" onchange="syncHeaderFromStart()"><button class="btn-small" onclick="setNow('startMoneyStart')">現在</button></div>
+    </div>
+    <div class="section-label" style="margin-top:14px;">打ち始めデータ</div>`;
 }
 function setStartLabelById(id){
   const tag=currentMachine()?.labelTags?.find(t=>t.id===id);
@@ -1095,14 +1167,17 @@ function renderTimelineArea(){
     <button class="btn-primary" onclick="addTimelineEntry()">ログに追加</button>
     <div class="section-label" style="margin-top:14px;">打ち終わり</div>
     <div class="input-row">
-      <div class="input-label">終了理由<div class="input-hint">打ち終わり登録時は必須</div></div>
-      <select id="endReason">
-        <option value="">未選択</option>
-        <option value="CZ当選">CZ当選</option>
-        <option value="AT当選">AT当選</option>
-        <option value="ヤメ">ヤメ</option>
-        <option value="その他">その他</option>
-      </select>
+      <div class="input-label no-wrap-label">終了理由</div>
+      <div class="field-stack">
+        <select id="endReason">
+          <option value="">未選択</option>
+          <option value="CZ当選">CZ当選</option>
+          <option value="AT当選">AT当選</option>
+          <option value="ヤメ">ヤメ</option>
+          <option value="その他">その他</option>
+        </select>
+        <div class="input-hint">打ち終わり登録時は必須</div>
+      </div>
     </div>
     <textarea id="endText" placeholder="終了理由の補足（任意）"></textarea>
     <button class="btn-secondary end-btn" onclick="recordEndLog()">現在のG数で打ち終わり</button>
@@ -1338,8 +1413,25 @@ function collectValues(fields){
   });
   return values;
 }
-function setToday(){document.getElementById('moneyDate').value=todayValue();updateCalc();}
-function setNow(id){document.getElementById(id).value=nowTime();updateCalc();}
+function setToday(source='money'){
+  const id=source==='start'?'startMoneyDate':'moneyDate';
+  const el=document.getElementById(id);
+  if(el)el.value=todayValue();
+  source==='start'?syncHeaderFromStart():syncHeaderFromMoney();
+}
+function setNow(id){
+  const el=document.getElementById(id);
+  if(el)el.value=nowTime();
+  id==='startMoneyStart'?syncHeaderFromStart():syncHeaderFromMoney();
+}
+function setDefaultStartTime(force=false){
+  if(editingLogId&&!force)return;
+  const start=document.getElementById('moneyStart');
+  if(start&&(!start.value||force)){
+    start.value=nowTime();
+    syncHeaderFromMoney();
+  }
+}
 function updateCalc(){
   const calc=calcMoney({
     startTime:document.getElementById('moneyStart')?.value||'',
@@ -1413,6 +1505,7 @@ function scrollToPageTop(){
 }
 function clearLogInput(cancelEdit=true){
   if(cancelEdit)editingLogId=null;
+  continuedFromLog=null;
   document.querySelectorAll('#pageLog input,#pageLog textarea').forEach(el=>{
     if(el.type==='checkbox')el.checked=false;
     else el.value='';
@@ -1429,6 +1522,7 @@ function clearLogInput(cancelEdit=true){
   renderEndLog();
   renderPracticeStats();
   setToday();
+  setDefaultStartTime(true);
   updateCalc();
   updateEditModeUi();
 }
@@ -1468,6 +1562,7 @@ function fillLogInputs(log){
   document.getElementById('moneyRecover').value=money.recover||'';
   document.getElementById('publicMemo').value=log.publicMemo||'';
   document.getElementById('privateMemo').value=log.privateMemo||'';
+  syncHeaderFromMoney();
   updateCalc();
 }
 
@@ -1483,6 +1578,7 @@ function loadLogForEdit(id){
     persist();
   }
   editingLogId=id;
+  continuedFromLog=null;
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
   currentStartLog=clone(log.startLog||[]).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
@@ -1491,6 +1587,53 @@ function loadLogForEdit(id){
   pendingTimelineTagIds=[];
   showPage('pageLog');
   fillLogInputs(log);
+  renderCurrentStartLog();
+  renderCurrentTimeline();
+  renderEndLog();
+  renderPracticeStats();
+  updateEditModeUi();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function continueFromLog(id){
+  const log=db.logs.find(l=>l.id===id);
+  if(!log)return;
+  const machine=machineById(log.machineId);
+  if(!machine){alert('このログの機種テンプレが見つかりません。先に機種を復元してください。');return;}
+  let aim=aimById(machine,log.aimId)||machine.aims.find(a=>a.name===log.aimName);
+  if(!aim&&log.aimId){
+    aim={id:log.aimId,name:log.aimName||'復元した狙い方',fields:clone(log.fieldSnapshot||[])};
+    machine.aims.push(aim);
+    persist();
+  }
+  editingLogId=null;
+  selectedMachineId=machine.id;
+  selectedAimId=aim?.id||firstAimIdForMachine(machine);
+  currentStartLog=[];
+  currentTimeline=[];
+  currentEndLog=null;
+  pendingTimelineTagIds=[];
+  const stats=practiceStatsLine(calculatePracticeStats(log));
+  continuedFromLog={id:log.id,summary:`${log.money?.date||'日付なし'} / ${endLogLine(log.endLog)||'打ち終わりなし'} / ${stats}`};
+  showPage('pageLog');
+  const money=log.money||{};
+  if(money.store&&!db.stores.includes(money.store)){
+    db.stores.push(money.store);
+    persist();
+    renderStoreSelect();
+  }
+  document.getElementById('moneyDate').value=money.date||todayValue();
+  document.getElementById('moneyStore').value=money.store||'';
+  document.getElementById('publishStore').checked=!!money.publishStore;
+  document.getElementById('moneyMachineNo').value=money.machineNo||'';
+  document.getElementById('publishMachineNo').checked=!!money.publishMachineNo;
+  document.getElementById('moneyStart').value=nowTime();
+  document.getElementById('moneyEnd').value='';
+  document.getElementById('moneyInvest').value='';
+  document.getElementById('moneyRecover').value='';
+  document.getElementById('publicMemo').value='';
+  document.getElementById('privateMemo').value='';
+  syncHeaderFromMoney();
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
@@ -1556,6 +1699,7 @@ function renderLogsList(){
         </div>
         <div class="item-actions">
           <button class="btn-small" onclick="loadLogForEdit('${log.id}')">編集</button>
+          <button class="btn-small gold" onclick="continueFromLog('${log.id}')">この台を続行</button>
           <button class="btn-danger" onclick="deleteLog('${log.id}')">削除</button>
         </div>
       </div>
@@ -1620,6 +1764,7 @@ function restoreJson(input){
 toggleOptionsHint();
 showPage('pageLog');
 setToday();
+setDefaultStartTime();
 </script>
 </body>
 </html>
