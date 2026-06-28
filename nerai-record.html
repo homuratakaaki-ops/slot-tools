@@ -1,0 +1,1416 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>狙い目検証ログ｜パチスロ実戦記録ツール</title>
+<meta name="description" content="パチスロの狙い目を機種別・狙い方別に記録し、実戦ログと収支を整理する無料ツールです。スマホでの実戦中入力に対応しています。">
+<link rel="canonical" href="https://slot-tools.jp/nerai-record.html">
+<style>
+:root{
+  --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;
+  --gold:#c9a84c;--gold-light:#e8c96a;--red:#c94c4c;--green:#4caf7d;
+  --yellow:#d4a017;--text:#e8e4d9;--text-muted:#7a7a8a;--text-dim:#4a4a5a;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.6;min-height:100vh;padding-bottom:60px;}
+header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 16px 16px;text-align:center;}
+.top-link{display:inline-flex;align-items:center;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px;}
+header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.04em;}
+header p{font-size:12px;color:var(--text-muted);margin-top:4px;}
+.tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10;}
+.tab{flex:1;padding:12px 6px;text-align:center;font-size:12px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;}
+.tab.active{color:var(--gold-light);border-bottom-color:var(--gold);}
+.page{display:none;padding:0 16px;max-width:480px;margin:0 auto;}
+.page.active{display:block;}
+.section{margin-top:16px;}
+.section-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold);}
+.section-note{font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.7;}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;}
+.input-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.input-row:last-child{border-bottom:none;padding-bottom:0;}
+.input-row:first-child{padding-top:0;}
+.input-label{font-size:13px;color:var(--text);flex:1;}
+.input-label.fixed-label{flex:0 0 92px;min-width:92px;white-space:nowrap;}
+.input-label.no-wrap-label{flex:0 0 132px;min-width:132px;white-space:nowrap;}
+.input-label.no-wrap-label .input-hint{white-space:nowrap;}
+.input-hint{font-size:11px;color:var(--text-muted);margin-top:2px;}
+input[type="text"],input[type="number"],input[type="date"],input[type="time"],select,textarea{
+  background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);
+  font-size:15px;padding:8px 10px;outline:none;transition:border-color .2s;
+}
+input[type="text"],select,textarea{width:100%;}
+input[type="number"]{width:96px;text-align:center;-moz-appearance:textfield;}
+input[type="number"]::-webkit-outer-spin-button,input[type="number"]::-webkit-inner-spin-button{-webkit-appearance:none;}
+input[type="date"],input[type="time"]{color-scheme:dark;min-width:138px;}
+input:focus,select:focus,textarea:focus{border-color:var(--gold);}
+textarea{resize:vertical;min-height:78px;line-height:1.6;}
+input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
+.inline-field{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
+.btn-primary{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:10px;}
+.btn-primary:active{opacity:.82;}
+.btn-secondary{width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:14px;padding:11px;cursor:pointer;margin-top:8px;}
+.btn-secondary:active,.btn-small:active{border-color:var(--gold);color:var(--gold-light);}
+.btn-small{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;}
+.btn-small.gold{border-color:var(--gold);color:var(--gold);}
+.btn-danger{background:transparent;border:1px solid rgba(201,76,76,.45);border-radius:6px;color:#e07070;font-size:12px;padding:5px 10px;cursor:pointer;white-space:nowrap;}
+.btn-copy{width:100%;background:transparent;border:1px solid var(--gold);border-radius:6px;color:var(--gold);font-size:14px;padding:10px;margin-top:8px;cursor:pointer;}
+.btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;}
+.btn-row>*{flex:1;}
+.list-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;}
+.list-item.active{border-color:rgba(201,168,76,.7);background:rgba(201,168,76,.08);}
+.item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.item-title{font-size:14px;font-weight:700;color:var(--text);}
+.item-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
+.item-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
+.empty-hint{font-size:12px;color:var(--text-dim);text-align:center;padding:16px 0;}
+.pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:11px;padding:2px 8px;margin:2px 4px 2px 0;}
+.pill.gold{border-color:rgba(201,168,76,.55);color:var(--gold-light);background:rgba(201,168,76,.08);}
+.field-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;margin-bottom:8px;}
+.field-card.optional{border-style:dashed;}
+.tag-buttons{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;}
+.tag-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:12px;padding:7px 12px;cursor:pointer;}
+.tag-btn:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
+.log-tools{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;}
+.log-tools .btn-small{flex:1;min-width:64px;}
+.timeline-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;}
+.timeline-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}
+.timeline-game{font-size:13px;font-weight:700;color:var(--gold-light);}
+.timeline-text{font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;}
+.calc-box{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.35);border-radius:8px;padding:12px;margin-top:10px;}
+.calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.calc-cell{background:rgba(0,0,0,.14);border:1px solid var(--border);border-radius:6px;padding:8px;}
+.calc-label{font-size:11px;color:var(--text-muted);}
+.calc-value{font-size:17px;font-weight:700;color:var(--gold-light);margin-top:2px;}
+.warning{font-size:12px;color:#e07070;margin-top:8px;display:none;}
+.optional-box{display:none;margin-top:8px;}
+.optional-box.open{display:block;}
+.copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
+.backup-file{font-size:12px;color:var(--text-muted);}
+.keypad-overlay{position:fixed;inset:0;background:rgba(0,0,0,.68);z-index:100;display:none;align-items:flex-end;justify-content:center;}
+.keypad-overlay.open{display:flex;}
+.keypad{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:14px 16px 18px;box-shadow:0 -8px 30px rgba(0,0,0,.35);}
+.keypad-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
+.keypad-title span{font-size:13px;color:var(--text-muted);}
+.keypad-value{font-size:20px;font-weight:700;color:var(--gold-light);min-height:32px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;}
+.keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.keypad-btn{min-height:54px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:22px;font-weight:700;cursor:pointer;}
+.keypad-btn:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
+.keypad-btn.action{font-size:15px;color:var(--text-muted);}
+.keypad-btn.confirm{background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;color:#0d0d0f;}
+footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px;}
+footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
+footer a{color:var(--text-muted);text-decoration:none;}
+footer a:hover{color:var(--gold-light);}
+@media (max-width:390px){
+  .tab{font-size:11px;padding:11px 4px;}
+  .input-row{align-items:stretch;flex-direction:column;gap:6px;}
+  .input-label.fixed-label{flex:0 0 auto;min-width:0;white-space:normal;}
+  .input-label.no-wrap-label{flex:0 0 auto;min-width:132px;white-space:nowrap;}
+  input[type="number"],input[type="date"],input[type="time"]{width:100%;min-width:0;}
+  .inline-field{width:100%;}
+  .item-head{flex-direction:column;}
+  .item-actions{justify-content:flex-start;width:100%;}
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="top-link" href="index.html">← TOP</a>
+  <h1>狙い目検証ログ</h1>
+  <p>機種別テンプレで、実戦中の狙い目を記録</p>
+</header>
+
+<div class="tab-bar">
+  <div class="tab" id="tabLog" onclick="showPage('pageLog')">稼働入力</div>
+  <div class="tab" id="tabLogs" onclick="showPage('pageLogs')">ログ</div>
+  <div class="tab" id="tabManage" onclick="showPage('pageManage')">機種管理</div>
+  <div class="tab" id="tabFields" onclick="showPage('pageFields')">項目</div>
+</div>
+
+<div class="page" id="pageLog">
+  <div class="section">
+    <div class="section-label">テンプレ選択</div>
+    <div class="card">
+      <div class="input-row">
+        <div class="input-label">機種</div>
+        <select id="logMachine" onchange="selectLogMachine()"></select>
+      </div>
+      <div class="input-row">
+        <div class="input-label">狙い方</div>
+        <select id="logAim" onchange="selectLogAim()"></select>
+      </div>
+    </div>
+  </div>
+
+  <div class="section" id="dynamicFieldsSection">
+    <div class="section-label">記録項目</div>
+    <div id="dynamicFields"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">収支</div>
+    <div class="card">
+      <div class="input-row">
+        <div class="input-label">日付</div>
+        <div class="inline-field"><input type="date" id="moneyDate" onchange="updateCalc()"><button class="btn-small" onclick="setToday()">今日</button></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">店舗名<div class="input-hint">公開出力には含めません</div></div>
+        <div class="inline-field"><select id="moneyStore"></select><button class="btn-small" onclick="addStoreFromInput()">追加</button></div>
+      </div>
+      <label class="input-row" style="cursor:pointer;">
+        <div class="input-label">店舗名を公開する<div class="input-hint">チェック時のみコピペ出力に含めます</div></div>
+        <input type="checkbox" id="publishStore">
+      </label>
+      <div class="input-row">
+        <div class="input-label fixed-label">台番号<div class="input-hint">公開出力には含めません</div></div>
+        <input type="text" id="moneyMachineNo" class="numeric-input" inputmode="none" readonly placeholder="例：123">
+      </div>
+      <label class="input-row" style="cursor:pointer;">
+        <div class="input-label">台番号を公開する<div class="input-hint">チェック時のみコピペ出力に含めます</div></div>
+        <input type="checkbox" id="publishMachineNo">
+      </label>
+      <div class="input-row">
+        <div class="input-label">開始時間</div>
+        <div class="inline-field"><input type="time" id="moneyStart" onchange="updateCalc()"><button class="btn-small" onclick="setNow('moneyStart')">現在</button></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">終了時間</div>
+        <div class="inline-field"><input type="time" id="moneyEnd" onchange="updateCalc()"><button class="btn-small" onclick="setNow('moneyEnd')">現在</button></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">投資</div>
+        <div class="inline-field"><input type="text" id="moneyInvest" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()"><span class="input-hint">枚</span></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">回収</div>
+        <div class="inline-field"><input type="text" id="moneyRecover" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()"><span class="input-hint">枚</span></div>
+      </div>
+      <div class="calc-box">
+        <div class="calc-grid">
+          <div class="calc-cell"><div class="calc-label">稼働時間</div><div class="calc-value" id="calcWork">-</div></div>
+          <div class="calc-cell"><div class="calc-label">差枚</div><div class="calc-value" id="calcDiff">0枚</div></div>
+          <div class="calc-cell"><div class="calc-label">収支</div><div class="calc-value" id="calcBalance">0枚</div></div>
+          <div class="calc-cell"><div class="calc-label">時給</div><div class="calc-value" id="calcHourly">-</div></div>
+        </div>
+        <div class="warning" id="timeWarning">終了時間が開始時間より前です。MVPでは日跨ぎを計算しないため、稼働時間は0分にします。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">メモ</div>
+    <div class="card">
+      <div class="input-label" style="margin-bottom:6px;">公開用メモ</div>
+      <textarea id="publicMemo" placeholder="コピペ出力に含めるメモ"></textarea>
+      <div class="input-label" style="margin:12px 0 6px;">非公開メモ</div>
+      <textarea id="privateMemo" placeholder="店舗事情など。公開出力には含めません"></textarea>
+    </div>
+    <div class="warning" id="editingNotice" style="display:none;margin-top:12px;"></div>
+    <button class="btn-primary" id="saveLogButton" onclick="saveLog()">この稼働ログを保存</button>
+    <button class="btn-secondary" id="cancelEditButton" onclick="cancelEditLog()" style="display:none;">編集をキャンセル</button>
+    <button class="btn-secondary" onclick="clearLogInput()">入力をクリア</button>
+  </div>
+</div>
+
+<div class="page" id="pageLogs">
+  <div class="section">
+    <div class="section-label">保存済みログ</div>
+    <div id="logsList"></div>
+  </div>
+  <div class="section">
+    <div class="section-label">バックアップ / 復元</div>
+    <button class="btn-secondary" onclick="backupJson()">全データをJSONでバックアップ</button>
+    <div class="card" style="margin-top:10px;">
+      <div class="input-label" style="margin-bottom:8px;">JSONから復元</div>
+      <input class="backup-file" type="file" id="restoreFile" accept="application/json,.json" onchange="restoreJson(this)">
+    </div>
+  </div>
+</div>
+
+<div class="page" id="pageManage">
+  <div class="section">
+    <div class="section-label">機種を追加</div>
+    <div class="card">
+      <div class="input-row"><div class="input-label">機種名</div><input type="text" id="machineName" placeholder="例：北斗の拳 転生の章2"></div>
+    </div>
+    <button class="btn-primary" onclick="addMachine()">機種を追加</button>
+  </div>
+
+  <div class="section">
+    <div class="section-label">機種一覧</div>
+    <div id="machineList"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">狙い方を追加</div>
+    <p class="section-note">先に機種を選択してください。</p>
+    <div class="card">
+      <div class="input-row"><div class="input-label">選択中の機種</div><div class="input-label" id="selectedMachineName">未選択</div></div>
+      <div class="input-row"><div class="input-label">狙い方名</div><input type="text" id="aimName" placeholder="例：あべし狙い"></div>
+    </div>
+    <button class="btn-primary" onclick="addAim()">狙い方を追加</button>
+    <div id="aimList" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">時系列タグ管理</div>
+    <p class="section-note">選択中の機種で使うタグを登録します。低頻度タグは稼働入力で折りたたまれます。</p>
+    <div class="card">
+      <div class="input-row"><div class="input-label">タグ名</div><input type="text" id="tagLabel" placeholder="例：弱チェリー"></div>
+      <label class="input-row" style="cursor:pointer;">
+        <div class="input-label">低頻度タグ<div class="input-hint">稼働入力では折りたたみ</div></div>
+        <input type="checkbox" id="tagOptional">
+      </label>
+    </div>
+    <button class="btn-primary" onclick="addTag()">タグを追加</button>
+    <div id="tagList" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">打ち始めタグ管理</div>
+    <p class="section-note">打ち始めデータ専用のタグです。小役タグとは分けて管理します。</p>
+    <div class="card">
+      <div class="input-row"><div class="input-label">タグ名</div><input type="text" id="startTagLabel" placeholder="例：CZスルー"></div>
+      <label class="input-row" style="cursor:pointer;">
+        <div class="input-label">低頻度タグ<div class="input-hint">稼働入力では折りたたみ</div></div>
+        <input type="checkbox" id="startTagOptional">
+      </label>
+    </div>
+    <button class="btn-primary" onclick="addStartTag()">打ち始めタグを追加</button>
+    <div id="startTagList" style="margin-top:10px;"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">打ち始め数値ラベル管理</div>
+    <p class="section-note">打ち始めの数値が何を表すかを、機種ごとに登録します。</p>
+    <div class="card">
+      <div class="input-row"><div class="input-label">ラベル名</div><input type="text" id="labelTagLabel" placeholder="例：AT間ゲーム数"></div>
+    </div>
+    <button class="btn-primary" onclick="addLabelTag()">数値ラベルを追加</button>
+    <div id="labelTagList" style="margin-top:10px;"></div>
+  </div>
+
+</div>
+
+<div class="page" id="pageFields">
+  <div class="section">
+    <div class="section-label">入力項目テンプレ</div>
+    <p class="section-note" id="fieldTargetNote">機種管理で狙い方を選択してください。</p>
+    <div class="card">
+      <div class="input-row"><div class="input-label">項目名</div><input type="text" id="fieldLabel" placeholder="例：現在あべし"></div>
+      <div class="input-row">
+        <div class="input-label">タイプ</div>
+        <select id="fieldType" onchange="toggleOptionsHint()">
+          <option value="text">テキスト</option>
+          <option value="number">数値</option>
+          <option value="select">選択式</option>
+          <option value="checkbox">チェックボックス</option>
+          <option value="memo">メモ欄</option>
+          <option value="time">時間</option>
+          <option value="date">日付</option>
+        </select>
+      </div>
+      <div class="input-row">
+        <div class="input-label">区分</div>
+        <select id="fieldSection">
+          <option value="start">打ち始め</option>
+          <option value="play">実戦中</option>
+        </select>
+      </div>
+      <label class="input-row" style="cursor:pointer;">
+        <div class="input-label">任意項目<div class="input-hint">稼働入力では初期折りたたみ</div></div>
+        <input type="checkbox" id="fieldOptional">
+      </label>
+      <div class="input-row" id="fieldOptionsRow">
+        <div class="input-label">選択肢<div class="input-hint">selectのみ。改行またはカンマ区切り</div></div>
+        <textarea id="fieldOptions" placeholder="例：弱チェリー&#10;強チェリー&#10;チャンス目"></textarea>
+      </div>
+    </div>
+    <button class="btn-primary" onclick="addField()">項目を追加</button>
+  </div>
+  <div class="section">
+    <div class="section-label">登録済み項目</div>
+    <div id="fieldList"></div>
+  </div>
+</div>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+  </nav>
+</footer>
+
+<div class="keypad-overlay" id="numericKeypadOverlay" onclick="closeNumericKeypad()">
+  <div class="keypad" onclick="event.stopPropagation()">
+    <div class="keypad-title">
+      <span id="numericKeypadLabel">数値入力</span>
+      <button class="btn-small" onclick="closeNumericKeypad()">確定</button>
+    </div>
+    <div class="keypad-value" id="numericKeypadValue"></div>
+    <div class="keypad-grid">
+      <button class="keypad-btn" onclick="pressKeypad('7')">7</button>
+      <button class="keypad-btn" onclick="pressKeypad('8')">8</button>
+      <button class="keypad-btn" onclick="pressKeypad('9')">9</button>
+      <button class="keypad-btn" onclick="pressKeypad('4')">4</button>
+      <button class="keypad-btn" onclick="pressKeypad('5')">5</button>
+      <button class="keypad-btn" onclick="pressKeypad('6')">6</button>
+      <button class="keypad-btn" onclick="pressKeypad('1')">1</button>
+      <button class="keypad-btn" onclick="pressKeypad('2')">2</button>
+      <button class="keypad-btn" onclick="pressKeypad('3')">3</button>
+      <button class="keypad-btn action" onclick="pressKeypad('back')">戻る</button>
+      <button class="keypad-btn" onclick="pressKeypad('0')">0</button>
+      <button class="keypad-btn action" onclick="pressKeypad('clear')">クリア</button>
+      <button class="keypad-btn action" onclick="pressKeypad('-')">−</button>
+      <button class="keypad-btn confirm" style="grid-column:span 2;" onclick="closeNumericKeypad()">確定</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const STORAGE_KEY='nerai_record_v1';
+const REQUIRED_AIMS=[
+  {id:'aim_tenjo',name:'天井狙い'},
+  {id:'aim_setting',name:'設定狙い'}
+];
+const DEFAULT_LABEL_TAGS=[
+  {id:'lt_counter_game',label:'データカウンターのゲーム数'}
+];
+const EMPTY_DATA={version:1,machines:[],stores:[],logs:[]};
+let db=loadData();
+let selectedMachineId=db.machines[0]?.id||'';
+let selectedAimId=firstAimIdForMachine(db.machines[0])||'';
+let activeNumericInput=null;
+let currentStartLog=[];
+let currentTimeline=[];
+let editingLogId=null;
+
+function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9000+1000);}
+function clone(value){return JSON.parse(JSON.stringify(value));}
+function escapeHtml(value){
+  return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function loadData(){
+  try{
+    const parsed=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
+    if(!parsed||parsed.version!==1)return clone(EMPTY_DATA);
+    return normalizeData(parsed);
+  }catch{return clone(EMPTY_DATA);}
+}
+function normalizeData(data){
+  data.machines=Array.isArray(data.machines)?data.machines:[];
+  delete data.presetAims;
+  data.stores=Array.isArray(data.stores)?data.stores:[];
+  data.logs=Array.isArray(data.logs)?data.logs:[];
+  data.logs.forEach(log=>{
+    log.startLog=Array.isArray(log.startLog)?log.startLog:[];
+    log.startLog.forEach(item=>{item.label=item.label||'';});
+    log.timeline=Array.isArray(log.timeline)?log.timeline:[];
+    if(!log.money)log.money={};
+    log.money.publishStore=!!log.money.publishStore;
+    log.money.publishMachineNo=!!log.money.publishMachineNo;
+  });
+  data.machines.forEach(m=>{
+    m.maker=m.maker||'';
+    m.aims=Array.isArray(m.aims)?m.aims:[];
+    m.tags=Array.isArray(m.tags)?m.tags:[];
+    m.startTags=Array.isArray(m.startTags)?m.startTags:[];
+    m.labelTags=Array.isArray(m.labelTags)?m.labelTags:[];
+    delete m.aimOrder;
+    m.aims.forEach(a=>a.fields=Array.isArray(a.fields)?a.fields:[]);
+    m.tags.forEach(t=>{t.optional=!!t.optional;});
+    m.startTags.forEach(t=>{t.optional=!!t.optional;});
+    ensureRequiredAims(m);
+    ensureDefaultLabelTags(m);
+  });
+  return data;
+}
+function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db));}
+function machineById(id){return db.machines.find(m=>m.id===id)||null;}
+function aimById(machine,id){return machine?.aims?.find(a=>a.id===id)||null;}
+function firstAimIdForMachine(machine){return machine?.aims?.[0]?.id||'';}
+function currentMachine(){return machineById(selectedMachineId);}
+function currentAim(){return aimById(currentMachine(),selectedAimId);}
+function ensureRequiredAims(machine){
+  if(!machine)return;
+  machine.aims=Array.isArray(machine.aims)?machine.aims:[];
+  REQUIRED_AIMS.slice().reverse().forEach(req=>{
+    let aim=machine.aims.find(a=>a.id===req.id)||machine.aims.find(a=>a.name===req.name);
+    if(!aim){
+      machine.aims.unshift({id:req.id,name:req.name,fields:[]});
+    }else{
+      aim.fields=Array.isArray(aim.fields)?aim.fields:[];
+    }
+  });
+  REQUIRED_AIMS.slice().reverse().forEach(req=>{
+    const idx=machine.aims.findIndex(a=>a.id===req.id||a.name===req.name);
+    if(idx>0){
+      const [aim]=machine.aims.splice(idx,1);
+      machine.aims.unshift(aim);
+    }
+  });
+}
+function ensureDefaultLabelTags(machine){
+  if(!machine)return;
+  machine.labelTags=Array.isArray(machine.labelTags)?machine.labelTags:[];
+  if(machine.labelTagDefaultsInitialized)return;
+  DEFAULT_LABEL_TAGS.slice().reverse().forEach(req=>{
+    const exists=machine.labelTags.find(t=>t.id===req.id||t.label===req.label||t.label==='データカウンターG数');
+    if(!exists)machine.labelTags.unshift({...req});
+  });
+  machine.labelTagDefaultsInitialized=true;
+}
+function todayValue(){
+  const d=new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function nowTime(){
+  const d=new Date();
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function calcMoney(money){
+  const invest=Number(money.invest)||0;
+  const recover=Number(money.recover)||0;
+  const diff=recover-invest;
+  let workMinutes=null;
+  let invalidTime=false;
+  if(money.startTime&&money.endTime){
+    const [sh,sm]=money.startTime.split(':').map(Number);
+    const [eh,em]=money.endTime.split(':').map(Number);
+    const raw=(eh*60+em)-(sh*60+sm);
+    invalidTime=raw<0;
+    workMinutes=Math.max(raw,0);
+  }
+  const hourlyRate=workMinutes>0?Math.round(diff/workMinutes*60):null;
+  return {workMinutes,diff,balance:diff,hourlyRate,invalidTime};
+}
+function formatDiff(n){const num=Number(n)||0;return (num>0?'+':'')+num+'枚';}
+function sectionLabel(section){return section==='play'?'実戦中':'打ち始め';}
+function fieldTypeLabel(type){return {text:'テキスト',number:'数値',select:'選択式',checkbox:'チェックボックス',memo:'メモ欄',time:'時間',date:'日付'}[type]||'テキスト';}
+
+function showPage(pageId){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  const map={pageLog:'tabLog',pageLogs:'tabLogs',pageManage:'tabManage',pageFields:'tabFields'};
+  document.getElementById(map[pageId])?.classList.add('active');
+  renderAll();
+}
+
+function renderAll(){
+  db.machines.forEach(m=>ensureRequiredAims(m));
+  renderMachineList();
+  renderAimList();
+  renderTagList();
+  renderStartTagList();
+  renderLabelTagList();
+  renderFieldTarget();
+  renderFieldList();
+  renderLogSelectors();
+  renderStoreSelect();
+  renderLogFields();
+  renderLogsList();
+  updateCalc();
+  updateEditModeUi();
+  bindNumericInputs();
+}
+
+function addMachine(){
+  const name=document.getElementById('machineName').value.trim();
+  if(!name){alert('機種名を入力してください');return;}
+  const machine={id:uid('m'),name,maker:'',aims:[],tags:[],startTags:[],labelTags:[]};
+  ensureRequiredAims(machine);
+  ensureDefaultLabelTags(machine);
+  db.machines.push(machine);
+  selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
+  persist();
+  document.getElementById('machineName').value='';
+  renderAll();
+}
+function selectMachine(id){
+  selectedMachineId=id;
+  selectedAimId=firstAimIdForMachine(machineById(id))||'';
+  currentStartLog=[];
+  currentTimeline=[];
+  renderAll();
+}
+function editMachine(id){
+  const m=machineById(id);if(!m)return;
+  const name=prompt('機種名',m.name);if(name===null)return;
+  if(!name.trim()){alert('機種名は空にできません');return;}
+  m.name=name.trim();
+  persist();renderAll();
+}
+function deleteMachine(id){
+  const m=machineById(id);if(!m)return;
+  if(!confirm('機種テンプレを削除します。過去ログは fieldSnapshot により残りますが、テンプレ選択からは消えます。削除しますか？'))return;
+  db.machines=db.machines.filter(x=>x.id!==id);
+  selectedMachineId=db.machines[0]?.id||'';
+  selectedAimId=firstAimIdForMachine(db.machines[0])||'';
+  persist();renderAll();
+}
+function renderMachineList(){
+  const el=document.getElementById('machineList');
+  if(!db.machines.length){el.innerHTML='<div class="empty-hint">まだ機種なし</div>';return;}
+  el.innerHTML=db.machines.map(m=>`
+    <div class="list-item ${m.id===selectedMachineId?'active':''}">
+      <div class="item-head">
+        <div onclick="selectMachine('${m.id}')" style="flex:1;cursor:pointer;">
+          <div class="item-title">${escapeHtml(m.name)}</div>
+          <div class="item-sub">狙い方 ${m.aims?.length||0}件 / タグ ${m.tags?.length||0}件</div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-small gold" onclick="selectMachine('${m.id}')">選択</button>
+          <button class="btn-small" onclick="editMachine('${m.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteMachine('${m.id}')">削除</button>
+        </div>
+      </div>
+    </div>`).join('');
+  document.getElementById('selectedMachineName').textContent=currentMachine()?.name||'未選択';
+}
+function addAim(){
+  const machine=currentMachine();
+  if(!machine){alert('先に機種を選択してください');return;}
+  const name=document.getElementById('aimName').value.trim();
+  if(!name){alert('狙い方名を入力してください');return;}
+  const aim={id:uid('a'),name,fields:[]};
+  machine.aims.push(aim);
+  selectedAimId=aim.id;
+  persist();
+  document.getElementById('aimName').value='';
+  renderAll();
+}
+function selectAim(id){selectedAimId=id;renderAll();}
+function editAim(id){
+  const aim=aimById(currentMachine(),id);if(!aim)return;
+  const name=prompt('狙い方名',aim.name);if(name===null)return;
+  if(!name.trim()){alert('狙い方名は空にできません');return;}
+  aim.name=name.trim();persist();renderAll();
+}
+function deleteAim(id){
+  const machine=currentMachine();const aim=aimById(machine,id);if(!machine||!aim)return;
+  if(!confirm('狙い方テンプレを削除します。過去ログは残ります。削除しますか？'))return;
+  machine.aims=machine.aims.filter(a=>a.id!==id);
+  selectedAimId=firstAimIdForMachine(machine)||'';
+  persist();renderAll();
+}
+function renderAimList(){
+  const machine=currentMachine();
+  const el=document.getElementById('aimList');
+  document.getElementById('selectedMachineName').textContent=machine?.name||'未選択';
+  if(!machine){el.innerHTML='<div class="empty-hint">機種を選択してください</div>';return;}
+  if(!machine.aims.length){el.innerHTML='<div class="empty-hint">まだ狙い方なし</div>';return;}
+  el.innerHTML=machine.aims.map(a=>`
+    <div class="list-item ${a.id===selectedAimId?'active':''}">
+      <div class="item-head">
+        <div onclick="selectAim('${a.id}')" style="flex:1;cursor:pointer;">
+          <div class="item-title">${escapeHtml(a.name)}</div>
+          <div class="item-sub">入力項目 ${a.fields?.length||0}件</div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-small gold" onclick="selectAim('${a.id}')">選択</button>
+          <button class="btn-small" onclick="editAim('${a.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteAim('${a.id}')">削除</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function addTag(){
+  const machine=currentMachine();
+  if(!machine){alert('先に機種を選択してください');return;}
+  const label=document.getElementById('tagLabel').value.trim();
+  if(!label){alert('タグ名を入力してください');return;}
+  machine.tags.push({id:uid('t'),label,optional:document.getElementById('tagOptional').checked});
+  document.getElementById('tagLabel').value='';
+  document.getElementById('tagOptional').checked=false;
+  persist();renderAll();
+}
+function editTag(id){
+  const machine=currentMachine();const tag=machine?.tags?.find(t=>t.id===id);
+  if(!tag)return;
+  const label=prompt('タグ名',tag.label);if(label===null)return;
+  if(!label.trim()){alert('タグ名は空にできません');return;}
+  tag.label=label.trim();
+  tag.optional=confirm('低頻度タグとして折りたたみますか？\nOK=低頻度 / キャンセル=通常');
+  persist();renderAll();
+}
+function deleteTag(id){
+  const machine=currentMachine();if(!machine)return;
+  if(!confirm('このタグを削除しますか？ 過去ログのテキストは残ります。'))return;
+  machine.tags=machine.tags.filter(t=>t.id!==id);
+  persist();renderAll();
+}
+function renderTagList(){
+  const el=document.getElementById('tagList');
+  if(!el)return;
+  const machine=currentMachine();
+  if(!machine){el.innerHTML='<div class="empty-hint">機種を選択してください</div>';return;}
+  if(!machine.tags?.length){el.innerHTML='<div class="empty-hint">まだタグなし</div>';return;}
+  el.innerHTML=machine.tags.map(t=>`
+    <div class="list-item">
+      <div class="item-head">
+        <div>
+          <div class="item-title">${escapeHtml(t.label)}</div>
+          <div class="item-sub">${t.optional?'低頻度タグ':'通常タグ'}</div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-small" onclick="editTag('${t.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteTag('${t.id}')">削除</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function addStartTag(){
+  const machine=currentMachine();
+  if(!machine){alert('先に機種を選択してください');return;}
+  const label=document.getElementById('startTagLabel').value.trim();
+  if(!label){alert('タグ名を入力してください');return;}
+  machine.startTags.push({id:uid('st'),label,optional:document.getElementById('startTagOptional').checked});
+  document.getElementById('startTagLabel').value='';
+  document.getElementById('startTagOptional').checked=false;
+  persist();renderAll();
+}
+function editStartTag(id){
+  const machine=currentMachine();const tag=machine?.startTags?.find(t=>t.id===id);
+  if(!tag)return;
+  const label=prompt('タグ名',tag.label);if(label===null)return;
+  if(!label.trim()){alert('タグ名は空にできません');return;}
+  tag.label=label.trim();
+  tag.optional=confirm('低頻度タグとして折りたたみますか？\nOK=低頻度 / キャンセル=通常');
+  persist();renderAll();
+}
+function deleteStartTag(id){
+  const machine=currentMachine();if(!machine)return;
+  if(!confirm('この打ち始めタグを削除しますか？ 過去ログのテキストは残ります。'))return;
+  machine.startTags=machine.startTags.filter(t=>t.id!==id);
+  persist();renderAll();
+}
+function renderStartTagList(){
+  const el=document.getElementById('startTagList');
+  if(!el)return;
+  const machine=currentMachine();
+  if(!machine){el.innerHTML='<div class="empty-hint">機種を選択してください</div>';return;}
+  if(!machine.startTags?.length){el.innerHTML='<div class="empty-hint">まだ打ち始めタグなし</div>';return;}
+  el.innerHTML=machine.startTags.map(t=>`
+    <div class="list-item">
+      <div class="item-head">
+        <div>
+          <div class="item-title">${escapeHtml(t.label)}</div>
+          <div class="item-sub">${t.optional?'低頻度タグ':'通常タグ'}</div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-small" onclick="editStartTag('${t.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteStartTag('${t.id}')">削除</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function addLabelTag(){
+  const machine=currentMachine();
+  if(!machine){alert('先に機種を選択してください');return;}
+  const label=document.getElementById('labelTagLabel').value.trim();
+  if(!label){alert('ラベル名を入力してください');return;}
+  machine.labelTags=Array.isArray(machine.labelTags)?machine.labelTags:[];
+  machine.labelTags.push({id:uid('lt'),label});
+  document.getElementById('labelTagLabel').value='';
+  persist();renderAll();
+}
+function editLabelTag(id){
+  const machine=currentMachine();const tag=machine?.labelTags?.find(t=>t.id===id);
+  if(!tag)return;
+  const label=prompt('ラベル名',tag.label);if(label===null)return;
+  if(!label.trim()){alert('ラベル名は空にできません');return;}
+  tag.label=label.trim();
+  persist();renderAll();
+}
+function deleteLabelTag(id){
+  const machine=currentMachine();if(!machine)return;
+  if(!confirm('この数値ラベルを削除しますか？ 過去ログのラベルは残ります。'))return;
+  machine.labelTags=(machine.labelTags||[]).filter(t=>t.id!==id);
+  persist();renderAll();
+}
+function renderLabelTagList(){
+  const el=document.getElementById('labelTagList');
+  if(!el)return;
+  const machine=currentMachine();
+  if(!machine){el.innerHTML='<div class="empty-hint">機種を選択してください</div>';return;}
+  if(!machine.labelTags?.length){el.innerHTML='<div class="empty-hint">まだ数値ラベルなし</div>';return;}
+  el.innerHTML=machine.labelTags.map(t=>`
+    <div class="list-item">
+      <div class="item-head">
+        <div>
+          <div class="item-title">${escapeHtml(t.label)}</div>
+          <div class="item-sub">打ち始め数値ラベル</div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-small" onclick="editLabelTag('${t.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteLabelTag('${t.id}')">削除</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function toggleOptionsHint(){
+  document.getElementById('fieldOptionsRow').style.display=document.getElementById('fieldType').value==='select'?'flex':'none';
+}
+function parseOptions(raw){
+  return raw.split(/[\n,、]/).map(v=>v.trim()).filter(Boolean);
+}
+function addField(){
+  const aim=currentAim();
+  if(!aim){alert('先に機種と狙い方を選択してください');return;}
+  const label=document.getElementById('fieldLabel').value.trim();
+  const type=document.getElementById('fieldType').value;
+  if(!label){alert('項目名を入力してください');return;}
+  const options=type==='select'?parseOptions(document.getElementById('fieldOptions').value):[];
+  if(type==='select'&&!options.length){alert('select は選択肢を1つ以上入力してください');return;}
+  aim.fields.push({
+    id:uid('f'),
+    label,
+    type,
+    section:document.getElementById('fieldSection').value,
+    optional:document.getElementById('fieldOptional').checked,
+    options
+  });
+  persist();
+  document.getElementById('fieldLabel').value='';
+  document.getElementById('fieldOptions').value='';
+  document.getElementById('fieldOptional').checked=false;
+  renderAll();
+}
+function editField(id){
+  const aim=currentAim();const f=aim?.fields?.find(x=>x.id===id);if(!f)return;
+  const label=prompt('項目名',f.label);if(label===null)return;
+  const type=prompt('タイプ（text / number / select / checkbox / memo / time / date）',f.type);if(type===null)return;
+  const section=prompt('区分（start / play）',f.section);if(section===null)return;
+  const optional=confirm('任意項目として折りたたみますか？\nOK=任意 / キャンセル=通常');
+  let options=f.options||[];
+  if(type.trim()==='select'){
+    const raw=prompt('選択肢（カンマ区切り）',(f.options||[]).join(','));
+    if(raw===null)return;
+    options=parseOptions(raw);
+    if(!options.length){alert('select は選択肢が必要です');return;}
+  }else{
+    options=[];
+  }
+  const allowed=['text','number','select','checkbox','memo','time','date'];
+  if(!label.trim()||!allowed.includes(type.trim())||!['start','play'].includes(section.trim())){alert('入力内容が不正です');return;}
+  Object.assign(f,{label:label.trim(),type:type.trim(),section:section.trim(),optional,options});
+  persist();renderAll();
+}
+function deleteField(id){
+  const aim=currentAim();if(!aim)return;
+  if(!confirm('この項目を削除しますか？ 過去ログの表示は保存済み fieldSnapshot から維持されます。'))return;
+  aim.fields=aim.fields.filter(f=>f.id!==id);
+  persist();renderAll();
+}
+function moveField(id,dir){
+  const aim=currentAim();if(!aim)return;
+  const idx=aim.fields.findIndex(f=>f.id===id);
+  const next=idx+dir;
+  if(idx<0||next<0||next>=aim.fields.length)return;
+  [aim.fields[idx],aim.fields[next]]=[aim.fields[next],aim.fields[idx]];
+  persist();renderAll();
+}
+function renderFieldTarget(){
+  const m=currentMachine();const a=currentAim();
+  if(!a){document.getElementById('fieldTargetNote').textContent='機種管理で狙い方を選択してください。';return;}
+  document.getElementById('fieldTargetNote').textContent=`${m?.name||'機種未選択'} / ${a.name} の入力項目を編集しています。`;
+}
+function renderFieldList(){
+  const aim=currentAim();const el=document.getElementById('fieldList');
+  if(!aim){el.innerHTML='<div class="empty-hint">狙い方を選択してください</div>';return;}
+  if(!aim.fields.length){el.innerHTML='<div class="empty-hint">まだ項目なし</div>';return;}
+  el.innerHTML=aim.fields.map((f,i)=>`
+    <div class="field-card ${f.optional?'optional':''}">
+      <div class="item-head">
+        <div>
+          <div class="item-title">${escapeHtml(f.label)}</div>
+          <div>
+            <span class="pill gold">${sectionLabel(f.section)}</span>
+            <span class="pill">${fieldTypeLabel(f.type)}</span>
+            ${f.optional?'<span class="pill">任意</span>':''}
+          </div>
+          ${f.options?.length?`<div class="item-sub">選択肢：${escapeHtml(f.options.join(' / '))}</div>`:''}
+        </div>
+        <div class="item-actions">
+          <button class="btn-small" onclick="moveField('${f.id}',-1)" ${i===0?'disabled':''}>↑</button>
+          <button class="btn-small" onclick="moveField('${f.id}',1)" ${i===aim.fields.length-1?'disabled':''}>↓</button>
+          <button class="btn-small" onclick="editField('${f.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteField('${f.id}')">削除</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+function renderLogSelectors(){
+  const mSel=document.getElementById('logMachine');
+  if(!db.machines.length){
+    mSel.innerHTML='<option value="">機種を登録してください</option>';
+    document.getElementById('logAim').innerHTML='<option value="">狙い方なし</option>';
+    return;
+  }
+  if(!selectedMachineId||!machineById(selectedMachineId))selectedMachineId=db.machines[0].id;
+  mSel.innerHTML=db.machines.map(m=>`<option value="${m.id}" ${m.id===selectedMachineId?'selected':''}>${escapeHtml(m.name)}</option>`).join('');
+  const machine=currentMachine();
+  if(!selectedAimId||!aimById(machine,selectedAimId))selectedAimId=firstAimIdForMachine(machine)||'';
+  const aSel=document.getElementById('logAim');
+  aSel.innerHTML=machine?.aims?.length?machine.aims.map(a=>`<option value="${a.id}" ${a.id===selectedAimId?'selected':''}>${escapeHtml(a.name)}</option>`).join(''):'<option value="">狙い方を登録してください</option>';
+}
+function selectLogMachine(){
+  const before=selectedMachineId;
+  selectedMachineId=document.getElementById('logMachine').value;
+  if(!aimById(machineById(selectedMachineId),selectedAimId)){
+    selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
+  }
+  if(before!==selectedMachineId){currentStartLog=[];currentTimeline=[];}
+  renderAll();
+}
+function selectLogAim(){
+  selectedAimId=document.getElementById('logAim').value;
+  renderAll();
+}
+function renderStoreSelect(){
+  const sel=document.getElementById('moneyStore');
+  sel.innerHTML='<option value="">店舗未選択</option>'+db.stores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+}
+function addStoreFromInput(){
+  const name=prompt('追加する店舗名');
+  if(name===null)return;
+  const trimmed=name.trim();
+  if(!trimmed)return;
+  if(!db.stores.includes(trimmed))db.stores.push(trimmed);
+  persist();renderStoreSelect();
+  document.getElementById('moneyStore').value=trimmed;
+}
+function renderLogFields(){
+  const aim=currentAim();
+  const el=document.getElementById('dynamicFields');
+  if(!aim){el.innerHTML='<div class="empty-hint">機種と狙い方を登録してください</div>';return;}
+  el.innerHTML=`
+    <div class="card">
+      <div class="section-label" style="margin-top:0;">打ち始めデータ</div>
+      ${renderStartLogArea()}
+    </div>
+    <div class="card">
+      <div class="section-label" style="margin-top:0;">実戦中ログ</div>
+      ${renderTimelineArea()}
+    </div>`;
+  renderCurrentStartLog();
+  renderCurrentTimeline();
+}
+function renderFieldInput(f){
+  const id='logfield_'+f.id;
+  let control='';
+  if(f.type==='memo')control=`<textarea id="${id}" data-field-id="${f.id}" placeholder="${escapeHtml(f.label)}"></textarea>`;
+  else if(f.type==='select')control=`<select id="${id}" data-field-id="${f.id}"><option value="">未選択</option>${(f.options||[]).map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
+  else if(f.type==='checkbox')control=`<input id="${id}" data-field-id="${f.id}" type="checkbox">`;
+  else if(f.type==='number')control=`<input id="${id}" data-field-id="${f.id}" type="text" class="numeric-input" inputmode="none" readonly placeholder="${escapeHtml(f.label)}">`;
+  else if(f.type==='time')control=`<input id="${id}" data-field-id="${f.id}" type="time">`;
+  else if(f.type==='date')control=`<input id="${id}" data-field-id="${f.id}" type="date">`;
+  else control=`<input id="${id}" data-field-id="${f.id}" type="text" placeholder="${escapeHtml(f.label)}">`;
+  return `<div class="input-row"><div class="input-label">${escapeHtml(f.label)}${f.optional?'<div class="input-hint">任意</div>':''}</div>${control}</div>`;
+}
+function renderTagButtons(target){
+  const tags=target==='start'?(currentMachine()?.startTags||[]):(currentMachine()?.tags||[]);
+  const mainTags=tags.filter(t=>!t.optional);
+  const optionalTags=tags.filter(t=>t.optional);
+  const handler=target==='start'?'appendStartTagById':'appendTimelineTagById';
+  return `
+    <div class="tag-buttons">${mainTags.length?mainTags.map(t=>`<button class="tag-btn" onclick="${handler}('${t.id}')">${escapeHtml(t.label)}</button>`).join(''):'<span class="empty-hint" style="padding:0;">通常タグなし</span>'}</div>
+    ${optionalTags.length?`<button class="btn-secondary" onclick="toggleOptional('${target}OptionalTags')">＋他のタグ</button><div class="optional-box" id="${target}OptionalTags"><div class="tag-buttons">${optionalTags.map(t=>`<button class="tag-btn" onclick="${handler}('${t.id}')">${escapeHtml(t.label)}</button>`).join('')}</div></div>`:''}`;
+}
+function renderLabelTagButtons(){
+  const tags=currentMachine()?.labelTags||[];
+  return `<div class="tag-buttons">${tags.length?tags.map(t=>`<button class="tag-btn" onclick="setStartLabelById('${t.id}')">${escapeHtml(t.label)}</button>`).join(''):'<span class="empty-hint" style="padding:0;">数値ラベルなし</span>'}</div>`;
+}
+function renderStartLogArea(){
+  const machine=currentMachine();
+  if(!machine)return '<div class="empty-hint">打ち始めログは機種選択後に使えます</div>';
+  return `
+    <div class="input-row">
+      <div class="input-label no-wrap-label">ラベル<div class="input-hint">数値の意味</div></div>
+      <input type="text" id="startLogLabel" placeholder="例：AT間ゲーム数">
+    </div>
+    ${renderLabelTagButtons()}
+    <div class="input-row">
+      <div class="input-label no-wrap-label">数値<div class="input-hint">単位は表示しません</div></div>
+      <input type="text" id="startLogValue" class="numeric-input" inputmode="none" readonly placeholder="例：280">
+    </div>
+    ${renderTagButtons('start')}
+    <textarea id="startLogText" placeholder="例：CZ2スルー"></textarea>
+    <button class="btn-primary" onclick="addStartLogEntry()">打ち始めに追加</button>
+    <div id="startLogList" style="margin-top:10px;"></div>`;
+}
+function setStartLabelById(id){
+  const tag=currentMachine()?.labelTags?.find(t=>t.id===id);
+  const el=document.getElementById('startLogLabel');
+  if(tag&&el){el.value=tag.label;el.focus();}
+}
+function appendStartTagById(id){
+  const tag=currentMachine()?.startTags?.find(t=>t.id===id);
+  if(tag)appendTextToField('startLogText',tag.label);
+}
+function appendTextToField(id,label){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const current=el.value.trimEnd();
+  el.value=current?`${current} ${label} `:`${label} `;
+  el.focus();
+}
+function sortedStartLog(){
+  return [...currentStartLog].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
+}
+function addStartLogEntry(){
+  const labelEl=document.getElementById('startLogLabel');
+  const valueEl=document.getElementById('startLogValue');
+  const textEl=document.getElementById('startLogText');
+  const label=(labelEl?.value||'').trim();
+  const rawValue=(valueEl?.value||'').trim();
+  const text=(textEl?.value||'').trim();
+  if(!label&&rawValue===''&&!text){alert('ラベル、数値、内容のいずれかを入力してください');return;}
+  const value=rawValue===''?null:Number(rawValue);
+  if(rawValue!==''&&Number.isNaN(value)){alert('数値を入力してください');return;}
+  currentStartLog.push({id:uid('sl'),label,value,text,createdAt:new Date().toISOString()});
+  if(labelEl)labelEl.value='';
+  if(valueEl)valueEl.value='';
+  if(textEl)textEl.value='';
+  renderCurrentStartLog();
+}
+function startLogLine(item){
+  const label=(item.label||'').trim();
+  const value=item.value!==null&&item.value!==undefined&&item.value!==''?String(item.value):'';
+  const text=(item.text||'').trim();
+  const body=[value,text].filter(Boolean).join(' ');
+  return label?`${label}：${body}`:body;
+}
+function renderCurrentStartLog(){
+  const el=document.getElementById('startLogList');
+  if(!el)return;
+  const rows=sortedStartLog();
+  if(!rows.length){el.innerHTML='<div class="empty-hint">まだ打ち始めログなし</div>';return;}
+  el.innerHTML=rows.map(item=>`
+    <div class="timeline-item">
+      <div class="timeline-head">
+        <div class="timeline-game">${escapeHtml(item.label||'打ち始め')}</div>
+        <div class="item-actions">
+          <button class="btn-small" onclick="editStartLogEntry('${item.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteStartLogEntry('${item.id}')">削除</button>
+        </div>
+      </div>
+      <div class="timeline-text">${escapeHtml(startLogLine(item))}</div>
+    </div>`).join('');
+}
+function editStartLogEntry(id){
+  const item=currentStartLog.find(t=>t.id===id);if(!item)return;
+  const label=prompt('ラベル（空でも可）',item.label||'');if(label===null)return;
+  const value=prompt('数値（空でも可）',item.value!==null&&item.value!==undefined?String(item.value):'');if(value===null)return;
+  const text=prompt('内容（空でも可）',item.text||'');if(text===null)return;
+  if(!label.trim()&&value.trim()===''&&!text.trim()){alert('ラベル、数値、内容のいずれかを入力してください');return;}
+  const nextValue=value.trim()===''?null:Number(value);
+  if(value.trim()!==''&&Number.isNaN(nextValue)){alert('数値を入力してください');return;}
+  item.label=label.trim();
+  item.value=nextValue;
+  item.text=text.trim();
+  renderCurrentStartLog();
+}
+function deleteStartLogEntry(id){
+  if(!confirm('この打ち始めログを削除しますか？'))return;
+  currentStartLog=currentStartLog.filter(t=>t.id!==id);
+  renderCurrentStartLog();
+}
+function renderTimelineArea(){
+  const machine=currentMachine();
+  if(!machine)return '<div class="empty-hint">時系列ログは機種選択後に使えます</div>';
+  return `
+    <div class="input-row">
+      <div class="input-label">G数</div>
+      <input type="text" id="timelineGame" class="numeric-input" inputmode="none" readonly placeholder="例：523">
+    </div>
+    <div class="log-tools">
+      <button class="btn-small" onclick="incrementTimelineGame(1)">+1</button>
+      <button class="btn-small" onclick="incrementTimelineGame(5)">+5</button>
+      <button class="btn-small" onclick="incrementTimelineGame(10)">+10</button>
+    </div>
+    ${renderTagButtons('timeline')}
+    <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし"></textarea>
+    <button class="btn-primary" onclick="addTimelineEntry()">ログに追加</button>
+    <div id="timelineList" style="margin-top:10px;"></div>`;
+}
+function appendTimelineTagById(id){
+  const tag=currentMachine()?.tags?.find(t=>t.id===id);
+  if(tag)appendTimelineTag(tag.label);
+}
+function appendTimelineTag(label){
+  appendTextToField('timelineText',label);
+}
+function incrementTimelineGame(delta){
+  const el=document.getElementById('timelineGame');
+  if(!el)return;
+  const current=Number(el.value)||0;
+  el.value=String(current+delta);
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+}
+function sortedTimeline(){
+  return [...currentTimeline].sort((a,b)=>{
+    return String(b.createdAt).localeCompare(String(a.createdAt));
+  });
+}
+function addTimelineEntry(){
+  const gameEl=document.getElementById('timelineGame');
+  const textEl=document.getElementById('timelineText');
+  const game=Number(gameEl?.value);
+  const text=(textEl?.value||'').trim();
+  if(!gameEl?.value||Number.isNaN(game)){alert('G数を入力してください');return;}
+  if(!text){alert('内容を入力してください');return;}
+  currentTimeline.push({id:uid('tl'),game,text,createdAt:new Date().toISOString()});
+  textEl.value='';
+  renderCurrentTimeline();
+}
+function renderCurrentTimeline(){
+  const el=document.getElementById('timelineList');
+  if(!el)return;
+  const rows=sortedTimeline();
+  if(!rows.length){el.innerHTML='<div class="empty-hint">まだ時系列ログなし</div>';return;}
+  el.innerHTML=rows.map(t=>`
+    <div class="timeline-item">
+      <div class="timeline-head">
+        <div class="timeline-game">${escapeHtml(t.game)}G</div>
+        <div class="item-actions">
+          <button class="btn-small" onclick="editTimelineEntry('${t.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteTimelineEntry('${t.id}')">削除</button>
+        </div>
+      </div>
+      <div class="timeline-text">${escapeHtml(t.text)}</div>
+    </div>`).join('');
+}
+function editTimelineEntry(id){
+  const item=currentTimeline.find(t=>t.id===id);if(!item)return;
+  const game=prompt('G数',String(item.game));if(game===null)return;
+  const num=Number(game);
+  if(!game.trim()||Number.isNaN(num)){alert('G数を入力してください');return;}
+  const text=prompt('内容',item.text);if(text===null)return;
+  if(!text.trim()){alert('内容を入力してください');return;}
+  item.game=num;item.text=text.trim();
+  renderCurrentTimeline();
+}
+function deleteTimelineEntry(id){
+  if(!confirm('この時系列ログを削除しますか？'))return;
+  currentTimeline=currentTimeline.filter(t=>t.id!==id);
+  renderCurrentTimeline();
+}
+function toggleOptional(id){document.getElementById(id)?.classList.toggle('open');}
+function bindNumericInputs(){
+  document.querySelectorAll('.numeric-input').forEach(input=>{
+    if(input.dataset.keypadBound)return;
+    input.dataset.keypadBound='1';
+    input.addEventListener('focus',()=>openNumericKeypad(input));
+    input.addEventListener('click',()=>openNumericKeypad(input));
+  });
+}
+function openNumericKeypad(input){
+  activeNumericInput=input;
+  document.getElementById('numericKeypadLabel').textContent=input.placeholder||'数値入力';
+  updateKeypadValue();
+  document.getElementById('numericKeypadOverlay').classList.add('open');
+}
+function closeNumericKeypad(){
+  document.getElementById('numericKeypadOverlay').classList.remove('open');
+  if(activeNumericInput){
+    activeNumericInput.dispatchEvent(new Event('input',{bubbles:true}));
+    activeNumericInput.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  activeNumericInput=null;
+}
+function updateKeypadValue(){
+  document.getElementById('numericKeypadValue').textContent=activeNumericInput?.value||'0';
+}
+function pressKeypad(key){
+  if(!activeNumericInput)return;
+  let value=activeNumericInput.value||'';
+  if(key==='back')value=value.slice(0,-1);
+  else if(key==='clear')value='';
+  else if(key==='-')value=value.startsWith('-')?value.slice(1):'-'+value;
+  else value+=key;
+  activeNumericInput.value=value;
+  activeNumericInput.dispatchEvent(new Event('input',{bubbles:true}));
+  updateKeypadValue();
+  updateCalc();
+}
+function collectValues(fields){
+  const values={};
+  fields.forEach(f=>{
+    const el=document.getElementById('logfield_'+f.id);
+    if(!el)return;
+    values[f.id]=f.type==='checkbox'?el.checked:el.value;
+  });
+  return values;
+}
+function setToday(){document.getElementById('moneyDate').value=todayValue();updateCalc();}
+function setNow(id){document.getElementById(id).value=nowTime();updateCalc();}
+function updateCalc(){
+  const calc=calcMoney({
+    startTime:document.getElementById('moneyStart')?.value||'',
+    endTime:document.getElementById('moneyEnd')?.value||'',
+    invest:document.getElementById('moneyInvest')?.value||0,
+    recover:document.getElementById('moneyRecover')?.value||0
+  });
+  document.getElementById('calcWork').textContent=calc.workMinutes===null?'-':calc.workMinutes+'分';
+  document.getElementById('calcDiff').textContent=formatDiff(calc.diff);
+  document.getElementById('calcBalance').textContent=formatDiff(calc.balance);
+  document.getElementById('calcHourly').textContent=calc.hourlyRate===null?'-':formatDiff(calc.hourlyRate)+'/h';
+  const warning=document.getElementById('timeWarning');
+  if(warning)warning.style.display=calc.invalidTime?'block':'none';
+}
+function saveLog(){
+  const machine=currentMachine();const aim=currentAim();
+  if(!machine||!aim){alert('機種と狙い方を選択してください');return;}
+  const editingLog=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
+  const fieldSnapshot=clone(editingLog?.fieldSnapshot||aim.fields||[]);
+  const values={};
+  const baseMoney={
+    date:document.getElementById('moneyDate').value,
+    store:document.getElementById('moneyStore').value,
+    machineNo:document.getElementById('moneyMachineNo').value.trim(),
+    publishStore:document.getElementById('publishStore').checked,
+    publishMachineNo:document.getElementById('publishMachineNo').checked,
+    startTime:document.getElementById('moneyStart').value,
+    endTime:document.getElementById('moneyEnd').value,
+    invest:Number(document.getElementById('moneyInvest').value)||0,
+    recover:Number(document.getElementById('moneyRecover').value)||0
+  };
+  const c=calcMoney(baseMoney);
+  const log={
+    id:editingLog?.id||uid('l'),
+    machineId:machine.id,
+    aimId:aim.id,
+    machineName:machine.name,
+    aimName:aim.name,
+    fieldSnapshot,
+    values,
+    startLog:clone(sortedStartLog()),
+    timeline:clone(sortedTimeline()),
+    money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate},
+    publicMemo:document.getElementById('publicMemo').value.trim(),
+    privateMemo:document.getElementById('privateMemo').value.trim(),
+    createdAt:editingLog?.createdAt||new Date().toISOString(),
+    updatedAt:new Date().toISOString()
+  };
+  if(editingLog){
+    const idx=db.logs.findIndex(l=>l.id===editingLog.id);
+    if(idx>=0)db.logs[idx]=log;
+  }else{
+    db.logs.push(log);
+  }
+  if(baseMoney.store&&!db.stores.includes(baseMoney.store))db.stores.push(baseMoney.store);
+  persist();
+  const wasEditing=!!editingLog;
+  editingLogId=null;
+  alert(wasEditing?'更新しました':'保存しました');
+  clearLogInput(false);
+  showPage('pageLogs');
+  scrollToPageTop();
+}
+function scrollToPageTop(){
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+function clearLogInput(cancelEdit=true){
+  if(cancelEdit)editingLogId=null;
+  document.querySelectorAll('#pageLog input,#pageLog textarea').forEach(el=>{
+    if(el.type==='checkbox')el.checked=false;
+    else el.value='';
+  });
+  document.getElementById('moneyStore').value='';
+  document.getElementById('publishStore').checked=false;
+  document.getElementById('publishMachineNo').checked=false;
+  currentStartLog=[];
+  currentTimeline=[];
+  renderCurrentStartLog();
+  renderCurrentTimeline();
+  setToday();
+  updateCalc();
+  updateEditModeUi();
+}
+
+function updateEditModeUi(){
+  const notice=document.getElementById('editingNotice');
+  const saveButton=document.getElementById('saveLogButton');
+  const cancelButton=document.getElementById('cancelEditButton');
+  if(!notice||!saveButton||!cancelButton)return;
+  const log=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
+  notice.style.display=log?'block':'none';
+  notice.textContent=log?`編集中：${log.machineName} / ${log.aimName} / ${log.money?.date||'日付なし'}`:'';
+  saveButton.textContent=log?'この稼働ログを更新':'この稼働ログを保存';
+  cancelButton.style.display=log?'inline-block':'none';
+}
+
+function cancelEditLog(){
+  editingLogId=null;
+  clearLogInput(false);
+}
+
+function fillLogInputs(log){
+  const money=log.money||{};
+  document.getElementById('moneyDate').value=money.date||todayValue();
+  if(money.store&&!db.stores.includes(money.store)){
+    db.stores.push(money.store);
+    persist();
+    renderStoreSelect();
+  }
+  document.getElementById('moneyStore').value=money.store||'';
+  document.getElementById('moneyMachineNo').value=money.machineNo||'';
+  document.getElementById('publishStore').checked=!!money.publishStore;
+  document.getElementById('publishMachineNo').checked=!!money.publishMachineNo;
+  document.getElementById('moneyStart').value=money.startTime||'';
+  document.getElementById('moneyEnd').value=money.endTime||'';
+  document.getElementById('moneyInvest').value=money.invest||'';
+  document.getElementById('moneyRecover').value=money.recover||'';
+  document.getElementById('publicMemo').value=log.publicMemo||'';
+  document.getElementById('privateMemo').value=log.privateMemo||'';
+  updateCalc();
+}
+
+function loadLogForEdit(id){
+  const log=db.logs.find(l=>l.id===id);
+  if(!log)return;
+  const machine=machineById(log.machineId);
+  if(!machine){alert('このログの機種テンプレが見つかりません。先に機種を復元してください。');return;}
+  let aim=aimById(machine,log.aimId)||machine.aims.find(a=>a.name===log.aimName);
+  if(!aim&&log.aimId){
+    aim={id:log.aimId,name:log.aimName||'復元した狙い方',fields:clone(log.fieldSnapshot||[])};
+    machine.aims.push(aim);
+    persist();
+  }
+  editingLogId=id;
+  selectedMachineId=machine.id;
+  selectedAimId=aim?.id||firstAimIdForMachine(machine);
+  currentStartLog=clone(log.startLog||[]).map(item=>({...item,label:item.label||''}));
+  currentTimeline=clone(log.timeline||[]);
+  showPage('pageLog');
+  fillLogInputs(log);
+  renderCurrentStartLog();
+  renderCurrentTimeline();
+  updateEditModeUi();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function buildShareText(log){
+  const startLog=[...(log.startLog||[])].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
+  const timeline=[...(log.timeline||[])].sort((a,b)=>{
+    return String(b.createdAt).localeCompare(String(a.createdAt));
+  });
+  const lines=[
+    `機種：${log.machineName}`,
+    `狙い方：${log.aimName}`
+  ];
+  if(log.money?.startTime||log.money?.endTime||log.money?.workMinutes!=null){
+    lines.push(`時間：${log.money?.startTime||'?'}〜${log.money?.endTime||'?'}（稼働${log.money?.workMinutes??'-'}分）`);
+  }
+  if(log.money?.publishStore&&log.money?.store)lines.push(`店舗：${log.money.store}`);
+  if(log.money?.publishMachineNo&&log.money?.machineNo)lines.push(`台番号：${log.money.machineNo}`);
+  if(startLog.length){
+    lines.push('');
+    lines.push('打ち始め：');
+    startLog.forEach(item=>lines.push(startLogLine(item)));
+  }
+  if(timeline.length){
+    lines.push('');
+    lines.push('実戦経過：');
+    timeline.forEach(t=>lines.push(`${t.game}G ${t.text}`));
+  }
+  lines.push(`結果：投資${log.money?.invest||0}枚 / 回収${log.money?.recover||0}枚 / 差枚${formatDiff(log.money?.diff||0)}`);
+  if(log.publicMemo)lines.push(`メモ：${log.publicMemo}`);
+  return lines.join('\n');
+}
+function renderLogsList(){
+  const el=document.getElementById('logsList');
+  if(!db.logs.length){el.innerHTML='<div class="empty-hint">まだログなし</div>';return;}
+  const logs=[...db.logs].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  el.innerHTML=logs.map(log=>`
+    <div class="list-item">
+      <div class="item-head">
+        <div>
+          <div class="item-title">${escapeHtml(log.machineName)} / ${escapeHtml(log.aimName)}</div>
+          <div class="item-sub">${escapeHtml(log.money?.date||'日付なし')}　差枚 ${formatDiff(log.money?.diff||0)}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件</div>
+          <div style="margin-top:6px;">
+            ${(log.startLog||[]).slice(0,2).map(x=>`<span class="pill gold">${escapeHtml(startLogLine(x))}</span>`).join('')}
+            ${(log.timeline||[]).slice(0,2).map(x=>`<span class="pill">${escapeHtml(x.game+'G '+x.text)}</span>`).join('')}
+          </div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-small" onclick="loadLogForEdit('${log.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteLog('${log.id}')">削除</button>
+        </div>
+      </div>
+      <textarea id="share_${log.id}" style="margin-top:10px;min-height:180px;">${escapeHtml(buildShareText(log))}</textarea>
+      <button class="btn-copy" onclick="copyLog('${log.id}')">編集した内容をコピー</button>
+      <div class="copy-done" id="copied_${log.id}">コピーしました</div>
+    </div>`).join('');
+}
+function copyText(text,doneId){
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>showCopyDone(doneId)).catch(()=>fallbackCopy(text,doneId));
+  }else fallbackCopy(text,doneId);
+}
+function fallbackCopy(text,doneId){
+  const ta=document.createElement('textarea');
+  ta.value=text;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();showCopyDone(doneId);
+}
+function showCopyDone(id){
+  const done=document.getElementById(id);
+  if(done){done.style.display='block';setTimeout(()=>done.style.display='none',1800);}
+}
+function copyLog(id){
+  const log=db.logs.find(l=>l.id===id);if(!log)return;
+  const edited=document.getElementById('share_'+id)?.value;
+  copyText(edited!=null?edited:buildShareText(log),'copied_'+id);
+}
+function deleteLog(id){
+  if(!confirm('このログを削除しますか？'))return;
+  db.logs=db.logs.filter(l=>l.id!==id);
+  persist();renderLogsList();
+}
+function backupJson(){
+  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`nerai-record-backup-${todayValue()}.json`;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function restoreJson(input){
+  const file=input.files?.[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const parsed=JSON.parse(reader.result);
+      if(!parsed||parsed.version!==1||!Array.isArray(parsed.machines)||!Array.isArray(parsed.stores)||!Array.isArray(parsed.logs)){
+        alert('nerai_record_v1 のJSONではありません');return;
+      }
+      if(!confirm('現在のデータを上書きして復元します。よろしいですか？'))return;
+      db=normalizeData(parsed);persist();
+      selectedMachineId=db.machines[0]?.id||'';
+      selectedAimId=firstAimIdForMachine(db.machines[0])||'';
+      renderAll();
+      alert('復元しました');
+    }catch{alert('JSONの読み込みに失敗しました');}
+    input.value='';
+  };
+  reader.readAsText(file);
+}
+
+toggleOptionsHint();
+showPage('pageLog');
+setToday();
+</script>
+</body>
+</html>
