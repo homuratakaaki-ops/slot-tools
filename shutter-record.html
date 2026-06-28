@@ -118,6 +118,9 @@ footer a:hover{color:var(--gold-light);}
 .memo-btn.need-game{border-style:dashed;}
 .game-input-row{display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--gold);border-radius:8px;flex-wrap:wrap;}
 .memo-record{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:8px 12px;margin-bottom:6px;}
+.check-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-muted);padding-top:10px;border-top:1px solid var(--border);}
+.check-row input{width:18px;height:18px;accent-color:var(--gold);}
+.excluded-badge{font-size:11px;font-weight:700;color:var(--yellow);border:1px solid rgba(245,166,35,.6);border-radius:20px;padding:2px 8px;margin-left:8px;}
 .cell-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 .cell-tag{display:flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 8px 4px 12px;font-size:13px;}
 .cell-tag-del{background:none;border:none;color:var(--text-muted);font-size:16px;cursor:pointer;line-height:1;padding:0 2px;}
@@ -209,6 +212,10 @@ footer a:hover{color:var(--gold-light);}
           <button class="toggle-btn active" onclick="setDetailOver('unknown',this)">不明</button>
         </div>
       </div>
+      <label class="check-row">
+        <input type="checkbox" id="detailExcludeFromStats">
+        <span>集計から除外する</span>
+      </label>
     </div>
 
     <div class="section-label" style="margin-top:14px;">メモ</div>
@@ -417,8 +424,9 @@ function renderSlotRow(num,d,pinned,gDate){
   const quickFirst=lastFirst>0?lastFirst+1:1;
   const quickOver=lastDay?lastDay.over||'unknown':'unknown';
   // 896以内当選率（その日のデータ）
-  const overCnt=dayHistory.filter(h=>h.over==='over').length;
-  const notCnt=dayHistory.filter(h=>h.over==='not').length;
+  const statsDayHistory=dayHistory.filter(h=>!h.excludeFromStats);
+  const overCnt=statsDayHistory.filter(h=>h.over==='over').length;
+  const notCnt=statsDayHistory.filter(h=>h.over==='not').length;
   const winTotal=overCnt+notCnt;
   const winRate=winTotal>0?Math.round(notCnt/winTotal*100):null;
   const winRateLabel=winRate!==null?winRate+'%':'－';
@@ -539,7 +547,7 @@ function quickSave(num){
     if(!confirm(`${date} の初当たり${first}回目は既に記録されています。上書きしますか？`))return;
     existing.over=over;
   } else {
-    d.history.push({date,recordType:'first',first,at:0,over,memoItems:[],memo:''});
+    d.history.push({date,recordType:'first',first,at:0,over,excludeFromStats:false,memoItems:[],memo:''});
   }
   // 初当たり回数順にソート
   d.history.sort((a,b)=>(a.first||0)-(b.first||0));
@@ -592,7 +600,7 @@ function renderDetailHistory(dayRecs){
         <button class="btn-danger" onclick="deleteDetailHistory(${fullIdx})">削除</button>
       </div>
       <div class="history-body">
-        <div>初当たり：<strong>${h.first||0}回目</strong></div>
+        <div>初当たり：<strong>${h.first||0}回目</strong>${h.excludeFromStats?'<span class="excluded-badge">集計除外</span>':''}</div>
         <div>896超え：<strong>${ovLabel[h.over||'unknown']}</strong></div>
         ${h.memoItems&&h.memoItems.length?`<div>メモ：${h.memoItems.map(m=>m.label+(m.asChoki?' 朝イチ':m.game!=null?' '+m.game+'G':'')).join(' / ')}</div>`:''}
         ${h.memo?`<div>備考：${h.memo}</div>`:''}
@@ -628,6 +636,7 @@ function clearDetailForm(){
   detailRecordType='first';detailOver='unknown';detailMemoItems=[];detailPendingMemo=null;
   setDetailOver('unknown',null);
   ['detailFirst','detailMemo'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('detailExcludeFromStats').checked=false;
   document.getElementById('detailDate').value=getGlobalDate();
   document.getElementById('detailMemoItems').innerHTML='';
   document.getElementById('detailGameRow').style.display='none';
@@ -694,6 +703,7 @@ function saveDetail(){
     first,
     at:0,
     over:detailOver,
+    excludeFromStats:document.getElementById('detailExcludeFromStats').checked,
     memoItems:[...detailMemoItems],
     memo:document.getElementById('detailMemo').value,
   });
@@ -734,9 +744,10 @@ function updateShareTextForSlot(sid,num,d){
   const stores=getStores();const store=stores.find(s=>s.id===sid);
   const ovLabel={over:'超える',not:'超えない',unknown:'不明'};
   const sortedHistory=[...(d.history||[])].sort((a,b)=>(a.first||0)-(b.first||0));
+  const statsHistory=sortedHistory.filter(h=>!h.excludeFromStats);
   // 示唆カウント
   let even=0,odd=0,highW=0,highS=0;
-  sortedHistory.forEach(h=>{
+  statsHistory.forEach(h=>{
     (h.memoItems||[]).forEach(m=>{
       if(m.label==='偶数示唆')even++;
       if(m.label==='奇数示唆')odd++;
@@ -767,6 +778,7 @@ function updateShareTextForSlot(sid,num,d){
   sortedHistory.forEach((h,i)=>{
     lines.push('');lines.push(`■${i+1}回目（${h.date||''}）`);
     lines.push(`初当たり：${h.first||0}回目`);
+    if(h.excludeFromStats)lines.push('集計：除外');
     lines.push(`896超え：${ovLabel[h.over||'unknown']}`);
     if(h.memoItems&&h.memoItems.length)
       h.memoItems.forEach(m=>lines.push(`${m.label}${m.asChoki?' 朝イチ':m.game!=null?' '+m.game+'G':''}`));
@@ -807,24 +819,25 @@ function renderStats(){
   const el=document.getElementById('statsList');
   if(!sid){el.innerHTML='<div class="empty-hint">店舗を選択してください</div>';return;}
   const slots=getSlots(sid);const cells=getCells(sid);
-  const withData=cells.filter(n=>slots[n]&&slots[n].history&&slots[n].history.length);
+  const withData=cells.filter(n=>slots[n]&&slots[n].history&&slots[n].history.some(h=>!h.excludeFromStats));
   if(!withData.length){el.innerHTML='<div class="empty-hint">台データなし</div>';return;}
   const ovLabel={over:'⚠️896超え',not:'✅超えない',unknown:'❔不明'};
   const colors={over:'var(--red)',not:'var(--green)',unknown:'var(--yellow)'};
   const groups={over:[],not:[],unknown:[]};
   withData.forEach(n=>{
-    const last=slots[n].history[slots[n].history.length-1];
-    groups[last.over||'unknown'].push({n,d:slots[n],last});
+    const includedHistory=slots[n].history.filter(h=>!h.excludeFromStats);
+    const last=includedHistory[includedHistory.length-1];
+    groups[last.over||'unknown'].push({n,d:slots[n],last,includedCount:includedHistory.length});
   });
   let html='';
   ['over','not','unknown'].forEach(key=>{
     if(!groups[key].length)return;
     html+=`<div style="font-size:11px;font-weight:700;color:${colors[key]};margin:12px 0 6px;">${ovLabel[key]}</div>`;
-    html+=groups[key].map(({n,d,last})=>`
+    html+=groups[key].map(({n,d,last,includedCount})=>`
       <div class="card" style="cursor:pointer;margin-bottom:8px;" onclick="showPage('pageList');setTimeout(()=>{document.getElementById('listStoreSelect').value='${sid}';loadList();setTimeout(()=>toggleExpand('${n}'),100);},100);">
         <div style="display:flex;justify-content:space-between;">
           <span style="font-size:15px;font-weight:700;">台番号 ${n}</span>
-          <span style="font-size:11px;color:var(--text-muted);">${d.history.length}件 / ${last.date||''}</span>
+          <span style="font-size:11px;color:var(--text-muted);">${includedCount}件 / ${last.date||''}</span>
         </div>
         ${last.recordType!=='at'?`<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">初当たり ${last.first||0}回目</div>`:''}
         ${last.memoItems&&last.memoItems.length?`<div style="font-size:11px;color:var(--text-dim);margin-top:4px;">${last.memoItems.map(m=>m.label+(m.asChoki?' 朝イチ':m.game!=null?' '+m.game+'G':'')).join(' / ')}</div>`:''}

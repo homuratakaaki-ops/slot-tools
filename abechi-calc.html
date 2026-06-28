@@ -58,8 +58,8 @@
   .incr-btn:active{border-color:var(--gold);color:var(--gold-light);}
   .at-game-row{display:flex;align-items:center;gap:6px;margin-bottom:8px;}
 
-  .btn-memo-add{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:6px;color:#0d0d0f;font-size:14px;font-weight:700;padding:10px;cursor:pointer;}
-  .btn-memo-add:active{opacity:.8;}
+  .btn-memo-undo{width:100%;background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:14px;font-weight:700;padding:10px;cursor:pointer;}
+  .btn-memo-undo:active{border-color:var(--gold);color:var(--gold-light);}
 
   /* カスタム追加 */
   .custom-add-row{display:flex;align-items:center;gap:8px;margin-top:10px;padding-top:10px;border-top:1px solid var(--border);}
@@ -134,7 +134,7 @@
   <!-- ① メモ -->
   <div class="section">
     <div class="section-label">メモ</div>
-    <p class="section-note">起きたことをタップして選び、あべし数を入力して追加。<br><span style="color:var(--text-dim);font-size:11px;">※メモ欄の記録はすべて判別計算に影響しません。記録・共有用のメモです。</span></p>
+    <p class="section-note">あべし数を入力して、起きたことをタップすると即時追加。<br><span style="color:var(--text-dim);font-size:11px;">※メモ欄の記録はすべて判別計算に影響しません。記録・共有用のメモです。</span></p>
     <div class="card">
       <!-- イベントボタン -->
       <div class="event-buttons" id="eventButtons"></div>
@@ -151,13 +151,13 @@
       </div>
 
       <!-- AT当選のみゲーム数 -->
-      <div class="at-game-row" id="atGameRow" style="display:none">
+      <div class="at-game-row" id="atGameRow">
         <span class="unit" style="color:var(--text-muted);white-space:nowrap;font-size:13px;">ATゲーム数</span>
         <input type="number" id="inAtGames" placeholder="例:200" min="0" max="9999" style="width:100px;">
         <span class="unit">G</span>
       </div>
 
-      <button class="btn-memo-add" onclick="addMemo()">追加</button>
+      <button class="btn-memo-undo" onclick="undoLastMemo()">直前の1件を削除</button>
 
       <!-- カスタム項目追加 -->
       <div class="custom-add-row">
@@ -355,8 +355,8 @@ const SHUTTER_EVENT='シャッター';
 let fixedRecords=[];
 let tenpaRecords=[];
 let memoRecords=[];
-let selectedEvent=null;
 let customEvents=[];
+let memoSeq=0;
 
 // ── イベントボタン初期化 ──
 function initEventButtons(){
@@ -373,7 +373,7 @@ function makeEventBtn(name,isCustom){
     const btn=document.createElement('button');
     btn.className='event-btn-custom';
     btn.textContent=name;
-    btn.onclick=()=>selectEvent(btn,name);
+    btn.onclick=()=>addMemo(name);
     const del=document.createElement('button');
     del.className='event-btn-del';
     del.textContent='×';
@@ -386,16 +386,9 @@ function makeEventBtn(name,isCustom){
     const btn=document.createElement('button');
     btn.className='event-btn';
     btn.textContent=name;
-    btn.onclick=()=>selectEvent(btn,name);
+    btn.onclick=()=>addMemo(name);
     return btn;
   }
-}
-
-function selectEvent(el,name){
-  document.querySelectorAll('.event-btn,.event-btn-custom').forEach(b=>b.classList.remove('selected'));
-  el.classList.add('selected');
-  selectedEvent=name;
-  document.getElementById('atGameRow').style.display=(name===AT_EVENT)?'flex':'none';
 }
 
 function addCustomEvent(){
@@ -410,7 +403,6 @@ function addCustomEvent(){
 
 function deleteCustomEvent(name){
   customEvents=customEvents.filter(e=>e!==name);
-  if(selectedEvent===name)selectedEvent=null;
   initEventButtons();
 }
 
@@ -422,17 +414,23 @@ function incrAbechi(n){
 }
 
 // ── メモ追加 ──
-function addMemo(){
+function normalizeMemoRecords(){
+  memoRecords.forEach(r=>{
+    if(!Number.isFinite(r.seq))r.seq=++memoSeq;
+    else memoSeq=Math.max(memoSeq,r.seq);
+  });
+}
+
+function addMemo(eventName){
   const a=document.getElementById('inMemoAbechi').value;
   const abechi=a===''?null:parseInt(a,10);
-  if(!selectedEvent){alert('起きたことを選択してください');return;}
   if(abechi===null||isNaN(abechi)){alert('あべし数を入力してください');return;}
-  let label=selectedEvent;
-  if(selectedEvent===AT_EVENT){
+  let label=eventName;
+  if(eventName===AT_EVENT){
     const g=document.getElementById('inAtGames').value;
     if(g!=='')label+=` (${g}G)`;
   }
-  memoRecords.push({abechi,event:label});
+  memoRecords.push({abechi,event:label,seq:++memoSeq});
   memoRecords.sort((a,b)=>a.abechi-b.abechi);
   // あべし数を残して+1（連続入力用）
   const inputEl=document.getElementById('inMemoAbechi');
@@ -447,7 +445,16 @@ function deleteMemo(idx){
   if(document.getElementById('resultArea').classList.contains('show'))renderMemoResult();
 }
 
+function undoLastMemo(){
+  if(!memoRecords.length){alert('削除できる履歴がありません');return;}
+  normalizeMemoRecords();
+  const lastSeq=Math.max(...memoRecords.map(r=>r.seq||0));
+  const idx=memoRecords.findIndex(r=>r.seq===lastSeq);
+  if(idx>=0)deleteMemo(idx);
+}
+
 function renderMemoList(){
+  normalizeMemoRecords();
   const list=document.getElementById('memoList');
   if(memoRecords.length===0){list.innerHTML='<div class="empty-hint">まだ記録なし</div>';return;}
   list.innerHTML=memoRecords.map((r,i)=>`
@@ -459,6 +466,7 @@ function renderMemoList(){
 }
 
 function renderMemoResult(){
+  normalizeMemoRecords();
   const el=document.getElementById('memoResult');
   if(memoRecords.length>0){
     document.getElementById('memoResultBody').innerHTML=memoRecords.map((r,i)=>`
@@ -486,7 +494,8 @@ function savePreset(){
   const name=prompt('設定名を入力してください');
   if(!name||!name.trim())return;
   const p=getPresets();
-  p[name.trim()]={memoRecords:[...memoRecords],customEvents:[...customEvents]};
+  normalizeMemoRecords();
+  p[name.trim()]={memoRecords:memoRecords.map(r=>({...r})),customEvents:[...customEvents]};
   savePresets(p);
   renderPresetSelect();
   alert(`「${name.trim()}」を保存しました`);
@@ -498,7 +507,9 @@ function loadPreset(){
   if(!key){alert('登録した設定を選択してください');return;}
   const p=getPresets();
   if(!p[key])return;
-  memoRecords=[...p[key].memoRecords];
+  memoRecords=[...(p[key].memoRecords||[])].map(r=>({...r}));
+  memoSeq=0;
+  normalizeMemoRecords();
   customEvents=[...p[key].customEvents];
   initEventButtons();
   renderMemoList();
@@ -676,12 +687,11 @@ function copyText(){
 // ── リセット ──
 function resetAll(){
   fixedRecords=[];tenpaRecords=[];memoRecords=[];
-  selectedEvent=null;customEvents=[];
+  memoSeq=0;customEvents=[];
   initEventButtons();
   renderFixedList();renderTenpaList();renderMemoList();
   ['fixedShutterInput','in256battle','in128battle','inTenpaStart','inTenpaEnd','inMemoAbechi','inCustomEvent','inAtGames']
     .forEach(id=>document.getElementById(id).value='');
-  document.getElementById('atGameRow').style.display='none';
   document.getElementById('resultArea').classList.remove('show');
   document.getElementById('summaryText').value='';
 }
