@@ -70,10 +70,20 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .empty-hint{font-size:12px;color:var(--text-dim);text-align:center;padding:16px 0;}
 .pill{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:11px;padding:2px 8px;margin:2px 4px 2px 0;}
 .pill.gold{border-color:rgba(201,168,76,.55);color:var(--gold-light);background:rgba(201,168,76,.08);}
+.pill.disabled{border-color:rgba(122,122,138,.3);color:var(--text-dim);background:rgba(122,122,138,.06);}
+.state-text{font-weight:700;}
+.state-text.enabled{color:#9be0bd;}
+.state-text.disabled{color:var(--text-dim);}
+.suggest-disabled{opacity:.58;}
+.suggest-master-child{margin-top:8px;}
+.suggest-item-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:6px 0;}
+.suggest-item-row .pill{margin-right:auto;}
+.suggest-add-btn{border-style:dashed;}
 .field-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;margin-bottom:8px;}
 .field-card.optional{border-style:dashed;}
 .tag-buttons{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;}
 .tag-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:12px;padding:7px 12px;cursor:pointer;}
+.tag-btn.gold{border-color:rgba(201,168,76,.65);color:var(--gold-light);background:rgba(201,168,76,.08);}
 .tag-btn:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
 .log-tools{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;}
 .log-tools .btn-small{flex:1;min-width:64px;}
@@ -105,6 +115,11 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .keypad-btn:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
 .keypad-btn.action{font-size:15px;color:var(--text-muted);}
 .keypad-btn.confirm{background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;color:#0d0d0f;}
+.suggest-picker-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px;max-height:52vh;overflow:auto;}
+.suggest-picker-option{min-height:52px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;font-weight:700;padding:10px;cursor:pointer;text-align:left;}
+.suggest-picker-option:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
+.suggest-picker-actions{display:flex;gap:8px;margin-top:10px;}
+.suggest-picker-actions .btn-secondary{margin-top:0;}
 footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px;}
 footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
 footer a{color:var(--text-muted);text-decoration:none;}
@@ -423,6 +438,20 @@ footer a:hover{color:var(--gold-light);}
   </div>
 </div>
 
+<div class="keypad-overlay" id="suggestPickerOverlay" onclick="closeSuggestPicker()">
+  <div class="keypad" onclick="event.stopPropagation()">
+    <div class="keypad-title">
+      <span id="suggestPickerTitle">示唆を選択</span>
+      <button class="btn-small" onclick="closeSuggestPicker()">閉じる</button>
+    </div>
+    <div class="input-hint" id="suggestPickerBreadcrumb"></div>
+    <div class="suggest-picker-grid" id="suggestPickerOptions"></div>
+    <div class="suggest-picker-actions">
+      <button class="btn-secondary" id="suggestPickerBackButton" onclick="backSuggestPicker()">戻る</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const STORAGE_KEY='nerai_record_v1';
 const REQUIRED_AIMS=[
@@ -442,6 +471,8 @@ let currentTimeline=[];
 let currentEndLog=null;
 let currentSuggestLog=[];
 let pendingTimelineTagIds=[];
+let suggestPickerState={categoryId:'',placeId:''};
+let pendingSuggestSelection=null;
 let editingLogId=null;
 let continuedFromLog=null;
 let editingStoreName=null;
@@ -751,6 +782,7 @@ function selectMachine(id){
   currentStartLog=[];
   currentTimeline=[];
   currentSuggestLog=[];
+  pendingSuggestSelection=null;
   renderAll();
 }
 function editMachine(id){
@@ -1056,6 +1088,25 @@ function deleteSuggestItem(categoryId,placeId,itemId){
   place.items=(place.items||[]).filter(i=>i.id!==itemId);
   persist();renderAll();
 }
+function addSuggestPlaceToCategory(categoryId){
+  const category=findSuggestCategory(currentMachine(),categoryId);if(!category)return;
+  const name=prompt('追加する確認場所名','');if(name===null)return;
+  if(!name.trim()){alert('確認場所名を入力してください');return;}
+  category.places=Array.isArray(category.places)?category.places:[];
+  category.places.push({id:uid('sgp'),name:name.trim(),enabled:true,items:[]});
+  persist();renderAll();
+}
+function addSuggestItemToPlace(categoryId,placeId){
+  const category=findSuggestCategory(currentMachine(),categoryId);const place=findSuggestPlace(category,placeId);if(!place)return;
+  const label=prompt('追加する内容','');if(label===null)return;
+  if(!label.trim()){alert('内容を入力してください');return;}
+  place.items=Array.isArray(place.items)?place.items:[];
+  place.items.push({id:uid('sgi'),label:label.trim(),enabled:true});
+  persist();renderAll();
+}
+function suggestStateText(enabled){
+  return `<span class="state-text ${enabled?'enabled':'disabled'}">${enabled?'有効':'無効'}</span>`;
+}
 function renderSuggestMasterList(){
   const el=document.getElementById('suggestMasterList');
   if(!el)return;
@@ -1064,40 +1115,44 @@ function renderSuggestMasterList(){
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
   if(!machine.suggestMaster.length){el.innerHTML='<div class="empty-hint">まだ示唆マスタなし</div>';return;}
   el.innerHTML=machine.suggestMaster.map(category=>`
-    <div class="list-item">
+    <div class="list-item ${category.enabled?'':'suggest-disabled'}">
       <div class="item-head">
         <div>
           <div class="item-title">${escapeHtml(category.category)}</div>
-          <div class="item-sub">${category.enabled?'有効':'無効'} / 確認場所 ${category.places.length}件</div>
+          <div class="item-sub">${suggestStateText(category.enabled)} / 確認場所 ${category.places.length}件</div>
         </div>
         <div class="item-actions">
-          <button class="btn-small" onclick="toggleSuggestCategory('${category.id}')">${category.enabled?'無効化':'有効化'}</button>
+          <button class="btn-small ${category.enabled?'gold':''}" onclick="toggleSuggestCategory('${category.id}')">${category.enabled?'無効化':'有効化'}</button>
           <button class="btn-small" onclick="editSuggestCategory('${category.id}')">編集</button>
           <button class="btn-danger" onclick="deleteSuggestCategory('${category.id}')">削除</button>
         </div>
       </div>
       ${(category.places||[]).map(place=>`
-        <div class="field-card" style="margin-top:8px;">
+        <div class="field-card suggest-master-child ${place.enabled?'':'suggest-disabled'}">
           <div class="item-head">
             <div>
               <div class="item-title">${escapeHtml(place.name)}</div>
-              <div class="item-sub">${place.enabled?'有効':'無効'} / 内容 ${place.items.length}件</div>
+              <div class="item-sub">${suggestStateText(place.enabled)} / 内容 ${place.items.length}件</div>
             </div>
             <div class="item-actions">
-              <button class="btn-small" onclick="toggleSuggestPlace('${category.id}','${place.id}')">${place.enabled?'無効化':'有効化'}</button>
+              <button class="btn-small ${place.enabled?'gold':''}" onclick="toggleSuggestPlace('${category.id}','${place.id}')">${place.enabled?'無効化':'有効化'}</button>
               <button class="btn-small" onclick="editSuggestPlace('${category.id}','${place.id}')">編集</button>
               <button class="btn-danger" onclick="deleteSuggestPlace('${category.id}','${place.id}')">削除</button>
             </div>
           </div>
           <div style="margin-top:6px;">
             ${(place.items||[]).map(item=>`
-              <span class="pill ${item.enabled?'gold':''}">${escapeHtml(item.label)} / ${item.enabled?'有効':'無効'}</span>
-              <button class="btn-small" onclick="toggleSuggestItem('${category.id}','${place.id}','${item.id}')">${item.enabled?'無効化':'有効化'}</button>
-              <button class="btn-small" onclick="editSuggestItem('${category.id}','${place.id}','${item.id}')">編集</button>
-              <button class="btn-danger" onclick="deleteSuggestItem('${category.id}','${place.id}','${item.id}')">削除</button>
+              <div class="suggest-item-row ${item.enabled?'':'suggest-disabled'}">
+                <span class="pill ${item.enabled?'gold':'disabled'}">${escapeHtml(item.label)} / ${suggestStateText(item.enabled)}</span>
+                <button class="btn-small ${item.enabled?'gold':''}" onclick="toggleSuggestItem('${category.id}','${place.id}','${item.id}')">${item.enabled?'無効化':'有効化'}</button>
+                <button class="btn-small" onclick="editSuggestItem('${category.id}','${place.id}','${item.id}')">編集</button>
+                <button class="btn-danger" onclick="deleteSuggestItem('${category.id}','${place.id}','${item.id}')">削除</button>
+              </div>
             `).join('')}
           </div>
+          <button class="btn-secondary suggest-add-btn" onclick="addSuggestItemToPlace('${category.id}','${place.id}')">内容を追加</button>
         </div>`).join('')}
+      <button class="btn-secondary suggest-add-btn" onclick="addSuggestPlaceToCategory('${category.id}')">確認場所を追加</button>
     </div>`).join('');
 }
 
@@ -1214,7 +1269,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentSuggestLog=[];}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentSuggestLog=[];pendingSuggestSelection=null;closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -1384,15 +1439,11 @@ function renderLogFields(){
       <div class="section-label" style="margin-top:0;">実戦中ログ</div>
       ${renderTimelineArea()}
     </div>
-    <div class="card">
-      <div class="section-label" style="margin-top:0;">示唆記録</div>
-      ${renderSuggestArea()}
-    </div>
     <div id="practiceStatsBox"></div>`;
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
-  updateSuggestPlaceOptions();
+  renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
   renderPracticeStats();
   renderStoreSelect();
@@ -1448,6 +1499,11 @@ function renderStartLogArea(){
       <div class="input-label no-wrap-label">数値<div class="input-hint">単位は表示しません</div></div>
       <input type="text" id="startLogValue" class="numeric-input" inputmode="none" readonly placeholder="例：280">
     </div>
+    <div class="log-tools">
+      <button class="btn-small counter-btn" onclick="incrementStartLogValue(1)">+1</button>
+      <button class="btn-small counter-btn" onclick="incrementStartLogValue(5)">+5</button>
+      <button class="btn-small counter-btn" onclick="incrementStartLogValue(10)">+10</button>
+    </div>
     ${renderTagButtons('start')}
     <textarea id="startLogText" placeholder="例：CZ2スルー"></textarea>
     <button class="btn-primary" id="startLogAddButton" onclick="addStartLogEntry()">追加データを追加</button>
@@ -1501,6 +1557,14 @@ function appendTextToField(id,label){
   const current=el.value.trimEnd();
   el.value=current?`${current} ${label} `:`${label} `;
   el.focus();
+}
+function incrementStartLogValue(delta){
+  const el=document.getElementById('startLogValue');
+  if(!el)return;
+  const current=Number(el.value)||0;
+  el.value=String(current+delta);
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+  el.dispatchEvent(new Event('change',{bubbles:true}));
 }
 function sortedStartLog(){
   return [...currentStartLog].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
@@ -1584,56 +1648,119 @@ function renderSuggestArea(){
   if(!currentMachine())return '<div class="empty-hint">示唆記録は機種選択後に使えます</div>';
   if(!categories.length)return '<div class="empty-hint">有効な示唆マスタがありません。機種・店舗タブで登録してください。</div>';
   return `
-    <div class="input-row">
-      <div class="input-label">カテゴリ</div>
-      <select id="suggestCategorySelect" onchange="updateSuggestPlaceOptions()">
-        ${categories.map(c=>`<option value="${c.id}">${escapeHtml(c.category)}</option>`).join('')}
-      </select>
+    <div class="section-label" style="margin-top:14px;">示唆記録</div>
+    <p class="section-note">カテゴリを押すと確認場所 → 内容の順に選べます。内容選択後に出現G数を任意で入れられます。</p>
+    <div class="tag-buttons">
+      ${categories.map(c=>`<button class="tag-btn gold" onclick="openSuggestPlacePicker('${c.id}')">${escapeHtml(c.category)}</button>`).join('')}
     </div>
-    <div class="input-row">
-      <div class="input-label">確認場所</div>
-      <select id="suggestPlaceSelect" onchange="updateSuggestItemOptions()"></select>
-    </div>
-    <div class="input-row">
-      <div class="input-label">内容</div>
-      <select id="suggestItemSelect"></select>
-    </div>
-    <div class="input-row">
-      <div class="input-label">出現G数<div class="input-hint">任意</div></div>
-      <input type="text" id="suggestGame" class="numeric-input" inputmode="none" readonly placeholder="例：523">
-    </div>
-    <button class="btn-primary" onclick="addSuggestLogEntry()">示唆を記録</button>
+    <div id="pendingSuggestBox">${renderPendingSuggestBox()}</div>
     <div id="suggestLogList" style="margin-top:10px;"></div>`;
 }
-function updateSuggestPlaceOptions(){
-  const categorySel=document.getElementById('suggestCategorySelect');
-  const placeSel=document.getElementById('suggestPlaceSelect');
-  if(!categorySel||!placeSel)return;
-  const places=enabledSuggestPlaces(categorySel.value);
-  placeSel.innerHTML=places.length?places.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join(''):'<option value="">確認場所なし</option>';
-  updateSuggestItemOptions();
-}
-function updateSuggestItemOptions(){
-  const categorySel=document.getElementById('suggestCategorySelect');
-  const placeSel=document.getElementById('suggestPlaceSelect');
-  const itemSel=document.getElementById('suggestItemSelect');
-  if(!categorySel||!placeSel||!itemSel)return;
-  const items=enabledSuggestItems(categorySel.value,placeSel.value);
-  itemSel.innerHTML=items.length?items.map(i=>`<option value="${i.id}">${escapeHtml(i.label)}</option>`).join(''):'<option value="">内容なし</option>';
-}
-function addSuggestLogEntry(){
-  const categoryId=document.getElementById('suggestCategorySelect')?.value||'';
-  const placeId=document.getElementById('suggestPlaceSelect')?.value||'';
-  const itemId=document.getElementById('suggestItemSelect')?.value||'';
+function openSuggestPlacePicker(categoryId){
   const category=enabledSuggestCategories().find(c=>c.id===categoryId);
-  const place=enabledSuggestPlaces(categoryId).find(p=>p.id===placeId);
-  const item=enabledSuggestItems(categoryId,placeId).find(i=>i.id===itemId);
+  if(!category)return;
+  suggestPickerState={categoryId,placeId:''};
+  renderSuggestPicker('place');
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function closeSuggestPicker(){
+  document.getElementById('suggestPickerOverlay')?.classList.remove('open');
+  suggestPickerState={categoryId:'',placeId:''};
+}
+function backSuggestPicker(){
+  if(suggestPickerState.placeId){
+    suggestPickerState.placeId='';
+    renderSuggestPicker('place');
+  }else{
+    closeSuggestPicker();
+  }
+}
+function renderSuggestPicker(stage){
+  const category=enabledSuggestCategories().find(c=>c.id===suggestPickerState.categoryId);
+  const place=suggestPickerState.placeId?enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===suggestPickerState.placeId):null;
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  if(!category){closeSuggestPicker();return;}
+  if(stage==='item'&&place){
+    title.textContent='内容を選択';
+    breadcrumb.textContent=`${category.category} / ${place.name}`;
+    back.textContent='確認場所に戻る';
+    const items=enabledSuggestItems(category.id,place.id);
+    options.innerHTML=items.length?items.map(item=>`<button class="suggest-picker-option" onclick="selectSuggestItem('${item.id}')">${escapeHtml(item.label)}</button>`).join(''):'<div class="empty-hint">有効な内容がありません</div>';
+  }else{
+    title.textContent='確認場所を選択';
+    breadcrumb.textContent=category.category;
+    back.textContent='カテゴリに戻る';
+    const places=enabledSuggestPlaces(category.id);
+    options.innerHTML=places.length?places.map(p=>`<button class="suggest-picker-option" onclick="selectSuggestPlace('${p.id}')">${escapeHtml(p.name)}</button>`).join(''):'<div class="empty-hint">有効な確認場所がありません</div>';
+  }
+}
+function selectSuggestPlace(placeId){
+  const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===placeId);
+  if(!place)return;
+  suggestPickerState.placeId=placeId;
+  renderSuggestPicker('item');
+}
+function selectSuggestItem(itemId){
+  const category=enabledSuggestCategories().find(c=>c.id===suggestPickerState.categoryId);
+  const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===suggestPickerState.placeId);
+  const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===itemId);
   if(!category||!place||!item){alert('示唆のカテゴリ、確認場所、内容を選択してください');return;}
-  const game=normalizeOptionalNumber(document.getElementById('suggestGame')?.value||'');
-  currentSuggestLog.push({id:uid('sgl'),categoryId,placeId,itemId,category:category.category,place:place.name,item:item.label,game,createdAt:new Date().toISOString()});
-  const gameEl=document.getElementById('suggestGame');
-  if(gameEl)gameEl.value='';
+  pendingSuggestSelection={categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label};
+  closeSuggestPicker();
+  renderPendingSuggestBoxIntoDom();
+}
+function renderPendingSuggestBox(){
+  if(!pendingSuggestSelection)return '';
+  const fallbackGame=(document.getElementById('timelineGame')?.value||'').trim();
+  return `
+    <div class="calc-box">
+      <div class="calc-label">選択中の示唆</div>
+      <div class="timeline-text" style="margin-top:4px;">${escapeHtml(pendingSuggestSelection.category)} / ${escapeHtml(pendingSuggestSelection.place)}：${escapeHtml(pendingSuggestSelection.item)}</div>
+      <div class="input-row" style="margin-top:8px;">
+        <div class="input-label no-wrap-label">出現G数<div class="input-hint">任意</div></div>
+        <input type="text" id="pendingSuggestGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(fallbackGame)}" placeholder="空でも可">
+      </div>
+      <div class="btn-row">
+        <button class="btn-small gold" onclick="addPendingSuggestLog(true)">記録</button>
+        <button class="btn-small" onclick="addPendingSuggestLog(false)">G数なし</button>
+        <button class="btn-small" onclick="backPendingSuggestSelection()">戻る</button>
+        <button class="btn-danger" onclick="cancelPendingSuggestSelection()">取消</button>
+      </div>
+    </div>`;
+}
+function renderPendingSuggestBoxIntoDom(){
+  const el=document.getElementById('pendingSuggestBox');
+  if(el)el.innerHTML=renderPendingSuggestBox();
+  bindNumericInputs();
+}
+function addPendingSuggestLog(useGame){
+  if(!pendingSuggestSelection)return;
+  let game=null;
+  if(useGame){
+    const raw=(document.getElementById('pendingSuggestGame')?.value||'').trim();
+    game=normalizeOptionalNumber(raw);
+    if(raw!==''&&game===null){alert('G数は数値で入力してください');return;}
+  }
+  currentSuggestLog.push({...pendingSuggestSelection,id:uid('sgl'),game,createdAt:new Date().toISOString()});
+  pendingSuggestSelection=null;
+  renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
+}
+function backPendingSuggestSelection(){
+  if(!pendingSuggestSelection)return;
+  suggestPickerState={categoryId:pendingSuggestSelection.categoryId,placeId:pendingSuggestSelection.placeId};
+  pendingSuggestSelection=null;
+  renderPendingSuggestBoxIntoDom();
+  renderSuggestPicker('item');
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function cancelPendingSuggestSelection(){
+  pendingSuggestSelection=null;
+  renderPendingSuggestBoxIntoDom();
 }
 function suggestLogLine(entry){
   const game=entry.game!==null&&entry.game!==undefined?`${entry.game}G `:'';
@@ -1692,6 +1819,7 @@ function renderTimelineArea(){
     ${renderTagButtons('timeline')}
     <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし"></textarea>
     <button class="btn-primary" onclick="addTimelineEntry()">ログに追加</button>
+    ${renderSuggestArea()}
     <div class="section-label" style="margin-top:14px;">打ち終わり</div>
     <div class="input-row">
       <div class="input-label no-wrap-label">終了理由</div>
@@ -2134,10 +2262,13 @@ function clearLogInput(cancelEdit=true){
   currentEndLog=null;
   currentSuggestLog=[];
   pendingTimelineTagIds=[];
+  pendingSuggestSelection=null;
+  closeSuggestPicker();
   resetStartCounterDefault();
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
+  renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
   renderPracticeStats();
   setToday();
@@ -2221,11 +2352,14 @@ function loadLogForEdit(id){
   currentEndLog=clone(log.endLog||null);
   currentSuggestLog=clone(log.suggestLog||[]);
   pendingTimelineTagIds=[];
+  pendingSuggestSelection=null;
+  closeSuggestPicker();
   showPage('pageLog');
   fillLogInputs(log);
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
+  renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
   renderPracticeStats();
   updateEditModeUi();
@@ -2253,6 +2387,8 @@ function continueFromLog(id){
   currentEndLog=null;
   currentSuggestLog=[];
   pendingTimelineTagIds=[];
+  pendingSuggestSelection=null;
+  closeSuggestPicker();
   const stats=practiceStatsLine(calculatePracticeStats(log));
   continuedFromLog={id:log.id,summary:`${log.money?.date||'日付なし'} / ${endLogLine(log.endLog)||'打ち終わりなし'} / ${stats}`};
   showPage('pageLog');
