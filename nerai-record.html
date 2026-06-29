@@ -53,6 +53,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .inline-field .btn-small{flex:0 0 auto;}
 .btn-primary{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:10px;}
 .btn-primary:active{opacity:.82;}
+.btn-primary.required-action{background:linear-gradient(135deg,#9b3f2e,#e07070);color:#140b09;box-shadow:0 0 0 1px rgba(224,112,112,.35);}
 .btn-secondary{width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:14px;padding:11px;cursor:pointer;margin-top:8px;}
 .btn-secondary:active,.btn-small:active{border-color:var(--gold);color:var(--gold-light);}
 .btn-small{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;}
@@ -90,6 +91,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .calc-label{font-size:11px;color:var(--text-muted);}
 .calc-value{font-size:17px;font-weight:700;color:var(--gold-light);margin-top:2px;}
 .warning{font-size:12px;color:#e07070;margin-top:8px;display:none;}
+.required-hint{font-size:12px;color:#e07070;margin-top:6px;text-align:center;}
 .optional-box{display:none;margin-top:8px;}
 .optional-box.open{display:block;}
 .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
@@ -935,6 +937,28 @@ function renderStoreSelect(){
     if(current)sel.value=current;
   });
 }
+function latestStoreForDate(date){
+  if(!date)return '';
+  const logs=db.logs
+    .filter(log=>log.money?.date===date&&log.money?.store)
+    .sort((a,b)=>String(b.createdAt||b.updatedAt||'').localeCompare(String(a.createdAt||a.updatedAt||'')));
+  return logs[0]?.money?.store||'';
+}
+function applyLatestStoreForCurrentDate(){
+  if(editingLogId||continuedFromLog)return;
+  const storeEl=document.getElementById('moneyStore');
+  if(!storeEl||storeEl.value)return;
+  const date=document.getElementById('moneyDate')?.value||todayValue();
+  const store=latestStoreForDate(date);
+  if(!store)return;
+  if(!db.stores.includes(store)){
+    db.stores.push(store);
+    persist();
+    renderStoreSelect();
+  }
+  storeEl.value=store;
+  syncHeaderFromMoney();
+}
 function addStoreFromInput(source='money'){
   const name=prompt('追加する店舗名');
   if(name===null)return;
@@ -1031,11 +1055,12 @@ function renderStartLogArea(){
     ${renderLabelTagButtons()}
     <div class="input-row">
       <div class="input-label no-wrap-label">数値<div class="input-hint">単位は表示しません</div></div>
-      <input type="text" id="startLogValue" class="numeric-input" inputmode="none" readonly placeholder="例：280">
+      <input type="text" id="startLogValue" class="numeric-input" inputmode="none" readonly value="0" data-clear-initial-zero="1" placeholder="例：280">
     </div>
     ${renderTagButtons('start')}
     <textarea id="startLogText" placeholder="例：CZ2スルー"></textarea>
-    <button class="btn-primary" onclick="addStartLogEntry()">打ち始めに追加</button>
+    <button class="btn-primary ${currentStartLog.length?'':'required-action'}" id="startLogAddButton" onclick="addStartLogEntry()">打ち始めに追加</button>
+    <div class="required-hint" id="startLogRequiredHint" style="${currentStartLog.length?'display:none;':''}">打ち始めデータの登録が必要です</div>
     <div id="startLogList" style="margin-top:10px;"></div>`;
 }
 function renderStartHeaderArea(){
@@ -1103,7 +1128,7 @@ function addStartLogEntry(){
   if(rawValue!==''&&Number.isNaN(value)){alert('数値を入力してください');return;}
   currentStartLog.push({id:uid('sl'),label,labelTagId,value,text,createdAt:new Date().toISOString()});
   if(labelEl){labelEl.value='';labelEl.dataset.labelTagId='';}
-  if(valueEl)valueEl.value='';
+  if(valueEl){valueEl.value='';valueEl.dataset.clearInitialZero='';}
   if(textEl)textEl.value='';
   renderCurrentStartLog();
   renderPracticeStats();
@@ -1117,6 +1142,7 @@ function startLogLine(item){
 }
 function renderCurrentStartLog(){
   const el=document.getElementById('startLogList');
+  updateStartLogRequiredState();
   if(!el)return;
   const rows=sortedStartLog();
   if(!rows.length){el.innerHTML='<div class="empty-hint">まだ打ち始めログなし</div>';return;}
@@ -1152,6 +1178,13 @@ function deleteStartLogEntry(id){
   currentStartLog=currentStartLog.filter(t=>t.id!==id);
   renderCurrentStartLog();
   renderPracticeStats();
+}
+function updateStartLogRequiredState(){
+  const required=!currentStartLog.length;
+  const button=document.getElementById('startLogAddButton');
+  const hint=document.getElementById('startLogRequiredHint');
+  if(button)button.classList.toggle('required-action',required);
+  if(hint)hint.style.display=required?'block':'none';
 }
 function renderTimelineArea(){
   const machine=currentMachine();
@@ -1424,6 +1457,10 @@ function bindNumericInputs(){
 }
 function openNumericKeypad(input){
   activeNumericInput=input;
+  if(input.dataset.clearInitialZero==='1'&&input.value==='0'){
+    input.value='';
+    input.dataset.clearInitialZero='';
+  }
   document.getElementById('numericKeypadLabel').textContent=input.placeholder||'数値入力';
   updateKeypadValue();
   document.getElementById('numericKeypadOverlay').classList.add('open');
@@ -1570,8 +1607,16 @@ function clearLogInput(cancelEdit=true){
   renderPracticeStats();
   setToday();
   setDefaultStartTime(true);
+  resetStartLogValueDefault();
+  applyLatestStoreForCurrentDate();
   updateCalc();
   updateEditModeUi();
+}
+function resetStartLogValueDefault(){
+  const el=document.getElementById('startLogValue');
+  if(!el)return;
+  el.value='0';
+  el.dataset.clearInitialZero='1';
 }
 
 function updateEditModeUi(){
@@ -1647,6 +1692,7 @@ function continueFromLog(id){
   if(!log)return;
   const machine=machineById(log.machineId);
   if(!machine){alert('このログの機種テンプレが見つかりません。先に機種を復元してください。');return;}
+  if(!confirm('このログの機種・狙い方・店舗・台番号を引き継いで、新しい稼働として続行しますか？'))return;
   let aim=aimById(machine,log.aimId)||machine.aims.find(a=>a.name===log.aimName);
   if(!aim&&log.aimId){
     aim={id:log.aimId,name:log.aimName||'復元した狙い方',fields:clone(log.fieldSnapshot||[])};
@@ -1834,6 +1880,7 @@ toggleOptionsHint();
 showPage('pageLog');
 setToday();
 setDefaultStartTime();
+applyLatestStoreForCurrentDate();
 </script>
 </body>
 </html>
