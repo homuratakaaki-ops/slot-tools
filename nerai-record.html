@@ -1040,7 +1040,7 @@ function renderStartLogArea(){
 }
 function renderStartHeaderArea(){
   return `
-    ${continuedFromLog?`<div class="calc-box" style="margin-bottom:12px;"><div class="calc-label">続行元</div><div class="timeline-text" style="margin-top:4px;">${escapeHtml(continuedFromLog.summary)}</div></div>`:''}
+    ${continuedFromLog?`<div class="calc-box" id="continuedFromBox" style="margin-bottom:12px;"><div class="calc-label">続行元</div><div class="timeline-text" style="margin-top:4px;">${escapeHtml(continuedFromLog.summary)}</div><button class="btn-secondary" onclick="clearContinueState()" style="margin-top:8px;">続行をやめる</button></div>`:''}
     <div class="section-label" style="margin-top:0;">稼働ヘッダー</div>
     <div class="input-row compact-row">
       <div class="input-label no-wrap-label">日付</div>
@@ -1186,15 +1186,15 @@ function renderTimelineArea(){
     <textarea id="endText" placeholder="終了理由の補足（任意）"></textarea>
     <div class="input-row">
       <div class="input-label no-wrap-label">CZ回数<div class="input-hint">この稼働の合計</div></div>
-      <input type="text" id="endCzCount" class="numeric-input" inputmode="none" readonly placeholder="0">
+      <div class="inline-field"><input type="text" id="endCzCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endCzCount')">+1</button></div>
     </div>
     <div class="input-row">
       <div class="input-label no-wrap-label">AT回数<div class="input-hint">この稼働の合計</div></div>
-      <input type="text" id="endAtCount" class="numeric-input" inputmode="none" readonly placeholder="0">
+      <div class="inline-field"><input type="text" id="endAtCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endAtCount')">+1</button></div>
     </div>
     <div class="input-row">
       <div class="input-label no-wrap-label">CZ成功数<div class="input-hint">任意</div></div>
-      <input type="text" id="endCzSuccessCount" class="numeric-input" inputmode="none" readonly placeholder="0">
+      <div class="inline-field"><input type="text" id="endCzSuccessCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endCzSuccessCount')">+1</button></div>
     </div>
     <button class="btn-secondary end-btn" onclick="recordEndLog()">現在のG数で打ち終わり</button>
     <div id="endLogBox" style="margin-top:10px;"></div>
@@ -1293,6 +1293,14 @@ function recordEndLog(){
   ['endCzCount','endAtCount','endCzSuccessCount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderEndLog();
   renderPracticeStats();
+}
+function incrementEndCount(id){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const current=Number(el.value)||0;
+  el.value=String(current+1);
+  el.dispatchEvent(new Event('input',{bubbles:true}));
+  el.dispatchEvent(new Event('change',{bubbles:true}));
 }
 function readNonNegativeInt(id,label){
   const raw=(document.getElementById(id)?.value||'').trim();
@@ -1784,7 +1792,13 @@ function copyLog(id){
 function deleteLog(id){
   if(!confirm('このログを削除しますか？'))return;
   db.logs=db.logs.filter(l=>l.id!==id);
+  if(continuedFromLog?.id===id)clearContinueState();
   persist();renderLogsList();
+}
+function clearContinueState(){
+  continuedFromLog=null;
+  const box=document.getElementById('continuedFromBox');
+  if(box)box.style.display='none';
 }
 function backupJson(){
   const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
