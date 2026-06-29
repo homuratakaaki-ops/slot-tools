@@ -196,20 +196,25 @@ footer a:hover{color:var(--gold-light);}
         <div class="inline-field"><input type="time" id="moneyEnd" onchange="updateCalc()"><button class="btn-small" onclick="setNow('moneyEnd')">現在</button></div>
       </div>
       <div class="input-row">
-        <div class="input-label">投資</div>
-        <div class="inline-field"><input type="text" id="moneyInvest" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()"><span class="input-hint">枚</span></div>
+        <div class="input-label">開始持ちメダル<div class="input-hint">必須</div></div>
+        <div class="inline-field"><input type="text" id="moneyStartMedals" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()" onchange="updateCalc()"><span class="input-hint">枚</span></div>
       </div>
       <div class="input-row">
-        <div class="input-label">回収</div>
-        <div class="inline-field"><input type="text" id="moneyRecover" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()"><span class="input-hint">枚</span></div>
+        <div class="input-label">終了持ちメダル</div>
+        <div class="inline-field"><input type="text" id="moneyEndMedals" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()" onchange="updateCalc()"><span class="input-hint">枚</span></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">現金投入<div class="input-hint">この台で追加した円だけ</div></div>
+        <div class="inline-field"><input type="text" id="moneyCashIn" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()" onchange="updateCalc()"><span class="input-hint">円</span></div>
       </div>
       <div class="calc-box">
         <div class="calc-grid">
           <div class="calc-cell"><div class="calc-label">稼働時間</div><div class="calc-value" id="calcWork">-</div></div>
-          <div class="calc-cell"><div class="calc-label">差枚</div><div class="calc-value" id="calcDiff">0枚</div></div>
-          <div class="calc-cell"><div class="calc-label">収支</div><div class="calc-value" id="calcBalance">0枚</div></div>
+          <div class="calc-cell"><div class="calc-label">メダル増減</div><div class="calc-value" id="calcDiff">-</div></div>
+          <div class="calc-cell"><div class="calc-label">円収支</div><div class="calc-value" id="calcBalance">-</div></div>
           <div class="calc-cell"><div class="calc-label">時給</div><div class="calc-value" id="calcHourly">-</div></div>
         </div>
+        <div class="input-hint" id="rateHint" style="margin-top:8px;">交換率未設定</div>
         <div class="warning" id="timeWarning">終了時間が開始時間より前です。MVPでは日跨ぎを計算しないため、稼働時間は0分にします。</div>
       </div>
     </div>
@@ -257,6 +262,37 @@ footer a:hover{color:var(--gold-light);}
   <div class="section">
     <div class="section-label">機種一覧</div>
     <div id="machineList"></div>
+  </div>
+
+  <div class="section">
+    <div class="section-label">店舗管理</div>
+    <p class="section-note">店舗ごとに貸し枚数・交換枚数を登録します。貸し枚数はボタンで選べます。</p>
+    <div class="card">
+      <div class="input-row"><div class="input-label">店舗名</div><input type="text" id="storeName" placeholder="例：高岡コンパクト"></div>
+      <div class="input-row">
+        <div class="input-label">何枚貸し<div class="input-hint">1000円あたり</div></div>
+        <input type="text" id="storeLendRate" class="numeric-input" inputmode="none" readonly placeholder="例：47">
+      </div>
+      <div class="log-tools">
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(46)">46</button>
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(47)">47</button>
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(48)">48</button>
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(49)">49</button>
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(50)">50</button>
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(51)">51</button>
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(52)">52</button>
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(53)">53</button>
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(54)">54</button>
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(55)">55</button>
+        <button class="btn-small counter-btn" onclick="setStoreLendRate(56)">56</button>
+      </div>
+      <div class="input-row">
+        <div class="input-label">何枚交換<div class="input-hint">1000円あたり</div></div>
+        <input type="text" id="storeExchangeRate" class="numeric-input" inputmode="none" readonly placeholder="例：56">
+      </div>
+    </div>
+    <button class="btn-primary" onclick="addStoreFromManage()">店舗を追加</button>
+    <div id="storeList" style="margin-top:10px;"></div>
   </div>
 
   <div class="section">
@@ -414,6 +450,35 @@ function clone(value){return JSON.parse(JSON.stringify(value));}
 function escapeHtml(value){
   return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
+function normalizeStore(entry){
+  if(typeof entry==='string')return {name:entry,lendRate:null,exchangeRate:null};
+  if(!entry||typeof entry!=='object')return null;
+  const name=String(entry.name||'').trim();
+  if(!name)return null;
+  return {
+    name,
+    lendRate:normalizeOptionalNumber(entry.lendRate),
+    exchangeRate:normalizeOptionalNumber(entry.exchangeRate)
+  };
+}
+function storeName(entry){return typeof entry==='string'?entry:(entry?.name||'');}
+function storeByName(name){return db.stores.map(normalizeStore).find(s=>s&&s.name===name)||null;}
+function ensureStore(name,lendRate=null,exchangeRate=null){
+  const trimmed=String(name||'').trim();
+  if(!trimmed)return null;
+  db.stores=db.stores.map(normalizeStore).filter(Boolean);
+  let store=db.stores.find(s=>s.name===trimmed);
+  if(!store){
+    store={name:trimmed,lendRate:normalizeOptionalNumber(lendRate),exchangeRate:normalizeOptionalNumber(exchangeRate)};
+    db.stores.push(store);
+  }else{
+    const lend=normalizeOptionalNumber(lendRate);
+    const exchange=normalizeOptionalNumber(exchangeRate);
+    if(lend!==null)store.lendRate=lend;
+    if(exchange!==null)store.exchangeRate=exchange;
+  }
+  return store;
+}
 function loadData(){
   try{
     const parsed=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
@@ -424,7 +489,7 @@ function loadData(){
 function normalizeData(data){
   data.machines=Array.isArray(data.machines)?data.machines:[];
   delete data.presetAims;
-  data.stores=Array.isArray(data.stores)?data.stores:[];
+  data.stores=(Array.isArray(data.stores)?data.stores:[]).map(normalizeStore).filter(Boolean);
   data.logs=Array.isArray(data.logs)?data.logs:[];
   data.logs.forEach(log=>{
     log.startLog=Array.isArray(log.startLog)?log.startLog:[];
@@ -445,6 +510,10 @@ function normalizeData(data){
     if(!log.money)log.money={};
     log.money.publishStore=!!log.money.publishStore;
     log.money.publishMachineNo=!!log.money.publishMachineNo;
+    ['startMedals','endMedals','cashIn','lendRate','exchangeRate','medalDiff','yenDiff'].forEach(key=>{
+      log.money[key]=normalizeOptionalNumber(log.money[key]);
+    });
+    if(log.money.cashIn===null&&normalizeOptionalNumber(log.money.startMedals)!==null)log.money.cashIn=0;
   });
   data.machines.forEach(m=>{
     m.maker=m.maker||'';
@@ -508,12 +577,6 @@ function nowTime(){
   return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
 }
 function calcMoney(money){
-  const hasInvest=money.invest!==null&&money.invest!==undefined&&money.invest!=='';
-  const hasRecover=money.recover!==null&&money.recover!==undefined&&money.recover!=='';
-  const invest=hasInvest?Number(money.invest):null;
-  const recover=hasRecover?Number(money.recover):null;
-  const hasResult=hasInvest&&hasRecover&&!Number.isNaN(invest)&&!Number.isNaN(recover);
-  const diff=hasResult?recover-invest:null;
   let workMinutes=null;
   let invalidTime=false;
   if(money.startTime&&money.endTime){
@@ -523,8 +586,27 @@ function calcMoney(money){
     invalidTime=raw<0;
     workMinutes=Math.max(raw,0);
   }
+  const startMedals=normalizeOptionalNumber(money.startMedals);
+  const endMedals=normalizeOptionalNumber(money.endMedals);
+  const cashIn=normalizeOptionalNumber(money.cashIn);
+  const store=storeByName(money.store);
+  const lendRate=normalizeOptionalNumber(money.lendRate)??store?.lendRate??null;
+  const exchangeRate=normalizeOptionalNumber(money.exchangeRate)??store?.exchangeRate??null;
+  const hasNewMoney=startMedals!==null||endMedals!==null||cashIn!==null;
+  const medalDiff=startMedals!==null&&endMedals!==null?endMedals-startMedals:null;
+  const yenDiff=medalDiff!==null&&exchangeRate?Math.round(medalDiff*1000/exchangeRate-(cashIn||0)):null;
+  if(hasNewMoney){
+    const hourlyRate=yenDiff!==null&&workMinutes>0?Math.round(yenDiff/workMinutes*60):null;
+    return {workMinutes,diff:medalDiff,balance:yenDiff,hourlyRate,invalidTime,hasResult:yenDiff!==null,medalDiff,yenDiff,lendRate,exchangeRate,cashIn:cashIn||0,model:'medals'};
+  }
+  const hasInvest=money.invest!==null&&money.invest!==undefined&&money.invest!=='';
+  const hasRecover=money.recover!==null&&money.recover!==undefined&&money.recover!=='';
+  const invest=hasInvest?Number(money.invest):null;
+  const recover=hasRecover?Number(money.recover):null;
+  const hasResult=hasInvest&&hasRecover&&!Number.isNaN(invest)&&!Number.isNaN(recover);
+  const diff=hasResult?recover-invest:null;
   const hourlyRate=hasResult&&workMinutes>0?Math.round(diff/workMinutes*60):null;
-  return {workMinutes,diff,balance:diff,hourlyRate,invalidTime,hasResult};
+  return {workMinutes,diff,balance:diff,hourlyRate,invalidTime,hasResult,medalDiff:diff,yenDiff:null,lendRate,exchangeRate,cashIn:null,model:'legacy'};
 }
 function formatDiff(n){
   if(n===null||n===undefined||n==='')return '-';
@@ -533,6 +615,13 @@ function formatDiff(n){
   return (num>0?'+':'')+num+'枚';
 }
 function formatMoneyAmount(n){return n===null||n===undefined||n===''?'-':(Number(n)||0)+'枚';}
+function formatYenDiff(n){
+  if(n===null||n===undefined||n==='')return '-';
+  const num=Number(n);
+  if(Number.isNaN(num))return '-';
+  return (num>0?'+':'')+num.toLocaleString('ja-JP')+'円';
+}
+function formatYenAmount(n){return n===null||n===undefined||n===''?'-':Number(n).toLocaleString('ja-JP')+'円';}
 function sectionLabel(section){return section==='play'?'実戦中':'打ち始め';}
 function fieldTypeLabel(type){return {text:'テキスト',number:'数値',select:'選択式',checkbox:'チェックボックス',memo:'メモ欄',time:'時間',date:'日付'}[type]||'テキスト';}
 
@@ -547,11 +636,13 @@ function showPage(pageId){
 
 function renderAll(){
   db.machines.forEach(m=>ensureRequiredAims(m));
+  db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
   renderTagList();
   renderStartTagList();
   renderLabelTagList();
+  renderStoreList();
   renderFieldTarget();
   renderFieldList();
   renderLogSelectors();
@@ -928,7 +1019,8 @@ function selectLogAim(){
   renderAll();
 }
 function renderStoreSelect(){
-  const options='<option value="">店舗未選択</option>'+db.stores.map(s=>`<option value="${escapeHtml(s)}">${escapeHtml(s)}</option>`).join('');
+  db.stores=db.stores.map(normalizeStore).filter(Boolean);
+  const options='<option value="">店舗未選択</option>'+db.stores.map(s=>`<option value="${escapeHtml(s.name)}">${escapeHtml(s.name)}</option>`).join('');
   ['moneyStore','startMoneyStore'].forEach(id=>{
     const sel=document.getElementById(id);
     if(!sel)return;
@@ -944,6 +1036,24 @@ function latestStoreForDate(date){
     .sort((a,b)=>String(b.createdAt||b.updatedAt||'').localeCompare(String(a.createdAt||a.updatedAt||'')));
   return logs[0]?.money?.store||'';
 }
+function latestLogForDateStore(date,store){
+  if(!date||!store)return null;
+  return [...db.logs]
+    .filter(log=>log.money?.date===date&&log.money?.store===store&&normalizeOptionalNumber(log.money?.endMedals)!==null)
+    .sort((a,b)=>String(b.createdAt||b.updatedAt||'').localeCompare(String(a.createdAt||a.updatedAt||'')))[0]||null;
+}
+function applyLatestMedalsForCurrentStore(){
+  if(editingLogId||continuedFromLog)return;
+  const startEl=document.getElementById('moneyStartMedals');
+  if(!startEl||startEl.value)return;
+  const date=document.getElementById('moneyDate')?.value||todayValue();
+  const store=document.getElementById('moneyStore')?.value||'';
+  const latest=latestLogForDateStore(date,store);
+  const medals=normalizeOptionalNumber(latest?.money?.endMedals);
+  if(medals===null)return;
+  startEl.value=String(medals);
+  updateCalc();
+}
 function applyLatestStoreForCurrentDate(){
   if(editingLogId||continuedFromLog)return;
   const storeEl=document.getElementById('moneyStore');
@@ -951,26 +1061,94 @@ function applyLatestStoreForCurrentDate(){
   const date=document.getElementById('moneyDate')?.value||todayValue();
   const store=latestStoreForDate(date);
   if(!store)return;
-  if(!db.stores.includes(store)){
-    db.stores.push(store);
-    persist();
-    renderStoreSelect();
-  }
+  ensureStore(store);
+  persist();
+  renderStoreSelect();
   storeEl.value=store;
   syncHeaderFromMoney();
+  applyLatestMedalsForCurrentStore();
 }
 function addStoreFromInput(source='money'){
   const name=prompt('追加する店舗名');
   if(name===null)return;
   const trimmed=name.trim();
   if(!trimmed)return;
-  if(!db.stores.includes(trimmed))db.stores.push(trimmed);
+  const lend=promptRate('何枚貸し（空でも可）',47);
+  if(lend===false)return;
+  const exchange=promptRate('何枚交換（空でも可）',56);
+  if(exchange===false)return;
+  ensureStore(trimmed,lend,exchange);
   persist();renderStoreSelect();
   const targetId=source==='start'?'startMoneyStore':'moneyStore';
   const target=document.getElementById(targetId);
   if(target)target.value=trimmed;
   source==='start'?syncHeaderFromStart():syncHeaderFromMoney();
 }
+function setStoreLendRate(value){
+  const el=document.getElementById('storeLendRate');
+  if(el)el.value=String(value);
+}
+function promptRate(label,defaultValue){
+  const raw=prompt(label,defaultValue?String(defaultValue):'');
+  if(raw===null)return false;
+  if(raw.trim()==='')return null;
+  const num=Number(raw);
+  if(Number.isNaN(num)||num<=0){alert('交換率は正の数値で入力してください');return false;}
+  return num;
+}
+function addStoreFromManage(){
+  const name=document.getElementById('storeName')?.value.trim()||'';
+  if(!name){alert('店舗名を入力してください');return;}
+  const lend=normalizeOptionalNumber(document.getElementById('storeLendRate')?.value||'');
+  const exchange=normalizeOptionalNumber(document.getElementById('storeExchangeRate')?.value||'');
+  ensureStore(name,lend,exchange);
+  persist();
+  ['storeName','storeLendRate','storeExchangeRate'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  renderAll();
+}
+function editStore(name){
+  const store=storeByName(name);
+  if(!store)return;
+  const nextName=prompt('店舗名',store.name);
+  if(nextName===null)return;
+  const trimmed=nextName.trim();
+  if(!trimmed){alert('店舗名は空にできません');return;}
+  const lend=promptRate('何枚貸し（空でも可）',store.lendRate);
+  if(lend===false)return;
+  const exchange=promptRate('何枚交換（空でも可）',store.exchangeRate);
+  if(exchange===false)return;
+  store.name=trimmed;
+  store.lendRate=lend;
+  store.exchangeRate=exchange;
+  db.logs.forEach(log=>{if(log.money?.store===name)log.money.store=trimmed;});
+  persist();renderAll();
+}
+function deleteStore(name){
+  if(!confirm('この店舗を削除しますか？ 過去ログの店舗名は残ります。'))return;
+  db.stores=db.stores.map(normalizeStore).filter(s=>s&&s.name!==name);
+  persist();renderAll();
+}
+function renderStoreList(){
+  const el=document.getElementById('storeList');
+  if(!el)return;
+  db.stores=db.stores.map(normalizeStore).filter(Boolean);
+  if(!db.stores.length){el.innerHTML='<div class="empty-hint">まだ店舗なし</div>';return;}
+  el.innerHTML=db.stores.map(s=>`
+    <div class="list-item">
+      <div class="item-head">
+        <div>
+          <div class="item-title">${escapeHtml(s.name)}</div>
+          <div class="item-sub">貸し ${s.lendRate??'-'}枚 / 交換 ${s.exchangeRate??'-'}枚</div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-small" onclick="editStoreByEncoded('${encodeURIComponent(s.name)}')">編集</button>
+          <button class="btn-danger" onclick="deleteStoreByEncoded('${encodeURIComponent(s.name)}')">削除</button>
+        </div>
+      </div>
+    </div>`).join('');
+}
+function editStoreByEncoded(name){editStore(decodeURIComponent(name));}
+function deleteStoreByEncoded(name){deleteStore(decodeURIComponent(name));}
 function setFieldValue(id,value){
   const el=document.getElementById(id);
   if(el)el.value=value||'';
@@ -986,6 +1164,7 @@ function syncHeaderFromStart(){
   setFieldValue('moneyMachineNo',document.getElementById('startMoneyMachineNo')?.value||'');
   setFieldChecked('publishMachineNo',document.getElementById('startPublishMachineNo')?.checked);
   setFieldValue('moneyStart',document.getElementById('startMoneyStart')?.value||'');
+  applyLatestMedalsForCurrentStore();
   updateCalc();
 }
 function syncHeaderFromMoney(){
@@ -995,6 +1174,7 @@ function syncHeaderFromMoney(){
   setFieldValue('startMoneyMachineNo',document.getElementById('moneyMachineNo')?.value||'');
   setFieldChecked('startPublishMachineNo',document.getElementById('publishMachineNo')?.checked);
   setFieldValue('startMoneyStart',document.getElementById('moneyStart')?.value||'');
+  applyLatestMedalsForCurrentStore();
   updateCalc();
 }
 function renderLogFields(){
@@ -1540,27 +1720,33 @@ function updateCalc(){
   const calc=calcMoney({
     startTime:document.getElementById('moneyStart')?.value||'',
     endTime:document.getElementById('moneyEnd')?.value||'',
-    invest:document.getElementById('moneyInvest')?.value||0,
-    recover:document.getElementById('moneyRecover')?.value||0
+    store:document.getElementById('moneyStore')?.value||'',
+    startMedals:document.getElementById('moneyStartMedals')?.value||'',
+    endMedals:document.getElementById('moneyEndMedals')?.value||'',
+    cashIn:document.getElementById('moneyCashIn')?.value||''
   });
   document.getElementById('calcWork').textContent=calc.workMinutes===null?'-':calc.workMinutes+'分';
   document.getElementById('calcDiff').textContent=formatDiff(calc.diff);
-  document.getElementById('calcBalance').textContent=formatDiff(calc.balance);
-  document.getElementById('calcHourly').textContent=calc.hourlyRate===null?'-':formatDiff(calc.hourlyRate)+'/h';
+  document.getElementById('calcBalance').textContent=formatYenDiff(calc.balance);
+  document.getElementById('calcHourly').textContent=calc.hourlyRate===null?'-':formatYenDiff(calc.hourlyRate)+'/h';
+  const rateHint=document.getElementById('rateHint');
+  if(rateHint)rateHint.textContent=calc.exchangeRate?`貸し ${calc.lendRate??'-'}枚 / 交換 ${calc.exchangeRate}枚で円換算`:'交換率未設定のため円収支は未計算';
   const warning=document.getElementById('timeWarning');
   if(warning)warning.style.display=calc.invalidTime?'block':'none';
 }
 function saveLog(){
   const machine=currentMachine();const aim=currentAim();
   if(!machine||!aim){alert('機種と狙い方を選択してください');return;}
+  const editingLog=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
   syncStartCounterGame();
   const startCounter=currentStartCounterGame;
   if(startCounter===null){alert('打ち始めのデータカウンターG数を入力してください');return;}
   if(!currentEndLog){alert('打ち終わりデータを登録してください');return;}
   if(Number(currentEndLog.game)-startCounter<0){alert('打ち終わりG数は打ち始めのデータカウンターG数以上にしてください');return;}
-  const editingLog=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
   const fieldSnapshot=clone(editingLog?.fieldSnapshot||aim.fields||[]);
   const values={};
+  const enteredStartMedals=normalizeOptionalNumber(document.getElementById('moneyStartMedals').value);
+  const legacyMoneyMode=!!editingLog&&enteredStartMedals===null&&normalizeOptionalNumber(editingLog.money?.startMedals)===null&&((editingLog.money?.invest!==null&&editingLog.money?.invest!==undefined)||(editingLog.money?.recover!==null&&editingLog.money?.recover!==undefined));
   const baseMoney={
     date:document.getElementById('moneyDate').value,
     store:document.getElementById('moneyStore').value,
@@ -1569,9 +1755,16 @@ function saveLog(){
     publishMachineNo:document.getElementById('publishMachineNo').checked,
     startTime:document.getElementById('moneyStart').value,
     endTime:document.getElementById('moneyEnd').value,
-    invest:document.getElementById('moneyInvest').value===''?null:Number(document.getElementById('moneyInvest').value),
-    recover:document.getElementById('moneyRecover').value===''?null:Number(document.getElementById('moneyRecover').value)
+    startMedals:legacyMoneyMode?null:enteredStartMedals,
+    endMedals:legacyMoneyMode?null:normalizeOptionalNumber(document.getElementById('moneyEndMedals').value),
+    cashIn:legacyMoneyMode?null:(normalizeOptionalNumber(document.getElementById('moneyCashIn').value)??0),
+    invest:legacyMoneyMode?editingLog.money?.invest:null,
+    recover:legacyMoneyMode?editingLog.money?.recover:null
   };
+  if(!legacyMoneyMode&&baseMoney.startMedals===null){alert('開始持ちメダルを入力してください');return;}
+  const store=storeByName(baseMoney.store);
+  baseMoney.lendRate=store?.lendRate??null;
+  baseMoney.exchangeRate=store?.exchangeRate??null;
   const c=calcMoney(baseMoney);
   const log={
     id:editingLog?.id||uid('l'),
@@ -1585,7 +1778,7 @@ function saveLog(){
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     endLog:clone(currentEndLog),
-    money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate},
+    money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff},
     publicMemo:document.getElementById('publicMemo').value.trim(),
     privateMemo:document.getElementById('privateMemo').value.trim(),
     createdAt:editingLog?.createdAt||new Date().toISOString(),
@@ -1597,7 +1790,7 @@ function saveLog(){
   }else{
     db.logs.push(log);
   }
-  if(baseMoney.store&&!db.stores.includes(baseMoney.store))db.stores.push(baseMoney.store);
+  if(baseMoney.store)ensureStore(baseMoney.store);
   persist();
   const wasEditing=!!editingLog;
   editingLogId=null;
@@ -1619,6 +1812,10 @@ function clearLogInput(cancelEdit=true){
   document.getElementById('moneyStore').value='';
   document.getElementById('publishStore').checked=false;
   document.getElementById('publishMachineNo').checked=false;
+  const startMedals=document.getElementById('moneyStartMedals');
+  const cashIn=document.getElementById('moneyCashIn');
+  if(startMedals)startMedals.value='';
+  if(cashIn)cashIn.value='';
   currentStartLog=[];
   currentTimeline=[];
   currentEndLog=null;
@@ -1668,8 +1865,8 @@ function cancelEditLog(){
 function fillLogInputs(log){
   const money=log.money||{};
   document.getElementById('moneyDate').value=money.date||todayValue();
-  if(money.store&&!db.stores.includes(money.store)){
-    db.stores.push(money.store);
+  if(money.store&&!storeByName(money.store)){
+    ensureStore(money.store,money.lendRate,money.exchangeRate);
     persist();
     renderStoreSelect();
   }
@@ -1679,8 +1876,9 @@ function fillLogInputs(log){
   document.getElementById('publishMachineNo').checked=!!money.publishMachineNo;
   document.getElementById('moneyStart').value=money.startTime||'';
   document.getElementById('moneyEnd').value=money.endTime||'';
-  document.getElementById('moneyInvest').value=money.invest||'';
-  document.getElementById('moneyRecover').value=money.recover||'';
+  document.getElementById('moneyStartMedals').value=money.startMedals!==null&&money.startMedals!==undefined?String(money.startMedals):'';
+  document.getElementById('moneyEndMedals').value=money.endMedals!==null&&money.endMedals!==undefined?String(money.endMedals):'';
+  document.getElementById('moneyCashIn').value=money.cashIn!==null&&money.cashIn!==undefined?String(money.cashIn):'';
   document.getElementById('publicMemo').value=log.publicMemo||'';
   document.getElementById('privateMemo').value=log.privateMemo||'';
   syncHeaderFromMoney();
@@ -1741,8 +1939,8 @@ function continueFromLog(id){
   continuedFromLog={id:log.id,summary:`${log.money?.date||'日付なし'} / ${endLogLine(log.endLog)||'打ち終わりなし'} / ${stats}`};
   showPage('pageLog');
   const money=log.money||{};
-  if(money.store&&!db.stores.includes(money.store)){
-    db.stores.push(money.store);
+  if(money.store&&!storeByName(money.store)){
+    ensureStore(money.store,money.lendRate,money.exchangeRate);
     persist();
     renderStoreSelect();
   }
@@ -1753,8 +1951,9 @@ function continueFromLog(id){
   document.getElementById('publishMachineNo').checked=!!money.publishMachineNo;
   document.getElementById('moneyStart').value=nowTime();
   document.getElementById('moneyEnd').value='';
-  document.getElementById('moneyInvest').value='';
-  document.getElementById('moneyRecover').value='';
+  document.getElementById('moneyStartMedals').value=money.endMedals!==null&&money.endMedals!==undefined?String(money.endMedals):'';
+  document.getElementById('moneyEndMedals').value='';
+  document.getElementById('moneyCashIn').value='';
   document.getElementById('publicMemo').value='';
   document.getElementById('privateMemo').value='';
   syncHeaderFromMoney();
@@ -1802,9 +2001,29 @@ function buildShareText(log){
     lines.push('');
     lines.push(`実測：${practiceStatsLine(stats)}`);
   }
-  lines.push(`結果：投資${formatMoneyAmount(log.money?.invest)} / 回収${formatMoneyAmount(log.money?.recover)} / 差枚${formatDiff(log.money?.diff)}`);
+  lines.push(`結果：${moneyResultLine(log.money||{})}`);
   if(log.publicMemo)lines.push(`メモ：${log.publicMemo}`);
   return lines.join('\n');
+}
+function moneyResultLine(money){
+  const calc=calcMoney(money||{});
+  if(calc.model==='medals'){
+    const parts=[
+      `開始${formatMoneyAmount(money.startMedals)}`,
+      `終了${formatMoneyAmount(money.endMedals)}`,
+      `現金${formatYenAmount(money.cashIn||0)}`,
+      `メダル増減${formatDiff(calc.medalDiff)}`,
+      `円収支${formatYenDiff(calc.yenDiff)}`
+    ];
+    if(calc.exchangeRate)parts.push(`交換${calc.exchangeRate}枚`);
+    return parts.join(' / ');
+  }
+  return `投資${formatMoneyAmount(money.invest)} / 回収${formatMoneyAmount(money.recover)} / 差枚${formatDiff(money.diff)}`;
+}
+function logSummaryMoney(log){
+  const calc=calcMoney(log.money||{});
+  if(calc.model==='medals')return `メダル ${formatDiff(calc.medalDiff)}　円収支 ${formatYenDiff(calc.yenDiff)}`;
+  return `差枚 ${formatDiff(log.money?.diff)}`;
 }
 function renderLogsList(){
   const el=document.getElementById('logsList');
@@ -1831,7 +2050,7 @@ function renderLogItem(log){
       <div class="item-head">
         <div>
           <div class="item-title">${escapeHtml(log.machineName)} / ${escapeHtml(log.aimName)}</div>
-          <div class="item-sub">差枚 ${formatDiff(log.money?.diff)}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件</div>
+          <div class="item-sub">${escapeHtml(logSummaryMoney(log))}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件</div>
           <div class="item-sub">${escapeHtml(practiceStatsLine(calculatePracticeStats(log)))}</div>
           <div style="margin-top:6px;">
             ${logStartCounterValue(log)!==null?`<span class="pill gold">${escapeHtml('データカウンターのゲーム数：'+logStartCounterValue(log))}</span>`:''}
