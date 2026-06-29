@@ -53,7 +53,6 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .inline-field .btn-small{flex:0 0 auto;}
 .btn-primary{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:10px;}
 .btn-primary:active{opacity:.82;}
-.btn-primary.required-action{background:linear-gradient(135deg,#9b3f2e,#e07070);color:#140b09;box-shadow:0 0 0 1px rgba(224,112,112,.35);}
 .btn-secondary{width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:14px;padding:11px;cursor:pointer;margin-top:8px;}
 .btn-secondary:active,.btn-small:active{border-color:var(--gold);color:var(--gold-light);}
 .btn-small{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;}
@@ -91,7 +90,6 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .calc-label{font-size:11px;color:var(--text-muted);}
 .calc-value{font-size:17px;font-weight:700;color:var(--gold-light);margin-top:2px;}
 .warning{font-size:12px;color:#e07070;margin-top:8px;display:none;}
-.required-hint{font-size:12px;color:#e07070;margin-top:6px;text-align:center;}
 .optional-box{display:none;margin-top:8px;}
 .optional-box.open{display:block;}
 .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
@@ -396,9 +394,7 @@ const REQUIRED_AIMS=[
   {id:'aim_tenjo',name:'天井狙い'},
   {id:'aim_setting',name:'設定狙い'}
 ];
-const DEFAULT_LABEL_TAGS=[
-  {id:'lt_counter_game',label:'データカウンターのゲーム数'}
-];
+const DEFAULT_LABEL_TAGS=[];
 const COUNT_AS_OPTIONS=['cz','at','cz_success','cz_fail'];
 const EMPTY_DATA={version:1,machines:[],stores:[],logs:[]};
 let db=loadData();
@@ -406,6 +402,7 @@ let selectedMachineId=db.machines[0]?.id||'';
 let selectedAimId=firstAimIdForMachine(db.machines[0])||'';
 let activeNumericInput=null;
 let currentStartLog=[];
+let currentStartCounterGame=0;
 let currentTimeline=[];
 let currentEndLog=null;
 let pendingTimelineTagIds=[];
@@ -432,6 +429,8 @@ function normalizeData(data){
   data.logs.forEach(log=>{
     log.startLog=Array.isArray(log.startLog)?log.startLog:[];
     log.startLog.forEach(item=>{item.label=item.label||'';item.labelTagId=item.labelTagId||'';});
+    const fixedStartCounter=normalizeOptionalNumber(log.startCounterGame);
+    log.startCounterGame=fixedStartCounter!==null?fixedStartCounter:findStartCounterValue(log.startLog);
     log.timeline=Array.isArray(log.timeline)?log.timeline:[];
     log.timeline.forEach(item=>{
       item.tagIds=Array.isArray(item.tagIds)?item.tagIds:[];
@@ -579,6 +578,7 @@ function addMachine(){
 function selectMachine(id){
   selectedMachineId=id;
   selectedAimId=firstAimIdForMachine(machineById(id))||'';
+  currentStartCounterGame=0;
   currentStartLog=[];
   currentTimeline=[];
   renderAll();
@@ -920,7 +920,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartLog=[];currentTimeline=[];}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];}
   renderAll();
 }
 function selectLogAim(){
@@ -1040,8 +1040,14 @@ function renderTagButtons(target){
     ${optionalTags.length?`<button class="btn-secondary" onclick="toggleOptional('${target}OptionalTags')">＋他のタグ</button><div class="optional-box" id="${target}OptionalTags"><div class="tag-buttons">${optionalTags.map(t=>`<button class="tag-btn" onclick="${handler}('${t.id}')">${escapeHtml(t.label)}</button>`).join('')}</div></div>`:''}`;
 }
 function renderLabelTagButtons(){
-  const tags=currentMachine()?.labelTags||[];
+  const tags=(currentMachine()?.labelTags||[]).filter(t=>t.id!=='lt_counter_game'&&!isCounterLabel(t.label));
   return `<div class="tag-buttons">${tags.length?tags.map(t=>`<button class="tag-btn" onclick="setStartLabelById('${t.id}')">${escapeHtml(t.label)}</button>`).join(''):'<span class="empty-hint" style="padding:0;">数値ラベルなし</span>'}</div>`;
+}
+function startCounterInputValue(){
+  return currentStartCounterGame===null||currentStartCounterGame===undefined?'':String(currentStartCounterGame);
+}
+function startCounterInitialZeroFlag(){
+  return currentStartCounterGame===0?'1':'';
 }
 function renderStartLogArea(){
   const machine=currentMachine();
@@ -1049,18 +1055,22 @@ function renderStartLogArea(){
   return `
     ${renderStartHeaderArea()}
     <div class="input-row">
+      <div class="input-label no-wrap-label">データカウンターG数<div class="input-hint">必須・分母の起点</div></div>
+      <input type="text" id="startCounterGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(startCounterInputValue())}" data-clear-initial-zero="${startCounterInitialZeroFlag()}" placeholder="0" oninput="syncStartCounterGame()" onchange="syncStartCounterGame()">
+    </div>
+    <div class="section-label" style="margin-top:14px;">追加データ（任意）</div>
+    <div class="input-row">
       <div class="input-label no-wrap-label">ラベル<div class="input-hint">数値の意味</div></div>
       <input type="text" id="startLogLabel" placeholder="例：AT間ゲーム数" oninput="this.dataset.labelTagId=''">
     </div>
     ${renderLabelTagButtons()}
     <div class="input-row">
       <div class="input-label no-wrap-label">数値<div class="input-hint">単位は表示しません</div></div>
-      <input type="text" id="startLogValue" class="numeric-input" inputmode="none" readonly value="0" data-clear-initial-zero="1" placeholder="例：280">
+      <input type="text" id="startLogValue" class="numeric-input" inputmode="none" readonly placeholder="例：280">
     </div>
     ${renderTagButtons('start')}
     <textarea id="startLogText" placeholder="例：CZ2スルー"></textarea>
-    <button class="btn-primary ${currentStartLog.length?'':'required-action'}" id="startLogAddButton" onclick="addStartLogEntry()">打ち始めに追加</button>
-    <div class="required-hint" id="startLogRequiredHint" style="${currentStartLog.length?'display:none;':''}">打ち始めデータの登録が必要です</div>
+    <button class="btn-primary" id="startLogAddButton" onclick="addStartLogEntry()">追加データを追加</button>
     <div id="startLogList" style="margin-top:10px;"></div>`;
 }
 function renderStartHeaderArea(){
@@ -1142,7 +1152,6 @@ function startLogLine(item){
 }
 function renderCurrentStartLog(){
   const el=document.getElementById('startLogList');
-  updateStartLogRequiredState();
   if(!el)return;
   const rows=sortedStartLog();
   if(!rows.length){el.innerHTML='<div class="empty-hint">まだ打ち始めログなし</div>';return;}
@@ -1178,13 +1187,6 @@ function deleteStartLogEntry(id){
   currentStartLog=currentStartLog.filter(t=>t.id!==id);
   renderCurrentStartLog();
   renderPracticeStats();
-}
-function updateStartLogRequiredState(){
-  const required=!currentStartLog.length;
-  const button=document.getElementById('startLogAddButton');
-  const hint=document.getElementById('startLogRequiredHint');
-  if(button)button.classList.toggle('required-action',required);
-  if(hint)hint.style.display=required?'block':'none';
 }
 function renderTimelineArea(){
   const machine=currentMachine();
@@ -1393,11 +1395,29 @@ function isCounterLabel(label){
   const normalized=String(label||'').replace(/\s/g,'');
   return normalized==='データカウンターのゲーム数'||normalized==='データカウンターG数'||normalized.includes('データカウンター');
 }
+function normalizeOptionalNumber(value){
+  if(value===null||value===undefined||value==='')return null;
+  const num=Number(value);
+  return Number.isNaN(num)?null:num;
+}
 function findStartCounterValue(startLog){
   const item=(startLog||[]).find(row=>row.labelTagId==='lt_counter_game'||isCounterLabel(row.label));
   if(!item||item.value===null||item.value===undefined||item.value==='')return null;
   const value=Number(item.value);
   return Number.isNaN(value)?null:value;
+}
+function logStartCounterValue(log){
+  const fixed=normalizeOptionalNumber(log?.startCounterGame);
+  if(fixed!==null)return fixed;
+  return findStartCounterValue(log?.startLog||[]);
+}
+function visibleStartLog(log){
+  const rows=Array.isArray(log?.startLog)?log.startLog:[];
+  return logStartCounterValue(log)!==null?rows.filter(row=>row.labelTagId!=='lt_counter_game'&&!isCounterLabel(row.label)):rows;
+}
+function syncStartCounterGame(){
+  currentStartCounterGame=normalizeOptionalNumber(document.getElementById('startCounterGame')?.value||'');
+  renderPracticeStats();
 }
 function countTypesForTimelineItem(item,machine){
   if(Array.isArray(item.countAs)&&item.countAs.length)return [...new Set(item.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)))];
@@ -1408,7 +1428,7 @@ function countTypesForTimelineItem(item,machine){
   return [...new Set((machine?.tags||[]).filter(t=>t.countAs&&text.includes(t.label)).map(t=>t.countAs))];
 }
 function calculatePracticeStats(log){
-  const startCounter=findStartCounterValue(log.startLog||[]);
+  const startCounter=logStartCounterValue(log);
   const endGame=log.endLog?.game!==undefined&&log.endLog?.game!==null?Number(log.endLog.game):null;
   const spins=startCounter!==null&&endGame!==null&&!Number.isNaN(endGame)?endGame-startCounter:null;
   const counts={
@@ -1437,7 +1457,7 @@ function practiceStatsLine(stats){
 function renderPracticeStats(){
   const el=document.getElementById('practiceStatsBox');
   if(!el)return;
-  const log={machineId:selectedMachineId,startLog:currentStartLog,timeline:currentTimeline,endLog:currentEndLog};
+  const log={machineId:selectedMachineId,startCounterGame:currentStartCounterGame,startLog:currentStartLog,timeline:currentTimeline,endLog:currentEndLog};
   const stats=calculatePracticeStats(log);
   el.innerHTML=`
     <div class="calc-box">
@@ -1533,8 +1553,9 @@ function updateCalc(){
 function saveLog(){
   const machine=currentMachine();const aim=currentAim();
   if(!machine||!aim){alert('機種と狙い方を選択してください');return;}
-  const startCounter=findStartCounterValue(currentStartLog);
-  if(startCounter===null){alert('打ち始めに「データカウンターのゲーム数」を登録してください');return;}
+  syncStartCounterGame();
+  const startCounter=currentStartCounterGame;
+  if(startCounter===null){alert('打ち始めのデータカウンターG数を入力してください');return;}
   if(!currentEndLog){alert('打ち終わりデータを登録してください');return;}
   if(Number(currentEndLog.game)-startCounter<0){alert('打ち終わりG数は打ち始めのデータカウンターG数以上にしてください');return;}
   const editingLog=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
@@ -1560,6 +1581,7 @@ function saveLog(){
     aimName:aim.name,
     fieldSnapshot,
     values,
+    startCounterGame:startCounter,
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     endLog:clone(currentEndLog),
@@ -1601,22 +1623,29 @@ function clearLogInput(cancelEdit=true){
   currentTimeline=[];
   currentEndLog=null;
   pendingTimelineTagIds=[];
+  resetStartCounterDefault();
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
   renderPracticeStats();
   setToday();
   setDefaultStartTime(true);
-  resetStartLogValueDefault();
   applyLatestStoreForCurrentDate();
   updateCalc();
   updateEditModeUi();
 }
-function resetStartLogValueDefault(){
-  const el=document.getElementById('startLogValue');
-  if(!el)return;
-  el.value='0';
-  el.dataset.clearInitialZero='1';
+function resetStartCounterDefault(){
+  currentStartCounterGame=0;
+  const counter=document.getElementById('startCounterGame');
+  if(counter){
+    counter.value='0';
+    counter.dataset.clearInitialZero='1';
+  }
+  const extra=document.getElementById('startLogValue');
+  if(extra){
+    extra.value='';
+    extra.dataset.clearInitialZero='';
+  }
 }
 
 function updateEditModeUi(){
@@ -1673,7 +1702,8 @@ function loadLogForEdit(id){
   continuedFromLog=null;
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
-  currentStartLog=clone(log.startLog||[]).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
+  currentStartCounterGame=logStartCounterValue(log);
+  currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
   currentEndLog=clone(log.endLog||null);
   pendingTimelineTagIds=[];
@@ -1702,6 +1732,7 @@ function continueFromLog(id){
   editingLogId=null;
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
+  currentStartCounterGame=0;
   currentStartLog=[];
   currentTimeline=[];
   currentEndLog=null;
@@ -1736,7 +1767,8 @@ function continueFromLog(id){
 }
 
 function buildShareText(log){
-  const startLog=[...(log.startLog||[])].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
+  const startCounter=logStartCounterValue(log);
+  const startLog=[...visibleStartLog(log)].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
   const timeline=[...(log.timeline||[])].sort((a,b)=>{
     return String(b.createdAt).localeCompare(String(a.createdAt));
   });
@@ -1749,9 +1781,10 @@ function buildShareText(log){
   }
   if(log.money?.publishStore&&log.money?.store)lines.push(`店舗：${log.money.store}`);
   if(log.money?.publishMachineNo&&log.money?.machineNo)lines.push(`台番号：${log.money.machineNo}`);
-  if(startLog.length){
+  if(startCounter!==null||startLog.length){
     lines.push('');
     lines.push('打ち始め：');
+    if(startCounter!==null)lines.push(`データカウンターのゲーム数：${startCounter}`);
     startLog.forEach(item=>lines.push(startLogLine(item)));
   }
   if(timeline.length){
@@ -1801,7 +1834,8 @@ function renderLogItem(log){
           <div class="item-sub">差枚 ${formatDiff(log.money?.diff)}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件</div>
           <div class="item-sub">${escapeHtml(practiceStatsLine(calculatePracticeStats(log)))}</div>
           <div style="margin-top:6px;">
-            ${(log.startLog||[]).slice(0,2).map(x=>`<span class="pill gold">${escapeHtml(startLogLine(x))}</span>`).join('')}
+            ${logStartCounterValue(log)!==null?`<span class="pill gold">${escapeHtml('データカウンターのゲーム数：'+logStartCounterValue(log))}</span>`:''}
+            ${visibleStartLog(log).slice(0,2).map(x=>`<span class="pill gold">${escapeHtml(startLogLine(x))}</span>`).join('')}
             ${(log.timeline||[]).slice(0,2).map(x=>`<span class="pill">${escapeHtml(x.game+'G '+x.text)}</span>`).join('')}
             ${log.endLog?`<span class="pill gold">${escapeHtml(endLogLine(log.endLog))}</span>`:''}
           </div>
