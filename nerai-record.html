@@ -331,6 +331,18 @@ footer a:hover{color:var(--gold-light);}
     <div id="labelTagList" style="margin-top:10px;"></div>
   </div>
 
+  <div class="section">
+    <div class="section-label">示唆マスタ管理</div>
+    <p class="section-note">選択中の機種に、カテゴリ → 確認場所 → 内容の3階層で示唆を登録します。</p>
+    <div class="card">
+      <div class="input-row"><div class="input-label">カテゴリ</div><input type="text" id="suggestCategoryInput" placeholder="例：モード示唆"></div>
+      <div class="input-row"><div class="input-label">確認場所</div><input type="text" id="suggestPlaceInput" placeholder="例：アイキャッチ"></div>
+      <div class="input-row"><div class="input-label">内容</div><input type="text" id="suggestItemInput" placeholder="例：霧嶋董香（通常B以上）"></div>
+    </div>
+    <button class="btn-primary" onclick="addSuggestMasterItem()">示唆を追加</button>
+    <div id="suggestMasterList" style="margin-top:10px;"></div>
+  </div>
+
 </div>
 
 <div class="page" id="pageFields">
@@ -406,8 +418,7 @@ footer a:hover{color:var(--gold-light);}
       <button class="keypad-btn" onclick="pressKeypad('0')">0</button>
       <button class="keypad-btn action" onclick="pressKeypad('.')">.</button>
       <button class="keypad-btn action" onclick="pressKeypad('clear')">クリア</button>
-      <button class="keypad-btn action" onclick="pressKeypad('-')">−</button>
-      <button class="keypad-btn confirm" style="grid-column:span 2;" onclick="closeNumericKeypad()">確定</button>
+      <button class="keypad-btn confirm" style="grid-column:span 3;" onclick="closeNumericKeypad()">確定</button>
     </div>
   </div>
 </div>
@@ -429,6 +440,7 @@ let currentStartLog=[];
 let currentStartCounterGame=0;
 let currentTimeline=[];
 let currentEndLog=null;
+let currentSuggestLog=[];
 let pendingTimelineTagIds=[];
 let editingLogId=null;
 let continuedFromLog=null;
@@ -493,6 +505,14 @@ function normalizeData(data){
       item.tagIds=Array.isArray(item.tagIds)?item.tagIds:[];
       item.countAs=Array.isArray(item.countAs)?item.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)):[];
     });
+    log.suggestLog=Array.isArray(log.suggestLog)?log.suggestLog:[];
+    log.suggestLog.forEach(item=>{
+      item.category=item.category||'';
+      item.place=item.place||'';
+      item.item=item.item||'';
+      item.game=normalizeOptionalNumber(item.game);
+      item.createdAt=item.createdAt||new Date().toISOString();
+    });
     log.endLog=log.endLog&&typeof log.endLog==='object'?log.endLog:null;
     if(log.endLog){
       log.endLog.czCount=Number(log.endLog.czCount)||0;
@@ -513,6 +533,7 @@ function normalizeData(data){
     m.tags=Array.isArray(m.tags)?m.tags:[];
     m.startTags=Array.isArray(m.startTags)?m.startTags:[];
     m.labelTags=Array.isArray(m.labelTags)?m.labelTags:[];
+    m.suggestMaster=normalizeSuggestMaster(m.suggestMaster);
     delete m.aimOrder;
     m.aims.forEach(a=>a.fields=Array.isArray(a.fields)?a.fields:[]);
     m.tags.forEach(t=>{
@@ -522,6 +543,7 @@ function normalizeData(data){
     m.startTags.forEach(t=>{t.optional=!!t.optional;});
     ensureRequiredAims(m);
     ensureDefaultLabelTags(m);
+    ensureSuggestSeed(m);
   });
   return data;
 }
@@ -559,6 +581,67 @@ function ensureDefaultLabelTags(machine){
     if(!exists)machine.labelTags.unshift({...req});
   });
   machine.labelTagDefaultsInitialized=true;
+}
+function normalizeSuggestMaster(master){
+  if(!Array.isArray(master))return [];
+  return master.map(category=>({
+    id:category.id||uid('sgc'),
+    category:category.category||'未分類',
+    enabled:category.enabled!==false,
+    places:Array.isArray(category.places)?category.places.map(place=>({
+      id:place.id||uid('sgp'),
+      name:place.name||'確認場所',
+      enabled:place.enabled!==false,
+      items:Array.isArray(place.items)?place.items.map(item=>({
+        id:item.id||uid('sgi'),
+        label:item.label||'内容',
+        enabled:item.enabled!==false
+      })): []
+    })): []
+  }));
+}
+function isTokyoGhoulMachine(machine){
+  const name=String(machine?.name||'');
+  return name.includes('東京喰種')||name.includes('喰種')||name.includes('グール');
+}
+function ensureSuggestSeed(machine){
+  if(!machine)return;
+  machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV1)return;
+  const seed=[
+    {
+      id:'sgc_tokyo_ghoul_mode',
+      category:'モード示唆',
+      enabled:true,
+      places:[{
+        id:'sgp_tokyo_ghoul_eyecatch',
+        name:'アイキャッチ',
+        enabled:true,
+        items:[
+          {id:'sgi_tokyo_ghoul_touka',label:'霧嶋董香（通常B以上示唆）',enabled:true},
+          {id:'sgi_tokyo_ghoul_kaneki',label:'金木研（高モード示唆）',enabled:true}
+        ]
+      }]
+    },
+    {
+      id:'sgc_tokyo_ghoul_setting',
+      category:'設定示唆',
+      enabled:true,
+      places:[{
+        id:'sgp_tokyo_ghoul_cz_endcard',
+        name:'CZ終了エンドカード',
+        enabled:true,
+        items:[
+          {id:'sgi_tokyo_ghoul_cz_default',label:'白背景（基本）',enabled:true},
+          {id:'sgi_tokyo_ghoul_cz_red',label:'赤背景（高設定示唆）',enabled:true}
+        ]
+      }]
+    }
+  ];
+  seed.forEach(seedCategory=>{
+    if(!machine.suggestMaster.some(c=>c.category===seedCategory.category))machine.suggestMaster.push(seedCategory);
+  });
+  machine.suggestSeedTokyoGhoulV1=true;
 }
 function todayValue(){
   const d=new Date();
@@ -627,13 +710,14 @@ function showPage(pageId){
 }
 
 function renderAll(){
-  db.machines.forEach(m=>ensureRequiredAims(m));
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
   renderTagList();
   renderStartTagList();
   renderLabelTagList();
+  renderSuggestMasterList();
   renderStoreList();
   updateStoreEditUi();
   renderFieldTarget();
@@ -650,9 +734,10 @@ function renderAll(){
 function addMachine(){
   const name=document.getElementById('machineName').value.trim();
   if(!name){alert('機種名を入力してください');return;}
-  const machine={id:uid('m'),name,maker:'',aims:[],tags:[],startTags:[],labelTags:[]};
+  const machine={id:uid('m'),name,maker:'',aims:[],tags:[],startTags:[],labelTags:[],suggestMaster:[]};
   ensureRequiredAims(machine);
   ensureDefaultLabelTags(machine);
+  ensureSuggestSeed(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   persist();
@@ -665,6 +750,7 @@ function selectMachine(id){
   currentStartCounterGame=0;
   currentStartLog=[];
   currentTimeline=[];
+  currentSuggestLog=[];
   renderAll();
 }
 function editMachine(id){
@@ -891,6 +977,130 @@ function renderLabelTagList(){
     </div>`).join('');
 }
 
+function findSuggestCategory(machine,categoryId){return machine?.suggestMaster?.find(c=>c.id===categoryId)||null;}
+function findSuggestPlace(category,placeId){return category?.places?.find(p=>p.id===placeId)||null;}
+function findSuggestItem(place,itemId){return place?.items?.find(i=>i.id===itemId)||null;}
+function addSuggestMasterItem(){
+  const machine=currentMachine();
+  if(!machine){alert('先に機種を選択してください');return;}
+  machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
+  const categoryName=document.getElementById('suggestCategoryInput').value.trim();
+  const placeName=document.getElementById('suggestPlaceInput').value.trim();
+  const itemLabel=document.getElementById('suggestItemInput').value.trim();
+  if(!categoryName||!placeName||!itemLabel){alert('カテゴリ、確認場所、内容をすべて入力してください');return;}
+  let category=machine.suggestMaster.find(c=>c.category===categoryName);
+  if(!category){
+    category={id:uid('sgc'),category:categoryName,enabled:true,places:[]};
+    machine.suggestMaster.push(category);
+  }
+  let place=category.places.find(p=>p.name===placeName);
+  if(!place){
+    place={id:uid('sgp'),name:placeName,enabled:true,items:[]};
+    category.places.push(place);
+  }
+  place.items.push({id:uid('sgi'),label:itemLabel,enabled:true});
+  ['suggestCategoryInput','suggestPlaceInput','suggestItemInput'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  persist();renderAll();
+}
+function editSuggestCategory(categoryId){
+  const machine=currentMachine();const category=findSuggestCategory(machine,categoryId);if(!category)return;
+  const name=prompt('カテゴリ名',category.category);if(name===null)return;
+  if(!name.trim()){alert('カテゴリ名は空にできません');return;}
+  category.category=name.trim();
+  persist();renderAll();
+}
+function editSuggestPlace(categoryId,placeId){
+  const category=findSuggestCategory(currentMachine(),categoryId);const place=findSuggestPlace(category,placeId);if(!place)return;
+  const name=prompt('確認場所',place.name);if(name===null)return;
+  if(!name.trim()){alert('確認場所は空にできません');return;}
+  place.name=name.trim();
+  persist();renderAll();
+}
+function editSuggestItem(categoryId,placeId,itemId){
+  const category=findSuggestCategory(currentMachine(),categoryId);const place=findSuggestPlace(category,placeId);const item=findSuggestItem(place,itemId);if(!item)return;
+  const label=prompt('内容',item.label);if(label===null)return;
+  if(!label.trim()){alert('内容は空にできません');return;}
+  item.label=label.trim();
+  persist();renderAll();
+}
+function toggleSuggestCategory(categoryId){
+  const category=findSuggestCategory(currentMachine(),categoryId);if(!category)return;
+  category.enabled=!category.enabled;
+  persist();renderAll();
+}
+function toggleSuggestPlace(categoryId,placeId){
+  const category=findSuggestCategory(currentMachine(),categoryId);const place=findSuggestPlace(category,placeId);if(!place)return;
+  place.enabled=!place.enabled;
+  persist();renderAll();
+}
+function toggleSuggestItem(categoryId,placeId,itemId){
+  const category=findSuggestCategory(currentMachine(),categoryId);const place=findSuggestPlace(category,placeId);const item=findSuggestItem(place,itemId);if(!item)return;
+  item.enabled=!item.enabled;
+  persist();renderAll();
+}
+function deleteSuggestCategory(categoryId){
+  const machine=currentMachine();if(!machine)return;
+  if(!confirm('この示唆カテゴリを削除しますか？ 過去ログの記録は残ります。'))return;
+  machine.suggestMaster=(machine.suggestMaster||[]).filter(c=>c.id!==categoryId);
+  persist();renderAll();
+}
+function deleteSuggestPlace(categoryId,placeId){
+  const category=findSuggestCategory(currentMachine(),categoryId);if(!category)return;
+  if(!confirm('この確認場所を削除しますか？ 過去ログの記録は残ります。'))return;
+  category.places=(category.places||[]).filter(p=>p.id!==placeId);
+  persist();renderAll();
+}
+function deleteSuggestItem(categoryId,placeId,itemId){
+  const category=findSuggestCategory(currentMachine(),categoryId);const place=findSuggestPlace(category,placeId);if(!place)return;
+  if(!confirm('この示唆内容を削除しますか？ 過去ログの記録は残ります。'))return;
+  place.items=(place.items||[]).filter(i=>i.id!==itemId);
+  persist();renderAll();
+}
+function renderSuggestMasterList(){
+  const el=document.getElementById('suggestMasterList');
+  if(!el)return;
+  const machine=currentMachine();
+  if(!machine){el.innerHTML='<div class="empty-hint">機種を選択してください</div>';return;}
+  machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
+  if(!machine.suggestMaster.length){el.innerHTML='<div class="empty-hint">まだ示唆マスタなし</div>';return;}
+  el.innerHTML=machine.suggestMaster.map(category=>`
+    <div class="list-item">
+      <div class="item-head">
+        <div>
+          <div class="item-title">${escapeHtml(category.category)}</div>
+          <div class="item-sub">${category.enabled?'有効':'無効'} / 確認場所 ${category.places.length}件</div>
+        </div>
+        <div class="item-actions">
+          <button class="btn-small" onclick="toggleSuggestCategory('${category.id}')">${category.enabled?'無効化':'有効化'}</button>
+          <button class="btn-small" onclick="editSuggestCategory('${category.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteSuggestCategory('${category.id}')">削除</button>
+        </div>
+      </div>
+      ${(category.places||[]).map(place=>`
+        <div class="field-card" style="margin-top:8px;">
+          <div class="item-head">
+            <div>
+              <div class="item-title">${escapeHtml(place.name)}</div>
+              <div class="item-sub">${place.enabled?'有効':'無効'} / 内容 ${place.items.length}件</div>
+            </div>
+            <div class="item-actions">
+              <button class="btn-small" onclick="toggleSuggestPlace('${category.id}','${place.id}')">${place.enabled?'無効化':'有効化'}</button>
+              <button class="btn-small" onclick="editSuggestPlace('${category.id}','${place.id}')">編集</button>
+              <button class="btn-danger" onclick="deleteSuggestPlace('${category.id}','${place.id}')">削除</button>
+            </div>
+          </div>
+          <div style="margin-top:6px;">
+            ${(place.items||[]).map(item=>`
+              <span class="pill ${item.enabled?'gold':''}">${escapeHtml(item.label)} / ${item.enabled?'有効':'無効'}</span>
+              <button class="btn-small" onclick="toggleSuggestItem('${category.id}','${place.id}','${item.id}')">${item.enabled?'無効化':'有効化'}</button>
+              <button class="btn-small" onclick="editSuggestItem('${category.id}','${place.id}','${item.id}')">編集</button>
+              <button class="btn-danger" onclick="deleteSuggestItem('${category.id}','${place.id}','${item.id}')">削除</button>
+            `).join('')}
+          </div>
+        </div>`).join('')}
+    </div>`).join('');
+}
+
 function toggleOptionsHint(){
   document.getElementById('fieldOptionsRow').style.display=document.getElementById('fieldType').value==='select'?'flex':'none';
 }
@@ -1004,7 +1214,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentSuggestLog=[];}
   renderAll();
 }
 function selectLogAim(){
@@ -1174,10 +1384,16 @@ function renderLogFields(){
       <div class="section-label" style="margin-top:0;">実戦中ログ</div>
       ${renderTimelineArea()}
     </div>
+    <div class="card">
+      <div class="section-label" style="margin-top:0;">示唆記録</div>
+      ${renderSuggestArea()}
+    </div>
     <div id="practiceStatsBox"></div>`;
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
+  updateSuggestPlaceOptions();
+  renderCurrentSuggestLog();
   renderPracticeStats();
   renderStoreSelect();
   syncHeaderFromMoney();
@@ -1351,6 +1567,114 @@ function deleteStartLogEntry(id){
   currentStartLog=currentStartLog.filter(t=>t.id!==id);
   renderCurrentStartLog();
   renderPracticeStats();
+}
+function enabledSuggestCategories(){
+  return (currentMachine()?.suggestMaster||[]).filter(c=>c.enabled!==false);
+}
+function enabledSuggestPlaces(categoryId){
+  const category=enabledSuggestCategories().find(c=>c.id===categoryId);
+  return (category?.places||[]).filter(p=>p.enabled!==false);
+}
+function enabledSuggestItems(categoryId,placeId){
+  const place=enabledSuggestPlaces(categoryId).find(p=>p.id===placeId);
+  return (place?.items||[]).filter(i=>i.enabled!==false);
+}
+function renderSuggestArea(){
+  const categories=enabledSuggestCategories();
+  if(!currentMachine())return '<div class="empty-hint">示唆記録は機種選択後に使えます</div>';
+  if(!categories.length)return '<div class="empty-hint">有効な示唆マスタがありません。機種・店舗タブで登録してください。</div>';
+  return `
+    <div class="input-row">
+      <div class="input-label">カテゴリ</div>
+      <select id="suggestCategorySelect" onchange="updateSuggestPlaceOptions()">
+        ${categories.map(c=>`<option value="${c.id}">${escapeHtml(c.category)}</option>`).join('')}
+      </select>
+    </div>
+    <div class="input-row">
+      <div class="input-label">確認場所</div>
+      <select id="suggestPlaceSelect" onchange="updateSuggestItemOptions()"></select>
+    </div>
+    <div class="input-row">
+      <div class="input-label">内容</div>
+      <select id="suggestItemSelect"></select>
+    </div>
+    <div class="input-row">
+      <div class="input-label">出現G数<div class="input-hint">任意</div></div>
+      <input type="text" id="suggestGame" class="numeric-input" inputmode="none" readonly placeholder="例：523">
+    </div>
+    <button class="btn-primary" onclick="addSuggestLogEntry()">示唆を記録</button>
+    <div id="suggestLogList" style="margin-top:10px;"></div>`;
+}
+function updateSuggestPlaceOptions(){
+  const categorySel=document.getElementById('suggestCategorySelect');
+  const placeSel=document.getElementById('suggestPlaceSelect');
+  if(!categorySel||!placeSel)return;
+  const places=enabledSuggestPlaces(categorySel.value);
+  placeSel.innerHTML=places.length?places.map(p=>`<option value="${p.id}">${escapeHtml(p.name)}</option>`).join(''):'<option value="">確認場所なし</option>';
+  updateSuggestItemOptions();
+}
+function updateSuggestItemOptions(){
+  const categorySel=document.getElementById('suggestCategorySelect');
+  const placeSel=document.getElementById('suggestPlaceSelect');
+  const itemSel=document.getElementById('suggestItemSelect');
+  if(!categorySel||!placeSel||!itemSel)return;
+  const items=enabledSuggestItems(categorySel.value,placeSel.value);
+  itemSel.innerHTML=items.length?items.map(i=>`<option value="${i.id}">${escapeHtml(i.label)}</option>`).join(''):'<option value="">内容なし</option>';
+}
+function addSuggestLogEntry(){
+  const categoryId=document.getElementById('suggestCategorySelect')?.value||'';
+  const placeId=document.getElementById('suggestPlaceSelect')?.value||'';
+  const itemId=document.getElementById('suggestItemSelect')?.value||'';
+  const category=enabledSuggestCategories().find(c=>c.id===categoryId);
+  const place=enabledSuggestPlaces(categoryId).find(p=>p.id===placeId);
+  const item=enabledSuggestItems(categoryId,placeId).find(i=>i.id===itemId);
+  if(!category||!place||!item){alert('示唆のカテゴリ、確認場所、内容を選択してください');return;}
+  const game=normalizeOptionalNumber(document.getElementById('suggestGame')?.value||'');
+  currentSuggestLog.push({id:uid('sgl'),categoryId,placeId,itemId,category:category.category,place:place.name,item:item.label,game,createdAt:new Date().toISOString()});
+  const gameEl=document.getElementById('suggestGame');
+  if(gameEl)gameEl.value='';
+  renderCurrentSuggestLog();
+}
+function suggestLogLine(entry){
+  const game=entry.game!==null&&entry.game!==undefined?`${entry.game}G `:'';
+  return `${game}${entry.category} / ${entry.place}：${entry.item}`;
+}
+function sortedSuggestLog(){
+  return [...currentSuggestLog].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+function renderCurrentSuggestLog(){
+  const el=document.getElementById('suggestLogList');
+  if(!el)return;
+  const rows=sortedSuggestLog();
+  if(!rows.length){el.innerHTML='<div class="empty-hint">まだ示唆記録なし</div>';return;}
+  el.innerHTML=rows.map(entry=>`
+    <div class="timeline-item">
+      <div class="timeline-head">
+        <div class="timeline-game">${escapeHtml(entry.place||'示唆')}</div>
+        <div class="item-actions">
+          <button class="btn-small" onclick="editSuggestLogEntry('${entry.id}')">編集</button>
+          <button class="btn-danger" onclick="deleteSuggestLogEntry('${entry.id}')">削除</button>
+        </div>
+      </div>
+      <div class="timeline-text">${escapeHtml(suggestLogLine(entry))}</div>
+    </div>`).join('');
+}
+function editSuggestLogEntry(id){
+  const entry=currentSuggestLog.find(s=>s.id===id);if(!entry)return;
+  const game=prompt('出現G数（空でも可）',entry.game!==null&&entry.game!==undefined?String(entry.game):'');if(game===null)return;
+  const category=prompt('カテゴリ',entry.category);if(category===null)return;
+  const place=prompt('確認場所',entry.place);if(place===null)return;
+  const item=prompt('内容',entry.item);if(item===null)return;
+  if(!category.trim()||!place.trim()||!item.trim()){alert('カテゴリ、確認場所、内容は空にできません');return;}
+  const gameValue=normalizeOptionalNumber(game.trim());
+  if(game.trim()!==''&&gameValue===null){alert('G数は数値で入力してください');return;}
+  Object.assign(entry,{category:category.trim(),place:place.trim(),item:item.trim(),game:gameValue,updatedAt:new Date().toISOString()});
+  renderCurrentSuggestLog();
+}
+function deleteSuggestLogEntry(id){
+  if(!confirm('この示唆記録を削除しますか？'))return;
+  currentSuggestLog=currentSuggestLog.filter(s=>s.id!==id);
+  renderCurrentSuggestLog();
 }
 function renderTimelineArea(){
   const machine=currentMachine();
@@ -1665,12 +1989,12 @@ function pressKeypad(key){
   let value=activeNumericInput.value||'';
   if(key==='back')value=value.slice(0,-1);
   else if(key==='clear')value='';
-  else if(key==='-')value=value.startsWith('-')?value.slice(1):'-'+value;
   else if(key==='.'){
     if(activeNumericInput.dataset.decimal!=='1'||value.includes('.'))return;
     value=value?value+'.':'0.';
   }
-  else value+=key;
+  else if(/^\d$/.test(key))value+=key;
+  else return;
   activeNumericInput.value=value;
   activeNumericInput.dispatchEvent(new Event('input',{bubbles:true}));
   updateKeypadValue();
@@ -1766,6 +2090,7 @@ function saveLog(){
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     endLog:clone(currentEndLog),
+    suggestLog:clone(sortedSuggestLog()),
     money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff},
     publicMemo:document.getElementById('publicMemo').value.trim(),
     privateMemo:document.getElementById('privateMemo').value.trim(),
@@ -1807,11 +2132,13 @@ function clearLogInput(cancelEdit=true){
   currentStartLog=[];
   currentTimeline=[];
   currentEndLog=null;
+  currentSuggestLog=[];
   pendingTimelineTagIds=[];
   resetStartCounterDefault();
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
+  renderCurrentSuggestLog();
   renderPracticeStats();
   setToday();
   setDefaultStartTime(true);
@@ -1892,12 +2219,14 @@ function loadLogForEdit(id){
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
   currentEndLog=clone(log.endLog||null);
+  currentSuggestLog=clone(log.suggestLog||[]);
   pendingTimelineTagIds=[];
   showPage('pageLog');
   fillLogInputs(log);
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
+  renderCurrentSuggestLog();
   renderPracticeStats();
   updateEditModeUi();
   window.scrollTo({top:0,behavior:'smooth'});
@@ -1922,6 +2251,7 @@ function continueFromLog(id){
   currentStartLog=[];
   currentTimeline=[];
   currentEndLog=null;
+  currentSuggestLog=[];
   pendingTimelineTagIds=[];
   const stats=practiceStatsLine(calculatePracticeStats(log));
   continuedFromLog={id:log.id,summary:`${log.money?.date||'日付なし'} / ${endLogLine(log.endLog)||'打ち終わりなし'} / ${stats}`};
@@ -1948,6 +2278,7 @@ function continueFromLog(id){
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
+  renderCurrentSuggestLog();
   renderPracticeStats();
   updateEditModeUi();
   window.scrollTo({top:0,behavior:'smooth'});
@@ -1959,6 +2290,7 @@ function buildShareText(log){
   const timeline=[...(log.timeline||[])].sort((a,b)=>{
     return String(b.createdAt).localeCompare(String(a.createdAt));
   });
+  const suggestLog=[...(log.suggestLog||[])].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
   const lines=[
     `機種：${log.machineName}`,
     `狙い方：${log.aimName}`
@@ -1983,6 +2315,11 @@ function buildShareText(log){
     lines.push('');
     lines.push('打ち終わり：');
     lines.push(endLogLine(log.endLog));
+  }
+  if(suggestLog.length){
+    lines.push('');
+    lines.push('示唆記録：');
+    suggestLog.forEach(s=>lines.push(suggestLogLine(s)));
   }
   const stats=calculatePracticeStats(log);
   if(stats.spins!==null||stats.counts.cz||stats.counts.at){
@@ -2038,12 +2375,13 @@ function renderLogItem(log){
       <div class="item-head">
         <div>
           <div class="item-title">${escapeHtml(log.machineName)} / ${escapeHtml(log.aimName)}</div>
-          <div class="item-sub">${escapeHtml(logSummaryMoney(log))}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件</div>
+          <div class="item-sub">${escapeHtml(logSummaryMoney(log))}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件　示唆 ${(log.suggestLog||[]).length}件</div>
           <div class="item-sub">${escapeHtml(practiceStatsLine(calculatePracticeStats(log)))}</div>
           <div style="margin-top:6px;">
             ${logStartCounterValue(log)!==null?`<span class="pill gold">${escapeHtml('データカウンターのゲーム数：'+logStartCounterValue(log))}</span>`:''}
             ${visibleStartLog(log).slice(0,2).map(x=>`<span class="pill gold">${escapeHtml(startLogLine(x))}</span>`).join('')}
             ${(log.timeline||[]).slice(0,2).map(x=>`<span class="pill">${escapeHtml(x.game+'G '+x.text)}</span>`).join('')}
+            ${(log.suggestLog||[]).slice(0,2).map(x=>`<span class="pill">${escapeHtml(suggestLogLine(x))}</span>`).join('')}
             ${log.endLog?`<span class="pill gold">${escapeHtml(endLogLine(log.endLog))}</span>`:''}
           </div>
         </div>
