@@ -576,6 +576,7 @@ function normalizeData(data){
     ensureDefaultLabelTags(m);
     ensureSuggestSeed(m);
   });
+  migrateTokyoGhoulSuggestLogs(data);
   return data;
 }
 function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db));}
@@ -735,6 +736,52 @@ function reorderSuggestItems(place,orderedLabels){
     return ai-bi;
   }).map(({__order,...item})=>item);
 }
+function ensureSuggestCategory(machine,id,categoryName){
+  let category=machine.suggestMaster.find(c=>c.id===id)||machine.suggestMaster.find(c=>c.category===categoryName);
+  if(!category){
+    category={id,category:categoryName,enabled:true,places:[]};
+    machine.suggestMaster.push(category);
+  }
+  category.places=Array.isArray(category.places)?category.places:[];
+  return category;
+}
+function moveSuggestPlaceBetweenCategories(fromCategory,toCategory,oldName,newName){
+  const oldPlace=findSuggestPlaceByName(fromCategory,oldName);
+  if(!oldPlace)return findSuggestPlaceByName(toCategory,newName);
+  let dest=findSuggestPlaceByName(toCategory,newName);
+  if(!dest){
+    dest={...oldPlace,name:newName,items:Array.isArray(oldPlace.items)?oldPlace.items:[]};
+    toCategory.places.push(dest);
+  }else{
+    if(oldPlace.enabled===false)dest.enabled=false;
+    dest.items=Array.isArray(dest.items)?dest.items:[];
+    (oldPlace.items||[]).forEach(item=>{
+      if(!dest.items.some(existing=>existing.id===item.id||existing.label===item.label))dest.items.push(item);
+    });
+  }
+  fromCategory.places=(fromCategory.places||[]).filter(p=>p!==oldPlace);
+  return dest;
+}
+function reorderSuggestCategories(machine,orderedNames){
+  const rank=new Map(orderedNames.map((name,i)=>[name,i]));
+  machine.suggestMaster=(machine.suggestMaster||[]).map((category,i)=>({...category,__order:i})).sort((a,b)=>{
+    const ai=rank.has(a.category)?rank.get(a.category):999+a.__order;
+    const bi=rank.has(b.category)?rank.get(b.category):999+b.__order;
+    return ai-bi;
+  }).map(({__order,...category})=>category);
+}
+function migrateKuiPointMaster(machine){
+  const mode=findSuggestCategoryByName(machine,'モード示唆');
+  if(!mode)return;
+  const kui=ensureSuggestCategory(machine,'sgc_tokyo_ghoul_kui_point','喰ポイント');
+  moveSuggestPlaceBetweenCategories(mode,kui,'喰ポイント獲得','獲得');
+  moveSuggestPlaceBetweenCategories(mode,kui,'喰ポイント示唆','示唆');
+  reorderSuggestPlaces(kui,['獲得','示唆']);
+  ['獲得','示唆'].forEach(name=>{
+    reorderSuggestItems(findSuggestPlaceByName(kui,name),['小','中','大']);
+  });
+  reorderSuggestCategories(machine,['モード示唆','設定示唆','喰ポイント']);
+}
 function applyTokyoGhoulSuggestCorrections(machine){
   const mode=findSuggestCategoryByName(machine,'モード示唆');
   const setting=findSuggestCategoryByName(machine,'設定示唆');
@@ -766,11 +813,36 @@ function applyTokyoGhoulSuggestCorrections(machine){
   const trophy=findSuggestPlaceByName(setting,'ナミちゃんトロフィー');
   renameSuggestItems(trophy,[['喰種柄（設定5以上濃厚）','特殊柄（設定5以上濃厚）']]);
   reorderSuggestPlaces(setting,['AT終了画面','CZ終了エンドカード','ナミちゃんトロフィー','月山招待状']);
+  migrateKuiPointMaster(machine);
+}
+function migrateTokyoGhoulSuggestLogs(data){
+  const machines=new Map((data.machines||[]).map(machine=>[machine.id,machine]));
+  (data.logs||[]).forEach(log=>{
+    const machine=machines.get(log.machineId);
+    if(!isTokyoGhoulMachine(machine))return;
+    const kui=findSuggestCategoryByName(machine,'喰ポイント');
+    const getPlace=findSuggestPlaceByName(kui,'獲得');
+    const hintPlace=findSuggestPlaceByName(kui,'示唆');
+    (log.suggestLog||[]).forEach(entry=>{
+      const oldGet=entry.category==='モード示唆'&&(entry.place==='喰ポイント獲得'||entry.place==='獲得');
+      const oldHint=entry.category==='モード示唆'&&(entry.place==='喰ポイント示唆'||entry.place==='示唆');
+      const currentGet=entry.category==='喰ポイント'&&entry.place==='喰ポイント獲得';
+      const currentHint=entry.category==='喰ポイント'&&entry.place==='喰ポイント示唆';
+      if(!oldGet&&!oldHint&&!currentGet&&!currentHint)return;
+      const place=oldGet||currentGet?getPlace:hintPlace;
+      entry.category='喰ポイント';
+      entry.place=oldGet||currentGet?'獲得':'示唆';
+      entry.categoryId=kui?.id||entry.categoryId||'';
+      entry.placeId=place?.id||entry.placeId||'';
+      const matchedItem=place?.items?.find(item=>item.label===entry.item);
+      if(matchedItem)entry.itemId=matchedItem.id;
+    });
+  });
 }
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV4)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV5)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const tag=(id,label,optional=false)=>({id,label,optional,countAs:null});
   const timelineTags=[
@@ -860,16 +932,6 @@ function ensureSuggestSeed(machine){
         place('sgp_tokyo_ghoul_after_at_mode','AT終了後のモード移行',[
           'AT駆け抜け（モードB以上濃厚）',
           'AT駆け抜け以外（モード再抽選・特定示唆なし）'
-        ]),
-        place('sgp_tokyo_ghoul_kui_point_get','喰ポイント獲得',[
-          '小',
-          '中',
-          '大'
-        ]),
-        place('sgp_tokyo_ghoul_kui_point_hint','喰ポイント示唆',[
-          '小',
-          '中',
-          '大'
         ])
       ]
     },
@@ -911,6 +973,23 @@ function ensureSuggestSeed(machine){
           '特別な夜を楽しもうじゃないか（設定6濃厚）'
         ])
       ]
+    },
+    {
+      id:'sgc_tokyo_ghoul_kui_point',
+      category:'喰ポイント',
+      enabled:true,
+      places:[
+        place('sgp_tokyo_ghoul_kui_point_get','獲得',[
+          '小',
+          '中',
+          '大'
+        ]),
+        place('sgp_tokyo_ghoul_kui_point_hint','示唆',[
+          '小',
+          '中',
+          '大'
+        ])
+      ]
     }
   ];
   mergeTimelineTagSeed(machine,timelineTags);
@@ -920,6 +999,7 @@ function ensureSuggestSeed(machine){
   machine.suggestSeedTokyoGhoulV2=true;
   machine.suggestSeedTokyoGhoulV3=true;
   machine.suggestSeedTokyoGhoulV4=true;
+  machine.suggestSeedTokyoGhoulV5=true;
 }
 function todayValue(){
   const d=new Date();
