@@ -620,6 +620,7 @@ function normalizeSuggestMaster(master){
     id:category.id||uid('sgc'),
     category:category.category||'未分類',
     enabled:category.enabled!==false,
+    useAppearG:category.useAppearG===false?false:true,
     places:Array.isArray(category.places)?category.places.map(place=>({
       id:place.id||uid('sgp'),
       name:place.name||'確認場所',
@@ -644,6 +645,7 @@ function mergeSuggestSeed(machine,seed){
       machine.suggestMaster.push(clone(seedCategory));
       return;
     }
+    if(typeof seedCategory.useAppearG==='boolean')category.useAppearG=seedCategory.useAppearG;
     category.places=Array.isArray(category.places)?category.places:[];
     (seedCategory.places||[]).forEach(seedPlace=>{
       let place=category.places.find(p=>p.id===seedPlace.id)||category.places.find(p=>p.name===seedPlace.name);
@@ -739,9 +741,10 @@ function reorderSuggestItems(place,orderedLabels){
 function ensureSuggestCategory(machine,id,categoryName){
   let category=machine.suggestMaster.find(c=>c.id===id)||machine.suggestMaster.find(c=>c.category===categoryName);
   if(!category){
-    category={id,category:categoryName,enabled:true,places:[]};
+    category={id,category:categoryName,enabled:true,useAppearG:true,places:[]};
     machine.suggestMaster.push(category);
   }
+  category.useAppearG=category.useAppearG===false?false:true;
   category.places=Array.isArray(category.places)?category.places:[];
   return category;
 }
@@ -774,6 +777,10 @@ function migrateKuiPointMaster(machine){
   const mode=findSuggestCategoryByName(machine,'モード示唆');
   if(!mode)return;
   const kui=ensureSuggestCategory(machine,'sgc_tokyo_ghoul_kui_point','喰ポイント');
+  mode.useAppearG=true;
+  const setting=findSuggestCategoryByName(machine,'設定示唆');
+  if(setting)setting.useAppearG=true;
+  kui.useAppearG=false;
   moveSuggestPlaceBetweenCategories(mode,kui,'喰ポイント獲得','獲得');
   moveSuggestPlaceBetweenCategories(mode,kui,'喰ポイント示唆','示唆');
   reorderSuggestPlaces(kui,['獲得','示唆']);
@@ -842,7 +849,7 @@ function migrateTokyoGhoulSuggestLogs(data){
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV5)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV6)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const tag=(id,label,optional=false)=>({id,label,optional,countAs:null});
   const timelineTags=[
@@ -868,6 +875,7 @@ function ensureSuggestSeed(machine){
       id:'sgc_tokyo_ghoul_mode',
       category:'モード示唆',
       enabled:true,
+      useAppearG:true,
       places:[
         place('sgp_tokyo_ghoul_eyecatch','アイキャッチ',[
           '金木研（デフォルト）',
@@ -939,6 +947,7 @@ function ensureSuggestSeed(machine){
       id:'sgc_tokyo_ghoul_setting',
       category:'設定示唆',
       enabled:true,
+      useAppearG:true,
       places:[
         place('sgp_tokyo_ghoul_at_end_screen','AT終了画面',[
           '金木研（デフォルト）',
@@ -978,6 +987,7 @@ function ensureSuggestSeed(machine){
       id:'sgc_tokyo_ghoul_kui_point',
       category:'喰ポイント',
       enabled:true,
+      useAppearG:false,
       places:[
         place('sgp_tokyo_ghoul_kui_point_get','獲得',[
           '小',
@@ -1000,6 +1010,7 @@ function ensureSuggestSeed(machine){
   machine.suggestSeedTokyoGhoulV3=true;
   machine.suggestSeedTokyoGhoulV4=true;
   machine.suggestSeedTokyoGhoulV5=true;
+  machine.suggestSeedTokyoGhoulV6=true;
 }
 function todayValue(){
   const d=new Date();
@@ -1970,13 +1981,18 @@ function enabledSuggestItems(categoryId,placeId){
   const place=enabledSuggestPlaces(categoryId).find(p=>p.id===placeId);
   return (place?.items||[]).filter(i=>i.enabled!==false);
 }
+function useAppearGForSuggestSelection(selection){
+  if(selection&&typeof selection.useAppearG==='boolean')return selection.useAppearG;
+  const category=(currentMachine()?.suggestMaster||[]).find(c=>c.id===selection?.categoryId);
+  return category?.useAppearG!==false;
+}
 function renderSuggestArea(){
   const categories=enabledSuggestCategories();
   if(!currentMachine())return '<div class="empty-hint">示唆記録は機種選択後に使えます</div>';
   if(!categories.length)return '<div class="empty-hint">有効な示唆マスタがありません。機種・店舗タブで登録してください。</div>';
   return `
     <div class="section-label" style="margin-top:14px;">示唆記録</div>
-    <p class="section-note">カテゴリを押すと確認場所 → 内容の順に選べます。内容選択後に出現G数を任意で入れられます。</p>
+    <p class="section-note">カテゴリを押すと確認場所 → 内容の順に選べます。必要なカテゴリでは内容選択後に出現G数を任意で入れられます。</p>
     <div class="tag-buttons">
       ${categories.map(c=>`<button class="tag-btn gold" onclick="openSuggestPlacePicker('${c.id}')">${escapeHtml(c.category)}</button>`).join('')}
     </div>
@@ -2036,24 +2052,30 @@ function selectSuggestItem(itemId){
   const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===suggestPickerState.placeId);
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===itemId);
   if(!category||!place||!item){alert('示唆のカテゴリ、確認場所、内容を選択してください');return;}
-  pendingSuggestSelection={categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label};
+  pendingSuggestSelection={categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,useAppearG:category.useAppearG!==false};
   closeSuggestPicker();
   renderPendingSuggestBoxIntoDom();
 }
 function renderPendingSuggestBox(){
   if(!pendingSuggestSelection)return '';
+  const useAppearG=useAppearGForSuggestSelection(pendingSuggestSelection);
   const fallbackGame=(document.getElementById('timelineGame')?.value||'').trim();
+  const gameInputHtml=useAppearG?`
+      <div class="input-row" style="margin-top:8px;">
+        <div class="input-label no-wrap-label">出現G数<div class="input-hint">任意</div></div>
+        <input type="text" id="pendingSuggestGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(fallbackGame)}" placeholder="空でも可">
+      </div>`:'';
+  const recordButtons=useAppearG?`
+        <button class="btn-small gold" onclick="addPendingSuggestLog(true)">記録</button>
+        <button class="btn-small" onclick="addPendingSuggestLog(false)">G数なし</button>`:`
+        <button class="btn-small gold" onclick="addPendingSuggestLog(false)">記録</button>`;
   return `
     <div class="calc-box">
       <div class="calc-label">選択中の示唆</div>
       <div class="timeline-text" style="margin-top:4px;">${escapeHtml(pendingSuggestSelection.category)} / ${escapeHtml(pendingSuggestSelection.place)}：${escapeHtml(pendingSuggestSelection.item)}</div>
-      <div class="input-row" style="margin-top:8px;">
-        <div class="input-label no-wrap-label">出現G数<div class="input-hint">任意</div></div>
-        <input type="text" id="pendingSuggestGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(fallbackGame)}" placeholder="空でも可">
-      </div>
+      ${gameInputHtml}
       <div class="btn-row">
-        <button class="btn-small gold" onclick="addPendingSuggestLog(true)">記録</button>
-        <button class="btn-small" onclick="addPendingSuggestLog(false)">G数なし</button>
+        ${recordButtons}
         <button class="btn-small" onclick="backPendingSuggestSelection()">戻る</button>
         <button class="btn-danger" onclick="cancelPendingSuggestSelection()">取消</button>
       </div>
@@ -2066,13 +2088,15 @@ function renderPendingSuggestBoxIntoDom(){
 }
 function addPendingSuggestLog(useGame){
   if(!pendingSuggestSelection)return;
+  if(!useAppearGForSuggestSelection(pendingSuggestSelection))useGame=false;
   let game=null;
   if(useGame){
     const raw=(document.getElementById('pendingSuggestGame')?.value||'').trim();
     game=normalizeOptionalNumber(raw);
     if(raw!==''&&game===null){alert('G数は数値で入力してください');return;}
   }
-  currentSuggestLog.push({...pendingSuggestSelection,id:uid('sgl'),game,createdAt:new Date().toISOString()});
+  const {useAppearG,...entry}=pendingSuggestSelection;
+  currentSuggestLog.push({...entry,id:uid('sgl'),game,createdAt:new Date().toISOString()});
   pendingSuggestSelection=null;
   renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
