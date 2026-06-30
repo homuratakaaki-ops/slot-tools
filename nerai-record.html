@@ -658,10 +658,91 @@ function mergeSuggestSeed(machine,seed){
     });
   });
 }
+function findSuggestCategoryByName(machine,name){return machine.suggestMaster.find(c=>c.category===name)||null;}
+function findSuggestPlaceByName(category,name){return category?.places?.find(p=>p.name===name)||null;}
+function renameSuggestPlace(category,oldName,newName){
+  const oldPlace=findSuggestPlaceByName(category,oldName);
+  if(!oldPlace)return findSuggestPlaceByName(category,newName);
+  const newPlace=findSuggestPlaceByName(category,newName);
+  if(!newPlace||newPlace===oldPlace){oldPlace.name=newName;return oldPlace;}
+  (oldPlace.items||[]).forEach(item=>{
+    if(!newPlace.items.some(existing=>existing.id===item.id||existing.label===item.label))newPlace.items.push(item);
+  });
+  category.places=category.places.filter(p=>p!==oldPlace);
+  return newPlace;
+}
+function renameSuggestItems(place,renames){
+  if(!place)return;
+  const map=new Map(renames);
+  (place.items||[]).forEach(item=>{
+    if(map.has(item.label))item.label=map.get(item.label);
+  });
+  const seen=new Set();
+  place.items=(place.items||[]).filter(item=>{
+    if(seen.has(item.label))return false;
+    seen.add(item.label);
+    return true;
+  });
+}
+function removeSuggestItemsByLabel(place,labels){
+  if(!place)return;
+  const remove=new Set(labels);
+  place.items=(place.items||[]).filter(item=>!remove.has(item.label));
+}
+function reorderSuggestPlaces(category,orderedNames){
+  if(!category)return;
+  const rank=new Map(orderedNames.map((name,i)=>[name,i]));
+  category.places=(category.places||[]).map((place,i)=>({...place,__order:i})).sort((a,b)=>{
+    const ai=rank.has(a.name)?rank.get(a.name):999+a.__order;
+    const bi=rank.has(b.name)?rank.get(b.name):999+b.__order;
+    return ai-bi;
+  }).map(({__order,...place})=>place);
+}
+function reorderSuggestItems(place,orderedLabels){
+  if(!place)return;
+  const rank=new Map(orderedLabels.map((label,i)=>[label,i]));
+  place.items=(place.items||[]).map((item,i)=>({...item,__order:i})).sort((a,b)=>{
+    const ai=rank.has(a.label)?rank.get(a.label):999+a.__order;
+    const bi=rank.has(b.label)?rank.get(b.label):999+b.__order;
+    return ai-bi;
+  }).map(({__order,...item})=>item);
+}
+function applyTokyoGhoulSuggestCorrections(machine){
+  const mode=findSuggestCategoryByName(machine,'モード示唆');
+  const setting=findSuggestCategoryByName(machine,'設定示唆');
+  const eyecatch=findSuggestPlaceByName(mode,'アイキャッチ');
+  renameSuggestItems(eyecatch,[['金木研（高モード示唆）','金木研（デフォルト）']]);
+  reorderSuggestItems(eyecatch,[
+    '金木研（デフォルト）',
+    '霧嶋董香（通常B以上示唆）',
+    '笛口雛実（通常C以上示唆）',
+    '月山習（本前兆期待度アップ）',
+    '神代利世（本前兆期待度大幅アップ）'
+  ]);
+  const modeInvite=findSuggestPlaceByName(mode,'月山招待状');
+  renameSuggestItems(modeInvite,[
+    ['今夜ディナーを楽しもう（基本パターン）','今夜のディナーを楽しもう（デフォルト）'],
+    ['パーティの時間は未定だ（基本パターン）','パーティーの時間は未定だ（デフォルト）'],
+    ['1時35分に下記の場所で待っている（残り100G/300G/500G以内示唆）','1時35分に下記の場所で待っている（規定ゲーム数 100G・300G・500G示唆）'],
+    ['2時46分に下記の場所で待っている（残り200G/400G/600G以内示唆）','2時46分に下記の場所で待っている（規定ゲーム数 200G・400G・600G示唆）'],
+    ['3時までに〜（残り300G以内濃厚）','3時までに僕のもとにきてくれ（残り300G以内の当選濃厚）'],
+    ['2時までに〜（残り200G以内濃厚）','2時までに僕のもとにきてくれ（残り200G以内の当選濃厚）'],
+    ['今すぐ〜（残り100G以内濃厚）','今すぐ僕のもとにきてくれ（残り100G以内の当選濃厚）']
+  ]);
+  renameSuggestPlace(mode,'AT終了後のモード示唆','AT終了後のモード移行');
+  const afterAt=findSuggestPlaceByName(mode,'AT終了後のモード移行');
+  renameSuggestItems(afterAt,[['AT駆け抜け：モードB以上濃厚','AT駆け抜け（モードB以上濃厚）']]);
+  reorderSuggestPlaces(mode,['アイキャッチ','月山招待状','規定ゲーム数前兆','CZ終了エンドカード','AT終了後のモード移行']);
+  const settingCz=findSuggestPlaceByName(setting,'CZ終了エンドカード');
+  removeSuggestItemsByLabel(settingCz,['白背景（基本）','赤背景（高設定示唆）']);
+  const trophy=findSuggestPlaceByName(setting,'ナミちゃんトロフィー');
+  renameSuggestItems(trophy,[['喰種柄（設定5以上濃厚）','特殊柄（設定5以上濃厚）']]);
+  reorderSuggestPlaces(setting,['AT終了画面','CZ終了エンドカード','ナミちゃんトロフィー','月山招待状']);
+}
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV2)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV3)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const seed=[
     {
@@ -670,6 +751,7 @@ function ensureSuggestSeed(machine){
       enabled:true,
       places:[
         place('sgp_tokyo_ghoul_eyecatch','アイキャッチ',[
+          '金木研（デフォルト）',
           '霧嶋董香（通常B以上示唆）',
           '笛口雛実（通常C以上示唆）',
           '月山習（本前兆期待度アップ）',
@@ -680,28 +762,16 @@ function ensureSuggestSeed(machine){
           '黒背景・喰種化：月山習（残り100G以内に規定G数当選濃厚）',
           '黒背景・喰種化：神代利世（連続演出復活濃厚）'
         ]),
-        place('sgp_tokyo_ghoul_cz_endcard_mode','CZ終了エンドカード',[
-          '金木研A（デフォルト）',
-          '金木研B（デフォルト）',
-          '霧嶋董香（通常B以上示唆）',
-          '笛口雛実（通常B以上示唆）',
-          '亜門鋼太朗（通常B以上濃厚）',
-          '真戸呉緒（通常C以上濃厚）',
-          '金木研〈喰種〉（チャンス以上濃厚）',
-          '霧嶋董香〈喰種〉（チャンス以上濃厚）',
-          '月山習（天国準備以上濃厚）',
-          '神代利世（天国濃厚）'
-        ]),
         place('sgp_tokyo_ghoul_tsukiyama_mode','月山招待状',[
-          '今夜ディナーを楽しもう（基本パターン）',
-          'パーティの時間は未定だ（基本パターン）',
+          '今夜のディナーを楽しもう（デフォルト）',
+          'パーティーの時間は未定だ（デフォルト）',
           '心配しなくとも最悪の事態にはならないだろう（600G否定）',
-          '1時35分に下記の場所で待っている（残り100G/300G/500G以内示唆）',
-          '2時46分に下記の場所で待っている（残り200G/400G/600G以内示唆）',
           '喰うか喰われるかは君次第だ（残り200G以内 or 500G以上示唆）',
-          '3時までに〜（残り300G以内濃厚）',
-          '2時までに〜（残り200G以内濃厚）',
-          '今すぐ〜（残り100G以内濃厚）'
+          '1時35分に下記の場所で待っている（規定ゲーム数 100G・300G・500G示唆）',
+          '2時46分に下記の場所で待っている（規定ゲーム数 200G・400G・600G示唆）',
+          '3時までに僕のもとにきてくれ（残り300G以内の当選濃厚）',
+          '2時までに僕のもとにきてくれ（残り200G以内の当選濃厚）',
+          '今すぐ僕のもとにきてくれ（残り100G以内の当選濃厚）'
         ]),
         place('sgp_tokyo_ghoul_game_forewarning','規定ゲーム数前兆',[
           '50G 前兆非発生：基本パターン',
@@ -728,8 +798,21 @@ function ensureSuggestSeed(machine){
           '600G 前兆発生（上空あり）：CZ以上濃厚',
           '600G 前兆発生（上空なし）：CZ以上濃厚'
         ]),
-        place('sgp_tokyo_ghoul_after_at_mode','AT終了後のモード示唆',[
-          'AT駆け抜け：モードB以上濃厚'
+        place('sgp_tokyo_ghoul_cz_endcard_mode','CZ終了エンドカード',[
+          '金木研A（デフォルト）',
+          '金木研B（デフォルト）',
+          '霧嶋董香（通常B以上示唆）',
+          '笛口雛実（通常B以上示唆）',
+          '亜門鋼太朗（通常B以上濃厚）',
+          '真戸呉緒（通常C以上濃厚）',
+          '金木研〈喰種〉（チャンス以上濃厚）',
+          '霧嶋董香〈喰種〉（チャンス以上濃厚）',
+          '月山習（天国準備以上濃厚）',
+          '神代利世（天国濃厚）'
+        ]),
+        place('sgp_tokyo_ghoul_after_at_mode','AT終了後のモード移行',[
+          'AT駆け抜け（モードB以上濃厚）',
+          'AT駆け抜け以外（モード再抽選・特定示唆なし）'
         ])
       ]
     },
@@ -738,11 +821,6 @@ function ensureSuggestSeed(machine){
       category:'設定示唆',
       enabled:true,
       places:[
-        place('sgp_tokyo_ghoul_cz_endcard_setting','CZ終了エンドカード',[
-          '鈴屋什造（偶数設定濃厚）',
-          '梟（設定4以上濃厚）',
-          '有馬貴将（設定6濃厚）'
-        ]),
         place('sgp_tokyo_ghoul_at_end_screen','AT終了画面',[
           '金木研（デフォルト）',
           '亜門鋼太朗＆真戸暁（奇数示唆）',
@@ -753,12 +831,17 @@ function ensureSuggestSeed(machine){
           '金木研＆霧嶋董香（設定4以上濃厚）',
           'あんていく全員集合（設定6濃厚）'
         ]),
+        place('sgp_tokyo_ghoul_cz_endcard_setting','CZ終了エンドカード',[
+          '鈴屋什造（偶数設定濃厚）',
+          '梟（設定4以上濃厚）',
+          '有馬貴将（設定6濃厚）'
+        ]),
         place('sgp_tokyo_ghoul_trophy','ナミちゃんトロフィー',[
           '黒（次回トロフィー出現濃厚）',
           '銅（設定2以上濃厚）',
           '銀（設定3以上濃厚）',
           '金（設定4以上濃厚）',
-          '喰種柄（設定5以上濃厚）',
+          '特殊柄（設定5以上濃厚）',
           '虹（設定6濃厚）'
         ]),
         place('sgp_tokyo_ghoul_tsukiyama_setting','月山招待状',[
@@ -774,8 +857,10 @@ function ensureSuggestSeed(machine){
     }
   ];
   mergeSuggestSeed(machine,seed);
+  applyTokyoGhoulSuggestCorrections(machine);
   machine.suggestSeedTokyoGhoulV1=true;
   machine.suggestSeedTokyoGhoulV2=true;
+  machine.suggestSeedTokyoGhoulV3=true;
 }
 function todayValue(){
   const d=new Date();
