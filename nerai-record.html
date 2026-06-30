@@ -635,44 +635,147 @@ function isTokyoGhoulMachine(machine){
   const name=String(machine?.name||'');
   return name.includes('東京喰種')||name.includes('喰種')||name.includes('グール');
 }
+function mergeSuggestSeed(machine,seed){
+  machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
+  seed.forEach(seedCategory=>{
+    let category=machine.suggestMaster.find(c=>c.id===seedCategory.id)||machine.suggestMaster.find(c=>c.category===seedCategory.category);
+    if(!category){
+      machine.suggestMaster.push(clone(seedCategory));
+      return;
+    }
+    category.places=Array.isArray(category.places)?category.places:[];
+    (seedCategory.places||[]).forEach(seedPlace=>{
+      let place=category.places.find(p=>p.id===seedPlace.id)||category.places.find(p=>p.name===seedPlace.name);
+      if(!place){
+        category.places.push(clone(seedPlace));
+        return;
+      }
+      place.items=Array.isArray(place.items)?place.items:[];
+      (seedPlace.items||[]).forEach(seedItem=>{
+        const exists=place.items.some(item=>item.id===seedItem.id||item.label===seedItem.label);
+        if(!exists)place.items.push(clone(seedItem));
+      });
+    });
+  });
+}
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV1)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV2)return;
+  const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const seed=[
     {
       id:'sgc_tokyo_ghoul_mode',
       category:'モード示唆',
       enabled:true,
-      places:[{
-        id:'sgp_tokyo_ghoul_eyecatch',
-        name:'アイキャッチ',
-        enabled:true,
-        items:[
-          {id:'sgi_tokyo_ghoul_touka',label:'霧嶋董香（通常B以上示唆）',enabled:true},
-          {id:'sgi_tokyo_ghoul_kaneki',label:'金木研（高モード示唆）',enabled:true}
-        ]
-      }]
+      places:[
+        place('sgp_tokyo_ghoul_eyecatch','アイキャッチ',[
+          '霧嶋董香（通常B以上示唆）',
+          '笛口雛実（通常C以上示唆）',
+          '月山習（本前兆期待度アップ）',
+          '神代利世（本前兆期待度大幅アップ）',
+          '黒背景・喰種化：金木研（残り100G以内に規定G数当選濃厚）',
+          '黒背景・喰種化：霧嶋董香（残り100G以内に規定G数当選濃厚）',
+          '黒背景・喰種化：笛口雛実（残り100G以内に規定G数当選濃厚）',
+          '黒背景・喰種化：月山習（残り100G以内に規定G数当選濃厚）',
+          '黒背景・喰種化：神代利世（連続演出復活濃厚）'
+        ]),
+        place('sgp_tokyo_ghoul_cz_endcard_mode','CZ終了エンドカード',[
+          '金木研A（デフォルト）',
+          '金木研B（デフォルト）',
+          '霧嶋董香（通常B以上示唆）',
+          '笛口雛実（通常B以上示唆）',
+          '亜門鋼太朗（通常B以上濃厚）',
+          '真戸呉緒（通常C以上濃厚）',
+          '金木研〈喰種〉（チャンス以上濃厚）',
+          '霧嶋董香〈喰種〉（チャンス以上濃厚）',
+          '月山習（天国準備以上濃厚）',
+          '神代利世（天国濃厚）'
+        ]),
+        place('sgp_tokyo_ghoul_tsukiyama_mode','月山招待状',[
+          '今夜ディナーを楽しもう（基本パターン）',
+          'パーティの時間は未定だ（基本パターン）',
+          '心配しなくとも最悪の事態にはならないだろう（600G否定）',
+          '1時35分に下記の場所で待っている（残り100G/300G/500G以内示唆）',
+          '2時46分に下記の場所で待っている（残り200G/400G/600G以内示唆）',
+          '喰うか喰われるかは君次第だ（残り200G以内 or 500G以上示唆）',
+          '3時までに〜（残り300G以内濃厚）',
+          '2時までに〜（残り200G以内濃厚）',
+          '今すぐ〜（残り100G以内濃厚）'
+        ]),
+        place('sgp_tokyo_ghoul_game_forewarning','規定ゲーム数前兆',[
+          '50G 前兆非発生：基本パターン',
+          '50G 前兆発生（上空あり）：CZ以上のチャンス・非当選なら天国濃厚',
+          '50G 前兆発生（上空なし）：チャンス以上濃厚',
+          '100G 前兆発生（上空あり）：基本パターン',
+          '100G 前兆発生（上空なし）：天国準備濃厚',
+          '150G 前兆非発生：基本パターン',
+          '150G 前兆発生（上空あり）：CZ以上濃厚',
+          '150G 前兆発生（上空なし）：通常B以上濃厚',
+          '200G 前兆非発生：天国準備濃厚',
+          '200G 前兆発生（上空あり）：基本パターン',
+          '200G 前兆発生（上空なし）：通常B以上の期待度アップ',
+          '250G 前兆非発生：基本パターン',
+          '250G 前兆発生（上空あり）：CZ以上濃厚',
+          '250G 前兆発生（上空なし）：通常C以上濃厚',
+          '300G 前兆発生（上空あり）：基本パターン',
+          '300G 前兆発生（上空なし）：チャンス濃厚',
+          '400G 前兆非発生：通常C濃厚',
+          '400G 前兆発生（上空あり）：基本パターン',
+          '400G 前兆発生（上空なし）：基本パターン',
+          '500G 前兆発生（上空あり）：基本パターン',
+          '500G 前兆発生（上空なし）：チャンス濃厚',
+          '600G 前兆発生（上空あり）：CZ以上濃厚',
+          '600G 前兆発生（上空なし）：CZ以上濃厚'
+        ]),
+        place('sgp_tokyo_ghoul_after_at_mode','AT終了後のモード示唆',[
+          'AT駆け抜け：モードB以上濃厚'
+        ])
+      ]
     },
     {
       id:'sgc_tokyo_ghoul_setting',
       category:'設定示唆',
       enabled:true,
-      places:[{
-        id:'sgp_tokyo_ghoul_cz_endcard',
-        name:'CZ終了エンドカード',
-        enabled:true,
-        items:[
-          {id:'sgi_tokyo_ghoul_cz_default',label:'白背景（基本）',enabled:true},
-          {id:'sgi_tokyo_ghoul_cz_red',label:'赤背景（高設定示唆）',enabled:true}
-        ]
-      }]
+      places:[
+        place('sgp_tokyo_ghoul_cz_endcard_setting','CZ終了エンドカード',[
+          '鈴屋什造（偶数設定濃厚）',
+          '梟（設定4以上濃厚）',
+          '有馬貴将（設定6濃厚）'
+        ]),
+        place('sgp_tokyo_ghoul_at_end_screen','AT終了画面',[
+          '金木研（デフォルト）',
+          '亜門鋼太朗＆真戸暁（奇数示唆）',
+          '鈴屋什造＆篠原幸紀（偶数示唆）',
+          '神代利世（設定1否定）',
+          '笛口雛実＆笛口リョーコ（高設定示唆 弱）',
+          '四方蓮示＆イトリ＆ウタ（高設定示唆 強）',
+          '金木研＆霧嶋董香（設定4以上濃厚）',
+          'あんていく全員集合（設定6濃厚）'
+        ]),
+        place('sgp_tokyo_ghoul_trophy','ナミちゃんトロフィー',[
+          '黒（次回トロフィー出現濃厚）',
+          '銅（設定2以上濃厚）',
+          '銀（設定3以上濃厚）',
+          '金（設定4以上濃厚）',
+          '喰種柄（設定5以上濃厚）',
+          '虹（設定6濃厚）'
+        ]),
+        place('sgp_tokyo_ghoul_tsukiyama_setting','月山招待状',[
+          '偶にはディナーでもどうだい？（偶数設定示唆）',
+          '不思議な香りだ…（設定1否定）',
+          '君はなかなかの活字中毒らしいね（設定2否定）',
+          '本は良いよね…（設定3否定）',
+          '僕としたことがすまない（設定4否定）',
+          '存分に楽しもうじゃないか（設定4以上濃厚）',
+          '特別な夜を楽しもうじゃないか（設定6濃厚）'
+        ])
+      ]
     }
   ];
-  seed.forEach(seedCategory=>{
-    if(!machine.suggestMaster.some(c=>c.category===seedCategory.category))machine.suggestMaster.push(seedCategory);
-  });
+  mergeSuggestSeed(machine,seed);
   machine.suggestSeedTokyoGhoulV1=true;
+  machine.suggestSeedTokyoGhoulV2=true;
 }
 function todayValue(){
   const d=new Date();
