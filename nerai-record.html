@@ -658,6 +658,34 @@ function mergeSuggestSeed(machine,seed){
     });
   });
 }
+function mergeTimelineTagSeed(machine,tags){
+  machine.tags=Array.isArray(machine.tags)?machine.tags:[];
+  machine.tags.forEach(tag=>{
+    if(tag.label==='チャンス目A'||tag.label==='チャンス目B')tag.label='チャンス目';
+  });
+  tags.forEach(seedTag=>{
+    const tag=machine.tags.find(t=>t.id===seedTag.id)||machine.tags.find(t=>t.label===seedTag.label);
+    if(tag){
+      tag.label=seedTag.label;
+      tag.optional=seedTag.optional;
+      tag.countAs=COUNT_AS_OPTIONS.includes(tag.countAs)?tag.countAs:null;
+    }else{
+      machine.tags.push({...seedTag,countAs:null});
+    }
+  });
+  const seen=new Set();
+  machine.tags=machine.tags.filter(tag=>{
+    if(seen.has(tag.label))return false;
+    seen.add(tag.label);
+    return true;
+  });
+  const rank=new Map(tags.map((tag,i)=>[tag.label,i]));
+  machine.tags=machine.tags.map((tag,i)=>({...tag,__order:i})).sort((a,b)=>{
+    const ai=rank.has(a.label)?rank.get(a.label):999+a.__order;
+    const bi=rank.has(b.label)?rank.get(b.label):999+b.__order;
+    return ai-bi;
+  }).map(({__order,...tag})=>tag);
+}
 function findSuggestCategoryByName(machine,name){return machine.suggestMaster.find(c=>c.category===name)||null;}
 function findSuggestPlaceByName(category,name){return category?.places?.find(p=>p.name===name)||null;}
 function renameSuggestPlace(category,oldName,newName){
@@ -742,8 +770,27 @@ function applyTokyoGhoulSuggestCorrections(machine){
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV3)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV4)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
+  const tag=(id,label,optional=false)=>({id,label,optional,countAs:null});
+  const timelineTags=[
+    tag('t_tokyo_ghoul_weak_cherry','弱チェリー'),
+    tag('t_tokyo_ghoul_suika_10','スイカ10'),
+    tag('t_tokyo_ghoul_suika_100','スイカ100'),
+    tag('t_tokyo_ghoul_suika_max','スイカMAX'),
+    tag('t_tokyo_ghoul_strong_cherry','強チェリー'),
+    tag('t_tokyo_ghoul_chance','チャンス目'),
+    tag('t_tokyo_ghoul_kakugan_replay','赫眼リプレイ',true),
+    tag('t_tokyo_ghoul_ghoul_symbol','喰図柄揃い',true),
+    tag('t_tokyo_ghoul_certain_cherry','確定チェリー',true),
+    tag('t_tokyo_ghoul_stage_anteiku','昼（あんていく）'),
+    tag('t_tokyo_ghoul_stage_ccg','昼（喰種対策局）'),
+    tag('t_tokyo_ghoul_stage_evening','夕方'),
+    tag('t_tokyo_ghoul_stage_mind_10','精神世界10',true),
+    tag('t_tokyo_ghoul_stage_mind_20','精神世界20',true),
+    tag('t_tokyo_ghoul_stage_mind_30','精神世界30',true),
+    tag('t_tokyo_ghoul_stage_night','夜',true)
+  ];
   const seed=[
     {
       id:'sgc_tokyo_ghoul_mode',
@@ -813,6 +860,16 @@ function ensureSuggestSeed(machine){
         place('sgp_tokyo_ghoul_after_at_mode','AT終了後のモード移行',[
           'AT駆け抜け（モードB以上濃厚）',
           'AT駆け抜け以外（モード再抽選・特定示唆なし）'
+        ]),
+        place('sgp_tokyo_ghoul_kui_point_get','喰ポイント獲得',[
+          '小',
+          '中',
+          '大'
+        ]),
+        place('sgp_tokyo_ghoul_kui_point_hint','喰ポイント示唆',[
+          '小',
+          '中',
+          '大'
         ])
       ]
     },
@@ -856,11 +913,13 @@ function ensureSuggestSeed(machine){
       ]
     }
   ];
+  mergeTimelineTagSeed(machine,timelineTags);
   mergeSuggestSeed(machine,seed);
   applyTokyoGhoulSuggestCorrections(machine);
   machine.suggestSeedTokyoGhoulV1=true;
   machine.suggestSeedTokyoGhoulV2=true;
   machine.suggestSeedTokyoGhoulV3=true;
+  machine.suggestSeedTokyoGhoulV4=true;
 }
 function todayValue(){
   const d=new Date();
