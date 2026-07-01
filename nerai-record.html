@@ -95,12 +95,16 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .tag-btn.tag-style-stage-day,
 .tag-btn.tag-style-stage-evening,
 .tag-btn.tag-style-stage-night,
-.tag-btn.tag-style-stage-mind{border-radius:6px;font-weight:700;}
+.tag-btn.tag-style-stage-mind,
+.tag-btn.tag-style-stage-sky{border-radius:6px;font-weight:700;}
 .tag-btn.tag-style-stage-day{background:#f7f4ea;border-color:#ffffff;color:#22242a;}
 .tag-btn.tag-style-stage-evening{background:#d8802b;border-color:#ffb46a;color:#fff8ef;}
 .tag-btn.tag-style-stage-night{background:#b83939;border-color:#ff7676;color:#fff7f7;}
 .tag-btn.tag-style-stage-mind{background:#6f717a;border-color:#aaaeb8;color:#f7f7fa;}
 .tag-btn.tag-style-stage-sky{background:#4f90d9;border-color:#9bc8ff;color:#f5fbff;}
+.tag-group{margin-top:8px;}
+.tag-group-title{display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:11px;font-weight:800;letter-spacing:.04em;margin:10px 0 4px;}
+.tag-group-title::after{content:"";height:1px;background:rgba(201,168,76,.24);flex:1;}
 .log-tools{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;}
 .log-tools .btn-small{flex:1;min-width:64px;}
 .counter-btn{background:rgba(76,175,125,.1);border-color:rgba(76,175,125,.55);color:#9be0bd;}
@@ -515,7 +519,7 @@ let pendingTimelineTagIds=[];
 let timelineHistoryOpen=false;
 let recentTimelineHighlightId='';
 let recentSuggestHighlightId='';
-let suggestPickerState={categoryId:'',placeId:''};
+let suggestPickerState={categoryId:'',placeId:'',itemId:''};
 let pendingSuggestSelection=null;
 let editingLogId=null;
 let continuedFromLog=null;
@@ -1976,9 +1980,42 @@ function renderTagButtons(target){
   const mainTags=tags.filter(t=>!t.optional);
   const optionalTags=tags.filter(t=>t.optional);
   const handler=target==='start'?'appendStartTagById':'appendTimelineTagById';
+  if(target==='timeline')return renderTimelineTagGroups(mainTags,optionalTags,handler,target);
   return `
     <div class="tag-buttons">${mainTags.length?mainTags.map(t=>tagButtonHtml(t,handler)).join(''):'<span class="empty-hint" style="padding:0;">通常タグなし</span>'}</div>
     ${optionalTags.length?`<button class="btn-secondary" onclick="toggleOptional('${target}OptionalTags')">＋他のタグ</button><div class="optional-box" id="${target}OptionalTags"><div class="tag-buttons">${optionalTags.map(t=>tagButtonHtml(t,handler)).join('')}</div></div>`:''}`;
+}
+function tagGroupName(tag){
+  const cls=normalizeTagClass(tag?.tagClass);
+  if(cls.startsWith('rare-'))return 'rare';
+  if(cls.startsWith('stage-'))return 'stage';
+  return 'other';
+}
+function renderTagGroup(title,tags,handler){
+  if(!tags.length)return '';
+  return `<div class="tag-group"><div class="tag-group-title">${escapeHtml(title)}</div><div class="tag-buttons">${tags.map(t=>tagButtonHtml(t,handler)).join('')}</div></div>`;
+}
+function renderTimelineTagGroups(mainTags,optionalTags,handler,target){
+  const grouped=tags=>({
+    rare:tags.filter(t=>tagGroupName(t)==='rare'),
+    stage:tags.filter(t=>tagGroupName(t)==='stage'),
+    other:tags.filter(t=>tagGroupName(t)==='other')
+  });
+  const main=grouped(mainTags);
+  const optional=grouped(optionalTags);
+  const mainHtml=[
+    renderTagGroup('レア役',main.rare,handler),
+    renderTagGroup('ステージ',main.stage,handler),
+    renderTagGroup('その他',main.other,handler)
+  ].join('');
+  const optionalHtml=[
+    renderTagGroup('レア役（低頻度）',optional.rare,handler),
+    renderTagGroup('ステージ（低頻度）',optional.stage,handler),
+    renderTagGroup('その他',optional.other,handler)
+  ].join('');
+  return `
+    ${mainHtml||'<span class="empty-hint" style="padding:0;">通常タグなし</span>'}
+    ${optionalTags.length?`<button class="btn-secondary" onclick="toggleOptional('${target}OptionalTags')">＋他のタグ</button><div class="optional-box" id="${target}OptionalTags">${optionalHtml}</div>`:''}`;
 }
 function tagButtonClass(tag){
   const cls=['tag-btn'];
@@ -2096,7 +2133,12 @@ function addStartLogEntry(){
   const rawValue=(valueEl?.value||'').trim();
   const text=(textEl?.value||'').trim();
   const labelTagId=labelEl?.dataset?.labelTagId||'';
-  if(!label&&rawValue===''&&!text){alert('ラベル、数値、内容のいずれかを入力してください');return;}
+  if(!label&&rawValue===''&&!text){
+    if(labelEl){labelEl.value='';labelEl.dataset.labelTagId='';}
+    if(valueEl){valueEl.value='';valueEl.dataset.clearInitialZero='';}
+    if(textEl)textEl.value='';
+    return;
+  }
   const value=rawValue===''?null:Number(rawValue);
   if(rawValue!==''&&Number.isNaN(value)){alert('数値を入力してください');return;}
   currentStartLog.push({id:uid('sl'),label,labelTagId,value,text,createdAt:new Date().toISOString()});
@@ -2135,7 +2177,12 @@ function editStartLogEntry(id){
   const label=prompt('ラベル（空でも可）',item.label||'');if(label===null)return;
   const value=prompt('数値（空でも可）',item.value!==null&&item.value!==undefined?String(item.value):'');if(value===null)return;
   const text=prompt('内容（空でも可）',item.text||'');if(text===null)return;
-  if(!label.trim()&&value.trim()===''&&!text.trim()){alert('ラベル、数値、内容のいずれかを入力してください');return;}
+  if(!label.trim()&&value.trim()===''&&!text.trim()){
+    currentStartLog=currentStartLog.filter(t=>t.id!==id);
+    renderCurrentStartLog();
+    renderPracticeStats();
+    return;
+  }
   const nextValue=value.trim()===''?null:Number(value);
   if(value.trim()!==''&&Number.isNaN(nextValue)){alert('数値を入力してください');return;}
   item.label=label.trim();
@@ -2183,16 +2230,19 @@ function renderSuggestArea(){
 function openSuggestPlacePicker(categoryId){
   const category=enabledSuggestCategories().find(c=>c.id===categoryId);
   if(!category)return;
-  suggestPickerState={categoryId,placeId:''};
+  suggestPickerState={categoryId,placeId:'',itemId:''};
   renderSuggestPicker('place');
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
 }
 function closeSuggestPicker(){
   document.getElementById('suggestPickerOverlay')?.classList.remove('open');
-  suggestPickerState={categoryId:'',placeId:''};
+  suggestPickerState={categoryId:'',placeId:'',itemId:''};
 }
 function backSuggestPicker(){
-  if(suggestPickerState.placeId){
+  if(suggestPickerState.itemId){
+    suggestPickerState.itemId='';
+    renderSuggestPicker('item');
+  }else if(suggestPickerState.placeId){
     suggestPickerState.placeId='';
     renderSuggestPicker('place');
   }else{
@@ -2208,7 +2258,14 @@ function renderSuggestPicker(stage){
   const back=document.getElementById('suggestPickerBackButton');
   if(!title||!breadcrumb||!options||!back)return;
   if(!category){closeSuggestPicker();return;}
-  if(stage==='item'&&place){
+  if(stage==='trophyCustom'&&place){
+    const item=enabledSuggestItems(category.id,place.id).find(i=>i.id===suggestPickerState.itemId);
+    if(!item){suggestPickerState.itemId='';renderSuggestPicker('item');return;}
+    title.textContent='店長カスタムを選択';
+    breadcrumb.textContent=`${category.category} / ${place.name} / ${item.label}`;
+    back.textContent='内容に戻る';
+    options.innerHTML=['朝イチ','1000G刻み','不明'].map(value=>`<button class="suggest-picker-option" onclick="selectTrophyCustom('${value}')">${value}</button>`).join('');
+  }else if(stage==='item'&&place){
     title.textContent='内容を選択';
     breadcrumb.textContent=`${category.category} / ${place.name}`;
     back.textContent='確認場所に戻る';
@@ -2226,6 +2283,7 @@ function selectSuggestPlace(placeId){
   const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===placeId);
   if(!place)return;
   suggestPickerState.placeId=placeId;
+  suggestPickerState.itemId='';
   renderSuggestPicker('item');
 }
 function selectSuggestItem(itemId){
@@ -2234,32 +2292,31 @@ function selectSuggestItem(itemId){
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===itemId);
   if(!category||!place||!item){alert('示唆のカテゴリ、確認場所、内容を選択してください');return;}
   const selection={categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
+  if(isTrophySuggestSelection(selection)){
+    suggestPickerState.itemId=itemId;
+    renderSuggestPicker('trophyCustom');
+    return;
+  }
   if(addSuggestLogFromSelection(selection))closeSuggestPicker();
 }
 function isTrophySuggestSelection(selection){
   return selection?.placeId==='sgp_tokyo_ghoul_trophy'||String(selection?.place||'').includes('トロフィー');
 }
-function chooseTrophyCustom(){
-  const raw=prompt('店長カスタム（朝イチ / 1000G刻み / 不明）','不明');
-  if(raw===null)return null;
-  const value=raw.trim();
-  if(value==='朝イチ'||value==='不明')return value;
-  if(value==='1000G刻み'||value==='1000'||value==='1000G')return '1000G刻み';
-  alert('店長カスタムは「朝イチ」「1000G刻み」「不明」のいずれかで入力してください');
-  return null;
+function selectTrophyCustom(custom){
+  const category=enabledSuggestCategories().find(c=>c.id===suggestPickerState.categoryId);
+  const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===suggestPickerState.placeId);
+  const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===suggestPickerState.itemId);
+  if(!category||!place||!item){alert('トロフィーの内容を選び直してください');return;}
+  const selection={categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
+  if(addSuggestLogFromSelection(selection,custom))closeSuggestPicker();
 }
-function addSuggestLogFromSelection(selection){
-  let trophyCustom='';
-  if(isTrophySuggestSelection(selection)){
-    const selected=chooseTrophyCustom();
-    if(selected===null)return false;
-    trophyCustom=selected;
-  }
-  const useAppearG=selection.useAppearG!==false;
+function addSuggestLogFromSelection(selection,trophyCustomValue=''){
+  const custom=isTrophySuggestSelection(selection)?trophyCustomValue:'';
+  const useAppearG=selection.useAppearG!==false&&!isTrophySuggestSelection(selection);
   const dataGame=useAppearG?timelineDataValue():null;
   const liquidGame=useAppearG?(timelineLiquidValue()??dataGame):null;
   const {useAppearG:unused,decorations,...entry}=selection;
-  const saved={...entry,id:uid('sgl'),game:dataGame,dataGame,liquidGame,trophyCustom,createdAt:new Date().toISOString()};
+  const saved={...entry,id:uid('sgl'),game:dataGame,dataGame,liquidGame,trophyCustom:custom,createdAt:new Date().toISOString()};
   currentSuggestLog.push(saved);
   recentSuggestHighlightId=saved.id;
   pendingSuggestSelection=null;
@@ -2336,13 +2393,7 @@ function editSuggestLogEntry(id){
   const place=prompt('確認場所',entry.place);if(place===null)return;
   const item=prompt('内容',entry.item);if(item===null)return;
   let trophyCustom=entry.trophyCustom||'';
-  if(place.trim().includes('トロフィー')||entry.placeId==='sgp_tokyo_ghoul_trophy'){
-    const custom=prompt('店長カスタム（朝イチ / 1000G刻み / 不明）',trophyCustom||'不明');if(custom===null)return;
-    const value=custom.trim();
-    if(value==='朝イチ'||value==='不明')trophyCustom=value;
-    else if(value==='1000G刻み'||value==='1000'||value==='1000G')trophyCustom='1000G刻み';
-    else {alert('店長カスタムは「朝イチ」「1000G刻み」「不明」のいずれかで入力してください');return;}
-  }
+  if(!(place.trim().includes('トロフィー')||entry.placeId==='sgp_tokyo_ghoul_trophy'))trophyCustom='';
   if(!category.trim()||!place.trim()||!item.trim()){alert('カテゴリ、確認場所、内容は空にできません');return;}
   Object.assign(entry,{category:category.trim(),place:place.trim(),item:item.trim(),game:dataGameValue,dataGame:dataGameValue,liquidGame:liquidGameValue,trophyCustom,updatedAt:new Date().toISOString()});
   renderCurrentSuggestLog();
@@ -2729,7 +2780,10 @@ function calculatePracticeStats(log){
   const spins=startCounter!==null&&endGame!==null&&!Number.isNaN(endGame)?endGame-startCounter:null;
   const counts={
     cz:Number(log.endLog?.czCount)||0,
-    at:Number(log.endLog?.atCount)||0
+    upper_cz:Number(log.endLog?.upperCzCount)||0,
+    at:Number(log.endLog?.atCount)||0,
+    direct_at:Number(log.endLog?.directAtCount)||0,
+    episode_bonus:Number(log.endLog?.episodeBonusCount)||0
   };
   return {startCounter,endGame,spins,counts};
 }
@@ -2742,7 +2796,10 @@ function practiceStatsLine(stats){
   const parts=[
     `回転数：${spins!==null?spins+'G':'-'}`,
     `CZ：${stats.counts.cz}回（${formatProbability(spins,stats.counts.cz)}）`,
-    `AT：${stats.counts.at}回（${formatProbability(spins,stats.counts.at)}）`
+    `上位CZ：${stats.counts.upper_cz}回`,
+    `AT：${stats.counts.at}回（${formatProbability(spins,stats.counts.at)}）`,
+    `AT直撃：${stats.counts.direct_at}回`,
+    `エピソードボーナス：${stats.counts.episode_bonus}回`
   ];
   return parts.join(' / ');
 }
