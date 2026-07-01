@@ -85,15 +85,47 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .tag-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:12px;padding:7px 12px;cursor:pointer;}
 .tag-btn.gold{border-color:rgba(201,168,76,.65);color:var(--gold-light);background:rgba(201,168,76,.08);}
 .tag-btn:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
+.tag-btn.tag-style-rare-weak{background:#ffd9de;border-color:#ff8fa0;color:#5b1018;}
+.tag-btn.tag-style-rare-suika{background:#1f7a43;border-color:#45c878;color:#f4fff8;}
+.tag-btn.tag-style-rare-strong{background:#c73636;border-color:#ff7777;color:#fff7f7;}
+.tag-btn.tag-style-rare-chance{background:#7f4cc4;border-color:#bd96ff;color:#fff8ff;}
+.tag-btn.tag-style-rare-kakugan{background:#5ec8e8;border-color:#9be9ff;color:#082b34;}
+.tag-btn.tag-style-rare-ghoul-symbol{background:#f08ab8;border-color:#ffc0d9;color:#3e081f;}
+.tag-btn.tag-style-rare-certain{background:linear-gradient(90deg,#ff5c7a,#ffb84d,#6bdf74,#63c8ff,#b77cff);border-color:rgba(255,255,255,.72);color:#101014;text-shadow:0 1px 0 rgba(255,255,255,.45);}
+.tag-btn.tag-style-stage-day,
+.tag-btn.tag-style-stage-evening,
+.tag-btn.tag-style-stage-night,
+.tag-btn.tag-style-stage-mind{border-radius:6px;font-weight:700;}
+.tag-btn.tag-style-stage-day{background:#f7f4ea;border-color:#ffffff;color:#22242a;}
+.tag-btn.tag-style-stage-evening{background:#d8802b;border-color:#ffb46a;color:#fff8ef;}
+.tag-btn.tag-style-stage-night{background:#b83939;border-color:#ff7676;color:#fff7f7;}
+.tag-btn.tag-style-stage-mind{background:#6f717a;border-color:#aaaeb8;color:#f7f7fa;}
 .log-tools{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;}
 .log-tools .btn-small{flex:1;min-width:64px;}
 .counter-btn{background:rgba(76,175,125,.1);border-color:rgba(76,175,125,.55);color:#9be0bd;}
 .counter-btn:active{background:rgba(76,175,125,.2);border-color:var(--green);color:#c8f5dc;}
 .end-btn{border-color:rgba(201,168,76,.65);color:var(--gold-light);background:rgba(201,168,76,.1);}
 .timeline-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;}
+.timeline-item.recent{border-color:rgba(201,168,76,.88);background:rgba(201,168,76,.1);box-shadow:0 0 0 1px rgba(201,168,76,.18),0 8px 18px rgba(0,0,0,.18);}
 .timeline-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}
 .timeline-game{font-size:13px;font-weight:700;color:var(--gold-light);}
 .timeline-text{font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;}
+.work-section-card{border-color:rgba(201,168,76,.32);background:linear-gradient(180deg,rgba(201,168,76,.08),rgba(255,255,255,.02));}
+.work-section-card.play{border-color:rgba(201,168,76,.45);}
+.work-section-title{display:flex;align-items:center;gap:8px;margin:-2px -2px 12px;padding:10px 12px;border-radius:8px;background:rgba(201,168,76,.13);border:1px solid rgba(201,168,76,.28);color:var(--gold-light);font-size:15px;font-weight:800;}
+.work-section-title::before{content:"";width:6px;height:22px;border-radius:4px;background:var(--gold);}
+.work-subsection{margin-top:14px;padding:12px;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.12);}
+.work-subsection.end{border-color:rgba(224,112,112,.36);background:rgba(224,112,112,.07);}
+.work-subsection.end .work-section-title{margin:0 0 10px;background:rgba(224,112,112,.13);border-color:rgba(224,112,112,.3);color:#ffb3b3;}
+.work-subsection.end .work-section-title::before{background:#e07070;}
+.timeline-add-btn{opacity:.62;filter:saturate(.55);transition:opacity .15s ease,filter .15s ease,box-shadow .15s ease;}
+.timeline-add-btn.ready{opacity:1;filter:none;box-shadow:0 0 0 2px rgba(201,168,76,.22),0 8px 20px rgba(201,168,76,.13);}
+.timeline-history{margin-top:10px;border:1px solid rgba(201,168,76,.24);border-radius:8px;background:rgba(0,0,0,.12);overflow:hidden;}
+.timeline-history-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;background:rgba(201,168,76,.08);border:0;border-bottom:1px solid transparent;color:var(--text);padding:10px 12px;font-size:13px;font-weight:700;cursor:pointer;text-align:left;}
+.timeline-history.open .timeline-history-toggle{border-bottom-color:rgba(201,168,76,.2);}
+.timeline-history-count{font-size:12px;color:var(--gold-light);white-space:nowrap;}
+.timeline-history-body{display:none;padding:10px;}
+.timeline-history.open .timeline-history-body{display:block;}
 .calc-box{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.35);border-radius:8px;padding:12px;margin-top:10px;}
 .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .calc-cell{background:rgba(0,0,0,.14);border:1px solid var(--border);border-radius:6px;padding:8px;}
@@ -479,6 +511,9 @@ let currentTimelineLiquidOffset=0;
 let currentEndLog=null;
 let currentSuggestLog=[];
 let pendingTimelineTagIds=[];
+let timelineHistoryOpen=false;
+let recentTimelineHighlightId='';
+let recentSuggestHighlightId='';
 let suggestPickerState={categoryId:'',placeId:''};
 let pendingSuggestSelection=null;
 let editingLogId=null;
@@ -489,6 +524,10 @@ function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9
 function clone(value){return JSON.parse(JSON.stringify(value));}
 function escapeHtml(value){
   return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function normalizeTagClass(value){
+  const text=String(value||'').trim();
+  return /^[a-z0-9-]+$/.test(text)?text:'';
 }
 function normalizeStore(entry){
   if(typeof entry==='string')return {name:entry,lendRate:null,exchangeRate:null};
@@ -583,6 +622,7 @@ function normalizeData(data){
       t.countAs=COUNT_AS_OPTIONS.includes(t.countAs)?t.countAs:null;
       t.liquidDelta=normalizeOptionalNumber(t.liquidDelta);
       t.liquidSet=normalizeOptionalNumber(t.liquidSet);
+      t.tagClass=normalizeTagClass(t.tagClass);
     });
     m.startTags.forEach(t=>{t.optional=!!t.optional;});
     ensureRequiredAims(m);
@@ -688,8 +728,9 @@ function mergeTimelineTagSeed(machine,tags){
       tag.countAs=COUNT_AS_OPTIONS.includes(tag.countAs)?tag.countAs:null;
       tag.liquidDelta=normalizeOptionalNumber(seedTag.liquidDelta);
       tag.liquidSet=normalizeOptionalNumber(seedTag.liquidSet);
+      tag.tagClass=normalizeTagClass(seedTag.tagClass)||normalizeTagClass(tag.tagClass);
     }else{
-      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet)});
+      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass)});
     }
   });
   const seen=new Set();
@@ -935,26 +976,26 @@ function migrateTokyoGhoulSuggestLogs(data){
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV8)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV9)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
-  const tag=(id,label,optional=false,rule={})=>({id,label,optional,countAs:null,liquidDelta:rule.liquidDelta??null,liquidSet:rule.liquidSet??null});
+  const tag=(id,label,optional=false,rule={},tagClass='')=>({id,label,optional,countAs:null,liquidDelta:rule.liquidDelta??null,liquidSet:rule.liquidSet??null,tagClass});
   const timelineTags=[
-    tag('t_tokyo_ghoul_weak_cherry','弱チェリー'),
-    tag('t_tokyo_ghoul_suika_10','スイカ10',false,{liquidDelta:10}),
-    tag('t_tokyo_ghoul_suika_100','スイカ100',false,{liquidDelta:100}),
-    tag('t_tokyo_ghoul_suika_max','スイカMAX',false,{liquidSet:600}),
-    tag('t_tokyo_ghoul_strong_cherry','強チェリー'),
-    tag('t_tokyo_ghoul_chance','チャンス目'),
-    tag('t_tokyo_ghoul_kakugan_replay','赫眼リプレイ',true),
-    tag('t_tokyo_ghoul_ghoul_symbol','喰図柄揃い',true),
-    tag('t_tokyo_ghoul_certain_cherry','確定チェリー',true),
-    tag('t_tokyo_ghoul_stage_anteiku','昼（あんていく）'),
-    tag('t_tokyo_ghoul_stage_ccg','昼（喰種対策局）'),
-    tag('t_tokyo_ghoul_stage_evening','夕方'),
-    tag('t_tokyo_ghoul_stage_mind_10','精神世界10',true),
-    tag('t_tokyo_ghoul_stage_mind_20','精神世界20',true),
-    tag('t_tokyo_ghoul_stage_mind_30','精神世界30',true),
-    tag('t_tokyo_ghoul_stage_night','夜',true)
+    tag('t_tokyo_ghoul_weak_cherry','弱チェリー',false,{},'rare-weak'),
+    tag('t_tokyo_ghoul_suika_10','スイカ10',false,{liquidDelta:10},'rare-suika'),
+    tag('t_tokyo_ghoul_suika_100','スイカ100',false,{liquidDelta:100},'rare-suika'),
+    tag('t_tokyo_ghoul_suika_max','スイカMAX',false,{liquidSet:600},'rare-suika'),
+    tag('t_tokyo_ghoul_strong_cherry','強チェリー',false,{},'rare-strong'),
+    tag('t_tokyo_ghoul_chance','チャンス目',false,{},'rare-chance'),
+    tag('t_tokyo_ghoul_kakugan_replay','赫眼リプレイ',true,{},'rare-kakugan'),
+    tag('t_tokyo_ghoul_ghoul_symbol','喰図柄揃い',true,{},'rare-ghoul-symbol'),
+    tag('t_tokyo_ghoul_certain_cherry','確定チェリー',true,{},'rare-certain'),
+    tag('t_tokyo_ghoul_stage_anteiku','昼（あんていく）',false,{},'stage-day'),
+    tag('t_tokyo_ghoul_stage_ccg','昼（喰種対策局）',false,{},'stage-day'),
+    tag('t_tokyo_ghoul_stage_evening','夕方',false,{},'stage-evening'),
+    tag('t_tokyo_ghoul_stage_mind_10','精神世界10',true,{},'stage-mind'),
+    tag('t_tokyo_ghoul_stage_mind_20','精神世界20',true,{},'stage-mind'),
+    tag('t_tokyo_ghoul_stage_mind_30','精神世界30',true,{},'stage-mind'),
+    tag('t_tokyo_ghoul_stage_night','夜',true,{},'stage-night')
   ];
   const seed=[
     {
@@ -1099,6 +1140,7 @@ function ensureSuggestSeed(machine){
   machine.suggestSeedTokyoGhoulV6=true;
   machine.suggestSeedTokyoGhoulV7=true;
   machine.suggestSeedTokyoGhoulV8=true;
+  machine.suggestSeedTokyoGhoulV9=true;
 }
 function todayValue(){
   const d=new Date();
@@ -1197,6 +1239,14 @@ function addMachine(){
   ensureSuggestSeed(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
+  currentStartCounterGame=0;
+  currentStartLog=[];
+  currentTimeline=[];
+  currentTimelineLiquidOffset=0;
+  currentEndLog=null;
+  currentSuggestLog=[];
+  pendingSuggestSelection=null;
+  resetTransientLogUiState();
   persist();
   document.getElementById('machineName').value='';
   renderAll();
@@ -1207,8 +1257,11 @@ function selectMachine(id){
   currentStartCounterGame=0;
   currentStartLog=[];
   currentTimeline=[];
+  currentTimelineLiquidOffset=0;
+  currentEndLog=null;
   currentSuggestLog=[];
   pendingSuggestSelection=null;
+  resetTransientLogUiState();
   renderAll();
 }
 function editMachine(id){
@@ -1695,7 +1748,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineLiquidOffset=0;currentSuggestLog=[];pendingSuggestSelection=null;closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineLiquidOffset=0;currentEndLog=null;currentSuggestLog=[];pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -1857,12 +1910,12 @@ function renderLogFields(){
   const el=document.getElementById('dynamicFields');
   if(!aim){el.innerHTML='<div class="empty-hint">機種と狙い方を登録してください</div>';return;}
   el.innerHTML=`
-    <div class="card">
-      <div class="section-label" style="margin-top:0;">打ち始めデータ</div>
+    <div class="card work-section-card">
+      <div class="work-section-title">打ち始めデータ</div>
       ${renderStartLogArea()}
     </div>
-    <div class="card">
-      <div class="section-label" style="margin-top:0;">実戦中ログ</div>
+    <div class="card work-section-card play">
+      <div class="work-section-title">実戦中ログ</div>
       ${renderTimelineArea()}
     </div>
     <div id="practiceStatsBox"></div>`;
@@ -1893,8 +1946,17 @@ function renderTagButtons(target){
   const optionalTags=tags.filter(t=>t.optional);
   const handler=target==='start'?'appendStartTagById':'appendTimelineTagById';
   return `
-    <div class="tag-buttons">${mainTags.length?mainTags.map(t=>`<button class="tag-btn" onclick="${handler}('${t.id}')">${escapeHtml(t.label)}</button>`).join(''):'<span class="empty-hint" style="padding:0;">通常タグなし</span>'}</div>
-    ${optionalTags.length?`<button class="btn-secondary" onclick="toggleOptional('${target}OptionalTags')">＋他のタグ</button><div class="optional-box" id="${target}OptionalTags"><div class="tag-buttons">${optionalTags.map(t=>`<button class="tag-btn" onclick="${handler}('${t.id}')">${escapeHtml(t.label)}</button>`).join('')}</div></div>`:''}`;
+    <div class="tag-buttons">${mainTags.length?mainTags.map(t=>tagButtonHtml(t,handler)).join(''):'<span class="empty-hint" style="padding:0;">通常タグなし</span>'}</div>
+    ${optionalTags.length?`<button class="btn-secondary" onclick="toggleOptional('${target}OptionalTags')">＋他のタグ</button><div class="optional-box" id="${target}OptionalTags"><div class="tag-buttons">${optionalTags.map(t=>tagButtonHtml(t,handler)).join('')}</div></div>`:''}`;
+}
+function tagButtonClass(tag){
+  const cls=['tag-btn'];
+  const tagClass=normalizeTagClass(tag?.tagClass);
+  if(tagClass)cls.push(`tag-style-${tagClass}`);
+  return cls.join(' ');
+}
+function tagButtonHtml(tag,handler){
+  return `<button class="${tagButtonClass(tag)}" onclick="${handler}('${tag.id}')">${escapeHtml(tag.label)}</button>`;
 }
 function renderLabelTagButtons(){
   const tags=(currentMachine()?.labelTags||[]).filter(t=>t.id!=='lt_counter_game'&&!isCounterLabel(t.label));
@@ -2184,7 +2246,9 @@ function addPendingSuggestLog(useGame){
     if(raw!==''&&game===null){alert('G数は数値で入力してください');return;}
   }
   const {useAppearG,decorations,...entry}=pendingSuggestSelection;
-  currentSuggestLog.push({...entry,id:uid('sgl'),game,createdAt:new Date().toISOString()});
+  const saved={...entry,id:uid('sgl'),game,createdAt:new Date().toISOString()};
+  currentSuggestLog.push(saved);
+  recentSuggestHighlightId=saved.id;
   pendingSuggestSelection=null;
   renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
@@ -2214,7 +2278,7 @@ function renderCurrentSuggestLog(){
   const rows=sortedSuggestLog();
   if(!rows.length){el.innerHTML='<div class="empty-hint">まだ示唆記録なし</div>';return;}
   el.innerHTML=rows.map(entry=>`
-    <div class="timeline-item">
+    <div class="timeline-item ${entry.id===recentSuggestHighlightId?'recent':''}">
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(entry.place||'示唆')}</div>
         <div class="item-actions">
@@ -2240,6 +2304,7 @@ function editSuggestLogEntry(id){
 function deleteSuggestLogEntry(id){
   if(!confirm('この示唆記録を削除しますか？'))return;
   currentSuggestLog=currentSuggestLog.filter(s=>s.id!==id);
+  if(recentSuggestHighlightId===id)recentSuggestHighlightId='';
   renderCurrentSuggestLog();
 }
 function renderTimelineArea(){
@@ -2260,49 +2325,73 @@ function renderTimelineArea(){
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(10)">+10</button>
     </div>
     ${renderTagButtons('timeline')}
-    <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし"></textarea>
-    <button class="btn-primary" onclick="addTimelineEntry()">ログに追加</button>
+    <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState()"></textarea>
+    <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
+    ${renderTimelineHistoryPanel()}
     ${renderSuggestArea()}
-    <div class="section-label" style="margin-top:14px;">打ち終わり</div>
-    <div class="input-row">
-      <div class="input-label no-wrap-label">終了理由</div>
-      <div class="field-stack">
-        <select id="endReason">
-          <option value="">未選択</option>
-          <option value="CZ当選">CZ当選</option>
-          <option value="AT当選">AT当選</option>
-          <option value="ヤメ">ヤメ</option>
-          <option value="その他">その他</option>
-        </select>
-        <div class="input-hint">打ち終わり登録時は必須</div>
+    <div class="work-subsection end">
+      <div class="work-section-title">打ち終わり</div>
+      <div class="input-row">
+        <div class="input-label no-wrap-label">終了理由</div>
+        <div class="field-stack">
+          <select id="endReason">
+            <option value="">未選択</option>
+            <option value="CZ当選">CZ当選</option>
+            <option value="AT当選">AT当選</option>
+            <option value="ヤメ">ヤメ</option>
+            <option value="その他">その他</option>
+          </select>
+          <div class="input-hint">打ち終わり登録時は必須</div>
+        </div>
       </div>
-    </div>
-    <textarea id="endText" placeholder="終了理由の補足（任意）"></textarea>
-    <div class="input-row">
-      <div class="input-label no-wrap-label">CZ回数<div class="input-hint">この稼働の合計</div></div>
-      <div class="inline-field"><input type="text" id="endCzCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endCzCount')">+1</button></div>
-    </div>
-    <div class="input-row">
-      <div class="input-label no-wrap-label">AT回数<div class="input-hint">この稼働の合計</div></div>
-      <div class="inline-field"><input type="text" id="endAtCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endAtCount')">+1</button></div>
-    </div>
-    <div class="input-row">
-      <div class="input-label no-wrap-label">CZ成功数<div class="input-hint">任意</div></div>
-      <div class="inline-field"><input type="text" id="endCzSuccessCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endCzSuccessCount')">+1</button></div>
-    </div>
-    <button class="btn-secondary end-btn" onclick="recordEndLog()">現在のデータG数で打ち終わり</button>
-    <div id="endLogBox" style="margin-top:10px;"></div>
-    <div id="timelineList" style="margin-top:10px;"></div>`;
+      <textarea id="endText" placeholder="終了理由の補足（任意）"></textarea>
+      <div class="input-row">
+        <div class="input-label no-wrap-label">CZ回数<div class="input-hint">この稼働の合計</div></div>
+        <div class="inline-field"><input type="text" id="endCzCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endCzCount')">+1</button></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label no-wrap-label">AT回数<div class="input-hint">この稼働の合計</div></div>
+        <div class="inline-field"><input type="text" id="endAtCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endAtCount')">+1</button></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label no-wrap-label">CZ成功数<div class="input-hint">任意</div></div>
+        <div class="inline-field"><input type="text" id="endCzSuccessCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endCzSuccessCount')">+1</button></div>
+      </div>
+      <button class="btn-secondary end-btn" onclick="recordEndLog()">現在のデータG数で打ち終わり</button>
+      <div id="endLogBox" style="margin-top:10px;"></div>
+    </div>`;
+}
+function renderTimelineHistoryPanel(){
+  return `
+    <div class="timeline-history" id="timelineHistoryBox">
+      <button class="timeline-history-toggle" type="button" onclick="toggleTimelineHistory()">
+        <span>記録済みの途中ログ</span>
+        <span class="timeline-history-count" id="timelineHistoryCount">0件 ▼</span>
+      </button>
+      <div class="timeline-history-body" id="timelineList"></div>
+    </div>`;
+}
+function toggleTimelineHistory(){
+  timelineHistoryOpen=!timelineHistoryOpen;
+  renderCurrentTimeline();
+}
+function updateTimelineAddButtonState(){
+  const button=document.getElementById('timelineAddButton');
+  if(!button)return;
+  const text=(document.getElementById('timelineText')?.value||'').trim();
+  button.classList.toggle('ready',!!text||pendingTimelineTagIds.length>0);
 }
 function appendTimelineTagById(id){
   const tag=currentMachine()?.tags?.find(t=>t.id===id);
   if(tag){
     if(!pendingTimelineTagIds.includes(id))pendingTimelineTagIds.push(id);
     appendTimelineTag(tag.label);
+    updateTimelineAddButtonState();
   }
 }
 function appendTimelineTag(label){
   appendTextToField('timelineText',label);
+  updateTimelineAddButtonState();
 }
 function timelineDataValue(){
   return normalizeOptionalNumber(document.getElementById('timelineGame')?.value||'');
@@ -2396,20 +2485,29 @@ function addTimelineEntry(){
   if(liquidEl?.value&&Number.isNaN(liquidGame)){alert('液晶G数を入力してください');return;}
   if(!text){alert('内容を入力してください');return;}
   const tagIds=[...pendingTimelineTagIds];
-  currentTimeline.push({id:uid('tl'),game,liquidGame,text,tagIds,countAs:[],createdAt:new Date().toISOString()});
+  const entry={id:uid('tl'),game,liquidGame,text,tagIds,countAs:[],createdAt:new Date().toISOString()};
+  currentTimeline.push(entry);
+  recentTimelineHighlightId=entry.id;
+  timelineHistoryOpen=true;
   applyLiquidRuleAfterTimelineAdd(tagIds);
   pendingTimelineTagIds=[];
   textEl.value='';
+  updateTimelineAddButtonState();
   renderCurrentTimeline();
   renderPracticeStats();
 }
 function renderCurrentTimeline(){
   const el=document.getElementById('timelineList');
+  const box=document.getElementById('timelineHistoryBox');
+  const count=document.getElementById('timelineHistoryCount');
+  if(box)box.classList.toggle('open',timelineHistoryOpen);
+  if(count)count.textContent=`${currentTimeline.length}件 ${timelineHistoryOpen?'▲':'▼'}`;
+  updateTimelineAddButtonState();
   if(!el)return;
   const rows=sortedTimeline();
   if(!rows.length){el.innerHTML='<div class="empty-hint">まだ時系列ログなし</div>';return;}
   el.innerHTML=rows.map(t=>`
-    <div class="timeline-item">
+    <div class="timeline-item ${t.id===recentTimelineHighlightId?'recent':''}">
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(timelineGameLine(t))}</div>
         <div class="item-actions">
@@ -2437,6 +2535,7 @@ function editTimelineEntry(id){
 function deleteTimelineEntry(id){
   if(!confirm('この時系列ログを削除しますか？'))return;
   currentTimeline=currentTimeline.filter(t=>t.id!==id);
+  if(recentTimelineHighlightId===id)recentTimelineHighlightId='';
   renderCurrentTimeline();
   renderPracticeStats();
 }
@@ -2791,8 +2890,8 @@ function clearLogInput(cancelEdit=true){
   currentTimelineLiquidOffset=0;
   currentEndLog=null;
   currentSuggestLog=[];
-  pendingTimelineTagIds=[];
   pendingSuggestSelection=null;
+  resetTransientLogUiState();
   closeSuggestPicker();
   resetStartCounterDefault();
   renderCurrentStartLog();
@@ -2806,6 +2905,13 @@ function clearLogInput(cancelEdit=true){
   applyLatestStoreForCurrentDate();
   updateCalc();
   updateEditModeUi();
+}
+function resetTransientLogUiState(){
+  pendingTimelineTagIds=[];
+  timelineHistoryOpen=false;
+  recentTimelineHighlightId='';
+  recentSuggestHighlightId='';
+  updateTimelineAddButtonState();
 }
 function resetStartCounterDefault(){
   currentStartCounterGame=0;
@@ -2882,8 +2988,8 @@ function loadLogForEdit(id){
   currentTimelineLiquidOffset=0;
   currentEndLog=clone(log.endLog||null);
   currentSuggestLog=clone(log.suggestLog||[]);
-  pendingTimelineTagIds=[];
   pendingSuggestSelection=null;
+  resetTransientLogUiState();
   closeSuggestPicker();
   showPage('pageLog');
   fillLogInputs(log);
@@ -2918,8 +3024,8 @@ function continueFromLog(id){
   currentTimelineLiquidOffset=0;
   currentEndLog=null;
   currentSuggestLog=[];
-  pendingTimelineTagIds=[];
   pendingSuggestSelection=null;
+  resetTransientLogUiState();
   closeSuggestPicker();
   const stats=practiceStatsLine(calculatePracticeStats(log));
   continuedFromLog={id:log.id,summary:`${log.money?.date||'日付なし'} / ${endLogLine(log.endLog)||'打ち終わりなし'} / ${stats}`};
