@@ -100,6 +100,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .tag-btn.tag-style-stage-evening{background:#d8802b;border-color:#ffb46a;color:#fff8ef;}
 .tag-btn.tag-style-stage-night{background:#b83939;border-color:#ff7676;color:#fff7f7;}
 .tag-btn.tag-style-stage-mind{background:#6f717a;border-color:#aaaeb8;color:#f7f7fa;}
+.tag-btn.tag-style-stage-sky{background:#4f90d9;border-color:#9bc8ff;color:#f5fbff;}
 .log-tools{display:flex;gap:6px;margin:8px 0;flex-wrap:wrap;}
 .log-tools .btn-small{flex:1;min-width:64px;}
 .counter-btn{background:rgba(76,175,125,.1);border-color:rgba(76,175,125,.55);color:#9be0bd;}
@@ -592,6 +593,11 @@ function normalizeData(data){
       item.place=item.place||'';
       item.item=item.item||'';
       item.game=normalizeOptionalNumber(item.game);
+      item.dataGame=normalizeOptionalNumber(item.dataGame);
+      item.liquidGame=normalizeOptionalNumber(item.liquidGame);
+      if(item.dataGame===null&&item.game!==null)item.dataGame=item.game;
+      if(item.liquidGame===null&&item.dataGame!==null)item.liquidGame=item.dataGame;
+      item.trophyCustom=item.trophyCustom||'';
       item.createdAt=item.createdAt||new Date().toISOString();
     });
     log.endLog=log.endLog&&typeof log.endLog==='object'?log.endLog:null;
@@ -599,6 +605,9 @@ function normalizeData(data){
       log.endLog.czCount=Number(log.endLog.czCount)||0;
       log.endLog.atCount=Number(log.endLog.atCount)||0;
       log.endLog.czSuccessCount=Number(log.endLog.czSuccessCount)||0;
+      log.endLog.upperCzCount=Number(log.endLog.upperCzCount)||0;
+      log.endLog.directAtCount=Number(log.endLog.directAtCount)||0;
+      log.endLog.episodeBonusCount=Number(log.endLog.episodeBonusCount)||0;
     }
     if(!log.money)log.money={};
     log.money.publishStore=!!log.money.publishStore;
@@ -827,9 +836,29 @@ function findSuggestItemForEntry(entry){
   return place?.items?.find(i=>i.id===entry.itemId)||place?.items?.find(i=>i.label===entry.item)||null;
 }
 function suggestLogLineHtml(entry){
-  const game=entry.game!==null&&entry.game!==undefined?`${escapeHtml(entry.game)}G `:'';
+  const game=suggestGameText(entry);
+  const trophy=entry.trophyCustom?` / 店長カスタム：${escapeHtml(entry.trophyCustom)}`:'';
   const item=findSuggestItemForEntry(entry);
-  return `${game}${escapeHtml(entry.category)} / ${escapeHtml(entry.place)}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}`;
+  return `${game?escapeHtml(game)+' ':''}${escapeHtml(entry.category)} / ${escapeHtml(entry.place)}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}${trophy}`;
+}
+function suggestGamePair(entry){
+  const data=normalizeOptionalNumber(entry?.dataGame);
+  const liquid=normalizeOptionalNumber(entry?.liquidGame);
+  const legacy=normalizeOptionalNumber(entry?.game);
+  const dataGame=data!==null?data:legacy;
+  const liquidGame=liquid!==null?liquid:dataGame;
+  return {dataGame,liquidGame};
+}
+function suggestGameText(entry){
+  const {dataGame,liquidGame}=suggestGamePair(entry);
+  if(dataGame===null)return '';
+  if(liquidGame===null)return `${dataGame}G`;
+  return `${dataGame}/${liquidGame}G`;
+}
+function suggestEntryUsesAppearG(entry){
+  const machine=currentMachine();
+  const category=machine?.suggestMaster?.find(c=>c.id===entry?.categoryId)||machine?.suggestMaster?.find(c=>c.category===entry?.category);
+  return category?.useAppearG!==false;
 }
 function reorderSuggestPlaces(category,orderedNames){
   if(!category)return;
@@ -976,7 +1005,7 @@ function migrateTokyoGhoulSuggestLogs(data){
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV9)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV10)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const tag=(id,label,optional=false,rule={},tagClass='')=>({id,label,optional,countAs:null,liquidDelta:rule.liquidDelta??null,liquidSet:rule.liquidSet??null,tagClass});
   const timelineTags=[
@@ -992,10 +1021,11 @@ function ensureSuggestSeed(machine){
     tag('t_tokyo_ghoul_stage_anteiku','昼（あんていく）',false,{},'stage-day'),
     tag('t_tokyo_ghoul_stage_ccg','昼（喰種対策局）',false,{},'stage-day'),
     tag('t_tokyo_ghoul_stage_evening','夕方',false,{},'stage-evening'),
+    tag('t_tokyo_ghoul_stage_tokyo_sky','東京上空',false,{},'stage-sky'),
+    tag('t_tokyo_ghoul_stage_night','夜',true,{},'stage-night'),
     tag('t_tokyo_ghoul_stage_mind_10','精神世界10',true,{},'stage-mind'),
     tag('t_tokyo_ghoul_stage_mind_20','精神世界20',true,{},'stage-mind'),
-    tag('t_tokyo_ghoul_stage_mind_30','精神世界30',true,{},'stage-mind'),
-    tag('t_tokyo_ghoul_stage_night','夜',true,{},'stage-night')
+    tag('t_tokyo_ghoul_stage_mind_30','精神世界30',true,{},'stage-mind')
   ];
   const seed=[
     {
@@ -1141,6 +1171,7 @@ function ensureSuggestSeed(machine){
   machine.suggestSeedTokyoGhoulV7=true;
   machine.suggestSeedTokyoGhoulV8=true;
   machine.suggestSeedTokyoGhoulV9=true;
+  machine.suggestSeedTokyoGhoulV10=true;
 }
 function todayValue(){
   const d=new Date();
@@ -1979,7 +2010,7 @@ function renderStartLogArea(){
     </div>
     <div class="section-label" style="margin-top:14px;">追加データ（任意）</div>
     <div class="input-row">
-      <div class="input-label no-wrap-label">ラベル<div class="input-hint">数値の意味</div></div>
+      <div class="input-label no-wrap-label">ラベル<div class="input-hint">任意・数値の意味</div></div>
       <input type="text" id="startLogLabel" placeholder="例：AT間ゲーム数" oninput="this.dataset.labelTagId=''">
     </div>
     ${renderLabelTagButtons()}
@@ -2202,34 +2233,42 @@ function selectSuggestItem(itemId){
   const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===suggestPickerState.placeId);
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===itemId);
   if(!category||!place||!item){alert('示唆のカテゴリ、確認場所、内容を選択してください');return;}
-  pendingSuggestSelection={categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
-  closeSuggestPicker();
+  const selection={categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
+  if(addSuggestLogFromSelection(selection))closeSuggestPicker();
+}
+function isTrophySuggestSelection(selection){
+  return selection?.placeId==='sgp_tokyo_ghoul_trophy'||String(selection?.place||'').includes('トロフィー');
+}
+function chooseTrophyCustom(){
+  const raw=prompt('店長カスタム（朝イチ / 1000G刻み / 不明）','不明');
+  if(raw===null)return null;
+  const value=raw.trim();
+  if(value==='朝イチ'||value==='不明')return value;
+  if(value==='1000G刻み'||value==='1000'||value==='1000G')return '1000G刻み';
+  alert('店長カスタムは「朝イチ」「1000G刻み」「不明」のいずれかで入力してください');
+  return null;
+}
+function addSuggestLogFromSelection(selection){
+  let trophyCustom='';
+  if(isTrophySuggestSelection(selection)){
+    const selected=chooseTrophyCustom();
+    if(selected===null)return false;
+    trophyCustom=selected;
+  }
+  const useAppearG=selection.useAppearG!==false;
+  const dataGame=useAppearG?timelineDataValue():null;
+  const liquidGame=useAppearG?(timelineLiquidValue()??dataGame):null;
+  const {useAppearG:unused,decorations,...entry}=selection;
+  const saved={...entry,id:uid('sgl'),game:dataGame,dataGame,liquidGame,trophyCustom,createdAt:new Date().toISOString()};
+  currentSuggestLog.push(saved);
+  recentSuggestHighlightId=saved.id;
+  pendingSuggestSelection=null;
   renderPendingSuggestBoxIntoDom();
+  renderCurrentSuggestLog();
+  return true;
 }
 function renderPendingSuggestBox(){
-  if(!pendingSuggestSelection)return '';
-  const useAppearG=useAppearGForSuggestSelection(pendingSuggestSelection);
-  const fallbackGame=(document.getElementById('timelineGame')?.value||'').trim();
-  const gameInputHtml=useAppearG?`
-      <div class="input-row" style="margin-top:8px;">
-        <div class="input-label no-wrap-label">出現G数<div class="input-hint">任意</div></div>
-        <input type="text" id="pendingSuggestGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(fallbackGame)}" placeholder="空でも可">
-      </div>`:'';
-  const recordButtons=useAppearG?`
-        <button class="btn-small gold" onclick="addPendingSuggestLog(true)">記録</button>
-        <button class="btn-small" onclick="addPendingSuggestLog(false)">G数なし</button>`:`
-        <button class="btn-small gold" onclick="addPendingSuggestLog(false)">記録</button>`;
-  return `
-    <div class="calc-box">
-      <div class="calc-label">選択中の示唆</div>
-      <div class="timeline-text" style="margin-top:4px;">${escapeHtml(pendingSuggestSelection.category)} / ${escapeHtml(pendingSuggestSelection.place)}：${decoratedSuggestLabelHtml(pendingSuggestSelection.item,pendingSuggestSelection.decorations||[])}</div>
-      ${gameInputHtml}
-      <div class="btn-row">
-        ${recordButtons}
-        <button class="btn-small" onclick="backPendingSuggestSelection()">戻る</button>
-        <button class="btn-danger" onclick="cancelPendingSuggestSelection()">取消</button>
-      </div>
-    </div>`;
+  return '';
 }
 function renderPendingSuggestBoxIntoDom(){
   const el=document.getElementById('pendingSuggestBox');
@@ -2237,21 +2276,8 @@ function renderPendingSuggestBoxIntoDom(){
   bindNumericInputs();
 }
 function addPendingSuggestLog(useGame){
-  if(!pendingSuggestSelection)return;
-  if(!useAppearGForSuggestSelection(pendingSuggestSelection))useGame=false;
-  let game=null;
-  if(useGame){
-    const raw=(document.getElementById('pendingSuggestGame')?.value||'').trim();
-    game=normalizeOptionalNumber(raw);
-    if(raw!==''&&game===null){alert('G数は数値で入力してください');return;}
-  }
-  const {useAppearG,decorations,...entry}=pendingSuggestSelection;
-  const saved={...entry,id:uid('sgl'),game,createdAt:new Date().toISOString()};
-  currentSuggestLog.push(saved);
-  recentSuggestHighlightId=saved.id;
   pendingSuggestSelection=null;
   renderPendingSuggestBoxIntoDom();
-  renderCurrentSuggestLog();
 }
 function backPendingSuggestSelection(){
   if(!pendingSuggestSelection)return;
@@ -2266,8 +2292,9 @@ function cancelPendingSuggestSelection(){
   renderPendingSuggestBoxIntoDom();
 }
 function suggestLogLine(entry){
-  const game=entry.game!==null&&entry.game!==undefined?`${entry.game}G `:'';
-  return `${game}${entry.category} / ${entry.place}：${entry.item}`;
+  const game=suggestGameText(entry);
+  const trophy=entry.trophyCustom?` / 店長カスタム：${entry.trophyCustom}`:'';
+  return `${game?game+' ':''}${entry.category} / ${entry.place}：${entry.item}${trophy}`;
 }
 function sortedSuggestLog(){
   return [...currentSuggestLog].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -2291,14 +2318,33 @@ function renderCurrentSuggestLog(){
 }
 function editSuggestLogEntry(id){
   const entry=currentSuggestLog.find(s=>s.id===id);if(!entry)return;
-  const game=prompt('出現G数（空でも可）',entry.game!==null&&entry.game!==undefined?String(entry.game):'');if(game===null)return;
+  const useAppearG=suggestEntryUsesAppearG(entry);
+  const currentGames=suggestGamePair(entry);
+  let dataGameValue=null;
+  let liquidGameValue=null;
+  if(useAppearG){
+    const dataGame=prompt('出現データG数（空でも可）',currentGames.dataGame!==null?String(currentGames.dataGame):'');if(dataGame===null)return;
+    const liquidGame=prompt('出現液晶G数（空でも可）',currentGames.liquidGame!==null?String(currentGames.liquidGame):'');if(liquidGame===null)return;
+    dataGameValue=normalizeOptionalNumber(dataGame.trim());
+    liquidGameValue=normalizeOptionalNumber(liquidGame.trim());
+    if(dataGame.trim()!==''&&dataGameValue===null){alert('出現データG数は数値で入力してください');return;}
+    if(liquidGame.trim()!==''&&liquidGameValue===null){alert('出現液晶G数は数値で入力してください');return;}
+    if(dataGameValue===null&&liquidGameValue!==null)dataGameValue=liquidGameValue;
+    if(liquidGameValue===null&&dataGameValue!==null)liquidGameValue=dataGameValue;
+  }
   const category=prompt('カテゴリ',entry.category);if(category===null)return;
   const place=prompt('確認場所',entry.place);if(place===null)return;
   const item=prompt('内容',entry.item);if(item===null)return;
+  let trophyCustom=entry.trophyCustom||'';
+  if(place.trim().includes('トロフィー')||entry.placeId==='sgp_tokyo_ghoul_trophy'){
+    const custom=prompt('店長カスタム（朝イチ / 1000G刻み / 不明）',trophyCustom||'不明');if(custom===null)return;
+    const value=custom.trim();
+    if(value==='朝イチ'||value==='不明')trophyCustom=value;
+    else if(value==='1000G刻み'||value==='1000'||value==='1000G')trophyCustom='1000G刻み';
+    else {alert('店長カスタムは「朝イチ」「1000G刻み」「不明」のいずれかで入力してください');return;}
+  }
   if(!category.trim()||!place.trim()||!item.trim()){alert('カテゴリ、確認場所、内容は空にできません');return;}
-  const gameValue=normalizeOptionalNumber(game.trim());
-  if(game.trim()!==''&&gameValue===null){alert('G数は数値で入力してください');return;}
-  Object.assign(entry,{category:category.trim(),place:place.trim(),item:item.trim(),game:gameValue,updatedAt:new Date().toISOString()});
+  Object.assign(entry,{category:category.trim(),place:place.trim(),item:item.trim(),game:dataGameValue,dataGame:dataGameValue,liquidGame:liquidGameValue,trophyCustom,updatedAt:new Date().toISOString()});
   renderCurrentSuggestLog();
 }
 function deleteSuggestLogEntry(id){
@@ -2332,7 +2378,7 @@ function renderTimelineArea(){
     <div class="work-subsection end">
       <div class="work-section-title">打ち終わり</div>
       <div class="input-row">
-        <div class="input-label no-wrap-label">終了理由</div>
+        <div class="input-label no-wrap-label">結果</div>
         <div class="field-stack">
           <select id="endReason">
             <option value="">未選択</option>
@@ -2344,18 +2390,26 @@ function renderTimelineArea(){
           <div class="input-hint">打ち終わり登録時は必須</div>
         </div>
       </div>
-      <textarea id="endText" placeholder="終了理由の補足（任意）"></textarea>
+      <textarea id="endText" placeholder="結果の補足（任意）"></textarea>
       <div class="input-row">
         <div class="input-label no-wrap-label">CZ回数<div class="input-hint">この稼働の合計</div></div>
         <div class="inline-field"><input type="text" id="endCzCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endCzCount')">+1</button></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label no-wrap-label">上位CZ回数<div class="input-hint">この稼働の合計</div></div>
+        <div class="inline-field"><input type="text" id="endUpperCzCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endUpperCzCount')">+1</button></div>
       </div>
       <div class="input-row">
         <div class="input-label no-wrap-label">AT回数<div class="input-hint">この稼働の合計</div></div>
         <div class="inline-field"><input type="text" id="endAtCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endAtCount')">+1</button></div>
       </div>
       <div class="input-row">
-        <div class="input-label no-wrap-label">CZ成功数<div class="input-hint">任意</div></div>
-        <div class="inline-field"><input type="text" id="endCzSuccessCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endCzSuccessCount')">+1</button></div>
+        <div class="input-label no-wrap-label">AT直撃<div class="input-hint">この稼働の合計</div></div>
+        <div class="inline-field"><input type="text" id="endDirectAtCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endDirectAtCount')">+1</button></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label no-wrap-label">エピソードボーナス<div class="input-hint">この稼働の合計</div></div>
+        <div class="inline-field"><input type="text" id="endEpisodeBonusCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endEpisodeBonusCount')">+1</button></div>
       </div>
       <button class="btn-secondary end-btn" onclick="recordEndLog()">現在のデータG数で打ち終わり</button>
       <div id="endLogBox" style="margin-top:10px;"></div>
@@ -2549,17 +2603,21 @@ function recordEndLog(){
   const text=(textEl?.value||'').trim();
   const czCount=readNonNegativeInt('endCzCount','CZ回数');
   if(czCount===null)return;
+  const upperCzCount=readNonNegativeInt('endUpperCzCount','上位CZ回数');
+  if(upperCzCount===null)return;
   const atCount=readNonNegativeInt('endAtCount','AT回数');
   if(atCount===null)return;
-  const czSuccessCount=readNonNegativeInt('endCzSuccessCount','CZ成功数');
-  if(czSuccessCount===null)return;
+  const directAtCount=readNonNegativeInt('endDirectAtCount','AT直撃');
+  if(directAtCount===null)return;
+  const episodeBonusCount=readNonNegativeInt('endEpisodeBonusCount','エピソードボーナス');
+  if(episodeBonusCount===null)return;
   if(!gameEl?.value||Number.isNaN(game)){alert('打ち終わりのデータカウンターG数を入力してください');return;}
-  if(!reason){alert('終了理由を選択してください');return;}
+  if(!reason){alert('結果を選択してください');return;}
   if(currentEndLog&&!confirm('打ち終わりデータを上書きしますか？'))return;
-  currentEndLog={id:currentEndLog?.id||uid('el'),game,reason,text,czCount,atCount,czSuccessCount,createdAt:currentEndLog?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  currentEndLog={id:currentEndLog?.id||uid('el'),game,reason,text,czCount,upperCzCount,atCount,directAtCount,episodeBonusCount,createdAt:currentEndLog?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   if(reasonEl)reasonEl.value='';
   if(textEl)textEl.value='';
-  ['endCzCount','endAtCount','endCzSuccessCount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['endCzCount','endUpperCzCount','endAtCount','endDirectAtCount','endEpisodeBonusCount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderEndLog();
   renderPracticeStats();
 }
@@ -2597,9 +2655,11 @@ function renderEndLog(){
 function endLogLine(endLog){
   if(!endLog)return '';
   const cz=Number(endLog.czCount)||0;
+  const upperCz=Number(endLog.upperCzCount)||0;
   const at=Number(endLog.atCount)||0;
-  const success=Number(endLog.czSuccessCount)||0;
-  const counts=`CZ${cz}回 / AT${at}回${success?` / CZ成功${success}回`:''}`;
+  const directAt=Number(endLog.directAtCount)||0;
+  const episode=Number(endLog.episodeBonusCount)||0;
+  const counts=`CZ${cz}回 / 上位CZ${upperCz}回 / AT${at}回 / AT直撃${directAt}回 / エピソードボーナス${episode}回`;
   return `${endLog.game}G ${endLog.reason}${endLog.text?' '+endLog.text:''}（${counts}）`;
 }
 function editEndLog(){
@@ -2607,15 +2667,17 @@ function editEndLog(){
   const game=prompt('打ち終わりデータカウンターG数',String(currentEndLog.game));if(game===null)return;
   const num=Number(game);
   if(!game.trim()||Number.isNaN(num)){alert('数値を入力してください');return;}
-  const reason=prompt('終了理由（CZ当選 / AT当選 / ヤメ / その他）',currentEndLog.reason);if(reason===null)return;
-  if(!reason.trim()){alert('終了理由を入力してください');return;}
+  const reason=prompt('結果（CZ当選 / AT当選 / ヤメ / その他）',currentEndLog.reason);if(reason===null)return;
+  if(!reason.trim()){alert('結果を入力してください');return;}
   const text=prompt('補足（空でも可）',currentEndLog.text||'');if(text===null)return;
   const cz=prompt('CZ回数',String(currentEndLog.czCount||0));if(cz===null)return;
+  const upperCz=prompt('上位CZ回数',String(currentEndLog.upperCzCount||0));if(upperCz===null)return;
   const at=prompt('AT回数',String(currentEndLog.atCount||0));if(at===null)return;
-  const success=prompt('CZ成功数（任意）',String(currentEndLog.czSuccessCount||0));if(success===null)return;
-  const czNum=Number(cz),atNum=Number(at),successNum=Number(success);
-  if(!Number.isInteger(czNum)||czNum<0||!Number.isInteger(atNum)||atNum<0||!Number.isInteger(successNum)||successNum<0){alert('回数は0以上の整数で入力してください');return;}
-  currentEndLog={...currentEndLog,game:num,reason:reason.trim(),text:text.trim(),czCount:czNum,atCount:atNum,czSuccessCount:successNum,updatedAt:new Date().toISOString()};
+  const directAt=prompt('AT直撃',String(currentEndLog.directAtCount||0));if(directAt===null)return;
+  const episode=prompt('エピソードボーナス',String(currentEndLog.episodeBonusCount||0));if(episode===null)return;
+  const czNum=Number(cz),upperCzNum=Number(upperCz),atNum=Number(at),directAtNum=Number(directAt),episodeNum=Number(episode);
+  if(![czNum,upperCzNum,atNum,directAtNum,episodeNum].every(num=>Number.isInteger(num)&&num>=0)){alert('回数は0以上の整数で入力してください');return;}
+  currentEndLog={...currentEndLog,game:num,reason:reason.trim(),text:text.trim(),czCount:czNum,upperCzCount:upperCzNum,atCount:atNum,directAtCount:directAtNum,episodeBonusCount:episodeNum,updatedAt:new Date().toISOString()};
   renderEndLog();
   renderPracticeStats();
 }
@@ -2667,12 +2729,9 @@ function calculatePracticeStats(log){
   const spins=startCounter!==null&&endGame!==null&&!Number.isNaN(endGame)?endGame-startCounter:null;
   const counts={
     cz:Number(log.endLog?.czCount)||0,
-    at:Number(log.endLog?.atCount)||0,
-    cz_success:Number(log.endLog?.czSuccessCount)||0,
-    cz_fail:0
+    at:Number(log.endLog?.atCount)||0
   };
-  const czSuccessRate=counts.cz>0?Math.round(counts.cz_success/counts.cz*100):null;
-  return {startCounter,endGame,spins,counts,czSuccessRate};
+  return {startCounter,endGame,spins,counts};
 }
 function formatProbability(spins,count){
   if(!spins||spins<=0||!count)return '-';
@@ -2685,7 +2744,6 @@ function practiceStatsLine(stats){
     `CZ：${stats.counts.cz}回（${formatProbability(spins,stats.counts.cz)}）`,
     `AT：${stats.counts.at}回（${formatProbability(spins,stats.counts.at)}）`
   ];
-  if(stats.counts.cz_success||stats.counts.cz_fail)parts.push(`CZ成功率：${stats.czSuccessRate??'-'}%`);
   return parts.join(' / ');
 }
 function renderPracticeStats(){
