@@ -504,6 +504,7 @@ const REQUIRED_AIMS=[
 ];
 const DEFAULT_LABEL_TAGS=[];
 const COUNT_AS_OPTIONS=['cz','at','cz_success','cz_fail'];
+const TROPHY_CUSTOM_OPTIONS=['朝イチ','1000G','2000G','3000G','4000G','5000G','6000G','7000G','8000G','不明'];
 const EMPTY_DATA={version:1,machines:[],stores:[],logs:[]};
 let db=loadData();
 let selectedMachineId=db.machines[0]?.id||'';
@@ -860,6 +861,7 @@ function suggestGameText(entry){
   return `${dataGame}/${liquidGame}G`;
 }
 function suggestEntryUsesAppearG(entry){
+  if(isTrophySuggestSelection(entry))return false;
   const machine=currentMachine();
   const category=machine?.suggestMaster?.find(c=>c.id===entry?.categoryId)||machine?.suggestMaster?.find(c=>c.category===entry?.category);
   return category?.useAppearG!==false;
@@ -2264,7 +2266,7 @@ function renderSuggestPicker(stage){
     title.textContent='店長カスタムを選択';
     breadcrumb.textContent=`${category.category} / ${place.name} / ${item.label}`;
     back.textContent='内容に戻る';
-    options.innerHTML=['朝イチ','1000G刻み','不明'].map(value=>`<button class="suggest-picker-option" onclick="selectTrophyCustom('${value}')">${value}</button>`).join('');
+    options.innerHTML=TROPHY_CUSTOM_OPTIONS.map(value=>`<button class="suggest-picker-option" onclick="selectTrophyCustom('${value}')">${value}</button>`).join('');
   }else if(stage==='item'&&place){
     title.textContent='内容を選択';
     breadcrumb.textContent=`${category.category} / ${place.name}`;
