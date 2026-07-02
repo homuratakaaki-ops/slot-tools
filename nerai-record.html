@@ -392,9 +392,15 @@ footer a:hover{color:var(--gold-light);}
 
   <div class="section">
     <div class="section-label">示唆マスタ管理</div>
-    <p class="section-note">選択中の機種に、カテゴリ → 確認場所 → 内容の3階層で示唆を登録します。</p>
+    <p class="section-note">選択中の機種に、状態 → 確認場所 → 内容で示唆を登録します。引き継ぎ種別は内容ごとに管理します。</p>
     <div class="card">
-      <div class="input-row"><div class="input-label">カテゴリ</div><input type="text" id="suggestCategoryInput" placeholder="例：モード示唆"></div>
+      <div class="input-row">
+        <div class="input-label">状態</div>
+        <select id="suggestStateInput">
+          <option value="play">稼働中</option>
+          <option value="hit">当選時</option>
+        </select>
+      </div>
       <div class="input-row"><div class="input-label">確認場所</div><input type="text" id="suggestPlaceInput" placeholder="例：アイキャッチ"></div>
       <div class="input-row"><div class="input-label">内容</div><input type="text" id="suggestItemInput" placeholder="例：霧嶋董香（通常B以上）"></div>
     </div>
@@ -505,6 +511,11 @@ const REQUIRED_AIMS=[
 const DEFAULT_LABEL_TAGS=[];
 const COUNT_AS_OPTIONS=['cz','at','cz_success','cz_fail'];
 const TROPHY_CUSTOM_OPTIONS=['朝イチ','1000G','2000G','3000G','4000G','5000G','6000G','7000G','8000G','不明'];
+const SUGGEST_STATE_GROUPS=[
+  {id:'play',label:'稼働中'},
+  {id:'hit',label:'当選時'}
+];
+const CARRY_TYPE_OPTIONS=['setting','mode'];
 const EMPTY_DATA={version:1,machines:[],stores:[],logs:[]};
 let db=loadData();
 let selectedMachineId=db.machines[0]?.id||'';
@@ -520,7 +531,7 @@ let pendingTimelineTagIds=[];
 let timelineHistoryOpen=false;
 let recentTimelineHighlightId='';
 let recentSuggestHighlightId='';
-let suggestPickerState={categoryId:'',placeId:'',itemId:''};
+let suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:''};
 let pendingSuggestSelection=null;
 let editingLogId=null;
 let continuedFromLog=null;
@@ -534,6 +545,20 @@ function escapeHtml(value){
 function normalizeTagClass(value){
   const text=String(value||'').trim();
   return /^[a-z0-9-]+$/.test(text)?text:'';
+}
+function normalizeSuggestStateGroup(value){
+  const text=String(value||'').trim();
+  return SUGGEST_STATE_GROUPS.some(group=>group.id===text)?text:'';
+}
+function suggestStateLabel(value){
+  return SUGGEST_STATE_GROUPS.find(group=>group.id===value)?.label||'稼働中';
+}
+function normalizeCarryType(value){
+  const text=String(value||'').trim();
+  return CARRY_TYPE_OPTIONS.includes(text)?text:null;
+}
+function carryTypeLabel(value){
+  return value==='setting'?'設定引き継ぎ':value==='mode'?'モード参照':'引き継ぎなし';
 }
 function normalizeStore(entry){
   if(typeof entry==='string')return {name:entry,lendRate:null,exchangeRate:null};
@@ -597,6 +622,9 @@ function normalizeData(data){
       item.category=item.category||'';
       item.place=item.place||'';
       item.item=item.item||'';
+      item.stateGroup=normalizeSuggestStateGroup(item.stateGroup||'');
+      item.carryType=normalizeCarryType(item.carryType);
+      item.pointRole=item.pointRole==='gain'||item.pointRole==='hint'?item.pointRole:null;
       item.game=normalizeOptionalNumber(item.game);
       item.dataGame=normalizeOptionalNumber(item.dataGame);
       item.liquidGame=normalizeOptionalNumber(item.liquidGame);
@@ -605,6 +633,10 @@ function normalizeData(data){
       item.trophyCustom=item.trophyCustom||'';
       item.createdAt=item.createdAt||new Date().toISOString();
     });
+    log.kuiPoint=log.kuiPoint&&typeof log.kuiPoint==='object'?log.kuiPoint:{};
+    log.kuiPoint.released=!!log.kuiPoint.released;
+    log.kuiPoint.gains=Array.isArray(log.kuiPoint.gains)?log.kuiPoint.gains:[];
+    log.kuiPoint.hints=Array.isArray(log.kuiPoint.hints)?log.kuiPoint.hints:[];
     log.endLog=log.endLog&&typeof log.endLog==='object'?log.endLog:null;
     if(log.endLog){
       log.endLog.czCount=Number(log.endLog.czCount)||0;
@@ -642,6 +674,7 @@ function normalizeData(data){
     ensureRequiredAims(m);
     ensureDefaultLabelTags(m);
     ensureSuggestSeed(m);
+    applySuggestMetadata(m);
   });
   migrateTokyoGhoulSuggestLogs(data);
   return data;
@@ -692,10 +725,14 @@ function normalizeSuggestMaster(master){
       id:place.id||uid('sgp'),
       name:place.name||'確認場所',
       enabled:place.enabled!==false,
+      stateGroup:normalizeSuggestStateGroup(place.stateGroup||'')||'play',
+      pointRole:place.pointRole==='gain'||place.pointRole==='hint'?place.pointRole:null,
       items:Array.isArray(place.items)?place.items.map(item=>({
         id:item.id||uid('sgi'),
         label:item.label||'内容',
         enabled:item.enabled!==false,
+        carryType:normalizeCarryType(item.carryType),
+        pointRole:item.pointRole==='gain'||item.pointRole==='hint'?item.pointRole:null,
         decorations:Array.isArray(item.decorations)?item.decorations.filter(dec=>dec&&typeof dec.text==='string'&&typeof dec.color==='string').map(dec=>({text:dec.text,color:dec.color})):[]
       })): []
     })): []
@@ -704,6 +741,59 @@ function normalizeSuggestMaster(master){
 function isTokyoGhoulMachine(machine){
   const name=String(machine?.name||'');
   return name.includes('東京喰種')||name.includes('喰種')||name.includes('グール');
+}
+function suggestPlaceStateGroup(category,place){
+  const placeId=String(place?.id||'');
+  const placeName=String(place?.name||'');
+  if(placeId.includes('cz_endcard')||placeId.includes('at_end')||placeId.includes('trophy')||placeId.includes('kui_point')||placeId.includes('after_at'))return 'hit';
+  if(placeName.includes('CZ終了')||placeName.includes('AT終了')||placeName.includes('トロフィー')||placeName.includes('喰ポイント')||placeName==='獲得'||placeName==='示唆')return 'hit';
+  return normalizeSuggestStateGroup(place?.stateGroup||'')||'play';
+}
+function suggestPointRole(category,place){
+  if(String(category?.category||'')!=='喰ポイント')return null;
+  const name=String(place?.name||'');
+  if(name.includes('獲得'))return 'gain';
+  if(name.includes('示唆'))return 'hint';
+  return null;
+}
+function derivedCarryType(category,place,item){
+  const categoryName=String(category?.category||'');
+  const placeId=String(place?.id||'');
+  const placeName=String(place?.name||'');
+  const label=String(item?.label||'');
+  if(categoryName==='喰ポイント')return null;
+  if(placeId==='sgp_tokyo_ghoul_trophy'||placeName.includes('トロフィー'))return 'setting';
+  if(placeId==='sgp_tokyo_ghoul_at_end_screen'||placeName==='AT終了画面')return 'setting';
+  if(placeId==='sgp_tokyo_ghoul_cz_endcard_setting')return 'setting';
+  if(categoryName==='設定示唆')return 'setting';
+  if(placeId==='sgp_tokyo_ghoul_eyecatch'||placeName==='アイキャッチ'){
+    if(label==='金木研（デフォルト）')return 'setting';
+    return 'mode';
+  }
+  if(placeId==='sgp_tokyo_ghoul_tsukiyama_mode'||placeName==='月山招待状'){
+    if(label.includes('デフォルト'))return null;
+    return categoryName==='設定示唆'?'setting':'mode';
+  }
+  if(placeId==='sgp_tokyo_ghoul_game_forewarning'||placeName==='規定ゲーム数前兆')return 'mode';
+  if(placeId==='sgp_tokyo_ghoul_after_at_mode'||placeName==='AT終了後のモード移行')return 'mode';
+  if(placeId==='sgp_tokyo_ghoul_cz_endcard_mode'||placeName==='CZ終了エンドカード'){
+    if(label==='金木研A（デフォルト）'||label==='金木研B（デフォルト）')return null;
+    if(label.includes('鈴屋')||label.includes('梟')||label.includes('有馬'))return 'setting';
+    return 'mode';
+  }
+  return normalizeCarryType(item?.carryType);
+}
+function applySuggestMetadata(machine){
+  (machine?.suggestMaster||[]).forEach(category=>{
+    (category.places||[]).forEach(place=>{
+      place.stateGroup=suggestPlaceStateGroup(category,place);
+      place.pointRole=suggestPointRole(category,place);
+      (place.items||[]).forEach(item=>{
+        item.carryType=derivedCarryType(category,place,item);
+        item.pointRole=place.pointRole;
+      });
+    });
+  });
 }
 function mergeSuggestSeed(machine,seed){
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
@@ -835,16 +925,66 @@ function decoratedSuggestLabelHtml(label,decorations=[]){
 }
 function findSuggestItemForEntry(entry){
   const machine=currentMachine();
-  if(!machine)return null;
-  const category=machine.suggestMaster.find(c=>c.id===entry.categoryId)||machine.suggestMaster.find(c=>c.category===entry.category);
-  const place=category?.places?.find(p=>p.id===entry.placeId)||category?.places?.find(p=>p.name===entry.place);
-  return place?.items?.find(i=>i.id===entry.itemId)||place?.items?.find(i=>i.label===entry.item)||null;
+  return findSuggestRefsForEntry(machine,entry).item;
+}
+function findSuggestRefsForEntry(machine,entry){
+  if(!machine)return {category:null,place:null,item:null};
+  let category=(machine.suggestMaster||[]).find(c=>c.id===entry?.categoryId)||null;
+  let place=category?.places?.find(p=>p.id===entry?.placeId)||null;
+  let item=place?.items?.find(i=>i.id===entry?.itemId)||null;
+  if(category&&place&&item)return {category,place,item};
+  for(const candidateCategory of machine.suggestMaster||[]){
+    for(const candidatePlace of candidateCategory.places||[]){
+      const placeMatched=candidatePlace.id===entry?.placeId||candidatePlace.name===entry?.place;
+      const itemMatched=(candidatePlace.items||[]).find(i=>i.id===entry?.itemId||i.label===entry?.item);
+      if(placeMatched&&itemMatched)return {category:candidateCategory,place:candidatePlace,item:itemMatched};
+      if(!place&&candidatePlace.name===entry?.place)place=candidatePlace;
+      if(!category&&candidateCategory.category===entry?.category)category=candidateCategory;
+    }
+  }
+  if(category&&!place)place=(category.places||[]).find(p=>p.name===entry?.place)||null;
+  if(place&&!item)item=(place.items||[]).find(i=>i.id===entry?.itemId||i.label===entry?.item)||null;
+  return {category,place,item};
+}
+function suggestEntryStateGroup(entry,machine=currentMachine()){
+  const refs=findSuggestRefsForEntry(machine,entry);
+  return normalizeSuggestStateGroup(entry?.stateGroup)||normalizeSuggestStateGroup(refs.place?.stateGroup)||suggestPlaceStateGroup(refs.category,refs.place)||'play';
+}
+function suggestEntryPlaceLabel(entry,machine=currentMachine()){
+  const refs=findSuggestRefsForEntry(machine,entry);
+  const categoryName=refs.category?.category||entry?.category||'';
+  const placeName=entry?.place||refs.place?.name||'示唆';
+  if(placeName==='月山招待状'&&categoryName==='設定示唆')return '月山招待状（設定）';
+  if(placeName==='月山招待状'&&categoryName==='モード示唆')return '月山招待状（規定G/モード）';
+  if(placeName==='CZ終了エンドカード'&&categoryName==='設定示唆')return 'CZ終了エンドカード（設定）';
+  if(placeName==='CZ終了エンドカード'&&categoryName==='モード示唆')return 'CZ終了エンドカード（モード）';
+  return categoryName==='喰ポイント'&&!String(placeName).includes('喰ポイント')?`喰ポイント / ${placeName}`:placeName;
+}
+function hydrateSuggestLogEntry(machine,entry){
+  const refs=findSuggestRefsForEntry(machine,entry);
+  const stateGroup=suggestEntryStateGroup(entry,machine);
+  entry.stateGroup=stateGroup;
+  entry.carryType=normalizeCarryType(entry.carryType)||derivedCarryType(refs.category,{...(refs.place||{}),name:entry.place||refs.place?.name},refs.item||entry);
+  const pointRole=refs.place?.pointRole||refs.item?.pointRole||suggestPointRole(refs.category,{...(refs.place||{}),name:entry.place||refs.place?.name});
+  entry.pointRole=pointRole==='gain'||pointRole==='hint'?pointRole:null;
+  if(refs.category){
+    entry.categoryId=entry.categoryId||refs.category.id;
+    entry.category=entry.category||refs.category.category;
+  }
+  if(refs.place){
+    entry.placeId=entry.placeId||refs.place.id;
+    entry.place=entry.place||refs.place.name;
+  }
+  if(refs.item){
+    entry.itemId=entry.itemId||refs.item.id;
+    entry.item=entry.item||refs.item.label;
+  }
 }
 function suggestLogLineHtml(entry){
   const game=suggestGameText(entry);
   const trophy=entry.trophyCustom?` / 店長カスタム：${escapeHtml(entry.trophyCustom)}`:'';
   const item=findSuggestItemForEntry(entry);
-  return `${game?escapeHtml(game)+' ':''}${escapeHtml(entry.category)} / ${escapeHtml(entry.place)}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}${trophy}`;
+  return `${game?escapeHtml(game)+' ':''}${escapeHtml(suggestStateLabel(suggestEntryStateGroup(entry)))} / ${escapeHtml(suggestEntryPlaceLabel(entry))}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}${trophy}`;
 }
 function suggestGamePair(entry){
   const data=normalizeOptionalNumber(entry?.dataGame);
@@ -1005,13 +1145,18 @@ function migrateTokyoGhoulSuggestLogs(data){
       entry.placeId=place?.id||entry.placeId||'';
       const matchedItem=place?.items?.find(item=>item.label===entry.item);
       if(matchedItem)entry.itemId=matchedItem.id;
+      entry.stateGroup='hit';
+      entry.carryType=null;
+      entry.pointRole=oldGet||currentGet?'gain':'hint';
     });
+    (log.suggestLog||[]).forEach(entry=>hydrateSuggestLogEntry(machine,entry));
+    log.kuiPoint=buildKuiPointState(log.suggestLog,log.kuiPoint?.released);
   });
 }
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV10)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV11)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const tag=(id,label,optional=false,rule={},tagClass='')=>({id,label,optional,countAs:null,liquidDelta:rule.liquidDelta??null,liquidSet:rule.liquidSet??null,tagClass});
   const timelineTags=[
@@ -1168,6 +1313,7 @@ function ensureSuggestSeed(machine){
   mergeTimelineTagSeed(machine,timelineTags);
   mergeSuggestSeed(machine,seed);
   applyTokyoGhoulSuggestCorrections(machine);
+  applySuggestMetadata(machine);
   machine.suggestSeedTokyoGhoulV1=true;
   machine.suggestSeedTokyoGhoulV2=true;
   machine.suggestSeedTokyoGhoulV3=true;
@@ -1178,6 +1324,7 @@ function ensureSuggestSeed(machine){
   machine.suggestSeedTokyoGhoulV8=true;
   machine.suggestSeedTokyoGhoulV9=true;
   machine.suggestSeedTokyoGhoulV10=true;
+  machine.suggestSeedTokyoGhoulV11=true;
 }
 function todayValue(){
   const d=new Date();
@@ -1532,22 +1679,24 @@ function addSuggestMasterItem(){
   const machine=currentMachine();
   if(!machine){alert('先に機種を選択してください');return;}
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  const categoryName=document.getElementById('suggestCategoryInput').value.trim();
+  const stateGroup=normalizeSuggestStateGroup(document.getElementById('suggestStateInput')?.value||'play')||'play';
+  const categoryName=suggestStateLabel(stateGroup);
   const placeName=document.getElementById('suggestPlaceInput').value.trim();
   const itemLabel=document.getElementById('suggestItemInput').value.trim();
-  if(!categoryName||!placeName||!itemLabel){alert('カテゴリ、確認場所、内容をすべて入力してください');return;}
+  if(!placeName||!itemLabel){alert('確認場所、内容をすべて入力してください');return;}
   let category=machine.suggestMaster.find(c=>c.category===categoryName);
   if(!category){
-    category={id:uid('sgc'),category:categoryName,enabled:true,places:[]};
+    category={id:uid('sgc'),category:categoryName,enabled:true,useAppearG:true,places:[]};
     machine.suggestMaster.push(category);
   }
   let place=category.places.find(p=>p.name===placeName);
   if(!place){
-    place={id:uid('sgp'),name:placeName,enabled:true,items:[]};
+    place={id:uid('sgp'),name:placeName,enabled:true,stateGroup,pointRole:null,items:[]};
     category.places.push(place);
   }
-  place.items.push({id:uid('sgi'),label:itemLabel,enabled:true});
-  ['suggestCategoryInput','suggestPlaceInput','suggestItemInput'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  place.stateGroup=stateGroup;
+  place.items.push({id:uid('sgi'),label:itemLabel,enabled:true,carryType:null,pointRole:place.pointRole||null});
+  ['suggestPlaceInput','suggestItemInput'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   persist();renderAll();
 }
 function editSuggestCategory(categoryId){
@@ -1560,15 +1709,19 @@ function editSuggestCategory(categoryId){
 function editSuggestPlace(categoryId,placeId){
   const category=findSuggestCategory(currentMachine(),categoryId);const place=findSuggestPlace(category,placeId);if(!place)return;
   const name=prompt('確認場所',place.name);if(name===null)return;
+  const state=prompt('状態（play=稼働中 / hit=当選時）',place.stateGroup||suggestPlaceStateGroup(category,place));if(state===null)return;
   if(!name.trim()){alert('確認場所は空にできません');return;}
   place.name=name.trim();
+  place.stateGroup=normalizeSuggestStateGroup(state.trim())||'play';
   persist();renderAll();
 }
 function editSuggestItem(categoryId,placeId,itemId){
   const category=findSuggestCategory(currentMachine(),categoryId);const place=findSuggestPlace(category,placeId);const item=findSuggestItem(place,itemId);if(!item)return;
   const label=prompt('内容',item.label);if(label===null)return;
+  const carry=prompt('引き継ぎ種別（setting / mode / 空欄）',item.carryType||'');if(carry===null)return;
   if(!label.trim()){alert('内容は空にできません');return;}
   item.label=label.trim();
+  item.carryType=normalizeCarryType(carry.trim());
   persist();renderAll();
 }
 function toggleSuggestCategory(categoryId){
@@ -1607,17 +1760,19 @@ function deleteSuggestItem(categoryId,placeId,itemId){
 function addSuggestPlaceToCategory(categoryId){
   const category=findSuggestCategory(currentMachine(),categoryId);if(!category)return;
   const name=prompt('追加する確認場所名','');if(name===null)return;
+  const state=prompt('状態（play=稼働中 / hit=当選時）',category.category==='当選時'?'hit':'play');if(state===null)return;
   if(!name.trim()){alert('確認場所名を入力してください');return;}
   category.places=Array.isArray(category.places)?category.places:[];
-  category.places.push({id:uid('sgp'),name:name.trim(),enabled:true,items:[]});
+  category.places.push({id:uid('sgp'),name:name.trim(),enabled:true,stateGroup:normalizeSuggestStateGroup(state.trim())||'play',pointRole:null,items:[]});
   persist();renderAll();
 }
 function addSuggestItemToPlace(categoryId,placeId){
   const category=findSuggestCategory(currentMachine(),categoryId);const place=findSuggestPlace(category,placeId);if(!place)return;
   const label=prompt('追加する内容','');if(label===null)return;
+  const carry=prompt('引き継ぎ種別（setting / mode / 空欄）','');if(carry===null)return;
   if(!label.trim()){alert('内容を入力してください');return;}
   place.items=Array.isArray(place.items)?place.items:[];
-  place.items.push({id:uid('sgi'),label:label.trim(),enabled:true});
+  place.items.push({id:uid('sgi'),label:label.trim(),enabled:true,carryType:normalizeCarryType(carry.trim()),pointRole:place.pointRole||null});
   persist();renderAll();
 }
 function suggestStateText(enabled){
@@ -1630,25 +1785,27 @@ function renderSuggestMasterList(){
   if(!machine){el.innerHTML='<div class="empty-hint">機種を選択してください</div>';return;}
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
   if(!machine.suggestMaster.length){el.innerHTML='<div class="empty-hint">まだ示唆マスタなし</div>';return;}
-  el.innerHTML=machine.suggestMaster.map(category=>`
-    <div class="list-item ${category.enabled?'':'suggest-disabled'}">
+  const groups=SUGGEST_STATE_GROUPS.map(group=>({
+    ...group,
+    entries:(machine.suggestMaster||[]).flatMap(category=>(category.places||[])
+      .filter(place=>suggestPlaceStateGroup(category,place)===group.id)
+      .map(place=>({category,place})))
+  })).filter(group=>group.entries.length);
+  if(!groups.length){el.innerHTML='<div class="empty-hint">まだ示唆マスタなし</div>';return;}
+  el.innerHTML=groups.map(group=>`
+    <div class="list-item">
       <div class="item-head">
         <div>
-          <div class="item-title">${escapeHtml(category.category)}</div>
-          <div class="item-sub">${suggestStateText(category.enabled)} / 確認場所 ${category.places.length}件</div>
-        </div>
-        <div class="item-actions">
-          <button class="btn-small ${category.enabled?'gold':''}" onclick="toggleSuggestCategory('${category.id}')">${category.enabled?'無効化':'有効化'}</button>
-          <button class="btn-small" onclick="editSuggestCategory('${category.id}')">編集</button>
-          <button class="btn-danger" onclick="deleteSuggestCategory('${category.id}')">削除</button>
+          <div class="item-title">${escapeHtml(group.label)}</div>
+          <div class="item-sub">確認場所 ${group.entries.length}件</div>
         </div>
       </div>
-      ${(category.places||[]).map(place=>`
-        <div class="field-card suggest-master-child ${place.enabled?'':'suggest-disabled'}">
+      ${group.entries.map(({category,place})=>`
+        <div class="field-card suggest-master-child ${(category.enabled&&place.enabled)?'':'suggest-disabled'}">
           <div class="item-head">
             <div>
-              <div class="item-title">${escapeHtml(place.name)}</div>
-              <div class="item-sub">${suggestStateText(place.enabled)} / 内容 ${place.items.length}件</div>
+              <div class="item-title">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</div>
+              <div class="item-sub">${suggestStateText(category.enabled&&place.enabled)} / 互換分類 ${escapeHtml(category.category)} / 内容 ${place.items.length}件</div>
             </div>
             <div class="item-actions">
               <button class="btn-small ${place.enabled?'gold':''}" onclick="toggleSuggestPlace('${category.id}','${place.id}')">${place.enabled?'無効化':'有効化'}</button>
@@ -1659,7 +1816,7 @@ function renderSuggestMasterList(){
           <div style="margin-top:6px;">
             ${(place.items||[]).map(item=>`
               <div class="suggest-item-row ${item.enabled?'':'suggest-disabled'}">
-                <span class="pill ${item.enabled?'gold':'disabled'}">${escapeHtml(item.label)} / ${suggestStateText(item.enabled)}</span>
+                <span class="pill ${item.enabled?'gold':'disabled'}">${escapeHtml(item.label)} / ${suggestStateText(item.enabled)} / ${escapeHtml(carryTypeLabel(item.carryType))}</span>
                 <button class="btn-small ${item.enabled?'gold':''}" onclick="toggleSuggestItem('${category.id}','${place.id}','${item.id}')">${item.enabled?'無効化':'有効化'}</button>
                 <button class="btn-small" onclick="editSuggestItem('${category.id}','${place.id}','${item.id}')">編集</button>
                 <button class="btn-danger" onclick="deleteSuggestItem('${category.id}','${place.id}','${item.id}')">削除</button>
@@ -1668,7 +1825,6 @@ function renderSuggestMasterList(){
           </div>
           <button class="btn-secondary suggest-add-btn" onclick="addSuggestItemToPlace('${category.id}','${place.id}')">内容を追加</button>
         </div>`).join('')}
-      <button class="btn-secondary suggest-add-btn" onclick="addSuggestPlaceToCategory('${category.id}')">確認場所を追加</button>
     </div>`).join('');
 }
 
@@ -2203,6 +2359,19 @@ function deleteStartLogEntry(id){
 function enabledSuggestCategories(){
   return (currentMachine()?.suggestMaster||[]).filter(c=>c.enabled!==false);
 }
+function enabledSuggestStateGroups(){
+  const categories=enabledSuggestCategories();
+  return SUGGEST_STATE_GROUPS.filter(group=>categories.some(category=>(category.places||[]).some(place=>place.enabled!==false&&suggestPlaceStateGroup(category,place)===group.id)));
+}
+function enabledSuggestPlaceEntries(stateGroup){
+  const entries=[];
+  enabledSuggestCategories().forEach(category=>{
+    (category.places||[]).forEach(place=>{
+      if(place.enabled!==false&&suggestPlaceStateGroup(category,place)===stateGroup)entries.push({category,place});
+    });
+  });
+  return entries;
+}
 function enabledSuggestPlaces(categoryId){
   const category=enabledSuggestCategories().find(c=>c.id===categoryId);
   return (category?.places||[]).filter(p=>p.enabled!==false);
@@ -2217,28 +2386,28 @@ function useAppearGForSuggestSelection(selection){
   return category?.useAppearG!==false;
 }
 function renderSuggestArea(){
-  const categories=enabledSuggestCategories();
+  const stateGroups=enabledSuggestStateGroups();
   if(!currentMachine())return '<div class="empty-hint">示唆記録は機種選択後に使えます</div>';
-  if(!categories.length)return '<div class="empty-hint">有効な示唆マスタがありません。機種・店舗タブで登録してください。</div>';
+  if(!stateGroups.length)return '<div class="empty-hint">有効な示唆マスタがありません。機種・店舗タブで登録してください。</div>';
   return `
     <div class="section-label" style="margin-top:14px;">示唆記録</div>
-    <p class="section-note">カテゴリを押すと確認場所 → 内容の順に選べます。必要なカテゴリでは内容選択後に出現G数を任意で入れられます。</p>
+    <p class="section-note">状態を押すと確認場所 → 内容の順に選べます。引き継ぎ種別は内容ごとに保存されます。</p>
     <div class="tag-buttons">
-      ${categories.map(c=>`<button class="tag-btn gold" onclick="openSuggestPlacePicker('${c.id}')">${escapeHtml(c.category)}</button>`).join('')}
+      ${stateGroups.map(group=>`<button class="tag-btn gold" onclick="openSuggestPlacePicker('${group.id}')">${escapeHtml(group.label)}</button>`).join('')}
     </div>
     <div id="pendingSuggestBox">${renderPendingSuggestBox()}</div>
     <div id="suggestLogList" style="margin-top:10px;"></div>`;
 }
-function openSuggestPlacePicker(categoryId){
-  const category=enabledSuggestCategories().find(c=>c.id===categoryId);
-  if(!category)return;
-  suggestPickerState={categoryId,placeId:'',itemId:''};
+function openSuggestPlacePicker(stateGroup){
+  const group=normalizeSuggestStateGroup(stateGroup)||'play';
+  if(!enabledSuggestPlaceEntries(group).length)return;
+  suggestPickerState={stateGroup:group,categoryId:'',placeId:'',itemId:''};
   renderSuggestPicker('place');
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
 }
 function closeSuggestPicker(){
   document.getElementById('suggestPickerOverlay')?.classList.remove('open');
-  suggestPickerState={categoryId:'',placeId:'',itemId:''};
+  suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:''};
 }
 function backSuggestPicker(){
   if(suggestPickerState.itemId){
@@ -2259,31 +2428,31 @@ function renderSuggestPicker(stage){
   const options=document.getElementById('suggestPickerOptions');
   const back=document.getElementById('suggestPickerBackButton');
   if(!title||!breadcrumb||!options||!back)return;
-  if(!category){closeSuggestPicker();return;}
   if(stage==='trophyCustom'&&place){
     const item=enabledSuggestItems(category.id,place.id).find(i=>i.id===suggestPickerState.itemId);
     if(!item){suggestPickerState.itemId='';renderSuggestPicker('item');return;}
     title.textContent='店長カスタムを選択';
-    breadcrumb.textContent=`${category.category} / ${place.name} / ${item.label}`;
+    breadcrumb.textContent=`${suggestStateLabel(suggestPickerState.stateGroup)} / ${suggestEntryPlaceLabel({category:category.category,place:place.name})} / ${item.label}`;
     back.textContent='内容に戻る';
     options.innerHTML=TROPHY_CUSTOM_OPTIONS.map(value=>`<button class="suggest-picker-option" onclick="selectTrophyCustom('${value}')">${value}</button>`).join('');
   }else if(stage==='item'&&place){
     title.textContent='内容を選択';
-    breadcrumb.textContent=`${category.category} / ${place.name}`;
+    breadcrumb.textContent=`${suggestStateLabel(suggestPickerState.stateGroup)} / ${suggestEntryPlaceLabel({category:category.category,place:place.name})}`;
     back.textContent='確認場所に戻る';
     const items=enabledSuggestItems(category.id,place.id);
     options.innerHTML=items.length?items.map(item=>`<button class="suggest-picker-option" onclick="selectSuggestItem('${item.id}')">${decoratedSuggestLabelHtml(item.label,item.decorations||[])}</button>`).join(''):'<div class="empty-hint">有効な内容がありません</div>';
   }else{
     title.textContent='確認場所を選択';
-    breadcrumb.textContent=category.category;
-    back.textContent='カテゴリに戻る';
-    const places=enabledSuggestPlaces(category.id);
-    options.innerHTML=places.length?places.map(p=>`<button class="suggest-picker-option" onclick="selectSuggestPlace('${p.id}')">${escapeHtml(p.name)}</button>`).join(''):'<div class="empty-hint">有効な確認場所がありません</div>';
+    breadcrumb.textContent=suggestStateLabel(suggestPickerState.stateGroup);
+    back.textContent='状態に戻る';
+    const places=enabledSuggestPlaceEntries(suggestPickerState.stateGroup);
+    options.innerHTML=places.length?places.map(({category,place})=>`<button class="suggest-picker-option" onclick="selectSuggestPlace('${category.id}','${place.id}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`).join(''):'<div class="empty-hint">有効な確認場所がありません</div>';
   }
 }
-function selectSuggestPlace(placeId){
-  const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===placeId);
+function selectSuggestPlace(categoryId,placeId){
+  const place=enabledSuggestPlaces(categoryId).find(p=>p.id===placeId);
   if(!place)return;
+  suggestPickerState.categoryId=categoryId;
   suggestPickerState.placeId=placeId;
   suggestPickerState.itemId='';
   renderSuggestPicker('item');
@@ -2292,8 +2461,8 @@ function selectSuggestItem(itemId){
   const category=enabledSuggestCategories().find(c=>c.id===suggestPickerState.categoryId);
   const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===suggestPickerState.placeId);
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===itemId);
-  if(!category||!place||!item){alert('示唆のカテゴリ、確認場所、内容を選択してください');return;}
-  const selection={categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
+  if(!category||!place||!item){alert('示唆の状態、確認場所、内容を選択してください');return;}
+  const selection={stateGroup:suggestPlaceStateGroup(category,place),carryType:normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
   if(isTrophySuggestSelection(selection)){
     suggestPickerState.itemId=itemId;
     renderSuggestPicker('trophyCustom');
@@ -2309,7 +2478,7 @@ function selectTrophyCustom(custom){
   const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===suggestPickerState.placeId);
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===suggestPickerState.itemId);
   if(!category||!place||!item){alert('トロフィーの内容を選び直してください');return;}
-  const selection={categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
+  const selection={stateGroup:suggestPlaceStateGroup(category,place),carryType:normalizeCarryType(item.carryType)||'setting',pointRole:place.pointRole||item.pointRole||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
   if(addSuggestLogFromSelection(selection,custom))closeSuggestPicker();
 }
 function addSuggestLogFromSelection(selection,trophyCustomValue=''){
@@ -2340,7 +2509,7 @@ function addPendingSuggestLog(useGame){
 }
 function backPendingSuggestSelection(){
   if(!pendingSuggestSelection)return;
-  suggestPickerState={categoryId:pendingSuggestSelection.categoryId,placeId:pendingSuggestSelection.placeId};
+  suggestPickerState={stateGroup:pendingSuggestSelection.stateGroup||'',categoryId:pendingSuggestSelection.categoryId,placeId:pendingSuggestSelection.placeId,itemId:''};
   pendingSuggestSelection=null;
   renderPendingSuggestBoxIntoDom();
   renderSuggestPicker('item');
@@ -2353,10 +2522,18 @@ function cancelPendingSuggestSelection(){
 function suggestLogLine(entry){
   const game=suggestGameText(entry);
   const trophy=entry.trophyCustom?` / 店長カスタム：${entry.trophyCustom}`:'';
-  return `${game?game+' ':''}${entry.category} / ${entry.place}：${entry.item}${trophy}`;
+  return `${game?game+' ':''}${suggestStateLabel(suggestEntryStateGroup(entry))} / ${suggestEntryPlaceLabel(entry)}：${entry.item}${trophy}`;
 }
 function sortedSuggestLog(){
   return [...currentSuggestLog].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+}
+function buildKuiPointState(suggestLog,released=false){
+  const rows=Array.isArray(suggestLog)?suggestLog:[];
+  return {
+    released:!!released,
+    gains:rows.filter(entry=>entry.pointRole==='gain').map(entry=>({id:entry.id,item:entry.item,createdAt:entry.createdAt})),
+    hints:rows.filter(entry=>entry.pointRole==='hint').map(entry=>({id:entry.id,item:entry.item,createdAt:entry.createdAt}))
+  };
 }
 function renderCurrentSuggestLog(){
   const el=document.getElementById('suggestLogList');
@@ -2366,7 +2543,7 @@ function renderCurrentSuggestLog(){
   el.innerHTML=rows.map(entry=>`
     <div class="timeline-item ${entry.id===recentSuggestHighlightId?'recent':''}">
       <div class="timeline-head">
-        <div class="timeline-game">${escapeHtml(entry.place||'示唆')}</div>
+        <div class="timeline-game">${escapeHtml(`${suggestStateLabel(suggestEntryStateGroup(entry))} / ${suggestEntryPlaceLabel(entry)}`)}</div>
         <div class="item-actions">
           <button class="btn-small" onclick="editSuggestLogEntry('${entry.id}')">編集</button>
           <button class="btn-danger" onclick="deleteSuggestLogEntry('${entry.id}')">削除</button>
@@ -2391,13 +2568,13 @@ function editSuggestLogEntry(id){
     if(dataGameValue===null&&liquidGameValue!==null)dataGameValue=liquidGameValue;
     if(liquidGameValue===null&&dataGameValue!==null)liquidGameValue=dataGameValue;
   }
-  const category=prompt('カテゴリ',entry.category);if(category===null)return;
+  const state=prompt('状態（play=稼働中 / hit=当選時）',suggestEntryStateGroup(entry));if(state===null)return;
   const place=prompt('確認場所',entry.place);if(place===null)return;
   const item=prompt('内容',entry.item);if(item===null)return;
   let trophyCustom=entry.trophyCustom||'';
   if(!(place.trim().includes('トロフィー')||entry.placeId==='sgp_tokyo_ghoul_trophy'))trophyCustom='';
-  if(!category.trim()||!place.trim()||!item.trim()){alert('カテゴリ、確認場所、内容は空にできません');return;}
-  Object.assign(entry,{category:category.trim(),place:place.trim(),item:item.trim(),game:dataGameValue,dataGame:dataGameValue,liquidGame:liquidGameValue,trophyCustom,updatedAt:new Date().toISOString()});
+  if(!place.trim()||!item.trim()){alert('確認場所、内容は空にできません');return;}
+  Object.assign(entry,{stateGroup:normalizeSuggestStateGroup(state.trim())||suggestEntryStateGroup(entry),place:place.trim(),item:item.trim(),game:dataGameValue,dataGame:dataGameValue,liquidGame:liquidGameValue,trophyCustom,updatedAt:new Date().toISOString()});
   renderCurrentSuggestLog();
 }
 function deleteSuggestLogEntry(id){
@@ -2941,6 +3118,7 @@ function saveLog(){
   baseMoney.lendRate=store?.lendRate??null;
   baseMoney.exchangeRate=store?.exchangeRate??null;
   const c=calcMoney(baseMoney);
+  const suggestLog=clone(sortedSuggestLog());
   const log={
     id:editingLog?.id||uid('l'),
     machineId:machine.id,
@@ -2953,7 +3131,8 @@ function saveLog(){
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     endLog:clone(currentEndLog),
-    suggestLog:clone(sortedSuggestLog()),
+    suggestLog,
+    kuiPoint:buildKuiPointState(suggestLog,editingLog?.kuiPoint?.released),
     money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff},
     publicMemo:document.getElementById('publicMemo').value.trim(),
     privateMemo:document.getElementById('privateMemo').value.trim(),
