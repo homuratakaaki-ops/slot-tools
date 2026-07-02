@@ -136,6 +136,16 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .timeline-history-count{font-size:12px;color:var(--gold-light);white-space:nowrap;}
 .timeline-history-body{display:none;padding:10px;}
 .timeline-history.open .timeline-history-body{display:block;}
+.carry-summary-wrap{margin:10px 0;}
+.carry-summary-section{border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.13);overflow:hidden;margin-bottom:8px;}
+.carry-summary-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;background:rgba(201,168,76,.08);border:0;color:var(--text);padding:10px 12px;font-size:13px;font-weight:800;cursor:pointer;text-align:left;}
+.carry-summary-section.mode .carry-summary-toggle{background:rgba(98,181,255,.1);}
+.carry-summary-section.setting .carry-summary-toggle{background:rgba(201,168,76,.1);}
+.carry-summary-count{font-size:12px;color:var(--gold-light);white-space:nowrap;}
+.carry-summary-body{display:none;padding:10px;}
+.carry-summary-section.open .carry-summary-body{display:block;border-top:1px solid rgba(201,168,76,.18);}
+.carry-summary-row{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px;margin-bottom:7px;}
+.carry-summary-row:last-child{margin-bottom:0;}
 .calc-box{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.35);border-radius:8px;padding:12px;margin-top:10px;}
 .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
 .calc-cell{background:rgba(0,0,0,.14);border:1px solid var(--border);border-radius:6px;padding:8px;}
@@ -569,6 +579,8 @@ let pendingTimelineTagIds=[];
 let timelineHistoryOpen=false;
 let recentTimelineHighlightId='';
 let recentSuggestHighlightId='';
+let modeSummaryOpen=false;
+let settingSummaryOpen=false;
 let suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:''};
 let pendingSuggestSelection=null;
 let editingLogId=null;
@@ -2203,7 +2215,7 @@ function renderLogFields(){
   if(!aim){el.innerHTML='<div class="empty-hint">機種と狙い方を登録してください</div>';return;}
   const panels={
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
-    2:`<div class="card work-section-card play"><div class="work-section-title">稼働中の記録</div>${renderTimelineArea('play')}</div><div id="practiceStatsBox"></div>`,
+    2:`<div class="card work-section-card play"><div class="work-section-title">稼働中の記録</div>${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
     3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div><div id="practiceStatsBox"></div>`,
     4:`<div class="card work-section-card"><div class="work-section-title">ヤメ or 続行</div><p class="section-note">ヤメる場合は収支を登録して確定。続行する場合も、この稼働を状態4登録済みにしてから次稼働へ進みます。</p><div id="practiceStatsBox"></div><button class="btn-secondary" onclick="switchFlowStep(2)">稼働中へ戻る</button><button class="btn-secondary" onclick="switchFlowStep(3)">当選時を記録する</button></div>`
   };
@@ -2213,6 +2225,7 @@ function renderLogFields(){
   renderEndLog();
   renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
+  renderCarrySummaryIntoDom();
   renderPracticeStats();
   renderStoreSelect();
   syncHeaderFromMoney();
@@ -2677,10 +2690,12 @@ function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   const {useAppearG:unused,decorations,...entry}=selection;
   const saved={...entry,id:uid('sgl'),game:dataGame,dataGame,liquidGame,trophyCustom:custom,createdAt:new Date().toISOString()};
   currentSuggestLog.push(saved);
+  if(normalizeCarryType(saved.carryType)==='mode')modeSummaryOpen=true;
   recentSuggestHighlightId=saved.id;
   pendingSuggestSelection=null;
   renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
+  renderCarrySummaryIntoDom();
   scheduleDraftSave();
   return true;
 }
@@ -2741,6 +2756,42 @@ function renderCurrentSuggestLog(){
       <div class="timeline-text">${suggestLogLineHtml(entry)}</div>
     </div>`).join('');
 }
+function carrySummaryEntries(type){
+  return sortedSuggestLog().filter(entry=>normalizeCarryType(entry.carryType)===type);
+}
+function carrySummarySection(type,title,open){
+  const rows=carrySummaryEntries(type);
+  const body=rows.length?rows.map(entry=>`
+    <div class="carry-summary-row">
+      <div class="timeline-game">${escapeHtml(suggestGameText(entry)||'G数なし')}</div>
+      <div class="timeline-text">${suggestLogLineHtml(entry)}</div>
+    </div>`).join(''):'<div class="empty-hint">まだ対象の示唆はありません</div>';
+  return `
+    <div class="carry-summary-section ${type} ${open?'open':''}">
+      <button class="carry-summary-toggle" type="button" onclick="toggleCarrySummary('${type}')">
+        <span>${escapeHtml(title)}</span>
+        <span class="carry-summary-count">${rows.length}件 ${open?'▲':'▼'}</span>
+      </button>
+      <div class="carry-summary-body">${body}</div>
+    </div>`;
+}
+function renderCarrySummaryArea(){
+  if(currentFlowStep!==2)return '';
+  return `
+    <div class="carry-summary-wrap">
+      ${carrySummarySection('mode','モード示唆まとめ',modeSummaryOpen)}
+      ${carrySummarySection('setting','設定関連まとめ',settingSummaryOpen)}
+    </div>`;
+}
+function renderCarrySummaryIntoDom(){
+  const el=document.getElementById('carrySummaryBox');
+  if(el)el.innerHTML=renderCarrySummaryArea();
+}
+function toggleCarrySummary(type){
+  if(type==='mode')modeSummaryOpen=!modeSummaryOpen;
+  if(type==='setting')settingSummaryOpen=!settingSummaryOpen;
+  renderCarrySummaryIntoDom();
+}
 function editSuggestLogEntry(id){
   const entry=currentSuggestLog.find(s=>s.id===id);if(!entry)return;
   const useAppearG=suggestEntryUsesAppearG(entry);
@@ -2765,6 +2816,7 @@ function editSuggestLogEntry(id){
   if(!place.trim()||!item.trim()){alert('確認場所、内容は空にできません');return;}
   Object.assign(entry,{stateGroup:normalizeSuggestStateGroup(state.trim())||suggestEntryStateGroup(entry),place:place.trim(),item:item.trim(),game:dataGameValue,dataGame:dataGameValue,liquidGame:liquidGameValue,trophyCustom,updatedAt:new Date().toISOString()});
   renderCurrentSuggestLog();
+  renderCarrySummaryIntoDom();
   scheduleDraftSave();
 }
 function deleteSuggestLogEntry(id){
@@ -2772,6 +2824,7 @@ function deleteSuggestLogEntry(id){
   currentSuggestLog=currentSuggestLog.filter(s=>s.id!==id);
   if(recentSuggestHighlightId===id)recentSuggestHighlightId='';
   renderCurrentSuggestLog();
+  renderCarrySummaryIntoDom();
   scheduleDraftSave();
 }
 function renderGamePairInputs(prefix){
