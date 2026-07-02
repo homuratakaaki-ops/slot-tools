@@ -55,6 +55,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .game-pair-field{display:flex;align-items:center;gap:5px;min-width:0;background:rgba(0,0,0,.12);border:1px solid var(--border);border-radius:8px;padding:7px;}
 .game-pair-field label{font-size:12px;color:var(--text-muted);font-weight:700;white-space:nowrap;}
 .game-pair-field input{min-width:0;width:0;flex:1 1 0;text-align:center;padding-left:6px;padding-right:6px;}
+.readonly-game-input{background:rgba(0,0,0,.2)!important;border-color:rgba(122,122,138,.35)!important;color:var(--gold-light)!important;text-align:center;cursor:default;}
 .btn-primary{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:10px;}
 .btn-primary:active{opacity:.82;}
 .btn-secondary{width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:14px;padding:11px;cursor:pointer;margin-top:8px;}
@@ -158,7 +159,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .keypad{width:100%;max-width:480px;max-height:calc(100vh - 32px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 16px 18px;box-shadow:0 12px 34px rgba(0,0,0,.42);}
 .keypad-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
 .keypad-title span{font-size:13px;color:var(--text-muted);}
-.keypad-title span.kui-title{color:var(--gold-light);font-size:16px;font-weight:800;}
+.keypad-title span.kui-title{font-size:17px;font-weight:900;text-shadow:0 0 12px rgba(232,201,106,.3);}
+.keypad-title span.kui-title.gain{color:#86ffac;}
+.keypad-title span.kui-title.hint{color:#8fd0ff;}
 .keypad-value{font-size:20px;font-weight:700;color:var(--gold-light);min-height:32px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;}
 .keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .keypad-btn{min-height:54px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:22px;font-weight:700;cursor:pointer;}
@@ -2427,7 +2430,6 @@ function renderCurrentStartLog(){
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(item.label||'打ち始め')}</div>
         <div class="item-actions">
-          <button class="btn-small" onclick="editStartLogEntry('${item.id}')">編集</button>
           <button class="btn-danger" onclick="deleteStartLogEntry('${item.id}')">削除</button>
         </div>
       </div>
@@ -2563,6 +2565,8 @@ function renderKuiPointPicker(){
   if(!title||!breadcrumb||!options||!back)return;
   title.classList.add('kui-title');
   const stage=suggestPickerState.kuiStage==='hint'?'hint':'gain';
+  title.classList.toggle('gain',stage==='gain');
+  title.classList.toggle('hint',stage==='hint');
   title.textContent=stage==='gain'?'喰ポイント獲得を選択':'喰ポイント示唆を選択';
   breadcrumb.textContent=stage==='gain'?'喰ポイント / 獲得':'喰ポイント / 獲得：'+(suggestPickerState.kuiGain||'未選択')+' / 示唆';
   back.textContent=stage==='gain'?'閉じる':'獲得に戻る';
@@ -2586,10 +2590,12 @@ function addKuiPointSuggestLog(placeName,itemLabel){
   const category=enabledSuggestCategories().find(c=>c.id===suggestPickerState.categoryId)||findSuggestCategoryByName(currentMachine(),'喰ポイント');
   const place=findSuggestPlaceByName(category,placeName);
   const item=place?.items?.find(i=>i.label===itemLabel);
+  const role=placeName==='獲得'?'gain':'hint';
+  currentSuggestLog=currentSuggestLog.filter(entry=>entry.pointRole!==role);
   const selection={
     stateGroup:'hit',
     carryType:null,
-    pointRole:placeName==='獲得'?'gain':'hint',
+    pointRole:role,
     categoryId:category?.id||'',
     placeId:place?.id||'',
     itemId:item?.id||'',
@@ -2609,7 +2615,7 @@ function renderSuggestPicker(stage){
   const options=document.getElementById('suggestPickerOptions');
   const back=document.getElementById('suggestPickerBackButton');
   if(!title||!breadcrumb||!options||!back)return;
-  title.classList.remove('kui-title');
+  title.classList.remove('kui-title','gain','hint');
   if(stage==='trophyCustom'&&place){
     const item=enabledSuggestItems(category.id,place.id).find(i=>i.id===suggestPickerState.itemId);
     if(!item){suggestPickerState.itemId='';renderSuggestPicker('item');return;}
@@ -2729,7 +2735,6 @@ function renderCurrentSuggestLog(){
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(`${suggestStateLabel(suggestEntryStateGroup(entry))} / ${suggestEntryPlaceLabel(entry)}`)}</div>
         <div class="item-actions">
-          <button class="btn-small" onclick="editSuggestLogEntry('${entry.id}')">編集</button>
           <button class="btn-danger" onclick="deleteSuggestLogEntry('${entry.id}')">削除</button>
         </div>
       </div>
@@ -2825,11 +2830,11 @@ function renderEndRecordArea(){
       <div class="work-section-title">打ち終わり</div>
       <div class="input-row">
         <div class="input-label no-wrap-label">打ち終わりデータG数<div class="input-hint">必須</div></div>
-        <input type="text" id="endGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(endData)}" placeholder="例：800">
+        <input type="text" id="endGame" class="readonly-game-input" readonly aria-readonly="true" value="${escapeHtml(endData)}" placeholder="当選/ヤメ履歴から反映">
       </div>
       <div class="input-row">
         <div class="input-label no-wrap-label">打ち終わり液晶G数<div class="input-hint">当選ログから連動</div></div>
-        <input type="text" id="endLiquidGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(endLiquid)}" placeholder="例：800">
+        <input type="text" id="endLiquidGame" class="readonly-game-input" readonly aria-readonly="true" value="${escapeHtml(endLiquid)}" placeholder="当選/ヤメ履歴から反映">
       </div>
       <div class="input-row">
         <div class="input-label no-wrap-label">結果</div>
@@ -3056,7 +3061,6 @@ function renderCurrentTimeline(){
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(timelineGameLine(t))}</div>
         <div class="item-actions">
-          <button class="btn-small" onclick="editTimelineEntry('${t.id}')">編集</button>
           <button class="btn-danger" onclick="deleteTimelineEntry('${t.id}')">削除</button>
         </div>
       </div>
@@ -3139,7 +3143,6 @@ function renderEndLog(){
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(`${currentEndLog.game}/${liquid}G 打ち終わり`)}</div>
         <div class="item-actions">
-          <button class="btn-small" onclick="editEndLog()">編集</button>
           <button class="btn-danger" onclick="deleteEndLog()">削除</button>
         </div>
       </div>
