@@ -141,6 +141,14 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .optional-box.open{display:block;}
 .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
 .backup-file{font-size:12px;color:var(--text-muted);}
+.flow-step-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;position:sticky;top:0;z-index:20;background:rgba(13,13,15,.94);padding:8px 0;}
+.flow-step-tab{border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);border-radius:8px;padding:9px 6px;font-size:12px;font-weight:800;cursor:pointer;text-align:center;}
+.flow-step-tab.active{border-color:rgba(201,168,76,.8);background:rgba(201,168,76,.16);color:var(--gold-light);box-shadow:0 0 0 1px rgba(201,168,76,.16);}
+.flow-step-tab .step-num{display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px;}
+.flow-panel{display:none;}
+.flow-panel.active{display:block;}
+.draft-note{display:block;margin-top:8px;color:var(--text-muted);font-size:12px;}
+.unfinalized-note{display:block;margin:6px 0 0;color:#ffb3b3;font-size:12px;font-weight:700;}
 .keypad-overlay{position:fixed;inset:0;background:rgba(0,0,0,.68);z-index:100;display:none;align-items:flex-end;justify-content:center;}
 .keypad-overlay.open{display:flex;}
 .keypad{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:14px 16px 18px;box-shadow:0 -8px 30px rgba(0,0,0,.35);}
@@ -168,6 +176,8 @@ footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-to
 footer a{color:var(--text-muted);text-decoration:none;}
 footer a:hover{color:var(--gold-light);}
 @media (max-width:390px){
+  .flow-step-tabs{gap:4px;}
+  .flow-step-tab{font-size:10px;padding:8px 3px;}
   .tab{font-size:11px;padding:11px 4px;}
   .input-row{align-items:stretch;flex-direction:column;gap:6px;}
   .input-row.compact-row{align-items:center;flex-direction:row;gap:8px;}
@@ -200,7 +210,8 @@ footer a:hover{color:var(--gold-light);}
 </div>
 
 <div class="page" id="pageLog">
-  <div class="section">
+  <div class="flow-step-tabs" id="flowStepTabs"></div>
+  <div class="section flow-panel" data-flow-step="1">
     <div class="section-label">テンプレ選択</div>
     <div class="card">
       <div class="input-row">
@@ -215,12 +226,12 @@ footer a:hover{color:var(--gold-light);}
     </div>
   </div>
 
-  <div class="section" id="dynamicFieldsSection">
-    <div class="section-label">記録項目</div>
+  <div class="section flow-panel active" id="dynamicFieldsSection">
+    <div class="section-label" id="dynamicFieldsTitle">記録項目</div>
     <div id="dynamicFields"></div>
   </div>
 
-  <div class="section">
+  <div class="section flow-panel" data-flow-step="4">
     <div class="section-label">収支</div>
     <div class="card">
       <div class="input-row compact-row">
@@ -279,7 +290,7 @@ footer a:hover{color:var(--gold-light);}
     </div>
   </div>
 
-  <div class="section">
+  <div class="section flow-panel" data-flow-step="4">
     <div class="section-label">メモ</div>
     <div class="card">
       <div class="input-label" style="margin-bottom:6px;">公開用メモ</div>
@@ -288,7 +299,8 @@ footer a:hover{color:var(--gold-light);}
       <textarea id="privateMemo" placeholder="店舗事情など。公開出力には含めません"></textarea>
     </div>
     <div class="warning" id="editingNotice" style="display:none;margin-top:12px;"></div>
-    <button class="btn-primary" id="saveLogButton" onclick="saveLog()">この稼働ログを保存</button>
+    <span class="draft-note">状態4まで締めると確定ログになります。未確定ログは集計対象外です。</span>
+    <button class="btn-primary" id="saveLogButton" onclick="saveLog()">状態4を登録して確定</button>
     <button class="btn-secondary" id="cancelEditButton" onclick="cancelEditLog()" style="display:none;">編集をキャンセル</button>
     <button class="btn-secondary" onclick="startNewRegistration()">新規登録</button>
   </div>
@@ -536,6 +548,9 @@ let pendingSuggestSelection=null;
 let editingLogId=null;
 let continuedFromLog=null;
 let editingStoreName=null;
+let currentFlowStep=1;
+let hydratingDraft=false;
+let draftSaveTimer=null;
 
 function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9000+1000);}
 function clone(value){return JSON.parse(JSON.stringify(value));}
@@ -637,6 +652,10 @@ function normalizeData(data){
     log.kuiPoint.released=!!log.kuiPoint.released;
     log.kuiPoint.gains=Array.isArray(log.kuiPoint.gains)?log.kuiPoint.gains:[];
     log.kuiPoint.hints=Array.isArray(log.kuiPoint.hints)?log.kuiPoint.hints:[];
+    log.flowStep=Number(log.flowStep)||4;
+    log.state4Registered=log.state4Registered===false?false:true;
+    log.finalized=log.finalized===false?false:true;
+    log.excludeFromStats=log.state4Registered===false||log.finalized===false;
     log.endLog=log.endLog&&typeof log.endLog==='object'?log.endLog:null;
     if(log.endLog){
       log.endLog.czCount=Number(log.endLog.czCount)||0;
@@ -654,6 +673,13 @@ function normalizeData(data){
     });
     if(log.money.cashIn===null&&normalizeOptionalNumber(log.money.startMedals)!==null)log.money.cashIn=0;
   });
+  data.draftLog=data.draftLog&&typeof data.draftLog==='object'?data.draftLog:null;
+  if(data.draftLog){
+    data.draftLog.flowStep=Number(data.draftLog.flowStep)||1;
+    data.draftLog.state4Registered=false;
+    data.draftLog.finalized=false;
+    data.draftLog.excludeFromStats=true;
+  }
   data.machines.forEach(m=>{
     m.maker=m.maker||'';
     m.aims=Array.isArray(m.aims)?m.aims:[];
@@ -1391,6 +1417,30 @@ function showPage(pageId){
   document.getElementById(map[pageId])?.classList.add('active');
   renderAll();
 }
+function flowStepLabel(step){
+  return {1:'打ち始め',2:'稼働中',3:'当選時',4:'ヤメ/続行'}[step]||'打ち始め';
+}
+function renderFlowStepTabs(){
+  const el=document.getElementById('flowStepTabs');
+  if(!el)return;
+  el.innerHTML=[1,2,3,4].map(step=>`
+    <button class="flow-step-tab ${currentFlowStep===step?'active':''}" type="button" onclick="switchFlowStep(${step})">
+      <span class="step-num">STEP ${step}</span>${escapeHtml(flowStepLabel(step))}
+    </button>`).join('');
+  document.querySelectorAll('#pageLog .flow-panel').forEach(panel=>{
+    const step=Number(panel.dataset.flowStep||currentFlowStep);
+    panel.classList.toggle('active',!panel.dataset.flowStep||step===currentFlowStep);
+  });
+  const title=document.getElementById('dynamicFieldsTitle');
+  if(title)title.textContent=flowStepLabel(currentFlowStep);
+}
+function switchFlowStep(step){
+  currentFlowStep=Number(step)||1;
+  scheduleDraftSave();
+  renderLogFields();
+  renderFlowStepTabs();
+  bindNumericInputs();
+}
 
 function renderAll(){
   db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);});
@@ -1408,10 +1458,12 @@ function renderAll(){
   renderLogSelectors();
   renderStoreSelect();
   renderLogFields();
+  renderFlowStepTabs();
   renderLogsList();
   updateCalc();
   updateEditModeUi();
   bindNumericInputs();
+  bindDraftAutosave();
 }
 
 function addMachine(){
@@ -2102,16 +2154,13 @@ function renderLogFields(){
   const aim=currentAim();
   const el=document.getElementById('dynamicFields');
   if(!aim){el.innerHTML='<div class="empty-hint">機種と狙い方を登録してください</div>';return;}
-  el.innerHTML=`
-    <div class="card work-section-card">
-      <div class="work-section-title">打ち始めデータ</div>
-      ${renderStartLogArea()}
-    </div>
-    <div class="card work-section-card play">
-      <div class="work-section-title">実戦中ログ</div>
-      ${renderTimelineArea()}
-    </div>
-    <div id="practiceStatsBox"></div>`;
+  const panels={
+    1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
+    2:`<div class="card work-section-card play"><div class="work-section-title">稼働中の記録</div>${renderTimelineArea('play')}</div><div id="practiceStatsBox"></div>`,
+    3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div><div id="practiceStatsBox"></div>`,
+    4:`<div class="card work-section-card"><div class="work-section-title">ヤメ or 続行</div><p class="section-note">ヤメる場合は収支を登録して確定。続行する場合も、この稼働を状態4登録済みにしてから次稼働へ進みます。</p><div id="practiceStatsBox"></div><button class="btn-secondary" onclick="switchFlowStep(2)">稼働中へ戻る</button><button class="btn-secondary" onclick="switchFlowStep(3)">当選時を記録する</button></div>`
+  };
+  el.innerHTML=panels[currentFlowStep]||panels[1];
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
@@ -2305,6 +2354,7 @@ function addStartLogEntry(){
   if(textEl)textEl.value='';
   renderCurrentStartLog();
   renderPracticeStats();
+  scheduleDraftSave();
 }
 function startLogLine(item){
   const label=(item.label||'').trim();
@@ -2339,6 +2389,7 @@ function editStartLogEntry(id){
     currentStartLog=currentStartLog.filter(t=>t.id!==id);
     renderCurrentStartLog();
     renderPracticeStats();
+    scheduleDraftSave();
     return;
   }
   const nextValue=value.trim()===''?null:Number(value);
@@ -2349,12 +2400,14 @@ function editStartLogEntry(id){
   item.text=text.trim();
   renderCurrentStartLog();
   renderPracticeStats();
+  scheduleDraftSave();
 }
 function deleteStartLogEntry(id){
   if(!confirm('この打ち始めログを削除しますか？'))return;
   currentStartLog=currentStartLog.filter(t=>t.id!==id);
   renderCurrentStartLog();
   renderPracticeStats();
+  scheduleDraftSave();
 }
 function enabledSuggestCategories(){
   return (currentMachine()?.suggestMaster||[]).filter(c=>c.enabled!==false);
@@ -2385,18 +2438,27 @@ function useAppearGForSuggestSelection(selection){
   const category=(currentMachine()?.suggestMaster||[]).find(c=>c.id===selection?.categoryId);
   return category?.useAppearG!==false;
 }
-function renderSuggestArea(){
-  const stateGroups=enabledSuggestStateGroups();
+function renderSuggestArea(stateGroup=''){
+  const fixedGroup=normalizeSuggestStateGroup(stateGroup);
+  const stateGroups=fixedGroup?SUGGEST_STATE_GROUPS.filter(group=>group.id===fixedGroup):enabledSuggestStateGroups();
   if(!currentMachine())return '<div class="empty-hint">示唆記録は機種選択後に使えます</div>';
   if(!stateGroups.length)return '<div class="empty-hint">有効な示唆マスタがありません。機種・店舗タブで登録してください。</div>';
+  const placeButtons=fixedGroup?enabledSuggestPlaceEntries(fixedGroup).map(({category,place})=>`<button class="tag-btn gold" onclick="openSuggestItemPicker('${category.id}','${place.id}','${fixedGroup}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`).join(''):'';
   return `
     <div class="section-label" style="margin-top:14px;">示唆記録</div>
-    <p class="section-note">状態を押すと確認場所 → 内容の順に選べます。引き継ぎ種別は内容ごとに保存されます。</p>
+    <p class="section-note">${fixedGroup?`${suggestStateLabel(fixedGroup)}の示唆だけを表示しています。`:'状態を押すと確認場所 → 内容の順に選べます。'} 引き継ぎ種別は内容ごとに保存されます。</p>
     <div class="tag-buttons">
-      ${stateGroups.map(group=>`<button class="tag-btn gold" onclick="openSuggestPlacePicker('${group.id}')">${escapeHtml(group.label)}</button>`).join('')}
+      ${fixedGroup?placeButtons:stateGroups.map(group=>`<button class="tag-btn gold" onclick="openSuggestPlacePicker('${group.id}')">${escapeHtml(group.label)}</button>`).join('')}
     </div>
     <div id="pendingSuggestBox">${renderPendingSuggestBox()}</div>
     <div id="suggestLogList" style="margin-top:10px;"></div>`;
+}
+function openSuggestItemPicker(categoryId,placeId,stateGroup){
+  const place=enabledSuggestPlaces(categoryId).find(p=>p.id===placeId);
+  if(!place)return;
+  suggestPickerState={stateGroup:normalizeSuggestStateGroup(stateGroup)||suggestPlaceStateGroup(enabledSuggestCategories().find(c=>c.id===categoryId),place),categoryId,placeId,itemId:''};
+  renderSuggestPicker('item');
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
 }
 function openSuggestPlacePicker(stateGroup){
   const group=normalizeSuggestStateGroup(stateGroup)||'play';
@@ -2493,6 +2555,7 @@ function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   pendingSuggestSelection=null;
   renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
+  scheduleDraftSave();
   return true;
 }
 function renderPendingSuggestBox(){
@@ -2538,7 +2601,8 @@ function buildKuiPointState(suggestLog,released=false){
 function renderCurrentSuggestLog(){
   const el=document.getElementById('suggestLogList');
   if(!el)return;
-  const rows=sortedSuggestLog();
+  const targetState=currentFlowStep===2?'play':currentFlowStep===3?'hit':'';
+  const rows=sortedSuggestLog().filter(entry=>!targetState||suggestEntryStateGroup(entry)===targetState);
   if(!rows.length){el.innerHTML='<div class="empty-hint">まだ示唆記録なし</div>';return;}
   el.innerHTML=rows.map(entry=>`
     <div class="timeline-item ${entry.id===recentSuggestHighlightId?'recent':''}">
@@ -2576,16 +2640,25 @@ function editSuggestLogEntry(id){
   if(!place.trim()||!item.trim()){alert('確認場所、内容は空にできません');return;}
   Object.assign(entry,{stateGroup:normalizeSuggestStateGroup(state.trim())||suggestEntryStateGroup(entry),place:place.trim(),item:item.trim(),game:dataGameValue,dataGame:dataGameValue,liquidGame:liquidGameValue,trophyCustom,updatedAt:new Date().toISOString()});
   renderCurrentSuggestLog();
+  scheduleDraftSave();
 }
 function deleteSuggestLogEntry(id){
   if(!confirm('この示唆記録を削除しますか？'))return;
   currentSuggestLog=currentSuggestLog.filter(s=>s.id!==id);
   if(recentSuggestHighlightId===id)recentSuggestHighlightId='';
   renderCurrentSuggestLog();
+  scheduleDraftSave();
 }
-function renderTimelineArea(){
+function renderTimelineArea(mode='play'){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">時系列ログは機種選択後に使えます</div>';
+  if(mode==='hit')return `
+    ${renderSuggestArea('hit')}
+    <div class="calc-box">
+      <div class="calc-label">当選時情報</div>
+      <div class="timeline-text" style="margin-top:6px;">AT駆け抜け有無・前回推定モード・AT終了画面比率などは後続段階で詳細化します。第2段階では記録枠だけ用意します。</div>
+    </div>
+    ${renderEndRecordArea()}`;
   return `
     <div class="input-row">
       <div class="input-label">データG数</div>
@@ -2604,9 +2677,16 @@ function renderTimelineArea(){
     <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState()"></textarea>
     <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
     ${renderTimelineHistoryPanel()}
-    ${renderSuggestArea()}
+    ${renderSuggestArea('play')}`;
+}
+function renderEndRecordArea(){
+  return `
     <div class="work-subsection end">
       <div class="work-section-title">打ち終わり</div>
+      <div class="input-row">
+        <div class="input-label no-wrap-label">打ち終わりデータG数<div class="input-hint">必須</div></div>
+        <input type="text" id="endGame" class="numeric-input" inputmode="none" readonly value="${currentEndLog?.game??''}" placeholder="例：800">
+      </div>
       <div class="input-row">
         <div class="input-label no-wrap-label">結果</div>
         <div class="field-stack">
@@ -2779,6 +2859,7 @@ function addTimelineEntry(){
   updateTimelineAddButtonState();
   renderCurrentTimeline();
   renderPracticeStats();
+  scheduleDraftSave();
 }
 function renderCurrentTimeline(){
   const el=document.getElementById('timelineList');
@@ -2815,6 +2896,7 @@ function editTimelineEntry(id){
   item.game=num;item.liquidGame=liquidNum;item.text=text.trim();
   renderCurrentTimeline();
   renderPracticeStats();
+  scheduleDraftSave();
 }
 function deleteTimelineEntry(id){
   if(!confirm('この時系列ログを削除しますか？'))return;
@@ -2822,10 +2904,11 @@ function deleteTimelineEntry(id){
   if(recentTimelineHighlightId===id)recentTimelineHighlightId='';
   renderCurrentTimeline();
   renderPracticeStats();
+  scheduleDraftSave();
 }
 
 function recordEndLog(){
-  const gameEl=document.getElementById('timelineGame');
+  const gameEl=document.getElementById('endGame')||document.getElementById('timelineGame');
   const reasonEl=document.getElementById('endReason');
   const textEl=document.getElementById('endText');
   const game=Number(gameEl?.value);
@@ -2850,6 +2933,7 @@ function recordEndLog(){
   ['endCzCount','endUpperCzCount','endAtCount','endDirectAtCount','endEpisodeBonusCount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderEndLog();
   renderPracticeStats();
+  scheduleDraftSave();
 }
 function incrementEndCount(id){
   const el=document.getElementById(id);
@@ -2910,12 +2994,14 @@ function editEndLog(){
   currentEndLog={...currentEndLog,game:num,reason:reason.trim(),text:text.trim(),czCount:czNum,upperCzCount:upperCzNum,atCount:atNum,directAtCount:directAtNum,episodeBonusCount:episodeNum,updatedAt:new Date().toISOString()};
   renderEndLog();
   renderPracticeStats();
+  scheduleDraftSave();
 }
 function deleteEndLog(){
   if(!confirm('打ち終わりデータを削除しますか？'))return;
   currentEndLog=null;
   renderEndLog();
   renderPracticeStats();
+  scheduleDraftSave();
 }
 function isCounterLabel(label){
   const normalized=String(label||'').replace(/\s/g,'');
@@ -2954,6 +3040,7 @@ function countTypesForTimelineItem(item,machine){
   return [...new Set((machine?.tags||[]).filter(t=>t.countAs&&text.includes(t.label)).map(t=>t.countAs))];
 }
 function calculatePracticeStats(log){
+  if(log?.excludeFromStats)return {startCounter:logStartCounterValue(log),endGame:null,spins:null,counts:{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0},excluded:true};
   const startCounter=logStartCounterValue(log);
   const endGame=log.endLog?.game!==undefined&&log.endLog?.game!==null?Number(log.endLog.game):null;
   const spins=startCounter!==null&&endGame!==null&&!Number.isNaN(endGame)?endGame-startCounter:null;
@@ -2971,6 +3058,7 @@ function formatProbability(spins,count){
   return '1/'+Math.round(spins/count);
 }
 function practiceStatsLine(stats){
+  if(stats.excluded)return '未確定のため集計対象外';
   const spins=stats.spins!==null?stats.spins:null;
   const parts=[
     `回転数：${spins!==null?spins+'G':'-'}`,
@@ -3086,6 +3174,85 @@ function updateCalc(){
   const warning=document.getElementById('timeWarning');
   if(warning)warning.style.display=calc.invalidTime?'block':'none';
 }
+function currentInputLogObject(finalized=false, existingLog=null){
+  const machine=currentMachine();const aim=currentAim();
+  if(!machine||!aim)return null;
+  const enteredStartMedals=normalizeOptionalNumber(document.getElementById('moneyStartMedals')?.value||'');
+  const baseMoney={
+    date:document.getElementById('moneyDate')?.value||todayValue(),
+    store:document.getElementById('moneyStore')?.value||'',
+    machineNo:(document.getElementById('moneyMachineNo')?.value||'').trim(),
+    publishStore:!!document.getElementById('publishStore')?.checked,
+    publishMachineNo:!!document.getElementById('publishMachineNo')?.checked,
+    startTime:document.getElementById('moneyStart')?.value||'',
+    endTime:document.getElementById('moneyEnd')?.value||'',
+    startMedals:enteredStartMedals,
+    endMedals:normalizeOptionalNumber(document.getElementById('moneyEndMedals')?.value||''),
+    cashIn:normalizeOptionalNumber(document.getElementById('moneyCashIn')?.value||'')??0,
+    invest:null,
+    recover:null
+  };
+  const store=storeByName(baseMoney.store);
+  baseMoney.lendRate=store?.lendRate??null;
+  baseMoney.exchangeRate=store?.exchangeRate??null;
+  const c=calcMoney(baseMoney);
+  const suggestLog=clone(sortedSuggestLog());
+  return {
+    id:existingLog?.id||uid(finalized?'l':'draft'),
+    machineId:machine.id,
+    aimId:aim.id,
+    machineName:machine.name,
+    aimName:aim.name,
+    fieldSnapshot:clone(existingLog?.fieldSnapshot||aim.fields||[]),
+    values:{},
+    flowStep:currentFlowStep,
+    state4Registered:!!finalized,
+    finalized:!!finalized,
+    excludeFromStats:!finalized,
+    startCounterGame:currentStartCounterGame,
+    startLog:clone(sortedStartLog()),
+    timeline:clone(sortedTimeline()),
+    endLog:clone(currentEndLog),
+    suggestLog,
+    kuiPoint:buildKuiPointState(suggestLog,existingLog?.kuiPoint?.released),
+    money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff},
+    publicMemo:document.getElementById('publicMemo')?.value.trim()||'',
+    privateMemo:document.getElementById('privateMemo')?.value.trim()||'',
+    createdAt:existingLog?.createdAt||new Date().toISOString(),
+    updatedAt:new Date().toISOString()
+  };
+}
+function draftHasContent(log){
+  if(!log)return false;
+  const money=log.money||{};
+  return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||
+    (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.suggestLog||[]).length>0||!!log.endLog||
+    !!money.store||!!money.machineNo||!!money.endTime||normalizeOptionalNumber(money.startMedals)!==null||normalizeOptionalNumber(money.endMedals)!==null||!!money.cashIn||
+    !!log.publicMemo||!!log.privateMemo||!!continuedFromLog;
+}
+function saveDraftNow(){
+  if(hydratingDraft||editingLogId)return;
+  const log=currentInputLogObject(false,db.draftLog||null);
+  if(!draftHasContent(log)){
+    db.draftLog=null;
+  }else{
+    db.draftLog={...log,continuedFromLog:continuedFromLog?clone(continuedFromLog):null};
+  }
+  persist();
+}
+function scheduleDraftSave(){
+  if(hydratingDraft||editingLogId)return;
+  clearTimeout(draftSaveTimer);
+  draftSaveTimer=setTimeout(saveDraftNow,180);
+}
+function bindDraftAutosave(){
+  document.querySelectorAll('#pageLog input,#pageLog textarea,#pageLog select').forEach(el=>{
+    if(el.dataset.draftBound)return;
+    el.dataset.draftBound='1';
+    el.addEventListener('input',scheduleDraftSave);
+    el.addEventListener('change',scheduleDraftSave);
+  });
+}
 function saveLog(){
   const machine=currentMachine();const aim=currentAim();
   if(!machine||!aim){alert('機種と狙い方を選択してください');return;}
@@ -3093,8 +3260,7 @@ function saveLog(){
   syncStartCounterGame();
   const startCounter=currentStartCounterGame;
   if(startCounter===null){alert('打ち始めのデータカウンターG数を入力してください');return;}
-  if(!currentEndLog){alert('打ち終わりデータを登録してください');return;}
-  if(Number(currentEndLog.game)-startCounter<0){alert('打ち終わりG数は打ち始めのデータカウンターG数以上にしてください');return;}
+  if(currentEndLog&&Number(currentEndLog.game)-startCounter<0){alert('打ち終わりG数は打ち始めのデータカウンターG数以上にしてください');return;}
   const fieldSnapshot=clone(editingLog?.fieldSnapshot||aim.fields||[]);
   const values={};
   const enteredStartMedals=normalizeOptionalNumber(document.getElementById('moneyStartMedals').value);
@@ -3127,6 +3293,10 @@ function saveLog(){
     aimName:aim.name,
     fieldSnapshot,
     values,
+    flowStep:4,
+    state4Registered:true,
+    finalized:true,
+    excludeFromStats:false,
     startCounterGame:startCounter,
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
@@ -3146,6 +3316,7 @@ function saveLog(){
     db.logs.push(log);
   }
   if(baseMoney.store)ensureStore(baseMoney.store);
+  db.draftLog=null;
   persist();
   const wasEditing=!!editingLog;
   editingLogId=null;
@@ -3158,14 +3329,29 @@ function scrollToPageTop(){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function startNewRegistration(){
-  if(!confirm('入力中の内容をクリアして新規登録しますか？'))return;
+  if(!confirm('入力中の稼働を未確定ログへ退避して、新規登録を始めますか？'))return;
+  archiveCurrentDraftAsUnfinalized();
   clearLogInput(true);
+  db.draftLog=null;
+  persist();
   showPage('pageLog');
   scrollToPageTop();
+}
+function archiveCurrentDraftAsUnfinalized(){
+  if(editingLogId)return;
+  const log=currentInputLogObject(false,db.draftLog||null);
+  if(!draftHasContent(log))return;
+  log.id=log.id||uid('l');
+  log.state4Registered=false;
+  log.finalized=false;
+  log.excludeFromStats=true;
+  log.updatedAt=new Date().toISOString();
+  db.logs.push(log);
 }
 function clearLogInput(cancelEdit=true){
   if(cancelEdit)editingLogId=null;
   continuedFromLog=null;
+  currentFlowStep=1;
   document.querySelectorAll('#pageLog input,#pageLog textarea').forEach(el=>{
     if(el.type==='checkbox')el.checked=false;
     else el.value='';
@@ -3231,7 +3417,7 @@ function updateEditModeUi(){
   const log=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
   notice.style.display=log?'block':'none';
   notice.textContent=log?`編集中：${log.machineName} / ${log.aimName} / ${log.money?.date||'日付なし'}`:'';
-  saveButton.textContent=log?'この稼働ログを更新':'この稼働ログを保存';
+  saveButton.textContent=log?'この稼働ログを更新して確定':'状態4を登録して確定';
   cancelButton.style.display=log?'inline-block':'none';
 }
 
@@ -3261,6 +3447,39 @@ function fillLogInputs(log){
   document.getElementById('privateMemo').value=log.privateMemo||'';
   syncHeaderFromMoney();
   updateCalc();
+}
+function loadDraftIntoInputs(log){
+  if(!log)return;
+  const machine=machineById(log.machineId);
+  if(!machine)return;
+  hydratingDraft=true;
+  selectedMachineId=machine.id;
+  selectedAimId=log.aimId||firstAimIdForMachine(machine);
+  currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
+  continuedFromLog=log.continuedFromLog?clone(log.continuedFromLog):null;
+  currentStartCounterGame=logStartCounterValue(log);
+  currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
+  currentTimeline=clone(log.timeline||[]);
+  currentTimelineLiquidOffset=0;
+  currentEndLog=clone(log.endLog||null);
+  currentSuggestLog=clone(log.suggestLog||[]);
+  currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
+  pendingSuggestSelection=null;
+  resetTransientLogUiState();
+  closeSuggestPicker();
+  renderAll();
+  fillLogInputs(log);
+  renderFlowStepTabs();
+  renderCurrentStartLog();
+  renderCurrentTimeline();
+  renderEndLog();
+  renderCurrentSuggestLog();
+  renderPracticeStats();
+  hydratingDraft=false;
+}
+function restoreDraftIfAny(){
+  if(editingLogId||!db.draftLog)return;
+  loadDraftIntoInputs(db.draftLog);
 }
 
 function loadLogForEdit(id){
@@ -3312,6 +3531,7 @@ function continueFromLog(id){
     persist();
   }
   editingLogId=null;
+  currentFlowStep=1;
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
   currentStartCounterGame=0;
@@ -3351,6 +3571,7 @@ function continueFromLog(id){
   renderCurrentSuggestLog();
   renderPracticeStats();
   updateEditModeUi();
+  scheduleDraftSave();
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -3416,6 +3637,7 @@ function moneyResultLine(money){
   return `投資${formatMoneyAmount(money.invest)} / 回収${formatMoneyAmount(money.recover)} / 差枚${formatDiff(money.diff)}`;
 }
 function logSummaryMoney(log){
+  if(log.excludeFromStats)return '未確定 / 集計対象外';
   const calc=calcMoney(log.money||{});
   if(calc.model==='medals')return `メダル ${formatDiff(calc.medalDiff)}　円収支 ${formatYenDiff(calc.yenDiff)}`;
   return `差枚 ${formatDiff(log.money?.diff)}`;
@@ -3445,6 +3667,7 @@ function renderLogItem(log){
       <div class="item-head">
         <div>
           <div class="item-title">${escapeHtml(log.machineName)} / ${escapeHtml(log.aimName)}</div>
+          ${log.excludeFromStats?'<div class="unfinalized-note">状態4（ヤメ/続行）が未登録です。確定するまで集計対象外です。</div>':''}
           <div class="item-sub">${escapeHtml(logSummaryMoney(log))}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件　示唆 ${(log.suggestLog||[]).length}件</div>
           <div class="item-sub">${escapeHtml(practiceStatsLine(calculatePracticeStats(log)))}</div>
           <div style="margin-top:6px;">
@@ -3494,6 +3717,7 @@ function clearContinueState(){
   continuedFromLog=null;
   const box=document.getElementById('continuedFromBox');
   if(box)box.style.display='none';
+  scheduleDraftSave();
 }
 function backupJson(){
   const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
@@ -3530,6 +3754,7 @@ showPage('pageLog');
 setToday();
 setDefaultStartTime();
 applyLatestStoreForCurrentDate();
+restoreDraftIfAny();
 </script>
 </body>
 </html>
