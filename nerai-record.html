@@ -158,6 +158,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .keypad{width:100%;max-width:480px;max-height:calc(100vh - 32px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 16px 18px;box-shadow:0 12px 34px rgba(0,0,0,.42);}
 .keypad-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
 .keypad-title span{font-size:13px;color:var(--text-muted);}
+.keypad-title span.kui-title{color:var(--gold-light);font-size:16px;font-weight:800;}
 .keypad-value{font-size:20px;font-weight:700;color:var(--gold-light);min-height:32px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;}
 .keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .keypad-btn{min-height:54px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:22px;font-weight:700;cursor:pointer;}
@@ -652,6 +653,7 @@ function normalizeData(data){
       item.countAs=Array.isArray(item.countAs)?item.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)):[];
       item.game=normalizeOptionalNumber(item.game);
       item.liquidGame=normalizeOptionalNumber(item.liquidGame);
+      item.liquidOffsetDelta=normalizeOptionalNumber(item.liquidOffsetDelta);
       if(item.game!==null&&item.liquidGame===null)item.liquidGame=item.game;
     });
     log.suggestLog=Array.isArray(log.suggestLog)?log.suggestLog:[];
@@ -2559,6 +2561,7 @@ function renderKuiPointPicker(){
   const options=document.getElementById('suggestPickerOptions');
   const back=document.getElementById('suggestPickerBackButton');
   if(!title||!breadcrumb||!options||!back)return;
+  title.classList.add('kui-title');
   const stage=suggestPickerState.kuiStage==='hint'?'hint':'gain';
   title.textContent=stage==='gain'?'喰ポイント獲得を選択':'喰ポイント示唆を選択';
   breadcrumb.textContent=stage==='gain'?'喰ポイント / 獲得':'喰ポイント / 獲得：'+(suggestPickerState.kuiGain||'未選択')+' / 示唆';
@@ -2606,6 +2609,7 @@ function renderSuggestPicker(stage){
   const options=document.getElementById('suggestPickerOptions');
   const back=document.getElementById('suggestPickerBackButton');
   if(!title||!breadcrumb||!options||!back)return;
+  title.classList.remove('kui-title');
   if(stage==='trophyCustom'&&place){
     const item=enabledSuggestItems(category.id,place.id).find(i=>i.id===suggestPickerState.itemId);
     if(!item){suggestPickerState.itemId='';renderSuggestPicker('item');return;}
@@ -2814,8 +2818,8 @@ function renderTimelineArea(mode='play'){
     ${renderSuggestArea('play')}`;
 }
 function renderEndRecordArea(){
-  const endData=currentEndLog?.game??linkedEndDataGame??'';
-  const endLiquid=currentEndLog?.liquidGame??linkedEndLiquidGame??(endData!==''?endData:'');
+  const endData=linkedEndDataGame??currentEndLog?.game??'';
+  const endLiquid=linkedEndLiquidGame??currentEndLog?.liquidGame??(endData!==''?endData:'');
   return `
     <div class="work-subsection end">
       <div class="work-section-title">打ち終わり</div>
@@ -2939,20 +2943,42 @@ function tagLiquidRule(tagIds){
   });
   return {delta,setValue};
 }
-function applyLiquidRuleAfterTimelineAdd(tagIds){
+function setTimelineOffsetPreservingData(nextOffset){
+  const data=timelineDataValue();
+  if(data===null){
+    currentTimelineLiquidOffset=nextOffset;
+    return;
+  }
+  setTimelineGames(data,data+nextOffset);
+}
+function applyLiquidRuleAfterTimelineAdd(tagIds,entry=null){
   const data=timelineDataValue();
   if(data===null)return;
   const currentLiquid=timelineLiquidValue();
   const baseLiquid=currentLiquid!==null?currentLiquid:data+currentTimelineLiquidOffset;
   const rule=tagLiquidRule(tagIds);
+  let offsetDelta=0;
   if(rule.setValue!==null){
-    currentTimelineLiquidOffset=rule.setValue-data;
+    offsetDelta=rule.setValue-data-currentTimelineLiquidOffset;
     setTimelineGames(data,rule.setValue);
   }else if(rule.delta){
+    offsetDelta=rule.delta;
     const nextLiquid=baseLiquid+rule.delta;
-    currentTimelineLiquidOffset=nextLiquid-data;
     setTimelineGames(data,nextLiquid);
   }
+  if(entry&&offsetDelta)entry.liquidOffsetDelta=offsetDelta;
+}
+function timelineOffsetDeltaForDelete(item){
+  const saved=normalizeOptionalNumber(item?.liquidOffsetDelta);
+  if(saved!==null)return saved;
+  const rule=tagLiquidRule(item?.tagIds||[]);
+  if(rule.setValue!==null)return null;
+  return rule.delta||null;
+}
+function rollbackLiquidRuleForTimelineDelete(item){
+  const offsetDelta=timelineOffsetDeltaForDelete(item);
+  if(offsetDelta===null||offsetDelta===0)return;
+  setTimelineOffsetPreservingData(currentTimelineLiquidOffset-offsetDelta);
 }
 function timelineEntryIsEndLink(entry){
   const text=String(entry?.text||'');
@@ -2968,7 +2994,14 @@ function linkEndGamesFromTimelineEntry(entry){
   if(!timelineEntryIsEndLink(entry))return;
   linkedEndDataGame=normalizeOptionalNumber(entry.game);
   linkedEndLiquidGame=timelineLiquidGameValue(entry);
+  if(currentEndLog){
+    currentEndLog.game=linkedEndDataGame;
+    currentEndLog.liquidGame=linkedEndLiquidGame;
+    currentEndLog.updatedAt=new Date().toISOString();
+  }
   updateLinkedEndGameInputs();
+  renderEndLog();
+  renderPracticeStats();
 }
 function sortedTimeline(){
   return [...currentTimeline].sort((a,b)=>{
@@ -3000,7 +3033,7 @@ function addTimelineEntry(){
   recentTimelineHighlightId=entry.id;
   timelineHistoryOpen=true;
   linkEndGamesFromTimelineEntry(entry);
-  applyLiquidRuleAfterTimelineAdd(tagIds);
+  applyLiquidRuleAfterTimelineAdd(tagIds,entry);
   pendingTimelineTagIds=[];
   textEl.value='';
   updateTimelineAddButtonState();
@@ -3049,6 +3082,7 @@ function editTimelineEntry(id){
 function deleteTimelineEntry(id){
   if(!confirm('この時系列ログを削除しますか？'))return;
   const item=currentTimeline.find(t=>t.id===id);
+  rollbackLiquidRuleForTimelineDelete(item);
   if(item&&timelineEntryIsEndLink(item)&&!currentEndLog){
     linkedEndDataGame=null;
     linkedEndLiquidGame=null;
