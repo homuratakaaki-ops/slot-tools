@@ -51,10 +51,10 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .inline-field{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
 .inline-field input,.inline-field select{min-width:0;flex:1;}
 .inline-field .btn-small{flex:0 0 auto;}
-.game-pair-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0;}
-.game-pair-field{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.12);border:1px solid var(--border);border-radius:8px;padding:8px;}
+.game-pair-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin:8px 0;width:100%;max-width:100%;}
+.game-pair-field{display:flex;align-items:center;gap:5px;min-width:0;background:rgba(0,0,0,.12);border:1px solid var(--border);border-radius:8px;padding:7px;}
 .game-pair-field label{font-size:12px;color:var(--text-muted);font-weight:700;white-space:nowrap;}
-.game-pair-field input{min-width:0;width:auto;flex:1;text-align:center;}
+.game-pair-field input{min-width:0;width:0;flex:1 1 0;text-align:center;padding-left:6px;padding-right:6px;}
 .btn-primary{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:10px;}
 .btn-primary:active{opacity:.82;}
 .btn-secondary{width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:14px;padding:11px;cursor:pointer;margin-top:8px;}
@@ -153,9 +153,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .flow-panel.active{display:block;}
 .draft-note{display:block;margin-top:8px;color:var(--text-muted);font-size:12px;}
 .unfinalized-note{display:block;margin:6px 0 0;color:#ffb3b3;font-size:12px;font-weight:700;}
-.keypad-overlay{position:fixed;inset:0;background:rgba(0,0,0,.68);z-index:100;display:none;align-items:flex-end;justify-content:center;}
+.keypad-overlay{position:fixed;inset:0;background:rgba(0,0,0,.68);z-index:100;display:none;align-items:center;justify-content:center;padding:16px;}
 .keypad-overlay.open{display:flex;}
-.keypad{width:100%;max-width:480px;background:var(--surface);border:1px solid var(--border);border-radius:16px 16px 0 0;padding:14px 16px 18px;box-shadow:0 -8px 30px rgba(0,0,0,.35);}
+.keypad{width:100%;max-width:480px;max-height:calc(100vh - 32px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 16px 18px;box-shadow:0 12px 34px rgba(0,0,0,.42);}
 .keypad-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
 .keypad-title span{font-size:13px;color:var(--text-muted);}
 .keypad-value{font-size:20px;font-weight:700;color:var(--gold-light);min-height:32px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;}
@@ -167,6 +167,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .suggest-picker-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:10px;max-height:52vh;overflow:auto;}
 .suggest-picker-option{min-height:52px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;font-weight:700;padding:10px;cursor:pointer;text-align:left;}
 .suggest-picker-option:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
+.suggest-picker-option.kui-point{min-height:62px;background:rgba(232,201,106,.16);border-color:rgba(232,201,106,.58);color:#fff1b8;font-size:18px;text-align:center;}
+.suggest-picker-option.kui-point.none{background:rgba(122,122,138,.18);border-color:rgba(122,122,138,.55);color:#d7d7df;}
 .suggest-color-blue{color:#62b5ff;}
 .suggest-color-green{color:#7edb8d;}
 .suggest-color-red{color:#ff6b6b;}
@@ -194,9 +196,10 @@ footer a:hover{color:var(--gold-light);}
   .inline-field{width:100%;}
   .input-row.compact-row .inline-field{width:auto;min-width:0;}
   .input-row.compact-row .btn-small{padding:6px 8px;}
-  .game-pair-row{gap:6px;}
-  .game-pair-field{gap:4px;padding:6px;}
-  .game-pair-field label{font-size:11px;}
+  .game-pair-row{gap:4px;}
+  .game-pair-field{gap:3px;padding:5px;}
+  .game-pair-field label{font-size:10px;}
+  .game-pair-field input{font-size:13px;padding-left:4px;padding-right:4px;}
   .item-head{flex-direction:column;}
   .item-actions{justify-content:flex-start;width:100%;}
 }
@@ -2560,7 +2563,7 @@ function renderKuiPointPicker(){
   title.textContent=stage==='gain'?'喰ポイント獲得を選択':'喰ポイント示唆を選択';
   breadcrumb.textContent=stage==='gain'?'喰ポイント / 獲得':'喰ポイント / 獲得：'+(suggestPickerState.kuiGain||'未選択')+' / 示唆';
   back.textContent=stage==='gain'?'閉じる':'獲得に戻る';
-  options.innerHTML=KUI_POINT_OPTIONS.map(value=>`<button class="suggest-picker-option" onclick="selectKuiPointValue('${value}')">${value}</button>`).join('');
+  options.innerHTML=KUI_POINT_OPTIONS.map(value=>`<button class="suggest-picker-option kui-point ${value==='なし'?'none':''}" onclick="selectKuiPointValue('${value}')">${value}</button>`).join('');
 }
 function selectKuiPointValue(value){
   if(!KUI_POINT_OPTIONS.includes(value))return;
@@ -2913,8 +2916,7 @@ function syncTimelineLiquidGame(sourceId=''){
     scheduleDraftSave();
     return;
   }
-  let data=currentTimelineDataGame;
-  if(data===null)data=liquid;
+  let data=currentTimelineDataGame===null?liquid:liquid-currentTimelineLiquidOffset;
   setTimelineGames(data,liquid);
   scheduleDraftSave();
 }
@@ -3271,7 +3273,6 @@ function pressKeypad(key){
   else if(/^\d$/.test(key))value+=key;
   else return;
   activeNumericInput.value=value;
-  activeNumericInput.dispatchEvent(new Event('input',{bubbles:true}));
   updateKeypadValue();
   updateCalc();
 }
