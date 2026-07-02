@@ -144,6 +144,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .carry-summary-count{font-size:12px;color:var(--gold-light);white-space:nowrap;}
 .carry-summary-body{display:none;padding:10px;}
 .carry-summary-section.open .carry-summary-body{display:block;border-top:1px solid rgba(201,168,76,.18);}
+.carry-summary-group{padding-top:8px;margin-top:8px;border-top:1px solid rgba(201,168,76,.24);}
+.carry-summary-group:first-child{padding-top:0;margin-top:0;border-top:none;}
+.carry-summary-group-title{font-size:12px;font-weight:800;color:var(--gold-light);margin-bottom:6px;}
 .carry-summary-row{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px;margin-bottom:7px;}
 .carry-summary-row:last-child{margin-bottom:0;}
 .calc-box{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.35);border-radius:8px;padding:12px;margin-top:10px;}
@@ -587,6 +590,8 @@ let editingLogId=null;
 let continuedFromLog=null;
 let editingStoreName=null;
 let currentFlowStep=1;
+let sameTablePromptKey='';
+let sameTableCarryOptOutKey='';
 let hydratingDraft=false;
 let draftSaveTimer=null;
 
@@ -691,6 +696,8 @@ function normalizeData(data){
     log.kuiPoint.released=!!log.kuiPoint.released;
     log.kuiPoint.gains=Array.isArray(log.kuiPoint.gains)?log.kuiPoint.gains:[];
     log.kuiPoint.hints=Array.isArray(log.kuiPoint.hints)?log.kuiPoint.hints:[];
+    log.continuedFromId=log.continuedFromId||log.continuedFromLog?.id||'';
+    log.sameTableCarryOptOut=!!log.sameTableCarryOptOut;
     log.flowStep=Number(log.flowStep)||4;
     log.state4Registered=log.state4Registered===false?false:true;
     log.finalized=log.finalized===false?false:true;
@@ -2109,6 +2116,33 @@ function applyLatestStoreForCurrentDate(){
   syncHeaderFromMoney();
   applyLatestMedalsForCurrentStore();
 }
+function currentDraftHasRecordContent(){
+  return currentStartLog.length>0||currentTimeline.length>0||currentSuggestLog.length>0||!!currentEndLog||!!document.getElementById('publicMemo')?.value.trim()||!!document.getElementById('privateMemo')?.value.trim();
+}
+function latestSameTableLogForInput(){
+  const identity=currentTableIdentity();
+  if(!identity)return null;
+  return sameTableLogs(identity,editingLogId||'')[0]||null;
+}
+function maybePromptSameTableContinue(){
+  if(hydratingDraft||editingLogId||continuedFromLog)return;
+  if(currentDraftHasRecordContent())return;
+  const identity=currentTableIdentity();
+  if(!identity)return;
+  const key=`${identity.date}|${identity.store}|${identity.machineNo}`;
+  if(sameTablePromptKey===key)return;
+  const log=latestSameTableLogForInput();
+  if(!log)return;
+  sameTablePromptKey=key;
+  if(confirm('同じ台のログがあります。続行として引き継ぎますか？')){
+    sameTableCarryOptOutKey='';
+    continueFromLog(log.id);
+  }else{
+    sameTableCarryOptOutKey=key;
+    renderCarrySummaryIntoDom();
+    renderPracticeStats();
+  }
+}
 function addStoreFromInput(source='money'){
   const name=prompt('追加する店舗名');
   if(name===null)return;
@@ -2198,6 +2232,9 @@ function syncHeaderFromStart(){
   setFieldValue('moneyStart',document.getElementById('startMoneyStart')?.value||'');
   applyLatestMedalsForCurrentStore();
   updateCalc();
+  maybePromptSameTableContinue();
+  renderCarrySummaryIntoDom();
+  renderPracticeStats();
 }
 function syncHeaderFromMoney(){
   setFieldValue('startMoneyDate',document.getElementById('moneyDate')?.value||'');
@@ -2208,6 +2245,9 @@ function syncHeaderFromMoney(){
   setFieldValue('startMoneyStart',document.getElementById('moneyStart')?.value||'');
   applyLatestMedalsForCurrentStore();
   updateCalc();
+  maybePromptSameTableContinue();
+  renderCarrySummaryIntoDom();
+  renderPracticeStats();
 }
 function renderLogFields(){
   const aim=currentAim();
@@ -2756,15 +2796,97 @@ function renderCurrentSuggestLog(){
       <div class="timeline-text">${suggestLogLineHtml(entry)}</div>
     </div>`).join('');
 }
+function tableIdentityFromMoney(money){
+  const date=String(money?.date||'').trim();
+  const store=String(money?.store||'').trim();
+  const machineNo=String(money?.machineNo||'').trim();
+  if(!date||!store||!machineNo)return null;
+  return {date,store,machineNo};
+}
+function currentTableIdentity(){
+  return tableIdentityFromMoney({
+    date:document.getElementById('moneyDate')?.value||todayValue(),
+    store:document.getElementById('moneyStore')?.value||'',
+    machineNo:document.getElementById('moneyMachineNo')?.value||''
+  });
+}
+function sameTableIdentity(log,identity){
+  const logIdentity=tableIdentityFromMoney(log?.money||{});
+  return !!identity&&!!logIdentity&&logIdentity.date===identity.date&&logIdentity.store===identity.store&&logIdentity.machineNo===identity.machineNo;
+}
+function logSortTime(log){
+  return String(log?.createdAt||log?.updatedAt||'');
+}
+function sameTableLogs(identity,excludeId=''){
+  if(!identity)return [];
+  return db.logs
+    .filter(log=>log.id!==excludeId&&log.finalized!==false&&log.state4Registered!==false&&!log.sameTableCarryOptOut&&sameTableIdentity(log,identity))
+    .sort((a,b)=>logSortTime(b).localeCompare(logSortTime(a)));
+}
+function currentInputSameTableLogs(){
+  const identity=currentTableIdentity();
+  if(identity&&sameTableCarryOptOutKey===`${identity.date}|${identity.store}|${identity.machineNo}`)return [];
+  return sameTableLogs(identity,editingLogId||'');
+}
+function endLogHasAt(endLog){
+  if(!endLog)return false;
+  if((Number(endLog.atCount)||0)>0||(Number(endLog.directAtCount)||0)>0||(Number(endLog.episodeBonusCount)||0)>0)return true;
+  const counts=endResultCounts(endLog.reason);
+  return !!counts&&((Number(counts.atCount)||0)>0||(Number(counts.directAtCount)||0)>0||(Number(counts.episodeBonusCount)||0)>0);
+}
+function isAfterAtModeEntry(entry){
+  const place=String(entry?.place||'');
+  return entry?.placeId==='sgp_tokyo_ghoul_after_at_mode'||place.includes('AT終了後のモード移行')||place.includes('AT終了後');
+}
+function carrySummaryRelativeLabel(index,log,atBoundary=false){
+  if(index===0)return '今回';
+  if(atBoundary)return '前回AT';
+  if(index===1)return '前回';
+  if(index===2)return '前々回';
+  return `${index}回前`;
+}
+function carryEntriesFromLog(log,type){
+  return (log?.suggestLog||[]).filter(entry=>normalizeCarryType(entry.carryType)===type);
+}
+function currentCarryEntries(type){
+  const entries=currentSuggestLog.filter(entry=>normalizeCarryType(entry.carryType)===type);
+  if(type==='mode'&&endLogHasAt(currentEndLog))return entries.filter(isAfterAtModeEntry);
+  return entries;
+}
+function buildCarrySummaryGroups(type){
+  const groups=[];
+  const currentEntries=currentCarryEntries(type);
+  if(currentEntries.length)groups.push({label:carrySummaryRelativeLabel(0),entries:currentEntries});
+  if(type==='mode'&&endLogHasAt(currentEndLog))return groups;
+  const previousLogs=currentInputSameTableLogs();
+  let previousIndex=1;
+  for(const log of previousLogs){
+    let entries=carryEntriesFromLog(log,type);
+    let atBoundary=false;
+    if(type==='mode'&&endLogHasAt(log.endLog)){
+      entries=entries.filter(isAfterAtModeEntry);
+      atBoundary=true;
+    }
+    if(entries.length)groups.push({label:carrySummaryRelativeLabel(previousIndex,log,atBoundary),entries,log});
+    if(type==='mode'&&atBoundary)break;
+    previousIndex++;
+  }
+  return groups;
+}
 function carrySummaryEntries(type){
-  return sortedSuggestLog().filter(entry=>normalizeCarryType(entry.carryType)===type);
+  return buildCarrySummaryGroups(type).flatMap(group=>group.entries);
 }
 function carrySummarySection(type,title,open){
-  const rows=carrySummaryEntries(type);
-  const body=rows.length?rows.map(entry=>`
-    <div class="carry-summary-row">
-      <div class="timeline-game">${escapeHtml(suggestGameText(entry)||'G数なし')}</div>
-      <div class="timeline-text">${suggestLogLineHtml(entry)}</div>
+  const groups=buildCarrySummaryGroups(type);
+  const rows=groups.flatMap(group=>group.entries);
+  const body=groups.length?groups.map(group=>`
+    <div class="carry-summary-group">
+      <div class="carry-summary-group-title">${escapeHtml(group.label)}</div>
+      ${group.entries.map(entry=>`
+        <div class="carry-summary-row">
+          <div class="timeline-game">${escapeHtml(suggestGameText(entry)||'G数なし')}</div>
+          <div class="timeline-text">${suggestLogLineHtml(entry)}</div>
+        </div>`).join('')}
     </div>`).join(''):'<div class="empty-hint">まだ対象の示唆はありません</div>';
   return `
     <div class="carry-summary-section ${type} ${open?'open':''}">
@@ -3278,18 +3400,38 @@ function countTypesForTimelineItem(item,machine){
   const text=String(item.text||'');
   return [...new Set((machine?.tags||[]).filter(t=>t.countAs&&text.includes(t.label)).map(t=>t.countAs))];
 }
+function endLogCounts(endLog){
+  return {
+    cz:Number(endLog?.czCount)||0,
+    upper_cz:Number(endLog?.upperCzCount)||0,
+    at:Number(endLog?.atCount)||0,
+    direct_at:Number(endLog?.directAtCount)||0,
+    episode_bonus:Number(endLog?.episodeBonusCount)||0
+  };
+}
+function addCounts(base,extra){
+  Object.keys(base).forEach(key=>{base[key]+=Number(extra[key])||0;});
+  return base;
+}
+function statsChainLogsFor(log){
+  const identity=tableIdentityFromMoney(log?.money||{});
+  if(!identity)return [];
+  if(log?.sameTableCarryOptOut)return [];
+  if(sameTableCarryOptOutKey===`${identity.date}|${identity.store}|${identity.machineNo}`&&log?.id==='__current_draft__')return [];
+  const cutoff=logSortTime(log);
+  return sameTableLogs(identity,log?.id||'')
+    .filter(prev=>!cutoff||logSortTime(prev)<cutoff)
+    .sort((a,b)=>logSortTime(a).localeCompare(logSortTime(b)));
+}
 function calculatePracticeStats(log){
   if(log?.excludeFromStats)return {startCounter:logStartCounterValue(log),endGame:null,spins:null,counts:{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0},excluded:true};
-  const startCounter=logStartCounterValue(log);
+  const chain=statsChainLogsFor(log);
+  const firstChainStart=chain.map(logStartCounterValue).find(value=>value!==null&&value!==undefined);
+  const startCounter=firstChainStart!==undefined?firstChainStart:logStartCounterValue(log);
   const endGame=log.endLog?.game!==undefined&&log.endLog?.game!==null?Number(log.endLog.game):null;
   const spins=startCounter!==null&&endGame!==null&&!Number.isNaN(endGame)?endGame-startCounter:null;
-  const counts={
-    cz:Number(log.endLog?.czCount)||0,
-    upper_cz:Number(log.endLog?.upperCzCount)||0,
-    at:Number(log.endLog?.atCount)||0,
-    direct_at:Number(log.endLog?.directAtCount)||0,
-    episode_bonus:Number(log.endLog?.episodeBonusCount)||0
-  };
+  const counts=chain.reduce((sum,item)=>addCounts(sum,endLogCounts(item.endLog)),{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0});
+  addCounts(counts,endLogCounts(log.endLog));
   return {startCounter,endGame,spins,counts};
 }
 function formatProbability(spins,count){
@@ -3312,7 +3454,21 @@ function practiceStatsLine(stats){
 function renderPracticeStats(){
   const el=document.getElementById('practiceStatsBox');
   if(!el)return;
-  const log={machineId:selectedMachineId,startCounterGame:currentStartCounterGame,startLog:currentStartLog,timeline:currentTimeline,endLog:currentEndLog};
+  const log={
+    id:editingLogId||'__current_draft__',
+    machineId:selectedMachineId,
+    startCounterGame:currentStartCounterGame,
+    startLog:currentStartLog,
+    timeline:currentTimeline,
+    endLog:currentEndLog,
+    money:{
+      date:document.getElementById('moneyDate')?.value||todayValue(),
+      store:document.getElementById('moneyStore')?.value||'',
+      machineNo:document.getElementById('moneyMachineNo')?.value||''
+    },
+    sameTableCarryOptOut:sameTableCarryOptOutKey===`${document.getElementById('moneyDate')?.value||todayValue()}|${document.getElementById('moneyStore')?.value||''}|${document.getElementById('moneyMachineNo')?.value||''}`,
+    createdAt:(editingLogId?db.logs.find(log=>log.id===editingLogId)?.createdAt:null)||new Date().toISOString()
+  };
   const stats=calculatePracticeStats(log);
   el.innerHTML=`
     <div class="calc-box">
@@ -3447,6 +3603,8 @@ function currentInputLogObject(finalized=false, existingLog=null){
     state4Registered:!!finalized,
     finalized:!!finalized,
     excludeFromStats:!finalized,
+    continuedFromId:continuedFromLog?.id||existingLog?.continuedFromId||'',
+    sameTableCarryOptOut:sameTableCarryOptOutKey===`${baseMoney.date}|${baseMoney.store}|${baseMoney.machineNo}`,
     startCounterGame:currentStartCounterGame,
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
@@ -3535,6 +3693,8 @@ function saveLog(){
     state4Registered:true,
     finalized:true,
     excludeFromStats:false,
+    continuedFromId:continuedFromLog?.id||editingLog?.continuedFromId||'',
+    sameTableCarryOptOut:sameTableCarryOptOutKey===`${baseMoney.date}|${baseMoney.store}|${baseMoney.machineNo}`,
     startCounterGame:startCounter,
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
@@ -3589,6 +3749,10 @@ function archiveCurrentDraftAsUnfinalized(){
 function clearLogInput(cancelEdit=true){
   if(cancelEdit)editingLogId=null;
   continuedFromLog=null;
+  sameTablePromptKey='';
+  sameTableCarryOptOutKey='';
+  modeSummaryOpen=false;
+  settingSummaryOpen=false;
   currentFlowStep=1;
   document.querySelectorAll('#pageLog input,#pageLog textarea').forEach(el=>{
     if(el.type==='checkbox')el.checked=false;
@@ -3698,6 +3862,8 @@ function loadDraftIntoInputs(log){
   selectedAimId=log.aimId||firstAimIdForMachine(machine);
   currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
   continuedFromLog=log.continuedFromLog?clone(log.continuedFromLog):null;
+  const draftIdentity=tableIdentityFromMoney(log.money||{});
+  sameTableCarryOptOutKey=log.sameTableCarryOptOut&&draftIdentity?`${draftIdentity.date}|${draftIdentity.store}|${draftIdentity.machineNo}`:'';
   currentStartCounterGame=logStartCounterValue(log);
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
@@ -3718,6 +3884,7 @@ function loadDraftIntoInputs(log){
   renderCurrentTimeline();
   renderEndLog();
   renderCurrentSuggestLog();
+  renderCarrySummaryIntoDom();
   renderPracticeStats();
   hydratingDraft=false;
 }
@@ -3739,6 +3906,8 @@ function loadLogForEdit(id){
   }
   editingLogId=id;
   continuedFromLog=null;
+  const editIdentity=tableIdentityFromMoney(log.money||{});
+  sameTableCarryOptOutKey=log.sameTableCarryOptOut&&editIdentity?`${editIdentity.date}|${editIdentity.store}|${editIdentity.machineNo}`:'';
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
   currentStartCounterGame=logStartCounterValue(log);
@@ -3760,6 +3929,7 @@ function loadLogForEdit(id){
   renderEndLog();
   renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
+  renderCarrySummaryIntoDom();
   renderPracticeStats();
   updateEditModeUi();
   window.scrollTo({top:0,behavior:'smooth'});
@@ -3778,13 +3948,14 @@ function continueFromLog(id){
     persist();
   }
   editingLogId=null;
+  sameTableCarryOptOutKey='';
   currentFlowStep=1;
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
-  currentStartCounterGame=0;
+  currentStartCounterGame=normalizeOptionalNumber(log.endLog?.game)??0;
   currentStartLog=[];
   currentTimeline=[];
-  currentTimelineDataGame=null;
+  currentTimelineDataGame=normalizeOptionalNumber(log.endLog?.game);
   currentTimelineLiquidOffset=0;
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
@@ -3819,6 +3990,7 @@ function continueFromLog(id){
   renderCurrentTimeline();
   renderEndLog();
   renderCurrentSuggestLog();
+  renderCarrySummaryIntoDom();
   renderPracticeStats();
   updateEditModeUi();
   scheduleDraftSave();
