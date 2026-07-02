@@ -51,6 +51,10 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .inline-field{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
 .inline-field input,.inline-field select{min-width:0;flex:1;}
 .inline-field .btn-small{flex:0 0 auto;}
+.game-pair-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0;}
+.game-pair-field{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.12);border:1px solid var(--border);border-radius:8px;padding:8px;}
+.game-pair-field label{font-size:12px;color:var(--text-muted);font-weight:700;white-space:nowrap;}
+.game-pair-field input{min-width:0;width:auto;flex:1;text-align:center;}
 .btn-primary{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:10px;}
 .btn-primary:active{opacity:.82;}
 .btn-secondary{width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:14px;padding:11px;cursor:pointer;margin-top:8px;}
@@ -190,6 +194,9 @@ footer a:hover{color:var(--gold-light);}
   .inline-field{width:100%;}
   .input-row.compact-row .inline-field{width:auto;min-width:0;}
   .input-row.compact-row .btn-small{padding:6px 8px;}
+  .game-pair-row{gap:6px;}
+  .game-pair-field{gap:4px;padding:6px;}
+  .game-pair-field label{font-size:11px;}
   .item-head{flex-direction:column;}
   .item-actions{justify-content:flex-start;width:100%;}
 }
@@ -527,7 +534,16 @@ const SUGGEST_STATE_GROUPS=[
   {id:'play',label:'稼働中'},
   {id:'hit',label:'当選時'}
 ];
+const END_RESULT_OPTIONS=[
+  {value:'CZ当選→AT非当選',label:'CZ当選→AT非当選',counts:{czCount:1,upperCzCount:0,atCount:0,directAtCount:0,episodeBonusCount:0}},
+  {value:'CZ当選→AT当選',label:'CZ当選→AT当選',counts:{czCount:1,upperCzCount:0,atCount:1,directAtCount:0,episodeBonusCount:0}},
+  {value:'上位CZ当選→AT非当選',label:'上位CZ当選→AT非当選',counts:{czCount:0,upperCzCount:1,atCount:0,directAtCount:0,episodeBonusCount:0}},
+  {value:'上位CZ当選→AT当選',label:'上位CZ当選→AT当選',counts:{czCount:0,upperCzCount:1,atCount:1,directAtCount:0,episodeBonusCount:0}},
+  {value:'エピソードボーナス当選',label:'エピソードボーナス当選',counts:{czCount:0,upperCzCount:0,atCount:1,directAtCount:0,episodeBonusCount:1}},
+  {value:'AT直撃',label:'AT直撃',counts:{czCount:0,upperCzCount:0,atCount:1,directAtCount:1,episodeBonusCount:0}}
+];
 const CARRY_TYPE_OPTIONS=['setting','mode'];
+const KUI_POINT_OPTIONS=['大','中','小','なし'];
 const EMPTY_DATA={version:1,machines:[],stores:[],logs:[]};
 let db=loadData();
 let selectedMachineId=db.machines[0]?.id||'';
@@ -536,14 +552,17 @@ let activeNumericInput=null;
 let currentStartLog=[];
 let currentStartCounterGame=0;
 let currentTimeline=[];
+let currentTimelineDataGame=null;
 let currentTimelineLiquidOffset=0;
+let linkedEndDataGame=null;
+let linkedEndLiquidGame=null;
 let currentEndLog=null;
 let currentSuggestLog=[];
 let pendingTimelineTagIds=[];
 let timelineHistoryOpen=false;
 let recentTimelineHighlightId='';
 let recentSuggestHighlightId='';
-let suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:''};
+let suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:''};
 let pendingSuggestSelection=null;
 let editingLogId=null;
 let continuedFromLog=null;
@@ -658,12 +677,19 @@ function normalizeData(data){
     log.excludeFromStats=log.state4Registered===false||log.finalized===false;
     log.endLog=log.endLog&&typeof log.endLog==='object'?log.endLog:null;
     if(log.endLog){
+      log.endLog.game=normalizeOptionalNumber(log.endLog.game);
+      log.endLog.liquidGame=normalizeOptionalNumber(log.endLog.liquidGame);
+      if(log.endLog.game!==null&&log.endLog.liquidGame===null)log.endLog.liquidGame=log.endLog.game;
       log.endLog.czCount=Number(log.endLog.czCount)||0;
       log.endLog.atCount=Number(log.endLog.atCount)||0;
       log.endLog.czSuccessCount=Number(log.endLog.czSuccessCount)||0;
       log.endLog.upperCzCount=Number(log.endLog.upperCzCount)||0;
       log.endLog.directAtCount=Number(log.endLog.directAtCount)||0;
       log.endLog.episodeBonusCount=Number(log.endLog.episodeBonusCount)||0;
+      const counts=endResultCounts(log.endLog.reason);
+      if(counts&&log.endLog.czCount===0&&log.endLog.upperCzCount===0&&log.endLog.atCount===0&&log.endLog.directAtCount===0&&log.endLog.episodeBonusCount===0){
+        Object.assign(log.endLog,counts);
+      }
     }
     if(!log.money)log.money={};
     log.money.publishStore=!!log.money.publishStore;
@@ -1097,7 +1123,11 @@ function migrateKuiPointMaster(machine){
   moveSuggestPlaceBetweenCategories(mode,kui,'喰ポイント示唆','示唆');
   reorderSuggestPlaces(kui,['獲得','示唆']);
   ['獲得','示唆'].forEach(name=>{
-    reorderSuggestItems(findSuggestPlaceByName(kui,name),['小','中','大']);
+    const place=findSuggestPlaceByName(kui,name);
+    KUI_POINT_OPTIONS.forEach(label=>{
+      if(place&&!place.items.some(item=>item.label===label))place.items.push({id:`${place.id}_i_${label}`,label,enabled:true,carryType:null,pointRole:place.pointRole||suggestPointRole(kui,place)});
+    });
+    reorderSuggestItems(place,KUI_POINT_OPTIONS);
   });
   reorderSuggestCategories(machine,['モード示唆','設定示唆','喰ポイント']);
 }
@@ -1182,7 +1212,7 @@ function migrateTokyoGhoulSuggestLogs(data){
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV11)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV12)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const tag=(id,label,optional=false,rule={},tagClass='')=>({id,label,optional,countAs:null,liquidDelta:rule.liquidDelta??null,liquidSet:rule.liquidSet??null,tagClass});
   const timelineTags=[
@@ -1324,14 +1354,16 @@ function ensureSuggestSeed(machine){
       useAppearG:false,
       places:[
         place('sgp_tokyo_ghoul_kui_point_get','獲得',[
-          '小',
+          '大',
           '中',
-          '大'
+          '小',
+          'なし'
         ]),
         place('sgp_tokyo_ghoul_kui_point_hint','示唆',[
-          '小',
+          '大',
           '中',
-          '大'
+          '小',
+          'なし'
         ])
       ]
     }
@@ -1351,6 +1383,7 @@ function ensureSuggestSeed(machine){
   machine.suggestSeedTokyoGhoulV9=true;
   machine.suggestSeedTokyoGhoulV10=true;
   machine.suggestSeedTokyoGhoulV11=true;
+  machine.suggestSeedTokyoGhoulV12=true;
 }
 function todayValue(){
   const d=new Date();
@@ -1478,7 +1511,10 @@ function addMachine(){
   currentStartCounterGame=0;
   currentStartLog=[];
   currentTimeline=[];
+  currentTimelineDataGame=null;
   currentTimelineLiquidOffset=0;
+  linkedEndDataGame=null;
+  linkedEndLiquidGame=null;
   currentEndLog=null;
   currentSuggestLog=[];
   pendingSuggestSelection=null;
@@ -1493,7 +1529,10 @@ function selectMachine(id){
   currentStartCounterGame=0;
   currentStartLog=[];
   currentTimeline=[];
+  currentTimelineDataGame=null;
   currentTimelineLiquidOffset=0;
+  linkedEndDataGame=null;
+  linkedEndLiquidGame=null;
   currentEndLog=null;
   currentSuggestLog=[];
   pendingSuggestSelection=null;
@@ -1993,7 +2032,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineLiquidOffset=0;currentEndLog=null;currentSuggestLog=[];pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineDataGame=null;currentTimelineLiquidOffset=0;linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentSuggestLog=[];pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -2202,9 +2241,19 @@ function renderTagGroup(title,tags,handler){
   if(!tags.length)return '';
   return `<div class="tag-group"><div class="tag-group-title">${escapeHtml(title)}</div><div class="tag-buttons">${tags.map(t=>tagButtonHtml(t,handler)).join('')}</div></div>`;
 }
+function sortTimelineTagGroup(tags,groupName){
+  if(groupName!=='rare')return tags;
+  const order=['弱チェリー','強チェリー','チャンス目','スイカ10','スイカ100','スイカMAX','赫眼リプレイ','喰図柄揃い','確定チェリー'];
+  const rank=new Map(order.map((label,i)=>[label,i]));
+  return tags.map((tag,i)=>({...tag,__order:i})).sort((a,b)=>{
+    const ai=rank.has(a.label)?rank.get(a.label):999+a.__order;
+    const bi=rank.has(b.label)?rank.get(b.label):999+b.__order;
+    return ai-bi;
+  }).map(({__order,...tag})=>tag);
+}
 function renderTimelineTagGroups(mainTags,optionalTags,handler,target){
   const grouped=tags=>({
-    rare:tags.filter(t=>tagGroupName(t)==='rare'),
+    rare:sortTimelineTagGroup(tags.filter(t=>tagGroupName(t)==='rare'),'rare'),
     stage:tags.filter(t=>tagGroupName(t)==='stage'),
     other:tags.filter(t=>tagGroupName(t)==='other')
   });
@@ -2447,6 +2496,7 @@ function renderSuggestArea(stateGroup=''){
   return `
     <div class="section-label" style="margin-top:14px;">示唆記録</div>
     <p class="section-note">${fixedGroup?`${suggestStateLabel(fixedGroup)}の示唆だけを表示しています。`:'状態を押すと確認場所 → 内容の順に選べます。'} 引き継ぎ種別は内容ごとに保存されます。</p>
+    ${fixedGroup?renderGamePairInputs('suggest'):''}
     <div class="tag-buttons">
       ${fixedGroup?placeButtons:stateGroups.map(group=>`<button class="tag-btn gold" onclick="openSuggestPlacePicker('${group.id}')">${escapeHtml(group.label)}</button>`).join('')}
     </div>
@@ -2454,8 +2504,13 @@ function renderSuggestArea(stateGroup=''){
     <div id="suggestLogList" style="margin-top:10px;"></div>`;
 }
 function openSuggestItemPicker(categoryId,placeId,stateGroup){
+  const category=enabledSuggestCategories().find(c=>c.id===categoryId);
   const place=enabledSuggestPlaces(categoryId).find(p=>p.id===placeId);
   if(!place)return;
+  if(category?.category==='喰ポイント'){
+    openKuiPointPicker(categoryId,stateGroup);
+    return;
+  }
   suggestPickerState={stateGroup:normalizeSuggestStateGroup(stateGroup)||suggestPlaceStateGroup(enabledSuggestCategories().find(c=>c.id===categoryId),place),categoryId,placeId,itemId:''};
   renderSuggestPicker('item');
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
@@ -2469,10 +2524,16 @@ function openSuggestPlacePicker(stateGroup){
 }
 function closeSuggestPicker(){
   document.getElementById('suggestPickerOverlay')?.classList.remove('open');
-  suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:''};
+  suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:''};
 }
 function backSuggestPicker(){
-  if(suggestPickerState.itemId){
+  if(suggestPickerState.kuiStage==='hint'){
+    suggestPickerState.kuiStage='gain';
+    suggestPickerState.kuiGain='';
+    renderKuiPointPicker();
+  }else if(suggestPickerState.kuiStage==='gain'){
+    closeSuggestPicker();
+  }else if(suggestPickerState.itemId){
     suggestPickerState.itemId='';
     renderSuggestPicker('item');
   }else if(suggestPickerState.placeId){
@@ -2481,6 +2542,58 @@ function backSuggestPicker(){
   }else{
     closeSuggestPicker();
   }
+}
+function openKuiPointPicker(categoryId,stateGroup){
+  const category=enabledSuggestCategories().find(c=>c.id===categoryId);
+  if(!category)return;
+  suggestPickerState={stateGroup:normalizeSuggestStateGroup(stateGroup)||'hit',categoryId:category.id,placeId:'',itemId:'',kuiStage:'gain',kuiGain:''};
+  renderKuiPointPicker();
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function renderKuiPointPicker(){
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  const stage=suggestPickerState.kuiStage==='hint'?'hint':'gain';
+  title.textContent=stage==='gain'?'喰ポイント獲得を選択':'喰ポイント示唆を選択';
+  breadcrumb.textContent=stage==='gain'?'喰ポイント / 獲得':'喰ポイント / 獲得：'+(suggestPickerState.kuiGain||'未選択')+' / 示唆';
+  back.textContent=stage==='gain'?'閉じる':'獲得に戻る';
+  options.innerHTML=KUI_POINT_OPTIONS.map(value=>`<button class="suggest-picker-option" onclick="selectKuiPointValue('${value}')">${value}</button>`).join('');
+}
+function selectKuiPointValue(value){
+  if(!KUI_POINT_OPTIONS.includes(value))return;
+  if(suggestPickerState.kuiStage!=='hint'){
+    suggestPickerState.kuiGain=value;
+    suggestPickerState.kuiStage='hint';
+    renderKuiPointPicker();
+    return;
+  }
+  const gain=suggestPickerState.kuiGain||'なし';
+  const hint=value;
+  addKuiPointSuggestLog('獲得',gain);
+  addKuiPointSuggestLog('示唆',hint);
+  closeSuggestPicker();
+}
+function addKuiPointSuggestLog(placeName,itemLabel){
+  const category=enabledSuggestCategories().find(c=>c.id===suggestPickerState.categoryId)||findSuggestCategoryByName(currentMachine(),'喰ポイント');
+  const place=findSuggestPlaceByName(category,placeName);
+  const item=place?.items?.find(i=>i.label===itemLabel);
+  const selection={
+    stateGroup:'hit',
+    carryType:null,
+    pointRole:placeName==='獲得'?'gain':'hint',
+    categoryId:category?.id||'',
+    placeId:place?.id||'',
+    itemId:item?.id||'',
+    category:'喰ポイント',
+    place:placeName,
+    item:itemLabel,
+    decorations:[],
+    useAppearG:false
+  };
+  addSuggestLogFromSelection(selection);
 }
 function renderSuggestPicker(stage){
   const category=enabledSuggestCategories().find(c=>c.id===suggestPickerState.categoryId);
@@ -2649,6 +2762,30 @@ function deleteSuggestLogEntry(id){
   renderCurrentSuggestLog();
   scheduleDraftSave();
 }
+function renderGamePairInputs(prefix){
+  const dataId=prefix==='suggest'?'suggestTimelineGame':'timelineGame';
+  const liquidId=prefix==='suggest'?'suggestTimelineLiquidGame':'timelineLiquidGame';
+  const dataValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame);
+  const liquidValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame+currentTimelineLiquidOffset);
+  return `
+    <div class="game-pair-row">
+      <div class="game-pair-field">
+        <label for="${dataId}">データG数</label>
+        <input type="text" id="${dataId}" data-game-role="timeline-data" class="numeric-input" inputmode="none" readonly value="${escapeHtml(dataValue)}" placeholder="例：523" oninput="syncTimelineDataGame('${dataId}')" onchange="syncTimelineDataGame('${dataId}')">
+      </div>
+      <div class="game-pair-field">
+        <label for="${liquidId}">液晶G数</label>
+        <input type="text" id="${liquidId}" data-game-role="timeline-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="例：523" oninput="syncTimelineLiquidGame('${liquidId}')" onchange="syncTimelineLiquidGame('${liquidId}')">
+      </div>
+    </div>`;
+}
+function renderOutcomeQuickButtons(){
+  return `
+    <div class="log-tools">
+      <button class="btn-small gold" onclick="setTimelineOutcome('当選')">当選</button>
+      <button class="btn-small" onclick="setTimelineOutcome('ヤメ')">ヤメ</button>
+    </div>`;
+}
 function renderTimelineArea(mode='play'){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">時系列ログは機種選択後に使えます</div>';
@@ -2660,19 +2797,13 @@ function renderTimelineArea(mode='play'){
     </div>
     ${renderEndRecordArea()}`;
   return `
-    <div class="input-row">
-      <div class="input-label">データG数</div>
-      <input type="text" id="timelineGame" class="numeric-input" inputmode="none" readonly placeholder="例：523" oninput="syncTimelineDataGame()" onchange="syncTimelineDataGame()">
-    </div>
-    <div class="input-row">
-      <div class="input-label">液晶G数</div>
-      <input type="text" id="timelineLiquidGame" class="numeric-input" inputmode="none" readonly placeholder="例：523" oninput="syncTimelineLiquidGame()" onchange="syncTimelineLiquidGame()">
-    </div>
+    ${renderGamePairInputs('timeline')}
     <div class="log-tools">
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(1)">+1</button>
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(5)">+5</button>
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(10)">+10</button>
     </div>
+    ${renderOutcomeQuickButtons()}
     ${renderTagButtons('timeline')}
     <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState()"></textarea>
     <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
@@ -2680,48 +2811,31 @@ function renderTimelineArea(mode='play'){
     ${renderSuggestArea('play')}`;
 }
 function renderEndRecordArea(){
+  const endData=currentEndLog?.game??linkedEndDataGame??'';
+  const endLiquid=currentEndLog?.liquidGame??linkedEndLiquidGame??(endData!==''?endData:'');
   return `
     <div class="work-subsection end">
       <div class="work-section-title">打ち終わり</div>
       <div class="input-row">
         <div class="input-label no-wrap-label">打ち終わりデータG数<div class="input-hint">必須</div></div>
-        <input type="text" id="endGame" class="numeric-input" inputmode="none" readonly value="${currentEndLog?.game??''}" placeholder="例：800">
+        <input type="text" id="endGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(endData)}" placeholder="例：800">
+      </div>
+      <div class="input-row">
+        <div class="input-label no-wrap-label">打ち終わり液晶G数<div class="input-hint">当選ログから連動</div></div>
+        <input type="text" id="endLiquidGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(endLiquid)}" placeholder="例：800">
       </div>
       <div class="input-row">
         <div class="input-label no-wrap-label">結果</div>
         <div class="field-stack">
           <select id="endReason">
             <option value="">未選択</option>
-            <option value="CZ当選">CZ当選</option>
-            <option value="AT当選">AT当選</option>
-            <option value="ヤメ">ヤメ</option>
-            <option value="その他">その他</option>
+            ${END_RESULT_OPTIONS.map(option=>`<option value="${escapeHtml(option.value)}" ${currentEndLog?.reason===option.value?'selected':''}>${escapeHtml(option.label)}</option>`).join('')}
           </select>
-          <div class="input-hint">打ち終わり登録時は必須</div>
+          <div class="input-hint">打ち終わり登録時は必須。回数は結果から自動加算します。</div>
         </div>
       </div>
       <textarea id="endText" placeholder="結果の補足（任意）"></textarea>
-      <div class="input-row">
-        <div class="input-label no-wrap-label">CZ回数<div class="input-hint">この稼働の合計</div></div>
-        <div class="inline-field"><input type="text" id="endCzCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endCzCount')">+1</button></div>
-      </div>
-      <div class="input-row">
-        <div class="input-label no-wrap-label">上位CZ回数<div class="input-hint">この稼働の合計</div></div>
-        <div class="inline-field"><input type="text" id="endUpperCzCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endUpperCzCount')">+1</button></div>
-      </div>
-      <div class="input-row">
-        <div class="input-label no-wrap-label">AT回数<div class="input-hint">この稼働の合計</div></div>
-        <div class="inline-field"><input type="text" id="endAtCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endAtCount')">+1</button></div>
-      </div>
-      <div class="input-row">
-        <div class="input-label no-wrap-label">AT直撃<div class="input-hint">この稼働の合計</div></div>
-        <div class="inline-field"><input type="text" id="endDirectAtCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endDirectAtCount')">+1</button></div>
-      </div>
-      <div class="input-row">
-        <div class="input-label no-wrap-label">エピソードボーナス<div class="input-hint">この稼働の合計</div></div>
-        <div class="inline-field"><input type="text" id="endEpisodeBonusCount" class="numeric-input" inputmode="none" readonly placeholder="0"><button class="btn-small counter-btn" onclick="incrementEndCount('endEpisodeBonusCount')">+1</button></div>
-      </div>
-      <button class="btn-secondary end-btn" onclick="recordEndLog()">現在のデータG数で打ち終わり</button>
+      <button class="btn-secondary end-btn" onclick="recordEndLog()">打ち終わりを登録</button>
       <div id="endLogBox" style="margin-top:10px;"></div>
     </div>`;
 }
@@ -2757,42 +2871,58 @@ function appendTimelineTag(label){
   appendTextToField('timelineText',label);
   updateTimelineAddButtonState();
 }
+function setTimelineOutcome(label){
+  appendTextToField('timelineText',label);
+  updateTimelineAddButtonState();
+}
+function firstTimelineInput(role){
+  return document.querySelector(`[data-game-role="${role}"]`);
+}
 function timelineDataValue(){
-  return normalizeOptionalNumber(document.getElementById('timelineGame')?.value||'');
+  const domValue=normalizeOptionalNumber(firstTimelineInput('timeline-data')?.value||'');
+  return domValue!==null?domValue:currentTimelineDataGame;
 }
 function timelineLiquidValue(){
-  return normalizeOptionalNumber(document.getElementById('timelineLiquidGame')?.value||'');
+  const domValue=normalizeOptionalNumber(firstTimelineInput('timeline-liquid')?.value||'');
+  if(domValue!==null)return domValue;
+  return currentTimelineDataGame!==null?currentTimelineDataGame+currentTimelineLiquidOffset:null;
 }
 function setTimelineGames(dataGame,liquidGame){
-  const dataEl=document.getElementById('timelineGame');
-  const liquidEl=document.getElementById('timelineLiquidGame');
-  if(dataEl)dataEl.value=dataGame===null||dataGame===undefined?'':String(dataGame);
-  if(liquidEl)liquidEl.value=liquidGame===null||liquidGame===undefined?'':String(liquidGame);
+  currentTimelineDataGame=dataGame===null||dataGame===undefined?null:Number(dataGame);
+  const normalizedLiquid=liquidGame===null||liquidGame===undefined?null:Number(liquidGame);
+  if(currentTimelineDataGame!==null&&normalizedLiquid!==null)currentTimelineLiquidOffset=normalizedLiquid-currentTimelineDataGame;
+  document.querySelectorAll('[data-game-role="timeline-data"]').forEach(input=>{input.value=currentTimelineDataGame===null?'':String(currentTimelineDataGame);});
+  document.querySelectorAll('[data-game-role="timeline-liquid"]').forEach(input=>{input.value=normalizedLiquid===null?'':String(normalizedLiquid);});
 }
-function syncTimelineDataGame(){
-  const data=timelineDataValue();
-  const liquidEl=document.getElementById('timelineLiquidGame');
+function syncTimelineDataGame(sourceId=''){
+  const source=sourceId?document.getElementById(sourceId):firstTimelineInput('timeline-data');
+  const data=normalizeOptionalNumber(source?.value||'');
   if(data===null){
-    if(liquidEl)liquidEl.value='';
+    setTimelineGames(null,null);
+    scheduleDraftSave();
     return;
   }
-  if(liquidEl)liquidEl.value=String(data+currentTimelineLiquidOffset);
+  setTimelineGames(data,data+currentTimelineLiquidOffset);
+  scheduleDraftSave();
 }
-function syncTimelineLiquidGame(){
-  const dataEl=document.getElementById('timelineGame');
-  const liquid=timelineLiquidValue();
-  let data=timelineDataValue();
-  if(liquid===null)return;
-  if(data===null){
-    data=liquid;
-    if(dataEl)dataEl.value=String(data);
+function syncTimelineLiquidGame(sourceId=''){
+  const source=sourceId?document.getElementById(sourceId):firstTimelineInput('timeline-liquid');
+  const liquid=normalizeOptionalNumber(source?.value||'');
+  if(liquid===null){
+    setTimelineGames(null,null);
+    scheduleDraftSave();
+    return;
   }
-  currentTimelineLiquidOffset=liquid-data;
+  let data=currentTimelineDataGame;
+  if(data===null)data=liquid;
+  setTimelineGames(data,liquid);
+  scheduleDraftSave();
 }
 function incrementTimelineGame(delta){
-  const current=timelineDataValue()??0;
+  const current=currentTimelineDataGame??timelineDataValue()??0;
   const next=current+delta;
   setTimelineGames(next,next+currentTimelineLiquidOffset);
+  scheduleDraftSave();
 }
 function tagLiquidRule(tagIds){
   const machine=currentMachine();
@@ -2822,6 +2952,22 @@ function applyLiquidRuleAfterTimelineAdd(tagIds){
     setTimelineGames(data,nextLiquid);
   }
 }
+function timelineEntryIsEndLink(entry){
+  const text=String(entry?.text||'');
+  return text.includes('当選')||text.includes('ヤメ');
+}
+function updateLinkedEndGameInputs(){
+  const dataEl=document.getElementById('endGame');
+  const liquidEl=document.getElementById('endLiquidGame');
+  if(dataEl&&linkedEndDataGame!==null&&linkedEndDataGame!==undefined)dataEl.value=String(linkedEndDataGame);
+  if(liquidEl&&linkedEndLiquidGame!==null&&linkedEndLiquidGame!==undefined)liquidEl.value=String(linkedEndLiquidGame);
+}
+function linkEndGamesFromTimelineEntry(entry){
+  if(!timelineEntryIsEndLink(entry))return;
+  linkedEndDataGame=normalizeOptionalNumber(entry.game);
+  linkedEndLiquidGame=timelineLiquidGameValue(entry);
+  updateLinkedEndGameInputs();
+}
 function sortedTimeline(){
   return [...currentTimeline].sort((a,b)=>{
     return String(b.createdAt).localeCompare(String(a.createdAt));
@@ -2839,20 +2985,19 @@ function timelineGameLine(item){
   return `データ${data}G / 液晶${liquid!==null?liquid:data}G`;
 }
 function addTimelineEntry(){
-  const gameEl=document.getElementById('timelineGame');
-  const liquidEl=document.getElementById('timelineLiquidGame');
   const textEl=document.getElementById('timelineText');
-  const game=Number(gameEl?.value);
-  const liquidGame=liquidEl?.value?Number(liquidEl.value):game;
+  const game=timelineDataValue();
+  const liquidGame=timelineLiquidValue()??game;
   const text=(textEl?.value||'').trim();
-  if(!gameEl?.value||Number.isNaN(game)){alert('G数を入力してください');return;}
-  if(liquidEl?.value&&Number.isNaN(liquidGame)){alert('液晶G数を入力してください');return;}
+  if(game===null){alert('G数を入力してください');return;}
+  if(liquidGame===null){alert('液晶G数を入力してください');return;}
   if(!text){alert('内容を入力してください');return;}
   const tagIds=[...pendingTimelineTagIds];
   const entry={id:uid('tl'),game,liquidGame,text,tagIds,countAs:[],createdAt:new Date().toISOString()};
   currentTimeline.push(entry);
   recentTimelineHighlightId=entry.id;
   timelineHistoryOpen=true;
+  linkEndGamesFromTimelineEntry(entry);
   applyLiquidRuleAfterTimelineAdd(tagIds);
   pendingTimelineTagIds=[];
   textEl.value='';
@@ -2894,12 +3039,18 @@ function editTimelineEntry(id){
   const text=prompt('内容',item.text);if(text===null)return;
   if(!text.trim()){alert('内容を入力してください');return;}
   item.game=num;item.liquidGame=liquidNum;item.text=text.trim();
+  linkEndGamesFromTimelineEntry(item);
   renderCurrentTimeline();
   renderPracticeStats();
   scheduleDraftSave();
 }
 function deleteTimelineEntry(id){
   if(!confirm('この時系列ログを削除しますか？'))return;
+  const item=currentTimeline.find(t=>t.id===id);
+  if(item&&timelineEntryIsEndLink(item)&&!currentEndLog){
+    linkedEndDataGame=null;
+    linkedEndLiquidGame=null;
+  }
   currentTimeline=currentTimeline.filter(t=>t.id!==id);
   if(recentTimelineHighlightId===id)recentTimelineHighlightId='';
   renderCurrentTimeline();
@@ -2909,55 +3060,48 @@ function deleteTimelineEntry(id){
 
 function recordEndLog(){
   const gameEl=document.getElementById('endGame')||document.getElementById('timelineGame');
+  const liquidEl=document.getElementById('endLiquidGame')||document.getElementById('timelineLiquidGame');
   const reasonEl=document.getElementById('endReason');
   const textEl=document.getElementById('endText');
   const game=Number(gameEl?.value);
+  const liquidGame=liquidEl?.value?Number(liquidEl.value):game;
   const reason=(reasonEl?.value||'').trim();
   const text=(textEl?.value||'').trim();
-  const czCount=readNonNegativeInt('endCzCount','CZ回数');
-  if(czCount===null)return;
-  const upperCzCount=readNonNegativeInt('endUpperCzCount','上位CZ回数');
-  if(upperCzCount===null)return;
-  const atCount=readNonNegativeInt('endAtCount','AT回数');
-  if(atCount===null)return;
-  const directAtCount=readNonNegativeInt('endDirectAtCount','AT直撃');
-  if(directAtCount===null)return;
-  const episodeBonusCount=readNonNegativeInt('endEpisodeBonusCount','エピソードボーナス');
-  if(episodeBonusCount===null)return;
   if(!gameEl?.value||Number.isNaN(game)){alert('打ち終わりのデータカウンターG数を入力してください');return;}
+  if(liquidEl?.value&&Number.isNaN(liquidGame)){alert('打ち終わりの液晶G数を入力してください');return;}
   if(!reason){alert('結果を選択してください');return;}
+  const counts=endResultCounts(reason);
+  if(!counts){alert('結果を選び直してください');return;}
   if(currentEndLog&&!confirm('打ち終わりデータを上書きしますか？'))return;
-  currentEndLog={id:currentEndLog?.id||uid('el'),game,reason,text,czCount,upperCzCount,atCount,directAtCount,episodeBonusCount,createdAt:currentEndLog?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  currentEndLog={id:currentEndLog?.id||uid('el'),game,liquidGame,reason,text,...counts,createdAt:currentEndLog?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  linkedEndDataGame=game;
+  linkedEndLiquidGame=liquidGame;
   if(reasonEl)reasonEl.value='';
   if(textEl)textEl.value='';
-  ['endCzCount','endUpperCzCount','endAtCount','endDirectAtCount','endEpisodeBonusCount'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderEndLog();
   renderPracticeStats();
   scheduleDraftSave();
 }
-function incrementEndCount(id){
-  const el=document.getElementById(id);
-  if(!el)return;
-  const current=Number(el.value)||0;
-  el.value=String(current+1);
-  el.dispatchEvent(new Event('input',{bubbles:true}));
-  el.dispatchEvent(new Event('change',{bubbles:true}));
-}
-function readNonNegativeInt(id,label){
-  const raw=(document.getElementById(id)?.value||'').trim();
-  if(raw==='')return 0;
-  const num=Number(raw);
-  if(!Number.isInteger(num)||num<0){alert(`${label}は0以上の整数で入力してください`);return null;}
-  return num;
+function endResultCounts(reason){
+  const option=END_RESULT_OPTIONS.find(item=>item.value===reason);
+  if(option)return {...option.counts};
+  const legacy={
+    'CZ当選':{czCount:1,upperCzCount:0,atCount:0,directAtCount:0,episodeBonusCount:0},
+    'AT当選':{czCount:0,upperCzCount:0,atCount:1,directAtCount:0,episodeBonusCount:0},
+    'ヤメ':{czCount:0,upperCzCount:0,atCount:0,directAtCount:0,episodeBonusCount:0},
+    'その他':{czCount:0,upperCzCount:0,atCount:0,directAtCount:0,episodeBonusCount:0}
+  };
+  return legacy[reason]||null;
 }
 function renderEndLog(){
   const el=document.getElementById('endLogBox');
   if(!el)return;
   if(!currentEndLog){el.innerHTML='<div class="empty-hint">まだ打ち終わりデータなし</div>';return;}
+  const liquid=currentEndLog.liquidGame??currentEndLog.game;
   el.innerHTML=`
     <div class="timeline-item">
       <div class="timeline-head">
-        <div class="timeline-game">${escapeHtml(currentEndLog.game)}G 打ち終わり</div>
+        <div class="timeline-game">${escapeHtml(`${currentEndLog.game}/${liquid}G 打ち終わり`)}</div>
         <div class="item-actions">
           <button class="btn-small" onclick="editEndLog()">編集</button>
           <button class="btn-danger" onclick="deleteEndLog()">削除</button>
@@ -2968,30 +3112,31 @@ function renderEndLog(){
 }
 function endLogLine(endLog){
   if(!endLog)return '';
+  const liquid=endLog.liquidGame??endLog.game;
   const cz=Number(endLog.czCount)||0;
   const upperCz=Number(endLog.upperCzCount)||0;
   const at=Number(endLog.atCount)||0;
   const directAt=Number(endLog.directAtCount)||0;
   const episode=Number(endLog.episodeBonusCount)||0;
   const counts=`CZ${cz}回 / 上位CZ${upperCz}回 / AT${at}回 / AT直撃${directAt}回 / エピソードボーナス${episode}回`;
-  return `${endLog.game}G ${endLog.reason}${endLog.text?' '+endLog.text:''}（${counts}）`;
+  return `${endLog.game}/${liquid}G ${endLog.reason}${endLog.text?' '+endLog.text:''}（${counts}）`;
 }
 function editEndLog(){
   if(!currentEndLog)return;
   const game=prompt('打ち終わりデータカウンターG数',String(currentEndLog.game));if(game===null)return;
   const num=Number(game);
   if(!game.trim()||Number.isNaN(num)){alert('数値を入力してください');return;}
-  const reason=prompt('結果（CZ当選 / AT当選 / ヤメ / その他）',currentEndLog.reason);if(reason===null)return;
+  const liquid=prompt('打ち終わり液晶G数',String(currentEndLog.liquidGame??currentEndLog.game));if(liquid===null)return;
+  const liquidNum=Number(liquid);
+  if(!liquid.trim()||Number.isNaN(liquidNum)){alert('液晶G数を入力してください');return;}
+  const reason=prompt(`結果（${END_RESULT_OPTIONS.map(option=>option.value).join(' / ')}）`,currentEndLog.reason);if(reason===null)return;
   if(!reason.trim()){alert('結果を入力してください');return;}
+  const counts=endResultCounts(reason.trim());
+  if(!counts){alert('結果はプルダウンの6択から選んだ文言で入力してください');return;}
   const text=prompt('補足（空でも可）',currentEndLog.text||'');if(text===null)return;
-  const cz=prompt('CZ回数',String(currentEndLog.czCount||0));if(cz===null)return;
-  const upperCz=prompt('上位CZ回数',String(currentEndLog.upperCzCount||0));if(upperCz===null)return;
-  const at=prompt('AT回数',String(currentEndLog.atCount||0));if(at===null)return;
-  const directAt=prompt('AT直撃',String(currentEndLog.directAtCount||0));if(directAt===null)return;
-  const episode=prompt('エピソードボーナス',String(currentEndLog.episodeBonusCount||0));if(episode===null)return;
-  const czNum=Number(cz),upperCzNum=Number(upperCz),atNum=Number(at),directAtNum=Number(directAt),episodeNum=Number(episode);
-  if(![czNum,upperCzNum,atNum,directAtNum,episodeNum].every(num=>Number.isInteger(num)&&num>=0)){alert('回数は0以上の整数で入力してください');return;}
-  currentEndLog={...currentEndLog,game:num,reason:reason.trim(),text:text.trim(),czCount:czNum,upperCzCount:upperCzNum,atCount:atNum,directAtCount:directAtNum,episodeBonusCount:episodeNum,updatedAt:new Date().toISOString()};
+  currentEndLog={...currentEndLog,game:num,liquidGame:liquidNum,reason:reason.trim(),text:text.trim(),...counts,updatedAt:new Date().toISOString()};
+  linkedEndDataGame=num;
+  linkedEndLiquidGame=liquidNum;
   renderEndLog();
   renderPracticeStats();
   scheduleDraftSave();
@@ -3028,8 +3173,10 @@ function visibleStartLog(log){
   return logStartCounterValue(log)!==null?rows.filter(row=>row.labelTagId!=='lt_counter_game'&&!isCounterLabel(row.label)):rows;
 }
 function syncStartCounterGame(){
-  currentStartCounterGame=normalizeOptionalNumber(document.getElementById('startCounterGame')?.value||'');
+  const counter=document.getElementById('startCounterGame');
+  if(counter)currentStartCounterGame=normalizeOptionalNumber(counter.value||'');
   renderPracticeStats();
+  scheduleDraftSave();
 }
 function countTypesForTimelineItem(item,machine){
   if(Array.isArray(item.countAs)&&item.countAs.length)return [...new Set(item.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)))];
@@ -3369,7 +3516,10 @@ function clearLogInput(cancelEdit=true){
   if(cashIn)cashIn.value='';
   currentStartLog=[];
   currentTimeline=[];
+  currentTimelineDataGame=null;
   currentTimelineLiquidOffset=0;
+  linkedEndDataGame=null;
+  linkedEndLiquidGame=null;
   currentEndLog=null;
   currentSuggestLog=[];
   pendingSuggestSelection=null;
@@ -3460,8 +3610,11 @@ function loadDraftIntoInputs(log){
   currentStartCounterGame=logStartCounterValue(log);
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
+  currentTimelineDataGame=null;
   currentTimelineLiquidOffset=0;
   currentEndLog=clone(log.endLog||null);
+  linkedEndDataGame=currentEndLog?.game??null;
+  linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
   currentSuggestLog=clone(log.suggestLog||[]);
   currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
   pendingSuggestSelection=null;
@@ -3500,8 +3653,11 @@ function loadLogForEdit(id){
   currentStartCounterGame=logStartCounterValue(log);
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
+  currentTimelineDataGame=null;
   currentTimelineLiquidOffset=0;
   currentEndLog=clone(log.endLog||null);
+  linkedEndDataGame=currentEndLog?.game??null;
+  linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
   currentSuggestLog=clone(log.suggestLog||[]);
   pendingSuggestSelection=null;
   resetTransientLogUiState();
@@ -3537,7 +3693,10 @@ function continueFromLog(id){
   currentStartCounterGame=0;
   currentStartLog=[];
   currentTimeline=[];
+  currentTimelineDataGame=null;
   currentTimelineLiquidOffset=0;
+  linkedEndDataGame=null;
+  linkedEndLiquidGame=null;
   currentEndLog=null;
   currentSuggestLog=[];
   pendingSuggestSelection=null;
