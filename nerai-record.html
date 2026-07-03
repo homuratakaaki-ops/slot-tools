@@ -29,6 +29,8 @@ header p{font-size:12px;color:var(--text-muted);margin-top:4px;}
 .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;}
 .input-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
 .input-row.compact-row{align-items:center;}
+.input-row.date-row .input-label{flex:0 0 48px;white-space:nowrap;}
+.input-row.date-row .inline-field input[type="date"]{min-width:0;}
 .input-row:last-child{border-bottom:none;padding-bottom:0;}
 .input-row:first-child{padding-top:0;}
 .input-label{font-size:13px;color:var(--text);flex:1;}
@@ -161,6 +163,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .calc-label{font-size:11px;color:var(--text-muted);}
 .calc-value{font-size:17px;font-weight:700;color:var(--gold-light);margin-top:2px;}
 .warning{font-size:12px;color:#e07070;margin-top:8px;display:none;}
+.money-status{font-size:12px;font-weight:700;margin-top:10px;padding:9px 10px;border-radius:8px;border:1px solid rgba(122,122,138,.32);background:rgba(122,122,138,.08);color:var(--text-muted);}
+.money-status.complete{border-color:rgba(76,175,125,.55);background:rgba(76,175,125,.12);color:#9be0bd;}
+.money-status.incomplete{border-color:rgba(224,112,112,.45);background:rgba(224,112,112,.1);color:#ffb3b3;}
 .optional-box{display:none;margin-top:8px;}
 .optional-box.open{display:block;}
 .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
@@ -211,6 +216,7 @@ footer a:hover{color:var(--gold-light);}
   .input-row{align-items:stretch;flex-direction:column;gap:6px;}
   .input-row.compact-row{align-items:center;flex-direction:row;gap:8px;}
   .input-row.compact-row .input-label{flex:0 0 72px;white-space:nowrap;}
+  .input-row.compact-row.date-row .input-label{flex-basis:46px;}
   .input-row.compact-row .input-hint{display:none;}
   .input-label.fixed-label{flex:0 0 auto;min-width:0;white-space:normal;}
   .input-label.no-wrap-label{flex:0 0 auto;min-width:132px;white-space:nowrap;}
@@ -273,7 +279,7 @@ footer a:hover{color:var(--gold-light);}
     </div>
     <p class="section-note">稼働継続では収支を確定しません。ヤメでチェーン全体の終了持ちメダル・現金投入を登録します。</p>
     <div class="card">
-      <div class="input-row compact-row">
+      <div class="input-row compact-row date-row">
         <div class="input-label">日付</div>
         <div class="inline-field"><input type="date" id="moneyDate" onchange="syncHeaderFromMoney()"><button class="btn-small" onclick="setToday()">今日</button></div>
       </div>
@@ -324,6 +330,7 @@ footer a:hover{color:var(--gold-light);}
           <div class="calc-cell"><div class="calc-label">時給</div><div class="calc-value" id="calcHourly">-</div></div>
         </div>
         <div class="input-hint" id="rateHint" style="margin-top:8px;">交換率未設定</div>
+        <div class="money-status incomplete" id="moneyRegistrationStatus">収支未登録です。終了持ちメダルを入力すると収支登録が完了します。</div>
         <div class="warning" id="timeWarning">終了時間が開始時間より前です。MVPでは日跨ぎを計算しないため、稼働時間は0分にします。</div>
       </div>
     </div>
@@ -3661,6 +3668,7 @@ function setDefaultStartTime(force=false){
   }
 }
 function updateCalc(){
+  const endMedals=normalizeOptionalNumber(document.getElementById('moneyEndMedals')?.value||'');
   const calc=calcMoney({
     startTime:document.getElementById('moneyStart')?.value||'',
     endTime:document.getElementById('moneyEnd')?.value||'',
@@ -3675,6 +3683,13 @@ function updateCalc(){
   document.getElementById('calcHourly').textContent=calc.hourlyRate===null?'-':formatYenDiff(calc.hourlyRate)+'/h';
   const rateHint=document.getElementById('rateHint');
   if(rateHint)rateHint.textContent=calc.exchangeRate?`貸し ${calc.lendRate??'-'}枚 / 交換 ${calc.exchangeRate}枚で円換算`:'交換率未設定のため円収支は未計算';
+  const moneyStatus=document.getElementById('moneyRegistrationStatus');
+  if(moneyStatus){
+    const complete=endMedals!==null;
+    moneyStatus.classList.toggle('complete',complete);
+    moneyStatus.classList.toggle('incomplete',!complete);
+    moneyStatus.textContent=complete?'収支登録が完了しました。':'収支未登録です。終了持ちメダルを入力すると収支登録が完了します。';
+  }
   const warning=document.getElementById('timeWarning');
   if(warning)warning.style.display=calc.invalidTime?'block':'none';
 }
