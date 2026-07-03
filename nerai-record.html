@@ -155,6 +155,14 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .carry-summary-group{padding-top:8px;margin-top:8px;border-top:1px solid rgba(201,168,76,.24);}
 .carry-summary-group:first-child{padding-top:0;margin-top:0;border-top:none;}
 .carry-summary-group-title{font-size:12px;font-weight:800;color:var(--gold-light);margin-bottom:6px;}
+.mode-inference{border:1px solid rgba(98,181,255,.28);border-radius:8px;background:rgba(98,181,255,.08);padding:8px;margin:0 0 8px;font-size:12px;font-weight:800;}
+.mode-inference.kakutei{border-color:rgba(126,219,141,.5);background:rgba(126,219,141,.12);color:#a9efb6;}
+.mode-inference.shisa{border-color:rgba(98,181,255,.42);color:#a9d8ff;}
+.setting-ratio-box,.kui-summary-box{border:1px solid rgba(201,168,76,.25);border-radius:8px;background:rgba(201,168,76,.07);padding:9px;margin-bottom:10px;}
+.setting-ratio-title,.kui-summary-title{font-size:12px;font-weight:900;color:var(--gold-light);margin-bottom:6px;}
+.setting-ratio-row,.kui-summary-row{font-size:12px;color:var(--text);margin-top:4px;}
+.kui-summary-row strong{color:var(--gold-light);}
+.kui-release-control{margin-top:10px;border:1px solid rgba(201,168,76,.26);border-radius:8px;background:rgba(201,168,76,.07);padding:10px;}
 .carry-summary-row{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px;margin-bottom:7px;}
 .carry-summary-row:last-child{margin-bottom:0;}
 .calc-box{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.35);border-radius:8px;padding:12px;margin-top:10px;}
@@ -582,6 +590,8 @@ const END_RESULT_OPTIONS=[
 ];
 const CARRY_TYPE_OPTIONS=['setting','mode'];
 const KUI_POINT_OPTIONS=['大','中','小','なし'];
+const MODE_CONFIDENCE_LEVELS=['tenkoku','tenkoku_junbi','chance','tsujoC','tsujoB','tsujoA'];
+const MODE_CONFIDENCE_TYPES=['kakutei','shisa'];
 const EMPTY_DATA={version:1,machines:[],stores:[],logs:[]};
 let db=loadData();
 let selectedMachineId=db.machines[0]?.id||'';
@@ -589,6 +599,8 @@ let selectedAimId=firstAimIdForMachine(db.machines[0])||'';
 let activeNumericInput=null;
 let currentStartLog=[];
 let currentStartCounterGame=0;
+let currentStartCzFailCount=null;
+let currentStartAtThroughCount=null;
 let currentTimeline=[];
 let currentTimelineDataGame=null;
 let currentTimelineLiquidOffset=0;
@@ -596,6 +608,7 @@ let linkedEndDataGame=null;
 let linkedEndLiquidGame=null;
 let currentEndLog=null;
 let currentSuggestLog=[];
+let currentKuiPointReleased=false;
 let pendingTimelineTagIds=[];
 let timelineHistoryOpen=false;
 let recentTimelineHighlightId='';
@@ -632,6 +645,27 @@ function suggestStateLabel(value){
 function normalizeCarryType(value){
   const text=String(value||'').trim();
   return CARRY_TYPE_OPTIONS.includes(text)?text:null;
+}
+function normalizeConfidenceLevel(value){
+  const text=String(value||'').trim();
+  return MODE_CONFIDENCE_LEVELS.includes(text)?text:null;
+}
+function normalizeConfidenceType(value){
+  const text=String(value||'').trim();
+  return MODE_CONFIDENCE_TYPES.includes(text)?text:null;
+}
+function modeConfidenceLevelLabel(value){
+  return {
+    tenkoku:'天国',
+    tenkoku_junbi:'天国準備以上',
+    chance:'チャンス以上',
+    tsujoC:'通常C以上',
+    tsujoB:'通常B以上',
+    tsujoA:'通常A'
+  }[value]||'';
+}
+function modeConfidenceTypeLabel(value){
+  return value==='kakutei'?'確定':value==='shisa'?'示唆':'';
 }
 function carryTypeLabel(value){
   return value==='setting'?'設定引き継ぎ':value==='mode'?'モード参照':'引き継ぎなし';
@@ -685,6 +719,8 @@ function normalizeData(data){
     log.startLog.forEach(item=>{item.label=item.label||'';item.labelTagId=item.labelTagId||'';});
     const fixedStartCounter=normalizeOptionalNumber(log.startCounterGame);
     log.startCounterGame=fixedStartCounter!==null?fixedStartCounter:findStartCounterValue(log.startLog);
+    log.startCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
+    log.startAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
     log.timeline=Array.isArray(log.timeline)?log.timeline:[];
     log.timeline.forEach(item=>{
       item.tagIds=Array.isArray(item.tagIds)?item.tagIds:[];
@@ -709,6 +745,8 @@ function normalizeData(data){
       if(item.liquidGame===null&&item.dataGame!==null)item.liquidGame=item.dataGame;
       item.nextModeHint=!!item.nextModeHint;
       item.arimaNextOffset=normalizeOptionalNumber(item.arimaNextOffset);
+      item.confidenceLevel=normalizeConfidenceLevel(item.confidenceLevel);
+      item.confidenceType=normalizeConfidenceType(item.confidenceType);
       item.trophyCustom=item.trophyCustom||'';
       item.createdAt=item.createdAt||new Date().toISOString();
     });
@@ -752,6 +790,10 @@ function normalizeData(data){
     data.draftLog.state4Registered=false;
     data.draftLog.finalized=false;
     data.draftLog.excludeFromStats=true;
+    data.draftLog.startCzFailCount=normalizeOptionalNumber(data.draftLog.startCzFailCount);
+    data.draftLog.startAtThroughCount=normalizeOptionalNumber(data.draftLog.startAtThroughCount);
+    data.draftLog.kuiPoint=data.draftLog.kuiPoint&&typeof data.draftLog.kuiPoint==='object'?data.draftLog.kuiPoint:{released:false};
+    data.draftLog.kuiPoint.released=!!data.draftLog.kuiPoint.released;
   }
   data.machines.forEach(m=>{
     m.maker=m.maker||'';
@@ -832,6 +874,8 @@ function normalizeSuggestMaster(master){
         enabled:item.enabled!==false,
         carryType:normalizeCarryType(item.carryType),
         pointRole:item.pointRole==='gain'||item.pointRole==='hint'?item.pointRole:null,
+        confidenceLevel:normalizeConfidenceLevel(item.confidenceLevel),
+        confidenceType:normalizeConfidenceType(item.confidenceType),
         decorations:Array.isArray(item.decorations)?item.decorations.filter(dec=>dec&&typeof dec.text==='string'&&typeof dec.color==='string').map(dec=>({text:dec.text,color:dec.color})):[]
       })): []
     })): []
@@ -882,6 +926,44 @@ function derivedCarryType(category,place,item){
   }
   return normalizeCarryType(item?.carryType);
 }
+function derivedModeConfidence(category,place,item){
+  const carry=normalizeCarryType(item?.carryType)||derivedCarryType(category,place,item);
+  if(carry!=='mode')return {level:null,type:null};
+  const placeId=String(place?.id||'');
+  const placeName=String(place?.name||item?.place||'');
+  const label=String(item?.label||item?.item||'');
+  if(placeId==='sgp_tokyo_ghoul_arima_judgement'||label.includes('有馬貴将ジャッジメント失敗'))return {level:'tenkoku',type:'kakutei'};
+  if(placeId==='sgp_tokyo_ghoul_game_forewarning'||placeName.includes('規定ゲーム数前兆')){
+    if(label.includes('天国濃厚'))return {level:'tenkoku',type:'kakutei'};
+    if(label.includes('天国準備濃厚'))return {level:'tenkoku_junbi',type:'kakutei'};
+    if(label.includes('CZ以上濃厚'))return {level:'chance',type:'kakutei'};
+    if(label.includes('通常C以上濃厚'))return {level:'tsujoC',type:'kakutei'};
+    if(label.includes('通常B以上濃厚'))return {level:'tsujoB',type:'kakutei'};
+    if(label.includes('通常B以上の期待度アップ'))return {level:'tsujoB',type:'shisa'};
+    return {level:null,type:null};
+  }
+  if(placeId==='sgp_tokyo_ghoul_eyecatch'||placeName.includes('アイキャッチ')){
+    if(label.includes('黒背景'))return {level:null,type:null};
+    if(label.includes('笛口雛実'))return {level:'tsujoC',type:'shisa'};
+    if(label.includes('霧嶋董香'))return {level:'tsujoB',type:'shisa'};
+    if(label.includes('月山習')||label.includes('神代利世'))return {level:'chance',type:'shisa'};
+    return {level:null,type:null};
+  }
+  if(placeId==='sgp_tokyo_ghoul_cz_endcard_mode'||placeName.includes('CZ終了エンドカード')){
+    if(label.includes('神代利世'))return {level:'tenkoku',type:'kakutei'};
+    if(label.includes('月山習'))return {level:'tenkoku_junbi',type:'kakutei'};
+    if(label.includes('喰種'))return {level:'chance',type:'kakutei'};
+    if(label.includes('真戸'))return {level:'tsujoC',type:'kakutei'};
+    if(label.includes('亜門'))return {level:'tsujoB',type:'kakutei'};
+    if(label.includes('霧嶋董香')||label.includes('笛口雛実'))return {level:'tsujoB',type:'shisa'};
+    return {level:null,type:null};
+  }
+  if(placeId==='sgp_tokyo_ghoul_after_at_mode'||placeName.includes('AT終了後のモード移行')){
+    if(label.includes('駆け抜け')&&!label.includes('以外'))return {level:'tsujoB',type:'kakutei'};
+    return {level:null,type:null};
+  }
+  return {level:null,type:null};
+}
 function applySuggestMetadata(machine){
   (machine?.suggestMaster||[]).forEach(category=>{
     (category.places||[]).forEach(place=>{
@@ -890,6 +972,9 @@ function applySuggestMetadata(machine){
       (place.items||[]).forEach(item=>{
         item.carryType=derivedCarryType(category,place,item);
         item.pointRole=place.pointRole;
+        const confidence=derivedModeConfidence(category,place,item);
+        item.confidenceLevel=confidence.level;
+        item.confidenceType=confidence.type;
       });
     });
   });
@@ -1066,6 +1151,11 @@ function hydrateSuggestLogEntry(machine,entry){
   entry.carryType=normalizeCarryType(entry.carryType)||derivedCarryType(refs.category,{...(refs.place||{}),name:entry.place||refs.place?.name},refs.item||entry);
   const pointRole=refs.place?.pointRole||refs.item?.pointRole||suggestPointRole(refs.category,{...(refs.place||{}),name:entry.place||refs.place?.name});
   entry.pointRole=pointRole==='gain'||pointRole==='hint'?pointRole:null;
+  const confidence=refs.item?.confidenceLevel&&refs.item?.confidenceType
+    ?{level:refs.item.confidenceLevel,type:refs.item.confidenceType}
+    :derivedModeConfidence(refs.category,{...(refs.place||{}),name:entry.place||refs.place?.name},refs.item||entry);
+  entry.confidenceLevel=normalizeConfidenceLevel(entry.confidenceLevel)||confidence.level;
+  entry.confidenceType=normalizeConfidenceType(entry.confidenceType)||confidence.type;
   if(refs.category){
     entry.categoryId=entry.categoryId||refs.category.id;
     entry.category=entry.category||refs.category.category;
@@ -1255,6 +1345,13 @@ function migrateTokyoGhoulSuggestLogs(data){
     (log.suggestLog||[]).forEach(entry=>hydrateSuggestLogEntry(machine,entry));
     log.kuiPoint=buildKuiPointState(log.suggestLog,log.kuiPoint?.released);
   });
+  if(data.draftLog){
+    const machine=machines.get(data.draftLog.machineId);
+    if(isTokyoGhoulMachine(machine)){
+      (data.draftLog.suggestLog||[]).forEach(entry=>hydrateSuggestLogEntry(machine,entry));
+      data.draftLog.kuiPoint=buildKuiPointState(data.draftLog.suggestLog,data.draftLog.kuiPoint?.released);
+    }
+  }
 }
 function ensureSuggestSeed(machine){
   if(!machine)return;
@@ -1594,6 +1691,8 @@ function addMachine(){
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
   currentStartLog=[];
+  currentStartCzFailCount=null;
+  currentStartAtThroughCount=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
   currentTimelineLiquidOffset=0;
@@ -1601,6 +1700,7 @@ function addMachine(){
   linkedEndLiquidGame=null;
   currentEndLog=null;
   currentSuggestLog=[];
+  currentKuiPointReleased=false;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
   persist();
@@ -1612,6 +1712,8 @@ function selectMachine(id){
   selectedAimId=firstAimIdForMachine(machineById(id))||'';
   currentStartCounterGame=0;
   currentStartLog=[];
+  currentStartCzFailCount=null;
+  currentStartAtThroughCount=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
   currentTimelineLiquidOffset=0;
@@ -1619,6 +1721,7 @@ function selectMachine(id){
   linkedEndLiquidGame=null;
   currentEndLog=null;
   currentSuggestLog=[];
+  currentKuiPointReleased=false;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
   renderAll();
@@ -2411,6 +2514,9 @@ function startCounterInputValue(){
 function startCounterInitialZeroFlag(){
   return currentStartCounterGame===0?'1':'';
 }
+function optionalCountValue(value){
+  return value===null||value===undefined?'':String(value);
+}
 function renderStartLogArea(){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">打ち始めログは機種選択後に使えます</div>';
@@ -2419,6 +2525,14 @@ function renderStartLogArea(){
     <div class="input-row">
       <div class="input-label no-wrap-label">データカウンターG数<div class="input-hint">必須・分母の起点</div></div>
       <input type="text" id="startCounterGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(startCounterInputValue())}" data-clear-initial-zero="${startCounterInitialZeroFlag()}" placeholder="0" oninput="syncStartCounterGame()" onchange="syncStartCounterGame()">
+    </div>
+    <div class="input-row compact-row">
+      <div class="input-label no-wrap-label">CZ失敗回数</div>
+      <input type="text" id="startCzFailCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartCzFailCount))}" placeholder="optional" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
+    </div>
+    <div class="input-row compact-row">
+      <div class="input-label no-wrap-label">AT駆け抜け回数</div>
+      <input type="text" id="startAtThroughCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartAtThroughCount))}" placeholder="optional" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
     </div>
     <div class="section-label" style="margin-top:14px;">追加データ（任意）</div>
     <div class="input-row">
@@ -2763,7 +2877,7 @@ function selectSuggestItem(itemId){
   if(!category||!place||!item){alert('示唆の状態、確認場所、内容を選択してください');return;}
   const stateGroup=normalizeSuggestStateGroup(suggestPickerState.stateGroup)||suggestPlaceStateGroup(category,place);
   const nextModeHint=stateGroup==='hit'&&(place.id==='sgp_tokyo_ghoul_eyecatch'||place.name==='アイキャッチ');
-  const selection={stateGroup,carryType:nextModeHint?'mode':normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
+  const selection={stateGroup,carryType:nextModeHint?'mode':normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
   if(isTrophySuggestSelection(selection)){
     suggestPickerState.itemId=itemId;
     renderSuggestPicker('trophyCustom');
@@ -2779,7 +2893,7 @@ function selectTrophyCustom(custom){
   const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===suggestPickerState.placeId);
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===suggestPickerState.itemId);
   if(!category||!place||!item){alert('トロフィーの内容を選び直してください');return;}
-  const selection={stateGroup:suggestPlaceStateGroup(category,place),carryType:normalizeCarryType(item.carryType)||'setting',pointRole:place.pointRole||item.pointRole||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
+  const selection={stateGroup:suggestPlaceStateGroup(category,place),carryType:normalizeCarryType(item.carryType)||'setting',pointRole:place.pointRole||item.pointRole||null,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
   if(addSuggestLogFromSelection(selection,custom))closeSuggestPicker();
 }
 function addSuggestLogFromSelection(selection,trophyCustomValue=''){
@@ -2812,6 +2926,8 @@ function addArimaJudgementFail(){
     pointRole:null,
     nextModeHint:true,
     arimaNextOffset:-6,
+    confidenceLevel:'tenkoku',
+    confidenceType:'kakutei',
     categoryId:'sgc_tokyo_ghoul_mode',
     placeId:'sgp_tokyo_ghoul_arima_judgement',
     itemId:'sgi_tokyo_ghoul_arima_judgement_fail',
@@ -2862,6 +2978,18 @@ function buildKuiPointState(suggestLog,released=false){
     gains:rows.filter(entry=>entry.pointRole==='gain').map(entry=>({id:entry.id,item:entry.item,createdAt:entry.createdAt})),
     hints:rows.filter(entry=>entry.pointRole==='hint').map(entry=>({id:entry.id,item:entry.item,createdAt:entry.createdAt}))
   };
+}
+function syncKuiPointReleased(){
+  currentKuiPointReleased=!!document.getElementById('kuiPointReleased')?.checked;
+  renderCarrySummaryIntoDom();
+  scheduleDraftSave();
+}
+function renderKuiPointReleaseControl(){
+  return `
+    <label class="kui-release-control input-row" style="cursor:pointer;">
+      <div class="input-label no-wrap-label">喰ポイント解放<div class="input-hint">チェックで獲得回数・示唆履歴をリセット</div></div>
+      <input type="checkbox" id="kuiPointReleased" ${currentKuiPointReleased?'checked':''} onchange="syncKuiPointReleased()">
+    </label>`;
 }
 function renderCurrentSuggestLog(){
   const el=document.getElementById('suggestLogList');
@@ -2960,12 +3088,94 @@ function buildCarrySummaryGroups(type){
 function carrySummaryEntries(type){
   return buildCarrySummaryGroups(type).flatMap(group=>group.entries);
 }
+function modeConfidenceRank(level){
+  const index=MODE_CONFIDENCE_LEVELS.indexOf(normalizeConfidenceLevel(level));
+  return index<0?999:index;
+}
+function entryModeConfidence(entry){
+  const refs=findSuggestRefsForEntry(currentMachine(),entry);
+  const confidence=entry.confidenceLevel&&entry.confidenceType
+    ?{level:entry.confidenceLevel,type:entry.confidenceType}
+    :derivedModeConfidence(refs.category,{...(refs.place||{}),name:entry.place||refs.place?.name},refs.item||entry);
+  return {level:normalizeConfidenceLevel(confidence.level),type:normalizeConfidenceType(confidence.type)};
+}
+function modeInferenceForEntries(entries){
+  const candidates=(entries||[]).map(entryModeConfidence).filter(row=>row.level&&row.type);
+  const confirmed=candidates.filter(row=>row.type==='kakutei').sort((a,b)=>modeConfidenceRank(a.level)-modeConfidenceRank(b.level))[0];
+  if(confirmed)return confirmed;
+  return candidates.filter(row=>row.type==='shisa').sort((a,b)=>modeConfidenceRank(a.level)-modeConfidenceRank(b.level))[0]||null;
+}
+function modeInferenceHtml(entries){
+  const inference=modeInferenceForEntries(entries);
+  if(!inference)return '<div class="mode-inference">推定：判定対象のモード示唆なし</div>';
+  return `<div class="mode-inference ${inference.type}">推定：${escapeHtml(modeConfidenceLevelLabel(inference.level))}${escapeHtml(modeConfidenceTypeLabel(inference.type))}</div>`;
+}
+function isAtEndScreenEntry(entry){
+  const place=String(entry?.place||'');
+  return entry?.placeId==='sgp_tokyo_ghoul_at_end_screen'||place.includes('AT終了画面')||place.includes('AT邨ゆｺ・判髱｢');
+}
+function settingAtEndRatioHtml(rows){
+  const entries=(rows||[]).filter(isAtEndScreenEntry);
+  if(!entries.length)return '';
+  const counts=new Map();
+  entries.forEach(entry=>counts.set(entry.item,(counts.get(entry.item)||0)+1));
+  const total=entries.length;
+  const body=[...counts.entries()].map(([label,count])=>{
+    const pct=total?Math.round(count*1000/total)/10:0;
+    return `<div class="setting-ratio-row">${escapeHtml(label)}：${count}回 / ${pct}%</div>`;
+  }).join('');
+  return `<div class="setting-ratio-box"><div class="setting-ratio-title">AT終了画面 出現比率（${total}回）</div>${body}</div>`;
+}
+function kuiPointRoleEntriesFromLog(log,role){
+  return (log?.suggestLog||[]).filter(entry=>entry.pointRole===role);
+}
+function buildKuiPointSummary(){
+  const counts={["\u5c0f"]:0,["\u4e2d"]:0,["\u5927"]:0};
+  const hints=[];
+  const logs=[...currentInputSameTableLogs()].reverse();
+  logs.push({suggestLog:currentSuggestLog,kuiPoint:{released:currentKuiPointReleased}});
+  logs.forEach(log=>{
+    if(log.kuiPoint?.released){
+      counts["\u5c0f"]=0;counts["\u4e2d"]=0;counts["\u5927"]=0;hints.length=0;
+      return;
+    }
+    kuiPointRoleEntriesFromLog(log,'gain').forEach(entry=>{
+      if(Object.prototype.hasOwnProperty.call(counts,entry.item))counts[entry.item]++;
+    });
+    kuiPointRoleEntriesFromLog(log,'hint').forEach(entry=>{
+      if(entry.item&&entry.item!=='なし')hints.push({item:entry.item,createdAt:entry.createdAt});
+    });
+  });
+  return {
+    counts,
+    hints:hints.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))),
+    czFail:currentStartCzFailCount,
+    atThrough:currentStartAtThroughCount,
+    released:currentKuiPointReleased
+  };
+}
+function renderKuiPointSummaryArea(){
+  const summary=buildKuiPointSummary();
+  const hintText=summary.hints.length
+    ?summary.hints.slice(0,5).map((row,index)=>`${index===0?'prev':index===1?'prev2':`prev${index+1}`}：${escapeHtml(row.item)}`).join(' / ')
+    :'none';
+  return `
+    <div class="kui-summary-box">
+      <div class="kui-summary-title">Kui point summary</div>
+      <div class="kui-summary-row"><strong>Gain</strong> S×${summary.counts["\u5c0f"]} M×${summary.counts["\u4e2d"]} L×${summary.counts["\u5927"]}</div>
+      <div class="kui-summary-row"><strong>Hints</strong> ${hintText}</div>
+      <div class="kui-summary-row"><strong>Start refs</strong> CZ fail：${summary.czFail??'-'} / AT through：${summary.atThrough??'-'}</div>
+      ${summary.released?'<div class="kui-summary-row"><strong>Released</strong> gain counts and hint history are reset</div>':''}
+    </div>`;
+}
 function carrySummarySection(type,title,open){
   const groups=buildCarrySummaryGroups(type);
   const rows=groups.flatMap(group=>group.entries);
+  const extra=type==='setting'?settingAtEndRatioHtml(rows):'';
   const body=groups.length?groups.map(group=>`
     <div class="carry-summary-group">
       <div class="carry-summary-group-title">${escapeHtml(group.label)}</div>
+      ${type==='mode'?modeInferenceHtml(group.entries):''}
       ${group.entries.map(entry=>`
         <div class="carry-summary-row">
           <div class="timeline-game">${escapeHtml(suggestGameText(entry)||'G数なし')}</div>
@@ -2978,7 +3188,7 @@ function carrySummarySection(type,title,open){
         <span>${escapeHtml(title)}</span>
         <span class="carry-summary-count">${rows.length}件 ${open?'▲':'▼'}</span>
       </button>
-      <div class="carry-summary-body">${body}</div>
+      <div class="carry-summary-body">${extra}${body}</div>
     </div>`;
 }
 function renderCarrySummaryArea(){
@@ -2987,6 +3197,7 @@ function renderCarrySummaryArea(){
     <div class="carry-summary-wrap">
       ${carrySummarySection('mode','モード示唆まとめ',modeSummaryOpen)}
       ${carrySummarySection('setting','設定関連まとめ',settingSummaryOpen)}
+      ${renderKuiPointSummaryArea()}
     </div>`;
 }
 function renderCarrySummaryIntoDom(){
@@ -3065,6 +3276,7 @@ function renderTimelineArea(mode='play'){
     <div class="work-subsection">
       <div class="work-section-title">AT当選時の記録</div>
       ${renderNextModeHintControls()}
+      ${renderKuiPointReleaseControl()}
       ${renderSuggestArea('hit')}
     </div>
     <div class="calc-box">
@@ -3510,6 +3722,12 @@ function syncStartCounterGame(){
   renderPracticeStats();
   scheduleDraftSave();
 }
+function syncStartExtraCounts(){
+  currentStartCzFailCount=normalizeOptionalNumber(document.getElementById('startCzFailCount')?.value||'');
+  currentStartAtThroughCount=normalizeOptionalNumber(document.getElementById('startAtThroughCount')?.value||'');
+  renderCarrySummaryIntoDom();
+  scheduleDraftSave();
+}
 function countTypesForTimelineItem(item,machine){
   if(Array.isArray(item.countAs)&&item.countAs.length)return [...new Set(item.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)))];
   if(Array.isArray(item.tagIds)&&item.tagIds.length){
@@ -3745,11 +3963,13 @@ function currentInputLogObject(finalized=false, existingLog=null){
     continuedFromId:continuedFromLog?.id||existingLog?.continuedFromId||'',
     sameTableCarryOptOut:sameTableCarryOptOutKey===`${baseMoney.date}|${baseMoney.store}|${baseMoney.machineNo}`,
     startCounterGame:currentStartCounterGame,
+    startCzFailCount:currentStartCzFailCount,
+    startAtThroughCount:currentStartAtThroughCount,
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     endLog:clone(currentEndLog),
     suggestLog,
-    kuiPoint:buildKuiPointState(suggestLog,existingLog?.kuiPoint?.released),
+    kuiPoint:buildKuiPointState(suggestLog,currentKuiPointReleased),
     money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff},
     publicMemo:document.getElementById('publicMemo')?.value.trim()||'',
     privateMemo:document.getElementById('privateMemo')?.value.trim()||'',
@@ -3838,11 +4058,13 @@ function saveLog(options={}){
     continuedFromId:continuedFromLog?.id||editingLog?.continuedFromId||'',
     sameTableCarryOptOut:sameTableCarryOptOutKey===`${baseMoney.date}|${baseMoney.store}|${baseMoney.machineNo}`,
     startCounterGame:startCounter,
+    startCzFailCount:currentStartCzFailCount,
+    startAtThroughCount:currentStartAtThroughCount,
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     endLog:clone(currentEndLog),
     suggestLog,
-    kuiPoint:buildKuiPointState(suggestLog,editingLog?.kuiPoint?.released),
+    kuiPoint:buildKuiPointState(suggestLog,currentKuiPointReleased),
     money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff},
     publicMemo:document.getElementById('publicMemo').value.trim(),
     privateMemo:document.getElementById('privateMemo').value.trim(),
@@ -3930,6 +4152,8 @@ function clearLogInput(cancelEdit=true){
   if(startMedals)startMedals.value='';
   if(cashIn)cashIn.value='';
   currentStartLog=[];
+  currentStartCzFailCount=null;
+  currentStartAtThroughCount=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
   currentTimelineLiquidOffset=0;
@@ -3937,6 +4161,7 @@ function clearLogInput(cancelEdit=true){
   linkedEndLiquidGame=null;
   currentEndLog=null;
   currentSuggestLog=[];
+  currentKuiPointReleased=false;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
   closeSuggestPicker();
@@ -4025,6 +4250,8 @@ function loadDraftIntoInputs(log){
   const draftIdentity=tableIdentityFromMoney(log.money||{});
   sameTableCarryOptOutKey=log.sameTableCarryOptOut&&draftIdentity?`${draftIdentity.date}|${draftIdentity.store}|${draftIdentity.machineNo}`:'';
   currentStartCounterGame=logStartCounterValue(log);
+  currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
+  currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
   currentTimelineDataGame=null;
@@ -4033,6 +4260,7 @@ function loadDraftIntoInputs(log){
   linkedEndDataGame=currentEndLog?.game??null;
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
   currentSuggestLog=clone(log.suggestLog||[]);
+  currentKuiPointReleased=!!log.kuiPoint?.released;
   currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
   pendingSuggestSelection=null;
   resetTransientLogUiState();
@@ -4071,6 +4299,8 @@ function loadLogForEdit(id){
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
   currentStartCounterGame=logStartCounterValue(log);
+  currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
+  currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
   currentTimelineDataGame=null;
@@ -4079,6 +4309,7 @@ function loadLogForEdit(id){
   linkedEndDataGame=currentEndLog?.game??null;
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
   currentSuggestLog=clone(log.suggestLog||[]);
+  currentKuiPointReleased=!!log.kuiPoint?.released;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
   closeSuggestPicker();
@@ -4115,6 +4346,8 @@ function continueFromLog(id,skipConfirm=false){
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
   currentStartCounterGame=0;
+  currentStartCzFailCount=null;
+  currentStartAtThroughCount=null;
   currentStartLog=[];
   currentTimeline=[];
   currentTimelineDataGame=0;
@@ -4123,6 +4356,7 @@ function continueFromLog(id,skipConfirm=false){
   linkedEndLiquidGame=null;
   currentEndLog=null;
   currentSuggestLog=[];
+  currentKuiPointReleased=false;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
   closeSuggestPicker();
