@@ -271,6 +271,7 @@ footer a:hover{color:var(--gold-light);}
       <button class="btn-secondary btn-stop" id="saveLogButton" onclick="saveLog()">ヤメ</button>
       <button class="btn-secondary btn-new" onclick="startNewRegistration()">新規登録</button>
     </div>
+    <p class="section-note">稼働継続では収支を確定しません。ヤメでチェーン全体の終了持ちメダル・現金投入を登録します。</p>
     <div class="card">
       <div class="input-row compact-row">
         <div class="input-label">日付</div>
@@ -1463,6 +1464,43 @@ function calcMoney(money){
   const diff=hasResult?recover-invest:null;
   const hourlyRate=hasResult&&workMinutes>0?Math.round(diff/workMinutes*60):null;
   return {workMinutes,diff,balance:diff,hourlyRate,invalidTime,hasResult,medalDiff:diff,yenDiff:null,lendRate,exchangeRate,cashIn:null,model:'legacy'};
+}
+function clearMoneyResult(money){
+  if(!money)return;
+  ['endMedals','cashIn','diff','balance','hourlyRate','medalDiff','yenDiff'].forEach(key=>{money[key]=null;});
+}
+function recalcLogMoney(log){
+  if(!log?.money)return;
+  const c=calcMoney(log.money);
+  Object.assign(log.money,{workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff});
+}
+function chainStartMedalsForIdentity(identity,fallback=null){
+  if(!identity)return fallback;
+  const logs=sameTableLogs(identity,'').sort((a,b)=>logSortTime(a).localeCompare(logSortTime(b)));
+  for(const log of logs){
+    const value=normalizeOptionalNumber(log.money?.startMedals);
+    if(value!==null)return value;
+  }
+  return fallback;
+}
+function chainStartMedalsForLog(log){
+  const own=normalizeOptionalNumber(log?.money?.startMedals);
+  return chainStartMedalsForIdentity(tableIdentityFromMoney(log?.money||{}),own);
+}
+function clearChainResultForContinuation(log){
+  const identity=tableIdentityFromMoney(log?.money||{});
+  if(!identity)return;
+  const logs=sameTableLogs(identity,'');
+  logs.forEach(item=>{
+    const hasResult=normalizeOptionalNumber(item.money?.endMedals)!==null||normalizeOptionalNumber(item.money?.cashIn)!==null;
+    if(!hasResult)return;
+    clearMoneyResult(item.money);
+    recalcLogMoney(item);
+    item.updatedAt=new Date().toISOString();
+  });
+}
+function currentChainStartMedals(fallback=null){
+  return chainStartMedalsForIdentity(currentTableIdentity(),fallback);
 }
 function formatDiff(n){
   if(n===null||n===undefined||n==='')return '-';
@@ -3644,6 +3682,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
   const machine=currentMachine();const aim=currentAim();
   if(!machine||!aim)return null;
   const enteredStartMedals=normalizeOptionalNumber(document.getElementById('moneyStartMedals')?.value||'');
+  const chainStartMedals=currentChainStartMedals(enteredStartMedals);
   const baseMoney={
     date:document.getElementById('moneyDate')?.value||todayValue(),
     store:document.getElementById('moneyStore')?.value||'',
@@ -3652,7 +3691,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
     publishMachineNo:!!document.getElementById('publishMachineNo')?.checked,
     startTime:document.getElementById('moneyStart')?.value||'',
     endTime:document.getElementById('moneyEnd')?.value||'',
-    startMedals:enteredStartMedals,
+    startMedals:chainStartMedals,
     endMedals:normalizeOptionalNumber(document.getElementById('moneyEndMedals')?.value||''),
     cashIn:normalizeOptionalNumber(document.getElementById('moneyCashIn')?.value||'')??0,
     invest:null,
@@ -3733,6 +3772,8 @@ function saveLog(options={}){
   const values={};
   const enteredStartMedals=normalizeOptionalNumber(document.getElementById('moneyStartMedals').value);
   const legacyMoneyMode=!!editingLog&&enteredStartMedals===null&&normalizeOptionalNumber(editingLog.money?.startMedals)===null&&((editingLog.money?.invest!==null&&editingLog.money?.invest!==undefined)||(editingLog.money?.recover!==null&&editingLog.money?.recover!==undefined));
+  const chainStartMedals=currentChainStartMedals(enteredStartMedals);
+  const finalizingChain=!options.continueAfter;
   const baseMoney={
     date:document.getElementById('moneyDate').value,
     store:document.getElementById('moneyStore').value,
@@ -3741,13 +3782,14 @@ function saveLog(options={}){
     publishMachineNo:document.getElementById('publishMachineNo').checked,
     startTime:document.getElementById('moneyStart').value,
     endTime:document.getElementById('moneyEnd').value,
-    startMedals:legacyMoneyMode?null:enteredStartMedals,
-    endMedals:legacyMoneyMode?null:normalizeOptionalNumber(document.getElementById('moneyEndMedals').value),
-    cashIn:legacyMoneyMode?null:(normalizeOptionalNumber(document.getElementById('moneyCashIn').value)??0),
+    startMedals:legacyMoneyMode?null:chainStartMedals,
+    endMedals:legacyMoneyMode||options.continueAfter?null:normalizeOptionalNumber(document.getElementById('moneyEndMedals').value),
+    cashIn:legacyMoneyMode||options.continueAfter?null:normalizeOptionalNumber(document.getElementById('moneyCashIn').value),
     invest:legacyMoneyMode?editingLog.money?.invest:null,
     recover:legacyMoneyMode?editingLog.money?.recover:null
   };
   if(!legacyMoneyMode&&baseMoney.startMedals===null){alert('開始持ちメダルを入力してください');return;}
+  if(finalizingChain&&!editingLog&&!confirm('この続行チェーンの収支を登録します。終了持ちメダル・現金投入が未入力でも保存できますが、ログ上では収支未登録として扱います。よろしいですか？'))return;
   const store=storeByName(baseMoney.store);
   baseMoney.lendRate=store?.lendRate??null;
   baseMoney.exchangeRate=store?.exchangeRate??null;
@@ -3817,7 +3859,7 @@ function scrollToPageTop(){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function startNewRegistration(){
-  if(!confirm('入力中の稼働を未確定ログへ退避して、新規登録を始めますか？'))return;
+  if(!confirm('入力中の稼働を未確定ログへ退避して、新規登録を始めますか？現在の続行チェーンを締める場合は、あとでログから収支を登録してください。'))return;
   archiveCurrentDraftAsUnfinalized();
   clearLogInput(true);
   db.draftLog=null;
@@ -4031,6 +4073,8 @@ function continueFromLog(id,skipConfirm=false){
   const machine=machineById(log.machineId);
   if(!machine){alert('このログの機種テンプレが見つかりません。先に機種を復元してください。');return;}
   if(!confirm('このログの機種・狙い方・店舗・台番号を引き継いで、新しい稼働として続行しますか？'))return;
+  const chainStartMedals=chainStartMedalsForLog(log);
+  clearChainResultForContinuation(log);
   let aim=aimById(machine,log.aimId)||machine.aims.find(a=>a.name===log.aimName);
   if(!aim&&log.aimId){
     aim={id:log.aimId,name:log.aimName||'復元した狙い方',fields:clone(log.fieldSnapshot||[])};
@@ -4075,7 +4119,7 @@ function continueFromLog(id,skipConfirm=false){
   document.getElementById('publishMachineNo').checked=!!money.publishMachineNo;
   document.getElementById('moneyStart').value=nowTime();
   document.getElementById('moneyEnd').value='';
-  document.getElementById('moneyStartMedals').value=money.endMedals!==null&&money.endMedals!==undefined?String(money.endMedals):'';
+  document.getElementById('moneyStartMedals').value=chainStartMedals!==null&&chainStartMedals!==undefined?String(chainStartMedals):'';
   document.getElementById('moneyEndMedals').value='';
   document.getElementById('moneyCashIn').value='';
   document.getElementById('publicMemo').value='';
@@ -4141,6 +4185,7 @@ function buildShareText(log){
 function moneyResultLine(money){
   const calc=calcMoney(money||{});
   if(calc.model==='medals'){
+    if(normalizeOptionalNumber(money.endMedals)===null)return `開始${formatMoneyAmount(money.startMedals)} / 収支未登録`;
     const parts=[
       `開始${formatMoneyAmount(money.startMedals)}`,
       `終了${formatMoneyAmount(money.endMedals)}`,
@@ -4156,6 +4201,7 @@ function moneyResultLine(money){
 function logSummaryMoney(log){
   if(log.excludeFromStats)return '未確定 / 集計対象外';
   const calc=calcMoney(log.money||{});
+  if(calc.model==='medals'&&normalizeOptionalNumber(log.money?.endMedals)===null)return '収支未登録';
   if(calc.model==='medals')return `メダル ${formatDiff(calc.medalDiff)}　円収支 ${formatYenDiff(calc.yenDiff)}`;
   return `差枚 ${formatDiff(log.money?.diff)}`;
 }
