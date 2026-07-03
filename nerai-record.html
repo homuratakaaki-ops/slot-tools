@@ -60,6 +60,12 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .btn-primary:active{opacity:.82;}
 .btn-secondary{width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-muted);font-size:14px;padding:11px;cursor:pointer;margin-top:8px;}
 .btn-secondary:active,.btn-small:active{border-color:var(--gold);color:var(--gold-light);}
+.state4-actions{display:flex;flex-direction:column;gap:8px;margin:0 0 12px;}
+.state4-actions .btn-primary,.state4-actions .btn-secondary{margin-top:0;}
+.btn-continue{background:linear-gradient(135deg,#2f8f55,#b6e36d);border:1px solid rgba(182,227,109,.78);color:#08130c;box-shadow:0 0 0 2px rgba(76,175,125,.16),0 8px 20px rgba(76,175,125,.18);}
+.btn-stop{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.5);color:var(--gold-light);}
+.btn-new{background:rgba(98,181,255,.12);border:1px solid rgba(98,181,255,.62);color:#9bd2ff;}
+.btn-continue:active,.btn-stop:active,.btn-new:active{filter:brightness(1.08);}
 .btn-small{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;}
 .btn-small.gold{border-color:var(--gold);color:var(--gold);}
 .btn-danger{background:transparent;border:1px solid rgba(201,76,76,.45);border-radius:6px;color:#e07070;font-size:12px;padding:5px 10px;cursor:pointer;white-space:nowrap;}
@@ -260,6 +266,11 @@ footer a:hover{color:var(--gold-light);}
 
   <div class="section flow-panel" data-flow-step="4">
     <div class="section-label">収支</div>
+    <div class="state4-actions">
+      <button class="btn-primary btn-continue" onclick="saveAndContinueLog()">稼働継続</button>
+      <button class="btn-secondary btn-stop" id="saveLogButton" onclick="saveLog()">ヤメ</button>
+      <button class="btn-secondary btn-new" onclick="startNewRegistration()">新規登録</button>
+    </div>
     <div class="card">
       <div class="input-row compact-row">
         <div class="input-label">日付</div>
@@ -327,10 +338,7 @@ footer a:hover{color:var(--gold-light);}
     </div>
     <div class="warning" id="editingNotice" style="display:none;margin-top:12px;"></div>
     <span class="draft-note">状態4まで締めると確定ログになります。未確定ログは集計対象外です。</span>
-    <button class="btn-primary" id="saveLogButton" onclick="saveLog()">ヤメ</button>
-    <button class="btn-secondary" onclick="saveAndContinueLog()">稼働継続</button>
     <button class="btn-secondary" id="cancelEditButton" onclick="cancelEditLog()" style="display:none;">編集をキャンセル</button>
-    <button class="btn-secondary" onclick="startNewRegistration()">新規登録</button>
   </div>
 </div>
 
