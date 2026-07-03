@@ -327,7 +327,8 @@ footer a:hover{color:var(--gold-light);}
     </div>
     <div class="warning" id="editingNotice" style="display:none;margin-top:12px;"></div>
     <span class="draft-note">状態4まで締めると確定ログになります。未確定ログは集計対象外です。</span>
-    <button class="btn-primary" id="saveLogButton" onclick="saveLog()">状態4を登録して確定</button>
+    <button class="btn-primary" id="saveLogButton" onclick="saveLog()">ヤメ</button>
+    <button class="btn-secondary" onclick="saveAndContinueLog()">稼働継続</button>
     <button class="btn-secondary" id="cancelEditButton" onclick="cancelEditLog()" style="display:none;">編集をキャンセル</button>
     <button class="btn-secondary" onclick="startNewRegistration()">新規登録</button>
   </div>
@@ -2257,7 +2258,7 @@ function renderLogFields(){
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
     2:`<div class="card work-section-card play"><div class="work-section-title">稼働中の記録</div>${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
     3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div><div id="practiceStatsBox"></div>`,
-    4:`<div class="card work-section-card"><div class="work-section-title">ヤメ or 続行</div><p class="section-note">ヤメる場合は収支を登録して確定。続行する場合も、この稼働を状態4登録済みにしてから次稼働へ進みます。</p><div id="practiceStatsBox"></div><button class="btn-secondary" onclick="switchFlowStep(2)">稼働中へ戻る</button><button class="btn-secondary" onclick="switchFlowStep(3)">当選時を記録する</button></div>`
+    4:`<div class="card work-section-card"><div class="work-section-title">ヤメ or 継続</div><p class="section-note">ヤメはこの稼働を確定保存して締めます。稼働継続は確定保存後、そのまま次の稼働登録へ進みます。</p><div id="practiceStatsBox"></div></div>`
   };
   el.innerHTML=panels[currentFlowStep]||panels[1];
   renderCurrentStartLog();
@@ -3164,6 +3165,15 @@ function timelineEntryIsEndLink(entry){
   const text=String(entry?.text||'');
   return text.includes('当選')||text.includes('ヤメ');
 }
+function timelineTextIsEndLink(text){
+  return timelineEntryIsEndLink({text});
+}
+function removeExistingEndLinkTimelineEntries(){
+  const removed=currentTimeline.filter(timelineEntryIsEndLink);
+  removed.forEach(rollbackLiquidRuleForTimelineDelete);
+  if(removed.some(item=>item.id===recentTimelineHighlightId))recentTimelineHighlightId='';
+  currentTimeline=currentTimeline.filter(item=>!timelineEntryIsEndLink(item));
+}
 function updateLinkedEndGameInputs(){
   const dataEl=document.getElementById('endGame');
   const liquidEl=document.getElementById('endLiquidGame');
@@ -3208,6 +3218,9 @@ function addTimelineEntry(){
   if(liquidGame===null){alert('液晶G数を入力してください');return;}
   if(!text){alert('内容を入力してください');return;}
   const tagIds=[...pendingTimelineTagIds];
+  if(timelineTextIsEndLink(text)){
+    removeExistingEndLinkTimelineEntries();
+  }
   const entry={id:uid('tl'),game,liquidGame,text,tagIds,countAs:[],createdAt:new Date().toISOString()};
   currentTimeline.push(entry);
   recentTimelineHighlightId=entry.id;
@@ -3649,7 +3662,7 @@ function bindDraftAutosave(){
     el.addEventListener('change',scheduleDraftSave);
   });
 }
-function saveLog(){
+function saveLog(options={}){
   const machine=currentMachine();const aim=currentAim();
   if(!machine||!aim){alert('機種と狙い方を選択してください');return;}
   const editingLog=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
@@ -3718,10 +3731,28 @@ function saveLog(){
   persist();
   const wasEditing=!!editingLog;
   editingLogId=null;
+  if(options.continueAfter){
+    clearLogInput(false);
+    continueFromSavedLog(log.id);
+    return log;
+  }
   alert(wasEditing?'更新しました':'保存しました');
   clearLogInput(false);
   showPage('pageLogs');
   scrollToPageTop();
+  return log;
+}
+function saveAndContinueLog(){
+  saveLog({continueAfter:true});
+}
+function continueFromSavedLog(id){
+  const originalConfirm=window.confirm;
+  window.confirm=()=>true;
+  try{
+    continueFromLog(id);
+  }finally{
+    window.confirm=originalConfirm;
+  }
 }
 function scrollToPageTop(){
   window.scrollTo({top:0,behavior:'smooth'});
@@ -3822,7 +3853,7 @@ function updateEditModeUi(){
   const log=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
   notice.style.display=log?'block':'none';
   notice.textContent=log?`編集中：${log.machineName} / ${log.aimName} / ${log.money?.date||'日付なし'}`:'';
-  saveButton.textContent=log?'この稼働ログを更新して確定':'状態4を登録して確定';
+  saveButton.textContent=log?'この稼働ログを更新して確定':'ヤメ';
   cancelButton.style.display=log?'inline-block':'none';
 }
 
@@ -3935,7 +3966,7 @@ function loadLogForEdit(id){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
-function continueFromLog(id){
+function continueFromLog(id,skipConfirm=false){
   const log=db.logs.find(l=>l.id===id);
   if(!log)return;
   const machine=machineById(log.machineId);
@@ -3952,10 +3983,10 @@ function continueFromLog(id){
   currentFlowStep=1;
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
-  currentStartCounterGame=normalizeOptionalNumber(log.endLog?.game)??0;
+  currentStartCounterGame=0;
   currentStartLog=[];
   currentTimeline=[];
-  currentTimelineDataGame=normalizeOptionalNumber(log.endLog?.game);
+  currentTimelineDataGame=0;
   currentTimelineLiquidOffset=0;
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
