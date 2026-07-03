@@ -569,7 +569,8 @@ const END_RESULT_OPTIONS=[
   {value:'上位CZ当選→AT非当選',label:'上位CZ当選→AT非当選',counts:{czCount:0,upperCzCount:1,atCount:0,directAtCount:0,episodeBonusCount:0}},
   {value:'上位CZ当選→AT当選',label:'上位CZ当選→AT当選',counts:{czCount:0,upperCzCount:1,atCount:1,directAtCount:0,episodeBonusCount:0}},
   {value:'エピソードボーナス当選',label:'エピソードボーナス当選',counts:{czCount:0,upperCzCount:0,atCount:1,directAtCount:0,episodeBonusCount:1}},
-  {value:'AT直撃',label:'AT直撃',counts:{czCount:0,upperCzCount:0,atCount:1,directAtCount:1,episodeBonusCount:0}}
+  {value:'AT直撃',label:'AT直撃',counts:{czCount:0,upperCzCount:0,atCount:1,directAtCount:1,episodeBonusCount:0}},
+  {value:'ヤメ',label:'ヤメ',counts:{czCount:0,upperCzCount:0,atCount:0,directAtCount:0,episodeBonusCount:0}}
 ];
 const CARRY_TYPE_OPTIONS=['setting','mode'];
 const KUI_POINT_OPTIONS=['大','中','小','なし'];
@@ -698,6 +699,8 @@ function normalizeData(data){
       item.liquidGame=normalizeOptionalNumber(item.liquidGame);
       if(item.dataGame===null&&item.game!==null)item.dataGame=item.game;
       if(item.liquidGame===null&&item.dataGame!==null)item.liquidGame=item.dataGame;
+      item.nextModeHint=!!item.nextModeHint;
+      item.arimaNextOffset=normalizeOptionalNumber(item.arimaNextOffset);
       item.trophyCustom=item.trophyCustom||'';
       item.createdAt=item.createdAt||new Date().toISOString();
     });
@@ -2712,7 +2715,9 @@ function selectSuggestItem(itemId){
   const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===suggestPickerState.placeId);
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===itemId);
   if(!category||!place||!item){alert('示唆の状態、確認場所、内容を選択してください');return;}
-  const selection={stateGroup:suggestPlaceStateGroup(category,place),carryType:normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
+  const stateGroup=normalizeSuggestStateGroup(suggestPickerState.stateGroup)||suggestPlaceStateGroup(category,place);
+  const nextModeHint=stateGroup==='hit'&&(place.id==='sgp_tokyo_ghoul_eyecatch'||place.name==='アイキャッチ');
+  const selection={stateGroup,carryType:nextModeHint?'mode':normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
   if(isTrophySuggestSelection(selection)){
     suggestPickerState.itemId=itemId;
     renderSuggestPicker('trophyCustom');
@@ -2747,6 +2752,30 @@ function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   renderCarrySummaryIntoDom();
   scheduleDraftSave();
   return true;
+}
+function isArimaJudgementFailEntry(entry){
+  return String(entry?.item||'').includes('有馬貴将ジャッジメント失敗')||entry?.arimaNextOffset===-6;
+}
+function addArimaJudgementFail(){
+  if(!currentMachine()){alert('機種を選択してください');return;}
+  if(!isTokyoGhoulMachine(currentMachine())){alert('有馬貴将ジャッジメント失敗は東京喰種用の記録です。');return;}
+  currentSuggestLog=currentSuggestLog.filter(entry=>!isArimaJudgementFailEntry(entry));
+  const selection={
+    stateGroup:'hit',
+    carryType:'mode',
+    pointRole:null,
+    nextModeHint:true,
+    arimaNextOffset:-6,
+    categoryId:'sgc_tokyo_ghoul_mode',
+    placeId:'sgp_tokyo_ghoul_arima_judgement',
+    itemId:'sgi_tokyo_ghoul_arima_judgement_fail',
+    category:'モード示唆',
+    place:'有馬貴将ジャッジメント',
+    item:'有馬貴将ジャッジメント失敗（天国確定）',
+    decorations:[],
+    useAppearG:false
+  };
+  addSuggestLogFromSelection(selection);
 }
 function renderPendingSuggestBox(){
   return '';
@@ -2845,7 +2874,7 @@ function endLogHasAt(endLog){
 }
 function isAfterAtModeEntry(entry){
   const place=String(entry?.place||'');
-  return entry?.placeId==='sgp_tokyo_ghoul_after_at_mode'||place.includes('AT終了後のモード移行')||place.includes('AT終了後');
+  return !!entry?.nextModeHint||entry?.placeId==='sgp_tokyo_ghoul_after_at_mode'||place.includes('AT終了後のモード移行')||place.includes('AT終了後');
 }
 function carrySummaryRelativeLabel(index,log,atBoundary=false){
   if(index===0)return '今回';
@@ -2986,12 +3015,16 @@ function renderTimelineArea(mode='play'){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">時系列ログは機種選択後に使えます</div>';
   if(mode==='hit')return `
-    ${renderSuggestArea('hit')}
+    ${renderEndRecordArea()}
+    <div class="work-subsection">
+      <div class="work-section-title">AT当選時の記録</div>
+      ${renderNextModeHintControls()}
+      ${renderSuggestArea('hit')}
+    </div>
     <div class="calc-box">
       <div class="calc-label">当選時情報</div>
       <div class="timeline-text" style="margin-top:6px;">AT駆け抜け有無・前回推定モード・AT終了画面比率などは後続段階で詳細化します。第2段階では記録枠だけ用意します。</div>
-    </div>
-    ${renderEndRecordArea()}`;
+    </div>`;
   return `
     ${renderGamePairInputs('timeline')}
     <div class="log-tools">
@@ -3005,6 +3038,24 @@ function renderTimelineArea(mode='play'){
     <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
     ${renderTimelineHistoryPanel()}
     ${renderSuggestArea('play')}`;
+}
+function nextModeEyecatchPlace(){
+  const mode=findSuggestCategoryByName(currentMachine(),'モード示唆');
+  const place=findSuggestPlaceByName(mode,'アイキャッチ');
+  return mode&&place?{category:mode,place}:null;
+}
+function renderNextModeHintControls(){
+  if(!isTokyoGhoulMachine(currentMachine()))return '';
+  const eyecatch=nextModeEyecatchPlace();
+  return `
+    <div class="work-subsection">
+      <div class="section-label" style="margin-top:0;">次稼働向けモード示唆</div>
+      <p class="section-note">AT/CZ終了後に出たアイキャッチや有馬失敗を、稼働継続後のモード示唆として渡します。</p>
+      <div class="tag-buttons">
+        ${eyecatch?`<button class="tag-btn gold" onclick="openSuggestItemPicker('${eyecatch.category.id}','${eyecatch.place.id}','hit')">アイキャッチ</button>`:''}
+        <button class="tag-btn gold" onclick="addArimaJudgementFail()">有馬貴将ジャッジメント失敗</button>
+      </div>
+    </div>`;
 }
 function renderEndRecordArea(){
   const endData=linkedEndDataGame??currentEndLog?.game??'';
@@ -4005,6 +4056,11 @@ function continueFromLog(id,skipConfirm=false){
   closeSuggestPicker();
   const stats=practiceStatsLine(calculatePracticeStats(log));
   continuedFromLog={id:log.id,summary:`${log.money?.date||'日付なし'} / ${endLogLine(log.endLog)||'打ち終わりなし'} / ${stats}`};
+  const arimaOffset=(log.suggestLog||[]).some(isArimaJudgementFailEntry)?-6:null;
+  if(arimaOffset!==null){
+    currentTimelineDataGame=7;
+    currentTimelineLiquidOffset=arimaOffset;
+  }
   showPage('pageLog');
   const money=log.money||{};
   if(money.store&&!storeByName(money.store)){
