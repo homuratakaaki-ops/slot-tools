@@ -2326,6 +2326,7 @@ function renderLogFields(){
   renderPracticeStats();
   renderStoreSelect();
   syncHeaderFromMoney();
+  updateMoneyRegistrationStatus();
 }
 function renderFieldInput(f){
   const id='logfield_'+f.id;
@@ -3619,6 +3620,7 @@ function closeNumericKeypad(){
     activeNumericInput.dispatchEvent(new Event('input',{bubbles:true}));
     activeNumericInput.dispatchEvent(new Event('change',{bubbles:true}));
   }
+  updateMoneyRegistrationStatus();
   activeNumericInput=null;
 }
 function updateKeypadValue(){
@@ -3638,6 +3640,7 @@ function pressKeypad(key){
   activeNumericInput.value=value;
   updateKeypadValue();
   updateCalc();
+  updateMoneyRegistrationStatus();
 }
 function collectValues(fields){
   const values={};
@@ -3667,8 +3670,24 @@ function setDefaultStartTime(force=false){
     syncHeaderFromMoney();
   }
 }
+function moneyResultEndMedalsValue(money=null){
+  if(money)return normalizeOptionalNumber(money.endMedals);
+  const el=document.getElementById('moneyEndMedals');
+  if(!el)return null;
+  return normalizeOptionalNumber(el.value);
+}
+function hasMoneyResultInput(money=null){
+  return moneyResultEndMedalsValue(money)!==null;
+}
+function updateMoneyRegistrationStatus(){
+  const moneyStatus=document.getElementById('moneyRegistrationStatus');
+  if(!moneyStatus)return;
+  const complete=hasMoneyResultInput();
+  moneyStatus.classList.toggle('complete',complete);
+  moneyStatus.classList.toggle('incomplete',!complete);
+  moneyStatus.textContent=complete?'収支登録が完了しました。':'収支未登録です。終了持ちメダルを入力すると収支登録が完了します。';
+}
 function updateCalc(){
-  const endMedals=normalizeOptionalNumber(document.getElementById('moneyEndMedals')?.value||'');
   const calc=calcMoney({
     startTime:document.getElementById('moneyStart')?.value||'',
     endTime:document.getElementById('moneyEnd')?.value||'',
@@ -3683,13 +3702,7 @@ function updateCalc(){
   document.getElementById('calcHourly').textContent=calc.hourlyRate===null?'-':formatYenDiff(calc.hourlyRate)+'/h';
   const rateHint=document.getElementById('rateHint');
   if(rateHint)rateHint.textContent=calc.exchangeRate?`貸し ${calc.lendRate??'-'}枚 / 交換 ${calc.exchangeRate}枚で円換算`:'交換率未設定のため円収支は未計算';
-  const moneyStatus=document.getElementById('moneyRegistrationStatus');
-  if(moneyStatus){
-    const complete=endMedals!==null;
-    moneyStatus.classList.toggle('complete',complete);
-    moneyStatus.classList.toggle('incomplete',!complete);
-    moneyStatus.textContent=complete?'収支登録が完了しました。':'収支未登録です。終了持ちメダルを入力すると収支登録が完了します。';
-  }
+  updateMoneyRegistrationStatus();
   const warning=document.getElementById('timeWarning');
   if(warning)warning.style.display=calc.invalidTime?'block':'none';
 }
@@ -4200,7 +4213,7 @@ function buildShareText(log){
 function moneyResultLine(money){
   const calc=calcMoney(money||{});
   if(calc.model==='medals'){
-    if(normalizeOptionalNumber(money.endMedals)===null)return `開始${formatMoneyAmount(money.startMedals)} / 収支未登録`;
+    if(!hasMoneyResultInput(money))return `開始${formatMoneyAmount(money.startMedals)} / 収支未登録`;
     const parts=[
       `開始${formatMoneyAmount(money.startMedals)}`,
       `終了${formatMoneyAmount(money.endMedals)}`,
@@ -4216,7 +4229,7 @@ function moneyResultLine(money){
 function logSummaryMoney(log){
   if(log.excludeFromStats)return '未確定 / 集計対象外';
   const calc=calcMoney(log.money||{});
-  if(calc.model==='medals'&&normalizeOptionalNumber(log.money?.endMedals)===null)return '収支未登録';
+  if(calc.model==='medals'&&!hasMoneyResultInput(log.money))return '収支未登録';
   if(calc.model==='medals')return `メダル ${formatDiff(calc.medalDiff)}　円収支 ${formatYenDiff(calc.yenDiff)}`;
   return `差枚 ${formatDiff(log.money?.diff)}`;
 }
