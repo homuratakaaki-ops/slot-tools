@@ -653,6 +653,14 @@ function normalizeCarryType(value){
 }
 function normalizeConfidenceLevel(value){
   const text=String(value||'').trim();
+  const aliases={
+    chance_ijou:'chance',
+    chanceOrHigher:'chance',
+    cz:'chance',
+    cz_ijou:'chance',
+    czOrHigher:'chance'
+  };
+  if(aliases[text])return aliases[text];
   return MODE_CONFIDENCE_LEVELS.includes(text)?text:null;
 }
 function normalizeConfidenceType(value){
@@ -941,6 +949,7 @@ function derivedModeConfidence(category,place,item){
   if(placeId==='sgp_tokyo_ghoul_game_forewarning'||placeName.includes('規定ゲーム数前兆')){
     if(label.includes('天国濃厚'))return {level:'tenkoku',type:'kakutei'};
     if(label.includes('天国準備濃厚'))return {level:'tenkoku_junbi',type:'kakutei'};
+    if(label.includes('チャンス以上濃厚'))return {level:'chance',type:'kakutei'};
     if(label.includes('CZ以上濃厚'))return {level:'chance',type:'kakutei'};
     if(label.includes('通常C以上濃厚'))return {level:'tsujoC',type:'kakutei'};
     if(label.includes('通常B以上濃厚'))return {level:'tsujoB',type:'kakutei'};
