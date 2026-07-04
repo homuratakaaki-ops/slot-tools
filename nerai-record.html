@@ -158,6 +158,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .mode-inference{border:1px solid rgba(98,181,255,.28);border-radius:8px;background:rgba(98,181,255,.08);padding:8px;margin:0 0 8px;font-size:12px;font-weight:800;}
 .mode-inference.kakutei{border-color:rgba(126,219,141,.5);background:rgba(126,219,141,.12);color:#a9efb6;}
 .mode-inference.shisa{border-color:rgba(98,181,255,.42);color:#a9d8ff;}
+.carry-summary-row.kakutei{border-color:rgba(126,219,141,.55);background:rgba(126,219,141,.1);}
+.carry-summary-row.kakutei .timeline-text{color:#b8f0c2;font-weight:800;}
+.carry-summary-row.shisa{border-color:rgba(98,181,255,.28);}
 .setting-ratio-box,.kui-summary-box{border:1px solid rgba(201,168,76,.25);border-radius:8px;background:rgba(201,168,76,.07);padding:9px;margin-bottom:10px;}
 .setting-ratio-title,.kui-summary-title{font-size:12px;font-weight:900;color:var(--gold-light);margin-bottom:6px;}
 .setting-ratio-row,.kui-summary-row{font-size:12px;color:var(--text);margin-top:4px;}
@@ -2528,11 +2531,11 @@ function renderStartLogArea(){
     </div>
     <div class="input-row compact-row">
       <div class="input-label no-wrap-label">CZ失敗回数</div>
-      <input type="text" id="startCzFailCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartCzFailCount))}" placeholder="optional" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
+      <input type="text" id="startCzFailCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartCzFailCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
     </div>
     <div class="input-row compact-row">
       <div class="input-label no-wrap-label">AT駆け抜け回数</div>
-      <input type="text" id="startAtThroughCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartAtThroughCount))}" placeholder="optional" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
+      <input type="text" id="startAtThroughCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartAtThroughCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
     </div>
     <div class="section-label" style="margin-top:14px;">追加データ（任意）</div>
     <div class="input-row">
@@ -2706,6 +2709,19 @@ function enabledSuggestPlaceEntries(stateGroup){
   });
   return entries;
 }
+function isKuiPointCategory(category){
+  return category?.id==='sgc_tokyo_ghoul_kui_point'||String(category?.category||'')==='喰ポイント'||String(category?.category||'').includes('蝟ｰ繝昴う繝ｳ繝・');
+}
+function renderSuggestPlaceButtonsForState(stateGroup){
+  const entries=enabledSuggestPlaceEntries(stateGroup);
+  const normalButtons=entries
+    .filter(({category})=>!isKuiPointCategory(category))
+    .map(({category,place})=>`<button class="tag-btn gold" onclick="openSuggestItemPicker('${category.id}','${place.id}','${stateGroup}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`)
+    .join('');
+  const kuiCategory=entries.find(({category})=>isKuiPointCategory(category))?.category;
+  const kuiButton=kuiCategory?`<button class="tag-btn gold" onclick="openKuiPointPicker('${kuiCategory.id}','${stateGroup}')">喰ポイント</button>`:'';
+  return normalButtons+kuiButton;
+}
 function enabledSuggestPlaces(categoryId){
   const category=enabledSuggestCategories().find(c=>c.id===categoryId);
   return (category?.places||[]).filter(p=>p.enabled!==false);
@@ -2724,7 +2740,7 @@ function renderSuggestArea(stateGroup=''){
   const stateGroups=fixedGroup?SUGGEST_STATE_GROUPS.filter(group=>group.id===fixedGroup):enabledSuggestStateGroups();
   if(!currentMachine())return '<div class="empty-hint">示唆記録は機種選択後に使えます</div>';
   if(!stateGroups.length)return '<div class="empty-hint">有効な示唆マスタがありません。機種・店舗タブで登録してください。</div>';
-  const placeButtons=fixedGroup?enabledSuggestPlaceEntries(fixedGroup).map(({category,place})=>`<button class="tag-btn gold" onclick="openSuggestItemPicker('${category.id}','${place.id}','${fixedGroup}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`).join(''):'';
+  const placeButtons=fixedGroup?renderSuggestPlaceButtonsForState(fixedGroup):'';
   return `
     <div class="section-label" style="margin-top:14px;">示唆記録</div>
     <p class="section-note">${fixedGroup?`${suggestStateLabel(fixedGroup)}の示唆だけを表示しています。`:'状態を押すと確認場所 → 内容の順に選べます。'} 引き継ぎ種別は内容ごとに保存されます。</p>
@@ -2920,6 +2936,9 @@ function addArimaJudgementFail(){
   if(!currentMachine()){alert('機種を選択してください');return;}
   if(!isTokyoGhoulMachine(currentMachine())){alert('有馬貴将ジャッジメント失敗は東京喰種用の記録です。');return;}
   currentSuggestLog=currentSuggestLog.filter(entry=>!isArimaJudgementFailEntry(entry));
+  currentKuiPointReleased=true;
+  const release=document.getElementById('kuiPointReleased');
+  if(release)release.checked=true;
   const selection={
     stateGroup:'hit',
     carryType:'mode',
@@ -3135,7 +3154,7 @@ function buildKuiPointSummary(){
   const logs=[...currentInputSameTableLogs()].reverse();
   logs.push({suggestLog:currentSuggestLog,kuiPoint:{released:currentKuiPointReleased}});
   logs.forEach(log=>{
-    if(log.kuiPoint?.released){
+    if(log.kuiPoint?.released||(log.suggestLog||[]).some(isArimaJudgementFailEntry)){
       counts["\u5c0f"]=0;counts["\u4e2d"]=0;counts["\u5927"]=0;hints.length=0;
       return;
     }
@@ -3157,16 +3176,25 @@ function buildKuiPointSummary(){
 function renderKuiPointSummaryArea(){
   const summary=buildKuiPointSummary();
   const hintText=summary.hints.length
-    ?summary.hints.slice(0,5).map((row,index)=>`${index===0?'prev':index===1?'prev2':`prev${index+1}`}：${escapeHtml(row.item)}`).join(' / ')
-    :'none';
+    ?summary.hints.slice(0,5).map((row,index)=>`${index===0?'前回':index===1?'前々回':`${index+1}回前`}：${escapeHtml(row.item)}`).join(' / ')
+    :'履歴なし';
   return `
     <div class="kui-summary-box">
-      <div class="kui-summary-title">Kui point summary</div>
-      <div class="kui-summary-row"><strong>Gain</strong> S×${summary.counts["\u5c0f"]} M×${summary.counts["\u4e2d"]} L×${summary.counts["\u5927"]}</div>
-      <div class="kui-summary-row"><strong>Hints</strong> ${hintText}</div>
-      <div class="kui-summary-row"><strong>Start refs</strong> CZ fail：${summary.czFail??'-'} / AT through：${summary.atThrough??'-'}</div>
-      ${summary.released?'<div class="kui-summary-row"><strong>Released</strong> gain counts and hint history are reset</div>':''}
+      <div class="kui-summary-title">喰ポイントまとめ</div>
+      <div class="kui-summary-row"><strong>獲得</strong> 小×${summary.counts["\u5c0f"]}　中×${summary.counts["\u4e2d"]}　大×${summary.counts["\u5927"]}</div>
+      <div class="kui-summary-row"><strong>示唆履歴</strong> ${hintText}</div>
+      <div class="kui-summary-row"><strong>打ち始め参照</strong> CZ失敗回数：${summary.czFail??'-'} / AT駆け抜け回数：${summary.atThrough??'-'}</div>
+      ${summary.released?'<div class="kui-summary-row"><strong>解放済み</strong> 獲得回数・示唆履歴をリセットします</div>':''}
     </div>`;
+}
+function carrySummaryRowClass(type,entry){
+  const classes=['carry-summary-row'];
+  if(type==='mode'){
+    const confidence=entryModeConfidence(entry);
+    if(confidence.type==='kakutei')classes.push('kakutei');
+    if(confidence.type==='shisa')classes.push('shisa');
+  }
+  return classes.join(' ');
 }
 function carrySummarySection(type,title,open){
   const groups=buildCarrySummaryGroups(type);
@@ -3177,7 +3205,7 @@ function carrySummarySection(type,title,open){
       <div class="carry-summary-group-title">${escapeHtml(group.label)}</div>
       ${type==='mode'?modeInferenceHtml(group.entries):''}
       ${group.entries.map(entry=>`
-        <div class="carry-summary-row">
+        <div class="${carrySummaryRowClass(type,entry)}">
           <div class="timeline-game">${escapeHtml(suggestGameText(entry)||'G数なし')}</div>
           <div class="timeline-text">${suggestLogLineHtml(entry)}</div>
         </div>`).join('')}
@@ -4346,8 +4374,8 @@ function continueFromLog(id,skipConfirm=false){
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
   currentStartCounterGame=0;
-  currentStartCzFailCount=null;
-  currentStartAtThroughCount=null;
+  currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
+  currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
   currentStartLog=[];
   currentTimeline=[];
   currentTimelineDataGame=0;
