@@ -3152,28 +3152,34 @@ function buildCarrySummaryGroups(type){
 function carrySummaryEntries(type){
   return buildCarrySummaryGroups(type).flatMap(group=>group.entries);
 }
-function modeConfidenceStrength(level){
+function modeConfidenceRank(level){
   return {
-    tenkoku:60,
-    tenkoku_junbi:50,
-    chance:40,
-    tsujoC:30,
-    tsujoB:20,
-    tsujoA:10
-  }[normalizeConfidenceLevel(level)]||0;
+    tenkoku:1,
+    tenkoku_junbi:2,
+    chance:3,
+    tsujoC:4,
+    tsujoB:5,
+    tsujoA:6
+  }[normalizeConfidenceLevel(level)]||999;
 }
 function entryModeConfidence(entry){
   const refs=findSuggestRefsForEntry(currentMachine(),entry);
-  const confidence=entry.confidenceLevel&&entry.confidenceType
-    ?{level:entry.confidenceLevel,type:entry.confidenceType}
-    :derivedModeConfidence(refs.category,{...(refs.place||{}),name:entry.place||refs.place?.name},refs.item||entry);
-  return {level:normalizeConfidenceLevel(confidence.level),type:normalizeConfidenceType(confidence.type)};
+  const derived=derivedModeConfidence(refs.category,{...(refs.place||{}),name:entry.place||refs.place?.name},refs.item||entry);
+  return {
+    level:normalizeConfidenceLevel(derived.level)||normalizeConfidenceLevel(entry.confidenceLevel),
+    type:normalizeConfidenceType(derived.type)||normalizeConfidenceType(entry.confidenceType)
+  };
+}
+function strongestModeConfidence(candidates,type){
+  return (candidates||[]).reduce((best,row)=>{
+    if(row.type!==type)return best;
+    if(!best)return row;
+    return modeConfidenceRank(row.level)<modeConfidenceRank(best.level)?row:best;
+  },null);
 }
 function modeInferenceForEntries(entries){
   const candidates=(entries||[]).map(entryModeConfidence).filter(row=>row.level&&row.type);
-  const confirmed=candidates.filter(row=>row.type==='kakutei').sort((a,b)=>modeConfidenceStrength(b.level)-modeConfidenceStrength(a.level))[0];
-  if(confirmed)return confirmed;
-  return candidates.filter(row=>row.type==='shisa').sort((a,b)=>modeConfidenceStrength(b.level)-modeConfidenceStrength(a.level))[0]||null;
+  return strongestModeConfidence(candidates,'kakutei')||strongestModeConfidence(candidates,'shisa');
 }
 function modeInferenceHtml(entries){
   const inference=modeInferenceForEntries(entries);
