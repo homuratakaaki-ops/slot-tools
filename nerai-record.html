@@ -950,8 +950,9 @@ function derivedModeConfidence(category,place,item){
     if(label.includes('天国濃厚'))return {level:'tenkoku',type:'kakutei'};
     if(label.includes('天国準備濃厚'))return {level:'tenkoku_junbi',type:'kakutei'};
     if(label.includes('チャンス以上濃厚'))return {level:'chance',type:'kakutei'};
-    if(label.includes('CZ以上濃厚'))return {level:'chance',type:'kakutei'};
+    if(label.includes('チャンス濃厚'))return {level:'chance',type:'kakutei'};
     if(label.includes('通常C以上濃厚'))return {level:'tsujoC',type:'kakutei'};
+    if(label.includes('通常C濃厚'))return {level:'tsujoC',type:'kakutei'};
     if(label.includes('通常B以上濃厚'))return {level:'tsujoB',type:'kakutei'};
     if(label.includes('通常B以上の期待度アップ'))return {level:'tsujoB',type:'shisa'};
     return {level:null,type:null};
@@ -1282,6 +1283,32 @@ function migrateKuiPointMaster(machine){
   });
   reorderSuggestCategories(machine,['モード示唆','設定示唆','喰ポイント']);
 }
+const TOKYO_GHOUL_MODE_FOREWARNING_LABELS=[
+  '50G 前兆発生（上空あり）：CZ非当選・天国濃厚',
+  '100G 前兆発生（上空なし）：天国準備濃厚',
+  '150G 前兆発生（上空なし）：通常B以上濃厚',
+  '200G 前兆非発生：天国準備濃厚',
+  '200G 前兆発生（上空なし）：通常B以上の期待度アップ',
+  '250G 前兆発生（上空なし）：通常C以上濃厚',
+  '300G 前兆発生（上空なし）：チャンス濃厚',
+  '400G 前兆非発生：通常C濃厚',
+  '500G 前兆発生（上空なし）：チャンス濃厚'
+];
+function normalizeTokyoGhoulGameForewarningMaster(machine){
+  const mode=findSuggestCategoryByName(machine,'モード示唆');
+  const place=findSuggestPlaceByName(mode,'規定ゲーム数前兆');
+  if(!place)return;
+  renameSuggestItems(place,[
+    ['50G 前兆発生（上空あり）：CZ以上のチャンス・非当選なら天国濃厚','50G 前兆発生（上空あり）：CZ非当選・天国濃厚']
+  ]);
+  const existing=new Map((place.items||[]).map(item=>[item.label,item]));
+  place.items=TOKYO_GHOUL_MODE_FOREWARNING_LABELS.map((label,index)=>{
+    const item=existing.get(label)||{id:`sgp_tokyo_ghoul_game_forewarning_i${index+1}`,label,enabled:true};
+    item.label=label;
+    item.enabled=item.enabled!==false;
+    return item;
+  });
+}
 function applyTokyoGhoulSuggestCorrections(machine){
   const mode=findSuggestCategoryByName(machine,'モード示唆');
   const setting=findSuggestCategoryByName(machine,'設定示唆');
@@ -1318,6 +1345,7 @@ function applyTokyoGhoulSuggestCorrections(machine){
   renameSuggestPlace(mode,'AT終了後のモード示唆','AT終了後のモード移行');
   const afterAt=findSuggestPlaceByName(mode,'AT終了後のモード移行');
   renameSuggestItems(afterAt,[['AT駆け抜け：モードB以上濃厚','AT駆け抜け（モードB以上濃厚）']]);
+  normalizeTokyoGhoulGameForewarningMaster(machine);
   reorderSuggestPlaces(mode,['アイキャッチ','月山招待状','規定ゲーム数前兆','CZ終了エンドカード','AT終了後のモード移行']);
   const settingCz=findSuggestPlaceByName(setting,'CZ終了エンドカード');
   removeSuggestItemsByLabel(settingCz,['白背景（基本）','赤背景（高設定示唆）']);
@@ -1423,29 +1451,15 @@ function ensureSuggestSeed(machine){
           '今すぐ僕のもとにきてくれ（残り100G以内の当選濃厚）'
         ]),
         place('sgp_tokyo_ghoul_game_forewarning','規定ゲーム数前兆',[
-          '50G 前兆非発生：基本パターン',
-          '50G 前兆発生（上空あり）：CZ以上のチャンス・非当選なら天国濃厚',
-          '50G 前兆発生（上空なし）：チャンス以上濃厚',
-          '100G 前兆発生（上空あり）：基本パターン',
+          '50G 前兆発生（上空あり）：CZ非当選・天国濃厚',
           '100G 前兆発生（上空なし）：天国準備濃厚',
-          '150G 前兆非発生：基本パターン',
-          '150G 前兆発生（上空あり）：CZ以上濃厚',
           '150G 前兆発生（上空なし）：通常B以上濃厚',
           '200G 前兆非発生：天国準備濃厚',
-          '200G 前兆発生（上空あり）：基本パターン',
           '200G 前兆発生（上空なし）：通常B以上の期待度アップ',
-          '250G 前兆非発生：基本パターン',
-          '250G 前兆発生（上空あり）：CZ以上濃厚',
           '250G 前兆発生（上空なし）：通常C以上濃厚',
-          '300G 前兆発生（上空あり）：基本パターン',
           '300G 前兆発生（上空なし）：チャンス濃厚',
           '400G 前兆非発生：通常C濃厚',
-          '400G 前兆発生（上空あり）：基本パターン',
-          '400G 前兆発生（上空なし）：基本パターン',
-          '500G 前兆発生（上空あり）：基本パターン',
-          '500G 前兆発生（上空なし）：チャンス濃厚',
-          '600G 前兆発生（上空あり）：CZ以上濃厚',
-          '600G 前兆発生（上空なし）：CZ以上濃厚'
+          '500G 前兆発生（上空なし）：チャンス濃厚'
         ]),
         place('sgp_tokyo_ghoul_cz_endcard_mode','CZ終了エンドカード',[
           '金木研A（デフォルト）',
