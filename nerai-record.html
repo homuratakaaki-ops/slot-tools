@@ -165,6 +165,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .setting-ratio-title,.kui-summary-title{font-size:12px;font-weight:900;color:var(--gold-light);margin-bottom:6px;}
 .setting-ratio-row,.kui-summary-row{font-size:12px;color:var(--text);margin-top:4px;}
 .kui-summary-row strong{color:var(--gold-light);}
+.disabled-ref{opacity:.62;}
+.disabled-ref .input-label,.disabled-ref input,.disabled-ref-value{text-decoration:line-through;}
 .kui-release-control{margin-top:10px;border:1px solid rgba(201,168,76,.26);border-radius:8px;background:rgba(201,168,76,.07);padding:10px;}
 .carry-summary-row{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px;margin-bottom:7px;}
 .carry-summary-row:last-child{margin-bottom:0;}
@@ -668,7 +670,7 @@ function modeConfidenceLevelLabel(value){
   }[value]||'';
 }
 function modeConfidenceTypeLabel(value){
-  return value==='kakutei'?'確定':value==='shisa'?'示唆':'';
+  return value==='kakutei'?'濃厚':value==='shisa'?'示唆':'';
 }
 function carryTypeLabel(value){
   return value==='setting'?'設定引き継ぎ':value==='mode'?'モード参照':'引き継ぎなし';
@@ -2523,17 +2525,18 @@ function optionalCountValue(value){
 function renderStartLogArea(){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">打ち始めログは機種選択後に使えます</div>';
+  const startRefDisabled=currentChainHasKuiPointRelease();
   return `
     ${renderStartHeaderArea()}
     <div class="input-row">
       <div class="input-label no-wrap-label">データカウンターG数<div class="input-hint">必須・分母の起点</div></div>
       <input type="text" id="startCounterGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(startCounterInputValue())}" data-clear-initial-zero="${startCounterInitialZeroFlag()}" placeholder="0" oninput="syncStartCounterGame()" onchange="syncStartCounterGame()">
     </div>
-    <div class="input-row compact-row">
+    <div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
       <div class="input-label no-wrap-label">CZ失敗回数</div>
       <input type="text" id="startCzFailCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartCzFailCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
     </div>
-    <div class="input-row compact-row">
+    <div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
       <div class="input-label no-wrap-label">AT駆け抜け回数</div>
       <input type="text" id="startAtThroughCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartAtThroughCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
     </div>
@@ -2932,13 +2935,52 @@ function addSuggestLogFromSelection(selection,trophyCustomValue=''){
 function isArimaJudgementFailEntry(entry){
   return String(entry?.item||'').includes('有馬貴将ジャッジメント失敗')||entry?.arimaNextOffset===-6;
 }
-function addArimaJudgementFail(){
+function isArimaJudgementEntry(entry){
+  return isArimaJudgementFailEntry(entry)||entry?.placeId==='sgp_tokyo_ghoul_arima_judgement'||String(entry?.item||'').includes('有馬貴将ジャッジメント成功');
+}
+function openArimaJudgementPicker(){
   if(!currentMachine()){alert('機種を選択してください');return;}
-  if(!isTokyoGhoulMachine(currentMachine())){alert('有馬貴将ジャッジメント失敗は東京喰種用の記録です。');return;}
-  currentSuggestLog=currentSuggestLog.filter(entry=>!isArimaJudgementFailEntry(entry));
+  if(!isTokyoGhoulMachine(currentMachine())){alert('有馬ジャッジメントは東京喰種用の記録です。');return;}
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'sgc_tokyo_ghoul_mode',placeId:'sgp_tokyo_ghoul_arima_judgement',itemId:''};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent='有馬ジャッジメント';
+  breadcrumb.textContent='成功 / 失敗を選択';
+  back.textContent='閉じる';
+  options.innerHTML=`
+    <button class="suggest-picker-option" onclick="selectArimaJudgement('success')">成功</button>
+    <button class="suggest-picker-option" onclick="selectArimaJudgement('fail')">失敗</button>`;
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectArimaJudgement(result){
+  if(result!=='success'&&result!=='fail')return;
+  if(!currentMachine())return;
+  currentSuggestLog=currentSuggestLog.filter(entry=>!isArimaJudgementEntry(entry));
   currentKuiPointReleased=true;
   const release=document.getElementById('kuiPointReleased');
   if(release)release.checked=true;
+  if(result==='success'){
+    const selection={
+      stateGroup:'hit',
+      carryType:null,
+      pointRole:null,
+      nextModeHint:false,
+      categoryId:'sgc_tokyo_ghoul_mode',
+      placeId:'sgp_tokyo_ghoul_arima_judgement',
+      itemId:'sgi_tokyo_ghoul_arima_judgement_success',
+      category:'モード示唆',
+      place:'有馬貴将ジャッジメント',
+      item:'有馬貴将ジャッジメント成功',
+      decorations:[],
+      useAppearG:false
+    };
+    if(addSuggestLogFromSelection(selection))closeSuggestPicker();
+    return;
+  }
   const selection={
     stateGroup:'hit',
     carryType:'mode',
@@ -2956,7 +2998,10 @@ function addArimaJudgementFail(){
     decorations:[],
     useAppearG:false
   };
-  addSuggestLogFromSelection(selection);
+  if(addSuggestLogFromSelection(selection))closeSuggestPicker();
+}
+function addArimaJudgementFail(){
+  selectArimaJudgement('fail');
 }
 function renderPendingSuggestBox(){
   return '';
@@ -3107,9 +3152,15 @@ function buildCarrySummaryGroups(type){
 function carrySummaryEntries(type){
   return buildCarrySummaryGroups(type).flatMap(group=>group.entries);
 }
-function modeConfidenceRank(level){
-  const index=MODE_CONFIDENCE_LEVELS.indexOf(normalizeConfidenceLevel(level));
-  return index<0?999:index;
+function modeConfidenceStrength(level){
+  return {
+    tenkoku:60,
+    tenkoku_junbi:50,
+    chance:40,
+    tsujoC:30,
+    tsujoB:20,
+    tsujoA:10
+  }[normalizeConfidenceLevel(level)]||0;
 }
 function entryModeConfidence(entry){
   const refs=findSuggestRefsForEntry(currentMachine(),entry);
@@ -3120,9 +3171,9 @@ function entryModeConfidence(entry){
 }
 function modeInferenceForEntries(entries){
   const candidates=(entries||[]).map(entryModeConfidence).filter(row=>row.level&&row.type);
-  const confirmed=candidates.filter(row=>row.type==='kakutei').sort((a,b)=>modeConfidenceRank(a.level)-modeConfidenceRank(b.level))[0];
+  const confirmed=candidates.filter(row=>row.type==='kakutei').sort((a,b)=>modeConfidenceStrength(b.level)-modeConfidenceStrength(a.level))[0];
   if(confirmed)return confirmed;
-  return candidates.filter(row=>row.type==='shisa').sort((a,b)=>modeConfidenceRank(a.level)-modeConfidenceRank(b.level))[0]||null;
+  return candidates.filter(row=>row.type==='shisa').sort((a,b)=>modeConfidenceStrength(b.level)-modeConfidenceStrength(a.level))[0]||null;
 }
 function modeInferenceHtml(entries){
   const inference=modeInferenceForEntries(entries);
@@ -3148,13 +3199,21 @@ function settingAtEndRatioHtml(rows){
 function kuiPointRoleEntriesFromLog(log,role){
   return (log?.suggestLog||[]).filter(entry=>entry.pointRole===role);
 }
+function logHasKuiPointRelease(log){
+  return !!log?.kuiPoint?.released||(log?.suggestLog||[]).some(isArimaJudgementEntry);
+}
+function currentChainHasKuiPointRelease(){
+  return currentKuiPointReleased||currentInputSameTableLogs().some(logHasKuiPointRelease);
+}
 function buildKuiPointSummary(){
   const counts={["\u5c0f"]:0,["\u4e2d"]:0,["\u5927"]:0};
   const hints=[];
   const logs=[...currentInputSameTableLogs()].reverse();
   logs.push({suggestLog:currentSuggestLog,kuiPoint:{released:currentKuiPointReleased}});
+  let releasedSeen=false;
   logs.forEach(log=>{
-    if(log.kuiPoint?.released||(log.suggestLog||[]).some(isArimaJudgementFailEntry)){
+    if(logHasKuiPointRelease(log)){
+      releasedSeen=true;
       counts["\u5c0f"]=0;counts["\u4e2d"]=0;counts["\u5927"]=0;hints.length=0;
       return;
     }
@@ -3170,11 +3229,12 @@ function buildKuiPointSummary(){
     hints:hints.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt))),
     czFail:currentStartCzFailCount,
     atThrough:currentStartAtThroughCount,
-    released:currentKuiPointReleased
+    released:releasedSeen||currentKuiPointReleased
   };
 }
 function renderKuiPointSummaryArea(){
   const summary=buildKuiPointSummary();
+  const manualClass=summary.released?'disabled-ref-value':'';
   const hintText=summary.hints.length
     ?summary.hints.slice(0,5).map((row,index)=>`${index===0?'前回':index===1?'前々回':`${index+1}回前`}：${escapeHtml(row.item)}`).join(' / ')
     :'履歴なし';
@@ -3183,8 +3243,8 @@ function renderKuiPointSummaryArea(){
       <div class="kui-summary-title">喰ポイントまとめ</div>
       <div class="kui-summary-row"><strong>獲得</strong> 小×${summary.counts["\u5c0f"]}　中×${summary.counts["\u4e2d"]}　大×${summary.counts["\u5927"]}</div>
       <div class="kui-summary-row"><strong>示唆履歴</strong> ${hintText}</div>
-      <div class="kui-summary-row"><strong>打ち始め参照</strong> CZ失敗回数：${summary.czFail??'-'} / AT駆け抜け回数：${summary.atThrough??'-'}</div>
-      ${summary.released?'<div class="kui-summary-row"><strong>解放済み</strong> 獲得回数・示唆履歴をリセットします</div>':''}
+      <div class="kui-summary-row"><strong>打ち始め参照</strong> <span class="${manualClass}">CZ失敗回数：${summary.czFail??'-'} / AT駆け抜け回数：${summary.atThrough??'-'}</span></div>
+      ${summary.released?'<div class="kui-summary-row"><strong>喰ポイント解放済み</strong> 獲得回数・示唆履歴をリセット済みです</div>':''}
     </div>`;
 }
 function carrySummaryRowClass(type,entry){
@@ -3336,10 +3396,10 @@ function renderNextModeHintControls(){
   return `
     <div class="work-subsection">
       <div class="section-label" style="margin-top:0;">次稼働向けモード示唆</div>
-      <p class="section-note">AT/CZ終了後に出たアイキャッチや有馬失敗を、稼働継続後のモード示唆として渡します。</p>
+      <p class="section-note">AT/CZ終了後に出たアイキャッチや有馬ジャッジメントを、稼働継続後のモード示唆として渡します。</p>
       <div class="tag-buttons">
         ${eyecatch?`<button class="tag-btn gold" onclick="openSuggestItemPicker('${eyecatch.category.id}','${eyecatch.place.id}','hit')">アイキャッチ</button>`:''}
-        <button class="tag-btn gold" onclick="addArimaJudgementFail()">有馬貴将ジャッジメント失敗</button>
+        <button class="tag-btn gold" onclick="openArimaJudgementPicker()">有馬ジャッジメント</button>
       </div>
     </div>`;
 }
