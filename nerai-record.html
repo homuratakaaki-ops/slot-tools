@@ -1191,12 +1191,14 @@ function hydrateSuggestLogEntry(machine,entry){
     entry.itemId=entry.itemId||refs.item.id;
     entry.item=entry.item||refs.item.label;
   }
+  entry.source=entry.source==='wizard'?'wizard':'manual';
 }
 function suggestLogLineHtml(entry){
   const game=suggestGameText(entry);
   const trophy=entry.trophyCustom?` / 店長カスタム：${escapeHtml(entry.trophyCustom)}`:'';
+  const source=entry.source==='wizard'?' / 一括':' / 追加';
   const item=findSuggestItemForEntry(entry);
-  return `${game?escapeHtml(game)+' ':''}${escapeHtml(suggestStateLabel(suggestEntryStateGroup(entry)))} / ${escapeHtml(suggestEntryPlaceLabel(entry))}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}${trophy}`;
+  return `${game?escapeHtml(game)+' ':''}${escapeHtml(suggestStateLabel(suggestEntryStateGroup(entry)))} / ${escapeHtml(suggestEntryPlaceLabel(entry))}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}${trophy}${source}`;
 }
 function suggestGamePair(entry){
   const data=normalizeOptionalNumber(entry?.dataGame);
@@ -1408,7 +1410,7 @@ function migrateTokyoGhoulSuggestLogs(data){
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV13)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV14)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const tag=(id,label,optional=false,rule={},tagClass='')=>({id,label,optional,countAs:null,liquidDelta:rule.liquidDelta??null,liquidSet:rule.liquidSet??null,tagClass});
   const timelineTags=[
@@ -1568,6 +1570,7 @@ function ensureSuggestSeed(machine){
   machine.suggestSeedTokyoGhoulV11=true;
   machine.suggestSeedTokyoGhoulV12=true;
   machine.suggestSeedTokyoGhoulV13=true;
+  machine.suggestSeedTokyoGhoulV14=true;
 }
 function todayValue(){
   const d=new Date();
@@ -2779,9 +2782,13 @@ function renderSuggestArea(stateGroup=''){
   if(!currentMachine())return '<div class="empty-hint">示唆記録は機種選択後に使えます</div>';
   if(!stateGroups.length)return '<div class="empty-hint">有効な示唆マスタがありません。機種・店舗タブで登録してください。</div>';
   const placeButtons=fixedGroup?renderSuggestPlaceButtonsForState(fixedGroup):'';
+  const label=fixedGroup==='hit'?'示唆を個別追加':'示唆記録';
+  const note=fixedGroup==='hit'
+    ?'ウィザードの上書き対象外として、追加分を個別に記録します。'
+    :fixedGroup?`${suggestStateLabel(fixedGroup)}の示唆だけを表示しています。`:'状態を押すと確認場所 → 内容の順に選べます。';
   return `
-    <div class="section-label" style="margin-top:14px;">示唆記録</div>
-    <p class="section-note">${fixedGroup?`${suggestStateLabel(fixedGroup)}の示唆だけを表示しています。`:'状態を押すと確認場所 → 内容の順に選べます。'} 引き継ぎ種別は内容ごとに保存されます。</p>
+    <div class="section-label" style="margin-top:14px;">${escapeHtml(label)}</div>
+    <p class="section-note">${escapeHtml(note)} 引き継ぎ種別は内容ごとに保存されます。</p>
     ${fixedGroup?renderGamePairInputs('suggest'):''}
     <div class="tag-buttons">
       ${fixedGroup?placeButtons:stateGroups.map(group=>`<button class="tag-btn gold" onclick="openSuggestPlacePicker('${group.id}')">${escapeHtml(group.label)}</button>`).join('')}
@@ -2861,20 +2868,22 @@ function selectKuiPointValue(value){
   }
   const gain=suggestPickerState.kuiGain||'なし';
   const hint=value;
-  addKuiPointSuggestLog('獲得',gain);
-  addKuiPointSuggestLog('示唆',hint);
   const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
+  const source=branchActive?'wizard':'manual';
+  addKuiPointSuggestLog('獲得',gain,source);
+  addKuiPointSuggestLog('示唆',hint,source);
   closeSuggestPicker();
   if(branchActive)finishHitBranchStepAndContinue();
 }
-function addKuiPointSuggestLog(placeName,itemLabel){
+function addKuiPointSuggestLog(placeName,itemLabel,source='manual'){
   const category=enabledSuggestCategories().find(c=>c.id===suggestPickerState.categoryId)||findSuggestCategoryByName(currentMachine(),'喰ポイント');
   const place=findSuggestPlaceByName(category,placeName);
   const item=place?.items?.find(i=>i.label===itemLabel);
   const role=placeName==='獲得'?'gain':'hint';
-  currentSuggestLog=currentSuggestLog.filter(entry=>entry.pointRole!==role);
+  currentSuggestLog=currentSuggestLog.filter(entry=>!(entry.pointRole===role&&(source==='wizard'?entry.source==='wizard':entry.source!=='wizard')));
   const selection={
     stateGroup:'hit',
+    source,
     carryType:null,
     pointRole:role,
     categoryId:category?.id||'',
@@ -2932,15 +2941,15 @@ function selectSuggestItem(itemId){
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===itemId);
   if(!category||!place||!item){alert('示唆の状態、確認場所、内容を選択してください');return;}
   const stateGroup=normalizeSuggestStateGroup(suggestPickerState.stateGroup)||suggestPlaceStateGroup(category,place);
+  const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
   const nextModeHint=stateGroup==='hit'&&(place.id==='sgp_tokyo_ghoul_eyecatch'||place.name==='アイキャッチ'||place.id==='sgp_tokyo_ghoul_cz_endcard_mode');
-  const selection={stateGroup,carryType:nextModeHint?'mode':normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
+  const selection={stateGroup,source:branchActive?'wizard':'manual',carryType:nextModeHint?'mode':normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
   if(isTrophySuggestSelection(selection)&&item.label!=='なし'){
     suggestPickerState.itemId=itemId;
     renderSuggestPicker('trophyCustom');
     return;
   }
   if(addSuggestLogFromSelection(selection)){
-    const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
     closeSuggestPicker();
     if(branchActive)finishHitBranchStepAndContinue();
   }
@@ -2953,9 +2962,9 @@ function selectTrophyCustom(custom){
   const place=enabledSuggestPlaces(suggestPickerState.categoryId).find(p=>p.id===suggestPickerState.placeId);
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===suggestPickerState.itemId);
   if(!category||!place||!item){alert('トロフィーの内容を選び直してください');return;}
-  const selection={stateGroup:suggestPlaceStateGroup(category,place),carryType:normalizeCarryType(item.carryType)||'setting',pointRole:place.pointRole||item.pointRole||null,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
+  const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
+  const selection={stateGroup:suggestPlaceStateGroup(category,place),source:branchActive?'wizard':'manual',carryType:normalizeCarryType(item.carryType)||'setting',pointRole:place.pointRole||item.pointRole||null,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
   if(addSuggestLogFromSelection(selection,custom)){
-    const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
     closeSuggestPicker();
     if(branchActive)finishHitBranchStepAndContinue();
   }
@@ -2971,7 +2980,7 @@ function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   const dataGame=useAppearG?timelineDataValue():null;
   const liquidGame=useAppearG?(timelineLiquidValue()??dataGame):null;
   const {useAppearG:unused,decorations,...entry}=selection;
-  const saved={...entry,id:uid('sgl'),game:dataGame,dataGame,liquidGame,trophyCustom:custom,createdAt:new Date().toISOString()};
+  const saved={...entry,source:entry.source==='wizard'?'wizard':'manual',id:uid('sgl'),game:dataGame,dataGame,liquidGame,trophyCustom:custom,createdAt:new Date().toISOString()};
   currentSuggestLog.push(saved);
   if(normalizeCarryType(saved.carryType)==='mode')modeSummaryOpen=true;
   recentSuggestHighlightId=saved.id;
@@ -3080,7 +3089,8 @@ function cancelPendingSuggestSelection(){
 function suggestLogLine(entry){
   const game=suggestGameText(entry);
   const trophy=entry.trophyCustom?` / 店長カスタム：${entry.trophyCustom}`:'';
-  return `${game?game+' ':''}${suggestStateLabel(suggestEntryStateGroup(entry))} / ${suggestEntryPlaceLabel(entry)}：${entry.item}${trophy}`;
+  const source=entry.source==='wizard'?' / 一括':' / 追加';
+  return `${game?game+' ':''}${suggestStateLabel(suggestEntryStateGroup(entry))} / ${suggestEntryPlaceLabel(entry)}：${entry.item}${trophy}${source}`;
 }
 function sortedSuggestLog(){
   return [...currentSuggestLog].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
@@ -3492,8 +3502,12 @@ function renderHitBranchWizardArea(){
     </div>`;
 }
 function startHitBranchWizard(route){
+  currentSuggestLog=currentSuggestLog.filter(entry=>entry.source!=='wizard');
   hitBranchWizard={route,stepIndex:0,through:null,done:[]};
   renderLogFields();
+  renderCarrySummaryIntoDom();
+  renderPracticeStats();
+  scheduleDraftSave();
 }
 function resetHitBranchWizard(){
   hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
@@ -3595,7 +3609,7 @@ function recordAfterAtModeByThrough(value){
   const keyword=value==='yes'?'AT駆け抜け（':'AT駆け抜け以外';
   const item=(place.items||[]).find(row=>String(row.label||'').includes(keyword))||(place.items||[]).find(row=>String(row.label||'').includes(value==='yes'?'駆け抜け':'以外'));
   if(!item)return;
-  addSuggestLogFromSelection({stateGroup:'hit',carryType:normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint:true,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:mode.id,placeId:place.id,itemId:item.id,category:mode.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false});
+  addSuggestLogFromSelection({stateGroup:'hit',source:'wizard',carryType:normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint:true,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:mode.id,placeId:place.id,itemId:item.id,category:mode.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false});
 }
 function advanceHitBranchWizard(){
   const step=currentHitBranchStep();
