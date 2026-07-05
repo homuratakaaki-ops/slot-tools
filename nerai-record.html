@@ -217,6 +217,12 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .suggest-color-gold{color:#f0b44c;}
 .suggest-color-rainbow{background:linear-gradient(90deg,#ff6b6b,#f0b44c,#7edb8d,#62b5ff,#c58bff);-webkit-background-clip:text;background-clip:text;color:transparent;}
 .suggest-picker-actions{display:flex;gap:8px;margin-top:10px;}
+.branch-wizard{border:1px solid rgba(201,168,76,.42);background:rgba(201,168,76,.08);border-radius:8px;padding:10px;margin:10px 0;}
+.branch-wizard-route{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;}
+.branch-wizard-steps{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px;}
+.branch-step-pill{border:1px solid var(--border);background:var(--surface2);color:var(--muted);border-radius:999px;padding:6px 9px;font-size:12px;font-weight:700;}
+.branch-step-pill.active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.14);}
+.branch-step-pill.done{border-color:rgba(126,219,141,.5);color:#a8efb4;}
 .suggest-picker-actions .btn-secondary{margin-top:0;}
 footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px;}
 footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
@@ -621,6 +627,7 @@ let recentSuggestHighlightId='';
 let modeSummaryOpen=false;
 let settingSummaryOpen=false;
 let suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:''};
+let hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
 let pendingSuggestSelection=null;
 let editingLogId=null;
 let continuedFromLog=null;
@@ -918,6 +925,7 @@ function derivedCarryType(category,place,item){
   const placeName=String(place?.name||'');
   const label=String(item?.label||'');
   if(categoryName==='喰ポイント')return null;
+  if((placeId==='sgp_tokyo_ghoul_trophy'||placeName.includes('トロフィー'))&&label==='なし')return null;
   if(placeId==='sgp_tokyo_ghoul_trophy'||placeName.includes('トロフィー'))return 'setting';
   if(placeId==='sgp_tokyo_ghoul_at_end_screen'||placeName==='AT終了画面')return 'setting';
   if(placeId==='sgp_tokyo_ghoul_cz_endcard_setting')return 'setting';
@@ -1351,6 +1359,8 @@ function applyTokyoGhoulSuggestCorrections(machine){
   removeSuggestItemsByLabel(settingCz,['白背景（基本）','赤背景（高設定示唆）']);
   const trophy=findSuggestPlaceByName(setting,'ナミちゃんトロフィー');
   renameSuggestItems(trophy,[['喰種柄（設定5以上濃厚）','特殊柄（設定5以上濃厚）']]);
+  if(trophy&&!trophy.items.some(item=>item.label==='なし'))trophy.items.unshift({id:'sgp_tokyo_ghoul_trophy_none',label:'なし',enabled:true});
+  reorderSuggestItems(trophy,['なし','黒（次回トロフィー出現濃厚）','銅（設定2以上濃厚）','銀（設定3以上濃厚）','金（設定4以上濃厚）','特殊柄（設定5以上濃厚）','虹（設定6濃厚）']);
   const settingInvite=findSuggestPlaceByName(setting,'月山招待状');
   decorateSuggestItems(settingInvite,{
     '存分に楽しもうじゃないか（設定4以上濃厚）':[{text:'存分に楽しもうじゃないか',color:'gold'}],
@@ -1398,7 +1408,7 @@ function migrateTokyoGhoulSuggestLogs(data){
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV12)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV13)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const tag=(id,label,optional=false,rule={},tagClass='')=>({id,label,optional,countAs:null,liquidDelta:rule.liquidDelta??null,liquidSet:rule.liquidSet??null,tagClass});
   const timelineTags=[
@@ -1501,6 +1511,7 @@ function ensureSuggestSeed(machine){
           '有馬貴将（設定6濃厚）'
         ]),
         place('sgp_tokyo_ghoul_trophy','ナミちゃんトロフィー',[
+          'なし',
           '黒（次回トロフィー出現濃厚）',
           '銅（設定2以上濃厚）',
           '銀（設定3以上濃厚）',
@@ -1556,6 +1567,7 @@ function ensureSuggestSeed(machine){
   machine.suggestSeedTokyoGhoulV10=true;
   machine.suggestSeedTokyoGhoulV11=true;
   machine.suggestSeedTokyoGhoulV12=true;
+  machine.suggestSeedTokyoGhoulV13=true;
 }
 function todayValue(){
   const d=new Date();
@@ -2777,15 +2789,15 @@ function renderSuggestArea(stateGroup=''){
     <div id="pendingSuggestBox">${renderPendingSuggestBox()}</div>
     <div id="suggestLogList" style="margin-top:10px;"></div>`;
 }
-function openSuggestItemPicker(categoryId,placeId,stateGroup){
+function openSuggestItemPicker(categoryId,placeId,stateGroup,source=''){
   const category=enabledSuggestCategories().find(c=>c.id===categoryId);
   const place=enabledSuggestPlaces(categoryId).find(p=>p.id===placeId);
   if(!place)return;
   if(category?.category==='喰ポイント'){
-    openKuiPointPicker(categoryId,stateGroup);
+    openKuiPointPicker(categoryId,stateGroup,source);
     return;
   }
-  suggestPickerState={stateGroup:normalizeSuggestStateGroup(stateGroup)||suggestPlaceStateGroup(enabledSuggestCategories().find(c=>c.id===categoryId),place),categoryId,placeId,itemId:''};
+  suggestPickerState={stateGroup:normalizeSuggestStateGroup(stateGroup)||suggestPlaceStateGroup(enabledSuggestCategories().find(c=>c.id===categoryId),place),categoryId,placeId,itemId:'',branchRoute:source==='branch'?hitBranchWizard.route:'',branchStep:source==='branch'?(currentHitBranchStep()?.key||''):''};
   renderSuggestPicker('item');
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
 }
@@ -2798,7 +2810,7 @@ function openSuggestPlacePicker(stateGroup){
 }
 function closeSuggestPicker(){
   document.getElementById('suggestPickerOverlay')?.classList.remove('open');
-  suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:''};
+  suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:'',branchRoute:'',branchStep:''};
 }
 function backSuggestPicker(){
   if(suggestPickerState.kuiStage==='hint'){
@@ -2817,10 +2829,10 @@ function backSuggestPicker(){
     closeSuggestPicker();
   }
 }
-function openKuiPointPicker(categoryId,stateGroup){
+function openKuiPointPicker(categoryId,stateGroup,source=''){
   const category=enabledSuggestCategories().find(c=>c.id===categoryId);
   if(!category)return;
-  suggestPickerState={stateGroup:normalizeSuggestStateGroup(stateGroup)||'hit',categoryId:category.id,placeId:'',itemId:'',kuiStage:'gain',kuiGain:''};
+  suggestPickerState={stateGroup:normalizeSuggestStateGroup(stateGroup)||'hit',categoryId:category.id,placeId:'',itemId:'',kuiStage:'gain',kuiGain:'',branchRoute:source==='branch'?hitBranchWizard.route:'',branchStep:source==='branch'?(currentHitBranchStep()?.key||''):''};
   renderKuiPointPicker();
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
 }
@@ -2851,7 +2863,9 @@ function selectKuiPointValue(value){
   const hint=value;
   addKuiPointSuggestLog('獲得',gain);
   addKuiPointSuggestLog('示唆',hint);
+  const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
   closeSuggestPicker();
+  if(branchActive)finishHitBranchStepAndContinue();
 }
 function addKuiPointSuggestLog(placeName,itemLabel){
   const category=enabledSuggestCategories().find(c=>c.id===suggestPickerState.categoryId)||findSuggestCategoryByName(currentMachine(),'喰ポイント');
@@ -2918,14 +2932,18 @@ function selectSuggestItem(itemId){
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===itemId);
   if(!category||!place||!item){alert('示唆の状態、確認場所、内容を選択してください');return;}
   const stateGroup=normalizeSuggestStateGroup(suggestPickerState.stateGroup)||suggestPlaceStateGroup(category,place);
-  const nextModeHint=stateGroup==='hit'&&(place.id==='sgp_tokyo_ghoul_eyecatch'||place.name==='アイキャッチ');
+  const nextModeHint=stateGroup==='hit'&&(place.id==='sgp_tokyo_ghoul_eyecatch'||place.name==='アイキャッチ'||place.id==='sgp_tokyo_ghoul_cz_endcard_mode');
   const selection={stateGroup,carryType:nextModeHint?'mode':normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
-  if(isTrophySuggestSelection(selection)){
+  if(isTrophySuggestSelection(selection)&&item.label!=='なし'){
     suggestPickerState.itemId=itemId;
     renderSuggestPicker('trophyCustom');
     return;
   }
-  if(addSuggestLogFromSelection(selection))closeSuggestPicker();
+  if(addSuggestLogFromSelection(selection)){
+    const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
+    closeSuggestPicker();
+    if(branchActive)finishHitBranchStepAndContinue();
+  }
 }
 function isTrophySuggestSelection(selection){
   return selection?.placeId==='sgp_tokyo_ghoul_trophy'||String(selection?.place||'').includes('トロフィー');
@@ -2936,7 +2954,16 @@ function selectTrophyCustom(custom){
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===suggestPickerState.itemId);
   if(!category||!place||!item){alert('トロフィーの内容を選び直してください');return;}
   const selection={stateGroup:suggestPlaceStateGroup(category,place),carryType:normalizeCarryType(item.carryType)||'setting',pointRole:place.pointRole||item.pointRole||null,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
-  if(addSuggestLogFromSelection(selection,custom))closeSuggestPicker();
+  if(addSuggestLogFromSelection(selection,custom)){
+    const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
+    closeSuggestPicker();
+    if(branchActive)finishHitBranchStepAndContinue();
+  }
+}
+function finishHitBranchStepAndContinue(){
+  advanceHitBranchWizard();
+  renderLogFields();
+  if(currentHitBranchStep())setTimeout(openCurrentHitBranchStep,0);
 }
 function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   const custom=isTrophySuggestSelection(selection)?trophyCustomValue:'';
@@ -3392,6 +3419,7 @@ function renderTimelineArea(mode='play'){
     ${renderEndRecordArea()}
     <div class="work-subsection">
       <div class="work-section-title">AT当選時の記録</div>
+      ${renderHitBranchWizardArea()}
       ${renderNextModeHintControls()}
       ${renderKuiPointReleaseControl()}
       ${renderSuggestArea('hit')}
@@ -3419,15 +3447,168 @@ function nextModeEyecatchPlace(){
   const place=findSuggestPlaceByName(mode,'アイキャッチ');
   return mode&&place?{category:mode,place}:null;
 }
+function hitBranchSteps(route,through=hitBranchWizard.through){
+  if(route==='czFail')return [
+    {key:'czEndcard',label:'CZ終了エンドカード'},
+    {key:'eyecatch',label:'アイキャッチ'},
+    {key:'kui',label:'喰ポイント'}
+  ];
+  if(route==='atHit'){
+    const steps=[
+      {key:'through',label:'AT駆け抜け'},
+      {key:'atEnd',label:'AT終了画面'},
+      {key:'trophy',label:'トロフィー'},
+      {key:'eyecatch',label:'アイキャッチ'}
+    ];
+    if(through==='yes')steps.push({key:'kui',label:'喰ポイント'});
+    return steps;
+  }
+  return [];
+}
+function renderHitBranchWizardArea(){
+  if(!isTokyoGhoulMachine(currentMachine()))return '';
+  const route=hitBranchWizard.route;
+  const steps=hitBranchSteps(route);
+  const current=steps[hitBranchWizard.stepIndex];
+  const routeLabel=route==='czFail'?'CZ失敗ルート':route==='atHit'?'AT当選ルート':'未選択';
+  return `
+    <div class="branch-wizard">
+      <div class="section-label" style="margin-top:0;">状態3 分岐フロー</div>
+      <p class="section-note">ルートを選ぶと、実戦順に確認場所が出ます。各ステップは選択した時点で記録され、次へ進みます。</p>
+      <div class="branch-wizard-route">
+        <button class="btn-primary" onclick="startHitBranchWizard('czFail')">CZ失敗</button>
+        <button class="btn-primary" onclick="startHitBranchWizard('atHit')">AT当選</button>
+      </div>
+      ${route?`
+        <div class="item-sub" style="margin-top:8px;">現在：${escapeHtml(routeLabel)}${current?` / 次：${escapeHtml(current.label)}`:' / 完了'}</div>
+        <div class="branch-wizard-steps">
+          ${steps.map((step,i)=>`<span class="branch-step-pill ${i<hitBranchWizard.stepIndex?'done':i===hitBranchWizard.stepIndex?'active':''}">${escapeHtml(step.label)}</span>`).join('')}
+        </div>
+        <div class="log-tools">
+          ${current?`<button class="btn-small gold" onclick="openCurrentHitBranchStep()">次の入力：${escapeHtml(current.label)}</button>`:'<span class="pill gold">このルートの入力は完了</span>'}
+          ${hitBranchWizard.stepIndex>0?'<button class="btn-small" onclick="backHitBranchWizard()">戻る</button>':''}
+          <button class="btn-small" onclick="resetHitBranchWizard()">ルート解除</button>
+        </div>`:''}
+    </div>`;
+}
+function startHitBranchWizard(route){
+  hitBranchWizard={route,stepIndex:0,through:null,done:[]};
+  renderLogFields();
+}
+function resetHitBranchWizard(){
+  hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
+  renderLogFields();
+}
+function backHitBranchWizard(){
+  hitBranchWizard.stepIndex=Math.max(0,(hitBranchWizard.stepIndex||0)-1);
+  if(hitBranchWizard.route==='atHit'&&hitBranchWizard.stepIndex===0)hitBranchWizard.through=null;
+  renderLogFields();
+}
+function currentHitBranchStep(){
+  return hitBranchSteps(hitBranchWizard.route)[hitBranchWizard.stepIndex]||null;
+}
+function findSuggestPlaceEntryById(id){
+  for(const category of enabledSuggestCategories()){
+    const place=enabledSuggestPlaces(category.id).find(row=>row.id===id);
+    if(place)return {category,place};
+  }
+  return null;
+}
+function suggestPlaceEntriesByName(name){
+  const entries=[];
+  enabledSuggestCategories().forEach(category=>{
+    enabledSuggestPlaces(category.id).forEach(place=>{
+      if(place.name===name)entries.push({category,place});
+    });
+  });
+  return entries;
+}
+function openCurrentHitBranchStep(){
+  const step=currentHitBranchStep();
+  if(!step)return;
+  if(step.key==='through'){openAtThroughBranchPicker();return;}
+  if(step.key==='kui'){
+    const category=findSuggestCategoryByName(currentMachine(),'喰ポイント');
+    if(category)openKuiPointPicker(category.id,'hit','branch');
+    return;
+  }
+  const entry={
+    czEndcard:null,
+    atEnd:findSuggestPlaceEntryById('sgp_tokyo_ghoul_at_end_screen'),
+    trophy:findSuggestPlaceEntryById('sgp_tokyo_ghoul_trophy'),
+    eyecatch:findSuggestPlaceEntryById('sgp_tokyo_ghoul_eyecatch')
+  }[step.key];
+  if(step.key==='czEndcard'){
+    const entries=suggestPlaceEntriesByName('CZ終了エンドカード');
+    if(entries.length===1){openSuggestItemPicker(entries[0].category.id,entries[0].place.id,'hit','branch');return;}
+    openBranchPlacePicker('CZ終了エンドカード',entries);
+    return;
+  }
+  if(entry)openSuggestItemPicker(entry.category.id,entry.place.id,'hit','branch');
+}
+function openBranchPlacePicker(titleText,entries){
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:hitBranchWizard.route,branchStep:currentHitBranchStep()?.key||''};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent=titleText;
+  breadcrumb.textContent='状態3 分岐フロー / 確認場所を選択';
+  back.textContent='閉じる';
+  options.innerHTML=entries.length?entries.map(({category,place})=>`<button class="suggest-picker-option" onclick="selectBranchSuggestPlace('${category.id}','${place.id}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`).join(''):'<div class="empty-hint">有効な確認場所がありません</div>';
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectBranchSuggestPlace(categoryId,placeId){
+  openSuggestItemPicker(categoryId,placeId,'hit','branch');
+}
+function openAtThroughBranchPicker(){
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:'atHit',branchStep:'through'};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent='AT駆け抜けか';
+  breadcrumb.textContent='AT当選ルート / 駆け抜けの場合のみ喰ポイントへ進みます';
+  back.textContent='閉じる';
+  options.innerHTML=`
+    <button class="suggest-picker-option" onclick="selectAtThroughBranch('yes')">はい（駆け抜け）</button>
+    <button class="suggest-picker-option" onclick="selectAtThroughBranch('no')">いいえ（駆け抜け以外）</button>`;
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectAtThroughBranch(value){
+  if(value!=='yes'&&value!=='no')return;
+  hitBranchWizard.through=value;
+  recordAfterAtModeByThrough(value);
+  advanceHitBranchWizard();
+  closeSuggestPicker();
+  renderLogFields();
+  setTimeout(openCurrentHitBranchStep,0);
+}
+function recordAfterAtModeByThrough(value){
+  const mode=findSuggestCategoryByName(currentMachine(),'モード示唆');
+  const place=findSuggestPlaceByName(mode,'AT終了後のモード移行');
+  if(!mode||!place)return;
+  const keyword=value==='yes'?'AT駆け抜け（':'AT駆け抜け以外';
+  const item=(place.items||[]).find(row=>String(row.label||'').includes(keyword))||(place.items||[]).find(row=>String(row.label||'').includes(value==='yes'?'駆け抜け':'以外'));
+  if(!item)return;
+  addSuggestLogFromSelection({stateGroup:'hit',carryType:normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint:true,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:mode.id,placeId:place.id,itemId:item.id,category:mode.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false});
+}
+function advanceHitBranchWizard(){
+  const step=currentHitBranchStep();
+  if(step&&!hitBranchWizard.done.includes(step.key))hitBranchWizard.done.push(step.key);
+  hitBranchWizard.stepIndex=Math.min(hitBranchWizard.stepIndex+1,hitBranchSteps(hitBranchWizard.route).length);
+}
 function renderNextModeHintControls(){
   if(!isTokyoGhoulMachine(currentMachine()))return '';
-  const eyecatch=nextModeEyecatchPlace();
   return `
     <div class="work-subsection">
-      <div class="section-label" style="margin-top:0;">次稼働向けモード示唆</div>
-      <p class="section-note">AT/CZ終了後に出たアイキャッチや有馬ジャッジメントを、稼働継続後のモード示唆として渡します。</p>
+      <div class="section-label" style="margin-top:0;">独立入力</div>
+      <p class="section-note">有馬ジャッジメントは発生頻度が低いため、分岐フローとは別に記録します。</p>
       <div class="tag-buttons">
-        ${eyecatch?`<button class="tag-btn gold" onclick="openSuggestItemPicker('${eyecatch.category.id}','${eyecatch.place.id}','hit')">アイキャッチ</button>`:''}
         <button class="tag-btn gold" onclick="openArimaJudgementPicker()">有馬ジャッジメント</button>
       </div>
     </div>`;
@@ -4300,6 +4481,7 @@ function resetTransientLogUiState(){
   timelineHistoryOpen=false;
   recentTimelineHighlightId='';
   recentSuggestHighlightId='';
+  hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
   updateTimelineAddButtonState();
 }
 function resetStartCounterDefault(){
