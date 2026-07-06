@@ -2988,7 +2988,7 @@ function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
   renderCarrySummaryIntoDom();
-  scheduleDraftSave();
+  saveDraftImmediately();
   return true;
 }
 function isArimaJudgementFailEntry(entry){
@@ -3388,7 +3388,7 @@ function editSuggestLogEntry(id){
   Object.assign(entry,{stateGroup:normalizeSuggestStateGroup(state.trim())||suggestEntryStateGroup(entry),place:place.trim(),item:item.trim(),game:dataGameValue,dataGame:dataGameValue,liquidGame:liquidGameValue,trophyCustom,updatedAt:new Date().toISOString()});
   renderCurrentSuggestLog();
   renderCarrySummaryIntoDom();
-  scheduleDraftSave();
+  saveDraftImmediately();
 }
 function deleteSuggestLogEntry(id){
   if(!confirm('この示唆記録を削除しますか？'))return;
@@ -3396,7 +3396,7 @@ function deleteSuggestLogEntry(id){
   if(recentSuggestHighlightId===id)recentSuggestHighlightId='';
   renderCurrentSuggestLog();
   renderCarrySummaryIntoDom();
-  scheduleDraftSave();
+  saveDraftImmediately();
 }
 function renderGamePairInputs(prefix){
   const dataId=prefix==='suggest'?'suggestTimelineGame':'timelineGame';
@@ -3507,7 +3507,7 @@ function startHitBranchWizard(route){
   renderLogFields();
   renderCarrySummaryIntoDom();
   renderPracticeStats();
-  scheduleDraftSave();
+  saveDraftImmediately();
 }
 function resetHitBranchWizard(){
   hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
@@ -4299,6 +4299,7 @@ function draftHasContent(log){
 }
 function saveDraftNow(){
   if(hydratingDraft||editingLogId)return;
+  clearTimeout(draftSaveTimer);
   const log=currentInputLogObject(false,db.draftLog||null);
   if(!draftHasContent(log)){
     db.draftLog=null;
@@ -4311,6 +4312,10 @@ function scheduleDraftSave(){
   if(hydratingDraft||editingLogId)return;
   clearTimeout(draftSaveTimer);
   draftSaveTimer=setTimeout(saveDraftNow,180);
+}
+function saveDraftImmediately(){
+  if(hydratingDraft||editingLogId)return;
+  saveDraftNow();
 }
 function bindDraftAutosave(){
   document.querySelectorAll('#pageLog input,#pageLog textarea,#pageLog select').forEach(el=>{
