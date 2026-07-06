@@ -3484,11 +3484,8 @@ function renderHitBranchWizardArea(){
   return `
     <div class="branch-wizard">
       <div class="section-label" style="margin-top:0;">状態3 分岐フロー</div>
-      <p class="section-note">ルートを選ぶと、実戦順に確認場所が出ます。各ステップは選択した時点で記録され、次へ進みます。</p>
-      <div class="branch-wizard-route">
-        <button class="btn-primary" onclick="startHitBranchWizard('czFail')">CZ失敗</button>
-        <button class="btn-primary" onclick="startHitBranchWizard('atHit')">AT当選</button>
-      </div>
+      <p class="section-note">結果を選ぶと、必要なルートが自動で起動します。各ステップは選択した時点で記録され、次へ進みます。</p>
+      ${!route?'<div class="empty-hint">結果プルダウンを選ぶとウィザードが表示されます。ヤメでは起動しません。</div>':''}
       ${route?`
         <div class="item-sub" style="margin-top:8px;">現在：${escapeHtml(routeLabel)}${current?` / 次：${escapeHtml(current.label)}`:' / 完了'}</div>
         <div class="branch-wizard-steps">
@@ -3512,6 +3509,32 @@ function startHitBranchWizard(route){
 function resetHitBranchWizard(){
   hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
   renderLogFields();
+  saveDraftImmediately();
+}
+function wizardRouteForEndReason(reason){
+  if(['CZ当選→AT非当選','上位CZ当選→AT非当選'].includes(reason))return 'czFail';
+  if(['CZ当選→AT当選','上位CZ当選→AT当選','エピソードボーナス当選','AT直撃'].includes(reason))return 'atHit';
+  return '';
+}
+function clearWizardSuggestLogs(){
+  const before=currentSuggestLog.length;
+  currentSuggestLog=currentSuggestLog.filter(entry=>entry.source!=='wizard');
+  return currentSuggestLog.length!==before;
+}
+function handleEndReasonChange(){
+  const reason=(document.getElementById('endReason')?.value||'').trim();
+  const route=wizardRouteForEndReason(reason);
+  if(route){
+    startHitBranchWizard(route);
+    return;
+  }
+  const changed=clearWizardSuggestLogs();
+  hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
+  renderLogFields();
+  renderCarrySummaryIntoDom();
+  renderPracticeStats();
+  if(changed)saveDraftImmediately();
+  else scheduleDraftSave();
 }
 function backHitBranchWizard(){
   hitBranchWizard.stepIndex=Math.max(0,(hitBranchWizard.stepIndex||0)-1);
@@ -3644,7 +3667,7 @@ function renderEndRecordArea(){
       <div class="input-row">
         <div class="input-label no-wrap-label">結果</div>
         <div class="field-stack">
-          <select id="endReason">
+          <select id="endReason" onchange="handleEndReasonChange()">
             <option value="">未選択</option>
             ${END_RESULT_OPTIONS.map(option=>`<option value="${escapeHtml(option.value)}" ${currentEndLog?.reason===option.value?'selected':''}>${escapeHtml(option.label)}</option>`).join('')}
           </select>
