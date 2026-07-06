@@ -3162,7 +3162,12 @@ function sameTableLogs(identity,excludeId=''){
 function currentInputSameTableLogs(){
   const identity=currentTableIdentity();
   if(identity&&sameTableCarryOptOutKey===`${identity.date}|${identity.store}|${identity.machineNo}`)return [];
-  return sameTableLogs(identity,editingLogId||'');
+  const logs=sameTableLogs(identity,editingLogId||'');
+  if(continuedFromLog&&sameTableIdentity(continuedFromLog,identity)&&!logs.some(log=>log.id===continuedFromLog.id)){
+    logs.push(continuedFromLog);
+    logs.sort((a,b)=>logSortTime(b).localeCompare(logSortTime(a)));
+  }
+  return logs;
 }
 function endLogHasAt(endLog){
   if(!endLog)return false;
@@ -3944,11 +3949,14 @@ function recordEndLog(){
   const reasonEl=document.getElementById('endReason');
   const textEl=document.getElementById('endText');
   const game=Number(gameEl?.value);
-  const liquidGame=liquidEl?.value?Number(liquidEl.value):game;
+  const inputLiquid=liquidEl?.value?Number(liquidEl.value):null;
+  const currentLiquid=timelineLiquidValue();
+  const linkedLiquid=normalizeOptionalNumber(linkedEndLiquidGame);
+  const liquidGame=linkedLiquid!==null?linkedLiquid:(currentLiquid!==null?currentLiquid:(inputLiquid!==null?inputLiquid:game));
   const reason=(reasonEl?.value||'').trim();
   const text=(textEl?.value||'').trim();
   if(!gameEl?.value||Number.isNaN(game)){alert('打ち終わりのデータカウンターG数を入力してください');return;}
-  if(liquidEl?.value&&Number.isNaN(liquidGame)){alert('打ち終わりの液晶G数を入力してください');return;}
+  if(liquidEl?.value&&Number.isNaN(inputLiquid)){alert('打ち終わりの液晶G数を入力してください');return;}
   if(!reason){alert('結果を選択してください');return;}
   const counts=endResultCounts(reason);
   if(!counts){alert('結果を選び直してください');return;}
@@ -4047,6 +4055,13 @@ function logStartCounterValue(log){
   if(fixed!==null)return fixed;
   return findStartCounterValue(log?.startLog||[]);
 }
+function logSpinValue(log){
+  const start=logStartCounterValue(log);
+  const end=normalizeOptionalNumber(log?.endLog?.game);
+  if(start===null||end===null)return null;
+  const spins=end-start;
+  return Number.isFinite(spins)?spins:null;
+}
 function visibleStartLog(log){
   const rows=Array.isArray(log?.startLog)?log.startLog:[];
   return logStartCounterValue(log)!==null?rows.filter(row=>row.labelTagId!=='lt_counter_game'&&!isCounterLabel(row.label)):rows;
@@ -4100,7 +4115,9 @@ function calculatePracticeStats(log){
   const firstChainStart=chain.map(logStartCounterValue).find(value=>value!==null&&value!==undefined);
   const startCounter=firstChainStart!==undefined?firstChainStart:logStartCounterValue(log);
   const endGame=log.endLog?.game!==undefined&&log.endLog?.game!==null?Number(log.endLog.game):null;
-  const spins=startCounter!==null&&endGame!==null&&!Number.isNaN(endGame)?endGame-startCounter:null;
+  const currentSpins=logSpinValue(log);
+  const previousSpins=chain.reduce((sum,item)=>sum+(logSpinValue(item)||0),0);
+  const spins=currentSpins!==null?previousSpins+currentSpins:null;
   const counts=chain.reduce((sum,item)=>addCounts(sum,endLogCounts(item.endLog)),{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0});
   addCounts(counts,endLogCounts(log.endLog));
   return {startCounter,endGame,spins,counts};
@@ -4702,7 +4719,7 @@ function continueFromLog(id,skipConfirm=false){
   resetTransientLogUiState();
   closeSuggestPicker();
   const stats=practiceStatsLine(calculatePracticeStats(log));
-  continuedFromLog={id:log.id,summary:`${log.money?.date||'日付なし'} / ${endLogLine(log.endLog)||'打ち終わりなし'} / ${stats}`};
+  continuedFromLog={...clone(log),summary:`${log.money?.date||'日付なし'} / ${endLogLine(log.endLog)||'打ち終わりなし'} / ${stats}`};
   const arimaOffset=(log.suggestLog||[]).some(isArimaJudgementFailEntry)?-6:null;
   if(arimaOffset!==null){
     currentTimelineDataGame=7;
