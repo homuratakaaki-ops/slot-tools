@@ -292,11 +292,10 @@ footer a:hover{color:var(--gold-light);}
   <div class="section flow-panel" data-flow-step="4">
     <div class="section-label">収支</div>
     <div class="state4-actions">
-      <button class="btn-primary btn-continue" onclick="saveAndContinueLog()">稼働継続</button>
-      <button class="btn-secondary btn-stop" id="saveLogButton" onclick="saveLog()">ヤメ</button>
+      <button class="btn-secondary btn-stop" id="saveLogButton" onclick="saveLog()">収支登録して保存</button>
       <button class="btn-secondary btn-new" onclick="startNewRegistration()">新規登録</button>
     </div>
-    <p class="section-note">稼働継続では収支を確定しません。ヤメでチェーン全体の終了持ちメダル・現金投入を登録します。</p>
+    <p class="section-note">STEP3の出口で即ヤメを選んだチェーンの収支を登録します。終了持ちメダル入力で確定・集計対象になります。</p>
     <div class="card">
       <div class="input-row compact-row date-row">
         <div class="input-label">日付</div>
@@ -618,6 +617,7 @@ let currentTimelineLiquidOffset=0;
 let linkedEndDataGame=null;
 let linkedEndLiquidGame=null;
 let currentEndLog=null;
+let currentHitEvents=[];
 let currentSuggestLog=[];
 let currentKuiPointReleased=false;
 let pendingTimelineTagIds=[];
@@ -627,7 +627,7 @@ let recentSuggestHighlightId='';
 let modeSummaryOpen=false;
 let settingSummaryOpen=false;
 let suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:''};
-let hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
+let hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
 let pendingSuggestSelection=null;
 let editingLogId=null;
 let continuedFromLog=null;
@@ -729,6 +729,44 @@ function loadData(){
     return normalizeData(parsed);
   }catch{return clone(EMPTY_DATA);}
 }
+function normalizeHitTrigger(value){
+  return ['cz','upper_cz','direct_at','episode_bonus'].includes(value)?value:null;
+}
+function normalizeCzResult(value){
+  return ['at_win','at_lose'].includes(value)?value:null;
+}
+function normalizeHitExit(value){
+  return ['quit','continue'].includes(value)?value:null;
+}
+function normalizeHitEvent(event){
+  if(!event||typeof event!=='object')return null;
+  const trigger=normalizeHitTrigger(event.trigger);
+  if(!trigger)return null;
+  const dataGame=normalizeOptionalNumber(event.dataGame);
+  return {
+    id:event.id||uid('he'),
+    createdAt:event.createdAt||new Date().toISOString(),
+    trigger,
+    czResult:trigger==='cz'||trigger==='upper_cz'?normalizeCzResult(event.czResult):null,
+    payout:normalizeOptionalNumber(event.payout),
+    dataGame:dataGame!==null?dataGame:0,
+    liquidGame:normalizeOptionalNumber(event.liquidGame)??(dataGame!==null?dataGame:0),
+    through:event.through==='yes'||event.through==='no'?event.through:null,
+    endScreen:event.endScreen&&typeof event.endScreen==='object'?event.endScreen:null,
+    exit:normalizeHitExit(event.exit),
+    wizardDone:!!event.wizardDone
+  };
+}
+function normalizeHitBranchWizard(wizard){
+  const route=['czResult','czFail','atHit'].includes(wizard?.route)?wizard.route:'';
+  return {
+    route,
+    stepIndex:Math.max(0,Number(wizard?.stepIndex)||0),
+    through:wizard?.through==='yes'||wizard?.through==='no'?wizard.through:null,
+    done:Array.isArray(wizard?.done)?wizard.done.map(String):[],
+    eventId:String(wizard?.eventId||'')
+  };
+}
 function normalizeData(data){
   data.machines=Array.isArray(data.machines)?data.machines:[];
   delete data.presetAims;
@@ -755,6 +793,7 @@ function normalizeData(data){
       item.category=item.category||'';
       item.place=item.place||'';
       item.item=item.item||'';
+      item.hitEventId=String(item.hitEventId||'');
       item.stateGroup=normalizeSuggestStateGroup(item.stateGroup||'');
       item.carryType=normalizeCarryType(item.carryType);
       item.pointRole=item.pointRole==='gain'||item.pointRole==='hint'?item.pointRole:null;
@@ -774,12 +813,11 @@ function normalizeData(data){
     log.kuiPoint.released=!!log.kuiPoint.released;
     log.kuiPoint.gains=Array.isArray(log.kuiPoint.gains)?log.kuiPoint.gains:[];
     log.kuiPoint.hints=Array.isArray(log.kuiPoint.hints)?log.kuiPoint.hints:[];
+    log.hitEvents=Array.isArray(log.hitEvents)?log.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    log.hitBranchWizard=log.hitBranchWizard&&typeof log.hitBranchWizard==='object'?normalizeHitBranchWizard(log.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     log.continuedFromId=log.continuedFromId||log.continuedFromLog?.id||'';
     log.sameTableCarryOptOut=!!log.sameTableCarryOptOut;
     log.flowStep=Number(log.flowStep)||4;
-    log.state4Registered=log.state4Registered===false?false:true;
-    log.finalized=log.finalized===false?false:true;
-    log.excludeFromStats=log.state4Registered===false||log.finalized===false;
     log.endLog=log.endLog&&typeof log.endLog==='object'?log.endLog:null;
     if(log.endLog){
       log.endLog.game=normalizeOptionalNumber(log.endLog.game);
@@ -803,6 +841,10 @@ function normalizeData(data){
       log.money[key]=normalizeOptionalNumber(log.money[key]);
     });
     if(log.money.cashIn===null&&normalizeOptionalNumber(log.money.startMedals)!==null)log.money.cashIn=0;
+    const moneyComplete=hasMoneyResultInput(log.money);
+    log.finalized=moneyComplete;
+    log.state4Registered=moneyComplete;
+    log.excludeFromStats=!moneyComplete;
   });
   data.draftLog=data.draftLog&&typeof data.draftLog==='object'?data.draftLog:null;
   if(data.draftLog){
@@ -810,6 +852,8 @@ function normalizeData(data){
     data.draftLog.state4Registered=false;
     data.draftLog.finalized=false;
     data.draftLog.excludeFromStats=true;
+    data.draftLog.hitEvents=Array.isArray(data.draftLog.hitEvents)?data.draftLog.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    data.draftLog.hitBranchWizard=data.draftLog.hitBranchWizard&&typeof data.draftLog.hitBranchWizard==='object'?normalizeHitBranchWizard(data.draftLog.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     data.draftLog.startCzFailCount=normalizeOptionalNumber(data.draftLog.startCzFailCount);
     data.draftLog.startAtThroughCount=normalizeOptionalNumber(data.draftLog.startAtThroughCount);
     data.draftLog.kuiPoint=data.draftLog.kuiPoint&&typeof data.draftLog.kuiPoint==='object'?data.draftLog.kuiPoint:{released:false};
@@ -1675,14 +1719,15 @@ function showPage(pageId){
   renderAll();
 }
 function flowStepLabel(step){
-  return {1:'打ち始め',2:'稼働中',3:'当選時',4:'ヤメ/続行'}[step]||'打ち始め';
+  return {1:'打ち始め',2:'稼働中',3:'当選後処理',4:'収支登録'}[step]||'打ち始め';
 }
 function renderFlowStepTabs(){
   const el=document.getElementById('flowStepTabs');
   if(!el)return;
+  const hitProcessing=currentHitEvents.some(event=>!event.wizardDone)||!!hitBranchWizard.route;
   el.innerHTML=[1,2,3,4].map(step=>`
     <button class="flow-step-tab ${currentFlowStep===step?'active':''}" type="button" onclick="switchFlowStep(${step})">
-      <span class="step-num">STEP ${step}</span>${escapeHtml(flowStepLabel(step))}
+      <span class="step-num">STEP ${step}</span>${escapeHtml(flowStepLabel(step))}${step===3&&hitProcessing?' <span class="pill disabled">処理中</span>':''}
     </button>`).join('');
   document.querySelectorAll('#pageLog .flow-panel').forEach(panel=>{
     const step=Number(panel.dataset.flowStep||currentFlowStep);
@@ -1742,6 +1787,7 @@ function addMachine(){
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
   currentEndLog=null;
+  currentHitEvents=[];
   currentSuggestLog=[];
   currentKuiPointReleased=false;
   pendingSuggestSelection=null;
@@ -1763,6 +1809,7 @@ function selectMachine(id){
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
   currentEndLog=null;
+  currentHitEvents=[];
   currentSuggestLog=[];
   currentKuiPointReleased=false;
   pendingSuggestSelection=null;
@@ -2262,7 +2309,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineDataGame=null;currentTimelineLiquidOffset=0;linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentSuggestLog=[];pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineDataGame=null;currentTimelineLiquidOffset=0;linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -2337,14 +2384,13 @@ function maybePromptSameTableContinue(){
   const log=latestSameTableLogForInput();
   if(!log)return;
   sameTablePromptKey=key;
-  if(confirm('同じ台のログがあります。続行として引き継ぎますか？')){
-    sameTableCarryOptOutKey='';
-    continueFromLog(log.id);
+  if(confirm('同じ台のログがあります。v2では続行は同一ログ内で管理します。新しいチェーンとして入力しますか？')){
+    sameTableCarryOptOutKey=key;
   }else{
     sameTableCarryOptOutKey=key;
-    renderCarrySummaryIntoDom();
-    renderPracticeStats();
   }
+  renderCarrySummaryIntoDom();
+  renderPracticeStats();
 }
 function addStoreFromInput(source='money'){
   const name=prompt('追加する店舗名');
@@ -2460,7 +2506,7 @@ function renderLogFields(){
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
     2:`<div class="card work-section-card play"><div class="work-section-title">稼働中の記録</div>${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
     3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div><div id="practiceStatsBox"></div>`,
-    4:`<div class="card work-section-card"><div class="work-section-title">ヤメ or 継続</div><p class="section-note">ヤメはこの稼働を確定保存して締めます。稼働継続は確定保存後、そのまま次の稼働登録へ進みます。</p><div id="practiceStatsBox"></div></div>`
+    4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div><p class="section-note">STEP3で即ヤメを選んだチェーンの収支を登録します。未登録のまま保存した場合は集計対象外です。</p><div id="practiceStatsBox"></div></div>`
   };
   el.innerHTML=panels[currentFlowStep]||panels[1];
   renderCurrentStartLog();
@@ -2880,10 +2926,12 @@ function addKuiPointSuggestLog(placeName,itemLabel,source='manual'){
   const place=findSuggestPlaceByName(category,placeName);
   const item=place?.items?.find(i=>i.label===itemLabel);
   const role=placeName==='獲得'?'gain':'hint';
-  currentSuggestLog=currentSuggestLog.filter(entry=>!(entry.pointRole===role&&(source==='wizard'?entry.source==='wizard':entry.source!=='wizard')));
+  const hitEventId=source==='wizard'?(hitBranchWizard.eventId||''):'';
+  currentSuggestLog=currentSuggestLog.filter(entry=>!(entry.pointRole===role&&(source==='wizard'?(entry.source==='wizard'&&entry.hitEventId===hitEventId):entry.source!=='wizard')));
   const selection={
     stateGroup:'hit',
     source,
+    hitEventId,
     carryType:null,
     pointRole:role,
     categoryId:category?.id||'',
@@ -2943,7 +2991,7 @@ function selectSuggestItem(itemId){
   const stateGroup=normalizeSuggestStateGroup(suggestPickerState.stateGroup)||suggestPlaceStateGroup(category,place);
   const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
   const nextModeHint=stateGroup==='hit'&&(place.id==='sgp_tokyo_ghoul_eyecatch'||place.name==='アイキャッチ'||place.id==='sgp_tokyo_ghoul_cz_endcard_mode');
-  const selection={stateGroup,source:branchActive?'wizard':'manual',carryType:nextModeHint?'mode':normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
+  const selection={stateGroup,source:branchActive?'wizard':'manual',hitEventId:branchActive?(hitBranchWizard.eventId||''):'',carryType:nextModeHint?'mode':normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:category.useAppearG!==false};
   if(isTrophySuggestSelection(selection)&&item.label!=='なし'){
     suggestPickerState.itemId=itemId;
     renderSuggestPicker('trophyCustom');
@@ -2963,7 +3011,7 @@ function selectTrophyCustom(custom){
   const item=enabledSuggestItems(suggestPickerState.categoryId,suggestPickerState.placeId).find(i=>i.id===suggestPickerState.itemId);
   if(!category||!place||!item){alert('トロフィーの内容を選び直してください');return;}
   const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
-  const selection={stateGroup:suggestPlaceStateGroup(category,place),source:branchActive?'wizard':'manual',carryType:normalizeCarryType(item.carryType)||'setting',pointRole:place.pointRole||item.pointRole||null,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
+  const selection={stateGroup:suggestPlaceStateGroup(category,place),source:branchActive?'wizard':'manual',hitEventId:branchActive?(hitBranchWizard.eventId||''):'',carryType:normalizeCarryType(item.carryType)||'setting',pointRole:place.pointRole||item.pointRole||null,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
   if(addSuggestLogFromSelection(selection,custom)){
     closeSuggestPicker();
     if(branchActive)finishHitBranchStepAndContinue();
@@ -2972,6 +3020,7 @@ function selectTrophyCustom(custom){
 function finishHitBranchStepAndContinue(){
   advanceHitBranchWizard();
   renderLogFields();
+  saveDraftImmediately();
   if(currentHitBranchStep())setTimeout(openCurrentHitBranchStep,0);
 }
 function addSuggestLogFromSelection(selection,trophyCustomValue=''){
@@ -3175,6 +3224,9 @@ function endLogHasAt(endLog){
   const counts=endResultCounts(endLog.reason);
   return !!counts&&((Number(counts.atCount)||0)>0||(Number(counts.directAtCount)||0)>0||(Number(counts.episodeBonusCount)||0)>0);
 }
+function hitEventsHaveAt(events){
+  return hitEventCounts(events||[]).at>0;
+}
 function isAfterAtModeEntry(entry){
   const place=String(entry?.place||'');
   return !!entry?.nextModeHint||entry?.placeId==='sgp_tokyo_ghoul_after_at_mode'||place.includes('AT終了後のモード移行')||place.includes('AT終了後');
@@ -3191,7 +3243,7 @@ function carryEntriesFromLog(log,type){
 }
 function currentCarryEntries(type){
   const entries=currentSuggestLog.filter(entry=>normalizeCarryType(entry.carryType)===type);
-  if(type==='mode'&&endLogHasAt(currentEndLog))return entries.filter(isAfterAtModeEntry);
+  if(type==='mode'&&(endLogHasAt(currentEndLog)||hitEventsHaveAt(currentHitEvents)))return entries.filter(isAfterAtModeEntry);
   return entries;
 }
 function buildCarrySummaryGroups(type){
@@ -3204,7 +3256,7 @@ function buildCarrySummaryGroups(type){
   for(const log of previousLogs){
     let entries=carryEntriesFromLog(log,type);
     let atBoundary=false;
-    if(type==='mode'&&endLogHasAt(log.endLog)){
+    if(type==='mode'&&(endLogHasAt(log.endLog)||hitEventsHaveAt(log.hitEvents))){
       entries=entries.filter(isAfterAtModeEntry);
       atBoundary=true;
     }
@@ -3427,11 +3479,72 @@ function renderOutcomeQuickButtons(){
       <button class="btn-small" onclick="setTimelineOutcome('ヤメ')">ヤメ</button>
     </div>`;
 }
+function hitTriggerLabel(trigger){
+  return {cz:'CZ当選',upper_cz:'上位CZ当選',direct_at:'AT直撃',episode_bonus:'エピソードボーナス'}[trigger]||trigger||'当選';
+}
+function renderHitTriggerButtons(){
+  return `
+    <div class="work-subsection">
+      <div class="section-label" style="margin-top:0;">当選トリガー</div>
+      <p class="section-note">押した時点のデータG数/液晶G数で当選イベントを作り、STEP3へ移動します。</p>
+      <div class="tag-buttons">
+        <button class="tag-btn gold" onclick="startHitEventWizard('cz')">CZ当選</button>
+        <button class="tag-btn gold" onclick="startHitEventWizard('upper_cz')">上位CZ当選</button>
+        <button class="tag-btn gold" onclick="startHitEventWizard('direct_at')">AT直撃</button>
+        <button class="tag-btn gold" onclick="startHitEventWizard('episode_bonus')">エピソードボーナス</button>
+      </div>
+    </div>`;
+}
+function currentHitEvent(){
+  return currentHitEvents.find(event=>event.id===hitBranchWizard.eventId)||null;
+}
+function createHitEvent(trigger){
+  const dataGame=timelineDataValue();
+  if(dataGame===null){alert('当選時のデータG数を入力してください');return null;}
+  const liquidGame=timelineLiquidValue()??dataGame;
+  const event=normalizeHitEvent({trigger,dataGame,liquidGame,createdAt:new Date().toISOString(),wizardDone:false});
+  currentHitEvents.push(event);
+  return event;
+}
+function startHitEventWizard(trigger){
+  const normalized=normalizeHitTrigger(trigger);
+  if(!normalized)return;
+  const event=createHitEvent(normalized);
+  if(!event)return;
+  currentFlowStep=3;
+  const route=(normalized==='cz'||normalized==='upper_cz')?'czResult':'atHit';
+  hitBranchWizard={route,stepIndex:0,through:null,done:[],eventId:event.id};
+  renderLogFields();
+  renderFlowStepTabs();
+  saveDraftImmediately();
+}
+function renderHitEventsList(){
+  if(!currentHitEvents.length)return '<div class="empty-hint">当選イベントなし</div>';
+  return `<div class="timeline-history-body">${currentHitEvents.map(event=>`
+    <div class="timeline-item">
+      <div class="timeline-head">
+        <div class="timeline-game">${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitTriggerLabel(event.trigger)}`)}</div>
+        <span class="pill ${event.wizardDone?'gold':'disabled'}">${event.wizardDone?'完了':'処理中'}</span>
+      </div>
+      <div class="timeline-text">${escapeHtml(hitEventLine(event))}</div>
+    </div>`).join('')}</div>`;
+}
+function hitEventLine(event){
+  const parts=[hitTriggerLabel(event.trigger)];
+  if(event.czResult)parts.push(event.czResult==='at_win'?'AT当選':'AT非当選');
+  if(event.through)parts.push(event.through==='yes'?'駆け抜け':'駆け抜け以外');
+  if(event.payout!==null&&event.payout!==undefined)parts.push(`獲得${event.payout}枚`);
+  if(event.exit)parts.push(event.exit==='continue'?'続行':'即ヤメ');
+  return parts.join(' / ');
+}
 function renderTimelineArea(mode='play'){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">時系列ログは機種選択後に使えます</div>';
   if(mode==='hit')return `
-    ${renderEndRecordArea()}
+    <div class="work-subsection">
+      <div class="work-section-title">当選イベント</div>
+      ${renderHitEventsList()}
+    </div>
     <div class="work-subsection">
       <div class="work-section-title">AT当選時の記録</div>
       ${renderHitBranchWizardArea()}
@@ -3451,6 +3564,8 @@ function renderTimelineArea(mode='play'){
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(10)">+10</button>
     </div>
     ${renderOutcomeQuickButtons()}
+    ${renderHitTriggerButtons()}
+    <div class="work-subsection"><div class="section-label" style="margin-top:0;">当選イベント</div>${renderHitEventsList()}</div>
     ${renderTagButtons('timeline')}
     <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState()"></textarea>
     <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
@@ -3463,19 +3578,26 @@ function nextModeEyecatchPlace(){
   return mode&&place?{category:mode,place}:null;
 }
 function hitBranchSteps(route,through=hitBranchWizard.through){
+  if(route==='czResult')return [
+    {key:'czResult',label:'CZ結果'}
+  ];
   if(route==='czFail')return [
+    {key:'czResult',label:'CZ結果'},
     {key:'czEndcard',label:'CZ終了エンドカード'},
     {key:'eyecatch',label:'アイキャッチ'},
-    {key:'kui',label:'喰ポイント'}
+    {key:'kui',label:'喰ポイント'},
+    {key:'exit',label:'出口選択'}
   ];
   if(route==='atHit'){
     const steps=[
       {key:'through',label:'AT駆け抜け'},
+      {key:'payout',label:'獲得枚数'},
       {key:'atEnd',label:'AT終了画面'},
       {key:'trophy',label:'トロフィー'},
       {key:'eyecatch',label:'アイキャッチ'}
     ];
     if(through==='yes')steps.push({key:'kui',label:'喰ポイント'});
+    steps.push({key:'exit',label:'出口選択'});
     return steps;
   }
   return [];
@@ -3485,12 +3607,14 @@ function renderHitBranchWizardArea(){
   const route=hitBranchWizard.route;
   const steps=hitBranchSteps(route);
   const current=steps[hitBranchWizard.stepIndex];
-  const routeLabel=route==='czFail'?'CZ失敗ルート':route==='atHit'?'AT当選ルート':'未選択';
+  const event=currentHitEvent();
+  const routeLabel=route==='czResult'?'CZ結果待ち':route==='czFail'?'CZ失敗ルート':route==='atHit'?'AT当選ルート':'未選択';
   return `
     <div class="branch-wizard">
       <div class="section-label" style="margin-top:0;">状態3 分岐フロー</div>
-      <p class="section-note">結果を選ぶと、必要なルートが自動で起動します。各ステップは選択した時点で記録され、次へ進みます。</p>
-      ${!route?'<div class="empty-hint">結果プルダウンを選ぶとウィザードが表示されます。ヤメでは起動しません。</div>':''}
+      <p class="section-note">STEP2の当選トリガーから作成されたイベントを処理します。出口選択まで進めると完了です。</p>
+      ${event?`<div class="item-sub">対象：${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitTriggerLabel(event.trigger)}`)}</div>`:''}
+      ${!route?'<div class="empty-hint">STEP2の当選トリガーから開始してください。</div>':''}
       ${route?`
         <div class="item-sub" style="margin-top:8px;">現在：${escapeHtml(routeLabel)}${current?` / 次：${escapeHtml(current.label)}`:' / 完了'}</div>
         <div class="branch-wizard-steps">
@@ -3512,7 +3636,7 @@ function startHitBranchWizard(route){
   saveDraftImmediately();
 }
 function resetHitBranchWizard(){
-  hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
+  hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
   renderLogFields();
   saveDraftImmediately();
 }
@@ -3534,7 +3658,7 @@ function handleEndReasonChange(){
     return;
   }
   const changed=clearWizardSuggestLogs();
-  hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
+  hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
   renderLogFields();
   renderCarrySummaryIntoDom();
   renderPracticeStats();
@@ -3545,6 +3669,7 @@ function backHitBranchWizard(){
   hitBranchWizard.stepIndex=Math.max(0,(hitBranchWizard.stepIndex||0)-1);
   if(hitBranchWizard.route==='atHit'&&hitBranchWizard.stepIndex===0)hitBranchWizard.through=null;
   renderLogFields();
+  saveDraftImmediately();
 }
 function currentHitBranchStep(){
   return hitBranchSteps(hitBranchWizard.route)[hitBranchWizard.stepIndex]||null;
@@ -3568,7 +3693,10 @@ function suggestPlaceEntriesByName(name){
 function openCurrentHitBranchStep(){
   const step=currentHitBranchStep();
   if(!step)return;
+  if(step.key==='czResult'){openCzResultBranchPicker();return;}
   if(step.key==='through'){openAtThroughBranchPicker();return;}
+  if(step.key==='payout'){promptHitEventPayout();return;}
+  if(step.key==='exit'){openHitExitPicker();return;}
   if(step.key==='kui'){
     const category=findSuggestCategoryByName(currentMachine(),'喰ポイント');
     if(category)openKuiPointPicker(category.id,'hit','branch');
@@ -3587,6 +3715,88 @@ function openCurrentHitBranchStep(){
     return;
   }
   if(entry)openSuggestItemPicker(entry.category.id,entry.place.id,'hit','branch');
+}
+function openCzResultBranchPicker(){
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:hitBranchWizard.route,branchStep:'czResult'};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent='CZ結果';
+  breadcrumb.textContent='CZ経由の結果を選択';
+  back.textContent='閉じる';
+  options.innerHTML=`
+    <button class="suggest-picker-option" onclick="selectCzResultBranch('at_win')">AT当選</button>
+    <button class="suggest-picker-option" onclick="selectCzResultBranch('at_lose')">AT非当選</button>`;
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectCzResultBranch(result){
+  const event=currentHitEvent();
+  if(!event)return;
+  event.czResult=normalizeCzResult(result);
+  hitBranchWizard.route=event.czResult==='at_win'?'atHit':'czFail';
+  hitBranchWizard.stepIndex=event.czResult==='at_win'?0:1;
+  closeSuggestPicker();
+  renderLogFields();
+  saveDraftImmediately();
+  setTimeout(openCurrentHitBranchStep,0);
+}
+function promptHitEventPayout(){
+  const event=currentHitEvent();
+  if(!event)return;
+  const value=prompt('獲得枚数（空でも可）',event.payout!==null&&event.payout!==undefined?String(event.payout):'');
+  if(value===null)return;
+  const normalized=normalizeOptionalNumber(value.trim());
+  if(value.trim()!==''&&normalized===null){alert('獲得枚数は数値で入力してください');return;}
+  event.payout=normalized;
+  advanceHitBranchWizard();
+  renderLogFields();
+  saveDraftImmediately();
+  setTimeout(openCurrentHitBranchStep,0);
+}
+function openHitExitPicker(){
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:hitBranchWizard.route,branchStep:'exit'};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent='出口選択';
+  breadcrumb.textContent='この当選後にどうするかを選択';
+  back.textContent='閉じる';
+  options.innerHTML=`
+    <button class="suggest-picker-option" onclick="selectHitExit('continue')">続行</button>
+    <button class="suggest-picker-option" onclick="selectHitExit('quit')">即ヤメ</button>`;
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectHitExit(exit){
+  const event=currentHitEvent();
+  if(!event)return;
+  event.exit=normalizeHitExit(exit);
+  event.wizardDone=true;
+  if(event.exit==='quit'){
+    setEndLogFromHitEvent(event);
+    currentFlowStep=4;
+  }else{
+    currentFlowStep=2;
+  }
+  hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
+  closeSuggestPicker();
+  renderLogFields();
+  renderFlowStepTabs();
+  saveDraftImmediately();
+}
+function setEndLogFromHitEvent(event){
+  if(!event)return;
+  const endGame=normalizeOptionalNumber(event.dataGame)??timelineDataValue()??0;
+  const offset=(timelineLiquidValue()??endGame)-(timelineDataValue()??endGame);
+  const liquidGame=endGame+offset;
+  currentEndLog={id:currentEndLog?.id||uid('el'),game:endGame,liquidGame,reason:'ヤメ',text:'',...hitEventEndLogCounts(currentHitEvents),createdAt:currentEndLog?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  linkedEndDataGame=endGame;
+  linkedEndLiquidGame=liquidGame;
 }
 function openBranchPlacePicker(titleText,entries){
   const title=document.getElementById('suggestPickerTitle');
@@ -3623,6 +3833,8 @@ function openAtThroughBranchPicker(){
 }
 function selectAtThroughBranch(value){
   if(value!=='yes'&&value!=='no')return;
+  const event=currentHitEvent();
+  if(event)event.through=value;
   hitBranchWizard.through=value;
   recordAfterAtModeByThrough(value);
   advanceHitBranchWizard();
@@ -3637,7 +3849,7 @@ function recordAfterAtModeByThrough(value){
   const keyword=value==='yes'?'AT駆け抜け（':'AT駆け抜け以外';
   const item=(place.items||[]).find(row=>String(row.label||'').includes(keyword))||(place.items||[]).find(row=>String(row.label||'').includes(value==='yes'?'駆け抜け':'以外'));
   if(!item)return;
-  addSuggestLogFromSelection({stateGroup:'hit',source:'wizard',carryType:normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint:true,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:mode.id,placeId:place.id,itemId:item.id,category:mode.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false});
+  addSuggestLogFromSelection({stateGroup:'hit',source:'wizard',hitEventId:hitBranchWizard.eventId||'',carryType:normalizeCarryType(item.carryType),pointRole:place.pointRole||item.pointRole||null,nextModeHint:true,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:mode.id,placeId:place.id,itemId:item.id,category:mode.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false});
 }
 function advanceHitBranchWizard(){
   const step=currentHitBranchStep();
@@ -4095,6 +4307,34 @@ function endLogCounts(endLog){
     episode_bonus:Number(endLog?.episodeBonusCount)||0
   };
 }
+function hitEventCounts(events){
+  return (events||[]).reduce((counts,event)=>{
+    const trigger=normalizeHitTrigger(event?.trigger);
+    const czResult=normalizeCzResult(event?.czResult);
+    if(trigger==='cz'){
+      counts.cz+=1;
+      if(czResult==='at_win')counts.at+=1;
+    }else if(trigger==='upper_cz'){
+      counts.upper_cz+=1;
+      if(czResult==='at_win')counts.at+=1;
+    }else if(trigger==='direct_at'){
+      counts.at+=1;
+      counts.direct_at+=1;
+    }else if(trigger==='episode_bonus'){
+      counts.at+=1;
+      counts.episode_bonus+=1;
+    }
+    return counts;
+  },{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0});
+}
+function hitEventEndLogCounts(events){
+  const counts=hitEventCounts(events);
+  return {czCount:counts.cz,upperCzCount:counts.upper_cz,atCount:counts.at,directAtCount:counts.direct_at,episodeBonusCount:counts.episode_bonus};
+}
+function logResultCounts(log){
+  const events=Array.isArray(log?.hitEvents)?log.hitEvents:[];
+  return events.length?hitEventCounts(events):endLogCounts(log?.endLog);
+}
 function addCounts(base,extra){
   Object.keys(base).forEach(key=>{base[key]+=Number(extra[key])||0;});
   return base;
@@ -4111,15 +4351,15 @@ function statsChainLogsFor(log){
 }
 function calculatePracticeStats(log){
   if(log?.excludeFromStats)return {startCounter:logStartCounterValue(log),endGame:null,spins:null,counts:{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0},excluded:true};
-  const chain=statsChainLogsFor(log);
+  const chain=Array.isArray(log?.hitEvents)&&log.hitEvents.length?[]:statsChainLogsFor(log);
   const firstChainStart=chain.map(logStartCounterValue).find(value=>value!==null&&value!==undefined);
   const startCounter=firstChainStart!==undefined?firstChainStart:logStartCounterValue(log);
   const endGame=log.endLog?.game!==undefined&&log.endLog?.game!==null?Number(log.endLog.game):null;
-  const currentSpins=logSpinValue(log);
+  const currentSpins=Array.isArray(log?.hitEvents)&&log.hitEvents.length?(startCounter!==null&&endGame!==null&&!Number.isNaN(endGame)?endGame-startCounter:null):logSpinValue(log);
   const previousSpins=chain.reduce((sum,item)=>sum+(logSpinValue(item)||0),0);
   const spins=currentSpins!==null?previousSpins+currentSpins:null;
-  const counts=chain.reduce((sum,item)=>addCounts(sum,endLogCounts(item.endLog)),{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0});
-  addCounts(counts,endLogCounts(log.endLog));
+  const counts=chain.reduce((sum,item)=>addCounts(sum,logResultCounts(item)),{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0});
+  addCounts(counts,logResultCounts(log));
   return {startCounter,endGame,spins,counts};
 }
 function formatProbability(spins,count){
@@ -4149,6 +4389,7 @@ function renderPracticeStats(){
     startLog:currentStartLog,
     timeline:currentTimeline,
     endLog:currentEndLog,
+    hitEvents:currentHitEvents,
     money:{
       date:document.getElementById('moneyDate')?.value||todayValue(),
       store:document.getElementById('moneyStore')?.value||'',
@@ -4320,6 +4561,8 @@ function currentInputLogObject(finalized=false, existingLog=null){
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     endLog:clone(currentEndLog),
+    hitEvents:clone(currentHitEvents.map(normalizeHitEvent).filter(Boolean)),
+    hitBranchWizard:clone(normalizeHitBranchWizard(hitBranchWizard)),
     suggestLog,
     kuiPoint:buildKuiPointState(suggestLog,currentKuiPointReleased),
     money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff},
@@ -4333,7 +4576,7 @@ function draftHasContent(log){
   if(!log)return false;
   const money=log.money||{};
   return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||
-    (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.suggestLog||[]).length>0||!!log.endLog||
+    (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
     !!money.store||!!money.machineNo||!!money.endTime||normalizeOptionalNumber(money.startMedals)!==null||normalizeOptionalNumber(money.endMedals)!==null||!!money.cashIn||
     !!log.publicMemo||!!log.privateMemo||!!continuedFromLog;
 }
@@ -4400,6 +4643,7 @@ function saveLog(options={}){
   baseMoney.exchangeRate=store?.exchangeRate??null;
   const c=calcMoney(baseMoney);
   const suggestLog=clone(sortedSuggestLog());
+  const finalized=hasMoneyResultInput(baseMoney);
   const log={
     id:editingLog?.id||uid('l'),
     machineId:machine.id,
@@ -4409,9 +4653,9 @@ function saveLog(options={}){
     fieldSnapshot,
     values,
     flowStep:4,
-    state4Registered:true,
-    finalized:true,
-    excludeFromStats:false,
+    state4Registered:finalized,
+    finalized,
+    excludeFromStats:!finalized,
     continuedFromId:continuedFromLog?.id||editingLog?.continuedFromId||'',
     sameTableCarryOptOut:sameTableCarryOptOutKey===`${baseMoney.date}|${baseMoney.store}|${baseMoney.machineNo}`,
     startCounterGame:startCounter,
@@ -4420,6 +4664,8 @@ function saveLog(options={}){
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     endLog:clone(currentEndLog),
+    hitEvents:clone(currentHitEvents.map(normalizeHitEvent).filter(Boolean)),
+    hitBranchWizard:clone(normalizeHitBranchWizard(hitBranchWizard)),
     suggestLog,
     kuiPoint:buildKuiPointState(suggestLog,currentKuiPointReleased),
     money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff},
@@ -4466,7 +4712,7 @@ function scrollToPageTop(){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function startNewRegistration(){
-  if(!confirm('入力中の稼働を未確定ログへ退避して、新規登録を始めますか？現在の続行チェーンを締める場合は、あとでログから収支を登録してください。'))return;
+  if(!confirm('入力中の稼働チェーンを未確定ログへ退避して、新規登録を始めますか？収支未登録の場合は集計対象外になります。'))return;
   archiveCurrentDraftAsUnfinalized();
   clearLogInput(true);
   db.draftLog=null;
@@ -4540,7 +4786,7 @@ function resetTransientLogUiState(){
   timelineHistoryOpen=false;
   recentTimelineHighlightId='';
   recentSuggestHighlightId='';
-  hitBranchWizard={route:'',stepIndex:0,through:null,done:[]};
+  hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
   updateTimelineAddButtonState();
 }
 function resetStartCounterDefault(){
@@ -4617,11 +4863,13 @@ function loadDraftIntoInputs(log){
   currentEndLog=clone(log.endLog||null);
   linkedEndDataGame=currentEndLog?.game??null;
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
+  currentHitEvents=clone(log.hitEvents||[]);
   currentSuggestLog=clone(log.suggestLog||[]);
   currentKuiPointReleased=!!log.kuiPoint?.released;
   currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
   pendingSuggestSelection=null;
   resetTransientLogUiState();
+  hitBranchWizard=normalizeHitBranchWizard(log.hitBranchWizard||{});
   closeSuggestPicker();
   renderAll();
   fillLogInputs(log);
@@ -4666,10 +4914,12 @@ function loadLogForEdit(id){
   currentEndLog=clone(log.endLog||null);
   linkedEndDataGame=currentEndLog?.game??null;
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
+  currentHitEvents=clone(log.hitEvents||[]);
   currentSuggestLog=clone(log.suggestLog||[]);
   currentKuiPointReleased=!!log.kuiPoint?.released;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
+  hitBranchWizard=normalizeHitBranchWizard(log.hitBranchWizard||{});
   closeSuggestPicker();
   showPage('pageLog');
   fillLogInputs(log);
@@ -4713,6 +4963,7 @@ function continueFromLog(id,skipConfirm=false){
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
   currentEndLog=null;
+  currentHitEvents=[];
   currentSuggestLog=[];
   currentKuiPointReleased=false;
   pendingSuggestSelection=null;
@@ -4783,6 +5034,11 @@ function buildShareText(log){
     lines.push('実戦経過：');
     timeline.forEach(t=>lines.push(`${timelineGameLine(t)} ${t.text}`));
   }
+  if((log.hitEvents||[]).length){
+    lines.push('');
+    lines.push('当選イベント：');
+    (log.hitEvents||[]).forEach(event=>lines.push(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event)}`));
+  }
   if(log.endLog){
     lines.push('');
     lines.push('打ち終わり：');
@@ -4850,20 +5106,20 @@ function renderLogItem(log){
       <div class="item-head">
         <div>
           <div class="item-title">${escapeHtml(log.machineName)} / ${escapeHtml(log.aimName)}</div>
-          ${log.excludeFromStats?'<div class="unfinalized-note">状態4（ヤメ/続行）が未登録です。確定するまで集計対象外です。</div>':''}
-          <div class="item-sub">${escapeHtml(logSummaryMoney(log))}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件　示唆 ${(log.suggestLog||[]).length}件</div>
+          ${log.excludeFromStats?'<div class="unfinalized-note">収支未登録のため集計対象外です。</div>':''}
+          <div class="item-sub">${escapeHtml(logSummaryMoney(log))}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件　当選 ${(log.hitEvents||[]).length}件　示唆 ${(log.suggestLog||[]).length}件</div>
           <div class="item-sub">${escapeHtml(practiceStatsLine(calculatePracticeStats(log)))}</div>
           <div style="margin-top:6px;">
             ${logStartCounterValue(log)!==null?`<span class="pill gold">${escapeHtml('データカウンターのゲーム数：'+logStartCounterValue(log))}</span>`:''}
             ${visibleStartLog(log).slice(0,2).map(x=>`<span class="pill gold">${escapeHtml(startLogLine(x))}</span>`).join('')}
             ${(log.timeline||[]).slice(0,2).map(x=>`<span class="pill">${escapeHtml(timelineGameLine(x)+' '+x.text)}</span>`).join('')}
+            ${(log.hitEvents||[]).slice(0,2).map(x=>`<span class="pill gold">${escapeHtml(`${x.dataGame}/${x.liquidGame}G ${hitEventLine(x)}`)}</span>`).join('')}
             ${(log.suggestLog||[]).slice(0,2).map(x=>`<span class="pill">${escapeHtml(suggestLogLine(x))}</span>`).join('')}
             ${log.endLog?`<span class="pill gold">${escapeHtml(endLogLine(log.endLog))}</span>`:''}
           </div>
         </div>
         <div class="item-actions">
           <button class="btn-small" onclick="loadLogForEdit('${log.id}')">編集</button>
-          <button class="btn-small gold" onclick="continueFromLog('${log.id}')">この台を続行</button>
           <button class="btn-danger" onclick="deleteLog('${log.id}')">削除</button>
         </div>
       </div>
