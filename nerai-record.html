@@ -576,6 +576,24 @@ footer a:hover{color:var(--gold-light);}
   </div>
 </div>
 
+<div class="keypad-overlay" id="hitPayoutOverlay" onclick="closeHitPayoutPicker()">
+  <div class="keypad" onclick="event.stopPropagation()">
+    <div class="keypad-title">
+      <span>獲得枚数</span>
+      <button class="btn-small" onclick="closeHitPayoutPicker()">閉じる</button>
+    </div>
+    <div class="input-hint">当選イベントの獲得枚数を入力します。未記録ならスキップしてください。</div>
+    <div class="input-row" style="margin-top:12px;">
+      <div class="input-label">獲得枚数</div>
+      <input type="number" inputmode="numeric" id="hitPayoutInput" placeholder="枚" min="0">
+    </div>
+    <div class="suggest-picker-actions">
+      <button class="btn-primary" onclick="submitHitEventPayout()">決定</button>
+      <button class="btn-secondary" onclick="skipHitEventPayout()">スキップ</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const STORAGE_KEY='nerai_record_v1';
 const REQUIRED_AIMS=[
@@ -752,7 +770,6 @@ function normalizeHitEvent(event){
     dataGame:dataGame!==null?dataGame:0,
     liquidGame:normalizeOptionalNumber(event.liquidGame)??(dataGame!==null?dataGame:0),
     through:event.through==='yes'||event.through==='no'?event.through:null,
-    endScreen:event.endScreen&&typeof event.endScreen==='object'?event.endScreen:null,
     exit:normalizeHitExit(event.exit),
     wizardDone:!!event.wizardDone
   };
@@ -3746,15 +3763,33 @@ function selectCzResultBranch(result){
 function promptHitEventPayout(){
   const event=currentHitEvent();
   if(!event)return;
-  const value=prompt('獲得枚数（空でも可）',event.payout!==null&&event.payout!==undefined?String(event.payout):'');
-  if(value===null)return;
-  const normalized=normalizeOptionalNumber(value.trim());
-  if(value.trim()!==''&&normalized===null){alert('獲得枚数は数値で入力してください');return;}
-  event.payout=normalized;
+  const input=document.getElementById('hitPayoutInput');
+  if(input)input.value=event.payout!==null&&event.payout!==undefined?String(event.payout):'';
+  document.getElementById('hitPayoutOverlay')?.classList.add('open');
+  setTimeout(()=>input?.focus(),0);
+}
+function closeHitPayoutPicker(){
+  document.getElementById('hitPayoutOverlay')?.classList.remove('open');
+}
+function finishHitEventPayout(value){
+  const event=currentHitEvent();
+  if(!event)return;
+  event.payout=value;
+  closeHitPayoutPicker();
   advanceHitBranchWizard();
   renderLogFields();
   saveDraftImmediately();
   setTimeout(openCurrentHitBranchStep,0);
+}
+function submitHitEventPayout(){
+  const input=document.getElementById('hitPayoutInput');
+  const value=input?input.value.trim():'';
+  const normalized=normalizeOptionalNumber(value);
+  if(value!==''&&normalized===null){alert('獲得枚数は数値で入力してください');return;}
+  finishHitEventPayout(normalized);
+}
+function skipHitEventPayout(){
+  finishHitEventPayout(null);
 }
 function openHitExitPicker(){
   const title=document.getElementById('suggestPickerTitle');
@@ -4763,11 +4798,13 @@ function clearLogInput(cancelEdit=true){
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
   currentEndLog=null;
+  currentHitEvents=[];
   currentSuggestLog=[];
   currentKuiPointReleased=false;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
   closeSuggestPicker();
+  closeHitPayoutPicker();
   resetStartCounterDefault();
   renderCurrentStartLog();
   renderCurrentTimeline();
