@@ -120,6 +120,9 @@
   .btn-copy{width:100%;background:transparent;border:1px solid var(--gold);border-radius:6px;color:var(--gold);font-size:14px;padding:10px;margin-top:8px;cursor:pointer;}
   .btn-copy:active{background:rgba(201,168,76,.1);}
   .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
+  .session-restore-bar{display:none;align-items:center;justify-content:space-between;gap:10px;background:rgba(201,168,76,.12);border:1px solid rgba(201,168,76,.45);border-radius:8px;color:var(--gold-light);font-size:12px;line-height:1.6;padding:10px 12px;margin:14px 0 0;}
+  .session-restore-bar.show{display:flex;}
+  .session-restore-close{background:transparent;border:1px solid rgba(201,168,76,.35);border-radius:6px;color:var(--gold-light);font-size:14px;line-height:1;padding:4px 8px;cursor:pointer;flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -130,6 +133,10 @@
 </header>
 
 <div class="container">
+  <div class="session-restore-bar" id="sessionRestoreBar">
+    <span>前回のデータを復元しました。別の台なら『すべてリセット』を押してください</span>
+    <button class="session-restore-close" type="button" onclick="hideSessionRestoreBar()" aria-label="復元通知を閉じる">×</button>
+  </div>
 
   <!-- ① メモ -->
   <div class="section">
@@ -350,6 +357,7 @@ const SNIPE_ZONES=[
 const DEFAULT_EVENTS=['第一停止系','第二停止系','第三停止系','天破煽り','燭台に火をともせ','シャッター','場面切り替え演出','チャンスアップ','レア役','弱チェリー','強チェリー','スイカ','チャンス目/勝負揃い','AT当選'];
 const AT_EVENT='AT当選';
 const SHUTTER_EVENT='シャッター';
+const SESSION_KEY='abechi_session';
 
 // ── 状態 ──
 let fixedRecords=[];
@@ -357,6 +365,79 @@ let tenpaRecords=[];
 let memoRecords=[];
 let customEvents=[];
 let memoSeq=0;
+let lastOffMin=null;
+let lastOffMax=null;
+let lastConfidence='';
+
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g,ch=>({
+    '&':'&amp;',
+    '<':'&lt;',
+    '>':'&gt;',
+    '"':'&quot;',
+    "'":'&#39;'
+  }[ch]));
+}
+
+function getInputValue(id){
+  const el=document.getElementById(id);
+  return el?el.value:'';
+}
+
+function sessionHasData(data){
+  return (Array.isArray(data.fixedRecords)&&data.fixedRecords.length>0)||
+    (Array.isArray(data.tenpaRecords)&&data.tenpaRecords.length>0)||
+    (Array.isArray(data.memoRecords)&&data.memoRecords.length>0)||
+    (Array.isArray(data.customEvents)&&data.customEvents.length>0)||
+    (data.in128battle||'')!==''||
+    (data.in256battle||'')!=='';
+}
+
+function saveSession(){
+  normalizeMemoRecords();
+  const data={
+    fixedRecords:[...fixedRecords],
+    tenpaRecords:tenpaRecords.map(r=>({...r})),
+    memoRecords:memoRecords.map(r=>({...r})),
+    customEvents:[...customEvents],
+    memoSeq,
+    in128battle:getInputValue('in128battle'),
+    in256battle:getInputValue('in256battle')
+  };
+  localStorage.setItem(SESSION_KEY,JSON.stringify(data));
+}
+
+function showSessionRestoreBar(){
+  document.getElementById('sessionRestoreBar').classList.add('show');
+}
+
+function hideSessionRestoreBar(){
+  document.getElementById('sessionRestoreBar').classList.remove('show');
+}
+
+function restoreSession(){
+  let data;
+  try{
+    data=JSON.parse(localStorage.getItem(SESSION_KEY)||'null');
+  }catch(e){
+    return;
+  }
+  if(!data||!sessionHasData(data))return;
+  fixedRecords=Array.isArray(data.fixedRecords)?[...data.fixedRecords]:[];
+  tenpaRecords=Array.isArray(data.tenpaRecords)?data.tenpaRecords.map(r=>({...r})):[];
+  memoRecords=Array.isArray(data.memoRecords)?data.memoRecords.map(r=>({...r})):[];
+  customEvents=Array.isArray(data.customEvents)?[...data.customEvents]:[];
+  memoSeq=Number.isFinite(data.memoSeq)?data.memoSeq:0;
+  document.getElementById('in128battle').value=data.in128battle||'';
+  document.getElementById('in256battle').value=data.in256battle||'';
+  normalizeMemoRecords();
+  initEventButtons();
+  renderFixedList();
+  renderTenpaList();
+  renderMemoList();
+  renderMemoResult();
+  showSessionRestoreBar();
+}
 
 // ── イベントボタン初期化 ──
 function initEventButtons(){
@@ -399,11 +480,13 @@ function addCustomEvent(){
   customEvents.push(val);
   input.value='';
   initEventButtons();
+  saveSession();
 }
 
 function deleteCustomEvent(name){
   customEvents=customEvents.filter(e=>e!==name);
   initEventButtons();
+  saveSession();
 }
 
 // ── あべし増減 ──
@@ -437,12 +520,17 @@ function addMemo(eventName){
   const cur=inputEl.value===''?0:parseInt(inputEl.value,10);
   inputEl.value=isNaN(cur)?1:cur+1;
   renderMemoList();
+  saveSession();
 }
 
 function deleteMemo(idx){
   memoRecords.splice(idx,1);
   renderMemoList();
-  if(document.getElementById('resultArea').classList.contains('show'))renderMemoResult();
+  saveSession();
+  if(document.getElementById('resultArea').classList.contains('show')){
+    renderMemoResult();
+    generateSummary(lastOffMin,lastOffMax,lastConfidence);
+  }
 }
 
 function undoLastMemo(){
@@ -458,8 +546,8 @@ function renderMemoList(){
   const list=document.getElementById('memoList');
   if(memoRecords.length===0){list.innerHTML='<div class="empty-hint">まだ記録なし</div>';return;}
   list.innerHTML=memoRecords.map((r,i)=>`
-    <div class="record-item ${r.event.includes(SHUTTER_EVENT)?'record-item-shutter':''}">
-      <div class="record-item-label">${r.event.includes(SHUTTER_EVENT)?'🔴 ':''}${r.event}</div>
+    <div class="record-item ${String(r.event).includes(SHUTTER_EVENT)?'record-item-shutter':''}">
+      <div class="record-item-label">${String(r.event).includes(SHUTTER_EVENT)?'🔴 ':''}${escapeHtml(r.event)}</div>
       <div class="record-item-val">${r.abechi}あべし</div>
       <button class="btn-del" onclick="deleteMemo(${i})">削除</button>
     </div>`).join('');
@@ -472,7 +560,7 @@ function renderMemoResult(){
     document.getElementById('memoResultBody').innerHTML=memoRecords.map((r,i)=>`
       <tr>
         <td class="td-base">${r.abechi}</td>
-        <td class="td-zone ${r.event.includes(SHUTTER_EVENT)?'td-shutter':''}">${r.event.includes(SHUTTER_EVENT)?'🔴 ':''}${r.event}</td>
+        <td class="td-zone ${String(r.event).includes(SHUTTER_EVENT)?'td-shutter':''}">${String(r.event).includes(SHUTTER_EVENT)?'🔴 ':''}${escapeHtml(r.event)}</td>
         <td><button class="btn-del" onclick="deleteMemo(${i})">削除</button></td>
       </tr>`).join('');
     el.style.display='block';
@@ -487,7 +575,7 @@ function renderPresetSelect(){
   const sel=document.getElementById('presetSelect');
   const p=getPresets();
   const keys=Object.keys(p);
-  sel.innerHTML='<option value="">── 登録した設定 ──</option>'+keys.map(k=>`<option value="${k}">${k}</option>`).join('');
+  sel.innerHTML='<option value="">── 登録した設定 ──</option>'+keys.map(k=>`<option value="${escapeHtml(k)}">${escapeHtml(k)}</option>`).join('');
 }
 
 function savePreset(){
@@ -510,9 +598,10 @@ function loadPreset(){
   memoRecords=[...(p[key].memoRecords||[])].map(r=>({...r}));
   memoSeq=0;
   normalizeMemoRecords();
-  customEvents=[...p[key].customEvents];
+  customEvents=[...(p[key].customEvents || [])];
   initEventButtons();
   renderMemoList();
+  saveSession();
 }
 
 function deletePreset(){
@@ -534,9 +623,10 @@ function addFixed(){
   fixedRecords.push(val);
   input.value='';
   renderFixedList();
+  saveSession();
 }
 
-function deleteFixed(idx){fixedRecords.splice(idx,1);renderFixedList();}
+function deleteFixed(idx){fixedRecords.splice(idx,1);renderFixedList();saveSession();}
 
 function renderFixedList(){
   const list=document.getElementById('fixedList');
@@ -561,9 +651,10 @@ function addTenpa(){
   document.getElementById('inTenpaStart').value='';
   document.getElementById('inTenpaEnd').value='';
   renderTenpaList();
+  saveSession();
 }
 
-function deleteTenpa(idx){tenpaRecords.splice(idx,1);renderTenpaList();}
+function deleteTenpa(idx){tenpaRecords.splice(idx,1);renderTenpaList();saveSession();}
 
 function renderTenpaList(){
   const list=document.getElementById('tenpaList');
@@ -622,6 +713,7 @@ function calculate(){
   const notices=[];
   if(hasConflict)notices.push('入力値から推定した加算量に矛盾があります。天破通過の影響や入力ミスの可能性があります。');
   if(ranges.length===1)notices.push('入力が1項目のみです。複数入力すると精度が上がります。');
+  if(offMax<0)notices.push('入力ミスまたは前提と異なる状況の可能性があります。');
   const noticeBox=document.getElementById('noticeBox');
   if(notices.length>0){document.getElementById('noticeText').innerHTML=notices.map(n=>`・${n}`).join('<br>');noticeBox.style.display='block';}
   else{noticeBox.style.display='none';}
@@ -632,7 +724,7 @@ function calculate(){
   if(tenpaRecords.length>0){
     document.getElementById('tenpaList2').innerHTML=tenpaRecords.map((r,i)=>{
       const add=r.end-r.start;
-      const skipped=allZones.filter(z=>{const lo=z.min-offMax;const hi=z.max-offMin;return r.start<hi&&r.end>lo;}).map(z=>z.name);
+      const skipped=allZones.filter(z=>{const lo=z.min-offMax;const hi=z.max-offMin;return r.start<=hi&&r.end>=lo;}).map(z=>z.name);
       const skipText=skipped.length>0?`飛び越えた可能性：${skipped.join('、')}`:'判別ゾーンの飛び越えなし';
       return`<div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--border)">
         <div style="font-size:12px;color:var(--text-muted);margin-bottom:4px">${i+1}回目（${r.start}→${r.end}あべし）</div>
@@ -644,6 +736,9 @@ function calculate(){
   }else{tenpaResult.style.display='none';}
 
   renderMemoResult();
+  lastOffMin=offMin;
+  lastOffMax=offMax;
+  lastConfidence=confidence;
   generateSummary(offMin,offMax,confidence);
 
   document.getElementById('resultArea').classList.add('show');
@@ -652,6 +747,7 @@ function calculate(){
 
 // ── テキストまとめ生成 ──
 function generateSummary(offMin,offMax,confidence){
+  if(!Number.isFinite(offMin)||!Number.isFinite(offMax)||!confidence)return;
   const offText=offMin===offMax?`+${offMin}あべし`:`+${offMin}〜+${offMax}あべし`;
   const lines=[];
   lines.push('【あべしズレ判別結果】');
@@ -677,10 +773,24 @@ function generateSummary(offMin,offMax,confidence){
 
 function copyText(){
   const text=document.getElementById('summaryText').value;
-  navigator.clipboard.writeText(text).then(()=>{
+  const writePromise=navigator.clipboard&&navigator.clipboard.writeText
+    ? navigator.clipboard.writeText(text)
+    : Promise.reject(new Error('Clipboard API unavailable'));
+  writePromise.then(()=>{
     const done=document.getElementById('copyDone');
     done.style.display='block';
     setTimeout(()=>done.style.display='none',2000);
+  }).catch(()=>{
+    const textarea=document.getElementById('summaryText');
+    textarea.focus();
+    textarea.select();
+    const done=document.getElementById('copyDone');
+    done.textContent='コピーできませんでした。選択済みの本文を手動でコピーしてください。';
+    done.style.display='block';
+    setTimeout(()=>{
+      done.style.display='none';
+      done.textContent='コピーしました！';
+    },4000);
   });
 }
 
@@ -694,11 +804,15 @@ function resetAll(){
     .forEach(id=>document.getElementById(id).value='');
   document.getElementById('resultArea').classList.remove('show');
   document.getElementById('summaryText').value='';
+  hideSessionRestoreBar();
+  localStorage.removeItem(SESSION_KEY);
 }
 
 // ── 初期化 ──
 initEventButtons();
 renderPresetSelect();
+restoreSession();
+['in128battle','in256battle'].forEach(id=>document.getElementById(id).addEventListener('change',saveSession));
 </script>
 </body>
 </html>
