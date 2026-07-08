@@ -65,8 +65,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .state4-actions{display:flex;flex-direction:column;gap:8px;margin:0 0 12px;}
 .state4-actions .btn-primary,.state4-actions .btn-secondary{margin-top:0;}
 .btn-continue{background:linear-gradient(135deg,#2f8f55,#b6e36d);border:1px solid rgba(182,227,109,.78);color:#08130c;box-shadow:0 0 0 2px rgba(76,175,125,.16),0 8px 20px rgba(76,175,125,.18);}
-.btn-stop{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.5);color:var(--gold-light);}
-.btn-new{background:rgba(98,181,255,.12);border:1px solid rgba(98,181,255,.62);color:#9bd2ff;}
+.btn-stop{background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;color:#0d0d0f;font-weight:800;padding:14px;}
+.btn-new{background:transparent;border:1px solid rgba(122,122,138,.42);color:var(--text-muted);margin-top:14px;}
 .btn-continue:active,.btn-stop:active,.btn-new:active{filter:brightness(1.08);}
 .btn-small{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;}
 .btn-small.gold{border-color:var(--gold);color:var(--gold);}
@@ -95,7 +95,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .field-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;margin-bottom:8px;}
 .field-card.optional{border-style:dashed;}
 .tag-buttons{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;}
-.tag-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:12px;padding:7px 12px;cursor:pointer;}
+.tag-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:12px;padding:6px 10px;cursor:pointer;}
 .tag-btn.gold{border-color:rgba(201,168,76,.65);color:var(--gold-light);background:rgba(201,168,76,.08);}
 .tag-btn:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
 .tag-btn.tag-style-rare-weak{background:#ffd9de;border-color:#ff8fa0;color:#5b1018;}
@@ -133,6 +133,14 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .work-section-title{display:flex;align-items:center;gap:8px;margin:-2px -2px 12px;padding:10px 12px;border-radius:8px;background:rgba(201,168,76,.13);border:1px solid rgba(201,168,76,.28);color:var(--gold-light);font-size:15px;font-weight:800;}
 .work-section-title::before{content:"";width:6px;height:22px;border-radius:4px;background:var(--gold);}
 .work-subsection{margin-top:14px;padding:12px;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.12);}
+.work-subsection.play-group{background:rgba(201,168,76,.055);border-color:rgba(201,168,76,.24);}
+.work-subsection.play-group.alt{background:rgba(98,181,255,.055);border-color:rgba(98,181,255,.22);}
+.hit-trigger-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px;}
+.hit-trigger-btn{min-height:54px;border:none;border-radius:8px;background:linear-gradient(135deg,#9f7619,#e4c45e);color:#101014;font-size:14px;font-weight:900;box-shadow:0 0 0 2px rgba(201,168,76,.16),0 8px 22px rgba(201,168,76,.16);cursor:pointer;}
+.hit-trigger-btn:active{filter:brightness(1.08);}
+.outcome-tabs{display:flex;gap:0;border-bottom:1px solid rgba(122,122,138,.35);margin:8px 0 10px;}
+.outcome-tab{flex:1;background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;color:var(--text-muted);font-size:13px;font-weight:800;padding:9px 6px;cursor:pointer;}
+.outcome-tab.primary{color:var(--gold-light);border-bottom-color:var(--gold);}
 .work-subsection.end{border-color:rgba(224,112,112,.36);background:rgba(224,112,112,.07);}
 .work-subsection.end .work-section-title{margin:0 0 10px;background:rgba(224,112,112,.13);border-color:rgba(224,112,112,.3);color:#ffb3b3;}
 .work-subsection.end .work-section-title::before{background:#e07070;}
@@ -184,8 +192,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
 .backup-file{font-size:12px;color:var(--text-muted);}
 .flow-step-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;position:sticky;top:0;z-index:20;background:rgba(13,13,15,.94);padding:8px 0;}
-.flow-step-tab{border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);border-radius:8px;padding:9px 6px;font-size:12px;font-weight:800;cursor:pointer;text-align:center;}
-.flow-step-tab.active{border-color:rgba(201,168,76,.8);background:rgba(201,168,76,.16);color:var(--gold-light);box-shadow:0 0 0 1px rgba(201,168,76,.16);}
+.flow-step-tab{border:0;border-bottom:2px solid transparent;background:rgba(36,36,43,.62);color:var(--text-muted);border-radius:0;padding:9px 6px;font-size:12px;font-weight:800;cursor:pointer;text-align:center;}
+.flow-step-tab.active{border-bottom-color:var(--gold);background:rgba(201,168,76,.1);color:var(--gold-light);box-shadow:none;}
 .flow-step-tab .step-num{display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px;}
 .flow-panel{display:none;}
 .flow-panel.active{display:block;}
@@ -293,7 +301,7 @@ footer a:hover{color:var(--gold-light);}
     <div class="section-label">収支</div>
     <div class="state4-actions">
       <button class="btn-secondary btn-stop" id="saveLogButton" onclick="saveLog()">収支登録して保存</button>
-      <button class="btn-secondary btn-new" onclick="startNewRegistration()">新規登録</button>
+      <button class="btn-secondary btn-new" onclick="startNewRegistration()">現在の稼働を退避して新規開始</button>
     </div>
     <p class="section-note">STEP3の出口で即ヤメを選んだチェーンの収支を登録します。終了持ちメダル入力で確定・集計対象になります。</p>
     <div class="card">
@@ -363,7 +371,7 @@ footer a:hover{color:var(--gold-light);}
       <textarea id="privateMemo" placeholder="店舗事情など。公開出力には含めません"></textarea>
     </div>
     <div class="warning" id="editingNotice" style="display:none;margin-top:12px;"></div>
-    <span class="draft-note">状態4まで締めると確定ログになります。未確定ログは集計対象外です。</span>
+    <span class="draft-note">STEP4の収支登録まで完了すると確定ログになります。未確定ログは集計対象外です。</span>
     <button class="btn-secondary" id="cancelEditButton" onclick="cancelEditLog()" style="display:none;">編集をキャンセル</button>
   </div>
 </div>
@@ -1259,7 +1267,8 @@ function suggestLogLineHtml(entry){
   const trophy=entry.trophyCustom?` / 店長カスタム：${escapeHtml(entry.trophyCustom)}`:'';
   const source=entry.source==='wizard'?' / 一括':' / 追加';
   const item=findSuggestItemForEntry(entry);
-  return `${game?escapeHtml(game)+' ':''}${escapeHtml(suggestStateLabel(suggestEntryStateGroup(entry)))} / ${escapeHtml(suggestEntryPlaceLabel(entry))}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}${trophy}${source}`;
+  const defaultNote=String(entry.item||'').includes('デフォルト')?' <span class="input-hint">（デフォルト・判定対象外）</span>':'';
+  return `${game?escapeHtml(game)+' ':''}${escapeHtml(suggestStateLabel(suggestEntryStateGroup(entry)))} / ${escapeHtml(suggestEntryPlaceLabel(entry))}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}${defaultNote}${trophy}${source}`;
 }
 function suggestGamePair(entry){
   const data=normalizeOptionalNumber(entry?.dataGame);
@@ -2522,8 +2531,8 @@ function renderLogFields(){
   const panels={
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
     2:`<div class="card work-section-card play"><div class="work-section-title">稼働中の記録</div>${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
-    3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div><div id="practiceStatsBox"></div>`,
-    4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div><p class="section-note">STEP3で即ヤメを選んだチェーンの収支を登録します。未登録のまま保存した場合は集計対象外です。</p><div id="practiceStatsBox"></div></div>`
+    3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div>`,
+    4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div><div id="practiceStatsBox"></div></div>`
   };
   el.innerHTML=panels[currentFlowStep]||panels[1];
   renderCurrentStartLog();
@@ -3190,7 +3199,6 @@ function renderCurrentSuggestLog(){
   el.innerHTML=rows.map(entry=>`
     <div class="timeline-item ${entry.id===recentSuggestHighlightId?'recent':''}">
       <div class="timeline-head">
-        <div class="timeline-game">${escapeHtml(`${suggestStateLabel(suggestEntryStateGroup(entry))} / ${suggestEntryPlaceLabel(entry)}`)}</div>
         <div class="item-actions">
           <button class="btn-danger" onclick="deleteSuggestLogEntry('${entry.id}')">削除</button>
         </div>
@@ -3317,7 +3325,7 @@ function modeInferenceForEntries(entries){
 }
 function modeInferenceHtml(entries){
   const inference=modeInferenceForEntries(entries);
-  if(!inference)return '<div class="mode-inference">推定：判定対象のモード示唆なし</div>';
+  if(!inference)return '<div class="mode-inference">推定：判定対象のモード示唆なし<br><span class="input-hint">デフォルト系は判定対象外として表示します。</span></div>';
   return `<div class="mode-inference ${inference.type}">推定：${escapeHtml(modeConfidenceLevelLabel(inference.level))}${escapeHtml(modeConfidenceTypeLabel(inference.type))}</div>`;
 }
 function isAtEndScreenEntry(entry){
@@ -3475,25 +3483,27 @@ function deleteSuggestLogEntry(id){
 function renderGamePairInputs(prefix){
   const dataId=prefix==='suggest'?'suggestTimelineGame':'timelineGame';
   const liquidId=prefix==='suggest'?'suggestTimelineLiquidGame':'timelineLiquidGame';
+  const dataLabel=prefix==='suggest'?'示唆時データG数':'データG数';
+  const liquidLabel=prefix==='suggest'?'示唆時液晶G数':'液晶G数';
   const dataValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame);
   const liquidValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame+currentTimelineLiquidOffset);
   return `
     <div class="game-pair-row">
       <div class="game-pair-field">
-        <label for="${dataId}">データG数</label>
+        <label for="${dataId}">${dataLabel}</label>
         <input type="text" id="${dataId}" data-game-role="timeline-data" class="numeric-input" inputmode="none" readonly value="${escapeHtml(dataValue)}" placeholder="例：523" oninput="syncTimelineDataGame('${dataId}')" onchange="syncTimelineDataGame('${dataId}')">
       </div>
       <div class="game-pair-field">
-        <label for="${liquidId}">液晶G数</label>
+        <label for="${liquidId}">${liquidLabel}</label>
         <input type="text" id="${liquidId}" data-game-role="timeline-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="例：523" oninput="syncTimelineLiquidGame('${liquidId}')" onchange="syncTimelineLiquidGame('${liquidId}')">
       </div>
     </div>`;
 }
 function renderOutcomeQuickButtons(){
   return `
-    <div class="log-tools">
-      <button class="btn-small gold" onclick="setTimelineOutcome('当選')">当選</button>
-      <button class="btn-small" onclick="setTimelineOutcome('ヤメ')">ヤメ</button>
+    <div class="outcome-tabs">
+      <button class="outcome-tab primary" onclick="setTimelineOutcome('当選')">当選</button>
+      <button class="outcome-tab" onclick="setTimelineOutcome('ヤメ')">ヤメ</button>
     </div>`;
 }
 function hitTriggerLabel(trigger){
@@ -3501,14 +3511,14 @@ function hitTriggerLabel(trigger){
 }
 function renderHitTriggerButtons(){
   return `
-    <div class="work-subsection">
+    <div class="work-subsection play-group alt">
       <div class="section-label" style="margin-top:0;">当選トリガー</div>
       <p class="section-note">押した時点のデータG数/液晶G数で当選イベントを作り、STEP3へ移動します。</p>
-      <div class="tag-buttons">
-        <button class="tag-btn gold" onclick="startHitEventWizard('cz')">CZ当選</button>
-        <button class="tag-btn gold" onclick="startHitEventWizard('upper_cz')">上位CZ当選</button>
-        <button class="tag-btn gold" onclick="startHitEventWizard('direct_at')">AT直撃</button>
-        <button class="tag-btn gold" onclick="startHitEventWizard('episode_bonus')">エピソードボーナス</button>
+      <div class="hit-trigger-grid">
+        <button class="hit-trigger-btn" onclick="startHitEventWizard('cz')">CZ当選</button>
+        <button class="hit-trigger-btn" onclick="startHitEventWizard('upper_cz')">上位CZ当選</button>
+        <button class="hit-trigger-btn" onclick="startHitEventWizard('direct_at')">AT直撃</button>
+        <button class="hit-trigger-btn" onclick="startHitEventWizard('episode_bonus')">エピソードボーナス</button>
       </div>
     </div>`;
 }
@@ -3536,7 +3546,7 @@ function startHitEventWizard(trigger){
   saveDraftImmediately();
 }
 function renderHitEventsList(){
-  if(!currentHitEvents.length)return '<div class="empty-hint">当選イベントなし</div>';
+  if(!currentHitEvents.length)return '<div class="empty-hint">まだ当選イベントがありません。上の当選トリガーを押すと作成されます。</div>';
   return `<div class="timeline-history-body">${currentHitEvents.map(event=>`
     <div class="timeline-item">
       <div class="timeline-head">
@@ -3558,36 +3568,41 @@ function renderTimelineArea(mode='play'){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">時系列ログは機種選択後に使えます</div>';
   if(mode==='hit')return `
-    <div class="work-subsection">
+    <div class="work-subsection play-group">
       <div class="work-section-title">当選イベント</div>
       ${renderHitEventsList()}
     </div>
-    <div class="work-subsection">
+    <div class="work-subsection play-group alt">
       <div class="work-section-title">AT当選時の記録</div>
       ${renderHitBranchWizardArea()}
       ${renderNextModeHintControls()}
       ${renderKuiPointReleaseControl()}
       ${renderSuggestArea('hit')}
     </div>
-    <div class="calc-box">
-      <div class="calc-label">当選時情報</div>
-      <div class="timeline-text" style="margin-top:6px;">AT駆け抜け有無・前回推定モード・AT終了画面比率などは後続段階で詳細化します。第2段階では記録枠だけ用意します。</div>
-    </div>`;
+    `;
   return `
-    ${renderGamePairInputs('timeline')}
-    <div class="log-tools">
+    <div class="work-subsection play-group">
+      <div class="section-label" style="margin-top:0;">カウンター操作</div>
+      ${renderGamePairInputs('timeline')}
+      <div class="log-tools">
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(1)">+1</button>
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(5)">+5</button>
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(10)">+10</button>
+      </div>
     </div>
     ${renderOutcomeQuickButtons()}
     ${renderHitTriggerButtons()}
-    <div class="work-subsection"><div class="section-label" style="margin-top:0;">当選イベント</div>${renderHitEventsList()}</div>
-    ${renderTagButtons('timeline')}
-    <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState()"></textarea>
-    <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
+    <div class="work-subsection play-group"><div class="section-label" style="margin-top:0;">当選イベント</div>${renderHitEventsList()}</div>
+    <div class="work-subsection play-group">
+      <div class="section-label" style="margin-top:0;">レア役・ステージ・メモ</div>
+      ${renderTagButtons('timeline')}
+      <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState()"></textarea>
+      <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
+    </div>
     ${renderTimelineHistoryPanel()}
-    ${renderSuggestArea('play')}`;
+    <div class="work-subsection play-group alt">
+      ${renderSuggestArea('play')}
+    </div>`;
 }
 function nextModeEyecatchPlace(){
   const mode=findSuggestCategoryByName(currentMachine(),'モード示唆');
@@ -3628,10 +3643,10 @@ function renderHitBranchWizardArea(){
   const routeLabel=route==='czResult'?'CZ結果待ち':route==='czFail'?'CZ失敗ルート':route==='atHit'?'AT当選ルート':'未選択';
   return `
     <div class="branch-wizard">
-      <div class="section-label" style="margin-top:0;">状態3 分岐フロー</div>
+      <div class="section-label" style="margin-top:0;">当選後処理フロー</div>
       <p class="section-note">STEP2の当選トリガーから作成されたイベントを処理します。出口選択まで進めると完了です。</p>
       ${event?`<div class="item-sub">対象：${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitTriggerLabel(event.trigger)}`)}</div>`:''}
-      ${!route?'<div class="empty-hint">STEP2の当選トリガーから開始してください。</div>':''}
+      ${!route?'<div class="empty-hint">STEP2の当選トリガーから開始してください。<button class="btn-secondary" onclick="switchFlowStep(2)">STEP2へ戻る</button></div>':''}
       ${route?`
         <div class="item-sub" style="margin-top:8px;">現在：${escapeHtml(routeLabel)}${current?` / 次：${escapeHtml(current.label)}`:' / 完了'}</div>
         <div class="branch-wizard-steps">
@@ -3842,7 +3857,7 @@ function openBranchPlacePicker(titleText,entries){
   suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:hitBranchWizard.route,branchStep:currentHitBranchStep()?.key||''};
   title.classList.remove('kui-title','gain','hint');
   title.textContent=titleText;
-  breadcrumb.textContent='状態3 分岐フロー / 確認場所を選択';
+  breadcrumb.textContent='当選後処理フロー / 確認場所を選択';
   back.textContent='閉じる';
   options.innerHTML=entries.length?entries.map(({category,place})=>`<button class="suggest-picker-option" onclick="selectBranchSuggestPlace('${category.id}','${place.id}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`).join(''):'<div class="empty-hint">有効な確認場所がありません</div>';
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
