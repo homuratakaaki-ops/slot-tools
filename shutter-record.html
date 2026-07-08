@@ -310,7 +310,24 @@ function load(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch{r
 function save(k,v){localStorage.setItem(k,JSON.stringify(v));}
 function getStores(){return load('sr_final_stores')||[];}
 function saveStores(s){save('sr_final_stores',s);}
-function getSlots(sid){return load('sr_final_slots_'+sid)||{};}
+function createRecordId(){return 'r'+Date.now()+Math.random().toString(36).slice(2,6);}
+function migrateSlotIds(sid,slots){
+  let changed=false;
+  Object.keys(slots).forEach(num=>{
+    const d=slots[num]||{};
+    (d.history||[]).forEach(h=>{
+      if(!h.id){h.id=createRecordId();changed=true;}
+    });
+    if(d._quick_over!==undefined){delete d._quick_over;changed=true;}
+    if(!d.history||!d.history.length){
+      const keys=Object.keys(d);
+      if(!keys.length||(keys.length===1&&d.shareText!==undefined)){delete slots[num];changed=true;}
+    }
+  });
+  if(changed)saveSlots(sid,slots);
+  return slots;
+}
+function getSlots(sid){return migrateSlotIds(sid,load('sr_final_slots_'+sid)||{});}
 function saveSlots(sid,s){save('sr_final_slots_'+sid,s);}
 function getCells(sid){return load('sr_final_cells_'+sid)||[];}
 function saveCells(sid,c){save('sr_final_cells_'+sid,c);}
@@ -450,9 +467,9 @@ function renderSlotRow(num,d,pinned,gDate){
       <div class="quick-row">
         <span class="quick-label">896超え</span>
         <div class="over-btns" id="qo_${num}">
-          <button class="over-btn ${quickOver==='over'?'active-over':''}" onclick="setQuickOver('${num}','over')">超える</button>
-          <button class="over-btn ${quickOver==='not'?'active-not':''}" onclick="setQuickOver('${num}','not')">超えない</button>
-          <button class="over-btn ${quickOver==='unknown'?'active-unknown':''}" onclick="setQuickOver('${num}','unknown')">不明</button>
+          <button class="over-btn ${quickOver==='over'?'active-over':''}" onclick="setQuickOver('${num}','over',this)">超える</button>
+          <button class="over-btn ${quickOver==='not'?'active-not':''}" onclick="setQuickOver('${num}','not',this)">超えない</button>
+          <button class="over-btn ${quickOver==='unknown'?'active-unknown':''}" onclick="setQuickOver('${num}','unknown',this)">不明</button>
         </div>
       </div>
       <div class="quick-save-row">
@@ -461,39 +478,6 @@ function renderSlotRow(num,d,pinned,gDate){
       </div>
     </div>
   </div>`;
-}
-
-function onQuickDateChange(num){
-  const sid=currentSid;if(!sid)return;
-  const date=document.getElementById('qd_'+num).value;
-  const slots=getSlots(sid);
-  const d=slots[num]||{};
-  const history=d.history||[];
-  // その日付の記録を検索（最新のもの）
-  const rec=history.filter(h=>h.date===date).sort((a,b)=>(b.first||0)-(a.first||0))[0];
-  const firstEl=document.getElementById('qf_'+num);
-  const qoEl=document.getElementById('qo_'+num);
-  if(rec){
-    firstEl.value=rec.first||'';
-    // 896超えボタンを更新
-    qoEl.querySelectorAll('.over-btn').forEach(b=>{
-      b.className='over-btn';
-    });
-    const map={over:'active-over',not:'active-not',unknown:'active-unknown'};
-    const target=map[rec.over||'unknown'];
-    const btns=qoEl.querySelectorAll('.over-btn');
-    const idx={over:0,not:1,unknown:2}[rec.over||'unknown'];
-    if(btns[idx])btns[idx].classList.add(target);
-  } else {
-    // その日の記録なし→次の初当たり回数を計算して表示
-    const sortedH=[...history].sort((a,b)=>(a.first||0)-(b.first||0));
-    const lastFirst=sortedH.length?sortedH[sortedH.length-1].first||0:0;
-    firstEl.value=lastFirst>0?lastFirst+1:'';
-    // 896超えリセット
-    qoEl.querySelectorAll('.over-btn').forEach((b,i)=>{
-      b.className='over-btn'+(i===2?' active-unknown':'');
-    });
-  }
 }
 
 function toggleExpand(num){
@@ -513,17 +497,11 @@ function togglePin(num){
   loadList();
 }
 
-// 一括入力の一時保存（_quickフィールド）
-function saveQuick(num){}// 入力値はDOMから直接取得するので保存不要
-
-function setQuickOver(num,val){
+function setQuickOver(num,val,el){
   const btns=document.getElementById('qo_'+num).querySelectorAll('.over-btn');
   btns.forEach(b=>b.className='over-btn');
   const map={over:'active-over',not:'active-not',unknown:'active-unknown'};
-  event.target.classList.add(map[val]);
-  // 一時保存
-  const sid=currentSid;const slots=getSlots(sid);
-  const d=slots[num]||{};d._quick_over=val;slots[num]=d;saveSlots(sid,slots);
+  el.classList.add(map[val]);
 }
 
 function quickSave(num){
@@ -542,15 +520,14 @@ function quickSave(num){
   const d=slots[num]||{history:[]};
   if(!d.history)d.history=[];
   // 同日同回数の重複チェック
-  const existing=d.history.find(h=>h.date===date&&h.first===first);
+  const matches=d.history.filter(h=>h.date===date&&h.first===first);
+  const existing=matches.length?matches[matches.length-1]:null;
   if(existing){
     if(!confirm(`${date} の初当たり${first}回目は既に記録されています。上書きしますか？`))return;
     existing.over=over;
   } else {
-    d.history.push({date,recordType:'first',first,at:0,over,excludeFromStats:false,memoItems:[],memo:''});
+    d.history.push({id:createRecordId(),date,recordType:'first',first,at:0,over,excludeFromStats:false,memoItems:[],memo:''});
   }
-  // 初当たり回数順にソート
-  d.history.sort((a,b)=>(a.first||0)-(b.first||0));
   updateShareTextForSlot(sid,num,d);
   slots[num]=d;saveSlots(sid,slots);
   loadList();
@@ -589,15 +566,12 @@ function renderDetailHistory(dayRecs){
   sec.style.display='block';
   const ovLabel={over:'超える',not:'超えない',unknown:'不明'};
   const sorted=[...dayRecs].sort((a,b)=>(a.first||0)-(b.first||0));
-  const slots=getSlots(currentSid);
-  const fullHistory=(slots[detailNum]||{}).history||[];
   list.innerHTML=sorted.map((h,i)=>{
-    const fullIdx=fullHistory.findIndex(fh=>fh.date===h.date&&fh.first===h.first);
     return`<div class="history-item">
       <div class="history-header">
         <span class="history-no">${i+1}回目</span>
         <span style="font-size:11px;color:var(--text-muted);">${h.date||''}</span>
-        <button class="btn-danger" onclick="deleteDetailHistory(${fullIdx})">削除</button>
+        <button class="btn-danger" onclick="deleteDetailHistoryById('${h.id}')">削除</button>
       </div>
       <div class="history-body">
         <div>初当たり：<strong>${h.first||0}回目</strong>${h.excludeFromStats?'<span class="excluded-badge">集計除外</span>':''}</div>
@@ -609,12 +583,12 @@ function renderDetailHistory(dayRecs){
   }).join('');
 }
 
-function deleteDetailHistory(idx){
-  if(!confirm(`${idx+1}回目の記録を削除しますか？`))return;
+function deleteDetailHistoryById(id){
+  if(!confirm('この記録を削除しますか？'))return;
   const sid=currentSid;const slots=getSlots(sid);
   const d=slots[detailNum]||{};
   if(!d.history||!d.history.length)return;
-  d.history.splice(idx,1);
+  d.history=d.history.filter(h=>h.id!==id);
   if(!d.history.length){
     delete slots[detailNum];
     saveSlots(sid,slots);
@@ -625,7 +599,9 @@ function deleteDetailHistory(idx){
     updateShareTextForSlot(sid,detailNum,d);
     slots[detailNum]=d;
     saveSlots(sid,slots);
-    renderDetailHistory(d.history);
+    const gDate=getGlobalDate();
+    const dayRecs=d.history.filter(h=>h.date===gDate).sort((a,b)=>(a.first||0)-(b.first||0));
+    renderDetailHistory(dayRecs);
     document.getElementById('detailShareText').value=d.shareText||'';
     document.getElementById('btnDeleteDetail').style.display='inline-block';
   }
@@ -642,7 +618,6 @@ function clearDetailForm(){
   document.getElementById('detailGameRow').style.display='none';
 }
 
-function setDetailRecordType(type,el){detailRecordType='first';}
 function setDetailOver(val,el){
   detailOver=val;
   document.querySelectorAll('#detailOverGroup .toggle-btn').forEach(b=>b.classList.remove('active'));
@@ -698,6 +673,7 @@ function saveDetail(){
     if(!confirm(`${detailSaveDate} の初当たり${first}回目は既に記録されています。それでも保存しますか？`))return;
   }
   d.history.push({
+    id:createRecordId(),
     date:detailSaveDate,
     recordType:'first',
     first,
@@ -707,7 +683,6 @@ function saveDetail(){
     memoItems:[...detailMemoItems],
     memo:document.getElementById('detailMemo').value,
   });
-  d.history.sort((a,b)=>(a.first||0)-(b.first||0));
   updateShareTextForSlot(currentSid,detailNum,d);
   slots[detailNum]=d;saveSlots(currentSid,slots);
   // その日の記録のみ表示
@@ -825,7 +800,10 @@ function renderStats(){
   const colors={over:'var(--red)',not:'var(--green)',unknown:'var(--yellow)'};
   const groups={over:[],not:[],unknown:[]};
   withData.forEach(n=>{
-    const includedHistory=slots[n].history.filter(h=>!h.excludeFromStats);
+    const includedHistory=slots[n].history.filter(h=>!h.excludeFromStats).sort((a,b)=>{
+      if((a.date||'')!==(b.date||''))return(a.date||'')<(b.date||'')?-1:1;
+      return(a.first||0)-(b.first||0);
+    });
     const last=includedHistory[includedHistory.length-1];
     groups[last.over||'unknown'].push({n,d:slots[n],last,includedCount:includedHistory.length});
   });
