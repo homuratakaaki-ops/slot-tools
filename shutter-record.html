@@ -14,7 +14,9 @@
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.6;min-height:100vh;padding-bottom:60px;}
-header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 16px;}
+header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 16px;text-align:center;}
+.top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px;}
+.top-link:active{background:rgba(201,168,76,.12);color:var(--gold-light);}
 header h1{font-size:16px;font-weight:700;color:var(--gold-light);}
 .tab-bar{display:flex;border-bottom:1px solid var(--border);background:var(--surface);}
 .tab{flex:1;padding:12px;text-align:center;font-size:13px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;}
@@ -128,7 +130,11 @@ footer a:hover{color:var(--gold-light);}
 </style>
 </head>
 <body>
-<header><h1>シャッターなし台記録｜北斗の拳 転生の章2</h1></header>
+<header>
+  <a class="top-link" href="index.html">← TOP</a>
+  <h1>シャッターなし台記録｜北斗の拳 転生の章2</h1>
+  <a class="top-link" href="shutter-guide.html" style="margin-top:8px;margin-bottom:0;">使い方はこちら →</a>
+</header>
 <div class="tab-bar">
   <div class="tab active" onclick="showPage('pageList')">台リスト</div>
   <div class="tab" onclick="showPage('pageStore')">店舗管理</div>

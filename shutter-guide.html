@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>シャッターなし台記録ツールの使い方｜北斗転生2</title>
+<meta name="description" content="北斗転生2のシャッターなし台（896あべし超えの可能性がある台）を、店舗・台番号ごとに記録し、翌日以降の狙い台選びに活かすための使い方を解説します。">
+<link rel="canonical" href="https://slot-tools.jp/shutter-guide.html">
+<style>
+  :root {
+    --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;
+    --gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#7a7a8a;--text-dim:#4a4a5a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh;}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center;}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px;}
+  .top-link:active{background:rgba(201,168,76,.12);color:var(--gold-light);}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5;}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px;}
+  .container{max-width:480px;margin:0 auto;padding:20px 16px 0;}
+  .section{margin-top:22px;}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold);}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px;}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px;}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0;}
+  li{margin-bottom:8px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px;}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none;}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px;}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
+  footer a{color:var(--text-muted);text-decoration:none;}
+  footer a:hover{color:var(--gold-light);}
+</style>
+</head>
+<body>
+<header>
+  <a class="top-link" href="index.html">← TOP</a>
+  <h1>北斗転生2 シャッターなし台記録ツールの使い方</h1>
+  <p>896あべし超えの可能性がある台を店舗ごとに記録する実戦補助ガイド</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>このツールでできること</h2>
+    <p>パチスロ「北斗の拳 転生の章2」では、規定あべし数が896を超える台では、特定区間のシャッター演出が発生しない挙動が知られています。</p>
+    <p>逆に言えば、シャッター演出の有無を初当たりごとに確認していくことで、その台の規定あべし振り分けの傾向を推測する材料になります。</p>
+    <p>このツールでは、店舗と台番号を登録し、初当たりごとに「896あべしを超えたかどうか」を記録できます。</p>
+    <p>記録は日付ごとに管理され、店舗単位で集計できるため、「どの台が896超えを引きやすいか」「どの台が896以内で当たり続けているか」を後から見返せます。</p>
+    <p>その日の実戦メモとしてはもちろん、翌日以降の狙い台選びの判断材料を蓄積するためのツールです。</p>
+  </section>
+
+  <section class="section">
+    <h2>はじめの設定：店舗と台番号の登録</h2>
+    <p>最初に一度だけ、記録対象の店舗と台番号を登録します。</p>
+    <div class="card">
+      <h3>1. 店舗を追加する</h3>
+      <p>「店舗管理」タブで店舗名を入力して追加します。</p>
+      <p>店舗名は自分がわかる略称で問題ありません。複数店舗を登録して使い分けられます。</p>
+    </div>
+    <div class="card">
+      <h3>2. 台番号を登録する</h3>
+      <p>「台リスト」タブで店舗を選び、「配置編集」を開きます。</p>
+      <p>開始番号と終了番号を入力すると、連番でまとめて登録できます。北斗転生2のシマの台番号をそのまま入れるのが基本です。</p>
+      <p>1台だけ追加したい場合は、開始と終了に同じ番号を入力してください。登録済みの台番号は×ボタンで個別に削除できます。</p>
+    </div>
+    <p>登録が済めば、次回以降はこの設定がそのまま残るため、実戦当日は記録するだけで使えます。</p>
+  </section>
+
+  <section class="section">
+    <h2>実戦中の記録：一括入力</h2>
+    <p>実戦中のメインの使い方は、台リストからの一括入力です。</p>
+    <ol>
+      <li>「台リスト」タブで店舗を選ぶ</li>
+      <li>画面上部の日付がその日になっていることを確認する</li>
+      <li>記録したい台番号をタップして開く</li>
+      <li>初当たりが何回目かを入力する（前回の続きが自動でセットされます）</li>
+      <li>「超える／超えない／不明」から該当するものを選ぶ</li>
+      <li>「保存」を押す</li>
+    </ol>
+    <p>台の行の左端の色で、その日の最新状態がひと目でわかります。赤が896超え、緑が超えない、黄が不明です。</p>
+    <p>行の右側には、その日の896以内当選率（％）が表示されます。超えない当たりの割合が高い台ほど、数値が緑に近づきます。</p>
+    <p>よく確認する台は📌ボタンでピン留めすると、リストの先頭にまとめて表示できます。</p>
+  </section>
+
+  <section class="section">
+    <h2>詳細入力とメモ機能</h2>
+    <p>初当たりの記録に加えて、設定示唆などの情報を残したい場合は「詳細入力」を使います。</p>
+    <div class="card">
+      <h3>メモボタン</h3>
+      <p>リセット・据え置き、奇数・偶数示唆、高設定示唆の弱・強、設定確定系まで、よく使う項目をタップするだけで記録できます。</p>
+      <p>トロフィー系（銅〜虹）は点線枠になっており、出現ゲーム数の入力、または「朝イチ」としての記録に対応しています。</p>
+    </div>
+    <div class="card">
+      <h3>集計から除外する</h3>
+      <p>据え置き確認用の記録など、集計に含めたくないデータは「集計から除外する」にチェックを入れて保存できます。</p>
+      <p>除外した記録は履歴には残りますが、当選率や集計タブの判定には使われません。</p>
+    </div>
+    <div class="card">
+      <h3>過去日の記録</h3>
+      <p>詳細入力では日付を変更して保存できるため、後日まとめて入力する使い方にも対応しています。</p>
+      <p>誤って保存した記録は、「過去の記録」欄の削除ボタンから1件ずつ削除できます。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>集計と共有</h2>
+    <div class="card">
+      <h3>集計タブ</h3>
+      <p>店舗を選ぶと、記録のある台が「896超え／超えない／不明」の最新状態ごとにグループ表示されます。</p>
+      <p>各台の記録件数と最終記録日も確認でき、台をタップすると台リストの該当台にジャンプします。</p>
+      <p>翌日の狙い台を考える際に、店舗全体の傾向を俯瞰する画面として使ってください。</p>
+    </div>
+    <div class="card">
+      <h3>共有テキスト</h3>
+      <p>詳細入力画面の下部に、その台の全記録をまとめたテキストが自動生成されます。</p>
+      <p>設定示唆の集計（偶数・奇数の比率、高設定示唆の回数）が冒頭にまとまるため、1日の振り返りにそのまま使えます。</p>
+      <p>「コピーする」からLINE、Discord、メモアプリなどへ貼り付けて共有・保存できます。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>データの保存について</h2>
+    <p>入力データは、利用している端末のブラウザ内に保存されます。</p>
+    <p>サーバーには送信されません。</p>
+    <p>ページを閉じたり、実戦中に誤ってリロードした場合でも、同じ端末・同じブラウザで再度アクセスすれば、記録はそのまま残っています。</p>
+    <p>店舗を削除すると、その店舗の台データもすべて削除されます。台単位でやり直したい場合は、詳細入力の「この台の全データを削除」を使ってください。</p>
+    <p>ブラウザの閲覧データ削除を行うと記録も消えるため、長期間の記録を残したい場合は、共有テキストのコピーを定期的に保存しておくことをおすすめします。</p>
+  </section>
+
+  <section class="section">
+    <h2>注意事項</h2>
+    <p>本ツールの記録・集計は、実戦中の判断を補助するための目安です。</p>
+    <p>896あべし超えの判定は、シャッター演出の観測に基づく推定であり、内部状態を直接確認できるものではありません。</p>
+    <p>過去の傾向が翌日以降の挙動を保証するものではない点にも注意してください。</p>
+    <p>本ツールは、パチスロの実戦記録と立ち回り判断を補助するためのものです。</p>
+    <p>出玉、収支、勝利、特定の結果を保証するものではありません。</p>
+    <p>実際の遊技は、各店舗のルールを守り、自己判断で行ってください。</p>
+  </section>
+
+  <a class="cta" href="shutter-record.html">▶ ツールを使う</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+  </nav>
+</footer>
+</body>
+</html>
