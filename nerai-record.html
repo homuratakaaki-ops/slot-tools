@@ -3581,6 +3581,9 @@ function renderTimelineArea(mode='play'){
     </div>
     `;
   return `
+    ${renderOutcomeQuickButtons()}
+    ${renderHitTriggerButtons()}
+    <div class="work-subsection play-group"><div class="section-label" style="margin-top:0;">当選イベント</div>${renderHitEventsList()}</div>
     <div class="work-subsection play-group">
       <div class="section-label" style="margin-top:0;">カウンター操作</div>
       ${renderGamePairInputs('timeline')}
@@ -3590,9 +3593,6 @@ function renderTimelineArea(mode='play'){
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(10)">+10</button>
       </div>
     </div>
-    ${renderOutcomeQuickButtons()}
-    ${renderHitTriggerButtons()}
-    <div class="work-subsection play-group"><div class="section-label" style="margin-top:0;">当選イベント</div>${renderHitEventsList()}</div>
     <div class="work-subsection play-group">
       <div class="section-label" style="margin-top:0;">レア役・ステージ・メモ</div>
       ${renderTagButtons('timeline')}
