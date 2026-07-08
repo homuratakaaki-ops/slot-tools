@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>あべしズレ推定ツールの使い方｜北斗転生2</title>
+<meta name="description" content="北斗転生2のリセット時に起きる表示あべしと内部あべしのズレを、観測ポイントから推定するための使い方を解説します。">
+<link rel="canonical" href="https://slot-tools.jp/abechi-guide.html">
+<style>
+  :root {
+    --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;
+    --gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#7a7a8a;--text-dim:#4a4a5a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh;}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center;}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px;}
+  .top-link:active{background:rgba(201,168,76,.12);color:var(--gold-light);}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5;}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px;}
+  .container{max-width:480px;margin:0 auto;padding:20px 16px 0;}
+  .section{margin-top:22px;}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold);}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px;}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px;}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0;}
+  li{margin-bottom:8px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px;}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none;}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px;}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
+  footer a{color:var(--text-muted);text-decoration:none;}
+  footer a:hover{color:var(--gold-light);}
+</style>
+</head>
+<body>
+<header>
+  <a class="top-link" href="index.html">← TOP</a>
+  <h1>北斗転生2 あべしズレ推定ツールの使い方</h1>
+  <p>表示あべしと内部あべしのズレを整理する実戦補助ガイド</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>このツールでできること</h2>
+    <p>パチスロ「北斗の拳 転生の章2」では、リセット（設定変更）時に、内部の規定あべし数へ見えない加算が行われる場合があります。</p>
+    <p>そのため、台に表示されているあべし数と、内部で参照されている実際のあべし数にズレが生じることがあります。</p>
+    <p>このズレが発生すると、本来決まった区間で出るはずのシャッター演出やゾーン演出が、表示上は少しずれた位置で発生します。</p>
+    <p>このツールでは、実戦中に確認できる複数の観測ポイントから、表示あべしと内部あべしのズレを推定し、シャッター狙いゾーンの表示上の目安を一覧で確認できます。</p>
+    <p>「どのあべし数付近でシャッターゾーンを見ればよいか」を整理するための、実戦補助用ツールです。</p>
+  </section>
+
+  <section class="section">
+    <h2>推定に使える3つの観測ポイント</h2>
+    <p>このツールでは、主に以下の3つの観測ポイントからリセット加算量を推定します。</p>
+    <div class="card">
+      <h3>1. 必ずシャッターが発生する区間</h3>
+      <p>本来98〜110あべし付近にあたる区間では、896あべし超えの台でもシャッター演出が発生します。</p>
+      <p>この区間でシャッターが出たときの表示あべし数を記録することで、内部あべしとのズレを推定できます。</p>
+      <p>複数回記録するほど、推定範囲を絞り込みやすくなります。</p>
+    </div>
+    <div class="card">
+      <h3>2. 128ゾーン 天命の刻バトル終了</h3>
+      <p>128ゾーンでは、天命の刻バトル終了時点の表示あべし数を入力します。</p>
+      <p>本来122〜127あべし付近にあたる終了位置と、実際の表示あべし数を比較することで、リセット加算量の推定材料になります。</p>
+    </div>
+    <div class="card">
+      <h3>3. 256ゾーン バトル終了</h3>
+      <p>256ゾーンでは、必ずバトル演出まで発展します。</p>
+      <p>バトル終了時点の表示あべし数を入力することで、本来250〜255あべし付近とのズレを推定できます。</p>
+      <p>128ゾーンと256ゾーンの両方を入力すると、推定範囲の交差によって精度を高めやすくなります。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>入力数と信頼度について</h2>
+    <p>いずれか1つの観測ポイントだけでも推定は可能です。</p>
+    <p>ただし、1つの情報だけでは候補が広く残る場合があります。</p>
+    <p>2つ以上の観測ポイントを入力すると、それぞれの推定範囲を照合できるため、リセット加算量の候補を絞り込みやすくなります。</p>
+    <p>推定結果には、入力内容に応じて信頼度が表示されます。</p>
+    <ul>
+      <li>信頼度：高<br>複数の観測ポイントが一致しており、推定範囲が比較的絞り込まれている状態です。</li>
+      <li>信頼度：中<br>一部の観測ポイントから推定できているものの、まだ候補に幅がある状態です。</li>
+      <li>信頼度：低<br>入力情報が少ない、または推定範囲が広く残っている状態です。</li>
+    </ul>
+    <p>信頼度はあくまで目安であり、実戦上の結果を保証するものではありません。</p>
+  </section>
+
+  <section class="section">
+    <h2>基本的な使い方</h2>
+    <ol>
+      <li>実戦中に、観測ポイントに該当する演出を確認する</li>
+      <li>その時点の表示あべし数を入力する</li>
+      <li>必要に応じて、シャッター発生位置やゾーン終了位置を追加で記録する</li>
+      <li>「判別する」を押す</li>
+      <li>推定リセット加算量と、各シャッター狙いゾーンの表示目安を確認する</li>
+      <li>表示目安を参考に、シャッター演出の有無を確認しながら立ち回る</li>
+    </ol>
+    <p>このツールは「次にどのあたりを確認するか」を整理するためのものです。</p>
+    <p>推定結果だけで機械的に判断するのではなく、実際の演出・ゲーム数・店舗状況なども合わせて確認してください。</p>
+  </section>
+
+  <section class="section">
+    <h2>メモ機能について</h2>
+    <p>このツールには、判別計算とは独立したメモ機能があります。</p>
+    <p>あべし数を入力して演出名をタップするだけで、実戦中の挙動をすぐに記録できます。</p>
+    <p>よく使う演出はプリセットから選択でき、必要に応じてカスタム項目を追加することもできます。</p>
+    <p>記録した内容は「テキストまとめ」からコピーできるため、LINE、Discord、メモアプリなどへ貼り付けて共有・保存できます。</p>
+  </section>
+
+  <section class="section">
+    <h2>データの保存について</h2>
+    <p>入力データは、利用している端末のブラウザ内に保存されます。</p>
+    <p>サーバーには送信されません。</p>
+    <p>ページを閉じた場合や、実戦中に誤ってリロードした場合でも、同じ端末・同じブラウザで再度アクセスすれば、前回の入力内容を自動復元できます。</p>
+    <p>別の台を打つ場合や、入力内容を最初からやり直したい場合は、「すべてリセット」を押してください。</p>
+  </section>
+
+  <section class="section">
+    <h2>注意事項</h2>
+    <p>本ツールの推定結果は、実戦中の判断を補助するための目安です。</p>
+    <p>実際の挙動とは前後する場合があるため、シャッター狙いゾーンを見る際は、前後5あべし程度の余裕を持って確認することをおすすめします。</p>
+    <p>また、天破の刻を通過した場合など、途中で内部あべしの進み方が変化したように見えるケースがあります。</p>
+    <p>入力内容に矛盾がある場合は、ツール上で警告が表示されることがあります。</p>
+    <p>その場合は、入力ミスがないか、天破の刻などの影響がなかったかを確認してください。</p>
+    <p>本ツールは、パチスロの実戦記録と立ち回り判断を補助するためのものです。</p>
+    <p>出玉、収支、勝利、特定の結果を保証するものではありません。</p>
+    <p>実際の遊技は、各店舗のルールを守り、自己判断で行ってください。</p>
+  </section>
+
+  <a class="cta" href="abechi-calc.html">▶ ツールを使う</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+  </nav>
+</footer>
+</body>
+</html>

@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>スロットツール｜パチスロ実戦をサポートする無料ツール集</title>
-<meta name="description" content="スロットツールは、パチスロ実戦をサポートする無料ツール集です。あべしズレ判別、実戦記録、期待値判断などに役立つツールを公開しています。">
+<meta name="description" content="スロットツールは、パチスロ実戦をサポートする無料ツール集です。あべしズレ推定、実戦記録、期待値判断などに役立つツールを公開しています。">
 <link rel="canonical" href="https://slot-tools.jp/index.html">
 <style>
 body{background:#0d0d0f;color:#e8e4d9;font-family:'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;}
@@ -15,8 +15,11 @@ header p{color:#7a7a8a;font-size:13px;margin-top:6px;}
 .section-label{font-size:11px;font-weight:700;color:#c9a84c;letter-spacing:.1em;margin:24px 0 12px;padding-left:8px;border-left:2px solid #c9a84c;}
 .tool-card{background:#1a1a1f;border:1px solid #2e2e38;border-radius:8px;padding:16px;margin-bottom:12px;text-decoration:none;display:block;transition:border-color .2s;}
 .tool-card:hover{border-color:#c9a84c;}
+.tool-card[role="link"]{cursor:pointer;}
 .tool-card h2{color:#e8c96a;font-size:16px;margin:0 0 6px;}
 .tool-card p{color:#7a7a8a;font-size:13px;margin:0;line-height:1.6;}
+.guide-link{display:inline-block;color:#c9a84c;font-size:13px;font-weight:700;margin-top:10px;text-decoration:none;}
+.guide-link:hover{color:#e8c96a;}
 footer{text-align:center;padding:40px 16px;color:#4a4a5a;font-size:12px;}
 footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
 footer a{color:#7a7a8a;text-decoration:none;}
@@ -30,10 +33,11 @@ footer a:hover{color:#e8c96a;}
 </header>
 <div class="container">
   <div class="section-label">北斗の拳 転生の章2</div>
-  <a class="tool-card" href="abechi-calc.html">
-    <h2>あべしズレ判別ツール</h2>
+  <div class="tool-card" role="link" tabindex="0" onclick="location.href='abechi-calc.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='abechi-calc.html';}">
+    <h2>あべしズレ推定ツール</h2>
     <p>リセット時の不可視加算量を推定し、次に確認すべき判別ゾーンを表示します。</p>
-  </a>
+    <a class="guide-link" href="abechi-guide.html" onclick="event.stopPropagation();">📖 使い方・詳しい説明 →</a>
+  </div>
   <a class="tool-card" href="shutter-record.html">
     <h2>シャッターなし台記録ツール</h2>
     <p>896あべし超えの可能性がある台を店舗・台番ごとに記録・管理します。</p>
