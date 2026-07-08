@@ -310,6 +310,14 @@ function load(k){try{return JSON.parse(localStorage.getItem(k)||'null');}catch{r
 function save(k,v){localStorage.setItem(k,JSON.stringify(v));}
 function getStores(){return load('sr_final_stores')||[];}
 function saveStores(s){save('sr_final_stores',s);}
+function esc(s){
+  return String(s ?? '')
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
 function createRecordId(){return 'r'+Date.now()+Math.random().toString(36).slice(2,6);}
 function migrateSlotIds(sid,slots){
   let changed=false;
@@ -374,7 +382,7 @@ function renderStoreList(){
   if(!stores.length){el.innerHTML='<div class="empty-hint">まだ店舗なし</div>';return;}
   el.innerHTML=stores.map(s=>`
     <div class="store-item">
-      <div style="flex:1;"><div style="font-size:14px;font-weight:700;">${s.name}</div>
+      <div style="flex:1;"><div style="font-size:14px;font-weight:700;">${esc(s.name)}</div>
       <div style="font-size:11px;color:var(--text-muted);">台${getCells(s.id).length}件 / データ${Object.keys(getSlots(s.id)).length}件</div></div>
       <div style="display:flex;gap:6px;">
         <button class="btn-small" onclick="renameStore('${s.id}')">名称変更</button>
@@ -386,7 +394,7 @@ function syncSelects(){
   const stores=getStores();
   ['listStoreSelect','statsStoreSelect'].forEach(id=>{
     const el=document.getElementById(id);const cur=el.value;
-    el.innerHTML='<option value="">店舗を選択</option>'+stores.map(s=>`<option value="${s.id}"${s.id===cur?' selected':''}>${s.name}</option>`).join('');
+    el.innerHTML='<option value="">店舗を選択</option>'+stores.map(s=>`<option value="${s.id}"${s.id===cur?' selected':''}>${esc(s.name)}</option>`).join('');
   });
 }
 
@@ -577,7 +585,7 @@ function renderDetailHistory(dayRecs){
         <div>初当たり：<strong>${h.first||0}回目</strong>${h.excludeFromStats?'<span class="excluded-badge">集計除外</span>':''}</div>
         <div>896超え：<strong>${ovLabel[h.over||'unknown']}</strong></div>
         ${h.memoItems&&h.memoItems.length?`<div>メモ：${h.memoItems.map(m=>m.label+(m.asChoki?' 朝イチ':m.game!=null?' '+m.game+'G':'')).join(' / ')}</div>`:''}
-        ${h.memo?`<div>備考：${h.memo}</div>`:''}
+        ${h.memo?`<div>備考：${esc(h.memo)}</div>`:''}
       </div>
     </div>`;
   }).join('');
