@@ -195,6 +195,12 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .money-status{font-size:12px;font-weight:700;margin-top:10px;padding:9px 10px;border-radius:8px;border:1px solid rgba(122,122,138,.32);background:rgba(122,122,138,.08);color:var(--text-muted);}
 .money-status.complete{border-color:rgba(76,175,125,.55);background:rgba(76,175,125,.12);color:#9be0bd;}
 .money-status.incomplete{border-color:rgba(224,112,112,.45);background:rgba(224,112,112,.1);color:#ffb3b3;}
+.suggest-kind{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 7px;margin-right:4px;font-size:11px;font-weight:800;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);}
+.suggest-kind-eyecatch{border-color:rgba(120,180,255,.55);background:rgba(120,180,255,.12);color:#a9d0ff;}
+.suggest-kind-tsukiyama-mode{border-color:rgba(201,168,76,.65);background:rgba(201,168,76,.13);color:var(--gold-light);}
+.suggest-kind-forewarning{border-color:rgba(76,175,125,.55);background:rgba(76,175,125,.12);color:#9be0bd;}
+.suggest-kind-tsukiyama-setting{border-color:rgba(205,132,241,.58);background:rgba(205,132,241,.12);color:#dca8ff;}
+.suggest-kind-setting{border-color:rgba(255,160,96,.55);background:rgba(255,160,96,.12);color:#ffc199;}
 .optional-box{display:none;margin-top:8px;}
 .optional-box.open{display:block;}
 .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
@@ -779,6 +785,9 @@ function normalizeCzResult(value){
 function normalizeHitExit(value){
   return ['quit','continue'].includes(value)?value:null;
 }
+function normalizeHitTerminalType(value){
+  return ['ending'].includes(value)?value:'';
+}
 function normalizeHitEvent(event){
   if(!event||typeof event!=='object')return null;
   const trigger=normalizeHitTrigger(event.trigger);
@@ -793,16 +802,18 @@ function normalizeHitEvent(event){
     dataGame:dataGame!==null?dataGame:0,
     liquidGame:normalizeOptionalNumber(event.liquidGame)??(dataGame!==null?dataGame:0),
     through:event.through==='yes'||event.through==='no'?event.through:null,
+    terminalType:normalizeHitTerminalType(event.terminalType),
     exit:normalizeHitExit(event.exit),
     wizardDone:!!event.wizardDone
   };
 }
 function normalizeHitBranchWizard(wizard){
   const route=['czResult','czFail','atHit'].includes(wizard?.route)?wizard.route:'';
+  const through=['yes','no','ending'].includes(wizard?.through)?wizard.through:null;
   return {
     route,
     stepIndex:Math.max(0,Number(wizard?.stepIndex)||0),
-    through:wizard?.through==='yes'||wizard?.through==='no'?wizard.through:null,
+    through,
     done:Array.isArray(wizard?.done)?wizard.done.map(String):[],
     eventId:String(wizard?.eventId||'')
   };
@@ -1331,7 +1342,7 @@ function suggestLogLineHtml(entry){
   const source=entry.source==='wizard'?' / 一括':' / 追加';
   const item=findSuggestItemForEntry(entry);
   const defaultNote=String(entry.item||'').includes('デフォルト')?' <span class="input-hint">（デフォルト・判定対象外）</span>':'';
-  return `${game?escapeHtml(game)+' ':''}${escapeHtml(suggestStateLabel(suggestEntryStateGroup(entry)))} / ${escapeHtml(suggestEntryPlaceLabel(entry))}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}${defaultNote}${trophy}${source}`;
+  return `${suggestKindBadgeHtml(entry)}${game?escapeHtml(game)+' ':''}${escapeHtml(suggestStateLabel(suggestEntryStateGroup(entry)))} / ${escapeHtml(suggestEntryPlaceLabel(entry))}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}${defaultNote}${trophy}${source}`;
 }
 function suggestGamePair(entry){
   const data=normalizeOptionalNumber(entry?.dataGame);
@@ -3265,6 +3276,21 @@ function suggestLogLine(entry){
   const source=entry.source==='wizard'?' / 一括':' / 追加';
   return `${game?game+' ':''}${suggestStateLabel(suggestEntryStateGroup(entry))} / ${suggestEntryPlaceLabel(entry)}：${entry.item}${trophy}${source}`;
 }
+function suggestKindMeta(entry){
+  const category=String(entry?.category||'');
+  const place=String(entry?.place||'');
+  const placeLabel=suggestEntryPlaceLabel(entry);
+  if(place.includes('アイキャッチ'))return {className:'suggest-kind-eyecatch',icon:'◐',label:'アイキャッチ'};
+  if(category.includes('モード')&&place.includes('月山'))return {className:'suggest-kind-tsukiyama-mode',icon:'✉',label:'招待状G/モード'};
+  if(place.includes('規定ゲーム数前兆'))return {className:'suggest-kind-forewarning',icon:'↗',label:'規定G前兆'};
+  if(category.includes('設定')&&place.includes('月山'))return {className:'suggest-kind-tsukiyama-setting',icon:'✉',label:'招待状設定'};
+  if(category.includes('設定'))return {className:'suggest-kind-setting',icon:'◆',label:'設定示唆'};
+  return {className:'',icon:'•',label:placeLabel||'示唆'};
+}
+function suggestKindBadgeHtml(entry){
+  const meta=suggestKindMeta(entry);
+  return `<span class="suggest-kind ${meta.className}">${escapeHtml(meta.icon)} ${escapeHtml(meta.label)}</span>`;
+}
 function sortedSuggestLog(){
   return [...currentSuggestLog].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
 }
@@ -3671,6 +3697,7 @@ function renderHitEventsList(){
 function hitEventLine(event){
   const parts=[hitTriggerLabel(event.trigger)];
   if(event.czResult)parts.push(event.czResult==='at_win'?'AT当選':'AT非当選');
+  if(event.terminalType==='ending')parts.push('エンディング到達');
   if(event.through)parts.push(event.through==='yes'?'駆け抜け':'駆け抜け以外');
   if(event.payout!==null&&event.payout!==undefined)parts.push(`獲得${event.payout}枚`);
   if(event.exit)parts.push(event.exit==='continue'?'続行':'即ヤメ');
@@ -3768,7 +3795,7 @@ function restoreHitWizardToExit(event){
   hitBranchWizard={
     route,
     stepIndex:exitIndex,
-    through:event.through==='yes'||event.through==='no'?event.through:null,
+    through:event.terminalType==='ending'?'ending':(event.through==='yes'||event.through==='no'?event.through:null),
     done:steps.slice(0,exitIndex).map(step=>step.key),
     eventId:event.id
   };
@@ -3865,12 +3892,16 @@ function hitBranchSteps(route,through=hitBranchWizard.through){
   if(route==='atHit'){
     const steps=[
       {key:'through',label:'AT駆け抜け'},
-      {key:'payout',label:'獲得枚数'},
-      {key:'atEnd',label:'AT終了画面'},
-      {key:'trophy',label:'トロフィー'},
-      {key:'eyecatch',label:'アイキャッチ'}
+      {key:'payout',label:'獲得枚数'}
     ];
-    if(through==='yes')steps.push({key:'kui',label:'喰ポイント'});
+    if(through!=='ending'){
+      steps.push(
+        {key:'atEnd',label:'AT終了画面'},
+        {key:'trophy',label:'トロフィー'},
+        {key:'eyecatch',label:'アイキャッチ'}
+      );
+      if(through==='yes')steps.push({key:'kui',label:'喰ポイント'});
+    }
     steps.push({key:'exit',label:'出口選択'});
     return steps;
   }
@@ -4069,12 +4100,13 @@ function selectHitExit(exit){
   if(!event)return;
   event.exit=normalizeHitExit(exit);
   event.wizardDone=true;
+  const terminalType=event.terminalType==='ending'?'ending':event.exit;
   if(event.exit==='quit'){
     setEndLogFromHitEvent(event);
-    archiveCurrentSegment(event,'quit',{preserveEndState:true});
+    archiveCurrentSegment(event,terminalType,{preserveEndState:true});
     currentFlowStep=4;
   }else{
-    archiveCurrentSegment(event,'continue',{preserveEndState:false});
+    archiveCurrentSegment(event,terminalType,{preserveEndState:false});
     currentFlowStep=2;
   }
   hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
@@ -4122,15 +4154,19 @@ function openAtThroughBranchPicker(){
   back.textContent='閉じる';
   options.innerHTML=`
     <button class="suggest-picker-option" onclick="selectAtThroughBranch('yes')">はい（駆け抜け）</button>
-    <button class="suggest-picker-option" onclick="selectAtThroughBranch('no')">いいえ（駆け抜け以外）</button>`;
+    <button class="suggest-picker-option" onclick="selectAtThroughBranch('no')">いいえ（駆け抜け以外）</button>
+    <button class="suggest-picker-option" onclick="selectAtThroughBranch('ending')">エンディング到達</button>`;
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
 }
 function selectAtThroughBranch(value){
-  if(value!=='yes'&&value!=='no')return;
+  if(value!=='yes'&&value!=='no'&&value!=='ending')return;
   const event=currentHitEvent();
-  if(event)event.through=value;
+  if(event){
+    event.through=value==='ending'?null:value;
+    event.terminalType=value==='ending'?'ending':'';
+  }
   hitBranchWizard.through=value;
-  recordAfterAtModeByThrough(value);
+  if(value!=='ending')recordAfterAtModeByThrough(value);
   advanceHitBranchWizard();
   closeSuggestPicker();
   renderLogFields();
@@ -4217,7 +4253,10 @@ function segmentText(segment,index){
   }
   if((segment.timeline||[]).length){
     lines.push('途中ログ：');
-    (segment.timeline||[]).forEach(item=>lines.push(`${timelineGameLine(item)} ${item.text||''}`.trim()));
+    (segment.timeline||[]).forEach(item=>{
+      const suikaAfter=timelineSuikaAfterText(item);
+      lines.push(`${timelineGameLine(item)} ${item.text||''}${suikaAfter?`（${suikaAfter}）`:''}`.trim());
+    });
   }
   if((segment.suggestLog||[]).length){
     lines.push('示唆記録：');
@@ -4534,6 +4573,15 @@ function timelineGameLine(item){
   if(data===null)return '';
   return `データ${data}G / 液晶${liquid!==null?liquid:data}G`;
 }
+function timelineSuikaAfterText(item){
+  const delta=normalizeOptionalNumber(item?.liquidOffsetDelta);
+  if(delta===null||delta===0)return '';
+  const tagIds=Array.isArray(item?.tagIds)?item.tagIds:[];
+  const hasSuika=tagIds.some(id=>String(id).includes('suika'))||String(item?.text||'').includes('スイカ');
+  if(!hasSuika)return '';
+  const liquid=timelineLiquidGameValue(item);
+  return liquid!==null?`このスイカ後：液晶${liquid}G`:'';
+}
 function addTimelineEntry(){
   const textEl=document.getElementById('timelineText');
   const game=timelineDataValue();
@@ -4580,6 +4628,7 @@ function renderCurrentTimeline(){
         </div>
       </div>
       <div class="timeline-text">${escapeHtml(t.text)}</div>
+      ${timelineSuikaAfterText(t)?`<div class="item-sub">${escapeHtml(timelineSuikaAfterText(t))}</div>`:''}
     </div>`).join(''):'<div class="empty-hint">現在セグメントの途中ログなし</div>';
   el.innerHTML=`${undo}${archived}${currentRows}`;
 }
@@ -5510,7 +5559,10 @@ function buildShareText(log){
   if(timeline.length){
     lines.push('');
     lines.push('実戦経過：');
-    timeline.forEach(t=>lines.push(`${timelineGameLine(t)} ${t.text}`));
+    timeline.forEach(t=>{
+      const suikaAfter=timelineSuikaAfterText(t);
+      lines.push(`${timelineGameLine(t)} ${t.text}${suikaAfter?`（${suikaAfter}）`:''}`);
+    });
   }
   if((log.hitEvents||[]).length){
     lines.push('');
