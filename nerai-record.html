@@ -195,6 +195,11 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .money-status{font-size:12px;font-weight:700;margin-top:10px;padding:9px 10px;border-radius:8px;border:1px solid rgba(122,122,138,.32);background:rgba(122,122,138,.08);color:var(--text-muted);}
 .money-status.complete{border-color:rgba(76,175,125,.55);background:rgba(76,175,125,.12);color:#9be0bd;}
 .money-status.incomplete{border-color:rgba(224,112,112,.45);background:rgba(224,112,112,.1);color:#ffb3b3;}
+.money-status-list{display:flex;flex-direction:column;gap:4px;margin-top:4px;}
+.money-status-item{display:flex;align-items:center;gap:6px;line-height:1.35;}
+.money-status-item.done{color:#9be0bd;}
+.money-status-item.todo{color:#ffb3b3;}
+.branch-next-btn{white-space:normal;line-height:1.35;text-align:center;min-width:0;}
 .suggest-kind{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 7px;margin-right:4px;font-size:11px;font-weight:800;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);}
 .suggest-kind-eyecatch{border-color:rgba(120,180,255,.55);background:rgba(120,180,255,.12);color:#a9d0ff;}
 .suggest-kind-tsukiyama-mode{border-color:rgba(201,168,76,.65);background:rgba(201,168,76,.13);color:var(--gold-light);}
@@ -370,7 +375,7 @@ footer a:hover{color:var(--gold-light);}
           <div class="calc-cell"><div class="calc-label">時給</div><div class="calc-value" id="calcHourly">-</div></div>
         </div>
         <div class="input-hint" id="rateHint" style="margin-top:8px;">交換率未設定</div>
-        <div class="money-status incomplete" id="moneyRegistrationStatus">収支未登録です。終了持ちメダルを入力すると収支登録が完了します。</div>
+        <div class="money-status incomplete" id="moneyRegistrationStatus"></div>
         <div class="warning" id="timeWarning">終了時間が開始時間より前です。MVPでは日跨ぎを計算しないため、稼働時間は0分にします。</div>
       </div>
     </div>
@@ -3926,7 +3931,7 @@ function renderHitBranchWizardArea(){
           ${steps.map((step,i)=>`<span class="branch-step-pill ${i<hitBranchWizard.stepIndex?'done':i===hitBranchWizard.stepIndex?'active':''}">${escapeHtml(step.label)}</span>`).join('')}
         </div>
         <div class="log-tools">
-          ${current?`<button class="btn-small gold" onclick="openCurrentHitBranchStep()">次の入力：${escapeHtml(current.label)}</button>`:'<span class="pill gold">このルートの入力は完了</span>'}
+          ${current?`<button class="btn-small gold branch-next-btn" onclick="openCurrentHitBranchStep()">次の入力：${escapeHtml(current.label)}</button>`:'<span class="pill gold">このルートの入力は完了</span>'}
           ${hitBranchWizard.stepIndex>0?'<button class="btn-small" onclick="backHitBranchWizard()">戻る</button>':''}
           <button class="btn-small" onclick="resetHitBranchWizard()">ルート解除</button>
         </div>`:''}
@@ -4274,14 +4279,14 @@ function archivedSegmentsHtml(){
       </button>
       <div class="carry-summary-body">
         <textarea id="segmentCopy_${segment.id}" style="min-height:120px;">${escapeHtml(segmentText(segment,index))}</textarea>
-        <button class="btn-copy" onclick="copyText(document.getElementById('segmentCopy_${segment.id}')?.value||'','segmentCopied_${segment.id}')">この区切りをコピー</button>
+        <button class="btn-copy" onclick="copyText(document.getElementById('segmentCopy_${segment.id}')?.value||'','segmentCopied_${segment.id}')">この記録内容をコピー</button>
         <div class="copy-done" id="segmentCopied_${segment.id}">コピーしました</div>
       </div>
     </div>`).join('');
 }
 function renderSegmentUndoNotice(){
   if(!lastSegmentUndo)return '';
-  return `<button class="btn-secondary" onclick="undoLastSegmentArchive()">区切りを取り消す</button>`;
+  return `<button class="btn-secondary" onclick="undoLastSegmentArchive()">前回の記録に戻って修正する</button>`;
 }
 function toggleTimelineHistory(){
   timelineHistoryOpen=!timelineHistoryOpen;
@@ -5005,7 +5010,12 @@ function updateMoneyRegistrationStatus(){
   const complete=hasMoneyResultInput();
   moneyStatus.classList.toggle('complete',complete);
   moneyStatus.classList.toggle('incomplete',!complete);
-  moneyStatus.textContent=complete?'収支登録が完了しました。':'収支未登録です。終了持ちメダルを入力すると収支登録が完了します。';
+  const items=[
+    {label:'終了持ちメダル',done:moneyResultEndMedalsValue()!==null}
+  ];
+  moneyStatus.innerHTML=complete
+    ? '<div class="money-status-title">登録可能</div><div class="money-status-list"><div class="money-status-item done">✓ 終了持ちメダル 入力済み</div></div>'
+    : `<div class="money-status-title">未入力</div><div class="money-status-list">${items.map(item=>`<div class="money-status-item ${item.done?'done':'todo'}">${item.done?'✓':'□'} ${escapeHtml(item.label)}${item.done?' 入力済み':''}</div>`).join('')}</div>`;
 }
 function updateCalc(){
   const calc=calcMoney({
