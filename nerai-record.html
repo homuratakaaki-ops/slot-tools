@@ -206,6 +206,18 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .suggest-kind-forewarning{border-color:rgba(76,175,125,.55);background:rgba(76,175,125,.12);color:#9be0bd;}
 .suggest-kind-tsukiyama-setting{border-color:rgba(205,132,241,.58);background:rgba(205,132,241,.12);color:#dca8ff;}
 .suggest-kind-setting{border-color:rgba(255,160,96,.55);background:rgba(255,160,96,.12);color:#ffc199;}
+.ending-card-summary{margin:10px 0;}
+.ending-card-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.ending-card-chip{position:relative;min-height:48px;border:1px solid var(--border);border-radius:8px;background:var(--surface2);color:var(--text);padding:8px 28px 8px 8px;text-align:left;font-size:12px;font-weight:800;cursor:pointer;}
+.ending-card-chip .card-count{position:absolute;top:5px;right:5px;min-width:20px;height:20px;border-radius:999px;background:rgba(201,168,76,.9);color:#15130d;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;}
+.ending-card-chip .card-minus{position:absolute;right:5px;bottom:5px;width:22px;height:22px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:rgba(0,0,0,.2);color:var(--text);font-weight:900;cursor:pointer;}
+.ending-card-chip.tone-white{background:#f4f1e8;color:#2a2824;border-color:#d6d0c3;}
+.ending-card-chip.tone-blue{background:rgba(77,143,255,.2);border-color:rgba(77,143,255,.55);color:#bcd6ff;}
+.ending-card-chip.tone-copper{background:rgba(184,112,62,.22);border-color:rgba(184,112,62,.58);color:#e8ba91;}
+.ending-card-chip.tone-silver{background:rgba(210,218,226,.22);border-color:rgba(210,218,226,.62);color:#eef5fb;}
+.ending-card-chip.tone-gold{background:rgba(201,168,76,.2);border-color:rgba(201,168,76,.72);color:var(--gold-light);}
+.ending-card-chip.tone-rainbow{background:linear-gradient(135deg,rgba(255,105,105,.28),rgba(255,217,90,.28),rgba(106,220,132,.28),rgba(98,181,255,.28));border-color:rgba(255,255,255,.5);color:#fff;}
+.ending-card-chip.tone-red{background:rgba(220,78,78,.2);border-color:rgba(220,78,78,.58);color:#ffb4b4;}
 .optional-box{display:none;margin-top:8px;}
 .optional-box.open{display:block;}
 .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
@@ -648,6 +660,18 @@ const CARRY_TYPE_OPTIONS=['setting','mode'];
 const KUI_POINT_OPTIONS=['大','中','小','なし'];
 const MODE_CONFIDENCE_LEVELS=['tenkoku','tenkoku_junbi','chance','tsujoC','tsujoB','tsujoA'];
 const MODE_CONFIDENCE_TYPES=['kakutei','shisa'];
+const ENDING_CARD_GROUPS=[
+  {id:'white_weak',name:'白・奇数弱',hint:'奇数示唆:弱',tone:'white',cards:['金木研','霧嶋董香','笛口雛実','永近英良','西尾錦','月山習']},
+  {id:'white_strong',name:'白・奇数強',hint:'奇数示唆:強',tone:'white',cards:['芳村','四方蓮示','ウタ','イトリ','古間円児','入見カヤ']},
+  {id:'blue_weak',name:'青・偶数弱',hint:'偶数示唆:弱',tone:'blue',cards:['金木研','霧嶋董香','笛口雛実','ナキ','西尾錦','月山習']},
+  {id:'blue_strong',name:'青・偶数強',hint:'偶数示唆:強',tone:'blue',cards:['亜門鋼太朗','篠原幸紀','滝澤政道','真戸暁','真戸呉緒','丸手斎']},
+  {id:'copper',name:'銅・設定否定',hint:'設定1〜4否定',tone:'copper',cards:['鈴屋什造(設定1否定)','高槻泉(設定2否定)','梟(設定3否定)','エト(設定4否定)']},
+  {id:'silver',name:'銀',hint:'設定3以上',tone:'silver',cards:['金木研']},
+  {id:'gold',name:'金',hint:'設定4以上／5以上',tone:'gold',cards:['神代利世(設定4以上)','隻眼の梟(設定5以上)']},
+  {id:'rainbow',name:'虹',hint:'設定6濃厚',tone:'rainbow',cards:['有馬貴将']},
+  {id:'red_weak',name:'赤・高設定弱',hint:'高設定示唆:弱',tone:'red',cards:['金木研','霧嶋董香','ヤモリ','霧嶋絢都']},
+  {id:'red_strong',name:'赤・高設定強',hint:'高設定示唆:強',tone:'red',cards:['鯱','亜門鋼太朗','篠原幸紀','鈴屋什造']}
+];
 const EMPTY_DATA={version:1,machines:[],stores:[],logs:[]};
 let db=loadData();
 let selectedMachineId=db.machines[0]?.id||'';
@@ -669,6 +693,8 @@ let currentSuggestLog=[];
 let currentKuiPointReleased=false;
 let currentSegments=[];
 let lastSegmentUndo=null;
+let currentEndingCards={};
+let endingCardGroupsOpen={};
 let pendingTimelineTagIds=[];
 let timelineHistoryOpen=false;
 let logDateOpenState={};
@@ -694,6 +720,40 @@ function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9
 function clone(value){return JSON.parse(JSON.stringify(value));}
 function escapeHtml(value){
   return String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function endingCardId(groupId,cardName){return `${groupId}::${cardName}`;}
+function endingCardGroups(){return ENDING_CARD_GROUPS;}
+function findEndingCard(cardId){
+  for(const group of endingCardGroups()){
+    const card=group.cards.find(name=>endingCardId(group.id,name)===cardId);
+    if(card)return {group,card,id:cardId};
+  }
+  return null;
+}
+function validEndingCardId(cardId){return !!findEndingCard(cardId);}
+function endingCardsTotal(cards=currentEndingCards){
+  return Object.values(cards||{}).reduce((sum,count)=>sum+(Number(count)||0),0);
+}
+function mergeEndingCards(cardsList){
+  return cardsList.reduce((merged,cards)=>{
+    Object.entries(cards||{}).forEach(([id,count])=>{merged[id]=(merged[id]||0)+(Number(count)||0);});
+    return merged;
+  },{});
+}
+function subtractEndingCards(total,minus){
+  const result={...normalizeEndingCards(total)};
+  Object.entries(minus||{}).forEach(([id,count])=>{
+    const next=(result[id]||0)-(Number(count)||0);
+    if(next>0)result[id]=next;
+    else delete result[id];
+  });
+  return result;
+}
+function archivedEndingCardsTotal(){
+  return mergeEndingCards(currentSegments.map(segment=>segment.endingCards||{}));
+}
+function currentSegmentEndingCards(){
+  return subtractEndingCards(currentEndingCards,archivedEndingCardsTotal());
 }
 function normalizeTagClass(value){
   const text=String(value||'').trim();
@@ -793,6 +853,15 @@ function normalizeHitExit(value){
 function normalizeHitTerminalType(value){
   return ['ending'].includes(value)?value:'';
 }
+function normalizeEndingCards(value){
+  if(!value||typeof value!=='object')return {};
+  const normalized={};
+  Object.entries(value).forEach(([id,count])=>{
+    const num=Number(count);
+    if(validEndingCardId(id)&&Number.isFinite(num)&&num>0)normalized[id]=Math.floor(num);
+  });
+  return normalized;
+}
 function normalizeHitEvent(event){
   if(!event||typeof event!=='object')return null;
   const trigger=normalizeHitTrigger(event.trigger);
@@ -808,13 +877,14 @@ function normalizeHitEvent(event){
     liquidGame:normalizeOptionalNumber(event.liquidGame)??(dataGame!==null?dataGame:0),
     through:event.through==='yes'||event.through==='no'?event.through:null,
     terminalType:normalizeHitTerminalType(event.terminalType),
+    endingCount:Math.max(0,Number(event.endingCount)||0),
     exit:normalizeHitExit(event.exit),
     wizardDone:!!event.wizardDone
   };
 }
 function normalizeHitBranchWizard(wizard){
   const route=['czResult','czFail','atHit'].includes(wizard?.route)?wizard.route:'';
-  const through=['yes','no','ending'].includes(wizard?.through)?wizard.through:null;
+  const through=['yes','no','ending','ending_exit'].includes(wizard?.through)?wizard.through:null;
   return {
     route,
     stepIndex:Math.max(0,Number(wizard?.stepIndex)||0),
@@ -838,6 +908,7 @@ function normalizeSegment(segment){
     liquidGame:liquidGame!==null?liquidGame:dataGame,
     suikaOffset:normalizeOptionalNumber(segment.suikaOffset)??0,
     manualCorrection:normalizeOptionalNumber(segment.manualCorrection)??0,
+    endingCards:normalizeEndingCards(segment.endingCards),
     timeline:Array.isArray(segment.timeline)?segment.timeline.map(item=>({...item,game:normalizeOptionalNumber(item.game),liquidGame:normalizeOptionalNumber(item.liquidGame)})):[],
     suggestLog:Array.isArray(segment.suggestLog)?segment.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[],
     hitEvents:Array.isArray(segment.hitEvents)?segment.hitEvents.map(normalizeHitEvent).filter(Boolean):[]
@@ -897,6 +968,7 @@ function normalizeData(data){
     log.kuiPoint.hints=Array.isArray(log.kuiPoint.hints)?log.kuiPoint.hints:[];
     log.hitEvents=Array.isArray(log.hitEvents)?log.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
     log.segments=Array.isArray(log.segments)?log.segments.map(normalizeSegment).filter(Boolean):[];
+    log.endingCards=normalizeEndingCards(log.endingCards);
     log.hitBranchWizard=log.hitBranchWizard&&typeof log.hitBranchWizard==='object'?normalizeHitBranchWizard(log.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     log.continuedFromId=log.continuedFromId||log.continuedFromLog?.id||'';
     log.sameTableCarryOptOut=!!log.sameTableCarryOptOut;
@@ -937,6 +1009,7 @@ function normalizeData(data){
     data.draftLog.excludeFromStats=true;
     data.draftLog.hitEvents=Array.isArray(data.draftLog.hitEvents)?data.draftLog.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
     data.draftLog.segments=Array.isArray(data.draftLog.segments)?data.draftLog.segments.map(normalizeSegment).filter(Boolean):[];
+    data.draftLog.endingCards=normalizeEndingCards(data.draftLog.endingCards);
     data.draftLog.suggestLog=Array.isArray(data.draftLog.suggestLog)?data.draftLog.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[];
     data.draftLog.hitBranchWizard=data.draftLog.hitBranchWizard&&typeof data.draftLog.hitBranchWizard==='object'?normalizeHitBranchWizard(data.draftLog.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     data.draftLog.startCzFailCount=normalizeOptionalNumber(data.draftLog.startCzFailCount);
@@ -1921,6 +1994,7 @@ function addMachine(){
   currentSuggestLog=[];
   currentKuiPointReleased=false;
   currentSegments=[];
+  currentEndingCards={};
   lastSegmentUndo=null;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
@@ -1945,6 +2019,7 @@ function selectMachine(id){
   currentSuggestLog=[];
   currentKuiPointReleased=false;
   currentSegments=[];
+  currentEndingCards={};
   lastSegmentUndo=null;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
@@ -2443,7 +2518,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineDataGame=null;resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineDataGame=null;resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -3206,7 +3281,11 @@ function openArimaJudgementPicker(){
 }
 function selectArimaJudgement(result){
   if(result!=='success'&&result!=='fail')return;
-  if(!currentMachine())return;
+  if(recordArimaJudgement(result))closeSuggestPicker();
+}
+function recordArimaJudgement(result){
+  if(result!=='success'&&result!=='fail')return false;
+  if(!currentMachine())return false;
   currentSuggestLog=currentSuggestLog.filter(entry=>!isArimaJudgementEntry(entry));
   currentKuiPointReleased=true;
   const release=document.getElementById('kuiPointReleased');
@@ -3226,8 +3305,7 @@ function selectArimaJudgement(result){
       decorations:[],
       useAppearG:false
     };
-    if(addSuggestLogFromSelection(selection))closeSuggestPicker();
-    return;
+    return addSuggestLogFromSelection(selection);
   }
   const selection={
     stateGroup:'hit',
@@ -3246,7 +3324,7 @@ function selectArimaJudgement(result){
     decorations:[],
     useAppearG:false
   };
-  if(addSuggestLogFromSelection(selection))closeSuggestPicker();
+  return addSuggestLogFromSelection(selection);
 }
 function addArimaJudgementFail(){
   selectArimaJudgement('fail');
@@ -3702,7 +3780,7 @@ function renderHitEventsList(){
 function hitEventLine(event){
   const parts=[hitTriggerLabel(event.trigger)];
   if(event.czResult)parts.push(event.czResult==='at_win'?'AT当選':'AT非当選');
-  if(event.terminalType==='ending')parts.push('エンディング到達');
+  if((Number(event.endingCount)||0)>0)parts.push(`エンディング到達${Number(event.endingCount)}回`);
   if(event.through)parts.push(event.through==='yes'?'駆け抜け':'駆け抜け以外');
   if(event.payout!==null&&event.payout!==undefined)parts.push(`獲得${event.payout}枚`);
   if(event.exit)parts.push(event.exit==='continue'?'続行':'即ヤメ');
@@ -3712,7 +3790,6 @@ function segmentTerminalLabel(event,terminalType=''){
   if(!event)return terminalType||'区切り';
   const trigger=hitTriggerLabel(event.trigger);
   if(event.czResult==='at_lose')return `${trigger} / AT非突入`;
-  if(terminalType==='ending')return `${trigger} / エンディング到達`;
   if(event.through==='yes')return `${trigger} / AT終了（駆け抜け）`;
   if(event.through==='no')return `${trigger} / AT終了`;
   return `${trigger} / チェーン終端`;
@@ -3741,6 +3818,7 @@ function createSegmentSnapshot(event,terminalType=''){
     liquidGame,
     suikaOffset:currentTimelineSuikaOffset,
     manualCorrection:currentTimelineManualCorrection,
+    endingCards:currentSegmentEndingCards(),
     timeline:clone(sortedTimeline()),
     suggestLog:clone(sortedSuggestLog()),
     hitEvents:clone(currentSegmentHitEvents().map(normalizeHitEvent).filter(Boolean))
@@ -3800,7 +3878,7 @@ function restoreHitWizardToExit(event){
   hitBranchWizard={
     route,
     stepIndex:exitIndex,
-    through:event.terminalType==='ending'?'ending':(event.through==='yes'||event.through==='no'?event.through:null),
+    through:event.through==='yes'||event.through==='no'?event.through:null,
     done:steps.slice(0,exitIndex).map(step=>step.key),
     eventId:event.id
   };
@@ -3850,6 +3928,7 @@ function renderTimelineArea(mode='play'){
       <div class="work-section-title">AT当選時の記録</div>
       ${renderHitBranchWizardArea()}
       ${renderNextModeHintControls()}
+      ${renderEndingCardsSummary()}
       ${renderKuiPointReleaseControl()}
       ${renderSuggestArea('hit')}
     </div>
@@ -3875,6 +3954,7 @@ function renderTimelineArea(mode='play'){
     </div>
     ${renderTimelineHistoryPanel()}
     <div class="work-subsection play-group alt">
+      ${renderEndingCardsSummary()}
       ${renderSuggestArea('play')}
     </div>`;
 }
@@ -3899,15 +3979,18 @@ function hitBranchSteps(route,through=hitBranchWizard.through){
       {key:'through',label:'AT駆け抜け'},
       {key:'payout',label:'獲得枚数'}
     ];
-    if(through!=='ending'){
+    if(through==='ending'){
+      steps.push({key:'endingCards',label:'エンディングカード'});
+      steps.push({key:'endingExit',label:'エンディング後'});
+    }else{
       steps.push(
         {key:'atEnd',label:'AT終了画面'},
         {key:'trophy',label:'トロフィー'},
         {key:'eyecatch',label:'アイキャッチ'}
       );
       if(through==='yes')steps.push({key:'kui',label:'喰ポイント'});
+      steps.push({key:'exit',label:'出口選択'});
     }
-    steps.push({key:'exit',label:'出口選択'});
     return steps;
   }
   return [];
@@ -3934,7 +4017,8 @@ function renderHitBranchWizardArea(){
           ${current?`<button class="btn-small gold branch-next-btn" onclick="openCurrentHitBranchStep()">次の入力：${escapeHtml(current.label)}</button>`:'<span class="pill gold">このルートの入力は完了</span>'}
           ${hitBranchWizard.stepIndex>0?'<button class="btn-small" onclick="backHitBranchWizard()">戻る</button>':''}
           <button class="btn-small" onclick="resetHitBranchWizard()">ルート解除</button>
-        </div>`:''}
+        </div>
+        ${current?.key==='endingCards'?renderEndingCardsInputArea():''}`:''}
     </div>`;
 }
 function startHitBranchWizard(route){
@@ -3949,6 +4033,74 @@ function resetHitBranchWizard(){
   hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
   renderLogFields();
   saveDraftImmediately();
+}
+function currentHitEventEndingCount(){
+  const event=currentHitEvent();
+  return Number(event?.endingCount)||0;
+}
+function incrementCurrentHitEndingCount(){
+  const event=currentHitEvent();
+  if(event)event.endingCount=(Number(event.endingCount)||0)+1;
+}
+function ensureEndingGroupOpen(groupId){
+  if(!Object.prototype.hasOwnProperty.call(endingCardGroupsOpen,groupId))endingCardGroupsOpen[groupId]=true;
+}
+function toggleEndingCardGroup(groupId){
+  ensureEndingGroupOpen(groupId);
+  endingCardGroupsOpen[groupId]=!endingCardGroupsOpen[groupId];
+  renderLogFields();
+}
+function endingGroupTotal(group,cards=currentEndingCards){
+  return group.cards.reduce((sum,card)=>sum+(Number(cards[endingCardId(group.id,card)])||0),0);
+}
+function addEndingCard(cardId,delta=1){
+  if(!validEndingCardId(cardId))return;
+  const next=(Number(currentEndingCards[cardId])||0)+delta;
+  if(next>0)currentEndingCards[cardId]=next;
+  else delete currentEndingCards[cardId];
+  saveDraftImmediately();
+  renderLogFields();
+}
+function endingCardsInputGroupHtml(group){
+  ensureEndingGroupOpen(group.id);
+  const open=!!endingCardGroupsOpen[group.id];
+  const total=endingGroupTotal(group);
+  return `
+    <div class="carry-summary-section ${open?'open':''}">
+      <button class="carry-summary-toggle" type="button" onclick="toggleEndingCardGroup('${group.id}')">
+        <span>${escapeHtml(group.name)} <span class="input-hint">${escapeHtml(group.hint)}</span></span>
+        <span class="carry-summary-count">${total}枚 ${open?'▲':'▼'}</span>
+      </button>
+      <div class="carry-summary-body">
+        <div class="ending-card-grid">
+          ${group.cards.map(card=>{
+            const id=endingCardId(group.id,card);
+            const count=Number(currentEndingCards[id])||0;
+            return `<button class="ending-card-chip tone-${group.tone}" type="button" onclick="addEndingCard('${escapeHtml(id)}',1)">
+              ${escapeHtml(card)}
+              <span class="card-count">${count}</span>
+              <span class="card-minus" onclick="event.stopPropagation();addEndingCard('${escapeHtml(id)}',-1)">−</span>
+            </button>`;
+          }).join('')}
+        </div>
+      </div>
+    </div>`;
+}
+function renderEndingCardsInputArea(){
+  return `
+    <div class="ending-card-summary">
+      <div class="section-label">エンディングカード</div>
+      <p class="section-note">カード色ごとのチップを押すと+1。右下の−で1枚戻します。</p>
+      ${endingCardGroups().map(endingCardsInputGroupHtml).join('')}
+      ${renderEndingCardsSummary()}
+      <button class="btn-primary" onclick="finishEndingCardsStep()">カード入力を終えて次へ</button>
+    </div>`;
+}
+function finishEndingCardsStep(){
+  advanceHitBranchWizard();
+  renderLogFields();
+  saveDraftImmediately();
+  setTimeout(openCurrentHitBranchStep,0);
 }
 function wizardRouteForEndReason(reason){
   if(['CZ当選→AT非当選','上位CZ当選→AT非当選'].includes(reason))return 'czFail';
@@ -4006,6 +4158,8 @@ function openCurrentHitBranchStep(){
   if(step.key==='czResult'){openCzResultBranchPicker();return;}
   if(step.key==='through'){openAtThroughBranchPicker();return;}
   if(step.key==='payout'){promptHitEventPayout();return;}
+  if(step.key==='endingCards'){renderLogFields();return;}
+  if(step.key==='endingExit'){openEndingExitPicker();return;}
   if(step.key==='exit'){openHitExitPicker();return;}
   if(step.key==='kui'){
     const category=findSuggestCategoryByName(currentMachine(),'喰ポイント');
@@ -4100,12 +4254,49 @@ function openHitExitPicker(){
     <button class="suggest-picker-option" onclick="selectHitExit('quit')">即ヤメ</button>`;
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
 }
+function openEndingExitPicker(){
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:'atHit',branchStep:'endingExit'};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent='エンディング後';
+  breadcrumb.textContent='有馬ジャッジメント後の流れを選択';
+  back.textContent='閉じる';
+  options.innerHTML=`
+    <button class="suggest-picker-option" onclick="selectEndingExit('arima_at')">有馬ジャッジメント→AT再突入</button>
+    <button class="suggest-picker-option" onclick="selectEndingExit('finish')">終了</button>`;
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectEndingExit(result){
+  if(result!=='arima_at'&&result!=='finish')return;
+  if(result==='arima_at'){
+    recordArimaJudgement('success');
+    hitBranchWizard={route:'atHit',stepIndex:0,through:null,done:[],eventId:hitBranchWizard.eventId};
+    closeSuggestPicker();
+    renderLogFields();
+    saveDraftImmediately();
+    return;
+  }
+  const event=currentHitEvent();
+  if(event)event.through='no';
+  const steps=hitBranchSteps('atHit','no');
+  hitBranchWizard.through='no';
+  hitBranchWizard.stepIndex=Math.max(0,steps.findIndex(step=>step.key==='exit'));
+  hitBranchWizard.done=steps.slice(0,hitBranchWizard.stepIndex).map(step=>step.key);
+  closeSuggestPicker();
+  renderLogFields();
+  saveDraftImmediately();
+  setTimeout(openCurrentHitBranchStep,0);
+}
 function selectHitExit(exit){
   const event=currentHitEvent();
   if(!event)return;
   event.exit=normalizeHitExit(exit);
   event.wizardDone=true;
-  const terminalType=event.terminalType==='ending'?'ending':event.exit;
+  const terminalType=event.exit;
   if(event.exit==='quit'){
     setEndLogFromHitEvent(event);
     archiveCurrentSegment(event,terminalType,{preserveEndState:true});
@@ -4168,7 +4359,8 @@ function selectAtThroughBranch(value){
   const event=currentHitEvent();
   if(event){
     event.through=value==='ending'?null:value;
-    event.terminalType=value==='ending'?'ending':'';
+    if(value==='ending')incrementCurrentHitEndingCount();
+    event.terminalType='';
   }
   hitBranchWizard.through=value;
   if(value!=='ending')recordAfterAtModeByThrough(value);
@@ -4199,6 +4391,52 @@ function renderNextModeHintControls(){
       <p class="section-note">有馬ジャッジメントは発生頻度が低いため、分岐フローとは別に記録します。</p>
       <div class="tag-buttons">
         <button class="tag-btn gold" onclick="openArimaJudgementPicker()">有馬ジャッジメント</button>
+      </div>
+    </div>`;
+}
+function endingCardsByCardLines(cards=currentEndingCards){
+  return Object.entries(normalizeEndingCards(cards))
+    .map(([id,count])=>({ref:findEndingCard(id),count}))
+    .filter(row=>row.ref&&row.count>0)
+    .sort((a,b)=>a.ref.group.id.localeCompare(b.ref.group.id)||a.ref.card.localeCompare(b.ref.card))
+    .map(row=>`${row.ref.group.name} / ${row.ref.card}：${row.count}枚`);
+}
+function endingCardsByGroupRows(cards=currentEndingCards){
+  const total=endingCardsTotal(cards);
+  return endingCardGroups().map(group=>{
+    const count=endingGroupTotal(group,cards);
+    return {group,count,ratio:total?Math.round((count/total)*1000)/10:0};
+  }).filter(row=>row.count>0);
+}
+function endingCardsTextLines(cards=currentEndingCards){
+  const total=endingCardsTotal(cards);
+  if(!total)return [];
+  const lines=[`合計：${total}枚`,'グループ別：'];
+  endingCardsByGroupRows(cards).forEach(row=>lines.push(`${row.group.name}：${row.count}枚（${row.ratio}%）`));
+  lines.push('カード別：');
+  endingCardsByCardLines(cards).forEach(line=>lines.push(line));
+  return lines;
+}
+function renderEndingCardsSummary(cards=currentEndingCards){
+  const total=endingCardsTotal(cards);
+  if(!total)return '<div class="empty-hint">エンディングカード記録なし</div>';
+  const groupRows=endingCardsByGroupRows(cards);
+  const fixedIds=new Set(['copper','silver','gold','rainbow']);
+  return `
+    <div class="carry-summary-section open">
+      <button class="carry-summary-toggle" type="button" onclick="this.parentElement.classList.toggle('open')">
+        <span>エンディングカード集計</span>
+        <span class="carry-summary-count">${total}枚 ▲</span>
+      </button>
+      <div class="carry-summary-body">
+        <div class="carry-summary-group">
+          <div class="carry-summary-group-title">グループ別</div>
+          ${groupRows.map(row=>`<div class="carry-summary-row ${fixedIds.has(row.group.id)?'kakutei':''}"><div class="timeline-text">${escapeHtml(`${row.group.name}：${row.count}枚（${row.ratio}%）`)}</div></div>`).join('')}
+        </div>
+        <div class="carry-summary-group">
+          <div class="carry-summary-group-title">カード別</div>
+          ${endingCardsByCardLines(cards).map(line=>`<div class="carry-summary-row"><div class="timeline-text">${escapeHtml(line)}</div></div>`).join('')}
+        </div>
       </div>
     </div>`;
 }
@@ -4248,7 +4486,9 @@ function segmentOrdinalLabel(index){
 }
 function segmentSummary(segment,index){
   const game=segment.dataGame!==null?`最終 ${segment.dataGame}/${segment.liquidGame??segment.dataGame}G`:'最終G数なし';
-  return `${segmentOrdinalLabel(index)}：${segment.terminalLabel||'区切り'} / ${game}`;
+  const endingCount=(segment.hitEvents||[]).reduce((sum,event)=>sum+(Number(event.endingCount)||0),0);
+  const endingText=endingCount?` / エンディング到達あり（${endingCount}回）`:'';
+  return `${segmentOrdinalLabel(index)}：${segment.terminalLabel||'区切り'} / ${game}${endingText}`;
 }
 function segmentText(segment,index){
   const lines=[segmentSummary(segment,index)];
@@ -4266,6 +4506,10 @@ function segmentText(segment,index){
   if((segment.suggestLog||[]).length){
     lines.push('示唆記録：');
     (segment.suggestLog||[]).forEach(entry=>lines.push(suggestLogLine(entry)));
+  }
+  if(endingCardsTotal(segment.endingCards)>0){
+    lines.push('エンディングカード：');
+    endingCardsTextLines(segment.endingCards).forEach(line=>lines.push(line));
   }
   return lines.join('\n');
 }
@@ -5082,6 +5326,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     segments:clone(currentSegments),
+    endingCards:normalizeEndingCards(currentEndingCards),
     endLog:clone(currentEndLog),
     hitEvents:clone(currentHitEvents.map(normalizeHitEvent).filter(Boolean)),
     hitBranchWizard:clone(normalizeHitBranchWizard(hitBranchWizard)),
@@ -5099,7 +5344,7 @@ function draftHasContent(log){
   const money=log.money||{};
   return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||
     (normalizeOptionalNumber(log.suikaOffset)??0)!==0||(normalizeOptionalNumber(log.manualCorrection)??0)!==0||
-    (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.segments||[]).length>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
+    (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.segments||[]).length>0||endingCardsTotal(log.endingCards)>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
     !!money.store||!!money.machineNo||!!money.endTime||normalizeOptionalNumber(money.startMedals)!==null||normalizeOptionalNumber(money.endMedals)!==null||!!money.cashIn||
     !!log.publicMemo||!!log.privateMemo||!!continuedFromLog;
 }
@@ -5189,6 +5434,7 @@ function saveLog(options={}){
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     segments:clone(currentSegments),
+    endingCards:normalizeEndingCards(currentEndingCards),
     endLog:clone(currentEndLog),
     hitEvents:clone(currentHitEvents.map(normalizeHitEvent).filter(Boolean)),
     hitBranchWizard:clone(normalizeHitBranchWizard(hitBranchWizard)),
@@ -5292,6 +5538,9 @@ function clearLogInput(cancelEdit=true){
   currentHitEvents=[];
   currentSuggestLog=[];
   currentKuiPointReleased=false;
+  currentSegments=[];
+  currentEndingCards={};
+  lastSegmentUndo=null;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
   closeSuggestPicker();
@@ -5395,6 +5644,7 @@ function loadDraftIntoInputs(log){
   currentHitEvents=clone(log.hitEvents||[]);
   currentSuggestLog=clone(log.suggestLog||[]);
   currentSegments=clone(log.segments||[]);
+  currentEndingCards=normalizeEndingCards(log.endingCards);
   lastSegmentUndo=null;
   currentKuiPointReleased=!!log.kuiPoint?.released;
   currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
@@ -5449,6 +5699,7 @@ function loadLogForEdit(id){
   currentHitEvents=clone(log.hitEvents||[]);
   currentSuggestLog=clone(log.suggestLog||[]);
   currentSegments=clone(log.segments||[]);
+  currentEndingCards=normalizeEndingCards(log.endingCards);
   lastSegmentUndo=null;
   currentKuiPointReleased=!!log.kuiPoint?.released;
   pendingSuggestSelection=null;
@@ -5502,6 +5753,7 @@ function continueFromLog(id,skipConfirm=false){
   currentSuggestLog=[];
   currentKuiPointReleased=false;
   currentSegments=[];
+  currentEndingCards={};
   lastSegmentUndo=null;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
@@ -5588,6 +5840,11 @@ function buildShareText(log){
     lines.push('');
     lines.push('示唆記録：');
     suggestLog.forEach(s=>lines.push(suggestLogLine(s)));
+  }
+  if(endingCardsTotal(log.endingCards)>0){
+    lines.push('');
+    lines.push('エンディングカード：');
+    endingCardsTextLines(log.endingCards).forEach(line=>lines.push(line));
   }
   const stats=calculatePracticeStats(log);
   if(stats.spins!==null||stats.counts.cz||stats.counts.at){
