@@ -794,6 +794,31 @@ function normalizeHitBranchWizard(wizard){
     eventId:String(wizard?.eventId||'')
   };
 }
+function normalizeSuggestLogEntry(item){
+  if(!item||typeof item!=='object')return null;
+  item.category=item.category||'';
+  item.place=item.place||'';
+  item.item=item.item||'';
+  item.hitEventId=String(item.hitEventId||'');
+  item.stateGroup=normalizeSuggestStateGroup(item.stateGroup||'');
+  item.carryType=normalizeCarryType(item.carryType);
+  item.pointRole=item.pointRole==='gain'||item.pointRole==='hint'?item.pointRole:null;
+  item.game=normalizeOptionalNumber(item.game);
+  item.dataGame=normalizeOptionalNumber(item.dataGame);
+  item.liquidGame=normalizeOptionalNumber(item.liquidGame);
+  if(item.dataGame===null&&item.game!==null)item.dataGame=item.game;
+  if(item.liquidGame===null&&item.dataGame!==null)item.liquidGame=item.dataGame;
+  item.gapOffset=normalizeOptionalNumber(item.gapOffset);
+  if(item.gapOffset===null&&item.dataGame!==null&&item.liquidGame!==null)item.gapOffset=item.liquidGame-item.dataGame;
+  if(item.gapOffset===null)item.gapOffset=0;
+  item.nextModeHint=!!item.nextModeHint;
+  item.arimaNextOffset=normalizeOptionalNumber(item.arimaNextOffset);
+  item.confidenceLevel=normalizeConfidenceLevel(item.confidenceLevel);
+  item.confidenceType=normalizeConfidenceType(item.confidenceType);
+  item.trophyCustom=item.trophyCustom||'';
+  item.createdAt=item.createdAt||new Date().toISOString();
+  return item;
+}
 function normalizeData(data){
   data.machines=Array.isArray(data.machines)?data.machines:[];
   delete data.presetAims;
@@ -816,27 +841,7 @@ function normalizeData(data){
       if(item.game!==null&&item.liquidGame===null)item.liquidGame=item.game;
     });
     migrateTimelineOffsets(log);
-    log.suggestLog=Array.isArray(log.suggestLog)?log.suggestLog:[];
-    log.suggestLog.forEach(item=>{
-      item.category=item.category||'';
-      item.place=item.place||'';
-      item.item=item.item||'';
-      item.hitEventId=String(item.hitEventId||'');
-      item.stateGroup=normalizeSuggestStateGroup(item.stateGroup||'');
-      item.carryType=normalizeCarryType(item.carryType);
-      item.pointRole=item.pointRole==='gain'||item.pointRole==='hint'?item.pointRole:null;
-      item.game=normalizeOptionalNumber(item.game);
-      item.dataGame=normalizeOptionalNumber(item.dataGame);
-      item.liquidGame=normalizeOptionalNumber(item.liquidGame);
-      if(item.dataGame===null&&item.game!==null)item.dataGame=item.game;
-      if(item.liquidGame===null&&item.dataGame!==null)item.liquidGame=item.dataGame;
-      item.nextModeHint=!!item.nextModeHint;
-      item.arimaNextOffset=normalizeOptionalNumber(item.arimaNextOffset);
-      item.confidenceLevel=normalizeConfidenceLevel(item.confidenceLevel);
-      item.confidenceType=normalizeConfidenceType(item.confidenceType);
-      item.trophyCustom=item.trophyCustom||'';
-      item.createdAt=item.createdAt||new Date().toISOString();
-    });
+    log.suggestLog=Array.isArray(log.suggestLog)?log.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[];
     log.kuiPoint=log.kuiPoint&&typeof log.kuiPoint==='object'?log.kuiPoint:{};
     log.kuiPoint.released=!!log.kuiPoint.released;
     log.kuiPoint.gains=Array.isArray(log.kuiPoint.gains)?log.kuiPoint.gains:[];
@@ -881,6 +886,7 @@ function normalizeData(data){
     data.draftLog.finalized=false;
     data.draftLog.excludeFromStats=true;
     data.draftLog.hitEvents=Array.isArray(data.draftLog.hitEvents)?data.draftLog.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    data.draftLog.suggestLog=Array.isArray(data.draftLog.suggestLog)?data.draftLog.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[];
     data.draftLog.hitBranchWizard=data.draftLog.hitBranchWizard&&typeof data.draftLog.hitBranchWizard==='object'?normalizeHitBranchWizard(data.draftLog.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     data.draftLog.startCzFailCount=normalizeOptionalNumber(data.draftLog.startCzFailCount);
     data.draftLog.startAtThroughCount=normalizeOptionalNumber(data.draftLog.startAtThroughCount);
@@ -1299,6 +1305,31 @@ function suggestGamePair(entry){
   const dataGame=data!==null?data:legacy;
   const liquidGame=liquid!==null?liquid:dataGame;
   return {dataGame,liquidGame};
+}
+function suggestGapOffset(entry){
+  const saved=normalizeOptionalNumber(entry?.gapOffset);
+  if(saved!==null)return saved;
+  const {dataGame,liquidGame}=suggestGamePair(entry);
+  return dataGame!==null&&liquidGame!==null?liquidGame-dataGame:0;
+}
+function suggestPairFromData(dataGame,gapOffset){
+  const data=normalizeOptionalNumber(dataGame);
+  const gap=normalizeOptionalNumber(gapOffset)??0;
+  return {dataGame:data,liquidGame:data!==null?data+gap:null,gapOffset:gap};
+}
+function suggestPairFromLiquid(liquidGame,gapOffset){
+  const liquid=normalizeOptionalNumber(liquidGame);
+  const gap=normalizeOptionalNumber(gapOffset)??0;
+  return {dataGame:liquid!==null?liquid-gap:null,liquidGame:liquid,gapOffset:gap};
+}
+function applySuggestGameEdit(entry,{base='data',value=null,gapOffset=suggestGapOffset(entry)}={}){
+  if(!entry)return null;
+  const pair=base==='liquid'?suggestPairFromLiquid(value,gapOffset):suggestPairFromData(value,gapOffset);
+  entry.game=pair.dataGame;
+  entry.dataGame=pair.dataGame;
+  entry.liquidGame=pair.liquidGame;
+  entry.gapOffset=pair.gapOffset;
+  return pair;
 }
 function suggestGameText(entry){
   const {dataGame,liquidGame}=suggestGamePair(entry);
@@ -3078,10 +3109,11 @@ function finishHitBranchStepAndContinue(){
 function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   const custom=isTrophySuggestSelection(selection)?trophyCustomValue:'';
   const useAppearG=selection.useAppearG!==false&&!isTrophySuggestSelection(selection);
-  const dataGame=useAppearG?timelineDataValue():null;
-  const liquidGame=useAppearG?(timelineLiquidValue()??dataGame):null;
+  const dataGame=useAppearG?suggestTimelineDataValue():null;
+  const liquidGame=useAppearG?(suggestTimelineLiquidValue()??dataGame):null;
+  const gapOffset=useAppearG&&dataGame!==null&&liquidGame!==null?liquidGame-dataGame:0;
   const {useAppearG:unused,decorations,...entry}=selection;
-  const saved={...entry,source:entry.source==='wizard'?'wizard':'manual',id:uid('sgl'),game:dataGame,dataGame,liquidGame,trophyCustom:custom,createdAt:new Date().toISOString()};
+  const saved={...entry,source:entry.source==='wizard'?'wizard':'manual',id:uid('sgl'),game:dataGame,dataGame,liquidGame,gapOffset,trophyCustom:custom,createdAt:new Date().toISOString()};
   currentSuggestLog.push(saved);
   if(normalizeCarryType(saved.carryType)==='mode')modeSummaryOpen=true;
   recentSuggestHighlightId=saved.id;
@@ -3226,6 +3258,7 @@ function renderCurrentSuggestLog(){
     <div class="timeline-item ${entry.id===recentSuggestHighlightId?'recent':''}">
       <div class="timeline-head">
         <div class="item-actions">
+          <button class="btn-small" onclick="editSuggestLogEntry('${entry.id}')">編集</button>
           <button class="btn-danger" onclick="deleteSuggestLogEntry('${entry.id}')">削除</button>
         </div>
       </div>
@@ -3477,15 +3510,22 @@ function editSuggestLogEntry(id){
   const currentGames=suggestGamePair(entry);
   let dataGameValue=null;
   let liquidGameValue=null;
+  let gapOffset=suggestGapOffset(entry);
   if(useAppearG){
-    const dataGame=prompt('出現データG数（空でも可）',currentGames.dataGame!==null?String(currentGames.dataGame):'');if(dataGame===null)return;
-    const liquidGame=prompt('出現液晶G数（空でも可）',currentGames.liquidGame!==null?String(currentGames.liquidGame):'');if(liquidGame===null)return;
-    dataGameValue=normalizeOptionalNumber(dataGame.trim());
-    liquidGameValue=normalizeOptionalNumber(liquidGame.trim());
-    if(dataGame.trim()!==''&&dataGameValue===null){alert('出現データG数は数値で入力してください');return;}
-    if(liquidGame.trim()!==''&&liquidGameValue===null){alert('出現液晶G数は数値で入力してください');return;}
-    if(dataGameValue===null&&liquidGameValue!==null)dataGameValue=liquidGameValue;
-    if(liquidGameValue===null&&dataGameValue!==null)liquidGameValue=dataGameValue;
+    const gapInput=prompt('差分（液晶G−データG）',String(gapOffset));if(gapInput===null)return;
+    const nextGap=normalizeOptionalNumber(gapInput.trim());
+    if(gapInput.trim()!==''&&nextGap===null){alert('差分は数値で入力してください');return;}
+    gapOffset=nextGap??0;
+    const baseInput=prompt('編集基準（data=データG / liquid=液晶G）','data');if(baseInput===null)return;
+    const base=baseInput.trim()==='liquid'?'liquid':'data';
+    const label=base==='liquid'?'出現液晶G数':'出現データG数';
+    const currentValue=base==='liquid'?currentGames.liquidGame:currentGames.dataGame;
+    const input=prompt(`${label}（空でも可・差分維持で片側を再計算）`,currentValue!==null?String(currentValue):'');if(input===null)return;
+    const value=normalizeOptionalNumber(input.trim());
+    if(input.trim()!==''&&value===null){alert(`${label}は数値で入力してください`);return;}
+    const pair=base==='liquid'?suggestPairFromLiquid(value,gapOffset):suggestPairFromData(value,gapOffset);
+    dataGameValue=pair.dataGame;
+    liquidGameValue=pair.liquidGame;
   }
   const state=prompt('状態（play=稼働中 / hit=当選時）',suggestEntryStateGroup(entry));if(state===null)return;
   const place=prompt('確認場所',entry.place);if(place===null)return;
@@ -3493,7 +3533,7 @@ function editSuggestLogEntry(id){
   let trophyCustom=entry.trophyCustom||'';
   if(!(place.trim().includes('トロフィー')||entry.placeId==='sgp_tokyo_ghoul_trophy'))trophyCustom='';
   if(!place.trim()||!item.trim()){alert('確認場所、内容は空にできません');return;}
-  Object.assign(entry,{stateGroup:normalizeSuggestStateGroup(state.trim())||suggestEntryStateGroup(entry),place:place.trim(),item:item.trim(),game:dataGameValue,dataGame:dataGameValue,liquidGame:liquidGameValue,trophyCustom,updatedAt:new Date().toISOString()});
+  Object.assign(entry,{stateGroup:normalizeSuggestStateGroup(state.trim())||suggestEntryStateGroup(entry),place:place.trim(),item:item.trim(),game:dataGameValue,dataGame:dataGameValue,liquidGame:liquidGameValue,gapOffset,trophyCustom,updatedAt:new Date().toISOString()});
   renderCurrentSuggestLog();
   renderCarrySummaryIntoDom();
   saveDraftImmediately();
@@ -3513,15 +3553,19 @@ function renderGamePairInputs(prefix){
   const liquidLabel=prefix==='suggest'?'示唆時液晶G数':'液晶G数';
   const dataValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame);
   const liquidValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame+timelineLiquidOffset());
+  const rolePrefix=prefix==='suggest'?'suggest':'timeline';
+  const dataHandler=prefix==='suggest'?`syncSuggestDataGame('${dataId}')`:`syncTimelineDataGame('${dataId}')`;
+  const liquidHandler=prefix==='suggest'?`syncSuggestLiquidGame('${liquidId}')`:`syncTimelineLiquidGame('${liquidId}')`;
+  const gapAttr=prefix==='suggest'?` data-gap-offset="${escapeHtml(timelineLiquidOffset())}"`:'';
   return `
     <div class="game-pair-row">
       <div class="game-pair-field">
         <label for="${dataId}">${dataLabel}</label>
-        <input type="text" id="${dataId}" data-game-role="timeline-data" class="numeric-input" inputmode="none" readonly value="${escapeHtml(dataValue)}" placeholder="例：523" oninput="syncTimelineDataGame('${dataId}')" onchange="syncTimelineDataGame('${dataId}')">
+        <input type="text" id="${dataId}" data-game-role="${rolePrefix}-data" class="numeric-input" inputmode="none" readonly value="${escapeHtml(dataValue)}" placeholder="例：523"${gapAttr} oninput="${dataHandler}" onchange="${dataHandler}">
       </div>
       <div class="game-pair-field">
         <label for="${liquidId}">${liquidLabel}</label>
-        <input type="text" id="${liquidId}" data-game-role="timeline-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="例：523" oninput="syncTimelineLiquidGame('${liquidId}')" onchange="syncTimelineLiquidGame('${liquidId}')">
+        <input type="text" id="${liquidId}" data-game-role="${rolePrefix}-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="例：523"${gapAttr} oninput="${liquidHandler}" onchange="${liquidHandler}">
       </div>
     </div>`;
 }
@@ -4010,6 +4054,61 @@ function setTimelineOutcome(label){
 }
 function firstTimelineInput(role){
   return document.querySelector(`[data-game-role="${role}"]`);
+}
+function firstSuggestInput(role){
+  return document.querySelector(`[data-game-role="suggest-${role}"]`);
+}
+function suggestInputGapOffset(){
+  const dataInput=firstSuggestInput('data');
+  const liquidInput=firstSuggestInput('liquid');
+  return normalizeOptionalNumber(dataInput?.dataset?.gapOffset)??normalizeOptionalNumber(liquidInput?.dataset?.gapOffset)??timelineLiquidOffset();
+}
+function setSuggestInputGapOffset(gapOffset){
+  const gap=normalizeOptionalNumber(gapOffset)??0;
+  document.querySelectorAll('[data-game-role="suggest-data"],[data-game-role="suggest-liquid"]').forEach(input=>{input.dataset.gapOffset=String(gap);});
+}
+function suggestTimelineDataValue(){
+  const domValue=normalizeOptionalNumber(firstSuggestInput('data')?.value||'');
+  return domValue!==null?domValue:timelineDataValue();
+}
+function suggestTimelineLiquidValue(){
+  const domValue=normalizeOptionalNumber(firstSuggestInput('liquid')?.value||'');
+  if(domValue!==null)return domValue;
+  const data=suggestTimelineDataValue();
+  return data!==null?data+suggestInputGapOffset():timelineLiquidValue();
+}
+function setSuggestGames(dataGame,liquidGame,gapOffset=suggestInputGapOffset()){
+  const data=dataGame===null||dataGame===undefined?null:Number(dataGame);
+  const liquid=liquidGame===null||liquidGame===undefined?null:Number(liquidGame);
+  setSuggestInputGapOffset(gapOffset);
+  document.querySelectorAll('[data-game-role="suggest-data"]').forEach(input=>{input.value=data===null?'':String(data);});
+  document.querySelectorAll('[data-game-role="suggest-liquid"]').forEach(input=>{input.value=liquid===null?'':String(liquid);});
+}
+function syncSuggestDataGame(sourceId=''){
+  const source=sourceId?document.getElementById(sourceId):firstSuggestInput('data');
+  const data=normalizeOptionalNumber(source?.value||'');
+  const gap=suggestInputGapOffset();
+  if(data===null){
+    setSuggestGames(null,null,gap);
+    scheduleDraftSave();
+    return;
+  }
+  const pair=suggestPairFromData(data,gap);
+  setSuggestGames(pair.dataGame,pair.liquidGame,pair.gapOffset);
+  scheduleDraftSave();
+}
+function syncSuggestLiquidGame(sourceId=''){
+  const source=sourceId?document.getElementById(sourceId):firstSuggestInput('liquid');
+  const liquid=normalizeOptionalNumber(source?.value||'');
+  const gap=suggestInputGapOffset();
+  if(liquid===null){
+    setSuggestGames(null,null,gap);
+    scheduleDraftSave();
+    return;
+  }
+  const pair=suggestPairFromLiquid(liquid,gap);
+  setSuggestGames(pair.dataGame,pair.liquidGame,pair.gapOffset);
+  scheduleDraftSave();
 }
 function timelineLiquidOffset(){
   return currentTimelineSuikaOffset+currentTimelineManualCorrection;
