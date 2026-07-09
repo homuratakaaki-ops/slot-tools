@@ -649,6 +649,8 @@ let currentEndLog=null;
 let currentHitEvents=[];
 let currentSuggestLog=[];
 let currentKuiPointReleased=false;
+let currentSegments=[];
+let lastSegmentUndo=null;
 let pendingTimelineTagIds=[];
 let timelineHistoryOpen=false;
 let recentTimelineHighlightId='';
@@ -796,6 +798,26 @@ function normalizeHitBranchWizard(wizard){
     eventId:String(wizard?.eventId||'')
   };
 }
+function normalizeSegment(segment){
+  if(!segment||typeof segment!=='object')return null;
+  const dataGame=normalizeOptionalNumber(segment.dataGame);
+  const liquidGame=normalizeOptionalNumber(segment.liquidGame);
+  return {
+    id:segment.id||uid('seg'),
+    createdAt:segment.createdAt||new Date().toISOString(),
+    terminalType:String(segment.terminalType||''),
+    terminalLabel:String(segment.terminalLabel||''),
+    trigger:normalizeHitTrigger(segment.trigger)||null,
+    exit:normalizeHitExit(segment.exit),
+    dataGame:dataGame!==null?dataGame:null,
+    liquidGame:liquidGame!==null?liquidGame:dataGame,
+    suikaOffset:normalizeOptionalNumber(segment.suikaOffset)??0,
+    manualCorrection:normalizeOptionalNumber(segment.manualCorrection)??0,
+    timeline:Array.isArray(segment.timeline)?segment.timeline.map(item=>({...item,game:normalizeOptionalNumber(item.game),liquidGame:normalizeOptionalNumber(item.liquidGame)})):[],
+    suggestLog:Array.isArray(segment.suggestLog)?segment.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[],
+    hitEvents:Array.isArray(segment.hitEvents)?segment.hitEvents.map(normalizeHitEvent).filter(Boolean):[]
+  };
+}
 function normalizeSuggestLogEntry(item){
   if(!item||typeof item!=='object')return null;
   item.category=item.category||'';
@@ -849,6 +871,7 @@ function normalizeData(data){
     log.kuiPoint.gains=Array.isArray(log.kuiPoint.gains)?log.kuiPoint.gains:[];
     log.kuiPoint.hints=Array.isArray(log.kuiPoint.hints)?log.kuiPoint.hints:[];
     log.hitEvents=Array.isArray(log.hitEvents)?log.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    log.segments=Array.isArray(log.segments)?log.segments.map(normalizeSegment).filter(Boolean):[];
     log.hitBranchWizard=log.hitBranchWizard&&typeof log.hitBranchWizard==='object'?normalizeHitBranchWizard(log.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     log.continuedFromId=log.continuedFromId||log.continuedFromLog?.id||'';
     log.sameTableCarryOptOut=!!log.sameTableCarryOptOut;
@@ -888,6 +911,7 @@ function normalizeData(data){
     data.draftLog.finalized=false;
     data.draftLog.excludeFromStats=true;
     data.draftLog.hitEvents=Array.isArray(data.draftLog.hitEvents)?data.draftLog.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    data.draftLog.segments=Array.isArray(data.draftLog.segments)?data.draftLog.segments.map(normalizeSegment).filter(Boolean):[];
     data.draftLog.suggestLog=Array.isArray(data.draftLog.suggestLog)?data.draftLog.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[];
     data.draftLog.hitBranchWizard=data.draftLog.hitBranchWizard&&typeof data.draftLog.hitBranchWizard==='object'?normalizeHitBranchWizard(data.draftLog.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     data.draftLog.startCzFailCount=normalizeOptionalNumber(data.draftLog.startCzFailCount);
@@ -1871,6 +1895,8 @@ function addMachine(){
   currentHitEvents=[];
   currentSuggestLog=[];
   currentKuiPointReleased=false;
+  currentSegments=[];
+  lastSegmentUndo=null;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
   persist();
@@ -1893,6 +1919,8 @@ function selectMachine(id){
   currentHitEvents=[];
   currentSuggestLog=[];
   currentKuiPointReleased=false;
+  currentSegments=[];
+  lastSegmentUndo=null;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
   renderAll();
@@ -2390,7 +2418,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineDataGame=null;resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineDataGame=null;resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -2587,7 +2615,7 @@ function renderLogFields(){
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
     2:`<div class="card work-section-card play"><div class="work-section-title">稼働中の記録</div>${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
     3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div>`,
-    4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div><div id="practiceStatsBox"></div></div>`
+    4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div>${renderSegmentUndoNotice()}<div id="practiceStatsBox"></div></div>`
   };
   el.innerHTML=panels[currentFlowStep]||panels[1];
   renderCurrentStartLog();
@@ -3620,8 +3648,9 @@ function startHitEventWizard(trigger){
   saveDraftImmediately();
 }
 function renderHitEventsList(){
-  if(!currentHitEvents.length)return '<div class="empty-hint">まだ当選イベントがありません。上の当選トリガーを押すと作成されます。</div>';
-  return `<div class="timeline-history-body">${currentHitEvents.map(event=>`
+  const events=currentSegmentHitEvents();
+  if(!events.length)return '<div class="empty-hint">まだ当選イベントがありません。上の当選トリガーを押すと作成されます。</div>';
+  return `<div class="timeline-history-body">${events.map(event=>`
     <div class="timeline-item">
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitTriggerLabel(event.trigger)}`)}</div>
@@ -3637,6 +3666,136 @@ function hitEventLine(event){
   if(event.payout!==null&&event.payout!==undefined)parts.push(`獲得${event.payout}枚`);
   if(event.exit)parts.push(event.exit==='continue'?'続行':'即ヤメ');
   return parts.join(' / ');
+}
+function segmentTerminalLabel(event,terminalType=''){
+  if(!event)return terminalType||'区切り';
+  const trigger=hitTriggerLabel(event.trigger);
+  if(event.czResult==='at_lose')return `${trigger} / AT非突入`;
+  if(terminalType==='ending')return `${trigger} / エンディング到達`;
+  if(event.through==='yes')return `${trigger} / AT終了（駆け抜け）`;
+  if(event.through==='no')return `${trigger} / AT終了`;
+  return `${trigger} / チェーン終端`;
+}
+function archivedHitEventIds(){
+  const ids=new Set();
+  currentSegments.forEach(segment=>(segment.hitEvents||[]).forEach(event=>ids.add(event.id)));
+  return ids;
+}
+function currentSegmentHitEvents(){
+  const archived=archivedHitEventIds();
+  return currentHitEvents.filter(event=>!archived.has(event.id));
+}
+function createSegmentSnapshot(event,terminalType=''){
+  const terminalEvent=event?normalizeHitEvent(event):null;
+  const dataGame=normalizeOptionalNumber(terminalEvent?.dataGame)??timelineDataValue();
+  const liquidGame=normalizeOptionalNumber(terminalEvent?.liquidGame)??timelineLiquidValue();
+  return normalizeSegment({
+    id:uid('seg'),
+    createdAt:new Date().toISOString(),
+    terminalType,
+    terminalLabel:segmentTerminalLabel(terminalEvent,terminalType),
+    trigger:terminalEvent?.trigger||null,
+    exit:terminalEvent?.exit||null,
+    dataGame,
+    liquidGame,
+    suikaOffset:currentTimelineSuikaOffset,
+    manualCorrection:currentTimelineManualCorrection,
+    timeline:clone(sortedTimeline()),
+    suggestLog:clone(sortedSuggestLog()),
+    hitEvents:clone(currentSegmentHitEvents().map(normalizeHitEvent).filter(Boolean))
+  });
+}
+function carrySuggestEntriesForNextSegment(){
+  return currentSuggestLog.filter(entry=>normalizeCarryType(entry.carryType)).map(clone);
+}
+function resetCurrentSegment({preserveEndState=false}={}){
+  currentTimeline=[];
+  currentTimelineDataGame=0;
+  resetTimelineOffsets();
+  currentSuggestLog=carrySuggestEntriesForNextSegment();
+  pendingTimelineTagIds=[];
+  recentTimelineHighlightId='';
+  recentSuggestHighlightId='';
+  timelineHistoryOpen=true;
+  suggestInputsDirty=false;
+  if(!preserveEndState){
+    linkedEndDataGame=null;
+    linkedEndLiquidGame=null;
+    currentEndLog=null;
+  }
+  setTimelineGames(0,0);
+}
+function archiveCurrentSegment(event,terminalType='',options={}){
+  const segment=createSegmentSnapshot(event,terminalType);
+  if(!segment)return null;
+  lastSegmentUndo={
+    segmentId:segment.id,
+    eventId:event?.id||'',
+    state:{
+      currentTimeline:clone(currentTimeline),
+      currentTimelineDataGame,
+      currentTimelineSuikaOffset,
+      currentTimelineManualCorrection,
+      currentSuggestLog:clone(currentSuggestLog),
+      linkedEndDataGame,
+      linkedEndLiquidGame,
+      currentEndLog:clone(currentEndLog),
+      pendingTimelineTagIds:clone(pendingTimelineTagIds),
+      recentTimelineHighlightId,
+      recentSuggestHighlightId,
+      timelineHistoryOpen,
+      suggestInputsDirty
+    }
+  };
+  currentSegments.unshift(segment);
+  resetCurrentSegment({preserveEndState:!!options.preserveEndState});
+  return segment;
+}
+function restoreHitWizardToExit(event){
+  if(!event)return;
+  const route=event.czResult==='at_lose'?'czFail':'atHit';
+  const steps=hitBranchSteps(route,event.through);
+  const exitIndex=Math.max(0,steps.findIndex(step=>step.key==='exit'));
+  hitBranchWizard={
+    route,
+    stepIndex:exitIndex,
+    through:event.through==='yes'||event.through==='no'?event.through:null,
+    done:steps.slice(0,exitIndex).map(step=>step.key),
+    eventId:event.id
+  };
+}
+function undoLastSegmentArchive(){
+  if(!lastSegmentUndo)return;
+  const undo=lastSegmentUndo;
+  currentSegments=currentSegments.filter(segment=>segment.id!==undo.segmentId);
+  currentTimeline=clone(undo.state.currentTimeline);
+  currentTimelineDataGame=undo.state.currentTimelineDataGame;
+  currentTimelineSuikaOffset=undo.state.currentTimelineSuikaOffset;
+  currentTimelineManualCorrection=undo.state.currentTimelineManualCorrection;
+  currentSuggestLog=clone(undo.state.currentSuggestLog);
+  linkedEndDataGame=undo.state.linkedEndDataGame;
+  linkedEndLiquidGame=undo.state.linkedEndLiquidGame;
+  currentEndLog=clone(undo.state.currentEndLog);
+  pendingTimelineTagIds=clone(undo.state.pendingTimelineTagIds);
+  recentTimelineHighlightId=undo.state.recentTimelineHighlightId;
+  recentSuggestHighlightId=undo.state.recentSuggestHighlightId;
+  timelineHistoryOpen=undo.state.timelineHistoryOpen;
+  suggestInputsDirty=undo.state.suggestInputsDirty;
+  const event=currentHitEvents.find(item=>item.id===undo.eventId);
+  if(event){
+    event.exit=null;
+    event.wizardDone=false;
+    restoreHitWizardToExit(event);
+  }
+  lastSegmentUndo=null;
+  currentFlowStep=3;
+  renderLogFields();
+  renderFlowStepTabs();
+  renderCurrentTimeline();
+  renderCurrentSuggestLog();
+  renderCarrySummaryIntoDom();
+  renderPracticeStats();
+  saveDraftImmediately();
 }
 function renderTimelineArea(mode='play'){
   const machine=currentMachine();
@@ -3903,8 +4062,10 @@ function selectHitExit(exit){
   event.wizardDone=true;
   if(event.exit==='quit'){
     setEndLogFromHitEvent(event);
+    archiveCurrentSegment(event,'quit',{preserveEndState:true});
     currentFlowStep=4;
   }else{
+    archiveCurrentSegment(event,'continue',{preserveEndState:false});
     currentFlowStep=2;
   }
   hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
@@ -4029,6 +4190,50 @@ function renderTimelineHistoryPanel(){
       </button>
       <div class="timeline-history-body" id="timelineList"></div>
     </div>`;
+}
+function segmentOrdinalLabel(index){
+  if(index===0)return '前回';
+  if(index===1)return '前々回';
+  return `前${index+1}回`;
+}
+function segmentSummary(segment,index){
+  const game=segment.dataGame!==null?`最終 ${segment.dataGame}/${segment.liquidGame??segment.dataGame}G`:'最終G数なし';
+  return `${segmentOrdinalLabel(index)}：${segment.terminalLabel||'区切り'} / ${game}`;
+}
+function segmentText(segment,index){
+  const lines=[segmentSummary(segment,index)];
+  if((segment.hitEvents||[]).length){
+    lines.push('当選イベント：');
+    (segment.hitEvents||[]).forEach(event=>lines.push(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event)}`));
+  }
+  if((segment.timeline||[]).length){
+    lines.push('途中ログ：');
+    (segment.timeline||[]).forEach(item=>lines.push(`${timelineGameLine(item)} ${item.text||''}`.trim()));
+  }
+  if((segment.suggestLog||[]).length){
+    lines.push('示唆記録：');
+    (segment.suggestLog||[]).forEach(entry=>lines.push(suggestLogLine(entry)));
+  }
+  return lines.join('\n');
+}
+function archivedSegmentsHtml(){
+  if(!currentSegments.length)return '';
+  return currentSegments.map((segment,index)=>`
+    <div class="carry-summary-section ${index===0?'open':''}">
+      <button class="carry-summary-toggle" type="button" onclick="this.parentElement.classList.toggle('open')">
+        <span>${escapeHtml(segmentSummary(segment,index))}</span>
+        <span class="carry-summary-count">${(segment.timeline||[]).length}件 ${index===0?'▲':'▼'}</span>
+      </button>
+      <div class="carry-summary-body">
+        <textarea id="segmentCopy_${segment.id}" style="min-height:120px;">${escapeHtml(segmentText(segment,index))}</textarea>
+        <button class="btn-copy" onclick="copyText(document.getElementById('segmentCopy_${segment.id}')?.value||'','segmentCopied_${segment.id}')">この区切りをコピー</button>
+        <div class="copy-done" id="segmentCopied_${segment.id}">コピーしました</div>
+      </div>
+    </div>`).join('');
+}
+function renderSegmentUndoNotice(){
+  if(!lastSegmentUndo)return '';
+  return `<button class="btn-secondary" onclick="undoLastSegmentArchive()">区切りを取り消す</button>`;
 }
 function toggleTimelineHistory(){
   timelineHistoryOpen=!timelineHistoryOpen;
@@ -4354,8 +4559,10 @@ function renderCurrentTimeline(){
   updateTimelineAddButtonState();
   if(!el)return;
   const rows=sortedTimeline();
-  if(!rows.length){el.innerHTML='<div class="empty-hint">まだ時系列ログなし</div>';return;}
-  el.innerHTML=rows.map(t=>`
+  const archived=archivedSegmentsHtml();
+  const undo=renderSegmentUndoNotice();
+  if(!rows.length&&!archived){el.innerHTML=`${undo}<div class="empty-hint">まだ時系列ログなし</div>`;return;}
+  const currentRows=rows.length?rows.map(t=>`
     <div class="timeline-item ${t.id===recentTimelineHighlightId?'recent':''}">
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(timelineGameLine(t))}</div>
@@ -4364,7 +4571,8 @@ function renderCurrentTimeline(){
         </div>
       </div>
       <div class="timeline-text">${escapeHtml(t.text)}</div>
-    </div>`).join('');
+    </div>`).join(''):'<div class="empty-hint">現在セグメントの途中ログなし</div>';
+  el.innerHTML=`${undo}${archived}${currentRows}`;
 }
 function editTimelineEntry(id){
   const item=currentTimeline.find(t=>t.id===id);if(!item)return;
@@ -4805,6 +5013,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
     manualCorrection:currentTimelineManualCorrection,
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
+    segments:clone(currentSegments),
     endLog:clone(currentEndLog),
     hitEvents:clone(currentHitEvents.map(normalizeHitEvent).filter(Boolean)),
     hitBranchWizard:clone(normalizeHitBranchWizard(hitBranchWizard)),
@@ -4822,7 +5031,7 @@ function draftHasContent(log){
   const money=log.money||{};
   return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||
     (normalizeOptionalNumber(log.suikaOffset)??0)!==0||(normalizeOptionalNumber(log.manualCorrection)??0)!==0||
-    (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
+    (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.segments||[]).length>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
     !!money.store||!!money.machineNo||!!money.endTime||normalizeOptionalNumber(money.startMedals)!==null||normalizeOptionalNumber(money.endMedals)!==null||!!money.cashIn||
     !!log.publicMemo||!!log.privateMemo||!!continuedFromLog;
 }
@@ -4911,6 +5120,7 @@ function saveLog(options={}){
     manualCorrection:currentTimelineManualCorrection,
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
+    segments:clone(currentSegments),
     endLog:clone(currentEndLog),
     hitEvents:clone(currentHitEvents.map(normalizeHitEvent).filter(Boolean)),
     hitBranchWizard:clone(normalizeHitBranchWizard(hitBranchWizard)),
@@ -5116,6 +5326,8 @@ function loadDraftIntoInputs(log){
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
   currentHitEvents=clone(log.hitEvents||[]);
   currentSuggestLog=clone(log.suggestLog||[]);
+  currentSegments=clone(log.segments||[]);
+  lastSegmentUndo=null;
   currentKuiPointReleased=!!log.kuiPoint?.released;
   currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
   pendingSuggestSelection=null;
@@ -5168,6 +5380,8 @@ function loadLogForEdit(id){
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
   currentHitEvents=clone(log.hitEvents||[]);
   currentSuggestLog=clone(log.suggestLog||[]);
+  currentSegments=clone(log.segments||[]);
+  lastSegmentUndo=null;
   currentKuiPointReleased=!!log.kuiPoint?.released;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
@@ -5219,6 +5433,8 @@ function continueFromLog(id,skipConfirm=false){
   currentHitEvents=[];
   currentSuggestLog=[];
   currentKuiPointReleased=false;
+  currentSegments=[];
+  lastSegmentUndo=null;
   pendingSuggestSelection=null;
   resetTransientLogUiState();
   closeSuggestPicker();
