@@ -78,6 +78,13 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .list-item{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:8px;}
 .list-item.active{border-color:rgba(201,168,76,.7);background:rgba(201,168,76,.08);}
 .item-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.log-day-header{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.35);border-radius:8px;color:var(--text);padding:10px 12px;margin:16px 0 8px;cursor:pointer;text-align:left;}
+.log-day-title{font-weight:800;color:var(--gold-light);}
+.log-day-count{font-size:12px;color:var(--text-muted);}
+.log-summary-button{width:100%;background:transparent;border:0;color:inherit;text-align:left;padding:0;cursor:pointer;}
+.log-summary-line{font-weight:800;color:var(--text);line-height:1.45;}
+.log-summary-meta{font-size:12px;color:var(--text-muted);line-height:1.5;margin-top:4px;}
+.log-detail{border-top:1px solid var(--border);margin-top:10px;padding-top:10px;}
 .item-title{font-size:14px;font-weight:700;color:var(--text);}
 .item-sub{font-size:11px;color:var(--text-muted);margin-top:2px;}
 .item-actions{display:flex;gap:6px;flex-shrink:0;flex-wrap:wrap;justify-content:flex-end;}
@@ -653,6 +660,8 @@ let currentSegments=[];
 let lastSegmentUndo=null;
 let pendingTimelineTagIds=[];
 let timelineHistoryOpen=false;
+let logDateOpenState={};
+let openLogDetailIds={};
 let recentTimelineHighlightId='';
 let recentSuggestHighlightId='';
 let modeSummaryOpen=false;
@@ -5550,6 +5559,46 @@ function logSummaryMoney(log){
   if(calc.model==='medals')return `メダル ${formatDiff(calc.medalDiff)}　円収支 ${formatYenDiff(calc.yenDiff)}`;
   return `差枚 ${formatDiff(log.money?.diff)}`;
 }
+function latestLogGameLine(log){
+  if(log.endLog)return endLogLine(log.endLog);
+  const timeline=[...(log.timeline||[])].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  if(timeline[0])return timelineGameLine(timeline[0]);
+  const hits=[...(log.hitEvents||[])].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  if(hits[0])return `${hits[0].dataGame}/${hits[0].liquidGame}G`;
+  const startCounter=logStartCounterValue(log);
+  return startCounter!==null?`開始 ${startCounter}G`:'最終Gなし';
+}
+function logSummaryLine(log){
+  const machine=log.machineName||'機種未設定';
+  const aim=log.aimName||'狙い方未設定';
+  return `${machine} / ${aim}`;
+}
+function logSummaryMeta(log){
+  const parts=[
+    logSummaryMoney(log),
+    latestLogGameLine(log),
+    `稼働 ${log.money?.workMinutes??'-'}分`,
+    `経過 ${(log.timeline||[]).length}件`,
+    `当選 ${(log.hitEvents||[]).length}件`,
+    `示唆 ${(log.suggestLog||[]).length}件`
+  ];
+  const segmentCount=(log.segments||[]).length;
+  if(segmentCount)parts.push(`区切り ${segmentCount}件`);
+  return parts.join(' / ');
+}
+function isLogDateGroupOpen(date){
+  if(Object.prototype.hasOwnProperty.call(logDateOpenState,date))return !!logDateOpenState[date];
+  return date===todayValue();
+}
+function toggleLogDateGroup(encodedDate){
+  const date=decodeURIComponent(encodedDate);
+  logDateOpenState[date]=!isLogDateGroupOpen(date);
+  renderLogsList();
+}
+function toggleLogDetail(id){
+  openLogDetailIds[id]=!openLogDetailIds[id];
+  renderLogsList();
+}
 function renderLogsList(){
   const el=document.getElementById('logsList');
   if(!db.logs.length){el.innerHTML='<div class="empty-hint">まだログなし</div>';return;}
@@ -5566,35 +5615,37 @@ function renderLogsList(){
     return String(b).localeCompare(String(a));
   });
   el.innerHTML=dates.map(date=>`
-    <div class="section-label" style="margin-top:18px;">${escapeHtml(date)}</div>
-    ${groups[date].map(log=>renderLogItem(log)).join('')}`).join('');
+    <button class="log-day-header" onclick="toggleLogDateGroup('${encodeURIComponent(date)}')">
+      <span class="log-day-title">${isLogDateGroupOpen(date)?'▼':'▶'} ${escapeHtml(date)}</span>
+      <span class="log-day-count">${groups[date].length}件</span>
+    </button>
+    ${isLogDateGroupOpen(date)?groups[date].map(log=>renderLogItem(log)).join(''):''}`).join('');
 }
 function renderLogItem(log){
+  const isOpen=!!openLogDetailIds[log.id];
   return `
     <div class="list-item">
       <div class="item-head">
-        <div>
-          <div class="item-title">${escapeHtml(log.machineName)} / ${escapeHtml(log.aimName)}</div>
+        <button class="log-summary-button" onclick="toggleLogDetail('${log.id}')">
+          <div class="log-summary-line">${isOpen?'▼':'▶'} ${escapeHtml(logSummaryLine(log))}</div>
           ${log.excludeFromStats?'<div class="unfinalized-note">収支未登録のため集計対象外です。</div>':''}
-          <div class="item-sub">${escapeHtml(logSummaryMoney(log))}　稼働 ${log.money?.workMinutes??'-'}分　経過 ${(log.timeline||[]).length}件　当選 ${(log.hitEvents||[]).length}件　示唆 ${(log.suggestLog||[]).length}件</div>
-          <div class="item-sub">${escapeHtml(practiceStatsLine(calculatePracticeStats(log)))}</div>
-          <div style="margin-top:6px;">
-            ${logStartCounterValue(log)!==null?`<span class="pill gold">${escapeHtml('データカウンターのゲーム数：'+logStartCounterValue(log))}</span>`:''}
-            ${visibleStartLog(log).slice(0,2).map(x=>`<span class="pill gold">${escapeHtml(startLogLine(x))}</span>`).join('')}
-            ${(log.timeline||[]).slice(0,2).map(x=>`<span class="pill">${escapeHtml(timelineGameLine(x)+' '+x.text)}</span>`).join('')}
-            ${(log.hitEvents||[]).slice(0,2).map(x=>`<span class="pill gold">${escapeHtml(`${x.dataGame}/${x.liquidGame}G ${hitEventLine(x)}`)}</span>`).join('')}
-            ${(log.suggestLog||[]).slice(0,2).map(x=>`<span class="pill">${escapeHtml(suggestLogLine(x))}</span>`).join('')}
-            ${log.endLog?`<span class="pill gold">${escapeHtml(endLogLine(log.endLog))}</span>`:''}
-          </div>
-        </div>
+          <div class="log-summary-meta">${escapeHtml(logSummaryMeta(log))}</div>
+          <div class="log-summary-meta">${escapeHtml(practiceStatsLine(calculatePracticeStats(log)))}</div>
+        </button>
         <div class="item-actions">
-          <button class="btn-small" onclick="loadLogForEdit('${log.id}')">編集</button>
-          <button class="btn-danger" onclick="deleteLog('${log.id}')">削除</button>
+          <button class="btn-small edit-strong" onclick="loadLogForEdit('${log.id}')">編集</button>
         </div>
       </div>
-      <textarea id="share_${log.id}" style="margin-top:10px;min-height:180px;">${escapeHtml(buildShareText(log))}</textarea>
-      <button class="btn-copy" onclick="copyLog('${log.id}')">編集した内容をコピー</button>
-      <div class="copy-done" id="copied_${log.id}">コピーしました</div>
+      ${isOpen?`
+        <div class="log-detail">
+          <textarea id="share_${log.id}" style="min-height:180px;">${escapeHtml(buildShareText(log))}</textarea>
+          <div class="item-actions" style="margin-top:8px;">
+            <button class="btn-copy" onclick="copyLog('${log.id}')">詳細をコピー</button>
+            <button class="btn-small edit-strong" onclick="loadLogForEdit('${log.id}')">編集</button>
+            <button class="btn-danger" onclick="deleteLog('${log.id}')">削除</button>
+          </div>
+          <div class="copy-done" id="copied_${log.id}">コピーしました</div>
+        </div>`:''}
     </div>`;
 }
 function copyText(text,doneId){
@@ -5618,6 +5669,7 @@ function copyLog(id){
 function deleteLog(id){
   if(!confirm('このログを削除しますか？'))return;
   db.logs=db.logs.filter(l=>l.id!==id);
+  delete openLogDetailIds[id];
   if(continuedFromLog?.id===id)clearContinueState();
   persist();renderLogsList();
 }
