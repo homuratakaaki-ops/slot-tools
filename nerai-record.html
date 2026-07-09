@@ -70,6 +70,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .btn-continue:active,.btn-stop:active,.btn-new:active{filter:brightness(1.08);}
 .btn-small{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;}
 .btn-small.gold{border-color:var(--gold);color:var(--gold);}
+.btn-small.edit-strong{background:rgba(201,168,76,.16);border-color:rgba(201,168,76,.75);color:var(--gold-light);font-weight:800;}
 .btn-danger{background:transparent;border:1px solid rgba(201,76,76,.45);border-radius:6px;color:#e07070;font-size:12px;padding:5px 10px;cursor:pointer;white-space:nowrap;}
 .btn-copy{width:100%;background:transparent;border:1px solid var(--gold);border-radius:6px;color:var(--gold);font-size:14px;padding:10px;margin-top:8px;cursor:pointer;}
 .btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px;}
@@ -657,6 +658,7 @@ let settingSummaryOpen=false;
 let suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:''};
 let hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
 let pendingSuggestSelection=null;
+let suggestInputsDirty=false;
 let editingLogId=null;
 let continuedFromLog=null;
 let editingStoreName=null;
@@ -3115,6 +3117,7 @@ function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   const {useAppearG:unused,decorations,...entry}=selection;
   const saved={...entry,source:entry.source==='wizard'?'wizard':'manual',id:uid('sgl'),game:dataGame,dataGame,liquidGame,gapOffset,trophyCustom:custom,createdAt:new Date().toISOString()};
   currentSuggestLog.push(saved);
+  suggestInputsDirty=false;
   if(normalizeCarryType(saved.carryType)==='mode')modeSummaryOpen=true;
   recentSuggestHighlightId=saved.id;
   pendingSuggestSelection=null;
@@ -3258,7 +3261,7 @@ function renderCurrentSuggestLog(){
     <div class="timeline-item ${entry.id===recentSuggestHighlightId?'recent':''}">
       <div class="timeline-head">
         <div class="item-actions">
-          <button class="btn-small" onclick="editSuggestLogEntry('${entry.id}')">編集</button>
+          <button class="btn-small edit-strong" onclick="editSuggestLogEntry('${entry.id}')">編集</button>
           <button class="btn-danger" onclick="deleteSuggestLogEntry('${entry.id}')">削除</button>
         </div>
       </div>
@@ -3554,10 +3557,11 @@ function renderGamePairInputs(prefix){
   const dataValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame);
   const liquidValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame+timelineLiquidOffset());
   const rolePrefix=prefix==='suggest'?'suggest':'timeline';
-  const dataHandler=prefix==='suggest'?`syncSuggestDataGame('${dataId}')`:`syncTimelineDataGame('${dataId}')`;
-  const liquidHandler=prefix==='suggest'?`syncSuggestLiquidGame('${liquidId}')`:`syncTimelineLiquidGame('${liquidId}')`;
+  const dataHandler=prefix==='suggest'?`markSuggestInputsDirty()`:`syncTimelineDataGame('${dataId}')`;
+  const liquidHandler=prefix==='suggest'?`markSuggestInputsDirty()`:`syncTimelineLiquidGame('${liquidId}')`;
   const gapAttr=prefix==='suggest'?` data-gap-offset="${escapeHtml(timelineLiquidOffset())}"`:'';
   return `
+    ${prefix==='suggest'?'<div class="btn-row"><button class="btn-small" onclick="resetSuggestInputsToCurrent()">現在値</button></div>':''}
     <div class="game-pair-row">
       <div class="game-pair-field">
         <label for="${dataId}">${dataLabel}</label>
@@ -4084,6 +4088,24 @@ function setSuggestGames(dataGame,liquidGame,gapOffset=suggestInputGapOffset()){
   document.querySelectorAll('[data-game-role="suggest-data"]').forEach(input=>{input.value=data===null?'':String(data);});
   document.querySelectorAll('[data-game-role="suggest-liquid"]').forEach(input=>{input.value=liquid===null?'':String(liquid);});
 }
+function currentCounterPair(){
+  const data=timelineDataValue();
+  return {dataGame:data,liquidGame:data!==null?data+timelineLiquidOffset():timelineLiquidValue()};
+}
+function presetSuggestInputs(force=false){
+  if(suggestInputsDirty&&!force)return;
+  const pair=currentCounterPair();
+  setSuggestGames(pair.dataGame,pair.liquidGame,timelineLiquidOffset());
+}
+function resetSuggestInputsToCurrent(){
+  suggestInputsDirty=false;
+  presetSuggestInputs(true);
+  scheduleDraftSave();
+}
+function markSuggestInputsDirty(){
+  suggestInputsDirty=true;
+  scheduleDraftSave();
+}
 function syncSuggestDataGame(sourceId=''){
   const source=sourceId?document.getElementById(sourceId):firstSuggestInput('data');
   const data=normalizeOptionalNumber(source?.value||'');
@@ -4140,6 +4162,7 @@ function setTimelineGames(dataGame,liquidGame){
   const normalizedLiquid=liquidGame===null||liquidGame===undefined?null:Number(liquidGame);
   document.querySelectorAll('[data-game-role="timeline-data"]').forEach(input=>{input.value=currentTimelineDataGame===null?'':String(currentTimelineDataGame);});
   document.querySelectorAll('[data-game-role="timeline-liquid"]').forEach(input=>{input.value=normalizedLiquid===null?'':String(normalizedLiquid);});
+  presetSuggestInputs(false);
 }
 function syncTimelineDataGame(sourceId=''){
   const source=sourceId?document.getElementById(sourceId):firstTimelineInput('timeline-data');
@@ -4169,12 +4192,12 @@ function syncTimelineLiquidGame(sourceId=''){
   const source=sourceId?document.getElementById(sourceId):firstTimelineInput('timeline-liquid');
   const liquid=normalizeOptionalNumber(source?.value||'');
   if(liquid===null){
-    setTimelineGames(null,null);
+    setTimelineGames(currentTimelineDataGame,null);
     scheduleDraftSave();
     return;
   }
-  const data=currentTimelineDataGame===null?liquid-timelineLiquidOffset():currentTimelineDataGame;
-  setManualCorrectionForLiquid(data,liquid);
+  const data=timelineDataValue();
+  if(data!==null)setManualCorrectionForLiquid(data,liquid);
   setTimelineGames(data,liquid);
   scheduleDraftSave();
 }
@@ -4279,6 +4302,17 @@ function timelineLiquidGameValue(item){
   const liquid=normalizeOptionalNumber(item?.liquidGame);
   if(liquid!==null)return liquid;
   return normalizeOptionalNumber(item?.game);
+}
+function latestTimelineCounterState(log){
+  const endData=normalizeOptionalNumber(log?.endLog?.game);
+  const endLiquid=normalizeOptionalNumber(log?.endLog?.liquidGame);
+  if(endData!==null)return {dataGame:endData,liquidGame:endLiquid!==null?endLiquid:endData};
+  const rows=Array.isArray(log?.timeline)?log.timeline:[];
+  const latest=[...rows].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+  const data=normalizeOptionalNumber(latest?.game);
+  if(data!==null)return {dataGame:data,liquidGame:timelineLiquidGameValue(latest)??data};
+  const start=logStartCounterValue(log);
+  return {dataGame:start,liquidGame:start!==null?start+(normalizeOptionalNumber(log?.suikaOffset)??0)+(normalizeOptionalNumber(log?.manualCorrection)??0):null};
 }
 function timelineGameLine(item){
   const data=normalizeOptionalNumber(item?.game);
@@ -4999,6 +5033,7 @@ function clearLogInput(cancelEdit=true){
 }
 function resetTransientLogUiState(){
   pendingTimelineTagIds=[];
+  suggestInputsDirty=false;
   timelineHistoryOpen=false;
   recentTimelineHighlightId='';
   recentSuggestHighlightId='';
@@ -5074,8 +5109,8 @@ function loadDraftIntoInputs(log){
   currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
-  currentTimelineDataGame=null;
   applyStoredTimelineOffsets(log);
+  currentTimelineDataGame=latestTimelineCounterState(log).dataGame;
   currentEndLog=clone(log.endLog||null);
   linkedEndDataGame=currentEndLog?.game??null;
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
@@ -5088,6 +5123,7 @@ function loadDraftIntoInputs(log){
   hitBranchWizard=normalizeHitBranchWizard(log.hitBranchWizard||{});
   closeSuggestPicker();
   renderAll();
+  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,currentTimelineDataGame+timelineLiquidOffset());
   fillLogInputs(log);
   renderFlowStepTabs();
   renderCurrentStartLog();
@@ -5125,8 +5161,8 @@ function loadLogForEdit(id){
   currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
-  currentTimelineDataGame=null;
   applyStoredTimelineOffsets(log);
+  currentTimelineDataGame=latestTimelineCounterState(log).dataGame;
   currentEndLog=clone(log.endLog||null);
   linkedEndDataGame=currentEndLog?.game??null;
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
@@ -5139,6 +5175,7 @@ function loadLogForEdit(id){
   closeSuggestPicker();
   showPage('pageLog');
   fillLogInputs(log);
+  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,currentTimelineDataGame+timelineLiquidOffset());
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
