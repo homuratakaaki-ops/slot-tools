@@ -564,8 +564,9 @@ footer a:hover{color:var(--gold-light);}
       <button class="keypad-btn action" onclick="pressKeypad('back')">戻る</button>
       <button class="keypad-btn" onclick="pressKeypad('0')">0</button>
       <button class="keypad-btn action" onclick="pressKeypad('.')">.</button>
+      <button class="keypad-btn action" onclick="pressKeypad('sign')">±</button>
       <button class="keypad-btn action" onclick="pressKeypad('clear')">クリア</button>
-      <button class="keypad-btn confirm" style="grid-column:span 3;" onclick="closeNumericKeypad()">確定</button>
+      <button class="keypad-btn confirm" style="grid-column:span 2;" onclick="closeNumericKeypad()">確定</button>
     </div>
   </div>
 </div>
@@ -639,7 +640,8 @@ let currentStartCzFailCount=null;
 let currentStartAtThroughCount=null;
 let currentTimeline=[];
 let currentTimelineDataGame=null;
-let currentTimelineLiquidOffset=0;
+let currentTimelineSuikaOffset=0;
+let currentTimelineManualCorrection=0;
 let linkedEndDataGame=null;
 let linkedEndLiquidGame=null;
 let currentEndLog=null;
@@ -813,6 +815,7 @@ function normalizeData(data){
       item.liquidOffsetDelta=normalizeOptionalNumber(item.liquidOffsetDelta);
       if(item.game!==null&&item.liquidGame===null)item.liquidGame=item.game;
     });
+    migrateTimelineOffsets(log);
     log.suggestLog=Array.isArray(log.suggestLog)?log.suggestLog:[];
     log.suggestLog.forEach(item=>{
       item.category=item.category||'';
@@ -883,6 +886,7 @@ function normalizeData(data){
     data.draftLog.startAtThroughCount=normalizeOptionalNumber(data.draftLog.startAtThroughCount);
     data.draftLog.kuiPoint=data.draftLog.kuiPoint&&typeof data.draftLog.kuiPoint==='object'?data.draftLog.kuiPoint:{released:false};
     data.draftLog.kuiPoint.released=!!data.draftLog.kuiPoint.released;
+    migrateTimelineOffsets(data.draftLog);
   }
   data.machines.forEach(m=>{
     m.maker=m.maker||'';
@@ -908,6 +912,24 @@ function normalizeData(data){
   });
   migrateTokyoGhoulSuggestLogs(data);
   return data;
+}
+function migrateTimelineOffsets(log){
+  if(!log||typeof log!=='object')return;
+  const legacyOffset=normalizeOptionalNumber(log.liquidOffset);
+  const existingSuika=normalizeOptionalNumber(log.suikaOffset);
+  const existingManual=normalizeOptionalNumber(log.manualCorrection);
+  if(existingSuika!==null&&existingManual!==null){
+    log.suikaOffset=existingSuika;
+    log.manualCorrection=existingManual;
+    return;
+  }
+  const timeline=Array.isArray(log.timeline)?log.timeline:[];
+  const legacyDeltaOffset=timeline.reduce((sum,item)=>{
+    const delta=normalizeOptionalNumber(item?.liquidOffsetDelta);
+    return delta!==null?sum+delta:sum;
+  },0);
+  log.suikaOffset=existingSuika!==null?existingSuika:0;
+  log.manualCorrection=existingManual!==null?existingManual:(legacyOffset!==null?legacyOffset:legacyDeltaOffset);
 }
 function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db));}
 function machineById(id){return db.machines.find(m=>m.id===id)||null;}
@@ -1809,7 +1831,7 @@ function addMachine(){
   currentStartAtThroughCount=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
-  currentTimelineLiquidOffset=0;
+  resetTimelineOffsets();
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
   currentEndLog=null;
@@ -1831,7 +1853,7 @@ function selectMachine(id){
   currentStartAtThroughCount=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
-  currentTimelineLiquidOffset=0;
+  resetTimelineOffsets();
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
   currentEndLog=null;
@@ -2335,7 +2357,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineDataGame=null;currentTimelineLiquidOffset=0;linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineDataGame=null;resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -2641,6 +2663,10 @@ function renderStartLogArea(){
     <div class="input-row">
       <div class="input-label no-wrap-label">データカウンターG数<div class="input-hint">必須・分母の起点</div></div>
       <input type="text" id="startCounterGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(startCounterInputValue())}" data-clear-initial-zero="${startCounterInitialZeroFlag()}" placeholder="0" oninput="syncStartCounterGame()" onchange="syncStartCounterGame()">
+    </div>
+    <div class="input-row">
+      <div class="input-label no-wrap-label">液晶初期補正<div class="input-hint">任意・液晶G−データG</div></div>
+      <input type="text" id="startLiquidCorrection" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(currentTimelineManualCorrection||'')}" placeholder="0" oninput="syncStartLiquidCorrection()" onchange="syncStartLiquidCorrection()">
     </div>
     <div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
       <div class="input-label no-wrap-label">CZ失敗回数</div>
@@ -3486,7 +3512,7 @@ function renderGamePairInputs(prefix){
   const dataLabel=prefix==='suggest'?'示唆時データG数':'データG数';
   const liquidLabel=prefix==='suggest'?'示唆時液晶G数':'液晶G数';
   const dataValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame);
-  const liquidValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame+currentTimelineLiquidOffset);
+  const liquidValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame+timelineLiquidOffset());
   return `
     <div class="game-pair-row">
       <div class="game-pair-field">
@@ -3985,6 +4011,22 @@ function setTimelineOutcome(label){
 function firstTimelineInput(role){
   return document.querySelector(`[data-game-role="${role}"]`);
 }
+function timelineLiquidOffset(){
+  return currentTimelineSuikaOffset+currentTimelineManualCorrection;
+}
+function resetTimelineOffsets(manualCorrection=0,suikaOffset=0){
+  currentTimelineSuikaOffset=normalizeOptionalNumber(suikaOffset)??0;
+  currentTimelineManualCorrection=normalizeOptionalNumber(manualCorrection)??0;
+}
+function applyStoredTimelineOffsets(log){
+  resetTimelineOffsets(log?.manualCorrection,log?.suikaOffset);
+}
+function setManualCorrectionForLiquid(dataGame,liquidGame){
+  const data=normalizeOptionalNumber(dataGame);
+  const liquid=normalizeOptionalNumber(liquidGame);
+  if(data===null||liquid===null)return;
+  currentTimelineManualCorrection=liquid-(data+currentTimelineSuikaOffset);
+}
 function timelineDataValue(){
   const domValue=normalizeOptionalNumber(firstTimelineInput('timeline-data')?.value||'');
   return domValue!==null?domValue:currentTimelineDataGame;
@@ -3992,12 +4034,11 @@ function timelineDataValue(){
 function timelineLiquidValue(){
   const domValue=normalizeOptionalNumber(firstTimelineInput('timeline-liquid')?.value||'');
   if(domValue!==null)return domValue;
-  return currentTimelineDataGame!==null?currentTimelineDataGame+currentTimelineLiquidOffset:null;
+  return currentTimelineDataGame!==null?currentTimelineDataGame+timelineLiquidOffset():null;
 }
 function setTimelineGames(dataGame,liquidGame){
   currentTimelineDataGame=dataGame===null||dataGame===undefined?null:Number(dataGame);
   const normalizedLiquid=liquidGame===null||liquidGame===undefined?null:Number(liquidGame);
-  if(currentTimelineDataGame!==null&&normalizedLiquid!==null)currentTimelineLiquidOffset=normalizedLiquid-currentTimelineDataGame;
   document.querySelectorAll('[data-game-role="timeline-data"]').forEach(input=>{input.value=currentTimelineDataGame===null?'':String(currentTimelineDataGame);});
   document.querySelectorAll('[data-game-role="timeline-liquid"]').forEach(input=>{input.value=normalizedLiquid===null?'':String(normalizedLiquid);});
 }
@@ -4009,7 +4050,20 @@ function syncTimelineDataGame(sourceId=''){
     scheduleDraftSave();
     return;
   }
-  setTimelineGames(data,data+currentTimelineLiquidOffset);
+  setTimelineGames(data,data+timelineLiquidOffset());
+  scheduleDraftSave();
+}
+function syncStartLiquidCorrection(){
+  const source=document.getElementById('startLiquidCorrection');
+  const raw=(source?.value||'').trim();
+  const correction=raw===''?0:normalizeOptionalNumber(raw);
+  if(correction===null){
+    alert('液晶初期補正は数値で入力してください');
+    if(source)source.value=String(currentTimelineManualCorrection||'');
+    return;
+  }
+  currentTimelineManualCorrection=correction;
+  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,currentTimelineDataGame+timelineLiquidOffset());
   scheduleDraftSave();
 }
 function syncTimelineLiquidGame(sourceId=''){
@@ -4020,14 +4074,15 @@ function syncTimelineLiquidGame(sourceId=''){
     scheduleDraftSave();
     return;
   }
-  let data=currentTimelineDataGame===null?liquid:liquid-currentTimelineLiquidOffset;
+  const data=currentTimelineDataGame===null?liquid-timelineLiquidOffset():currentTimelineDataGame;
+  setManualCorrectionForLiquid(data,liquid);
   setTimelineGames(data,liquid);
   scheduleDraftSave();
 }
 function incrementTimelineGame(delta){
   const current=currentTimelineDataGame??timelineDataValue()??0;
   const next=current+delta;
-  setTimelineGames(next,next+currentTimelineLiquidOffset);
+  setTimelineGames(next,next+timelineLiquidOffset());
   scheduleDraftSave();
 }
 function tagLiquidRule(tagIds){
@@ -4045,8 +4100,8 @@ function tagLiquidRule(tagIds){
 }
 function setTimelineOffsetPreservingData(nextOffset){
   const data=timelineDataValue();
+  currentTimelineManualCorrection=nextOffset-currentTimelineSuikaOffset;
   if(data===null){
-    currentTimelineLiquidOffset=nextOffset;
     return;
   }
   setTimelineGames(data,data+nextOffset);
@@ -4055,14 +4110,17 @@ function applyLiquidRuleAfterTimelineAdd(tagIds,entry=null){
   const data=timelineDataValue();
   if(data===null)return;
   const currentLiquid=timelineLiquidValue();
-  const baseLiquid=currentLiquid!==null?currentLiquid:data+currentTimelineLiquidOffset;
+  const baseLiquid=currentLiquid!==null?currentLiquid:data+timelineLiquidOffset();
   const rule=tagLiquidRule(tagIds);
   let offsetDelta=0;
   if(rule.setValue!==null){
-    offsetDelta=rule.setValue-data-currentTimelineLiquidOffset;
+    const nextSuikaOffset=rule.setValue-data-currentTimelineManualCorrection;
+    offsetDelta=nextSuikaOffset-currentTimelineSuikaOffset;
+    currentTimelineSuikaOffset=nextSuikaOffset;
     setTimelineGames(data,rule.setValue);
   }else if(rule.delta){
     offsetDelta=rule.delta;
+    currentTimelineSuikaOffset+=rule.delta;
     const nextLiquid=baseLiquid+rule.delta;
     setTimelineGames(data,nextLiquid);
   }
@@ -4078,7 +4136,8 @@ function timelineOffsetDeltaForDelete(item){
 function rollbackLiquidRuleForTimelineDelete(item){
   const offsetDelta=timelineOffsetDeltaForDelete(item);
   if(offsetDelta===null||offsetDelta===0)return;
-  setTimelineOffsetPreservingData(currentTimelineLiquidOffset-offsetDelta);
+  currentTimelineSuikaOffset-=offsetDelta;
+  setTimelineOffsetPreservingData(timelineLiquidOffset());
 }
 function timelineEntryIsEndLink(entry){
   const text=String(entry?.text||'');
@@ -4492,6 +4551,7 @@ function pressKeypad(key){
   let value=activeNumericInput.value||'';
   if(key==='back')value=value.slice(0,-1);
   else if(key==='clear')value='';
+  else if(key==='sign'&&activeNumericInput.dataset.signed==='1')value=value.startsWith('-')?value.slice(1):(value?`-${value}`:'-0');
   else if(key==='.'){
     if(activeNumericInput.dataset.decimal!=='1'||value.includes('.'))return;
     value=value?value+'.':'0.';
@@ -4608,6 +4668,8 @@ function currentInputLogObject(finalized=false, existingLog=null){
     startCounterGame:currentStartCounterGame,
     startCzFailCount:currentStartCzFailCount,
     startAtThroughCount:currentStartAtThroughCount,
+    suikaOffset:currentTimelineSuikaOffset,
+    manualCorrection:currentTimelineManualCorrection,
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     endLog:clone(currentEndLog),
@@ -4626,6 +4688,7 @@ function draftHasContent(log){
   if(!log)return false;
   const money=log.money||{};
   return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||
+    (normalizeOptionalNumber(log.suikaOffset)??0)!==0||(normalizeOptionalNumber(log.manualCorrection)??0)!==0||
     (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
     !!money.store||!!money.machineNo||!!money.endTime||normalizeOptionalNumber(money.startMedals)!==null||normalizeOptionalNumber(money.endMedals)!==null||!!money.cashIn||
     !!log.publicMemo||!!log.privateMemo||!!continuedFromLog;
@@ -4711,6 +4774,8 @@ function saveLog(options={}){
     startCounterGame:startCounter,
     startCzFailCount:currentStartCzFailCount,
     startAtThroughCount:currentStartAtThroughCount,
+    suikaOffset:currentTimelineSuikaOffset,
+    manualCorrection:currentTimelineManualCorrection,
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
     endLog:clone(currentEndLog),
@@ -4809,7 +4874,7 @@ function clearLogInput(cancelEdit=true){
   currentStartAtThroughCount=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
-  currentTimelineLiquidOffset=0;
+  resetTimelineOffsets();
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
   currentEndLog=null;
@@ -4911,7 +4976,7 @@ function loadDraftIntoInputs(log){
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
   currentTimelineDataGame=null;
-  currentTimelineLiquidOffset=0;
+  applyStoredTimelineOffsets(log);
   currentEndLog=clone(log.endLog||null);
   linkedEndDataGame=currentEndLog?.game??null;
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
@@ -4962,7 +5027,7 @@ function loadLogForEdit(id){
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
   currentTimelineDataGame=null;
-  currentTimelineLiquidOffset=0;
+  applyStoredTimelineOffsets(log);
   currentEndLog=clone(log.endLog||null);
   linkedEndDataGame=currentEndLog?.game??null;
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
@@ -5011,7 +5076,7 @@ function continueFromLog(id,skipConfirm=false){
   currentStartLog=[];
   currentTimeline=[];
   currentTimelineDataGame=0;
-  currentTimelineLiquidOffset=0;
+  resetTimelineOffsets();
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
   currentEndLog=null;
@@ -5026,7 +5091,7 @@ function continueFromLog(id,skipConfirm=false){
   const arimaOffset=(log.suggestLog||[]).some(isArimaJudgementFailEntry)?-6:null;
   if(arimaOffset!==null){
     currentTimelineDataGame=7;
-    currentTimelineLiquidOffset=arimaOffset;
+    currentTimelineManualCorrection=arimaOffset;
   }
   showPage('pageLog');
   const money=log.money||{};
