@@ -218,6 +218,10 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .ending-card-chip.tone-gold{background:rgba(201,168,76,.2);border-color:rgba(201,168,76,.72);color:var(--gold-light);}
 .ending-card-chip.tone-rainbow{background:linear-gradient(135deg,rgba(255,105,105,.28),rgba(255,217,90,.28),rgba(106,220,132,.28),rgba(98,181,255,.28));border-color:rgba(255,255,255,.5);color:#fff;}
 .ending-card-chip.tone-red{background:rgba(220,78,78,.2);border-color:rgba(220,78,78,.58);color:#ffb4b4;}
+.ending-fixed-grid{display:grid;grid-template-columns:1fr;gap:6px;margin-bottom:10px;}
+.ending-fixed-row{border:1px solid var(--border);border-radius:8px;background:rgba(122,122,138,.08);padding:8px;color:var(--text-muted);font-size:12px;}
+.ending-fixed-row.hit{border-color:rgba(201,168,76,.65);background:rgba(201,168,76,.12);color:var(--gold-light);font-weight:800;}
+.ending-judgement{border:1px solid rgba(201,168,76,.42);border-radius:8px;background:rgba(201,168,76,.08);padding:9px;margin-bottom:10px;font-size:13px;font-weight:900;color:var(--gold-light);}
 .optional-box{display:none;margin-top:8px;}
 .optional-box.open{display:block;}
 .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
@@ -3641,6 +3645,7 @@ function renderCarrySummaryArea(){
     <div class="carry-summary-wrap">
       ${carrySummarySection('mode','モード示唆まとめ',modeSummaryOpen)}
       ${carrySummarySection('setting','設定関連まとめ',settingSummaryOpen)}
+      ${renderEndingCardsSummary()}
       ${renderKuiPointSummaryArea()}
     </div>`;
 }
@@ -3928,7 +3933,6 @@ function renderTimelineArea(mode='play'){
       <div class="work-section-title">AT当選時の記録</div>
       ${renderHitBranchWizardArea()}
       ${renderNextModeHintControls()}
-      ${renderEndingCardsSummary()}
       ${renderKuiPointReleaseControl()}
       ${renderSuggestArea('hit')}
     </div>
@@ -3954,7 +3958,6 @@ function renderTimelineArea(mode='play'){
     </div>
     ${renderTimelineHistoryPanel()}
     <div class="work-subsection play-group alt">
-      ${renderEndingCardsSummary()}
       ${renderSuggestArea('play')}
     </div>`;
 }
@@ -4408,18 +4411,63 @@ function endingCardsByGroupRows(cards=currentEndingCards){
     return {group,count,ratio:total?Math.round((count/total)*1000)/10:0};
   }).filter(row=>row.count>0);
 }
+function endingFixedCardRules(){
+  const card=(groupId,name,type,value,label)=>({id:endingCardId(groupId,name),groupId,name,type,value,label});
+  return [
+    card('copper','鈴屋什造(設定1否定)','deny',1,'設定1否定'),
+    card('copper','高槻泉(設定2否定)','deny',2,'設定2否定'),
+    card('copper','梟(設定3否定)','deny',3,'設定3否定'),
+    card('copper','エト(設定4否定)','deny',4,'設定4否定'),
+    card('silver','金木研','floor',3,'設定3以上'),
+    card('gold','神代利世(設定4以上)','floor',4,'設定4以上'),
+    card('gold','隻眼の梟(設定5以上)','floor',5,'設定5以上'),
+    card('rainbow','有馬貴将','floor',6,'設定6確定')
+  ];
+}
+function endingSettingJudgement(cards=currentEndingCards){
+  const normalized=normalizeEndingCards(cards);
+  const rules=endingFixedCardRules();
+  const hitRules=rules.filter(rule=>(Number(normalized[rule.id])||0)>0);
+  if(!hitRules.length)return {label:'判定材料なし',hasMaterial:false,candidates:[1,2,3,4,5,6],hitRules};
+  let candidates=[1,2,3,4,5,6];
+  hitRules.filter(rule=>rule.type==='deny').forEach(rule=>{candidates=candidates.filter(value=>value!==rule.value);});
+  const floors=hitRules.filter(rule=>rule.type==='floor').map(rule=>rule.value);
+  const floor=floors.length?Math.max(...floors):null;
+  if(floor!==null)candidates=candidates.filter(value=>value>=floor);
+  if(!candidates.length)return {label:'入力矛盾の可能性',hasMaterial:true,candidates,hitRules};
+  const min=Math.min(...candidates);
+  return {label:min===6?'設定6確定':`設定${min}以上`,hasMaterial:true,candidates,hitRules};
+}
+function renderEndingFixedJudgement(cards=currentEndingCards){
+  const normalized=normalizeEndingCards(cards);
+  const judgement=endingSettingJudgement(cards);
+  return `
+    <div class="carry-summary-group">
+      <div class="carry-summary-group-title">確定・否定系</div>
+      <div class="ending-fixed-grid">
+        ${endingFixedCardRules().map(rule=>{
+          const count=Number(normalized[rule.id])||0;
+          const ref=findEndingCard(rule.id);
+          const groupName=ref?.group?.name||rule.groupId;
+          return `<div class="ending-fixed-row ${count?'hit':''}">${escapeHtml(groupName)} / ${escapeHtml(rule.name)}：${escapeHtml(rule.label)}${count?`（${count}枚）`:'（未出現）'}</div>`;
+        }).join('')}
+      </div>
+      <div class="ending-judgement">現在の判定：${escapeHtml(judgement.label)}</div>
+    </div>`;
+}
 function endingCardsTextLines(cards=currentEndingCards){
   const total=endingCardsTotal(cards);
   if(!total)return [];
   const lines=[`合計：${total}枚`,'グループ別：'];
   endingCardsByGroupRows(cards).forEach(row=>lines.push(`${row.group.name}：${row.count}枚（${row.ratio}%）`));
+  const judgement=endingSettingJudgement(cards);
+  if(judgement.hasMaterial)lines.push(`現在の判定：${judgement.label}`);
   lines.push('カード別：');
   endingCardsByCardLines(cards).forEach(line=>lines.push(line));
   return lines;
 }
 function renderEndingCardsSummary(cards=currentEndingCards){
   const total=endingCardsTotal(cards);
-  if(!total)return '<div class="empty-hint">エンディングカード記録なし</div>';
   const groupRows=endingCardsByGroupRows(cards);
   const fixedIds=new Set(['copper','silver','gold','rainbow']);
   return `
@@ -4429,13 +4477,14 @@ function renderEndingCardsSummary(cards=currentEndingCards){
         <span class="carry-summary-count">${total}枚 ▲</span>
       </button>
       <div class="carry-summary-body">
+        ${renderEndingFixedJudgement(cards)}
         <div class="carry-summary-group">
           <div class="carry-summary-group-title">グループ別</div>
-          ${groupRows.map(row=>`<div class="carry-summary-row ${fixedIds.has(row.group.id)?'kakutei':''}"><div class="timeline-text">${escapeHtml(`${row.group.name}：${row.count}枚（${row.ratio}%）`)}</div></div>`).join('')}
+          ${groupRows.length?groupRows.map(row=>`<div class="carry-summary-row ${fixedIds.has(row.group.id)?'kakutei':''}"><div class="timeline-text">${escapeHtml(`${row.group.name}：${row.count}枚（${row.ratio}%）`)}</div></div>`).join(''):'<div class="empty-hint">エンディングカード記録なし</div>'}
         </div>
         <div class="carry-summary-group">
           <div class="carry-summary-group-title">カード別</div>
-          ${endingCardsByCardLines(cards).map(line=>`<div class="carry-summary-row"><div class="timeline-text">${escapeHtml(line)}</div></div>`).join('')}
+          ${endingCardsByCardLines(cards).length?endingCardsByCardLines(cards).map(line=>`<div class="carry-summary-row"><div class="timeline-text">${escapeHtml(line)}</div></div>`).join(''):'<div class="empty-hint">カード別の記録なし</div>'}
         </div>
       </div>
     </div>`;
