@@ -3013,11 +3013,25 @@ function enabledSuggestPlaceEntries(stateGroup){
   });
   return entries;
 }
+function orderSuggestQuickEntries(stateGroup,entries){
+  if(stateGroup!=='play')return entries;
+  const order=new Map([
+    ['sgp_tokyo_ghoul_eyecatch',0],
+    ['sgp_tokyo_ghoul_game_forewarning',1],
+    ['sgp_tokyo_ghoul_tsukiyama_mode',2],
+    ['sgp_tokyo_ghoul_tsukiyama_setting',3]
+  ]);
+  return entries.map((entry,i)=>({...entry,__order:i})).sort((a,b)=>{
+    const aRank=order.has(a.place?.id)?order.get(a.place.id):Number.MAX_SAFE_INTEGER;
+    const bRank=order.has(b.place?.id)?order.get(b.place.id):Number.MAX_SAFE_INTEGER;
+    return aRank===bRank?a.__order-b.__order:aRank-bRank;
+  }).map(({__order,...entry})=>entry);
+}
 function isKuiPointCategory(category){
   return category?.id==='sgc_tokyo_ghoul_kui_point'||String(category?.category||'')==='喰ポイント'||String(category?.category||'').includes('蝟ｰ繝昴う繝ｳ繝・');
 }
 function renderSuggestPlaceButtonsForState(stateGroup){
-  const entries=enabledSuggestPlaceEntries(stateGroup);
+  const entries=orderSuggestQuickEntries(stateGroup,enabledSuggestPlaceEntries(stateGroup));
   const normalButtons=entries
     .filter(({category})=>!isKuiPointCategory(category))
     .map(({category,place})=>`<button class="tag-btn gold" onclick="openSuggestItemPicker('${category.id}','${place.id}','${stateGroup}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`)
