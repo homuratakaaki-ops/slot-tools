@@ -3054,7 +3054,7 @@ function renderLogFields(){
   if(!aim){el.innerHTML='<div class="empty-hint">機種と狙い方を登録してください</div>';return;}
   const panels={
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
-    2:`<div class="card work-section-card play"><div class="work-section-title">実戦メモ</div>${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
+    2:`<div class="card work-section-card play"><div class="work-section-title">実戦メモ</div>${renderFollowBranchControls()}${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
     3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div>`,
     4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div>${renderSegmentUndoNotice()}<div id="practiceStatsBox"></div></div>`
   };
@@ -3069,6 +3069,33 @@ function renderLogFields(){
   renderStoreSelect();
   syncHeaderFromMoney();
   updateMoneyRegistrationStatus();
+}
+function isFollowBranchActive(){
+  const latest=currentSegments?.[0];
+  if(!latest||latest.terminalType!=='follow')return false;
+  return !currentHitEvents.some(event=>!archivedHitEventIds().has(event.id));
+}
+function renderFollowBranchControls(){
+  if(!isFollowBranchActive())return '';
+  return `
+    <div class="work-subsection play-group alt">
+      <div class="section-label" style="margin-top:0;">引き戻しフォロー</div>
+      <p class="section-note">引き戻し当選時は通常通り当選トリガーを記録します。非当選で終える場合は、この枝番を確定して次の動きを選びます。</p>
+      <button class="btn-secondary" type="button" onclick="commitFollowMissBranch()">引き戻し非当選で区切る</button>
+    </div>`;
+}
+function setEndLogFromCurrentPosition(){
+  const endGame=timelineDataValue()??currentStartCounterGame??0;
+  const liquidGame=timelineLiquidValue()??endGame;
+  currentEndLog={id:currentEndLog?.id||uid('el'),game:endGame,liquidGame,reason:'ヤメ',text:'',...hitEventEndLogCounts(currentHitEvents),createdAt:currentEndLog?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
+  linkedEndDataGame=endGame;
+  linkedEndLiquidGame=liquidGame;
+}
+function commitFollowMissBranch(){
+  archiveCurrentSegment(null,'follow_miss',{preserveEndState:false});
+  renderLogFields();
+  saveDraftImmediately();
+  setTimeout(openSegmentExitPicker,0);
 }
 function renderFieldInput(f){
   const id='logfield_'+f.id;
@@ -4369,6 +4396,7 @@ function hitBranchSteps(route,through=hitBranchWizard.through){
         {key:'eyecatch',label:'アイキャッチ'}
       );
       if(through==='yes')steps.push({key:'kui',label:'喰ポイント'});
+      steps.push({key:'follow',label:'引き戻しフォロー'});
       steps.push({key:'exit',label:'出口選択'});
     }
     return steps;
@@ -4540,6 +4568,7 @@ function openCurrentHitBranchStep(){
   if(step.key==='payout'){promptHitEventPayout();return;}
   if(step.key==='endingCards'){renderLogFields();return;}
   if(step.key==='endingExit'){openEndingExitPicker();return;}
+  if(step.key==='follow'){openAtFollowPicker();return;}
   if(step.key==='exit'){openHitExitPicker();return;}
   if(step.key==='kui'){
     const category=findSuggestCategoryByName(currentMachine(),'喰ポイント');
@@ -4634,6 +4663,86 @@ function openHitExitPicker(){
     <button class="suggest-picker-option" onclick="selectHitExit('change')">狙い目を変更して続行</button>
     <button class="suggest-picker-option" onclick="selectHitExit('quit')">ヤメ（収支登録へ）</button>`;
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function openSegmentExitPicker(){
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:'',branchStep:'segmentExit'};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent='出口選択';
+  breadcrumb.textContent='この区切り後にどうするかを選択';
+  back.textContent='閉じる';
+  options.innerHTML=`
+    <button class="suggest-picker-option" onclick="selectSegmentExit('continue')">続行（同じ狙い目）</button>
+    <button class="suggest-picker-option" onclick="selectSegmentExit('change')">狙い目を変更して続行</button>
+    <button class="suggest-picker-option" onclick="selectSegmentExit('quit')">ヤメ（収支登録へ）</button>`;
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectSegmentExit(exit){
+  const normalizedExit=normalizeHitExit(exit);
+  if(!normalizedExit)return;
+  if(normalizedExit==='quit'){
+    setEndLogFromCurrentPosition();
+    currentFlowStep=4;
+  }else if(normalizedExit==='change'){
+    closeSuggestPicker();
+    const archivedLog=archiveCurrentDraftAsUnfinalized();
+    if(archivedLog)continueFromLogWithoutConfirm(archivedLog.id);
+    else{
+      currentFlowStep=1;
+      renderLogFields();
+      renderFlowStepTabs();
+      renderCurrentContextBar();
+      saveDraftImmediately();
+    }
+    return;
+  }else{
+    currentFlowStep=2;
+  }
+  hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
+  closeSuggestPicker();
+  renderLogFields();
+  renderFlowStepTabs();
+  renderCurrentContextBar();
+  saveDraftImmediately();
+}
+function openAtFollowPicker(){
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:'atHit',branchStep:'follow'};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent='引き戻しフォロー';
+  breadcrumb.textContent='AT終了後に引き戻しをフォローするか選択';
+  back.textContent='閉じる';
+  options.innerHTML=`
+    <button class="suggest-picker-option" onclick="selectAtFollow('yes')">フォローする</button>
+    <button class="suggest-picker-option" onclick="selectAtFollow('no')">フォローしない</button>`;
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectAtFollow(value){
+  if(value!=='yes'&&value!=='no')return;
+  const event=currentHitEvent();
+  if(!event)return;
+  archiveCurrentSegment(event,value==='yes'?'follow':'follow_skip',{preserveEndState:false});
+  hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
+  closeSuggestPicker();
+  if(value==='yes'){
+    currentFlowStep=2;
+    renderLogFields();
+    renderFlowStepTabs();
+    renderCurrentContextBar();
+    saveDraftImmediately();
+  }else{
+    renderLogFields();
+    saveDraftImmediately();
+    setTimeout(openSegmentExitPicker,0);
+  }
 }
 function openEndingExitPicker(){
   const title=document.getElementById('suggestPickerTitle');
