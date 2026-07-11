@@ -3079,9 +3079,9 @@ function renderFollowBranchControls(){
   if(!isFollowBranchActive())return '';
   return `
     <div class="work-subsection play-group alt">
-      <div class="section-label" style="margin-top:0;">引き戻しフォロー</div>
-      <p class="section-note">引き戻し当選時は通常通り当選トリガーを記録します。非当選で終える場合は、この枝番を確定して次の動きを選びます。</p>
-      <button class="btn-secondary" type="button" onclick="commitFollowMissBranch()">引き戻し非当選で区切る</button>
+      <div class="section-label" style="margin-top:0;">フォロー中</div>
+      <p class="section-note">当選時は通常通り当選トリガーを記録します。当選せずに終える場合は、この枝番を確定して次の動きを選びます。</p>
+      <button class="btn-secondary" type="button" onclick="commitFollowMissBranch()">当選なしで区切る</button>
     </div>`;
 }
 function setEndLogFromCurrentPosition(){
@@ -4396,7 +4396,7 @@ function hitBranchSteps(route,through=hitBranchWizard.through){
         {key:'eyecatch',label:'アイキャッチ'}
       );
       if(through==='yes')steps.push({key:'kui',label:'喰ポイント'});
-      steps.push({key:'follow',label:'引き戻しフォロー'});
+      steps.push({key:'follow',label:'フォロー'});
       steps.push({key:'exit',label:'出口選択'});
     }
     return steps;
@@ -4717,8 +4717,8 @@ function openAtFollowPicker(){
   if(!title||!breadcrumb||!options||!back)return;
   suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:'atHit',branchStep:'follow'};
   title.classList.remove('kui-title','gain','hint');
-  title.textContent='引き戻しフォロー';
-  breadcrumb.textContent='AT終了後に引き戻しをフォローするか選択';
+  title.textContent='フォロー';
+  breadcrumb.textContent='AT終了後にこの台をフォローするか選択（引き戻し・ゾーン確認など）';
   back.textContent='閉じる';
   options.innerHTML=`
     <button class="suggest-picker-option" onclick="selectAtFollow('yes')">フォローする</button>
