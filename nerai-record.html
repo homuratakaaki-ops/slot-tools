@@ -649,12 +649,12 @@ footer a:hover{color:var(--gold-light);}
 <div class="keypad-overlay" id="hitPayoutOverlay" onclick="closeHitPayoutPicker()">
   <div class="keypad" onclick="event.stopPropagation()">
     <div class="keypad-title">
-      <span>獲得枚数</span>
+      <span id="hitPayoutTitle">獲得枚数</span>
       <button class="btn-small" onclick="closeHitPayoutPicker()">閉じる</button>
     </div>
     <div class="input-hint">当選イベントの獲得枚数を入力します。未記録ならスキップしてください。</div>
     <div class="input-row" style="margin-top:12px;">
-      <div class="input-label">獲得枚数</div>
+      <div class="input-label" id="hitPayoutLabel">獲得枚数</div>
       <input type="number" inputmode="numeric" id="hitPayoutInput" placeholder="枚" min="0">
     </div>
     <div class="suggest-picker-actions">
@@ -731,6 +731,7 @@ let currentEndingCards={};
 let endingCardGroupsOpen={};
 let pendingTimelineTagIds=[];
 let timelineHistoryOpen=false;
+let timelineTagGroupOpen={};
 let pastHintsOpen=false;
 let logDateOpenState={};
 let openLogDetailIds={};
@@ -1304,6 +1305,12 @@ function machineUsesEndingCards(machine=currentMachine()){
 function machineUsesKuiPoint(machine=currentMachine()){
   return isTokyoGhoulMachine(machine);
 }
+function machineFollowMode(machine=currentMachine()){
+  return machine?.followMode==='always'?'always':'ask';
+}
+function machinePayoutLabel(machine=currentMachine()){
+  return String(machine?.payoutLabel||'').trim()||'獲得枚数';
+}
 function suggestPlaceStateGroup(category,place){
   const placeId=String(place?.id||'');
   const placeName=String(place?.name||'');
@@ -1439,8 +1446,11 @@ function mergeTimelineTagSeed(machine,tags){
       tag.liquidDelta=normalizeOptionalNumber(seedTag.liquidDelta);
       tag.liquidSet=normalizeOptionalNumber(seedTag.liquidSet);
       tag.tagClass=normalizeTagClass(seedTag.tagClass)||normalizeTagClass(tag.tagClass);
+      tag.group=seedTag.group||tag.group||'';
+      tag.collapsible=!!seedTag.collapsible;
+      tag.defaultOpen=seedTag.defaultOpen!==false;
     }else{
-      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass)});
+      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass),group:seedTag.group||'',collapsible:!!seedTag.collapsible,defaultOpen:seedTag.defaultOpen!==false});
     }
   });
   const seen=new Set();
@@ -1838,6 +1848,7 @@ function ensureSuggestSeed(machine){
   if(isTokyoGhoulMachine(machine)){
     machine.useLcdCounter=true;
     machine.useEndingCards=true;
+    machine.followMode='ask';
     machine.hitTriggers=normalizeHitTriggers([
       {key:'cz',label:'CZ当選'},
       {key:'upper_cz',label:'上位CZ当選'},
@@ -2011,6 +2022,7 @@ function ensureMonkeyTurnSeed(machine){
   if(!machine||!isMonkeyTurnMachine(machine))return;
   machine.useLcdCounter=false;
   machine.useEndingCards=false;
+  machine.followMode='ask';
   machine.hitTriggers=normalizeHitTriggers([{key:'direct_at',label:'AT当選'}]);
   if(machine.suggestSeedMonkeyTurnV1)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
@@ -2145,11 +2157,26 @@ function ensureNangokuSpecialSeed(machine){
   if(!machine||!isNangokuSpecialMachine(machine))return;
   machine.useLcdCounter=false;
   machine.useEndingCards=false;
+  machine.followMode='always';
+  machine.payoutLabel='累計獲得枚数';
   machine.hitTriggers=normalizeHitTriggers([
     {key:'direct_at',label:'BIG当選'},
     {key:'episode_bonus',label:'REG当選'}
   ]);
-  if(machine.suggestSeedNangokuSpecialV1)return;
+  machine.tags=Array.isArray(machine.tags)?machine.tags:[];
+  const removePresetIds=new Set([
+    't_nangoku_butterfly_flew',
+    't_nangoku_butterfly_zone_through',
+    't_nangoku_tokimeki_return',
+    't_nangoku_tokimeki_through',
+    't_nangoku_hisho_start',
+    't_nangoku_hisho_end',
+    't_nangoku_morning_behavior'
+  ]);
+  machine.tags=machine.tags.filter(tag=>!removePresetIds.has(tag.id));
+  const oldOneGame=machine.tags.find(tag=>tag.id==='t_nangoku_bonus_sazanami_flash');
+  if(oldOneGame)oldOneGame.label='1G連獲得';
+  if(machine.suggestSeedNangokuSpecialV2)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
   const item=(label,carryType=null)=>({label,enabled:true,carryType});
   const place=(id,name,entries,stateGroup='play')=>({
@@ -2158,31 +2185,26 @@ function ensureNangokuSpecialSeed(machine){
       ...(typeof entry==='string'?item(entry):entry)
     }))
   });
-  const tag=(id,label,tagClass='')=>({id,label,optional:false,countAs:null,liquidDelta:null,liquidSet:null,tagClass});
+  const tag=(id,label,tagClass='',group='',collapsible=false,defaultOpen=true)=>({id,label,optional:false,countAs:null,liquidDelta:null,liquidSet:null,tagClass,group,collapsible,defaultOpen});
   const timelineTags=[
-    tag('t_nangoku_cherry','チェリー','rare-weak'),
-    tag('t_nangoku_suika','スイカ','rare-suika'),
-    tag('t_nangoku_replay_flash','リプレイフラッシュ','rare-chance'),
-    tag('t_nangoku_sazanami_purple','さざなみ紫','rare-chance'),
-    tag('t_nangoku_sazanami_red','さざなみ赤','rare-strong'),
-    tag('t_nangoku_sazanami_rainbow','さざなみ虹','rare-rainbow'),
-    tag('t_nangoku_sazanami_through','さざなみスルー','event'),
-    tag('t_nangoku_pato_light','パトランプ発光','event'),
-    tag('t_nangoku_butterfly_flew','蝶が飛んだ','event'),
-    tag('t_nangoku_butterfly_zone_through','バタフライゾーンスルー','event'),
-    tag('t_nangoku_tokimeki_return','ときめきゾーン引き戻し','event'),
-    tag('t_nangoku_tokimeki_through','ときめきゾーンスルー','event'),
-    tag('t_nangoku_sdc_start','SDC突入','event'),
-    tag('t_nangoku_sdc_success','SDC成功','event'),
-    tag('t_nangoku_sdc_fail','SDC失敗','event'),
-    tag('t_nangoku_hisho_start','飛翔モード突入','event'),
-    tag('t_nangoku_hisho_end','飛翔モード終了','event'),
-    tag('t_nangoku_super_hisho_start','超飛翔モード突入','event'),
-    tag('t_nangoku_super_hisho_end','超飛翔モード終了','event'),
-    tag('t_nangoku_blue_wave_start','青波モード突入','event'),
-    tag('t_nangoku_ura_reg_start','裏REG突入','event'),
-    tag('t_nangoku_bonus_sazanami_flash','ボーナス中さざなみフラッシュ','event'),
-    tag('t_nangoku_morning_behavior','朝一挙動','event')
+    tag('t_nangoku_cherry','チェリー','rare-weak','レア役'),
+    tag('t_nangoku_suika','スイカ','rare-suika','レア役'),
+    tag('t_nangoku_replay_flash','リプレイフラッシュ','rare-chance','レア役'),
+    tag('t_nangoku_sazanami_purple','さざなみ紫','rare-chance','さざなみ'),
+    tag('t_nangoku_sazanami_red','さざなみ赤','rare-strong','さざなみ'),
+    tag('t_nangoku_sazanami_rainbow','さざなみ虹','rare-rainbow','さざなみ'),
+    tag('t_nangoku_sazanami_through','さざなみスルー','event','さざなみ'),
+    tag('t_nangoku_pato_light','パトランプ発光','event','その他',true,false),
+    tag('t_nangoku_sdc_start','SDC突入','event','その他',true,false),
+    tag('t_nangoku_sdc_success','SDC成功','event','その他',true,false),
+    tag('t_nangoku_sdc_fail','SDC失敗','event','その他',true,false),
+    tag('t_nangoku_super_hisho_start','超飛翔モード突入','event','その他',true,false),
+    tag('t_nangoku_super_hisho_end','超飛翔モード終了','event','その他',true,false),
+    tag('t_nangoku_blue_wave_start','青波モード突入','event','その他',true,false),
+    tag('t_nangoku_ura_reg_start','裏REG突入','event','その他',true,false),
+    tag('t_nangoku_bonus_sazanami_flash','1G連獲得','event','その他',true,false),
+    tag('t_nangoku_long_freeze','ロングフリーズ','event','その他',true,false),
+    tag('t_nangoku_through','スルー','event','その他',true,false)
   ];
   const seed=[
     {
@@ -2241,6 +2263,7 @@ function ensureNangokuSpecialSeed(machine){
   mergeSuggestSeed(machine,seed);
   applySuggestMetadata(machine);
   machine.suggestSeedNangokuSpecialV1=true;
+  machine.suggestSeedNangokuSpecialV2=true;
 }
 function todayValue(){
   const d=new Date();
@@ -3443,6 +3466,7 @@ function renderTagButtons(target){
     ${optionalTags.length?`<button class="btn-secondary" onclick="toggleOptional('${target}OptionalTags')">＋他のタグ</button><div class="optional-box" id="${target}OptionalTags"><div class="tag-buttons">${optionalTags.map(t=>tagButtonHtml(t,handler)).join('')}</div></div>`:''}`;
 }
 function tagGroupName(tag){
+  if(tag?.group)return tag.group;
   const cls=normalizeTagClass(tag?.tagClass);
   if(cls.startsWith('rare-'))return 'rare';
   if(cls.startsWith('stage-'))return 'stage';
@@ -3450,7 +3474,18 @@ function tagGroupName(tag){
 }
 function renderTagGroup(title,tags,handler){
   if(!tags.length)return '';
-  return `<div class="tag-group"><div class="tag-group-title">${escapeHtml(title)}</div><div class="tag-buttons">${tags.map(t=>tagButtonHtml(t,handler)).join('')}</div></div>`;
+  const displayTitle={rare:'レア役',stage:'ステージ',other:'その他'}[title]||title;
+  const collapsible=tags.some(tag=>tag.collapsible);
+  if(collapsible&&!Object.prototype.hasOwnProperty.call(timelineTagGroupOpen,title)){
+    timelineTagGroupOpen[title]=tags.some(tag=>tag.defaultOpen!==false);
+  }
+  const open=!collapsible||!!timelineTagGroupOpen[title];
+  const toggle=collapsible?`<button class="btn-small" type="button" onclick="toggleTimelineTagGroup('${escapeHtml(title)}')">${open?'閉じる':'開く'}</button>`:'';
+  return `<div class="tag-group"><div class="tag-group-title">${escapeHtml(displayTitle)}${toggle}</div>${open?`<div class="tag-buttons">${tags.map(t=>tagButtonHtml(t,handler)).join('')}</div>`:''}</div>`;
+}
+function toggleTimelineTagGroup(groupName){
+  timelineTagGroupOpen[groupName]=!timelineTagGroupOpen[groupName];
+  renderLogFields();
 }
 function sortTimelineTagGroup(tags,groupName){
   if(groupName!=='rare')return tags;
@@ -3483,6 +3518,23 @@ function renderTimelineTagGroups(mainTags,optionalTags,handler,target){
   return `
     ${mainHtml||'<span class="empty-hint" style="padding:0;">通常タグなし</span>'}
     ${optionalTags.length?`<button class="btn-secondary" onclick="toggleOptional('${target}OptionalTags')">＋他のタグ</button><div class="optional-box" id="${target}OptionalTags">${optionalHtml}</div>`:''}`;
+}
+function renderTimelineTagGroups(mainTags,optionalTags,handler,target){
+  const renderGroups=tags=>{
+    const names=[];
+    tags.forEach(tag=>{const name=tagGroupName(tag);if(!names.includes(name))names.push(name);});
+    const order=['レア役','さざなみ','rare','stage','other','その他'];
+    return names.sort((a,b)=>{
+      const ai=order.includes(a)?order.indexOf(a):999;
+      const bi=order.includes(b)?order.indexOf(b):999;
+      return ai-bi;
+    }).map(name=>renderTagGroup(name,sortTimelineTagGroup(tags.filter(t=>tagGroupName(t)===name),name),handler)).join('');
+  };
+  const mainHtml=renderGroups(mainTags);
+  const optionalHtml=renderGroups(optionalTags);
+  return `
+    ${mainHtml||'<span class="empty-hint" style="padding:0;">通常タグなし</span>'}
+    ${optionalTags.length?`<button class="btn-secondary" onclick="toggleOptional('${target}OptionalTags')">その他のタグ</button><div class="optional-box" id="${target}OptionalTags">${optionalHtml}</div>`:''}`;
 }
 function tagButtonClass(tag){
   const cls=['tag-btn'];
@@ -4746,7 +4798,10 @@ function hitBranchSteps(route,through=hitBranchWizard.through){
       steps.push({key:'follow',label:'フォロー'});
       steps.push({key:'exit',label:'出口選択'});
     }
-    if(!isTokyoGhoulMachine(currentMachine()))return steps.filter(step=>['through','payout','follow','exit'].includes(step.key));
+    if(!isTokyoGhoulMachine(currentMachine())){
+      const keys=machineFollowMode()==='always'?['payout']:['payout','follow','exit'];
+      return steps.filter(step=>keys.includes(step.key));
+    }
     if(!machineUsesEndingCards())return steps.filter(step=>step.key!=='endingCards');
     return steps;
   }
@@ -4968,6 +5023,11 @@ function selectCzResultBranch(result){
 function promptHitEventPayout(){
   const event=currentHitEvent();
   if(!event)return;
+  const label=machinePayoutLabel();
+  const titleEl=document.getElementById('hitPayoutTitle');
+  const labelEl=document.getElementById('hitPayoutLabel');
+  if(titleEl)titleEl.textContent=label;
+  if(labelEl)labelEl.textContent=label;
   const input=document.getElementById('hitPayoutInput');
   if(input)input.value=event.payout!==null&&event.payout!==undefined?String(event.payout):'';
   document.getElementById('hitPayoutOverlay')?.classList.add('open');
@@ -4981,6 +5041,10 @@ function finishHitEventPayout(value){
   if(!event)return;
   event.payout=value;
   closeHitPayoutPicker();
+  if(hitBranchWizard.route==='atHit'&&machineFollowMode()==='always'){
+    selectAtFollow('yes');
+    return;
+  }
   advanceHitBranchWizard();
   renderLogFields();
   saveDraftImmediately();
