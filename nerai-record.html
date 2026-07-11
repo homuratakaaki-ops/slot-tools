@@ -936,6 +936,12 @@ function nextBranchNumberForCurrentGroup(){
   const metadata=currentDraftMetadataForSegment();
   return maxBranchNumberForGroup(metadata.sessionId,metadata.aimNumber)+1;
 }
+function formatAimLabel(log,segment){
+  const aimNumber=Number(log?.aimNumber);
+  const branchNumber=Number(segment?.branchNumber);
+  if(!Number.isFinite(aimNumber)||!Number.isFinite(branchNumber))return '';
+  return `${aimNumber}-${branchNumber}`;
+}
 function normalizeHitEvent(event){
   if(!event||typeof event!=='object')return null;
   const trigger=normalizeHitTrigger(event.trigger);
@@ -971,7 +977,8 @@ function normalizeSegment(segment){
   if(!segment||typeof segment!=='object')return null;
   const dataGame=normalizeOptionalNumber(segment.dataGame);
   const liquidGame=normalizeOptionalNumber(segment.liquidGame);
-  return {
+  const branchNumber=normalizeOptionalNumber(segment.branchNumber);
+  const normalized={
     id:segment.id||uid('seg'),
     createdAt:segment.createdAt||new Date().toISOString(),
     terminalType:String(segment.terminalType||''),
@@ -987,6 +994,10 @@ function normalizeSegment(segment){
     suggestLog:Array.isArray(segment.suggestLog)?segment.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[],
     hitEvents:Array.isArray(segment.hitEvents)?segment.hitEvents.map(normalizeHitEvent).filter(Boolean):[]
   };
+  if(branchNumber!==null)normalized.branchNumber=branchNumber;
+  const status=normalizeSegmentStatus(segment.status);
+  if(status)normalized.status=status;
+  return normalized;
 }
 function normalizeSuggestLogEntry(item){
   if(!item||typeof item!=='object')return null;
