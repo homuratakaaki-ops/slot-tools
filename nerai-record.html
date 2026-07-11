@@ -397,7 +397,7 @@ footer a:hover{color:var(--gold-light);}
         <div class="warning" id="timeWarning">終了時間が開始時間より前です。MVPでは日跨ぎを計算しないため、稼働時間は0分にします。</div>
       </div>
       <div class="state4-actions">
-        <button class="btn-secondary btn-stop" id="saveLogButton" onclick="saveLog()">収支登録して保存</button>
+        <button class="btn-secondary btn-stop" id="saveLogButton" onclick="saveLog()">収支を登録</button>
       </div>
     </div>
   </div>
@@ -4564,7 +4564,7 @@ function renderTimelineHistoryPanel(){
   return `
     <div class="timeline-history" id="timelineHistoryBox">
       <button class="timeline-history-toggle" type="button" onclick="toggleTimelineHistory()">
-        <span>記録済みの途中ログ</span>
+        <span>今回の途中ログ</span>
         <span class="timeline-history-count" id="timelineHistoryCount">0件 ▼</span>
       </button>
       <div class="timeline-history-body" id="timelineList"></div>
@@ -4924,7 +4924,7 @@ function timelineSuikaAfterText(item){
   const hasSuika=tagIds.some(id=>String(id).includes('suika'))||String(item?.text||'').includes('スイカ');
   if(!hasSuika)return '';
   const liquid=timelineLiquidGameValue(item);
-  return liquid!==null?`このスイカ後：液晶${liquid+delta}G`:'';
+  return liquid!==null?`加算後：液晶${liquid+delta}G`:'';
 }
 function addTimelineEntry(){
   const textEl=document.getElementById('timelineText');
