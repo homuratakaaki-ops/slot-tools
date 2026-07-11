@@ -4490,10 +4490,10 @@ function renderEndingCardsSummary(cards=currentEndingCards){
   const groupRows=endingCardsByGroupRows(cards);
   const fixedIds=new Set(['copper','silver','gold','rainbow']);
   return `
-    <div class="carry-summary-section open">
+    <div class="carry-summary-section">
       <button class="carry-summary-toggle" type="button" onclick="this.parentElement.classList.toggle('open')">
         <span>エンディングカード集計</span>
-        <span class="carry-summary-count">${total}枚 ▲</span>
+        <span class="carry-summary-count">${total}枚 ▼</span>
       </button>
       <div class="carry-summary-body">
         ${renderEndingFixedJudgement(cards)}
