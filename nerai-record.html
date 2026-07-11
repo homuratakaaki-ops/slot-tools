@@ -880,7 +880,7 @@ function normalizeCzResult(value){
   return ['at_win','at_lose'].includes(value)?value:null;
 }
 function normalizeHitExit(value){
-  return ['quit','continue'].includes(value)?value:null;
+  return ['quit','continue','change'].includes(value)?value:null;
 }
 function normalizeHitTerminalType(value){
   return ['ending'].includes(value)?value:'';
@@ -4612,8 +4612,9 @@ function openHitExitPicker(){
   breadcrumb.textContent='この当選後にどうするかを選択';
   back.textContent='閉じる';
   options.innerHTML=`
-    <button class="suggest-picker-option" onclick="selectHitExit('continue')">続行</button>
-    <button class="suggest-picker-option" onclick="selectHitExit('quit')">即ヤメ</button>`;
+    <button class="suggest-picker-option" onclick="selectHitExit('continue')">続行（同じ狙い目）</button>
+    <button class="suggest-picker-option" onclick="selectHitExit('change')">狙い目を変更して続行</button>
+    <button class="suggest-picker-option" onclick="selectHitExit('quit')">ヤメ（収支登録へ）</button>`;
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
 }
 function openEndingExitPicker(){
@@ -4656,13 +4657,29 @@ function selectEndingExit(result){
 function selectHitExit(exit){
   const event=currentHitEvent();
   if(!event)return;
-  event.exit=normalizeHitExit(exit);
+  const normalizedExit=normalizeHitExit(exit);
+  if(!normalizedExit)return;
+  event.exit=normalizedExit;
   event.wizardDone=true;
   const terminalType=event.exit;
   if(event.exit==='quit'){
     setEndLogFromHitEvent(event);
     archiveCurrentSegment(event,terminalType,{preserveEndState:true});
     currentFlowStep=4;
+  }else if(event.exit==='change'){
+    archiveCurrentSegment(event,terminalType,{preserveEndState:false});
+    hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
+    closeSuggestPicker();
+    const archivedLog=archiveCurrentDraftAsUnfinalized();
+    if(archivedLog)continueFromLogWithoutConfirm(archivedLog.id);
+    else{
+      currentFlowStep=1;
+      renderLogFields();
+      renderFlowStepTabs();
+      renderCurrentContextBar();
+      saveDraftImmediately();
+    }
+    return;
   }else{
     archiveCurrentSegment(event,terminalType,{preserveEndState:false});
     currentFlowStep=2;
@@ -5891,6 +5908,9 @@ function saveAndContinueLog(){
   saveLog({continueAfter:true});
 }
 function continueFromSavedLog(id){
+  continueFromLogWithoutConfirm(id);
+}
+function continueFromLogWithoutConfirm(id){
   const originalConfirm=window.confirm;
   window.confirm=()=>true;
   try{
@@ -5921,7 +5941,11 @@ function archiveCurrentDraftAsUnfinalized(){
   log.finalized=false;
   log.excludeFromStats=true;
   log.updatedAt=new Date().toISOString();
+  db.logs=db.logs.filter(item=>item.id!==log.id);
   db.logs.push(log);
+  db.draftLog=null;
+  persist();
+  return log;
 }
 function clearLogInput(cancelEdit=true){
   if(cancelEdit)editingLogId=null;
