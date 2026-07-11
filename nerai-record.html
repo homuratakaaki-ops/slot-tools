@@ -912,11 +912,15 @@ function continuedAimNumber(source,currentAimId){
   const previous=Number.isFinite(Number(source?.aimNumber))?Number(source.aimNumber):1;
   return source&&source.aimId&&source.aimId!==currentAimId?previous+1:previous;
 }
+function existingAimNumberIsLocked(existingLog){
+  if(!existingLog||!Number.isFinite(Number(existingLog.aimNumber)))return false;
+  return !continuedFromLog||(existingLog.segments||[]).length>0||currentSegments.length>0;
+}
 function buildLogMetadata({id,aimId,existingLog=null,finalized=false,statusOverride=null}){
   const logId=id||uid('l');
   const source=continuedFromLog||null;
   const sessionId=existingLog?.sessionId||continuedSessionId(source)||logId;
-  const aimNumber=existingLog?.aimNumber&&Number.isFinite(Number(existingLog.aimNumber))
+  const aimNumber=existingAimNumberIsLocked(existingLog)
     ?Number(existingLog.aimNumber)
     :source?continuedAimNumber(source,aimId):1;
   return {
@@ -2042,8 +2046,9 @@ function flowStepLabel(step){
   return {1:'打ち始め',2:'実戦メモ',3:'当選記録',4:'収支登録'}[step]||'打ち始め';
 }
 function currentAimNumberPreview(){
-  if(Number(db.draftLog?.schemaVersion)>=LOG_SCHEMA_VERSION&&Number.isFinite(Number(db.draftLog.aimNumber)))return Number(db.draftLog.aimNumber);
+  if(Number(db.draftLog?.schemaVersion)>=LOG_SCHEMA_VERSION&&existingAimNumberIsLocked(db.draftLog))return Number(db.draftLog.aimNumber);
   if(continuedFromLog)return continuedAimNumber(continuedFromLog,selectedAimId);
+  if(Number(db.draftLog?.schemaVersion)>=LOG_SCHEMA_VERSION&&Number.isFinite(Number(db.draftLog.aimNumber)))return Number(db.draftLog.aimNumber);
   return 1;
 }
 function currentBranchNumberPreview(){
@@ -2132,23 +2137,36 @@ function logDisplayUpdatedAt(log){
   return String(log?.updatedAt||log?.createdAt||'');
 }
 function unfinishedSessionCandidates(){
-  const candidates=[];
+  const bySession=new Map();
   const add=(source,log)=>{
     if(Number(log?.schemaVersion)<LOG_SCHEMA_VERSION)return;
     if(source==='draft'&&!draftHasContent(log))return;
     const status=unfinishedStatus(log.status);
-    if(!status)return;
-    candidates.push({source,log,status,sessionId:log.sessionId||log.id||'',updatedAt:logDisplayUpdatedAt(log)});
+    const sessionId=log.sessionId||log.id||'';
+    const updatedAt=logDisplayUpdatedAt(log);
+    const current=bySession.get(sessionId);
+    const candidate=status?{source,log,status,sessionId,updatedAt}:null;
+    if(!current||updatedAt.localeCompare(current.updatedAt)>0){
+      bySession.set(sessionId,{updatedAt,status:normalizeLogStatus(log.status),candidate});
+    }else if(candidate&&!current.candidate){
+      current.candidate=candidate;
+    }
   };
   if(db.draftLog)add('draft',db.draftLog);
   db.logs.forEach(log=>add('log',log));
-  const bySession=new Map();
-  candidates.forEach(candidate=>{
-    const key=candidate.sessionId||candidate.log.id;
-    const current=bySession.get(key);
-    if(!current||candidate.updatedAt.localeCompare(current.updatedAt)>0)bySession.set(key,candidate);
+  return [...bySession.values()]
+    .filter(session=>unfinishedStatus(session.status)&&session.candidate)
+    .map(session=>session.candidate)
+    .sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
+}
+function markSuspendedSessionLogsFinished(sessionId,excludeId=''){
+  if(!sessionId)return;
+  db.logs.forEach(log=>{
+    if(log.id!==excludeId&&log.sessionId===sessionId&&normalizeLogStatus(log.status)==='suspended'){
+      log.status='finished';
+      log.updatedAt=new Date().toISOString();
+    }
   });
-  return [...bySession.values()].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
 }
 function latestUnfinishedSessionCandidate(){
   if(resumeChoiceDismissed||editingLogId||continuedFromLog||currentDraftHasRecordContent())return null;
@@ -5888,6 +5906,7 @@ function saveLog(options={}){
   }else{
     db.logs.push(log);
   }
+  if(finalized)markSuspendedSessionLogsFinished(log.sessionId,log.id);
   if(baseMoney.store)ensureStore(baseMoney.store);
   db.draftLog=null;
   persist();
