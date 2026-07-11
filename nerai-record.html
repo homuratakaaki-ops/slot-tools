@@ -212,6 +212,11 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .past-hints-body{display:none;margin-top:8px;}
 .past-hints.open .past-hints-body{display:block;}
 .past-hint-row{border:1px solid var(--border);border-radius:6px;background:var(--surface2);padding:7px;margin-top:6px;font-size:12px;color:var(--text);}
+.resume-choice{border:1px solid rgba(201,168,76,.4);border-radius:8px;background:rgba(201,168,76,.08);padding:12px;margin:10px 0 12px;}
+.resume-choice-title{font-size:13px;font-weight:900;color:var(--gold-light);margin-bottom:6px;}
+.resume-choice-meta{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:10px;}
+.resume-choice-actions{display:grid;grid-template-columns:1fr;gap:8px;}
+.lock-warning{border:1px solid rgba(224,112,112,.42);background:rgba(224,112,112,.08);color:#ffb3b3;border-radius:8px;padding:9px;font-size:12px;margin-top:8px;}
 .branch-next-btn{white-space:normal;line-height:1.35;text-align:center;min-width:0;}
 .suggest-kind{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 7px;margin-right:4px;font-size:11px;font-weight:800;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);}
 .suggest-kind-eyecatch{border-color:rgba(120,180,255,.55);background:rgba(120,180,255,.12);color:#a9d0ff;}
@@ -326,6 +331,7 @@ footer a:hover{color:var(--gold-light);}
 <div class="page" id="pageLog">
   <div class="flow-step-tabs" id="flowStepTabs"></div>
   <div id="currentContextBar"></div>
+  <div id="resumeChoiceBox"></div>
   <div class="section flow-panel" data-flow-step="1">
     <div class="section-label">今日の狙い</div>
     <div class="card">
@@ -733,6 +739,8 @@ let pendingSuggestSelection=null;
 let suggestInputsDirty=false;
 let editingLogId=null;
 let continuedFromLog=null;
+let sessionFieldsLocked=false;
+let resumeChoiceDismissed=false;
 let editingStoreName=null;
 let currentFlowStep=1;
 let sameTablePromptKey='';
@@ -2108,12 +2116,121 @@ function renderCurrentContextBar(){
         <span class="status-badge">${escapeHtml(statusBadgeLabelForCurrent())}</span>
       </div>
       <div class="current-context-meta">${escapeHtml(store)} / ${escapeHtml(machine?.name||'機種未選択')}${machineNo?` / 台${escapeHtml(machineNo)}`:''}</div>
+      ${sessionFieldsLocked?'<button class="btn-small" type="button" onclick="unlockSessionFields()" style="margin-top:8px;">店舗・機種・台番号のロックを解除</button><div class="lock-warning">ロック解除時は現在の稼働を保留し、新しい稼働として開始します。</div>':''}
       ${renderPastSessionHints()}
     </div>`;
 }
 function togglePastHints(){
   pastHintsOpen=!pastHintsOpen;
   renderCurrentContextBar();
+}
+function unfinishedStatus(value){
+  const status=normalizeLogStatus(value);
+  return status==='active'||status==='suspended'?status:null;
+}
+function logDisplayUpdatedAt(log){
+  return String(log?.updatedAt||log?.createdAt||'');
+}
+function unfinishedSessionCandidates(){
+  const candidates=[];
+  const add=(source,log)=>{
+    if(Number(log?.schemaVersion)<LOG_SCHEMA_VERSION)return;
+    const status=unfinishedStatus(log.status);
+    if(!status)return;
+    candidates.push({source,log,status,sessionId:log.sessionId||log.id||'',updatedAt:logDisplayUpdatedAt(log)});
+  };
+  if(db.draftLog)add('draft',db.draftLog);
+  db.logs.forEach(log=>add('log',log));
+  const bySession=new Map();
+  candidates.forEach(candidate=>{
+    const key=candidate.sessionId||candidate.log.id;
+    const current=bySession.get(key);
+    if(!current||candidate.updatedAt.localeCompare(current.updatedAt)>0)bySession.set(key,candidate);
+  });
+  return [...bySession.values()].sort((a,b)=>b.updatedAt.localeCompare(a.updatedAt));
+}
+function latestUnfinishedSessionCandidate(){
+  if(resumeChoiceDismissed||editingLogId||continuedFromLog||currentDraftHasRecordContent())return null;
+  return unfinishedSessionCandidates()[0]||null;
+}
+function sessionProgressLabel(log){
+  const segment=(log?.segments||[])[0]||null;
+  const label=formatAimLabel(log,segment);
+  return label?`狙い ${label} ${segment?'保存済み':'入力中'}`:'入力中';
+}
+function renderResumeChoice(){
+  const el=document.getElementById('resumeChoiceBox');
+  if(!el)return;
+  const candidate=latestUnfinishedSessionCandidate();
+  if(!candidate){el.innerHTML='';return;}
+  const log=candidate.log;
+  const money=log.money||{};
+  el.innerHTML=`
+    <div class="resume-choice">
+      <div class="resume-choice-title">前回の稼働が残っています。</div>
+      <div class="resume-choice-meta">
+        ${escapeHtml(money.store||'店舗未選択')} / ${escapeHtml(log.machineName||'機種未設定')}${money.machineNo?` / 台${escapeHtml(money.machineNo)}`:''}<br>
+        最終更新：${escapeHtml(log.updatedAt||log.createdAt||'不明')} / ${escapeHtml(sessionProgressLabel(log))}
+      </div>
+      <div class="resume-choice-actions">
+        <button class="btn-secondary btn-continue" onclick="resumeUnfinishedSession('${escapeHtml(candidate.source)}','${escapeHtml(log.id)}')">前回の続きから入力する</button>
+        <button class="btn-secondary" onclick="startFreshFromUnfinishedSession('${escapeHtml(candidate.source)}','${escapeHtml(log.id)}')">新しい稼働を始める</button>
+      </div>
+    </div>`;
+}
+function suspendDraftLogIfAny(){
+  if(!db.draftLog)return;
+  const log={...clone(db.draftLog),status:'suspended',state4Registered:false,finalized:false,excludeFromStats:true,updatedAt:new Date().toISOString()};
+  db.logs=db.logs.filter(item=>item.id!==log.id);
+  db.logs.push(log);
+  db.draftLog=null;
+}
+function resumeUnfinishedSession(source,id){
+  const log=source==='draft'?db.draftLog:db.logs.find(item=>item.id===id);
+  if(!log)return;
+  if(source==='log')db.logs=db.logs.filter(item=>item.id!==id);
+  db.draftLog={...clone(log),status:'active',state4Registered:false,finalized:false,excludeFromStats:true,updatedAt:new Date().toISOString()};
+  resumeChoiceDismissed=true;
+  sessionFieldsLocked=true;
+  persist();
+  loadDraftIntoInputs(db.draftLog);
+  renderResumeChoice();
+}
+function startFreshFromUnfinishedSession(source,id){
+  if(source==='draft')suspendDraftLogIfAny();
+  else{
+    suspendDraftLogIfAny();
+    const log=db.logs.find(item=>item.id===id);
+    if(log){log.status='suspended';log.updatedAt=new Date().toISOString();}
+  }
+  resumeChoiceDismissed=true;
+  sessionFieldsLocked=false;
+  clearLogInput(true);
+  db.draftLog=null;
+  persist();
+  renderAll();
+}
+function renderSessionFieldLocks(){
+  const lock=!!sessionFieldsLocked;
+  ['logMachine','moneyStore','startMoneyStore'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.disabled=lock;
+  });
+  ['moneyMachineNo','startMoneyMachineNo'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el)el.disabled=lock;
+  });
+}
+function unlockSessionFields(){
+  if(!sessionFieldsLocked)return;
+  if(!confirm('店舗・機種・台番号を変更するため、現在の稼働を保留して新しい稼働を開始します。よろしいですか？'))return;
+  archiveCurrentDraftAsUnfinalized();
+  db.draftLog=null;
+  sessionFieldsLocked=false;
+  resumeChoiceDismissed=true;
+  clearLogInput(true);
+  persist();
+  renderAll();
 }
 function renderFlowStepTabs(){
   const el=document.getElementById('flowStepTabs');
@@ -2136,6 +2253,7 @@ function switchFlowStep(step){
   renderLogFields();
   renderFlowStepTabs();
   renderCurrentContextBar();
+  renderSessionFieldLocks();
   bindNumericInputs();
 }
 
@@ -2157,6 +2275,8 @@ function renderAll(){
   renderLogFields();
   renderFlowStepTabs();
   renderCurrentContextBar();
+  renderResumeChoice();
+  renderSessionFieldLocks();
   renderLogsList();
   updateCalc();
   updateEditModeUi();
@@ -2715,6 +2835,12 @@ function selectLogMachine(){
   renderAll();
 }
 function selectLogAim(){
+  if(currentDraftHasRecordContent()||currentSegments.length||currentHitEvents.length||currentStartLog.length){
+    const selector=document.getElementById('logAim');
+    if(selector)selector.value=selectedAimId;
+    alert('記録開始後の狙い目変更は、当選記録の出口選択から行います。');
+    return;
+  }
   selectedAimId=document.getElementById('logAim').value;
   renderAll();
 }
@@ -5798,6 +5924,7 @@ function archiveCurrentDraftAsUnfinalized(){
 function clearLogInput(cancelEdit=true){
   if(cancelEdit)editingLogId=null;
   continuedFromLog=null;
+  sessionFieldsLocked=false;
   sameTablePromptKey='';
   sameTableCarryOptOutKey='';
   modeSummaryOpen=false;
@@ -5844,6 +5971,9 @@ function clearLogInput(cancelEdit=true){
   renderPendingSuggestBoxIntoDom();
   renderCurrentSuggestLog();
   renderPracticeStats();
+  renderCurrentContextBar();
+  renderResumeChoice();
+  renderSessionFieldLocks();
   setToday();
   setDefaultStartTime(true);
   applyLatestStoreForCurrentDate();
@@ -5954,11 +6084,13 @@ function loadDraftIntoInputs(log){
   renderCurrentSuggestLog();
   renderCarrySummaryIntoDom();
   renderPracticeStats();
+  renderCurrentContextBar();
+  renderSessionFieldLocks();
   hydratingDraft=false;
 }
 function restoreDraftIfAny(){
   if(editingLogId||!db.draftLog)return;
-  loadDraftIntoInputs(db.draftLog);
+  renderResumeChoice();
 }
 
 function loadLogForEdit(id){
