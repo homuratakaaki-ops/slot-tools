@@ -1271,6 +1271,7 @@ function machineUsesLcdCounter(machine=currentMachine()){
   return machine?.useLcdCounter!==false;
 }
 function machineUsesEndingCards(machine=currentMachine()){
+  if(isMonkeyTurnMachine(machine))return false;
   return machine?.useEndingCards===true;
 }
 function suggestPlaceStateGroup(category,place){
@@ -4246,7 +4247,7 @@ function renderCarrySummaryArea(){
     <div class="carry-summary-wrap">
       ${carrySummarySection('mode','モード示唆まとめ',modeSummaryOpen)}
       ${carrySummarySection('setting','設定関連まとめ',settingSummaryOpen)}
-      ${renderEndingCardsSummary()}
+      ${machineUsesEndingCards()?renderEndingCardsSummary():''}
       ${renderKuiPointSummaryArea()}
     </div>`;
 }
