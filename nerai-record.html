@@ -338,7 +338,6 @@ footer a:hover{color:var(--gold-light);}
   <div class="section flow-panel" data-flow-step="4">
     <div class="section-label">収支</div>
     <div class="state4-actions">
-      <button class="btn-secondary btn-stop" id="saveLogButton" onclick="saveLog()">収支登録して保存</button>
       <button class="btn-secondary btn-new" onclick="startNewRegistration()">現在の稼働を退避して新規開始</button>
     </div>
     <p class="section-note">STEP3の出口で即ヤメを選んだチェーンの収支を登録します。終了持ちメダル入力で確定・集計対象になります。</p>
@@ -396,6 +395,9 @@ footer a:hover{color:var(--gold-light);}
         <div class="input-hint" id="rateHint" style="margin-top:8px;">交換率未設定</div>
         <div class="money-status incomplete" id="moneyRegistrationStatus"></div>
         <div class="warning" id="timeWarning">終了時間が開始時間より前です。MVPでは日跨ぎを計算しないため、稼働時間は0分にします。</div>
+      </div>
+      <div class="state4-actions">
+        <button class="btn-secondary btn-stop" id="saveLogButton" onclick="saveLog()">収支登録して保存</button>
       </div>
     </div>
   </div>
