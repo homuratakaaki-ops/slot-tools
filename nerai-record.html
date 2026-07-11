@@ -1267,6 +1267,12 @@ function ensurePresetMachines(data){
     data.machines.push({id:'m_monkey_turn_v',name:'モンキーターンV',maker:'',aims:[],tags:[],startTags:[],labelTags:[],suggestMaster:[]});
   }
 }
+function machineUsesLcdCounter(machine=currentMachine()){
+  return machine?.useLcdCounter!==false;
+}
+function machineUsesEndingCards(machine=currentMachine()){
+  return machine?.useEndingCards===true;
+}
 function suggestPlaceStateGroup(category,place){
   const placeId=String(place?.id||'');
   const placeName=String(place?.name||'');
@@ -1798,6 +1804,10 @@ function migrateTokyoGhoulSuggestLogs(data){
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
+  if(isTokyoGhoulMachine(machine)){
+    machine.useLcdCounter=true;
+    machine.useEndingCards=true;
+  }
   if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV14)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const tag=(id,label,optional=false,rule={},tagClass='')=>({id,label,optional,countAs:null,liquidDelta:rule.liquidDelta??null,liquidSet:rule.liquidSet??null,tagClass});
@@ -1961,7 +1971,10 @@ function ensureSuggestSeed(machine){
   machine.suggestSeedTokyoGhoulV14=true;
 }
 function ensureMonkeyTurnSeed(machine){
-  if(!machine||!isMonkeyTurnMachine(machine)||machine.suggestSeedMonkeyTurnV1)return;
+  if(!machine||!isMonkeyTurnMachine(machine))return;
+  machine.useLcdCounter=false;
+  machine.useEndingCards=false;
+  if(machine.suggestSeedMonkeyTurnV1)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
   const item=(label,carryType=null)=>({label,enabled:true,carryType});
   const place=(id,name,entries,stateGroup='play')=>({
@@ -3369,16 +3382,17 @@ function renderStartLogArea(){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">打ち始めログは機種選択後に使えます</div>';
   const startRefDisabled=currentChainHasKuiPointRelease();
+  const useLcdCounter=machineUsesLcdCounter(machine);
   return `
     ${renderStartHeaderArea()}
     <div class="input-row">
       <div class="input-label no-wrap-label">データカウンターG数<div class="input-hint">必須・分母の起点</div></div>
       <input type="text" id="startCounterGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(startCounterInputValue())}" data-clear-initial-zero="${startCounterInitialZeroFlag()}" placeholder="0" oninput="syncStartCounterGame()" onchange="syncStartCounterGame()">
     </div>
-    <div class="input-row">
+    ${useLcdCounter?`<div class="input-row">
       <div class="input-label no-wrap-label">液晶初期補正<div class="input-hint">任意・液晶G−データG</div></div>
       <input type="text" id="startLiquidCorrection" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(currentTimelineManualCorrection||'')}" placeholder="0" oninput="syncStartLiquidCorrection()" onchange="syncStartLiquidCorrection()">
-    </div>
+    </div>`:''}
     <div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
       <div class="input-label no-wrap-label">CZ失敗回数</div>
       <input type="text" id="startCzFailCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartCzFailCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
@@ -4288,6 +4302,7 @@ function deleteSuggestLogEntry(id){
   saveDraftImmediately();
 }
 function renderGamePairInputs(prefix){
+  const useLcdCounter=machineUsesLcdCounter();
   const dataId=prefix==='suggest'?'suggestTimelineGame':'timelineGame';
   const liquidId=prefix==='suggest'?'suggestTimelineLiquidGame':'timelineLiquidGame';
   const dataLabel=prefix==='suggest'?'示唆時データG数':'データG数';
@@ -4305,10 +4320,10 @@ function renderGamePairInputs(prefix){
         <label for="${dataId}">${dataLabel}</label>
         <input type="text" id="${dataId}" data-game-role="${rolePrefix}-data" class="numeric-input" inputmode="none" readonly value="${escapeHtml(dataValue)}" placeholder="例：523"${gapAttr} oninput="${dataHandler}" onchange="${dataHandler}">
       </div>
-      <div class="game-pair-field">
+      ${useLcdCounter?`<div class="game-pair-field">
         <label for="${liquidId}">${liquidLabel}</label>
         <input type="text" id="${liquidId}" data-game-role="${rolePrefix}-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="例：523"${gapAttr} oninput="${liquidHandler}" onchange="${liquidHandler}">
-      </div>
+      </div>`:''}
     </div>`;
 }
 function renderOutcomeQuickButtons(){
@@ -4585,6 +4600,7 @@ function hitBranchSteps(route,through=hitBranchWizard.through){
       steps.push({key:'follow',label:'フォロー'});
       steps.push({key:'exit',label:'出口選択'});
     }
+    if(!machineUsesEndingCards())return steps.filter(step=>step.key!=='endingCards');
     return steps;
   }
   return [];
@@ -4681,6 +4697,7 @@ function endingCardsInputGroupHtml(group){
     </div>`;
 }
 function renderEndingCardsInputArea(){
+  if(!machineUsesEndingCards())return '';
   return `
     <div class="ending-card-summary">
       <div class="section-label">エンディングカード</div>
@@ -5157,6 +5174,7 @@ function endingCardsTextLines(cards=currentEndingCards){
   return lines;
 }
 function renderEndingCardsSummary(cards=currentEndingCards){
+  if(!machineUsesEndingCards())return '';
   const total=endingCardsTotal(cards);
   const groupRows=endingCardsByGroupRows(cards);
   const fixedIds=new Set(['copper','silver','gold','rainbow']);
