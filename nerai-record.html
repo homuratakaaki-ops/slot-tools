@@ -202,6 +202,16 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .money-status-item{display:flex;align-items:center;gap:6px;line-height:1.35;}
 .money-status-item.done{color:#9be0bd;}
 .money-status-item.todo{color:#ffb3b3;}
+.current-context-bar{border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.16);padding:9px 10px;margin:10px 0 12px;}
+.current-context-main{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
+.current-context-title{font-size:12px;font-weight:900;color:var(--gold-light);}
+.current-context-meta{font-size:11px;color:var(--text-muted);line-height:1.5;margin-top:4px;}
+.status-badge{display:inline-flex;align-items:center;border:1px solid rgba(201,168,76,.45);border-radius:999px;padding:2px 8px;font-size:11px;font-weight:900;color:var(--gold-light);background:rgba(201,168,76,.08);white-space:nowrap;}
+.past-hints{margin-top:8px;}
+.past-hints-toggle{width:100%;display:flex;justify-content:space-between;gap:8px;border:0;background:rgba(201,168,76,.07);color:var(--text);border-radius:6px;padding:7px 8px;font-size:12px;font-weight:800;text-align:left;cursor:pointer;}
+.past-hints-body{display:none;margin-top:8px;}
+.past-hints.open .past-hints-body{display:block;}
+.past-hint-row{border:1px solid var(--border);border-radius:6px;background:var(--surface2);padding:7px;margin-top:6px;font-size:12px;color:var(--text);}
 .branch-next-btn{white-space:normal;line-height:1.35;text-align:center;min-width:0;}
 .suggest-kind{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 7px;margin-right:4px;font-size:11px;font-weight:800;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);}
 .suggest-kind-eyecatch{border-color:rgba(120,180,255,.55);background:rgba(120,180,255,.12);color:#a9d0ff;}
@@ -315,6 +325,7 @@ footer a:hover{color:var(--gold-light);}
 
 <div class="page" id="pageLog">
   <div class="flow-step-tabs" id="flowStepTabs"></div>
+  <div id="currentContextBar"></div>
   <div class="section flow-panel" data-flow-step="1">
     <div class="section-label">今日の狙い</div>
     <div class="card">
@@ -709,6 +720,7 @@ let currentEndingCards={};
 let endingCardGroupsOpen={};
 let pendingTimelineTagIds=[];
 let timelineHistoryOpen=false;
+let pastHintsOpen=false;
 let logDateOpenState={};
 let openLogDetailIds={};
 let recentTimelineHighlightId='';
@@ -2021,6 +2033,88 @@ function showPage(pageId){
 function flowStepLabel(step){
   return {1:'打ち始め',2:'実戦メモ',3:'当選記録',4:'収支登録'}[step]||'打ち始め';
 }
+function currentAimNumberPreview(){
+  if(Number(db.draftLog?.schemaVersion)>=LOG_SCHEMA_VERSION&&Number.isFinite(Number(db.draftLog.aimNumber)))return Number(db.draftLog.aimNumber);
+  if(continuedFromLog)return continuedAimNumber(continuedFromLog,selectedAimId);
+  return 1;
+}
+function currentBranchNumberPreview(){
+  const latest=Number(currentSegments?.[0]?.branchNumber);
+  if(currentTimeline.length||currentSuggestLog.length||currentHitEvents.some(event=>!archivedHitEventIds().has(event.id)))return maxBranchNumberForGroup(currentSessionIdPreview(),currentAimNumberPreview())+1;
+  return Number.isFinite(latest)?latest:maxBranchNumberForGroup(currentSessionIdPreview(),currentAimNumberPreview())+1;
+}
+function currentSessionIdPreview(){
+  if(Number(db.draftLog?.schemaVersion)>=LOG_SCHEMA_VERSION&&db.draftLog.sessionId)return db.draftLog.sessionId;
+  if(continuedFromLog)return continuedSessionId(continuedFromLog);
+  return '';
+}
+function statusBadgeLabelForCurrent(){
+  const draftStatus=normalizeLogStatus(db.draftLog?.status);
+  if(draftStatus==='settled')return '収支登録済み';
+  if(draftStatus==='finished')return '稼働完了';
+  if(currentFlowStep===4&&hasMoneyResultInput({
+    endMedals:normalizeOptionalNumber(document.getElementById('moneyEndMedals')?.value||''),
+    cashIn:normalizeOptionalNumber(document.getElementById('moneyCashIn')?.value||'')
+  }))return '収支登録済み';
+  if(currentFlowStep===4||currentEndLog)return '稼働完了';
+  if(currentSegments.length&&!currentTimeline.length&&!currentSuggestLog.length)return '区切り保存済み';
+  return '入力中';
+}
+function pastSessionHintRows(){
+  const sessionId=currentSessionIdPreview();
+  if(!sessionId)return [];
+  const rows=[];
+  db.logs
+    .filter(log=>log.sessionId===sessionId)
+    .sort((a,b)=>logSortTime(a).localeCompare(logSortTime(b)))
+    .forEach(log=>{
+      (log.segments||[]).forEach(segment=>{
+        (segment.suggestLog||[]).forEach(entry=>rows.push({log,segment,entry}));
+      });
+    });
+  currentSegments.forEach(segment=>{
+    (segment.suggestLog||[]).forEach(entry=>rows.push({log:null,segment,entry}));
+  });
+  return rows;
+}
+function renderPastSessionHints(){
+  const rows=pastSessionHintRows();
+  const openClass=pastHintsOpen?' open':'';
+  return `
+    <div class="past-hints${openClass}">
+      <button class="past-hints-toggle" type="button" onclick="togglePastHints()">
+        <span>過去区間の示唆</span>
+        <span>${rows.length}件 ${pastHintsOpen?'▲':'▼'}</span>
+      </button>
+      <div class="past-hints-body">
+        ${rows.length?rows.slice(-8).reverse().map(row=>{
+          const label=row.log&&row.segment?formatAimLabel(row.log,row.segment):'';
+          return `<div class="past-hint-row">${label?`<span class="pill gold">狙い ${escapeHtml(label)}</span> `:''}${escapeHtml(suggestLogLine(row.entry))}</div>`;
+        }).join(''):'<div class="empty-hint">同じ稼働内の過去示唆はまだありません</div>'}
+      </div>
+    </div>`;
+}
+function renderCurrentContextBar(){
+  const el=document.getElementById('currentContextBar');
+  if(!el)return;
+  const machine=currentMachine();
+  const store=document.getElementById('moneyStore')?.value||document.getElementById('startMoneyStore')?.value||'店舗未選択';
+  const machineNo=(document.getElementById('moneyMachineNo')?.value||document.getElementById('startMoneyMachineNo')?.value||'').trim();
+  const aimLabel=`${currentAimNumberPreview()}-${currentBranchNumberPreview()}`;
+  el.innerHTML=`
+    <div class="current-context-bar">
+      <div class="current-context-main">
+        <div class="current-context-title">狙い ${escapeHtml(aimLabel)}</div>
+        <span class="status-badge">${escapeHtml(statusBadgeLabelForCurrent())}</span>
+      </div>
+      <div class="current-context-meta">${escapeHtml(store)} / ${escapeHtml(machine?.name||'機種未選択')}${machineNo?` / 台${escapeHtml(machineNo)}`:''}</div>
+      ${renderPastSessionHints()}
+    </div>`;
+}
+function togglePastHints(){
+  pastHintsOpen=!pastHintsOpen;
+  renderCurrentContextBar();
+}
 function renderFlowStepTabs(){
   const el=document.getElementById('flowStepTabs');
   if(!el)return;
@@ -2041,6 +2135,7 @@ function switchFlowStep(step){
   scheduleDraftSave();
   renderLogFields();
   renderFlowStepTabs();
+  renderCurrentContextBar();
   bindNumericInputs();
 }
 
@@ -2061,6 +2156,7 @@ function renderAll(){
   renderStoreSelect();
   renderLogFields();
   renderFlowStepTabs();
+  renderCurrentContextBar();
   renderLogsList();
   updateCalc();
   updateEditModeUi();
@@ -2790,6 +2886,7 @@ function syncHeaderFromStart(){
   maybePromptSameTableContinue();
   renderCarrySummaryIntoDom();
   renderPracticeStats();
+  renderCurrentContextBar();
 }
 function syncHeaderFromMoney(){
   setFieldValue('startMoneyDate',document.getElementById('moneyDate')?.value||'');
@@ -2803,6 +2900,7 @@ function syncHeaderFromMoney(){
   maybePromptSameTableContinue();
   renderCarrySummaryIntoDom();
   renderPracticeStats();
+  renderCurrentContextBar();
 }
 function renderLogFields(){
   const aim=currentAim();
@@ -3898,6 +3996,7 @@ function startHitEventWizard(trigger){
   hitBranchWizard={route,stepIndex:0,through:null,done:[],eventId:event.id};
   renderLogFields();
   renderFlowStepTabs();
+  renderCurrentContextBar();
   saveDraftImmediately();
 }
 function renderHitEventsList(){
@@ -4444,6 +4543,7 @@ function selectHitExit(exit){
   closeSuggestPicker();
   renderLogFields();
   renderFlowStepTabs();
+  renderCurrentContextBar();
   saveDraftImmediately();
 }
 function setEndLogFromHitEvent(event){
