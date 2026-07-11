@@ -710,6 +710,7 @@ let currentStartLog=[];
 let currentStartCounterGame=0;
 let currentStartCzFailCount=null;
 let currentStartAtThroughCount=null;
+let currentExpectedValue=null;
 let currentTimeline=[];
 let currentTimelineDataGame=null;
 let currentTimelineSuikaOffset=0;
@@ -1061,6 +1062,7 @@ function normalizeData(data){
     log.startCounterGame=fixedStartCounter!==null?fixedStartCounter:findStartCounterValue(log.startLog);
     log.startCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
     log.startAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
+    log.expectedValue=normalizeExpectedValue(log.expectedValue);
     log.timeline=Array.isArray(log.timeline)?log.timeline:[];
     log.timeline.forEach(item=>{
       item.tagIds=Array.isArray(item.tagIds)?item.tagIds:[];
@@ -1136,6 +1138,7 @@ function normalizeData(data){
     data.draftLog.hitBranchWizard=data.draftLog.hitBranchWizard&&typeof data.draftLog.hitBranchWizard==='object'?normalizeHitBranchWizard(data.draftLog.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     data.draftLog.startCzFailCount=normalizeOptionalNumber(data.draftLog.startCzFailCount);
     data.draftLog.startAtThroughCount=normalizeOptionalNumber(data.draftLog.startAtThroughCount);
+    data.draftLog.expectedValue=normalizeExpectedValue(data.draftLog.expectedValue);
     data.draftLog.kuiPoint=data.draftLog.kuiPoint&&typeof data.draftLog.kuiPoint==='object'?data.draftLog.kuiPoint:{released:false};
     data.draftLog.kuiPoint.released=!!data.draftLog.kuiPoint.released;
     migrateTimelineOffsets(data.draftLog);
@@ -2032,6 +2035,10 @@ function formatYenDiff(n){
   return (num>0?'+':'')+num.toLocaleString('ja-JP')+'円';
 }
 function formatYenAmount(n){return n===null||n===undefined||n===''?'-':Number(n).toLocaleString('ja-JP')+'円';}
+function formatExpectedValue(value){
+  const normalized=normalizeExpectedValue(value);
+  return normalized===null?'':`想定EV ${formatYenDiff(normalized)}`;
+}
 function sectionLabel(section){return section==='play'?'実戦中':'打ち始め';}
 function fieldTypeLabel(type){return {text:'テキスト',number:'数値',select:'選択式',checkbox:'チェックボックス',memo:'メモ欄',time:'時間',date:'日付'}[type]||'テキスト';}
 
@@ -2329,6 +2336,7 @@ function addMachine(){
   currentStartLog=[];
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
+  currentExpectedValue=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
   resetTimelineOffsets();
@@ -2354,6 +2362,7 @@ function selectMachine(id){
   currentStartLog=[];
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
+  currentExpectedValue=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
   resetTimelineOffsets();
@@ -2863,7 +2872,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentTimeline=[];currentTimelineDataGame=null;resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -2874,6 +2883,7 @@ function selectLogAim(){
     return;
   }
   selectedAimId=document.getElementById('logAim').value;
+  currentExpectedValue=continuedFromLog&&selectedAimId===continuedFromLog.aimId?normalizeExpectedValue(continuedFromLog.expectedValue):null;
   renderAll();
 }
 function renderStoreSelect(){
@@ -3195,6 +3205,18 @@ function startCounterInitialZeroFlag(){
 function optionalCountValue(value){
   return value===null||value===undefined?'':String(value);
 }
+function normalizeExpectedValue(value){
+  const normalized=normalizeOptionalNumber(value);
+  if(normalized===null)return null;
+  return Math.trunc(normalized);
+}
+function expectedValueInputValue(value=currentExpectedValue){
+  return value===null||value===undefined?'':String(value);
+}
+function syncExpectedValue(){
+  currentExpectedValue=normalizeExpectedValue(document.getElementById('expectedValueInput')?.value||'');
+  scheduleDraftSave();
+}
 function renderStartLogArea(){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">打ち始めログは機種選択後に使えます</div>';
@@ -3216,6 +3238,10 @@ function renderStartLogArea(){
     <div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
       <div class="input-label no-wrap-label">AT駆け抜け回数</div>
       <input type="text" id="startAtThroughCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartAtThroughCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
+    </div>
+    <div class="input-row">
+      <div class="input-label no-wrap-label">想定期待値<div class="input-hint">外部の期待値表などを参考にした概算値。設定条件により実際とは異なります</div></div>
+      <input type="text" id="expectedValueInput" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(expectedValueInputValue())}" placeholder="任意・円" oninput="syncExpectedValue()" onchange="syncExpectedValue()">
     </div>
     <div class="section-label" style="margin-top:14px;">追加データ（任意）</div>
     <div class="input-row">
@@ -5893,6 +5919,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
     startCounterGame:currentStartCounterGame,
     startCzFailCount:currentStartCzFailCount,
     startAtThroughCount:currentStartAtThroughCount,
+    expectedValue:normalizeExpectedValue(document.getElementById('expectedValueInput')?.value||currentExpectedValue),
     suikaOffset:currentTimelineSuikaOffset,
     manualCorrection:currentTimelineManualCorrection,
     startLog:clone(sortedStartLog()),
@@ -5914,7 +5941,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
 function draftHasContent(log){
   if(!log)return false;
   const money=log.money||{};
-  return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||
+  return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||normalizeExpectedValue(log.expectedValue)!==null||
     (normalizeOptionalNumber(log.suikaOffset)??0)!==0||(normalizeOptionalNumber(log.manualCorrection)??0)!==0||
     (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.segments||[]).length>0||endingCardsTotal(log.endingCards)>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
     !!money.store||!!money.machineNo||!!money.endTime||normalizeOptionalNumber(money.startMedals)!==null||normalizeOptionalNumber(money.endMedals)!==null||!!money.cashIn||
@@ -6004,6 +6031,7 @@ function saveLog(options={}){
     startCounterGame:startCounter,
     startCzFailCount:currentStartCzFailCount,
     startAtThroughCount:currentStartAtThroughCount,
+    expectedValue:normalizeExpectedValue(document.getElementById('expectedValueInput')?.value||currentExpectedValue),
     suikaOffset:currentTimelineSuikaOffset,
     manualCorrection:currentTimelineManualCorrection,
     startLog:clone(sortedStartLog()),
@@ -6114,6 +6142,7 @@ function clearLogInput(cancelEdit=true){
   currentStartLog=[];
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
+  currentExpectedValue=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
   resetTimelineOffsets();
@@ -6222,6 +6251,7 @@ function loadDraftIntoInputs(log){
   currentStartCounterGame=logStartCounterValue(log);
   currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
   currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
+  currentExpectedValue=normalizeExpectedValue(log.expectedValue);
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
   applyStoredTimelineOffsets(log);
@@ -6279,6 +6309,7 @@ function loadLogForEdit(id){
   currentStartCounterGame=logStartCounterValue(log);
   currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
   currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
+  currentExpectedValue=normalizeExpectedValue(log.expectedValue);
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
   applyStoredTimelineOffsets(log);
@@ -6332,6 +6363,7 @@ function continueFromLog(id,skipConfirm=false){
   currentStartCounterGame=0;
   currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
   currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
+  currentExpectedValue=normalizeExpectedValue(log.expectedValue);
   currentStartLog=[];
   currentTimeline=[];
   currentTimelineDataGame=0;
@@ -6553,6 +6585,8 @@ function sessionSummaryLine(session){
   const parts=[money.store||'店舗未選択',log.machineName||'機種未設定'];
   if(money.machineNo)parts.push(`台${money.machineNo}`);
   parts.push(logSummaryMoney(log));
+  const expected=expectedValueTotalForSessions([session]);
+  if(expected!==null)parts.push(formatExpectedValue(expected));
   return parts.join(' / ');
 }
 function aimGroupSegments(aim){
@@ -6561,6 +6595,24 @@ function aimGroupSegments(aim){
 }
 function aimGroupAtCount(aim){
   return aimGroupSegments(aim).reduce((sum,row)=>sum+hitEventCounts(row.segment.hitEvents||[]).at,0);
+}
+function aimGroupExpectedValue(aim){
+  for(const log of aim.logs){
+    const value=normalizeExpectedValue(log.expectedValue);
+    if(value!==null)return value;
+  }
+  return null;
+}
+function expectedValueTotalForSessions(sessionItems){
+  let total=0;
+  let hasValue=false;
+  sessionItems.forEach(session=>{
+    session.aimList.forEach(aim=>{
+      const value=aimGroupExpectedValue(aim);
+      if(value!==null){total+=value;hasValue=true;}
+    });
+  });
+  return hasValue?total:null;
 }
 function segmentAtHitCount(segment){
   return hitEventCounts(segment?.hitEvents||[]).at;
@@ -6577,6 +6629,8 @@ function aimGroupSummary(aim,session){
     `初当たり${aimGroupAtCount(aim)}回`,
     `区切り${segments.length}件`
   ];
+  const expected=aimGroupExpectedValue(aim);
+  if(expected!==null)parts.push(formatExpectedValue(expected));
   return parts.join(' / ');
 }
 function renderSessionItem(session){
@@ -6661,13 +6715,18 @@ function renderLogsList(){
   el.innerHTML=dates.map(date=>`
     <button class="log-day-header" onclick="toggleLogDateGroup('${encodeURIComponent(date)}')">
       <span class="log-day-title">${isLogDateGroupOpen(date)?'▼':'▶'} ${escapeHtml(date)}</span>
-      <span class="log-day-count">${groups[date].length}件</span>
+      <span class="log-day-count">${groups[date].length}件${escapeHtml(logDateExpectedValueLabel(groups[date]))}</span>
     </button>
     ${isLogDateGroupOpen(date)?renderLogDateGroup(groups[date]):''}`).join('');
 }
 function renderLogDateGroup(logs){
   const {sessionItems,legacy}=buildSessionGroups(logs);
   return `${sessionItems.map(renderSessionItem).join('')}${legacy.map(log=>renderLogItem(log,{legacy:true})).join('')}`;
+}
+function logDateExpectedValueLabel(logs){
+  const {sessionItems}=buildSessionGroups(logs);
+  const total=expectedValueTotalForSessions(sessionItems);
+  return total!==null?` / ${formatExpectedValue(total)}`:'';
 }
 function renderLogItem(log,options={}){
   const isOpen=!!openLogDetailIds[log.id];
