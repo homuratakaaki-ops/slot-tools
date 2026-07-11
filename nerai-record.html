@@ -4892,7 +4892,7 @@ function timelineSuikaAfterText(item){
   const hasSuika=tagIds.some(id=>String(id).includes('suika'))||String(item?.text||'').includes('スイカ');
   if(!hasSuika)return '';
   const liquid=timelineLiquidGameValue(item);
-  return liquid!==null?`このスイカ後：液晶${liquid}G`:'';
+  return liquid!==null?`このスイカ後：液晶${liquid+delta}G`:'';
 }
 function addTimelineEntry(){
   const textEl=document.getElementById('timelineText');
