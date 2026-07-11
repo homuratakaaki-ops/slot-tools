@@ -1056,6 +1056,7 @@ function normalizeSuggestLogEntry(item){
 }
 function normalizeData(data){
   data.machines=Array.isArray(data.machines)?data.machines:[];
+  ensurePresetMachines(data);
   delete data.presetAims;
   data.stores=(Array.isArray(data.stores)?data.stores:[]).map(normalizeStore).filter(Boolean);
   data.logs=Array.isArray(data.logs)?data.logs:[];
@@ -1167,6 +1168,7 @@ function normalizeData(data){
     ensureRequiredAims(m);
     ensureDefaultLabelTags(m);
     ensureSuggestSeed(m);
+    ensureMonkeyTurnSeed(m);
     applySuggestMetadata(m);
   });
   migrateTokyoGhoulSuggestLogs(data);
@@ -1254,6 +1256,16 @@ function normalizeSuggestMaster(master){
 function isTokyoGhoulMachine(machine){
   const name=String(machine?.name||'');
   return name.includes('東京喰種')||name.includes('喰種')||name.includes('グール');
+}
+function isMonkeyTurnMachine(machine){
+  const name=String(machine?.name||'');
+  return name.includes('モンキーターンV')||name.includes('モンキーターン5')||name.includes('モンキーターンⅤ');
+}
+function ensurePresetMachines(data){
+  data.machines=Array.isArray(data.machines)?data.machines:[];
+  if(!data.machines.some(isMonkeyTurnMachine)){
+    data.machines.push({id:'m_monkey_turn_v',name:'モンキーターンV',maker:'',aims:[],tags:[],startTags:[],labelTags:[],suggestMaster:[]});
+  }
 }
 function suggestPlaceStateGroup(category,place){
   const placeId=String(place?.id||'');
@@ -1948,6 +1960,136 @@ function ensureSuggestSeed(machine){
   machine.suggestSeedTokyoGhoulV13=true;
   machine.suggestSeedTokyoGhoulV14=true;
 }
+function ensureMonkeyTurnSeed(machine){
+  if(!machine||!isMonkeyTurnMachine(machine)||machine.suggestSeedMonkeyTurnV1)return;
+  machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
+  const item=(label,carryType=null)=>({label,enabled:true,carryType});
+  const place=(id,name,entries,stateGroup='play')=>({
+    id,
+    name,
+    enabled:true,
+    stateGroup,
+    items:entries.map((entry,i)=>{
+      const row=typeof entry==='string'?item(entry):entry;
+      return {id:`${id}_i${i+1}`,label:row.label,enabled:row.enabled!==false,carryType:normalizeCarryType(row.carryType)};
+    })
+  });
+  const tag=(id,label,tagClass='')=>({id,label,optional:false,countAs:null,liquidDelta:null,liquidSet:null,tagClass});
+  const timelineTags=[
+    tag('t_monkey_turn_v_weak_cherry','弱チェリー','rare-weak'),
+    tag('t_monkey_turn_v_boat','ボート','rare-suika'),
+    tag('t_monkey_turn_v_weak_chance','弱チャンス目','rare-chance'),
+    tag('t_monkey_turn_v_strong_chance','強チャンス目','rare-chance'),
+    tag('t_monkey_turn_v_strong_cherry','強チェリー','rare-strong'),
+    tag('t_monkey_turn_v_ultimate','究極目','rare-certain'),
+    tag('t_monkey_turn_v_yushutsu_start','優出モード突入'),
+    tag('t_monkey_turn_v_yushutsu_end','優出モード終了'),
+    tag('t_monkey_turn_v_charge_start','激走チャージ突入'),
+    tag('t_monkey_turn_v_charge_end','激走チャージ終了'),
+    tag('t_monkey_turn_v_chobatsu_start','超抜チャレンジ突入'),
+    tag('t_monkey_turn_v_chobatsu_fail','超抜チャレンジ失敗'),
+    tag('t_monkey_turn_v_ex_item','EXアイテム獲得')
+  ];
+  const seed=[
+    {
+      id:'sgc_monkey_turn_v_play',
+      category:'稼働中示唆',
+      enabled:true,
+      useAppearG:true,
+      places:[
+        place('sgp_monkey_turn_v_boat_ticket','舟券',[
+          item('白（デフォルト）','setting'),
+          item('銀（設定2以上に期待）','setting'),
+          item('金（設定4以上に期待）','setting'),
+          item('虹（設定6示唆）','setting'),
+          item('榎木・青 / 榎木・黄（ライバルモード示唆）',null),
+          item('洞口・青 / 洞口・黄（ライバルモード示唆）',null),
+          item('蒲生・青 / 蒲生・黄（蒲生＝超抜優遇）',null),
+          item('浜岡・青 / 浜岡・黄（浜岡＝規定pt最大222）',null),
+          item('青島・青 / 青島・黄（青島＝青島SG濃厚）',null)
+        ]),
+        place('sgp_monkey_turn_v_forecaster','予想屋',[
+          '青①「最悪の展開はなさそうだ！」（6周期天井を否定）',
+          '青②「1、3、5レースにちゅうもく！」（1・3・5周期天井を示唆）',
+          '緑「1、2、4レースにちゅうもく！」（1・2・4周期天井を示唆）',
+          '赤「特報 2レース以内に注目！」（2周期以内にAT濃厚）',
+          '紫「特報 努力と当たりは関係ない 最後は運です」（当該周期でAT濃厚）'
+        ]),
+        place('sgp_monkey_turn_v_charge_touch','激走チャージ終了画面タッチ',[
+          '波多野（青）「落ち着くんだ憲二…」（デフォルト）',
+          item('波多野（青）「この気配は!?」（偶数設定期待度アップ 弱）','setting'),
+          '波多野（黄）「頑張れよ!」（通常B期待度33%）',
+          '青島（黄）「お互い頑張ろうね!」（通常B期待度50%）',
+          '波多野（緑）「ここは負けられねぇ!」（通常B以上濃厚）',
+          'ありさ（紫）「ここが勝負所よ!」（当該周期のAT期待50%）',
+          '青島（赤）「ここからが本当の勝負よ!」（モードB以上濃厚＋当該周期のAT期待50%）',
+          item('榎木（赤）「おつかれ」（設定2・4・6濃厚）','setting'),
+          '澄（紫）「憲ちゃん頑張って!」（当該周期でAT濃厚）',
+          item('榎木（紫）「これが艇王と呼ばれる私のレースだ!」（設定4以上濃厚）','setting')
+        ]),
+        place('sgp_monkey_turn_v_third_stop_line','セリフ演出（第3停止）',[
+          '通常B期待度アップ系（榎木/洞口/蒲生/浜岡）',
+          '洞口親父「お前がSGなんぞ10年早いわ！」（通常B or 天国濃厚）',
+          '櫛田「今のレース、なかなか楽しかったわ！」（通常B or 天国濃厚）'
+        ]),
+        place('sgp_monkey_turn_v_eyecatch_helmet','アイキャッチ／ライバルメット',[
+          '榎木メット（優出期待度50%以上）',
+          '洞口メット（シナリオ優遇）',
+          '蒲生メット（超抜優遇・強チェで超抜確定）',
+          '浜岡メット（規定pt最大222）',
+          '青島メット（青島SG濃厚）',
+          'モノクロ波多野メット（最強のB2 or 艇王）'
+        ])
+      ]
+    },
+    {
+      id:'sgc_monkey_turn_v_hit',
+      category:'当選時示唆',
+      enabled:true,
+      useAppearG:true,
+      places:[
+        place('sgp_monkey_turn_v_at_end_medal','AT終了画面（トロフィー・メダル）',[
+          item('青メダル（偶数示唆）','setting'),
+          item('黄メダル（高設定示唆 弱）','setting'),
+          item('黒メダル（高設定示唆 強・次回1回目トロフィー率大幅UP）','setting'),
+          item('銅トロフィー（設定2以上）','setting'),
+          item('金トロフィー（設定4以上）','setting'),
+          item('ケロット柄トロフィー（設定5以上）','setting'),
+          item('虹トロフィー（設定6）','setting')
+        ],'hit'),
+        place('sgp_monkey_turn_v_at_end_helmet','AT終了画面（ヘルメット）',[
+          'ロゴなし（デフォルト）',
+          'ロゴ有り（通常Bの期待度アップ）',
+          'ロゴ＋キラキラ（通常B or 天国濃厚）',
+          'ロゴ＋V（天国濃厚）',
+          'ありさメット（復活濃厚）'
+        ],'hit'),
+        place('sgp_monkey_turn_v_after_at_rare','AT終了後1G目のレア役',[
+          item('弱レア役（通常B以上濃厚）','mode'),
+          item('強レア役（天国濃厚）','mode'),
+          item('究極目（フリーズ濃厚）','mode')
+        ],'hit'),
+        place('sgp_monkey_turn_v_at_payout','AT中の特定枚数表示',[
+          item('456枚OVER（設定4以上）','setting'),
+          item('803枚OVER（設定5以上）','setting'),
+          item('666枚OVER（設定6）','setting')
+        ],'hit'),
+        place('sgp_monkey_turn_v_ending_voice','エンディング中ボイス',[
+          item('波多野（黄）（比率に設定差）','setting'),
+          item('ありさ（緑）（4・5示唆寄り）','setting'),
+          item('榎木（赤）（設定2以上）','setting'),
+          item('榎木（紫）（設定4以上）','setting'),
+          item('青島（紫）（設定5以上）','setting'),
+          item('澄（紫）（設定6）','setting')
+        ],'hit')
+      ]
+    }
+  ];
+  mergeTimelineTagSeed(machine,timelineTags);
+  mergeSuggestSeed(machine,seed);
+  applySuggestMetadata(machine);
+  machine.suggestSeedMonkeyTurnV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -2301,7 +2443,8 @@ function switchFlowStep(step){
 }
 
 function renderAll(){
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);});
+  ensurePresetMachines(db);
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -2334,6 +2477,7 @@ function addMachine(){
   ensureRequiredAims(machine);
   ensureDefaultLabelTags(machine);
   ensureSuggestSeed(machine);
+  ensureMonkeyTurnSeed(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
