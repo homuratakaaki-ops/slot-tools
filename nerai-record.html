@@ -645,6 +645,9 @@ footer a:hover{color:var(--gold-light);}
 
 <script>
 const STORAGE_KEY='nerai_record_v1';
+const LOG_SCHEMA_VERSION=2;
+const LOG_STATUS_VALUES=['active','suspended','finished','settled'];
+const SEGMENT_STATUS_VALUES=['editing','committed'];
 const REQUIRED_AIMS=[
   {id:'aim_tenjo',name:'天井狙い'},
   {id:'aim_setting',name:'設定狙い'}
@@ -871,6 +874,38 @@ function normalizeEndingCards(value){
   });
   return normalized;
 }
+function normalizeLogStatus(value){
+  return LOG_STATUS_VALUES.includes(value)?value:null;
+}
+function normalizeSegmentStatus(value){
+  return SEGMENT_STATUS_VALUES.includes(value)?value:null;
+}
+function deriveLogStatusFromFlags(log){
+  if(!log)return 'active';
+  if(log.finalized===true||log.state4Registered===true||log.excludeFromStats===false)return 'settled';
+  return 'finished';
+}
+function continuedSessionId(source){
+  return source?.sessionId||source?.id||'';
+}
+function continuedAimNumber(source,currentAimId){
+  const previous=Number.isFinite(Number(source?.aimNumber))?Number(source.aimNumber):1;
+  return source&&source.aimId&&source.aimId!==currentAimId?previous+1:previous;
+}
+function buildLogMetadata({id,aimId,existingLog=null,finalized=false,statusOverride=null}){
+  const logId=id||uid('l');
+  const source=continuedFromLog||null;
+  const sessionId=existingLog?.sessionId||continuedSessionId(source)||logId;
+  const aimNumber=existingLog?.aimNumber&&Number.isFinite(Number(existingLog.aimNumber))
+    ?Number(existingLog.aimNumber)
+    :source?continuedAimNumber(source,aimId):1;
+  return {
+    schemaVersion:LOG_SCHEMA_VERSION,
+    sessionId,
+    status:normalizeLogStatus(statusOverride)||(finalized?'settled':'active'),
+    aimNumber
+  };
+}
 function normalizeHitEvent(event){
   if(!event||typeof event!=='object')return null;
   const trigger=normalizeHitTrigger(event.trigger);
@@ -980,6 +1015,12 @@ function normalizeData(data){
     log.endingCards=normalizeEndingCards(log.endingCards);
     log.hitBranchWizard=log.hitBranchWizard&&typeof log.hitBranchWizard==='object'?normalizeHitBranchWizard(log.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     log.continuedFromId=log.continuedFromId||log.continuedFromLog?.id||'';
+    if(Number(log.schemaVersion)>=LOG_SCHEMA_VERSION){
+      log.schemaVersion=LOG_SCHEMA_VERSION;
+      log.sessionId=log.sessionId||log.id;
+      log.aimNumber=Number.isFinite(Number(log.aimNumber))?Number(log.aimNumber):1;
+      log.status=normalizeLogStatus(log.status)||deriveLogStatusFromFlags(log);
+    }
     log.sameTableCarryOptOut=!!log.sameTableCarryOptOut;
     log.flowStep=Number(log.flowStep)||4;
     log.endLog=log.endLog&&typeof log.endLog==='object'?log.endLog:null;
@@ -1013,6 +1054,12 @@ function normalizeData(data){
   data.draftLog=data.draftLog&&typeof data.draftLog==='object'?data.draftLog:null;
   if(data.draftLog){
     data.draftLog.flowStep=Number(data.draftLog.flowStep)||1;
+    if(Number(data.draftLog.schemaVersion)>=LOG_SCHEMA_VERSION){
+      data.draftLog.schemaVersion=LOG_SCHEMA_VERSION;
+      data.draftLog.sessionId=data.draftLog.sessionId||data.draftLog.id||uid('draft');
+      data.draftLog.aimNumber=Number.isFinite(Number(data.draftLog.aimNumber))?Number(data.draftLog.aimNumber):1;
+      data.draftLog.status=normalizeLogStatus(data.draftLog.status)||'active';
+    }
     data.draftLog.state4Registered=false;
     data.draftLog.finalized=false;
     data.draftLog.excludeFromStats=true;
@@ -5399,8 +5446,11 @@ function currentInputLogObject(finalized=false, existingLog=null){
   baseMoney.exchangeRate=store?.exchangeRate??null;
   const c=calcMoney(baseMoney);
   const suggestLog=clone(sortedSuggestLog());
+  const logId=existingLog?.id||uid(finalized?'l':'draft');
+  const metadata=buildLogMetadata({id:logId,aimId:aim.id,existingLog,finalized,statusOverride:finalized?'settled':'active'});
   return {
-    id:existingLog?.id||uid(finalized?'l':'draft'),
+    id:logId,
+    ...metadata,
     machineId:machine.id,
     aimId:aim.id,
     machineName:machine.name,
@@ -5507,8 +5557,11 @@ function saveLog(options={}){
   const c=calcMoney(baseMoney);
   const suggestLog=clone(sortedSuggestLog());
   const finalized=hasMoneyResultInput(baseMoney);
+  const logId=editingLog?.id||uid('l');
+  const metadata=buildLogMetadata({id:logId,aimId:aim.id,existingLog:editingLog,finalized,statusOverride:finalized?'settled':'finished'});
   const log={
-    id:editingLog?.id||uid('l'),
+    id:logId,
+    ...metadata,
     machineId:machine.id,
     aimId:aim.id,
     machineName:machine.name,
@@ -5592,6 +5645,7 @@ function archiveCurrentDraftAsUnfinalized(){
   const log=currentInputLogObject(false,db.draftLog||null);
   if(!draftHasContent(log))return;
   log.id=log.id||uid('l');
+  log.status='suspended';
   log.state4Registered=false;
   log.finalized=false;
   log.excludeFromStats=true;
