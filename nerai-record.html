@@ -171,6 +171,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .carry-summary-group{padding-top:8px;margin-top:8px;border-top:1px solid rgba(201,168,76,.24);}
 .carry-summary-group:first-child{padding-top:0;margin-top:0;border-top:none;}
 .carry-summary-group-title{font-size:12px;font-weight:800;color:var(--gold-light);margin-bottom:6px;}
+.suggest-place-group{margin:8px 0;}
+.suggest-place-group-title{font-size:12px;font-weight:900;color:var(--gold-light);margin:0 0 6px;}
+.suggest-place-group .tag-grid{margin-top:0;}
 .mode-inference{border:1px solid rgba(98,181,255,.28);border-radius:8px;background:rgba(98,181,255,.08);padding:8px;margin:0 0 8px;font-size:12px;font-weight:800;}
 .mode-inference.kakutei{border-color:rgba(126,219,141,.5);background:rgba(126,219,141,.12);color:#a9efb6;}
 .mode-inference.shisa{border-color:rgba(98,181,255,.42);color:#a9d8ff;}
@@ -3030,15 +3033,33 @@ function orderSuggestQuickEntries(stateGroup,entries){
 function isKuiPointCategory(category){
   return category?.id==='sgc_tokyo_ghoul_kui_point'||String(category?.category||'')==='喰ポイント'||String(category?.category||'').includes('蝟ｰ繝昴う繝ｳ繝・');
 }
+function isTsukiyamaInviteEntry(category,place){
+  return String(place?.id||'').includes('tsukiyama')||String(place?.name||'').includes('月山招待状');
+}
+function suggestPlaceButtonLabel(category,place){
+  if(isTsukiyamaInviteEntry(category,place)){
+    return String(category?.category||'').includes('設定')?'設定':'モード示唆';
+  }
+  return suggestEntryPlaceLabel({category:category.category,place:place.name});
+}
+function suggestPlaceButtonHtml(category,place,stateGroup){
+  return `<button class="tag-btn gold" onclick="openSuggestItemPicker('${category.id}','${place.id}','${stateGroup}')">${escapeHtml(suggestPlaceButtonLabel(category,place))}</button>`;
+}
 function renderSuggestPlaceButtonsForState(stateGroup){
   const entries=orderSuggestQuickEntries(stateGroup,enabledSuggestPlaceEntries(stateGroup));
+  const inviteEntries=entries.filter(({category,place})=>!isKuiPointCategory(category)&&isTsukiyamaInviteEntry(category,place));
   const normalButtons=entries
-    .filter(({category})=>!isKuiPointCategory(category))
-    .map(({category,place})=>`<button class="tag-btn gold" onclick="openSuggestItemPicker('${category.id}','${place.id}','${stateGroup}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`)
+    .filter(({category,place})=>!isKuiPointCategory(category)&&!isTsukiyamaInviteEntry(category,place))
+    .map(({category,place})=>suggestPlaceButtonHtml(category,place,stateGroup))
     .join('');
+  const inviteButtons=inviteEntries.length?`
+    <div class="suggest-place-group">
+      <div class="suggest-place-group-title">招待状</div>
+      <div class="tag-grid">${inviteEntries.map(({category,place})=>suggestPlaceButtonHtml(category,place,stateGroup)).join('')}</div>
+    </div>`:'';
   const kuiCategory=entries.find(({category})=>isKuiPointCategory(category))?.category;
   const kuiButton=kuiCategory?`<button class="tag-btn gold" onclick="openKuiPointPicker('${kuiCategory.id}','${stateGroup}')">喰ポイント</button>`:'';
-  return normalButtons+kuiButton;
+  return normalButtons+inviteButtons+kuiButton;
 }
 function enabledSuggestPlaces(categoryId){
   const category=enabledSuggestCategories().find(c=>c.id===categoryId);
