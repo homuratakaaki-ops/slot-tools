@@ -6575,18 +6575,18 @@ function aimGroupSummary(aim,session){
     `狙い${aim.aimNumber}`,
     first.aimName||'狙い目未設定',
     `初当たり${aimGroupAtCount(aim)}回`,
-    `区切り${segments.length}件`,
-    aimGroupStatusLabel(aim,session)
+    `区切り${segments.length}件`
   ];
   return parts.join(' / ');
 }
 function renderSessionItem(session){
+  const status=statusBadgeLabelForLog(session.latestLog||session.logs[0]);
   return `
     <div class="list-item">
       <div class="item-head">
         <div class="log-summary-button">
           <div class="log-summary-line">${escapeHtml(sessionSummaryLine(session))}</div>
-          <div class="log-summary-meta">稼働 ${session.aimList.length}狙い / ${session.logs.length}ログ</div>
+          <div class="log-summary-meta">稼働 ${session.aimList.length}狙い / ${session.logs.length}ログ <span class="status-badge">${escapeHtml(status)}</span></div>
         </div>
       </div>
       <div class="log-detail">
@@ -6597,10 +6597,11 @@ function renderSessionItem(session){
 function renderAimGroupItem(session,aim){
   const id=`${session.sessionId}::${aim.aimNumber}`;
   const isOpen=!!openAimGroupIds[id];
+  const status=aimGroupStatusLabel(aim,session);
   return `
     <div class="carry-summary-section ${isOpen?'open':''}">
       <button class="carry-summary-toggle" type="button" onclick="toggleAimGroup('${escapeHtml(id)}')">
-        <span>${isOpen?'▼':'▶'} ${escapeHtml(aimGroupSummary(aim,session))}</span>
+        <span>${isOpen?'▼':'▶'} ${escapeHtml(aimGroupSummary(aim,session))} <span class="status-badge">${escapeHtml(status)}</span></span>
         <span class="carry-summary-count">${aim.logs.length}ログ</span>
       </button>
       <div class="carry-summary-body">
