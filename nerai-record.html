@@ -3240,7 +3240,7 @@ function renderStartLogArea(){
       <input type="text" id="startAtThroughCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartAtThroughCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
     </div>
     <div class="input-row">
-      <div class="input-label no-wrap-label">想定期待値<div class="input-hint">外部の期待値表などを参考にした概算値。設定条件により実際とは異なります</div></div>
+      <div class="input-label no-wrap-label">想定期待値</div>
       <input type="text" id="expectedValueInput" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(expectedValueInputValue())}" placeholder="任意・円" oninput="syncExpectedValue()" onchange="syncExpectedValue()">
     </div>
     <div class="section-label" style="margin-top:14px;">追加データ（任意）</div>
