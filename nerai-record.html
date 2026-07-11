@@ -906,6 +906,36 @@ function buildLogMetadata({id,aimId,existingLog=null,finalized=false,statusOverr
     aimNumber
   };
 }
+function currentDraftMetadataForSegment(){
+  const aim=currentAim();
+  const draft=Number(db.draftLog?.schemaVersion)>=LOG_SCHEMA_VERSION?db.draftLog:null;
+  return buildLogMetadata({
+    id:draft?.id||uid('draft'),
+    aimId:aim?.id||selectedAimId,
+    existingLog:draft,
+    finalized:false,
+    statusOverride:'active'
+  });
+}
+function maxBranchNumberForGroup(sessionId,aimNumber){
+  const targetAim=Number(aimNumber);
+  let max=0;
+  const scanSegment=segment=>{
+    const value=Number(segment?.branchNumber);
+    if(Number.isFinite(value)&&value>max)max=value;
+  };
+  db.logs.forEach(log=>{
+    if(log?.sessionId===sessionId&&Number(log?.aimNumber)===targetAim){
+      (log.segments||[]).forEach(scanSegment);
+    }
+  });
+  currentSegments.forEach(scanSegment);
+  return max;
+}
+function nextBranchNumberForCurrentGroup(){
+  const metadata=currentDraftMetadataForSegment();
+  return maxBranchNumberForGroup(metadata.sessionId,metadata.aimNumber)+1;
+}
 function normalizeHitEvent(event){
   if(!event||typeof event!=='object')return null;
   const trigger=normalizeHitTrigger(event.trigger);
@@ -3904,6 +3934,8 @@ function createSegmentSnapshot(event,terminalType=''){
   return normalizeSegment({
     id:uid('seg'),
     createdAt:new Date().toISOString(),
+    branchNumber:nextBranchNumberForCurrentGroup(),
+    status:'committed',
     terminalType,
     terminalLabel:segmentTerminalLabel(terminalEvent,terminalType),
     trigger:terminalEvent?.trigger||null,
