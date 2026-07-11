@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>稼働記録ツールの使い方｜スロット稼働ノート</title>
+<meta name="description" content="稼働記録ツールの使い方を解説します。打ち始め、実戦メモ、当選記録、収支登録の4STEPで、パチスロ実戦の展開と振り返りを端末内に記録できます。">
+<link rel="canonical" href="https://slot-tools.jp/nerai-guide.html">
+<style>
+  :root {
+    --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;
+    --gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#7a7a8a;--text-dim:#4a4a5a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh;}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center;}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px;}
+  .top-link:active{background:rgba(201,168,76,.12);color:var(--gold-light);}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5;}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px;}
+  .container{max-width:480px;margin:0 auto;padding:20px 16px 0;}
+  .section{margin-top:22px;}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold);}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px;}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px;}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0;}
+  li{margin-bottom:8px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px;}
+  .note{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.35);border-radius:8px;color:var(--text-muted);font-size:13px;padding:12px;margin:14px 0;}
+  .screenshot{margin:14px 0 18px;}
+  .screenshot img{display:block;width:100%;border:1px solid var(--border);border-radius:8px;background:var(--surface);}
+  .screenshot figcaption{color:var(--text-dim);font-size:12px;margin-top:6px;text-align:center;}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none;}
+  .sub-link{display:block;color:var(--gold);font-size:13px;margin:10px 0 0;text-align:center;text-decoration:none;}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px;}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
+  footer a{color:var(--text-muted);text-decoration:none;}
+  footer a:hover{color:var(--gold-light);}
+</style>
+</head>
+<body>
+<header>
+  <a class="top-link" href="index.html">← TOP</a>
+  <h1>稼働記録ツールの使い方</h1>
+  <p>打ち始めからヤメまでを記録し、あとから検証するための実戦ノート</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>このツールでできること</h2>
+    <p>稼働記録ツールは、パチスロ実戦中の「なんとなくの立ち回り」を、あとから見返せる記録に変えるためのツールです。</p>
+    <p>打ち始めた理由、途中の挙動、当選までの流れ、ヤメた理由、最終的な収支を、4つのSTEPに分けて残せます。</p>
+    <p>記録した内容はログとして保存され、狙い目ごとに展開を振り返れます。勝ち負けだけでなく、「その台を打つ判断が妥当だったか」を確認するための実戦ノートとして使う想定です。</p>
+    <div class="note">対応範囲：東京喰種は示唆・モード推定・エンディングカード集計までフル対応しています。その他の機種も、収支・実戦メモの記録として利用できます。示唆マスタや入力項目は、自分で追加することもできます。</div>
+    <p>登録は不要で、無料で使えます。入力データは利用中の端末のブラウザ内に保存され、サーバーには送信されません。</p>
+  </section>
+
+  <section class="section">
+    <h2>基本の流れ：4つのSTEP</h2>
+    <div class="card">
+      <h3>1. 打ち始め</h3>
+      <p>最初に、今日の狙いを選びます。機種、狙い方、日付、店舗名、台番号、開始時点のゲーム数などを入力します。</p>
+      <p>任意で「想定期待値」も入力できます。外部の期待値表や自分の基準を参考に、打ち始め時点の概算値を残す欄です。</p>
+      <figure class="screenshot">
+        <img src="assets/nerai-guide/step1.jpg" alt="STEP1 打ち始め画面">
+        <figcaption>STEP1：機種・狙い方・打ち始め情報を入力</figcaption>
+      </figure>
+    </div>
+    <div class="card">
+      <h3>2. 実戦メモ</h3>
+      <p>打ちながら、小役、ゾーン中の挙動、気になった演出などを記録します。</p>
+      <p>東京喰種では、スイカ加算、ステージ、アイキャッチ、招待状などの示唆をタグからワンタップで残せます。その他の機種では、タイムラインメモとして自由に記録できます。</p>
+      <figure class="screenshot">
+        <img src="assets/nerai-guide/step2.jpg" alt="STEP2 実戦メモ画面">
+        <figcaption>STEP2：実戦中の挙動や当選トリガーを記録</figcaption>
+      </figure>
+    </div>
+    <div class="card">
+      <h3>3. 当選記録</h3>
+      <p>CZ当選、上位CZ当選、AT直撃、エピソードボーナスなど、当選につながるイベントを記録します。</p>
+      <p>当選後は、同じ狙い目を続けるか、狙い目を変更して続けるか、ヤメて収支登録へ進むかを選びます。この出口選択によって、記録の区切りが整理されます。</p>
+      <figure class="screenshot">
+        <img src="assets/nerai-guide/step3.jpg" alt="STEP3 当選記録画面">
+        <figcaption>STEP3：当選イベントと、その後の動きを記録</figcaption>
+      </figure>
+    </div>
+    <div class="card">
+      <h3>4. 収支登録</h3>
+      <p>ヤメたあとに、終了持ちメダル、現金投入、稼働時間などを入力して収支を確定します。</p>
+      <p>公開用メモと非公開メモは任意です。店名や台番号は、公開出力に含めるかどうかを選べます。</p>
+      <figure class="screenshot">
+        <img src="assets/nerai-guide/step4.jpg" alt="STEP4 収支登録画面">
+        <figcaption>STEP4：終了時の数値を入れて収支を登録</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>記録の考え方：狙い目と区切り</h2>
+    <p>1回の稼働の中には、「天井狙い」「リセット狙い」のような目的単位があります。このツールでは、それを狙い目として扱います。</p>
+    <p>さらに、1つの狙い目の中で、CZ当選、AT終了、フォロー終了などの節目ごとに区切りができます。</p>
+    <p>画面に出る「狙い1-2」のような番号は、狙い目と区切りを表すラベルです。番号はツールが自動で振るため、手入力する必要はありません。</p>
+  </section>
+
+  <section class="section">
+    <h2>想定期待値の使い方</h2>
+    <p>打ち始め時に、任意で想定期待値を入力できます。外部の期待値表、自分の過去データ、店舗状況などを見て、「この台を打つ判断の前提」を数字で残すための欄です。</p>
+    <p>ツールが期待値を計算するわけではなく、あくまで自分で調べた概算値を記録するものです。実際の数値は設定状況や結果によって異なります。</p>
+    <p>入力した想定期待値は、狙い目の見出し、稼働カード、日付グループに表示されます。日付ごとの合計を見ることで、「今日は期待値をいくら積めたか」を振り返れます。</p>
+    <p>この機能は、出玉の結果を強調するためではなく、判断の質を振り返るためのものです。結果が荒れた日でも、打つ前の根拠を記録しておくと、あとから検証しやすくなります。</p>
+  </section>
+
+  <section class="section">
+    <h2>途中でやめる・別の台に移る</h2>
+    <p>実戦中に別の台へ移る場合は、「現在の稼働を保留して新規開始」を使います。保留した稼働は、次回開いたときに「前回の続きから入力する」か「新しい稼働を始める」かを選べます。</p>
+    <p>前回の続きから入力する場合、店舗名・機種名・台番号はロックされます。これは、別の台の記録が同じ稼働に混ざるのを防ぐためです。</p>
+    <p>新しい稼働を始めても、前回の記録は自動で削除されません。必要な場合はログから確認できます。</p>
+  </section>
+
+  <section class="section">
+    <h2>データの管理</h2>
+    <p>入力データは、利用している端末のブラウザ内に保存されます。サーバーには送信されません。</p>
+    <p>同じ端末・同じブラウザであれば、ページを閉じても次回続きから再開できます。ただし、ブラウザの閲覧データを削除すると、保存データも消える場合があります。</p>
+    <p>機種変更やブラウザ変更の前には、ログ画面の「全データをJSONでバックアップ」からバックアップを取ってください。復元欄からJSONファイルを読み込むと、保存済みデータを戻せます。</p>
+  </section>
+
+  <section class="section">
+    <h2>よくある質問</h2>
+    <div class="card">
+      <h3>Q. 東京喰種以外でも使えますか？</h3>
+      <p>A. 収支・実戦メモの記録として利用できます。東京喰種は示唆やエンディングカード集計まで用意していますが、他機種でも機種名や狙い方を登録すれば、基本の記録フローは使えます。</p>
+    </div>
+    <div class="card">
+      <h3>Q. データは外部に送られますか？</h3>
+      <p>A. 送られません。データは端末内のlocalStorageに保存されます。別端末で使う場合は、JSONバックアップを使って移してください。</p>
+    </div>
+    <div class="card">
+      <h3>Q. 途中でブラウザを閉じたらどうなりますか？</h3>
+      <p>A. 入力途中の下書きは自動保存されます。次回開いたときに、前回の続きから再開できます。</p>
+    </div>
+    <div class="card">
+      <h3>Q. 間違えて記録した場合は？</h3>
+      <p>A. ログ画面の編集ボタンから、保存済みログを修正できます。修正後は、再度収支登録まで進めると反映されます。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>注意事項</h2>
+    <p>本ツールは、実戦内容を整理し、あとから振り返るための記録補助ツールです。</p>
+    <p>想定期待値や示唆の集計は、入力した情報をもとに表示される目安であり、出玉、収支、勝利、特定の結果を保証するものではありません。</p>
+    <p>実際の遊技は、各店舗のルールを守り、自己判断で行ってください。</p>
+    <p>パチスロは適度に楽しむ遊びです。のめり込みや使いすぎには注意し、無理のない範囲で遊技してください。</p>
+  </section>
+
+  <a class="cta" href="nerai-record.html">▶ 稼働記録ツールを使う</a>
+  <a class="sub-link" href="/contact.html">お問い合わせはこちら</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+  </nav>
+</footer>
+</body>
+</html>

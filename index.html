@@ -44,10 +44,11 @@ footer a:hover{color:#e8c96a;}
     <a class="guide-link" href="shutter-guide.html" onclick="event.stopPropagation();">📖 使い方・詳しい説明 →</a>
   </div>
   <div class="section-label">実戦ログ</div>
-  <a class="tool-card" href="nerai-record.html">
+  <div class="tool-card" role="link" tabindex="0" onclick="location.href='nerai-record.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='nerai-record.html';}">
     <h2>稼働記録ツール</h2>
     <p>機種別・狙い方別に入力項目を作り、実戦中の記録と収支を保存します。</p>
-  </a>
+    <a class="guide-link" href="nerai-guide.html" onclick="event.stopPropagation();">📖 使い方・詳しい説明 →</a>
+  </div>
 </div>
 <footer>
   <p>&copy; 2026 slot-tools.jp</p>
