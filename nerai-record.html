@@ -1187,6 +1187,7 @@ function normalizeData(data){
     ensureDefaultLabelTags(m);
     ensureSuggestSeed(m);
     ensureMonkeyTurnSeed(m);
+    ensureNangokuSpecialSeed(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     applySuggestMetadata(m);
   });
@@ -1280,10 +1281,17 @@ function isMonkeyTurnMachine(machine){
   const name=String(machine?.name||'');
   return name.includes('モンキーターンV')||name.includes('モンキーターン5')||name.includes('モンキーターンⅤ');
 }
+function isNangokuSpecialMachine(machine){
+  const name=String(machine?.name||'');
+  return name.includes('L南国育ちSPECIAL')||name.includes('南国育ちSPECIAL')||name.includes('南国育ちスペシャル');
+}
 function ensurePresetMachines(data){
   data.machines=Array.isArray(data.machines)?data.machines:[];
   if(!data.machines.some(isMonkeyTurnMachine)){
     data.machines.push({id:'m_monkey_turn_v',name:'モンキーターンV',maker:'',aims:[],tags:[],startTags:[],labelTags:[],suggestMaster:[]});
+  }
+  if(!data.machines.some(isNangokuSpecialMachine)){
+    data.machines.push({id:'m_nangoku_special',name:'L南国育ちSPECIAL',maker:'',aims:[],tags:[],startTags:[],labelTags:[],suggestMaster:[]});
   }
 }
 function machineUsesLcdCounter(machine=currentMachine()){
@@ -2133,6 +2141,107 @@ function ensureMonkeyTurnSeed(machine){
   applySuggestMetadata(machine);
   machine.suggestSeedMonkeyTurnV1=true;
 }
+function ensureNangokuSpecialSeed(machine){
+  if(!machine||!isNangokuSpecialMachine(machine))return;
+  machine.useLcdCounter=false;
+  machine.useEndingCards=false;
+  machine.hitTriggers=normalizeHitTriggers([
+    {key:'direct_at',label:'BIG当選'},
+    {key:'episode_bonus',label:'REG当選'}
+  ]);
+  if(machine.suggestSeedNangokuSpecialV1)return;
+  machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
+  const item=(label,carryType=null)=>({label,enabled:true,carryType});
+  const place=(id,name,entries,stateGroup='play')=>({
+    id,name,enabled:true,stateGroup,items:entries.map((entry,i)=>({
+      id:`${id}_i${i+1}`,
+      ...(typeof entry==='string'?item(entry):entry)
+    }))
+  });
+  const tag=(id,label,tagClass='')=>({id,label,optional:false,countAs:null,liquidDelta:null,liquidSet:null,tagClass});
+  const timelineTags=[
+    tag('t_nangoku_cherry','チェリー','rare-weak'),
+    tag('t_nangoku_suika','スイカ','rare-suika'),
+    tag('t_nangoku_replay_flash','リプレイフラッシュ','rare-chance'),
+    tag('t_nangoku_sazanami_purple','さざなみ紫','rare-chance'),
+    tag('t_nangoku_sazanami_red','さざなみ赤','rare-strong'),
+    tag('t_nangoku_sazanami_rainbow','さざなみ虹','rare-rainbow'),
+    tag('t_nangoku_sazanami_through','さざなみスルー','event'),
+    tag('t_nangoku_pato_light','パトランプ発光','event'),
+    tag('t_nangoku_butterfly_flew','蝶が飛んだ','event'),
+    tag('t_nangoku_butterfly_zone_through','バタフライゾーンスルー','event'),
+    tag('t_nangoku_tokimeki_return','ときめきゾーン引き戻し','event'),
+    tag('t_nangoku_tokimeki_through','ときめきゾーンスルー','event'),
+    tag('t_nangoku_sdc_start','SDC突入','event'),
+    tag('t_nangoku_sdc_success','SDC成功','event'),
+    tag('t_nangoku_sdc_fail','SDC失敗','event'),
+    tag('t_nangoku_hisho_start','飛翔モード突入','event'),
+    tag('t_nangoku_hisho_end','飛翔モード終了','event'),
+    tag('t_nangoku_super_hisho_start','超飛翔モード突入','event'),
+    tag('t_nangoku_super_hisho_end','超飛翔モード終了','event'),
+    tag('t_nangoku_blue_wave_start','青波モード突入','event'),
+    tag('t_nangoku_ura_reg_start','裏REG突入','event'),
+    tag('t_nangoku_bonus_sazanami_flash','ボーナス中さざなみフラッシュ','event'),
+    tag('t_nangoku_morning_behavior','朝一挙動','event')
+  ];
+  const seed=[
+    {
+      id:'sgc_nangoku_play',
+      category:'稼働中示唆',
+      enabled:true,
+      useAppearG:true,
+      places:[
+        place('sgp_nangoku_sazanami','さざなみ前兆',[
+          item('紫さざなみ（デフォルト）','mode'),
+          item('赤さざなみ（ボーナス大チャンス＋通常B以上濃厚）','mode'),
+          item('虹さざなみ（ボーナス濃厚＋飛翔濃厚）','mode')
+        ]),
+        place('sgp_nangoku_replay_flash','リプレイフラッシュ',[
+          item('発生（高モードほど高頻度：超飛翔準備1/78〜通常A1/379）','mode')
+        ])
+      ]
+    },
+    {
+      id:'sgc_nangoku_hit',
+      category:'当選時示唆',
+      enabled:true,
+      useAppearG:false,
+      places:[
+        place('sgp_nangoku_bonus_voice','ボーナス終了時ボイス（PUSH）',[
+          item('ボイスなし（デフォルト?）','setting'),
+          item('張り切っていこー（偶奇示唆?）','setting'),
+          item('自分を信じて（偶奇示唆?）','setting'),
+          item('良い感じよ♪うんうん（高設定期待度UP?）','setting'),
+          item('今日の運勢は…可!（設定2以上濃厚?）','setting'),
+          item('今日の運勢は…良!（設定4以上濃厚?）','setting'),
+          item('今日の運勢は…極み!（設定6濃厚?）','setting')
+        ],'hit'),
+        place('sgp_nangoku_reel_light','ボーナス終了時のリール発光',[
+          item('変化なし（デフォルト・チャンスや飛翔準備に期待!?）','mode'),
+          item('青（高モード示唆・弱）','mode'),
+          item('緑（高モード示唆・強）','mode'),
+          item('赤（通常B以上濃厚）','mode'),
+          item('虹（（超）飛翔モード濃厚）','mode')
+        ],'hit'),
+        place('sgp_nangoku_trigger','当選契機（スイカ規定回数・天井）',[
+          item('スイカ3回目で当選（期待度約33%枠）'),
+          item('スイカ5回目で当選（同上）'),
+          item('スイカ7回目で当選（同上）'),
+          item('スイカ9回目で当選（濃厚枠）'),
+          item('その他の回数で当選（設定4以上の期待度アップ）','setting'),
+          item('天井到達で当選（799/500/200G・モード依存）')
+        ],'hit'),
+        place('sgp_nangoku_bonus_type','ボーナス種別',[
+          item('青7BIG（初当りの0.1%・超飛翔中なら青波モードへ）')
+        ],'hit')
+      ]
+    }
+  ];
+  mergeTimelineTagSeed(machine,timelineTags);
+  mergeSuggestSeed(machine,seed);
+  applySuggestMetadata(machine);
+  machine.suggestSeedNangokuSpecialV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -2487,7 +2596,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -2521,6 +2630,7 @@ function addMachine(){
   ensureDefaultLabelTags(machine);
   ensureSuggestSeed(machine);
   ensureMonkeyTurnSeed(machine);
+  ensureNangokuSpecialSeed(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -4636,13 +4746,13 @@ function hitBranchSteps(route,through=hitBranchWizard.through){
       steps.push({key:'follow',label:'フォロー'});
       steps.push({key:'exit',label:'出口選択'});
     }
+    if(!isTokyoGhoulMachine(currentMachine()))return steps.filter(step=>['through','payout','follow','exit'].includes(step.key));
     if(!machineUsesEndingCards())return steps.filter(step=>step.key!=='endingCards');
     return steps;
   }
   return [];
 }
 function renderHitBranchWizardArea(){
-  if(!isTokyoGhoulMachine(currentMachine()))return '';
   const route=hitBranchWizard.route;
   const steps=hitBranchSteps(route);
   const current=steps[hitBranchWizard.stepIndex];
