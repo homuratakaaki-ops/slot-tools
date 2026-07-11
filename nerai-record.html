@@ -3549,6 +3549,11 @@ function modeInferenceForEntries(entries){
   const candidates=(entries||[]).map(entryModeConfidence).filter(row=>row.level&&row.type);
   return strongestModeConfidence(candidates,'kakutei')||strongestModeConfidence(candidates,'shisa');
 }
+function modeInferenceLabel(entries){
+  const inference=modeInferenceForEntries(entries);
+  if(!inference)return '';
+  return `${modeConfidenceLevelLabel(inference.level)}${modeConfidenceTypeLabel(inference.type)}`;
+}
 function modeInferenceHtml(entries){
   const inference=modeInferenceForEntries(entries);
   if(!inference)return '<div class="mode-inference">推定：判定対象のモード示唆なし<br><span class="input-hint">デフォルト系は判定対象外として表示します。</span></div>';
@@ -4578,18 +4583,22 @@ function segmentText(segment,index){
 }
 function archivedSegmentsHtml(){
   if(!currentSegments.length)return '';
-  return currentSegments.map((segment,index)=>`
-    <div class="carry-summary-section ${index===0?'open':''}">
+  return currentSegments.map((segment,index)=>{
+    const modeLabel=modeInferenceLabel((segment.suggestLog||[]).filter(entry=>normalizeCarryType(entry.carryType)==='mode'));
+    const summary=modeLabel?`${segmentSummary(segment,index)}｜${modeLabel}`:segmentSummary(segment,index);
+    return `
+    <div class="carry-summary-section">
       <button class="carry-summary-toggle" type="button" onclick="this.parentElement.classList.toggle('open')">
-        <span>${escapeHtml(segmentSummary(segment,index))}</span>
-        <span class="carry-summary-count">${(segment.timeline||[]).length}件 ${index===0?'▲':'▼'}</span>
+        <span>${escapeHtml(summary)}</span>
+        <span class="carry-summary-count">${(segment.timeline||[]).length}件 ▼</span>
       </button>
       <div class="carry-summary-body">
         <textarea id="segmentCopy_${segment.id}" style="min-height:120px;">${escapeHtml(segmentText(segment,index))}</textarea>
         <button class="btn-copy" onclick="copyText(document.getElementById('segmentCopy_${segment.id}')?.value||'','segmentCopied_${segment.id}')">この記録内容をコピー</button>
         <div class="copy-done" id="segmentCopied_${segment.id}">コピーしました</div>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 function renderSegmentUndoNotice(){
   if(!lastSegmentUndo)return '';
@@ -4930,7 +4939,7 @@ function renderCurrentTimeline(){
   const rows=sortedTimeline();
   const archived=archivedSegmentsHtml();
   const undo=renderSegmentUndoNotice();
-  if(!rows.length&&!archived){el.innerHTML=`${undo}<div class="empty-hint">まだ時系列ログなし</div>`;return;}
+  if(!rows.length&&!archived){el.innerHTML=`<div class="empty-hint">まだ時系列ログなし</div>${undo}`;return;}
   const currentRows=rows.length?rows.map(t=>`
     <div class="timeline-item ${t.id===recentTimelineHighlightId?'recent':''}">
       <div class="timeline-head">
@@ -4942,7 +4951,7 @@ function renderCurrentTimeline(){
       <div class="timeline-text">${escapeHtml(t.text)}</div>
       ${timelineSuikaAfterText(t)?`<div class="item-sub">${escapeHtml(timelineSuikaAfterText(t))}</div>`:''}
     </div>`).join(''):'<div class="empty-hint">現在セグメントの途中ログなし</div>';
-  el.innerHTML=`${undo}${archived}${currentRows}`;
+  el.innerHTML=`${currentRows}${archived}${undo}`;
 }
 function editTimelineEntry(id){
   const item=currentTimeline.find(t=>t.id===id);if(!item)return;
