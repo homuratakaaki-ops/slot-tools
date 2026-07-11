@@ -316,7 +316,7 @@ footer a:hover{color:var(--gold-light);}
 <div class="page" id="pageLog">
   <div class="flow-step-tabs" id="flowStepTabs"></div>
   <div class="section flow-panel" data-flow-step="1">
-    <div class="section-label">テンプレ選択</div>
+    <div class="section-label">今日の狙い</div>
     <div class="card">
       <div class="input-row">
         <div class="input-label">機種</div>
@@ -338,9 +338,9 @@ footer a:hover{color:var(--gold-light);}
   <div class="section flow-panel" data-flow-step="4">
     <div class="section-label">収支</div>
     <div class="state4-actions">
-      <button class="btn-secondary btn-new" onclick="startNewRegistration()">現在の稼働を退避して新規開始</button>
+      <button class="btn-secondary btn-new" onclick="startNewRegistration()">現在の稼働を保留して新規開始</button>
     </div>
-    <p class="section-note">STEP3の出口で即ヤメを選んだチェーンの収支を登録します。終了持ちメダル入力で確定・集計対象になります。</p>
+    <p class="section-note">STEP3の出口で即ヤメを選んだ今回の稼働の収支を登録します。終了持ちメダル入力で確定・集計対象になります。</p>
     <div class="card">
       <div class="input-row compact-row date-row">
         <div class="input-label">日付</div>
@@ -1931,7 +1931,7 @@ function showPage(pageId){
   renderAll();
 }
 function flowStepLabel(step){
-  return {1:'打ち始め',2:'稼働中',3:'当選後処理',4:'収支登録'}[step]||'打ち始め';
+  return {1:'打ち始め',2:'実戦メモ',3:'当選記録',4:'収支登録'}[step]||'打ち始め';
 }
 function renderFlowStepTabs(){
   const el=document.getElementById('flowStepTabs');
@@ -2602,7 +2602,7 @@ function maybePromptSameTableContinue(){
   const log=latestSameTableLogForInput();
   if(!log)return;
   sameTablePromptKey=key;
-  if(confirm('同じ台のログがあります。v2では続行は同一ログ内で管理します。新しいチェーンとして入力しますか？')){
+  if(confirm('同じ台のログがあります。v2では続行は同一ログ内で管理します。新しい今回の稼働として入力しますか？')){
     sameTableCarryOptOutKey=key;
   }else{
     sameTableCarryOptOutKey=key;
@@ -2722,7 +2722,7 @@ function renderLogFields(){
   if(!aim){el.innerHTML='<div class="empty-hint">機種と狙い方を登録してください</div>';return;}
   const panels={
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
-    2:`<div class="card work-section-card play"><div class="work-section-title">稼働中の記録</div>${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
+    2:`<div class="card work-section-card play"><div class="work-section-title">実戦メモ</div>${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
     3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div>`,
     4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div>${renderSegmentUndoNotice()}<div id="practiceStatsBox"></div></div>`
   };
@@ -2869,7 +2869,7 @@ function renderStartLogArea(){
 function renderStartHeaderArea(){
   return `
     ${continuedFromLog?`<div class="calc-box" id="continuedFromBox" style="margin-bottom:12px;"><div class="calc-label">続行元</div><div class="timeline-text" style="margin-top:4px;">${escapeHtml(continuedFromLog.summary)}</div><button class="btn-secondary" onclick="clearContinueState()" style="margin-top:8px;">続行をやめる</button></div>`:''}
-    <div class="section-label" style="margin-top:0;">稼働ヘッダー</div>
+    <div class="section-label" style="margin-top:0;">日時・店・台</div>
     <div class="input-row compact-row">
       <div class="input-label no-wrap-label">日付</div>
       <div class="inline-field"><input type="date" id="startMoneyDate" onchange="syncHeaderFromStart()"><button class="btn-small" onclick="setToday('start')">今日</button></div>
@@ -3839,7 +3839,7 @@ function segmentTerminalLabel(event,terminalType=''){
   if(event.czResult==='at_lose')return `${trigger} / AT非突入`;
   if(event.through==='yes')return `${trigger} / AT終了（駆け抜け）`;
   if(event.through==='no')return `${trigger} / AT終了`;
-  return `${trigger} / チェーン終端`;
+  return `${trigger} / 今回の稼働終了`;
 }
 function archivedHitEventIds(){
   const ids=new Set();
@@ -4049,7 +4049,7 @@ function renderHitBranchWizardArea(){
   const routeLabel=route==='czResult'?'CZ結果待ち':route==='czFail'?'CZ失敗ルート':route==='atHit'?'AT当選ルート':'未選択';
   return `
     <div class="branch-wizard">
-      <div class="section-label" style="margin-top:0;">当選後処理フロー</div>
+      <div class="section-label" style="margin-top:0;">当選記録フロー</div>
       <p class="section-note">STEP2の当選トリガーから作成されたイベントを処理します。出口選択まで進めると完了です。</p>
       ${event?`<div class="item-sub">対象：${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitTriggerLabel(event.trigger)}`)}</div>`:''}
       ${!route?'<div class="empty-hint">STEP2の当選トリガーから開始してください。<button class="btn-secondary" onclick="switchFlowStep(2)">STEP2へ戻る</button></div>':''}
@@ -4374,7 +4374,7 @@ function openBranchPlacePicker(titleText,entries){
   suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:hitBranchWizard.route,branchStep:currentHitBranchStep()?.key||''};
   title.classList.remove('kui-title','gain','hint');
   title.textContent=titleText;
-  breadcrumb.textContent='当選後処理フロー / 確認場所を選択';
+  breadcrumb.textContent='当選記録フロー / 確認場所を選択';
   back.textContent='閉じる';
   options.innerHTML=entries.length?entries.map(({category,place})=>`<button class="suggest-picker-option" onclick="selectBranchSuggestPlace('${category.id}','${place.id}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`).join(''):'<div class="empty-hint">有効な確認場所がありません</div>';
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
@@ -5500,7 +5500,7 @@ function saveLog(options={}){
     recover:legacyMoneyMode?editingLog.money?.recover:null
   };
   if(!legacyMoneyMode&&baseMoney.startMedals===null){alert('開始持ちメダルを入力してください');return;}
-  if(finalizingChain&&!editingLog&&!confirm('この続行チェーンの収支を登録します。終了持ちメダル・現金投入が未入力でも保存できますが、ログ上では収支未登録として扱います。よろしいですか？'))return;
+  if(finalizingChain&&!editingLog&&!confirm('この続行中の稼働の収支を登録します。終了持ちメダル・現金投入が未入力でも保存できますが、ログ上では収支未登録として扱います。よろしいですか？'))return;
   const store=storeByName(baseMoney.store);
   baseMoney.lendRate=store?.lendRate??null;
   baseMoney.exchangeRate=store?.exchangeRate??null;
@@ -5579,7 +5579,7 @@ function scrollToPageTop(){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function startNewRegistration(){
-  if(!confirm('入力中の稼働チェーンを未確定ログへ退避して、新規登録を始めますか？収支未登録の場合は集計対象外になります。'))return;
+  if(!confirm('入力中の今回の稼働を未確定ログへ保留して、新規登録を始めますか？収支未登録の場合は集計対象外になります。'))return;
   archiveCurrentDraftAsUnfinalized();
   clearLogInput(true);
   db.draftLog=null;
