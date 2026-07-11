@@ -2135,6 +2135,7 @@ function unfinishedSessionCandidates(){
   const candidates=[];
   const add=(source,log)=>{
     if(Number(log?.schemaVersion)<LOG_SCHEMA_VERSION)return;
+    if(source==='draft'&&!draftHasContent(log))return;
     const status=unfinishedStatus(log.status);
     if(!status)return;
     candidates.push({source,log,status,sessionId:log.sessionId||log.id||'',updatedAt:logDisplayUpdatedAt(log)});
@@ -2180,6 +2181,7 @@ function renderResumeChoice(){
 }
 function suspendDraftLogIfAny(){
   if(!db.draftLog)return;
+  if(!draftHasContent(db.draftLog)){db.draftLog=null;return;}
   const log={...clone(db.draftLog),status:'suspended',state4Registered:false,finalized:false,excludeFromStats:true,updatedAt:new Date().toISOString()};
   db.logs=db.logs.filter(item=>item.id!==log.id);
   db.logs.push(log);
