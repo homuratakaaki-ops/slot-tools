@@ -6562,6 +6562,9 @@ function aimGroupSegments(aim){
 function aimGroupAtCount(aim){
   return aimGroupSegments(aim).reduce((sum,row)=>sum+hitEventCounts(row.segment.hitEvents||[]).at,0);
 }
+function segmentAtHitCount(segment){
+  return hitEventCounts(segment?.hitEvents||[]).at;
+}
 function aimGroupStatusLabel(aim,session){
   return statusBadgeLabelForLog(session.latestLog||aim.logs[aim.logs.length-1]);
 }
@@ -6601,7 +6604,41 @@ function renderAimGroupItem(session,aim){
         <span class="carry-summary-count">${aim.logs.length}ログ</span>
       </button>
       <div class="carry-summary-body">
-        ${isOpen?aim.logs.map(log=>renderLogItem(log)).join(''):''}
+        ${isOpen?renderAimGroupDetail(aim):''}
+      </div>
+    </div>`;
+}
+function renderAimGroupDetail(aim){
+  const rows=aimGroupSegments(aim);
+  if(!rows.length){
+    return aim.logs.map(log=>renderLogItem(log)).join('');
+  }
+  let atIndex=0;
+  return rows.map((row,index)=>{
+    const atCount=segmentAtHitCount(row.segment);
+    const heading=atCount>0?Array.from({length:atCount},()=>{
+      atIndex+=1;
+      return `<div class="log-summary-meta" style="font-weight:900;margin:10px 0 6px;">初当たり${atIndex}回目</div>`;
+    }).join(''):'';
+    return `${heading}${renderSegmentHistoryItem(row.log,row.segment,index)}`;
+  }).join('');
+}
+function renderSegmentHistoryItem(log,segment,index){
+  return `
+    <div class="timeline-item">
+      <div class="timeline-head">
+        <div class="timeline-game">${escapeHtml(segmentSummary(segment,index))}</div>
+        <span class="pill gold">${escapeHtml(formatAimLabel(log,segment)||'')}</span>
+      </div>
+      ${(segment.hitEvents||[]).length?`<div class="timeline-text">${(segment.hitEvents||[]).map(event=>escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event)}`)).join('<br>')}</div>`:''}
+      ${(segment.timeline||[]).length?`<div class="timeline-text">${(segment.timeline||[]).map(item=>{
+        const suikaAfter=timelineSuikaAfterText(item);
+        return escapeHtml(`${timelineGameLine(item)} ${item.text||''}${suikaAfter?`（${suikaAfter}）`:''}`.trim());
+      }).join('<br>')}</div>`:''}
+      ${(segment.suggestLog||[]).length?`<div class="timeline-text">${(segment.suggestLog||[]).map(entry=>escapeHtml(suggestLogLine(entry))).join('<br>')}</div>`:''}
+      ${endingCardsTotal(segment.endingCards)>0?`<div class="timeline-text">${endingCardsTextLines(segment.endingCards).map(escapeHtml).join('<br>')}</div>`:''}
+      <div class="item-actions" style="margin-top:8px;">
+        <button class="btn-small edit-strong" onclick="loadLogForEdit('${log.id}')">編集</button>
       </div>
     </div>`;
 }
