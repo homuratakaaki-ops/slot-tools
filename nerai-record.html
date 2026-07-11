@@ -882,6 +882,24 @@ function loadData(){
 function normalizeHitTrigger(value){
   return ['cz','upper_cz','direct_at','episode_bonus'].includes(value)?value:null;
 }
+function normalizeHitTriggers(value){
+  const fallback=[
+    {key:'cz',label:'CZ当選'},
+    {key:'upper_cz',label:'上位CZ当選'},
+    {key:'direct_at',label:'AT直撃'},
+    {key:'episode_bonus',label:'エピソードボーナス'}
+  ];
+  const rows=Array.isArray(value)?value:[];
+  const normalized=rows.map(row=>{
+    const key=normalizeHitTrigger(row?.key);
+    if(!key)return null;
+    return {key,label:String(row?.label||'').trim()||hitTriggerDefaultLabel(key)};
+  }).filter(Boolean);
+  return normalized.length?normalized:fallback;
+}
+function hitTriggerDefaultLabel(trigger){
+  return {cz:'CZ当選',upper_cz:'上位CZ当選',direct_at:'AT直撃',episode_bonus:'エピソードボーナス'}[trigger]||trigger||'当選';
+}
 function normalizeCzResult(value){
   return ['at_win','at_lose'].includes(value)?value:null;
 }
@@ -1169,6 +1187,7 @@ function normalizeData(data){
     ensureDefaultLabelTags(m);
     ensureSuggestSeed(m);
     ensureMonkeyTurnSeed(m);
+    m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     applySuggestMetadata(m);
   });
   migrateTokyoGhoulSuggestLogs(data);
@@ -1811,6 +1830,12 @@ function ensureSuggestSeed(machine){
   if(isTokyoGhoulMachine(machine)){
     machine.useLcdCounter=true;
     machine.useEndingCards=true;
+    machine.hitTriggers=normalizeHitTriggers([
+      {key:'cz',label:'CZ当選'},
+      {key:'upper_cz',label:'上位CZ当選'},
+      {key:'direct_at',label:'AT直撃'},
+      {key:'episode_bonus',label:'エピソードボーナス'}
+    ]);
   }
   if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV14)return;
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
@@ -1978,6 +2003,7 @@ function ensureMonkeyTurnSeed(machine){
   if(!machine||!isMonkeyTurnMachine(machine))return;
   machine.useLcdCounter=false;
   machine.useEndingCards=false;
+  machine.hitTriggers=normalizeHitTriggers([{key:'direct_at',label:'AT当選'}]);
   if(machine.suggestSeedMonkeyTurnV1)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
   const item=(label,carryType=null)=>({label,enabled:true,carryType});
@@ -4340,19 +4366,22 @@ function renderOutcomeQuickButtons(){
       <button class="outcome-tab" onclick="setTimelineOutcome('ヤメ')">ヤメ</button>
     </div>`;
 }
-function hitTriggerLabel(trigger){
-  return {cz:'CZ当選',upper_cz:'上位CZ当選',direct_at:'AT直撃',episode_bonus:'エピソードボーナス'}[trigger]||trigger||'当選';
+function machineHitTriggers(machine=currentMachine()){
+  return normalizeHitTriggers(machine?.hitTriggers);
+}
+function hitTriggerLabel(trigger,machine=currentMachine()){
+  const normalized=normalizeHitTrigger(trigger);
+  const configured=machineHitTriggers(machine).find(row=>row.key===normalized);
+  return configured?.label||hitTriggerDefaultLabel(normalized)||'当選';
 }
 function renderHitTriggerButtons(){
+  const triggers=machineHitTriggers();
   return `
     <div class="work-subsection play-group alt">
       <div class="section-label" style="margin-top:0;">当選トリガー</div>
       <p class="section-note">押した時点のデータG数/液晶G数で当選イベントを作り、STEP3へ移動します。</p>
       <div class="hit-trigger-grid">
-        <button class="hit-trigger-btn" onclick="startHitEventWizard('cz')">CZ当選</button>
-        <button class="hit-trigger-btn" onclick="startHitEventWizard('upper_cz')">上位CZ当選</button>
-        <button class="hit-trigger-btn" onclick="startHitEventWizard('direct_at')">AT直撃</button>
-        <button class="hit-trigger-btn" onclick="startHitEventWizard('episode_bonus')">エピソードボーナス</button>
+        ${triggers.map(trigger=>`<button class="hit-trigger-btn" onclick="startHitEventWizard('${escapeHtml(trigger.key)}')">${escapeHtml(trigger.label)}</button>`).join('')}
       </div>
     </div>`;
 }
