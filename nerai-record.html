@@ -729,6 +729,7 @@ let timelineHistoryOpen=false;
 let pastHintsOpen=false;
 let logDateOpenState={};
 let openLogDetailIds={};
+let openAimGroupIds={};
 let recentTimelineHighlightId='';
 let recentSuggestHighlightId='';
 let modeSummaryOpen=false;
@@ -2063,14 +2064,25 @@ function currentSessionIdPreview(){
 }
 function statusBadgeLabelForCurrent(){
   const draftStatus=normalizeLogStatus(db.draftLog?.status);
-  if(draftStatus==='settled')return '収支登録済み';
-  if(draftStatus==='finished')return '稼働完了';
+  const logLike=db.draftLog?{...db.draftLog,status:draftStatus}:null;
+  if(logLike){
+    const label=statusBadgeLabelForLog(logLike);
+    if(label==='収支登録済み'||label==='稼働完了')return label;
+  }
   if(currentFlowStep===4&&hasMoneyResultInput({
     endMedals:normalizeOptionalNumber(document.getElementById('moneyEndMedals')?.value||''),
     cashIn:normalizeOptionalNumber(document.getElementById('moneyCashIn')?.value||'')
   }))return '収支登録済み';
   if(currentFlowStep===4||currentEndLog)return '稼働完了';
   if(currentSegments.length&&!currentTimeline.length&&!currentSuggestLog.length)return '区切り保存済み';
+  return '入力中';
+}
+function statusBadgeLabelForLog(log){
+  const status=normalizeLogStatus(log?.status)||deriveLogStatusFromFlags(log);
+  if(status==='settled')return '収支登録済み';
+  if(status==='finished')return '稼働完了';
+  if(status==='suspended')return '保留中';
+  if(status==='active')return '入力中';
   return '入力中';
 }
 function pastSessionHintRows(){
@@ -6496,6 +6508,103 @@ function toggleLogDetail(id){
   openLogDetailIds[id]=!openLogDetailIds[id];
   renderLogsList();
 }
+function isStructuredLog(log){
+  return Number(log?.schemaVersion)>=LOG_SCHEMA_VERSION&&!!log.sessionId&&Number.isFinite(Number(log.aimNumber));
+}
+function toggleAimGroup(id){
+  openAimGroupIds[id]=!openAimGroupIds[id];
+  renderLogsList();
+}
+function sessionSortTime(session){
+  return session.logs.reduce((latest,log)=>{
+    const value=logSortTime(log);
+    return value.localeCompare(latest)>0?value:latest;
+  },'');
+}
+function buildSessionGroups(logs){
+  const sessions=new Map();
+  const legacy=[];
+  logs.forEach(log=>{
+    if(!isStructuredLog(log)){legacy.push(log);return;}
+    const key=log.sessionId||log.id;
+    if(!sessions.has(key))sessions.set(key,{sessionId:key,logs:[]});
+    sessions.get(key).logs.push(log);
+  });
+  const sessionItems=[...sessions.values()].map(session=>{
+    session.logs.sort((a,b)=>logSortTime(a).localeCompare(logSortTime(b)));
+    session.aims=new Map();
+    session.logs.forEach(log=>{
+      const aimNumber=Number(log.aimNumber);
+      if(!session.aims.has(aimNumber))session.aims.set(aimNumber,{aimNumber,logs:[]});
+      session.aims.get(aimNumber).logs.push(log);
+    });
+    session.aimList=[...session.aims.values()].sort((a,b)=>a.aimNumber-b.aimNumber);
+    session.latestLog=[...session.logs].sort((a,b)=>logSortTime(b).localeCompare(logSortTime(a)))[0]||session.logs[0];
+    return session;
+  }).sort((a,b)=>sessionSortTime(b).localeCompare(sessionSortTime(a)));
+  return {sessionItems,legacy};
+}
+function sessionMoneyLog(session){
+  return session.logs.find(log=>normalizeLogStatus(log.status)==='settled'||log.state4Registered===true||log.finalized===true)||session.latestLog||session.logs[0];
+}
+function sessionSummaryLine(session){
+  const log=sessionMoneyLog(session)||{};
+  const money=log.money||{};
+  const parts=[money.store||'店舗未選択',log.machineName||'機種未設定'];
+  if(money.machineNo)parts.push(`台${money.machineNo}`);
+  parts.push(logSummaryMoney(log));
+  return parts.join(' / ');
+}
+function aimGroupSegments(aim){
+  return aim.logs.flatMap(log=>(log.segments||[]).map(segment=>({log,segment})))
+    .sort((a,b)=>(Number(a.segment.branchNumber)||0)-(Number(b.segment.branchNumber)||0)||logSortTime(a.log).localeCompare(logSortTime(b.log)));
+}
+function aimGroupAtCount(aim){
+  return aimGroupSegments(aim).reduce((sum,row)=>sum+hitEventCounts(row.segment.hitEvents||[]).at,0);
+}
+function aimGroupStatusLabel(aim,session){
+  return statusBadgeLabelForLog(session.latestLog||aim.logs[aim.logs.length-1]);
+}
+function aimGroupSummary(aim,session){
+  const first=aim.logs[0]||{};
+  const segments=aimGroupSegments(aim);
+  const parts=[
+    `狙い${aim.aimNumber}`,
+    first.aimName||'狙い目未設定',
+    `初当たり${aimGroupAtCount(aim)}回`,
+    `区切り${segments.length}件`,
+    aimGroupStatusLabel(aim,session)
+  ];
+  return parts.join(' / ');
+}
+function renderSessionItem(session){
+  return `
+    <div class="list-item">
+      <div class="item-head">
+        <div class="log-summary-button">
+          <div class="log-summary-line">${escapeHtml(sessionSummaryLine(session))}</div>
+          <div class="log-summary-meta">稼働 ${session.aimList.length}狙い / ${session.logs.length}ログ</div>
+        </div>
+      </div>
+      <div class="log-detail">
+        ${session.aimList.map(aim=>renderAimGroupItem(session,aim)).join('')}
+      </div>
+    </div>`;
+}
+function renderAimGroupItem(session,aim){
+  const id=`${session.sessionId}::${aim.aimNumber}`;
+  const isOpen=!!openAimGroupIds[id];
+  return `
+    <div class="carry-summary-section ${isOpen?'open':''}">
+      <button class="carry-summary-toggle" type="button" onclick="toggleAimGroup('${escapeHtml(id)}')">
+        <span>${isOpen?'▼':'▶'} ${escapeHtml(aimGroupSummary(aim,session))}</span>
+        <span class="carry-summary-count">${aim.logs.length}ログ</span>
+      </button>
+      <div class="carry-summary-body">
+        ${isOpen?aim.logs.map(log=>renderLogItem(log)).join(''):''}
+      </div>
+    </div>`;
+}
 function renderLogsList(){
   const el=document.getElementById('logsList');
   if(!db.logs.length){el.innerHTML='<div class="empty-hint">まだログなし</div>';return;}
@@ -6516,15 +6625,20 @@ function renderLogsList(){
       <span class="log-day-title">${isLogDateGroupOpen(date)?'▼':'▶'} ${escapeHtml(date)}</span>
       <span class="log-day-count">${groups[date].length}件</span>
     </button>
-    ${isLogDateGroupOpen(date)?groups[date].map(log=>renderLogItem(log)).join(''):''}`).join('');
+    ${isLogDateGroupOpen(date)?renderLogDateGroup(groups[date]):''}`).join('');
 }
-function renderLogItem(log){
+function renderLogDateGroup(logs){
+  const {sessionItems,legacy}=buildSessionGroups(logs);
+  return `${sessionItems.map(renderSessionItem).join('')}${legacy.map(log=>renderLogItem(log,{legacy:true})).join('')}`;
+}
+function renderLogItem(log,options={}){
   const isOpen=!!openLogDetailIds[log.id];
   return `
     <div class="list-item">
       <div class="item-head">
         <button class="log-summary-button" onclick="toggleLogDetail('${log.id}')">
           <div class="log-summary-line">${isOpen?'▼':'▶'} ${escapeHtml(logSummaryLine(log))}</div>
+          ${options.legacy?'<div class="unfinalized-note">旧形式の記録</div>':''}
           ${log.excludeFromStats?'<div class="unfinalized-note">収支未登録のため集計対象外です。</div>':''}
           <div class="log-summary-meta">${escapeHtml(logSummaryMeta(log))}</div>
           <div class="log-summary-meta">${escapeHtml(practiceStatsLine(calculatePracticeStats(log)))}</div>
