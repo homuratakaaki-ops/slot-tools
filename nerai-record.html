@@ -5684,7 +5684,7 @@ function updateEditModeUi(){
   const log=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
   notice.style.display=log?'block':'none';
   notice.textContent=log?`編集中：${log.machineName} / ${log.aimName} / ${log.money?.date||'日付なし'}`:'';
-  saveButton.textContent=log?'この稼働ログを更新して確定':'ヤメ';
+  saveButton.textContent=log?'この稼働ログを更新して確定':'収支を登録';
   cancelButton.style.display=log?'inline-block':'none';
 }
 
