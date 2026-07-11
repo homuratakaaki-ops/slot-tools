@@ -1274,6 +1274,9 @@ function machineUsesEndingCards(machine=currentMachine()){
   if(isMonkeyTurnMachine(machine))return false;
   return machine?.useEndingCards===true;
 }
+function machineUsesKuiPoint(machine=currentMachine()){
+  return isTokyoGhoulMachine(machine);
+}
 function suggestPlaceStateGroup(category,place){
   const placeId=String(place?.id||'');
   const placeName=String(place?.name||'');
@@ -3384,6 +3387,7 @@ function renderStartLogArea(){
   if(!machine)return '<div class="empty-hint">打ち始めログは機種選択後に使えます</div>';
   const startRefDisabled=currentChainHasKuiPointRelease();
   const useLcdCounter=machineUsesLcdCounter(machine);
+  const useKuiPoint=machineUsesKuiPoint(machine);
   return `
     ${renderStartHeaderArea()}
     <div class="input-row">
@@ -3394,14 +3398,14 @@ function renderStartLogArea(){
       <div class="input-label no-wrap-label">液晶初期補正<div class="input-hint">任意・液晶G−データG</div></div>
       <input type="text" id="startLiquidCorrection" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(currentTimelineManualCorrection||'')}" placeholder="0" oninput="syncStartLiquidCorrection()" onchange="syncStartLiquidCorrection()">
     </div>`:''}
-    <div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
+    ${useKuiPoint?`<div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
       <div class="input-label no-wrap-label">CZ失敗回数</div>
       <input type="text" id="startCzFailCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartCzFailCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
-    </div>
-    <div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
+    </div>`:''}
+    ${useKuiPoint?`<div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
       <div class="input-label no-wrap-label">AT駆け抜け回数</div>
       <input type="text" id="startAtThroughCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartAtThroughCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
-    </div>
+    </div>`:''}
     <div class="input-row">
       <div class="input-label no-wrap-label">想定期待値</div>
       <input type="text" id="expectedValueInput" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(expectedValueInputValue())}" placeholder="任意・円" oninput="syncExpectedValue()" onchange="syncExpectedValue()">
@@ -3619,7 +3623,7 @@ function renderSuggestPlaceButtonsForState(stateGroup){
       <div class="suggest-place-group-title">招待状</div>
       <div class="tag-grid">${inviteEntries.map(({category,place})=>suggestPlaceButtonHtml(category,place,stateGroup)).join('')}</div>
     </div>`:'';
-  const kuiCategory=entries.find(({category})=>isKuiPointCategory(category))?.category;
+  const kuiCategory=machineUsesKuiPoint()?entries.find(({category})=>isKuiPointCategory(category))?.category:null;
   const kuiButton=kuiCategory?`<button class="tag-btn gold" onclick="openKuiPointPicker('${kuiCategory.id}','${stateGroup}')">喰ポイント</button>`:'';
   return normalButtons+inviteButtons+kuiButton;
 }
@@ -3992,6 +3996,7 @@ function syncKuiPointReleased(){
   scheduleDraftSave();
 }
 function renderKuiPointReleaseControl(){
+  if(!machineUsesKuiPoint())return '';
   return `
     <label class="kui-release-control input-row" style="cursor:pointer;">
       <div class="input-label no-wrap-label">喰ポイント解放<div class="input-hint">チェックで獲得回数・示唆履歴をリセット</div></div>
@@ -4195,6 +4200,7 @@ function buildKuiPointSummary(){
   };
 }
 function renderKuiPointSummaryArea(){
+  if(!machineUsesKuiPoint())return '';
   const summary=buildKuiPointSummary();
   const manualClass=summary.released?'disabled-ref-value':'';
   const hintText=summary.hints.length
