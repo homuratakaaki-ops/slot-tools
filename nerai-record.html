@@ -7136,7 +7136,7 @@ function renderAimGroupDetail(aim){
     return aim.logs.map(log=>renderLogItem(log)).join('');
   }
   let atIndex=0;
-  return rows.map((row,index)=>{
+  const segmentHtml=rows.map((row,index)=>{
     const atCount=segmentAtHitCount(row.segment);
     const heading=atCount>0?Array.from({length:atCount},()=>{
       atIndex+=1;
@@ -7144,6 +7144,15 @@ function renderAimGroupDetail(aim){
     }).join(''):'';
     return `${heading}${renderSegmentHistoryItem(row.log,row.segment,index)}`;
   }).join('');
+  return `${segmentHtml}${renderAimGroupLogActions(aim)}`;
+}
+function renderAimGroupLogActions(aim){
+  const logs=[...new Map((aim.logs||[]).map(log=>[log.id,log])).values()];
+  if(!logs.length)return '';
+  return `
+    <div class="item-actions" style="margin-top:10px;">
+      ${logs.map(log=>`<button class="btn-danger" onclick="deleteLog('${log.id}')">${logs.length>1?`ログ削除: ${escapeHtml(logSummaryLine(log))}`:'このログを削除'}</button>`).join('')}
+    </div>`;
 }
 function renderSegmentHistoryItem(log,segment,index){
   return `
