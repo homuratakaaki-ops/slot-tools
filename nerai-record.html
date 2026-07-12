@@ -699,6 +699,7 @@ footer a:hover{color:var(--gold-light);}
     </div>
     <textarea id="organizedCopyText" style="min-height:150px;"></textarea>
     <button class="btn-copy" onclick="copyText(document.getElementById('organizedCopyText')?.value||'','organizedCopied')">この内容をコピー</button>
+    <button class="btn-copy" onclick="saveOrganizedImage()">画像で保存</button>
     <div class="copy-done" id="organizedCopied">コピーしました</div>
   </div>
 </div>
@@ -7379,7 +7380,7 @@ function organizedRowsForSegment(log,segment,index){
     const label=hitTriggerLabel(event.trigger,machineById(log.machineId));
     const baseText=`${event.dataGame??'-'}G ${label}${payout!==null?` / +${payout}枚`:''}`;
     const baseShortText=`${event.dataGame??'-'}G ${label.replace('当選','')}${payout!==null?` +${payout}枚`:''}`;
-    rows.push({category:'bonus',kind:'hit',game,sortGame,order:i,isChain,baseText,baseShortText,text:`${isChain?'↳ 連 ':''}${baseText}`,shortText:`${isChain?'└連 ':''}${baseShortText}`,tone:segmentToneClass(log,segment),segment,log});
+    rows.push({category:'bonus',kind:'hit',game,sortGame,order:i,isChain,payout,baseText,baseShortText,text:`${isChain?'↳ 連 ':''}${baseText}`,shortText:`${isChain?'└連 ':''}${baseShortText}`,tone:segmentToneClass(log,segment),segment,log});
   });
   (segment.suggestLog||[]).forEach((entry,i)=>{
     const carry=normalizeCarryType(entry.carryType);
@@ -7466,6 +7467,154 @@ function organizedShortText(aim){
   const header=`【${machine?.name||aim.logs[0]?.machineName||''}${date?` ${date}`:''}】`;
   const lines=bonusRows.map(row=>row.shortText||row.text.replace('当選','').replace(' / ',' '));
   return [header,...(lines.length?lines:['該当なし'])].join('\n');
+}
+function organizedImageRows(aim){
+  return organizedViewData(aim).flatMap(group=>group.rows.filter(row=>row.category==='bonus'));
+}
+function organizedToneColor(tone){
+  if(tone==='segment-tone-red')return '#e45454';
+  if(tone==='segment-tone-blue')return '#2f6feb';
+  if(tone==='segment-tone-light-blue')return '#75b7ff';
+  return '#c9a84c';
+}
+function organizedImageFileName(aim){
+  const machine=organizedMachineForAim(aim);
+  const name=String(machine?.name||aim.logs[0]?.machineName||'nerai-record').replace(/[\\/:*?"<>|]/g,'_');
+  const date=String(aim.logs[0]?.money?.date||todayValue()).replace(/[\\/:*?"<>|]/g,'-');
+  return `${name}-${date}-hits.png`;
+}
+function canvasToBlob(canvas){
+  return new Promise((resolve,reject)=>{
+    canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('PNG生成に失敗しました')),'image/png');
+  });
+}
+function fitCanvasText(ctx,text,maxWidth,minSize,currentSize,weight='700'){
+  let size=currentSize;
+  ctx.font=`${weight} ${size}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  while(size>minSize&&ctx.measureText(text).width>maxWidth){
+    size-=2;
+    ctx.font=`${weight} ${size}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+  }
+  return size;
+}
+function downloadBlob(blob,fileName){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=fileName;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+function drawOrganizedImageCard(aim){
+  const rows=organizedImageRows(aim);
+  if(!rows.length)throw new Error('画像にする当選履歴がありません');
+  const machine=organizedMachineForAim(aim);
+  const title=machine?.name||aim.logs[0]?.machineName||'稼働記録';
+  const date=organizedDateLabel(aim.logs[0]);
+  const limit=40;
+  const omitted=Math.max(0,rows.length-limit);
+  const visibleRows=omitted?rows.slice(0,limit-1):rows;
+  const drawRows=omitted?[...visibleRows,{kind:'omitted',text:`以降${omitted+1}件省略`,shortText:`以降${omitted+1}件省略`}]:visibleRows;
+  const hitRows=rows.filter(row=>row.kind==='hit');
+  const totalPayout=hitRows.reduce((sum,row)=>sum+(normalizeOptionalNumber(row.payout)||0),0);
+  const width=1080;
+  const compact=rows.length>28;
+  const fontSize=rows.length>40?28:compact?30:34;
+  const lineHeight=rows.length>40?44:compact?50:58;
+  const top=62;
+  const headerHeight=138;
+  const footerHeight=92;
+  const bottom=50;
+  const height=top+headerHeight+(drawRows.length*lineHeight)+footerHeight+bottom;
+  const canvas=document.createElement('canvas');
+  canvas.width=width;
+  canvas.height=height;
+  const ctx=canvas.getContext('2d');
+  if(!ctx)throw new Error('Canvasを初期化できません');
+  const bg=ctx.createLinearGradient(0,0,width,height);
+  bg.addColorStop(0,'#141006');
+  bg.addColorStop(.45,'#1b1a18');
+  bg.addColorStop(1,'#050505');
+  ctx.fillStyle=bg;
+  ctx.fillRect(0,0,width,height);
+  ctx.fillStyle='rgba(201,168,76,.12)';
+  ctx.fillRect(0,0,width,12);
+  ctx.fillStyle='#f3df99';
+  fitCanvasText(ctx,title,width-96,38,50,'800');
+  ctx.fillText(title,48,top+42);
+  ctx.fillStyle='rgba(245,231,184,.74)';
+  ctx.font='700 30px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.fillText(date?`${date} 当選履歴`:'当選履歴',48,top+88);
+  ctx.strokeStyle='rgba(201,168,76,.35)';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(48,top+headerHeight-18);
+  ctx.lineTo(width-48,top+headerHeight-18);
+  ctx.stroke();
+  let y=top+headerHeight+lineHeight*.72;
+  drawRows.forEach(row=>{
+    const isEnter=row.kind==='chain-enter';
+    const isChain=row.kind==='hit'&&row.isChain;
+    const isOmitted=row.kind==='omitted';
+    const text=row.shortText||row.text||'';
+    const x=isChain?118:82;
+    if(row.kind==='hit'){
+      ctx.fillStyle=organizedToneColor(row.tone);
+      ctx.fillRect(48,y-lineHeight+11,12,lineHeight-16);
+    }
+    if(isEnter){
+      ctx.fillStyle='rgba(201,168,76,.16)';
+      ctx.fillRect(78,y-lineHeight+8,width-156,lineHeight-10);
+      ctx.fillStyle='#f3df99';
+      ctx.font=`800 ${Math.max(28,fontSize-1)}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      ctx.fillText(text,104,y-10);
+    }else if(isOmitted){
+      ctx.fillStyle='rgba(245,231,184,.62)';
+      ctx.font=`700 ${Math.max(28,fontSize-2)}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+      ctx.fillText(text,82,y-10);
+    }else{
+      ctx.fillStyle=isChain?'#f6e6b0':'#f7f2df';
+      fitCanvasText(ctx,text,width-x-58,28,fontSize,'800');
+      ctx.fillText(text,x,y-10);
+    }
+    y+=lineHeight;
+  });
+  const footerY=height-bottom-footerHeight+24;
+  ctx.strokeStyle='rgba(201,168,76,.28)';
+  ctx.beginPath();
+  ctx.moveTo(48,footerY-26);
+  ctx.lineTo(width-48,footerY-26);
+  ctx.stroke();
+  ctx.fillStyle='#f3df99';
+  ctx.font='800 32px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  ctx.fillText(`合計獲得 ${totalPayout}枚`,48,footerY+22);
+  ctx.fillStyle='rgba(245,231,184,.64)';
+  ctx.font='700 26px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+  const site='slot-tools.jp';
+  ctx.fillText(site,width-48-ctx.measureText(site).width,footerY+22);
+  return canvas;
+}
+async function saveOrganizedImage(){
+  try{
+    const aim=organizedAimFromState();
+    if(!aim)throw new Error('整理ビューの対象が見つかりません');
+    const canvas=drawOrganizedImageCard(aim);
+    const blob=await canvasToBlob(canvas);
+    const fileName=organizedImageFileName(aim);
+    if(typeof File!=='undefined'&&navigator.canShare&&navigator.share){
+      const file=new File([blob],fileName,{type:'image/png'});
+      if(navigator.canShare({files:[file]})){
+        await navigator.share({files:[file],title:'当選履歴',text:'slot-tools.jp'});
+        return;
+      }
+    }
+    downloadBlob(blob,fileName);
+  }catch(err){
+    if(err?.name==='AbortError')return;
+    alert(err?.message||'画像生成に失敗しました');
+  }
 }
 function renderOrganizedFilterChips(){
   const filters=loadOrganizedFilters();
