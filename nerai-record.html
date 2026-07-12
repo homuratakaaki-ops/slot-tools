@@ -150,6 +150,17 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .organized-row{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px 10px;margin-bottom:7px;font-size:13px;line-height:1.5;}
 .organized-row.indent{margin-left:18px;border-style:dashed;}
 .organized-row.organized-chain-enter{border-style:dashed;background:rgba(201,168,76,.08);color:var(--gold-light);font-weight:900;text-align:center;}
+.organized-suggest-context{color:var(--text-muted);font-size:11px;font-weight:800;margin-bottom:4px;}
+.organized-suggest-value{font-size:14px;font-weight:900;color:var(--text);}
+.organized-suggest-badge{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:1px 7px;margin-right:7px;font-size:11px;font-weight:900;}
+.organized-suggest-badge.mode{border-color:rgba(180,132,255,.7);color:#d9c2ff;background:rgba(180,132,255,.12);}
+.organized-suggest-badge.setting{border-color:rgba(201,168,76,.8);color:var(--gold-light);background:rgba(201,168,76,.14);}
+.organized-accent-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;background:#8f8a7c;}
+.organized-accent-red{color:#ff8b7f;}.organized-accent-red .organized-accent-dot{background:#e45454;}
+.organized-accent-blue{color:#93c9ff;}.organized-accent-blue .organized-accent-dot{background:#75b7ff;}
+.organized-accent-green{color:#97df9d;}.organized-accent-green .organized-accent-dot{background:#69c676;}
+.organized-accent-purple{color:#d5b7ff;}.organized-accent-purple .organized-accent-dot{background:#a67cff;}
+.organized-accent-gold{color:#f3df99;}.organized-accent-gold .organized-accent-dot{background:#c9a84c;}
 .organized-row.segment-tone-red{border-left:4px solid #e45454;background:linear-gradient(90deg,rgba(228,84,84,.14),var(--surface2) 36%);}
 .organized-row.segment-tone-blue{border-left:4px solid #2f6feb;background:linear-gradient(90deg,rgba(47,111,235,.15),var(--surface2) 36%);}
 .organized-row.segment-tone-light-blue{border-left:4px solid #75b7ff;background:linear-gradient(90deg,rgba(117,183,255,.13),var(--surface2) 36%);}
@@ -853,6 +864,10 @@ function normalizeCarryType(value){
   const text=String(value||'').trim();
   return CARRY_TYPE_OPTIONS.includes(text)?text:null;
 }
+function normalizeSuggestAccent(value){
+  const text=String(value||'').trim();
+  return ['red','blue','green','purple','gold'].includes(text)?text:'';
+}
 function normalizeConfidenceLevel(value){
   const text=String(value||'').trim();
   const aliases={
@@ -1336,6 +1351,7 @@ function normalizeSuggestMaster(master){
         carryType:normalizeCarryType(item.carryType),
         pointRole:item.pointRole==='gain'||item.pointRole==='hint'?item.pointRole:null,
         summaryDefault:!!item.summaryDefault,
+        accent:normalizeSuggestAccent(item.accent),
         confidenceLevel:normalizeConfidenceLevel(item.confidenceLevel),
         confidenceType:normalizeConfidenceType(item.confidenceType),
         decorations:Array.isArray(item.decorations)?item.decorations.filter(dec=>dec&&typeof dec.text==='string'&&typeof dec.color==='string').map(dec=>({text:dec.text,color:dec.color})):[]
@@ -1509,6 +1525,7 @@ function mergeSuggestSeed(machine,seed){
         const existing=place.items.find(item=>item.id===seedItem.id||item.label===seedItem.label);
         if(existing){
           if(seedItem.summaryDefault)existing.summaryDefault=true;
+          if(seedItem.accent)existing.accent=normalizeSuggestAccent(seedItem.accent);
         }else place.items.push(clone(seedItem));
       });
     });
@@ -2283,8 +2300,24 @@ function ensureNangokuSpecialSeed(machine){
       item.carryType=carryType;
     }
   };
+  const markAccent=(placeId,itemId,accent)=>{
+    const place=(machine.suggestMaster||[]).flatMap(category=>category.places||[]).find(row=>row.id===placeId);
+    const item=place?.items?.find(row=>row.id===itemId);
+    if(item)item.accent=normalizeSuggestAccent(accent);
+  };
   markSummaryDefault('sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i1','setting');
   markSummaryDefault('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i1','mode');
+  markAccent('sgp_nangoku_sazanami','sgp_nangoku_sazanami_i1','purple');
+  markAccent('sgp_nangoku_sazanami','sgp_nangoku_sazanami_i2','red');
+  markAccent('sgp_nangoku_sazanami','sgp_nangoku_sazanami_i3','gold');
+  markAccent('sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i4','gold');
+  markAccent('sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i5','gold');
+  markAccent('sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i6','gold');
+  markAccent('sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i7','gold');
+  markAccent('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i2','blue');
+  markAccent('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i3','green');
+  markAccent('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i4','red');
+  markAccent('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i5','gold');
   if(machine.suggestSeedNangokuSpecialV2)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
   const item=(label,carryType=null,extra={})=>({label,enabled:true,carryType,...extra});
@@ -2325,9 +2358,9 @@ function ensureNangokuSpecialSeed(machine){
       useAppearG:true,
       places:[
         place('sgp_nangoku_sazanami','さざなみ前兆',[
-          item('紫さざなみ（デフォルト）','mode'),
-          item('赤さざなみ（ボーナス大チャンス＋通常B以上濃厚）','mode'),
-          item('虹さざなみ（ボーナス濃厚＋飛翔濃厚）','mode')
+          item('紫さざなみ（デフォルト）','mode',{accent:'purple'}),
+          item('赤さざなみ（ボーナス大チャンス＋通常B以上濃厚）','mode',{accent:'red'}),
+          item('虹さざなみ（ボーナス濃厚＋飛翔濃厚）','mode',{accent:'gold'})
         ]),
         place('sgp_nangoku_replay_flash','リプレイフラッシュ',[
           item('発生（高モードほど高頻度：超飛翔準備1/78〜通常A1/379）','mode')
@@ -2344,17 +2377,17 @@ function ensureNangokuSpecialSeed(machine){
           item('ボイスなし（デフォルト?）','setting',{summaryDefault:true}),
           item('張り切っていこー（偶奇示唆?）','setting'),
           item('自分を信じて（偶奇示唆?）','setting'),
-          item('良い感じよ♪うんうん（高設定期待度UP?）','setting'),
-          item('今日の運勢は…可!（設定2以上濃厚?）','setting'),
-          item('今日の運勢は…良!（設定4以上濃厚?）','setting'),
-          item('今日の運勢は…極み!（設定6濃厚?）','setting')
+          item('良い感じよ♪うんうん（高設定期待度UP?）','setting',{accent:'gold'}),
+          item('今日の運勢は…可!（設定2以上濃厚?）','setting',{accent:'gold'}),
+          item('今日の運勢は…良!（設定4以上濃厚?）','setting',{accent:'gold'}),
+          item('今日の運勢は…極み!（設定6濃厚?）','setting',{accent:'gold'})
         ],'hit'),
         place('sgp_nangoku_reel_light','ボーナス終了時のリール発光',[
           item('変化なし（デフォルト・チャンスや飛翔準備に期待!?）','mode',{summaryDefault:true}),
-          item('青（高モード示唆・弱）','mode'),
-          item('緑（高モード示唆・強）','mode'),
-          item('赤（通常B以上濃厚）','mode'),
-          item('虹（（超）飛翔モード濃厚）','mode')
+          item('青（高モード示唆・弱）','mode',{accent:'blue'}),
+          item('緑（高モード示唆・強）','mode',{accent:'green'}),
+          item('赤（通常B以上濃厚）','mode',{accent:'red'}),
+          item('虹（（超）飛翔モード濃厚）','mode',{accent:'gold'})
         ],'hit'),
         place('sgp_nangoku_trigger','当選契機（スイカ規定回数・天井）',[
           item('スイカ3回目で当選（期待度約33%枠）'),
@@ -7489,6 +7522,27 @@ function organizedTagClass(machine,entry){
   const tags=ids.map(id=>machine?.tags?.find(tag=>tag.id===id)).filter(Boolean);
   return tags.some(tag=>String(tag.tagClass||'').startsWith('rare-'))?'rare':'other';
 }
+function organizedSuggestBadgeHtml(carry){
+  if(carry==='mode')return '<span class="organized-suggest-badge mode">モード</span>';
+  if(carry==='setting')return '<span class="organized-suggest-badge setting">設定</span>';
+  return '';
+}
+function organizedSuggestAccentClass(accent){
+  const normalized=normalizeSuggestAccent(accent);
+  return normalized?`organized-accent-${normalized}`:'';
+}
+function organizedSuggestRowHtml(machine,entry){
+  const refs=findSuggestRefsForEntry(machine,entry);
+  const carry=normalizeCarryType(entry.carryType);
+  const accent=organizedSuggestAccentClass(refs.item?.accent||entry.accent);
+  const context=`${suggestStateLabel(suggestEntryStateGroup(entry,machine))}・${suggestEntryPlaceLabel(entry,machine)}`;
+  const value=refs.item?.label||entry.item||'内容';
+  return `
+    <div class="organized-suggest-context">${escapeHtml(context)}</div>
+    <div class="organized-suggest-value ${escapeHtml(accent)}">
+      ${organizedSuggestBadgeHtml(carry)}<span class="organized-accent-dot"></span>${escapeHtml(value)}
+    </div>`;
+}
 function normalizedChainRule(machine){
   const rule=machine?.chainRule;
   const maxGap=normalizeOptionalNumber(rule?.maxGap);
@@ -7515,7 +7569,7 @@ function organizedRowsForSegment(log,segment,index){
     const category=carry==='setting'?'setting':carry==='mode'?'mode':'other';
     const data=normalizeOptionalNumber(entry.dataGame);
     const line=data!==null?`${data}G ${suggestLogLine(entry)}`:`${suggestLogLine(entry)}`;
-    rows.push({category,game:data,order:100+i,text:line,indent:data===null,segment,log});
+    rows.push({category,game:data,order:100+i,text:line,html:organizedSuggestRowHtml(machineById(log.machineId),entry),indent:data===null,segment,log});
   });
   (segment.timeline||[]).forEach((entry,i)=>{
     const category=organizedTagClass(machineById(log.machineId),entry);
@@ -7583,7 +7637,7 @@ function organizedRowsHtml(aim){
   const summary=renderSettingSummaryBlock(organizedSettingSummaryRows(aim));
   const rowsHtml=groups.length?groups.map(group=>`
     <div class="organized-segment-label">― ${escapeHtml(`${aim.aimNumber}-${group.branch}`)} ―</div>
-    ${group.rows.map(row=>`<div class="organized-row ${row.indent?'indent':''} ${escapeHtml(row.extraClass||'')} ${escapeHtml(row.tone||'')}">${escapeHtml(row.text)}</div>`).join('')}
+    ${group.rows.map(row=>`<div class="organized-row ${row.indent?'indent':''} ${escapeHtml(row.extraClass||'')} ${escapeHtml(row.tone||'')}">${row.html||escapeHtml(row.text)}</div>`).join('')}
   `).join(''):'<div class="empty-hint">該当なし</div>';
   return `${rowsHtml}${summary}`;
 }
