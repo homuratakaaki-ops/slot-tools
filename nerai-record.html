@@ -7562,14 +7562,14 @@ function organizedRowsForSegment(log,segment,index){
     const label=hitTriggerLabel(event.trigger,machineById(log.machineId));
     const baseText=`${event.dataGame??'-'}G ${label}${payout!==null?` / +${payout}枚`:''}`;
     const baseShortText=`${event.dataGame??'-'}G ${label.replace('当選','')}${payout!==null?` +${payout}枚`:''}`;
-    rows.push({category:'bonus',kind:'hit',game,sortGame,order:i,isChain,payout,baseText,baseShortText,text:`${isChain?'↳ 連 ':''}${baseText}`,shortText:`${isChain?'└連 ':''}${baseShortText}`,tone:organizedHitToneClass(log,segment,event),segment,log});
+    rows.push({category:'bonus',kind:'hit',eventId:event.id||'',game,sortGame,order:i,isChain,payout,baseText,baseShortText,text:`${isChain?'↳ 連 ':''}${baseText}`,shortText:`${isChain?'└連 ':''}${baseShortText}`,tone:organizedHitToneClass(log,segment,event),segment,log});
   });
   (segment.suggestLog||[]).forEach((entry,i)=>{
     const carry=normalizeCarryType(entry.carryType);
     const category=carry==='setting'?'setting':carry==='mode'?'mode':'other';
     const data=normalizeOptionalNumber(entry.dataGame);
     const line=data!==null?`${data}G ${suggestLogLine(entry)}`:`${suggestLogLine(entry)}`;
-    rows.push({category,game:data,order:100+i,text:line,html:organizedSuggestRowHtml(machineById(log.machineId),entry),indent:data===null,segment,log});
+    rows.push({category,kind:'suggest',carryType:carry,stateGroup:suggestEntryStateGroup(entry,machineById(log.machineId)),hitEventId:entry.hitEventId||'',entry,game:data,order:100+i,text:line,html:organizedSuggestRowHtml(machineById(log.machineId),entry),indent:data===null,segment,log});
   });
   (segment.timeline||[]).forEach((entry,i)=>{
     const category=organizedTagClass(machineById(log.machineId),entry);
@@ -7577,6 +7577,19 @@ function organizedRowsForSegment(log,segment,index){
     rows.push({category,game:data,order:200+i,text:`${data!==null?`${data}G `:''}${entry.text||''}`.trim(),segment,log});
   });
   return {branch,rows:rows.sort((a,b)=>(a.sortGame??a.game??999999)-(b.sortGame??b.game??999999)||a.order-b.order)};
+}
+function applyOrganizedSuggestDedupe(groups){
+  const seen=new Set();
+  groups.forEach(group=>{
+    group.rows=group.rows.filter(row=>{
+      if(row.kind!=='suggest')return true;
+      const key=settingSummaryUniqueKey(row.entry);
+      if(seen.has(key))return false;
+      seen.add(key);
+      return true;
+    });
+  });
+  return groups;
 }
 function applyOrganizedChainRule(aim,groups){
   const rule=normalizedChainRule(organizedMachineForAim(aim));
@@ -7598,6 +7611,7 @@ function applyOrganizedChainRule(aim,groups){
       chainCount+=1;
       row.isChain=true;
       row.chainCount=chainCount;
+      row.chainContinues=false;
       row.text=`└${chainCount}${rule.unitLabel} ${row.baseText||row.text}`;
       row.shortText=`└${chainCount}${rule.unitLabel} ${row.baseShortText||row.shortText||row.text}`;
       if(chainCount===2){
@@ -7611,19 +7625,39 @@ function applyOrganizedChainRule(aim,groups){
       chainCount=1;
       row.isChain=false;
       row.chainCount=1;
+      row.chainContinues=false;
       row.text=row.baseText||row.text;
       row.shortText=row.baseShortText||row.shortText||row.text;
     }
     hasPreviousHit=true;
   });
+  for(let i=0;i<refs.length-1;i++){
+    if(refs[i+1].row.isChain)refs[i].row.chainContinues=true;
+  }
   inserts.sort((a,b)=>b.groupIndex-a.groupIndex||b.rowIndex-a.rowIndex).forEach(insert=>{
     groups[insert.groupIndex]?.rows.splice(insert.rowIndex,0,insert.row);
   });
   return groups;
 }
+function applyOrganizedChainModeFilter(aim,groups){
+  if(!normalizedChainRule(organizedMachineForAim(aim)))return groups;
+  groups.forEach(group=>{
+    const hitRows=group.rows.filter(row=>row.kind==='hit');
+    group.rows=group.rows.filter(row=>{
+      if(row.kind!=='suggest')return true;
+      if(row.carryType!=='mode'||row.stateGroup!=='hit')return true;
+      if(!row.hitEventId)return true;
+      const target=hitRows.find(hit=>hit.eventId===row.hitEventId)||hitRows[hitRows.length-1];
+      return !target?.chainContinues;
+    });
+  });
+  return groups;
+}
 function organizedViewData(aim){
   const groups=aimGroupSegments(aim).map((row,index)=>organizedRowsForSegment(row.log,row.segment,index));
-  return applyOrganizedChainRule(aim,groups);
+  applyOrganizedSuggestDedupe(groups);
+  applyOrganizedChainRule(aim,groups);
+  return applyOrganizedChainModeFilter(aim,groups);
 }
 function organizedFilteredData(aim,filters=loadOrganizedFilters()){
   return organizedViewData(aim).map(group=>({...group,rows:group.rows.filter(row=>filters[row.category])})).filter(group=>group.rows.length);
