@@ -1314,6 +1314,12 @@ function ensurePresetMachines(data){
 function machineUsesLcdCounter(machine=currentMachine()){
   return machine?.useLcdCounter!==false;
 }
+function machineUsesLiquidOffsetCounter(machine=currentMachine()){
+  return machine?.useLiquidOffsetCounter===true;
+}
+function machineShowsLiquidCounter(machine=currentMachine()){
+  return machineUsesLcdCounter(machine)||machineUsesLiquidOffsetCounter(machine);
+}
 function machineUsesEndingCards(machine=currentMachine()){
   if(isMonkeyTurnMachine(machine))return false;
   return machine?.useEndingCards===true;
@@ -2178,6 +2184,7 @@ function ensureMonkeyTurnSeed(machine){
 function ensureNangokuSpecialSeed(machine){
   if(!machine||!isNangokuSpecialMachine(machine))return;
   machine.useLcdCounter=false;
+  machine.useLiquidOffsetCounter=true;
   machine.useEndingCards=false;
   machine.followMode='always';
   machine.payoutLabel='累計獲得枚数';
@@ -2192,6 +2199,7 @@ function ensureNangokuSpecialSeed(machine){
     't_nangoku_butterfly_zone_through',
     't_nangoku_tokimeki_return',
     't_nangoku_tokimeki_through',
+    't_nangoku_sazanami_through',
     't_nangoku_hisho_start',
     't_nangoku_hisho_end',
     't_nangoku_morning_behavior'
@@ -2218,7 +2226,6 @@ function ensureNangokuSpecialSeed(machine){
     tag('t_nangoku_sazanami_purple','さざなみ紫','rare-chance','さざなみ'),
     tag('t_nangoku_sazanami_red','さざなみ赤','rare-strong','さざなみ'),
     tag('t_nangoku_sazanami_rainbow','さざなみ虹','rare-rainbow','さざなみ'),
-    tag('t_nangoku_sazanami_through','さざなみスルー','event','さざなみ'),
     tag('t_nangoku_pato_light','パトランプ発光','event','その他',true,false),
     tag('t_nangoku_sdc_start','SDC突入','event','その他',true,false),
     tag('t_nangoku_sdc_success','SDC成功','event','その他',true,false),
@@ -3602,6 +3609,7 @@ function renderStartLogArea(){
   if(!machine)return '<div class="empty-hint">打ち始めログは機種選択後に使えます</div>';
   const startRefDisabled=currentChainHasKuiPointRelease();
   const useLcdCounter=machineUsesLcdCounter(machine);
+  const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter(machine);
   const useKuiPoint=machineUsesKuiPoint(machine);
   return `
     ${renderStartHeaderArea()}
@@ -3609,8 +3617,8 @@ function renderStartLogArea(){
       <div class="input-label no-wrap-label">データカウンターG数<div class="input-hint">必須・分母の起点</div></div>
       <input type="text" id="startCounterGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(startCounterInputValue())}" data-clear-initial-zero="${startCounterInitialZeroFlag()}" placeholder="0" oninput="syncStartCounterGame()" onchange="syncStartCounterGame()">
     </div>
-    ${useLcdCounter?`<div class="input-row">
-      <div class="input-label no-wrap-label">液晶初期補正<div class="input-hint">任意・液晶G−データG</div></div>
+    ${useLcdCounter||useLiquidOffsetCounter?`<div class="input-row">
+      <div class="input-label no-wrap-label">${useLiquidOffsetCounter?'液晶差分':'液晶初期補正'}<div class="input-hint">任意・液晶G−データG</div></div>
       <input type="text" id="startLiquidCorrection" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(currentTimelineManualCorrection||'')}" placeholder="0" oninput="syncStartLiquidCorrection()" onchange="syncStartLiquidCorrection()">
     </div>`:''}
     ${useKuiPoint?`<div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
@@ -4524,7 +4532,8 @@ function deleteSuggestLogEntry(id){
   saveDraftImmediately();
 }
 function renderGamePairInputs(prefix){
-  const useLcdCounter=machineUsesLcdCounter();
+  const showLiquidCounter=machineShowsLiquidCounter();
+  const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
   const dataId=prefix==='suggest'?'suggestTimelineGame':'timelineGame';
   const liquidId=prefix==='suggest'?'suggestTimelineLiquidGame':'timelineLiquidGame';
   const dataLabel=prefix==='suggest'?'示唆時データG数':'データG数';
@@ -4542,11 +4551,18 @@ function renderGamePairInputs(prefix){
         <label for="${dataId}">${dataLabel}</label>
         <input type="text" id="${dataId}" data-game-role="${rolePrefix}-data" class="numeric-input" inputmode="none" readonly value="${escapeHtml(dataValue)}" placeholder="例：523"${gapAttr} oninput="${dataHandler}" onchange="${dataHandler}">
       </div>
-      ${useLcdCounter?`<div class="game-pair-field">
+      ${showLiquidCounter?`<div class="game-pair-field">
         <label for="${liquidId}">${liquidLabel}</label>
         <input type="text" id="${liquidId}" data-game-role="${rolePrefix}-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="例：523"${gapAttr} oninput="${liquidHandler}" onchange="${liquidHandler}">
       </div>`:''}
-    </div>`;
+    </div>
+    ${prefix==='timeline'&&useLiquidOffsetCounter?`
+      <div class="game-pair-row" style="margin-top:8px;">
+        <div class="game-pair-field">
+          <label for="timelineLiquidOffset">液晶差分</label>
+          <input type="text" id="timelineLiquidOffset" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(timelineLiquidOffset())}" placeholder="0" oninput="syncTimelineLiquidOffset()" onchange="syncTimelineLiquidOffset()">
+        </div>
+      </div>`:''}`;
 }
 function renderOutcomeQuickButtons(){
   return `
@@ -4742,6 +4758,10 @@ function archiveCurrentSegment(event,terminalType='',options={}){
   };
   currentSegments.unshift(segment);
   resetCurrentSegment({preserveEndState:!!options.preserveEndState});
+  if(event&&machineUsesLiquidOffsetCounter()){
+    resetTimelineOffsets(9,0);
+    setTimelineGames(0,9);
+  }
   return segment;
 }
 function restoreHitWizardToExit(event){
@@ -5703,6 +5723,8 @@ function setTimelineGames(dataGame,liquidGame){
   const normalizedLiquid=liquidGame===null||liquidGame===undefined?null:Number(liquidGame);
   document.querySelectorAll('[data-game-role="timeline-data"]').forEach(input=>{input.value=currentTimelineDataGame===null?'':String(currentTimelineDataGame);});
   document.querySelectorAll('[data-game-role="timeline-liquid"]').forEach(input=>{input.value=normalizedLiquid===null?'':String(normalizedLiquid);});
+  const offsetInput=document.getElementById('timelineLiquidOffset');
+  if(offsetInput)offsetInput.value=String(timelineLiquidOffset());
   presetSuggestInputs(false);
 }
 function syncTimelineDataGame(sourceId=''){
@@ -5740,6 +5762,18 @@ function syncTimelineLiquidGame(sourceId=''){
   const data=timelineDataValue();
   if(data!==null)setManualCorrectionForLiquid(data,liquid);
   setTimelineGames(data,liquid);
+  scheduleDraftSave();
+}
+function syncTimelineLiquidOffset(){
+  const source=document.getElementById('timelineLiquidOffset');
+  const raw=(source?.value||'').trim();
+  const offset=raw===''?0:normalizeOptionalNumber(raw);
+  if(offset===null){
+    alert('液晶差分は数値で入力してください');
+    if(source)source.value=String(timelineLiquidOffset());
+    return;
+  }
+  setTimelineOffsetPreservingData(offset);
   scheduleDraftSave();
 }
 function incrementTimelineGame(delta){
