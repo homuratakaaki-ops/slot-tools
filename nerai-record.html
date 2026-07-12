@@ -150,6 +150,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .organized-filter-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0;}
 .organized-chip{border:1px solid var(--border);border-radius:999px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer;}
 .organized-chip.active{border-color:var(--gold);background:rgba(201,168,76,.14);color:var(--gold-light);}
+.organized-subtoggle{display:flex;align-items:center;gap:8px;margin:0 0 10px;color:var(--text-muted);font-size:12px;font-weight:800;}
+.organized-subtoggle input{width:17px;height:17px;accent-color:var(--gold);}
 .organized-segment-label{display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:12px;font-weight:900;margin:12px 0 6px;}
 .organized-segment-label::before,.organized-segment-label::after{content:"";height:1px;background:rgba(201,168,76,.25);flex:1;}
 .organized-row{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px 10px;margin-bottom:7px;font-size:13px;line-height:1.5;}
@@ -709,6 +711,7 @@ footer a:hover{color:var(--gold-light);}
     <div class="organized-view-body">
       <div class="input-hint" id="organizedViewMeta"></div>
       <div class="organized-filter-row" id="organizedFilterRow"></div>
+      <div id="organizedSubFilterRow"></div>
       <div id="organizedViewRows"></div>
       <div class="organized-copy-tabs">
         <button class="btn-small active" id="organizedCopyDetailButton" onclick="setOrganizedCopyMode('detail')">詳細版</button>
@@ -727,6 +730,7 @@ footer a:hover{color:var(--gold-light);}
 <script>
 const STORAGE_KEY='nerai_record_v1';
 const ORGANIZED_FILTER_KEY='neraiOrganizedViewFilters';
+const ORGANIZED_CHAIN_MODE_HINTS_KEY='neraiOrganizedShowChainModeHints';
 const LOG_SCHEMA_VERSION=2;
 const LOG_STATUS_VALUES=['active','suspended','finished','settled'];
 const SEGMENT_STATUS_VALUES=['editing','committed'];
@@ -7515,6 +7519,12 @@ function loadOrganizedFilters(){
 function saveOrganizedFilters(filters){
   localStorage.setItem(ORGANIZED_FILTER_KEY,JSON.stringify(filters));
 }
+function organizedShowChainModeHints(){
+  return localStorage.getItem(ORGANIZED_CHAIN_MODE_HINTS_KEY)==='1';
+}
+function saveOrganizedShowChainModeHints(value){
+  localStorage.setItem(ORGANIZED_CHAIN_MODE_HINTS_KEY,value?'1':'0');
+}
 function organizedAimFromState(){
   const logs=db.logs.filter(log=>log.sessionId===organizedViewState.sessionId&&Number(log.aimNumber)===Number(organizedViewState.aimNumber));
   return logs.length?{aimNumber:Number(organizedViewState.aimNumber),logs}:null;
@@ -7651,6 +7661,7 @@ function applyOrganizedChainRule(aim,groups){
 }
 function applyOrganizedChainModeFilter(aim,groups){
   if(!normalizedChainRule(organizedMachineForAim(aim)))return groups;
+  if(organizedShowChainModeHints())return groups;
   groups.forEach(group=>{
     const hitRows=group.rows.filter(row=>row.kind==='hit');
     group.rows=group.rows.filter(row=>{
@@ -7879,6 +7890,11 @@ function renderOrganizedFilterChips(){
   const labels=organizedFilterLabels();
   return Object.keys(labels).map(key=>`<button class="organized-chip ${filters[key]?'active':''}" onclick="toggleOrganizedFilter('${key}')">${escapeHtml(labels[key])}</button>`).join('');
 }
+function renderOrganizedSubFilters(aim){
+  const filters=loadOrganizedFilters();
+  if(!filters.mode||!normalizedChainRule(organizedMachineForAim(aim)))return '';
+  return `<label class="organized-subtoggle"><input type="checkbox" ${organizedShowChainModeHints()?'checked':''} onchange="toggleOrganizedChainModeHints(this.checked)">連チャン中の当選時示唆も表示</label>`;
+}
 function renderOrganizedView(){
   const aim=organizedAimFromState();
   if(!aim)return;
@@ -7886,10 +7902,12 @@ function renderOrganizedView(){
   const title=document.getElementById('organizedViewTitle');
   const meta=document.getElementById('organizedViewMeta');
   const filterRow=document.getElementById('organizedFilterRow');
+  const subFilterRow=document.getElementById('organizedSubFilterRow');
   const rows=document.getElementById('organizedViewRows');
   if(title)title.textContent='整理ビュー';
   if(meta)meta.textContent=`${machine?.name||aim.logs[0]?.machineName||''} / 狙い${aim.aimNumber}`;
   if(filterRow)filterRow.innerHTML=renderOrganizedFilterChips();
+  if(subFilterRow)subFilterRow.innerHTML=renderOrganizedSubFilters(aim);
   if(rows)rows.innerHTML=organizedRowsHtml(aim);
   updateOrganizedCopyText();
 }
@@ -7911,6 +7929,10 @@ function toggleOrganizedFilter(key){
   const filters=loadOrganizedFilters();
   filters[key]=!filters[key];
   saveOrganizedFilters(filters);
+  renderOrganizedView();
+}
+function toggleOrganizedChainModeHints(value){
+  saveOrganizedShowChainModeHints(!!value);
   renderOrganizedView();
 }
 function openOrganizedView(sessionId,aimNumber){
