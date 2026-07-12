@@ -141,9 +141,12 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .timeline-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}
 .timeline-game{font-size:13px;font-weight:700;color:var(--gold-light);}
 .timeline-text{font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;}
-.organized-view{max-height:78vh;max-height:78dvh;overflow:auto;overscroll-behavior:contain;margin:auto;}
+.organized-view{max-height:78vh;max-height:78dvh;overflow:hidden;overscroll-behavior:contain;margin:auto;display:flex;flex-direction:column;box-sizing:border-box;}
 .keypad-overlay:has(.organized-view){align-items:safe center;}
-.organized-view>.keypad-title{position:sticky;top:-14px;z-index:4;background:var(--surface);padding:14px 0 10px;margin-top:-14px;border-bottom:1px solid rgba(201,168,76,.2);}
+.organized-view>.keypad-title{flex:0 0 auto;border-bottom:1px solid rgba(201,168,76,.2);padding-bottom:10px;margin-bottom:10px;}
+.organized-view-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding-right:2px;}
+.organized-view-footer{flex:0 0 auto;border-top:1px solid rgba(201,168,76,.2);padding-top:10px;margin-top:10px;background:var(--surface);}
+.organized-view-footer .btn-copy:first-child{margin-top:0;}
 .organized-filter-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0;}
 .organized-chip{border:1px solid var(--border);border-radius:999px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer;}
 .organized-chip.active{border-color:var(--gold);background:rgba(201,168,76,.14);color:var(--gold-light);}
@@ -703,17 +706,21 @@ footer a:hover{color:var(--gold-light);}
       <span id="organizedViewTitle">整理ビュー</span>
       <button class="btn-small" onclick="closeOrganizedView()">閉じる</button>
     </div>
-    <div class="input-hint" id="organizedViewMeta"></div>
-    <div class="organized-filter-row" id="organizedFilterRow"></div>
-    <div id="organizedViewRows"></div>
-    <div class="organized-copy-tabs">
-      <button class="btn-small active" id="organizedCopyDetailButton" onclick="setOrganizedCopyMode('detail')">詳細版</button>
-      <button class="btn-small" id="organizedCopyShortButton" onclick="setOrganizedCopyMode('short')">短縮版</button>
+    <div class="organized-view-body">
+      <div class="input-hint" id="organizedViewMeta"></div>
+      <div class="organized-filter-row" id="organizedFilterRow"></div>
+      <div id="organizedViewRows"></div>
+      <div class="organized-copy-tabs">
+        <button class="btn-small active" id="organizedCopyDetailButton" onclick="setOrganizedCopyMode('detail')">詳細版</button>
+        <button class="btn-small" id="organizedCopyShortButton" onclick="setOrganizedCopyMode('short')">短縮版</button>
+      </div>
+      <textarea id="organizedCopyText" style="min-height:150px;"></textarea>
     </div>
-    <textarea id="organizedCopyText" style="min-height:150px;"></textarea>
-    <button class="btn-copy" onclick="copyText(document.getElementById('organizedCopyText')?.value||'','organizedCopied')">この内容をコピー</button>
-    <button class="btn-copy" onclick="saveOrganizedImage()">画像で保存</button>
-    <div class="copy-done" id="organizedCopied">コピーしました</div>
+    <div class="organized-view-footer">
+      <button class="btn-copy" onclick="copyText(document.getElementById('organizedCopyText')?.value||'','organizedCopied')">この内容をコピー</button>
+      <button class="btn-copy" onclick="saveOrganizedImage()">画像で保存</button>
+      <div class="copy-done" id="organizedCopied">コピーしました</div>
+    </div>
   </div>
 </div>
 
