@@ -1001,6 +1001,13 @@ function normalizeSubCounters(value){
   });
   return result;
 }
+function normalizeTagSuggestLink(value){
+  if(!value||typeof value!=='object')return null;
+  const categoryId=String(value.categoryId||'');
+  const placeId=String(value.placeId||'');
+  const itemId=String(value.itemId||'');
+  return categoryId&&placeId&&itemId?{categoryId,placeId,itemId}:null;
+}
 function normalizeHitEvent(event){
   if(!event||typeof event!=='object')return null;
   const trigger=normalizeHitTrigger(event.trigger);
@@ -1197,6 +1204,7 @@ function normalizeData(data){
       t.liquidDelta=normalizeOptionalNumber(t.liquidDelta);
       t.liquidSet=normalizeOptionalNumber(t.liquidSet);
       t.subCounterDelta=normalizeOptionalNumber(t.subCounterDelta);
+      t.suggestLink=normalizeTagSuggestLink(t.suggestLink);
       t.tagClass=normalizeTagClass(t.tagClass);
     });
     m.startTags.forEach(t=>{t.optional=!!t.optional;});
@@ -1477,8 +1485,9 @@ function mergeTimelineTagSeed(machine,tags){
       tag.collapsible=!!seedTag.collapsible;
       tag.defaultOpen=seedTag.defaultOpen!==false;
       tag.subCounterDelta=normalizeOptionalNumber(seedTag.subCounterDelta);
+      tag.suggestLink=normalizeTagSuggestLink(seedTag.suggestLink)||normalizeTagSuggestLink(tag.suggestLink);
     }else{
-      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass),group:seedTag.group||'',collapsible:!!seedTag.collapsible,defaultOpen:seedTag.defaultOpen!==false,subCounterDelta:normalizeOptionalNumber(seedTag.subCounterDelta)});
+      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass),group:seedTag.group||'',collapsible:!!seedTag.collapsible,defaultOpen:seedTag.defaultOpen!==false,subCounterDelta:normalizeOptionalNumber(seedTag.subCounterDelta),suggestLink:normalizeTagSuggestLink(seedTag.suggestLink)});
     }
   });
   const seen=new Set();
@@ -2209,6 +2218,15 @@ function ensureNangokuSpecialSeed(machine){
   if(oldOneGame)oldOneGame.label='1G連獲得';
   const suikaTag=machine.tags.find(tag=>tag.id==='t_nangoku_suika');
   if(suikaTag)suikaTag.subCounterDelta=1;
+  const tagSuggestLinks={
+    t_nangoku_sazanami_purple:{categoryId:'sgc_nangoku_play',placeId:'sgp_nangoku_sazanami',itemId:'sgp_nangoku_sazanami_i1'},
+    t_nangoku_sazanami_red:{categoryId:'sgc_nangoku_play',placeId:'sgp_nangoku_sazanami',itemId:'sgp_nangoku_sazanami_i2'},
+    t_nangoku_sazanami_rainbow:{categoryId:'sgc_nangoku_play',placeId:'sgp_nangoku_sazanami',itemId:'sgp_nangoku_sazanami_i3'},
+    t_nangoku_replay_flash:{categoryId:'sgc_nangoku_play',placeId:'sgp_nangoku_replay_flash',itemId:'sgp_nangoku_replay_flash_i1'}
+  };
+  machine.tags.forEach(tag=>{
+    if(tagSuggestLinks[tag.id])tag.suggestLink=tagSuggestLinks[tag.id];
+  });
   if(machine.suggestSeedNangokuSpecialV2)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
   const item=(label,carryType=null)=>({label,enabled:true,carryType});
@@ -2238,6 +2256,9 @@ function ensureNangokuSpecialSeed(machine){
     tag('t_nangoku_long_freeze','ロングフリーズ','event','その他',true,false),
     tag('t_nangoku_through','スルー','event','その他',true,false)
   ];
+  timelineTags.forEach(tag=>{
+    if(tagSuggestLinks[tag.id])tag.suggestLink=tagSuggestLinks[tag.id];
+  });
   const seed=[
     {
       id:'sgc_nangoku_play',
@@ -5916,6 +5937,52 @@ function applySubCounterDeltasForTimeline(tagIds){
   if(delta!==0)setSubCounterValue(counter.key,subCounterValue(counter.key)+delta);
   return normalizeSubCounters(currentSubCounters);
 }
+function addSuggestLogsFromTimelineTagLinks(tagIds,timelineEntry){
+  const machine=currentMachine();
+  if(!machine||!timelineEntry)return [];
+  const added=[];
+  (Array.isArray(tagIds)?tagIds:[]).forEach(id=>{
+    const tag=machine.tags?.find(item=>item.id===id);
+    const link=normalizeTagSuggestLink(tag?.suggestLink);
+    if(!link)return;
+    const category=findSuggestCategory(machine,link.categoryId);
+    const place=findSuggestPlace(category,link.placeId);
+    const item=findSuggestItem(place,link.itemId);
+    if(!category||!place||!item)return;
+    const dataGame=normalizeOptionalNumber(timelineEntry.game);
+    const liquidGame=normalizeOptionalNumber(timelineEntry.liquidGame)??dataGame;
+    const saved=normalizeSuggestLogEntry({
+      stateGroup:suggestPlaceStateGroup(category,place),
+      source:'manual',
+      carryType:normalizeCarryType(item.carryType),
+      pointRole:place.pointRole||item.pointRole||null,
+      confidenceLevel:item.confidenceLevel||null,
+      confidenceType:item.confidenceType||null,
+      categoryId:category.id,
+      placeId:place.id,
+      itemId:item.id,
+      category:category.category,
+      place:place.name,
+      item:item.label,
+      decorations:item.decorations||[],
+      game:dataGame,
+      dataGame,
+      liquidGame,
+      gapOffset:dataGame!==null&&liquidGame!==null?liquidGame-dataGame:0,
+      createdAt:timelineEntry.createdAt||new Date().toISOString()
+    });
+    if(saved){
+      currentSuggestLog.push(saved);
+      added.push(saved);
+      if(normalizeCarryType(saved.carryType)==='mode')modeSummaryOpen=true;
+    }
+  });
+  if(added.length){
+    recentSuggestHighlightId=added[added.length-1].id;
+    suggestInputsDirty=false;
+  }
+  return added;
+}
 function timelineGameLine(item){
   const data=normalizeOptionalNumber(item?.game);
   const liquid=timelineLiquidGameValue(item);
@@ -5938,6 +6005,7 @@ function addTimelineEntry(){
   const subCounters=applySubCounterDeltasForTimeline(tagIds);
   const entry={id:uid('tl'),game,liquidGame,text,tagIds,countAs:[],subCounters,createdAt:new Date().toISOString()};
   currentTimeline.push(entry);
+  addSuggestLogsFromTimelineTagLinks(tagIds,entry);
   recentTimelineHighlightId=entry.id;
   timelineHistoryOpen=true;
   linkEndGamesFromTimelineEntry(entry);
@@ -5946,6 +6014,8 @@ function addTimelineEntry(){
   textEl.value='';
   updateTimelineAddButtonState();
   renderCurrentTimeline();
+  renderCurrentSuggestLog();
+  renderCarrySummaryIntoDom();
   renderPracticeStats();
   saveDraftImmediately();
 }
