@@ -170,6 +170,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .carry-summary-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;background:rgba(201,168,76,.08);border:0;color:var(--text);padding:10px 12px;font-size:13px;font-weight:800;cursor:pointer;text-align:left;}
 .carry-summary-section.mode .carry-summary-toggle{background:rgba(98,181,255,.1);}
 .carry-summary-section.setting .carry-summary-toggle{background:rgba(201,168,76,.1);}
+.carry-summary-section.segment-tone-red .carry-summary-toggle{box-shadow:inset 4px 0 0 #e45454;background:linear-gradient(90deg,rgba(228,84,84,.18),rgba(201,168,76,.08) 42%);}
+.carry-summary-section.segment-tone-blue .carry-summary-toggle{box-shadow:inset 4px 0 0 #2f6feb;background:linear-gradient(90deg,rgba(47,111,235,.18),rgba(201,168,76,.08) 42%);}
+.carry-summary-section.segment-tone-light-blue .carry-summary-toggle{box-shadow:inset 4px 0 0 #75b7ff;background:linear-gradient(90deg,rgba(117,183,255,.16),rgba(201,168,76,.08) 42%);}
 .carry-summary-count{font-size:12px;color:var(--gold-light);white-space:nowrap;}
 .carry-summary-body{display:none;padding:10px;}
 .carry-summary-section.open .carry-summary-body{display:block;border-top:1px solid rgba(201,168,76,.18);}
@@ -5718,8 +5721,9 @@ function archivedSegmentsHtml(){
   return currentSegments.map((segment,index)=>{
     const modeLabel=modeInferenceLabel((segment.suggestLog||[]).filter(entry=>normalizeCarryType(entry.carryType)==='mode'));
     const summary=modeLabel?`${segmentSummary(segment,index)}｜${modeLabel}`:segmentSummary(segment,index);
+    const tone=segmentToneClass({machineId:selectedMachineId},segment);
     return `
-    <div class="carry-summary-section">
+    <div class="carry-summary-section ${escapeHtml(tone)}">
       <button class="carry-summary-toggle" type="button" onclick="this.parentElement.classList.toggle('open')">
         <span>${escapeHtml(summary)}</span>
         <span class="carry-summary-count">${(segment.timeline||[]).length}件 ▼</span>
