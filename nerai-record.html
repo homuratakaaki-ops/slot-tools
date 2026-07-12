@@ -2199,6 +2199,8 @@ function ensureNangokuSpecialSeed(machine){
   machine.tags=machine.tags.filter(tag=>!removePresetIds.has(tag.id));
   const oldOneGame=machine.tags.find(tag=>tag.id==='t_nangoku_bonus_sazanami_flash');
   if(oldOneGame)oldOneGame.label='1G連獲得';
+  const suikaTag=machine.tags.find(tag=>tag.id==='t_nangoku_suika');
+  if(suikaTag)suikaTag.subCounterDelta=1;
   if(machine.suggestSeedNangokuSpecialV2)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
   const item=(label,carryType=null)=>({label,enabled:true,carryType});
