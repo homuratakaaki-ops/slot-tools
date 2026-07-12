@@ -3727,7 +3727,7 @@ function renderTimelineTagGroups(mainTags,optionalTags,handler,target){
   const renderGroups=tags=>{
     const names=[];
     tags.forEach(tag=>{const name=tagGroupName(tag);if(!names.includes(name))names.push(name);});
-    const order=['レア役','さざなみ','rare','stage','other','その他'];
+    const order=['小役・リプレイ','さざなみ','レア役','rare','stage','other','その他'];
     return names.sort((a,b)=>{
       const ai=order.includes(a)?order.indexOf(a):999;
       const bi=order.includes(b)?order.indexOf(b):999;
