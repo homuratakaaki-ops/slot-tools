@@ -743,6 +743,7 @@ let modeSummaryOpen=false;
 let settingSummaryOpen=false;
 let suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:''};
 let hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
+let nangokuHitSuggestState={eventId:'',stepIndex:0};
 let pendingSuggestSelection=null;
 let suggestInputsDirty=false;
 let editingLogId=null;
@@ -5150,6 +5151,10 @@ function finishHitEventPayout(value){
   if(!event)return;
   event.payout=value;
   closeHitPayoutPicker();
+  if(hitBranchWizard.route==='atHit'&&isNangokuSpecialMachine(currentMachine())){
+    openNangokuButterflyPicker();
+    return;
+  }
   if(hitBranchWizard.route==='atHit'&&machineFollowMode()==='always'){
     selectAtFollow('yes');
     return;
@@ -5230,6 +5235,108 @@ function selectSegmentExit(exit){
   renderFlowStepTabs();
   renderCurrentContextBar();
   saveDraftImmediately();
+}
+function nangokuHitSuggestSteps(){
+  return [
+    {placeId:'sgp_nangoku_bonus_voice',label:'ボーナス終了時ボイス'},
+    {placeId:'sgp_nangoku_reel_light',label:'ボーナス終了時のリール発光'},
+    {placeId:'sgp_nangoku_trigger',label:'当選契機'},
+    {placeId:'sgp_nangoku_bonus_type',label:'ボーナス種別'}
+  ];
+}
+function recordNangokuButterflyTimeline(result){
+  const event=currentHitEvent();
+  if(!event)return;
+  const label=result==='success'?'バタフライ成功':'バタフライ失敗';
+  currentTimeline.push({id:uid('tl'),game:event.dataGame,liquidGame:event.liquidGame,text:label,tagIds:[],countAs:[],subCounters:normalizeSubCounters(currentSubCounters),createdAt:new Date().toISOString()});
+  recentTimelineHighlightId=currentTimeline[currentTimeline.length-1].id;
+}
+function openNangokuButterflyPicker(){
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:'atHit',branchStep:'nangokuButterfly'};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent='バタフライ';
+  breadcrumb.textContent='バタフライゾーンの結果を選択';
+  back.textContent='閉じる';
+  options.innerHTML=`
+    <button class="suggest-picker-option" onclick="selectNangokuButterfly('success')">成功</button>
+    <button class="suggest-picker-option" onclick="selectNangokuButterfly('fail')">失敗</button>`;
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectNangokuButterfly(result){
+  if(result!=='success'&&result!=='fail')return;
+  recordNangokuButterflyTimeline(result);
+  if(result==='success'){
+    closeSuggestPicker();
+    selectAtFollow('yes');
+    return;
+  }
+  nangokuHitSuggestState={eventId:currentHitEvent()?.id||'',stepIndex:0};
+  openNangokuHitSuggestStep();
+}
+function currentNangokuHitSuggestStep(){
+  return nangokuHitSuggestSteps()[nangokuHitSuggestState.stepIndex]||null;
+}
+function openNangokuHitSuggestStep(){
+  const step=currentNangokuHitSuggestStep();
+  if(!step){
+    nangokuHitSuggestState={eventId:'',stepIndex:0};
+    closeSuggestPicker();
+    selectAtFollow('yes');
+    return;
+  }
+  const entry=findSuggestPlaceEntryById(step.placeId);
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:entry?.category?.id||'',placeId:entry?.place?.id||'',itemId:'',branchRoute:'atHit',branchStep:'nangokuHitSuggest'};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent=step.label;
+  breadcrumb.textContent='当選時示唆（スキップ可）';
+  back.textContent='閉じる';
+  const items=entry?enabledSuggestItems(entry.category.id,entry.place.id):[];
+  options.innerHTML=`
+    <button class="suggest-picker-option" onclick="skipNangokuHitSuggestStep()">スキップ</button>
+    ${items.map(item=>`<button class="suggest-picker-option" onclick="selectNangokuHitSuggestItem('${escapeHtml(item.id)}')">${decoratedSuggestLabelHtml(item.label,item.decorations||[])}</button>`).join('')}`;
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function advanceNangokuHitSuggestStep(){
+  nangokuHitSuggestState.stepIndex+=1;
+  openNangokuHitSuggestStep();
+}
+function skipNangokuHitSuggestStep(){
+  advanceNangokuHitSuggestStep();
+}
+function selectNangokuHitSuggestItem(itemId){
+  const step=currentNangokuHitSuggestStep();
+  const entry=step?findSuggestPlaceEntryById(step.placeId):null;
+  if(!entry){advanceNangokuHitSuggestStep();return;}
+  const item=enabledSuggestItems(entry.category.id,entry.place.id).find(row=>row.id===itemId);
+  if(!item){advanceNangokuHitSuggestStep();return;}
+  addSuggestLogFromSelection({
+    stateGroup:'hit',
+    source:'wizard',
+    hitEventId:nangokuHitSuggestState.eventId,
+    carryType:normalizeCarryType(item.carryType),
+    pointRole:entry.place.pointRole||item.pointRole||null,
+    confidenceLevel:item.confidenceLevel||null,
+    confidenceType:item.confidenceType||null,
+    categoryId:entry.category.id,
+    placeId:entry.place.id,
+    itemId:item.id,
+    category:entry.category.category,
+    place:entry.place.name,
+    item:item.label,
+    decorations:item.decorations||[],
+    useAppearG:false
+  });
+  advanceNangokuHitSuggestStep();
 }
 function openAtFollowPicker(){
   const title=document.getElementById('suggestPickerTitle');
