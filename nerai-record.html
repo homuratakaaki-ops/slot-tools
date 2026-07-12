@@ -162,6 +162,12 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .organized-suggest-badge{display:inline-flex;align-items:center;border:1px solid var(--border);border-radius:999px;padding:1px 7px;margin-right:7px;font-size:11px;font-weight:900;}
 .organized-suggest-badge.mode{border-color:rgba(180,132,255,.7);color:#d9c2ff;background:rgba(180,132,255,.12);}
 .organized-suggest-badge.setting{border-color:rgba(201,168,76,.8);color:var(--gold-light);background:rgba(201,168,76,.14);}
+.organized-journey{margin:-2px 0 8px 14px;border-left:2px solid rgba(201,168,76,.28);padding-left:9px;}
+.organized-journey-toggle{width:100%;border:1px solid var(--border);border-radius:8px;background:rgba(201,168,76,.08);color:var(--gold-light);font-size:12px;font-weight:900;text-align:left;padding:7px 9px;cursor:pointer;}
+.organized-journey-body{display:none;margin-top:6px;}
+.organized-journey.open .organized-journey-body{display:block;}
+.organized-journey-line{font-size:12px;color:var(--text);padding:5px 7px;border-radius:7px;background:rgba(255,255,255,.035);margin-bottom:4px;}
+.organized-journey-prefix{color:var(--text-muted);font-weight:800;margin-right:4px;}
 .organized-accent-dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:7px;background:#8f8a7c;}
 .organized-accent-red{color:#ff8b7f;}.organized-accent-red .organized-accent-dot{background:#e45454;}
 .organized-accent-blue{color:#93c9ff;}.organized-accent-blue .organized-accent-dot{background:#75b7ff;}
@@ -7686,13 +7692,109 @@ function organizedFilteredData(aim,filters=loadOrganizedFilters()){
 function organizedSettingSummaryRows(aim){
   return settingSummaryRows(organizedMachineForAim(aim),(aim?.logs||[]).flatMap(settingSummaryEntriesFromLog));
 }
+function organizedFlatRows(groups){
+  const rows=[];
+  groups.forEach((group,groupIndex)=>{
+    group.rows.forEach((row,rowIndex)=>rows.push({group,groupIndex,row,rowIndex}));
+  });
+  return rows;
+}
+function organizedPreviousTerminalHit(flatRows,hitIndex,hasChainRule){
+  const previousHits=flatRows.slice(0,hitIndex).filter(ref=>ref.row.kind==='hit');
+  if(!previousHits.length)return null;
+  if(!hasChainRule)return previousHits[previousHits.length-1];
+  for(let i=previousHits.length-1;i>=0;i--){
+    if(!previousHits[i].row.chainContinues)return previousHits[i];
+  }
+  return previousHits[previousHits.length-1];
+}
+function organizedJourneySuggestLabel(machine,entry){
+  const refs=findSuggestRefsForEntry(machine,entry);
+  return refs.item?.label||entry.item||'内容';
+}
+function organizedJourneyLineHtml(machine,row,prefix){
+  const entry=row.entry;
+  const refs=findSuggestRefsForEntry(machine,entry);
+  const accent=organizedSuggestAccentClass(refs.item?.accent||entry.accent);
+  const place=suggestEntryPlaceLabel(entry,machine);
+  const value=organizedJourneySuggestLabel(machine,entry);
+  return `<div class="organized-journey-line ${escapeHtml(accent)}"><span class="organized-journey-prefix">${escapeHtml(prefix)}</span>${escapeHtml(place)}：<span class="organized-accent-dot"></span>${escapeHtml(value)}</div>`;
+}
+function organizedJourneyCountLineHtml(machine,item){
+  const accent=organizedSuggestAccentClass(item.accent);
+  return `<div class="organized-journey-line ${escapeHtml(accent)}"><span class="organized-accent-dot"></span>${escapeHtml(item.label)} ×${item.count}</div>`;
+}
+function organizedJourneySummaryMap(aim,groups){
+  const machine=organizedMachineForAim(aim);
+  const hasChainRule=!!normalizedChainRule(machine);
+  const flatRows=organizedFlatRows(groups);
+  const hitRefs=flatRows.filter(ref=>ref.row.kind==='hit');
+  const map=new WeakMap();
+  hitRefs.forEach(hitRef=>{
+    const hitRow=hitRef.row;
+    if(hitRow.isChain)return;
+    const previousHitRef=organizedPreviousTerminalHit(flatRows,flatRows.indexOf(hitRef),hasChainRule);
+    const previousHints=previousHitRef?.row?.eventId
+      ? flatRows.filter(ref=>ref.row.kind==='suggest'
+        && ref.row.carryType==='mode'
+        && ref.row.stateGroup==='hit'
+        && ref.row.hitEventId===previousHitRef.row.eventId)
+      : [];
+    const startIndex=previousHitRef?flatRows.indexOf(previousHitRef)+1:0;
+    const endIndex=flatRows.indexOf(hitRef);
+    const playHints=flatRows.slice(startIndex,endIndex).filter(ref=>ref.row.kind==='suggest'
+      && ref.row.carryType==='mode'
+      && ref.row.stateGroup==='play');
+    const seen=new Set();
+    const prevRows=[];
+    previousHints.forEach(ref=>{
+      const key=settingSummaryUniqueKey(ref.row.entry);
+      if(seen.has(key))return;
+      seen.add(key);
+      prevRows.push(ref.row);
+    });
+    const counts=new Map();
+    playHints.forEach(ref=>{
+      const key=settingSummaryUniqueKey(ref.row.entry);
+      if(seen.has(key))return;
+      seen.add(key);
+      const entry=ref.row.entry;
+      const countKey=`${entry.placeId||entry.place||''}::${entry.itemId||entry.item||''}`;
+      const refs=findSuggestRefsForEntry(machine,entry);
+      const existing=counts.get(countKey)||{
+        key:countKey,
+        label:organizedJourneySuggestLabel(machine,entry),
+        count:0,
+        accent:refs.item?.accent||entry.accent||''
+      };
+      existing.count+=1;
+      counts.set(countKey,existing);
+    });
+    const countRows=[...counts.values()].sort((a,b)=>b.count-a.count||String(a.label).localeCompare(String(b.label),'ja'));
+    const lines=[
+      ...prevRows.map(row=>organizedJourneyLineHtml(machine,row,'前回終了時・')),
+      ...countRows.map(item=>organizedJourneyCountLineHtml(machine,item))
+    ];
+    if(lines.length)map.set(hitRow,{count:lines.length,lines});
+  });
+  return map;
+}
+function organizedJourneyHtml(summary){
+  if(!summary)return '';
+  return `<div class="organized-journey">
+    <button class="organized-journey-toggle" onclick="toggleOrganizedJourney(this)">▶ この当選までの経緯（${summary.count}件）</button>
+    <div class="organized-journey-body">${summary.lines.join('')}</div>
+  </div>`;
+}
 function organizedRowsHtml(aim){
   const filters=loadOrganizedFilters();
-  const groups=organizedFilteredData(aim,filters);
+  const allGroups=organizedViewData(aim);
+  const journeyMap=(filters.bonus&&filters.mode)?organizedJourneySummaryMap(aim,allGroups):new WeakMap();
+  const groups=allGroups.map(group=>({...group,rows:group.rows.filter(row=>filters[row.category])})).filter(group=>group.rows.length);
   const summary=renderSettingSummaryBlock(organizedSettingSummaryRows(aim));
   const rowsHtml=groups.length?groups.map(group=>`
     <div class="organized-segment-label">― ${escapeHtml(`${aim.aimNumber}-${group.branch}`)} ―</div>
-    ${group.rows.map(row=>`<div class="organized-row ${row.indent?'indent':''} ${escapeHtml(row.extraClass||'')} ${escapeHtml(row.tone||'')}">${row.html||escapeHtml(row.text)}</div>`).join('')}
+    ${group.rows.map(row=>`<div class="organized-row ${row.indent?'indent':''} ${escapeHtml(row.extraClass||'')} ${escapeHtml(row.tone||'')}">${row.html||escapeHtml(row.text)}</div>${organizedJourneyHtml(journeyMap.get(row))}`).join('')}
   `).join(''):'<div class="empty-hint">該当なし</div>';
   return `${rowsHtml}${summary}`;
 }
@@ -7934,6 +8036,13 @@ function toggleOrganizedFilter(key){
 function toggleOrganizedChainModeHints(value){
   saveOrganizedShowChainModeHints(!!value);
   renderOrganizedView();
+}
+function toggleOrganizedJourney(button){
+  const box=button?.closest?.('.organized-journey');
+  if(!box)return;
+  const open=!box.classList.contains('open');
+  box.classList.toggle('open',open);
+  button.textContent=button.textContent.replace(open?'▶':'▼',open?'▼':'▶');
 }
 function openOrganizedView(sessionId,aimNumber){
   organizedViewState={sessionId,aimNumber:Number(aimNumber),copyMode:'detail'};
