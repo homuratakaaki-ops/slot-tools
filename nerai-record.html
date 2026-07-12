@@ -141,7 +141,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .timeline-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}
 .timeline-game{font-size:13px;font-weight:700;color:var(--gold-light);}
 .timeline-text{font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;}
-.organized-view{max-height:78vh;overflow:auto;overscroll-behavior:contain;}
+.organized-view{max-height:78vh;max-height:78dvh;overflow:auto;overscroll-behavior:contain;margin:auto;}
+.keypad-overlay:has(.organized-view){align-items:safe center;}
 .organized-view>.keypad-title{position:sticky;top:-14px;z-index:4;background:var(--surface);padding:14px 0 10px;margin-top:-14px;border-bottom:1px solid rgba(201,168,76,.2);}
 .organized-filter-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0;}
 .organized-chip{border:1px solid var(--border);border-radius:999px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer;}
