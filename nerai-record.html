@@ -135,6 +135,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .end-btn{border-color:rgba(201,168,76,.65);color:var(--gold-light);background:rgba(201,168,76,.1);}
 .timeline-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;}
 .timeline-item.recent{border-color:rgba(201,168,76,.88);background:rgba(201,168,76,.1);box-shadow:0 0 0 1px rgba(201,168,76,.18),0 8px 18px rgba(0,0,0,.18);}
+.timeline-item.segment-tone-red{border-left:4px solid #e45454;background:linear-gradient(90deg,rgba(228,84,84,.16),var(--surface2) 34%);}
+.timeline-item.segment-tone-blue{border-left:4px solid #2f6feb;background:linear-gradient(90deg,rgba(47,111,235,.17),var(--surface2) 34%);}
+.timeline-item.segment-tone-light-blue{border-left:4px solid #75b7ff;background:linear-gradient(90deg,rgba(117,183,255,.14),var(--surface2) 34%);}
 .timeline-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}
 .timeline-game{font-size:13px;font-weight:700;color:var(--gold-light);}
 .timeline-text{font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;}
@@ -896,7 +899,8 @@ function normalizeHitTriggers(value){
   const normalized=rows.map(row=>{
     const key=normalizeHitTrigger(row?.key);
     if(!key)return null;
-    return {key,label:String(row?.label||'').trim()||hitTriggerDefaultLabel(key)};
+    const color=String(row?.color||'').trim();
+    return {key,label:String(row?.label||'').trim()||hitTriggerDefaultLabel(key),color};
   }).filter(Boolean);
   return normalized.length?normalized:fallback;
 }
@@ -2200,8 +2204,8 @@ function ensureNangokuSpecialSeed(machine){
   machine.payoutLabel='累計獲得枚数';
   machine.subCounter={key:'suika',label:'スイカ回数',resetOn:'hit'};
   machine.hitTriggers=normalizeHitTriggers([
-    {key:'direct_at',label:'BIG当選'},
-    {key:'episode_bonus',label:'REG当選'}
+    {key:'direct_at',label:'BIG当選',color:'red'},
+    {key:'episode_bonus',label:'REG当選',color:'light-blue'}
   ]);
   machine.tags=Array.isArray(machine.tags)?machine.tags:[];
   const removePresetIds=new Set([
@@ -5673,6 +5677,19 @@ function segmentSummary(segment,index){
   const endingText=endingCount?` / エンディング到達あり（${endingCount}回）`:'';
   return `${segmentOrdinalLabel(index)}：${segment.terminalLabel||'区切り'} / ${game}${endingText}`;
 }
+function segmentHasNangokuBlue7(segment){
+  return (segment?.suggestLog||[]).some(entry=>entry.placeId==='sgp_nangoku_bonus_type');
+}
+function segmentToneClass(log,segment){
+  const machine=machineById(log?.machineId);
+  if(isNangokuSpecialMachine(machine)&&segmentHasNangokuBlue7(segment))return 'segment-tone-blue';
+  const trigger=segment?.trigger||segment?.hitEvents?.[0]?.trigger||'';
+  const color=machineHitTriggers(machine).find(row=>row.key===trigger)?.color||'';
+  if(color==='red')return 'segment-tone-red';
+  if(color==='blue')return 'segment-tone-blue';
+  if(color==='light-blue')return 'segment-tone-light-blue';
+  return '';
+}
 function segmentText(segment,index){
   const lines=[segmentSummary(segment,index)];
   if((segment.hitEvents||[]).length){
@@ -7366,8 +7383,9 @@ function renderAimGroupLogActions(aim){
     </div>`;
 }
 function renderSegmentHistoryItem(log,segment,index){
+  const tone=segmentToneClass(log,segment);
   return `
-    <div class="timeline-item">
+    <div class="timeline-item ${escapeHtml(tone)}">
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(segmentSummary(segment,index))}</div>
         <span class="pill gold">${escapeHtml(formatAimLabel(log,segment)||'')}</span>
