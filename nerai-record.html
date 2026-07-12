@@ -7330,7 +7330,7 @@ function organizedFilterDefaults(){
   return {bonus:true,mode:true,setting:false,rare:false,other:false};
 }
 function organizedFilterLabels(){
-  return {bonus:'ボーナス',mode:'モード示唆',setting:'設定示唆',rare:'レア役',other:'その他'};
+  return {bonus:'当選',mode:'モード示唆',setting:'設定示唆',rare:'レア役',other:'その他'};
 }
 function loadOrganizedFilters(){
   try{
@@ -7361,9 +7361,14 @@ function organizedTagClass(machine,entry){
 function organizedRowsForSegment(log,segment,index){
   const rows=[];
   const branch=Number(segment.branchNumber)||index+1;
-  (segment.hitEvents||[]).forEach((event,i)=>{
+  const hitEvents=Array.isArray(segment.hitEvents)?segment.hitEvents:[];
+  const firstHitGame=normalizeOptionalNumber(hitEvents[0]?.dataGame);
+  hitEvents.forEach((event,i)=>{
     const payout=normalizeOptionalNumber(event.payout);
-    rows.push({category:'bonus',game:normalizeOptionalNumber(event.dataGame),order:i,text:`${event.dataGame??'-'}G ${hitTriggerLabel(event.trigger,machineById(log.machineId))}${payout!==null?` / +${payout}枚`:''}`,tone:segmentToneClass(log,segment),segment,log});
+    const isChain=i>0;
+    const game=normalizeOptionalNumber(event.dataGame);
+    const sortGame=isChain&&firstHitGame!==null?firstHitGame+(i/1000):game;
+    rows.push({category:'bonus',game,sortGame,order:i,isChain,text:`${isChain?'↳ 連 ':''}${event.dataGame??'-'}G ${hitTriggerLabel(event.trigger,machineById(log.machineId))}${payout!==null?` / +${payout}枚`:''}`,shortText:`${isChain?'└連 ':''}${event.dataGame??'-'}G ${hitTriggerLabel(event.trigger,machineById(log.machineId)).replace('当選','')}${payout!==null?` +${payout}枚`:''}`,tone:segmentToneClass(log,segment),segment,log});
   });
   (segment.suggestLog||[]).forEach((entry,i)=>{
     const carry=normalizeCarryType(entry.carryType);
@@ -7377,7 +7382,7 @@ function organizedRowsForSegment(log,segment,index){
     const data=normalizeOptionalNumber(entry.game);
     rows.push({category,game:data,order:200+i,text:`${data!==null?`${data}G `:''}${entry.text||''}`.trim(),segment,log});
   });
-  return {branch,rows:rows.sort((a,b)=>(a.game??999999)-(b.game??999999)||a.order-b.order)};
+  return {branch,rows:rows.sort((a,b)=>(a.sortGame??a.game??999999)-(b.sortGame??b.game??999999)||a.order-b.order)};
 }
 function organizedViewData(aim){
   return aimGroupSegments(aim).map((row,index)=>organizedRowsForSegment(row.log,row.segment,index));
@@ -7404,7 +7409,7 @@ function organizedShortText(aim){
   const date=organizedDateLabel(aim.logs[0]);
   const bonusRows=organizedViewData(aim).flatMap(group=>group.rows.filter(row=>row.category==='bonus'));
   const header=`【${machine?.name||aim.logs[0]?.machineName||''}${date?` ${date}`:''}】`;
-  const lines=bonusRows.map(row=>row.text.replace('当選','').replace(' / ',' '));
+  const lines=bonusRows.map(row=>row.shortText||row.text.replace('当選','').replace(' / ',' '));
   return [header,...(lines.length?lines:['該当なし'])].join('\n');
 }
 function renderOrganizedFilterChips(){
