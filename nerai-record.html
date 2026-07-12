@@ -5724,11 +5724,19 @@ function segmentToneClass(log,segment){
   const machine=machineById(log?.machineId);
   if(isNangokuSpecialMachine(machine)&&segmentHasNangokuBlue7(segment))return 'segment-tone-blue';
   const trigger=segment?.trigger||segment?.hitEvents?.[0]?.trigger||'';
+  return hitTriggerToneClass(machine,trigger);
+}
+function hitTriggerToneClass(machine,trigger){
   const color=machineHitTriggers(machine).find(row=>row.key===trigger)?.color||'';
   if(color==='red')return 'segment-tone-red';
   if(color==='blue')return 'segment-tone-blue';
   if(color==='light-blue')return 'segment-tone-light-blue';
   return '';
+}
+function organizedHitToneClass(log,segment,event){
+  const machine=machineById(log?.machineId);
+  if(isNangokuSpecialMachine(machine)&&event?.trigger==='direct_at'&&segmentHasNangokuBlue7(segment))return 'segment-tone-blue';
+  return hitTriggerToneClass(machine,event?.trigger||'');
 }
 function segmentText(segment,index){
   const lines=[segmentSummary(segment,index)];
@@ -7380,7 +7388,7 @@ function organizedRowsForSegment(log,segment,index){
     const label=hitTriggerLabel(event.trigger,machineById(log.machineId));
     const baseText=`${event.dataGame??'-'}G ${label}${payout!==null?` / +${payout}枚`:''}`;
     const baseShortText=`${event.dataGame??'-'}G ${label.replace('当選','')}${payout!==null?` +${payout}枚`:''}`;
-    rows.push({category:'bonus',kind:'hit',game,sortGame,order:i,isChain,payout,baseText,baseShortText,text:`${isChain?'↳ 連 ':''}${baseText}`,shortText:`${isChain?'└連 ':''}${baseShortText}`,tone:segmentToneClass(log,segment),segment,log});
+    rows.push({category:'bonus',kind:'hit',game,sortGame,order:i,isChain,payout,baseText,baseShortText,text:`${isChain?'↳ 連 ':''}${baseText}`,shortText:`${isChain?'└連 ':''}${baseShortText}`,tone:organizedHitToneClass(log,segment,event),segment,log});
   });
   (segment.suggestLog||[]).forEach((entry,i)=>{
     const carry=normalizeCarryType(entry.carryType);
