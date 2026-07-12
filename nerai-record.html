@@ -4559,11 +4559,11 @@ function subCounterValue(key){
 }
 function setSubCounterValue(key,value){
   currentSubCounters={...currentSubCounters,[key]:Math.max(0,Math.trunc(Number(value)||0))};
+  const input=document.getElementById(`subCounter_${key}`);
+  if(input)input.value=String(subCounterValue(key));
 }
 function incrementSubCounter(key,delta=1){
   setSubCounterValue(key,subCounterValue(key)+delta);
-  const input=document.getElementById(`subCounter_${key}`);
-  if(input)input.value=String(subCounterValue(key));
   saveDraftImmediately();
 }
 function syncSubCounterInput(key){
@@ -5585,7 +5585,6 @@ function appendTimelineTagById(id){
     if(!pendingTimelineTagIds.includes(id))pendingTimelineTagIds.push(id);
     appendTimelineTag(tag.label);
     updateTimelineAddButtonState();
-    saveDraftImmediately();
   }
 }
 function appendTimelineTag(label){
@@ -5912,7 +5911,7 @@ function addTimelineEntry(){
   updateTimelineAddButtonState();
   renderCurrentTimeline();
   renderPracticeStats();
-  scheduleDraftSave();
+  saveDraftImmediately();
 }
 function renderCurrentTimeline(){
   const el=document.getElementById('timelineList');
