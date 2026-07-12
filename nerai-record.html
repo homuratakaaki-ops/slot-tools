@@ -1335,6 +1335,7 @@ function normalizeSuggestMaster(master){
         enabled:item.enabled!==false,
         carryType:normalizeCarryType(item.carryType),
         pointRole:item.pointRole==='gain'||item.pointRole==='hint'?item.pointRole:null,
+        summaryDefault:!!item.summaryDefault,
         confidenceLevel:normalizeConfidenceLevel(item.confidenceLevel),
         confidenceType:normalizeConfidenceType(item.confidenceType),
         decorations:Array.isArray(item.decorations)?item.decorations.filter(dec=>dec&&typeof dec.text==='string'&&typeof dec.color==='string').map(dec=>({text:dec.text,color:dec.color})):[]
@@ -1505,8 +1506,10 @@ function mergeSuggestSeed(machine,seed){
       }
       place.items=Array.isArray(place.items)?place.items:[];
       (seedPlace.items||[]).forEach(seedItem=>{
-        const exists=place.items.some(item=>item.id===seedItem.id||item.label===seedItem.label);
-        if(!exists)place.items.push(clone(seedItem));
+        const existing=place.items.find(item=>item.id===seedItem.id||item.label===seedItem.label);
+        if(existing){
+          if(seedItem.summaryDefault)existing.summaryDefault=true;
+        }else place.items.push(clone(seedItem));
       });
     });
   });
@@ -2272,9 +2275,19 @@ function ensureNangokuSpecialSeed(machine){
   machine.tags.forEach(tag=>{
     if(tagSuggestLinks[tag.id])tag.suggestLink=tagSuggestLinks[tag.id];
   });
+  const markSummaryDefault=(placeId,itemId,carryType)=>{
+    const place=(machine.suggestMaster||[]).flatMap(category=>category.places||[]).find(row=>row.id===placeId);
+    const item=place?.items?.find(row=>row.id===itemId);
+    if(item){
+      item.summaryDefault=true;
+      item.carryType=carryType;
+    }
+  };
+  markSummaryDefault('sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i1','setting');
+  markSummaryDefault('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i1','mode');
   if(machine.suggestSeedNangokuSpecialV2)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
-  const item=(label,carryType=null)=>({label,enabled:true,carryType});
+  const item=(label,carryType=null,extra={})=>({label,enabled:true,carryType,...extra});
   const place=(id,name,entries,stateGroup='play')=>({
     id,name,enabled:true,stateGroup,items:entries.map((entry,i)=>({
       id:`${id}_i${i+1}`,
@@ -2328,7 +2341,7 @@ function ensureNangokuSpecialSeed(machine){
       useAppearG:false,
       places:[
         place('sgp_nangoku_bonus_voice','ボーナス終了時ボイス（PUSH）',[
-          item('ボイスなし（デフォルト?）','setting'),
+          item('ボイスなし（デフォルト?）','setting',{summaryDefault:true}),
           item('張り切っていこー（偶奇示唆?）','setting'),
           item('自分を信じて（偶奇示唆?）','setting'),
           item('良い感じよ♪うんうん（高設定期待度UP?）','setting'),
@@ -2337,7 +2350,7 @@ function ensureNangokuSpecialSeed(machine){
           item('今日の運勢は…極み!（設定6濃厚?）','setting')
         ],'hit'),
         place('sgp_nangoku_reel_light','ボーナス終了時のリール発光',[
-          item('変化なし（デフォルト・チャンスや飛翔準備に期待!?）','mode'),
+          item('変化なし（デフォルト・チャンスや飛翔準備に期待!?）','mode',{summaryDefault:true}),
           item('青（高モード示唆・弱）','mode'),
           item('緑（高モード示唆・強）','mode'),
           item('赤（通常B以上濃厚）','mode'),
@@ -4452,6 +4465,79 @@ function settingAtEndRatioHtml(rows){
   }).join('');
   return `<div class="setting-ratio-box"><div class="setting-ratio-title">AT終了画面 出現比率（${total}回）</div>${body}</div>`;
 }
+function settingSummaryOrderMap(machine){
+  const order=new Map();
+  let index=0;
+  (machine?.suggestMaster||[]).forEach(category=>{
+    (category.places||[]).forEach(place=>{
+      (place.items||[]).forEach(item=>{
+        order.set(`${place.id}::${item.id}`,index++);
+      });
+    });
+  });
+  return order;
+}
+function settingSummaryEntryKey(entry){
+  return `${entry.placeId||entry.place||''}::${entry.itemId||entry.item||''}`;
+}
+function settingSummaryEntryIsDefault(machine,entry){
+  return !!findSuggestRefsForEntry(machine,entry).item?.summaryDefault;
+}
+function settingSummaryEntriesFromLog(log){
+  const rows=[];
+  (log?.suggestLog||[]).forEach(entry=>rows.push(entry));
+  (log?.segments||[]).forEach(segment=>(segment.suggestLog||[]).forEach(entry=>rows.push(entry)));
+  return rows;
+}
+function currentAimSettingSummaryEntries(){
+  const sessionId=currentSessionIdPreview();
+  const aimNumber=currentAimNumberPreview();
+  const rows=[];
+  db.logs.forEach(log=>{
+    if(log.id===editingLogId)return;
+    if(log.sessionId===sessionId&&Number(log.aimNumber)===Number(aimNumber))rows.push(...settingSummaryEntriesFromLog(log));
+  });
+  currentSegments.forEach(segment=>(segment.suggestLog||[]).forEach(entry=>rows.push(entry)));
+  currentSuggestLog.forEach(entry=>rows.push(entry));
+  return rows;
+}
+function settingSummaryRows(machine,entries){
+  const order=settingSummaryOrderMap(machine);
+  const counts=new Map();
+  (entries||[]).forEach(entry=>{
+    if(normalizeCarryType(entry.carryType)!=='setting')return;
+    if(settingSummaryEntryIsDefault(machine,entry))return;
+    const refs=findSuggestRefsForEntry(machine,entry);
+    const key=settingSummaryEntryKey(entry);
+    if(!key||key==='::')return;
+    const existing=counts.get(key)||{
+      key,
+      place:suggestEntryPlaceLabel(entry,machine),
+      item:refs.item?.label||entry.item||'内容',
+      count:0,
+      order:order.has(key)?order.get(key):999999
+    };
+    existing.count+=1;
+    counts.set(key,existing);
+  });
+  const rows=[...counts.values()];
+  const total=rows.reduce((sum,row)=>sum+row.count,0);
+  return rows
+    .map(row=>({...row,total,pct:total?Math.floor(row.count*1000/total)/10:0}))
+    .sort((a,b)=>b.count-a.count||a.order-b.order||a.item.localeCompare(b.item));
+}
+function settingSummaryLine(row){
+  return `${row.place}：${row.item} ×${row.count}（${row.pct.toFixed(1)}%）`;
+}
+function renderSettingSummaryBlock(rows,title='設定示唆まとめ'){
+  if(!rows.length)return '';
+  const total=rows[0]?.total||0;
+  return `
+    <div class="setting-ratio-box">
+      <div class="setting-ratio-title">${escapeHtml(title)}（${total}件）</div>
+      ${rows.map(row=>`<div class="setting-ratio-row">${escapeHtml(settingSummaryLine(row))}</div>`).join('')}
+    </div>`;
+}
 function kuiPointRoleEntriesFromLog(log,role){
   return (log?.suggestLog||[]).filter(entry=>entry.pointRole===role);
 }
@@ -4514,6 +4600,18 @@ function carrySummaryRowClass(type,entry){
   return classes.join(' ');
 }
 function carrySummarySection(type,title,open){
+  if(type==='setting'){
+    const rows=settingSummaryRows(currentMachine(),currentAimSettingSummaryEntries());
+    if(!rows.length)return '';
+    return `
+      <div class="carry-summary-section ${type} ${open?'open':''}">
+        <button class="carry-summary-toggle" type="button" onclick="toggleCarrySummary('${type}')">
+          <span>${escapeHtml(title)}</span>
+          <span class="carry-summary-count">${rows[0].total}件 ${open?'▲':'▼'}</span>
+        </button>
+        <div class="carry-summary-body">${renderSettingSummaryBlock(rows,title)}</div>
+      </div>`;
+  }
   const groups=buildCarrySummaryGroups(type);
   const rows=groups.flatMap(group=>group.entries);
   const extra=type==='setting'?settingAtEndRatioHtml(rows):'';
@@ -4541,7 +4639,7 @@ function renderCarrySummaryArea(){
   return `
     <div class="carry-summary-wrap">
       ${carrySummarySection('mode','モード示唆まとめ',modeSummaryOpen)}
-      ${carrySummarySection('setting','設定関連まとめ',settingSummaryOpen)}
+      ${carrySummarySection('setting','設定示唆まとめ',settingSummaryOpen)}
       ${machineUsesEndingCards()?renderEndingCardsSummary():''}
       ${renderKuiPointSummaryArea()}
     </div>`;
@@ -7454,19 +7552,25 @@ function organizedViewData(aim){
 function organizedFilteredData(aim,filters=loadOrganizedFilters()){
   return organizedViewData(aim).map(group=>({...group,rows:group.rows.filter(row=>filters[row.category])})).filter(group=>group.rows.length);
 }
+function organizedSettingSummaryRows(aim){
+  return settingSummaryRows(organizedMachineForAim(aim),(aim?.logs||[]).flatMap(settingSummaryEntriesFromLog));
+}
 function organizedRowsHtml(aim){
   const filters=loadOrganizedFilters();
   const groups=organizedFilteredData(aim,filters);
-  if(!groups.length)return '<div class="empty-hint">該当なし</div>';
-  return groups.map(group=>`
+  const summary=renderSettingSummaryBlock(organizedSettingSummaryRows(aim));
+  const rowsHtml=groups.length?groups.map(group=>`
     <div class="organized-segment-label">― ${escapeHtml(`${aim.aimNumber}-${group.branch}`)} ―</div>
     ${group.rows.map(row=>`<div class="organized-row ${row.indent?'indent':''} ${escapeHtml(row.extraClass||'')} ${escapeHtml(row.tone||'')}">${escapeHtml(row.text)}</div>`).join('')}
-  `).join('');
+  `).join(''):'<div class="empty-hint">該当なし</div>';
+  return `${rowsHtml}${summary}`;
 }
 function organizedDetailText(aim){
   const groups=organizedFilteredData(aim,loadOrganizedFilters());
-  if(!groups.length)return '該当なし';
-  return groups.map(group=>[`― ${aim.aimNumber}-${group.branch} ―`,...group.rows.map(row=>`${row.indent?'  ':''}${row.text}`)].join('\n')).join('\n');
+  const body=groups.length?groups.map(group=>[`― ${aim.aimNumber}-${group.branch} ―`,...group.rows.map(row=>`${row.indent?'  ':''}${row.text}`)].join('\n')).join('\n'):'該当なし';
+  const summary=organizedSettingSummaryRows(aim);
+  if(!summary.length)return body;
+  return `${body}\n\n設定示唆まとめ（${summary[0].total}件）\n${summary.map(settingSummaryLine).join('\n')}`;
 }
 function organizedShortText(aim){
   const machine=organizedMachineForAim(aim);
@@ -7519,6 +7623,10 @@ function drawOrganizedImageCard(aim){
   const rows=organizedImageRows(aim);
   if(!rows.length)throw new Error('画像にする当選履歴がありません');
   const machine=organizedMachineForAim(aim);
+  const settingRows=organizedSettingSummaryRows(aim);
+  const visibleSettingRows=settingRows.slice(0,10);
+  const otherSettingCount=Math.max(0,settingRows.length-visibleSettingRows.length);
+  const settingDrawRows=otherSettingCount?[...visibleSettingRows,{otherCount:otherSettingCount,text:`他${otherSettingCount}件`}]:visibleSettingRows;
   const title=machine?.name||aim.logs[0]?.machineName||'稼働記録';
   const date=organizedDateLabel(aim.logs[0]);
   const limit=40;
@@ -7533,9 +7641,12 @@ function drawOrganizedImageCard(aim){
   const lineHeight=rows.length>40?44:compact?50:58;
   const top=62;
   const headerHeight=138;
+  const settingHeaderHeight=settingDrawRows.length?60:0;
+  const settingLineHeight=settingDrawRows.length?42:0;
+  const settingBlockHeight=settingDrawRows.length?settingHeaderHeight+(settingDrawRows.length*settingLineHeight)+24:0;
   const footerHeight=92;
   const bottom=50;
-  const height=top+headerHeight+(drawRows.length*lineHeight)+footerHeight+bottom;
+  const height=top+headerHeight+(drawRows.length*lineHeight)+settingBlockHeight+footerHeight+bottom;
   const canvas=document.createElement('canvas');
   canvas.width=width;
   canvas.height=height;
@@ -7589,6 +7700,25 @@ function drawOrganizedImageCard(aim){
     }
     y+=lineHeight;
   });
+  if(settingDrawRows.length){
+    y+=18;
+    ctx.strokeStyle='rgba(201,168,76,.28)';
+    ctx.beginPath();
+    ctx.moveTo(48,y-8);
+    ctx.lineTo(width-48,y-8);
+    ctx.stroke();
+    ctx.fillStyle='#f3df99';
+    ctx.font='800 30px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.fillText(`設定示唆まとめ（${settingRows[0].total}件）`,48,y+28);
+    y+=settingHeaderHeight;
+    settingDrawRows.forEach(row=>{
+      const text=row.otherCount?row.text:settingSummaryLine(row);
+      ctx.fillStyle='rgba(247,242,223,.9)';
+      fitCanvasText(ctx,text,width-96,24,27,'700');
+      ctx.fillText(text,72,y);
+      y+=settingLineHeight;
+    });
+  }
   const footerY=height-bottom-footerHeight+24;
   ctx.strokeStyle='rgba(201,168,76,.28)';
   ctx.beginPath();
