@@ -4480,6 +4480,28 @@ function settingSummaryOrderMap(machine){
 function settingSummaryEntryKey(entry){
   return `${entry.placeId||entry.place||''}::${entry.itemId||entry.item||''}`;
 }
+function settingSummaryUniqueKey(entry){
+  if(entry?.id)return `id::${entry.id}`;
+  return [
+    'legacy',
+    entry?.placeId||entry?.place||'',
+    entry?.itemId||entry?.item||'',
+    normalizeOptionalNumber(entry?.dataGame)??normalizeOptionalNumber(entry?.game)??'',
+    normalizeOptionalNumber(entry?.liquidGame)??'',
+    entry?.createdAt||''
+  ].join('::');
+}
+function uniqueSettingSummaryEntries(entries){
+  const seen=new Set();
+  const rows=[];
+  (entries||[]).forEach(entry=>{
+    const key=settingSummaryUniqueKey(entry);
+    if(seen.has(key))return;
+    seen.add(key);
+    rows.push(entry);
+  });
+  return rows;
+}
 function settingSummaryEntryIsDefault(machine,entry){
   return !!findSuggestRefsForEntry(machine,entry).item?.summaryDefault;
 }
@@ -4504,7 +4526,7 @@ function currentAimSettingSummaryEntries(){
 function settingSummaryRows(machine,entries){
   const order=settingSummaryOrderMap(machine);
   const counts=new Map();
-  (entries||[]).forEach(entry=>{
+  uniqueSettingSummaryEntries(entries).forEach(entry=>{
     if(normalizeCarryType(entry.carryType)!=='setting')return;
     if(settingSummaryEntryIsDefault(machine,entry))return;
     const refs=findSuggestRefsForEntry(machine,entry);
