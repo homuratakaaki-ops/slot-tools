@@ -149,6 +149,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .organized-segment-label::before,.organized-segment-label::after{content:"";height:1px;background:rgba(201,168,76,.25);flex:1;}
 .organized-row{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px 10px;margin-bottom:7px;font-size:13px;line-height:1.5;}
 .organized-row.indent{margin-left:18px;border-style:dashed;}
+.organized-row.organized-chain-enter{border-style:dashed;background:rgba(201,168,76,.08);color:var(--gold-light);font-weight:900;text-align:center;}
 .organized-row.segment-tone-red{border-left:4px solid #e45454;background:linear-gradient(90deg,rgba(228,84,84,.14),var(--surface2) 36%);}
 .organized-row.segment-tone-blue{border-left:4px solid #2f6feb;background:linear-gradient(90deg,rgba(47,111,235,.15),var(--surface2) 36%);}
 .organized-row.segment-tone-light-blue{border-left:4px solid #75b7ff;background:linear-gradient(90deg,rgba(117,183,255,.13),var(--surface2) 36%);}
@@ -2240,6 +2241,7 @@ function ensureNangokuSpecialSeed(machine){
   machine.followMode='always';
   machine.payoutLabel='累計獲得枚数';
   machine.subCounter={key:'suika',label:'スイカ回数',resetOn:'hit'};
+  machine.chainRule={maxGap:42,enterLabel:'飛翔モード突入',unitLabel:'連'};
   machine.hitTriggers=normalizeHitTriggers([
     {key:'direct_at',label:'BIG当選',color:'red'},
     {key:'episode_bonus',label:'REG当選',color:'light-blue'}
@@ -7358,6 +7360,12 @@ function organizedTagClass(machine,entry){
   const tags=ids.map(id=>machine?.tags?.find(tag=>tag.id===id)).filter(Boolean);
   return tags.some(tag=>String(tag.tagClass||'').startsWith('rare-'))?'rare':'other';
 }
+function normalizedChainRule(machine){
+  const rule=machine?.chainRule;
+  const maxGap=normalizeOptionalNumber(rule?.maxGap);
+  if(maxGap===null)return null;
+  return {maxGap,enterLabel:rule?.enterLabel||'連チャン突入',unitLabel:rule?.unitLabel||'連'};
+}
 function organizedRowsForSegment(log,segment,index){
   const rows=[];
   const branch=Number(segment.branchNumber)||index+1;
@@ -7368,7 +7376,10 @@ function organizedRowsForSegment(log,segment,index){
     const isChain=i>0;
     const game=normalizeOptionalNumber(event.dataGame);
     const sortGame=isChain&&firstHitGame!==null?firstHitGame+(i/1000):game;
-    rows.push({category:'bonus',game,sortGame,order:i,isChain,text:`${isChain?'↳ 連 ':''}${event.dataGame??'-'}G ${hitTriggerLabel(event.trigger,machineById(log.machineId))}${payout!==null?` / +${payout}枚`:''}`,shortText:`${isChain?'└連 ':''}${event.dataGame??'-'}G ${hitTriggerLabel(event.trigger,machineById(log.machineId)).replace('当選','')}${payout!==null?` +${payout}枚`:''}`,tone:segmentToneClass(log,segment),segment,log});
+    const label=hitTriggerLabel(event.trigger,machineById(log.machineId));
+    const baseText=`${event.dataGame??'-'}G ${label}${payout!==null?` / +${payout}枚`:''}`;
+    const baseShortText=`${event.dataGame??'-'}G ${label.replace('当選','')}${payout!==null?` +${payout}枚`:''}`;
+    rows.push({category:'bonus',kind:'hit',game,sortGame,order:i,isChain,baseText,baseShortText,text:`${isChain?'↳ 連 ':''}${baseText}`,shortText:`${isChain?'└連 ':''}${baseShortText}`,tone:segmentToneClass(log,segment),segment,log});
   });
   (segment.suggestLog||[]).forEach((entry,i)=>{
     const carry=normalizeCarryType(entry.carryType);
@@ -7384,8 +7395,52 @@ function organizedRowsForSegment(log,segment,index){
   });
   return {branch,rows:rows.sort((a,b)=>(a.sortGame??a.game??999999)-(b.sortGame??b.game??999999)||a.order-b.order)};
 }
+function applyOrganizedChainRule(aim,groups){
+  const rule=normalizedChainRule(organizedMachineForAim(aim));
+  if(!rule)return groups;
+  const refs=[];
+  groups.forEach((group,groupIndex)=>{
+    group.rows.forEach((row,rowIndex)=>{
+      if(row.category==='bonus'&&row.kind==='hit')refs.push({groupIndex,rowIndex,row});
+    });
+  });
+  let chainCount=0;
+  let hasPreviousHit=false;
+  const inserts=[];
+  refs.forEach(ref=>{
+    const row=ref.row;
+    const game=normalizeOptionalNumber(row.game);
+    const isChain=hasPreviousHit&&game!==null&&game<=rule.maxGap;
+    if(isChain){
+      chainCount+=1;
+      row.isChain=true;
+      row.chainCount=chainCount;
+      row.text=`└${chainCount}${rule.unitLabel} ${row.baseText||row.text}`;
+      row.shortText=`└${chainCount}${rule.unitLabel} ${row.baseShortText||row.shortText||row.text}`;
+      if(chainCount===2){
+        inserts.push({
+          groupIndex:ref.groupIndex,
+          rowIndex:ref.rowIndex,
+          row:{category:'bonus',kind:'chain-enter',game:row.game,order:row.order-.1,text:rule.enterLabel,shortText:rule.enterLabel,extraClass:'organized-chain-enter'}
+        });
+      }
+    }else{
+      chainCount=1;
+      row.isChain=false;
+      row.chainCount=1;
+      row.text=row.baseText||row.text;
+      row.shortText=row.baseShortText||row.shortText||row.text;
+    }
+    hasPreviousHit=true;
+  });
+  inserts.sort((a,b)=>b.groupIndex-a.groupIndex||b.rowIndex-a.rowIndex).forEach(insert=>{
+    groups[insert.groupIndex]?.rows.splice(insert.rowIndex,0,insert.row);
+  });
+  return groups;
+}
 function organizedViewData(aim){
-  return aimGroupSegments(aim).map((row,index)=>organizedRowsForSegment(row.log,row.segment,index));
+  const groups=aimGroupSegments(aim).map((row,index)=>organizedRowsForSegment(row.log,row.segment,index));
+  return applyOrganizedChainRule(aim,groups);
 }
 function organizedFilteredData(aim,filters=loadOrganizedFilters()){
   return organizedViewData(aim).map(group=>({...group,rows:group.rows.filter(row=>filters[row.category])})).filter(group=>group.rows.length);
@@ -7396,7 +7451,7 @@ function organizedRowsHtml(aim){
   if(!groups.length)return '<div class="empty-hint">該当なし</div>';
   return groups.map(group=>`
     <div class="organized-segment-label">― ${escapeHtml(`${aim.aimNumber}-${group.branch}`)} ―</div>
-    ${group.rows.map(row=>`<div class="organized-row ${row.indent?'indent':''} ${escapeHtml(row.tone||'')}">${escapeHtml(row.text)}</div>`).join('')}
+    ${group.rows.map(row=>`<div class="organized-row ${row.indent?'indent':''} ${escapeHtml(row.extraClass||'')} ${escapeHtml(row.tone||'')}">${escapeHtml(row.text)}</div>`).join('')}
   `).join('');
 }
 function organizedDetailText(aim){
