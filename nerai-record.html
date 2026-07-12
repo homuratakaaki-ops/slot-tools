@@ -141,6 +141,19 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .timeline-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}
 .timeline-game{font-size:13px;font-weight:700;color:var(--gold-light);}
 .timeline-text{font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;}
+.organized-view{max-height:78vh;overflow:auto;}
+.organized-filter-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0;}
+.organized-chip{border:1px solid var(--border);border-radius:999px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer;}
+.organized-chip.active{border-color:var(--gold);background:rgba(201,168,76,.14);color:var(--gold-light);}
+.organized-segment-label{display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:12px;font-weight:900;margin:12px 0 6px;}
+.organized-segment-label::before,.organized-segment-label::after{content:"";height:1px;background:rgba(201,168,76,.25);flex:1;}
+.organized-row{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:8px 10px;margin-bottom:7px;font-size:13px;line-height:1.5;}
+.organized-row.indent{margin-left:18px;border-style:dashed;}
+.organized-row.segment-tone-red{border-left:4px solid #e45454;background:linear-gradient(90deg,rgba(228,84,84,.14),var(--surface2) 36%);}
+.organized-row.segment-tone-blue{border-left:4px solid #2f6feb;background:linear-gradient(90deg,rgba(47,111,235,.15),var(--surface2) 36%);}
+.organized-row.segment-tone-light-blue{border-left:4px solid #75b7ff;background:linear-gradient(90deg,rgba(117,183,255,.13),var(--surface2) 36%);}
+.organized-copy-tabs{display:flex;gap:8px;margin-top:10px;}
+.organized-copy-tabs .btn-small.active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
 .work-section-card{border-color:rgba(201,168,76,.32);background:linear-gradient(180deg,rgba(201,168,76,.08),rgba(255,255,255,.02));}
 .work-section-card.play{border-color:rgba(201,168,76,.45);}
 .work-section-title{display:flex;align-items:center;gap:8px;margin:-2px -2px 12px;padding:10px 12px;border-radius:8px;background:rgba(201,168,76,.13);border:1px solid rgba(201,168,76,.28);color:var(--gold-light);font-size:15px;font-weight:800;}
@@ -670,8 +683,28 @@ footer a:hover{color:var(--gold-light);}
   </div>
 </div>
 
+<div class="keypad-overlay" id="organizedViewOverlay" onclick="closeOrganizedView()">
+  <div class="keypad organized-view" onclick="event.stopPropagation()">
+    <div class="keypad-title">
+      <span id="organizedViewTitle">整理ビュー</span>
+      <button class="btn-small" onclick="closeOrganizedView()">閉じる</button>
+    </div>
+    <div class="input-hint" id="organizedViewMeta"></div>
+    <div class="organized-filter-row" id="organizedFilterRow"></div>
+    <div id="organizedViewRows"></div>
+    <div class="organized-copy-tabs">
+      <button class="btn-small active" id="organizedCopyDetailButton" onclick="setOrganizedCopyMode('detail')">詳細版</button>
+      <button class="btn-small" id="organizedCopyShortButton" onclick="setOrganizedCopyMode('short')">短縮版</button>
+    </div>
+    <textarea id="organizedCopyText" style="min-height:150px;"></textarea>
+    <button class="btn-copy" onclick="copyText(document.getElementById('organizedCopyText')?.value||'','organizedCopied')">この内容をコピー</button>
+    <div class="copy-done" id="organizedCopied">コピーしました</div>
+  </div>
+</div>
+
 <script>
 const STORAGE_KEY='nerai_record_v1';
+const ORGANIZED_FILTER_KEY='neraiOrganizedViewFilters';
 const LOG_SCHEMA_VERSION=2;
 const LOG_STATUS_VALUES=['active','suspended','finished','settled'];
 const SEGMENT_STATUS_VALUES=['editing','committed'];
@@ -743,6 +776,7 @@ let pastHintsOpen=false;
 let logDateOpenState={};
 let openLogDetailIds={};
 let openAimGroupIds={};
+let organizedViewState={sessionId:'',aimNumber:null,copyMode:'detail'};
 let recentTimelineHighlightId='';
 let recentSuggestHighlightId='';
 let modeSummaryOpen=false;
@@ -7292,6 +7326,134 @@ function aimGroupSegments(aim){
   return aim.logs.flatMap(log=>(log.segments||[]).map(segment=>({log,segment})))
     .sort((a,b)=>(Number(a.segment.branchNumber)||0)-(Number(b.segment.branchNumber)||0)||logSortTime(a.log).localeCompare(logSortTime(b.log)));
 }
+function organizedFilterDefaults(){
+  return {bonus:true,mode:true,setting:false,rare:false,other:false};
+}
+function organizedFilterLabels(){
+  return {bonus:'ボーナス',mode:'モード示唆',setting:'設定示唆',rare:'レア役',other:'その他'};
+}
+function loadOrganizedFilters(){
+  try{
+    const parsed=JSON.parse(localStorage.getItem(ORGANIZED_FILTER_KEY)||'null');
+    return {...organizedFilterDefaults(),...(parsed&&typeof parsed==='object'?parsed:{})};
+  }catch{return organizedFilterDefaults();}
+}
+function saveOrganizedFilters(filters){
+  localStorage.setItem(ORGANIZED_FILTER_KEY,JSON.stringify(filters));
+}
+function organizedAimFromState(){
+  const logs=db.logs.filter(log=>log.sessionId===organizedViewState.sessionId&&Number(log.aimNumber)===Number(organizedViewState.aimNumber));
+  return logs.length?{aimNumber:Number(organizedViewState.aimNumber),logs}:null;
+}
+function organizedMachineForAim(aim){
+  return machineById(aim?.logs?.[0]?.machineId)||currentMachine();
+}
+function organizedDateLabel(log){
+  const date=String(log?.money?.date||'');
+  const parts=date.split('-');
+  return parts.length===3?`${Number(parts[1])}/${Number(parts[2])}`:date;
+}
+function organizedTagClass(machine,entry){
+  const ids=Array.isArray(entry?.tagIds)?entry.tagIds:[];
+  const tags=ids.map(id=>machine?.tags?.find(tag=>tag.id===id)).filter(Boolean);
+  return tags.some(tag=>String(tag.tagClass||'').startsWith('rare-'))?'rare':'other';
+}
+function organizedRowsForSegment(log,segment,index){
+  const rows=[];
+  const branch=Number(segment.branchNumber)||index+1;
+  (segment.hitEvents||[]).forEach((event,i)=>{
+    const payout=normalizeOptionalNumber(event.payout);
+    rows.push({category:'bonus',game:normalizeOptionalNumber(event.dataGame),order:i,text:`${event.dataGame??'-'}G ${hitTriggerLabel(event.trigger,machineById(log.machineId))}${payout!==null?` / +${payout}枚`:''}`,tone:segmentToneClass(log,segment),segment,log});
+  });
+  (segment.suggestLog||[]).forEach((entry,i)=>{
+    const carry=normalizeCarryType(entry.carryType);
+    const category=carry==='setting'?'setting':carry==='mode'?'mode':'other';
+    const data=normalizeOptionalNumber(entry.dataGame);
+    const line=data!==null?`${data}G ${suggestLogLine(entry)}`:`${suggestLogLine(entry)}`;
+    rows.push({category,game:data,order:100+i,text:line,indent:data===null,segment,log});
+  });
+  (segment.timeline||[]).forEach((entry,i)=>{
+    const category=organizedTagClass(machineById(log.machineId),entry);
+    const data=normalizeOptionalNumber(entry.game);
+    rows.push({category,game:data,order:200+i,text:`${data!==null?`${data}G `:''}${entry.text||''}`.trim(),segment,log});
+  });
+  return {branch,rows:rows.sort((a,b)=>(a.game??999999)-(b.game??999999)||a.order-b.order)};
+}
+function organizedViewData(aim){
+  return aimGroupSegments(aim).map((row,index)=>organizedRowsForSegment(row.log,row.segment,index));
+}
+function organizedFilteredData(aim,filters=loadOrganizedFilters()){
+  return organizedViewData(aim).map(group=>({...group,rows:group.rows.filter(row=>filters[row.category])})).filter(group=>group.rows.length);
+}
+function organizedRowsHtml(aim){
+  const filters=loadOrganizedFilters();
+  const groups=organizedFilteredData(aim,filters);
+  if(!groups.length)return '<div class="empty-hint">該当なし</div>';
+  return groups.map(group=>`
+    <div class="organized-segment-label">― ${escapeHtml(`${aim.aimNumber}-${group.branch}`)} ―</div>
+    ${group.rows.map(row=>`<div class="organized-row ${row.indent?'indent':''} ${escapeHtml(row.tone||'')}">${escapeHtml(row.text)}</div>`).join('')}
+  `).join('');
+}
+function organizedDetailText(aim){
+  const groups=organizedFilteredData(aim,loadOrganizedFilters());
+  if(!groups.length)return '該当なし';
+  return groups.map(group=>[`― ${aim.aimNumber}-${group.branch} ―`,...group.rows.map(row=>`${row.indent?'  ':''}${row.text}`)].join('\n')).join('\n');
+}
+function organizedShortText(aim){
+  const machine=organizedMachineForAim(aim);
+  const date=organizedDateLabel(aim.logs[0]);
+  const bonusRows=organizedViewData(aim).flatMap(group=>group.rows.filter(row=>row.category==='bonus'));
+  const header=`【${machine?.name||aim.logs[0]?.machineName||''}${date?` ${date}`:''}】`;
+  const lines=bonusRows.map(row=>row.text.replace('当選','').replace(' / ',' '));
+  return [header,...(lines.length?lines:['該当なし'])].join('\n');
+}
+function renderOrganizedFilterChips(){
+  const filters=loadOrganizedFilters();
+  const labels=organizedFilterLabels();
+  return Object.keys(labels).map(key=>`<button class="organized-chip ${filters[key]?'active':''}" onclick="toggleOrganizedFilter('${key}')">${escapeHtml(labels[key])}</button>`).join('');
+}
+function renderOrganizedView(){
+  const aim=organizedAimFromState();
+  if(!aim)return;
+  const machine=organizedMachineForAim(aim);
+  const title=document.getElementById('organizedViewTitle');
+  const meta=document.getElementById('organizedViewMeta');
+  const filterRow=document.getElementById('organizedFilterRow');
+  const rows=document.getElementById('organizedViewRows');
+  if(title)title.textContent='整理ビュー';
+  if(meta)meta.textContent=`${machine?.name||aim.logs[0]?.machineName||''} / 狙い${aim.aimNumber}`;
+  if(filterRow)filterRow.innerHTML=renderOrganizedFilterChips();
+  if(rows)rows.innerHTML=organizedRowsHtml(aim);
+  updateOrganizedCopyText();
+}
+function updateOrganizedCopyText(){
+  const aim=organizedAimFromState();
+  if(!aim)return;
+  const detail=document.getElementById('organizedCopyDetailButton');
+  const short=document.getElementById('organizedCopyShortButton');
+  detail?.classList.toggle('active',organizedViewState.copyMode==='detail');
+  short?.classList.toggle('active',organizedViewState.copyMode==='short');
+  const text=document.getElementById('organizedCopyText');
+  if(text)text.value=organizedViewState.copyMode==='short'?organizedShortText(aim):organizedDetailText(aim);
+}
+function setOrganizedCopyMode(mode){
+  organizedViewState.copyMode=mode==='short'?'short':'detail';
+  updateOrganizedCopyText();
+}
+function toggleOrganizedFilter(key){
+  const filters=loadOrganizedFilters();
+  filters[key]=!filters[key];
+  saveOrganizedFilters(filters);
+  renderOrganizedView();
+}
+function openOrganizedView(sessionId,aimNumber){
+  organizedViewState={sessionId,aimNumber:Number(aimNumber),copyMode:'detail'};
+  renderOrganizedView();
+  document.getElementById('organizedViewOverlay')?.classList.add('open');
+}
+function closeOrganizedView(){
+  document.getElementById('organizedViewOverlay')?.classList.remove('open');
+}
 function aimGroupAtCount(aim){
   return aimGroupSegments(aim).reduce((sum,row)=>sum+hitEventCounts(row.segment.hitEvents||[]).at,0);
 }
@@ -7363,9 +7525,11 @@ function renderAimGroupItem(session,aim){
     </div>`;
 }
 function renderAimGroupDetail(aim){
+  const firstLog=aim.logs?.[0]||{};
+  const organizedButton=firstLog.sessionId?`<button class="btn-secondary" onclick="openOrganizedView('${escapeHtml(firstLog.sessionId)}','${escapeHtml(aim.aimNumber)}')">整理ビューを開く</button>`:'';
   const rows=aimGroupSegments(aim);
   if(!rows.length){
-    return aim.logs.map(log=>renderLogItem(log)).join('');
+    return `${organizedButton}${aim.logs.map(log=>renderLogItem(log)).join('')}`;
   }
   let atIndex=0;
   const segmentHtml=rows.map((row,index)=>{
@@ -7376,7 +7540,7 @@ function renderAimGroupDetail(aim){
     }).join(''):'';
     return `${heading}${renderSegmentHistoryItem(row.log,row.segment,index)}`;
   }).join('');
-  return `${segmentHtml}${renderAimGroupLogActions(aim)}`;
+  return `${organizedButton}${segmentHtml}${renderAimGroupLogActions(aim)}`;
 }
 function renderAimGroupLogActions(aim){
   const logs=[...new Map((aim.logs||[]).map(log=>[log.id,log])).values()];
