@@ -2303,6 +2303,40 @@ function ensureNangokuSpecialSeed(machine){
   if(oldOneGame)oldOneGame.label='1G連獲得';
   const suikaTag=machine.tags.find(tag=>tag.id==='t_nangoku_suika');
   if(suikaTag)suikaTag.subCounterDelta=1;
+  const applyNangokuKoyakuTags=()=>{
+    if(machine.nangokuKoyakuTagsV1)return;
+    const group='小役・リプレイ';
+    const groupIds=new Set(['t_nangoku_cherry','t_nangoku_suika','t_nangoku_replay_flash','t_nangoku_replay','t_nangoku_puririp']);
+    const seeds=[
+      {id:'t_nangoku_replay',label:'リプレイ',tagClass:'rare-kakugan'},
+      {id:'t_nangoku_puririp',label:'プリリプ',tagClass:'rare-chance'}
+    ];
+    machine.tags.forEach(tag=>{
+      if(groupIds.has(tag.id))tag.group=group;
+    });
+    seeds.forEach(seed=>{
+      if(machine.tags.some(tag=>tag.id===seed.id||tag.label===seed.label))return;
+      const insertAfterId=seed.id==='t_nangoku_replay'?'t_nangoku_replay_flash':'t_nangoku_replay';
+      const insertIndex=machine.tags.findIndex(tag=>tag.id===insertAfterId);
+      const row={
+        id:seed.id,
+        label:seed.label,
+        optional:false,
+        countAs:null,
+        liquidDelta:null,
+        liquidSet:null,
+        tagClass:seed.tagClass,
+        group,
+        collapsible:false,
+        defaultOpen:true,
+        subCounterDelta:null,
+        suggestLink:null
+      };
+      if(insertIndex>=0)machine.tags.splice(insertIndex+1,0,row);
+      else machine.tags.push(row);
+    });
+    machine.nangokuKoyakuTagsV1=true;
+  };
   const tagSuggestLinks={
     t_nangoku_sazanami_purple:{categoryId:'sgc_nangoku_play',placeId:'sgp_nangoku_sazanami',itemId:'sgp_nangoku_sazanami_i1'},
     t_nangoku_sazanami_red:{categoryId:'sgc_nangoku_play',placeId:'sgp_nangoku_sazanami',itemId:'sgp_nangoku_sazanami_i2'},
@@ -2338,7 +2372,10 @@ function ensureNangokuSpecialSeed(machine){
   markAccent('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i3','green');
   markAccent('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i4','red');
   markAccent('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i5','gold');
-  if(machine.suggestSeedNangokuSpecialV2)return;
+  if(machine.suggestSeedNangokuSpecialV2){
+    applyNangokuKoyakuTags();
+    return;
+  }
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
   const item=(label,carryType=null,extra={})=>({label,enabled:true,carryType,...extra});
   const place=(id,name,entries,stateGroup='play')=>({
@@ -2424,6 +2461,7 @@ function ensureNangokuSpecialSeed(machine){
     }
   ];
   mergeTimelineTagSeed(machine,timelineTags);
+  applyNangokuKoyakuTags();
   mergeSuggestSeed(machine,seed);
   applySuggestMetadata(machine);
   machine.suggestSeedNangokuSpecialV1=true;
