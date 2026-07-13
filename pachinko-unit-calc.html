@@ -55,10 +55,10 @@
     <div class="section-label">平均出玉</div>
     <div class="card">
       <div class="mode-row"><button class="mode-btn selected" type="button" data-mode="direct">平均出玉を入力</button><button class="mode-btn" type="button" data-mode="fourR">4R換算で入力</button></div>
-      <div id="directYield"><div class="input-row"><div><div class="input-label">平均出玉 D</div><div class="input-hint">初当たり1回あたりの平均獲得玉</div></div><div class="input-field"><input id="avgYield" type="number" min="0" step="1" value="547"><span class="unit">玉</span></div></div></div>
+      <div id="directYield"><div class="input-row"><div><div class="input-label">平均出玉 D</div><div class="input-hint">初当たり1回あたりの平均獲得玉（実質出玉推奨）</div></div><div class="input-field"><input id="avgYield" type="number" min="0" step="0.1" value="547"><span class="unit">玉</span></div></div></div>
       <div id="fourRYield" class="hidden">
-        <div class="input-row"><div><div class="input-label">4R出玉</div><div class="input-hint">4R大当たり1回分の獲得玉</div></div><div class="input-field"><input id="fourRYieldValue" type="number" min="0" step="1" value="360"><span class="unit">玉</span></div></div>
-        <div class="input-row"><div><div class="input-label">平均4R換算回数</div><div class="input-hint">平均出玉 = 4R出玉 × 換算回数</div></div><div class="input-field"><input id="fourRCount" type="number" min="0" step="0.01" value="1.52"><span class="unit">回</span></div></div>
+        <div class="input-row"><div><div class="input-label">4R出玉</div><div class="input-hint">4R大当たり1回分の実質出玉</div></div><div class="input-field"><input id="fourRYieldValue" type="number" min="0" step="1" value="400"><span class="unit">玉</span></div></div>
+        <div class="input-row"><div><div class="input-label">4R換算分母</div><div class="input-hint">スペック表の4R換算値の分母（例: 24.20）</div></div><div class="input-field"><input id="fourRDenominator" type="number" min="0" step="0.01" value="24.20"><span class="unit">分母</span></div></div>
       </div>
     </div>
   </section>
@@ -84,7 +84,7 @@
     </div>
     <div class="detail" id="detailText"></div>
     <div class="warning" id="warningText"></div>
-    <div class="formula">実効投資玉/千円 C = 250 × (c/100 × 4/P + (1 - c/100))<br>ボーダー = C × T ÷ D</div>
+    <div class="formula">実効投資玉/千円 C = 250 × (c/100 × 4/P + (1 - c/100))<br>ボーダー = C × T ÷ D<br>※出玉は払い出しではなく実質出玉（アタッカー消化中の打ち込み分を控除）の使用を推奨</div>
   </section>
 </main>
 <footer>
@@ -92,11 +92,24 @@
   <nav><a href="/about.html">運営者情報</a><a href="/privacy.html">プライバシーポリシー</a><a href="/disclaimer.html">免責事項</a><a href="/contact.html">お問い合わせ</a></nav>
 </footer>
 <script>
-const ids=['rotationRate','totalProb','avgYield','fourRYieldValue','fourRCount','exchangeRate','cashRatio','cashRatioRange','dailyTurns'];
+const STORAGE_KEY='pachiEvCalc.v1';
+const ids=['rotationRate','totalProb','avgYield','fourRYieldValue','fourRDenominator','exchangeRate','cashRatio','cashRatioRange','dailyTurns'];
 const state={yieldMode:'direct'};
+const defaults={rotationRate:'20',totalProb:'33.12',avgYield:'547',fourRYieldValue:'400',fourRDenominator:'24.20',exchangeRate:'4.00',cashRatio:'100',dailyTurns:'3000',yieldMode:'direct',selectedRate:'4.00'};
+
 function num(id){const value=parseFloat(document.getElementById(id).value);return Number.isFinite(value)?value:0}
+function hasValidNumber(value){return value!==''&&Number.isFinite(parseFloat(value))}
 function setSigned(el,value,decimals,suffix){el.classList.toggle('negative',value<0);const sign=value>0?'+':'';el.textContent=`${sign}${value.toFixed(decimals)}${suffix}`}
-function getAverageYield(){return state.yieldMode==='fourR'?num('fourRYieldValue')*num('fourRCount'):num('avgYield')}
+function clampCashRatio(value){return Math.max(0,Math.min(100,Number.isFinite(value)?value:0))}
+function selectedPreset(){const selected=document.querySelector('.rate-btn.selected');return selected?selected.dataset.rate:''}
+function getAverageYield(){
+  if(state.yieldMode!=='fourR')return num('avgYield');
+  const T=num('totalProb');
+  const fourR=num('fourRYieldValue');
+  const denominator=num('fourRDenominator');
+  if(T<=0||fourR<=0||denominator<=0)return 0;
+  return fourR*T/denominator;
+}
 function calculate(){
   const R=num('rotationRate'),T=num('totalProb'),D=getAverageYield(),P=num('exchangeRate'),c=num('cashRatio')/100,N=num('dailyTurns');
   const warning=document.getElementById('warningText');warning.style.display='none';warning.textContent='';
@@ -114,13 +127,62 @@ function calculate(){
   setSigned(document.getElementById('dailyValue'),daily,0,'円');
   document.getElementById('detailText').textContent=`実効投資玉 C=${C.toFixed(1)}玉/千円、平均出玉 D=${D.toFixed(1)}玉`;
 }
-function syncCashRatio(source){const target=source==='range'?document.getElementById('cashRatio'):document.getElementById('cashRatioRange');const self=document.getElementById(source==='range'?'cashRatioRange':'cashRatio');const value=Math.max(0,Math.min(100,num(self.id)));self.value=value;target.value=value}
-document.querySelectorAll('.rate-btn').forEach(btn=>btn.addEventListener('click',()=>{document.getElementById('exchangeRate').value=Number(btn.dataset.rate).toFixed(2);document.querySelectorAll('.rate-btn').forEach(b=>b.classList.toggle('selected',b===btn));calculate()}));
-document.querySelectorAll('.mode-btn').forEach(btn=>btn.addEventListener('click',()=>{state.yieldMode=btn.dataset.mode;document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('selected',b===btn));document.getElementById('directYield').classList.toggle('hidden',state.yieldMode!=='direct');document.getElementById('fourRYield').classList.toggle('hidden',state.yieldMode!=='fourR');calculate()}));
-document.getElementById('exchangeRate').addEventListener('input',()=>{const current=num('exchangeRate').toFixed(2);document.querySelectorAll('.rate-btn').forEach(btn=>btn.classList.toggle('selected',Number(btn.dataset.rate).toFixed(2)===current))});
-document.getElementById('cashRatioRange').addEventListener('input',()=>syncCashRatio('range'));
-document.getElementById('cashRatio').addEventListener('input',()=>syncCashRatio('number'));
-ids.forEach(id=>document.getElementById(id).addEventListener('input',calculate));
+function saveState(){
+  const data={yieldMode:state.yieldMode,selectedRate:selectedPreset()};
+  ['rotationRate','totalProb','avgYield','fourRYieldValue','fourRDenominator','exchangeRate','cashRatio','dailyTurns'].forEach(id=>{data[id]=document.getElementById(id).value});
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
+}
+function applyYieldMode(mode){
+  state.yieldMode=mode==='fourR'?'fourR':'direct';
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('selected',b.dataset.mode===state.yieldMode));
+  document.getElementById('directYield').classList.toggle('hidden',state.yieldMode!=='direct');
+  document.getElementById('fourRYield').classList.toggle('hidden',state.yieldMode!=='fourR');
+}
+function applySelectedRate(rate){
+  const normalized=hasValidNumber(rate)?parseFloat(rate).toFixed(2):'';
+  document.querySelectorAll('.rate-btn').forEach(btn=>btn.classList.toggle('selected',Number(btn.dataset.rate).toFixed(2)===normalized));
+}
+function restoreState(){
+  let data={};
+  try{data=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')||{}}catch(e){data={}}
+  ['rotationRate','totalProb','avgYield','fourRYieldValue','fourRDenominator','exchangeRate','dailyTurns'].forEach(id=>{
+    document.getElementById(id).value=hasValidNumber(data[id])?data[id]:defaults[id];
+  });
+  const cash=hasValidNumber(data.cashRatio)?clampCashRatio(parseFloat(data.cashRatio)):parseFloat(defaults.cashRatio);
+  document.getElementById('cashRatio').value=String(cash);
+  document.getElementById('cashRatioRange').value=String(cash);
+  applyYieldMode(data.yieldMode||defaults.yieldMode);
+  applySelectedRate(data.selectedRate||data.exchangeRate||defaults.selectedRate);
+}
+function syncCashRatioFromRange(){
+  const value=clampCashRatio(num('cashRatioRange'));
+  document.getElementById('cashRatioRange').value=String(value);
+  document.getElementById('cashRatio').value=String(value);
+}
+function normalizeCashRatioInput(){
+  const input=document.getElementById('cashRatio');
+  const value=input.value===''?0:clampCashRatio(parseFloat(input.value));
+  input.value=String(value);
+  document.getElementById('cashRatioRange').value=String(value);
+}
+document.querySelectorAll('.rate-btn').forEach(btn=>btn.addEventListener('click',()=>{
+  document.getElementById('exchangeRate').value=Number(btn.dataset.rate).toFixed(2);
+  applySelectedRate(btn.dataset.rate);
+  calculate();
+  saveState();
+}));
+document.querySelectorAll('.mode-btn').forEach(btn=>btn.addEventListener('click',()=>{
+  applyYieldMode(btn.dataset.mode);
+  calculate();
+  saveState();
+}));
+document.getElementById('exchangeRate').addEventListener('input',()=>applySelectedRate(document.getElementById('exchangeRate').value));
+document.getElementById('cashRatioRange').addEventListener('input',()=>{syncCashRatioFromRange();calculate();saveState()});
+document.getElementById('cashRatio').addEventListener('input',()=>{calculate();saveState()});
+document.getElementById('cashRatio').addEventListener('blur',()=>{normalizeCashRatioInput();calculate();saveState()});
+document.getElementById('cashRatio').addEventListener('change',()=>{normalizeCashRatioInput();calculate();saveState()});
+ids.filter(id=>id!=='cashRatio'&&id!=='cashRatioRange').forEach(id=>document.getElementById(id).addEventListener('input',()=>{calculate();saveState()}));
+restoreState();
 calculate();
 </script>
 </body>
