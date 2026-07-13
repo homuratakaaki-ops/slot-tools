@@ -115,6 +115,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .tag-btn.tag-style-rare-kakugan{background:#5ec8e8;border-color:#9be9ff;color:#082b34;}
 .tag-btn.tag-style-rare-ghoul-symbol{background:#f08ab8;border-color:#ffc0d9;color:#3e081f;}
 .tag-btn.tag-style-rare-certain{background:linear-gradient(90deg,#ff5c7a,#ffb84d,#6bdf74,#63c8ff,#b77cff);border-color:rgba(255,255,255,.72);color:#101014;text-shadow:0 1px 0 rgba(255,255,255,.45);}
+.tag-btn.instant-flash{filter:brightness(1.35);box-shadow:0 0 0 2px rgba(201,168,76,.65),0 0 18px rgba(201,168,76,.45);}
 .tag-btn.tag-style-stage-day,
 .tag-btn.tag-style-stage-evening,
 .tag-btn.tag-style-stage-night,
@@ -812,6 +813,7 @@ let organizedViewState={sessionId:'',aimNumber:null,copyMode:'detail'};
 let organizedViewScrollLock=null;
 let recentTimelineHighlightId='';
 let recentSuggestHighlightId='';
+let lastInstantTimelineTag={id:'',at:0};
 let modeSummaryOpen=false;
 let settingSummaryOpen=false;
 let suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:''};
@@ -1285,6 +1287,7 @@ function normalizeData(data){
       t.subCounterDelta=normalizeOptionalNumber(t.subCounterDelta);
       t.suggestLink=normalizeTagSuggestLink(t.suggestLink);
       t.tagClass=normalizeTagClass(t.tagClass);
+      t.instantLog=!!t.instantLog;
     });
     m.startTags.forEach(t=>{t.optional=!!t.optional;});
     ensureRequiredAims(m);
@@ -1405,6 +1408,20 @@ function machineUsesLcdCounter(machine=currentMachine()){
 }
 function machineUsesLiquidOffsetCounter(machine=currentMachine()){
   return machine?.useLiquidOffsetCounter===true;
+}
+function liquidOffsetSign(machine=currentMachine()){
+  return machineUsesLiquidOffsetCounter(machine)? -1:1;
+}
+function liquidFromDataWithOffset(dataGame,offset=timelineLiquidOffset(),machine=currentMachine()){
+  const data=normalizeOptionalNumber(dataGame);
+  const gap=normalizeOptionalNumber(offset)??0;
+  return data!==null?data+(gap*liquidOffsetSign(machine)):null;
+}
+function offsetFromDataLiquid(dataGame,liquidGame,machine=currentMachine()){
+  const data=normalizeOptionalNumber(dataGame);
+  const liquid=normalizeOptionalNumber(liquidGame);
+  if(data===null||liquid===null)return 0;
+  return machineUsesLiquidOffsetCounter(machine)?data-liquid:liquid-data;
 }
 function machineShowsLiquidCounter(machine=currentMachine()){
   return machineUsesLcdCounter(machine)||machineUsesLiquidOffsetCounter(machine);
@@ -1570,8 +1587,9 @@ function mergeTimelineTagSeed(machine,tags){
       tag.defaultOpen=seedTag.defaultOpen!==false;
       tag.subCounterDelta=normalizeOptionalNumber(seedTag.subCounterDelta);
       tag.suggestLink=normalizeTagSuggestLink(seedTag.suggestLink)||normalizeTagSuggestLink(tag.suggestLink);
+      tag.instantLog=!!seedTag.instantLog||!!tag.instantLog;
     }else{
-      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass),group:seedTag.group||'',collapsible:!!seedTag.collapsible,defaultOpen:seedTag.defaultOpen!==false,subCounterDelta:normalizeOptionalNumber(seedTag.subCounterDelta),suggestLink:normalizeTagSuggestLink(seedTag.suggestLink)});
+      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass),group:seedTag.group||'',collapsible:!!seedTag.collapsible,defaultOpen:seedTag.defaultOpen!==false,subCounterDelta:normalizeOptionalNumber(seedTag.subCounterDelta),suggestLink:normalizeTagSuggestLink(seedTag.suggestLink),instantLog:!!seedTag.instantLog});
     }
   });
   const seen=new Set();
@@ -1748,12 +1766,12 @@ function suggestGapOffset(entry){
 function suggestPairFromData(dataGame,gapOffset){
   const data=normalizeOptionalNumber(dataGame);
   const gap=normalizeOptionalNumber(gapOffset)??0;
-  return {dataGame:data,liquidGame:data!==null?data+gap:null,gapOffset:gap};
+  return {dataGame:data,liquidGame:data!==null?liquidFromDataWithOffset(data,gap):null,gapOffset:gap};
 }
 function suggestPairFromLiquid(liquidGame,gapOffset){
   const liquid=normalizeOptionalNumber(liquidGame);
   const gap=normalizeOptionalNumber(gapOffset)??0;
-  return {dataGame:liquid!==null?liquid-gap:null,liquidGame:liquid,gapOffset:gap};
+  return {dataGame:liquid!==null?liquid-(gap*liquidOffsetSign()):null,liquidGame:liquid,gapOffset:gap};
 }
 function applySuggestGameEdit(entry,{base='data',value=null,gapOffset=suggestGapOffset(entry)}={}){
   if(!entry)return null;
@@ -2303,6 +2321,8 @@ function ensureNangokuSpecialSeed(machine){
   if(oldOneGame)oldOneGame.label='1G連獲得';
   const suikaTag=machine.tags.find(tag=>tag.id==='t_nangoku_suika');
   if(suikaTag)suikaTag.subCounterDelta=1;
+  const replayTag=machine.tags.find(tag=>tag.id==='t_nangoku_replay');
+  if(replayTag)replayTag.instantLog=true;
   const applyNangokuKoyakuTags=()=>{
     if(machine.nangokuKoyakuTagsV1)return;
     const group='小役・リプレイ';
@@ -2330,7 +2350,8 @@ function ensureNangokuSpecialSeed(machine){
         collapsible:false,
         defaultOpen:true,
         subCounterDelta:null,
-        suggestLink:null
+        suggestLink:null,
+        instantLog:seed.id==='t_nangoku_replay'
       };
       if(insertIndex>=0)machine.tags.splice(insertIndex+1,0,row);
       else machine.tags.push(row);
@@ -3747,7 +3768,7 @@ function tagButtonClass(tag){
   return cls.join(' ');
 }
 function tagButtonHtml(tag,handler){
-  return `<button class="${tagButtonClass(tag)}" onclick="${handler}('${tag.id}')">${escapeHtml(tag.label)}</button>`;
+  return `<button class="${tagButtonClass(tag)}" data-tag-id="${escapeHtml(tag.id)}" onclick="${handler}('${tag.id}')">${escapeHtml(tag.label)}</button>`;
 }
 function renderLabelTagButtons(){
   const tags=(currentMachine()?.labelTags||[]).filter(t=>t.id!=='lt_counter_game'&&!isCounterLabel(t.label));
@@ -3788,7 +3809,7 @@ function renderStartLogArea(){
       <input type="text" id="startCounterGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(startCounterInputValue())}" data-clear-initial-zero="${startCounterInitialZeroFlag()}" placeholder="0" oninput="syncStartCounterGame()" onchange="syncStartCounterGame()">
     </div>
     ${useLcdCounter||useLiquidOffsetCounter?`<div class="input-row">
-      <div class="input-label no-wrap-label">${useLiquidOffsetCounter?'液晶差分':'液晶初期補正'}<div class="input-hint">任意・液晶G−データG</div></div>
+      <div class="input-label no-wrap-label">${useLiquidOffsetCounter?'液晶差分':'液晶初期補正'}<div class="input-hint">任意・${useLiquidOffsetCounter?'データG−液晶G':'液晶G−データG'}</div></div>
       <input type="text" id="startLiquidCorrection" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(currentTimelineManualCorrection||'')}" placeholder="0" oninput="syncStartLiquidCorrection()" onchange="syncStartLiquidCorrection()">
     </div>`:''}
     ${useKuiPoint?`<div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
@@ -4239,7 +4260,7 @@ function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   const useAppearG=selection.useAppearG!==false&&!isTrophySuggestSelection(selection);
   const dataGame=useAppearG?suggestTimelineDataValue():null;
   const liquidGame=useAppearG?(suggestTimelineLiquidValue()??dataGame):null;
-  const gapOffset=useAppearG&&dataGame!==null&&liquidGame!==null?liquidGame-dataGame:0;
+  const gapOffset=useAppearG&&dataGame!==null&&liquidGame!==null?offsetFromDataLiquid(dataGame,liquidGame):0;
   const {useAppearG:unused,decorations,...entry}=selection;
   const saved={...entry,source:entry.source==='wizard'?'wizard':'manual',id:uid('sgl'),game:dataGame,dataGame,liquidGame,gapOffset,trophyCustom:custom,createdAt:new Date().toISOString()};
   currentSuggestLog.push(saved);
@@ -4816,7 +4837,7 @@ function renderGamePairInputs(prefix){
   const dataLabel=prefix==='suggest'?'示唆時データG数':'データG数';
   const liquidLabel=prefix==='suggest'?'示唆時液晶G数':'液晶G数';
   const dataValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame);
-  const liquidValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(currentTimelineDataGame+timelineLiquidOffset());
+  const liquidValue=currentTimelineDataGame===null||currentTimelineDataGame===undefined?'':String(liquidFromDataWithOffset(currentTimelineDataGame));
   const rolePrefix=prefix==='suggest'?'suggest':'timeline';
   const dataHandler=prefix==='suggest'?`markSuggestInputsDirty()`:`syncTimelineDataGame('${dataId}')`;
   const liquidHandler=prefix==='suggest'?`markSuggestInputsDirty()`:`syncTimelineLiquidGame('${liquidId}')`;
@@ -5037,7 +5058,7 @@ function archiveCurrentSegment(event,terminalType='',options={}){
   resetCurrentSegment({preserveEndState:!!options.preserveEndState});
   if(event&&machineUsesLiquidOffsetCounter()){
     resetTimelineOffsets(9,0);
-    setTimelineGames(0,9);
+    setTimelineGames(9,0);
   }
   return segment;
 }
@@ -6006,9 +6027,72 @@ function updateTimelineAddButtonState(){
   const text=(document.getElementById('timelineText')?.value||'').trim();
   button.classList.toggle('ready',!!text||pendingTimelineTagIds.length>0);
 }
+function showSmallToast(message){
+  let toast=document.getElementById('smallToast');
+  if(!toast){
+    toast=document.createElement('div');
+    toast.id='smallToast';
+    toast.style.position='fixed';
+    toast.style.left='50%';
+    toast.style.bottom='18px';
+    toast.style.transform='translateX(-50%)';
+    toast.style.zIndex='10000';
+    toast.style.background='rgba(20,20,24,.94)';
+    toast.style.border='1px solid rgba(201,168,76,.55)';
+    toast.style.borderRadius='999px';
+    toast.style.color='#f3df99';
+    toast.style.padding='8px 14px';
+    toast.style.fontSize='12px';
+    toast.style.fontWeight='900';
+    toast.style.boxShadow='0 8px 22px rgba(0,0,0,.35)';
+    toast.style.opacity='0';
+    toast.style.transition='opacity .12s ease';
+    document.body.appendChild(toast);
+  }
+  toast.textContent=message;
+  toast.style.opacity='1';
+  clearTimeout(toast._timer);
+  toast._timer=setTimeout(()=>{toast.style.opacity='0';},1000);
+}
+function flashTagButton(id){
+  document.querySelectorAll(`[data-tag-id="${escapeHtml(id)}"]`).forEach(button=>{
+    button.classList.add('instant-flash');
+    setTimeout(()=>button.classList.remove('instant-flash'),180);
+  });
+}
+function addInstantTimelineTag(tag){
+  const now=Date.now();
+  if(lastInstantTimelineTag.id===tag.id&&now-lastInstantTimelineTag.at<300)return;
+  const game=timelineDataValue();
+  const liquidGame=timelineLiquidValue()??game;
+  if(game===null){alert('G数を入力してください');return;}
+  if(liquidGame===null){alert('液晶G数を入力してください');return;}
+  lastInstantTimelineTag={id:tag.id,at:now};
+  const tagIds=[tag.id];
+  const subCounters=applySubCounterDeltasForTimeline(tagIds);
+  const entry={id:uid('tl'),game,liquidGame,text:tag.label,tagIds,countAs:[],subCounters,createdAt:new Date().toISOString()};
+  currentTimeline.push(entry);
+  addSuggestLogsFromTimelineTagLinks(tagIds,entry);
+  recentTimelineHighlightId=entry.id;
+  timelineHistoryOpen=true;
+  applyLiquidRuleAfterTimelineAdd(tagIds,entry);
+  pendingTimelineTagIds=pendingTimelineTagIds.filter(id=>id!==tag.id);
+  updateTimelineAddButtonState();
+  renderCurrentTimeline();
+  renderCurrentSuggestLog();
+  renderCarrySummaryIntoDom();
+  renderPracticeStats();
+  saveDraftImmediately();
+  flashTagButton(tag.id);
+  showSmallToast(`${tag.label}記録（データ${game}G）`);
+}
 function appendTimelineTagById(id){
   const tag=currentMachine()?.tags?.find(t=>t.id===id);
   if(tag){
+    if(tag.instantLog){
+      addInstantTimelineTag(tag);
+      return;
+    }
     if(!pendingTimelineTagIds.includes(id))pendingTimelineTagIds.push(id);
     appendTimelineTag(tag.label);
     updateTimelineAddButtonState();
@@ -6056,7 +6140,7 @@ function setSuggestGames(dataGame,liquidGame,gapOffset=suggestInputGapOffset()){
 }
 function currentCounterPair(){
   const data=timelineDataValue();
-  return {dataGame:data,liquidGame:data!==null?data+timelineLiquidOffset():timelineLiquidValue()};
+  return {dataGame:data,liquidGame:data!==null?liquidFromDataWithOffset(data):timelineLiquidValue()};
 }
 function presetSuggestInputs(force=false){
   if(suggestInputsDirty&&!force)return;
@@ -6112,7 +6196,7 @@ function setManualCorrectionForLiquid(dataGame,liquidGame){
   const data=normalizeOptionalNumber(dataGame);
   const liquid=normalizeOptionalNumber(liquidGame);
   if(data===null||liquid===null)return;
-  currentTimelineManualCorrection=liquid-(data+currentTimelineSuikaOffset);
+  currentTimelineManualCorrection=offsetFromDataLiquid(data,liquid)-currentTimelineSuikaOffset;
 }
 function timelineDataValue(){
   const domValue=normalizeOptionalNumber(firstTimelineInput('timeline-data')?.value||'');
@@ -6121,7 +6205,7 @@ function timelineDataValue(){
 function timelineLiquidValue(){
   const domValue=normalizeOptionalNumber(firstTimelineInput('timeline-liquid')?.value||'');
   if(domValue!==null)return domValue;
-  return currentTimelineDataGame!==null?currentTimelineDataGame+timelineLiquidOffset():null;
+  return currentTimelineDataGame!==null?liquidFromDataWithOffset(currentTimelineDataGame):null;
 }
 function setTimelineGames(dataGame,liquidGame){
   currentTimelineDataGame=dataGame===null||dataGame===undefined?null:Number(dataGame);
@@ -6140,7 +6224,7 @@ function syncTimelineDataGame(sourceId=''){
     scheduleDraftSave();
     return;
   }
-  setTimelineGames(data,data+timelineLiquidOffset());
+  setTimelineGames(data,liquidFromDataWithOffset(data));
   scheduleDraftSave();
 }
 function syncStartLiquidCorrection(){
@@ -6153,7 +6237,7 @@ function syncStartLiquidCorrection(){
     return;
   }
   currentTimelineManualCorrection=correction;
-  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,currentTimelineDataGame+timelineLiquidOffset());
+  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,liquidFromDataWithOffset(currentTimelineDataGame));
   scheduleDraftSave();
 }
 function syncTimelineLiquidGame(sourceId=''){
@@ -6184,7 +6268,7 @@ function syncTimelineLiquidOffset(){
 function incrementTimelineGame(delta){
   const current=currentTimelineDataGame??timelineDataValue()??0;
   const next=current+delta;
-  setTimelineGames(next,next+timelineLiquidOffset());
+  setTimelineGames(next,liquidFromDataWithOffset(next));
   scheduleDraftSave();
 }
 function tagLiquidRule(tagIds){
@@ -6206,24 +6290,24 @@ function setTimelineOffsetPreservingData(nextOffset){
   if(data===null){
     return;
   }
-  setTimelineGames(data,data+nextOffset);
+  setTimelineGames(data,liquidFromDataWithOffset(data,nextOffset));
 }
 function applyLiquidRuleAfterTimelineAdd(tagIds,entry=null){
   const data=timelineDataValue();
   if(data===null)return;
   const currentLiquid=timelineLiquidValue();
-  const baseLiquid=currentLiquid!==null?currentLiquid:data+timelineLiquidOffset();
+  const baseLiquid=currentLiquid!==null?currentLiquid:liquidFromDataWithOffset(data);
   const rule=tagLiquidRule(tagIds);
   let offsetDelta=0;
   if(rule.setValue!==null){
-    const nextSuikaOffset=rule.setValue-data-currentTimelineManualCorrection;
+    const nextSuikaOffset=offsetFromDataLiquid(data,rule.setValue)-currentTimelineManualCorrection;
     offsetDelta=nextSuikaOffset-currentTimelineSuikaOffset;
     currentTimelineSuikaOffset=nextSuikaOffset;
     setTimelineGames(data,rule.setValue);
   }else if(rule.delta){
     offsetDelta=rule.delta;
     currentTimelineSuikaOffset+=rule.delta;
-    const nextLiquid=baseLiquid+rule.delta;
+    const nextLiquid=baseLiquid+(rule.delta*liquidOffsetSign());
     setTimelineGames(data,nextLiquid);
   }
   if(entry&&offsetDelta)entry.liquidOffsetDelta=offsetDelta;
@@ -6292,7 +6376,7 @@ function latestTimelineCounterState(log){
   const data=normalizeOptionalNumber(latest?.game);
   if(data!==null)return {dataGame:data,liquidGame:timelineLiquidGameValue(latest)??data};
   const start=logStartCounterValue(log);
-  return {dataGame:start,liquidGame:start!==null?start+(normalizeOptionalNumber(log?.suikaOffset)??0)+(normalizeOptionalNumber(log?.manualCorrection)??0):null};
+  return {dataGame:start,liquidGame:start!==null?liquidFromDataWithOffset(start,(normalizeOptionalNumber(log?.suikaOffset)??0)+(normalizeOptionalNumber(log?.manualCorrection)??0),machineById(log?.machineId)):null};
 }
 function timelineSuikaAfterText(item){
   const delta=normalizeOptionalNumber(item?.liquidOffsetDelta);
@@ -6352,7 +6436,7 @@ function addSuggestLogsFromTimelineTagLinks(tagIds,timelineEntry){
       game:dataGame,
       dataGame,
       liquidGame,
-      gapOffset:dataGame!==null&&liquidGame!==null?liquidGame-dataGame:0,
+      gapOffset:dataGame!==null&&liquidGame!==null?offsetFromDataLiquid(dataGame,liquidGame):0,
       createdAt:timelineEntry.createdAt||new Date().toISOString()
     });
     if(saved){
@@ -7225,7 +7309,7 @@ function loadDraftIntoInputs(log){
   hitBranchWizard=normalizeHitBranchWizard(log.hitBranchWizard||{});
   closeSuggestPicker();
   renderAll();
-  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,currentTimelineDataGame+timelineLiquidOffset());
+  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,liquidFromDataWithOffset(currentTimelineDataGame));
   fillLogInputs(log);
   renderFlowStepTabs();
   renderCurrentStartLog();
@@ -7284,7 +7368,7 @@ function loadLogForEdit(id){
   closeSuggestPicker();
   showPage('pageLog');
   fillLogInputs(log);
-  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,currentTimelineDataGame+timelineLiquidOffset());
+  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,liquidFromDataWithOffset(currentTimelineDataGame));
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();
