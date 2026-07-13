@@ -6089,7 +6089,7 @@ function updateTimelineAddButtonState(){
   const button=document.getElementById('timelineAddButton');
   if(!button)return;
   const text=(document.getElementById('timelineText')?.value||'').trim();
-  button.classList.toggle('ready',!!text||pendingTimelineTagIds.length>0);
+  button.classList.toggle('ready',!!text);
 }
 function showSmallToast(message){
   let toast=document.getElementById('smallToast');
@@ -6105,8 +6105,8 @@ function showSmallToast(message){
     toast.style.border='1px solid rgba(201,168,76,.55)';
     toast.style.borderRadius='999px';
     toast.style.color='#f3df99';
-    toast.style.padding='8px 14px';
-    toast.style.fontSize='12px';
+    toast.style.padding='14px 24px';
+    toast.style.fontSize='20px';
     toast.style.fontWeight='900';
     toast.style.boxShadow='0 8px 22px rgba(0,0,0,.35)';
     toast.style.opacity='0';
@@ -6157,13 +6157,7 @@ function addInstantTimelineTag(tag){
 function appendTimelineTagById(id){
   const tag=currentMachine()?.tags?.find(t=>t.id===id);
   if(tag){
-    if(tag.instantLog){
-      addInstantTimelineTag(tag);
-      return;
-    }
-    if(!pendingTimelineTagIds.includes(id))pendingTimelineTagIds.push(id);
-    appendTimelineTag(tag.label);
-    updateTimelineAddButtonState();
+    addInstantTimelineTag(tag);
   }
 }
 function appendTimelineTag(label){
@@ -6534,7 +6528,7 @@ function addTimelineEntry(){
   if(game===null){alert('G数を入力してください');return;}
   if(liquidGame===null){alert('液晶G数を入力してください');return;}
   if(!text){alert('内容を入力してください');return;}
-  const tagIds=[...pendingTimelineTagIds];
+  const tagIds=[];
   if(timelineTextIsEndLink(text)){
     removeExistingEndLinkTimelineEntries();
   }
