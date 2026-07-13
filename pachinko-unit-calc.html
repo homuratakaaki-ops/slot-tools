@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>パチンコ回転単価計算ツール | slot-tools.jp</title>
-<meta name="description" content="4円パチンコの回転率、トータル確率、平均出玉、交換率、現金比率から回転単価・千円期待値・ボーダー・日当を計算する無料ツールです。">
+<meta name="description" content="4円パチンコの回転率、基準出玉、基準出玉に対するトータル確率、交換率、現金比率から回転単価・千円期待値・ボーダー・日当を計算する無料ツールです。">
 <link rel="canonical" href="https://slot-tools.jp/pachinko-unit-calc.html">
 <style>
   :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--red:#e07070;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66}
@@ -26,9 +26,8 @@
   input[type="number"]:focus{border-color:var(--gold)}input[type="range"]{width:150px;accent-color:var(--gold)}
   .unit{font-size:12px;color:var(--text-muted);white-space:nowrap}
   .rate-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
-  .rate-btn,.mode-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:13px;font-weight:700;padding:9px 8px;cursor:pointer}
-  .rate-btn.selected,.mode-btn.selected{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12)}
-  .mode-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}.hidden{display:none}
+  .rate-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:13px;font-weight:700;padding:9px 8px;cursor:pointer}
+  .rate-btn.selected{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12)}
   .result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.result-box{min-height:92px}
   .result-label{font-size:12px;color:var(--text-muted);margin-bottom:4px}.result-value{font-size:24px;font-weight:700;color:var(--gold-light);line-height:1.25}.result-value.negative{color:var(--red)}
   .detail{font-size:12px;color:var(--text-muted);margin-top:10px}.formula{font-size:12px;color:var(--text-dim);line-height:1.7;margin-top:10px}
@@ -47,19 +46,9 @@
   <section class="section">
     <div class="section-label">入力</div>
     <div class="card">
-      <div class="input-row"><div><div class="input-label">回転率 R</div><div class="input-hint">千円あたりの通常回転数</div></div><div class="input-field"><input id="rotationRate" type="number" min="0" step="0.1" value="20"><span class="unit">回/千円</span></div></div>
-      <div class="input-row"><div><div class="input-label">トータル確率分母 T</div><div class="input-hint">例: 33.12</div></div><div class="input-field"><input id="totalProb" type="number" min="0" step="0.01" value="33.12"><span class="unit">分母</span></div></div>
-    </div>
-  </section>
-  <section class="section">
-    <div class="section-label">平均出玉</div>
-    <div class="card">
-      <div class="mode-row"><button class="mode-btn selected" type="button" data-mode="direct">平均出玉を入力</button><button class="mode-btn" type="button" data-mode="fourR">4R換算で入力</button></div>
-      <div id="directYield"><div class="input-row"><div><div class="input-label">平均出玉 D</div><div class="input-hint">初当たり1回あたりの平均獲得玉（実質出玉推奨）</div></div><div class="input-field"><input id="avgYield" type="number" min="0" step="0.1" value="547"><span class="unit">玉</span></div></div></div>
-      <div id="fourRYield" class="hidden">
-        <div class="input-row"><div><div class="input-label">4R出玉</div><div class="input-hint">4R大当たり1回分の実質出玉</div></div><div class="input-field"><input id="fourRYieldValue" type="number" min="0" step="1" value="400"><span class="unit">玉</span></div></div>
-        <div class="input-row"><div><div class="input-label">4R換算分母</div><div class="input-hint">スペック表の4R換算値の分母（例: 24.20）</div></div><div class="input-field"><input id="fourRDenominator" type="number" min="0" step="0.01" value="24.20"><span class="unit">分母</span></div></div>
-      </div>
+      <div class="input-row"><div><div class="input-label">回転率 R</div><div class="input-hint">千円あたりの通常回転数</div></div><div class="input-field"><input id="rotationRate" type="number" min="0" step="0.1" placeholder="15"><span class="unit">回/千円</span></div></div>
+      <div class="input-row"><div><div class="input-label">基準出玉 B</div><div class="input-hint">基準ラウンドの実質出玉（例: 4R機なら4R分）</div></div><div class="input-field"><input id="baseYield" type="number" min="0" step="1" placeholder="360"><span class="unit">玉</span></div></div>
+      <div class="input-row"><div><div class="input-label">基準出玉に対するトータル確率 Tb</div><div class="input-hint">スペック表の換算値の分母</div></div><div class="input-field"><input id="baseTotalProb" type="number" min="0" step="0.01" placeholder="24.20"></div></div>
     </div>
   </section>
   <section class="section">
@@ -84,7 +73,7 @@
     </div>
     <div class="detail" id="detailText"></div>
     <div class="warning" id="warningText"></div>
-    <div class="formula">実効投資玉/千円 C = 250 × (c/100 × 4/P + (1 - c/100))<br>ボーダー = C × T ÷ D<br>※出玉は払い出しではなく実質出玉（アタッカー消化中の打ち込み分を控除）の使用を推奨</div>
+    <div class="formula">実効投資玉/千円 C = 250 × (c/100 × 4/P + (1 - c/100))<br>ボーダー = C × Tb ÷ B<br>※出玉は払い出しではなく実質出玉（アタッカー消化中の打ち込み分を控除）の使用を推奨</div>
   </section>
 </main>
 <footer>
@@ -92,51 +81,67 @@
   <nav><a href="/about.html">運営者情報</a><a href="/privacy.html">プライバシーポリシー</a><a href="/disclaimer.html">免責事項</a><a href="/contact.html">お問い合わせ</a></nav>
 </footer>
 <script>
-const STORAGE_KEY='pachiEvCalc.v1';
-const ids=['rotationRate','totalProb','avgYield','fourRYieldValue','fourRDenominator','exchangeRate','cashRatio','cashRatioRange','dailyTurns'];
-const state={yieldMode:'direct'};
-const defaults={rotationRate:'20',totalProb:'33.12',avgYield:'547',fourRYieldValue:'400',fourRDenominator:'24.20',exchangeRate:'4.00',cashRatio:'100',dailyTurns:'3000',yieldMode:'direct',selectedRate:'4.00'};
+const STORAGE_KEY='pachiEvCalc.v2';
+const inputIds=['rotationRate','baseYield','baseTotalProb','exchangeRate','cashRatio','dailyTurns'];
+const defaults={rotationRate:'',baseYield:'',baseTotalProb:'',exchangeRate:'4.00',cashRatio:'100',dailyTurns:'3000',selectedRate:'4.00'};
 
 function num(id){const value=parseFloat(document.getElementById(id).value);return Number.isFinite(value)?value:0}
 function hasValidNumber(value){return value!==''&&Number.isFinite(parseFloat(value))}
 function setSigned(el,value,decimals,suffix){el.classList.toggle('negative',value<0);const sign=value>0?'+':'';el.textContent=`${sign}${value.toFixed(decimals)}${suffix}`}
 function clampCashRatio(value){return Math.max(0,Math.min(100,Number.isFinite(value)?value:0))}
 function selectedPreset(){const selected=document.querySelector('.rate-btn.selected');return selected?selected.dataset.rate:''}
-function getAverageYield(){
-  if(state.yieldMode!=='fourR')return num('avgYield');
-  const T=num('totalProb');
-  const fourR=num('fourRYieldValue');
-  const denominator=num('fourRDenominator');
-  if(T<=0||fourR<=0||denominator<=0)return 0;
-  return fourR*T/denominator;
+function clearResults(){
+  ['unitPrice','perThousand','borderLine','dailyValue'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.textContent='-';
+    el.classList.remove('negative');
+  });
+  document.getElementById('detailText').textContent='';
+}
+function showWarning(message){
+  const warning=document.getElementById('warningText');
+  warning.textContent=message;
+  warning.style.display='block';
+}
+function hideWarning(){
+  const warning=document.getElementById('warningText');
+  warning.textContent='';
+  warning.style.display='none';
 }
 function calculate(){
-  const R=num('rotationRate'),T=num('totalProb'),D=getAverageYield(),P=num('exchangeRate'),c=num('cashRatio')/100,N=num('dailyTurns');
-  const warning=document.getElementById('warningText');warning.style.display='none';warning.textContent='';
-  if(R<=0||T<=0||D<=0||P<=0){warning.textContent='回転率、トータル確率、平均出玉、交換率は0より大きい値を入力してください。';warning.style.display='block';['unitPrice','perThousand','borderLine','dailyValue'].forEach(id=>document.getElementById(id).textContent='-');document.getElementById('detailText').textContent='';return}
+  const R=num('rotationRate'),B=num('baseYield'),Tb=num('baseTotalProb'),P=num('exchangeRate'),c=num('cashRatio')/100,N=num('dailyTurns');
+  hideWarning();
+  if(R<0||B<0||Tb<0||P<0||c<0||N<0){
+    clearResults();
+    showWarning('負数は入力できません。0以上の値を入力してください。');
+    return;
+  }
+  if(!hasValidNumber(document.getElementById('rotationRate').value)||!hasValidNumber(document.getElementById('baseYield').value)||!hasValidNumber(document.getElementById('baseTotalProb').value)){
+    clearResults();
+    return;
+  }
+  if(R===0||B===0||Tb===0||P===0){
+    clearResults();
+    return;
+  }
   const C=250*(c*4/P+(1-c));
-  const expectedBalls=R/T*D-C;
+  const expectedPerTurn=B/Tb;
+  const expectedBalls=R*expectedPerTurn-C;
   const expectedYen=expectedBalls*P;
   const unitPrice=expectedYen/R;
-  const border=C*T/D;
+  const border=C*Tb/B;
   const daily=unitPrice*N;
   setSigned(document.getElementById('unitPrice'),unitPrice,2,'円');
   setSigned(document.getElementById('perThousand'),expectedYen,0,'円');
   document.getElementById('borderLine').classList.remove('negative');
   document.getElementById('borderLine').textContent=`${border.toFixed(2)}回`;
   setSigned(document.getElementById('dailyValue'),daily,0,'円');
-  document.getElementById('detailText').textContent=`実効投資玉 C=${C.toFixed(1)}玉/千円、平均出玉 D=${D.toFixed(1)}玉`;
+  document.getElementById('detailText').textContent=`実効投資玉 C=${C.toFixed(1)}玉/千円、1回転あたり期待玉=${expectedPerTurn.toFixed(2)}玉`;
 }
 function saveState(){
-  const data={yieldMode:state.yieldMode,selectedRate:selectedPreset()};
-  ['rotationRate','totalProb','avgYield','fourRYieldValue','fourRDenominator','exchangeRate','cashRatio','dailyTurns'].forEach(id=>{data[id]=document.getElementById(id).value});
+  const data={selectedRate:selectedPreset()};
+  inputIds.forEach(id=>{data[id]=document.getElementById(id).value});
   localStorage.setItem(STORAGE_KEY,JSON.stringify(data));
-}
-function applyYieldMode(mode){
-  state.yieldMode=mode==='fourR'?'fourR':'direct';
-  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('selected',b.dataset.mode===state.yieldMode));
-  document.getElementById('directYield').classList.toggle('hidden',state.yieldMode!=='direct');
-  document.getElementById('fourRYield').classList.toggle('hidden',state.yieldMode!=='fourR');
 }
 function applySelectedRate(rate){
   const normalized=hasValidNumber(rate)?parseFloat(rate).toFixed(2):'';
@@ -145,13 +150,13 @@ function applySelectedRate(rate){
 function restoreState(){
   let data={};
   try{data=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')||{}}catch(e){data={}}
-  ['rotationRate','totalProb','avgYield','fourRYieldValue','fourRDenominator','exchangeRate','dailyTurns'].forEach(id=>{
-    document.getElementById(id).value=hasValidNumber(data[id])?data[id]:defaults[id];
+  inputIds.filter(id=>id!=='cashRatio').forEach(id=>{
+    document.getElementById(id).value=Object.prototype.hasOwnProperty.call(data,id)?data[id]:defaults[id];
   });
-  const cash=hasValidNumber(data.cashRatio)?clampCashRatio(parseFloat(data.cashRatio)):parseFloat(defaults.cashRatio);
-  document.getElementById('cashRatio').value=String(cash);
-  document.getElementById('cashRatioRange').value=String(cash);
-  applyYieldMode(data.yieldMode||defaults.yieldMode);
+  const cash=Object.prototype.hasOwnProperty.call(data,'cashRatio')?data.cashRatio:defaults.cashRatio;
+  const cashValue=hasValidNumber(cash)?clampCashRatio(parseFloat(cash)):parseFloat(defaults.cashRatio);
+  document.getElementById('cashRatio').value=String(cashValue);
+  document.getElementById('cashRatioRange').value=String(cashValue);
   applySelectedRate(data.selectedRate||data.exchangeRate||defaults.selectedRate);
 }
 function syncCashRatioFromRange(){
@@ -171,17 +176,12 @@ document.querySelectorAll('.rate-btn').forEach(btn=>btn.addEventListener('click'
   calculate();
   saveState();
 }));
-document.querySelectorAll('.mode-btn').forEach(btn=>btn.addEventListener('click',()=>{
-  applyYieldMode(btn.dataset.mode);
-  calculate();
-  saveState();
-}));
 document.getElementById('exchangeRate').addEventListener('input',()=>applySelectedRate(document.getElementById('exchangeRate').value));
 document.getElementById('cashRatioRange').addEventListener('input',()=>{syncCashRatioFromRange();calculate();saveState()});
 document.getElementById('cashRatio').addEventListener('input',()=>{calculate();saveState()});
 document.getElementById('cashRatio').addEventListener('blur',()=>{normalizeCashRatioInput();calculate();saveState()});
 document.getElementById('cashRatio').addEventListener('change',()=>{normalizeCashRatioInput();calculate();saveState()});
-ids.filter(id=>id!=='cashRatio'&&id!=='cashRatioRange').forEach(id=>document.getElementById(id).addEventListener('input',()=>{calculate();saveState()}));
+inputIds.filter(id=>id!=='cashRatio').forEach(id=>document.getElementById(id).addEventListener('input',()=>{calculate();saveState()}));
 restoreState();
 calculate();
 </script>
