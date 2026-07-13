@@ -10,6 +10,7 @@
 | 機構 | 設定場所 | 用途 | 南国での例 |
 |---|---|---|---|
 | hitTriggers | machine.hitTriggers | 当選種別の定義（key/label/color） | BIG=red、REG=light-blue |
+| hitTrigger variants | machine.hitTriggers[].variants | 稀な当選種別の後付けマーク。通常入力を邪魔せず、出た時だけ当選イベントにvariantを付与する | BIGの青7マーク（blue7） |
 | chainRule | machine.chainRule | G数ベースの連チャン自動判定 | {maxGap:42, enterLabel:'飛翔モード突入', unitLabel:'連'} |
 | subCounter | machine.subCounter | 機種固有カウンター（resetOn:'hit'で当選リセット） | スイカ回数 |
 | subCounterDelta | tags[].subCounterDelta | タグ押下でカウンター自動加算 | スイカタグ→+1 |
@@ -42,7 +43,7 @@
 ## 5. 新機種追加チェックリスト
 
 1. 実機/動画でUI仕様を確認（G数表示の種類、カウンター、告知仕様）
-2. hitTriggers（key/label/color）を定義
+2. hitTriggers（key/label/color）を定義。稀にだけ区別したい当選種別は、必須ステップにせず variants で後付け可能にする
 3. 連チャン仕様があればchainRule（maxGap/enterLabel）を数値ごと確認
 4. レア役・演出タグ＋必要ならsubCounter/subCounterDelta/suggestLink
 5. 示唆マスタ：carryTypeをmode/settingで正しく分類（意味論を実戦者に確認）、デフォルト項目にsummaryDefault、色物にaccent

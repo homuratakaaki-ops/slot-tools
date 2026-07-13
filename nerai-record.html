@@ -977,6 +977,16 @@ function warnIfLoadFailed(){
 function normalizeHitTrigger(value){
   return ['cz','upper_cz','direct_at','episode_bonus'].includes(value)?value:null;
 }
+function normalizeHitTriggerVariants(value){
+  if(!Array.isArray(value))return [];
+  return value.map(row=>{
+    const key=String(row?.key||'').trim();
+    if(!key)return null;
+    const label=String(row?.label||'').trim()||key;
+    const color=String(row?.color||'').trim();
+    return {key,label,color};
+  }).filter(Boolean);
+}
 function normalizeHitTriggers(value){
   const fallback=[
     {key:'cz',label:'CZ当選'},
@@ -989,7 +999,8 @@ function normalizeHitTriggers(value){
     const key=normalizeHitTrigger(row?.key);
     if(!key)return null;
     const color=String(row?.color||'').trim();
-    return {key,label:String(row?.label||'').trim()||hitTriggerDefaultLabel(key),color};
+    const variants=normalizeHitTriggerVariants(row?.variants);
+    return {key,label:String(row?.label||'').trim()||hitTriggerDefaultLabel(key),color,variants};
   }).filter(Boolean);
   return normalized.length?normalized:fallback;
 }
@@ -1111,6 +1122,7 @@ function normalizeHitEvent(event){
     id:event.id||uid('he'),
     createdAt:event.createdAt||new Date().toISOString(),
     trigger,
+    variant:String(event.variant||'').trim(),
     czResult:trigger==='cz'||trigger==='upper_cz'?normalizeCzResult(event.czResult):null,
     payout:normalizeOptionalNumber(event.payout),
     dataGame:dataGame!==null?dataGame:0,
@@ -2315,7 +2327,7 @@ function ensureNangokuSpecialSeed(machine){
   machine.subCounter={key:'suika',label:'スイカ回数',resetOn:'hit'};
   machine.chainRule={maxGap:42,enterLabel:'飛翔モード突入',unitLabel:'連'};
   machine.hitTriggers=normalizeHitTriggers([
-    {key:'direct_at',label:'BIG当選',color:'red'},
+    {key:'direct_at',label:'BIG当選',color:'red',variants:[{key:'blue7',label:'青7',color:'blue'}]},
     {key:'episode_bonus',label:'REG当選',color:'light-blue'}
   ]);
   machine.tags=Array.isArray(machine.tags)?machine.tags:[];
@@ -4935,6 +4947,25 @@ function hitTriggerLabel(trigger,machine=currentMachine()){
   const configured=machineHitTriggers(machine).find(row=>row.key===normalized);
   return configured?.label||hitTriggerDefaultLabel(normalized)||'当選';
 }
+function hitTriggerVariant(trigger,variant,machine=currentMachine()){
+  const normalized=normalizeHitTrigger(trigger);
+  const key=String(variant||'').trim();
+  if(!normalized||!key)return null;
+  return machineHitTriggers(machine).find(row=>row.key===normalized)?.variants?.find(row=>row.key===key)||null;
+}
+function hitEventLabel(event,machine=currentMachine()){
+  const base=hitTriggerLabel(event?.trigger,machine);
+  const variant=hitTriggerVariant(event?.trigger,event?.variant,machine);
+  return variant?`${variant.label}${base}`:base;
+}
+function hitEventVariantButtons(event,context='current',segmentId='',logId='',machine=currentMachine()){
+  const variants=machineHitTriggers(machine).find(row=>row.key===normalizeHitTrigger(event?.trigger))?.variants||[];
+  if(!event||!variants.length)return '';
+  return `<div class="item-actions hit-variant-actions">${variants.map(variant=>{
+    const active=event.variant===variant.key;
+    return `<button class="btn-small ${active?'edit-strong':''}" onclick="toggleHitEventVariant('${escapeHtml(context)}','${escapeHtml(event.id)}','${escapeHtml(variant.key)}','${escapeHtml(segmentId)}','${escapeHtml(logId)}')">${active?'✓ ':''}${escapeHtml(variant.label)}</button>`;
+  }).join('')}</div>`;
+}
 function renderHitTriggerButtons(){
   const triggers=machineHitTriggers();
   return `
@@ -4948,6 +4979,33 @@ function renderHitTriggerButtons(){
 }
 function currentHitEvent(){
   return currentHitEvents.find(event=>event.id===hitBranchWizard.eventId)||null;
+}
+function toggleHitEventVariant(context,eventId,variantKey,segmentId='',logId=''){
+  let event=null;
+  let changedDraft=false;
+  if(context==='current'){
+    event=currentHitEvents.find(row=>row.id===eventId)||null;
+    changedDraft=true;
+  }else if(context==='segment'){
+    const segment=currentSegments.find(row=>row.id===segmentId);
+    event=segment?.hitEvents?.find(row=>row.id===eventId)||null;
+    changedDraft=true;
+  }else if(context==='log'){
+    const log=db.logs.find(row=>row.id===logId);
+    const segment=log?.segments?.find(row=>row.id===segmentId);
+    event=segment?.hitEvents?.find(row=>row.id===eventId)||null;
+  }
+  if(!event)return;
+  event.variant=event.variant===variantKey?'':variantKey;
+  if(changedDraft){
+    renderLogFields();
+    renderCurrentTimeline();
+    renderCurrentContextBar();
+    saveDraftImmediately();
+  }else{
+    persist();
+    renderLogsList();
+  }
 }
 function createHitEvent(trigger){
   const dataGame=timelineDataValue();
@@ -4978,14 +5036,15 @@ function renderHitEventsList(){
   return `<div class="timeline-history-body">${events.map(event=>`
     <div class="timeline-item">
       <div class="timeline-head">
-        <div class="timeline-game">${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitTriggerLabel(event.trigger)}`)}</div>
+        <div class="timeline-game">${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLabel(event)}`)}</div>
         <span class="pill ${event.wizardDone?'gold':'disabled'}">${event.wizardDone?'完了':'処理中'}</span>
       </div>
       <div class="timeline-text">${escapeHtml(hitEventLine(event))}</div>
+      ${hitEventVariantButtons(event,'current')}
     </div>`).join('')}</div>`;
 }
-function hitEventLine(event){
-  const parts=[hitTriggerLabel(event.trigger)];
+function hitEventLine(event,machine=currentMachine()){
+  const parts=[hitEventLabel(event,machine)];
   const counterText=subCounterLine(event.subCounters);
   if(counterText)parts.push(counterText);
   if(event.czResult)parts.push(event.czResult==='at_win'?'AT当選':'AT非当選');
@@ -4997,7 +5056,7 @@ function hitEventLine(event){
 }
 function segmentTerminalLabel(event,terminalType=''){
   if(!event)return terminalType||'区切り';
-  const trigger=hitTriggerLabel(event.trigger);
+  const trigger=hitEventLabel(event);
   if(event.czResult==='at_lose')return `${trigger} / AT非突入`;
   if(event.through==='yes')return `${trigger} / AT終了（駆け抜け）`;
   if(event.through==='no')return `${trigger} / AT終了`;
@@ -5229,7 +5288,7 @@ function renderHitBranchWizardArea(){
     <div class="branch-wizard">
       <div class="section-label" style="margin-top:0;">当選記録フロー</div>
       <p class="section-note">STEP2の当選トリガーから作成されたイベントを処理します。出口選択まで進めると完了です。</p>
-      ${event?`<div class="item-sub">対象：${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitTriggerLabel(event.trigger)}`)}</div>`:''}
+      ${event?`<div class="item-sub">対象：${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLabel(event)}`)}</div>${hitEventVariantButtons(event,'current')}`:''}
       ${!route?'<div class="empty-hint">STEP2の当選トリガーから開始してください。<button class="btn-secondary" onclick="switchFlowStep(2)">STEP2へ戻る</button></div>':''}
       ${route?`
         <div class="item-sub" style="margin-top:8px;">現在：${escapeHtml(routeLabel)}${current?` / 次：${escapeHtml(current.label)}`:' / 完了'}</div>
@@ -6011,10 +6070,11 @@ function segmentSummary(segment,index){
   const game=segment.dataGame!==null?`最終 ${segment.dataGame}/${segment.liquidGame??segment.dataGame}G`:'最終G数なし';
   const endingCount=(segment.hitEvents||[]).reduce((sum,event)=>sum+(Number(event.endingCount)||0),0);
   const endingText=endingCount?` / エンディング到達あり（${endingCount}回）`:'';
-  return `${segmentOrdinalLabel(index)}：${segment.terminalLabel||'区切り'} / ${game}${endingText}`;
+  const variantText=segmentHasNangokuBlue7(segment)?' / 青7BIGあり':'';
+  return `${segmentOrdinalLabel(index)}：${segment.terminalLabel||'区切り'}${variantText} / ${game}${endingText}`;
 }
 function segmentHasNangokuBlue7(segment){
-  return (segment?.suggestLog||[]).some(entry=>entry.placeId==='sgp_nangoku_bonus_type');
+  return (segment?.hitEvents||[]).some(event=>event.variant==='blue7')||(segment?.suggestLog||[]).some(entry=>entry.placeId==='sgp_nangoku_bonus_type');
 }
 function segmentToneClass(log,segment){
   const machine=machineById(log?.machineId);
@@ -6022,8 +6082,8 @@ function segmentToneClass(log,segment){
   const trigger=segment?.trigger||segment?.hitEvents?.[0]?.trigger||'';
   return hitTriggerToneClass(machine,trigger);
 }
-function hitTriggerToneClass(machine,trigger){
-  const color=machineHitTriggers(machine).find(row=>row.key===trigger)?.color||'';
+function hitTriggerToneClass(machine,trigger,colorOverride=''){
+  const color=colorOverride||machineHitTriggers(machine).find(row=>row.key===trigger)?.color||'';
   if(color==='red')return 'segment-tone-red';
   if(color==='blue')return 'segment-tone-blue';
   if(color==='light-blue')return 'segment-tone-light-blue';
@@ -6031,7 +6091,10 @@ function hitTriggerToneClass(machine,trigger){
 }
 function organizedHitToneClass(log,segment,event){
   const machine=machineById(log?.machineId);
-  if(isNangokuSpecialMachine(machine)&&event?.trigger==='direct_at'&&segmentHasNangokuBlue7(segment))return 'segment-tone-blue';
+  const variant=hitTriggerVariant(event?.trigger,event?.variant,machine);
+  if(variant?.color)return hitTriggerToneClass(machine,event?.trigger||'',variant.color);
+  const hasExplicitVariant=(segment?.hitEvents||[]).some(row=>row.variant);
+  if(!hasExplicitVariant&&isNangokuSpecialMachine(machine)&&event?.trigger==='direct_at'&&segmentHasNangokuBlue7(segment))return 'segment-tone-blue';
   return hitTriggerToneClass(machine,event?.trigger||'');
 }
 function segmentText(segment,index){
@@ -6057,6 +6120,19 @@ function segmentText(segment,index){
   }
   return lines.join('\n');
 }
+function renderSegmentVariantControls(segment,context='segment',logId='',machine=currentMachine()){
+  const rows=(segment.hitEvents||[]).map(event=>{
+    const buttons=hitEventVariantButtons(event,context,segment.id,logId,machine);
+    if(!buttons)return '';
+    return `<div class="timeline-item">
+      <div class="timeline-head">
+        <div class="timeline-game">${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLabel(event,machine)}`)}</div>
+      </div>
+      ${buttons}
+    </div>`;
+  }).filter(Boolean);
+  return rows.length?`<div class="timeline-text">${rows.join('')}</div>`:'';
+}
 function archivedSegmentsHtml(){
   if(!currentSegments.length)return '';
   return currentSegments.map((segment,index)=>{
@@ -6070,6 +6146,7 @@ function archivedSegmentsHtml(){
         <span class="carry-summary-count">${(segment.timeline||[]).length}件 ▼</span>
       </button>
       <div class="carry-summary-body">
+        ${renderSegmentVariantControls(segment,'segment','',currentMachine())}
         <textarea id="segmentCopy_${segment.id}" style="min-height:120px;">${escapeHtml(segmentText(segment,index))}</textarea>
         <button class="btn-copy" onclick="copyText(document.getElementById('segmentCopy_${segment.id}')?.value||'','segmentCopied_${segment.id}')">この記録内容をコピー</button>
         <div class="copy-done" id="segmentCopied_${segment.id}">コピーしました</div>
@@ -7526,6 +7603,7 @@ function continueFromLog(id,skipConfirm=false){
 }
 
 function buildShareText(log){
+  const machine=machineById(log?.machineId);
   const startCounter=logStartCounterValue(log);
   const startLog=[...visibleStartLog(log)].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
   const timeline=[...(log.timeline||[])].sort((a,b)=>{
@@ -7558,7 +7636,7 @@ function buildShareText(log){
   if((log.hitEvents||[]).length){
     lines.push('');
     lines.push('当選イベント：');
-    (log.hitEvents||[]).forEach(event=>lines.push(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event)}`));
+    (log.hitEvents||[]).forEach(event=>lines.push(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event,machine)}`));
   }
   if(log.endLog){
     lines.push('');
@@ -7775,7 +7853,7 @@ function organizedRowsForSegment(log,segment,index){
     const isChain=i>0;
     const game=normalizeOptionalNumber(event.dataGame);
     const sortGame=isChain&&firstHitGame!==null?firstHitGame+(i/1000):game;
-    const label=hitTriggerLabel(event.trigger,machineById(log.machineId));
+    const label=hitEventLabel(event,machineById(log.machineId));
     const baseText=`${event.dataGame??'-'}G ${label}${payout!==null?` / +${payout}枚`:''}`;
     const baseShortText=`${event.dataGame??'-'}G ${label.replace('当選','')}${payout!==null?` +${payout}枚`:''}`;
     rows.push({category:'bonus',kind:'hit',eventId:event.id||'',game,sortGame,order:i,isChain,payout,baseText,baseShortText,text:`${isChain?'↳ 連 ':''}${baseText}`,shortText:`${isChain?'└連 ':''}${baseShortText}`,tone:organizedHitToneClass(log,segment,event),segment,log});
@@ -8367,13 +8445,15 @@ function renderAimGroupLogActions(aim){
 }
 function renderSegmentHistoryItem(log,segment,index){
   const tone=segmentToneClass(log,segment);
+  const machine=machineById(log?.machineId);
   return `
     <div class="timeline-item ${escapeHtml(tone)}">
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(segmentSummary(segment,index))}</div>
         <span class="pill gold">${escapeHtml(formatAimLabel(log,segment)||'')}</span>
       </div>
-      ${(segment.hitEvents||[]).length?`<div class="timeline-text">${(segment.hitEvents||[]).map(event=>escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event)}`)).join('<br>')}</div>`:''}
+      ${(segment.hitEvents||[]).length?`<div class="timeline-text">${(segment.hitEvents||[]).map(event=>escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event,machine)}`)).join('<br>')}</div>`:''}
+      ${renderSegmentVariantControls(segment,'log',log.id,machine)}
       ${(segment.timeline||[]).length?`<div class="timeline-text">${(segment.timeline||[]).map(item=>{
         const suikaAfter=timelineSuikaAfterText(item);
         return escapeHtml(`${timelineGameLine(item)} ${item.text||''}${suikaAfter?`（${suikaAfter}）`:''}`.trim());
