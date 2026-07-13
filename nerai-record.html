@@ -959,7 +959,20 @@ function loadData(){
     const parsed=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
     if(!parsed||parsed.version!==1)return clone(EMPTY_DATA);
     return normalizeData(parsed);
-  }catch{return clone(EMPTY_DATA);}
+  }catch(err){
+    console.error('nerai-record load failed',err);
+    try{sessionStorage.setItem('neraiRecordLoadError','1');}catch{}
+    return clone(EMPTY_DATA);
+  }
+}
+function warnIfLoadFailed(){
+  let failed=false;
+  try{
+    failed=sessionStorage.getItem('neraiRecordLoadError')==='1';
+    if(failed)sessionStorage.removeItem('neraiRecordLoadError');
+  }catch{}
+  if(!failed)return;
+  setTimeout(()=>alert('保存データの読み込みに失敗しました。このまま保存すると空データで上書きされる可能性があります。バックアップ/復元からJSONを書き出せる場合は、先に退避してください。'),0);
 }
 function normalizeHitTrigger(value){
   return ['cz','upper_cz','direct_at','episode_bonus'].includes(value)?value:null;
@@ -1039,7 +1052,7 @@ function buildLogMetadata({id,aimId,existingLog=null,finalized=false,statusOverr
 }
 function currentDraftMetadataForSegment(){
   const aim=currentAim();
-  const draft=Number(db.draftLog?.schemaVersion)>=LOG_SCHEMA_VERSION?db.draftLog:null;
+  const draft=db.draftLog&&typeof db.draftLog==='object'?db.draftLog:null;
   return buildLogMetadata({
     id:draft?.id||uid('draft'),
     aimId:aim?.id||selectedAimId,
@@ -7327,51 +7340,57 @@ function fillLogInputs(log){
 }
 function loadDraftIntoInputs(log){
   if(!log)return;
-  const machine=machineById(log.machineId);
-  if(!machine)return;
-  hydratingDraft=true;
-  selectedMachineId=machine.id;
-  selectedAimId=log.aimId||firstAimIdForMachine(machine);
-  currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
-  continuedFromLog=log.continuedFromLog?clone(log.continuedFromLog):null;
-  const draftIdentity=tableIdentityFromMoney(log.money||{});
-  sameTableCarryOptOutKey=log.sameTableCarryOptOut&&draftIdentity?`${draftIdentity.date}|${draftIdentity.store}|${draftIdentity.machineNo}`:'';
-  currentStartCounterGame=logStartCounterValue(log);
-  currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
-  currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
-  currentExpectedValue=normalizeExpectedValue(log.expectedValue);
-  currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
-  currentTimeline=clone(log.timeline||[]);
-  currentSubCounters=normalizeSubCounters(log.subCounters);
-  applyStoredTimelineOffsets(log);
-  currentTimelineDataGame=latestTimelineCounterState(log).dataGame;
-  currentEndLog=clone(log.endLog||null);
-  linkedEndDataGame=currentEndLog?.game??null;
-  linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
-  currentHitEvents=clone(log.hitEvents||[]);
-  currentSuggestLog=clone(log.suggestLog||[]);
-  currentSegments=clone(log.segments||[]);
-  currentEndingCards=normalizeEndingCards(log.endingCards);
-  lastSegmentUndo=null;
-  currentKuiPointReleased=!!log.kuiPoint?.released;
-  currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
-  pendingSuggestSelection=null;
-  resetTransientLogUiState();
-  hitBranchWizard=normalizeHitBranchWizard(log.hitBranchWizard||{});
-  closeSuggestPicker();
-  renderAll();
-  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,liquidFromDataWithOffset(currentTimelineDataGame));
-  fillLogInputs(log);
-  renderFlowStepTabs();
-  renderCurrentStartLog();
-  renderCurrentTimeline();
-  renderEndLog();
-  renderCurrentSuggestLog();
-  renderCarrySummaryIntoDom();
-  renderPracticeStats();
-  renderCurrentContextBar();
-  renderSessionFieldLocks();
-  hydratingDraft=false;
+  try{
+    const machine=machineById(log.machineId);
+    if(!machine)throw new Error('draft machine missing');
+    hydratingDraft=true;
+    selectedMachineId=machine.id;
+    selectedAimId=log.aimId||firstAimIdForMachine(machine);
+    currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
+    continuedFromLog=log.continuedFromLog?clone(log.continuedFromLog):null;
+    const draftIdentity=tableIdentityFromMoney(log.money||{});
+    sameTableCarryOptOutKey=log.sameTableCarryOptOut&&draftIdentity?`${draftIdentity.date}|${draftIdentity.store}|${draftIdentity.machineNo}`:'';
+    currentStartCounterGame=logStartCounterValue(log);
+    currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
+    currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
+    currentExpectedValue=normalizeExpectedValue(log.expectedValue);
+    currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
+    currentTimeline=clone(log.timeline||[]);
+    currentSubCounters=normalizeSubCounters(log.subCounters);
+    applyStoredTimelineOffsets(log);
+    currentTimelineDataGame=latestTimelineCounterState(log).dataGame;
+    currentEndLog=clone(log.endLog||null);
+    linkedEndDataGame=currentEndLog?.game??null;
+    linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
+    currentHitEvents=clone(log.hitEvents||[]);
+    currentSuggestLog=clone(log.suggestLog||[]);
+    currentSegments=clone(log.segments||[]);
+    currentEndingCards=normalizeEndingCards(log.endingCards);
+    lastSegmentUndo=null;
+    currentKuiPointReleased=!!log.kuiPoint?.released;
+    currentFlowStep=Math.min(4,Math.max(1,Number(log.flowStep)||1));
+    pendingSuggestSelection=null;
+    resetTransientLogUiState();
+    hitBranchWizard=normalizeHitBranchWizard(log.hitBranchWizard||{});
+    closeSuggestPicker();
+    renderAll();
+    if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,liquidFromDataWithOffset(currentTimelineDataGame));
+    fillLogInputs(log);
+    renderFlowStepTabs();
+    renderCurrentStartLog();
+    renderCurrentTimeline();
+    renderEndLog();
+    renderCurrentSuggestLog();
+    renderCarrySummaryIntoDom();
+    renderPracticeStats();
+    renderCurrentContextBar();
+    renderSessionFieldLocks();
+  }catch(err){
+    console.error('draft restore failed',err);
+    alert('下書きの復元に失敗しました。下書きデータは削除していません。バックアップ/復元からJSONを書き出して復旧できます。');
+  }finally{
+    hydratingDraft=false;
+  }
 }
 function restoreDraftIfAny(){
   if(editingLogId||!db.draftLog)return;
@@ -8494,6 +8513,7 @@ setToday();
 setDefaultStartTime();
 applyLatestStoreForCurrentDate();
 restoreDraftIfAny();
+warnIfLoadFailed();
 </script>
 </body>
 </html>
