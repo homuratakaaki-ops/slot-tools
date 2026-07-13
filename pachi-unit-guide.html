@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>パチンコ回転単価計算ツールの使い方</title>
+<meta name="description" content="パチンコの回転単価（1回転あたりの期待値）の計算方法を解説。回転率・基準出玉・トータル確率の3つを入力するだけでボーダーと日当がわかる無料ツールの使い方ガイド。">
+<link rel="canonical" href="https://slot-tools.jp/pachi-unit-guide.html">
+<style>
+  :root {
+    --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;
+    --gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#7a7a8a;--text-dim:#4a4a5a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh;}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center;}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px;}
+  .top-link:active{background:rgba(201,168,76,.12);color:var(--gold-light);}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5;}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px;}
+  .container{max-width:480px;margin:0 auto;padding:20px 16px 0;}
+  .section{margin-top:22px;}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold);}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px;}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px;}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0;}
+  li{margin-bottom:8px;}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px;}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none;}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px;}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
+  footer a{color:var(--text-muted);text-decoration:none;}
+  footer a:hover{color:var(--gold-light);}
+</style>
+</head>
+<body>
+<header>
+  <a class="top-link" href="index.html">← TOP</a>
+  <h1>パチンコ回転単価計算ツールの使い方</h1>
+  <p>回転率を金額ベースで判断するための実戦補助ガイド</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>回転単価とは</h2>
+    <p>回転単価とは、通常時を1回転回したときに平均して何円の期待値があるかを示す指標です。</p>
+    <p>同じ「千円で18回回る台」でも、出玉性能や交換率が違えば価値は変わります。回転単価は、その違いを円に直して比較するためのものです。</p>
+    <p>ボーダーは、回転単価がちょうど0円になる回転率です。ボーダーを上回れば理論上はプラス、下回れば理論上はマイナスになります。</p>
+    <p>つまりこのツールは、「今日の台は千円で何回回るか」を、ボーダー・千円期待値・日当という形に翻訳する道具です。</p>
+  </section>
+
+  <section class="section">
+    <h2>入力は3つだけ</h2>
+    <p>このツールの基本入力は、回転率R、基準出玉B、基準出玉に対するトータル確率Tbの3つです。</p>
+    <div class="card">
+      <h3>1. 回転率R</h3>
+      <p>回転率Rは、通常時の千円あたり回転数です。</p>
+      <p>実測する場合は、通常時に回した回転数を投資額で割ります。たとえば1万円で180回なら、回転率は18回/千円です。</p>
+      <p>電サポ中や右打ち中の回転は、通常時の回転率には含めません。</p>
+    </div>
+    <div class="card">
+      <h3>2. 基準出玉B</h3>
+      <p>基準出玉Bは、基準にするラウンドの実質出玉です。4R機なら4R分、10R機なら10R分など、スペック表の換算値に対応する出玉を入れます。</p>
+      <p>データカウンターでは「4R×3回、6R×1回」のようにラウンド別で表示されることが多く、平均出玉を手で作るより、基準ラウンドを固定した方が入力しやすくなります。</p>
+    </div>
+    <div class="card">
+      <h3>3. 基準出玉に対するトータル確率Tb</h3>
+      <p>Tbには、スペック表にある「4R換算」「10R換算」などの分母をそのまま入力します。</p>
+      <p>たとえば「4R換算 1/24.20」と書かれている場合は、基準出玉Bに4Rの実質出玉を入れ、Tbに24.20を入れます。</p>
+      <p>計算上必要なのは、B÷Tbで求まる「1回転あたり期待玉」だけです。そのため、初当たり込みのトータル確率や平均出玉を別々に入力する必要はありません。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>実質出玉と払い出しの違い</h2>
+    <p>スペック表の出玉表記は、払い出しベースで書かれていることがあります。</p>
+    <p>ただし実戦では、アタッカー消化中も玉を打ち続けるため、手元に残る玉は払い出しより少し減ります。</p>
+    <p>この差は1回あたりでは小さく見えますが、ボーダー計算では甘く出る方向にズレます。</p>
+    <p>ツールには払い出し出玉ではなく、打ち込み分を控除した実質出玉を入れることをおすすめします。迷う場合は少し辛めに見積もる方が、過大評価を避けやすくなります。</p>
+  </section>
+
+  <section class="section">
+    <h2>交換率と現金比率</h2>
+    <p>非等価交換では、玉を借りた時点で交換時より高い単価を払っているのと同じ状態になります。</p>
+    <p>このツールでは、その影響を実効投資玉Cとして計算します。</p>
+    <div class="card">
+      <h3>実効投資玉C</h3>
+      <p>C = 250 × (c/100 × 4/P + (1 − c/100))</p>
+      <p>Pは交換率、cは現金比率です。たとえば28玉交換に近いP=3.57で全額現金投資なら、千円の投資は約280玉分の負担として扱います。</p>
+      <p>再プレイや持ち玉だけで打つ場合は、現金比率を0%にします。この場合、交換率に関係なくCは250玉です。</p>
+      <p>等価交換なら、現金比率を変えても結果は変わりません。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>計算例</h2>
+    <p>例として、回転率R=18、基準出玉B=360、基準出玉に対するトータル確率Tb=24.20、交換率P=4.00、現金比率c=100%、1日回転数N=3000で計算します。</p>
+    <div class="card">
+      <p>1回転あたり期待玉は、360÷24.20=約14.88玉です。</p>
+      <p>千円あたり期待玉は、18×14.88−250=約17.77玉です。</p>
+      <p>等価交換なので、千円期待値は約+71円になります。</p>
+      <p>回転単価は約+3.95円、ボーダーは約16.81回、日当は約+11,846円です。</p>
+    </div>
+    <p>この例では回転率18回がボーダー16.81回を上回っているため、理論上はプラス表示になります。</p>
+  </section>
+
+  <section class="section">
+    <h2>よくある質問</h2>
+    <div class="card">
+      <h3>Q. 電サポ中の増減は含まれますか？</h3>
+      <p>現行の計算では含めていません。電サポ中や右打ち中の増減は±0想定です。</p>
+      <p>大きく増減する機種や打ち方では、実際の期待値とズレる場合があります。</p>
+    </div>
+    <div class="card">
+      <h3>Q. 1円パチンコでも使えますか？</h3>
+      <p>現行版は4円パチンコ専用です。</p>
+      <p>貸玉単価が変わると投資玉と円換算の前提が変わるため、1円パチンコではそのまま使わないでください。</p>
+    </div>
+    <div class="card">
+      <h3>Q. ボーダーぴったりの台は打つ価値がありますか？</h3>
+      <p>ボーダーぴったりは、理論上の期待値が0円の状態です。</p>
+      <p>さらに非等価交換や現金投資が絡むと、見た目の回転率が同じでも実質的にマイナスへ寄る場合があります。</p>
+      <p>実戦では、測定誤差や出玉の取りこぼしもあるため、余裕を持って上回っている台を基準にしてください。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>注意事項</h2>
+    <p>本ツールの計算結果は、入力値に基づく理論上の目安です。</p>
+    <p>実際の出玉、収支、勝利、特定の結果を保証するものではありません。</p>
+    <p>遊技する際は店舗ルールを守り、自己判断で行ってください。詳しくは<a href="disclaimer.html" style="color:var(--gold)">免責事項</a>も確認してください。</p>
+  </section>
+
+  <a class="cta" href="pachinko-unit-calc.html">▶ ツールを使う</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+  </nav>
+</footer>
+</body>
+</html>
