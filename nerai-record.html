@@ -2393,7 +2393,19 @@ function ensureNangokuSpecialSeed(machine){
   markAccent('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i3','green');
   markAccent('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i4','red');
   markAccent('sgp_nangoku_reel_light','sgp_nangoku_reel_light_i5','gold');
+  const applyNangokuChainTriggerItem=()=>{
+    if(machine.nangokuChainTriggerItemV1)return;
+    const place=(machine.suggestMaster||[]).flatMap(category=>category.places||[]).find(row=>row.id==='sgp_nangoku_trigger');
+    if(place){
+      place.items=Array.isArray(place.items)?place.items:[];
+      if(!place.items.some(item=>item.id==='sgp_nangoku_trigger_hisho_chain'||item.label==='飛翔モード中の当選')){
+        place.items.push({id:'sgp_nangoku_trigger_hisho_chain',label:'飛翔モード中の当選',enabled:true,carryType:null});
+      }
+    }
+    machine.nangokuChainTriggerItemV1=true;
+  };
   if(machine.suggestSeedNangokuSpecialV2){
+    applyNangokuChainTriggerItem();
     applyNangokuKoyakuTags();
     return;
   }
@@ -2484,6 +2496,7 @@ function ensureNangokuSpecialSeed(machine){
   mergeTimelineTagSeed(machine,timelineTags);
   applyNangokuKoyakuTags();
   mergeSuggestSeed(machine,seed);
+  applyNangokuChainTriggerItem();
   applySuggestMetadata(machine);
   machine.suggestSeedNangokuSpecialV1=true;
   machine.suggestSeedNangokuSpecialV2=true;
@@ -5557,12 +5570,50 @@ function selectNangokuButterfly(result){
 function currentNangokuHitSuggestStep(){
   return nangokuHitSuggestSteps()[nangokuHitSuggestState.stepIndex]||null;
 }
+function currentHitIsWithinChainRule(){
+  const event=currentHitEvent();
+  const rule=normalizedChainRule(currentMachine());
+  const dataGame=normalizeOptionalNumber(event?.dataGame);
+  return !!rule&&dataGame!==null&&dataGame<=rule.maxGap;
+}
+function addNangokuChainTriggerSuggest(){
+  const event=currentHitEvent();
+  if(!event)return false;
+  const entry=findSuggestPlaceEntryById('sgp_nangoku_trigger');
+  const item=entry?enabledSuggestItems(entry.category.id,entry.place.id).find(row=>row.id==='sgp_nangoku_trigger_hisho_chain'||row.label==='飛翔モード中の当選'):null;
+  if(!entry||!item)return false;
+  const duplicate=currentSuggestLog.some(row=>row.hitEventId===event.id&&row.placeId===entry.place.id&&row.itemId===item.id);
+  if(duplicate)return true;
+  addSuggestLogFromSelection({
+    stateGroup:'hit',
+    source:'wizard',
+    hitEventId:event.id,
+    carryType:normalizeCarryType(item.carryType),
+    pointRole:entry.place.pointRole||item.pointRole||null,
+    confidenceLevel:item.confidenceLevel||null,
+    confidenceType:item.confidenceType||null,
+    categoryId:entry.category.id,
+    placeId:entry.place.id,
+    itemId:item.id,
+    category:entry.category.category,
+    place:entry.place.name,
+    item:item.label,
+    decorations:item.decorations||[],
+    useAppearG:false
+  });
+  return true;
+}
 function openNangokuHitSuggestStep(){
   const step=currentNangokuHitSuggestStep();
   if(!step){
     nangokuHitSuggestState={eventId:'',stepIndex:0};
     closeSuggestPicker();
     selectAtFollow('yes');
+    return;
+  }
+  if(step.placeId==='sgp_nangoku_trigger'&&currentHitIsWithinChainRule()){
+    addNangokuChainTriggerSuggest();
+    advanceNangokuHitSuggestStep();
     return;
   }
   const entry=findSuggestPlaceEntryById(step.placeId);
