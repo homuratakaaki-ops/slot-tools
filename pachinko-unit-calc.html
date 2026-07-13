@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>パチンコ回転単価計算ツール | slot-tools.jp</title>
+<meta name="description" content="4円パチンコの回転率、トータル確率、平均出玉、交換率、現金比率から回転単価・千円期待値・ボーダー・日当を計算する無料ツールです。">
+<link rel="canonical" href="https://slot-tools.jp/pachinko-unit-calc.html">
+<style>
+  :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--red:#e07070;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.6;padding-bottom:48px}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 62%);border-bottom:1px solid var(--gold);padding:14px 20px 18px;text-align:center}
+  .top-link{display:inline-flex;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px}
+  h1{font-size:18px;color:var(--gold-light);margin:0;letter-spacing:.04em}
+  header p{font-size:12px;color:var(--text-muted);margin:4px 0 0}
+  .container{max-width:520px;margin:0 auto;padding:0 16px}
+  .section{margin-top:20px}
+  .section-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--gold);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  .card,.result-box{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px}
+  .input-row{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)}
+  .input-row:first-child{padding-top:0}.input-row:last-child{border-bottom:0;padding-bottom:0}
+  .input-label{font-size:13px;color:var(--text)}.input-hint{font-size:11px;color:var(--text-muted);margin-top:2px}
+  .input-field{display:flex;align-items:center;gap:6px}
+  input[type="number"]{width:96px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:16px;padding:8px 10px;text-align:right;outline:none}
+  input[type="number"]:focus{border-color:var(--gold)}input[type="range"]{width:150px;accent-color:var(--gold)}
+  .unit{font-size:12px;color:var(--text-muted);white-space:nowrap}
+  .rate-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .rate-btn,.mode-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:13px;font-weight:700;padding:9px 8px;cursor:pointer}
+  .rate-btn.selected,.mode-btn.selected{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12)}
+  .mode-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px}.hidden{display:none}
+  .result-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.result-box{min-height:92px}
+  .result-label{font-size:12px;color:var(--text-muted);margin-bottom:4px}.result-value{font-size:24px;font-weight:700;color:var(--gold-light);line-height:1.25}.result-value.negative{color:var(--red)}
+  .detail{font-size:12px;color:var(--text-muted);margin-top:10px}.formula{font-size:12px;color:var(--text-dim);line-height:1.7;margin-top:10px}
+  .warning{display:none;background:rgba(224,112,112,.1);border:1px solid rgba(224,112,112,.35);border-radius:8px;color:#f0a0a0;font-size:12px;padding:10px 12px;margin-top:10px}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}footer a{color:var(--text-muted);text-decoration:none}
+  @media (max-width:420px){.input-row{grid-template-columns:1fr}.input-field{justify-content:flex-end}input[type="range"]{width:100%}.result-grid{grid-template-columns:1fr}.rate-buttons{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header>
+  <a class="top-link" href="index.html">TOP</a>
+  <h1>パチンコ回転単価計算ツール</h1>
+  <p>4円パチンコ専用。交換率と現金比率込みでボーダーを計算します。</p>
+</header>
+<main class="container">
+  <section class="section">
+    <div class="section-label">入力</div>
+    <div class="card">
+      <div class="input-row"><div><div class="input-label">回転率 R</div><div class="input-hint">千円あたりの通常回転数</div></div><div class="input-field"><input id="rotationRate" type="number" min="0" step="0.1" value="20"><span class="unit">回/千円</span></div></div>
+      <div class="input-row"><div><div class="input-label">トータル確率分母 T</div><div class="input-hint">例: 33.12</div></div><div class="input-field"><input id="totalProb" type="number" min="0" step="0.01" value="33.12"><span class="unit">分母</span></div></div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-label">平均出玉</div>
+    <div class="card">
+      <div class="mode-row"><button class="mode-btn selected" type="button" data-mode="direct">平均出玉を入力</button><button class="mode-btn" type="button" data-mode="fourR">4R換算で入力</button></div>
+      <div id="directYield"><div class="input-row"><div><div class="input-label">平均出玉 D</div><div class="input-hint">初当たり1回あたりの平均獲得玉</div></div><div class="input-field"><input id="avgYield" type="number" min="0" step="1" value="547"><span class="unit">玉</span></div></div></div>
+      <div id="fourRYield" class="hidden">
+        <div class="input-row"><div><div class="input-label">4R出玉</div><div class="input-hint">4R大当たり1回分の獲得玉</div></div><div class="input-field"><input id="fourRYieldValue" type="number" min="0" step="1" value="360"><span class="unit">玉</span></div></div>
+        <div class="input-row"><div><div class="input-label">平均4R換算回数</div><div class="input-hint">平均出玉 = 4R出玉 × 換算回数</div></div><div class="input-field"><input id="fourRCount" type="number" min="0" step="0.01" value="1.52"><span class="unit">回</span></div></div>
+      </div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-label">交換条件</div>
+    <div class="card">
+      <div class="input-row"><div><div class="input-label">交換率 P</div><div class="input-hint">円/玉。任意入力も可能</div></div><div class="input-field"><input id="exchangeRate" type="number" min="0" step="0.01" value="4.00"><span class="unit">円/玉</span></div></div>
+      <div class="rate-buttons" id="rateButtons"><button class="rate-btn" type="button" data-rate="2.50">2.50</button><button class="rate-btn" type="button" data-rate="3.03">3.03</button><button class="rate-btn" type="button" data-rate="3.33">3.33</button><button class="rate-btn" type="button" data-rate="3.57">3.57</button><button class="rate-btn selected" type="button" data-rate="4.00">4.00</button></div>
+      <div class="input-row" style="margin-top:12px"><div><div class="input-label">現金比率 c</div><div class="input-hint">100%=全額現金、0%=全額再プレイ/持ち玉</div></div><div class="input-field"><input id="cashRatioRange" type="range" min="0" max="100" step="1" value="100"><input id="cashRatio" type="number" min="0" max="100" step="1" value="100"><span class="unit">%</span></div></div>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-label">日当</div>
+    <div class="card"><div class="input-row"><div><div class="input-label">1日回転数 N</div><div class="input-hint">任意。日当計算に使用</div></div><div class="input-field"><input id="dailyTurns" type="number" min="0" step="1" value="3000"><span class="unit">回</span></div></div></div>
+  </section>
+  <section class="section">
+    <div class="section-label">結果</div>
+    <div class="result-grid">
+      <div class="result-box"><div class="result-label">回転単価</div><div class="result-value" id="unitPrice">-</div></div>
+      <div class="result-box"><div class="result-label">千円期待値</div><div class="result-value" id="perThousand">-</div></div>
+      <div class="result-box"><div class="result-label">ボーダー</div><div class="result-value" id="borderLine">-</div></div>
+      <div class="result-box"><div class="result-label">日当</div><div class="result-value" id="dailyValue">-</div></div>
+    </div>
+    <div class="detail" id="detailText"></div>
+    <div class="warning" id="warningText"></div>
+    <div class="formula">実効投資玉/千円 C = 250 × (c/100 × 4/P + (1 - c/100))<br>ボーダー = C × T ÷ D</div>
+  </section>
+</main>
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav><a href="/about.html">運営者情報</a><a href="/privacy.html">プライバシーポリシー</a><a href="/disclaimer.html">免責事項</a><a href="/contact.html">お問い合わせ</a></nav>
+</footer>
+<script>
+const ids=['rotationRate','totalProb','avgYield','fourRYieldValue','fourRCount','exchangeRate','cashRatio','cashRatioRange','dailyTurns'];
+const state={yieldMode:'direct'};
+function num(id){const value=parseFloat(document.getElementById(id).value);return Number.isFinite(value)?value:0}
+function setSigned(el,value,decimals,suffix){el.classList.toggle('negative',value<0);const sign=value>0?'+':'';el.textContent=`${sign}${value.toFixed(decimals)}${suffix}`}
+function getAverageYield(){return state.yieldMode==='fourR'?num('fourRYieldValue')*num('fourRCount'):num('avgYield')}
+function calculate(){
+  const R=num('rotationRate'),T=num('totalProb'),D=getAverageYield(),P=num('exchangeRate'),c=num('cashRatio')/100,N=num('dailyTurns');
+  const warning=document.getElementById('warningText');warning.style.display='none';warning.textContent='';
+  if(R<=0||T<=0||D<=0||P<=0){warning.textContent='回転率、トータル確率、平均出玉、交換率は0より大きい値を入力してください。';warning.style.display='block';['unitPrice','perThousand','borderLine','dailyValue'].forEach(id=>document.getElementById(id).textContent='-');document.getElementById('detailText').textContent='';return}
+  const C=250*(c*4/P+(1-c));
+  const expectedBalls=R/T*D-C;
+  const expectedYen=expectedBalls*P;
+  const unitPrice=expectedYen/R;
+  const border=C*T/D;
+  const daily=unitPrice*N;
+  setSigned(document.getElementById('unitPrice'),unitPrice,2,'円');
+  setSigned(document.getElementById('perThousand'),expectedYen,0,'円');
+  document.getElementById('borderLine').classList.remove('negative');
+  document.getElementById('borderLine').textContent=`${border.toFixed(2)}回`;
+  setSigned(document.getElementById('dailyValue'),daily,0,'円');
+  document.getElementById('detailText').textContent=`実効投資玉 C=${C.toFixed(1)}玉/千円、平均出玉 D=${D.toFixed(1)}玉`;
+}
+function syncCashRatio(source){const target=source==='range'?document.getElementById('cashRatio'):document.getElementById('cashRatioRange');const self=document.getElementById(source==='range'?'cashRatioRange':'cashRatio');const value=Math.max(0,Math.min(100,num(self.id)));self.value=value;target.value=value}
+document.querySelectorAll('.rate-btn').forEach(btn=>btn.addEventListener('click',()=>{document.getElementById('exchangeRate').value=Number(btn.dataset.rate).toFixed(2);document.querySelectorAll('.rate-btn').forEach(b=>b.classList.toggle('selected',b===btn));calculate()}));
+document.querySelectorAll('.mode-btn').forEach(btn=>btn.addEventListener('click',()=>{state.yieldMode=btn.dataset.mode;document.querySelectorAll('.mode-btn').forEach(b=>b.classList.toggle('selected',b===btn));document.getElementById('directYield').classList.toggle('hidden',state.yieldMode!=='direct');document.getElementById('fourRYield').classList.toggle('hidden',state.yieldMode!=='fourR');calculate()}));
+document.getElementById('exchangeRate').addEventListener('input',()=>{const current=num('exchangeRate').toFixed(2);document.querySelectorAll('.rate-btn').forEach(btn=>btn.classList.toggle('selected',Number(btn.dataset.rate).toFixed(2)===current))});
+document.getElementById('cashRatioRange').addEventListener('input',()=>syncCashRatio('range'));
+document.getElementById('cashRatio').addEventListener('input',()=>syncCashRatio('number'));
+ids.forEach(id=>document.getElementById(id).addEventListener('input',calculate));
+calculate();
+</script>
+</body>
+</html>
