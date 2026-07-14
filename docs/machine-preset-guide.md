@@ -12,9 +12,11 @@
 | hitTriggers | machine.hitTriggers | 当選種別の定義（key/label/color） | BIG=red、REG=light-blue |
 | hitTrigger variants | machine.hitTriggers[].variants | 稀な当選種別の後付けマーク。通常入力を邪魔せず、出た時だけ当選イベントにvariantを付与する | BIGの青7マーク（blue7） |
 | chainRule | machine.chainRule | G数ベースの連チャン自動判定 | {maxGap:42, enterLabel:'飛翔モード突入', unitLabel:'連'} |
+| intervalEstimate | log.intervalEstimate + timeline.intervalEvent | 有利区間差枚の推定。初期差枚・貸出レート・投資/クレジット記録から表示時点の推定差枚を残す | クレジット収支ベースの推定区間差枚 |
 | subCounter | machine.subCounter | 機種固有カウンター（resetOn:'hit'で当選リセット） | スイカ回数 |
 | subCounterDelta | tags[].subCounterDelta | タグ押下でカウンター自動加算 | スイカタグ→+1 |
 | suggestLink | tags[].suggestLink | クイックタグ→示唆記録の自動連動 | さざなみ赤タグ→さざなみ前兆:赤 |
+| entryCause | timeline.entryCause | 突入タグに契機を持たせ、後で契機別件数を拾えるようにする | SDC/超飛翔突入の契機（ときめき32G目等） |
 | carryType | suggestMaster items | 示唆の分類（mode/setting）。まとめ集計・バッジ・引き継ぎの基準 | リール発光=mode、ボイス=setting |
 | summaryDefault | suggestMaster items | 「情報なし」項目を集計の表示・分母から除外 | ボイスなし、リール発光変化なし |
 | accent | suggestMaster items | 整理ビューでの値の色付け | 青=blue、緑=green、虹=gold |
@@ -46,6 +48,7 @@
 2. hitTriggers（key/label/color）を定義。稀にだけ区別したい当選種別は、必須ステップにせず variants で後付け可能にする
 3. 連チャン仕様があればchainRule（maxGap/enterLabel）を数値ごと確認
 4. レア役・演出タグ＋必要ならsubCounter/subCounterDelta/suggestLink
-5. 示唆マスタ：carryTypeをmode/settingで正しく分類（意味論を実戦者に確認）、デフォルト項目にsummaryDefault、色物にaccent
-6. バージョンフラグ名を新規に切る（既存機種のフラグを使い回さない）
-7. 検証：新規環境＋既存データ再現＋対象外機種の3系統
+5. 有利区間差枚や突入契機など、機種固有の検証軸がある場合は timeline の任意フィールドで残す。既存ログはフィールド欠落を許容する
+6. 示唆マスタ：carryTypeをmode/settingで正しく分類（意味論を実戦者に確認）、デフォルト項目にsummaryDefault、色物にaccent
+7. バージョンフラグ名を新規に切る（既存機種のフラグを使い回さない）
+8. 検証：新規環境＋既存データ再現＋対象外機種の3系統

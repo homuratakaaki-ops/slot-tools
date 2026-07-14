@@ -767,6 +767,14 @@ const CARRY_TYPE_OPTIONS=['setting','mode'];
 const KUI_POINT_OPTIONS=['大','中','小','なし'];
 const MODE_CONFIDENCE_LEVELS=['tenkoku','tenkoku_junbi','chance','tsujoC','tsujoB','tsujoA'];
 const MODE_CONFIDENCE_TYPES=['kakutei','shisa'];
+const INTERVAL_CERTAINTY_OPTIONS=['reset','estimated','unknown'];
+const DEFAULT_LOAN_RATE=46.6;
+const NANGOKU_ENTRY_CAUSES=[
+  {key:'tokimeki32',label:'ときめき32G目'},
+  {key:'bonus1g',label:'ボーナス中1G連'},
+  {key:'freeze',label:'フリーズ'},
+  {key:'unknown',label:'不明'}
+];
 const ENDING_CARD_GROUPS=[
   {id:'white_weak',name:'白・奇数弱',hint:'奇数示唆:弱',tone:'white',cards:['金木研','霧嶋董香','笛口雛実','永近英良','西尾錦','月山習']},
   {id:'white_strong',name:'白・奇数強',hint:'奇数示唆:強',tone:'white',cards:['芳村','四方蓮示','ウタ','イトリ','古間円児','入見カヤ']},
@@ -793,6 +801,7 @@ let currentTimeline=[];
 let currentTimelineDataGame=null;
 let currentTimelineSuikaOffset=0;
 let currentTimelineManualCorrection=0;
+let currentIntervalEstimate={initialDiff:null,certainty:'unknown',loanRate:DEFAULT_LOAN_RATE};
 let currentSubCounters={};
 let linkedEndDataGame=null;
 let linkedEndLiquidGame=null;
@@ -1232,6 +1241,7 @@ function normalizeData(data){
     log.kuiPoint.gains=Array.isArray(log.kuiPoint.gains)?log.kuiPoint.gains:[];
     log.kuiPoint.hints=Array.isArray(log.kuiPoint.hints)?log.kuiPoint.hints:[];
     log.hitEvents=Array.isArray(log.hitEvents)?log.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    log.intervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
     log.segments=Array.isArray(log.segments)?log.segments.map(normalizeSegment).filter(Boolean):[];
     log.endingCards=normalizeEndingCards(log.endingCards);
     log.hitBranchWizard=log.hitBranchWizard&&typeof log.hitBranchWizard==='object'?normalizeHitBranchWizard(log.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
@@ -1285,6 +1295,7 @@ function normalizeData(data){
     data.draftLog.finalized=false;
     data.draftLog.excludeFromStats=true;
     data.draftLog.hitEvents=Array.isArray(data.draftLog.hitEvents)?data.draftLog.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    data.draftLog.intervalEstimate=normalizeIntervalEstimate(data.draftLog.intervalEstimate);
     data.draftLog.subCounters=normalizeSubCounters(data.draftLog.subCounters);
     data.draftLog.segments=Array.isArray(data.draftLog.segments)?data.draftLog.segments.map(normalizeSegment).filter(Boolean):[];
     data.draftLog.endingCards=normalizeEndingCards(data.draftLog.endingCards);
@@ -2612,6 +2623,72 @@ function formatDiff(n){
   return (num>0?'+':'')+num+'枚';
 }
 function formatMoneyAmount(n){return n===null||n===undefined||n===''?'-':(Number(n)||0)+'枚';}
+function formatChainPayout(payout,short=false){
+  const value=normalizeOptionalNumber(payout);
+  if(value===null)return '';
+  return `連チャン獲得 ${value>0?'+':''}${value}枚`;
+}
+function formatIntervalDiff(value,certainty='unknown'){
+  const num=normalizeOptionalNumber(value);
+  if(num===null)return '不明';
+  const mark=certainty==='reset'?'':'?';
+  return `${num>0?'+':''}${num}枚${mark}`;
+}
+function normalizeIntervalEstimate(value){
+  const source=value&&typeof value==='object'?value:{};
+  const certainty=INTERVAL_CERTAINTY_OPTIONS.includes(source.certainty)?source.certainty:'unknown';
+  const rate=normalizeOptionalNumber(source.loanRate);
+  return {
+    initialDiff:normalizeOptionalNumber(source.initialDiff),
+    certainty,
+    loanRate:rate!==null&&rate>0?rate:DEFAULT_LOAN_RATE
+  };
+}
+function intervalCertaintyLabel(value){
+  return value==='reset'?'リセット確定0':value==='estimated'?'推定':'不明';
+}
+function investMedalsFromYen(yen,loanRate){
+  const amount=normalizeOptionalNumber(yen);
+  const rate=normalizeOptionalNumber(loanRate);
+  if(amount===null||rate===null||rate<=0)return null;
+  return Math.floor((amount/1000)*rate);
+}
+function intervalEventInvestMedals(entry){
+  if(entry?.intervalEvent!=='invest')return 0;
+  return Math.max(0,Math.trunc(normalizeOptionalNumber(entry.investMedals)??0));
+}
+function logIntervalTimelineEntries(log){
+  return [...(log?.segments||[]).flatMap(segment=>segment.timeline||[]),...(log?.timeline||[])];
+}
+function intervalTimelineEntries(){
+  const rows=[];
+  const seen=new Set();
+  const add=row=>{
+    if(!row)return;
+    const key=row.id||`${row.createdAt||''}|${row.text||''}`;
+    if(key&&seen.has(key))return;
+    if(key)seen.add(key);
+    rows.push(row);
+  };
+  const sessionId=continuedFromLog?.sessionId||continuedFromLog?.id||'';
+  if(sessionId){
+    db.logs
+      .filter(log=>(log.sessionId||log.id)===sessionId&&log.id!==editingLogId)
+      .forEach(log=>logIntervalTimelineEntries(log).forEach(add));
+  }
+  logIntervalTimelineEntries({segments:currentSegments,timeline:currentTimeline}).forEach(add);
+  return rows;
+}
+function cumulativeInvestMedals(entries=intervalTimelineEntries()){
+  return entries.reduce((sum,entry)=>sum+intervalEventInvestMedals(entry),0);
+}
+function estimateIntervalDiffAtCredit(creditMedals,cumulativeInvest,estimate=currentIntervalEstimate){
+  const credit=normalizeOptionalNumber(creditMedals);
+  const invest=normalizeOptionalNumber(cumulativeInvest)??0;
+  const initial=normalizeOptionalNumber(estimate.initialDiff);
+  if(credit===null||initial===null)return null;
+  return initial+(credit-invest);
+}
 function formatYenDiff(n){
   if(n===null||n===undefined||n==='')return '-';
   const num=Number(n);
@@ -2926,6 +3003,7 @@ function addMachine(){
   currentExpectedValue=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
+  currentIntervalEstimate=normalizeIntervalEstimate(null);
   currentSubCounters={};
   resetTimelineOffsets();
   linkedEndDataGame=null;
@@ -3461,7 +3539,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;currentSubCounters={};resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;currentIntervalEstimate=normalizeIntervalEstimate(null);currentSubCounters={};resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -4941,6 +5019,113 @@ function renderSubCounterControls(){
       <button class="btn-small counter-btn" type="button" onclick="incrementSubCounter('${escapeHtml(counter.key)}',1)">+1</button>
     </div>`;
 }
+function renderIntervalEstimateControls(){
+  if(!isNangokuSpecialMachine(currentMachine()))return '';
+  const interval=normalizeIntervalEstimate(currentIntervalEstimate);
+  const totalInvest=cumulativeInvestMedals();
+  const initial=interval.initialDiff===null?'未設定':formatIntervalDiff(interval.initialDiff,interval.certainty);
+  return `
+    <div class="work-subsection play-group alt">
+      <div class="section-label" style="margin-top:0;">有利区間差枚メモ</div>
+      <div class="item-sub">初期差枚：${escapeHtml(initial)} / 判定：${escapeHtml(intervalCertaintyLabel(interval.certainty))} / 貸出 ${escapeHtml(interval.loanRate)}枚/千円 / 累積投資 ${escapeHtml(totalInvest)}枚</div>
+      <div class="log-tools">
+        <button class="btn-small" onclick="setIntervalInitialDiff()">初期差枚</button>
+        <button class="btn-small" onclick="setIntervalCertainty()">判定</button>
+        <button class="btn-small" onclick="setIntervalLoanRate()">貸出レート</button>
+      </div>
+      <div class="log-tools" style="margin-top:8px;">
+        <button class="btn-small counter-btn" onclick="recordIntervalInvestMedals()">投資（枚）</button>
+        <button class="btn-small counter-btn" onclick="recordIntervalInvestYen()">投資（千円）</button>
+        <button class="btn-small gold" onclick="recordIntervalCredit()">クレジット</button>
+      </div>
+    </div>`;
+}
+function setIntervalInitialDiff(){
+  const current=normalizeIntervalEstimate(currentIntervalEstimate).initialDiff;
+  const input=prompt('打ち始め時の想定区間差枚（不明なら空）',current!==null?String(current):'');
+  if(input===null)return;
+  const value=normalizeOptionalNumber(input.trim());
+  if(input.trim()!==''&&value===null){alert('数値で入力してください');return;}
+  currentIntervalEstimate={...normalizeIntervalEstimate(currentIntervalEstimate),initialDiff:value};
+  renderLogFields();
+  saveDraftImmediately();
+}
+function setIntervalCertainty(){
+  const current=normalizeIntervalEstimate(currentIntervalEstimate).certainty;
+  const input=prompt('判定を入力（reset=リセット確定0 / estimated=推定 / unknown=不明）',current);
+  if(input===null)return;
+  const value=String(input||'').trim();
+  if(!INTERVAL_CERTAINTY_OPTIONS.includes(value)){alert('reset / estimated / unknown のいずれかで入力してください');return;}
+  currentIntervalEstimate={...normalizeIntervalEstimate(currentIntervalEstimate),certainty:value,initialDiff:value==='reset'?0:normalizeIntervalEstimate(currentIntervalEstimate).initialDiff};
+  renderLogFields();
+  saveDraftImmediately();
+}
+function setIntervalLoanRate(){
+  const current=normalizeIntervalEstimate(currentIntervalEstimate).loanRate;
+  const input=prompt('貸出レート（枚/千円）',String(current));
+  if(input===null)return;
+  const value=normalizeOptionalNumber(input.trim());
+  if(value===null||value<=0){alert('貸出レートは正の数値で入力してください');return;}
+  currentIntervalEstimate={...normalizeIntervalEstimate(currentIntervalEstimate),loanRate:value};
+  renderLogFields();
+  saveDraftImmediately();
+}
+function intervalEventEntryBase(label){
+  const game=timelineDataValue();
+  const liquidGame=timelineLiquidValue()??game;
+  if(game===null){alert('G数を入力してください');return null;}
+  if(liquidGame===null){alert('液晶G数を入力してください');return null;}
+  return {id:uid('tl'),game,liquidGame,text:label,tagIds:[],countAs:[],subCounters:normalizeSubCounters(currentSubCounters),createdAt:new Date().toISOString()};
+}
+function pushIntervalTimelineEntry(entry){
+  currentTimeline.push(entry);
+  recentTimelineHighlightId=entry.id;
+  timelineHistoryOpen=true;
+  renderLogFields();
+  renderCurrentTimeline();
+  renderPracticeStats();
+  saveDraftImmediately();
+}
+function recordIntervalInvestMedals(){
+  const input=prompt('投資枚数');
+  if(input===null)return;
+  const medals=normalizeOptionalNumber(input.trim());
+  if(medals===null||medals<=0){alert('投資枚数を入力してください');return;}
+  const cumulative=cumulativeInvestMedals()+Math.floor(medals);
+  const entry=intervalEventEntryBase(`投資 ${Math.floor(medals)}枚（累積${cumulative}枚）`);
+  if(!entry)return;
+  Object.assign(entry,{intervalEvent:'invest',investInputMode:'medals',investMedals:Math.floor(medals),cumulativeInvestMedals:cumulative});
+  pushIntervalTimelineEntry(entry);
+}
+function recordIntervalInvestYen(){
+  const rate=normalizeIntervalEstimate(currentIntervalEstimate).loanRate;
+  const input=prompt(`投資金額（千円単位・例：1=1000円 / 貸出${rate}枚）`);
+  if(input===null)return;
+  const units=normalizeOptionalNumber(input.trim());
+  if(units===null||units<=0){alert('投資金額を千円単位で入力してください');return;}
+  const yen=Math.floor(units*1000);
+  const medals=investMedalsFromYen(yen,rate);
+  if(medals===null){alert('換算に失敗しました');return;}
+  const cumulative=cumulativeInvestMedals()+medals;
+  const entry=intervalEventEntryBase(`投資 ${yen.toLocaleString('ja-JP')}円→${medals}枚（累積${cumulative}枚）`);
+  if(!entry)return;
+  Object.assign(entry,{intervalEvent:'invest',investInputMode:'yen',investYen:yen,loanRate:rate,investMedals:medals,cumulativeInvestMedals:cumulative});
+  pushIntervalTimelineEntry(entry);
+}
+function recordIntervalCredit(){
+  const input=prompt('現在の手持ち枚数（クレジット含む）');
+  if(input===null)return;
+  const credit=normalizeOptionalNumber(input.trim());
+  if(credit===null){alert('手持ち枚数を入力してください');return;}
+  const interval=normalizeIntervalEstimate(currentIntervalEstimate);
+  const cumulative=cumulativeInvestMedals();
+  const estimated=estimateIntervalDiffAtCredit(credit,cumulative,interval);
+  const estimateText=estimated===null?'推定区間差枚 不明':`推定区間差枚 ${formatIntervalDiff(estimated,interval.certainty)}`;
+  const entry=intervalEventEntryBase(`クレジット ${credit}枚 / ${estimateText}`);
+  if(!entry)return;
+  Object.assign(entry,{intervalEvent:'credit',creditMedals:credit,cumulativeInvestMedals:cumulative,estimatedIntervalDiff:estimated,intervalCertainty:interval.certainty,initialIntervalDiff:interval.initialDiff});
+  pushIntervalTimelineEntry(entry);
+}
 function machineHitTriggers(machine=currentMachine()){
   return normalizeHitTriggers(machine?.hitTriggers);
 }
@@ -5052,7 +5237,7 @@ function hitEventLine(event,machine=currentMachine()){
   if(event.czResult)parts.push(event.czResult==='at_win'?'AT当選':'AT非当選');
   if((Number(event.endingCount)||0)>0)parts.push(`エンディング到達${Number(event.endingCount)}回`);
   if(event.through)parts.push(event.through==='yes'?'駆け抜け':'駆け抜け以外');
-  if(event.payout!==null&&event.payout!==undefined)parts.push(`獲得${event.payout}枚`);
+  if(event.payout!==null&&event.payout!==undefined)parts.push(formatChainPayout(event.payout));
   if(event.exit)parts.push(event.exit==='continue'?'続行':'即ヤメ');
   return parts.join(' / ');
 }
@@ -5090,6 +5275,7 @@ function createSegmentSnapshot(event,terminalType=''){
     liquidGame,
     suikaOffset:currentTimelineSuikaOffset,
     manualCorrection:currentTimelineManualCorrection,
+    intervalEstimate:normalizeIntervalEstimate(currentIntervalEstimate),
     subCounters:normalizeSubCounters(currentSubCounters),
     endingCards:currentSegmentEndingCards(),
     timeline:clone(sortedTimeline()),
@@ -5232,6 +5418,7 @@ function renderTimelineArea(mode='play'){
       <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState()"></textarea>
       <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
     </div>
+    ${renderIntervalEstimateControls()}
     ${renderTimelineHistoryPanel()}
     <div class="work-subsection play-group alt">
       ${renderSuggestArea('play')}
@@ -6207,6 +6394,23 @@ function instantLogToastGameText(game,liquidGame,machine=currentMachine()){
   if(machineShowsLiquidCounter(machine)&&liquidGame!==null&&liquidGame!==undefined)return `液晶${liquidGame}G`;
   return `データ${game}G`;
 }
+function nangokuEntryTypeForTag(tag){
+  if(tag?.id==='t_nangoku_sdc_start')return 'sdc';
+  if(tag?.id==='t_nangoku_super_hisho_start')return 'super_hisho';
+  return '';
+}
+function nangokuEntryTypeLabel(type){
+  return type==='sdc'?'SDC突入':type==='super_hisho'?'超飛翔突入':'突入';
+}
+function promptNangokuEntryCause(tag){
+  const type=nangokuEntryTypeForTag(tag);
+  if(!type)return null;
+  const menu=NANGOKU_ENTRY_CAUSES.map((row,i)=>`${i+1}:${row.label}`).join(' / ');
+  const input=prompt(`${nangokuEntryTypeLabel(type)}の契機（${menu}）`,'4');
+  const index=Number(input);
+  const selected=NANGOKU_ENTRY_CAUSES[index-1]||NANGOKU_ENTRY_CAUSES.find(row=>row.key==='unknown');
+  return {entryType:type,entryCause:selected.key,entryCauseLabel:selected.label};
+}
 function addInstantTimelineTag(tag){
   const now=Date.now();
   if(lastInstantTimelineTag.id===tag.id&&now-lastInstantTimelineTag.at<300)return;
@@ -6218,6 +6422,8 @@ function addInstantTimelineTag(tag){
   const tagIds=[tag.id];
   const subCounters=applySubCounterDeltasForTimeline(tagIds);
   const entry={id:uid('tl'),game,liquidGame,text:tag.label,tagIds,countAs:[],subCounters,createdAt:new Date().toISOString()};
+  const entryCause=promptNangokuEntryCause(tag);
+  if(entryCause)Object.assign(entry,{intervalEvent:'machine-entry',...entryCause,text:`${tag.label}（契機：${entryCause.entryCauseLabel}）`});
   currentTimeline.push(entry);
   addSuggestLogsFromTimelineTagLinks(tagIds,entry);
   recentTimelineHighlightId=entry.id;
@@ -7099,6 +7305,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
     expectedValue:normalizeExpectedValue(document.getElementById('expectedValueInput')?.value||currentExpectedValue),
     suikaOffset:currentTimelineSuikaOffset,
     manualCorrection:currentTimelineManualCorrection,
+    intervalEstimate:normalizeIntervalEstimate(currentIntervalEstimate),
     subCounters:normalizeSubCounters(currentSubCounters),
     startLog:clone(sortedStartLog()),
     timeline:clone(sortedTimeline()),
@@ -7119,8 +7326,10 @@ function currentInputLogObject(finalized=false, existingLog=null){
 function draftHasContent(log){
   if(!log)return false;
   const money=log.money||{};
+  const interval=normalizeIntervalEstimate(log.intervalEstimate);
   return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||normalizeExpectedValue(log.expectedValue)!==null||
     (normalizeOptionalNumber(log.suikaOffset)??0)!==0||(normalizeOptionalNumber(log.manualCorrection)??0)!==0||Object.keys(normalizeSubCounters(log.subCounters)).length>0||
+    interval.initialDiff!==null||interval.loanRate!==DEFAULT_LOAN_RATE||interval.certainty==='reset'||interval.certainty==='estimated'||
     (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.segments||[]).length>0||endingCardsTotal(log.endingCards)>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
     !!money.store||!!money.machineNo||!!money.endTime||normalizeOptionalNumber(money.startMedals)!==null||normalizeOptionalNumber(money.endMedals)!==null||!!money.cashIn||
     !!log.publicMemo||!!log.privateMemo||!!continuedFromLog;
@@ -7434,6 +7643,7 @@ function loadDraftIntoInputs(log){
     currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
     currentTimeline=clone(log.timeline||[]);
     currentSubCounters=normalizeSubCounters(log.subCounters);
+    currentIntervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
     applyStoredTimelineOffsets(log);
     currentTimelineDataGame=latestTimelineCounterState(log).dataGame;
     currentEndLog=clone(log.endLog||null);
@@ -7498,6 +7708,7 @@ function loadLogForEdit(id){
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
   currentTimeline=clone(log.timeline||[]);
   currentSubCounters=normalizeSubCounters(log.subCounters);
+  currentIntervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
   applyStoredTimelineOffsets(log);
   currentTimelineDataGame=latestTimelineCounterState(log).dataGame;
   currentEndLog=clone(log.endLog||null);
@@ -7553,6 +7764,7 @@ function continueFromLog(id,skipConfirm=false){
   currentStartLog=[];
   currentTimeline=[];
   currentTimelineDataGame=0;
+  currentIntervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
   resetTimelineOffsets();
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
@@ -7856,8 +8068,8 @@ function organizedRowsForSegment(log,segment,index){
     const game=normalizeOptionalNumber(event.dataGame);
     const sortGame=isChain&&firstHitGame!==null?firstHitGame+(i/1000):game;
     const label=hitEventLabel(event,machineById(log.machineId));
-    const baseText=`${event.dataGame??'-'}G ${label}${payout!==null?` / +${payout}枚`:''}`;
-    const baseShortText=`${event.dataGame??'-'}G ${label.replace('当選','')}${payout!==null?` +${payout}枚`:''}`;
+    const baseText=`${event.dataGame??'-'}G ${label}${payout!==null?` / ${formatChainPayout(payout)}`:''}`;
+    const baseShortText=`${event.dataGame??'-'}G ${label.replace('当選','')}${payout!==null?` ${formatChainPayout(payout,true)}`:''}`;
     rows.push({category:'bonus',kind:'hit',eventId:event.id||'',game,sortGame,order:i,isChain,payout,baseText,baseShortText,text:`${isChain?'↳ 連 ':''}${baseText}`,shortText:`${isChain?'└連 ':''}${baseShortText}`,tone:organizedHitToneClass(log,segment,event),segment,log});
   });
   (segment.suggestLog||[]).forEach((entry,i)=>{
@@ -8230,7 +8442,7 @@ function drawOrganizedImageCard(aim){
   ctx.stroke();
   ctx.fillStyle='#f3df99';
   ctx.font='800 32px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-  ctx.fillText(`合計獲得 ${totalPayout}枚`,48,footerY+22);
+  ctx.fillText(`連チャン獲得合計 ${totalPayout}枚`,48,footerY+22);
   ctx.fillStyle='rgba(245,231,184,.64)';
   ctx.font='700 26px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
   const site='slot-tools.jp';
