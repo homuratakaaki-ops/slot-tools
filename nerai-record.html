@@ -152,6 +152,12 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .organized-view-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding-right:2px;}
 .organized-view-footer{flex:0 0 auto;border-top:1px solid rgba(201,168,76,.2);padding-top:10px;margin-top:10px;background:var(--surface);}
 .organized-view-footer .btn-copy:first-child{margin-top:0;}
+.organized-operation-area{border:1px solid rgba(201,168,76,.18);border-radius:8px;background:rgba(255,255,255,.025);padding:10px;margin-bottom:12px;}
+.organized-action-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;}
+.organized-copy-text{min-height:82px;max-height:180px;}
+.organized-copy-text:focus{min-height:150px;}
+.organized-setting-summary{margin:8px 0;}
+.organized-setting-summary summary{cursor:pointer;color:var(--gold-light);font-size:13px;font-weight:900;}
 .organized-filter-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0;}
 .organized-chip{border:1px solid var(--border);border-radius:999px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer;}
 .organized-chip.active{border-color:var(--gold);background:rgba(201,168,76,.14);color:var(--gold-light);}
@@ -722,20 +728,24 @@ footer a:hover{color:var(--gold-light);}
       <button class="btn-small" onclick="closeOrganizedView()">閉じる</button>
     </div>
     <div class="organized-view-body">
-      <div class="input-hint" id="organizedViewMeta"></div>
-      <div class="organized-filter-row" id="organizedFilterRow"></div>
-      <div id="organizedSubFilterRow"></div>
-      <div id="organizedViewRows"></div>
-      <div class="organized-copy-tabs">
-        <button class="btn-small active" id="organizedCopyDetailButton" onclick="setOrganizedCopyMode('detail')">詳細版</button>
-        <button class="btn-small" id="organizedCopyShortButton" onclick="setOrganizedCopyMode('short')">短縮版</button>
+      <div class="organized-operation-area">
+        <div class="input-hint" id="organizedViewMeta"></div>
+        <div class="organized-filter-row" id="organizedFilterRow"></div>
+        <div id="organizedSubFilterRow"></div>
+        <div id="organizedSettingSummaryPanel"></div>
+        <div class="organized-copy-tabs">
+          <button class="btn-small active" id="organizedCopyDetailButton" onclick="setOrganizedCopyMode('detail')">詳細版</button>
+          <button class="btn-small" id="organizedCopyShortButton" onclick="setOrganizedCopyMode('short')">短縮版</button>
+        </div>
+        <textarea id="organizedCopyText" class="organized-copy-text"></textarea>
+        <div class="organized-action-row">
+          <button class="btn-copy" onclick="copyText(document.getElementById('organizedCopyText')?.value||'','organizedCopied')">この内容をコピー</button>
+          <button class="btn-copy" onclick="saveOrganizedImage()">画像で保存</button>
+          <button class="btn-secondary" id="organizedEditButton" onclick="editOrganizedLog()" style="display:none;">このログを編集</button>
+        </div>
+        <div class="copy-done" id="organizedCopied">コピーしました</div>
       </div>
-      <textarea id="organizedCopyText" style="min-height:150px;"></textarea>
-    </div>
-    <div class="organized-view-footer">
-      <button class="btn-copy" onclick="copyText(document.getElementById('organizedCopyText')?.value||'','organizedCopied')">この内容をコピー</button>
-      <button class="btn-copy" onclick="saveOrganizedImage()">画像で保存</button>
-      <div class="copy-done" id="organizedCopied">コピーしました</div>
+      <div id="organizedViewRows"></div>
     </div>
   </div>
 </div>
@@ -8235,6 +8245,15 @@ function organizedFilteredData(aim,filters=loadOrganizedFilters()){
 function organizedSettingSummaryRows(aim){
   return settingSummaryRows(organizedMachineForAim(aim),(aim?.logs||[]).flatMap(settingSummaryEntriesFromLog));
 }
+function organizedSettingSummaryPanelHtml(aim){
+  const rows=organizedSettingSummaryRows(aim);
+  if(!rows.length)return '';
+  const total=rows[0]?.total||0;
+  return `<details class="setting-ratio-box organized-setting-summary">
+    <summary>設定示唆まとめ（${total}件）</summary>
+    ${rows.map(row=>`<div class="setting-ratio-row">${escapeHtml(settingSummaryLine(row))}</div>`).join('')}
+  </details>`;
+}
 function organizedFlatRows(groups){
   const rows=[];
   groups.forEach((group,groupIndex)=>{
@@ -8334,12 +8353,11 @@ function organizedRowsHtml(aim){
   const allGroups=organizedViewData(aim);
   const journeyMap=(filters.bonus&&filters.mode)?organizedJourneySummaryMap(aim,allGroups):new WeakMap();
   const groups=allGroups.map(group=>({...group,rows:group.rows.filter(row=>filters[row.category])})).filter(group=>group.rows.length);
-  const summary=renderSettingSummaryBlock(organizedSettingSummaryRows(aim));
   const rowsHtml=groups.length?groups.map(group=>`
     <div class="organized-segment-label">― ${escapeHtml(`${aim.aimNumber}-${group.branch}`)} ―</div>
     ${group.rows.map(row=>`<div class="organized-row ${row.indent?'indent':''} ${escapeHtml(row.extraClass||'')} ${escapeHtml(row.tone||'')}">${row.html||escapeHtml(row.text)}</div>${organizedJourneyHtml(journeyMap.get(row))}`).join('')}
   `).join(''):'<div class="empty-hint">該当なし</div>';
-  return `${rowsHtml}${summary}`;
+  return rowsHtml;
 }
 function organizedDetailText(aim){
   const groups=organizedFilteredData(aim,loadOrganizedFilters());
@@ -8540,6 +8558,13 @@ function renderOrganizedSubFilters(aim){
   if(!filters.mode||!normalizedChainRule(organizedMachineForAim(aim)))return '';
   return `<label class="organized-subtoggle"><input type="checkbox" ${organizedShowChainModeHints()?'checked':''} onchange="toggleOrganizedChainModeHints(this.checked)">連チャン中の当選時示唆も表示</label>`;
 }
+function organizedEditableLog(aim){
+  const logs=[...new Map((aim?.logs||[]).map(log=>[log.id,log])).values()];
+  if(logs.length!==1)return null;
+  const log=logs[0];
+  if(log.state4Registered===true||log.status==='settled')return null;
+  return log;
+}
 function renderOrganizedView(){
   const aim=organizedAimFromState();
   if(!aim)return;
@@ -8548,11 +8573,15 @@ function renderOrganizedView(){
   const meta=document.getElementById('organizedViewMeta');
   const filterRow=document.getElementById('organizedFilterRow');
   const subFilterRow=document.getElementById('organizedSubFilterRow');
+  const settingPanel=document.getElementById('organizedSettingSummaryPanel');
+  const editButton=document.getElementById('organizedEditButton');
   const rows=document.getElementById('organizedViewRows');
   if(title)title.textContent='整理ビュー';
   if(meta)meta.textContent=`${machine?.name||aim.logs[0]?.machineName||''} / 狙い${aim.aimNumber}`;
   if(filterRow)filterRow.innerHTML=renderOrganizedFilterChips();
   if(subFilterRow)subFilterRow.innerHTML=renderOrganizedSubFilters(aim);
+  if(settingPanel)settingPanel.innerHTML=organizedSettingSummaryPanelHtml(aim);
+  if(editButton)editButton.style.display=organizedEditableLog(aim)?'inline-flex':'none';
   if(rows)rows.innerHTML=organizedRowsHtml(aim);
   updateOrganizedCopyText();
 }
@@ -8586,6 +8615,13 @@ function toggleOrganizedJourney(button){
   const open=!box.classList.contains('open');
   box.classList.toggle('open',open);
   button.textContent=button.textContent.replace(open?'▶':'▼',open?'▼':'▶');
+}
+function editOrganizedLog(){
+  const aim=organizedAimFromState();
+  const log=organizedEditableLog(aim);
+  if(!log){alert('この整理ビューから直接編集できるログがありません。収支登録済み、または複数ログをまたぐ狙いです。');return;}
+  closeOrganizedView();
+  loadLogForEdit(log.id);
 }
 function openOrganizedView(sessionId,aimNumber){
   organizedViewState={sessionId,aimNumber:Number(aimNumber),copyMode:'detail'};
