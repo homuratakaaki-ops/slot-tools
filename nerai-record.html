@@ -824,7 +824,7 @@ let organizedViewState={sessionId:'',aimNumber:null,copyMode:'detail'};
 let organizedViewScrollLock=null;
 let recentTimelineHighlightId='';
 let recentSuggestHighlightId='';
-let lastInstantTimelineTag={id:'',at:0};
+let instantToastState={id:'',count:0,lastAt:0};
 let modeSummaryOpen=false;
 let settingSummaryOpen=false;
 let suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:''};
@@ -6364,9 +6364,9 @@ function showSmallToast(message){
     toast.id='smallToast';
     toast.style.position='fixed';
     toast.style.left='50%';
-    toast.style.bottom='18px';
+    toast.style.top='72px';
     toast.style.transform='translateX(-50%)';
-    toast.style.zIndex='10000';
+    toast.style.zIndex='12000';
     toast.style.background='rgba(20,20,24,.94)';
     toast.style.border='1px solid rgba(201,168,76,.55)';
     toast.style.borderRadius='999px';
@@ -6382,7 +6382,18 @@ function showSmallToast(message){
   toast.textContent=message;
   toast.style.opacity='1';
   clearTimeout(toast._timer);
-  toast._timer=setTimeout(()=>{toast.style.opacity='0';},1000);
+  toast._timer=setTimeout(()=>{toast.style.opacity='0';},2000);
+}
+function showInstantLogToast(tag,gameText){
+  const now=Date.now();
+  if(instantToastState.id===tag.id&&now-instantToastState.lastAt<2000){
+    instantToastState.count+=1;
+  }else{
+    instantToastState={id:tag.id,count:1,lastAt:now};
+  }
+  instantToastState.lastAt=now;
+  const countText=instantToastState.count>1?` ×${instantToastState.count}`:'';
+  showSmallToast(`${tag.label}記録${countText}（${gameText}）`);
 }
 function flashTagButton(id){
   document.querySelectorAll(`[data-tag-id="${escapeHtml(id)}"]`).forEach(button=>{
@@ -6412,13 +6423,10 @@ function promptNangokuEntryCause(tag){
   return {entryType:type,entryCause:selected.key,entryCauseLabel:selected.label};
 }
 function addInstantTimelineTag(tag){
-  const now=Date.now();
-  if(lastInstantTimelineTag.id===tag.id&&now-lastInstantTimelineTag.at<300)return;
   const game=timelineDataValue();
   const liquidGame=timelineLiquidValue()??game;
   if(game===null){alert('G数を入力してください');return;}
   if(liquidGame===null){alert('液晶G数を入力してください');return;}
-  lastInstantTimelineTag={id:tag.id,at:now};
   const tagIds=[tag.id];
   const subCounters=applySubCounterDeltasForTimeline(tagIds);
   const entry={id:uid('tl'),game,liquidGame,text:tag.label,tagIds,countAs:[],subCounters,createdAt:new Date().toISOString()};
@@ -6437,7 +6445,7 @@ function addInstantTimelineTag(tag){
   renderPracticeStats();
   saveDraftImmediately();
   flashTagButton(tag.id);
-  showSmallToast(`${tag.label}記録（${instantLogToastGameText(game,liquidGame)}）`);
+  showInstantLogToast(tag,instantLogToastGameText(game,liquidGame));
 }
 function appendTimelineTagById(id){
   const tag=currentMachine()?.tags?.find(t=>t.id===id);
