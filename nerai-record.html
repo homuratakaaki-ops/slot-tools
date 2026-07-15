@@ -2442,8 +2442,25 @@ function ensureNangokuSpecialSeed(machine){
     }
     machine.nangokuChainTriggerItemV1=true;
   };
+  const applyNangokuTriggerChoiceItems=()=>{
+    if(machine.nangokuTriggerChoiceItemsV1)return;
+    const place=(machine.suggestMaster||[]).flatMap(category=>category.places||[]).find(row=>row.id==='sgp_nangoku_trigger');
+    if(place){
+      place.items=Array.isArray(place.items)?place.items:[];
+      [
+        {id:'sgp_nangoku_trigger_replay',label:'リプレイ（プリリプ込み）'},
+        {id:'sgp_nangoku_trigger_unknown',label:'謎当たり（契機不明）'}
+      ].forEach(row=>{
+        if(!place.items.some(item=>item.id===row.id||item.label===row.label)){
+          place.items.push({id:row.id,label:row.label,enabled:true,carryType:null});
+        }
+      });
+    }
+    machine.nangokuTriggerChoiceItemsV1=true;
+  };
   if(machine.suggestSeedNangokuSpecialV2){
     applyNangokuChainTriggerItem();
+    applyNangokuTriggerChoiceItems();
     applyNangokuKoyakuTags();
     return;
   }
@@ -2523,7 +2540,9 @@ function ensureNangokuSpecialSeed(machine){
           item('スイカ7回目で当選（同上）'),
           item('スイカ9回目で当選（濃厚枠）'),
           item('その他の回数で当選（設定4以上の期待度アップ）','setting'),
-          item('天井到達で当選（799/500/200G・モード依存）')
+          item('天井到達で当選（799/500/200G・モード依存）'),
+          item('リプレイ（プリリプ込み）'),
+          item('謎当たり（契機不明）')
         ],'hit'),
         place('sgp_nangoku_bonus_type','ボーナス種別',[
           item('青7BIG（初当りの0.1%・超飛翔中なら青波モードへ）')
@@ -2535,6 +2554,7 @@ function ensureNangokuSpecialSeed(machine){
   applyNangokuKoyakuTags();
   mergeSuggestSeed(machine,seed);
   applyNangokuChainTriggerItem();
+  applyNangokuTriggerChoiceItems();
   applySuggestMetadata(machine);
   machine.suggestSeedNangokuSpecialV1=true;
   machine.suggestSeedNangokuSpecialV2=true;
