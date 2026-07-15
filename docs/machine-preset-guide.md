@@ -14,6 +14,7 @@
 | chainRule | machine.chainRule | G数ベースの連チャン自動判定 | {maxGap:42, enterLabel:'飛翔モード突入', unitLabel:'連'} |
 | intervalEstimate | log.intervalEstimate + timeline.intervalEvent | 有利区間差枚の推定。初期差枚・貸出レート・投資/クレジット記録から表示時点の推定差枚を残す | クレジット収支ベースの推定区間差枚 |
 | subCounter | machine.subCounter | 機種固有カウンター（resetOn:'hit'で当選リセット） | スイカ回数 |
+| counters | machine.counters[] | 汎用カウンター定義。counterLabel/countTagIds/resetTagIds/historyEnabled を持つ。今回のUIは1本分のみ表示 | 南国のスイカ規定回数 |
 | subCounterDelta | tags[].subCounterDelta | タグ押下でカウンター自動加算 | スイカタグ→+1 |
 | suggestLink | tags[].suggestLink | クイックタグ→示唆記録の自動連動 | さざなみ赤タグ→さざなみ前兆:赤 |
 | tag size | tags[].size | タグの押下面積を調整する表示属性。入力頻度が高いタグだけ大きくする | リプレイ=size:'large' |
