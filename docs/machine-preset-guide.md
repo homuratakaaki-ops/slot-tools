@@ -16,6 +16,7 @@
 | subCounter | machine.subCounter | 機種固有カウンター（resetOn:'hit'で当選リセット） | スイカ回数 |
 | subCounterDelta | tags[].subCounterDelta | タグ押下でカウンター自動加算 | スイカタグ→+1 |
 | suggestLink | tags[].suggestLink | クイックタグ→示唆記録の自動連動 | さざなみ赤タグ→さざなみ前兆:赤 |
+| tag size | tags[].size | タグの押下面積を調整する表示属性。入力頻度が高いタグだけ大きくする | リプレイ=size:'large' |
 | entryCause | timeline.entryCause | 突入タグに契機を持たせ、後で契機別件数を拾えるようにする | SDC/超飛翔突入の契機（ときめき32G目等） |
 | carryType | suggestMaster items | 示唆の分類（mode/setting）。まとめ集計・バッジ・引き継ぎの基準 | リール発光=mode、ボイス=setting |
 | summaryDefault | suggestMaster items | 「情報なし」項目を集計の表示・分母から除外 | ボイスなし、リール発光変化なし |

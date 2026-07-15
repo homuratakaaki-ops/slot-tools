@@ -105,6 +105,10 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .field-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;margin-bottom:8px;}
 .field-card.optional{border-style:dashed;}
 .tag-buttons{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;}
+.tag-group-grid .tag-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
+.tag-group-grid .tag-btn{width:100%;}
+.tag-btn.tag-size-large{grid-column:span 2;min-height:54px;border-radius:14px;font-size:15px;font-weight:900;}
+.pending-delete-actions{padding:0 10px 10px;justify-content:flex-end;}
 .tag-btn{background:var(--surface2);border:1px solid var(--border);border-radius:20px;color:var(--text-muted);font-size:12px;padding:6px 10px;cursor:pointer;}
 .tag-btn.gold{border-color:rgba(201,168,76,.65);color:var(--gold-light);background:rgba(201,168,76,.08);}
 .tag-btn:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
@@ -886,6 +890,9 @@ function normalizeTagClass(value){
   const text=String(value||'').trim();
   return /^[a-z0-9-]+$/.test(text)?text:'';
 }
+function normalizeTagSize(value){
+  return String(value||'').trim()==='large'?'large':'';
+}
 function normalizeSuggestStateGroup(value){
   const text=String(value||'').trim();
   return SUGGEST_STATE_GROUPS.some(group=>group.id===text)?text:'';
@@ -1325,6 +1332,7 @@ function normalizeData(data){
       t.subCounterDelta=normalizeOptionalNumber(t.subCounterDelta);
       t.suggestLink=normalizeTagSuggestLink(t.suggestLink);
       t.tagClass=normalizeTagClass(t.tagClass);
+      t.size=normalizeTagSize(t.size);
       t.instantLog=!!t.instantLog;
     });
     m.startTags.forEach(t=>{t.optional=!!t.optional;});
@@ -1620,6 +1628,7 @@ function mergeTimelineTagSeed(machine,tags){
       tag.liquidDelta=normalizeOptionalNumber(seedTag.liquidDelta);
       tag.liquidSet=normalizeOptionalNumber(seedTag.liquidSet);
       tag.tagClass=normalizeTagClass(seedTag.tagClass)||normalizeTagClass(tag.tagClass);
+      tag.size=normalizeTagSize(seedTag.size)||normalizeTagSize(tag.size);
       tag.group=seedTag.group||tag.group||'';
       tag.collapsible=!!seedTag.collapsible;
       tag.defaultOpen=seedTag.defaultOpen!==false;
@@ -1627,7 +1636,7 @@ function mergeTimelineTagSeed(machine,tags){
       tag.suggestLink=normalizeTagSuggestLink(seedTag.suggestLink)||normalizeTagSuggestLink(tag.suggestLink);
       tag.instantLog=!!seedTag.instantLog||!!tag.instantLog;
     }else{
-      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass),group:seedTag.group||'',collapsible:!!seedTag.collapsible,defaultOpen:seedTag.defaultOpen!==false,subCounterDelta:normalizeOptionalNumber(seedTag.subCounterDelta),suggestLink:normalizeTagSuggestLink(seedTag.suggestLink),instantLog:!!seedTag.instantLog});
+      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass),size:normalizeTagSize(seedTag.size),group:seedTag.group||'',collapsible:!!seedTag.collapsible,defaultOpen:seedTag.defaultOpen!==false,subCounterDelta:normalizeOptionalNumber(seedTag.subCounterDelta),suggestLink:normalizeTagSuggestLink(seedTag.suggestLink),instantLog:!!seedTag.instantLog});
     }
   });
   const seen=new Set();
@@ -2396,6 +2405,16 @@ function ensureNangokuSpecialSeed(machine){
     });
     machine.nangokuKoyakuTagsV1=true;
   };
+  const applyNangokuTagLayout=()=>{
+    if(machine.nangokuTagLayoutV1)return;
+    const group='小役・リプレイ';
+    const groupIds=new Set(['t_nangoku_cherry','t_nangoku_suika','t_nangoku_replay_flash','t_nangoku_replay','t_nangoku_puririp']);
+    machine.tags.forEach(tag=>{
+      if(groupIds.has(tag.id))tag.group=group;
+      if(tag.id==='t_nangoku_replay')tag.size='large';
+    });
+    machine.nangokuTagLayoutV1=true;
+  };
   const tagSuggestLinks={
     t_nangoku_sazanami_purple:{categoryId:'sgc_nangoku_play',placeId:'sgp_nangoku_sazanami',itemId:'sgp_nangoku_sazanami_i1'},
     t_nangoku_sazanami_red:{categoryId:'sgc_nangoku_play',placeId:'sgp_nangoku_sazanami',itemId:'sgp_nangoku_sazanami_i2'},
@@ -2462,6 +2481,7 @@ function ensureNangokuSpecialSeed(machine){
     applyNangokuChainTriggerItem();
     applyNangokuTriggerChoiceItems();
     applyNangokuKoyakuTags();
+    applyNangokuTagLayout();
     return;
   }
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
@@ -2552,6 +2572,7 @@ function ensureNangokuSpecialSeed(machine){
   ];
   mergeTimelineTagSeed(machine,timelineTags);
   applyNangokuKoyakuTags();
+  applyNangokuTagLayout();
   mergeSuggestSeed(machine,seed);
   applyNangokuChainTriggerItem();
   applyNangokuTriggerChoiceItems();
@@ -3844,13 +3865,23 @@ function renderTagGroup(title,tags,handler){
   }
   const open=!collapsible||!!timelineTagGroupOpen[title];
   const toggle=collapsible?`<button class="btn-small" type="button" onclick="toggleTimelineTagGroup('${escapeHtml(title)}')">${open?'閉じる':'開く'}</button>`:'';
-  return `<div class="tag-group"><div class="tag-group-title">${escapeHtml(displayTitle)}${toggle}</div>${open?`<div class="tag-buttons">${tags.map(t=>tagButtonHtml(t,handler)).join('')}</div>`:''}</div>`;
+  const gridClass=title==='小役・リプレイ'||tags.some(tag=>normalizeTagSize(tag?.size))?' tag-group-grid':'';
+  return `<div class="tag-group${gridClass}"><div class="tag-group-title">${escapeHtml(displayTitle)}${toggle}</div>${open?`<div class="tag-buttons">${tags.map(t=>tagButtonHtml(t,handler)).join('')}</div>`:''}</div>`;
 }
 function toggleTimelineTagGroup(groupName){
   timelineTagGroupOpen[groupName]=!timelineTagGroupOpen[groupName];
   renderLogFields();
 }
 function sortTimelineTagGroup(tags,groupName){
+  if(groupName==='小役・リプレイ'){
+    const order=['t_nangoku_replay','t_nangoku_cherry','t_nangoku_suika','t_nangoku_puririp','t_nangoku_replay_flash'];
+    const rank=new Map(order.map((id,i)=>[id,i]));
+    return tags.map((tag,i)=>({...tag,__order:i})).sort((a,b)=>{
+      const ai=rank.has(a.id)?rank.get(a.id):999+a.__order;
+      const bi=rank.has(b.id)?rank.get(b.id):999+b.__order;
+      return ai-bi;
+    }).map(({__order,...tag})=>tag);
+  }
   if(groupName!=='rare')return tags;
   const order=['弱チェリー','強チェリー','チャンス目','スイカ10','スイカ100','スイカMAX','赫眼リプレイ','喰図柄揃い','確定チェリー'];
   const rank=new Map(order.map((label,i)=>[label,i]));
@@ -3903,6 +3934,8 @@ function tagButtonClass(tag){
   const cls=['tag-btn'];
   const tagClass=normalizeTagClass(tag?.tagClass);
   if(tagClass)cls.push(`tag-style-${tagClass}`);
+  const size=normalizeTagSize(tag?.size);
+  if(size)cls.push(`tag-size-${size}`);
   return cls.join(' ');
 }
 function tagButtonHtml(tag,handler){
@@ -8654,10 +8687,19 @@ function renderAimGroupItem(session,aim){
         <span>${isOpen?'▼':'▶'} ${escapeHtml(aimGroupSummary(aim,session))} <span class="status-badge">${escapeHtml(status)}</span></span>
         <span class="carry-summary-count">${aim.logs.length}ログ</span>
       </button>
+      ${renderPendingLogDeleteActions(aim.logs)}
       <div class="carry-summary-body">
         ${isOpen?renderAimGroupDetail(aim):''}
       </div>
     </div>`;
+}
+function isPendingDeleteTarget(log){
+  return !!log&&(log.excludeFromStats===true||log.draftLog===true||log.finalized===false||log.state4Registered===false||log.status==='active'||log.status==='suspended');
+}
+function renderPendingLogDeleteActions(logs){
+  const rows=[...new Map((logs||[]).filter(isPendingDeleteTarget).map(log=>[log.id,log])).values()];
+  if(!rows.length)return '';
+  return `<div class="item-actions pending-delete-actions">${rows.map(log=>`<button class="btn-danger" onclick="deleteLog('${log.id}')">${rows.length>1?`保留削除: ${escapeHtml(logSummaryLine(log))}`:'このログを削除'}</button>`).join('')}</div>`;
 }
 function renderAimGroupDetail(aim){
   const firstLog=aim.logs?.[0]||{};
@@ -8752,6 +8794,7 @@ function renderLogItem(log,options={}){
         </button>
         <div class="item-actions">
           <button class="btn-small edit-strong" onclick="loadLogForEdit('${log.id}')">編集</button>
+          ${isPendingDeleteTarget(log)?`<button class="btn-danger" onclick="deleteLog('${log.id}')">このログを削除</button>`:''}
         </div>
       </div>
       ${isOpen?`
