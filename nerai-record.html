@@ -158,6 +158,13 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .organized-copy-text:focus{min-height:150px;}
 .organized-setting-summary{margin:8px 0;}
 .organized-setting-summary summary{cursor:pointer;color:var(--gold-light);font-size:13px;font-weight:900;}
+.shop-note-list{display:grid;gap:8px;margin-top:8px;}
+.shop-note-item{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:9px 10px;}
+.shop-note-item.resolved{opacity:.58;}
+.shop-note-item.resolved .shop-note-text{text-decoration:line-through;}
+.shop-note-meta{color:var(--text-muted);font-size:12px;font-weight:800;margin-bottom:4px;}
+.shop-note-text{font-size:13px;line-height:1.5;white-space:pre-wrap;}
+.unresolved-badge{display:inline-flex;align-items:center;border:1px solid rgba(201,168,76,.55);border-radius:999px;color:var(--gold-light);background:rgba(201,168,76,.12);font-size:11px;font-weight:900;padding:2px 7px;margin-left:6px;}
 .organized-filter-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0;}
 .organized-chip{border:1px solid var(--border);border-radius:999px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer;}
 .organized-chip.active{border-color:var(--gold);background:rgba(201,168,76,.14);color:var(--gold-light);}
@@ -750,6 +757,29 @@ footer a:hover{color:var(--gold-light);}
   </div>
 </div>
 
+<div class="keypad-overlay" id="shopNoteOverlay" onclick="closeShopNoteModal()">
+  <div class="keypad" onclick="event.stopPropagation()">
+    <div class="keypad-title">
+      <span id="shopNoteTitle">他台メモ</span>
+      <button class="btn-small" onclick="closeShopNoteModal()">閉じる</button>
+    </div>
+    <div class="input-hint" id="shopNoteStoreLabel"></div>
+    <input type="hidden" id="shopNoteId">
+    <div class="input-row">
+      <div class="input-label">台番号<div class="input-hint">任意</div></div>
+      <input type="text" id="shopNoteUnit" inputmode="numeric" placeholder="例：689">
+    </div>
+    <div class="input-row">
+      <div class="input-label">メモ</div>
+      <textarea id="shopNoteText" placeholder="例：通常B確定出た・飛翔まだ"></textarea>
+    </div>
+    <div class="suggest-picker-actions">
+      <button class="btn-primary" onclick="saveShopNoteFromModal()">保存</button>
+      <button class="btn-secondary" onclick="closeShopNoteModal()">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const STORAGE_KEY='nerai_record_v1';
 const ORGANIZED_FILTER_KEY='neraiOrganizedViewFilters';
@@ -801,7 +831,7 @@ const ENDING_CARD_GROUPS=[
   {id:'red_weak',name:'赤・高設定弱',hint:'高設定示唆:弱',tone:'red',cards:['金木研','霧嶋董香','ヤモリ','霧嶋絢都']},
   {id:'red_strong',name:'赤・高設定強',hint:'高設定示唆:強',tone:'red',cards:['鯱','亜門鋼太朗','篠原幸紀','鈴屋什造']}
 ];
-const EMPTY_DATA={version:1,machines:[],stores:[],logs:[]};
+const EMPTY_DATA={version:1,machines:[],stores:[],logs:[],shopNotes:[]};
 let db=loadData();
 let selectedMachineId=db.machines[0]?.id||'';
 let selectedAimId=firstAimIdForMachine(db.machines[0])||'';
@@ -1226,12 +1256,30 @@ function normalizeSuggestLogEntry(item){
   item.createdAt=item.createdAt||new Date().toISOString();
   return item;
 }
+function normalizeShopNote(note){
+  if(!note||typeof note!=='object')return null;
+  const text=String(note.text||'').trim();
+  const shopName=String(note.shopName||note.storeName||note.shopId||'').trim();
+  if(!text&&!shopName)return null;
+  const unit=String(note.unitNumber||'').replace(/[^\d]/g,'').trim();
+  return {
+    id:note.id||uid('sn'),
+    shopId:String(note.shopId||shopName||'').trim(),
+    shopName,
+    unitNumber:unit||null,
+    text,
+    createdAt:note.createdAt||new Date().toISOString(),
+    updatedAt:note.updatedAt||note.createdAt||new Date().toISOString(),
+    resolved:!!note.resolved
+  };
+}
 function normalizeData(data){
   data.machines=Array.isArray(data.machines)?data.machines:[];
   ensurePresetMachines(data);
   delete data.presetAims;
   data.stores=(Array.isArray(data.stores)?data.stores:[]).map(normalizeStore).filter(Boolean);
   data.logs=Array.isArray(data.logs)?data.logs:[];
+  data.shopNotes=(Array.isArray(data.shopNotes)?data.shopNotes:[]).map(normalizeShopNote).filter(Boolean);
   data.logs.forEach(log=>{
     log.startLog=Array.isArray(log.startLog)?log.startLog:[];
     log.startLog.forEach(item=>{item.label=item.label||'';item.labelTagId=item.labelTagId||'';});
@@ -3700,6 +3748,12 @@ function saveStoreFromManage(){
   if((lend!==null&&lend<=0)||(exchange!==null&&exchange<=0)){alert('貸し枚数・交換枚数は正の数値で入力してください');return;}
   if(editingStoreName&&editingStoreName!==name){
     db.logs.forEach(log=>{if(log.money?.store===editingStoreName)log.money.store=name;});
+    db.shopNotes.forEach(note=>{
+      if(note.shopName===editingStoreName||note.shopId===editingStoreName){
+        note.shopName=name;
+        note.shopId=name;
+      }
+    });
     db.stores=db.stores.map(normalizeStore).filter(s=>s&&s.name!==editingStoreName);
   }
   ensureStore(name,lend,exchange);
@@ -3788,13 +3842,21 @@ function syncHeaderFromMoney(){
   renderPracticeStats();
   renderCurrentContextBar();
 }
+function currentShopNoteStoreName(){
+  return String(document.getElementById('moneyStore')?.value||document.getElementById('startMoneyStore')?.value||'').trim();
+}
+function renderShopNoteButton(){
+  const store=currentShopNoteStoreName();
+  if(!store)return '';
+  return `<div class="log-tools"><button class="btn-secondary" onclick="openShopNoteModal()">他台メモ</button><span class="input-hint">${escapeHtml(store)}に記録</span></div>`;
+}
 function renderLogFields(){
   const aim=currentAim();
   const el=document.getElementById('dynamicFields');
   if(!aim){el.innerHTML='<div class="empty-hint">機種と狙い方を登録してください</div>';return;}
   const panels={
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
-    2:`<div class="card work-section-card play"><div class="work-section-title">実戦メモ</div>${renderFollowBranchControls()}${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
+    2:`<div class="card work-section-card play"><div class="work-section-title">実戦メモ</div>${renderShopNoteButton()}${renderFollowBranchControls()}${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
     3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div>`,
     4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div>${renderSegmentUndoNotice()}<div id="practiceStatsBox"></div></div>`
   };
@@ -6468,6 +6530,67 @@ function instantLogToastGameText(game,liquidGame,machine=currentMachine()){
   if(machineShowsLiquidCounter(machine)&&liquidGame!==null&&liquidGame!==undefined)return `液晶${liquidGame}G`;
   return `データ${game}G`;
 }
+function formatShopNoteDate(iso){
+  const d=new Date(iso);
+  if(Number.isNaN(d.getTime()))return todayValue();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+function formatShopNoteTime(iso){
+  const d=new Date(iso);
+  if(Number.isNaN(d.getTime()))return '--:--';
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function openShopNoteModal(id=''){
+  const note=id?db.shopNotes.find(row=>row.id===id):null;
+  const store=note?.shopName||currentShopNoteStoreName();
+  if(!store){alert('店舗が確定している稼働中のみ他台メモを記録できます。');return;}
+  document.getElementById('shopNoteId').value=note?.id||'';
+  document.getElementById('shopNoteUnit').value=note?.unitNumber||'';
+  document.getElementById('shopNoteText').value=note?.text||'';
+  document.getElementById('shopNoteTitle').textContent=note?'他台メモを編集':'他台メモ';
+  document.getElementById('shopNoteStoreLabel').textContent=`店舗：${store}`;
+  document.getElementById('shopNoteOverlay')?.classList.add('open');
+  setTimeout(()=>document.getElementById('shopNoteText')?.focus(),0);
+}
+function closeShopNoteModal(){
+  document.getElementById('shopNoteOverlay')?.classList.remove('open');
+}
+function saveShopNoteFromModal(){
+  const id=document.getElementById('shopNoteId')?.value||'';
+  const unit=String(document.getElementById('shopNoteUnit')?.value||'').replace(/[^\d]/g,'').trim()||null;
+  const text=String(document.getElementById('shopNoteText')?.value||'').trim();
+  const existing=id?db.shopNotes.find(row=>row.id===id):null;
+  const store=existing?.shopName||currentShopNoteStoreName();
+  if(!store){alert('店舗が確定していません。');return;}
+  if(!text){alert('メモを入力してください。');return;}
+  if(existing){
+    existing.unitNumber=unit;
+    existing.text=text;
+    existing.updatedAt=new Date().toISOString();
+  }else{
+    const createdAt=new Date().toISOString();
+    db.shopNotes.push(normalizeShopNote({id:uid('sn'),shopId:store,shopName:store,unitNumber:unit,text,createdAt,resolved:false}));
+    showSmallToast(`メモ記録（${formatShopNoteTime(createdAt)}）`);
+  }
+  db.shopNotes=db.shopNotes.map(normalizeShopNote).filter(Boolean);
+  persist();
+  closeShopNoteModal();
+  renderLogsList();
+}
+function toggleShopNoteResolved(id){
+  const note=db.shopNotes.find(row=>row.id===id);
+  if(!note)return;
+  note.resolved=!note.resolved;
+  note.updatedAt=new Date().toISOString();
+  persist();
+  renderLogsList();
+}
+function deleteShopNote(id){
+  if(!confirm('このメモを削除しますか？'))return;
+  db.shopNotes=db.shopNotes.filter(row=>row.id!==id);
+  persist();
+  renderLogsList();
+}
 function nangokuEntryTypeForTag(tag){
   if(tag?.id==='t_nangoku_sdc_start')return 'sdc';
   if(tag?.id==='t_nangoku_super_hisho_start')return 'super_hisho';
@@ -8787,7 +8910,8 @@ function renderSegmentHistoryItem(log,segment,index){
 }
 function renderLogsList(){
   const el=document.getElementById('logsList');
-  if(!db.logs.length){el.innerHTML='<div class="empty-hint">まだログなし</div>';return;}
+  const notes=Array.isArray(db.shopNotes)?db.shopNotes:[];
+  if(!db.logs.length&&!notes.length){el.innerHTML='<div class="empty-hint">まだログなし</div>';return;}
   const logs=[...db.logs].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   const groups={};
   logs.forEach(log=>{
@@ -8795,7 +8919,13 @@ function renderLogsList(){
     if(!groups[date])groups[date]=[];
     groups[date].push(log);
   });
-  const dates=Object.keys(groups).sort((a,b)=>{
+  const noteGroups={};
+  notes.forEach(note=>{
+    const date=formatShopNoteDate(note.createdAt);
+    if(!noteGroups[date])noteGroups[date]=[];
+    noteGroups[date].push(note);
+  });
+  const dates=[...new Set([...Object.keys(groups),...Object.keys(noteGroups)])].sort((a,b)=>{
     if(a==='日付なし')return 1;
     if(b==='日付なし')return -1;
     return String(b).localeCompare(String(a));
@@ -8803,13 +8933,37 @@ function renderLogsList(){
   el.innerHTML=dates.map(date=>`
     <button class="log-day-header" onclick="toggleLogDateGroup('${encodeURIComponent(date)}')">
       <span class="log-day-title">${isLogDateGroupOpen(date)?'▼':'▶'} ${escapeHtml(date)}</span>
-      <span class="log-day-count">${groups[date].length}件${escapeHtml(logDateExpectedValueLabel(groups[date]))}</span>
+      <span class="log-day-count">${(groups[date]||[]).length}件${escapeHtml(logDateExpectedValueLabel(groups[date]||[]))}${shopNoteUnresolvedBadge(noteGroups[date]||[])}</span>
     </button>
-    ${isLogDateGroupOpen(date)?renderLogDateGroup(groups[date]):''}`).join('');
+    ${isLogDateGroupOpen(date)?renderLogDateGroup(groups[date]||[],noteGroups[date]||[]):''}`).join('');
 }
-function renderLogDateGroup(logs){
+function shopNoteUnresolvedBadge(notes){
+  const count=(notes||[]).filter(note=>!note.resolved).length;
+  return count?` <span class="unresolved-badge">メモ${count}</span>`:'';
+}
+function renderLogDateGroup(logs,notes=[]){
   const {sessionItems,legacy}=buildSessionGroups(logs);
-  return `${sessionItems.map(renderSessionItem).join('')}${legacy.map(log=>renderLogItem(log,{legacy:true})).join('')}`;
+  const logHtml=logs.length?`<div class="section-label" style="margin-top:4px;">稼働履歴</div>${sessionItems.map(renderSessionItem).join('')}${legacy.map(log=>renderLogItem(log,{legacy:true})).join('')}`:'';
+  const noteHtml=renderShopNotesForDate(notes);
+  return `${logHtml}${noteHtml}`;
+}
+function renderShopNotesForDate(notes=[]){
+  if(!notes.length)return '';
+  const rows=[...notes].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
+  return `
+    <div class="section-label" style="margin-top:12px;">メモ</div>
+    <div class="shop-note-list">
+      ${rows.map(note=>`
+        <div class="shop-note-item ${note.resolved?'resolved':''}">
+          <div class="shop-note-meta">${escapeHtml(formatShopNoteTime(note.createdAt))} ／ ${note.unitNumber?`台${escapeHtml(note.unitNumber)} ／ `:''}${escapeHtml(note.shopName||'店舗未選択')}</div>
+          <div class="shop-note-text">${escapeHtml(note.text)}</div>
+          <div class="item-actions" style="margin-top:8px;">
+            <label class="btn-small" style="cursor:pointer;"><input type="checkbox" ${note.resolved?'checked':''} onchange="toggleShopNoteResolved('${note.id}')"> 解決済み</label>
+            <button class="btn-small edit-strong" onclick="openShopNoteModal('${note.id}')">編集</button>
+            <button class="btn-danger" onclick="deleteShopNote('${note.id}')">削除</button>
+          </div>
+        </div>`).join('')}
+    </div>`;
 }
 function logDateExpectedValueLabel(logs){
   const {sessionItems}=buildSessionGroups(logs);
