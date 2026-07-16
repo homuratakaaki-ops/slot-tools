@@ -210,6 +210,11 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .outcome-tabs{display:flex;gap:0;border-bottom:1px solid rgba(122,122,138,.35);margin:8px 0 10px;}
 .outcome-tab{flex:1;background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;color:var(--text-muted);font-size:13px;font-weight:800;padding:9px 6px;cursor:pointer;}
 .outcome-tab.primary{color:var(--gold-light);border-bottom-color:var(--gold);}
+.quick-action-panel{margin:10px 0 12px;}
+.quick-action-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;}
+.quick-action-btn{min-height:56px;border:1px solid rgba(201,168,76,.48);border-radius:14px;background:rgba(201,168,76,.1);color:var(--gold-light);font-size:15px;font-weight:900;cursor:pointer;}
+.quick-action-btn:active{filter:brightness(1.08);}
+.quick-action-grid .tag-btn{grid-column:auto;min-height:56px;border-radius:14px;font-size:15px;font-weight:900;padding:10px 8px;}
 .work-subsection.end{border-color:rgba(224,112,112,.36);background:rgba(224,112,112,.07);}
 .work-subsection.end .work-section-title{margin:0 0 10px;background:rgba(224,112,112,.13);border-color:rgba(224,112,112,.3);color:#ffb3b3;}
 .work-subsection.end .work-section-title::before{background:#e07070;}
@@ -2454,6 +2459,8 @@ function ensureNangokuSpecialSeed(machine){
     resetOn:'hit'
   }];
   machine.chainRule={maxGap:42,enterLabel:'飛翔モード突入',unitLabel:'連'};
+  machine.quickTagIds=['t_nangoku_replay','t_nangoku_cherry','t_nangoku_suika'];
+  machine.liquidOffsetPreset=9;
   machine.hitTriggers=normalizeHitTriggers([
     {key:'direct_at',label:'BIG当選',color:'red',variants:[{key:'blue7',label:'青7',color:'blue'}]},
     {key:'episode_bonus',label:'REG当選',color:'light-blue'}
@@ -3963,8 +3970,10 @@ function renderFieldInput(f){
 }
 function renderTagButtons(target){
   const tags=target==='start'?(currentMachine()?.startTags||[]):(currentMachine()?.tags||[]);
-  const mainTags=tags.filter(t=>!t.optional);
-  const optionalTags=tags.filter(t=>t.optional);
+  const hiddenIds=target==='timeline'?quickTagIdSet(currentMachine()):new Set();
+  const visibleTags=tags.filter(t=>!hiddenIds.has(t.id));
+  const mainTags=visibleTags.filter(t=>!t.optional);
+  const optionalTags=visibleTags.filter(t=>t.optional);
   const handler=target==='start'?'appendStartTagById':'appendTimelineTagById';
   if(target==='timeline')return renderTimelineTagGroups(mainTags,optionalTags,handler,target);
   return `
@@ -5125,6 +5134,7 @@ function deleteSuggestLogEntry(id){
 function renderGamePairInputs(prefix){
   const showLiquidCounter=machineShowsLiquidCounter();
   const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
+  const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
   const dataId=prefix==='suggest'?'suggestTimelineGame':'timelineGame';
   const liquidId=prefix==='suggest'?'suggestTimelineLiquidGame':'timelineLiquidGame';
   const dataLabel=prefix==='suggest'?'示唆時データG数':'データG数';
@@ -5153,6 +5163,7 @@ function renderGamePairInputs(prefix){
           <label for="timelineLiquidOffset">液晶差分</label>
           <input type="text" id="timelineLiquidOffset" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(timelineLiquidOffset())}" placeholder="0" oninput="syncTimelineLiquidOffset()" onchange="syncTimelineLiquidOffset()">
         </div>
+        ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:''}
       </div>`:''}`;
 }
 function renderOutcomeQuickButtons(){
@@ -5160,6 +5171,29 @@ function renderOutcomeQuickButtons(){
     <div class="outcome-tabs">
       <button class="outcome-tab primary" onclick="setTimelineOutcome('当選')">当選</button>
       <button class="outcome-tab" onclick="setTimelineOutcome('ヤメ')">ヤメ</button>
+    </div>`;
+}
+function quickTagIdsForMachine(machine=currentMachine()){
+  return Array.isArray(machine?.quickTagIds)?machine.quickTagIds.filter(Boolean):[];
+}
+function quickTagIdSet(machine=currentMachine()){
+  return new Set(quickTagIdsForMachine(machine));
+}
+function machineUsesQuickActions(machine=currentMachine()){
+  return quickTagIdsForMachine(machine).length>0;
+}
+function renderTimelineQuickActions(){
+  const machine=currentMachine();
+  const quickTags=quickTagIdsForMachine(machine).map(id=>machine?.tags?.find(tag=>tag.id===id)).filter(Boolean);
+  if(!quickTags.length)return '';
+  return `
+    <div class="quick-action-panel">
+      <div class="quick-action-grid">
+        <button class="quick-action-btn" type="button" onclick="incrementTimelineGame(1)">+1</button>
+        <button class="quick-action-btn" type="button" onclick="incrementTimelineGame(5)">+5</button>
+        <button class="quick-action-btn" type="button" onclick="incrementTimelineGame(10)">+10</button>
+        ${quickTags.map(tag=>tagButtonHtml(tag,'appendTimelineTagById')).join('')}
+      </div>
     </div>`;
 }
 function subCounterValue(key){
@@ -5642,17 +5676,18 @@ function renderTimelineArea(mode='play'){
     `;
   return `
     ${renderOutcomeQuickButtons()}
+    ${renderTimelineQuickActions()}
     ${renderHitTriggerButtons()}
     <div class="work-subsection play-group"><div class="section-label" style="margin-top:0;">当選イベント</div>${renderHitEventsList()}</div>
     <div class="work-subsection play-group">
       <div class="section-label" style="margin-top:0;">カウンター操作</div>
       ${renderGamePairInputs('timeline')}
       ${renderSubCounterControls()}
-      <div class="log-tools">
+      ${!machineUsesQuickActions()?`<div class="log-tools">
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(1)">+1</button>
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(5)">+5</button>
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(10)">+10</button>
-      </div>
+      </div>`:''}
     </div>
     <div class="work-subsection play-group">
       <div class="section-label" style="margin-top:0;">レア役・ステージ・メモ</div>
@@ -6923,6 +6958,13 @@ function syncTimelineLiquidOffset(){
   }
   setTimelineOffsetPreservingData(offset);
   scheduleDraftSave();
+}
+function setTimelineLiquidOffsetPreset(value){
+  const preset=normalizeOptionalNumber(value);
+  if(preset===null)return;
+  const source=document.getElementById('timelineLiquidOffset');
+  if(source)source.value=String(preset);
+  syncTimelineLiquidOffset();
 }
 function incrementTimelineGame(delta){
   const current=currentTimelineDataGame??timelineDataValue()??0;
