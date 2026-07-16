@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>モード推測ツールの使い方</title>
+<meta name="description" content="L南国育ち SPECIALのモード推測ツールの使い方、各モードの天井、計算の前提と限界、出典と更新方針を解説します。">
+<link rel="canonical" href="https://slot-tools.jp/guide/mode-estimator.html">
+<style>
+  :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#7a7a8a;--text-dim:#4a4a5a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px}
+  .container{max-width:480px;margin:0 auto;padding:20px 16px 0}
+  .section{margin-top:22px}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0}
+  li{margin-bottom:8px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:8px}
+  th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:left;vertical-align:top;word-break:break-word}
+  th{color:var(--text-muted)}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none}
+  a{color:var(--gold)}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
+  footer a{color:var(--text-muted);text-decoration:none}
+</style>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+<header>
+  <a class="top-link" href="../index.html">← TOP</a>
+  <h1>モード推測ツールの使い方</h1>
+  <p>L南国育ち SPECIALのモード推定を読むための実戦補助ガイド</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>ツールの目的</h2>
+    <p>このツールは、L南国育ち SPECIALの「起点」「初当たりG数」「飛翔突入の有無」から、当選時点の滞在モード割合と次回を見るときの注意点を整理するものです。</p>
+    <p>数値は確定演出ではありません。解析で公開されている初期振り分けと天井情報をもとに、実戦判断の材料として見やすく並べています。</p>
+  </section>
+
+  <section class="section">
+    <h2>使い方</h2>
+    <ol>
+      <li>起点を「設定変更後」または「飛翔モード終了後」から選びます。</li>
+      <li>初当たりが200G以内か、200Gを超えたかを選びます。</li>
+      <li>ボーナス結果として「飛翔突入」または「飛翔せず終了」を選びます。</li>
+    </ol>
+    <p>全項目を選ぶと、送信ボタンなしで結果が切り替わります。</p>
+  </section>
+
+  <section class="section">
+    <h2>各モードの天井</h2>
+    <table>
+      <thead><tr><th>モード</th><th>天井</th></tr></thead>
+      <tbody>
+        <tr><td>チャンス</td><td>200G</td></tr>
+        <tr><td>飛翔準備B</td><td>200G</td></tr>
+        <tr><td>通常A</td><td>500G（設定変更後・飛翔終了後のみ）</td></tr>
+        <tr><td>通常B</td><td>500G（設定変更後・飛翔終了後のみ）</td></tr>
+        <tr><td>飛翔準備A</td><td>500G</td></tr>
+      </tbody>
+    </table>
+    <div class="card">
+      <h3>初期振り分け</h3>
+      <p>設定変更後は通常Bが40%、通常Aが30%、チャンスが15%、飛翔準備A・Bが各7.5%です。</p>
+      <p>飛翔終了後は通常Aが45%、通常Bが30%、チャンスが10%、飛翔準備A・Bが各7.5%です。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>計算の前提と限界</h2>
+    <p>200G以内当選は、チャンスと飛翔準備Bだけを比較した「上限値」です。通常A・通常B・飛翔準備Aの200G以内当選率が未公開のため、それらの早当たり分は数値に含められません。</p>
+    <p>そのため、画面に出るチャンスや飛翔準備Bの割合は、実際より高く表示される可能性があります。特に飛翔終了後は通常Aの初期振り分けが45%あるため、200G以内でも通常Aの早当たりを無視できません。</p>
+    <p>飛翔準備A・Bは、ボーナス後の飛翔移行が濃厚として扱っています。ただし、飛翔突入時にモード別の移行率を逆算するだけの公開情報はないため、飛翔突入を選んだ場合は単発抜け後の再計算や状態評価を表示しません。</p>
+    <p>通常Bからの移行内訳も未公開です。単発抜け後の元モード推定は、確定値ではなく追う根拠の強弱を見るための補助情報です。</p>
+  </section>
+
+  <section class="section">
+    <h2>出典と更新方針</h2>
+    <p>出典は <a href="https://p-town.dmm.com/machines/5031" target="_blank" rel="noopener">DMMぱちタウン L南国育ち SPECIAL</a> です。データ確認日は2026-07-16です。</p>
+    <p>解析情報が更新された場合は、機種データファイルの数値と注記を差し替えます。未公開部分を推測で埋めることはしません。</p>
+  </section>
+
+  <section class="section">
+    <h2>注意事項</h2>
+    <p>本ツールは実戦判断を補助するもので、勝利や特定結果を保証するものではありません。店舗ルールを守り、自己判断で利用してください。</p>
+  </section>
+
+  <a class="cta" href="../mode-estimator.html">ツールを使う</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+  </nav>
+</footer>
+</body>
+</html>
