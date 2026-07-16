@@ -59,6 +59,11 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .game-pair-field{display:flex;align-items:center;gap:5px;min-width:0;background:rgba(0,0,0,.12);border:1px solid var(--border);border-radius:8px;padding:7px;}
 .game-pair-field label{font-size:12px;color:var(--text-muted);font-weight:700;white-space:nowrap;}
 .game-pair-field input{min-width:0;width:0;flex:1 1 0;text-align:center;padding-left:6px;padding-right:6px;}
+.counter-compact-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;gap:6px;align-items:stretch;margin:8px 0;width:100%;max-width:100%;}
+.counter-compact-row .game-pair-field{padding:6px;}
+.counter-compact-row .btn-small{height:auto;min-width:42px;padding:6px 8px;}
+.counter-compact-row .input-hint{grid-column:1/-1;margin-top:-2px;}
+.counter-compact-spacer{min-width:42px;}
 .readonly-game-input{background:rgba(0,0,0,.2)!important;border-color:rgba(122,122,138,.35)!important;color:var(--gold-light)!important;text-align:center;cursor:default;}
 .btn-primary{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:10px;}
 .btn-primary:active{opacity:.82;}
@@ -3913,7 +3918,7 @@ function renderLogFields(){
   if(!aim){el.innerHTML='<div class="empty-hint">機種と狙い方を登録してください</div>';return;}
   const panels={
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
-    2:`<div class="card work-section-card play"><div class="work-section-title">実戦メモ</div>${renderShopNoteButton()}${renderFollowBranchControls()}${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
+    2:`<div class="card work-section-card play"><div class="work-section-title">実戦メモ</div>${renderFollowBranchControls()}${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
     3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div>`,
     4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div>${renderSegmentUndoNotice()}<div id="practiceStatsBox"></div></div>`
   };
@@ -5133,8 +5138,6 @@ function deleteSuggestLogEntry(id){
 }
 function renderGamePairInputs(prefix){
   const showLiquidCounter=machineShowsLiquidCounter();
-  const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
-  const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
   const dataId=prefix==='suggest'?'suggestTimelineGame':'timelineGame';
   const liquidId=prefix==='suggest'?'suggestTimelineLiquidGame':'timelineLiquidGame';
   const dataLabel=prefix==='suggest'?'示唆時データG数':'データG数';
@@ -5156,15 +5159,7 @@ function renderGamePairInputs(prefix){
         <label for="${liquidId}">${liquidLabel}</label>
         <input type="text" id="${liquidId}" data-game-role="${rolePrefix}-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="例：523"${gapAttr} oninput="${liquidHandler}" onchange="${liquidHandler}">
       </div>`:''}
-    </div>
-    ${prefix==='timeline'&&useLiquidOffsetCounter?`
-      <div class="game-pair-row" style="margin-top:8px;">
-        <div class="game-pair-field">
-          <label for="timelineLiquidOffset">液晶差分</label>
-          <input type="text" id="timelineLiquidOffset" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(timelineLiquidOffset())}" placeholder="0" oninput="syncTimelineLiquidOffset()" onchange="syncTimelineLiquidOffset()">
-        </div>
-        ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:''}
-      </div>`:''}`;
+    </div>`;
 }
 function renderOutcomeQuickButtons(){
   return `
@@ -5290,6 +5285,33 @@ function renderSubCounterControls(){
       </div>
       <button class="btn-small counter-btn" type="button" onclick="incrementSubCounter('${escapeHtml(counter.key)}',1)">+1</button>
       ${renderCounterHistorySummary(counter)}
+    </div>`;
+}
+function compactCounterLabel(counter){
+  const label=String(counter?.label||'');
+  return label.replace(/回数$/,'')||label;
+}
+function renderCounterCompactRow(){
+  const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
+  const counter=machineSubCounter();
+  if(!useLiquidOffsetCounter&&!counter)return '';
+  const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
+  const counterValue=counter?subCounterValue(counter.key):0;
+  return `
+    <div class="counter-compact-row">
+      ${useLiquidOffsetCounter?`
+        <div class="game-pair-field">
+          <label for="timelineLiquidOffset">差分</label>
+          <input type="text" id="timelineLiquidOffset" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(timelineLiquidOffset())}" placeholder="0" oninput="syncTimelineLiquidOffset()" onchange="syncTimelineLiquidOffset()">
+        </div>
+        ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span class="counter-compact-spacer" aria-hidden="true"></span>'}`:''}
+      ${counter?`
+        <div class="game-pair-field">
+          <label for="subCounter_${escapeHtml(counter.key)}">${escapeHtml(compactCounterLabel(counter))}</label>
+          <input type="text" id="subCounter_${escapeHtml(counter.key)}" class="numeric-input" inputmode="none" readonly value="${escapeHtml(counterValue)}" placeholder="0" oninput="syncSubCounterInput('${escapeHtml(counter.key)}')" onchange="syncSubCounterInput('${escapeHtml(counter.key)}')">
+        </div>
+        <button class="btn-small counter-btn" type="button" onclick="incrementSubCounter('${escapeHtml(counter.key)}',1)">+1</button>
+        ${renderCounterHistorySummary(counter)}`:''}
     </div>`;
 }
 function renderIntervalEstimateControls(){
@@ -5676,22 +5698,23 @@ function renderTimelineArea(mode='play'){
     `;
   return `
     ${renderOutcomeQuickButtons()}
-    ${renderTimelineQuickActions()}
     ${renderHitTriggerButtons()}
     <div class="work-subsection play-group"><div class="section-label" style="margin-top:0;">当選イベント</div>${renderHitEventsList()}</div>
     <div class="work-subsection play-group">
       <div class="section-label" style="margin-top:0;">カウンター操作</div>
       ${renderGamePairInputs('timeline')}
-      ${renderSubCounterControls()}
+      ${renderCounterCompactRow()}
       ${!machineUsesQuickActions()?`<div class="log-tools">
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(1)">+1</button>
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(5)">+5</button>
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(10)">+10</button>
       </div>`:''}
+      ${renderTimelineQuickActions()}
     </div>
     <div class="work-subsection play-group">
       <div class="section-label" style="margin-top:0;">レア役・ステージ・メモ</div>
       ${renderTagButtons('timeline')}
+      ${renderShopNoteButton()}
       <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState()"></textarea>
       <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
     </div>
