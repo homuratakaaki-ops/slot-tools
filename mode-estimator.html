@@ -27,12 +27,23 @@
   .option:has(input:checked){border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12)}
   .badge{display:inline-flex;align-items:center;border-radius:999px;font-size:12px;font-weight:700;padding:5px 10px;margin-bottom:10px;border:1px solid currentColor}
   .badge.strong{color:var(--green);background:rgba(95,196,135,.1)}.badge.lean-b{color:var(--blue);background:rgba(117,167,232,.1)}.badge.middle{color:var(--yellow);background:rgba(224,191,99,.1)}.badge.weak{color:var(--red);background:rgba(224,112,112,.1)}
+  .current-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
+  .current-head .badge{flex:0 0 auto;margin:0}
+  .current-headline{color:var(--gold-light);font-size:18px;font-weight:700;line-height:1.45}
+  .reference-box{background:rgba(255,255,255,.02);border-color:rgba(201,168,76,.18);margin-top:16px}
+  .heading-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .heading-row h2,.heading-row h3{margin:0}
+  .reference-tag{border:1px solid var(--border);border-radius:999px;color:var(--text-muted);font-size:11px;font-weight:700;padding:2px 7px}
   h2{font-size:15px;color:var(--gold-light);margin:0 0 10px}
   h3{font-size:13px;color:var(--text);margin:16px 0 8px}
   p{margin:0 0 10px;color:var(--text-muted)}
   .mode-row{display:grid;grid-template-columns:minmax(72px,96px) 1fr 54px;gap:8px;align-items:center;margin:8px 0;font-size:13px}
-  .bar-track{height:10px;background:var(--surface2);border-radius:999px;overflow:hidden}
+  .mode-row.range-row{grid-template-columns:minmax(72px,96px) 1fr 82px}
+  .bar-track{height:10px;background:var(--surface2);border-radius:999px;overflow:hidden;position:relative}
   .bar{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:999px}
+  .bar-min,.bar-range{height:100%;position:absolute;top:0;border-radius:999px}
+  .bar-min{left:0;background:linear-gradient(90deg,var(--gold),var(--gold-light));z-index:2}
+  .bar-range{background:var(--gold);opacity:.35;z-index:1}
   .percent{text-align:right;color:var(--gold-light);font-weight:700}
   .note{font-size:12px;color:var(--text-muted);background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.22);border-radius:6px;padding:10px;margin-top:10px}
   table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px}
@@ -47,7 +58,7 @@
   .source{font-size:12px;color:var(--text-dim);margin-top:12px}
   .source a{color:var(--gold);text-decoration:none}
   footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}footer a{color:var(--text-muted);text-decoration:none}
-  @media (max-width:420px){.option-grid{grid-template-columns:1fr}.mode-row{grid-template-columns:80px 1fr 48px}th,td{font-size:12px;padding:8px 5px}}
+  @media (max-width:420px){.option-grid{grid-template-columns:1fr}.mode-row{grid-template-columns:80px 1fr 48px}.mode-row.range-row{grid-template-columns:74px 1fr 82px}.current-head{display:block}.current-head .badge{margin-top:8px}th,td{font-size:12px;padding:8px 5px}}
 </style>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944"
      crossorigin="anonymous"></script>
@@ -68,7 +79,7 @@
 
   <section class="section">
     <div class="section-label">結果</div>
-    <div class="result-box" id="resultArea"></div>
+    <div id="resultArea"></div>
     <div class="notice" id="disclaimerArea"></div>
   </section>
 
@@ -155,23 +166,66 @@ function renderModeRows(rows){
     </div>
   `).join("");
 }
-function renderAfterNoHisyou(data){
-  if(data.type === "table"){
+function clampPercent(value){
+  return Math.max(0, Math.min(100, value));
+}
+function renderRangeRows(rows){
+  return rows.map(row => {
+    const min = clampPercent(row.min);
+    const max = clampPercent(row.max);
     return `
-      <h3>単発抜け後の元モード推定</h3>
+      <div class="mode-row range-row">
+        <div>${escapeHtml(row.mode)}</div>
+        <div class="bar-track">
+          <div class="bar-range" style="left:${min}%;width:${Math.max(0, max - min)}%"></div>
+          <div class="bar-min" style="width:${min}%"></div>
+        </div>
+        <div class="percent">${row.min.toFixed(1)}〜${row.max.toFixed(1)}%</div>
+      </div>
+    `;
+  }).join("");
+}
+function renderCurrentState(data){
+  return `
+    <div class="result-box">
+      <div class="current-head">
+        <div>
+          <h2>今の状態</h2>
+          <div class="current-headline">${escapeHtml(data.currentState.headline)}</div>
+        </div>
+        <div class="badge ${escapeHtml(data.evaluation.level)}">${escapeHtml(data.evaluation.label)}</div>
+      </div>
+      <p>${escapeHtml(data.currentState.text)}</p>
+      <p class="note">${escapeHtml(data.evaluation.text)}</p>
+    </div>
+  `;
+}
+function renderAfterNoHisyou(data){
+  if(data.type === "range-table"){
+    return `
+      <div class="result-box">
+      <h3>直前に滞在していたモード（推定レンジ）</h3>
       ${data.note ? `<p class="note">${escapeHtml(data.note)}</p>` : ""}
-      ${renderModeRows(data.rows)}
+      ${renderRangeRows(data.rows)}
+      </div>
     `;
   }
-  return `<h3>単発抜け後の元モード推定</h3><p>${escapeHtml(data.text)}</p>`;
+  return `
+    <div class="result-box">
+      <h3>直前に滞在していたモード（推定）</h3>
+      <p>${escapeHtml(data.text)}</p>
+    </div>
+  `;
 }
 function renderNextHit(rows){
   return `
+    <div class="result-box">
     <h3>次回当選G数別の見方</h3>
     <table>
       <thead><tr><th>次回当選</th><th>見方</th></tr></thead>
       <tbody>${rows.map(row => `<tr><td>${escapeHtml(row.range)}</td><td>${escapeHtml(row.view)}</td></tr>`).join("")}</tbody>
     </table>
+    </div>
   `;
 }
 function renderResult(){
@@ -182,13 +236,17 @@ function renderResult(){
     document.getElementById("resultArea").innerHTML = "<p>該当する推定データがありません。</p>";
     return;
   }
-  document.getElementById("resultArea").innerHTML = `
-    ${!isToHisyou ? `<div class="badge ${escapeHtml(data.evaluation.level)}">${escapeHtml(data.evaluation.label)}</div><p>${escapeHtml(data.evaluation.text)}</p>` : ""}
-    <h2>当選時点のモード割合</h2>
-    ${renderModeRows(data.hitModes)}
-    ${data.hitModesNote ? `<p class="note">${escapeHtml(data.hitModesNote)}</p>` : ""}
-    ${isToHisyou ? `<p class="note">${escapeHtml(machine.toHisyouNote)}</p>` : `${renderAfterNoHisyou(data.afterNoHisyou)}${renderNextHit(data.nextHit)}`}
+  const hitModesBlock = `
+    <div class="result-box ${isToHisyou ? "" : "reference-box"}">
+      ${isToHisyou ? `<h2>当選時点のモード割合</h2>` : `<div class="heading-row"><h2>当選時点のモード割合（参考）</h2><span class="reference-tag">参考</span></div>`}
+      ${renderModeRows(data.hitModes)}
+      ${data.hitModesNote ? `<p class="note">${escapeHtml(data.hitModesNote)}</p>` : ""}
+      ${isToHisyou ? `<p class="note">${escapeHtml(machine.toHisyouNote)}</p>` : ""}
+    </div>
   `;
+  document.getElementById("resultArea").innerHTML = isToHisyou
+    ? hitModesBlock
+    : `${renderCurrentState(data)}${renderAfterNoHisyou(data.afterNoHisyou)}${hitModesBlock}${renderNextHit(data.nextHit)}`;
 }
 function renderDisclaimers(){
   document.getElementById("disclaimerArea").innerHTML = `<ul>${machine.disclaimers.map(item => `<li>${escapeHtml(item)}</li>`).join("")}</ul>`;
