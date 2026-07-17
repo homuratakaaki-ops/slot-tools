@@ -889,9 +889,9 @@ const ENDING_CARD_GROUPS=[
 const EMPTY_DATA={version:1,machines:[],stores:[],logs:[],shopNotes:[]};
 let storageProtectionLocked=false;
 let storageProtectionReason='';
-let db=loadData();
-let selectedMachineId=db.machines[0]?.id||'';
-let selectedAimId=firstAimIdForMachine(db.machines[0])||'';
+let db=null;
+let selectedMachineId='';
+let selectedAimId='';
 let activeNumericInput=null;
 let currentStartLog=[];
 let currentStartCounterGame=0;
@@ -10110,6 +10110,9 @@ function restoreJson(input){
   reader.readAsText(file);
 }
 
+db=loadData();
+selectedMachineId=db.machines[0]?.id||'';
+selectedAimId=firstAimIdForMachine(db.machines[0])||'';
 toggleOptionsHint();
 showPage('pageLog');
 setToday();
