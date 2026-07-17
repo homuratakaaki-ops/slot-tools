@@ -4909,8 +4909,8 @@ function skipCurrentHitBranchStep(){
 function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   const custom=isTrophySuggestSelection(selection)?trophyCustomValue:'';
   const useAppearG=selection.useAppearG!==false&&!isTrophySuggestSelection(selection);
-  const dataGame=useAppearG?suggestTimelineDataValue():null;
-  const liquidGame=useAppearG?(suggestTimelineLiquidValue()??dataGame):null;
+  const dataGame=useAppearG?suggestTimelineDataValue(selection):null;
+  const liquidGame=useAppearG?(suggestTimelineLiquidValue(selection)??dataGame):null;
   const gapOffset=useAppearG&&dataGame!==null&&liquidGame!==null?offsetFromDataLiquid(dataGame,liquidGame):0;
   const {useAppearG:unused,decorations,...entry}=selection;
   const saved={...entry,source:entry.source==='wizard'?'wizard':'manual',id:uid('sgl'),game:dataGame,dataGame,liquidGame,gapOffset,trophyCustom:custom,createdAt:new Date().toISOString()};
@@ -7435,14 +7435,36 @@ function setSuggestInputGapOffset(gapOffset){
   const gap=normalizeOptionalNumber(gapOffset)??0;
   document.querySelectorAll('[data-game-role="suggest-data"],[data-game-role="suggest-liquid"]').forEach(input=>{input.dataset.gapOffset=String(gap);});
 }
-function suggestTimelineDataValue(){
-  const domValue=normalizeOptionalNumber(firstSuggestInput('data')?.value||'');
-  return domValue!==null?domValue:timelineDataValue();
+function suggestHitEventForSelection(selection=null){
+  if(normalizeSuggestStateGroup(selection?.stateGroup)!=='hit')return null;
+  const id=String(selection?.hitEventId||hitBranchWizard.eventId||'');
+  return currentHitEvents.find(event=>event.id===id)||currentHitEvent();
 }
-function suggestTimelineLiquidValue(){
+function preferHitEventSuggestGames(selection=null){
+  const event=suggestHitEventForSelection(selection);
+  if(!event)return false;
+  return selection?.source==='wizard'||!suggestInputsDirty;
+}
+function hitEventSuggestPair(selection=null){
+  const event=suggestHitEventForSelection(selection);
+  const data=normalizeOptionalNumber(event?.dataGame);
+  const liquid=normalizeOptionalNumber(event?.liquidGame);
+  if(data===null&&liquid===null)return null;
+  return {dataGame:data,liquidGame:liquid??data};
+}
+function suggestTimelineDataValue(selection=null){
+  const domValue=normalizeOptionalNumber(firstSuggestInput('data')?.value||'');
+  const eventPair=hitEventSuggestPair(selection);
+  if(preferHitEventSuggestGames(selection)&&eventPair&&eventPair.dataGame!==null)return eventPair.dataGame;
+  return domValue!==null?domValue:(eventPair?.dataGame??timelineDataValue());
+}
+function suggestTimelineLiquidValue(selection=null){
   const domValue=normalizeOptionalNumber(firstSuggestInput('liquid')?.value||'');
+  const eventPair=hitEventSuggestPair(selection);
+  if(preferHitEventSuggestGames(selection)&&eventPair&&eventPair.liquidGame!==null)return eventPair.liquidGame;
   if(domValue!==null)return domValue;
-  const data=suggestTimelineDataValue();
+  if(eventPair&&eventPair.liquidGame!==null)return eventPair.liquidGame;
+  const data=suggestTimelineDataValue(selection);
   return data!==null?data+suggestInputGapOffset():timelineLiquidValue();
 }
 function setSuggestGames(dataGame,liquidGame,gapOffset=suggestInputGapOffset()){
@@ -7456,10 +7478,20 @@ function currentCounterPair(){
   const data=timelineDataValue();
   return {dataGame:data,liquidGame:data!==null?liquidFromDataWithOffset(data):timelineLiquidValue()};
 }
+function currentSuggestDefaultPair(){
+  const event=currentFlowStep===3?currentHitEvent():null;
+  const data=normalizeOptionalNumber(event?.dataGame);
+  if(data!==null){
+    const liquid=normalizeOptionalNumber(event?.liquidGame);
+    return {dataGame:data,liquidGame:liquid??data,gapOffset:offsetFromDataLiquid(data,liquid??data)};
+  }
+  const pair=currentCounterPair();
+  return {...pair,gapOffset:timelineLiquidOffset()};
+}
 function presetSuggestInputs(force=false){
   if(suggestInputsDirty&&!force)return;
-  const pair=currentCounterPair();
-  setSuggestGames(pair.dataGame,pair.liquidGame,timelineLiquidOffset());
+  const pair=currentSuggestDefaultPair();
+  setSuggestGames(pair.dataGame,pair.liquidGame,pair.gapOffset);
 }
 function resetSuggestInputsToCurrent(){
   suggestInputsDirty=false;
