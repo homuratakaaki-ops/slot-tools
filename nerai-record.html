@@ -1107,7 +1107,7 @@ function normalizeHitExit(value){
   return ['quit','continue','change'].includes(value)?value:null;
 }
 function normalizeHitTerminalType(value){
-  return ['ending'].includes(value)?value:'';
+  return ['ending','karakuri_normal','karakuri_ichigeki'].includes(value)?value:'';
 }
 function normalizeEndingCards(value){
   if(!value||typeof value!=='object')return {};
@@ -1278,7 +1278,7 @@ function normalizeHitEvent(event){
 }
 function normalizeHitBranchWizard(wizard){
   const route=['czResult','czFail','atHit'].includes(wizard?.route)?wizard.route:'';
-  const through=['yes','no','ending','ending_exit'].includes(wizard?.through)?wizard.through:null;
+  const through=['yes','no','ending','ending_exit','karakuri_normal','karakuri_ichigeki'].includes(wizard?.through)?wizard.through:null;
   return {
     route,
     stepIndex:Math.max(0,Number(wizard?.stepIndex)||0),
@@ -2787,7 +2787,26 @@ function ensureKarakuriCircus2Seed(machine){
       {key:'karakuriCzEndScreen',label:'CZ終了画面',placeId:'sgp_karakuri2_cz_end_screen',stateGroup:'hit'},
       {key:'karakuriStageChange',label:'ステチェン',placeId:'sgp_karakuri2_stage_change',stateGroup:'play'},
       {key:'karakuriStartStage',label:'開始ステージ',placeId:'sgp_karakuri2_start_stage',stateGroup:'hit'}
-    ]
+    ],
+    atHit:{
+      base:[
+        {key:'payout',label:'獲得枚数'},
+        {key:'karakuriAtEndPattern',label:'終了パターン'}
+      ],
+      branches:{
+        karakuri_normal:[
+          {key:'karakuriAtEndScreen',label:'AT終了画面',placeId:'sgp_karakuri2_at_end_screen',stateGroup:'hit'},
+          {key:'karakuriAtEndVoice',label:'AT終了ボイス',placeId:'sgp_karakuri2_at_end_voice',stateGroup:'hit'},
+          {key:'karakuriStageChange',label:'ステチェン',placeId:'sgp_karakuri2_stage_change',stateGroup:'play'},
+          {key:'karakuriStartStage',label:'開始ステージ',placeId:'sgp_karakuri2_start_stage',stateGroup:'hit'}
+        ],
+        karakuri_ichigeki:[
+          {key:'karakuriCzEndScreen',label:'CZ終了画面',placeId:'sgp_karakuri2_cz_end_screen',stateGroup:'hit'},
+          {key:'karakuriStageChange',label:'ステチェン',placeId:'sgp_karakuri2_stage_change',stateGroup:'play'},
+          {key:'karakuriStartStage',label:'開始ステージ',placeId:'sgp_karakuri2_start_stage',stateGroup:'hit'}
+        ]
+      }
+    }
   };
   machine.hitTriggers=normalizeHitTriggers([
     {key:'cz',label:'CZ',variants:[
@@ -2906,7 +2925,8 @@ function ensureKarakuriCircus2Seed(machine){
     tag('t_karakuri2_ichigeki_fail','一劇失敗','event','結果'),
     tag('t_karakuri2_strong_sand','強サンド目','rare-strong','レア役',true,false),
     tag('t_karakuri2_god','機械仕掛けの神','event','CZ・AT',true,false),
-    tag('t_karakuri2_pullback','引き戻し','event','その他',true,false)
+    tag('t_karakuri2_pullback','引き戻し','event','その他',true,false),
+    tag('t_karakuri2_revival','復活','event','その他',true,false)
   ];
   const removedTimelineTagIds=new Set(['t_karakuri2_cz_goddess','t_karakuri2_cz_theater','t_karakuri2_at_hit','t_karakuri2_direct']);
   machine.tags=(machine.tags||[]).filter(row=>!removedTimelineTagIds.has(row.id));
@@ -5901,7 +5921,43 @@ function createHitEvent(trigger){
   const event=normalizeHitEvent({trigger,dataGame,liquidGame,subCounters:normalizeSubCounters(currentSubCounters),createdAt:new Date().toISOString(),wizardDone:false});
   currentHitEvents.push(event);
   applyCounterResetOnHit(hitEventLabel(event,currentMachine()));
+  resetKarakuriLiveCountersAfterHit(event);
   return event;
+}
+function resetKarakuriLiveCountersAfterHit(event){
+  if(!isKarakuriCircus2Machine(currentMachine()))return;
+  const hasPreHitRecord=currentTimeline.length||currentSuggestLog.length||normalizeCounterHistories(currentCounterHistories).length;
+  if(hasPreHitRecord){
+    currentSegments.unshift(normalizeSegment({
+      id:uid('seg'),
+      createdAt:new Date().toISOString(),
+      branchNumber:nextBranchNumberForCurrentGroup(),
+      status:'committed',
+      terminalType:'hit_reset',
+      terminalLabel:'当選前',
+      trigger:event?.trigger||null,
+      dataGame:normalizeOptionalNumber(event?.dataGame)??timelineDataValue(),
+      liquidGame:normalizeOptionalNumber(event?.liquidGame)??timelineLiquidValue(),
+      suikaOffset:currentTimelineSuikaOffset,
+      manualCorrection:currentTimelineManualCorrection,
+      intervalEstimate:normalizeIntervalEstimate(currentIntervalEstimate),
+      subCounters:normalizeSubCounters(currentSubCounters),
+      counterHistories:normalizeCounterHistories(currentCounterHistories),
+      timeline:clone(sortedTimeline()),
+      suggestLog:clone(sortedSuggestLog()),
+      hitEvents:[]
+    }));
+  }
+  currentTimeline=[];
+  currentTimelineDataGame=0;
+  currentCounterHistories=[];
+  currentSuggestLog=carrySuggestEntriesForNextSegment();
+  pendingTimelineTagIds=[];
+  recentTimelineHighlightId='';
+  recentSuggestHighlightId='';
+  resetTimelineOffsets();
+  setTimelineGames(0,0);
+  renderNumberAttachmentSummaryIntoDom();
 }
 function startHitEventWizard(trigger){
   const normalized=normalizeHitTrigger(trigger);
@@ -5936,6 +5992,8 @@ function hitEventLine(event,machine=currentMachine()){
   if(event.czResult)parts.push(event.czResult==='at_win'?'AT当選':'AT非当選');
   if((Number(event.endingCount)||0)>0)parts.push(`エンディング到達${Number(event.endingCount)}回`);
   if(event.through)parts.push(event.through==='yes'?'駆け抜け':'駆け抜け以外');
+  if(event.terminalType==='karakuri_normal')parts.push('通常終了');
+  if(event.terminalType==='karakuri_ichigeki')parts.push('運命の一劇移行');
   if(event.payout!==null&&event.payout!==undefined)parts.push(formatChainPayout(event.payout));
   if(event.exit)parts.push(event.exit==='continue'?'続行':'即ヤメ');
   return parts.join(' / ');
@@ -6137,15 +6195,21 @@ function nextModeEyecatchPlace(){
   const place=findSuggestPlaceByName(mode,'アイキャッチ');
   return mode&&place?{category:mode,place}:null;
 }
-function machineHitBranchFlowSteps(route){
+function machineHitBranchFlowSteps(route,through=hitBranchWizard.through){
   const flow=currentMachine()?.hitBranchFlows?.[route];
-  return Array.isArray(flow)?flow.map(step=>({...step})):[];
+  if(Array.isArray(flow))return flow.map(step=>({...step}));
+  if(flow&&typeof flow==='object'){
+    const base=Array.isArray(flow.base)?flow.base.map(step=>({...step})):[];
+    const branch=Array.isArray(flow.branches?.[through])?flow.branches[through].map(step=>({...step})):[];
+    return [...base,...branch];
+  }
+  return [];
 }
 function hitBranchSteps(route,through=hitBranchWizard.through){
   if(route==='czResult')return [
     {key:'czResult',label:'CZ結果'}
   ];
-  const presetSteps=machineHitBranchFlowSteps(route);
+  const presetSteps=machineHitBranchFlowSteps(route,through);
   if(presetSteps.length)return presetSteps;
   if(route==='czFail')return [
     {key:'czResult',label:'CZ結果'},
@@ -6351,6 +6415,7 @@ function openCurrentHitBranchStep(){
   if(step.key==='czResult'){openCzResultBranchPicker();return;}
   if(step.key==='through'){openAtThroughBranchPicker();return;}
   if(step.key==='payout'){promptHitEventPayout();return;}
+  if(step.key==='karakuriAtEndPattern'){openKarakuriAtEndPatternPicker();return;}
   if(step.key==='endingCards'){renderLogFields();return;}
   if(step.key==='endingExit'){openEndingExitPicker();return;}
   if(step.key==='follow'){openAtFollowPicker();return;}
@@ -6450,6 +6515,34 @@ function submitHitEventPayout(){
 }
 function skipHitEventPayout(){
   finishHitEventPayout(null);
+}
+function openKarakuriAtEndPatternPicker(){
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:'atHit',branchStep:'karakuriAtEndPattern'};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent='終了パターン';
+  breadcrumb.textContent='AT終了後の分岐を選択';
+  back.textContent='閉じる';
+  options.innerHTML=`
+    <button class="suggest-picker-option" onclick="selectKarakuriAtEndPattern('karakuri_normal')">通常終了</button>
+    <button class="suggest-picker-option" onclick="selectKarakuriAtEndPattern('karakuri_ichigeki')">運命の一劇移行</button>
+    <button class="suggest-picker-option" onclick="skipCurrentHitBranchStep()">このステップをスキップ</button>`;
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectKarakuriAtEndPattern(value){
+  if(value!=='karakuri_normal'&&value!=='karakuri_ichigeki')return;
+  const event=currentHitEvent();
+  if(event)event.terminalType=value;
+  hitBranchWizard.through=value;
+  advanceHitBranchWizard();
+  closeSuggestPicker();
+  renderLogFields();
+  saveDraftImmediately();
+  setTimeout(openCurrentHitBranchStep,0);
 }
 function openHitExitPicker(){
   const title=document.getElementById('suggestPickerTitle');
