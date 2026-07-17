@@ -1904,23 +1904,40 @@ function findSuggestItemForEntry(entry){
   const machine=currentMachine();
   return findSuggestRefsForEntry(machine,entry).item;
 }
+const KARAKURI2_CZ_END_SCREEN_LABEL_RENAMES={
+  'しろがね（通常C期待度UP）':'エレオノール（今回モードC示唆）',
+  '笑顔のフランシーヌ（3回以内に通常D）':'喜ぶフランシーヌ（直近3回のどこかにモードD濃厚）',
+  'リーゼ（天国系・予想）':'リーゼロッテ（直近3回モードA否定濃厚）',
+  '敵4人（天国系・予想）':'最古の4人（直近5回中2回以上天国濃厚）'
+};
+function isKarakuri2CzEndScreenPlace(place){
+  return place?.id==='sgp_karakuri2_cz_end_screen'||place?.name==='CZ終了画面（要PUSH）';
+}
+function canonicalKarakuri2CzEndScreenLabel(label){
+  return KARAKURI2_CZ_END_SCREEN_LABEL_RENAMES[label]||label;
+}
 function findSuggestRefsForEntry(machine,entry){
   if(!machine)return {category:null,place:null,item:null};
   let category=(machine.suggestMaster||[]).find(c=>c.id===entry?.categoryId)||null;
   let place=category?.places?.find(p=>p.id===entry?.placeId)||null;
-  let item=place?.items?.find(i=>i.id===entry?.itemId)||null;
+  const itemLabel=canonicalKarakuri2CzEndScreenLabel(entry?.item||'');
+  let item=place?.items?.find(i=>i.id===entry?.itemId||isKarakuri2CzEndScreenPlace(place)&&i.label===itemLabel)||null;
   if(category&&place&&item)return {category,place,item};
   for(const candidateCategory of machine.suggestMaster||[]){
     for(const candidatePlace of candidateCategory.places||[]){
       const placeMatched=candidatePlace.id===entry?.placeId||candidatePlace.name===entry?.place;
-      const itemMatched=(candidatePlace.items||[]).find(i=>i.id===entry?.itemId||i.label===entry?.item);
+      const candidateItemLabel=isKarakuri2CzEndScreenPlace(candidatePlace)?itemLabel:entry?.item;
+      const itemMatched=(candidatePlace.items||[]).find(i=>i.id===entry?.itemId||i.label===candidateItemLabel);
       if(placeMatched&&itemMatched)return {category:candidateCategory,place:candidatePlace,item:itemMatched};
       if(!place&&candidatePlace.name===entry?.place)place=candidatePlace;
       if(!category&&candidateCategory.category===entry?.category)category=candidateCategory;
     }
   }
   if(category&&!place)place=(category.places||[]).find(p=>p.name===entry?.place)||null;
-  if(place&&!item)item=(place.items||[]).find(i=>i.id===entry?.itemId||i.label===entry?.item)||null;
+  if(place&&!item){
+    const fallbackLabel=isKarakuri2CzEndScreenPlace(place)?itemLabel:entry?.item;
+    item=(place.items||[]).find(i=>i.id===entry?.itemId||i.label===fallbackLabel)||null;
+  }
   return {category,place,item};
 }
 function suggestEntryStateGroup(entry,machine=currentMachine()){
@@ -1959,7 +1976,7 @@ function hydrateSuggestLogEntry(machine,entry){
   }
   if(refs.item){
     entry.itemId=entry.itemId||refs.item.id;
-    entry.item=entry.item||refs.item.label;
+    entry.item=isKarakuri2CzEndScreenPlace(refs.place)?refs.item.label:(entry.item||refs.item.label);
   }
   entry.source=entry.source==='wizard'?'wizard':'manual';
 }
@@ -2775,6 +2792,55 @@ function ensureNangokuSpecialSeed(machine){
   machine.suggestSeedNangokuSpecialV1=true;
   machine.suggestSeedNangokuSpecialV2=true;
 }
+function karakuri2CzEndScreenOfficialItems(){
+  const row=(label,extra={})=>({label,enabled:true,carryType:'mode',...extra});
+  return [
+    row('鳴海（デフォルト）'),
+    row('勝（今回モードB示唆）'),
+    row('エレオノール（今回モードC示唆）'),
+    row('祈るフランシーヌ（今回モードD示唆）'),
+    row('フランシーヌ人形（今回モードD濃厚）',{accent:'gold'}),
+    row('喜ぶフランシーヌ（直近3回のどこかにモードD濃厚）',{accent:'gold'}),
+    row('アンジェリーナ（直近5回のどこかにモードD濃厚）',{accent:'gold'}),
+    row('真夜中のサーカス（今回or次回天国濃厚）',{accent:'gold'}),
+    row('リーゼロッテ（直近3回モードA否定濃厚）',{accent:'gold'}),
+    row('最古の4人（直近5回中2回以上天国濃厚）',{accent:'gold'}),
+    row('フェイスレス（直近5回中3回以上天国濃厚）',{accent:'gold'}),
+    row('ギイ＆オリンピア（今回天国濃厚）',{accent:'gold'}),
+    row('手（直近3回のどこかに天国濃厚）',{accent:'gold'}),
+    row('ピエロ（今回モードC or 天国濃厚）',{accent:'gold'})
+  ];
+}
+function normalizeKarakuri2CzEndScreenMaster(machine){
+  const category=findSuggestCategory(machine,'sgc_karakuri2_mode');
+  const place=findSuggestPlace(category,'sgp_karakuri2_cz_end_screen');
+  if(!place)return;
+  const official=karakuri2CzEndScreenOfficialItems();
+  const oldLabels=[
+    '鳴海（デフォルト）',
+    '勝（通常B期待度UP）',
+    'しろがね（通常C期待度UP）',
+    '祈るフランシーヌ（通常D期待度UP）',
+    'フランシーヌ人形（通常D濃厚）',
+    '笑顔のフランシーヌ（3回以内に通常D）',
+    'アンジェリーナ（5回以内に通常D）',
+    '真夜中のサーカス（天国系・予想）',
+    'リーゼ（天国系・予想）',
+    '敵4人（天国系・予想）',
+    'フェイスレス（天国系・予想）',
+    'ギイ＆オリンピア（天国系・予想）',
+    '手（天国系・予想）',
+    'ピエロ（天国系・予想）'
+  ];
+  const existing=Array.isArray(place.items)?place.items:[];
+  place.items=official.map((seed,index)=>{
+    const current=existing.find(item=>item.label===seed.label)
+      ||existing.find(item=>item.label===oldLabels[index])
+      ||existing[index]
+      ||{};
+    return {...current,...seed,id:current.id||uid('sgi'),accent:normalizeSuggestAccent(seed.accent)};
+  });
+}
 function ensureKarakuriCircus2Seed(machine){
   if(!machine||!isKarakuriCircus2Machine(machine))return;
   machine.useLcdCounter=true;
@@ -2963,22 +3029,7 @@ function ensureKarakuriCircus2Seed(machine){
       enabled:true,
       useAppearG:true,
       places:[
-        place('sgp_karakuri2_cz_end_screen','CZ終了画面（要PUSH）',[
-          item('鳴海（デフォルト）','mode'),
-          item('勝（通常B期待度UP）','mode'),
-          item('しろがね（通常C期待度UP）','mode'),
-          item('祈るフランシーヌ（通常D期待度UP）','mode'),
-          item('フランシーヌ人形（通常D濃厚）','mode',{accent:'gold'}),
-          item('笑顔のフランシーヌ（3回以内に通常D）','mode',{accent:'gold'}),
-          item('アンジェリーナ（5回以内に通常D）','mode',{accent:'gold'}),
-          item('リーゼ（天国系・予想）','mode'),
-          item('敵4人（天国系・予想）','mode'),
-          item('手（天国系・予想）','mode'),
-          item('真夜中のサーカス（天国系・予想）','mode'),
-          item('ギイ＆オリンピア（天国系・予想）','mode'),
-          item('ピエロ（天国系・予想）','mode'),
-          item('フェイスレス（天国系・予想）','mode')
-        ],'hit'),
+        place('sgp_karakuri2_cz_end_screen','CZ終了画面（要PUSH）',karakuri2CzEndScreenOfficialItems(),'hit'),
         place('sgp_karakuri2_start_stage','開始ステージ（CZ・AT後）',[
           item('フウ屋敷スタート（デフォルト・実戦上）','mode'),
           item('仲町サーカススタート（早い規定G示唆の可能性・実戦上）','mode'),
@@ -3009,6 +3060,7 @@ function ensureKarakuriCircus2Seed(machine){
   ];
   mergeTimelineTagSeed(machine,timelineTags);
   mergeSuggestSeed(machine,seed);
+  normalizeKarakuri2CzEndScreenMaster(machine);
   const stageDisplay=findSuggestPlace(ensureSuggestCategory(machine,'sgc_karakuri2_mode','モード示唆'),'sgp_karakuri2_stage_display');
   if(stageDisplay){
     const removedStageSuggestLabels=new Set([
