@@ -231,6 +231,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .timeline-history-count{font-size:12px;color:var(--gold-light);white-space:nowrap;}
 .timeline-history-body{display:none;padding:10px;}
 .timeline-history.open .timeline-history-body{display:block;}
+.counter-history-actions{margin-top:6px;}
+.counter-history-line.reference{color:var(--gold-light);}
 .carry-summary-wrap{margin:10px 0;}
 .carry-summary-section{border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.13);overflow:hidden;margin-bottom:8px;}
 .carry-summary-toggle{width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;background:rgba(201,168,76,.08);border:0;color:var(--text);padding:10px 12px;font-size:13px;font-weight:800;cursor:pointer;text-align:left;}
@@ -1181,11 +1183,13 @@ function normalizeCounterHistories(value){
     const count=normalizeOptionalNumber(item?.count);
     const key=String(item?.key||'');
     if(!key||count===null)return null;
+    const certainty=item?.certainty==='reference'?'reference':'confirmed';
     return {
       id:item.id||uid('ch'),
       key,
       label:String(item.label||''),
       count:Math.max(0,Math.trunc(count)),
+      certainty,
       triggerTagId:String(item.triggerTagId||''),
       triggerLabel:String(item.triggerLabel||''),
       createdAt:item.createdAt||new Date().toISOString()
@@ -1430,6 +1434,7 @@ function normalizeData(data){
     ensureSuggestSeed(m);
     ensureMonkeyTurnSeed(m);
     ensureNangokuSpecialSeed(m);
+    ensureKarakuriCircus2Seed(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     applySuggestMetadata(m);
   });
@@ -1529,6 +1534,10 @@ function isNangokuSpecialMachine(machine){
   const name=String(machine?.name||'');
   return name.includes('L南国育ちSPECIAL')||name.includes('南国育ちSPECIAL')||name.includes('南国育ちスペシャル');
 }
+function isKarakuriCircus2Machine(machine){
+  const name=String(machine?.name||'');
+  return name.includes('Lからくりサーカス2')||name.includes('からくりサーカス2')||name.includes('からくり2');
+}
 function ensurePresetMachines(data){
   data.machines=Array.isArray(data.machines)?data.machines:[];
   if(!data.machines.some(isMonkeyTurnMachine)){
@@ -1536,6 +1545,9 @@ function ensurePresetMachines(data){
   }
   if(!data.machines.some(isNangokuSpecialMachine)){
     data.machines.push({id:'m_nangoku_special',name:'L南国育ちSPECIAL',maker:'',aims:[],tags:[],startTags:[],labelTags:[],suggestMaster:[]});
+  }
+  if(!data.machines.some(isKarakuriCircus2Machine)){
+    data.machines.push({id:'m_karakuri_circus_2',name:'Lからくりサーカス2',maker:'',aims:[],tags:[],startTags:[],labelTags:[],suggestMaster:[]});
   }
 }
 function machineUsesLcdCounter(machine=currentMachine()){
@@ -2698,6 +2710,198 @@ function ensureNangokuSpecialSeed(machine){
   machine.suggestSeedNangokuSpecialV1=true;
   machine.suggestSeedNangokuSpecialV2=true;
 }
+function ensureKarakuriCircus2Seed(machine){
+  if(!machine||!isKarakuriCircus2Machine(machine))return;
+  machine.useLcdCounter=true;
+  machine.useLiquidOffsetCounter=false;
+  machine.useEndingCards=false;
+  machine.followMode='ask';
+  machine.hitTriggers=normalizeHitTriggers([
+    {key:'cz',label:'CZ当選'},
+    {key:'upper_cz',label:'上位CZ当選'},
+    {key:'direct_at',label:'AT当選'}
+  ]);
+  machine.counters=[{
+    key:'suika',
+    counterLabel:'スイカ',
+    countTagIds:['t_karakuri2_suika'],
+    resetTagIds:[
+      't_karakuri2_fate_board_enbu',
+      't_karakuri2_fate_board_makuma',
+      't_karakuri2_fate_board_at',
+      't_karakuri2_fate_board_god'
+    ],
+    historyEnabled:true
+  }];
+  machine.labelTags=Array.isArray(machine.labelTags)?machine.labelTags:[];
+  [
+    {id:'lt_karakuri2_lcd_game',label:'液晶G数'},
+    {id:'lt_karakuri2_data_game',label:'実G数（データカウンター）'},
+    {id:'lt_karakuri2_cz_through',label:'CZスルー回数'},
+    {id:'lt_karakuri2_diff_medals',label:'差枚（有利区間推測用）'}
+  ].forEach(row=>{
+    if(!machine.labelTags.some(tag=>tag.id===row.id||tag.label===row.label))machine.labelTags.push(row);
+  });
+  machine.aims=Array.isArray(machine.aims)?machine.aims:[];
+  const startFields=[
+    {label:'液晶G数',type:'number'},
+    {label:'実G数',type:'number'},
+    {label:'CZスルー回数',type:'number'}
+  ];
+  const aimSeeds=[
+    {
+      id:'aim_karakuri2_tenjo',
+      name:'天井狙い',
+      note:'液晶1200G or 実890GでCZ。等価460G〜/5.6枚530G〜（AT後）'
+    },
+    {
+      id:'aim_karakuri2_through',
+      name:'スルー狙い',
+      note:'CZ女神4スルー後5回目AT＋成功濃厚激情。3スルー＋中ハマりから'
+    },
+    {
+      id:'aim_karakuri2_reset',
+      name:'リセット狙い',
+      note:'変更後は液晶天井500Gに短縮。等価100G〜/5.6枚140G〜'
+    }
+  ];
+  aimSeeds.forEach(seed=>{
+    let aim=machine.aims.find(row=>row.id===seed.id)||machine.aims.find(row=>row.name===seed.name);
+    if(!aim){
+      aim={id:seed.id,name:seed.name,fields:[]};
+      machine.aims.push(aim);
+    }
+    aim.fields=Array.isArray(aim.fields)?aim.fields:[];
+    startFields.forEach((field,index)=>{
+      if(!aim.fields.some(row=>row.label===field.label)){
+        aim.fields.push({id:`${seed.id}_f${index+1}`,label:field.label,type:field.type,section:'start',optional:false,options:[]});
+      }
+    });
+    const legacyNote=aim.fields.find(row=>row.label==='参照値メモ');
+    if(legacyNote)legacyNote.label=`参照値：${seed.note}`;
+    if(!aim.fields.some(row=>String(row.label||'').startsWith('参照値：'))){
+      aim.fields.push({id:`${seed.id}_note`,label:`参照値：${seed.note}`,type:'memo',section:'start',optional:true,options:[]});
+    }
+  });
+  const item=(label,carryType=null,extra={})=>({label,enabled:true,carryType,...extra});
+  const place=(id,name,entries,stateGroup='play',useAppearG=true)=>({
+    id,
+    name,
+    enabled:true,
+    stateGroup,
+    useAppearG,
+    items:entries.map((entry,i)=>({id:`${id}_i${i+1}`,...(typeof entry==='string'?item(entry):entry)}))
+  });
+  const tag=(id,label,tagClass='event',group='その他',collapsible=false,defaultOpen=true,subCounterDelta=null)=>({
+    id,label,optional:!!collapsible,countAs:null,liquidDelta:null,liquidSet:null,tagClass,group,collapsible,defaultOpen,subCounterDelta
+  });
+  const timelineTags=[
+    tag('t_karakuri2_suika','スイカ','rare-suika','レア役',false,true,1),
+    tag('t_karakuri2_weak_cherry','弱チェリー','rare-weak','レア役'),
+    tag('t_karakuri2_chance_bell','チャンスベル','rare-chance','レア役'),
+    tag('t_karakuri2_chance','チャンス目','rare-chance','レア役'),
+    tag('t_karakuri2_strong_cherry','強チェリー','rare-strong','レア役'),
+    tag('t_karakuri2_fate_board_enbu','運命盤:演舞','event','運命盤'),
+    tag('t_karakuri2_fate_board_makuma','運命盤:幕間','event','運命盤'),
+    tag('t_karakuri2_fate_board_at','運命盤:AT','event','運命盤'),
+    tag('t_karakuri2_fate_board_god','運命盤:神','event','運命盤'),
+    tag('t_karakuri2_fate_success','運命盤成功','event','運命盤'),
+    tag('t_karakuri2_fate_fail','運命盤失敗','event','運命盤'),
+    tag('t_karakuri2_aqua_vitae','アクア・ウイタエ','stage','ステージ'),
+    tag('t_karakuri2_enbu','懸糸傀儡演舞','event','CZ・AT'),
+    tag('t_karakuri2_cz_goddess','CZ女神','event','CZ・AT'),
+    tag('t_karakuri2_cz_makuma','CZ幕間','event','CZ・AT'),
+    tag('t_karakuri2_cz_theater','CZ劇場','event','CZ・AT'),
+    tag('t_karakuri2_at_hit','AT当選','event','CZ・AT'),
+    tag('t_karakuri2_geki_success','激情成功','event','結果'),
+    tag('t_karakuri2_geki_fail','激情失敗','event','結果'),
+    tag('t_karakuri2_ichigeki_success','一劇成功','event','結果'),
+    tag('t_karakuri2_ichigeki_fail','一劇失敗','event','結果'),
+    tag('t_karakuri2_strong_sand','強サンド目','rare-strong','レア役',true,false),
+    tag('t_karakuri2_god','機械仕掛けの神','event','CZ・AT',true,false),
+    tag('t_karakuri2_pullback','引き戻し','event','その他',true,false),
+    tag('t_karakuri2_direct','直撃','event','その他',true,false)
+  ];
+  const seed=[
+    {
+      id:'sgc_karakuri2_setting',
+      category:'設定示唆',
+      enabled:true,
+      useAppearG:true,
+      places:[
+        place('sgp_karakuri2_at_end_screen','AT終了画面',[
+          item('エレオノール（デフォルト）','setting'),
+          item('最古の四人（奇数＋高設定期待度UP）','setting'),
+          item('ルシール＆アンジェリーナ（偶数＋高設定期待度UP）','setting'),
+          item('歯車（設定2以上濃厚）','setting',{accent:'gold'}),
+          item('鳴海＆勝（設定4以上濃厚）','setting',{accent:'gold'}),
+          item('エレオノール笑顔（設定6濃厚）','setting',{accent:'gold'})
+        ],'hit'),
+        place('sgp_karakuri2_at_end_voice','AT終了ボイス（液晶タッチ）',[
+          item('僕は僕さ（調査中）','setting'),
+          item('何かを感じます（調査中）','setting'),
+          item('近づいてきているようです（調査中）','setting'),
+          item('私の名前はしろがね（調査中）','setting'),
+          item('俺をしろがねと呼びな（調査中）','setting'),
+          item('人生はそういうものだよ（調査中）','setting'),
+          item('何を恐れることがある（調査中）','setting'),
+          item('あるるかんがある限り私は負けません（調査中）','setting')
+        ],'hit')
+      ]
+    },
+    {
+      id:'sgc_karakuri2_mode',
+      category:'モード示唆',
+      enabled:true,
+      useAppearG:true,
+      places:[
+        place('sgp_karakuri2_cz_end_screen','CZ終了画面（要PUSH）',[
+          item('鳴海（デフォルト）','mode'),
+          item('勝（通常B期待度UP）','mode'),
+          item('しろがね（通常C期待度UP）','mode'),
+          item('祈るフランシーヌ（通常D期待度UP）','mode'),
+          item('フランシーヌ人形（通常D濃厚）','mode',{accent:'gold'}),
+          item('笑顔のフランシーヌ（3回以内に通常D）','mode',{accent:'gold'}),
+          item('アンジェリーナ（5回以内に通常D）','mode',{accent:'gold'}),
+          item('リーゼ（天国系・予想）','mode'),
+          item('敵4人（天国系・予想）','mode'),
+          item('手（天国系・予想）','mode'),
+          item('真夜中のサーカス（天国系・予想）','mode'),
+          item('ギイ＆オリンピア（天国系・予想）','mode'),
+          item('ピエロ（天国系・予想）','mode'),
+          item('フェイスレス（天国系・予想）','mode')
+        ],'hit'),
+        place('sgp_karakuri2_start_stage','開始ステージ（CZ・AT後）',[
+          item('フウ屋敷スタート（デフォルト・実戦上）','mode'),
+          item('仲町サーカススタート（早い規定G示唆の可能性・実戦上）','mode'),
+          item('その他ステージスタート（要記録）','mode')
+        ],'hit'),
+        place('sgp_karakuri2_serif','セリフ演出',[
+          item('アンジェリーナ永劫の時（モードD濃厚）','mode',{accent:'gold'}),
+          item('フランシーヌいつかまた（モードD濃厚）','mode',{accent:'gold'}),
+          item('エレオノール紫（通常C直撃報告・要蓄積）','mode'),
+          item('ピエロ：あと一歩（スイカ残り1回）','mode'),
+          item('ピエロ：楽しみな時間（報酬幕間以上）','mode'),
+          item('ピエロ：次の運命盤はもしや（報酬AT以上）','mode'),
+          item('ピエロ：邪悪な気配（報酬AT＋上位CZ）','mode')
+        ]),
+        place('sgp_karakuri2_stage_display','ステージ・液晶表示',[
+          item('訪れし者ステージ（本前兆＆モードD期待度UP、連続演出失敗でさらにUP）','mode'),
+          item('才賀善治屋敷夕方（高確示唆）','mode'),
+          item('スイカ残り2回表示（報酬幕間以上）','mode'),
+          item('ステチェン：スポットライトのみ（残り500G以内期待度UP）','mode'),
+          item('ステチェン：＋あるるかんシルエット（残り300G以内濃厚）','mode',{accent:'gold'}),
+          item('ステチェン：＋あるるかんアップ（残り200G以内濃厚）','mode',{accent:'gold'}),
+          item('次回予告矛盾（次回通常D濃厚・予想）','mode')
+        ])
+      ]
+    }
+  ];
+  mergeTimelineTagSeed(machine,timelineTags);
+  mergeSuggestSeed(machine,seed);
+  applySuggestMetadata(machine);
+  machine.suggestSeedKarakuriCircus2V1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -3118,7 +3322,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -3153,6 +3357,7 @@ function addMachine(){
   ensureSuggestSeed(machine);
   ensureMonkeyTurnSeed(machine);
   ensureNangokuSpecialSeed(machine);
+  ensureKarakuriCircus2Seed(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -5218,13 +5423,16 @@ function resetCounterWithHistory(counter,triggerTagId,triggerLabel){
   if(!counter)return;
   const count=subCounterValue(counter.key);
   if(counter.historyEnabled){
+    const existingRows=normalizeCounterHistories(currentCounterHistories);
+    const certainty=existingRows.length===0?'reference':'confirmed';
     currentCounterHistories=[
-      ...normalizeCounterHistories(currentCounterHistories),
+      ...existingRows,
       {
         id:uid('ch'),
         key:counter.key,
         label:counter.counterLabel||counter.label,
         count,
+        certainty,
         triggerTagId:String(triggerTagId||''),
         triggerLabel:String(triggerLabel||''),
         createdAt:new Date().toISOString()
@@ -5255,23 +5463,43 @@ function counterHistorySummary(counter){
   if(!counter)return '';
   const rows=counterHistoryRows(counter.key);
   const current=subCounterValue(counter.key);
-  const values=rows.map(row=>String(row.count));
+  const values=rows.map(row=>`${row.count}${row.certainty==='reference'?'?':''}`);
   values.push(`現在${current}`);
   return values.join(' → ');
 }
 function renderCounterHistorySummary(counter){
   const summary=counterHistorySummary(counter);
-  return summary?`<div class="input-hint" style="grid-column:1/-1;">${escapeHtml(summary)}</div>`:'';
+  if(!summary)return '';
+  const referenceRows=counterHistoryRows(counter.key).filter(row=>row.certainty==='reference');
+  return `<div class="input-hint" style="grid-column:1/-1;">
+    <div>${escapeHtml(summary)}</div>
+    ${referenceRows.map(row=>counterHistoryHtml(row,true)).join('')}
+  </div>`;
 }
 function counterHistoryLine(row){
   const label=row.label||machineCounters().find(counter=>counter.key===row.key)?.counterLabel||row.key;
   const trigger=row.triggerLabel?` / ${row.triggerLabel}`:'';
-  return `${label}${row.count}回${trigger}`;
+  return `${label}${row.count}${row.certainty==='reference'?'?':''}回${trigger}`;
+}
+function confirmCounterHistory(id){
+  currentCounterHistories=normalizeCounterHistories(currentCounterHistories).map(row=>row.id===id?{...row,certainty:'confirmed'}:row);
+  renderLogFields();
+  renderCurrentTimeline();
+  renderPracticeStats();
+  scheduleDraftSave();
+}
+function counterHistoryHtml(row,editable=false){
+  const line=escapeHtml(counterHistoryLine(row));
+  const reference=row.certainty==='reference';
+  return `<div class="counter-history-line ${reference?'reference':''}">
+    ${line}
+    ${editable&&reference?`<div class="counter-history-actions"><button class="btn-small" type="button" onclick="confirmCounterHistory('${escapeHtml(row.id)}')">確定にする</button></div>`:''}
+  </div>`;
 }
 function renderCounterHistories(histories){
   const rows=normalizeCounterHistories(histories);
   if(!rows.length)return '';
-  return `<div class="timeline-text">${rows.map(row=>escapeHtml(counterHistoryLine(row))).join('<br>')}</div>`;
+  return `<div class="timeline-text">${rows.map(row=>counterHistoryHtml(row,false)).join('')}</div>`;
 }
 function renderSubCounterControls(){
   const counter=machineSubCounter();
