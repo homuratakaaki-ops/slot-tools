@@ -2210,6 +2210,16 @@ function ensureSuggestSeed(machine){
     machine.useLcdCounter=true;
     machine.useEndingCards=true;
     machine.followMode='ask';
+    machine.hitBranchFlows={
+      ...(machine.hitBranchFlows||{}),
+      czFail:[
+        {key:'czResult',label:'CZ結果'},
+        {key:'czEndcard',label:'CZ終了エンドカード'},
+        {key:'eyecatch',label:'アイキャッチ'},
+        {key:'kui',label:'喰ポイント'},
+        {key:'exit',label:'出口選択'}
+      ]
+    };
     machine.hitTriggers=normalizeHitTriggers([
       {key:'cz',label:'CZ当選'},
       {key:'upper_cz',label:'上位CZ当選'},
@@ -2771,6 +2781,14 @@ function ensureKarakuriCircus2Seed(machine){
   machine.useLiquidOffsetCounter=false;
   machine.useEndingCards=false;
   machine.followMode='ask';
+  machine.hitBranchFlows={
+    czFail:[
+      {key:'czResult',label:'CZ結果'},
+      {key:'karakuriCzEndScreen',label:'CZ終了画面',placeId:'sgp_karakuri2_cz_end_screen',stateGroup:'hit'},
+      {key:'karakuriStageChange',label:'ステチェン',placeId:'sgp_karakuri2_stage_change',stateGroup:'play'},
+      {key:'karakuriStartStage',label:'開始ステージ',placeId:'sgp_karakuri2_start_stage',stateGroup:'hit'}
+    ]
+  };
   machine.hitTriggers=normalizeHitTriggers([
     {key:'cz',label:'CZ',variants:[
       {key:'cz_theater',label:'CZ劇場'},
@@ -2955,13 +2973,15 @@ function ensureKarakuriCircus2Seed(machine){
           item('ピエロ：次の運命盤はもしや（報酬AT以上）','mode'),
           item('ピエロ：邪悪な気配（報酬AT＋上位CZ）','mode')
         ]),
-        place('sgp_karakuri2_stage_display','ステージ・液晶表示',[
+        place('sgp_karakuri2_stage_change','ステチェン',[
           item('ステチェン:デフォルト（スポットライトなし）','mode'),
-          item('訪れし者:連続演出失敗（モードD期待度さらにUP）','mode'),
-          item('スイカ残り2回表示（報酬幕間以上）','mode'),
           item('ステチェン：スポットライトのみ（残り500G以内期待度UP）','mode'),
           item('ステチェン：＋あるるかんシルエット（残り300G以内濃厚）','mode',{accent:'gold'}),
-          item('ステチェン：＋あるるかんアップ（残り200G以内濃厚）','mode',{accent:'gold'}),
+          item('ステチェン：＋あるるかんアップ（残り200G以内濃厚）','mode',{accent:'gold'})
+        ]),
+        place('sgp_karakuri2_stage_display','ステージ・液晶表示',[
+          item('訪れし者:連続演出失敗（モードD期待度さらにUP）','mode'),
+          item('スイカ残り2回表示（報酬幕間以上）','mode'),
           item('次回予告矛盾（次回通常D濃厚・予想）','mode')
         ])
       ]
@@ -2975,7 +2995,11 @@ function ensureKarakuriCircus2Seed(machine){
       '才賀善治屋敷夕方（高確示唆）',
       '屋敷本館（高確示唆）',
       '屋敷別館（高確示唆）',
-      '訪れし者ステージ（本前兆＆モードD期待度UP、連続演出失敗でさらにUP）'
+      '訪れし者ステージ（本前兆＆モードD期待度UP、連続演出失敗でさらにUP）',
+      'ステチェン:デフォルト（スポットライトなし）',
+      'ステチェン：スポットライトのみ（残り500G以内期待度UP）',
+      'ステチェン：＋あるるかんシルエット（残り300G以内濃厚）',
+      'ステチェン：＋あるるかんアップ（残り200G以内濃厚）'
     ]);
     stageDisplay.items=(stageDisplay.items||[]).filter(item=>!removedStageSuggestLabels.has(item.label));
   }
@@ -4786,25 +4810,27 @@ function renderSuggestPicker(stage){
   const back=document.getElementById('suggestPickerBackButton');
   if(!title||!breadcrumb||!options||!back)return;
   title.classList.remove('kui-title','gain','hint');
+  const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
+  const skipHtml=branchActive?'<button class="suggest-picker-option" onclick="skipCurrentHitBranchStep()">このステップをスキップ</button>':'';
   if(stage==='trophyCustom'&&place){
     const item=enabledSuggestItems(category.id,place.id).find(i=>i.id===suggestPickerState.itemId);
     if(!item){suggestPickerState.itemId='';renderSuggestPicker('item');return;}
     title.textContent='店長カスタムを選択';
     breadcrumb.textContent=`${suggestStateLabel(suggestPickerState.stateGroup)} / ${suggestEntryPlaceLabel({category:category.category,place:place.name})} / ${item.label}`;
     back.textContent='内容に戻る';
-    options.innerHTML=TROPHY_CUSTOM_OPTIONS.map(value=>`<button class="suggest-picker-option" onclick="selectTrophyCustom('${value}')">${value}</button>`).join('');
+    options.innerHTML=TROPHY_CUSTOM_OPTIONS.map(value=>`<button class="suggest-picker-option" onclick="selectTrophyCustom('${value}')">${value}</button>`).join('')+skipHtml;
   }else if(stage==='item'&&place){
     title.textContent='内容を選択';
     breadcrumb.textContent=`${suggestStateLabel(suggestPickerState.stateGroup)} / ${suggestEntryPlaceLabel({category:category.category,place:place.name})}`;
     back.textContent='確認場所に戻る';
     const items=enabledSuggestItems(category.id,place.id);
-    options.innerHTML=items.length?items.map(item=>`<button class="suggest-picker-option" onclick="selectSuggestItem('${item.id}')">${decoratedSuggestLabelHtml(item.label,item.decorations||[])}</button>`).join(''):'<div class="empty-hint">有効な内容がありません</div>';
+    options.innerHTML=(items.length?items.map(item=>`<button class="suggest-picker-option" onclick="selectSuggestItem('${item.id}')">${decoratedSuggestLabelHtml(item.label,item.decorations||[])}</button>`).join(''):'<div class="empty-hint">有効な内容がありません</div>')+skipHtml;
   }else{
     title.textContent='確認場所を選択';
     breadcrumb.textContent=suggestStateLabel(suggestPickerState.stateGroup);
     back.textContent='状態に戻る';
     const places=enabledSuggestPlaceEntries(suggestPickerState.stateGroup);
-    options.innerHTML=places.length?places.map(({category,place})=>`<button class="suggest-picker-option" onclick="selectSuggestPlace('${category.id}','${place.id}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`).join(''):'<div class="empty-hint">有効な確認場所がありません</div>';
+    options.innerHTML=(places.length?places.map(({category,place})=>`<button class="suggest-picker-option" onclick="selectSuggestPlace('${category.id}','${place.id}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`).join(''):'<div class="empty-hint">有効な確認場所がありません</div>')+skipHtml;
   }
 }
 function selectSuggestPlace(categoryId,placeId){
@@ -4851,9 +4877,14 @@ function selectTrophyCustom(custom){
 }
 function finishHitBranchStepAndContinue(){
   advanceHitBranchWizard();
+  const completed=completeHitBranchWizardIfDone();
   renderLogFields();
   saveDraftImmediately();
-  if(currentHitBranchStep())setTimeout(openCurrentHitBranchStep,0);
+  if(!completed&&currentHitBranchStep())setTimeout(openCurrentHitBranchStep,0);
+}
+function skipCurrentHitBranchStep(){
+  closeSuggestPicker();
+  finishHitBranchStepAndContinue();
 }
 function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   const custom=isTrophySuggestSelection(selection)?trophyCustomValue:'';
@@ -6106,10 +6137,16 @@ function nextModeEyecatchPlace(){
   const place=findSuggestPlaceByName(mode,'アイキャッチ');
   return mode&&place?{category:mode,place}:null;
 }
+function machineHitBranchFlowSteps(route){
+  const flow=currentMachine()?.hitBranchFlows?.[route];
+  return Array.isArray(flow)?flow.map(step=>({...step})):[];
+}
 function hitBranchSteps(route,through=hitBranchWizard.through){
   if(route==='czResult')return [
     {key:'czResult',label:'CZ結果'}
   ];
+  const presetSteps=machineHitBranchFlowSteps(route);
+  if(presetSteps.length)return presetSteps;
   if(route==='czFail')return [
     {key:'czResult',label:'CZ結果'},
     {key:'czEndcard',label:'CZ終了エンドカード'},
@@ -6153,7 +6190,7 @@ function renderHitBranchWizardArea(){
   return `
     <div class="branch-wizard">
       <div class="section-label" style="margin-top:0;">当選記録フロー</div>
-      <p class="section-note">STEP2の当選トリガーから作成されたイベントを処理します。出口選択まで進めると完了です。</p>
+      <p class="section-note">STEP2の当選トリガーから作成されたイベントを処理します。表示された最後のステップまで進めると完了です。</p>
       ${event?`<div class="item-sub">対象：${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLabel(event)}`)}</div>${hitEventVariantButtons(event,'current')}`:''}
       ${!route?'<div class="empty-hint">STEP2の当選トリガーから開始してください。<button class="btn-secondary" onclick="switchFlowStep(2)">STEP2へ戻る</button></div>':''}
       ${route?`
@@ -6285,6 +6322,13 @@ function backHitBranchWizard(){
 function currentHitBranchStep(){
   return hitBranchSteps(hitBranchWizard.route)[hitBranchWizard.stepIndex]||null;
 }
+function completeHitBranchWizardIfDone(){
+  if(currentHitBranchStep())return false;
+  const event=currentHitEvent();
+  if(event)event.wizardDone=true;
+  hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
+  return true;
+}
 function findSuggestPlaceEntryById(id){
   for(const category of enabledSuggestCategories()){
     const place=enabledSuggestPlaces(category.id).find(row=>row.id===id);
@@ -6314,6 +6358,12 @@ function openCurrentHitBranchStep(){
   if(step.key==='kui'){
     const category=findSuggestCategoryByName(currentMachine(),'喰ポイント');
     if(category)openKuiPointPicker(category.id,'hit','branch');
+    return;
+  }
+  if(step.placeId){
+    const entry=findSuggestPlaceEntryById(step.placeId);
+    if(entry)openSuggestItemPicker(entry.category.id,entry.place.id,step.stateGroup||suggestPlaceStateGroup(entry.category,entry.place),'branch');
+    else openBranchPlacePicker(step.label||'確認場所',[]);
     return;
   }
   const entry={
@@ -6732,7 +6782,8 @@ function openBranchPlacePicker(titleText,entries){
   title.textContent=titleText;
   breadcrumb.textContent='当選記録フロー / 確認場所を選択';
   back.textContent='閉じる';
-  options.innerHTML=entries.length?entries.map(({category,place})=>`<button class="suggest-picker-option" onclick="selectBranchSuggestPlace('${category.id}','${place.id}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`).join(''):'<div class="empty-hint">有効な確認場所がありません</div>';
+  const skipHtml=hitBranchWizard.route?'<button class="suggest-picker-option" onclick="skipCurrentHitBranchStep()">このステップをスキップ</button>':'';
+  options.innerHTML=(entries.length?entries.map(({category,place})=>`<button class="suggest-picker-option" onclick="selectBranchSuggestPlace('${category.id}','${place.id}')">${escapeHtml(suggestEntryPlaceLabel({category:category.category,place:place.name}))}</button>`).join(''):'<div class="empty-hint">有効な確認場所がありません</div>')+skipHtml;
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
 }
 function selectBranchSuggestPlace(categoryId,placeId){
