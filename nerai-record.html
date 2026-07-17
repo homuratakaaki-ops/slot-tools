@@ -326,6 +326,12 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .tag-group-body.closed{display:none;}
 .copy-done{color:var(--green);font-size:12px;text-align:center;margin-top:6px;display:none;}
 .backup-file{font-size:12px;color:var(--text-muted);}
+.protection-banner{display:none;margin:10px 12px 0;border:1px solid rgba(255,122,122,.65);background:rgba(255,122,122,.1);color:#ffdcdc;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;}
+.protection-banner.open{display:block;}
+.protection-banner a{color:var(--gold-light);font-weight:800;}
+.protection-list{display:grid;gap:8px;margin-top:10px;}
+.protection-row{border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px;background:rgba(0,0,0,.16);}
+.protection-row .meta{font-size:12px;color:var(--text-muted);margin-top:4px;}
 .flow-step-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;position:sticky;top:0;z-index:20;background:rgba(13,13,15,.94);padding:8px 0;}
 .flow-step-tab{border:0;border-bottom:2px solid transparent;background:rgba(36,36,43,.62);color:var(--text-muted);border-radius:0;padding:9px 6px;font-size:12px;font-weight:800;cursor:pointer;text-align:center;}
 .flow-step-tab.active{border-bottom-color:var(--gold);background:rgba(201,168,76,.1);color:var(--gold-light);box-shadow:none;}
@@ -416,6 +422,8 @@ footer a:hover{color:var(--gold-light);}
   <div class="tab" id="tabManage" onclick="showPage('pageManage')">機種・店舗</div>
   <div class="tab" id="tabFields" onclick="showPage('pageFields')">項目</div>
 </div>
+
+<div class="protection-banner" id="storageProtectionBanner"></div>
 
 <div class="page" id="pageLog">
   <div class="flow-step-tabs" id="flowStepTabs"></div>
@@ -533,6 +541,14 @@ footer a:hover{color:var(--gold-light);}
     <div class="card" style="margin-top:10px;">
       <div class="input-label" style="margin-bottom:8px;">JSONから復元</div>
       <input class="backup-file" type="file" id="restoreFile" accept="application/json,.json" onchange="restoreJson(this)">
+    </div>
+    <div class="card" style="margin-top:10px;">
+      <div class="input-label" style="margin-bottom:8px;">退避データ</div>
+      <div class="log-tools">
+        <button class="btn-secondary" onclick="renderProtectionBackups()">退避データを確認</button>
+        <a class="btn-secondary" href="recovery.html" target="_blank" rel="noopener" style="text-decoration:none;">Recoveryを開く</a>
+      </div>
+      <div id="protectionBackupList" class="protection-list"></div>
     </div>
   </div>
 </div>
@@ -815,6 +831,12 @@ footer a:hover{color:var(--gold-light);}
 
 <script>
 const STORAGE_KEY='nerai_record_v1';
+const STORAGE_LAST_GOOD_KEY='nerai_record_v1_last_good';
+const STORAGE_PREMIGRATE_KEY='nerai_record_v1_premigrate';
+const STORAGE_PRERESTORE_KEY='nerai_record_v1_prerestore';
+const STORAGE_DAILY_BACKUP_DATE_KEY='nerai_record_v1_daily_backup_date';
+const STORAGE_BACKUP_KEYS=['nerai_record_v1_backup_1','nerai_record_v1_backup_2','nerai_record_v1_backup_3'];
+const STORAGE_RECOVERY_KEYS=[STORAGE_LAST_GOOD_KEY,STORAGE_PREMIGRATE_KEY,STORAGE_PRERESTORE_KEY,...STORAGE_BACKUP_KEYS];
 const ORGANIZED_FILTER_KEY='neraiOrganizedViewFilters';
 const ORGANIZED_CHAIN_MODE_HINTS_KEY='neraiOrganizedShowChainModeHints';
 const LOG_SCHEMA_VERSION=2;
@@ -865,6 +887,8 @@ const ENDING_CARD_GROUPS=[
   {id:'red_strong',name:'赤・高設定強',hint:'高設定示唆:強',tone:'red',cards:['鯱','亜門鋼太朗','篠原幸紀','鈴屋什造']}
 ];
 const EMPTY_DATA={version:1,machines:[],stores:[],logs:[],shopNotes:[]};
+let storageProtectionLocked=false;
+let storageProtectionReason='';
 let db=loadData();
 let selectedMachineId=db.machines[0]?.id||'';
 let selectedAimId=firstAimIdForMachine(db.machines[0])||'';
@@ -1049,11 +1073,20 @@ function ensureStore(name,lendRate=null,exchangeRate=null){
 }
 function loadData(){
   try{
-    const parsed=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
-    if(!parsed||parsed.version!==1)return clone(EMPTY_DATA);
-    return normalizeData(parsed);
+    const raw=localStorage.getItem(STORAGE_KEY);
+    if(!raw)return clone(EMPTY_DATA);
+    const parsed=JSON.parse(raw);
+    if(!isValidStorageData(parsed)){
+      lockStorageProtection('データ構造が不正です。自動保存を停止しました。');
+      return clone(EMPTY_DATA);
+    }
+    const before=JSON.stringify(parsed);
+    const normalized=normalizeData(clone(parsed));
+    if(isNonEmptyStorageData(parsed)&&JSON.stringify(normalized)!==before)backupRawStorage(STORAGE_PREMIGRATE_KEY,raw);
+    return normalized;
   }catch(err){
     console.error('nerai-record load failed',err);
+    lockStorageProtection('データの読み込みに失敗しました。自動保存を停止しました。');
     try{sessionStorage.setItem('neraiRecordLoadError','1');}catch{}
     return clone(EMPTY_DATA);
   }
@@ -1066,6 +1099,55 @@ function warnIfLoadFailed(){
   }catch{}
   if(!failed)return;
   setTimeout(()=>alert('保存データの読み込みに失敗しました。このまま保存すると空データで上書きされる可能性があります。バックアップ/復元からJSONを書き出せる場合は、先に退避してください。'),0);
+}
+function isValidStorageData(data){
+  return !!data&&data.version===1&&Array.isArray(data.machines)&&Array.isArray(data.stores)&&Array.isArray(data.logs);
+}
+function storageCounts(data){
+  return {
+    logs:Array.isArray(data?.logs)?data.logs.length:0,
+    stores:Array.isArray(data?.stores)?data.stores.length:0
+  };
+}
+function isNonEmptyStorageData(data){
+  const counts=storageCounts(data);
+  return counts.logs>0||counts.stores>0;
+}
+function parseStorageRaw(raw){
+  if(!raw)return null;
+  try{return JSON.parse(raw);}catch{return null;}
+}
+function backupRawStorage(key,raw=localStorage.getItem(STORAGE_KEY)){
+  const data=parseStorageRaw(raw);
+  if(!isValidStorageData(data)||!isNonEmptyStorageData(data))return false;
+  try{localStorage.setItem(key,raw);return true;}catch(error){console.error('storage backup failed',key,error);return false;}
+}
+function isBackupEligibleRaw(raw){
+  const data=parseStorageRaw(raw);
+  return isValidStorageData(data)&&isNonEmptyStorageData(data);
+}
+function lockStorageProtection(reason){
+  storageProtectionLocked=true;
+  storageProtectionReason=reason||'データ保護のため自動保存を停止しました。';
+  try{sessionStorage.setItem('neraiRecordProtectionLocked','1');}catch{}
+}
+function renderStorageProtectionBanner(){
+  const el=document.getElementById('storageProtectionBanner');
+  if(!el)return;
+  const locked=storageProtectionLocked||storageProtectionReason;
+  el.classList.toggle('open',!!locked);
+  el.innerHTML=locked
+    ?`${escapeHtml(storageProtectionReason||'データ保護のため自動保存を停止しています。')} <a href="recovery.html" target="_blank" rel="noopener">Recoveryを開く</a>`
+    :'';
+}
+function dangerousSaveReason(oldCounts,newCounts){
+  const oldNonEmpty=oldCounts.logs>0||oldCounts.stores>0;
+  const newEmpty=newCounts.logs===0&&newCounts.stores===0;
+  if(oldNonEmpty&&newEmpty)return '保存済みデータが非空ですが、新しい保存内容が空です。保存を拒否しました。';
+  const logsHalf=oldCounts.logs>=2&&newCounts.logs<oldCounts.logs/2;
+  const storesHalf=oldCounts.stores>=2&&newCounts.stores<oldCounts.stores/2;
+  if(logsHalf||storesHalf)return `保存件数が大幅に減少します（logs ${oldCounts.logs}→${newCounts.logs}, stores ${oldCounts.stores}→${newCounts.stores}）。`;
+  return '';
 }
 function normalizeHitTrigger(value){
   return ['cz','upper_cz','at','direct_at','episode_bonus'].includes(value)?value:null;
@@ -1513,7 +1595,94 @@ function migrateTimelineOffsets(log){
   log.suikaOffset=existingSuika!==null?existingSuika:0;
   log.manualCorrection=existingManual!==null?existingManual:(legacyOffset!==null?legacyOffset:legacyDeltaOffset);
 }
-function persist(){localStorage.setItem(STORAGE_KEY,JSON.stringify(db));}
+function persist(options={}){
+  if(storageProtectionLocked){
+    renderStorageProtectionBanner();
+    return false;
+  }
+  const oldRaw=localStorage.getItem(STORAGE_KEY);
+  const oldData=parseStorageRaw(oldRaw);
+  const oldCounts=storageCounts(oldData);
+  const newCounts=storageCounts(db);
+  const reason=dangerousSaveReason(oldCounts,newCounts);
+  if(reason&&!options.allowDangerous){
+    if(options.confirmDanger&&confirm(`${reason}\n明示的な削除として保存しますか？`)){
+      backupRawStorage(STORAGE_LAST_GOOD_KEY,oldRaw);
+    }else{
+      storageProtectionReason=reason;
+      renderStorageProtectionBanner();
+      alert(`${reason}\n保存は実行していません。Recoveryまたは退避データを確認してください。`);
+      return false;
+    }
+  }
+  backupRawStorage(STORAGE_LAST_GOOD_KEY,oldRaw);
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(db));
+  return true;
+}
+function rotateDailyStorageBackup(){
+  const raw=localStorage.getItem(STORAGE_KEY);
+  if(!isBackupEligibleRaw(raw))return false;
+  const today=todayValue();
+  if(localStorage.getItem(STORAGE_DAILY_BACKUP_DATE_KEY)===today)return false;
+  try{
+    const b1=localStorage.getItem(STORAGE_BACKUP_KEYS[0]);
+    const b2=localStorage.getItem(STORAGE_BACKUP_KEYS[1]);
+    if(b2)localStorage.setItem(STORAGE_BACKUP_KEYS[2],b2);
+    if(b1)localStorage.setItem(STORAGE_BACKUP_KEYS[1],b1);
+    localStorage.setItem(STORAGE_BACKUP_KEYS[0],raw);
+    localStorage.setItem(STORAGE_DAILY_BACKUP_DATE_KEY,today);
+    return true;
+  }catch(error){
+    console.error('daily backup failed',error);
+    return false;
+  }
+}
+function storageBackupSummary(raw){
+  const data=parseStorageRaw(raw);
+  if(!isValidStorageData(data))return '不正または空';
+  const counts=storageCounts(data);
+  const draft=data.draftLog?' / draftあり':'';
+  return `logs:${counts.logs} / stores:${counts.stores} / machines:${Array.isArray(data.machines)?data.machines.length:0}${draft}`;
+}
+function renderProtectionBackups(){
+  const el=document.getElementById('protectionBackupList');
+  if(!el)return;
+  const keys=STORAGE_RECOVERY_KEYS;
+  const rows=keys.map(key=>({key,raw:localStorage.getItem(key)}));
+  el.innerHTML=rows.map(row=>`
+    <div class="protection-row">
+      <div class="item-title">${escapeHtml(row.key)}</div>
+      <div class="meta">${row.raw?`${escapeHtml(storageBackupSummary(row.raw))} / ${row.raw.length} chars`:'未作成'}</div>
+      <div class="log-tools" style="margin-top:8px;">
+        <button class="btn-small" onclick="downloadProtectionBackup('${escapeHtml(row.key)}')" ${row.raw?'':'disabled'}>JSON保存</button>
+        <button class="btn-small gold" onclick="restoreProtectionBackup('${escapeHtml(row.key)}')" ${row.raw?'':'disabled'}>この退避から復元</button>
+      </div>
+    </div>`).join('');
+}
+function downloadProtectionBackup(key){
+  const raw=localStorage.getItem(key);
+  if(!raw){alert('退避データがありません');return;}
+  const blob=new Blob([raw],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`${key}-${todayValue()}.json`;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function restoreProtectionBackup(key){
+  const raw=localStorage.getItem(key);
+  const parsed=parseStorageRaw(raw);
+  if(!isValidStorageData(parsed)){alert('復元できる退避データではありません');return;}
+  if(!confirm(`${key} から復元します。現在のデータは復元前退避に保存されます。よろしいですか？`))return;
+  backupRawStorage(STORAGE_PRERESTORE_KEY);
+  db=normalizeData(parsed);
+  persist({allowDangerous:true});
+  selectedMachineId=db.machines[0]?.id||'';
+  selectedAimId=firstAimIdForMachine(db.machines[0])||'';
+  renderAll();
+  renderProtectionBackups();
+  alert('退避データから復元しました');
+}
 function machineById(id){return db.machines.find(m=>m.id===id)||null;}
 function aimById(machine,id){return machine?.aims?.find(a=>a.id===id)||null;}
 function firstAimIdForMachine(machine){return machine?.aims?.[0]?.id||'';}
@@ -4222,7 +4391,7 @@ function deleteStore(name){
   if(!confirm('この店舗を削除しますか？ 過去ログの店舗名は残ります。'))return;
   db.stores=db.stores.map(normalizeStore).filter(s=>s&&s.name!==name);
   if(editingStoreName===name)editingStoreName=null;
-  persist();renderAll();
+  persist({confirmDanger:true});renderAll();
 }
 function renderStoreList(){
   const el=document.getElementById('storeList');
@@ -9902,7 +10071,7 @@ function deleteLog(id){
   db.logs=db.logs.filter(l=>l.id!==id);
   delete openLogDetailIds[id];
   if(continuedFromLog?.id===id)clearContinueState();
-  persist();renderLogsList();
+  persist({confirmDanger:true});renderLogsList();
 }
 function clearContinueState(){
   continuedFromLog=null;
@@ -9929,7 +10098,8 @@ function restoreJson(input){
         alert('nerai_record_v1 のJSONではありません');return;
       }
       if(!confirm('現在のデータを上書きして復元します。よろしいですか？'))return;
-      db=normalizeData(parsed);persist();
+      backupRawStorage(STORAGE_PRERESTORE_KEY);
+      db=normalizeData(parsed);persist({allowDangerous:true});
       selectedMachineId=db.machines[0]?.id||'';
       selectedAimId=firstAimIdForMachine(db.machines[0])||'';
       renderAll();
@@ -9945,7 +10115,9 @@ showPage('pageLog');
 setToday();
 setDefaultStartTime();
 applyLatestStoreForCurrentDate();
+rotateDailyStorageBackup();
 restoreDraftIfAny();
+renderStorageProtectionBanner();
 warnIfLoadFailed();
 </script>
 </body>

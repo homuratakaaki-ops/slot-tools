@@ -18,6 +18,9 @@
     button{appearance:none;border:1px solid var(--line);background:#242a38;color:var(--text);border-radius:8px;padding:10px 12px;font-weight:700}
     button.primary{border-color:rgba(240,193,90,.75);background:#3a2f16;color:#ffe6a6}
     .summary,.entry{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:12px;margin-top:10px}
+    .recovery-grid{display:grid;gap:6px;margin-top:8px}
+    .recovery-key{display:flex;justify-content:space-between;gap:10px;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:7px 8px;background:rgba(0,0,0,.14);font-size:12px}
+    .recovery-key span:first-child{word-break:break-all}
     .key{font-weight:800;color:var(--accent);word-break:break-all}
     .meta{font-size:12px;color:var(--muted);margin-top:4px}
     textarea{width:100%;min-height:180px;margin-top:8px;background:#0c0e13;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;white-space:pre;resize:vertical}
@@ -41,6 +44,15 @@
 </main>
 
 <script>
+const KNOWN_RECOVERY_KEYS=[
+  'nerai_record_v1',
+  'nerai_record_v1_last_good',
+  'nerai_record_v1_premigrate',
+  'nerai_record_v1_prerestore',
+  'nerai_record_v1_backup_1',
+  'nerai_record_v1_backup_2',
+  'nerai_record_v1_backup_3'
+];
 function readStorage(storage,type){
   const rows=[];
   try{
@@ -85,10 +97,22 @@ function render(){
   const data=snapshot();
   const all=[...data.localStorage,...data.sessionStorage];
   const target=data.localStorage.find(row=>row.key==='nerai_record_v1');
+  const recoveryRows=KNOWN_RECOVERY_KEYS.map(key=>{
+    const row=data.localStorage.find(item=>item.key===key);
+    return {key,row};
+  });
   document.getElementById('summary').innerHTML=`
     <h2>概要</h2>
     <p>localStorage: ${data.localStorage.length} keys / sessionStorage: ${data.sessionStorage.length} keys</p>
-    <p>nerai_record_v1: ${target?escapeHtml(target.summary):'<span class="empty">not found</span>'}</p>`;
+    <p>nerai_record_v1: ${target?escapeHtml(target.summary):'<span class="empty">not found</span>'}</p>
+    <h2>nerai-record退避キー</h2>
+    <div class="recovery-grid">
+      ${recoveryRows.map(item=>`
+        <div class="recovery-key">
+          <span>${escapeHtml(item.key)}</span>
+          <span>${item.row?`${escapeHtml(item.row.summary)} / ${item.row.length} chars`:'<span class="empty">not found</span>'}</span>
+        </div>`).join('')}
+    </div>`;
   document.getElementById('storageList').innerHTML=all.length?all.map(row=>`
     <article class="entry">
       <div class="key">${escapeHtml(row.type)} / ${escapeHtml(row.key)}</div>
