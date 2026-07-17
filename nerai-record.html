@@ -842,9 +842,13 @@ const ORGANIZED_CHAIN_MODE_HINTS_KEY='neraiOrganizedShowChainModeHints';
 const LOG_SCHEMA_VERSION=2;
 const LOG_STATUS_VALUES=['active','suspended','finished','settled'];
 const SEGMENT_STATUS_VALUES=['editing','committed'];
-const REQUIRED_AIMS=[
+const STANDARD_AIM_SEEDS=[
   {id:'aim_tenjo',name:'天井狙い'},
-  {id:'aim_setting',name:'設定狙い'}
+  {id:'aim_setting',name:'設定狙い'},
+  {id:'aim_zone',name:'ゾーン狙い'},
+  {id:'aim_mode',name:'モード狙い'},
+  {id:'aim_reset',name:'リセット狙い'},
+  {id:'aim_suggest',name:'示唆狙い'}
 ];
 const DEFAULT_LABEL_TAGS=[];
 const COUNT_AS_OPTIONS=['cz','at','cz_success','cz_fail'];
@@ -1688,10 +1692,34 @@ function aimById(machine,id){return machine?.aims?.find(a=>a.id===id)||null;}
 function firstAimIdForMachine(machine){return machine?.aims?.[0]?.id||'';}
 function currentMachine(){return machineById(selectedMachineId);}
 function currentAim(){return aimById(currentMachine(),selectedAimId);}
+function normalizeDeletedStandardAimIds(value){
+  const allowed=new Set(STANDARD_AIM_SEEDS.map(row=>row.id));
+  return Array.isArray(value)?[...new Set(value.map(String).filter(id=>allowed.has(id)))]:[];
+}
+function normalizeDeletedAimNames(value){
+  return Array.isArray(value)?[...new Set(value.map(name=>String(name||'').trim()).filter(Boolean))]:[];
+}
+function standardAimSeedForAim(aim){
+  const name=String(aim?.name||'');
+  return STANDARD_AIM_SEEDS.find(req=>aim?.id===req.id||name===req.name)||null;
+}
+function removePresetReferenceAimFields(machine){
+  if(!machine||!Array.isArray(machine.aims))return;
+  machine.aims.forEach(aim=>{
+    aim.fields=Array.isArray(aim.fields)?aim.fields.filter(field=>{
+      const label=String(field?.label||'');
+      return label!=='参照値メモ'&&!label.startsWith('参照値：');
+    }):[];
+  });
+}
 function ensureRequiredAims(machine){
   if(!machine)return;
   machine.aims=Array.isArray(machine.aims)?machine.aims:[];
-  REQUIRED_AIMS.slice().reverse().forEach(req=>{
+  machine.standardAimSeedDeletedIds=normalizeDeletedStandardAimIds(machine.standardAimSeedDeletedIds);
+  machine.deletedAimNames=normalizeDeletedAimNames(machine.deletedAimNames);
+  removePresetReferenceAimFields(machine);
+  STANDARD_AIM_SEEDS.slice().reverse().forEach(req=>{
+    if(machine.standardAimSeedDeletedIds.includes(req.id))return;
     let aim=machine.aims.find(a=>a.id===req.id)||machine.aims.find(a=>a.name===req.name);
     if(!aim){
       machine.aims.unshift({id:req.id,name:req.name,fields:[]});
@@ -1699,7 +1727,8 @@ function ensureRequiredAims(machine){
       aim.fields=Array.isArray(aim.fields)?aim.fields:[];
     }
   });
-  REQUIRED_AIMS.slice().reverse().forEach(req=>{
+  STANDARD_AIM_SEEDS.slice().reverse().forEach(req=>{
+    if(machine.standardAimSeedDeletedIds.includes(req.id))return;
     const idx=machine.aims.findIndex(a=>a.id===req.id||a.name===req.name);
     if(idx>0){
       const [aim]=machine.aims.splice(idx,1);
@@ -3110,21 +3139,20 @@ function ensureKarakuriCircus2Seed(machine){
   const aimSeeds=[
     {
       id:'aim_karakuri2_tenjo',
-      name:'天井狙い',
-      note:'液晶1200G or 実890GでCZ。等価460G〜/5.6枚530G〜（AT後）'
+      name:'天井狙い'
     },
     {
       id:'aim_karakuri2_through',
-      name:'スルー狙い',
-      note:'CZ女神4スルー後5回目AT＋成功濃厚激情。3スルー＋中ハマりから'
+      name:'スルー狙い'
     },
     {
       id:'aim_karakuri2_reset',
-      name:'リセット狙い',
-      note:'変更後は液晶天井500Gに短縮。等価100G〜/5.6枚140G〜'
+      name:'リセット狙い'
     }
   ];
   aimSeeds.forEach(seed=>{
+    machine.deletedAimNames=normalizeDeletedAimNames(machine.deletedAimNames);
+    if(machine.deletedAimNames.includes(seed.name))return;
     let aim=machine.aims.find(row=>row.id===seed.id)||machine.aims.find(row=>row.name===seed.name);
     if(!aim){
       aim={id:seed.id,name:seed.name,fields:[]};
@@ -3136,11 +3164,7 @@ function ensureKarakuriCircus2Seed(machine){
         aim.fields.push({id:`${seed.id}_f${index+1}`,label:field.label,type:field.type,section:'start',optional:false,options:[]});
       }
     });
-    const legacyNote=aim.fields.find(row=>row.label==='参照値メモ');
-    if(legacyNote)legacyNote.label=`参照値：${seed.note}`;
-    if(!aim.fields.some(row=>String(row.label||'').startsWith('参照値：'))){
-      aim.fields.push({id:`${seed.id}_note`,label:`参照値：${seed.note}`,type:'memo',section:'start',optional:true,options:[]});
-    }
+    removePresetReferenceAimFields(machine);
   });
   const item=(label,carryType=null,extra={})=>({label,enabled:true,carryType,...extra});
   const place=(id,name,entries,stateGroup='play',useAppearG=true)=>({
@@ -3840,6 +3864,11 @@ function editAim(id){
 function deleteAim(id){
   const machine=currentMachine();const aim=aimById(machine,id);if(!machine||!aim)return;
   if(!confirm('狙い方テンプレを削除します。過去ログは残ります。削除しますか？'))return;
+  machine.deletedAimNames=normalizeDeletedAimNames([...(machine.deletedAimNames||[]),aim.name]);
+  const standardSeed=standardAimSeedForAim(aim);
+  if(standardSeed){
+    machine.standardAimSeedDeletedIds=normalizeDeletedStandardAimIds([...(machine.standardAimSeedDeletedIds||[]),standardSeed.id]);
+  }
   machine.aims=machine.aims.filter(a=>a.id!==id);
   selectedAimId=firstAimIdForMachine(machine)||'';
   persist();renderAll();

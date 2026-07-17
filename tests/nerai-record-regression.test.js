@@ -6,6 +6,7 @@ const vm = require('node:vm');
 const ROOT = path.resolve(__dirname, '..');
 const HTML_PATH = path.join(ROOT, 'nerai-record.html');
 const LEGACY_FIXTURE_PATH = path.join(__dirname, 'fixtures', 'nerai-record-legacy-2026-06-29.json');
+const STANDARD_AIM_NAMES = ['天井狙い', '設定狙い', 'ゾーン狙い', 'モード狙い', 'リセット狙い', '示唆狙い'];
 
 function extractScript() {
   const html = fs.readFileSync(HTML_PATH, 'utf8');
@@ -127,6 +128,20 @@ function testLegacyBackupLoad() {
   assert.equal(tokyoMachines[0].useEndingCards, true);
 }
 
+function testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore() {
+  const legacy = readLegacyFixture();
+  const machine = legacy.machines[0];
+  machine.aims.push({ id: 'a_user_custom', name: '夢爽カスタム狙い', fields: [] });
+  machine.tags.push({ id: 't_user_custom', label: '夢爽カスタムタグ', optional: true, countAs: null });
+  const raw = JSON.stringify(legacy);
+  const { context } = runRecord(raw);
+
+  assert.equal(vm.runInContext("db.machines.filter(isTokyoGhoulMachine).length", context), 1);
+  assert.equal(vm.runInContext("db.machines[0].aims.some(aim => aim.id === 'a_user_custom' && aim.name === '夢爽カスタム狙い')", context), true);
+  assert.equal(vm.runInContext("db.machines[0].tags.some(tag => tag.id === 't_user_custom' && tag.label === '夢爽カスタムタグ')", context), true);
+  assert.equal(vm.runInContext("db.machines[0].tags.some(tag => tag.id === 't_tokyo_ghoul_suika_10')", context), true);
+}
+
 function testLegacyBackupWithSyntheticLogAndGuard() {
   const legacy = readLegacyFixture();
   legacy.logs = [
@@ -190,6 +205,34 @@ function testTokyoGhoulPresetInitialDisplayAndSpecificFeatures() {
   );
 }
 
+function testStandardAimSeedsNoDuplicatesAndDeleteTombstone() {
+  const { context, localStorage } = runRecord(undefined, [true, true]);
+
+  const machineSummaries = JSON.parse(vm.runInContext(`JSON.stringify(db.machines.map(machine => ({
+    id: machine.id,
+    names: machine.aims.map(aim => aim.name)
+  })))`, context));
+  machineSummaries.forEach(machine => {
+    STANDARD_AIM_NAMES.forEach(name => assert.equal(machine.names.includes(name), true, `${machine.id} should include ${name}`));
+    STANDARD_AIM_NAMES.forEach(name => assert.equal(machine.names.filter(row => row === name).length, 1, `${machine.id} should not duplicate ${name}`));
+  });
+
+  vm.runInContext("selectedMachineId='m_tokyo_ghoul'; selectedAimId='aim_zone'; deleteAim('aim_zone');", context);
+  assert.equal(vm.runInContext("machineById('m_tokyo_ghoul').aims.some(aim => aim.name === 'ゾーン狙い')", context), false);
+  const stored = localStorage.getItem('nerai_record_v1');
+  const reloaded = runRecord(stored, [true]);
+  assert.equal(vm.runInContext("machineById('m_tokyo_ghoul').aims.some(aim => aim.name === 'ゾーン狙い')", reloaded.context), false);
+  assert.equal(vm.runInContext("machineById('m_tokyo_ghoul').standardAimSeedDeletedIds.includes('aim_zone')", reloaded.context), true);
+
+  vm.runInContext('renderAll(); renderAll();', reloaded.context);
+  assert.equal(vm.runInContext("machineById('m_tokyo_ghoul').aims.filter(aim => aim.name === '天井狙い').length", reloaded.context), 1);
+
+  vm.runInContext("selectedMachineId='m_karakuri_circus_2'; selectedAimId=machineById('m_karakuri_circus_2').aims.find(aim => aim.name === '天井狙い').id; deleteAim(selectedAimId);", reloaded.context);
+  assert.equal(vm.runInContext("machineById('m_karakuri_circus_2').aims.some(aim => aim.name === '天井狙い')", reloaded.context), false);
+  vm.runInContext('renderAll(); renderAll();', reloaded.context);
+  assert.equal(vm.runInContext("machineById('m_karakuri_circus_2').aims.some(aim => aim.name === '天井狙い')", reloaded.context), false);
+}
+
 function testOtherPresetMachinesRemainStable() {
   const { context } = runRecord(undefined);
   assert.equal(vm.runInContext("isMonkeyTurnMachine(machineById('m_monkey_turn_v'))", context), true);
@@ -203,8 +246,10 @@ function testOtherPresetMachinesRemainStable() {
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
+  testStandardAimSeedsNoDuplicatesAndDeleteTombstone();
   testOtherPresetMachinesRemainStable();
   testLegacyBackupLoad();
+  testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();
   console.log('nerai-record regression: PASS');
 }
