@@ -59,11 +59,13 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .game-pair-field{display:flex;align-items:center;gap:5px;min-width:0;background:rgba(0,0,0,.12);border:1px solid var(--border);border-radius:8px;padding:7px;}
 .game-pair-field label{font-size:12px;color:var(--text-muted);font-weight:700;white-space:nowrap;}
 .game-pair-field input{min-width:0;width:0;flex:1 1 0;text-align:center;padding-left:6px;padding-right:6px;}
-.counter-compact-row{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr) auto;gap:6px;align-items:stretch;margin:8px 0;width:100%;max-width:100%;}
+.counter-compact-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-items:stretch;margin:8px 0;width:100%;max-width:100%;}
 .counter-compact-row .game-pair-field{padding:6px;}
-.counter-compact-row .btn-small{height:auto;min-width:42px;padding:6px 8px;}
+.counter-compact-row .btn-small{min-height:52px;height:auto;min-width:52px;padding:10px 8px;font-size:15px;font-weight:900;border-radius:14px;}
 .counter-compact-row .input-hint{grid-column:1/-1;margin-top:-2px;}
-.counter-compact-spacer{min-width:42px;}
+.counter-compact-control{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;}
+.counter-compact-control.readonly{display:block;}
+.counter-compact-spacer{min-width:52px;}
 .readonly-game-input{background:rgba(0,0,0,.2)!important;border-color:rgba(122,122,138,.35)!important;color:var(--gold-light)!important;text-align:center;cursor:default;}
 .btn-primary{width:100%;background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;border-radius:8px;color:#0d0d0f;font-size:15px;font-weight:700;padding:14px;cursor:pointer;margin-top:10px;}
 .btn-primary:active{opacity:.82;}
@@ -112,9 +114,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .tag-buttons{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;}
 .tag-group-grid .tag-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
 .tag-group-grid .tag-btn{width:100%;}
-.tag-btn.tag-size-large{grid-column:span 2;min-height:54px;border-radius:14px;font-size:15px;font-weight:900;}
+.tag-btn.tag-size-large{grid-column:span 2;}
 .pending-delete-actions{padding:0 10px 10px;justify-content:flex-end;}
-.tag-btn{background:var(--surface2);border:1px solid var(--border);border-radius:14px;color:var(--text-muted);font-size:15px;font-weight:800;line-height:1.35;min-height:52px;padding:10px 10px;cursor:pointer;}
+.tag-btn{background:var(--surface2);border:1px solid var(--border);border-radius:14px;color:var(--text-muted);font-size:15px;font-weight:900;line-height:1.35;min-height:56px;padding:10px 10px;cursor:pointer;}
 .tag-btn.gold{border-color:rgba(201,168,76,.65);color:var(--gold-light);background:rgba(201,168,76,.08);}
 .tag-btn:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
 .tag-btn.tag-style-rare-weak{background:#ffd9de;border-color:#ff8fa0;color:#5b1018;}
@@ -210,7 +212,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .work-subsection.play-group{background:rgba(201,168,76,.055);border-color:rgba(201,168,76,.24);}
 .work-subsection.play-group.alt{background:rgba(98,181,255,.055);border-color:rgba(98,181,255,.22);}
 .hit-trigger-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px;}
-.hit-trigger-btn{min-height:54px;border:none;border-radius:8px;background:linear-gradient(135deg,#9f7619,#e4c45e);color:#101014;font-size:14px;font-weight:900;box-shadow:0 0 0 2px rgba(201,168,76,.16),0 8px 22px rgba(201,168,76,.16);cursor:pointer;}
+.hit-trigger-btn{min-height:56px;border:none;border-radius:14px;background:linear-gradient(135deg,#9f7619,#e4c45e);color:#101014;font-size:15px;font-weight:900;box-shadow:0 0 0 2px rgba(201,168,76,.16),0 8px 22px rgba(201,168,76,.16);cursor:pointer;}
 .hit-trigger-btn:active{filter:brightness(1.08);}
 .outcome-tabs{display:flex;gap:0;border-bottom:1px solid rgba(122,122,138,.35);margin:8px 0 10px;}
 .outcome-tab{flex:1;background:transparent;border:0;border-bottom:2px solid transparent;border-radius:0;color:var(--text-muted);font-size:13px;font-weight:800;padding:9px 6px;cursor:pointer;}
@@ -872,6 +874,7 @@ let lastSegmentUndo=null;
 let currentEndingCards={};
 let endingCardGroupsOpen={};
 let pendingTimelineTagIds=[];
+let pendingTagNumberAttachment=null;
 let timelineHistoryOpen=false;
 let timelineTagGroupOpen={};
 let pastHintsOpen=false;
@@ -5553,24 +5556,36 @@ function compactCounterLabel(counter){
 function renderCounterCompactRow(){
   const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
   const counter=machineSubCounter();
-  if(!useLiquidOffsetCounter&&!counter)return '';
+  const usesAttachment=(currentMachine()?.tags||[]).some(tag=>normalizeTagNumberAttachment(tag.numberAttachment));
+  if(!useLiquidOffsetCounter&&!counter&&!usesAttachment)return '';
   const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
   const counterValue=counter?subCounterValue(counter.key):0;
   return `
     <div class="counter-compact-row">
       ${useLiquidOffsetCounter?`
+      <div class="counter-compact-control">
         <div class="game-pair-field">
           <label for="timelineLiquidOffset">差分</label>
           <input type="text" id="timelineLiquidOffset" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(timelineLiquidOffset())}" placeholder="0" oninput="syncTimelineLiquidOffset()" onchange="syncTimelineLiquidOffset()">
         </div>
-        ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span class="counter-compact-spacer" aria-hidden="true"></span>'}`:''}
+        ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span class="counter-compact-spacer" aria-hidden="true"></span>'}
+      </div>`:''}
       ${counter?`
+      <div class="counter-compact-control">
         <div class="game-pair-field">
           <label for="subCounter_${escapeHtml(counter.key)}">${escapeHtml(compactCounterLabel(counter))}</label>
           <input type="text" id="subCounter_${escapeHtml(counter.key)}" class="numeric-input" inputmode="none" readonly value="${escapeHtml(counterValue)}" placeholder="0" oninput="syncSubCounterInput('${escapeHtml(counter.key)}')" onchange="syncSubCounterInput('${escapeHtml(counter.key)}')">
         </div>
         <button class="btn-small counter-btn" type="button" onclick="incrementSubCounter('${escapeHtml(counter.key)}',1)">+1</button>
+      </div>
         ${renderCounterHistorySummary(counter)}`:''}
+      ${usesAttachment?`
+      <div class="counter-compact-control readonly">
+        <div class="game-pair-field">
+          <label for="timelineAttachmentTotal">累計液晶</label>
+          <input type="text" id="timelineAttachmentTotal" class="numeric-input" inputmode="none" readonly value="${escapeHtml(timelineAttachmentTotal('liquid_bonus'))}" placeholder="0">
+        </div>
+      </div>`:''}
     </div>`;
 }
 function timelineAttachmentTotal(role=''){
@@ -5612,6 +5627,8 @@ function renderNumberAttachmentSummary(){
     </div>`;
 }
 function renderNumberAttachmentSummaryIntoDom(){
+  const total=document.getElementById('timelineAttachmentTotal');
+  if(total)total.value=String(timelineAttachmentTotal('liquid_bonus'));
   const box=document.getElementById('numberAttachmentSummaryBox');
   if(box)box.outerHTML=renderNumberAttachmentSummary();
 }
@@ -6007,7 +6024,6 @@ function renderTimelineArea(mode='play'){
       <div class="section-label" style="margin-top:0;">カウンター操作</div>
       ${renderGamePairInputs('timeline')}
       ${renderCounterCompactRow()}
-      ${renderNumberAttachmentSummary()}
       ${!machineUsesQuickActions()?`<div class="log-tools">
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(1)">+1</button>
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(5)">+5</button>
@@ -6022,6 +6038,7 @@ function renderTimelineArea(mode='play'){
       <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState()"></textarea>
       <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
     </div>
+    ${renderNumberAttachmentSummary()?`<div class="work-subsection play-group alt">${renderNumberAttachmentSummary()}</div>`:''}
     ${renderIntervalEstimateControls()}
     ${renderTimelineHistoryPanel()}
     <div class="work-subsection play-group alt">
@@ -7087,27 +7104,52 @@ function promptNangokuEntryCause(tag){
   const selected=NANGOKU_ENTRY_CAUSES[index-1]||NANGOKU_ENTRY_CAUSES.find(row=>row.key==='unknown');
   return {entryType:type,entryCause:selected.key,entryCauseLabel:selected.label};
 }
-function promptTagNumberAttachment(tag){
-  const rule=normalizeTagNumberAttachment(tag?.numberAttachment);
-  if(!rule)return [];
-  const input=prompt(`${rule.prompt}（${rule.unit}）`);
-  if(input===null)return null;
-  const value=normalizeOptionalNumber(String(input).trim());
-  if(value===null){alert('数値で入力してください');return null;}
-  return [{key:rule.key,label:rule.label,value:Math.max(0,Math.trunc(value)),unit:rule.unit,estimateRole:rule.estimateRole}];
-}
 function timelineAttachmentText(attachments){
   const rows=normalizeTimelineAttachments(attachments);
   return rows.length?rows.map(row=>`${row.label}+${row.value}${row.unit}`).join(' / '):'';
 }
+function beginTagNumberAttachment(tag){
+  const rule=normalizeTagNumberAttachment(tag?.numberAttachment);
+  if(!rule)return false;
+  const input=document.createElement('input');
+  input.type='text';
+  input.className='numeric-input';
+  input.inputMode='numeric';
+  input.pattern='[0-9]*';
+  input.readOnly=true;
+  input.placeholder=rule.prompt;
+  input.style.position='fixed';
+  input.style.left='-9999px';
+  input.style.width='1px';
+  input.style.height='1px';
+  pendingTagNumberAttachment={tagId:tag.id,rule,input,done:false};
+  input.addEventListener('change',completeTagNumberAttachment,{once:true});
+  document.body.appendChild(input);
+  openNumericKeypad(input);
+  return true;
+}
+function completeTagNumberAttachment(){
+  const pending=pendingTagNumberAttachment;
+  pendingTagNumberAttachment=null;
+  if(!pending||pending.done)return;
+  pending.done=true;
+  const value=normalizeOptionalNumber(pending.input?.value||'');
+  pending.input?.remove();
+  if(value===null){alert('数値で入力してください');return;}
+  const tag=currentMachine()?.tags?.find(row=>row.id===pending.tagId);
+  if(!tag)return;
+  addInstantTimelineTagWithAttachments(tag,[{key:pending.rule.key,label:pending.rule.label,value:Math.max(0,Math.trunc(value)),unit:pending.rule.unit,estimateRole:pending.rule.estimateRole}]);
+}
 function addInstantTimelineTag(tag){
+  if(beginTagNumberAttachment(tag))return;
+  addInstantTimelineTagWithAttachments(tag,[]);
+}
+function addInstantTimelineTagWithAttachments(tag,attachments=[]){
   const game=timelineDataValue();
   const liquidGame=timelineLiquidValue()??game;
   if(game===null){alert('G数を入力してください');return;}
   if(liquidGame===null){alert('液晶G数を入力してください');return;}
   const tagIds=[tag.id];
-  const attachments=promptTagNumberAttachment(tag);
-  if(attachments===null)return;
   const subCounters=applySubCounterDeltasForTimeline(tagIds);
   const attachmentText=timelineAttachmentText(attachments);
   const entry={id:uid('tl'),game,liquidGame,text:attachmentText?`${tag.label}（${attachmentText}）`:tag.label,tagIds,countAs:[],subCounters,attachments,createdAt:new Date().toISOString()};
