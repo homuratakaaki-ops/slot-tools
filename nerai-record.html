@@ -353,6 +353,10 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .suggest-picker-option:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
 .suggest-picker-option.kui-point{min-height:62px;background:rgba(232,201,106,.16);border-color:rgba(232,201,106,.58);color:#fff1b8;font-size:18px;text-align:center;}
 .suggest-picker-option.kui-point.none{background:rgba(122,122,138,.18);border-color:rgba(122,122,138,.55);color:#d7d7df;}
+.suggest-picker-option.fate-reward-enbu{background:#225ea8;border-color:#7db7ff;color:#ffffff;}
+.suggest-picker-option.fate-reward-makuma{background:#1f7a43;border-color:#45c878;color:#f4fff8;}
+.suggest-picker-option.fate-reward-at{background:#b83939;border-color:#ff7777;color:#fff7f7;}
+.suggest-picker-option.fate-reward-god{background:#5c35a8;border-color:#b99aff;color:#fbf8ff;}
 .suggest-color-blue{color:#62b5ff;}
 .suggest-color-green{color:#7edb8d;}
 .suggest-color-red{color:#ff6b6b;}
@@ -2857,10 +2861,10 @@ function ensureKarakuriCircus2Seed(machine){
     tag('t_karakuri2_chance_bell','チャンスベル','rare-chance','レア役'),
     tag('t_karakuri2_chance','チャンス目','rare-chance','レア役'),
     tag('t_karakuri2_strong_cherry','強チェリー','rare-strong','レア役'),
-    tag('t_karakuri2_fate_board_enbu','運命盤:演舞','event','運命盤'),
-    tag('t_karakuri2_fate_board_makuma','運命盤:幕間','event','運命盤'),
-    tag('t_karakuri2_fate_board_at','運命盤:AT','event','運命盤'),
-    tag('t_karakuri2_fate_board_god','運命盤:神','event','運命盤'),
+    tag('t_karakuri2_fate_board_enbu','運命盤:懸糸傀儡演舞','event','運命盤'),
+    tag('t_karakuri2_fate_board_makuma','運命盤:幕間チャンス','event','運命盤'),
+    tag('t_karakuri2_fate_board_at','運命盤:AT直撃','event','運命盤'),
+    tag('t_karakuri2_fate_board_god','運命盤:機械仕掛けの神','event','運命盤'),
     tag('t_karakuri2_fate_success','運命盤成功','event','運命盤'),
     tag('t_karakuri2_fate_fail','運命盤失敗','event','運命盤'),
     tag('t_karakuri2_aqua_vitae','アクア・ウイタエ','stage','ステージ'),
@@ -7239,12 +7243,20 @@ function karakuriFateBoardChoices(){
     't_karakuri2_fate_fail'
   ].map(id=>currentMachine()?.tags?.find(tag=>tag.id===id)).filter(Boolean);
 }
+function karakuriFateBoardOptionClass(id){
+  return {
+    t_karakuri2_fate_board_enbu:'fate-reward-enbu',
+    t_karakuri2_fate_board_makuma:'fate-reward-makuma',
+    t_karakuri2_fate_board_at:'fate-reward-at',
+    t_karakuri2_fate_board_god:'fate-reward-god'
+  }[id]||'';
+}
 function openKarakuriFateBoardPicker(){
   if(!isKarakuriCircus2Machine(currentMachine()))return;
   const options=document.getElementById('karakuriFateBoardOptions');
   if(!options)return;
   const choices=karakuriFateBoardChoices();
-  options.innerHTML=choices.length?choices.map(tag=>`<button class="suggest-picker-option" onclick="selectKarakuriFateBoardTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">運命盤タグがありません</div>';
+  options.innerHTML=choices.length?choices.map(tag=>`<button class="suggest-picker-option ${escapeHtml(karakuriFateBoardOptionClass(tag.id))}" onclick="selectKarakuriFateBoardTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">運命盤タグがありません</div>';
   document.getElementById('karakuriFateBoardOverlay')?.classList.add('open');
 }
 function closeKarakuriFateBoardPicker(){
