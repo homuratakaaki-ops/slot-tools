@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "machines": [
+    {
+      "id": "m_1782616472235_5585",
+      "name": "東京喰種",
+      "maker": "",
+      "aims": [
+        {
+          "id": "aim_tenjo",
+          "name": "天井狙い",
+          "fields": []
+        },
+        {
+          "id": "aim_setting",
+          "name": "設定狙い",
+          "fields": []
+        },
+        {
+          "id": "a_1782616482187_2032",
+          "name": "リセット",
+          "fields": []
+        }
+      ],
+      "tags": [
+        {
+          "id": "t_1782616513227_7155",
+          "label": "強チェリー",
+          "optional": false,
+          "countAs": null
+        },
+        {
+          "id": "t_1782616540063_5391",
+          "label": "チャンス目",
+          "optional": false,
+          "countAs": null
+        }
+      ],
+      "startTags": [],
+      "labelTags": [
+        {
+          "id": "lt_counter_game",
+          "label": "データカウンターのゲーム数"
+        },
+        {
+          "id": "lt_1782616560765_5354",
+          "label": "液晶ゲーム数"
+        },
+        {
+          "id": "lt_1782616566034_5158",
+          "label": "スルー回数"
+        }
+      ],
+      "labelTagDefaultsInitialized": true
+    }
+  ],
+  "stores": [
+    "STORE_ALPHA"
+  ],
+  "logs": []
+}
