@@ -129,11 +129,13 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .tag-btn.instant-flash{filter:brightness(1.35);box-shadow:0 0 0 2px rgba(201,168,76,.65),0 0 18px rgba(201,168,76,.45);}
 .tag-btn.tag-style-stage-day,
 .tag-btn.tag-style-stage-evening,
+.tag-btn.tag-style-stage-high,
 .tag-btn.tag-style-stage-night,
 .tag-btn.tag-style-stage-mind,
 .tag-btn.tag-style-stage-sky{border-radius:6px;font-weight:700;}
 .tag-btn.tag-style-stage-day{background:#f7f4ea;border-color:#ffffff;color:#22242a;}
 .tag-btn.tag-style-stage-evening{background:#d8802b;border-color:#ffb46a;color:#fff8ef;}
+.tag-btn.tag-style-stage-high{background:#d8802b;border-color:#ffb46a;color:#fff8ef;}
 .tag-btn.tag-style-stage-night{background:#b83939;border-color:#ff7676;color:#fff7f7;}
 .tag-btn.tag-style-stage-mind{background:#6f717a;border-color:#aaaeb8;color:#f7f7fa;}
 .tag-btn.tag-style-stage-sky{background:#4f90d9;border-color:#9bc8ff;color:#f5fbff;}
@@ -2852,8 +2854,8 @@ function ensureKarakuriCircus2Seed(machine){
     tag('t_karakuri2_aqua_vitae','アクア・ウイタエ','stage','ステージ'),
     tag('t_karakuri2_stage_fuu','フウ屋敷','stage-day','ステージ'),
     tag('t_karakuri2_stage_nakamachi','仲町サーカス','stage-day','ステージ'),
-    tag('t_karakuri2_stage_main_mansion','屋敷本館','stage-day','ステージ'),
-    tag('t_karakuri2_stage_annex','屋敷別館','stage-day','ステージ'),
+    tag('t_karakuri2_stage_main_mansion','屋敷本館','stage-high','ステージ'),
+    tag('t_karakuri2_stage_annex','屋敷別館','stage-high','ステージ'),
     tag('t_karakuri2_stage_visitor','訪れし者','stage-sky','ステージ'),
     tag('t_karakuri2_enbu','懸糸傀儡演舞','event','CZ・AT',false,true,null,{
       key:'enbu_total',
@@ -5568,6 +5570,7 @@ function renderCounterCompactRow(){
   if(!useLiquidOffsetCounter&&!counter&&!usesAttachment)return '';
   const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
   const counterValue=counter?subCounterValue(counter.key):0;
+  const counterHistory=counter?renderCounterHistorySummary(counter):'';
   return `
     <div class="counter-compact-row">
       ${useLiquidOffsetCounter?`
@@ -5585,8 +5588,7 @@ function renderCounterCompactRow(){
           <input type="text" id="subCounter_${escapeHtml(counter.key)}" class="numeric-input" inputmode="none" readonly value="${escapeHtml(counterValue)}" placeholder="0" oninput="syncSubCounterInput('${escapeHtml(counter.key)}')" onchange="syncSubCounterInput('${escapeHtml(counter.key)}')">
         </div>
         <button class="btn-small counter-btn" type="button" onclick="incrementSubCounter('${escapeHtml(counter.key)}',1)">+1</button>
-      </div>
-        ${renderCounterHistorySummary(counter)}`:''}
+      </div>`:''}
       ${usesAttachment?`
       <div class="counter-compact-control readonly">
         <div class="game-pair-field">
@@ -5594,6 +5596,7 @@ function renderCounterCompactRow(){
           <input type="text" id="timelineAttachmentTotal" class="numeric-input" inputmode="none" readonly value="${escapeHtml(timelineAttachmentTotal('liquid_bonus'))}" placeholder="0">
         </div>
       </div>`:''}
+      ${counterHistory}
     </div>`;
 }
 function timelineAttachmentTotal(role=''){
