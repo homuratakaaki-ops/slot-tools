@@ -8,9 +8,9 @@
 <link rel="canonical" href="https://slot-tools.jp/nerai-record.html">
 <style>
 :root{
-  --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;
+  --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#686878;
   --gold:#c9a84c;--gold-light:#e8c96a;--red:#c94c4c;--green:#4caf7d;
-  --yellow:#d4a017;--text:#e8e4d9;--text-muted:#7a7a8a;--text-dim:#4a4a5a;
+  --yellow:#d4a017;--text:#e8e4d9;--text-muted:#c2c2cf;--text-dim:#8f8f9e;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.6;min-height:100vh;padding-bottom:60px;}
@@ -75,7 +75,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .state4-actions .btn-primary,.state4-actions .btn-secondary{margin-top:0;}
 .btn-continue{background:linear-gradient(135deg,#2f8f55,#b6e36d);border:1px solid rgba(182,227,109,.78);color:#08130c;box-shadow:0 0 0 2px rgba(76,175,125,.16),0 8px 20px rgba(76,175,125,.18);}
 .btn-stop{background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;color:#0d0d0f;font-weight:800;padding:14px;}
-.btn-new{background:transparent;border:1px solid rgba(122,122,138,.42);color:var(--text-muted);margin-top:14px;}
+.btn-new{background:transparent;border:1px solid var(--border);color:var(--text-muted);margin-top:14px;}
 .btn-continue:active,.btn-stop:active,.btn-new:active{filter:brightness(1.08);}
 .btn-small{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;padding:6px 10px;cursor:pointer;white-space:nowrap;}
 .btn-small.gold{border-color:var(--gold);color:var(--gold);}
@@ -113,6 +113,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .field-card.optional{border-style:dashed;}
 .tag-buttons{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0;}
 .tag-group-grid .tag-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
+.tag-group-grid.tag-group-three .tag-buttons{grid-template-columns:repeat(3,minmax(0,1fr));}
 .tag-group-grid .tag-btn{width:100%;}
 .tag-btn.tag-size-large{grid-column:span 2;}
 .pending-delete-actions{padding:0 10px 10px;justify-content:flex-end;}
@@ -724,6 +725,17 @@ footer a:hover{color:var(--gold-light);}
     <div class="suggest-picker-actions">
       <button class="btn-secondary" id="suggestPickerBackButton" onclick="backSuggestPicker()">戻る</button>
     </div>
+  </div>
+</div>
+
+<div class="keypad-overlay" id="karakuriFateBoardOverlay" onclick="closeKarakuriFateBoardPicker()">
+  <div class="keypad" onclick="event.stopPropagation()">
+    <div class="keypad-title">
+      <span>運命盤を選択</span>
+      <button class="btn-small" onclick="closeKarakuriFateBoardPicker()">閉じる</button>
+    </div>
+    <div class="input-hint">報酬または結果を選択します。報酬4種はスイカ履歴保存とリセット対象です。</div>
+    <div class="suggest-picker-grid" id="karakuriFateBoardOptions"></div>
   </div>
 </div>
 
@@ -4273,7 +4285,7 @@ function renderTagGroup(title,tags,handler,groupKey=''){
   const encodedKey=encodeURIComponent(key);
   const bodyId=`tagGroupBody_${encodedKey}`;
   const toggle=collapsible?`<button class="btn-small" type="button" data-tag-group-toggle="${escapeHtml(encodedKey)}" onclick="toggleTimelineTagGroup('${escapeHtml(encodedKey)}')">${open?'閉じる':'開く'}</button>`:'';
-  const gridClass=title==='小役・リプレイ'||tags.some(tag=>normalizeTagSize(tag?.size))?' tag-group-grid':'';
+  const gridClass=title==='運命盤・CZ'?' tag-group-grid tag-group-three':(title==='小役・リプレイ'||tags.some(tag=>normalizeTagSize(tag?.size))?' tag-group-grid':'');
   return `<div class="tag-group${gridClass}"><div class="tag-group-title">${escapeHtml(displayTitle)}${toggle}</div><div id="${escapeHtml(bodyId)}" class="tag-group-body ${open?'':'closed'}"><div class="tag-buttons">${tags.map(t=>tagButtonHtml(t,handler)).join('')}</div></div></div>`;
 }
 function toggleTimelineTagGroup(encodedKey){
@@ -4304,10 +4316,30 @@ function sortTimelineTagGroup(tags,groupName){
   }).map(({__order,...tag})=>tag);
 }
 function renderTimelineTagGroups(mainTags,optionalTags,handler,target){
+  const prepareTags=(tags)=>{
+    if(target!=='timeline'||!isKarakuriCircus2Machine(currentMachine()))return tags;
+    const fateIds=new Set(['t_karakuri2_fate_board_enbu','t_karakuri2_fate_board_makuma','t_karakuri2_fate_board_at','t_karakuri2_fate_board_god','t_karakuri2_fate_success','t_karakuri2_fate_fail']);
+    let insertedFate=false;
+    const rows=[];
+    tags.forEach(tag=>{
+      if(fateIds.has(tag.id)){
+        if(!insertedFate){
+          rows.push({id:'__karakuri2_fate_picker',label:'運命盤',optional:false,countAs:null,tagClass:'event',group:'運命盤・CZ'});
+          insertedFate=true;
+        }
+        return;
+      }
+      if(tag.id==='t_karakuri2_enbu'||tag.id==='t_karakuri2_cz_makuma')rows.push({...tag,group:'運命盤・CZ'});
+      else rows.push(tag);
+    });
+    return rows;
+  };
+  mainTags=prepareTags(mainTags);
+  optionalTags=prepareTags(optionalTags);
   const renderGroups=(tags,scope)=>{
     const names=[];
     tags.forEach(tag=>{const name=tagGroupName(tag);if(!names.includes(name))names.push(name);});
-    const order=['小役・リプレイ','さざなみ','レア役','ステージ','運命盤','CZ・AT','結果','rare','stage','other','その他'];
+    const order=['小役・リプレイ','さざなみ','レア役','ステージ','運命盤・CZ','運命盤','CZ・AT','結果','rare','stage','other','その他'];
     return names.sort((a,b)=>{
       const ai=order.includes(a)?order.indexOf(a):999;
       const bi=order.includes(b)?order.indexOf(b):999;
@@ -4329,6 +4361,9 @@ function tagButtonClass(tag){
   return cls.join(' ');
 }
 function tagButtonHtml(tag,handler){
+  if(tag?.id==='__karakuri2_fate_picker'){
+    return `<button class="${tagButtonClass(tag)}" data-tag-id="${escapeHtml(tag.id)}" onclick="openKarakuriFateBoardPicker()">運命盤</button>`;
+  }
   return `<button class="${tagButtonClass(tag)}" data-tag-id="${escapeHtml(tag.id)}" onclick="${handler}('${tag.id}')">${escapeHtml(tag.label)}</button>`;
 }
 function renderLabelTagButtons(){
@@ -7193,6 +7228,33 @@ function appendTimelineTagById(id){
   if(tag){
     addInstantTimelineTag(tag);
   }
+}
+function karakuriFateBoardChoices(){
+  return [
+    't_karakuri2_fate_board_enbu',
+    't_karakuri2_fate_board_makuma',
+    't_karakuri2_fate_board_at',
+    't_karakuri2_fate_board_god',
+    't_karakuri2_fate_success',
+    't_karakuri2_fate_fail'
+  ].map(id=>currentMachine()?.tags?.find(tag=>tag.id===id)).filter(Boolean);
+}
+function openKarakuriFateBoardPicker(){
+  if(!isKarakuriCircus2Machine(currentMachine()))return;
+  const options=document.getElementById('karakuriFateBoardOptions');
+  if(!options)return;
+  const choices=karakuriFateBoardChoices();
+  options.innerHTML=choices.length?choices.map(tag=>`<button class="suggest-picker-option" onclick="selectKarakuriFateBoardTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">運命盤タグがありません</div>';
+  document.getElementById('karakuriFateBoardOverlay')?.classList.add('open');
+}
+function closeKarakuriFateBoardPicker(){
+  document.getElementById('karakuriFateBoardOverlay')?.classList.remove('open');
+}
+function selectKarakuriFateBoardTag(id){
+  const tag=karakuriFateBoardChoices().find(row=>row.id===id);
+  if(!tag)return;
+  closeKarakuriFateBoardPicker();
+  addInstantTimelineTag(tag);
 }
 function appendTimelineTag(label){
   appendTextToField('timelineText',label);
