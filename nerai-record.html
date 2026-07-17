@@ -1761,8 +1761,35 @@ function isKarakuriCircus2Machine(machine){
   const name=String(machine?.name||'');
   return name.includes('Lからくりサーカス2')||name.includes('からくりサーカス2')||name.includes('からくり2');
 }
+function createTokyoGhoulPresetMachine(){
+  return {
+    id:'m_tokyo_ghoul',
+    name:'東京喰種',
+    maker:'',
+    aims:[
+      {id:'aim_tenjo',name:'天井狙い',fields:[]},
+      {id:'aim_setting',name:'設定狙い',fields:[]},
+      {id:'aim_tokyo_ghoul_reset',name:'リセット',fields:[]}
+    ],
+    tags:[
+      {id:'t_tokyo_ghoul_strong_cherry',label:'強チェリー',optional:false,countAs:null},
+      {id:'t_tokyo_ghoul_chance',label:'チャンス目',optional:false,countAs:null}
+    ],
+    startTags:[],
+    labelTags:[
+      {id:'lt_counter_game',label:'データカウンターのゲーム数'},
+      {id:'lt_tokyo_ghoul_lcd_game',label:'液晶ゲーム数'},
+      {id:'lt_tokyo_ghoul_through_count',label:'スルー回数'}
+    ],
+    labelTagDefaultsInitialized:true,
+    suggestMaster:[]
+  };
+}
 function ensurePresetMachines(data){
   data.machines=Array.isArray(data.machines)?data.machines:[];
+  if(!data.machines.some(isTokyoGhoulMachine)){
+    data.machines.push(createTokyoGhoulPresetMachine());
+  }
   if(!data.machines.some(isMonkeyTurnMachine)){
     data.machines.push({id:'m_monkey_turn_v',name:'モンキーターンV',maker:'',aims:[],tags:[],startTags:[],labelTags:[],suggestMaster:[]});
   }
