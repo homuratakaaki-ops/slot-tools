@@ -2940,9 +2940,8 @@ function ensureKarakuriCircus2Seed(machine){
           item('ピエロ：邪悪な気配（報酬AT＋上位CZ）','mode')
         ]),
         place('sgp_karakuri2_stage_display','ステージ・液晶表示',[
-          item('訪れし者ステージ（本前兆＆モードD期待度UP、連続演出失敗でさらにUP）','mode'),
-          item('屋敷本館（高確示唆）','mode'),
-          item('屋敷別館（高確示唆）','mode'),
+          item('ステチェン:デフォルト（スポットライトなし）','mode'),
+          item('訪れし者:連続演出失敗（モードD期待度さらにUP）','mode'),
           item('スイカ残り2回表示（報酬幕間以上）','mode'),
           item('ステチェン：スポットライトのみ（残り500G以内期待度UP）','mode'),
           item('ステチェン：＋あるるかんシルエット（残り300G以内濃厚）','mode',{accent:'gold'}),
@@ -2956,7 +2955,13 @@ function ensureKarakuriCircus2Seed(machine){
   mergeSuggestSeed(machine,seed);
   const stageDisplay=findSuggestPlace(ensureSuggestCategory(machine,'sgc_karakuri2_mode','モード示唆'),'sgp_karakuri2_stage_display');
   if(stageDisplay){
-    stageDisplay.items=(stageDisplay.items||[]).filter(item=>item.label!=='才賀善治屋敷夕方（高確示唆）');
+    const removedStageSuggestLabels=new Set([
+      '才賀善治屋敷夕方（高確示唆）',
+      '屋敷本館（高確示唆）',
+      '屋敷別館（高確示唆）',
+      '訪れし者ステージ（本前兆＆モードD期待度UP、連続演出失敗でさらにUP）'
+    ]);
+    stageDisplay.items=(stageDisplay.items||[]).filter(item=>!removedStageSuggestLabels.has(item.label));
   }
   applySuggestMetadata(machine);
   machine.suggestSeedKarakuriCircus2V1=true;
@@ -6035,6 +6040,7 @@ function renderTimelineArea(mode='play'){
       <div class="section-label" style="margin-top:0;">カウンター操作</div>
       ${renderGamePairInputs('timeline')}
       ${renderCounterCompactRow()}
+      <div class="log-tools"><button class="btn-secondary" type="button" onclick="openSuggestPlacePicker('play')">示唆記録</button></div>
       ${!machineUsesQuickActions()?`<div class="log-tools">
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(1)">+1</button>
       <button class="btn-small counter-btn" onclick="incrementTimelineGame(5)">+5</button>
