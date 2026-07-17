@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>localStorage Recovery - slot-tools</title>
+  <style>
+    :root{color-scheme:dark;--bg:#11131a;--panel:#191d28;--text:#f4f4f6;--muted:#aeb4c2;--line:#3a4152;--accent:#f0c15a;--danger:#ff7a7a;}
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
+    main{max-width:960px;margin:0 auto;padding:20px 14px 40px}
+    h1{font-size:22px;margin:0 0 10px}
+    h2{font-size:16px;margin:18px 0 8px}
+    p{margin:8px 0;color:var(--muted)}
+    .warn{border:1px solid rgba(255,122,122,.55);background:rgba(255,122,122,.08);color:#ffd6d6;border-radius:8px;padding:10px 12px}
+    .tools{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
+    button{appearance:none;border:1px solid var(--line);background:#242a38;color:var(--text);border-radius:8px;padding:10px 12px;font-weight:700}
+    button.primary{border-color:rgba(240,193,90,.75);background:#3a2f16;color:#ffe6a6}
+    .summary,.entry{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:12px;margin-top:10px}
+    .key{font-weight:800;color:var(--accent);word-break:break-all}
+    .meta{font-size:12px;color:var(--muted);margin-top:4px}
+    textarea{width:100%;min-height:180px;margin-top:8px;background:#0c0e13;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;white-space:pre;resize:vertical}
+    .empty{color:var(--danger);font-weight:700}
+  </style>
+</head>
+<body>
+<main>
+  <h1>localStorage Recovery</h1>
+  <p class="warn">このページは読み取り専用です。localStorage / sessionStorage の削除・変更・正規化・移行は一切行いません。</p>
+  <p>表示された内容をそのままコピー、またはJSONとしてダウンロードしてください。復旧確認が終わるまで、ブラウザデータの削除やキャッシュクリアはしないでください。</p>
+
+  <div class="tools">
+    <button class="primary" type="button" onclick="downloadSnapshot()">全キーをJSONでダウンロード</button>
+    <button type="button" onclick="copySnapshot()">全キーをクリップボードへコピー</button>
+    <button type="button" onclick="render()">再読み込み</button>
+  </div>
+
+  <section class="summary" id="summary"></section>
+  <section id="storageList"></section>
+</main>
+
+<script>
+function readStorage(storage,type){
+  const rows=[];
+  try{
+    for(let i=0;i<storage.length;i++){
+      const key=storage.key(i);
+      const value=storage.getItem(key);
+      rows.push({type,key,value,length:value?value.length:0,summary:summarizeValue(value)});
+    }
+  }catch(error){
+    rows.push({type,key:'__READ_ERROR__',value:String(error&&error.message||error),length:0,summary:'read error'});
+  }
+  return rows.sort((a,b)=>a.key.localeCompare(b.key));
+}
+function summarizeValue(value){
+  if(!value)return 'empty';
+  try{
+    const parsed=JSON.parse(value);
+    if(parsed&&typeof parsed==='object'){
+      const parts=[];
+      if(Array.isArray(parsed.machines))parts.push(`machines:${parsed.machines.length}`);
+      if(Array.isArray(parsed.logs))parts.push(`logs:${parsed.logs.length}`);
+      if(Array.isArray(parsed.stores))parts.push(`stores:${parsed.stores.length}`);
+      if(parsed.draftLog)parts.push('draftLog:yes');
+      if(parsed.version!==undefined)parts.push(`version:${parsed.version}`);
+      return parts.length?parts.join(' / '):'json object';
+    }
+    return 'json';
+  }catch{
+    return 'text';
+  }
+}
+function snapshot(){
+  return {
+    capturedAt:new Date().toISOString(),
+    origin:location.origin,
+    href:location.href,
+    localStorage:readStorage(localStorage,'localStorage'),
+    sessionStorage:readStorage(sessionStorage,'sessionStorage')
+  };
+}
+function render(){
+  const data=snapshot();
+  const all=[...data.localStorage,...data.sessionStorage];
+  const target=data.localStorage.find(row=>row.key==='nerai_record_v1');
+  document.getElementById('summary').innerHTML=`
+    <h2>概要</h2>
+    <p>localStorage: ${data.localStorage.length} keys / sessionStorage: ${data.sessionStorage.length} keys</p>
+    <p>nerai_record_v1: ${target?escapeHtml(target.summary):'<span class="empty">not found</span>'}</p>`;
+  document.getElementById('storageList').innerHTML=all.length?all.map(row=>`
+    <article class="entry">
+      <div class="key">${escapeHtml(row.type)} / ${escapeHtml(row.key)}</div>
+      <div class="meta">${escapeHtml(row.summary)} / ${row.length} chars</div>
+      <textarea readonly spellcheck="false">${escapeHtml(row.value||'')}</textarea>
+    </article>`).join(''):'<p class="empty">storage key not found</p>';
+}
+function downloadSnapshot(){
+  const text=JSON.stringify(snapshot(),null,2);
+  const blob=new Blob([text],{type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;
+  a.download=`slot-tools-storage-recovery-${new Date().toISOString().replace(/[:.]/g,'-')}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+async function copySnapshot(){
+  const text=JSON.stringify(snapshot(),null,2);
+  try{
+    await navigator.clipboard.writeText(text);
+    alert('コピーしました');
+  }catch{
+    alert('コピーできませんでした。各テキスト欄を手動でコピーしてください。');
+  }
+}
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[character]));
+}
+render();
+</script>
+</body>
+</html>
