@@ -377,6 +377,56 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .branch-step-pill.active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.14);}
 .branch-step-pill.done{border-color:rgba(126,219,141,.5);color:#a8efb4;}
 .suggest-picker-actions .btn-secondary{margin-top:0;}
+.bm-open-row{margin:8px 0 10px;}
+.bm-open-btn{min-height:54px;border-color:rgba(201,168,76,.72);color:var(--gold-light);background:rgba(201,168,76,.12);font-weight:900;}
+.bm-overlay{position:fixed;inset:0;z-index:9000;display:none;background:var(--bg);color:var(--text);padding:8px;overflow:hidden;}
+.bm-overlay.open{display:flex;}
+.bm-shell{width:100%;max-width:480px;height:100%;max-height:100dvh;margin:0 auto;display:grid;grid-template-rows:auto auto 1fr auto auto;gap:6px;}
+.bm-header{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:8px;border-bottom:1px solid rgba(201,168,76,.28);padding:2px 0 7px;}
+.bm-title{min-width:0;font-size:13px;font-weight:900;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bm-close{width:48px;height:48px;border:1px solid rgba(201,168,76,.42);border-radius:8px;background:rgba(201,168,76,.08);color:var(--gold-light);font-size:24px;font-weight:900;cursor:pointer;}
+.bm-counters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.bm-counter{min-height:64px;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:7px 8px;text-align:center;cursor:pointer;}
+.bm-counter-label{font-size:11px;font-weight:900;color:var(--text-muted);}
+.bm-counter-value{font-size:24px;font-weight:900;line-height:1.25;color:var(--gold-light);}
+.bm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(4,minmax(52px,1fr));gap:7px;min-height:0;}
+.bm-btn{min-height:52px;border:1px solid rgba(201,168,76,.45);border-radius:8px;background:var(--surface2);color:var(--text);font-size:16px;font-weight:900;line-height:1.25;padding:8px;cursor:pointer;}
+.bm-btn:active,.bm-btn.pressed{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.16);}
+.bm-btn.counter{border-color:rgba(76,175,125,.58);background:rgba(76,175,125,.12);color:#a8efb4;}
+.bm-btn.other{border-color:rgba(98,181,255,.55);background:rgba(98,181,255,.1);color:#b9dcff;}
+.bm-btn.disabled{opacity:.45;cursor:default;border-color:rgba(122,122,138,.35);background:rgba(122,122,138,.08);color:var(--text-dim);}
+.bm-btn.tag-style-rare-weak{background:#ffd9de;border-color:#ff8fa0;color:#5b1018;}
+.bm-btn.tag-style-rare-suika{background:#1f7a43;border-color:#45c878;color:#f4fff8;}
+.bm-btn.tag-style-rare-strong{background:#c73636;border-color:#ff7777;color:#fff7f7;}
+.bm-btn.tag-style-rare-chance{background:#7f4cc4;border-color:#bd96ff;color:#fff8ff;}
+.bm-btn.tag-style-rare-kakugan{background:#5ec8e8;border-color:#9be9ff;color:#082b34;}
+.bm-btn.tag-style-rare-ghoul-symbol{background:#f08ab8;border-color:#ffc0d9;color:#3e081f;}
+.bm-btn.tag-style-rare-certain{background:linear-gradient(90deg,#ff5c7a,#ffb84d,#6bdf74,#63c8ff,#b77cff);border-color:rgba(255,255,255,.72);color:#101014;text-shadow:0 1px 0 rgba(255,255,255,.45);}
+.bm-btn.tag-style-stage-day{background:#f7f4ea;border-color:#ffffff;color:#22242a;}
+.bm-btn.tag-style-stage-evening,.bm-btn.tag-style-stage-high{background:#d8802b;border-color:#ffb46a;color:#fff8ef;}
+.bm-btn.tag-style-stage-night{background:#b83939;border-color:#ff7676;color:#fff7f7;}
+.bm-btn.tag-style-stage-mind{background:#6f717a;border-color:#aaaeb8;color:#f7f7fa;}
+.bm-btn.tag-style-stage-sky{background:#4f90d9;border-color:#9bc8ff;color:#f5fbff;}
+.bm-recent{border:1px solid rgba(201,168,76,.25);border-radius:8px;background:rgba(0,0,0,.16);padding:7px 9px;min-height:40px;font-size:12px;color:var(--text-muted);overflow:hidden;}
+.bm-recent-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bm-undo-bar{min-height:48px;border:1px solid rgba(201,168,76,.55);border-radius:8px;background:rgba(201,168,76,.12);color:var(--gold-light);font-size:14px;font-weight:900;padding:9px 10px;cursor:pointer;text-align:center;}
+.bm-undo-bar.disabled{opacity:.52;color:var(--text-muted);border-color:rgba(122,122,138,.35);background:rgba(122,122,138,.08);cursor:default;}
+.bm-toast{position:fixed;left:50%;bottom:58px;transform:translateX(-50%);z-index:9100;display:none;max-width:calc(100vw - 22px);border:1px solid rgba(201,168,76,.62);border-radius:999px;background:rgba(20,20,24,.96);color:var(--gold-light);font-size:14px;font-weight:900;padding:10px 14px;box-shadow:0 8px 22px rgba(0,0,0,.35);text-align:center;}
+.bm-toast.open{display:block;}
+.bm-toast button{margin-left:8px;border:0;background:transparent;color:#9be0bd;font:inherit;text-decoration:underline;cursor:pointer;}
+.bm-sheet{position:fixed;inset:0;z-index:9050;display:none;align-items:flex-end;background:rgba(0,0,0,.58);}
+.bm-sheet.open{display:flex;}
+.bm-sheet-panel{width:100%;max-width:480px;max-height:72dvh;overflow:auto;margin:0 auto;background:var(--surface);border:1px solid var(--border);border-bottom:0;border-radius:14px 14px 0 0;padding:12px;}
+.bm-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
+.bm-sheet-title{font-size:14px;font-weight:900;color:var(--gold-light);}
+.bm-sheet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
+@media (max-height:560px){
+  .bm-shell{gap:5px;}
+  .bm-counter{min-height:56px;padding:5px 7px;}
+  .bm-counter-value{font-size:21px;}
+  .bm-grid{gap:6px;}
+  .bm-recent{min-height:34px;padding:5px 8px;}
+}
 footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px;}
 footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
 footer a{color:var(--text-muted);text-decoration:none;}
@@ -829,6 +879,29 @@ footer a:hover{color:var(--gold-light);}
   </div>
 </div>
 
+<div class="bm-overlay" id="battleModeOverlay">
+  <div class="bm-shell">
+    <div class="bm-header">
+      <div class="bm-title" id="battleModeTitle">実戦モード</div>
+      <button class="bm-close" type="button" onclick="closeBattleMode()" aria-label="閉じる">×</button>
+    </div>
+    <div class="bm-counters" id="battleModeCounters"></div>
+    <div class="bm-grid" id="battleModeGrid"></div>
+    <div class="bm-recent" id="battleModeRecent"></div>
+    <button class="bm-undo-bar disabled" id="battleModeUndoBar" type="button" onclick="undoBattleModeLast()">直前の記録はありません</button>
+  </div>
+</div>
+<div class="bm-toast" id="battleModeToast"></div>
+<div class="bm-sheet" id="battleModeOtherSheet" onclick="closeBattleModeOtherSheet()">
+  <div class="bm-sheet-panel" onclick="event.stopPropagation()">
+    <div class="bm-sheet-head">
+      <div class="bm-sheet-title">その他</div>
+      <button class="btn-small" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
+    </div>
+    <div class="bm-sheet-grid" id="battleModeOtherGrid"></div>
+  </div>
+</div>
+
 <script>
 const STORAGE_KEY='nerai_record_v1';
 const STORAGE_LAST_GOOD_KEY='nerai_record_v1_last_good';
@@ -949,6 +1022,10 @@ let sameTablePromptKey='';
 let sameTableCarryOptOutKey='';
 let hydratingDraft=false;
 let draftSaveTimer=null;
+let battleModeOpen=false;
+let battleModeUndoStack=[];
+let battleModeRedoAction=null;
+let battleModeToastTimer=null;
 
 function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9000+1000);}
 function clone(value){return JSON.parse(JSON.stringify(value));}
@@ -992,6 +1069,17 @@ function currentSegmentEndingCards(){
 function normalizeTagClass(value){
   const text=String(value||'').trim();
   return /^[a-z0-9-]+$/.test(text)?text:'';
+}
+function normalizeQuickPanel(panel){
+  if(!Array.isArray(panel))return [];
+  return panel.slice(0,5).map(item=>{
+    const type=String(item?.type||'').trim();
+    const ref=String(item?.ref||'').trim();
+    if(!ref)return null;
+    if(type==='tag')return {type,ref};
+    if(type==='modal'&&['suggestion','destiny'].includes(ref))return {type,ref};
+    return null;
+  }).filter(Boolean);
 }
 function normalizeTagSize(value){
   return String(value||'').trim()==='large'?'large':'';
@@ -1553,6 +1641,7 @@ function normalizeData(data){
     m.tags=Array.isArray(m.tags)?m.tags:[];
     m.startTags=Array.isArray(m.startTags)?m.startTags:[];
     m.labelTags=Array.isArray(m.labelTags)?m.labelTags:[];
+    m.quickPanel=normalizeQuickPanel(m.quickPanel);
     m.suggestMaster=normalizeSuggestMaster(m.suggestMaster);
     delete m.aimOrder;
     m.aims.forEach(a=>a.fields=Array.isArray(a.fields)?a.fields:[]);
@@ -4519,13 +4608,252 @@ function renderShopNoteButton(){
   if(!store)return '';
   return `<div class="log-tools"><button class="btn-secondary" onclick="openShopNoteModal()">他台メモ</button><span class="input-hint">${escapeHtml(store)}に記録</span></div>`;
 }
+function renderBattleModeOpenButton(){
+  if(!currentMachine()||!currentAim())return '';
+  return `<div class="bm-open-row"><button class="btn-secondary bm-open-btn" type="button" onclick="openBattleMode()">実戦モードで記録</button></div>`;
+}
+function battleModeVibrate(pattern){
+  try{if(navigator?.vibrate)navigator.vibrate(pattern);}catch(error){}
+}
+function battleModeSnapshot(){
+  return {
+    currentTimeline:clone(currentTimeline),
+    currentTimelineDataGame,
+    currentTimelineSuikaOffset,
+    currentTimelineManualCorrection,
+    currentSubCounters:clone(currentSubCounters),
+    currentCounterHistories:clone(currentCounterHistories),
+    currentSuggestLog:clone(currentSuggestLog),
+    currentHitEvents:clone(currentHitEvents),
+    recentTimelineHighlightId,
+    recentSuggestHighlightId,
+    timelineHistoryOpen,
+    suggestInputsDirty
+  };
+}
+function restoreBattleModeSnapshot(snapshot){
+  if(!snapshot)return;
+  currentTimeline=clone(snapshot.currentTimeline||[]);
+  currentTimelineDataGame=snapshot.currentTimelineDataGame;
+  currentTimelineSuikaOffset=normalizeOptionalNumber(snapshot.currentTimelineSuikaOffset)??0;
+  currentTimelineManualCorrection=normalizeOptionalNumber(snapshot.currentTimelineManualCorrection)??0;
+  currentSubCounters=normalizeSubCounters(snapshot.currentSubCounters);
+  currentCounterHistories=normalizeCounterHistories(snapshot.currentCounterHistories);
+  currentSuggestLog=(snapshot.currentSuggestLog||[]).map(normalizeSuggestLogEntry).filter(Boolean);
+  currentHitEvents=(snapshot.currentHitEvents||[]).map(normalizeHitEvent).filter(Boolean);
+  recentTimelineHighlightId=snapshot.recentTimelineHighlightId||'';
+  recentSuggestHighlightId=snapshot.recentSuggestHighlightId||'';
+  timelineHistoryOpen=!!snapshot.timelineHistoryOpen;
+  suggestInputsDirty=!!snapshot.suggestInputsDirty;
+  if(currentTimelineDataGame!==null&&currentTimelineDataGame!==undefined)setTimelineGames(currentTimelineDataGame,liquidFromDataWithOffset(currentTimelineDataGame));
+  renderLogFields();
+  renderBattleMode();
+  saveDraftImmediately();
+}
+function battleModeStateChanged(before,after){
+  return JSON.stringify(before)!==JSON.stringify(after);
+}
+function battleModeToast(message,options={}){
+  const toast=document.getElementById('battleModeToast');
+  if(!toast)return;
+  const action=options.action;
+  toast.innerHTML=`${escapeHtml(message)}${action?` <button type="button" onclick="${escapeHtml(action.onclick)}">${escapeHtml(action.label)}</button>`:''}`;
+  toast.classList.add('open');
+  clearTimeout(battleModeToastTimer);
+  battleModeToastTimer=setTimeout(()=>toast.classList.remove('open'),options.duration||900);
+}
+function battleModeInvalid(message){
+  battleModeVibrate([18,40,18]);
+  battleModeToast(message,{duration:1600});
+}
+function battleModeCommit(label,callback){
+  const before=battleModeSnapshot();
+  callback();
+  const after=battleModeSnapshot();
+  if(!battleModeStateChanged(before,after)){
+    renderBattleMode();
+    return false;
+  }
+  battleModeUndoStack.push({label,before,after});
+  if(battleModeUndoStack.length>80)battleModeUndoStack.shift();
+  battleModeRedoAction=null;
+  battleModeVibrate(18);
+  battleModeToast(`${label}を記録`,{duration:800});
+  renderBattleMode();
+  saveDraftImmediately();
+  return true;
+}
+function openBattleMode(){
+  if(!currentMachine()||!currentAim()){battleModeInvalid('機種と狙い方を選択してください');return;}
+  battleModeOpen=true;
+  document.getElementById('battleModeOverlay')?.classList.add('open');
+  renderBattleMode();
+}
+function closeBattleMode(){
+  battleModeOpen=false;
+  document.getElementById('battleModeOverlay')?.classList.remove('open');
+  closeBattleModeOtherSheet();
+}
+function battleModeCounterText(value){
+  const normalized=normalizeOptionalNumber(value);
+  return normalized===null?'-':String(normalized);
+}
+function battleModeRecentRows(){
+  const limit=window.innerHeight&&window.innerHeight<560?1:3;
+  return sortedTimeline().slice(0,limit);
+}
+function battleModeEntryLabel(entry){
+  const game=normalizeOptionalNumber(entry?.game);
+  const text=String(entry?.text||'').trim()||'記録';
+  return `${game!==null?`${game}G `:''}${text}`;
+}
+function renderBattleModeRecent(){
+  const rows=battleModeRecentRows();
+  if(!rows.length)return '<div class="bm-recent-line">直近: なし</div>';
+  return rows.map((row,i)=>`<div class="bm-recent-line">${i===0?'直近: ':'　　　'}${escapeHtml(battleModeEntryLabel(row))} ${escapeHtml(formatShopNoteTime(row.createdAt))}</div>`).join('');
+}
+function battleModeQuickItems(){
+  const machine=currentMachine();
+  const panel=Array.isArray(machine?.quickPanel)?machine.quickPanel:[];
+  return panel.slice(0,5).map(item=>item&&typeof item==='object'?{type:String(item.type||''),ref:String(item.ref||'')}:null);
+}
+function battleModeTagClassName(tag){
+  const tagClass=normalizeTagClass(tag?.tagClass);
+  return tagClass?`tag-style-${tagClass}`:'';
+}
+function battleModeQuickButton(item,index){
+  const machine=currentMachine();
+  if(!item)return `<button class="bm-btn disabled" type="button" disabled>空き</button>`;
+  if(item.type==='tag'){
+    const tag=machine?.tags?.find(row=>row.id===item.ref);
+    if(!tag)return `<button class="bm-btn disabled" type="button" onclick="battleModeInvalid('タグが見つかりません')">未登録</button>`;
+    return `<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="battleModeRecordTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`;
+  }
+  if(item.type==='modal'){
+    const label=item.ref==='suggestion'?'示唆':item.ref==='destiny'?'運命盤':'モーダル';
+    return `<button class="bm-btn" type="button" onclick="battleModeOpenModal('${escapeHtml(item.ref)}')">${escapeHtml(label)}</button>`;
+  }
+  return `<button class="bm-btn disabled" type="button" onclick="battleModeInvalid('未対応のクイック定義です')">未対応</button>`;
+}
+function renderBattleModeGrid(){
+  const items=battleModeQuickItems();
+  return [
+    '<button class="bm-btn counter" type="button" onclick="battleModeIncrementGame(1)">＋1G</button>',
+    '<button class="bm-btn counter" type="button" onclick="battleModeIncrementGame(10)">＋10G</button>',
+    ...Array.from({length:5},(_,i)=>battleModeQuickButton(items[i],i)),
+    '<button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">その他 ▼</button>'
+  ].join('');
+}
+function renderBattleModeUndoBar(){
+  const bar=document.getElementById('battleModeUndoBar');
+  if(!bar)return;
+  const latest=battleModeUndoStack[battleModeUndoStack.length-1];
+  bar.classList.toggle('disabled',!latest);
+  bar.textContent=latest?`↶ 直前「${latest.label}」を取消`:'直前の記録はありません';
+}
+function renderBattleMode(){
+  if(!battleModeOpen)return;
+  const machine=currentMachine();
+  const aim=currentAim();
+  const data=timelineDataValue();
+  const liquid=timelineLiquidValue();
+  const title=document.getElementById('battleModeTitle');
+  if(title)title.textContent=`${machine?.name||'機種未選択'} / ${aim?.name||'狙い方未選択'}`;
+  const counters=document.getElementById('battleModeCounters');
+  if(counters)counters.innerHTML=`
+    <button class="bm-counter" type="button" onclick="openBattleModeCounterKeypad('data')">
+      <div class="bm-counter-label">データG</div>
+      <div class="bm-counter-value">${escapeHtml(battleModeCounterText(data))}</div>
+    </button>
+    <button class="bm-counter" type="button" onclick="openBattleModeCounterKeypad('liquid')">
+      <div class="bm-counter-label">液晶G</div>
+      <div class="bm-counter-value">${escapeHtml(battleModeCounterText(liquid))}</div>
+    </button>`;
+  const grid=document.getElementById('battleModeGrid');
+  if(grid)grid.innerHTML=renderBattleModeGrid();
+  const recent=document.getElementById('battleModeRecent');
+  if(recent)recent.innerHTML=renderBattleModeRecent();
+  renderBattleModeUndoBar();
+}
+function openBattleModeCounterKeypad(role){
+  const input=document.createElement('input');
+  input.type='text';
+  input.className='numeric-input';
+  input.inputMode='numeric';
+  input.readOnly=true;
+  input.placeholder=role==='liquid'?'液晶G':'データG';
+  input.value=String(role==='liquid'?(timelineLiquidValue()??''):(timelineDataValue()??''));
+  input.style.position='fixed';
+  input.style.left='-9999px';
+  input.addEventListener('change',()=>{
+    const value=normalizeOptionalNumber(input.value);
+    input.remove();
+    if(value===null){battleModeInvalid('G数を入力してください');return;}
+    const label=role==='liquid'?`液晶${value}G`:`データ${value}G`;
+    battleModeCommit(label,()=>{
+      if(role==='liquid'){
+        const data=timelineDataValue();
+        if(data!==null)setManualCorrectionForLiquid(data,value);
+        setTimelineGames(data,value);
+      }else{
+        setTimelineGames(value,liquidFromDataWithOffset(value));
+      }
+    });
+  },{once:true});
+  document.body.appendChild(input);
+  openNumericKeypad(input);
+}
+function battleModeIncrementGame(delta){
+  battleModeCommit(`＋${delta}G`,()=>incrementTimelineGame(delta));
+}
+function battleModeRecordTag(id){
+  const tag=currentMachine()?.tags?.find(row=>row.id===id);
+  if(!tag){battleModeInvalid('タグが見つかりません');return;}
+  if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
+  battleModeCommit(tag.label,()=>addInstantTimelineTag(tag));
+}
+function battleModeOpenModal(ref){
+  if(ref==='suggestion'){openSuggestPlacePicker('play');return;}
+  if(ref==='destiny'){openKarakuriFateBoardPicker();return;}
+  battleModeInvalid('未対応のモーダルです');
+}
+function openBattleModeOtherSheet(){
+  const grid=document.getElementById('battleModeOtherGrid');
+  const tags=currentMachine()?.tags||[];
+  if(grid)grid.innerHTML=tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>';
+  document.getElementById('battleModeOtherSheet')?.classList.add('open');
+}
+function closeBattleModeOtherSheet(){
+  document.getElementById('battleModeOtherSheet')?.classList.remove('open');
+}
+function selectBattleModeOtherTag(id){
+  closeBattleModeOtherSheet();
+  battleModeRecordTag(id);
+}
+function undoBattleModeLast(){
+  const action=battleModeUndoStack.pop();
+  if(!action){battleModeInvalid('取り消す記録がありません');return;}
+  restoreBattleModeSnapshot(action.before);
+  battleModeRedoAction=action;
+  battleModeVibrate(45);
+  battleModeToast(`${action.label}を取り消し`,{duration:5200,action:{label:'元に戻す',onclick:'redoBattleModeUndo()'}});
+}
+function redoBattleModeUndo(){
+  const action=battleModeRedoAction;
+  if(!action)return;
+  restoreBattleModeSnapshot(action.after);
+  battleModeUndoStack.push(action);
+  battleModeRedoAction=null;
+  battleModeVibrate(18);
+  battleModeToast(`${action.label}を復元`,{duration:900});
+}
 function renderLogFields(){
   const aim=currentAim();
   const el=document.getElementById('dynamicFields');
   if(!aim){el.innerHTML='<div class="empty-hint">機種と狙い方を登録してください</div>';return;}
   const panels={
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
-    2:`<div class="card work-section-card play"><div class="work-section-title">実戦メモ</div>${renderFollowBranchControls()}${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
+    2:`${renderBattleModeOpenButton()}<div class="card work-section-card play"><div class="work-section-title">実戦メモ</div>${renderFollowBranchControls()}${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
     3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div>`,
     4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div>${renderSegmentUndoNotice()}<div id="practiceStatsBox"></div></div>`
   };
@@ -7521,6 +7849,7 @@ function showSmallToast(message){
   toast._timer=setTimeout(()=>{toast.style.opacity='0';},2000);
 }
 function showInstantLogToast(tag,gameText){
+  if(battleModeOpen)return;
   const now=Date.now();
   if(instantToastState.id===tag.id&&now-instantToastState.lastAt<2000){
     instantToastState.count+=1;
