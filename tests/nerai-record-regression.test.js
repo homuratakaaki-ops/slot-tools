@@ -460,6 +460,29 @@ function testBattleModeCounterRowUsesExistingTagFlow() {
   assert.equal(vm.runInContext('currentSubCounters.suika || 0', context), 0);
 }
 
+function testBattleModeSazanamiPickerStoresEntryCause() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setManualCorrectionForLiquid(184, 176);
+    setTimelineGames(184, 176);
+    battleModeRecordSazanami('sazanami_suika3', 'red');
+  `, context);
+  assert.equal(vm.runInContext('currentTimeline.length', context), 1);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(currentTimeline[0].tagIds)', context)), ['t_nangoku_sazanami_red']);
+  assert.equal(vm.runInContext('currentTimeline[0].entryCause', context), 'sazanami_suika3');
+  assert.equal(vm.runInContext('currentTimeline[0].entryCauseLabel', context), 'スイカ3回目');
+  assert.equal(vm.runInContext('currentTimeline[0].intervalEvent || ""', context), '');
+
+  vm.runInContext('undoBattleModeLast()', context);
+  assert.equal(vm.runInContext('currentTimeline.length', context), 0);
+  vm.runInContext('redoBattleModeUndo()', context);
+  assert.equal(vm.runInContext('currentTimeline[0].entryCause', context), 'sazanami_suika3');
+}
+
 function testBattleModeGameIncrementUndoAndRedo() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -494,6 +517,7 @@ function run() {
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
   testBattleModeCounterRowUsesExistingTagFlow();
+  testBattleModeSazanamiPickerStoresEntryCause();
   testBattleModeGameIncrementUndoAndRedo();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();

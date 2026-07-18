@@ -959,6 +959,19 @@ const NANGOKU_ENTRY_CAUSES=[
   {key:'freeze',label:'フリーズ'},
   {key:'unknown',label:'不明'}
 ];
+const BATTLE_MODE_SAZANAMI_CAUSES=[
+  {key:'sazanami_pururipu',label:'プリリプ'},
+  {key:'sazanami_suika3',label:'スイカ3回目'},
+  {key:'sazanami_suika5',label:'スイカ5回目'},
+  {key:'sazanami_suika7',label:'スイカ7回目'},
+  {key:'sazanami_suika9',label:'スイカ9回目'},
+  {key:'sazanami_other',label:'それ以外'}
+];
+const BATTLE_MODE_SAZANAMI_COLORS=[
+  {key:'purple',label:'紫',tagId:'t_nangoku_sazanami_purple'},
+  {key:'red',label:'赤',tagId:'t_nangoku_sazanami_red'},
+  {key:'rainbow',label:'虹',tagId:'t_nangoku_sazanami_rainbow'}
+];
 const ENDING_CARD_GROUPS=[
   {id:'white_weak',name:'白・奇数弱',hint:'奇数示唆:弱',tone:'white',cards:['金木研','霧嶋董香','笛口雛実','永近英良','西尾錦','月山習']},
   {id:'white_strong',name:'白・奇数強',hint:'奇数示唆:強',tone:'white',cards:['芳村','四方蓮示','ウタ','イトリ','古間円児','入見カヤ']},
@@ -4935,7 +4948,45 @@ function battleModeOpenModal(ref){
   if(ref==='destiny'){openKarakuriFateBoardPicker();return;}
   battleModeInvalid('未対応のモーダルです');
 }
+function openBattleModePicker(ref){
+  if(ref==='sazanami'){openBattleModeSazanamiCausePicker();return;}
+  if(ref==='bonus'){openBattleModeBonusPicker();return;}
+  battleModeInvalid('未対応のピッカーです');
+}
+function setBattleModeSheet(title,html){
+  const titleEl=document.querySelector('#battleModeOtherSheet .bm-sheet-title');
+  if(titleEl)titleEl.textContent=title;
+  const grid=document.getElementById('battleModeOtherGrid');
+  if(grid)grid.innerHTML=html;
+  document.getElementById('battleModeOtherSheet')?.classList.add('open');
+}
+function openBattleModeSazanamiCausePicker(){
+  setBattleModeSheet('さざなみ契機',
+    BATTLE_MODE_SAZANAMI_CAUSES.map(row=>`<button class="bm-btn" type="button" onclick="openBattleModeSazanamiColorPicker('${escapeHtml(row.key)}')">${escapeHtml(row.label)}</button>`).join('')
+  );
+}
+function openBattleModeSazanamiColorPicker(causeKey){
+  const cause=BATTLE_MODE_SAZANAMI_CAUSES.find(row=>row.key===causeKey);
+  if(!cause){battleModeInvalid('契機が見つかりません');return;}
+  setBattleModeSheet(`さざなみ色 / ${cause.label}`,
+    BATTLE_MODE_SAZANAMI_COLORS.map(row=>`<button class="bm-btn ${row.key==='purple'?'tag-style-rare-chance':row.key==='red'?'tag-style-rare-strong':'tag-style-rare-certain'}" type="button" onclick="battleModeRecordSazanami('${escapeHtml(cause.key)}','${escapeHtml(row.key)}')">${escapeHtml(row.label)}</button>`).join('')
+  );
+}
+function battleModeRecordSazanami(causeKey,colorKey){
+  const cause=BATTLE_MODE_SAZANAMI_CAUSES.find(row=>row.key===causeKey);
+  const color=BATTLE_MODE_SAZANAMI_COLORS.find(row=>row.key===colorKey);
+  const tag=color?currentMachine()?.tags?.find(row=>row.id===color.tagId):null;
+  closeBattleModeOtherSheet();
+  if(!cause||!color||!tag){battleModeInvalid('さざなみタグが見つかりません');return;}
+  if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
+  battleModeCommit(tag.label,()=>addInstantTimelineTagWithAttachments(tag,[],{
+    fields:{entryCause:cause.key,entryCauseLabel:cause.label},
+    textSuffix:`（契機：${cause.label}）`
+  }));
+}
 function openBattleModeOtherSheet(){
+  const titleEl=document.querySelector('#battleModeOtherSheet .bm-sheet-title');
+  if(titleEl)titleEl.textContent='その他';
   const grid=document.getElementById('battleModeOtherGrid');
   const tags=currentMachine()?.tags||[];
   const modalButtons='<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'suggestion\')">示唆記録</button>';
@@ -8111,7 +8162,7 @@ function addInstantTimelineTag(tag){
   if(beginTagNumberAttachment(tag))return;
   addInstantTimelineTagWithAttachments(tag,[]);
 }
-function addInstantTimelineTagWithAttachments(tag,attachments=[]){
+function addInstantTimelineTagWithAttachments(tag,attachments=[],options={}){
   const game=timelineDataValue();
   const liquidGame=timelineLiquidValue()??game;
   if(game===null){alert('G数を入力してください');return;}
@@ -8120,6 +8171,10 @@ function addInstantTimelineTagWithAttachments(tag,attachments=[]){
   const subCounters=applySubCounterDeltasForTimeline(tagIds);
   const attachmentText=timelineAttachmentText(attachments);
   const entry={id:uid('tl'),game,liquidGame,text:attachmentText?`${tag.label}（${attachmentText}）`:tag.label,tagIds,countAs:[],subCounters,attachments,createdAt:new Date().toISOString()};
+  const extraFields=options&&typeof options==='object'&&options.fields&&typeof options.fields==='object'?options.fields:null;
+  if(extraFields)Object.assign(entry,extraFields);
+  const textSuffix=String(options?.textSuffix||'');
+  if(textSuffix)entry.text=`${entry.text}${textSuffix}`;
   const entryCause=promptNangokuEntryCause(tag);
   if(entryCause)Object.assign(entry,{intervalEvent:'machine-entry',...entryCause,text:`${entry.text}（契機：${entryCause.entryCauseLabel}）`});
   applyCounterResetsByTagIds(tagIds,entry);
