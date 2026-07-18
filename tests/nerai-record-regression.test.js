@@ -47,6 +47,7 @@ function fakeElement() {
     checked: false,
     disabled: false,
     style: {},
+    dataset: {},
     classList: { add() {}, remove() {}, toggle() {} },
     appendChild() {},
     remove() {},
@@ -85,7 +86,7 @@ function createContext(raw, confirms = []) {
       body: fakeElement(),
       createElement: () => fakeElement()
     },
-    window: {},
+    window: { scrollTo() {} },
     navigator: { clipboard: null },
     URL: { createObjectURL: () => '', revokeObjectURL() {} },
     Blob: function Blob() {},
@@ -331,6 +332,66 @@ function testHitSegmentsRemainIncludedInTextOutputs() {
   assert.match(shareText, /AT直撃/);
 }
 
+function seedOpenNoHitTimeline(context, text = 'プリリプ') {
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentTimelineDataGame = 210;
+    setTimelineGames(210, 201);
+    currentTimelineManualCorrection = offsetFromDataLiquid(210, 201);
+    currentTimeline = [{ id: 'tl_open_no_hit', game: 180, liquidGame: 171, text: '${text}', tagIds: [], countAs: [], createdAt: '2026-07-18T00:00:00.000Z' }];
+    currentSuggestLog = [];
+    currentHitEvents = [];
+    currentSegments = [];
+    currentEndLog = null;
+    currentFlowStep = 2;
+  `, context);
+}
+
+function testYameOutcomeTabClosesNoHitSegmentWithoutMemoDuplicate() {
+  const { context } = runRecord(undefined);
+  seedOpenNoHitTimeline(context);
+
+  vm.runInContext("setTimelineOutcome('ヤメ')", context);
+  assert.equal(vm.runInContext('currentFlowStep', context), 4);
+  assert.equal(vm.runInContext('currentSegments.length', context), 1);
+  assert.equal(vm.runInContext("currentSegments[0].terminalType", context), 'follow_miss');
+  assert.equal(vm.runInContext("currentSegments[0].timeline.some(item => item.text === 'ヤメ')", context), false);
+  assert.equal(vm.runInContext("segmentTerminalLine(currentSegments[0])", context), '210G 当選前ヤメ（210/201G）');
+}
+
+function testStep4GuardClosesOrCancelsOpenNoHitSegment() {
+  const accepted = runRecord(undefined, [true]);
+  seedOpenNoHitTimeline(accepted.context, 'さざなみ');
+  vm.runInContext('switchFlowStep(4)', accepted.context);
+  assert.equal(vm.runInContext('currentFlowStep', accepted.context), 4);
+  assert.equal(vm.runInContext("currentSegments[0].terminalType", accepted.context), 'follow_miss');
+
+  const cancelled = runRecord(undefined, [false]);
+  seedOpenNoHitTimeline(cancelled.context, 'リプフラ');
+  vm.runInContext('switchFlowStep(4)', cancelled.context);
+  assert.equal(vm.runInContext('currentFlowStep', cancelled.context), 2);
+  assert.equal(vm.runInContext('currentSegments.length', cancelled.context), 0);
+}
+
+function testExistingFollowMissButtonStillArchivesSegment() {
+  const { context } = runRecord(undefined);
+  seedOpenNoHitTimeline(context, '当選なし確認');
+  vm.runInContext('commitFollowMissBranch()', context);
+  assert.equal(vm.runInContext('currentSegments.length', context), 1);
+  assert.equal(vm.runInContext("currentSegments[0].terminalType", context), 'follow_miss');
+}
+
+function testNewRegistrationGuardClosesOpenNoHitSegment() {
+  const { context } = runRecord(undefined, [true, true]);
+  seedOpenNoHitTimeline(context, '据え置き確認');
+  vm.runInContext('startNewRegistration()', context);
+  assert.equal(vm.runInContext('db.logs.length', context), 1);
+  assert.equal(vm.runInContext("db.logs[0].segments[0].terminalType", context), 'follow_miss');
+  assert.equal(vm.runInContext("segmentTerminalLine(db.logs[0].segments[0])", context), '210G 当選前ヤメ（210/201G）');
+  assert.equal(vm.runInContext('currentSegments.length', context), 0);
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -338,6 +399,10 @@ function run() {
   testOtherPresetMachinesRemainStable();
   testNoHitQuitSegmentsAreIncludedInTextOutputs();
   testHitSegmentsRemainIncludedInTextOutputs();
+  testYameOutcomeTabClosesNoHitSegmentWithoutMemoDuplicate();
+  testStep4GuardClosesOrCancelsOpenNoHitSegment();
+  testExistingFollowMissButtonStillArchivesSegment();
+  testNewRegistrationGuardClosesOpenNoHitSegment();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();

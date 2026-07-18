@@ -3707,6 +3707,7 @@ function renderFlowStepTabs(){
   if(title)title.textContent=flowStepLabel(currentFlowStep);
 }
 function switchFlowStep(step){
+  if(Number(step)===4&&!ensureNoHitSegmentClosedBeforeExit())return;
   currentFlowStep=Number(step)||1;
   scheduleDraftSave();
   renderLogFields();
@@ -4560,6 +4561,27 @@ function setEndLogFromCurrentPosition(){
   currentEndLog={id:currentEndLog?.id||uid('el'),game:endGame,liquidGame,reason:'ヤメ',text:'',...hitEventEndLogCounts(currentHitEvents),createdAt:currentEndLog?.createdAt||new Date().toISOString(),updatedAt:new Date().toISOString()};
   linkedEndDataGame=endGame;
   linkedEndLiquidGame=liquidGame;
+}
+function hasOpenNoHitSegmentContent(){
+  if(currentEndLog)return false;
+  if(currentHitEvents.some(event=>!archivedHitEventIds().has(event.id)))return false;
+  return currentTimeline.length>0||currentSuggestLog.length>0||normalizeCounterHistories(currentCounterHistories).length>0;
+}
+function closeNoHitSegmentToQuit(){
+  setEndLogFromCurrentPosition();
+  archiveCurrentSegment(null,'follow_miss',{preserveEndState:true});
+  currentFlowStep=4;
+  closeSuggestPicker();
+  renderLogFields();
+  renderFlowStepTabs();
+  renderCurrentContextBar();
+  saveDraftImmediately();
+  return true;
+}
+function ensureNoHitSegmentClosedBeforeExit(){
+  if(!hasOpenNoHitSegmentContent())return true;
+  if(!confirm('未終端の区切りがあります。当選なしで区切りますか？\nOK=当選前ヤメとして区切る / キャンセル=入力に戻る'))return false;
+  return closeNoHitSegmentToQuit();
 }
 function commitFollowMissBranch(){
   archiveCurrentSegment(null,'follow_miss',{preserveEndState:false});
@@ -5786,7 +5808,7 @@ function renderOutcomeQuickButtons(){
   return `
     <div class="outcome-tabs">
       <button class="outcome-tab primary" onclick="setTimelineOutcome('当選')">当選</button>
-      <button class="outcome-tab" onclick="setTimelineOutcome('ヤメ')">ヤメ</button>
+      <button class="outcome-tab" onclick="setTimelineOutcome('ヤメ')">当選前ヤメ</button>
     </div>`;
 }
 function quickTagIdsForMachine(machine=currentMachine()){
@@ -7710,6 +7732,10 @@ function appendTimelineTag(label){
   updateTimelineAddButtonState();
 }
 function setTimelineOutcome(label){
+  if(label==='ヤメ'){
+    closeNoHitSegmentToQuit();
+    return;
+  }
   appendTextToField('timelineText',label);
   updateTimelineAddButtonState();
 }
@@ -8787,6 +8813,7 @@ function scrollToPageTop(){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 function startNewRegistration(){
+  if(!ensureNoHitSegmentClosedBeforeExit())return;
   if(!confirm('入力中の今回の稼働を未確定ログへ保留して、新規登録を始めますか？収支未登録の場合は集計対象外になります。'))return;
   archiveCurrentDraftAsUnfinalized();
   clearLogInput(true);
