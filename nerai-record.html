@@ -6276,6 +6276,7 @@ function hitEventLine(event,machine=currentMachine()){
   return parts.join(' / ');
 }
 function segmentTerminalLabel(event,terminalType=''){
+  if(!event&&terminalType==='follow_miss')return '当選前ヤメ';
   if(!event)return terminalType||'区切り';
   const trigger=hitEventLabel(event);
   if(event.czResult==='at_lose')return `${trigger} / AT非突入`;
@@ -7358,7 +7359,15 @@ function segmentSummary(segment,index){
   const endingCount=(segment.hitEvents||[]).reduce((sum,event)=>sum+(Number(event.endingCount)||0),0);
   const endingText=endingCount?` / エンディング到達あり（${endingCount}回）`:'';
   const variantText=segmentHasNangokuBlue7(segment)?' / 青7BIGあり':'';
-  return `${segmentOrdinalLabel(index)}：${segment.terminalLabel||'区切り'}${variantText} / ${game}${endingText}`;
+  const terminalLabel=segment?.terminalType==='follow_miss'||segment?.terminalLabel==='follow_miss'?'当選前ヤメ':segment.terminalLabel||'区切り';
+  return `${segmentOrdinalLabel(index)}：${terminalLabel}${variantText} / ${game}${endingText}`;
+}
+function segmentTerminalLine(segment){
+  if(segment?.terminalType!=='follow_miss')return '';
+  const data=normalizeOptionalNumber(segment.dataGame);
+  if(data===null)return '当選前ヤメ';
+  const liquid=normalizeOptionalNumber(segment.liquidGame)??data;
+  return `${data}G 当選前ヤメ（${data}/${liquid}G）`;
 }
 function segmentHasNangokuBlue7(segment){
   return (segment?.hitEvents||[]).some(event=>event.variant==='blue7')||(segment?.suggestLog||[]).some(entry=>entry.placeId==='sgp_nangoku_bonus_type');
@@ -7384,11 +7393,12 @@ function organizedHitToneClass(log,segment,event){
   if(!hasExplicitVariant&&isNangokuSpecialMachine(machine)&&event?.trigger==='direct_at'&&segmentHasNangokuBlue7(segment))return 'segment-tone-blue';
   return hitTriggerToneClass(machine,event?.trigger||'');
 }
-function segmentText(segment,index){
-  const lines=[segmentSummary(segment,index)];
+function segmentOutputLines(segment,index,options={}){
+  const lines=options.includeSummary===false?[]:[segmentSummary(segment,index)];
+  const machine=options.machine||currentMachine();
   if((segment.hitEvents||[]).length){
     lines.push('当選イベント：');
-    (segment.hitEvents||[]).forEach(event=>lines.push(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event)}`));
+    (segment.hitEvents||[]).forEach(event=>lines.push(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event,machine)}`));
   }
   if((segment.timeline||[]).length){
     lines.push('途中ログ：');
@@ -7405,6 +7415,12 @@ function segmentText(segment,index){
     lines.push('エンディングカード：');
     endingCardsTextLines(segment.endingCards).forEach(line=>lines.push(line));
   }
+  const terminalLine=segmentTerminalLine(segment);
+  if(terminalLine)lines.push(terminalLine);
+  return lines;
+}
+function segmentText(segment,index){
+  const lines=segmentOutputLines(segment,index);
   return lines.join('\n');
 }
 function renderSegmentVariantControls(segment,context='segment',logId='',machine=currentMachine()){
@@ -9134,6 +9150,16 @@ function buildShareText(log){
     if(startCounter!==null)lines.push(`データカウンターのゲーム数：${startCounter}`);
     startLog.forEach(item=>lines.push(startLogLine(item)));
   }
+  const segments=[...(log.segments||[])].sort((a,b)=>(Number(a.branchNumber)||0)-(Number(b.branchNumber)||0));
+  if(segments.length){
+    lines.push('');
+    lines.push('区切り：');
+    segments.forEach((segment,index)=>{
+      const label=formatAimLabel(log,segment)||`${log.aimNumber||1}-${segment.branchNumber||index+1}`;
+      lines.push(`― ${label} ―`);
+      segmentOutputLines(segment,index,{includeSummary:false,machine}).forEach(line=>lines.push(line));
+    });
+  }
   if(timeline.length){
     lines.push('');
     lines.push('実戦経過：');
@@ -9382,6 +9408,11 @@ function organizedRowsForSegment(log,segment,index){
   normalizeCounterHistories(segment.counterHistories).forEach((entry,i)=>{
     rows.push({category:'setting',kind:'counter-history',game:null,order:300+i,text:counterHistoryLine(entry),segment,log});
   });
+  const terminalLine=segmentTerminalLine(segment);
+  if(terminalLine){
+    const data=normalizeOptionalNumber(segment.dataGame);
+    rows.push({category:'bonus',kind:'terminal',game:data,order:400,text:terminalLine,segment,log});
+  }
   return {branch,rows:rows.sort((a,b)=>(a.sortGame??a.game??999999)-(b.sortGame??b.game??999999)||a.order-b.order)};
 }
 function applyOrganizedSuggestDedupe(groups){

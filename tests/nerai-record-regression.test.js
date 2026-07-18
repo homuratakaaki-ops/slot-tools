@@ -243,11 +243,101 @@ function testOtherPresetMachinesRemainStable() {
   assert.equal(vm.runInContext("machineById('m_karakuri_circus_2').counters.length > 0", context), true);
 }
 
+function noHitQuitLog(machineId, machineName, timelineText) {
+  return {
+    id: `l_no_hit_quit_${machineId}`,
+    schemaVersion: 2,
+    sessionId: `s_no_hit_quit_${machineId}`,
+    aimNumber: 1,
+    branchNumber: 1,
+    status: 'settled',
+    machineId,
+    aimId: 'aim_tenjo',
+    machineName,
+    aimName: '天井狙い',
+    fieldSnapshot: [],
+    values: {},
+    flowStep: 4,
+    state4Registered: true,
+    finalized: true,
+    excludeFromStats: false,
+    startCounterGame: 0,
+    startLog: [],
+    timeline: [],
+    hitEvents: [],
+    suggestLog: [],
+    endingCards: {},
+    segments: [
+      {
+        id: `seg_no_hit_quit_${machineId}`,
+        branchNumber: 2,
+        status: 'committed',
+        terminalType: 'follow_miss',
+        terminalLabel: 'follow_miss',
+        dataGame: 201,
+        liquidGame: 201,
+        timeline: [
+          { id: `tl_no_hit_quit_${machineId}`, game: 150, liquidGame: 150, text: timelineText, tagIds: [], countAs: [], createdAt: '2026-07-18T00:00:00.000Z' }
+        ],
+        suggestLog: [],
+        hitEvents: [],
+        endingCards: {},
+        createdAt: '2026-07-18T00:01:00.000Z'
+      }
+    ],
+    endLog: { id: `el_no_hit_quit_${machineId}`, game: 201, liquidGame: 201, reason: 'ヤメ', text: '', czCount: 0, upperCzCount: 0, atCount: 0, directAtCount: 0, episodeBonusCount: 0 },
+    money: { date: '2026-07-18', store: '', machineNo: '', startTime: '', endTime: '', startMedals: 0, endMedals: 0, cashIn: 0, lendRate: null, exchangeRate: null, workMinutes: null, diff: null, balance: null, hourlyRate: null, medalDiff: 0, yenDiff: null },
+    publicMemo: '',
+    privateMemo: '',
+    createdAt: '2026-07-18T00:02:00.000Z',
+    updatedAt: '2026-07-18T00:02:00.000Z'
+  };
+}
+
+function testNoHitQuitSegmentsAreIncludedInTextOutputs() {
+  const cases = [
+    ['m_nangoku_special', 'L南国育ちSPECIAL', 'プリリプ'],
+    ['m_tokyo_ghoul', '東京喰種', 'スイカ10'],
+    ['m_karakuri_circus_2', 'Lからくりサーカス2', '幕間チャンスなし']
+  ];
+  cases.forEach(([machineId, machineName, timelineText]) => {
+    const raw = JSON.stringify({ version: 1, machines: [], stores: [], logs: [noHitQuitLog(machineId, machineName, timelineText)] });
+    const { context, localStorage } = runRecord(raw);
+    const shareText = vm.runInContext('buildShareText(db.logs[0])', context);
+    assert.match(shareText, /― 1-2 ―/);
+    assert.match(shareText, new RegExp(timelineText));
+    assert.match(shareText, /201G 当選前ヤメ（201\/201G）/);
+
+    const organizedText = vm.runInContext('organizedDetailText({ aimNumber: 1, logs: [db.logs[0]] })', context);
+    assert.match(organizedText, /― 1-2 ―/);
+    assert.match(organizedText, /201G 当選前ヤメ（201\/201G）/);
+
+    const restored = runRecord(localStorage.getItem('nerai_record_v1'));
+    assert.match(vm.runInContext('buildShareText(db.logs[0])', restored.context), /201G 当選前ヤメ（201\/201G）/);
+  });
+}
+
+function testHitSegmentsRemainIncludedInTextOutputs() {
+  const log = noHitQuitLog('m_tokyo_ghoul', '東京喰種', '弱チェリー');
+  log.segments[0].terminalType = 'quit';
+  log.segments[0].terminalLabel = 'AT直撃 / 今回の稼働終了';
+  log.segments[0].trigger = 'direct_at';
+  log.segments[0].hitEvents = [{ id: 'he_hit', trigger: 'direct_at', dataGame: 201, liquidGame: 201, subCounters: {}, czResult: null, payout: null, through: null, terminalType: '', endingCount: 0, exit: 'quit', wizardDone: true, createdAt: '2026-07-18T00:01:00.000Z' }];
+  const raw = JSON.stringify({ version: 1, machines: [], stores: [], logs: [log] });
+  const { context } = runRecord(raw);
+  const shareText = vm.runInContext('buildShareText(db.logs[0])', context);
+  assert.match(shareText, /― 1-2 ―/);
+  assert.match(shareText, /当選イベント：/);
+  assert.match(shareText, /AT直撃/);
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();
   testOtherPresetMachinesRemainStable();
+  testNoHitQuitSegmentsAreIncludedInTextOutputs();
+  testHitSegmentsRemainIncludedInTextOutputs();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();
