@@ -1,4 +1,4 @@
-const assert = require('node:assert/strict');
+﻿const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -400,10 +400,11 @@ function testBattleModeUndefinedQuickPanelRendersEmptySlots() {
     battleModeOpen = true;
   `, context);
   const grid = vm.runInContext('renderBattleModeGrid()', context);
-  assert.match(grid, /＋1G/);
-  assert.match(grid, /＋10G/);
-  assert.match(grid, /その他 ▼/);
-  assert.equal((grid.match(/>空き</g) || []).length, 5);
+  assert.match(grid, /battleModeIncrementGame\(1\)/);
+  assert.match(grid, /battleModeIncrementGame\(5\)/);
+  assert.match(grid, /battleModeIncrementGame\(10\)/);
+  assert.match(grid, /openBattleModeOtherSheet/);
+  assert.equal((grid.match(/type="button" disabled/g) || []).length, 6);
 }
 
 function testBattleModeTagRecordUndoAndRedoUsesTimelineFormat() {

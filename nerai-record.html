@@ -381,15 +381,23 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-open-btn{min-height:54px;border-color:rgba(201,168,76,.72);color:var(--gold-light);background:rgba(201,168,76,.12);font-weight:900;}
 .bm-overlay{position:fixed;inset:0;z-index:9000;display:none;background:var(--bg);color:var(--text);padding:8px;overflow:hidden;}
 .bm-overlay.open{display:flex;}
-.bm-shell{width:100%;max-width:480px;height:100%;max-height:100dvh;margin:0 auto;display:grid;grid-template-rows:auto auto 1fr auto auto;gap:6px;}
+.bm-shell{width:100%;max-width:480px;height:100%;max-height:100dvh;margin:0 auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto;gap:6px;}
 .bm-header{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:8px;border-bottom:1px solid rgba(201,168,76,.28);padding:2px 0 7px;}
 .bm-title{min-width:0;font-size:13px;font-weight:900;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-close{width:48px;height:48px;border:1px solid rgba(201,168,76,.42);border-radius:8px;background:rgba(201,168,76,.08);color:var(--gold-light);font-size:24px;font-weight:900;cursor:pointer;}
-.bm-counters{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.bm-counters{display:grid;gap:6px;}
+.bm-main-counter-row,.bm-compact-counter-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
 .bm-counter{min-height:64px;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:7px 8px;text-align:center;cursor:pointer;}
 .bm-counter-label{font-size:11px;font-weight:900;color:var(--text-muted);}
 .bm-counter-value{font-size:24px;font-weight:900;line-height:1.25;color:var(--gold-light);}
-.bm-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:repeat(4,minmax(52px,1fr));gap:7px;min-height:0;}
+.bm-compact-counter{min-height:50px;border:1px solid rgba(201,168,76,.35);border-radius:8px;background:rgba(0,0,0,.14);display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:6px;padding:5px 6px;}
+.bm-compact-counter-read{min-width:0;text-align:center;border:0;background:transparent;color:inherit;cursor:pointer;}
+.bm-compact-counter .bm-counter-value{font-size:20px;}
+.bm-mini-btn{width:48px;min-height:42px;border:1px solid rgba(76,175,125,.58);border-radius:8px;background:rgba(76,175,125,.12);color:#a8efb4;font-size:16px;font-weight:900;cursor:pointer;}
+.bm-grid{display:grid;grid-template-rows:repeat(3,minmax(52px,auto)) minmax(52px,auto);gap:7px;min-height:0;align-content:start;}
+.bm-button-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+.bm-event-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+.bm-other-row{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;}
 .bm-btn{min-height:52px;border:1px solid rgba(201,168,76,.45);border-radius:8px;background:var(--surface2);color:var(--text);font-size:16px;font-weight:900;line-height:1.25;padding:8px;cursor:pointer;}
 .bm-btn:active,.bm-btn.pressed{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.16);}
 .bm-btn.counter{border-color:rgba(76,175,125,.58);background:rgba(76,175,125,.12);color:#a8efb4;}
@@ -1083,9 +1091,9 @@ function normalizeQuickPanel(panel){
   if(Array.isArray(panel)){
     return {counters:[],gainButtons:[1,10],events:panel.slice(0,5).map(normalizeQuickPanelEvent).filter(Boolean)};
   }
-  if(!panel||typeof panel!=='object')return {counters:[],gainButtons:[1,10],events:[]};
+  if(!panel||typeof panel!=='object')return {counters:[],gainButtons:[1,5,10],events:[]};
   const counters=Array.isArray(panel.counters)?panel.counters.map(value=>String(value||'').trim()).filter(Boolean).slice(0,3):[];
-  const gainButtons=Array.isArray(panel.gainButtons)?panel.gainButtons.map(value=>Number(value)).filter(value=>[1,5,10].includes(value)).slice(0,3):[1,10];
+  const gainButtons=Array.isArray(panel.gainButtons)?panel.gainButtons.map(value=>Number(value)).filter(value=>[1,5,10].includes(value)).slice(0,3):[1,5,10];
   const events=Array.isArray(panel.events)?panel.events.slice(0,3).map(normalizeQuickPanelEvent).filter(Boolean):[];
   return {counters,gainButtons,events};
 }
@@ -4724,19 +4732,80 @@ function battleModeEntryLabel(entry){
   const text=String(entry?.text||'').trim()||'記録';
   return `${game!==null?`${game}G `:''}${text}`;
 }
+function renderBattleModeCompactCounters(){
+  const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
+  const counter=machineSubCounter();
+  if(!useLiquidOffsetCounter&&!counter)return '';
+  const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
+  const counterValue=counter?subCounterValue(counter.key):0;
+  return `<div class="bm-compact-counter-row">
+    ${useLiquidOffsetCounter?`
+    <div class="bm-compact-counter">
+      <button class="bm-compact-counter-read" type="button" onclick="openBattleModeCounterKeypad('liquidOffset')">
+        <div class="bm-counter-label">差分</div>
+        <div class="bm-counter-value">${escapeHtml(timelineLiquidOffset())}</div>
+      </button>
+      ${liquidPreset!==null?`<button class="bm-mini-btn" type="button" onclick="battleModeSetLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span></span>'}
+    </div>`:'<div></div>'}
+    ${counter?`
+    <div class="bm-compact-counter">
+      <button class="bm-compact-counter-read" type="button" onclick="openBattleModeCounterKeypad('subCounter')">
+        <div class="bm-counter-label">${escapeHtml(compactCounterLabel(counter))}</div>
+        <div class="bm-counter-value">${escapeHtml(counterValue)}</div>
+      </button>
+      <button class="bm-mini-btn" type="button" onclick="battleModeIncrementSubCounter('${escapeHtml(counter.key)}')">+1</button>
+    </div>`:'<div></div>'}
+  </div>`;
+}
 function renderBattleModeRecent(){
   const rows=battleModeRecentRows();
   if(!rows.length)return '<div class="bm-recent-line">直近: なし</div>';
   return rows.map((row,i)=>`<div class="bm-recent-line">${i===0?'直近: ':'　　　'}${escapeHtml(battleModeEntryLabel(row))} ${escapeHtml(formatShopNoteTime(row.createdAt))}</div>`).join('');
 }
-function battleModeQuickItems(){
+function battleModePanel(){
   const machine=currentMachine();
-  const panel=Array.isArray(machine?.quickPanel)?machine.quickPanel:[];
-  return panel.slice(0,5).map(item=>item&&typeof item==='object'?{type:String(item.type||''),ref:String(item.ref||'')}:null);
+  return normalizeQuickPanel(machine?.quickPanel);
+}
+function battleModeCounterButtonDef(ref){
+  const map={
+    replay:{label:'リプレイ',tagId:'t_nangoku_replay'},
+    cherry:{label:'チェリー',tagId:'t_nangoku_cherry'},
+    suika:{label:'スイカ',tagId:'t_nangoku_suika'}
+  };
+  return map[ref]||null;
 }
 function battleModeTagClassName(tag){
   const tagClass=normalizeTagClass(tag?.tagClass);
   return tagClass?`tag-style-${tagClass}`:'';
+}
+function battleModeTagButton(tag,emptyLabel='空き'){
+  if(!tag)return `<button class="bm-btn disabled" type="button" disabled>${escapeHtml(emptyLabel)}</button>`;
+  return `<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="battleModeRecordTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`;
+}
+function battleModeCounterButton(ref){
+  const def=battleModeCounterButtonDef(ref);
+  const tag=def?currentMachine()?.tags?.find(row=>row.id===def.tagId):null;
+  if(!def)return `<button class="bm-btn disabled" type="button" onclick="battleModeInvalid('未対応のカウンターです')">未対応</button>`;
+  if(!tag)return `<button class="bm-btn disabled" type="button" onclick="battleModeInvalid('タグが見つかりません')">未登録</button>`;
+  return `<button class="bm-btn counter ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="battleModeRecordTag('${escapeHtml(tag.id)}')">${escapeHtml(def.label)}</button>`;
+}
+function battleModeEventButton(item){
+  const machine=currentMachine();
+  if(!item)return `<button class="bm-btn disabled" type="button" disabled>空き</button>`;
+  if(item.type==='tag'){
+    const tag=machine?.tags?.find(row=>row.id===item.ref);
+    if(!tag)return `<button class="bm-btn disabled" type="button" onclick="battleModeInvalid('タグが見つかりません')">未登録</button>`;
+    return battleModeTagButton(tag);
+  }
+  if(item.type==='picker'){
+    const label=item.ref==='sazanami'?'さざなみ':item.ref==='bonus'?'ボーナス':'ピッカー';
+    return `<button class="bm-btn" type="button" onclick="openBattleModePicker('${escapeHtml(item.ref)}')">${escapeHtml(label)}</button>`;
+  }
+  if(item.type==='modal'){
+    const label=item.ref==='suggestion'?'示唆記録':item.ref==='destiny'?'運命盤':'モーダル';
+    return `<button class="bm-btn" type="button" onclick="battleModeOpenModal('${escapeHtml(item.ref)}')">${escapeHtml(label)}</button>`;
+  }
+  return `<button class="bm-btn disabled" type="button" onclick="battleModeInvalid('未対応のクイック定義です')">未対応</button>`;
 }
 function battleModeQuickButton(item,index){
   const machine=currentMachine();
@@ -4753,13 +4822,26 @@ function battleModeQuickButton(item,index){
   return `<button class="bm-btn disabled" type="button" onclick="battleModeInvalid('未対応のクイック定義です')">未対応</button>`;
 }
 function renderBattleModeGrid(){
-  const items=battleModeQuickItems();
-  return [
-    '<button class="bm-btn counter" type="button" onclick="battleModeIncrementGame(1)">＋1G</button>',
-    '<button class="bm-btn counter" type="button" onclick="battleModeIncrementGame(10)">＋10G</button>',
-    ...Array.from({length:5},(_,i)=>battleModeQuickButton(items[i],i)),
-    '<button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">その他 ▼</button>'
-  ].join('');
+  const panel=battleModePanel();
+  const gains=(panel.gainButtons.length?panel.gainButtons:[1,5,10]).slice(0,3);
+  const counters=panel.counters.slice(0,3);
+  const events=panel.events.slice(0,3);
+  return `
+    <div class="bm-button-row">
+      ${Array.from({length:3},(_,i)=>{
+        const delta=gains[i];
+        return delta?`<button class="bm-btn counter" type="button" onclick="battleModeIncrementGame(${escapeHtml(delta)})">+${escapeHtml(delta)}</button>`:'<button class="bm-btn disabled" type="button" disabled>空き</button>';
+      }).join('')}
+    </div>
+    <div class="bm-button-row">
+      ${Array.from({length:3},(_,i)=>counters[i]?battleModeCounterButton(counters[i]):'<button class="bm-btn disabled" type="button" disabled>空き</button>').join('')}
+    </div>
+    <div class="bm-event-row">
+      ${Array.from({length:3},(_,i)=>battleModeEventButton(events[i])).join('')}
+    </div>
+    <div class="bm-other-row">
+      <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">その他 ▼</button>
+    </div>`;
 }
 function renderBattleModeUndoBar(){
   const bar=document.getElementById('battleModeUndoBar');
@@ -4778,6 +4860,7 @@ function renderBattleMode(){
   if(title)title.textContent=`${machine?.name||'機種未選択'} / ${aim?.name||'狙い方未選択'}`;
   const counters=document.getElementById('battleModeCounters');
   if(counters)counters.innerHTML=`
+    <div class="bm-main-counter-row">
     <button class="bm-counter" type="button" onclick="openBattleModeCounterKeypad('data')">
       <div class="bm-counter-label">データG</div>
       <div class="bm-counter-value">${escapeHtml(battleModeCounterText(data))}</div>
@@ -4785,7 +4868,9 @@ function renderBattleMode(){
     <button class="bm-counter" type="button" onclick="openBattleModeCounterKeypad('liquid')">
       <div class="bm-counter-label">液晶G</div>
       <div class="bm-counter-value">${escapeHtml(battleModeCounterText(liquid))}</div>
-    </button>`;
+    </button>
+    </div>
+    ${renderBattleModeCompactCounters()}`;
   const grid=document.getElementById('battleModeGrid');
   if(grid)grid.innerHTML=renderBattleModeGrid();
   const recent=document.getElementById('battleModeRecent');
@@ -4793,25 +4878,31 @@ function renderBattleMode(){
   renderBattleModeUndoBar();
 }
 function openBattleModeCounterKeypad(role){
+  const counter=machineSubCounter();
   const input=document.createElement('input');
   input.type='text';
   input.className='numeric-input';
   input.inputMode='numeric';
   input.readOnly=true;
-  input.placeholder=role==='liquid'?'液晶G':'データG';
-  input.value=String(role==='liquid'?(timelineLiquidValue()??''):(timelineDataValue()??''));
+  if(role==='liquidOffset')input.dataset.signed='1';
+  input.placeholder=role==='liquid'?'液晶G':role==='liquidOffset'?'差分':role==='subCounter'?(counter?.label||'カウンター'):'データG';
+  input.value=String(role==='liquid'?(timelineLiquidValue()??''):role==='liquidOffset'?timelineLiquidOffset():role==='subCounter'?subCounterValue(counter?.key):(timelineDataValue()??''));
   input.style.position='fixed';
   input.style.left='-9999px';
   input.addEventListener('change',()=>{
     const value=normalizeOptionalNumber(input.value);
     input.remove();
     if(value===null){battleModeInvalid('G数を入力してください');return;}
-    const label=role==='liquid'?`液晶${value}G`:`データ${value}G`;
+    const label=role==='liquid'?`液晶${value}G`:role==='liquidOffset'?`差分${value}`:role==='subCounter'?`${counter?.label||'カウンター'}${value}`:`データ${value}G`;
     battleModeCommit(label,()=>{
       if(role==='liquid'){
         const data=timelineDataValue();
         if(data!==null)setManualCorrectionForLiquid(data,value);
         setTimelineGames(data,value);
+      }else if(role==='liquidOffset'){
+        setTimelineOffsetPreservingData(value);
+      }else if(role==='subCounter'&&counter){
+        setSubCounterValue(counter.key,value);
       }else{
         setTimelineGames(value,liquidFromDataWithOffset(value));
       }
@@ -4822,6 +4913,16 @@ function openBattleModeCounterKeypad(role){
 }
 function battleModeIncrementGame(delta){
   battleModeCommit(`＋${delta}G`,()=>incrementTimelineGame(delta));
+}
+function battleModeSetLiquidOffsetPreset(value){
+  const delta=normalizeOptionalNumber(value);
+  if(delta===null){battleModeInvalid('差分を更新できません');return;}
+  battleModeCommit(`差分+${delta}`,()=>setTimelineLiquidOffsetPreset(delta));
+}
+function battleModeIncrementSubCounter(key){
+  const counter=machineCounters().find(row=>row.key===key)||machineSubCounter();
+  const label=counter?.counterLabel||counter?.label||key;
+  battleModeCommit(`${label}+1`,()=>incrementSubCounter(key,1));
 }
 function battleModeRecordTag(id){
   const tag=currentMachine()?.tags?.find(row=>row.id===id);
