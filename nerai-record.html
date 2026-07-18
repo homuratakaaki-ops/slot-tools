@@ -428,6 +428,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px;}
 .bm-sheet-title{font-size:14px;font-weight:900;color:var(--gold-light);}
 .bm-sheet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
+.bm-sheet.memo-mode .bm-sheet-panel{margin-bottom:var(--bm-keyboard-inset,0px);max-height:min(72dvh,calc(100dvh - var(--bm-keyboard-inset,0px) - 12px));}
+.bm-memo-text{grid-column:1/-1;min-height:120px;resize:vertical;}
 @media (max-height:560px){
   .bm-shell{gap:5px;}
   .bm-counter{min-height:56px;padding:5px 7px;}
@@ -1053,6 +1055,7 @@ let battleModeUndoStack=[];
 let battleModeRedoAction=null;
 let battleModeToastTimer=null;
 let battleModeReturnAfterHitWizard=false;
+let battleModeMemoSheetOpen=false;
 
 function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9000+1000);}
 function clone(value){return JSON.parse(JSON.stringify(value));}
@@ -4972,6 +4975,22 @@ function setBattleModeSheet(title,html){
   if(grid)grid.innerHTML=html;
   document.getElementById('battleModeOtherSheet')?.classList.add('open');
 }
+function updateBattleModeMemoViewport(){
+  const sheet=document.getElementById('battleModeOtherSheet');
+  if(!sheet||!battleModeMemoSheetOpen)return;
+  const viewport=window.visualViewport;
+  const inset=viewport?Math.max(0,Math.round(window.innerHeight-viewport.height-viewport.offsetTop)):0;
+  sheet.style.setProperty('--bm-keyboard-inset',`${inset}px`);
+  const input=document.getElementById('battleModeMemoText');
+  const active=document.activeElement===input;
+  if(active)setTimeout(()=>input?.scrollIntoView({block:'nearest'}),0);
+}
+function scheduleBattleModeMemoViewportUpdate(){
+  if(!battleModeMemoSheetOpen)return;
+  updateBattleModeMemoViewport();
+  setTimeout(updateBattleModeMemoViewport,80);
+  setTimeout(updateBattleModeMemoViewport,260);
+}
 function openBattleModeSazanamiCausePicker(){
   setBattleModeSheet('さざなみ契機',
     BATTLE_MODE_SAZANAMI_CAUSES.map(row=>`<button class="bm-btn" type="button" onclick="openBattleModeSazanamiColorPicker('${escapeHtml(row.key)}')">${escapeHtml(row.label)}</button>`).join('')
@@ -5023,11 +5042,14 @@ function battleModeOtherExcludedModalRefs(){
   return new Set(panel.events.filter(item=>item?.type==='modal').map(item=>item.ref));
 }
 function openBattleModeMemoSheet(){
+  battleModeMemoSheetOpen=true;
+  document.getElementById('battleModeOtherSheet')?.classList.add('memo-mode');
   setBattleModeSheet('メモ',`
-    <textarea id="battleModeMemoText" style="grid-column:1/-1;min-height:120px;" placeholder="メモ"></textarea>
+    <textarea id="battleModeMemoText" class="bm-memo-text" placeholder="メモ" onfocus="scheduleBattleModeMemoViewportUpdate()" oninput="scheduleBattleModeMemoViewportUpdate()"></textarea>
     <button class="bm-btn counter" type="button" onclick="saveBattleModeMemo()">追加</button>
     <button class="bm-btn" type="button" onclick="openBattleModeOtherSheet()">戻る</button>`);
-  setTimeout(()=>document.getElementById('battleModeMemoText')?.focus(),0);
+  scheduleBattleModeMemoViewportUpdate();
+  setTimeout(()=>{document.getElementById('battleModeMemoText')?.focus();scheduleBattleModeMemoViewportUpdate();},0);
 }
 function saveBattleModeMemo(){
   const text=String(document.getElementById('battleModeMemoText')?.value||'').trim();
@@ -5050,6 +5072,10 @@ function battleModeStartHit(trigger,variant=''){
   battleModeVibrate(18);
 }
 function openBattleModeOtherSheet(){
+  battleModeMemoSheetOpen=false;
+  const sheet=document.getElementById('battleModeOtherSheet');
+  sheet?.classList.remove('memo-mode');
+  sheet?.style.setProperty('--bm-keyboard-inset','0px');
   const titleEl=document.querySelector('#battleModeOtherSheet .bm-sheet-title');
   if(titleEl)titleEl.textContent='その他';
   const grid=document.getElementById('battleModeOtherGrid');
@@ -5065,6 +5091,10 @@ function openBattleModeOtherSheet(){
   document.getElementById('battleModeOtherSheet')?.classList.add('open');
 }
 function closeBattleModeOtherSheet(){
+  battleModeMemoSheetOpen=false;
+  const sheet=document.getElementById('battleModeOtherSheet');
+  sheet?.classList.remove('memo-mode');
+  sheet?.style.setProperty('--bm-keyboard-inset','0px');
   document.getElementById('battleModeOtherSheet')?.classList.remove('open');
 }
 function selectBattleModeOtherTag(id){
@@ -10809,6 +10839,16 @@ function restoreJson(input){
   };
   reader.readAsText(file);
 }
+
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize',scheduleBattleModeMemoViewportUpdate);
+  window.visualViewport.addEventListener('scroll',scheduleBattleModeMemoViewportUpdate);
+}
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden)scheduleBattleModeMemoViewportUpdate();
+});
+window.addEventListener('focus',scheduleBattleModeMemoViewportUpdate);
+window.addEventListener('pageshow',scheduleBattleModeMemoViewportUpdate);
 
 db=loadData();
 selectedMachineId=db.machines[0]?.id||'';

@@ -53,7 +53,7 @@ function fakeElement() {
     value: '',
     checked: false,
     disabled: false,
-    style: {},
+    style: { setProperty() {} },
     dataset: {},
     classList: { add() {}, remove() {}, toggle() {} },
     appendChild() {},
@@ -91,9 +91,11 @@ function createContext(raw, confirms = []) {
       querySelector: () => fakeElement(),
       querySelectorAll: () => [],
       body: fakeElement(),
-      createElement: () => fakeElement()
+      createElement: () => fakeElement(),
+      addEventListener() {},
+      hidden: false
     },
-    window: { scrollTo() {} },
+    window: { scrollTo() {}, addEventListener() {}, innerHeight: 800, visualViewport: { height: 800, offsetTop: 0, addEventListener() {} } },
     navigator: { clipboard: null },
     URL: { createObjectURL: () => '', revokeObjectURL() {} },
     Blob: function Blob() {},
@@ -423,6 +425,16 @@ function testBattleModeKeypadOverlayStacksAboveBattleMode() {
   assert.ok(Number(keypad[1]) > Number(battle[1]), 'numeric keypad must stack above battle mode overlay');
 }
 
+function testBattleModeMemoSheetTracksViewportOnResume() {
+  const style = extractStyle();
+  const script = extractScript();
+  assert.match(style, /\.bm-sheet\.memo-mode \.bm-sheet-panel\{[^}]*--bm-keyboard-inset/);
+  assert.match(script, /function updateBattleModeMemoViewport\(\)/);
+  assert.match(script, /visibilitychange/);
+  assert.match(script, /window\.addEventListener\('focus',scheduleBattleModeMemoViewportUpdate\)/);
+  assert.match(script, /window\.visualViewport\.addEventListener\('resize',scheduleBattleModeMemoViewportUpdate\)/);
+}
+
 function testBattleModeOtherSheetExcludesQuickPanelTags() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -615,6 +627,7 @@ function run() {
   testNewRegistrationGuardClosesOpenNoHitSegment();
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeKeypadOverlayStacksAboveBattleMode();
+  testBattleModeMemoSheetTracksViewportOnResume();
   testBattleModeOtherSheetExcludesQuickPanelTags();
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
   testBattleModeMemoUsesTimelineTextEntryFormat();
