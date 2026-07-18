@@ -1070,16 +1070,24 @@ function normalizeTagClass(value){
   const text=String(value||'').trim();
   return /^[a-z0-9-]+$/.test(text)?text:'';
 }
-function normalizeQuickPanel(panel){
-  if(!Array.isArray(panel))return [];
-  return panel.slice(0,5).map(item=>{
+function normalizeQuickPanelEvent(item){
     const type=String(item?.type||'').trim();
     const ref=String(item?.ref||'').trim();
     if(!ref)return null;
     if(type==='tag')return {type,ref};
+    if(type==='picker'&&['sazanami','bonus'].includes(ref))return {type,ref};
     if(type==='modal'&&['suggestion','destiny'].includes(ref))return {type,ref};
     return null;
-  }).filter(Boolean);
+}
+function normalizeQuickPanel(panel){
+  if(Array.isArray(panel)){
+    return {counters:[],gainButtons:[1,10],events:panel.slice(0,5).map(normalizeQuickPanelEvent).filter(Boolean)};
+  }
+  if(!panel||typeof panel!=='object')return {counters:[],gainButtons:[1,10],events:[]};
+  const counters=Array.isArray(panel.counters)?panel.counters.map(value=>String(value||'').trim()).filter(Boolean).slice(0,3):[];
+  const gainButtons=Array.isArray(panel.gainButtons)?panel.gainButtons.map(value=>Number(value)).filter(value=>[1,5,10].includes(value)).slice(0,3):[1,10];
+  const events=Array.isArray(panel.events)?panel.events.slice(0,3).map(normalizeQuickPanelEvent).filter(Boolean):[];
+  return {counters,gainButtons,events};
 }
 function normalizeTagSize(value){
   return String(value||'').trim()==='large'?'large':'';
@@ -2873,6 +2881,15 @@ function ensureNangokuSpecialSeed(machine){
   }];
   machine.chainRule={maxGap:42,enterLabel:'飛翔モード突入',unitLabel:'連'};
   machine.quickTagIds=['t_nangoku_replay','t_nangoku_cherry','t_nangoku_suika'];
+  machine.quickPanel=normalizeQuickPanel({
+    counters:['replay','cherry','suika'],
+    gainButtons:[1,5,10],
+    events:[
+      {type:'tag',ref:'t_nangoku_puririp'},
+      {type:'picker',ref:'sazanami'},
+      {type:'picker',ref:'bonus'}
+    ]
+  });
   machine.liquidOffsetPreset=9;
   machine.hitTriggers=normalizeHitTriggers([
     {key:'direct_at',label:'BIG当選',color:'red',variants:[{key:'blue7',label:'青7',color:'blue'}]},
