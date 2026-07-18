@@ -15,6 +15,13 @@ function extractScript() {
   return match[1];
 }
 
+function extractStyle() {
+  const html = fs.readFileSync(HTML_PATH, 'utf8');
+  const match = html.match(/<style>([\s\S]*?)<\/style>/);
+  assert.ok(match, 'nerai-record.html inline style not found');
+  return match[1];
+}
+
 function makeStorage(seed = {}) {
   const data = { ...seed };
   return {
@@ -407,6 +414,15 @@ function testBattleModeUndefinedQuickPanelRendersEmptySlots() {
   assert.equal((grid.match(/type="button" disabled/g) || []).length, 6);
 }
 
+function testBattleModeKeypadOverlayStacksAboveBattleMode() {
+  const style = extractStyle();
+  const keypad = style.match(/\.keypad-overlay\{[^}]*z-index:(\d+)/);
+  const battle = style.match(/\.bm-overlay\{[^}]*z-index:(\d+)/);
+  assert.ok(keypad, 'keypad overlay z-index not found');
+  assert.ok(battle, 'battle mode overlay z-index not found');
+  assert.ok(Number(keypad[1]) > Number(battle[1]), 'numeric keypad must stack above battle mode overlay');
+}
+
 function testBattleModeTagRecordUndoAndRedoUsesTimelineFormat() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -559,6 +575,7 @@ function run() {
   testExistingFollowMissButtonStillArchivesSegment();
   testNewRegistrationGuardClosesOpenNoHitSegment();
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
+  testBattleModeKeypadOverlayStacksAboveBattleMode();
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
   testBattleModeCounterRowUsesExistingTagFlow();
   testBattleModeSazanamiPickerStoresEntryCause();
