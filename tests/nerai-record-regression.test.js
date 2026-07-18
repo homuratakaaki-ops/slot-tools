@@ -423,6 +423,24 @@ function testBattleModeKeypadOverlayStacksAboveBattleMode() {
   assert.ok(Number(keypad[1]) > Number(battle[1]), 'numeric keypad must stack above battle mode overlay');
 }
 
+function testBattleModeOtherSheetExcludesQuickPanelTags() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+  `, context);
+  const excluded = JSON.parse(vm.runInContext('JSON.stringify([...battleModeOtherExcludedTagIds()].sort())', context));
+  assert.deepEqual(excluded, [
+    't_nangoku_cherry',
+    't_nangoku_puririp',
+    't_nangoku_replay',
+    't_nangoku_sazanami_purple',
+    't_nangoku_sazanami_rainbow',
+    't_nangoku_sazanami_red',
+    't_nangoku_suika'
+  ]);
+}
+
 function testBattleModeTagRecordUndoAndRedoUsesTimelineFormat() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -449,6 +467,27 @@ function testBattleModeTagRecordUndoAndRedoUsesTimelineFormat() {
   assert.equal(vm.runInContext('currentTimeline.length', context), 1);
   assert.equal(vm.runInContext('currentTimeline[0].text', context), 'スイカ');
   assert.equal(vm.runInContext('currentSubCounters.suika', context), 1);
+}
+
+function testBattleModeMemoUsesTimelineTextEntryFormat() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setManualCorrectionForLiquid(222, 213);
+    setTimelineGames(222, 213);
+    battleModeCommit('メモ', () => addTimelineEntryText('自由メモ'));
+  `, context);
+  assert.equal(vm.runInContext('currentTimeline.length', context), 1);
+  assert.equal(vm.runInContext('currentTimeline[0].text', context), '自由メモ');
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(currentTimeline[0].tagIds)', context)), []);
+  assert.equal(vm.runInContext('currentTimeline[0].game', context), 222);
+  assert.equal(vm.runInContext('currentTimeline[0].liquidGame', context), 213);
+
+  vm.runInContext('undoBattleModeLast()', context);
+  assert.equal(vm.runInContext('currentTimeline.length', context), 0);
 }
 
 function testBattleModeCounterRowUsesExistingTagFlow() {
@@ -576,7 +615,9 @@ function run() {
   testNewRegistrationGuardClosesOpenNoHitSegment();
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeKeypadOverlayStacksAboveBattleMode();
+  testBattleModeOtherSheetExcludesQuickPanelTags();
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
+  testBattleModeMemoUsesTimelineTextEntryFormat();
   testBattleModeCounterRowUsesExistingTagFlow();
   testBattleModeSazanamiPickerStoresEntryCause();
   testBattleModeBonusPickerStartsExistingHitWizard();

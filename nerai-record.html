@@ -4957,6 +4957,7 @@ function battleModeRecordTag(id){
 function battleModeOpenModal(ref){
   if(ref==='suggestion'){openSuggestPlacePicker('play');return;}
   if(ref==='destiny'){openKarakuriFateBoardPicker();return;}
+  if(ref==='shopNote'){openShopNoteModal();return;}
   battleModeInvalid('未対応のモーダルです');
 }
 function openBattleModePicker(ref){
@@ -5000,6 +5001,43 @@ function openBattleModeBonusPicker(){
     BATTLE_MODE_BONUS_CHOICES.map(row=>`<button class="bm-btn ${row.key==='reg'?'':'counter'}" type="button" onclick="battleModeStartHit('${escapeHtml(row.trigger)}','${escapeHtml(row.variant)}')">${escapeHtml(row.label)}</button>`).join('')
   );
 }
+function battleModeOtherExcludedTagIds(){
+  const machine=currentMachine();
+  if(!machine?.quickPanel)return new Set();
+  const panel=battleModePanel();
+  const ids=new Set();
+  panel.counters.forEach(ref=>{
+    const def=battleModeCounterButtonDef(ref);
+    if(def?.tagId)ids.add(def.tagId);
+  });
+  panel.events.forEach(item=>{
+    if(item?.type==='tag')ids.add(item.ref);
+    if(item?.type==='picker'&&item.ref==='sazanami')BATTLE_MODE_SAZANAMI_COLORS.forEach(row=>ids.add(row.tagId));
+  });
+  return ids;
+}
+function battleModeOtherExcludedModalRefs(){
+  const machine=currentMachine();
+  if(!machine?.quickPanel)return new Set();
+  const panel=battleModePanel();
+  return new Set(panel.events.filter(item=>item?.type==='modal').map(item=>item.ref));
+}
+function openBattleModeMemoSheet(){
+  setBattleModeSheet('メモ',`
+    <textarea id="battleModeMemoText" style="grid-column:1/-1;min-height:120px;" placeholder="メモ"></textarea>
+    <button class="bm-btn counter" type="button" onclick="saveBattleModeMemo()">追加</button>
+    <button class="bm-btn" type="button" onclick="openBattleModeOtherSheet()">戻る</button>`);
+  setTimeout(()=>document.getElementById('battleModeMemoText')?.focus(),0);
+}
+function saveBattleModeMemo(){
+  const text=String(document.getElementById('battleModeMemoText')?.value||'').trim();
+  if(!text){battleModeInvalid('メモを入力してください');return;}
+  if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
+  closeBattleModeOtherSheet();
+  battleModeCommit('メモ',()=>{
+    addTimelineEntryText(text);
+  });
+}
 function battleModeStartHit(trigger,variant=''){
   const normalized=normalizeHitTrigger(trigger);
   if(!machineHitTriggers().some(row=>row.key===normalized)){battleModeInvalid('当選種別が見つかりません');return;}
@@ -5015,8 +5053,14 @@ function openBattleModeOtherSheet(){
   const titleEl=document.querySelector('#battleModeOtherSheet .bm-sheet-title');
   if(titleEl)titleEl.textContent='その他';
   const grid=document.getElementById('battleModeOtherGrid');
-  const tags=currentMachine()?.tags||[];
-  const modalButtons='<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'suggestion\')">示唆記録</button>';
+  const excluded=battleModeOtherExcludedTagIds();
+  const excludedModals=battleModeOtherExcludedModalRefs();
+  const tags=(currentMachine()?.tags||[]).filter(tag=>!excluded.has(tag.id));
+  const modalButtons=[
+    excludedModals.has('suggestion')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'suggestion\')">示唆記録</button>',
+    excludedModals.has('shopNote')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'shopNote\')">他台メモ</button>',
+    excludedModals.has('memo')?'':'<button class="bm-btn other" type="button" onclick="openBattleModeMemoSheet()">メモ</button>'
+  ].join('');
   if(grid)grid.innerHTML=modalButtons+(tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>');
   document.getElementById('battleModeOtherSheet')?.classList.add('open');
 }
@@ -8672,11 +8716,9 @@ function timelineGameLine(item){
   const counterText=subCounterLine(item?.subCounters);
   return `データ${data}G${liquid!==null&&liquid!==data?` / 液晶${liquid}G`:''}${counterText?` ${counterText}`:''}`;
 }
-function addTimelineEntry(){
-  const textEl=document.getElementById('timelineText');
+function addTimelineEntryText(text,afterSave=()=>{}){
   const game=timelineDataValue();
   const liquidGame=timelineLiquidValue()??game;
-  const text=(textEl?.value||'').trim();
   if(game===null){alert('G数を入力してください');return;}
   if(liquidGame===null){alert('液晶G数を入力してください');return;}
   if(!text){alert('内容を入力してください');return;}
@@ -8693,13 +8735,18 @@ function addTimelineEntry(){
   linkEndGamesFromTimelineEntry(entry);
   applyLiquidRuleAfterTimelineAdd(tagIds,entry);
   pendingTimelineTagIds=[];
-  textEl.value='';
+  afterSave();
   updateTimelineAddButtonState();
   renderCurrentTimeline();
   renderCurrentSuggestLog();
   renderCarrySummaryIntoDom();
   renderPracticeStats();
   saveDraftImmediately();
+}
+function addTimelineEntry(){
+  const textEl=document.getElementById('timelineText');
+  const text=(textEl?.value||'').trim();
+  addTimelineEntryText(text,()=>{if(textEl)textEl.value='';});
 }
 function renderCurrentTimeline(){
   const el=document.getElementById('timelineList');
