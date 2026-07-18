@@ -392,6 +392,68 @@ function testNewRegistrationGuardClosesOpenNoHitSegment() {
   assert.equal(vm.runInContext('currentSegments.length', context), 0);
 }
 
+function testBattleModeUndefinedQuickPanelRendersEmptySlots() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_monkey_turn_v';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+  `, context);
+  const grid = vm.runInContext('renderBattleModeGrid()', context);
+  assert.match(grid, /＋1G/);
+  assert.match(grid, /＋10G/);
+  assert.match(grid, /その他 ▼/);
+  assert.equal((grid.match(/>空き</g) || []).length, 5);
+}
+
+function testBattleModeTagRecordUndoAndRedoUsesTimelineFormat() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setManualCorrectionForLiquid(184, 176);
+    setTimelineGames(184, 176);
+    battleModeRecordTag('t_nangoku_suika');
+  `, context);
+  assert.equal(vm.runInContext('currentTimeline.length', context), 1);
+  assert.equal(vm.runInContext('currentTimeline[0].text', context), 'スイカ');
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(currentTimeline[0].tagIds)', context)), ['t_nangoku_suika']);
+  assert.equal(vm.runInContext('currentTimeline[0].game', context), 184);
+  assert.equal(vm.runInContext('currentTimeline[0].liquidGame', context), 176);
+  assert.equal(vm.runInContext('currentSubCounters.suika', context), 1);
+
+  vm.runInContext('undoBattleModeLast()', context);
+  assert.equal(vm.runInContext('currentTimeline.length', context), 0);
+  assert.equal(vm.runInContext('currentSubCounters.suika || 0', context), 0);
+
+  vm.runInContext('redoBattleModeUndo()', context);
+  assert.equal(vm.runInContext('currentTimeline.length', context), 1);
+  assert.equal(vm.runInContext('currentTimeline[0].text', context), 'スイカ');
+  assert.equal(vm.runInContext('currentSubCounters.suika', context), 1);
+}
+
+function testBattleModeGameIncrementUndoAndRedo() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    setManualCorrectionForLiquid(100, 91);
+    setTimelineGames(100, 91);
+    battleModeIncrementGame(10);
+  `, context);
+  assert.equal(vm.runInContext('timelineDataValue()', context), 110);
+  assert.equal(vm.runInContext('timelineLiquidValue()', context), 101);
+  vm.runInContext('undoBattleModeLast()', context);
+  assert.equal(vm.runInContext('timelineDataValue()', context), 100);
+  assert.equal(vm.runInContext('timelineLiquidValue()', context), 91);
+  vm.runInContext('redoBattleModeUndo()', context);
+  assert.equal(vm.runInContext('timelineDataValue()', context), 110);
+  assert.equal(vm.runInContext('timelineLiquidValue()', context), 101);
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -403,6 +465,9 @@ function run() {
   testStep4GuardClosesOrCancelsOpenNoHitSegment();
   testExistingFollowMissButtonStillArchivesSegment();
   testNewRegistrationGuardClosesOpenNoHitSegment();
+  testBattleModeUndefinedQuickPanelRendersEmptySlots();
+  testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
+  testBattleModeGameIncrementUndoAndRedo();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();
