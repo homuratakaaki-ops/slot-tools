@@ -972,6 +972,11 @@ const BATTLE_MODE_SAZANAMI_COLORS=[
   {key:'red',label:'赤',tagId:'t_nangoku_sazanami_red'},
   {key:'rainbow',label:'虹',tagId:'t_nangoku_sazanami_rainbow'}
 ];
+const BATTLE_MODE_BONUS_CHOICES=[
+  {key:'red_big',label:'赤BIG',trigger:'direct_at',variant:''},
+  {key:'blue_big',label:'青BIG',trigger:'direct_at',variant:'blue7'},
+  {key:'reg',label:'REG',trigger:'episode_bonus',variant:''}
+];
 const ENDING_CARD_GROUPS=[
   {id:'white_weak',name:'白・奇数弱',hint:'奇数示唆:弱',tone:'white',cards:['金木研','霧嶋董香','笛口雛実','永近英良','西尾錦','月山習']},
   {id:'white_strong',name:'白・奇数強',hint:'奇数示唆:強',tone:'white',cards:['芳村','四方蓮示','ウタ','イトリ','古間円児','入見カヤ']},
@@ -1047,6 +1052,7 @@ let battleModeOpen=false;
 let battleModeUndoStack=[];
 let battleModeRedoAction=null;
 let battleModeToastTimer=null;
+let battleModeReturnAfterHitWizard=false;
 
 function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9000+1000);}
 function clone(value){return JSON.parse(JSON.stringify(value));}
@@ -4732,6 +4738,11 @@ function closeBattleMode(){
   document.getElementById('battleModeOverlay')?.classList.remove('open');
   closeBattleModeOtherSheet();
 }
+function maybeReturnToBattleModeAfterHitWizard(){
+  if(!battleModeReturnAfterHitWizard)return;
+  battleModeReturnAfterHitWizard=false;
+  if(currentMachine()&&currentAim())openBattleMode();
+}
 function battleModeCounterText(value){
   const normalized=normalizeOptionalNumber(value);
   return normalized===null?'-':String(normalized);
@@ -4983,6 +4994,22 @@ function battleModeRecordSazanami(causeKey,colorKey){
     fields:{entryCause:cause.key,entryCauseLabel:cause.label},
     textSuffix:`（契機：${cause.label}）`
   }));
+}
+function openBattleModeBonusPicker(){
+  setBattleModeSheet('ボーナス',
+    BATTLE_MODE_BONUS_CHOICES.map(row=>`<button class="bm-btn ${row.key==='reg'?'':'counter'}" type="button" onclick="battleModeStartHit('${escapeHtml(row.trigger)}','${escapeHtml(row.variant)}')">${escapeHtml(row.label)}</button>`).join('')
+  );
+}
+function battleModeStartHit(trigger,variant=''){
+  const normalized=normalizeHitTrigger(trigger);
+  if(!machineHitTriggers().some(row=>row.key===normalized)){battleModeInvalid('当選種別が見つかりません');return;}
+  if(variant&&!hitTriggerVariant(normalized,variant)){battleModeInvalid('当選variantが見つかりません');return;}
+  if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
+  closeBattleModeOtherSheet();
+  battleModeReturnAfterHitWizard=true;
+  closeBattleMode();
+  startHitEventWizard(normalized,{variant});
+  battleModeVibrate(18);
 }
 function openBattleModeOtherSheet(){
   const titleEl=document.querySelector('#battleModeOtherSheet .bm-sheet-title');
@@ -6715,11 +6742,12 @@ function toggleHitEventVariant(context,eventId,variantKey,segmentId='',logId='')
     renderLogsList();
   }
 }
-function createHitEvent(trigger){
+function createHitEvent(trigger,variant=''){
   const dataGame=timelineDataValue();
   if(dataGame===null){alert('当選時のデータG数を入力してください');return null;}
   const liquidGame=timelineLiquidValue()??dataGame;
-  const event=normalizeHitEvent({trigger,dataGame,liquidGame,subCounters:normalizeSubCounters(currentSubCounters),createdAt:new Date().toISOString(),wizardDone:false});
+  const variantKey=hitTriggerVariant(trigger,variant)?.key||'';
+  const event=normalizeHitEvent({trigger,variant:variantKey,dataGame,liquidGame,subCounters:normalizeSubCounters(currentSubCounters),createdAt:new Date().toISOString(),wizardDone:false});
   currentHitEvents.push(event);
   applyCounterResetOnHit(hitEventLabel(event,currentMachine()));
   resetKarakuriLiveCountersAfterHit(event);
@@ -6760,10 +6788,10 @@ function resetKarakuriLiveCountersAfterHit(event){
   setTimelineGames(0,0);
   renderNumberAttachmentSummaryIntoDom();
 }
-function startHitEventWizard(trigger){
+function startHitEventWizard(trigger,options={}){
   const normalized=normalizeHitTrigger(trigger);
   if(!normalized)return;
-  const event=createHitEvent(normalized);
+  const event=createHitEvent(normalized,String(options?.variant||'').trim());
   if(!event)return;
   currentFlowStep=3;
   const route=(normalized==='cz'||normalized==='upper_cz')?'czResult':'atHit';
@@ -7193,6 +7221,7 @@ function completeHitBranchWizardIfDone(){
   const event=currentHitEvent();
   if(event)event.wizardDone=true;
   hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
+  maybeReturnToBattleModeAfterHitWizard();
   return true;
 }
 function findSuggestPlaceEntryById(id){
@@ -7656,6 +7685,7 @@ function selectHitExit(exit){
   renderFlowStepTabs();
   renderCurrentContextBar();
   saveDraftImmediately();
+  maybeReturnToBattleModeAfterHitWizard();
 }
 function setEndLogFromHitEvent(event){
   if(!event)return;

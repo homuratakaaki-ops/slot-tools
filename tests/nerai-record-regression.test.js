@@ -483,6 +483,33 @@ function testBattleModeSazanamiPickerStoresEntryCause() {
   assert.equal(vm.runInContext('currentTimeline[0].entryCause', context), 'sazanami_suika3');
 }
 
+function testBattleModeBonusPickerStartsExistingHitWizard() {
+  [
+    ['direct_at', '', 'direct_at', ''],
+    ['direct_at', 'blue7', 'direct_at', 'blue7'],
+    ['episode_bonus', '', 'episode_bonus', '']
+  ].forEach(([trigger, variant, expectedTrigger, expectedVariant]) => {
+    const { context } = runRecord(undefined);
+    vm.runInContext(`
+      selectedMachineId = 'm_nangoku_special';
+      selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+      battleModeOpen = true;
+      currentFlowStep = 2;
+      setManualCorrectionForLiquid(210, 201);
+      setTimelineGames(210, 201);
+      battleModeStartHit('${trigger}', '${variant}');
+    `, context);
+    assert.equal(vm.runInContext('currentHitEvents.length', context), 1);
+    assert.equal(vm.runInContext('currentHitEvents[0].trigger', context), expectedTrigger);
+    assert.equal(vm.runInContext('currentHitEvents[0].variant', context), expectedVariant);
+    assert.equal(vm.runInContext('currentHitEvents[0].dataGame', context), 210);
+    assert.equal(vm.runInContext('currentHitEvents[0].liquidGame', context), 201);
+    assert.equal(vm.runInContext('currentFlowStep', context), 3);
+    assert.equal(vm.runInContext('battleModeOpen', context), false);
+    assert.equal(vm.runInContext('battleModeUndoStack.length', context), 0);
+  });
+}
+
 function testBattleModeGameIncrementUndoAndRedo() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -518,6 +545,7 @@ function run() {
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
   testBattleModeCounterRowUsesExistingTagFlow();
   testBattleModeSazanamiPickerStoresEntryCause();
+  testBattleModeBonusPickerStartsExistingHitWizard();
   testBattleModeGameIncrementUndoAndRedo();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
