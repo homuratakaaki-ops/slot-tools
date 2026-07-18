@@ -4938,7 +4938,8 @@ function battleModeOpenModal(ref){
 function openBattleModeOtherSheet(){
   const grid=document.getElementById('battleModeOtherGrid');
   const tags=currentMachine()?.tags||[];
-  if(grid)grid.innerHTML=tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>';
+  const modalButtons='<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'suggestion\')">示唆記録</button>';
+  if(grid)grid.innerHTML=modalButtons+(tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>');
   document.getElementById('battleModeOtherSheet')?.classList.add('open');
 }
 function closeBattleModeOtherSheet(){
@@ -4947,6 +4948,10 @@ function closeBattleModeOtherSheet(){
 function selectBattleModeOtherTag(id){
   closeBattleModeOtherSheet();
   battleModeRecordTag(id);
+}
+function selectBattleModeOtherModal(ref){
+  closeBattleModeOtherSheet();
+  battleModeOpenModal(ref);
 }
 function undoBattleModeLast(){
   const action=battleModeUndoStack.pop();

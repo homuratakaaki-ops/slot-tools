@@ -435,6 +435,31 @@ function testBattleModeTagRecordUndoAndRedoUsesTimelineFormat() {
   assert.equal(vm.runInContext('currentSubCounters.suika', context), 1);
 }
 
+function testBattleModeCounterRowUsesExistingTagFlow() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setManualCorrectionForLiquid(200, 191);
+    setTimelineGames(200, 191);
+    battleModeRecordTag('t_nangoku_replay');
+    battleModeRecordTag('t_nangoku_cherry');
+    battleModeRecordTag('t_nangoku_suika');
+  `, context);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(currentTimeline.map(row => row.tagIds[0]))', context)), [
+    't_nangoku_replay',
+    't_nangoku_cherry',
+    't_nangoku_suika'
+  ]);
+  assert.equal(vm.runInContext('currentSubCounters.suika', context), 1);
+
+  vm.runInContext('undoBattleModeLast()', context);
+  assert.equal(vm.runInContext('currentTimeline.length', context), 2);
+  assert.equal(vm.runInContext('currentSubCounters.suika || 0', context), 0);
+}
+
 function testBattleModeGameIncrementUndoAndRedo() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -468,6 +493,7 @@ function run() {
   testNewRegistrationGuardClosesOpenNoHitSegment();
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
+  testBattleModeCounterRowUsesExistingTagFlow();
   testBattleModeGameIncrementUndoAndRedo();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
