@@ -7112,6 +7112,7 @@ function resetHitBranchWizard(){
   hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
   renderLogFields();
   saveDraftImmediately();
+  maybeReturnToBattleModeAfterHitWizard();
 }
 function currentHitEventEndingCount(){
   const event=currentHitEvent();
@@ -7606,6 +7607,7 @@ function selectAtFollow(value){
     renderFlowStepTabs();
     renderCurrentContextBar();
     saveDraftImmediately();
+    maybeReturnToBattleModeAfterHitWizard();
   }else{
     renderLogFields();
     saveDraftImmediately();

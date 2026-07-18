@@ -510,6 +510,23 @@ function testBattleModeBonusPickerStartsExistingHitWizard() {
   });
 }
 
+function testBattleModeHitWizardResetReturnsToBattleMode() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setManualCorrectionForLiquid(210, 201);
+    setTimelineGames(210, 201);
+    battleModeStartHit('direct_at', '');
+    resetHitBranchWizard();
+  `, context);
+  assert.equal(vm.runInContext('battleModeOpen', context), true);
+  assert.equal(vm.runInContext('battleModeReturnAfterHitWizard', context), false);
+  assert.equal(vm.runInContext('hitBranchWizard.route', context), '');
+}
+
 function testBattleModeGameIncrementUndoAndRedo() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -546,6 +563,7 @@ function run() {
   testBattleModeCounterRowUsesExistingTagFlow();
   testBattleModeSazanamiPickerStoresEntryCause();
   testBattleModeBonusPickerStartsExistingHitWizard();
+  testBattleModeHitWizardResetReturnsToBattleMode();
   testBattleModeGameIncrementUndoAndRedo();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
