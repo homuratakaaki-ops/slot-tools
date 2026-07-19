@@ -452,11 +452,13 @@ function testBattleModeEventRowBeforeCounterRow() {
     selectedAimId = firstAimIdForMachine(currentMachine()) || '';
   `, context);
   const grid = vm.runInContext('renderBattleModeGrid()', context);
-  assert.ok(grid.indexOf('openBattleModePicker') < grid.indexOf('openBattleModeOtherSheet'));
-  assert.ok(grid.indexOf('openBattleModeOtherSheet') < grid.indexOf('t_nangoku_replay'));
-  assert.ok(grid.indexOf('t_nangoku_replay') < grid.indexOf('battleModeIncrementGame(1)'));
+  assert.ok(grid.indexOf('リプレイフラッシュ') < grid.indexOf('リプレイ</button>'));
+  assert.ok(grid.indexOf('リプレイ</button>') < grid.indexOf('battleModeIncrementGame(1)'));
+  assert.ok(grid.indexOf('battleModeIncrementGame(1)') < grid.indexOf('openBattleModeOtherSheet'));
+  assert.match(grid, /さざなみ\s+前兆/);
   const style = extractStyle();
   assert.match(style, /\.bm-grid\{[^}]*align-content:end/);
+  assert.match(style, /\.bm-event-row \.bm-btn\{[^}]*white-space:pre-line/);
 }
 
 function testBattleModeHitStartScrollsNextInputOnlyFromBattleMode() {
@@ -477,13 +479,16 @@ function testBattleModeOtherSheetExcludesQuickPanelTags() {
   const excluded = JSON.parse(vm.runInContext('JSON.stringify([...battleModeOtherExcludedTagIds()].sort())', context));
   assert.deepEqual(excluded, [
     't_nangoku_cherry',
-    't_nangoku_puririp',
     't_nangoku_replay',
+    't_nangoku_replay_flash',
     't_nangoku_sazanami_purple',
     't_nangoku_sazanami_rainbow',
     't_nangoku_sazanami_red',
     't_nangoku_suika'
   ]);
+  assert.equal(vm.runInContext("currentMachine().tags.filter(tag => !battleModeOtherExcludedTagIds().has(tag.id)).some(tag => tag.id === 't_nangoku_puririp')", context), true);
+  assert.equal(vm.runInContext("currentMachine().tags.filter(tag => !battleModeOtherExcludedTagIds().has(tag.id)).some(tag => tag.id === 't_nangoku_replay_flash')", context), false);
+  assert.match(extractScript(), /closeBattleModeOtherSheet\(\)">閉じる/);
 }
 
 function testBattleModeTagRecordUndoAndRedoUsesTimelineFormat() {
@@ -684,26 +689,51 @@ function testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo() {
     currentIntervalEstimate = normalizeIntervalEstimate({ initialDiff: null, loanRate: 46.6 });
     battleModeApplyDiffTrackerInput('investYen', 6);
     battleModeApplyDiffTrackerInput('credit', 400);
+    battleModeApplyDiffTrackerInput('setInvestedTotal', 200);
   `, context);
   assert.equal(vm.runInContext('currentIntervalEstimate.initialDiff', context), null);
-  assert.equal(vm.runInContext('currentIntervalEstimate.investedTotal', context), 280);
+  assert.equal(vm.runInContext('currentIntervalEstimate.investedTotal', context), 200);
   assert.equal(vm.runInContext('currentIntervalEstimate.credit', context), 400);
-  assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 120);
-  assert.equal(vm.runInContext('db.draftLog.intervalEstimate.investedTotal', context), 280);
+  assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 200);
+  assert.equal(vm.runInContext('db.draftLog.intervalEstimate.investedTotal', context), 200);
   assert.equal(vm.runInContext('db.draftLog.intervalEstimate.credit', context), 400);
   assert.equal(vm.runInContext('db.draftLog.intervalEstimate.certainty', context), 'unknown');
+  assert.match(vm.runInContext('db.draftLog.intervalEstimate.history.at(-1).summary', context), /投資合計を修正 280 → 200/);
+  assert.equal(vm.runInContext('db.draftLog.intervalEstimate.history.length', context), 3);
+  assert.equal(vm.runInContext('Math.round(7 * normalizeIntervalEstimate({ loanRate: 46.6 }).loanRate)', context), 326);
+  assert.match(vm.runInContext('renderBattleModeDiffHistory()', context), /投資合計を修正 280 → 200/);
+  assert.match(vm.runInContext('renderBattleModeDiffHistory()', context), /履歴（直近10件）/);
 
   vm.runInContext("battleModeApplyDiffTrackerInput('correct', 500)", context);
-  assert.equal(vm.runInContext('currentIntervalEstimate.initialDiff', context), 380);
+  assert.equal(vm.runInContext('currentIntervalEstimate.initialDiff', context), 300);
   assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 500);
 
   vm.runInContext('undoBattleModeLast()', context);
   assert.equal(vm.runInContext('currentIntervalEstimate.initialDiff', context), null);
-  assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 120);
+  assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 200);
 
   vm.runInContext('redoBattleModeUndo()', context);
-  assert.equal(vm.runInContext('currentIntervalEstimate.initialDiff', context), 380);
+  assert.equal(vm.runInContext('currentIntervalEstimate.initialDiff', context), 300);
   assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 500);
+  assert.match(extractScript(), /千円単位（1 = 1,000円）/);
+  assert.match(extractScript(), /Math\.round\(value\*rate\)/);
+
+  const raw = JSON.stringify(JSON.parse(vm.runInContext('localStorage.getItem("nerai_record_v1")', context)));
+  const restored = runRecord(raw);
+  vm.runInContext('loadDraftIntoInputs(db.draftLog)', restored.context);
+  assert.match(vm.runInContext('renderBattleModeDiffHistory()', restored.context), /投資合計を修正 280 → 200/);
+  assert.equal(vm.runInContext('currentIntervalEstimate.history.length', restored.context), 4);
+
+  assert.equal(vm.runInContext(`
+    normalizeIntervalEstimate({
+      history: Array.from({ length: 55 }, (_, i) => ({
+        mode: 'credit',
+        summary: 'row ' + i,
+        before: { investedTotal: i, credit: i },
+        after: { investedTotal: i, credit: i + 1 }
+      }))
+    }).history.length
+  `, context), 50);
 }
 
 function run() {

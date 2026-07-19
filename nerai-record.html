@@ -349,6 +349,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .keypad-title span.kui-title.gain{color:#86ffac;}
 .keypad-title span.kui-title.hint{color:#8fd0ff;}
 .keypad-value{font-size:20px;font-weight:700;color:var(--gold-light);min-height:32px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;}
+.keypad-hint{display:none;margin:-2px 0 10px;color:var(--text-muted);font-size:13px;line-height:1.45;text-align:right;}
+.keypad-hint.open{display:block;}
 .keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .keypad-btn{min-height:54px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:22px;font-weight:700;cursor:pointer;}
 .keypad-btn:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
@@ -401,9 +403,11 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-event-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
 .bm-other-row{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;}
 .bm-btn{min-height:52px;border:1px solid rgba(201,168,76,.45);border-radius:8px;background:var(--surface2);color:var(--text);font-size:16px;font-weight:900;line-height:1.25;padding:8px;cursor:pointer;}
+.bm-event-row .bm-btn{min-height:58px;white-space:pre-line;}
 .bm-btn:active,.bm-btn.pressed{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.16);}
 .bm-btn.counter{border-color:rgba(76,175,125,.58);background:rgba(76,175,125,.12);color:#a8efb4;}
 .bm-btn.other{border-color:rgba(98,181,255,.55);background:rgba(98,181,255,.1);color:#b9dcff;}
+.bm-btn.close-action{border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.08);color:var(--text);}
 .bm-btn.disabled{opacity:.45;cursor:default;border-color:rgba(122,122,138,.35);background:rgba(122,122,138,.08);color:var(--text-dim);}
 .bm-btn.tag-style-rare-weak{background:#ffd9de;border-color:#ff8fa0;color:#5b1018;}
 .bm-btn.tag-style-rare-suika{background:#1f7a43;border-color:#45c878;color:#f4fff8;}
@@ -776,6 +780,7 @@ footer a:hover{color:var(--gold-light);}
       <button class="btn-small" onclick="closeNumericKeypad()">確定</button>
     </div>
     <div class="keypad-value" id="numericKeypadValue"></div>
+    <div class="keypad-hint" id="numericKeypadHint"></div>
     <div class="keypad-grid">
       <button class="keypad-btn" onclick="pressKeypad('7')">7</button>
       <button class="keypad-btn" onclick="pressKeypad('8')">8</button>
@@ -957,6 +962,7 @@ const MODE_CONFIDENCE_LEVELS=['tenkoku','tenkoku_junbi','chance','tsujoC','tsujo
 const MODE_CONFIDENCE_TYPES=['kakutei','shisa'];
 const INTERVAL_CERTAINTY_OPTIONS=['reset','estimated','unknown'];
 const DEFAULT_LOAN_RATE=46.6;
+const INTERVAL_DIFF_HISTORY_LIMIT=50;
 const NANGOKU_ENTRY_CAUSES=[
   {key:'tokimeki32',label:'ときめき32G目'},
   {key:'bonus1g',label:'ボーナス中1G連'},
@@ -2919,7 +2925,7 @@ function ensureNangokuSpecialSeed(machine){
     counters:['replay','cherry','suika'],
     gainButtons:[1,5,10],
     events:[
-      {type:'tag',ref:'t_nangoku_puririp'},
+      {type:'tag',ref:'t_nangoku_replay_flash'},
       {type:'picker',ref:'sazanami'},
       {type:'picker',ref:'bonus'}
     ]
@@ -3539,12 +3545,38 @@ function normalizeIntervalEstimate(value){
   const rate=normalizeOptionalNumber(source.loanRate);
   const investedTotal=normalizeOptionalNumber(source.investedTotal);
   const credit=normalizeOptionalNumber(source.credit);
+  const history=Array.isArray(source.history)?source.history.map(normalizeIntervalDiffHistoryEntry).filter(Boolean).slice(-INTERVAL_DIFF_HISTORY_LIMIT):[];
   return {
     initialDiff:normalizeOptionalNumber(source.initialDiff),
     certainty,
     loanRate:rate!==null&&rate>0?rate:DEFAULT_LOAN_RATE,
     investedTotal:investedTotal!==null?Math.max(0,Math.round(investedTotal)):0,
-    credit:credit!==null?Math.max(0,Math.round(credit)):0
+    credit:credit!==null?Math.max(0,Math.round(credit)):0,
+    history
+  };
+}
+function normalizeIntervalDiffHistoryState(value){
+  const source=value&&typeof value==='object'?value:{};
+  return {
+    initialDiff:normalizeOptionalNumber(source.initialDiff),
+    investedTotal:Math.max(0,Math.round(normalizeOptionalNumber(source.investedTotal)??0)),
+    credit:Math.max(0,Math.round(normalizeOptionalNumber(source.credit)??0))
+  };
+}
+function normalizeIntervalDiffHistoryEntry(entry){
+  if(!entry||typeof entry!=='object')return null;
+  const mode=String(entry.mode||'').trim();
+  const summary=String(entry.summary||'').trim();
+  if(!mode||!summary)return null;
+  return {
+    id:String(entry.id||uid('idh')),
+    at:String(entry.at||entry.createdAt||new Date().toISOString()),
+    mode,
+    label:String(entry.label||mode),
+    input:normalizeOptionalNumber(entry.input),
+    before:normalizeIntervalDiffHistoryState(entry.before),
+    after:normalizeIntervalDiffHistoryState(entry.after),
+    summary
   };
 }
 function intervalCertaintyLabel(value){
@@ -4723,7 +4755,7 @@ function battleModeInvalid(message){
   battleModeVibrate([18,40,18]);
   battleModeToast(message,{duration:1600});
 }
-function battleModeCommit(label,callback){
+function battleModeCommit(label,callback,options={}){
   const before=battleModeSnapshot();
   callback();
   const after=battleModeSnapshot();
@@ -4731,7 +4763,7 @@ function battleModeCommit(label,callback){
     renderBattleMode();
     return false;
   }
-  battleModeUndoStack.push({label,before,after});
+  battleModeUndoStack.push({label,before,after,meta:options.meta||null,createdAt:new Date().toISOString()});
   if(battleModeUndoStack.length>80)battleModeUndoStack.shift();
   battleModeRedoAction=null;
   battleModeVibrate(18);
@@ -4825,19 +4857,36 @@ function openBattleModeDiffTrackerSheet(){
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">内訳: ${escapeHtml(battleModeIntervalDetailText(state))}</div>
     <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('investYen')">投資追加（千円）</button>
     <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('investMedals')">投資追加（枚）</button>
+    <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('setInvestedTotal')">投資合計を修正</button>
     <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('credit')">クレジット更新</button>
     <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('correct')">差枚を直接補正</button>
     <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('initial')">初期差枚設定</button>
-    <button class="bm-btn" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>`);
+    <button class="bm-btn" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
+    ${renderBattleModeDiffHistory()}`);
 }
 function battleModeDiffInputLabel(mode){
   return {
     investYen:'投資追加（千円）',
     investMedals:'投資追加（枚）',
+    setInvestedTotal:'投資合計を修正',
     credit:'クレジット更新',
     correct:'差枚を直接補正',
     initial:'初期差枚設定'
   }[mode]||'差枚入力';
+}
+function battleModeDiffHistoryRows(){
+  return battleModeIntervalTrackerState().history.slice(-10).reverse();
+}
+function battleModeDiffHistoryLine(entry){
+  return `${formatShopNoteTime(entry.at)} ${entry.summary}`;
+}
+function renderBattleModeDiffHistory(){
+  const rows=battleModeDiffHistoryRows();
+  return `<div style="grid-column:1/-1;border-top:1px solid rgba(201,168,76,.22);margin-top:4px;padding-top:8px;">
+    <div class="bm-recent-line" style="font-weight:900;color:var(--gold-light);">履歴（直近10件）</div>
+    ${rows.length?rows.map(row=>`<div class="bm-recent-line">${escapeHtml(battleModeDiffHistoryLine(row))}</div>`).join(''):'<div class="bm-recent-line">履歴なし</div>'}
+    <div class="bm-recent-line" style="color:var(--text-muted);">履歴行からの個別取消は行わず、直前操作は下部の取り消しバー、過去分は「投資合計を修正」等で復旧する。</div>
+  </div>`;
 }
 function openBattleModeDiffInput(mode){
   const input=document.createElement('input');
@@ -4846,6 +4895,8 @@ function openBattleModeDiffInput(mode){
   input.inputMode='numeric';
   input.readOnly=true;
   input.placeholder=battleModeDiffInputLabel(mode);
+  input.dataset.bmDiffMode=mode;
+  input.dataset.loanRate=String(normalizeIntervalEstimate(currentIntervalEstimate).loanRate);
   if(mode==='correct'||mode==='initial')input.dataset.signed='1';
   if(mode==='investYen')input.dataset.decimal='1';
   input.style.position='fixed';
@@ -4863,21 +4914,35 @@ function battleModeApplyDiffTrackerInput(mode,value){
   const normalized=normalizeOptionalNumber(value);
   if(normalized===null){battleModeInvalid('数値を入力してください');return;}
   const label=battleModeDiffInputLabel(mode);
+  const state=normalizeIntervalEstimate(currentIntervalEstimate);
+  let next=state;
+  let summary='';
+  if(mode==='investYen'){
+    const medals=Math.round(normalized*state.loanRate);
+    next={...state,investedTotal:Math.max(0,Math.round(state.investedTotal+medals))};
+    summary=`投資追加（千円） ${normalized} → 投資 +${medals.toLocaleString('ja-JP')}枚（${state.investedTotal.toLocaleString('ja-JP')} → ${next.investedTotal.toLocaleString('ja-JP')}）`;
+  }else if(mode==='investMedals'){
+    const medals=Math.round(normalized);
+    next={...state,investedTotal:Math.max(0,Math.round(state.investedTotal+medals))};
+    summary=`投資追加（枚） +${medals.toLocaleString('ja-JP')}枚（${state.investedTotal.toLocaleString('ja-JP')} → ${next.investedTotal.toLocaleString('ja-JP')}）`;
+  }else if(mode==='setInvestedTotal'){
+    next={...state,investedTotal:Math.max(0,Math.round(normalized))};
+    summary=`投資合計を修正 ${state.investedTotal.toLocaleString('ja-JP')} → ${next.investedTotal.toLocaleString('ja-JP')}`;
+  }else if(mode==='credit'){
+    next={...state,credit:Math.max(0,Math.round(normalized))};
+    summary=`クレジット更新 ${state.credit.toLocaleString('ja-JP')} → ${next.credit.toLocaleString('ja-JP')}`;
+  }else if(mode==='initial'){
+    next={...state,initialDiff:Math.round(normalized)};
+    summary=`初期差枚設定 ${(state.initialDiff??0).toLocaleString('ja-JP')} → ${next.initialDiff.toLocaleString('ja-JP')}`;
+  }else if(mode==='correct'){
+    next={...state,initialDiff:Math.round(normalized-(state.credit-state.investedTotal))};
+    summary=`差枚を直接補正 ${battleModeIntervalDiffText(battleModeIntervalDiffValue(state))} → ${battleModeIntervalDiffText(normalized)}（初期 ${state.initialDiff??0} → ${next.initialDiff}）`;
+  }
+  const entry=normalizeIntervalDiffHistoryEntry({id:uid('idh'),at:new Date().toISOString(),mode,label,input:normalized,before:state,after:next,summary});
+  if(entry)next={...next,history:[...(state.history||[]),entry].slice(-INTERVAL_DIFF_HISTORY_LIMIT)};
   const ok=battleModeCommit(label,()=>{
-    const state=normalizeIntervalEstimate(currentIntervalEstimate);
-    if(mode==='investYen'){
-      const medals=Math.round(normalized*state.loanRate);
-      currentIntervalEstimate={...state,investedTotal:Math.max(0,Math.round(state.investedTotal+medals))};
-    }else if(mode==='investMedals'){
-      currentIntervalEstimate={...state,investedTotal:Math.max(0,Math.round(state.investedTotal+normalized))};
-    }else if(mode==='credit'){
-      currentIntervalEstimate={...state,credit:Math.max(0,Math.round(normalized))};
-    }else if(mode==='initial'){
-      currentIntervalEstimate={...state,initialDiff:Math.round(normalized)};
-    }else if(mode==='correct'){
-      currentIntervalEstimate={...state,initialDiff:Math.round(normalized-(state.credit-state.investedTotal))};
-    }
-  });
+    currentIntervalEstimate=normalizeIntervalEstimate(next);
+  },{meta:{kind:'intervalDiff',mode,input:normalized,before:state,after:next,summary}});
   if(ok)openBattleModeDiffTrackerSheet();
 }
 function renderBattleModeRecent(){
@@ -4921,7 +4986,7 @@ function battleModeEventButton(item){
     return battleModeTagButton(tag);
   }
   if(item.type==='picker'){
-    const label=item.ref==='sazanami'?'さざなみ':item.ref==='bonus'?'ボーナス':'ピッカー';
+    const label=item.ref==='sazanami'?'さざなみ\n前兆':item.ref==='bonus'?'ボーナス':'ピッカー';
     return `<button class="bm-btn" type="button" onclick="openBattleModePicker('${escapeHtml(item.ref)}')">${escapeHtml(label)}</button>`;
   }
   if(item.type==='modal'){
@@ -4953,9 +5018,6 @@ function renderBattleModeGrid(){
     <div class="bm-event-row">
       ${Array.from({length:3},(_,i)=>battleModeEventButton(events[i])).join('')}
     </div>
-    <div class="bm-other-row">
-      <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">その他 ▼</button>
-    </div>
     <div class="bm-button-row">
       ${Array.from({length:3},(_,i)=>counters[i]?battleModeCounterButton(counters[i]):'<button class="bm-btn disabled" type="button" disabled>空き</button>').join('')}
     </div>
@@ -4964,6 +5026,9 @@ function renderBattleModeGrid(){
         const delta=gains[i];
         return delta?`<button class="bm-btn counter" type="button" onclick="battleModeIncrementGame(${escapeHtml(delta)})">+${escapeHtml(delta)}</button>`:'<button class="bm-btn disabled" type="button" disabled>空き</button>';
       }).join('')}
+    </div>
+    <div class="bm-other-row">
+      <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">その他 ▼</button>
     </div>`;
 }
 function renderBattleModeUndoBar(){
@@ -5182,6 +5247,7 @@ function openBattleModeOtherSheet(){
   const excludedModals=battleModeOtherExcludedModalRefs();
   const tags=(currentMachine()?.tags||[]).filter(tag=>!excluded.has(tag.id));
   const modalButtons=[
+    '<button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>',
     excludedModals.has('suggestion')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'suggestion\')">示唆記録</button>',
     excludedModals.has('shopNote')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'shopNote\')">他台メモ</button>',
     excludedModals.has('memo')?'':'<button class="bm-btn other" type="button" onclick="openBattleModeMemoSheet()">メモ</button>'
@@ -9226,6 +9292,35 @@ function closeNumericKeypad(){
 }
 function updateKeypadValue(){
   document.getElementById('numericKeypadValue').textContent=activeNumericInput?.value||'0';
+  updateNumericKeypadHint();
+}
+function updateNumericKeypadHint(){
+  const hint=document.getElementById('numericKeypadHint');
+  if(!hint)return;
+  const mode=activeNumericInput?.dataset?.bmDiffMode||'';
+  if(!mode){
+    hint.textContent='';
+    hint.classList.remove('open');
+    return;
+  }
+  const value=normalizeOptionalNumber(activeNumericInput.value);
+  const rate=normalizeOptionalNumber(activeNumericInput.dataset.loanRate)||DEFAULT_LOAN_RATE;
+  let text='単位: 枚';
+  if(mode==='investYen'){
+    const medals=value===null?0:Math.round(value*rate);
+    const yen=value===null?0:Math.round(value*1000);
+    text=`千円単位（1 = 1,000円） / ${activeNumericInput.value||'0'} → ${yen.toLocaleString('ja-JP')}円 → ${medals.toLocaleString('ja-JP')}枚`;
+  }else if(mode==='investMedals'||mode==='setInvestedTotal'){
+    text='単位: 枚（投資枚数）';
+  }else if(mode==='credit'){
+    text='単位: 枚（現在クレジット）';
+  }else if(mode==='correct'){
+    text='単位: 枚（現在の有利区間差枚・±入力可）';
+  }else if(mode==='initial'){
+    text='単位: 枚（初期差枚・±入力可）';
+  }
+  hint.textContent=text;
+  hint.classList.add('open');
 }
 function pressKeypad(key){
   if(!activeNumericInput)return;
@@ -9385,7 +9480,7 @@ function draftHasContent(log){
   const interval=normalizeIntervalEstimate(log.intervalEstimate);
   return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||normalizeExpectedValue(log.expectedValue)!==null||
     (normalizeOptionalNumber(log.suikaOffset)??0)!==0||(normalizeOptionalNumber(log.manualCorrection)??0)!==0||Object.keys(normalizeSubCounters(log.subCounters)).length>0||normalizeCounterHistories(log.counterHistories).length>0||
-    interval.initialDiff!==null||interval.loanRate!==DEFAULT_LOAN_RATE||interval.certainty==='reset'||interval.certainty==='estimated'||Number(interval.investedTotal)>0||Number(interval.credit)>0||
+    interval.initialDiff!==null||interval.loanRate!==DEFAULT_LOAN_RATE||interval.certainty==='reset'||interval.certainty==='estimated'||Number(interval.investedTotal)>0||Number(interval.credit)>0||interval.history.length>0||
     (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.segments||[]).length>0||endingCardsTotal(log.endingCards)>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
     !!money.store||!!money.machineNo||!!money.endTime||normalizeOptionalNumber(money.startMedals)!==null||normalizeOptionalNumber(money.endMedals)!==null||!!money.cashIn||
     !!log.publicMemo||!!log.privateMemo||!!continuedFromLog;
