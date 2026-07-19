@@ -68,6 +68,8 @@
   .not-a-meter{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-bottom:12px}
   .not-a-meter .bar-track{height:16px;grid-column:1 / -1}
   .not-a-value{color:var(--gold-light);font-size:22px;font-weight:800;line-height:1}
+  .criteria-table{font-size:12px;margin:4px 0 10px}
+  .criteria-table th,.criteria-table td{padding:6px;border-bottom-color:rgba(46,46,56,.75)}
   .bar-min,.bar-range{height:100%;position:absolute;top:0;border-radius:999px}
   .bar-min{left:0;background:linear-gradient(90deg,var(--gold),var(--gold-light));z-index:2}
   .bar-range{background:var(--gold);opacity:.35;z-index:1}
@@ -216,12 +218,15 @@ function renderRangeRows(rows){
 }
 function badgeForNotA(percent){
   if(percent >= 75){
-    return { level: "strong", label: "B系濃厚" };
+    return { level: "strong", label: "A否定・強" };
   }
   if(percent >= 60){
-    return { level: "middle", label: "続行検討" };
+    return { level: "lean-b", label: "A否定・やや強" };
   }
-  return { level: "weak", label: "判断材料不足" };
+  if(percent >= 40){
+    return { level: "middle", label: "判定困難" };
+  }
+  return { level: "weak", label: "A否定できず" };
 }
 function replayFlashOriginId(replayFlash){
   const checked = document.querySelector('input[name="repflashOrigin"]:checked');
@@ -327,6 +332,15 @@ function renderReplayFlashOutput(){
         <div class="badge ${escapeHtml(badge.level)}">${escapeHtml(badge.label)}</div>
         <div class="bar-track"><div class="bar" style="width:${clampPercent(result.pNotA)}%"></div></div>
       </div>
+      <table class="criteria-table">
+        <tbody>
+          <tr><th>〜40%</th><td>A否定できず</td></tr>
+          <tr><th>40〜60%</th><td>判定困難</td></tr>
+          <tr><th>60〜75%</th><td>A否定・やや強</td></tr>
+          <tr><th>75%〜</th><td>A否定・強</td></tr>
+        </tbody>
+      </table>
+      <p class="note">本表示はリプフラ回数と観測G数のみからの確率推定であり、実際のモード・結果を保証するものではありません</p>
       <h3>事後モード割合</h3>
       ${renderModeRows(Object.entries(result.posterior).map(([mode, percent]) => ({ mode, percent })))}
     </div>
