@@ -18,6 +18,7 @@
   .section{margin-top:20px}
   .section-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--gold);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
   .section-lead{font-size:13px;color:var(--text-muted);margin:-4px 0 10px 10px}
+  .mode-tool-intro{border-top:1px solid rgba(201,168,76,.32);margin-top:28px;padding-top:18px}
   .card,.result-box,.notice,details{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px}
   .axis{padding:12px 0;border-bottom:1px solid var(--border)}
   .axis:first-child{padding-top:0}.axis:last-child{border-bottom:0;padding-bottom:0}
@@ -102,6 +103,11 @@
 </header>
 
 <main class="container">
+  <section class="section mode-tool-intro">
+    <div class="section-label">状況別モード推測</div>
+    <p class="section-lead">起点・初当たりG数・ボーナス結果から滞在モードの割合を推測します</p>
+  </section>
+
   <section class="section">
     <div class="section-label">入力</div>
     <div class="card" id="inputArea"></div>
@@ -267,13 +273,18 @@ function replayFlashObservedTotals(){
   const rows = Array.from(document.querySelectorAll(".repflash-win-row"));
   let totalGames = 0;
   let totalCount = 0;
+  let enteredWinRows = 0;
 
-  rows.forEach((row, index) => {
+  rows.forEach(row => {
     const winGames = Number(row.querySelector(".repflash-win-games")?.value || 0);
     const count = Number(row.querySelector(".repflash-win-count")?.value || 0);
     const include = row.querySelector(".repflash-include")?.checked !== false;
-    const effective = effectiveGamesForInterval(winGames, startGames, index);
+    const hasWinGames = Number.isFinite(winGames) && winGames > 0;
+    const effective = hasWinGames ? effectiveGamesForInterval(winGames, startGames, enteredWinRows) : 0;
     renderEffectiveStatus(row.querySelector(".effective-value"), effective, include);
+    if(hasWinGames){
+      enteredWinRows += 1;
+    }
     if(include && effective > 0){
       totalGames += effective;
       totalCount += Number.isFinite(count) && count > 0 ? count : 0;
@@ -284,7 +295,7 @@ function replayFlashObservedTotals(){
   const currentGames = Number(currentInput?.value || 0);
   const currentEntered = Boolean(currentInput?.value);
   const currentInclude = document.getElementById("repflashCurrentInclude")?.checked !== false;
-  const currentEffective = currentEntered ? effectiveGamesForInterval(currentGames, startGames, rows.length) : 0;
+  const currentEffective = currentEntered ? effectiveGamesForInterval(currentGames, startGames, enteredWinRows) : 0;
   renderEffectiveStatus(document.getElementById("repflashCurrentEffective"), currentEffective, currentEntered && currentInclude);
   if(currentEntered && currentInclude && currentEffective > 0){
     const currentCount = Number(document.getElementById("repflashCurrentCount")?.value || 0);
