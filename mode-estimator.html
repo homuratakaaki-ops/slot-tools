@@ -17,6 +17,7 @@
   .container{max-width:520px;margin:0 auto;padding:0 16px}
   .section{margin-top:20px}
   .section-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--gold);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  .section-lead{font-size:13px;color:var(--text-muted);margin:-4px 0 10px 10px}
   .card,.result-box,.notice,details{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px}
   .axis{padding:12px 0;border-bottom:1px solid var(--border)}
   .axis:first-child{padding-top:0}.axis:last-child{border-bottom:0;padding-bottom:0}
@@ -29,6 +30,17 @@
   .field-label{display:block;color:var(--text-muted);font-size:12px;font-weight:700;margin-bottom:6px}
   .number-input{width:100%;min-height:44px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:16px;padding:9px 10px}
   .check-option{margin-top:10px}
+  .interval-list{display:grid;gap:10px;margin:10px 0}
+  .interval-row{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:6px;padding:10px}
+  .interval-row-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+  .interval-row-title{color:var(--gold-light);font-size:12px;font-weight:700}
+  .interval-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .inline-check{display:flex;align-items:center;gap:6px;color:var(--text-muted);font-size:12px;font-weight:700;margin-top:8px}
+  .effective-value{font-size:12px;color:var(--text-muted);margin-top:8px}
+  .effective-value.warn{color:var(--red);font-weight:700}
+  .add-button,.delete-button{border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-weight:700;cursor:pointer}
+  .add-button{width:100%;min-height:42px;margin-top:6px}
+  .delete-button{min-width:34px;height:30px;color:var(--text-muted)}
   .badge{display:inline-flex;align-items:center;border-radius:999px;font-size:12px;font-weight:700;padding:5px 10px;margin-bottom:10px;border:1px solid currentColor}
   .badge.strong{color:var(--green);background:rgba(95,196,135,.1)}.badge.lean-b{color:var(--blue);background:rgba(117,167,232,.1)}.badge.middle{color:var(--yellow);background:rgba(224,191,99,.1)}.badge.weak{color:var(--red);background:rgba(224,112,112,.1)}
   .current-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
@@ -65,7 +77,7 @@
   .source{font-size:12px;color:var(--text-dim);margin-top:12px}
   .source a{color:var(--gold);text-decoration:none}
   footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}footer a{color:var(--text-muted);text-decoration:none}
-  @media (max-width:420px){.option-grid,.field-grid{grid-template-columns:1fr}.mode-row{grid-template-columns:80px 1fr 48px}.mode-row.range-row{grid-template-columns:74px 1fr 82px}.current-head{display:block}.current-head .badge{margin-top:8px}th,td{font-size:12px;padding:8px 5px}}
+  @media (max-width:420px){.option-grid,.field-grid,.interval-fields{grid-template-columns:1fr}.mode-row{grid-template-columns:80px 1fr 48px}.mode-row.range-row{grid-template-columns:74px 1fr 82px}.current-head{display:block}.current-head .badge{margin-top:8px}th,td{font-size:12px;padding:8px 5px}}
 </style>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944"
      crossorigin="anonymous"></script>
@@ -217,6 +229,58 @@ function replayFlashPrior(replayFlash){
   }
   return window.RepflashBayes.normalizePrior(prior);
 }
+function numberInputValue(id){
+  const value = Number(document.getElementById(id)?.value || 0);
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+function effectiveGamesForInterval(rawGames, startGames, index){
+  if(!Number.isFinite(rawGames) || rawGames <= 0){
+    return 0;
+  }
+  const effective = index === 0 ? rawGames - startGames : rawGames - 41;
+  return effective > 0 ? effective : 0;
+}
+function renderEffectiveStatus(element, effective, isIncluded){
+  if(!element){
+    return;
+  }
+  element.classList.toggle("warn", !isIncluded || effective <= 0);
+  element.textContent = isIncluded && effective > 0
+    ? `実効${effective}G`
+    : "実効0（対象外）";
+}
+function replayFlashObservedTotals(){
+  const startGames = numberInputValue("repflashStartGames");
+  const rows = Array.from(document.querySelectorAll(".repflash-win-row"));
+  let totalGames = 0;
+  let totalCount = 0;
+
+  rows.forEach((row, index) => {
+    const winGames = Number(row.querySelector(".repflash-win-games")?.value || 0);
+    const count = Number(row.querySelector(".repflash-win-count")?.value || 0);
+    const include = row.querySelector(".repflash-include")?.checked !== false;
+    const effective = effectiveGamesForInterval(winGames, startGames, index);
+    renderEffectiveStatus(row.querySelector(".effective-value"), effective, include);
+    if(include && effective > 0){
+      totalGames += effective;
+      totalCount += Number.isFinite(count) && count > 0 ? count : 0;
+    }
+  });
+
+  const currentInput = document.getElementById("repflashCurrentGames");
+  const currentGames = Number(currentInput?.value || 0);
+  const currentEntered = Boolean(currentInput?.value);
+  const currentInclude = document.getElementById("repflashCurrentInclude")?.checked !== false;
+  const currentEffective = currentEntered ? effectiveGamesForInterval(currentGames, startGames, rows.length) : 0;
+  renderEffectiveStatus(document.getElementById("repflashCurrentEffective"), currentEffective, currentEntered && currentInclude);
+  if(currentEntered && currentInclude && currentEffective > 0){
+    const currentCount = Number(document.getElementById("repflashCurrentCount")?.value || 0);
+    totalGames += currentEffective;
+    totalCount += Number.isFinite(currentCount) && currentCount > 0 ? currentCount : 0;
+  }
+
+  return { games: totalGames, count: totalCount };
+}
 function renderReplayFlashOutput(){
   const replayFlash = machine.replayFlash;
   if(!replayFlash || !window.RepflashBayes){
@@ -226,12 +290,12 @@ function renderReplayFlashOutput(){
   if(!outputArea){
     return;
   }
-  const games = Number(document.getElementById("repflashGames").value || 0);
-  const count = Number(document.getElementById("repflashCount").value || 0);
+  const totals = replayFlashObservedTotals();
   const prior = replayFlashPrior(replayFlash);
-  if(!Number.isFinite(games) || games <= 0){
+  if(totals.games <= 0){
     outputArea.innerHTML = `
       <div class="result-box">
+        <p class="note">実効観測 ${totals.games}G／リプフラ${totals.count}回</p>
         <h2>事前分布（観測未入力）</h2>
         ${renderModeRows(Object.entries(prior).map(([mode, percent]) => ({ mode, percent })))}
       </div>
@@ -241,13 +305,14 @@ function renderReplayFlashOutput(){
   const result = window.RepflashBayes.estimate({
     rates: replayFlash.rates,
     prior,
-    games,
-    count: Number.isFinite(count) && count > 0 ? count : 0,
+    games: totals.games,
+    count: totals.count,
     aMode: replayFlash.aMode
   });
   const badge = badgeForNotA(result.pNotA);
   outputArea.innerHTML = `
     <div class="result-box">
+      <p class="note">実効観測 ${totals.games}G／リプフラ${totals.count}回</p>
       <h2>A否定度 P(通常B以上)</h2>
       <div class="not-a-meter">
         <div class="not-a-value">${result.pNotA.toFixed(1)}%</div>
@@ -258,6 +323,53 @@ function renderReplayFlashOutput(){
       ${renderModeRows(Object.entries(result.posterior).map(([mode, percent]) => ({ mode, percent })))}
     </div>
   `;
+}
+function bindReplayFlashInputs(scope){
+  scope.querySelectorAll("input").forEach(input => input.addEventListener("input", renderReplayFlashOutput));
+  scope.querySelectorAll('input[type="radio"],input[type="checkbox"]').forEach(input => input.addEventListener("change", renderReplayFlashOutput));
+}
+function addReplayFlashWinRow(){
+  const list = document.getElementById("repflashWinList");
+  if(!list){
+    return;
+  }
+  const row = document.createElement("div");
+  row.className = "interval-row repflash-win-row";
+  row.innerHTML = `
+    <div class="interval-row-header">
+      <div class="interval-row-title"></div>
+      <button class="delete-button" type="button" aria-label="区間を削除">削除</button>
+    </div>
+    <div class="interval-fields">
+      <label>
+        <span class="field-label">当選G数</span>
+        <input class="number-input repflash-win-games" type="number" inputmode="numeric" min="0" step="1">
+      </label>
+      <label>
+        <span class="field-label">その区間のリプフラ回数</span>
+        <input class="number-input repflash-win-count" type="number" inputmode="numeric" min="0" step="1" value="0">
+      </label>
+    </div>
+    <label class="inline-check">
+      <input class="repflash-include" type="checkbox" checked>
+      <span>計算に含める</span>
+    </label>
+    <div class="effective-value">実効0（対象外）</div>
+  `;
+  row.querySelector(".delete-button").addEventListener("click", () => {
+    row.remove();
+    updateReplayFlashWinRowTitles();
+    renderReplayFlashOutput();
+  });
+  list.appendChild(row);
+  bindReplayFlashInputs(row);
+  updateReplayFlashWinRowTitles();
+  renderReplayFlashOutput();
+}
+function updateReplayFlashWinRowTitles(){
+  document.querySelectorAll(".repflash-win-row .interval-row-title").forEach((title, index) => {
+    title.textContent = `当選区間 ${index + 1}`;
+  });
 }
 function renderReplayFlashSection(){
   const existing = document.getElementById("repflashSection");
@@ -272,7 +384,8 @@ function renderReplayFlashSection(){
   section.className = "section";
   section.id = "repflashSection";
   section.innerHTML = `
-    <div class="section-label">リプフラ・ベイズ推定（通常A否定）</div>
+    <div class="section-label">リプフラ判定（A否定）</div>
+    <p class="section-lead">モードA（通常A）をどれだけ否定できているかを数値で示します</p>
     <div class="card" id="repflashInputArea">
       <div class="axis">
         <div class="axis-title">起点</div>
@@ -291,28 +404,47 @@ function renderReplayFlashSection(){
       </label>
       <div class="field-grid">
         <label>
-          <span class="field-label">リプフラ観測G数（実効）</span>
-          <input class="number-input" id="repflashGames" type="number" inputmode="numeric" min="0" step="1" placeholder="例：670">
+          <span class="field-label">開始G数</span>
+          <input class="number-input" id="repflashStartGames" type="number" inputmode="numeric" min="0" step="1" value="0">
         </label>
-        <label>
-          <span class="field-label">リプフラ回数</span>
-          <input class="number-input" id="repflashCount" type="number" inputmode="numeric" min="0" step="1" value="0">
+      </div>
+      <h3>当選区間リスト</h3>
+      <div class="interval-list" id="repflashWinList"></div>
+      <button class="add-button" id="repflashAddRow" type="button">＋区間を追加</button>
+      <h3>進行中区間</h3>
+      <div class="interval-row">
+        <div class="interval-row-title">現在の未当選区間</div>
+        <div class="interval-fields">
+          <label>
+            <span class="field-label">現在G数（未当選）</span>
+            <input class="number-input" id="repflashCurrentGames" type="number" inputmode="numeric" min="0" step="1">
+          </label>
+          <label>
+            <span class="field-label">リプフラ回数</span>
+            <input class="number-input" id="repflashCurrentCount" type="number" inputmode="numeric" min="0" step="1" value="0">
+          </label>
+        </div>
+        <label class="inline-check">
+          <input id="repflashCurrentInclude" type="checkbox" checked>
+          <span>計算に含める</span>
         </label>
+        <div class="effective-value" id="repflashCurrentEffective">実効0（対象外）</div>
       </div>
     </div>
     <div id="repflashResultArea"></div>
     <div class="notice">
       <ul>
-        <li>ボーナス後のバタフライ＋ときめき約41Gはリプフラ対象外のため観測G数から除外して入力。複数区間の通算入力可</li>
-        <li>飛翔・超飛翔終了、設定変更でモードが振り直されるため、観測窓はそこでリセットして入力し直すこと</li>
-        <li>事前分布は公開の初期振り分けを使用。観測窓内にボーナスを挟む場合、昇格分（チャンス→通常B等）は近似として据え置き</li>
+        <li>当選G数・当選契機によるモード推論（200G以内当選ならチャンス寄り等）は一切組み込んでいない。リプフラ回数と観測G数のみの単純計算</li>
+        <li>2区間目以降と進行中区間は、ボーナス後のバタフライ＋ときめき約41Gを自動控除済み（手計算不要）</li>
+        <li>区間を計算から外す使い方は、リールフラッシュ等の別示唆でその区間のモードが異なると判断した場合を想定。事前分布は起点の初期振り分けのまま</li>
+        <li>飛翔・超飛翔終了直後から自分で続行して打つ場合は、開始G数に42を入力する（終了直後の約41Gはリプフラ対象外のため）</li>
       </ul>
     </div>
   `;
-  const resultSection = document.getElementById("resultArea").closest(".section");
-  resultSection.after(section);
-  section.querySelectorAll("input").forEach(input => input.addEventListener("input", renderReplayFlashOutput));
-  section.querySelectorAll('input[type="radio"],input[type="checkbox"]').forEach(input => input.addEventListener("change", renderReplayFlashOutput));
+  const firstSection = document.querySelector("main .section");
+  firstSection.before(section);
+  document.getElementById("repflashAddRow").addEventListener("click", addReplayFlashWinRow);
+  bindReplayFlashInputs(section);
   renderReplayFlashOutput();
 }
 function renderCurrentState(data){
