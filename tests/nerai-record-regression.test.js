@@ -452,9 +452,9 @@ function testBattleModeEventRowBeforeCounterRow() {
     selectedAimId = firstAimIdForMachine(currentMachine()) || '';
   `, context);
   const grid = vm.runInContext('renderBattleModeGrid()', context);
-  assert.ok(grid.indexOf('リプレイフラッシュ') < grid.indexOf('リプレイ</button>'));
-  assert.ok(grid.indexOf('リプレイ</button>') < grid.indexOf('battleModeIncrementGame(1)'));
-  assert.ok(grid.indexOf('battleModeIncrementGame(1)') < grid.indexOf('openBattleModeOtherSheet'));
+  assert.ok(grid.indexOf('battleModeIncrementGame(1)') < grid.indexOf('リプレイ</button>'));
+  assert.ok(grid.indexOf('リプレイ</button>') < grid.indexOf('リプレイフラッシュ'));
+  assert.ok(grid.indexOf('リプレイフラッシュ') < grid.indexOf('openBattleModeOtherSheet'));
   assert.match(grid, /さざなみ\s+前兆/);
   const style = extractStyle();
   assert.match(style, /\.bm-grid\{[^}]*align-content:end/);
@@ -479,15 +479,21 @@ function testBattleModeOtherSheetExcludesQuickPanelTags() {
   const excluded = JSON.parse(vm.runInContext('JSON.stringify([...battleModeOtherExcludedTagIds()].sort())', context));
   assert.deepEqual(excluded, [
     't_nangoku_cherry',
+    't_nangoku_pato_light',
+    't_nangoku_puririp',
     't_nangoku_replay',
     't_nangoku_replay_flash',
     't_nangoku_sazanami_purple',
     't_nangoku_sazanami_rainbow',
     't_nangoku_sazanami_red',
-    't_nangoku_suika'
+    't_nangoku_suika',
+    't_nangoku_through'
   ]);
-  assert.equal(vm.runInContext("currentMachine().tags.filter(tag => !battleModeOtherExcludedTagIds().has(tag.id)).some(tag => tag.id === 't_nangoku_puririp')", context), true);
+  assert.equal(vm.runInContext("currentMachine().tags.filter(tag => !battleModeOtherExcludedTagIds().has(tag.id)).some(tag => tag.id === 't_nangoku_puririp')", context), false);
   assert.equal(vm.runInContext("currentMachine().tags.filter(tag => !battleModeOtherExcludedTagIds().has(tag.id)).some(tag => tag.id === 't_nangoku_replay_flash')", context), false);
+  assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_nangoku_puririp')", context), true);
+  assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_nangoku_pato_light')", context), true);
+  assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_nangoku_through')", context), true);
   assert.match(extractScript(), /closeBattleModeOtherSheet\(\)">閉じる/);
 }
 
@@ -717,6 +723,16 @@ function testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo() {
   assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 500);
   assert.match(extractScript(), /千円単位（1 = 1,000円）/);
   assert.match(extractScript(), /Math\.round\(value\*rate\)/);
+  assert.match(extractScript(), /現在: \$\{current\.toLocaleString\('ja-JP'\)\}枚/);
+
+  vm.runInContext(`
+    setManualCorrectionForLiquid(250, 241);
+    setTimelineGames(250, 241);
+    battleModeRecordIntervalDiffSnapshot();
+  `, context);
+  assert.equal(vm.runInContext('currentTimeline.at(-1).text', context), '差枚 +500（初期 300 ＋ クレ 400 − 投資 200）');
+  assert.equal(vm.runInContext('currentTimeline.at(-1).game', context), 250);
+  assert.deepEqual(JSON.parse(vm.runInContext('JSON.stringify(currentTimeline.at(-1).tagIds)', context)), []);
 
   const raw = JSON.stringify(JSON.parse(vm.runInContext('localStorage.getItem("nerai_record_v1")', context)));
   const restored = runRecord(raw);
