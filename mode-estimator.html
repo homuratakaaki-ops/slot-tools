@@ -30,17 +30,25 @@
   .field-label{display:block;color:var(--text-muted);font-size:12px;font-weight:700;margin-bottom:6px}
   .number-input{width:100%;min-height:44px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:16px;padding:9px 10px}
   .check-option{margin-top:10px}
-  .interval-list{display:grid;gap:10px;margin:10px 0}
-  .interval-row{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:6px;padding:10px}
-  .interval-row-header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+  .start-row{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-top:10px}
+  .start-row .field-label{margin:0}
+  .start-row .number-input{min-height:40px}
+  .interval-list{display:grid;gap:8px;margin:6px 0}
+  .interval-header,.interval-line{display:grid;grid-template-columns:1fr 72px 40px 40px;gap:6px;align-items:center}
+  .interval-header{color:var(--text-muted);font-size:11px;font-weight:700;padding:0 4px}
+  .interval-row{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:6px;padding:7px}
+  .interval-row.current .interval-line{grid-template-columns:1fr 72px 40px 40px}
   .interval-row-title{color:var(--gold-light);font-size:12px;font-weight:700}
-  .interval-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-  .inline-check{display:flex;align-items:center;gap:6px;color:var(--text-muted);font-size:12px;font-weight:700;margin-top:8px}
-  .effective-value{font-size:12px;color:var(--text-muted);margin-top:8px}
+  .interval-line .number-input{min-width:0;min-height:40px;font-size:15px;padding:7px 8px}
+  .include-check{display:grid;place-items:center;min-width:40px;min-height:40px}
+  .include-check input{width:20px;height:20px;margin:0}
+  .effective-value{font-size:11px;color:var(--text-muted);line-height:1.35;margin-top:4px}
+  .effective-value::before{content:attr(data-label) "・"}
   .effective-value.warn{color:var(--red);font-weight:700}
   .add-button,.delete-button{border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-weight:700;cursor:pointer}
   .add-button{width:100%;min-height:42px;margin-top:6px}
-  .delete-button{min-width:34px;height:30px;color:var(--text-muted)}
+  .delete-button{min-width:40px;height:40px;color:var(--text-muted);font-size:18px;line-height:1}
+  .delete-spacer{width:40px;height:40px}
   .badge{display:inline-flex;align-items:center;border-radius:999px;font-size:12px;font-weight:700;padding:5px 10px;margin-bottom:10px;border:1px solid currentColor}
   .badge.strong{color:var(--green);background:rgba(95,196,135,.1)}.badge.lean-b{color:var(--blue);background:rgba(117,167,232,.1)}.badge.middle{color:var(--yellow);background:rgba(224,191,99,.1)}.badge.weak{color:var(--red);background:rgba(224,112,112,.1)}
   .current-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
@@ -77,7 +85,7 @@
   .source{font-size:12px;color:var(--text-dim);margin-top:12px}
   .source a{color:var(--gold);text-decoration:none}
   footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}footer a{color:var(--text-muted);text-decoration:none}
-  @media (max-width:420px){.option-grid,.field-grid,.interval-fields{grid-template-columns:1fr}.mode-row{grid-template-columns:80px 1fr 48px}.mode-row.range-row{grid-template-columns:74px 1fr 82px}.current-head{display:block}.current-head .badge{margin-top:8px}th,td{font-size:12px;padding:8px 5px}}
+  @media (max-width:420px){.option-grid,.field-grid{grid-template-columns:1fr}.mode-row{grid-template-columns:80px 1fr 48px}.mode-row.range-row{grid-template-columns:74px 1fr 82px}.current-head{display:block}.current-head .badge{margin-top:8px}th,td{font-size:12px;padding:8px 5px}}
 </style>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944"
      crossorigin="anonymous"></script>
@@ -336,25 +344,15 @@ function addReplayFlashWinRow(){
   const row = document.createElement("div");
   row.className = "interval-row repflash-win-row";
   row.innerHTML = `
-    <div class="interval-row-header">
-      <div class="interval-row-title"></div>
-      <button class="delete-button" type="button" aria-label="区間を削除">削除</button>
-    </div>
-    <div class="interval-fields">
-      <label>
-        <span class="field-label">当選G数</span>
-        <input class="number-input repflash-win-games" type="number" inputmode="numeric" min="0" step="1">
+    <div class="interval-line">
+      <input class="number-input repflash-win-games" type="number" inputmode="numeric" min="0" step="1" aria-label="当選G数">
+      <input class="number-input repflash-win-count" type="number" inputmode="numeric" min="0" step="1" value="0" aria-label="その区間のリプフラ回数">
+      <label class="include-check">
+        <input class="repflash-include" type="checkbox" checked aria-label="計算に含める">
       </label>
-      <label>
-        <span class="field-label">その区間のリプフラ回数</span>
-        <input class="number-input repflash-win-count" type="number" inputmode="numeric" min="0" step="1" value="0">
-      </label>
+      <button class="delete-button" type="button" aria-label="区間を削除">×</button>
     </div>
-    <label class="inline-check">
-      <input class="repflash-include" type="checkbox" checked>
-      <span>計算に含める</span>
-    </label>
-    <div class="effective-value">実効0（対象外）</div>
+    <div class="effective-value" data-label="区間">実効0（対象外）</div>
   `;
   row.querySelector(".delete-button").addEventListener("click", () => {
     row.remove();
@@ -367,8 +365,8 @@ function addReplayFlashWinRow(){
   renderReplayFlashOutput();
 }
 function updateReplayFlashWinRowTitles(){
-  document.querySelectorAll(".repflash-win-row .interval-row-title").forEach((title, index) => {
-    title.textContent = `当選区間 ${index + 1}`;
+  document.querySelectorAll(".repflash-win-row .effective-value").forEach((caption, index) => {
+    caption.dataset.label = `区間${index + 1}`;
   });
 }
 function renderReplayFlashSection(){
@@ -402,33 +400,30 @@ function renderReplayFlashSection(){
         <input type="checkbox" id="repflashOver200">
         <span>内部200G超えを確認済み（チャンス・飛翔準備B・超飛翔準備を否定）</span>
       </label>
-      <div class="field-grid">
-        <label>
-          <span class="field-label">開始G数</span>
-          <input class="number-input" id="repflashStartGames" type="number" inputmode="numeric" min="0" step="1" value="0">
-        </label>
+      <div class="start-row">
+        <span class="field-label">開始G数</span>
+        <input class="number-input" id="repflashStartGames" type="number" inputmode="numeric" min="0" step="1" value="0" aria-label="開始G数">
       </div>
       <h3>当選区間リスト</h3>
+      <div class="interval-header" aria-hidden="true">
+        <span>当選G数</span><span>回数</span><span>含む</span><span></span>
+      </div>
       <div class="interval-list" id="repflashWinList"></div>
       <button class="add-button" id="repflashAddRow" type="button">＋区間を追加</button>
       <h3>進行中区間</h3>
-      <div class="interval-row">
-        <div class="interval-row-title">現在の未当選区間</div>
-        <div class="interval-fields">
-          <label>
-            <span class="field-label">現在G数（未当選）</span>
-            <input class="number-input" id="repflashCurrentGames" type="number" inputmode="numeric" min="0" step="1">
+      <div class="interval-header" aria-hidden="true">
+        <span>現在G数</span><span>回数</span><span>含む</span><span></span>
+      </div>
+      <div class="interval-row current">
+        <div class="interval-line">
+          <input class="number-input" id="repflashCurrentGames" type="number" inputmode="numeric" min="0" step="1" aria-label="現在G数（未当選）">
+          <input class="number-input" id="repflashCurrentCount" type="number" inputmode="numeric" min="0" step="1" value="0" aria-label="リプフラ回数">
+          <label class="include-check">
+            <input id="repflashCurrentInclude" type="checkbox" checked aria-label="計算に含める">
           </label>
-          <label>
-            <span class="field-label">リプフラ回数</span>
-            <input class="number-input" id="repflashCurrentCount" type="number" inputmode="numeric" min="0" step="1" value="0">
-          </label>
+          <div class="delete-spacer" aria-hidden="true"></div>
         </div>
-        <label class="inline-check">
-          <input id="repflashCurrentInclude" type="checkbox" checked>
-          <span>計算に含める</span>
-        </label>
-        <div class="effective-value" id="repflashCurrentEffective">実効0（対象外）</div>
+        <div class="effective-value" id="repflashCurrentEffective" data-label="進行中">実効0（対象外）</div>
       </div>
     </div>
     <div id="repflashResultArea"></div>
