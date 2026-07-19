@@ -60,6 +60,7 @@ function fakeElement() {
     remove() {},
     setAttribute() {},
     focus() {},
+    scrollIntoView() {},
     select() {},
     click() {},
     addEventListener() {}
@@ -435,6 +436,34 @@ function testBattleModeMemoSheetTracksViewportOnResume() {
   assert.match(script, /window\.visualViewport\.addEventListener\('resize',scheduleBattleModeMemoViewportUpdate\)/);
 }
 
+function testBattleModeToastUsesTopPosition() {
+  const style = extractStyle();
+  const toast = style.match(/\.bm-toast\{[^}]*\}/);
+  assert.ok(toast, 'battle mode toast style not found');
+  assert.match(toast[0], /top:72px/);
+  assert.match(toast[0], /z-index:12000/);
+  assert.doesNotMatch(toast[0], /bottom:58px/);
+}
+
+function testBattleModeEventRowBeforeCounterRow() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+  `, context);
+  const grid = vm.runInContext('renderBattleModeGrid()', context);
+  assert.ok(grid.indexOf('openBattleModePicker') < grid.indexOf('t_nangoku_replay'));
+}
+
+function testBattleModeHitStartScrollsNextInputOnlyFromBattleMode() {
+  const script = extractScript();
+  assert.match(script, /let battleModeScrollToHitNext=false/);
+  assert.match(script, /battleModeScrollToHitNext=true/);
+  assert.match(script, /function scrollHitBranchNextButtonIntoView\(\)/);
+  const style = extractStyle();
+  assert.match(style, /\.branch-next-btn\{[^}]*min-height:48px/);
+}
+
 function testBattleModeOtherSheetExcludesQuickPanelTags() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -500,6 +529,33 @@ function testBattleModeMemoUsesTimelineTextEntryFormat() {
 
   vm.runInContext('undoBattleModeLast()', context);
   assert.equal(vm.runInContext('currentTimeline.length', context), 0);
+}
+
+function testLogSegmentCollapseDefaultsLatestTodayOpen() {
+  const { context } = runRecord(undefined);
+  const result = JSON.parse(vm.runInContext(`
+    const today = todayValue();
+    const segment = normalizeSegment({
+      id: 'seg_today',
+      dataGame: 292,
+      liquidGame: 292,
+      terminalLabel: 'BIG当選',
+      timeline: [{ id: 'tl_today', game: 184, liquidGame: 184, text: '自由メモ', tagIds: [], createdAt: new Date().toISOString() }]
+    });
+    const todayLog = { id: 'log_today', machineId: 'm_nangoku_special', money: { date: today } };
+    const oldLog = { id: 'log_old', machineId: 'm_nangoku_special', money: { date: '2000-01-01' } };
+    JSON.stringify({
+      todayOpen: renderSegmentHistoryItem(todayLog, segment, 0, 1),
+      oldClosed: renderSegmentHistoryItem(oldLog, segment, 0, 1)
+    });
+  `, context));
+  assert.match(result.todayOpen, /▼/);
+  assert.match(result.todayOpen, /自由メモ/);
+  assert.match(result.todayOpen, /loadLogForEdit/);
+  assert.doesNotMatch(result.todayOpen, /item-actions/);
+  assert.match(result.oldClosed, /▶/);
+  assert.doesNotMatch(result.oldClosed, /自由メモ/);
+  assert.match(result.oldClosed, /loadLogForEdit/);
 }
 
 function testBattleModeCounterRowUsesExistingTagFlow() {
@@ -628,9 +684,13 @@ function run() {
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeKeypadOverlayStacksAboveBattleMode();
   testBattleModeMemoSheetTracksViewportOnResume();
+  testBattleModeToastUsesTopPosition();
+  testBattleModeEventRowBeforeCounterRow();
+  testBattleModeHitStartScrollsNextInputOnlyFromBattleMode();
   testBattleModeOtherSheetExcludesQuickPanelTags();
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
   testBattleModeMemoUsesTimelineTextEntryFormat();
+  testLogSegmentCollapseDefaultsLatestTodayOpen();
   testBattleModeCounterRowUsesExistingTagFlow();
   testBattleModeSazanamiPickerStoresEntryCause();
   testBattleModeBonusPickerStartsExistingHitWizard();

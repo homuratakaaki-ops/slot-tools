@@ -298,7 +298,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .resume-choice-meta{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:10px;}
 .resume-choice-actions{display:grid;grid-template-columns:1fr;gap:8px;}
 .lock-warning{border:1px solid rgba(224,112,112,.42);background:rgba(224,112,112,.08);color:#ffb3b3;border-radius:8px;padding:9px;font-size:12px;margin-top:8px;}
-.branch-next-btn{white-space:normal;line-height:1.35;text-align:center;min-width:0;}
+.branch-next-btn{white-space:normal;line-height:1.35;text-align:center;min-width:0;min-height:48px;padding:12px 14px;font-size:14px;}
 .suggest-kind{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 7px;margin-right:4px;font-size:11px;font-weight:800;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);}
 .suggest-kind-eyecatch{border-color:rgba(120,180,255,.55);background:rgba(120,180,255,.12);color:#a9d0ff;}
 .suggest-kind-tsukiyama-mode{border-color:rgba(201,168,76,.65);background:rgba(201,168,76,.13);color:var(--gold-light);}
@@ -419,7 +419,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-recent-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-undo-bar{min-height:48px;border:1px solid rgba(201,168,76,.55);border-radius:8px;background:rgba(201,168,76,.12);color:var(--gold-light);font-size:14px;font-weight:900;padding:9px 10px;cursor:pointer;text-align:center;}
 .bm-undo-bar.disabled{opacity:.52;color:var(--text-muted);border-color:rgba(122,122,138,.35);background:rgba(122,122,138,.08);cursor:default;}
-.bm-toast{position:fixed;left:50%;bottom:58px;transform:translateX(-50%);z-index:9100;display:none;max-width:calc(100vw - 22px);border:1px solid rgba(201,168,76,.62);border-radius:999px;background:rgba(20,20,24,.96);color:var(--gold-light);font-size:14px;font-weight:900;padding:10px 14px;box-shadow:0 8px 22px rgba(0,0,0,.35);text-align:center;}
+.bm-toast{position:fixed;left:50%;top:72px;transform:translateX(-50%);z-index:12000;display:none;max-width:calc(100vw - 22px);border:1px solid rgba(201,168,76,.55);border-radius:999px;background:rgba(20,20,24,.94);color:var(--gold-light);font-size:20px;font-weight:900;padding:14px 24px;box-shadow:0 8px 22px rgba(0,0,0,.35);text-align:center;}
 .bm-toast.open{display:block;}
 .bm-toast button{margin-left:8px;border:0;background:transparent;color:#9be0bd;font:inherit;text-decoration:underline;cursor:pointer;}
 .bm-sheet{position:fixed;inset:0;z-index:9050;display:none;align-items:flex-end;background:rgba(0,0,0,.58);}
@@ -1028,6 +1028,7 @@ let pastHintsOpen=false;
 let logDateOpenState={};
 let openLogDetailIds={};
 let openAimGroupIds={};
+let openLogSegmentIds={};
 let organizedViewState={sessionId:'',aimNumber:null,copyMode:'detail'};
 let organizedViewScrollLock=null;
 let recentTimelineHighlightId='';
@@ -1056,6 +1057,7 @@ let battleModeRedoAction=null;
 let battleModeToastTimer=null;
 let battleModeReturnAfterHitWizard=false;
 let battleModeMemoSheetOpen=false;
+let battleModeScrollToHitNext=false;
 
 function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9000+1000);}
 function clone(value){return JSON.parse(JSON.stringify(value));}
@@ -4860,11 +4862,11 @@ function renderBattleModeGrid(){
         return delta?`<button class="bm-btn counter" type="button" onclick="battleModeIncrementGame(${escapeHtml(delta)})">+${escapeHtml(delta)}</button>`:'<button class="bm-btn disabled" type="button" disabled>空き</button>';
       }).join('')}
     </div>
-    <div class="bm-button-row">
-      ${Array.from({length:3},(_,i)=>counters[i]?battleModeCounterButton(counters[i]):'<button class="bm-btn disabled" type="button" disabled>空き</button>').join('')}
-    </div>
     <div class="bm-event-row">
       ${Array.from({length:3},(_,i)=>battleModeEventButton(events[i])).join('')}
+    </div>
+    <div class="bm-button-row">
+      ${Array.from({length:3},(_,i)=>counters[i]?battleModeCounterButton(counters[i]):'<button class="bm-btn disabled" type="button" disabled>空き</button>').join('')}
     </div>
     <div class="bm-other-row">
       <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">その他 ▼</button>
@@ -5067,8 +5069,10 @@ function battleModeStartHit(trigger,variant=''){
   if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
   closeBattleModeOtherSheet();
   battleModeReturnAfterHitWizard=true;
+  battleModeScrollToHitNext=true;
   closeBattleMode();
   startHitEventWizard(normalized,{variant});
+  scrollHitBranchNextButtonIntoView();
   battleModeVibrate(18);
 }
 function openBattleModeOtherSheet(){
@@ -7173,6 +7177,14 @@ function renderHitBranchWizardArea(){
         </div>
         ${current?.key==='endingCards'?renderEndingCardsInputArea():''}`:''}
     </div>`;
+}
+function scrollHitBranchNextButtonIntoView(){
+  if(!battleModeScrollToHitNext)return;
+  battleModeScrollToHitNext=false;
+  setTimeout(()=>{
+    const button=document.querySelector('.branch-next-btn');
+    button?.scrollIntoView({block:'center',behavior:'smooth'});
+  },0);
 }
 function startHitBranchWizard(route){
   currentSuggestLog=currentSuggestLog.filter(entry=>entry.source!=='wizard');
@@ -9956,6 +9968,21 @@ function aimGroupSegments(aim){
   return aim.logs.flatMap(log=>(log.segments||[]).map(segment=>({log,segment})))
     .sort((a,b)=>(Number(a.segment.branchNumber)||0)-(Number(b.segment.branchNumber)||0)||logSortTime(a.log).localeCompare(logSortTime(b.log)));
 }
+function logSegmentOpenKey(log,segment,index){
+  return `${log?.id||''}::${segment?.id||segment?.createdAt||index}`;
+}
+function defaultLogSegmentOpen(log,index,total){
+  return String(log?.money?.date||'')===todayValue()&&index===total-1;
+}
+function isLogSegmentOpen(log,segment,index,total){
+  const key=logSegmentOpenKey(log,segment,index);
+  if(Object.prototype.hasOwnProperty.call(openLogSegmentIds,key))return !!openLogSegmentIds[key];
+  return defaultLogSegmentOpen(log,index,total);
+}
+function toggleLogSegment(key){
+  openLogSegmentIds[key]=!openLogSegmentIds[key];
+  renderLogsList();
+}
 function organizedFilterDefaults(){
   return {bonus:true,mode:true,setting:false,rare:false,other:false};
 }
@@ -10652,7 +10679,7 @@ function renderAimGroupDetail(aim){
       atIndex+=1;
       return `<div class="log-summary-meta" style="font-weight:900;margin:10px 0 6px;">初当たり${atIndex}回目</div>`;
     }).join(''):'';
-    return `${heading}${renderSegmentHistoryItem(row.log,row.segment,index)}`;
+    return `${heading}${renderSegmentHistoryItem(row.log,row.segment,index,rows.length)}`;
   }).join('');
   return `${organizedButton}${segmentHtml}${renderAimGroupLogActions(aim)}`;
 }
@@ -10664,15 +10691,19 @@ function renderAimGroupLogActions(aim){
       ${logs.map(log=>`<button class="btn-danger" onclick="deleteLog('${log.id}')">${logs.length>1?`ログ削除: ${escapeHtml(logSummaryLine(log))}`:'このログを削除'}</button>`).join('')}
     </div>`;
 }
-function renderSegmentHistoryItem(log,segment,index){
+function renderSegmentHistoryItem(log,segment,index,total=1){
   const tone=segmentToneClass(log,segment);
   const machine=machineById(log?.machineId);
+  const key=logSegmentOpenKey(log,segment,index);
+  const isOpen=isLogSegmentOpen(log,segment,index,total);
   return `
     <div class="timeline-item ${escapeHtml(tone)}">
-      <div class="timeline-head">
-        <div class="timeline-game">${escapeHtml(segmentSummary(segment,index))}</div>
+      <div class="timeline-head" onclick="toggleLogSegment('${escapeHtml(key)}')" style="cursor:pointer;">
+        <div class="timeline-game">${escapeHtml(isOpen?'▼':'▶')} ${escapeHtml(segmentSummary(segment,index))}</div>
         <span class="pill gold">${escapeHtml(formatAimLabel(log,segment)||'')}</span>
+        <button class="btn-small edit-strong" type="button" onclick="event.stopPropagation();loadLogForEdit('${escapeHtml(log.id)}')">編集</button>
       </div>
+      ${isOpen?`
       ${(segment.hitEvents||[]).length?`<div class="timeline-text">${(segment.hitEvents||[]).map(event=>escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event,machine)}`)).join('<br>')}</div>`:''}
       ${renderSegmentVariantControls(segment,'log',log.id,machine)}
       ${(segment.timeline||[]).length?`<div class="timeline-text">${(segment.timeline||[]).map(item=>{
@@ -10682,9 +10713,7 @@ function renderSegmentHistoryItem(log,segment,index){
       ${renderCounterHistories(segment.counterHistories)}
       ${(segment.suggestLog||[]).length?`<div class="timeline-text">${(segment.suggestLog||[]).map(entry=>escapeHtml(suggestLogLine(entry))).join('<br>')}</div>`:''}
       ${endingCardsTotal(segment.endingCards)>0?`<div class="timeline-text">${endingCardsTextLines(segment.endingCards).map(escapeHtml).join('<br>')}</div>`:''}
-      <div class="item-actions" style="margin-top:8px;">
-        <button class="btn-small edit-strong" onclick="loadLogForEdit('${log.id}')">編集</button>
-      </div>
+      `:''}
     </div>`;
 }
 function renderLogsList(){
