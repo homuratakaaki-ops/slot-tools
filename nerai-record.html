@@ -394,7 +394,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-compact-counter-read{min-width:0;text-align:center;border:0;background:transparent;color:inherit;cursor:pointer;}
 .bm-compact-counter .bm-counter-value{font-size:20px;}
 .bm-mini-btn{width:48px;min-height:42px;border:1px solid rgba(76,175,125,.58);border-radius:8px;background:rgba(76,175,125,.12);color:#a8efb4;font-size:16px;font-weight:900;cursor:pointer;}
-.bm-grid{display:grid;grid-template-rows:repeat(3,minmax(52px,auto)) minmax(52px,auto);gap:7px;min-height:0;align-content:start;}
+.bm-diff-tracker{min-height:38px;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.12);color:var(--text);font-size:14px;font-weight:900;cursor:pointer;}
+.bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
+.bm-grid{display:grid;grid-template-rows:repeat(4,minmax(52px,auto));gap:7px;min-height:0;align-content:end;}
 .bm-button-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
 .bm-event-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
 .bm-other-row{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;}
@@ -3535,10 +3537,14 @@ function normalizeIntervalEstimate(value){
   const source=value&&typeof value==='object'?value:{};
   const certainty=INTERVAL_CERTAINTY_OPTIONS.includes(source.certainty)?source.certainty:'unknown';
   const rate=normalizeOptionalNumber(source.loanRate);
+  const investedTotal=normalizeOptionalNumber(source.investedTotal);
+  const credit=normalizeOptionalNumber(source.credit);
   return {
     initialDiff:normalizeOptionalNumber(source.initialDiff),
     certainty,
-    loanRate:rate!==null&&rate>0?rate:DEFAULT_LOAN_RATE
+    loanRate:rate!==null&&rate>0?rate:DEFAULT_LOAN_RATE,
+    investedTotal:investedTotal!==null?Math.max(0,Math.round(investedTotal)):0,
+    credit:credit!==null?Math.max(0,Math.round(credit)):0
   };
 }
 function intervalCertaintyLabel(value){
@@ -4670,6 +4676,7 @@ function battleModeSnapshot(){
     currentTimelineDataGame,
     currentTimelineSuikaOffset,
     currentTimelineManualCorrection,
+    currentIntervalEstimate:clone(normalizeIntervalEstimate(currentIntervalEstimate)),
     currentSubCounters:clone(currentSubCounters),
     currentCounterHistories:clone(currentCounterHistories),
     currentSuggestLog:clone(currentSuggestLog),
@@ -4686,6 +4693,7 @@ function restoreBattleModeSnapshot(snapshot){
   currentTimelineDataGame=snapshot.currentTimelineDataGame;
   currentTimelineSuikaOffset=normalizeOptionalNumber(snapshot.currentTimelineSuikaOffset)??0;
   currentTimelineManualCorrection=normalizeOptionalNumber(snapshot.currentTimelineManualCorrection)??0;
+  currentIntervalEstimate=normalizeIntervalEstimate(snapshot.currentIntervalEstimate);
   currentSubCounters=normalizeSubCounters(snapshot.currentSubCounters);
   currentCounterHistories=normalizeCounterHistories(snapshot.currentCounterHistories);
   currentSuggestLog=(snapshot.currentSuggestLog||[]).map(normalizeSuggestLogEntry).filter(Boolean);
@@ -4761,6 +4769,29 @@ function battleModeEntryLabel(entry){
   const text=String(entry?.text||'').trim()||'記録';
   return `${game!==null?`${game}G `:''}${text}`;
 }
+function battleModeIntervalTrackerState(){
+  return normalizeIntervalEstimate(currentIntervalEstimate);
+}
+function battleModeIntervalTrackerMeasured(state=battleModeIntervalTrackerState()){
+  return normalizeOptionalNumber(state.initialDiff)!==null||Number(state.investedTotal)>0||Number(state.credit)>0;
+}
+function battleModeIntervalDiffValue(state=battleModeIntervalTrackerState()){
+  if(!battleModeIntervalTrackerMeasured(state))return null;
+  return (normalizeOptionalNumber(state.initialDiff)??0)+(Number(state.credit)||0)-(Number(state.investedTotal)||0);
+}
+function battleModeIntervalDiffText(value){
+  const normalized=normalizeOptionalNumber(value);
+  if(normalized===null)return '差枚 —';
+  return `差枚 ${normalized>0?'+':''}${normalized}`;
+}
+function battleModeIntervalDetailText(state=battleModeIntervalTrackerState()){
+  return `初期 ${normalizeOptionalNumber(state.initialDiff)??0} ＋ クレ ${Number(state.credit)||0} − 投資 ${Number(state.investedTotal)||0}`;
+}
+function renderBattleModeIntervalTracker(){
+  const state=battleModeIntervalTrackerState();
+  const diff=battleModeIntervalDiffValue(state);
+  return `<button class="bm-diff-tracker" type="button" onclick="openBattleModeDiffTrackerSheet()">${escapeHtml(battleModeIntervalDiffText(diff))}<span class="muted">${escapeHtml(battleModeIntervalTrackerMeasured(state)?battleModeIntervalDetailText(state):'未計測')}</span></button>`;
+}
 function renderBattleModeCompactCounters(){
   const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
   const counter=machineSubCounter();
@@ -4785,6 +4816,69 @@ function renderBattleModeCompactCounters(){
       <button class="bm-mini-btn" type="button" onclick="battleModeIncrementSubCounter('${escapeHtml(counter.key)}')">+1</button>
     </div>`:'<div></div>'}
   </div>`;
+}
+function openBattleModeDiffTrackerSheet(){
+  const state=battleModeIntervalTrackerState();
+  const diff=battleModeIntervalDiffValue(state);
+  setBattleModeSheet('有利区間差枚',`
+    <div class="bm-recent-line" style="grid-column:1/-1;font-weight:900;color:var(--gold-light);">現在: ${escapeHtml(diff===null?'—':`${diff>0?'+':''}${diff}枚`)}</div>
+    <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">内訳: ${escapeHtml(battleModeIntervalDetailText(state))}</div>
+    <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('investYen')">投資追加（千円）</button>
+    <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('investMedals')">投資追加（枚）</button>
+    <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('credit')">クレジット更新</button>
+    <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('correct')">差枚を直接補正</button>
+    <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('initial')">初期差枚設定</button>
+    <button class="bm-btn" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>`);
+}
+function battleModeDiffInputLabel(mode){
+  return {
+    investYen:'投資追加（千円）',
+    investMedals:'投資追加（枚）',
+    credit:'クレジット更新',
+    correct:'差枚を直接補正',
+    initial:'初期差枚設定'
+  }[mode]||'差枚入力';
+}
+function openBattleModeDiffInput(mode){
+  const input=document.createElement('input');
+  input.type='text';
+  input.className='numeric-input';
+  input.inputMode='numeric';
+  input.readOnly=true;
+  input.placeholder=battleModeDiffInputLabel(mode);
+  if(mode==='correct'||mode==='initial')input.dataset.signed='1';
+  if(mode==='investYen')input.dataset.decimal='1';
+  input.style.position='fixed';
+  input.style.left='-9999px';
+  input.addEventListener('change',()=>{
+    const value=normalizeOptionalNumber(input.value);
+    input.remove();
+    if(value===null){battleModeInvalid('数値を入力してください');return;}
+    battleModeApplyDiffTrackerInput(mode,value);
+  },{once:true});
+  document.body.appendChild(input);
+  openNumericKeypad(input);
+}
+function battleModeApplyDiffTrackerInput(mode,value){
+  const normalized=normalizeOptionalNumber(value);
+  if(normalized===null){battleModeInvalid('数値を入力してください');return;}
+  const label=battleModeDiffInputLabel(mode);
+  const ok=battleModeCommit(label,()=>{
+    const state=normalizeIntervalEstimate(currentIntervalEstimate);
+    if(mode==='investYen'){
+      const medals=Math.round(normalized*state.loanRate);
+      currentIntervalEstimate={...state,investedTotal:Math.max(0,Math.round(state.investedTotal+medals))};
+    }else if(mode==='investMedals'){
+      currentIntervalEstimate={...state,investedTotal:Math.max(0,Math.round(state.investedTotal+normalized))};
+    }else if(mode==='credit'){
+      currentIntervalEstimate={...state,credit:Math.max(0,Math.round(normalized))};
+    }else if(mode==='initial'){
+      currentIntervalEstimate={...state,initialDiff:Math.round(normalized)};
+    }else if(mode==='correct'){
+      currentIntervalEstimate={...state,initialDiff:Math.round(normalized-(state.credit-state.investedTotal))};
+    }
+  });
+  if(ok)openBattleModeDiffTrackerSheet();
 }
 function renderBattleModeRecent(){
   const rows=battleModeRecentRows();
@@ -4856,20 +4950,20 @@ function renderBattleModeGrid(){
   const counters=panel.counters.slice(0,3);
   const events=panel.events.slice(0,3);
   return `
+    <div class="bm-event-row">
+      ${Array.from({length:3},(_,i)=>battleModeEventButton(events[i])).join('')}
+    </div>
+    <div class="bm-other-row">
+      <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">その他 ▼</button>
+    </div>
+    <div class="bm-button-row">
+      ${Array.from({length:3},(_,i)=>counters[i]?battleModeCounterButton(counters[i]):'<button class="bm-btn disabled" type="button" disabled>空き</button>').join('')}
+    </div>
     <div class="bm-button-row">
       ${Array.from({length:3},(_,i)=>{
         const delta=gains[i];
         return delta?`<button class="bm-btn counter" type="button" onclick="battleModeIncrementGame(${escapeHtml(delta)})">+${escapeHtml(delta)}</button>`:'<button class="bm-btn disabled" type="button" disabled>空き</button>';
       }).join('')}
-    </div>
-    <div class="bm-event-row">
-      ${Array.from({length:3},(_,i)=>battleModeEventButton(events[i])).join('')}
-    </div>
-    <div class="bm-button-row">
-      ${Array.from({length:3},(_,i)=>counters[i]?battleModeCounterButton(counters[i]):'<button class="bm-btn disabled" type="button" disabled>空き</button>').join('')}
-    </div>
-    <div class="bm-other-row">
-      <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">その他 ▼</button>
     </div>`;
 }
 function renderBattleModeUndoBar(){
@@ -4899,7 +4993,8 @@ function renderBattleMode(){
       <div class="bm-counter-value">${escapeHtml(battleModeCounterText(liquid))}</div>
     </button>
     </div>
-    ${renderBattleModeCompactCounters()}`;
+    ${renderBattleModeCompactCounters()}
+    ${renderBattleModeIntervalTracker()}`;
   const grid=document.getElementById('battleModeGrid');
   if(grid)grid.innerHTML=renderBattleModeGrid();
   const recent=document.getElementById('battleModeRecent');
@@ -9290,7 +9385,7 @@ function draftHasContent(log){
   const interval=normalizeIntervalEstimate(log.intervalEstimate);
   return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||normalizeExpectedValue(log.expectedValue)!==null||
     (normalizeOptionalNumber(log.suikaOffset)??0)!==0||(normalizeOptionalNumber(log.manualCorrection)??0)!==0||Object.keys(normalizeSubCounters(log.subCounters)).length>0||normalizeCounterHistories(log.counterHistories).length>0||
-    interval.initialDiff!==null||interval.loanRate!==DEFAULT_LOAN_RATE||interval.certainty==='reset'||interval.certainty==='estimated'||
+    interval.initialDiff!==null||interval.loanRate!==DEFAULT_LOAN_RATE||interval.certainty==='reset'||interval.certainty==='estimated'||Number(interval.investedTotal)>0||Number(interval.credit)>0||
     (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.segments||[]).length>0||endingCardsTotal(log.endingCards)>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
     !!money.store||!!money.machineNo||!!money.endTime||normalizeOptionalNumber(money.startMedals)!==null||normalizeOptionalNumber(money.endMedals)!==null||!!money.cashIn||
     !!log.publicMemo||!!log.privateMemo||!!continuedFromLog;

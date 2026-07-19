@@ -452,7 +452,11 @@ function testBattleModeEventRowBeforeCounterRow() {
     selectedAimId = firstAimIdForMachine(currentMachine()) || '';
   `, context);
   const grid = vm.runInContext('renderBattleModeGrid()', context);
-  assert.ok(grid.indexOf('openBattleModePicker') < grid.indexOf('t_nangoku_replay'));
+  assert.ok(grid.indexOf('openBattleModePicker') < grid.indexOf('openBattleModeOtherSheet'));
+  assert.ok(grid.indexOf('openBattleModeOtherSheet') < grid.indexOf('t_nangoku_replay'));
+  assert.ok(grid.indexOf('t_nangoku_replay') < grid.indexOf('battleModeIncrementGame(1)'));
+  const style = extractStyle();
+  assert.match(style, /\.bm-grid\{[^}]*align-content:end/);
 }
 
 function testBattleModeHitStartScrollsNextInputOnlyFromBattleMode() {
@@ -670,6 +674,38 @@ function testBattleModeGameIncrementUndoAndRedo() {
   assert.equal(vm.runInContext('timelineLiquidValue()', context), 101);
 }
 
+function testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    currentIntervalEstimate = normalizeIntervalEstimate({ initialDiff: null, loanRate: 46.6 });
+    battleModeApplyDiffTrackerInput('investYen', 6);
+    battleModeApplyDiffTrackerInput('credit', 400);
+  `, context);
+  assert.equal(vm.runInContext('currentIntervalEstimate.initialDiff', context), null);
+  assert.equal(vm.runInContext('currentIntervalEstimate.investedTotal', context), 280);
+  assert.equal(vm.runInContext('currentIntervalEstimate.credit', context), 400);
+  assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 120);
+  assert.equal(vm.runInContext('db.draftLog.intervalEstimate.investedTotal', context), 280);
+  assert.equal(vm.runInContext('db.draftLog.intervalEstimate.credit', context), 400);
+  assert.equal(vm.runInContext('db.draftLog.intervalEstimate.certainty', context), 'unknown');
+
+  vm.runInContext("battleModeApplyDiffTrackerInput('correct', 500)", context);
+  assert.equal(vm.runInContext('currentIntervalEstimate.initialDiff', context), 380);
+  assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 500);
+
+  vm.runInContext('undoBattleModeLast()', context);
+  assert.equal(vm.runInContext('currentIntervalEstimate.initialDiff', context), null);
+  assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 120);
+
+  vm.runInContext('redoBattleModeUndo()', context);
+  assert.equal(vm.runInContext('currentIntervalEstimate.initialDiff', context), 380);
+  assert.equal(vm.runInContext('battleModeIntervalDiffValue()', context), 500);
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -696,6 +732,7 @@ function run() {
   testBattleModeBonusPickerStartsExistingHitWizard();
   testBattleModeHitWizardResetReturnsToBattleMode();
   testBattleModeGameIncrementUndoAndRedo();
+  testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();
