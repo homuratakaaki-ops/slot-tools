@@ -25,6 +25,10 @@
   .option{display:flex;align-items:center;min-height:44px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);cursor:pointer;font-size:13px;font-weight:700;line-height:1.35;padding:9px 10px}
   .option input{position:absolute;opacity:0;pointer-events:none}
   .option:has(input:checked){border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12)}
+  .field-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .field-label{display:block;color:var(--text-muted);font-size:12px;font-weight:700;margin-bottom:6px}
+  .number-input{width:100%;min-height:44px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:16px;padding:9px 10px}
+  .check-option{margin-top:10px}
   .badge{display:inline-flex;align-items:center;border-radius:999px;font-size:12px;font-weight:700;padding:5px 10px;margin-bottom:10px;border:1px solid currentColor}
   .badge.strong{color:var(--green);background:rgba(95,196,135,.1)}.badge.lean-b{color:var(--blue);background:rgba(117,167,232,.1)}.badge.middle{color:var(--yellow);background:rgba(224,191,99,.1)}.badge.weak{color:var(--red);background:rgba(224,112,112,.1)}
   .current-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
@@ -41,6 +45,9 @@
   .mode-row.range-row{grid-template-columns:minmax(72px,96px) 1fr 82px}
   .bar-track{height:10px;background:var(--surface2);border-radius:999px;overflow:hidden;position:relative}
   .bar{height:100%;background:linear-gradient(90deg,var(--gold),var(--gold-light));border-radius:999px}
+  .not-a-meter{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-bottom:12px}
+  .not-a-meter .bar-track{height:16px;grid-column:1 / -1}
+  .not-a-value{color:var(--gold-light);font-size:22px;font-weight:800;line-height:1}
   .bar-min,.bar-range{height:100%;position:absolute;top:0;border-radius:999px}
   .bar-min{left:0;background:linear-gradient(90deg,var(--gold),var(--gold-light));z-index:2}
   .bar-range{background:var(--gold);opacity:.35;z-index:1}
@@ -58,10 +65,11 @@
   .source{font-size:12px;color:var(--text-dim);margin-top:12px}
   .source a{color:var(--gold);text-decoration:none}
   footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}footer a{color:var(--text-muted);text-decoration:none}
-  @media (max-width:420px){.option-grid{grid-template-columns:1fr}.mode-row{grid-template-columns:80px 1fr 48px}.mode-row.range-row{grid-template-columns:74px 1fr 82px}.current-head{display:block}.current-head .badge{margin-top:8px}th,td{font-size:12px;padding:8px 5px}}
+  @media (max-width:420px){.option-grid,.field-grid{grid-template-columns:1fr}.mode-row{grid-template-columns:80px 1fr 48px}.mode-row.range-row{grid-template-columns:74px 1fr 82px}.current-head{display:block}.current-head .badge{margin-top:8px}th,td{font-size:12px;padding:8px 5px}}
 </style>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944"
      crossorigin="anonymous"></script>
+<script src="assets/js/repflash-bayes.js"></script>
 </head>
 <body>
 <header>
@@ -131,6 +139,7 @@ function renderPage(){
   renderReference();
   renderSource();
   renderResult();
+  renderReplayFlashSection();
 }
 function renderInputs(){
   const inputArea = document.getElementById("inputArea");
@@ -184,6 +193,127 @@ function renderRangeRows(rows){
       </div>
     `;
   }).join("");
+}
+function badgeForNotA(percent){
+  if(percent >= 75){
+    return { level: "strong", label: "B系濃厚" };
+  }
+  if(percent >= 60){
+    return { level: "middle", label: "続行検討" };
+  }
+  return { level: "weak", label: "判断材料不足" };
+}
+function replayFlashOriginId(replayFlash){
+  const checked = document.querySelector('input[name="repflashOrigin"]:checked');
+  if(checked && replayFlash.priors[checked.value]){
+    return checked.value;
+  }
+  return Object.keys(replayFlash.priors)[0];
+}
+function replayFlashPrior(replayFlash){
+  const prior = replayFlash.priors[replayFlashOriginId(replayFlash)];
+  if(document.getElementById("repflashOver200")?.checked){
+    return window.RepflashBayes.applyExclusions(prior, replayFlash.over200Excludes);
+  }
+  return window.RepflashBayes.normalizePrior(prior);
+}
+function renderReplayFlashOutput(){
+  const replayFlash = machine.replayFlash;
+  if(!replayFlash || !window.RepflashBayes){
+    return;
+  }
+  const outputArea = document.getElementById("repflashResultArea");
+  if(!outputArea){
+    return;
+  }
+  const games = Number(document.getElementById("repflashGames").value || 0);
+  const count = Number(document.getElementById("repflashCount").value || 0);
+  const prior = replayFlashPrior(replayFlash);
+  if(!Number.isFinite(games) || games <= 0){
+    outputArea.innerHTML = `
+      <div class="result-box">
+        <h2>事前分布（観測未入力）</h2>
+        ${renderModeRows(Object.entries(prior).map(([mode, percent]) => ({ mode, percent })))}
+      </div>
+    `;
+    return;
+  }
+  const result = window.RepflashBayes.estimate({
+    rates: replayFlash.rates,
+    prior,
+    games,
+    count: Number.isFinite(count) && count > 0 ? count : 0,
+    aMode: replayFlash.aMode
+  });
+  const badge = badgeForNotA(result.pNotA);
+  outputArea.innerHTML = `
+    <div class="result-box">
+      <h2>A否定度 P(通常B以上)</h2>
+      <div class="not-a-meter">
+        <div class="not-a-value">${result.pNotA.toFixed(1)}%</div>
+        <div class="badge ${escapeHtml(badge.level)}">${escapeHtml(badge.label)}</div>
+        <div class="bar-track"><div class="bar" style="width:${clampPercent(result.pNotA)}%"></div></div>
+      </div>
+      <h3>事後モード割合</h3>
+      ${renderModeRows(Object.entries(result.posterior).map(([mode, percent]) => ({ mode, percent })))}
+    </div>
+  `;
+}
+function renderReplayFlashSection(){
+  const existing = document.getElementById("repflashSection");
+  if(existing){
+    existing.remove();
+  }
+  const replayFlash = machine.replayFlash;
+  if(!replayFlash || !window.RepflashBayes){
+    return;
+  }
+  const section = document.createElement("section");
+  section.className = "section";
+  section.id = "repflashSection";
+  section.innerHTML = `
+    <div class="section-label">リプフラ・ベイズ推定（通常A否定）</div>
+    <div class="card" id="repflashInputArea">
+      <div class="axis">
+        <div class="axis-title">起点</div>
+        <div class="option-grid">
+          ${Object.entries(replayFlash.priors).map(([origin, values], index) => `
+            <label class="option">
+              <input type="radio" name="repflashOrigin" value="${escapeHtml(origin)}" ${index === 0 ? "checked" : ""}>
+              <span>${escapeHtml(replayFlash.originLabels[origin] || origin)}</span>
+            </label>
+          `).join("")}
+        </div>
+      </div>
+      <label class="option check-option">
+        <input type="checkbox" id="repflashOver200">
+        <span>内部200G超えを確認済み（チャンス・飛翔準備B・超飛翔準備を否定）</span>
+      </label>
+      <div class="field-grid">
+        <label>
+          <span class="field-label">リプフラ観測G数（実効）</span>
+          <input class="number-input" id="repflashGames" type="number" inputmode="numeric" min="0" step="1" placeholder="例：670">
+        </label>
+        <label>
+          <span class="field-label">リプフラ回数</span>
+          <input class="number-input" id="repflashCount" type="number" inputmode="numeric" min="0" step="1" value="0">
+        </label>
+      </div>
+    </div>
+    <div id="repflashResultArea"></div>
+    <div class="notice">
+      <ul>
+        <li>ボーナス後のバタフライ＋ときめき約41Gはリプフラ対象外のため観測G数から除外して入力。複数区間の通算入力可</li>
+        <li>飛翔・超飛翔終了、設定変更でモードが振り直されるため、観測窓はそこでリセットして入力し直すこと</li>
+        <li>事前分布は公開の初期振り分けを使用。観測窓内にボーナスを挟む場合、昇格分（チャンス→通常B等）は近似として据え置き</li>
+      </ul>
+    </div>
+  `;
+  const resultSection = document.getElementById("resultArea").closest(".section");
+  resultSection.after(section);
+  section.querySelectorAll("input").forEach(input => input.addEventListener("input", renderReplayFlashOutput));
+  section.querySelectorAll('input[type="radio"],input[type="checkbox"]').forEach(input => input.addEventListener("change", renderReplayFlashOutput));
+  renderReplayFlashOutput();
 }
 function renderCurrentState(data){
   return `
