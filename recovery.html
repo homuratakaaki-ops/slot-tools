@@ -128,6 +128,12 @@ function formatNeraiCounts(data){
   const counts=neraiCounts(data);
   return `machines:${counts.machines} / logs:${counts.logs} / stores:${counts.stores} / draftLog:${counts.draftLog?'yes':'no'}${counts.draftMachine?` / draftLog機種:${counts.draftMachine}`:''}`;
 }
+function withoutDraftLog(data){
+  if(!data||typeof data!=='object')return data;
+  const clone={...data};
+  delete clone.draftLog;
+  return clone;
+}
 function snapshot(){
   return {
     capturedAt:new Date().toISOString(),
@@ -168,9 +174,20 @@ function cleanupReadiness(){
   const mainRaw=localStorage.getItem(NERAI_STORAGE_KEY);
   const lastGoodRaw=localStorage.getItem(NERAI_LAST_GOOD_KEY);
   const failures=[];
+  const notes=[];
   if(!mainRaw)failures.push(`${NERAI_STORAGE_KEY} がありません。`);
   if(!lastGoodRaw)failures.push(`${NERAI_LAST_GOOD_KEY} がありません。`);
-  if(mainRaw&&lastGoodRaw&&mainRaw!==lastGoodRaw)failures.push(`${NERAI_LAST_GOOD_KEY} が主キーと一致しません。`);
+  if(mainRaw&&lastGoodRaw&&mainRaw!==lastGoodRaw){
+    const mainParsed=parseJson(mainRaw);
+    const lastGoodParsed=parseJson(lastGoodRaw);
+    if(!isValidNeraiData(mainParsed)||!isValidNeraiData(lastGoodParsed)){
+      failures.push(`${NERAI_LAST_GOOD_KEY} が主キーと一致せず、JSONとして比較できません。`);
+    }else if(JSON.stringify(withoutDraftLog(mainParsed))===JSON.stringify(withoutDraftLog(lastGoodParsed))){
+      notes.push(`${NERAI_LAST_GOOD_KEY} との差分は draftLog 内のみ（破棄対象）です。`);
+    }else{
+      failures.push(`${NERAI_LAST_GOOD_KEY} が主キーと一致せず、draftLog 以外にも差分があります。`);
+    }
+  }
   REDUNDANT_NERAI_KEYS.forEach(key=>{
     const raw=localStorage.getItem(key);
     if(!raw)return;
@@ -178,7 +195,7 @@ function cleanupReadiness(){
     if(!isValidNeraiData(parsed))failures.push(`${key} が nerai_record_v1 形式ではありません。`);
     else if((parsed.logs||[]).length!==0)failures.push(`${key} が logs:0 ではありません。`);
   });
-  return {ok:failures.length===0,failures};
+  return {ok:failures.length===0,failures,notes};
 }
 function clearRedundantNeraiKeys(){
   const result=document.getElementById('cleanupResult');
@@ -191,9 +208,10 @@ function clearRedundantNeraiKeys(){
   const rows=keys.map(key=>({key,raw:localStorage.getItem(key)})).filter(row=>row.raw!==null);
   const totalChars=rows.reduce((sum,row)=>sum+(row.raw?row.raw.length:0),0);
   const detail=rows.map(row=>`${row.key}: ${row.raw.length} chars`).join('\n');
-  if(!confirm(`冗長キー ${rows.length}件を削除します。\n解放予定: ${totalChars} chars\n\n${detail}\n\n主キーと premigrate は削除しません。実行しますか？`))return;
+  const noteText=readiness.notes.length?`\n\n安全確認:\n${readiness.notes.join('\n')}`:'';
+  if(!confirm(`冗長キー ${rows.length}件を削除します。\n解放予定: ${totalChars} chars\n\n${detail}${noteText}\n\n主キーと premigrate は削除しません。実行しますか？`))return;
   rows.forEach(row=>localStorage.removeItem(row.key));
-  result.innerHTML=`<span class="success">容量確保完了</span>\n削除キー:\n${escapeHtml(detail)}\n解放文字数: ${totalChars} chars`;
+  result.innerHTML=`<span class="success">容量確保完了</span>\n${readiness.notes.length?`${escapeHtml(readiness.notes.join('\n'))}\n`:''}削除キー:\n${escapeHtml(detail)}\n解放文字数: ${totalChars} chars`;
   render();
 }
 function restoreNeraiFromFile(input){
