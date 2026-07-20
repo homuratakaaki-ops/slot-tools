@@ -6,7 +6,7 @@
   <meta name="robots" content="noindex,nofollow">
   <title>localStorage Recovery - slot-tools</title>
   <style>
-    :root{color-scheme:dark;--bg:#11131a;--panel:#191d28;--text:#f4f4f6;--muted:#aeb4c2;--line:#3a4152;--accent:#f0c15a;--danger:#ff7a7a;}
+    :root{color-scheme:dark;--bg:#11131a;--panel:#191d28;--text:#f4f4f6;--muted:#aeb4c2;--line:#3a4152;--accent:#f0c15a;--danger:#ff7a7a;--ok:#8ee0a2;}
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
     main{max-width:960px;margin:0 auto;padding:20px 14px 40px}
@@ -17,20 +17,24 @@
     .tools{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
     button{appearance:none;border:1px solid var(--line);background:#242a38;color:var(--text);border-radius:8px;padding:10px 12px;font-weight:700}
     button.primary{border-color:rgba(240,193,90,.75);background:#3a2f16;color:#ffe6a6}
-    .summary,.entry{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:12px;margin-top:10px}
+    button.danger{border-color:rgba(255,122,122,.75);background:#3a1d24;color:#ffd6d6}
+    .summary,.entry,.operation{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:12px;margin-top:10px}
     .recovery-grid{display:grid;gap:6px;margin-top:8px}
     .recovery-key{display:flex;justify-content:space-between;gap:10px;border:1px solid rgba(255,255,255,.1);border-radius:6px;padding:7px 8px;background:rgba(0,0,0,.14);font-size:12px}
     .recovery-key span:first-child{word-break:break-all}
     .key{font-weight:800;color:var(--accent);word-break:break-all}
     .meta{font-size:12px;color:var(--muted);margin-top:4px}
+    .result{border:1px solid rgba(240,193,90,.38);background:rgba(240,193,90,.08);border-radius:8px;padding:10px;margin-top:10px;white-space:pre-wrap}
+    .success{color:var(--ok);font-weight:800}
     textarea{width:100%;min-height:180px;margin-top:8px;background:#0c0e13;color:var(--text);border:1px solid var(--line);border-radius:8px;padding:10px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;white-space:pre;resize:vertical}
     .empty{color:var(--danger);font-weight:700}
+    input[type="file"]{width:100%;margin-top:8px;color:var(--text)}
   </style>
 </head>
 <body>
 <main>
   <h1>localStorage Recovery</h1>
-  <p class="warn">このページは読み取り専用です。localStorage / sessionStorage の削除・変更・正規化・移行は一切行いません。</p>
+  <p class="warn">このページは読み込み時には読み取り専用です。下の「容量確保」「復元」を明示的に押すまで、localStorage / sessionStorage の削除・変更・正規化・移行は一切行いません。</p>
   <p>表示された内容をそのままコピー、またはJSONとしてダウンロードしてください。復旧確認が終わるまで、ブラウザデータの削除やキャッシュクリアはしないでください。</p>
 
   <div class="tools">
@@ -40,6 +44,18 @@
   </div>
 
   <section class="summary" id="summary"></section>
+  <section class="operation">
+    <h2>nerai-record復旧操作</h2>
+    <p>容量確保は、主キーと完全一致する last_good、および logs:0 の世代バックアップだけを削除します。条件が崩れている場合は実行できません。</p>
+    <div class="tools">
+      <button class="danger" type="button" onclick="clearRedundantNeraiKeys()">容量確保（冗長キー削除）</button>
+    </div>
+    <div id="cleanupResult" class="result" aria-live="polite">未実行</div>
+    <h2>ファイルから復元</h2>
+    <p>version:1 / machines / stores / logs を持つJSONだけを、復元前退避（nerai_record_v1_prerestore）作成後に主キーへ書き込みます。完了後も nerai-record.html は自動で開きません。</p>
+    <input type="file" id="restoreFile" accept="application/json,.json" onchange="restoreNeraiFromFile(this)">
+    <div id="restoreResult" class="result" aria-live="polite">未実行</div>
+  </section>
   <section id="storageList"></section>
 </main>
 
@@ -49,6 +65,14 @@ const KNOWN_RECOVERY_KEYS=[
   'nerai_record_v1_last_good',
   'nerai_record_v1_premigrate',
   'nerai_record_v1_prerestore',
+  'nerai_record_v1_backup_1',
+  'nerai_record_v1_backup_2',
+  'nerai_record_v1_backup_3'
+];
+const NERAI_STORAGE_KEY='nerai_record_v1';
+const NERAI_LAST_GOOD_KEY='nerai_record_v1_last_good';
+const NERAI_PRERESTORE_KEY='nerai_record_v1_prerestore';
+const REDUNDANT_NERAI_KEYS=[
   'nerai_record_v1_backup_1',
   'nerai_record_v1_backup_2',
   'nerai_record_v1_backup_3'
@@ -83,6 +107,26 @@ function summarizeValue(value){
   }catch{
     return 'text';
   }
+}
+function parseJson(value){
+  if(!value)return null;
+  try{return JSON.parse(value);}catch{return null;}
+}
+function isValidNeraiData(data){
+  return !!data&&data.version===1&&Array.isArray(data.machines)&&Array.isArray(data.stores)&&Array.isArray(data.logs);
+}
+function neraiCounts(data){
+  return {
+    machines:Array.isArray(data?.machines)?data.machines.length:0,
+    logs:Array.isArray(data?.logs)?data.logs.length:0,
+    stores:Array.isArray(data?.stores)?data.stores.length:0,
+    draftLog:!!data?.draftLog,
+    draftMachine:data?.draftLog?.machineName||data?.draftLog?.machineId||''
+  };
+}
+function formatNeraiCounts(data){
+  const counts=neraiCounts(data);
+  return `machines:${counts.machines} / logs:${counts.logs} / stores:${counts.stores} / draftLog:${counts.draftLog?'yes':'no'}${counts.draftMachine?` / draftLog機種:${counts.draftMachine}`:''}`;
 }
 function snapshot(){
   return {
@@ -119,6 +163,84 @@ function render(){
       <div class="meta">${escapeHtml(row.summary)} / ${row.length} chars</div>
       <textarea readonly spellcheck="false">${escapeHtml(row.value||'')}</textarea>
     </article>`).join(''):'<p class="empty">storage key not found</p>';
+}
+function cleanupReadiness(){
+  const mainRaw=localStorage.getItem(NERAI_STORAGE_KEY);
+  const lastGoodRaw=localStorage.getItem(NERAI_LAST_GOOD_KEY);
+  const failures=[];
+  if(!mainRaw)failures.push(`${NERAI_STORAGE_KEY} がありません。`);
+  if(!lastGoodRaw)failures.push(`${NERAI_LAST_GOOD_KEY} がありません。`);
+  if(mainRaw&&lastGoodRaw&&mainRaw!==lastGoodRaw)failures.push(`${NERAI_LAST_GOOD_KEY} が主キーと一致しません。`);
+  REDUNDANT_NERAI_KEYS.forEach(key=>{
+    const raw=localStorage.getItem(key);
+    if(!raw)return;
+    const parsed=parseJson(raw);
+    if(!isValidNeraiData(parsed))failures.push(`${key} が nerai_record_v1 形式ではありません。`);
+    else if((parsed.logs||[]).length!==0)failures.push(`${key} が logs:0 ではありません。`);
+  });
+  return {ok:failures.length===0,failures};
+}
+function clearRedundantNeraiKeys(){
+  const result=document.getElementById('cleanupResult');
+  const readiness=cleanupReadiness();
+  if(!readiness.ok){
+    result.innerHTML=`<span class="empty">削除不可</span>\n${escapeHtml(readiness.failures.join('\n'))}`;
+    return;
+  }
+  const keys=[NERAI_LAST_GOOD_KEY,...REDUNDANT_NERAI_KEYS];
+  const rows=keys.map(key=>({key,raw:localStorage.getItem(key)})).filter(row=>row.raw!==null);
+  const totalChars=rows.reduce((sum,row)=>sum+(row.raw?row.raw.length:0),0);
+  const detail=rows.map(row=>`${row.key}: ${row.raw.length} chars`).join('\n');
+  if(!confirm(`冗長キー ${rows.length}件を削除します。\n解放予定: ${totalChars} chars\n\n${detail}\n\n主キーと premigrate は削除しません。実行しますか？`))return;
+  rows.forEach(row=>localStorage.removeItem(row.key));
+  result.innerHTML=`<span class="success">容量確保完了</span>\n削除キー:\n${escapeHtml(detail)}\n解放文字数: ${totalChars} chars`;
+  render();
+}
+function restoreNeraiFromFile(input){
+  const result=document.getElementById('restoreResult');
+  const file=input.files&&input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=()=>{
+    try{
+      const text=String(reader.result||'');
+      const parsed=JSON.parse(text);
+      if(!isValidNeraiData(parsed)){
+        result.innerHTML='<span class="empty">復元不可</span>\nnerai_record_v1 形式のJSONではありません。';
+        input.value='';
+        return;
+      }
+      const currentRaw=localStorage.getItem(NERAI_STORAGE_KEY);
+      if(!currentRaw){
+        result.innerHTML='<span class="empty">復元中止</span>\n現在の主キーがないため、復元前退避を作成できません。';
+        input.value='';
+        return;
+      }
+      const currentParsed=parseJson(currentRaw);
+      if(!isValidNeraiData(currentParsed)){
+        result.innerHTML='<span class="empty">復元中止</span>\n現在の主キーが不正なため、復元前退避を作成できません。';
+        input.value='';
+        return;
+      }
+      const summary=formatNeraiCounts(parsed);
+      if(!confirm(`このJSONを nerai_record_v1 に復元します。\n${summary}\n\n復元前に現在の主キーを ${NERAI_PRERESTORE_KEY} に退避します。実行しますか？`)){
+        input.value='';
+        return;
+      }
+      localStorage.setItem(NERAI_PRERESTORE_KEY,currentRaw);
+      localStorage.setItem(NERAI_STORAGE_KEY,JSON.stringify(parsed));
+      result.innerHTML=`<span class="success">復元完了</span>\n${escapeHtml(summary)}\n復元前退避: ${NERAI_PRERESTORE_KEY}`;
+      render();
+    }catch(error){
+      result.innerHTML=`<span class="empty">復元失敗</span>\n${escapeHtml(error&&error.message?error.message:String(error))}`;
+    }
+    input.value='';
+  };
+  reader.onerror=()=>{
+    result.innerHTML='<span class="empty">復元失敗</span>\nファイルを読み込めませんでした。';
+    input.value='';
+  };
+  reader.readAsText(file);
 }
 function downloadSnapshot(){
   const text=JSON.stringify(snapshot(),null,2);
