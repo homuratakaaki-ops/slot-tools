@@ -752,6 +752,91 @@ function testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo() {
   `, context), 50);
 }
 
+function testSuggestLogSnapshotKeepsOnlyCurrentSegmentEntries() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    currentSegmentStartedAt = '2026-07-18T10:00:00.000Z';
+    currentSuggestLog = [
+      { id: 'carry_setting', place: '前区切り', item: '持ち越し', carryType: 'setting', createdAt: '2026-07-18T09:59:00.000Z' },
+      { id: 'current_setting', place: '今回区切り', item: '今回', carryType: 'setting', createdAt: '2026-07-18T10:01:00.000Z' }
+    ];
+  `, context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext('JSON.stringify(segmentSuggestLogForSnapshot().map(entry => entry.id))', context)),
+    ['current_setting']
+  );
+}
+
+function testNormalizeDataDedupesCopiedSegmentSuggestLogs() {
+  const duplicated = {
+    id: 'l_suggest_dup',
+    schemaVersion: 2,
+    sessionId: 's_suggest_dup',
+    aimNumber: 1,
+    status: 'finished',
+    machineId: 'm_nangoku_special',
+    aimId: 'aim_tenjo',
+    machineName: 'L南国育ちSPECIAL',
+    aimName: '天井狙い',
+    fieldSnapshot: [],
+    values: {},
+    flowStep: 4,
+    startCounterGame: 0,
+    startLog: [],
+    timeline: [],
+    suggestLog: [],
+    hitEvents: [],
+    segments: [
+      { id: 'seg_new', createdAt: '2026-07-18T10:10:00.000Z', branchNumber: 2, timeline: [], suggestLog: [{ id: 'sg_dup', place: '示唆', item: '同一', carryType: 'setting', createdAt: '2026-07-18T10:00:00.000Z' }], hitEvents: [], endingCards: {} },
+      { id: 'seg_old', createdAt: '2026-07-18T10:00:00.000Z', branchNumber: 1, timeline: [], suggestLog: [{ id: 'sg_dup', place: '示唆', item: '同一', carryType: 'setting', createdAt: '2026-07-18T10:00:00.000Z' }], hitEvents: [], endingCards: {} }
+    ],
+    endingCards: {},
+    money: { date: '2026-07-18', store: '', machineNo: '', startMedals: 0, endMedals: null, cashIn: 0 },
+    createdAt: '2026-07-18T10:00:00.000Z',
+    updatedAt: '2026-07-18T10:10:00.000Z'
+  };
+  const raw = JSON.stringify({ version: 1, machines: [], stores: [], logs: [duplicated], shopNotes: [], draftLog: null });
+  const { context } = runRecord(raw);
+  assert.equal(vm.runInContext('db.logs[0].segments.find(segment => segment.id === "seg_old").suggestLog.length', context), 1);
+  assert.equal(vm.runInContext('db.logs[0].segments.find(segment => segment.id === "seg_new").suggestLog.length', context), 0);
+}
+
+function testStorageGuardCatchesLogShopNoteAndDraftLoss() {
+  const oldData = {
+    version: 1,
+    machines: [],
+    stores: [{ id: 'st_1', name: 'STORE', lendRate: null, exchangeRate: null }],
+    logs: [{ id: 'l_1', sessionId: 's_1' }],
+    shopNotes: [{ id: 'sn_1', text: 'note', shopName: 'STORE' }],
+    draftLog: { id: 'draft_1', sessionId: 's_draft' }
+  };
+  const { context, localStorage } = runRecord(JSON.stringify(oldData));
+  vm.runInContext('db.logs = []; db.shopNotes = []; db.draftLog = null; persist();', context);
+  const stored = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  assert.equal(stored.logs.length, 1);
+  assert.equal(stored.shopNotes.length, 1);
+  assert.ok(stored.draftLog);
+  assert.equal(vm.runInContext('storageProtectionReason.length > 0', context), true);
+}
+
+function testQuotaExceededLocksProtectionWithoutThrowing() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    const originalSetItem = localStorage.setItem.bind(localStorage);
+    localStorage.setItem = (key, value) => {
+      if (key === STORAGE_KEY) {
+        const error = new Error('quota');
+        error.name = 'QuotaExceededError';
+        throw error;
+      }
+      return originalSetItem(key, value);
+    };
+    db.logs.push({ id: 'l_quota', sessionId: 's_quota' });
+  `, context);
+  assert.equal(vm.runInContext('persist()', context), false);
+  assert.equal(vm.runInContext('storageProtectionLocked', context), true);
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -779,6 +864,10 @@ function run() {
   testBattleModeHitWizardResetReturnsToBattleMode();
   testBattleModeGameIncrementUndoAndRedo();
   testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo();
+  testSuggestLogSnapshotKeepsOnlyCurrentSegmentEntries();
+  testNormalizeDataDedupesCopiedSegmentSuggestLogs();
+  testStorageGuardCatchesLogShopNoteAndDraftLoss();
+  testQuotaExceededLocksProtectionWithoutThrowing();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();

@@ -329,6 +329,10 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .protection-banner{display:none;margin:10px 12px 0;border:1px solid rgba(255,122,122,.65);background:rgba(255,122,122,.1);color:#ffdcdc;border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;}
 .protection-banner.open{display:block;}
 .protection-banner a{color:var(--gold-light);font-weight:800;}
+.storage-usage-banner{display:none;margin:10px 12px 0;border:1px solid rgba(201,168,76,.55);background:rgba(201,168,76,.12);color:var(--gold-light);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;}
+.storage-usage-banner.open{display:block;}
+.storage-usage-banner.danger{border-color:rgba(255,122,122,.7);background:rgba(255,122,122,.13);color:#ffdcdc;}
+.storage-usage-meter{font-size:12px;color:var(--text-muted);line-height:1.7;margin-top:8px;}
 .protection-list{display:grid;gap:8px;margin-top:10px;}
 .protection-row{border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px;background:rgba(0,0,0,.16);}
 .protection-row .meta{font-size:12px;color:var(--text-muted);margin-top:4px;}
@@ -490,6 +494,7 @@ footer a:hover{color:var(--gold-light);}
 </div>
 
 <div class="protection-banner" id="storageProtectionBanner"></div>
+<div class="storage-usage-banner" id="storageUsageBanner"></div>
 
 <div class="page" id="pageLog">
   <div class="flow-step-tabs" id="flowStepTabs"></div>
@@ -606,6 +611,7 @@ footer a:hover{color:var(--gold-light);}
     <button class="btn-secondary" onclick="backupJson()">全データをJSONでバックアップ</button>
     <div class="card" style="margin-top:10px;">
       <div class="input-label" style="margin-bottom:8px;">JSONから復元</div>
+      <div class="storage-usage-meter" id="storageUsageDetail"></div>
       <input class="backup-file" type="file" id="restoreFile" accept="application/json,.json" onchange="restoreJson(this)">
     </div>
     <div class="card" style="margin-top:10px;">
@@ -927,6 +933,9 @@ const STORAGE_PRERESTORE_KEY='nerai_record_v1_prerestore';
 const STORAGE_DAILY_BACKUP_DATE_KEY='nerai_record_v1_daily_backup_date';
 const STORAGE_BACKUP_KEYS=['nerai_record_v1_backup_1','nerai_record_v1_backup_2','nerai_record_v1_backup_3'];
 const STORAGE_RECOVERY_KEYS=[STORAGE_LAST_GOOD_KEY,STORAGE_PREMIGRATE_KEY,STORAGE_PRERESTORE_KEY,...STORAGE_BACKUP_KEYS];
+const LOCAL_STORAGE_SOFT_LIMIT_BYTES=5*1024*1024;
+const STORAGE_USAGE_WARN_RATIO=.6;
+const STORAGE_USAGE_DANGER_RATIO=.8;
 const ORGANIZED_FILTER_KEY='neraiOrganizedViewFilters';
 const ORGANIZED_CHAIN_MODE_HINTS_KEY='neraiOrganizedShowChainModeHints';
 const LOG_SCHEMA_VERSION=2;
@@ -1025,6 +1034,7 @@ let currentHitEvents=[];
 let currentSuggestLog=[];
 let currentKuiPointReleased=false;
 let currentSegments=[];
+let currentSegmentStartedAt=new Date().toISOString();
 let lastSegmentUndo=null;
 let currentEndingCards={};
 let endingCardGroupsOpen={};
@@ -1246,12 +1256,14 @@ function isValidStorageData(data){
 function storageCounts(data){
   return {
     logs:Array.isArray(data?.logs)?data.logs.length:0,
-    stores:Array.isArray(data?.stores)?data.stores.length:0
+    stores:Array.isArray(data?.stores)?data.stores.length:0,
+    shopNotes:Array.isArray(data?.shopNotes)?data.shopNotes.length:0,
+    draftLog:data?.draftLog&&typeof data.draftLog==='object'?1:0
   };
 }
 function isNonEmptyStorageData(data){
   const counts=storageCounts(data);
-  return counts.logs>0||counts.stores>0;
+  return counts.logs>0||counts.stores>0||counts.shopNotes>0||counts.draftLog>0;
 }
 function parseStorageRaw(raw){
   if(!raw)return null;
@@ -1280,13 +1292,76 @@ function renderStorageProtectionBanner(){
     ?`${escapeHtml(storageProtectionReason||'データ保護のため自動保存を停止しています。')} <a href="recovery.html" target="_blank" rel="noopener">Recoveryを開く</a>`
     :'';
 }
+function estimateLocalStorageBytes(){
+  let total=0;
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const key=localStorage.key(i);
+      const value=localStorage.getItem(key)||'';
+      total+=(String(key).length+String(value).length)*2;
+    }
+  }catch(error){
+    console.error('storage estimate failed',error);
+  }
+  return total;
+}
+function formatStorageBytes(bytes){
+  if(bytes>=1024*1024)return `${(bytes/1024/1024).toFixed(2)} MB`;
+  return `${Math.round(bytes/1024)} KB`;
+}
+function storageUsageInfo(){
+  const bytes=estimateLocalStorageBytes();
+  const ratio=LOCAL_STORAGE_SOFT_LIMIT_BYTES?bytes/LOCAL_STORAGE_SOFT_LIMIT_BYTES:0;
+  return {bytes,ratio,percent:Math.round(ratio*100)};
+}
+function renderStorageUsage(){
+  const info=storageUsageInfo();
+  const detail=document.getElementById('storageUsageDetail');
+  const detailText=`localStorage 使用量（概算）: ${formatStorageBytes(info.bytes)} / 約 ${formatStorageBytes(LOCAL_STORAGE_SOFT_LIMIT_BYTES)}（${info.percent}%）`;
+  if(detail)detail.textContent=detailText;
+  const banner=document.getElementById('storageUsageBanner');
+  if(!banner)return;
+  const danger=info.ratio>=STORAGE_USAGE_DANGER_RATIO;
+  const warning=info.ratio>=STORAGE_USAGE_WARN_RATIO;
+  banner.classList.toggle('open',warning);
+  banner.classList.toggle('danger',danger);
+  banner.textContent=danger
+    ?`${detailText}。保存失敗の危険があります。至急バックアップとアーカイブを行ってください。`
+    :warning?`${detailText}。バックアップとアーカイブを推奨します。`:'';
+}
 function dangerousSaveReason(oldCounts,newCounts){
-  const oldNonEmpty=oldCounts.logs>0||oldCounts.stores>0;
-  const newEmpty=newCounts.logs===0&&newCounts.stores===0;
+  const oldNonEmpty=oldCounts.logs>0||oldCounts.stores>0||oldCounts.shopNotes>0||oldCounts.draftLog>0;
+  const newEmpty=newCounts.logs===0&&newCounts.stores===0&&newCounts.shopNotes===0&&newCounts.draftLog===0;
   if(oldNonEmpty&&newEmpty)return '保存済みデータが非空ですが、新しい保存内容が空です。保存を拒否しました。';
+  if(oldCounts.logs>0&&newCounts.logs===0)return `保存済みログが ${oldCounts.logs} 件ありますが、新しい保存内容では 0 件です。保存を拒否しました。`;
   const logsHalf=oldCounts.logs>=2&&newCounts.logs<oldCounts.logs/2;
   const storesHalf=oldCounts.stores>=2&&newCounts.stores<oldCounts.stores/2;
-  if(logsHalf||storesHalf)return `保存件数が大幅に減少します（logs ${oldCounts.logs}→${newCounts.logs}, stores ${oldCounts.stores}→${newCounts.stores}）。`;
+  const shopNotesHalf=oldCounts.shopNotes>=2&&newCounts.shopNotes<oldCounts.shopNotes/2;
+  if(oldCounts.draftLog>0&&newCounts.draftLog===0&&newCounts.logs<=oldCounts.logs)return '保存済み下書きがありますが、新しい保存内容では下書きが消えています。保存を拒否しました。';
+  if(logsHalf||storesHalf||shopNotesHalf)return `保存件数が大幅に減少しました（logs ${oldCounts.logs}→${newCounts.logs}, stores ${oldCounts.stores}→${newCounts.stores}, shopNotes ${oldCounts.shopNotes}→${newCounts.shopNotes}）。`;
+  return '';
+}
+function collectSessionIds(data){
+  const ids=new Set();
+  (Array.isArray(data?.logs)?data.logs:[]).forEach(log=>{
+    const id=String(log?.sessionId||log?.id||'').trim();
+    if(id)ids.add(id);
+  });
+  const draftId=String(data?.draftLog?.sessionId||data?.draftLog?.id||'').trim();
+  if(draftId)ids.add(draftId);
+  return ids;
+}
+function storageLossReason(oldData,newData){
+  const oldCounts=storageCounts(oldData);
+  const newCounts=storageCounts(newData);
+  const countReason=dangerousSaveReason(oldCounts,newCounts);
+  if(countReason)return countReason;
+  const oldSessions=collectSessionIds(oldData);
+  if(oldSessions.size&&newCounts.logs<=oldCounts.logs){
+    const newSessions=collectSessionIds(newData);
+    const missing=[...oldSessions].filter(id=>!newSessions.has(id));
+    if(missing.length)return `保存済みセッションIDが消えています（${missing.slice(0,3).join(', ')}${missing.length>3?' 他':''}）。保存を拒否しました。`;
+  }
   return '';
 }
 function normalizeHitTrigger(value){
@@ -1562,6 +1637,23 @@ function normalizeSuggestLogEntry(item){
   item.createdAt=item.createdAt||new Date().toISOString();
   return item;
 }
+function dedupeSegmentSuggestLogs(log){
+  if(!log||!Array.isArray(log.segments))return;
+  log.segments.forEach(segment=>{
+    segment.suggestLog=uniqueSuggestEntries(segment.suggestLog||[]);
+  });
+  const ordered=log.segments
+    .map((segment,index)=>({segment,index,time:Date.parse(segment.createdAt||'')}))
+    .sort((a,b)=>{
+      const at=Number.isFinite(a.time)?a.time:0;
+      const bt=Number.isFinite(b.time)?b.time:0;
+      return at-bt||a.index-b.index;
+    });
+  const seen=new Set();
+  ordered.forEach(row=>{
+    row.segment.suggestLog=uniqueSuggestEntries(row.segment.suggestLog||[],seen);
+  });
+}
 function normalizeShopNote(note){
   if(!note||typeof note!=='object')return null;
   const text=String(note.text||'').trim();
@@ -1616,6 +1708,7 @@ function normalizeData(data){
     log.hitEvents=Array.isArray(log.hitEvents)?log.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
     log.intervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
     log.segments=Array.isArray(log.segments)?log.segments.map(normalizeSegment).filter(Boolean):[];
+    dedupeSegmentSuggestLogs(log);
     log.endingCards=normalizeEndingCards(log.endingCards);
     log.hitBranchWizard=log.hitBranchWizard&&typeof log.hitBranchWizard==='object'?normalizeHitBranchWizard(log.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     log.continuedFromId=log.continuedFromId||log.continuedFromLog?.id||'';
@@ -1673,6 +1766,7 @@ function normalizeData(data){
     data.draftLog.counterHistories=normalizeCounterHistories(data.draftLog.counterHistories);
     data.draftLog.timeline=Array.isArray(data.draftLog.timeline)?data.draftLog.timeline.map(item=>({...item,game:normalizeOptionalNumber(item.game),liquidGame:normalizeOptionalNumber(item.liquidGame),subCounters:normalizeSubCounters(item.subCounters),attachments:normalizeTimelineAttachments(item.attachments)})):[];
     data.draftLog.segments=Array.isArray(data.draftLog.segments)?data.draftLog.segments.map(normalizeSegment).filter(Boolean):[];
+    dedupeSegmentSuggestLogs(data.draftLog);
     data.draftLog.endingCards=normalizeEndingCards(data.draftLog.endingCards);
     data.draftLog.suggestLog=Array.isArray(data.draftLog.suggestLog)?data.draftLog.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[];
     data.draftLog.hitBranchWizard=data.draftLog.hitBranchWizard&&typeof data.draftLog.hitBranchWizard==='object'?normalizeHitBranchWizard(data.draftLog.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
@@ -1743,9 +1837,7 @@ function persist(options={}){
   }
   const oldRaw=localStorage.getItem(STORAGE_KEY);
   const oldData=parseStorageRaw(oldRaw);
-  const oldCounts=storageCounts(oldData);
-  const newCounts=storageCounts(db);
-  const reason=dangerousSaveReason(oldCounts,newCounts);
+  const reason=storageLossReason(oldData,db);
   if(reason&&!options.allowDangerous){
     if(options.confirmDanger&&confirm(`${reason}\n明示的な削除として保存しますか？`)){
       backupRawStorage(STORAGE_LAST_GOOD_KEY,oldRaw);
@@ -1757,8 +1849,19 @@ function persist(options={}){
     }
   }
   backupRawStorage(STORAGE_LAST_GOOD_KEY,oldRaw);
-  localStorage.setItem(STORAGE_KEY,JSON.stringify(db));
-  return true;
+  try{
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(db));
+    renderStorageUsage();
+    return true;
+  }catch(error){
+    console.error('storage persist failed',error);
+    const quota=error&&['QuotaExceededError','NS_ERROR_DOM_QUOTA_REACHED'].includes(error.name);
+    lockStorageProtection(quota?'保存容量の上限に達した可能性があります。自動保存を停止しました。バックアップとアーカイブを行ってください。':'保存に失敗しました。自動保存を停止しました。');
+    renderStorageProtectionBanner();
+    renderStorageUsage();
+    alert('保存に失敗しました。現在の画面状態は保持しています。バックアップ/復元からJSONを保存し、容量を整理してください。');
+    return false;
+  }
 }
 function rotateDailyStorageBackup(){
   const raw=localStorage.getItem(STORAGE_KEY);
@@ -1783,7 +1886,7 @@ function storageBackupSummary(raw){
   if(!isValidStorageData(data))return '不正または空';
   const counts=storageCounts(data);
   const draft=data.draftLog?' / draftあり':'';
-  return `logs:${counts.logs} / stores:${counts.stores} / machines:${Array.isArray(data.machines)?data.machines.length:0}${draft}`;
+  return `logs:${counts.logs} / stores:${counts.stores} / shopNotes:${counts.shopNotes} / machines:${Array.isArray(data.machines)?data.machines.length:0}${draft}`;
 }
 function renderProtectionBackups(){
   const el=document.getElementById('protectionBackupList');
@@ -1810,12 +1913,29 @@ function downloadProtectionBackup(key){
   document.body.appendChild(a);a.click();a.remove();
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
+function downloadJsonText(raw,filename){
+  const blob=new Blob([raw],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=filename;
+  document.body.appendChild(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function backupBeforeRestore(){
+  const raw=localStorage.getItem(STORAGE_KEY)||JSON.stringify(db);
+  if(!backupRawStorage(STORAGE_PRERESTORE_KEY,raw)){
+    alert('復元前バックアップを保存できませんでした。復元を中止します。');
+    return false;
+  }
+  downloadJsonText(raw,`nerai-record-prerestore-${todayValue()}.json`);
+  return true;
+}
 function restoreProtectionBackup(key){
   const raw=localStorage.getItem(key);
   const parsed=parseStorageRaw(raw);
   if(!isValidStorageData(parsed)){alert('復元できる退避データではありません');return;}
   if(!confirm(`${key} から復元します。現在のデータは復元前退避に保存されます。よろしいですか？`))return;
-  backupRawStorage(STORAGE_PRERESTORE_KEY);
+  if(!backupBeforeRestore())return;
   db=normalizeData(parsed);
   persist({allowDangerous:true});
   selectedMachineId=db.machines[0]?.id||'';
@@ -3917,6 +4037,7 @@ function renderAll(){
   renderLogsList();
   updateCalc();
   updateEditModeUi();
+  renderStorageUsage();
   bindNumericInputs();
   bindDraftAutosave();
 }
@@ -3951,6 +4072,7 @@ function addMachine(){
   currentSuggestLog=[];
   currentKuiPointReleased=false;
   currentSegments=[];
+  resetCurrentSegmentStart();
   currentEndingCards={};
   lastSegmentUndo=null;
   pendingSuggestSelection=null;
@@ -3979,6 +4101,7 @@ function selectMachine(id){
   currentSuggestLog=[];
   currentKuiPointReleased=false;
   currentSegments=[];
+  resetCurrentSegmentStart();
   currentEndingCards={};
   lastSegmentUndo=null;
   pendingSuggestSelection=null;
@@ -4483,7 +4606,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;currentIntervalEstimate=normalizeIntervalEstimate(null);currentSubCounters={};currentCounterHistories=[];resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;currentIntervalEstimate=normalizeIntervalEstimate(null);currentSubCounters={};currentCounterHistories=[];resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];resetCurrentSegmentStart();currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -6142,6 +6265,46 @@ function suggestKindBadgeHtml(entry){
 function sortedSuggestLog(){
   return [...currentSuggestLog].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
 }
+function suggestEntryDedupKey(entry){
+  if(!entry||typeof entry!=='object')return '';
+  if(entry.id)return `id:${entry.id}`;
+  return [
+    entry.placeId||entry.place||'',
+    entry.itemId||entry.item||'',
+    normalizeOptionalNumber(entry.dataGame)??normalizeOptionalNumber(entry.game)??'',
+    normalizeOptionalNumber(entry.liquidGame)??'',
+    normalizeCarryType(entry.carryType),
+    entry.createdAt||''
+  ].join('::');
+}
+function uniqueSuggestEntries(entries,seen=new Set()){
+  const rows=[];
+  (Array.isArray(entries)?entries:[]).forEach(entry=>{
+    const key=suggestEntryDedupKey(entry);
+    if(!key||seen.has(key))return;
+    seen.add(key);
+    rows.push(entry);
+  });
+  return rows;
+}
+function segmentStartFromSegments(segments){
+  const times=(Array.isArray(segments)?segments:[])
+    .map(segment=>Date.parse(segment?.createdAt||''))
+    .filter(time=>Number.isFinite(time));
+  if(!times.length)return new Date().toISOString();
+  return new Date(Math.max(...times)).toISOString();
+}
+function resetCurrentSegmentStart(){
+  currentSegmentStartedAt=new Date().toISOString();
+}
+function segmentSuggestLogForSnapshot(){
+  const started=Date.parse(currentSegmentStartedAt||'');
+  return uniqueSuggestEntries(sortedSuggestLog().filter(entry=>{
+    if(!Number.isFinite(started))return true;
+    const created=Date.parse(entry?.createdAt||'');
+    return !Number.isFinite(created)||created>=started;
+  })).map(clone);
+}
 function buildKuiPointState(suggestLog,released=false){
   const rows=Array.isArray(suggestLog)?suggestLog:[];
   return {
@@ -7040,7 +7203,7 @@ function resetKarakuriLiveCountersAfterHit(event){
       subCounters:normalizeSubCounters(currentSubCounters),
       counterHistories:normalizeCounterHistories(currentCounterHistories),
       timeline:clone(sortedTimeline()),
-      suggestLog:clone(sortedSuggestLog()),
+      suggestLog:segmentSuggestLogForSnapshot(),
       hitEvents:[]
     }));
   }
@@ -7134,7 +7297,7 @@ function createSegmentSnapshot(event,terminalType=''){
     counterHistories:normalizeCounterHistories(currentCounterHistories),
     endingCards:currentSegmentEndingCards(),
     timeline:clone(sortedTimeline()),
-    suggestLog:clone(sortedSuggestLog()),
+    suggestLog:segmentSuggestLogForSnapshot(),
     hitEvents:clone(currentSegmentHitEvents().map(normalizeHitEvent).filter(Boolean))
   });
 }
@@ -7159,6 +7322,7 @@ function resetCurrentSegment({preserveEndState=false}={}){
     currentEndLog=null;
   }
   setTimelineGames(0,0);
+  resetCurrentSegmentStart();
 }
 function archiveCurrentSegment(event,terminalType='',options={}){
   const segment=createSegmentSnapshot(event,terminalType);
@@ -9837,6 +10001,7 @@ function loadDraftIntoInputs(log){
     currentHitEvents=clone(log.hitEvents||[]);
     currentSuggestLog=clone(log.suggestLog||[]);
     currentSegments=clone(log.segments||[]);
+    currentSegmentStartedAt=segmentStartFromSegments(currentSegments);
     currentEndingCards=normalizeEndingCards(log.endingCards);
     lastSegmentUndo=null;
     currentKuiPointReleased=!!log.kuiPoint?.released;
@@ -9903,6 +10068,7 @@ function loadLogForEdit(id){
   currentHitEvents=clone(log.hitEvents||[]);
   currentSuggestLog=clone(log.suggestLog||[]);
   currentSegments=clone(log.segments||[]);
+  currentSegmentStartedAt=segmentStartFromSegments(currentSegments);
   currentEndingCards=normalizeEndingCards(log.endingCards);
   lastSegmentUndo=null;
   currentKuiPointReleased=!!log.kuiPoint?.released;
@@ -9959,6 +10125,7 @@ function continueFromLog(id,skipConfirm=false){
   currentSuggestLog=[];
   currentKuiPointReleased=false;
   currentSegments=[];
+  resetCurrentSegmentStart();
   currentEndingCards={};
   lastSegmentUndo=null;
   pendingSuggestSelection=null;
@@ -11077,7 +11244,7 @@ function restoreJson(input){
         alert('nerai_record_v1 のJSONではありません');return;
       }
       if(!confirm('現在のデータを上書きして復元します。よろしいですか？'))return;
-      backupRawStorage(STORAGE_PRERESTORE_KEY);
+      if(!backupBeforeRestore())return;
       db=normalizeData(parsed);persist({allowDangerous:true});
       selectedMachineId=db.machines[0]?.id||'';
       selectedAimId=firstAimIdForMachine(db.machines[0])||'';
@@ -11110,6 +11277,7 @@ applyLatestStoreForCurrentDate();
 rotateDailyStorageBackup();
 restoreDraftIfAny();
 renderStorageProtectionBanner();
+renderStorageUsage();
 warnIfLoadFailed();
 </script>
 </body>
