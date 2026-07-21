@@ -294,9 +294,17 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .past-hints.open .past-hints-body{display:block;}
 .past-hint-row{border:1px solid var(--border);border-radius:6px;background:var(--surface2);padding:7px;margin-top:6px;font-size:12px;color:var(--text);}
 .resume-choice{border:1px solid rgba(201,168,76,.4);border-radius:8px;background:rgba(201,168,76,.08);padding:12px;margin:10px 0 12px;}
+.resume-choice.restore-required{position:sticky;top:48px;z-index:35;border-color:rgba(201,168,76,.82);background:rgba(31,25,13,.96);padding:16px;box-shadow:0 10px 28px rgba(0,0,0,.36);}
 .resume-choice-title{font-size:13px;font-weight:900;color:var(--gold-light);margin-bottom:6px;}
+.resume-choice.restore-required .resume-choice-title{font-size:18px;}
 .resume-choice-meta{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:10px;}
+.resume-choice.restore-required .resume-choice-meta{font-size:13px;color:var(--text);margin-bottom:12px;}
 .resume-choice-actions{display:grid;grid-template-columns:1fr;gap:8px;}
+.resume-choice.restore-required .resume-choice-actions button{min-height:48px;font-size:14px;font-weight:900;}
+#pageLog.draft-restore-pending .flow-step-tabs,
+#pageLog.draft-restore-pending #currentContextBar,
+#pageLog.draft-restore-pending #checkpointStatusBox,
+#pageLog.draft-restore-pending .flow-panel{opacity:.35;pointer-events:none;filter:grayscale(.35);}
 .lock-warning{border:1px solid rgba(224,112,112,.42);background:rgba(224,112,112,.08);color:#ffb3b3;border-radius:8px;padding:9px;font-size:12px;margin-top:8px;}
 .branch-next-btn{white-space:normal;line-height:1.35;text-align:center;min-width:0;min-height:48px;padding:12px 14px;font-size:14px;}
 .suggest-kind{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:2px 7px;margin-right:4px;font-size:11px;font-weight:800;border:1px solid var(--border);background:var(--surface2);color:var(--text-muted);}
@@ -1078,6 +1086,7 @@ let currentFlowStep=1;
 let sameTablePromptKey='';
 let sameTableCarryOptOutKey='';
 let hydratingDraft=false;
+let pendingDraftRestore=false;
 let draftSaveTimer=null;
 let battleModeOpen=false;
 let battleModeUndoStack=[];
@@ -4078,8 +4087,39 @@ function markSuspendedSessionLogsFinished(sessionId,excludeId=''){
     }
   });
 }
+function hasPendingRestorableDraft(){
+  return !!(db?.draftLog&&draftHasContent(db.draftLog));
+}
+function setDraftRestorePending(value){
+  pendingDraftRestore=!!(value&&hasPendingRestorableDraft()&&!editingLogId&&!continuedFromLog);
+  const page=document.getElementById('pageLog');
+  if(page)page.classList.toggle('draft-restore-pending',pendingDraftRestore);
+}
+function currentScreenSessionMachine(){
+  const log=currentInputLogObject(false,db?.draftLog||null);
+  return {
+    sessionId:String(log?.sessionId||log?.id||''),
+    machineId:String(log?.machineId||selectedMachineId||'')
+  };
+}
+function checkDraftRestoreConsistency(reason='復帰時'){
+  if(!hasPendingRestorableDraft())return true;
+  const draftSessionId=String(db.draftLog.sessionId||db.draftLog.id||'');
+  const draftMachineId=String(db.draftLog.machineId||'');
+  const screen=currentScreenSessionMachine();
+  if(screen.sessionId===draftSessionId&&screen.machineId===draftMachineId)return true;
+  setDraftRestorePending(true);
+  storageProtectionReason=`保存済み下書きと画面状態が一致しません（${reason}）。前回の続きから復元するまで自動保存を停止しました。`;
+  renderStorageProtectionBanner();
+  renderResumeChoice();
+  return false;
+}
 function latestUnfinishedSessionCandidate(){
-  if(resumeChoiceDismissed||editingLogId||continuedFromLog||currentDraftHasRecordContent())return null;
+  if(resumeChoiceDismissed||editingLogId||continuedFromLog)return null;
+  if(pendingDraftRestore&&hasPendingRestorableDraft()){
+    return {source:'draft',log:db.draftLog,status:normalizeLogStatus(db.draftLog.status)||'active',sessionId:db.draftLog.sessionId||db.draftLog.id||'',updatedAt:logDisplayUpdatedAt(db.draftLog)};
+  }
+  if(currentDraftHasRecordContent())return null;
   return unfinishedSessionCandidates()[0]||null;
 }
 function sessionProgressLabel(log){
@@ -4090,16 +4130,18 @@ function sessionProgressLabel(log){
 function renderResumeChoice(){
   const el=document.getElementById('resumeChoiceBox');
   if(!el)return;
+  setDraftRestorePending(pendingDraftRestore);
   const candidate=latestUnfinishedSessionCandidate();
   if(!candidate){el.innerHTML='';return;}
   const log=candidate.log;
   const money=log.money||{};
   el.innerHTML=`
-    <div class="resume-choice">
-      <div class="resume-choice-title">前回の稼働が残っています。</div>
+    <div class="resume-choice ${pendingDraftRestore?'restore-required':''}">
+      <div class="resume-choice-title">${pendingDraftRestore?'保存済みの前回稼働を復元してください':'前回の稼働が残っています。'}</div>
       <div class="resume-choice-meta">
         ${escapeHtml(money.store||'店舗未選択')} / ${escapeHtml(log.machineName||'機種未設定')}${money.machineNo?` / 台${escapeHtml(money.machineNo)}`:''}<br>
         最終更新：${escapeHtml(log.updatedAt||log.createdAt||'不明')} / ${escapeHtml(sessionProgressLabel(log))}
+        ${pendingDraftRestore?'<br>復元または新規開始を選ぶまで、入力欄と実戦モードは操作できません。':''}
       </div>
       <div class="resume-choice-actions">
         <button class="btn-secondary btn-continue" onclick="resumeUnfinishedSession('${escapeHtml(candidate.source)}','${escapeHtml(log.id)}')">前回の続きから入力する</button>
@@ -4121,6 +4163,7 @@ function resumeUnfinishedSession(source,id){
   if(source==='log')db.logs=db.logs.filter(item=>item.id!==id);
   db.draftLog={...clone(log),status:'active',state4Registered:false,finalized:false,excludeFromStats:true,updatedAt:new Date().toISOString()};
   resumeChoiceDismissed=true;
+  pendingDraftRestore=false;
   sessionFieldsLocked=true;
   persist();
   loadDraftIntoInputs(db.draftLog);
@@ -4134,6 +4177,7 @@ function startFreshFromUnfinishedSession(source,id){
     if(log){log.status='suspended';log.updatedAt=new Date().toISOString();}
   }
   resumeChoiceDismissed=true;
+  pendingDraftRestore=false;
   sessionFieldsLocked=false;
   clearLogInput(true);
   db.draftLog=null;
@@ -4769,7 +4813,9 @@ function renderLogSelectors(){
     document.getElementById('logAim').innerHTML='<option value="">狙い方なし</option>';
     return;
   }
-  if(!selectedMachineId||!machineById(selectedMachineId))selectedMachineId=db.machines[0].id;
+  if(!selectedMachineId||!machineById(selectedMachineId)){
+    selectedMachineId=pendingDraftRestore?'':db.machines[0].id;
+  }
   mSel.innerHTML=db.machines.map(m=>`<option value="${m.id}" ${m.id===selectedMachineId?'selected':''}>${escapeHtml(m.name)}</option>`).join('');
   const machine=currentMachine();
   if(!selectedAimId||!aimById(machine,selectedAimId))selectedAimId=firstAimIdForMachine(machine)||'';
@@ -5072,6 +5118,11 @@ function battleModeCommit(label,callback,options={}){
   return true;
 }
 function openBattleMode(){
+  if(pendingDraftRestore&&hasPendingRestorableDraft()){
+    checkDraftRestoreConsistency('実戦モード開始前');
+    battleModeInvalid('前回の続きから復元してください');
+    return;
+  }
   if(!currentMachine()||!currentAim()){battleModeInvalid('機種と狙い方を選択してください');return;}
   battleModeOpen=true;
   document.getElementById('battleModeOverlay')?.classList.add('open');
@@ -9919,6 +9970,12 @@ function draftHasContent(log){
 }
 function saveDraftNow(){
   if(hydratingDraft||editingLogId)return false;
+  if(pendingDraftRestore&&hasPendingRestorableDraft()){
+    clearTimeout(draftSaveTimer);
+    checkDraftRestoreConsistency('下書き復元前の保存');
+    renderResumeChoice();
+    return false;
+  }
   clearTimeout(draftSaveTimer);
   const log=currentInputLogObject(false,db.draftLog||null);
   if(!draftHasContent(log)){
@@ -9930,6 +9987,12 @@ function saveDraftNow(){
 }
 function scheduleDraftSave(){
   if(hydratingDraft||editingLogId)return;
+  if(pendingDraftRestore&&hasPendingRestorableDraft()){
+    clearTimeout(draftSaveTimer);
+    checkDraftRestoreConsistency('下書き復元前の入力');
+    renderResumeChoice();
+    return;
+  }
   clearTimeout(draftSaveTimer);
   draftSaveTimer=setTimeout(saveDraftNow,180);
 }
@@ -10262,6 +10325,7 @@ function loadDraftIntoInputs(log){
     renderPracticeStats();
     renderCurrentContextBar();
     renderSessionFieldLocks();
+    setDraftRestorePending(false);
   }catch(err){
     console.error('draft restore failed',err);
     alert('下書きの復元に失敗しました。下書きデータは削除していません。バックアップ/復元からJSONを書き出して復旧できます。');
@@ -11496,19 +11560,26 @@ function restoreJson(input){
   reader.readAsText(file);
 }
 
+function handlePageResume(reason){
+  scheduleBattleModeMemoViewportUpdate();
+  if(db&&hasPendingRestorableDraft())checkDraftRestoreConsistency(reason);
+}
+
 if(window.visualViewport){
   window.visualViewport.addEventListener('resize',scheduleBattleModeMemoViewportUpdate);
   window.visualViewport.addEventListener('scroll',scheduleBattleModeMemoViewportUpdate);
 }
 document.addEventListener('visibilitychange',()=>{
-  if(!document.hidden)scheduleBattleModeMemoViewportUpdate();
+  if(!document.hidden)handlePageResume('visibilitychange復帰');
 });
-window.addEventListener('focus',scheduleBattleModeMemoViewportUpdate);
-window.addEventListener('pageshow',scheduleBattleModeMemoViewportUpdate);
+window.addEventListener('focus',()=>handlePageResume('focus復帰'));
+window.addEventListener('pageshow',()=>handlePageResume('pageshow復帰'));
 
 db=loadData();
-selectedMachineId=db.machines[0]?.id||'';
-selectedAimId=firstAimIdForMachine(db.machines[0])||'';
+setDraftRestorePending(hasPendingRestorableDraft());
+const initialDraftMachine=pendingDraftRestore?machineById(db.draftLog?.machineId):null;
+selectedMachineId=initialDraftMachine?.id||(pendingDraftRestore?'':db.machines[0]?.id||'');
+selectedAimId=initialDraftMachine?(db.draftLog?.aimId||firstAimIdForMachine(initialDraftMachine)||''):firstAimIdForMachine(db.machines[0])||'';
 toggleOptionsHint();
 showPage('pageLog');
 setToday();

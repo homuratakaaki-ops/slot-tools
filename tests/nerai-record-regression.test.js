@@ -72,6 +72,8 @@ function createContext(raw, confirms = []) {
   const localStorage = makeStorage(storageSeed);
   const sessionStorage = makeStorage();
   const alerts = [];
+  const documentListeners = {};
+  const windowListeners = {};
   const context = vm.createContext({
     localStorage,
     sessionStorage,
@@ -93,15 +95,26 @@ function createContext(raw, confirms = []) {
       querySelectorAll: () => [],
       body: fakeElement(),
       createElement: () => fakeElement(),
-      addEventListener() {},
+      addEventListener(event, callback) {
+        documentListeners[event] = callback;
+      },
       hidden: false
     },
-    window: { scrollTo() {}, addEventListener() {}, innerHeight: 800, visualViewport: { height: 800, offsetTop: 0, addEventListener() {} } },
+    window: {
+      scrollTo() {},
+      addEventListener(event, callback) {
+        windowListeners[event] = callback;
+      },
+      innerHeight: 800,
+      visualViewport: { height: 800, offsetTop: 0, addEventListener() {} }
+    },
     navigator: { clipboard: null },
     URL: { createObjectURL: () => '', revokeObjectURL() {} },
     Blob: function Blob() {},
     FileReader: function FileReader() {},
-    __alerts: alerts
+    __alerts: alerts,
+    __documentListeners: documentListeners,
+    __windowListeners: windowListeners
   });
   return { context, localStorage, sessionStorage, alerts };
 }
@@ -434,7 +447,8 @@ function testBattleModeMemoSheetTracksViewportOnResume() {
   assert.match(style, /\.bm-sheet\.memo-mode \.bm-sheet-panel\{[^}]*--bm-keyboard-inset/);
   assert.match(script, /function updateBattleModeMemoViewport\(\)/);
   assert.match(script, /visibilitychange/);
-  assert.match(script, /window\.addEventListener\('focus',scheduleBattleModeMemoViewportUpdate\)/);
+  assert.match(script, /window\.addEventListener\('focus',\(\)=>handlePageResume\('focus復帰'\)\)/);
+  assert.match(script, /function handlePageResume\(reason\)/);
   assert.match(script, /window\.visualViewport\.addEventListener\('resize',scheduleBattleModeMemoViewportUpdate\)/);
 }
 
@@ -1011,6 +1025,63 @@ function testCheckpointStoresOnlyCurrentSessionAndRestoresIt() {
   assert.ok(localStorage.getItem('nerai_record_v1_prerestore'));
 }
 
+function draftRestoreSeed() {
+  return {
+    version: 1,
+    machines: [
+      { id: 'm_monkey_turn_v', name: 'モンキーターンV', aims: [], tags: [], startTags: [], labelTags: [], suggestMaster: [] },
+      { id: 'm_nangoku_special', name: 'L南国育ちSPECIAL', aims: [], tags: [], startTags: [], labelTags: [], suggestMaster: [] }
+    ],
+    stores: [{ name: 'STORE_ALPHA' }],
+    logs: [],
+    draftLog: {
+      id: 'draft_nangoku_active',
+      schemaVersion: 2,
+      sessionId: 's_nangoku_active',
+      machineId: 'm_nangoku_special',
+      machineName: 'L南国育ちSPECIAL',
+      aimId: 'aim_tenjo',
+      aimName: '天井狙い',
+      status: 'active',
+      flowStep: 2,
+      startCounterGame: 120,
+      timeline: [{ id: 'tl_keep', game: 160, liquidGame: 160, text: 'リプレイ', tagIds: ['t_nangoku_replay'] }],
+      money: { date: '2026-07-21', store: 'STORE_ALPHA', machineNo: '5332', startTime: '10:00' }
+    }
+  };
+}
+
+function testPendingDraftRestoreBlocksAutosaveAndMachineFallback() {
+  const seed = draftRestoreSeed();
+  const raw = JSON.stringify(seed);
+  const { context, localStorage } = runRecord(raw);
+
+  assert.equal(vm.runInContext('pendingDraftRestore', context), true);
+  assert.equal(vm.runInContext('selectedMachineId', context), 'm_nangoku_special');
+  assert.equal(vm.runInContext('saveDraftNow()', context), false);
+  assert.equal(JSON.parse(localStorage.getItem('nerai_record_v1')).draftLog.sessionId, 's_nangoku_active');
+
+  vm.runInContext("selectedMachineId = 'm_monkey_turn_v'; selectedAimId = firstAimIdForMachine(machineById('m_monkey_turn_v')) || '';", context);
+  vm.runInContext("__windowListeners.pageshow()", context);
+  assert.match(vm.runInContext('storageProtectionReason', context), /pageshow復帰/);
+  vm.runInContext("storageProtectionReason = ''", context);
+  assert.equal(vm.runInContext("checkDraftRestoreConsistency('test')", context), false);
+  assert.match(vm.runInContext('storageProtectionReason', context), /保存済み下書きと画面状態が一致しません/);
+  assert.equal(JSON.parse(localStorage.getItem('nerai_record_v1')).draftLog.machineId, 'm_nangoku_special');
+}
+
+function testPendingDraftRestoreResumeHydratesBeforeSaving() {
+  const seed = draftRestoreSeed();
+  const { context } = runRecord(JSON.stringify(seed));
+
+  vm.runInContext("resumeUnfinishedSession('draft','draft_nangoku_active')", context);
+  assert.equal(vm.runInContext('pendingDraftRestore', context), false);
+  assert.equal(vm.runInContext('selectedMachineId', context), 'm_nangoku_special');
+  assert.equal(vm.runInContext('currentFlowStep', context), 2);
+  assert.equal(vm.runInContext('currentTimeline.length', context), 1);
+  assert.equal(vm.runInContext('sessionFieldsLocked', context), true);
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -1049,6 +1120,8 @@ function run() {
   testStorageUsageDisplayAndWarningThresholds();
   testProtectionBackupDeleteDownloadsAndKeepsPrimaryStorage();
   testCheckpointStoresOnlyCurrentSessionAndRestoresIt();
+  testPendingDraftRestoreBlocksAutosaveAndMachineFallback();
+  testPendingDraftRestoreResumeHydratesBeforeSaving();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();
