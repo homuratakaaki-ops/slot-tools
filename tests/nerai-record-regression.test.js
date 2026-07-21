@@ -837,6 +837,45 @@ function testQuotaExceededLocksProtectionWithoutThrowing() {
   assert.equal(vm.runInContext('storageProtectionLocked', context), true);
 }
 
+function testStorageUsageDisplayAndWarningThresholds() {
+  const { context, localStorage } = runRecord(undefined);
+  const usageDetail = fakeElement();
+  const usageBanner = fakeElement();
+  context.document.getElementById = id => {
+    if (id === 'storageUsageDetail') return usageDetail;
+    if (id === 'storageUsageBanner') return usageBanner;
+    return fakeElement();
+  };
+  localStorage.setItem('usage_seed_60', 'x'.repeat(Math.ceil(5 * 1024 * 1024 * 0.61 / 2)));
+  vm.runInContext('renderStorageUsage()', context);
+  assert.match(usageDetail.textContent, /使用量: \d+\.\dMB \/ 上限目安 5\.0MB（\d+%）/);
+  assert.equal(vm.runInContext("document.getElementById('storageUsageBanner').classList.toggle('open', true); storageUsageInfo().ratio >= STORAGE_USAGE_WARN_RATIO", context), true);
+  assert.equal(vm.runInContext("storageUsageInfo().ratio >= STORAGE_USAGE_DANGER_RATIO", context), false);
+
+  localStorage.setItem('usage_seed_80', 'y'.repeat(Math.ceil(5 * 1024 * 1024 * 0.20 / 2)));
+  vm.runInContext('renderStorageUsage()', context);
+  assert.equal(vm.runInContext("storageUsageInfo().ratio >= STORAGE_USAGE_DANGER_RATIO", context), true);
+  assert.match(usageBanner.textContent, /保存失敗の危険/);
+}
+
+function testProtectionBackupDeleteDownloadsAndKeepsPrimaryStorage() {
+  const { context, localStorage } = runRecord(undefined, [true]);
+  localStorage.setItem('nerai_record_v1', JSON.stringify({ version: 1, machines: [], stores: [], logs: [{ id: 'main' }] }));
+  localStorage.setItem('nerai_record_v1_prerestore', JSON.stringify({ version: 1, machines: [], stores: [], logs: [{ id: 'old' }] }));
+  vm.runInContext(`
+    downloaded = [];
+    downloadJsonText = (raw, filename) => downloaded.push({ raw, filename });
+    deleteProtectionBackup('nerai_record_v1_prerestore');
+  `, context);
+  assert.equal(localStorage.getItem('nerai_record_v1_prerestore'), null);
+  assert.ok(localStorage.getItem('nerai_record_v1'));
+  assert.equal(vm.runInContext('downloaded.length', context), 1);
+  assert.match(vm.runInContext('downloaded[0].filename', context), /nerai_record_v1_prerestore-delete-backup-/);
+
+  vm.runInContext("deleteProtectionBackup('nerai_record_v1')", context);
+  assert.ok(localStorage.getItem('nerai_record_v1'));
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -868,6 +907,8 @@ function run() {
   testNormalizeDataDedupesCopiedSegmentSuggestLogs();
   testStorageGuardCatchesLogShopNoteAndDraftLoss();
   testQuotaExceededLocksProtectionWithoutThrowing();
+  testStorageUsageDisplayAndWarningThresholds();
+  testProtectionBackupDeleteDownloadsAndKeepsPrimaryStorage();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();

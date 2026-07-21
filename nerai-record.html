@@ -608,10 +608,10 @@ footer a:hover{color:var(--gold-light);}
   </div>
   <div class="section">
     <div class="section-label">バックアップ / 復元</div>
+    <div class="storage-usage-meter" id="storageUsageDetail"></div>
     <button class="btn-secondary" onclick="backupJson()">全データをJSONでバックアップ</button>
     <div class="card" style="margin-top:10px;">
       <div class="input-label" style="margin-bottom:8px;">JSONから復元</div>
-      <div class="storage-usage-meter" id="storageUsageDetail"></div>
       <input class="backup-file" type="file" id="restoreFile" accept="application/json,.json" onchange="restoreJson(this)">
     </div>
     <div class="card" style="margin-top:10px;">
@@ -1306,8 +1306,7 @@ function estimateLocalStorageBytes(){
   return total;
 }
 function formatStorageBytes(bytes){
-  if(bytes>=1024*1024)return `${(bytes/1024/1024).toFixed(2)} MB`;
-  return `${Math.round(bytes/1024)} KB`;
+  return `${(bytes/1024/1024).toFixed(1)}MB`;
 }
 function storageUsageInfo(){
   const bytes=estimateLocalStorageBytes();
@@ -1317,7 +1316,7 @@ function storageUsageInfo(){
 function renderStorageUsage(){
   const info=storageUsageInfo();
   const detail=document.getElementById('storageUsageDetail');
-  const detailText=`localStorage 使用量（概算）: ${formatStorageBytes(info.bytes)} / 約 ${formatStorageBytes(LOCAL_STORAGE_SOFT_LIMIT_BYTES)}（${info.percent}%）`;
+  const detailText=`使用量: ${formatStorageBytes(info.bytes)} / 上限目安 ${formatStorageBytes(LOCAL_STORAGE_SOFT_LIMIT_BYTES)}（${info.percent}%）`;
   if(detail)detail.textContent=detailText;
   const banner=document.getElementById('storageUsageBanner');
   if(!banner)return;
@@ -1900,6 +1899,7 @@ function renderProtectionBackups(){
       <div class="log-tools" style="margin-top:8px;">
         <button class="btn-small" onclick="downloadProtectionBackup('${escapeHtml(row.key)}')" ${row.raw?'':'disabled'}>JSON保存</button>
         <button class="btn-small gold" onclick="restoreProtectionBackup('${escapeHtml(row.key)}')" ${row.raw?'':'disabled'}>この退避から復元</button>
+        <button class="btn-danger" onclick="deleteProtectionBackup('${escapeHtml(row.key)}')" ${row.raw?'':'disabled'}>削除</button>
       </div>
     </div>`).join('');
 }
@@ -1943,6 +1943,17 @@ function restoreProtectionBackup(key){
   renderAll();
   renderProtectionBackups();
   alert('退避データから復元しました');
+}
+function deleteProtectionBackup(key){
+  if(!STORAGE_RECOVERY_KEYS.includes(key)||key===STORAGE_KEY){alert('このキーは削除対象外です');return;}
+  const raw=localStorage.getItem(key);
+  if(!raw){alert('削除できる退避データがありません');return;}
+  downloadJsonText(raw,`${key}-delete-backup-${todayValue()}.json`);
+  if(!confirm(`${key} を削除します。\n文字数: ${raw.length} chars\n削除直前のJSON保存を開始しました。保存を確認してからOKを押してください。`))return;
+  localStorage.removeItem(key);
+  renderProtectionBackups();
+  renderStorageUsage();
+  alert(`${key} を削除しました`);
 }
 function machineById(id){return db.machines.find(m=>m.id===id)||null;}
 function aimById(machine,id){return machine?.aims?.find(a=>a.id===id)||null;}
