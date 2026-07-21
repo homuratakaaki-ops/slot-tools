@@ -499,6 +499,43 @@ function testBattleModeOtherSheetExcludesQuickPanelTags() {
   assert.match(extractScript(), /closeBattleModeOtherSheet\(\)">閉じる/);
 }
 
+function testBattleModeReplayFlashMeterUsesCurrentLiquidGames() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    setManualCorrectionForLiquid(177, 168);
+    setTimelineGames(177, 168);
+    currentTimeline = [
+      { id: 'tl_rf1', game: 54, liquidGame: 45, text: 'リプレイフラッシュ', tagIds: ['t_nangoku_replay_flash'], countAs: [], createdAt: '2026-07-21T00:00:00.000Z' },
+      { id: 'tl_rf2', game: 112, liquidGame: 103, text: 'リプレイフラッシュ', tagIds: ['t_nangoku_replay_flash'], countAs: [], createdAt: '2026-07-21T00:01:00.000Z' },
+      { id: 'tl_replay', game: 120, liquidGame: 111, text: 'リプレイ', tagIds: ['t_nangoku_replay'], countAs: [], createdAt: '2026-07-21T00:02:00.000Z' }
+    ];
+  `, context);
+  assert.equal(vm.runInContext('battleModeReplayFlashMeterText()', context), 'リプフラ 2／168G（1/84）');
+  assert.match(vm.runInContext('renderBattleModeReplayFlashMeter()', context), /リプフラ 2／168G（1\/84）/);
+
+  vm.runInContext("currentTimeline = currentTimeline.filter(item => item.id !== 'tl_rf2')", context);
+  assert.equal(vm.runInContext('battleModeReplayFlashMeterText()', context), 'リプフラ 1／168G（1/168）');
+
+  vm.runInContext("currentTimeline = []", context);
+  assert.equal(vm.runInContext('battleModeReplayFlashMeterText()', context), 'リプフラ 0／168G');
+}
+
+function testBattleModeReplayFlashMeterHiddenWithoutQuickPanelTag() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_tokyo_ghoul';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    setTimelineGames(177, 168);
+    currentTimeline = [
+      { id: 'tl_rf1', game: 54, liquidGame: 45, text: 'リプレイフラッシュ', tagIds: ['t_nangoku_replay_flash'], countAs: [], createdAt: '2026-07-21T00:00:00.000Z' }
+    ];
+  `, context);
+  assert.equal(vm.runInContext('battleModeHasReplayFlashMeter()', context), false);
+  assert.equal(vm.runInContext('renderBattleModeReplayFlashMeter()', context), '');
+}
+
 function testBattleModeTagRecordUndoAndRedoUsesTimelineFormat() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -919,6 +956,8 @@ function run() {
   testBattleModeEventRowBeforeCounterRow();
   testBattleModeHitStartScrollsNextInputOnlyFromBattleMode();
   testBattleModeOtherSheetExcludesQuickPanelTags();
+  testBattleModeReplayFlashMeterUsesCurrentLiquidGames();
+  testBattleModeReplayFlashMeterHiddenWithoutQuickPanelTag();
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
   testBattleModeMemoUsesTimelineTextEntryFormat();
   testLogSegmentCollapseDefaultsLatestTodayOpen();

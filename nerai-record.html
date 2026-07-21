@@ -400,6 +400,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-compact-counter-read{min-width:0;text-align:center;border:0;background:transparent;color:inherit;cursor:pointer;}
 .bm-compact-counter .bm-counter-value{font-size:20px;}
 .bm-mini-btn{width:48px;min-height:42px;border:1px solid rgba(76,175,125,.58);border-radius:8px;background:rgba(76,175,125,.12);color:#a8efb4;font-size:16px;font-weight:900;cursor:pointer;}
+.bm-replay-flash-meter{min-height:30px;border:1px solid rgba(201,168,76,.24);border-radius:8px;background:rgba(0,0,0,.1);color:var(--text-muted);font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:5px 8px;line-height:1.2;}
 .bm-diff-tracker{min-height:38px;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.12);color:var(--text);font-size:14px;font-weight:900;cursor:pointer;}
 .bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
 .bm-grid{display:grid;grid-template-rows:repeat(4,minmax(52px,auto));gap:7px;min-height:0;align-content:end;}
@@ -4983,6 +4984,32 @@ function renderBattleModeCompactCounters(){
     </div>`:'<div></div>'}
   </div>`;
 }
+function battleModeHasReplayFlashMeter(){
+  const hasTag=(currentMachine()?.tags||[]).some(tag=>tag.id==='t_nangoku_replay_flash');
+  if(!hasTag)return false;
+  return battleModePanel().events.some(item=>item&&item.type==='tag'&&item.ref==='t_nangoku_replay_flash');
+}
+function battleModeReplayFlashCount(){
+  return currentTimeline.reduce((total,item)=>{
+    const ids=Array.isArray(item?.tagIds)?item.tagIds:[];
+    return total+(ids.includes('t_nangoku_replay_flash')?1:0);
+  },0);
+}
+function battleModeCurrentSegmentLiquidGames(){
+  const liquid=normalizeOptionalNumber(timelineLiquidValue());
+  const fallback=normalizeOptionalNumber(timelineDataValue());
+  return Math.max(0,Math.trunc(liquid!==null?liquid:(fallback!==null?fallback:0)));
+}
+function battleModeReplayFlashMeterText(){
+  const count=battleModeReplayFlashCount();
+  const games=battleModeCurrentSegmentLiquidGames();
+  const ratio=count>0&&games>0?`（1/${Math.floor(games/count)}）`:'';
+  return `リプフラ ${count}／${games}G${ratio}`;
+}
+function renderBattleModeReplayFlashMeter(){
+  if(!battleModeHasReplayFlashMeter())return '';
+  return `<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplayFlashMeterText())}</div>`;
+}
 function openBattleModeDiffTrackerSheet(){
   const state=battleModeIntervalTrackerState();
   const diff=battleModeIntervalDiffValue(state);
@@ -5215,6 +5242,7 @@ function renderBattleMode(){
     </button>
     </div>
     ${renderBattleModeCompactCounters()}
+    ${renderBattleModeReplayFlashMeter()}
     ${renderBattleModeIntervalTracker()}`;
   const grid=document.getElementById('battleModeGrid');
   if(grid)grid.innerHTML=renderBattleModeGrid();
