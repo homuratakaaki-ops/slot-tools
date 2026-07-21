@@ -1082,6 +1082,79 @@ function testPendingDraftRestoreResumeHydratesBeforeSaving() {
   assert.equal(vm.runInContext('sessionFieldsLocked', context), true);
 }
 
+function shopNoteMigrationSeed() {
+  return {
+    version: 1,
+    machines: [
+      { id: 'm_nangoku_special', name: 'L南国育ちSPECIAL', aims: [], tags: [], startTags: [], labelTags: [], suggestMaster: [] },
+      { id: 'm_tokyo_ghoul', name: '東京喰種', aims: [], tags: [], startTags: [], labelTags: [], suggestMaster: [] }
+    ],
+    stores: [{ name: 'STORE_ALPHA' }],
+    logs: [],
+    shopNotes: Array.from({ length: 16 }, (_, index) => ({
+      id: `sn_20260721_${index}`,
+      shopId: 'STORE_ALPHA',
+      shopName: 'STORE_ALPHA',
+      unitNumber: index < 10 ? '101' : index < 14 ? '102' : '',
+      text: `7/21実戦メモ${index + 1}`,
+      createdAt: `2026-07-21T10:${String(index).padStart(2, '0')}:00.000Z`,
+      updatedAt: `2026-07-21T10:${String(index).padStart(2, '0')}:00.000Z`,
+      resolved: false
+    }))
+  };
+}
+
+function testShopNoteCardsMigrateLegacyNotesWithPremigrateBackup() {
+  const seed = shopNoteMigrationSeed();
+  const raw = JSON.stringify(seed);
+  const { context, localStorage } = runRecord(raw);
+
+  assert.equal(vm.runInContext('db.shopNotes.length', context), 16);
+  assert.equal(vm.runInContext('db.shopNoteCards.length', context), 3);
+  assert.equal(vm.runInContext("db.shopNoteCards.reduce((sum, card) => sum + card.entries.length, 0)", context), 16);
+  assert.equal(vm.runInContext("db.shopNoteCards.some(card => card.date === '2026-07-21' && card.machineNo === '' && card.entries.length === 2)", context), true);
+  assert.equal(localStorage.getItem('nerai_record_v1'), raw);
+  assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), raw);
+
+  const stored = JSON.stringify(vm.runInContext('db', context));
+  const reloaded = runRecord(stored);
+  assert.equal(vm.runInContext('db.shopNoteCards.length', reloaded.context), 3);
+  assert.equal(vm.runInContext("db.shopNoteCards.reduce((sum, card) => sum + card.entries.length, 0)", reloaded.context), 16);
+
+  vm.runInContext("db.shopNoteCards.pop(); persist({ allowDangerous: true });", reloaded.context);
+  const afterDeleteReload = runRecord(reloaded.localStorage.getItem('nerai_record_v1'));
+  assert.equal(vm.runInContext('db.shopNotes.length', afterDeleteReload.context), 16);
+  assert.equal(vm.runInContext('db.shopNoteCards.length', afterDeleteReload.context), 2);
+}
+
+function testShopNoteFavoritesAreMachineScopedAndTagEntriesPersist() {
+  const seed = shopNoteMigrationSeed();
+  seed.shopNotes = [];
+  seed.shopNoteCards = [{
+    id: 'snc_test',
+    createdAt: '2026-07-21T10:00:00.000Z',
+    updatedAt: '2026-07-21T10:00:00.000Z',
+    date: '2026-07-21',
+    store: 'STORE_ALPHA',
+    machineNo: '101',
+    machineId: 'm_nangoku_special',
+    entries: []
+  }];
+  const { context, localStorage } = runRecord(JSON.stringify(seed), [true]);
+
+  vm.runInContext("selectedMachineId = 'm_nangoku_special'; toggleShopNoteFavorite('snt_reel_blue');", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(db.shopNoteFavorites.m_nangoku_special)", context)), ['snt_reel_blue']);
+  assert.equal(vm.runInContext("db.shopNoteFavorites.m_tokyo_ghoul", context), undefined);
+  vm.runInContext("selectedMachineId = 'm_tokyo_ghoul'; toggleShopNoteFavorite('snt_trophy_bronze');", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(db.shopNoteFavorites.m_tokyo_ghoul)", context)), ['snt_trophy_bronze']);
+
+  vm.runInContext("addShopNoteEntry('snc_test','snt_reel_blue');", context);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries.length", context), 1);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagIds[0]", context), 'snt_reel_blue');
+  const stored = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  assert.equal(stored.shopNoteCards[0].entries[0].tagIds[0], 'snt_reel_blue');
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -1122,6 +1195,8 @@ function run() {
   testCheckpointStoresOnlyCurrentSessionAndRestoresIt();
   testPendingDraftRestoreBlocksAutosaveAndMachineFallback();
   testPendingDraftRestoreResumeHydratesBeforeSaving();
+  testShopNoteCardsMigrateLegacyNotesWithPremigrateBackup();
+  testShopNoteFavoritesAreMachineScopedAndTagEntriesPersist();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();

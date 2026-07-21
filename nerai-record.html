@@ -169,11 +169,31 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .organized-setting-summary{margin:8px 0;}
 .organized-setting-summary summary{cursor:pointer;color:var(--gold-light);font-size:13px;font-weight:900;}
 .shop-note-list{display:grid;gap:8px;margin-top:8px;}
-.shop-note-item{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:9px 10px;}
+.shop-note-item,.shop-note-card{border:1px solid var(--border);border-radius:8px;background:var(--surface2);padding:9px 10px;}
 .shop-note-item.resolved{opacity:.58;}
 .shop-note-item.resolved .shop-note-text{text-decoration:line-through;}
 .shop-note-meta{color:var(--text-muted);font-size:12px;font-weight:800;margin-bottom:4px;}
 .shop-note-text{font-size:13px;line-height:1.5;white-space:pre-wrap;}
+.shop-note-sheet{max-height:min(82dvh,720px);display:flex;flex-direction:column;}
+.shop-note-body{min-height:0;overflow:auto;padding-right:2px;}
+.shop-note-card{margin-bottom:8px;}
+.shop-note-card.open{border-color:rgba(201,168,76,.48);background:rgba(201,168,76,.06);}
+.shop-note-card-head{width:100%;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;background:transparent;border:0;color:var(--text);padding:0;text-align:left;cursor:pointer;}
+.shop-note-card-title{font-size:16px;font-weight:900;color:var(--gold-light);line-height:1.35;}
+.shop-note-card-sub{font-size:12px;font-weight:800;color:var(--text-muted);line-height:1.5;margin-top:2px;}
+.shop-note-card-actions{display:flex;gap:6px;margin-left:auto;}
+.shop-note-entry-list{display:grid;gap:6px;margin:10px 0;}
+.shop-note-entry{border:1px solid rgba(122,122,138,.28);border-radius:8px;background:rgba(0,0,0,.13);padding:7px 8px;}
+.shop-note-entry-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px;}
+.shop-note-entry-tag{display:inline-flex;border:1px solid rgba(201,168,76,.48);border-radius:999px;background:rgba(201,168,76,.12);color:var(--gold-light);font-size:12px;font-weight:900;padding:3px 8px;}
+.shop-note-palette{border-top:1px solid rgba(201,168,76,.18);padding-top:10px;margin-top:8px;}
+.shop-note-palette-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px;}
+.shop-note-palette-label{font-size:12px;font-weight:900;color:var(--text-muted);margin:0 0 5px;}
+.shop-note-chip{min-height:36px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.035);color:var(--text);font-size:13px;font-weight:900;padding:7px 11px;white-space:nowrap;cursor:pointer;}
+.shop-note-chip.active,.shop-note-chip.favorite{border-color:var(--gold);background:rgba(201,168,76,.14);color:var(--gold-light);}
+.shop-note-chip.starred::after{content:" ★";color:var(--gold-light);}
+.shop-note-text-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-top:8px;}
+.shop-note-new-card{border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(201,168,76,.06);padding:10px;margin-bottom:10px;}
 .unresolved-badge{display:inline-flex;align-items:center;border:1px solid rgba(201,168,76,.55);border-radius:999px;color:var(--gold-light);background:rgba(201,168,76,.12);font-size:11px;font-weight:900;padding:2px 7px;margin-left:6px;}
 .organized-filter-row{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0;}
 .organized-chip{border:1px solid var(--border);border-radius:999px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:800;padding:6px 10px;cursor:pointer;}
@@ -895,12 +915,13 @@ footer a:hover{color:var(--gold-light);}
 </div>
 
 <div class="keypad-overlay" id="shopNoteOverlay" onclick="closeShopNoteModal()">
-  <div class="keypad" onclick="event.stopPropagation()">
+  <div class="keypad shop-note-sheet" onclick="event.stopPropagation()">
     <div class="keypad-title">
       <span id="shopNoteTitle">他台メモ</span>
       <button class="btn-small" onclick="closeShopNoteModal()">閉じる</button>
     </div>
     <div class="input-hint" id="shopNoteStoreLabel"></div>
+    <div class="shop-note-body" id="shopNoteBody"></div>
     <input type="hidden" id="shopNoteId">
     <div class="input-row">
       <div class="input-label">台番号<div class="input-hint">任意</div></div>
@@ -1025,7 +1046,41 @@ const ENDING_CARD_GROUPS=[
   {id:'red_weak',name:'赤・高設定弱',hint:'高設定示唆:弱',tone:'red',cards:['金木研','霧嶋董香','ヤモリ','霧嶋絢都']},
   {id:'red_strong',name:'赤・高設定強',hint:'高設定示唆:強',tone:'red',cards:['鯱','亜門鋼太朗','篠原幸紀','鈴屋什造']}
 ];
-const EMPTY_DATA={version:1,machines:[],stores:[],logs:[],shopNotes:[]};
+const SHOP_NOTE_TAG_CATEGORIES=[
+  {id:'sntc_reel',label:'リール発光'},
+  {id:'sntc_trophy',label:'トロフィー'},
+  {id:'sntc_eyecatch',label:'アイキャッチ'},
+  {id:'sntc_mode',label:'モード示唆'},
+  {id:'sntc_result',label:'結果・状態'},
+  {id:'sntc_other',label:'その他'}
+];
+const SHOP_NOTE_TAGS=[
+  {id:'snt_reel_blue',categoryId:'sntc_reel',label:'リール青'},
+  {id:'snt_reel_green',categoryId:'sntc_reel',label:'リール緑'},
+  {id:'snt_reel_red',categoryId:'sntc_reel',label:'リール赤'},
+  {id:'snt_reel_rainbow',categoryId:'sntc_reel',label:'リール虹'},
+  {id:'snt_trophy_bronze',categoryId:'sntc_trophy',label:'銅トロ'},
+  {id:'snt_trophy_silver',categoryId:'sntc_trophy',label:'銀トロ'},
+  {id:'snt_trophy_gold',categoryId:'sntc_trophy',label:'金トロ'},
+  {id:'snt_trophy_kirin',categoryId:'sntc_trophy',label:'キリントロ'},
+  {id:'snt_trophy_rainbow',categoryId:'sntc_trophy',label:'虹トロ'},
+  {id:'snt_eyecatch_default',categoryId:'sntc_eyecatch',label:'デフォ'},
+  {id:'snt_eyecatch_weak',categoryId:'sntc_eyecatch',label:'弱示唆'},
+  {id:'snt_eyecatch_strong',categoryId:'sntc_eyecatch',label:'強示唆'},
+  {id:'snt_eyecatch_end_screen',categoryId:'sntc_eyecatch',label:'終了画面'},
+  {id:'snt_mode_up',categoryId:'sntc_mode',label:'モード上げ示唆'},
+  {id:'snt_mode_high',categoryId:'sntc_mode',label:'上位示唆'},
+  {id:'snt_mode_reset',categoryId:'sntc_mode',label:'リセット挙動'},
+  {id:'snt_mode_same',categoryId:'sntc_mode',label:'据え置き挙動'},
+  {id:'snt_result_direct_at',categoryId:'sntc_result',label:'AT直撃'},
+  {id:'snt_result_cz',categoryId:'sntc_result',label:'CZ当選'},
+  {id:'snt_result_no_suggest',categoryId:'sntc_result',label:'示唆なし'},
+  {id:'snt_result_quit',categoryId:'sntc_result',label:'ヤメ'},
+  {id:'snt_other_attention',categoryId:'sntc_other',label:'要確認'},
+  {id:'snt_other_follow',categoryId:'sntc_other',label:'フォロー候補'},
+  {id:'snt_other_memo',categoryId:'sntc_other',label:'メモのみ'}
+];
+const EMPTY_DATA={version:1,machines:[],stores:[],logs:[],shopNotes:[],shopNoteCards:[],shopNoteFavorites:{}};
 let storageProtectionLocked=false;
 let storageProtectionReason='';
 let checkpointWarning='';
@@ -1277,12 +1332,13 @@ function storageCounts(data){
     logs:Array.isArray(data?.logs)?data.logs.length:0,
     stores:Array.isArray(data?.stores)?data.stores.length:0,
     shopNotes:Array.isArray(data?.shopNotes)?data.shopNotes.length:0,
+    shopNoteCards:Array.isArray(data?.shopNoteCards)?data.shopNoteCards.length:0,
     draftLog:data?.draftLog&&typeof data.draftLog==='object'?1:0
   };
 }
 function isNonEmptyStorageData(data){
   const counts=storageCounts(data);
-  return counts.logs>0||counts.stores>0||counts.shopNotes>0||counts.draftLog>0;
+  return counts.logs>0||counts.stores>0||counts.shopNotes>0||counts.shopNoteCards>0||counts.draftLog>0;
 }
 function parseStorageRaw(raw){
   if(!raw)return null;
@@ -1471,15 +1527,16 @@ function renderStorageUsage(){
     :warning?`${detailText}。バックアップとアーカイブを推奨します。`:'';
 }
 function dangerousSaveReason(oldCounts,newCounts){
-  const oldNonEmpty=oldCounts.logs>0||oldCounts.stores>0||oldCounts.shopNotes>0||oldCounts.draftLog>0;
-  const newEmpty=newCounts.logs===0&&newCounts.stores===0&&newCounts.shopNotes===0&&newCounts.draftLog===0;
+  const oldNonEmpty=oldCounts.logs>0||oldCounts.stores>0||oldCounts.shopNotes>0||oldCounts.shopNoteCards>0||oldCounts.draftLog>0;
+  const newEmpty=newCounts.logs===0&&newCounts.stores===0&&newCounts.shopNotes===0&&newCounts.shopNoteCards===0&&newCounts.draftLog===0;
   if(oldNonEmpty&&newEmpty)return '保存済みデータが非空ですが、新しい保存内容が空です。保存を拒否しました。';
   if(oldCounts.logs>0&&newCounts.logs===0)return `保存済みログが ${oldCounts.logs} 件ありますが、新しい保存内容では 0 件です。保存を拒否しました。`;
   const logsHalf=oldCounts.logs>=2&&newCounts.logs<oldCounts.logs/2;
   const storesHalf=oldCounts.stores>=2&&newCounts.stores<oldCounts.stores/2;
   const shopNotesHalf=oldCounts.shopNotes>=2&&newCounts.shopNotes<oldCounts.shopNotes/2;
   if(oldCounts.draftLog>0&&newCounts.draftLog===0&&newCounts.logs<=oldCounts.logs)return '保存済み下書きがありますが、新しい保存内容では下書きが消えています。保存を拒否しました。';
-  if(logsHalf||storesHalf||shopNotesHalf)return `保存件数が大幅に減少しました（logs ${oldCounts.logs}→${newCounts.logs}, stores ${oldCounts.stores}→${newCounts.stores}, shopNotes ${oldCounts.shopNotes}→${newCounts.shopNotes}）。`;
+  const cardsHalf=oldCounts.shopNoteCards>=2&&newCounts.shopNoteCards<oldCounts.shopNoteCards/2;
+  if(logsHalf||storesHalf||shopNotesHalf||cardsHalf)return `保存件数が大幅に減少しました（logs ${oldCounts.logs}→${newCounts.logs}, stores ${oldCounts.stores}→${newCounts.stores}, shopNotes ${oldCounts.shopNotes}→${newCounts.shopNotes}, shopNoteCards ${oldCounts.shopNoteCards}→${newCounts.shopNoteCards}）。`;
   return '';
 }
 function collectSessionIds(data){
@@ -1812,6 +1869,63 @@ function normalizeShopNote(note){
     resolved:!!note.resolved
   };
 }
+function normalizeShopNoteEntry(entry){
+  if(!entry||typeof entry!=='object')return null;
+  const tagIds=(Array.isArray(entry.tagIds)?entry.tagIds:[]).map(String).filter(id=>SHOP_NOTE_TAGS.some(tag=>tag.id===id));
+  const text=String(entry.text||'').trim();
+  if(!tagIds.length&&!text)return null;
+  const at=entry.at||entry.createdAt||new Date().toISOString();
+  const normalized={id:entry.id||uid('sne'),at,tagIds,text};
+  if(entry.legacyShopNoteId)normalized.legacyShopNoteId=String(entry.legacyShopNoteId);
+  return normalized;
+}
+function normalizeShopNoteCard(card){
+  if(!card||typeof card!=='object')return null;
+  const store=String(card.store||card.shopName||card.shopId||'').trim();
+  const machineNo=String(card.machineNo??card.unitNumber??'').replace(/[^\d]/g,'').trim();
+  const entries=(Array.isArray(card.entries)?card.entries:[]).map(normalizeShopNoteEntry).filter(Boolean);
+  if(!store&&!machineNo&&!entries.length)return null;
+  const createdAt=card.createdAt||entries[0]?.at||new Date().toISOString();
+  const updatedAt=card.updatedAt||entries[entries.length-1]?.at||createdAt;
+  return {
+    id:card.id||uid('snc'),
+    createdAt,
+    updatedAt,
+    date:String(card.date||formatShopNoteDate(createdAt)),
+    store,
+    machineNo,
+    machineId:String(card.machineId||selectedMachineId||''),
+    entries
+  };
+}
+function normalizeShopNoteFavorites(favorites){
+  const result={};
+  if(!favorites||typeof favorites!=='object'||Array.isArray(favorites))return result;
+  Object.entries(favorites).forEach(([machineId,ids])=>{
+    const valid=[...new Set((Array.isArray(ids)?ids:[]).map(String).filter(id=>SHOP_NOTE_TAGS.some(tag=>tag.id===id)))];
+    if(machineId&&valid.length)result[String(machineId)]=valid;
+  });
+  return result;
+}
+function migrateShopNotesToCards(notes,cards){
+  const existing=(Array.isArray(cards)?cards:[]).map(normalizeShopNoteCard).filter(Boolean);
+  if(existing.length)return existing;
+  const groups=new Map();
+  (Array.isArray(notes)?notes:[]).map(normalizeShopNote).filter(Boolean).forEach(note=>{
+    const date=formatShopNoteDate(note.createdAt);
+    const store=note.shopName||note.shopId||'';
+    const machineNo=note.unitNumber||'';
+    const key=[date,store,machineNo].join('\u001f');
+    if(!groups.has(key)){
+      groups.set(key,{id:uid('snc'),createdAt:note.createdAt,updatedAt:note.updatedAt||note.createdAt,date,store,machineNo,machineId:selectedMachineId||'',entries:[]});
+    }
+    const card=groups.get(key);
+    card.createdAt=String(card.createdAt).localeCompare(String(note.createdAt))<=0?card.createdAt:note.createdAt;
+    card.updatedAt=String(card.updatedAt).localeCompare(String(note.updatedAt||note.createdAt))>=0?card.updatedAt:(note.updatedAt||note.createdAt);
+    card.entries.push({id:uid('sne'),at:note.createdAt,tagIds:[],text:note.text,legacyShopNoteId:note.id});
+  });
+  return existing.concat([...groups.values()]).map(normalizeShopNoteCard).filter(Boolean);
+}
 function normalizeData(data){
   data.machines=Array.isArray(data.machines)?data.machines:[];
   ensurePresetMachines(data);
@@ -1819,6 +1933,8 @@ function normalizeData(data){
   data.stores=(Array.isArray(data.stores)?data.stores:[]).map(normalizeStore).filter(Boolean);
   data.logs=Array.isArray(data.logs)?data.logs:[];
   data.shopNotes=(Array.isArray(data.shopNotes)?data.shopNotes:[]).map(normalizeShopNote).filter(Boolean);
+  data.shopNoteCards=migrateShopNotesToCards(data.shopNotes,data.shopNoteCards);
+  data.shopNoteFavorites=normalizeShopNoteFavorites(data.shopNoteFavorites);
   data.logs.forEach(log=>{
     log.startLog=Array.isArray(log.startLog)?log.startLog:[];
     log.startLog.forEach(item=>{item.label=item.label||'';item.labelTagId=item.labelTagId||'';});
@@ -2057,7 +2173,7 @@ function storageBackupSummary(raw){
   if(!isValidStorageData(data))return '不正または空';
   const counts=storageCounts(data);
   const draft=data.draftLog?' / draftあり':'';
-  return `logs:${counts.logs} / stores:${counts.stores} / shopNotes:${counts.shopNotes} / machines:${Array.isArray(data.machines)?data.machines.length:0}${draft}`;
+  return `logs:${counts.logs} / stores:${counts.stores} / shopNotes:${counts.shopNotes} / shopNoteCards:${counts.shopNoteCards} / machines:${Array.isArray(data.machines)?data.machines.length:0}${draft}`;
 }
 function renderProtectionBackups(){
   const el=document.getElementById('protectionBackupList');
@@ -8865,6 +8981,185 @@ function deleteShopNote(id){
   persist();
   renderLogsList();
 }
+let shopNoteOpenCardId='';
+let shopNoteCategoryId=SHOP_NOTE_TAG_CATEGORIES[0]?.id||'';
+let shopNoteFavoritePressTimer=null;
+let shopNoteFavoriteLongPressed=false;
+function shopNoteCurrentMachineId(){return currentMachine()?.id||selectedMachineId||'';}
+function shopNoteTagById(id){return SHOP_NOTE_TAGS.find(tag=>tag.id===id)||null;}
+function currentShopNoteDate(){return db?.draftLog?.money?.date||todayValue();}
+function hideLegacyShopNoteControls(){
+  const unit=document.getElementById('shopNoteUnit');
+  const text=document.getElementById('shopNoteText');
+  if(unit?.closest)unit.closest('.input-row').style.display='none';
+  if(text?.closest)text.closest('.input-row').style.display='none';
+  const actions=text?.closest?.('.input-row')?.nextElementSibling;
+  if(actions?.classList?.contains('suggest-picker-actions'))actions.style.display='none';
+}
+function openShopNoteModal(id=''){
+  hideLegacyShopNoteControls();
+  const card=id?(db.shopNoteCards||[]).find(row=>row.id===id):null;
+  shopNoteOpenCardId=card?.id||shopNoteOpenCardId||'';
+  document.getElementById('shopNoteTitle').textContent='他台メモ';
+  document.getElementById('shopNoteStoreLabel').textContent=`店舗: ${currentShopNoteStoreName()||'未設定'} / 機種: ${currentMachine()?.name||'未選択'}`;
+  document.getElementById('shopNoteOverlay')?.classList.add('open');
+  renderShopNoteSheet();
+}
+function closeShopNoteModal(){document.getElementById('shopNoteOverlay')?.classList.remove('open');}
+function shopNoteCardsForDate(date=currentShopNoteDate()){
+  return (db.shopNoteCards||[]).filter(card=>card.date===date).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
+}
+function renderShopNoteSheet(){
+  const body=document.getElementById('shopNoteBody');
+  if(!body)return;
+  const rows=shopNoteCardsForDate();
+  body.innerHTML=`
+    <div class="shop-note-new-card">
+      <div class="input-row">
+        <div class="input-label">台番号<div class="input-hint">店舗: ${escapeHtml(currentShopNoteStoreName()||'未設定')}</div></div>
+        <input type="text" id="shopNoteNewMachineNo" inputmode="numeric" placeholder="例: 189">
+      </div>
+      <button class="btn-primary" type="button" onclick="createShopNoteCard()">＋新しい台</button>
+    </div>
+    ${rows.length?rows.map(renderShopNoteCard).join(''):'<div class="empty-hint">当日の他台カードはまだありません</div>'}`;
+}
+function renderShopNoteCard(card){
+  const isOpen=shopNoteOpenCardId===card.id;
+  const title=card.machineNo?`台${card.machineNo}`:'台不明';
+  const store=card.store||'店舗未設定';
+  return `
+    <div class="shop-note-card ${isOpen?'open':''}">
+      <div class="shop-note-card-head">
+        <button class="shop-note-card-head" type="button" onclick="toggleShopNoteCard('${escapeHtml(card.id)}')">
+          <div>
+            <div class="shop-note-card-title">${escapeHtml(isOpen?'▼':'▶')} ${escapeHtml(title)}</div>
+            <div class="shop-note-card-sub">${escapeHtml(store)} / 最終 ${escapeHtml(formatShopNoteTime(card.updatedAt))} / ${card.entries.length}件</div>
+          </div>
+        </button>
+        <div class="shop-note-card-actions">
+          <button class="btn-danger" type="button" onclick="deleteShopNoteCard('${escapeHtml(card.id)}')">削除</button>
+        </div>
+      </div>
+      ${isOpen?renderShopNoteCardBody(card):''}
+    </div>`;
+}
+function renderShopNoteCardBody(card){
+  const entries=[...(card.entries||[])].sort((a,b)=>String(a.at).localeCompare(String(b.at)));
+  return `
+    <div class="shop-note-entry-list">
+      ${entries.length?entries.map(renderShopNoteEntry).join(''):'<div class="empty-hint">この台の記録はまだありません</div>'}
+    </div>
+    ${renderShopNotePalette(card)}`;
+}
+function renderShopNoteEntry(entry){
+  const tags=(entry.tagIds||[]).map(shopNoteTagById).filter(Boolean);
+  return `
+    <div class="shop-note-entry">
+      <div class="shop-note-meta">${escapeHtml(formatShopNoteTime(entry.at))}</div>
+      ${tags.length?`<div class="shop-note-entry-tags">${tags.map(tag=>`<span class="shop-note-entry-tag">${escapeHtml(tag.label)}</span>`).join('')}</div>`:''}
+      ${entry.text?`<div class="shop-note-text">${escapeHtml(entry.text)}</div>`:''}
+    </div>`;
+}
+function renderShopNotePalette(card){
+  const machineId=shopNoteCurrentMachineId();
+  const favoriteIds=machineId?(db.shopNoteFavorites?.[machineId]||[]):[];
+  const favorites=favoriteIds.map(shopNoteTagById).filter(Boolean);
+  const category=SHOP_NOTE_TAG_CATEGORIES.find(row=>row.id===shopNoteCategoryId)||SHOP_NOTE_TAG_CATEGORIES[0];
+  const tags=SHOP_NOTE_TAGS.filter(tag=>tag.categoryId===category.id);
+  return `
+    <div class="shop-note-palette">
+      ${favorites.length?`<div class="shop-note-palette-label">★お気に入り</div><div class="shop-note-palette-row">${favorites.map(tag=>`<button class="shop-note-chip favorite" type="button" onclick="addShopNoteEntry('${escapeHtml(card.id)}','${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join('')}</div>`:''}
+      <div class="shop-note-palette-label">カテゴリ</div>
+      <div class="shop-note-palette-row">${SHOP_NOTE_TAG_CATEGORIES.map(row=>`<button class="shop-note-chip ${row.id===category.id?'active':''}" type="button" onclick="selectShopNoteCategory('${escapeHtml(row.id)}')">${escapeHtml(row.label)}</button>`).join('')}</div>
+      <div class="shop-note-palette-label">${escapeHtml(category.label)}（長押しで★登録/解除）</div>
+      <div class="shop-note-palette-row">${tags.map(tag=>`<button class="shop-note-chip ${favoriteIds.includes(tag.id)?'starred':''}" type="button" onpointerdown="startShopNoteFavoritePress(event,'${escapeHtml(tag.id)}')" onpointerup="cancelShopNoteFavoritePress()" onpointerleave="cancelShopNoteFavoritePress()" onpointercancel="cancelShopNoteFavoritePress()" onclick="handleShopNoteTagClick('${escapeHtml(card.id)}','${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join('')}</div>
+      <div class="shop-note-text-row">
+        <textarea id="shopNoteText_${escapeHtml(card.id)}" placeholder="自由記述メモ"></textarea>
+        <button class="btn-primary" type="button" onclick="addShopNoteTextEntry('${escapeHtml(card.id)}')">追加</button>
+      </div>
+    </div>`;
+}
+function createShopNoteCard(){
+  const store=currentShopNoteStoreName();
+  if(!store){alert('店舗が確定している稼働中のみ他台メモを記録できます。');return;}
+  const input=document.getElementById('shopNoteNewMachineNo');
+  const machineNo=String(input?.value||'').replace(/[^\d]/g,'').trim();
+  const now=new Date().toISOString();
+  const card=normalizeShopNoteCard({id:uid('snc'),createdAt:now,updatedAt:now,date:currentShopNoteDate(),store,machineNo,machineId:shopNoteCurrentMachineId(),entries:[]});
+  db.shopNoteCards.push(card);
+  shopNoteOpenCardId=card.id;
+  if(input)input.value='';
+  persist();
+  renderShopNoteSheet();
+  renderLogsList();
+}
+function toggleShopNoteCard(id){shopNoteOpenCardId=shopNoteOpenCardId===id?'':id;renderShopNoteSheet();}
+function selectShopNoteCategory(id){
+  if(SHOP_NOTE_TAG_CATEGORIES.some(row=>row.id===id))shopNoteCategoryId=id;
+  renderShopNoteSheet();
+}
+function addShopNoteEntry(cardId,tagId='',text=''){
+  const card=db.shopNoteCards.find(row=>row.id===cardId);
+  if(!card)return;
+  const now=new Date().toISOString();
+  const entry=normalizeShopNoteEntry({id:uid('sne'),at:now,tagIds:tagId?[tagId]:[],text});
+  if(!entry)return;
+  card.entries.push(entry);
+  card.updatedAt=now;
+  card.machineId=card.machineId||shopNoteCurrentMachineId();
+  db.shopNoteCards=db.shopNoteCards.map(normalizeShopNoteCard).filter(Boolean);
+  persist();
+  battleModeVibrate([18]);
+  showSmallToast(tagId?`${shopNoteTagById(tagId)?.label||'タグ'}記録`:`メモ記録（${formatShopNoteTime(now)}）`);
+  renderShopNoteSheet();
+  renderLogsList();
+}
+function handleShopNoteTagClick(cardId,tagId){
+  if(shopNoteFavoriteLongPressed){
+    shopNoteFavoriteLongPressed=false;
+    return;
+  }
+  addShopNoteEntry(cardId,tagId);
+}
+function addShopNoteTextEntry(cardId){
+  const textarea=document.getElementById(`shopNoteText_${cardId}`);
+  const text=String(textarea?.value||'').trim();
+  if(!text){alert('メモを入力してください。');return;}
+  addShopNoteEntry(cardId,'',text);
+}
+function startShopNoteFavoritePress(event,tagId){
+  cancelShopNoteFavoritePress();
+  shopNoteFavoriteLongPressed=false;
+  shopNoteFavoritePressTimer=setTimeout(()=>toggleShopNoteFavorite(tagId),500);
+}
+function cancelShopNoteFavoritePress(){
+  clearTimeout(shopNoteFavoritePressTimer);
+  shopNoteFavoritePressTimer=null;
+}
+function toggleShopNoteFavorite(tagId){
+  const machineId=shopNoteCurrentMachineId();
+  if(!machineId)return;
+  shopNoteFavoriteLongPressed=true;
+  if(!db.shopNoteFavorites||typeof db.shopNoteFavorites!=='object')db.shopNoteFavorites={};
+  const ids=db.shopNoteFavorites[machineId]||[];
+  const exists=ids.includes(tagId);
+  db.shopNoteFavorites[machineId]=exists?ids.filter(id=>id!==tagId):[...ids,tagId];
+  db.shopNoteFavorites=normalizeShopNoteFavorites(db.shopNoteFavorites);
+  persist();
+  showSmallToast(exists?'★お気に入りを解除':'★お気に入りに追加');
+  renderShopNoteSheet();
+}
+function deleteShopNoteCard(id){
+  const card=db.shopNoteCards.find(row=>row.id===id);
+  if(!card)return;
+  const title=card.machineNo?`台${card.machineNo}`:'台不明';
+  if(!confirm(`${title} / ${card.entries.length}件の他台カードを削除しますか？`))return;
+  db.shopNoteCards=db.shopNoteCards.filter(row=>row.id!==id);
+  if(shopNoteOpenCardId===id)shopNoteOpenCardId='';
+  persist();
+  renderLogsList();
+  renderShopNoteSheet();
+}
 function nangokuEntryTypeForTag(tag){
   if(tag?.id==='t_nangoku_sdc_start')return 'sdc';
   if(tag?.id==='t_nangoku_super_hisho_start')return 'super_hisho';
@@ -11409,7 +11704,7 @@ function renderSegmentHistoryItem(log,segment,index,total=1){
 }
 function renderLogsList(){
   const el=document.getElementById('logsList');
-  const notes=Array.isArray(db.shopNotes)?db.shopNotes:[];
+  const notes=Array.isArray(db.shopNoteCards)?db.shopNoteCards:[];
   if(!db.logs.length&&!notes.length){el.innerHTML='<div class="empty-hint">まだログなし</div>';return;}
   const logs=[...db.logs].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   const groups={};
@@ -11420,7 +11715,7 @@ function renderLogsList(){
   });
   const noteGroups={};
   notes.forEach(note=>{
-    const date=formatShopNoteDate(note.createdAt);
+    const date=note.date||formatShopNoteDate(note.createdAt);
     if(!noteGroups[date])noteGroups[date]=[];
     noteGroups[date].push(note);
   });
@@ -11463,6 +11758,35 @@ function renderShopNotesForDate(notes=[]){
           </div>
         </div>`).join('')}
     </div>`;
+}
+function shopNoteUnresolvedBadge(notes){
+  const count=(notes||[]).length;
+  return count?` <span class="unresolved-badge">他台${count}</span>`:'';
+}
+function renderShopNotesForDate(notes=[]){
+  if(!notes.length)return '';
+  const rows=[...notes].sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
+  return `
+    <div class="section-label" style="margin-top:12px;">他台メモ</div>
+    <div class="shop-note-list">
+      ${rows.map(card=>`
+        <div class="shop-note-item">
+          <div class="shop-note-meta">${escapeHtml(card.machineNo?`台${card.machineNo}`:'台不明')} / ${escapeHtml(card.store||'店舗未設定')} / 最終 ${escapeHtml(formatShopNoteTime(card.updatedAt))} / ${card.entries.length}件</div>
+          <div class="shop-note-text">${escapeHtml(shopNoteCardSummaryText(card))}</div>
+          <div class="item-actions" style="margin-top:8px;">
+            <button class="btn-small edit-strong" onclick="openShopNoteModal('${escapeHtml(card.id)}')">開く</button>
+            <button class="btn-danger" onclick="deleteShopNoteCard('${escapeHtml(card.id)}')">削除</button>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+function shopNoteCardSummaryText(card){
+  const entries=[...(card.entries||[])].sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,3);
+  if(!entries.length)return '記録なし';
+  return entries.map(entry=>{
+    const tags=(entry.tagIds||[]).map(shopNoteTagById).filter(Boolean).map(tag=>tag.label).join(' / ');
+    return `${formatShopNoteTime(entry.at)} ${[tags,entry.text].filter(Boolean).join(' ')}`.trim();
+  }).join('\n');
 }
 function logDateExpectedValueLabel(logs){
   const {sessionItems}=buildSessionGroups(logs);
