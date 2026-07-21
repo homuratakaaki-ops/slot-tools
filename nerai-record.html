@@ -1290,7 +1290,7 @@ function renderStorageProtectionBanner(){
   const locked=storageProtectionLocked||storageProtectionReason;
   el.classList.toggle('open',!!locked);
   el.innerHTML=locked
-    ?`${escapeHtml(storageProtectionReason||'データ保護のため自動保存を停止しています。')} <a href="recovery.html" target="_blank" rel="noopener">Recoveryを開く</a>`
+    ?`${escapeHtml(storageProtectionReason||'データ保護のため自動保存を停止しています。')} <a href="recovery.html" target="_blank" rel="noopener">Recoveryを開く</a><button class="btn-small gold" type="button" onclick="recoverStorageGuardForNewSession()">正データから新規開始</button>`
     :'';
 }
 function estimateLocalStorageBytes(){
@@ -1831,7 +1831,7 @@ function migrateTimelineOffsets(log){
   log.manualCorrection=existingManual!==null?existingManual:(legacyOffset!==null?legacyOffset:legacyDeltaOffset);
 }
 function persist(options={}){
-  if(storageProtectionLocked){
+  if(storageProtectionLocked&&!options.allowProtectionLocked){
     renderStorageProtectionBanner();
     return false;
   }
@@ -1862,6 +1862,36 @@ function persist(options={}){
     alert('保存に失敗しました。現在の画面状態は保持しています。バックアップ/復元からJSONを保存し、容量を整理してください。');
     return false;
   }
+}
+function recoverStorageGuardForNewSession(){
+  if(!confirm('現在の画面入力を破棄し、保存済みデータから読み直して新しい稼働を開始します。保存済みの下書きは未確定ログへ退避します。よろしいですか？'))return false;
+  const raw=localStorage.getItem(STORAGE_KEY);
+  const stored=normalizeData(parseStorageRaw(raw)||clone(EMPTY_DATA));
+  if(stored.draftLog&&draftHasContent(stored.draftLog)){
+    const log={...clone(stored.draftLog),status:'suspended',state4Registered:false,finalized:false,excludeFromStats:true,updatedAt:new Date().toISOString()};
+    log.id=log.id||uid('l');
+    log.sessionId=log.sessionId||log.id;
+    stored.logs=stored.logs.filter(item=>item.id!==log.id);
+    stored.logs.push(log);
+  }
+  stored.draftLog=null;
+  db=stored;
+  storageProtectionLocked=false;
+  storageProtectionReason='';
+  try{sessionStorage.removeItem('neraiRecordProtectionLocked');}catch{}
+  if(!persist({allowProtectionLocked:true})){
+    storageProtectionReason='復帰用の保存に失敗しました。RecoveryからJSONを確保してください。';
+    renderStorageProtectionBanner();
+    return false;
+  }
+  clearLogInput(true);
+  resumeChoiceDismissed=true;
+  sessionFieldsLocked=false;
+  renderAll();
+  showPage('pageLog');
+  scrollToPageTop();
+  alert('保存済みデータを読み直し、下書きを未確定ログへ退避しました。新しい稼働を開始できます。');
+  return true;
 }
 function rotateDailyStorageBackup(){
   const raw=localStorage.getItem(STORAGE_KEY);
@@ -9899,17 +9929,18 @@ function scrollToPageTop(){
 function startNewRegistration(){
   if(!ensureNoHitSegmentClosedBeforeExit())return;
   if(!confirm('入力中の今回の稼働を未確定ログへ保留して、新規登録を始めますか？収支未登録の場合は集計対象外になります。'))return;
-  archiveCurrentDraftAsUnfinalized();
+  const archived=archiveCurrentDraftAsUnfinalized();
+  if(archived===null)return;
   clearLogInput(true);
   db.draftLog=null;
-  persist();
+  if(!persist())return;
   showPage('pageLog');
   scrollToPageTop();
 }
 function archiveCurrentDraftAsUnfinalized(){
-  if(editingLogId)return;
+  if(editingLogId)return true;
   const log=currentInputLogObject(false,db.draftLog||null);
-  if(!draftHasContent(log))return;
+  if(!draftHasContent(log))return true;
   log.id=log.id||uid('l');
   log.status='suspended';
   log.state4Registered=false;
@@ -9919,8 +9950,7 @@ function archiveCurrentDraftAsUnfinalized(){
   db.logs=db.logs.filter(item=>item.id!==log.id);
   db.logs.push(log);
   db.draftLog=null;
-  persist();
-  return log;
+  return persist()?log:null;
 }
 function clearLogInput(cancelEdit=true){
   if(cancelEdit)editingLogId=null;

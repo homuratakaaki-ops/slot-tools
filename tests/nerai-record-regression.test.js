@@ -881,6 +881,40 @@ function testStorageGuardCatchesLogShopNoteAndDraftLoss() {
   assert.equal(vm.runInContext('storageProtectionReason.length > 0', context), true);
 }
 
+function testStorageGuardRecoveryArchivesStoredDraftForNewSession() {
+  const oldData = {
+    version: 1,
+    machines: [],
+    stores: [],
+    logs: [{ id: 'l_1', sessionId: 's_1' }],
+    shopNotes: [],
+    draftLog: {
+      id: 'draft_1784594137282_5332',
+      sessionId: 'draft_1784594137282_5332',
+      machineId: 'm_nangoku_special',
+      aimId: 'a_nangoku_special_tenjo',
+      schemaVersion: 2,
+      flowStep: 2,
+      status: 'active',
+      startCounterGame: 50,
+      timeline: [{ id: 'tl_1', game: 54, liquidGame: 54, text: 'リプレイフラッシュ', tagIds: ['t_nangoku_replay_flash'] }],
+      money: { date: '2026-07-21', store: 'STORE', machineNo: '12', startMedals: 0 }
+    }
+  };
+  const { context, localStorage } = runRecord(JSON.stringify(oldData), [true]);
+  vm.runInContext('db.draftLog = null; persist();', context);
+  let stored = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  assert.ok(stored.draftLog);
+  assert.equal(vm.runInContext('storageProtectionReason.length > 0', context), true);
+
+  assert.equal(vm.runInContext('recoverStorageGuardForNewSession()', context), true);
+  stored = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  assert.equal(stored.draftLog, null);
+  assert.equal(stored.logs.some(log => log.sessionId === 'draft_1784594137282_5332' && log.status === 'suspended'), true);
+  assert.equal(vm.runInContext('storageProtectionLocked', context), false);
+  assert.equal(vm.runInContext('storageProtectionReason', context), '');
+}
+
 function testQuotaExceededLocksProtectionWithoutThrowing() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -971,6 +1005,7 @@ function run() {
   testSuggestLogSnapshotKeepsOnlyCurrentSegmentEntries();
   testNormalizeDataDedupesCopiedSegmentSuggestLogs();
   testStorageGuardCatchesLogShopNoteAndDraftLoss();
+  testStorageGuardRecoveryArchivesStoredDraftForNewSession();
   testQuotaExceededLocksProtectionWithoutThrowing();
   testStorageUsageDisplayAndWarningThresholds();
   testProtectionBackupDeleteDownloadsAndKeepsPrimaryStorage();
