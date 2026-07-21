@@ -404,7 +404,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
 .bm-grid{display:grid;grid-template-rows:repeat(4,minmax(52px,auto));gap:7px;min-height:0;align-content:end;}
 .bm-button-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
-.bm-event-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+.bm-event-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
 .bm-other-row{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;}
 .bm-btn{min-height:52px;border:1px solid rgba(201,168,76,.45);border-radius:8px;background:var(--surface2);color:var(--text);font-size:16px;font-weight:900;line-height:1.25;padding:8px;cursor:pointer;}
 .bm-event-row .bm-btn{min-height:58px;white-space:pre-line;}
@@ -1131,11 +1131,11 @@ function normalizeQuickPanelEvent(item){
 }
 function normalizeQuickPanel(panel){
   if(Array.isArray(panel)){
-    return {counters:[],gainButtons:[1,10],events:panel.slice(0,5).map(normalizeQuickPanelEvent).filter(Boolean)};
+    return {counters:[],gainButtons:[1,3,5,10],events:panel.slice(0,5).map(normalizeQuickPanelEvent).filter(Boolean)};
   }
-  if(!panel||typeof panel!=='object')return {counters:[],gainButtons:[1,5,10],events:[]};
+  if(!panel||typeof panel!=='object')return {counters:[],gainButtons:[1,3,5,10],events:[]};
   const counters=Array.isArray(panel.counters)?panel.counters.map(value=>String(value||'').trim()).filter(Boolean).slice(0,3):[];
-  const gainButtons=Array.isArray(panel.gainButtons)?panel.gainButtons.map(value=>Number(value)).filter(value=>[1,5,10].includes(value)).slice(0,3):[1,5,10];
+  const gainButtons=[1,3,5,10];
   const events=Array.isArray(panel.events)?panel.events.slice(0,3).map(normalizeQuickPanelEvent).filter(Boolean):[];
   return {counters,gainButtons,events};
 }
@@ -3054,7 +3054,7 @@ function ensureNangokuSpecialSeed(machine){
   machine.quickTagIds=['t_nangoku_replay','t_nangoku_cherry','t_nangoku_suika'];
   machine.quickPanel=normalizeQuickPanel({
     counters:['replay','cherry','suika'],
-    gainButtons:[1,5,10],
+    gainButtons:[1,3,5,10],
     events:[
       {type:'tag',ref:'t_nangoku_replay_flash'},
       {type:'picker',ref:'sazanami'},
@@ -5167,12 +5167,12 @@ function battleModeQuickButton(item,index){
 }
 function renderBattleModeGrid(){
   const panel=battleModePanel();
-  const gains=(panel.gainButtons.length?panel.gainButtons:[1,5,10]).slice(0,3);
+  const gains=(panel.gainButtons.length?panel.gainButtons:[1,3,5,10]).slice(0,4);
   const counters=panel.counters.slice(0,3);
   const events=panel.events.slice(0,3);
   return `
     <div class="bm-event-row">
-      ${Array.from({length:3},(_,i)=>{
+      ${Array.from({length:4},(_,i)=>{
         const delta=gains[i];
         return delta?`<button class="bm-btn counter" type="button" onclick="battleModeIncrementGame(${escapeHtml(delta)})">+${escapeHtml(delta)}</button>`:'<button class="bm-btn disabled" type="button" disabled>空き</button>';
       }).join('')}
@@ -7966,6 +7966,38 @@ function addNangokuChainTriggerSuggest(){
   });
   return true;
 }
+function maybeSkipNangokuBonusTypeStep(step){
+  if(step?.placeId!=='sgp_nangoku_bonus_type')return false;
+  const event=currentHitEvent();
+  if(event?.variant==='blue7'){
+    const entry=findSuggestPlaceEntryById('sgp_nangoku_bonus_type');
+    const item=entry?enabledSuggestItems(entry.category.id,entry.place.id)[0]:null;
+    if(entry&&item){
+      const duplicate=currentSuggestLog.some(row=>row.hitEventId===event.id&&row.placeId===entry.place.id&&row.itemId===item.id);
+      if(!duplicate){
+        addSuggestLogFromSelection({
+          stateGroup:'hit',
+          source:'wizard',
+          hitEventId:event.id,
+          carryType:normalizeCarryType(item.carryType),
+          pointRole:entry.place.pointRole||item.pointRole||null,
+          confidenceLevel:item.confidenceLevel||null,
+          confidenceType:item.confidenceType||null,
+          categoryId:entry.category.id,
+          placeId:entry.place.id,
+          itemId:item.id,
+          category:entry.category.category,
+          place:entry.place.name,
+          item:item.label,
+          decorations:item.decorations||[],
+          useAppearG:false
+        });
+      }
+    }
+  }
+  advanceNangokuHitSuggestStep();
+  return true;
+}
 function openNangokuHitSuggestStep(){
   const step=currentNangokuHitSuggestStep();
   if(!step){
@@ -7974,6 +8006,7 @@ function openNangokuHitSuggestStep(){
     selectAtFollow('yes');
     return;
   }
+  if(maybeSkipNangokuBonusTypeStep(step))return;
   if(step.placeId==='sgp_nangoku_trigger'&&currentHitIsWithinChainRule()){
     addNangokuChainTriggerSuggest();
     advanceNangokuHitSuggestStep();

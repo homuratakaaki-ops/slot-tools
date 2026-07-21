@@ -411,10 +411,12 @@ function testBattleModeUndefinedQuickPanelRendersEmptySlots() {
   `, context);
   const grid = vm.runInContext('renderBattleModeGrid()', context);
   assert.match(grid, /battleModeIncrementGame\(1\)/);
+  assert.match(grid, /battleModeIncrementGame\(3\)/);
   assert.match(grid, /battleModeIncrementGame\(5\)/);
   assert.match(grid, /battleModeIncrementGame\(10\)/);
   assert.match(grid, /openBattleModeOtherSheet/);
   assert.equal((grid.match(/type="button" disabled/g) || []).length, 6);
+  assert.match(extractStyle(), /\.bm-event-row\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 }
 
 function testBattleModeKeypadOverlayStacksAboveBattleMode() {
@@ -648,6 +650,29 @@ function testBattleModeBonusPickerStartsExistingHitWizard() {
   });
 }
 
+function testNangokuBonusTypeSuggestStepIsSkippedAfterBonusPicker() {
+  [
+    ['direct_at', '', 0],
+    ['episode_bonus', '', 0],
+    ['direct_at', 'blue7', 1]
+  ].forEach(([trigger, variant, expectedBonusSuggestCount]) => {
+    const { context } = runRecord(undefined);
+    vm.runInContext(`
+      selectedMachineId = 'm_nangoku_special';
+      selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+      battleModeOpen = true;
+      currentFlowStep = 2;
+      setManualCorrectionForLiquid(210, 201);
+      setTimelineGames(210, 201);
+      battleModeStartHit('${trigger}', '${variant}');
+      nangokuHitSuggestState = { eventId: currentHitEvents[0].id, stepIndex: 3 };
+      openNangokuHitSuggestStep();
+    `, context);
+    assert.notEqual(vm.runInContext('suggestPickerState.branchStep', context), 'nangokuHitSuggest');
+    assert.equal(vm.runInContext("currentSuggestLog.filter(entry => entry.placeId === 'sgp_nangoku_bonus_type').length + currentSegments.reduce((sum, segment) => sum + (segment.suggestLog || []).filter(entry => entry.placeId === 'sgp_nangoku_bonus_type').length, 0)", context), expectedBonusSuggestCount);
+  });
+}
+
 function testBattleModeHitWizardResetReturnsToBattleMode() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -673,16 +698,16 @@ function testBattleModeGameIncrementUndoAndRedo() {
     battleModeOpen = true;
     setManualCorrectionForLiquid(100, 91);
     setTimelineGames(100, 91);
-    battleModeIncrementGame(10);
+    battleModeIncrementGame(3);
   `, context);
-  assert.equal(vm.runInContext('timelineDataValue()', context), 110);
-  assert.equal(vm.runInContext('timelineLiquidValue()', context), 101);
+  assert.equal(vm.runInContext('timelineDataValue()', context), 103);
+  assert.equal(vm.runInContext('timelineLiquidValue()', context), 94);
   vm.runInContext('undoBattleModeLast()', context);
   assert.equal(vm.runInContext('timelineDataValue()', context), 100);
   assert.equal(vm.runInContext('timelineLiquidValue()', context), 91);
   vm.runInContext('redoBattleModeUndo()', context);
-  assert.equal(vm.runInContext('timelineDataValue()', context), 110);
-  assert.equal(vm.runInContext('timelineLiquidValue()', context), 101);
+  assert.equal(vm.runInContext('timelineDataValue()', context), 103);
+  assert.equal(vm.runInContext('timelineLiquidValue()', context), 94);
 }
 
 function testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo() {
@@ -900,6 +925,7 @@ function run() {
   testBattleModeCounterRowUsesExistingTagFlow();
   testBattleModeSazanamiPickerStoresEntryCause();
   testBattleModeBonusPickerStartsExistingHitWizard();
+  testNangokuBonusTypeSuggestStepIsSkippedAfterBonusPicker();
   testBattleModeHitWizardResetReturnsToBattleMode();
   testBattleModeGameIncrementUndoAndRedo();
   testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo();
