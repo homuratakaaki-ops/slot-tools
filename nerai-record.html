@@ -333,6 +333,10 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .storage-usage-banner.open{display:block;}
 .storage-usage-banner.danger{border-color:rgba(255,122,122,.7);background:rgba(255,122,122,.13);color:#ffdcdc;}
 .storage-usage-meter{font-size:12px;color:var(--text-muted);line-height:1.7;margin-top:8px;}
+.checkpoint-status{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;border:1px solid rgba(201,168,76,.35);border-radius:8px;background:rgba(201,168,76,.08);padding:7px 9px;font-size:12px;color:var(--text-muted);}
+.checkpoint-status strong{color:var(--gold-light);}
+.checkpoint-status.warn{border-color:rgba(255,122,122,.45);background:rgba(255,122,122,.08);color:#ffd6d6;}
+.checkpoint-status .btn-small{margin-left:auto;}
 .protection-list{display:grid;gap:8px;margin-top:10px;}
 .protection-row{border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px;background:rgba(0,0,0,.16);}
 .protection-row .meta{font-size:12px;color:var(--text-muted);margin-top:4px;}
@@ -500,6 +504,7 @@ footer a:hover{color:var(--gold-light);}
 <div class="page" id="pageLog">
   <div class="flow-step-tabs" id="flowStepTabs"></div>
   <div id="currentContextBar"></div>
+  <div id="checkpointStatusBox"></div>
   <div id="resumeChoiceBox"></div>
   <div class="section flow-panel" data-flow-step="1">
     <div class="section-label">今日の狙い</div>
@@ -621,6 +626,7 @@ footer a:hover{color:var(--gold-light);}
         <button class="btn-secondary" onclick="renderProtectionBackups()">退避データを確認</button>
         <a class="btn-secondary" href="recovery.html" target="_blank" rel="noopener" style="text-decoration:none;">Recoveryを開く</a>
       </div>
+      <div id="checkpointBackupBox"></div>
       <div id="protectionBackupList" class="protection-list"></div>
     </div>
   </div>
@@ -909,6 +915,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="bm-title" id="battleModeTitle">実戦モード</div>
       <button class="bm-close" type="button" onclick="closeBattleMode()" aria-label="閉じる">×</button>
     </div>
+    <div id="battleModeCheckpointStatus"></div>
     <div class="bm-counters" id="battleModeCounters"></div>
     <div class="bm-grid" id="battleModeGrid"></div>
     <div class="bm-recent" id="battleModeRecent"></div>
@@ -934,6 +941,7 @@ const STORAGE_PRERESTORE_KEY='nerai_record_v1_prerestore';
 const STORAGE_DAILY_BACKUP_DATE_KEY='nerai_record_v1_daily_backup_date';
 const STORAGE_BACKUP_KEYS=['nerai_record_v1_backup_1','nerai_record_v1_backup_2','nerai_record_v1_backup_3'];
 const STORAGE_RECOVERY_KEYS=[STORAGE_LAST_GOOD_KEY,STORAGE_PREMIGRATE_KEY,STORAGE_PRERESTORE_KEY,...STORAGE_BACKUP_KEYS];
+const STORAGE_CHECKPOINT_KEY='nerai_record_v1_checkpoint';
 const LOCAL_STORAGE_SOFT_LIMIT_BYTES=5*1024*1024;
 const STORAGE_USAGE_WARN_RATIO=.6;
 const STORAGE_USAGE_DANGER_RATIO=.8;
@@ -1012,6 +1020,7 @@ const ENDING_CARD_GROUPS=[
 const EMPTY_DATA={version:1,machines:[],stores:[],logs:[],shopNotes:[]};
 let storageProtectionLocked=false;
 let storageProtectionReason='';
+let checkpointWarning='';
 let db=null;
 let selectedMachineId='';
 let selectedAimId='';
@@ -1279,6 +1288,128 @@ function isBackupEligibleRaw(raw){
   const data=parseStorageRaw(raw);
   return isValidStorageData(data)&&isNonEmptyStorageData(data);
 }
+function parseCheckpointRaw(raw=localStorage.getItem(STORAGE_CHECKPOINT_KEY)){
+  const parsed=parseStorageRaw(raw);
+  if(!parsed||parsed.type!=='nerai_record_checkpoint'||parsed.version!==1)return null;
+  const logs=Array.isArray(parsed.logs)?parsed.logs:[];
+  const draftLog=parsed.draftLog&&typeof parsed.draftLog==='object'?parsed.draftLog:null;
+  if(!logs.length&&!draftLog)return null;
+  return {
+    ...parsed,
+    logs,
+    draftLog,
+    sessionId:String(parsed.sessionId||draftLog?.sessionId||logs[0]?.sessionId||'')
+  };
+}
+function currentCheckpointSessionId(){
+  const draft=db?.draftLog&&typeof db.draftLog==='object'?db.draftLog:null;
+  return draft?.sessionId||draft?.id||currentDraftMetadataForSegment().sessionId;
+}
+function checkpointLogsForSession(sessionId){
+  if(!sessionId)return [];
+  return (Array.isArray(db?.logs)?db.logs:[]).filter(log=>log.sessionId===sessionId||log.id===sessionId);
+}
+function buildCheckpointPayload(reason,sessionIdOverride=''){
+  const draft=db?.draftLog&&typeof db.draftLog==='object'?clone(db.draftLog):null;
+  const sessionId=sessionIdOverride||draft?.sessionId||draft?.id||currentCheckpointSessionId();
+  const logs=checkpointLogsForSession(sessionId).map(clone);
+  if(!draft&&!logs.length)return null;
+  const machineName=draft?.machineName||logs[0]?.machineName||currentMachine()?.name||'';
+  return {
+    type:'nerai_record_checkpoint',
+    version:1,
+    createdAt:new Date().toISOString(),
+    reason:String(reason||'チェックポイント'),
+    sessionId,
+    machineId:draft?.machineId||logs[0]?.machineId||selectedMachineId||'',
+    machineName,
+    draftLog:draft,
+    logs
+  };
+}
+function saveCheckpoint(reason,sessionIdOverride=''){
+  const payload=buildCheckpointPayload(reason,sessionIdOverride);
+  if(!payload)return false;
+  const raw=JSON.stringify(payload);
+  try{
+    localStorage.setItem(STORAGE_CHECKPOINT_KEY,raw);
+    checkpointWarning='';
+    renderCheckpointStatus();
+    renderStorageProtectionBanner();
+    renderStorageUsage();
+    return true;
+  }catch(error){
+    console.error('checkpoint save failed',error);
+    checkpointWarning='チェックポイント保存に失敗しました。通常保存は継続しています。容量を確認してください。';
+    renderCheckpointStatus();
+    if(battleModeOpen)battleModeInvalid('CP保存失敗');
+    return false;
+  }
+}
+function checkpointTimeLabel(checkpoint){
+  const date=new Date(checkpoint?.createdAt||'');
+  if(Number.isNaN(date.getTime()))return '--:--';
+  return date.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+}
+function checkpointStatusHtml(compact=false){
+  const checkpoint=parseCheckpointRaw();
+  if(checkpointWarning&&!checkpoint){
+    return `<div class="checkpoint-status warn">${escapeHtml(checkpointWarning)}</div>`;
+  }
+  if(!checkpoint&&!checkpointWarning)return `<div class="checkpoint-status"><span>最終CP: 未作成</span></div>`;
+  const label=checkpoint?`最終CP: ${checkpointTimeLabel(checkpoint)}（${checkpoint.reason||'チェックポイント'}）`:'最終CP: 未作成';
+  const warning=checkpointWarning?`<div>${escapeHtml(checkpointWarning)}</div>`:'';
+  return `<div class="checkpoint-status ${checkpointWarning?'warn':''}">
+    <span><strong>${escapeHtml(label)}</strong>${checkpoint?.machineName?` / ${escapeHtml(checkpoint.machineName)}`:''}${warning}</span>
+    ${checkpoint&&!compact?'<button class="btn-small gold" type="button" onclick="restoreCheckpoint()">CP復元</button>':''}
+  </div>`;
+}
+function renderCheckpointStatus(){
+  const box=document.getElementById('checkpointStatusBox');
+  if(box)box.innerHTML=checkpointStatusHtml(false);
+  const bm=document.getElementById('battleModeCheckpointStatus');
+  if(bm)bm.innerHTML=checkpointStatusHtml(true);
+  const backup=document.getElementById('checkpointBackupBox');
+  if(backup)backup.innerHTML=checkpointBackupHtml();
+}
+function checkpointBackupHtml(){
+  const checkpoint=parseCheckpointRaw();
+  if(!checkpoint)return '<div class="checkpoint-status">チェックポイント: 未作成</div>';
+  const raw=localStorage.getItem(STORAGE_CHECKPOINT_KEY)||'';
+  return `
+    <div class="protection-row">
+      <div class="item-title">${STORAGE_CHECKPOINT_KEY}</div>
+      <div class="meta">${escapeHtml(`最終CP: ${checkpointTimeLabel(checkpoint)}（${checkpoint.reason||'チェックポイント'}） / ${checkpoint.machineName||'機種未記録'} / logs:${checkpoint.logs.length} / draftLog:${checkpoint.draftLog?'yes':'no'} / ${raw.length} chars`)}</div>
+      <div class="log-tools" style="margin-top:8px;">
+        <button class="btn-small" onclick="downloadCheckpointBackup()">JSON保存</button>
+        <button class="btn-small gold" onclick="restoreCheckpoint()">チェックポイントから復元</button>
+      </div>
+    </div>`;
+}
+function downloadCheckpointBackup(){
+  const raw=localStorage.getItem(STORAGE_CHECKPOINT_KEY);
+  if(!raw){alert('チェックポイントがありません');return;}
+  downloadJsonText(raw,`${STORAGE_CHECKPOINT_KEY}-${todayValue()}.json`);
+}
+function restoreCheckpoint(){
+  const checkpoint=parseCheckpointRaw();
+  if(!checkpoint){alert('復元できるチェックポイントがありません');return;}
+  if(!checkpoint.sessionId){alert('チェックポイントのセッションIDが不明です。復元を中止します。');return;}
+  if(!confirm(`チェックポイントから復元します。\n${checkpointTimeLabel(checkpoint)}（${checkpoint.reason||'チェックポイント'}）\n${checkpoint.machineName||'機種未記録'}\n\n現在の主データは復元前退避に保存します。よろしいですか？`))return;
+  if(!backupBeforeRestore())return;
+  const next=normalizeData(clone(db||EMPTY_DATA));
+  const ids=new Set((checkpoint.logs||[]).map(log=>log.id).filter(Boolean));
+  next.logs=(next.logs||[]).filter(log=>log.sessionId!==checkpoint.sessionId&&!ids.has(log.id));
+  (checkpoint.logs||[]).forEach(log=>next.logs.push(clone(log)));
+  next.draftLog=checkpoint.draftLog?clone(checkpoint.draftLog):null;
+  db=normalizeData(next);
+  if(!persist({allowDangerous:true})){
+    alert('チェックポイント復元後の保存に失敗しました。Recoveryから復元前退避JSONを確認してください。');
+    return;
+  }
+  renderAll();
+  alert('チェックポイントから復元しました');
+}
 function lockStorageProtection(reason){
   storageProtectionLocked=true;
   storageProtectionReason=reason||'データ保護のため自動保存を停止しました。';
@@ -1289,8 +1420,9 @@ function renderStorageProtectionBanner(){
   if(!el)return;
   const locked=storageProtectionLocked||storageProtectionReason;
   el.classList.toggle('open',!!locked);
+  const checkpointButton=parseCheckpointRaw()?'<button class="btn-small gold" type="button" onclick="restoreCheckpoint()">チェックポイントから復元</button>':'';
   el.innerHTML=locked
-    ?`${escapeHtml(storageProtectionReason||'データ保護のため自動保存を停止しています。')} <a href="recovery.html" target="_blank" rel="noopener">Recoveryを開く</a><button class="btn-small gold" type="button" onclick="recoverStorageGuardForNewSession()">正データから新規開始</button>`
+    ?`${escapeHtml(storageProtectionReason||'データ保護のため自動保存を停止しています。')} <a href="recovery.html" target="_blank" rel="noopener">Recoveryを開く</a>${checkpointButton}<button class="btn-small gold" type="button" onclick="recoverStorageGuardForNewSession()">正データから新規開始</button>`
     :'';
 }
 function estimateLocalStorageBytes(){
@@ -1921,6 +2053,7 @@ function storageBackupSummary(raw){
 function renderProtectionBackups(){
   const el=document.getElementById('protectionBackupList');
   if(!el)return;
+  renderCheckpointStatus();
   const keys=STORAGE_RECOVERY_KEYS;
   const rows=keys.map(key=>({key,raw:localStorage.getItem(key)}));
   el.innerHTML=rows.map(row=>`
@@ -4074,6 +4207,7 @@ function renderAll(){
   renderLogFields();
   renderFlowStepTabs();
   renderCurrentContextBar();
+  renderCheckpointStatus();
   renderResumeChoice();
   renderSessionFieldLocks();
   renderLogsList();
@@ -5259,6 +5393,7 @@ function renderBattleMode(){
   const liquid=timelineLiquidValue();
   const title=document.getElementById('battleModeTitle');
   if(title)title.textContent=`${machine?.name||'機種未選択'} / ${aim?.name||'狙い方未選択'}`;
+  renderCheckpointStatus();
   const counters=document.getElementById('battleModeCounters');
   if(counters)counters.innerHTML=`
     <div class="bm-main-counter-row">
@@ -5563,7 +5698,7 @@ function closeNoHitSegmentToQuit(){
   renderLogFields();
   renderFlowStepTabs();
   renderCurrentContextBar();
-  saveDraftImmediately();
+  if(saveDraftImmediately())saveCheckpoint('当選前ヤメ区切り後');
   return true;
 }
 function ensureNoHitSegmentClosedBeforeExit(){
@@ -5574,7 +5709,7 @@ function ensureNoHitSegmentClosedBeforeExit(){
 function commitFollowMissBranch(){
   archiveCurrentSegment(null,'follow_miss',{preserveEndState:false});
   renderLogFields();
-  saveDraftImmediately();
+  if(saveDraftImmediately())saveCheckpoint('当選なし区切り後');
   setTimeout(openSegmentExitPicker,0);
 }
 function renderFieldInput(f){
@@ -6186,7 +6321,8 @@ function finishHitBranchStepAndContinue(){
   advanceHitBranchWizard();
   const completed=completeHitBranchWizardIfDone();
   renderLogFields();
-  saveDraftImmediately();
+  const saved=saveDraftImmediately();
+  if(completed&&saved)saveCheckpoint('当選記録完了後');
   if(!completed&&currentHitBranchStep())setTimeout(openCurrentHitBranchStep,0);
 }
 function skipCurrentHitBranchStep(){
@@ -9782,7 +9918,7 @@ function draftHasContent(log){
     !!log.publicMemo||!!log.privateMemo||!!continuedFromLog;
 }
 function saveDraftNow(){
-  if(hydratingDraft||editingLogId)return;
+  if(hydratingDraft||editingLogId)return false;
   clearTimeout(draftSaveTimer);
   const log=currentInputLogObject(false,db.draftLog||null);
   if(!draftHasContent(log)){
@@ -9790,7 +9926,7 @@ function saveDraftNow(){
   }else{
     db.draftLog={...log,continuedFromLog:continuedFromLog?clone(continuedFromLog):null};
   }
-  persist();
+  return persist();
 }
 function scheduleDraftSave(){
   if(hydratingDraft||editingLogId)return;
@@ -9798,8 +9934,8 @@ function scheduleDraftSave(){
   draftSaveTimer=setTimeout(saveDraftNow,180);
 }
 function saveDraftImmediately(){
-  if(hydratingDraft||editingLogId)return;
-  saveDraftNow();
+  if(hydratingDraft||editingLogId)return false;
+  return saveDraftNow();
 }
 function bindDraftAutosave(){
   document.querySelectorAll('#pageLog input,#pageLog textarea,#pageLog select').forEach(el=>{
@@ -9894,7 +10030,9 @@ function saveLog(options={}){
   if(finalized)markSuspendedSessionLogsFinished(log.sessionId,log.id);
   if(baseMoney.store)ensureStore(baseMoney.store);
   db.draftLog=null;
-  persist();
+  const saved=persist();
+  if(!saved)return null;
+  if(saved)saveCheckpoint(finalized?'収支登録後':'区切り保存後',log.sessionId);
   const wasEditing=!!editingLog;
   editingLogId=null;
   if(options.continueAfter){

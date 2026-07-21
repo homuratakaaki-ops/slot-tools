@@ -972,6 +972,45 @@ function testProtectionBackupDeleteDownloadsAndKeepsPrimaryStorage() {
   assert.ok(localStorage.getItem('nerai_record_v1'));
 }
 
+function testCheckpointStoresOnlyCurrentSessionAndRestoresIt() {
+  const seed = {
+    version: 1,
+    machines: [],
+    stores: [],
+    shopNotes: [{ id: 'sn_keep', text: 'note', shopName: 'STORE' }],
+    logs: [
+      { id: 'l_old', sessionId: 's_cp', machineName: '東京喰種', status: 'suspended', timeline: [{ id: 'old_tl' }], money: { date: '2026-07-21' } },
+      { id: 'l_other', sessionId: 's_other', machineName: 'L南国育ちSPECIAL', status: 'settled', timeline: [{ id: 'other_tl' }], money: { date: '2026-07-21' } }
+    ],
+    draftLog: { id: 'draft_cp', sessionId: 's_cp', machineName: '東京喰種', status: 'active', timeline: [{ id: 'draft_tl' }], money: { date: '2026-07-21' } }
+  };
+  const { context, localStorage } = runRecord(JSON.stringify(seed), [true]);
+  assert.equal(vm.runInContext("saveCheckpoint('BIG当選記録後')", context), true);
+  const checkpoint = JSON.parse(localStorage.getItem('nerai_record_v1_checkpoint'));
+  assert.equal(checkpoint.type, 'nerai_record_checkpoint');
+  assert.equal(checkpoint.reason, 'BIG当選記録後');
+  assert.equal(checkpoint.sessionId, 's_cp');
+  assert.equal(checkpoint.logs.length, 1);
+  assert.equal(checkpoint.logs[0].id, 'l_old');
+  assert.equal(checkpoint.draftLog.id, 'draft_cp');
+  assert.equal(JSON.stringify(checkpoint).includes('s_other'), false);
+  assert.equal(JSON.stringify(checkpoint).includes('sn_keep'), false);
+
+  vm.runInContext(`
+    db.logs = [
+      { id: 'l_broken', sessionId: 's_cp', machineName: '東京喰種', status: 'active', timeline: [] },
+      { id: 'l_other', sessionId: 's_other', machineName: 'L南国育ちSPECIAL', status: 'settled', timeline: [{ id: 'other_tl' }] }
+    ];
+    db.draftLog = null;
+    restoreCheckpoint();
+  `, context);
+  assert.equal(vm.runInContext("db.logs.some(log => log.id === 'l_old' && log.sessionId === 's_cp')", context), true);
+  assert.equal(vm.runInContext("db.logs.some(log => log.id === 'l_broken')", context), false);
+  assert.equal(vm.runInContext("db.logs.some(log => log.id === 'l_other' && log.sessionId === 's_other')", context), true);
+  assert.equal(vm.runInContext("db.draftLog && db.draftLog.id", context), 'draft_cp');
+  assert.ok(localStorage.getItem('nerai_record_v1_prerestore'));
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -1009,6 +1048,7 @@ function run() {
   testQuotaExceededLocksProtectionWithoutThrowing();
   testStorageUsageDisplayAndWarningThresholds();
   testProtectionBackupDeleteDownloadsAndKeepsPrimaryStorage();
+  testCheckpointStoresOnlyCurrentSessionAndRestoresIt();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();

@@ -65,6 +65,7 @@ const KNOWN_RECOVERY_KEYS=[
   'nerai_record_v1_last_good',
   'nerai_record_v1_premigrate',
   'nerai_record_v1_prerestore',
+  'nerai_record_v1_checkpoint',
   'nerai_record_v1_backup_1',
   'nerai_record_v1_backup_2',
   'nerai_record_v1_backup_3'
@@ -96,6 +97,7 @@ function summarizeValue(value){
     const parsed=JSON.parse(value);
     if(parsed&&typeof parsed==='object'){
       const parts=[];
+      if(parsed.type==='nerai_record_checkpoint')parts.push('checkpoint');
       if(Array.isArray(parsed.machines))parts.push(`machines:${parsed.machines.length}`);
       if(Array.isArray(parsed.logs))parts.push(`logs:${parsed.logs.length}`);
       if(Array.isArray(parsed.stores))parts.push(`stores:${parsed.stores.length}`);
