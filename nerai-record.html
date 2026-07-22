@@ -9372,7 +9372,9 @@ function openShopNoteModal(id=''){
   shopNoteViewDate=card?.date||currentShopNoteDate();
   shopNoteOpenCardId=card?.id||shopNoteOpenCardId||'';
   document.getElementById('shopNoteTitle').textContent='他台メモ';
-  document.getElementById('shopNoteStoreLabel').textContent=`店舗: ${currentShopNoteStoreName()||'店舗未設定'} / 機種: ${currentMachine()?.name||'その他/未登録'}`;
+  const headerStore=card?card.store:currentShopNoteStoreName();
+  const headerMachine=card?machineById(card.machineId):currentMachine();
+  document.getElementById('shopNoteStoreLabel').textContent=`${shopNoteViewDate} / 店舗: ${headerStore||'店舗未設定'} / 機種: ${headerMachine?.name||'その他/未登録'}`;
   const overlay=document.getElementById('shopNoteOverlay');
   const sheet=overlay?.querySelector?.('.shop-note-sheet');
   overlay?.classList.add('open');

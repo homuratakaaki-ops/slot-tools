@@ -1381,6 +1381,7 @@ function testShopNoteModalFollowsOpenedCardDate() {
 
   vm.runInContext("openShopNoteModal('snc_0721_949');", context);
   assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-21');
+  assert.match(vm.runInContext("document.getElementById('shopNoteStoreLabel').textContent", context), /2026-07-21 \/ 店舗: STORE_ALPHA \/ 機種: L南国育ちSPECIAL/);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台949/);
   assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台777/);
   vm.runInContext("createShopNoteCard();", context);
@@ -1388,6 +1389,7 @@ function testShopNoteModalFollowsOpenedCardDate() {
 
   vm.runInContext("openShopNoteModal();", context);
   assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-22');
+  assert.match(vm.runInContext("document.getElementById('shopNoteStoreLabel').textContent", context), /2026-07-22 \/ 店舗: 店舗未設定 \/ 機種: L南国育ちSPECIAL/);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台777/);
   assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台949/);
 
