@@ -1068,6 +1068,7 @@ const SHOP_NOTE_TAG_CATEGORIES=[
   {id:'sntc_trophy',label:'トロフィー'},
   {id:'sntc_eyecatch',label:'アイキャッチ'},
   {id:'sntc_mode',label:'モード示唆'},
+  {id:'sntc_kuipoint',label:'喰ポイント'},
   {id:'sntc_setting',label:'設定示唆'},
   {id:'sntc_result',label:'結果・状態'},
   {id:'sntc_other',label:'その他'}
@@ -3081,6 +3082,7 @@ function applyTokyoGhoulShopNotePreset(machine){
   const machineId='m_tokyo_ghoul';
   const v=(categoryId,placeId,itemId)=>shopNoteVirtualTagId(machineId,categoryId,placeId,itemId);
   const modeTag=(id,label,extra={})=>({id,label,categoryId:'sntc_mode',...extra});
+  const kuiTag=(id,label,extra={})=>({id,label,categoryId:'sntc_kuipoint',...extra});
   const settingTag=(id,label,extra={})=>({id,label,categoryId:'sntc_setting',...extra});
   const resultTag=(id,label='',extra={})=>label?{id,label,categoryId:'sntc_result',...extra}:{id,categoryId:'sntc_result',...extra};
   const otherTag=(id,label='',extra={})=>label?{id,label,categoryId:'sntc_other',...extra}:{id,categoryId:'sntc_other',...extra};
@@ -3089,7 +3091,6 @@ function applyTokyoGhoulShopNotePreset(machine){
   const kui='sgc_tokyo_ghoul_kui_point';
   const tsukiyamaMode='sgp_tokyo_ghoul_tsukiyama_mode';
   const czEndcardMode='sgp_tokyo_ghoul_cz_endcard_mode';
-  const afterAtMode='sgp_tokyo_ghoul_after_at_mode';
   const eyecatch='sgp_tokyo_ghoul_eyecatch';
   const kuiGet='sgp_tokyo_ghoul_kui_point_get';
   const kuiHint='sgp_tokyo_ghoul_kui_point_hint';
@@ -3098,43 +3099,42 @@ function applyTokyoGhoulShopNotePreset(machine){
   const trophy='sgp_tokyo_ghoul_trophy';
   const tsukiyamaSetting='sgp_tokyo_ghoul_tsukiyama_setting';
   machine.shopNoteTagIds=[
-    {divider:true,label:'モード示唆'},
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i1'),'招待状デフォ1'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i2'),'招待状デフォ2'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i3'),'600G否定'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i4'),'残り200G以内or500G以上'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i5'),'1時35分'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i6'),'2時46分'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i7'),'残り300G以内'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i8'),'残り200G以内'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i9'),'残り100G以内'),
-    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i1'),'EC金木A'),
-    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i2'),'EC金木B'),
-    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i3'),'EC霧嶋'),
-    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i4'),'EC笛口'),
-    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i5'),'EC亜門'),
-    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i6'),'EC真戸'),
-    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i7'),'EC金木&喰種'),
-    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i8'),'EC霧嶋&喰種'),
-    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i9'),'EC月山'),
-    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i10'),'EC神代'),
-    modeTag(v(mode,afterAtMode,'sgp_tokyo_ghoul_after_at_mode_i1'),'AT駆け抜け'),
-    modeTag(v(mode,afterAtMode,'sgp_tokyo_ghoul_after_at_mode_i2'),'AT駆け抜け以外'),
-    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i1'),'金木研（デフォ）'),
-    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i2'),'霧嶋董香（モードB以上示唆）'),
-    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i3'),'笛口雛実（モードC以上示唆）'),
-    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i4'),'月山習（本前兆up）'),
-    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i5'),'神代利世（本前兆大幅up）'),
-    {custom:true,id:'snm_m_tokyo_ghoul_eyecatch_ghoulized',label:'喰種化（100G以内当選濃厚）',categoryId:'sntc_mode',color:'red'},
-    modeTag(v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i1'),'喰P獲得 大'),
-    modeTag(v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i2'),'喰P獲得 中'),
-    modeTag(v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i3'),'喰P獲得 小'),
-    modeTag(v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i4'),'喰P獲得 なし'),
-    modeTag(v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i1'),'喰P示唆 大'),
-    modeTag(v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i2'),'喰P示唆 中'),
-    modeTag(v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i3'),'喰P示唆 小'),
-    modeTag(v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i4'),'喰P示唆 なし'),
-    {divider:true,label:'設定示唆'},
+    {divider:true,label:'✉️ 招待状'},
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i1'),'✉️ディナー'),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i2'),'✉️パーティ'),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i3'),'✉️600G否定'),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i4'),'✉️残り200G以内or500G以上'),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i5'),'✉️1時35分'),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i6'),'✉️2時46分'),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i7'),'✉️残り300G以内'),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i8'),'✉️残り200G以内'),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i9'),'✉️残り100G以内'),
+    {divider:true,label:'🖼️ CZ終了時の1枚絵'},
+    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i1'),'🖼️金木A'),
+    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i2'),'🖼️金木B'),
+    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i3'),'🖼️霧嶋'),
+    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i4'),'🖼️笛口'),
+    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i5'),'🖼️亜門'),
+    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i6'),'🖼️真戸'),
+    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i7'),'🖼️金木&喰種'),
+    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i8'),'🖼️霧嶋&喰種'),
+    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i9'),'🖼️月山'),
+    modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i10'),'🖼️神代'),
+    {divider:true,label:'👁 アイキャッチ'},
+    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i1'),'👁金木研（デフォ）'),
+    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i2'),'👁霧嶋董香（モードB以上示唆）'),
+    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i3'),'👁笛口雛実（モードC以上示唆）'),
+    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i4'),'👁月山習（本前兆up）'),
+    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i5'),'👁神代利世（本前兆大幅up）'),
+    {custom:true,id:'snm_m_tokyo_ghoul_eyecatch_ghoulized',label:'👁喰種化（100G以内当選濃厚）',categoryId:'sntc_mode',color:'red'},
+    kuiTag(v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i1'),'喰P獲得 大'),
+    kuiTag(v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i2'),'喰P獲得 中'),
+    kuiTag(v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i3'),'喰P獲得 小'),
+    kuiTag(v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i4'),'喰P獲得 なし'),
+    kuiTag(v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i1'),'喰P示唆 大'),
+    kuiTag(v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i2'),'喰P示唆 中'),
+    kuiTag(v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i3'),'喰P示唆 小'),
+    kuiTag(v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i4'),'喰P示唆 なし'),
     settingTag(v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i1'),'EC鈴屋（設定示唆）'),
     settingTag(v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i2'),'EC梟（設定4以上濃厚）'),
     settingTag(v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i3'),'EC有馬（設定6濃厚）'),
