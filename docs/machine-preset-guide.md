@@ -92,7 +92,9 @@
 settingSuggestCounter: {
   label: "AT終了画面",
   items: [
-    { tagId: "snv_m_tokyo_ghoul_...", label: "金木研（デフォルト）" }
+    { tagId: "snv_m_tokyo_ghoul_...", label: "金木研（デフォルト）" },
+    { tagId: "snv_m_tokyo_ghoul_...", label: "神代利世（設定1否定）", color: "blue" },
+    { tagId: "snv_m_tokyo_ghoul_...", label: "四方蓮示＆イトリ＆ウタ（高設定示唆 強）", badge: "high", badgeStrong: true }
   ]
 }
 ```
@@ -102,6 +104,7 @@ settingSuggestCounter: {
 - ＋は該当タグのエントリを1件追加する。−は該当タグを含む最新エントリを1件削除する。
 - 件数は `entries` から毎回導出する。カウント値は保存しない。
 - 用途は設定示唆専用。比率や件数が意味を持つのは、1日固定の母数である設定推定に限る。
+- `items` は `color` / `hollow` / `badge` / `badgeStrong` を持てる。行頭にタグチップと同じ描画で表示する。
 
 ### 色ドット（color）
 
@@ -121,6 +124,17 @@ settingSuggestCounter: {
 4. 実機表示色・攻略慣習色がある場合は、それを優先する。リールフラッシュ、さざなみ、招待状の文字色などは序列色で上書きしない。
 5. 実装上の `color` は `purple` / `red` / `blue` / `green` / `yellow` / `gray` / `gold` / `rainbow`。`hollow` は単色のみ有効とする。
 6. ラベル文言単独で意味が通る状態を保つ。色は補助であり、色なし環境でも判別できるようにする。
+
+設定は1〜6の閉じた6段階であるため、設定1否定は設定2以上の肯定情報として扱い、青の塗りを付ける。中抜きにはしない。
+
+### 高設定示唆バッジ
+
+高設定示唆は具体的な段を指さないため、序列色ではなく金色の `高` バッジで表す。
+
+- `badge: "high"` は中抜きの `高` バッジ。
+- `badge: "high", badgeStrong: true` は塗りの `高` バッジ。
+- 弱=中抜き、強=塗り。塗り/中抜きの文法は、否定系の塗り丸/中抜き四角と同じ読み方にする。
+- `badge` は `color` / `hollow` より優先して描画する。併用は避ける。
 
 ### ラベル規約
 
