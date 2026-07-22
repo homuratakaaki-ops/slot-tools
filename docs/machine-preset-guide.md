@@ -71,7 +71,7 @@
 ```js
 [
   "snt_result_cz",
-  { id: "snv_m_tokyo_ghoul_...", label: "✉️残り100G以内", color: "blue", categoryId: "sntc_mode" },
+  { id: "snv_m_tokyo_ghoul_...", label: "✉️設定2否定", color: "blue", hollow: true, categoryId: "sntc_mode" },
   { divider: true, label: "✉️ 招待状" },
   { custom: true, id: "snm_m_tokyo_ghoul_upper_cz", label: "上位CZ", categoryId: "sntc_result", color: "red" }
 ]
@@ -80,6 +80,7 @@
 - `label` は他台メモ専用の短縮ラベル上書き。エントリ保存時の `tagLabels` には、実際に表示したラベルを保存する。
 - `categoryId` はカテゴリ寄せ先の明示指定。`SHOP_NOTE_TAG_CATEGORIES` に存在する ID だけ有効。未指定時は `carryType` 推測にフォールバックする。
 - `color` は色ドット指定。チップ背景色は変えない。
+- `hollow: true` は中抜きドット指定。否定系など、塗りと区別したい単色ドットにだけ使う。
 - `divider` は次の有効タグのカテゴリへ帰属する。divider 自体は非インタラクティブで、タグ数・お気に入り・集計の対象外。
 - `custom` タグは `snm_` プレフィックス＋機種ID込みの決定的 ID を必須とする。共通タグ定義には追加しないため、他機種・未登録機種には出ない。
 
@@ -106,7 +107,20 @@ settingSuggestCounter: {
 
 `color` はタグチップ左端の色ドットとして表示する。パレット、★お気に入り、時系列エントリの3箇所に同じドットを出す。
 
-使用可能な値は `purple` / `red` / `blue` / `green` / `gray` / `gold` / `rainbow`。`rainbow` は CSS グラデーションで表現する。
+使用可能な値は `purple` / `red` / `blue` / `green` / `yellow` / `gray` / `gold` / `rainbow`。`rainbow` は CSS グラデーションで表現する。
+
+`hollow: true` を併用すると、単色ドットは中抜き表示になる。`rainbow` との併用はしない。
+
+### 序列色体系
+
+色は強さの雰囲気ではなく、段の識別子として使う。
+
+1. 基本序列は、なし → 青 → 黄 → 緑 → 赤 → （紫: 拡張枠） → 虹。設定示唆では 1=なし / 2=青 / 3=黄 / 4=緑 / 5=赤 / 6=虹 とし、モード示唆も下位から同じ順で割り当てる。
+2. 段を指さない示唆には色を付けない。本前兆期待度アップなど、設定段階やモード段階に対応しないタグは無色のままにする。全タグに色を塗らないことが原則。
+3. 否定系は同じ段色の中抜きドットで表す。塗りはその段以上または濃厚、中抜きはその段の否定を示す。
+4. 実機表示色・攻略慣習色がある場合は、それを優先する。リールフラッシュ、さざなみ、招待状の文字色などは序列色で上書きしない。
+5. 実装上の `color` は `purple` / `red` / `blue` / `green` / `yellow` / `gray` / `gold` / `rainbow`。`hollow` は単色のみ有効とする。
+6. ラベル文言単独で意味が通る状態を保つ。色は補助であり、色なし環境でも判別できるようにする。
 
 ### ラベル規約
 
