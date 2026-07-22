@@ -1609,6 +1609,7 @@ function testShopNoteEntryLongPressDeletesIndividualEntries() {
 
   vm.runInContext("vibrations = []; navigator.vibrate = pattern => { vibrations.push(pattern); return true; };", context);
   vm.runInContext(`addShopNoteEntry('snc_delete_nangoku','${nangokuTagId}');`, context);
+  assert.match(vm.runInContext("renderShopNoteCardBody(db.shopNoteCards[0])", context), /記録は長押しで削除/);
   assert.match(vm.runInContext("renderShopNoteEntry(db.shopNoteCards[0].entries[0], db.shopNoteCards[0])", context), /startShopNoteEntryPress/);
   assert.doesNotMatch(vm.runInContext("renderShopNoteEntry(db.shopNoteCards[0].entries[0], db.shopNoteCards[0])", context), /onclick=/);
   const firstEntryId = vm.runInContext("db.shopNoteCards[0].entries[0].id", context);
