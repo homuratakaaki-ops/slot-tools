@@ -89,6 +89,10 @@ function createContext(raw, confirms = []) {
       return 1;
     },
     clearTimeout() {},
+    requestAnimationFrame(callback) {
+      if (typeof callback === 'function') callback();
+      return 1;
+    },
     document: {
       getElementById: () => fakeElement(),
       querySelector: () => fakeElement(),
@@ -439,6 +443,17 @@ function testBattleModeKeypadOverlayStacksAboveBattleMode() {
   assert.ok(keypad, 'keypad overlay z-index not found');
   assert.ok(battle, 'battle mode overlay z-index not found');
   assert.ok(Number(keypad[1]) > Number(battle[1]), 'numeric keypad must stack above battle mode overlay');
+}
+
+function testShopNoteOverlayOpensFromVisibleTop() {
+  const style = extractStyle();
+  assert.match(style, /#shopNoteOverlay\{[^}]*align-items:flex-start/);
+  assert.match(style, /#shopNoteOverlay\{[^}]*overflow:auto/);
+  assert.match(style, /#shopNoteOverlay\{[^}]*safe-area-inset-top/);
+  const script = extractScript();
+  assert.match(script, /overlay\.scrollTop=0/);
+  assert.match(script, /sheet\.scrollTop=0/);
+  assert.match(script, /scrollIntoView\?\.\(\{block:'start'\}\)/);
 }
 
 function testBattleModeMemoSheetTracksViewportOnResume() {
@@ -1180,6 +1195,43 @@ function testShopNoteBlankCardAndUnregisteredFavorites() {
   assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagLabels[0]", context), 'フォロー候補');
 }
 
+function testShopNoteCreateKeepsExplicitUnregisteredMachine() {
+  const seed = shopNoteMigrationSeed();
+  seed.shopNotes = [];
+  seed.shopNoteCards = [];
+  const { context } = runRecord(JSON.stringify(seed), [true]);
+
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    db.draftLog = { money: { date: '2026-07-21' } };
+    const elements = {
+      shopNoteNewStoreText: { value: 'テスト店' },
+      shopNoteNewStoreSelect: { value: '' },
+      shopNoteNewMachineSelect: { value: '' },
+      shopNoteNewMachineNo: { value: '777' },
+      shopNoteBody: { innerHTML: '' },
+      logsList: { innerHTML: '' }
+    };
+    const generic = {
+      innerHTML: '',
+      textContent: '',
+      value: '',
+      classList: { add() {}, remove() {}, toggle() {} },
+      style: {},
+      closest() { return null; },
+      querySelector() { return null; },
+      scrollIntoView() {}
+    };
+    document.getElementById = id => elements[id] || generic;
+    createShopNoteCard();
+  `, context);
+
+  assert.equal(vm.runInContext('db.shopNoteCards.length', context), 1);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].store", context), 'テスト店');
+  assert.equal(vm.runInContext("db.shopNoteCards[0].machineNo", context), '777');
+  assert.equal(vm.runInContext("db.shopNoteCards[0].machineId", context), '');
+}
+
 function testShopNoteSuggestMasterPaletteAndSnapshotFallback() {
   const seed = shopNoteMigrationSeed();
   seed.shopNotes = [];
@@ -1249,6 +1301,7 @@ function run() {
   testNewRegistrationGuardClosesOpenNoHitSegment();
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeKeypadOverlayStacksAboveBattleMode();
+  testShopNoteOverlayOpensFromVisibleTop();
   testBattleModeMemoSheetTracksViewportOnResume();
   testBattleModeToastUsesTopPosition();
   testBattleModeEventRowBeforeCounterRow();
@@ -1279,6 +1332,7 @@ function run() {
   testShopNoteCardsMigrateLegacyNotesWithPremigrateBackup();
   testShopNoteFavoritesAreMachineScopedAndTagEntriesPersist();
   testShopNoteBlankCardAndUnregisteredFavorites();
+  testShopNoteCreateKeepsExplicitUnregisteredMachine();
   testShopNoteSuggestMasterPaletteAndSnapshotFallback();
   testShopNoteExistingLogsAndStorageCountsRemainStable();
   testLegacyBackupLoad();
