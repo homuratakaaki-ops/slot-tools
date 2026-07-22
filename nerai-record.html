@@ -175,7 +175,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .shop-note-meta{color:var(--text-muted);font-size:12px;font-weight:800;margin-bottom:4px;}
 .shop-note-text{font-size:13px;line-height:1.5;white-space:pre-wrap;}
 .shop-note-sheet{max-height:min(82dvh,720px);display:flex;flex-direction:column;}
-.shop-note-body{min-height:0;overflow:auto;padding-right:2px;}
+.shop-note-body{min-height:0;overflow:auto;overscroll-behavior:contain;padding-right:2px;}
 .shop-note-card{margin-bottom:8px;}
 .shop-note-card.open{border-color:rgba(201,168,76,.48);background:rgba(201,168,76,.06);}
 .shop-note-card-head{width:100%;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;background:transparent;border:0;color:var(--text);padding:0;text-align:left;cursor:pointer;}
@@ -191,6 +191,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .shop-note-palette{border-top:1px solid rgba(201,168,76,.18);padding-top:10px;margin-top:8px;}
 .shop-note-palette-row{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:4px;margin-bottom:8px;}
 .shop-note-palette-label{font-size:12px;font-weight:900;color:var(--text-muted);margin:0 0 5px;}
+.shop-note-palette-divider{flex:1 0 100%;display:flex;align-items:center;gap:8px;color:var(--text-muted);font-size:11px;font-weight:900;margin:2px 0 0;}
+.shop-note-palette-divider::before,.shop-note-palette-divider::after{content:"";height:1px;background:rgba(201,168,76,.28);flex:1;}
 .shop-note-chip{min-height:36px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.035);color:var(--text);font-size:13px;font-weight:900;padding:7px 11px;white-space:nowrap;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
 .shop-note-chip.active,.shop-note-chip.favorite{border-color:var(--gold);background:rgba(201,168,76,.14);color:var(--gold-light);}
 .shop-note-chip.starred::after{content:" ★";color:var(--gold-light);}
@@ -393,7 +395,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .keypad-overlay{position:fixed;inset:0;background:rgba(0,0,0,.68);z-index:9200;display:none;align-items:center;justify-content:center;padding:16px;}
 .keypad-overlay.open{display:flex;}
 .keypad{width:100%;max-width:480px;max-height:calc(100vh - 32px);overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 16px 18px;box-shadow:0 12px 34px rgba(0,0,0,.42);}
-#shopNoteOverlay{align-items:flex-start;overflow:auto;padding-top:calc(16px + env(safe-area-inset-top));}
+#shopNoteOverlay{align-items:flex-start;overflow:auto;overscroll-behavior:contain;padding-top:calc(16px + env(safe-area-inset-top));}
 .keypad-title{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;}
 .keypad-title span{font-size:13px;color:var(--text-muted);}
 .keypad-title span.kui-title{font-size:17px;font-weight:900;text-shadow:0 0 12px rgba(232,201,106,.3);}
@@ -1941,6 +1943,10 @@ function normalizeSettingSuggestCounter(counter){
   return {label:String(counter.label||'設定示唆').trim()||'設定示唆',items};
 }
 function normalizeShopNoteTagRef(ref){
+  if(ref&&typeof ref==='object'&&ref.divider){
+    const label=String(ref.label||'').trim();
+    return label?{divider:true,label}:null;
+  }
   const rawId=typeof ref==='string'?ref:ref?.id;
   const id=String(rawId||'');
   if(!isValidShopNoteTagId(id))return null;
@@ -2089,7 +2095,9 @@ function normalizeData(data){
     if(Array.isArray(m.shopNoteTagIds)){
       const seenShopNoteTagIds=new Set();
       m.shopNoteTagIds=m.shopNoteTagIds.map(normalizeShopNoteTagRef).filter(ref=>{
-        if(!ref||seenShopNoteTagIds.has(ref.id))return false;
+        if(!ref)return false;
+        if(ref.divider)return true;
+        if(seenShopNoteTagIds.has(ref.id))return false;
         seenShopNoteTagIds.add(ref.id);
         return true;
       });
@@ -3543,6 +3551,7 @@ function ensureNangokuSpecialSeed(machine){
       {id:v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i2'),label:'赤さざなみ',color:'red'},
       {id:v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i3'),label:'虹さざなみ',color:'rainbow'},
       {id:v('sgc_nangoku_play','sgp_nangoku_replay_flash','sgp_nangoku_replay_flash_i1'),label:'リプフラ',color:'gray'},
+      {divider:true,label:'ボーナス終了後'},
       {id:v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i1'),label:'ボナ後変化なし',color:'gray'},
       {id:v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i2'),label:'ボナ後青',color:'blue'},
       {id:v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i3'),label:'ボナ後緑',color:'green'},
@@ -9025,6 +9034,9 @@ let shopNoteFavoritePressTimer=null;
 let shopNoteFavoriteLongPressed=false;
 const shopNoteCounterOpenCards=new Set();
 function shopNoteCurrentMachineId(){return currentMachine()?.id||selectedMachineId||'';}
+function shopNoteVibrate(pattern){
+  try{if(navigator?.vibrate)navigator.vibrate(pattern);}catch(error){}
+}
 function currentShopNoteDate(){return db?.draftLog?.money?.date||todayValue();}
 function hideLegacyShopNoteControls(){
   const unit=document.getElementById('shopNoteUnit');
@@ -9089,15 +9101,18 @@ function filterShopNotePaletteForMachine(machine,categories,tags){
   if(!Array.isArray(machine?.shopNoteTagIds))return {categories,tags};
   const allowed=machine.shopNoteTagIds.map(normalizeShopNoteTagRef).filter(Boolean);
   const byId=new Map(tags.map(tag=>[tag.id,tag]));
+  let currentDividerCategoryId='';
   const filteredTags=allowed.map(ref=>{
+    if(ref.divider)return {type:'divider',label:ref.label,categoryId:currentDividerCategoryId};
     const tag=byId.get(ref.id);
-    return tag?{...tag,label:ref.label||tag.label,color:ref.color||tag.color||''}:null;
-  }).filter(Boolean).map(tag=>({
-    ...tag,
-    categoryId:shopNotePaletteCategoryForTag(tag)
-  }));
+    if(!tag)return null;
+    const categoryId=shopNotePaletteCategoryForTag(tag);
+    currentDividerCategoryId=categoryId;
+    return {...tag,label:ref.label||tag.label,color:ref.color||tag.color||'',categoryId};
+  }).filter(Boolean);
   const filteredCategories=[];
   filteredTags.forEach(tag=>{
+    if(tag.type==='divider')return;
     if(filteredCategories.some(row=>row.id===tag.categoryId))return;
     const category=shopNoteCategoryById(tag.categoryId,categories);
     if(category)filteredCategories.push(category);
@@ -9152,6 +9167,10 @@ function renderShopNoteColorDot(tag){
 }
 function renderShopNoteTagLabel(tag){
   return `${renderShopNoteColorDot(tag)}<span>${escapeHtml(tag.label)}</span>`;
+}
+function renderShopNotePaletteItem(card,tag,favoriteIds){
+  if(tag?.type==='divider')return `<div class="shop-note-palette-divider">${escapeHtml(tag.label)}</div>`;
+  return `<button class="shop-note-chip ${favoriteIds.includes(tag.id)?'starred':''}" type="button" onpointerdown="startShopNoteFavoritePress(event,'${escapeHtml(tag.id)}')" onpointerup="cancelShopNoteFavoritePress()" onpointerleave="cancelShopNoteFavoritePress()" onpointercancel="cancelShopNoteFavoritePress()" onclick="handleShopNoteTagClick('${escapeHtml(card.id)}','${escapeHtml(tag.id)}')">${renderShopNoteTagLabel(tag)}</button>`;
 }
 function openShopNoteModal(id=''){
   hideLegacyShopNoteControls();
@@ -9307,8 +9326,8 @@ function renderShopNotePalette(card){
       ${favorites.length?`<div class="shop-note-palette-label">★お気に入り</div><div class="shop-note-palette-row">${favorites.map(tag=>`<button class="shop-note-chip favorite" type="button" onclick="addShopNoteEntry('${escapeHtml(card.id)}','${escapeHtml(tag.id)}')">${renderShopNoteTagLabel(tag)}</button>`).join('')}</div>`:''}
       <div class="shop-note-palette-label">カテゴリ</div>
       <div class="shop-note-palette-row">${palette.categories.map(row=>`<button class="shop-note-chip ${row.id===category.id?'active':''}" type="button" onclick="selectShopNoteCategory('${escapeHtml(row.id)}')">${escapeHtml(row.label)}</button>`).join('')}</div>
-      <div class="shop-note-palette-label">${escapeHtml(category.label)}（長押しで★登録/解除）</div>
-      <div class="shop-note-palette-row">${tags.map(tag=>`<button class="shop-note-chip ${favoriteIds.includes(tag.id)?'starred':''}" type="button" onpointerdown="startShopNoteFavoritePress(event,'${escapeHtml(tag.id)}')" onpointerup="cancelShopNoteFavoritePress()" onpointerleave="cancelShopNoteFavoritePress()" onpointercancel="cancelShopNoteFavoritePress()" onclick="handleShopNoteTagClick('${escapeHtml(card.id)}','${escapeHtml(tag.id)}')">${renderShopNoteTagLabel(tag)}</button>`).join('')}</div>
+      <div class="shop-note-palette-label shop-note-selected-category">${escapeHtml(category.label)}（長押しで★登録/解除）</div>
+      <div class="shop-note-palette-row">${tags.map(tag=>renderShopNotePaletteItem(card,tag,favoriteIds)).join('')}</div>
       <div class="shop-note-text-row">
         <textarea id="shopNoteText_${escapeHtml(card.id)}" placeholder="自由記述メモ"></textarea>
         <button class="btn-primary" type="button" onclick="addShopNoteTextEntry('${escapeHtml(card.id)}')">追加</button>
@@ -9330,7 +9349,18 @@ function createShopNoteCard(){
   renderShopNoteSheet();
   renderLogsList();
 }
-function selectShopNoteCategory(id){shopNoteCategoryId=id;renderShopNoteSheet();}
+function scrollShopNoteSelectedCategoryIntoView(){
+  const body=document.getElementById('shopNoteBody');
+  const label=body?.querySelector?.('.shop-note-selected-category');
+  if(!body||!label)return;
+  const top=label.offsetTop-8;
+  body.scrollTo?body.scrollTo({top,behavior:'smooth'}):body.scrollTop=top;
+}
+function selectShopNoteCategory(id){
+  shopNoteCategoryId=id;
+  renderShopNoteSheet();
+  requestAnimationFrame(scrollShopNoteSelectedCategoryIntoView);
+}
 function toggleShopNoteSettingCounter(cardId){
   if(shopNoteCounterOpenCards.has(cardId))shopNoteCounterOpenCards.delete(cardId);
   else shopNoteCounterOpenCards.add(cardId);
@@ -9361,7 +9391,7 @@ function removeShopNoteCounterEntry(cardId,tagId){
   card.updatedAt=new Date().toISOString();
   db.shopNoteCards=db.shopNoteCards.map(normalizeShopNoteCard).filter(Boolean);
   persist();
-  battleModeVibrate([22,25]);
+  shopNoteVibrate([22,25]);
   showSmallToast('設定示唆を1件削除');
   renderShopNoteSheet();
   renderLogsList();
@@ -9377,7 +9407,7 @@ function addShopNoteEntry(cardId,tagId='',text=''){
   card.updatedAt=now;
   db.shopNoteCards=db.shopNoteCards.map(normalizeShopNoteCard).filter(Boolean);
   persist();
-  battleModeVibrate([18]);
+  shopNoteVibrate([18]);
   showSmallToast(tagId?`${tag?.label||'タグ'}記録`:`メモ記録（${formatShopNoteTime(now)}）`);
   renderShopNoteSheet();
   renderLogsList();

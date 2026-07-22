@@ -1272,7 +1272,8 @@ function testShopNoteSuggestMasterPaletteAndSnapshotFallback() {
 function testShopNoteNangokuPaletteUsesAllowList() {
   const { context } = runRecord(undefined);
   const palette = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine('m_nangoku_special'))", context));
-  const tagIds = palette.tags.map(tag => tag.id);
+  const realTags = palette.tags.filter(tag => tag.type !== 'divider');
+  const tagIds = realTags.map(tag => tag.id);
   const categoryLabels = palette.categories.map(category => category.label);
 
   assert.deepEqual(categoryLabels, ['モード示唆', '結果・状態', 'その他']);
@@ -1291,8 +1292,8 @@ function testShopNoteNangokuPaletteUsesAllowList() {
   assert.equal(tagIds.includes('snt_result_cz'), false);
   assert.equal(tagIds.includes('snt_result_no_suggest'), false);
   assert.equal(tagIds.includes('snt_eyecatch_default'), false);
-  assert.equal(palette.tags.slice(0, 9).every(tag => tag.categoryId === 'sntc_mode'), true);
-  assert.deepEqual(palette.tags.slice(0, 9).map(tag => tag.label), [
+  assert.equal(realTags.slice(0, 9).every(tag => tag.categoryId === 'sntc_mode'), true);
+  assert.deepEqual(realTags.slice(0, 9).map(tag => tag.label), [
     '紫さざなみ',
     '赤さざなみ',
     '虹さざなみ',
@@ -1303,7 +1304,8 @@ function testShopNoteNangokuPaletteUsesAllowList() {
     'ボナ後赤',
     'ボナ後虹'
   ]);
-  assert.deepEqual(palette.tags.slice(0, 9).map(tag => tag.color), ['purple', 'red', 'rainbow', 'gray', 'gray', 'blue', 'green', 'red', 'rainbow']);
+  assert.deepEqual(realTags.slice(0, 9).map(tag => tag.color), ['purple', 'red', 'rainbow', 'gray', 'gray', 'blue', 'green', 'red', 'rainbow']);
+  assert.equal(palette.tags.filter(tag => tag.type === 'divider' && tag.label === 'ボーナス終了後').length, 1);
   assert.equal(vm.runInContext("machineById('m_nangoku_special').settingSuggestCounter.items.length", context), 7);
 }
 
@@ -1333,6 +1335,8 @@ function testShopNoteShortLabelsDotsAndSnapshots() {
   const paletteHtml = vm.runInContext("renderShopNotePalette(db.shopNoteCards[0])", context);
   assert.match(paletteHtml, /shop-note-color-dot/);
   assert.match(paletteHtml, /rainbow/);
+  assert.match(paletteHtml, /shop-note-palette-divider/);
+  assert.match(paletteHtml, /ボーナス終了後/);
   assert.match(paletteHtml, /ボナ後変化なし/);
   assert.doesNotMatch(paletteHtml, /変化なし（デフォルト/);
   vm.runInContext(`addShopNoteEntry('snc_color','${grayId}');`, context);
@@ -1345,8 +1349,13 @@ function testShopNoteShortLabelsDotsAndSnapshots() {
 
 function testShopNoteWrapsPaletteRowsWithoutChangingFallbacks() {
   const style = extractStyle();
+  const script = extractScript();
   assert.match(style, /\.shop-note-palette-row\{[^}]*flex-wrap:wrap/);
   assert.doesNotMatch(style.match(/\.shop-note-palette-row\{[^}]*\}/)[0], /overflow-x:auto/);
+  assert.match(style, /\.shop-note-body\{[^}]*overscroll-behavior:contain/);
+  assert.match(style, /#shopNoteOverlay\{[^}]*overscroll-behavior:contain/);
+  assert.match(script, /function scrollShopNoteSelectedCategoryIntoView\(\)/);
+  assert.match(script, /requestAnimationFrame\(scrollShopNoteSelectedCategoryIntoView\)/);
   const { context } = runRecord(undefined);
   const unregistered = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine(''))", context));
   const tokyo = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine('m_tokyo_ghoul'))", context));
@@ -1380,6 +1389,7 @@ function testShopNoteSettingSuggestCounterUsesEntriesOnly() {
   const { context, localStorage } = runRecord(JSON.stringify(seed), [true]);
   const tagId = vm.runInContext("machineById('m_nangoku_special').settingSuggestCounter.items[1].tagId", context);
 
+  vm.runInContext("vibrations = []; navigator.vibrate = pattern => { vibrations.push(pattern); return true; };", context);
   assert.match(vm.runInContext("renderShopNoteSettingCounter(db.shopNoteCards[0])", context), /設定示唆: 合計0件/);
   assert.equal(vm.runInContext("renderShopNoteSettingCounter(db.shopNoteCards[1])", context), '');
   vm.runInContext("shopNoteCounterOpenCards.add('snc_counter')", context);
@@ -1389,13 +1399,16 @@ function testShopNoteSettingSuggestCounterUsesEntriesOnly() {
   assert.equal(vm.runInContext(`shopNoteSettingCounterCounts(db.shopNoteCards[0], shopNoteSettingCounterForMachine('m_nangoku_special'))['${tagId}']`, context), 2);
   assert.equal(vm.runInContext("db.shopNoteCards[0].entries.length", context), 2);
   assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagLabels[0]", context), '張り切っていこー（偶数示唆）');
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(vibrations)", context)), [[18], [18]]);
 
   const stored = localStorage.getItem('nerai_record_v1');
   const reloaded = runRecord(stored);
+  vm.runInContext("vibrations = []; navigator.vibrate = pattern => { vibrations.push(pattern); return true; };", reloaded.context);
   assert.equal(vm.runInContext(`shopNoteSettingCounterCounts(db.shopNoteCards[0], shopNoteSettingCounterForMachine('m_nangoku_special'))['${tagId}']`, reloaded.context), 2);
   vm.runInContext(`removeShopNoteCounterEntry('snc_counter','${tagId}');`, reloaded.context);
   assert.equal(vm.runInContext(`shopNoteSettingCounterCounts(db.shopNoteCards[0], shopNoteSettingCounterForMachine('m_nangoku_special'))['${tagId}']`, reloaded.context), 1);
   assert.equal(vm.runInContext("db.shopNoteCards[0].entries.length", reloaded.context), 1);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(vibrations)", reloaded.context)), [[22, 25]]);
 }
 
 function testShopNoteExistingLogsAndStorageCountsRemainStable() {
