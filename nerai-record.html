@@ -3073,6 +3073,101 @@ function migrateTokyoGhoulSuggestLogs(data){
     }
   }
 }
+function applyTokyoGhoulShopNotePreset(machine){
+  if(!isTokyoGhoulMachine(machine))return;
+  const machineId='m_tokyo_ghoul';
+  const v=(categoryId,placeId,itemId)=>shopNoteVirtualTagId(machineId,categoryId,placeId,itemId);
+  const mode='sgc_tokyo_ghoul_mode';
+  const setting='sgc_tokyo_ghoul_setting';
+  const kui='sgc_tokyo_ghoul_kui_point';
+  const tsukiyamaMode='sgp_tokyo_ghoul_tsukiyama_mode';
+  const czEndcardMode='sgp_tokyo_ghoul_cz_endcard_mode';
+  const afterAtMode='sgp_tokyo_ghoul_after_at_mode';
+  const eyecatch='sgp_tokyo_ghoul_eyecatch';
+  const kuiGet='sgp_tokyo_ghoul_kui_point_get';
+  const kuiHint='sgp_tokyo_ghoul_kui_point_hint';
+  const atEndScreen='sgp_tokyo_ghoul_at_end_screen';
+  const czEndcardSetting='sgp_tokyo_ghoul_cz_endcard_setting';
+  const trophy='sgp_tokyo_ghoul_trophy';
+  const tsukiyamaSetting='sgp_tokyo_ghoul_tsukiyama_setting';
+  machine.shopNoteTagIds=[
+    {divider:true,label:'モード示唆'},
+    {id:v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i1'),label:'招待状デフォ1'},
+    {id:v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i2'),label:'招待状デフォ2'},
+    {id:v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i3'),label:'600G否定'},
+    {id:v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i4'),label:'残り200G以内or500G以上'},
+    {id:v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i5'),label:'1時35分'},
+    {id:v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i6'),label:'2時46分'},
+    {id:v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i7'),label:'残り300G以内'},
+    {id:v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i8'),label:'残り200G以内'},
+    {id:v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i9'),label:'残り100G以内'},
+    {id:v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i1'),label:'EC金木A'},
+    {id:v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i2'),label:'EC金木B'},
+    {id:v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i3'),label:'EC霧嶋'},
+    {id:v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i4'),label:'EC笛口'},
+    {id:v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i5'),label:'EC亜門'},
+    {id:v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i6'),label:'EC真戸'},
+    {id:v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i7'),label:'EC金木&喰種'},
+    {id:v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i8'),label:'EC霧嶋&喰種'},
+    {id:v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i9'),label:'EC月山'},
+    {id:v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i10'),label:'EC神代'},
+    {id:v(mode,afterAtMode,'sgp_tokyo_ghoul_after_at_mode_i1'),label:'AT駆け抜け'},
+    {id:v(mode,afterAtMode,'sgp_tokyo_ghoul_after_at_mode_i2'),label:'AT駆け抜け以外'},
+    {id:v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i1'),label:'金木研（デフォ）'},
+    {id:v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i2'),label:'霧嶋董香（モードB以上示唆）'},
+    {id:v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i3'),label:'笛口雛実（モードC以上示唆）'},
+    {id:v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i4'),label:'月山習（本前兆up）'},
+    {id:v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i5'),label:'神代利世（本前兆大幅up）'},
+    {custom:true,id:'snm_m_tokyo_ghoul_eyecatch_ghoulized',label:'喰種化（100G以内当選濃厚）',categoryId:'sntc_mode',color:'red'},
+    {id:v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i1'),label:'喰P獲得 大'},
+    {id:v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i2'),label:'喰P獲得 中'},
+    {id:v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i3'),label:'喰P獲得 小'},
+    {id:v(kui,kuiGet,'sgp_tokyo_ghoul_kui_point_get_i4'),label:'喰P獲得 なし'},
+    {id:v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i1'),label:'喰P示唆 大'},
+    {id:v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i2'),label:'喰P示唆 中'},
+    {id:v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i3'),label:'喰P示唆 小'},
+    {id:v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i4'),label:'喰P示唆 なし'},
+    {divider:true,label:'設定示唆'},
+    {id:v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i1'),label:'EC鈴屋（設定示唆）'},
+    {id:v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i2'),label:'EC梟（設定4以上濃厚）'},
+    {id:v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i3'),label:'EC有馬（設定6濃厚）'},
+    {id:v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i1'),label:'偶数示唆'},
+    {id:v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i2'),label:'設定1否定'},
+    {id:v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i3'),label:'設定2否定'},
+    {id:v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i4'),label:'設定3否定'},
+    {id:v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i5'),label:'設定4否定'},
+    {id:v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i6'),label:'設定4以上'},
+    {id:v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i7'),label:'設定6'},
+    {id:v(setting,trophy,'sgp_tokyo_ghoul_trophy_i1'),label:'トロフィーなし'},
+    {id:v(setting,trophy,'sgp_tokyo_ghoul_trophy_i2'),label:'黒トロ'},
+    {id:v(setting,trophy,'sgp_tokyo_ghoul_trophy_i3'),label:'銅トロ'},
+    {id:v(setting,trophy,'sgp_tokyo_ghoul_trophy_i4'),label:'銀トロ',color:'gray'},
+    {id:v(setting,trophy,'sgp_tokyo_ghoul_trophy_i5'),label:'金トロ',color:'gold'},
+    {id:v(setting,trophy,'sgp_tokyo_ghoul_trophy_i6'),label:'特殊柄トロ'},
+    {id:v(setting,trophy,'sgp_tokyo_ghoul_trophy_i7'),label:'虹トロ',color:'rainbow'},
+    'snt_result_cz',
+    {custom:true,id:'snm_m_tokyo_ghoul_upper_cz',label:'上位CZ',categoryId:'sntc_result'},
+    'snt_result_direct_at',
+    {custom:true,id:'snm_m_tokyo_ghoul_episode_bonus',label:'エピソードボーナス',categoryId:'sntc_result'},
+    'snt_result_quit',
+    'snt_other_attention',
+    'snt_other_follow',
+    'snt_other_memo'
+  ];
+  machine.settingSuggestCounter={
+    label:'AT終了画面',
+    items:[
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i1'),label:'金木研（デフォルト）'},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i2'),label:'亜門鋼太朗＆真戸暁（奇数示唆）'},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i3'),label:'鈴屋什造＆篠原幸紀（偶数示唆）'},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i4'),label:'神代利世（設定1否定）'},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i5'),label:'笛口雛実＆笛口リョーコ（高設定示唆 弱）'},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i6'),label:'四方蓮示＆イトリ＆ウタ（高設定示唆 強）'},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i7'),label:'金木研＆霧嶋董香（設定4以上濃厚）'},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i8'),label:'あんていく全員集合（設定6濃厚）'}
+    ]
+  };
+}
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
@@ -3097,7 +3192,7 @@ function ensureSuggestSeed(machine){
       {key:'episode_bonus',label:'エピソードボーナス'}
     ]);
   }
-  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV14)return;
+  if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV14){applyTokyoGhoulShopNotePreset(machine);return;}
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
   const tag=(id,label,optional=false,rule={},tagClass='')=>({id,label,optional,countAs:null,liquidDelta:rule.liquidDelta??null,liquidSet:rule.liquidSet??null,tagClass});
   const timelineTags=[
@@ -3243,6 +3338,7 @@ function ensureSuggestSeed(machine){
   mergeTimelineTagSeed(machine,timelineTags);
   mergeSuggestSeed(machine,seed);
   applyTokyoGhoulSuggestCorrections(machine);
+  applyTokyoGhoulShopNotePreset(machine);
   applySuggestMetadata(machine);
   machine.suggestSeedTokyoGhoulV1=true;
   machine.suggestSeedTokyoGhoulV2=true;
@@ -9110,20 +9206,28 @@ function filterShopNotePaletteForMachine(machine,categories,tags){
   const allowed=machine.shopNoteTagIds.map(normalizeShopNoteTagRef).filter(Boolean);
   const machineId=String(machine?.id||'');
   const byId=new Map(tags.map(tag=>[tag.id,tag]));
-  let currentDividerCategoryId='';
-  const filteredTags=allowed.map(ref=>{
-    if(ref.divider)return {type:'divider',label:ref.label,categoryId:currentDividerCategoryId};
+  let pendingDivider=null;
+  const filteredTags=[];
+  allowed.forEach(ref=>{
+    if(ref.divider){pendingDivider=ref;return;}
+    const attachPendingDivider=(categoryId)=>{
+      if(pendingDivider){
+        filteredTags.push({type:'divider',label:pendingDivider.label,categoryId});
+        pendingDivider=null;
+      }
+    };
     if(ref.custom){
-      if(!machineId||!ref.id.startsWith(`snm_${machineId}_`))return null;
-      currentDividerCategoryId=ref.categoryId;
-      return {id:ref.id,categoryId:ref.categoryId,label:ref.label,color:ref.color||'',source:'custom',custom:true};
+      if(!machineId||!ref.id.startsWith(`snm_${machineId}_`))return;
+      attachPendingDivider(ref.categoryId);
+      filteredTags.push({id:ref.id,categoryId:ref.categoryId,label:ref.label,color:ref.color||'',source:'custom',custom:true});
+      return;
     }
     const tag=byId.get(ref.id);
-    if(!tag)return null;
+    if(!tag)return;
     const categoryId=shopNotePaletteCategoryForTag(tag);
-    currentDividerCategoryId=categoryId;
-    return {...tag,label:ref.label||tag.label,color:ref.color||tag.color||'',categoryId};
-  }).filter(Boolean);
+    attachPendingDivider(categoryId);
+    filteredTags.push({...tag,label:ref.label||tag.label,color:ref.color||tag.color||'',categoryId});
+  });
   const filteredCategories=[];
   filteredTags.forEach(tag=>{
     if(tag.type==='divider')return;
@@ -9169,7 +9273,7 @@ function shopNoteTagById(id,machineId=''){
 }
 function shopNoteColorValue(color){
   const key=String(color||'').trim();
-  const values={purple:'#a855f7',red:'#ef4444',blue:'#3b82f6',green:'#22c55e',gray:'#9ca3af'};
+  const values={purple:'#a855f7',red:'#ef4444',blue:'#3b82f6',green:'#22c55e',gray:'#9ca3af',gold:'#c9a84c'};
   return values[key]||'';
 }
 function renderShopNoteColorDot(tag){
