@@ -1295,6 +1295,49 @@ function testShopNoteNangokuPaletteUsesAllowList() {
   assert.equal(vm.runInContext("machineById('m_nangoku_special').settingSuggestCounter.items.length", context), 7);
 }
 
+function testShopNoteSettingSuggestCounterUsesEntriesOnly() {
+  const seed = shopNoteMigrationSeed();
+  seed.shopNotes = [];
+  seed.shopNoteCards = [{
+    id: 'snc_counter',
+    createdAt: '2026-07-21T10:00:00.000Z',
+    updatedAt: '2026-07-21T10:00:00.000Z',
+    date: '2026-07-21',
+    store: 'STORE_ALPHA',
+    machineNo: '101',
+    machineId: 'm_nangoku_special',
+    entries: []
+  }, {
+    id: 'snc_unregistered',
+    createdAt: '2026-07-21T10:00:00.000Z',
+    updatedAt: '2026-07-21T10:00:00.000Z',
+    date: '2026-07-21',
+    store: '',
+    machineNo: '',
+    machineId: '',
+    entries: []
+  }];
+  const { context, localStorage } = runRecord(JSON.stringify(seed), [true]);
+  const tagId = vm.runInContext("machineById('m_nangoku_special').settingSuggestCounter.items[1].tagId", context);
+
+  assert.match(vm.runInContext("renderShopNoteSettingCounter(db.shopNoteCards[0])", context), /設定示唆: 合計0件/);
+  assert.equal(vm.runInContext("renderShopNoteSettingCounter(db.shopNoteCards[1])", context), '');
+  vm.runInContext("shopNoteCounterOpenCards.add('snc_counter')", context);
+  assert.match(vm.runInContext("renderShopNoteSettingCounter(db.shopNoteCards[0])", context), /張り切っていこー（偶数示唆）/);
+  vm.runInContext(`addShopNoteEntry('snc_counter','${tagId}');`, context);
+  vm.runInContext(`addShopNoteEntry('snc_counter','${tagId}');`, context);
+  assert.equal(vm.runInContext(`shopNoteSettingCounterCounts(db.shopNoteCards[0], shopNoteSettingCounterForMachine('m_nangoku_special'))['${tagId}']`, context), 2);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries.length", context), 2);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagLabels[0]", context), '張り切っていこー（偶数示唆）');
+
+  const stored = localStorage.getItem('nerai_record_v1');
+  const reloaded = runRecord(stored);
+  assert.equal(vm.runInContext(`shopNoteSettingCounterCounts(db.shopNoteCards[0], shopNoteSettingCounterForMachine('m_nangoku_special'))['${tagId}']`, reloaded.context), 2);
+  vm.runInContext(`removeShopNoteCounterEntry('snc_counter','${tagId}');`, reloaded.context);
+  assert.equal(vm.runInContext(`shopNoteSettingCounterCounts(db.shopNoteCards[0], shopNoteSettingCounterForMachine('m_nangoku_special'))['${tagId}']`, reloaded.context), 1);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries.length", reloaded.context), 1);
+}
+
 function testShopNoteExistingLogsAndStorageCountsRemainStable() {
   const seed = shopNoteMigrationSeed();
   seed.shopNotes = [];
@@ -1362,6 +1405,7 @@ function run() {
   testShopNoteCreateKeepsExplicitUnregisteredMachine();
   testShopNoteSuggestMasterPaletteAndSnapshotFallback();
   testShopNoteNangokuPaletteUsesAllowList();
+  testShopNoteSettingSuggestCounterUsesEntriesOnly();
   testShopNoteExistingLogsAndStorageCountsRemainStable();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
