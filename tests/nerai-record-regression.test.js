@@ -1447,7 +1447,16 @@ function testShopNoteTokyoGhoulPresetUsesAllowListAndCounter() {
   const categoryLabels = palette.categories.map(category => category.label);
   const tagsByCategory = categoryId => realTags.filter(tag => tag.categoryId === categoryId);
 
-  assert.deepEqual(dividerLabels, ['✉️ 招待状', '🖼️ CZ終了時の1枚絵', '👁 アイキャッチ']);
+  assert.deepEqual(dividerLabels, [
+    '✉️ 招待状',
+    '🖼️ CZ終了時の1枚絵',
+    '👁 アイキャッチ',
+    '獲得',
+    '示唆',
+    '🖼️ CZ終了時の1枚絵',
+    '✉️ 招待状',
+    '🏆️ トロフィー'
+  ]);
   assert.deepEqual(categoryLabels, ['モード示唆', '喰ポイント', '設定示唆', '結果・状態', 'その他']);
   assert.equal(realTags.length, 58);
   assert.equal(tagsByCategory('sntc_mode').length, 25);
@@ -1455,9 +1464,9 @@ function testShopNoteTokyoGhoulPresetUsesAllowListAndCounter() {
   assert.equal(tagsByCategory('sntc_setting').length, 17);
   assert.equal(tagsByCategory('sntc_result').length, 5);
   assert.equal(tagsByCategory('sntc_other').length, 3);
-  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === 'EC鈴屋（設定示唆）'), true);
-  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '設定4以上'), true);
-  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '虹トロ'), true);
+  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '🖼️鈴屋（設定示唆）'), true);
+  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '✉️設定4以上'), true);
+  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '🏆️虹'), true);
   assert.equal(tagsByCategory('sntc_mode').some(tag => tag.label === '✉️ディナー'), true);
   assert.equal(tagsByCategory('sntc_mode').some(tag => tag.label === '✉️パーティ'), true);
   assert.equal(tagsByCategory('sntc_mode').some(tag => tag.label === '🖼️金木A'), true);
@@ -1466,6 +1475,8 @@ function testShopNoteTokyoGhoulPresetUsesAllowListAndCounter() {
   assert.equal(tagsByCategory('sntc_mode').some(tag => tag.label === 'AT駆け抜け以外'), false);
   assert.equal(tagsByCategory('sntc_kuipoint').some(tag => tag.label === '喰P獲得 大'), true);
   assert.equal(tagsByCategory('sntc_kuipoint').some(tag => tag.label === '喰P示唆 なし'), true);
+  assert.equal(tagsByCategory('sntc_kuipoint').filter(tag => tag.color === 'green').length, 4);
+  assert.equal(tagsByCategory('sntc_kuipoint').filter(tag => tag.color === 'blue').length, 4);
   assert.equal(tagIds.filter(id => id.startsWith('snm_m_tokyo_ghoul_')).length, 3);
   assert.equal(tagIds.includes('snm_m_tokyo_ghoul_eyecatch_ghoulized'), true);
   assert.equal(tagIds.includes('snm_m_tokyo_ghoul_upper_cz'), true);
@@ -1473,13 +1484,13 @@ function testShopNoteTokyoGhoulPresetUsesAllowListAndCounter() {
   assert.equal(labels.includes('👁喰種化（100G以内当選濃厚）'), true);
   assert.equal(labels.includes('上位CZ'), true);
   assert.equal(labels.includes('エピソードボーナス'), true);
-  assert.equal(labels.includes('銀トロ'), true);
-  assert.equal(labels.includes('金トロ'), true);
-  assert.equal(labels.includes('虹トロ'), true);
+  assert.equal(labels.includes('🏆️銀'), true);
+  assert.equal(labels.includes('🏆️金'), true);
+  assert.equal(labels.includes('🏆️虹'), true);
   assert.equal(realTags.find(tag => tag.label === '👁喰種化（100G以内当選濃厚）').color, 'red');
-  assert.equal(realTags.find(tag => tag.label === '金トロ').color, 'gold');
-  assert.equal(realTags.find(tag => tag.label === '銀トロ').color, 'gray');
-  assert.equal(realTags.find(tag => tag.label === '虹トロ').color, 'rainbow');
+  assert.equal(realTags.find(tag => tag.label === '🏆️金').color, 'gold');
+  assert.equal(realTags.find(tag => tag.label === '🏆️銀').color, 'gray');
+  assert.equal(realTags.find(tag => tag.label === '🏆️虹').color, 'rainbow');
   assert.equal(tagIds.some(id => id.includes('sgp_tokyo_ghoul_game_forewarning')), false);
   assert.equal(tagIds.some(id => id.includes('sgp_tokyo_ghoul_at_end_screen')), false);
   assert.equal(tagIds.some(id => id.includes('sgp_tokyo_ghoul_eyecatch_i6')), false);
