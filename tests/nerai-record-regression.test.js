@@ -1335,7 +1335,8 @@ function testShopNoteShortLabelsDotsAndSnapshots() {
 
   const paletteHtml = vm.runInContext("renderShopNotePalette(db.shopNoteCards[0])", context);
   assert.match(paletteHtml, /shop-note-color-dot/);
-  assert.match(paletteHtml, /rainbow/);
+  assert.match(paletteHtml, /shop-note-color-emoji/);
+  assert.match(paletteHtml, /🌈/);
   assert.equal(vm.runInContext("shopNoteColorValue('yellow')", context), '#eab308');
   assert.match(paletteHtml, /shop-note-palette-divider/);
   assert.match(paletteHtml, /ボーナス終了後/);
@@ -1353,6 +1354,7 @@ function testShopNoteWrapsPaletteRowsWithoutChangingFallbacks() {
   const style = extractStyle();
   const script = extractScript();
   assert.match(style, /\.shop-note-palette-row\{[^}]*flex-wrap:wrap/);
+  assert.match(style, /\.shop-note-color-emoji\{[^}]*font-size:11px/);
   assert.doesNotMatch(style.match(/\.shop-note-palette-row\{[^}]*\}/)[0], /overflow-x:auto/);
   assert.match(style, /\.shop-note-body\{[^}]*overscroll-behavior:contain/);
   assert.match(style, /#shopNoteOverlay\{[^}]*overscroll-behavior:contain/);
@@ -1467,7 +1469,7 @@ function testShopNoteTokyoGhoulPresetUsesAllowListAndCounter() {
   assert.equal(tagsByCategory('sntc_setting').length, 17);
   assert.equal(tagsByCategory('sntc_result').length, 5);
   assert.equal(tagsByCategory('sntc_other').length, 3);
-  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '🖼️鈴屋（設定示唆）'), true);
+  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '🖼️鈴屋（偶数設定濃厚）'), true);
   assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '✉️設定4以上'), true);
   assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '🏆️虹'), true);
   assert.equal(tagsByCategory('sntc_mode').some(tag => tag.label === '✉️ディナー'), true);
@@ -1480,10 +1482,10 @@ function testShopNoteTokyoGhoulPresetUsesAllowListAndCounter() {
   assert.equal(tagsByCategory('sntc_kuipoint').some(tag => tag.label === '喰P示唆 なし'), true);
   assert.equal(tagsByCategory('sntc_kuipoint').filter(tag => tag.color === 'green').length, 4);
   assert.equal(tagsByCategory('sntc_kuipoint').filter(tag => tag.color === 'blue').length, 4);
-  assert.equal(realTags.filter(tag => tag.color).length, 28);
-  assert.equal(realTags.filter(tag => tag.color && !tag.hollow).length, 24);
+  assert.equal(realTags.filter(tag => tag.color).length, 36);
+  assert.equal(realTags.filter(tag => tag.color && !tag.hollow).length, 32);
   assert.equal(realTags.filter(tag => tag.color && tag.hollow).length, 4);
-  assert.equal(realTags.filter(tag => tag.color === 'yellow').length, 2);
+  assert.equal(realTags.filter(tag => tag.color === 'yellow').length, 4);
   assert.equal(tagIds.filter(id => id.startsWith('snm_m_tokyo_ghoul_')).length, 3);
   assert.equal(tagIds.includes('snm_m_tokyo_ghoul_eyecatch_ghoulized'), true);
   assert.equal(tagIds.includes('snm_m_tokyo_ghoul_upper_cz'), true);
@@ -1495,6 +1497,13 @@ function testShopNoteTokyoGhoulPresetUsesAllowListAndCounter() {
   assert.equal(labels.includes('🏆️金'), true);
   assert.equal(labels.includes('🏆️虹'), true);
   assert.equal(realTags.find(tag => tag.label === '👁喰種化（100G以内当選濃厚）').color, 'red');
+  assert.deepEqual(
+    ['🖼️霧嶋', '🖼️笛口', '🖼️亜門', '🖼️真戸', '🖼️金木&喰種', '🖼️霧嶋&喰種', '🖼️月山', '🖼️神代'].map(label => {
+      const tag = realTags.find(row => row.label === label);
+      return [tag.color, !!tag.hollow];
+    }),
+    [['blue', false], ['blue', false], ['yellow', false], ['yellow', false], ['green', false], ['green', false], ['red', false], ['purple', false]]
+  );
   assert.equal(realTags.find(tag => tag.label === '👁霧嶋董香（モードB以上示唆）').color, 'blue');
   assert.equal(realTags.find(tag => tag.label === '👁笛口雛実（モードC以上示唆）').color, 'yellow');
   assert.deepEqual(
@@ -1512,6 +1521,11 @@ function testShopNoteTokyoGhoulPresetUsesAllowListAndCounter() {
   assert.equal(realTags.find(tag => tag.label === '🖼️梟（設定4以上濃厚）').color, 'green');
   assert.equal(realTags.find(tag => tag.label === '🖼️有馬（設定6濃厚）').color, 'rainbow');
   assert.match(vm.runInContext("renderShopNoteTagLabel(shopNoteTagsForMachine('m_tokyo_ghoul').tags.find(tag => tag.label === '✉️600G否定'))", context), /shop-note-color-dot hollow/);
+  assert.match(vm.runInContext("renderShopNoteTagLabel(shopNoteTagsForMachine('m_tokyo_ghoul').tags.find(tag => tag.label === '✉️設定6'))", context), /shop-note-color-emoji/);
+  assert.equal(vm.runInContext(`
+    [...shopNoteTagsForMachine('m_tokyo_ghoul').tags, ...shopNoteTagsForMachine('m_nangoku_special').tags]
+      .filter(tag => tag.type !== 'divider' && tag.color === 'rainbow' && renderShopNoteTagLabel(tag).includes('shop-note-color-emoji')).length
+  `, context), 5);
   assert.equal(realTags.find(tag => tag.label === '🏆️金').color, 'gold');
   assert.equal(realTags.find(tag => tag.label === '🏆️銀').color, 'gray');
   assert.equal(realTags.find(tag => tag.label === '🏆️虹').color, 'rainbow');
