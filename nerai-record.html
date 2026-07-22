@@ -1087,8 +1087,6 @@ const SHOP_NOTE_TAGS=[
   {id:'snt_eyecatch_end_screen',categoryId:'sntc_eyecatch',label:'終了画面'},
   {id:'snt_mode_up',categoryId:'sntc_mode',label:'モード上げ示唆'},
   {id:'snt_mode_high',categoryId:'sntc_mode',label:'上位示唆'},
-  {id:'snt_mode_reset',categoryId:'sntc_mode',label:'リセット挙動'},
-  {id:'snt_mode_same',categoryId:'sntc_mode',label:'据え置き挙動'},
   {id:'snt_result_direct_at',categoryId:'sntc_result',label:'AT直撃'},
   {id:'snt_result_cz',categoryId:'sntc_result',label:'CZ当選'},
   {id:'snt_result_bonus',categoryId:'sntc_result',label:'ボーナス当選'},
@@ -1889,8 +1887,8 @@ function normalizeShopNote(note){
 }
 function normalizeShopNoteEntry(entry){
   if(!entry||typeof entry!=='object')return null;
-  const tagIds=(Array.isArray(entry.tagIds)?entry.tagIds:[]).map(String).filter(id=>SHOP_NOTE_TAGS.some(tag=>tag.id===id)||id.startsWith('snv_'));
   const tagLabels=(Array.isArray(entry.tagLabels)?entry.tagLabels:[]).map(value=>String(value||'').trim()).filter(Boolean);
+  const tagIds=(Array.isArray(entry.tagIds)?entry.tagIds:[]).map(String).filter((id,index)=>SHOP_NOTE_TAGS.some(tag=>tag.id===id)||id.startsWith('snv_')||!!tagLabels[index]);
   const text=String(entry.text||'').trim();
   if(!tagIds.length&&!text)return null;
   const at=entry.at||entry.createdAt||new Date().toISOString();
@@ -9084,7 +9082,7 @@ function deleteShopNoteCard(id){
   renderLogsList();
   renderShopNoteSheet();
 }
-const SHOP_NOTE_COMMON_TAG_IDS_V2=['snt_eyecatch_default','snt_mode_reset','snt_mode_same','snt_result_direct_at','snt_result_cz','snt_result_bonus','snt_result_no_suggest','snt_result_quit','snt_other_attention','snt_other_follow','snt_other_memo'];
+const SHOP_NOTE_COMMON_TAG_IDS_V2=['snt_eyecatch_default','snt_result_direct_at','snt_result_cz','snt_result_bonus','snt_result_no_suggest','snt_result_quit','snt_other_attention','snt_other_follow','snt_other_memo'];
 function shopNoteFavoriteKey(machineId){return String(machineId||'');}
 function shopNoteFixedTagById(id){return SHOP_NOTE_TAGS.find(tag=>tag.id===id)||null;}
 function shopNoteVirtualCategoryId(machineId,categoryId,placeId){return `snvc_${String(machineId||'')}_${String(categoryId||'')}_${String(placeId||'')}`;}
@@ -9353,7 +9351,9 @@ function scrollShopNoteSelectedCategoryIntoView(){
   const body=document.getElementById('shopNoteBody');
   const label=body?.querySelector?.('.shop-note-selected-category');
   if(!body||!label)return;
-  const top=label.offsetTop-8;
+  const bodyRect=body.getBoundingClientRect?.();
+  const labelRect=label.getBoundingClientRect?.();
+  const top=bodyRect&&labelRect?(body.scrollTop+(labelRect.top-bodyRect.top)-4):(label.offsetTop-4);
   body.scrollTo?body.scrollTo({top,behavior:'smooth'}):body.scrollTop=top;
 }
 function selectShopNoteCategory(id){

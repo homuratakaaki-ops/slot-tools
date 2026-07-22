@@ -1355,6 +1355,7 @@ function testShopNoteWrapsPaletteRowsWithoutChangingFallbacks() {
   assert.match(style, /\.shop-note-body\{[^}]*overscroll-behavior:contain/);
   assert.match(style, /#shopNoteOverlay\{[^}]*overscroll-behavior:contain/);
   assert.match(script, /function scrollShopNoteSelectedCategoryIntoView\(\)/);
+  assert.match(script, /labelRect\.top-bodyRect\.top/);
   assert.match(script, /requestAnimationFrame\(scrollShopNoteSelectedCategoryIntoView\)/);
   const { context } = runRecord(undefined);
   const unregistered = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine(''))", context));
@@ -1362,6 +1363,33 @@ function testShopNoteWrapsPaletteRowsWithoutChangingFallbacks() {
   assert.equal(unregistered.tags.some(tag => tag.color), false);
   assert.equal(tokyo.tags.some(tag => tag.color), false);
   assert.equal(tokyo.tags.some(tag => tag.id === 'snt_result_direct_at'), true);
+  assert.equal(unregistered.tags.some(tag => tag.id === 'snt_mode_reset' || tag.id === 'snt_mode_same'), false);
+  assert.equal(tokyo.tags.some(tag => tag.id === 'snt_mode_reset' || tag.id === 'snt_mode_same'), false);
+}
+
+function testShopNoteRemovedCommonTagsKeepSnapshotEntries() {
+  const seed = shopNoteMigrationSeed();
+  seed.shopNotes = [];
+  seed.shopNoteCards = [{
+    id: 'snc_removed_common',
+    createdAt: '2026-07-21T10:00:00.000Z',
+    updatedAt: '2026-07-21T10:00:00.000Z',
+    date: '2026-07-21',
+    store: 'STORE_ALPHA',
+    machineNo: '101',
+    machineId: 'm_tokyo_ghoul',
+    entries: [{
+      id: 'sne_removed_common',
+      at: '2026-07-21T10:00:00.000Z',
+      tagIds: ['snt_mode_reset'],
+      tagLabels: ['リセット挙動'],
+      text: ''
+    }]
+  }];
+  const { context } = runRecord(JSON.stringify(seed), [true]);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagIds[0]", context), 'snt_mode_reset');
+  assert.match(vm.runInContext("renderShopNoteEntry(db.shopNoteCards[0].entries[0], db.shopNoteCards[0])", context), /リセット挙動/);
+  assert.match(vm.runInContext("shopNoteCardSummaryText(db.shopNoteCards[0])", context), /リセット挙動/);
 }
 
 function testShopNoteSettingSuggestCounterUsesEntriesOnly() {
@@ -1480,6 +1508,7 @@ function run() {
   testShopNoteNangokuPaletteUsesAllowList();
   testShopNoteShortLabelsDotsAndSnapshots();
   testShopNoteWrapsPaletteRowsWithoutChangingFallbacks();
+  testShopNoteRemovedCommonTagsKeepSnapshotEntries();
   testShopNoteSettingSuggestCounterUsesEntriesOnly();
   testShopNoteExistingLogsAndStorageCountsRemainStable();
   testLegacyBackupLoad();
