@@ -185,11 +185,13 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .shop-note-entry-list{display:grid;gap:6px;margin:10px 0;}
 .shop-note-entry{border:1px solid rgba(122,122,138,.28);border-radius:8px;background:rgba(0,0,0,.13);padding:7px 8px;}
 .shop-note-entry-tags{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:4px;}
-.shop-note-entry-tag{display:inline-flex;border:1px solid rgba(201,168,76,.48);border-radius:999px;background:rgba(201,168,76,.12);color:var(--gold-light);font-size:12px;font-weight:900;padding:3px 8px;}
+.shop-note-entry-tag{display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(201,168,76,.48);border-radius:999px;background:rgba(201,168,76,.12);color:var(--gold-light);font-size:12px;font-weight:900;padding:3px 8px;}
+.shop-note-color-dot{width:9px;height:9px;border-radius:999px;display:inline-block;flex:0 0 auto;background:var(--shop-note-dot,#9ca3af);box-shadow:0 0 0 1px rgba(255,255,255,.22);}
+.shop-note-color-dot.rainbow{background:linear-gradient(135deg,#8b5cf6 0%,#ef4444 34%,#22c55e 67%,#38bdf8 100%);}
 .shop-note-palette{border-top:1px solid rgba(201,168,76,.18);padding-top:10px;margin-top:8px;}
-.shop-note-palette-row{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px;}
+.shop-note-palette-row{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:4px;margin-bottom:8px;}
 .shop-note-palette-label{font-size:12px;font-weight:900;color:var(--text-muted);margin:0 0 5px;}
-.shop-note-chip{min-height:36px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.035);color:var(--text);font-size:13px;font-weight:900;padding:7px 11px;white-space:nowrap;cursor:pointer;}
+.shop-note-chip{min-height:36px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.035);color:var(--text);font-size:13px;font-weight:900;padding:7px 11px;white-space:nowrap;cursor:pointer;display:inline-flex;align-items:center;gap:6px;}
 .shop-note-chip.active,.shop-note-chip.favorite{border-color:var(--gold);background:rgba(201,168,76,.14);color:var(--gold-light);}
 .shop-note-chip.starred::after{content:" ★";color:var(--gold-light);}
 .shop-note-text-row{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin-top:8px;}
@@ -1938,6 +1940,17 @@ function normalizeSettingSuggestCounter(counter){
   if(!items.length)return null;
   return {label:String(counter.label||'設定示唆').trim()||'設定示唆',items};
 }
+function normalizeShopNoteTagRef(ref){
+  const rawId=typeof ref==='string'?ref:ref?.id;
+  const id=String(rawId||'');
+  if(!isValidShopNoteTagId(id))return null;
+  const result={id};
+  const label=String(ref?.label||'').trim();
+  const color=String(ref?.color||'').trim();
+  if(label)result.label=label;
+  if(color)result.color=color;
+  return result;
+}
 function migrateShopNotesToCards(notes,cards){
   const existing=(Array.isArray(cards)?cards:[]).map(normalizeShopNoteCard).filter(Boolean);
   if(existing.length)return existing;
@@ -2073,7 +2086,14 @@ function normalizeData(data){
     m.labelTags=Array.isArray(m.labelTags)?m.labelTags:[];
     m.quickPanel=normalizeQuickPanel(m.quickPanel);
     m.suggestMaster=normalizeSuggestMaster(m.suggestMaster);
-    if(Array.isArray(m.shopNoteTagIds))m.shopNoteTagIds=[...new Set(m.shopNoteTagIds.map(String).filter(isValidShopNoteTagId))];
+    if(Array.isArray(m.shopNoteTagIds)){
+      const seenShopNoteTagIds=new Set();
+      m.shopNoteTagIds=m.shopNoteTagIds.map(normalizeShopNoteTagRef).filter(ref=>{
+        if(!ref||seenShopNoteTagIds.has(ref.id))return false;
+        seenShopNoteTagIds.add(ref.id);
+        return true;
+      });
+    }
     else delete m.shopNoteTagIds;
     m.settingSuggestCounter=normalizeSettingSuggestCounter(m.settingSuggestCounter);
     if(!m.settingSuggestCounter)delete m.settingSuggestCounter;
@@ -3519,15 +3539,15 @@ function ensureNangokuSpecialSeed(machine){
     const machineId=String(machine.id||'m_nangoku_special');
     const v=(categoryId,placeId,itemId)=>shopNoteVirtualTagId(machineId,categoryId,placeId,itemId);
     machine.shopNoteTagIds=[
-      v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i1'),
-      v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i2'),
-      v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i3'),
-      v('sgc_nangoku_play','sgp_nangoku_replay_flash','sgp_nangoku_replay_flash_i1'),
-      v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i1'),
-      v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i2'),
-      v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i3'),
-      v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i4'),
-      v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i5'),
+      {id:v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i1'),label:'紫さざなみ',color:'purple'},
+      {id:v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i2'),label:'赤さざなみ',color:'red'},
+      {id:v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i3'),label:'虹さざなみ',color:'rainbow'},
+      {id:v('sgc_nangoku_play','sgp_nangoku_replay_flash','sgp_nangoku_replay_flash_i1'),label:'リプフラ',color:'gray'},
+      {id:v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i1'),label:'ボナ後変化なし',color:'gray'},
+      {id:v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i2'),label:'ボナ後青',color:'blue'},
+      {id:v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i3'),label:'ボナ後緑',color:'green'},
+      {id:v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i4'),label:'ボナ後赤',color:'red'},
+      {id:v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i5'),label:'ボナ後虹',color:'rainbow'},
       'snt_result_bonus',
       'snt_result_quit',
       'snt_other_attention',
@@ -9067,9 +9087,12 @@ function shopNoteCategoryById(id,categories=[]){
 }
 function filterShopNotePaletteForMachine(machine,categories,tags){
   if(!Array.isArray(machine?.shopNoteTagIds))return {categories,tags};
-  const allowed=machine.shopNoteTagIds.map(String);
+  const allowed=machine.shopNoteTagIds.map(normalizeShopNoteTagRef).filter(Boolean);
   const byId=new Map(tags.map(tag=>[tag.id,tag]));
-  const filteredTags=allowed.map(id=>byId.get(id)).filter(Boolean).map(tag=>({
+  const filteredTags=allowed.map(ref=>{
+    const tag=byId.get(ref.id);
+    return tag?{...tag,label:ref.label||tag.label,color:ref.color||tag.color||''}:null;
+  }).filter(Boolean).map(tag=>({
     ...tag,
     categoryId:shopNotePaletteCategoryForTag(tag)
   }));
@@ -9114,6 +9137,21 @@ function shopNoteTagById(id,machineId=''){
   return shopNoteTagsForMachine(machineId).tags.find(tag=>tag.id===id)
     ||shopNoteFixedTagById(id)
     ||shopNoteSettingCounterForMachine(machineId)?.items.map(item=>({id:item.tagId,label:item.label})).find(item=>item.id===id);
+}
+function shopNoteColorValue(color){
+  const key=String(color||'').trim();
+  const values={purple:'#a855f7',red:'#ef4444',blue:'#3b82f6',green:'#22c55e',gray:'#9ca3af'};
+  return values[key]||'';
+}
+function renderShopNoteColorDot(tag){
+  const color=String(tag?.color||'').trim();
+  if(!color)return '';
+  if(color==='rainbow')return '<span class="shop-note-color-dot rainbow" aria-hidden="true"></span>';
+  const value=shopNoteColorValue(color);
+  return value?`<span class="shop-note-color-dot" style="--shop-note-dot:${escapeHtml(value)}" aria-hidden="true"></span>`:'';
+}
+function renderShopNoteTagLabel(tag){
+  return `${renderShopNoteColorDot(tag)}<span>${escapeHtml(tag.label)}</span>`;
 }
 function openShopNoteModal(id=''){
   hideLegacyShopNoteControls();
@@ -9210,6 +9248,12 @@ function renderShopNoteCardControls(card){
       </div>
     </div>`;
 }
+function shopNoteEntryTagForDisplay(entry,card,id,index){
+  const snapshot=String(entry?.tagLabels?.[index]||'').trim();
+  const resolved=shopNoteTagById(id,card?.machineId||'');
+  if(resolved)return {...resolved,label:snapshot||resolved.label};
+  return {id,label:snapshot||id};
+}
 function shopNoteEntryIncludesTag(entry,tagId){
   return (entry?.tagIds||[]).map(String).includes(String(tagId||''));
 }
@@ -9242,12 +9286,11 @@ function renderShopNoteSettingCounter(card){
     </div>`;
 }
 function renderShopNoteEntry(entry,card=null){
-  const machineId=card?.machineId||'';
-  const tags=(entry.tagIds||[]).map((id,index)=>shopNoteTagById(id,machineId)||{id,label:entry.tagLabels?.[index]||id}).filter(Boolean);
+  const tags=(entry.tagIds||[]).map((id,index)=>shopNoteEntryTagForDisplay(entry,card,id,index)).filter(Boolean);
   return `
     <div class="shop-note-entry">
       <div class="shop-note-meta">${escapeHtml(formatShopNoteTime(entry.at))}</div>
-      ${tags.length?`<div class="shop-note-entry-tags">${tags.map(tag=>`<span class="shop-note-entry-tag">${escapeHtml(tag.label)}</span>`).join('')}</div>`:''}
+      ${tags.length?`<div class="shop-note-entry-tags">${tags.map(tag=>`<span class="shop-note-entry-tag">${renderShopNoteTagLabel(tag)}</span>`).join('')}</div>`:''}
       ${entry.text?`<div class="shop-note-text">${escapeHtml(entry.text)}</div>`:''}
     </div>`;
 }
@@ -9261,11 +9304,11 @@ function renderShopNotePalette(card){
   const tags=palette.tags.filter(tag=>tag.categoryId===category.id);
   return `
     <div class="shop-note-palette">
-      ${favorites.length?`<div class="shop-note-palette-label">★お気に入り</div><div class="shop-note-palette-row">${favorites.map(tag=>`<button class="shop-note-chip favorite" type="button" onclick="addShopNoteEntry('${escapeHtml(card.id)}','${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join('')}</div>`:''}
+      ${favorites.length?`<div class="shop-note-palette-label">★お気に入り</div><div class="shop-note-palette-row">${favorites.map(tag=>`<button class="shop-note-chip favorite" type="button" onclick="addShopNoteEntry('${escapeHtml(card.id)}','${escapeHtml(tag.id)}')">${renderShopNoteTagLabel(tag)}</button>`).join('')}</div>`:''}
       <div class="shop-note-palette-label">カテゴリ</div>
       <div class="shop-note-palette-row">${palette.categories.map(row=>`<button class="shop-note-chip ${row.id===category.id?'active':''}" type="button" onclick="selectShopNoteCategory('${escapeHtml(row.id)}')">${escapeHtml(row.label)}</button>`).join('')}</div>
       <div class="shop-note-palette-label">${escapeHtml(category.label)}（長押しで★登録/解除）</div>
-      <div class="shop-note-palette-row">${tags.map(tag=>`<button class="shop-note-chip ${favoriteIds.includes(tag.id)?'starred':''}" type="button" onpointerdown="startShopNoteFavoritePress(event,'${escapeHtml(tag.id)}')" onpointerup="cancelShopNoteFavoritePress()" onpointerleave="cancelShopNoteFavoritePress()" onpointercancel="cancelShopNoteFavoritePress()" onclick="handleShopNoteTagClick('${escapeHtml(card.id)}','${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join('')}</div>
+      <div class="shop-note-palette-row">${tags.map(tag=>`<button class="shop-note-chip ${favoriteIds.includes(tag.id)?'starred':''}" type="button" onpointerdown="startShopNoteFavoritePress(event,'${escapeHtml(tag.id)}')" onpointerup="cancelShopNoteFavoritePress()" onpointerleave="cancelShopNoteFavoritePress()" onpointercancel="cancelShopNoteFavoritePress()" onclick="handleShopNoteTagClick('${escapeHtml(card.id)}','${escapeHtml(tag.id)}')">${renderShopNoteTagLabel(tag)}</button>`).join('')}</div>
       <div class="shop-note-text-row">
         <textarea id="shopNoteText_${escapeHtml(card.id)}" placeholder="自由記述メモ"></textarea>
         <button class="btn-primary" type="button" onclick="addShopNoteTextEntry('${escapeHtml(card.id)}')">追加</button>
@@ -11954,7 +11997,7 @@ function shopNoteCardSummaryText(card){
   const entries=[...(card.entries||[])].sort((a,b)=>String(b.at).localeCompare(String(a.at))).slice(0,3);
   if(!entries.length)return '記録なし';
   return entries.map(entry=>{
-    const tags=(entry.tagIds||[]).map((id,index)=>shopNoteTagById(id,card.machineId)||{id,label:entry.tagLabels?.[index]||id}).filter(Boolean).map(tag=>tag.label).join(' / ');
+    const tags=(entry.tagIds||[]).map((id,index)=>shopNoteEntryTagForDisplay(entry,card,id,index)).filter(Boolean).map(tag=>tag.label).join(' / ');
     return `${formatShopNoteTime(entry.at)} ${[tags,entry.text].filter(Boolean).join(' ')}`.trim();
   }).join('\n');
 }

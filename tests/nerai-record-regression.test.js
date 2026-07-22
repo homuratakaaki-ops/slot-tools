@@ -1292,7 +1292,67 @@ function testShopNoteNangokuPaletteUsesAllowList() {
   assert.equal(tagIds.includes('snt_result_no_suggest'), false);
   assert.equal(tagIds.includes('snt_eyecatch_default'), false);
   assert.equal(palette.tags.slice(0, 9).every(tag => tag.categoryId === 'sntc_mode'), true);
+  assert.deepEqual(palette.tags.slice(0, 9).map(tag => tag.label), [
+    '紫さざなみ',
+    '赤さざなみ',
+    '虹さざなみ',
+    'リプフラ',
+    'ボナ後変化なし',
+    'ボナ後青',
+    'ボナ後緑',
+    'ボナ後赤',
+    'ボナ後虹'
+  ]);
+  assert.deepEqual(palette.tags.slice(0, 9).map(tag => tag.color), ['purple', 'red', 'rainbow', 'gray', 'gray', 'blue', 'green', 'red', 'rainbow']);
   assert.equal(vm.runInContext("machineById('m_nangoku_special').settingSuggestCounter.items.length", context), 7);
+}
+
+function testShopNoteShortLabelsDotsAndSnapshots() {
+  const { context } = runRecord(undefined);
+  const purpleId = vm.runInContext("shopNoteTagsForMachine('m_nangoku_special').tags[0].id", context);
+  const grayId = vm.runInContext("shopNoteTagsForMachine('m_nangoku_special').tags[3].id", context);
+  vm.runInContext(`
+    db.shopNoteCards = [{
+      id: 'snc_color',
+      createdAt: '2026-07-21T10:00:00.000Z',
+      updatedAt: '2026-07-21T10:00:00.000Z',
+      date: '2026-07-21',
+      store: 'STORE_ALPHA',
+      machineNo: '101',
+      machineId: 'm_nangoku_special',
+      entries: [{
+        id: 'sne_old',
+        at: '2026-07-21T10:00:00.000Z',
+        tagIds: ['${purpleId}'],
+        tagLabels: ['紫さざなみ（旧ラベルのスナップショット）'],
+        text: ''
+      }]
+    }];
+  `, context);
+
+  const paletteHtml = vm.runInContext("renderShopNotePalette(db.shopNoteCards[0])", context);
+  assert.match(paletteHtml, /shop-note-color-dot/);
+  assert.match(paletteHtml, /rainbow/);
+  assert.match(paletteHtml, /ボナ後変化なし/);
+  assert.doesNotMatch(paletteHtml, /変化なし（デフォルト/);
+  vm.runInContext(`addShopNoteEntry('snc_color','${grayId}');`, context);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries[1].tagLabels[0]", context), 'リプフラ');
+  const entryHtml = vm.runInContext("renderShopNoteEntry(db.shopNoteCards[0].entries[0], db.shopNoteCards[0])", context);
+  assert.match(entryHtml, /紫さざなみ（旧ラベルのスナップショット）/);
+  assert.match(entryHtml, /shop-note-color-dot/);
+  assert.match(vm.runInContext("shopNoteCardSummaryText(db.shopNoteCards[0])", context), /紫さざなみ（旧ラベルのスナップショット）/);
+}
+
+function testShopNoteWrapsPaletteRowsWithoutChangingFallbacks() {
+  const style = extractStyle();
+  assert.match(style, /\.shop-note-palette-row\{[^}]*flex-wrap:wrap/);
+  assert.doesNotMatch(style.match(/\.shop-note-palette-row\{[^}]*\}/)[0], /overflow-x:auto/);
+  const { context } = runRecord(undefined);
+  const unregistered = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine(''))", context));
+  const tokyo = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine('m_tokyo_ghoul'))", context));
+  assert.equal(unregistered.tags.some(tag => tag.color), false);
+  assert.equal(tokyo.tags.some(tag => tag.color), false);
+  assert.equal(tokyo.tags.some(tag => tag.id === 'snt_result_direct_at'), true);
 }
 
 function testShopNoteSettingSuggestCounterUsesEntriesOnly() {
@@ -1405,6 +1465,8 @@ function run() {
   testShopNoteCreateKeepsExplicitUnregisteredMachine();
   testShopNoteSuggestMasterPaletteAndSnapshotFallback();
   testShopNoteNangokuPaletteUsesAllowList();
+  testShopNoteShortLabelsDotsAndSnapshots();
+  testShopNoteWrapsPaletteRowsWithoutChangingFallbacks();
   testShopNoteSettingSuggestCounterUsesEntriesOnly();
   testShopNoteExistingLogsAndStorageCountsRemainStable();
   testLegacyBackupLoad();
