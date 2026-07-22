@@ -1235,7 +1235,8 @@ function testShopNoteCreateKeepsExplicitUnregisteredMachine() {
 function testShopNoteSuggestMasterPaletteAndSnapshotFallback() {
   const seed = shopNoteMigrationSeed();
   seed.shopNotes = [];
-  seed.machines[0].suggestMaster = [{
+  seed.machines.push({ id: 'm_shop_note_custom', name: '他台メモ検証機', aims: [], tags: [], startTags: [], labelTags: [], suggestMaster: [] });
+  seed.machines[2].suggestMaster = [{
     id: 'sgc_mode',
     category: 'モード示唆',
     places: [{
@@ -1254,18 +1255,44 @@ function testShopNoteSuggestMasterPaletteAndSnapshotFallback() {
     date: '2026-07-21',
     store: 'STORE_ALPHA',
     machineNo: '101',
-    machineId: 'm_nangoku_special',
+    machineId: 'm_shop_note_custom',
     entries: []
   }];
   const { context } = runRecord(JSON.stringify(seed), [true]);
-  const virtualId = 'snv_m_nangoku_special_sgc_mode_sgp_reel_sgi_reel_blue';
+  const virtualId = 'snv_m_shop_note_custom_sgc_mode_sgp_reel_sgi_reel_blue';
 
-  assert.equal(vm.runInContext("shopNoteTagsForMachine('m_nangoku_special').tags.some(tag => tag.id === 'snt_trophy_bronze')", context), false);
-  assert.equal(vm.runInContext(`shopNoteTagsForMachine('m_nangoku_special').tags.some(tag => tag.id === '${virtualId}')`, context), true);
+  assert.equal(vm.runInContext("shopNoteTagsForMachine('m_shop_note_custom').tags.some(tag => tag.id === 'snt_result_direct_at')", context), true);
+  assert.equal(vm.runInContext(`shopNoteTagsForMachine('m_shop_note_custom').tags.some(tag => tag.id === '${virtualId}')`, context), true);
   vm.runInContext(`addShopNoteEntry('snc_suggest','${virtualId}');`, context);
   assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagLabels[0]", context), 'リール青');
-  vm.runInContext("db.machines[0].suggestMaster = [];", context);
+  vm.runInContext("machineById('m_shop_note_custom').suggestMaster = [];", context);
   assert.equal(vm.runInContext("shopNoteCardSummaryText(db.shopNoteCards[0]).includes('リール青')", context), true);
+}
+
+function testShopNoteNangokuPaletteUsesAllowList() {
+  const { context } = runRecord(undefined);
+  const palette = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine('m_nangoku_special'))", context));
+  const tagIds = palette.tags.map(tag => tag.id);
+  const categoryLabels = palette.categories.map(category => category.label);
+
+  assert.deepEqual(categoryLabels, ['モード示唆', '結果・状態', 'その他']);
+  assert.equal(tagIds.length, 14);
+  assert.ok(tagIds.includes('snt_result_bonus'));
+  assert.ok(tagIds.includes('snt_result_quit'));
+  assert.ok(tagIds.includes('snt_other_attention'));
+  assert.ok(tagIds.includes('snt_other_follow'));
+  assert.ok(tagIds.includes('snt_other_memo'));
+  assert.equal(tagIds.some(id => id.includes('sgp_nangoku_trigger')), false);
+  assert.equal(tagIds.some(id => id.includes('sgp_nangoku_bonus_type')), false);
+  assert.equal(tagIds.some(id => id.includes('sgp_nangoku_bonus_voice')), false);
+  assert.equal(tagIds.includes('snt_mode_reset'), false);
+  assert.equal(tagIds.includes('snt_mode_same'), false);
+  assert.equal(tagIds.includes('snt_result_direct_at'), false);
+  assert.equal(tagIds.includes('snt_result_cz'), false);
+  assert.equal(tagIds.includes('snt_result_no_suggest'), false);
+  assert.equal(tagIds.includes('snt_eyecatch_default'), false);
+  assert.equal(palette.tags.slice(0, 9).every(tag => tag.categoryId === 'sntc_mode'), true);
+  assert.equal(vm.runInContext("machineById('m_nangoku_special').settingSuggestCounter.items.length", context), 7);
 }
 
 function testShopNoteExistingLogsAndStorageCountsRemainStable() {
@@ -1334,6 +1361,7 @@ function run() {
   testShopNoteBlankCardAndUnregisteredFavorites();
   testShopNoteCreateKeepsExplicitUnregisteredMachine();
   testShopNoteSuggestMasterPaletteAndSnapshotFallback();
+  testShopNoteNangokuPaletteUsesAllowList();
   testShopNoteExistingLogsAndStorageCountsRemainStable();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();

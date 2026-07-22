@@ -1079,6 +1079,7 @@ const SHOP_NOTE_TAGS=[
   {id:'snt_mode_same',categoryId:'sntc_mode',label:'据え置き挙動'},
   {id:'snt_result_direct_at',categoryId:'sntc_result',label:'AT直撃'},
   {id:'snt_result_cz',categoryId:'sntc_result',label:'CZ当選'},
+  {id:'snt_result_bonus',categoryId:'sntc_result',label:'ボーナス当選'},
   {id:'snt_result_no_suggest',categoryId:'sntc_result',label:'示唆なし'},
   {id:'snt_result_quit',categoryId:'sntc_result',label:'ヤメ'},
   {id:'snt_other_attention',categoryId:'sntc_other',label:'要確認'},
@@ -1914,6 +1915,21 @@ function normalizeShopNoteFavorites(favorites){
   });
   return result;
 }
+function isValidShopNoteTagId(id){
+  const key=String(id||'');
+  return SHOP_NOTE_TAGS.some(tag=>tag.id===key)||key.startsWith('snv_');
+}
+function normalizeSettingSuggestCounter(counter){
+  if(!counter||typeof counter!=='object'||Array.isArray(counter))return null;
+  const items=(Array.isArray(counter.items)?counter.items:[]).map(item=>{
+    const tagId=String(item?.tagId||'');
+    const label=String(item?.label||'').trim();
+    if(!isValidShopNoteTagId(tagId)||!label)return null;
+    return {tagId,label};
+  }).filter(Boolean);
+  if(!items.length)return null;
+  return {label:String(counter.label||'設定示唆').trim()||'設定示唆',items};
+}
 function migrateShopNotesToCards(notes,cards){
   const existing=(Array.isArray(cards)?cards:[]).map(normalizeShopNoteCard).filter(Boolean);
   if(existing.length)return existing;
@@ -2049,6 +2065,10 @@ function normalizeData(data){
     m.labelTags=Array.isArray(m.labelTags)?m.labelTags:[];
     m.quickPanel=normalizeQuickPanel(m.quickPanel);
     m.suggestMaster=normalizeSuggestMaster(m.suggestMaster);
+    if(Array.isArray(m.shopNoteTagIds))m.shopNoteTagIds=[...new Set(m.shopNoteTagIds.map(String).filter(isValidShopNoteTagId))];
+    else delete m.shopNoteTagIds;
+    m.settingSuggestCounter=normalizeSettingSuggestCounter(m.settingSuggestCounter);
+    if(!m.settingSuggestCounter)delete m.settingSuggestCounter;
     delete m.aimOrder;
     m.aims.forEach(a=>a.fields=Array.isArray(a.fields)?a.fields:[]);
     m.tags.forEach(t=>{
@@ -3487,11 +3507,44 @@ function ensureNangokuSpecialSeed(machine){
     }
     machine.nangokuTriggerChoiceItemsV1=true;
   };
+  const applyNangokuShopNotePreset=()=>{
+    const machineId=String(machine.id||'m_nangoku_special');
+    const v=(categoryId,placeId,itemId)=>shopNoteVirtualTagId(machineId,categoryId,placeId,itemId);
+    machine.shopNoteTagIds=[
+      v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i1'),
+      v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i2'),
+      v('sgc_nangoku_play','sgp_nangoku_sazanami','sgp_nangoku_sazanami_i3'),
+      v('sgc_nangoku_play','sgp_nangoku_replay_flash','sgp_nangoku_replay_flash_i1'),
+      v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i1'),
+      v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i2'),
+      v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i3'),
+      v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i4'),
+      v('sgc_nangoku_hit','sgp_nangoku_reel_light','sgp_nangoku_reel_light_i5'),
+      'snt_result_bonus',
+      'snt_result_quit',
+      'snt_other_attention',
+      'snt_other_follow',
+      'snt_other_memo'
+    ];
+    machine.settingSuggestCounter={
+      label:'ボーナス終了時ボイス',
+      items:[
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i1'),label:'ボイスなし（デフォルト）'},
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i2'),label:'張り切っていこー（偶数示唆）'},
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i3'),label:'自分を信じて（奇数示唆）'},
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i4'),label:'良い感じよ♪うんうん（高設定期待度UP）'},
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i5'),label:'今日の運勢は…可!（設定2以上濃厚）'},
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i6'),label:'今日の運勢は…良!（設定4以上濃厚）'},
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i7'),label:'今日の運勢は…極み!（設定6濃厚）'}
+      ]
+    };
+  };
   if(machine.suggestSeedNangokuSpecialV2){
     applyNangokuChainTriggerItem();
     applyNangokuTriggerChoiceItems();
     applyNangokuKoyakuTags();
     applyNangokuTagLayout();
+    applyNangokuShopNotePreset();
     return;
   }
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
@@ -3586,6 +3639,7 @@ function ensureNangokuSpecialSeed(machine){
   mergeSuggestSeed(machine,seed);
   applyNangokuChainTriggerItem();
   applyNangokuTriggerChoiceItems();
+  applyNangokuShopNotePreset();
   applySuggestMetadata(machine);
   machine.suggestSeedNangokuSpecialV1=true;
   machine.suggestSeedNangokuSpecialV2=true;
@@ -8989,12 +9043,35 @@ function deleteShopNoteCard(id){
   renderLogsList();
   renderShopNoteSheet();
 }
-const SHOP_NOTE_COMMON_TAG_IDS_V2=['snt_eyecatch_default','snt_mode_reset','snt_mode_same','snt_result_direct_at','snt_result_cz','snt_result_no_suggest','snt_result_quit','snt_other_attention','snt_other_follow','snt_other_memo'];
+const SHOP_NOTE_COMMON_TAG_IDS_V2=['snt_eyecatch_default','snt_mode_reset','snt_mode_same','snt_result_direct_at','snt_result_cz','snt_result_bonus','snt_result_no_suggest','snt_result_quit','snt_other_attention','snt_other_follow','snt_other_memo'];
 function shopNoteFavoriteKey(machineId){return String(machineId||'');}
 function shopNoteFixedTagById(id){return SHOP_NOTE_TAGS.find(tag=>tag.id===id)||null;}
 function shopNoteVirtualCategoryId(machineId,categoryId,placeId){return `snvc_${String(machineId||'')}_${String(categoryId||'')}_${String(placeId||'')}`;}
 function shopNoteVirtualTagId(machineId,categoryId,placeId,itemId){return `snv_${String(machineId||'')}_${String(categoryId||'')}_${String(placeId||'')}_${String(itemId||'')}`;}
 function shopNoteMachineOptions(){return [{id:'',name:'その他/未登録'}].concat((db.machines||[]).map(machine=>({id:machine.id,name:machine.name||machine.id})));}
+function shopNotePaletteCategoryForTag(tag){
+  if(tag?.source==='suggest'&&tag.carryType==='mode')return 'sntc_mode';
+  return tag?.categoryId||'';
+}
+function shopNoteCategoryById(id,categories=[]){
+  return categories.find(row=>row.id===id)||SHOP_NOTE_TAG_CATEGORIES.find(row=>row.id===id)||null;
+}
+function filterShopNotePaletteForMachine(machine,categories,tags){
+  if(!Array.isArray(machine?.shopNoteTagIds))return {categories,tags};
+  const allowed=machine.shopNoteTagIds.map(String);
+  const byId=new Map(tags.map(tag=>[tag.id,tag]));
+  const filteredTags=allowed.map(id=>byId.get(id)).filter(Boolean).map(tag=>({
+    ...tag,
+    categoryId:shopNotePaletteCategoryForTag(tag)
+  }));
+  const filteredCategories=[];
+  filteredTags.forEach(tag=>{
+    if(filteredCategories.some(row=>row.id===tag.categoryId))return;
+    const category=shopNoteCategoryById(tag.categoryId,categories);
+    if(category)filteredCategories.push(category);
+  });
+  return {categories:filteredCategories,tags:filteredTags};
+}
 function shopNoteTagsForMachine(machineId){
   const key=String(machineId||'');
   if(!key)return {categories:SHOP_NOTE_TAG_CATEGORIES,tags:SHOP_NOTE_TAGS};
@@ -9007,7 +9084,7 @@ function shopNoteTagsForMachine(machineId){
       if((place.items||[]).length)categories.push({id:categoryId,label:place.name||category.category||'示唆'});
       (place.items||[]).forEach(item=>{
         const itemId=item.id||item.label;
-        tags.push({id:shopNoteVirtualTagId(key,category.id,place.id,itemId),categoryId,label:item.label||item.item||'示唆',source:'suggest'});
+        tags.push({id:shopNoteVirtualTagId(key,category.id,place.id,itemId),categoryId,label:item.label||item.item||'示唆',source:'suggest',carryType:item.carryType||null});
       });
     });
   });
@@ -9019,7 +9096,7 @@ function shopNoteTagsForMachine(machineId){
     }
   });
   if(!categories.length)SHOP_NOTE_TAG_CATEGORIES.filter(row=>['sntc_result','sntc_other'].includes(row.id)).forEach(row=>categories.push(row));
-  return {categories,tags:tags.concat(common)};
+  return filterShopNotePaletteForMachine(machine,categories,tags.concat(common));
 }
 function shopNoteTagById(id,machineId=''){
   return shopNoteTagsForMachine(machineId).tags.find(tag=>tag.id===id)||shopNoteFixedTagById(id);
