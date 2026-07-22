@@ -9148,6 +9148,7 @@ let shopNoteOpenCardId='';
 let shopNoteCategoryId=SHOP_NOTE_TAG_CATEGORIES[0]?.id||'';
 let shopNoteFavoritePressTimer=null;
 let shopNoteFavoriteLongPressed=false;
+let shopNoteEntryPressTimer=null;
 const shopNoteCounterOpenCards=new Set();
 function shopNoteCurrentMachineId(){return currentMachine()?.id||selectedMachineId||'';}
 function shopNoteVibrate(pattern){
@@ -9188,6 +9189,14 @@ function startShopNoteFavoritePress(event,tagId){
 function cancelShopNoteFavoritePress(){
   clearTimeout(shopNoteFavoritePressTimer);
   shopNoteFavoritePressTimer=null;
+}
+function startShopNoteEntryPress(event,cardId,entryId){
+  cancelShopNoteEntryPress();
+  shopNoteEntryPressTimer=setTimeout(()=>removeShopNoteEntry(cardId,entryId),500);
+}
+function cancelShopNoteEntryPress(){
+  clearTimeout(shopNoteEntryPressTimer);
+  shopNoteEntryPressTimer=null;
 }
 function deleteShopNoteCard(id){
   const card=db.shopNoteCards.find(row=>row.id===id);
@@ -9439,8 +9448,10 @@ function renderShopNoteSettingCounter(card){
 }
 function renderShopNoteEntry(entry,card=null){
   const tags=(entry.tagIds||[]).map((id,index)=>shopNoteEntryTagForDisplay(entry,card,id,index)).filter(Boolean);
+  const cardId=card?.id||'';
+  const entryId=entry?.id||'';
   return `
-    <div class="shop-note-entry">
+    <div class="shop-note-entry" onpointerdown="startShopNoteEntryPress(event,'${escapeHtml(cardId)}','${escapeHtml(entryId)}')" onpointerup="cancelShopNoteEntryPress()" onpointerleave="cancelShopNoteEntryPress()" onpointercancel="cancelShopNoteEntryPress()">
       <div class="shop-note-meta">${escapeHtml(formatShopNoteTime(entry.at))}</div>
       ${tags.length?`<div class="shop-note-entry-tags">${tags.map(tag=>`<span class="shop-note-entry-tag">${renderShopNoteTagLabel(tag)}</span>`).join('')}</div>`:''}
       ${entry.text?`<div class="shop-note-text">${escapeHtml(entry.text)}</div>`:''}
@@ -9510,6 +9521,30 @@ function updateShopNoteCardContext(cardId){
   if(card.store)ensureStore(card.store);
   db.shopNoteCards=db.shopNoteCards.map(normalizeShopNoteCard).filter(Boolean);
   persist();
+  renderShopNoteSheet();
+  renderLogsList();
+}
+function shopNoteEntryDeleteLabel(entry,card){
+  const tags=(entry?.tagIds||[]).map((id,index)=>shopNoteEntryTagForDisplay(entry,card,id,index)).filter(Boolean);
+  const tagText=tags.map(tag=>tag.label).filter(Boolean).join(' / ');
+  const text=String(entry?.text||'').trim();
+  return tagText||text.slice(0,28)||'メモのみ';
+}
+function removeShopNoteEntry(cardId,entryId){
+  cancelShopNoteEntryPress();
+  const card=db.shopNoteCards.find(row=>row.id===cardId);
+  if(!card)return;
+  const index=(card.entries||[]).findIndex(entry=>entry.id===entryId);
+  if(index<0)return;
+  const entry=card.entries[index];
+  const label=shopNoteEntryDeleteLabel(entry,card);
+  if(!confirm(`この記録を削除しますか？\n${formatShopNoteTime(entry.at)} ${label}`))return;
+  card.entries.splice(index,1);
+  card.updatedAt=new Date().toISOString();
+  db.shopNoteCards=db.shopNoteCards.map(normalizeShopNoteCard).filter(Boolean);
+  persist();
+  shopNoteVibrate([22,25]);
+  showSmallToast('記録を1件削除');
   renderShopNoteSheet();
   renderLogsList();
 }

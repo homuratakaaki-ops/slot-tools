@@ -1581,6 +1581,66 @@ function testShopNoteSettingSuggestCounterUsesEntriesOnly() {
   assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(vibrations)", reloaded.context)), [[22, 25]]);
 }
 
+function testShopNoteEntryLongPressDeletesIndividualEntries() {
+  const seed = shopNoteMigrationSeed();
+  seed.shopNotes = [];
+  seed.shopNoteCards = [{
+    id: 'snc_delete_nangoku',
+    createdAt: '2026-07-21T10:00:00.000Z',
+    updatedAt: '2026-07-21T10:00:00.000Z',
+    date: '2026-07-21',
+    store: 'STORE_ALPHA',
+    machineNo: '101',
+    machineId: 'm_nangoku_special',
+    entries: []
+  }, {
+    id: 'snc_delete_tokyo',
+    createdAt: '2026-07-21T10:00:00.000Z',
+    updatedAt: '2026-07-21T10:00:00.000Z',
+    date: '2026-07-21',
+    store: 'STORE_ALPHA',
+    machineNo: '102',
+    machineId: 'm_tokyo_ghoul',
+    entries: []
+  }];
+  const { context, localStorage } = runRecord(JSON.stringify(seed), [false, true, true, true, true]);
+  const nangokuTagId = vm.runInContext("shopNoteTagsForMachine('m_nangoku_special').tags.find(tag => tag.type !== 'divider').id", context);
+  const counterId = vm.runInContext("machineById('m_nangoku_special').settingSuggestCounter.items[1].tagId", context);
+
+  vm.runInContext("vibrations = []; navigator.vibrate = pattern => { vibrations.push(pattern); return true; };", context);
+  vm.runInContext(`addShopNoteEntry('snc_delete_nangoku','${nangokuTagId}');`, context);
+  assert.match(vm.runInContext("renderShopNoteEntry(db.shopNoteCards[0].entries[0], db.shopNoteCards[0])", context), /startShopNoteEntryPress/);
+  assert.doesNotMatch(vm.runInContext("renderShopNoteEntry(db.shopNoteCards[0].entries[0], db.shopNoteCards[0])", context), /onclick=/);
+  const firstEntryId = vm.runInContext("db.shopNoteCards[0].entries[0].id", context);
+  vm.runInContext(`startShopNoteEntryPress(null,'snc_delete_nangoku','${firstEntryId}');`, context);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries.length", context), 1);
+  vm.runInContext(`startShopNoteEntryPress(null,'snc_delete_nangoku','${firstEntryId}');`, context);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries.length", context), 0);
+
+  vm.runInContext("addShopNoteEntry('snc_delete_nangoku','','自由記述テスト');", context);
+  const textEntryId = vm.runInContext("db.shopNoteCards[0].entries[0].id", context);
+  vm.runInContext(`startShopNoteEntryPress(null,'snc_delete_nangoku','${textEntryId}');`, context);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries.length", context), 0);
+
+  vm.runInContext(`addShopNoteEntry('snc_delete_nangoku','${counterId}');`, context);
+  vm.runInContext(`addShopNoteEntry('snc_delete_nangoku','${counterId}');`, context);
+  const counterEntryId = vm.runInContext("db.shopNoteCards[0].entries[1].id", context);
+  assert.equal(vm.runInContext(`shopNoteSettingCounterCounts(db.shopNoteCards[0], shopNoteSettingCounterForMachine('m_nangoku_special'))['${counterId}']`, context), 2);
+  vm.runInContext(`startShopNoteEntryPress(null,'snc_delete_nangoku','${counterEntryId}');`, context);
+  assert.equal(vm.runInContext(`shopNoteSettingCounterCounts(db.shopNoteCards[0], shopNoteSettingCounterForMachine('m_nangoku_special'))['${counterId}']`, context), 1);
+
+  vm.runInContext("addShopNoteEntry('snc_delete_tokyo','snm_m_tokyo_ghoul_upper_cz');", context);
+  const tokyoEntryId = vm.runInContext("db.shopNoteCards[1].entries[0].id", context);
+  vm.runInContext(`startShopNoteEntryPress(null,'snc_delete_tokyo','${tokyoEntryId}');`, context);
+  assert.equal(vm.runInContext("db.shopNoteCards[1].entries.length", context), 0);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(vibrations)", context)), [[18], [22, 25], [18], [22, 25], [18], [18], [22, 25], [18], [22, 25]]);
+
+  const reloaded = runRecord(localStorage.getItem('nerai_record_v1'));
+  assert.equal(vm.runInContext("db.shopNoteCards.find(card => card.id === 'snc_delete_nangoku').entries.length", reloaded.context), 1);
+  assert.equal(vm.runInContext("db.shopNoteCards.find(card => card.id === 'snc_delete_tokyo').entries.length", reloaded.context), 0);
+  assert.equal(vm.runInContext(`shopNoteSettingCounterCounts(db.shopNoteCards.find(card => card.id === 'snc_delete_nangoku'), shopNoteSettingCounterForMachine('m_nangoku_special'))['${counterId}']`, reloaded.context), 1);
+}
+
 function testShopNoteExistingLogsAndStorageCountsRemainStable() {
   const seed = shopNoteMigrationSeed();
   seed.shopNotes = [];
@@ -1654,6 +1714,7 @@ function run() {
   testShopNoteCustomTagsAreMachineScopedAndPersistent();
   testShopNoteTokyoGhoulPresetUsesAllowListAndCounter();
   testShopNoteSettingSuggestCounterUsesEntriesOnly();
+  testShopNoteEntryLongPressDeletesIndividualEntries();
   testShopNoteExistingLogsAndStorageCountsRemainStable();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
