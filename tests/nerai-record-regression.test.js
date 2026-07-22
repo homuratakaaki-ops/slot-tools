@@ -1209,6 +1209,83 @@ function testShopNoteBlankCardAndUnregisteredFavorites() {
   assert.match(vm.runInContext("renderShopNoteEntry(db.shopNoteCards[0].entries[1], db.shopNoteCards[0])", context), /ボーナス当選/);
 }
 
+function testShopNoteTagLabelsNormalizeAsPairs() {
+  const { context } = runRecord(undefined);
+  const normalize = entry => JSON.parse(vm.runInContext(`JSON.stringify(normalizeShopNoteEntry(${JSON.stringify(entry)}))`, context));
+
+  const partialMissing = normalize({
+    id: 'sne_pair_partial',
+    at: '2026-07-21T10:00:00.000Z',
+    tagIds: ['snt_mode_normal_b', 'unknown_x', 'snt_other_follow'],
+    tagLabels: ['L1', '', 'L2'],
+    text: ''
+  });
+  assert.deepEqual(partialMissing.tagIds, ['snt_mode_normal_b', 'snt_other_follow']);
+  assert.deepEqual(partialMissing.tagLabels, ['L1', 'L2']);
+  assert.equal(partialMissing.tagIds.length, partialMissing.tagLabels.length);
+
+  const unknownWithLabel = normalize({
+    id: 'sne_pair_unknown',
+    at: '2026-07-21T10:00:00.000Z',
+    tagIds: ['unknown_a', 'snt_mode_normal_b'],
+    tagLabels: ['LA', ''],
+    text: ''
+  });
+  assert.deepEqual(unknownWithLabel.tagIds, ['unknown_a', 'snt_mode_normal_b']);
+  assert.deepEqual(unknownWithLabel.tagLabels, ['LA', '']);
+  assert.equal(vm.runInContext(`renderShopNoteEntry(${JSON.stringify(unknownWithLabel)}, {machineId:''})`, context).includes('LA'), true);
+  assert.equal(vm.runInContext(`renderShopNoteEntry(${JSON.stringify(unknownWithLabel)}, {machineId:''})`, context).includes('通常B'), true);
+
+  const compressedOldBug = normalize({
+    id: 'sne_pair_compressed',
+    at: '2026-07-21T10:00:00.000Z',
+    tagIds: ['snt_mode_normal_b', 'unknown_b'],
+    tagLabels: ['LB'],
+    text: ''
+  });
+  assert.deepEqual(compressedOldBug.tagIds, ['snt_mode_normal_b']);
+  assert.deepEqual(compressedOldBug.tagLabels, ['']);
+
+  assert.equal(normalize({
+    id: 'sne_pair_drop_null',
+    at: '2026-07-21T10:00:00.000Z',
+    tagIds: ['unknown_c'],
+    tagLabels: [''],
+    text: ''
+  }), null);
+  const textOnly = normalize({
+    id: 'sne_pair_text_only',
+    at: '2026-07-21T10:00:00.000Z',
+    tagIds: ['unknown_c'],
+    tagLabels: [''],
+    text: '自由記述だけ'
+  });
+  assert.deepEqual(textOnly.tagIds, []);
+  assert.deepEqual(textOnly.tagLabels, []);
+  assert.equal(textOnly.text, '自由記述だけ');
+
+  const allLabels = normalize({
+    id: 'sne_pair_all_labels',
+    at: '2026-07-21T10:00:00.000Z',
+    tagIds: ['snt_mode_normal_b', 'snt_other_follow'],
+    tagLabels: ['通常Bメモ', 'フォロー候補メモ'],
+    text: ''
+  });
+  assert.deepEqual(allLabels.tagLabels, ['通常Bメモ', 'フォロー候補メモ']);
+  const noLabels = normalize({
+    id: 'sne_pair_no_labels',
+    at: '2026-07-21T10:00:00.000Z',
+    tagIds: ['snt_mode_normal_b', 'snt_other_follow'],
+    tagLabels: [],
+    text: ''
+  });
+  assert.deepEqual(noLabels.tagIds, ['snt_mode_normal_b', 'snt_other_follow']);
+  assert.deepEqual(noLabels.tagLabels, ['', '']);
+
+  const idempotent = normalize(allLabels);
+  assert.deepEqual(idempotent, allLabels);
+}
+
 function testShopNoteCreateKeepsExplicitUnregisteredMachine() {
   const seed = shopNoteMigrationSeed();
   seed.shopNotes = [];
@@ -1816,6 +1893,7 @@ function run() {
   testShopNoteCardsMigrateLegacyNotesWithPremigrateBackup();
   testShopNoteFavoritesAreMachineScopedAndTagEntriesPersist();
   testShopNoteBlankCardAndUnregisteredFavorites();
+  testShopNoteTagLabelsNormalizeAsPairs();
   testShopNoteCreateKeepsExplicitUnregisteredMachine();
   testShopNoteSuggestMasterPaletteAndSnapshotFallback();
   testShopNoteNangokuPaletteUsesAllowList();
