@@ -1888,7 +1888,7 @@ function normalizeShopNote(note){
 function normalizeShopNoteEntry(entry){
   if(!entry||typeof entry!=='object')return null;
   const tagLabels=(Array.isArray(entry.tagLabels)?entry.tagLabels:[]).map(value=>String(value||'').trim()).filter(Boolean);
-  const tagIds=(Array.isArray(entry.tagIds)?entry.tagIds:[]).map(String).filter((id,index)=>SHOP_NOTE_TAGS.some(tag=>tag.id===id)||id.startsWith('snv_')||!!tagLabels[index]);
+  const tagIds=(Array.isArray(entry.tagIds)?entry.tagIds:[]).map(String).filter((id,index)=>SHOP_NOTE_TAGS.some(tag=>tag.id===id)||id.startsWith('snv_')||id.startsWith('snm_')||!!tagLabels[index]);
   const text=String(entry.text||'').trim();
   if(!tagIds.length&&!text)return null;
   const at=entry.at||entry.createdAt||new Date().toISOString();
@@ -1920,14 +1920,14 @@ function normalizeShopNoteFavorites(favorites){
   if(!favorites||typeof favorites!=='object'||Array.isArray(favorites))return result;
   Object.entries(favorites).forEach(([machineId,ids])=>{
     const key=String(machineId||'');
-    const valid=[...new Set((Array.isArray(ids)?ids:[]).map(String).filter(id=>SHOP_NOTE_TAGS.some(tag=>tag.id===id)||id.startsWith('snv_')))];
+    const valid=[...new Set((Array.isArray(ids)?ids:[]).map(String).filter(isValidShopNoteTagId))];
     if(valid.length)result[key]=valid;
   });
   return result;
 }
 function isValidShopNoteTagId(id){
   const key=String(id||'');
-  return SHOP_NOTE_TAGS.some(tag=>tag.id===key)||key.startsWith('snv_');
+  return SHOP_NOTE_TAGS.some(tag=>tag.id===key)||key.startsWith('snv_')||key.startsWith('snm_');
 }
 function normalizeSettingSuggestCounter(counter){
   if(!counter||typeof counter!=='object'||Array.isArray(counter))return null;
@@ -1944,6 +1944,16 @@ function normalizeShopNoteTagRef(ref){
   if(ref&&typeof ref==='object'&&ref.divider){
     const label=String(ref.label||'').trim();
     return label?{divider:true,label}:null;
+  }
+  if(ref&&typeof ref==='object'&&ref.custom){
+    const id=String(ref.id||'');
+    const label=String(ref.label||'').trim();
+    const categoryId=String(ref.categoryId||'');
+    if(!id.startsWith('snm_')||!label||!SHOP_NOTE_TAG_CATEGORIES.some(category=>category.id===categoryId))return null;
+    const result={custom:true,id,label,categoryId};
+    const color=String(ref.color||'').trim();
+    if(color)result.color=color;
+    return result;
   }
   const rawId=typeof ref==='string'?ref:ref?.id;
   const id=String(rawId||'');
@@ -9098,10 +9108,16 @@ function shopNoteCategoryById(id,categories=[]){
 function filterShopNotePaletteForMachine(machine,categories,tags){
   if(!Array.isArray(machine?.shopNoteTagIds))return {categories,tags};
   const allowed=machine.shopNoteTagIds.map(normalizeShopNoteTagRef).filter(Boolean);
+  const machineId=String(machine?.id||'');
   const byId=new Map(tags.map(tag=>[tag.id,tag]));
   let currentDividerCategoryId='';
   const filteredTags=allowed.map(ref=>{
     if(ref.divider)return {type:'divider',label:ref.label,categoryId:currentDividerCategoryId};
+    if(ref.custom){
+      if(!machineId||!ref.id.startsWith(`snm_${machineId}_`))return null;
+      currentDividerCategoryId=ref.categoryId;
+      return {id:ref.id,categoryId:ref.categoryId,label:ref.label,color:ref.color||'',source:'custom',custom:true};
+    }
     const tag=byId.get(ref.id);
     if(!tag)return null;
     const categoryId=shopNotePaletteCategoryForTag(tag);

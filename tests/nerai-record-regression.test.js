@@ -1392,6 +1392,42 @@ function testShopNoteRemovedCommonTagsKeepSnapshotEntries() {
   assert.match(vm.runInContext("shopNoteCardSummaryText(db.shopNoteCards[0])", context), /リセット挙動/);
 }
 
+function testShopNoteCustomTagsAreMachineScopedAndPersistent() {
+  const seed = shopNoteMigrationSeed();
+  seed.shopNotes = [];
+  seed.machines[1].shopNoteTagIds = [
+    { custom: true, id: 'snm_m_tokyo_ghoul_upper_cz', label: '上位CZ', categoryId: 'sntc_result', color: 'red' },
+    { custom: true, id: 'snm_m_other_bad', label: '他機種不正', categoryId: 'sntc_result' },
+    { custom: true, id: 'snm_m_tokyo_ghoul_bad_category', label: 'カテゴリ不正', categoryId: 'bad_category' }
+  ];
+  seed.shopNoteCards = [{
+    id: 'snc_custom',
+    createdAt: '2026-07-21T10:00:00.000Z',
+    updatedAt: '2026-07-21T10:00:00.000Z',
+    date: '2026-07-21',
+    store: 'STORE_ALPHA',
+    machineNo: '101',
+    machineId: 'm_tokyo_ghoul',
+    entries: []
+  }];
+  const { context, localStorage } = runRecord(JSON.stringify(seed), [true]);
+
+  assert.equal(vm.runInContext("shopNoteTagsForMachine('m_tokyo_ghoul').tags.some(tag => tag.id === 'snm_m_tokyo_ghoul_upper_cz' && tag.label === '上位CZ' && tag.color === 'red')", context), true);
+  assert.equal(vm.runInContext("shopNoteTagsForMachine('m_tokyo_ghoul').tags.some(tag => tag.id === 'snm_m_other_bad')", context), false);
+  assert.equal(vm.runInContext("shopNoteTagsForMachine('m_nangoku_special').tags.some(tag => tag.id === 'snm_m_tokyo_ghoul_upper_cz')", context), false);
+  assert.equal(vm.runInContext("shopNoteTagsForMachine('').tags.some(tag => tag.id === 'snm_m_tokyo_ghoul_upper_cz')", context), false);
+  vm.runInContext("shopNoteOpenCardId = 'snc_custom'; toggleShopNoteFavorite('snm_m_tokyo_ghoul_upper_cz');", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(db.shopNoteFavorites.m_tokyo_ghoul)", context)), ['snm_m_tokyo_ghoul_upper_cz']);
+  vm.runInContext("addShopNoteEntry('snc_custom','snm_m_tokyo_ghoul_upper_cz');", context);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagIds[0]", context), 'snm_m_tokyo_ghoul_upper_cz');
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagLabels[0]", context), '上位CZ');
+
+  const reloaded = runRecord(localStorage.getItem('nerai_record_v1'));
+  assert.equal(vm.runInContext("shopNoteTagsForMachine('m_tokyo_ghoul').tags.some(tag => tag.id === 'snm_m_tokyo_ghoul_upper_cz')", reloaded.context), true);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagIds[0]", reloaded.context), 'snm_m_tokyo_ghoul_upper_cz');
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(db.shopNoteFavorites.m_tokyo_ghoul)", reloaded.context)), ['snm_m_tokyo_ghoul_upper_cz']);
+}
+
 function testShopNoteSettingSuggestCounterUsesEntriesOnly() {
   const seed = shopNoteMigrationSeed();
   seed.shopNotes = [];
@@ -1509,6 +1545,7 @@ function run() {
   testShopNoteShortLabelsDotsAndSnapshots();
   testShopNoteWrapsPaletteRowsWithoutChangingFallbacks();
   testShopNoteRemovedCommonTagsKeepSnapshotEntries();
+  testShopNoteCustomTagsAreMachineScopedAndPersistent();
   testShopNoteSettingSuggestCounterUsesEntriesOnly();
   testShopNoteExistingLogsAndStorageCountsRemainStable();
   testLegacyBackupLoad();
