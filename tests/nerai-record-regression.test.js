@@ -1142,17 +1142,98 @@ function testShopNoteFavoritesAreMachineScopedAndTagEntriesPersist() {
   }];
   const { context, localStorage } = runRecord(JSON.stringify(seed), [true]);
 
-  vm.runInContext("selectedMachineId = 'm_nangoku_special'; toggleShopNoteFavorite('snt_reel_blue');", context);
+  vm.runInContext("shopNoteOpenCardId = 'snc_test'; toggleShopNoteFavorite('snt_reel_blue');", context);
   assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(db.shopNoteFavorites.m_nangoku_special)", context)), ['snt_reel_blue']);
   assert.equal(vm.runInContext("db.shopNoteFavorites.m_tokyo_ghoul", context), undefined);
-  vm.runInContext("selectedMachineId = 'm_tokyo_ghoul'; toggleShopNoteFavorite('snt_trophy_bronze');", context);
+  vm.runInContext("db.shopNoteCards[0].machineId = 'm_tokyo_ghoul'; toggleShopNoteFavorite('snt_trophy_bronze');", context);
   assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(db.shopNoteFavorites.m_tokyo_ghoul)", context)), ['snt_trophy_bronze']);
 
   vm.runInContext("addShopNoteEntry('snc_test','snt_reel_blue');", context);
   assert.equal(vm.runInContext("db.shopNoteCards[0].entries.length", context), 1);
   assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagIds[0]", context), 'snt_reel_blue');
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagLabels[0]", context), 'リール青');
   const stored = JSON.parse(localStorage.getItem('nerai_record_v1'));
   assert.equal(stored.shopNoteCards[0].entries[0].tagIds[0], 'snt_reel_blue');
+}
+
+function testShopNoteBlankCardAndUnregisteredFavorites() {
+  const seed = shopNoteMigrationSeed();
+  seed.shopNotes = [];
+  seed.shopNoteCards = [{
+    id: 'snc_blank',
+    createdAt: '2026-07-21T10:00:00.000Z',
+    updatedAt: '2026-07-21T10:00:00.000Z',
+    date: '2026-07-21',
+    store: '',
+    machineNo: '',
+    machineId: '',
+    entries: []
+  }];
+  const { context } = runRecord(JSON.stringify(seed), [true]);
+
+  assert.equal(vm.runInContext('db.shopNoteCards.length', context), 1);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].store", context), '');
+  assert.equal(vm.runInContext("db.shopNoteCards[0].machineId", context), '');
+  vm.runInContext("shopNoteOpenCardId = 'snc_blank'; toggleShopNoteFavorite('snt_other_follow');", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(db.shopNoteFavorites[''])", context)), ['snt_other_follow']);
+  vm.runInContext("addShopNoteEntry('snc_blank','snt_other_follow');", context);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagLabels[0]", context), 'フォロー候補');
+}
+
+function testShopNoteSuggestMasterPaletteAndSnapshotFallback() {
+  const seed = shopNoteMigrationSeed();
+  seed.shopNotes = [];
+  seed.machines[0].suggestMaster = [{
+    id: 'sgc_mode',
+    category: 'モード示唆',
+    places: [{
+      id: 'sgp_reel',
+      name: 'リール発光',
+      items: [
+        { id: 'sgi_reel_blue', label: 'リール青' },
+        { id: 'sgi_reel_red', label: 'リール赤' }
+      ]
+    }]
+  }];
+  seed.shopNoteCards = [{
+    id: 'snc_suggest',
+    createdAt: '2026-07-21T10:00:00.000Z',
+    updatedAt: '2026-07-21T10:00:00.000Z',
+    date: '2026-07-21',
+    store: 'STORE_ALPHA',
+    machineNo: '101',
+    machineId: 'm_nangoku_special',
+    entries: []
+  }];
+  const { context } = runRecord(JSON.stringify(seed), [true]);
+  const virtualId = 'snv_m_nangoku_special_sgc_mode_sgp_reel_sgi_reel_blue';
+
+  assert.equal(vm.runInContext("shopNoteTagsForMachine('m_nangoku_special').tags.some(tag => tag.id === 'snt_trophy_bronze')", context), false);
+  assert.equal(vm.runInContext(`shopNoteTagsForMachine('m_nangoku_special').tags.some(tag => tag.id === '${virtualId}')`, context), true);
+  vm.runInContext(`addShopNoteEntry('snc_suggest','${virtualId}');`, context);
+  assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagLabels[0]", context), 'リール青');
+  vm.runInContext("db.machines[0].suggestMaster = [];", context);
+  assert.equal(vm.runInContext("shopNoteCardSummaryText(db.shopNoteCards[0]).includes('リール青')", context), true);
+}
+
+function testShopNoteExistingLogsAndStorageCountsRemainStable() {
+  const seed = shopNoteMigrationSeed();
+  seed.shopNotes = [];
+  seed.logs = [
+    { id: 'log_0718_a', createdAt: '2026-07-18T10:00:00.000Z', money: { date: '2026-07-18' }, timeline: [], segments: [] },
+    { id: 'log_0718_b', createdAt: '2026-07-18T11:00:00.000Z', money: { date: '2026-07-18' }, timeline: [], segments: [] },
+    { id: 'log_0719', createdAt: '2026-07-19T10:00:00.000Z', money: { date: '2026-07-19' }, timeline: [], segments: [] },
+    { id: 'log_0720_tokyo', machineId: 'm_tokyo_ghoul', createdAt: '2026-07-20T10:00:00.000Z', money: { date: '2026-07-20' }, timeline: [], segments: [] },
+    { id: 'log_0721_949', machineId: 'm_nangoku_special', createdAt: '2026-07-21T10:00:00.000Z', money: { date: '2026-07-21', machineNo: '949' }, timeline: [], segments: [] }
+  ];
+  seed.shopNoteCards = [{ id: 'snc_keep', createdAt: '2026-07-21T10:00:00.000Z', updatedAt: '2026-07-21T10:00:00.000Z', date: '2026-07-21', store: '', machineNo: '', machineId: '', entries: [] }];
+  const { context } = runRecord(JSON.stringify(seed), [true]);
+
+  assert.equal(vm.runInContext('db.logs.length', context), 5);
+  assert.equal(vm.runInContext('storageCounts(db).logs', context), 5);
+  assert.equal(vm.runInContext('storageCounts(db).shopNoteCards', context), 1);
+  vm.runInContext('persist();', context);
+  assert.equal(vm.runInContext('storageProtectionLocked', context), false);
 }
 
 function run() {
@@ -1197,6 +1278,9 @@ function run() {
   testPendingDraftRestoreResumeHydratesBeforeSaving();
   testShopNoteCardsMigrateLegacyNotesWithPremigrateBackup();
   testShopNoteFavoritesAreMachineScopedAndTagEntriesPersist();
+  testShopNoteBlankCardAndUnregisteredFavorites();
+  testShopNoteSuggestMasterPaletteAndSnapshotFallback();
+  testShopNoteExistingLogsAndStorageCountsRemainStable();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();
