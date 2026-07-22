@@ -1361,6 +1361,7 @@ function testShopNoteWrapsPaletteRowsWithoutChangingFallbacks() {
   const unregistered = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine(''))", context));
   const tokyo = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine('m_tokyo_ghoul'))", context));
   assert.equal(unregistered.tags.some(tag => tag.color), false);
+  assert.equal(unregistered.categories.some(category => category.id === 'sntc_setting'), false);
   assert.equal(tokyo.tags.some(tag => tag.color), true);
   assert.equal(tokyo.tags.some(tag => tag.id === 'snt_result_direct_at'), true);
   assert.equal(unregistered.tags.some(tag => tag.id === 'snt_mode_reset' || tag.id === 'snt_mode_same'), false);
@@ -1442,9 +1443,22 @@ function testShopNoteTokyoGhoulPresetUsesAllowListAndCounter() {
   const tagIds = realTags.map(tag => tag.id);
   const labels = realTags.map(tag => tag.label);
   const dividerLabels = palette.tags.filter(tag => tag.type === 'divider').map(tag => tag.label);
+  const categoryLabels = palette.categories.map(category => category.label);
+  const tagsByCategory = categoryId => realTags.filter(tag => tag.categoryId === categoryId);
 
   assert.deepEqual(dividerLabels, ['モード示唆', '設定示唆']);
+  assert.deepEqual(categoryLabels, ['モード示唆', '設定示唆', '結果・状態', 'その他']);
   assert.equal(realTags.length, 60);
+  assert.equal(tagsByCategory('sntc_mode').length, 35);
+  assert.equal(tagsByCategory('sntc_setting').length, 17);
+  assert.equal(tagsByCategory('sntc_result').length, 5);
+  assert.equal(tagsByCategory('sntc_other').length, 3);
+  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === 'EC鈴屋（設定示唆）'), true);
+  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '設定4以上'), true);
+  assert.equal(tagsByCategory('sntc_setting').some(tag => tag.label === '虹トロ'), true);
+  assert.equal(tagsByCategory('sntc_mode').some(tag => tag.label === '金木研（デフォ）'), true);
+  assert.equal(tagsByCategory('sntc_mode').some(tag => tag.label === '喰P獲得 大'), true);
+  assert.equal(tagsByCategory('sntc_mode').some(tag => tag.label === '喰P示唆 なし'), true);
   assert.equal(tagIds.filter(id => id.startsWith('snm_m_tokyo_ghoul_')).length, 3);
   assert.equal(tagIds.includes('snm_m_tokyo_ghoul_eyecatch_ghoulized'), true);
   assert.equal(tagIds.includes('snm_m_tokyo_ghoul_upper_cz'), true);
