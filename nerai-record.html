@@ -1078,15 +1078,23 @@ const SHOP_NOTE_TAG_CATEGORIES=[
   {id:'sntc_other',label:'その他'}
 ];
 const SHOP_NOTE_TAGS=[
-  {id:'snt_reel_blue',categoryId:'sntc_reel',label:'リール青'},
-  {id:'snt_reel_green',categoryId:'sntc_reel',label:'リール緑'},
-  {id:'snt_reel_red',categoryId:'sntc_reel',label:'リール赤'},
-  {id:'snt_reel_rainbow',categoryId:'sntc_reel',label:'リール虹'},
+  {id:'snt_reel_blue',categoryId:'sntc_reel',label:'リール青',color:'blue'},
+  {id:'snt_reel_green',categoryId:'sntc_reel',label:'リール緑',color:'green'},
+  {id:'snt_reel_red',categoryId:'sntc_reel',label:'リール赤',color:'red'},
+  {id:'snt_reel_rainbow',categoryId:'sntc_reel',label:'リール虹',color:'rainbow'},
+  {id:'snt_mode_normal_a',categoryId:'sntc_mode',label:'通常A'},
+  {id:'snt_mode_normal_b',categoryId:'sntc_mode',label:'通常B',color:'blue'},
+  {id:'snt_mode_chance',categoryId:'sntc_mode',label:'チャンス',color:'green'},
+  {id:'snt_mode_heaven',categoryId:'sntc_mode',label:'天国',color:'purple'},
+  {id:'snt_setting_even',categoryId:'sntc_setting',label:'偶数示唆'},
+  {id:'snt_setting_odd',categoryId:'sntc_setting',label:'奇数示唆'},
+  {id:'snt_setting_high_weak',categoryId:'sntc_setting',label:'高設定示唆 弱',badge:'high'},
+  {id:'snt_setting_high_strong',categoryId:'sntc_setting',label:'高設定示唆 強',badge:'high',badgeStrong:true},
   {id:'snt_trophy_bronze',categoryId:'sntc_trophy',label:'銅トロ'},
-  {id:'snt_trophy_silver',categoryId:'sntc_trophy',label:'銀トロ'},
-  {id:'snt_trophy_gold',categoryId:'sntc_trophy',label:'金トロ'},
-  {id:'snt_trophy_kirin',categoryId:'sntc_trophy',label:'キリントロ'},
-  {id:'snt_trophy_rainbow',categoryId:'sntc_trophy',label:'虹トロ'},
+  {id:'snt_trophy_silver',categoryId:'sntc_trophy',label:'銀トロ',color:'gray'},
+  {id:'snt_trophy_gold',categoryId:'sntc_trophy',label:'金トロ',color:'gold'},
+  {id:'snt_trophy_kirin',categoryId:'sntc_trophy',label:'特殊柄トロ'},
+  {id:'snt_trophy_rainbow',categoryId:'sntc_trophy',label:'虹トロ',color:'rainbow'},
   {id:'snt_eyecatch_default',categoryId:'sntc_eyecatch',label:'デフォ'},
   {id:'snt_eyecatch_weak',categoryId:'sntc_eyecatch',label:'弱示唆'},
   {id:'snt_eyecatch_strong',categoryId:'sntc_eyecatch',label:'強示唆'},
@@ -9229,11 +9237,26 @@ function deleteShopNoteCard(id){
   renderShopNoteSheet();
 }
 const SHOP_NOTE_COMMON_TAG_IDS_V2=['snt_eyecatch_default','snt_result_direct_at','snt_result_cz','snt_result_bonus','snt_result_no_suggest','snt_result_quit','snt_other_attention','snt_other_follow','snt_other_memo'];
+const SHOP_NOTE_GENERIC_TAG_IDS=[
+  'snt_mode_normal_a','snt_mode_normal_b','snt_mode_chance','snt_mode_heaven',
+  'snt_setting_even','snt_setting_odd','snt_setting_high_weak','snt_setting_high_strong',
+  'snt_trophy_bronze','snt_trophy_silver','snt_trophy_gold','snt_trophy_kirin','snt_trophy_rainbow',
+  'snt_other_attention','snt_other_follow','snt_other_memo'
+];
+const SHOP_NOTE_GENERIC_CATEGORY_IDS=['sntc_mode','sntc_setting','sntc_trophy','sntc_other'];
 function shopNoteFavoriteKey(machineId){return String(machineId||'');}
 function shopNoteFixedTagById(id){return SHOP_NOTE_TAGS.find(tag=>tag.id===id)||null;}
 function shopNoteVirtualCategoryId(machineId,categoryId,placeId){return `snvc_${String(machineId||'')}_${String(categoryId||'')}_${String(placeId||'')}`;}
 function shopNoteVirtualTagId(machineId,categoryId,placeId,itemId){return `snv_${String(machineId||'')}_${String(categoryId||'')}_${String(placeId||'')}_${String(itemId||'')}`;}
 function shopNoteMachineOptions(){return [{id:'',name:'その他/未登録'}].concat((db.machines||[]).map(machine=>({id:machine.id,name:machine.name||machine.id})));}
+function shopNoteGenericPalette(){
+  const tags=SHOP_NOTE_GENERIC_TAG_IDS.map(id=>shopNoteFixedTagById(id)).filter(Boolean);
+  const usedCategoryIds=new Set(tags.map(tag=>tag.categoryId));
+  const categories=SHOP_NOTE_GENERIC_CATEGORY_IDS
+    .map(id=>SHOP_NOTE_TAG_CATEGORIES.find(category=>category.id===id))
+    .filter(category=>category&&usedCategoryIds.has(category.id));
+  return {categories,tags};
+}
 function shopNotePaletteCategoryForTag(tag){
   if(tag?.source==='suggest'&&tag.carryType==='mode')return 'sntc_mode';
   return tag?.categoryId||'';
@@ -9279,11 +9302,9 @@ function filterShopNotePaletteForMachine(machine,categories,tags){
 }
 function shopNoteTagsForMachine(machineId){
   const key=String(machineId||'');
-  if(!key){
-    const usedCategoryIds=new Set(SHOP_NOTE_TAGS.map(tag=>tag.categoryId));
-    return {categories:SHOP_NOTE_TAG_CATEGORIES.filter(category=>usedCategoryIds.has(category.id)),tags:SHOP_NOTE_TAGS};
-  }
+  if(!key)return shopNoteGenericPalette();
   const machine=machineById(key);
+  if(!machine)return shopNoteGenericPalette();
   const categories=[];
   const tags=[];
   (machine?.suggestMaster||[]).forEach(category=>{
@@ -9484,7 +9505,8 @@ function renderShopNotePalette(card){
   const palette=shopNoteTagsForMachine(machineId);
   const favoriteKey=shopNoteFavoriteKey(machineId);
   const favoriteIds=db.shopNoteFavorites?.[favoriteKey]||[];
-  const favorites=favoriteIds.map(id=>shopNoteTagById(id,machineId)).filter(Boolean);
+  const paletteTagIds=new Set(palette.tags.filter(tag=>tag.type!=='divider').map(tag=>tag.id));
+  const favorites=favoriteIds.filter(id=>paletteTagIds.has(id)).map(id=>shopNoteTagById(id,machineId)).filter(Boolean);
   const category=palette.categories.find(row=>row.id===shopNoteCategoryId)||palette.categories[0]||SHOP_NOTE_TAG_CATEGORIES[0];
   const tags=palette.tags.filter(tag=>tag.categoryId===category.id);
   return `

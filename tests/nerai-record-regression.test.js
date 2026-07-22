@@ -1193,6 +1193,20 @@ function testShopNoteBlankCardAndUnregisteredFavorites() {
   assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(db.shopNoteFavorites[''])", context)), ['snt_other_follow']);
   vm.runInContext("addShopNoteEntry('snc_blank','snt_other_follow');", context);
   assert.equal(vm.runInContext("db.shopNoteCards[0].entries[0].tagLabels[0]", context), 'フォロー候補');
+  vm.runInContext(`
+    db.shopNoteFavorites[''] = ['snt_result_bonus', 'snt_mode_normal_b'];
+    db.shopNoteCards[0].entries.push({
+      id: 'sne_old_generic',
+      at: '2026-07-21T10:05:00.000Z',
+      tagIds: ['snt_result_bonus'],
+      tagLabels: ['ボーナス当選'],
+      text: ''
+    });
+  `, context);
+  const paletteHtml = vm.runInContext("renderShopNotePalette(db.shopNoteCards[0])", context);
+  assert.equal(paletteHtml.includes('ボーナス当選'), false);
+  assert.equal(paletteHtml.includes('通常B'), true);
+  assert.match(vm.runInContext("renderShopNoteEntry(db.shopNoteCards[0].entries[1], db.shopNoteCards[0])", context), /ボーナス当選/);
 }
 
 function testShopNoteCreateKeepsExplicitUnregisteredMachine() {
@@ -1365,14 +1379,36 @@ function testShopNoteWrapsPaletteRowsWithoutChangingFallbacks() {
   assert.match(script, /requestAnimationFrame\(scrollShopNoteSelectedCategoryIntoView\)/);
   const { context } = runRecord(undefined);
   const unregistered = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine(''))", context));
+  const unknown = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine('m_unknown_machine'))", context));
   const tokyo = JSON.parse(vm.runInContext("JSON.stringify(shopNoteTagsForMachine('m_tokyo_ghoul'))", context));
-  assert.equal(unregistered.tags.some(tag => tag.color), false);
+  const unregisteredRealTags = unregistered.tags.filter(tag => tag.type !== 'divider');
+  assert.deepEqual(unregistered.categories.map(category => category.label), ['モード示唆', '設定示唆', 'トロフィー', 'その他']);
+  assert.equal(unregisteredRealTags.length, 16);
+  assert.deepEqual(unregisteredRealTags.map(tag => tag.id), [
+    'snt_mode_normal_a', 'snt_mode_normal_b', 'snt_mode_chance', 'snt_mode_heaven',
+    'snt_setting_even', 'snt_setting_odd', 'snt_setting_high_weak', 'snt_setting_high_strong',
+    'snt_trophy_bronze', 'snt_trophy_silver', 'snt_trophy_gold', 'snt_trophy_kirin', 'snt_trophy_rainbow',
+    'snt_other_attention', 'snt_other_follow', 'snt_other_memo'
+  ]);
+  assert.deepEqual(unknown, unregistered);
+  assert.equal(unregisteredRealTags.filter(tag => tag.color || tag.badge).length, 8);
+  assert.deepEqual({
+    blue: unregisteredRealTags.filter(tag => tag.color === 'blue').length,
+    green: unregisteredRealTags.filter(tag => tag.color === 'green').length,
+    purple: unregisteredRealTags.filter(tag => tag.color === 'purple').length,
+    gray: unregisteredRealTags.filter(tag => tag.color === 'gray').length,
+    gold: unregisteredRealTags.filter(tag => tag.color === 'gold').length,
+    rainbow: unregisteredRealTags.filter(tag => tag.color === 'rainbow').length,
+    highWeak: unregisteredRealTags.filter(tag => tag.badge === 'high' && !tag.badgeStrong).length,
+    highStrong: unregisteredRealTags.filter(tag => tag.badge === 'high' && tag.badgeStrong).length
+  }, {blue: 1, green: 1, purple: 1, gray: 1, gold: 1, rainbow: 1, highWeak: 1, highStrong: 1});
   assert.equal(unregistered.tags.some(tag => tag.hollow), false);
-  assert.equal(unregistered.categories.some(category => category.id === 'sntc_setting'), false);
+  assert.equal(unregistered.categories.some(category => category.id === 'sntc_setting'), true);
   assert.equal(unregistered.categories.some(category => category.id === 'sntc_kuipoint'), false);
   assert.equal(tokyo.tags.some(tag => tag.color), true);
   assert.equal(tokyo.tags.some(tag => tag.id === 'snt_result_direct_at'), true);
   assert.equal(unregistered.tags.some(tag => tag.id === 'snt_mode_reset' || tag.id === 'snt_mode_same'), false);
+  assert.equal(unregistered.tags.some(tag => tag.id === 'snt_reel_blue' || tag.id === 'snt_result_bonus' || tag.id === 'snt_eyecatch_default'), false);
   assert.equal(tokyo.tags.some(tag => tag.id === 'snt_mode_reset' || tag.id === 'snt_mode_same'), false);
 }
 
