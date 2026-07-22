@@ -188,6 +188,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .shop-note-entry-tag{display:inline-flex;align-items:center;gap:5px;border:1px solid rgba(201,168,76,.48);border-radius:999px;background:rgba(201,168,76,.12);color:var(--gold-light);font-size:12px;font-weight:900;padding:3px 8px;}
 .shop-note-color-dot{width:9px;height:9px;border-radius:999px;display:inline-block;flex:0 0 auto;background:var(--shop-note-dot,#9ca3af);box-shadow:0 0 0 1px rgba(255,255,255,.22);}
 .shop-note-color-dot.rainbow{background:linear-gradient(135deg,#8b5cf6 0%,#ef4444 34%,#22c55e 67%,#38bdf8 100%);}
+.shop-note-color-dot.hollow{background:transparent;box-shadow:inset 0 0 0 2px var(--shop-note-dot),0 0 0 1px rgba(255,255,255,.15);}
 .shop-note-palette{border-top:1px solid rgba(201,168,76,.18);padding-top:10px;margin-top:8px;}
 .shop-note-palette-row{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:4px;margin-bottom:8px;}
 .shop-note-palette-label{font-size:12px;font-weight:900;color:var(--text-muted);margin:0 0 5px;}
@@ -1955,6 +1956,7 @@ function normalizeShopNoteTagRef(ref){
     const result={custom:true,id,label,categoryId};
     const color=String(ref.color||'').trim();
     if(color)result.color=color;
+    if(ref.hollow)result.hollow=true;
     return result;
   }
   const rawId=typeof ref==='string'?ref:ref?.id;
@@ -1967,6 +1969,7 @@ function normalizeShopNoteTagRef(ref){
   if(label)result.label=label;
   if(color)result.color=color;
   if(categoryId&&SHOP_NOTE_TAG_CATEGORIES.some(category=>category.id===categoryId))result.categoryId=categoryId;
+  if(ref?.hollow)result.hollow=true;
   return result;
 }
 function migrateShopNotesToCards(notes,cards){
@@ -3102,13 +3105,13 @@ function applyTokyoGhoulShopNotePreset(machine){
     {divider:true,label:'✉️ 招待状'},
     modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i1'),'✉️ディナー'),
     modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i2'),'✉️パーティ'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i3'),'✉️600G否定'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i4'),'✉️残り200G以内or500G以上'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i5'),'✉️1時35分'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i6'),'✉️2時46分'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i7'),'✉️残り300G以内'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i8'),'✉️残り200G以内'),
-    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i9'),'✉️残り100G以内'),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i3'),'✉️600G否定',{color:'blue',hollow:true}),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i4'),'✉️残り200G以内or500G以上',{color:'blue'}),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i5'),'✉️1時35分',{color:'blue'}),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i6'),'✉️2時46分',{color:'blue'}),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i7'),'✉️残り300G以内',{color:'green'}),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i8'),'✉️残り200G以内',{color:'red'}),
+    modeTag(v(mode,tsukiyamaMode,'sgp_tokyo_ghoul_tsukiyama_mode_i9'),'✉️残り100G以内',{color:'purple'}),
     {divider:true,label:'🖼️ CZ終了時の1枚絵'},
     modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i1'),'🖼️金木A'),
     modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i2'),'🖼️金木B'),
@@ -3122,8 +3125,8 @@ function applyTokyoGhoulShopNotePreset(machine){
     modeTag(v(mode,czEndcardMode,'sgp_tokyo_ghoul_cz_endcard_mode_i10'),'🖼️神代'),
     {divider:true,label:'👁 アイキャッチ'},
     modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i1'),'👁金木研（デフォ）'),
-    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i2'),'👁霧嶋董香（モードB以上示唆）'),
-    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i3'),'👁笛口雛実（モードC以上示唆）'),
+    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i2'),'👁霧嶋董香（モードB以上示唆）',{color:'blue'}),
+    modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i3'),'👁笛口雛実（モードC以上示唆）',{color:'yellow'}),
     modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i4'),'👁月山習（本前兆up）'),
     modeTag(v(mode,eyecatch,'sgp_tokyo_ghoul_eyecatch_i5'),'👁神代利世（本前兆大幅up）'),
     {custom:true,id:'snm_m_tokyo_ghoul_eyecatch_ghoulized',label:'👁喰種化（100G以内当選濃厚）',categoryId:'sntc_mode',color:'red'},
@@ -3139,16 +3142,16 @@ function applyTokyoGhoulShopNotePreset(machine){
     kuiTag(v(kui,kuiHint,'sgp_tokyo_ghoul_kui_point_hint_i4'),'喰P示唆 なし',{color:'blue'}),
     {divider:true,label:'🖼️ CZ終了時の1枚絵'},
     settingTag(v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i1'),'🖼️鈴屋（設定示唆）'),
-    settingTag(v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i2'),'🖼️梟（設定4以上濃厚）'),
-    settingTag(v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i3'),'🖼️有馬（設定6濃厚）'),
+    settingTag(v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i2'),'🖼️梟（設定4以上濃厚）',{color:'green'}),
+    settingTag(v(setting,czEndcardSetting,'sgp_tokyo_ghoul_cz_endcard_setting_i3'),'🖼️有馬（設定6濃厚）',{color:'rainbow'}),
     {divider:true,label:'✉️ 招待状'},
     settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i1'),'✉️偶数示唆'),
     settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i2'),'✉️設定1否定'),
-    settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i3'),'✉️設定2否定'),
-    settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i4'),'✉️設定3否定'),
-    settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i5'),'✉️設定4否定'),
-    settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i6'),'✉️設定4以上'),
-    settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i7'),'✉️設定6'),
+    settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i3'),'✉️設定2否定',{color:'blue',hollow:true}),
+    settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i4'),'✉️設定3否定',{color:'yellow',hollow:true}),
+    settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i5'),'✉️設定4否定',{color:'green',hollow:true}),
+    settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i6'),'✉️設定4以上',{color:'green'}),
+    settingTag(v(setting,tsukiyamaSetting,'sgp_tokyo_ghoul_tsukiyama_setting_i7'),'✉️設定6',{color:'rainbow'}),
     {divider:true,label:'🏆️ トロフィー'},
     settingTag(v(setting,trophy,'sgp_tokyo_ghoul_trophy_i1'),'🏆️なし'),
     settingTag(v(setting,trophy,'sgp_tokyo_ghoul_trophy_i2'),'🏆️黒'),
@@ -9240,14 +9243,14 @@ function filterShopNotePaletteForMachine(machine,categories,tags){
     if(ref.custom){
       if(!machineId||!ref.id.startsWith(`snm_${machineId}_`))return;
       attachPendingDivider(ref.categoryId);
-      filteredTags.push({id:ref.id,categoryId:ref.categoryId,label:ref.label,color:ref.color||'',source:'custom',custom:true});
+      filteredTags.push({id:ref.id,categoryId:ref.categoryId,label:ref.label,color:ref.color||'',hollow:!!ref.hollow,source:'custom',custom:true});
       return;
     }
     const tag=byId.get(ref.id);
     if(!tag)return;
     const categoryId=ref.categoryId||shopNotePaletteCategoryForTag(tag);
     attachPendingDivider(categoryId);
-    filteredTags.push({...tag,label:ref.label||tag.label,color:ref.color||tag.color||'',categoryId});
+    filteredTags.push({...tag,label:ref.label||tag.label,color:ref.color||tag.color||'',hollow:!!ref.hollow||!!tag.hollow,categoryId});
   });
   const filteredCategories=[];
   filteredTags.forEach(tag=>{
@@ -9297,7 +9300,7 @@ function shopNoteTagById(id,machineId=''){
 }
 function shopNoteColorValue(color){
   const key=String(color||'').trim();
-  const values={purple:'#a855f7',red:'#ef4444',blue:'#3b82f6',green:'#22c55e',gray:'#9ca3af',gold:'#c9a84c'};
+  const values={purple:'#a855f7',red:'#ef4444',blue:'#3b82f6',green:'#22c55e',yellow:'#eab308',gray:'#9ca3af',gold:'#c9a84c'};
   return values[key]||'';
 }
 function renderShopNoteColorDot(tag){
@@ -9305,7 +9308,8 @@ function renderShopNoteColorDot(tag){
   if(!color)return '';
   if(color==='rainbow')return '<span class="shop-note-color-dot rainbow" aria-hidden="true"></span>';
   const value=shopNoteColorValue(color);
-  return value?`<span class="shop-note-color-dot" style="--shop-note-dot:${escapeHtml(value)}" aria-hidden="true"></span>`:'';
+  const hollow=!!tag?.hollow;
+  return value?`<span class="shop-note-color-dot${hollow?' hollow':''}" style="--shop-note-dot:${escapeHtml(value)}" aria-hidden="true"></span>`:'';
 }
 function renderShopNoteTagLabel(tag){
   return `${renderShopNoteColorDot(tag)}<span>${escapeHtml(tag.label)}</span>`;
