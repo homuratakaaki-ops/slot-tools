@@ -1350,6 +1350,7 @@ function testShopNoteModalFollowsOpenedCardDate() {
   vm.runInContext(`
     db.draftLog = { money: { date: '2026-07-22' } };
     selectedMachineId = 'm_nangoku_special';
+    let selectedShopNoteNewDate = '';
     const elements = {
       shopNoteTitle: { textContent: '' },
       shopNoteStoreLabel: { textContent: '' },
@@ -1376,20 +1377,30 @@ function testShopNoteModalFollowsOpenedCardDate() {
       scrollIntoView() {}
     };
     document.getElementById = id => id === 'shopNoteOverlay' ? overlay : (elements[id] || generic);
+    document.querySelector = selector => selector === 'input[name="shopNoteNewDate"]:checked' && selectedShopNoteNewDate ? { value: selectedShopNoteNewDate } : null;
     requestAnimationFrame = fn => fn();
   `, context);
 
   vm.runInContext("openShopNoteModal('snc_0721_949');", context);
   assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-21');
   assert.match(vm.runInContext("document.getElementById('shopNoteStoreLabel').textContent", context), /2026-07-21 \/ 店舗: STORE_ALPHA \/ 機種: L南国育ちSPECIAL/);
+  assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /今日\(2026-07-22\)/);
+  assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /表示中\(2026-07-21\)/);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台949/);
   assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台777/);
   vm.runInContext("createShopNoteCard();", context);
-  assert.equal(vm.runInContext("db.shopNoteCards.find(card => card.machineNo === '951').date", context), '2026-07-21');
+  assert.equal(vm.runInContext("db.shopNoteCards.find(card => card.machineNo === '951').date", context), '2026-07-22');
+  assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-22');
+  assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台951/);
+
+  vm.runInContext("openShopNoteModal('snc_0721_949'); selectedShopNoteNewDate = '2026-07-21'; document.getElementById('shopNoteNewMachineNo').value = '952'; createShopNoteCard();", context);
+  assert.equal(vm.runInContext("db.shopNoteCards.find(card => card.machineNo === '952').date", context), '2026-07-21');
+  assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-21');
 
   vm.runInContext("openShopNoteModal();", context);
   assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-22');
   assert.match(vm.runInContext("document.getElementById('shopNoteStoreLabel').textContent", context), /2026-07-22 \/ 店舗: 店舗未設定 \/ 機種: L南国育ちSPECIAL/);
+  assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /shopNoteNewDate/);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台777/);
   assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台949/);
 

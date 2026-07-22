@@ -205,6 +205,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .shop-note-control-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:8px;}
 .shop-note-control-grid.two{grid-template-columns:1fr 1fr;}
 .shop-note-control-grid select,.shop-note-control-grid input{width:100%;box-sizing:border-box;}
+.shop-note-new-date-choice{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px;}
+.shop-note-date-option{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.035);color:var(--text);font-size:12px;font-weight:900;padding:7px 10px;cursor:pointer;}
+.shop-note-date-option input{accent-color:var(--gold);}
 .shop-note-card-controls{border:1px solid rgba(122,122,138,.24);border-radius:8px;background:rgba(0,0,0,.11);padding:8px;margin:10px 0;}
 .shop-note-counter{border:1px solid rgba(201,168,76,.24);border-radius:8px;background:rgba(201,168,76,.07);margin:10px 0;overflow:hidden;}
 .shop-note-counter-toggle{width:100%;border:0;background:transparent;color:var(--gold-light);font-size:13px;font-weight:900;text-align:left;padding:9px 10px;cursor:pointer;}
@@ -9372,9 +9375,7 @@ function openShopNoteModal(id=''){
   shopNoteViewDate=card?.date||currentShopNoteDate();
   shopNoteOpenCardId=card?.id||shopNoteOpenCardId||'';
   document.getElementById('shopNoteTitle').textContent='他台メモ';
-  const headerStore=card?card.store:currentShopNoteStoreName();
-  const headerMachine=card?machineById(card.machineId):currentMachine();
-  document.getElementById('shopNoteStoreLabel').textContent=`${shopNoteViewDate} / 店舗: ${headerStore||'店舗未設定'} / 機種: ${headerMachine?.name||'その他/未登録'}`;
+  updateShopNoteHeaderContext(card);
   const overlay=document.getElementById('shopNoteOverlay');
   const sheet=overlay?.querySelector?.('.shop-note-sheet');
   overlay?.classList.add('open');
@@ -9382,6 +9383,29 @@ function openShopNoteModal(id=''){
   if(sheet)sheet.scrollTop=0;
   requestAnimationFrame(()=>sheet?.scrollIntoView?.({block:'start'}));
   renderShopNoteSheet();
+}
+function updateShopNoteHeaderContext(card=null){
+  const header=document.getElementById('shopNoteStoreLabel');
+  if(!header)return;
+  const headerStore=card?card.store:currentShopNoteStoreName();
+  const headerMachine=card?machineById(card.machineId):currentMachine();
+  header.textContent=`${shopNoteViewDate||currentShopNoteDate()} / 店舗: ${headerStore||'店舗未設定'} / 機種: ${headerMachine?.name||'その他/未登録'}`;
+}
+function renderShopNoteNewCardDateChoice(){
+  const today=todayValue();
+  const viewDate=shopNoteViewDate||currentShopNoteDate();
+  if(viewDate===today)return '';
+  return `
+      <div class="shop-note-new-date-choice" role="radiogroup" aria-label="記録日">
+        <label class="shop-note-date-option">
+          <input type="radio" name="shopNoteNewDate" value="${escapeHtml(today)}" checked>
+          <span>今日(${escapeHtml(today)})</span>
+        </label>
+        <label class="shop-note-date-option">
+          <input type="radio" name="shopNoteNewDate" value="${escapeHtml(viewDate)}">
+          <span>表示中(${escapeHtml(viewDate)})</span>
+        </label>
+      </div>`;
 }
 function renderShopNoteSheet(){
   const body=document.getElementById('shopNoteBody');
@@ -9413,6 +9437,7 @@ function renderShopNoteSheet(){
           <input type="text" id="shopNoteNewMachineNo" inputmode="numeric" placeholder="例: 189">
         </label>
       </div>
+      ${renderShopNoteNewCardDateChoice()}
       <button class="btn-primary" type="button" onclick="createShopNoteCard()">＋新しい台</button>
     </div>
     ${rows.length?rows.map(renderShopNoteCard).join(''):'<div class="empty-hint">この日の他台カードはまだありません</div>'}`;
@@ -9541,12 +9566,15 @@ function createShopNoteCard(){
   const input=document.getElementById('shopNoteNewMachineNo');
   const machineNo=String(input?.value||'').replace(/[^\d]/g,'').trim();
   const now=new Date().toISOString();
-  const card=normalizeShopNoteCard({id:uid('snc'),createdAt:now,updatedAt:now,date:shopNoteViewDate||currentShopNoteDate(),store,machineNo,machineId,entries:[]});
+  const selectedDate=String(document.querySelector?.('input[name="shopNoteNewDate"]:checked')?.value||todayValue()).trim();
+  const card=normalizeShopNoteCard({id:uid('snc'),createdAt:now,updatedAt:now,date:selectedDate,store,machineNo,machineId,entries:[]});
   db.shopNoteCards.push(card);
   if(store)ensureStore(store);
+  shopNoteViewDate=card.date;
   shopNoteOpenCardId=card.id;
   if(input)input.value='';
   persist();
+  updateShopNoteHeaderContext(card);
   renderShopNoteSheet();
   renderLogsList();
 }
