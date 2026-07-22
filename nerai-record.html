@@ -190,6 +190,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .shop-note-color-dot.rainbow{background:linear-gradient(135deg,#8b5cf6 0%,#ef4444 34%,#22c55e 67%,#38bdf8 100%);}
 .shop-note-color-dot.hollow{background:transparent;border-radius:2px;box-shadow:inset 0 0 0 2px var(--shop-note-dot),0 0 0 1px rgba(255,255,255,.15);}
 .shop-note-color-emoji{font-size:11px;line-height:1;flex:0 0 auto;}
+.shop-note-badge-high{display:inline-flex;align-items:center;justify-content:center;width:14px;height:14px;border-radius:3px;font-size:10px;line-height:1;flex:0 0 auto;color:#c9a84c;box-shadow:inset 0 0 0 1.5px #c9a84c;background:transparent;}
+.shop-note-badge-high.strong{color:#1a1a1a;background:#c9a84c;box-shadow:none;font-weight:700;}
 .shop-note-palette{border-top:1px solid rgba(201,168,76,.18);padding-top:10px;margin-top:8px;}
 .shop-note-palette-row{display:flex;flex-wrap:wrap;gap:6px;padding-bottom:4px;margin-bottom:8px;}
 .shop-note-palette-label{font-size:12px;font-weight:900;color:var(--text-muted);margin:0 0 5px;}
@@ -208,7 +210,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .shop-note-counter-toggle{width:100%;border:0;background:transparent;color:var(--gold-light);font-size:13px;font-weight:900;text-align:left;padding:9px 10px;cursor:pointer;}
 .shop-note-counter-table{display:grid;gap:1px;background:rgba(122,122,138,.2);}
 .shop-note-counter-row{display:grid;grid-template-columns:minmax(0,1fr) 38px 42px 38px;align-items:center;gap:4px;background:var(--surface2);padding:6px 8px;}
-.shop-note-counter-label{font-size:12px;font-weight:800;line-height:1.35;}
+.shop-note-counter-label{font-size:12px;font-weight:800;line-height:1.35;display:inline-flex;align-items:center;gap:5px;min-width:0;}
 .shop-note-counter-count{text-align:center;font-size:13px;font-weight:900;color:var(--gold-light);}
 .shop-note-counter-btn{min-height:32px;border:1px solid var(--border);border-radius:8px;background:rgba(255,255,255,.04);color:var(--text);font-size:16px;font-weight:900;cursor:pointer;}
 .shop-note-counter-btn:disabled{opacity:.35;cursor:not-allowed;}
@@ -1939,7 +1941,14 @@ function normalizeSettingSuggestCounter(counter){
     const tagId=String(item?.tagId||'');
     const label=String(item?.label||'').trim();
     if(!isValidShopNoteTagId(tagId)||!label)return null;
-    return {tagId,label};
+    const result={tagId,label};
+    const color=String(item?.color||'').trim();
+    const badge=String(item?.badge||'').trim();
+    if(color)result.color=color;
+    if(item?.hollow)result.hollow=true;
+    if(badge)result.badge=badge;
+    if(item?.badgeStrong)result.badgeStrong=true;
+    return result;
   }).filter(Boolean);
   if(!items.length)return null;
   return {label:String(counter.label||'設定示唆').trim()||'設定示唆',items};
@@ -1956,8 +1965,11 @@ function normalizeShopNoteTagRef(ref){
     if(!id.startsWith('snm_')||!label||!SHOP_NOTE_TAG_CATEGORIES.some(category=>category.id===categoryId))return null;
     const result={custom:true,id,label,categoryId};
     const color=String(ref.color||'').trim();
+    const badge=String(ref.badge||'').trim();
     if(color)result.color=color;
     if(ref.hollow)result.hollow=true;
+    if(badge)result.badge=badge;
+    if(ref.badgeStrong)result.badgeStrong=true;
     return result;
   }
   const rawId=typeof ref==='string'?ref:ref?.id;
@@ -1966,11 +1978,14 @@ function normalizeShopNoteTagRef(ref){
   const result={id};
   const label=String(ref?.label||'').trim();
   const color=String(ref?.color||'').trim();
+  const badge=String(ref?.badge||'').trim();
   const categoryId=String(ref?.categoryId||'').trim();
   if(label)result.label=label;
   if(color)result.color=color;
+  if(badge)result.badge=badge;
   if(categoryId&&SHOP_NOTE_TAG_CATEGORIES.some(category=>category.id===categoryId))result.categoryId=categoryId;
   if(ref?.hollow)result.hollow=true;
+  if(ref?.badgeStrong)result.badgeStrong=true;
   return result;
 }
 function migrateShopNotesToCards(notes,cards){
@@ -3176,11 +3191,11 @@ function applyTokyoGhoulShopNotePreset(machine){
       {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i1'),label:'金木研（デフォルト）'},
       {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i2'),label:'亜門鋼太朗＆真戸暁（奇数示唆）'},
       {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i3'),label:'鈴屋什造＆篠原幸紀（偶数示唆）'},
-      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i4'),label:'神代利世（設定1否定）'},
-      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i5'),label:'笛口雛実＆笛口リョーコ（高設定示唆 弱）'},
-      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i6'),label:'四方蓮示＆イトリ＆ウタ（高設定示唆 強）'},
-      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i7'),label:'金木研＆霧嶋董香（設定4以上濃厚）'},
-      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i8'),label:'あんていく全員集合（設定6濃厚）'}
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i4'),label:'神代利世（設定1否定）',color:'blue'},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i5'),label:'笛口雛実＆笛口リョーコ（高設定示唆 弱）',badge:'high'},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i6'),label:'四方蓮示＆イトリ＆ウタ（高設定示唆 強）',badge:'high',badgeStrong:true},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i7'),label:'金木研＆霧嶋董香（設定4以上濃厚）',color:'green'},
+      {tagId:v(setting,atEndScreen,'sgp_tokyo_ghoul_at_end_screen_i8'),label:'あんていく全員集合（設定6濃厚）',color:'rainbow'}
     ]
   };
 }
@@ -3689,10 +3704,10 @@ function ensureNangokuSpecialSeed(machine){
         {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i1'),label:'ボイスなし（デフォルト）'},
         {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i2'),label:'張り切っていこー（偶数示唆）'},
         {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i3'),label:'自分を信じて（奇数示唆）'},
-        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i4'),label:'良い感じよ♪うんうん（高設定期待度UP）'},
-        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i5'),label:'今日の運勢は…可!（設定2以上濃厚）'},
-        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i6'),label:'今日の運勢は…良!（設定4以上濃厚）'},
-        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i7'),label:'今日の運勢は…極み!（設定6濃厚）'}
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i4'),label:'良い感じよ♪うんうん（高設定期待度UP）',badge:'high'},
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i5'),label:'今日の運勢は…可!（設定2以上濃厚）',color:'blue'},
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i6'),label:'今日の運勢は…良!（設定4以上濃厚）',color:'green'},
+        {tagId:v('sgc_nangoku_hit','sgp_nangoku_bonus_voice','sgp_nangoku_bonus_voice_i7'),label:'今日の運勢は…極み!（設定6濃厚）',color:'rainbow'}
       ]
     };
   };
@@ -9244,14 +9259,14 @@ function filterShopNotePaletteForMachine(machine,categories,tags){
     if(ref.custom){
       if(!machineId||!ref.id.startsWith(`snm_${machineId}_`))return;
       attachPendingDivider(ref.categoryId);
-      filteredTags.push({id:ref.id,categoryId:ref.categoryId,label:ref.label,color:ref.color||'',hollow:!!ref.hollow,source:'custom',custom:true});
+      filteredTags.push({id:ref.id,categoryId:ref.categoryId,label:ref.label,color:ref.color||'',hollow:!!ref.hollow,badge:ref.badge||'',badgeStrong:!!ref.badgeStrong,source:'custom',custom:true});
       return;
     }
     const tag=byId.get(ref.id);
     if(!tag)return;
     const categoryId=ref.categoryId||shopNotePaletteCategoryForTag(tag);
     attachPendingDivider(categoryId);
-    filteredTags.push({...tag,label:ref.label||tag.label,color:ref.color||tag.color||'',hollow:!!ref.hollow||!!tag.hollow,categoryId});
+    filteredTags.push({...tag,label:ref.label||tag.label,color:ref.color||tag.color||'',hollow:!!ref.hollow||!!tag.hollow,badge:ref.badge||tag.badge||'',badgeStrong:!!ref.badgeStrong||!!tag.badgeStrong,categoryId});
   });
   const filteredCategories=[];
   filteredTags.forEach(tag=>{
@@ -9305,6 +9320,7 @@ function shopNoteColorValue(color){
   return values[key]||'';
 }
 function renderShopNoteColorDot(tag){
+  if(String(tag?.badge||'').trim()==='high')return `<span class="shop-note-badge-high${tag?.badgeStrong?' strong':''}" aria-hidden="true">高</span>`;
   const color=String(tag?.color||'').trim();
   if(!color)return '';
   if(color==='rainbow')return '<span class="shop-note-color-emoji" aria-hidden="true">🌈</span>';
@@ -9445,7 +9461,7 @@ function renderShopNoteSettingCounter(card){
       <button class="shop-note-counter-toggle" type="button" onclick="toggleShopNoteSettingCounter('${escapeHtml(card.id)}')">設定示唆: 合計${total}件 ${open?'▲':'▼'}</button>
       ${open?`<div class="shop-note-counter-table">${counter.items.map(item=>`
         <div class="shop-note-counter-row">
-          <div class="shop-note-counter-label">${escapeHtml(item.label)}</div>
+          <div class="shop-note-counter-label">${renderShopNoteColorDot(item)}<span>${escapeHtml(item.label)}</span></div>
           <button class="shop-note-counter-btn" type="button" onclick="removeShopNoteCounterEntry('${escapeHtml(card.id)}','${escapeHtml(item.tagId)}')" ${counts[item.tagId]?'':'disabled'}>−</button>
           <div class="shop-note-counter-count">${counts[item.tagId]||0}</div>
           <button class="shop-note-counter-btn" type="button" onclick="addShopNoteEntry('${escapeHtml(card.id)}','${escapeHtml(item.tagId)}')">＋</button>

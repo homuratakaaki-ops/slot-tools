@@ -1355,6 +1355,8 @@ function testShopNoteWrapsPaletteRowsWithoutChangingFallbacks() {
   const script = extractScript();
   assert.match(style, /\.shop-note-palette-row\{[^}]*flex-wrap:wrap/);
   assert.match(style, /\.shop-note-color-emoji\{[^}]*font-size:11px/);
+  assert.match(style, /\.shop-note-badge-high\{[^}]*width:14px/);
+  assert.match(style, /\.shop-note-badge-high\.strong\{[^}]*background:#c9a84c/);
   assert.doesNotMatch(style.match(/\.shop-note-palette-row\{[^}]*\}/)[0], /overflow-x:auto/);
   assert.match(style, /\.shop-note-body\{[^}]*overscroll-behavior:contain/);
   assert.match(style, /#shopNoteOverlay\{[^}]*overscroll-behavior:contain/);
@@ -1540,6 +1542,25 @@ function testShopNoteTokyoGhoulPresetUsesAllowListAndCounter() {
   assert.equal(tagIds.includes('snt_result_quit'), true);
   assert.equal(vm.runInContext("machineById('m_tokyo_ghoul').settingSuggestCounter.label", context), 'AT終了画面');
   assert.equal(vm.runInContext("machineById('m_tokyo_ghoul').settingSuggestCounter.items.length", context), 8);
+  assert.deepEqual(JSON.parse(vm.runInContext(`JSON.stringify((()=>{
+    const items=shopNoteSettingCounterForMachine('m_tokyo_ghoul').items;
+    return {
+      decorated:items.filter(item=>item.color||item.badge).length,
+      blue:items.filter(item=>item.color==='blue').length,
+      green:items.filter(item=>item.color==='green').length,
+      rainbow:items.filter(item=>item.color==='rainbow').length,
+      highWeak:items.filter(item=>item.badge==='high'&&!item.badgeStrong).length,
+      highStrong:items.filter(item=>item.badge==='high'&&item.badgeStrong).length
+    };
+  })())`, context)), {decorated: 5, blue: 1, green: 1, rainbow: 1, highWeak: 1, highStrong: 1});
+  assert.match(vm.runInContext(`(()=>{
+    shopNoteCounterOpenCards.add('snc_tokyo_counter_preview');
+    return renderShopNoteSettingCounter({id:'snc_tokyo_counter_preview',machineId:'m_tokyo_ghoul',entries:[]});
+  })()`, context), /shop-note-badge-high strong/);
+  assert.match(vm.runInContext(`(()=>{
+    shopNoteCounterOpenCards.add('snc_tokyo_counter_preview_emoji');
+    return renderShopNoteSettingCounter({id:'snc_tokyo_counter_preview_emoji',machineId:'m_tokyo_ghoul',entries:[]});
+  })()`, context), /shop-note-color-emoji/);
   assert.equal(vm.runInContext("shopNoteSettingCounterForMachine('')", context), null);
   assert.equal(vm.runInContext("shopNoteTagsForMachine('m_nangoku_special').tags.some(tag => tag.id === 'snm_m_tokyo_ghoul_upper_cz')", context), false);
   assert.equal(vm.runInContext("shopNoteTagsForMachine('').tags.some(tag => tag.id === 'snm_m_tokyo_ghoul_upper_cz')", context), false);
@@ -1601,7 +1622,22 @@ function testShopNoteSettingSuggestCounterUsesEntriesOnly() {
   assert.match(vm.runInContext("renderShopNoteSettingCounter(db.shopNoteCards[0])", context), /設定示唆: 合計0件/);
   assert.equal(vm.runInContext("renderShopNoteSettingCounter(db.shopNoteCards[1])", context), '');
   vm.runInContext("shopNoteCounterOpenCards.add('snc_counter')", context);
-  assert.match(vm.runInContext("renderShopNoteSettingCounter(db.shopNoteCards[0])", context), /張り切っていこー（偶数示唆）/);
+  const counterHtml = vm.runInContext("renderShopNoteSettingCounter(db.shopNoteCards[0])", context);
+  assert.match(counterHtml, /張り切っていこー（偶数示唆）/);
+  assert.match(counterHtml, /shop-note-badge-high/);
+  assert.match(counterHtml, /shop-note-color-dot/);
+  assert.match(counterHtml, /shop-note-color-emoji/);
+  assert.deepEqual(JSON.parse(vm.runInContext(`JSON.stringify((()=>{
+    const items=shopNoteSettingCounterForMachine('m_nangoku_special').items;
+    return {
+      decorated:items.filter(item=>item.color||item.badge).length,
+      blue:items.filter(item=>item.color==='blue').length,
+      green:items.filter(item=>item.color==='green').length,
+      rainbow:items.filter(item=>item.color==='rainbow').length,
+      highWeak:items.filter(item=>item.badge==='high'&&!item.badgeStrong).length,
+      highStrong:items.filter(item=>item.badge==='high'&&item.badgeStrong).length
+    };
+  })())`, context)), {decorated: 4, blue: 1, green: 1, rainbow: 1, highWeak: 1, highStrong: 0});
   vm.runInContext(`addShopNoteEntry('snc_counter','${tagId}');`, context);
   vm.runInContext(`addShopNoteEntry('snc_counter','${tagId}');`, context);
   assert.equal(vm.runInContext(`shopNoteSettingCounterCounts(db.shopNoteCards[0], shopNoteSettingCounterForMachine('m_nangoku_special'))['${tagId}']`, context), 2);
