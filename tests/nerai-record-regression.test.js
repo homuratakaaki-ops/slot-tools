@@ -1323,6 +1323,78 @@ function testShopNoteCreateKeepsExplicitUnregisteredMachine() {
   assert.equal(vm.runInContext("db.shopNoteCards[0].machineId", context), '');
 }
 
+function testShopNoteModalFollowsOpenedCardDate() {
+  const seed = shopNoteMigrationSeed();
+  seed.shopNotes = [];
+  seed.shopNoteCards = [{
+    id: 'snc_0721_949',
+    createdAt: '2026-07-21T10:00:00.000Z',
+    updatedAt: '2026-07-21T10:10:00.000Z',
+    date: '2026-07-21',
+    store: 'STORE_ALPHA',
+    machineNo: '949',
+    machineId: 'm_nangoku_special',
+    entries: []
+  }, {
+    id: 'snc_today',
+    createdAt: '2026-07-22T10:00:00.000Z',
+    updatedAt: '2026-07-22T10:00:00.000Z',
+    date: '2026-07-22',
+    store: 'STORE_ALPHA',
+    machineNo: '777',
+    machineId: '',
+    entries: []
+  }];
+  const { context } = runRecord(JSON.stringify(seed), [true]);
+
+  vm.runInContext(`
+    db.draftLog = { money: { date: '2026-07-22' } };
+    selectedMachineId = 'm_nangoku_special';
+    const elements = {
+      shopNoteTitle: { textContent: '' },
+      shopNoteStoreLabel: { textContent: '' },
+      shopNoteBody: { innerHTML: '' },
+      shopNoteNewStoreText: { value: '' },
+      shopNoteNewStoreSelect: { value: '' },
+      shopNoteNewMachineSelect: { value: '' },
+      shopNoteNewMachineNo: { value: '951' },
+      logsList: { innerHTML: '' }
+    };
+    const overlay = {
+      scrollTop: 99,
+      classList: { add(name) { this.added = name; }, remove() {} },
+      querySelector() { return { scrollTop: 88, scrollIntoView() {} }; }
+    };
+    const generic = {
+      innerHTML: '',
+      textContent: '',
+      value: '',
+      classList: { add() {}, remove() {}, toggle() {} },
+      style: {},
+      closest() { return { style: {}, nextElementSibling: { classList: { contains() { return false; } }, style: {} } }; },
+      querySelector() { return null; },
+      scrollIntoView() {}
+    };
+    document.getElementById = id => id === 'shopNoteOverlay' ? overlay : (elements[id] || generic);
+    requestAnimationFrame = fn => fn();
+  `, context);
+
+  vm.runInContext("openShopNoteModal('snc_0721_949');", context);
+  assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-21');
+  assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台949/);
+  assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台777/);
+  vm.runInContext("createShopNoteCard();", context);
+  assert.equal(vm.runInContext("db.shopNoteCards.find(card => card.machineNo === '951').date", context), '2026-07-21');
+
+  vm.runInContext("openShopNoteModal();", context);
+  assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-22');
+  assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台777/);
+  assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台949/);
+
+  vm.runInContext("db.shopNoteCards = db.shopNoteCards.filter(card => card.date !== '2026-07-22'); renderShopNoteSheet();", context);
+  assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /この日の他台カードはまだありません/);
+}
+
 function testShopNoteSuggestMasterPaletteAndSnapshotFallback() {
   const seed = shopNoteMigrationSeed();
   seed.shopNotes = [];
@@ -1895,6 +1967,7 @@ function run() {
   testShopNoteBlankCardAndUnregisteredFavorites();
   testShopNoteTagLabelsNormalizeAsPairs();
   testShopNoteCreateKeepsExplicitUnregisteredMachine();
+  testShopNoteModalFollowsOpenedCardDate();
   testShopNoteSuggestMasterPaletteAndSnapshotFallback();
   testShopNoteNangokuPaletteUsesAllowList();
   testShopNoteShortLabelsDotsAndSnapshots();

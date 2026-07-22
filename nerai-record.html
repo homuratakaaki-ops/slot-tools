@@ -9185,6 +9185,7 @@ let shopNoteCategoryId=SHOP_NOTE_TAG_CATEGORIES[0]?.id||'';
 let shopNoteFavoritePressTimer=null;
 let shopNoteFavoriteLongPressed=false;
 let shopNoteEntryPressTimer=null;
+let shopNoteViewDate='';
 const shopNoteCounterOpenCards=new Set();
 function shopNoteCurrentMachineId(){return currentMachine()?.id||selectedMachineId||'';}
 function shopNoteVibrate(pattern){
@@ -9368,6 +9369,7 @@ function renderShopNotePaletteItem(card,tag,favoriteIds){
 function openShopNoteModal(id=''){
   hideLegacyShopNoteControls();
   const card=id?(db.shopNoteCards||[]).find(row=>row.id===id):null;
+  shopNoteViewDate=card?.date||currentShopNoteDate();
   shopNoteOpenCardId=card?.id||shopNoteOpenCardId||'';
   document.getElementById('shopNoteTitle').textContent='他台メモ';
   document.getElementById('shopNoteStoreLabel').textContent=`店舗: ${currentShopNoteStoreName()||'店舗未設定'} / 機種: ${currentMachine()?.name||'その他/未登録'}`;
@@ -9382,7 +9384,7 @@ function openShopNoteModal(id=''){
 function renderShopNoteSheet(){
   const body=document.getElementById('shopNoteBody');
   if(!body)return;
-  const rows=shopNoteCardsForDate();
+  const rows=shopNoteCardsForDate(shopNoteViewDate||currentShopNoteDate());
   const currentStore=currentShopNoteStoreName();
   const storeNames=[...new Set((db.stores||[]).map(storeName).filter(Boolean).concat(currentStore?[currentStore]:[]))];
   const machineId=shopNoteCurrentMachineId();
@@ -9411,7 +9413,7 @@ function renderShopNoteSheet(){
       </div>
       <button class="btn-primary" type="button" onclick="createShopNoteCard()">＋新しい台</button>
     </div>
-    ${rows.length?rows.map(renderShopNoteCard).join(''):'<div class="empty-hint">当日の他台カードはまだありません</div>'}`;
+    ${rows.length?rows.map(renderShopNoteCard).join(''):'<div class="empty-hint">この日の他台カードはまだありません</div>'}`;
 }
 function renderShopNoteCard(card){
   const isOpen=shopNoteOpenCardId===card.id;
@@ -9537,7 +9539,7 @@ function createShopNoteCard(){
   const input=document.getElementById('shopNoteNewMachineNo');
   const machineNo=String(input?.value||'').replace(/[^\d]/g,'').trim();
   const now=new Date().toISOString();
-  const card=normalizeShopNoteCard({id:uid('snc'),createdAt:now,updatedAt:now,date:currentShopNoteDate(),store,machineNo,machineId,entries:[]});
+  const card=normalizeShopNoteCard({id:uid('snc'),createdAt:now,updatedAt:now,date:shopNoteViewDate||currentShopNoteDate(),store,machineNo,machineId,entries:[]});
   db.shopNoteCards.push(card);
   if(store)ensureStore(store);
   shopNoteOpenCardId=card.id;
