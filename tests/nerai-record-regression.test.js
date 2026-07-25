@@ -130,6 +130,22 @@ function runRecord(raw, confirms) {
   return sandbox;
 }
 
+function runRecordWithLocalStorage(storageSeed = {}, confirms) {
+  const script = extractScript();
+  const sandbox = createContext(undefined, confirms);
+  Object.entries(storageSeed).forEach(([key, value]) => sandbox.localStorage.setItem(key, value));
+  new vm.Script(script, { filename: 'nerai-record.html<script>' }).runInContext(sandbox.context);
+  return sandbox;
+}
+
+function storageChars(localStorage) {
+  return Object.entries(localStorage.dump()).reduce((sum, [key, value]) => sum + key.length + String(value).length, 0);
+}
+
+function tokyoToday() {
+  return new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Tokyo' });
+}
+
 function readLegacyFixture() {
   return JSON.parse(fs.readFileSync(LEGACY_FIXTURE_PATH, 'utf8'));
 }
@@ -146,7 +162,7 @@ function testLegacyBackupLoad() {
   assert.equal(vm.runInContext('db.stores[0].lendRate', context), null);
   assert.equal(vm.runInContext('db.stores[0].exchangeRate', context), null);
   assert.equal(localStorage.getItem('nerai_record_v1'), raw);
-  assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), raw);
+  assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), null);
 
   const tokyoMachines = vm.runInContext('db.machines.filter(isTokyoGhoulMachine)', context);
   assert.equal(tokyoMachines.length, 1);
@@ -192,7 +208,7 @@ function testLegacyBackupWithSyntheticLogAndGuard() {
   assert.equal(vm.runInContext('db.logs.length', context), 1);
   assert.equal(vm.runInContext('db.stores[0].name', context), 'STORE_ALPHA');
   assert.equal(localStorage.getItem('nerai_record_v1'), raw);
-  assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), raw);
+  assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), null);
 
   vm.runInContext('db={version:1,machines:[],stores:[],logs:[]}; persist();', context);
   assert.equal(localStorage.getItem('nerai_record_v1'), raw);
@@ -666,6 +682,111 @@ function testBattleModeCounterRowUsesExistingTagFlow() {
   assert.equal(vm.runInContext('currentSubCounters.suika || 0', context), 0);
 }
 
+function testTimelineCompressionReadsLegacyAndCompactFormats() {
+  const seed = {
+    version: 1,
+    machines: [],
+    stores: [],
+    logs: [{
+      id: 'log_compact',
+      machineId: 'm_nangoku_special',
+      money: { date: '2026-07-26' },
+      timeline: [
+        { id: 'tl_old', game: 101, liquidGame: 91, text: '旧形式', tagIds: ['t_nangoku_replay'], countAs: [], subCounters: { suika: 1 }, attachments: [], createdAt: '2026-07-26T00:00:00.000Z' },
+        { i: 'tl_new', g: 102, l: 92, t: '新形式', a: ['t_nangoku_suika'], c: ['cz'], s: { suika: 2 }, p: [{ key: 'bonus', label: '加算', value: 10, unit: 'G', estimateRole: 'liquid_bonus' }], r: '2026-07-26T00:01:00.000Z' }
+      ],
+      segments: [{
+        id: 'seg_compact',
+        timeline: [{ i: 'tl_seg', g: 120, l: 110, t: '区切り内', a: ['t_nangoku_cherry'], r: '2026-07-26T00:02:00.000Z' }]
+      }]
+    }]
+  };
+  const { context, localStorage } = runRecord(JSON.stringify(seed));
+  assert.equal(vm.runInContext("db.logs[0].timeline[0].text", context), '旧形式');
+  assert.equal(vm.runInContext("db.logs[0].timeline[1].id", context), 'tl_new');
+  assert.equal(vm.runInContext("db.logs[0].timeline[1].liquidGame", context), 92);
+  assert.equal(vm.runInContext("db.logs[0].segments[0].timeline[0].text", context), '区切り内');
+
+  vm.runInContext("persist({ allowDangerous: true });", context);
+  const stored = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  assert.equal(stored.logs[0].timeline[0].i, 'tl_old');
+  assert.equal(stored.logs[0].timeline[1].t, '新形式');
+  assert.equal(stored.logs[0].timeline[1].id, undefined);
+  assert.equal(stored.logs[0].segments[0].timeline[0].i, 'tl_seg');
+}
+
+function testBattleModeTwentyTapLogSizeStaysUnderBudget() {
+  const { context } = runRecord(undefined);
+  const result = JSON.parse(vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setManualCorrectionForLiquid(100, 90);
+    for (let i = 0; i < 20; i += 1) {
+      setTimelineGames(100 + i, 90 + i);
+      battleModeRecordTag(['t_nangoku_replay','t_nangoku_cherry','t_nangoku_suika'][i % 3]);
+    }
+    const log = db.draftLog;
+    const raw = storageJson({ version: 1, machines: [], stores: [], logs: [log], shopNoteCards: [] });
+    JSON.stringify({
+      taps: log.timeline.length,
+      chars: raw.length,
+      compact: JSON.parse(raw).logs[0].timeline.every(row => row.i && row.g !== undefined && row.l !== undefined && row.t)
+    });
+  `, context));
+  assert.equal(result.taps, 20);
+  assert.equal(result.compact, true);
+  assert.ok(result.chars <= 30000, `20 tap battle-mode log too large: ${result.chars} chars`);
+}
+
+function testStorageBackupsDoNotRegenerateOnReload() {
+  const seed = {
+    version: 1,
+    machines: [],
+    stores: [],
+    logs: [{ id: 'log_reload', money: { date: '2026-07-26' }, timeline: [{ id: 'tl_reload', game: 1, liquidGame: 1, text: 'reload', tagIds: [], countAs: [], createdAt: '2026-07-26T00:00:00.000Z' }] }]
+  };
+  let storage = {
+    nerai_record_v1: JSON.stringify(seed),
+    nerai_record_v1_last_good: JSON.stringify(seed),
+    nerai_record_v1_checkpoint: JSON.stringify({ type: 'nerai_record_checkpoint', version: 1, logs: [seed.logs[0]], createdAt: '2026-07-26T00:01:00.000Z' }),
+    nerai_record_v1_backup_1: JSON.stringify(seed),
+    nerai_record_v1_backup_2: JSON.stringify(seed),
+    nerai_record_v1_backup_3: JSON.stringify(seed),
+    nerai_record_v1_daily_backup_date: '2026-07-26'
+  };
+  const first = runRecordWithLocalStorage(storage);
+  storage = first.localStorage.dump();
+  assert.equal(storage.nerai_record_v1_backup_1, undefined);
+  assert.equal(storage.nerai_record_v1_backup_2, undefined);
+  assert.equal(storage.nerai_record_v1_backup_3, undefined);
+  assert.equal(storage.nerai_record_v1_daily_backup_date, undefined);
+  assert.ok(storage.nerai_record_v1_last_good);
+  assert.ok(storage.nerai_record_v1_checkpoint);
+  const before = storageChars(first.localStorage);
+
+  let currentStorage = storage;
+  let after = before;
+  for (let i = 0; i < 5; i += 1) {
+    const reloaded = runRecordWithLocalStorage(currentStorage);
+    after = storageChars(reloaded.localStorage);
+    assert.equal(after, before);
+    currentStorage = reloaded.localStorage.dump();
+  }
+}
+
+function testPersistUpdatesLastGoodOnlyWhenRequested() {
+  const seed = { version: 1, machines: [], stores: [], logs: [{ id: 'log_good', money: { date: '2026-07-26' }, timeline: [] }] };
+  const { context, localStorage } = runRecord(JSON.stringify(seed));
+  assert.equal(localStorage.getItem('nerai_record_v1_last_good'), null);
+  vm.runInContext("db.logs.push({ id: 'log_autosave', money: { date: '2026-07-26' }, timeline: [] }); persist();", context);
+  assert.equal(localStorage.getItem('nerai_record_v1_last_good'), null);
+  vm.runInContext("persist({ updateLastGood: true });", context);
+  assert.ok(localStorage.getItem('nerai_record_v1_last_good'));
+  assert.equal(localStorage.getItem('nerai_record_v1_last_good'), localStorage.getItem('nerai_record_v1'));
+}
+
 function testBattleModeSazanamiPickerStoresEntryCause() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -1119,7 +1240,7 @@ function shopNoteMigrationSeed() {
   };
 }
 
-function testShopNoteCardsMigrateLegacyNotesWithPremigrateBackup() {
+function testShopNoteCardsMigrateLegacyNotesWithoutReloadBackup() {
   const seed = shopNoteMigrationSeed();
   const raw = JSON.stringify(seed);
   const { context, localStorage } = runRecord(raw);
@@ -1129,7 +1250,7 @@ function testShopNoteCardsMigrateLegacyNotesWithPremigrateBackup() {
   assert.equal(vm.runInContext("db.shopNoteCards.reduce((sum, card) => sum + card.entries.length, 0)", context), 16);
   assert.equal(vm.runInContext("db.shopNoteCards.some(card => card.date === '2026-07-21' && card.machineNo === '' && card.entries.length === 2)", context), true);
   assert.equal(localStorage.getItem('nerai_record_v1'), raw);
-  assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), raw);
+  assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), null);
 
   const stored = JSON.stringify(vm.runInContext('db', context));
   const reloaded = runRecord(stored);
@@ -1324,6 +1445,7 @@ function testShopNoteCreateKeepsExplicitUnregisteredMachine() {
 }
 
 function testShopNoteModalFollowsOpenedCardDate() {
+  const today = tokyoToday();
   const seed = shopNoteMigrationSeed();
   seed.shopNotes = [];
   seed.shopNoteCards = [{
@@ -1337,9 +1459,9 @@ function testShopNoteModalFollowsOpenedCardDate() {
     entries: []
   }, {
     id: 'snc_today',
-    createdAt: '2026-07-22T10:00:00.000Z',
-    updatedAt: '2026-07-22T10:00:00.000Z',
-    date: '2026-07-22',
+    createdAt: `${today}T10:00:00.000Z`,
+    updatedAt: `${today}T10:00:00.000Z`,
+    date: today,
     store: 'STORE_ALPHA',
     machineNo: '777',
     machineId: '',
@@ -1348,7 +1470,7 @@ function testShopNoteModalFollowsOpenedCardDate() {
   const { context } = runRecord(JSON.stringify(seed), [true]);
 
   vm.runInContext(`
-    db.draftLog = { money: { date: '2026-07-22' } };
+    db.draftLog = { money: { date: '${today}' } };
     selectedMachineId = 'm_nangoku_special';
     let selectedShopNoteNewDate = '';
     const elements = {
@@ -1384,13 +1506,13 @@ function testShopNoteModalFollowsOpenedCardDate() {
   vm.runInContext("openShopNoteModal('snc_0721_949');", context);
   assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-21');
   assert.match(vm.runInContext("document.getElementById('shopNoteStoreLabel').textContent", context), /2026-07-21 \/ 店舗: STORE_ALPHA \/ 機種: L南国育ちSPECIAL/);
-  assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /今日\(2026-07-22\)/);
+  assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), new RegExp(`今日\\(${today}\\)`));
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /表示中\(2026-07-21\)/);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台949/);
   assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台777/);
   vm.runInContext("createShopNoteCard();", context);
-  assert.equal(vm.runInContext("db.shopNoteCards.find(card => card.machineNo === '951').date", context), '2026-07-22');
-  assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-22');
+  assert.equal(vm.runInContext("db.shopNoteCards.find(card => card.machineNo === '951').date", context), today);
+  assert.equal(vm.runInContext("shopNoteViewDate", context), today);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台951/);
 
   vm.runInContext("openShopNoteModal('snc_0721_949'); selectedShopNoteNewDate = '2026-07-21'; document.getElementById('shopNoteNewMachineNo').value = '952'; createShopNoteCard();", context);
@@ -1398,13 +1520,13 @@ function testShopNoteModalFollowsOpenedCardDate() {
   assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-21');
 
   vm.runInContext("openShopNoteModal();", context);
-  assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-22');
-  assert.match(vm.runInContext("document.getElementById('shopNoteStoreLabel').textContent", context), /2026-07-22 \/ 店舗: 店舗未設定 \/ 機種: L南国育ちSPECIAL/);
+  assert.equal(vm.runInContext("shopNoteViewDate", context), today);
+  assert.match(vm.runInContext("document.getElementById('shopNoteStoreLabel').textContent", context), new RegExp(`${today} / 店舗: 店舗未設定 / 機種: L南国育ちSPECIAL`));
   assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /shopNoteNewDate/);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台777/);
   assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台949/);
 
-  vm.runInContext("db.shopNoteCards = db.shopNoteCards.filter(card => card.date !== '2026-07-22'); renderShopNoteSheet();", context);
+  vm.runInContext(`db.shopNoteCards = db.shopNoteCards.filter(card => card.date !== '${today}'); renderShopNoteSheet();`, context);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /この日の他台カードはまだありません/);
 }
 
@@ -1959,6 +2081,10 @@ function run() {
   testBattleModeMemoUsesTimelineTextEntryFormat();
   testLogSegmentCollapseDefaultsLatestTodayOpen();
   testBattleModeCounterRowUsesExistingTagFlow();
+  testTimelineCompressionReadsLegacyAndCompactFormats();
+  testBattleModeTwentyTapLogSizeStaysUnderBudget();
+  testStorageBackupsDoNotRegenerateOnReload();
+  testPersistUpdatesLastGoodOnlyWhenRequested();
   testBattleModeSazanamiPickerStoresEntryCause();
   testBattleModeBonusPickerStartsExistingHitWizard();
   testNangokuBonusTypeSuggestStepIsSkippedAfterBonusPicker();
@@ -1975,7 +2101,7 @@ function run() {
   testCheckpointStoresOnlyCurrentSessionAndRestoresIt();
   testPendingDraftRestoreBlocksAutosaveAndMachineFallback();
   testPendingDraftRestoreResumeHydratesBeforeSaving();
-  testShopNoteCardsMigrateLegacyNotesWithPremigrateBackup();
+  testShopNoteCardsMigrateLegacyNotesWithoutReloadBackup();
   testShopNoteFavoritesAreMachineScopedAndTagEntriesPersist();
   testShopNoteBlankCardAndUnregisteredFavorites();
   testShopNoteTagLabelsNormalizeAsPairs();
