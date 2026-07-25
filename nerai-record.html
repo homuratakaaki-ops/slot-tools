@@ -979,10 +979,9 @@ const STORAGE_KEY='nerai_record_v1';
 const STORAGE_LAST_GOOD_KEY='nerai_record_v1_last_good';
 const STORAGE_PREMIGRATE_KEY='nerai_record_v1_premigrate';
 const STORAGE_PRERESTORE_KEY='nerai_record_v1_prerestore';
-const STORAGE_DAILY_BACKUP_DATE_KEY='';
-const STORAGE_BACKUP_KEYS=[];
-const STORAGE_LEGACY_BACKUP_KEYS=['nerai_record_v1_premigrate','nerai_record_v1_backup_1','nerai_record_v1_backup_2','nerai_record_v1_backup_3','nerai_record_v1_daily_backup_date'];
-const STORAGE_RECOVERY_KEYS=[STORAGE_LAST_GOOD_KEY,STORAGE_PRERESTORE_KEY];
+const STORAGE_DAILY_BACKUP_DATE_KEY='nerai_record_v1_daily_backup_date';
+const STORAGE_BACKUP_KEYS=['nerai_record_v1_backup_1','nerai_record_v1_backup_2','nerai_record_v1_backup_3'];
+const STORAGE_RECOVERY_KEYS=[STORAGE_LAST_GOOD_KEY,STORAGE_PREMIGRATE_KEY,STORAGE_PRERESTORE_KEY,...STORAGE_BACKUP_KEYS];
 const STORAGE_CHECKPOINT_KEY='nerai_record_v1_checkpoint';
 const LOCAL_STORAGE_SOFT_LIMIT_BYTES=5*1024*1024;
 const STORAGE_USAGE_WARN_RATIO=.6;
@@ -1321,12 +1320,14 @@ function loadData(){
   try{
     const raw=localStorage.getItem(STORAGE_KEY);
     if(!raw)return clone(EMPTY_DATA);
-    const parsed=expandStorageData(JSON.parse(raw));
+    const parsed=JSON.parse(raw);
     if(!isValidStorageData(parsed)){
       lockStorageProtection('データ構造が不正です。自動保存を停止しました。');
       return clone(EMPTY_DATA);
     }
+    const before=JSON.stringify(parsed);
     const normalized=normalizeData(clone(parsed));
+    if(isNonEmptyStorageData(parsed)&&JSON.stringify(normalized)!==before)backupRawStorage(STORAGE_PREMIGRATE_KEY,raw);
     return normalized;
   }catch(err){
     console.error('nerai-record load failed',err);
@@ -1364,70 +1365,6 @@ function parseStorageRaw(raw){
   if(!raw)return null;
   try{return JSON.parse(raw);}catch{return null;}
 }
-function expandTimelineEntry(item){
-  if(!item||typeof item!=='object')return item;
-  if(!('i' in item)&&!('g' in item)&&!('l' in item)&&!('t' in item)&&!('a' in item)&&!('r' in item))return item;
-  const expanded={};
-  if(item.x&&typeof item.x==='object')Object.assign(expanded,item.x);
-  if('i' in item)expanded.id=item.i;
-  if('g' in item)expanded.game=item.g;
-  if('l' in item)expanded.liquidGame=item.l;
-  if('t' in item)expanded.text=item.t;
-  if('a' in item)expanded.tagIds=item.a;
-  if('c' in item)expanded.countAs=item.c;
-  if('s' in item)expanded.subCounters=item.s;
-  if('p' in item)expanded.attachments=item.p;
-  if('r' in item)expanded.createdAt=item.r;
-  if('d' in item)expanded.liquidOffsetDelta=item.d;
-  return expanded;
-}
-function compactTimelineEntry(item){
-  if(!item||typeof item!=='object')return item;
-  const expanded=expandTimelineEntry(item);
-  const out={};
-  const extras={};
-  Object.entries(expanded).forEach(([key,value])=>{
-    if(value===undefined)return;
-    if(key==='id')out.i=value;
-    else if(key==='game')out.g=value;
-    else if(key==='liquidGame')out.l=value;
-    else if(key==='text')out.t=value;
-    else if(key==='tagIds'&&Array.isArray(value)&&value.length)out.a=value;
-    else if(key==='countAs'&&Array.isArray(value)&&value.length)out.c=value;
-    else if(key==='subCounters'&&value&&typeof value==='object'&&Object.keys(value).length)out.s=value;
-    else if(key==='attachments'&&Array.isArray(value)&&value.length)out.p=value;
-    else if(key==='createdAt')out.r=value;
-    else if(key==='liquidOffsetDelta')out.d=value;
-    else if(!['tagIds','countAs','subCounters','attachments'].includes(key))extras[key]=value;
-  });
-  if(Object.keys(extras).length)out.x=extras;
-  return out;
-}
-function mapLogTimelines(log,mapper){
-  if(!log||typeof log!=='object')return log;
-  if(Array.isArray(log.timeline))log.timeline=log.timeline.map(mapper);
-  if(Array.isArray(log.segments)){
-    log.segments.forEach(segment=>{
-      if(segment&&Array.isArray(segment.timeline))segment.timeline=segment.timeline.map(mapper);
-    });
-  }
-  return log;
-}
-function expandStorageData(data){
-  if(!data||typeof data!=='object')return data;
-  if(Array.isArray(data.logs))data.logs.forEach(log=>mapLogTimelines(log,expandTimelineEntry));
-  if(data.draftLog)mapLogTimelines(data.draftLog,expandTimelineEntry);
-  return data;
-}
-function compactStorageData(data){
-  const next=clone(data);
-  if(Array.isArray(next.logs))next.logs.forEach(log=>mapLogTimelines(log,compactTimelineEntry));
-  if(next.draftLog)mapLogTimelines(next.draftLog,compactTimelineEntry);
-  return next;
-}
-function storageJson(data){
-  return JSON.stringify(compactStorageData(data));
-}
 function backupRawStorage(key,raw=localStorage.getItem(STORAGE_KEY)){
   const data=parseStorageRaw(raw);
   if(!isValidStorageData(data)||!isNonEmptyStorageData(data))return false;
@@ -1438,7 +1375,7 @@ function isBackupEligibleRaw(raw){
   return isValidStorageData(data)&&isNonEmptyStorageData(data);
 }
 function parseCheckpointRaw(raw=localStorage.getItem(STORAGE_CHECKPOINT_KEY)){
-  const parsed=expandStorageData(parseStorageRaw(raw));
+  const parsed=parseStorageRaw(raw);
   if(!parsed||parsed.type!=='nerai_record_checkpoint'||parsed.version!==1)return null;
   const logs=Array.isArray(parsed.logs)?parsed.logs:[];
   const draftLog=parsed.draftLog&&typeof parsed.draftLog==='object'?parsed.draftLog:null;
@@ -1479,7 +1416,7 @@ function buildCheckpointPayload(reason,sessionIdOverride=''){
 function saveCheckpoint(reason,sessionIdOverride=''){
   const payload=buildCheckpointPayload(reason,sessionIdOverride);
   if(!payload)return false;
-  const raw=storageJson(payload);
+  const raw=JSON.stringify(payload);
   try{
     localStorage.setItem(STORAGE_CHECKPOINT_KEY,raw);
     checkpointWarning='';
@@ -1826,19 +1763,6 @@ function normalizeTimelineAttachments(value){
     };
   }).filter(Boolean);
 }
-function normalizeTimelineEntry(item){
-  const entry=expandTimelineEntry(item);
-  return {
-    ...entry,
-    tagIds:Array.isArray(entry?.tagIds)?entry.tagIds:[],
-    countAs:Array.isArray(entry?.countAs)?entry.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)):[],
-    game:normalizeOptionalNumber(entry?.game),
-    liquidGame:normalizeOptionalNumber(entry?.liquidGame),
-    liquidOffsetDelta:normalizeOptionalNumber(entry?.liquidOffsetDelta),
-    subCounters:normalizeSubCounters(entry?.subCounters),
-    attachments:normalizeTimelineAttachments(entry?.attachments)
-  };
-}
 function normalizeTagSuggestLink(value){
   if(!value||typeof value!=='object')return null;
   const categoryId=String(value.categoryId||'');
@@ -1898,7 +1822,7 @@ function normalizeSegment(segment){
     subCounters:normalizeSubCounters(segment.subCounters),
     counterHistories:normalizeCounterHistories(segment.counterHistories),
     endingCards:normalizeEndingCards(segment.endingCards),
-    timeline:Array.isArray(segment.timeline)?segment.timeline.map(normalizeTimelineEntry):[],
+    timeline:Array.isArray(segment.timeline)?segment.timeline.map(item=>({...item,game:normalizeOptionalNumber(item.game),liquidGame:normalizeOptionalNumber(item.liquidGame),subCounters:normalizeSubCounters(item.subCounters),attachments:normalizeTimelineAttachments(item.attachments)})):[],
     suggestLog:Array.isArray(segment.suggestLog)?segment.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[],
     hitEvents:Array.isArray(segment.hitEvents)?segment.hitEvents.map(normalizeHitEvent).filter(Boolean):[]
   };
@@ -2108,10 +2032,19 @@ function normalizeData(data){
     log.startCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
     log.startAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
     log.expectedValue=normalizeExpectedValue(log.expectedValue);
-    log.timeline=Array.isArray(log.timeline)?log.timeline.map(normalizeTimelineEntry):[];
+    log.timeline=Array.isArray(log.timeline)?log.timeline:[];
     log.subCounters=normalizeSubCounters(log.subCounters);
     log.counterHistories=normalizeCounterHistories(log.counterHistories);
-    log.timeline.forEach(item=>{if(item.game!==null&&item.liquidGame===null)item.liquidGame=item.game;});
+    log.timeline.forEach(item=>{
+      item.tagIds=Array.isArray(item.tagIds)?item.tagIds:[];
+      item.countAs=Array.isArray(item.countAs)?item.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)):[];
+      item.game=normalizeOptionalNumber(item.game);
+      item.liquidGame=normalizeOptionalNumber(item.liquidGame);
+      item.liquidOffsetDelta=normalizeOptionalNumber(item.liquidOffsetDelta);
+      item.subCounters=normalizeSubCounters(item.subCounters);
+      item.attachments=normalizeTimelineAttachments(item.attachments);
+      if(item.game!==null&&item.liquidGame===null)item.liquidGame=item.game;
+    });
     migrateTimelineOffsets(log);
     log.suggestLog=Array.isArray(log.suggestLog)?log.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[];
     log.kuiPoint=log.kuiPoint&&typeof log.kuiPoint==='object'?log.kuiPoint:{};
@@ -2177,8 +2110,7 @@ function normalizeData(data){
     data.draftLog.intervalEstimate=normalizeIntervalEstimate(data.draftLog.intervalEstimate);
     data.draftLog.subCounters=normalizeSubCounters(data.draftLog.subCounters);
     data.draftLog.counterHistories=normalizeCounterHistories(data.draftLog.counterHistories);
-    data.draftLog.timeline=Array.isArray(data.draftLog.timeline)?data.draftLog.timeline.map(normalizeTimelineEntry):[];
-    data.draftLog.timeline.forEach(item=>{if(item.game!==null&&item.liquidGame===null)item.liquidGame=item.game;});
+    data.draftLog.timeline=Array.isArray(data.draftLog.timeline)?data.draftLog.timeline.map(item=>({...item,game:normalizeOptionalNumber(item.game),liquidGame:normalizeOptionalNumber(item.liquidGame),subCounters:normalizeSubCounters(item.subCounters),attachments:normalizeTimelineAttachments(item.attachments)})):[];
     data.draftLog.segments=Array.isArray(data.draftLog.segments)?data.draftLog.segments.map(normalizeSegment).filter(Boolean):[];
     dedupeSegmentSuggestLogs(data.draftLog);
     data.draftLog.endingCards=normalizeEndingCards(data.draftLog.endingCards);
@@ -2266,17 +2198,18 @@ function persist(options={}){
   const oldData=parseStorageRaw(oldRaw);
   const reason=storageLossReason(oldData,db);
   if(reason&&!options.allowDangerous){
-    if(!(options.confirmDanger&&confirm(`${reason}\n明示的な削除として保存しますか？`))){
+    if(options.confirmDanger&&confirm(`${reason}\n明示的な削除として保存しますか？`)){
+      backupRawStorage(STORAGE_LAST_GOOD_KEY,oldRaw);
+    }else{
       storageProtectionReason=reason;
       renderStorageProtectionBanner();
       alert(`${reason}\n保存は実行していません。Recoveryまたは退避データを確認してください。`);
       return false;
     }
   }
-  const nextRaw=storageJson(db);
+  backupRawStorage(STORAGE_LAST_GOOD_KEY,oldRaw);
   try{
-    localStorage.setItem(STORAGE_KEY,nextRaw);
-    if(options.updateLastGood)backupRawStorage(STORAGE_LAST_GOOD_KEY,nextRaw);
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(db));
     renderStorageUsage();
     return true;
   }catch(error){
@@ -2320,14 +2253,21 @@ function recoverStorageGuardForNewSession(){
   return true;
 }
 function rotateDailyStorageBackup(){
-  pruneLegacyStorageBackups();
-  return false;
-}
-function pruneLegacyStorageBackups(){
+  const raw=localStorage.getItem(STORAGE_KEY);
+  if(!isBackupEligibleRaw(raw))return false;
+  const today=todayValue();
+  if(localStorage.getItem(STORAGE_DAILY_BACKUP_DATE_KEY)===today)return false;
   try{
-    STORAGE_LEGACY_BACKUP_KEYS.forEach(key=>localStorage.removeItem(key));
+    const b1=localStorage.getItem(STORAGE_BACKUP_KEYS[0]);
+    const b2=localStorage.getItem(STORAGE_BACKUP_KEYS[1]);
+    if(b2)localStorage.setItem(STORAGE_BACKUP_KEYS[2],b2);
+    if(b1)localStorage.setItem(STORAGE_BACKUP_KEYS[1],b1);
+    localStorage.setItem(STORAGE_BACKUP_KEYS[0],raw);
+    localStorage.setItem(STORAGE_DAILY_BACKUP_DATE_KEY,today);
+    return true;
   }catch(error){
-    console.error('legacy backup cleanup failed',error);
+    console.error('daily backup failed',error);
+    return false;
   }
 }
 function storageBackupSummary(raw){
@@ -10947,7 +10887,7 @@ function saveLog(options={}){
   if(finalized)markSuspendedSessionLogsFinished(log.sessionId,log.id);
   if(baseMoney.store)ensureStore(baseMoney.store);
   db.draftLog=null;
-  const saved=persist({updateLastGood:finalized&&!options.continueAfter});
+  const saved=persist();
   if(!saved)return null;
   if(saved)saveCheckpoint(finalized?'収支登録後':'区切り保存後',log.sessionId);
   const wasEditing=!!editingLog;
