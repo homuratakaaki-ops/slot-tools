@@ -11,6 +11,7 @@
   --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#686878;
   --gold:#c9a84c;--gold-light:#e8c96a;--red:#c94c4c;--green:#4caf7d;
   --yellow:#d4a017;--text:#e8e4d9;--text-muted:#c2c2cf;--text-dim:#8f8f9e;
+  --tab-bar-h:46.2px;
 }
 *{box-sizing:border-box;margin:0;padding:0;}
 body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.6;min-height:100vh;padding-bottom:60px;}
@@ -337,7 +338,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .past-hints.open .past-hints-body{display:block;}
 .past-hint-row{border:1px solid var(--border);border-radius:6px;background:var(--surface2);padding:7px;margin-top:6px;font-size:12px;color:var(--text);}
 .resume-choice{border:1px solid rgba(201,168,76,.4);border-radius:8px;background:rgba(201,168,76,.08);padding:12px;margin:10px 0 12px;}
-.resume-choice.restore-required{position:sticky;top:48px;z-index:35;border-color:rgba(201,168,76,.82);background:rgba(31,25,13,.96);padding:16px;box-shadow:0 10px 28px rgba(0,0,0,.36);}
+.resume-choice.restore-required{position:sticky;top:var(--tab-bar-h);z-index:35;border-color:rgba(201,168,76,.82);background:rgba(31,25,13,.96);padding:16px;box-shadow:0 10px 28px rgba(0,0,0,.36);}
 .resume-choice-title{font-size:13px;font-weight:900;color:var(--gold-light);margin-bottom:6px;}
 .resume-choice.restore-required .resume-choice-title{font-size:18px;}
 .resume-choice-meta{font-size:12px;color:var(--text-muted);line-height:1.6;margin-bottom:10px;}
@@ -391,7 +392,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .protection-list{display:grid;gap:8px;margin-top:10px;}
 .protection-row{border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:10px;background:rgba(0,0,0,.16);}
 .protection-row .meta{font-size:12px;color:var(--text-muted);margin-top:4px;}
-.flow-step-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;position:sticky;top:0;z-index:20;background:rgba(13,13,15,.94);padding:8px 0;}
+.flow-step-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px;position:sticky;top:var(--tab-bar-h);z-index:20;background:rgba(13,13,15,.94);padding:8px 0;}
 .flow-step-tab{border:0;border-bottom:2px solid transparent;background:rgba(36,36,43,.62);color:var(--text-muted);border-radius:0;padding:9px 6px;font-size:12px;font-weight:800;cursor:pointer;text-align:center;}
 .flow-step-tab.active{border-bottom-color:var(--gold);background:rgba(201,168,76,.1);color:var(--gold-light);box-shadow:none;}
 .flow-step-tab .step-num{display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px;}
@@ -441,7 +442,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .suggest-picker-actions .btn-secondary{margin-top:0;}
 .bm-open-row{margin:8px 0 10px;}
 .bm-open-btn{min-height:54px;border-color:rgba(201,168,76,.72);color:var(--gold-light);background:rgba(201,168,76,.12);font-weight:900;}
-.bm-overlay{position:fixed;inset:0;z-index:9000;display:none;background:var(--bg);color:var(--text);padding:8px;overflow:hidden;}
+.bm-overlay{position:fixed;inset:0;z-index:9000;display:none;background:var(--bg);color:var(--text);padding:calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));overflow:hidden;}
 .bm-overlay.open{display:flex;}
 .bm-shell{width:100%;max-width:480px;height:100%;max-height:100dvh;margin:0 auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto;gap:6px;}
 .bm-header{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:8px;border-bottom:1px solid rgba(201,168,76,.28);padding:2px 0 7px;}
@@ -946,19 +947,6 @@ footer a:hover{color:var(--gold-light);}
     </div>
     <div class="input-hint" id="shopNoteStoreLabel"></div>
     <div class="shop-note-body" id="shopNoteBody"></div>
-    <input type="hidden" id="shopNoteId">
-    <div class="input-row">
-      <div class="input-label">台番号<div class="input-hint">任意</div></div>
-      <input type="text" id="shopNoteUnit" inputmode="numeric" placeholder="例：689">
-    </div>
-    <div class="input-row">
-      <div class="input-label">メモ</div>
-      <textarea id="shopNoteText" placeholder="例：通常B確定出た・飛翔まだ"></textarea>
-    </div>
-    <div class="suggest-picker-actions">
-      <button class="btn-primary" onclick="saveShopNoteFromModal()">保存</button>
-      <button class="btn-secondary" onclick="closeShopNoteModal()">キャンセル</button>
-    </div>
   </div>
 </div>
 
@@ -9195,14 +9183,6 @@ function shopNoteVibrate(pattern){
   try{if(navigator?.vibrate)navigator.vibrate(pattern);}catch(error){}
 }
 function currentShopNoteDate(){return db?.draftLog?.money?.date||todayValue();}
-function hideLegacyShopNoteControls(){
-  const unit=document.getElementById('shopNoteUnit');
-  const text=document.getElementById('shopNoteText');
-  if(unit?.closest)unit.closest('.input-row').style.display='none';
-  if(text?.closest)text.closest('.input-row').style.display='none';
-  const actions=text?.closest?.('.input-row')?.nextElementSibling;
-  if(actions?.classList?.contains('suggest-picker-actions'))actions.style.display='none';
-}
 function closeShopNoteModal(){document.getElementById('shopNoteOverlay')?.classList.remove('open');}
 function shopNoteCardsForDate(date=currentShopNoteDate()){
   return (db.shopNoteCards||[]).filter(card=>card.date===date).sort((a,b)=>String(b.updatedAt).localeCompare(String(a.updatedAt)));
@@ -9370,7 +9350,6 @@ function renderShopNotePaletteItem(card,tag,favoriteIds){
   return `<button class="shop-note-chip ${favoriteIds.includes(tag.id)?'starred':''}" type="button" onpointerdown="startShopNoteFavoritePress(event,'${escapeHtml(tag.id)}')" onpointerup="cancelShopNoteFavoritePress()" onpointerleave="cancelShopNoteFavoritePress()" onpointercancel="cancelShopNoteFavoritePress()" onclick="handleShopNoteTagClick('${escapeHtml(card.id)}','${escapeHtml(tag.id)}')">${renderShopNoteTagLabel(tag)}</button>`;
 }
 function openShopNoteModal(id=''){
-  hideLegacyShopNoteControls();
   const card=id?(db.shopNoteCards||[]).find(row=>row.id===id):null;
   shopNoteViewDate=card?.date||currentShopNoteDate();
   shopNoteOpenCardId=card?.id||shopNoteOpenCardId||'';
