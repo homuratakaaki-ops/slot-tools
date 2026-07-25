@@ -409,6 +409,75 @@ function testExistingFollowMissButtonStillArchivesSegment() {
   assert.equal(vm.runInContext("currentSegments[0].terminalType", context), 'follow_miss');
 }
 
+function testNoHitQuitPresetsFirstPickupStartGames() {
+  const { context } = runRecord(undefined);
+  const html = vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentFlowStep = 2;
+    currentStartCounterGame = 42;
+    currentTimelineManualCorrection = 9;
+    currentTimelineDataGame = 0;
+    currentTimeline = [];
+    currentSuggestLog = [];
+    currentHitEvents = [];
+    currentSegments = [];
+    currentEndLog = null;
+    renderTimelineArea('play');
+  `, context);
+
+  assert.match(html, /id="timelineGame"[^>]*value="42"/);
+  assert.match(html, /id="timelineLiquidGame"[^>]*value="33"/);
+
+  vm.runInContext("setTimelineOutcome('ヤメ')", context);
+  assert.equal(vm.runInContext("segmentTerminalLine(currentSegments[0])", context), '42G 当選前ヤメ（42/33G）');
+
+  const secondSegmentHtml = vm.runInContext(`
+    currentFlowStep = 2;
+    currentEndLog = null;
+    renderTimelineArea('play');
+  `, context);
+  assert.match(secondSegmentHtml, /id="timelineGame"[^>]*value="0"/);
+  assert.match(secondSegmentHtml, /id="timelineLiquidGame"[^>]*value="0"/);
+}
+
+function testNoHitQuitExistingLogEditKeepsSavedSegmentGames() {
+  const log = noHitQuitLog('m_nangoku_special', 'L南国育ちSPECIAL', 'プリリプ');
+  log.startCounterGame = 42;
+  log.segments[0].dataGame = 42;
+  log.segments[0].liquidGame = 33;
+  log.endLog.game = 42;
+  log.endLog.liquidGame = 33;
+  const { context } = runRecord(JSON.stringify({ version: 1, machines: [], stores: [], logs: [log] }));
+
+  vm.runInContext(`loadLogForEdit('${log.id}')`, context);
+  assert.equal(vm.runInContext('currentStartCounterGame', context), 42);
+  assert.equal(vm.runInContext('currentSegments[0].dataGame', context), 42);
+  assert.equal(vm.runInContext('currentSegments[0].liquidGame', context), 33);
+  assert.equal(vm.runInContext("segmentTerminalLine(currentSegments[0])", context), '42G 当選前ヤメ（42/33G）');
+}
+
+function testNoHitQuitOtherPresetDoesNotOverwriteEditedGame() {
+  const { context } = runRecord(undefined);
+  const html = vm.runInContext(`
+    selectedMachineId = 'm_tokyo_ghoul';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentFlowStep = 2;
+    currentStartCounterGame = 42;
+    currentTimelineManualCorrection = 9;
+    currentTimelineDataGame = 50;
+    currentTimeline = [];
+    currentSuggestLog = [];
+    currentHitEvents = [];
+    currentSegments = [];
+    currentEndLog = null;
+    renderTimelineArea('play');
+  `, context);
+
+  assert.match(html, /id="timelineGame"[^>]*value="50"/);
+  assert.match(html, /id="timelineLiquidGame"[^>]*value="59"/);
+}
+
 function testNewRegistrationGuardClosesOpenNoHitSegment() {
   const { context } = runRecord(undefined, [true, true]);
   seedOpenNoHitTimeline(context, '据え置き確認');
@@ -1324,6 +1393,8 @@ function testShopNoteCreateKeepsExplicitUnregisteredMachine() {
 }
 
 function testShopNoteModalFollowsOpenedCardDate() {
+  const today = new Date();
+  const todayText = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
   const seed = shopNoteMigrationSeed();
   seed.shopNotes = [];
   seed.shopNoteCards = [{
@@ -1337,9 +1408,9 @@ function testShopNoteModalFollowsOpenedCardDate() {
     entries: []
   }, {
     id: 'snc_today',
-    createdAt: '2026-07-22T10:00:00.000Z',
-    updatedAt: '2026-07-22T10:00:00.000Z',
-    date: '2026-07-22',
+    createdAt: `${todayText}T10:00:00.000Z`,
+    updatedAt: `${todayText}T10:00:00.000Z`,
+    date: todayText,
     store: 'STORE_ALPHA',
     machineNo: '777',
     machineId: '',
@@ -1348,7 +1419,7 @@ function testShopNoteModalFollowsOpenedCardDate() {
   const { context } = runRecord(JSON.stringify(seed), [true]);
 
   vm.runInContext(`
-    db.draftLog = { money: { date: '2026-07-22' } };
+    db.draftLog = { money: { date: '${todayText}' } };
     selectedMachineId = 'm_nangoku_special';
     let selectedShopNoteNewDate = '';
     const elements = {
@@ -1384,13 +1455,13 @@ function testShopNoteModalFollowsOpenedCardDate() {
   vm.runInContext("openShopNoteModal('snc_0721_949');", context);
   assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-21');
   assert.match(vm.runInContext("document.getElementById('shopNoteStoreLabel').textContent", context), /2026-07-21 \/ 店舗: STORE_ALPHA \/ 機種: L南国育ちSPECIAL/);
-  assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /今日\(2026-07-22\)/);
+  assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), new RegExp(`今日\\(${todayText}\\)`));
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /表示中\(2026-07-21\)/);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台949/);
   assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台777/);
   vm.runInContext("createShopNoteCard();", context);
-  assert.equal(vm.runInContext("db.shopNoteCards.find(card => card.machineNo === '951').date", context), '2026-07-22');
-  assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-22');
+  assert.equal(vm.runInContext("db.shopNoteCards.find(card => card.machineNo === '951').date", context), todayText);
+  assert.equal(vm.runInContext("shopNoteViewDate", context), todayText);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台951/);
 
   vm.runInContext("openShopNoteModal('snc_0721_949'); selectedShopNoteNewDate = '2026-07-21'; document.getElementById('shopNoteNewMachineNo').value = '952'; createShopNoteCard();", context);
@@ -1398,13 +1469,13 @@ function testShopNoteModalFollowsOpenedCardDate() {
   assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-21');
 
   vm.runInContext("openShopNoteModal();", context);
-  assert.equal(vm.runInContext("shopNoteViewDate", context), '2026-07-22');
-  assert.match(vm.runInContext("document.getElementById('shopNoteStoreLabel').textContent", context), /2026-07-22 \/ 店舗: 店舗未設定 \/ 機種: L南国育ちSPECIAL/);
+  assert.equal(vm.runInContext("shopNoteViewDate", context), todayText);
+  assert.match(vm.runInContext("document.getElementById('shopNoteStoreLabel').textContent", context), new RegExp(`${todayText} / 店舗: 店舗未設定 / 機種: L南国育ちSPECIAL`));
   assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /shopNoteNewDate/);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台777/);
   assert.doesNotMatch(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /台949/);
 
-  vm.runInContext("db.shopNoteCards = db.shopNoteCards.filter(card => card.date !== '2026-07-22'); renderShopNoteSheet();", context);
+  vm.runInContext(`db.shopNoteCards = db.shopNoteCards.filter(card => card.date !== '${todayText}'); renderShopNoteSheet();`, context);
   assert.match(vm.runInContext("document.getElementById('shopNoteBody').innerHTML", context), /この日の他台カードはまだありません/);
 }
 
@@ -1944,6 +2015,9 @@ function run() {
   testYameOutcomeTabClosesNoHitSegmentWithoutMemoDuplicate();
   testStep4GuardClosesOrCancelsOpenNoHitSegment();
   testExistingFollowMissButtonStillArchivesSegment();
+  testNoHitQuitPresetsFirstPickupStartGames();
+  testNoHitQuitExistingLogEditKeepsSavedSegmentGames();
+  testNoHitQuitOtherPresetDoesNotOverwriteEditedGame();
   testNewRegistrationGuardClosesOpenNoHitSegment();
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeKeypadOverlayStacksAboveBattleMode();

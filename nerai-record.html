@@ -6050,6 +6050,24 @@ function redoBattleModeUndo(){
   battleModeVibrate(18);
   battleModeToast(`${action.label}を復元`,{duration:900});
 }
+function openNoHitQuitStartDataGame(){
+  if(currentFlowStep!==2)return null;
+  if(currentSegments.length)return null;
+  if(currentEndLog)return null;
+  if(currentTimeline.length)return null;
+  if(currentSuggestLog.length)return null;
+  if(currentHitEvents.some(event=>!archivedHitEventIds().has(event.id)))return null;
+  const start=normalizeOptionalNumber(currentStartCounterGame);
+  if(start===null||start===0)return null;
+  const current=normalizeOptionalNumber(currentTimelineDataGame);
+  if(current!==null&&current!==0)return null;
+  return start;
+}
+function presetOpenNoHitQuitStartGames(){
+  const start=openNoHitQuitStartDataGame();
+  if(start===null)return;
+  currentTimelineDataGame=start;
+}
 function renderLogFields(){
   const aim=currentAim();
   const el=document.getElementById('dynamicFields');
@@ -8034,6 +8052,7 @@ function renderTimelineArea(mode='play'){
       ${renderSuggestArea('hit')}
     </div>
     `;
+  presetOpenNoHitQuitStartGames();
   return `
     ${renderOutcomeQuickButtons()}
     ${renderHitTriggerButtons()}
