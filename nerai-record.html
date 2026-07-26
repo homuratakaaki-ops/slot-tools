@@ -395,6 +395,12 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .storage-diagnostics-table th:first-child,.storage-diagnostics-table td:first-child{text-align:left;word-break:break-all;}
 .storage-diagnostics-table .meta{font-size:11px;color:var(--text-muted);}
 .storage-diagnostics-table tfoot td{font-weight:700;color:var(--text);}
+.log-archive-panel{margin-top:10px;}
+.log-archive-row{display:grid;grid-template-columns:auto 1fr auto;gap:8px;align-items:center;border-bottom:1px solid rgba(255,255,255,.08);padding:8px 0;font-size:13px;}
+.log-archive-row:last-child{border-bottom:0;}
+.log-archive-meta{color:var(--text-muted);font-size:12px;text-align:right;}
+.log-archive-summary{margin-top:10px;color:var(--gold-light);font-size:13px;line-height:1.7;font-weight:800;}
+.log-archive-result{margin-top:8px;color:var(--text);font-weight:800;font-size:13px;line-height:1.6;}
 .checkpoint-status{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;border:1px solid rgba(201,168,76,.35);border-radius:8px;background:rgba(201,168,76,.08);padding:7px 9px;font-size:12px;color:var(--text-muted);}
 .checkpoint-status strong{color:var(--gold-light);}
 .checkpoint-status.warn{border-color:rgba(255,122,122,.45);background:rgba(255,122,122,.08);color:#ffd6d6;}
@@ -689,6 +695,7 @@ footer a:hover{color:var(--gold-light);}
         <button class="btn-secondary" onclick="renderProtectionBackups()">退避データを確認</button>
         <a class="btn-secondary" href="recovery.html" target="_blank" rel="noopener" style="text-decoration:none;">Recoveryを開く</a>
       </div>
+      <div class="log-archive-panel" id="logArchivePanel"></div>
       <div id="storageDiagnosticsPanel" class="storage-diagnostics"></div>
       <div id="protectionBackupList" class="protection-list"></div>
     </div>
@@ -1154,6 +1161,7 @@ let logDateOpenState={};
 let openLogDetailIds={};
 let openAimGroupIds={};
 let openLogSegmentIds={};
+let selectedLogArchiveDates=new Set();
 let organizedViewState={sessionId:'',aimNumber:null,copyMode:'detail'};
 let organizedViewScrollLock=null;
 let recentTimelineHighlightId='';
@@ -12396,10 +12404,114 @@ function renderSegmentHistoryItem(log,segment,index,total=1){
       `:''}
     </div>`;
 }
+function archiveLogDate(log){
+  return String(log?.money?.date||'日付なし');
+}
+function logArchiveGroups(){
+  const groups={};
+  (Array.isArray(db.logs)?db.logs:[]).forEach(log=>{
+    const date=archiveLogDate(log);
+    if(!groups[date])groups[date]=[];
+    groups[date].push(log);
+  });
+  return Object.keys(groups).sort((a,b)=>{
+    if(a==='日付なし')return 1;
+    if(b==='日付なし')return -1;
+    return String(a).localeCompare(String(b));
+  }).map(date=>{
+    const logs=groups[date];
+    return {date,logs,bytes:JSON.stringify(logs).length*2};
+  });
+}
+function selectedLogArchiveGroups(){
+  return logArchiveGroups().filter(group=>selectedLogArchiveDates.has(group.date));
+}
+function archiveFilenamePart(value){
+  return String(value||'date').replace(/[\\/:*?"<>|]/g,'-');
+}
+function renderLogArchivePanel(){
+  const el=document.getElementById('logArchivePanel');
+  if(!el)return;
+  const groups=logArchiveGroups();
+  const validDates=new Set(groups.map(group=>group.date));
+  selectedLogArchiveDates=new Set([...selectedLogArchiveDates].filter(date=>validDates.has(date)));
+  if(!groups.length){
+    el.innerHTML=`
+      <div class="input-label" style="margin-bottom:8px;">古いログをアーカイブ</div>
+      <div class="empty-hint">アーカイブできるログはありません</div>`;
+    return;
+  }
+  el.innerHTML=`
+    <div class="input-label" style="margin-bottom:8px;">古いログをアーカイブ</div>
+    <div class="input-hint">選択した日付のログをJSONに書き出してから、このツール内のログを削除します。読み戻すと現在のデータは上書きされます。</div>
+    <div class="log-archive-list">
+      ${groups.map(group=>`
+        <label class="log-archive-row">
+          <input type="checkbox" onchange="setLogArchiveDateSelected('${encodeURIComponent(group.date)}',this.checked)" ${selectedLogArchiveDates.has(group.date)?'checked':''}>
+          <span>${escapeHtml(group.date)}</span>
+          <span class="log-archive-meta">${group.logs.length}件 / 約${formatStorageBytes(group.bytes)}</span>
+        </label>`).join('')}
+    </div>
+    <div class="log-archive-summary" id="logArchiveSummary"></div>
+    <button class="btn-secondary" onclick="archiveSelectedLogs()">選択したログを書き出して削除</button>
+    <div class="log-archive-result" id="logArchiveResult"></div>`;
+  renderLogArchiveSummary();
+}
+function setLogArchiveDateSelected(encodedDate,checked){
+  const date=decodeURIComponent(encodedDate);
+  if(checked)selectedLogArchiveDates.add(date);
+  else selectedLogArchiveDates.delete(date);
+  renderLogArchiveSummary();
+}
+function renderLogArchiveSummary(){
+  const el=document.getElementById('logArchiveSummary');
+  if(!el)return;
+  const groups=selectedLogArchiveGroups();
+  const days=groups.length;
+  const count=groups.reduce((sum,group)=>sum+group.logs.length,0);
+  const bytes=groups.reduce((sum,group)=>sum+group.bytes,0);
+  const projectedBytes=Math.max(0,storageUsageInfo().bytes-bytes*2);
+  const projectedPercent=Math.round(projectedBytes/LOCAL_STORAGE_SOFT_LIMIT_BYTES*100);
+  el.textContent=`選択中: ${days}日分 / ${count}件 / 約${formatStorageBytes(bytes)}　削除後の使用量見込み: 約${formatStorageBytes(projectedBytes)}（${projectedPercent}%）`;
+}
+function notifyLogArchiveResult(message){
+  const result=document.getElementById('logArchiveResult');
+  if(result)result.textContent=message;
+  if(typeof showSmallToast==='function')showSmallToast(message);
+}
+function archiveSelectedLogs(){
+  const groups=selectedLogArchiveGroups();
+  const selectedLogs=groups.flatMap(group=>group.logs);
+  if(!selectedLogs.length){alert('アーカイブするログを選択してください');return;}
+  const archiveData={
+    version:1,
+    machines:clone(db.machines||[]),
+    stores:clone(db.stores||[]),
+    logs:clone(selectedLogs)
+  };
+  const dates=groups.map(group=>group.date).sort((a,b)=>String(a).localeCompare(String(b)));
+  const filename=`nerai-record-archive-${archiveFilenamePart(dates[0])}_${archiveFilenamePart(dates[dates.length-1])}-${todayValue()}.json`;
+  downloadJsonText(JSON.stringify(archiveData,null,2),filename);
+  if(!confirm(`アーカイブの書き出しを開始しました。ダウンロードを確認してからOKを押してください。OKを押すと、選択した${selectedLogs.length}件のログをこのツールから削除します。削除後は書き出したJSONからのみ確認できます。`))return;
+  const beforeBytes=estimateLocalStorageBytes();
+  const ids=new Set(selectedLogs.map(log=>log.id).filter(Boolean));
+  const selectedLogSet=new Set(selectedLogs);
+  db.logs=(Array.isArray(db.logs)?db.logs:[]).filter(log=>!(ids.has(log.id)||selectedLogSet.has(log)));
+  ids.forEach(id=>{delete openLogDetailIds[id];});
+  if(continuedFromLog?.id&&ids.has(continuedFromLog.id))clearContinueState();
+  selectedLogArchiveDates.clear();
+  persist({confirmDanger:true});
+  renderLogsList();
+  renderStorageUsage();
+  const afterBytes=estimateLocalStorageBytes();
+  let message=`${selectedLogs.length}件のログをアーカイブしました。（${formatStorageBytes(beforeBytes)}→${formatStorageBytes(afterBytes)}）`;
+  if(storageUsageInfo().ratio>=STORAGE_USAGE_WARN_RATIO)message+=' さらに古いログをアーカイブすると、より空きが増えます。';
+  notifyLogArchiveResult(message);
+}
 function renderLogsList(){
   const el=document.getElementById('logsList');
   const notes=Array.isArray(db.shopNoteCards)?db.shopNoteCards:[];
-  if(!db.logs.length&&!notes.length){el.innerHTML='<div class="empty-hint">まだログなし</div>';return;}
+  if(!db.logs.length&&!notes.length){el.innerHTML='<div class="empty-hint">まだログなし</div>';renderLogArchivePanel();return;}
   const logs=[...db.logs].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   const groups={};
   logs.forEach(log=>{
@@ -12424,6 +12536,7 @@ function renderLogsList(){
       <span class="log-day-count">${(groups[date]||[]).length}件${escapeHtml(logDateExpectedValueLabel(groups[date]||[]))}${shopNoteUnresolvedBadge(noteGroups[date]||[])}</span>
     </button>
     ${isLogDateGroupOpen(date)?renderLogDateGroup(groups[date]||[],noteGroups[date]||[]):''}`).join('');
+  renderLogArchivePanel();
 }
 function renderLogDateGroup(logs,notes=[]){
   const {sessionItems,legacy}=buildSessionGroups(logs);
