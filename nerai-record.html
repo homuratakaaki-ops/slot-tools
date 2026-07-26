@@ -385,6 +385,12 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .storage-usage-banner.open{display:block;}
 .storage-usage-banner.danger{border-color:rgba(255,122,122,.7);background:rgba(255,122,122,.13);color:#ffdcdc;}
 .storage-usage-meter{font-size:12px;color:var(--text-muted);line-height:1.7;margin-top:8px;}
+.storage-diagnostics{margin-top:10px;}
+.storage-diagnostics-table{width:100%;border-collapse:collapse;font-size:12px;line-height:1.5;}
+.storage-diagnostics-table th,.storage-diagnostics-table td{border-bottom:1px solid rgba(255,255,255,.1);padding:6px 4px;text-align:right;vertical-align:top;}
+.storage-diagnostics-table th:first-child,.storage-diagnostics-table td:first-child{text-align:left;word-break:break-all;}
+.storage-diagnostics-table .meta{font-size:11px;color:var(--text-muted);}
+.storage-diagnostics-table tfoot td{font-weight:700;color:var(--text);}
 .checkpoint-status{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px;border:1px solid rgba(201,168,76,.35);border-radius:8px;background:rgba(201,168,76,.08);padding:7px 9px;font-size:12px;color:var(--text-muted);}
 .checkpoint-status strong{color:var(--gold-light);}
 .checkpoint-status.warn{border-color:rgba(255,122,122,.45);background:rgba(255,122,122,.08);color:#ffd6d6;}
@@ -679,7 +685,7 @@ footer a:hover{color:var(--gold-light);}
         <button class="btn-secondary" onclick="renderProtectionBackups()">退避データを確認</button>
         <a class="btn-secondary" href="recovery.html" target="_blank" rel="noopener" style="text-decoration:none;">Recoveryを開く</a>
       </div>
-      <div id="checkpointBackupBox"></div>
+      <div id="storageDiagnosticsPanel" class="storage-diagnostics"></div>
       <div id="protectionBackupList" class="protection-list"></div>
     </div>
   </div>
@@ -983,6 +989,7 @@ const STORAGE_DAILY_BACKUP_DATE_KEY='nerai_record_v1_daily_backup_date';
 const STORAGE_BACKUP_KEYS=['nerai_record_v1_backup_1','nerai_record_v1_backup_2','nerai_record_v1_backup_3'];
 const STORAGE_RECOVERY_KEYS=[STORAGE_LAST_GOOD_KEY,STORAGE_PREMIGRATE_KEY,STORAGE_PRERESTORE_KEY,...STORAGE_BACKUP_KEYS];
 const STORAGE_CHECKPOINT_KEY='nerai_record_v1_checkpoint';
+const STORAGE_DELETABLE_KEYS=[...STORAGE_RECOVERY_KEYS,STORAGE_CHECKPOINT_KEY];
 const LOCAL_STORAGE_SOFT_LIMIT_BYTES=5*1024*1024;
 const STORAGE_USAGE_WARN_RATIO=.6;
 const STORAGE_USAGE_DANGER_RATIO=.8;
@@ -1455,27 +1462,6 @@ function renderCheckpointStatus(){
   if(box)box.innerHTML=checkpointStatusHtml(false);
   const bm=document.getElementById('battleModeCheckpointStatus');
   if(bm)bm.innerHTML=checkpointStatusHtml(true);
-  const backup=document.getElementById('checkpointBackupBox');
-  if(backup)backup.innerHTML=checkpointBackupHtml();
-}
-function checkpointBackupHtml(){
-  const checkpoint=parseCheckpointRaw();
-  if(!checkpoint)return '<div class="checkpoint-status">チェックポイント: 未作成</div>';
-  const raw=localStorage.getItem(STORAGE_CHECKPOINT_KEY)||'';
-  return `
-    <div class="protection-row">
-      <div class="item-title">${STORAGE_CHECKPOINT_KEY}</div>
-      <div class="meta">${escapeHtml(`最終CP: ${checkpointTimeLabel(checkpoint)}（${checkpoint.reason||'チェックポイント'}） / ${checkpoint.machineName||'機種未記録'} / logs:${checkpoint.logs.length} / draftLog:${checkpoint.draftLog?'yes':'no'} / ${raw.length} chars`)}</div>
-      <div class="log-tools" style="margin-top:8px;">
-        <button class="btn-small" onclick="downloadCheckpointBackup()">JSON保存</button>
-        <button class="btn-small gold" onclick="restoreCheckpoint()">チェックポイントから復元</button>
-      </div>
-    </div>`;
-}
-function downloadCheckpointBackup(){
-  const raw=localStorage.getItem(STORAGE_CHECKPOINT_KEY);
-  if(!raw){alert('チェックポイントがありません');return;}
-  downloadJsonText(raw,`${STORAGE_CHECKPOINT_KEY}-${todayValue()}.json`);
 }
 function restoreCheckpoint(){
   const checkpoint=parseCheckpointRaw();
@@ -1527,6 +1513,47 @@ function estimateLocalStorageBytes(){
 function formatStorageBytes(bytes){
   return `${(bytes/1024/1024).toFixed(1)}MB`;
 }
+function storageUsageRows(){
+  const rows=[];
+  try{
+    for(let i=0;i<localStorage.length;i++){
+      const key=localStorage.key(i);
+      if(key===null)continue;
+      const value=localStorage.getItem(key)||'';
+      rows.push({
+        key:String(key),
+        chars:String(value).length,
+        bytes:(String(key).length+String(value).length)*2
+      });
+    }
+  }catch(error){
+    console.error('storage diagnostic failed',error);
+  }
+  rows.sort((a,b)=>b.bytes-a.bytes);
+  return rows;
+}
+function renderStorageDiagnostics(){
+  const el=document.getElementById('storageDiagnosticsPanel');
+  if(!el)return;
+  const rows=storageUsageRows();
+  const total=rows.reduce((sum,row)=>sum+row.bytes,0);
+  const body=rows.length?rows.map(row=>{
+    const percent=total?(row.bytes/total*100).toFixed(1):'0.0';
+    return `<tr>
+      <td>${escapeHtml(row.key)}</td>
+      <td>${row.chars.toLocaleString('ja-JP')}</td>
+      <td>${formatStorageBytes(row.bytes)}<br><span class="meta">${row.bytes.toLocaleString('ja-JP')} bytes</span></td>
+      <td>${percent}%</td>
+    </tr>`;
+  }).join(''):`<tr><td colspan="4">localStorage: 0件</td></tr>`;
+  el.innerHTML=`
+    <div class="input-label" style="margin-bottom:6px;">容量診断</div>
+    <table class="storage-diagnostics-table">
+      <thead><tr><th>キー名</th><th>文字数</th><th>推定バイト数</th><th>構成比</th></tr></thead>
+      <tbody>${body}</tbody>
+      <tfoot><tr><td>合計</td><td>${rows.reduce((sum,row)=>sum+row.chars,0).toLocaleString('ja-JP')}</td><td>${formatStorageBytes(total)}<br><span class="meta">${total.toLocaleString('ja-JP')} bytes</span></td><td>${total?'100.0':'0.0'}%</td></tr></tfoot>
+    </table>`;
+}
 function storageUsageInfo(){
   const bytes=estimateLocalStorageBytes();
   const ratio=LOCAL_STORAGE_SOFT_LIMIT_BYTES?bytes/LOCAL_STORAGE_SOFT_LIMIT_BYTES:0;
@@ -1537,6 +1564,7 @@ function renderStorageUsage(){
   const detail=document.getElementById('storageUsageDetail');
   const detailText=`使用量: ${formatStorageBytes(info.bytes)} / 上限目安 ${formatStorageBytes(LOCAL_STORAGE_SOFT_LIMIT_BYTES)}（${info.percent}%）`;
   if(detail)detail.textContent=detailText;
+  renderStorageDiagnostics();
   const banner=document.getElementById('storageUsageBanner');
   if(!banner)return;
   const danger=info.ratio>=STORAGE_USAGE_DANGER_RATIO;
@@ -1544,8 +1572,8 @@ function renderStorageUsage(){
   banner.classList.toggle('open',warning);
   banner.classList.toggle('danger',danger);
   banner.textContent=danger
-    ?`${detailText}。保存失敗の危険があります。至急バックアップとアーカイブを行ってください。`
-    :warning?`${detailText}。バックアップとアーカイブを推奨します。`:'';
+    ?`${detailText}。保存失敗の危険があります。「バックアップ / 復元」から全データをJSONで保存し、退避データ（last_good / prerestore / checkpoint）を削除してください。`
+    :warning?`${detailText}。保存失敗に備えて「バックアップ / 復元」から全データをJSONで保存し、退避データ（last_good / prerestore / checkpoint）の削除を検討してください。`:'';
 }
 function dangerousSaveReason(oldCounts,newCounts){
   const oldNonEmpty=oldCounts.logs>0||oldCounts.stores>0||oldCounts.shopNotes>0||oldCounts.shopNoteCards>0||oldCounts.draftLog>0;
@@ -2215,7 +2243,7 @@ function persist(options={}){
   }catch(error){
     console.error('storage persist failed',error);
     const quota=error&&['QuotaExceededError','NS_ERROR_DOM_QUOTA_REACHED'].includes(error.name);
-    lockStorageProtection(quota?'保存容量の上限に達した可能性があります。自動保存を停止しました。バックアップとアーカイブを行ってください。':'保存に失敗しました。自動保存を停止しました。');
+    lockStorageProtection(quota?'保存容量の上限に達した可能性があります。自動保存を停止しました。「バックアップ / 復元」から全データをJSONで保存し、退避データ（last_good / prerestore / checkpoint）を削除してください。':'保存に失敗しました。自動保存を停止しました。');
     renderStorageProtectionBanner();
     renderStorageUsage();
     alert('保存に失敗しました。現在の画面状態は保持しています。バックアップ/復元からJSONを保存し、容量を整理してください。');
@@ -2281,18 +2309,25 @@ function renderProtectionBackups(){
   const el=document.getElementById('protectionBackupList');
   if(!el)return;
   renderCheckpointStatus();
-  const keys=STORAGE_RECOVERY_KEYS;
-  const rows=keys.map(key=>({key,raw:localStorage.getItem(key)}));
+  renderStorageDiagnostics();
+  const keys=[...STORAGE_RECOVERY_KEYS,STORAGE_CHECKPOINT_KEY];
+  const rows=keys.map(key=>({key,raw:localStorage.getItem(key),restore:key!==STORAGE_CHECKPOINT_KEY}));
   el.innerHTML=rows.map(row=>`
     <div class="protection-row">
       <div class="item-title">${escapeHtml(row.key)}</div>
-      <div class="meta">${row.raw?`${escapeHtml(storageBackupSummary(row.raw))} / ${row.raw.length} chars`:'未作成'}</div>
+      <div class="meta">${row.raw?`${escapeHtml(protectionBackupSummary(row.key,row.raw))} / ${row.raw.length} chars`:'未作成'}</div>
       <div class="log-tools" style="margin-top:8px;">
         <button class="btn-small" onclick="downloadProtectionBackup('${escapeHtml(row.key)}')" ${row.raw?'':'disabled'}>JSON保存</button>
-        <button class="btn-small gold" onclick="restoreProtectionBackup('${escapeHtml(row.key)}')" ${row.raw?'':'disabled'}>この退避から復元</button>
+        ${row.restore?`<button class="btn-small gold" onclick="restoreProtectionBackup('${escapeHtml(row.key)}')" ${row.raw?'':'disabled'}>この退避から復元</button>`:''}
         <button class="btn-danger" onclick="deleteProtectionBackup('${escapeHtml(row.key)}')" ${row.raw?'':'disabled'}>削除</button>
       </div>
     </div>`).join('');
+}
+function protectionBackupSummary(key,raw){
+  if(key!==STORAGE_CHECKPOINT_KEY)return storageBackupSummary(raw);
+  const checkpoint=parseCheckpointRaw(raw);
+  if(!checkpoint)return '不正または空';
+  return `最終CP: ${checkpointTimeLabel(checkpoint)}（${checkpoint.reason||'チェックポイント'}） / ${checkpoint.machineName||'機種未記録'} / logs:${checkpoint.logs.length} / draftLog:${checkpoint.draftLog?'yes':'no'}`;
 }
 function downloadProtectionBackup(key){
   const raw=localStorage.getItem(key);
@@ -2336,7 +2371,7 @@ function restoreProtectionBackup(key){
   alert('退避データから復元しました');
 }
 function deleteProtectionBackup(key){
-  if(!STORAGE_RECOVERY_KEYS.includes(key)||key===STORAGE_KEY){alert('このキーは削除対象外です');return;}
+  if(!STORAGE_DELETABLE_KEYS.includes(key)||key===STORAGE_KEY){alert('このキーは削除対象外です');return;}
   const raw=localStorage.getItem(key);
   if(!raw){alert('削除できる退避データがありません');return;}
   downloadJsonText(raw,`${key}-delete-backup-${todayValue()}.json`);
