@@ -6622,7 +6622,7 @@ function openSuggestPlacePicker(stateGroup){
 }
 function closeSuggestPicker(){
   document.getElementById('suggestPickerOverlay')?.classList.remove('open');
-  suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:'',branchRoute:'',branchStep:''};
+  suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:'',branchRoute:'',branchStep:'',nangokuEntryId:'',nangokuEntryType:''};
 }
 function backSuggestPicker(){
   if(suggestPickerState.kuiStage==='hint'){
@@ -9721,14 +9721,41 @@ function nangokuEntryTypeForTag(tag){
 function nangokuEntryTypeLabel(type){
   return type==='sdc'?'SDC突入':type==='super_hisho'?'超飛翔突入':'突入';
 }
-function promptNangokuEntryCause(tag){
+function openNangokuEntryCausePicker(tag,entryId){
   const type=nangokuEntryTypeForTag(tag);
-  if(!type)return null;
-  const menu=NANGOKU_ENTRY_CAUSES.map((row,i)=>`${i+1}:${row.label}`).join(' / ');
-  const input=prompt(`${nangokuEntryTypeLabel(type)}の契機（${menu}）`,'4');
-  const index=Number(input);
-  const selected=NANGOKU_ENTRY_CAUSES[index-1]||NANGOKU_ENTRY_CAUSES.find(row=>row.key==='unknown');
-  return {entryType:type,entryCause:selected.key,entryCauseLabel:selected.label};
+  if(!type||!entryId)return;
+  const title=document.getElementById('suggestPickerTitle');
+  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
+  const options=document.getElementById('suggestPickerOptions');
+  const back=document.getElementById('suggestPickerBackButton');
+  if(!title||!breadcrumb||!options||!back)return;
+  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:'',branchRoute:'',branchStep:'',nangokuEntryId:entryId,nangokuEntryType:type};
+  title.classList.remove('kui-title','gain','hint');
+  title.textContent=`${nangokuEntryTypeLabel(type)}の契機`;
+  breadcrumb.textContent='契機を選択';
+  back.textContent='スキップ';
+  options.innerHTML=NANGOKU_ENTRY_CAUSES.map(row=>`<button class="suggest-picker-option" onclick="selectNangokuEntryCause('${escapeHtml(row.key)}')">${escapeHtml(row.label)}</button>`).join('');
+  document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function selectNangokuEntryCause(causeKey){
+  const entryId=suggestPickerState.nangokuEntryId;
+  const type=suggestPickerState.nangokuEntryType;
+  const selected=NANGOKU_ENTRY_CAUSES.find(row=>row.key===causeKey);
+  if(!entryId||!type||!selected)return;
+  const entry=currentTimeline.find(row=>row.id===entryId);
+  closeSuggestPicker();
+  if(!entry)return;
+  Object.assign(entry,{
+    intervalEvent:'machine-entry',
+    entryType:type,
+    entryCause:selected.key,
+    entryCauseLabel:selected.label,
+    text:`${entry.text}（契機：${selected.label}）`
+  });
+  renderCurrentTimeline();
+  renderPracticeStats();
+  if(battleModeOpen)renderBattleMode();
+  saveDraftImmediately();
 }
 function timelineAttachmentText(attachments){
   const rows=normalizeTimelineAttachments(attachments);
@@ -9783,8 +9810,7 @@ function addInstantTimelineTagWithAttachments(tag,attachments=[],options={}){
   if(extraFields)Object.assign(entry,extraFields);
   const textSuffix=String(options?.textSuffix||'');
   if(textSuffix)entry.text=`${entry.text}${textSuffix}`;
-  const entryCause=promptNangokuEntryCause(tag);
-  if(entryCause)Object.assign(entry,{intervalEvent:'machine-entry',...entryCause,text:`${entry.text}（契機：${entryCause.entryCauseLabel}）`});
+  const nangokuEntryType=nangokuEntryTypeForTag(tag);
   applyCounterResetsByTagIds(tagIds,entry);
   currentTimeline.push(entry);
   addSuggestLogsFromTimelineTagLinks(tagIds,entry);
@@ -9800,6 +9826,7 @@ function addInstantTimelineTagWithAttachments(tag,attachments=[],options={}){
   saveDraftImmediately();
   flashTagButton(tag.id);
   showInstantLogToast(tag,instantLogToastGameText(game,liquidGame));
+  if(nangokuEntryType)openNangokuEntryCausePicker(tag,entry.id);
 }
 function appendTimelineTagById(id){
   const tag=currentMachine()?.tags?.find(t=>t.id===id);
