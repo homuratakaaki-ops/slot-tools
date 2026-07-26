@@ -384,6 +384,10 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .storage-usage-banner{display:none;margin:10px 12px 0;border:1px solid rgba(201,168,76,.55);background:rgba(201,168,76,.12);color:var(--gold-light);border-radius:10px;padding:10px 12px;font-size:13px;line-height:1.6;}
 .storage-usage-banner.open{display:block;}
 .storage-usage-banner.danger{border-color:rgba(255,122,122,.7);background:rgba(255,122,122,.13);color:#ffdcdc;}
+.storage-usage-message{margin-bottom:8px;}
+.storage-usage-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.storage-usage-actions .btn-small{font-weight:800;}
+.storage-usage-result{margin-top:8px;color:var(--text);font-weight:800;}
 .storage-usage-meter{font-size:12px;color:var(--text-muted);line-height:1.7;margin-top:8px;}
 .storage-diagnostics{margin-top:10px;}
 .storage-diagnostics-table{width:100%;border-collapse:collapse;font-size:12px;line-height:1.5;}
@@ -1611,9 +1615,41 @@ function renderStorageUsage(){
   const warning=info.ratio>=STORAGE_USAGE_WARN_RATIO;
   banner.classList.toggle('open',warning);
   banner.classList.toggle('danger',danger);
-  banner.textContent=danger
-    ?`${detailText}。保存失敗の危険があります。「バックアップ / 復元」から全データをJSONで保存し、退避データ（last_good / prerestore / checkpoint）を削除してください。`
-    :warning?`${detailText}。保存失敗に備えて「バックアップ / 復元」から全データをJSONで保存し、退避データ（last_good / prerestore / checkpoint）の削除を検討してください。`:'';
+  if(!warning){banner.textContent='';return;}
+  const message=danger
+    ?`${detailText}。保存に失敗する可能性があります。下のボタンで空き容量を確保してください。`
+    :`${detailText}。空き容量が少なくなっています。念のためバックアップを保存し、下のボタンで空き容量を確保してください。`;
+  banner.innerHTML=`
+    <div class="storage-usage-message">${escapeHtml(message)}</div>
+    <div class="storage-usage-actions"><button class="btn-small gold" type="button" onclick="freeStorageSpaceFromBanner()">空き容量を確保</button></div>
+    <div class="storage-usage-result" id="storageUsageResult"></div>`;
+}
+function notifyStorageCleanupResult(message){
+  const result=document.getElementById('storageUsageResult');
+  if(result)result.textContent=message;
+  if(typeof showSmallToast==='function')showSmallToast(message);
+}
+function freeStorageSpaceFromBanner(){
+  backupJson();
+  if(!confirm('バックアップの保存を開始しました。ダウンロードを確認してからOKを押してください。OKを押すと、復旧用の一時データを削除して空き容量を確保します。'))return;
+  const beforeBytes=estimateLocalStorageBytes();
+  let removed=0;
+  STORAGE_BACKUP_PURGE_KEYS.forEach(key=>{
+    if(localStorage.getItem(key)!==null){
+      localStorage.removeItem(key);
+      removed+=1;
+    }
+  });
+  const afterBytes=estimateLocalStorageBytes();
+  renderStorageUsage();
+  const afterInfo=storageUsageInfo();
+  let message=removed
+    ?`空き容量を確保しました。（${formatStorageBytes(beforeBytes)}→${formatStorageBytes(afterBytes)}）`
+    :'削除できる一時データはありませんでした。古い稼働ログを削除すると、さらに空きを増やせます。';
+  if(afterInfo.ratio>=STORAGE_USAGE_WARN_RATIO){
+    message+=' まだ空きが少ない状態です。ログ画面から古い稼働ログを削除してください。';
+  }
+  notifyStorageCleanupResult(message);
 }
 function dangerousSaveReason(oldCounts,newCounts){
   const oldNonEmpty=oldCounts.logs>0||oldCounts.stores>0||oldCounts.shopNotes>0||oldCounts.shopNoteCards>0||oldCounts.draftLog>0;
