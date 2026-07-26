@@ -1178,6 +1178,7 @@ let battleModeToastTimer=null;
 let battleModeReturnAfterHitWizard=false;
 let battleModeMemoSheetOpen=false;
 let battleModeScrollToHitNext=false;
+let battleModeWakeLock=null;
 
 function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9000+1000);}
 function clone(value){return JSON.parse(JSON.stringify(value));}
@@ -5509,6 +5510,26 @@ function battleModeCommit(label,callback,options={}){
   saveDraftImmediately();
   return true;
 }
+function requestBattleModeWakeLock(){
+  if(!('wakeLock' in navigator)||battleModeWakeLock&&!battleModeWakeLock.released)return;
+  navigator.wakeLock.request('screen').then(sentinel=>{
+    battleModeWakeLock=sentinel;
+    sentinel.addEventListener?.('release',()=>{
+      if(battleModeWakeLock===sentinel)battleModeWakeLock=null;
+    });
+    if(!battleModeOpen)releaseBattleModeWakeLock();
+  }).catch(error=>{
+    console.warn('wake lock request failed',error);
+  });
+}
+function releaseBattleModeWakeLock(){
+  const sentinel=battleModeWakeLock;
+  battleModeWakeLock=null;
+  if(!sentinel||typeof sentinel.release!=='function')return;
+  Promise.resolve(sentinel.release()).catch(error=>{
+    console.warn('wake lock release failed',error);
+  });
+}
 function openBattleMode(){
   if(pendingDraftRestore&&hasPendingRestorableDraft()){
     checkDraftRestoreConsistency('実戦モード開始前');
@@ -5517,11 +5538,13 @@ function openBattleMode(){
   }
   if(!currentMachine()||!currentAim()){battleModeInvalid('機種と狙い方を選択してください');return;}
   battleModeOpen=true;
+  requestBattleModeWakeLock();
   document.getElementById('battleModeOverlay')?.classList.add('open');
   renderBattleMode();
 }
 function closeBattleMode(){
   battleModeOpen=false;
+  releaseBattleModeWakeLock();
   document.getElementById('battleModeOverlay')?.classList.remove('open');
   closeBattleModeOtherSheet();
 }
@@ -12453,6 +12476,7 @@ if(window.visualViewport){
 }
 document.addEventListener('visibilitychange',()=>{
   if(!document.hidden)handlePageResume('visibilitychange復帰');
+  if(document.visibilityState==='visible'&&battleModeOpen)requestBattleModeWakeLock();
 });
 window.addEventListener('focus',()=>handlePageResume('focus復帰'));
 window.addEventListener('pageshow',()=>handlePageResume('pageshow復帰'));
