@@ -1340,11 +1340,24 @@ function loadData(){
       return clone(EMPTY_DATA);
     }
     const before=JSON.stringify(parsed);
-    const normalized=normalizeData(clone(parsed));
-    if(isNonEmptyStorageData(parsed)&&JSON.stringify(normalized)!==before){
+    let normalized=normalizeData(clone(parsed));
+    let normalizedText=JSON.stringify(normalized);
+    let converged=false;
+    for(let i=0;i<4;i++){
+      const next=normalizeData(clone(normalized));
+      const nextText=JSON.stringify(next);
+      if(nextText===normalizedText){
+        converged=true;
+        break;
+      }
+      normalized=next;
+      normalizedText=nextText;
+    }
+    if(!converged)console.warn('normalizeData did not converge during loadData');
+    if(isNonEmptyStorageData(parsed)&&normalizedText!==before){
       backupRawStorage(STORAGE_PREMIGRATE_KEY,raw);
       try{
-        localStorage.setItem(STORAGE_KEY,JSON.stringify(normalized));
+        localStorage.setItem(STORAGE_KEY,normalizedText);
       }catch(error){
         console.warn('normalized storage writeback failed',error);
       }

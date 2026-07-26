@@ -147,6 +147,10 @@ function testLegacyBackupLoad() {
   assert.equal(vm.runInContext('db.stores[0].exchangeRate', context), null);
   assert.notEqual(localStorage.getItem('nerai_record_v1'), raw);
   assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), raw);
+  const writtenBack = localStorage.getItem('nerai_record_v1');
+  const secondLoad = runRecord(writtenBack);
+  assert.equal(secondLoad.localStorage.getItem('nerai_record_v1_premigrate'), null);
+  assert.equal(secondLoad.localStorage.getItem('nerai_record_v1'), writtenBack);
 
   const tokyoMachines = vm.runInContext('db.machines.filter(isTokyoGhoulMachine)', context);
   assert.equal(tokyoMachines.length, 1);
