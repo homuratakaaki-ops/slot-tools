@@ -1335,7 +1335,14 @@ function loadData(){
     }
     const before=JSON.stringify(parsed);
     const normalized=normalizeData(clone(parsed));
-    if(isNonEmptyStorageData(parsed)&&JSON.stringify(normalized)!==before)backupRawStorage(STORAGE_PREMIGRATE_KEY,raw);
+    if(isNonEmptyStorageData(parsed)&&JSON.stringify(normalized)!==before){
+      backupRawStorage(STORAGE_PREMIGRATE_KEY,raw);
+      try{
+        localStorage.setItem(STORAGE_KEY,JSON.stringify(normalized));
+      }catch(error){
+        console.warn('normalized storage writeback failed',error);
+      }
+    }
     return normalized;
   }catch(err){
     console.error('nerai-record load failed',err);
