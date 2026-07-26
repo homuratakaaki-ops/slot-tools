@@ -145,7 +145,7 @@ function testLegacyBackupLoad() {
   assert.equal(vm.runInContext('db.stores[0].name', context), 'STORE_ALPHA');
   assert.equal(vm.runInContext('db.stores[0].lendRate', context), null);
   assert.equal(vm.runInContext('db.stores[0].exchangeRate', context), null);
-  assert.equal(localStorage.getItem('nerai_record_v1'), raw);
+  assert.notEqual(localStorage.getItem('nerai_record_v1'), raw);
   assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), raw);
 
   const tokyoMachines = vm.runInContext('db.machines.filter(isTokyoGhoulMachine)', context);
@@ -191,11 +191,12 @@ function testLegacyBackupWithSyntheticLogAndGuard() {
   assert.equal(vm.runInContext('storageProtectionLocked', context), false);
   assert.equal(vm.runInContext('db.logs.length', context), 1);
   assert.equal(vm.runInContext('db.stores[0].name', context), 'STORE_ALPHA');
-  assert.equal(localStorage.getItem('nerai_record_v1'), raw);
+  assert.notEqual(localStorage.getItem('nerai_record_v1'), raw);
   assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), raw);
 
+  const beforeEmptyPersist = localStorage.getItem('nerai_record_v1');
   vm.runInContext('db={version:1,machines:[],stores:[],logs:[]}; persist();', context);
-  assert.equal(localStorage.getItem('nerai_record_v1'), raw);
+  assert.equal(localStorage.getItem('nerai_record_v1'), beforeEmptyPersist);
   assert.match(vm.runInContext('storageProtectionReason', context), /保存済みデータが非空/);
 }
 
@@ -1049,7 +1050,8 @@ function testStorageUsageDisplayAndWarningThresholds() {
   localStorage.setItem('usage_seed_80', 'y'.repeat(Math.ceil(5 * 1024 * 1024 * 0.20 / 2)));
   vm.runInContext('renderStorageUsage()', context);
   assert.equal(vm.runInContext("storageUsageInfo().ratio >= STORAGE_USAGE_DANGER_RATIO", context), true);
-  assert.match(usageBanner.textContent, /保存失敗の危険/);
+  assert.match(usageBanner.innerHTML, /保存に失敗する可能性/);
+  assert.match(usageBanner.innerHTML, /空き容量を確保/);
 }
 
 function testProtectionBackupDeleteDownloadsAndKeepsPrimaryStorage() {
@@ -1197,7 +1199,7 @@ function testShopNoteCardsMigrateLegacyNotesWithPremigrateBackup() {
   assert.equal(vm.runInContext('db.shopNoteCards.length', context), 3);
   assert.equal(vm.runInContext("db.shopNoteCards.reduce((sum, card) => sum + card.entries.length, 0)", context), 16);
   assert.equal(vm.runInContext("db.shopNoteCards.some(card => card.date === '2026-07-21' && card.machineNo === '' && card.entries.length === 2)", context), true);
-  assert.equal(localStorage.getItem('nerai_record_v1'), raw);
+  assert.notEqual(localStorage.getItem('nerai_record_v1'), raw);
   assert.equal(localStorage.getItem('nerai_record_v1_premigrate'), raw);
 
   const stored = JSON.stringify(vm.runInContext('db', context));
