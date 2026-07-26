@@ -986,7 +986,8 @@ const STORAGE_LAST_GOOD_KEY='nerai_record_v1_last_good';
 const STORAGE_PREMIGRATE_KEY='nerai_record_v1_premigrate';
 const STORAGE_PRERESTORE_KEY='nerai_record_v1_prerestore';
 const STORAGE_DAILY_BACKUP_DATE_KEY='nerai_record_v1_daily_backup_date';
-const STORAGE_BACKUP_KEYS=['nerai_record_v1_backup_1','nerai_record_v1_backup_2','nerai_record_v1_backup_3'];
+const STORAGE_BACKUP_KEYS=['nerai_record_v1_backup_1'];
+const STORAGE_LEGACY_BACKUP_KEYS=['nerai_record_v1_backup_2','nerai_record_v1_backup_3'];
 const STORAGE_RECOVERY_KEYS=[STORAGE_LAST_GOOD_KEY,STORAGE_PREMIGRATE_KEY,STORAGE_PRERESTORE_KEY,...STORAGE_BACKUP_KEYS];
 const STORAGE_CHECKPOINT_KEY='nerai_record_v1_checkpoint';
 const STORAGE_DELETABLE_KEYS=[...STORAGE_RECOVERY_KEYS,STORAGE_CHECKPOINT_KEY];
@@ -2294,16 +2295,19 @@ function rotateDailyStorageBackup(){
   const today=todayValue();
   if(localStorage.getItem(STORAGE_DAILY_BACKUP_DATE_KEY)===today)return false;
   try{
-    const b1=localStorage.getItem(STORAGE_BACKUP_KEYS[0]);
-    const b2=localStorage.getItem(STORAGE_BACKUP_KEYS[1]);
-    if(b2)localStorage.setItem(STORAGE_BACKUP_KEYS[2],b2);
-    if(b1)localStorage.setItem(STORAGE_BACKUP_KEYS[1],b1);
     localStorage.setItem(STORAGE_BACKUP_KEYS[0],raw);
     localStorage.setItem(STORAGE_DAILY_BACKUP_DATE_KEY,today);
     return true;
   }catch(error){
     console.error('daily backup failed',error);
     return false;
+  }
+}
+function cleanupLegacyDailyStorageBackups(){
+  try{
+    STORAGE_LEGACY_BACKUP_KEYS.forEach(key=>localStorage.removeItem(key));
+  }catch(error){
+    console.warn('legacy daily backup cleanup failed',error);
   }
 }
 function storageBackupSummary(raw){
@@ -12489,6 +12493,7 @@ window.addEventListener('focus',()=>handlePageResume('focus復帰'));
 window.addEventListener('pageshow',()=>handlePageResume('pageshow復帰'));
 
 db=loadData();
+cleanupLegacyDailyStorageBackups();
 setDraftRestorePending(hasPendingRestorableDraft());
 const initialDraftMachine=pendingDraftRestore?machineById(db.draftLog?.machineId):null;
 selectedMachineId=initialDraftMachine?.id||(pendingDraftRestore?'':db.machines[0]?.id||'');
