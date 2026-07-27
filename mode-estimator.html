@@ -82,6 +82,8 @@
   .notice{border-color:rgba(224,191,99,.4);background:rgba(224,191,99,.08);font-size:13px}
   .notice ul{margin:0 0 0 1.2em;padding:0;color:var(--text-muted)}
   .notice li{margin-bottom:8px}
+  .import-status{font-size:12px;color:var(--gold-light);line-height:1.6;margin:8px 0 12px}
+  .import-status.warn{color:var(--red)}
   details{padding:0}
   summary{cursor:pointer;color:var(--gold-light);font-size:14px;font-weight:700;padding:14px 16px}
   .details-body{padding:0 16px 16px}
@@ -305,6 +307,138 @@ function replayFlashObservedTotals(){
 
   return { games: totalGames, count: totalCount };
 }
+function readNeraiRecordReplayFlashImport(){
+  try{
+    const raw = localStorage.getItem("nerai_record_v1");
+    if(!raw){
+      return { ok:false, message:"取り込めるデータがありません" };
+    }
+    const data = JSON.parse(raw);
+    if(!data || typeof data !== "object" || !Array.isArray(data.logs)){
+      return { ok:false, message:"取り込めるデータがありません" };
+    }
+    const isNangokuLog = log => log && log.machineId === "m_nangoku_special";
+    const dateOf = log => String(log?.money?.date || log?.date || "");
+    const timeOf = log => String(log?.updatedAt || log?.createdAt || "");
+    const draft = isNangokuLog(data.draftLog) ? data.draftLog : null;
+    const latestLog = [...data.logs].filter(isNangokuLog).sort((a,b)=>{
+      const dateCompare = dateOf(b).localeCompare(dateOf(a));
+      return dateCompare || timeOf(b).localeCompare(timeOf(a));
+    })[0] || null;
+    const sourceLog = draft || latestLog;
+    if(!sourceLog){
+      return { ok:false, message:"取り込めるデータがありません" };
+    }
+    const replayFlashTagId = "t_nangoku_replay_flash";
+    const superHisyouTagId = "t_nangoku_super_hisho_start";
+    const hisyouEnterLabel = "飛翔モード突入";
+    const flashCount = timeline => (Array.isArray(timeline) ? timeline : []).reduce((total,item)=>{
+      const ids = Array.isArray(item?.tagIds) ? item.tagIds : [];
+      return total + (ids.includes(replayFlashTagId) ? 1 : 0);
+    },0);
+    const gamesOf = segment => {
+      const liquid = Number(segment?.liquidGame);
+      const dataGame = Number(segment?.dataGame);
+      if(Number.isFinite(liquid) && liquid > 0) return Math.trunc(liquid);
+      if(Number.isFinite(dataGame) && dataGame > 0) return Math.trunc(dataGame);
+      return 0;
+    };
+    const segmentTime = segment => String(segment?.createdAt || "");
+    const isHisyouAnchor = segment => {
+      const terminalLabel = String(segment?.terminalLabel || "");
+      if(terminalLabel.includes(hisyouEnterLabel)) return true;
+      return (Array.isArray(segment?.timeline) ? segment.timeline : []).some(item=>{
+        const ids = Array.isArray(item?.tagIds) ? item.tagIds : [];
+        const text = String(item?.text || "");
+        return ids.includes(superHisyouTagId) || text.includes(hisyouEnterLabel);
+      });
+    };
+    const orderedSegments = (Array.isArray(sourceLog.segments) ? sourceLog.segments : []).slice().sort((a,b)=>{
+      const branchA = Number(a?.branchNumber);
+      const branchB = Number(b?.branchNumber);
+      if(Number.isFinite(branchA) && Number.isFinite(branchB) && branchA !== branchB) return branchA - branchB;
+      return segmentTime(a).localeCompare(segmentTime(b));
+    });
+    let startIndex = 0;
+    let origin = "リセット";
+    orderedSegments.forEach((segment,index)=>{
+      if(isHisyouAnchor(segment)){
+        startIndex = index + 1;
+        origin = "飛翔突入";
+      }
+    });
+    const targetSegments = orderedSegments.slice(startIndex);
+    let current = null;
+    const completed = [];
+    targetSegments.forEach((segment,index)=>{
+      const item = { games:gamesOf(segment), count:flashCount(segment.timeline) };
+      const isLast = index === targetSegments.length - 1;
+      const status = String(segment?.status || "");
+      if(isLast && status && status !== "committed"){
+        current = item;
+      }else if(item.games > 0 || item.count > 0){
+        completed.push(item);
+      }
+    });
+    if(draft && Array.isArray(draft.timeline) && draft.timeline.length){
+      const latestTimelineLiquid = draft.timeline.reduce((max,item)=>{
+        const liquid = Number(item?.liquidGame);
+        const dataGame = Number(item?.dataGame ?? item?.game);
+        const value = Number.isFinite(liquid) ? liquid : Number.isFinite(dataGame) ? dataGame : 0;
+        return Math.max(max, value);
+      },0);
+      current = { games:Math.trunc(latestTimelineLiquid), count:flashCount(draft.timeline) };
+    }
+    const intervals = [...completed];
+    if(current && (current.games > 0 || current.count > 0)){
+      intervals.push(current);
+    }
+    if(!intervals.length){
+      return { ok:false, message:"取り込めるデータがありません" };
+    }
+    return {
+      ok:true,
+      source:{
+        date:dateOf(sourceLog) || "日付なし",
+        store:String(sourceLog?.money?.store || sourceLog?.store || "店舗未設定"),
+        origin,
+        isDraft:!!draft
+      },
+      completed,
+      current,
+      intervalCount:intervals.length
+    };
+  }catch(error){
+    return { ok:false, message:"取り込めるデータがありません" };
+  }
+}
+function setReplayFlashImportStatus(message, warn=false){
+  const el = document.getElementById("repflashImportStatus");
+  if(!el) return;
+  el.textContent = message;
+  el.classList.toggle("warn", !!warn);
+}
+function importReplayFlashFromNeraiRecord(){
+  const imported = readNeraiRecordReplayFlashImport();
+  if(!imported.ok){
+    setReplayFlashImportStatus(imported.message, true);
+    return;
+  }
+  if(!confirm(`稼働記録から${imported.intervalCount}区間を取り込みます。現在入力されている区間は置き換えられます。よろしいですか？`)){
+    return;
+  }
+  const list = document.getElementById("repflashWinList");
+  if(!list) return;
+  list.innerHTML = "";
+  imported.completed.forEach(interval => addReplayFlashWinRow(interval));
+  const currentGames = document.getElementById("repflashCurrentGames");
+  const currentCount = document.getElementById("repflashCurrentCount");
+  if(currentGames) currentGames.value = imported.current ? imported.current.games : "";
+  if(currentCount) currentCount.value = imported.current ? imported.current.count : 0;
+  updateReplayFlashWinRowTitles();
+  renderReplayFlashOutput();
+  setReplayFlashImportStatus(`取り込み元: ${imported.source.date} / ${imported.source.store} / 起点: ${imported.source.origin} / ${imported.intervalCount}区間`);
+}
 function renderReplayFlashOutput(){
   const replayFlash = machine.replayFlash;
   if(!replayFlash || !window.RepflashBayes){
@@ -361,7 +495,7 @@ function bindReplayFlashInputs(scope){
   scope.querySelectorAll("input").forEach(input => input.addEventListener("input", renderReplayFlashOutput));
   scope.querySelectorAll('input[type="radio"],input[type="checkbox"]').forEach(input => input.addEventListener("change", renderReplayFlashOutput));
 }
-function addReplayFlashWinRow(){
+function addReplayFlashWinRow(values = {}){
   const list = document.getElementById("repflashWinList");
   if(!list){
     return;
@@ -370,8 +504,8 @@ function addReplayFlashWinRow(){
   row.className = "interval-row repflash-win-row";
   row.innerHTML = `
     <div class="interval-line">
-      <input class="number-input repflash-win-games" type="number" inputmode="numeric" min="0" step="1" aria-label="当選G数">
-      <input class="number-input repflash-win-count" type="number" inputmode="numeric" min="0" step="1" value="0" aria-label="その区間のリプフラ回数">
+      <input class="number-input repflash-win-games" type="number" inputmode="numeric" min="0" step="1" value="${escapeHtml(values.games ?? "")}" aria-label="当選G数">
+      <input class="number-input repflash-win-count" type="number" inputmode="numeric" min="0" step="1" value="${escapeHtml(values.count ?? 0)}" aria-label="その区間のリプフラ回数">
       <label class="include-check">
         <input class="repflash-include" type="checkbox" checked aria-label="計算に含める">
       </label>
@@ -410,6 +544,8 @@ function renderReplayFlashSection(){
     <div class="section-label">リプフラ判定（A否定）</div>
     <p class="section-lead">モードA（通常A）をどれだけ否定できているかを数値で示します</p>
     <div class="card" id="repflashInputArea">
+      <button class="add-button" id="repflashImportButton" type="button">稼働記録から取り込む</button>
+      <div class="import-status" id="repflashImportStatus"></div>
       <div class="axis">
         <div class="axis-title">起点</div>
         <div class="option-grid">
@@ -464,6 +600,7 @@ function renderReplayFlashSection(){
   const firstSection = document.querySelector("main .section");
   firstSection.before(section);
   document.getElementById("repflashAddRow").addEventListener("click", addReplayFlashWinRow);
+  document.getElementById("repflashImportButton")?.addEventListener("click", importReplayFlashFromNeraiRecord);
   bindReplayFlashInputs(section);
   renderReplayFlashOutput();
 }
