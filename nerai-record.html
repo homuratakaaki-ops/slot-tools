@@ -1292,7 +1292,7 @@ function normalizeQuickPanelEvent(item){
     const ref=String(item?.ref||'').trim();
     if(!ref)return null;
     if(type==='tag')return {type,ref};
-    if(type==='picker'&&['sazanami','bonus','ghoul_suika','ghoul_rare','ghoul_stage','hit'].includes(ref))return {type,ref};
+    if(type==='picker'&&['sazanami','bonus','ghoul_suika','ghoul_rare','ghoul_stage','ghoul_invitation','ghoul_seishin','hit'].includes(ref))return {type,ref};
     if(type==='modal'&&['suggestion','destiny'].includes(ref))return {type,ref};
     return null;
 }
@@ -8035,7 +8035,7 @@ function renderOutcomeQuickButtons(){
     </div>`;
 }
 function quickTagIdsForMachine(machine=currentMachine()){
-  return Array.isArray(machine?.quickTagIds)?machine.quickTagIds.filter(Boolean):[];
+  return Array.isArray(machine?.quickTagIds)?machine.quickTagIds.filter(Boolean).slice(0,4):[];
 }
 function quickTagIdSet(machine=currentMachine()){
   return new Set(quickTagIdsForMachine(machine));
