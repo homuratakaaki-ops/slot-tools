@@ -6450,6 +6450,7 @@ function renderLogFields(){
   syncHeaderFromMoney();
   updateMoneyRegistrationStatus();
   bindStartDetailSummaryInputs();
+  bindTimelineManualSummaryInputs();
 }
 function isFollowBranchActive(){
   const latest=currentSegments?.[0];
@@ -8586,34 +8587,62 @@ function renderTimelineArea(mode='play'){
     `;
   presetOpenNoHitQuitStartGames();
   return `
-    ${renderOutcomeQuickButtons()}
-    ${renderHitTriggerButtons()}
     <div class="work-subsection play-group"><div class="section-label" style="margin-top:0;">当選イベント</div>${renderHitEventsList()}</div>
-    <div class="work-subsection play-group">
-      <div class="section-label" style="margin-top:0;">カウンター操作</div>
-      ${renderGamePairInputs('timeline')}
-      ${renderCounterCompactRow()}
-      <div class="log-tools"><button class="btn-secondary" type="button" onclick="openSuggestPlacePicker('play')">示唆記録</button></div>
-      ${!machineUsesQuickActions()?`<div class="log-tools">
-      <button class="btn-small counter-btn" onclick="incrementTimelineGame(1)">+1</button>
-      <button class="btn-small counter-btn" onclick="incrementTimelineGame(5)">+5</button>
-      <button class="btn-small counter-btn" onclick="incrementTimelineGame(10)">+10</button>
-      </div>`:''}
-      ${renderTimelineQuickActions()}
-    </div>
-    <div class="work-subsection play-group">
-      <div class="section-label" style="margin-top:0;">レア役・ステージ・メモ</div>
-      ${renderTagButtons('timeline')}
-      ${renderShopNoteButton()}
-      <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState()"></textarea>
-      <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
-    </div>
-    ${renderNumberAttachmentSummary()?`<div class="work-subsection play-group alt">${renderNumberAttachmentSummary()}</div>`:''}
     ${renderIntervalEstimateControls()}
     ${renderTimelineHistoryPanel()}
-    <div class="work-subsection play-group alt">
-      ${renderSuggestArea('play')}
-    </div>`;
+    ${renderShopNoteButton()}
+    ${renderTimelineManualInputDetails()}`;
+}
+function timelineManualDetailHasInput(){
+  return !!(document.getElementById('timelineText')?.value||'').trim()||!!pendingSuggestSelection;
+}
+function timelineManualSummaryText(){
+  return `手入力（詳細）▼${timelineManualDetailHasInput()?'（入力あり）':''}`;
+}
+function updateTimelineManualSummaryLabel(){
+  const label=document.getElementById('timelineManualSummaryLabel');
+  if(label)label.textContent=timelineManualSummaryText();
+}
+function bindTimelineManualSummaryInputs(){
+  const text=document.getElementById('timelineText');
+  if(text&&!text.dataset.timelineManualBound){
+    text.dataset.timelineManualBound='1';
+    text.addEventListener('input',updateTimelineManualSummaryLabel);
+    text.addEventListener('change',updateTimelineManualSummaryLabel);
+  }
+  updateTimelineManualSummaryLabel();
+}
+function renderTimelineManualInputDetails(){
+  return `
+    <details class="start-detail-panel">
+      <summary><span id="timelineManualSummaryLabel">${escapeHtml(timelineManualSummaryText())}</span></summary>
+      <div class="start-detail-body">
+        ${renderOutcomeQuickButtons()}
+        ${renderHitTriggerButtons()}
+        <div class="work-subsection play-group">
+          <div class="section-label" style="margin-top:0;">カウンター操作</div>
+          ${renderGamePairInputs('timeline')}
+          ${renderCounterCompactRow()}
+          <div class="log-tools"><button class="btn-secondary" type="button" onclick="openSuggestPlacePicker('play')">示唆記録</button></div>
+          ${!machineUsesQuickActions()?`<div class="log-tools">
+          <button class="btn-small counter-btn" onclick="incrementTimelineGame(1)">+1</button>
+          <button class="btn-small counter-btn" onclick="incrementTimelineGame(5)">+5</button>
+          <button class="btn-small counter-btn" onclick="incrementTimelineGame(10)">+10</button>
+          </div>`:''}
+          ${renderTimelineQuickActions()}
+        </div>
+        <div class="work-subsection play-group">
+          <div class="section-label" style="margin-top:0;">レア役・ステージ・メモ</div>
+          ${renderTagButtons('timeline')}
+          <textarea id="timelineText" placeholder="例：弱チェリー 前兆なし" oninput="updateTimelineAddButtonState();updateTimelineManualSummaryLabel()"></textarea>
+          <button class="btn-primary timeline-add-btn" id="timelineAddButton" onclick="addTimelineEntry()">ログに追加</button>
+        </div>
+        ${renderNumberAttachmentSummary()?`<div class="work-subsection play-group alt">${renderNumberAttachmentSummary()}</div>`:''}
+        <div class="work-subsection play-group alt">
+          ${renderSuggestArea('play')}
+        </div>
+      </div>
+    </details>`;
 }
 function nextModeEyecatchPlace(){
   const mode=findSuggestCategoryByName(currentMachine(),'モード示唆');
