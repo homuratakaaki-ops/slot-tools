@@ -3464,13 +3464,18 @@ function ensureTokyoGhoulQuickPanelSeedV2(machine){
   });
   machine.quickPanelSeedTokyoGhoulV2=true;
 }
+function ensureTokyoGhoulFollowModeSeed(machine){
+  if(!machine||!isTokyoGhoulMachine(machine)||machine.followModeSeedTokyoGhoulV1)return;
+  machine.followMode='always';
+  machine.followModeSeedTokyoGhoulV1=true;
+}
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
   if(isTokyoGhoulMachine(machine)){
     machine.useLcdCounter=true;
     machine.useEndingCards=true;
-    machine.followMode='ask';
+    machine.followMode='always';
     machine.hitBranchFlows={
       ...(machine.hitBranchFlows||{}),
       czFail:[
@@ -3489,6 +3494,7 @@ function ensureSuggestSeed(machine){
     ]);
     ensureTokyoGhoulQuickPanelSeed(machine);
     ensureTokyoGhoulQuickPanelSeedV2(machine);
+    ensureTokyoGhoulFollowModeSeed(machine);
   }
   if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV14){applyTokyoGhoulShopNotePreset(machine);return;}
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
