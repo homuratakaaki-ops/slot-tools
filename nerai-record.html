@@ -917,10 +917,12 @@ footer a:hover{color:var(--gold-light);}
       <button class="btn-small" onclick="closeHitPayoutPicker()">閉じる</button>
     </div>
     <div class="input-hint">当選イベントの獲得枚数を入力します。未記録ならスキップしてください。</div>
+    <div class="warning" id="hitPayoutCreditWarning" style="display:none;margin-top:10px;"></div>
     <div class="input-row" style="margin-top:12px;">
       <div class="input-label" id="hitPayoutLabel">獲得枚数</div>
       <input type="number" inputmode="numeric" id="hitPayoutInput" placeholder="枚" min="0">
     </div>
+    <div class="input-hint" id="hitPayoutCreditEstimate" style="display:none;margin-top:8px;"></div>
     <div class="suggest-picker-actions">
       <button class="btn-primary" onclick="submitHitEventPayout()">決定</button>
       <button class="btn-secondary" onclick="skipHitEventPayout()">スキップ</button>
@@ -1041,7 +1043,7 @@ const KUI_POINT_OPTIONS=['大','中','小','なし'];
 const MODE_CONFIDENCE_LEVELS=['tenkoku','tenkoku_junbi','chance','tsujoC','tsujoB','tsujoA'];
 const MODE_CONFIDENCE_TYPES=['kakutei','shisa'];
 const INTERVAL_CERTAINTY_OPTIONS=['reset','estimated','unknown'];
-const DEFAULT_LOAN_RATE=46.6;
+const DEFAULT_LOAN_RATE=50;
 const INTERVAL_DIFF_HISTORY_LIMIT=50;
 const NANGOKU_ENTRY_CAUSES=[
   {key:'tokimeki32',label:'ときめき32G目'},
@@ -1140,6 +1142,7 @@ let currentTimelineDataGame=null;
 let currentTimelineSuikaOffset=0;
 let currentTimelineManualCorrection=0;
 let currentIntervalEstimate={initialDiff:null,certainty:'unknown',loanRate:DEFAULT_LOAN_RATE};
+let intervalLoanRateManuallyAdjusted=false;
 let currentSubCounters={};
 let currentCounterHistories=[];
 let linkedEndDataGame=null;
@@ -1193,6 +1196,7 @@ let battleModeToastTimer=null;
 let battleModeReturnAfterHitWizard=false;
 let battleModeMemoSheetOpen=false;
 let battleModeScrollToHitNext=false;
+const postHitCreditToastEventIds=new Set();
 let battleModeWakeLock=null;
 
 function uid(prefix){return prefix+'_'+Date.now()+'_'+Math.floor(Math.random()*9000+1000);}
@@ -4364,6 +4368,28 @@ function normalizeIntervalEstimate(value){
     history
   };
 }
+function intervalEstimateHasActivity(interval){
+  const state=normalizeIntervalEstimate(interval);
+  return state.initialDiff!==null||state.certainty!=='unknown'||Number(state.investedTotal)>0||Number(state.credit)>0||state.history.length>0;
+}
+function isDefaultLikeLoanRate(value){
+  const rate=normalizeOptionalNumber(value);
+  return rate===null||Math.abs(rate-DEFAULT_LOAN_RATE)<0.0001||Math.abs(rate-46.6)<0.0001;
+}
+function selectedStoreLoanRate(){
+  const name=String(document.getElementById('moneyStore')?.value||document.getElementById('startMoneyStore')?.value||'').trim();
+  const rate=normalizeOptionalNumber(storeByName(name)?.lendRate);
+  return rate!==null&&rate>0?rate:null;
+}
+function intervalEstimateWithStoreLoanRate(estimate){
+  const interval=normalizeIntervalEstimate(estimate);
+  if(intervalLoanRateManuallyAdjusted||intervalEstimateHasActivity(interval)||!isDefaultLikeLoanRate(interval.loanRate))return interval;
+  const storeRate=selectedStoreLoanRate();
+  return storeRate!==null?{...interval,loanRate:storeRate}:interval;
+}
+function applyStoreLoanRateToUnusedInterval(){
+  currentIntervalEstimate=intervalEstimateWithStoreLoanRate(currentIntervalEstimate);
+}
 function normalizeIntervalDiffHistoryState(value){
   const source=value&&typeof value==='object'?value:{};
   return {
@@ -4786,6 +4812,7 @@ function addMachine(){
   currentExpectedValue=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
+  intervalLoanRateManuallyAdjusted=false;
   currentIntervalEstimate=normalizeIntervalEstimate(null);
   currentSubCounters={};
   currentCounterHistories=[];
@@ -5333,7 +5360,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;currentIntervalEstimate=normalizeIntervalEstimate(null);currentSubCounters={};currentCounterHistories=[];resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];resetCurrentSegmentStart();currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;intervalLoanRateManuallyAdjusted=false;currentIntervalEstimate=normalizeIntervalEstimate(null);currentSubCounters={};currentCounterHistories=[];resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];resetCurrentSegmentStart();currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -5516,6 +5543,7 @@ function syncHeaderFromStart(){
   setFieldValue('moneyMachineNo',document.getElementById('startMoneyMachineNo')?.value||'');
   setFieldChecked('publishMachineNo',document.getElementById('startPublishMachineNo')?.checked);
   setFieldValue('moneyStart',document.getElementById('startMoneyStart')?.value||'');
+  applyStoreLoanRateToUnusedInterval();
   applyLatestMedalsForCurrentStore();
   updateCalc();
   maybePromptSameTableContinue();
@@ -5530,6 +5558,7 @@ function syncHeaderFromMoney(){
   setFieldValue('startMoneyMachineNo',document.getElementById('moneyMachineNo')?.value||'');
   setFieldChecked('startPublishMachineNo',document.getElementById('publishMachineNo')?.checked);
   setFieldValue('startMoneyStart',document.getElementById('moneyStart')?.value||'');
+  applyStoreLoanRateToUnusedInterval();
   applyLatestMedalsForCurrentStore();
   updateCalc();
   maybePromptSameTableContinue();
@@ -5649,6 +5678,7 @@ function openBattleMode(){
     return;
   }
   if(!currentMachine()||!currentAim()){battleModeInvalid('機種と狙い方を選択してください');return;}
+  applyStoreLoanRateToUnusedInterval();
   battleModeOpen=true;
   requestBattleModeWakeLock();
   document.getElementById('battleModeOverlay')?.classList.add('open');
@@ -5660,10 +5690,20 @@ function closeBattleMode(){
   document.getElementById('battleModeOverlay')?.classList.remove('open');
   closeBattleModeOtherSheet();
 }
-function maybeReturnToBattleModeAfterHitWizard(){
+function maybeShowPostHitCreditToast(event){
+  if(!event?.id||postHitCreditToastEventIds.has(event.id)||creditUpdatedAfterHit(event))return;
+  postHitCreditToastEventIds.add(event.id);
+  const message='ボーナス後のクレジットを登録すると、次回の獲得枚数を自動計算できます';
+  if(battleModeOpen)battleModeToast(message,{duration:1800});
+  else showSmallToast(message);
+}
+function maybeReturnToBattleModeAfterHitWizard(event=null){
   if(!battleModeReturnAfterHitWizard)return;
   battleModeReturnAfterHitWizard=false;
-  if(currentMachine()&&currentAim())openBattleMode();
+  if(currentMachine()&&currentAim()){
+    openBattleMode();
+    maybeShowPostHitCreditToast(event);
+  }
 }
 function battleModeCounterText(value){
   const normalized=normalizeOptionalNumber(value);
@@ -7844,6 +7884,7 @@ function setIntervalLoanRate(){
   if(input===null)return;
   const value=normalizeOptionalNumber(input.trim());
   if(value===null||value<=0){alert('貸出レートは正の数値で入力してください');return;}
+  intervalLoanRateManuallyAdjusted=true;
   currentIntervalEstimate={...normalizeIntervalEstimate(currentIntervalEstimate),loanRate:value};
   renderLogFields();
   saveDraftImmediately();
@@ -8082,6 +8123,62 @@ function archivedHitEventIds(){
 function currentSegmentHitEvents(){
   const archived=archivedHitEventIds();
   return currentHitEvents.filter(event=>!archived.has(event.id));
+}
+function historyTimeValue(value){
+  const time=Date.parse(String(value||''));
+  return Number.isFinite(time)?time:null;
+}
+function latestHitBeforeCurrent(){
+  const current=currentHitEvent();
+  const currentId=String(current?.id||'');
+  return currentSegmentHitEvents()
+    .filter(event=>String(event?.id||'')!==currentId&&historyTimeValue(event?.createdAt)!==null)
+    .sort((a,b)=>historyTimeValue(b.createdAt)-historyTimeValue(a.createdAt))[0]||null;
+}
+function intervalDiffHistoryRows(){
+  return normalizeIntervalEstimate(currentIntervalEstimate).history.filter(row=>historyTimeValue(row.at)!==null);
+}
+function creditUpdatedAfterHit(event){
+  const hitAt=historyTimeValue(event?.createdAt);
+  if(hitAt===null)return true;
+  return intervalDiffHistoryRows().some(row=>row.mode==='credit'&&historyTimeValue(row.at)>hitAt);
+}
+function creditUpdatedSinceLastHit(){
+  const lastHit=latestHitBeforeCurrent();
+  if(!lastHit)return true;
+  return creditUpdatedAfterHit(lastHit);
+}
+function latestCreditEntry(filterFn){
+  return intervalDiffHistoryRows()
+    .filter(row=>row.mode==='credit'&&filterFn(historyTimeValue(row.at),row))
+    .sort((a,b)=>historyTimeValue(b.at)-historyTimeValue(a.at))[0]||null;
+}
+function estimatePayoutFromCredit(){
+  const lastHit=latestHitBeforeCurrent();
+  const lastHitAt=historyTimeValue(lastHit?.createdAt);
+  if(lastHitAt===null)return null;
+  const prevCredit=latestCreditEntry(at=>at<=lastHitAt);
+  const currCredit=latestCreditEntry(at=>at>lastHitAt);
+  if(!prevCredit||!currCredit)return null;
+  const prevAt=historyTimeValue(prevCredit.at);
+  const currAt=historyTimeValue(currCredit.at);
+  if(prevAt===null||currAt===null)return null;
+  const investModes=new Set(['investYen','investMedals','setInvestedTotal']);
+  const investBetween=intervalDiffHistoryRows()
+    .filter(row=>investModes.has(row.mode))
+    .filter(row=>{
+      const at=historyTimeValue(row.at);
+      return at!==null&&at>prevAt&&at<=currAt;
+    })
+    .reduce((sum,row)=>{
+      const before=normalizeOptionalNumber(row.before?.investedTotal)??0;
+      const after=normalizeOptionalNumber(row.after?.investedTotal)??0;
+      return sum+(after-before);
+    },0);
+  const prevCreditValue=normalizeOptionalNumber(prevCredit.after?.credit);
+  const currCreditValue=normalizeOptionalNumber(currCredit.after?.credit);
+  if(prevCreditValue===null||currCreditValue===null)return null;
+  return Math.round(currCreditValue-prevCreditValue+investBetween);
 }
 function createSegmentSnapshot(event,terminalType=''){
   const terminalEvent=event?normalizeHitEvent(event):null;
@@ -8470,7 +8567,7 @@ function completeHitBranchWizardIfDone(){
   const event=currentHitEvent();
   if(event)event.wizardDone=true;
   hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
-  maybeReturnToBattleModeAfterHitWizard();
+  maybeReturnToBattleModeAfterHitWizard(event);
   return true;
 }
 function findSuggestPlaceEntryById(id){
@@ -8562,8 +8659,33 @@ function promptHitEventPayout(){
   if(labelEl)labelEl.textContent=label;
   const input=document.getElementById('hitPayoutInput');
   if(input)input.value=event.payout!==null&&event.payout!==undefined?String(event.payout):'';
+  renderHitPayoutCreditAssist();
   document.getElementById('hitPayoutOverlay')?.classList.add('open');
   setTimeout(()=>input?.focus(),0);
+}
+function renderHitPayoutCreditAssist(){
+  const warning=document.getElementById('hitPayoutCreditWarning');
+  const estimate=document.getElementById('hitPayoutCreditEstimate');
+  if(warning){
+    const shouldWarn=!creditUpdatedSinceLastHit();
+    warning.style.display=shouldWarn?'block':'none';
+    warning.textContent=shouldWarn?'⚠ 前回のボーナス後、クレジットが登録されていません。差分からの自動計算には、ボーナス後のクレジット登録が必要です。':'';
+  }
+  if(estimate){
+    const payout=estimatePayoutFromCredit();
+    if(payout===null){
+      estimate.style.display='none';
+      estimate.innerHTML='';
+    }else{
+      estimate.style.display='block';
+      estimate.innerHTML=`クレジット差分から計算: <strong>${payout>0?'+':''}${payout.toLocaleString('ja-JP')}枚</strong> <button class="btn-small gold" type="button" onclick="adoptCreditEstimatedPayout(${payout})">採用</button>`;
+    }
+  }
+}
+function adoptCreditEstimatedPayout(value){
+  const input=document.getElementById('hitPayoutInput');
+  const payout=normalizeOptionalNumber(value);
+  if(input&&payout!==null)input.value=String(payout);
 }
 function closeHitPayoutPicker(){
   document.getElementById('hitPayoutOverlay')?.classList.remove('open');
@@ -8864,7 +8986,7 @@ function selectAtFollow(value){
     renderFlowStepTabs();
     renderCurrentContextBar();
     saveDraftImmediately();
-    maybeReturnToBattleModeAfterHitWizard();
+    maybeReturnToBattleModeAfterHitWizard(event);
   }else{
     renderLogFields();
     saveDraftImmediately();
@@ -8944,7 +9066,7 @@ function selectHitExit(exit){
   renderFlowStepTabs();
   renderCurrentContextBar();
   saveDraftImmediately();
-  maybeReturnToBattleModeAfterHitWizard();
+  maybeReturnToBattleModeAfterHitWizard(event);
 }
 function setEndLogFromHitEvent(event){
   if(!event)return;
@@ -10958,7 +11080,7 @@ function draftHasContent(log){
   const interval=normalizeIntervalEstimate(log.intervalEstimate);
   return !!(log.startCounterGame!==null&&log.startCounterGame!==0)||normalizeExpectedValue(log.expectedValue)!==null||
     (normalizeOptionalNumber(log.suikaOffset)??0)!==0||(normalizeOptionalNumber(log.manualCorrection)??0)!==0||Object.keys(normalizeSubCounters(log.subCounters)).length>0||normalizeCounterHistories(log.counterHistories).length>0||
-    interval.initialDiff!==null||interval.loanRate!==DEFAULT_LOAN_RATE||interval.certainty==='reset'||interval.certainty==='estimated'||Number(interval.investedTotal)>0||Number(interval.credit)>0||interval.history.length>0||
+    interval.initialDiff!==null||interval.certainty==='reset'||interval.certainty==='estimated'||Number(interval.investedTotal)>0||Number(interval.credit)>0||interval.history.length>0||
     (log.startLog||[]).length>0||(log.timeline||[]).length>0||(log.segments||[]).length>0||endingCardsTotal(log.endingCards)>0||(log.suggestLog||[]).length>0||(log.hitEvents||[]).length>0||!!log.endLog||
     !!money.store||!!money.machineNo||!!money.endTime||normalizeOptionalNumber(money.startMedals)!==null||normalizeOptionalNumber(money.endMedals)!==null||!!money.cashIn||
     !!log.publicMemo||!!log.privateMemo||!!continuedFromLog;
@@ -11290,6 +11412,7 @@ function loadDraftIntoInputs(log){
     currentTimeline=clone(log.timeline||[]);
     currentSubCounters=normalizeSubCounters(log.subCounters);
     currentCounterHistories=normalizeCounterHistories(log.counterHistories);
+    intervalLoanRateManuallyAdjusted=false;
     currentIntervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
     applyStoredTimelineOffsets(log);
     currentTimelineDataGame=latestTimelineCounterState(log).dataGame;
@@ -11358,6 +11481,7 @@ function loadLogForEdit(id){
   currentTimeline=clone(log.timeline||[]);
   currentSubCounters=normalizeSubCounters(log.subCounters);
   currentCounterHistories=normalizeCounterHistories(log.counterHistories);
+  intervalLoanRateManuallyAdjusted=false;
   currentIntervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
   applyStoredTimelineOffsets(log);
   currentTimelineDataGame=latestTimelineCounterState(log).dataGame;
@@ -11415,6 +11539,7 @@ function continueFromLog(id,skipConfirm=false){
   currentStartLog=[];
   currentTimeline=[];
   currentTimelineDataGame=0;
+  intervalLoanRateManuallyAdjusted=false;
   currentIntervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
   resetTimelineOffsets();
   linkedEndDataGame=null;
