@@ -6525,9 +6525,10 @@ function openBattleModeHitPicker(){
 }
 function battleModeOtherExcludedTagIds(){
   const machine=currentMachine();
-  if(!machine?.quickPanel)return new Set();
-  const panel=battleModePanel();
   const ids=new Set(battleModeOtherFixedExcludedTagIds());
+  quickTagIdsForMachine(machine).forEach(id=>ids.add(id));
+  if(!machine?.quickPanel)return ids;
+  const panel=battleModePanel();
   panel.counters.forEach(ref=>{
     const def=battleModeCounterButtonDef(ref);
     if(def?.tagId)ids.add(def.tagId);
@@ -6748,8 +6749,7 @@ function renderFieldInput(f){
 }
 function renderTagButtons(target){
   const tags=target==='start'?(currentMachine()?.startTags||[]):(currentMachine()?.tags||[]);
-  const hiddenIds=target==='timeline'?quickTagIdSet(currentMachine()):new Set();
-  const visibleTags=tags.filter(t=>!hiddenIds.has(t.id));
+  const visibleTags=tags;
   const mainTags=visibleTags.filter(t=>!t.optional);
   const optionalTags=visibleTags.filter(t=>t.optional);
   const handler=target==='start'?'appendStartTagById':'appendTimelineTagById';
