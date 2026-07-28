@@ -474,7 +474,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-compact-counter-read{min-width:0;text-align:center;border:0;background:transparent;color:inherit;cursor:pointer;}
 .bm-compact-counter .bm-counter-value{font-size:20px;}
 .bm-mini-btn{width:48px;min-height:42px;border:1px solid rgba(76,175,125,.58);border-radius:8px;background:rgba(76,175,125,.12);color:#a8efb4;font-size:16px;font-weight:900;cursor:pointer;}
-.bm-replay-flash-meter{min-height:30px;border:1px solid rgba(201,168,76,.24);border-radius:8px;background:rgba(0,0,0,.1);color:var(--text-muted);font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:5px 8px;line-height:1.2;}
+.bm-replay-flash-meter{width:100%;min-height:30px;border:1px solid rgba(201,168,76,.24);border-radius:8px;background:rgba(0,0,0,.1);color:var(--text-muted);font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:5px 8px;line-height:1.2;}
+button.bm-replay-flash-meter{cursor:pointer;}
 .bm-diff-tracker{min-height:38px;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.12);color:var(--text);font-size:14px;font-weight:900;cursor:pointer;}
 .bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
 .bm-grid{display:grid;grid-template-rows:repeat(4,minmax(52px,auto));gap:7px;min-height:0;align-content:end;}
@@ -1193,6 +1194,7 @@ let battleModeOpen=false;
 let battleModeUndoStack=[];
 let battleModeRedoAction=null;
 let battleModeToastTimer=null;
+let battleModeReplayScopeSegmentIds=new Set();
 let battleModeReturnAfterHitWizard=false;
 let battleModeMemoSheetOpen=false;
 let battleModeScrollToHitNext=false;
@@ -4902,11 +4904,16 @@ function addAim(){
   const aim={id:uid('a'),name,fields:[]};
   machine.aims.push(aim);
   selectedAimId=aim.id;
+  battleModeReplayScopeSegmentIds.clear();
   persist();
   document.getElementById('aimName').value='';
   renderAll();
 }
-function selectAim(id){selectedAimId=id;renderAll();}
+function selectAim(id){
+  selectedAimId=id;
+  battleModeReplayScopeSegmentIds.clear();
+  renderAll();
+}
 function editAim(id){
   const aim=aimById(currentMachine(),id);if(!aim)return;
   const name=prompt('狙い方名',aim.name);if(name===null)return;
@@ -5371,6 +5378,7 @@ function selectLogAim(){
     return;
   }
   selectedAimId=document.getElementById('logAim').value;
+  battleModeReplayScopeSegmentIds.clear();
   currentExpectedValue=continuedFromLog&&selectedAimId===continuedFromLog.aimId?normalizeExpectedValue(continuedFromLog.expectedValue):null;
   renderAll();
 }
@@ -5777,6 +5785,31 @@ function battleModeReplayFlashCount(){
     return total+(ids.includes('t_nangoku_replay_flash')?1:0);
   },0);
 }
+function replayFlashCountForTimeline(timeline){
+  return (Array.isArray(timeline)?timeline:[]).reduce((total,item)=>{
+    const ids=Array.isArray(item?.tagIds)?item.tagIds:[];
+    return total+(ids.includes('t_nangoku_replay_flash')?1:0);
+  },0);
+}
+function battleModeSegmentLiquidGames(segment){
+  const liquid=normalizeOptionalNumber(segment?.liquidGame);
+  const data=normalizeOptionalNumber(segment?.dataGame);
+  if(liquid===null&&data===null)return 0;
+  return Math.max(0,Math.trunc(liquid!==null?liquid:data));
+}
+function battleModeSelectedReplayScopeSegments(){
+  const existingIds=new Set(currentSegments.map(segment=>segment.id));
+  battleModeReplayScopeSegmentIds.forEach(id=>{if(!existingIds.has(id))battleModeReplayScopeSegmentIds.delete(id);});
+  return currentSegments.filter(segment=>battleModeReplayScopeSegmentIds.has(segment.id));
+}
+function battleModeReplayFlashScopeTotals(){
+  const selected=battleModeSelectedReplayScopeSegments();
+  return selected.reduce((totals,segment)=>{
+    totals.count+=replayFlashCountForTimeline(segment.timeline);
+    totals.games+=battleModeSegmentLiquidGames(segment);
+    return totals;
+  },{count:battleModeReplayFlashCount(),games:battleModeCurrentSegmentLiquidGames(),segments:selected.length});
+}
 function battleModeHasReplaySplitMeter(){
   const hasTag=(currentMachine()?.tags||[]).some(tag=>tag.id==='t_nangoku_replay');
   if(!hasTag)return false;
@@ -5804,16 +5837,54 @@ function battleModeCurrentSegmentLiquidGames(){
   return Math.max(0,Math.trunc(liquid!==null?liquid:(fallback!==null?fallback:0)));
 }
 function battleModeReplayFlashMeterText(){
-  const count=battleModeReplayFlashCount();
-  const games=battleModeCurrentSegmentLiquidGames();
+  const totals=battleModeReplayFlashScopeTotals();
+  const count=totals.count;
+  const games=totals.games;
   const ratio=count>0&&games>0?`（1/${Math.floor(games/count)}）`:'';
-  return `リプフラ ${count}／${games}G${ratio}`;
+  const scope=totals.segments>0?`〔+${totals.segments}区間〕`:'';
+  return `リプフラ ${count}／${games}G${ratio}${scope}`;
 }
 function renderBattleModeReplayFlashMeter(){
   const rows=[];
-  if(battleModeHasReplayFlashMeter())rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplayFlashMeterText())}</div>`);
+  if(battleModeHasReplayFlashMeter())rows.push(`<button class="bm-replay-flash-meter" type="button" onclick="openBattleModeReplayScopeSheet()">${escapeHtml(battleModeReplayFlashMeterText())}</button>`);
   if(battleModeHasReplaySplitMeter())rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplaySplitMeterText())}</div>`);
   return rows.join('');
+}
+function battleModeReplayScopeRow(segment,index){
+  const count=replayFlashCountForTimeline(segment.timeline);
+  const games=battleModeSegmentLiquidGames(segment);
+  const checked=battleModeReplayScopeSegmentIds.has(segment.id);
+  return `
+    <label class="bm-btn other" style="grid-column:1/-1;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;text-align:left;">
+      <input type="checkbox" data-segment-id="${escapeHtml(segment.id)}" ${checked?'checked':''} onchange="toggleBattleModeReplayScopeSegment(this.dataset.segmentId,this.checked)">
+      <span>${escapeHtml(segmentSummary(segment,index,currentMachine()))}<br><span style="color:var(--text-muted);font-size:12px;">リプフラ ${escapeHtml(count)}／${escapeHtml(games)}G</span></span>
+    </label>`;
+}
+function openBattleModeReplayScopeSheet(){
+  if(!currentSegments.length){
+    closeBattleModeOtherSheet();
+    battleModeToast('合算できる過去区間がありません',{duration:1600});
+    return;
+  }
+  const selected=battleModeSelectedReplayScopeSegments();
+  const currentCount=battleModeReplayFlashCount();
+  const currentGames=battleModeCurrentSegmentLiquidGames();
+  const total=battleModeReplayFlashScopeTotals();
+  const rows=currentSegments.map((segment,index)=>battleModeReplayScopeRow(segment,index)).join('');
+  setBattleModeSheet('リプフラ合算区間',`
+    <label class="bm-btn counter" style="grid-column:1/-1;display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:center;text-align:left;">
+      <input type="checkbox" checked disabled>
+      <span>現在区間<br><span style="color:var(--text-muted);font-size:12px;">リプフラ ${escapeHtml(currentCount)}／${escapeHtml(currentGames)}G</span></span>
+    </label>
+    <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">合計: リプフラ ${escapeHtml(total.count)}／${escapeHtml(total.games)}G ${selected.length?`〔+${escapeHtml(selected.length)}区間〕`:''}</div>
+    ${rows}
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>`);
+}
+function toggleBattleModeReplayScopeSegment(segmentId,checked){
+  if(checked)battleModeReplayScopeSegmentIds.add(segmentId);
+  else battleModeReplayScopeSegmentIds.delete(segmentId);
+  renderBattleMode();
+  openBattleModeReplayScopeSheet();
 }
 function openBattleModeDiffTrackerSheet(){
   const state=battleModeIntervalTrackerState();
@@ -8277,6 +8348,7 @@ function archiveCurrentSegment(event,terminalType='',options={}){
     }
   };
   currentSegments.unshift(segment);
+  battleModeReplayScopeSegmentIds.clear();
   resetCurrentSegment({preserveEndState:!!options.preserveEndState});
   if(event&&machineUsesLiquidOffsetCounter()){
     resetTimelineOffsets(9,0);
@@ -11359,6 +11431,7 @@ function resetTransientLogUiState(){
   timelineHistoryOpen=false;
   recentTimelineHighlightId='';
   recentSuggestHighlightId='';
+  battleModeReplayScopeSegmentIds.clear();
   hitBranchWizard={route:'',stepIndex:0,through:null,done:[],eventId:''};
   updateTimelineAddButtonState();
 }
