@@ -5777,6 +5777,27 @@ function battleModeReplayFlashCount(){
     return total+(ids.includes('t_nangoku_replay_flash')?1:0);
   },0);
 }
+function battleModeHasReplaySplitMeter(){
+  const hasTag=(currentMachine()?.tags||[]).some(tag=>tag.id==='t_nangoku_replay');
+  if(!hasTag)return false;
+  return battleModePanel().counters.includes('replay');
+}
+function battleModeReplaySplitCounts(){
+  return currentTimeline.reduce((counts,item)=>{
+    const ids=Array.isArray(item?.tagIds)?item.tagIds:[];
+    if(!ids.includes('t_nangoku_replay'))return counts;
+    const liquid=normalizeOptionalNumber(item?.liquidGame)??normalizeOptionalNumber(item?.game);
+    if(liquid===null)return counts;
+    const games=Math.trunc(liquid);
+    if(games<=200)counts.early+=1;
+    else if(games>=201)counts.late+=1;
+    return counts;
+  },{early:0,late:0});
+}
+function battleModeReplaySplitMeterText(){
+  const counts=battleModeReplaySplitCounts();
+  return `リプレイ 〜200: ${counts.early} ／ 201〜: ${counts.late}`;
+}
 function battleModeCurrentSegmentLiquidGames(){
   const liquid=normalizeOptionalNumber(timelineLiquidValue());
   const fallback=normalizeOptionalNumber(timelineDataValue());
@@ -5789,8 +5810,10 @@ function battleModeReplayFlashMeterText(){
   return `リプフラ ${count}／${games}G${ratio}`;
 }
 function renderBattleModeReplayFlashMeter(){
-  if(!battleModeHasReplayFlashMeter())return '';
-  return `<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplayFlashMeterText())}</div>`;
+  const rows=[];
+  if(battleModeHasReplayFlashMeter())rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplayFlashMeterText())}</div>`);
+  if(battleModeHasReplaySplitMeter())rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplaySplitMeterText())}</div>`);
+  return rows.join('');
 }
 function openBattleModeDiffTrackerSheet(){
   const state=battleModeIntervalTrackerState();
