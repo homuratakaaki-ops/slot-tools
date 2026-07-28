@@ -1150,6 +1150,7 @@ let selectedAimId='';
 let activeNumericInput=null;
 let currentStartLog=[];
 let currentStartCounterGame=0;
+let currentStartCounterEdited=false;
 let currentStartCzFailCount=null;
 let currentStartAtThroughCount=null;
 let currentExpectedValue=null;
@@ -4792,6 +4793,22 @@ function renderFlowStepTabs(){
   const title=document.getElementById('dynamicFieldsTitle');
   if(title)title.textContent=flowStepLabel(currentFlowStep);
 }
+function shouldBackfillStartCounterFromBattleMode(value){
+  const normalized=normalizeOptionalNumber(value);
+  return !editingLogId&&!currentStartCounterEdited&&currentStartCounterGame===0&&currentTimeline.length===0&&normalized!==null&&normalized>=1;
+}
+function backfillStartCounterFromBattleMode(value){
+  const normalized=normalizeOptionalNumber(value);
+  if(!shouldBackfillStartCounterFromBattleMode(normalized))return null;
+  currentStartCounterGame=Math.trunc(normalized);
+  const counter=document.getElementById('startCounterGame');
+  if(counter){
+    counter.value=String(currentStartCounterGame);
+    counter.dataset.clearInitialZero='';
+  }
+  renderPracticeStats();
+  return currentStartCounterGame;
+}
 function switchFlowStep(step){
   if(Number(step)===4&&!ensureNoHitSegmentClosedBeforeExit())return;
   currentFlowStep=Number(step)||1;
@@ -4846,6 +4863,7 @@ function addMachine(){
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
+  currentStartCounterEdited=false;
   currentStartLog=[];
   resetStartMemoState();
   currentStartCzFailCount=null;
@@ -4878,6 +4896,7 @@ function selectMachine(id){
   selectedMachineId=id;
   selectedAimId=firstAimIdForMachine(machineById(id))||'';
   currentStartCounterGame=0;
+  currentStartCounterEdited=false;
   currentStartLog=[];
   resetStartMemoState();
   currentStartCzFailCount=null;
@@ -5407,7 +5426,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];resetStartMemoState();currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;intervalLoanRateManuallyAdjusted=false;currentIntervalEstimate=normalizeIntervalEstimate(null);currentSubCounters={};currentCounterHistories=[];resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];resetCurrentSegmentStart();currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartCounterEdited=false;currentStartLog=[];resetStartMemoState();currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;intervalLoanRateManuallyAdjusted=false;currentIntervalEstimate=normalizeIntervalEstimate(null);currentSubCounters={};currentCounterHistories=[];resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];resetCurrentSegmentStart();currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -5698,7 +5717,8 @@ function battleModeCommit(label,callback,options={}){
   if(battleModeUndoStack.length>80)battleModeUndoStack.shift();
   battleModeRedoAction=null;
   battleModeVibrate(18);
-  battleModeToast(`${label}を記録`,{duration:800});
+  const toastMessage=typeof options.toastMessage==='function'?options.toastMessage():options.toastMessage;
+  battleModeToast(toastMessage||`${label}を記録`,{duration:800});
   renderBattleMode();
   saveDraftImmediately();
   return true;
@@ -6200,6 +6220,7 @@ function openBattleModeCounterKeypad(role){
     input.remove();
     if(value===null){battleModeInvalid('G数を入力してください');return;}
     const label=role==='liquid'?`液晶${value}G`:role==='liquidOffset'?`差分${value}`:role==='subCounter'?`${counter?.label||'カウンター'}${value}`:`データ${value}G`;
+    let backfilledStartCounter=null;
     battleModeCommit(label,()=>{
       if(role==='liquid'){
         const data=timelineDataValue();
@@ -6210,9 +6231,10 @@ function openBattleModeCounterKeypad(role){
       }else if(role==='subCounter'&&counter){
         setSubCounterValue(counter.key,value);
       }else{
+        backfilledStartCounter=backfillStartCounterFromBattleMode(value);
         setTimelineGames(value,liquidFromDataWithOffset(value));
       }
-    });
+    },{toastMessage:()=>backfilledStartCounter!==null?`打ち始めG数に ${backfilledStartCounter}G を設定しました`:''});
   },{once:true});
   document.body.appendChild(input);
   openNumericKeypad(input);
@@ -11016,9 +11038,10 @@ function visibleStartLog(log){
   const rows=Array.isArray(log?.startLog)?log.startLog:[];
   return logStartCounterValue(log)!==null?rows.filter(row=>row.labelTagId!=='lt_counter_game'&&!isCounterLabel(row.label)):rows;
 }
-function syncStartCounterGame(){
+function syncStartCounterGame(markEdited=true){
   const counter=document.getElementById('startCounterGame');
   if(counter)currentStartCounterGame=normalizeOptionalNumber(counter.value||'');
+  if(markEdited)currentStartCounterEdited=true;
   renderPracticeStats();
   scheduleDraftSave();
 }
@@ -11419,7 +11442,7 @@ function saveLog(options={}){
   const machine=currentMachine();const aim=currentAim();
   if(!machine||!aim){alert('機種と狙い方を選択してください');return;}
   const editingLog=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
-  syncStartCounterGame();
+  syncStartCounterGame(false);
   const startCounter=currentStartCounterGame;
   if(startCounter===null){alert('打ち始めのデータカウンターG数を入力してください');return;}
   if(currentEndLog&&Number(currentEndLog.game)-startCounter<0){alert('打ち終わりG数は打ち始めのデータカウンターG数以上にしてください');return;}
@@ -11586,6 +11609,7 @@ function clearLogInput(cancelEdit=true){
   if(cashIn)cashIn.value='';
   currentStartLog=[];
   resetStartMemoState();
+  currentStartCounterEdited=false;
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
   currentExpectedValue=null;
@@ -11633,6 +11657,7 @@ function resetTransientLogUiState(){
 }
 function resetStartCounterDefault(){
   currentStartCounterGame=0;
+  currentStartCounterEdited=false;
   const counter=document.getElementById('startCounterGame');
   if(counter){
     counter.value='0';
@@ -11697,6 +11722,7 @@ function loadDraftIntoInputs(log){
     const draftIdentity=tableIdentityFromMoney(log.money||{});
     sameTableCarryOptOutKey=log.sameTableCarryOptOut&&draftIdentity?`${draftIdentity.date}|${draftIdentity.store}|${draftIdentity.machineNo}`:'';
     currentStartCounterGame=logStartCounterValue(log);
+    currentStartCounterEdited=currentStartCounterGame!==0;
     currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
     currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
     currentExpectedValue=normalizeExpectedValue(log.expectedValue);
@@ -11767,6 +11793,7 @@ function loadLogForEdit(id){
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
   currentStartCounterGame=logStartCounterValue(log);
+  currentStartCounterEdited=true;
   currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
   currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
   currentExpectedValue=normalizeExpectedValue(log.expectedValue);
@@ -11827,6 +11854,7 @@ function continueFromLog(id,skipConfirm=false){
   selectedMachineId=machine.id;
   selectedAimId=aim?.id||firstAimIdForMachine(machine);
   currentStartCounterGame=0;
+  currentStartCounterEdited=false;
   currentStartCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
   currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
   currentExpectedValue=normalizeExpectedValue(log.expectedValue);
