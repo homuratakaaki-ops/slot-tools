@@ -737,6 +737,10 @@ footer a:hover{color:var(--gold-light);}
         <div class="input-label">何枚交換<div class="input-hint">1000円あたり</div></div>
         <input type="text" id="storeExchangeRate" class="numeric-input" inputmode="none" readonly data-decimal="1" placeholder="例：56.0">
       </div>
+      <div class="input-row">
+        <div class="input-label">貯玉再プレイ限度<div class="input-hint">枚/日</div></div>
+        <input type="text" id="storeDailyReplayMedals" class="numeric-input" inputmode="none" readonly placeholder="例：460">
+      </div>
     </div>
     <button class="btn-primary" id="storeSaveButton" onclick="saveStoreFromManage()">店舗を追加</button>
     <div id="storeList" style="margin-top:10px;"></div>
@@ -1321,14 +1325,15 @@ function carryTypeLabel(value){
   return value==='setting'?'設定引き継ぎ':value==='mode'?'モード参照':'引き継ぎなし';
 }
 function normalizeStore(entry){
-  if(typeof entry==='string')return {name:entry,lendRate:null,exchangeRate:null};
+  if(typeof entry==='string')return {name:entry,lendRate:null,exchangeRate:null,dailyReplayMedals:null};
   if(!entry||typeof entry!=='object')return null;
   const name=String(entry.name||'').trim();
   if(!name)return null;
   return {
     name,
     lendRate:normalizeOptionalNumber(entry.lendRate),
-    exchangeRate:normalizeOptionalNumber(entry.exchangeRate)
+    exchangeRate:normalizeOptionalNumber(entry.exchangeRate),
+    dailyReplayMedals:normalizeOptionalNumber(entry.dailyReplayMedals)
   };
 }
 function storeName(entry){return typeof entry==='string'?entry:(entry?.name||'');}
@@ -1342,7 +1347,7 @@ function ensureStore(name,lendRate=null,exchangeRate=null){
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   let store=db.stores.find(s=>s.name===trimmed);
   if(!store){
-    store={name:trimmed,lendRate:normalizeOptionalNumber(lendRate),exchangeRate:normalizeOptionalNumber(exchangeRate)};
+    store={name:trimmed,lendRate:normalizeOptionalNumber(lendRate),exchangeRate:normalizeOptionalNumber(exchangeRate),dailyReplayMedals:null};
     db.stores.push(store);
   }else{
     const lend=normalizeOptionalNumber(lendRate);
@@ -4399,6 +4404,25 @@ function intervalEstimateWithStoreLoanRate(estimate){
 function applyStoreLoanRateToUnusedInterval(){
   currentIntervalEstimate=intervalEstimateWithStoreLoanRate(currentIntervalEstimate);
 }
+function currentLogDateValue(){
+  return document.getElementById('moneyDate')?.value||document.getElementById('startMoneyDate')?.value||todayValue();
+}
+function hasSameDateStoreSavedLog(date,store){
+  if(!date||!store)return false;
+  return db.logs.some(log=>log.id!==editingLogId&&log.money?.date===date&&log.money?.store===store);
+}
+function battleModeApplyDailyReplayMedalsIfNeeded(){
+  const state=normalizeIntervalEstimate(currentIntervalEstimate);
+  if(intervalEstimateHasActivity(state))return false;
+  const storeName=currentShopNoteStoreName();
+  const store=storeByName(storeName);
+  const medals=normalizeOptionalNumber(store?.dailyReplayMedals);
+  if(medals===null||medals<=0)return false;
+  if(hasSameDateStoreSavedLog(currentLogDateValue(),storeName))return false;
+  const ok=battleModeApplyDiffTrackerInput('investMedals',medals,{label:'貯玉再プレイ（自動）',reopenSheet:false});
+  if(ok)battleModeToast(`貯玉再プレイ ${Math.round(medals).toLocaleString('ja-JP')}枚を投資に反映しました。実際と違う場合は取消か「投資合計を修正」で調整してください`,{duration:3600});
+  return ok;
+}
 function normalizeIntervalDiffHistoryState(value){
   const source=value&&typeof value==='object'?value:{};
   return {
@@ -5482,7 +5506,8 @@ function saveStoreFromManage(){
   if(!name){alert('店舗名を入力してください');return;}
   const lend=normalizeOptionalNumber(document.getElementById('storeLendRate')?.value||'');
   const exchange=normalizeOptionalNumber(document.getElementById('storeExchangeRate')?.value||'');
-  if((lend!==null&&lend<=0)||(exchange!==null&&exchange<=0)){alert('貸し枚数・交換枚数は正の数値で入力してください');return;}
+  const dailyReplayMedals=normalizeOptionalNumber(document.getElementById('storeDailyReplayMedals')?.value||'');
+  if((lend!==null&&lend<=0)||(exchange!==null&&exchange<=0)||(dailyReplayMedals!==null&&dailyReplayMedals<=0)){alert('貸し枚数・交換枚数・貯玉再プレイ限度は正の数値で入力してください');return;}
   if(editingStoreName&&editingStoreName!==name){
     db.logs.forEach(log=>{if(log.money?.store===editingStoreName)log.money.store=name;});
     db.shopNotes.forEach(note=>{
@@ -5493,10 +5518,11 @@ function saveStoreFromManage(){
     });
     db.stores=db.stores.map(normalizeStore).filter(s=>s&&s.name!==editingStoreName);
   }
-  ensureStore(name,lend,exchange);
+  const store=ensureStore(name,lend,exchange);
+  if(store)store.dailyReplayMedals=dailyReplayMedals;
   editingStoreName=null;
   persist();
-  ['storeName','storeLendRate','storeExchangeRate'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['storeName','storeLendRate','storeExchangeRate','storeDailyReplayMedals'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   renderAll();
 }
 function editStore(name){
@@ -5506,9 +5532,11 @@ function editStore(name){
   const nameEl=document.getElementById('storeName');
   const lendEl=document.getElementById('storeLendRate');
   const exchangeEl=document.getElementById('storeExchangeRate');
+  const replayEl=document.getElementById('storeDailyReplayMedals');
   if(nameEl)nameEl.value=store.name;
   if(lendEl)lendEl.value=store.lendRate??'';
   if(exchangeEl)exchangeEl.value=store.exchangeRate??'';
+  if(replayEl)replayEl.value=store.dailyReplayMedals??'';
   updateStoreEditUi();
   document.getElementById('storeName')?.focus();
 }
@@ -5528,7 +5556,7 @@ function renderStoreList(){
       <div class="item-head">
         <div>
           <div class="item-title">${escapeHtml(s.name)}</div>
-          <div class="item-sub">貸し ${s.lendRate??'-'}枚 / 交換 ${s.exchangeRate??'-'}枚</div>
+          <div class="item-sub">貸し ${s.lendRate??'-'}枚 / 交換 ${s.exchangeRate??'-'}枚 / 再プレイ ${s.dailyReplayMedals??'-'}枚</div>
         </div>
         <div class="item-actions">
           <button class="btn-small" onclick="editStoreByEncoded('${encodeURIComponent(s.name)}')">編集</button>
@@ -5697,6 +5725,7 @@ function openBattleMode(){
   battleModeOpen=true;
   requestBattleModeWakeLock();
   document.getElementById('battleModeOverlay')?.classList.add('open');
+  battleModeApplyDailyReplayMedalsIfNeeded();
   renderBattleMode();
 }
 function closeBattleMode(){
@@ -6008,6 +6037,7 @@ function battleModeApplyDiffTrackerInput(mode,value,options={}){
   },{meta:{kind:'intervalDiff',mode,input:normalized,before:state,after:next,summary}});
   if(ok&&options.toastSummary)battleModeToast(summary,{duration:1800});
   if(ok&&options.reopenSheet!==false)openBattleModeDiffTrackerSheet();
+  return ok;
 }
 function battleModeIntervalSnapshotText(state=battleModeIntervalTrackerState()){
   const diff=battleModeIntervalDiffValue(state);
