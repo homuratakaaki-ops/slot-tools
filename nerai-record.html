@@ -157,6 +157,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .timeline-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px;}
 .timeline-game{font-size:13px;font-weight:700;color:var(--gold-light);}
 .timeline-text{font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap;}
+.timeline-variant-list,.timeline-counter-history-list{font-size:13px;color:var(--text);line-height:1.7;}
 .organized-view{max-height:78vh;max-height:78dvh;overflow:hidden;overscroll-behavior:contain;margin:auto;display:flex;flex-direction:column;box-sizing:border-box;}
 .keypad-overlay:has(.organized-view){align-items:safe center;}
 .organized-view>.keypad-title{flex:0 0 auto;border-bottom:1px solid rgba(201,168,76,.2);padding-bottom:10px;margin-bottom:10px;}
@@ -7684,7 +7685,7 @@ function counterHistoryHtml(row,editable=false){
 function renderCounterHistories(histories){
   const rows=normalizeCounterHistories(histories);
   if(!rows.length)return '';
-  return `<div class="timeline-text">${rows.map(row=>counterHistoryHtml(row,false)).join('')}</div>`;
+  return `<div class="timeline-counter-history-list">${rows.map(row=>counterHistoryHtml(row,false)).join('')}</div>`;
 }
 function renderSubCounterControls(){
   const counter=machineSubCounter();
@@ -9251,7 +9252,7 @@ function renderSegmentVariantControls(segment,context='segment',logId='',machine
       ${buttons}
     </div>`;
   }).filter(Boolean);
-  return rows.length?`<div class="timeline-text">${rows.join('')}</div>`:'';
+  return rows.length?`<div class="timeline-variant-list">${rows.join('')}</div>`:'';
 }
 function archivedSegmentsHtml(){
   if(!currentSegments.length)return '';
