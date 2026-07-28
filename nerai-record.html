@@ -1021,6 +1021,7 @@ const STORAGE_RECOVERY_KEYS=[STORAGE_LAST_GOOD_KEY,STORAGE_PREMIGRATE_KEY,STORAG
 const STORAGE_BACKUP_PURGE_KEYS=[...STORAGE_BACKUP_KEYS,STORAGE_PREMIGRATE_KEY,STORAGE_PRERESTORE_KEY];
 const STORAGE_CHECKPOINT_KEY='nerai_record_v1_checkpoint';
 const STORAGE_DELETABLE_KEYS=[...STORAGE_RECOVERY_KEYS,STORAGE_CHECKPOINT_KEY];
+const START_MEMO_LABEL='打ち始めメモ';
 const LOCAL_STORAGE_SOFT_LIMIT_BYTES=5*1024*1024;
 const STORAGE_USAGE_WARN_RATIO=.6;
 const STORAGE_USAGE_DANGER_RATIO=.8;
@@ -1204,6 +1205,8 @@ let sameTableCarryOptOutKey='';
 let hydratingDraft=false;
 let pendingDraftRestore=false;
 let draftSaveTimer=null;
+let startMemoSaveTimer=null;
+let currentStartMemoEntryId='';
 let battleModeOpen=false;
 let battleModeUndoStack=[];
 let battleModeRedoAction=null;
@@ -4844,6 +4847,7 @@ function addMachine(){
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
   currentStartLog=[];
+  resetStartMemoState();
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
   currentExpectedValue=null;
@@ -4875,6 +4879,7 @@ function selectMachine(id){
   selectedAimId=firstAimIdForMachine(machineById(id))||'';
   currentStartCounterGame=0;
   currentStartLog=[];
+  resetStartMemoState();
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
   currentExpectedValue=null;
@@ -5402,7 +5407,7 @@ function selectLogMachine(){
   if(!aimById(machineById(selectedMachineId),selectedAimId)){
     selectedAimId=firstAimIdForMachine(machineById(selectedMachineId))||'';
   }
-  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;intervalLoanRateManuallyAdjusted=false;currentIntervalEstimate=normalizeIntervalEstimate(null);currentSubCounters={};currentCounterHistories=[];resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];resetCurrentSegmentStart();currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
+  if(before!==selectedMachineId){currentStartCounterGame=0;currentStartLog=[];resetStartMemoState();currentExpectedValue=null;currentTimeline=[];currentTimelineDataGame=null;intervalLoanRateManuallyAdjusted=false;currentIntervalEstimate=normalizeIntervalEstimate(null);currentSubCounters={};currentCounterHistories=[];resetTimelineOffsets();linkedEndDataGame=null;linkedEndLiquidGame=null;currentEndLog=null;currentHitEvents=[];currentSuggestLog=[];currentSegments=[];resetCurrentSegmentStart();currentEndingCards={};lastSegmentUndo=null;pendingSuggestSelection=null;resetTransientLogUiState();closeSuggestPicker();}
   renderAll();
 }
 function selectLogAim(){
@@ -6650,7 +6655,8 @@ function startDetailHasInput(){
   const correction=normalizeOptionalNumber(document.getElementById('startLiquidCorrection')?.value||currentTimelineManualCorrection);
   const label=(document.getElementById('startLogLabel')?.value||'').trim();
   const rawValue=(document.getElementById('startLogValue')?.value||'').trim();
-  return (!!dateValue&&dateValue!==todayValue())||publishStore||publishMachineNo||((correction??0)!==0)||!!label||rawValue!==''||currentStartLog.length>0;
+  const hasExtraLog=currentStartLog.some(item=>item.label!==START_MEMO_LABEL);
+  return (!!dateValue&&dateValue!==todayValue())||publishStore||publishMachineNo||((correction??0)!==0)||!!label||rawValue!==''||hasExtraLog;
 }
 function startDetailSummaryText(){
   return `詳細を開く ▼${startDetailHasInput()?'（入力あり）':''}`;
@@ -6668,6 +6674,65 @@ function bindStartDetailSummaryInputs(){
     el.addEventListener('change',updateStartDetailSummaryLabel);
   });
   updateStartDetailSummaryLabel();
+}
+function startMemoEntries(){
+  return currentStartLog.filter(item=>item.label===START_MEMO_LABEL);
+}
+function latestStartMemoEntry(){
+  const rows=startMemoEntries();
+  if(!rows.length)return null;
+  return rows.sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+}
+function startMemoEntryForEdit(){
+  return currentStartLog.find(item=>item.id===currentStartMemoEntryId)||latestStartMemoEntry();
+}
+function startMemoInputValue(){
+  const entry=latestStartMemoEntry();
+  currentStartMemoEntryId=entry?.id||'';
+  return entry?.text||'';
+}
+function clearStartMemoSaveTimer(){
+  clearTimeout(startMemoSaveTimer);
+  startMemoSaveTimer=null;
+}
+function resetStartMemoState(){
+  clearStartMemoSaveTimer();
+  currentStartMemoEntryId='';
+}
+function handleStartMemoInput(){
+  clearStartMemoSaveTimer();
+  startMemoSaveTimer=setTimeout(saveStartMemoNow,600);
+}
+function flushStartMemoSave(){
+  if(!startMemoSaveTimer)return;
+  clearStartMemoSaveTimer();
+  saveStartMemoNow();
+}
+function saveStartMemoNow(){
+  clearStartMemoSaveTimer();
+  const el=document.getElementById('startMemoText');
+  if(!el)return;
+  const text=el.value.trim();
+  const entry=startMemoEntryForEdit();
+  if(!text){
+    if(entry){
+      currentStartLog=currentStartLog.filter(item=>item.id!==entry.id);
+      if(currentStartMemoEntryId===entry.id)currentStartMemoEntryId='';
+    }
+  }else if(entry){
+    entry.label=START_MEMO_LABEL;
+    entry.labelTagId='';
+    entry.value=null;
+    entry.text=text;
+    currentStartMemoEntryId=entry.id;
+  }else{
+    const next={id:uid('sl'),label:START_MEMO_LABEL,labelTagId:'',value:null,text,createdAt:new Date().toISOString()};
+    currentStartLog.push(next);
+    currentStartMemoEntryId=next.id;
+  }
+  renderCurrentStartLog();
+  renderPracticeStats();
+  scheduleDraftSave();
 }
 function renderStartLogArea(){
   const machine=currentMachine();
@@ -6692,7 +6757,7 @@ function renderStartLogArea(){
     </div>`:''}
     <div class="section-label" style="margin-top:14px;">打ち始めメモ</div>
     ${renderTagButtons('start')}
-    <textarea id="startLogText" placeholder="例：CZ2スルー"></textarea>
+    <textarea id="startMemoText" placeholder="例：CZ2スルー・今日の狙いの根拠など" oninput="handleStartMemoInput()">${escapeHtml(startMemoInputValue())}</textarea>
     <div class="input-row">
       <div class="input-label no-wrap-label">想定期待値</div>
       <input type="text" id="expectedValueInput" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(expectedValueInputValue())}" placeholder="任意・円" oninput="syncExpectedValue()" onchange="syncExpectedValue()">
@@ -6739,6 +6804,7 @@ function renderStartDetailArea(useLcdCounter,useLiquidOffsetCounter){
           <button class="btn-small counter-btn" onclick="incrementStartLogValue(5)">+5</button>
           <button class="btn-small counter-btn" onclick="incrementStartLogValue(10)">+10</button>
         </div>
+        <textarea id="startLogText" placeholder="例：CZ2スルー"></textarea>
         <button class="btn-primary" id="startLogAddButton" onclick="addStartLogEntry()">追加データを追加</button>
         <div id="startLogList" style="margin-top:10px;"></div>
       </div>
@@ -6767,13 +6833,14 @@ function setStartLabelById(id){
 }
 function appendStartTagById(id){
   const tag=currentMachine()?.startTags?.find(t=>t.id===id);
-  if(tag)appendTextToField('startLogText',tag.label);
+  if(tag)appendTextToField('startMemoText',tag.label);
 }
 function appendTextToField(id,label){
   const el=document.getElementById(id);
   if(!el)return;
   const current=el.value.trimEnd();
   el.value=current?`${current} ${label} `:`${label} `;
+  el.dispatchEvent(new Event('input',{bubbles:true}));
   el.focus();
 }
 function incrementStartLogValue(delta){
@@ -6788,6 +6855,7 @@ function sortedStartLog(){
   return [...currentStartLog].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
 }
 function addStartLogEntry(){
+  flushStartMemoSave();
   const labelEl=document.getElementById('startLogLabel');
   const valueEl=document.getElementById('startLogValue');
   const textEl=document.getElementById('startLogText');
@@ -6821,6 +6889,7 @@ function startLogLine(item){
 function renderCurrentStartLog(){
   const el=document.getElementById('startLogList');
   if(!el)return;
+  updateStartDetailSummaryLabel();
   const rows=sortedStartLog();
   if(!rows.length){el.innerHTML='<div class="empty-hint">まだ打ち始めログなし</div>';return;}
   el.innerHTML=rows.map(item=>`
@@ -6835,6 +6904,7 @@ function renderCurrentStartLog(){
     </div>`).join('');
 }
 function editStartLogEntry(id){
+  flushStartMemoSave();
   const item=currentStartLog.find(t=>t.id===id);if(!item)return;
   const label=prompt('ラベル（空でも可）',item.label||'');if(label===null)return;
   const value=prompt('数値（空でも可）',item.value!==null&&item.value!==undefined?String(item.value):'');if(value===null)return;
@@ -6858,7 +6928,13 @@ function editStartLogEntry(id){
 }
 function deleteStartLogEntry(id){
   if(!confirm('この打ち始めログを削除しますか？'))return;
+  const deleted=currentStartLog.find(t=>t.id===id);
   currentStartLog=currentStartLog.filter(t=>t.id!==id);
+  if(deleted?.label===START_MEMO_LABEL&&currentStartMemoEntryId===id){
+    currentStartMemoEntryId='';
+    const memo=document.getElementById('startMemoText');
+    if(memo)memo.value='';
+  }
   renderCurrentStartLog();
   renderPracticeStats();
   scheduleDraftSave();
@@ -11191,6 +11267,7 @@ function updateCalc(){
   if(warning)warning.style.display=calc.invalidTime?'block':'none';
 }
 function currentInputLogObject(finalized=false, existingLog=null){
+  flushStartMemoSave();
   const machine=currentMachine();const aim=currentAim();
   if(!machine||!aim)return null;
   const enteredStartMedals=normalizeOptionalNumber(document.getElementById('moneyStartMedals')?.value||'');
@@ -11301,6 +11378,7 @@ function saveDraftImmediately(){
 }
 function bindDraftAutosave(){
   document.querySelectorAll('#pageLog input,#pageLog textarea,#pageLog select').forEach(el=>{
+    if(el.id==='startMemoText')return;
     if(el.dataset.draftBound)return;
     el.dataset.draftBound='1';
     el.addEventListener('input',scheduleDraftSave);
@@ -11308,6 +11386,7 @@ function bindDraftAutosave(){
   });
 }
 function saveLog(options={}){
+  flushStartMemoSave();
   const machine=currentMachine();const aim=currentAim();
   if(!machine||!aim){alert('機種と狙い方を選択してください');return;}
   const editingLog=editingLogId?db.logs.find(l=>l.id===editingLogId):null;
@@ -11477,6 +11556,7 @@ function clearLogInput(cancelEdit=true){
   if(startMedals)startMedals.value='';
   if(cashIn)cashIn.value='';
   currentStartLog=[];
+  resetStartMemoState();
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
   currentExpectedValue=null;
@@ -11592,6 +11672,7 @@ function loadDraftIntoInputs(log){
     currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
     currentExpectedValue=normalizeExpectedValue(log.expectedValue);
     currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
+    currentStartMemoEntryId='';
     currentTimeline=clone(log.timeline||[]);
     currentSubCounters=normalizeSubCounters(log.subCounters);
     currentCounterHistories=normalizeCounterHistories(log.counterHistories);
@@ -11661,6 +11742,7 @@ function loadLogForEdit(id){
   currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
   currentExpectedValue=normalizeExpectedValue(log.expectedValue);
   currentStartLog=clone(visibleStartLog(log)).map(item=>({...item,label:item.label||'',labelTagId:item.labelTagId||''}));
+  currentStartMemoEntryId='';
   currentTimeline=clone(log.timeline||[]);
   currentSubCounters=normalizeSubCounters(log.subCounters);
   currentCounterHistories=normalizeCounterHistories(log.counterHistories);
@@ -11720,6 +11802,7 @@ function continueFromLog(id,skipConfirm=false){
   currentStartAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
   currentExpectedValue=normalizeExpectedValue(log.expectedValue);
   currentStartLog=[];
+  resetStartMemoState();
   currentTimeline=[];
   currentTimelineDataGame=0;
   intervalLoanRateManuallyAdjusted=false;
