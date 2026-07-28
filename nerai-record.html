@@ -2581,6 +2581,18 @@ function isNangokuSpecialMachine(machine){
   const name=String(machine?.name||'');
   return name.includes('L南国育ちSPECIAL')||name.includes('南国育ちSPECIAL')||name.includes('南国育ちスペシャル');
 }
+function nangokuZoneLabel(event,machine=currentMachine()){
+  if(!isNangokuSpecialMachine(machine))return '';
+  const liquid=normalizeOptionalNumber(event?.liquidGame);
+  if(liquid===null)return '';
+  if(liquid===0)return 'バタフライ';
+  if(liquid>=1&&liquid<=32)return `ときめき${liquid}G`;
+  return '';
+}
+function nangokuSegmentZoneLabel(segment,machine=currentMachine()){
+  const labels=[...new Set((segment?.hitEvents||[]).map(event=>nangokuZoneLabel(event,machine)).filter(Boolean))];
+  return labels.join(' / ');
+}
 function isKarakuriCircus2Machine(machine){
   const name=String(machine?.name||'');
   return name.includes('Lからくりサーカス2')||name.includes('からくりサーカス2')||name.includes('からくり2');
@@ -7912,6 +7924,11 @@ function hitEventLabel(event,machine=currentMachine()){
   if(variant&&(['cz','at'].includes(event?.trigger)||variant.key===event?.trigger))return variant.label;
   return variant?`${variant.label}${base}`:base;
 }
+function hitEventGameLine(event,machine=currentMachine()){
+  const zoneLabel=nangokuZoneLabel(event,machine);
+  const zoneText=zoneLabel?` / ${zoneLabel}`:'';
+  return `${event.dataGame}/${event.liquidGame}G ${hitEventLabel(event,machine)}${zoneText}`;
+}
 function hitEventVariantButtons(event,context='current',segmentId='',logId='',machine=currentMachine()){
   const variants=machineHitTriggers(machine).find(row=>row.key===normalizeHitTrigger(event?.trigger))?.variants||[];
   if(!event||!variants.length)return '';
@@ -8026,7 +8043,7 @@ function renderHitEventsList(){
   return `<div class="timeline-history-body">${events.map(event=>`
     <div class="timeline-item">
       <div class="timeline-head">
-        <div class="timeline-game">${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLabel(event)}`)}</div>
+        <div class="timeline-game">${escapeHtml(hitEventGameLine(event))}</div>
         <span class="pill ${event.wizardDone?'gold':'disabled'}">${event.wizardDone?'完了':'処理中'}</span>
       </div>
       <div class="timeline-text">${escapeHtml(hitEventLine(event))}</div>
@@ -8035,6 +8052,8 @@ function renderHitEventsList(){
 }
 function hitEventLine(event,machine=currentMachine()){
   const parts=[hitEventLabel(event,machine)];
+  const zoneLabel=nangokuZoneLabel(event,machine);
+  if(zoneLabel)parts.push(zoneLabel);
   const counterText=subCounterLine(event.subCounters);
   if(counterText)parts.push(counterText);
   if(event.czResult)parts.push(event.czResult==='at_win'?'AT当選':'AT非当選');
@@ -8306,7 +8325,7 @@ function renderHitBranchWizardArea(){
     <div class="branch-wizard">
       <div class="section-label" style="margin-top:0;">当選記録フロー</div>
       <p class="section-note">STEP2の当選トリガーから作成されたイベントを処理します。表示された最後のステップまで進めると完了です。</p>
-      ${event?`<div class="item-sub">対象：${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLabel(event)}`)}</div>${hitEventVariantButtons(event,'current')}`:''}
+      ${event?`<div class="item-sub">対象：${escapeHtml(hitEventGameLine(event))}</div>${hitEventVariantButtons(event,'current')}`:''}
       ${!route?'<div class="empty-hint">STEP2の当選トリガーから開始してください。<button class="btn-secondary" onclick="switchFlowStep(2)">STEP2へ戻る</button></div>':''}
       ${route?`
         <div class="item-sub" style="margin-top:8px;">現在：${escapeHtml(routeLabel)}${current?` / 次：${escapeHtml(current.label)}`:' / 完了'}</div>
@@ -8555,7 +8574,7 @@ function finishHitEventPayout(value){
   event.payout=value;
   closeHitPayoutPicker();
   if(hitBranchWizard.route==='atHit'&&isNangokuSpecialMachine(currentMachine())){
-    openNangokuButterflyPicker();
+    continueNangokuHitAfterPayout(event);
     return;
   }
   if(hitBranchWizard.route==='atHit'&&machineFollowMode()==='always'){
@@ -8675,33 +8694,9 @@ function nangokuHitSuggestSteps(){
     {placeId:'sgp_nangoku_bonus_type',label:'ボーナス種別'}
   ];
 }
-function recordNangokuButterflyTimeline(result){
-  const event=currentHitEvent();
-  if(!event)return;
-  const label=result==='success'?'バタフライ成功':'バタフライ失敗';
-  currentTimeline.push({id:uid('tl'),game:event.dataGame,liquidGame:event.liquidGame,text:label,tagIds:[],countAs:[],subCounters:normalizeSubCounters(currentSubCounters),createdAt:new Date().toISOString()});
-  recentTimelineHighlightId=currentTimeline[currentTimeline.length-1].id;
-}
-function openNangokuButterflyPicker(){
-  const title=document.getElementById('suggestPickerTitle');
-  const breadcrumb=document.getElementById('suggestPickerBreadcrumb');
-  const options=document.getElementById('suggestPickerOptions');
-  const back=document.getElementById('suggestPickerBackButton');
-  if(!title||!breadcrumb||!options||!back)return;
-  suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:'atHit',branchStep:'nangokuButterfly'};
-  title.classList.remove('kui-title','gain','hint');
-  title.textContent='バタフライ';
-  breadcrumb.textContent='バタフライゾーンの結果を選択';
-  back.textContent='閉じる';
-  options.innerHTML=`
-    <button class="suggest-picker-option" onclick="selectNangokuButterfly('success')">成功</button>
-    <button class="suggest-picker-option" onclick="selectNangokuButterfly('fail')">失敗</button>`;
-  document.getElementById('suggestPickerOverlay')?.classList.add('open');
-}
-function selectNangokuButterfly(result){
-  if(result!=='success'&&result!=='fail')return;
-  recordNangokuButterflyTimeline(result);
-  if(result==='success'){
+function continueNangokuHitAfterPayout(event){
+  const liquid=normalizeOptionalNumber(event?.liquidGame);
+  if(liquid===0){
     closeSuggestPicker();
     selectAtFollow('yes');
     return;
@@ -9172,13 +9167,15 @@ function segmentOrdinalLabel(index){
   if(index===1)return '前々回';
   return `前${index+1}回`;
 }
-function segmentSummary(segment,index){
+function segmentSummary(segment,index,machine=currentMachine()){
   const game=segment.dataGame!==null?`最終 ${segment.dataGame}/${segment.liquidGame??segment.dataGame}G`:'最終G数なし';
   const endingCount=(segment.hitEvents||[]).reduce((sum,event)=>sum+(Number(event.endingCount)||0),0);
   const endingText=endingCount?` / エンディング到達あり（${endingCount}回）`:'';
   const variantText=segmentHasNangokuBlue7(segment)?' / 青7BIGあり':'';
+  const zoneText=nangokuSegmentZoneLabel(segment,machine);
+  const zoneSuffix=zoneText?` / ${zoneText}`:'';
   const terminalLabel=segment?.terminalType==='follow_miss'||segment?.terminalLabel==='follow_miss'?'当選前ヤメ':segment.terminalLabel||'区切り';
-  return `${segmentOrdinalLabel(index)}：${terminalLabel}${variantText} / ${game}${endingText}`;
+  return `${segmentOrdinalLabel(index)}：${terminalLabel}${variantText}${zoneSuffix} / ${game}${endingText}`;
 }
 function segmentTerminalLine(segment){
   if(segment?.terminalType!=='follow_miss')return '';
@@ -9212,8 +9209,8 @@ function organizedHitToneClass(log,segment,event){
   return hitTriggerToneClass(machine,event?.trigger||'');
 }
 function segmentOutputLines(segment,index,options={}){
-  const lines=options.includeSummary===false?[]:[segmentSummary(segment,index)];
   const machine=options.machine||currentMachine();
+  const lines=options.includeSummary===false?[]:[segmentSummary(segment,index,machine)];
   if((segment.hitEvents||[]).length){
     lines.push('当選イベント：');
     (segment.hitEvents||[]).forEach(event=>lines.push(`${event.dataGame}/${event.liquidGame}G ${hitEventLine(event,machine)}`));
@@ -9247,7 +9244,7 @@ function renderSegmentVariantControls(segment,context='segment',logId='',machine
     if(!buttons)return '';
     return `<div class="timeline-item">
       <div class="timeline-head">
-        <div class="timeline-game">${escapeHtml(`${event.dataGame}/${event.liquidGame}G ${hitEventLabel(event,machine)}`)}</div>
+        <div class="timeline-game">${escapeHtml(hitEventGameLine(event,machine))}</div>
       </div>
       ${buttons}
     </div>`;
@@ -9258,7 +9255,7 @@ function archivedSegmentsHtml(){
   if(!currentSegments.length)return '';
   return currentSegments.map((segment,index)=>{
     const modeLabel=modeInferenceLabel((segment.suggestLog||[]).filter(entry=>normalizeCarryType(entry.carryType)==='mode'));
-    const summary=modeLabel?`${segmentSummary(segment,index)}｜${modeLabel}`:segmentSummary(segment,index);
+    const summary=modeLabel?`${segmentSummary(segment,index,currentMachine())}｜${modeLabel}`:segmentSummary(segment,index,currentMachine());
     const tone=segmentToneClass({machineId:selectedMachineId},segment);
     return `
     <div class="carry-summary-section ${escapeHtml(tone)}">
@@ -11747,9 +11744,13 @@ function organizedRowsForSegment(log,segment,index){
     const isChain=i>0;
     const game=normalizeOptionalNumber(event.dataGame);
     const sortGame=isChain&&firstHitGame!==null?firstHitGame+(i/1000):game;
-    const label=hitEventLabel(event,machineById(log.machineId));
-    const baseText=`${event.dataGame??'-'}G ${label}${payout!==null?` / ${formatChainPayout(payout)}`:''}`;
-    const baseShortText=`${event.dataGame??'-'}G ${label.replace('当選','')}${payout!==null?` ${formatChainPayout(payout,true)}`:''}`;
+    const machine=machineById(log.machineId);
+    const label=hitEventLabel(event,machine);
+    const zoneLabel=nangokuZoneLabel(event,machine);
+    const zoneText=zoneLabel?` / ${zoneLabel}`:'';
+    const zoneShortText=zoneLabel?` ${zoneLabel}`:'';
+    const baseText=`${event.dataGame??'-'}G ${label}${zoneText}${payout!==null?` / ${formatChainPayout(payout)}`:''}`;
+    const baseShortText=`${event.dataGame??'-'}G ${label.replace('当選','')}${zoneShortText}${payout!==null?` ${formatChainPayout(payout,true)}`:''}`;
     rows.push({category:'bonus',kind:'hit',eventId:event.id||'',game,sortGame,order:i,isChain,payout,baseText,baseShortText,text:`${isChain?'↳ 連 ':''}${baseText}`,shortText:`${isChain?'└連 ':''}${baseShortText}`,tone:organizedHitToneClass(log,segment,event),segment,log});
   });
   (segment.suggestLog||[]).forEach((entry,i)=>{
@@ -12388,7 +12389,7 @@ function renderSegmentHistoryItem(log,segment,index,total=1){
   return `
     <div class="timeline-item ${escapeHtml(tone)}">
       <div class="timeline-head" onclick="toggleLogSegment('${escapeHtml(key)}')" style="cursor:pointer;">
-        <div class="timeline-game">${escapeHtml(isOpen?'▼':'▶')} ${escapeHtml(segmentSummary(segment,index))}</div>
+        <div class="timeline-game">${escapeHtml(isOpen?'▼':'▶')} ${escapeHtml(segmentSummary(segment,index,machine))}</div>
         <span class="pill gold">${escapeHtml(formatAimLabel(log,segment)||'')}</span>
         <button class="btn-small edit-strong" type="button" onclick="event.stopPropagation();loadLogForEdit('${escapeHtml(log.id)}')">編集</button>
       </div>
