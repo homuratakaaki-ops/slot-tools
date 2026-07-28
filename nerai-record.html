@@ -490,6 +490,7 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
 .bm-grid{display:grid;grid-template-rows:repeat(4,minmax(52px,auto));gap:7px;min-height:0;align-content:end;}
 .bm-button-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
+.bm-button-row.four{grid-template-columns:repeat(4,minmax(0,1fr));}
 .bm-event-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
 .bm-other-row{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;}
 .bm-btn{min-height:52px;border:1px solid rgba(201,168,76,.45);border-radius:8px;background:var(--surface2);color:var(--text);font-size:16px;font-weight:900;line-height:1.25;padding:8px;cursor:pointer;}
@@ -1084,6 +1085,28 @@ const BATTLE_MODE_BONUS_CHOICES=[
   {key:'red_big',label:'赤BIG',trigger:'direct_at',variant:''},
   {key:'blue_big',label:'青BIG',trigger:'direct_at',variant:'blue7'},
   {key:'reg',label:'REG',trigger:'episode_bonus',variant:''}
+];
+const TOKYO_GHOUL_SUIKA_TAG_ID='t_tokyo_ghoul_watermelon';
+const TOKYO_GHOUL_QUICK_TAG_IDS=[
+  't_tokyo_ghoul_weak_cherry',
+  't_tokyo_ghoul_strong_cherry',
+  't_tokyo_ghoul_chance'
+];
+const TOKYO_GHOUL_SUIKA_DETAIL_TAG_IDS=[
+  't_tokyo_ghoul_suika_10',
+  't_tokyo_ghoul_suika_100',
+  't_tokyo_ghoul_suika_max'
+];
+const TOKYO_GHOUL_RARE_PICKER_TAG_IDS=[
+  't_tokyo_ghoul_kakugan_replay',
+  't_tokyo_ghoul_ghoul_symbol',
+  't_tokyo_ghoul_certain_cherry'
+];
+const TOKYO_GHOUL_STAGE_PICKER_TAG_IDS=[
+  't_tokyo_ghoul_stage_tokyo_sky',
+  't_tokyo_ghoul_stage_mind_10',
+  't_tokyo_ghoul_stage_mind_20',
+  't_tokyo_ghoul_stage_mind_30'
 ];
 const ENDING_CARD_GROUPS=[
   {id:'white_weak',name:'白・奇数弱',hint:'奇数示唆:弱',tone:'white',cards:['金木研','霧嶋董香','笛口雛実','永近英良','西尾錦','月山習']},
@@ -3381,6 +3404,33 @@ function applyTokyoGhoulShopNotePreset(machine){
     ]
   };
 }
+function ensureTokyoGhoulQuickPanelSeed(machine){
+  if(!machine||!isTokyoGhoulMachine(machine)||machine.quickPanelSeedTokyoGhoulV1)return;
+  machine.tags=Array.isArray(machine.tags)?machine.tags:[];
+  if(!machine.tags.some(tag=>tag.id===TOKYO_GHOUL_SUIKA_TAG_ID||tag.label==='\u30b9\u30a4\u30ab')){
+    machine.tags.push({
+      id:TOKYO_GHOUL_SUIKA_TAG_ID,
+      label:'\u30b9\u30a4\u30ab',
+      optional:false,
+      countAs:null,
+      liquidDelta:null,
+      liquidSet:null,
+      tagClass:'rare-suika'
+    });
+  }
+  machine.quickTagIds=[...TOKYO_GHOUL_QUICK_TAG_IDS];
+  machine.quickPanel=normalizeQuickPanel({
+    counters:[],
+    gainButtons:[1,3,5,10],
+    events:[
+      {type:'picker',ref:'ghoul_suika'},
+      {type:'picker',ref:'ghoul_rare'},
+      {type:'picker',ref:'ghoul_stage'},
+      {type:'picker',ref:'hit'}
+    ]
+  });
+  machine.quickPanelSeedTokyoGhoulV1=true;
+}
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
@@ -3404,6 +3454,7 @@ function ensureSuggestSeed(machine){
       {key:'direct_at',label:'AT直撃'},
       {key:'episode_bonus',label:'エピソードボーナス'}
     ]);
+    ensureTokyoGhoulQuickPanelSeed(machine);
   }
   if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV14){applyTokyoGhoulShopNotePreset(machine);return;}
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
@@ -6112,6 +6163,16 @@ function battleModeCounterButton(ref){
   if(!tag)return `<button class="bm-btn disabled" type="button" onclick="battleModeInvalid('タグが見つかりません')">未登録</button>`;
   return `<button class="bm-btn counter ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="battleModeRecordTag('${escapeHtml(tag.id)}')">${escapeHtml(def.label)}</button>`;
 }
+function battleModePickerButtonLabel(ref){
+  return {
+    sazanami:'\u3055\u3056\u306a\u307f\n\u524d\u5146',
+    bonus:'\u30dc\u30fc\u30ca\u30b9',
+    ghoul_suika:'\u30b9\u30a4\u30ab',
+    ghoul_rare:'\u30ec\u30a2\n(\u6fc0\u30ec\u30a2)',
+    ghoul_stage:'\u30b9\u30c6\u30fc\u30b8',
+    hit:'\u5f53\u9078'
+  }[ref]||'\u30d4\u30c3\u30ab\u30fc';
+}
 function battleModeEventButton(item){
   const machine=currentMachine();
   if(!item)return `<button class="bm-btn disabled" type="button" disabled>空き</button>`;
@@ -6121,7 +6182,7 @@ function battleModeEventButton(item){
     return battleModeTagButton(tag);
   }
   if(item.type==='picker'){
-    const label=item.ref==='sazanami'?'さざなみ\n前兆':item.ref==='bonus'?'ボーナス':'ピッカー';
+    const label=battleModePickerButtonLabel(item.ref);
     return `<button class="bm-btn" type="button" onclick="openBattleModePicker('${escapeHtml(item.ref)}')">${escapeHtml(label)}</button>`;
   }
   if(item.type==='modal'){
@@ -6148,7 +6209,8 @@ function renderBattleModeGrid(){
   const panel=battleModePanel();
   const gains=(panel.gainButtons.length?panel.gainButtons:[1,3,5,10]).slice(0,4);
   const counters=panel.counters.slice(0,3);
-  const events=panel.events.slice(0,3);
+  const events=panel.events.slice(0,4);
+  const eventSlotCount=events.length>3?4:3;
   return `
     <div class="bm-event-row">
       ${Array.from({length:4},(_,i)=>{
@@ -6159,8 +6221,8 @@ function renderBattleModeGrid(){
     <div class="bm-button-row">
       ${Array.from({length:3},(_,i)=>counters[i]?battleModeCounterButton(counters[i]):'<button class="bm-btn disabled" type="button" disabled>空き</button>').join('')}
     </div>
-    <div class="bm-button-row">
-      ${Array.from({length:3},(_,i)=>battleModeEventButton(events[i])).join('')}
+    <div class="bm-button-row${eventSlotCount>3?' four':''}">
+      ${Array.from({length:eventSlotCount},(_,i)=>battleModeEventButton(events[i])).join('')}
     </div>
     <div class="bm-other-row">
       <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">その他 ▼</button>
@@ -6267,6 +6329,10 @@ function battleModeOpenModal(ref){
 function openBattleModePicker(ref){
   if(ref==='sazanami'){openBattleModeSazanamiCausePicker();return;}
   if(ref==='bonus'){openBattleModeBonusPicker();return;}
+  if(ref==='ghoul_suika'){battleModeRecordGhoulSuikaBase();return;}
+  if(ref==='ghoul_rare'){openBattleModeGhoulTagPicker('\u30ec\u30a2\uff08\u6fc0\u30ec\u30a2\uff09',TOKYO_GHOUL_RARE_PICKER_TAG_IDS);return;}
+  if(ref==='ghoul_stage'){openBattleModeGhoulTagPicker('\u30b9\u30c6\u30fc\u30b8',TOKYO_GHOUL_STAGE_PICKER_TAG_IDS);return;}
+  if(ref==='hit'){openBattleModeHitPicker();return;}
   battleModeInvalid('未対応のピッカーです');
 }
 function setBattleModeSheet(title,html){
@@ -6321,6 +6387,76 @@ function openBattleModeBonusPicker(){
     BATTLE_MODE_BONUS_CHOICES.map(row=>`<button class="bm-btn ${row.key==='reg'?'':'counter'}" type="button" onclick="battleModeStartHit('${escapeHtml(row.trigger)}','${escapeHtml(row.variant)}')">${escapeHtml(row.label)}</button>`).join('')
   );
 }
+function battleModeCurrentTagById(id){
+  return currentMachine()?.tags?.find(row=>row.id===id)||null;
+}
+function battleModeTagChoiceButtons(tagIds,handlerName){
+  const buttons=(tagIds||[]).map(id=>battleModeCurrentTagById(id)).filter(Boolean).map(tag=>{
+    return `<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" onclick="${handlerName}('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`;
+  }).join('');
+  return buttons||'<div class="empty-hint">\u9078\u629e\u80a2\u304c\u3042\u308a\u307e\u305b\u3093</div>';
+}
+function battleModeGhoulSuikaDetailButtons(entryId){
+  const safeEntryId=String(entryId||'').replace(/'/g,'');
+  const buttons=TOKYO_GHOUL_SUIKA_DETAIL_TAG_IDS.map(id=>battleModeCurrentTagById(id)).filter(Boolean).map(tag=>{
+    return `<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" onclick="battleModeAttachGhoulSuikaDetail('${escapeHtml(safeEntryId)}','${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`;
+  }).join('');
+  return buttons||'<div class="empty-hint">\u9078\u629e\u80a2\u304c\u3042\u308a\u307e\u305b\u3093</div>';
+}
+function battleModeRecordGhoulSuikaBase(){
+  const tag=battleModeCurrentTagById(TOKYO_GHOUL_SUIKA_TAG_ID);
+  if(!tag){battleModeInvalid('\u30b9\u30a4\u30ab\u30bf\u30b0\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093');return;}
+  if(timelineDataValue()===null){battleModeInvalid('\u0047\u6570\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044');return;}
+  let entryId='';
+  const committed=battleModeCommit(tag.label,()=>{
+    const beforeIds=new Set(currentTimeline.map(entry=>entry.id));
+    addInstantTimelineTag(tag);
+    const entry=currentTimeline.find(row=>!beforeIds.has(row.id));
+    entryId=entry?.id||recentTimelineHighlightId||'';
+  });
+  if(committed&&entryId)openBattleModeGhoulSuikaDetailPicker(entryId);
+}
+function openBattleModeGhoulSuikaDetailPicker(entryId){
+  setBattleModeSheet('\u30b9\u30a4\u30ab\u52a0\u7b97',
+    battleModeGhoulSuikaDetailButtons(entryId)+`<button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">\u30b9\u30ad\u30c3\u30d7</button>`
+  );
+}
+function battleModeAttachGhoulSuikaDetail(entryId,tagId){
+  const tag=battleModeCurrentTagById(tagId);
+  const entry=currentTimeline.find(row=>row.id===entryId);
+  closeBattleModeOtherSheet();
+  if(!tag||!entry){battleModeInvalid('\u30b9\u30a4\u30ab\u8a18\u9332\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093');return;}
+  battleModeCommit(tag.label,()=>{
+    entry.tagIds=Array.isArray(entry.tagIds)?entry.tagIds:[];
+    if(entry.tagIds.includes(tag.id))return;
+    entry.tagIds.push(tag.id);
+    applyLiquidRuleAfterTimelineAdd([tag.id],entry);
+    addSuggestLogsFromTimelineTagLinks([tag.id],entry);
+    const machine=currentMachine();
+    const labels=entry.tagIds.map(id=>machine?.tags?.find(row=>row.id===id)?.label).filter(Boolean);
+    entry.text=labels.join(' / ')||tag.label;
+    recentTimelineHighlightId=entry.id;
+    timelineHistoryOpen=true;
+    renderCurrentTimeline();
+    renderCurrentSuggestLog();
+    renderCarrySummaryIntoDom();
+    renderPracticeStats();
+  });
+}
+function openBattleModeGhoulTagPicker(title,tagIds){
+  setBattleModeSheet(title,battleModeTagChoiceButtons(tagIds,'battleModeRecordGhoulPickerTag'));
+}
+function battleModeRecordGhoulPickerTag(tagId){
+  closeBattleModeOtherSheet();
+  battleModeRecordTag(tagId);
+}
+function openBattleModeHitPicker(){
+  const triggers=machineHitTriggers();
+  if(!triggers.length){battleModeInvalid('\u5f53\u9078\u7a2e\u5225\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093');return;}
+  setBattleModeSheet('\u5f53\u9078',
+    triggers.map(row=>`<button class="bm-btn counter" type="button" onclick="battleModeStartHit('${escapeHtml(row.key)}','')">${escapeHtml(row.label)}</button>`).join('')
+  );
+}
 function battleModeOtherExcludedTagIds(){
   const machine=currentMachine();
   if(!machine?.quickPanel)return new Set();
@@ -6333,6 +6469,12 @@ function battleModeOtherExcludedTagIds(){
   panel.events.forEach(item=>{
     if(item?.type==='tag')ids.add(item.ref);
     if(item?.type==='picker'&&item.ref==='sazanami')BATTLE_MODE_SAZANAMI_COLORS.forEach(row=>ids.add(row.tagId));
+    if(item?.type==='picker'&&item.ref==='ghoul_suika'){
+      ids.add(TOKYO_GHOUL_SUIKA_TAG_ID);
+      TOKYO_GHOUL_SUIKA_DETAIL_TAG_IDS.forEach(id=>ids.add(id));
+    }
+    if(item?.type==='picker'&&item.ref==='ghoul_rare')TOKYO_GHOUL_RARE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
+    if(item?.type==='picker'&&item.ref==='ghoul_stage')TOKYO_GHOUL_STAGE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
   });
   return ids;
 }
