@@ -263,6 +263,10 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .work-subsection{margin-top:14px;padding:12px;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.12);}
 .work-subsection.play-group{background:rgba(201,168,76,.055);border-color:rgba(201,168,76,.24);}
 .work-subsection.play-group.alt{background:rgba(98,181,255,.055);border-color:rgba(98,181,255,.22);}
+.start-detail-panel{margin-top:14px;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.12);overflow:hidden;}
+.start-detail-panel summary{list-style:none;cursor:pointer;color:var(--gold-light);font-size:13px;font-weight:900;padding:10px 12px;background:rgba(201,168,76,.08);}
+.start-detail-panel summary::-webkit-details-marker{display:none;}
+.start-detail-body{padding:12px;border-top:1px solid rgba(201,168,76,.18);}
 .hit-trigger-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:10px;}
 .hit-trigger-btn{min-height:56px;border:none;border-radius:14px;background:linear-gradient(135deg,#9f7619,#e4c45e);color:#101014;font-size:15px;font-weight:900;box-shadow:0 0 0 2px rgba(201,168,76,.16),0 8px 22px rgba(201,168,76,.16);cursor:pointer;}
 .hit-trigger-btn:active{filter:brightness(1.08);}
@@ -6440,6 +6444,7 @@ function renderLogFields(){
   renderStoreSelect();
   syncHeaderFromMoney();
   updateMoneyRegistrationStatus();
+  bindStartDetailSummaryInputs();
 }
 function isFollowBranchActive(){
   const latest=currentSegments?.[0];
@@ -6638,6 +6643,32 @@ function syncExpectedValue(){
   currentExpectedValue=normalizeExpectedValue(document.getElementById('expectedValueInput')?.value||'');
   scheduleDraftSave();
 }
+function startDetailHasInput(){
+  const dateValue=document.getElementById('startMoneyDate')?.value||document.getElementById('moneyDate')?.value||'';
+  const publishStore=!!(document.getElementById('startPublishStore')?.checked||document.getElementById('publishStore')?.checked);
+  const publishMachineNo=!!(document.getElementById('startPublishMachineNo')?.checked||document.getElementById('publishMachineNo')?.checked);
+  const correction=normalizeOptionalNumber(document.getElementById('startLiquidCorrection')?.value||currentTimelineManualCorrection);
+  const label=(document.getElementById('startLogLabel')?.value||'').trim();
+  const rawValue=(document.getElementById('startLogValue')?.value||'').trim();
+  return (!!dateValue&&dateValue!==todayValue())||publishStore||publishMachineNo||((correction??0)!==0)||!!label||rawValue!==''||currentStartLog.length>0;
+}
+function startDetailSummaryText(){
+  return `詳細を開く ▼${startDetailHasInput()?'（入力あり）':''}`;
+}
+function updateStartDetailSummaryLabel(){
+  const label=document.getElementById('startDetailSummaryLabel');
+  if(label)label.textContent=startDetailSummaryText();
+}
+function bindStartDetailSummaryInputs(){
+  ['startMoneyDate','startMoneyStart','startPublishStore','startPublishMachineNo','startLiquidCorrection','startLogLabel','startLogValue'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el||el.dataset.startDetailBound)return;
+    el.dataset.startDetailBound='1';
+    el.addEventListener('input',updateStartDetailSummaryLabel);
+    el.addEventListener('change',updateStartDetailSummaryLabel);
+  });
+  updateStartDetailSummaryLabel();
+}
 function renderStartLogArea(){
   const machine=currentMachine();
   if(!machine)return '<div class="empty-hint">打ち始めログは機種選択後に使えます</div>';
@@ -6651,10 +6682,6 @@ function renderStartLogArea(){
       <div class="input-label no-wrap-label">データカウンターG数<div class="input-hint">必須・分母の起点</div></div>
       <input type="text" id="startCounterGame" class="numeric-input" inputmode="none" readonly value="${escapeHtml(startCounterInputValue())}" data-clear-initial-zero="${startCounterInitialZeroFlag()}" placeholder="0" oninput="syncStartCounterGame()" onchange="syncStartCounterGame()">
     </div>
-    ${useLcdCounter||useLiquidOffsetCounter?`<div class="input-row">
-      <div class="input-label no-wrap-label">${useLiquidOffsetCounter?'液晶差分':'液晶初期補正'}<div class="input-hint">任意・${useLiquidOffsetCounter?'データG−液晶G':'液晶G−データG'}</div></div>
-      <input type="text" id="startLiquidCorrection" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(currentTimelineManualCorrection||'')}" placeholder="0" oninput="syncStartLiquidCorrection()" onchange="syncStartLiquidCorrection()">
-    </div>`:''}
     ${useKuiPoint?`<div class="input-row compact-row ${startRefDisabled?'disabled-ref':''}">
       <div class="input-label no-wrap-label">CZ失敗回数</div>
       <input type="text" id="startCzFailCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartCzFailCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
@@ -6663,62 +6690,75 @@ function renderStartLogArea(){
       <div class="input-label no-wrap-label">AT駆け抜け回数</div>
       <input type="text" id="startAtThroughCount" class="numeric-input" inputmode="none" readonly value="${escapeHtml(optionalCountValue(currentStartAtThroughCount))}" placeholder="任意" oninput="syncStartExtraCounts()" onchange="syncStartExtraCounts()">
     </div>`:''}
+    <div class="section-label" style="margin-top:14px;">打ち始めメモ</div>
+    ${renderTagButtons('start')}
+    <textarea id="startLogText" placeholder="例：CZ2スルー"></textarea>
     <div class="input-row">
       <div class="input-label no-wrap-label">想定期待値</div>
       <input type="text" id="expectedValueInput" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(expectedValueInputValue())}" placeholder="任意・円" oninput="syncExpectedValue()" onchange="syncExpectedValue()">
     </div>
-    <div class="section-label" style="margin-top:14px;">追加データ（任意）</div>
-    <div class="input-row">
-      <div class="input-label no-wrap-label">ラベル<div class="input-hint">任意・数値の意味</div></div>
-      <input type="text" id="startLogLabel" placeholder="例：AT間ゲーム数" oninput="this.dataset.labelTagId=''">
-    </div>
-    ${renderLabelTagButtons()}
-    <div class="input-row">
-      <div class="input-label no-wrap-label">数値<div class="input-hint">単位は表示しません</div></div>
-      <input type="text" id="startLogValue" class="numeric-input" inputmode="none" readonly placeholder="例：280">
-    </div>
-    <div class="log-tools">
-      <button class="btn-small counter-btn" onclick="incrementStartLogValue(1)">+1</button>
-      <button class="btn-small counter-btn" onclick="incrementStartLogValue(5)">+5</button>
-      <button class="btn-small counter-btn" onclick="incrementStartLogValue(10)">+10</button>
-    </div>
-    ${renderTagButtons('start')}
-    <textarea id="startLogText" placeholder="例：CZ2スルー"></textarea>
-    <button class="btn-primary" id="startLogAddButton" onclick="addStartLogEntry()">追加データを追加</button>
-    <div id="startLogList" style="margin-top:10px;"></div>`;
+    ${renderStartDetailArea(useLcdCounter,useLiquidOffsetCounter)}`;
+}
+function renderStartDetailArea(useLcdCounter,useLiquidOffsetCounter){
+  return `
+    <details class="start-detail-panel">
+      <summary><span id="startDetailSummaryLabel">${escapeHtml(startDetailSummaryText())}</span></summary>
+      <div class="start-detail-body">
+        <div class="input-row compact-row">
+          <div class="input-label no-wrap-label">日付</div>
+          <div class="inline-field"><input type="date" id="startMoneyDate" onchange="syncHeaderFromStart()"><button class="btn-small" onclick="setToday('start')">今日</button></div>
+        </div>
+        <div class="input-row compact-row">
+          <div class="input-label no-wrap-label">開始時間</div>
+          <div class="inline-field"><input type="time" id="startMoneyStart" onchange="syncHeaderFromStart()"><button class="btn-small" onclick="setNow('startMoneyStart')">現在</button></div>
+        </div>
+        <label class="input-row" style="cursor:pointer;">
+          <div class="input-label no-wrap-label">店舗公開<div class="input-hint">チェック時のみ出力</div></div>
+          <input type="checkbox" id="startPublishStore" onchange="syncHeaderFromStart()">
+        </label>
+        <label class="input-row" style="cursor:pointer;">
+          <div class="input-label no-wrap-label">台番号公開<div class="input-hint">チェック時のみ出力</div></div>
+          <input type="checkbox" id="startPublishMachineNo" onchange="syncHeaderFromStart()">
+        </label>
+        ${useLcdCounter||useLiquidOffsetCounter?`<div class="input-row">
+          <div class="input-label no-wrap-label">${useLiquidOffsetCounter?'液晶差分':'液晶初期補正'}<div class="input-hint">任意・${useLiquidOffsetCounter?'データG−液晶G':'液晶G−データG'}</div></div>
+          <input type="text" id="startLiquidCorrection" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(currentTimelineManualCorrection||'')}" placeholder="0" oninput="syncStartLiquidCorrection()" onchange="syncStartLiquidCorrection()">
+        </div>`:''}
+        <div class="section-label" style="margin-top:14px;">追加データ（任意）</div>
+        <div class="input-row">
+          <div class="input-label no-wrap-label">ラベル<div class="input-hint">任意・数値の意味</div></div>
+          <input type="text" id="startLogLabel" placeholder="例：AT間ゲーム数" oninput="this.dataset.labelTagId=''">
+        </div>
+        ${renderLabelTagButtons()}
+        <div class="input-row">
+          <div class="input-label no-wrap-label">数値<div class="input-hint">単位は表示しません</div></div>
+          <input type="text" id="startLogValue" class="numeric-input" inputmode="none" readonly placeholder="例：280">
+        </div>
+        <div class="log-tools">
+          <button class="btn-small counter-btn" onclick="incrementStartLogValue(1)">+1</button>
+          <button class="btn-small counter-btn" onclick="incrementStartLogValue(5)">+5</button>
+          <button class="btn-small counter-btn" onclick="incrementStartLogValue(10)">+10</button>
+        </div>
+        <button class="btn-primary" id="startLogAddButton" onclick="addStartLogEntry()">追加データを追加</button>
+        <div id="startLogList" style="margin-top:10px;"></div>
+      </div>
+    </details>`;
 }
 function renderStartHeaderArea(){
   return `
     ${continuedFromLog?`<div class="calc-box" id="continuedFromBox" style="margin-bottom:12px;"><div class="calc-label">続行元</div><div class="timeline-text" style="margin-top:4px;">${escapeHtml(continuedFromLog.summary)}</div><button class="btn-secondary" onclick="clearContinueState()" style="margin-top:8px;">続行をやめる</button></div>`:''}
-    <div class="section-label" style="margin-top:0;">日時・店・台</div>
-    <div class="input-row compact-row">
-      <div class="input-label no-wrap-label">日付</div>
-      <div class="inline-field"><input type="date" id="startMoneyDate" onchange="syncHeaderFromStart()"><button class="btn-small" onclick="setToday('start')">今日</button></div>
-    </div>
+    <div class="section-label" style="margin-top:0;">店・台</div>
     <div class="input-row compact-row">
       <div class="input-label no-wrap-label">店舗名</div>
       <div class="inline-field"><select id="startMoneyStore" onchange="syncHeaderFromStart()"></select><button class="btn-small" onclick="addStoreFromInput('start')">追加</button></div>
     </div>
-    <label class="input-row" style="cursor:pointer;">
-      <div class="input-label no-wrap-label">店舗公開<div class="input-hint">チェック時のみ出力</div></div>
-      <input type="checkbox" id="startPublishStore" onchange="syncHeaderFromStart()">
-    </label>
     <div class="input-row">
       <div class="input-label no-wrap-label">台番号</div>
       <div class="field-stack">
         <input type="text" id="startMoneyMachineNo" class="numeric-input" inputmode="none" readonly placeholder="例：123" oninput="syncHeaderFromStart()" onchange="syncHeaderFromStart()">
         <div class="input-hint">公開出力には含めません</div>
       </div>
-    </div>
-    <label class="input-row" style="cursor:pointer;">
-      <div class="input-label no-wrap-label">台番号公開<div class="input-hint">チェック時のみ出力</div></div>
-      <input type="checkbox" id="startPublishMachineNo" onchange="syncHeaderFromStart()">
-    </label>
-    <div class="input-row compact-row">
-      <div class="input-label no-wrap-label">開始時間</div>
-      <div class="inline-field"><input type="time" id="startMoneyStart" onchange="syncHeaderFromStart()"><button class="btn-small" onclick="setNow('startMoneyStart')">現在</button></div>
-    </div>
-    <div class="section-label" style="margin-top:14px;">打ち始めデータ</div>`;
+    </div>`;
 }
 function setStartLabelById(id){
   const tag=currentMachine()?.labelTags?.find(t=>t.id===id);
