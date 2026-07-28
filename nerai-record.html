@@ -485,6 +485,10 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-replay-flash-meter{width:100%;min-height:30px;border:1px solid rgba(201,168,76,.24);border-radius:8px;background:rgba(0,0,0,.1);color:var(--text-muted);font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:5px 8px;line-height:1.2;}
 button.bm-replay-flash-meter{cursor:pointer;}
 .bm-diff-row{display:grid;grid-template-columns:minmax(0,1fr) 86px;gap:10px;align-items:stretch;}
+.bm-top-action-row{display:grid;grid-template-columns:minmax(0,1fr) 58px repeat(3,52px);gap:6px;align-items:stretch;}
+.bm-top-action-row .bm-diff-tracker{min-height:42px;font-size:13px;padding:5px 6px;}
+.bm-top-action-row .bm-diff-tracker .muted{display:block;margin:1px 0 0;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.bm-action-mini{min-height:42px;border:1px solid rgba(98,181,255,.55);border-radius:8px;background:rgba(98,181,255,.1);color:#b9dcff;font-size:12px;font-weight:900;line-height:1.15;padding:4px;cursor:pointer;}
 .bm-diff-tracker{min-height:38px;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.12);color:var(--text);font-size:14px;font-weight:900;cursor:pointer;}
 .bm-quick-invest{min-height:42px;width:auto;}
 .bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
@@ -1093,6 +1097,14 @@ const TOKYO_GHOUL_QUICK_TAG_IDS=[
   't_tokyo_ghoul_strong_cherry',
   't_tokyo_ghoul_chance'
 ];
+const TOKYO_GHOUL_QUICK_TAG_IDS_V2=[
+  't_tokyo_ghoul_weak_cherry',
+  't_tokyo_ghoul_strong_cherry',
+  't_tokyo_ghoul_chance',
+  't_tokyo_ghoul_stage_tokyo_sky'
+];
+const TOKYO_GHOUL_INVITATION_CATEGORY_ID='sgc_tokyo_ghoul_mode';
+const TOKYO_GHOUL_INVITATION_PLACE_ID='sgp_tokyo_ghoul_tsukiyama_mode';
 const TOKYO_GHOUL_SUIKA_DETAIL_TAG_IDS=[
   't_tokyo_ghoul_suika_10',
   't_tokyo_ghoul_suika_100',
@@ -1105,6 +1117,11 @@ const TOKYO_GHOUL_RARE_PICKER_TAG_IDS=[
 ];
 const TOKYO_GHOUL_STAGE_PICKER_TAG_IDS=[
   't_tokyo_ghoul_stage_tokyo_sky',
+  't_tokyo_ghoul_stage_mind_10',
+  't_tokyo_ghoul_stage_mind_20',
+  't_tokyo_ghoul_stage_mind_30'
+];
+const TOKYO_GHOUL_SEISHIN_PICKER_TAG_IDS=[
   't_tokyo_ghoul_stage_mind_10',
   't_tokyo_ghoul_stage_mind_20',
   't_tokyo_ghoul_stage_mind_30'
@@ -3432,6 +3449,21 @@ function ensureTokyoGhoulQuickPanelSeed(machine){
   });
   machine.quickPanelSeedTokyoGhoulV1=true;
 }
+function ensureTokyoGhoulQuickPanelSeedV2(machine){
+  if(!machine||!isTokyoGhoulMachine(machine)||machine.quickPanelSeedTokyoGhoulV2)return;
+  machine.quickTagIds=[...TOKYO_GHOUL_QUICK_TAG_IDS_V2];
+  machine.quickPanel=normalizeQuickPanel({
+    counters:[],
+    gainButtons:[1,3,5,10],
+    events:[
+      {type:'picker',ref:'ghoul_suika'},
+      {type:'picker',ref:'ghoul_invitation'},
+      {type:'picker',ref:'ghoul_seishin'},
+      {type:'picker',ref:'hit'}
+    ]
+  });
+  machine.quickPanelSeedTokyoGhoulV2=true;
+}
 function ensureSuggestSeed(machine){
   if(!machine)return;
   machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
@@ -3456,6 +3488,7 @@ function ensureSuggestSeed(machine){
       {key:'episode_bonus',label:'エピソードボーナス'}
     ]);
     ensureTokyoGhoulQuickPanelSeed(machine);
+    ensureTokyoGhoulQuickPanelSeedV2(machine);
   }
   if(!isTokyoGhoulMachine(machine)||machine.suggestSeedTokyoGhoulV14){applyTokyoGhoulShopNotePreset(machine);return;}
   const place=(id,name,labels)=>({id,name,enabled:true,items:labels.map((label,i)=>({id:`${id}_i${i+1}`,label,enabled:true}))});
@@ -5875,6 +5908,17 @@ function battleModeQuickInvestYen(){
   battleModeQuickInvestLastAt=now;
   battleModeApplyDiffTrackerInput('investYen',1,{reopenSheet:false,toastSummary:true});
 }
+function renderBattleModeTopActions(){
+  const state=battleModeIntervalTrackerState();
+  const diff=battleModeIntervalDiffValue(state);
+  return `<div class="bm-top-action-row">
+    <button class="bm-diff-tracker" type="button" onclick="openBattleModeDiffTrackerSheet()">${escapeHtml(battleModeIntervalDiffText(diff))}<span class="muted">${escapeHtml(battleModeIntervalTrackerMeasured(state)?battleModeIntervalDetailText(state):'\u672a\u8a08\u6e2c')}</span></button>
+    <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">+1\u5343</button>
+    <button class="bm-action-mini" type="button" onclick="openSuggestPlacePicker('play')">\u793a\u5506</button>
+    <button class="bm-action-mini" type="button" onclick="battleModeOpenModal('shopNote')">\u4ed6\u53f0</button>
+    <button class="bm-action-mini" type="button" onclick="openBattleModeMemoSheet()">\u30e1\u30e2</button>
+  </div>`;
+}
 function renderBattleModeCompactCounters(){
   const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
   const counter=machineSubCounter();
@@ -6169,10 +6213,19 @@ function battleModePickerButtonLabel(ref){
     sazanami:'\u3055\u3056\u306a\u307f\n\u524d\u5146',
     bonus:'\u30dc\u30fc\u30ca\u30b9',
     ghoul_suika:'\u30b9\u30a4\u30ab',
+    ghoul_invitation:'\u62db\u5f85\u72b6',
+    ghoul_seishin:'\u7cbe\u795e\u4e16\u754c',
     ghoul_rare:'\u30ec\u30a2\n(\u6fc0\u30ec\u30a2)',
     ghoul_stage:'\u30b9\u30c6\u30fc\u30b8',
     hit:'\u5f53\u9078'
   }[ref]||'\u30d4\u30c3\u30ab\u30fc';
+}
+function battleModeQuickTagLabel(tag){
+  return tag?.id==='t_tokyo_ghoul_weak_cherry'?'\u30c1\u30a7\u30ea\u30fc':tag?.label;
+}
+function battleModeQuickTagButton(tag){
+  if(!tag)return `<button class="bm-btn disabled" type="button" disabled>空き</button>`;
+  return `<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="battleModeRecordTag('${escapeHtml(tag.id)}')">${escapeHtml(battleModeQuickTagLabel(tag))}</button>`;
 }
 function battleModeEventButton(item){
   const machine=currentMachine();
@@ -6184,6 +6237,7 @@ function battleModeEventButton(item){
   }
   if(item.type==='picker'){
     const label=battleModePickerButtonLabel(item.ref);
+    if(item.ref==='ghoul_invitation'&&!battleModeGhoulInvitationEntry())return `<button class="bm-btn disabled" type="button" disabled>${escapeHtml(label)}</button>`;
     return `<button class="bm-btn" type="button" onclick="openBattleModePicker('${escapeHtml(item.ref)}')">${escapeHtml(label)}</button>`;
   }
   if(item.type==='modal'){
@@ -6210,6 +6264,7 @@ function renderBattleModeGrid(){
   const panel=battleModePanel();
   const gains=(panel.gainButtons.length?panel.gainButtons:[1,3,5,10]).slice(0,4);
   const counters=panel.counters.slice(0,3);
+  const quickTags=isTokyoGhoulMachine(currentMachine())?quickTagIdsForMachine(currentMachine()).map(id=>currentMachine()?.tags?.find(tag=>tag.id===id)).filter(Boolean):[];
   const events=panel.events.slice(0,4);
   const eventSlotCount=events.length>3?4:3;
   return `
@@ -6219,9 +6274,7 @@ function renderBattleModeGrid(){
         return delta?`<button class="bm-btn counter" type="button" onclick="battleModeIncrementGame(${escapeHtml(delta)})">+${escapeHtml(delta)}</button>`:'<button class="bm-btn disabled" type="button" disabled>空き</button>';
       }).join('')}
     </div>
-    <div class="bm-button-row">
-      ${Array.from({length:3},(_,i)=>counters[i]?battleModeCounterButton(counters[i]):'<button class="bm-btn disabled" type="button" disabled>空き</button>').join('')}
-    </div>
+    ${quickTags.length?`<div class="bm-event-row">\n      ${Array.from({length:4},(_,i)=>battleModeQuickTagButton(quickTags[i])).join('')}\n    </div>`:`<div class="bm-button-row">\n      ${Array.from({length:3},(_,i)=>counters[i]?battleModeCounterButton(counters[i]):'<button class="bm-btn disabled" type="button" disabled>空き</button>').join('')}\n    </div>`}
     <div class="bm-button-row${eventSlotCount>3?' four':''}">
       ${Array.from({length:eventSlotCount},(_,i)=>battleModeEventButton(events[i])).join('')}
     </div>
@@ -6259,7 +6312,7 @@ function renderBattleMode(){
     </div>
     ${renderBattleModeCompactCounters()}
     ${renderBattleModeReplayFlashMeter()}
-    ${renderBattleModeIntervalTracker()}`;
+    ${isTokyoGhoulMachine(machine)?renderBattleModeTopActions():renderBattleModeIntervalTracker()}`;
   const grid=document.getElementById('battleModeGrid');
   if(grid)grid.innerHTML=renderBattleModeGrid();
   const recent=document.getElementById('battleModeRecent');
@@ -6333,6 +6386,8 @@ function openBattleModePicker(ref){
   if(ref==='ghoul_suika'){battleModeRecordGhoulSuikaBase();return;}
   if(ref==='ghoul_rare'){openBattleModeGhoulTagPicker('\u30ec\u30a2\uff08\u6fc0\u30ec\u30a2\uff09',TOKYO_GHOUL_RARE_PICKER_TAG_IDS);return;}
   if(ref==='ghoul_stage'){openBattleModeGhoulTagPicker('\u30b9\u30c6\u30fc\u30b8',TOKYO_GHOUL_STAGE_PICKER_TAG_IDS);return;}
+  if(ref==='ghoul_invitation'){openBattleModeGhoulInvitationPicker();return;}
+  if(ref==='ghoul_seishin'){openBattleModeGhoulTagPicker('\u7cbe\u795e\u4e16\u754c',TOKYO_GHOUL_SEISHIN_PICKER_TAG_IDS);return;}
   if(ref==='hit'){openBattleModeHitPicker();return;}
   battleModeInvalid('未対応のピッカーです');
 }
@@ -6390,6 +6445,16 @@ function openBattleModeBonusPicker(){
 }
 function battleModeCurrentTagById(id){
   return currentMachine()?.tags?.find(row=>row.id===id)||null;
+}
+function battleModeGhoulInvitationEntry(){
+  const category=enabledSuggestCategories().find(row=>row.id===TOKYO_GHOUL_INVITATION_CATEGORY_ID);
+  const place=category?enabledSuggestPlaces(category.id).find(row=>row.id===TOKYO_GHOUL_INVITATION_PLACE_ID):null;
+  return category&&place?{category,place}:null;
+}
+function openBattleModeGhoulInvitationPicker(){
+  const entry=battleModeGhoulInvitationEntry();
+  if(!entry){battleModeInvalid('\u62db\u5f85\u72b6\u306e\u793a\u5506\u30de\u30b9\u30bf\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093');return;}
+  openSuggestItemPicker(entry.category.id,entry.place.id,'play');
 }
 function battleModeTagChoiceButtons(tagIds,handlerName){
   const buttons=(tagIds||[]).map(id=>battleModeCurrentTagById(id)).filter(Boolean).map(tag=>{
@@ -6476,7 +6541,9 @@ function battleModeOtherExcludedTagIds(){
     }
     if(item?.type==='picker'&&item.ref==='ghoul_rare')TOKYO_GHOUL_RARE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
     if(item?.type==='picker'&&item.ref==='ghoul_stage')TOKYO_GHOUL_STAGE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
+    if(item?.type==='picker'&&item.ref==='ghoul_seishin')TOKYO_GHOUL_SEISHIN_PICKER_TAG_IDS.forEach(id=>ids.add(id));
   });
+  if(isTokyoGhoulMachine(machine))TOKYO_GHOUL_RARE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
   return ids;
 }
 function battleModeOtherFixedExcludedTagIds(){
@@ -6539,8 +6606,10 @@ function openBattleModeOtherSheet(){
     excludedModals.has('suggestion')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'suggestion\')">示唆記録</button>',
     excludedModals.has('shopNote')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'shopNote\')">他台メモ</button>',
     excludedModals.has('memo')?'':'<button class="bm-btn other" type="button" onclick="openBattleModeMemoSheet()">メモ</button>'
-  ].join('');
-  if(grid)grid.innerHTML=modalButtons+(tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>');
+  ];
+  if(isTokyoGhoulMachine(currentMachine()))modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModePicker(\'ghoul_rare\')">\u30ec\u30a2\uff08\u6fc0\u30ec\u30a2\uff09</button>');
+  const modalButtonsHtml=modalButtons.join('');
+  if(grid)grid.innerHTML=modalButtonsHtml+(tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>');
   document.getElementById('battleModeOtherSheet')?.classList.add('open');
 }
 function closeBattleModeOtherSheet(){
