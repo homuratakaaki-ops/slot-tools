@@ -266,7 +266,8 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara').items.some(item => item.label === '生駒・近いよ（間近!?）')", context), true);
   assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_talk').items.some(item => item.label === '舵取り・返答あり（強・示唆）')", context), true);
   assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_kiriban')", context), null);
-  assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_omikuji'),'sgp_kabaneri_point_kiriban').items.length", context), 3);
+  assert.equal(vm.runInContext("enabledSuggestItems('sgc_kabaneri_omikuji','sgp_kabaneri_point_kiriban').length", context), 6);
+  assert.equal(vm.runInContext("findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_omikuji'),'sgp_kabaneri_point_kiriban'),'sgp_kabaneri_point_kiriban_i1').enabled", context), false);
   assert.equal(vm.runInContext("findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara'),'sgp_kabaneri_point_minichara_i1').label", context), '無名・無言（予想）');
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara'),'sgp_kabaneri_point_minichara_i1').decorations)", context)),
@@ -332,8 +333,18 @@ function testKabaneriPresetSeedAndPickers() {
   assert.doesNotMatch(otherHtml, /オールスター目/);
   assert.doesNotMatch(otherHtml, /海門回想/);
   assert.doesNotMatch(otherHtml, /キリ番演出/);
+  assert.doesNotMatch(otherHtml, /景之ST突入/);
+  assert.doesNotMatch(otherHtml, /真・景之ST突入/);
+  assert.doesNotMatch(otherHtml, /裏・景之ST突入/);
+  assert.match(otherHtml, /上位ST突入/);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_kaimon_recollection' && tag.label === '海門回想')", context), true);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_kiriban' && tag.label === 'キリ番演出')", context), true);
+  assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_st_true_kageyuki' && tag.label === '真・景之ST突入')", context), true);
+  vm.runInContext("openBattleModeKabaneriUpperStPicker()", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /景之ST突入/);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /真・景之ST突入/);
+  vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_st_true_kageyuki')", context);
+  assert.equal(vm.runInContext("currentTimeline.at(-1).tagIds.includes('t_kabaneri_st_true_kageyuki')", context), true);
   vm.runInContext("openBattleModePicker('hit')", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /駿城ボーナス/);
   vm.runInContext("openBattleModeKabaneriStagePicker()", context);
@@ -362,9 +373,16 @@ function testKabaneriPresetSeedAndPickers() {
   assert.deepEqual(omikujiPlaces.map(row => row[1]), ['輪廻くじ', 'アイテムくじ', 'キリ番演出']);
   omikujiPlaces.forEach(row => assert.equal(row[2] > 0, true, `${row[0]} should have items`));
   vm.runInContext("openSuggestItemPicker('sgc_kabaneri_omikuji','sgp_kabaneri_point_kiriban','play')", context);
-  assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /キリ番<\/span>・デフォルト/);
-  vm.runInContext("selectSuggestItem('sgp_kabaneri_point_kiriban_i1')", context);
-  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.categoryId === 'sgc_kabaneri_omikuji' && entry.placeId === 'sgp_kabaneri_point_kiriban' && entry.itemId === 'sgp_kabaneri_point_kiriban_i1')", context), true);
+  const kiribanHtml = vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context);
+  assert.doesNotMatch(kiribanHtml, /デフォルト/);
+  assert.match(kiribanHtml, /suggest-color-yellow">侑那/);
+  assert.match(kiribanHtml, /suggest-color-orange">鰍/);
+  assert.match(kiribanHtml, /suggest-color-pink">菖蒲/);
+  assert.match(kiribanHtml, /suggest-color-red">無名/);
+  assert.match(kiribanHtml, /キリ番<\/span>・<span class="suggest-color-red">無名<\/span>②/);
+  vm.runInContext("selectSuggestItem('sgp_kabaneri_point_kiriban_i4')", context);
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.categoryId === 'sgc_kabaneri_omikuji' && entry.placeId === 'sgp_kabaneri_point_kiriban' && entry.itemId === 'sgp_kabaneri_point_kiriban_i4')", context), true);
+  assert.equal(vm.runInContext("suggestEntryDisplayRefs({categoryId:'sgc_kabaneri_omikuji',placeId:'sgp_kabaneri_point_kiriban',itemId:'sgp_kabaneri_point_kiriban_i1',category:'おみくじ',place:'キリ番演出',item:'キリ番・デフォルト（侑那/鰍/菖蒲/無名①・示唆）'}).itemLabel", context), 'キリ番・デフォルト（侑那/鰍/菖蒲/無名①・示唆）');
   vm.runInContext("openAtThroughBranchPicker()", context);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /ST突入/);
 }
@@ -396,6 +414,41 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.doesNotMatch(style, /\.bm-grid\{[^}]*align-content:end/);
   assert.match(style, /\.bm-shell\{[^}]*grid-template-rows:auto auto minmax\(0,1fr\) auto/);
   assert.doesNotMatch(style, /\.bm-grid\{[^}]*grid-template-rows:repeat\(4/);
+}
+
+function testKabaneriChanceEyeSituationView() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext(`
+    selectedMachineId='m_kabaneri';
+    selectedAimId=firstAimIdForMachine(currentMachine())||'';
+    currentTimeline=[
+      {id:'tl1',game:100,liquidGame:100,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T10:00'},
+      {id:'tl2',game:101,liquidGame:101,text:'生駒チャンス目',tagIds:['t_kabaneri_chance_ikoma'],countAs:[],createdAt:'2026-07-30T10:01'},
+      {id:'tl3',game:102,liquidGame:102,text:'生駒発光 開始',tagIds:['t_kabaneri_state_ikoma_flash_start'],countAs:[],createdAt:'2026-07-30T10:02'},
+      {id:'tl4',game:103,liquidGame:103,text:'カバネチャンス目',tagIds:['t_kabaneri_chance_kabane'],countAs:[],createdAt:'2026-07-30T10:03'},
+      {id:'tl5',game:104,liquidGame:104,text:'生駒発光 終了',tagIds:['t_kabaneri_state_ikoma_flash_end'],countAs:[],createdAt:'2026-07-30T10:04'},
+      {id:'tl6',game:105,liquidGame:105,text:'無名高確 開始',tagIds:['t_kabaneri_state_mumei_high_start'],countAs:[],createdAt:'2026-07-30T10:05'},
+      {id:'tl7',game:106,liquidGame:106,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T10:06'},
+      {id:'tl8',game:107,liquidGame:107,text:'無名CZ 失敗',tagIds:['t_kabaneri_state_mumei_high_end','t_kabaneri_cz_mumei_end'],countAs:[],createdAt:'2026-07-30T10:07'},
+      {id:'tl9',game:108,liquidGame:108,text:'カバネチャンス目',tagIds:['t_kabaneri_chance_kabane'],countAs:[],createdAt:'2026-07-30T10:08'},
+      {id:'tl10',game:110,liquidGame:110,text:'カバネ発光 開始',tagIds:['t_kabaneri_state_kabane_flash_start'],countAs:[],createdAt:'2026-07-30T10:09'}
+    ];
+  `, context);
+  assert.match(vm.runInContext("kabaneriChanceEyeSituationLine(kabaneriChanceEyeSituation().sinceCz,'前回CZから')", context), /通常1（発光なし0／あり1）・発光中0・高確中0/);
+  assert.match(vm.runInContext("kabaneriFlashRateLine(kabaneriChanceEyeSituation().total)", context), /3回中 発光 2回（66.7%）/);
+  vm.runInContext("openBattleModeKabaneriChanceEyeSheet()", context);
+  const html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(html, /チャ目状況|前回CZから/);
+  assert.match(html, /種別内訳/);
+  assert.match(html, /カバネ：通常1/);
+  vm.runInContext("currentTimeline.pop()", context);
+  assert.match(vm.runInContext("kabaneriChanceEyeSituationLine(kabaneriChanceEyeSituation().sinceCz,'前回CZから')", context), /通常1（発光なし1／あり0）・発光中0・高確中0/);
+
+  vm.runInContext("currentTimeline=[]; currentTimelineDataGame=120; setTimelineGames(120,120); battleModeOpen=true; battleModeRecordTag('t_kabaneri_chance_mumei');", context);
+  assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /無1/);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /無0/);
 }
 
 function testStandardAimSeedsNoDuplicatesAndDeleteTombstone() {
@@ -3029,6 +3082,7 @@ function run() {
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
   testKabaneriPresetSeedAndPickers();
   testKabaneriChanceEyeMeterAndCounters();
+  testKabaneriChanceEyeSituationView();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();
   testOtherPresetMachinesRemainStable();
   testNoHitQuitSegmentsAreIncludedInTextOutputs();

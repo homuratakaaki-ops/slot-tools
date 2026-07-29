@@ -458,6 +458,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .suggest-color-blue{color:#62b5ff;}
 .suggest-color-green{color:#7edb8d;}
 .suggest-color-red{color:#ff6b6b;}
+.suggest-color-yellow{color:#f6d44a;}
+.suggest-color-orange{color:#f59e42;}
+.suggest-color-pink{color:#f9a8d4;}
 .suggest-color-purple{color:#c58bff;}
 .suggest-color-gold{color:#f0b44c;}
 .suggest-color-rainbow{background:linear-gradient(90deg,#ff6b6b,#f0b44c,#7edb8d,#62b5ff,#c58bff);-webkit-background-clip:text;background-clip:text;color:transparent;}
@@ -1181,6 +1184,11 @@ const KABANERI_MULTI_PICKER_TAG_IDS=[
   't_kabaneri_multi_mumei_ikoma',
   't_kabaneri_multi_kabane_ikoma',
   't_kabaneri_allstar'
+];
+const KABANERI_UPPER_ST_TAG_IDS=[
+  't_kabaneri_st_kageyuki',
+  't_kabaneri_st_true_kageyuki',
+  't_kabaneri_st_ura_kageyuki'
 ];
 const KABANERI_STAGE_PICKER_TAG_IDS=[
   't_kabaneri_stage_yard',
@@ -2563,6 +2571,7 @@ function normalizeData(data){
     ensureKabaneriSuggestSeedV11(m);
     ensureKabaneriSuggestSeedV12(m);
     ensureKabaneriSuggestSeedV13(m);
+    ensureKabaneriSuggestSeedV14(m);
     ensureKabaneriPanelSeedV12(m);
     ensureKabaneriCounterSeed(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
@@ -3184,6 +3193,9 @@ function decorationClass(color){
     blue:'suggest-color-blue',
     green:'suggest-color-green',
     red:'suggest-color-red',
+    yellow:'suggest-color-yellow',
+    orange:'suggest-color-orange',
+    pink:'suggest-color-pink',
     purple:'suggest-color-purple',
     gold:'suggest-color-gold',
     rainbow:'suggest-color-rainbow'
@@ -4877,6 +4889,35 @@ function ensureKabaneriSuggestSeedV13(machine){
   machine.kabaneriSuggestSeedV13=true;
   applySuggestMetadata(machine);
 }
+function ensureKabaneriSuggestSeedV14(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriSuggestSeedV14)return;
+  ensureKabaneriSuggestSeedV13(machine);
+  const omikuji=ensureSuggestCategory(machine,KABANERI_OMIKUJI_CATEGORY_ID,'おみくじ');
+  const kiriban=ensureKabaneriSuggestPlace(omikuji,'sgp_kabaneri_point_kiriban','キリ番演出');
+  upsertKabaneriSuggestItems(kiriban,[
+    {id:'sgp_kabaneri_point_kiriban_i4',label:'キリ番・侑那（示唆）',decorations:[{text:'キリ番',color:'gold'},{text:'侑那',color:'yellow'}]},
+    {id:'sgp_kabaneri_point_kiriban_i5',label:'キリ番・鰍（示唆）',decorations:[{text:'キリ番',color:'gold'},{text:'鰍',color:'orange'}]},
+    {id:'sgp_kabaneri_point_kiriban_i6',label:'キリ番・無名①（示唆）',decorations:[{text:'キリ番',color:'gold'},{text:'無名',color:'red'}]},
+    {id:'sgp_kabaneri_point_kiriban_i7',label:'キリ番・菖蒲（示唆）',decorations:[{text:'キリ番',color:'gold'},{text:'菖蒲',color:'pink'}]},
+    {id:'sgp_kabaneri_point_kiriban_i2',label:'キリ番・無名②（期待度中・示唆）'},
+    {id:'sgp_kabaneri_point_kiriban_i3',label:'キリ番・無名③（期待度高・示唆）'}
+  ]);
+  const legacy=findSuggestItem(kiriban,'sgp_kabaneri_point_kiriban_i1');
+  if(legacy){
+    legacy.label='キリ番・デフォルト（侑那/鰍/菖蒲/無名①・示唆）';
+    legacy.enabled=false;
+    legacy.decorations=[
+      {text:'キリ番',color:'gold'},
+      {text:'侑那',color:'yellow'},
+      {text:'鰍',color:'orange'},
+      {text:'菖蒲',color:'pink'},
+      {text:'無名',color:'red'}
+    ];
+  }
+  reorderSuggestPlaces(omikuji,['輪廻くじ','アイテムくじ','キリ番演出']);
+  machine.kabaneriSuggestSeedV14=true;
+  applySuggestMetadata(machine);
+}
 function ensureKabaneriPanelSeedV12(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriPanelSeedV12)return;
   machine.quickPanel=normalizeQuickPanel({
@@ -5472,7 +5513,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5517,6 +5558,7 @@ function addMachine(){
   ensureKabaneriSuggestSeedV11(machine);
   ensureKabaneriSuggestSeedV12(machine);
   ensureKabaneriSuggestSeedV13(machine);
+  ensureKabaneriSuggestSeedV14(machine);
   ensureKabaneriPanelSeedV12(machine);
   ensureKabaneriCounterSeed(machine);
   db.machines.push(machine);
@@ -6804,8 +6846,94 @@ function battleModeKabaneriChanceEyeDetailHtml(){
     return `<div class="bm-recent-line">${escapeHtml(tag?.label||row.short)} ${escapeHtml(count)}回 / ${escapeHtml(games)}G（${escapeHtml(ratio)}）</div>`;
   }).join('');
 }
+const KABANERI_CHANCE_EYE_CLASSIFIERS=[
+  {key:'mumei',label:'無名',chanceIds:['t_kabaneri_chance_mumei'],flashStartIds:['t_kabaneri_state_mumei_flash_start']},
+  {key:'ikoma',label:'生駒',chanceIds:['t_kabaneri_chance_ikoma'],flashStartIds:['t_kabaneri_state_ikoma_flash_start']},
+  {key:'kabane',label:'カバネ',chanceIds:['t_kabaneri_chance_kabane'],flashStartIds:['t_kabaneri_state_kabane_flash_start']},
+  {key:'multi',label:'複合',chanceIds:['t_kabaneri_chance_multi','t_kabaneri_multi_mumei_kabane','t_kabaneri_multi_mumei_ikoma','t_kabaneri_multi_kabane_ikoma','t_kabaneri_allstar'],flashStartIds:['t_kabaneri_state_mumei_flash_start','t_kabaneri_state_ikoma_flash_start','t_kabaneri_state_kabane_flash_start']}
+];
+const KABANERI_HIGH_START_IDS=['t_kabaneri_state_chance_high_start','t_kabaneri_state_mumei_high_start','t_kabaneri_state_ikoma_high_start','t_kabaneri_state_kabane_high_start','t_kabaneri_state_super_high_start'];
+const KABANERI_HIGH_END_IDS=['t_kabaneri_state_chance_high_end','t_kabaneri_state_mumei_high_end','t_kabaneri_state_ikoma_high_end','t_kabaneri_state_kabane_high_end','t_kabaneri_state_super_high_end'];
+const KABANERI_FLASH_START_IDS=['t_kabaneri_state_mumei_flash_start','t_kabaneri_state_ikoma_flash_start','t_kabaneri_state_kabane_flash_start'];
+const KABANERI_FLASH_END_IDS=['t_kabaneri_state_mumei_flash_end','t_kabaneri_state_ikoma_flash_end','t_kabaneri_state_kabane_flash_end'];
+const KABANERI_CZ_END_IDS=['t_kabaneri_cz_mumei_end','t_kabaneri_cz_ikoma_end','t_kabaneri_cz_doran_end'];
+function timelineTagIds(entry){return Array.isArray(entry?.tagIds)?entry.tagIds:[];}
+function timelineHasAnyTag(entry,ids){const tagIds=timelineTagIds(entry);return ids.some(id=>tagIds.includes(id));}
+function kabaneriChanceEyeTypesForEntry(entry){return KABANERI_CHANCE_EYE_CLASSIFIERS.filter(row=>timelineHasAnyTag(entry,row.chanceIds));}
+function kabaneriHasFollowFlashStart(timeline,index,type){
+  const baseGame=normalizeOptionalNumber(timeline[index]?.game);
+  for(let i=index;i<timeline.length;i++){
+    const game=normalizeOptionalNumber(timeline[i]?.game);
+    if(baseGame!==null&&game!==null&&game-baseGame>2)break;
+    if(baseGame!==null&&game!==null&&game<baseGame)continue;
+    if(i!==index&&baseGame===null)break;
+    if(timelineHasAnyTag(timeline[i],type.flashStartIds))return true;
+  }
+  return false;
+}
+function emptyKabaneriChanceEyeSituationBucket(){return {normalNoFlash:0,normalFlash:0,flashing:0,high:0};}
+function addKabaneriSituationCount(bucket,field){bucket[field]=(bucket[field]||0)+1;}
+function kabaneriChanceEyeSituation(timeline=currentTimeline){
+  const rows=Array.isArray(timeline)?timeline:[];
+  const lastCzEndIndex=rows.reduce((latest,row,index)=>timelineHasAnyTag(row,KABANERI_CZ_END_IDS)?index:latest,-1);
+  const summary={sinceCz:emptyKabaneriChanceEyeSituationBucket(),total:emptyKabaneriChanceEyeSituationBucket(),byType:{}};
+  KABANERI_CHANCE_EYE_CLASSIFIERS.forEach(type=>summary.byType[type.key]={label:type.label,sinceCz:emptyKabaneriChanceEyeSituationBucket(),total:emptyKabaneriChanceEyeSituationBucket()});
+  const activeHigh=new Set();
+  const activeFlash=new Set();
+  rows.forEach((entry,index)=>{
+    const highOn=activeHigh.size>0;
+    const flashOn=activeFlash.size>0;
+    kabaneriChanceEyeTypesForEntry(entry).forEach(type=>{
+      const hasFollowFlash=kabaneriHasFollowFlashStart(rows,index,type);
+      const fields=[];
+      if(!highOn&&!flashOn)fields.push(hasFollowFlash?'normalFlash':'normalNoFlash');
+      if(flashOn)fields.push('flashing');
+      if(highOn)fields.push('high');
+      const inScope=index>lastCzEndIndex;
+      fields.forEach(field=>{
+        addKabaneriSituationCount(summary.total,field);
+        addKabaneriSituationCount(summary.byType[type.key].total,field);
+        if(inScope){
+          addKabaneriSituationCount(summary.sinceCz,field);
+          addKabaneriSituationCount(summary.byType[type.key].sinceCz,field);
+        }
+      });
+    });
+    KABANERI_HIGH_END_IDS.forEach(id=>{if(timelineHasAnyTag(entry,[id]))activeHigh.delete(id.replace('_end','_start'));});
+    KABANERI_FLASH_END_IDS.forEach(id=>{if(timelineHasAnyTag(entry,[id]))activeFlash.delete(id.replace('_end','_start'));});
+    KABANERI_HIGH_START_IDS.forEach(id=>{if(timelineHasAnyTag(entry,[id]))activeHigh.add(id);});
+    KABANERI_FLASH_START_IDS.forEach(id=>{if(timelineHasAnyTag(entry,[id]))activeFlash.add(id);});
+  });
+  return summary;
+}
+function kabaneriChanceEyeSituationLine(bucket,prefix){
+  const normal=(bucket.normalNoFlash||0)+(bucket.normalFlash||0);
+  return `${prefix}：通常${normal}（発光なし${bucket.normalNoFlash||0}／あり${bucket.normalFlash||0}）・発光中${bucket.flashing||0}・高確中${bucket.high||0}`;
+}
+function kabaneriFlashRateLine(bucket){
+  const denominator=(bucket.normalNoFlash||0)+(bucket.normalFlash||0);
+  const numerator=bucket.normalFlash||0;
+  const rate=denominator>0?`（${((numerator/denominator)*100).toFixed(1)}%）`:'（-）';
+  return `非高確・非発光チャ目 ${denominator}回中 発光 ${numerator}回${rate}`;
+}
+function battleModeKabaneriChanceEyeSituationHtml(){
+  const data=kabaneriChanceEyeSituation();
+  const typeRows=Object.values(data.byType).map(row=>{
+    const normal=(row.sinceCz.normalNoFlash||0)+(row.sinceCz.normalFlash||0);
+    const total=normal+(row.sinceCz.flashing||0)+(row.sinceCz.high||0);
+    if(!total)return '';
+    return `<div class="bm-sheet-note">${escapeHtml(row.label)}：通常${normal}（なし${row.sinceCz.normalNoFlash||0}／あり${row.sinceCz.normalFlash||0}）・発光中${row.sinceCz.flashing||0}・高確中${row.sinceCz.high||0}</div>`;
+  }).join('');
+  return `
+    <div class="bm-sheet-note"><strong>${escapeHtml(kabaneriChanceEyeSituationLine(data.sinceCz,'前回CZから'))}</strong></div>
+    <div class="bm-sheet-note">${escapeHtml(kabaneriFlashRateLine(data.total))}</div>
+    <div class="bm-sheet-note">高確中と発光中が重なるチャ目は両方に計上</div>
+    ${typeRows?`<div class="bm-sheet-note"><strong>種別内訳（前回CZから）</strong></div>${typeRows}`:''}
+  `;
+}
 function openBattleModeKabaneriChanceEyeSheet(){
-  setBattleModeSheet('チャ目内訳',`
+  setBattleModeSheet('チャ目状況',`
+    ${battleModeKabaneriChanceEyeSituationHtml()}
     ${battleModeKabaneriChanceEyeDetailHtml()}
     <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
   `);
@@ -7504,6 +7632,9 @@ function openBattleModeKabaneriMultiPicker(){
 function openBattleModeKabaneriStagePicker(){
   setBattleModeSheet('ステージ',battleModeTagChoiceButtons(KABANERI_STAGE_PICKER_TAG_IDS,'battleModeRecordKabaneriPickerTag'));
 }
+function openBattleModeKabaneriUpperStPicker(){
+  setBattleModeSheet('上位ST突入',battleModeTagChoiceButtons(KABANERI_UPPER_ST_TAG_IDS,'battleModeRecordKabaneriPickerTag'));
+}
 function battleModeRecordKabaneriPickerTag(tagId){
   closeBattleModeOtherSheet();
   battleModeRecordTag(tagId);
@@ -7545,6 +7676,7 @@ function battleModeOtherExcludedTagIds(){
   if(isTokyoGhoulMachine(machine))TOKYO_GHOUL_RARE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
   if(isKabaneriMachine(machine)){
     KABANERI_MULTI_PICKER_TAG_IDS.forEach(id=>ids.add(id));
+    KABANERI_UPPER_ST_TAG_IDS.forEach(id=>ids.add(id));
     KABANERI_STAGE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
     ['t_kabaneri_cherry','t_kabaneri_suika','t_kabaneri_kaimon_recollection','t_kabaneri_kiriban'].forEach(id=>ids.add(id));
   }
@@ -7613,6 +7745,7 @@ function openBattleModeOtherSheet(){
     excludedModals.has('shopNote')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'shopNote\')">他台メモ</button>',
     excludedModals.has('memo')?'':'<button class="bm-btn other" type="button" onclick="openBattleModeMemoSheet()">メモ</button>'
   ];
+  if(isKabaneriMachine(currentMachine()))modalButtons.push('<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModeKabaneriUpperStPicker()">上位ST突入</button>');
   if(isTokyoGhoulMachine(currentMachine()))modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModePicker(\'ghoul_rare\')">\u30ec\u30a2\uff08\u6fc0\u30ec\u30a2\uff09</button>');
   const modalButtonsHtml=modalButtons.join('');
   if(grid)grid.innerHTML=modalButtonsHtml+(tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>');
