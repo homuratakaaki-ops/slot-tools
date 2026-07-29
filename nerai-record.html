@@ -1141,6 +1141,14 @@ const TOKYO_GHOUL_SEISHIN_PICKER_TAG_IDS=[
   't_tokyo_ghoul_stage_mind_20',
   't_tokyo_ghoul_stage_mind_30'
 ];
+const KABANERI_POINT_CATEGORY_ID='sgc_kabaneri_point';
+const KABANERI_OMIKUJI_CATEGORY_ID='sgc_kabaneri_omikuji';
+const KABANERI_QUICK_TAG_IDS=[
+  't_kabaneri_chance_mumei',
+  't_kabaneri_chance_ikoma',
+  't_kabaneri_chance_kabane',
+  't_kabaneri_chance_multi'
+];
 const ENDING_CARD_GROUPS=[
   {id:'white_weak',name:'白・奇数弱',hint:'奇数示唆:弱',tone:'white',cards:['金木研','霧嶋董香','笛口雛実','永近英良','西尾錦','月山習']},
   {id:'white_strong',name:'白・奇数強',hint:'奇数示唆:強',tone:'white',cards:['芳村','四方蓮示','ウタ','イトリ','古間円児','入見カヤ']},
@@ -1326,7 +1334,7 @@ function normalizeQuickPanelEvent(item){
     const ref=String(item?.ref||'').trim();
     if(!ref)return null;
     if(type==='tag')return {type,ref};
-    if(type==='picker'&&['sazanami','bonus','ghoul_suika','ghoul_rare','ghoul_stage','ghoul_invitation','ghoul_seishin','state','hit'].includes(ref))return {type,ref};
+    if(type==='picker'&&['sazanami','bonus','ghoul_suika','ghoul_rare','ghoul_stage','ghoul_invitation','ghoul_seishin','state','kabaneri_point','kabaneri_omikuji','hit'].includes(ref))return {type,ref};
     if(type==='modal'&&['suggestion','destiny'].includes(ref))return {type,ref};
     return null;
 }
@@ -2508,6 +2516,7 @@ function normalizeData(data){
     ensureMonkeyTurnSeed(m);
     ensureNangokuSpecialSeed(m);
     ensureKarakuriCircus2Seed(m);
+    ensureKabaneriSeed(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     applySuggestMetadata(m);
   });
@@ -2790,6 +2799,11 @@ function isTokyoGhoulMachine(machine){
   const name=String(machine?.name||'');
   return name.includes('東京喰種')||name.includes('喰種')||name.includes('グール');
 }
+function isKabaneriMachine(machine){
+  const id=String(machine?.id||'');
+  const name=String(machine?.name||'');
+  return id==='m_kabaneri'||name.includes('カバネリ')||name.includes('甲鉄城')||name.includes('譁ｰ蜿ｰ');
+}
 function isMonkeyTurnMachine(machine){
   const name=String(machine?.name||'');
   return name.includes('モンキーターンV')||name.includes('モンキーターン5')||name.includes('モンキーターンⅤ');
@@ -2842,6 +2856,9 @@ function ensurePresetMachines(data){
   data.machines=Array.isArray(data.machines)?data.machines:[];
   if(!data.machines.some(isTokyoGhoulMachine)){
     data.machines.push(createTokyoGhoulPresetMachine());
+  }
+  if(!data.machines.some(isKabaneriMachine)){
+    data.machines.push({id:'m_kabaneri',name:'スマスロ 甲鉄城のカバネリ 海門決戦',maker:'サミー',aims:[],tags:[],startTags:[],labelTags:[],suggestMaster:[]});
   }
   if(!data.machines.some(isMonkeyTurnMachine)){
     data.machines.push({id:'m_monkey_turn_v',name:'モンキーターンV',maker:'',aims:[],tags:[],startTags:[],labelTags:[],suggestMaster:[]});
@@ -4529,6 +4546,113 @@ function ensureKarakuriCircus2Seed(machine){
   applySuggestMetadata(machine);
   machine.suggestSeedKarakuriCircus2V1=true;
 }
+function kabaneriSuggestItem(label,extra={}){
+  return {id:extra.id||uid('sgi_kabaneri'),label,enabled:true,...extra};
+}
+function kabaneriSuggestPlace(id,name,labels,stateGroup='play'){
+  return {id,name,enabled:true,stateGroup,items:labels.map((label,index)=>kabaneriSuggestItem(label,{id:`${id}_i${index+1}`}))};
+}
+function ensureKabaneriSeed(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriSeedV1)return;
+  const tag=(id,label,tagClass='',extra={})=>({id,label,optional:!!extra.optional,countAs:null,tagClass,...extra});
+  const timelineTags=[
+    tag('t_kabaneri_chance_mumei','無名チャンス目','rare-chance'),
+    tag('t_kabaneri_chance_ikoma','生駒チャンス目','rare-chance'),
+    tag('t_kabaneri_chance_kabane','カバネチャンス目','rare-chance'),
+    tag('t_kabaneri_chance_multi','複合チャンス目','rare-certain'),
+    tag('t_kabaneri_state_chance_high_start','チャ目高確 開始','state'),
+    tag('t_kabaneri_state_chance_high_end','チャ目高確 終了','state'),
+    tag('t_kabaneri_state_mumei_flash_start','無名発光 開始','state'),
+    tag('t_kabaneri_state_mumei_flash_end','無名発光 終了','state'),
+    tag('t_kabaneri_state_ikoma_flash_start','生駒発光 開始','state'),
+    tag('t_kabaneri_state_ikoma_flash_end','生駒発光 終了','state'),
+    tag('t_kabaneri_state_kabane_flash_start','カバネ発光 開始','state'),
+    tag('t_kabaneri_state_kabane_flash_end','カバネ発光 終了','state'),
+    tag('t_kabaneri_state_super_high_start','超カバネリ高確 開始','state'),
+    tag('t_kabaneri_state_super_high_end','超カバネリ高確 終了','state'),
+    tag('t_kabaneri_cz_mumei_start','無名CZ 突入','state'),
+    tag('t_kabaneri_cz_mumei_end','無名CZ 終了','state'),
+    tag('t_kabaneri_cz_ikoma_start','生駒CZ 突入','state'),
+    tag('t_kabaneri_cz_ikoma_end','生駒CZ 終了','state'),
+    tag('t_kabaneri_cz_doran_start','銅藍CZ 突入','state'),
+    tag('t_kabaneri_cz_doran_end','銅藍CZ 終了','state'),
+    tag('t_kabaneri_allstar','オールスター目','rare-certain',{optional:true}),
+    tag('t_kabaneri_cherry','チェリー','rare-weak',{optional:true}),
+    tag('t_kabaneri_suika','スイカ','rare-suika',{optional:true}),
+    tag('t_kabaneri_stage_setsugekka','ステージ：雪月風花','stage-sky',{optional:true}),
+    tag('t_kabaneri_stage_line','ステージ：第六区画線路沿い','stage-day',{optional:true}),
+    tag('t_kabaneri_st_runthrough','ST駆け抜け','stage-night',{optional:true}),
+    tag('t_kabaneri_st_kageyuki','景之ST突入','stage-night',{optional:true}),
+    tag('t_kabaneri_st_true_kageyuki','真・景之ST突入','stage-night',{optional:true}),
+    tag('t_kabaneri_st_ura_kageyuki','裏・景之ST突入','stage-night',{optional:true}),
+    tag('t_kabaneri_kaimon_recollection','海門回想','stage-mind',{optional:true}),
+    tag('t_kabaneri_kokuen_release','黒煙解放','rare-certain',{optional:true}),
+    tag('t_kabaneri_kiriban','キリ番演出','stage-mind',{optional:true})
+  ];
+  const seed=[
+    {id:KABANERI_POINT_CATEGORY_ID,category:'規定pt示唆',enabled:true,useAppearG:true,places:[
+      kabaneriSuggestPlace('sgp_kabaneri_point_minichara','ミニキャラ',['無言（予想）','えへへ（予想）','もうすぐだよ（近い!?）','近いよ（間近!?）']),
+      kabaneriSuggestPlace('sgp_kabaneri_point_eyecatch','アイキャッチ',['無名（無名CZ近い!?）','生駒（生駒CZ近い!?）','景之（海門前兆近い!?）','銅藍（銅藍CZ前兆!?）']),
+      kabaneriSuggestPlace('sgp_kabaneri_point_talk','会話演出',['無名・赤文字（示唆）','生駒・緑文字（示唆）','舵取り・青文字（示唆）','返答あり（強・示唆）']),
+      kabaneriSuggestPlace('sgp_kabaneri_point_blue_serif','非前兆の青セリフ',['無名系（予想）','生駒系（予想）']),
+      kabaneriSuggestPlace('sgp_kabaneri_point_reel_flash','リールフラッシュ',['非前兆中（CZ近い・示唆）','CZ前兆中（CZ濃厚・示唆）','周期前兆中V（ボーナス濃厚・示唆）'])
+    ]},
+    {id:KABANERI_OMIKUJI_CATEGORY_ID,category:'おみくじ',enabled:true,useAppearG:true,places:[
+      kabaneriSuggestPlace('sgp_kabaneri_omikuji_cycle','輪廻くじ・周期',['一廻以内好機（示唆）','二廻以内（示唆）','三廻以内（示唆）','四廻以内（示唆）','複数廻組合せ（一・二等）（示唆）','輪廻の果報（当該周期ボーナス濃厚・示唆）','六根清浄（エピボ濃厚!?・反例あり/予想）']),
+      kabaneriSuggestPlace('sgp_kabaneri_omikuji_cz','輪廻くじ・CZ',['無名・小吉（予想）','生駒・小吉（予想）','無名・中吉（残り僅か・示唆）','生駒・中吉（残り僅か・示唆）']),
+      kabaneriSuggestPlace('sgp_kabaneri_omikuji_item','アイテムくじ',['ツラヌキ筒（予想）','無名の短銃（予想）','自決袋（予想）','来栖の刀（予想）','無名のけん玉（予想）','菖蒲の弓（予想）','ミヤマカラスアゲハ（強・示唆）','小吉（設2以上濃厚・確定級）','中吉（設4以上濃厚・確定級）','大吉（設6濃厚・確定級）'])
+    ]},
+    {id:'sgc_kabaneri_setting',category:'設定示唆',enabled:true,useAppearG:true,places:[
+      kabaneriSuggestPlace('sgp_kabaneri_setting_st_end','ST終了画面',['鉄下駄（示唆）','集合（示唆）','水着（設6濃厚・確定級）'],'hit'),
+      kabaneriSuggestPlace('sgp_kabaneri_setting_intro','キャラ紹介',['女性（示唆）','男性（示唆）','美馬（設4以上濃厚・確定級）'],'hit'),
+      kabaneriSuggestPlace('sgp_kabaneri_setting_trophy','サミートロフィー',['銅（確定級）','銀（確定級）','金（確定級）','キリン（確定級）','虹（確定級）'],'hit'),
+      kabaneriSuggestPlace('sgp_kabaneri_setting_voice','技術介入ボイス',['男性（示唆）','女性（示唆）','景之・弱（示唆）','景之・中（示唆）','景之・強（示唆）','無名「普通じゃないね」（設2以上濃厚・確定級）','ボイスなし（設5以上濃厚・確定級）'],'hit'),
+      kabaneriSuggestPlace('sgp_kabaneri_setting_medal_display','枚数表示',['＋44（設4以上濃厚・確定級）','＋55（設5以上濃厚・確定級）','＋66（設6以上濃厚・確定級）','456 OVER（確定級）','666 OVER（確定級）'],'hit')
+    ]},
+    {id:'sgc_kabaneri_kokuen',category:'黒煙示唆',enabled:true,useAppearG:true,places:[
+      kabaneriSuggestPlace('sgp_kabaneri_kokuen_get','獲得演出',['獲得・小（示唆）','獲得・大（示唆）']),
+      kabaneriSuggestPlace('sgp_kabaneri_kokuen_stock','蓄積演出',['蓄積・小（示唆）','蓄積・大（示唆）']),
+      kabaneriSuggestPlace('sgp_kabaneri_kokuen_talk','会話・法則崩れ',['返答あり（強・示唆）','ベル揃い（極・示唆）','深雪・景之返し白（強・示唆）','景之返し赤（極・示唆）']),
+      kabaneriSuggestPlace('sgp_kabaneri_kokuen_fan','扇子',['白＋ハズレ（強・示唆）','青＋ハズレ（極・示唆）']),
+      kabaneriSuggestPlace('sgp_kabaneri_kokuen_window','ウィンドウSU',['SU1＋ベルorリプ（強・示唆）','SU2＋ハズレ（示唆）','SU2＋リプ（強・示唆）','青SU＋チャ目以外（極・示唆）'])
+    ]}
+  ];
+  mergeTimelineTagSeed(machine,timelineTags);
+  mergeSuggestSeed(machine,seed);
+  machine.quickTagIds=[...KABANERI_QUICK_TAG_IDS];
+  machine.states=normalizeMachineStates([
+    {id:'kabaneri_chance_high',label:'チャ目高確',startTagId:'t_kabaneri_state_chance_high_start',endTagId:'t_kabaneri_state_chance_high_end'},
+    {id:'kabaneri_mumei_flash',label:'無名発光',startTagId:'t_kabaneri_state_mumei_flash_start',endTagId:'t_kabaneri_state_mumei_flash_end'},
+    {id:'kabaneri_ikoma_flash',label:'生駒発光',startTagId:'t_kabaneri_state_ikoma_flash_start',endTagId:'t_kabaneri_state_ikoma_flash_end'},
+    {id:'kabaneri_kabane_flash',label:'カバネ発光',startTagId:'t_kabaneri_state_kabane_flash_start',endTagId:'t_kabaneri_state_kabane_flash_end'},
+    {id:'kabaneri_super_high',label:'超カバネリ高確',startTagId:'t_kabaneri_state_super_high_start',endTagId:'t_kabaneri_state_super_high_end'},
+    {id:'kabaneri_cz_mumei',label:'無名CZ',startTagId:'t_kabaneri_cz_mumei_start',endTagId:'t_kabaneri_cz_mumei_end',endOptions:[{key:'success',label:'成功'},{key:'fail',label:'失敗'}]},
+    {id:'kabaneri_cz_ikoma',label:'生駒CZ',startTagId:'t_kabaneri_cz_ikoma_start',endTagId:'t_kabaneri_cz_ikoma_end',endOptions:[{key:'success',label:'成功'},{key:'fail',label:'失敗'}]},
+    {id:'kabaneri_cz_doran',label:'銅藍CZ',startTagId:'t_kabaneri_cz_doran_start',endTagId:'t_kabaneri_cz_doran_end',endOptions:[{key:'success',label:'成功'},{key:'fail',label:'失敗'}]}
+  ]);
+  machine.quickPanel=normalizeQuickPanel({
+    counters:[],
+    gainButtons:[1,3,5,10],
+    events:[
+      {type:'picker',ref:'state'},
+      {type:'picker',ref:'kabaneri_point'},
+      {type:'picker',ref:'kabaneri_omikuji'},
+      {type:'picker',ref:'hit'}
+    ]
+  });
+  machine.hitTriggers=normalizeHitTriggers([
+    {key:'direct_at',label:'駿城ボーナス'},
+    {key:'episode_bonus',label:'エピソードボーナス'}
+  ]);
+  machine.hitBranchFlows={...(machine.hitBranchFlows||{}),atHit:[
+    {key:'through',label:'ST突入確認'},
+    {key:'payout',label:'ボーナス後クレジット'}
+  ]};
+  machine.followMode='always';
+  machine.useLcdCounter=true;
+  machine.kabaneriSeedV1=true;
+  applySuggestMetadata(machine);
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5098,7 +5222,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5138,6 +5262,7 @@ function addMachine(){
   ensureMonkeyTurnSeed(machine);
   ensureNangokuSpecialSeed(machine);
   ensureKarakuriCircus2Seed(machine);
+  ensureKabaneriSeed(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -6587,6 +6712,8 @@ function battleModePickerButtonLabel(ref){
     ghoul_rare:'\u30ec\u30a2\n(\u6fc0\u30ec\u30a2)',
     ghoul_stage:'\u30b9\u30c6\u30fc\u30b8',
     state:'\u72b6\u614b',
+    kabaneri_point:'pt\u793a\u5506',
+    kabaneri_omikuji:'\u304a\u307f\u304f\u3058',
     hit:'\u5f53\u9078'
   }[ref]||'\u30d4\u30c3\u30ab\u30fc';
 }
@@ -6608,6 +6735,8 @@ function battleModeEventButton(item){
   if(item.type==='picker'){
     const label=battleModePickerButtonLabel(item.ref);
     if(item.ref==='ghoul_invitation'&&!battleModeGhoulInvitationEntry())return `<button class="bm-btn disabled" type="button" disabled>${escapeHtml(label)}</button>`;
+    if(item.ref==='kabaneri_point'&&!battleModeSuggestCategoryEntry(KABANERI_POINT_CATEGORY_ID))return `<button class="bm-btn disabled" type="button" disabled>${escapeHtml(label)}</button>`;
+    if(item.ref==='kabaneri_omikuji'&&!battleModeSuggestCategoryEntry(KABANERI_OMIKUJI_CATEGORY_ID))return `<button class="bm-btn disabled" type="button" disabled>${escapeHtml(label)}</button>`;
     return `<button class="bm-btn" type="button" onclick="openBattleModePicker('${escapeHtml(item.ref)}')">${escapeHtml(label)}</button>`;
   }
   if(item.type==='modal'){
@@ -6634,7 +6763,7 @@ function renderBattleModeGrid(){
   const panel=battleModePanel();
   const gains=(panel.gainButtons.length?panel.gainButtons:[1,3,5,10]).slice(0,4);
   const counters=panel.counters.slice(0,3);
-  const quickTags=isTokyoGhoulMachine(currentMachine())?quickTagIdsForMachine(currentMachine()).map(id=>currentMachine()?.tags?.find(tag=>tag.id===id)).filter(Boolean):[];
+  const quickTags=(isTokyoGhoulMachine(currentMachine())||isKabaneriMachine(currentMachine()))?quickTagIdsForMachine(currentMachine()).map(id=>currentMachine()?.tags?.find(tag=>tag.id===id)).filter(Boolean):[];
   const events=panel.events.slice(0,4);
   const eventSlotCount=events.length>3?4:3;
   return `
@@ -6853,6 +6982,8 @@ function openBattleModePicker(ref){
   if(ref==='ghoul_invitation'){openBattleModeGhoulInvitationPicker();return;}
   if(ref==='ghoul_seishin'){openBattleModeGhoulTagPicker('\u7cbe\u795e\u4e16\u754c',TOKYO_GHOUL_SEISHIN_PICKER_TAG_IDS);return;}
   if(ref==='state'){openBattleModeStatePicker();return;}
+  if(ref==='kabaneri_point'){openBattleModeKabaneriSuggestCategoryPicker(KABANERI_POINT_CATEGORY_ID,'pt\u793a\u5506');return;}
+  if(ref==='kabaneri_omikuji'){openBattleModeKabaneriSuggestCategoryPicker(KABANERI_OMIKUJI_CATEGORY_ID,'\u304a\u307f\u304f\u3058');return;}
   if(ref==='hit'){openBattleModeHitPicker();return;}
   battleModeInvalid('未対応のピッカーです');
 }
@@ -6920,6 +7051,26 @@ function openBattleModeGhoulInvitationPicker(){
   const entry=battleModeGhoulInvitationEntry();
   if(!entry){battleModeInvalid('\u62db\u5f85\u72b6\u306e\u793a\u5506\u30de\u30b9\u30bf\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093');return;}
   openSuggestItemPicker(entry.category.id,entry.place.id,'play');
+}
+function battleModeSuggestCategoryEntry(categoryId){
+  const category=enabledSuggestCategories().find(row=>row.id===categoryId);
+  const places=category?enabledSuggestPlaces(category.id):[];
+  return category&&places.length?{category,places}:null;
+}
+function openBattleModeSuggestPlaceFromSheet(categoryId,placeId){
+  closeBattleModeOtherSheet();
+  openSuggestItemPicker(categoryId,placeId,'play');
+}
+function openBattleModeKabaneriSuggestCategoryPicker(categoryId,title){
+  const entry=battleModeSuggestCategoryEntry(categoryId);
+  if(!entry){battleModeInvalid(`${title}\u306e\u793a\u5506\u30de\u30b9\u30bf\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093`);return;}
+  if(entry.places.length===1){
+    openBattleModeSuggestPlaceFromSheet(entry.category.id,entry.places[0].id);
+    return;
+  }
+  setBattleModeSheet(title,entry.places.map(place=>{
+    return `<button class="bm-btn" type="button" onclick="openBattleModeSuggestPlaceFromSheet('${escapeHtml(entry.category.id)}','${escapeHtml(place.id)}')">${escapeHtml(place.name)}</button>`;
+  }).join(''));
 }
 function battleModeTagChoiceButtons(tagIds,handlerName){
   const buttons=(tagIds||[]).map(id=>battleModeCurrentTagById(id)).filter(Boolean).map(tag=>{
@@ -7008,6 +7159,10 @@ function battleModeOtherExcludedTagIds(){
     if(item?.type==='picker'&&item.ref==='ghoul_rare')TOKYO_GHOUL_RARE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
     if(item?.type==='picker'&&item.ref==='ghoul_stage')TOKYO_GHOUL_STAGE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
     if(item?.type==='picker'&&item.ref==='ghoul_seishin')TOKYO_GHOUL_SEISHIN_PICKER_TAG_IDS.forEach(id=>ids.add(id));
+    if(item?.type==='picker'&&item.ref==='state')machineStates().forEach(state=>{
+      if(state.startTagId)ids.add(state.startTagId);
+      if(state.endTagId)ids.add(state.endTagId);
+    });
   });
   if(isTokyoGhoulMachine(machine))TOKYO_GHOUL_RARE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
   return ids;
@@ -10150,6 +10305,16 @@ function openAtThroughBranchPicker(){
   if(!title||!breadcrumb||!options||!back)return;
   suggestPickerState={stateGroup:'hit',categoryId:'',placeId:'',itemId:'',branchRoute:'atHit',branchStep:'through'};
   title.classList.remove('kui-title','gain','hint');
+  if(isKabaneriMachine(currentMachine())){
+    title.textContent='ST突入確認';
+    breadcrumb.textContent='駿城ボーナス後のST突入有無を選択';
+    back.textContent='閉じる';
+    options.innerHTML=`
+    <button class="suggest-picker-option" onclick="selectAtThroughBranch('yes')">ST突入</button>
+    <button class="suggest-picker-option" onclick="selectAtThroughBranch('no')">非突入</button>`;
+    document.getElementById('suggestPickerOverlay')?.classList.add('open');
+    return;
+  }
   title.textContent='AT駆け抜けか';
   breadcrumb.textContent='AT当選ルート / 駆け抜けの場合のみ喰ポイントへ進みます';
   back.textContent='閉じる';

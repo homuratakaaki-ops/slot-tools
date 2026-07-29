@@ -207,10 +207,10 @@ function testLegacyBackupWithSyntheticLogAndGuard() {
 function testTokyoGhoulPresetInitialDisplayAndSpecificFeatures() {
   const { context } = runRecord(undefined);
 
-  assert.equal(vm.runInContext('db.machines.length', context), 4);
+  assert.equal(vm.runInContext('db.machines.length', context), 5);
   assert.deepEqual(
     JSON.parse(vm.runInContext('JSON.stringify(db.machines.map(machine => machine.name))', context)),
-    ['東京喰種', 'モンキーターンV', 'L南国育ちSPECIAL', 'Lからくりサーカス2']
+    ['東京喰種', 'スマスロ 甲鉄城のカバネリ 海門決戦', 'モンキーターンV', 'L南国育ちSPECIAL', 'Lからくりサーカス2']
   );
 
   vm.runInContext("selectedMachineId='m_tokyo_ghoul'; selectedAimId=firstAimIdForMachine(currentMachine())||'';", context);
@@ -236,6 +236,42 @@ function testTokyoGhoulPresetInitialDisplayAndSpecificFeatures() {
     JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('czFail').map(step => step.key))", context)),
     ['czResult', 'czEndcard', 'eyecatch', 'kui', 'exit']
   );
+}
+
+function testKabaneriPresetSeedAndPickers() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext("selectedMachineId='m_kabaneri'; selectedAimId=firstAimIdForMachine(currentMachine())||''; currentTimelineDataGame=120; setTimelineGames(120,120);", context);
+
+  assert.equal(vm.runInContext('isKabaneriMachine(currentMachine())', context), true);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext('JSON.stringify(currentMachine().quickTagIds)', context)),
+    ['t_kabaneri_chance_mumei', 't_kabaneri_chance_ikoma', 't_kabaneri_chance_kabane', 't_kabaneri_chance_multi']
+  );
+  assert.deepEqual(
+    JSON.parse(vm.runInContext('JSON.stringify(currentMachine().quickPanel.events.map(event => event.ref))', context)),
+    ['state', 'kabaneri_point', 'kabaneri_omikuji', 'hit']
+  );
+  assert.equal(vm.runInContext("currentMachine().states.length", context), 8);
+  assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_cz_mumei' && state.endOptions.length === 2)", context), true);
+  assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_point')", context), true);
+  assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_omikuji')", context), true);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext('JSON.stringify(machineHitTriggers().map(row => [row.key, row.label]))', context)),
+    [['direct_at', '駿城ボーナス'], ['episode_bonus', 'エピソードボーナス']]
+  );
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => step.key))", context)),
+    ['through', 'payout']
+  );
+  const gridHtml = vm.runInContext('renderBattleModeGrid()', context);
+  assert.match(gridHtml, /無名チャンス目/);
+  assert.match(gridHtml, /pt示唆/);
+  assert.match(gridHtml, /おみくじ/);
+  vm.runInContext("openBattleModeKabaneriSuggestCategoryPicker('sgc_kabaneri_point','pt示唆')", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ミニキャラ/);
+  vm.runInContext("openAtThroughBranchPicker()", context);
+  assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /ST突入/);
 }
 
 function testStandardAimSeedsNoDuplicatesAndDeleteTombstone() {
@@ -1071,6 +1107,11 @@ function installBattleModeStateDom(context) {
       battleModeOtherGrid: { ...generic, id: 'battleModeOtherGrid', innerHTML: '' },
       battleModeStateBadges: { ...generic, id: 'battleModeStateBadges', innerHTML: '' },
       battleModeToast: { ...generic, id: 'battleModeToast', innerHTML: '', classList: { add() {}, remove() {}, toggle() {} } },
+      suggestPickerOverlay: { ...generic, id: 'suggestPickerOverlay', classList: { add() {}, remove() {}, toggle() {} } },
+      suggestPickerTitle: { ...generic, id: 'suggestPickerTitle', textContent: '', classList: { add() {}, remove() {}, toggle() {} } },
+      suggestPickerBreadcrumb: { ...generic, id: 'suggestPickerBreadcrumb', textContent: '' },
+      suggestPickerOptions: { ...generic, id: 'suggestPickerOptions', innerHTML: '' },
+      suggestPickerBackButton: { ...generic, id: 'suggestPickerBackButton', textContent: '' },
       timelineList: { ...generic, id: 'timelineList', innerHTML: '' },
       timelineHistoryBox: { ...generic, id: 'timelineHistoryBox', classList: { add() {}, remove() {}, toggle() {} } },
       timelineHistoryCount: { ...generic, id: 'timelineHistoryCount', textContent: '' },
@@ -2859,6 +2900,7 @@ function testTimelineSameMinuteOrderUsesArrayOrderFallback() {
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
+  testKabaneriPresetSeedAndPickers();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();
   testOtherPresetMachinesRemainStable();
   testNoHitQuitSegmentsAreIncludedInTextOutputs();
