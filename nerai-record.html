@@ -2007,9 +2007,10 @@ function normalizeTimelineCounterState(value){
   const dataGame=normalizeOptionalNumber(value.dataGame);
   const liquidGame=normalizeOptionalNumber(value.liquidGame);
   if(dataGame===null&&liquidGame===null)return null;
+  const normalizedLiquid=liquidGame!==null?Math.max(0,Math.trunc(liquidGame)):(dataGame!==null?Math.max(0,Math.trunc(dataGame)):null);
   return {
     dataGame:dataGame!==null?Math.trunc(dataGame):null,
-    liquidGame:liquidGame!==null?Math.trunc(liquidGame):(dataGame!==null?Math.trunc(dataGame):null)
+    liquidGame:normalizedLiquid
   };
 }
 function normalizeSegment(segment){
@@ -2733,7 +2734,7 @@ function liquidOffsetSign(machine=currentMachine()){
 function liquidFromDataWithOffset(dataGame,offset=timelineLiquidOffset(),machine=currentMachine()){
   const data=normalizeOptionalNumber(dataGame);
   const gap=normalizeOptionalNumber(offset)??0;
-  return data!==null?data+(gap*liquidOffsetSign(machine)):null;
+  return data!==null?Math.max(0,data+(gap*liquidOffsetSign(machine))):null;
 }
 function offsetFromDataLiquid(dataGame,liquidGame,machine=currentMachine()){
   const data=normalizeOptionalNumber(dataGame);

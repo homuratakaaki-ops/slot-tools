@@ -748,6 +748,30 @@ function testDraftRestoreKeepsCounterOnlyGameProgress() {
   assert.equal(vm.runInContext('timelineLiquidValue()', restored.context), 9);
 }
 
+function testBattleModeLiquidCounterNeverRestoresNegative() {
+  const { context, localStorage } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentFlowStep = 2;
+    battleModeOpen = true;
+    currentStartCounterGame = 117;
+    currentStartCounterEdited = true;
+    resetTimelineOffsets(9, 0);
+    setTimelineGames(0, 0);
+    currentHitEvents = [normalizeHitEvent({ id: 'he_butterfly', trigger: 'at', dataGame: 0, liquidGame: 0, createdAt: '2026-07-21T10:00:00.000Z', wizardDone: true })];
+    battleModeIncrementGame(5);
+  `, context);
+  const stored = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  assert.deepEqual(stored.draftLog.timelineCounterState, { dataGame: 5, liquidGame: 0 });
+
+  const restored = runRecord(JSON.stringify(stored));
+  vm.runInContext('loadDraftIntoInputs(db.draftLog)', restored.context);
+  assert.equal(vm.runInContext('currentTimelineDataGame', restored.context), 5);
+  assert.equal(vm.runInContext('timelineLiquidValue()', restored.context), 0);
+  assert.equal(vm.runInContext('liquidFromDataWithOffset(5, 9, currentMachine())', restored.context), 0);
+}
+
 function testBattleModeReplayFlashMeterHiddenWithoutQuickPanelTag() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -2245,6 +2269,7 @@ function run() {
   testDraftRestoreKeepsPostHitBattleContext();
   testDraftRestoreFallsBackToLatestHitBeforeStartCounter();
   testDraftRestoreKeepsCounterOnlyGameProgress();
+  testBattleModeLiquidCounterNeverRestoresNegative();
   testBattleModeReplayFlashMeterHiddenWithoutQuickPanelTag();
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
   testBattleModeMemoUsesTimelineTextEntryFormat();
