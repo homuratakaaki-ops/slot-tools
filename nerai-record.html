@@ -473,7 +473,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-open-btn{min-height:54px;border-color:rgba(201,168,76,.72);color:var(--gold-light);background:rgba(201,168,76,.12);font-weight:900;}
 .bm-overlay{position:fixed;inset:0;z-index:9000;display:none;background:var(--bg);color:var(--text);padding:calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));overflow:hidden;}
 .bm-overlay.open{display:flex;}
-.bm-shell{width:100%;max-width:480px;height:100%;max-height:100dvh;margin:0 auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto;gap:6px;}
+.bm-shell{width:100%;max-width:480px;height:100%;max-height:100dvh;margin:0 auto;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;gap:6px;}
 .bm-header{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:8px;border-bottom:1px solid rgba(201,168,76,.28);padding:2px 0 7px;}
 .bm-title{min-width:0;font-size:13px;font-weight:900;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-close{width:48px;height:48px;border:1px solid rgba(201,168,76,.42);border-radius:8px;background:rgba(201,168,76,.08);color:var(--gold-light);font-size:24px;font-weight:900;cursor:pointer;}
@@ -499,7 +499,7 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-credit-update.credit-ok{border-color:rgba(76,175,125,.95);background:rgba(76,175,125,.42);color:#f0fff6;box-shadow:0 0 0 1px rgba(76,175,125,.28) inset;}
 .bm-credit-update.credit-warn{border-color:rgba(234,179,8,.98);background:rgba(234,179,8,.44);color:#fff8df;box-shadow:0 0 0 1px rgba(234,179,8,.34) inset;}
 .bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
-.bm-grid{display:grid;grid-auto-rows:minmax(52px,auto);gap:7px;min-height:0;align-content:end;}
+.bm-grid{display:grid;grid-auto-rows:minmax(52px,auto);gap:7px;min-height:0;align-content:start;}
 .bm-button-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
 .bm-button-row.four{grid-template-columns:repeat(4,minmax(0,1fr));}
 .bm-event-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
@@ -510,6 +510,7 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-btn.counter{border-color:rgba(76,175,125,.58);background:rgba(76,175,125,.12);color:#a8efb4;}
 .bm-btn.other{border-color:rgba(98,181,255,.55);background:rgba(98,181,255,.1);color:#b9dcff;}
 .bm-btn.close-action{border-color:rgba(255,255,255,.5);background:rgba(255,255,255,.08);color:var(--text);}
+.bm-btn.quit-action{border-color:rgba(239,68,68,.68);background:rgba(239,68,68,.18);color:#fecaca;}
 .bm-btn.disabled{opacity:.45;cursor:default;border-color:rgba(122,122,138,.35);background:rgba(122,122,138,.08);color:var(--text-dim);}
 .bm-btn.tag-style-rare-weak{background:#ffd9de;border-color:#ff8fa0;color:#5b1018;}
 .bm-btn.tag-style-rare-suika{background:#1f7a43;border-color:#45c878;color:#f4fff8;}
@@ -535,7 +536,7 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-recent-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-undo-bar{min-height:48px;border:1px solid rgba(201,168,76,.55);border-radius:8px;background:rgba(201,168,76,.12);color:var(--gold-light);font-size:14px;font-weight:900;padding:9px 10px;cursor:pointer;text-align:center;}
 .bm-undo-bar.disabled{opacity:.52;color:var(--text-muted);border-color:rgba(122,122,138,.35);background:rgba(122,122,138,.08);cursor:default;}
-.bm-quit-area{margin-top:18px;padding-top:14px;border-top:1px solid rgba(122,122,138,.22);}
+.bm-quit-area{display:none;}
 .bm-quit-btn{width:100%;min-height:46px;border:1px solid rgba(239,68,68,.38);border-radius:8px;background:rgba(239,68,68,.10);color:#fecaca;font-size:14px;font-weight:900;cursor:pointer;}
 .bm-quit-btn:active{transform:translateY(1px);}
 .bm-sheet-note{grid-column:1/-1;color:var(--text-muted);font-size:13px;line-height:1.55;}
@@ -7138,7 +7139,7 @@ function renderBattleModeGrid(){
       ${Array.from({length:eventSlotCount},(_,i)=>battleModeEventButton(events[i])).join('')}
     </div>
     <div class="bm-other-row">
-      <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">${escapeHtml(isKabaneriMachine(currentMachine())?'当選・その他 ▼':'その他 ▼')}</button>
+      <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">当選・ヤメ・その他 ▼</button>
     </div>`;
 }
 function renderBattleModeUndoBar(){
@@ -7154,7 +7155,7 @@ function battleModeQuitPositionText(){
   return `データG ${data===null?'-':data} ／ 液晶G ${liquid===null?'-':liquid}`;
 }
 function renderBattleModeQuitArea(){
-  return '<button class="bm-quit-btn" type="button" onclick="openBattleModeQuitSheet()">ヤメる（打ち終わりを記録）</button>';
+  return '';
 }
 function openBattleModeQuitSheet(){
   const position=battleModeQuitPositionText();
@@ -7229,7 +7230,7 @@ function renderBattleMode(){
   if(recent)recent.innerHTML=renderBattleModeRecent();
   renderBattleModeUndoBar();
   const quit=document.getElementById('battleModeQuitArea');
-  if(quit)quit.innerHTML=renderBattleModeQuitArea();
+  if(quit)quit.innerHTML='';
 }
 function openBattleModeCounterKeypad(role,counterKey=''){
   const counter=role==='subCounter'?(machineCounters().find(row=>row.key===counterKey)||machineSubCounter()):machineSubCounter();
@@ -7545,7 +7546,7 @@ function battleModeOtherExcludedTagIds(){
   if(isKabaneriMachine(machine)){
     KABANERI_MULTI_PICKER_TAG_IDS.forEach(id=>ids.add(id));
     KABANERI_STAGE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
-    ['t_kabaneri_cherry','t_kabaneri_suika'].forEach(id=>ids.add(id));
+    ['t_kabaneri_cherry','t_kabaneri_suika','t_kabaneri_kaimon_recollection','t_kabaneri_kiriban'].forEach(id=>ids.add(id));
   }
   return ids;
 }
@@ -7605,12 +7606,13 @@ function openBattleModeOtherSheet(){
   const excludedModals=battleModeOtherExcludedModalRefs();
   const tags=(currentMachine()?.tags||[]).filter(tag=>!excluded.has(tag.id));
   const modalButtons=[
+    '<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModePicker(\'hit\')">当選</button>',
+    '<button class="bm-btn quit-action" type="button" onclick="openBattleModeQuitSheet()">ヤメ</button>',
     '<button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>',
     excludedModals.has('suggestion')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'suggestion\')">示唆記録</button>',
     excludedModals.has('shopNote')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'shopNote\')">他台メモ</button>',
     excludedModals.has('memo')?'':'<button class="bm-btn other" type="button" onclick="openBattleModeMemoSheet()">メモ</button>'
   ];
-  if(isKabaneriMachine(currentMachine()))modalButtons.splice(1,0,'<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModePicker(\'hit\')">当選</button>');
   if(isTokyoGhoulMachine(currentMachine()))modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModePicker(\'ghoul_rare\')">\u30ec\u30a2\uff08\u6fc0\u30ec\u30a2\uff09</button>');
   const modalButtonsHtml=modalButtons.join('');
   if(grid)grid.innerHTML=modalButtonsHtml+(tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>');

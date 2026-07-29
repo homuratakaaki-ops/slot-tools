@@ -313,7 +313,7 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(gridHtml, /pt示唆/);
   assert.match(gridHtml, /おみくじ/);
   assert.match(gridHtml, /ステージ/);
-  assert.match(gridHtml, /当選・その他 ▼/);
+  assert.match(gridHtml, /当選・ヤメ・その他 ▼/);
   assert.doesNotMatch(gridHtml, /openBattleModePicker\('hit'\)/);
   vm.runInContext("openBattleModeKabaneriMultiPicker()", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /無名＆カバネ/);
@@ -321,11 +321,19 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("currentTimeline.at(-1).tagIds.includes('t_kabaneri_multi_mumei_kabane')", context), true);
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /複1/);
   vm.runInContext("openBattleModeOtherSheet()", context);
-  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /当選/);
-  assert.equal(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML.indexOf('当選') < __stateElements.battleModeOtherGrid.innerHTML.indexOf('示唆記録')", context), true);
-  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /tag-style-kabaneri-gold/);
-  assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ステージ/);
-  assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /オールスター目/);
+  let otherHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(otherHtml, /当選/);
+  assert.match(otherHtml, /ヤメ/);
+  assert.equal(otherHtml.indexOf('当選') < otherHtml.indexOf('ヤメ'), true);
+  assert.equal(otherHtml.indexOf('ヤメ') < otherHtml.indexOf('閉じる'), true);
+  assert.match(otherHtml, /tag-style-kabaneri-gold/);
+  assert.match(otherHtml, /quit-action/);
+  assert.doesNotMatch(otherHtml, /ステージ/);
+  assert.doesNotMatch(otherHtml, /オールスター目/);
+  assert.doesNotMatch(otherHtml, /海門回想/);
+  assert.doesNotMatch(otherHtml, /キリ番演出/);
+  assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_kaimon_recollection' && tag.label === '海門回想')", context), true);
+  assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_kiriban' && tag.label === 'キリ番演出')", context), true);
   vm.runInContext("openBattleModePicker('hit')", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /駿城ボーナス/);
   vm.runInContext("openBattleModeKabaneriStagePicker()", context);
@@ -384,6 +392,9 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(vm.runInContext("subCounterLine(currentSubCounters)", context), /下段ベル1回/);
   const style = extractStyle();
   assert.match(style, /\.bm-grid\{[^}]*grid-auto-rows:minmax\(52px,auto\)/);
+  assert.match(style, /\.bm-grid\{[^}]*align-content:start/);
+  assert.doesNotMatch(style, /\.bm-grid\{[^}]*align-content:end/);
+  assert.match(style, /\.bm-shell\{[^}]*grid-template-rows:auto auto minmax\(0,1fr\) auto/);
   assert.doesNotMatch(style, /\.bm-grid\{[^}]*grid-template-rows:repeat\(4/);
 }
 
@@ -904,6 +915,7 @@ function testBattleModeUndefinedQuickPanelRendersEmptySlots() {
   assert.match(grid, /battleModeIncrementGame\(5\)/);
   assert.match(grid, /battleModeIncrementGame\(10\)/);
   assert.match(grid, /openBattleModeOtherSheet/);
+  assert.match(grid, /当選・ヤメ・その他 ▼/);
   assert.equal((grid.match(/type="button" disabled/g) || []).length, 6);
   assert.match(extractStyle(), /\.bm-event-row\{[^}]*grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 }
@@ -958,9 +970,11 @@ function testBattleModeEventRowBeforeCounterRow() {
   assert.ok(grid.indexOf('battleModeIncrementGame(1)') < grid.indexOf('リプレイ</button>'));
   assert.ok(grid.indexOf('リプレイ</button>') < grid.indexOf('リプレイフラッシュ'));
   assert.ok(grid.indexOf('リプレイフラッシュ') < grid.indexOf('openBattleModeOtherSheet'));
+  assert.match(grid, /当選・ヤメ・その他 ▼/);
   assert.match(grid, /さざなみ\s+前兆/);
   const style = extractStyle();
-  assert.match(style, /\.bm-grid\{[^}]*align-content:end/);
+  assert.match(style, /\.bm-grid\{[^}]*align-content:start/);
+  assert.match(style, /\.bm-quit-area\{[^}]*display:none/);
   assert.match(style, /\.bm-event-row \.bm-btn\{[^}]*white-space:pre-line/);
 }
 
