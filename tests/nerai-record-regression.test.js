@@ -259,6 +259,14 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_suika')", context), false);
   assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_point')", context), true);
   assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_omikuji')", context), true);
+  assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara').items.some(item => item.label === '生駒・近いよ（間近!?）')", context), true);
+  assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_talk').items.some(item => item.label === '舵取り・返答あり（強・示唆）')", context), true);
+  assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_kiriban').items.length", context), 3);
+  assert.equal(vm.runInContext("findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara'),'sgp_kabaneri_point_minichara_i1').label", context), '無名・無言（予想）');
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara'),'sgp_kabaneri_point_minichara_i1').decorations)", context)),
+    [{ text: '無名', color: 'red' }]
+  );
   assert.deepEqual(
     JSON.parse(vm.runInContext('JSON.stringify(machineHitTriggers().map(row => [row.key, row.label]))', context)),
     [['direct_at', '駿城ボーナス'], ['episode_bonus', 'エピソードボーナス']]
@@ -288,6 +296,9 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("currentTimeline.at(-1).tagIds.includes('t_kabaneri_stage_fourth_tunnel')", context), true);
   vm.runInContext("openBattleModeKabaneriSuggestCategoryPicker('sgc_kabaneri_point','pt示唆')", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ミニキャラ/);
+  vm.runInContext("openBattleModeSuggestPlaceFromSheet('sgc_kabaneri_point','sgp_kabaneri_point_minichara')", context);
+  assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /suggest-color-red">無名<\/span>・無言/);
+  assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /suggest-color-green">生駒<\/span>・近いよ/);
   vm.runInContext("openAtThroughBranchPicker()", context);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /ST突入/);
 }

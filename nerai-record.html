@@ -2555,6 +2555,7 @@ function normalizeData(data){
     ensureKarakuriCircus2Seed(m);
     ensureKabaneriSeed(m);
     ensureKabaneriUiSeedV11(m);
+    ensureKabaneriSuggestSeedV11(m);
     ensureKabaneriCounterSeed(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     applySuggestMetadata(m);
@@ -4751,6 +4752,82 @@ function ensureKabaneriUiSeedV11(machine){
   ]);
   machine.kabaneriUiSeedV11=true;
 }
+function kabaneriSuggestDecorations(label){
+  const decorations=[];
+  [['無名','red'],['生駒','green'],['カバネ','blue'],['舵取り','blue'],['銅藍','gold'],['景之','gold'],['キリ番','gold']].forEach(([text,color])=>{
+    if(String(label||'').includes(text))decorations.push({text,color});
+  });
+  return decorations;
+}
+function ensureKabaneriSuggestPlace(category,id,name){
+  category.places=Array.isArray(category.places)?category.places:[];
+  let place=category.places.find(row=>row.id===id)||category.places.find(row=>row.name===name);
+  if(!place){
+    place={id,name,enabled:true,stateGroup:'play',items:[]};
+    category.places.push(place);
+  }
+  place.id=id;
+  place.name=name;
+  place.enabled=place.enabled!==false;
+  place.stateGroup='play';
+  place.items=Array.isArray(place.items)?place.items:[];
+  return place;
+}
+function upsertKabaneriSuggestItems(place,specs){
+  const ordered=[];
+  specs.forEach(spec=>{
+    let item=place.items.find(row=>row.id===spec.id)||place.items.find(row=>row.label===spec.label);
+    if(!item){
+      item={id:spec.id,label:spec.label,enabled:true};
+      place.items.push(item);
+    }
+    item.id=spec.id;
+    item.label=spec.label;
+    item.enabled=spec.enabled!==false;
+    item.decorations=spec.decorations||kabaneriSuggestDecorations(spec.label);
+    ordered.push(spec.label);
+  });
+  reorderSuggestItems(place,ordered);
+}
+function ensureKabaneriSuggestSeedV11(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriSuggestSeedV11)return;
+  machine.suggestMaster=normalizeSuggestMaster(machine.suggestMaster);
+  const category=ensureSuggestCategory(machine,KABANERI_POINT_CATEGORY_ID,'規定pt示唆');
+  const minichara=ensureKabaneriSuggestPlace(category,'sgp_kabaneri_point_minichara','ミニキャラ');
+  upsertKabaneriSuggestItems(minichara,[
+    {id:'sgp_kabaneri_point_minichara_i1',label:'無名・無言（予想）'},
+    {id:'sgp_kabaneri_point_minichara_i2',label:'無名・えへへ（予想）'},
+    {id:'sgp_kabaneri_point_minichara_i3',label:'無名・もうすぐだよ（近い!?）'},
+    {id:'sgp_kabaneri_point_minichara_i4',label:'無名・近いよ（間近!?）'},
+    {id:'sgi_kabaneri_point_minichara_ikoma_silent',label:'生駒・無言（予想）'},
+    {id:'sgi_kabaneri_point_minichara_ikoma_ehehe',label:'生駒・えへへ（予想）'},
+    {id:'sgi_kabaneri_point_minichara_ikoma_soon',label:'生駒・もうすぐだよ（近い!?）'},
+    {id:'sgi_kabaneri_point_minichara_ikoma_near',label:'生駒・近いよ（間近!?）'}
+  ]);
+  const talk=ensureKabaneriSuggestPlace(category,'sgp_kabaneri_point_talk','会話演出');
+  upsertKabaneriSuggestItems(talk,[
+    {id:'sgp_kabaneri_point_talk_i1',label:'無名・赤文字（示唆）'},
+    {id:'sgp_kabaneri_point_talk_i4',label:'無名・返答あり（強・示唆）'},
+    {id:'sgp_kabaneri_point_talk_i2',label:'生駒・緑文字（示唆）'},
+    {id:'sgi_kabaneri_point_talk_ikoma_reply',label:'生駒・返答あり（強・示唆）'},
+    {id:'sgp_kabaneri_point_talk_i3',label:'舵取り・青文字（示唆）'},
+    {id:'sgi_kabaneri_point_talk_kadotori_reply',label:'舵取り・返答あり（強・示唆）'}
+  ]);
+  const kiriban=ensureKabaneriSuggestPlace(category,'sgp_kabaneri_point_kiriban','キリ番演出');
+  upsertKabaneriSuggestItems(kiriban,[
+    {id:'sgp_kabaneri_point_kiriban_i1',label:'キリ番・デフォルト（侑那/鰍/菖蒲/無名①・示唆）'},
+    {id:'sgp_kabaneri_point_kiriban_i2',label:'キリ番・無名②（期待度中・示唆）'},
+    {id:'sgp_kabaneri_point_kiriban_i3',label:'キリ番・無名③（期待度高・示唆）'}
+  ]);
+  const eyecatch=findSuggestPlace(category,'sgp_kabaneri_point_eyecatch');
+  if(eyecatch)(eyecatch.items||[]).forEach(item=>item.decorations=kabaneriSuggestDecorations(item.label));
+  const blueSerif=findSuggestPlace(category,'sgp_kabaneri_point_blue_serif');
+  if(blueSerif)(blueSerif.items||[]).forEach(item=>item.decorations=kabaneriSuggestDecorations(item.label));
+  const reelFlash=findSuggestPlace(category,'sgp_kabaneri_point_reel_flash');
+  if(reelFlash)(reelFlash.items||[]).forEach(item=>item.decorations=kabaneriSuggestDecorations(item.label));
+  machine.kabaneriSuggestSeedV11=true;
+  applySuggestMetadata(machine);
+}
 function ensureKabaneriCounterSeed(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriCounterSeedV1)return;
   mergeTimelineTagSeed(machine,[
@@ -5332,7 +5409,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriCounterSeed(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriCounterSeed(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5374,6 +5451,7 @@ function addMachine(){
   ensureKarakuriCircus2Seed(machine);
   ensureKabaneriSeed(machine);
   ensureKabaneriUiSeedV11(machine);
+  ensureKabaneriSuggestSeedV11(machine);
   ensureKabaneriCounterSeed(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
