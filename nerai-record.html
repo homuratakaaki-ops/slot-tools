@@ -1262,6 +1262,7 @@ let battleModeQuickInvestLastAt=0;
 let battleModeReturnAfterHitWizard=false;
 let battleModeMemoSheetOpen=false;
 let moneyEndMedalsEdited=false;
+let carriedMedalsAppliedKey='';
 let battleModeScrollToHitNext=false;
 const postHitCreditToastEventIds=new Set();
 let battleModeWakeLock=null;
@@ -4515,6 +4516,12 @@ function hasSameDateStoreSavedLog(date,store){
   if(!date||!store)return false;
   return db.logs.some(log=>log.id!==editingLogId&&log.money?.date===date&&log.money?.store===store);
 }
+function latestSameDateStoreSavedLog(date,store){
+  if(!date||!store)return null;
+  return db.logs
+    .filter(log=>log.id!==editingLogId&&log.money?.date===date&&log.money?.store===store)
+    .sort((a,b)=>logSortTime(b).localeCompare(logSortTime(a)))[0]||null;
+}
 function battleModeApplyDailyReplayMedalsIfNeeded(){
   const state=normalizeIntervalEstimate(currentIntervalEstimate);
   if(intervalEstimateHasActivity(state))return false;
@@ -4525,6 +4532,24 @@ function battleModeApplyDailyReplayMedalsIfNeeded(){
   if(hasSameDateStoreSavedLog(currentLogDateValue(),storeName))return false;
   const ok=battleModeApplyDiffTrackerInput('investMedals',medals,{label:'貯玉再プレイ（自動）',reopenSheet:false});
   if(ok)battleModeToast(`貯玉再プレイ ${Math.round(medals).toLocaleString('ja-JP')}枚を投資に反映しました。実際と違う場合は取消か「投資合計を修正」で調整してください`,{duration:3600});
+  return ok;
+}
+function battleModeApplyCarriedMedalsIfNeeded(){
+  const state=normalizeIntervalEstimate(currentIntervalEstimate);
+  if(intervalEstimateHasActivity(state))return false;
+  const date=currentLogDateValue();
+  const storeName=currentShopNoteStoreName();
+  const previous=latestSameDateStoreSavedLog(date,storeName);
+  const medals=normalizeOptionalNumber(previous?.money?.endMedals);
+  if(!previous||medals===null||medals<1)return false;
+  const key=`${previous.id}|${date}|${storeName}|${Math.round(medals)}`;
+  if(carriedMedalsAppliedKey===key)return false;
+  const rounded=Math.round(medals);
+  const ok=battleModeApplyDiffTrackerInput('investMedals',rounded,{label:'持ちメダル引き継ぎ（自動）',reopenSheet:false});
+  if(ok){
+    carriedMedalsAppliedKey=key;
+    battleModeToast(`前の台の持ちメダル ${rounded.toLocaleString('ja-JP')}枚を投資に反映しました。違う場合は取消してください`,{duration:3600});
+  }
   return ok;
 }
 function normalizeIntervalDiffHistoryState(value){
@@ -5856,6 +5881,7 @@ function openBattleMode(){
   battleModeOpen=true;
   requestBattleModeWakeLock();
   document.getElementById('battleModeOverlay')?.classList.add('open');
+  battleModeApplyCarriedMedalsIfNeeded();
   battleModeApplyDailyReplayMedalsIfNeeded();
   renderBattleMode();
 }
@@ -11909,6 +11935,9 @@ function clearLogInput(cancelEdit=true){
   currentExpectedValue=null;
   currentTimeline=[];
   currentTimelineDataGame=null;
+  intervalLoanRateManuallyAdjusted=false;
+  currentIntervalEstimate=normalizeIntervalEstimate(null);
+  carriedMedalsAppliedKey='';
   resetTimelineOffsets();
   linkedEndDataGame=null;
   linkedEndLiquidGame=null;
