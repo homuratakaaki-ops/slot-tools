@@ -5948,12 +5948,12 @@ function battleModeIntervalDiffText(value){
   return `差枚 ${normalized>0?'+':''}${normalized}`;
 }
 function battleModeCashInvestUnits(state=battleModeIntervalTrackerState()){
-  return normalizeIntervalEstimate(state).history
+  return battleModeInvestHistorySinceReset(state)
     .filter(row=>row.mode==='investYen')
     .reduce((sum,row)=>sum+(normalizeOptionalNumber(row.input)||0),0);
 }
 function battleModeCashInvestMedals(state=battleModeIntervalTrackerState()){
-  return normalizeIntervalEstimate(state).history
+  return battleModeInvestHistorySinceReset(state)
     .filter(row=>row.mode==='investYen')
     .reduce((sum,row)=>{
       const before=normalizeOptionalNumber(row.before?.investedTotal)??0;
@@ -5967,6 +5967,18 @@ function battleModeCashInvestText(state=battleModeIntervalTrackerState()){
   const text=Number.isInteger(units)?String(units):units.toLocaleString('ja-JP',{maximumFractionDigits:1});
   return `（現金 ${text}千円）`;
 }
+function battleModeInvestHistorySinceReset(state=battleModeIntervalTrackerState()){
+  const interval=normalizeIntervalEstimate(state);
+  const index=interval.history.map(row=>row.mode).lastIndexOf('resetInvest');
+  return index>=0?interval.history.slice(index+1):interval.history;
+}
+function battleModeInvestmentBreakdownParts(state=battleModeIntervalTrackerState()){
+  const interval=normalizeIntervalEstimate(state);
+  const cashUnits=battleModeCashInvestUnits(interval);
+  const cashMedals=battleModeCashInvestMedals(interval);
+  const medalInvest=(Number(interval.investedTotal)||0)-cashMedals;
+  return {investedTotal:Number(interval.investedTotal)||0,cashUnits,cashMedals,medalInvest};
+}
 function battleModeInvestmentBreakdownText(state=battleModeIntervalTrackerState()){
   const interval=normalizeIntervalEstimate(state);
   const cashUnits=battleModeCashInvestUnits(interval);
@@ -5975,8 +5987,17 @@ function battleModeInvestmentBreakdownText(state=battleModeIntervalTrackerState(
   const cashText=Number.isInteger(cashUnits)?String(cashUnits):cashUnits.toLocaleString('ja-JP',{maximumFractionDigits:1});
   return `投資 ${interval.investedTotal.toLocaleString('ja-JP')}枚（うち現金 ${cashText}千円／メダル ${medalInvest.toLocaleString('ja-JP')}枚）`;
 }
+function battleModeInvestmentResetReferenceText(state=battleModeIntervalTrackerState()){
+  const interval=normalizeIntervalEstimate(state);
+  const resetIndex=interval.history.map(row=>row.mode).lastIndexOf('resetInvest');
+  const reset=resetIndex>=0?interval.history[resetIndex]:null;
+  if(!reset)return '';
+  const parts=battleModeInvestmentBreakdownParts({...reset.before,history:interval.history.slice(0,resetIndex)});
+  const cashText=Number.isInteger(parts.cashUnits)?String(parts.cashUnits):parts.cashUnits.toLocaleString('ja-JP',{maximumFractionDigits:1});
+  return `直前のリセット前：メダル ${parts.medalInvest.toLocaleString('ja-JP')}枚 ／ 現金 ${cashText}千円（入れ直しの参考）`;
+}
 function cashInvestUnitsForLog(log){
-  return normalizeIntervalEstimate(log?.intervalEstimate).history
+  return battleModeInvestHistorySinceReset(normalizeIntervalEstimate(log?.intervalEstimate))
     .filter(row=>row.mode==='investYen')
     .reduce((sum,row)=>sum+(normalizeOptionalNumber(row.input)||0),0);
 }
@@ -6199,16 +6220,19 @@ function toggleBattleModeReplayScopeSegment(segmentId,checked){
 function openBattleModeDiffTrackerSheet(){
   const state=battleModeIntervalTrackerState();
   const diff=battleModeIntervalDiffValue(state);
+  const resetReference=battleModeInvestmentResetReferenceText(state);
   setBattleModeSheet('有利区間差枚',`
     <div class="bm-recent-line" style="grid-column:1/-1;font-weight:900;color:var(--gold-light);">現在: ${escapeHtml(diff===null?'—':`${diff>0?'+':''}${diff}枚`)}</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">内訳: ${escapeHtml(battleModeIntervalDetailText(state))}</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">${escapeHtml(battleModeInvestmentBreakdownText(state))}</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">${escapeHtml(battleModeCashReconcileText(state))}</div>
+    ${resetReference?`<div class="bm-recent-line" style="grid-column:1/-1;color:var(--gold-light);">${escapeHtml(resetReference)}</div>`:''}
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">投資追加は±で修正可（マイナスで取り消し）。現金は「投資追加（千円）」を−1などで調整してください。</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">「投資合計を修正」は内訳（現金/メダル）と連動しない非常用です。通常は±付きの追加で修正してください。</div>
     <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('investYen')">投資追加（千円）</button>
     <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('investMedals')">投資追加（枚）</button>
     <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('setInvestedTotal')">投資合計を修正</button>
+    <button class="bm-btn" type="button" onclick="battleModeResetInvestment()">投資をリセット</button>
     <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('credit')">クレジット更新</button>
     <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('correct')">差枚を直接補正</button>
     <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('initial')">初期差枚設定</button>
@@ -6263,6 +6287,33 @@ function openBattleModeDiffInput(mode){
   },{once:true});
   document.body.appendChild(input);
   openNumericKeypad(input);
+}
+function battleModeResetInvestment(){
+  const state=normalizeIntervalEstimate(currentIntervalEstimate);
+  const parts=battleModeInvestmentBreakdownParts(state);
+  const cashText=Number.isInteger(parts.cashUnits)?String(parts.cashUnits):parts.cashUnits.toLocaleString('ja-JP',{maximumFractionDigits:1});
+  const confirmText=`現在の投資：合計${parts.investedTotal.toLocaleString('ja-JP')}枚（メダル ${parts.medalInvest.toLocaleString('ja-JP')}枚 ／ 現金 ${cashText}千円）\nリセットして0枚から入れ直しますか？`;
+  if(!confirm(confirmText))return;
+  const after=normalizeIntervalEstimate({...state,investedTotal:0});
+  const summary=`投資リセット ${parts.investedTotal.toLocaleString('ja-JP')}枚 → 0枚（メダル ${parts.medalInvest.toLocaleString('ja-JP')}枚 ／ 現金 ${cashText}千円）`;
+  const entry=normalizeIntervalDiffHistoryEntry({
+    id:uid('idh'),
+    at:new Date().toISOString(),
+    mode:'resetInvest',
+    label:'投資リセット',
+    input:0,
+    before:state,
+    after,
+    summary
+  });
+  const next=normalizeIntervalEstimate({
+    ...after,
+    history:entry?[...state.history,entry].slice(-INTERVAL_DIFF_HISTORY_LIMIT):state.history
+  });
+  battleModeCommit('投資リセット',()=>{
+    currentIntervalEstimate=next;
+  },{meta:{kind:'intervalDiff',mode:'resetInvest',input:0,before:state,after:next,summary},toastMessage:'投資を0枚にリセットしました'});
+  openBattleModeDiffTrackerSheet();
 }
 function battleModeDiffCurrentValueForMode(mode,state=normalizeIntervalEstimate(currentIntervalEstimate)){
   if(mode==='setInvestedTotal')return state.investedTotal;

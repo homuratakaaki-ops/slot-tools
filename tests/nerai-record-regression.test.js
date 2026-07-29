@@ -1064,6 +1064,51 @@ function testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo() {
   `, context), 50);
 }
 
+function testBattleModeInvestmentResetUsesHistoryBoundaryAndUndo() {
+  const { context } = runRecord(undefined, [true]);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    currentIntervalEstimate = normalizeIntervalEstimate({ initialDiff: null, loanRate: 46 });
+    battleModeApplyDiffTrackerInput('investMedals', 100);
+    battleModeApplyDiffTrackerInput('investYen', 19);
+    battleModeResetInvestment();
+  `, context);
+
+  assert.equal(vm.runInContext('currentIntervalEstimate.investedTotal', context), 0);
+  assert.equal(vm.runInContext("currentIntervalEstimate.history.at(-1).mode", context), 'resetInvest');
+  assert.equal(vm.runInContext('battleModeCashInvestUnits()', context), 0);
+  assert.equal(vm.runInContext('battleModeCashInvestMedals()', context), 0);
+  assert.match(vm.runInContext('battleModeInvestmentResetReferenceText()', context), /メダル 100枚/);
+  assert.match(vm.runInContext('battleModeInvestmentResetReferenceText()', context), /現金 19千円/);
+
+  vm.runInContext('undoBattleModeLast()', context);
+  assert.equal(vm.runInContext('currentIntervalEstimate.investedTotal', context), 974);
+  assert.equal(vm.runInContext('battleModeCashInvestUnits()', context), 19);
+
+  vm.runInContext(`
+    redoBattleModeUndo();
+    battleModeApplyDiffTrackerInput('investMedals', 100);
+    battleModeApplyDiffTrackerInput('investYen', 9);
+  `, context);
+  assert.deepEqual(JSON.parse(vm.runInContext(`JSON.stringify((()=>{
+    const parts=battleModeInvestmentBreakdownParts();
+    return { investedTotal: parts.investedTotal, cashUnits: parts.cashUnits, medalInvest: parts.medalInvest };
+  })())`, context)), { investedTotal: 514, cashUnits: 9, medalInvest: 100 });
+  assert.equal(vm.runInContext('todayCashInvestUnits()', context), 9);
+  assert.equal(vm.runInContext(`cashInvestUnitsForLog({
+    intervalEstimate: {
+      history: [
+        { mode: 'investYen', input: 19, before: { investedTotal: 100 }, after: { investedTotal: 974 }, summary: '投資追加（千円） +19千円（+874枚）' },
+        { mode: 'resetInvest', before: { investedTotal: 974 }, after: { investedTotal: 0 }, summary: '投資リセット 974枚 → 0枚' },
+        { mode: 'investYen', input: 9, before: { investedTotal: 100 }, after: { investedTotal: 514 }, summary: '投資追加（千円） +9千円（+414枚）' }
+      ]
+    }
+  })`, context), 9);
+}
+
 function testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -2281,6 +2326,7 @@ function run() {
   testBattleModeHitWizardResetReturnsToBattleMode();
   testBattleModeGameIncrementUndoAndRedo();
   testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo();
+  testBattleModeInvestmentResetUsesHistoryBoundaryAndUndo();
   testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo();
   testHitPayoutStepDoesNotDuplicateSameCreditHistory();
   testHitPayoutStepRecordsCreditOnlyWithoutBaseCredit();
