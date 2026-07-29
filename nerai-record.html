@@ -6131,7 +6131,7 @@ function battleModeReplaySplitMeterText(){
 function battleModeCurrentSegmentLiquidGames(){
   const liquid=normalizeOptionalNumber(timelineLiquidValue());
   const fallback=normalizeOptionalNumber(timelineDataValue());
-  return observedLiquidGamesFromEnd(liquid,fallback,{initial:currentSegments.length===0});
+  return observedLiquidGamesFromEnd(liquid,fallback,{initial:!latestHitBeforeCurrent()});
 }
 function battleModeReplayFlashMeterText(){
   const totals=battleModeReplayFlashScopeTotals();
@@ -8753,8 +8753,8 @@ function historyTimeValue(value){
 }
 function latestHitBeforeCurrent(){
   const current=currentHitEvent();
-  const currentId=String(current?.id||'');
-  return currentSegmentHitEvents()
+  const currentId=hitBranchWizard.route?String(current?.id||''):'';
+  return currentHitEvents
     .filter(event=>String(event?.id||'')!==currentId&&historyTimeValue(event?.createdAt)!==null)
     .sort((a,b)=>historyTimeValue(b.createdAt)-historyTimeValue(a.createdAt))[0]||null;
 }
@@ -11084,6 +11084,12 @@ function latestTimelineCounterState(log){
   const latest=[...rows].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))[0];
   const data=normalizeOptionalNumber(latest?.game);
   if(data!==null)return {dataGame:data,liquidGame:timelineLiquidGameValue(latest)??data};
+  const latestHit=(Array.isArray(log?.hitEvents)?log.hitEvents:[])
+    .map(normalizeHitEvent)
+    .filter(Boolean)
+    .sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+  const hitData=normalizeOptionalNumber(latestHit?.dataGame);
+  if(hitData!==null)return {dataGame:hitData,liquidGame:normalizeOptionalNumber(latestHit?.liquidGame)??hitData};
   const start=logStartCounterValue(log);
   return {dataGame:start,liquidGame:start!==null?liquidFromDataWithOffset(start,(normalizeOptionalNumber(log?.suikaOffset)??0)+(normalizeOptionalNumber(log?.manualCorrection)??0),machineById(log?.machineId)):null};
 }
@@ -12124,7 +12130,8 @@ function loadDraftIntoInputs(log){
     intervalLoanRateManuallyAdjusted=false;
     currentIntervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
     applyStoredTimelineOffsets(log);
-    currentTimelineDataGame=latestTimelineCounterState(log).dataGame;
+    const timelineCounterState=latestTimelineCounterState(log);
+    currentTimelineDataGame=timelineCounterState.dataGame;
     currentEndLog=clone(log.endLog||null);
     linkedEndDataGame=currentEndLog?.game??null;
     linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
@@ -12141,7 +12148,7 @@ function loadDraftIntoInputs(log){
     hitBranchWizard=normalizeHitBranchWizard(log.hitBranchWizard||{});
     closeSuggestPicker();
     renderAll();
-    if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,liquidFromDataWithOffset(currentTimelineDataGame));
+    if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,timelineCounterState.liquidGame??liquidFromDataWithOffset(currentTimelineDataGame));
     fillLogInputs(log);
     renderFlowStepTabs();
     renderCurrentStartLog();
@@ -12195,7 +12202,8 @@ function loadLogForEdit(id){
   intervalLoanRateManuallyAdjusted=false;
   currentIntervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
   applyStoredTimelineOffsets(log);
-  currentTimelineDataGame=latestTimelineCounterState(log).dataGame;
+  const timelineCounterState=latestTimelineCounterState(log);
+  currentTimelineDataGame=timelineCounterState.dataGame;
   currentEndLog=clone(log.endLog||null);
   linkedEndDataGame=currentEndLog?.game??null;
   linkedEndLiquidGame=currentEndLog?.liquidGame??currentEndLog?.game??null;
@@ -12212,7 +12220,7 @@ function loadLogForEdit(id){
   closeSuggestPicker();
   showPage('pageLog');
   fillLogInputs(log);
-  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,liquidFromDataWithOffset(currentTimelineDataGame));
+  if(currentTimelineDataGame!==null)setTimelineGames(currentTimelineDataGame,timelineCounterState.liquidGame??liquidFromDataWithOffset(currentTimelineDataGame));
   renderCurrentStartLog();
   renderCurrentTimeline();
   renderEndLog();

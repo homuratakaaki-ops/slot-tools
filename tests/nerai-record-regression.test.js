@@ -625,6 +625,103 @@ function testBattleModeReplayFlashMeterUsesCurrentLiquidGames() {
   assert.equal(vm.runInContext('battleModeReplayFlashMeterText()', context), 'リプフラ 0／168G');
 }
 
+function testDraftRestoreKeepsPostHitBattleContext() {
+  const hitAt = '2026-07-21T10:00:00.000Z';
+  const creditAt = '2026-07-21T10:01:00.000Z';
+  const seed = {
+    version: 1,
+    machines: [],
+    stores: [],
+    logs: [],
+    shopNotes: [],
+    shopNoteCards: [],
+    draftLog: {
+      id: 'draft_post_hit',
+      sessionId: 's_post_hit',
+      schemaVersion: 6,
+      machineId: 'm_nangoku_special',
+      aimId: 'aim_reset',
+      machineName: 'L南国育ちSPECIAL',
+      aimName: 'リセット狙い',
+      flowStep: 2,
+      status: 'active',
+      state4Registered: false,
+      finalized: false,
+      excludeFromStats: true,
+      startCounterGame: 117,
+      suikaOffset: 0,
+      manualCorrection: 9,
+      timeline: [
+        { id: 'tl_after_hit', game: 47, liquidGame: 38, text: 'リプレイフラッシュ', tagIds: ['t_nangoku_replay_flash'], countAs: [], createdAt: '2026-07-21T10:02:00.000Z' }
+      ],
+      hitEvents: [
+        { id: 'he_bonus', trigger: 'at', dataGame: 177, liquidGame: 168, createdAt: hitAt, wizardDone: true }
+      ],
+      hitBranchWizard: { route: '', stepIndex: 0, done: [], eventId: 'he_bonus' },
+      intervalEstimate: {
+        initialDiff: null,
+        certainty: 'unknown',
+        loanRate: 46,
+        investedTotal: 0,
+        credit: 166,
+        history: [
+          { id: 'idh_credit', at: creditAt, mode: 'credit', label: 'クレジット更新', input: 166, before: { investedTotal: 0, credit: 0 }, after: { investedTotal: 0, credit: 166 }, summary: 'クレジット更新 0 → 166' }
+        ]
+      },
+      segments: [],
+      suggestLog: [],
+      money: { date: '2026-07-21', store: 'STORE_ALPHA', machineNo: '948' }
+    }
+  };
+  const { context } = runRecord(JSON.stringify(seed));
+  vm.runInContext("loadDraftIntoInputs(db.draftLog)", context);
+
+  assert.equal(vm.runInContext('currentTimelineDataGame', context), 47);
+  assert.equal(vm.runInContext('timelineLiquidValue()', context), 38);
+  assert.equal(vm.runInContext('battleModeCurrentSegmentLiquidGames()', context), 38);
+  assert.equal(vm.runInContext("battleModeCreditUpdateButtonClass()", context), ' credit-ok');
+  assert.equal(vm.runInContext("latestHitBeforeCurrent().id", context), 'he_bonus');
+  assert.equal(vm.runInContext("battleModeReplayFlashMeterText()", context), 'リプフラ 1／38G（1/38）');
+}
+
+function testDraftRestoreFallsBackToLatestHitBeforeStartCounter() {
+  const seed = {
+    version: 1,
+    machines: [],
+    stores: [],
+    logs: [],
+    shopNotes: [],
+    shopNoteCards: [],
+    draftLog: {
+      id: 'draft_post_hit_empty_timeline',
+      sessionId: 's_post_hit_empty_timeline',
+      schemaVersion: 6,
+      machineId: 'm_nangoku_special',
+      aimId: 'aim_reset',
+      machineName: 'L南国育ちSPECIAL',
+      aimName: 'リセット狙い',
+      flowStep: 2,
+      status: 'active',
+      startCounterGame: 117,
+      suikaOffset: 0,
+      manualCorrection: 9,
+      timeline: [],
+      hitEvents: [
+        { id: 'he_bonus_old', trigger: 'at', dataGame: 177, liquidGame: 168, createdAt: '2026-07-21T10:00:00.000Z', wizardDone: true }
+      ],
+      intervalEstimate: null,
+      segments: [],
+      suggestLog: [],
+      money: { date: '2026-07-21', store: 'STORE_ALPHA', machineNo: '948' }
+    }
+  };
+  const { context } = runRecord(JSON.stringify(seed));
+  vm.runInContext("loadDraftIntoInputs(db.draftLog)", context);
+
+  assert.equal(vm.runInContext('currentTimelineDataGame', context), 177);
+  assert.equal(vm.runInContext('timelineLiquidValue()', context), 168);
+}
+
 function testBattleModeReplayFlashMeterHiddenWithoutQuickPanelTag() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -2034,6 +2131,8 @@ function run() {
   testBattleModeHitStartScrollsNextInputOnlyFromBattleMode();
   testBattleModeOtherSheetExcludesQuickPanelTags();
   testBattleModeReplayFlashMeterUsesCurrentLiquidGames();
+  testDraftRestoreKeepsPostHitBattleContext();
+  testDraftRestoreFallsBackToLatestHitBeforeStartCounter();
   testBattleModeReplayFlashMeterHiddenWithoutQuickPanelTag();
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
   testBattleModeMemoUsesTimelineTextEntryFormat();
