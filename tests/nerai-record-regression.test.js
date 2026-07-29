@@ -22,6 +22,10 @@ function extractStyle() {
   return match[1];
 }
 
+function stripTags(html) {
+  return String(html || '').replace(/<[^>]+>/g, '');
+}
+
 function makeStorage(seed = {}) {
   const data = { ...seed };
   return {
@@ -274,16 +278,25 @@ function testKabaneriPresetSeedAndPickers() {
   );
   vm.runInContext("openBattleModeStatePicker()", context);
   let stateHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
-  assert.equal(stateHtml.indexOf('🔥チャ目高確 開始') < stateHtml.indexOf('🔥カバネ高確 開始'), true);
-  assert.equal(stateHtml.indexOf('🔥無名高確 開始') < stateHtml.indexOf('🔥生駒高確 開始'), true);
-  assert.equal(stateHtml.indexOf('💡無名発光 開始') < stateHtml.indexOf('💡生駒発光 開始'), true);
+  let stateText = stripTags(stateHtml);
+  assert.equal(stateText.indexOf('🔥チャ目高確 開始') < stateText.indexOf('🔥カバネ高確 開始'), true);
+  assert.equal(stateText.indexOf('🔥無名高確 開始') < stateText.indexOf('🔥生駒高確 開始'), true);
+  assert.equal(stateText.indexOf('💡無名発光 開始') < stateText.indexOf('💡生駒発光 開始'), true);
+  assert.match(stateHtml, /bm-state-choice/);
+  assert.match(stateHtml, /suggest-color-red">無名/);
+  assert.match(stateHtml, /suggest-color-green">生駒/);
+  assert.match(stateHtml, /suggest-color-blue">カバネ/);
+  assert.match(stateHtml, /suggest-color-gold">超高確/);
+  assert.doesNotMatch(stateHtml, /class="bm-btn[^"]*kabaneri-red/);
   vm.runInContext("battleModeRecordState('kabaneri_mumei_flash','start')", context);
   assert.match(vm.runInContext("renderBattleModeStateBadges()", context), /💡無名発光/);
   assert.match(vm.runInContext("renderBattleModeStateBadges()", context), /kabaneri-red/);
   vm.runInContext("openBattleModeStatePicker()", context);
   stateHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
-  assert.match(stateHtml, /💡無名発光 終了/);
-  assert.doesNotMatch(stateHtml, /💡無名発光 開始/);
+  stateText = stripTags(stateHtml);
+  assert.match(stateText, /💡無名発光 終了/);
+  assert.doesNotMatch(stateText, /💡無名発光 開始/);
+  assert.doesNotMatch(stateHtml, /class="bm-btn[^"]*kabaneri-red/);
   assert.deepEqual(
     JSON.parse(vm.runInContext('JSON.stringify(machineHitTriggers().map(row => [row.key, row.label]))', context)),
     [['direct_at', '駿城ボーナス'], ['episode_bonus', 'エピソードボーナス']]

@@ -548,6 +548,8 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-state-badge.kabaneri-gold{border-color:rgba(255,211,107,.82);background:rgba(217,154,36,.38);color:#fff8e1;}
 .bm-state-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
 .bm-state-grid .bm-btn:last-child:nth-child(odd){grid-column:1/2;}
+.bm-state-choice{background:var(--surface2);border-color:rgba(122,122,138,.42);color:var(--text);}
+.bm-state-choice.active{border-color:rgba(201,168,76,.62);box-shadow:0 0 0 1px rgba(201,168,76,.16) inset;}
 .bm-toast{position:fixed;left:50%;top:72px;transform:translateX(-50%);z-index:12000;display:none;max-width:calc(100vw - 22px);border:1px solid rgba(201,168,76,.55);border-radius:999px;background:rgba(20,20,24,.94);color:var(--gold-light);font-size:20px;font-weight:900;padding:14px 24px;box-shadow:0 8px 22px rgba(0,0,0,.35);text-align:center;}
 .bm-toast.open{display:block;}
 .bm-toast button{margin-left:8px;border:0;background:transparent;color:#9be0bd;font:inherit;text-decoration:underline;cursor:pointer;}
@@ -6504,6 +6506,25 @@ function kabaneriStateIcon(state){
 function battleModeStateDisplayLabel(state){
   return isKabaneriMachine(currentMachine())?`${kabaneriStateIcon(state)}${state?.label||''}`:(state?.label||'');
 }
+function kabaneriColoredKeywordLabelHtml(label){
+  const text=String(label||'');
+  const keywords=[
+    ['超高確','suggest-color-gold'],
+    ['銅藍','suggest-color-gold'],
+    ['無名','suggest-color-red'],
+    ['生駒','suggest-color-green'],
+    ['カバネ','suggest-color-blue']
+  ];
+  const found=keywords.find(([keyword])=>text.includes(keyword));
+  if(!found)return escapeHtml(text);
+  const [keyword,cls]=found;
+  const index=text.indexOf(keyword);
+  return `${escapeHtml(text.slice(0,index))}<span class="${cls}">${escapeHtml(keyword)}</span>${escapeHtml(text.slice(index+keyword.length))}`;
+}
+function battleModeStateChoiceLabelHtml(state,suffix=''){
+  if(!isKabaneriMachine(currentMachine()))return escapeHtml(`${state?.label||''}${suffix}`);
+  return `${escapeHtml(kabaneriStateIcon(state))}${kabaneriColoredKeywordLabelHtml(state?.label)}${escapeHtml(suffix)}`;
+}
 function orderedBattleModeStates(states){
   if(!isKabaneriMachine(currentMachine()))return states;
   const order=new Map([
@@ -7283,9 +7304,7 @@ function openBattleModeStatePicker(){
   const status=battleModeStateStatusMap();
   const buttons=states.map(state=>{
     const active=!!status.get(state.id)?.active;
-    const label=`${battleModeStateDisplayLabel(state)} ${active?'終了':'開始'}`;
-    const tone=battleModeStateToneClass(state);
-    return `<button class="bm-btn ${active?'counter':''} ${escapeHtml(tone)}" type="button" onclick="${active&&state.endOptions.length?`openBattleModeStateEndPicker('${escapeHtml(state.id)}')`:`battleModeRecordState('${escapeHtml(state.id)}','${active?'end':'start'}')`}">${escapeHtml(label)}</button>`;
+    return `<button class="bm-btn bm-state-choice ${active?'active':''}" type="button" onclick="${active&&state.endOptions.length?`openBattleModeStateEndPicker('${escapeHtml(state.id)}')`:`battleModeRecordState('${escapeHtml(state.id)}','${active?'end':'start'}')`}">${battleModeStateChoiceLabelHtml(state,` ${active?'終了':'開始'}`)}</button>`;
   }).join('');
   setBattleModeSheet('状態',`
     <div class="bm-sheet-note">チャンス目→状態変更の順にタップ</div>
@@ -7297,7 +7316,7 @@ function openBattleModeStateEndPicker(stateId){
   if(!state){battleModeInvalid('状態定義が見つかりません');return;}
   setBattleModeSheet(`${battleModeStateDisplayLabel(state)} 終了`,`
     <div class="bm-sheet-note">終了結果を選択</div>
-    ${state.endOptions.map(option=>`<button class="bm-btn counter ${escapeHtml(battleModeStateToneClass(state))}" type="button" onclick="battleModeRecordState('${escapeHtml(state.id)}','end','${escapeHtml(option.key)}')">${escapeHtml(battleModeStateDisplayLabel(state))} ${escapeHtml(option.label)}</button>`).join('')}
+    ${state.endOptions.map(option=>`<button class="bm-btn bm-state-choice active" type="button" onclick="battleModeRecordState('${escapeHtml(state.id)}','end','${escapeHtml(option.key)}')">${battleModeStateChoiceLabelHtml(state,` ${option.label}`)}</button>`).join('')}
     <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">キャンセル</button>
   `);
 }
