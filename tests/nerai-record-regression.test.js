@@ -250,7 +250,7 @@ function testKabaneriPresetSeedAndPickers() {
   );
   assert.deepEqual(
     JSON.parse(vm.runInContext('JSON.stringify(currentMachine().quickPanel.events.map(event => event.ref))', context)),
-    ['state', 'kabaneri_point', 'kabaneri_omikuji', 'hit']
+    ['state', 'kabaneri_point', 'kabaneri_omikuji', 'kabaneri_stage']
   );
   assert.equal(vm.runInContext("currentMachine().states.length", context), 11);
   assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_cz_mumei' && state.endOptions.length === 2)", context), true);
@@ -261,7 +261,8 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_omikuji')", context), true);
   assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara').items.some(item => item.label === '生駒・近いよ（間近!?）')", context), true);
   assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_talk').items.some(item => item.label === '舵取り・返答あり（強・示唆）')", context), true);
-  assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_kiriban').items.length", context), 3);
+  assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_kiriban')", context), null);
+  assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_omikuji'),'sgp_kabaneri_point_kiriban').items.length", context), 3);
   assert.equal(vm.runInContext("findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara'),'sgp_kabaneri_point_minichara_i1').label", context), '無名・無言（予想）');
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara'),'sgp_kabaneri_point_minichara_i1').decorations)", context)),
@@ -298,14 +299,22 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(gridHtml, /複合/);
   assert.match(gridHtml, /pt示唆/);
   assert.match(gridHtml, /おみくじ/);
+  assert.match(gridHtml, /ステージ/);
+  assert.match(gridHtml, /当選・その他 ▼/);
+  assert.doesNotMatch(gridHtml, /openBattleModePicker\('hit'\)/);
   vm.runInContext("openBattleModeKabaneriMultiPicker()", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /無名＆カバネ/);
   vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_multi_mumei_kabane')", context);
   assert.equal(vm.runInContext("currentTimeline.at(-1).tagIds.includes('t_kabaneri_multi_mumei_kabane')", context), true);
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /複1/);
   vm.runInContext("openBattleModeOtherSheet()", context);
-  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ステージ/);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /当選/);
+  assert.equal(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML.indexOf('当選') < __stateElements.battleModeOtherGrid.innerHTML.indexOf('示唆記録')", context), true);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /tag-style-kabaneri-gold/);
+  assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ステージ/);
   assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /オールスター目/);
+  vm.runInContext("openBattleModePicker('hit')", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /駿城ボーナス/);
   vm.runInContext("openBattleModeKabaneriStagePicker()", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /第四区画坑道/);
   vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_stage_fourth_tunnel')", context);
@@ -328,7 +337,13 @@ function testKabaneriPresetSeedAndPickers() {
     assert.equal(row.opened, true, `${row.id} should open item choices`);
     assert.equal(row.logged, true, `${row.id} should register first item`);
   });
-  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.placeId === 'sgp_kabaneri_point_kiriban' && entry.itemId === 'sgp_kabaneri_point_kiriban_i1')", context), true);
+  const omikujiPlaces = JSON.parse(vm.runInContext("JSON.stringify(enabledSuggestPlaces('sgc_kabaneri_omikuji').map(place => [place.id, place.name, enabledSuggestItems('sgc_kabaneri_omikuji', place.id).length]))", context));
+  assert.deepEqual(omikujiPlaces.map(row => row[1]), ['輪廻くじ', 'アイテムくじ', 'キリ番演出']);
+  omikujiPlaces.forEach(row => assert.equal(row[2] > 0, true, `${row[0]} should have items`));
+  vm.runInContext("openSuggestItemPicker('sgc_kabaneri_omikuji','sgp_kabaneri_point_kiriban','play')", context);
+  assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /キリ番<\/span>・デフォルト/);
+  vm.runInContext("selectSuggestItem('sgp_kabaneri_point_kiriban_i1')", context);
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.categoryId === 'sgc_kabaneri_omikuji' && entry.placeId === 'sgp_kabaneri_point_kiriban' && entry.itemId === 'sgp_kabaneri_point_kiriban_i1')", context), true);
   vm.runInContext("openAtThroughBranchPicker()", context);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /ST突入/);
 }
@@ -354,6 +369,9 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.equal(vm.runInContext("currentTimeline.some(row => row.tagIds.includes('t_kabaneri_lower_bell'))", context), true);
   assert.match(vm.runInContext("subCounterLine(currentSubCounters)", context), /周期1回/);
   assert.match(vm.runInContext("subCounterLine(currentSubCounters)", context), /下段ベル1回/);
+  const style = extractStyle();
+  assert.match(style, /\.bm-grid\{[^}]*grid-auto-rows:minmax\(52px,auto\)/);
+  assert.doesNotMatch(style, /\.bm-grid\{[^}]*grid-template-rows:repeat\(4/);
 }
 
 function testStandardAimSeedsNoDuplicatesAndDeleteTombstone() {

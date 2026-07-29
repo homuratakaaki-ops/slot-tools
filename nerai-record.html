@@ -499,7 +499,7 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-credit-update.credit-ok{border-color:rgba(76,175,125,.95);background:rgba(76,175,125,.42);color:#f0fff6;box-shadow:0 0 0 1px rgba(76,175,125,.28) inset;}
 .bm-credit-update.credit-warn{border-color:rgba(234,179,8,.98);background:rgba(234,179,8,.44);color:#fff8df;box-shadow:0 0 0 1px rgba(234,179,8,.34) inset;}
 .bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
-.bm-grid{display:grid;grid-template-rows:repeat(4,minmax(52px,auto));gap:7px;min-height:0;align-content:end;}
+.bm-grid{display:grid;grid-auto-rows:minmax(52px,auto);gap:7px;min-height:0;align-content:end;}
 .bm-button-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
 .bm-button-row.four{grid-template-columns:repeat(4,minmax(0,1fr));}
 .bm-event-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
@@ -1373,7 +1373,7 @@ function normalizeQuickPanelEvent(item){
     const ref=String(item?.ref||'').trim();
     if(!ref)return null;
     if(type==='tag')return {type,ref};
-    if(type==='picker'&&['sazanami','bonus','ghoul_suika','ghoul_rare','ghoul_stage','ghoul_invitation','ghoul_seishin','state','kabaneri_point','kabaneri_omikuji','hit'].includes(ref))return {type,ref};
+    if(type==='picker'&&['sazanami','bonus','ghoul_suika','ghoul_rare','ghoul_stage','ghoul_invitation','ghoul_seishin','state','kabaneri_point','kabaneri_omikuji','kabaneri_stage','hit'].includes(ref))return {type,ref};
     if(type==='modal'&&['suggestion','destiny'].includes(ref))return {type,ref};
     return null;
 }
@@ -2559,6 +2559,8 @@ function normalizeData(data){
     ensureKabaneriUiSeedV11(m);
     ensureKabaneriSuggestSeedV11(m);
     ensureKabaneriSuggestSeedV12(m);
+    ensureKabaneriSuggestSeedV13(m);
+    ensureKabaneriPanelSeedV12(m);
     ensureKabaneriCounterSeed(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     applySuggestMetadata(m);
@@ -4847,6 +4849,45 @@ function ensureKabaneriSuggestSeedV12(machine){
   machine.kabaneriSuggestSeedV12=true;
   applySuggestMetadata(machine);
 }
+function ensureKabaneriSuggestSeedV13(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriSuggestSeedV13)return;
+  machine.kabaneriSuggestSeedV12=false;
+  ensureKabaneriSuggestSeedV12(machine);
+  const point=findSuggestCategory(machine,KABANERI_POINT_CATEGORY_ID);
+  const omikuji=ensureSuggestCategory(machine,KABANERI_OMIKUJI_CATEGORY_ID,'おみくじ');
+  const kiriban=point?.places?.find(place=>place.id==='sgp_kabaneri_point_kiriban')||findSuggestPlace(omikuji,'sgp_kabaneri_point_kiriban');
+  if(kiriban){
+    kiriban.enabled=true;
+    kiriban.stateGroup='play';
+    kiriban.items=(kiriban.items||[]).map(item=>({...item,enabled:item.enabled!==false}));
+    omikuji.places=Array.isArray(omikuji.places)?omikuji.places:[];
+    if(!omikuji.places.some(place=>place.id===kiriban.id))omikuji.places.push(kiriban);
+  }
+  if(point)point.places=(point.places||[]).filter(place=>place.id!=='sgp_kabaneri_point_kiriban');
+  const cycle=findSuggestPlace(omikuji,'sgp_kabaneri_omikuji_cycle');
+  if(cycle)cycle.name='輪廻くじ';
+  const item=findSuggestPlace(omikuji,'sgp_kabaneri_omikuji_item');
+  if(item)item.name='アイテムくじ';
+  const cz=findSuggestPlace(omikuji,'sgp_kabaneri_omikuji_cz');
+  if(cz)cz.enabled=false;
+  reorderSuggestPlaces(omikuji,['輪廻くじ','アイテムくじ','キリ番演出']);
+  machine.kabaneriSuggestSeedV13=true;
+  applySuggestMetadata(machine);
+}
+function ensureKabaneriPanelSeedV12(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriPanelSeedV12)return;
+  machine.quickPanel=normalizeQuickPanel({
+    counters:[],
+    gainButtons:[1,3,5,10],
+    events:[
+      {type:'picker',ref:'state'},
+      {type:'picker',ref:'kabaneri_point'},
+      {type:'picker',ref:'kabaneri_omikuji'},
+      {type:'picker',ref:'kabaneri_stage'}
+    ]
+  });
+  machine.kabaneriPanelSeedV12=true;
+}
 function ensureKabaneriCounterSeed(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriCounterSeedV1)return;
   mergeTimelineTagSeed(machine,[
@@ -5428,7 +5469,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriCounterSeed(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5472,6 +5513,8 @@ function addMachine(){
   ensureKabaneriUiSeedV11(machine);
   ensureKabaneriSuggestSeedV11(machine);
   ensureKabaneriSuggestSeedV12(machine);
+  ensureKabaneriSuggestSeedV13(machine);
+  ensureKabaneriPanelSeedV12(machine);
   ensureKabaneriCounterSeed(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
@@ -7001,6 +7044,7 @@ function battleModePickerButtonLabel(ref){
     state:'\u72b6\u614b',
     kabaneri_point:'pt\u793a\u5506',
     kabaneri_omikuji:'\u304a\u307f\u304f\u3058',
+    kabaneri_stage:'ステージ',
     hit:'\u5f53\u9078'
   }[ref]||'\u30d4\u30c3\u30ab\u30fc';
 }
@@ -7073,7 +7117,7 @@ function renderBattleModeGrid(){
       ${Array.from({length:eventSlotCount},(_,i)=>battleModeEventButton(events[i])).join('')}
     </div>
     <div class="bm-other-row">
-      <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">その他 ▼</button>
+      <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">${escapeHtml(isKabaneriMachine(currentMachine())?'当選・その他 ▼':'その他 ▼')}</button>
     </div>`;
 }
 function renderBattleModeUndoBar(){
@@ -7472,6 +7516,7 @@ function battleModeOtherExcludedTagIds(){
     if(item?.type==='picker'&&item.ref==='ghoul_rare')TOKYO_GHOUL_RARE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
     if(item?.type==='picker'&&item.ref==='ghoul_stage')TOKYO_GHOUL_STAGE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
     if(item?.type==='picker'&&item.ref==='ghoul_seishin')TOKYO_GHOUL_SEISHIN_PICKER_TAG_IDS.forEach(id=>ids.add(id));
+    if(item?.type==='picker'&&item.ref==='kabaneri_stage')KABANERI_STAGE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
     if(item?.type==='picker'&&item.ref==='state')machineStates().forEach(state=>{
       if(state.startTagId)ids.add(state.startTagId);
       if(state.endTagId)ids.add(state.endTagId);
@@ -7546,7 +7591,7 @@ function openBattleModeOtherSheet(){
     excludedModals.has('shopNote')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'shopNote\')">他台メモ</button>',
     excludedModals.has('memo')?'':'<button class="bm-btn other" type="button" onclick="openBattleModeMemoSheet()">メモ</button>'
   ];
-  if(isKabaneriMachine(currentMachine()))modalButtons.splice(1,0,'<button class="bm-btn other" type="button" onclick="openBattleModeKabaneriStagePicker()">ステージ</button>');
+  if(isKabaneriMachine(currentMachine()))modalButtons.splice(1,0,'<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModePicker(\'hit\')">当選</button>');
   if(isTokyoGhoulMachine(currentMachine()))modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModePicker(\'ghoul_rare\')">\u30ec\u30a2\uff08\u6fc0\u30ec\u30a2\uff09</button>');
   const modalButtonsHtml=modalButtons.join('');
   if(grid)grid.innerHTML=modalButtonsHtml+(tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>');
