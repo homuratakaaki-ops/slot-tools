@@ -2565,6 +2565,70 @@ function testSuggestLogSlimFallbackForMissingMaster() {
   assert.match(line, /旧内容フォールバック|マスタ未解決/);
 }
 
+function timelineSlimSeed() {
+  const seed = suggestLogSlimSeed();
+  const log = seed.logs[0];
+  log.timeline = [
+    {
+      id: 'tl_slim_1',
+      game: 120,
+      liquidGame: 111,
+      text: '',
+      tagIds: [],
+      countAs: [],
+      subCounters: { rf: 0 },
+      attachments: [],
+      createdAt: '2026-07-29T12:34:56.789Z'
+    },
+    {
+      id: 'tl_slim_2',
+      game: 125,
+      liquidGame: 116,
+      text: '後の同分メモ',
+      tagIds: ['t_missing'],
+      countAs: [],
+      subCounters: { rf: 2 },
+      attachments: [{ key: 'bonus', label: '加算', value: 10, unit: 'G', estimateRole: 'liquid_bonus' }],
+      createdAt: '2026-07-29T12:34:59.000Z'
+    }
+  ];
+  log.segments[0].timeline = [log.timeline[0]];
+  return seed;
+}
+
+function testTimelineStorageSlimAndHydratesDefaults() {
+  const { context, localStorage } = runRecord(JSON.stringify(timelineSlimSeed()));
+  const storedLog = JSON.parse(localStorage.getItem('nerai_record_v1')).logs.find(log => log.id === 'log_slim');
+  const emptyEntry = storedLog.timeline[0];
+  const filledEntry = storedLog.timeline[1];
+
+  assert.equal(emptyEntry.createdAt, '2026-07-29T12:34');
+  ['text', 'tagIds', 'countAs', 'subCounters', 'attachments'].forEach(key => {
+    assert.equal(Object.prototype.hasOwnProperty.call(emptyEntry, key), false, key);
+  });
+  assert.equal(filledEntry.createdAt, '2026-07-29T12:34');
+  assert.deepEqual(filledEntry.tagIds, ['t_missing']);
+  assert.equal(Object.prototype.hasOwnProperty.call(filledEntry, 'countAs'), false);
+  assert.deepEqual(filledEntry.subCounters, { rf: 2 });
+  assert.equal(filledEntry.attachments.length, 1);
+
+  const restored = runRecord(localStorage.getItem('nerai_record_v1'));
+  const hydrated = JSON.parse(vm.runInContext("JSON.stringify(db.logs.find(log => log.id === 'log_slim').timeline[0])", restored.context));
+  assert.deepEqual(hydrated.tagIds, []);
+  assert.deepEqual(hydrated.countAs, []);
+  assert.deepEqual(hydrated.subCounters, {});
+  assert.deepEqual(hydrated.attachments, []);
+}
+
+function testTimelineSameMinuteOrderUsesArrayOrderFallback() {
+  const { context } = runRecord(JSON.stringify(timelineSlimSeed()));
+  const latest = vm.runInContext("latestLogGameLine(db.logs.find(log => log.id === 'log_slim'))", context);
+  assert.match(latest, /125G/);
+  assert.match(latest, /116G/);
+  const sortedIds = JSON.parse(vm.runInContext("JSON.stringify(sortByCreatedAtWithIndex(db.logs.find(log => log.id === 'log_slim').timeline, true).map(row => row.id))", context));
+  assert.deepEqual(sortedIds, ['tl_slim_2', 'tl_slim_1']);
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -2642,6 +2706,8 @@ function run() {
   testShopNoteExistingLogsAndStorageCountsRemainStable();
   testSuggestLogStorageSlimAndDisplayHydratesFromIds();
   testSuggestLogSlimFallbackForMissingMaster();
+  testTimelineStorageSlimAndHydratesDefaults();
+  testTimelineSameMinuteOrderUsesArrayOrderFallback();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();

@@ -1561,13 +1561,50 @@ function compactSuggestLogEntryForStorage(entry){
 function compactSuggestLogForStorage(entries){
   return (Array.isArray(entries)?entries:[]).map(compactSuggestLogEntryForStorage).filter(Boolean);
 }
+function compactSubCountersForStorage(value){
+  const counters=normalizeSubCounters(value);
+  const keys=Object.keys(counters).filter(key=>Number(counters[key])>0);
+  if(!keys.length)return null;
+  const ordered={};
+  keys.sort().forEach(key=>{ordered[key]=counters[key];});
+  return ordered;
+}
+function compactTimelineEntryForStorage(entry){
+  if(!entry||typeof entry!=='object')return null;
+  const item=clone(entry);
+  item.createdAt=compactCreatedAtMinute(item.createdAt);
+  if(!String(item.text||'').trim())delete item.text;
+  if(Array.isArray(item.tagIds)&&item.tagIds.length)item.tagIds=item.tagIds.map(String);
+  else delete item.tagIds;
+  if(Array.isArray(item.countAs)&&item.countAs.length)item.countAs=[...new Set(item.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)))];
+  else delete item.countAs;
+  const attachments=normalizeTimelineAttachments(item.attachments);
+  if(attachments.length)item.attachments=attachments;
+  else delete item.attachments;
+  const subCounters=compactSubCountersForStorage(item.subCounters);
+  if(subCounters)item.subCounters=subCounters;
+  else delete item.subCounters;
+  const ordered={};
+  ['id','game','liquidGame','text','tagIds','countAs','subCounters','attachments','liquidOffsetDelta','entryCause','entryCauseLabel','intervalEvent','createdAt'].forEach(key=>{
+    if(Object.prototype.hasOwnProperty.call(item,key))ordered[key]=item[key];
+  });
+  Object.keys(item).sort().forEach(key=>{
+    if(!Object.prototype.hasOwnProperty.call(ordered,key))ordered[key]=item[key];
+  });
+  return ordered;
+}
+function compactTimelineForStorage(entries){
+  return (Array.isArray(entries)?entries:[]).map(compactTimelineEntryForStorage).filter(Boolean);
+}
 function compactLogForStorage(log){
   if(!log||typeof log!=='object')return log;
   const compact=clone(log);
   compact.suggestLog=compactSuggestLogForStorage(compact.suggestLog);
+  compact.timeline=compactTimelineForStorage(compact.timeline);
   compact.segments=Array.isArray(compact.segments)?compact.segments.map(segment=>{
     const next=clone(segment);
     next.suggestLog=compactSuggestLogForStorage(next.suggestLog);
+    next.timeline=compactTimelineForStorage(next.timeline);
     return next;
   }):[];
   return compact;
@@ -2093,7 +2130,7 @@ function normalizeSegment(segment){
     subCounters:normalizeSubCounters(segment.subCounters),
     counterHistories:normalizeCounterHistories(segment.counterHistories),
     endingCards:normalizeEndingCards(segment.endingCards),
-    timeline:Array.isArray(segment.timeline)?segment.timeline.map(item=>({...item,game:normalizeOptionalNumber(item.game),liquidGame:normalizeOptionalNumber(item.liquidGame),subCounters:normalizeSubCounters(item.subCounters),attachments:normalizeTimelineAttachments(item.attachments)})):[],
+    timeline:Array.isArray(segment.timeline)?segment.timeline.map(item=>({...item,game:normalizeOptionalNumber(item.game),liquidGame:normalizeOptionalNumber(item.liquidGame),tagIds:Array.isArray(item.tagIds)?item.tagIds:[],countAs:Array.isArray(item.countAs)?item.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)):[],subCounters:normalizeSubCounters(item.subCounters),attachments:normalizeTimelineAttachments(item.attachments)})):[],
     suggestLog:Array.isArray(segment.suggestLog)?segment.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[],
     hitEvents:Array.isArray(segment.hitEvents)?segment.hitEvents.map(normalizeHitEvent).filter(Boolean):[]
   };
@@ -7354,7 +7391,7 @@ function incrementStartLogValue(delta){
   el.dispatchEvent(new Event('change',{bubbles:true}));
 }
 function sortedStartLog(){
-  return [...currentStartLog].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
+  return sortByCreatedAtWithIndex(currentStartLog,false);
 }
 function addStartLogEntry(){
   flushStartMemoSave();
@@ -7865,7 +7902,7 @@ function suggestKindBadgeHtml(entry){
   return `<span class="suggest-kind ${meta.className}">${escapeHtml(meta.icon)} ${escapeHtml(meta.label)}</span>`;
 }
 function sortedSuggestLog(){
-  return [...currentSuggestLog].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  return sortByCreatedAtWithIndex(currentSuggestLog,true);
 }
 function suggestEntryDedupKey(entry){
   if(!entry||typeof entry!=='object')return '';
@@ -11283,10 +11320,15 @@ function linkEndGamesFromTimelineEntry(entry){
   renderEndLog();
   renderPracticeStats();
 }
+function sortByCreatedAtWithIndex(rows,descending=true){
+  return (Array.isArray(rows)?rows:[]).map((entry,index)=>({entry,index})).sort((a,b)=>{
+    const timeCompare=String(a.entry?.createdAt||'').localeCompare(String(b.entry?.createdAt||''));
+    if(timeCompare!==0)return descending?-timeCompare:timeCompare;
+    return descending?b.index-a.index:a.index-b.index;
+  }).map(row=>row.entry);
+}
 function sortedTimeline(){
-  return [...currentTimeline].sort((a,b)=>{
-    return String(b.createdAt).localeCompare(String(a.createdAt));
-  });
+  return sortByCreatedAtWithIndex(currentTimeline,true);
 }
 function timelineLiquidGameValue(item){
   const liquid=normalizeOptionalNumber(item?.liquidGame);
@@ -11300,7 +11342,7 @@ function latestTimelineCounterState(log){
   const endLiquid=normalizeOptionalNumber(log?.endLog?.liquidGame);
   if(endData!==null)return {dataGame:endData,liquidGame:endLiquid!==null?endLiquid:endData};
   const rows=Array.isArray(log?.timeline)?log.timeline:[];
-  const latest=[...rows].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)))[0];
+  const latest=sortByCreatedAtWithIndex(rows,true)[0];
   const data=normalizeOptionalNumber(latest?.game);
   if(data!==null)return {dataGame:data,liquidGame:timelineLiquidGameValue(latest)??data};
   const latestHit=(Array.isArray(log?.hitEvents)?log.hitEvents:[])
@@ -12569,11 +12611,9 @@ function continueFromLog(id,skipConfirm=false){
 function buildShareText(log){
   const machine=machineById(log?.machineId);
   const startCounter=logStartCounterValue(log);
-  const startLog=[...visibleStartLog(log)].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
-  const timeline=[...(log.timeline||[])].sort((a,b)=>{
-    return String(b.createdAt).localeCompare(String(a.createdAt));
-  });
-  const suggestLog=[...(log.suggestLog||[])].sort((a,b)=>String(a.createdAt).localeCompare(String(b.createdAt)));
+  const startLog=sortByCreatedAtWithIndex(visibleStartLog(log),false);
+  const timeline=sortByCreatedAtWithIndex(log.timeline,true);
+  const suggestLog=sortByCreatedAtWithIndex(log.suggestLog,false);
   const lines=[
     `機種：${log.machineName}`,
     `狙い方：${log.aimName}`
@@ -12661,7 +12701,7 @@ function logSummaryMoney(log){
 }
 function latestLogGameLine(log){
   if(log.endLog)return endLogLine(log.endLog);
-  const timeline=[...(log.timeline||[])].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  const timeline=sortByCreatedAtWithIndex(log.timeline,true);
   if(timeline[0])return timelineGameLine(timeline[0]);
   const hits=[...(log.hitEvents||[])].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   if(hits[0])return `${hits[0].dataGame}/${hits[0].liquidGame}G`;
