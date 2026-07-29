@@ -484,13 +484,16 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-mini-btn{width:48px;min-height:42px;border:1px solid rgba(76,175,125,.58);border-radius:8px;background:rgba(76,175,125,.12);color:#a8efb4;font-size:16px;font-weight:900;cursor:pointer;}
 .bm-replay-flash-meter{width:100%;min-height:30px;border:1px solid rgba(201,168,76,.24);border-radius:8px;background:rgba(0,0,0,.1);color:var(--text-muted);font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:5px 8px;line-height:1.2;}
 button.bm-replay-flash-meter{cursor:pointer;}
-.bm-diff-row{display:grid;grid-template-columns:minmax(0,1fr) 86px;gap:10px;align-items:stretch;}
-.bm-top-action-row{display:grid;grid-template-columns:minmax(0,1fr) 58px repeat(3,52px);gap:6px;align-items:stretch;}
+.bm-diff-row{display:grid;grid-template-columns:minmax(0,1fr) 74px 86px;gap:8px;align-items:stretch;}
+.bm-top-action-row{display:grid;grid-template-columns:minmax(0,1fr) 54px 48px repeat(3,46px);gap:5px;align-items:stretch;}
 .bm-top-action-row .bm-diff-tracker{min-height:42px;font-size:13px;padding:5px 6px;}
 .bm-top-action-row .bm-diff-tracker .muted{display:block;margin:1px 0 0;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-action-mini{min-height:42px;border:1px solid rgba(98,181,255,.55);border-radius:8px;background:rgba(98,181,255,.1);color:#b9dcff;font-size:12px;font-weight:900;line-height:1.15;padding:4px;cursor:pointer;}
 .bm-diff-tracker{min-height:38px;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.12);color:var(--text);font-size:14px;font-weight:900;cursor:pointer;}
 .bm-quick-invest{min-height:42px;width:auto;}
+.bm-credit-update{min-height:42px;width:auto;border-color:rgba(201,168,76,.28);background:rgba(0,0,0,.12);color:var(--text);font-size:12px;}
+.bm-credit-update.credit-ok{border-color:rgba(76,175,125,.58);background:rgba(76,175,125,.14);color:#a8efb4;}
+.bm-credit-update.credit-warn{border-color:rgba(234,179,8,.68);background:rgba(234,179,8,.18);color:#ffe08a;}
 .bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
 .bm-grid{display:grid;grid-template-rows:repeat(4,minmax(52px,auto));gap:7px;min-height:0;align-content:end;}
 .bm-button-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
@@ -5898,14 +5901,24 @@ function battleModeIntervalDiffText(value){
   return `差枚 ${normalized>0?'+':''}${normalized}`;
 }
 function battleModeIntervalDetailText(state=battleModeIntervalTrackerState()){
-  return `初期 ${normalizeOptionalNumber(state.initialDiff)??0} ＋ クレ ${Number(state.credit)||0} − 投資 ${Number(state.investedTotal)||0}`;
+  const initial=normalizeOptionalNumber(state.initialDiff)??0;
+  const credit=Number(state.credit)||0;
+  const invested=Number(state.investedTotal)||0;
+  const suffix=`クレ ${credit} − 投資 ${invested}`;
+  return initial===0?suffix:`初期 ${initial} ＋ ${suffix}`;
+}
+function battleModeCreditUpdateButtonClass(){
+  if(!latestHitBeforeCurrent())return '';
+  return creditUpdatedSinceLastHit()?' credit-ok':' credit-warn';
 }
 function renderBattleModeIntervalTracker(){
   const state=battleModeIntervalTrackerState();
   const diff=battleModeIntervalDiffValue(state);
+  const creditClass=battleModeCreditUpdateButtonClass();
   return `<div class="bm-diff-row">
     <button class="bm-diff-tracker" type="button" onclick="openBattleModeDiffTrackerSheet()">${escapeHtml(battleModeIntervalDiffText(diff))}<span class="muted">${escapeHtml(battleModeIntervalTrackerMeasured(state)?battleModeIntervalDetailText(state):'未計測')}</span></button>
-    <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">+1千円</button>
+    <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">＋1000</button>
+    <button class="bm-mini-btn bm-credit-update${creditClass}" type="button" onclick="openBattleModeDiffInput('credit')">クレ更新</button>
   </div>`;
 }
 function battleModeQuickInvestYen(){
@@ -5917,9 +5930,11 @@ function battleModeQuickInvestYen(){
 function renderBattleModeTopActions(){
   const state=battleModeIntervalTrackerState();
   const diff=battleModeIntervalDiffValue(state);
+  const creditClass=battleModeCreditUpdateButtonClass();
   return `<div class="bm-top-action-row">
     <button class="bm-diff-tracker" type="button" onclick="openBattleModeDiffTrackerSheet()">${escapeHtml(battleModeIntervalDiffText(diff))}<span class="muted">${escapeHtml(battleModeIntervalTrackerMeasured(state)?battleModeIntervalDetailText(state):'\u672a\u8a08\u6e2c')}</span></button>
-    <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">+1\u5343</button>
+    <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">＋1000</button>
+    <button class="bm-mini-btn bm-credit-update${creditClass}" type="button" onclick="openBattleModeDiffInput('credit')">\u30af\u30ec</button>
     <button class="bm-action-mini" type="button" onclick="openSuggestPlacePicker('play')">\u793a\u5506</button>
     <button class="bm-action-mini" type="button" onclick="battleModeOpenModal('shopNote')">\u4ed6\u53f0</button>
     <button class="bm-action-mini" type="button" onclick="openBattleModeMemoSheet()">\u30e1\u30e2</button>
