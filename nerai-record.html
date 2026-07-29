@@ -1037,7 +1037,7 @@ const STORAGE_USAGE_WARN_RATIO=.6;
 const STORAGE_USAGE_DANGER_RATIO=.8;
 const ORGANIZED_FILTER_KEY='neraiOrganizedViewFilters';
 const ORGANIZED_CHAIN_MODE_HINTS_KEY='neraiOrganizedShowChainModeHints';
-const LOG_SCHEMA_VERSION=2;
+const LOG_SCHEMA_VERSION=3;
 const LOG_STATUS_VALUES=['active','suspended','finished','settled'];
 const SEGMENT_STATUS_VALUES=['editing','committed'];
 const STANDARD_AIM_SEEDS=[
@@ -2002,6 +2002,16 @@ function normalizeHitBranchWizard(wizard){
     eventId:String(wizard?.eventId||'')
   };
 }
+function normalizeTimelineCounterState(value){
+  if(!value||typeof value!=='object')return null;
+  const dataGame=normalizeOptionalNumber(value.dataGame);
+  const liquidGame=normalizeOptionalNumber(value.liquidGame);
+  if(dataGame===null&&liquidGame===null)return null;
+  return {
+    dataGame:dataGame!==null?Math.trunc(dataGame):null,
+    liquidGame:liquidGame!==null?Math.trunc(liquidGame):(dataGame!==null?Math.trunc(dataGame):null)
+  };
+}
 function normalizeSegment(segment){
   if(!segment||typeof segment!=='object')return null;
   const dataGame=normalizeOptionalNumber(segment.dataGame);
@@ -2251,6 +2261,7 @@ function normalizeData(data){
     log.kuiPoint.gains=Array.isArray(log.kuiPoint.gains)?log.kuiPoint.gains:[];
     log.kuiPoint.hints=Array.isArray(log.kuiPoint.hints)?log.kuiPoint.hints:[];
     log.hitEvents=Array.isArray(log.hitEvents)?log.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    log.timelineCounterState=normalizeTimelineCounterState(log.timelineCounterState);
     log.intervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
     log.segments=Array.isArray(log.segments)?log.segments.map(normalizeSegment).filter(Boolean):[];
     dedupeSegmentSuggestLogs(log);
@@ -2306,6 +2317,7 @@ function normalizeData(data){
     data.draftLog.finalized=false;
     data.draftLog.excludeFromStats=true;
     data.draftLog.hitEvents=Array.isArray(data.draftLog.hitEvents)?data.draftLog.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    data.draftLog.timelineCounterState=normalizeTimelineCounterState(data.draftLog.timelineCounterState);
     data.draftLog.intervalEstimate=normalizeIntervalEstimate(data.draftLog.intervalEstimate);
     data.draftLog.subCounters=normalizeSubCounters(data.draftLog.subCounters);
     data.draftLog.counterHistories=normalizeCounterHistories(data.draftLog.counterHistories);
@@ -11124,6 +11136,8 @@ function timelineLiquidGameValue(item){
   return normalizeOptionalNumber(item?.game);
 }
 function latestTimelineCounterState(log){
+  const counterState=normalizeTimelineCounterState(log?.timelineCounterState);
+  if(counterState)return counterState;
   const endData=normalizeOptionalNumber(log?.endLog?.game);
   const endLiquid=normalizeOptionalNumber(log?.endLog?.liquidGame);
   if(endData!==null)return {dataGame:endData,liquidGame:endLiquid!==null?endLiquid:endData};
@@ -11749,6 +11763,15 @@ function updateCalc(){
   const warning=document.getElementById('timeWarning');
   if(warning)warning.style.display=calc.invalidTime?'block':'none';
 }
+function currentTimelineCounterStateSnapshot(endLog=null){
+  const endData=normalizeOptionalNumber(endLog?.game);
+  if(endData!==null){
+    return normalizeTimelineCounterState({dataGame:endData,liquidGame:normalizeOptionalNumber(endLog?.liquidGame)??endData});
+  }
+  const dataGame=normalizeOptionalNumber(timelineDataValue());
+  const liquidGame=normalizeOptionalNumber(timelineLiquidValue());
+  return normalizeTimelineCounterState({dataGame,liquidGame});
+}
 function currentInputLogObject(finalized=false, existingLog=null){
   flushStartMemoSave();
   const machine=currentMachine();const aim=currentAim();
@@ -11797,6 +11820,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
     expectedValue:normalizeExpectedValue(document.getElementById('expectedValueInput')?.value||currentExpectedValue),
     suikaOffset:currentTimelineSuikaOffset,
     manualCorrection:currentTimelineManualCorrection,
+    timelineCounterState:currentTimelineCounterStateSnapshot(currentEndLog),
     intervalEstimate:normalizeIntervalEstimate(currentIntervalEstimate),
     subCounters:normalizeSubCounters(currentSubCounters),
     counterHistories:normalizeCounterHistories(currentCounterHistories),
