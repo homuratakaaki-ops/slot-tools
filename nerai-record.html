@@ -6028,11 +6028,35 @@ function replayFlashCountForTimeline(timeline){
     return total+(ids.includes('t_nangoku_replay_flash')?1:0);
   },0);
 }
+function observedSegmentStartLiquidGame(offset=timelineLiquidOffset(),machine=currentMachine()){
+  const startData=normalizeOptionalNumber(currentStartCounterGame);
+  if(startData===null)return 0;
+  const liquid=liquidFromDataWithOffset(startData,offset,machine);
+  return Math.max(0,Math.trunc(liquid??startData));
+}
+function observedLiquidGamesFromEnd(endLiquid,endData,{initial=false,offset=timelineLiquidOffset(),machine=currentMachine()}={}){
+  const liquid=normalizeOptionalNumber(endLiquid);
+  const data=normalizeOptionalNumber(endData);
+  const end=liquid!==null?liquid:data;
+  if(end===null)return 0;
+  if(!initial)return Math.max(0,Math.trunc(end));
+  const start=liquid!==null?observedSegmentStartLiquidGame(offset,machine):(normalizeOptionalNumber(currentStartCounterGame)??0);
+  return Math.max(0,Math.trunc(end-start));
+}
+function battleModeSegmentIsInitial(segment){
+  const target=Date.parse(segment?.createdAt||'');
+  if(!Number.isFinite(target))return false;
+  const earliest=currentSegments
+    .map(row=>Date.parse(row?.createdAt||''))
+    .filter(time=>Number.isFinite(time))
+    .sort((a,b)=>a-b)[0];
+  return Number.isFinite(earliest)&&target===earliest;
+}
 function battleModeSegmentLiquidGames(segment){
   const liquid=normalizeOptionalNumber(segment?.liquidGame);
   const data=normalizeOptionalNumber(segment?.dataGame);
-  if(liquid===null&&data===null)return 0;
-  return Math.max(0,Math.trunc(liquid!==null?liquid:data));
+  const offset=(normalizeOptionalNumber(segment?.suikaOffset)??0)+(normalizeOptionalNumber(segment?.manualCorrection)??0);
+  return observedLiquidGamesFromEnd(liquid,data,{initial:battleModeSegmentIsInitial(segment),offset,machine:currentMachine()});
 }
 function battleModeSelectedReplayScopeSegments(){
   const existingIds=new Set(currentSegments.map(segment=>segment.id));
@@ -6071,7 +6095,7 @@ function battleModeReplaySplitMeterText(){
 function battleModeCurrentSegmentLiquidGames(){
   const liquid=normalizeOptionalNumber(timelineLiquidValue());
   const fallback=normalizeOptionalNumber(timelineDataValue());
-  return Math.max(0,Math.trunc(liquid!==null?liquid:(fallback!==null?fallback:0)));
+  return observedLiquidGamesFromEnd(liquid,fallback,{initial:currentSegments.length===0});
 }
 function battleModeReplayFlashMeterText(){
   const totals=battleModeReplayFlashScopeTotals();
