@@ -1174,6 +1174,41 @@ function testHitPayoutStepDoesNotDuplicateSameCreditHistory() {
   assert.match(vm.runInContext('battleModeUndoStack.at(-1).label', context), /獲得枚数採用/);
 }
 
+function testHitPayoutCreditInputSelectsAndClears() {
+  const { context } = runRecord(undefined);
+  const result = JSON.parse(vm.runInContext(`
+    selectedMachineId = 'm_tokyo_ghoul';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentHitEvents = [normalizeHitEvent({ id: 'he_credit_select', trigger: 'at', dataGame: 100, liquidGame: 100, createdAt: '2026-07-21T10:00:00.000Z', wizardDone: false })];
+    hitBranchWizard = { route: 'atHit', stepIndex: 1, through: null, done: ['through'], eventId: 'he_credit_select' };
+    currentIntervalEstimate = normalizeIntervalEstimate({ initialDiff: null, loanRate: 46, investedTotal: 0, credit: 563, history: [] });
+    const generic = document.getElementById('generic');
+    let focused = 0;
+    let selected = 0;
+    const input = { ...generic, value: '', focus() { focused += 1; }, select() { selected += 1; } };
+    const overlay = { ...generic, classList: { add() { this.opened = true; }, remove() {}, toggle() {} } };
+    document.getElementById = id => id === 'hitPayoutInput' ? input : id === 'hitPayoutOverlay' ? overlay : generic;
+    promptHitEventPayout();
+    const afterPrompt = { value: input.value, focused, selected };
+    clearHitPayoutCreditInput();
+    JSON.stringify({ afterPrompt, afterClear: { value: input.value, focused, selected } });
+  `, context));
+  assert.deepEqual(result.afterPrompt, { value: '563', focused: 1, selected: 1 });
+  assert.deepEqual(result.afterClear, { value: '', focused: 2, selected: 1 });
+}
+
+function testNumericKeypadReplaceOnNextDigit() {
+  const { context } = runRecord(undefined);
+  const value = vm.runInContext(`
+    const input = { value: '563', dataset: { replaceOnNextDigit: '1' } };
+    activeNumericInput = input;
+    pressKeypad('7');
+    pressKeypad('8');
+    input.value;
+  `, context);
+  assert.equal(value, '78');
+}
+
 function testHitPayoutStepRecordsCreditOnlyWithoutBaseCredit() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -2329,6 +2364,8 @@ function run() {
   testBattleModeInvestmentResetUsesHistoryBoundaryAndUndo();
   testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo();
   testHitPayoutStepDoesNotDuplicateSameCreditHistory();
+  testHitPayoutCreditInputSelectsAndClears();
+  testNumericKeypadReplaceOnNextDigit();
   testHitPayoutStepRecordsCreditOnlyWithoutBaseCredit();
   testSuggestLogSnapshotKeepsOnlyCurrentSegmentEntries();
   testNormalizeDataDedupesCopiedSegmentSuggestLogs();
