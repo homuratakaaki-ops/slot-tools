@@ -523,6 +523,11 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-recent-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-undo-bar{min-height:48px;border:1px solid rgba(201,168,76,.55);border-radius:8px;background:rgba(201,168,76,.12);color:var(--gold-light);font-size:14px;font-weight:900;padding:9px 10px;cursor:pointer;text-align:center;}
 .bm-undo-bar.disabled{opacity:.52;color:var(--text-muted);border-color:rgba(122,122,138,.35);background:rgba(122,122,138,.08);cursor:default;}
+.bm-quit-area{margin-top:18px;padding-top:14px;border-top:1px solid rgba(122,122,138,.22);}
+.bm-quit-btn{width:100%;min-height:46px;border:1px solid rgba(239,68,68,.38);border-radius:8px;background:rgba(239,68,68,.10);color:#fecaca;font-size:14px;font-weight:900;cursor:pointer;}
+.bm-quit-btn:active{transform:translateY(1px);}
+.bm-sheet-note{grid-column:1/-1;color:var(--text-muted);font-size:13px;line-height:1.55;}
+.bm-sheet-note strong{color:var(--text);}
 .bm-toast{position:fixed;left:50%;top:72px;transform:translateX(-50%);z-index:12000;display:none;max-width:calc(100vw - 22px);border:1px solid rgba(201,168,76,.55);border-radius:999px;background:rgba(20,20,24,.94);color:var(--gold-light);font-size:20px;font-weight:900;padding:14px 24px;box-shadow:0 8px 22px rgba(0,0,0,.35);text-align:center;}
 .bm-toast.open{display:block;}
 .bm-toast button{margin-left:8px;border:0;background:transparent;color:#9be0bd;font:inherit;text-decoration:underline;cursor:pointer;}
@@ -1007,6 +1012,7 @@ footer a:hover{color:var(--gold-light);}
     <div class="bm-grid" id="battleModeGrid"></div>
     <div class="bm-recent" id="battleModeRecent"></div>
     <button class="bm-undo-bar disabled" id="battleModeUndoBar" type="button" onclick="undoBattleModeLast()">直前の記録はありません</button>
+    <div class="bm-quit-area" id="battleModeQuitArea"></div>
   </div>
 </div>
 <div class="bm-toast" id="battleModeToast"></div>
@@ -5910,6 +5916,9 @@ function battleModeSnapshot(){
     currentCounterHistories:clone(currentCounterHistories),
     currentSuggestLog:clone(currentSuggestLog),
     currentHitEvents:clone(currentHitEvents),
+    currentEndLog:clone(currentEndLog),
+    linkedEndDataGame,
+    linkedEndLiquidGame,
     recentTimelineHighlightId,
     recentSuggestHighlightId,
     timelineHistoryOpen,
@@ -5927,6 +5936,9 @@ function restoreBattleModeSnapshot(snapshot){
   currentCounterHistories=normalizeCounterHistories(snapshot.currentCounterHistories);
   currentSuggestLog=(snapshot.currentSuggestLog||[]).map(normalizeSuggestLogEntry).filter(Boolean);
   currentHitEvents=(snapshot.currentHitEvents||[]).map(normalizeHitEvent).filter(Boolean);
+  currentEndLog=snapshot.currentEndLog?clone(snapshot.currentEndLog):null;
+  linkedEndDataGame=normalizeOptionalNumber(snapshot.linkedEndDataGame);
+  linkedEndLiquidGame=normalizeOptionalNumber(snapshot.linkedEndLiquidGame);
   recentTimelineHighlightId=snapshot.recentTimelineHighlightId||'';
   recentSuggestHighlightId=snapshot.recentSuggestHighlightId||'';
   timelineHistoryOpen=!!snapshot.timelineHistoryOpen;
@@ -6593,6 +6605,55 @@ function renderBattleModeUndoBar(){
   bar.classList.toggle('disabled',!latest);
   bar.textContent=latest?`↶ 直前「${latest.label}」を取消`:'直前の記録はありません';
 }
+function battleModeQuitPositionText(){
+  const data=timelineDataValue();
+  const liquid=timelineLiquidValue();
+  return `データG ${data===null?'-':data} ／ 液晶G ${liquid===null?'-':liquid}`;
+}
+function renderBattleModeQuitArea(){
+  return '<button class="bm-quit-btn" type="button" onclick="openBattleModeQuitSheet()">ヤメる（打ち終わりを記録）</button>';
+}
+function openBattleModeQuitSheet(){
+  const position=battleModeQuitPositionText();
+  const existing=currentEndLog?`<div class="bm-sheet-note">打ち終わり記録済み：<strong>${escapeHtml(endLogLine(currentEndLog))}</strong><br>現在位置（${escapeHtml(position)}）で上書きしますか？</div>`:
+    `<div class="bm-sheet-note">現在位置で打ち終わりを記録します<br><strong>${escapeHtml(position)}</strong></div>`;
+  setBattleModeSheet('ヤメる',`
+    ${existing}
+    <button class="bm-btn counter" type="button" onclick="battleModeQuitAndGoMoney()">記録して収支登録へ</button>
+    <button class="bm-btn" type="button" onclick="battleModeQuitOnly()">記録だけする</button>
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">キャンセル</button>
+  `);
+}
+function ensureMoneyEndTimeNow(){
+  const el=document.getElementById('moneyEnd');
+  if(el&&!el.value)setNow('moneyEnd');
+}
+function battleModeRecordQuitEndLog(){
+  const committed=battleModeCommit('ヤメ',()=>{
+    setEndLogFromCurrentPosition();
+    renderEndLog();
+    renderPracticeStats();
+  },{toastMessage:'ヤメを記録しました'});
+  if(!committed){
+    setEndLogFromCurrentPosition();
+    renderEndLog();
+    renderPracticeStats();
+    saveDraftImmediately();
+  }
+}
+function battleModeQuitOnly(){
+  closeBattleModeOtherSheet();
+  battleModeRecordQuitEndLog();
+}
+function battleModeQuitAndGoMoney(){
+  closeBattleModeOtherSheet();
+  battleModeRecordQuitEndLog();
+  closeBattleMode();
+  ensureMoneyEndTimeNow();
+  switchFlowStep(4);
+  ensureMoneyEndTimeNow();
+  applyBattleCreditToMoneyEndMedals();
+}
 function renderBattleMode(){
   if(!battleModeOpen)return;
   const machine=currentMachine();
@@ -6622,6 +6683,8 @@ function renderBattleMode(){
   const recent=document.getElementById('battleModeRecent');
   if(recent)recent.innerHTML=renderBattleModeRecent();
   renderBattleModeUndoBar();
+  const quit=document.getElementById('battleModeQuitArea');
+  if(quit)quit.innerHTML=renderBattleModeQuitArea();
 }
 function openBattleModeCounterKeypad(role){
   const counter=machineSubCounter();

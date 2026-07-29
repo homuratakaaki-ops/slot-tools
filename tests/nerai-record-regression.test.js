@@ -602,6 +602,136 @@ function testEditEndLogUsesKeypadInsteadOfPrompt() {
   });
 }
 
+function battleModeQuitDomScript() {
+  return `
+    (() => {
+    const generic = document.getElementById('generic');
+    const elements = {
+      battleModeOverlay: { ...generic, id: 'battleModeOverlay', classList: { add() {}, remove() {}, toggle() {} } },
+      battleModeOtherSheet: { ...generic, id: 'battleModeOtherSheet', classList: { add() {}, remove() {}, toggle() {} } },
+      battleModeOtherGrid: { ...generic, id: 'battleModeOtherGrid', innerHTML: '' },
+      battleModeTitle: { ...generic, id: 'battleModeTitle', textContent: '' },
+      battleModeCheckpointStatus: { ...generic, id: 'battleModeCheckpointStatus', innerHTML: '' },
+      battleModeCounters: { ...generic, id: 'battleModeCounters', innerHTML: '' },
+      battleModeGrid: { ...generic, id: 'battleModeGrid', innerHTML: '' },
+      battleModeRecent: { ...generic, id: 'battleModeRecent', innerHTML: '' },
+      battleModeUndoBar: { ...generic, id: 'battleModeUndoBar', textContent: '', classList: { add() {}, remove() {}, toggle() {} } },
+      battleModeQuitArea: { ...generic, id: 'battleModeQuitArea', innerHTML: '' },
+      battleModeToast: { ...generic, id: 'battleModeToast', innerHTML: '', classList: { add() {}, remove() {}, toggle() {} } },
+      dynamicFields: { ...generic, id: 'dynamicFields', innerHTML: '' },
+      flowStepTabs: { ...generic, id: 'flowStepTabs', innerHTML: '' },
+      currentContextBar: { ...generic, id: 'currentContextBar', innerHTML: '' },
+      endLogBox: { ...generic, id: 'endLogBox', innerHTML: '' },
+      practiceStatsBox: { ...generic, id: 'practiceStatsBox', innerHTML: '' },
+      carrySummaryBox: { ...generic, id: 'carrySummaryBox', innerHTML: '' },
+      timelineList: { ...generic, id: 'timelineList', innerHTML: '' },
+      timelineHistoryBox: { ...generic, id: 'timelineHistoryBox', classList: { add() {}, remove() {}, toggle() {} } },
+      timelineHistoryCount: { ...generic, id: 'timelineHistoryCount', textContent: '' },
+      suggestLogList: { ...generic, id: 'suggestLogList', innerHTML: '' },
+      pendingSuggestBox: { ...generic, id: 'pendingSuggestBox', innerHTML: '' },
+      storeSelect: { ...generic, id: 'storeSelect', innerHTML: '' },
+      moneyRegistrationStatus: { ...generic, id: 'moneyRegistrationStatus', innerHTML: '', classList: { add() {}, remove() {}, toggle() {} } },
+      moneyEndMedalsLinkHint: { ...generic, id: 'moneyEndMedalsLinkHint', textContent: '' },
+      moneyDate: { ...generic, id: 'moneyDate', value: '2026-07-29' },
+      moneyStore: { ...generic, id: 'moneyStore', value: 'STORE_ALPHA' },
+      moneyMachineNo: { ...generic, id: 'moneyMachineNo', value: '948' },
+      publishStore: { ...generic, id: 'publishStore', checked: false },
+      publishMachineNo: { ...generic, id: 'publishMachineNo', checked: false },
+      moneyStart: { ...generic, id: 'moneyStart', value: '10:00' },
+      moneyEnd: { ...generic, id: 'moneyEnd', value: '' },
+      moneyStartMedals: { ...generic, id: 'moneyStartMedals', value: '0' },
+      moneyEndMedals: { ...generic, id: 'moneyEndMedals', value: '', dataset: {}, addEventListener() {} },
+      moneyCashIn: { ...generic, id: 'moneyCashIn', value: '' },
+      calcWork: { ...generic, id: 'calcWork', textContent: '' },
+      calcDiff: { ...generic, id: 'calcDiff', textContent: '' },
+      calcBalance: { ...generic, id: 'calcBalance', textContent: '' },
+      calcHourly: { ...generic, id: 'calcHourly', textContent: '' },
+      rateHint: { ...generic, id: 'rateHint', textContent: '' },
+      timeWarning: { ...generic, id: 'timeWarning', style: {} },
+      startMoneyDate: { ...generic, id: 'startMoneyDate', value: '' },
+      startMoneyStore: { ...generic, id: 'startMoneyStore', value: '' },
+      startPublishStore: { ...generic, id: 'startPublishStore', checked: false },
+      startMoneyMachineNo: { ...generic, id: 'startMoneyMachineNo', value: '' },
+      startPublishMachineNo: { ...generic, id: 'startPublishMachineNo', checked: false },
+      startMoneyStart: { ...generic, id: 'startMoneyStart', value: '' }
+    };
+    document.getElementById = id => elements[id] || generic;
+    document.querySelector = selector => selector === '#battleModeOtherSheet .bm-sheet-title' ? generic : null;
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentFlowStep = 2;
+    battleModeOpen = true;
+    currentStartCounterGame = 117;
+    currentStartCounterEdited = true;
+    setManualCorrectionForLiquid(222, 213);
+    setTimelineGames(222, 213);
+    moneyEndMedalsEdited = false;
+    return { elements };
+    })();
+  `;
+}
+
+function testBattleModeQuitOnlyRecordsEndLogAndUndo() {
+  const { context } = runRecord(undefined);
+  const result = JSON.parse(vm.runInContext(`
+    const setup = ${battleModeQuitDomScript()}
+    battleModeQuitOnly();
+    const afterRecord = {
+      battleModeOpen,
+      currentFlowStep,
+      endGame: currentEndLog && currentEndLog.game,
+      endLiquid: currentEndLog && currentEndLog.liquidGame,
+      undoCount: battleModeUndoStack.length
+    };
+    undoBattleModeLast();
+    JSON.stringify({ afterRecord, afterUndo: { endLog: currentEndLog, undoCount: battleModeUndoStack.length } });
+  `, context));
+  assert.deepEqual(result.afterRecord, {
+    battleModeOpen: true,
+    currentFlowStep: 2,
+    endGame: 222,
+    endLiquid: 213,
+    undoCount: 1
+  });
+  assert.equal(result.afterUndo.endLog, null);
+  assert.equal(result.afterUndo.undoCount, 0);
+}
+
+function testBattleModeQuitAndGoMoneyAppliesCreditLink() {
+  const { context } = runRecord(undefined);
+  const result = JSON.parse(vm.runInContext(`
+    const setup = ${battleModeQuitDomScript()}
+    currentIntervalEstimate = normalizeIntervalEstimate({
+      initialDiff: null,
+      certainty: 'unknown',
+      investedTotal: 0,
+      credit: 166,
+      history: [
+        { id: 'idh_credit_quit', at: '2026-07-29T10:30:00.000Z', mode: 'credit', label: 'クレジット更新', input: 166, before: { investedTotal: 0, credit: 0 }, after: { investedTotal: 0, credit: 166 }, summary: 'クレジット更新 0 → 166' }
+      ]
+    });
+    battleModeQuitAndGoMoney();
+    JSON.stringify({
+      battleModeOpen,
+      currentFlowStep,
+      endGame: currentEndLog && currentEndLog.game,
+      endLiquid: currentEndLog && currentEndLog.liquidGame,
+      moneyEnd: setup.elements.moneyEnd.value,
+      moneyEndMedals: setup.elements.moneyEndMedals.value,
+      linkHint: setup.elements.moneyEndMedalsLinkHint.textContent,
+      undoCount: battleModeUndoStack.length
+    });
+  `, context));
+  assert.equal(result.battleModeOpen, false);
+  assert.equal(result.currentFlowStep, 4);
+  assert.equal(result.endGame, 222);
+  assert.equal(result.endLiquid, 213);
+  assert.notEqual(result.moneyEnd, '');
+  assert.equal(result.moneyEndMedals, '166');
+  assert.notEqual(result.linkHint, '');
+  assert.equal(result.undoCount, 1);
+}
+
 function testNewRegistrationGuardClosesOpenNoHitSegment() {
   const { context } = runRecord(undefined, [true, true]);
   seedOpenNoHitTimeline(context, '据え置き確認');
@@ -2647,6 +2777,8 @@ function run() {
   testSaveLogDoesNotWarnWhenEndGameAfterStartCounter();
   testPracticeStatsShowsUnavailableForNegativeHitResetDenominator();
   testEditEndLogUsesKeypadInsteadOfPrompt();
+  testBattleModeQuitOnlyRecordsEndLogAndUndo();
+  testBattleModeQuitAndGoMoneyAppliesCreditLink();
   testNewRegistrationGuardClosesOpenNoHitSegment();
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeKeypadOverlayStacksAboveBattleMode();
