@@ -5908,11 +5908,23 @@ function battleModeIntervalDiffText(value){
   if(normalized===null)return '差枚 —';
   return `差枚 ${normalized>0?'+':''}${normalized}`;
 }
-function battleModeIntervalDetailText(state=battleModeIntervalTrackerState()){
+function battleModeCashInvestUnits(state=battleModeIntervalTrackerState()){
+  return normalizeIntervalEstimate(state).history
+    .filter(row=>row.mode==='investYen')
+    .reduce((sum,row)=>sum+(normalizeOptionalNumber(row.input)||0),0);
+}
+function battleModeCashInvestText(state=battleModeIntervalTrackerState()){
+  const units=battleModeCashInvestUnits(state);
+  if(units<=0)return '';
+  const text=Number.isInteger(units)?String(units):units.toLocaleString('ja-JP',{maximumFractionDigits:1});
+  return `（現金 ${text}千円）`;
+}
+function battleModeIntervalDetailText(state=battleModeIntervalTrackerState(),options={}){
   const initial=normalizeOptionalNumber(state.initialDiff)??0;
   const credit=Number(state.credit)||0;
   const invested=Number(state.investedTotal)||0;
-  const suffix=`クレ ${credit} − 投資 ${invested}`;
+  const cashText=options.cash===false?'':battleModeCashInvestText(state);
+  const suffix=`クレ ${credit} − 投資 ${invested}${cashText}`;
   return initial===0?suffix:`初期 ${initial} ＋ ${suffix}`;
 }
 function battleModeCreditUpdateButtonClass(){
@@ -6195,7 +6207,7 @@ function battleModeApplyDiffTrackerInput(mode,value,options={}){
 }
 function battleModeIntervalSnapshotText(state=battleModeIntervalTrackerState()){
   const diff=battleModeIntervalDiffValue(state);
-  return `${battleModeIntervalDiffText(diff)}（${battleModeIntervalDetailText(state)}）`;
+  return `${battleModeIntervalDiffText(diff)}（${battleModeIntervalDetailText(state,{cash:false})}）`;
 }
 function battleModeRecordIntervalDiffSnapshot(){
   const state=battleModeIntervalTrackerState();
