@@ -1035,6 +1035,103 @@ function testBattleModeReplayFlashMeterHiddenWithoutQuickPanelTag() {
   assert.equal(vm.runInContext('renderBattleModeReplayFlashMeter()', context), '');
 }
 
+function battleModeStateSeed() {
+  return {
+    version: 1,
+    machines: [{
+      id: 'm_state_test',
+      name: '状態テスト機',
+      maker: '',
+      aims: [{ id: 'aim_state', name: '状態確認', fields: [] }],
+      tags: [
+        { id: 't_state_high_start', label: '高確 開始', optional: false, countAs: null },
+        { id: 't_state_high_end', label: '高確 終了', optional: false, countAs: null },
+        { id: 't_state_cz_start', label: '無名CZ 開始', optional: false, countAs: null },
+        { id: 't_state_cz_end', label: '無名CZ 終了', optional: false, countAs: null }
+      ],
+      startTags: [],
+      labelTags: [],
+      states: [
+        { id: 'high', label: '高確', startTagId: 't_state_high_start', endTagId: 't_state_high_end' },
+        { id: 'cz_mumei', label: '無名CZ', startTagId: 't_state_cz_start', endTagId: 't_state_cz_end', endOptions: [{ key: 'success', label: '成功' }, { key: 'fail', label: '失敗' }] }
+      ],
+      quickPanel: { counters: [], gainButtons: [1, 3, 5, 10], events: [{ type: 'picker', ref: 'state' }] },
+      suggestMaster: []
+    }],
+    stores: [],
+    logs: []
+  };
+}
+
+function installBattleModeStateDom(context) {
+  vm.runInContext(`
+    const generic = document.getElementById('generic');
+    const elements = {
+      battleModeOtherSheet: { ...generic, id: 'battleModeOtherSheet', classList: { add() {}, remove() {}, toggle() {} } },
+      battleModeOtherGrid: { ...generic, id: 'battleModeOtherGrid', innerHTML: '' },
+      battleModeStateBadges: { ...generic, id: 'battleModeStateBadges', innerHTML: '' },
+      battleModeToast: { ...generic, id: 'battleModeToast', innerHTML: '', classList: { add() {}, remove() {}, toggle() {} } },
+      timelineList: { ...generic, id: 'timelineList', innerHTML: '' },
+      timelineHistoryBox: { ...generic, id: 'timelineHistoryBox', classList: { add() {}, remove() {}, toggle() {} } },
+      timelineHistoryCount: { ...generic, id: 'timelineHistoryCount', textContent: '' },
+      suggestLogList: { ...generic, id: 'suggestLogList', innerHTML: '' },
+      carrySummaryBox: { ...generic, id: 'carrySummaryBox', innerHTML: '' },
+      practiceStatsBox: { ...generic, id: 'practiceStatsBox', innerHTML: '' }
+    };
+    document.getElementById = id => elements[id] || generic;
+    document.querySelector = selector => selector === '#battleModeOtherSheet .bm-sheet-title' ? generic : null;
+    selectedMachineId = 'm_state_test';
+    selectedAimId = 'aim_state';
+    currentFlowStep = 2;
+    battleModeOpen = true;
+    setTimelineGames(100, 100);
+    globalThis.__stateElements = elements;
+  `, context);
+}
+
+function testBattleModeStatePickerTogglesAndRestoresFromTimeline() {
+  const { context, localStorage } = runRecord(JSON.stringify(battleModeStateSeed()));
+  installBattleModeStateDom(context);
+
+  assert.equal(vm.runInContext("currentMachine().states.length", context), 2);
+  assert.equal(vm.runInContext("normalizeQuickPanel(currentMachine().quickPanel).events[0].ref", context), 'state');
+  vm.runInContext('openBattleModeStatePicker()', context);
+  let html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(html, /高確 開始/);
+  assert.doesNotMatch(html, /高確 終了/);
+
+  vm.runInContext("battleModeRecordState('high','start')", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(battleModeActiveStates().map(state => state.id))", context)), ['high']);
+  assert.match(vm.runInContext('renderBattleModeStateBadges()', context), /高確/);
+  vm.runInContext('openBattleModeStatePicker()', context);
+  html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(html, /高確 終了/);
+  assert.doesNotMatch(html, /高確 開始/);
+
+  const stored = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  const restored = runRecord(JSON.stringify(stored));
+  vm.runInContext("loadDraftIntoInputs(db.draftLog); selectedMachineId = 'm_state_test'; selectedAimId = 'aim_state';", restored.context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(battleModeActiveStates().map(state => state.id))", restored.context)), ['high']);
+
+  vm.runInContext("battleModeRecordState('high','end')", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(battleModeActiveStates().map(state => state.id))", context)), []);
+}
+
+function testBattleModeStateEndOptionsUseEndTagWithoutHitFlow() {
+  const { context } = runRecord(JSON.stringify(battleModeStateSeed()));
+  installBattleModeStateDom(context);
+  vm.runInContext("battleModeRecordState('cz_mumei','start')", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(battleModeActiveStates().map(state => state.id))", context)), ['cz_mumei']);
+  vm.runInContext("openBattleModeStateEndPicker('cz_mumei')", context);
+  const html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(html, /無名CZ 成功/);
+  vm.runInContext("battleModeRecordState('cz_mumei','end','success')", context);
+  assert.equal(vm.runInContext('currentTimeline.at(-1).text', context), '無名CZ 成功');
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)), ['t_state_cz_end']);
+  assert.equal(vm.runInContext('currentHitEvents.length', context), 0);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(battleModeActiveStates().map(state => state.id))", context)), []);
+}
+
 function testBattleModeTagRecordUndoAndRedoUsesTimelineFormat() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -2794,6 +2891,8 @@ function run() {
   testDraftRestoreKeepsCounterOnlyGameProgress();
   testBattleModeLiquidCounterNeverRestoresNegative();
   testBattleModeReplayFlashMeterHiddenWithoutQuickPanelTag();
+  testBattleModeStatePickerTogglesAndRestoresFromTimeline();
+  testBattleModeStateEndOptionsUseEndTagWithoutHitFlow();
   testBattleModeTagRecordUndoAndRedoUsesTimelineFormat();
   testBattleModeMemoUsesTimelineTextEntryFormat();
   testLogSegmentCollapseDefaultsLatestTodayOpen();

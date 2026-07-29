@@ -528,6 +528,8 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-quit-btn:active{transform:translateY(1px);}
 .bm-sheet-note{grid-column:1/-1;color:var(--text-muted);font-size:13px;line-height:1.55;}
 .bm-sheet-note strong{color:var(--text);}
+.bm-state-badges{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;}
+.bm-state-badge{border:1px solid rgba(96,165,250,.45);border-radius:999px;background:rgba(96,165,250,.16);color:#bfdbfe;font-size:12px;font-weight:900;padding:4px 9px;}
 .bm-toast{position:fixed;left:50%;top:72px;transform:translateX(-50%);z-index:12000;display:none;max-width:calc(100vw - 22px);border:1px solid rgba(201,168,76,.55);border-radius:999px;background:rgba(20,20,24,.94);color:var(--gold-light);font-size:20px;font-weight:900;padding:14px 24px;box-shadow:0 8px 22px rgba(0,0,0,.35);text-align:center;}
 .bm-toast.open{display:block;}
 .bm-toast button{margin-left:8px;border:0;background:transparent;color:#9be0bd;font:inherit;text-decoration:underline;cursor:pointer;}
@@ -1008,6 +1010,7 @@ footer a:hover{color:var(--gold-light);}
       <button class="bm-close" type="button" onclick="closeBattleMode()" aria-label="閉じる">×</button>
     </div>
     <div id="battleModeCheckpointStatus"></div>
+    <div class="bm-state-badges" id="battleModeStateBadges"></div>
     <div class="bm-counters" id="battleModeCounters"></div>
     <div class="bm-grid" id="battleModeGrid"></div>
     <div class="bm-recent" id="battleModeRecent"></div>
@@ -1323,7 +1326,7 @@ function normalizeQuickPanelEvent(item){
     const ref=String(item?.ref||'').trim();
     if(!ref)return null;
     if(type==='tag')return {type,ref};
-    if(type==='picker'&&['sazanami','bonus','ghoul_suika','ghoul_rare','ghoul_stage','ghoul_invitation','ghoul_seishin','hit'].includes(ref))return {type,ref};
+    if(type==='picker'&&['sazanami','bonus','ghoul_suika','ghoul_rare','ghoul_stage','ghoul_invitation','ghoul_seishin','state','hit'].includes(ref))return {type,ref};
     if(type==='modal'&&['suggestion','destiny'].includes(ref))return {type,ref};
     return null;
 }
@@ -1336,6 +1339,29 @@ function normalizeQuickPanel(panel){
   const gainButtons=[1,3,5,10];
   const events=Array.isArray(panel.events)?panel.events.slice(0,4).map(normalizeQuickPanelEvent).filter(Boolean):[];
   return {counters,gainButtons,events};
+}
+function normalizeMachineStateOption(option){
+  const key=String(option?.key||option?.id||option?.label||'').trim();
+  const label=String(option?.label||key).trim();
+  return key&&label?{key,label}:null;
+}
+function normalizeMachineState(state){
+  const id=String(state?.id||'').trim();
+  const label=String(state?.label||'').trim();
+  const startTagId=String(state?.startTagId||'').trim();
+  const endTagId=String(state?.endTagId||'').trim();
+  if(!id||!label||!startTagId||!endTagId)return null;
+  const endOptions=Array.isArray(state.endOptions)?state.endOptions.map(normalizeMachineStateOption).filter(Boolean):[];
+  return {id,label,startTagId,endTagId,endOptions};
+}
+function normalizeMachineStates(states){
+  if(!Array.isArray(states))return [];
+  const seen=new Set();
+  return states.map(normalizeMachineState).filter(state=>{
+    if(!state||seen.has(state.id))return false;
+    seen.add(state.id);
+    return true;
+  });
 }
 function normalizeTagSize(value){
   return String(value||'').trim()==='large'?'large':'';
@@ -2446,6 +2472,7 @@ function normalizeData(data){
     m.startTags=Array.isArray(m.startTags)?m.startTags:[];
     m.labelTags=Array.isArray(m.labelTags)?m.labelTags:[];
     m.quickPanel=normalizeQuickPanel(m.quickPanel);
+    m.states=normalizeMachineStates(m.states);
     m.suggestMaster=normalizeSuggestMaster(m.suggestMaster);
     if(Array.isArray(m.shopNoteTagIds)){
       const seenShopNoteTagIds=new Set();
@@ -6051,6 +6078,32 @@ function battleModeEntryLabel(entry){
   const text=String(entry?.text||'').trim()||'記録';
   return `${game!==null?`${game}G `:''}${text}`;
 }
+function machineStates(machine=currentMachine()){
+  return normalizeMachineStates(machine?.states);
+}
+function battleModeStateStatusMap(machine=currentMachine(),timeline=currentTimeline){
+  const states=machineStates(machine);
+  const map=new Map(states.map(state=>[state.id,{state,active:false,lastEntry:null}]));
+  if(!states.length)return map;
+  const startToState=new Map(states.map(state=>[state.startTagId,state]));
+  const endToState=new Map(states.map(state=>[state.endTagId,state]));
+  sortByCreatedAtWithIndex(timeline,false).forEach(entry=>{
+    const ids=Array.isArray(entry?.tagIds)?entry.tagIds.map(String):[];
+    ids.forEach(tagId=>{
+      const start=startToState.get(tagId);
+      if(start&&map.has(start.id))Object.assign(map.get(start.id),{active:true,lastEntry:entry});
+      const end=endToState.get(tagId);
+      if(end&&map.has(end.id))Object.assign(map.get(end.id),{active:false,lastEntry:entry});
+    });
+  });
+  return map;
+}
+function battleModeActiveStates(machine=currentMachine()){
+  return [...battleModeStateStatusMap(machine).values()].filter(row=>row.active).map(row=>row.state);
+}
+function renderBattleModeStateBadges(){
+  return battleModeActiveStates().map(state=>`<span class="bm-state-badge">${escapeHtml(state.label)}</span>`).join('');
+}
 function battleModeIntervalTrackerState(){
   return normalizeIntervalEstimate(currentIntervalEstimate);
 }
@@ -6533,6 +6586,7 @@ function battleModePickerButtonLabel(ref){
     ghoul_seishin:'\u7cbe\u795e\u4e16\u754c',
     ghoul_rare:'\u30ec\u30a2\n(\u6fc0\u30ec\u30a2)',
     ghoul_stage:'\u30b9\u30c6\u30fc\u30b8',
+    state:'\u72b6\u614b',
     hit:'\u5f53\u9078'
   }[ref]||'\u30d4\u30c3\u30ab\u30fc';
 }
@@ -6663,6 +6717,8 @@ function renderBattleMode(){
   const title=document.getElementById('battleModeTitle');
   if(title)title.textContent=`${machine?.name||'機種未選択'} / ${aim?.name||'狙い方未選択'}`;
   renderCheckpointStatus();
+  const badges=document.getElementById('battleModeStateBadges');
+  if(badges)badges.innerHTML=renderBattleModeStateBadges();
   const counters=document.getElementById('battleModeCounters');
   if(counters)counters.innerHTML=`
     <div class="bm-main-counter-row">
@@ -6741,6 +6797,47 @@ function battleModeRecordTag(id){
   if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
   battleModeCommit(tag.label,()=>addInstantTimelineTag(tag));
 }
+function battleModeStateById(stateId){
+  return machineStates().find(state=>state.id===stateId)||null;
+}
+function battleModeStateTag(state,phase){
+  const tagId=phase==='end'?state?.endTagId:state?.startTagId;
+  return currentMachine()?.tags?.find(row=>row.id===tagId)||null;
+}
+function openBattleModeStatePicker(){
+  const states=machineStates();
+  if(!states.length){battleModeInvalid('状態定義がありません');return;}
+  const status=battleModeStateStatusMap();
+  const buttons=states.map(state=>{
+    const active=!!status.get(state.id)?.active;
+    const label=`${state.label} ${active?'終了':'開始'}`;
+    return `<button class="bm-btn ${active?'counter':''}" type="button" onclick="${active&&state.endOptions.length?`openBattleModeStateEndPicker('${escapeHtml(state.id)}')`:`battleModeRecordState('${escapeHtml(state.id)}','${active?'end':'start'}')`}">${escapeHtml(label)}</button>`;
+  }).join('');
+  setBattleModeSheet('状態',`
+    <div class="bm-sheet-note">チャンス目→状態変更の順にタップ</div>
+    ${buttons}
+  `);
+}
+function openBattleModeStateEndPicker(stateId){
+  const state=battleModeStateById(stateId);
+  if(!state){battleModeInvalid('状態定義が見つかりません');return;}
+  setBattleModeSheet(`${state.label} 終了`,`
+    <div class="bm-sheet-note">終了結果を選択</div>
+    ${state.endOptions.map(option=>`<button class="bm-btn counter" type="button" onclick="battleModeRecordState('${escapeHtml(state.id)}','end','${escapeHtml(option.key)}')">${escapeHtml(state.label)} ${escapeHtml(option.label)}</button>`).join('')}
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">キャンセル</button>
+  `);
+}
+function battleModeRecordState(stateId,phase,optionKey=''){
+  const state=battleModeStateById(stateId);
+  if(!state){battleModeInvalid('状態定義が見つかりません');return;}
+  const tag=battleModeStateTag(state,phase);
+  if(!tag){battleModeInvalid('状態タグが見つかりません');return;}
+  if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
+  const option=phase==='end'?state.endOptions.find(row=>row.key===optionKey):null;
+  const label=option?`${state.label} ${option.label}`:tag.label;
+  closeBattleModeOtherSheet();
+  battleModeCommit(label,()=>addInstantTimelineTagWithAttachments(tag,[],{fields:{text:label}}));
+}
 function battleModeOpenModal(ref){
   if(ref==='suggestion'){openSuggestPlacePicker('play');return;}
   if(ref==='destiny'){openKarakuriFateBoardPicker();return;}
@@ -6755,6 +6852,7 @@ function openBattleModePicker(ref){
   if(ref==='ghoul_stage'){openBattleModeGhoulTagPicker('\u30b9\u30c6\u30fc\u30b8',TOKYO_GHOUL_STAGE_PICKER_TAG_IDS);return;}
   if(ref==='ghoul_invitation'){openBattleModeGhoulInvitationPicker();return;}
   if(ref==='ghoul_seishin'){openBattleModeGhoulTagPicker('\u7cbe\u795e\u4e16\u754c',TOKYO_GHOUL_SEISHIN_PICKER_TAG_IDS);return;}
+  if(ref==='state'){openBattleModeStatePicker();return;}
   if(ref==='hit'){openBattleModeHitPicker();return;}
   battleModeInvalid('未対応のピッカーです');
 }
