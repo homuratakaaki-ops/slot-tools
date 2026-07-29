@@ -661,6 +661,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="input-row">
         <div class="input-label">終了持ちメダル</div>
         <div class="inline-field"><input type="text" id="moneyEndMedals" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()" onchange="updateCalc()"><span class="input-hint">枚</span></div>
+        <div class="input-hint" id="moneyEndMedalsLinkHint"></div>
       </div>
       <div class="input-row">
         <div class="input-label">現金投入<div class="input-hint">この台で追加した円だけ</div></div>
@@ -1260,6 +1261,7 @@ let battleModeReplayScopeSegmentIds=new Set();
 let battleModeQuickInvestLastAt=0;
 let battleModeReturnAfterHitWizard=false;
 let battleModeMemoSheetOpen=false;
+let moneyEndMedalsEdited=false;
 let battleModeScrollToHitNext=false;
 const postHitCreditToastEventIds=new Set();
 let battleModeWakeLock=null;
@@ -4912,6 +4914,8 @@ function switchFlowStep(step){
   renderCurrentContextBar();
   renderSessionFieldLocks();
   bindNumericInputs();
+  bindMoneyEndMedalsLink();
+  applyBattleCreditToMoneyEndMedals();
 }
 
 function renderAll(){
@@ -4941,6 +4945,8 @@ function renderAll(){
   updateEditModeUi();
   renderStorageUsage();
   bindNumericInputs();
+  bindMoneyEndMedalsLink();
+  applyBattleCreditToMoneyEndMedals();
   bindDraftAutosave();
 }
 
@@ -4960,6 +4966,7 @@ function addMachine(){
   currentStartCounterEdited=false;
   currentStartLog=[];
   resetStartMemoState();
+  moneyEndMedalsEdited=false;
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
   currentExpectedValue=null;
@@ -4993,6 +5000,7 @@ function selectMachine(id){
   currentStartCounterEdited=false;
   currentStartLog=[];
   resetStartMemoState();
+  moneyEndMedalsEdited=false;
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
   currentExpectedValue=null;
@@ -11516,6 +11524,39 @@ function moneyResultEndMedalsValue(money=null){
   if(!el)return null;
   return normalizeOptionalNumber(el.value);
 }
+function latestBattleModeCreditValue(){
+  const entry=intervalDiffHistoryRows()
+    .filter(row=>row.mode==='credit')
+    .sort((a,b)=>historyTimeValue(b.at)-historyTimeValue(a.at))[0]||null;
+  return normalizeOptionalNumber(entry?.after?.credit);
+}
+function syncMoneyEndMedalsLinkHint(message=''){
+  const hint=document.getElementById('moneyEndMedalsLinkHint');
+  if(hint)hint.textContent=message;
+}
+function applyBattleCreditToMoneyEndMedals(){
+  const el=document.getElementById('moneyEndMedals');
+  if(!el||editingLogId||currentFlowStep!==4)return false;
+  if(moneyEndMedalsEdited||String(el.value||'').trim())return false;
+  const credit=latestBattleModeCreditValue();
+  if(credit===null)return false;
+  el.value=String(Math.max(0,Math.round(credit)));
+  syncMoneyEndMedalsLinkHint('実戦モードのクレジットから自動入力');
+  updateCalc();
+  return true;
+}
+function syncBattleCreditFromMoneyEndMedals(){
+  if(editingLogId)return;
+  const value=moneyResultEndMedalsValue();
+  if(value===null)return;
+  moneyEndMedalsEdited=true;
+  if(!intervalEstimateHasContent(currentIntervalEstimate))return;
+  const state=normalizeIntervalEstimate(currentIntervalEstimate);
+  if(Math.round(value)===(Number(state.credit)||0))return;
+  if(battleModeApplyDiffTrackerInput('credit',value,{label:'クレジット更新（収支から）',reopenSheet:false})){
+    syncMoneyEndMedalsLinkHint('終了時メダルから実戦モードのクレジットへ反映');
+  }
+}
 function hasMoneyResultInput(money=null){
   return moneyResultEndMedalsValue(money)!==null;
 }
@@ -11669,6 +11710,12 @@ function bindDraftAutosave(){
     el.addEventListener('input',scheduleDraftSave);
     el.addEventListener('change',scheduleDraftSave);
   });
+}
+function bindMoneyEndMedalsLink(){
+  const el=document.getElementById('moneyEndMedals');
+  if(!el||el.dataset.moneyCreditLinkBound)return;
+  el.dataset.moneyCreditLinkBound='1';
+  el.addEventListener('change',syncBattleCreditFromMoneyEndMedals);
 }
 function saveLog(options={}){
   flushStartMemoSave();
@@ -11842,6 +11889,8 @@ function clearLogInput(cancelEdit=true){
   if(cashIn)cashIn.value='';
   currentStartLog=[];
   resetStartMemoState();
+  moneyEndMedalsEdited=false;
+  syncMoneyEndMedalsLinkHint('');
   currentStartCounterEdited=false;
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
@@ -11936,6 +11985,7 @@ function fillLogInputs(log){
   document.getElementById('moneyEnd').value=money.endTime||'';
   document.getElementById('moneyStartMedals').value=money.startMedals!==null&&money.startMedals!==undefined?String(money.startMedals):'';
   document.getElementById('moneyEndMedals').value=money.endMedals!==null&&money.endMedals!==undefined?String(money.endMedals):'';
+  moneyEndMedalsEdited=normalizeOptionalNumber(money.endMedals)!==null;
   document.getElementById('moneyCashIn').value=money.cashIn!==null&&money.cashIn!==undefined?String(money.cashIn):'';
   document.getElementById('publicMemo').value=log.publicMemo||'';
   document.getElementById('privateMemo').value=log.privateMemo||'';
