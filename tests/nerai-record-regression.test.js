@@ -2442,6 +2442,129 @@ function testShopNoteExistingLogsAndStorageCountsRemainStable() {
   assert.equal(vm.runInContext('storageProtectionLocked', context), false);
 }
 
+function suggestLogSlimSeed() {
+  const suggestEntry = {
+    id: 'sgl_slim_1',
+    categoryId: 'sgc_slim',
+    placeId: 'sgp_slim',
+    itemId: 'sgi_slim',
+    category: '旧カテゴリ',
+    place: '旧場所',
+    item: '旧内容',
+    hitEventId: 'hit_slim_1',
+    stateGroup: 'play',
+    carryType: 'setting',
+    pointRole: null,
+    confidenceLevel: null,
+    confidenceType: null,
+    game: null,
+    dataGame: null,
+    liquidGame: null,
+    gapOffset: 0,
+    trophyCustom: '',
+    nextModeHint: false,
+    arimaNextOffset: null,
+    source: 'wizard',
+    createdAt: '2026-07-29T12:34:56.789Z'
+  };
+  return {
+    version: 1,
+    machines: [{
+      id: 'm_slim',
+      name: 'スリム検証機',
+      maker: '',
+      aims: [{ id: 'aim_slim', name: '天井狙い', fields: [] }],
+      tags: [],
+      startTags: [],
+      labelTags: [],
+      suggestMaster: [{
+        id: 'sgc_slim',
+        category: '設定示唆',
+        enabled: true,
+        useAppearG: true,
+        places: [{
+          id: 'sgp_slim',
+          name: '終了画面',
+          enabled: true,
+          stateGroup: 'play',
+          items: [{
+            id: 'sgi_slim',
+            label: '赤背景',
+            enabled: true,
+            carryType: 'setting',
+            decorations: [{ text: '赤', color: 'red' }]
+          }]
+        }]
+      }]
+    }],
+    stores: [],
+    logs: [{
+      id: 'log_slim',
+      schemaVersion: 3,
+      sessionId: 'session_slim',
+      aimNumber: 1,
+      status: 'active',
+      machineId: 'm_slim',
+      aimId: 'aim_slim',
+      machineName: 'スリム検証機',
+      aimName: '天井狙い',
+      createdAt: '2026-07-29T12:00:00.000Z',
+      updatedAt: '2026-07-29T12:45:00.000Z',
+      money: { date: '2026-07-29' },
+      startLog: [],
+      timeline: [],
+      hitEvents: [{ id: 'hit_slim_1', trigger: 'cz', createdAt: '2026-07-29T12:30:00.000Z', dataGame: 120, liquidGame: 120 }],
+      suggestLog: [suggestEntry],
+      segments: [{
+        id: 'seg_slim',
+        createdAt: '2026-07-29T12:40:00.000Z',
+        timeline: [],
+        hitEvents: [],
+        suggestLog: [suggestEntry]
+      }]
+    }]
+  };
+}
+
+function testSuggestLogStorageSlimAndDisplayHydratesFromIds() {
+  const raw = JSON.stringify(suggestLogSlimSeed());
+  const { context, localStorage } = runRecord(raw);
+  const stored = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  const entry = stored.logs.find(log => log.id === 'log_slim').suggestLog[0];
+
+  assert.equal(stored.logs.find(log => log.id === 'log_slim').schemaVersion, 4);
+  assert.equal(Object.prototype.hasOwnProperty.call(entry, 'category'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(entry, 'place'), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(entry, 'item'), false);
+  ['pointRole', 'confidenceLevel', 'confidenceType', 'game', 'dataGame', 'liquidGame', 'gapOffset', 'trophyCustom', 'nextModeHint', 'arimaNextOffset'].forEach(key => {
+    assert.equal(Object.prototype.hasOwnProperty.call(entry, key), false, key);
+  });
+  assert.equal(entry.createdAt, '2026-07-29T12:34');
+  assert.equal(entry.hitEventId, 'hit_slim_1');
+
+  const line = vm.runInContext("suggestLogLine(db.logs.find(log => log.id === 'log_slim').suggestLog[0])", context);
+  assert.match(line, /終了画面/);
+  assert.match(line, /赤背景/);
+  assert.equal(vm.runInContext("buildShareText(db.logs.find(log => log.id === 'log_slim')).includes('赤背景')", context), true);
+
+  const seedText = JSON.stringify(suggestLogSlimSeed());
+  const firstSave = vm.runInContext(`storageDataText(normalizeData(JSON.parse(${JSON.stringify(seedText)})))`, context);
+  const secondSave = vm.runInContext(`storageDataText(normalizeData(JSON.parse(${JSON.stringify(firstSave)})))`, context);
+  const firstLog = JSON.parse(firstSave).logs.find(log => log.id === 'log_slim');
+  const secondLog = JSON.parse(secondSave).logs.find(log => log.id === 'log_slim');
+  assert.deepEqual(secondLog.suggestLog, firstLog.suggestLog);
+  assert.deepEqual(secondLog.segments[0].suggestLog, firstLog.segments[0].suggestLog);
+}
+
+function testSuggestLogSlimFallbackForMissingMaster() {
+  const seed = suggestLogSlimSeed();
+  seed.logs[0].suggestLog[0].itemId = 'sgi_missing';
+  seed.logs[0].suggestLog[0].item = '旧内容フォールバック';
+  const { context } = runRecord(JSON.stringify(seed));
+  const line = vm.runInContext("suggestLogLine(db.logs.find(log => log.id === 'log_slim').suggestLog[0])", context);
+  assert.match(line, /旧内容フォールバック|マスタ未解決/);
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -2517,6 +2640,8 @@ function run() {
   testShopNoteSettingSuggestCounterUsesEntriesOnly();
   testShopNoteEntryLongPressDeletesIndividualEntries();
   testShopNoteExistingLogsAndStorageCountsRemainStable();
+  testSuggestLogStorageSlimAndDisplayHydratesFromIds();
+  testSuggestLogSlimFallbackForMissingMaster();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();

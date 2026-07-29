@@ -1038,7 +1038,8 @@ const STORAGE_USAGE_WARN_RATIO=.6;
 const STORAGE_USAGE_DANGER_RATIO=.8;
 const ORGANIZED_FILTER_KEY='neraiOrganizedViewFilters';
 const ORGANIZED_CHAIN_MODE_HINTS_KEY='neraiOrganizedShowChainModeHints';
-const LOG_SCHEMA_VERSION=3;
+const LOG_SCHEMA_VERSION=4;
+const STRUCTURED_LOG_MIN_SCHEMA_VERSION=3;
 const LOG_STATUS_VALUES=['active','suspended','finished','settled'];
 const SEGMENT_STATUS_VALUES=['editing','committed'];
 const STANDARD_AIM_SEEDS=[
@@ -1437,10 +1438,11 @@ function loadData(){
       normalizedText=nextText;
     }
     if(!converged)console.warn('normalizeData did not converge during loadData');
-    if(isNonEmptyStorageData(parsed)&&normalizedText!==before){
+    const storageText=storageDataText(normalized);
+    if(isNonEmptyStorageData(parsed)&&storageText!==before){
       backupRawStorage(STORAGE_PREMIGRATE_KEY,raw);
       try{
-        localStorage.setItem(STORAGE_KEY,normalizedText);
+        localStorage.setItem(STORAGE_KEY,storageText);
       }catch(error){
         console.warn('normalized storage writeback failed',error);
       }
@@ -1521,6 +1523,64 @@ function isBackupEligibleRaw(raw){
   const data=parseStorageRaw(raw);
   return isValidStorageData(data)&&isNonEmptyStorageData(data);
 }
+function compactCreatedAtMinute(value){
+  const text=String(value||'').trim();
+  if(!text)return new Date().toISOString().slice(0,16);
+  if(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text))return text;
+  const parsed=Date.parse(text);
+  if(Number.isFinite(parsed))return new Date(parsed).toISOString().slice(0,16);
+  return text.length>16?text.slice(0,16):text;
+}
+function compactSuggestLogEntryForStorage(entry){
+  if(!entry||typeof entry!=='object')return null;
+  const item=clone(entry);
+  item.createdAt=compactCreatedAtMinute(item.createdAt);
+  delete item.category;
+  delete item.place;
+  delete item.item;
+  if(item.pointRole===null)delete item.pointRole;
+  if(item.confidenceLevel===null)delete item.confidenceLevel;
+  if(item.confidenceType===null)delete item.confidenceType;
+  if(normalizeOptionalNumber(item.game)===null)delete item.game;
+  if(normalizeOptionalNumber(item.dataGame)===null)delete item.dataGame;
+  if(normalizeOptionalNumber(item.liquidGame)===null)delete item.liquidGame;
+  if((normalizeOptionalNumber(item.gapOffset)??0)===0)delete item.gapOffset;
+  if(!item.trophyCustom)delete item.trophyCustom;
+  if(item.nextModeHint===false)delete item.nextModeHint;
+  if(normalizeOptionalNumber(item.arimaNextOffset)===null)delete item.arimaNextOffset;
+  if(!item.hitEventId)delete item.hitEventId;
+  const ordered={};
+  ['id','categoryId','placeId','itemId','hitEventId','stateGroup','carryType','pointRole','confidenceLevel','confidenceType','game','dataGame','liquidGame','gapOffset','trophyCustom','nextModeHint','arimaNextOffset','source','createdAt'].forEach(key=>{
+    if(Object.prototype.hasOwnProperty.call(item,key))ordered[key]=item[key];
+  });
+  Object.keys(item).sort().forEach(key=>{
+    if(!Object.prototype.hasOwnProperty.call(ordered,key))ordered[key]=item[key];
+  });
+  return ordered;
+}
+function compactSuggestLogForStorage(entries){
+  return (Array.isArray(entries)?entries:[]).map(compactSuggestLogEntryForStorage).filter(Boolean);
+}
+function compactLogForStorage(log){
+  if(!log||typeof log!=='object')return log;
+  const compact=clone(log);
+  compact.suggestLog=compactSuggestLogForStorage(compact.suggestLog);
+  compact.segments=Array.isArray(compact.segments)?compact.segments.map(segment=>{
+    const next=clone(segment);
+    next.suggestLog=compactSuggestLogForStorage(next.suggestLog);
+    return next;
+  }):[];
+  return compact;
+}
+function storageDataForSave(data){
+  const compact=clone(data||EMPTY_DATA);
+  compact.logs=Array.isArray(compact.logs)?compact.logs.map(compactLogForStorage):[];
+  if(compact.draftLog&&typeof compact.draftLog==='object')compact.draftLog=compactLogForStorage(compact.draftLog);
+  return compact;
+}
+function storageDataText(data){
+  return JSON.stringify(storageDataForSave(data));
+}
 function parseCheckpointRaw(raw=localStorage.getItem(STORAGE_CHECKPOINT_KEY)){
   const parsed=parseStorageRaw(raw);
   if(!parsed||parsed.type!=='nerai_record_checkpoint'||parsed.version!==1)return null;
@@ -1545,7 +1605,7 @@ function checkpointLogsForSession(sessionId){
 function buildCheckpointPayload(reason,sessionIdOverride=''){
   const draft=db?.draftLog&&typeof db.draftLog==='object'?clone(db.draftLog):null;
   const sessionId=sessionIdOverride||draft?.sessionId||draft?.id||currentCheckpointSessionId();
-  const logs=checkpointLogsForSession(sessionId).map(clone);
+  const logs=checkpointLogsForSession(sessionId).map(log=>compactLogForStorage(clone(log)));
   if(!draft&&!logs.length)return null;
   const machineName=draft?.machineName||logs[0]?.machineName||currentMachine()?.name||'';
   return {
@@ -1556,7 +1616,7 @@ function buildCheckpointPayload(reason,sessionIdOverride=''){
     sessionId,
     machineId:draft?.machineId||logs[0]?.machineId||selectedMachineId||'',
     machineName,
-    draftLog:draft,
+    draftLog:draft?compactLogForStorage(draft):null,
     logs
   };
 }
@@ -2270,7 +2330,7 @@ function normalizeData(data){
     log.endingCards=normalizeEndingCards(log.endingCards);
     log.hitBranchWizard=log.hitBranchWizard&&typeof log.hitBranchWizard==='object'?normalizeHitBranchWizard(log.hitBranchWizard):{route:'',stepIndex:0,through:null,done:[],eventId:''};
     log.continuedFromId=log.continuedFromId||log.continuedFromLog?.id||'';
-    if(Number(log.schemaVersion)>=LOG_SCHEMA_VERSION){
+    if(Number(log.schemaVersion)>=STRUCTURED_LOG_MIN_SCHEMA_VERSION){
       log.schemaVersion=LOG_SCHEMA_VERSION;
       log.sessionId=log.sessionId||log.id;
       log.aimNumber=Number.isFinite(Number(log.aimNumber))?Number(log.aimNumber):1;
@@ -2309,7 +2369,7 @@ function normalizeData(data){
   data.draftLog=data.draftLog&&typeof data.draftLog==='object'?data.draftLog:null;
   if(data.draftLog){
     data.draftLog.flowStep=Number(data.draftLog.flowStep)||1;
-    if(Number(data.draftLog.schemaVersion)>=LOG_SCHEMA_VERSION){
+    if(Number(data.draftLog.schemaVersion)>=STRUCTURED_LOG_MIN_SCHEMA_VERSION){
       data.draftLog.schemaVersion=LOG_SCHEMA_VERSION;
       data.draftLog.sessionId=data.draftLog.sessionId||data.draftLog.id||uid('draft');
       data.draftLog.aimNumber=Number.isFinite(Number(data.draftLog.aimNumber))?Number(data.draftLog.aimNumber):1;
@@ -2422,7 +2482,7 @@ function persist(options={}){
   }
   backupRawStorage(STORAGE_LAST_GOOD_KEY,oldRaw);
   try{
-    localStorage.setItem(STORAGE_KEY,JSON.stringify(db));
+    localStorage.setItem(STORAGE_KEY,storageDataText(db));
     renderStorageUsage();
     return true;
   }catch(error){
@@ -2536,7 +2596,7 @@ function downloadJsonText(raw,filename){
   setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 }
 function backupBeforeRestore(){
-  const raw=localStorage.getItem(STORAGE_KEY)||JSON.stringify(db);
+  const raw=localStorage.getItem(STORAGE_KEY)||storageDataText(db);
   if(!backupRawStorage(STORAGE_PRERESTORE_KEY,raw)){
     alert('復元前バックアップを保存できませんでした。復元を中止します。');
     return false;
@@ -3059,14 +3119,21 @@ function findSuggestRefsForEntry(machine,entry){
   }
   return {category,place,item};
 }
+function suggestEntryDisplayRefs(entry,machine=currentMachine()){
+  const refs=findSuggestRefsForEntry(machine,entry);
+  const categoryLabel=refs.category?.category||entry?.category||'';
+  const placeLabel=refs.place?.name||entry?.place||'（マスタ未解決）';
+  const itemLabel=refs.item?.label||entry?.item||'（マスタ未解決）';
+  return {...refs,categoryLabel,placeLabel,itemLabel};
+}
 function suggestEntryStateGroup(entry,machine=currentMachine()){
   const refs=findSuggestRefsForEntry(machine,entry);
   return normalizeSuggestStateGroup(entry?.stateGroup)||normalizeSuggestStateGroup(refs.place?.stateGroup)||suggestPlaceStateGroup(refs.category,refs.place)||'play';
 }
 function suggestEntryPlaceLabel(entry,machine=currentMachine()){
-  const refs=findSuggestRefsForEntry(machine,entry);
-  const categoryName=refs.category?.category||entry?.category||'';
-  const placeName=entry?.place||refs.place?.name||'示唆';
+  const refs=suggestEntryDisplayRefs(entry,machine);
+  const categoryName=refs.categoryLabel;
+  const placeName=refs.placeLabel||'示唆';
   if(placeName==='月山招待状'&&categoryName==='設定示唆')return '月山招待状（設定）';
   if(placeName==='月山招待状'&&categoryName==='モード示唆')return '月山招待状（規定G/モード）';
   if(placeName==='CZ終了エンドカード'&&categoryName==='設定示唆')return 'CZ終了エンドカード（設定）';
@@ -3103,9 +3170,11 @@ function suggestLogLineHtml(entry){
   const game=suggestGameText(entry);
   const trophy=entry.trophyCustom?` / 店長カスタム：${escapeHtml(entry.trophyCustom)}`:'';
   const source=entry.source==='wizard'?' / 一括':' / 追加';
-  const item=findSuggestItemForEntry(entry);
-  const defaultNote=String(entry.item||'').includes('デフォルト')?' <span class="input-hint">（デフォルト・判定対象外）</span>':'';
-  return `${suggestKindBadgeHtml(entry)}${game?escapeHtml(game)+' ':''}${escapeHtml(suggestStateLabel(suggestEntryStateGroup(entry)))} / ${escapeHtml(suggestEntryPlaceLabel(entry))}：${decoratedSuggestLabelHtml(entry.item,item?.decorations||[])}${defaultNote}${trophy}${source}`;
+  const refs=suggestEntryDisplayRefs(entry);
+  const item=refs.item||findSuggestItemForEntry(entry);
+  const itemLabel=refs.itemLabel;
+  const defaultNote=String(itemLabel||'').includes('デフォルト')?' <span class="input-hint">（デフォルト・判定対象外）</span>':'';
+  return `${suggestKindBadgeHtml(entry)}${game?escapeHtml(game)+' ':''}${escapeHtml(suggestStateLabel(suggestEntryStateGroup(entry)))} / ${escapeHtml(suggestEntryPlaceLabel(entry))}：${decoratedSuggestLabelHtml(itemLabel,item?.decorations||[])}${defaultNote}${trophy}${source}`;
 }
 function suggestGamePair(entry){
   const data=normalizeOptionalNumber(entry?.dataGame);
@@ -7776,11 +7845,13 @@ function suggestLogLine(entry){
   const game=suggestGameText(entry);
   const trophy=entry.trophyCustom?` / 店長カスタム：${entry.trophyCustom}`:'';
   const source=entry.source==='wizard'?' / 一括':' / 追加';
-  return `${game?game+' ':''}${suggestStateLabel(suggestEntryStateGroup(entry))} / ${suggestEntryPlaceLabel(entry)}：${entry.item}${trophy}${source}`;
+  const {itemLabel}=suggestEntryDisplayRefs(entry);
+  return `${game?game+' ':''}${suggestStateLabel(suggestEntryStateGroup(entry))} / ${suggestEntryPlaceLabel(entry)}：${itemLabel}${trophy}${source}`;
 }
 function suggestKindMeta(entry){
-  const category=String(entry?.category||'');
-  const place=String(entry?.place||'');
+  const refs=suggestEntryDisplayRefs(entry);
+  const category=String(refs.categoryLabel||'');
+  const place=String(refs.placeLabel||'');
   const placeLabel=suggestEntryPlaceLabel(entry);
   if(place.includes('アイキャッチ'))return {className:'suggest-kind-eyecatch',icon:'◐',label:'アイキャッチ'};
   if(category.includes('モード')&&place.includes('月山'))return {className:'suggest-kind-tsukiyama-mode',icon:'✉',label:'招待状G/モード'};
@@ -7840,8 +7911,8 @@ function buildKuiPointState(suggestLog,released=false){
   const rows=Array.isArray(suggestLog)?suggestLog:[];
   return {
     released:!!released,
-    gains:rows.filter(entry=>entry.pointRole==='gain').map(entry=>({id:entry.id,item:entry.item,createdAt:entry.createdAt})),
-    hints:rows.filter(entry=>entry.pointRole==='hint').map(entry=>({id:entry.id,item:entry.item,createdAt:entry.createdAt}))
+    gains:rows.filter(entry=>entry.pointRole==='gain').map(entry=>({id:entry.id,item:suggestEntryDisplayRefs(entry).itemLabel,createdAt:entry.createdAt})),
+    hints:rows.filter(entry=>entry.pointRole==='hint').map(entry=>({id:entry.id,item:suggestEntryDisplayRefs(entry).itemLabel,createdAt:entry.createdAt}))
   };
 }
 function syncKuiPointReleased(){
@@ -8009,7 +8080,10 @@ function settingAtEndRatioHtml(rows){
   const entries=(rows||[]).filter(isAtEndScreenEntry);
   if(!entries.length)return '';
   const counts=new Map();
-  entries.forEach(entry=>counts.set(entry.item,(counts.get(entry.item)||0)+1));
+  entries.forEach(entry=>{
+    const label=suggestEntryDisplayRefs(entry).itemLabel;
+    counts.set(label,(counts.get(label)||0)+1);
+  });
   const total=entries.length;
   const body=[...counts.entries()].map(([label,count])=>{
     const pct=total?Math.round(count*1000/total)/10:0;
@@ -8081,13 +8155,13 @@ function settingSummaryRows(machine,entries){
   uniqueSettingSummaryEntries(entries).forEach(entry=>{
     if(normalizeCarryType(entry.carryType)!=='setting')return;
     if(settingSummaryEntryIsDefault(machine,entry))return;
-    const refs=findSuggestRefsForEntry(machine,entry);
+    const refs=suggestEntryDisplayRefs(entry,machine);
     const key=settingSummaryEntryKey(entry);
     if(!key||key==='::')return;
     const existing=counts.get(key)||{
       key,
       place:suggestEntryPlaceLabel(entry,machine),
-      item:refs.item?.label||entry.item||'内容',
+      item:refs.itemLabel,
       count:0,
       order:order.has(key)?order.get(key):999999
     };
@@ -13446,7 +13520,7 @@ function logArchiveGroups(){
     return String(a).localeCompare(String(b));
   }).map(date=>{
     const logs=groups[date];
-    return {date,logs,bytes:JSON.stringify(logs).length*2};
+    return {date,logs,bytes:JSON.stringify(logs.map(compactLogForStorage)).length*2};
   });
 }
 function selectedLogArchiveGroups(){
@@ -13509,12 +13583,12 @@ function archiveSelectedLogs(){
   const groups=selectedLogArchiveGroups();
   const selectedLogs=groups.flatMap(group=>group.logs);
   if(!selectedLogs.length){alert('アーカイブするログを選択してください');return;}
-  const archiveData={
+  const archiveData=storageDataForSave({
     version:1,
     machines:clone(db.machines||[]),
     stores:clone(db.stores||[]),
     logs:clone(selectedLogs)
-  };
+  });
   const dates=groups.map(group=>group.date).sort((a,b)=>String(a).localeCompare(String(b)));
   const filename=`nerai-record-archive-${archiveFilenamePart(dates[0])}_${archiveFilenamePart(dates[dates.length-1])}-${todayValue()}.json`;
   downloadJsonText(JSON.stringify(archiveData,null,2),filename);
@@ -13665,7 +13739,7 @@ function clearContinueState(){
   scheduleDraftSave();
 }
 function backupJson(){
-  const blob=new Blob([JSON.stringify(db,null,2)],{type:'application/json'});
+  const blob=new Blob([JSON.stringify(storageDataForSave(db),null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
   a.download=`nerai-record-backup-${todayValue()}.json`;
