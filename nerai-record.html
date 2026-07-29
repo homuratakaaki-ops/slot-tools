@@ -546,6 +546,8 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-state-badge.kabaneri-green{border-color:rgba(69,200,120,.74);background:rgba(31,122,67,.36);color:#f4fff8;}
 .bm-state-badge.kabaneri-blue{border-color:rgba(147,197,253,.78);background:rgba(37,99,235,.34);color:#f5fbff;}
 .bm-state-badge.kabaneri-gold{border-color:rgba(255,211,107,.82);background:rgba(217,154,36,.38);color:#fff8e1;}
+.bm-state-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
+.bm-state-grid .bm-btn:last-child:nth-child(odd){grid-column:1/2;}
 .bm-toast{position:fixed;left:50%;top:72px;transform:translateX(-50%);z-index:12000;display:none;max-width:calc(100vw - 22px);border:1px solid rgba(201,168,76,.55);border-radius:999px;background:rgba(20,20,24,.94);color:var(--gold-light);font-size:20px;font-weight:900;padding:14px 24px;box-shadow:0 8px 22px rgba(0,0,0,.35);text-align:center;}
 .bm-toast.open{display:block;}
 .bm-toast button{margin-left:8px;border:0;background:transparent;color:#9be0bd;font:inherit;text-decoration:underline;cursor:pointer;}
@@ -2556,6 +2558,7 @@ function normalizeData(data){
     ensureKabaneriSeed(m);
     ensureKabaneriUiSeedV11(m);
     ensureKabaneriSuggestSeedV11(m);
+    ensureKabaneriSuggestSeedV12(m);
     ensureKabaneriCounterSeed(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     applySuggestMetadata(m);
@@ -4828,6 +4831,22 @@ function ensureKabaneriSuggestSeedV11(machine){
   machine.kabaneriSuggestSeedV11=true;
   applySuggestMetadata(machine);
 }
+function ensureKabaneriSuggestSeedV12(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriSuggestSeedV12)return;
+  machine.kabaneriSuggestSeedV11=false;
+  ensureKabaneriSuggestSeedV11(machine);
+  const category=findSuggestCategory(machine,KABANERI_POINT_CATEGORY_ID);
+  ['sgp_kabaneri_point_minichara','sgp_kabaneri_point_eyecatch','sgp_kabaneri_point_talk','sgp_kabaneri_point_blue_serif','sgp_kabaneri_point_reel_flash','sgp_kabaneri_point_kiriban'].forEach(placeId=>{
+    const place=findSuggestPlace(category,placeId);
+    if(place){
+      place.enabled=true;
+      place.stateGroup='play';
+      place.items=(place.items||[]).map(item=>({...item,enabled:item.enabled!==false}));
+    }
+  });
+  machine.kabaneriSuggestSeedV12=true;
+  applySuggestMetadata(machine);
+}
 function ensureKabaneriCounterSeed(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriCounterSeedV1)return;
   mergeTimelineTagSeed(machine,[
@@ -5409,7 +5428,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriCounterSeed(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriCounterSeed(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5452,6 +5471,7 @@ function addMachine(){
   ensureKabaneriSeed(machine);
   ensureKabaneriUiSeedV11(machine);
   ensureKabaneriSuggestSeedV11(machine);
+  ensureKabaneriSuggestSeedV12(machine);
   ensureKabaneriCounterSeed(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
@@ -6417,7 +6437,7 @@ function battleModeActiveStates(machine=currentMachine()){
   return [...battleModeStateStatusMap(machine).values()].filter(row=>row.active).map(row=>row.state);
 }
 function renderBattleModeStateBadges(){
-  return battleModeActiveStates().map(state=>`<span class="bm-state-badge ${escapeHtml(battleModeStateToneClass(state))}">${escapeHtml(state.label)}</span>`).join('');
+  return battleModeActiveStates().map(state=>`<span class="bm-state-badge ${escapeHtml(battleModeStateToneClass(state))}">${escapeHtml(battleModeStateDisplayLabel(state))}</span>`).join('');
 }
 function kabaneriToneClassByLabel(label){
   const text=String(label||'');
@@ -6429,6 +6449,34 @@ function kabaneriToneClassByLabel(label){
 }
 function battleModeStateToneClass(state){
   return isKabaneriMachine(currentMachine())?kabaneriToneClassByLabel(state?.label):'';
+}
+function kabaneriStateIcon(state){
+  const id=String(state?.id||'');
+  const label=String(state?.label||'');
+  if(id==='kabaneri_super_high'||label.includes('超高確'))return '⚡';
+  if(id.includes('_cz_')||label.includes('CZ'))return '⚔';
+  if(id.includes('_flash')||label.includes('発光'))return '💡';
+  return '🔥';
+}
+function battleModeStateDisplayLabel(state){
+  return isKabaneriMachine(currentMachine())?`${kabaneriStateIcon(state)}${state?.label||''}`:(state?.label||'');
+}
+function orderedBattleModeStates(states){
+  if(!isKabaneriMachine(currentMachine()))return states;
+  const order=new Map([
+    ['kabaneri_chance_high',0],
+    ['kabaneri_kabane_high',1],
+    ['kabaneri_mumei_high',2],
+    ['kabaneri_ikoma_high',3],
+    ['kabaneri_mumei_flash',4],
+    ['kabaneri_ikoma_flash',5],
+    ['kabaneri_cz_mumei',6],
+    ['kabaneri_cz_ikoma',7],
+    ['kabaneri_kabane_flash',8],
+    ['kabaneri_super_high',9],
+    ['kabaneri_cz_doran',10]
+  ]);
+  return [...states].sort((a,b)=>(order.get(a.id)??999)-(order.get(b.id)??999));
 }
 function battleModeIntervalTrackerState(){
   return normalizeIntervalEstimate(currentIntervalEstimate);
@@ -7186,26 +7234,26 @@ function battleModeStateTag(state,phase){
   return currentMachine()?.tags?.find(row=>row.id===tagId)||null;
 }
 function openBattleModeStatePicker(){
-  const states=machineStates();
+  const states=orderedBattleModeStates(machineStates());
   if(!states.length){battleModeInvalid('状態定義がありません');return;}
   const status=battleModeStateStatusMap();
   const buttons=states.map(state=>{
     const active=!!status.get(state.id)?.active;
-    const label=`${state.label} ${active?'終了':'開始'}`;
+    const label=`${battleModeStateDisplayLabel(state)} ${active?'終了':'開始'}`;
     const tone=battleModeStateToneClass(state);
     return `<button class="bm-btn ${active?'counter':''} ${escapeHtml(tone)}" type="button" onclick="${active&&state.endOptions.length?`openBattleModeStateEndPicker('${escapeHtml(state.id)}')`:`battleModeRecordState('${escapeHtml(state.id)}','${active?'end':'start'}')`}">${escapeHtml(label)}</button>`;
   }).join('');
   setBattleModeSheet('状態',`
     <div class="bm-sheet-note">チャンス目→状態変更の順にタップ</div>
-    ${buttons}
+    <div class="bm-state-grid">${buttons}</div>
   `);
 }
 function openBattleModeStateEndPicker(stateId){
   const state=battleModeStateById(stateId);
   if(!state){battleModeInvalid('状態定義が見つかりません');return;}
-  setBattleModeSheet(`${state.label} 終了`,`
+  setBattleModeSheet(`${battleModeStateDisplayLabel(state)} 終了`,`
     <div class="bm-sheet-note">終了結果を選択</div>
-    ${state.endOptions.map(option=>`<button class="bm-btn counter ${escapeHtml(battleModeStateToneClass(state))}" type="button" onclick="battleModeRecordState('${escapeHtml(state.id)}','end','${escapeHtml(option.key)}')">${escapeHtml(state.label)} ${escapeHtml(option.label)}</button>`).join('')}
+    ${state.endOptions.map(option=>`<button class="bm-btn counter ${escapeHtml(battleModeStateToneClass(state))}" type="button" onclick="battleModeRecordState('${escapeHtml(state.id)}','end','${escapeHtml(option.key)}')">${escapeHtml(battleModeStateDisplayLabel(state))} ${escapeHtml(option.label)}</button>`).join('')}
     <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">キャンセル</button>
   `);
 }

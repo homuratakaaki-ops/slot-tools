@@ -268,6 +268,22 @@ function testKabaneriPresetSeedAndPickers() {
     [{ text: '無名', color: 'red' }]
   );
   assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(orderedBattleModeStates(machineStates()).map(state => battleModeStateDisplayLabel(state)))", context)),
+    ['🔥チャ目高確', '🔥カバネ高確', '🔥無名高確', '🔥生駒高確', '💡無名発光', '💡生駒発光', '⚔無名CZ', '⚔生駒CZ', '💡カバネ発光', '⚡超高確', '⚔銅藍CZ']
+  );
+  vm.runInContext("openBattleModeStatePicker()", context);
+  let stateHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.equal(stateHtml.indexOf('🔥チャ目高確 開始') < stateHtml.indexOf('🔥カバネ高確 開始'), true);
+  assert.equal(stateHtml.indexOf('🔥無名高確 開始') < stateHtml.indexOf('🔥生駒高確 開始'), true);
+  assert.equal(stateHtml.indexOf('💡無名発光 開始') < stateHtml.indexOf('💡生駒発光 開始'), true);
+  vm.runInContext("battleModeRecordState('kabaneri_mumei_flash','start')", context);
+  assert.match(vm.runInContext("renderBattleModeStateBadges()", context), /💡無名発光/);
+  assert.match(vm.runInContext("renderBattleModeStateBadges()", context), /kabaneri-red/);
+  vm.runInContext("openBattleModeStatePicker()", context);
+  stateHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(stateHtml, /💡無名発光 終了/);
+  assert.doesNotMatch(stateHtml, /💡無名発光 開始/);
+  assert.deepEqual(
     JSON.parse(vm.runInContext('JSON.stringify(machineHitTriggers().map(row => [row.key, row.label]))', context)),
     [['direct_at', '駿城ボーナス'], ['episode_bonus', 'エピソードボーナス']]
   );
@@ -299,6 +315,20 @@ function testKabaneriPresetSeedAndPickers() {
   vm.runInContext("openBattleModeSuggestPlaceFromSheet('sgc_kabaneri_point','sgp_kabaneri_point_minichara')", context);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /suggest-color-red">無名<\/span>・無言/);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /suggest-color-green">生駒<\/span>・近いよ/);
+  const pointAudit = JSON.parse(vm.runInContext(`JSON.stringify(findSuggestCategory(currentMachine(),'sgc_kabaneri_point').places.map(place => {
+    openSuggestItemPicker('sgc_kabaneri_point', place.id, 'play');
+    const itemCount = enabledSuggestItems('sgc_kabaneri_point', place.id).length;
+    const html = __stateElements.suggestPickerOptions.innerHTML;
+    const first = enabledSuggestItems('sgc_kabaneri_point', place.id)[0];
+    if (first) selectSuggestItem(first.id);
+    return { id: place.id, itemCount, opened: html.includes('selectSuggestItem'), logged: currentSuggestLog.some(entry => entry.placeId === place.id) };
+  }))`, context));
+  pointAudit.forEach(row => {
+    assert.equal(row.itemCount > 0, true, `${row.id} should have items`);
+    assert.equal(row.opened, true, `${row.id} should open item choices`);
+    assert.equal(row.logged, true, `${row.id} should register first item`);
+  });
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.placeId === 'sgp_kabaneri_point_kiriban' && entry.itemId === 'sgp_kabaneri_point_kiriban_i1')", context), true);
   vm.runInContext("openAtThroughBranchPicker()", context);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /ST突入/);
 }
