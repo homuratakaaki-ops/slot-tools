@@ -483,6 +483,125 @@ function testNoHitQuitOtherPresetDoesNotOverwriteEditedGame() {
   assert.match(html, /id="timelineLiquidGame"[^>]*value="59"/);
 }
 
+function installSaveLogDomScript(startCounter = 300) {
+  return `
+    const generic = document.getElementById('generic');
+    const elements = {
+      startCounterGame: { ...generic, id: 'startCounterGame', value: String(${startCounter}), dataset: {} },
+      moneyStartMedals: { ...generic, id: 'moneyStartMedals', value: '0' },
+      moneyDate: { ...generic, id: 'moneyDate', value: '2026-07-29' },
+      moneyStore: { ...generic, id: 'moneyStore', value: 'STORE_ALPHA' },
+      moneyMachineNo: { ...generic, id: 'moneyMachineNo', value: '948' },
+      publishStore: { ...generic, id: 'publishStore', checked: false },
+      publishMachineNo: { ...generic, id: 'publishMachineNo', checked: false },
+      moneyStart: { ...generic, id: 'moneyStart', value: '10:00' },
+      moneyEnd: { ...generic, id: 'moneyEnd', value: '11:00' },
+      moneyEndMedals: { ...generic, id: 'moneyEndMedals', value: '782' },
+      moneyCashIn: { ...generic, id: 'moneyCashIn', value: '' },
+      expectedValueInput: { ...generic, id: 'expectedValueInput', value: '' },
+      publicMemo: { ...generic, id: 'publicMemo', value: '' },
+      privateMemo: { ...generic, id: 'privateMemo', value: '' }
+    };
+    document.getElementById = id => elements[id] || generic;
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentStartCounterGame = ${startCounter};
+    currentStartCounterEdited = true;
+    currentFlowStep = 4;
+    currentTimeline = [];
+    currentSegments = [];
+    currentHitEvents = [normalizeHitEvent({ id: 'he_save', trigger: 'at', dataGame: 5, liquidGame: 0, createdAt: '2026-07-29T10:30:00.000Z', wizardDone: true })];
+    currentEndLog = { id: 'el_save', game: 5, liquidGame: 0, reason: 'ヤメ', text: '', czCount: 0, upperCzCount: 0, atCount: 1, directAtCount: 0, episodeBonusCount: 0, createdAt: '2026-07-29T10:30:00.000Z', updatedAt: '2026-07-29T10:30:00.000Z' };
+  `;
+}
+
+function testSaveLogWarnsButAllowsEndGameBeforeStartCounter() {
+  const { context } = runRecord(undefined, [true, true]);
+  vm.runInContext(installSaveLogDomScript(300), context);
+  const savedId = vm.runInContext('saveLog()?.id || ""', context);
+  assert.notEqual(savedId, '');
+  assert.equal(vm.runInContext('db.logs.length', context), 1);
+  assert.equal(vm.runInContext('db.logs[0].endLog.game', context), 5);
+}
+
+function testSaveLogCanCancelEndGameBeforeStartCounterWarning() {
+  const { context } = runRecord(undefined, [false]);
+  vm.runInContext(installSaveLogDomScript(300), context);
+  const result = vm.runInContext('saveLog()', context);
+  assert.equal(result, undefined);
+  assert.equal(vm.runInContext('db.logs.length', context), 0);
+}
+
+function testSaveLogDoesNotWarnWhenEndGameAfterStartCounter() {
+  const { context } = runRecord(undefined, [true]);
+  vm.runInContext(installSaveLogDomScript(300), context);
+  vm.runInContext('currentEndLog.game = 450; currentEndLog.liquidGame = 450;', context);
+  const savedId = vm.runInContext('saveLog()?.id || ""', context);
+  assert.notEqual(savedId, '');
+  assert.equal(vm.runInContext('db.logs[0].endLog.game', context), 450);
+}
+
+function testPracticeStatsShowsUnavailableForNegativeHitResetDenominator() {
+  const { context } = runRecord(undefined);
+  const line = vm.runInContext(`
+    practiceStatsLine(calculatePracticeStats({
+      machineId: 'm_nangoku_special',
+      startCounterGame: 300,
+      endLog: { game: 5 },
+      hitEvents: [{ id: 'he_negative', trigger: 'at', dataGame: 5, createdAt: '2026-07-29T10:30:00.000Z' }],
+      money: { date: '2026-07-29', store: 'STORE_ALPHA', machineNo: '948' }
+    }))
+  `, context);
+  assert.match(line, /算出不可（当選によるリセットあり）/);
+  assert.doesNotMatch(line, /回転数：-/);
+  assert.doesNotMatch(line, /-295G/);
+}
+
+function testEditEndLogUsesKeypadInsteadOfPrompt() {
+  const { context } = runRecord(undefined);
+  const result = JSON.parse(vm.runInContext(`
+    currentEndLog = { id: 'el_edit', game: 5, liquidGame: 0, reason: 'ヤメ', text: '確認', czCount: 0, upperCzCount: 0, atCount: 1, directAtCount: 0, episodeBonusCount: 0, createdAt: '2026-07-29T10:30:00.000Z', updatedAt: '2026-07-29T10:30:00.000Z' };
+    const generic = document.getElementById('generic');
+    const elements = {
+      endGame: { ...generic, id: 'endGame', value: '', dataset: {} },
+      endLiquidGame: { ...generic, id: 'endLiquidGame', value: '', dataset: {} },
+      endReason: { ...generic, id: 'endReason', value: '' },
+      endText: { ...generic, id: 'endText', value: '' },
+      numericKeypadLabel: { ...generic, id: 'numericKeypadLabel' },
+      numericKeypadValue: { ...generic, id: 'numericKeypadValue' },
+      numericKeypadHint: { ...generic, id: 'numericKeypadHint' },
+      numericKeypadOverlay: { ...generic, id: 'numericKeypadOverlay', classList: { add() {}, remove() {}, toggle() {} } },
+      moneyDate: { ...generic, id: 'moneyDate', value: '2026-07-29' },
+      moneyStore: { ...generic, id: 'moneyStore', value: 'STORE_ALPHA' },
+      moneyMachineNo: { ...generic, id: 'moneyMachineNo', value: '948' },
+      practiceStatsBox: { ...generic, id: 'practiceStatsBox' },
+      endLogBox: { ...generic, id: 'endLogBox' }
+    };
+    document.getElementById = id => elements[id] || generic;
+    editEndLog();
+    pressKeypad('7');
+    syncEndGameFields();
+    JSON.stringify({
+      endGame: elements.endGame.value,
+      endLiquid: elements.endLiquidGame.value,
+      reason: elements.endReason.value,
+      text: elements.endText.value,
+      activeId: activeNumericInput && activeNumericInput.id,
+      replace: elements.endGame.dataset.replaceOnNextDigit,
+      currentGame: currentEndLog.game
+    });
+  `, context));
+  assert.deepEqual(result, {
+    endGame: '7',
+    endLiquid: '0',
+    reason: 'ヤメ',
+    text: '確認',
+    activeId: 'endGame',
+    replace: '',
+    currentGame: 7
+  });
+}
+
 function testNewRegistrationGuardClosesOpenNoHitSegment() {
   const { context } = runRecord(undefined, [true, true]);
   seedOpenNoHitTimeline(context, '据え置き確認');
@@ -2336,6 +2455,11 @@ function run() {
   testNoHitQuitPresetsFirstPickupStartGames();
   testNoHitQuitExistingLogEditKeepsSavedSegmentGames();
   testNoHitQuitOtherPresetDoesNotOverwriteEditedGame();
+  testSaveLogWarnsButAllowsEndGameBeforeStartCounter();
+  testSaveLogCanCancelEndGameBeforeStartCounterWarning();
+  testSaveLogDoesNotWarnWhenEndGameAfterStartCounter();
+  testPracticeStatsShowsUnavailableForNegativeHitResetDenominator();
+  testEditEndLogUsesKeypadInsteadOfPrompt();
   testNewRegistrationGuardClosesOpenNoHitSegment();
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeKeypadOverlayStacksAboveBattleMode();

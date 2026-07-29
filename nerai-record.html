@@ -11176,6 +11176,26 @@ function updateLinkedEndGameInputs(){
   if(dataEl&&linkedEndDataGame!==null&&linkedEndDataGame!==undefined)dataEl.value=String(linkedEndDataGame);
   if(liquidEl&&linkedEndLiquidGame!==null&&linkedEndLiquidGame!==undefined)liquidEl.value=String(linkedEndLiquidGame);
 }
+function syncEndGameFields(){
+  const data=normalizeOptionalNumber(document.getElementById('endGame')?.value||'');
+  const liquid=normalizeOptionalNumber(document.getElementById('endLiquidGame')?.value||'');
+  if(data!==null)linkedEndDataGame=data;
+  if(liquid!==null)linkedEndLiquidGame=liquid;
+  if(currentEndLog){
+    if(data!==null)currentEndLog.game=data;
+    if(liquid!==null)currentEndLog.liquidGame=liquid;
+    currentEndLog.updatedAt=new Date().toISOString();
+    renderEndLog();
+    renderPracticeStats();
+    scheduleDraftSave();
+  }
+}
+function openEndGameKeypad(kind='data'){
+  const el=document.getElementById(kind==='liquid'?'endLiquidGame':'endGame');
+  if(!el)return;
+  el.dataset.replaceOnNextDigit=el.value?'1':'';
+  openNumericKeypad(el);
+}
 function linkEndGamesFromTimelineEntry(entry){
   if(!timelineEntryIsEndLink(entry))return;
   linkedEndDataGame=normalizeOptionalNumber(entry.game);
@@ -11437,6 +11457,7 @@ function renderEndLog(){
       <div class="timeline-head">
         <div class="timeline-game">${escapeHtml(`${currentEndLog.game}/${liquid}G 打ち終わり`)}</div>
         <div class="item-actions">
+          <button class="btn-small" onclick="editEndLog()">編集</button>
           <button class="btn-danger" onclick="deleteEndLog()">削除</button>
         </div>
       </div>
@@ -11456,23 +11477,14 @@ function endLogLine(endLog){
 }
 function editEndLog(){
   if(!currentEndLog)return;
-  const game=prompt('打ち終わりデータカウンターG数',String(currentEndLog.game));if(game===null)return;
-  const num=Number(game);
-  if(!game.trim()||Number.isNaN(num)){alert('数値を入力してください');return;}
-  const liquid=prompt('打ち終わり液晶G数',String(currentEndLog.liquidGame??currentEndLog.game));if(liquid===null)return;
-  const liquidNum=Number(liquid);
-  if(!liquid.trim()||Number.isNaN(liquidNum)){alert('液晶G数を入力してください');return;}
-  const reason=prompt(`結果（${END_RESULT_OPTIONS.map(option=>option.value).join(' / ')}）`,currentEndLog.reason);if(reason===null)return;
-  if(!reason.trim()){alert('結果を入力してください');return;}
-  const counts=endResultCounts(reason.trim());
-  if(!counts){alert('結果はプルダウンの6択から選んだ文言で入力してください');return;}
-  const text=prompt('補足（空でも可）',currentEndLog.text||'');if(text===null)return;
-  currentEndLog={...currentEndLog,game:num,liquidGame:liquidNum,reason:reason.trim(),text:text.trim(),...counts,updatedAt:new Date().toISOString()};
-  linkedEndDataGame=num;
-  linkedEndLiquidGame=liquidNum;
-  renderEndLog();
-  renderPracticeStats();
-  scheduleDraftSave();
+  linkedEndDataGame=currentEndLog.game;
+  linkedEndLiquidGame=currentEndLog.liquidGame??currentEndLog.game;
+  updateLinkedEndGameInputs();
+  const reasonEl=document.getElementById('endReason');
+  const textEl=document.getElementById('endText');
+  if(reasonEl)reasonEl.value=currentEndLog.reason||'';
+  if(textEl)textEl.value=currentEndLog.text||'';
+  openEndGameKeypad('data');
 }
 function deleteEndLog(){
   if(!confirm('打ち終わりデータを削除しますか？'))return;
@@ -11506,7 +11518,7 @@ function logSpinValue(log){
   const end=normalizeOptionalNumber(log?.endLog?.game);
   if(start===null||end===null)return null;
   const spins=end-start;
-  return Number.isFinite(spins)?spins:null;
+  return Number.isFinite(spins)&&spins>=0?spins:null;
 }
 function visibleStartLog(log){
   const rows=Array.isArray(log?.startLog)?log.startLog:[];
@@ -11588,17 +11600,20 @@ function statsChainLogsFor(log){
     .sort((a,b)=>logSortTime(a).localeCompare(logSortTime(b)));
 }
 function calculatePracticeStats(log){
-  if(log?.excludeFromStats)return {startCounter:logStartCounterValue(log),endGame:null,spins:null,counts:{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0},excluded:true};
+  if(log?.excludeFromStats)return {startCounter:logStartCounterValue(log),endGame:null,spins:null,counts:{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0},excluded:true,spinUnavailableReason:''};
   const chain=Array.isArray(log?.hitEvents)&&log.hitEvents.length?[]:statsChainLogsFor(log);
   const firstChainStart=chain.map(logStartCounterValue).find(value=>value!==null&&value!==undefined);
   const startCounter=firstChainStart!==undefined?firstChainStart:logStartCounterValue(log);
   const endGame=log.endLog?.game!==undefined&&log.endLog?.game!==null?Number(log.endLog.game):null;
-  const currentSpins=Array.isArray(log?.hitEvents)&&log.hitEvents.length?(startCounter!==null&&endGame!==null&&!Number.isNaN(endGame)?endGame-startCounter:null):logSpinValue(log);
+  const hasHits=Array.isArray(log?.hitEvents)&&log.hitEvents.length;
+  const rawCurrentSpins=hasHits?(startCounter!==null&&endGame!==null&&!Number.isNaN(endGame)?endGame-startCounter:null):logSpinValue(log);
+  const spinUnavailableReason=rawCurrentSpins!==null&&rawCurrentSpins<0?'hit_reset':'';
+  const currentSpins=spinUnavailableReason?null:rawCurrentSpins;
   const previousSpins=chain.reduce((sum,item)=>sum+(logSpinValue(item)||0),0);
   const spins=currentSpins!==null?previousSpins+currentSpins:null;
   const counts=chain.reduce((sum,item)=>addCounts(sum,logResultCounts(item)),{cz:0,upper_cz:0,at:0,direct_at:0,episode_bonus:0});
   addCounts(counts,logResultCounts(log));
-  return {startCounter,endGame,spins,counts};
+  return {startCounter,endGame,spins,counts,spinUnavailableReason};
 }
 function formatProbability(spins,count){
   if(!spins||spins<=0||!count)return '-';
@@ -11607,8 +11622,9 @@ function formatProbability(spins,count){
 function practiceStatsLine(stats){
   if(stats.excluded)return '未確定のため集計対象外';
   const spins=stats.spins!==null?stats.spins:null;
+  const spinsText=stats.spinUnavailableReason==='hit_reset'?'算出不可（当選によるリセットあり）':(spins!==null?spins+'G':'-');
   const parts=[
-    `回転数：${spins!==null?spins+'G':'-'}`,
+    `回転数：${spinsText}`,
     `CZ：${stats.counts.cz}回（${formatProbability(spins,stats.counts.cz)}）`,
     `上位CZ：${stats.counts.upper_cz}回`,
     `AT：${stats.counts.at}回（${formatProbability(spins,stats.counts.at)}）`,
@@ -11641,7 +11657,7 @@ function renderPracticeStats(){
     <div class="calc-box">
       <div class="calc-label">実測値</div>
       <div class="timeline-text" style="margin-top:6px;">${escapeHtml(practiceStatsLine(stats))}</div>
-      <div class="input-hint">分母は「打ち終わりデータカウンターG数 − 打ち始めデータカウンターG数」です。</div>
+      <div class="input-hint">分母は原則「打ち終わりデータカウンターG数 − 打ち始めデータカウンターG数」です。当選によるカウンターリセットで負になる場合は算出不可として表示します。</div>
     </div>`;
 }
 function toggleOptional(id){document.getElementById(id)?.classList.toggle('open');}
@@ -11651,6 +11667,19 @@ function bindNumericInputs(){
     input.dataset.keypadBound='1';
     input.addEventListener('focus',()=>openNumericKeypad(input));
     input.addEventListener('click',()=>openNumericKeypad(input));
+  });
+  bindEndGameKeypadInputs();
+}
+function bindEndGameKeypadInputs(){
+  [['endGame','data'],['endLiquidGame','liquid']].forEach(([id,kind])=>{
+    const input=document.getElementById(id);
+    if(!input||input.dataset.endGameKeypadBound)return;
+    input.dataset.endGameKeypadBound='1';
+    input.inputMode='none';
+    input.addEventListener('click',()=>openEndGameKeypad(kind));
+    input.addEventListener('focus',()=>openEndGameKeypad(kind));
+    input.addEventListener('input',syncEndGameFields);
+    input.addEventListener('change',syncEndGameFields);
   });
 }
 function openNumericKeypad(input){
@@ -11984,7 +12013,7 @@ function saveLog(options={}){
   syncStartCounterGame(false);
   const startCounter=currentStartCounterGame;
   if(startCounter===null){alert('打ち始めのデータカウンターG数を入力してください');return;}
-  if(currentEndLog&&Number(currentEndLog.game)-startCounter<0){alert('打ち終わりG数は打ち始めのデータカウンターG数以上にしてください');return;}
+  if(currentEndLog&&Number(currentEndLog.game)-startCounter<0&&!confirm(`打ち終わりG（${currentEndLog.game}）が打ち始めG（${startCounter}）より小さい状態です。当選によるカウンターリセットがあった場合は正常です。このまま登録しますか？`))return;
   const fieldSnapshot=clone(editingLog?.fieldSnapshot||aim.fields||[]);
   const values={};
   const enteredStartMedals=normalizeOptionalNumber(document.getElementById('moneyStartMedals').value);
