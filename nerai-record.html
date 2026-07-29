@@ -5939,11 +5939,47 @@ function battleModeCashInvestUnits(state=battleModeIntervalTrackerState()){
     .filter(row=>row.mode==='investYen')
     .reduce((sum,row)=>sum+(normalizeOptionalNumber(row.input)||0),0);
 }
+function battleModeCashInvestMedals(state=battleModeIntervalTrackerState()){
+  return normalizeIntervalEstimate(state).history
+    .filter(row=>row.mode==='investYen')
+    .reduce((sum,row)=>{
+      const before=normalizeOptionalNumber(row.before?.investedTotal)??0;
+      const after=normalizeOptionalNumber(row.after?.investedTotal)??before;
+      return sum+(after-before);
+    },0);
+}
 function battleModeCashInvestText(state=battleModeIntervalTrackerState()){
   const units=battleModeCashInvestUnits(state);
   if(units<=0)return '';
   const text=Number.isInteger(units)?String(units):units.toLocaleString('ja-JP',{maximumFractionDigits:1});
   return `（現金 ${text}千円）`;
+}
+function battleModeInvestmentBreakdownText(state=battleModeIntervalTrackerState()){
+  const interval=normalizeIntervalEstimate(state);
+  const cashUnits=battleModeCashInvestUnits(interval);
+  const cashMedals=battleModeCashInvestMedals(interval);
+  const medalInvest=(Number(interval.investedTotal)||0)-cashMedals;
+  const cashText=Number.isInteger(cashUnits)?String(cashUnits):cashUnits.toLocaleString('ja-JP',{maximumFractionDigits:1});
+  return `投資 ${interval.investedTotal.toLocaleString('ja-JP')}枚（うち現金 ${cashText}千円／メダル ${medalInvest.toLocaleString('ja-JP')}枚）`;
+}
+function cashInvestUnitsForLog(log){
+  return normalizeIntervalEstimate(log?.intervalEstimate).history
+    .filter(row=>row.mode==='investYen')
+    .reduce((sum,row)=>sum+(normalizeOptionalNumber(row.input)||0),0);
+}
+function todayCashInvestUnits(state=battleModeIntervalTrackerState()){
+  const date=currentLogDateValue();
+  const saved=(Array.isArray(db.logs)?db.logs:[])
+    .filter(log=>log.id!==editingLogId&&log.money?.date===date)
+    .reduce((sum,log)=>sum+cashInvestUnitsForLog(log),0);
+  return saved+battleModeCashInvestUnits(state);
+}
+function battleModeCashReconcileText(state=battleModeIntervalTrackerState()){
+  const total=todayCashInvestUnits(state);
+  const current=battleModeCashInvestUnits(state);
+  const totalText=Number.isInteger(total)?String(total):total.toLocaleString('ja-JP',{maximumFractionDigits:1});
+  const currentText=Number.isInteger(current)?String(current):current.toLocaleString('ja-JP',{maximumFractionDigits:1});
+  return `今日の現金合計 ${totalText}千円（この台 ${currentText}千円）`;
 }
 function battleModeIntervalDetailText(state=battleModeIntervalTrackerState(),options={}){
   const initial=normalizeOptionalNumber(state.initialDiff)??0;
@@ -6153,6 +6189,10 @@ function openBattleModeDiffTrackerSheet(){
   setBattleModeSheet('有利区間差枚',`
     <div class="bm-recent-line" style="grid-column:1/-1;font-weight:900;color:var(--gold-light);">現在: ${escapeHtml(diff===null?'—':`${diff>0?'+':''}${diff}枚`)}</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">内訳: ${escapeHtml(battleModeIntervalDetailText(state))}</div>
+    <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">${escapeHtml(battleModeInvestmentBreakdownText(state))}</div>
+    <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">${escapeHtml(battleModeCashReconcileText(state))}</div>
+    <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">投資追加は±で修正可（マイナスで取り消し）。現金は「投資追加（千円）」を−1などで調整してください。</div>
+    <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">「投資合計を修正」は内訳（現金/メダル）と連動しない非常用です。通常は±付きの追加で修正してください。</div>
     <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('investYen')">投資追加（千円）</button>
     <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('investMedals')">投資追加（枚）</button>
     <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('setInvestedTotal')">投資合計を修正</button>
@@ -11522,9 +11562,11 @@ function updateNumericKeypadHint(){
   if(mode==='investYen'){
     const medals=value===null?0:Math.round(value*rate);
     const yen=value===null?0:Math.round(value*1000);
-    text=`千円単位（1 = 1,000円） / ${activeNumericInput.value||'0'} → ${yen.toLocaleString('ja-JP')}円 → ${medals.toLocaleString('ja-JP')}枚`;
-  }else if(mode==='investMedals'||mode==='setInvestedTotal'){
+    text=`千円単位（1 = 1,000円） / ${activeNumericInput.value||'0'} → ${yen.toLocaleString('ja-JP')}円 → ${medals.toLocaleString('ja-JP')}枚。±で修正可（マイナスで取り消し）`;
+  }else if(mode==='investMedals'){
     text=`${currentText}単位: 枚（投資枚数）`;
+  }else if(mode==='setInvestedTotal'){
+    text=`${currentText}単位: 枚（投資枚数）。内訳（現金/メダル）と連動しない非常用です。通常は±付きの追加で修正してください`;
   }else if(mode==='credit'){
     text=`${currentText}単位: 枚（現在クレジット）`;
   }else if(mode==='correct'){
