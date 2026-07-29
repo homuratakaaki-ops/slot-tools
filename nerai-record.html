@@ -938,14 +938,14 @@ footer a:hover{color:var(--gold-light);}
 <div class="keypad-overlay" id="hitPayoutOverlay" onclick="closeHitPayoutPicker()">
   <div class="keypad" onclick="event.stopPropagation()">
     <div class="keypad-title">
-      <span id="hitPayoutTitle">獲得枚数</span>
+      <span id="hitPayoutTitle">ボーナス後クレジット</span>
       <button class="btn-small" onclick="closeHitPayoutPicker()">閉じる</button>
     </div>
-    <div class="input-hint">当選イベントの獲得枚数を入力します。未記録ならスキップしてください。</div>
+    <div class="input-hint">ボーナス後の現在クレジットを入力します。獲得枚数はクレジット差分から自動計算します。未確認ならスキップしてください。</div>
     <div class="warning" id="hitPayoutCreditWarning" style="display:none;margin-top:10px;"></div>
     <div class="input-row" style="margin-top:12px;">
-      <div class="input-label" id="hitPayoutLabel">獲得枚数</div>
-      <input type="number" inputmode="numeric" id="hitPayoutInput" placeholder="枚" min="0">
+      <div class="input-label" id="hitPayoutLabel">現在のクレジット枚数</div>
+      <input type="number" inputmode="numeric" id="hitPayoutInput" placeholder="クレ" min="0" oninput="renderHitPayoutCreditAssist()">
     </div>
     <div class="input-hint" id="hitPayoutCreditEstimate" style="display:none;margin-top:8px;"></div>
     <div class="suggest-picker-actions">
@@ -4159,7 +4159,7 @@ function ensureKarakuriCircus2Seed(machine){
     ],
     atHit:{
       base:[
-        {key:'payout',label:'獲得枚数'},
+        {key:'payout',label:'ボーナス後クレジット'},
         {key:'karakuriAtEndPattern',label:'終了パターン'}
       ],
       branches:{
@@ -6290,7 +6290,8 @@ function battleModeApplyDiffTrackerInput(mode,value,options={}){
   if(entry)next={...next,history:[...(state.history||[]),entry].slice(-INTERVAL_DIFF_HISTORY_LIMIT)};
   const ok=battleModeCommit(label,()=>{
     currentIntervalEstimate=normalizeIntervalEstimate(next);
-  },{meta:{kind:'intervalDiff',mode,input:normalized,before:state,after:next,summary}});
+    if(typeof options.afterApply==='function')options.afterApply({mode,input:normalized,before:state,after:normalizeIntervalEstimate(next),entry});
+  },{meta:{kind:'intervalDiff',mode,input:normalized,before:state,after:next,summary},toastMessage:options.toastMessage});
   if(ok&&options.toastSummary)battleModeToast(summary,{duration:1800});
   if(ok&&options.reopenSheet!==false)openBattleModeDiffTrackerSheet();
   return ok;
@@ -8752,10 +8753,8 @@ function historyTimeValue(value){
   return Number.isFinite(time)?time:null;
 }
 function latestHitBeforeCurrent(){
-  const current=currentHitEvent();
-  const currentId=hitBranchWizard.route?String(current?.id||''):'';
   return currentHitEvents
-    .filter(event=>String(event?.id||'')!==currentId&&historyTimeValue(event?.createdAt)!==null)
+    .filter(event=>historyTimeValue(event?.createdAt)!==null)
     .sort((a,b)=>historyTimeValue(b.createdAt)-historyTimeValue(a.createdAt))[0]||null;
 }
 function intervalDiffHistoryRows(){
@@ -8776,12 +8775,11 @@ function latestCreditEntry(filterFn){
     .filter(row=>row.mode==='credit'&&filterFn(historyTimeValue(row.at),row))
     .sort((a,b)=>historyTimeValue(b.at)-historyTimeValue(a.at))[0]||null;
 }
-function estimatePayoutFromCredit(){
-  const lastHit=latestHitBeforeCurrent();
-  const lastHitAt=historyTimeValue(lastHit?.createdAt);
-  if(lastHitAt===null)return null;
-  const prevCredit=latestCreditEntry(at=>at<=lastHitAt);
-  const currCredit=latestCreditEntry(at=>at>lastHitAt);
+function creditPayoutEstimateDetails(event=latestHitBeforeCurrent()){
+  const hitAt=historyTimeValue(event?.createdAt);
+  if(hitAt===null)return null;
+  const prevCredit=latestCreditEntry(at=>at<=hitAt);
+  const currCredit=latestCreditEntry(at=>at>hitAt);
   if(!prevCredit||!currCredit)return null;
   const prevAt=historyTimeValue(prevCredit.at);
   const currAt=historyTimeValue(currCredit.at);
@@ -8801,7 +8799,21 @@ function estimatePayoutFromCredit(){
   const prevCreditValue=normalizeOptionalNumber(prevCredit.after?.credit);
   const currCreditValue=normalizeOptionalNumber(currCredit.after?.credit);
   if(prevCreditValue===null||currCreditValue===null)return null;
-  return Math.round(currCreditValue-prevCreditValue+investBetween);
+  return {payout:Math.round(currCreditValue-prevCreditValue+investBetween),prevCredit:prevCreditValue,currCredit:currCreditValue,prevEntry:prevCredit,currEntry:currCredit};
+}
+function estimatePayoutFromCredit(event=latestHitBeforeCurrent()){
+  return creditPayoutEstimateDetails(event)?.payout??null;
+}
+function sameCreditRecordedAfterHit(event,credit){
+  const hitAt=historyTimeValue(event?.createdAt);
+  const value=normalizeOptionalNumber(credit);
+  if(hitAt===null||value===null)return false;
+  return !!latestCreditEntry((at,row)=>at!==null&&at>hitAt&&(normalizeOptionalNumber(row.after?.credit)??null)===Math.max(0,Math.round(value)));
+}
+function formatCreditPayoutAdoptMessage(details){
+  if(!details)return '基準がないため自動計算できません。獲得枚数は編集で入力できます';
+  const sign=details.payout>0?'+':'';
+  return `獲得 ${sign}${details.payout.toLocaleString('ja-JP')}枚 を記録しました（クレ ${details.prevCredit.toLocaleString('ja-JP')} → ${details.currCredit.toLocaleString('ja-JP')}）`;
 }
 function createSegmentSnapshot(event,terminalType=''){
   const terminalEvent=event?normalizeHitEvent(event):null;
@@ -9040,7 +9052,7 @@ function hitBranchSteps(route,through=hitBranchWizard.through){
   if(route==='atHit'){
     const steps=[
       {key:'through',label:'AT駆け抜け'},
-      {key:'payout',label:'獲得枚数'}
+      {key:'payout',label:'ボーナス後クレジット'}
     ];
     if(through==='ending'){
       steps.push({key:'endingCards',label:'エンディングカード'});
@@ -9304,13 +9316,12 @@ function selectCzResultBranch(result){
 function promptHitEventPayout(){
   const event=currentHitEvent();
   if(!event)return;
-  const label=machinePayoutLabel();
   const titleEl=document.getElementById('hitPayoutTitle');
   const labelEl=document.getElementById('hitPayoutLabel');
-  if(titleEl)titleEl.textContent=label;
-  if(labelEl)labelEl.textContent=label;
+  if(titleEl)titleEl.textContent='ボーナス後クレジット';
+  if(labelEl)labelEl.textContent='現在のクレジット枚数';
   const input=document.getElementById('hitPayoutInput');
-  if(input)input.value=event.payout!==null&&event.payout!==undefined?String(event.payout):'';
+  if(input)input.value=String(normalizeIntervalEstimate(currentIntervalEstimate).credit||'');
   renderHitPayoutCreditAssist();
   document.getElementById('hitPayoutOverlay')?.classList.add('open');
   setTimeout(()=>input?.focus(),0);
@@ -9318,19 +9329,28 @@ function promptHitEventPayout(){
 function renderHitPayoutCreditAssist(){
   const warning=document.getElementById('hitPayoutCreditWarning');
   const estimate=document.getElementById('hitPayoutCreditEstimate');
+  const event=currentHitEvent();
+  const inputCredit=normalizeOptionalNumber(document.getElementById('hitPayoutInput')?.value||'');
+  const hitAt=historyTimeValue(event?.createdAt);
+  const hasBase=hitAt!==null&&!!latestCreditEntry(at=>at!==null&&at<=hitAt);
   if(warning){
-    const shouldWarn=!creditUpdatedSinceLastHit();
-    warning.style.display=shouldWarn?'block':'none';
-    warning.textContent=shouldWarn?'⚠ 前回のボーナス後、クレジットが登録されていません。差分からの自動計算には、ボーナス後のクレジット登録が必要です。':'';
+    warning.style.display=hasBase?'none':'block';
+    warning.textContent=hasBase?'':'基準がないため自動計算できません。クレジット値だけ記録し、獲得枚数は編集で入力できます。';
   }
   if(estimate){
-    const payout=estimatePayoutFromCredit();
-    if(payout===null){
+    const currentDetails=creditPayoutEstimateDetails(event);
+    if(currentDetails){
+      estimate.style.display='block';
+      estimate.innerHTML=`現在の記録から計算: <strong>${currentDetails.payout>0?'+':''}${currentDetails.payout.toLocaleString('ja-JP')}枚</strong>（クレ ${currentDetails.prevCredit.toLocaleString('ja-JP')} → ${currentDetails.currCredit.toLocaleString('ja-JP')}）`;
+    }else if(hasBase&&inputCredit!==null){
+      const base=latestCreditEntry(at=>at!==null&&at<=hitAt);
+      const baseCredit=normalizeOptionalNumber(base?.after?.credit);
+      const preview=baseCredit!==null?Math.round(inputCredit-baseCredit):null;
+      estimate.style.display=preview!==null?'block':'none';
+      estimate.innerHTML=preview!==null?`決定後の計算見込み: <strong>${preview>0?'+':''}${preview.toLocaleString('ja-JP')}枚</strong>（クレ ${baseCredit.toLocaleString('ja-JP')} → ${Math.round(inputCredit).toLocaleString('ja-JP')}）`:'';
+    }else{
       estimate.style.display='none';
       estimate.innerHTML='';
-    }else{
-      estimate.style.display='block';
-      estimate.innerHTML=`クレジット差分から計算: <strong>${payout>0?'+':''}${payout.toLocaleString('ja-JP')}枚</strong> <button class="btn-small gold" type="button" onclick="adoptCreditEstimatedPayout(${payout})">採用</button>`;
     }
   }
 }
@@ -9346,6 +9366,10 @@ function finishHitEventPayout(value){
   const event=currentHitEvent();
   if(!event)return;
   event.payout=value;
+  finishHitEventPayoutStep(event);
+}
+function finishHitEventPayoutStep(event=currentHitEvent()){
+  if(!event)return;
   closeHitPayoutPicker();
   if(hitBranchWizard.route==='atHit'&&isNangokuSpecialMachine(currentMachine())){
     continueNangokuHitAfterPayout(event);
@@ -9364,8 +9388,31 @@ function submitHitEventPayout(){
   const input=document.getElementById('hitPayoutInput');
   const value=input?input.value.trim():'';
   const normalized=normalizeOptionalNumber(value);
-  if(value!==''&&normalized===null){alert('獲得枚数は数値で入力してください');return;}
-  finishHitEventPayout(normalized);
+  if(value===''||normalized===null){alert('現在のクレジット枚数を数値で入力してください');return;}
+  const event=currentHitEvent();
+  if(!event)return;
+  const credit=Math.max(0,Math.round(normalized));
+  let details=null;
+  if(sameCreditRecordedAfterHit(event,credit)){
+    details=creditPayoutEstimateDetails(event);
+    if(details){
+      battleModeCommit('獲得枚数採用',()=>{event.payout=details.payout;},{toastMessage:()=>formatCreditPayoutAdoptMessage(details)});
+    }else{
+      battleModeToast(formatCreditPayoutAdoptMessage(null),{duration:2200});
+    }
+    finishHitEventPayoutStep(event);
+    return;
+  }
+  battleModeApplyDiffTrackerInput('credit',credit,{
+    label:'ボーナス後クレジット',
+    reopenSheet:false,
+    afterApply:()=>{
+      details=creditPayoutEstimateDetails(event);
+      if(details)event.payout=details.payout;
+    },
+    toastMessage:()=>formatCreditPayoutAdoptMessage(details)
+  });
+  finishHitEventPayoutStep(event);
 }
 function skipHitEventPayout(){
   finishHitEventPayout(null);

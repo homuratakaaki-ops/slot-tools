@@ -1014,6 +1014,91 @@ function testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo() {
   `, context), 50);
 }
 
+function testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_tokyo_ghoul';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentHitEvents = [normalizeHitEvent({ id: 'he_credit', trigger: 'at', dataGame: 100, liquidGame: 100, createdAt: '2026-07-21T10:00:00.000Z', wizardDone: false })];
+    hitBranchWizard = { route: 'atHit', stepIndex: 1, through: null, done: ['through'], eventId: 'he_credit' };
+    currentIntervalEstimate = normalizeIntervalEstimate({
+      initialDiff: null,
+      loanRate: 46,
+      investedTotal: 0,
+      credit: 222,
+      history: [
+        { id: 'idh_base', at: '2026-07-21T09:59:00.000Z', mode: 'credit', label: 'クレジット更新', input: 222, before: { investedTotal: 0, credit: 0 }, after: { investedTotal: 0, credit: 222 }, summary: 'クレジット更新 0 → 222' }
+      ]
+    });
+    const generic = document.getElementById('generic');
+    const input = { ...generic, value: '563' };
+    const overlay = { ...generic, classList: { add() {}, remove() {}, toggle() {} } };
+    document.getElementById = id => id === 'hitPayoutInput' ? input : id === 'hitPayoutOverlay' ? overlay : generic;
+    submitHitEventPayout();
+  `, context);
+
+  assert.equal(vm.runInContext('currentIntervalEstimate.credit', context), 563);
+  assert.equal(vm.runInContext('currentIntervalEstimate.history.length', context), 2);
+  assert.equal(vm.runInContext('currentHitEvents[0].payout', context), 341);
+  assert.equal(vm.runInContext('battleModeCreditUpdateButtonClass()', context), ' credit-ok');
+  assert.match(vm.runInContext('battleModeUndoStack.at(-1).label', context), /ボーナス後クレジット/);
+
+  vm.runInContext('undoBattleModeLast()', context);
+  assert.equal(vm.runInContext('currentIntervalEstimate.credit', context), 222);
+  assert.equal(vm.runInContext('currentIntervalEstimate.history.length', context), 1);
+  assert.equal(vm.runInContext('currentHitEvents[0].payout', context), null);
+  assert.equal(vm.runInContext('battleModeCreditUpdateButtonClass()', context), ' credit-warn');
+}
+
+function testHitPayoutStepDoesNotDuplicateSameCreditHistory() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_tokyo_ghoul';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentHitEvents = [normalizeHitEvent({ id: 'he_same_credit', trigger: 'at', dataGame: 100, liquidGame: 100, createdAt: '2026-07-21T10:00:00.000Z', wizardDone: false })];
+    hitBranchWizard = { route: 'atHit', stepIndex: 1, through: null, done: ['through'], eventId: 'he_same_credit' };
+    currentIntervalEstimate = normalizeIntervalEstimate({
+      initialDiff: null,
+      loanRate: 46,
+      investedTotal: 0,
+      credit: 563,
+      history: [
+        { id: 'idh_base', at: '2026-07-21T09:59:00.000Z', mode: 'credit', label: 'クレジット更新', input: 222, before: { investedTotal: 0, credit: 0 }, after: { investedTotal: 0, credit: 222 }, summary: 'クレジット更新 0 → 222' },
+        { id: 'idh_after', at: '2026-07-21T10:01:00.000Z', mode: 'credit', label: 'クレジット更新', input: 563, before: { investedTotal: 0, credit: 222 }, after: { investedTotal: 0, credit: 563 }, summary: 'クレジット更新 222 → 563' }
+      ]
+    });
+    const generic = document.getElementById('generic');
+    const input = { ...generic, value: '563' };
+    const overlay = { ...generic, classList: { add() {}, remove() {}, toggle() {} } };
+    document.getElementById = id => id === 'hitPayoutInput' ? input : id === 'hitPayoutOverlay' ? overlay : generic;
+    submitHitEventPayout();
+  `, context);
+
+  assert.equal(vm.runInContext('currentIntervalEstimate.history.length', context), 2);
+  assert.equal(vm.runInContext('currentHitEvents[0].payout', context), 341);
+  assert.match(vm.runInContext('battleModeUndoStack.at(-1).label', context), /獲得枚数採用/);
+}
+
+function testHitPayoutStepRecordsCreditOnlyWithoutBaseCredit() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_tokyo_ghoul';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentHitEvents = [normalizeHitEvent({ id: 'he_no_base', trigger: 'at', dataGame: 100, liquidGame: 100, createdAt: '2026-07-21T10:00:00.000Z', wizardDone: false })];
+    hitBranchWizard = { route: 'atHit', stepIndex: 1, through: null, done: ['through'], eventId: 'he_no_base' };
+    currentIntervalEstimate = normalizeIntervalEstimate({ initialDiff: null, loanRate: 46, investedTotal: 0, credit: 0, history: [] });
+    const generic = document.getElementById('generic');
+    const input = { ...generic, value: '563' };
+    const overlay = { ...generic, classList: { add() {}, remove() {}, toggle() {} } };
+    document.getElementById = id => id === 'hitPayoutInput' ? input : id === 'hitPayoutOverlay' ? overlay : generic;
+    submitHitEventPayout();
+  `, context);
+
+  assert.equal(vm.runInContext('currentIntervalEstimate.credit', context), 563);
+  assert.equal(vm.runInContext('currentIntervalEstimate.history.length', context), 1);
+  assert.equal(vm.runInContext('currentHitEvents[0].payout', context), null);
+}
+
 function testSuggestLogSnapshotKeepsOnlyCurrentSegmentEntries() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -2144,6 +2229,9 @@ function run() {
   testBattleModeHitWizardResetReturnsToBattleMode();
   testBattleModeGameIncrementUndoAndRedo();
   testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo();
+  testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo();
+  testHitPayoutStepDoesNotDuplicateSameCreditHistory();
+  testHitPayoutStepRecordsCreditOnlyWithoutBaseCredit();
   testSuggestLogSnapshotKeepsOnlyCurrentSegmentEntries();
   testNormalizeDataDedupesCopiedSegmentSuggestLogs();
   testStorageGuardCatchesLogShopNoteAndDraftLoss();
