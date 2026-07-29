@@ -274,6 +274,29 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /ST突入/);
 }
 
+function testKabaneriChanceEyeMeterAndCounters() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext("selectedMachineId='m_kabaneri'; selectedAimId=firstAimIdForMachine(currentMachine())||''; currentStartCounterGame=100; currentTimelineDataGame=150; setTimelineGames(150,150); battleModeOpen=true;", context);
+
+  assert.match(vm.runInContext("renderBattleModeCompactCounters()", context), /周期/);
+  assert.match(vm.runInContext("renderBattleModeCompactCounters()", context), /下段ベル/);
+  assert.match(vm.runInContext("renderBattleModeReplayFlashMeter()", context), /チャ目/);
+
+  vm.runInContext("battleModeRecordTag('t_kabaneri_chance_mumei')", context);
+  assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /無1/);
+  assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /合算 1\/50.0/);
+
+  vm.runInContext("battleModeIncrementSubCounter('cycle')", context);
+  vm.runInContext("battleModeIncrementSubCounter('lowerBell')", context);
+  assert.equal(vm.runInContext("subCounterValue('cycle')", context), 1);
+  assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 1);
+  assert.equal(vm.runInContext("currentTimeline.some(row => row.tagIds.includes('t_kabaneri_cycle'))", context), true);
+  assert.equal(vm.runInContext("currentTimeline.some(row => row.tagIds.includes('t_kabaneri_lower_bell'))", context), true);
+  assert.match(vm.runInContext("subCounterLine(currentSubCounters)", context), /周期1回/);
+  assert.match(vm.runInContext("subCounterLine(currentSubCounters)", context), /下段ベル1回/);
+}
+
 function testStandardAimSeedsNoDuplicatesAndDeleteTombstone() {
   const { context, localStorage } = runRecord(undefined, [true, true]);
 
@@ -2901,6 +2924,7 @@ function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
   testKabaneriPresetSeedAndPickers();
+  testKabaneriChanceEyeMeterAndCounters();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();
   testOtherPresetMachinesRemainStable();
   testNoHitQuitSegmentsAreIncludedInTextOutputs();

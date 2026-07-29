@@ -1149,6 +1149,12 @@ const KABANERI_QUICK_TAG_IDS=[
   't_kabaneri_chance_kabane',
   't_kabaneri_chance_multi'
 ];
+const KABANERI_CHANCE_EYE_TAGS=[
+  {id:'t_kabaneri_chance_mumei',short:'無'},
+  {id:'t_kabaneri_chance_ikoma',short:'生'},
+  {id:'t_kabaneri_chance_kabane',short:'カ'},
+  {id:'t_kabaneri_chance_multi',short:'複'}
+];
 const ENDING_CARD_GROUPS=[
   {id:'white_weak',name:'白・奇数弱',hint:'奇数示唆:弱',tone:'white',cards:['金木研','霧嶋董香','笛口雛実','永近英良','西尾錦','月山習']},
   {id:'white_strong',name:'白・奇数強',hint:'奇数示唆:強',tone:'white',cards:['芳村','四方蓮示','ウタ','イトリ','古間円児','入見カヤ']},
@@ -2517,6 +2523,7 @@ function normalizeData(data){
     ensureNangokuSpecialSeed(m);
     ensureKarakuriCircus2Seed(m);
     ensureKabaneriSeed(m);
+    ensureKabaneriCounterSeed(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     applySuggestMetadata(m);
   });
@@ -4653,6 +4660,18 @@ function ensureKabaneriSeed(machine){
   machine.kabaneriSeedV1=true;
   applySuggestMetadata(machine);
 }
+function ensureKabaneriCounterSeed(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriCounterSeedV1)return;
+  mergeTimelineTagSeed(machine,[
+    {id:'t_kabaneri_cycle',label:'周期+1',optional:true,countAs:null,tagClass:'stage-mind',subCounterDelta:1},
+    {id:'t_kabaneri_lower_bell',label:'下段ベル',optional:true,countAs:null,tagClass:'rare-weak',subCounterDelta:1}
+  ]);
+  machine.counters=[
+    {key:'cycle',label:'周期',counterLabel:'周期',countTagIds:['t_kabaneri_cycle'],resetTagIds:[],historyEnabled:true,resetOn:''},
+    {key:'lowerBell',label:'下段ベル',counterLabel:'下段ベル',countTagIds:['t_kabaneri_lower_bell'],resetTagIds:[],historyEnabled:true,resetOn:''}
+  ].map(normalizeMachineCounter).filter(Boolean);
+  machine.kabaneriCounterSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5222,7 +5241,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriCounterSeed(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5263,6 +5282,7 @@ function addMachine(){
   ensureNangokuSpecialSeed(machine);
   ensureKarakuriCircus2Seed(machine);
   ensureKabaneriSeed(machine);
+  ensureKabaneriCounterSeed(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -6355,10 +6375,21 @@ function renderBattleModeTopActions(){
 }
 function renderBattleModeCompactCounters(){
   const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
-  const counter=machineSubCounter();
-  if(!useLiquidOffsetCounter&&!counter)return '';
+  const counters=machineCounters();
+  if(!useLiquidOffsetCounter&&!counters.length)return '';
   const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
-  const counterValue=counter?subCounterValue(counter.key):0;
+  const counterSlots=counters.slice(0,isKabaneriMachine(currentMachine())?2:1);
+  const counterHtml=counterSlots.map(counter=>{
+    const counterValue=subCounterValue(counter.key);
+    return `
+    <div class="bm-compact-counter">
+      <button class="bm-compact-counter-read" type="button" onclick="openBattleModeCounterKeypad('subCounter','${escapeHtml(counter.key)}')">
+        <div class="bm-counter-label">${escapeHtml(compactCounterLabel(counter))}</div>
+        <div class="bm-counter-value">${escapeHtml(counterValue)}</div>
+      </button>
+      <button class="bm-mini-btn" type="button" onclick="battleModeIncrementSubCounter('${escapeHtml(counter.key)}')">+1</button>
+    </div>`;
+  }).join('');
   return `<div class="bm-compact-counter-row">
     ${useLiquidOffsetCounter?`
     <div class="bm-compact-counter">
@@ -6367,15 +6398,8 @@ function renderBattleModeCompactCounters(){
         <div class="bm-counter-value">${escapeHtml(timelineLiquidOffset())}</div>
       </button>
       ${liquidPreset!==null?`<button class="bm-mini-btn" type="button" onclick="battleModeSetLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span></span>'}
-    </div>`:'<div></div>'}
-    ${counter?`
-    <div class="bm-compact-counter">
-      <button class="bm-compact-counter-read" type="button" onclick="openBattleModeCounterKeypad('subCounter')">
-        <div class="bm-counter-label">${escapeHtml(compactCounterLabel(counter))}</div>
-        <div class="bm-counter-value">${escapeHtml(counterValue)}</div>
-      </button>
-      <button class="bm-mini-btn" type="button" onclick="battleModeIncrementSubCounter('${escapeHtml(counter.key)}')">+1</button>
-    </div>`:'<div></div>'}
+    </div>`:''}
+    ${counterHtml||'<div></div>'}
   </div>`;
 }
 function battleModeHasReplayFlashMeter(){
@@ -6459,6 +6483,39 @@ function battleModeReplaySplitMeterText(){
   const counts=battleModeReplaySplitCounts();
   return `リプレイ 〜200: ${counts.early} ／ 201〜: ${counts.late}`;
 }
+function kabaneriChanceEyeCounts(timeline=currentTimeline){
+  return KABANERI_CHANCE_EYE_TAGS.reduce((counts,row)=>{
+    counts[row.id]=(Array.isArray(timeline)?timeline:[]).reduce((total,item)=>{
+      const ids=Array.isArray(item?.tagIds)?item.tagIds:[];
+      return total+(ids.includes(row.id)?1:0);
+    },0);
+    return counts;
+  },{});
+}
+function battleModeKabaneriChanceEyeMeterText(){
+  const counts=kabaneriChanceEyeCounts();
+  const total=Object.values(counts).reduce((sum,value)=>sum+value,0);
+  const games=battleModeCurrentSegmentLiquidGames();
+  const ratio=total>0&&games>0?`1/${(games/total).toFixed(1)}`:'-';
+  const parts=KABANERI_CHANCE_EYE_TAGS.map(row=>`${row.short}${counts[row.id]||0}`).join('／');
+  return `チャ目 ${parts}（合算 ${ratio}）`;
+}
+function battleModeKabaneriChanceEyeDetailHtml(){
+  const counts=kabaneriChanceEyeCounts();
+  const games=battleModeCurrentSegmentLiquidGames();
+  return KABANERI_CHANCE_EYE_TAGS.map(row=>{
+    const count=counts[row.id]||0;
+    const tag=battleModeCurrentTagById(row.id);
+    const ratio=count>0&&games>0?`1/${(games/count).toFixed(1)}`:'-';
+    return `<div class="bm-recent-line">${escapeHtml(tag?.label||row.short)} ${escapeHtml(count)}回 / ${escapeHtml(games)}G（${escapeHtml(ratio)}）</div>`;
+  }).join('');
+}
+function openBattleModeKabaneriChanceEyeSheet(){
+  setBattleModeSheet('チャ目内訳',`
+    ${battleModeKabaneriChanceEyeDetailHtml()}
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
+  `);
+}
 function battleModeCurrentSegmentLiquidGames(){
   const liquid=normalizeOptionalNumber(timelineLiquidValue());
   const fallback=normalizeOptionalNumber(timelineDataValue());
@@ -6474,6 +6531,7 @@ function battleModeReplayFlashMeterText(){
 }
 function renderBattleModeReplayFlashMeter(){
   const rows=[];
+  if(isKabaneriMachine(currentMachine()))rows.push(`<button class="bm-replay-flash-meter" type="button" onclick="openBattleModeKabaneriChanceEyeSheet()">${escapeHtml(battleModeKabaneriChanceEyeMeterText())}</button>`);
   if(battleModeHasReplayFlashMeter())rows.push(`<button class="bm-replay-flash-meter" type="button" onclick="openBattleModeReplayScopeSheet()">${escapeHtml(battleModeReplayFlashMeterText())}</button>`);
   if(battleModeHasReplaySplitMeter())rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplaySplitMeterText())}</div>`);
   return rows.join('');
@@ -6871,8 +6929,8 @@ function renderBattleMode(){
   const quit=document.getElementById('battleModeQuitArea');
   if(quit)quit.innerHTML=renderBattleModeQuitArea();
 }
-function openBattleModeCounterKeypad(role){
-  const counter=machineSubCounter();
+function openBattleModeCounterKeypad(role,counterKey=''){
+  const counter=role==='subCounter'?(machineCounters().find(row=>row.key===counterKey)||machineSubCounter()):machineSubCounter();
   const input=document.createElement('input');
   input.type='text';
   input.className='numeric-input';
@@ -6918,7 +6976,12 @@ function battleModeSetLiquidOffsetPreset(value){
 function battleModeIncrementSubCounter(key){
   const counter=machineCounters().find(row=>row.key===key)||machineSubCounter();
   const label=counter?.counterLabel||counter?.label||key;
-  battleModeCommit(`${label}+1`,()=>incrementSubCounter(key,1));
+  battleModeCommit(`${label}+1`,()=>{
+    const tagId=Array.isArray(counter?.countTagIds)?counter.countTagIds[0]:'';
+    const tag=isKabaneriMachine(currentMachine())&&tagId?battleModeCurrentTagById(tagId):null;
+    if(tag)addInstantTimelineTag(tag);
+    else incrementSubCounter(key,1);
+  });
 }
 function battleModeRecordTag(id){
   const tag=currentMachine()?.tags?.find(row=>row.id===id);
@@ -7149,6 +7212,7 @@ function battleModeOtherExcludedTagIds(){
     const def=battleModeCounterButtonDef(ref);
     if(def?.tagId)ids.add(def.tagId);
   });
+  machineCounters(machine).forEach(counter=>(counter.countTagIds||[]).forEach(id=>ids.add(id)));
   panel.events.forEach(item=>{
     if(item?.type==='tag')ids.add(item.ref);
     if(item?.type==='picker'&&item.ref==='sazanami')BATTLE_MODE_SAZANAMI_COLORS.forEach(row=>ids.add(row.tagId));
@@ -11690,23 +11754,23 @@ function timelineSuikaAfterText(item){
   return liquid!==null?`加算後：液晶${liquid+delta}G`:'';
 }
 function subCounterLine(counters){
-  const counter=machineSubCounter();
-  if(!counter)return '';
-  const value=normalizeOptionalNumber(counters?.[counter.key]);
-  return value!==null&&value>0?`${counter.label}${value}回目`:'';
+  return machineCounters().map(counter=>{
+    const value=normalizeOptionalNumber(counters?.[counter.key]);
+    return value!==null&&value>0?`${counter.label}${value}回`:'';
+  }).filter(Boolean).join(' / ');
 }
 function applySubCounterDeltasForTimeline(tagIds){
-  const counter=machineSubCounter();
-  if(!counter)return normalizeSubCounters(currentSubCounters);
   const tags=Array.isArray(tagIds)?tagIds:[];
-  const countTagIds=new Set(counter.countTagIds||[]);
-  const delta=tags.reduce((sum,id)=>{
-    const tag=currentMachine()?.tags?.find(t=>t.id===id);
-    const value=normalizeOptionalNumber(tag?.subCounterDelta);
-    if(value!==null)return sum+value;
-    return countTagIds.has(String(id))?sum+1:sum;
-  },0);
-  if(delta!==0)setSubCounterValue(counter.key,subCounterValue(counter.key)+delta);
+  machineCounters().forEach(counter=>{
+    const countTagIds=new Set(counter.countTagIds||[]);
+    const delta=tags.reduce((sum,id)=>{
+      const tag=currentMachine()?.tags?.find(t=>t.id===id);
+      const value=normalizeOptionalNumber(tag?.subCounterDelta);
+      if(value!==null&&countTagIds.has(String(id)))return sum+value;
+      return countTagIds.has(String(id))?sum+1:sum;
+    },0);
+    if(delta!==0)setSubCounterValue(counter.key,subCounterValue(counter.key)+delta);
+  });
   return normalizeSubCounters(currentSubCounters);
 }
 function addSuggestLogsFromTimelineTagLinks(tagIds,timelineEntry){
