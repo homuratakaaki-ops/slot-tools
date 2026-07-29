@@ -6,6 +6,10 @@
 <title>スロット稼働ノート｜収支・狙い目・実戦メモをまとめて記録</title>
 <meta name="description" content="スロット稼働ノートは、パチスロ・パチンコ実戦をサポートする無料ツール集です。">
 <link rel="canonical" href="https://slot-tools.jp/index.html">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0d0d0f">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/icons/favicon-32.png">
 <style>
 body{background:#0d0d0f;color:#e8e4d9;font-family:'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;}
 header{background:linear-gradient(135deg,#1a1008,#0d0d0f);border-bottom:1px solid #c9a84c;padding:20px;text-align:center;}
@@ -20,6 +24,10 @@ header p{color:#7a7a8a;font-size:13px;margin-top:6px;}
 .tool-card p{color:#7a7a8a;font-size:13px;margin:0;line-height:1.6;}
 .guide-link{display:inline-block;color:#c9a84c;font-size:13px;font-weight:700;margin-top:10px;text-decoration:none;}
 .guide-link:hover{color:#e8c96a;}
+.pwa-install-area{margin-top:12px;}
+.pwa-install-btn{appearance:none;background:transparent;border:1px solid #c9a84c;border-radius:6px;color:#e8c96a;cursor:pointer;font:700 13px/1.2 inherit;padding:8px 10px;}
+.pwa-install-btn:hover{border-color:#e8c96a;color:#f2dd88;}
+.pwa-ios-guide{color:#8f8f9d;font-size:12px;line-height:1.6;margin:0;}
 footer{text-align:center;padding:40px 16px;color:#4a4a5a;font-size:12px;}
 footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
 footer a{color:#7a7a8a;text-decoration:none;}
@@ -39,6 +47,10 @@ footer a:hover{color:#e8c96a;}
     <h2>稼働記録ツール</h2>
     <p>機種別・狙い方別に入力項目を作り、実戦中の記録と収支を保存します。</p>
     <a class="guide-link" href="nerai-guide.html" onclick="event.stopPropagation();">📖 使い方・詳しい説明 →</a>
+    <div class="pwa-install-area" id="pwaInstallArea" onclick="event.stopPropagation();" onkeydown="event.stopPropagation();" hidden>
+      <button class="pwa-install-btn" type="button" id="pwaInstallBtn" hidden>📱 アプリとして追加</button>
+      <p class="pwa-ios-guide" id="pwaIosGuide" hidden>Safariで開き、共有ボタン →「ホーム画面に追加」でアプリとして使えます</p>
+    </div>
   </div>
   <div class="section-label">パチンコ計算</div>
   <div class="tool-card" role="link" tabindex="0" onclick="location.href='pachinko-unit-calc.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='pachinko-unit-calc.html';}">
@@ -81,5 +93,46 @@ footer a:hover{color:#e8c96a;}
     <a href="/contact.html">お問い合わせ</a>
   </nav>
 </footer>
+<script>
+(function () {
+  var area = document.getElementById('pwaInstallArea');
+  var btn = document.getElementById('pwaInstallBtn');
+  var iosGuide = document.getElementById('pwaIosGuide');
+  var deferredPrompt = null;
+
+  var isStandalone =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    window.navigator.standalone === true;
+  if (isStandalone) return;
+
+  var isIos = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIos) {
+    area.hidden = false;
+    iosGuide.hidden = false;
+    return;
+  }
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    area.hidden = false;
+    btn.hidden = false;
+  });
+
+  btn.addEventListener('click', function () {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.then(function () {
+      deferredPrompt = null;
+      area.hidden = true;
+    });
+  });
+
+  window.addEventListener('appinstalled', function () {
+    area.hidden = true;
+  });
+})();
+</script>
 </body>
 </html>
