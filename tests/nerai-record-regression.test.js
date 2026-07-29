@@ -252,8 +252,11 @@ function testKabaneriPresetSeedAndPickers() {
     JSON.parse(vm.runInContext('JSON.stringify(currentMachine().quickPanel.events.map(event => event.ref))', context)),
     ['state', 'kabaneri_point', 'kabaneri_omikuji', 'hit']
   );
-  assert.equal(vm.runInContext("currentMachine().states.length", context), 8);
+  assert.equal(vm.runInContext("currentMachine().states.length", context), 11);
   assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_cz_mumei' && state.endOptions.length === 2)", context), true);
+  assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_mumei_high')", context), true);
+  assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_cherry')", context), false);
+  assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_suika')", context), false);
   assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_point')", context), true);
   assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_omikuji')", context), true);
   assert.deepEqual(
@@ -265,9 +268,24 @@ function testKabaneriPresetSeedAndPickers() {
     ['through', 'payout']
   );
   const gridHtml = vm.runInContext('renderBattleModeGrid()', context);
-  assert.match(gridHtml, /無名チャンス目/);
+  assert.match(gridHtml, /無名/);
+  assert.match(gridHtml, /生駒/);
+  assert.match(gridHtml, /カバネ/);
+  assert.match(gridHtml, /複合/);
   assert.match(gridHtml, /pt示唆/);
   assert.match(gridHtml, /おみくじ/);
+  vm.runInContext("openBattleModeKabaneriMultiPicker()", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /無名＆カバネ/);
+  vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_multi_mumei_kabane')", context);
+  assert.equal(vm.runInContext("currentTimeline.at(-1).tagIds.includes('t_kabaneri_multi_mumei_kabane')", context), true);
+  assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /複1/);
+  vm.runInContext("openBattleModeOtherSheet()", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ステージ/);
+  assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /オールスター目/);
+  vm.runInContext("openBattleModeKabaneriStagePicker()", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /第四区画坑道/);
+  vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_stage_fourth_tunnel')", context);
+  assert.equal(vm.runInContext("currentTimeline.at(-1).tagIds.includes('t_kabaneri_stage_fourth_tunnel')", context), true);
   vm.runInContext("openBattleModeKabaneriSuggestCategoryPicker('sgc_kabaneri_point','pt示唆')", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ミニキャラ/);
   vm.runInContext("openAtThroughBranchPicker()", context);
