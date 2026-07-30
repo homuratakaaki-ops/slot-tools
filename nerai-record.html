@@ -2740,6 +2740,7 @@ function normalizeData(data){
     ensureKabaneriMumeiDefeatSeedV1(m);
     ensureKabaneriShunjoPtSeedV1(m);
     ensureKabaneriPickerStyleSeedV1(m);
+    ensureKabaneriPointFlattenSeedV1(m);
     if(m.hitCauseFirst===true)m.hitCauseFirst=true;
     else delete m.hitCauseFirst;
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
@@ -3020,6 +3021,7 @@ function normalizeSuggestMaster(master){
       enabled:place.enabled!==false,
       stateGroup:normalizeSuggestStateGroup(place.stateGroup||'')||'play',
       pointRole:place.pointRole==='gain'||place.pointRole==='hint'?place.pointRole:null,
+      flattenItems:place.flattenItems===true,
       items:Array.isArray(place.items)?place.items.map(item=>({
         id:item.id||uid('sgi'),
         label:item.label||'内容',
@@ -3285,6 +3287,7 @@ function mergeSuggestSeed(machine,seed){
         category.places.push(clone(seedPlace));
         return;
       }
+      if(typeof seedPlace.flattenItems==='boolean')place.flattenItems=seedPlace.flattenItems;
       place.items=Array.isArray(place.items)?place.items:[];
       (seedPlace.items||[]).forEach(seedItem=>{
         const existing=place.items.find(item=>item.id===seedItem.id||item.label===seedItem.label);
@@ -4969,6 +4972,7 @@ function kabaneriSuggestDecorations(label){
   [['無名','red'],['生駒','green'],['カバネ','blue'],['舵取り','blue'],['銅藍','gold'],['景之','gold'],['キリ番','gold']].forEach(([text,color])=>{
     if(String(label||'').includes(text))decorations.push({text,color});
   });
+  if(String(label||'').includes('近いよ（間近!?）'))decorations.push({text:'近いよ（間近!?）',color:'gold'});
   return decorations;
 }
 function ensureKabaneriSuggestPlace(category,id,name){
@@ -5294,6 +5298,17 @@ function ensureKabaneriPickerStyleSeedV1(machine){
   ]);
   machine.states=normalizeMachineStates(machineStates(machine).map(state=>state.id==='kabaneri_super_high'?{...state,badgeStyle:'super'}:state));
   machine.kabaneriPickerStyleSeedV1=true;
+}
+function ensureKabaneriPointFlattenSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriPointFlattenSeedV1)return;
+  const category=findSuggestCategory(machine,KABANERI_POINT_CATEGORY_ID);
+  ['sgp_kabaneri_point_minichara','sgp_kabaneri_point_talk'].forEach(placeId=>{
+    const place=findSuggestPlace(category,placeId);
+    if(!place)return;
+    place.flattenItems=true;
+    (place.items||[]).forEach(item=>{item.decorations=kabaneriSuggestDecorations(item.label);});
+  });
+  machine.kabaneriPointFlattenSeedV1=true;
 }
 function todayValue(){
   const d=new Date();
@@ -5864,7 +5879,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5925,6 +5940,7 @@ function addMachine(){
   ensureKabaneriMumeiDefeatSeedV1(machine);
   ensureKabaneriShunjoPtSeedV1(machine);
   ensureKabaneriPickerStyleSeedV1(machine);
+  ensureKabaneriPointFlattenSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -8134,9 +8150,25 @@ function openBattleModeKabaneriSuggestCategoryPicker(categoryId,title){
     openBattleModeSuggestPlaceFromSheet(entry.category.id,entry.places[0].id);
     return;
   }
-  setBattleModeSheet(title,entry.places.map(place=>{
-    return `<button class="bm-btn" type="button" onclick="openBattleModeSuggestPlaceFromSheet('${escapeHtml(entry.category.id)}','${escapeHtml(place.id)}')">${escapeHtml(place.name)}</button>`;
-  }).join(''));
+  setBattleModeSheet(title,battleModeKabaneriSuggestCategoryButtons(entry));
+}
+function battleModeKabaneriSuggestCategoryButtons(entry){
+  const flatPlaces=entry.places.filter(place=>place.flattenItems===true);
+  const normalPlaces=entry.places.filter(place=>place.flattenItems!==true);
+  const flatHtml=flatPlaces.map(place=>battleModeKabaneriFlattenSuggestPlaceHtml(entry.category,place)).join('');
+  const normalHtml=normalPlaces.map(place=>{
+    return `<button class="bm-btn" type="button" onclick="openBattleModeSuggestPlaceFromSheet('${escapeHtml(entry.category.id)}','${escapeHtml(place.id)}')">${escapeHtml(place.name)} ▼</button>`;
+  }).join('');
+  return flatHtml+normalHtml;
+}
+function battleModeKabaneriFlattenSuggestPlaceHtml(category,place){
+  const items=enabledSuggestItems(category.id,place.id);
+  if(!items.length)return '';
+  const title=`<div class="bm-sheet-note"><strong>${escapeHtml(place.name)}</strong></div>`;
+  const buttons=items.map(item=>{
+    return `<button class="bm-btn bm-choice-neutral" type="button" onclick="battleModeRecordFlattenSuggestItem('${escapeHtml(category.id)}','${escapeHtml(place.id)}','${escapeHtml(item.id)}')">${decoratedSuggestLabelHtml(item.label,item.decorations||[])}</button>`;
+  }).join('');
+  return title+buttons;
 }
 function battleModeTagChoiceButtons(tagIds,handlerName){
   const buttons=(tagIds||[]).map(id=>battleModeCurrentTagById(id)).filter(Boolean).map(tag=>{
@@ -9176,6 +9208,14 @@ function openSuggestItemPicker(categoryId,placeId,stateGroup,source=''){
   suggestPickerState={stateGroup:normalizeSuggestStateGroup(stateGroup)||suggestPlaceStateGroup(enabledSuggestCategories().find(c=>c.id===categoryId),place),categoryId,placeId,itemId:'',branchRoute:source==='branch'?hitBranchWizard.route:'',branchStep:source==='branch'?(currentHitBranchStep()?.key||''):''};
   renderSuggestPicker('item');
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
+}
+function battleModeRecordFlattenSuggestItem(categoryId,placeId,itemId){
+  closeBattleModeOtherSheet();
+  const category=enabledSuggestCategories().find(c=>c.id===categoryId);
+  const place=enabledSuggestPlaces(categoryId).find(p=>p.id===placeId);
+  if(!category||!place){battleModeInvalid('示唆マスタが見つかりません');return;}
+  suggestPickerState={stateGroup:suggestPlaceStateGroup(category,place),categoryId,placeId,itemId:'',branchRoute:'',branchStep:''};
+  selectSuggestItem(itemId);
 }
 function openSuggestPlacePicker(stateGroup){
   const group=normalizeSuggestStateGroup(stateGroup)||'play';
