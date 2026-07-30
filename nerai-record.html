@@ -2741,6 +2741,7 @@ function normalizeData(data){
     ensureKabaneriShunjoPtSeedV1(m);
     ensureKabaneriPickerStyleSeedV1(m);
     ensureKabaneriPointFlattenSeedV1(m);
+    ensureKabaneriEyecatchDefaultSeedV1(m);
     if(m.hitCauseFirst===true)m.hitCauseFirst=true;
     else delete m.hitCauseFirst;
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
@@ -5310,6 +5311,26 @@ function ensureKabaneriPointFlattenSeedV1(machine){
   });
   machine.kabaneriPointFlattenSeedV1=true;
 }
+function ensureKabaneriEyecatchDefaultSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriEyecatchDefaultSeedV1)return;
+  const category=findSuggestCategory(machine,KABANERI_POINT_CATEGORY_ID);
+  const place=findSuggestPlace(category,'sgp_kabaneri_point_eyecatch');
+  if(place){
+    place.items=Array.isArray(place.items)?place.items:[];
+    let item=place.items.find(entry=>entry.id==='sgi_kabaneri_point_eyecatch_default'||entry.label==='デフォルト（キャラなし）');
+    if(!item){
+      item={id:'sgi_kabaneri_point_eyecatch_default',label:'デフォルト（キャラなし）',enabled:true,decorations:[]};
+      place.items.unshift(item);
+    }else{
+      item.id='sgi_kabaneri_point_eyecatch_default';
+      item.label='デフォルト（キャラなし）';
+      item.enabled=item.enabled!==false;
+      item.decorations=[];
+    }
+    reorderSuggestItems(place,['デフォルト（キャラなし）','無名（無名CZ近い!?）','生駒（生駒CZ近い!?）','景之（海門前兆近い!?）','銅藍（銅藍CZ前兆!?）']);
+  }
+  machine.kabaneriEyecatchDefaultSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5879,7 +5900,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5941,6 +5962,7 @@ function addMachine(){
   ensureKabaneriShunjoPtSeedV1(machine);
   ensureKabaneriPickerStyleSeedV1(machine);
   ensureKabaneriPointFlattenSeedV1(machine);
+  ensureKabaneriEyecatchDefaultSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;

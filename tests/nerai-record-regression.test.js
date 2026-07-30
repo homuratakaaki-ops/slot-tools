@@ -643,6 +643,17 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("currentSuggestLog.at(-1).itemId", context), 'sgp_kabaneri_point_minichara_i1');
   vm.runInContext("openSuggestItemPicker('sgc_kabaneri_point','sgp_kabaneri_point_minichara','play')", context);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /suggest-color-red">無名<\/span>・無言/);
+  vm.runInContext("openSuggestItemPicker('sgc_kabaneri_point','sgp_kabaneri_point_eyecatch','play')", context);
+  const eyecatchHtml = vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context);
+  const eyecatchText = stripTags(eyecatchHtml);
+  assert.equal(eyecatchText.indexOf('デフォルト（キャラなし）') < eyecatchText.indexOf('無名（無名CZ近い!?）'), true);
+  assert.doesNotMatch(eyecatchHtml, /suggest-color-[a-z]+">デフォルト/);
+  vm.runInContext("selectSuggestItem('sgi_kabaneri_point_eyecatch_default')", context);
+  assert.equal(vm.runInContext("currentSuggestLog.at(-1).placeId", context), 'sgp_kabaneri_point_eyecatch');
+  assert.equal(vm.runInContext("currentSuggestLog.at(-1).itemId", context), 'sgi_kabaneri_point_eyecatch_default');
+  vm.runInContext("openSuggestItemPicker('sgc_kabaneri_point','sgp_kabaneri_point_eyecatch','play'); selectSuggestItem('sgp_kabaneri_point_eyecatch_i1')", context);
+  assert.equal(vm.runInContext("currentSuggestLog.at(-1).itemId", context), 'sgp_kabaneri_point_eyecatch_i1');
+  assert.equal(vm.runInContext("db.machines.filter(m=>m.id!=='m_kabaneri'&&JSON.stringify(m.suggestMaster||[]).includes('sgi_kabaneri_point_eyecatch_default')).map(m=>m.id).join(',')", context), '');
   const pointAudit = JSON.parse(vm.runInContext(`JSON.stringify(findSuggestCategory(currentMachine(),'sgc_kabaneri_point').places.map(place => {
     openSuggestItemPicker('sgc_kabaneri_point', place.id, 'play');
     const itemCount = enabledSuggestItems('sgc_kabaneri_point', place.id).length;
