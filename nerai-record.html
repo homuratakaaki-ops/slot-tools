@@ -2056,6 +2056,17 @@ function normalizeChanceFollowUp(value){
   });
   return normalized;
 }
+function normalizeStateAutoEnd(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return {};
+  const normalized={};
+  Object.entries(value).forEach(([tagId,ids])=>{
+    const key=String(tagId||'').trim();
+    if(!key||!Array.isArray(ids))return;
+    const values=[...new Set(ids.map(id=>String(id||'').trim()).filter(Boolean))];
+    if(values.length)normalized[key]=values;
+  });
+  return normalized;
+}
 function hitTriggerDefaultLabel(trigger){
   return {cz:'CZ当選',upper_cz:'上位CZ当選',at:'AT',direct_at:'AT直撃',episode_bonus:'エピソードボーナス'}[trigger]||trigger||'当選';
 }
@@ -2642,6 +2653,7 @@ function normalizeData(data){
     ensureKabaneriEpisodeAutoStSeedV1(m);
     ensureKabaneriThroughNoFlowSeedV1(m);
     ensureKabaneriChanceFollowUpSeedV1(m);
+    ensureKabaneriStateAutoEndSeedV1(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     const autoThrough=normalizeHitFlowAutoThrough(m.hitFlowAutoThrough);
     if(Object.keys(autoThrough).length)m.hitFlowAutoThrough=autoThrough;
@@ -2652,6 +2664,9 @@ function normalizeData(data){
     const chanceFollowUp=normalizeChanceFollowUp(m.chanceFollowUp);
     if(Object.keys(chanceFollowUp).length)m.chanceFollowUp=chanceFollowUp;
     else delete m.chanceFollowUp;
+    const stateAutoEnd=normalizeStateAutoEnd(m.stateAutoEnd);
+    if(Object.keys(stateAutoEnd).length)m.stateAutoEnd=stateAutoEnd;
+    else delete m.stateAutoEnd;
     applySuggestMetadata(m);
   });
   migrateTokyoGhoulSuggestLogs(data);
@@ -5094,6 +5109,14 @@ function ensureKabaneriChanceFollowUpSeedV1(machine){
   })));
   machine.kabaneriChanceFollowUpSeedV1=true;
 }
+function ensureKabaneriStateAutoEndSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriStateAutoEndSeedV1)return;
+  machine.stateAutoEnd=normalizeStateAutoEnd({
+    t_kabaneri_cz_mumei_start:['t_kabaneri_state_mumei_flash_end'],
+    t_kabaneri_cz_ikoma_start:['t_kabaneri_state_ikoma_flash_end']
+  });
+  machine.kabaneriStateAutoEndSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5663,7 +5686,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5716,6 +5739,7 @@ function addMachine(){
   ensureKabaneriEpisodeAutoStSeedV1(machine);
   ensureKabaneriThroughNoFlowSeedV1(machine);
   ensureKabaneriChanceFollowUpSeedV1(machine);
+  ensureKabaneriStateAutoEndSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -7577,8 +7601,15 @@ function machineChanceFollowUp(machine=currentMachine()){
 function chanceFollowUpForTagId(tagId,machine=currentMachine()){
   return machineChanceFollowUp(machine)[String(tagId||'').trim()]||null;
 }
+function machineStateAutoEnd(machine=currentMachine()){
+  return normalizeStateAutoEnd(machine?.stateAutoEnd);
+}
 function battleModeStateActiveForStartTag(tagId){
   const state=machineStates().find(row=>row.startTagId===tagId);
+  return state?!!battleModeStateStatusMap().get(state.id)?.active:false;
+}
+function battleModeStateActiveForEndTag(tagId){
+  const state=machineStates().find(row=>row.endTagId===tagId);
   return state?!!battleModeStateStatusMap().get(state.id)?.active:false;
 }
 function chanceFollowUpExtraTagIds(followUp,choice){
@@ -7586,6 +7617,16 @@ function chanceFollowUpExtraTagIds(followUp,choice){
   if((choice==='flash'||choice==='both')&&followUp?.flash&&!battleModeStateActiveForStartTag(followUp.flash))ids.push(followUp.flash);
   if((choice==='high'||choice==='both')&&followUp?.high&&!battleModeStateActiveForStartTag(followUp.high))ids.push(followUp.high);
   return ids;
+}
+function stateAutoEndExtraTagIds(tagIds,machine=currentMachine()){
+  const rules=machineStateAutoEnd(machine);
+  const ids=[];
+  (Array.isArray(tagIds)?tagIds:[]).forEach(tagId=>{
+    (rules[String(tagId||'').trim()]||[]).forEach(endTagId=>{
+      if(battleModeStateActiveForEndTag(endTagId))ids.push(endTagId);
+    });
+  });
+  return [...new Set(ids)];
 }
 function chanceFollowUpChoiceLabelHtml(choice){
   if(choice==='flash')return '<span class="suggest-color-yellow">💡発光</span>';
@@ -12194,7 +12235,8 @@ function addInstantTimelineTagWithAttachments(tag,attachments=[],options={}){
   if(game===null){alert('G数を入力してください');return;}
   if(liquidGame===null){alert('液晶G数を入力してください');return;}
   const extraTagIds=Array.isArray(options?.extraTagIds)?options.extraTagIds.map(id=>String(id||'').trim()).filter(Boolean):[];
-  const tagIds=[...new Set([tag.id,...extraTagIds])];
+  const initialTagIds=[...new Set([tag.id,...extraTagIds])];
+  const tagIds=[...new Set([...initialTagIds,...stateAutoEndExtraTagIds(initialTagIds)])];
   const subCounters=applySubCounterDeltasForTimeline(tagIds);
   const attachmentText=timelineAttachmentText(attachments);
   const entry={id:uid('tl'),game,liquidGame,text:attachmentText?`${tag.label}（${attachmentText}）`:tag.label,tagIds,countAs:[],subCounters,attachments,createdAt:new Date().toISOString()};
@@ -12599,9 +12641,28 @@ function sortByCreatedAtWithIndex(rows,descending=true){
 function sortedTimeline(){
   return sortByCreatedAtWithIndex(currentTimeline,true);
 }
+function timelineStateAutoEndLabels(entry,machine=currentMachine()){
+  const tagIds=timelineTagIds(entry);
+  if(!tagIds.length)return [];
+  const idSet=new Set(tagIds);
+  const rules=machineStateAutoEnd(machine);
+  const labels=[];
+  tagIds.forEach(sourceId=>{
+    (rules[sourceId]||[]).forEach(autoId=>{
+      if(!idSet.has(autoId))return;
+      const label=machine?.tags?.find(tag=>tag.id===autoId)?.label;
+      if(label&&!labels.includes(label))labels.push(label);
+    });
+  });
+  return labels;
+}
 function timelineEntryText(entry){
   const text=String(entry?.text||'');
-  return entry?.auto===true&&text?`${text}（自動）`:text;
+  const base=entry?.auto===true&&text?`${text}（自動）`:text;
+  const autoEndLabels=timelineStateAutoEndLabels(entry);
+  if(!autoEndLabels.length)return base;
+  const suffix=autoEndLabels.map(label=>`${label}（自動）`).join('＋');
+  return base?`${base}＋${suffix}`:suffix;
 }
 function timelineLiquidGameValue(item){
   const liquid=normalizeOptionalNumber(item?.liquidGame);

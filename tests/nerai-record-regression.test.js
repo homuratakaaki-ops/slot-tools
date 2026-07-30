@@ -263,6 +263,14 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_mumei_flash' && state.startViaFollowUpOnly === true)", context), true);
   assert.equal(vm.runInContext("currentMachine().chanceFollowUp.t_kabaneri_chance_mumei.flash === 't_kabaneri_state_mumei_flash_start'", context), true);
   assert.equal(vm.runInContext("currentMachine().chanceFollowUp.t_kabaneri_chance_mumei.high === 't_kabaneri_state_mumei_high_start'", context), true);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentMachine().stateAutoEnd.t_kabaneri_cz_mumei_start)", context)),
+    ['t_kabaneri_state_mumei_flash_end']
+  );
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentMachine().stateAutoEnd.t_kabaneri_cz_ikoma_start)", context)),
+    ['t_kabaneri_state_ikoma_flash_end']
+  );
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_cherry')", context), false);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_suika')", context), false);
   assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_point')", context), true);
@@ -330,6 +338,44 @@ function testKabaneriPresetSeedAndPickers() {
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
     ['t_kabaneri_chance_mumei']
+  );
+  vm.runInContext("setTimelineGames(122,122); battleModeRecordState('kabaneri_cz_mumei','start')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_cz_mumei_start', 't_kabaneri_state_mumei_flash_end']
+  );
+  assert.match(vm.runInContext("timelineEntryText(currentTimeline.at(-1))", context), /無名発光 終了（自動）/);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_mumei_flash')", context), false);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_mumei_high')", context), true);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_mumei_flash')", context), true);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(130,130); battleModeRecordState('kabaneri_cz_mumei','start')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_cz_mumei_start']
+  );
+  vm.runInContext("currentTimeline=[]; setTimelineGames(140,140); battleModeRecordState('kabaneri_ikoma_flash','start'); setTimelineGames(141,141); battleModeRecordState('kabaneri_cz_ikoma','start')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_cz_ikoma_start', 't_kabaneri_state_ikoma_flash_end']
+  );
+  vm.runInContext("currentTimeline=[]; setTimelineGames(145,145); battleModeRecordState('kabaneri_mumei_flash','start'); setTimelineGames(146,146); battleModeRecordState('kabaneri_cz_mumei','start'); setTimelineGames(147,147); battleModeRecordChanceFollowUp('t_kabaneri_chance_mumei','none')", context);
+  assert.equal(vm.runInContext("kabaneriChanceEyeSituation().total.flashing || 0", context), 0);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(150,150); battleModeRecordState('kabaneri_cz_doran','start')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_cz_doran_start']
+  );
+  vm.runInContext("currentTimeline=[]; setTimelineGames(160,160); battleModeRecordState('kabaneri_kabane_flash','start'); setTimelineGames(161,161); battleModeRecordState('kabaneri_cz_mumei','start')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_cz_mumei_start']
+  );
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_kabane_flash')", context), true);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(170,170); battleModeRecordState('kabaneri_mumei_flash','start'); setTimelineGames(171,171); appendTimelineTagById('t_kabaneri_cz_mumei_start')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_cz_mumei_start', 't_kabaneri_state_mumei_flash_end']
   );
   assert.deepEqual(
     JSON.parse(vm.runInContext('JSON.stringify(machineHitTriggers().map(row => [row.key, row.label]))', context)),
