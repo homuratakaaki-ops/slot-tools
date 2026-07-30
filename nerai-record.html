@@ -568,7 +568,8 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-chance-eye-core{grid-column:1/-1;color:var(--gold-light);font-size:13px;font-weight:900;line-height:1.45;}
 .bm-chance-eye-carry{grid-column:1/-1;color:var(--text-muted);font-size:12px;line-height:1.4;}
 .bm-state-badges{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;}
-.bm-state-badge{border:1px solid rgba(96,165,250,.45);border-radius:999px;background:rgba(96,165,250,.16);color:#bfdbfe;font-size:12px;font-weight:900;padding:4px 9px;}
+.bm-state-badge{min-height:32px;border:1px solid rgba(96,165,250,.45);border-radius:999px;background:rgba(96,165,250,.16);color:#bfdbfe;font-size:12px;font-weight:900;padding:5px 10px;cursor:pointer;appearance:none;line-height:1.2;}
+.bm-state-badge:active{transform:translateY(1px);filter:brightness(1.08);}
 .bm-state-badge.kabaneri-red{border-color:rgba(255,119,119,.74);background:rgba(199,54,54,.34);color:#fff7f7;}
 .bm-state-badge.kabaneri-green{border-color:rgba(69,200,120,.74);background:rgba(31,122,67,.36);color:#f4fff8;}
 .bm-state-badge.kabaneri-blue{border-color:rgba(147,197,253,.78);background:rgba(37,99,235,.34);color:#f5fbff;}
@@ -6939,8 +6940,9 @@ function battleModeStateStatusMap(machine=currentMachine(),timeline=currentTimel
 function battleModeActiveStates(machine=currentMachine()){
   return [...battleModeStateStatusMap(machine).values()].filter(row=>row.active).map(row=>row.state);
 }
+let battleModeStateBadgeExitLock='';
 function renderBattleModeStateBadges(){
-  return battleModeActiveStates().map(state=>`<span class="bm-state-badge ${escapeHtml(battleModeStateToneClass(state))}">${battleModeStateDisplayLabelHtml(state)}</span>`).join('');
+  return battleModeActiveStates().map(state=>`<button class="bm-state-badge ${escapeHtml(battleModeStateToneClass(state))}" type="button" onclick="battleModeExitStateFromBadge('${escapeHtml(state.id)}')" aria-label="${escapeHtml(battleModeStateDisplayLabel(state))}">${battleModeStateDisplayLabelHtml(state)}</button>`).join('');
 }
 function kabaneriToneClassByLabel(label){
   const text=String(label||'');
@@ -8202,6 +8204,24 @@ function battleModeRecordTag(id){
 }
 function battleModeStateById(stateId){
   return machineStates().find(state=>state.id===stateId)||null;
+}
+function battleModeStateIsActive(stateId){
+  const row=battleModeStateStatusMap().get(String(stateId||''));
+  return !!row?.active;
+}
+function battleModeExitStateFromBadge(stateId){
+  const state=battleModeStateById(stateId);
+  if(!state||!battleModeStateIsActive(state.id))return;
+  if(battleModeStateBadgeExitLock===state.id)return;
+  battleModeStateBadgeExitLock=state.id;
+  try{
+    if(state.endOptions.length)openBattleModeStateEndPicker(state.id);
+    else battleModeRecordState(state.id,'end');
+  }finally{
+    setTimeout(()=>{
+      if(battleModeStateBadgeExitLock===state.id)battleModeStateBadgeExitLock='';
+    },300);
+  }
 }
 function battleModeStateTag(state,phase){
   const tagId=phase==='end'?state?.endTagId:state?.startTagId;

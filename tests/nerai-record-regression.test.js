@@ -328,6 +328,18 @@ function testKabaneriPresetSeedAndPickers() {
   const mumeiBadgeHtml = vm.runInContext("renderBattleModeStateBadges()", context);
   assert.match(stripTags(mumeiBadgeHtml), /💡無名発光/);
   assert.match(mumeiBadgeHtml, /kabaneri-red/);
+  assert.match(mumeiBadgeHtml, /battleModeExitStateFromBadge\('kabaneri_mumei_flash'\)/);
+  vm.runInContext("battleModeExitStateFromBadge('kabaneri_mumei_flash')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_state_mumei_flash_end']
+  );
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_mumei_flash')", context), false);
+  const mumeiFlashEndCount = vm.runInContext("currentTimeline.filter(entry => entry.tagIds && entry.tagIds.includes('t_kabaneri_state_mumei_flash_end')).length", context);
+  vm.runInContext("battleModeExitStateFromBadge('kabaneri_mumei_flash')", context);
+  assert.equal(vm.runInContext("currentTimeline.filter(entry => entry.tagIds && entry.tagIds.includes('t_kabaneri_state_mumei_flash_end')).length", context), mumeiFlashEndCount);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_mumei_flash')", context), true);
   vm.runInContext("battleModeRecordState('kabaneri_super_high','start')", context);
   const superBadgeHtml = vm.runInContext("renderBattleModeStateBadges()", context);
   assert.match(superBadgeHtml, /bm-state-badge kabaneri-gold/);
@@ -404,7 +416,7 @@ function testKabaneriPresetSeedAndPickers() {
     ]
   );
   assert.equal(vm.runInContext("battleModeStateById('kabaneri_cz_ikoma').endOptions.some(option => option.numberPicker)", context), false);
-  vm.runInContext("currentTimeline=[]; setTimelineGames(200,200); battleModeRecordState('kabaneri_cz_mumei','start'); setTimelineGames(205,205); openBattleModeStateEndPicker('kabaneri_cz_mumei')", context);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(200,200); battleModeRecordState('kabaneri_cz_mumei','start'); setTimelineGames(205,205); battleModeExitStateFromBadge('kabaneri_cz_mumei')", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /openBattleModeStateNumberPicker\('kabaneri_cz_mumei','fail'\)/);
   vm.runInContext("openBattleModeStateNumberPicker('kabaneri_cz_mumei','fail')", context);
   const defeatPickerHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
@@ -1708,7 +1720,13 @@ function testBattleModeStatePickerTogglesAndRestoresFromTimeline() {
 
   vm.runInContext("battleModeRecordState('high','start')", context);
   assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(battleModeActiveStates().map(state => state.id))", context)), ['high']);
-  assert.match(vm.runInContext('renderBattleModeStateBadges()', context), /高確/);
+  const highBadgeHtml = vm.runInContext('renderBattleModeStateBadges()', context);
+  assert.match(highBadgeHtml, /高確/);
+  assert.match(highBadgeHtml, /battleModeExitStateFromBadge\('high'\)/);
+  vm.runInContext("battleModeExitStateFromBadge('high')", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(battleModeActiveStates().map(state => state.id))", context)), []);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(battleModeActiveStates().map(state => state.id))", context)), ['high']);
   vm.runInContext('openBattleModeStatePicker()', context);
   html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   assert.match(html, /高確 終了/);
@@ -1728,7 +1746,8 @@ function testBattleModeStateEndOptionsUseEndTagWithoutHitFlow() {
   installBattleModeStateDom(context);
   vm.runInContext("battleModeRecordState('cz_mumei','start')", context);
   assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(battleModeActiveStates().map(state => state.id))", context)), ['cz_mumei']);
-  vm.runInContext("openBattleModeStateEndPicker('cz_mumei')", context);
+  assert.match(vm.runInContext('renderBattleModeStateBadges()', context), /battleModeExitStateFromBadge\('cz_mumei'\)/);
+  vm.runInContext("battleModeExitStateFromBadge('cz_mumei')", context);
   const html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   assert.match(html, /無名CZ 成功/);
   vm.runInContext("battleModeRecordState('cz_mumei','end','success')", context);
