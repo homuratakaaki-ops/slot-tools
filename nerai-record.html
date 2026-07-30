@@ -1410,7 +1410,28 @@ function normalizeQuickPanel(panel){
 function normalizeMachineStateOption(option){
   const key=String(option?.key||option?.id||option?.label||'').trim();
   const label=String(option?.label||key).trim();
-  return key&&label?{key,label}:null;
+  if(!key||!label)return null;
+  const normalized={key,label};
+  const picker=normalizeMachineStateNumberPicker(option?.numberPicker);
+  if(picker)normalized.numberPicker=picker;
+  return normalized;
+}
+function normalizeMachineStateNumberPicker(value){
+  if(!value||typeof value!=='object')return null;
+  const label=String(value.label||'').trim();
+  if(!label)return null;
+  const min=normalizeOptionalNumber(value.min)??0;
+  const max=normalizeOptionalNumber(value.max)??min;
+  const low=Math.trunc(Math.min(min,max));
+  const high=Math.trunc(Math.max(min,max));
+  if(high<low)return null;
+  return {
+    key:String(value.key||label).trim()||label,
+    label,
+    min:low,
+    max:high,
+    allowUnknown:value.allowUnknown===true
+  };
 }
 function normalizeMachineState(state){
   const id=String(state?.id||'').trim();
@@ -2656,6 +2677,7 @@ function normalizeData(data){
     ensureKabaneriThroughNoFlowSeedV1(m);
     ensureKabaneriChanceFollowUpSeedV1(m);
     ensureKabaneriStateAutoEndSeedV1(m);
+    ensureKabaneriMumeiDefeatSeedV1(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     const autoThrough=normalizeHitFlowAutoThrough(m.hitFlowAutoThrough);
     if(Object.keys(autoThrough).length)m.hitFlowAutoThrough=autoThrough;
@@ -5136,6 +5158,18 @@ function ensureKabaneriStateAutoEndSeedV1(machine){
   });
   machine.kabaneriStateAutoEndSeedV1=true;
 }
+function ensureKabaneriMumeiDefeatSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriMumeiDefeatSeedV1)return;
+  machine.states=normalizeMachineStates(machineStates(machine).map(state=>{
+    if(state.id!=='kabaneri_cz_mumei')return state;
+    const endOptions=(state.endOptions||[]).map(option=>({
+      ...option,
+      numberPicker:{key:'defeatCount',label:'撃破数',min:1,max:10,allowUnknown:true}
+    }));
+    return {...state,endOptions};
+  }));
+  machine.kabaneriMumeiDefeatSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5705,7 +5739,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5761,6 +5795,7 @@ function addMachine(){
   ensureKabaneriThroughNoFlowSeedV1(machine);
   ensureKabaneriChanceFollowUpSeedV1(machine);
   ensureKabaneriStateAutoEndSeedV1(machine);
+  ensureKabaneriMumeiDefeatSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -7717,20 +7752,63 @@ function openBattleModeStateEndPicker(stateId){
   if(!state){battleModeInvalid('状態定義が見つかりません');return;}
   setBattleModeSheet(`${battleModeStateDisplayLabel(state)} 終了`,`
     <div class="bm-sheet-note">終了結果を選択</div>
-    ${state.endOptions.map(option=>`<button class="bm-btn bm-state-choice active" type="button" onclick="battleModeRecordState('${escapeHtml(state.id)}','end','${escapeHtml(option.key)}')">${battleModeStateChoiceLabelHtml(state,` ${option.label}`)}</button>`).join('')}
+    ${state.endOptions.map(option=>`<button class="bm-btn bm-state-choice active" type="button" onclick="${option.numberPicker?`openBattleModeStateNumberPicker('${escapeHtml(state.id)}','${escapeHtml(option.key)}')`:`battleModeRecordState('${escapeHtml(state.id)}','end','${escapeHtml(option.key)}')`}">${battleModeStateChoiceLabelHtml(state,` ${option.label}`)}</button>`).join('')}
     <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">キャンセル</button>
   `);
 }
-function battleModeRecordState(stateId,phase,optionKey=''){
+function battleModeNumberPickerToneClass(value){
+  const n=Number(value)||0;
+  if(n>=10)return 'suggest-color-gold';
+  if(n>=8)return 'suggest-color-red';
+  if(n>=5)return 'suggest-color-green';
+  if(n>=3)return 'suggest-color-yellow';
+  return 'suggest-color-blue';
+}
+function openBattleModeStateNumberPicker(stateId,optionKey){
+  const state=battleModeStateById(stateId);
+  const option=state?.endOptions?.find(row=>row.key===optionKey);
+  const picker=normalizeMachineStateNumberPicker(option?.numberPicker);
+  if(!state||!option||!picker){battleModeRecordState(stateId,'end',optionKey);return;}
+  const buttons=[];
+  for(let value=picker.min;value<=picker.max;value+=1){
+    buttons.push(`<button class="bm-btn bm-state-choice" type="button" onclick="battleModeRecordStateNumber('${escapeHtml(state.id)}','${escapeHtml(option.key)}','${value}')"><span class="${battleModeNumberPickerToneClass(value)}">${value}</span></button>`);
+  }
+  if(picker.allowUnknown)buttons.push(`<button class="bm-btn bm-state-choice" type="button" onclick="battleModeRecordStateNumber('${escapeHtml(state.id)}','${escapeHtml(option.key)}','')">不明</button>`);
+  setBattleModeSheet(`${battleModeStateDisplayLabel(state)} ${option.label} ${picker.label}`,`
+    <div class="bm-sheet-note">${escapeHtml(picker.label)}を選択してください。閉じるとCZ終了記録も中止します。</div>
+    <div class="bm-state-grid">${buttons.join('')}</div>
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
+  `);
+}
+function battleModeRecordStateNumber(stateId,optionKey,valueText=''){
+  const state=battleModeStateById(stateId);
+  const option=state?.endOptions?.find(row=>row.key===optionKey);
+  const picker=normalizeMachineStateNumberPicker(option?.numberPicker);
+  if(!state||!option||!picker){battleModeRecordState(stateId,'end',optionKey);return;}
+  const value=normalizeOptionalNumber(valueText);
+  if(value===null){
+    if(!picker.allowUnknown){battleModeInvalid(`${picker.label}を選択してください`);return;}
+    battleModeRecordState(stateId,'end',optionKey,[]);
+    return;
+  }
+  const normalized=Math.trunc(value);
+  if(normalized<picker.min||normalized>picker.max){battleModeInvalid(`${picker.min}〜${picker.max}で選択してください`);return;}
+  battleModeRecordState(stateId,'end',optionKey,[{key:picker.key,label:picker.label,value:normalized,unit:''}]);
+}
+function battleModeRecordState(stateId,phase,optionKey='',attachments=null){
   const state=battleModeStateById(stateId);
   if(!state){battleModeInvalid('状態定義が見つかりません');return;}
   const tag=battleModeStateTag(state,phase);
   if(!tag){battleModeInvalid('状態タグが見つかりません');return;}
   if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
   const option=phase==='end'?state.endOptions.find(row=>row.key===optionKey):null;
+  if(option?.numberPicker&&attachments===null){openBattleModeStateNumberPicker(state.id,option.key);return;}
   const label=option?`${state.label} ${option.label}`:tag.label;
+  const normalizedAttachments=Array.isArray(attachments)?attachments:[];
+  const attachmentText=timelineAttachmentText(normalizedAttachments);
+  const text=attachmentText?`${label}（${attachmentText}）`:label;
   closeBattleModeOtherSheet();
-  battleModeCommit(label,()=>addInstantTimelineTagWithAttachments(tag,[],{fields:{text:label}}));
+  battleModeCommit(label,()=>addInstantTimelineTagWithAttachments(tag,normalizedAttachments,{fields:{text}}));
 }
 function battleModeOpenModal(ref){
   if(ref==='suggestion'){openSuggestPlacePicker('play');return;}
@@ -12224,7 +12302,7 @@ function selectNangokuEntryCause(causeKey){
 }
 function timelineAttachmentText(attachments){
   const rows=normalizeTimelineAttachments(attachments);
-  return rows.length?rows.map(row=>`${row.label}+${row.value}${row.unit}`).join(' / '):'';
+  return rows.length?rows.map(row=>row.unit?`${row.label}+${row.value}${row.unit}`:`${row.label}${row.value}`).join(' / '):'';
 }
 function beginTagNumberAttachment(tag){
   const rule=normalizeTagNumberAttachment(tag?.numberAttachment);

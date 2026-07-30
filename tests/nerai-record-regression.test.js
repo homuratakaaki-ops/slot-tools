@@ -378,6 +378,53 @@ function testKabaneriPresetSeedAndPickers() {
     ['t_kabaneri_cz_mumei_start']
   );
   assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_kabane_flash')", context), true);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(battleModeStateById('kabaneri_cz_mumei').endOptions.map(option => option.numberPicker))", context)),
+    [
+      { key: 'defeatCount', label: '撃破数', min: 1, max: 10, allowUnknown: true },
+      { key: 'defeatCount', label: '撃破数', min: 1, max: 10, allowUnknown: true }
+    ]
+  );
+  assert.equal(vm.runInContext("battleModeStateById('kabaneri_cz_ikoma').endOptions.some(option => option.numberPicker)", context), false);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(200,200); battleModeRecordState('kabaneri_cz_mumei','start'); setTimelineGames(205,205); openBattleModeStateEndPicker('kabaneri_cz_mumei')", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /openBattleModeStateNumberPicker\('kabaneri_cz_mumei','fail'\)/);
+  vm.runInContext("openBattleModeStateNumberPicker('kabaneri_cz_mumei','fail')", context);
+  const defeatPickerHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(defeatPickerHtml, /suggest-color-blue">1/);
+  assert.match(defeatPickerHtml, /suggest-color-yellow">3/);
+  assert.match(defeatPickerHtml, /suggest-color-green">5/);
+  assert.match(defeatPickerHtml, /suggest-color-red">8/);
+  assert.match(defeatPickerHtml, /suggest-color-gold">10/);
+  assert.match(defeatPickerHtml, /不明/);
+  vm.runInContext("closeBattleModeOtherSheet()", context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 1);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_cz_mumei')", context), true);
+  vm.runInContext("openBattleModeStateNumberPicker('kabaneri_cz_mumei','fail'); battleModeRecordStateNumber('kabaneri_cz_mumei','fail','5')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_cz_mumei_end']
+  );
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).attachments)", context)),
+    [{ key: 'defeatCount', label: '撃破数', value: 5, unit: '' }]
+  );
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(compactTimelineEntryForStorage(currentTimeline.at(-1)).attachments)", context)),
+    [{ key: 'defeatCount', label: '撃破数', value: 5, unit: '', estimateRole: '' }]
+  );
+  assert.match(vm.runInContext("timelineEntryText(currentTimeline.at(-1))", context), /無名CZ 失敗（撃破数5）/);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_cz_mumei')", context), false);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_cz_mumei')", context), true);
+  vm.runInContext("setTimelineGames(206,206); battleModeRecordStateNumber('kabaneri_cz_mumei','success','10')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).attachments)", context)),
+    [{ key: 'defeatCount', label: '撃破数', value: 10, unit: '' }]
+  );
+  vm.runInContext("currentTimeline=[]; setTimelineGames(210,210); battleModeRecordState('kabaneri_cz_mumei','start'); setTimelineGames(211,211); battleModeRecordStateNumber('kabaneri_cz_mumei','fail','')", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).attachments)", context)), []);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(220,220); battleModeRecordState('kabaneri_cz_ikoma','start'); setTimelineGames(221,221); battleModeRecordState('kabaneri_cz_ikoma','end','fail')", context);
+  assert.deepEqual(JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).attachments)", context)), []);
   vm.runInContext("currentTimeline=[]; setTimelineGames(170,170); battleModeRecordState('kabaneri_mumei_flash','start'); setTimelineGames(171,171); appendTimelineTagById('t_kabaneri_cz_mumei_start')", context);
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
