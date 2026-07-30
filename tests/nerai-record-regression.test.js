@@ -273,6 +273,12 @@ function testKabaneriPresetSeedAndPickers() {
   );
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_cherry')", context), false);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_suika')", context), false);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentMachine().tags.find(tag => tag.id === 't_kabaneri_reel_flash'))", context)),
+    { id: 't_kabaneri_reel_flash', label: 'リールフラッシュ', optional: true, countAs: null, tagClass: 'event', group: '', collapsible: false, defaultOpen: true, liquidDelta: null, liquidSet: null, subCounterDelta: null, numberAttachment: null, suggestLink: null, size: '', instantLog: false }
+  );
+  assert.equal(vm.runInContext("JSON.stringify(currentMachine().chanceFollowUp || {}).includes('t_kabaneri_reel_flash')", context), false);
+  assert.equal(vm.runInContext("JSON.stringify(currentMachine().stateAutoEnd || {}).includes('t_kabaneri_reel_flash')", context), false);
   assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_point')", context), true);
   assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_omikuji')", context), true);
   assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara').items.some(item => item.label === '生駒・近いよ（間近!?）')", context), true);
@@ -415,7 +421,25 @@ function testKabaneriPresetSeedAndPickers() {
   assert.doesNotMatch(otherHtml, /景之ST突入/);
   assert.doesNotMatch(otherHtml, /真・景之ST突入/);
   assert.doesNotMatch(otherHtml, /裏・景之ST突入/);
+  assert.match(otherHtml, /リールフラッシュ/);
   assert.match(otherHtml, /上位ST突入/);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(180,180); setSubCounterValue('cycle',2); setSubCounterValue('lowerBell',3);", context);
+  const reelFlashBeforeMeter = vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context);
+  const reelFlashBeforeBadges = vm.runInContext("renderBattleModeStateBadges()", context);
+  vm.runInContext("selectBattleModeOtherTag('t_kabaneri_reel_flash')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_reel_flash']
+  );
+  assert.equal(vm.runInContext("currentTimeline.at(-1).game", context), 180);
+  assert.equal(vm.runInContext("currentTimeline.at(-1).liquidGame", context), 180);
+  assert.equal(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), reelFlashBeforeMeter);
+  assert.equal(vm.runInContext("renderBattleModeStateBadges()", context), reelFlashBeforeBadges);
+  assert.equal(vm.runInContext("subCounterValue('cycle')", context), 2);
+  assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 3);
+  assert.match(vm.runInContext("renderTagButtons('timeline')", context), /リールフラッシュ/);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("currentTimeline.some(entry => entry.tagIds.includes('t_kabaneri_reel_flash'))", context), false);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_kaimon_recollection' && tag.label === '海門回想')", context), true);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_kiriban' && tag.label === 'キリ番演出')", context), true);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_st_true_kageyuki' && tag.label === '真・景之ST突入')", context), true);
@@ -1155,6 +1179,7 @@ function testBattleModeHitStartScrollsNextInputOnlyFromBattleMode() {
 
 function testBattleModeOtherSheetExcludesQuickPanelTags() {
   const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
   vm.runInContext(`
     selectedMachineId = 'm_nangoku_special';
     selectedAimId = firstAimIdForMachine(currentMachine()) || '';
@@ -1177,6 +1202,14 @@ function testBattleModeOtherSheetExcludesQuickPanelTags() {
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_nangoku_puririp')", context), true);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_nangoku_pato_light')", context), true);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_nangoku_through')", context), true);
+  ['m_nangoku_special', 'm_tokyo_ghoul', 'm_karakuri_circus_2'].forEach(machineId => {
+    vm.runInContext(`
+      selectedMachineId = '${machineId}';
+      selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+      openBattleModeOtherSheet();
+    `, context);
+    assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /リールフラッシュ/);
+  });
   assert.match(extractScript(), /closeBattleModeOtherSheet\(\)">閉じる/);
 }
 

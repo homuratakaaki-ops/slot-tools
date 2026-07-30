@@ -2648,6 +2648,7 @@ function normalizeData(data){
     ensureKabaneriSuggestSeedV14(m);
     ensureKabaneriPanelSeedV12(m);
     ensureKabaneriCounterSeed(m);
+    ensureKabaneriReelFlashSeedV1(m);
     ensureKabaneriHitCauseSeedV1(m);
     ensureKabaneriCounterDisplayBaseSeedV1(m);
     ensureKabaneriLowerBellPreserveSeedV1(m);
@@ -5062,6 +5063,13 @@ function ensureKabaneriCounterSeed(machine){
   ].map(normalizeMachineCounter).filter(Boolean);
   machine.kabaneriCounterSeedV1=true;
 }
+function ensureKabaneriReelFlashSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriReelFlashSeedV1)return;
+  mergeTimelineTagSeed(machine,[
+    {id:'t_kabaneri_reel_flash',label:'リールフラッシュ',optional:true,countAs:null,tagClass:'event'}
+  ]);
+  machine.kabaneriReelFlashSeedV1=true;
+}
 function ensureKabaneriCounterDisplayBaseSeedV1(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriCounterDisplayBaseSeedV1)return;
   ensureKabaneriCounterSeed(machine);
@@ -5697,7 +5705,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5745,6 +5753,7 @@ function addMachine(){
   ensureKabaneriSuggestSeedV14(machine);
   ensureKabaneriPanelSeedV12(machine);
   ensureKabaneriCounterSeed(machine);
+  ensureKabaneriReelFlashSeedV1(machine);
   ensureKabaneriHitCauseSeedV1(machine);
   ensureKabaneriCounterDisplayBaseSeedV1(machine);
   ensureKabaneriLowerBellPreserveSeedV1(machine);
