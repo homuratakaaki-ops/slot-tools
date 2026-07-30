@@ -1683,8 +1683,10 @@ function compactTimelineEntryForStorage(entry){
   const subCounters=compactSubCountersForStorage(item.subCounters);
   if(subCounters)item.subCounters=subCounters;
   else delete item.subCounters;
+  if(item.auto===true)item.auto=true;
+  else delete item.auto;
   const ordered={};
-  ['id','game','liquidGame','text','tagIds','countAs','subCounters','attachments','liquidOffsetDelta','entryCause','entryCauseLabel','intervalEvent','createdAt'].forEach(key=>{
+  ['id','game','liquidGame','text','tagIds','countAs','subCounters','attachments','liquidOffsetDelta','entryCause','entryCauseLabel','intervalEvent','auto','createdAt'].forEach(key=>{
     if(Object.prototype.hasOwnProperty.call(item,key))ordered[key]=item[key];
   });
   Object.keys(item).sort().forEach(key=>{
@@ -2019,6 +2021,24 @@ function normalizeHitFlowAutoThrough(value){
   });
   return normalized;
 }
+function normalizeHitThroughNoFlow(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return null;
+  const normalized={};
+  const preserveSubCounters=Array.isArray(value.preserveSubCounters)
+    ?[...new Set(value.preserveSubCounters.map(key=>String(key||'').trim()).filter(Boolean))]
+    :[];
+  if(preserveSubCounters.length)normalized.preserveSubCounters=preserveSubCounters;
+  if(value.preserveLiquidGame===true)normalized.preserveLiquidGame=true;
+  const dataGameReset=normalizeOptionalNumber(value.dataGameReset);
+  if(dataGameReset!==null)normalized.dataGameReset=Math.max(0,Math.trunc(dataGameReset));
+  const autoTags=Array.isArray(value.autoTags)
+    ?[...new Set(value.autoTags.map(id=>String(id||'').trim()).filter(Boolean))]
+    :[];
+  if(autoTags.length)normalized.autoTags=autoTags;
+  const openSuggestPlace=String(value.openSuggestPlace||'').trim();
+  if(openSuggestPlace)normalized.openSuggestPlace=openSuggestPlace;
+  return Object.keys(normalized).length?normalized:null;
+}
 function hitTriggerDefaultLabel(trigger){
   return {cz:'CZ当選',upper_cz:'上位CZ当選',at:'AT',direct_at:'AT直撃',episode_bonus:'エピソードボーナス'}[trigger]||trigger||'当選';
 }
@@ -2220,6 +2240,23 @@ function normalizeTimelineCounterState(value){
     liquidGame:normalizedLiquid
   };
 }
+function normalizeTimelineEntry(item){
+  const source=item&&typeof item==='object'?item:{};
+  const normalized={
+    ...source,
+    tagIds:Array.isArray(source.tagIds)?source.tagIds:[],
+    countAs:Array.isArray(source.countAs)?source.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)):[],
+    game:normalizeOptionalNumber(source.game),
+    liquidGame:normalizeOptionalNumber(source.liquidGame),
+    liquidOffsetDelta:normalizeOptionalNumber(source.liquidOffsetDelta),
+    subCounters:normalizeSubCounters(source.subCounters),
+    attachments:normalizeTimelineAttachments(source.attachments)
+  };
+  if(normalized.game!==null&&normalized.liquidGame===null)normalized.liquidGame=normalized.game;
+  if(source.auto===true)normalized.auto=true;
+  else delete normalized.auto;
+  return normalized;
+}
 function normalizeSegment(segment){
   if(!segment||typeof segment!=='object')return null;
   const dataGame=normalizeOptionalNumber(segment.dataGame);
@@ -2239,7 +2276,7 @@ function normalizeSegment(segment){
     subCounters:normalizeSubCounters(segment.subCounters),
     counterHistories:normalizeCounterHistories(segment.counterHistories),
     endingCards:normalizeEndingCards(segment.endingCards),
-    timeline:Array.isArray(segment.timeline)?segment.timeline.map(item=>({...item,game:normalizeOptionalNumber(item.game),liquidGame:normalizeOptionalNumber(item.liquidGame),tagIds:Array.isArray(item.tagIds)?item.tagIds:[],countAs:Array.isArray(item.countAs)?item.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)):[],subCounters:normalizeSubCounters(item.subCounters),attachments:normalizeTimelineAttachments(item.attachments)})):[],
+    timeline:Array.isArray(segment.timeline)?segment.timeline.map(normalizeTimelineEntry):[],
     suggestLog:Array.isArray(segment.suggestLog)?segment.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[],
     hitEvents:Array.isArray(segment.hitEvents)?segment.hitEvents.map(normalizeHitEvent).filter(Boolean):[]
   };
@@ -2449,19 +2486,9 @@ function normalizeData(data){
     log.startCzFailCount=normalizeOptionalNumber(log.startCzFailCount);
     log.startAtThroughCount=normalizeOptionalNumber(log.startAtThroughCount);
     log.expectedValue=normalizeExpectedValue(log.expectedValue);
-    log.timeline=Array.isArray(log.timeline)?log.timeline:[];
+    log.timeline=Array.isArray(log.timeline)?log.timeline.map(normalizeTimelineEntry):[];
     log.subCounters=normalizeSubCounters(log.subCounters);
     log.counterHistories=normalizeCounterHistories(log.counterHistories);
-    log.timeline.forEach(item=>{
-      item.tagIds=Array.isArray(item.tagIds)?item.tagIds:[];
-      item.countAs=Array.isArray(item.countAs)?item.countAs.filter(v=>COUNT_AS_OPTIONS.includes(v)):[];
-      item.game=normalizeOptionalNumber(item.game);
-      item.liquidGame=normalizeOptionalNumber(item.liquidGame);
-      item.liquidOffsetDelta=normalizeOptionalNumber(item.liquidOffsetDelta);
-      item.subCounters=normalizeSubCounters(item.subCounters);
-      item.attachments=normalizeTimelineAttachments(item.attachments);
-      if(item.game!==null&&item.liquidGame===null)item.liquidGame=item.game;
-    });
     migrateTimelineOffsets(log);
     log.suggestLog=Array.isArray(log.suggestLog)?log.suggestLog.map(normalizeSuggestLogEntry).filter(Boolean):[];
     log.kuiPoint=log.kuiPoint&&typeof log.kuiPoint==='object'?log.kuiPoint:{};
@@ -2529,7 +2556,7 @@ function normalizeData(data){
     data.draftLog.intervalEstimate=normalizeIntervalEstimate(data.draftLog.intervalEstimate);
     data.draftLog.subCounters=normalizeSubCounters(data.draftLog.subCounters);
     data.draftLog.counterHistories=normalizeCounterHistories(data.draftLog.counterHistories);
-    data.draftLog.timeline=Array.isArray(data.draftLog.timeline)?data.draftLog.timeline.map(item=>({...item,game:normalizeOptionalNumber(item.game),liquidGame:normalizeOptionalNumber(item.liquidGame),subCounters:normalizeSubCounters(item.subCounters),attachments:normalizeTimelineAttachments(item.attachments)})):[];
+    data.draftLog.timeline=Array.isArray(data.draftLog.timeline)?data.draftLog.timeline.map(normalizeTimelineEntry):[];
     data.draftLog.segments=Array.isArray(data.draftLog.segments)?data.draftLog.segments.map(normalizeSegment).filter(Boolean):[];
     dedupeSegmentSuggestLogs(data.draftLog);
     data.draftLog.endingCards=normalizeEndingCards(data.draftLog.endingCards);
@@ -2596,10 +2623,14 @@ function normalizeData(data){
     ensureKabaneriHitCauseSeedV1(m);
     ensureKabaneriCounterDisplayBaseSeedV1(m);
     ensureKabaneriEpisodeAutoStSeedV1(m);
+    ensureKabaneriThroughNoFlowSeedV1(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     const autoThrough=normalizeHitFlowAutoThrough(m.hitFlowAutoThrough);
     if(Object.keys(autoThrough).length)m.hitFlowAutoThrough=autoThrough;
     else delete m.hitFlowAutoThrough;
+    const throughNoFlow=normalizeHitThroughNoFlow(m.hitThroughNoFlow);
+    if(throughNoFlow)m.hitThroughNoFlow=throughNoFlow;
+    else delete m.hitThroughNoFlow;
     applySuggestMetadata(m);
   });
   migrateTokyoGhoulSuggestLogs(data);
@@ -5010,6 +5041,17 @@ function ensureKabaneriEpisodeAutoStSeedV1(machine){
   });
   machine.kabaneriEpisodeAutoStSeedV1=true;
 }
+function ensureKabaneriThroughNoFlowSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriThroughNoFlowSeedV1)return;
+  machine.hitThroughNoFlow=normalizeHitThroughNoFlow({
+    preserveSubCounters:['cycle'],
+    preserveLiquidGame:true,
+    dataGameReset:0,
+    autoTags:['t_kabaneri_stage_setsugekka'],
+    openSuggestPlace:'sgp_kabaneri_point_kiriban'
+  });
+  machine.kabaneriThroughNoFlowSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5579,7 +5621,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5630,6 +5672,7 @@ function addMachine(){
   ensureKabaneriHitCauseSeedV1(machine);
   ensureKabaneriCounterDisplayBaseSeedV1(machine);
   ensureKabaneriEpisodeAutoStSeedV1(machine);
+  ensureKabaneriThroughNoFlowSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -9800,6 +9843,13 @@ function hitFlowAutoThroughValue(event=currentHitEvent(),machine=currentMachine(
   const trigger=normalizeHitTrigger(event?.trigger);
   return trigger?machineHitFlowAutoThrough(machine)[trigger]||'':'';
 }
+function machineHitThroughNoFlow(machine=currentMachine()){
+  return normalizeHitThroughNoFlow(machine?.hitThroughNoFlow);
+}
+function hitThroughNoFlowForEvent(event=currentHitEvent(),machine=currentMachine()){
+  const flow=machineHitThroughNoFlow(machine);
+  return flow&&event?.through==='no'?flow:null;
+}
 function hitTriggerLabel(trigger,machine=currentMachine()){
   const normalized=normalizeHitTrigger(trigger);
   const configured=machineHitTriggers(machine).find(row=>row.key===normalized);
@@ -10103,9 +10153,36 @@ function resetCurrentSegment({preserveEndState=false}={}){
   setTimelineGames(0,0);
   resetCurrentSegmentStart();
 }
+function preserveHitThroughNoFlowState(flow){
+  const subCounters={};
+  (flow?.preserveSubCounters||[]).forEach(key=>{subCounters[key]=subCounterValue(key);});
+  return {
+    subCounters,
+    liquidGame:flow?.preserveLiquidGame?timelineLiquidValue():null
+  };
+}
+function openHitThroughNoFlowSuggestPlace(placeId){
+  const entry=findSuggestPlaceEntryById(placeId);
+  if(!entry)return;
+  openSuggestItemPicker(entry.category.id,entry.place.id,suggestPlaceStateGroup(entry.category,entry.place));
+}
+function applyHitThroughNoFlowAfterReset(flow,preserved){
+  if(!flow)return;
+  Object.entries(preserved?.subCounters||{}).forEach(([key,value])=>setSubCounterValue(key,value));
+  const resetData=normalizeOptionalNumber(flow.dataGameReset);
+  const nextData=resetData!==null?resetData:timelineDataValue();
+  const preservedLiquid=normalizeOptionalNumber(preserved?.liquidGame);
+  const nextLiquid=flow.preserveLiquidGame&&preservedLiquid!==null?preservedLiquid:timelineLiquidValue();
+  if(nextData!==null&&nextLiquid!==null)setManualCorrectionForLiquid(nextData,nextLiquid);
+  setTimelineGames(nextData,nextLiquid!==null?nextLiquid:nextData);
+  (flow.autoTags||[]).forEach(tagId=>addAutomaticTimelineTagById(tagId));
+  if(flow.openSuggestPlace)setTimeout(()=>openHitThroughNoFlowSuggestPlace(flow.openSuggestPlace),0);
+}
 function archiveCurrentSegment(event,terminalType='',options={}){
   const segment=createSegmentSnapshot(event,terminalType);
   if(!segment)return null;
+  const throughNoFlow=hitThroughNoFlowForEvent(event);
+  const throughNoFlowState=throughNoFlow?preserveHitThroughNoFlowState(throughNoFlow):null;
   lastSegmentUndo={
     segmentId:segment.id,
     eventId:event?.id||'',
@@ -10134,6 +10211,7 @@ function archiveCurrentSegment(event,terminalType='',options={}){
     resetTimelineOffsets(9,0);
     setTimelineGames(9,0);
   }
+  if(throughNoFlow)applyHitThroughNoFlowAfterReset(throughNoFlow,throughNoFlowState);
   return segment;
 }
 function restoreHitWizardToExit(event){
@@ -11316,7 +11394,7 @@ function segmentOutputLines(segment,index,options={}){
     lines.push('途中ログ：');
     (segment.timeline||[]).forEach(item=>{
       const suikaAfter=timelineSuikaAfterText(item);
-      lines.push(`${timelineGameLine(item)} ${item.text||''}${suikaAfter?`（${suikaAfter}）`:''}`.trim());
+      lines.push(`${timelineGameLine(item)} ${timelineEntryText(item)}${suikaAfter?`（${suikaAfter}）`:''}`.trim());
     });
   }
   if((segment.suggestLog||[]).length){
@@ -12010,9 +12088,9 @@ function completeTagNumberAttachment(){
   if(!tag)return;
   addInstantTimelineTagWithAttachments(tag,[{key:pending.rule.key,label:pending.rule.label,value:Math.max(0,Math.trunc(value)),unit:pending.rule.unit,estimateRole:pending.rule.estimateRole}]);
 }
-function addInstantTimelineTag(tag){
+function addInstantTimelineTag(tag,options={}){
   if(beginTagNumberAttachment(tag))return;
-  addInstantTimelineTagWithAttachments(tag,[]);
+  addInstantTimelineTagWithAttachments(tag,[],options);
 }
 function addInstantTimelineTagWithAttachments(tag,attachments=[],options={}){
   const game=timelineDataValue();
@@ -12023,6 +12101,7 @@ function addInstantTimelineTagWithAttachments(tag,attachments=[],options={}){
   const subCounters=applySubCounterDeltasForTimeline(tagIds);
   const attachmentText=timelineAttachmentText(attachments);
   const entry={id:uid('tl'),game,liquidGame,text:attachmentText?`${tag.label}（${attachmentText}）`:tag.label,tagIds,countAs:[],subCounters,attachments,createdAt:new Date().toISOString()};
+  if(options?.auto===true)entry.auto=true;
   const extraFields=options&&typeof options==='object'&&options.fields&&typeof options.fields==='object'?options.fields:null;
   if(extraFields)Object.assign(entry,extraFields);
   const textSuffix=String(options?.textSuffix||'');
@@ -12044,6 +12123,10 @@ function addInstantTimelineTagWithAttachments(tag,attachments=[],options={}){
   flashTagButton(tag.id);
   showInstantLogToast(tag,instantLogToastGameText(game,liquidGame));
   if(nangokuEntryType)openNangokuEntryCausePicker(tag,entry.id);
+}
+function addAutomaticTimelineTagById(id){
+  const tag=currentMachine()?.tags?.find(t=>t.id===id);
+  if(tag)addInstantTimelineTagWithAttachments(tag,[],{auto:true});
 }
 function appendTimelineTagById(id){
   const tag=currentMachine()?.tags?.find(t=>t.id===id);
@@ -12419,6 +12502,10 @@ function sortByCreatedAtWithIndex(rows,descending=true){
 function sortedTimeline(){
   return sortByCreatedAtWithIndex(currentTimeline,true);
 }
+function timelineEntryText(entry){
+  const text=String(entry?.text||'');
+  return entry?.auto===true&&text?`${text}（自動）`:text;
+}
 function timelineLiquidGameValue(item){
   const liquid=normalizeOptionalNumber(item?.liquidGame);
   if(liquid!==null)return liquid;
@@ -12577,7 +12664,7 @@ function renderCurrentTimeline(){
           <button class="btn-danger" onclick="deleteTimelineEntry('${t.id}')">削除</button>
         </div>
       </div>
-      <div class="timeline-text">${escapeHtml(t.text)}</div>
+      <div class="timeline-text">${escapeHtml(timelineEntryText(t))}</div>
       ${timelineSuikaAfterText(t)?`<div class="item-sub">${escapeHtml(timelineSuikaAfterText(t))}</div>`:''}
     </div>`).join(''):'<div class="empty-hint">現在セグメントの途中ログなし</div>';
   el.innerHTML=`${currentRows}${archived}${undo}`;
@@ -13735,7 +13822,7 @@ function buildShareText(log){
     lines.push('実戦経過：');
     timeline.forEach(t=>{
       const suikaAfter=timelineSuikaAfterText(t);
-      lines.push(`${timelineGameLine(t)} ${t.text}${suikaAfter?`（${suikaAfter}）`:''}`);
+      lines.push(`${timelineGameLine(t)} ${timelineEntryText(t)}${suikaAfter?`（${suikaAfter}）`:''}`);
     });
   }
   if((log.hitEvents||[]).length){
@@ -13992,7 +14079,7 @@ function organizedRowsForSegment(log,segment,index){
   (segment.timeline||[]).forEach((entry,i)=>{
     const category=organizedTagClass(machineById(log.machineId),entry);
     const data=normalizeOptionalNumber(entry.game);
-    rows.push({category,game:data,order:200+i,text:`${data!==null?`${data}G `:''}${entry.text||''}`.trim(),segment,log});
+    rows.push({category,game:data,order:200+i,text:`${data!==null?`${data}G `:''}${timelineEntryText(entry)}`.trim(),segment,log});
   });
   normalizeCounterHistories(segment.counterHistories).forEach((entry,i)=>{
     rows.push({category:'setting',kind:'counter-history',game:null,order:300+i,text:counterHistoryLine(entry),segment,log});
@@ -14627,7 +14714,7 @@ function renderSegmentHistoryItem(log,segment,index,total=1){
       ${renderSegmentVariantControls(segment,'log',log.id,machine)}
       ${(segment.timeline||[]).length?`<div class="timeline-text">${(segment.timeline||[]).map(item=>{
         const suikaAfter=timelineSuikaAfterText(item);
-        return escapeHtml(`${timelineGameLine(item)} ${item.text||''}${suikaAfter?`（${suikaAfter}）`:''}`.trim());
+        return escapeHtml(`${timelineGameLine(item)} ${timelineEntryText(item)}${suikaAfter?`（${suikaAfter}）`:''}`.trim());
       }).join('<br>')}</div>`:''}
       ${renderCounterHistories(segment.counterHistories)}
       ${(segment.suggestLog||[]).length?`<div class="timeline-text">${(segment.suggestLog||[]).map(entry=>escapeHtml(suggestLogLine(entry))).join('<br>')}</div>`:''}
