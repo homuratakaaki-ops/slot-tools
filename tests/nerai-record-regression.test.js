@@ -406,7 +406,7 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 1);
   assert.equal(vm.runInContext("currentTimeline.some(row => row.tagIds.includes('t_kabaneri_cycle'))", context), true);
   assert.equal(vm.runInContext("currentTimeline.some(row => row.tagIds.includes('t_kabaneri_lower_bell'))", context), true);
-  assert.match(vm.runInContext("subCounterLine(currentSubCounters)", context), /周期1回/);
+  assert.match(vm.runInContext("subCounterLine(currentSubCounters)", context), /周期2回/);
   assert.match(vm.runInContext("subCounterLine(currentSubCounters)", context), /下段ベル1回/);
   const style = extractStyle();
   assert.match(style, /\.bm-grid\{[^}]*grid-auto-rows:minmax\(52px,auto\)/);

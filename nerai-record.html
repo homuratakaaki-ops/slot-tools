@@ -535,6 +535,11 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-btn.kabaneri-green{background:#1f7a43;border-color:#45c878;color:#f4fff8;}
 .bm-btn.kabaneri-blue{background:#2563eb;border-color:#93c5fd;color:#f5fbff;}
 .bm-btn.kabaneri-gold{background:#d99a24;border-color:#ffd36b;color:#241506;}
+.bm-btn.hit-variant-choice{background:var(--surface2);border-color:rgba(122,122,138,.42);color:var(--text);}
+.hit-variant-tone-red{color:#ff8b8b;font-weight:900;}
+.hit-variant-tone-green{color:#62d28f;font-weight:900;}
+.hit-variant-tone-blue{color:#8cbcff;font-weight:900;}
+.hit-variant-tone-gold{color:#ffd36b;font-weight:900;}
 .bm-recent{border:1px solid rgba(201,168,76,.25);border-radius:8px;background:rgba(0,0,0,.16);padding:7px 9px;min-height:40px;font-size:12px;color:var(--text-muted);overflow:hidden;}
 .bm-recent-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-undo-bar{min-height:48px;border:1px solid rgba(201,168,76,.55);border-radius:8px;background:rgba(201,168,76,.12);color:var(--gold-light);font-size:14px;font-weight:900;padding:9px 10px;cursor:pointer;text-align:center;}
@@ -2000,7 +2005,7 @@ function normalizeHitTriggers(value){
     if(!key)return null;
     const color=String(row?.color||'').trim();
     const variants=normalizeHitTriggerVariants(row?.variants);
-    return {key,label:String(row?.label||'').trim()||hitTriggerDefaultLabel(key),color,variants};
+    return {key,label:String(row?.label||'').trim()||hitTriggerDefaultLabel(key),color,variants,variantRequired:!!row?.variantRequired&&variants.length>0};
   }).filter(Boolean);
   return normalized.length?normalized:fallback;
 }
@@ -2578,6 +2583,8 @@ function normalizeData(data){
     ensureKabaneriSuggestSeedV14(m);
     ensureKabaneriPanelSeedV12(m);
     ensureKabaneriCounterSeed(m);
+    ensureKabaneriHitCauseSeedV1(m);
+    ensureKabaneriCounterDisplayBaseSeedV1(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     applySuggestMetadata(m);
   });
@@ -2979,7 +2986,8 @@ function normalizeMachineCounter(counter){
     countTagIds:Array.isArray(counter.countTagIds)?counter.countTagIds.map(String).filter(Boolean):[],
     resetTagIds:Array.isArray(counter.resetTagIds)?counter.resetTagIds.map(String).filter(Boolean):[],
     historyEnabled:counter.historyEnabled!==false,
-    resetOn:counter.resetOn==='hit'?'hit':''
+    resetOn:counter.resetOn==='hit'?'hit':'',
+    displayBase:normalizeOptionalNumber(counter.displayBase)??0
   };
 }
 function machineCounters(machine=currentMachine()){
@@ -4936,6 +4944,29 @@ function ensureKabaneriPanelSeedV12(machine){
   });
   machine.kabaneriPanelSeedV12=true;
 }
+function kabaneriHitTriggersWithCause(){
+  const causeCommon=[
+    {key:'cz_mumei',label:'無名CZ',color:'red'},
+    {key:'cz_ikoma',label:'生駒CZ',color:'green'},
+    {key:'cz_doran',label:'銅藍CZ',color:'blue'},
+    {key:'cycle',label:'周期'},
+    {key:'other',label:'その他'}
+  ];
+  return normalizeHitTriggers([
+    {key:'direct_at',label:'駿城ボーナス',variantRequired:true,variants:causeCommon},
+    {key:'episode_bonus',label:'エピソードボーナス',variantRequired:true,variants:[
+      ...causeCommon.slice(0,4),
+      {key:'ceiling',label:'天井'},
+      {key:'kokuen',label:'黒煙解放'},
+      causeCommon[4]
+    ]}
+  ]);
+}
+function ensureKabaneriHitCauseSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriHitCauseSeedV1)return;
+  machine.hitTriggers=kabaneriHitTriggersWithCause();
+  machine.kabaneriHitCauseSeedV1=true;
+}
 function ensureKabaneriCounterSeed(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriCounterSeedV1)return;
   mergeTimelineTagSeed(machine,[
@@ -4947,6 +4978,15 @@ function ensureKabaneriCounterSeed(machine){
     {key:'lowerBell',label:'下段ベル',counterLabel:'下段ベル',countTagIds:['t_kabaneri_lower_bell'],resetTagIds:[],historyEnabled:true,resetOn:''}
   ].map(normalizeMachineCounter).filter(Boolean);
   machine.kabaneriCounterSeedV1=true;
+}
+function ensureKabaneriCounterDisplayBaseSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriCounterDisplayBaseSeedV1)return;
+  ensureKabaneriCounterSeed(machine);
+  machine.counters=machineCounters(machine).map(counter=>normalizeMachineCounter({
+    ...counter,
+    displayBase:counter.key==='cycle'?1:(normalizeOptionalNumber(counter.displayBase)??0)
+  })).filter(Boolean);
+  machine.kabaneriCounterDisplayBaseSeedV1=true;
 }
 function todayValue(){
   const d=new Date();
@@ -5517,7 +5557,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5565,6 +5605,8 @@ function addMachine(){
   ensureKabaneriSuggestSeedV14(machine);
   ensureKabaneriPanelSeedV12(machine);
   ensureKabaneriCounterSeed(machine);
+  ensureKabaneriHitCauseSeedV1(machine);
+  ensureKabaneriCounterDisplayBaseSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -6721,7 +6763,7 @@ function renderBattleModeCompactCounters(){
   const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
   const counterSlots=counters.slice(0,isKabaneriMachine(currentMachine())?2:1);
   const counterHtml=counterSlots.map(counter=>{
-    const counterValue=subCounterValue(counter.key);
+    const counterValue=subCounterDisplayValue(counter);
     return `
     <div class="bm-compact-counter">
       <button class="bm-compact-counter-read" type="button" onclick="openBattleModeCounterKeypad('subCounter','${escapeHtml(counter.key)}')">
@@ -7375,7 +7417,7 @@ function openBattleModeCounterKeypad(role,counterKey=''){
   input.readOnly=true;
   if(role==='liquidOffset')input.dataset.signed='1';
   input.placeholder=role==='liquid'?'液晶G':role==='liquidOffset'?'差分':role==='subCounter'?(counter?.label||'カウンター'):'データG';
-  input.value=String(role==='liquid'?(timelineLiquidValue()??''):role==='liquidOffset'?timelineLiquidOffset():role==='subCounter'?subCounterValue(counter?.key):(timelineDataValue()??''));
+  input.value=String(role==='liquid'?(timelineLiquidValue()??''):role==='liquidOffset'?timelineLiquidOffset():role==='subCounter'?subCounterDisplayValue(counter):(timelineDataValue()??''));
   input.style.position='fixed';
   input.style.left='-9999px';
   input.addEventListener('change',()=>{
@@ -7392,7 +7434,7 @@ function openBattleModeCounterKeypad(role,counterKey=''){
       }else if(role==='liquidOffset'){
         setTimelineOffsetPreservingData(value);
       }else if(role==='subCounter'&&counter){
-        setSubCounterValue(counter.key,value);
+        setSubCounterValue(counter.key,subCounterStoredValueFromDisplay(counter,value));
       }else{
         backfilledStartCounter=backfillStartCounterFromBattleMode(value);
         setTimelineGames(value,liquidFromDataWithOffset(value));
@@ -7649,7 +7691,41 @@ function openBattleModeHitPicker(){
   const triggers=machineHitTriggers();
   if(!triggers.length){battleModeInvalid('\u5f53\u9078\u7a2e\u5225\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093');return;}
   setBattleModeSheet('\u5f53\u9078',
-    triggers.map(row=>`<button class="bm-btn counter" type="button" onclick="battleModeStartHit('${escapeHtml(row.key)}','')">${escapeHtml(row.label)}</button>`).join('')
+    triggers.map(row=>`<button class="bm-btn counter" type="button" onclick="battleModeSelectHitTrigger('${escapeHtml(row.key)}')">${escapeHtml(row.label)}</button>`).join('')
+  );
+}
+function hitVariantToneClass(variant){
+  const color=String(variant?.color||'').trim();
+  if(['red','green','blue','gold'].includes(color))return `hit-variant-tone-${color}`;
+  const key=String(variant?.key||'');
+  if(key.includes('mumei'))return 'hit-variant-tone-red';
+  if(key.includes('ikoma'))return 'hit-variant-tone-green';
+  if(key.includes('doran')||key.includes('kabane'))return 'hit-variant-tone-blue';
+  return '';
+}
+function hitVariantLabelHtml(variant){
+  const cls=hitVariantToneClass(variant);
+  return cls?`<span class="${cls}">${escapeHtml(variant?.label||'')}</span>`:escapeHtml(variant?.label||'');
+}
+function hitTriggerConfig(trigger,machine=currentMachine()){
+  const normalized=normalizeHitTrigger(trigger);
+  return machineHitTriggers(machine).find(row=>row.key===normalized)||null;
+}
+function hitTriggerRequiresVariant(trigger,machine=currentMachine()){
+  return !!hitTriggerConfig(trigger,machine)?.variantRequired;
+}
+function battleModeSelectHitTrigger(triggerKey){
+  const trigger=hitTriggerConfig(triggerKey);
+  if(!trigger){battleModeInvalid('当選種別が見つかりません');return;}
+  if(trigger.variantRequired){openBattleModeHitVariantPicker(trigger.key);return;}
+  battleModeStartHit(trigger.key,'');
+}
+function openBattleModeHitVariantPicker(triggerKey){
+  const trigger=hitTriggerConfig(triggerKey);
+  if(!trigger?.variants?.length){battleModeInvalid('当選契機が見つかりません');return;}
+  setBattleModeSheet(`${trigger.label} 契機`,
+    `<div class="bm-sheet-note">契機を選んでください。閉じると当選は記録しません。</div>`+
+    trigger.variants.map(variant=>`<button class="bm-btn hit-variant-choice" type="button" onclick="battleModeStartHit('${escapeHtml(trigger.key)}','${escapeHtml(variant.key)}')">${hitVariantLabelHtml(variant)}</button>`).join('')
   );
 }
 function battleModeOtherExcludedTagIds(){
@@ -7801,6 +7877,10 @@ function saveBattleModeMemo(){
 }
 function battleModeStartHit(trigger,variant=''){
   const normalized=normalizeHitTrigger(trigger);
+  const triggerConfig=hitTriggerConfig(normalized);
+  const variantConfig=hitTriggerVariant(normalized,variant);
+  if(!triggerConfig){battleModeInvalid('当選種別が見つかりません');return;}
+  if(triggerConfig.variantRequired&&!variantConfig){openBattleModeHitVariantPicker(normalized);return;}
   if(!machineHitTriggers().some(row=>row.key===normalized)){battleModeInvalid('当選種別が見つかりません');return;}
   if(variant&&!hitTriggerVariant(normalized,variant)){battleModeInvalid('当選variantが見つかりません');return;}
   if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
@@ -9361,19 +9441,36 @@ function subCounterValue(key){
   const value=normalizeOptionalNumber(currentSubCounters?.[key]);
   return value!==null?value:0;
 }
+function machineCounterByKey(key,machine=currentMachine()){
+  return machineCounters(machine).find(counter=>counter.key===key)||null;
+}
+function counterDisplayBase(counter){
+  return normalizeOptionalNumber(counter?.displayBase)??0;
+}
+function subCounterDisplayValue(counterOrKey,value=null,machine=currentMachine()){
+  const counter=typeof counterOrKey==='string'?machineCounterByKey(counterOrKey,machine):counterOrKey;
+  const raw=value!==null&&value!==undefined?normalizeOptionalNumber(value):subCounterValue(counter?.key);
+  return (raw!==null?raw:0)+counterDisplayBase(counter);
+}
+function subCounterStoredValueFromDisplay(counterOrKey,value,machine=currentMachine()){
+  const counter=typeof counterOrKey==='string'?machineCounterByKey(counterOrKey,machine):counterOrKey;
+  const normalized=normalizeOptionalNumber(value);
+  return Math.max(0,(normalized??counterDisplayBase(counter))-counterDisplayBase(counter));
+}
 function setSubCounterValue(key,value){
   currentSubCounters={...currentSubCounters,[key]:Math.max(0,Math.trunc(Number(value)||0))};
   const input=document.getElementById(`subCounter_${key}`);
-  if(input)input.value=String(subCounterValue(key));
+  if(input)input.value=String(subCounterDisplayValue(key));
 }
 function incrementSubCounter(key,delta=1){
   setSubCounterValue(key,subCounterValue(key)+delta);
   saveDraftImmediately();
 }
 function syncSubCounterInput(key){
+  const counter=machineCounterByKey(key);
   const input=document.getElementById(`subCounter_${key}`);
   const value=normalizeOptionalNumber(input?.value||'');
-  setSubCounterValue(key,value??0);
+  setSubCounterValue(key,subCounterStoredValueFromDisplay(counter,value));
   scheduleDraftSave();
 }
 function counterHistoryRows(key=''){
@@ -9423,8 +9520,8 @@ function applyCounterResetOnHit(triggerLabel=''){
 function counterHistorySummary(counter){
   if(!counter)return '';
   const rows=counterHistoryRows(counter.key);
-  const current=subCounterValue(counter.key);
-  const values=rows.map(row=>`${row.count}${row.certainty==='reference'?'?':''}`);
+  const current=subCounterDisplayValue(counter);
+  const values=rows.map(row=>`${subCounterDisplayValue(counter,row.count)}${row.certainty==='reference'?'?':''}`);
   values.push(`現在${current}`);
   return values.join(' → ');
 }
@@ -9438,9 +9535,11 @@ function renderCounterHistorySummary(counter){
   </div>`;
 }
 function counterHistoryLine(row){
-  const label=row.label||machineCounters().find(counter=>counter.key===row.key)?.counterLabel||row.key;
+  const counter=machineCounters().find(item=>item.key===row.key)||null;
+  const label=row.label||counter?.counterLabel||row.key;
+  const count=subCounterDisplayValue(counter||row.key,row.count);
   const trigger=row.triggerLabel?` / ${row.triggerLabel}`:'';
-  return `${label}${row.count}${row.certainty==='reference'?'?':''}回${trigger}`;
+  return `${label}${count}${row.certainty==='reference'?'?':''}回${trigger}`;
 }
 function confirmCounterHistory(id){
   currentCounterHistories=normalizeCounterHistories(currentCounterHistories).map(row=>row.id===id?{...row,certainty:'confirmed'}:row);
@@ -9465,12 +9564,12 @@ function renderCounterHistories(histories){
 function renderSubCounterControls(){
   const counter=machineSubCounter();
   if(!counter)return '';
-  const value=subCounterValue(counter.key);
+  const value=subCounterDisplayValue(counter);
   return `
     <div class="game-pair-row" style="margin-top:8px;">
       <div class="game-pair-field">
         <label for="subCounter_${escapeHtml(counter.key)}">${escapeHtml(counter.label)}</label>
-        <input type="text" id="subCounter_${escapeHtml(counter.key)}" class="numeric-input" inputmode="none" readonly value="${escapeHtml(value)}" placeholder="0" oninput="syncSubCounterInput('${escapeHtml(counter.key)}')" onchange="syncSubCounterInput('${escapeHtml(counter.key)}')">
+        <input type="text" id="subCounter_${escapeHtml(counter.key)}" class="numeric-input" inputmode="none" readonly value="${escapeHtml(value)}" placeholder="${escapeHtml(counterDisplayBase(counter))}" oninput="syncSubCounterInput('${escapeHtml(counter.key)}')" onchange="syncSubCounterInput('${escapeHtml(counter.key)}')">
       </div>
       <button class="btn-small counter-btn" type="button" onclick="incrementSubCounter('${escapeHtml(counter.key)}',1)">+1</button>
       ${renderCounterHistorySummary(counter)}
@@ -9486,7 +9585,7 @@ function renderCounterCompactRow(){
   const usesAttachment=(currentMachine()?.tags||[]).some(tag=>normalizeTagNumberAttachment(tag.numberAttachment));
   if(!useLiquidOffsetCounter&&!counter&&!usesAttachment)return '';
   const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
-  const counterValue=counter?subCounterValue(counter.key):0;
+  const counterValue=counter?subCounterDisplayValue(counter):0;
   const counterHistory=counter?renderCounterHistorySummary(counter):'';
   return `
     <div class="counter-compact-row">
@@ -9502,7 +9601,7 @@ function renderCounterCompactRow(){
       <div class="counter-compact-control">
         <div class="game-pair-field">
           <label for="subCounter_${escapeHtml(counter.key)}">${escapeHtml(compactCounterLabel(counter))}</label>
-          <input type="text" id="subCounter_${escapeHtml(counter.key)}" class="numeric-input" inputmode="none" readonly value="${escapeHtml(counterValue)}" placeholder="0" oninput="syncSubCounterInput('${escapeHtml(counter.key)}')" onchange="syncSubCounterInput('${escapeHtml(counter.key)}')">
+          <input type="text" id="subCounter_${escapeHtml(counter.key)}" class="numeric-input" inputmode="none" readonly value="${escapeHtml(counterValue)}" placeholder="${escapeHtml(counterDisplayBase(counter))}" oninput="syncSubCounterInput('${escapeHtml(counter.key)}')" onchange="syncSubCounterInput('${escapeHtml(counter.key)}')">
         </div>
         <button class="btn-small counter-btn" type="button" onclick="incrementSubCounter('${escapeHtml(counter.key)}',1)">+1</button>
       </div>`:''}
@@ -9685,6 +9784,7 @@ function hitTriggerVariant(trigger,variant,machine=currentMachine()){
 function hitEventLabel(event,machine=currentMachine()){
   const base=hitTriggerLabel(event?.trigger,machine);
   const variant=hitTriggerVariant(event?.trigger,event?.variant,machine);
+  if(hitTriggerRequiresVariant(event?.trigger,machine))return variant?`${base}（${variant.label}）`:`${base}（契機未記録）`;
   if(variant&&(['cz','at'].includes(event?.trigger)||variant.key===event?.trigger))return variant.label;
   return variant?`${variant.label}${base}`:base;
 }
@@ -9698,17 +9798,23 @@ function hitEventVariantButtons(event,context='current',segmentId='',logId='',ma
   if(!event||!variants.length)return '';
   return `<div class="item-actions hit-variant-actions">${variants.map(variant=>{
     const active=event.variant===variant.key;
-    return `<button class="btn-small ${active?'edit-strong':''}" onclick="toggleHitEventVariant('${escapeHtml(context)}','${escapeHtml(event.id)}','${escapeHtml(variant.key)}','${escapeHtml(segmentId)}','${escapeHtml(logId)}')">${active?'✓ ':''}${escapeHtml(variant.label)}</button>`;
+    return `<button class="btn-small ${active?'edit-strong':''}" onclick="toggleHitEventVariant('${escapeHtml(context)}','${escapeHtml(event.id)}','${escapeHtml(variant.key)}','${escapeHtml(segmentId)}','${escapeHtml(logId)}')">${active?'✓ ':''}${hitVariantLabelHtml(variant)}</button>`;
   }).join('')}</div>`;
 }
 function renderHitTriggerButtons(){
   const triggers=machineHitTriggers();
+  const buttons=triggers.map(trigger=>{
+    if(trigger.variantRequired&&trigger.variants.length){
+      return trigger.variants.map(variant=>`<button class="hit-trigger-btn" onclick="startHitEventWizard('${escapeHtml(trigger.key)}',{variant:'${escapeHtml(variant.key)}'})">${escapeHtml(trigger.label)}（${hitVariantLabelHtml(variant)}）</button>`).join('');
+    }
+    return `<button class="hit-trigger-btn" onclick="startHitEventWizard('${escapeHtml(trigger.key)}')">${escapeHtml(trigger.label)}</button>`;
+  }).join('');
   return `
     <div class="work-subsection play-group alt">
       <div class="section-label" style="margin-top:0;">当選トリガー</div>
       <p class="section-note">押した時点のデータG数/液晶G数で当選イベントを作り、STEP3へ移動します。</p>
       <div class="hit-trigger-grid">
-        ${triggers.map(trigger=>`<button class="hit-trigger-btn" onclick="startHitEventWizard('${escapeHtml(trigger.key)}')">${escapeHtml(trigger.label)}</button>`).join('')}
+        ${buttons}
       </div>
     </div>`;
 }
@@ -9731,7 +9837,9 @@ function toggleHitEventVariant(context,eventId,variantKey,segmentId='',logId='')
     event=segment?.hitEvents?.find(row=>row.id===eventId)||null;
   }
   if(!event)return;
-  event.variant=event.variant===variantKey?'':variantKey;
+  const targetMachine=context==='log'?machineById(db.logs.find(row=>row.id===logId)?.machineId):currentMachine();
+  const required=hitTriggerRequiresVariant(event.trigger,targetMachine);
+  event.variant=event.variant===variantKey?(required?variantKey:''):variantKey;
   if(changedDraft){
     renderLogFields();
     renderCurrentTimeline();
@@ -9745,6 +9853,7 @@ function toggleHitEventVariant(context,eventId,variantKey,segmentId='',logId='')
 function createHitEvent(trigger,variant=''){
   const dataGame=timelineDataValue();
   if(dataGame===null){alert('当選時のデータG数を入力してください');return null;}
+  if(hitTriggerRequiresVariant(trigger)&&!hitTriggerVariant(trigger,variant)){alert('当選契機を選んでください');return null;}
   const liquidGame=timelineLiquidValue()??dataGame;
   const variantKey=hitTriggerVariant(trigger,variant)?.key||'';
   const event=normalizeHitEvent({trigger,variant:variantKey,dataGame,liquidGame,subCounters:normalizeSubCounters(currentSubCounters),createdAt:new Date().toISOString(),wizardDone:false});
@@ -12298,7 +12407,7 @@ function timelineSuikaAfterText(item){
 function subCounterLine(counters){
   return machineCounters().map(counter=>{
     const value=normalizeOptionalNumber(counters?.[counter.key]);
-    return value!==null&&value>0?`${counter.label}${value}回`:'';
+    return value!==null&&value>0?`${counter.label}${subCounterDisplayValue(counter,value)}回`:'';
   }).filter(Boolean).join(' / ');
 }
 function applySubCounterDeltasForTimeline(tagIds){
