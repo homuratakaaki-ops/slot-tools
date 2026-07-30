@@ -264,6 +264,14 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("currentMachine().chanceFollowUp.t_kabaneri_chance_mumei.flash === 't_kabaneri_state_mumei_flash_start'", context), true);
   assert.equal(vm.runInContext("currentMachine().chanceFollowUp.t_kabaneri_chance_mumei.high === 't_kabaneri_state_mumei_high_start'", context), true);
   assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentMachine().chanceFollowUpMulti.t_kabaneri_multi_mumei_kabane.members.map(member => [member.label, member.color, member.flash, member.high]))", context)),
+    [
+      ['無名', 'red', 't_kabaneri_state_mumei_flash_start', 't_kabaneri_state_mumei_high_start'],
+      ['カバネ', 'blue', 't_kabaneri_state_kabane_flash_start', 't_kabaneri_state_kabane_high_start']
+    ]
+  );
+  assert.equal(vm.runInContext("currentMachine().chanceFollowUpMulti.t_kabaneri_allstar.members.length", context), 3);
+  assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentMachine().stateAutoEnd.t_kabaneri_cz_mumei_start)", context)),
     ['t_kabaneri_state_mumei_flash_end']
   );
@@ -461,11 +469,69 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(gridHtml, /ステージ/);
   assert.match(gridHtml, /当選・ヤメ・その他 ▼/);
   assert.doesNotMatch(gridHtml, /openBattleModePicker\('hit'\)/);
-  vm.runInContext("openBattleModeKabaneriMultiPicker()", context);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(172,172); openBattleModeKabaneriMultiPicker()", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /無名＆カバネ/);
-  vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_multi_mumei_kabane')", context);
-  assert.equal(vm.runInContext("currentTimeline.at(-1).tagIds.includes('t_kabaneri_multi_mumei_kabane')", context), true);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /battleModeSelectKabaneriMultiTag/);
+  vm.runInContext("battleModeSelectKabaneriMultiTag('t_kabaneri_multi_mumei_kabane')", context);
+  let multiHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(multiHtml, /なし/);
+  assert.match(multiHtml, /suggest-color-red">無名/);
+  assert.match(multiHtml, /suggest-color-blue">カバネ/);
+  assert.match(multiHtml, /suggest-color-gold">両方/);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  vm.runInContext("battleModeSelectChanceFollowUpMultiFlash('0')", context);
+  multiHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(multiHtml, /高確/);
+  vm.runInContext("closeBattleModeOtherSheet()", context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+
+  vm.runInContext("openBattleModeChanceFollowUpMultiFlashPicker('t_kabaneri_multi_mumei_kabane'); battleModeSelectChanceFollowUpMultiFlash('0'); battleModeRecordChanceFollowUpMulti('none')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_multi_mumei_kabane', 't_kabaneri_state_mumei_flash_start']
+  );
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_mumei_flash')", context), true);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_kabane_flash')", context), false);
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /複1/);
+  assert.match(vm.runInContext("kabaneriChanceEyeSituationLine(kabaneriChanceEyeSituation().total,'累計')", context), /通常1（発光なし0／あり1）/);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+
+  vm.runInContext("setTimelineGames(173,173); openBattleModeChanceFollowUpMultiFlashPicker('t_kabaneri_multi_mumei_kabane'); battleModeSelectChanceFollowUpMultiFlash('all'); battleModeRecordChanceFollowUpMulti('all')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    [
+      't_kabaneri_multi_mumei_kabane',
+      't_kabaneri_state_mumei_flash_start',
+      't_kabaneri_state_kabane_flash_start',
+      't_kabaneri_state_mumei_high_start',
+      't_kabaneri_state_kabane_high_start'
+    ]
+  );
+  assert.equal(vm.runInContext("battleModeActiveStates().filter(state => ['kabaneri_mumei_flash','kabaneri_kabane_flash','kabaneri_mumei_high','kabaneri_kabane_high'].includes(state.id)).length", context), 4);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("battleModeActiveStates().filter(state => ['kabaneri_mumei_flash','kabaneri_kabane_flash','kabaneri_mumei_high','kabaneri_kabane_high'].includes(state.id)).length", context), 0);
+
+  vm.runInContext("currentTimeline=[]; setTimelineGames(174,174); openBattleModeChanceFollowUpMultiFlashPicker('t_kabaneri_multi_mumei_kabane'); battleModeSelectChanceFollowUpMultiFlash('none'); battleModeRecordChanceFollowUpMulti('none')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_multi_mumei_kabane']
+  );
+  vm.runInContext("undoBattleModeLast()", context);
+
+  vm.runInContext("setTimelineGames(175,175); battleModeRecordState('kabaneri_mumei_flash','start'); setTimelineGames(176,176); openBattleModeChanceFollowUpMultiFlashPicker('t_kabaneri_multi_mumei_kabane'); battleModeSelectChanceFollowUpMultiFlash('0'); battleModeRecordChanceFollowUpMulti('none')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_multi_mumei_kabane']
+  );
+  vm.runInContext("currentTimeline=[]; setTimelineGames(177,177); openBattleModeChanceFollowUpMultiFlashPicker('t_kabaneri_allstar')", context);
+  multiHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(multiHtml, /suggest-color-red">無名/);
+  assert.match(multiHtml, /suggest-color-green">生駒/);
+  assert.match(multiHtml, /suggest-color-blue">カバネ/);
+  assert.match(multiHtml, /suggest-color-gold">全部/);
+  vm.runInContext("closeBattleModeOtherSheet()", context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
   vm.runInContext("openBattleModeOtherSheet()", context);
   let otherHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   assert.match(otherHtml, /当選/);

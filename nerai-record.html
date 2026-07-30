@@ -1339,6 +1339,7 @@ let battleModeReplayScopeSegmentIds=new Set();
 let battleModeQuickInvestLastAt=0;
 let battleModeReturnAfterHitWizard=false;
 let battleModeMemoSheetOpen=false;
+let battleModeKabaneriMultiDraft=null;
 let moneyEndMedalsEdited=false;
 let carriedMedalsAppliedKey='';
 let battleModeScrollToHitNext=false;
@@ -2077,6 +2078,25 @@ function normalizeChanceFollowUp(value){
   });
   return normalized;
 }
+function normalizeChanceFollowUpMulti(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return {};
+  const normalized={};
+  Object.entries(value).forEach(([tagId,row])=>{
+    const key=String(tagId||'').trim();
+    if(!key||!row||typeof row!=='object'||Array.isArray(row))return;
+    const members=Array.isArray(row.members)?row.members.map(member=>{
+      if(!member||typeof member!=='object'||Array.isArray(member))return null;
+      const label=String(member.label||'').trim();
+      const color=String(member.color||'').trim();
+      const flash=String(member.flash||'').trim();
+      const high=String(member.high||'').trim();
+      if(!label||(!flash&&!high))return null;
+      return {label,color:['red','green','blue','gold'].includes(color)?color:'',flash,high};
+    }).filter(Boolean):[];
+    if(members.length)normalized[key]={members};
+  });
+  return normalized;
+}
 function normalizeStateAutoEnd(value){
   if(!value||typeof value!=='object'||Array.isArray(value))return {};
   const normalized={};
@@ -2677,6 +2697,7 @@ function normalizeData(data){
     ensureKabaneriEpisodeAutoStSeedV1(m);
     ensureKabaneriThroughNoFlowSeedV1(m);
     ensureKabaneriChanceFollowUpSeedV1(m);
+    ensureKabaneriChanceFollowUpMultiSeedV1(m);
     ensureKabaneriStateAutoEndSeedV1(m);
     ensureKabaneriMumeiDefeatSeedV1(m);
     if(m.hitCauseFirst===true)m.hitCauseFirst=true;
@@ -2691,6 +2712,9 @@ function normalizeData(data){
     const chanceFollowUp=normalizeChanceFollowUp(m.chanceFollowUp);
     if(Object.keys(chanceFollowUp).length)m.chanceFollowUp=chanceFollowUp;
     else delete m.chanceFollowUp;
+    const chanceFollowUpMulti=normalizeChanceFollowUpMulti(m.chanceFollowUpMulti);
+    if(Object.keys(chanceFollowUpMulti).length)m.chanceFollowUpMulti=chanceFollowUpMulti;
+    else delete m.chanceFollowUpMulti;
     const stateAutoEnd=normalizeStateAutoEnd(m.stateAutoEnd);
     if(Object.keys(stateAutoEnd).length)m.stateAutoEnd=stateAutoEnd;
     else delete m.stateAutoEnd;
@@ -5158,6 +5182,19 @@ function ensureKabaneriChanceFollowUpSeedV1(machine){
   })));
   machine.kabaneriChanceFollowUpSeedV1=true;
 }
+function ensureKabaneriChanceFollowUpMultiSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriChanceFollowUpMultiSeedV1)return;
+  const mumei={label:'無名',color:'red',flash:'t_kabaneri_state_mumei_flash_start',high:'t_kabaneri_state_mumei_high_start'};
+  const ikoma={label:'生駒',color:'green',flash:'t_kabaneri_state_ikoma_flash_start',high:'t_kabaneri_state_ikoma_high_start'};
+  const kabane={label:'カバネ',color:'blue',flash:'t_kabaneri_state_kabane_flash_start',high:'t_kabaneri_state_kabane_high_start'};
+  machine.chanceFollowUpMulti=normalizeChanceFollowUpMulti({
+    t_kabaneri_multi_mumei_kabane:{members:[mumei,kabane]},
+    t_kabaneri_multi_mumei_ikoma:{members:[mumei,ikoma]},
+    t_kabaneri_multi_kabane_ikoma:{members:[kabane,ikoma]},
+    t_kabaneri_allstar:{members:[mumei,ikoma,kabane]}
+  });
+  machine.kabaneriChanceFollowUpMultiSeedV1=true;
+}
 function ensureKabaneriStateAutoEndSeedV1(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriStateAutoEndSeedV1)return;
   machine.stateAutoEnd=normalizeStateAutoEnd({
@@ -5747,7 +5784,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5803,6 +5840,7 @@ function addMachine(){
   ensureKabaneriEpisodeAutoStSeedV1(machine);
   ensureKabaneriThroughNoFlowSeedV1(machine);
   ensureKabaneriChanceFollowUpSeedV1(machine);
+  ensureKabaneriChanceFollowUpMultiSeedV1(machine);
   ensureKabaneriStateAutoEndSeedV1(machine);
   ensureKabaneriMumeiDefeatSeedV1(machine);
   db.machines.push(machine);
@@ -7666,6 +7704,12 @@ function machineChanceFollowUp(machine=currentMachine()){
 function chanceFollowUpForTagId(tagId,machine=currentMachine()){
   return machineChanceFollowUp(machine)[String(tagId||'').trim()]||null;
 }
+function machineChanceFollowUpMulti(machine=currentMachine()){
+  return normalizeChanceFollowUpMulti(machine?.chanceFollowUpMulti);
+}
+function chanceFollowUpMultiForTagId(tagId,machine=currentMachine()){
+  return machineChanceFollowUpMulti(machine)[String(tagId||'').trim()]||null;
+}
 function machineStateAutoEnd(machine=currentMachine()){
   return normalizeStateAutoEnd(machine?.stateAutoEnd);
 }
@@ -7683,6 +7727,25 @@ function chanceFollowUpExtraTagIds(followUp,choice){
   if((choice==='high'||choice==='both')&&followUp?.high&&!battleModeStateActiveForStartTag(followUp.high))ids.push(followUp.high);
   return ids;
 }
+function chanceFollowUpMultiChoiceTagIds(followUp,kind,choice){
+  const members=Array.isArray(followUp?.members)?followUp.members:[];
+  const key=kind==='high'?'high':'flash';
+  if(choice==='none')return [];
+  const ids=[];
+  if(choice==='all'){
+    members.forEach(member=>{
+      const tagId=member?.[key];
+      if(tagId&&!battleModeStateActiveForStartTag(tagId))ids.push(tagId);
+    });
+    return [...new Set(ids)];
+  }
+  const index=Number(choice);
+  if(Number.isInteger(index)&&index>=0&&index<members.length){
+    const tagId=members[index]?.[key];
+    if(tagId&&!battleModeStateActiveForStartTag(tagId))ids.push(tagId);
+  }
+  return ids;
+}
 function stateAutoEndExtraTagIds(tagIds,machine=currentMachine()){
   const rules=machineStateAutoEnd(machine);
   const ids=[];
@@ -7698,6 +7761,24 @@ function chanceFollowUpChoiceLabelHtml(choice){
   if(choice==='high')return '<span class="suggest-color-red">🔥高確</span>';
   if(choice==='both')return '<span class="suggest-color-yellow">💡発光</span><span class="suggest-color-red">🔥高確</span>';
   return 'なし';
+}
+function chanceFollowUpMultiMemberLabelHtml(member){
+  const color=String(member?.color||'').trim();
+  const cls=['red','green','blue','gold'].includes(color)?`suggest-color-${color}`:'';
+  const label=escapeHtml(member?.label||'');
+  return cls?`<span class="${cls}">${label}</span>`:label;
+}
+function chanceFollowUpMultiAllLabelHtml(followUp){
+  return `<span class="suggest-color-gold">${(followUp?.members||[]).length>=3?'全部':'両方'}</span>`;
+}
+function chanceFollowUpMultiChoiceButtons(followUp,onclickName){
+  const members=Array.isArray(followUp?.members)?followUp.members:[];
+  const buttons=[`<button class="bm-btn bm-state-choice" type="button" onclick="${onclickName}('none')">なし</button>`];
+  members.forEach((member,index)=>{
+    buttons.push(`<button class="bm-btn bm-state-choice" type="button" onclick="${onclickName}('${index}')">${chanceFollowUpMultiMemberLabelHtml(member)}</button>`);
+  });
+  buttons.push(`<button class="bm-btn bm-state-choice" type="button" onclick="${onclickName}('all')">${chanceFollowUpMultiAllLabelHtml(followUp)}</button>`);
+  return buttons.join('');
 }
 function openBattleModeChanceFollowUpPicker(tagId){
   const tag=battleModeCurrentTagById(tagId);
@@ -7723,6 +7804,42 @@ function battleModeRecordChanceFollowUp(tagId,choice){
   if(!['none','flash','high','both'].includes(choice))return;
   if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
   const extraTagIds=chanceFollowUpExtraTagIds(followUp,choice);
+  closeBattleModeOtherSheet();
+  battleModeCommit(tag.label,()=>addInstantTimelineTagWithAttachments(tag,[],{extraTagIds}));
+}
+function openBattleModeChanceFollowUpMultiFlashPicker(tagId){
+  const tag=battleModeCurrentTagById(tagId);
+  const followUp=chanceFollowUpMultiForTagId(tagId);
+  if(!tag||!followUp){battleModeRecordKabaneriPickerTag(tagId);return;}
+  if(timelineDataValue()===null){battleModeInvalid('G謨ｰ繧貞・蜉帙＠縺ｦ縺上□縺輔＞');return;}
+  battleModeKabaneriMultiDraft={tagId:tag.id,flashChoice:'none'};
+  setBattleModeSheet(`${tag.label} 発光`,
+    '<div class="bm-sheet-note">発光したキャラを選んでください。閉じると記録しません。</div>'+
+    chanceFollowUpMultiChoiceButtons(followUp,'battleModeSelectChanceFollowUpMultiFlash')
+  );
+}
+function battleModeSelectChanceFollowUpMultiFlash(choice){
+  const draft=battleModeKabaneriMultiDraft;
+  const tagId=String(draft?.tagId||'');
+  const followUp=chanceFollowUpMultiForTagId(tagId);
+  if(!tagId||!followUp){battleModeInvalid('複合チャンス目を選び直してください');return;}
+  battleModeKabaneriMultiDraft={tagId,flashChoice:String(choice||'none')};
+  setBattleModeSheet(`${battleModeCurrentTagById(tagId)?.label||'複合チャンス目'} 高確`,
+    '<div class="bm-sheet-note">高確へ移行したキャラを選んでください。閉じると記録しません。</div>'+
+    chanceFollowUpMultiChoiceButtons(followUp,'battleModeRecordChanceFollowUpMulti')
+  );
+}
+function battleModeRecordChanceFollowUpMulti(highChoice){
+  const draft=battleModeKabaneriMultiDraft;
+  const tagId=String(draft?.tagId||'');
+  const tag=battleModeCurrentTagById(tagId);
+  const followUp=chanceFollowUpMultiForTagId(tagId);
+  if(!tag||!followUp){battleModeInvalid('複合チャンス目を選び直してください');return;}
+  if(timelineDataValue()===null){battleModeInvalid('G謨ｰ繧貞・蜉帙＠縺ｦ縺上□縺輔＞');return;}
+  const flashIds=chanceFollowUpMultiChoiceTagIds(followUp,'flash',String(draft.flashChoice||'none'));
+  const highIds=chanceFollowUpMultiChoiceTagIds(followUp,'high',String(highChoice||'none'));
+  const extraTagIds=[...new Set([...flashIds,...highIds])];
+  battleModeKabaneriMultiDraft=null;
   closeBattleModeOtherSheet();
   battleModeCommit(tag.label,()=>addInstantTimelineTagWithAttachments(tag,[],{extraTagIds}));
 }
@@ -7986,7 +8103,8 @@ function battleModeRecordGhoulPickerTag(tagId){
   battleModeRecordTag(tagId);
 }
 function openBattleModeKabaneriMultiPicker(){
-  setBattleModeSheet('複合チャンス目',battleModeTagChoiceButtons(KABANERI_MULTI_PICKER_TAG_IDS,'battleModeRecordKabaneriPickerTag'));
+  battleModeKabaneriMultiDraft=null;
+  setBattleModeSheet('複合チャンス目',battleModeTagChoiceButtons(KABANERI_MULTI_PICKER_TAG_IDS,'battleModeSelectKabaneriMultiTag'));
 }
 function openBattleModeKabaneriStagePicker(){
   setBattleModeSheet('ステージ',battleModeTagChoiceButtons(KABANERI_STAGE_PICKER_TAG_IDS,'battleModeRecordKabaneriPickerTag'));
@@ -7997,6 +8115,10 @@ function openBattleModeKabaneriUpperStPicker(){
 function battleModeRecordKabaneriPickerTag(tagId){
   closeBattleModeOtherSheet();
   battleModeRecordTag(tagId);
+}
+function battleModeSelectKabaneriMultiTag(tagId){
+  if(chanceFollowUpMultiForTagId(tagId)){openBattleModeChanceFollowUpMultiFlashPicker(tagId);return;}
+  battleModeRecordKabaneriPickerTag(tagId);
 }
 function openBattleModeHitPicker(){
   const triggers=machineHitTriggers();
