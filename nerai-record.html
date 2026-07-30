@@ -536,6 +536,12 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-btn.kabaneri-blue{background:#2563eb;border-color:#93c5fd;color:#f5fbff;}
 .bm-btn.kabaneri-gold{background:#d99a24;border-color:#ffd36b;color:#241506;}
 .bm-btn.hit-variant-choice{background:var(--surface2);border-color:rgba(122,122,138,.42);color:var(--text);}
+.bm-btn.bm-choice-neutral{background:var(--surface2);border-color:rgba(122,122,138,.42);color:var(--text);}
+.bm-choice-text-red{color:#ff8b8b;font-weight:900;}
+.bm-choice-text-green{color:#62d28f;font-weight:900;}
+.bm-choice-text-blue{color:#8cbcff;font-weight:900;}
+.bm-choice-text-gold{color:#ffd36b;font-weight:900;}
+.bm-choice-text-sky{color:#7dd3fc;font-weight:900;}
 .hit-variant-tone-red{color:#ff8b8b;font-weight:900;}
 .hit-variant-tone-green{color:#62d28f;font-weight:900;}
 .hit-variant-tone-blue{color:#8cbcff;font-weight:900;}
@@ -1389,6 +1395,20 @@ function normalizeTagClass(value){
   const text=String(value||'').trim();
   return /^[a-z0-9-]+$/.test(text)?text:'';
 }
+const CHOICE_TEXT_COLORS=['red','green','blue','gold','sky'];
+function normalizeChoiceTextColor(value){
+  const text=String(value||'').trim();
+  return CHOICE_TEXT_COLORS.includes(text)?text:'';
+}
+function normalizeChoiceLabelParts(parts){
+  if(!Array.isArray(parts))return [];
+  return parts.map(part=>{
+    const text=String(part?.text||'');
+    if(!text)return null;
+    const color=normalizeChoiceTextColor(part?.color);
+    return color?{text,color}:{text};
+  }).filter(Boolean).slice(0,8);
+}
 function normalizeQuickPanelEvent(item){
     const type=String(item?.type||'').trim();
     const ref=String(item?.ref||'').trim();
@@ -1443,6 +1463,7 @@ function normalizeMachineState(state){
   const endOptions=Array.isArray(state.endOptions)?state.endOptions.map(normalizeMachineStateOption).filter(Boolean):[];
   const normalized={id,label,startTagId,endTagId,endOptions};
   if(state.startViaFollowUpOnly===true)normalized.startViaFollowUpOnly=true;
+  if(String(state.badgeStyle||'').trim()==='super')normalized.badgeStyle='super';
   return normalized;
 }
 function normalizeMachineStates(states){
@@ -2685,6 +2706,11 @@ function normalizeData(data){
       t.tagClass=normalizeTagClass(t.tagClass);
       t.size=normalizeTagSize(t.size);
       t.instantLog=!!t.instantLog;
+      if(Object.prototype.hasOwnProperty.call(t,'choiceTextColor'))t.choiceTextColor=normalizeChoiceTextColor(t.choiceTextColor);
+      else delete t.choiceTextColor;
+      const labelParts=normalizeChoiceLabelParts(t.labelParts);
+      if(labelParts.length)t.labelParts=labelParts;
+      else delete t.labelParts;
     });
     m.startTags.forEach(t=>{t.optional=!!t.optional;});
     ensureRequiredAims(m);
@@ -2713,6 +2739,7 @@ function normalizeData(data){
     ensureKabaneriStateAutoEndSeedV1(m);
     ensureKabaneriMumeiDefeatSeedV1(m);
     ensureKabaneriShunjoPtSeedV1(m);
+    ensureKabaneriPickerStyleSeedV1(m);
     if(m.hitCauseFirst===true)m.hitCauseFirst=true;
     else delete m.hitCauseFirst;
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
@@ -3291,8 +3318,15 @@ function mergeTimelineTagSeed(machine,tags){
       tag.numberAttachment=normalizeTagNumberAttachment(seedTag.numberAttachment)||normalizeTagNumberAttachment(tag.numberAttachment);
       tag.suggestLink=normalizeTagSuggestLink(seedTag.suggestLink)||normalizeTagSuggestLink(tag.suggestLink);
       tag.instantLog=!!seedTag.instantLog||!!tag.instantLog;
+      if(Object.prototype.hasOwnProperty.call(seedTag,'choiceTextColor'))tag.choiceTextColor=normalizeChoiceTextColor(seedTag.choiceTextColor);
+      const labelParts=normalizeChoiceLabelParts(seedTag.labelParts);
+      if(labelParts.length)tag.labelParts=labelParts;
     }else{
-      machine.tags.push({...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass),size:normalizeTagSize(seedTag.size),group:seedTag.group||'',collapsible:!!seedTag.collapsible,defaultOpen:seedTag.defaultOpen!==false,subCounterDelta:normalizeOptionalNumber(seedTag.subCounterDelta),numberAttachment:normalizeTagNumberAttachment(seedTag.numberAttachment),suggestLink:normalizeTagSuggestLink(seedTag.suggestLink),instantLog:!!seedTag.instantLog});
+      const next={...seedTag,countAs:null,liquidDelta:normalizeOptionalNumber(seedTag.liquidDelta),liquidSet:normalizeOptionalNumber(seedTag.liquidSet),tagClass:normalizeTagClass(seedTag.tagClass),size:normalizeTagSize(seedTag.size),group:seedTag.group||'',collapsible:!!seedTag.collapsible,defaultOpen:seedTag.defaultOpen!==false,subCounterDelta:normalizeOptionalNumber(seedTag.subCounterDelta),numberAttachment:normalizeTagNumberAttachment(seedTag.numberAttachment),suggestLink:normalizeTagSuggestLink(seedTag.suggestLink),instantLog:!!seedTag.instantLog};
+      if(Object.prototype.hasOwnProperty.call(seedTag,'choiceTextColor'))next.choiceTextColor=normalizeChoiceTextColor(seedTag.choiceTextColor);
+      const labelParts=normalizeChoiceLabelParts(seedTag.labelParts);
+      if(labelParts.length)next.labelParts=labelParts;
+      machine.tags.push(next);
     }
   });
   const seen=new Set();
@@ -5243,6 +5277,24 @@ function ensureKabaneriShunjoPtSeedV1(machine){
   };
   machine.kabaneriShunjoPtSeedV1=true;
 }
+function ensureKabaneriPickerStyleSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriPickerStyleSeedV1)return;
+  mergeTimelineTagSeed(machine,[
+    {id:'t_kabaneri_stage_yard',label:'操車場',optional:true,tagClass:'stage-day',choiceTextColor:''},
+    {id:'t_kabaneri_stage_kotetsujo',label:'甲鉄城',optional:true,tagClass:'stage-day',choiceTextColor:''},
+    {id:'t_kabaneri_stage_line',label:'第六区画線路沿い',optional:true,tagClass:'stage-day',choiceTextColor:''},
+    {id:'t_kabaneri_stage_fourth_tunnel',label:'第四区画坑道',optional:true,tagClass:'kabaneri-red',choiceTextColor:'red'},
+    {id:'t_kabaneri_stage_strategy',label:'作戦会議',optional:true,tagClass:'kabaneri-green',choiceTextColor:'green'},
+    {id:'t_kabaneri_stage_final_defense',label:'カバネ最終防衛区域',optional:true,tagClass:'kabaneri-gold',choiceTextColor:'gold'},
+    {id:'t_kabaneri_stage_setsugekka',label:'雪月風花',optional:true,tagClass:'stage-sky',choiceTextColor:'sky'},
+    {id:'t_kabaneri_multi_mumei_kabane',label:'無名＆カバネ',optional:true,tagClass:'kabaneri-gold',labelParts:[{text:'無名',color:'red'},{text:'＆'},{text:'カバネ',color:'blue'}]},
+    {id:'t_kabaneri_multi_mumei_ikoma',label:'無名＆生駒',optional:true,tagClass:'kabaneri-gold',labelParts:[{text:'無名',color:'red'},{text:'＆'},{text:'生駒',color:'green'}]},
+    {id:'t_kabaneri_multi_kabane_ikoma',label:'カバネ＆生駒',optional:true,tagClass:'kabaneri-gold',labelParts:[{text:'カバネ',color:'blue'},{text:'＆'},{text:'生駒',color:'green'}]},
+    {id:'t_kabaneri_allstar',label:'オールスター目',optional:true,tagClass:'kabaneri-gold',choiceTextColor:'gold'}
+  ]);
+  machine.states=normalizeMachineStates(machineStates(machine).map(state=>state.id==='kabaneri_super_high'?{...state,badgeStyle:'super'}:state));
+  machine.kabaneriPickerStyleSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5812,7 +5864,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5872,6 +5924,7 @@ function addMachine(){
   ensureKabaneriStateAutoEndSeedV1(machine);
   ensureKabaneriMumeiDefeatSeedV1(machine);
   ensureKabaneriShunjoPtSeedV1(machine);
+  ensureKabaneriPickerStyleSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -6837,7 +6890,7 @@ function battleModeActiveStates(machine=currentMachine()){
   return [...battleModeStateStatusMap(machine).values()].filter(row=>row.active).map(row=>row.state);
 }
 function renderBattleModeStateBadges(){
-  return battleModeActiveStates().map(state=>`<span class="bm-state-badge ${escapeHtml(battleModeStateToneClass(state))}">${escapeHtml(battleModeStateDisplayLabel(state))}</span>`).join('');
+  return battleModeActiveStates().map(state=>`<span class="bm-state-badge ${escapeHtml(battleModeStateToneClass(state))}">${battleModeStateDisplayLabelHtml(state)}</span>`).join('');
 }
 function kabaneriToneClassByLabel(label){
   const text=String(label||'');
@@ -6861,6 +6914,20 @@ function kabaneriStateIcon(state){
 function battleModeStateDisplayLabel(state){
   return isKabaneriMachine(currentMachine())?`${kabaneriStateIcon(state)}${state?.label||''}`:(state?.label||'');
 }
+function kabaneriSuperHighLabelHtml(label){
+  const text=String(label||'');
+  if(!text.startsWith('超'))return kabaneriColoredKeywordLabelHtml(text);
+  // Reuse this split-color treatment for the future G-threshold prompt (#19).
+  return `<span class="bm-choice-text-gold">${escapeHtml(text.slice(0,1))}</span><span class="bm-choice-text-blue">${escapeHtml(text.slice(1))}</span>`;
+}
+function battleModeStateLabelBodyHtml(state){
+  if(isKabaneriMachine(currentMachine())&&state?.badgeStyle==='super')return kabaneriSuperHighLabelHtml(state?.label);
+  return isKabaneriMachine(currentMachine())?kabaneriColoredKeywordLabelHtml(state?.label):escapeHtml(state?.label||'');
+}
+function battleModeStateDisplayLabelHtml(state){
+  if(!isKabaneriMachine(currentMachine()))return escapeHtml(state?.label||'');
+  return `${escapeHtml(kabaneriStateIcon(state))}${battleModeStateLabelBodyHtml(state)}`;
+}
 function kabaneriColoredKeywordLabelHtml(label){
   const text=String(label||'');
   const keywords=[
@@ -6878,7 +6945,7 @@ function kabaneriColoredKeywordLabelHtml(label){
 }
 function battleModeStateChoiceLabelHtml(state,suffix=''){
   if(!isKabaneriMachine(currentMachine()))return escapeHtml(`${state?.label||''}${suffix}`);
-  return `${escapeHtml(kabaneriStateIcon(state))}${kabaneriColoredKeywordLabelHtml(state?.label)}${escapeHtml(suffix)}`;
+  return `${escapeHtml(kabaneriStateIcon(state))}${battleModeStateLabelBodyHtml(state)}${escapeHtml(suffix)}`;
 }
 function orderedBattleModeStates(states){
   if(!isKabaneriMachine(currentMachine()))return states;
@@ -8073,9 +8140,26 @@ function openBattleModeKabaneriSuggestCategoryPicker(categoryId,title){
 }
 function battleModeTagChoiceButtons(tagIds,handlerName){
   const buttons=(tagIds||[]).map(id=>battleModeCurrentTagById(id)).filter(Boolean).map(tag=>{
-    return `<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" onclick="${handlerName}('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`;
+    return `<button class="bm-btn ${escapeHtml(battleModeTagChoiceClassName(tag))}" type="button" onclick="${handlerName}('${escapeHtml(tag.id)}')">${battleModeTagChoiceLabelHtml(tag)}</button>`;
   }).join('');
   return buttons||'<div class="empty-hint">\u9078\u629e\u80a2\u304c\u3042\u308a\u307e\u305b\u3093</div>';
+}
+function battleModeTagChoiceClassName(tag){
+  const hasChoiceTextColor=Object.prototype.hasOwnProperty.call(tag||{},'choiceTextColor');
+  const labelParts=normalizeChoiceLabelParts(tag?.labelParts);
+  if(hasChoiceTextColor||labelParts.length){
+    const color=normalizeChoiceTextColor(tag?.choiceTextColor);
+    return `bm-choice-neutral${color?` bm-choice-text-${color}`:''}`;
+  }
+  return battleModeTagClassName(tag);
+}
+function battleModeTagChoiceLabelHtml(tag){
+  const labelParts=normalizeChoiceLabelParts(tag?.labelParts);
+  if(!labelParts.length)return escapeHtml(tag?.label||'');
+  return labelParts.map(part=>{
+    const text=escapeHtml(part.text);
+    return part.color?`<span class="bm-choice-text-${escapeHtml(part.color)}">${text}</span>`:text;
+  }).join('');
 }
 function battleModeGhoulSuikaDetailButtons(entryId){
   const safeEntryId=String(entryId||'').replace(/'/g,'');
