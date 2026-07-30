@@ -2009,6 +2009,16 @@ function normalizeHitTriggers(value){
   }).filter(Boolean);
   return normalized.length?normalized:fallback;
 }
+function normalizeHitFlowAutoThrough(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return {};
+  const normalized={};
+  Object.entries(value).forEach(([trigger,through])=>{
+    const key=normalizeHitTrigger(trigger);
+    if(!key)return;
+    if(['yes','no','ending'].includes(through))normalized[key]=through;
+  });
+  return normalized;
+}
 function hitTriggerDefaultLabel(trigger){
   return {cz:'CZ当選',upper_cz:'上位CZ当選',at:'AT',direct_at:'AT直撃',episode_bonus:'エピソードボーナス'}[trigger]||trigger||'当選';
 }
@@ -2585,7 +2595,11 @@ function normalizeData(data){
     ensureKabaneriCounterSeed(m);
     ensureKabaneriHitCauseSeedV1(m);
     ensureKabaneriCounterDisplayBaseSeedV1(m);
+    ensureKabaneriEpisodeAutoStSeedV1(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
+    const autoThrough=normalizeHitFlowAutoThrough(m.hitFlowAutoThrough);
+    if(Object.keys(autoThrough).length)m.hitFlowAutoThrough=autoThrough;
+    else delete m.hitFlowAutoThrough;
     applySuggestMetadata(m);
   });
   migrateTokyoGhoulSuggestLogs(data);
@@ -4988,6 +5002,14 @@ function ensureKabaneriCounterDisplayBaseSeedV1(machine){
   })).filter(Boolean);
   machine.kabaneriCounterDisplayBaseSeedV1=true;
 }
+function ensureKabaneriEpisodeAutoStSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriEpisodeAutoStSeedV1)return;
+  machine.hitFlowAutoThrough=normalizeHitFlowAutoThrough({
+    ...normalizeHitFlowAutoThrough(machine.hitFlowAutoThrough),
+    episode_bonus:'yes'
+  });
+  machine.kabaneriEpisodeAutoStSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5557,7 +5579,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5607,6 +5629,7 @@ function addMachine(){
   ensureKabaneriCounterSeed(machine);
   ensureKabaneriHitCauseSeedV1(machine);
   ensureKabaneriCounterDisplayBaseSeedV1(machine);
+  ensureKabaneriEpisodeAutoStSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -9770,6 +9793,13 @@ function recordIntervalCredit(){
 function machineHitTriggers(machine=currentMachine()){
   return normalizeHitTriggers(machine?.hitTriggers);
 }
+function machineHitFlowAutoThrough(machine=currentMachine()){
+  return normalizeHitFlowAutoThrough(machine?.hitFlowAutoThrough);
+}
+function hitFlowAutoThroughValue(event=currentHitEvent(),machine=currentMachine()){
+  const trigger=normalizeHitTrigger(event?.trigger);
+  return trigger?machineHitFlowAutoThrough(machine)[trigger]||'':'';
+}
 function hitTriggerLabel(trigger,machine=currentMachine()){
   const normalized=normalizeHitTrigger(trigger);
   const configured=machineHitTriggers(machine).find(row=>row.key===normalized);
@@ -9905,6 +9935,7 @@ function startHitEventWizard(trigger,options={}){
   currentFlowStep=3;
   const route=(normalized==='cz'||normalized==='upper_cz')?'czResult':'atHit';
   hitBranchWizard={route,stepIndex:0,through:null,done:[],eventId:event.id};
+  applyHitFlowAutoThrough(event);
   renderLogFields();
   renderFlowStepTabs();
   renderCurrentContextBar();
@@ -10249,7 +10280,8 @@ function hitBranchSteps(route,through=hitBranchWizard.through){
     {key:'czResult',label:'CZ結果'}
   ];
   const presetSteps=machineHitBranchFlowSteps(route,through);
-  if(presetSteps.length)return presetSteps;
+  const applyAutoThroughFilter=steps=>route==='atHit'&&hitFlowAutoThroughValue()?steps.filter(step=>step.key!=='through'):steps;
+  if(presetSteps.length)return applyAutoThroughFilter(presetSteps);
   if(route==='czFail')return [
     {key:'czResult',label:'CZ結果'},
     {key:'czEndcard',label:'CZ終了エンドカード'},
@@ -10277,10 +10309,10 @@ function hitBranchSteps(route,through=hitBranchWizard.through){
     }
     if(!isTokyoGhoulMachine(currentMachine())){
       const keys=machineFollowMode()==='always'?['payout']:['payout','follow','exit'];
-      return steps.filter(step=>keys.includes(step.key));
+      return applyAutoThroughFilter(steps.filter(step=>keys.includes(step.key)));
     }
-    if(!machineUsesEndingCards())return steps.filter(step=>step.key!=='endingCards');
-    return steps;
+    if(!machineUsesEndingCards())return applyAutoThroughFilter(steps.filter(step=>step.key!=='endingCards'));
+    return applyAutoThroughFilter(steps);
   }
   return [];
 }
@@ -11040,19 +11072,35 @@ function openAtThroughBranchPicker(){
   document.getElementById('suggestPickerOverlay')?.classList.add('open');
 }
 function selectAtThroughBranch(value){
+  applyAtThroughBranch(value);
+}
+function applyHitFlowAutoThrough(event=currentHitEvent()){
+  const value=hitFlowAutoThroughValue(event);
+  if(!value)return false;
+  return applyAtThroughBranch(value,{advance:false,closePicker:false,render:false,openNext:false});
+}
+function applyAtThroughBranch(value,options={}){
   if(value!=='yes'&&value!=='no'&&value!=='ending')return;
   const event=currentHitEvent();
+  const alreadyApplied=hitBranchWizard.through===value&&hitBranchWizard.done.includes('through');
   if(event){
-    event.through=value==='ending'?null:value;
-    if(value==='ending')incrementCurrentHitEndingCount();
-    event.terminalType='';
+    if(!alreadyApplied){
+      event.through=value==='ending'?null:value;
+      if(value==='ending')incrementCurrentHitEndingCount();
+      event.terminalType='';
+    }
   }
   hitBranchWizard.through=value;
-  if(value!=='ending')recordAfterAtModeByThrough(value);
-  advanceHitBranchWizard();
-  closeSuggestPicker();
-  renderLogFields();
-  setTimeout(openCurrentHitBranchStep,0);
+  if(!alreadyApplied&&value!=='ending')recordAfterAtModeByThrough(value);
+  if(options.advance===false){
+    if(!hitBranchWizard.done.includes('through'))hitBranchWizard.done.push('through');
+  }else{
+    advanceHitBranchWizard();
+  }
+  if(options.closePicker!==false)closeSuggestPicker();
+  if(options.render!==false)renderLogFields();
+  if(options.openNext!==false)setTimeout(openCurrentHitBranchStep,0);
+  return true;
 }
 function recordAfterAtModeByThrough(value){
   const mode=findSuggestCategoryByName(currentMachine(),'モード示唆');
