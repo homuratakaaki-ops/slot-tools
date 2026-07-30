@@ -555,6 +555,18 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-quit-btn:active{transform:translateY(1px);}
 .bm-sheet-note{grid-column:1/-1;color:var(--text-muted);font-size:13px;line-height:1.55;}
 .bm-sheet-note strong{color:var(--text);}
+.bm-chance-eye-controls{grid-column:1/-1;display:flex;justify-content:flex-end;gap:6px;margin-bottom:2px;}
+.bm-chance-eye-toggle{min-height:34px;padding:6px 10px;border-radius:8px;border:1px solid rgba(122,122,138,.42);background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:900;}
+.bm-chance-eye-toggle.active{border-color:rgba(201,168,76,.72);color:var(--gold-light);box-shadow:0 0 0 1px rgba(201,168,76,.16) inset;}
+.bm-chance-eye-table-wrap{grid-column:1/-1;overflow-x:auto;}
+.bm-chance-eye-table{width:100%;border-collapse:collapse;table-layout:fixed;font-variant-numeric:tabular-nums;background:rgba(15,23,42,.24);border:1px solid rgba(148,163,184,.22);border-radius:8px;overflow:hidden;}
+.bm-chance-eye-table th,.bm-chance-eye-table td{padding:4px 5px;border-bottom:1px solid rgba(148,163,184,.14);text-align:center;font-size:11px;line-height:1.25;white-space:nowrap;}
+.bm-chance-eye-table th:first-child,.bm-chance-eye-table td:first-child{text-align:left;width:54px;}
+.bm-chance-eye-table tr:last-child th,.bm-chance-eye-table tr:last-child td{border-bottom:0;}
+.bm-chance-eye-table .total-row th,.bm-chance-eye-table .total-row td,.bm-chance-eye-table .total-col{color:var(--gold-light);font-weight:900;}
+.bm-chance-eye-subrow{color:var(--text-muted);}
+.bm-chance-eye-core{grid-column:1/-1;color:var(--gold-light);font-size:13px;font-weight:900;line-height:1.45;}
+.bm-chance-eye-carry{grid-column:1/-1;color:var(--text-muted);font-size:12px;line-height:1.4;}
 .bm-state-badges{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;}
 .bm-state-badge{border:1px solid rgba(96,165,250,.45);border-radius:999px;background:rgba(96,165,250,.16);color:#bfdbfe;font-size:12px;font-weight:900;padding:4px 9px;}
 .bm-state-badge.kabaneri-red{border-color:rgba(255,119,119,.74);background:rgba(199,54,54,.34);color:#fff7f7;}
@@ -7274,6 +7286,23 @@ const KABANERI_HIGH_END_IDS=['t_kabaneri_state_chance_high_end','t_kabaneri_stat
 const KABANERI_FLASH_START_IDS=['t_kabaneri_state_mumei_flash_start','t_kabaneri_state_ikoma_flash_start','t_kabaneri_state_kabane_flash_start'];
 const KABANERI_FLASH_END_IDS=['t_kabaneri_state_mumei_flash_end','t_kabaneri_state_ikoma_flash_end','t_kabaneri_state_kabane_flash_end'];
 const KABANERI_CZ_END_IDS=['t_kabaneri_cz_mumei_end','t_kabaneri_cz_ikoma_end','t_kabaneri_cz_doran_end'];
+const KABANERI_CZ_START_IDS=['t_kabaneri_cz_mumei_start','t_kabaneri_cz_ikoma_start','t_kabaneri_cz_doran_start'];
+const KABANERI_STAGE_TAG_IDS=['t_kabaneri_stage_yard','t_kabaneri_stage_kotetsujo','t_kabaneri_stage_line','t_kabaneri_stage_fourth_tunnel','t_kabaneri_stage_strategy','t_kabaneri_stage_final_defense','t_kabaneri_stage_setsugekka'];
+const KABANERI_CHANCE_EYE_TABLE_COLUMNS=[
+  {key:'normalNoFlash',label:'無→無'},
+  {key:'normalFlash',label:'無→💡',tone:'gold'},
+  {key:'flashing',label:'💡',tone:'gold'},
+  {key:'flashHigh',label:'💡🔥',tone:'red'},
+  {key:'high',label:'🔥',tone:'red'},
+  {key:'super',label:'⚡',tone:'blue'},
+  {key:'total',label:'計'}
+];
+const KABANERI_CHANCE_EYE_TABLE_CHARS=[
+  {key:'mumei',label:'無名',tone:'red',singleId:'t_kabaneri_chance_mumei',flashStart:'t_kabaneri_state_mumei_flash_start',flashEnd:'t_kabaneri_state_mumei_flash_end',highStart:'t_kabaneri_state_mumei_high_start',highEnd:'t_kabaneri_state_mumei_high_end',czStart:'t_kabaneri_cz_mumei_start'},
+  {key:'ikoma',label:'生駒',tone:'green',singleId:'t_kabaneri_chance_ikoma',flashStart:'t_kabaneri_state_ikoma_flash_start',flashEnd:'t_kabaneri_state_ikoma_flash_end',highStart:'t_kabaneri_state_ikoma_high_start',highEnd:'t_kabaneri_state_ikoma_high_end',czStart:'t_kabaneri_cz_ikoma_start'},
+  {key:'kabane',label:'カバネ',tone:'blue',singleId:'t_kabaneri_chance_kabane',flashStart:'t_kabaneri_state_kabane_flash_start',flashEnd:'t_kabaneri_state_kabane_flash_end',highStart:'t_kabaneri_state_kabane_high_start',highEnd:'t_kabaneri_state_kabane_high_end',czStart:''}
+];
+let kabaneriChanceEyeTableScope='sinceCz';
 function timelineTagIds(entry){return Array.isArray(entry?.tagIds)?entry.tagIds:[];}
 function timelineHasAnyTag(entry,ids){const tagIds=timelineTagIds(entry);return ids.some(id=>tagIds.includes(id));}
 function kabaneriChanceEyeTypesForEntry(entry){return KABANERI_CHANCE_EYE_CLASSIFIERS.filter(row=>timelineHasAnyTag(entry,row.chanceIds));}
@@ -7333,25 +7362,212 @@ function kabaneriFlashRateLine(bucket){
   const rate=denominator>0?`（${((numerator/denominator)*100).toFixed(1)}%）`:'（-）';
   return `非高確・非発光チャ目 ${denominator}回中 発光 ${numerator}回${rate}`;
 }
-function battleModeKabaneriChanceEyeSituationHtml(){
-  const data=kabaneriChanceEyeSituation();
-  const typeRows=Object.values(data.byType).map(row=>{
-    const normal=(row.sinceCz.normalNoFlash||0)+(row.sinceCz.normalFlash||0);
-    const total=normal+(row.sinceCz.flashing||0)+(row.sinceCz.high||0);
-    if(!total)return '';
-    return `<div class="bm-sheet-note">${escapeHtml(row.label)}：通常${normal}（なし${row.sinceCz.normalNoFlash||0}／あり${row.sinceCz.normalFlash||0}）・発光中${row.sinceCz.flashing||0}・高確中${row.sinceCz.high||0}</div>`;
+function kabaneriChanceEyeTableChar(key){return KABANERI_CHANCE_EYE_TABLE_CHARS.find(row=>row.key===key)||null;}
+function kabaneriChanceEyeTableCharBySingleTag(tagId){return KABANERI_CHANCE_EYE_TABLE_CHARS.find(row=>row.singleId===tagId)||null;}
+function kabaneriChanceEyeMemberKey(member){
+  const label=String(member?.label||'');
+  if(label.includes('無名'))return 'mumei';
+  if(label.includes('生駒'))return 'ikoma';
+  if(label.includes('カバネ'))return 'kabane';
+  return '';
+}
+function emptyKabaneriChanceEyeTableCounts(){
+  return KABANERI_CHANCE_EYE_TABLE_COLUMNS.reduce((counts,column)=>{
+    counts[column.key]=0;
+    return counts;
+  },{});
+}
+function emptyKabaneriChanceEyeTableBucket(){
+  const rows={};
+  KABANERI_CHANCE_EYE_TABLE_CHARS.forEach(char=>{
+    rows[char.key]={single:emptyKabaneriChanceEyeTableCounts(),multi:emptyKabaneriChanceEyeTableCounts()};
+  });
+  rows.total=emptyKabaneriChanceEyeTableCounts();
+  return {rows,carryover:{mumei:0,ikoma:0,kabane:0}};
+}
+function addKabaneriChanceEyeTableCount(bucket,charKey,rowKind,columnKey){
+  const row=bucket.rows?.[charKey]?.[rowKind];
+  if(!row)return;
+  row[columnKey]=(row[columnKey]||0)+1;
+  row.total=(row.total||0)+1;
+  bucket.rows.total[columnKey]=(bucket.rows.total[columnKey]||0)+1;
+  bucket.rows.total.total=(bucket.rows.total.total||0)+1;
+}
+function addKabaneriChanceEyeCarryover(bucket,charKey){
+  if(!Object.prototype.hasOwnProperty.call(bucket.carryover,charKey))return;
+  bucket.carryover[charKey]=(bucket.carryover[charKey]||0)+1;
+}
+function kabaneriChanceEyeEntryAxis(entry){
+  const liquid=normalizeOptionalNumber(entry?.liquidGame);
+  const data=normalizeOptionalNumber(entry?.game);
+  return {liquid,data};
+}
+function kabaneriChanceEyeAxisDistance(fromEntry,toEntry){
+  const from=kabaneriChanceEyeEntryAxis(fromEntry);
+  const to=kabaneriChanceEyeEntryAxis(toEntry);
+  if(from.liquid!==null&&to.liquid!==null)return to.liquid-from.liquid;
+  if(from.data!==null&&to.data!==null)return to.data-from.data;
+  return null;
+}
+function kabaneriChanceEyeTimelineRows(timeline=currentTimeline){
+  return sortByCreatedAtWithIndex(Array.isArray(timeline)?timeline:[],false);
+}
+function kabaneriChanceEyeAllTimelineRows(){
+  const segmentRows=[...currentSegments].reverse().flatMap(segment=>Array.isArray(segment?.timeline)?segment.timeline:[]);
+  return kabaneriChanceEyeTimelineRows([...segmentRows,...currentTimeline]);
+}
+function kabaneriChanceEyeMembersForEntry(entry,machine=currentMachine()){
+  const ids=timelineTagIds(entry);
+  const members=[];
+  ids.forEach(id=>{
+    const single=kabaneriChanceEyeTableCharBySingleTag(id);
+    if(single)members.push({charKey:single.key,rowKind:'single'});
+    const followUp=chanceFollowUpMultiForTagId(id,machine);
+    (followUp?.members||[]).forEach(member=>{
+      const charKey=kabaneriChanceEyeMemberKey(member);
+      if(charKey)members.push({charKey,rowKind:'multi'});
+    });
+  });
+  return members;
+}
+function kabaneriHasFollowFlashStartForChar(rows,index,charKey){
+  const char=kabaneriChanceEyeTableChar(charKey);
+  if(!char)return false;
+  for(let i=index;i<rows.length;i++){
+    const diff=kabaneriChanceEyeAxisDistance(rows[index],rows[i]);
+    if(diff!==null&&diff>2)break;
+    if(diff!==null&&diff<0)continue;
+    if(i!==index&&diff===null)break;
+    if(timelineHasAnyTag(rows[i],[char.flashStart]))return true;
+  }
+  return false;
+}
+function kabaneriChanceEyeIsCarryover(rows,index,charKey,finalDefenseActive){
+  const char=kabaneriChanceEyeTableChar(charKey);
+  if(!char)return false;
+  if(charKey==='kabane')return !!finalDefenseActive;
+  if(!char.czStart)return false;
+  for(let i=index+1;i<rows.length;i++){
+    const diff=kabaneriChanceEyeAxisDistance(rows[index],rows[i]);
+    if(diff!==null&&diff>20)break;
+    if(diff!==null&&diff<0)continue;
+    if(diff===null&&i>index+8)break;
+    if(timelineHasAnyTag(rows[i],[char.czStart]))return true;
+  }
+  return false;
+}
+function kabaneriChanceEyeColumnForChar(rows,index,charKey,active){
+  const char=kabaneriChanceEyeTableChar(charKey);
+  if(!char)return 'normalNoFlash';
+  if(active.super)return 'super';
+  const flash=active.flash.has(char.flashStart);
+  const high=active.high.has(char.highStart);
+  if(flash&&high)return 'flashHigh';
+  if(flash)return 'flashing';
+  if(high)return 'high';
+  return kabaneriHasFollowFlashStartForChar(rows,index,charKey)?'normalFlash':'normalNoFlash';
+}
+function updateKabaneriChanceEyeActiveState(entry,active){
+  KABANERI_CHANCE_EYE_TABLE_CHARS.forEach(char=>{
+    if(timelineHasAnyTag(entry,[char.flashEnd]))active.flash.delete(char.flashStart);
+    if(timelineHasAnyTag(entry,[char.highEnd]))active.high.delete(char.highStart);
+  });
+  if(timelineHasAnyTag(entry,['t_kabaneri_state_super_high_end']))active.super=false;
+  KABANERI_CHANCE_EYE_TABLE_CHARS.forEach(char=>{
+    if(timelineHasAnyTag(entry,[char.flashStart]))active.flash.add(char.flashStart);
+    if(timelineHasAnyTag(entry,[char.highStart]))active.high.add(char.highStart);
+  });
+  if(timelineHasAnyTag(entry,['t_kabaneri_state_super_high_start']))active.super=true;
+}
+function updateKabaneriChanceEyeStageState(entry,active){
+  if(!timelineHasAnyTag(entry,KABANERI_STAGE_TAG_IDS))return;
+  active.finalDefense=timelineHasAnyTag(entry,['t_kabaneri_stage_final_defense']);
+}
+function kabaneriChanceEyeTableSummary(timeline=currentTimeline,machine=currentMachine()){
+  const rows=kabaneriChanceEyeTimelineRows(timeline);
+  const lastCzStartIndex=rows.reduce((latest,row,index)=>timelineHasAnyTag(row,KABANERI_CZ_START_IDS)?index:latest,-1);
+  const summary={sinceCz:emptyKabaneriChanceEyeTableBucket(),total:emptyKabaneriChanceEyeTableBucket(),core:{numerator:0,denominator:0}};
+  const active={flash:new Set(),high:new Set(),super:false,finalDefense:false};
+  rows.forEach((entry,index)=>{
+    const members=kabaneriChanceEyeMembersForEntry(entry,machine);
+    members.forEach(member=>{
+      const carryover=kabaneriChanceEyeIsCarryover(rows,index,member.charKey,active.finalDefense);
+      const inScope=index>lastCzStartIndex;
+      if(carryover){
+        addKabaneriChanceEyeCarryover(summary.total,member.charKey);
+        if(inScope)addKabaneriChanceEyeCarryover(summary.sinceCz,member.charKey);
+        return;
+      }
+      const column=kabaneriChanceEyeColumnForChar(rows,index,member.charKey,active);
+      addKabaneriChanceEyeTableCount(summary.total,member.charKey,member.rowKind,column);
+      if(inScope)addKabaneriChanceEyeTableCount(summary.sinceCz,member.charKey,member.rowKind,column);
+      if(member.rowKind==='single'&&(member.charKey==='mumei'||member.charKey==='ikoma')&&(column==='normalNoFlash'||column==='normalFlash')){
+        summary.core.denominator+=1;
+        if(column==='normalFlash')summary.core.numerator+=1;
+      }
+    });
+    updateKabaneriChanceEyeActiveState(entry,active);
+    updateKabaneriChanceEyeStageState(entry,active);
+  });
+  return summary;
+}
+function kabaneriChanceEyeTableCell(value,columnKey){
+  const text=String(value||0);
+  if(columnKey==='total')return `<td class="total-col">${escapeHtml(text)}</td>`;
+  return `<td>${escapeHtml(text)}</td>`;
+}
+function kabaneriChanceEyeToneHtml(text,tone){
+  return tone?`<span class="bm-choice-text-${escapeHtml(tone)}">${escapeHtml(text)}</span>`:escapeHtml(text);
+}
+function kabaneriChanceEyeTableRowHtml(labelHtml,counts,{sub=false,total=false}={}){
+  const cells=KABANERI_CHANCE_EYE_TABLE_COLUMNS.map(column=>kabaneriChanceEyeTableCell(counts[column.key]||0,column.key)).join('');
+  return `<tr class="${total?'total-row':sub?'bm-chance-eye-subrow':''}"><th>${labelHtml}</th>${cells}</tr>`;
+}
+function kabaneriChanceEyeTableHtml(bucket){
+  const head=KABANERI_CHANCE_EYE_TABLE_COLUMNS.map(column=>`<th>${kabaneriChanceEyeToneHtml(column.label,column.tone)}</th>`).join('');
+  const rows=KABANERI_CHANCE_EYE_TABLE_CHARS.map(char=>{
+    const label=kabaneriChanceEyeToneHtml(char.label,char.tone);
+    const sub=`└複合`;
+    return kabaneriChanceEyeTableRowHtml(label,bucket.rows[char.key].single)+
+      kabaneriChanceEyeTableRowHtml(escapeHtml(sub),bucket.rows[char.key].multi,{sub:true});
   }).join('');
+  return `<div class="bm-chance-eye-table-wrap"><table class="bm-chance-eye-table"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}${kabaneriChanceEyeTableRowHtml('合計',bucket.rows.total,{total:true})}</tbody></table></div>`;
+}
+function kabaneriChanceEyeCarryoverLine(bucket){
+  const carry=bucket.carryover||{};
+  const total=(carry.mumei||0)+(carry.ikoma||0)+(carry.kabane||0);
+  if(!total)return '';
+  return `<div class="bm-chance-eye-carry">持ち越し：無名${escapeHtml(carry.mumei||0)}・生駒${escapeHtml(carry.ikoma||0)}・カバネ${escapeHtml(carry.kabane||0)}</div>`;
+}
+function kabaneriChanceEyeCoreLine(summary){
+  const denominator=summary.core.denominator||0;
+  if(!denominator)return '無→💡率（単独・無名+生駒・通算固定）—';
+  const numerator=summary.core.numerator||0;
+  return `無→💡率（単独・無名+生駒・通算固定）${numerator}/${denominator} (${((numerator/denominator)*100).toFixed(1)}%)`;
+}
+function setKabaneriChanceEyeTableScope(scope){
+  kabaneriChanceEyeTableScope=scope==='total'?'total':'sinceCz';
+  openBattleModeKabaneriChanceEyeSheet(kabaneriChanceEyeTableScope);
+}
+function battleModeKabaneriChanceEyeSituationHtml(){
+  const data=kabaneriChanceEyeTableSummary(kabaneriChanceEyeAllTimelineRows());
+  const scope=kabaneriChanceEyeTableScope==='total'?'total':'sinceCz';
+  const bucket=data[scope];
   return `
-    <div class="bm-sheet-note"><strong>${escapeHtml(kabaneriChanceEyeSituationLine(data.sinceCz,'前回CZから'))}</strong></div>
-    <div class="bm-sheet-note">${escapeHtml(kabaneriFlashRateLine(data.total))}</div>
-    <div class="bm-sheet-note">高確中と発光中が重なるチャ目は両方に計上</div>
-    ${typeRows?`<div class="bm-sheet-note"><strong>種別内訳（前回CZから）</strong></div>${typeRows}`:''}
+    <div class="bm-chance-eye-controls">
+      <button class="bm-chance-eye-toggle ${scope==='sinceCz'?'active':''}" type="button" onclick="setKabaneriChanceEyeTableScope('sinceCz')">前回CZから</button>
+      <button class="bm-chance-eye-toggle ${scope==='total'?'active':''}" type="button" onclick="setKabaneriChanceEyeTableScope('total')">通算</button>
+    </div>
+    ${kabaneriChanceEyeTableHtml(bucket)}
+    ${kabaneriChanceEyeCarryoverLine(bucket)}
+    <div class="bm-chance-eye-core">${escapeHtml(kabaneriChanceEyeCoreLine(data))}</div>
+    <div class="bm-sheet-note">⚡＝超高確中。複合はmember各キャラの複合行へ分解し、持ち越し分は本体から分離。</div>
   `;
 }
-function openBattleModeKabaneriChanceEyeSheet(){
+function openBattleModeKabaneriChanceEyeSheet(scope=''){
+  if(scope)kabaneriChanceEyeTableScope=scope==='total'?'total':'sinceCz';
   setBattleModeSheet('チャ目状況',`
     ${battleModeKabaneriChanceEyeSituationHtml()}
-    ${battleModeKabaneriChanceEyeDetailHtml()}
     <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
   `);
 }
