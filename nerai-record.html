@@ -2035,6 +2035,18 @@ function normalizeHitTriggers(value){
   }).filter(Boolean);
   return normalized.length?normalized:fallback;
 }
+function normalizeHitBranchStep(step){
+  if(!step||typeof step!=='object')return null;
+  const key=String(step.key||'').trim();
+  if(!key)return null;
+  const normalized={...step,key,label:String(step.label||key).trim()||key};
+  const triggers=Array.isArray(step.triggers)
+    ?[...new Set(step.triggers.map(normalizeHitTrigger).filter(Boolean))]
+    :[];
+  if(triggers.length)normalized.triggers=triggers;
+  else delete normalized.triggers;
+  return normalized;
+}
 function normalizeHitFlowAutoThrough(value){
   if(!value||typeof value!=='object'||Array.isArray(value))return {};
   const normalized={};
@@ -2700,6 +2712,7 @@ function normalizeData(data){
     ensureKabaneriChanceFollowUpMultiSeedV1(m);
     ensureKabaneriStateAutoEndSeedV1(m);
     ensureKabaneriMumeiDefeatSeedV1(m);
+    ensureKabaneriShunjoPtSeedV1(m);
     if(m.hitCauseFirst===true)m.hitCauseFirst=true;
     else delete m.hitCauseFirst;
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
@@ -5215,6 +5228,21 @@ function ensureKabaneriMumeiDefeatSeedV1(machine){
   }));
   machine.kabaneriMumeiDefeatSeedV1=true;
 }
+function ensureKabaneriShunjoPtSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriShunjoPtSeedV1)return;
+  mergeTimelineTagSeed(machine,[
+    {id:'t_kabaneri_shunjo_pt',label:'駿城pt',optional:true,countAs:null,tagClass:'event'}
+  ]);
+  machine.hitBranchFlows={
+    ...(machine.hitBranchFlows||{}),
+    atHit:[
+      {key:'through',label:'ST突入確認'},
+      {key:'shunjoPt',label:'駿城pt',triggers:['direct_at']},
+      {key:'payout',label:'ボーナス後クレジット'}
+    ]
+  };
+  machine.kabaneriShunjoPtSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5784,7 +5812,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5843,6 +5871,7 @@ function addMachine(){
   ensureKabaneriChanceFollowUpMultiSeedV1(machine);
   ensureKabaneriStateAutoEndSeedV1(machine);
   ensureKabaneriMumeiDefeatSeedV1(machine);
+  ensureKabaneriShunjoPtSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -10767,12 +10796,19 @@ function nextModeEyecatchPlace(){
   const place=findSuggestPlaceByName(mode,'アイキャッチ');
   return mode&&place?{category:mode,place}:null;
 }
-function machineHitBranchFlowSteps(route,through=hitBranchWizard.through){
+function hitBranchStepAppliesToEvent(step,event=currentHitEvent()){
+  const triggers=Array.isArray(step?.triggers)?step.triggers.map(normalizeHitTrigger).filter(Boolean):[];
+  if(!triggers.length)return true;
+  const trigger=normalizeHitTrigger(event?.trigger);
+  return !!trigger&&triggers.includes(trigger);
+}
+function machineHitBranchFlowSteps(route,through=hitBranchWizard.through,event=currentHitEvent()){
   const flow=currentMachine()?.hitBranchFlows?.[route];
-  if(Array.isArray(flow))return flow.map(step=>({...step}));
+  const normalizeSteps=steps=>steps.map(normalizeHitBranchStep).filter(Boolean).filter(step=>hitBranchStepAppliesToEvent(step,event));
+  if(Array.isArray(flow))return normalizeSteps(flow);
   if(flow&&typeof flow==='object'){
-    const base=Array.isArray(flow.base)?flow.base.map(step=>({...step})):[];
-    const branch=Array.isArray(flow.branches?.[through])?flow.branches[through].map(step=>({...step})):[];
+    const base=Array.isArray(flow.base)?normalizeSteps(flow.base):[];
+    const branch=Array.isArray(flow.branches?.[through])?normalizeSteps(flow.branches[through]):[];
     return [...base,...branch];
   }
   return [];
@@ -10997,6 +11033,7 @@ function openCurrentHitBranchStep(){
   if(!step)return;
   if(step.key==='czResult'){openCzResultBranchPicker();return;}
   if(step.key==='through'){openAtThroughBranchPicker();return;}
+  if(step.key==='shunjoPt'){openShunjoPtStepSheet();return;}
   if(step.key==='payout'){promptHitEventPayout();return;}
   if(step.key==='karakuriAtEndPattern'){openKarakuriAtEndPatternPicker();return;}
   if(step.key==='endingCards'){renderLogFields();return;}
@@ -11051,6 +11088,65 @@ function selectCzResultBranch(result){
   hitBranchWizard.route=event.czResult==='at_win'?'atHit':'czFail';
   hitBranchWizard.stepIndex=event.czResult==='at_win'?0:1;
   closeSuggestPicker();
+  renderLogFields();
+  saveDraftImmediately();
+  setTimeout(openCurrentHitBranchStep,0);
+}
+function shunjoPtTag(){
+  return battleModeCurrentTagById('t_kabaneri_shunjo_pt')||currentMachine()?.tags?.find(tag=>tag.id==='t_kabaneri_shunjo_pt')||null;
+}
+function shunjoPtAttachments(point,tanCha3000=false){
+  const attachments=[];
+  const value=normalizeOptionalNumber(point);
+  if(value!==null)attachments.push({key:'shunjoPt',label:'最終pt',value:Math.max(0,Math.min(99999,Math.trunc(value))),unit:''});
+  if(tanCha3000)attachments.push({key:'tanCha3000',label:'単チャ目3000pt',value:1,unit:''});
+  return attachments;
+}
+function openShunjoPtStepSheet(){
+  const event=currentHitEvent();
+  if(!event)return;
+  setBattleModeSheet('駿城pt',`
+    <div class="bm-sheet-note">駿城ボーナス終了時の液晶ptを記録します。不明ならスキップできます。</div>
+    <label class="field-label" for="shunjoPtInput">最終pt</label>
+    <input id="shunjoPtInput" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="例：4100" style="width:100%;box-sizing:border-box;">
+    <label class="toggle-row" style="justify-content:flex-start;gap:8px;">
+      <input id="shunjoPtTanCha3000" type="checkbox">
+      <span>単チャ目3000pt獲得</span>
+    </label>
+    <button class="bm-btn gold" type="button" onclick="submitShunjoPtStep()">決定</button>
+    <button class="bm-btn" type="button" onclick="skipShunjoPtStep()">不明（スキップ）</button>
+    <button class="bm-btn" type="button" onclick="skipShunjoPtStep()">閉じる</button>`);
+  setTimeout(()=>{
+    const input=document.getElementById('shunjoPtInput');
+    input?.focus();
+    input?.select?.();
+  },0);
+}
+function submitShunjoPtStep(){
+  const input=document.getElementById('shunjoPtInput');
+  const raw=String(input?.value||'').trim();
+  const value=normalizeOptionalNumber(raw);
+  if(raw===''||value===null){battleModeInvalid('最終ptを数値で入力してください');return;}
+  recordShunjoPtAndContinue(value,!!document.getElementById('shunjoPtTanCha3000')?.checked);
+}
+function recordShunjoPtAndContinue(point,tanCha3000=false){
+  const tag=shunjoPtTag();
+  if(!tag){battleModeInvalid('駿城ptタグが見つかりません');return false;}
+  const attachments=shunjoPtAttachments(point,tanCha3000);
+  const committed=battleModeCommit('駿城pt',()=>addInstantTimelineTagWithAttachments(tag,attachments),{
+    toastMessage:'駿城ptを記録しました'
+  });
+  if(!committed)return false;
+  closeBattleModeOtherSheet();
+  advanceHitBranchWizard();
+  renderLogFields();
+  saveDraftImmediately();
+  setTimeout(openCurrentHitBranchStep,0);
+  return true;
+}
+function skipShunjoPtStep(){
+  closeBattleModeOtherSheet();
+  advanceHitBranchWizard();
   renderLogFields();
   saveDraftImmediately();
   setTimeout(openCurrentHitBranchStep,0);
@@ -12478,6 +12574,13 @@ function selectNangokuEntryCause(causeKey){
 }
 function timelineAttachmentText(attachments){
   const rows=normalizeTimelineAttachments(attachments);
+  if(rows.some(row=>row.key==='shunjoPt'||row.key==='tanCha3000')){
+    return rows.map(row=>{
+      if(row.key==='shunjoPt')return `${row.value}`;
+      if(row.key==='tanCha3000')return '3000pt獲得';
+      return row.unit?`${row.label}+${row.value}${row.unit}`:`${row.label}${row.value}`;
+    }).join('・');
+  }
   return rows.length?rows.map(row=>row.unit?`${row.label}+${row.value}${row.unit}`:`${row.label}${row.value}`).join(' / '):'';
 }
 function beginTagNumberAttachment(tag){

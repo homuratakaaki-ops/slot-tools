@@ -285,6 +285,10 @@ function testKabaneriPresetSeedAndPickers() {
     JSON.parse(vm.runInContext("JSON.stringify(currentMachine().tags.find(tag => tag.id === 't_kabaneri_reel_flash'))", context)),
     { id: 't_kabaneri_reel_flash', label: 'リールフラッシュ', optional: true, countAs: null, tagClass: 'event', group: '', collapsible: false, defaultOpen: true, liquidDelta: null, liquidSet: null, subCounterDelta: null, numberAttachment: null, suggestLink: null, size: '', instantLog: false }
   );
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentMachine().tags.find(tag => tag.id === 't_kabaneri_shunjo_pt'))", context)),
+    { id: 't_kabaneri_shunjo_pt', label: '駿城pt', optional: true, countAs: null, tagClass: 'event', group: '', collapsible: false, defaultOpen: true, liquidDelta: null, liquidSet: null, subCounterDelta: null, numberAttachment: null, suggestLink: null, size: '', instantLog: false }
+  );
   assert.equal(vm.runInContext("JSON.stringify(currentMachine().chanceFollowUp || {}).includes('t_kabaneri_reel_flash')", context), false);
   assert.equal(vm.runInContext("JSON.stringify(currentMachine().stateAutoEnd || {}).includes('t_kabaneri_reel_flash')", context), false);
   assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_point')", context), true);
@@ -459,6 +463,12 @@ function testKabaneriPresetSeedAndPickers() {
     JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => step.key))", context)),
     ['through', 'payout']
   );
+  vm.runInContext("currentHitEvents=[{id:'hit_shunjo_steps',trigger:'direct_at',variant:'cz_mumei',dataGame:160,liquidGame:160,createdAt:new Date().toISOString()}]; hitBranchWizard={eventId:'hit_shunjo_steps',route:'atHit',stepIndex:0,through:null,done:[]};", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => [step.key, step.triggers || []]))", context)),
+    [['through', []], ['shunjoPt', ['direct_at']], ['payout', []]]
+  );
+  vm.runInContext("currentHitEvents=[]; hitBranchWizard={eventId:'',route:'',stepIndex:0,through:null,done:[]};", context);
   const gridHtml = vm.runInContext('renderBattleModeGrid()', context);
   assert.match(gridHtml, /無名/);
   assert.match(gridHtml, /生駒/);
@@ -1858,6 +1868,80 @@ function testKabaneriHitCauseFirstFlow() {
   html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   assert.match(html, /CZ当選/);
   assert.doesNotMatch(html, /無名CZ/);
+}
+
+function testKabaneriShunjoPtStep() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext(`
+    selectedMachineId = 'm_kabaneri';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setTimelineGames(410, 410);
+    battleModeStartHit('direct_at', 'cz_mumei');
+    selectAtThroughBranch('yes');
+  `, context);
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'shunjoPt');
+  vm.runInContext("openCurrentHitBranchStep()", context);
+  let html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(html, /最終pt/);
+  assert.match(html, /単チャ目3000pt獲得/);
+  assert.match(html, /不明（スキップ）/);
+
+  vm.runInContext("recordShunjoPtAndContinue(4100, true)", context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 1);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline[0].tagIds)", context)),
+    ['t_kabaneri_shunjo_pt']
+  );
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline[0].attachments)", context)),
+    [
+      { key: 'shunjoPt', label: '最終pt', value: 4100, unit: '' },
+      { key: 'tanCha3000', label: '単チャ目3000pt', value: 1, unit: '' }
+    ]
+  );
+  assert.match(vm.runInContext("timelineEntryText(currentTimeline[0])", context), /駿城pt（4100・3000pt獲得）/);
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'payout');
+  assert.equal(vm.runInContext("currentHitEvents.length", context), 1);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  assert.equal(vm.runInContext("currentHitEvents.length", context), 1);
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'payout');
+
+  vm.runInContext(`
+    currentTimeline = [];
+    currentHitEvents = [];
+    hitBranchWizard = { eventId:'', route:'', stepIndex:0, through:null, done:[] };
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setTimelineGames(420, 420);
+    battleModeStartHit('direct_at', 'cycle');
+    selectAtThroughBranch('no');
+    skipShunjoPtStep();
+  `, context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  assert.equal(vm.runInContext("currentHitEvents[0].trigger", context), 'direct_at');
+  assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'no');
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'payout');
+
+  vm.runInContext(`
+    currentTimeline = [];
+    currentHitEvents = [];
+    hitBranchWizard = { eventId:'', route:'', stepIndex:0, through:null, done:[] };
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setTimelineGames(430, 430);
+    battleModeStartHit('episode_bonus', 'ceiling');
+  `, context);
+  assert.equal(vm.runInContext("currentHitEvents[0].trigger", context), 'episode_bonus');
+  assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'yes');
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => step.key))", context)),
+    ['payout']
+  );
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'payout');
 }
 
 function testNangokuBonusTypeSuggestStepIsSkippedAfterBonusPicker() {
@@ -3438,6 +3522,7 @@ function run() {
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
   testKabaneriPresetSeedAndPickers();
   testKabaneriHitCauseFirstFlow();
+  testKabaneriShunjoPtStep();
   testKabaneriChanceEyeMeterAndCounters();
   testKabaneriChanceEyeSituationView();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();
