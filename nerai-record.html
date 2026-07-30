@@ -1065,6 +1065,7 @@ const STORAGE_RECOVERY_KEYS=[STORAGE_LAST_GOOD_KEY,STORAGE_PREMIGRATE_KEY,STORAG
 const STORAGE_BACKUP_PURGE_KEYS=[...STORAGE_BACKUP_KEYS,STORAGE_PREMIGRATE_KEY,STORAGE_PRERESTORE_KEY];
 const STORAGE_CHECKPOINT_KEY='nerai_record_v1_checkpoint';
 const STORAGE_DELETABLE_KEYS=[...STORAGE_RECOVERY_KEYS,STORAGE_CHECKPOINT_KEY];
+const STORAGE_BATTLE_MEMO_DRAFT_KEY='nrBattleMemoDraft';
 const START_MEMO_LABEL='打ち始めメモ';
 const LOCAL_STORAGE_SOFT_LIMIT_BYTES=5*1024*1024;
 const STORAGE_USAGE_WARN_RATIO=.6;
@@ -1322,6 +1323,9 @@ let pendingDraftRestore=false;
 let draftSaveTimer=null;
 let startMemoSaveTimer=null;
 let currentStartMemoEntryId='';
+let battleMemoDraft='';
+let battleMemoDraftSessionId='';
+let battleMemoDraftSaveTimer=null;
 let battleModeOpen=false;
 let battleModeUndoStack=[];
 let battleModeRedoAction=null;
@@ -6468,6 +6472,7 @@ function openBattleMode(){
   renderBattleMode();
 }
 function closeBattleMode(){
+  flushBattleMemoDraftSave();
   battleModeOpen=false;
   releaseBattleModeWakeLock();
   document.getElementById('battleModeOverlay')?.classList.remove('open');
@@ -7312,6 +7317,7 @@ function battleModeRecordQuitEndLog(){
     renderPracticeStats();
     saveDraftImmediately();
   }
+  clearBattleMemoDraft();
 }
 function battleModeQuitOnly(){
   closeBattleModeOtherSheet();
@@ -7694,24 +7700,104 @@ function battleModeOtherExcludedModalRefs(){
   const panel=battleModePanel();
   return new Set(panel.events.filter(item=>item?.type==='modal').map(item=>item.ref));
 }
+function battleMemoCurrentSessionId(){
+  return String(currentSessionIdPreview()||battleMemoDraftSessionId||'');
+}
+function battleMemoEnsureSessionId(){
+  let sessionId=battleMemoCurrentSessionId();
+  if(sessionId)return sessionId;
+  const log=currentInputLogObject(false,db?.draftLog||null);
+  sessionId=String(log?.sessionId||log?.id||'');
+  battleMemoDraftSessionId=sessionId;
+  return sessionId;
+}
+function readBattleMemoStoredDraft(){
+  try{
+    const raw=localStorage.getItem(STORAGE_BATTLE_MEMO_DRAFT_KEY);
+    if(!raw)return null;
+    const parsed=JSON.parse(raw);
+    return parsed&&typeof parsed==='object'?parsed:null;
+  }catch{
+    return null;
+  }
+}
+function clearBattleMemoDraft(){
+  clearTimeout(battleMemoDraftSaveTimer);
+  battleMemoDraftSaveTimer=null;
+  battleMemoDraft='';
+  battleMemoDraftSessionId='';
+  try{localStorage.removeItem(STORAGE_BATTLE_MEMO_DRAFT_KEY);}catch{}
+}
+function restoreBattleMemoDraftText(){
+  if(battleMemoDraft)return battleMemoDraft;
+  const stored=readBattleMemoStoredDraft();
+  if(!stored)return '';
+  const sessionId=battleMemoCurrentSessionId();
+  if(!sessionId||String(stored.sessionId||'')!==sessionId){
+    clearBattleMemoDraft();
+    return '';
+  }
+  battleMemoDraftSessionId=sessionId;
+  battleMemoDraft=String(stored.text||'');
+  return battleMemoDraft;
+}
+function clearBattleMemoDraftSaveTimer(){
+  clearTimeout(battleMemoDraftSaveTimer);
+  battleMemoDraftSaveTimer=null;
+}
+function saveBattleMemoDraftNow(){
+  clearBattleMemoDraftSaveTimer();
+  const el=document.getElementById('battleModeMemoText');
+  if(el)battleMemoDraft=String(el.value||'');
+  if(!battleMemoDraft){
+    try{localStorage.removeItem(STORAGE_BATTLE_MEMO_DRAFT_KEY);}catch{}
+    return;
+  }
+  const sessionId=battleMemoEnsureSessionId();
+  if(!sessionId)return;
+  try{
+    localStorage.setItem(STORAGE_BATTLE_MEMO_DRAFT_KEY,JSON.stringify({sessionId,text:battleMemoDraft,updatedAt:new Date().toISOString()}));
+  }catch(error){
+    console.warn('battle memo draft save failed',error);
+  }
+}
+function scheduleBattleMemoDraftSave(){
+  clearBattleMemoDraftSaveTimer();
+  battleMemoDraftSaveTimer=setTimeout(saveBattleMemoDraftNow,600);
+}
+function flushBattleMemoDraftSave(){
+  if(!battleMemoDraftSaveTimer)return;
+  clearBattleMemoDraftSaveTimer();
+  saveBattleMemoDraftNow();
+}
+function handleBattleModeMemoInput(){
+  const el=document.getElementById('battleModeMemoText');
+  battleMemoDraft=String(el?.value||'');
+  battleMemoEnsureSessionId();
+  scheduleBattleMemoDraftSave();
+  scheduleBattleModeMemoViewportUpdate();
+}
 function openBattleModeMemoSheet(){
   battleModeMemoSheetOpen=true;
   document.getElementById('battleModeOtherSheet')?.classList.add('memo-mode');
+  const memoText=restoreBattleMemoDraftText();
   setBattleModeSheet('メモ',`
-    <textarea id="battleModeMemoText" class="bm-memo-text" placeholder="メモ" onfocus="scheduleBattleModeMemoViewportUpdate()" oninput="scheduleBattleModeMemoViewportUpdate()"></textarea>
+    <textarea id="battleModeMemoText" class="bm-memo-text" placeholder="メモ" onfocus="scheduleBattleModeMemoViewportUpdate()" oninput="handleBattleModeMemoInput()">${escapeHtml(memoText)}</textarea>
     <button class="bm-btn counter" type="button" onclick="saveBattleModeMemo()">追加</button>
     <button class="bm-btn" type="button" onclick="openBattleModeOtherSheet()">戻る</button>`);
   scheduleBattleModeMemoViewportUpdate();
   setTimeout(()=>{document.getElementById('battleModeMemoText')?.focus();scheduleBattleModeMemoViewportUpdate();},0);
 }
 function saveBattleModeMemo(){
+  flushBattleMemoDraftSave();
   const text=String(document.getElementById('battleModeMemoText')?.value||'').trim();
   if(!text){battleModeInvalid('メモを入力してください');return;}
   if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
   closeBattleModeOtherSheet();
-  battleModeCommit('メモ',()=>{
+  const committed=battleModeCommit('メモ',()=>{
     addTimelineEntryText(text);
   });
+  if(committed)clearBattleMemoDraft();
 }
 function battleModeStartHit(trigger,variant=''){
   const normalized=normalizeHitTrigger(trigger);
@@ -7727,6 +7813,7 @@ function battleModeStartHit(trigger,variant=''){
   battleModeVibrate(18);
 }
 function openBattleModeOtherSheet(){
+  flushBattleMemoDraftSave();
   battleModeMemoSheetOpen=false;
   const sheet=document.getElementById('battleModeOtherSheet');
   sheet?.classList.remove('memo-mode');
@@ -7752,6 +7839,7 @@ function openBattleModeOtherSheet(){
   document.getElementById('battleModeOtherSheet')?.classList.add('open');
 }
 function closeBattleModeOtherSheet(){
+  flushBattleMemoDraftSave();
   battleModeMemoSheetOpen=false;
   const sheet=document.getElementById('battleModeOtherSheet');
   sheet?.classList.remove('memo-mode');
@@ -13053,6 +13141,7 @@ function saveLog(options={}){
   db.draftLog=null;
   const saved=persist();
   if(!saved)return null;
+  clearBattleMemoDraft();
   if(saved)saveCheckpoint(finalized?'収支登録後':'区切り保存後',log.sessionId);
   const wasEditing=!!editingLog;
   editingLogId=null;
@@ -13112,6 +13201,7 @@ function archiveCurrentDraftAsUnfinalized(){
   return persist()?log:null;
 }
 function clearLogInput(cancelEdit=true){
+  clearBattleMemoDraft();
   if(cancelEdit)editingLogId=null;
   continuedFromLog=null;
   sessionFieldsLocked=false;
@@ -14663,9 +14753,11 @@ if(window.visualViewport){
   window.visualViewport.addEventListener('scroll',scheduleBattleModeMemoViewportUpdate);
 }
 document.addEventListener('visibilitychange',()=>{
+  if(document.hidden)flushBattleMemoDraftSave();
   if(!document.hidden)handlePageResume('visibilitychange復帰');
   if(document.visibilityState==='visible'&&battleModeOpen)requestBattleModeWakeLock();
 });
+window.addEventListener('pagehide',flushBattleMemoDraftSave);
 window.addEventListener('focus',()=>handlePageResume('focus復帰'));
 window.addEventListener('pageshow',()=>handlePageResume('pageshow復帰'));
 
