@@ -2671,6 +2671,7 @@ function normalizeData(data){
     ensureKabaneriCounterSeed(m);
     ensureKabaneriReelFlashSeedV1(m);
     ensureKabaneriHitCauseSeedV1(m);
+    ensureKabaneriHitCauseFirstSeedV1(m);
     ensureKabaneriCounterDisplayBaseSeedV1(m);
     ensureKabaneriLowerBellPreserveSeedV1(m);
     ensureKabaneriEpisodeAutoStSeedV1(m);
@@ -2678,6 +2679,8 @@ function normalizeData(data){
     ensureKabaneriChanceFollowUpSeedV1(m);
     ensureKabaneriStateAutoEndSeedV1(m);
     ensureKabaneriMumeiDefeatSeedV1(m);
+    if(m.hitCauseFirst===true)m.hitCauseFirst=true;
+    else delete m.hitCauseFirst;
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     const autoThrough=normalizeHitFlowAutoThrough(m.hitFlowAutoThrough);
     if(Object.keys(autoThrough).length)m.hitFlowAutoThrough=autoThrough;
@@ -5073,6 +5076,11 @@ function ensureKabaneriHitCauseSeedV1(machine){
   machine.hitTriggers=kabaneriHitTriggersWithCause();
   machine.kabaneriHitCauseSeedV1=true;
 }
+function ensureKabaneriHitCauseFirstSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriHitCauseFirstSeedV1)return;
+  machine.hitCauseFirst=true;
+  machine.kabaneriHitCauseFirstSeedV1=true;
+}
 function ensureKabaneriCounterSeed(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriCounterSeedV1)return;
   mergeTimelineTagSeed(machine,[
@@ -5739,7 +5747,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5789,6 +5797,7 @@ function addMachine(){
   ensureKabaneriCounterSeed(machine);
   ensureKabaneriReelFlashSeedV1(machine);
   ensureKabaneriHitCauseSeedV1(machine);
+  ensureKabaneriHitCauseFirstSeedV1(machine);
   ensureKabaneriCounterDisplayBaseSeedV1(machine);
   ensureKabaneriLowerBellPreserveSeedV1(machine);
   ensureKabaneriEpisodeAutoStSeedV1(machine);
@@ -7992,6 +8001,10 @@ function battleModeRecordKabaneriPickerTag(tagId){
 function openBattleModeHitPicker(){
   const triggers=machineHitTriggers();
   if(!triggers.length){battleModeInvalid('\u5f53\u9078\u7a2e\u5225\u304c\u898b\u3064\u304b\u308a\u307e\u305b\u3093');return;}
+  if(machineHitCauseFirst()){
+    openBattleModeHitCausePicker();
+    return;
+  }
   setBattleModeSheet('\u5f53\u9078',
     triggers.map(row=>`<button class="bm-btn counter" type="button" onclick="battleModeSelectHitTrigger('${escapeHtml(row.key)}')">${escapeHtml(row.label)}</button>`).join('')
   );
@@ -8015,6 +8028,47 @@ function hitTriggerConfig(trigger,machine=currentMachine()){
 }
 function hitTriggerRequiresVariant(trigger,machine=currentMachine()){
   return !!hitTriggerConfig(trigger,machine)?.variantRequired;
+}
+function machineHitCauseFirst(machine=currentMachine()){
+  return machine?.hitCauseFirst===true;
+}
+function hitCauseFirstVariants(machine=currentMachine()){
+  const variants=[];
+  const seen=new Set();
+  machineHitTriggers(machine).forEach(trigger=>{
+    (trigger.variants||[]).forEach(variant=>{
+      const key=String(variant?.key||'').trim();
+      if(!key||seen.has(key))return;
+      seen.add(key);
+      variants.push(variant);
+    });
+  });
+  return variants.filter(variant=>variant.key!=='other').concat(variants.filter(variant=>variant.key==='other'));
+}
+function hitCauseFirstTriggersForVariant(variantKey,machine=currentMachine()){
+  const key=String(variantKey||'').trim();
+  if(!key)return [];
+  return machineHitTriggers(machine).filter(trigger=>(trigger.variants||[]).some(variant=>variant.key===key));
+}
+function openBattleModeHitCausePicker(){
+  const variants=hitCauseFirstVariants();
+  if(!variants.length){battleModeInvalid('当選契機が見つかりません');return;}
+  setBattleModeSheet('当選契機',
+    `<div class="bm-sheet-note">契機を選んでください。閉じると当選は記録しません。</div>`+
+    variants.map(variant=>`<button class="bm-btn hit-variant-choice" type="button" onclick="openBattleModeHitTypePickerForCause('${escapeHtml(variant.key)}')">${hitVariantLabelHtml(variant)}</button>`).join('')
+  );
+}
+function openBattleModeHitTypePickerForCause(variantKey){
+  const triggers=hitCauseFirstTriggersForVariant(variantKey);
+  if(!triggers.length){battleModeInvalid('当選種別が見つかりません');return;}
+  if(triggers.length===1){
+    battleModeStartHit(triggers[0].key,variantKey);
+    return;
+  }
+  setBattleModeSheet('当選種別',
+    `<div class="bm-sheet-note">種別を選ぶと当選記録に進みます。</div>`+
+    triggers.map(trigger=>`<button class="bm-btn counter" type="button" onclick="battleModeStartHit('${escapeHtml(trigger.key)}','${escapeHtml(variantKey)}')">${escapeHtml(trigger.label)}</button>`).join('')
+  );
 }
 function battleModeSelectHitTrigger(triggerKey){
   const trigger=hitTriggerConfig(triggerKey);

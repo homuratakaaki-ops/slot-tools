@@ -434,6 +434,19 @@ function testKabaneriPresetSeedAndPickers() {
     JSON.parse(vm.runInContext('JSON.stringify(machineHitTriggers().map(row => [row.key, row.label]))', context)),
     [['direct_at', '駿城ボーナス'], ['episode_bonus', 'エピソードボーナス']]
   );
+  assert.equal(vm.runInContext("currentMachine().hitCauseFirst", context), true);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(hitCauseFirstVariants().map(row => [row.key, row.label]))", context)),
+    [
+      ['cz_mumei', '無名CZ'],
+      ['cz_ikoma', '生駒CZ'],
+      ['cz_doran', '銅藍CZ'],
+      ['cycle', '周期'],
+      ['ceiling', '天井'],
+      ['kokuen', '黒煙解放'],
+      ['other', 'その他']
+    ]
+  );
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => step.key))", context)),
     ['through', 'payout']
@@ -496,7 +509,15 @@ function testKabaneriPresetSeedAndPickers() {
   vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_st_true_kageyuki')", context);
   assert.equal(vm.runInContext("currentTimeline.at(-1).tagIds.includes('t_kabaneri_st_true_kageyuki')", context), true);
   vm.runInContext("openBattleModePicker('hit')", context);
-  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /駿城ボーナス/);
+  const hitCauseHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(hitCauseHtml, /無名CZ/);
+  assert.match(hitCauseHtml, /生駒CZ/);
+  assert.match(hitCauseHtml, /銅藍CZ/);
+  assert.match(hitCauseHtml, /周期/);
+  assert.match(hitCauseHtml, /天井/);
+  assert.match(hitCauseHtml, /黒煙解放/);
+  assert.equal(hitCauseHtml.indexOf('黒煙解放') < hitCauseHtml.indexOf('その他'), true);
+  assert.doesNotMatch(hitCauseHtml, /駿城ボーナス/);
   vm.runInContext("openBattleModeKabaneriStagePicker()", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /第四区画坑道/);
   vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_stage_fourth_tunnel')", context);
@@ -1695,6 +1716,82 @@ function testBattleModeBonusPickerStartsExistingHitWizard() {
     assert.equal(vm.runInContext('battleModeOpen', context), false);
     assert.equal(vm.runInContext('battleModeUndoStack.length', context), 0);
   });
+}
+
+function testKabaneriHitCauseFirstFlow() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext(`
+    selectedMachineId = 'm_kabaneri';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setTimelineGames(300, 300);
+  `, context);
+
+  vm.runInContext("openBattleModePicker('hit')", context);
+  let html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(html, /無名CZ/);
+  assert.match(html, /生駒CZ/);
+  assert.match(html, /銅藍CZ/);
+  assert.match(html, /周期/);
+  assert.match(html, /天井/);
+  assert.match(html, /黒煙解放/);
+  assert.equal(html.indexOf('その他') > html.indexOf('黒煙解放'), true);
+  assert.doesNotMatch(html, /駿城ボーナス/);
+  vm.runInContext("closeBattleModeOtherSheet()", context);
+  assert.equal(vm.runInContext("currentHitEvents.length", context), 0);
+
+  vm.runInContext("openBattleModeHitTypePickerForCause('cz_mumei')", context);
+  html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(html, /駿城ボーナス/);
+  assert.match(html, /エピソードボーナス/);
+  vm.runInContext("closeBattleModeOtherSheet()", context);
+  assert.equal(vm.runInContext("currentHitEvents.length", context), 0);
+
+  vm.runInContext("setTimelineGames(310,310); openBattleModeHitTypePickerForCause('cz_mumei'); battleModeStartHit('direct_at','cz_mumei')", context);
+  assert.equal(vm.runInContext("currentHitEvents.length", context), 1);
+  assert.equal(vm.runInContext("currentHitEvents[0].trigger", context), 'direct_at');
+  assert.equal(vm.runInContext("currentHitEvents[0].variant", context), 'cz_mumei');
+  assert.equal(vm.runInContext("currentHitEvents[0].through", context), null);
+  assert.equal(vm.runInContext("currentFlowStep", context), 3);
+
+  vm.runInContext(`
+    currentHitEvents = [];
+    hitBranchWizard = { eventId:'', route:'', stepIndex:0, through:null, active:false };
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setTimelineGames(320,320);
+    openBattleModeHitTypePickerForCause('ceiling');
+  `, context);
+  assert.equal(vm.runInContext("currentHitEvents.length", context), 1);
+  assert.equal(vm.runInContext("currentHitEvents[0].trigger", context), 'episode_bonus');
+  assert.equal(vm.runInContext("currentHitEvents[0].variant", context), 'ceiling');
+  assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'yes');
+
+  vm.runInContext(`
+    currentHitEvents = [];
+    hitBranchWizard = { eventId:'', route:'', stepIndex:0, through:null, active:false };
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setTimelineGames(330,330);
+    openBattleModeHitTypePickerForCause('kokuen');
+  `, context);
+  assert.equal(vm.runInContext("currentHitEvents.length", context), 1);
+  assert.equal(vm.runInContext("currentHitEvents[0].trigger", context), 'episode_bonus');
+  assert.equal(vm.runInContext("currentHitEvents[0].variant", context), 'kokuen');
+  assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'yes');
+
+  vm.runInContext(`
+    selectedMachineId = 'm_tokyo_ghoul';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    openBattleModeHitPicker();
+  `, context);
+  html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(html, /CZ当選/);
+  assert.doesNotMatch(html, /無名CZ/);
 }
 
 function testNangokuBonusTypeSuggestStepIsSkippedAfterBonusPicker() {
@@ -3274,6 +3371,7 @@ function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
   testKabaneriPresetSeedAndPickers();
+  testKabaneriHitCauseFirstFlow();
   testKabaneriChanceEyeMeterAndCounters();
   testKabaneriChanceEyeSituationView();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();
