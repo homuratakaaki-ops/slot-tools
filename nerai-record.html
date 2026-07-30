@@ -2650,6 +2650,7 @@ function normalizeData(data){
     ensureKabaneriCounterSeed(m);
     ensureKabaneriHitCauseSeedV1(m);
     ensureKabaneriCounterDisplayBaseSeedV1(m);
+    ensureKabaneriLowerBellPreserveSeedV1(m);
     ensureKabaneriEpisodeAutoStSeedV1(m);
     ensureKabaneriThroughNoFlowSeedV1(m);
     ensureKabaneriChanceFollowUpSeedV1(m);
@@ -3068,7 +3069,8 @@ function normalizeMachineCounter(counter){
     resetTagIds:Array.isArray(counter.resetTagIds)?counter.resetTagIds.map(String).filter(Boolean):[],
     historyEnabled:counter.historyEnabled!==false,
     resetOn:counter.resetOn==='hit'?'hit':'',
-    displayBase:normalizeOptionalNumber(counter.displayBase)??0
+    displayBase:normalizeOptionalNumber(counter.displayBase)??0,
+    preserveOnArchive:counter.preserveOnArchive===true
   };
 }
 function machineCounters(machine=currentMachine()){
@@ -5069,6 +5071,15 @@ function ensureKabaneriCounterDisplayBaseSeedV1(machine){
   })).filter(Boolean);
   machine.kabaneriCounterDisplayBaseSeedV1=true;
 }
+function ensureKabaneriLowerBellPreserveSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriLowerBellPreserveSeedV1)return;
+  ensureKabaneriCounterSeed(machine);
+  machine.counters=machineCounters(machine).map(counter=>normalizeMachineCounter({
+    ...counter,
+    preserveOnArchive:counter.key==='lowerBell'?true:counter.preserveOnArchive===true
+  })).filter(Boolean);
+  machine.kabaneriLowerBellPreserveSeedV1=true;
+}
 function ensureKabaneriEpisodeAutoStSeedV1(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriEpisodeAutoStSeedV1)return;
   machine.hitFlowAutoThrough=normalizeHitFlowAutoThrough({
@@ -5686,7 +5697,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5736,6 +5747,7 @@ function addMachine(){
   ensureKabaneriCounterSeed(machine);
   ensureKabaneriHitCauseSeedV1(machine);
   ensureKabaneriCounterDisplayBaseSeedV1(machine);
+  ensureKabaneriLowerBellPreserveSeedV1(machine);
   ensureKabaneriEpisodeAutoStSeedV1(machine);
   ensureKabaneriThroughNoFlowSeedV1(machine);
   ensureKabaneriChanceFollowUpSeedV1(machine);
@@ -10298,6 +10310,16 @@ function preserveHitThroughNoFlowState(flow){
     liquidGame:flow?.preserveLiquidGame?timelineLiquidValue():null
   };
 }
+function preserveArchiveSubCounters(){
+  const subCounters={};
+  machineCounters().filter(counter=>counter.preserveOnArchive===true).forEach(counter=>{
+    subCounters[counter.key]=subCounterValue(counter.key);
+  });
+  return subCounters;
+}
+function restoreArchiveSubCounters(subCounters){
+  Object.entries(subCounters||{}).forEach(([key,value])=>setSubCounterValue(key,value));
+}
 function openHitThroughNoFlowSuggestPlace(placeId){
   const entry=findSuggestPlaceEntryById(placeId);
   if(!entry)return;
@@ -10320,6 +10342,7 @@ function archiveCurrentSegment(event,terminalType='',options={}){
   if(!segment)return null;
   const throughNoFlow=hitThroughNoFlowForEvent(event);
   const throughNoFlowState=throughNoFlow?preserveHitThroughNoFlowState(throughNoFlow):null;
+  const archivePreservedSubCounters=preserveArchiveSubCounters();
   lastSegmentUndo={
     segmentId:segment.id,
     eventId:event?.id||'',
@@ -10349,6 +10372,7 @@ function archiveCurrentSegment(event,terminalType='',options={}){
     setTimelineGames(9,0);
   }
   if(throughNoFlow)applyHitThroughNoFlowAfterReset(throughNoFlow,throughNoFlowState);
+  restoreArchiveSubCounters(archivePreservedSubCounters);
   return segment;
 }
 function restoreHitWizardToExit(event){
@@ -13639,6 +13663,8 @@ function clearLogInput(cancelEdit=true){
   currentTimelineDataGame=null;
   intervalLoanRateManuallyAdjusted=false;
   currentIntervalEstimate=normalizeIntervalEstimate(null);
+  currentSubCounters={};
+  currentCounterHistories=[];
   carriedMedalsAppliedKey='';
   resetTimelineOffsets();
   linkedEndDataGame=null;

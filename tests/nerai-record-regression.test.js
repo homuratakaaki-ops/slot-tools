@@ -474,6 +474,8 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(vm.runInContext("renderBattleModeCompactCounters()", context), /周期/);
   assert.match(vm.runInContext("renderBattleModeCompactCounters()", context), /下段ベル/);
   assert.match(vm.runInContext("renderBattleModeReplayFlashMeter()", context), /チャ目/);
+  assert.equal(vm.runInContext("machineCounters().find(counter => counter.key === 'lowerBell').preserveOnArchive", context), true);
+  assert.equal(vm.runInContext("machineCounters().find(counter => counter.key === 'cycle').preserveOnArchive", context), false);
 
   vm.runInContext("battleModeRecordTag('t_kabaneri_chance_mumei'); battleModeRecordChanceFollowUp('t_kabaneri_chance_mumei','none')", context);
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /無1/);
@@ -487,6 +489,38 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.equal(vm.runInContext("currentTimeline.some(row => row.tagIds.includes('t_kabaneri_lower_bell'))", context), true);
   assert.match(vm.runInContext("subCounterLine(currentSubCounters)", context), /周期2回/);
   assert.match(vm.runInContext("subCounterLine(currentSubCounters)", context), /下段ベル1回/);
+  vm.runInContext(`
+    currentTimeline=[];
+    currentSegments=[];
+    lastSegmentUndo=null;
+    setTimelineGames(200,200);
+    setSubCounterValue('cycle',2);
+    setSubCounterValue('lowerBell',3);
+    archiveCurrentSegment({id:'hit_yes',trigger:'direct_at',through:'yes',dataGame:200,liquidGame:200},'hit');
+  `, context);
+  assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 3);
+  assert.equal(vm.runInContext("subCounterValue('cycle')", context), 0);
+  vm.runInContext("battleModeIncrementSubCounter('lowerBell')", context);
+  assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 4);
+  vm.runInContext("undoLastSegmentArchive()", context);
+  assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 3);
+  assert.equal(vm.runInContext("subCounterValue('cycle')", context), 2);
+  vm.runInContext(`
+    currentTimeline=[];
+    currentSegments=[];
+    lastSegmentUndo=null;
+    setTimelineGames(240,240);
+    setSubCounterValue('cycle',4);
+    setSubCounterValue('lowerBell',5);
+    archiveCurrentSegment({id:'hit_no',trigger:'direct_at',through:'no',dataGame:240,liquidGame:240},'hit');
+  `, context);
+  assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 5);
+  assert.equal(vm.runInContext("subCounterValue('cycle')", context), 4);
+  assert.equal(vm.runInContext("timelineDataValue()", context), 0);
+  assert.equal(vm.runInContext("timelineLiquidValue()", context), 240);
+  vm.runInContext("setSubCounterValue('lowerBell',7); clearLogInput(false)", context);
+  assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 0);
+  assert.equal(vm.runInContext("JSON.stringify(currentMachine().counters).includes('preserveOnArchive')", context), true);
   const style = extractStyle();
   assert.match(style, /\.bm-grid\{[^}]*grid-auto-rows:minmax\(52px,auto\)/);
   assert.match(style, /\.bm-grid\{[^}]*align-content:start/);
