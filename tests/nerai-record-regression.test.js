@@ -259,6 +259,10 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("currentMachine().states.length", context), 11);
   assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_cz_mumei' && state.endOptions.length === 2)", context), true);
   assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_mumei_high')", context), true);
+  assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_mumei_high' && state.startViaFollowUpOnly === true)", context), true);
+  assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_mumei_flash' && state.startViaFollowUpOnly === true)", context), true);
+  assert.equal(vm.runInContext("currentMachine().chanceFollowUp.t_kabaneri_chance_mumei.flash === 't_kabaneri_state_mumei_flash_start'", context), true);
+  assert.equal(vm.runInContext("currentMachine().chanceFollowUp.t_kabaneri_chance_mumei.high === 't_kabaneri_state_mumei_high_start'", context), true);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_cherry')", context), false);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_suika')", context), false);
   assert.equal(vm.runInContext("currentMachine().suggestMaster.some(category => category.id === 'sgc_kabaneri_point')", context), true);
@@ -280,13 +284,18 @@ function testKabaneriPresetSeedAndPickers() {
   vm.runInContext("openBattleModeStatePicker()", context);
   let stateHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   let stateText = stripTags(stateHtml);
-  assert.equal(stateText.indexOf('🔥チャ目高確 開始') < stateText.indexOf('🔥カバネ高確 開始'), true);
-  assert.equal(stateText.indexOf('🔥無名高確 開始') < stateText.indexOf('🔥生駒高確 開始'), true);
-  assert.equal(stateText.indexOf('💡無名発光 開始') < stateText.indexOf('💡生駒発光 開始'), true);
+  assert.match(stateText, /🔥チャ目高確 開始/);
+  assert.match(stateText, /⚔無名CZ 開始/);
+  assert.match(stateText, /⚡超高確 開始/);
+  assert.doesNotMatch(stateText, /🔥無名高確 開始/);
+  assert.doesNotMatch(stateText, /🔥生駒高確 開始/);
+  assert.doesNotMatch(stateText, /🔥カバネ高確 開始/);
+  assert.doesNotMatch(stateText, /💡無名発光 開始/);
+  assert.doesNotMatch(stateText, /💡生駒発光 開始/);
+  assert.doesNotMatch(stateText, /💡カバネ発光 開始/);
   assert.match(stateHtml, /bm-state-choice/);
   assert.match(stateHtml, /suggest-color-red">無名/);
   assert.match(stateHtml, /suggest-color-green">生駒/);
-  assert.match(stateHtml, /suggest-color-blue">カバネ/);
   assert.match(stateHtml, /suggest-color-gold">超高確/);
   assert.doesNotMatch(stateHtml, /class="bm-btn[^"]*kabaneri-red/);
   vm.runInContext("battleModeRecordState('kabaneri_mumei_flash','start')", context);
@@ -298,6 +307,30 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(stateText, /💡無名発光 終了/);
   assert.doesNotMatch(stateText, /💡無名発光 開始/);
   assert.doesNotMatch(stateHtml, /class="bm-btn[^"]*kabaneri-red/);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(120,120); battleModeRecordTag('t_kabaneri_chance_mumei')", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /💡発光/);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /🔥高確/);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  vm.runInContext("closeBattleModeOtherSheet()", context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  vm.runInContext("battleModeRecordChanceFollowUp('t_kabaneri_chance_mumei','flash')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_chance_mumei', 't_kabaneri_state_mumei_flash_start']
+  );
+  assert.match(vm.runInContext("kabaneriChanceEyeSituationLine(kabaneriChanceEyeSituation().total,'累計')", context), /通常1（発光なし0／あり1）/);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  vm.runInContext("battleModeRecordChanceFollowUp('t_kabaneri_chance_mumei','both')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_chance_mumei', 't_kabaneri_state_mumei_flash_start', 't_kabaneri_state_mumei_high_start']
+  );
+  vm.runInContext("setTimelineGames(121,121); battleModeRecordChanceFollowUp('t_kabaneri_chance_mumei','flash')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_chance_mumei']
+  );
   assert.deepEqual(
     JSON.parse(vm.runInContext('JSON.stringify(machineHitTriggers().map(row => [row.key, row.label]))', context)),
     [['direct_at', '駿城ボーナス'], ['episode_bonus', 'エピソードボーナス']]
@@ -396,7 +429,7 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(vm.runInContext("renderBattleModeCompactCounters()", context), /下段ベル/);
   assert.match(vm.runInContext("renderBattleModeReplayFlashMeter()", context), /チャ目/);
 
-  vm.runInContext("battleModeRecordTag('t_kabaneri_chance_mumei')", context);
+  vm.runInContext("battleModeRecordTag('t_kabaneri_chance_mumei'); battleModeRecordChanceFollowUp('t_kabaneri_chance_mumei','none')", context);
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /無1/);
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /合算 1\/50.0/);
 
@@ -445,7 +478,7 @@ function testKabaneriChanceEyeSituationView() {
   vm.runInContext("currentTimeline.pop()", context);
   assert.match(vm.runInContext("kabaneriChanceEyeSituationLine(kabaneriChanceEyeSituation().sinceCz,'前回CZから')", context), /通常1（発光なし1／あり0）・発光中0・高確中0/);
 
-  vm.runInContext("currentTimeline=[]; currentTimelineDataGame=120; setTimelineGames(120,120); battleModeOpen=true; battleModeRecordTag('t_kabaneri_chance_mumei');", context);
+  vm.runInContext("currentTimeline=[]; currentTimelineDataGame=120; setTimelineGames(120,120); battleModeOpen=true; battleModeRecordTag('t_kabaneri_chance_mumei'); battleModeRecordChanceFollowUp('t_kabaneri_chance_mumei','none');", context);
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /無1/);
   vm.runInContext("undoBattleModeLast()", context);
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /無0/);

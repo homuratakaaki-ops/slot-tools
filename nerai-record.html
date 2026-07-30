@@ -1419,7 +1419,9 @@ function normalizeMachineState(state){
   const endTagId=String(state?.endTagId||'').trim();
   if(!id||!label||!startTagId||!endTagId)return null;
   const endOptions=Array.isArray(state.endOptions)?state.endOptions.map(normalizeMachineStateOption).filter(Boolean):[];
-  return {id,label,startTagId,endTagId,endOptions};
+  const normalized={id,label,startTagId,endTagId,endOptions};
+  if(state.startViaFollowUpOnly===true)normalized.startViaFollowUpOnly=true;
+  return normalized;
 }
 function normalizeMachineStates(states){
   if(!Array.isArray(states))return [];
@@ -2039,6 +2041,21 @@ function normalizeHitThroughNoFlow(value){
   if(openSuggestPlace)normalized.openSuggestPlace=openSuggestPlace;
   return Object.keys(normalized).length?normalized:null;
 }
+function normalizeChanceFollowUp(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return {};
+  const normalized={};
+  Object.entries(value).forEach(([tagId,row])=>{
+    const key=String(tagId||'').trim();
+    if(!key||!row||typeof row!=='object'||Array.isArray(row))return;
+    const flash=String(row.flash||'').trim();
+    const high=String(row.high||'').trim();
+    const next={};
+    if(flash)next.flash=flash;
+    if(high)next.high=high;
+    if(Object.keys(next).length)normalized[key]=next;
+  });
+  return normalized;
+}
 function hitTriggerDefaultLabel(trigger){
   return {cz:'CZ当選',upper_cz:'上位CZ当選',at:'AT',direct_at:'AT直撃',episode_bonus:'エピソードボーナス'}[trigger]||trigger||'当選';
 }
@@ -2624,6 +2641,7 @@ function normalizeData(data){
     ensureKabaneriCounterDisplayBaseSeedV1(m);
     ensureKabaneriEpisodeAutoStSeedV1(m);
     ensureKabaneriThroughNoFlowSeedV1(m);
+    ensureKabaneriChanceFollowUpSeedV1(m);
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
     const autoThrough=normalizeHitFlowAutoThrough(m.hitFlowAutoThrough);
     if(Object.keys(autoThrough).length)m.hitFlowAutoThrough=autoThrough;
@@ -2631,6 +2649,9 @@ function normalizeData(data){
     const throughNoFlow=normalizeHitThroughNoFlow(m.hitThroughNoFlow);
     if(throughNoFlow)m.hitThroughNoFlow=throughNoFlow;
     else delete m.hitThroughNoFlow;
+    const chanceFollowUp=normalizeChanceFollowUp(m.chanceFollowUp);
+    if(Object.keys(chanceFollowUp).length)m.chanceFollowUp=chanceFollowUp;
+    else delete m.chanceFollowUp;
     applySuggestMetadata(m);
   });
   migrateTokyoGhoulSuggestLogs(data);
@@ -5052,6 +5073,27 @@ function ensureKabaneriThroughNoFlowSeedV1(machine){
   });
   machine.kabaneriThroughNoFlowSeedV1=true;
 }
+function ensureKabaneriChanceFollowUpSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriChanceFollowUpSeedV1)return;
+  machine.chanceFollowUp=normalizeChanceFollowUp({
+    t_kabaneri_chance_mumei:{flash:'t_kabaneri_state_mumei_flash_start',high:'t_kabaneri_state_mumei_high_start'},
+    t_kabaneri_chance_ikoma:{flash:'t_kabaneri_state_ikoma_flash_start',high:'t_kabaneri_state_ikoma_high_start'},
+    t_kabaneri_chance_kabane:{flash:'t_kabaneri_state_kabane_flash_start',high:'t_kabaneri_state_kabane_high_start'}
+  });
+  const followOnlyStateIds=new Set([
+    'kabaneri_mumei_high',
+    'kabaneri_ikoma_high',
+    'kabaneri_kabane_high',
+    'kabaneri_mumei_flash',
+    'kabaneri_ikoma_flash',
+    'kabaneri_kabane_flash'
+  ]);
+  machine.states=normalizeMachineStates(machineStates(machine).map(state=>({
+    ...state,
+    startViaFollowUpOnly:followOnlyStateIds.has(state.id)
+  })));
+  machine.kabaneriChanceFollowUpSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5621,7 +5663,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5673,6 +5715,7 @@ function addMachine(){
   ensureKabaneriCounterDisplayBaseSeedV1(machine);
   ensureKabaneriEpisodeAutoStSeedV1(machine);
   ensureKabaneriThroughNoFlowSeedV1(machine);
+  ensureKabaneriChanceFollowUpSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -7528,10 +7571,60 @@ function battleModeIncrementSubCounter(key){
     else incrementSubCounter(key,1);
   });
 }
+function machineChanceFollowUp(machine=currentMachine()){
+  return normalizeChanceFollowUp(machine?.chanceFollowUp);
+}
+function chanceFollowUpForTagId(tagId,machine=currentMachine()){
+  return machineChanceFollowUp(machine)[String(tagId||'').trim()]||null;
+}
+function battleModeStateActiveForStartTag(tagId){
+  const state=machineStates().find(row=>row.startTagId===tagId);
+  return state?!!battleModeStateStatusMap().get(state.id)?.active:false;
+}
+function chanceFollowUpExtraTagIds(followUp,choice){
+  const ids=[];
+  if((choice==='flash'||choice==='both')&&followUp?.flash&&!battleModeStateActiveForStartTag(followUp.flash))ids.push(followUp.flash);
+  if((choice==='high'||choice==='both')&&followUp?.high&&!battleModeStateActiveForStartTag(followUp.high))ids.push(followUp.high);
+  return ids;
+}
+function chanceFollowUpChoiceLabelHtml(choice){
+  if(choice==='flash')return '<span class="suggest-color-yellow">💡発光</span>';
+  if(choice==='high')return '<span class="suggest-color-red">🔥高確</span>';
+  if(choice==='both')return '<span class="suggest-color-yellow">💡発光</span><span class="suggest-color-red">🔥高確</span>';
+  return 'なし';
+}
+function openBattleModeChanceFollowUpPicker(tagId){
+  const tag=battleModeCurrentTagById(tagId);
+  const followUp=chanceFollowUpForTagId(tagId);
+  if(!tag||!followUp){battleModeRecordTagImmediate(tagId);return;}
+  if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
+  const choices=['none','flash','high','both'];
+  setBattleModeSheet(battleModeQuickTagLabel(tag),
+    '<div class="bm-sheet-note">チャンス目→状態変更の順に記録します。閉じると記録しません。</div>'+
+    choices.map(choice=>`<button class="bm-btn bm-state-choice" type="button" onclick="battleModeRecordChanceFollowUp('${escapeHtml(tag.id)}','${escapeHtml(choice)}')">${chanceFollowUpChoiceLabelHtml(choice)}</button>`).join('')
+  );
+}
+function battleModeRecordTagImmediate(id){
+  const tag=currentMachine()?.tags?.find(row=>row.id===id);
+  if(!tag){battleModeInvalid('タグが見つかりません');return;}
+  if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
+  battleModeCommit(tag.label,()=>addInstantTimelineTag(tag));
+}
+function battleModeRecordChanceFollowUp(tagId,choice){
+  const tag=battleModeCurrentTagById(tagId);
+  const followUp=chanceFollowUpForTagId(tagId);
+  if(!tag||!followUp){battleModeInvalid('タグが見つかりません');return;}
+  if(!['none','flash','high','both'].includes(choice))return;
+  if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
+  const extraTagIds=chanceFollowUpExtraTagIds(followUp,choice);
+  closeBattleModeOtherSheet();
+  battleModeCommit(tag.label,()=>addInstantTimelineTagWithAttachments(tag,[],{extraTagIds}));
+}
 function battleModeRecordTag(id){
   const tag=currentMachine()?.tags?.find(row=>row.id===id);
   if(!tag){battleModeInvalid('タグが見つかりません');return;}
   if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
+  if(chanceFollowUpForTagId(tag.id)){openBattleModeChanceFollowUpPicker(tag.id);return;}
   battleModeCommit(tag.label,()=>addInstantTimelineTag(tag));
 }
 function battleModeStateById(stateId){
@@ -7545,7 +7638,10 @@ function openBattleModeStatePicker(){
   const states=orderedBattleModeStates(machineStates());
   if(!states.length){battleModeInvalid('状態定義がありません');return;}
   const status=battleModeStateStatusMap();
-  const buttons=states.map(state=>{
+  const buttons=states.filter(state=>{
+    const active=!!status.get(state.id)?.active;
+    return active||state.startViaFollowUpOnly!==true;
+  }).map(state=>{
     const active=!!status.get(state.id)?.active;
     return `<button class="bm-btn bm-state-choice ${active?'active':''}" type="button" onclick="${active&&state.endOptions.length?`openBattleModeStateEndPicker('${escapeHtml(state.id)}')`:`battleModeRecordState('${escapeHtml(state.id)}','${active?'end':'start'}')`}">${battleModeStateChoiceLabelHtml(state,` ${active?'終了':'開始'}`)}</button>`;
   }).join('');
@@ -12097,7 +12193,8 @@ function addInstantTimelineTagWithAttachments(tag,attachments=[],options={}){
   const liquidGame=timelineLiquidValue()??game;
   if(game===null){alert('G数を入力してください');return;}
   if(liquidGame===null){alert('液晶G数を入力してください');return;}
-  const tagIds=[tag.id];
+  const extraTagIds=Array.isArray(options?.extraTagIds)?options.extraTagIds.map(id=>String(id||'').trim()).filter(Boolean):[];
+  const tagIds=[...new Set([tag.id,...extraTagIds])];
   const subCounters=applySubCounterDeltasForTimeline(tagIds);
   const attachmentText=timelineAttachmentText(attachments);
   const entry={id:uid('tl'),game,liquidGame,text:attachmentText?`${tag.label}（${attachmentText}）`:tag.label,tagIds,countAs:[],subCounters,attachments,createdAt:new Date().toISOString()};
