@@ -2295,6 +2295,9 @@ function testKabaneriShunjoPtStep() {
   assert.equal(vm.runInContext("currentHitEvents[0].trigger", context), 'direct_at');
   assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'no');
   assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'payout');
+  assert.equal(vm.runInContext("kabaneriStActive()", context), false);
+  assert.match(vm.runInContext("renderBattleModeGrid()", context), /無名/);
+  assert.match(vm.runInContext("renderBattleModeGrid()", context), /状態/);
 
   vm.runInContext(`
     currentTimeline = [];
@@ -2418,10 +2421,28 @@ function testKabaneriStFlowAndCounters() {
   assert.equal(vm.runInContext("kabaneriStActive()", context), true);
   assert.equal(vm.runInContext("currentSegments.length", context), 0);
   assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
-  assert.match(vm.runInContext("renderBattleModeGrid()", context), /ST終了/);
+  const stGrid = vm.runInContext("renderBattleModeGrid()", context);
+  assert.match(stGrid, /ST終了/);
+  assert.match(stGrid, /\+44/);
+  assert.match(stGrid, /\+77/);
+  assert.match(stGrid, /456枚/);
+  assert.match(stGrid, /666枚/);
+  assert.match(stGrid, /ボイス/);
+  assert.doesNotMatch(stGrid, /無名/);
+  assert.doesNotMatch(stGrid, /生駒/);
+  assert.doesNotMatch(stGrid, /カバネ/);
+  assert.doesNotMatch(stGrid, />\+1</);
+  assert.doesNotMatch(stGrid, /状態/);
+  assert.doesNotMatch(stGrid, /pt示唆/);
+  assert.doesNotMatch(stGrid, /おみくじ/);
+  assert.doesNotMatch(stGrid, /ステージ/);
+  assert.doesNotMatch(vm.runInContext("renderBattleModeCompactCounters()", context), />\+1</);
   vm.runInContext("openBattleModeOtherSheet()", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ST終了/);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /共通ベル/);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /無名/);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /状態/);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /下段ベル/);
 
   vm.runInContext(`
     recordKabaneriStAttack(44);
@@ -2470,6 +2491,10 @@ function testKabaneriStFlowAndCounters() {
   assert.equal(vm.runInContext("currentSegments.length", context), 1);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
   assert.equal(vm.runInContext("subCounterValue('commonBell')", context), 1);
+  const normalGrid = vm.runInContext("renderBattleModeGrid()", context);
+  assert.match(normalGrid, /無名/);
+  assert.match(normalGrid, /状態/);
+  assert.match(normalGrid, />\+1</);
   assert.equal(vm.runInContext("normalizeIntervalEstimate(currentIntervalEstimate).credit", context), 600);
   assert.equal(vm.runInContext("normalizeIntervalEstimate(db.draftLog.intervalEstimate).credit", context), 600);
   assert.equal(vm.runInContext("currentSegments[0].timeline.some(entry => entry.tagIds.includes('t_kabaneri_st_end'))", context), true);

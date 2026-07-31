@@ -596,6 +596,7 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-st-panel-title{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--gold-light);font-size:12px;font-weight:900;}
 .bm-st-panel-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
 .bm-st-panel-row.four{grid-template-columns:repeat(4,minmax(0,1fr));}
+.bm-st-panel-row.two{grid-template-columns:repeat(2,minmax(0,1fr));}
 .bm-st-panel details{grid-column:1/-1;}
 .bm-st-panel summary{cursor:pointer;color:var(--text-muted);font-size:12px;font-weight:900;padding:4px 0;}
 .bm-st-sheet{display:grid;gap:10px;font-variant-numeric:tabular-nums;}
@@ -7379,6 +7380,7 @@ function renderBattleModeCompactCounters(){
   if(!useLiquidOffsetCounter&&!counters.length)return '';
   const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
   const counterSlots=counters.slice(0,isKabaneriMachine(currentMachine())?2:1);
+  const hideIncrement=kabaneriStActive();
   const counterHtml=counterSlots.map(counter=>{
     const counterValue=subCounterDisplayValue(counter);
     return `
@@ -7387,7 +7389,7 @@ function renderBattleModeCompactCounters(){
         <div class="bm-counter-label">${escapeHtml(compactCounterLabel(counter))}</div>
         <div class="bm-counter-value">${escapeHtml(counterValue)}</div>
       </button>
-      <button class="bm-mini-btn" type="button" onclick="battleModeIncrementSubCounter('${escapeHtml(counter.key)}')">+1</button>
+      ${hideIncrement?'<span></span>':`<button class="bm-mini-btn" type="button" onclick="battleModeIncrementSubCounter('${escapeHtml(counter.key)}')">+1</button>`}
     </div>`;
   }).join('');
   return `<div class="bm-compact-counter-row">
@@ -7397,7 +7399,7 @@ function renderBattleModeCompactCounters(){
         <div class="bm-counter-label">差分</div>
         <div class="bm-counter-value">${escapeHtml(timelineLiquidOffset())}</div>
       </button>
-      ${liquidPreset!==null?`<button class="bm-mini-btn" type="button" onclick="battleModeSetLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span></span>'}
+      ${liquidPreset!==null&&!hideIncrement?`<button class="bm-mini-btn" type="button" onclick="battleModeSetLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span></span>'}
     </div>`:''}
     ${counterHtml||'<div></div>'}
   </div>`;
@@ -8660,10 +8662,9 @@ function renderKabaneriStPanel(){
     <div class="bm-st-panel-row four">
       ${[44,55,66,77].map(value=>`<button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriStAttack(${value})">+${value}</button>`).join('')}
     </div>
-    <div class="bm-st-panel-row">
+    <div class="bm-st-panel-row two">
       <button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriMedalDisplay(456)">456枚</button>
       <button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriMedalDisplay(666)">666枚</button>
-      <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_common_bell')">共通ベル +1</button>
     </div>
     <details>
       <summary>タリー</summary>
@@ -8689,6 +8690,23 @@ function kabaneriStOtherSheetButtons(){
     '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_intro_male_tally\')">紹介男 +1</button>',
     '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_item_omikuji_tally\')">アイテム +1</button>'
   ];
+}
+function kabaneriStHiddenNormalSheetButtons(){
+  if(!kabaneriStActive())return [];
+  const machine=currentMachine();
+  const buttons=quickTagIdsForMachine(machine)
+    .map(id=>machine?.tags?.find(tag=>tag.id===id))
+    .filter(Boolean)
+    .map(tag=>battleModeQuickTagButton(tag));
+  ['state','kabaneri_point','kabaneri_omikuji','kabaneri_stage'].forEach(ref=>{
+    buttons.push(`<button class="bm-btn other" type="button" onclick="openBattleModePicker('${escapeHtml(ref)}')">${escapeHtml(battleModePickerButtonLabel(ref))}</button>`);
+  });
+  ['cycle','lowerBell'].forEach(key=>{
+    const counter=machineCounters(machine).find(row=>row.key===key);
+    const tagId=Array.isArray(counter?.countTagIds)?counter.countTagIds[0]:'';
+    if(tagId)buttons.push(`<button class="bm-btn counter" type="button" onclick="recordKabaneriStCounterTag('${escapeHtml(tagId)}')">${escapeHtml(compactCounterLabel(counter))} +1</button>`);
+  });
+  return buttons;
 }
 function battleModeEventButton(item){
   const machine=currentMachine();
@@ -8726,6 +8744,11 @@ function battleModeQuickButton(item,index){
   return `<button class="bm-btn disabled" type="button" onclick="battleModeInvalid('未対応のクイック定義です')">未対応</button>`;
 }
 function renderBattleModeGrid(){
+  if(kabaneriStActive())return `
+    ${renderKabaneriStPanel()}
+    <div class="bm-other-row">
+      <button class="bm-btn other" type="button" onclick="openBattleModeOtherSheet()">当選・ヤメ・その他 ▼</button>
+    </div>`;
   const panel=battleModePanel();
   const gains=(panel.gainButtons.length?panel.gainButtons:[1,3,5,10]).slice(0,4);
   const counters=panel.counters.slice(0,3);
@@ -9719,6 +9742,7 @@ function openBattleModeOtherSheet(){
     modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModeKabaneriGenealogySheet()">系譜ビュー</button>');
     if(machineCompareMetrics(currentMachine()).length)modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModeKabaneriCompareSheet()">比較ビュー</button>');
     modalButtons.push('<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModeKabaneriUpperStPicker()">上位ST突入</button>');
+    modalButtons.push(...kabaneriStHiddenNormalSheetButtons());
   }
   if(isKabaneriMachine(currentMachine()))modalButtons.push(...kabaneriStOtherSheetButtons());
   if(isTokyoGhoulMachine(currentMachine()))modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModePicker(\'ghoul_rare\')">\u30ec\u30a2\uff08\u6fc0\u30ec\u30a2\uff09</button>');
