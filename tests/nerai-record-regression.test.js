@@ -279,6 +279,14 @@ function testKabaneriPresetSeedAndPickers() {
     JSON.parse(vm.runInContext("JSON.stringify(currentMachine().stateAutoEnd.t_kabaneri_cz_ikoma_start)", context)),
     ['t_kabaneri_state_ikoma_flash_end']
   );
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentMachine().gameStateTriggers)", context)),
+    [
+      { mode: 'auto', stateId: 'kabaneri_chance_high', every: 50 },
+      { mode: 'prompt', stateId: 'kabaneri_kabane_high', at: [0, 100, 250] },
+      { mode: 'prompt', stateId: 'kabaneri_super_high', at: [450, 650] }
+    ]
+  );
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_cherry')", context), false);
   assert.equal(vm.runInContext("currentMachine().tags.some(tag => tag.id === 't_kabaneri_suika')", context), false);
   assert.deepEqual(
@@ -839,6 +847,137 @@ function testKabaneriChanceEyeSituationView() {
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /無0/);
 }
 
+function testKabaneriGameStateTriggers() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext(`
+    selectedMachineId='m_kabaneri';
+    selectedAimId=firstAimIdForMachine(currentMachine())||'';
+    battleModeOpen=true;
+    battleModePendingGameStatePrompts=[];
+    currentTimeline=[];
+    setTimelineGames(49,49);
+    incrementTimelineGame(2);
+  `, context);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_chance_high')", context), true);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_state_chance_high_start']
+  );
+  assert.equal(vm.runInContext("currentTimeline.at(-1).auto", context), true);
+  assert.match(vm.runInContext("timelineEntryText(currentTimeline.at(-1))", context), /（自動）/);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_chance_high')", context), false);
+
+  vm.runInContext(`
+    currentTimeline=[];
+    battleModePendingGameStatePrompts=[];
+    setTimelineGames(49,49);
+    incrementTimelineGame(2);
+    setTimelineGames(99,99);
+    incrementTimelineGame(2);
+  `, context);
+  assert.equal(vm.runInContext("currentTimeline.filter(entry => entry.tagIds && entry.tagIds.includes('t_kabaneri_state_chance_high_start')).length", context), 1);
+
+  vm.runInContext(`
+    currentTimeline=[];
+    battleModePendingGameStatePrompts=[];
+    closeBattleModeOtherSheet();
+    setTimelineGames(449,449);
+    incrementTimelineGame(2);
+  `, context);
+  let html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherTitle.textContent", context), /450G/);
+  assert.match(html, /bm-choice-text-gold">超<\/span><span class="bm-choice-text-blue">高確/);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_super_high')", context), false);
+  vm.runInContext("battleModeRecordState('kabaneri_super_high','start')", context);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_super_high')", context), true);
+  assert.notEqual(vm.runInContext("currentTimeline.at(-1).auto === true", context), true);
+
+  vm.runInContext(`
+    currentTimeline=[];
+    battleModePendingGameStatePrompts=[];
+    closeBattleModeOtherSheet();
+    setTimelineGames(449,449);
+    incrementTimelineGame(2);
+    closeBattleModeOtherSheet();
+  `, context);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_super_high')", context), false);
+
+  vm.runInContext(`
+    currentTimeline=[];
+    battleModePendingGameStatePrompts=[];
+    closeBattleModeOtherSheet();
+    setTimelineGames(100,100);
+    setTimelineGames(460,460);
+  `, context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  assert.equal(vm.runInContext("battleModePendingGameStatePrompts.length", context), 0);
+  assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /450G/);
+
+  vm.runInContext(`
+    currentTimeline=[];
+    battleModePendingGameStatePrompts=[];
+    closeBattleModeOtherSheet();
+    setTimelineGames(460,460);
+    syncBattleModeGameStateTriggerLiquid();
+    incrementTimelineGame(1);
+  `, context);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  assert.equal(vm.runInContext("battleModePendingGameStatePrompts.length", context), 0);
+
+  vm.runInContext(`
+    currentTimeline=[];
+    currentSegments=[];
+    battleModePendingGameStatePrompts=[];
+    setTimelineGames(240,240);
+    setSubCounterValue('cycle',4);
+    archiveCurrentSegment({id:'hit_no_trigger',trigger:'direct_at',through:'no',dataGame:240,liquidGame:240},'hit');
+  `, context);
+  assert.equal(vm.runInContext("timelineLiquidValue()", context), 240);
+  assert.equal(vm.runInContext("battleModePendingGameStatePrompts.length", context), 0);
+  assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /250G/);
+
+  vm.runInContext(`
+    currentTimeline=[];
+    currentSegments=[];
+    battleModePendingGameStatePrompts=[];
+    closeBattleModeOtherSheet();
+    setTimelineGames(30,30);
+    archiveCurrentSegment({id:'hit_yes_trigger',trigger:'direct_at',through:'yes',dataGame:30,liquidGame:30},'hit');
+  `, context);
+  html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherTitle.textContent", context), /0G/);
+  assert.match(stripTags(html), /カバネ高確/);
+
+  vm.runInContext(`
+    currentTimeline=[];
+    battleModePendingGameStatePrompts=[];
+    closeBattleModeOtherSheet();
+    setTimelineGames(449,449);
+    openBattleModeOtherSheet();
+    incrementTimelineGame(2);
+  `, context);
+  assert.equal(vm.runInContext("battleModePendingGameStatePrompts.length", context), 1);
+  assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /450G/);
+  vm.runInContext("closeBattleModeOtherSheet()", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherTitle.textContent", context), /450G/);
+
+  ['m_nangoku_special', 'm_tokyo_ghoul', 'm_karakuri2'].forEach(machineId => {
+    vm.runInContext(`
+      selectedMachineId='${machineId}';
+      selectedAimId=firstAimIdForMachine(currentMachine())||'';
+      currentTimeline=[];
+      battleModePendingGameStatePrompts=[];
+      closeBattleModeOtherSheet();
+      setTimelineGames(49,49);
+      incrementTimelineGame(2);
+    `, context);
+    assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+    assert.equal(vm.runInContext("battleModePendingGameStatePrompts.length", context), 0);
+  });
+}
+
 function testStandardAimSeedsNoDuplicatesAndDeleteTombstone() {
   const { context, localStorage } = runRecord(undefined, [true, true]);
 
@@ -1210,6 +1349,7 @@ function battleModeQuitDomScript() {
     const elements = {
       battleModeOverlay: { ...generic, id: 'battleModeOverlay', classList: { add() {}, remove() {}, toggle() {} } },
       battleModeOtherSheet: { ...generic, id: 'battleModeOtherSheet', classList: { add() {}, remove() {}, toggle() {} } },
+      battleModeOtherTitle: { ...generic, id: 'battleModeOtherTitle', textContent: '' },
       battleModeOtherGrid: { ...generic, id: 'battleModeOtherGrid', innerHTML: '' },
       battleModeTitle: { ...generic, id: 'battleModeTitle', textContent: '' },
       battleModeCheckpointStatus: { ...generic, id: 'battleModeCheckpointStatus', innerHTML: '' },
@@ -1257,7 +1397,7 @@ function battleModeQuitDomScript() {
       startMoneyStart: { ...generic, id: 'startMoneyStart', value: '' }
     };
     document.getElementById = id => elements[id] || generic;
-    document.querySelector = selector => selector === '#battleModeOtherSheet .bm-sheet-title' ? generic : null;
+    document.querySelector = selector => selector === '#battleModeOtherSheet .bm-sheet-title' ? elements.battleModeOtherTitle : null;
     selectedMachineId = 'm_nangoku_special';
     selectedAimId = firstAimIdForMachine(currentMachine()) || '';
     currentFlowStep = 2;
@@ -1681,6 +1821,7 @@ function installBattleModeStateDom(context) {
     const generic = document.getElementById('generic');
     const elements = {
       battleModeOtherSheet: { ...generic, id: 'battleModeOtherSheet', classList: { add() {}, remove() {}, toggle() {} } },
+      battleModeOtherTitle: { ...generic, id: 'battleModeOtherTitle', textContent: '' },
       battleModeOtherGrid: { ...generic, id: 'battleModeOtherGrid', innerHTML: '' },
       battleModeStateBadges: { ...generic, id: 'battleModeStateBadges', innerHTML: '' },
       battleModeToast: { ...generic, id: 'battleModeToast', innerHTML: '', classList: { add() {}, remove() {}, toggle() {} } },
@@ -1697,7 +1838,7 @@ function installBattleModeStateDom(context) {
       practiceStatsBox: { ...generic, id: 'practiceStatsBox', innerHTML: '' }
     };
     document.getElementById = id => elements[id] || generic;
-    document.querySelector = selector => selector === '#battleModeOtherSheet .bm-sheet-title' ? generic : null;
+    document.querySelector = selector => selector === '#battleModeOtherSheet .bm-sheet-title' ? elements.battleModeOtherTitle : null;
     selectedMachineId = 'm_state_test';
     selectedAimId = 'aim_state';
     currentFlowStep = 2;
@@ -3639,6 +3780,7 @@ function run() {
   testKabaneriShunjoPtStep();
   testKabaneriChanceEyeMeterAndCounters();
   testKabaneriChanceEyeSituationView();
+  testKabaneriGameStateTriggers();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();
   testOtherPresetMachinesRemainStable();
   testNoHitQuitSegmentsAreIncludedInTextOutputs();

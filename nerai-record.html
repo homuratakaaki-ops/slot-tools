@@ -1358,6 +1358,9 @@ let battleModeReplayScopeSegmentIds=new Set();
 let battleModeQuickInvestLastAt=0;
 let battleModeReturnAfterHitWizard=false;
 let battleModeMemoSheetOpen=false;
+let battleModeOtherSheetOpen=false;
+let battleModeLastProcessedLiquidG=null;
+let battleModePendingGameStatePrompts=[];
 let battleModeKabaneriMultiDraft=null;
 let moneyEndMedalsEdited=false;
 let carriedMedalsAppliedKey='';
@@ -1487,6 +1490,28 @@ function normalizeMachineStates(states){
     seen.add(state.id);
     return true;
   });
+}
+function normalizeGameStateTrigger(trigger){
+  if(!trigger||typeof trigger!=='object')return null;
+  const stateId=String(trigger.stateId||'').trim();
+  const mode=String(trigger.mode||'').trim();
+  if(!stateId||!['auto','prompt'].includes(mode))return null;
+  const normalized={mode,stateId};
+  const every=normalizeOptionalNumber(trigger.every);
+  if(every!==null&&every>0){
+    normalized.every=Math.max(1,Math.trunc(every));
+    return normalized;
+  }
+  const at=Array.isArray(trigger.at)?[...new Set(trigger.at.map(normalizeOptionalNumber).filter(value=>value!==null&&value>=0).map(value=>Math.trunc(value)))].sort((a,b)=>a-b):[];
+  if(at.length){
+    normalized.at=at;
+    return normalized;
+  }
+  return null;
+}
+function normalizeGameStateTriggers(triggers){
+  if(!Array.isArray(triggers))return [];
+  return triggers.map(normalizeGameStateTrigger).filter(Boolean);
 }
 function normalizeTagSize(value){
   return String(value||'').trim()==='large'?'large':'';
@@ -2755,6 +2780,7 @@ function normalizeData(data){
     ensureKabaneriPickerStyleSeedV1(m);
     ensureKabaneriPointFlattenSeedV1(m);
     ensureKabaneriEyecatchDefaultSeedV1(m);
+    ensureKabaneriGameStateTriggersSeedV1(m);
     if(m.hitCauseFirst===true)m.hitCauseFirst=true;
     else delete m.hitCauseFirst;
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
@@ -2773,6 +2799,9 @@ function normalizeData(data){
     const stateAutoEnd=normalizeStateAutoEnd(m.stateAutoEnd);
     if(Object.keys(stateAutoEnd).length)m.stateAutoEnd=stateAutoEnd;
     else delete m.stateAutoEnd;
+    const gameStateTriggers=normalizeGameStateTriggers(m.gameStateTriggers);
+    if(gameStateTriggers.length)m.gameStateTriggers=gameStateTriggers;
+    else delete m.gameStateTriggers;
     applySuggestMetadata(m);
   });
   migrateTokyoGhoulSuggestLogs(data);
@@ -5344,6 +5373,15 @@ function ensureKabaneriEyecatchDefaultSeedV1(machine){
   }
   machine.kabaneriEyecatchDefaultSeedV1=true;
 }
+function ensureKabaneriGameStateTriggersSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriGameStateTriggersSeedV1)return;
+  machine.gameStateTriggers=normalizeGameStateTriggers([
+    {every:50,mode:'auto',stateId:'kabaneri_chance_high'},
+    {at:[0,100,250],mode:'prompt',stateId:'kabaneri_kabane_high'},
+    {at:[450,650],mode:'prompt',stateId:'kabaneri_super_high'}
+  ]);
+  machine.kabaneriGameStateTriggersSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5913,7 +5951,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -5976,6 +6014,7 @@ function addMachine(){
   ensureKabaneriPickerStyleSeedV1(machine);
   ensureKabaneriPointFlattenSeedV1(machine);
   ensureKabaneriEyecatchDefaultSeedV1(machine);
+  ensureKabaneriGameStateTriggersSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -6880,6 +6919,7 @@ function openBattleMode(){
   document.getElementById('battleModeOverlay')?.classList.add('open');
   battleModeApplyCarriedMedalsIfNeeded();
   battleModeApplyDailyReplayMedalsIfNeeded();
+  syncBattleModeGameStateTriggerLiquid();
   renderBattleMode();
 }
 function closeBattleMode(){
@@ -8227,6 +8267,78 @@ function battleModeStateTag(state,phase){
   const tagId=phase==='end'?state?.endTagId:state?.startTagId;
   return currentMachine()?.tags?.find(row=>row.id===tagId)||null;
 }
+function gameStateTriggers(machine=currentMachine()){
+  return normalizeGameStateTriggers(machine?.gameStateTriggers);
+}
+function gameStateTriggerThresholds(trigger,last,current,{includeZero=false}={}){
+  const from=normalizeOptionalNumber(last);
+  const to=normalizeOptionalNumber(current);
+  if(to===null)return [];
+  if(trigger.every){
+    const step=Math.max(1,Math.trunc(trigger.every));
+    const start=from===null?Math.floor(to/step)*step:Math.floor(from/step)*step+step;
+    const rows=[];
+    for(let value=start;value<=to;value+=step){
+      if(value>0&&value<=to&&(from===null||value>from))rows.push(value);
+    }
+    return rows;
+  }
+  const at=Array.isArray(trigger.at)?trigger.at:[];
+  return at.filter(value=>{
+    if(value===0)return includeZero&&to===0;
+    return (from===null?false:from<value)&&value<=to;
+  });
+}
+function gameStateTriggerLabel(trigger,threshold){
+  const state=battleModeStateById(trigger.stateId);
+  return `${threshold}G到達：${state?battleModeStateDisplayLabel(state):trigger.stateId}`;
+}
+function queueGameStatePrompt(trigger,threshold){
+  if(battleModePendingGameStatePrompts.some(row=>row.stateId===trigger.stateId&&row.threshold===threshold))return;
+  battleModePendingGameStatePrompts.push({stateId:trigger.stateId,threshold});
+}
+function openBattleModeGameStatePrompt(prompt){
+  const state=battleModeStateById(prompt?.stateId);
+  if(!state||battleModeStateIsActive(state.id))return false;
+  const title=gameStateTriggerLabel({stateId:state.id},prompt.threshold);
+  setBattleModeSheet(title,`
+    <div class="bm-sheet-note">${battleModeStateChoiceLabelHtml(state,'？')}</div>
+    <button class="bm-btn bm-state-choice active" type="button" onclick="battleModeRecordState('${escapeHtml(state.id)}','start')">ON</button>
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">スキップ</button>
+  `);
+  return true;
+}
+function drainBattleModeGameStatePrompts(){
+  if(!battleModeOpen||battleModeOtherSheetOpen)return;
+  while(battleModePendingGameStatePrompts.length){
+    const prompt=battleModePendingGameStatePrompts.shift();
+    if(openBattleModeGameStatePrompt(prompt))break;
+  }
+}
+function syncBattleModeGameStateTriggerLiquid(value=timelineLiquidValue()){
+  battleModeLastProcessedLiquidG=normalizeOptionalNumber(value);
+}
+function processBattleModeGameStateTriggers(previous,current,{includeZero=false}={}){
+  if(!battleModeOpen)return syncBattleModeGameStateTriggerLiquid(current);
+  const currentLiquid=normalizeOptionalNumber(current);
+  if(currentLiquid===null)return syncBattleModeGameStateTriggerLiquid(null);
+  gameStateTriggers().forEach(trigger=>{
+    const state=battleModeStateById(trigger.stateId);
+    if(!state||battleModeStateIsActive(state.id))return;
+    gameStateTriggerThresholds(trigger,previous,currentLiquid,{includeZero}).forEach(threshold=>{
+      if(battleModeStateIsActive(state.id))return;
+      const tag=battleModeStateTag(state,'start');
+      if(!tag)return;
+      if(trigger.mode==='auto'){
+        battleModeCommit(tag.label,()=>addInstantTimelineTagWithAttachments(tag,[],{auto:true}),{toastMessage:`${tag.label}（自動）`});
+      }else{
+        queueGameStatePrompt(trigger,threshold);
+      }
+    });
+  });
+  syncBattleModeGameStateTriggerLiquid(currentLiquid);
+  drainBattleModeGameStatePrompts();
+}
 function openBattleModeStatePicker(){
   const states=orderedBattleModeStates(machineStates());
   if(!states.length){battleModeInvalid('状態定義がありません');return;}
@@ -8332,6 +8444,7 @@ function setBattleModeSheet(title,html){
   if(titleEl)titleEl.textContent=title;
   const grid=document.getElementById('battleModeOtherGrid');
   if(grid)grid.innerHTML=html;
+  battleModeOtherSheetOpen=true;
   document.getElementById('battleModeOtherSheet')?.classList.add('open');
 }
 function updateBattleModeMemoViewport(){
@@ -8776,6 +8889,7 @@ function battleModeStartHit(trigger,variant=''){
 function openBattleModeOtherSheet(){
   flushBattleMemoDraftSave();
   battleModeMemoSheetOpen=false;
+  battleModeOtherSheetOpen=true;
   const sheet=document.getElementById('battleModeOtherSheet');
   sheet?.classList.remove('memo-mode');
   sheet?.style.setProperty('--bm-keyboard-inset','0px');
@@ -8802,10 +8916,12 @@ function openBattleModeOtherSheet(){
 function closeBattleModeOtherSheet(){
   flushBattleMemoDraftSave();
   battleModeMemoSheetOpen=false;
+  battleModeOtherSheetOpen=false;
   const sheet=document.getElementById('battleModeOtherSheet');
   sheet?.classList.remove('memo-mode');
   sheet?.style.setProperty('--bm-keyboard-inset','0px');
   document.getElementById('battleModeOtherSheet')?.classList.remove('open');
+  drainBattleModeGameStatePrompts();
 }
 function selectBattleModeOtherTag(id){
   closeBattleModeOtherSheet();
@@ -11046,6 +11162,9 @@ function archiveCurrentSegment(event,terminalType='',options={}){
     setTimelineGames(9,0);
   }
   if(throughNoFlow)applyHitThroughNoFlowAfterReset(throughNoFlow,throughNoFlowState);
+  else if(!event||!machineUsesLiquidOffsetCounter()){
+    processBattleModeGameStateTriggers(null,timelineLiquidValue(),{includeZero:true});
+  }
   restoreArchiveSubCounters(archivePreservedSubCounters);
   return segment;
 }
@@ -13225,7 +13344,8 @@ function timelineLiquidValue(){
   if(domValue!==null)return domValue;
   return currentTimelineDataGame!==null?liquidFromDataWithOffset(currentTimelineDataGame):null;
 }
-function setTimelineGames(dataGame,liquidGame){
+function setTimelineGames(dataGame,liquidGame,options={}){
+  const previousLiquid=battleModeLastProcessedLiquidG;
   currentTimelineDataGame=dataGame===null||dataGame===undefined?null:Number(dataGame);
   const normalizedLiquid=liquidGame===null||liquidGame===undefined?null:Number(liquidGame);
   document.querySelectorAll('[data-game-role="timeline-data"]').forEach(input=>{input.value=currentTimelineDataGame===null?'':String(currentTimelineDataGame);});
@@ -13234,6 +13354,8 @@ function setTimelineGames(dataGame,liquidGame){
   if(offsetInput)offsetInput.value=String(timelineLiquidOffset());
   presetSuggestInputs(false);
   renderNumberAttachmentSummaryIntoDom();
+  if(options?.triggerGameState===true)processBattleModeGameStateTriggers(previousLiquid,normalizedLiquid,{includeZero:options?.triggerZero===true});
+  else syncBattleModeGameStateTriggerLiquid(normalizedLiquid);
 }
 function syncTimelineDataGame(sourceId=''){
   const source=sourceId?document.getElementById(sourceId):firstTimelineInput('timeline-data');
@@ -13294,7 +13416,7 @@ function setTimelineLiquidOffsetPreset(value){
 function incrementTimelineGame(delta){
   const current=currentTimelineDataGame??timelineDataValue()??0;
   const next=current+delta;
-  setTimelineGames(next,liquidFromDataWithOffset(next));
+  setTimelineGames(next,liquidFromDataWithOffset(next),{triggerGameState:true});
   scheduleDraftSave();
 }
 function tagLiquidRule(tagIds){
@@ -13329,12 +13451,12 @@ function applyLiquidRuleAfterTimelineAdd(tagIds,entry=null){
     const nextSuikaOffset=offsetFromDataLiquid(data,rule.setValue)-currentTimelineManualCorrection;
     offsetDelta=nextSuikaOffset-currentTimelineSuikaOffset;
     currentTimelineSuikaOffset=nextSuikaOffset;
-    setTimelineGames(data,rule.setValue);
+    setTimelineGames(data,rule.setValue,{triggerGameState:true});
   }else if(rule.delta){
     offsetDelta=rule.delta;
     currentTimelineSuikaOffset+=rule.delta;
     const nextLiquid=baseLiquid+(rule.delta*liquidOffsetSign());
-    setTimelineGames(data,nextLiquid);
+    setTimelineGames(data,nextLiquid,{triggerGameState:true});
   }
   if(entry&&offsetDelta)entry.liquidOffsetDelta=offsetDelta;
 }
