@@ -600,6 +600,7 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-st-panel-row.five{grid-template-columns:repeat(5,minmax(0,1fr));}
 .bm-st-panel details{grid-column:1/-1;}
 .bm-st-panel summary{cursor:pointer;color:var(--text-muted);font-size:12px;font-weight:900;padding:4px 0;}
+.bm-st-summary{font-size:11px;line-height:1.45;color:var(--text-muted);font-weight:800;}
 .bm-st-end-action{border-color:rgba(239,68,68,.75)!important;background:rgba(127,29,29,.24)!important;color:#fecaca!important;}
 .bm-st-step-anchor{scroll-margin-top:12px;}
 .bm-st-choice-selected{border-color:rgba(201,168,76,.96)!important;box-shadow:0 0 0 2px rgba(201,168,76,.35) inset;background:rgba(201,168,76,.14)!important;}
@@ -7158,12 +7159,16 @@ function battleModeRecentRows(){
 }
 function battleModeEntryLabel(entry){
   if(entry?.battleModeRecentType==='suggest')return battleModeSuggestEntryLabel(entry);
+  const stTally=kabaneriStTimelineTallyRecentLabel(entry);
+  if(stTally)return stTally;
   const game=normalizeOptionalNumber(entry?.game);
   const text=String(entry?.text||'').trim()||'記録';
   return `${game!==null?`${game}G `:''}${text}`;
 }
 function battleModeSuggestEntryLabel(entry){
   const game=normalizeOptionalNumber(entry?.dataGame??entry?.game);
+  const stVoice=kabaneriStVoiceRecentLabel(entry);
+  if(stVoice)return `${game!==null?`${game}G `:''}${stVoice}`;
   const {itemLabel}=suggestEntryDisplayRefs(entry);
   return `${game!==null?`${game}G `:''}${itemLabel||'示唆'}`;
 }
@@ -8534,6 +8539,63 @@ function recordKabaneriStCounterTag(tagId){
   if(counter){battleModeIncrementSubCounter(counter.key);return;}
   battleModeRecordTag(tagId);
 }
+function kabaneriStVoiceSpec(itemId){
+  return {
+    sgp_kabaneri_setting_voice_i1:{key:'male',label:'ボイス男'},
+    sgp_kabaneri_setting_voice_i2:{key:'female',label:'ボイス女'},
+    sgp_kabaneri_setting_voice_i3:{key:'kageWeak',label:'景之・弱'},
+    sgp_kabaneri_setting_voice_i4:{key:'kageMid',label:'景之・中'},
+    sgp_kabaneri_setting_voice_i5:{key:'kageStrong',label:'景之・強'}
+  }[String(itemId||'')]||null;
+}
+function kabaneriStSuggestRows(){
+  const segmentRows=[...currentSegments].reverse().flatMap(segment=>Array.isArray(segment?.suggestLog)?segment.suggestLog:[]);
+  return [...segmentRows,...currentSuggestLog];
+}
+function kabaneriStVoiceCounts(){
+  return kabaneriStSuggestRows().reduce((counts,entry)=>{
+    if(entry?.placeId!=='sgp_kabaneri_setting_voice')return counts;
+    const spec=kabaneriStVoiceSpec(entry.itemId);
+    if(spec)counts[spec.key]=(counts[spec.key]||0)+1;
+    return counts;
+  },{male:0,female:0,kageWeak:0,kageMid:0,kageStrong:0});
+}
+function kabaneriStPanelSummary(){
+  const voices=kabaneriStVoiceCounts();
+  const introMale=subCounterValue('introMaleTally');
+  const introFemale=subCounterValue('introFemaleTally');
+  const voiceTotal=voices.male+voices.female;
+  const introTotal=introMale+introFemale;
+  const pct=(num,den)=>den?`${Math.round((num/den)*100)}%`:'-';
+  return {
+    voices,
+    introMale,
+    introFemale,
+    voiceMalePct:pct(voices.male,voiceTotal),
+    introMalePct:pct(introMale,introTotal)
+  };
+}
+function kabaneriStPanelSummaryHtml(){
+  const summary=kabaneriStPanelSummary();
+  const v=summary.voices;
+  return `<div class="bm-st-summary">ボイス 男${v.male}・女${v.female}（男${summary.voiceMalePct}）｜景之 弱${v.kageWeak}・中${v.kageMid}・強${v.kageStrong}｜紹介 男${summary.introMale}・女${summary.introFemale}（男${summary.introMalePct}）</div>`;
+}
+function kabaneriStVoiceRecentLabel(entry){
+  if(!isKabaneriMachine(currentMachine())||entry?.placeId!=='sgp_kabaneri_setting_voice')return '';
+  const spec=kabaneriStVoiceSpec(entry.itemId);
+  if(!spec)return '';
+  const count=kabaneriStVoiceCounts()[spec.key]||0;
+  return `${spec.label}（計${count}）`;
+}
+function kabaneriStTimelineTallyRecentLabel(entry){
+  if(!isKabaneriMachine(currentMachine()))return '';
+  const game=normalizeOptionalNumber(entry?.game);
+  const prefix=game!==null?`${game}G `:'';
+  const ids=timelineTagIds(entry);
+  if(ids.includes('t_kabaneri_intro_male_tally'))return `${prefix}紹介男 +1（計${subCounterValue('introMaleTally')}）`;
+  if(ids.includes('t_kabaneri_intro_female_tally'))return `${prefix}紹介女 +1（計${subCounterValue('introFemaleTally')}）`;
+  return '';
+}
 function kabaneriSuggestItemRef(placeId,itemId){
   const entry=findSuggestPlaceEntryById(placeId);
   const item=entry?enabledSuggestItems(entry.category.id,entry.place.id).find(row=>row.id===itemId):null;
@@ -8566,6 +8628,13 @@ function recordKabaneriStSuggest(placeId,itemId,selectionKey=''){
   openBattleModeKabaneriStEndSheet();
   if(selectionKey)setTimeout(()=>document.getElementById(selectionKey==='endScreen'?'kabaneriStTrophyGroup':'kabaneriStCreditGroup')?.scrollIntoView({block:'nearest',behavior:'smooth'}),0);
   return true;
+}
+function openKabaneriStNumericInput(id,label){
+  const input=document.getElementById(id);
+  if(!input){battleModeInvalid('入力欄が見つかりません');return;}
+  input.placeholder=label||input.placeholder||'数値入力';
+  input.inputMode='none';
+  openNumericKeypad(input);
 }
 function recordKabaneriStVoice(itemId){
   const ref=kabaneriSuggestItemRef('sgp_kabaneri_setting_voice',itemId);
@@ -8663,14 +8732,14 @@ function openBattleModeKabaneriStEndSheet(){
       </div>
       <div id="kabaneriStCreditGroup" class="bm-st-step-anchor">
         <label class="field-label" for="kabaneriStEndCredit">最終クレ</label>
-        <input id="kabaneriStEndCredit" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="クレ" value="${escapeHtml(credit||'')}">
+        <button class="bm-btn" type="button" onclick="openKabaneriStNumericInput('kabaneriStEndCredit','最終クレ')">最終クレを入力</button>
+        <input id="kabaneriStEndCredit" class="numeric-input" inputmode="none" readonly pattern="[0-9]*" placeholder="クレ" value="${escapeHtml(credit||'')}">
       </div>
       <div id="kabaneriStMyslotGroup" class="bm-st-step-anchor">
         <div class="bm-counter-label">マイスロ転記（任意）</div>
         <div class="bm-st-input-grid">
-          <input id="kabaneriMyslotGames" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="総G">
-          <input id="kabaneriMyslotCz" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="CZ回数">
-          <input id="kabaneriMyslotSt" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="ST回数">
+          <button class="bm-btn" type="button" onclick="openKabaneriStNumericInput('kabaneriMyslotGames','マイスロ総G')">総Gを入力</button>
+          <input id="kabaneriMyslotGames" class="numeric-input" inputmode="none" readonly pattern="[0-9]*" placeholder="総G">
         </div>
       </div>
       <button class="bm-btn counter" type="button" onclick="submitKabaneriStEndFlow()">ST終了を確定</button>
@@ -8679,9 +8748,7 @@ function openBattleModeKabaneriStEndSheet(){
 }
 function kabaneriMyslotAttachments(){
   const specs=[
-    ['kabaneriMyslotGames','myslotTotalGames','総G','G'],
-    ['kabaneriMyslotCz','myslotCzCount','CZ回数','回'],
-    ['kabaneriMyslotSt','myslotStCount','ST回数','回']
+    ['kabaneriMyslotGames','myslotTotalGames','総G','G']
   ];
   return specs.map(([id,key,label,unit])=>{
     const value=normalizeOptionalNumber(document.getElementById(id)?.value||'');
@@ -8704,6 +8771,7 @@ function submitKabaneriStEndFlow(){
   event.exit='continue';
   event.wizardDone=true;
   archiveCurrentSegment(event,'st_end',{preserveEndState:false});
+  if(!battleModeOtherSheetOpen&&!battleModePendingGameStatePrompts.length)processBattleModeGameStateTriggers(null,timelineLiquidValue(),{includeZero:true});
   kabaneriStEndSelections={endScreen:'',trophy:''};
   renderLogFields();
   renderFlowStepTabs();
@@ -8716,16 +8784,17 @@ function renderKabaneriStPanel(){
   if(!kabaneriStActive())return '';
   return `<div class="bm-st-panel">
     <div class="bm-st-panel-title"><span>ST中</span><button class="bm-mini-btn bm-st-end-action" type="button" onclick="openBattleModeKabaneriStEndSheet()">ST終了</button></div>
+    ${kabaneriStPanelSummaryHtml()}
     <div class="bm-st-panel-row five">
-      <button class="bm-btn bm-choice-text-green" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i1')">男性</button>
-      <button class="bm-btn bm-choice-text-red" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i2')">女性</button>
+      <button class="bm-btn bm-choice-text-green" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i1')">ボイス男</button>
+      <button class="bm-btn bm-choice-text-red" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i2')">ボイス女</button>
       <button class="bm-btn" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i3')">景之・弱</button>
       <button class="bm-btn" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i4')">景之・中</button>
       <button class="bm-btn" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i5')">景之・強</button>
     </div>
     <div class="bm-st-panel-row three">
-      <button class="bm-btn bm-choice-text-red" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_female_tally')">紹介女 +1</button>
       <button class="bm-btn bm-choice-text-green" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_male_tally')">紹介男 +1</button>
+      <button class="bm-btn bm-choice-text-red" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_female_tally')">紹介女 +1</button>
       <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_lower_bell')">下段ベル +1</button>
     </div>
   </div>`;
