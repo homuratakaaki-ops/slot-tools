@@ -10382,9 +10382,28 @@ function battleModeRecordFlattenSuggestItem(categoryId,placeId,itemId){
   closeBattleModeOtherSheet();
   const category=enabledSuggestCategories().find(c=>c.id===categoryId);
   const place=enabledSuggestPlaces(categoryId).find(p=>p.id===placeId);
-  if(!category||!place){battleModeInvalid('示唆マスタが見つかりません');return;}
-  suggestPickerState={stateGroup:suggestPlaceStateGroup(category,place),categoryId,placeId,itemId:'',branchRoute:'',branchStep:''};
-  selectSuggestItem(itemId);
+  const item=enabledSuggestItems(categoryId,placeId).find(row=>row.id===itemId);
+  if(!category||!place||!item){battleModeInvalid('示唆マスタが見つかりません');return;}
+  const stateGroup=suggestPlaceStateGroup(category,place);
+  const selection={
+    stateGroup,
+    source:'manual',
+    hitEventId:'',
+    carryType:normalizeCarryType(item.carryType),
+    pointRole:place.pointRole||item.pointRole||null,
+    nextModeHint:false,
+    confidenceLevel:item.confidenceLevel||null,
+    confidenceType:item.confidenceType||null,
+    categoryId:category.id,
+    placeId:place.id,
+    itemId:item.id,
+    category:category.category,
+    place:place.name,
+    item:item.label,
+    decorations:item.decorations||[],
+    useAppearG:category.useAppearG!==false
+  };
+  addSuggestLogFromSelection(selection);
 }
 function openSuggestPlacePicker(stateGroup){
   const group=normalizeSuggestStateGroup(stateGroup)||'play';

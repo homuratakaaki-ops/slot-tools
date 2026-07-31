@@ -243,7 +243,7 @@ function testTokyoGhoulPresetInitialDisplayAndSpecificFeatures() {
 }
 
 function testKabaneriPresetSeedAndPickers() {
-  const { context } = runRecord(undefined);
+  const { context, localStorage } = runRecord(undefined);
   installBattleModeStateDom(context);
   vm.runInContext("selectedMachineId='m_kabaneri'; selectedAimId=firstAimIdForMachine(currentMachine())||''; currentTimelineDataGame=120; setTimelineGames(120,120);", context);
 
@@ -661,6 +661,12 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("currentSuggestLog.at(-1).categoryId", context), 'sgc_kabaneri_point');
   assert.equal(vm.runInContext("currentSuggestLog.at(-1).placeId", context), 'sgp_kabaneri_point_minichara');
   assert.equal(vm.runInContext("currentSuggestLog.at(-1).itemId", context), 'sgp_kabaneri_point_minichara_i1');
+  assert.match(stripTags(vm.runInContext("__stateElements.suggestLogList.innerHTML", context)), /無名・無言/);
+  const flatStored = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  assert.equal(flatStored.draftLog.suggestLog.some(entry => entry.placeId === 'sgp_kabaneri_point_minichara' && entry.itemId === 'sgp_kabaneri_point_minichara_i1'), true);
+  const flatRestored = runRecord(JSON.stringify(flatStored));
+  vm.runInContext("loadDraftIntoInputs(db.draftLog); selectedMachineId = 'm_kabaneri';", flatRestored.context);
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.placeId === 'sgp_kabaneri_point_minichara' && entry.itemId === 'sgp_kabaneri_point_minichara_i1')", flatRestored.context), true);
   vm.runInContext("openSuggestItemPicker('sgc_kabaneri_point','sgp_kabaneri_point_minichara','play')", context);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /suggest-color-red">無名<\/span>・無言/);
   vm.runInContext("openSuggestItemPicker('sgc_kabaneri_point','sgp_kabaneri_point_eyecatch','play')", context);
