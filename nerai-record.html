@@ -5018,14 +5018,14 @@ function ensureKabaneriSeed(machine){
     {id:KABANERI_OMIKUJI_CATEGORY_ID,category:'おみくじ',enabled:true,useAppearG:true,places:[
       kabaneriSuggestPlace('sgp_kabaneri_omikuji_cycle','輪廻くじ・周期',['一廻以内好機（示唆）','二廻以内（示唆）','三廻以内（示唆）','四廻以内（示唆）','複数廻組合せ（一・二等）（示唆）','輪廻の果報（当該周期ボーナス濃厚・示唆）','六根清浄（エピボ濃厚!?・反例あり/予想）']),
       kabaneriSuggestPlace('sgp_kabaneri_omikuji_cz','輪廻くじ・CZ',['無名・小吉（予想）','生駒・小吉（予想）','無名・中吉（残り僅か・示唆）','生駒・中吉（残り僅か・示唆）']),
-      kabaneriSuggestPlace('sgp_kabaneri_omikuji_item','アイテムくじ',['ツラヌキ筒（予想）','無名の短銃（予想）','自決袋（予想）','来栖の刀（予想）','無名のけん玉（予想）','菖蒲の弓（予想）','ミヤマカラスアゲハ（強・示唆）','小吉（設2以上濃厚・確定級）','中吉（設4以上濃厚・確定級）','大吉（設6濃厚・確定級）'])
+      kabaneriSuggestPlace('sgp_kabaneri_omikuji_item','アイテムくじ',['ツラヌキ筒（予想）','無名の短銃（予想）','自決袋（予想）','来栖の刀（予想）','無名のけん玉（予想）','菖蒲の弓（予想）','ミヤマカラスアゲハ（強・示唆）','小吉（設定2以上濃厚）','中吉（設定4以上濃厚）','大吉（設定6濃厚）'])
     ]},
     {id:'sgc_kabaneri_setting',category:'設定示唆',enabled:true,useAppearG:true,places:[
-      kabaneriSuggestPlace('sgp_kabaneri_setting_st_end','ST終了画面',['鉄下駄（示唆）','集合（示唆）','水着（設6濃厚・確定級）'],'hit'),
-      kabaneriSuggestPlace('sgp_kabaneri_setting_intro','キャラ紹介',['女性（示唆）','男性（示唆）','美馬（設4以上濃厚・確定級）'],'hit'),
-      kabaneriSuggestPlace('sgp_kabaneri_setting_trophy','サミートロフィー',['銅（確定級）','銀（確定級）','金（確定級）','キリン（確定級）','虹（確定級）'],'hit'),
-      kabaneriSuggestPlace('sgp_kabaneri_setting_voice','技術介入ボイス',['男性（示唆）','女性（示唆）','景之・弱（示唆）','景之・中（示唆）','景之・強（示唆）','無名「普通じゃないね」（設2以上濃厚・確定級）','ボイスなし（設5以上濃厚・確定級）'],'hit'),
-      kabaneriSuggestPlace('sgp_kabaneri_setting_medal_display','枚数表示',['＋44（設4以上濃厚・確定級）','＋55（設5以上濃厚・確定級）','＋66（設6以上濃厚・確定級）','456 OVER（確定級）','666 OVER（確定級）'],'hit')
+      kabaneriSuggestPlace('sgp_kabaneri_setting_st_end','ST終了画面',['鉄下駄（示唆）','集合（示唆）','水着（設定6濃厚）'],'hit'),
+      kabaneriSuggestPlace('sgp_kabaneri_setting_intro','キャラ紹介',['女性（示唆）','男性（示唆）','美馬（設定4以上濃厚）'],'hit'),
+      kabaneriSuggestPlace('sgp_kabaneri_setting_trophy','サミートロフィー',['銅（設定2以上濃厚）','銀（設定3以上濃厚）','金（設定4以上濃厚）','キリン（設定5以上濃厚）','虹（設定6濃厚）'],'hit'),
+      kabaneriSuggestPlace('sgp_kabaneri_setting_voice','技術介入ボイス',['男性（示唆）','女性（示唆）','景之・弱（示唆）','景之・中（示唆）','景之・強（示唆）','無名「普通じゃないね」（設定2以上濃厚）','ボイスなし（設定5以上濃厚）'],'hit'),
+      kabaneriSuggestPlace('sgp_kabaneri_setting_medal_display','枚数表示',['＋44（設定4以上濃厚）','＋55（設定5以上濃厚）','＋66（設定6以上濃厚）','456 OVER（設定4以上濃厚）','666 OVER（設定6濃厚）'],'hit')
     ]},
     {id:'sgc_kabaneri_kokuen',category:'黒煙示唆',enabled:true,useAppearG:true,places:[
       kabaneriSuggestPlace('sgp_kabaneri_kokuen_get','獲得演出',['獲得・小（示唆）','獲得・大（示唆）']),
@@ -5554,11 +5554,11 @@ function ensureKabaneriStFlowSeedV1(machine){
   const trophy=ensureKabaneriSuggestPlace(setting,'sgp_kabaneri_setting_trophy','サミートロフィー');
   upsertKabaneriSuggestItems(trophy,[
     {id:'sgi_kabaneri_trophy_none',label:'なし'},
-    {id:'sgp_kabaneri_setting_trophy_i1',label:'銅（確定級）'},
-    {id:'sgp_kabaneri_setting_trophy_i2',label:'銀（確定級）'},
-    {id:'sgp_kabaneri_setting_trophy_i3',label:'金（確定級）'},
-    {id:'sgp_kabaneri_setting_trophy_i4',label:'キリン（確定級）'},
-    {id:'sgp_kabaneri_setting_trophy_i5',label:'虹（確定級）'}
+    {id:'sgp_kabaneri_setting_trophy_i1',label:'銅（設定2以上濃厚）'},
+    {id:'sgp_kabaneri_setting_trophy_i2',label:'銀（設定3以上濃厚）'},
+    {id:'sgp_kabaneri_setting_trophy_i3',label:'金（設定4以上濃厚）'},
+    {id:'sgp_kabaneri_setting_trophy_i4',label:'キリン（設定5以上濃厚）'},
+    {id:'sgp_kabaneri_setting_trophy_i5',label:'虹（設定6濃厚）'}
   ]);
   machine.kabaneriStFlowSeedV1=true;
   applySuggestMetadata(machine);
@@ -8077,7 +8077,7 @@ function compareMetricBias(pair,metric){
   const highDistance=Math.abs(rate-high);
   const span=Math.abs(high-low)||1;
   if(Math.abs(lowDistance-highDistance)/span<0.12)return '中間';
-  return highDistance<lowDistance?'設6寄り':'設1寄り';
+  return highDistance<lowDistance?'設定6寄り':'設定1寄り';
 }
 function compareMetricValueHtml(pair,format){
   if(!pair||pair.den<=0)return '<span class="bm-compare-main">—</span><span class="bm-compare-sub">(0/0)</span>';
