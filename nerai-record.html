@@ -567,6 +567,19 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-chance-eye-subrow{color:var(--text-muted);}
 .bm-chance-eye-core{grid-column:1/-1;color:var(--gold-light);font-size:13px;font-weight:900;line-height:1.45;}
 .bm-chance-eye-carry{grid-column:1/-1;color:var(--text-muted);font-size:12px;line-height:1.4;}
+.bm-genealogy{grid-column:1/-1;display:grid;gap:10px;font-variant-numeric:tabular-nums;}
+.bm-genealogy-section{border:1px solid rgba(148,163,184,.22);border-radius:8px;background:rgba(15,23,42,.22);padding:8px;}
+.bm-genealogy-title{font-size:13px;font-weight:900;margin:0 0 7px;}
+.bm-genealogy-chain{border:1px solid rgba(148,163,184,.18);border-radius:8px;background:rgba(255,255,255,.025);padding:7px;margin-top:6px;}
+.bm-genealogy-chain.ongoing{border-left:4px solid var(--gold);background:rgba(201,168,76,.06);}
+.bm-genealogy-flow{display:flex;flex-wrap:wrap;align-items:center;gap:5px;font-size:11px;line-height:1.35;}
+.bm-genealogy-chip{display:inline-flex;align-items:center;gap:3px;border-radius:999px;padding:3px 7px;background:rgba(255,255,255,.055);color:var(--text);font-weight:900;white-space:nowrap;}
+.bm-genealogy-chip.event{border:1px solid rgba(148,163,184,.32);background:transparent;}
+.bm-genealogy-chip.terminal{border:1px solid rgba(201,168,76,.42);color:var(--gold-light);background:rgba(201,168,76,.08);}
+.bm-genealogy-chip.carry{border:1px dashed rgba(201,168,76,.55);}
+.bm-genealogy-arrow{color:var(--text-muted);font-weight:900;}
+.bm-genealogy-meta{margin-top:5px;text-align:right;color:var(--text-muted);font-size:11px;font-weight:900;}
+.bm-genealogy-more{min-height:34px;border:1px solid rgba(122,122,138,.42);border-radius:8px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:900;}
 .bm-state-badges{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;}
 .bm-state-badge{min-height:32px;border:1px solid rgba(96,165,250,.45);border-radius:999px;background:rgba(96,165,250,.16);color:#bfdbfe;font-size:12px;font-weight:900;padding:5px 10px;cursor:pointer;appearance:none;line-height:1.2;}
 .bm-state-badge:active{transform:translateY(1px);filter:brightness(1.08);}
@@ -7345,6 +7358,7 @@ const KABANERI_CHANCE_EYE_TABLE_CHARS=[
   {key:'kabane',label:'カバネ',tone:'blue',singleId:'t_kabaneri_chance_kabane',flashStart:'t_kabaneri_state_kabane_flash_start',flashEnd:'t_kabaneri_state_kabane_flash_end',highStart:'t_kabaneri_state_kabane_high_start',highEnd:'t_kabaneri_state_kabane_high_end',czStart:''}
 ];
 let kabaneriChanceEyeTableScope='sinceCz';
+let kabaneriGenealogyExpanded=false;
 function timelineTagIds(entry){return Array.isArray(entry?.tagIds)?entry.tagIds:[];}
 function timelineHasAnyTag(entry,ids){const tagIds=timelineTagIds(entry);return ids.some(id=>tagIds.includes(id));}
 function kabaneriChanceEyeTypesForEntry(entry){return KABANERI_CHANCE_EYE_CLASSIFIERS.filter(row=>timelineHasAnyTag(entry,row.chanceIds));}
@@ -7552,6 +7566,220 @@ function kabaneriChanceEyeTableSummary(timeline=currentTimeline,machine=currentM
     updateKabaneriChanceEyeStageState(entry,active);
   });
   return summary;
+}
+function kabaneriChanceEyeMetaRows(timeline=currentTimeline,machine=currentMachine()){
+  const rows=kabaneriChanceEyeTimelineRows(timeline);
+  const active={flash:new Set(),high:new Set(),super:false,finalDefense:false};
+  return rows.map((entry,index)=>{
+    const members=kabaneriChanceEyeMembersForEntry(entry,machine).map(member=>({
+      ...member,
+      column:kabaneriChanceEyeColumnForChar(rows,index,member.charKey,active),
+      carryover:kabaneriChanceEyeIsCarryover(rows,index,member.charKey,active.finalDefense)
+    }));
+    const row={entry,index,members,finalDefenseActive:active.finalDefense};
+    updateKabaneriChanceEyeActiveState(entry,active);
+    updateKabaneriChanceEyeStageState(entry,active);
+    return row;
+  });
+}
+function kabaneriGenealogyAllTimelineRows(){
+  const segmentRows=[...currentSegments].reverse().flatMap(segment=>Array.isArray(segment?.timeline)?segment.timeline:[]);
+  return [...segmentRows,...currentTimeline];
+}
+function kabaneriGenealogyAllSuggestRows(){
+  const segmentRows=[...currentSegments].reverse().flatMap(segment=>Array.isArray(segment?.suggestLog)?segment.suggestLog:[]);
+  return [...segmentRows,...currentSuggestLog];
+}
+function kabaneriGenealogyAllHitRows(){
+  const segmentRows=[...currentSegments].reverse().flatMap(segment=>Array.isArray(segment?.hitEvents)?segment.hitEvents:[]);
+  return [...segmentRows,...currentHitEvents];
+}
+function kabaneriGenealogyTargetForLabel(label){
+  const text=String(label||'');
+  if(text.includes('無名'))return 'mumei';
+  if(text.includes('生駒'))return 'ikoma';
+  if(text.includes('カバネ')||text.includes('景之')||text.includes('銅藍')||text.includes('輪廻')||text.includes('周期')||text.includes('廻')||text.includes('果報')||text.includes('六根'))return 'kabane';
+  return '';
+}
+function kabaneriGenealogyTargetForSuggest(entry,machine=currentMachine()){
+  if(entry?.categoryId&&entry.categoryId!==KABANERI_POINT_CATEGORY_ID&&entry.categoryId!==KABANERI_OMIKUJI_CATEGORY_ID)return '';
+  const refs=suggestEntryDisplayRefs(entry,machine);
+  return kabaneriGenealogyTargetForLabel(`${refs.placeLabel} ${refs.itemLabel}`);
+}
+function kabaneriGenealogyChipGame(entry){
+  const liquid=normalizeOptionalNumber(entry?.liquidGame);
+  const data=normalizeOptionalNumber(entry?.game??entry?.dataGame);
+  return liquid!==null?liquid:data;
+}
+function kabaneriGenealogyChip(label,entry,type='event',extra={}){
+  const game=kabaneriGenealogyChipGame(entry);
+  return {label,type,game,entry,carryover:!!extra.carryover,column:extra.column||'',tone:extra.tone||'',terminal:!!extra.terminal};
+}
+function kabaneriGenealogyChanceLabel(column,entry){
+  const labels={normalNoFlash:'無→無',normalFlash:'無→💡',flashing:'💡',flashHigh:'💡🔥',high:'🔥',super:'⚡'};
+  const base=labels[column]||column||'チャ目';
+  const game=kabaneriGenealogyChipGame(entry);
+  return column==='normalFlash'&&game!==null?`${base} ${game}G`:base;
+}
+function kabaneriGenealogyEventLabel(entry,machine=currentMachine()){
+  if(entry?.kind==='suggest'||entry?.type==='suggest'){
+    const refs=suggestEntryDisplayRefs(entry.entry,machine);
+    const game=kabaneriGenealogyChipGame(entry.entry);
+    const historical=String(entry.entry?.item||'').trim();
+    const resolved=String(refs.itemLabel||'').trim();
+    const label=historical||(!resolved||resolved==='undefined'||resolved.startsWith('undefined')?'示唆':resolved);
+    return `${label}${game!==null?` ${game}G`:''}`;
+  }
+  const game=kabaneriGenealogyChipGame(entry.entry);
+  return `${entry.label}${game!==null?` ${game}G`:''}`;
+}
+function kabaneriGenealogyDefeatText(entry){
+  const value=normalizeTimelineAttachments(entry?.attachments).find(row=>row.key==='defeatCount')?.value;
+  return value!==undefined&&value!==null?`（撃破${value}）`:'';
+}
+function kabaneriGenealogyCzResultText(entry){
+  const text=String(entry?.text||'');
+  if(text.includes('成功'))return `成功${kabaneriGenealogyDefeatText(entry)}`;
+  if(text.includes('失敗'))return `失敗${kabaneriGenealogyDefeatText(entry)}`;
+  return `終了${kabaneriGenealogyDefeatText(entry)}`;
+}
+function kabaneriGenealogyHitTypeLabel(event,machine=currentMachine()){
+  return hitTriggerLabel(event?.trigger,machine);
+}
+function kabaneriGenealogyEmptyChain(key,ongoing=true,carry=[]){
+  const chips=[...(carry||[])];
+  return {key,ongoing,chips,terminal:null,startEntry:chips[0]?.entry||null,endEntry:chips.at(-1)?.entry||null};
+}
+function kabaneriGenealogyAttachChip(chain,chip){
+  if(!chain.startEntry)chain.startEntry=chip.entry||null;
+  chain.endEntry=chip.entry||chain.endEntry||null;
+  chain.chips.push(chip);
+}
+function kabaneriGenealogyFinishChain(collection,key,terminalChip,endEntry,nextCarry=[]){
+  const chain=collection.current[key];
+  if(terminalChip)kabaneriGenealogyAttachChip(chain,terminalChip);
+  chain.ongoing=false;
+  chain.terminal=terminalChip||null;
+  chain.endEntry=endEntry||chain.endEntry;
+  if(chain.chips.length)collection.sections[key].completed.push(chain);
+  collection.current[key]=kabaneriGenealogyEmptyChain(key,true,nextCarry);
+}
+function kabaneriGenealogyRows({timeline=[],suggestLog=[],hitEvents=[]}={},machine=currentMachine()){
+  const timelineMeta=kabaneriChanceEyeMetaRows(timeline,machine);
+  const rows=[];
+  timelineMeta.forEach(meta=>rows.push({kind:'timeline',entry:meta.entry,index:meta.index,meta,createdAt:meta.entry?.createdAt||''}));
+  (Array.isArray(suggestLog)?suggestLog:[]).forEach((entry,index)=>rows.push({kind:'suggest',entry,index,createdAt:entry?.createdAt||''}));
+  (Array.isArray(hitEvents)?hitEvents:[]).forEach((entry,index)=>rows.push({kind:'hit',entry,index,createdAt:entry?.createdAt||''}));
+  return sortByCreatedAtWithIndex(rows.map((row,index)=>({...row,sortIndex:index})),false);
+}
+function kabaneriGenealogyChains(sources={},machine=currentMachine()){
+  const rows=kabaneriGenealogyRows(sources,machine);
+  const sections={mumei:{key:'mumei',label:'無名',tone:'red',completed:[]},ikoma:{key:'ikoma',label:'生駒',tone:'green',completed:[]},kabane:{key:'kabane',label:'カバネ・周期',tone:'blue',completed:[]}};
+  const collection={sections,current:{mumei:kabaneriGenealogyEmptyChain('mumei'),ikoma:kabaneriGenealogyEmptyChain('ikoma'),kabane:kabaneriGenealogyEmptyChain('kabane')}};
+  const carry={mumei:[],ikoma:[],kabane:[]};
+  rows.forEach(row=>{
+    if(row.kind==='timeline'){
+      const entry=row.entry;
+      row.meta.members.forEach(member=>{
+        const chip=kabaneriGenealogyChip(kabaneriGenealogyChanceLabel(member.column,entry),entry,'chance',{column:member.column,carryover:member.carryover});
+        if(member.carryover){
+          carry[member.charKey].push(chip);
+        }else{
+          kabaneriGenealogyAttachChip(collection.current[member.charKey],chip);
+        }
+      });
+      if(timelineHasAnyTag(entry,['t_kabaneri_state_kabane_high_start']))kabaneriGenealogyAttachChip(collection.current.kabane,kabaneriGenealogyChip('高確ON',entry,'event',{tone:'blue'}));
+      if(timelineHasAnyTag(entry,['t_kabaneri_state_super_high_start']))kabaneriGenealogyAttachChip(collection.current.kabane,kabaneriGenealogyChip('⚡超高確ON',entry,'event',{tone:'blue'}));
+      if(timelineHasAnyTag(entry,['t_kabaneri_stage_final_defense']))kabaneriGenealogyAttachChip(collection.current.kabane,kabaneriGenealogyChip('最終防衛',entry,'event',{tone:'blue'}));
+      if(timelineHasAnyTag(entry,['t_kabaneri_cz_mumei_start']))kabaneriGenealogyAttachChip(collection.current.mumei,kabaneriGenealogyChip('CZ突入',entry,'terminal',{tone:'red'}));
+      if(timelineHasAnyTag(entry,['t_kabaneri_cz_ikoma_start']))kabaneriGenealogyAttachChip(collection.current.ikoma,kabaneriGenealogyChip('CZ突入',entry,'terminal',{tone:'green'}));
+      if(timelineHasAnyTag(entry,['t_kabaneri_cz_mumei_end']))kabaneriGenealogyFinishChain(collection,'mumei',kabaneriGenealogyChip(kabaneriGenealogyCzResultText(entry),entry,'terminal',{tone:'red'}),entry,carry.mumei.splice(0));
+      if(timelineHasAnyTag(entry,['t_kabaneri_cz_ikoma_end']))kabaneriGenealogyFinishChain(collection,'ikoma',kabaneriGenealogyChip(kabaneriGenealogyCzResultText(entry),entry,'terminal',{tone:'green'}),entry,carry.ikoma.splice(0));
+      if(timelineHasAnyTag(entry,['t_kabaneri_cycle']))kabaneriGenealogyFinishChain(collection,'kabane',kabaneriGenealogyChip('非当選',entry,'terminal',{tone:'blue'}),entry,carry.kabane.splice(0));
+    }else if(row.kind==='suggest'){
+      const target=kabaneriGenealogyTargetForSuggest(row.entry,machine);
+      if(target&&collection.current[target])kabaneriGenealogyAttachChip(collection.current[target],kabaneriGenealogyChip(kabaneriGenealogyEventLabel(row,machine),row.entry,'event',{tone:sections[target].tone}));
+    }else if(row.kind==='hit'){
+      const event=row.entry;
+      if(event?.variant==='cycle'){
+        const terminal=kabaneriGenealogyChip(`周期当選→${kabaneriGenealogyHitTypeLabel(event,machine)}`,event,'terminal',{tone:'blue'});
+        kabaneriGenealogyFinishChain(collection,'kabane',terminal,event,carry.kabane.splice(0));
+      }
+    }
+  });
+  Object.keys(collection.current).forEach(key=>{
+    if(carry[key].length)carry[key].forEach(chip=>kabaneriGenealogyAttachChip(collection.current[key],chip));
+    collection.sections[key].ongoing=collection.current[key].chips.length?collection.current[key]:null;
+  });
+  return collection.sections;
+}
+function kabaneriGenealogyAllChains(){
+  return kabaneriGenealogyChains({
+    timeline:kabaneriGenealogyAllTimelineRows(),
+    suggestLog:kabaneriGenealogyAllSuggestRows(),
+    hitEvents:kabaneriGenealogyAllHitRows()
+  },currentMachine());
+}
+function kabaneriGenealogyChipHtml(chip){
+  const tone=chip.tone?` bm-choice-text-${escapeHtml(chip.tone)}`:'';
+  const classes=['bm-genealogy-chip',chip.type==='event'?'event':'',chip.type==='terminal'?'terminal':'',chip.carryover?'carry':''].filter(Boolean).join(' ');
+  const carry=chip.carryover?'<span class="bm-choice-text-gold">持越</span> ':'';
+  return `<span class="${classes} ${tone}">${carry}${escapeHtml(chip.label)}</span>`;
+}
+function kabaneriGenealogyCompressedChipHtml(chips){
+  const parts=[];
+  for(let i=0;i<chips.length;i++){
+    const chip=chips[i];
+    if(chip.type==='chance'&&chip.column==='normalNoFlash'&&!chip.carryover){
+      let count=1;
+      while(i+1<chips.length&&chips[i+1].type==='chance'&&chips[i+1].column==='normalNoFlash'&&!chips[i+1].carryover){count++;i++;}
+      parts.push(kabaneriGenealogyChipHtml({...chip,label:count>1?`無→無×${count}`:'無→無'}));
+    }else{
+      parts.push(kabaneriGenealogyChipHtml(chip));
+    }
+  }
+  return parts.join('<span class="bm-genealogy-arrow">→</span>');
+}
+function kabaneriGenealogyChainMeta(chain){
+  const chanceCount=chain.chips.filter(chip=>chip.type==='chance').length;
+  const start=chain.startEntry;
+  const end=chain.endEntry||chain.chips.at(-1)?.entry;
+  const interval=kabaneriChanceEyeAxisDistance(start,end);
+  return `${chanceCount}チャ目${interval!==null?`・${interval}G`:''}`;
+}
+function kabaneriGenealogyChainHtml(chain){
+  return `<div class="bm-genealogy-chain ${chain.ongoing?'ongoing':''}">
+    ${chain.ongoing?'<div class="bm-choice-text-gold" style="font-size:11px;font-weight:900;margin-bottom:4px;">進行中</div>':''}
+    <div class="bm-genealogy-flow">${kabaneriGenealogyCompressedChipHtml(chain.chips)}</div>
+    <div class="bm-genealogy-meta">${escapeHtml(kabaneriGenealogyChainMeta(chain))}</div>
+  </div>`;
+}
+function kabaneriGenealogySectionHtml(section){
+  const completed=[...section.completed].reverse();
+  const shown=kabaneriGenealogyExpanded?completed:completed.slice(0,3);
+  const rows=[];
+  if(section.ongoing)rows.push(kabaneriGenealogyChainHtml(section.ongoing));
+  shown.forEach(chain=>rows.push(kabaneriGenealogyChainHtml(chain)));
+  const more=!kabaneriGenealogyExpanded&&completed.length>3?`<button class="bm-genealogy-more" type="button" onclick="kabaneriGenealogyExpanded=true;openBattleModeKabaneriGenealogySheet()">もっと見る（${completed.length}本）</button>`:'';
+  return `<section class="bm-genealogy-section">
+    <div class="bm-genealogy-title">${kabaneriChanceEyeToneHtml(section.label,section.tone)}</div>
+    ${rows.length?rows.join(''):'<div class="empty-hint">系譜なし</div>'}
+    ${more}
+  </section>`;
+}
+function battleModeKabaneriGenealogyHtml(){
+  const sections=kabaneriGenealogyAllChains();
+  return `<div class="bm-genealogy">
+    ${['mumei','ikoma','kabane'].map(key=>kabaneriGenealogySectionHtml(sections[key])).join('')}
+    <div class="bm-sheet-note">無→無のみ連続圧縮。発光・高確・超高確は個別表示。リールフラッシュは初版では採録しません。</div>
+  </div>`;
+}
+function openBattleModeKabaneriGenealogySheet(){
+  if(!isKabaneriMachine(currentMachine())){battleModeInvalid('カバネリ専用ビューです');return;}
+  setBattleModeSheet('系譜ビュー',`
+    ${battleModeKabaneriGenealogyHtml()}
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
+  `);
 }
 function kabaneriChanceEyeTableCell(value,columnKey){
   const text=String(value||0);
@@ -8907,7 +9135,10 @@ function openBattleModeOtherSheet(){
     excludedModals.has('shopNote')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'shopNote\')">他台メモ</button>',
     excludedModals.has('memo')?'':'<button class="bm-btn other" type="button" onclick="openBattleModeMemoSheet()">メモ</button>'
   ];
-  if(isKabaneriMachine(currentMachine()))modalButtons.push('<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModeKabaneriUpperStPicker()">上位ST突入</button>');
+  if(isKabaneriMachine(currentMachine())){
+    modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModeKabaneriGenealogySheet()">系譜ビュー</button>');
+    modalButtons.push('<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModeKabaneriUpperStPicker()">上位ST突入</button>');
+  }
   if(isTokyoGhoulMachine(currentMachine()))modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModePicker(\'ghoul_rare\')">\u30ec\u30a2\uff08\u6fc0\u30ec\u30a2\uff09</button>');
   const modalButtonsHtml=modalButtons.join('');
   if(grid)grid.innerHTML=modalButtonsHtml+(tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>');

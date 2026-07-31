@@ -978,6 +978,103 @@ function testKabaneriGameStateTriggers() {
   });
 }
 
+function testKabaneriGenealogyView() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext(`
+    selectedMachineId='m_kabaneri';
+    selectedAimId=firstAimIdForMachine(currentMachine())||'';
+    battleModeOpen=true;
+    currentSegments=[];
+    currentTimeline=[
+      {id:'m1',game:90,liquidGame:90,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-31T10:01'},
+      {id:'m2',game:100,liquidGame:100,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-31T10:02'},
+      {id:'m3',game:103,liquidGame:103,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei','t_kabaneri_state_mumei_flash_start'],countAs:[],createdAt:'2026-07-31T10:03'},
+      {id:'m4',game:104,liquidGame:104,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-31T10:04'},
+      {id:'m5',game:130,liquidGame:130,text:'無名CZ 突入',tagIds:['t_kabaneri_cz_mumei_start'],countAs:[],createdAt:'2026-07-31T10:05'},
+      {id:'m6',game:135,liquidGame:135,text:'無名CZ 失敗（撃破数5）',tagIds:['t_kabaneri_cz_mumei_end'],countAs:[],attachments:[{key:'defeatCount',label:'撃破数',value:5,unit:''}],createdAt:'2026-07-31T10:06'},
+      {id:'m6b',game:136,liquidGame:136,text:'無名発光 終了',tagIds:['t_kabaneri_state_mumei_flash_end'],countAs:[],createdAt:'2026-07-31T10:06:10'},
+      {id:'m7',game:210,liquidGame:210,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-31T10:07'},
+      {id:'m8',game:225,liquidGame:225,text:'無名CZ 突入',tagIds:['t_kabaneri_cz_mumei_start'],countAs:[],createdAt:'2026-07-31T10:08'},
+      {id:'m9',game:230,liquidGame:230,text:'無名CZ 成功',tagIds:['t_kabaneri_cz_mumei_end'],countAs:[],createdAt:'2026-07-31T10:09'},
+      {id:'k1',game:450,liquidGame:450,text:'カバネ高確 開始',tagIds:['t_kabaneri_state_kabane_high_start'],countAs:[],createdAt:'2026-07-31T10:10'},
+      {id:'k2',game:451,liquidGame:451,text:'カバネチャンス目',tagIds:['t_kabaneri_chance_kabane'],countAs:[],createdAt:'2026-07-31T10:11'},
+      {id:'k3',game:452,liquidGame:452,text:'超高確 開始',tagIds:['t_kabaneri_state_super_high_start'],countAs:[],createdAt:'2026-07-31T10:12'},
+      {id:'k4',game:453,liquidGame:453,text:'カバネチャンス目',tagIds:['t_kabaneri_chance_kabane'],countAs:[],createdAt:'2026-07-31T10:13'},
+      {id:'k5',game:460,liquidGame:460,text:'最終防衛',tagIds:['t_kabaneri_stage_final_defense'],countAs:[],createdAt:'2026-07-31T10:14'},
+      {id:'k6',game:500,liquidGame:500,text:'周期+1',tagIds:['t_kabaneri_cycle'],countAs:[],createdAt:'2026-07-31T10:16'},
+      {id:'k6a',game:500,liquidGame:500,text:'カバネ高確 終了',tagIds:['t_kabaneri_state_kabane_high_end'],countAs:[],createdAt:'2026-07-31T10:16:10'},
+      {id:'k6b',game:500,liquidGame:500,text:'超高確 終了',tagIds:['t_kabaneri_state_super_high_end'],countAs:[],createdAt:'2026-07-31T10:16:20'},
+      {id:'k7',game:501,liquidGame:501,text:'カバネチャンス目',tagIds:['t_kabaneri_chance_kabane'],countAs:[],createdAt:'2026-07-31T10:17'}
+    ];
+    currentSuggestLog=[
+      {id:'s1',categoryId:'sgc_kabaneri_point',placeId:'sgp_kabaneri_point_minichara',itemId:'sgp_kabaneri_point_minichara_i1',category:'規定pt示唆',place:'ミニキャラ',item:'無名・無言（予想）',dataGame:10,liquidGame:10,createdAt:'2026-07-31T10:00'},
+      {id:'s2',categoryId:'sgc_kabaneri_omikuji',placeId:'sgp_kabaneri_omikuji_cz',itemId:'sgp_kabaneri_omikuji_cz_i3',category:'おみくじ',place:'輪廻くじ・CZ',item:'無名・中吉（残り僅か・示唆）',dataGame:201,liquidGame:201,createdAt:'2026-07-31T10:06:30'},
+      {id:'s3',categoryId:'sgc_kabaneri_omikuji',placeId:'sgp_kabaneri_omikuji_cycle',itemId:'sgp_kabaneri_omikuji_cycle_i1',category:'おみくじ',place:'輪廻くじ',item:'一廻以内好機（示唆）',dataGame:440,liquidGame:440,createdAt:'2026-07-31T10:09:30'},
+      {id:'s4',categoryId:'sgc_kabaneri_point',placeId:'sgp_kabaneri_point_eyecatch',itemId:'sgi_kabaneri_point_eyecatch_default',category:'規定pt示唆',place:'アイキャッチ',item:'デフォルト（キャラなし）',dataGame:442,liquidGame:442,createdAt:'2026-07-31T10:09:40'}
+    ];
+    currentHitEvents=[
+      {id:'h1',trigger:'direct_at',variant:'cycle',dataGame:470,liquidGame:470,through:'yes',createdAt:'2026-07-31T10:15',wizardDone:true}
+    ];
+  `, context);
+  const summary = JSON.parse(vm.runInContext(`JSON.stringify((()=>{
+    const chains=kabaneriGenealogyAllChains();
+    return {
+      mumeiCompleted: chains.mumei.completed.length,
+      mumeiFirstLabels: chains.mumei.completed[0].chips.map(chip => chip.label),
+      mumeiFirstCarry: chains.mumei.completed[0].chips.map(chip => chip.carryover),
+      mumeiOngoingLabels: chains.mumei.ongoing.chips.map(chip => chip.label),
+      mumeiOngoingCarry: chains.mumei.ongoing.chips.map(chip => chip.carryover),
+      kabaneCompletedLabels: chains.kabane.completed.map(chain => chain.chips.map(chip => chip.label)),
+      kabaneOngoingLabels: chains.kabane.ongoing.chips.map(chip => chip.label)
+    };
+  })())`, context));
+  assert.equal(summary.mumeiCompleted, 2);
+  assert.deepEqual(summary.mumeiFirstLabels, ['無名・無言（予想） 10G', '無→無', '無→無', '無→💡 103G', '💡', 'CZ突入', '失敗（撃破5）']);
+  assert.equal(summary.mumeiFirstCarry.some(Boolean), false);
+  assert.deepEqual(summary.mumeiOngoingLabels, ['無→無']);
+  assert.deepEqual(summary.mumeiOngoingCarry, [true]);
+  assert.deepEqual(summary.kabaneCompletedLabels[0], ['一廻以内好機（示唆） 440G', '高確ON', '🔥', '⚡超高確ON', '⚡', '最終防衛', '周期当選→駿城ボーナス']);
+  assert.deepEqual(summary.kabaneCompletedLabels[1], ['非当選']);
+  assert.deepEqual(summary.kabaneOngoingLabels, ['無→無']);
+
+  vm.runInContext("openBattleModeKabaneriGenealogySheet()", context);
+  const html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  const text = stripTags(html);
+  assert.match(text, /無名/);
+  assert.match(text, /生駒/);
+  assert.match(text, /カバネ・周期/);
+  assert.match(text, /無名・無言/);
+  assert.match(text, /無名・中吉/);
+  assert.match(text, /無→無×2/);
+  assert.match(text, /無→💡 103G/);
+  assert.match(text, /💡/);
+  assert.match(text, /CZ突入/);
+  assert.match(text, /失敗（撃破5）/);
+  assert.match(text, /持越/);
+  assert.match(text, /高確ON/);
+  assert.match(text, /一廻以内好機/);
+  assert.match(text, /🔥/);
+  assert.match(text, /⚡超高確ON/);
+  assert.match(text, /最終防衛/);
+  assert.match(text, /周期当選→駿城ボーナス/);
+  assert.match(text, /非当選/);
+  assert.match(html, /bm-genealogy-chain ongoing/);
+  assert.doesNotMatch(text, /デフォルト（キャラなし）/);
+  assert.doesNotMatch(text, /無→💡×/);
+
+  vm.runInContext(`
+    kabaneriGenealogyExpanded=false;
+    const dummyEntry={id:'d',game:1,liquidGame:1,createdAt:'2026-07-31T00:00'};
+    const dummyChain=label=>({key:'mumei',ongoing:false,chips:[{label,type:'event',game:1,entry:dummyEntry}],startEntry:dummyEntry,endEntry:dummyEntry});
+    globalThis.__genealogyMoreHtml=kabaneriGenealogySectionHtml({key:'mumei',label:'無名',tone:'red',ongoing:null,completed:[dummyChain('a'),dummyChain('b'),dummyChain('c'),dummyChain('d')]});
+  `, context);
+  assert.match(vm.runInContext("__genealogyMoreHtml", context), /もっと見る/);
+
+  vm.runInContext("selectedMachineId='m_nangoku_special'; selectedAimId=firstAimIdForMachine(currentMachine())||''; openBattleModeOtherSheet();", context);
+  assert.doesNotMatch(stripTags(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context)), /系譜ビュー/);
+}
+
 function testStandardAimSeedsNoDuplicatesAndDeleteTombstone() {
   const { context, localStorage } = runRecord(undefined, [true, true]);
 
@@ -3781,6 +3878,7 @@ function run() {
   testKabaneriChanceEyeMeterAndCounters();
   testKabaneriChanceEyeSituationView();
   testKabaneriGameStateTriggers();
+  testKabaneriGenealogyView();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();
   testOtherPresetMachinesRemainStable();
   testNoHitQuitSegmentsAreIncludedInTextOutputs();
