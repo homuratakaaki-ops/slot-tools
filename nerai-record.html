@@ -7144,12 +7144,20 @@ function battleModeCounterText(value){
 }
 function battleModeRecentRows(){
   const limit=window.innerHeight&&window.innerHeight<560?1:3;
-  return sortedTimeline().slice(0,limit);
+  const timelineRows=sortedTimeline().map(entry=>({...entry,battleModeRecentType:'timeline'}));
+  const suggestRows=sortByCreatedAtWithIndex(currentSuggestLog,true).map(entry=>({...entry,battleModeRecentType:'suggest'}));
+  return sortByCreatedAtWithIndex([...timelineRows,...suggestRows],true).slice(0,limit);
 }
 function battleModeEntryLabel(entry){
+  if(entry?.battleModeRecentType==='suggest')return battleModeSuggestEntryLabel(entry);
   const game=normalizeOptionalNumber(entry?.game);
   const text=String(entry?.text||'').trim()||'記録';
   return `${game!==null?`${game}G `:''}${text}`;
+}
+function battleModeSuggestEntryLabel(entry){
+  const game=normalizeOptionalNumber(entry?.dataGame??entry?.game);
+  const {itemLabel}=suggestEntryDisplayRefs(entry);
+  return `${game!==null?`${game}G `:''}${itemLabel||'示唆'}`;
 }
 function machineStates(machine=currentMachine()){
   return normalizeMachineStates(machine?.states);
@@ -10445,7 +10453,7 @@ function battleModeRecordFlattenSuggestItem(categoryId,placeId,itemId){
     decorations:item.decorations||[],
     useAppearG:category.useAppearG!==false
   };
-  addSuggestLogFromSelection(selection);
+  addBattleModeSuggestLogFromSelection(selection);
 }
 function openSuggestPlacePicker(stateGroup){
   const group=normalizeSuggestStateGroup(stateGroup)||'play';
@@ -10510,8 +10518,12 @@ function selectKuiPointValue(value){
   const hint=value;
   const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
   const source=branchActive?'wizard':'manual';
-  addKuiPointSuggestLog('獲得',gain,source);
-  addKuiPointSuggestLog('示唆',hint,source);
+  const recordPair=()=>{
+    addKuiPointSuggestLog('獲得',gain,source);
+    addKuiPointSuggestLog('示唆',hint,source);
+  };
+  if(battleModeOpen&&!branchActive)battleModeCommit(`示唆「${battleModeSuggestShortLabel(hint)}」`,recordPair);
+  else recordPair();
   closeSuggestPicker();
   if(branchActive)finishHitBranchStepAndContinue();
 }
@@ -10593,7 +10605,7 @@ function selectSuggestItem(itemId){
     renderSuggestPicker('trophyCustom');
     return;
   }
-  if(addSuggestLogFromSelection(selection)){
+  if(addBattleModeSuggestLogFromSelection(selection)){
     closeSuggestPicker();
     if(branchActive)finishHitBranchStepAndContinue();
   }
@@ -10608,7 +10620,7 @@ function selectTrophyCustom(custom){
   if(!category||!place||!item){alert('トロフィーの内容を選び直してください');return;}
   const branchActive=suggestPickerState.branchRoute&&suggestPickerState.branchStep;
   const selection={stateGroup:suggestPlaceStateGroup(category,place),source:branchActive?'wizard':'manual',hitEventId:branchActive?(hitBranchWizard.eventId||''):'',carryType:normalizeCarryType(item.carryType)||'setting',pointRole:place.pointRole||item.pointRole||null,confidenceLevel:item.confidenceLevel||null,confidenceType:item.confidenceType||null,categoryId:category.id,placeId:place.id,itemId:item.id,category:category.category,place:place.name,item:item.label,decorations:item.decorations||[],useAppearG:false};
-  if(addSuggestLogFromSelection(selection,custom)){
+  if(addBattleModeSuggestLogFromSelection(selection,custom)){
     closeSuggestPicker();
     if(branchActive)finishHitBranchStepAndContinue();
   }
@@ -10643,6 +10655,14 @@ function addSuggestLogFromSelection(selection,trophyCustomValue=''){
   renderCarrySummaryIntoDom();
   saveDraftImmediately();
   return true;
+}
+function battleModeSuggestShortLabel(label){
+  return String(label||'示唆').replace(/（[^）]*）/g,'').replace(/^(無名|生駒|カバネ|舵取り|銅藍)・/,'').trim()||'示唆';
+}
+function addBattleModeSuggestLogFromSelection(selection,trophyCustomValue=''){
+  if(!battleModeOpen||selection?.source==='wizard')return addSuggestLogFromSelection(selection,trophyCustomValue);
+  const label=`示唆「${battleModeSuggestShortLabel(selection?.item)}」`;
+  return battleModeCommit(label,()=>addSuggestLogFromSelection(selection,trophyCustomValue),{toastMessage:`${label}を記録`});
 }
 function isArimaJudgementFailEntry(entry){
   return String(entry?.item||'').includes('有馬貴将ジャッジメント失敗')||entry?.arimaNextOffset===-6;

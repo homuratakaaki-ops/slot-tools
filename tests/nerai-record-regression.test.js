@@ -711,6 +711,70 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /ST突入/);
 }
 
+function testBattleModeSuggestCommitRecentAndUndo() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext(`
+    selectedMachineId = 'm_kabaneri';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentFlowStep = 2;
+    battleModeOpen = true;
+    currentTimeline = [];
+    currentSuggestLog = [];
+    battleModeUndoStack = [];
+    setTimelineGames(120, 120);
+  `, context);
+
+  vm.runInContext("battleModeRecordFlattenSuggestItem('sgc_kabaneri_point','sgp_kabaneri_point_minichara','sgp_kabaneri_point_minichara_i3')", context);
+  assert.equal(vm.runInContext("currentSuggestLog.length", context), 1);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /もうすぐだよ/);
+  assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /直前「示唆「もうすぐだよ」」を取消/);
+  assert.equal(vm.runInContext("battleModeUndoStack.at(-1).label", context), '示唆「もうすぐだよ」');
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("currentSuggestLog.length", context), 0);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+
+  vm.runInContext(`
+    currentTimeline = [];
+    currentSuggestLog = [];
+    battleModeUndoStack = [];
+    setTimelineGames(120, 120);
+    battleModeIncrementGame(3);
+    battleModeRecordFlattenSuggestItem('sgc_kabaneri_point','sgp_kabaneri_point_minichara','sgp_kabaneri_point_minichara_i3');
+  `, context);
+  assert.equal(vm.runInContext("timelineDataValue()", context), 123);
+  assert.equal(vm.runInContext("currentSuggestLog.length", context), 1);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("timelineDataValue()", context), 123);
+  assert.equal(vm.runInContext("currentSuggestLog.length", context), 0);
+
+  vm.runInContext(`
+    currentTimeline = [];
+    currentSuggestLog = [];
+    battleModeUndoStack = [];
+    setTimelineGames(120, 120);
+    battleModeRecordFlattenSuggestItem('sgc_kabaneri_point','sgp_kabaneri_point_minichara','sgp_kabaneri_point_minichara_i3');
+    battleModeIncrementGame(3);
+  `, context);
+  assert.equal(vm.runInContext("timelineDataValue()", context), 123);
+  assert.equal(vm.runInContext("currentSuggestLog.length", context), 1);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("timelineDataValue()", context), 120);
+  assert.equal(vm.runInContext("currentSuggestLog.length", context), 1);
+
+  vm.runInContext(`
+    currentTimeline = [];
+    currentSuggestLog = [];
+    battleModeUndoStack = [];
+    setTimelineGames(130, 130);
+    openSuggestItemPicker('sgc_kabaneri_point','sgp_kabaneri_point_eyecatch','play');
+    selectSuggestItem('sgp_kabaneri_point_eyecatch_i1');
+  `, context);
+  assert.equal(vm.runInContext("currentSuggestLog.at(-1).placeId", context), 'sgp_kabaneri_point_eyecatch');
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /無名/);
+  assert.match(vm.runInContext("battleModeUndoStack.at(-1).label", context), /示唆/);
+}
+
 function testKabaneriChanceEyeMeterAndCounters() {
   const { context } = runRecord(undefined);
   installBattleModeStateDom(context);
@@ -1938,7 +2002,8 @@ function installBattleModeStateDom(context) {
       timelineHistoryCount: { ...generic, id: 'timelineHistoryCount', textContent: '' },
       suggestLogList: { ...generic, id: 'suggestLogList', innerHTML: '' },
       carrySummaryBox: { ...generic, id: 'carrySummaryBox', innerHTML: '' },
-      practiceStatsBox: { ...generic, id: 'practiceStatsBox', innerHTML: '' }
+      practiceStatsBox: { ...generic, id: 'practiceStatsBox', innerHTML: '' },
+      battleModeUndoBar: { ...generic, id: 'battleModeUndoBar', textContent: '', classList: { add() {}, remove() {}, toggle() {} } }
     };
     document.getElementById = id => elements[id] || generic;
     document.querySelector = selector => selector === '#battleModeOtherSheet .bm-sheet-title' ? elements.battleModeOtherTitle : null;
@@ -4085,6 +4150,7 @@ function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
   testKabaneriPresetSeedAndPickers();
+  testBattleModeSuggestCommitRecentAndUndo();
   testKabaneriHitCauseFirstFlow();
   testKabaneriShunjoPtStep();
   testKabaneriCompareViewAndSettingLabel();
