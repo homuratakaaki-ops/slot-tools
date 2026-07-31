@@ -2403,10 +2403,14 @@ function testKabaneriShunjoPtStep() {
   assert.match(html, /3000pt/);
   assert.match(html, /うち3000pt獲得/);
   assert.match(html, /openKabaneriStNumericInput\('shunjoPtInput','最終pt'\)/);
+  assert.match(html, /タップで入力/);
+  assert.match(html, /id="shunjoPtInputChip"/);
+  assert.doesNotMatch(html, /id="shunjoPtInput" class="numeric-input"/);
   assert.match(html, /不明（スキップ）/);
 
   vm.runInContext(`
-    __stateElements.shunjoPtInput = { value: '', placeholder: '最終pt', dataset: {}, inputMode: 'none', dispatchEvent() {} };
+    __stateElements.shunjoPtInput = { id: 'shunjoPtInput', value: '', placeholder: '最終pt', dataset: {}, inputMode: 'none', dispatchEvent() {} };
+    __stateElements.shunjoPtInputChip = { textContent: 'タップで入力', classList: { toggle() {} } };
     __stateElements.shunjoPtTanChaCount = { value: '0' };
     __stateElements.shunjoPtTanCha3000Count = { value: '0' };
     __stateElements.numericKeypadOverlay = { classList: { add() {}, remove() {} } };
@@ -2420,6 +2424,7 @@ function testKabaneriShunjoPtStep() {
     submitShunjoPtStep();
   `, context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 1);
+  assert.equal(vm.runInContext("__stateElements.shunjoPtInputChip.textContent", context), '4100');
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline[0].tagIds)", context)),
     ['t_kabaneri_shunjo_pt']
@@ -2691,10 +2696,13 @@ function testKabaneriStFlowAndCounters() {
 
   vm.runInContext(`
     openBattleModeKabaneriStEndSheet();
+    const stEndInitialHtml = __stateElements.battleModeOtherGrid.innerHTML;
     recordKabaneriStSuggest('sgp_kabaneri_setting_st_end','sgi_kabaneri_st_end_ayame','endScreen');
     recordKabaneriStSuggest('sgp_kabaneri_setting_trophy','sgp_kabaneri_setting_trophy_i3','trophy');
-    __stateElements.kabaneriStEndCredit = { value: '', placeholder: '最終クレ', dataset: {}, inputMode: 'none', dispatchEvent() {} };
-    __stateElements.kabaneriMyslotGames = { value: '', placeholder: '総G', dataset: {}, inputMode: 'none', dispatchEvent() {} };
+    __stateElements.kabaneriStEndCredit = { id: 'kabaneriStEndCredit', value: '', placeholder: '最終クレ', dataset: {}, inputMode: 'none', dispatchEvent() {} };
+    __stateElements.kabaneriStEndCreditChip = { textContent: 'タップで入力', classList: { toggle() {} } };
+    __stateElements.kabaneriMyslotGames = { id: 'kabaneriMyslotGames', value: '', placeholder: '総G', dataset: {}, inputMode: 'none', dispatchEvent() {} };
+    __stateElements.kabaneriMyslotGamesChip = { textContent: 'タップで入力', classList: { toggle() {} } };
     __stateElements.numericKeypadOverlay = { classList: { add() {}, remove() {} } };
     __stateElements.numericKeypadLabel = { textContent: '' };
     __stateElements.numericKeypadValue = { textContent: '' };
@@ -2703,7 +2711,16 @@ function testKabaneriStFlowAndCounters() {
     pressKeypad('6'); pressKeypad('0'); pressKeypad('0'); closeNumericKeypad();
     openKabaneriStNumericInput('kabaneriMyslotGames','マイスロ総G');
     pressKeypad('1'); pressKeypad('2'); pressKeypad('3'); pressKeypad('4'); closeNumericKeypad();
+    globalThis.__stEndInitialHtml = stEndInitialHtml;
   `, context);
+  const stEndInitialHtml = vm.runInContext("__stEndInitialHtml", context);
+  assert.match(stEndInitialHtml, /id="kabaneriStEndCreditChip"/);
+  assert.match(stEndInitialHtml, /id="kabaneriMyslotGamesChip"/);
+  assert.match(stEndInitialHtml, /タップで入力/);
+  assert.doesNotMatch(stEndInitialHtml, /id="kabaneriStEndCredit" class="numeric-input"/);
+  assert.doesNotMatch(stEndInitialHtml, /id="kabaneriMyslotGames" class="numeric-input"/);
+  assert.equal(vm.runInContext("__stateElements.kabaneriStEndCreditChip.textContent", context), '600');
+  assert.equal(vm.runInContext("__stateElements.kabaneriMyslotGamesChip.textContent", context), '1234');
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /bm-st-choice-selected/);
   assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /CZ回数/);
   assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ST回数/);
