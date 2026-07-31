@@ -580,6 +580,18 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-genealogy-arrow{color:var(--text-muted);font-weight:900;}
 .bm-genealogy-meta{margin-top:5px;text-align:right;color:var(--text-muted);font-size:11px;font-weight:900;}
 .bm-genealogy-more{min-height:34px;border:1px solid rgba(122,122,138,.42);border-radius:8px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:900;}
+.bm-compare{grid-column:1/-1;display:grid;gap:9px;font-variant-numeric:tabular-nums;}
+.bm-compare-controls{display:flex;gap:6px;flex-wrap:wrap;}
+.bm-compare-toggle{min-height:34px;border:1px solid rgba(122,122,138,.42);border-radius:8px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:900;padding:6px 9px;}
+.bm-compare-toggle.active{border-color:rgba(201,168,76,.62);color:var(--gold-light);background:rgba(201,168,76,.1);}
+.bm-compare-table{width:100%;border-collapse:collapse;table-layout:fixed;background:rgba(15,23,42,.24);border:1px solid rgba(148,163,184,.22);border-radius:8px;overflow:hidden;}
+.bm-compare-table th,.bm-compare-table td{border-bottom:1px solid rgba(148,163,184,.14);padding:6px 5px;text-align:center;font-size:11px;line-height:1.25;}
+.bm-compare-table th:first-child,.bm-compare-table td:first-child{text-align:left;width:26%;}
+.bm-compare-main{font-size:13px;font-weight:900;color:var(--text);}
+.bm-compare-sub{display:block;margin-top:2px;font-size:10px;color:var(--text-muted);}
+.bm-compare-band{font-size:10px;color:var(--text-muted);}
+.bm-compare-badge{display:inline-block;margin-top:3px;border:1px solid rgba(201,168,76,.42);border-radius:999px;padding:2px 6px;color:var(--gold-light);background:rgba(201,168,76,.08);font-size:10px;font-weight:900;}
+.bm-compare-footnote{font-size:10px;color:var(--text-muted);line-height:1.45;}
 .bm-st-panel{grid-column:1/-1;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(201,168,76,.055);padding:8px;display:grid;gap:7px;}
 .bm-st-panel-title{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--gold-light);font-size:12px;font-weight:900;}
 .bm-st-panel-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
@@ -743,6 +755,21 @@ footer a:hover{color:var(--gold-light);}
       <div class="input-row">
         <div class="input-label">現金投入<div class="input-hint">この台で追加した円だけ</div></div>
         <div class="inline-field"><input type="text" id="moneyCashIn" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()" onchange="updateCalc()"><span class="input-hint">円</span></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">推定設定<div class="input-hint">比較ビューのプール集計用</div></div>
+        <div class="field-stack">
+          <div class="quick-row" id="settingLabelValueButtons"></div>
+          <label class="toggle-row" style="justify-content:flex-start;gap:8px;">
+            <input type="checkbox" id="settingLabelAtLeast" onchange="syncSettingLabelUi()">
+            <span>以上</span>
+          </label>
+          <label class="toggle-row" style="justify-content:flex-start;gap:8px;">
+            <input type="checkbox" id="settingLabelConfirmed" onchange="syncSettingLabelUi()">
+            <span>確定</span>
+          </label>
+          <div class="input-hint">確定はトロフィー等の根拠がある場合のみ</div>
+        </div>
       </div>
       <div class="calc-box">
         <div class="calc-grid">
@@ -1333,6 +1360,7 @@ let currentSegments=[];
 let currentSegmentStartedAt=new Date().toISOString();
 let lastSegmentUndo=null;
 let currentEndingCards={};
+let currentSettingLabel={value:null,atLeast:false,confirmed:false};
 let endingCardGroupsOpen={};
 let pendingTimelineTagIds=[];
 let pendingTagNumberAttachment=null;
@@ -1536,6 +1564,34 @@ function normalizeGameStateTrigger(trigger){
 function normalizeGameStateTriggers(triggers){
   if(!Array.isArray(triggers))return [];
   return triggers.map(normalizeGameStateTrigger).filter(Boolean);
+}
+function normalizeCompareMetricBand(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return null;
+  const low=String(value.low||'').trim();
+  const high=String(value.high||'').trim();
+  return low&&high?{low,high}:null;
+}
+function normalizeCompareMetric(metric){
+  if(!metric||typeof metric!=='object')return null;
+  const key=String(metric.key||'').trim();
+  const label=String(metric.label||key).trim();
+  const format=String(metric.format||'').trim();
+  const num=String(metric.num||'').trim();
+  const den=String(metric.den||'').trim();
+  if(!key||!label||!['inv','pct'].includes(format)||!num||!den)return null;
+  const normalized={key,label,format,num,den,band:normalizeCompareMetricBand(metric.band)};
+  const minDen=normalizeOptionalNumber(metric.minDen);
+  if(minDen!==null)normalized.minDen=Math.max(0,Math.trunc(minDen));
+  return normalized;
+}
+function normalizeCompareMetrics(metrics){
+  if(!Array.isArray(metrics))return [];
+  const seen=new Set();
+  return metrics.map(normalizeCompareMetric).filter(metric=>{
+    if(!metric||seen.has(metric.key))return false;
+    seen.add(metric.key);
+    return true;
+  });
 }
 function normalizeTagSize(value){
   return String(value||'').trim()==='large'?'large':'';
@@ -1807,6 +1863,9 @@ function compactTimelineForStorage(entries){
 function compactLogForStorage(log){
   if(!log||typeof log!=='object')return log;
   const compact=clone(log);
+  const settingLabel=normalizeSettingLabel(compact.settingLabel);
+  if(settingLabel)compact.settingLabel=settingLabel;
+  else delete compact.settingLabel;
   compact.suggestLog=compactSuggestLogForStorage(compact.suggestLog);
   compact.timeline=compactTimelineForStorage(compact.timeline);
   compact.segments=Array.isArray(compact.segments)?compact.segments.map(segment=>{
@@ -2226,6 +2285,31 @@ function normalizeEndingCards(value){
 }
 function normalizeLogStatus(value){
   return LOG_STATUS_VALUES.includes(value)?value:null;
+}
+function defaultSettingLabel(){
+  return {value:null,atLeast:false,confirmed:false};
+}
+function normalizeSettingLabel(value){
+  if(!value||typeof value!=='object'||Array.isArray(value))return null;
+  const raw=normalizeOptionalNumber(value.value);
+  const numeric=raw!==null?Math.trunc(raw):null;
+  const valid=numeric!==null&&numeric>=1&&numeric<=6;
+  return {
+    value:valid?numeric:null,
+    atLeast:valid&&value.atLeast===true,
+    confirmed:valid&&value.confirmed===true
+  };
+}
+function normalizeSettingLabelOrDefault(value){
+  return normalizeSettingLabel(value)||defaultSettingLabel();
+}
+function settingLabelKnown(label){
+  return normalizeSettingLabel(label)?.value!==null;
+}
+function settingLabelEquals(a,b){
+  const left=normalizeSettingLabel(a);
+  const right=normalizeSettingLabel(b);
+  return !!(left&&right&&left.value!==null&&right.value!==null&&left.value===right.value&&left.atLeast===right.atLeast&&left.confirmed===right.confirmed);
 }
 function normalizeSegmentStatus(value){
   return SEGMENT_STATUS_VALUES.includes(value)?value:null;
@@ -2660,6 +2744,9 @@ function normalizeData(data){
     log.kuiPoint.gains=Array.isArray(log.kuiPoint.gains)?log.kuiPoint.gains:[];
     log.kuiPoint.hints=Array.isArray(log.kuiPoint.hints)?log.kuiPoint.hints:[];
     log.hitEvents=Array.isArray(log.hitEvents)?log.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    const settingLabel=normalizeSettingLabel(log.settingLabel);
+    if(settingLabel)log.settingLabel=settingLabel;
+    else delete log.settingLabel;
     log.timelineCounterState=normalizeTimelineCounterState(log.timelineCounterState);
     log.intervalEstimate=normalizeIntervalEstimate(log.intervalEstimate);
     log.segments=Array.isArray(log.segments)?log.segments.map(normalizeSegment).filter(Boolean):[];
@@ -2716,6 +2803,9 @@ function normalizeData(data){
     data.draftLog.finalized=false;
     data.draftLog.excludeFromStats=true;
     data.draftLog.hitEvents=Array.isArray(data.draftLog.hitEvents)?data.draftLog.hitEvents.map(normalizeHitEvent).filter(Boolean):[];
+    const draftSettingLabel=normalizeSettingLabel(data.draftLog.settingLabel);
+    if(draftSettingLabel)data.draftLog.settingLabel=draftSettingLabel;
+    else delete data.draftLog.settingLabel;
     data.draftLog.timelineCounterState=normalizeTimelineCounterState(data.draftLog.timelineCounterState);
     data.draftLog.intervalEstimate=normalizeIntervalEstimate(data.draftLog.intervalEstimate);
     data.draftLog.subCounters=normalizeSubCounters(data.draftLog.subCounters);
@@ -2806,6 +2896,7 @@ function normalizeData(data){
     ensureKabaneriEyecatchDefaultSeedV1(m);
     ensureKabaneriGameStateTriggersSeedV1(m);
     ensureKabaneriStFlowSeedV1(m);
+    ensureKabaneriCompareMetricsSeedV1(m);
     if(m.hitCauseFirst===true)m.hitCauseFirst=true;
     else delete m.hitCauseFirst;
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
@@ -2827,6 +2918,9 @@ function normalizeData(data){
     const gameStateTriggers=normalizeGameStateTriggers(m.gameStateTriggers);
     if(gameStateTriggers.length)m.gameStateTriggers=gameStateTriggers;
     else delete m.gameStateTriggers;
+    const compareMetrics=normalizeCompareMetrics(m.compareMetrics);
+    if(compareMetrics.length)m.compareMetrics=compareMetrics;
+    else delete m.compareMetrics;
     applySuggestMetadata(m);
   });
   migrateTokyoGhoulSuggestLogs(data);
@@ -5452,6 +5546,15 @@ function ensureKabaneriStFlowSeedV1(machine){
   machine.kabaneriStFlowSeedV1=true;
   applySuggestMetadata(machine);
 }
+function ensureKabaneriCompareMetricsSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriCompareMetricsSeedV1)return;
+  machine.compareMetrics=normalizeCompareMetrics([
+    {key:'lowerBell',label:'下段ベル',format:'inv',num:'counter:lowerBell',den:'dataGames:normal',band:{low:'1/121.1',high:'1/99.1'},minDen:500},
+    {key:'plainFlash',label:'無→💡率（単独）',format:'pct',num:'chanceEye:core.numerator',den:'chanceEye:core.denominator',band:null,minDen:10},
+    {key:'tanCha3000',label:'単チャ目3000pt',format:'pct',num:'attach:tanCha3000',den:'attach:shunjoTanCha',band:{low:'1.2%',high:'2.3%'},minDen:20}
+  ]);
+  machine.kabaneriCompareMetricsSeedV1=true;
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -6021,7 +6124,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -6086,6 +6189,7 @@ function addMachine(){
   ensureKabaneriEyecatchDefaultSeedV1(machine);
   ensureKabaneriGameStateTriggersSeedV1(machine);
   ensureKabaneriStFlowSeedV1(machine);
+  ensureKabaneriCompareMetricsSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -7839,6 +7943,185 @@ function openBattleModeKabaneriGenealogySheet(){
     <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
   `);
 }
+function machineCompareMetrics(machine=currentMachine()){
+  return normalizeCompareMetrics(machine?.compareMetrics);
+}
+function logAllTimelineRows(log){
+  const segmentRows=(Array.isArray(log?.segments)?[...log.segments].reverse():[]).flatMap(segment=>Array.isArray(segment.timeline)?segment.timeline:[]);
+  return [...segmentRows,...(Array.isArray(log?.timeline)?log.timeline:[])];
+}
+function logAllHitRows(log){
+  const segmentRows=(Array.isArray(log?.segments)?[...log.segments].reverse():[]).flatMap(segment=>Array.isArray(segment.hitEvents)?segment.hitEvents:[]);
+  return [...segmentRows,...(Array.isArray(log?.hitEvents)?log.hitEvents:[])];
+}
+function logAttachmentTotal(log,key){
+  return logAllTimelineRows(log).reduce((sum,entry)=>sum+normalizeTimelineAttachments(entry.attachments).filter(row=>row.key===key).reduce((inner,row)=>inner+Math.max(0,Number(row.value)||0),0),0);
+}
+function firstHitDataGameForSegment(segment){
+  const hits=(Array.isArray(segment?.hitEvents)?segment.hitEvents:[]).filter(event=>normalizeOptionalNumber(event.dataGame)!==null);
+  if(!hits.length)return null;
+  const sorted=sortByCreatedAtWithIndex(hits.map((event,index)=>({...event,sortIndex:index})),false);
+  return normalizeOptionalNumber(sorted[0]?.dataGame);
+}
+function kabaneriNormalDataGamesForLog(log){
+  const startValue=normalizeOptionalNumber(log?.startCounterGame);
+  const start=startValue!==null?startValue:(findStartCounterValue(log?.startLog)||0);
+  let total=0;
+  let first=true;
+  const addTerminal=value=>{
+    const end=normalizeOptionalNumber(value);
+    if(end===null)return;
+    const base=first?start:0;
+    total+=Math.max(0,Math.trunc(end)-Math.trunc(base));
+    first=false;
+  };
+  const segments=Array.isArray(log?.segments)?[...log.segments].reverse():[];
+  segments.forEach(segment=>{
+    const hitData=firstHitDataGameForSegment(segment);
+    addTerminal(hitData!==null?hitData:segment.dataGame);
+  });
+  if(!segments.length){
+    const hitRows=logAllHitRows(log).filter(event=>normalizeOptionalNumber(event.dataGame)!==null);
+    if(hitRows.length){
+      const sorted=sortByCreatedAtWithIndex(hitRows.map((event,index)=>({...event,sortIndex:index})),false);
+      addTerminal(sorted[0].dataGame);
+    }else if(log?.endLog){
+      addTerminal(log.endLog.game);
+    }
+  }
+  return total;
+}
+function currentCompareSourceLog(){
+  return {
+    machineId:selectedMachineId,
+    money:{date:document.getElementById('moneyDate')?.value||todayValue()},
+    startCounterGame:currentStartCounterGame,
+    subCounters:normalizeSubCounters(currentSubCounters),
+    timeline:clone(sortedTimeline()),
+    segments:clone(currentSegments),
+    endLog:clone(currentEndLog),
+    hitEvents:clone(currentHitEvents.map(normalizeHitEvent).filter(Boolean)),
+    settingLabel:currentSettingLabelFromInputs()
+  };
+}
+function comparePair(num=0,den=0){
+  return {num:Math.max(0,Number(num)||0),den:Math.max(0,Number(den)||0)};
+}
+function compareMetricPairForLog(log,metric,machine=currentMachine()){
+  const key=String(metric?.key||'');
+  if(key==='lowerBell')return comparePair(normalizeSubCounters(log?.subCounters).lowerBell||0,kabaneriNormalDataGamesForLog(log));
+  if(key==='plainFlash'){
+    const core=kabaneriChanceEyeTableSummary(logAllTimelineRows(log),machine).core;
+    return comparePair(core.numerator,core.denominator);
+  }
+  if(key==='tanCha3000')return comparePair(logAttachmentTotal(log,'tanCha3000'),logAttachmentTotal(log,'shunjoTanCha'));
+  return comparePair();
+}
+function compareMetricPairsForLogs(logs,metric,machine=currentMachine()){
+  return (Array.isArray(logs)?logs:[]).reduce((sum,log)=>{
+    const pair=compareMetricPairForLog(log,metric,machine);
+    sum.num+=pair.num;
+    sum.den+=pair.den;
+    return sum;
+  },comparePair());
+}
+function comparePoolLogs(machine,mode,targetLabel){
+  const target=normalizeSettingLabel(targetLabel);
+  return (db.logs||[]).filter(log=>{
+    if(log?.machineId!==machine?.id)return false;
+    const label=normalizeSettingLabel(log.settingLabel);
+    if(!label||label.value===null)return false;
+    if(mode==='same')return target?settingLabelEquals(label,target):false;
+    if(mode==='atLeast')return label.value>=((target?.value)||5);
+    return true;
+  });
+}
+function parseCompareBandValue(text,format){
+  const raw=String(text||'').replace('%','').trim();
+  if(format==='inv'&&raw.startsWith('1/')){
+    const den=normalizeOptionalNumber(raw.slice(2));
+    return den&&den>0?1/den:null;
+  }
+  const value=normalizeOptionalNumber(raw);
+  if(value===null)return null;
+  return format==='pct'?value/100:value;
+}
+function compareMetricBias(pair,metric){
+  const minDen=normalizeOptionalNumber(metric.minDen)??0;
+  if(!pair||pair.den<minDen)return '';
+  const band=normalizeCompareMetricBand(metric.band);
+  if(!band)return '';
+  const rate=pair.den>0?pair.num/pair.den:null;
+  const low=parseCompareBandValue(band.low,metric.format);
+  const high=parseCompareBandValue(band.high,metric.format);
+  if(rate===null||low===null||high===null)return '';
+  const lowDistance=Math.abs(rate-low);
+  const highDistance=Math.abs(rate-high);
+  const span=Math.abs(high-low)||1;
+  if(Math.abs(lowDistance-highDistance)/span<0.12)return '中間';
+  return highDistance<lowDistance?'設6寄り':'設1寄り';
+}
+function compareMetricValueHtml(pair,format){
+  if(!pair||pair.den<=0)return '<span class="bm-compare-main">—</span><span class="bm-compare-sub">(0/0)</span>';
+  const value=format==='inv'&&pair.num>0?`1/${(pair.den/pair.num).toFixed(1)}`:`${((pair.num/pair.den)*100).toFixed(1)}%`;
+  return `<span class="bm-compare-main">${escapeHtml(value)}</span><span class="bm-compare-sub">(${escapeHtml(pair.num)}/${escapeHtml(pair.den)})</span>`;
+}
+function compareMetricBandHtml(metric,pair){
+  const band=normalizeCompareMetricBand(metric.band);
+  const bandText=band?`${band.low} ↔ ${band.high}`:'実測蓄積中';
+  const bias=compareMetricBias(pair,metric);
+  return `<div class="bm-compare-band">${escapeHtml(bandText)}</div>${bias?`<span class="bm-compare-badge">${escapeHtml(bias)}</span>`:''}`;
+}
+function comparePoolModeLabel(mode,targetLabel){
+  const label=normalizeSettingLabel(targetLabel);
+  if(mode==='same')return '同一ラベル';
+  if(mode==='atLeast')return `${label?.value||5}以上合算`;
+  return '全ラベル';
+}
+function kabaneriCompareSummary({mode='same'}={}){
+  const machine=currentMachine();
+  const metrics=machineCompareMetrics(machine);
+  const todayLog=currentCompareSourceLog();
+  const target=normalizeSettingLabel(todayLog.settingLabel)||{value:5,atLeast:true,confirmed:false};
+  const poolLogs=comparePoolLogs(machine,mode,target);
+  return {
+    machine,
+    metrics,
+    mode,
+    target,
+    poolLogs,
+    rows:metrics.map(metric=>({
+      metric,
+      today:compareMetricPairForLog(todayLog,metric,machine),
+      pool:compareMetricPairsForLogs(poolLogs,metric,machine)
+    }))
+  };
+}
+function battleModeKabaneriCompareHtml(mode='same'){
+  const summary=kabaneriCompareSummary({mode});
+  const controls=['same','atLeast','all'].map(row=>`<button class="bm-compare-toggle ${row===summary.mode?'active':''}" type="button" onclick="openBattleModeKabaneriCompareSheet('${row}')">${escapeHtml(comparePoolModeLabel(row,summary.target))}</button>`).join('');
+  const rows=summary.rows.map(row=>`<tr>
+    <td>${escapeHtml(row.metric.label)}</td>
+    <td>${compareMetricValueHtml(row.today,row.metric.format)}</td>
+    <td>${compareMetricValueHtml(row.pool,row.metric.format)}</td>
+    <td>${compareMetricBandHtml(row.metric,row.today)}</td>
+  </tr>`).join('');
+  return `<div class="bm-compare">
+    <div class="bm-compare-controls">${controls}</div>
+    <table class="bm-compare-table">
+      <thead><tr><th>指標</th><th>今日</th><th>プール(n=${summary.poolLogs.length})</th><th>解析帯</th></tr></thead>
+      <tbody>${rows||'<tr><td colspan="4">指標がありません</td></tr>'}</tbody>
+    </table>
+    <div class="bm-compare-footnote">今日=実測 / プール=実測合算 / 帯=公表解析値</div>
+  </div>`;
+}
+function openBattleModeKabaneriCompareSheet(mode='same'){
+  if(!machineCompareMetrics(currentMachine()).length){battleModeInvalid('比較ビュー未対応です');return;}
+  setBattleModeSheet('比較ビュー',`
+    ${battleModeKabaneriCompareHtml(mode)}
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
+  `);
+}
 function kabaneriChanceEyeTableCell(value,columnKey){
   const text=String(value||0);
   if(columnKey==='total')return `<td class="total-col">${escapeHtml(text)}</td>`;
@@ -9416,6 +9699,7 @@ function openBattleModeOtherSheet(){
   ];
   if(isKabaneriMachine(currentMachine())){
     modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModeKabaneriGenealogySheet()">系譜ビュー</button>');
+    if(machineCompareMetrics(currentMachine()).length)modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModeKabaneriCompareSheet()">比較ビュー</button>');
     modalButtons.push('<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModeKabaneriUpperStPicker()">上位ST突入</button>');
   }
   if(isKabaneriMachine(currentMachine()))modalButtons.push(...kabaneriStOtherSheetButtons());
@@ -12137,12 +12421,53 @@ function selectCzResultBranch(result){
 function shunjoPtTag(){
   return battleModeCurrentTagById('t_kabaneri_shunjo_pt')||currentMachine()?.tags?.find(tag=>tag.id==='t_kabaneri_shunjo_pt')||null;
 }
-function shunjoPtAttachments(point,tanCha3000=false){
+function normalizeShunjoPtCount(value,max){
+  if(value===true)return 1;
+  const normalized=normalizeOptionalNumber(value);
+  if(normalized===null)return 0;
+  return Math.max(0,Math.min(max,Math.trunc(normalized)));
+}
+function shunjoPtAttachments(point,tanCha3000=false,shunjoTanCha=0){
   const attachments=[];
   const value=normalizeOptionalNumber(point);
+  const tanChaCount=normalizeShunjoPtCount(shunjoTanCha,9);
+  const tanCha3000Count=normalizeShunjoPtCount(tanCha3000,3);
   if(value!==null)attachments.push({key:'shunjoPt',label:'最終pt',value:Math.max(0,Math.min(99999,Math.trunc(value))),unit:''});
   if(tanCha3000)attachments.push({key:'tanCha3000',label:'単チャ目3000pt',value:1,unit:''});
+  for(let i=attachments.length-1;i>=0;i--){
+    if(attachments[i]?.key==='tanCha3000')attachments.splice(i,1);
+  }
+  if(tanChaCount>0)attachments.push({key:'shunjoTanCha',label:'単チャ目',value:tanChaCount,unit:''});
+  if(tanCha3000Count>0)attachments.push({key:'tanCha3000',label:'単チャ目3000pt',value:tanCha3000Count,unit:''});
   return attachments;
+}
+function shunjoPtCountButtons(id,max,label){
+  const buttons=Array.from({length:max+1},(_,value)=>{
+    const text=value===max?`${value}+`:String(value);
+    return `<button class="bm-btn bm-choice-neutral" type="button" data-shunjo-count="${escapeHtml(id)}" data-value="${value}" onclick="setShunjoPtCount('${escapeHtml(id)}',${value})">${escapeHtml(text)}</button>`;
+  }).join('');
+  return `<div class="bm-sheet-note">${escapeHtml(label)}</div><input id="${escapeHtml(id)}" type="hidden" value="0"><div class="bm-st-choice-row">${buttons}</div>`;
+}
+function setShunjoPtCount(id,value){
+  const target=document.getElementById(id);
+  if(!target)return;
+  target.value=String(Math.max(0,Math.trunc(Number(value)||0)));
+  let tanCha=normalizeShunjoPtCount(document.getElementById('shunjoPtTanChaCount')?.value,9);
+  let tan3000=normalizeShunjoPtCount(document.getElementById('shunjoPtTanCha3000Count')?.value,3);
+  if(id==='shunjoPtTanCha3000Count'&&tan3000>tanCha){
+    const base=document.getElementById('shunjoPtTanChaCount');
+    if(base)base.value=String(Math.min(9,tan3000));
+  }
+  if(id==='shunjoPtTanChaCount'&&tan3000>tanCha){
+    const pt3000=document.getElementById('shunjoPtTanCha3000Count');
+    if(pt3000)pt3000.value=String(Math.min(3,tanCha));
+  }
+  ['shunjoPtTanChaCount','shunjoPtTanCha3000Count'].forEach(key=>{
+    const current=String(document.getElementById(key)?.value||'0');
+    document.querySelectorAll(`[data-shunjo-count="${key}"]`).forEach(button=>{
+      button.classList.toggle('active',button.dataset.value===current);
+    });
+  });
 }
 function openShunjoPtStepSheet(){
   const event=currentHitEvent();
@@ -12151,13 +12476,17 @@ function openShunjoPtStepSheet(){
     <div class="bm-sheet-note">駿城ボーナス終了時の液晶ptを記録します。不明ならスキップできます。</div>
     <label class="field-label" for="shunjoPtInput">最終pt</label>
     <input id="shunjoPtInput" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="例：4100" style="width:100%;box-sizing:border-box;">
-    <label class="toggle-row" style="justify-content:flex-start;gap:8px;">
+    <label class="toggle-row" style="display:none;justify-content:flex-start;gap:8px;">
       <input id="shunjoPtTanCha3000" type="checkbox">
       <span>単チャ目3000pt獲得</span>
     </label>
+    ${shunjoPtCountButtons('shunjoPtTanChaCount',9,'単独チャ目回数')}
+    ${shunjoPtCountButtons('shunjoPtTanCha3000Count',3,'3000pt回数')}
     <button class="bm-btn gold" type="button" onclick="submitShunjoPtStep()">決定</button>
     <button class="bm-btn" type="button" onclick="skipShunjoPtStep()">不明（スキップ）</button>
     <button class="bm-btn" type="button" onclick="skipShunjoPtStep()">閉じる</button>`);
+  setShunjoPtCount('shunjoPtTanChaCount',0);
+  setShunjoPtCount('shunjoPtTanCha3000Count',0);
   setTimeout(()=>{
     const input=document.getElementById('shunjoPtInput');
     input?.focus();
@@ -12169,12 +12498,12 @@ function submitShunjoPtStep(){
   const raw=String(input?.value||'').trim();
   const value=normalizeOptionalNumber(raw);
   if(raw===''||value===null){battleModeInvalid('最終ptを数値で入力してください');return;}
-  recordShunjoPtAndContinue(value,!!document.getElementById('shunjoPtTanCha3000')?.checked);
+  recordShunjoPtAndContinue(value,normalizeShunjoPtCount(document.getElementById('shunjoPtTanCha3000Count')?.value,3),normalizeShunjoPtCount(document.getElementById('shunjoPtTanChaCount')?.value,9));
 }
-function recordShunjoPtAndContinue(point,tanCha3000=false){
+function recordShunjoPtAndContinue(point,tanCha3000=false,shunjoTanCha=0){
   const tag=shunjoPtTag();
   if(!tag){battleModeInvalid('駿城ptタグが見つかりません');return false;}
-  const attachments=shunjoPtAttachments(point,tanCha3000);
+  const attachments=shunjoPtAttachments(point,tanCha3000,shunjoTanCha);
   const committed=battleModeCommit('駿城pt',()=>addInstantTimelineTagWithAttachments(tag,attachments),{
     toastMessage:'駿城ptを記録しました'
   });
@@ -13610,10 +13939,11 @@ function selectNangokuEntryCause(causeKey){
 }
 function timelineAttachmentText(attachments){
   const rows=normalizeTimelineAttachments(attachments);
-  if(rows.some(row=>row.key==='shunjoPt'||row.key==='tanCha3000')){
+  if(rows.some(row=>row.key==='shunjoPt'||row.key==='tanCha3000'||row.key==='shunjoTanCha')){
     return rows.map(row=>{
       if(row.key==='shunjoPt')return `${row.value}`;
-      if(row.key==='tanCha3000')return '3000pt獲得';
+      if(row.key==='shunjoTanCha')return `単チャ目${row.value}`;
+      if(row.key==='tanCha3000')return `3000pt${row.value}`;
       return row.unit?`${row.label}+${row.value}${row.unit}`:`${row.label}${row.value}`;
     }).join('・');
   }
@@ -14731,6 +15061,7 @@ function updateMoneyRegistrationStatus(){
     : `<div class="money-status-title">未入力</div><div class="money-status-list">${items.map(item=>`<div class="money-status-item ${item.done?'done':'todo'}">${item.done?'✓':'□'} ${escapeHtml(item.label)}${item.done?' 入力済み':''}</div>`).join('')}</div>`;
 }
 function updateCalc(){
+  renderSettingLabelUi();
   const calc=calcMoney({
     startTime:document.getElementById('moneyStart')?.value||'',
     endTime:document.getElementById('moneyEnd')?.value||'',
@@ -14748,6 +15079,43 @@ function updateCalc(){
   updateMoneyRegistrationStatus();
   const warning=document.getElementById('timeWarning');
   if(warning)warning.style.display=calc.invalidTime?'block':'none';
+}
+function currentSettingLabelFromInputs(){
+  const base=normalizeSettingLabelOrDefault(currentSettingLabel);
+  const atLeast=!!document.getElementById('settingLabelAtLeast')?.checked;
+  const confirmed=!!document.getElementById('settingLabelConfirmed')?.checked;
+  return normalizeSettingLabelOrDefault({value:base.value,atLeast,confirmed});
+}
+function renderSettingLabelUi(){
+  const holder=document.getElementById('settingLabelValueButtons');
+  const normalized=normalizeSettingLabelOrDefault(currentSettingLabel);
+  if(holder){
+    const rows=[null,1,2,3,4,5,6];
+    holder.innerHTML=rows.map(value=>{
+      const active=(value===null&&normalized.value===null)||value===normalized.value;
+      const label=value===null?'不明':String(value);
+      return `<button type="button" class="btn-small ${active?'active':''}" onclick="selectSettingLabelValue(${value===null?'null':value})">${label}</button>`;
+    }).join('');
+  }
+  const atLeast=document.getElementById('settingLabelAtLeast');
+  const confirmed=document.getElementById('settingLabelConfirmed');
+  if(atLeast)atLeast.checked=!!normalized.atLeast;
+  if(confirmed)confirmed.checked=!!normalized.confirmed;
+}
+function applySettingLabelToInputs(label){
+  currentSettingLabel=normalizeSettingLabelOrDefault(label);
+  renderSettingLabelUi();
+}
+function selectSettingLabelValue(value){
+  const base=currentSettingLabelFromInputs();
+  currentSettingLabel=normalizeSettingLabelOrDefault({value,atLeast:base.atLeast,confirmed:base.confirmed});
+  renderSettingLabelUi();
+  scheduleDraftSave();
+}
+function syncSettingLabelUi(){
+  currentSettingLabel=currentSettingLabelFromInputs();
+  renderSettingLabelUi();
+  scheduleDraftSave();
 }
 function currentTimelineCounterStateSnapshot(endLog=null){
   const endData=normalizeOptionalNumber(endLog?.game);
@@ -14817,6 +15185,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
     endLog:clone(currentEndLog),
     hitEvents:clone(currentHitEvents.map(normalizeHitEvent).filter(Boolean)),
     hitBranchWizard:clone(normalizeHitBranchWizard(hitBranchWizard)),
+    settingLabel:currentSettingLabelFromInputs(),
     suggestLog,
     kuiPoint:buildKuiPointState(suggestLog,currentKuiPointReleased),
     money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff},
@@ -14953,6 +15322,7 @@ function saveLog(options={}){
     endLog:clone(currentEndLog),
     hitEvents:clone(currentHitEvents.map(normalizeHitEvent).filter(Boolean)),
     hitBranchWizard:clone(normalizeHitBranchWizard(hitBranchWizard)),
+    settingLabel:currentSettingLabelFromInputs(),
     suggestLog,
     kuiPoint:buildKuiPointState(suggestLog,currentKuiPointReleased),
     money:{...baseMoney,workMinutes:c.workMinutes,diff:c.diff,balance:c.balance,hourlyRate:c.hourlyRate,medalDiff:c.medalDiff,yenDiff:c.yenDiff},
@@ -15060,6 +15430,7 @@ function clearLogInput(cancelEdit=true){
   resetStartMemoState();
   moneyEndMedalsEdited=false;
   syncMoneyEndMedalsLinkHint('');
+  applySettingLabelToInputs(null);
   currentStartCounterEdited=false;
   currentStartCzFailCount=null;
   currentStartAtThroughCount=null;
@@ -15161,6 +15532,7 @@ function fillLogInputs(log){
   document.getElementById('moneyEndMedals').value=money.endMedals!==null&&money.endMedals!==undefined?String(money.endMedals):'';
   moneyEndMedalsEdited=normalizeOptionalNumber(money.endMedals)!==null;
   document.getElementById('moneyCashIn').value=money.cashIn!==null&&money.cashIn!==undefined?String(money.cashIn):'';
+  applySettingLabelToInputs(log.settingLabel);
   document.getElementById('publicMemo').value=log.publicMemo||'';
   document.getElementById('privateMemo').value=log.privateMemo||'';
   syncHeaderFromMoney();

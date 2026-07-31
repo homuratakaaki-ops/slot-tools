@@ -2238,10 +2238,10 @@ function testKabaneriShunjoPtStep() {
   vm.runInContext("openCurrentHitBranchStep()", context);
   let html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   assert.match(html, /最終pt/);
-  assert.match(html, /単チャ目3000pt獲得/);
+  assert.match(html, /3000pt/);
   assert.match(html, /不明（スキップ）/);
 
-  vm.runInContext("recordShunjoPtAndContinue(4100, true)", context);
+  vm.runInContext("recordShunjoPtAndContinue(4100, 2, 3)", context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 1);
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline[0].tagIds)", context)),
@@ -2251,10 +2251,11 @@ function testKabaneriShunjoPtStep() {
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline[0].attachments)", context)),
     [
       { key: 'shunjoPt', label: '最終pt', value: 4100, unit: '' },
-      { key: 'tanCha3000', label: '単チャ目3000pt', value: 1, unit: '' }
+      { key: 'shunjoTanCha', label: '単チャ目', value: 3, unit: '' },
+      { key: 'tanCha3000', label: '単チャ目3000pt', value: 2, unit: '' }
     ]
   );
-  assert.match(vm.runInContext("timelineEntryText(currentTimeline[0])", context), /駿城pt（4100・3000pt獲得）/);
+  assert.match(vm.runInContext("timelineEntryText(currentTimeline[0])", context), /駿城pt（4100・単チャ目3・3000pt2）/);
   assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
   assert.equal(vm.runInContext("currentHitEvents.length", context), 1);
   assert.equal(vm.runInContext("kabaneriStActive()", context), true);
@@ -2296,6 +2297,86 @@ function testKabaneriShunjoPtStep() {
   );
   assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
   assert.equal(vm.runInContext("kabaneriStActive()", context), true);
+}
+
+function testKabaneriCompareViewAndSettingLabel() {
+  const { context, localStorage } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext(`
+    selectedMachineId = 'm_kabaneri';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentFlowStep = 2;
+    currentStartCounterGame = 0;
+    currentSubCounters = { lowerBell: 55 };
+    currentEndLog = { game: 600, liquidGame: 600 };
+    currentTimeline = [
+      { id:'tl_now_1', game:10, liquidGame:10, tagIds:['t_kabaneri_chance_mumei'], attachments:[], createdAt:'2026-07-31T10:00:00' },
+      { id:'tl_now_2', game:20, liquidGame:20, tagIds:['t_kabaneri_chance_ikoma'], attachments:[], createdAt:'2026-07-31T10:01:00' },
+      { id:'tl_now_2f', game:21, liquidGame:21, tagIds:['t_kabaneri_state_ikoma_flash_start'], attachments:[], createdAt:'2026-07-31T10:01:30' },
+      { id:'tl_now_3', game:30, liquidGame:30, tagIds:['t_kabaneri_shunjo_pt'], attachments:[
+        { key:'shunjoPt', label:'最終pt', value:4100, unit:'' },
+        { key:'shunjoTanCha', label:'単チャ目', value:3, unit:'' },
+        { key:'tanCha3000', label:'単チャ目3000pt', value:1, unit:'' }
+      ], createdAt:'2026-07-31T10:02:00' }
+    ];
+    currentSettingLabel = { value:5, atLeast:false, confirmed:false };
+    db.logs = [
+      {
+        id:'pool5', machineId:'m_kabaneri', startCounterGame:100, settingLabel:{ value:5, atLeast:false, confirmed:false },
+        subCounters:{ lowerBell:50 },
+        segments:[{ id:'seg1', dataGame:500, timeline:[
+          { id:'p1', game:110, liquidGame:110, tagIds:['t_kabaneri_chance_mumei'], attachments:[], createdAt:'2026-07-30T10:00:00' },
+          { id:'p2', game:120, liquidGame:120, tagIds:['t_kabaneri_chance_ikoma'], attachments:[], createdAt:'2026-07-30T10:01:00' },
+          { id:'p2f', game:121, liquidGame:121, tagIds:['t_kabaneri_state_ikoma_flash_start'], attachments:[], createdAt:'2026-07-30T10:01:30' },
+          { id:'p3', game:130, liquidGame:130, tagIds:['t_kabaneri_shunjo_pt'], attachments:[
+            { key:'shunjoPt', label:'最終pt', value:4000, unit:'' },
+            { key:'shunjoTanCha', label:'単チャ目', value:4, unit:'' },
+            { key:'tanCha3000', label:'単チャ目3000pt', value:2, unit:'' }
+          ], createdAt:'2026-07-30T10:02:00' }
+        ], hitEvents:[{ id:'h1', trigger:'direct_at', dataGame:500, liquidGame:500, createdAt:'2026-07-30T10:03:00' }] }],
+        timeline:[], hitEvents:[]
+      },
+      {
+        id:'pool6', machineId:'m_kabaneri', startCounterGame:0, settingLabel:{ value:6, atLeast:false, confirmed:false },
+        subCounters:{ lowerBell:10 }, timeline:[
+          { id:'oldToggle', game:80, liquidGame:80, tagIds:['t_kabaneri_shunjo_pt'], attachments:[
+            { key:'shunjoPt', label:'最終pt', value:3000, unit:'' },
+            { key:'shunjoTanCha', label:'単チャ目', value:1, unit:'' },
+            { key:'tanCha3000', label:'単チャ目3000pt', value:1, unit:'' }
+          ], createdAt:'2026-07-30T11:00:00' }
+        ], endLog:{ game:100, liquidGame:100 }, segments:[], hitEvents:[]
+      },
+      { id:'noLabel', machineId:'m_kabaneri', startCounterGame:0, subCounters:{ lowerBell:999 }, timeline:[], segments:[], hitEvents:[], endLog:{ game:999, liquidGame:999 } },
+      { id:'otherMachine', machineId:'m_tokyo_ghoul', settingLabel:{ value:6, atLeast:false, confirmed:false }, subCounters:{ lowerBell:999 }, timeline:[], segments:[], hitEvents:[] }
+    ];
+  `, context);
+
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(normalizeSettingLabel({value:4,atLeast:true,confirmed:true}))", context)),
+    { value: 4, atLeast: true, confirmed: true }
+  );
+  vm.runInContext("db.logs[0].settingLabel = normalizeSettingLabel({ value:4, atLeast:true, confirmed:true }); persist();", context);
+  const written = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  assert.deepEqual(written.logs[0].settingLabel, { value: 4, atLeast: true, confirmed: true });
+
+  vm.runInContext("db.logs[0].settingLabel = { value:5, atLeast:false, confirmed:false };", context);
+  const same = JSON.parse(vm.runInContext("JSON.stringify(kabaneriCompareSummary({mode:'same'}).rows.map(row => ({key:row.metric.key,today:row.today,pool:row.pool,poolCount:kabaneriCompareSummary({mode:'same'}).poolLogs.length})))", context));
+  assert.equal(same.find(row => row.key === 'lowerBell').today.den, 600);
+  assert.equal(same.find(row => row.key === 'plainFlash').today.den, 2);
+  assert.equal(same.find(row => row.key === 'plainFlash').today.num, 1);
+  assert.equal(same.find(row => row.key === 'tanCha3000').today.den, 3);
+  assert.equal(same.find(row => row.key === 'tanCha3000').today.num, 1);
+  assert.equal(same[0].poolCount, 1);
+
+  const atLeast = JSON.parse(vm.runInContext("JSON.stringify(kabaneriCompareSummary({mode:'atLeast'}).rows.map(row => ({key:row.metric.key,pool:row.pool,poolCount:kabaneriCompareSummary({mode:'atLeast'}).poolLogs.length})))", context));
+  assert.equal(atLeast[0].poolCount, 2);
+  assert.equal(atLeast.find(row => row.key === 'tanCha3000').pool.num, 3);
+  assert.equal(atLeast.find(row => row.key === 'tanCha3000').pool.den, 5);
+
+  assert.equal(vm.runInContext("compareMetricBias({num:1,den:5}, machineCompareMetrics(machineById('m_kabaneri')).find(row => row.key === 'tanCha3000'))", context), '');
+  assert.match(vm.runInContext("battleModeKabaneriCompareHtml('atLeast')", context), /プール\(n=2\)/);
+  vm.runInContext("selectedMachineId = 'm_tokyo_ghoul';", context);
+  assert.equal(vm.runInContext("machineCompareMetrics(currentMachine()).length", context), 0);
 }
 
 function testKabaneriStFlowAndCounters() {
@@ -3960,6 +4041,7 @@ function run() {
   testKabaneriPresetSeedAndPickers();
   testKabaneriHitCauseFirstFlow();
   testKabaneriShunjoPtStep();
+  testKabaneriCompareViewAndSettingLabel();
   testKabaneriStFlowAndCounters();
   testKabaneriChanceEyeMeterAndCounters();
   testKabaneriChanceEyeSituationView();
