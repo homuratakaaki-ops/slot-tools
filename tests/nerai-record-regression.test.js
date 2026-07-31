@@ -951,6 +951,53 @@ function testKabaneriSettingSummaryGroupRatiosAndCurrentLabels() {
   assert.doesNotMatch(parsed.html, /確定級/);
 }
 
+function testKabaneriVoiceGroupRatioUsesSharedDenominator() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  const result = vm.runInContext(`
+    selectedMachineId='m_kabaneri';
+    selectedAimId=firstAimIdForMachine(currentMachine())||'';
+    currentSuggestLog = [];
+    const addVoice=(itemId,count)=>{
+      for(let i=0;i<count;i++){
+        const ref=kabaneriSuggestItemRef('sgp_kabaneri_setting_voice',itemId);
+        currentSuggestLog.push({
+          id:\`\${itemId}_\${i}\`,
+          categoryId:ref.category.id,
+          placeId:ref.place.id,
+          itemId:ref.item.id,
+          category:ref.category.category,
+          place:ref.place.name,
+          item:ref.item.label,
+          carryType:'setting',
+          dataGame:100+i,
+          createdAt:\`2026-07-31T12:\${String(i).padStart(2,'0')}\`
+        });
+      }
+    };
+    addVoice('sgp_kabaneri_setting_voice_i1',6);
+    addVoice('sgp_kabaneri_setting_voice_i2',5);
+    addVoice('sgp_kabaneri_setting_voice_i3',6);
+    addVoice('sgp_kabaneri_setting_voice_i4',2);
+    const rows=settingSummaryRows(currentMachine(),currentSuggestLog);
+    JSON.stringify({
+      panel:kabaneriStPanelSummaryHtml(),
+      recent:kabaneriStVoiceRecentLabel(currentSuggestLog.find(entry=>entry.itemId==='sgp_kabaneri_setting_voice_i1')),
+      summary:renderSettingSummaryBlock(rows),
+      total:kabaneriStVoiceGroupTotal(),
+      shared:settingGroupPercentText(6,kabaneriStVoiceGroupTotal())
+    });
+  `, context);
+  const parsed = JSON.parse(result);
+  assert.equal(parsed.total, 19);
+  assert.equal(parsed.shared, '31.6%');
+  assert.match(parsed.panel, /男6\(31\.6%\)/);
+  assert.match(parsed.panel, /女5\(26\.3%\)/);
+  assert.match(parsed.panel, /弱6\(31\.6%\)\/中2\(10\.5%\)\/強0\(0\.0%\)/);
+  assert.match(parsed.recent, /ボイス男 ×6（31\.6%）/);
+  assert.match(parsed.summary, /男性（示唆） ×6（31\.6%）/);
+}
+
 function testKabaneriGameStateTriggers() {
   const { context } = runRecord(undefined);
   installBattleModeStateDom(context);
@@ -2354,9 +2401,24 @@ function testKabaneriShunjoPtStep() {
   let html = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   assert.match(html, /最終pt/);
   assert.match(html, /3000pt/);
+  assert.match(html, /うち3000pt獲得/);
+  assert.match(html, /openKabaneriStNumericInput\('shunjoPtInput','最終pt'\)/);
   assert.match(html, /不明（スキップ）/);
 
-  vm.runInContext("recordShunjoPtAndContinue(4100, 2, 3)", context);
+  vm.runInContext(`
+    __stateElements.shunjoPtInput = { value: '', placeholder: '最終pt', dataset: {}, inputMode: 'none', dispatchEvent() {} };
+    __stateElements.shunjoPtTanChaCount = { value: '0' };
+    __stateElements.shunjoPtTanCha3000Count = { value: '0' };
+    __stateElements.numericKeypadOverlay = { classList: { add() {}, remove() {} } };
+    __stateElements.numericKeypadLabel = { textContent: '' };
+    __stateElements.numericKeypadValue = { textContent: '' };
+    __stateElements.numericKeypadHint = { textContent: '', classList: { add() {}, remove() {} } };
+    openKabaneriStNumericInput('shunjoPtInput','最終pt');
+    pressKeypad('4'); pressKeypad('1'); pressKeypad('0'); pressKeypad('0'); closeNumericKeypad();
+    setShunjoPtCount('shunjoPtTanChaCount',3);
+    setShunjoPtCount('shunjoPtTanCha3000Count',2);
+    submitShunjoPtStep();
+  `, context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 1);
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline[0].tagIds)", context)),
@@ -2524,9 +2586,9 @@ function testKabaneriStFlowAndCounters() {
   const stGrid = vm.runInContext("renderBattleModeGrid()", context);
   assert.match(stGrid, /ST終了/);
   assert.match(stGrid, /bm-st-end-action/);
-  assert.match(stGrid, /ボイス 男0・女0（男-/);
-  assert.match(stGrid, /景之 弱0・中0・強0/);
-  assert.match(stGrid, /紹介 男0・女0（男-/);
+  assert.match(stGrid, /ボイス 男0\(-\)・女0\(-\)/);
+  assert.match(stGrid, /景之 弱0\(-\)\/中0\(-\)\/強0\(-\)/);
+  assert.match(stGrid, /紹介 男0\(-\)・女0\(-\)/);
   assert.match(stGrid, /ボイス男/);
   assert.match(stGrid, /ボイス女/);
   assert.match(stGrid, /景之・弱/);
@@ -2579,7 +2641,8 @@ function testKabaneriStFlowAndCounters() {
     recordKabaneriStVoice('sgp_kabaneri_setting_voice_i3');
     recordKabaneriStCounterTag('t_kabaneri_intro_male_tally');
   `, context);
-  assert.match(vm.runInContext("renderBattleModeRecent()", context), /紹介男 \+1（計1）/);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /紹介男 \+1 ×1（100\.0%）/);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×1（25\.0%）/);
   vm.runInContext("undoBattleModeLast()", context);
   assert.equal(vm.runInContext("subCounterValue('introMaleTally')", context), 0);
   vm.runInContext(`
@@ -2587,16 +2650,16 @@ function testKabaneriStFlowAndCounters() {
     recordKabaneriStCounterTag('t_kabaneri_intro_male_tally');
     recordKabaneriStCounterTag('t_kabaneri_intro_female_tally');
   `, context);
-  assert.match(vm.runInContext("renderBattleModeRecent()", context), /紹介女 \+1（計2）/);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /紹介女 \+1 ×2（66\.7%）/);
   vm.runInContext(`
     recordKabaneriStCounterTag('t_kabaneri_lower_bell');
     recordKabaneriStCounterTag('t_kabaneri_lower_bell');
     recordKabaneriStCounterTag('t_kabaneri_lower_bell');
   `, context);
   const stGridAfterTallies = vm.runInContext("renderKabaneriStPanel()", context);
-  assert.match(stGridAfterTallies, /ボイス 男1・女1（男50%）/);
-  assert.match(stGridAfterTallies, /景之 弱1・中0・強0/);
-  assert.match(stGridAfterTallies, /紹介 男1・女2（男33%）/);
+  assert.match(stGridAfterTallies, /ボイス 男1\(25\.0%\)・女1\(25\.0%\)/);
+  assert.match(stGridAfterTallies, /景之 弱1\(25\.0%\)\/中0\(0\.0%\)\/強0\(0\.0%\)/);
+  assert.match(stGridAfterTallies, /紹介 男1\(33\.3%\)・女2\(66\.7%\)/);
   assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /下段ベル/);
   assert.equal(vm.runInContext("subCounterValue('introFemaleTally')", context), 2);
   assert.equal(vm.runInContext("subCounterValue('introMaleTally')", context), 1);
@@ -4255,6 +4318,7 @@ function run() {
   testKabaneriChanceEyeMeterAndCounters();
   testKabaneriChanceEyeSituationView();
   testKabaneriSettingSummaryGroupRatiosAndCurrentLabels();
+  testKabaneriVoiceGroupRatioUsesSharedDenominator();
   testKabaneriGameStateTriggers();
   testKabaneriGenealogyView();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();

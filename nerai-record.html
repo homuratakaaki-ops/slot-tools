@@ -8564,48 +8564,87 @@ function kabaneriStVoiceCounts(){
     return counts;
   },{male:0,female:0,kageWeak:0,kageMid:0,kageStrong:0});
 }
+function settingGroupTotal(rows){
+  return (rows||[]).reduce((total,row)=>total+(normalizeOptionalNumber(row?.count)??0),0);
+}
+function settingGroupPercentText(count,total,{digits=1,dash='-'}={}){
+  const denominator=normalizeOptionalNumber(total)??0;
+  if(!denominator)return dash;
+  return `${((normalizeOptionalNumber(count)??0)/denominator*100).toFixed(digits)}%`;
+}
+function kabaneriStVoiceGroupRows(){
+  const counts=kabaneriStVoiceCounts();
+  const known=Object.values(counts).reduce((sum,value)=>sum+value,0);
+  const total=kabaneriStSuggestRows().reduce((sum,entry)=>sum+(entry?.placeId==='sgp_kabaneri_setting_voice'?1:0),0);
+  return [
+    {key:'male',count:counts.male},
+    {key:'female',count:counts.female},
+    {key:'kageWeak',count:counts.kageWeak},
+    {key:'kageMid',count:counts.kageMid},
+    {key:'kageStrong',count:counts.kageStrong},
+    {key:'certain',count:Math.max(0,total-known)}
+  ];
+}
 function kabaneriStVoiceGroupTotal(){
-  return kabaneriStSuggestRows().reduce((total,entry)=>total+(entry?.placeId==='sgp_kabaneri_setting_voice'?1:0),0);
+  return settingGroupTotal(kabaneriStVoiceGroupRows());
+}
+function kabaneriStIntroBibaCount(){
+  return kabaneriStSuggestRows().reduce((count,entry)=>count+(entry?.placeId==='sgp_kabaneri_setting_intro'&&entry?.itemId==='sgp_kabaneri_setting_intro_i3'?1:0),0);
+}
+function kabaneriStIntroGroupRows(){
+  return [
+    {key:'male',count:subCounterValue('introMaleTally')},
+    {key:'female',count:subCounterValue('introFemaleTally')},
+    {key:'biba',count:kabaneriStIntroBibaCount()}
+  ];
 }
 function kabaneriStPanelSummary(){
   const voices=kabaneriStVoiceCounts();
   const introMale=subCounterValue('introMaleTally');
   const introFemale=subCounterValue('introFemaleTally');
-  const voiceTotal=voices.male+voices.female;
-  const introTotal=introMale+introFemale;
-  const pct=(num,den)=>den?`${Math.round((num/den)*100)}%`:'-';
+  const voiceTotal=settingGroupTotal(kabaneriStVoiceGroupRows());
+  const introTotal=settingGroupTotal(kabaneriStIntroGroupRows());
+  const pct=(num,den)=>settingGroupPercentText(num,den);
   return {
     voices,
     introMale,
     introFemale,
     voiceMalePct:pct(voices.male,voiceTotal),
+    voiceFemalePct:pct(voices.female,voiceTotal),
+    kageWeakPct:pct(voices.kageWeak,voiceTotal),
+    kageMidPct:pct(voices.kageMid,voiceTotal),
+    kageStrongPct:pct(voices.kageStrong,voiceTotal),
     introMalePct:pct(introMale,introTotal)
   };
 }
 function kabaneriStPanelSummaryHtml(){
   const summary=kabaneriStPanelSummary();
   const v=summary.voices;
-  return `<div class="bm-st-summary">ボイス 男${v.male}・女${v.female}（男${summary.voiceMalePct}）｜景之 弱${v.kageWeak}・中${v.kageMid}・強${v.kageStrong}｜紹介 男${summary.introMale}・女${summary.introFemale}（男${summary.introMalePct}）</div>`;
+  return `<div class="bm-st-summary">ボイス 男${v.male}(${summary.voiceMalePct})・女${v.female}(${summary.voiceFemalePct})｜景之 弱${v.kageWeak}(${summary.kageWeakPct})/中${v.kageMid}(${summary.kageMidPct})/強${v.kageStrong}(${summary.kageStrongPct})｜紹介 男${summary.introMale}(${summary.introMalePct})・女${summary.introFemale}(${settingGroupPercentText(summary.introFemale,settingGroupTotal(kabaneriStIntroGroupRows()))})</div>`;
 }
 function kabaneriStVoiceRecentLabel(entry){
   if(!isKabaneriMachine(currentMachine())||entry?.placeId!=='sgp_kabaneri_setting_voice')return '';
   const spec=kabaneriStVoiceSpec(entry.itemId);
   if(!spec)return '';
   const count=kabaneriStVoiceCounts()[spec.key]||0;
-  if(spec.key==='male'||spec.key==='female'){
-    const total=kabaneriStVoiceGroupTotal();
-    const pct=total?`（${((count/total)*100).toFixed(1)}%）`:'';
-    return `${spec.label} ×${count}${pct}`;
-  }
-  return `${spec.label} ×${count}`;
+  const total=kabaneriStVoiceGroupTotal();
+  const pct=total?`（${settingGroupPercentText(count,total)}）`:'';
+  return `${spec.label} ×${count}${pct}`;
 }
 function kabaneriStTimelineTallyRecentLabel(entry){
   if(!isKabaneriMachine(currentMachine()))return '';
   const game=normalizeOptionalNumber(entry?.game);
   const prefix=game!==null?`${game}G `:'';
   const ids=timelineTagIds(entry);
-  if(ids.includes('t_kabaneri_intro_male_tally'))return `${prefix}紹介男 +1（計${subCounterValue('introMaleTally')}）`;
-  if(ids.includes('t_kabaneri_intro_female_tally'))return `${prefix}紹介女 +1（計${subCounterValue('introFemaleTally')}）`;
+  const introTotal=settingGroupTotal(kabaneriStIntroGroupRows());
+  if(ids.includes('t_kabaneri_intro_male_tally')){
+    const count=subCounterValue('introMaleTally');
+    return `${prefix}紹介男 +1 ×${count}${introTotal?`（${settingGroupPercentText(count,introTotal)}）`:''}`;
+  }
+  if(ids.includes('t_kabaneri_intro_female_tally')){
+    const count=subCounterValue('introFemaleTally');
+    return `${prefix}紹介女 +1 ×${count}${introTotal?`（${settingGroupPercentText(count,introTotal)}）`:''}`;
+  }
   return '';
 }
 function kabaneriSuggestItemRef(placeId,itemId){
@@ -11240,15 +11279,15 @@ function settingSummaryGroupRows(rows){
     .map(group=>({
       ...group,
       rows:group.rows
-        .map(row=>({...row,groupTotal:group.total,groupPct:group.total?Math.floor((row.count||0)*1000/group.total)/10:0,factOnly:settingSummaryEntryIsFactOnly(row)}))
+        .map(row=>({...row,groupTotal:settingGroupTotal(group.rows),groupPctText:settingGroupPercentText(row.count,settingGroupTotal(group.rows)),factOnly:settingSummaryEntryIsFactOnly(row)}))
         .sort((a,b)=>a.order-b.order||String(a.item).localeCompare(String(b.item),'ja'))
     }))
     .sort((a,b)=>a.order-b.order||String(a.title).localeCompare(String(b.title),'ja'));
 }
 function settingSummaryLine(row){
   if(row.factOnly)return row.item;
-  const pct=normalizeOptionalNumber(row.groupPct??row.pct)??0;
-  return `${row.item} ×${row.count}（${pct.toFixed(1)}%）`;
+  const pct=row.groupPctText||settingGroupPercentText(row.count,row.total);
+  return `${row.item} ×${row.count}（${pct}）`;
 }
 function settingSummaryGroupLine(group){
   const facts=group.rows.filter(row=>row.factOnly);
@@ -12741,13 +12780,14 @@ function openShunjoPtStepSheet(){
   setBattleModeSheet('駿城pt',`
     <div class="bm-sheet-note">駿城ボーナス終了時の液晶ptを記録します。不明ならスキップできます。</div>
     <label class="field-label" for="shunjoPtInput">最終pt</label>
-    <input id="shunjoPtInput" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="例：4100" style="width:100%;box-sizing:border-box;">
+    <button class="bm-btn" type="button" onclick="openKabaneriStNumericInput('shunjoPtInput','最終pt')">最終ptを入力</button>
+    <input id="shunjoPtInput" class="numeric-input" inputmode="none" readonly pattern="[0-9]*" placeholder="例：4100" onclick="openKabaneriStNumericInput('shunjoPtInput','最終pt')" style="width:100%;box-sizing:border-box;min-height:46px;padding:12px 14px;">
     <label class="toggle-row" style="display:none;justify-content:flex-start;gap:8px;">
       <input id="shunjoPtTanCha3000" type="checkbox">
       <span>単チャ目3000pt獲得</span>
     </label>
     ${shunjoPtCountButtons('shunjoPtTanChaCount',9,'単独チャ目回数')}
-    ${shunjoPtCountButtons('shunjoPtTanCha3000Count',3,'3000pt回数')}
+    ${shunjoPtCountButtons('shunjoPtTanCha3000Count',3,'うち3000pt獲得')}
     <button class="bm-btn gold" type="button" onclick="submitShunjoPtStep()">決定</button>
     <button class="bm-btn" type="button" onclick="skipShunjoPtStep()">不明（スキップ）</button>
     <button class="bm-btn" type="button" onclick="skipShunjoPtStep()">閉じる</button>`);
@@ -12755,7 +12795,7 @@ function openShunjoPtStepSheet(){
   setShunjoPtCount('shunjoPtTanCha3000Count',0);
   setTimeout(()=>{
     const input=document.getElementById('shunjoPtInput');
-    input?.focus();
+    input?.focus?.();
     input?.select?.();
   },0);
 }
