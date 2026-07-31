@@ -597,8 +597,12 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-st-panel-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
 .bm-st-panel-row.four{grid-template-columns:repeat(4,minmax(0,1fr));}
 .bm-st-panel-row.two{grid-template-columns:repeat(2,minmax(0,1fr));}
+.bm-st-panel-row.five{grid-template-columns:repeat(5,minmax(0,1fr));}
 .bm-st-panel details{grid-column:1/-1;}
 .bm-st-panel summary{cursor:pointer;color:var(--text-muted);font-size:12px;font-weight:900;padding:4px 0;}
+.bm-st-end-action{border-color:rgba(239,68,68,.75)!important;background:rgba(127,29,29,.24)!important;color:#fecaca!important;}
+.bm-st-step-anchor{scroll-margin-top:12px;}
+.bm-st-choice-selected{border-color:rgba(201,168,76,.96)!important;box-shadow:0 0 0 2px rgba(201,168,76,.35) inset;background:rgba(201,168,76,.14)!important;}
 .bm-st-sheet{display:grid;gap:10px;font-variant-numeric:tabular-nums;}
 .bm-st-choice-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
 .bm-st-input-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
@@ -2898,6 +2902,7 @@ function normalizeData(data){
     ensureKabaneriEyecatchDefaultSeedV1(m);
     ensureKabaneriGameStateTriggersSeedV1(m);
     ensureKabaneriStFlowSeedV1(m);
+    ensureKabaneriStPanelRefineSeedV1(m);
     ensureKabaneriCompareMetricsSeedV1(m);
     if(m.hitCauseFirst===true)m.hitCauseFirst=true;
     else delete m.hitCauseFirst;
@@ -5521,8 +5526,6 @@ function ensureKabaneriGameStateTriggersSeedV1(machine){
 }
 function ensureKabaneriStFlowSeedV1(machine){
   const hasSeed=machine?.tags?.some(tag=>tag.id==='t_kabaneri_st_end')
-    &&machine?.tags?.some(tag=>tag.id==='t_kabaneri_common_bell')
-    &&machineCounters(machine).some(counter=>counter.key==='commonBell')
     &&!!findSuggestPlace(findSuggestCategory(machine,'sgc_kabaneri_setting'),'sgp_kabaneri_setting_trophy');
   if(!machine||!isKabaneriMachine(machine)||(machine.kabaneriStFlowSeedV1&&hasSeed))return;
   mergeTimelineTagSeed(machine,[
@@ -5530,7 +5533,7 @@ function ensureKabaneriStFlowSeedV1(machine){
     {id:'t_kabaneri_attack_bonus',label:'アタック上乗せ',optional:true,countAs:null,tagClass:'kabaneri-gold'},
     {id:'t_kabaneri_medal_display',label:'獲得枚数表示',optional:true,countAs:null,tagClass:'kabaneri-gold'},
     {id:'t_kabaneri_myslot_summary',label:'マイスロ転記',optional:true,countAs:null,tagClass:'event'},
-    {id:'t_kabaneri_common_bell',label:'共通ベル',optional:true,countAs:null,tagClass:'rare-weak',subCounterDelta:1},
+    {id:'t_kabaneri_common_bell',label:'共通ベル',optional:true,countAs:null,tagClass:'rare-weak',subCounterDelta:null},
     {id:'t_kabaneri_voice_tally',label:'ボイス',optional:true,countAs:null,tagClass:'event',subCounterDelta:1},
     {id:'t_kabaneri_intro_female_tally',label:'キャラ紹介（女）',optional:true,countAs:null,tagClass:'event',subCounterDelta:1},
     {id:'t_kabaneri_intro_male_tally',label:'キャラ紹介（男）',optional:true,countAs:null,tagClass:'event',subCounterDelta:1},
@@ -5539,11 +5542,8 @@ function ensureKabaneriStFlowSeedV1(machine){
   const existing=machineCounters(machine).filter(counter=>!['commonBell','voiceTally','introFemaleTally','introMaleTally','itemOmikujiTally'].includes(counter.key));
   machine.counters=[
     ...existing,
-    {key:'commonBell',label:'共通ベル',counterLabel:'共通ベル',countTagIds:['t_kabaneri_common_bell'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true},
-    {key:'voiceTally',label:'ボイス',counterLabel:'ボイス',countTagIds:['t_kabaneri_voice_tally'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true},
     {key:'introFemaleTally',label:'紹介女',counterLabel:'紹介女',countTagIds:['t_kabaneri_intro_female_tally'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true},
-    {key:'introMaleTally',label:'紹介男',counterLabel:'紹介男',countTagIds:['t_kabaneri_intro_male_tally'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true},
-    {key:'itemOmikujiTally',label:'アイテムくじ',counterLabel:'アイテム',countTagIds:['t_kabaneri_item_omikuji_tally'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true}
+    {key:'introMaleTally',label:'紹介男',counterLabel:'紹介男',countTagIds:['t_kabaneri_intro_male_tally'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true}
   ].map(normalizeMachineCounter).filter(Boolean);
   const setting=ensureSuggestCategory(machine,'sgc_kabaneri_setting','設定示唆');
   const stEnd=ensureKabaneriSuggestPlace(setting,'sgp_kabaneri_setting_st_end','ST終了画面');
@@ -5563,6 +5563,13 @@ function ensureKabaneriStFlowSeedV1(machine){
   ]);
   machine.kabaneriStFlowSeedV1=true;
   applySuggestMetadata(machine);
+}
+function ensureKabaneriStPanelRefineSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriStPanelRefineSeedV1)return;
+  const commonTag=machine.tags?.find(tag=>tag.id==='t_kabaneri_common_bell');
+  if(commonTag)commonTag.subCounterDelta=null;
+  machine.counters=machineCounters(machine).filter(counter=>!['commonBell','voiceTally','itemOmikujiTally'].includes(counter.key));
+  machine.kabaneriStPanelRefineSeedV1=true;
 }
 function ensureKabaneriCompareMetricsSeedV1(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriCompareMetricsSeedV1)return;
@@ -6142,7 +6149,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -6208,6 +6215,7 @@ function addMachine(){
   ensureKabaneriEyecatchDefaultSeedV1(machine);
   ensureKabaneriGameStateTriggersSeedV1(machine);
   ensureKabaneriStFlowSeedV1(machine);
+  ensureKabaneriStPanelRefineSeedV1(machine);
   ensureKabaneriCompareMetricsSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
@@ -8035,9 +8043,26 @@ function currentCompareSourceLog(){
 function comparePair(num=0,den=0){
   return {num:Math.max(0,Number(num)||0),den:Math.max(0,Number(den)||0)};
 }
+function timelineLowerBellCount(rows){
+  return (Array.isArray(rows)?rows:[]).filter(entry=>timelineTagIds(entry).includes('t_kabaneri_lower_bell')).length;
+}
+function kabaneriOpenStTimelineLowerBellCount(log){
+  const hitRows=Array.isArray(log?.hitEvents)?log.hitEvents:[];
+  const hasOpenSt=hitRows.some(event=>event?.trigger&&event.through==='yes');
+  return hasOpenSt?timelineLowerBellCount(log?.timeline):0;
+}
+function kabaneriStLowerBellCountForLog(log){
+  const segments=Array.isArray(log?.segments)?log.segments:[];
+  const archivedStCount=segments.reduce((sum,segment)=>sum+(segment?.terminalType==='st_end'?timelineLowerBellCount(segment.timeline):0),0);
+  return archivedStCount+kabaneriOpenStTimelineLowerBellCount(log);
+}
+function kabaneriNormalLowerBellCountForLog(log){
+  const total=normalizeSubCounters(log?.subCounters).lowerBell||0;
+  return Math.max(0,total-kabaneriStLowerBellCountForLog(log));
+}
 function compareMetricPairForLog(log,metric,machine=currentMachine()){
   const key=String(metric?.key||'');
-  if(key==='lowerBell')return comparePair(normalizeSubCounters(log?.subCounters).lowerBell||0,kabaneriNormalDataGamesForLog(log));
+  if(key==='lowerBell')return comparePair(kabaneriNormalLowerBellCountForLog(log),kabaneriNormalDataGamesForLog(log));
   if(key==='plainFlash'){
     const core=kabaneriChanceEyeTableSummary(logAllTimelineRows(log),machine).core;
     return comparePair(core.numerator,core.denominator);
@@ -8539,7 +8564,29 @@ function recordKabaneriStSuggest(placeId,itemId,selectionKey=''){
   renderPracticeStats();
   saveDraftImmediately();
   openBattleModeKabaneriStEndSheet();
+  if(selectionKey)setTimeout(()=>document.getElementById(selectionKey==='endScreen'?'kabaneriStTrophyGroup':'kabaneriStCreditGroup')?.scrollIntoView({block:'nearest',behavior:'smooth'}),0);
   return true;
+}
+function recordKabaneriStVoice(itemId){
+  const ref=kabaneriSuggestItemRef('sgp_kabaneri_setting_voice',itemId);
+  if(!ref){battleModeInvalid('ボイス項目が見つかりません');return false;}
+  return addBattleModeSuggestLogFromSelection({
+    stateGroup:'hit',
+    source:'manual',
+    hitEventId:latestKabaneriStEvent()?.id||'',
+    carryType:normalizeCarryType(ref.item.carryType)||'setting',
+    pointRole:ref.place.pointRole||ref.item.pointRole||null,
+    confidenceLevel:ref.item.confidenceLevel||null,
+    confidenceType:ref.item.confidenceType||null,
+    categoryId:ref.category.id,
+    placeId:ref.place.id,
+    itemId:ref.item.id,
+    category:ref.category.category,
+    place:ref.place.name,
+    item:ref.item.label,
+    decorations:ref.item.decorations||[],
+    useAppearG:false
+  });
 }
 function recordKabaneriFailureTrophy(itemId=''){
   if(!itemId){closeBattleModeOtherSheet();return;}
@@ -8584,7 +8631,7 @@ function maybeOpenKabaneriFailureTrophyPrompt(){
   setTimeout(openKabaneriFailureTrophyPicker,0);
 }
 function kabaneriStChoiceButton(label,onclick,active=false,cls=''){
-  return `<button class="bm-btn ${escapeHtml(cls)} ${active?'credit-ok':''}" type="button" onclick="${onclick}">${escapeHtml(label)}</button>`;
+  return `<button class="bm-btn ${escapeHtml(cls)} ${active?'bm-st-choice-selected':''}" type="button" onclick="${onclick}">${escapeHtml(label)}</button>`;
 }
 function kabaneriStSuggestButtons(placeId,items,selectionKey){
   return `<div class="bm-st-choice-row">${items.map(row=>kabaneriStChoiceButton(row.label,`recordKabaneriStSuggest('${placeId}','${row.id}','${selectionKey}')`,kabaneriStEndSelections[selectionKey]===row.id,row.cls||'')).join('')}</div>`;
@@ -8595,7 +8642,7 @@ function openBattleModeKabaneriStEndSheet(){
   setBattleModeSheet('ST終了',`
     <div class="bm-st-sheet">
       <div class="bm-sheet-note">ST終了時の情報をまとめて記録します。各項目は空のまま完了できます。</div>
-      <div>
+      <div id="kabaneriStEndScreenGroup" class="bm-st-step-anchor">
         <div class="bm-counter-label">ST終了画面</div>
         ${kabaneriStSuggestButtons('sgp_kabaneri_setting_st_end',[
           {id:'sgi_kabaneri_st_end_default',label:'デフォルト'},
@@ -8603,7 +8650,7 @@ function openBattleModeKabaneriStEndSheet(){
           {id:'sgi_kabaneri_st_end_other',label:'その他'}
         ],'endScreen')}
       </div>
-      <div>
+      <div id="kabaneriStTrophyGroup" class="bm-st-step-anchor">
         <div class="bm-counter-label">トロフィー</div>
         ${kabaneriStSuggestButtons('sgp_kabaneri_setting_trophy',[
           {id:'sgi_kabaneri_trophy_none',label:'なし'},
@@ -8614,9 +8661,11 @@ function openBattleModeKabaneriStEndSheet(){
           {id:'sgp_kabaneri_setting_trophy_i5',label:'虹',cls:'bm-choice-text-gold'}
         ],'trophy')}
       </div>
-      <label class="field-label" for="kabaneriStEndCredit">最終クレ</label>
-      <input id="kabaneriStEndCredit" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="クレ" value="${escapeHtml(credit||'')}">
-      <div>
+      <div id="kabaneriStCreditGroup" class="bm-st-step-anchor">
+        <label class="field-label" for="kabaneriStEndCredit">最終クレ</label>
+        <input id="kabaneriStEndCredit" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="クレ" value="${escapeHtml(credit||'')}">
+      </div>
+      <div id="kabaneriStMyslotGroup" class="bm-st-step-anchor">
         <div class="bm-counter-label">マイスロ転記（任意）</div>
         <div class="bm-st-input-grid">
           <input id="kabaneriMyslotGames" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="総G">
@@ -8666,23 +8715,19 @@ function submitKabaneriStEndFlow(){
 function renderKabaneriStPanel(){
   if(!kabaneriStActive())return '';
   return `<div class="bm-st-panel">
-    <div class="bm-st-panel-title"><span>ST中</span><button class="bm-mini-btn bm-credit-update" type="button" onclick="openBattleModeKabaneriStEndSheet()">ST終了</button></div>
-    <div class="bm-st-panel-row four">
-      ${[44,55,66,77].map(value=>`<button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriStAttack(${value})">+${value}</button>`).join('')}
+    <div class="bm-st-panel-title"><span>ST中</span><button class="bm-mini-btn bm-st-end-action" type="button" onclick="openBattleModeKabaneriStEndSheet()">ST終了</button></div>
+    <div class="bm-st-panel-row five">
+      <button class="bm-btn bm-choice-text-green" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i1')">男性</button>
+      <button class="bm-btn bm-choice-text-red" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i2')">女性</button>
+      <button class="bm-btn" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i3')">景之・弱</button>
+      <button class="bm-btn" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i4')">景之・中</button>
+      <button class="bm-btn" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i5')">景之・強</button>
     </div>
-    <div class="bm-st-panel-row two">
-      <button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriMedalDisplay(456)">456枚</button>
-      <button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriMedalDisplay(666)">666枚</button>
+    <div class="bm-st-panel-row three">
+      <button class="bm-btn bm-choice-text-red" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_female_tally')">紹介女 +1</button>
+      <button class="bm-btn bm-choice-text-green" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_male_tally')">紹介男 +1</button>
+      <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_lower_bell')">下段ベル +1</button>
     </div>
-    <details>
-      <summary>タリー</summary>
-      <div class="bm-st-panel-row four">
-        <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_voice_tally')">ボイス</button>
-        <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_female_tally')">紹介女</button>
-        <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_male_tally')">紹介男</button>
-        <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_item_omikuji_tally')">アイテム</button>
-      </div>
-    </details>
   </div>`;
 }
 function kabaneriStOtherSheetButtons(){
@@ -8692,11 +8737,9 @@ function kabaneriStOtherSheetButtons(){
     ...[44,55,66,77].map(value=>`<button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriStAttack(${value})">+${value}</button>`),
     '<button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriMedalDisplay(456)">456枚</button>',
     '<button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriMedalDisplay(666)">666枚</button>',
-    '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_common_bell\')">共通ベル +1</button>',
-    '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_voice_tally\')">ボイス +1</button>',
+    '<button class="bm-btn other" type="button" onclick="openSuggestItemPicker(\'sgc_kabaneri_setting\',\'sgp_kabaneri_setting_voice\',\'play\')">技術介入ボイス ▼</button>',
     '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_intro_female_tally\')">紹介女 +1</button>',
-    '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_intro_male_tally\')">紹介男 +1</button>',
-    '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_item_omikuji_tally\')">アイテム +1</button>'
+    '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_intro_male_tally\')">紹介男 +1</button>'
   ];
 }
 function kabaneriStHiddenNormalSheetButtons(){

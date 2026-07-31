@@ -2486,13 +2486,22 @@ function testKabaneriStFlowAndCounters() {
   assert.equal(vm.runInContext("kabaneriStActive()", context), true);
   assert.equal(vm.runInContext("currentSegments.length", context), 0);
   assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
+  assert.equal(vm.runInContext("machineCounters().some(counter => counter.key === 'commonBell')", context), false);
   const stGrid = vm.runInContext("renderBattleModeGrid()", context);
   assert.match(stGrid, /ST終了/);
-  assert.match(stGrid, /\+44/);
-  assert.match(stGrid, /\+77/);
-  assert.match(stGrid, /456枚/);
-  assert.match(stGrid, /666枚/);
-  assert.match(stGrid, /ボイス/);
+  assert.match(stGrid, /bm-st-end-action/);
+  assert.match(stGrid, /男性/);
+  assert.match(stGrid, /女性/);
+  assert.match(stGrid, /景之・弱/);
+  assert.match(stGrid, /紹介女 \+1/);
+  assert.match(stGrid, /紹介男 \+1/);
+  assert.match(stGrid, /下段ベル \+1/);
+  assert.doesNotMatch(stGrid, /\+44/);
+  assert.doesNotMatch(stGrid, /\+77/);
+  assert.doesNotMatch(stGrid, /456枚/);
+  assert.doesNotMatch(stGrid, /666枚/);
+  assert.doesNotMatch(stGrid, /共通ベル/);
+  assert.doesNotMatch(stGrid, /アイテム/);
   assert.doesNotMatch(stGrid, /無名/);
   assert.doesNotMatch(stGrid, /生駒/);
   assert.doesNotMatch(stGrid, /カバネ/);
@@ -2504,25 +2513,41 @@ function testKabaneriStFlowAndCounters() {
   assert.doesNotMatch(vm.runInContext("renderBattleModeCompactCounters()", context), />\+1</);
   vm.runInContext("openBattleModeOtherSheet()", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ST終了/);
-  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /共通ベル/);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /\+44/);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /456枚/);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /技術介入ボイス/);
+  assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /共通ベル/);
+  assert.doesNotMatch(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /アイテム \+1/);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /無名/);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /状態/);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /下段ベル/);
+  vm.runInContext("openSuggestItemPicker('sgc_kabaneri_setting','sgp_kabaneri_setting_voice','play')", context);
+  assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /普通じゃないね/);
+  assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /ボイスなし/);
+  vm.runInContext("selectSuggestItem('sgp_kabaneri_setting_voice_i6')", context);
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i6')", context), true);
 
   vm.runInContext(`
-    recordKabaneriStAttack(44);
-    recordKabaneriMedalDisplay(456);
-    recordKabaneriStCounterTag('t_kabaneri_common_bell');
+    recordKabaneriStVoice('sgp_kabaneri_setting_voice_i1');
   `, context);
-  assert.equal(vm.runInContext("subCounterValue('commonBell')", context), 1);
-  assert.deepEqual(
-    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.find(entry => entry.tagIds.includes('t_kabaneri_attack_bonus')).attachments)", context)),
-    [{ key: 'attackBonus', label: '上乗せ', value: 44, unit: '枚' }]
-  );
-  assert.deepEqual(
-    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.find(entry => entry.tagIds.includes('t_kabaneri_medal_display')).attachments)", context)),
-    [{ key: 'medalDisplay', label: '獲得枚数表示', value: 456, unit: '枚' }]
-  );
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i1')", context), true);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /男性/);
+  assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /示唆/);
+  vm.runInContext(`
+    recordKabaneriStCounterTag('t_kabaneri_intro_female_tally');
+    recordKabaneriStCounterTag('t_kabaneri_intro_male_tally');
+    recordKabaneriStCounterTag('t_kabaneri_lower_bell');
+    recordKabaneriStCounterTag('t_kabaneri_lower_bell');
+    recordKabaneriStCounterTag('t_kabaneri_lower_bell');
+  `, context);
+  assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /下段ベル/);
+  assert.equal(vm.runInContext("subCounterValue('introFemaleTally')", context), 1);
+  assert.equal(vm.runInContext("subCounterValue('introMaleTally')", context), 1);
+  assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 3);
+  assert.equal(vm.runInContext("compareMetricPairForLog(currentCompareSourceLog(), machineCompareMetrics().find(row => row.key === 'lowerBell')).num", context), 0);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 2);
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i1')", context), true);
 
   vm.runInContext(`
     battleModePendingGameStatePrompts = [];
@@ -2546,16 +2571,22 @@ function testKabaneriStFlowAndCounters() {
 
   vm.runInContext(`
     openBattleModeKabaneriStEndSheet();
+    recordKabaneriStSuggest('sgp_kabaneri_setting_st_end','sgi_kabaneri_st_end_ayame','endScreen');
+    recordKabaneriStSuggest('sgp_kabaneri_setting_trophy','sgp_kabaneri_setting_trophy_i3','trophy');
     __stateElements.kabaneriStEndCredit = { value: '600' };
     __stateElements.kabaneriMyslotGames = { value: '1234' };
     __stateElements.kabaneriMyslotCz = { value: '5' };
     __stateElements.kabaneriMyslotSt = { value: '2' };
+  `, context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /bm-st-choice-selected/);
+  vm.runInContext(`
     submitKabaneriStEndFlow();
   `, context);
   assert.equal(vm.runInContext("kabaneriStActive()", context), false);
   assert.equal(vm.runInContext("currentSegments.length", context), 1);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
-  assert.equal(vm.runInContext("subCounterValue('commonBell')", context), 1);
+  assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 2);
+  assert.equal(vm.runInContext("compareMetricPairForLog(currentCompareSourceLog(), machineCompareMetrics().find(row => row.key === 'lowerBell')).num", context), 0);
   const normalGrid = vm.runInContext("renderBattleModeGrid()", context);
   assert.match(normalGrid, /無名/);
   assert.match(normalGrid, /状態/);
