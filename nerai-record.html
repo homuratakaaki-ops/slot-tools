@@ -580,6 +580,15 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-genealogy-arrow{color:var(--text-muted);font-weight:900;}
 .bm-genealogy-meta{margin-top:5px;text-align:right;color:var(--text-muted);font-size:11px;font-weight:900;}
 .bm-genealogy-more{min-height:34px;border:1px solid rgba(122,122,138,.42);border-radius:8px;background:var(--surface2);color:var(--text-muted);font-size:12px;font-weight:900;}
+.bm-st-panel{grid-column:1/-1;border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(201,168,76,.055);padding:8px;display:grid;gap:7px;}
+.bm-st-panel-title{display:flex;justify-content:space-between;align-items:center;gap:8px;color:var(--gold-light);font-size:12px;font-weight:900;}
+.bm-st-panel-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+.bm-st-panel-row.four{grid-template-columns:repeat(4,minmax(0,1fr));}
+.bm-st-panel details{grid-column:1/-1;}
+.bm-st-panel summary{cursor:pointer;color:var(--text-muted);font-size:12px;font-weight:900;padding:4px 0;}
+.bm-st-sheet{display:grid;gap:10px;font-variant-numeric:tabular-nums;}
+.bm-st-choice-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
+.bm-st-input-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
 .bm-state-badges{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 8px;}
 .bm-state-badge{min-height:32px;border:1px solid rgba(96,165,250,.45);border-radius:999px;background:rgba(96,165,250,.16);color:#bfdbfe;font-size:12px;font-weight:900;padding:5px 10px;cursor:pointer;appearance:none;line-height:1.2;}
 .bm-state-badge:active{transform:translateY(1px);filter:brightness(1.08);}
@@ -1375,6 +1384,8 @@ let battleModeOtherSheetOpen=false;
 let battleModeLastProcessedLiquidG=null;
 let battleModePendingGameStatePrompts=[];
 let battleModeKabaneriMultiDraft=null;
+let kabaneriStEndSelections={endScreen:'',trophy:''};
+let kabaneriPendingFailureTrophyPrompt='';
 let moneyEndMedalsEdited=false;
 let carriedMedalsAppliedKey='';
 let battleModeScrollToHitNext=false;
@@ -2794,6 +2805,7 @@ function normalizeData(data){
     ensureKabaneriPointFlattenSeedV1(m);
     ensureKabaneriEyecatchDefaultSeedV1(m);
     ensureKabaneriGameStateTriggersSeedV1(m);
+    ensureKabaneriStFlowSeedV1(m);
     if(m.hitCauseFirst===true)m.hitCauseFirst=true;
     else delete m.hitCauseFirst;
     m.hitTriggers=normalizeHitTriggers(m.hitTriggers);
@@ -5395,6 +5407,51 @@ function ensureKabaneriGameStateTriggersSeedV1(machine){
   ]);
   machine.kabaneriGameStateTriggersSeedV1=true;
 }
+function ensureKabaneriStFlowSeedV1(machine){
+  const hasSeed=machine?.tags?.some(tag=>tag.id==='t_kabaneri_st_end')
+    &&machine?.tags?.some(tag=>tag.id==='t_kabaneri_common_bell')
+    &&machineCounters(machine).some(counter=>counter.key==='commonBell')
+    &&!!findSuggestPlace(findSuggestCategory(machine,'sgc_kabaneri_setting'),'sgp_kabaneri_setting_trophy');
+  if(!machine||!isKabaneriMachine(machine)||(machine.kabaneriStFlowSeedV1&&hasSeed))return;
+  mergeTimelineTagSeed(machine,[
+    {id:'t_kabaneri_st_end',label:'ST終了',optional:true,countAs:null,tagClass:'event'},
+    {id:'t_kabaneri_attack_bonus',label:'アタック上乗せ',optional:true,countAs:null,tagClass:'kabaneri-gold'},
+    {id:'t_kabaneri_medal_display',label:'獲得枚数表示',optional:true,countAs:null,tagClass:'kabaneri-gold'},
+    {id:'t_kabaneri_myslot_summary',label:'マイスロ転記',optional:true,countAs:null,tagClass:'event'},
+    {id:'t_kabaneri_common_bell',label:'共通ベル',optional:true,countAs:null,tagClass:'rare-weak',subCounterDelta:1},
+    {id:'t_kabaneri_voice_tally',label:'ボイス',optional:true,countAs:null,tagClass:'event',subCounterDelta:1},
+    {id:'t_kabaneri_intro_female_tally',label:'キャラ紹介（女）',optional:true,countAs:null,tagClass:'event',subCounterDelta:1},
+    {id:'t_kabaneri_intro_male_tally',label:'キャラ紹介（男）',optional:true,countAs:null,tagClass:'event',subCounterDelta:1},
+    {id:'t_kabaneri_item_omikuji_tally',label:'アイテムくじ',optional:true,countAs:null,tagClass:'event',subCounterDelta:1}
+  ]);
+  const existing=machineCounters(machine).filter(counter=>!['commonBell','voiceTally','introFemaleTally','introMaleTally','itemOmikujiTally'].includes(counter.key));
+  machine.counters=[
+    ...existing,
+    {key:'commonBell',label:'共通ベル',counterLabel:'共通ベル',countTagIds:['t_kabaneri_common_bell'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true},
+    {key:'voiceTally',label:'ボイス',counterLabel:'ボイス',countTagIds:['t_kabaneri_voice_tally'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true},
+    {key:'introFemaleTally',label:'紹介女',counterLabel:'紹介女',countTagIds:['t_kabaneri_intro_female_tally'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true},
+    {key:'introMaleTally',label:'紹介男',counterLabel:'紹介男',countTagIds:['t_kabaneri_intro_male_tally'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true},
+    {key:'itemOmikujiTally',label:'アイテムくじ',counterLabel:'アイテム',countTagIds:['t_kabaneri_item_omikuji_tally'],resetTagIds:[],historyEnabled:true,resetOn:'',preserveOnArchive:true}
+  ].map(normalizeMachineCounter).filter(Boolean);
+  const setting=ensureSuggestCategory(machine,'sgc_kabaneri_setting','設定示唆');
+  const stEnd=ensureKabaneriSuggestPlace(setting,'sgp_kabaneri_setting_st_end','ST終了画面');
+  upsertKabaneriSuggestItems(stEnd,[
+    {id:'sgi_kabaneri_st_end_default',label:'デフォルト'},
+    {id:'sgi_kabaneri_st_end_ayame',label:'菖蒲（高設定示唆）'},
+    {id:'sgi_kabaneri_st_end_other',label:'その他'}
+  ]);
+  const trophy=ensureKabaneriSuggestPlace(setting,'sgp_kabaneri_setting_trophy','サミートロフィー');
+  upsertKabaneriSuggestItems(trophy,[
+    {id:'sgi_kabaneri_trophy_none',label:'なし'},
+    {id:'sgp_kabaneri_setting_trophy_i1',label:'銅（確定級）'},
+    {id:'sgp_kabaneri_setting_trophy_i2',label:'銀（確定級）'},
+    {id:'sgp_kabaneri_setting_trophy_i3',label:'金（確定級）'},
+    {id:'sgp_kabaneri_setting_trophy_i4',label:'キリン（確定級）'},
+    {id:'sgp_kabaneri_setting_trophy_i5',label:'虹（確定級）'}
+  ]);
+  machine.kabaneriStFlowSeedV1=true;
+  applySuggestMetadata(machine);
+}
 function todayValue(){
   const d=new Date();
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -5964,7 +6021,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -6028,6 +6085,7 @@ function addMachine(){
   ensureKabaneriPointFlattenSeedV1(machine);
   ensureKabaneriEyecatchDefaultSeedV1(machine);
   ensureKabaneriGameStateTriggersSeedV1(machine);
+  ensureKabaneriStFlowSeedV1(machine);
   db.machines.push(machine);
   selectedMachineId=machine.id;selectedAimId=firstAimIdForMachine(machine)||'';
   currentStartCounterGame=0;
@@ -8116,6 +8174,221 @@ function battleModeQuickTagButton(tag){
   if(tag.id==='t_kabaneri_chance_multi')return `<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="openBattleModeKabaneriMultiPicker()">${escapeHtml(battleModeQuickTagLabel(tag))}</button>`;
   return `<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="battleModeRecordTag('${escapeHtml(tag.id)}')">${escapeHtml(battleModeQuickTagLabel(tag))}</button>`;
 }
+function kabaneriStTag(id){
+  return currentMachine()?.tags?.find(tag=>tag.id===id)||null;
+}
+function kabaneriStAttachmentTag(tagId,attachments=[],label=''){
+  const tag=kabaneriStTag(tagId);
+  if(!tag){battleModeInvalid('ST記録タグが見つかりません');return false;}
+  return battleModeCommit(label||tag.label,()=>addInstantTimelineTagWithAttachments(tag,attachments),{toastMessage:label||tag.label});
+}
+function recordKabaneriStValue(tagId,key,label,value,unit=''){
+  const normalized=normalizeOptionalNumber(value);
+  if(normalized===null){battleModeInvalid('数値を入力してください');return false;}
+  return kabaneriStAttachmentTag(tagId,[{key,label,value:Math.trunc(normalized),unit}],label);
+}
+function recordKabaneriStAttack(value){
+  recordKabaneriStValue('t_kabaneri_attack_bonus','attackBonus','上乗せ',value,'枚');
+}
+function recordKabaneriMedalDisplay(value){
+  recordKabaneriStValue('t_kabaneri_medal_display','medalDisplay','獲得枚数表示',value,'枚');
+}
+function recordKabaneriStCounterTag(tagId){
+  const counter=machineCounters().find(row=>(row.countTagIds||[]).includes(tagId));
+  if(counter){battleModeIncrementSubCounter(counter.key);return;}
+  battleModeRecordTag(tagId);
+}
+function kabaneriSuggestItemRef(placeId,itemId){
+  const entry=findSuggestPlaceEntryById(placeId);
+  const item=entry?enabledSuggestItems(entry.category.id,entry.place.id).find(row=>row.id===itemId):null;
+  return entry&&item?{...entry,item}:null;
+}
+function recordKabaneriStSuggest(placeId,itemId,selectionKey=''){
+  const ref=kabaneriSuggestItemRef(placeId,itemId);
+  if(!ref){battleModeInvalid('示唆項目が見つかりません');return false;}
+  addSuggestLogFromSelection({
+    stateGroup:'hit',
+    source:'manual',
+    hitEventId:latestKabaneriStEvent()?.id||'',
+    carryType:normalizeCarryType(ref.item.carryType),
+    pointRole:ref.place.pointRole||ref.item.pointRole||null,
+    confidenceLevel:ref.item.confidenceLevel||null,
+    confidenceType:ref.item.confidenceType||null,
+    categoryId:ref.category.id,
+    placeId:ref.place.id,
+    itemId:ref.item.id,
+    category:ref.category.category,
+    place:ref.place.name,
+    item:ref.item.label,
+    decorations:ref.item.decorations||[],
+    useAppearG:false
+  });
+  if(selectionKey)kabaneriStEndSelections[selectionKey]=itemId;
+  renderCurrentSuggestLog();
+  renderPracticeStats();
+  saveDraftImmediately();
+  openBattleModeKabaneriStEndSheet();
+  return true;
+}
+function recordKabaneriFailureTrophy(itemId=''){
+  if(!itemId){closeBattleModeOtherSheet();return;}
+  const ref=kabaneriSuggestItemRef('sgp_kabaneri_setting_trophy',itemId);
+  if(!ref){battleModeInvalid('トロフィー項目が見つかりません');return false;}
+  const saved=addSuggestLogFromSelection({
+    stateGroup:'hit',
+    source:'manual',
+    hitEventId:'',
+    carryType:normalizeCarryType(ref.item.carryType)||'setting',
+    pointRole:ref.place.pointRole||ref.item.pointRole||null,
+    confidenceLevel:ref.item.confidenceLevel||null,
+    confidenceType:ref.item.confidenceType||null,
+    categoryId:ref.category.id,
+    placeId:ref.place.id,
+    itemId:ref.item.id,
+    category:ref.category.category,
+    place:ref.place.name,
+    item:ref.item.label,
+    decorations:ref.item.decorations||[],
+    useAppearG:false
+  });
+  if(saved)closeBattleModeOtherSheet();
+  return saved;
+}
+function openKabaneriFailureTrophyPicker(){
+  const ref=kabaneriSuggestItemRef('sgp_kabaneri_setting_trophy','sgi_kabaneri_trophy_none');
+  if(!isKabaneriMachine(currentMachine())||!ref)return;
+  const items=enabledSuggestItems(ref.category.id,ref.place.id);
+  setBattleModeSheet('トロフィー',`
+    <div class="bm-sheet-note">駿城失敗後のトロフィーを任意で記録します。無ければスキップしてください。</div>
+    <div class="bm-st-choice-row">
+      ${items.map(item=>kabaneriStChoiceButton(item.label,`recordKabaneriFailureTrophy('${item.id}')`,false,item.id.includes('none')?'':'bm-choice-text-gold')).join('')}
+    </div>
+    <button class="bm-btn" type="button" onclick="recordKabaneriFailureTrophy('')">スキップ</button>
+    <button class="bm-btn close-action" type="button" onclick="recordKabaneriFailureTrophy('')">閉じる</button>`);
+}
+function maybeOpenKabaneriFailureTrophyPrompt(){
+  if(kabaneriPendingFailureTrophyPrompt!=='ready')return;
+  kabaneriPendingFailureTrophyPrompt='';
+  if(!isKabaneriMachine(currentMachine())||!battleModeOpen)return;
+  setTimeout(openKabaneriFailureTrophyPicker,0);
+}
+function kabaneriStChoiceButton(label,onclick,active=false,cls=''){
+  return `<button class="bm-btn ${escapeHtml(cls)} ${active?'credit-ok':''}" type="button" onclick="${onclick}">${escapeHtml(label)}</button>`;
+}
+function kabaneriStSuggestButtons(placeId,items,selectionKey){
+  return `<div class="bm-st-choice-row">${items.map(row=>kabaneriStChoiceButton(row.label,`recordKabaneriStSuggest('${placeId}','${row.id}','${selectionKey}')`,kabaneriStEndSelections[selectionKey]===row.id,row.cls||'')).join('')}</div>`;
+}
+function openBattleModeKabaneriStEndSheet(){
+  if(!kabaneriStActive()){battleModeInvalid('ST区間中ではありません');return;}
+  const credit=normalizeIntervalEstimate(currentIntervalEstimate).credit;
+  setBattleModeSheet('ST終了',`
+    <div class="bm-st-sheet">
+      <div class="bm-sheet-note">ST終了時の情報をまとめて記録します。各項目は空のまま完了できます。</div>
+      <div>
+        <div class="bm-counter-label">ST終了画面</div>
+        ${kabaneriStSuggestButtons('sgp_kabaneri_setting_st_end',[
+          {id:'sgi_kabaneri_st_end_default',label:'デフォルト'},
+          {id:'sgi_kabaneri_st_end_ayame',label:'菖蒲'},
+          {id:'sgi_kabaneri_st_end_other',label:'その他'}
+        ],'endScreen')}
+      </div>
+      <div>
+        <div class="bm-counter-label">トロフィー</div>
+        ${kabaneriStSuggestButtons('sgp_kabaneri_setting_trophy',[
+          {id:'sgi_kabaneri_trophy_none',label:'なし'},
+          {id:'sgp_kabaneri_setting_trophy_i1',label:'銅',cls:'bm-choice-text-gold'},
+          {id:'sgp_kabaneri_setting_trophy_i2',label:'銀'},
+          {id:'sgp_kabaneri_setting_trophy_i3',label:'金',cls:'bm-choice-text-gold'},
+          {id:'sgp_kabaneri_setting_trophy_i4',label:'キリン',cls:'bm-choice-text-gold'},
+          {id:'sgp_kabaneri_setting_trophy_i5',label:'虹',cls:'bm-choice-text-gold'}
+        ],'trophy')}
+      </div>
+      <label class="field-label" for="kabaneriStEndCredit">最終クレ</label>
+      <input id="kabaneriStEndCredit" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="クレ" value="${escapeHtml(credit||'')}">
+      <div>
+        <div class="bm-counter-label">マイスロ転記（任意）</div>
+        <div class="bm-st-input-grid">
+          <input id="kabaneriMyslotGames" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="総G">
+          <input id="kabaneriMyslotCz" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="CZ回数">
+          <input id="kabaneriMyslotSt" class="numeric-input" inputmode="numeric" pattern="[0-9]*" placeholder="ST回数">
+        </div>
+      </div>
+      <button class="bm-btn counter" type="button" onclick="submitKabaneriStEndFlow()">ST終了を確定</button>
+      <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
+    </div>`);
+}
+function kabaneriMyslotAttachments(){
+  const specs=[
+    ['kabaneriMyslotGames','myslotTotalGames','総G','G'],
+    ['kabaneriMyslotCz','myslotCzCount','CZ回数','回'],
+    ['kabaneriMyslotSt','myslotStCount','ST回数','回']
+  ];
+  return specs.map(([id,key,label,unit])=>{
+    const value=normalizeOptionalNumber(document.getElementById(id)?.value||'');
+    return value===null?null:{key,label,value:Math.max(0,Math.trunc(value)),unit};
+  }).filter(Boolean);
+}
+function submitKabaneriStEndFlow(){
+  const event=latestKabaneriStEvent();
+  if(!event){battleModeInvalid('ST区間中ではありません');return;}
+  const creditRaw=String(document.getElementById('kabaneriStEndCredit')?.value||'').trim();
+  const credit=normalizeOptionalNumber(creditRaw);
+  const attachments=kabaneriMyslotAttachments();
+  if(creditRaw&&credit===null){battleModeInvalid('最終クレを数値で入力してください');return;}
+  closeBattleModeOtherSheet();
+  if(credit!==null){
+    battleModeApplyDiffTrackerInput('credit',Math.max(0,Math.round(credit)),{label:'ST終了クレジット',reopenSheet:false});
+  }
+  if(attachments.length)kabaneriStAttachmentTag('t_kabaneri_myslot_summary',attachments,'マイスロ転記');
+  kabaneriStAttachmentTag('t_kabaneri_st_end',[],'ST終了');
+  event.exit='continue';
+  event.wizardDone=true;
+  archiveCurrentSegment(event,'st_end',{preserveEndState:false});
+  kabaneriStEndSelections={endScreen:'',trophy:''};
+  renderLogFields();
+  renderFlowStepTabs();
+  renderCurrentContextBar();
+  saveDraftImmediately();
+  battleModeToast('ST区間を終了しました',{duration:1800});
+  if(battleModeOpen)renderBattleMode();
+}
+function renderKabaneriStPanel(){
+  if(!kabaneriStActive())return '';
+  return `<div class="bm-st-panel">
+    <div class="bm-st-panel-title"><span>ST中</span><button class="bm-mini-btn bm-credit-update" type="button" onclick="openBattleModeKabaneriStEndSheet()">ST終了</button></div>
+    <div class="bm-st-panel-row four">
+      ${[44,55,66,77].map(value=>`<button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriStAttack(${value})">+${value}</button>`).join('')}
+    </div>
+    <div class="bm-st-panel-row">
+      <button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriMedalDisplay(456)">456枚</button>
+      <button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriMedalDisplay(666)">666枚</button>
+      <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_common_bell')">共通ベル +1</button>
+    </div>
+    <details>
+      <summary>タリー</summary>
+      <div class="bm-st-panel-row four">
+        <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_voice_tally')">ボイス</button>
+        <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_female_tally')">紹介女</button>
+        <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_male_tally')">紹介男</button>
+        <button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_item_omikuji_tally')">アイテム</button>
+      </div>
+    </details>
+  </div>`;
+}
+function kabaneriStOtherSheetButtons(){
+  if(!kabaneriStActive())return [];
+  return [
+    '<button class="bm-btn quit-action" type="button" onclick="openBattleModeKabaneriStEndSheet()">ST終了</button>',
+    ...[44,55,66,77].map(value=>`<button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriStAttack(${value})">+${value}</button>`),
+    '<button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriMedalDisplay(456)">456枚</button>',
+    '<button class="bm-btn bm-choice-text-gold" type="button" onclick="recordKabaneriMedalDisplay(666)">666枚</button>',
+    '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_common_bell\')">共通ベル +1</button>',
+    '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_voice_tally\')">ボイス +1</button>',
+    '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_intro_female_tally\')">紹介女 +1</button>',
+    '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_intro_male_tally\')">紹介男 +1</button>',
+    '<button class="bm-btn" type="button" onclick="recordKabaneriStCounterTag(\'t_kabaneri_item_omikuji_tally\')">アイテム +1</button>'
+  ];
+}
 function battleModeEventButton(item){
   const machine=currentMachine();
   if(!item)return `<button class="bm-btn disabled" type="button" disabled>空き</button>`;
@@ -8159,6 +8432,7 @@ function renderBattleModeGrid(){
   const events=panel.events.slice(0,4);
   const eventSlotCount=events.length>3?4:3;
   return `
+    ${renderKabaneriStPanel()}
     <div class="bm-event-row">
       ${Array.from({length:4},(_,i)=>{
         const delta=gains[i];
@@ -8550,6 +8824,7 @@ function processBattleModeGameStateTriggers(previous,current,{includeZero=false}
   if(!battleModeOpen)return syncBattleModeGameStateTriggerLiquid(current);
   const currentLiquid=normalizeOptionalNumber(current);
   if(currentLiquid===null)return syncBattleModeGameStateTriggerLiquid(null);
+  if(kabaneriStActive())return syncBattleModeGameStateTriggerLiquid(currentLiquid);
   gameStateTriggers().forEach(trigger=>{
     const state=battleModeStateById(trigger.stateId);
     if(!state||battleModeStateIsActive(state.id))return;
@@ -8982,7 +9257,11 @@ function battleModeOtherExcludedTagIds(){
     KABANERI_MULTI_PICKER_TAG_IDS.forEach(id=>ids.add(id));
     KABANERI_UPPER_ST_TAG_IDS.forEach(id=>ids.add(id));
     KABANERI_STAGE_PICKER_TAG_IDS.forEach(id=>ids.add(id));
-    ['t_kabaneri_cherry','t_kabaneri_suika','t_kabaneri_kaimon_recollection','t_kabaneri_kiriban'].forEach(id=>ids.add(id));
+    [
+      't_kabaneri_cherry','t_kabaneri_suika','t_kabaneri_kaimon_recollection','t_kabaneri_kiriban',
+      't_kabaneri_st_end','t_kabaneri_attack_bonus','t_kabaneri_medal_display','t_kabaneri_myslot_summary',
+      't_kabaneri_common_bell','t_kabaneri_voice_tally','t_kabaneri_intro_female_tally','t_kabaneri_intro_male_tally','t_kabaneri_item_omikuji_tally'
+    ].forEach(id=>ids.add(id));
   }
   return ids;
 }
@@ -9139,6 +9418,7 @@ function openBattleModeOtherSheet(){
     modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModeKabaneriGenealogySheet()">系譜ビュー</button>');
     modalButtons.push('<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModeKabaneriUpperStPicker()">上位ST突入</button>');
   }
+  if(isKabaneriMachine(currentMachine()))modalButtons.push(...kabaneriStOtherSheetButtons());
   if(isTokyoGhoulMachine(currentMachine()))modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModePicker(\'ghoul_rare\')">\u30ec\u30a2\uff08\u6fc0\u30ec\u30a2\uff09</button>');
   const modalButtonsHtml=modalButtons.join('');
   if(grid)grid.innerHTML=modalButtonsHtml+(tags.length?tags.map(tag=>`<button class="bm-btn ${escapeHtml(battleModeTagClassName(tag))}" type="button" data-tag-id="${escapeHtml(tag.id)}" onclick="selectBattleModeOtherTag('${escapeHtml(tag.id)}')">${escapeHtml(tag.label)}</button>`).join(''):'<div class="empty-hint">タグがありません</div>');
@@ -9832,6 +10112,7 @@ function openSuggestPlacePicker(stateGroup){
 function closeSuggestPicker(){
   document.getElementById('suggestPickerOverlay')?.classList.remove('open');
   suggestPickerState={stateGroup:'',categoryId:'',placeId:'',itemId:'',kuiStage:'',kuiGain:'',branchRoute:'',branchStep:'',nangokuEntryId:'',nangokuEntryType:''};
+  maybeOpenKabaneriFailureTrophyPrompt();
 }
 function backSuggestPicker(){
   if(suggestPickerState.kuiStage==='hint'){
@@ -11345,6 +11626,9 @@ function openHitThroughNoFlowSuggestPlace(placeId){
   const entry=findSuggestPlaceEntryById(placeId);
   if(!entry)return;
   openSuggestItemPicker(entry.category.id,entry.place.id,suggestPlaceStateGroup(entry.category,entry.place));
+  if(kabaneriPendingFailureTrophyPrompt==='afterKiriban'&&isKabaneriMachine(currentMachine())&&placeId==='sgp_kabaneri_point_kiriban'){
+    kabaneriPendingFailureTrophyPrompt='ready';
+  }
 }
 function applyHitThroughNoFlowAfterReset(flow,preserved){
   if(!flow)return;
@@ -11356,7 +11640,10 @@ function applyHitThroughNoFlowAfterReset(flow,preserved){
   if(nextData!==null&&nextLiquid!==null)setManualCorrectionForLiquid(nextData,nextLiquid);
   setTimelineGames(nextData,nextLiquid!==null?nextLiquid:nextData);
   (flow.autoTags||[]).forEach(tagId=>addAutomaticTimelineTagById(tagId));
-  if(flow.openSuggestPlace)setTimeout(()=>openHitThroughNoFlowSuggestPlace(flow.openSuggestPlace),0);
+  if(flow.openSuggestPlace){
+    if(isKabaneriMachine(currentMachine())&&flow.openSuggestPlace==='sgp_kabaneri_point_kiriban')kabaneriPendingFailureTrophyPrompt='afterKiriban';
+    setTimeout(()=>openHitThroughNoFlowSuggestPlace(flow.openSuggestPlace),0);
+  }
 }
 function archiveCurrentSegment(event,terminalType='',options={}){
   const segment=createSegmentSnapshot(event,terminalType);
@@ -11529,6 +11816,7 @@ function nextModeEyecatchPlace(){
   return mode&&place?{category:mode,place}:null;
 }
 function hitBranchStepAppliesToEvent(step,event=currentHitEvent()){
+  if(step?.key==='payout'&&shouldSkipHitPayoutForEvent(event))return false;
   const triggers=Array.isArray(step?.triggers)?step.triggers.map(normalizeHitTrigger).filter(Boolean):[];
   if(!triggers.length)return true;
   const trigger=normalizeHitTrigger(event?.trigger);
@@ -11736,6 +12024,28 @@ function backHitBranchWizard(){
 function currentHitBranchStep(){
   return hitBranchSteps(hitBranchWizard.route)[hitBranchWizard.stepIndex]||null;
 }
+function unarchivedHitEvents(){
+  const archived=archivedHitEventIds();
+  return currentHitEvents.filter(event=>!archived.has(event.id));
+}
+function latestKabaneriStEvent(){
+  if(!isKabaneriMachine(currentMachine()))return null;
+  return [...unarchivedHitEvents()].reverse().find(event=>event.through==='yes')||null;
+}
+function kabaneriStActive(){
+  return !!latestKabaneriStEvent();
+}
+function shouldSkipHitPayoutForEvent(event=currentHitEvent()){
+  return isKabaneriMachine(currentMachine())&&event?.through==='yes';
+}
+function finishCustomHitBranchSheetStep(){
+  advanceHitBranchWizard();
+  const completed=completeHitBranchWizardIfDone();
+  renderLogFields();
+  const saved=saveDraftImmediately();
+  if(completed&&saved)saveCheckpoint('当選記録完了');
+  if(!completed&&currentHitBranchStep())setTimeout(openCurrentHitBranchStep,0);
+}
 function completeHitBranchWizardIfDone(){
   if(currentHitBranchStep())return false;
   const event=currentHitEvent();
@@ -11870,18 +12180,12 @@ function recordShunjoPtAndContinue(point,tanCha3000=false){
   });
   if(!committed)return false;
   closeBattleModeOtherSheet();
-  advanceHitBranchWizard();
-  renderLogFields();
-  saveDraftImmediately();
-  setTimeout(openCurrentHitBranchStep,0);
+  finishCustomHitBranchSheetStep();
   return true;
 }
 function skipShunjoPtStep(){
   closeBattleModeOtherSheet();
-  advanceHitBranchWizard();
-  renderLogFields();
-  saveDraftImmediately();
-  setTimeout(openCurrentHitBranchStep,0);
+  finishCustomHitBranchSheetStep();
 }
 function promptHitEventPayout(){
   const event=currentHitEvent();

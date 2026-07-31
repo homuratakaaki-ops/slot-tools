@@ -2255,12 +2255,13 @@ function testKabaneriShunjoPtStep() {
     ]
   );
   assert.match(vm.runInContext("timelineEntryText(currentTimeline[0])", context), /駿城pt（4100・3000pt獲得）/);
-  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'payout');
+  assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
   assert.equal(vm.runInContext("currentHitEvents.length", context), 1);
+  assert.equal(vm.runInContext("kabaneriStActive()", context), true);
   vm.runInContext("undoBattleModeLast()", context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
   assert.equal(vm.runInContext("currentHitEvents.length", context), 1);
-  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'payout');
+  assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
 
   vm.runInContext(`
     currentTimeline = [];
@@ -2291,9 +2292,93 @@ function testKabaneriShunjoPtStep() {
   assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'yes');
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => step.key))", context)),
-    ['payout']
+    []
   );
-  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'payout');
+  assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
+  assert.equal(vm.runInContext("kabaneriStActive()", context), true);
+}
+
+function testKabaneriStFlowAndCounters() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext(`
+    selectedMachineId = 'm_kabaneri';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentFlowStep = 2;
+    setTimelineGames(300, 300);
+    battleModeApplyDiffTrackerInput('credit', 200, { label: '開始クレ', reopenSheet: false });
+    currentTimeline = [];
+    battleModeStartHit('direct_at', 'cz_mumei');
+    selectAtThroughBranch('yes');
+    recordShunjoPtAndContinue(4100, false);
+  `, context);
+  assert.equal(vm.runInContext("kabaneriStActive()", context), true);
+  assert.equal(vm.runInContext("currentSegments.length", context), 0);
+  assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
+  assert.match(vm.runInContext("renderBattleModeGrid()", context), /ST終了/);
+  vm.runInContext("openBattleModeOtherSheet()", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ST終了/);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /共通ベル/);
+
+  vm.runInContext(`
+    recordKabaneriStAttack(44);
+    recordKabaneriMedalDisplay(456);
+    recordKabaneriStCounterTag('t_kabaneri_common_bell');
+  `, context);
+  assert.equal(vm.runInContext("subCounterValue('commonBell')", context), 1);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.find(entry => entry.tagIds.includes('t_kabaneri_attack_bonus')).attachments)", context)),
+    [{ key: 'attackBonus', label: '上乗せ', value: 44, unit: '枚' }]
+  );
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.find(entry => entry.tagIds.includes('t_kabaneri_medal_display')).attachments)", context)),
+    [{ key: 'medalDisplay', label: '獲得枚数表示', value: 456, unit: '枚' }]
+  );
+
+  vm.runInContext(`
+    battleModePendingGameStatePrompts = [];
+    battleModeLastProcessedLiquidG = 49;
+    processBattleModeGameStateTriggers(49, 51);
+  `, context);
+  assert.equal(vm.runInContext("currentTimeline.some(entry => entry.tagIds.includes('t_kabaneri_state_chance_high_start'))", context), false);
+  assert.equal(vm.runInContext("battleModePendingGameStatePrompts.length", context), 0);
+
+  vm.runInContext(`
+    kabaneriPendingFailureTrophyPrompt = 'afterKiriban';
+    closeSuggestPicker();
+  `, context);
+  assert.equal(vm.runInContext("kabaneriPendingFailureTrophyPrompt", context), 'afterKiriban');
+  vm.runInContext(`
+    openHitThroughNoFlowSuggestPlace('sgp_kabaneri_point_kiriban');
+    closeSuggestPicker();
+  `, context);
+  assert.equal(vm.runInContext("kabaneriPendingFailureTrophyPrompt", context), '');
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /トロフィー/);
+
+  vm.runInContext(`
+    openBattleModeKabaneriStEndSheet();
+    __stateElements.kabaneriStEndCredit = { value: '600' };
+    __stateElements.kabaneriMyslotGames = { value: '1234' };
+    __stateElements.kabaneriMyslotCz = { value: '5' };
+    __stateElements.kabaneriMyslotSt = { value: '2' };
+    submitKabaneriStEndFlow();
+  `, context);
+  assert.equal(vm.runInContext("kabaneriStActive()", context), false);
+  assert.equal(vm.runInContext("currentSegments.length", context), 1);
+  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  assert.equal(vm.runInContext("subCounterValue('commonBell')", context), 1);
+  assert.equal(vm.runInContext("normalizeIntervalEstimate(currentIntervalEstimate).credit", context), 600);
+  assert.equal(vm.runInContext("normalizeIntervalEstimate(db.draftLog.intervalEstimate).credit", context), 600);
+  assert.equal(vm.runInContext("currentSegments[0].timeline.some(entry => entry.tagIds.includes('t_kabaneri_st_end'))", context), true);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentSegments[0].timeline.find(entry => entry.tagIds.includes('t_kabaneri_myslot_summary')).attachments)", context)),
+    [
+      { key: 'myslotTotalGames', label: '総G', value: 1234, unit: 'G', estimateRole: '' },
+      { key: 'myslotCzCount', label: 'CZ回数', value: 5, unit: '回', estimateRole: '' },
+      { key: 'myslotStCount', label: 'ST回数', value: 2, unit: '回', estimateRole: '' }
+    ]
+  );
 }
 
 function testNangokuBonusTypeSuggestStepIsSkippedAfterBonusPicker() {
@@ -3875,6 +3960,7 @@ function run() {
   testKabaneriPresetSeedAndPickers();
   testKabaneriHitCauseFirstFlow();
   testKabaneriShunjoPtStep();
+  testKabaneriStFlowAndCounters();
   testKabaneriChanceEyeMeterAndCounters();
   testKabaneriChanceEyeSituationView();
   testKabaneriGameStateTriggers();
