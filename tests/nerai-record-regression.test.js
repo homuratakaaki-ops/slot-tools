@@ -2202,6 +2202,11 @@ function testKabaneriHitCauseFirstFlow() {
   assert.equal(vm.runInContext("currentHitEvents[0].trigger", context), 'episode_bonus');
   assert.equal(vm.runInContext("currentHitEvents[0].variant", context), 'ceiling');
   assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'yes');
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => step.key))", context)),
+    ['kabaneriStStart']
+  );
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'kabaneriStStart');
 
   vm.runInContext(`
     currentHitEvents = [];
@@ -2215,6 +2220,11 @@ function testKabaneriHitCauseFirstFlow() {
   assert.equal(vm.runInContext("currentHitEvents[0].trigger", context), 'episode_bonus');
   assert.equal(vm.runInContext("currentHitEvents[0].variant", context), 'kokuen');
   assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'yes');
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => step.key))", context)),
+    ['kabaneriStStart']
+  );
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'kabaneriStStart');
 
   vm.runInContext(`
     selectedMachineId = 'm_tokyo_ghoul';
@@ -2299,10 +2309,15 @@ function testKabaneriShunjoPtStep() {
   assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'yes');
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => step.key))", context)),
-    []
+    ['kabaneriStStart']
   );
-  assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'kabaneriStStart');
+  assert.equal(vm.runInContext("hitBranchSteps('atHit').some(step => step.key === 'payout')", context), false);
   assert.equal(vm.runInContext("kabaneriStActive()", context), true);
+  vm.runInContext("openCurrentHitBranchStep()", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ST区間へ/);
+  vm.runInContext("confirmKabaneriStStartStep()", context);
+  assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
 }
 
 function testKabaneriCompareViewAndSettingLabel() {
