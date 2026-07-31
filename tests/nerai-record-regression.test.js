@@ -878,6 +878,8 @@ function testKabaneriChanceEyeSituationView() {
   assert.match(html, /💡🔥/);
   assert.match(html, /⚡/);
   assert.match(html, /└複合/);
+  assert.doesNotMatch(html, /<th>合計<\/th>/);
+  assert.match(html, /<td>—<\/td>/);
   assert.match(html, /無→💡率（単独・無名\+生駒・通算固定）1\/2 \(50\.0%\)/);
   assert.doesNotMatch(html, /種別内訳/);
   assert.doesNotMatch(html, /発光中と高確中が重なるチャ目は両方に計上/);
@@ -917,6 +919,36 @@ function testKabaneriChanceEyeSituationView() {
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /無1/);
   vm.runInContext("undoBattleModeLast()", context);
   assert.match(vm.runInContext("battleModeKabaneriChanceEyeMeterText()", context), /無0/);
+}
+
+function testKabaneriSettingSummaryGroupRatiosAndCurrentLabels() {
+  const { context } = runRecord(undefined);
+  const html = vm.runInContext(`
+    selectedMachineId='m_kabaneri';
+    selectedAimId=firstAimIdForMachine(currentMachine())||'';
+    const legacyTrophy={id:'legacy_trophy',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_trophy',itemId:'sgp_kabaneri_setting_trophy_i1',category:'設定示唆',place:'サミートロフィー',item:'銅（確定級）',carryType:'setting',createdAt:'2026-07-31T10:00'};
+    const entries=[
+      legacyTrophy,
+      {id:'st_default_1',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_st_end',itemId:'sgi_kabaneri_st_end_default',category:'設定示唆',place:'ST終了画面',item:'デフォルト',carryType:'setting',createdAt:'2026-07-31T10:01'},
+      {id:'st_default_2',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_st_end',itemId:'sgi_kabaneri_st_end_default',category:'設定示唆',place:'ST終了画面',item:'デフォルト',carryType:'setting',createdAt:'2026-07-31T10:02'},
+      {id:'st_default_3',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_st_end',itemId:'sgi_kabaneri_st_end_default',category:'設定示唆',place:'ST終了画面',item:'デフォルト',carryType:'setting',createdAt:'2026-07-31T10:03'},
+      {id:'st_ayame_1',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_st_end',itemId:'sgi_kabaneri_st_end_ayame',category:'設定示唆',place:'ST終了画面',item:'菖蒲（高設定示唆）',carryType:'setting',createdAt:'2026-07-31T10:04'}
+    ];
+    const rows=settingSummaryRows(currentMachine(),entries);
+    JSON.stringify({
+      line:suggestLogLine(legacyTrophy),
+      html:renderSettingSummaryBlock(rows)
+    });
+  `, context);
+  const parsed = JSON.parse(html);
+  assert.match(parsed.line, /銅（設定2以上濃厚）/);
+  assert.doesNotMatch(parsed.line, /確定級/);
+  assert.match(parsed.html, /ST終了画面/);
+  assert.match(parsed.html, /デフォルト ×3（75\.0%）/);
+  assert.match(parsed.html, /菖蒲（高設定示唆） ×1（25\.0%）/);
+  assert.match(parsed.html, /出現：銅（設定2以上濃厚）/);
+  assert.doesNotMatch(parsed.html, /銅（設定2以上濃厚） ×/);
+  assert.doesNotMatch(parsed.html, /確定級/);
 }
 
 function testKabaneriGameStateTriggers() {
@@ -2537,7 +2569,7 @@ function testKabaneriStFlowAndCounters() {
     recordKabaneriStVoice('sgp_kabaneri_setting_voice_i1');
   `, context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i1')", context), true);
-  assert.match(vm.runInContext("renderBattleModeRecent()", context), /ボイス男（計1）/);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /ボイス男 ×1（50\.0%）/);
   assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /示唆/);
   vm.runInContext("undoBattleModeLast()", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i1')", context), false);
@@ -4222,6 +4254,7 @@ function run() {
   testKabaneriStFlowAndCounters();
   testKabaneriChanceEyeMeterAndCounters();
   testKabaneriChanceEyeSituationView();
+  testKabaneriSettingSummaryGroupRatiosAndCurrentLabels();
   testKabaneriGameStateTriggers();
   testKabaneriGenealogyView();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();

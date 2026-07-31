@@ -7830,7 +7830,7 @@ function kabaneriGenealogyEventLabel(entry,machine=currentMachine()){
     const game=kabaneriGenealogyChipGame(entry.entry);
     const historical=String(entry.entry?.item||'').trim();
     const resolved=String(refs.itemLabel||'').trim();
-    const label=historical||(!resolved||resolved==='undefined'||resolved.startsWith('undefined')?'示唆':resolved);
+    const label=(!resolved||resolved==='undefined'||resolved.startsWith('undefined'))?(historical||'示唆'):resolved;
     return `${label}${game!==null?` ${game}G`:''}`;
   }
   const game=kabaneriGenealogyChipGame(entry.entry);
@@ -8180,7 +8180,8 @@ function openBattleModeKabaneriCompareSheet(mode='same'){
     <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
   `);
 }
-function kabaneriChanceEyeTableCell(value,columnKey){
+function kabaneriChanceEyeTableCell(value,columnKey,{blank=false}={}){
+  if(blank)return columnKey==='total'?`<td class="total-col">—</td>`:`<td>—</td>`;
   const text=String(value||0);
   if(columnKey==='total')return `<td class="total-col">${escapeHtml(text)}</td>`;
   return `<td>${escapeHtml(text)}</td>`;
@@ -8188,8 +8189,11 @@ function kabaneriChanceEyeTableCell(value,columnKey){
 function kabaneriChanceEyeToneHtml(text,tone){
   return tone?`<span class="bm-choice-text-${escapeHtml(tone)}">${escapeHtml(text)}</span>`:escapeHtml(text);
 }
-function kabaneriChanceEyeTableRowHtml(labelHtml,counts,{sub=false,total=false}={}){
-  const cells=KABANERI_CHANCE_EYE_TABLE_COLUMNS.map(column=>kabaneriChanceEyeTableCell(counts[column.key]||0,column.key)).join('');
+function kabaneriChanceEyeTableRowHtml(labelHtml,counts,{sub=false,total=false,charKey=''}={}){
+  const cells=KABANERI_CHANCE_EYE_TABLE_COLUMNS.map(column=>{
+    const blankSuper=column.key==='super'&&(charKey==='mumei'||charKey==='ikoma');
+    return kabaneriChanceEyeTableCell(counts[column.key]||0,column.key,{blank:blankSuper});
+  }).join('');
   return `<tr class="${total?'total-row':sub?'bm-chance-eye-subrow':''}"><th>${labelHtml}</th>${cells}</tr>`;
 }
 function kabaneriChanceEyeTableHtml(bucket){
@@ -8197,10 +8201,10 @@ function kabaneriChanceEyeTableHtml(bucket){
   const rows=KABANERI_CHANCE_EYE_TABLE_CHARS.map(char=>{
     const label=kabaneriChanceEyeToneHtml(char.label,char.tone);
     const sub=`└複合`;
-    return kabaneriChanceEyeTableRowHtml(label,bucket.rows[char.key].single)+
-      kabaneriChanceEyeTableRowHtml(escapeHtml(sub),bucket.rows[char.key].multi,{sub:true});
+    return kabaneriChanceEyeTableRowHtml(label,bucket.rows[char.key].single,{charKey:char.key})+
+      kabaneriChanceEyeTableRowHtml(escapeHtml(sub),bucket.rows[char.key].multi,{sub:true,charKey:char.key});
   }).join('');
-  return `<div class="bm-chance-eye-table-wrap"><table class="bm-chance-eye-table"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}${kabaneriChanceEyeTableRowHtml('合計',bucket.rows.total,{total:true})}</tbody></table></div>`;
+  return `<div class="bm-chance-eye-table-wrap"><table class="bm-chance-eye-table"><thead><tr><th></th>${head}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 function kabaneriChanceEyeCarryoverLine(bucket){
   const carry=bucket.carryover||{};
@@ -8560,6 +8564,9 @@ function kabaneriStVoiceCounts(){
     return counts;
   },{male:0,female:0,kageWeak:0,kageMid:0,kageStrong:0});
 }
+function kabaneriStVoiceGroupTotal(){
+  return kabaneriStSuggestRows().reduce((total,entry)=>total+(entry?.placeId==='sgp_kabaneri_setting_voice'?1:0),0);
+}
 function kabaneriStPanelSummary(){
   const voices=kabaneriStVoiceCounts();
   const introMale=subCounterValue('introMaleTally');
@@ -8585,7 +8592,12 @@ function kabaneriStVoiceRecentLabel(entry){
   const spec=kabaneriStVoiceSpec(entry.itemId);
   if(!spec)return '';
   const count=kabaneriStVoiceCounts()[spec.key]||0;
-  return `${spec.label}（計${count}）`;
+  if(spec.key==='male'||spec.key==='female'){
+    const total=kabaneriStVoiceGroupTotal();
+    const pct=total?`（${((count/total)*100).toFixed(1)}%）`:'';
+    return `${spec.label} ×${count}${pct}`;
+  }
+  return `${spec.label} ×${count}`;
 }
 function kabaneriStTimelineTallyRecentLabel(entry){
   if(!isKabaneriMachine(currentMachine()))return '';
@@ -11110,19 +11122,7 @@ function isAtEndScreenEntry(entry){
   return entry?.placeId==='sgp_tokyo_ghoul_at_end_screen'||place.includes('AT終了画面')||place.includes('AT邨ゆｺ・判髱｢');
 }
 function settingAtEndRatioHtml(rows){
-  const entries=(rows||[]).filter(isAtEndScreenEntry);
-  if(!entries.length)return '';
-  const counts=new Map();
-  entries.forEach(entry=>{
-    const label=suggestEntryDisplayRefs(entry).itemLabel;
-    counts.set(label,(counts.get(label)||0)+1);
-  });
-  const total=entries.length;
-  const body=[...counts.entries()].map(([label,count])=>{
-    const pct=total?Math.round(count*1000/total)/10:0;
-    return `<div class="setting-ratio-row">${escapeHtml(label)}：${count}回 / ${pct}%</div>`;
-  }).join('');
-  return `<div class="setting-ratio-box"><div class="setting-ratio-title">AT終了画面 出現比率（${total}回）</div>${body}</div>`;
+  return '';
 }
 function settingSummaryOrderMap(machine){
   const order=new Map();
@@ -11193,8 +11193,11 @@ function settingSummaryRows(machine,entries){
     if(!key||key==='::')return;
     const existing=counts.get(key)||{
       key,
+      placeId:entry.placeId||'',
+      itemId:entry.itemId||'',
       place:suggestEntryPlaceLabel(entry,machine),
       item:refs.itemLabel,
+      entry,
       count:0,
       order:order.has(key)?order.get(key):999999
     };
@@ -11207,8 +11210,67 @@ function settingSummaryRows(machine,entries){
     .map(row=>({...row,total,pct:total?Math.floor(row.count*1000/total)/10:0}))
     .sort((a,b)=>b.count-a.count||a.order-b.order||a.item.localeCompare(b.item));
 }
+function settingSummaryGroupKey(row){
+  return row.placeId||row.place||'unknown';
+}
+function settingSummaryGroupTitle(row){
+  return row.place||'示唆';
+}
+function settingSummaryEntryIsFactOnly(row){
+  const placeId=String(row?.placeId||'');
+  const itemId=String(row?.itemId||'');
+  const label=String(row?.item||'');
+  if(placeId==='sgp_kabaneri_setting_trophy')return true;
+  if(placeId==='sgp_kabaneri_setting_intro'&&label.includes('美馬'))return true;
+  if(placeId==='sgp_kabaneri_setting_medal_display')return true;
+  if(label.includes('OVER'))return true;
+  return false;
+}
+function settingSummaryGroupRows(rows){
+  const groups=new Map();
+  (rows||[]).forEach(row=>{
+    const key=settingSummaryGroupKey(row);
+    const group=groups.get(key)||{key,title:settingSummaryGroupTitle(row),rows:[],total:0,order:row.order??999999};
+    group.rows.push(row);
+    group.total+=row.count||0;
+    group.order=Math.min(group.order,row.order??999999);
+    groups.set(key,group);
+  });
+  return [...groups.values()]
+    .map(group=>({
+      ...group,
+      rows:group.rows
+        .map(row=>({...row,groupTotal:group.total,groupPct:group.total?Math.floor((row.count||0)*1000/group.total)/10:0,factOnly:settingSummaryEntryIsFactOnly(row)}))
+        .sort((a,b)=>a.order-b.order||String(a.item).localeCompare(String(b.item),'ja'))
+    }))
+    .sort((a,b)=>a.order-b.order||String(a.title).localeCompare(String(b.title),'ja'));
+}
 function settingSummaryLine(row){
-  return `${row.place}：${row.item} ×${row.count}（${row.pct.toFixed(1)}%）`;
+  if(row.factOnly)return row.item;
+  const pct=normalizeOptionalNumber(row.groupPct??row.pct)??0;
+  return `${row.item} ×${row.count}（${pct.toFixed(1)}%）`;
+}
+function settingSummaryGroupLine(group){
+  const facts=group.rows.filter(row=>row.factOnly);
+  const ratios=group.rows.filter(row=>!row.factOnly);
+  const lines=ratios.map(settingSummaryLine);
+  if(facts.length)lines.push(`出現：${facts.map(row=>row.item).join('・')}`);
+  return lines;
+}
+function renderSettingSummaryGroups(rows){
+  return settingSummaryGroupRows(rows).map(group=>{
+    const lines=settingSummaryGroupLine(group);
+    return `<div class="setting-ratio-group">
+      <div class="setting-ratio-title">${escapeHtml(group.title)}（${escapeHtml(group.total)}件）</div>
+      ${lines.map(line=>`<div class="setting-ratio-row">${escapeHtml(line)}</div>`).join('')}
+    </div>`;
+  }).join('');
+}
+function settingSummaryGroupedTextLines(rows){
+  return settingSummaryGroupRows(rows).flatMap(group=>[
+    `${group.title}（${group.total}件）`,
+    ...settingSummaryGroupLine(group).map(line=>`  ${line}`)
+  ]);
 }
 function renderSettingSummaryBlock(rows,title='設定示唆まとめ'){
   if(!rows.length)return '';
@@ -11216,7 +11278,7 @@ function renderSettingSummaryBlock(rows,title='設定示唆まとめ'){
   return `
     <div class="setting-ratio-box">
       <div class="setting-ratio-title">${escapeHtml(title)}（${total}件）</div>
-      ${rows.map(row=>`<div class="setting-ratio-row">${escapeHtml(settingSummaryLine(row))}</div>`).join('')}
+      ${renderSettingSummaryGroups(rows)}
     </div>`;
 }
 function kuiPointRoleEntriesFromLog(log,role){
@@ -16350,7 +16412,7 @@ function organizedSettingSummaryPanelHtml(aim){
   const total=rows[0]?.total||0;
   return `<details class="setting-ratio-box organized-setting-summary">
     <summary>設定示唆まとめ（${total}件）</summary>
-    ${rows.map(row=>`<div class="setting-ratio-row">${escapeHtml(settingSummaryLine(row))}</div>`).join('')}
+    ${renderSettingSummaryGroups(rows)}
   </details>`;
 }
 function organizedFlatRows(groups){
@@ -16463,7 +16525,7 @@ function organizedDetailText(aim){
   const body=groups.length?groups.map(group=>[`― ${aim.aimNumber}-${group.branch} ―`,...group.rows.map(row=>`${row.indent?'  ':''}${row.text}`)].join('\n')).join('\n'):'該当なし';
   const summary=organizedSettingSummaryRows(aim);
   if(!summary.length)return body;
-  return `${body}\n\n設定示唆まとめ（${summary[0].total}件）\n${summary.map(settingSummaryLine).join('\n')}`;
+  return `${body}\n\n設定示唆まとめ（${summary[0].total}件）\n${settingSummaryGroupedTextLines(summary).join('\n')}`;
 }
 function organizedShortText(aim){
   const machine=organizedMachineForAim(aim);
@@ -16517,8 +16579,9 @@ function drawOrganizedImageCard(aim){
   if(!rows.length)throw new Error('画像にする当選履歴がありません');
   const machine=organizedMachineForAim(aim);
   const settingRows=organizedSettingSummaryRows(aim);
-  const visibleSettingRows=settingRows.slice(0,10);
-  const otherSettingCount=Math.max(0,settingRows.length-visibleSettingRows.length);
+  const settingLines=settingSummaryGroupedTextLines(settingRows);
+  const visibleSettingRows=settingLines.slice(0,10).map(text=>({text}));
+  const otherSettingCount=Math.max(0,settingLines.length-visibleSettingRows.length);
   const settingDrawRows=otherSettingCount?[...visibleSettingRows,{otherCount:otherSettingCount,text:`他${otherSettingCount}件`}]:visibleSettingRows;
   const title=machine?.name||aim.logs[0]?.machineName||'稼働記録';
   const date=organizedDateLabel(aim.logs[0]);
@@ -16605,7 +16668,7 @@ function drawOrganizedImageCard(aim){
     ctx.fillText(`設定示唆まとめ（${settingRows[0].total}件）`,48,y+28);
     y+=settingHeaderHeight;
     settingDrawRows.forEach(row=>{
-      const text=row.otherCount?row.text:settingSummaryLine(row);
+      const text=row.text||'';
       ctx.fillStyle='rgba(247,242,223,.9)';
       fitCanvasText(ctx,text,width-96,24,27,'700');
       ctx.fillText(text,72,y);
