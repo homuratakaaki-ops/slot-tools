@@ -395,6 +395,8 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(followUpOffHtml, /🔥高確開始/);
   assert.match(stripTags(followUpOffHtml), /両方開始/);
   assert.match(stripTags(followUpOffHtml), /成立時を修正/);
+  assert.match(followUpOffHtml, /bm-transition-grid/);
+  assert.match(followUpOffHtml, /class="bm-btn bm-state-choice full"[^>]*>.*両方開始/);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
   vm.runInContext("closeBattleModeOtherSheet()", context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
@@ -699,7 +701,15 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(hitCauseHtml, /黒煙解放/);
   assert.equal(hitCauseHtml.indexOf('黒煙解放') < hitCauseHtml.indexOf('その他'), true);
   assert.doesNotMatch(hitCauseHtml, /駿城ボーナス/);
-  vm.runInContext("openBattleModeKabaneriStagePicker()", context);
+  const stageButtonCall = vm.runInContext(`
+    (() => {
+      const html = renderBattleModeGrid();
+      const match = html.match(/onclick="([^"]*openBattleModePicker\\('kabaneri_stage'\\)[^"]*)"/);
+      return match ? match[1] : '';
+    })()
+  `, context);
+  assert.match(stageButtonCall, /openBattleModePicker\('kabaneri_stage'\)/);
+  vm.runInContext(stageButtonCall, context);
   const stageHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   assert.match(stageHtml, /第四区画坑道/);
   assert.match(stageHtml, /bm-choice-neutral/);
@@ -710,6 +720,7 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(stageHtml, /<button class="bm-btn bm-choice-neutral"[^>]*>雪月風花<\/button>/);
   assert.doesNotMatch(stageHtml, /tag-style-kabaneri-red/);
   assert.doesNotMatch(stageHtml, /tag-style-kabaneri-gold/);
+  assert.equal(vm.runInContext("typeof openBattleModeKabaneriStagePicker", context), 'undefined');
   vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_stage_fourth_tunnel')", context);
   assert.equal(vm.runInContext("currentTimeline.at(-1).tagIds.includes('t_kabaneri_stage_fourth_tunnel')", context), true);
   vm.runInContext("openBattleModeKabaneriSuggestCategoryPicker('sgc_kabaneri_point','pt示唆')", context);

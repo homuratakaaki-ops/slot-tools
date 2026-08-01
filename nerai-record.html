@@ -622,6 +622,8 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-state-grid .bm-btn:last-child:nth-child(odd){grid-column:1/2;}
 .bm-state-choice{background:var(--surface2);border-color:rgba(122,122,138,.42);color:var(--text);}
 .bm-state-choice.active{border-color:rgba(201,168,76,.62);box-shadow:0 0 0 1px rgba(201,168,76,.16) inset;}
+.bm-transition-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
+.bm-transition-grid .full{grid-column:1/-1;}
 .bm-toast{position:fixed;left:50%;top:72px;transform:translateX(-50%);z-index:12000;display:none;max-width:calc(100vw - 22px);border:1px solid rgba(201,168,76,.55);border-radius:999px;background:rgba(20,20,24,.94);color:var(--gold-light);font-size:20px;font-weight:900;padding:14px 24px;box-shadow:0 8px 22px rgba(0,0,0,.35);text-align:center;}
 .bm-toast.open{display:block;}
 .bm-toast button{margin-left:8px;border:0;background:transparent;color:#9be0bd;font:inherit;text-decoration:underline;cursor:pointer;}
@@ -9330,7 +9332,7 @@ function openBattleModeChanceFollowUpPicker(tagId){
   setBattleModeSheet(battleModeQuickTagLabel(tag),
     `<div class="bm-sheet-note"><strong>成立時：${chanceFollowUpChoiceLabelHtml(stateChoice)}</strong>（バッジから）</div>`+
     '<div class="bm-sheet-note">ここから何が起きた？</div>'+
-    choices.map(choice=>`<button class="bm-btn bm-state-choice" type="button" onclick="battleModeRecordChanceFollowUp('${escapeHtml(tag.id)}','${escapeHtml(choice)}')">${chanceFollowUpTransitionLabelHtml(choice)}</button>`).join('')+
+    `<div class="bm-transition-grid">${choices.map(choice=>`<button class="bm-btn bm-state-choice ${choice==='both'?'full':''}" type="button" onclick="battleModeRecordChanceFollowUp('${escapeHtml(tag.id)}','${escapeHtml(choice)}')">${chanceFollowUpTransitionLabelHtml(choice)}</button>`).join('')}</div>`+
     `<button class="btn-small" type="button" onclick="openBattleModeChanceFollowUpStateOverridePicker('${escapeHtml(tag.id)}')">成立時を修正</button>`
   );
 }
@@ -9621,7 +9623,7 @@ function openBattleModePicker(ref){
   if(ref==='ghoul_invitation'){openBattleModeGhoulInvitationPicker();return;}
   if(ref==='ghoul_seishin'){openBattleModeGhoulTagPicker('\u7cbe\u795e\u4e16\u754c',TOKYO_GHOUL_SEISHIN_PICKER_TAG_IDS);return;}
   if(ref==='state'){openBattleModeStatePicker();return;}
-  if(ref==='kabaneri_stage'){openBattleModeKabaneriStagePicker();return;}
+  if(ref==='kabaneri_stage'){setBattleModeSheet('ステージ',battleModeTagChoiceButtons(KABANERI_STAGE_PICKER_TAG_IDS,'battleModeRecordKabaneriPickerTag'));return;}
   if(ref==='kabaneri_point'){openBattleModeKabaneriSuggestCategoryPicker(KABANERI_POINT_CATEGORY_ID,'pt\u793a\u5506');return;}
   if(ref==='kabaneri_omikuji'){openBattleModeKabaneriSuggestCategoryPicker(KABANERI_OMIKUJI_CATEGORY_ID,'\u304a\u307f\u304f\u3058');return;}
   if(ref==='hit'){openBattleModeHitPicker();return;}
@@ -9809,9 +9811,6 @@ function battleModeRecordGhoulPickerTag(tagId){
 function openBattleModeKabaneriMultiPicker(){
   battleModeKabaneriMultiDraft=null;
   setBattleModeSheet('複合チャンス目',battleModeTagChoiceButtons(KABANERI_MULTI_PICKER_TAG_IDS,'battleModeSelectKabaneriMultiTag'));
-}
-function openBattleModeKabaneriStagePicker(){
-  setBattleModeSheet('ステージ',battleModeTagChoiceButtons(KABANERI_STAGE_PICKER_TAG_IDS,'battleModeRecordKabaneriPickerTag'));
 }
 function openBattleModeKabaneriUpperStPicker(){
   setBattleModeSheet('上位ST突入',battleModeTagChoiceButtons(KABANERI_UPPER_ST_TAG_IDS,'battleModeRecordKabaneriPickerTag'));
