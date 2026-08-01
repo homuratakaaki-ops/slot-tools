@@ -8751,15 +8751,12 @@ function settingGroupPercentText(count,total,{digits=1,dash='-'}={}){
 }
 function kabaneriStVoiceGroupRows(){
   const counts=kabaneriStVoiceCounts();
-  const known=Object.values(counts).reduce((sum,value)=>sum+value,0);
-  const total=kabaneriStSuggestRows().reduce((sum,entry)=>sum+(entry?.placeId==='sgp_kabaneri_setting_voice'?1:0),0);
   return [
     {key:'male',count:counts.male},
     {key:'female',count:counts.female},
     {key:'kageWeak',count:counts.kageWeak},
     {key:'kageMid',count:counts.kageMid},
-    {key:'kageStrong',count:counts.kageStrong},
-    {key:'certain',count:Math.max(0,total-known)}
+    {key:'kageStrong',count:counts.kageStrong}
   ];
 }
 function kabaneriStVoiceGroupTotal(){
@@ -8771,8 +8768,7 @@ function kabaneriStIntroBibaCount(){
 function kabaneriStIntroGroupRows(){
   return [
     {key:'male',count:subCounterValue('introMaleTally')},
-    {key:'female',count:subCounterValue('introFemaleTally')},
-    {key:'biba',count:kabaneriStIntroBibaCount()}
+    {key:'female',count:subCounterValue('introFemaleTally')}
   ];
 }
 function kabaneriStPanelSummary(){
@@ -8880,7 +8876,12 @@ function updateBattleModeValueChip(id){
 function recordKabaneriStVoice(itemId){
   const ref=kabaneriSuggestItemRef('sgp_kabaneri_setting_voice',itemId);
   if(!ref){battleModeInvalid('ボイス項目が見つかりません');return false;}
-  return addBattleModeSuggestLogFromSelection({
+  return recordKabaneriStShortcutSuggest(ref.place.id,ref.item.id,{closeSheet:false});
+}
+function recordKabaneriStShortcutSuggest(placeId,itemId,options={}){
+  const ref=kabaneriSuggestItemRef(placeId,itemId);
+  if(!ref){battleModeInvalid('示唆項目が見つかりません');return false;}
+  const saved=addBattleModeSuggestLogFromSelection({
     stateGroup:'hit',
     source:'manual',
     hitEventId:latestKabaneriStEvent()?.id||'',
@@ -8897,6 +8898,16 @@ function recordKabaneriStVoice(itemId){
     decorations:ref.item.decorations||[],
     useAppearG:false
   });
+  if(saved&&options.closeSheet!==false)closeBattleModeOtherSheet();
+  return saved;
+}
+function openKabaneriStOtherVoicePicker(){
+  setBattleModeSheet('他ボイス/美馬',`
+    <div class="bm-sheet-note">低頻度の確定系・強示唆を記録します。ST集計行の男女比率には含めません。</div>
+    <button class="bm-btn bm-choice-neutral" type="button" onclick="recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_voice','sgp_kabaneri_setting_voice_i6')">無名「普通じゃないね」（設定2以上濃厚）</button>
+    <button class="bm-btn bm-choice-neutral" type="button" onclick="recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_voice','sgp_kabaneri_setting_voice_i7')">ボイスなし（設定5以上濃厚）</button>
+    <button class="bm-btn bm-choice-neutral bm-choice-text-gold" type="button" onclick="recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_intro','sgp_kabaneri_setting_intro_i3')">美馬（設定4以上濃厚）</button>
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>`);
 }
 function recordKabaneriFailureTrophy(itemId=''){
   if(!itemId){closeBattleModeOtherSheet();return;}
@@ -9024,9 +9035,10 @@ function renderKabaneriStPanel(){
   return `<div class="bm-st-panel">
     <div class="bm-st-panel-title"><span>ST中</span><button class="bm-mini-btn bm-st-end-action" type="button" onclick="openBattleModeKabaneriStEndSheet()">ST終了</button></div>
     ${kabaneriStPanelSummaryHtml()}
-    <div class="bm-st-panel-row two">
+    <div class="bm-st-panel-row three">
       <button class="bm-btn bm-choice-text-green" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i1')">ボイス男</button>
       <button class="bm-btn bm-choice-text-red" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i2')">ボイス女</button>
+      <button class="bm-btn bm-choice-text-gold" type="button" onclick="openKabaneriStOtherVoicePicker()">他ボイス/美馬</button>
     </div>
     <div class="bm-st-panel-row three">
       <button class="bm-btn bm-choice-text-green" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_male_tally')">紹介男 +1</button>

@@ -2882,6 +2882,9 @@ function testKabaneriStFlowAndCounters() {
   assert.match(stGrid, /紹介 男0\(-\)・女0\(-\)/);
   assert.match(stGrid, /ボイス男/);
   assert.match(stGrid, /ボイス女/);
+  assert.match(stGrid, /他ボイス\/美馬/);
+  assert.ok(stGrid.indexOf('ボイス男') < stGrid.indexOf('ボイス女'));
+  assert.ok(stGrid.indexOf('ボイス女') < stGrid.indexOf('他ボイス/美馬'));
   assert.doesNotMatch(stGrid, /景之/);
   assert.doesNotMatch(stGrid, /景之・弱/);
   assert.doesNotMatch(stGrid, /景之・中/);
@@ -2919,6 +2922,27 @@ function testKabaneriStFlowAndCounters() {
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /普通じゃないね/);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /ボイスなし/);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /景之・弱/);
+  vm.runInContext(`
+    globalThis.__voiceDenBeforeShortcut = kabaneriStVoiceGroupTotal();
+    globalThis.__introDenBeforeShortcut = settingGroupTotal(kabaneriStIntroGroupRows());
+    openKabaneriStOtherVoicePicker();
+    globalThis.__otherVoicePickerHtml = __stateElements.battleModeOtherGrid.innerHTML;
+    recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_intro','sgp_kabaneri_setting_intro_i3');
+    globalThis.__recentAfterBiba = renderBattleModeRecent();
+    globalThis.__voiceDenAfterBiba = kabaneriStVoiceGroupTotal();
+    globalThis.__introDenAfterBiba = settingGroupTotal(kabaneriStIntroGroupRows());
+  `, context);
+  const otherVoicePickerHtml = vm.runInContext("__otherVoicePickerHtml", context);
+  assert.match(otherVoicePickerHtml, /無名「普通じゃないね」（設定2以上濃厚）/);
+  assert.match(otherVoicePickerHtml, /ボイスなし（設定5以上濃厚）/);
+  assert.match(otherVoicePickerHtml, /美馬（設定4以上濃厚）/);
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_intro_i3')", context), true);
+  assert.match(vm.runInContext("__recentAfterBiba", context), /美馬（設定4以上濃厚）/);
+  assert.equal(vm.runInContext("__voiceDenAfterBiba", context), vm.runInContext("__voiceDenBeforeShortcut", context));
+  assert.equal(vm.runInContext("__introDenAfterBiba", context), vm.runInContext("__introDenBeforeShortcut", context));
+  assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /示唆/);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_intro_i3')", context), false);
   vm.runInContext("selectSuggestItem('sgp_kabaneri_setting_voice_i3')", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i3')", context), true);
   assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×1（100\.0%）/);
@@ -2931,7 +2955,7 @@ function testKabaneriStFlowAndCounters() {
     recordKabaneriStVoice('sgp_kabaneri_setting_voice_i1');
   `, context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i1')", context), true);
-  assert.match(vm.runInContext("renderBattleModeRecent()", context), /ボイス男 ×1（33\.3%）/);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /ボイス男 ×1（50\.0%）/);
   assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /示唆/);
   vm.runInContext("undoBattleModeLast()", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i1')", context), false);
@@ -2942,7 +2966,7 @@ function testKabaneriStFlowAndCounters() {
     recordKabaneriStCounterTag('t_kabaneri_intro_male_tally');
   `, context);
   assert.match(vm.runInContext("renderBattleModeRecent()", context), /紹介男 \+1 ×1（100\.0%）/);
-  assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×2（40\.0%）/);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×2（50\.0%）/);
   vm.runInContext("undoBattleModeLast()", context);
   assert.equal(vm.runInContext("subCounterValue('introMaleTally')", context), 0);
   vm.runInContext(`
@@ -2958,7 +2982,7 @@ function testKabaneriStFlowAndCounters() {
     recordKabaneriStCounterTag('t_kabaneri_lower_bell');
   `, context);
   const stGridAfterTallies = vm.runInContext("renderKabaneriStPanel()", context);
-  assert.match(stGridAfterTallies, /ボイス 男1\(20\.0%\)・女1\(20\.0%\)/);
+  assert.match(stGridAfterTallies, /ボイス 男1\(25\.0%\)・女1\(25\.0%\)/);
   assert.doesNotMatch(stGridAfterTallies, /景之/);
   assert.match(stGridAfterTallies, /紹介 男1\(33\.3%\)・女2\(66\.7%\)/);
   assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /下段ベル/);
