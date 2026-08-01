@@ -2424,6 +2424,35 @@ function testKabaneriShunjoPtStep() {
     selectedAimId = firstAimIdForMachine(currentMachine()) || '';
     battleModeOpen = true;
     currentFlowStep = 2;
+    setTimelineGames(400, 400);
+    battleModeRecordState('kabaneri_mumei_flash','start');
+    battleModeRecordState('kabaneri_ikoma_flash','start');
+    battleModeRecordState('kabaneri_kabane_high','start');
+    battleModeStartHit('direct_at', 'cz_mumei');
+    selectAtThroughBranch('yes');
+  `, context);
+  assert.equal(vm.runInContext("battleModeActiveStates().filter(state => ['kabaneri_mumei_flash','kabaneri_ikoma_flash','kabaneri_kabane_high'].includes(state.id)).length", context), 0);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.filter(entry => entry.auto).map(entry => entry.tagIds[0]))", context)),
+    ['t_kabaneri_state_kabane_high_end', 't_kabaneri_state_mumei_flash_end', 't_kabaneri_state_ikoma_flash_end']
+  );
+  vm.runInContext(`
+    currentTimeline = [];
+    currentHitEvents = [];
+    hitBranchWizard = { eventId:'', route:'', stepIndex:0, through:null, done:[] };
+    setTimelineGames(405, 405);
+    battleModeRecordState('kabaneri_mumei_flash','start');
+    battleModeRecordState('kabaneri_ikoma_flash','start');
+    battleModeRecordState('kabaneri_kabane_high','start');
+    battleModeStartHit('direct_at', 'cz_mumei');
+    selectAtThroughBranch('no');
+  `, context);
+  assert.equal(vm.runInContext("battleModeActiveStates().filter(state => ['kabaneri_mumei_flash','kabaneri_ikoma_flash','kabaneri_kabane_high'].includes(state.id)).length", context), 3);
+  assert.equal(vm.runInContext("currentTimeline.some(entry => entry.auto && entry.tagIds.some(tagId => tagId.endsWith('_end')))", context), false);
+  vm.runInContext(`
+    currentTimeline = [];
+    currentHitEvents = [];
+    hitBranchWizard = { eventId:'', route:'', stepIndex:0, through:null, done:[] };
     setTimelineGames(410, 410);
     battleModeStartHit('direct_at', 'cz_mumei');
     selectAtThroughBranch('yes');

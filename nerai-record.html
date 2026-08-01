@@ -9442,6 +9442,30 @@ function battleModeRecordState(stateId,phase,optionKey='',attachments=null){
   closeBattleModeOtherSheet();
   battleModeCommit(label,()=>addInstantTimelineTagWithAttachments(tag,normalizedAttachments,{fields:{text}}));
 }
+const KABANERI_ST_ENTRY_CLOSE_STATE_IDS=[
+  'kabaneri_chance_high',
+  'kabaneri_mumei_high',
+  'kabaneri_ikoma_high',
+  'kabaneri_kabane_high',
+  'kabaneri_mumei_flash',
+  'kabaneri_ikoma_flash',
+  'kabaneri_kabane_flash',
+  'kabaneri_super_high'
+];
+function closeKabaneriNormalStatesForStEntry(){
+  if(!isKabaneriMachine(currentMachine())||timelineDataValue()===null)return 0;
+  const active=new Set(battleModeActiveStates().map(state=>state.id));
+  let closed=0;
+  KABANERI_ST_ENTRY_CLOSE_STATE_IDS.forEach(stateId=>{
+    if(!active.has(stateId))return;
+    const state=battleModeStateById(stateId);
+    const tag=battleModeStateTag(state,'end');
+    if(!tag)return;
+    addInstantTimelineTagWithAttachments(tag,[],{fields:{text:tag.label,auto:true}});
+    closed+=1;
+  });
+  return closed;
+}
 function battleModeOpenModal(ref){
   if(ref==='suggestion'){openSuggestPlacePicker('play');return;}
   if(ref==='destiny'){openKarakuriFateBoardPicker();return;}
@@ -13380,6 +13404,7 @@ function applyAtThroughBranch(value,options={}){
     }
   }
   hitBranchWizard.through=value;
+  if(!alreadyApplied&&value==='yes')closeKabaneriNormalStatesForStEntry();
   if(!alreadyApplied&&value!=='ending')recordAfterAtModeByThrough(value);
   if(options.advance===false){
     if(!hitBranchWizard.done.includes('through'))hitBranchWizard.done.push('through');
