@@ -265,6 +265,7 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_ikoma_high' && state.startViaFollowUpOnly === true)", context), false);
   assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_kabane_high' && state.startViaFollowUpOnly === true)", context), false);
   assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_mumei_flash' && state.startViaFollowUpOnly === true)", context), true);
+  assert.equal(vm.runInContext("currentMachine().states.some(state => state.id === 'kabaneri_kabane_flash' && state.startViaFollowUpOnly === true)", context), false);
   assert.equal(vm.runInContext("currentMachine().chanceFollowUp.t_kabaneri_chance_mumei.flash === 't_kabaneri_state_mumei_flash_start'", context), true);
   assert.equal(vm.runInContext("currentMachine().chanceFollowUp.t_kabaneri_chance_mumei.high === 't_kabaneri_state_mumei_high_start'", context), true);
   assert.deepEqual(
@@ -319,18 +320,24 @@ function testKabaneriPresetSeedAndPickers() {
     JSON.parse(vm.runInContext("JSON.stringify(orderedBattleModeStates(machineStates()).map(state => battleModeStateDisplayLabel(state)))", context)),
     ['🔥チャ目高確', '🔥カバネ高確', '🔥無名高確', '🔥生駒高確', '💡無名発光', '💡生駒発光', '⚔無名CZ', '⚔生駒CZ', '💡カバネ発光', '⚡超高確', '⚔銅藍CZ']
   );
-  vm.runInContext("openBattleModeStatePicker()", context);
+  assert.match(vm.runInContext("renderBattleModeGrid()", context), /状態\/CZ/);
+  vm.runInContext("openBattleModePicker('state')", context);
   let stateHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   let stateText = stripTags(stateHtml);
+  assert.equal(vm.runInContext("document.querySelector('#battleModeOtherSheet .bm-sheet-title').textContent", context), '状態/CZ');
+  assert.match(stateText, /状態/);
+  assert.match(stateText, /CZ突入/);
   assert.match(stateText, /🔥チャ目高確 開始/);
   assert.match(stateText, /🔥カバネ高確 開始/);
   assert.match(stateText, /🔥無名高確 開始/);
   assert.match(stateText, /🔥生駒高確 開始/);
-  assert.match(stateText, /⚔無名CZ 開始/);
+  assert.match(stateText, /⚔無名CZ/);
+  assert.match(stateText, /⚔生駒CZ/);
+  assert.match(stateText, /⚔銅藍CZ/);
   assert.match(stateText, /⚡超高確 開始/);
   assert.doesNotMatch(stateText, /💡無名発光 開始/);
   assert.doesNotMatch(stateText, /💡生駒発光 開始/);
-  assert.doesNotMatch(stateText, /💡カバネ発光 開始/);
+  assert.match(stateText, /💡カバネ発光 開始/);
   assert.match(stateHtml, /bm-state-choice/);
   assert.match(stateHtml, /suggest-color-red">無名/);
   assert.match(stateHtml, /suggest-color-green">生駒/);
@@ -372,6 +379,27 @@ function testKabaneriPresetSeedAndPickers() {
     ['t_kabaneri_state_kabane_high_end']
   );
   assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_kabane_high')", context), false);
+  vm.runInContext("battleModeRecordState('kabaneri_kabane_flash','start')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_state_kabane_flash_start']
+  );
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_kabane_flash')", context), true);
+  assert.match(stripTags(vm.runInContext("renderBattleModeStateBadges()", context)), /💡カバネ発光/);
+  vm.runInContext("battleModeExitStateFromBadge('kabaneri_kabane_flash')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_state_kabane_flash_end']
+  );
+  vm.runInContext("openBattleModePicker('state'); battleModeRecordState('kabaneri_cz_mumei','start')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_cz_mumei_start']
+  );
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_cz_mumei')", context), true);
+  vm.runInContext("openBattleModeStateEndPicker('kabaneri_cz_mumei')", context);
+  assert.match(stripTags(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context)), /成功/);
+  assert.match(stripTags(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context)), /失敗/);
   vm.runInContext("battleModeRecordState('kabaneri_mumei_flash','start')", context);
   const mumeiBadgeHtml = vm.runInContext("renderBattleModeStateBadges()", context);
   assert.match(stripTags(mumeiBadgeHtml), /💡無名発光/);

@@ -2910,6 +2910,7 @@ function normalizeData(data){
     ensureKabaneriChanceFollowUpSeedV1(m);
     ensureKabaneriKabaneHighManualStartSeedV1(m);
     ensureKabaneriMumeiIkomaHighManualStartSeedV1(m);
+    ensureKabaneriKabaneFlashManualStartSeedV1(m);
     ensureKabaneriChanceFollowUpMultiSeedV1(m);
     ensureKabaneriStateAutoEndSeedV1(m);
     ensureKabaneriMumeiDefeatSeedV1(m);
@@ -5475,6 +5476,15 @@ function ensureKabaneriMumeiIkomaHighManualStartSeedV1(machine){
   }));
   machine.kabaneriMumeiIkomaHighManualStartSeedV1=true;
 }
+function ensureKabaneriKabaneFlashManualStartSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriKabaneFlashManualStartSeedV1)return;
+  machine.states=normalizeMachineStates(machineStates(machine).map(state=>{
+    if(state.id!=='kabaneri_kabane_flash')return state;
+    const {startViaFollowUpOnly,...rest}=state;
+    return rest;
+  }));
+  machine.kabaneriKabaneFlashManualStartSeedV1=true;
+}
 function ensureKabaneriChanceFollowUpMultiSeedV1(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriChanceFollowUpMultiSeedV1)return;
   const mumei={label:'無名',color:'red',flash:'t_kabaneri_state_mumei_flash_start',high:'t_kabaneri_state_mumei_high_start'};
@@ -6260,7 +6270,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriOmikujiPlacesSeedV1(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriMumeiIkomaHighManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriShunjoPtBeforeThroughSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriStagePickerToneSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriOmikujiPlacesSeedV1(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriMumeiIkomaHighManualStartSeedV1(m);ensureKabaneriKabaneFlashManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriShunjoPtBeforeThroughSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriStagePickerToneSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -6319,6 +6329,7 @@ function addMachine(){
   ensureKabaneriChanceFollowUpSeedV1(machine);
   ensureKabaneriKabaneHighManualStartSeedV1(machine);
   ensureKabaneriMumeiIkomaHighManualStartSeedV1(machine);
+  ensureKabaneriKabaneFlashManualStartSeedV1(machine);
   ensureKabaneriChanceFollowUpMultiSeedV1(machine);
   ensureKabaneriStateAutoEndSeedV1(machine);
   ensureKabaneriMumeiDefeatSeedV1(machine);
@@ -8723,7 +8734,7 @@ function battleModePickerButtonLabel(ref){
     ghoul_seishin:'\u7cbe\u795e\u4e16\u754c',
     ghoul_rare:'\u30ec\u30a2\n(\u6fc0\u30ec\u30a2)',
     ghoul_stage:'\u30b9\u30c6\u30fc\u30b8',
-    state:'\u72b6\u614b',
+    state:isKabaneriMachine(currentMachine())?'状態/CZ':'\u72b6\u614b',
     kabaneri_point:'pt\u793a\u5506',
     kabaneri_omikuji:'\u304a\u307f\u304f\u3058\u30fb\u30ad\u30ea\u756a',
     kabaneri_stage:'ステージ',
@@ -9647,16 +9658,25 @@ function openBattleModeStatePicker(){
   const states=orderedBattleModeStates(machineStates());
   if(!states.length){battleModeInvalid('状態定義がありません');return;}
   const status=battleModeStateStatusMap();
-  const buttons=states.filter(state=>{
+  const stateButtons=states.filter(state=>{
+    if(state.id.includes('_cz_'))return false;
     const active=!!status.get(state.id)?.active;
     return active||state.startViaFollowUpOnly!==true;
   }).map(state=>{
     const active=!!status.get(state.id)?.active;
     return `<button class="bm-btn bm-state-choice ${active?'active':''}" type="button" onclick="${active&&state.endOptions.length?`openBattleModeStateEndPicker('${escapeHtml(state.id)}')`:`battleModeRecordState('${escapeHtml(state.id)}','${active?'end':'start'}')`}">${battleModeStateChoiceLabelHtml(state,` ${active?'終了':'開始'}`)}</button>`;
   }).join('');
-  setBattleModeSheet('状態',`
+  const czButtons=states.filter(state=>state.id.includes('_cz_')).map(state=>{
+    const active=!!status.get(state.id)?.active;
+    return active
+      ?`<button class="bm-btn bm-state-choice active" type="button" onclick="openBattleModeStateEndPicker('${escapeHtml(state.id)}')">${battleModeStateChoiceLabelHtml(state,' 終了')}</button>`
+      :`<button class="bm-btn bm-state-choice" type="button" onclick="battleModeRecordState('${escapeHtml(state.id)}','start')">${battleModeStateChoiceLabelHtml(state)}</button>`;
+  }).join('');
+  setBattleModeSheet(isKabaneriMachine(currentMachine())?'状態/CZ':'状態',`
     <div class="bm-sheet-note">チャンス目→状態変更の順にタップ</div>
-    <div class="bm-state-grid">${buttons}</div>
+    <div class="bm-sheet-note"><strong>状態</strong></div>
+    <div class="bm-state-grid">${stateButtons}</div>
+    ${czButtons?`<div class="bm-sheet-note"><strong>CZ突入</strong></div><div class="bm-state-grid">${czButtons}</div>`:''}
   `);
 }
 function openBattleModeStateEndPicker(stateId){
