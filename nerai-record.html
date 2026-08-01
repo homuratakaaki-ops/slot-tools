@@ -2896,6 +2896,7 @@ function normalizeData(data){
     ensureKabaneriEpisodeAutoStSeedV1(m);
     ensureKabaneriThroughNoFlowSeedV1(m);
     ensureKabaneriChanceFollowUpSeedV1(m);
+    ensureKabaneriKabaneHighManualStartSeedV1(m);
     ensureKabaneriChanceFollowUpMultiSeedV1(m);
     ensureKabaneriStateAutoEndSeedV1(m);
     ensureKabaneriMumeiDefeatSeedV1(m);
@@ -5406,6 +5407,15 @@ function ensureKabaneriChanceFollowUpSeedV1(machine){
   })));
   machine.kabaneriChanceFollowUpSeedV1=true;
 }
+function ensureKabaneriKabaneHighManualStartSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriKabaneHighManualStartSeedV1)return;
+  machine.states=normalizeMachineStates(machineStates(machine).map(state=>{
+    if(state.id!=='kabaneri_kabane_high')return state;
+    const {startViaFollowUpOnly,...rest}=state;
+    return rest;
+  }));
+  machine.kabaneriKabaneHighManualStartSeedV1=true;
+}
 function ensureKabaneriChanceFollowUpMultiSeedV1(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriChanceFollowUpMultiSeedV1)return;
   const mumei={label:'無名',color:'red',flash:'t_kabaneri_state_mumei_flash_start',high:'t_kabaneri_state_mumei_high_start'};
@@ -6153,7 +6163,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -6209,6 +6219,7 @@ function addMachine(){
   ensureKabaneriEpisodeAutoStSeedV1(machine);
   ensureKabaneriThroughNoFlowSeedV1(machine);
   ensureKabaneriChanceFollowUpSeedV1(machine);
+  ensureKabaneriKabaneHighManualStartSeedV1(machine);
   ensureKabaneriChanceFollowUpMultiSeedV1(machine);
   ensureKabaneriStateAutoEndSeedV1(machine);
   ensureKabaneriMumeiDefeatSeedV1(machine);
