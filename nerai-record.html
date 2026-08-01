@@ -2904,6 +2904,7 @@ function normalizeData(data){
     ensureKabaneriShunjoPtSeedV1(m);
     ensureKabaneriEpisodeStStartSeedV1(m);
     ensureKabaneriPickerStyleSeedV1(m);
+    ensureKabaneriStagePickerToneSeedV1(m);
     ensureKabaneriPointFlattenSeedV1(m);
     ensureKabaneriEyecatchDefaultSeedV1(m);
     ensureKabaneriGameStateTriggersSeedV1(m);
@@ -5499,6 +5500,19 @@ function ensureKabaneriPickerStyleSeedV1(machine){
   machine.states=normalizeMachineStates(machineStates(machine).map(state=>state.id==='kabaneri_super_high'?{...state,badgeStyle:'super'}:state));
   machine.kabaneriPickerStyleSeedV1=true;
 }
+function ensureKabaneriStagePickerToneSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriStagePickerToneSeedV1)return;
+  mergeTimelineTagSeed(machine,[
+    {id:'t_kabaneri_stage_yard',label:'操車場',optional:true,tagClass:'stage-day',choiceTextColor:''},
+    {id:'t_kabaneri_stage_kotetsujo',label:'甲鉄城',optional:true,tagClass:'stage-day',choiceTextColor:''},
+    {id:'t_kabaneri_stage_line',label:'第六区画線路沿い',optional:true,tagClass:'stage-day',choiceTextColor:''},
+    {id:'t_kabaneri_stage_fourth_tunnel',label:'第四区画坑道',optional:true,tagClass:'kabaneri-red',choiceTextColor:'red'},
+    {id:'t_kabaneri_stage_strategy',label:'作戦会議',optional:true,tagClass:'kabaneri-green',choiceTextColor:'green'},
+    {id:'t_kabaneri_stage_final_defense',label:'カバネ最終防衛区域',optional:true,tagClass:'kabaneri-blue',choiceTextColor:'blue'},
+    {id:'t_kabaneri_stage_setsugekka',label:'雪月風花',optional:true,tagClass:'stage-sky',choiceTextColor:''}
+  ]);
+  machine.kabaneriStagePickerToneSeedV1=true;
+}
 function ensureKabaneriPointFlattenSeedV1(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriPointFlattenSeedV1)return;
   const category=findSuggestCategory(machine,KABANERI_POINT_CATEGORY_ID);
@@ -6164,7 +6178,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriStagePickerToneSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -6227,6 +6241,7 @@ function addMachine(){
   ensureKabaneriShunjoPtSeedV1(machine);
   ensureKabaneriEpisodeStStartSeedV1(machine);
   ensureKabaneriPickerStyleSeedV1(machine);
+  ensureKabaneriStagePickerToneSeedV1(machine);
   ensureKabaneriPointFlattenSeedV1(machine);
   ensureKabaneriEyecatchDefaultSeedV1(machine);
   ensureKabaneriGameStateTriggersSeedV1(machine);

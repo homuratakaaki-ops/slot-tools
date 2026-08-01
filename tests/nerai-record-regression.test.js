@@ -659,8 +659,9 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(stageHtml, /bm-choice-neutral/);
   assert.match(stageHtml, /bm-choice-text-red"[^>]*>第四区画坑道/);
   assert.match(stageHtml, /bm-choice-text-green"[^>]*>作戦会議/);
-  assert.match(stageHtml, /bm-choice-text-gold"[^>]*>カバネ最終防衛区域/);
-  assert.match(stageHtml, /bm-choice-text-sky"[^>]*>雪月風花/);
+  assert.match(stageHtml, /bm-choice-text-blue"[^>]*>カバネ最終防衛区域/);
+  assert.match(stageHtml, /<button class="bm-btn bm-choice-neutral"[^>]*>第六区画線路沿い<\/button>/);
+  assert.match(stageHtml, /<button class="bm-btn bm-choice-neutral"[^>]*>雪月風花<\/button>/);
   assert.doesNotMatch(stageHtml, /tag-style-kabaneri-red/);
   assert.doesNotMatch(stageHtml, /tag-style-kabaneri-gold/);
   vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_stage_fourth_tunnel')", context);
