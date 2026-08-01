@@ -2673,7 +2673,9 @@ function testKabaneriStFlowAndCounters() {
   assert.match(stGrid, /紹介 男0\(-\)・女0\(-\)/);
   assert.match(stGrid, /ボイス男/);
   assert.match(stGrid, /ボイス女/);
-  assert.match(stGrid, /景之・弱/);
+  assert.doesNotMatch(stGrid, /景之・弱/);
+  assert.doesNotMatch(stGrid, /景之・中/);
+  assert.doesNotMatch(stGrid, /景之・強/);
   assert.match(stGrid, /紹介男 \+1/);
   assert.match(stGrid, /紹介女 \+1/);
   assert.ok(stGrid.indexOf('紹介男 +1') < stGrid.indexOf('紹介女 +1'));
@@ -2706,6 +2708,12 @@ function testKabaneriStFlowAndCounters() {
   vm.runInContext("openSuggestItemPicker('sgc_kabaneri_setting','sgp_kabaneri_setting_voice','play')", context);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /普通じゃないね/);
   assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /ボイスなし/);
+  assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /景之・弱/);
+  vm.runInContext("selectSuggestItem('sgp_kabaneri_setting_voice_i3')", context);
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i3')", context), true);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×1（100\.0%）/);
+  assert.match(vm.runInContext("renderKabaneriStPanel()", context), /景之 弱1\(100\.0%\)\/中0\(0\.0%\)\/強0\(0\.0%\)/);
+  vm.runInContext("openSuggestItemPicker('sgc_kabaneri_setting','sgp_kabaneri_setting_voice','play')", context);
   vm.runInContext("selectSuggestItem('sgp_kabaneri_setting_voice_i6')", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i6')", context), true);
 
@@ -2713,7 +2721,7 @@ function testKabaneriStFlowAndCounters() {
     recordKabaneriStVoice('sgp_kabaneri_setting_voice_i1');
   `, context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i1')", context), true);
-  assert.match(vm.runInContext("renderBattleModeRecent()", context), /ボイス男 ×1（50\.0%）/);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /ボイス男 ×1（33\.3%）/);
   assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /示唆/);
   vm.runInContext("undoBattleModeLast()", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i1')", context), false);
@@ -2724,7 +2732,7 @@ function testKabaneriStFlowAndCounters() {
     recordKabaneriStCounterTag('t_kabaneri_intro_male_tally');
   `, context);
   assert.match(vm.runInContext("renderBattleModeRecent()", context), /紹介男 \+1 ×1（100\.0%）/);
-  assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×1（25\.0%）/);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×2（40\.0%）/);
   vm.runInContext("undoBattleModeLast()", context);
   assert.equal(vm.runInContext("subCounterValue('introMaleTally')", context), 0);
   vm.runInContext(`
@@ -2740,8 +2748,8 @@ function testKabaneriStFlowAndCounters() {
     recordKabaneriStCounterTag('t_kabaneri_lower_bell');
   `, context);
   const stGridAfterTallies = vm.runInContext("renderKabaneriStPanel()", context);
-  assert.match(stGridAfterTallies, /ボイス 男1\(25\.0%\)・女1\(25\.0%\)/);
-  assert.match(stGridAfterTallies, /景之 弱1\(25\.0%\)\/中0\(0\.0%\)\/強0\(0\.0%\)/);
+  assert.match(stGridAfterTallies, /ボイス 男1\(20\.0%\)・女1\(20\.0%\)/);
+  assert.match(stGridAfterTallies, /景之 弱2\(40\.0%\)\/中0\(0\.0%\)\/強0\(0\.0%\)/);
   assert.match(stGridAfterTallies, /紹介 男1\(33\.3%\)・女2\(66\.7%\)/);
   assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /下段ベル/);
   assert.equal(vm.runInContext("subCounterValue('introFemaleTally')", context), 2);

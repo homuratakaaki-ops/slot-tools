@@ -8918,12 +8918,9 @@ function renderKabaneriStPanel(){
   return `<div class="bm-st-panel">
     <div class="bm-st-panel-title"><span>ST中</span><button class="bm-mini-btn bm-st-end-action" type="button" onclick="openBattleModeKabaneriStEndSheet()">ST終了</button></div>
     ${kabaneriStPanelSummaryHtml()}
-    <div class="bm-st-panel-row five">
+    <div class="bm-st-panel-row two">
       <button class="bm-btn bm-choice-text-green" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i1')">ボイス男</button>
       <button class="bm-btn bm-choice-text-red" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i2')">ボイス女</button>
-      <button class="bm-btn" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i3')">景之・弱</button>
-      <button class="bm-btn" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i4')">景之・中</button>
-      <button class="bm-btn" type="button" onclick="recordKabaneriStVoice('sgp_kabaneri_setting_voice_i5')">景之・強</button>
     </div>
     <div class="bm-st-panel-row three">
       <button class="bm-btn bm-choice-text-green" type="button" onclick="recordKabaneriStCounterTag('t_kabaneri_intro_male_tally')">紹介男 +1</button>
