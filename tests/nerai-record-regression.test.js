@@ -533,7 +533,17 @@ function testKabaneriPresetSeedAndPickers() {
   vm.runInContext("currentHitEvents=[{id:'hit_shunjo_steps',trigger:'direct_at',variant:'cz_mumei',dataGame:160,liquidGame:160,createdAt:new Date().toISOString()}]; hitBranchWizard={eventId:'hit_shunjo_steps',route:'atHit',stepIndex:0,through:null,done:[]};", context);
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => [step.key, step.triggers || []]))", context)),
-    [['through', []], ['shunjoPt', ['direct_at']], ['payout', []]]
+    [['shunjoPt', ['direct_at']], ['through', []], ['payout', []]]
+  );
+  vm.runInContext("currentHitEvents[0].through='yes'; hitBranchWizard.through='yes';", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => step.key))", context)),
+    ['shunjoPt', 'through', 'kabaneriStStart']
+  );
+  vm.runInContext("currentHitEvents[0].through='no'; hitBranchWizard.through='no';", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(hitBranchSteps('atHit').map(step => step.key))", context)),
+    ['shunjoPt', 'through', 'payout']
   );
   vm.runInContext("currentHitEvents=[]; hitBranchWizard={eventId:'',route:'',stepIndex:0,through:null,done:[]};", context);
   const gridHtml = vm.runInContext('renderBattleModeGrid()', context);
@@ -2470,7 +2480,6 @@ function testKabaneriShunjoPtStep() {
     hitBranchWizard = { eventId:'', route:'', stepIndex:0, through:null, done:[] };
     setTimelineGames(410, 410);
     battleModeStartHit('direct_at', 'cz_mumei');
-    selectAtThroughBranch('yes');
   `, context);
   assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'shunjoPt');
   vm.runInContext("openCurrentHitBranchStep()", context);
@@ -2514,12 +2523,16 @@ function testKabaneriShunjoPtStep() {
     ]
   );
   assert.match(vm.runInContext("timelineEntryText(currentTimeline[0])", context), /駿城pt（4100・単チャ目3・3000pt2）/);
-  assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'through');
   assert.equal(vm.runInContext("currentHitEvents.length", context), 1);
+  assert.equal(vm.runInContext("kabaneriStActive()", context), false);
+  vm.runInContext("selectAtThroughBranch('yes')", context);
+  assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'yes');
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'kabaneriStStart');
   assert.equal(vm.runInContext("kabaneriStActive()", context), true);
-  vm.runInContext("undoBattleModeLast()", context);
-  assert.equal(vm.runInContext("currentTimeline.length", context), 0);
-  assert.equal(vm.runInContext("currentHitEvents.length", context), 1);
+  vm.runInContext("openCurrentHitBranchStep()", context);
+  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /ST区間へ/);
+  vm.runInContext("confirmKabaneriStStartStep()", context);
   assert.equal(vm.runInContext("currentHitBranchStep()", context), null);
 
   vm.runInContext(`
@@ -2530,11 +2543,12 @@ function testKabaneriShunjoPtStep() {
     currentFlowStep = 2;
     setTimelineGames(420, 420);
     battleModeStartHit('direct_at', 'cycle');
-    selectAtThroughBranch('no');
     skipShunjoPtStep();
   `, context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
   assert.equal(vm.runInContext("currentHitEvents[0].trigger", context), 'direct_at');
+  assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'through');
+  vm.runInContext("selectAtThroughBranch('no')", context);
   assert.equal(vm.runInContext("currentHitEvents[0].through", context), 'no');
   assert.equal(vm.runInContext("currentHitBranchStep().key", context), 'payout');
   assert.equal(vm.runInContext("kabaneriStActive()", context), false);
@@ -2672,8 +2686,9 @@ function testKabaneriStFlowAndCounters() {
     battleModeApplyDiffTrackerInput('credit', 200, { label: '開始クレ', reopenSheet: false });
     currentTimeline = [];
     battleModeStartHit('direct_at', 'cz_mumei');
-    selectAtThroughBranch('yes');
     recordShunjoPtAndContinue(4100, false);
+    selectAtThroughBranch('yes');
+    confirmKabaneriStStartStep();
   `, context);
   assert.equal(vm.runInContext("kabaneriStActive()", context), true);
   assert.equal(vm.runInContext("currentSegments.length", context), 0);

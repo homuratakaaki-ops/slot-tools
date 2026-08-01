@@ -2903,6 +2903,7 @@ function normalizeData(data){
     ensureKabaneriMumeiDefeatSeedV1(m);
     ensureKabaneriShunjoPtSeedV1(m);
     ensureKabaneriEpisodeStStartSeedV1(m);
+    ensureKabaneriShunjoPtBeforeThroughSeedV1(m);
     ensureKabaneriPickerStyleSeedV1(m);
     ensureKabaneriStagePickerToneSeedV1(m);
     ensureKabaneriPointFlattenSeedV1(m);
@@ -5459,8 +5460,8 @@ function ensureKabaneriShunjoPtSeedV1(machine){
   machine.hitBranchFlows={
     ...(machine.hitBranchFlows||{}),
     atHit:[
-      {key:'through',label:'ST突入確認'},
       {key:'shunjoPt',label:'駿城pt',triggers:['direct_at']},
+      {key:'through',label:'ST突入確認'},
       {key:'payout',label:'ボーナス後クレジット'}
     ]
   };
@@ -5481,6 +5482,31 @@ function ensureKabaneriEpisodeStStartSeedV1(machine){
   flows.atHit=nextSteps;
   machine.hitBranchFlows=flows;
   machine.kabaneriEpisodeStStartSeedV1=true;
+}
+function ensureKabaneriShunjoPtBeforeThroughSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriShunjoPtBeforeThroughSeedV1)return;
+  const flows={...(machine.hitBranchFlows||{})};
+  const currentSteps=Array.isArray(flows.atHit)
+    ?flows.atHit.map(normalizeHitBranchStep).filter(Boolean)
+    :[];
+  const stepByKey=key=>currentSteps.find(step=>step.key===key);
+  const shunjoPt=stepByKey('shunjoPt')||{key:'shunjoPt',label:'駿城pt',triggers:['direct_at']};
+  const through=stepByKey('through')||{key:'through',label:'ST突入確認'};
+  const stStartBase=stepByKey('kabaneriStStart');
+  const stStart=stStartBase
+    ?{...stStartBase,triggers:[...new Set([...(stStartBase.triggers||[]),'direct_at','episode_bonus'])]}
+    :{key:'kabaneriStStart',label:'ST区間開始',triggers:['direct_at','episode_bonus']};
+  const payout=stepByKey('payout')||{key:'payout',label:'ボーナス後クレジット'};
+  const known=new Set(['shunjoPt','through','kabaneriStStart','payout']);
+  flows.atHit=[
+    shunjoPt,
+    through,
+    stStart,
+    payout,
+    ...currentSteps.filter(step=>!known.has(step.key))
+  ];
+  machine.hitBranchFlows=flows;
+  machine.kabaneriShunjoPtBeforeThroughSeedV1=true;
 }
 function ensureKabaneriPickerStyleSeedV1(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriPickerStyleSeedV1)return;
@@ -6178,7 +6204,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriStagePickerToneSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriShunjoPtBeforeThroughSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriStagePickerToneSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -6240,6 +6266,7 @@ function addMachine(){
   ensureKabaneriMumeiDefeatSeedV1(machine);
   ensureKabaneriShunjoPtSeedV1(machine);
   ensureKabaneriEpisodeStStartSeedV1(machine);
+  ensureKabaneriShunjoPtBeforeThroughSeedV1(machine);
   ensureKabaneriPickerStyleSeedV1(machine);
   ensureKabaneriStagePickerToneSeedV1(machine);
   ensureKabaneriPointFlattenSeedV1(machine);
@@ -12509,6 +12536,7 @@ function nextModeEyecatchPlace(){
 }
 function hitBranchStepAppliesToEvent(step,event=currentHitEvent()){
   if(step?.key==='payout'&&shouldSkipHitPayoutForEvent(event))return false;
+  if(step?.key==='kabaneriStStart'&&event?.through!=='yes')return false;
   const triggers=Array.isArray(step?.triggers)?step.triggers.map(normalizeHitTrigger).filter(Boolean):[];
   if(!triggers.length)return true;
   const trigger=normalizeHitTrigger(event?.trigger);
