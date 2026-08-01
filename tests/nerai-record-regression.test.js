@@ -2619,6 +2619,21 @@ function testKabaneriCompareViewAndSettingLabel() {
   assert.equal(same.find(row => row.key === 'tanCha3000').today.den, 3);
   assert.equal(same.find(row => row.key === 'tanCha3000').today.num, 1);
   assert.equal(same[0].poolCount, 1);
+  vm.runInContext(`
+    currentSubCounters = {};
+    currentHitEvents = [];
+    currentSegments = [];
+    currentStartCounterGame = 0;
+    currentEndLog = { game:311, liquidGame:311 };
+    currentTimeline = [
+      { id:'lb_bug_1', game:100, liquidGame:100, tagIds:['t_kabaneri_lower_bell'], attachments:[], createdAt:'2026-08-01T10:00:00' },
+      { id:'lb_bug_2', game:120, liquidGame:120, tagIds:['t_kabaneri_lower_bell'], attachments:[], createdAt:'2026-08-01T10:01:00' }
+    ];
+  `, context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(compareMetricPairForLog(currentCompareSourceLog(), machineCompareMetrics().find(row => row.key === 'lowerBell')))", context)),
+    { num: 2, den: 311 }
+  );
 
   const atLeast = JSON.parse(vm.runInContext("JSON.stringify(kabaneriCompareSummary({mode:'atLeast'}).rows.map(row => ({key:row.metric.key,pool:row.pool,poolCount:kabaneriCompareSummary({mode:'atLeast'}).poolLogs.length})))", context));
   assert.equal(atLeast[0].poolCount, 2);
@@ -2719,6 +2734,7 @@ function testKabaneriStFlowAndCounters() {
   `, context);
   assert.match(vm.runInContext("renderBattleModeRecent()", context), /紹介女 \+1 ×2（66\.7%）/);
   vm.runInContext(`
+    setTimelineGames(340,340);
     recordKabaneriStCounterTag('t_kabaneri_lower_bell');
     recordKabaneriStCounterTag('t_kabaneri_lower_bell');
     recordKabaneriStCounterTag('t_kabaneri_lower_bell');
@@ -2731,7 +2747,10 @@ function testKabaneriStFlowAndCounters() {
   assert.equal(vm.runInContext("subCounterValue('introFemaleTally')", context), 2);
   assert.equal(vm.runInContext("subCounterValue('introMaleTally')", context), 1);
   assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 3);
-  assert.equal(vm.runInContext("compareMetricPairForLog(currentCompareSourceLog(), machineCompareMetrics().find(row => row.key === 'lowerBell')).num", context), 0);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(compareMetricPairForLog(currentCompareSourceLog(), machineCompareMetrics().find(row => row.key === 'lowerBell')))", context)),
+    { num: 3, den: 340 }
+  );
   vm.runInContext("undoBattleModeLast()", context);
   assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 2);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i1')", context), true);
@@ -2793,7 +2812,10 @@ function testKabaneriStFlowAndCounters() {
   assert.equal(vm.runInContext("currentSegments.length", context), 1);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
   assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 2);
-  assert.equal(vm.runInContext("compareMetricPairForLog(currentCompareSourceLog(), machineCompareMetrics().find(row => row.key === 'lowerBell')).num", context), 0);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(compareMetricPairForLog(currentCompareSourceLog(), machineCompareMetrics().find(row => row.key === 'lowerBell')))", context)),
+    { num: 2, den: 340 }
+  );
   assert.match(vm.runInContext("__stateElements.battleModeOtherTitle.textContent", context), /0G/);
   assert.match(stripTags(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context)), /カバネ高確/);
   assert.equal(vm.runInContext("battleModePendingGameStatePrompts.length", context), 0);

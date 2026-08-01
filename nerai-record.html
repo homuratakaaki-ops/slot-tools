@@ -8034,6 +8034,21 @@ function firstHitDataGameForSegment(segment){
   const sorted=sortByCreatedAtWithIndex(hits.map((event,index)=>({...event,sortIndex:index})),false);
   return normalizeOptionalNumber(sorted[0]?.dataGame);
 }
+function latestTimelineDataGameForRows(rows){
+  const sorted=sortByCreatedAtWithIndex((Array.isArray(rows)?rows:[]).map((entry,index)=>({...entry,sortIndex:index})),true);
+  for(const entry of sorted){
+    const data=normalizeOptionalNumber(entry?.game??entry?.dataGame);
+    if(data!==null)return data;
+  }
+  return null;
+}
+function segmentTerminalDataGame(segment){
+  const data=normalizeOptionalNumber(segment?.dataGame);
+  const latest=latestTimelineDataGameForRows(segment?.timeline);
+  if(data===null)return latest;
+  if(latest===null)return data;
+  return Math.max(data,latest);
+}
 function kabaneriNormalDataGamesForLog(log){
   const startValue=normalizeOptionalNumber(log?.startCounterGame);
   const start=startValue!==null?startValue:(findStartCounterValue(log?.startLog)||0);
@@ -8081,23 +8096,49 @@ function comparePair(num=0,den=0){
 function timelineLowerBellCount(rows){
   return (Array.isArray(rows)?rows:[]).filter(entry=>timelineTagIds(entry).includes('t_kabaneri_lower_bell')).length;
 }
-function kabaneriOpenStTimelineLowerBellCount(log){
-  const hitRows=Array.isArray(log?.hitEvents)?log.hitEvents:[];
-  const hasOpenSt=hitRows.some(event=>event?.trigger&&event.through==='yes');
-  return hasOpenSt?timelineLowerBellCount(log?.timeline):0;
-}
-function kabaneriStLowerBellCountForLog(log){
-  const segments=Array.isArray(log?.segments)?log.segments:[];
-  const archivedStCount=segments.reduce((sum,segment)=>sum+(segment?.terminalType==='st_end'?timelineLowerBellCount(segment.timeline):0),0);
-  return archivedStCount+kabaneriOpenStTimelineLowerBellCount(log);
-}
-function kabaneriNormalLowerBellCountForLog(log){
+function kabaneriLowerBellCountForLog(log){
   const total=normalizeSubCounters(log?.subCounters).lowerBell||0;
-  return Math.max(0,total-kabaneriStLowerBellCountForLog(log));
+  return Math.max(total,timelineLowerBellCount(logAllTimelineRows(log)));
+}
+function kabaneriLowerBellDataGamesForLog(log){
+  const startValue=normalizeOptionalNumber(log?.startCounterGame);
+  const start=startValue!==null?startValue:(findStartCounterValue(log?.startLog)||0);
+  let total=0;
+  let first=true;
+  const addTerminal=value=>{
+    const end=normalizeOptionalNumber(value);
+    if(end===null)return null;
+    const base=first?start:0;
+    total+=Math.max(0,Math.trunc(end)-Math.trunc(base));
+    first=false;
+    return end;
+  };
+  const segments=Array.isArray(log?.segments)?[...log.segments].reverse():[];
+  segments.forEach(segment=>{
+    if(segment?.terminalType==='st_end')addTerminal(segmentTerminalDataGame(segment));
+    else{
+      const hitData=firstHitDataGameForSegment(segment);
+      addTerminal(hitData!==null?hitData:segment.dataGame);
+    }
+  });
+  if(!segments.length){
+    const hitRows=logAllHitRows(log).filter(event=>normalizeOptionalNumber(event.dataGame)!==null);
+    if(hitRows.length){
+      const sorted=sortByCreatedAtWithIndex(hitRows.map((event,index)=>({...event,sortIndex:index})),false);
+      const firstHit=addTerminal(sorted[0].dataGame);
+      if(sorted.some(event=>event.through==='yes')){
+        const latest=normalizeOptionalNumber(latestTimelineCounterState(log)?.dataGame);
+        if(firstHit!==null&&latest!==null)total+=Math.max(0,Math.trunc(latest)-Math.trunc(firstHit));
+      }
+    }else if(log?.endLog){
+      addTerminal(log.endLog.game);
+    }
+  }
+  return total;
 }
 function compareMetricPairForLog(log,metric,machine=currentMachine()){
   const key=String(metric?.key||'');
-  if(key==='lowerBell')return comparePair(kabaneriNormalLowerBellCountForLog(log),kabaneriNormalDataGamesForLog(log));
+  if(key==='lowerBell')return comparePair(kabaneriLowerBellCountForLog(log),kabaneriLowerBellDataGamesForLog(log));
   if(key==='plainFlash'){
     const core=kabaneriChanceEyeTableSummary(logAllTimelineRows(log),machine).core;
     return comparePair(core.numerator,core.denominator);
