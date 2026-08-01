@@ -375,6 +375,17 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(stateText, /💡無名発光 終了/);
   assert.doesNotMatch(stateText, /💡無名発光 開始/);
   assert.doesNotMatch(stateHtml, /class="bm-btn[^"]*kabaneri-red/);
+  vm.runInContext(`
+    currentTimeline=[];
+    setTimelineGames(118,118);
+    ['kabaneri_chance_high','kabaneri_mumei_high','kabaneri_ikoma_high','kabaneri_kabane_high','kabaneri_mumei_flash','kabaneri_ikoma_flash','kabaneri_super_high'].forEach(id=>battleModeRecordState(id,'start'));
+  `, context);
+  const sevenBadgeHtml = vm.runInContext("renderBattleModeStateBadges()", context);
+  assert.equal((sevenBadgeHtml.match(/bm-state-badge/g) || []).length, 7);
+  assert.match(stripTags(sevenBadgeHtml), /🔥チャ目高確/);
+  assert.match(stripTags(sevenBadgeHtml), /🔥生駒高確/);
+  assert.match(stripTags(sevenBadgeHtml), /🔥カバネ高確/);
+  assert.match(stripTags(sevenBadgeHtml), /⚡超高確/);
   vm.runInContext("currentTimeline=[]; setTimelineGames(120,120); battleModeRecordTag('t_kabaneri_chance_mumei')", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /💡発光/);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /🔥高確/);
@@ -850,7 +861,10 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(style, /\.bm-grid\{[^}]*grid-auto-rows:minmax\(52px,auto\)/);
   assert.match(style, /\.bm-grid\{[^}]*align-content:start/);
   assert.doesNotMatch(style, /\.bm-grid\{[^}]*align-content:end/);
-  assert.match(style, /\.bm-shell\{[^}]*grid-template-rows:auto auto minmax\(0,1fr\) auto/);
+  assert.match(style, /\.bm-shell\{[^}]*grid-template-rows:auto auto auto auto minmax\(0,1fr\) auto auto auto/);
+  assert.match(style, /\.bm-state-badges\{[^}]*flex-wrap:wrap/);
+  assert.match(style, /\.bm-state-badges\{[^}]*align-content:flex-start/);
+  assert.match(style, /\.bm-state-badges\{[^}]*overflow:visible/);
   assert.doesNotMatch(style, /\.bm-grid\{[^}]*grid-template-rows:repeat\(4/);
 }
 
