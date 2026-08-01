@@ -388,22 +388,44 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(stripTags(sevenBadgeHtml), /⚡超高確/);
   vm.runInContext("currentTimeline=[]; setTimelineGames(120,120); battleModeRecordTag('t_kabaneri_chance_mumei')", context);
   const followUpOffHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
-  assert.match(stripTags(followUpOffHtml), /このチャンス目が成立した時点の状態/);
-  assert.match(stripTags(followUpOffHtml), /現在のバッジから推定：どちらでもない/);
-  assert.match(followUpOffHtml, /bm-state-choice active[^>]*>どちらでもない/);
-  assert.match(followUpOffHtml, /💡発光中/);
-  assert.match(followUpOffHtml, /🔥高確中/);
+  assert.match(stripTags(followUpOffHtml), /成立時：どちらでもない（バッジから）/);
+  assert.match(stripTags(followUpOffHtml), /ここから何が起きた？/);
+  assert.match(stripTags(followUpOffHtml), /変化なし/);
+  assert.match(followUpOffHtml, /💡発光開始/);
+  assert.match(followUpOffHtml, /🔥高確開始/);
+  assert.match(stripTags(followUpOffHtml), /両方開始/);
+  assert.match(stripTags(followUpOffHtml), /成立時を修正/);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
   vm.runInContext("closeBattleModeOtherSheet()", context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(119,119); battleModeRecordState('kabaneri_ikoma_high','start'); setTimelineGames(120,120); battleModeRecordTag('t_kabaneri_chance_ikoma')", context);
+  const followUpHighHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(stripTags(followUpHighHtml), /成立時：🔥高確中（バッジから）/);
+  assert.match(stripTags(followUpHighHtml), /変化なし/);
+  assert.match(followUpHighHtml, /💡発光開始/);
+  assert.doesNotMatch(followUpHighHtml, /🔥高確開始/);
+  vm.runInContext("battleModeRecordChanceFollowUp('t_kabaneri_chance_ikoma','flash')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_chance_ikoma', 't_kabaneri_state_ikoma_flash_start']
+  );
+  assert.match(vm.runInContext("timelineEntryText(currentTimeline.at(-1))", context), /生駒チャンス目（🔥中→💡開始）/);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.ikoma.single.high", context), 1);
   vm.runInContext("currentTimeline=[]; setTimelineGames(119,119); battleModeRecordState('kabaneri_ikoma_flash','start'); battleModeRecordState('kabaneri_ikoma_high','start'); setTimelineGames(120,120); battleModeRecordTag('t_kabaneri_chance_ikoma')", context);
-  const followUpBothHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
-  assert.match(stripTags(followUpBothHtml), /現在のバッジから推定：💡発光中🔥高確中/);
-  assert.match(followUpBothHtml, /bm-state-choice active[^>]*>.*💡発光中.*🔥高確中/);
-  vm.runInContext("battleModeRecordChanceFollowUp('t_kabaneri_chance_ikoma','high')", context);
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
     ['t_kabaneri_chance_ikoma']
+  );
+  assert.match(vm.runInContext("timelineEntryText(currentTimeline.at(-1))", context), /生駒チャンス目（💡🔥中→変化なし）/);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.ikoma.single.flashHigh", context), 1);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(120,120); openBattleModeChanceFollowUpPicker('t_kabaneri_chance_mumei'); openBattleModeChanceFollowUpStateOverridePicker('t_kabaneri_chance_mumei')", context);
+  const followUpOverrideHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(stripTags(followUpOverrideHtml), /バッジ状態と実機がズレている時だけ使います/);
+  assert.match(stripTags(followUpOverrideHtml), /💡発光中🔥高確中/);
+  vm.runInContext("battleModeRecordChanceFollowUp('t_kabaneri_chance_mumei','both',{stateChoice:'both'})", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_chance_mumei', 't_kabaneri_state_mumei_flash_start', 't_kabaneri_state_mumei_high_start']
   );
   vm.runInContext("currentTimeline=[]; setTimelineGames(120,120)", context);
   vm.runInContext("battleModeRecordChanceFollowUp('t_kabaneri_chance_mumei','flash')", context);
