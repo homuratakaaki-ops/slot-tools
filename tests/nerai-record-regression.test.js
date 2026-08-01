@@ -744,6 +744,13 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(stageHtml, /<button class="bm-btn bm-choice-neutral"[^>]*>雪月風花<\/button>/);
   assert.doesNotMatch(stageHtml, /tag-style-kabaneri-red/);
   assert.doesNotMatch(stageHtml, /tag-style-kabaneri-gold/);
+  const style = extractStyle();
+  const neutralIndex = style.indexOf('.bm-btn.bm-choice-neutral');
+  for (const color of ['red', 'green', 'blue', 'gold', 'sky']) {
+    const selector = `.bm-btn.bm-choice-text-${color}`;
+    assert.ok(style.includes(selector), `${selector} selector missing`);
+    assert.ok(style.indexOf(selector) > neutralIndex, `${selector} must be defined after neutral`);
+  }
   assert.equal(vm.runInContext("typeof openBattleModeKabaneriStagePicker", context), 'undefined');
   vm.runInContext("battleModeRecordKabaneriPickerTag('t_kabaneri_stage_fourth_tunnel')", context);
   assert.equal(vm.runInContext("currentTimeline.at(-1).tagIds.includes('t_kabaneri_stage_fourth_tunnel')", context), true);
@@ -951,8 +958,12 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(style, /\.bm-shell\{[^}]*max-height:none/);
   assert.match(style, /\.bm-shell\{[^}]*display:flex/);
   assert.match(style, /\.bm-shell\{[^}]*flex-direction:column/);
+  assert.match(style, /\.bm-shell>\*\{[^}]*flex-shrink:0/);
   assert.match(style, /\.bm-grid\{[^}]*display:flex/);
   assert.match(style, /\.bm-grid\{[^}]*flex-direction:column/);
+  assert.match(style, /\.bm-grid \.bm-btn,\.bm-sheet-grid \.bm-btn,\.bm-st-panel \.bm-btn\{[^}]*min-width:0/);
+  assert.match(style, /\.bm-grid \.bm-btn,\.bm-sheet-grid \.bm-btn,\.bm-st-panel \.bm-btn\{[^}]*overflow-wrap:anywhere/);
+  assert.match(style, /\.bm-event-row \.bm-btn\{[^}]*white-space:normal/);
   assert.doesNotMatch(style, /\.bm-shell\{[^}]*grid-template-rows/);
   assert.doesNotMatch(style, /\.bm-grid\{[^}]*grid-auto-rows/);
   assert.doesNotMatch(style, /\.bm-grid\{[^}]*grid-template-rows/);
@@ -961,6 +972,8 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(style, /\.bm-state-badges\{[^}]*align-content:flex-start/);
   assert.match(style, /\.bm-state-badges\{[^}]*overflow:visible/);
   const shellSource = fs.readFileSync(HTML_PATH, 'utf8').match(/<div class="bm-shell">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="bm-toast"/)?.[1] || '';
+  assert.match(shellSource, /id="battleModeVersion">UI 6y/);
+  assert.ok(shellSource.indexOf('battleModeVersion') < shellSource.indexOf('battleModeCheckpointStatus'));
   assert.ok(shellSource.indexOf('battleModeStateBadges') < shellSource.indexOf('battleModeCounters'));
   assert.ok(shellSource.indexOf('battleModeCounters') < shellSource.indexOf('battleModeGrid'));
   assert.ok(shellSource.indexOf('battleModeGrid') < shellSource.indexOf('battleModeRecent'));
@@ -1167,7 +1180,7 @@ function testKabaneriVoiceGroupRatioUsesSharedDenominator() {
   assert.equal(parsed.shared, '31.6%');
   assert.match(parsed.panel, /男6\(31\.6%\)/);
   assert.match(parsed.panel, /女5\(26\.3%\)/);
-  assert.match(parsed.panel, /弱6\(31\.6%\)\/中2\(10\.5%\)\/強0\(0\.0%\)/);
+  assert.doesNotMatch(parsed.panel, /景之|弱6|中2/);
   assert.match(parsed.recent, /ボイス男 ×6（31\.6%）/);
   assert.match(parsed.summary, /男性（示唆） ×6（31\.6%）/);
 }
@@ -1979,7 +1992,7 @@ function testBattleModeEventRowBeforeCounterRow() {
   assert.match(style, /\.bm-grid\{[^}]*display:flex/);
   assert.match(style, /\.bm-grid\{[^}]*flex-direction:column/);
   assert.match(style, /\.bm-quit-area\{[^}]*display:none/);
-  assert.match(style, /\.bm-event-row \.bm-btn\{[^}]*white-space:pre-line/);
+  assert.match(style, /\.bm-event-row \.bm-btn\{[^}]*white-space:normal/);
 }
 
 function testBattleModeHitStartScrollsNextInputOnlyFromBattleMode() {
@@ -2816,10 +2829,10 @@ function testKabaneriStFlowAndCounters() {
   assert.match(stGrid, /ST終了/);
   assert.match(stGrid, /bm-st-end-action/);
   assert.match(stGrid, /ボイス 男0\(-\)・女0\(-\)/);
-  assert.match(stGrid, /景之 弱0\(-\)\/中0\(-\)\/強0\(-\)/);
   assert.match(stGrid, /紹介 男0\(-\)・女0\(-\)/);
   assert.match(stGrid, /ボイス男/);
   assert.match(stGrid, /ボイス女/);
+  assert.doesNotMatch(stGrid, /景之/);
   assert.doesNotMatch(stGrid, /景之・弱/);
   assert.doesNotMatch(stGrid, /景之・中/);
   assert.doesNotMatch(stGrid, /景之・強/);
@@ -2859,7 +2872,7 @@ function testKabaneriStFlowAndCounters() {
   vm.runInContext("selectSuggestItem('sgp_kabaneri_setting_voice_i3')", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i3')", context), true);
   assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×1（100\.0%）/);
-  assert.match(vm.runInContext("renderKabaneriStPanel()", context), /景之 弱1\(100\.0%\)\/中0\(0\.0%\)\/強0\(0\.0%\)/);
+  assert.doesNotMatch(vm.runInContext("renderKabaneriStPanel()", context), /景之/);
   vm.runInContext("openSuggestItemPicker('sgc_kabaneri_setting','sgp_kabaneri_setting_voice','play')", context);
   vm.runInContext("selectSuggestItem('sgp_kabaneri_setting_voice_i6')", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i6')", context), true);
@@ -2896,7 +2909,7 @@ function testKabaneriStFlowAndCounters() {
   `, context);
   const stGridAfterTallies = vm.runInContext("renderKabaneriStPanel()", context);
   assert.match(stGridAfterTallies, /ボイス 男1\(20\.0%\)・女1\(20\.0%\)/);
-  assert.match(stGridAfterTallies, /景之 弱2\(40\.0%\)\/中0\(0\.0%\)\/強0\(0\.0%\)/);
+  assert.doesNotMatch(stGridAfterTallies, /景之/);
   assert.match(stGridAfterTallies, /紹介 男1\(33\.3%\)・女2\(66\.7%\)/);
   assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /下段ベル/);
   assert.equal(vm.runInContext("subCounterValue('introFemaleTally')", context), 2);

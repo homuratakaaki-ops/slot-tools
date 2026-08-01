@@ -480,6 +480,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-overlay{position:fixed;inset:0;z-index:9000;display:none;background:var(--bg);color:var(--text);padding:calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));overflow:auto;}
 .bm-overlay.open{display:flex;}
 .bm-shell{width:100%;max-width:480px;min-height:100%;height:auto;max-height:none;margin:0 auto;display:flex;flex-direction:column;gap:6px;}
+.bm-shell>*{flex-shrink:0;}
 .bm-header{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:8px;border-bottom:1px solid rgba(201,168,76,.28);padding:2px 0 7px;}
 .bm-title{min-width:0;font-size:13px;font-weight:900;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-close{width:48px;height:48px;border:1px solid rgba(201,168,76,.42);border-radius:8px;background:rgba(201,168,76,.08);color:var(--gold-light);font-size:24px;font-weight:900;cursor:pointer;}
@@ -511,7 +512,8 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-event-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
 .bm-other-row{display:grid;grid-template-columns:minmax(0,1fr);gap:7px;}
 .bm-btn{min-height:52px;border:1px solid rgba(201,168,76,.45);border-radius:8px;background:var(--surface2);color:var(--text);font-size:16px;font-weight:900;line-height:1.25;padding:8px;cursor:pointer;}
-.bm-event-row .bm-btn{min-height:58px;white-space:pre-line;}
+.bm-grid .bm-btn,.bm-sheet-grid .bm-btn,.bm-st-panel .bm-btn{min-width:0;max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:keep-all;}
+.bm-event-row .bm-btn{min-height:58px;white-space:normal;}
 .bm-btn:active,.bm-btn.pressed{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.16);}
 .bm-btn.counter{border-color:rgba(76,175,125,.58);background:rgba(76,175,125,.12);color:#a8efb4;}
 .bm-btn.other{border-color:rgba(98,181,255,.55);background:rgba(98,181,255,.1);color:#b9dcff;}
@@ -540,11 +542,11 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-btn.kabaneri-gold{background:#d99a24;border-color:#ffd36b;color:#241506;}
 .bm-btn.hit-variant-choice{background:var(--surface2);border-color:rgba(122,122,138,.42);color:var(--text);}
 .bm-btn.bm-choice-neutral{background:var(--surface2);border-color:rgba(122,122,138,.42);color:var(--text);}
-.bm-choice-text-red{color:#ff8b8b;font-weight:900;}
-.bm-choice-text-green{color:#62d28f;font-weight:900;}
-.bm-choice-text-blue{color:#8cbcff;font-weight:900;}
-.bm-choice-text-gold{color:#ffd36b;font-weight:900;}
-.bm-choice-text-sky{color:#7dd3fc;font-weight:900;}
+.bm-btn.bm-choice-text-red,.bm-choice-text-red{color:#ff8b8b;font-weight:900;}
+.bm-btn.bm-choice-text-green,.bm-choice-text-green{color:#62d28f;font-weight:900;}
+.bm-btn.bm-choice-text-blue,.bm-choice-text-blue{color:#8cbcff;font-weight:900;}
+.bm-btn.bm-choice-text-gold,.bm-choice-text-gold{color:#ffd36b;font-weight:900;}
+.bm-btn.bm-choice-text-sky,.bm-choice-text-sky{color:#7dd3fc;font-weight:900;}
 .hit-variant-tone-red{color:#ff8b8b;font-weight:900;}
 .hit-variant-tone-green{color:#62d28f;font-weight:900;}
 .hit-variant-tone-blue{color:#8cbcff;font-weight:900;}
@@ -613,6 +615,7 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-state-badges{display:flex;flex-wrap:wrap;align-content:flex-start;gap:6px;margin:6px 0 8px;min-height:0;overflow:visible;}
 .bm-state-badges:empty{display:none;}
 .bm-state-badge{min-height:32px;border:1px solid rgba(96,165,250,.45);border-radius:999px;background:rgba(96,165,250,.16);color:#bfdbfe;font-size:12px;font-weight:900;padding:5px 10px;cursor:pointer;appearance:none;line-height:1.2;}
+.bm-version{font-size:10px;font-weight:800;color:var(--text-muted);text-align:right;line-height:1;margin-top:-3px;}
 .bm-state-badge:active{transform:translateY(1px);filter:brightness(1.08);}
 .bm-state-badge.kabaneri-red{border-color:rgba(255,119,119,.74);background:rgba(199,54,54,.34);color:#fff7f7;}
 .bm-state-badge.kabaneri-green{border-color:rgba(69,200,120,.74);background:rgba(31,122,67,.36);color:#f4fff8;}
@@ -1118,6 +1121,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="bm-title" id="battleModeTitle">実戦モード</div>
       <button class="bm-close" type="button" onclick="closeBattleMode()" aria-label="閉じる">×</button>
     </div>
+    <div class="bm-version" id="battleModeVersion">UI 6y</div>
     <div id="battleModeCheckpointStatus"></div>
     <div class="bm-state-badges" id="battleModeStateBadges"></div>
     <div class="bm-counters" id="battleModeCounters"></div>
@@ -8780,7 +8784,7 @@ function kabaneriStPanelSummary(){
 function kabaneriStPanelSummaryHtml(){
   const summary=kabaneriStPanelSummary();
   const v=summary.voices;
-  return `<div class="bm-st-summary">ボイス 男${v.male}(${summary.voiceMalePct})・女${v.female}(${summary.voiceFemalePct})｜景之 弱${v.kageWeak}(${summary.kageWeakPct})/中${v.kageMid}(${summary.kageMidPct})/強${v.kageStrong}(${summary.kageStrongPct})｜紹介 男${summary.introMale}(${summary.introMalePct})・女${summary.introFemale}(${settingGroupPercentText(summary.introFemale,settingGroupTotal(kabaneriStIntroGroupRows()))})</div>`;
+  return `<div class="bm-st-summary">ボイス 男${v.male}(${summary.voiceMalePct})・女${v.female}(${summary.voiceFemalePct})｜紹介 男${summary.introMale}(${summary.introMalePct})・女${summary.introFemale}(${settingGroupPercentText(summary.introFemale,settingGroupTotal(kabaneriStIntroGroupRows()))})</div>`;
 }
 function kabaneriStVoiceRecentLabel(entry){
   if(!isKabaneriMachine(currentMachine())||entry?.placeId!=='sgp_kabaneri_setting_voice')return '';
