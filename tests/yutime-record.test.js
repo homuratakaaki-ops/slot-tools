@@ -50,4 +50,13 @@ close(c700.evYen, 2773, 0.01, '700/14 EV from primary formula');
 close(c700.totalHours, 1.16, 0.01, '700/14 hours');
 
 assert.equal(engine.logRate({ balls: 5000, spins: 340 }).toFixed(2), '17.00');
+assert.equal(engine.logRate({ usedBalls: 30000, normalSpin: 1200 }).toFixed(2), '10.00');
+assert.match(html, /const SCHEMA_VERSION = 2;/);
+assert.match(html, /endSpin,\s*payoutBalls/);
+assert.ok(html.includes("endSpin=endRaw===''?null"));
+assert.ok(html.includes("payoutBalls=payoutRaw===''?null"));
+assert.match(html, /打ち終わりが未入力です。途中保存しますか？/);
+assert.match(html, /この台を打つ/);
+assert.match(html, /前日最終回転数/);
+assert.match(html, /machineStats\(machine\)\.rate/);
 console.log('yutime-record tests passed');
