@@ -29,7 +29,8 @@ header p{font-size:12px;color:var(--text-muted);margin-top:4px;}
 .tab{flex:1;padding:12px 6px;text-align:center;font-size:12px;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;}
 .tab.active{color:var(--gold-light);border-bottom-color:var(--gold);}
 .page{display:none;padding:0 16px;max-width:480px;margin:0 auto;}
-.page.active{display:block;}
+.page:not(.active){display:none!important;visibility:hidden;pointer-events:none;}
+.page.active{display:block;visibility:visible;pointer-events:auto;}
 .section{margin-top:16px;}
 .section-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--gold);text-transform:uppercase;margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold);}
 .section-note{font-size:12px;color:var(--text-muted);margin-bottom:10px;line-height:1.7;}
@@ -428,8 +429,9 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .flow-step-tab{border:0;border-bottom:2px solid transparent;background:rgba(36,36,43,.62);color:var(--text-muted);border-radius:0;padding:9px 6px;font-size:12px;font-weight:800;cursor:pointer;text-align:center;}
 .flow-step-tab.active{border-bottom-color:var(--gold);background:rgba(201,168,76,.1);color:var(--gold-light);box-shadow:none;}
 .flow-step-tab .step-num{display:block;font-size:11px;color:var(--text-dim);margin-bottom:2px;}
-.flow-panel{display:none;}
-.flow-panel.active{display:block;}
+.flow-panel{display:none;visibility:hidden;pointer-events:none;}
+.flow-panel:not(.active){display:none!important;visibility:hidden;pointer-events:none;}
+.flow-panel.active{display:block;visibility:visible;pointer-events:auto;}
 .draft-note{display:block;margin-top:8px;color:var(--text-muted);font-size:12px;}
 .unfinalized-note{display:block;margin:6px 0 0;color:#ffb3b3;font-size:12px;font-weight:700;}
 .keypad-overlay{position:fixed;inset:0;background:rgba(0,0,0,.68);z-index:9200;display:none;align-items:center;justify-content:center;padding:16px;}
@@ -5961,8 +5963,14 @@ function sectionLabel(section){return section==='play'?'実戦中':'打ち始め
 function fieldTypeLabel(type){return {text:'テキスト',number:'数値',select:'選択式',checkbox:'チェックボックス',memo:'メモ欄',time:'時間',date:'日付'}[type]||'テキスト';}
 
 function showPage(pageId){
-  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
-  document.getElementById(pageId).classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>{
+    const isActive=p.id===pageId;
+    p.classList.toggle('active',isActive);
+    p.toggleAttribute?.('hidden',!isActive);
+    p.toggleAttribute?.('inert',!isActive);
+    p.inert=!isActive;
+    p.setAttribute('aria-hidden',isActive?'false':'true');
+  });
   document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
   const map={pageLog:'tabLog',pageLogs:'tabLogs',pageManage:'tabManage',pageFields:'tabFields'};
   document.getElementById(map[pageId])?.classList.add('active');
@@ -6234,7 +6242,12 @@ function renderFlowStepTabs(){
     </button>`).join('');
   document.querySelectorAll('#pageLog .flow-panel').forEach(panel=>{
     const step=Number(panel.dataset.flowStep||currentFlowStep);
-    panel.classList.toggle('active',!panel.dataset.flowStep||step===currentFlowStep);
+    const isActive=!panel.dataset.flowStep||step===currentFlowStep;
+    panel.classList.toggle('active',isActive);
+    panel.toggleAttribute?.('hidden',!isActive);
+    panel.toggleAttribute?.('inert',!isActive);
+    panel.inert=!isActive;
+    panel.setAttribute('aria-hidden',isActive?'false':'true');
   });
   const title=document.getElementById('dynamicFieldsTitle');
   if(title)title.textContent=flowStepLabel(currentFlowStep);

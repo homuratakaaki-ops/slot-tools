@@ -2081,6 +2081,62 @@ function testBattleModeKeypadOverlayStacksAboveBattleMode() {
   assert.ok(Number(keypad[1]) > Number(battle[1]), 'numeric keypad must stack above battle mode overlay');
 }
 
+function testFlowPanelsDoNotExposeInactiveSteps() {
+  const style = extractStyle();
+  assert.match(style, /\.page:not\(\.active\)\{[^}]*display:none!important;[^}]*visibility:hidden;[^}]*pointer-events:none/);
+  assert.match(style, /\.page\.active\{[^}]*display:block;[^}]*visibility:visible;[^}]*pointer-events:auto/);
+  assert.match(style, /\.flow-panel\{[^}]*display:none;[^}]*visibility:hidden;[^}]*pointer-events:none/);
+  assert.match(style, /\.flow-panel:not\(\.active\)\{[^}]*display:none!important;[^}]*visibility:hidden;[^}]*pointer-events:none/);
+  assert.match(style, /\.flow-panel\.active\{[^}]*display:block;[^}]*visibility:visible;[^}]*pointer-events:auto/);
+
+  const { context } = runRecord(undefined);
+  const states = JSON.parse(vm.runInContext(`
+    (() => {
+      function panel(step){
+        return {
+          dataset: step ? { flowStep:String(step) } : {},
+          hidden: false,
+          inert: false,
+          attrs: {},
+          classList: {
+            active: false,
+            toggle(name,value){ if(name==='active')this.active=!!value; }
+          },
+          toggleAttribute(name,value){
+            if(name==='hidden')this.hidden=!!value;
+            if(name==='inert')this.attrs.inert=value?'':'__removed__';
+          },
+          setAttribute(name,value){ this.attrs[name]=String(value); }
+        };
+      }
+      const panels=[panel(1),panel(null),panel(4),panel(4)];
+      const tabs={innerHTML:''};
+      const title={textContent:''};
+      const originalGet=document.getElementById;
+      const originalQuery=document.querySelectorAll;
+      document.getElementById=(id)=>id==='flowStepTabs'?tabs:id==='dynamicFieldsTitle'?title:originalGet(id);
+      document.querySelectorAll=(selector)=>selector==='#pageLog .flow-panel'?panels:originalQuery(selector);
+      currentFlowStep=4;
+      renderFlowStepTabs();
+      document.getElementById=originalGet;
+      document.querySelectorAll=originalQuery;
+      return JSON.stringify(panels.map(p=>({
+        active:p.classList.active,
+        hidden:p.hidden,
+        inert:p.inert,
+        inertAttr:p.attrs.inert,
+        ariaHidden:p.attrs['aria-hidden']
+      })));
+    })()
+  `, context));
+  assert.deepEqual(states, [
+    { active:false, hidden:true, inert:true, inertAttr:'', ariaHidden:'true' },
+    { active:true, hidden:false, inert:false, inertAttr:'__removed__', ariaHidden:'false' },
+    { active:true, hidden:false, inert:false, inertAttr:'__removed__', ariaHidden:'false' },
+    { active:true, hidden:false, inert:false, inertAttr:'__removed__', ariaHidden:'false' }
+  ]);
+}
+
 function testShopNoteOverlayOpensFromVisibleTop() {
   const style = extractStyle();
   assert.match(style, /#shopNoteOverlay\{[^}]*align-items:flex-start/);
@@ -4788,6 +4844,7 @@ function run() {
   testNewRegistrationGuardClosesOpenNoHitSegment();
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeKeypadOverlayStacksAboveBattleMode();
+  testFlowPanelsDoNotExposeInactiveSteps();
   testShopNoteOverlayOpensFromVisibleTop();
   testBattleModeMemoSheetTracksViewportOnResume();
   testBattleModeToastUsesTopPosition();
