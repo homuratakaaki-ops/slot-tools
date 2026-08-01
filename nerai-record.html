@@ -9195,6 +9195,14 @@ function chanceFollowUpExtraTagIds(followUp,choice){
   if((choice==='high'||choice==='both')&&followUp?.high&&!battleModeStateActiveForStartTag(followUp.high))ids.push(followUp.high);
   return ids;
 }
+function battleModeChanceFollowUpPresetChoice(followUp){
+  const flash=!!followUp?.flash&&battleModeStateActiveForStartTag(followUp.flash);
+  const high=!!followUp?.high&&battleModeStateActiveForStartTag(followUp.high);
+  if(flash&&high)return 'both';
+  if(flash)return 'flash';
+  if(high)return 'high';
+  return 'none';
+}
 function chanceFollowUpMultiChoiceTagIds(followUp,kind,choice){
   const members=Array.isArray(followUp?.members)?followUp.members:[];
   const key=kind==='high'?'high':'flash';
@@ -9225,10 +9233,10 @@ function stateAutoEndExtraTagIds(tagIds,machine=currentMachine()){
   return [...new Set(ids)];
 }
 function chanceFollowUpChoiceLabelHtml(choice){
-  if(choice==='flash')return '<span class="suggest-color-yellow">💡発光</span>';
-  if(choice==='high')return '<span class="suggest-color-red">🔥高確</span>';
-  if(choice==='both')return '<span class="suggest-color-yellow">💡発光</span><span class="suggest-color-red">🔥高確</span>';
-  return 'なし';
+  if(choice==='flash')return '<span class="suggest-color-yellow">💡発光中</span>';
+  if(choice==='high')return '<span class="suggest-color-red">🔥高確中</span>';
+  if(choice==='both')return '<span class="suggest-color-yellow">💡発光中</span><span class="suggest-color-red">🔥高確中</span>';
+  return 'どちらでもない';
 }
 function chanceFollowUpMultiMemberLabelHtml(member){
   const color=String(member?.color||'').trim();
@@ -9254,9 +9262,12 @@ function openBattleModeChanceFollowUpPicker(tagId){
   if(!tag||!followUp){battleModeRecordTagImmediate(tagId);return;}
   if(timelineDataValue()===null){battleModeInvalid('G数を入力してください');return;}
   const choices=['none','flash','high','both'];
+  const preset=battleModeChanceFollowUpPresetChoice(followUp);
   setBattleModeSheet(battleModeQuickTagLabel(tag),
-    '<div class="bm-sheet-note">チャンス目→状態変更の順に記録します。閉じると記録しません。</div>'+
-    choices.map(choice=>`<button class="bm-btn bm-state-choice" type="button" onclick="battleModeRecordChanceFollowUp('${escapeHtml(tag.id)}','${escapeHtml(choice)}')">${chanceFollowUpChoiceLabelHtml(choice)}</button>`).join('')
+    '<div class="bm-sheet-note">このチャンス目が成立した時点の状態を選びます（状態の変化は次のステップで記録します）</div>'+
+    `<div class="bm-sheet-note">現在のバッジから推定：<strong>${chanceFollowUpChoiceLabelHtml(preset)}</strong></div>`+
+    choices.map(choice=>`<button class="bm-btn bm-state-choice ${choice===preset?'active':''}" type="button" onclick="battleModeRecordChanceFollowUp('${escapeHtml(tag.id)}','${escapeHtml(choice)}')">${chanceFollowUpChoiceLabelHtml(choice)}</button>`).join('')+
+    `<button class="bm-btn bm-state-choice active" type="button" onclick="battleModeRecordChanceFollowUp('${escapeHtml(tag.id)}','${escapeHtml(preset)}')">選択済みで記録</button>`
   );
 }
 function battleModeRecordTagImmediate(id){

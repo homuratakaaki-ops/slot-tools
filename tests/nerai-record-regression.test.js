@@ -387,11 +387,25 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(stripTags(sevenBadgeHtml), /🔥カバネ高確/);
   assert.match(stripTags(sevenBadgeHtml), /⚡超高確/);
   vm.runInContext("currentTimeline=[]; setTimelineGames(120,120); battleModeRecordTag('t_kabaneri_chance_mumei')", context);
-  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /💡発光/);
-  assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /🔥高確/);
+  const followUpOffHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(stripTags(followUpOffHtml), /このチャンス目が成立した時点の状態/);
+  assert.match(stripTags(followUpOffHtml), /現在のバッジから推定：どちらでもない/);
+  assert.match(followUpOffHtml, /bm-state-choice active[^>]*>どちらでもない/);
+  assert.match(followUpOffHtml, /💡発光中/);
+  assert.match(followUpOffHtml, /🔥高確中/);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
   vm.runInContext("closeBattleModeOtherSheet()", context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(119,119); battleModeRecordState('kabaneri_ikoma_flash','start'); battleModeRecordState('kabaneri_ikoma_high','start'); setTimelineGames(120,120); battleModeRecordTag('t_kabaneri_chance_ikoma')", context);
+  const followUpBothHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(stripTags(followUpBothHtml), /現在のバッジから推定：💡発光中🔥高確中/);
+  assert.match(followUpBothHtml, /bm-state-choice active[^>]*>.*💡発光中.*🔥高確中/);
+  vm.runInContext("battleModeRecordChanceFollowUp('t_kabaneri_chance_ikoma','high')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_chance_ikoma']
+  );
+  vm.runInContext("currentTimeline=[]; setTimelineGames(120,120)", context);
   vm.runInContext("battleModeRecordChanceFollowUp('t_kabaneri_chance_mumei','flash')", context);
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
