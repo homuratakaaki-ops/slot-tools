@@ -517,7 +517,7 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(gridHtml, /カバネ/);
   assert.match(gridHtml, /複合/);
   assert.match(gridHtml, /pt示唆/);
-  assert.match(gridHtml, /おみくじ/);
+  assert.match(gridHtml, /おみくじ・キリ番/);
   assert.match(gridHtml, /ステージ/);
   assert.match(gridHtml, /当選・ヤメ・その他 ▼/);
   assert.doesNotMatch(gridHtml, /openBattleModePicker\('hit'\)/);
