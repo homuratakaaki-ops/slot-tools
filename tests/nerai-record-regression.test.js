@@ -810,8 +810,49 @@ function testKabaneriPresetSeedAndPickers() {
     assert.equal(row.logged, true, `${row.id} should register first item`);
   });
   const omikujiPlaces = JSON.parse(vm.runInContext("JSON.stringify(enabledSuggestPlaces('sgc_kabaneri_omikuji').map(place => [place.id, place.name, enabledSuggestItems('sgc_kabaneri_omikuji', place.id).length]))", context));
-  assert.deepEqual(omikujiPlaces.map(row => row[1]), ['輪廻くじ', 'アイテムくじ', 'キリ番演出']);
+  assert.deepEqual(omikujiPlaces.map(row => row[1]), ['キリ番演出', '輪廻くじ・周期', '輪廻くじ・CZ', 'アイテムくじ']);
   omikujiPlaces.forEach(row => assert.equal(row[2] > 0, true, `${row[0]} should have items`));
+  const omikujiGridHtml = vm.runInContext("renderBattleModeGrid()", context);
+  assert.ok(omikujiGridHtml.includes("openBattleModePicker('kabaneri_omikuji')"), 'kabaneri omikuji button onclick should exist');
+  vm.runInContext("openBattleModePicker('kabaneri_omikuji')", context);
+  const omikujiSheetHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(omikujiSheetHtml, /キリ番演出 ▼/);
+  assert.match(omikujiSheetHtml, /輪廻くじ・周期 ▼/);
+  assert.match(omikujiSheetHtml, /輪廻くじ・CZ ▼/);
+  const pickerCoverage = JSON.parse(vm.runInContext(`JSON.stringify((()=>{
+    const categoryByRef={kabaneri_point:'sgc_kabaneri_point',kabaneri_omikuji:'sgc_kabaneri_omikuji'};
+    return db.machines.map(machine=>{
+      selectedMachineId=machine.id;
+      selectedAimId=firstAimIdForMachine(currentMachine())||'';
+      const grid=renderBattleModeGrid();
+      const refs=battleModePanel().events.filter(item=>item&&item.type==='picker'&&categoryByRef[item.ref]).map(item=>item.ref);
+      return refs.map(ref=>{
+        const missing=[];
+        if(!grid.includes("openBattleModePicker('"+ref+"')"))missing.push('__button_onclick__');
+        openBattleModePicker(ref);
+        const html=__stateElements.battleModeOtherGrid.innerHTML;
+        const categoryId=categoryByRef[ref];
+        const places=enabledSuggestPlaces(categoryId);
+        missing.push(...places.filter(place=>{
+          const marker=place.flattenItems===true?place.name:(place.name+' ▼');
+          return !html.includes(marker);
+        }).map(place=>place.name));
+        return {machineId:machine.id,ref,missing};
+      });
+    }).flat();
+  })())`, context));
+  pickerCoverage.forEach(row => assert.deepEqual(row.missing, [], `${row.machineId}/${row.ref} missing ${row.missing.join(',')}`));
+  vm.runInContext("selectedMachineId='m_kabaneri'; selectedAimId=firstAimIdForMachine(currentMachine())||'';", context);
+  vm.runInContext("openBattleModeSuggestPlaceFromSheet('sgc_kabaneri_omikuji','sgp_kabaneri_omikuji_cz')", context);
+  assert.match(vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context), /無名・小吉/);
+  vm.runInContext("selectSuggestItem('sgp_kabaneri_omikuji_cz_i1')", context);
+  assert.equal(vm.runInContext("currentSuggestLog.at(-1).placeId", context), 'sgp_kabaneri_omikuji_cz');
+  assert.equal(vm.runInContext("currentSuggestLog.at(-1).itemId", context), 'sgp_kabaneri_omikuji_cz_i1');
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /無名・小吉/);
+  assert.equal(vm.runInContext("kabaneriGenealogyAllChains().mumei.ongoing.chips.some(chip => String(chip.label).includes('無名・小吉'))", context), true);
+  assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /示唆/);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.placeId === 'sgp_kabaneri_omikuji_cz' && entry.itemId === 'sgp_kabaneri_omikuji_cz_i1')", context), false);
   vm.runInContext("openSuggestItemPicker('sgc_kabaneri_omikuji','sgp_kabaneri_point_kiriban','play')", context);
   const kiribanHtml = vm.runInContext("__stateElements.suggestPickerOptions.innerHTML", context);
   assert.doesNotMatch(kiribanHtml, /デフォルト/);

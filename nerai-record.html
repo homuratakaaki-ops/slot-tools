@@ -2897,6 +2897,7 @@ function normalizeData(data){
     ensureKabaneriSuggestSeedV12(m);
     ensureKabaneriSuggestSeedV13(m);
     ensureKabaneriSuggestSeedV14(m);
+    ensureKabaneriOmikujiPlacesSeedV1(m);
     ensureKabaneriPanelSeedV12(m);
     ensureKabaneriCounterSeed(m);
     ensureKabaneriReelFlashSeedV1(m);
@@ -5311,6 +5312,31 @@ function ensureKabaneriSuggestSeedV14(machine){
   machine.kabaneriSuggestSeedV14=true;
   applySuggestMetadata(machine);
 }
+function ensureKabaneriOmikujiPlacesSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriOmikujiPlacesSeedV1)return;
+  ensureKabaneriSuggestSeedV14(machine);
+  const omikuji=ensureSuggestCategory(machine,KABANERI_OMIKUJI_CATEGORY_ID,'おみくじ');
+  const cycle=findSuggestPlace(omikuji,'sgp_kabaneri_omikuji_cycle');
+  if(cycle){
+    cycle.name='輪廻くじ・周期';
+    cycle.enabled=true;
+    cycle.stateGroup='play';
+  }
+  const cz=findSuggestPlace(omikuji,'sgp_kabaneri_omikuji_cz');
+  if(cz){
+    cz.name='輪廻くじ・CZ';
+    cz.enabled=true;
+    cz.stateGroup='play';
+  }
+  const kiriban=findSuggestPlace(omikuji,'sgp_kabaneri_point_kiriban');
+  if(kiriban){
+    kiriban.enabled=true;
+    kiriban.stateGroup='play';
+  }
+  reorderSuggestPlaces(omikuji,['キリ番演出','輪廻くじ・周期','輪廻くじ・CZ','アイテムくじ']);
+  machine.kabaneriOmikujiPlacesSeedV1=true;
+  applySuggestMetadata(machine);
+}
 function ensureKabaneriPanelSeedV12(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriPanelSeedV12)return;
   machine.quickPanel=normalizeQuickPanel({
@@ -6234,7 +6260,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriMumeiIkomaHighManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriShunjoPtBeforeThroughSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriStagePickerToneSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriOmikujiPlacesSeedV1(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriMumeiIkomaHighManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriShunjoPtBeforeThroughSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriStagePickerToneSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -6280,6 +6306,7 @@ function addMachine(){
   ensureKabaneriSuggestSeedV12(machine);
   ensureKabaneriSuggestSeedV13(machine);
   ensureKabaneriSuggestSeedV14(machine);
+  ensureKabaneriOmikujiPlacesSeedV1(machine);
   ensureKabaneriPanelSeedV12(machine);
   ensureKabaneriCounterSeed(machine);
   ensureKabaneriReelFlashSeedV1(machine);
