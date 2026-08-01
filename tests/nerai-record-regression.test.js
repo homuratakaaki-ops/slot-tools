@@ -999,7 +999,8 @@ function testKabaneriChanceEyeSituationView() {
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.carryover.kabane", context), 1);
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.kabane.single.normalNoFlash", context), 1);
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.rows.ikoma.single.normalNoFlash", context), 1);
-  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.rows.mumei.single.total", context), 0);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.carryover.mumei", context), 1);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.rows.mumei.single.total", context), 1);
   assert.equal(vm.runInContext("kabaneriChanceEyeCoreLine(kabaneriChanceEyeTableSummary())", context), '無→💡率（単独・無名+生駒・通算固定）0/2 (0.0%)');
   vm.runInContext("openBattleModeKabaneriChanceEyeSheet('total')", context);
   const carryHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
@@ -1008,6 +1009,52 @@ function testKabaneriChanceEyeSituationView() {
   const sinceHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   assert.match(sinceHtml, /前回CZから/);
   assert.match(sinceHtml, /active/);
+
+  vm.runInContext(`
+    currentTimeline=[
+      {id:'scope_m1',game:10,liquidGame:10,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:00'},
+      {id:'scope_m2',game:11,liquidGame:11,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:01'},
+      {id:'scope_m3',game:12,liquidGame:12,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:02'},
+      {id:'scope_m4',game:13,liquidGame:13,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:03'},
+      {id:'scope_m5',game:14,liquidGame:14,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:04'},
+      {id:'scope_i1',game:20,liquidGame:20,text:'生駒チャンス目',tagIds:['t_kabaneri_chance_ikoma'],countAs:[],createdAt:'2026-07-30T12:05'},
+      {id:'scope_i2',game:21,liquidGame:21,text:'生駒チャンス目',tagIds:['t_kabaneri_chance_ikoma'],countAs:[],createdAt:'2026-07-30T12:06'},
+      {id:'scope_i3',game:22,liquidGame:22,text:'生駒チャンス目',tagIds:['t_kabaneri_chance_ikoma'],countAs:[],createdAt:'2026-07-30T12:07'},
+      {id:'scope_i4',game:30,liquidGame:30,text:'生駒CZ 終了',tagIds:['t_kabaneri_cz_ikoma_end'],countAs:[],createdAt:'2026-07-30T12:08'},
+      {id:'scope_k1',game:40,liquidGame:40,text:'カバネチャンス目',tagIds:['t_kabaneri_chance_kabane'],countAs:[],createdAt:'2026-07-30T12:09'},
+      {id:'scope_c1',game:50,liquidGame:50,text:'周期+1',tagIds:['t_kabaneri_cycle'],countAs:[],createdAt:'2026-07-30T12:10'}
+    ];
+    currentHitEvents=[];
+  `, context);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.rows.mumei.single.total", context), 5);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.rows.ikoma.single.total", context), 0);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.rows.kabane.single.total", context), 0);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.total", context), 5);
+  assert.equal(vm.runInContext("kabaneriChanceEyeCoreLine(kabaneriChanceEyeTableSummary())", context), '無→💡率（単独・無名+生駒・通算固定）0/8 (0.0%)');
+
+  vm.runInContext(`
+    currentTimeline=[
+      {id:'scope_hit_m1',game:10,liquidGame:10,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T13:00'},
+      {id:'scope_hit_k1',game:20,liquidGame:20,text:'カバネチャンス目',tagIds:['t_kabaneri_chance_kabane'],countAs:[],createdAt:'2026-07-30T13:01'}
+    ];
+    currentHitEvents=[normalizeHitEvent({id:'scope_hit_cycle',trigger:'direct_at',variant:'cycle',dataGame:30,liquidGame:30,createdAt:'2026-07-30T13:02'})];
+  `, context);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary(currentTimeline,currentMachine(),currentHitEvents).sinceCz.rows.kabane.single.total", context), 0);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary(currentTimeline,currentMachine(),currentHitEvents).sinceCz.rows.mumei.single.total", context), 1);
+
+  vm.runInContext(`
+    currentTimeline=[
+      {id:'scope_carry_1',game:81,liquidGame:81,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T14:00'},
+      {id:'scope_carry_2',game:100,liquidGame:100,text:'無名CZ 突入',tagIds:['t_kabaneri_cz_mumei_start'],countAs:[],createdAt:'2026-07-30T14:01'},
+      {id:'scope_carry_3',game:110,liquidGame:110,text:'無名CZ 終了',tagIds:['t_kabaneri_cz_mumei_end'],countAs:[],createdAt:'2026-07-30T14:02'},
+      {id:'scope_carry_4',game:150,liquidGame:150,text:'最終防衛',tagIds:['t_kabaneri_stage_final_defense'],countAs:[],createdAt:'2026-07-30T14:03'},
+      {id:'scope_carry_5',game:151,liquidGame:151,text:'カバネチャンス目',tagIds:['t_kabaneri_chance_kabane'],countAs:[],createdAt:'2026-07-30T14:04'},
+      {id:'scope_carry_6',game:160,liquidGame:160,text:'周期+1',tagIds:['t_kabaneri_cycle'],countAs:[],createdAt:'2026-07-30T14:05'}
+    ];
+    currentHitEvents=[];
+  `, context);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.carryover.mumei", context), 1);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.carryover.kabane", context), 1);
 
   vm.runInContext("currentTimeline=[];", context);
   assert.equal(vm.runInContext("kabaneriChanceEyeCoreLine(kabaneriChanceEyeTableSummary())", context), '無→💡率（単独・無名+生駒・通算固定）—');

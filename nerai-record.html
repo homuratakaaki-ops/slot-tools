@@ -7615,8 +7615,8 @@ const KABANERI_CHANCE_EYE_TABLE_COLUMNS=[
   {key:'total',label:'計'}
 ];
 const KABANERI_CHANCE_EYE_TABLE_CHARS=[
-  {key:'mumei',label:'無名',tone:'red',singleId:'t_kabaneri_chance_mumei',flashStart:'t_kabaneri_state_mumei_flash_start',flashEnd:'t_kabaneri_state_mumei_flash_end',highStart:'t_kabaneri_state_mumei_high_start',highEnd:'t_kabaneri_state_mumei_high_end',czStart:'t_kabaneri_cz_mumei_start'},
-  {key:'ikoma',label:'生駒',tone:'green',singleId:'t_kabaneri_chance_ikoma',flashStart:'t_kabaneri_state_ikoma_flash_start',flashEnd:'t_kabaneri_state_ikoma_flash_end',highStart:'t_kabaneri_state_ikoma_high_start',highEnd:'t_kabaneri_state_ikoma_high_end',czStart:'t_kabaneri_cz_ikoma_start'},
+  {key:'mumei',label:'無名',tone:'red',singleId:'t_kabaneri_chance_mumei',flashStart:'t_kabaneri_state_mumei_flash_start',flashEnd:'t_kabaneri_state_mumei_flash_end',highStart:'t_kabaneri_state_mumei_high_start',highEnd:'t_kabaneri_state_mumei_high_end',czStart:'t_kabaneri_cz_mumei_start',czEnd:'t_kabaneri_cz_mumei_end'},
+  {key:'ikoma',label:'生駒',tone:'green',singleId:'t_kabaneri_chance_ikoma',flashStart:'t_kabaneri_state_ikoma_flash_start',flashEnd:'t_kabaneri_state_ikoma_flash_end',highStart:'t_kabaneri_state_ikoma_high_start',highEnd:'t_kabaneri_state_ikoma_high_end',czStart:'t_kabaneri_cz_ikoma_start',czEnd:'t_kabaneri_cz_ikoma_end'},
   {key:'kabane',label:'カバネ',tone:'blue',singleId:'t_kabaneri_chance_kabane',flashStart:'t_kabaneri_state_kabane_flash_start',flashEnd:'t_kabaneri_state_kabane_flash_end',highStart:'t_kabaneri_state_kabane_high_start',highEnd:'t_kabaneri_state_kabane_high_end',czStart:''}
 ];
 let kabaneriChanceEyeTableScope='sinceCz';
@@ -7734,6 +7734,10 @@ function kabaneriChanceEyeAllTimelineRows(){
   const segmentRows=[...currentSegments].reverse().flatMap(segment=>Array.isArray(segment?.timeline)?segment.timeline:[]);
   return kabaneriChanceEyeTimelineRows([...segmentRows,...currentTimeline]);
 }
+function kabaneriChanceEyeAllHitRows(){
+  const segmentRows=[...currentSegments].reverse().flatMap(segment=>Array.isArray(segment?.hitEvents)?segment.hitEvents:[]);
+  return sortByCreatedAtWithIndex([...segmentRows,...currentHitEvents],false);
+}
 function kabaneriChanceEyeMembersForEntry(entry,machine=currentMachine()){
   const ids=timelineTagIds(entry);
   const members=[];
@@ -7801,19 +7805,63 @@ function updateKabaneriChanceEyeStageState(entry,active){
   if(!timelineHasAnyTag(entry,KABANERI_STAGE_TAG_IDS))return;
   active.finalDefense=timelineHasAnyTag(entry,['t_kabaneri_stage_final_defense']);
 }
-function kabaneriChanceEyeTableSummary(timeline=currentTimeline,machine=currentMachine()){
+function kabaneriChanceEyeCycleHitBoundaryRows(hitEvents=[]){
+  return (Array.isArray(hitEvents)?hitEvents:[])
+    .filter(event=>event?.variant==='cycle')
+    .map((event,index)=>({kind:'hit',entry:event,createdAt:event?.createdAt||'',sortIndex:index}));
+}
+function kabaneriChanceEyeTableBoundaryIndexes(rows,hitEvents=[]){
+  const boundary={mumei:-1,ikoma:-1,kabane:-1};
+  rows.forEach((row,index)=>{
+    KABANERI_CHANCE_EYE_TABLE_CHARS.forEach(char=>{
+      if(char.czEnd&&timelineHasAnyTag(row,[char.czEnd]))boundary[char.key]=index;
+    });
+    if(timelineHasAnyTag(row,['t_kabaneri_cycle']))boundary.kabane=index;
+  });
+  const mixedRows=[
+    ...rows.map((entry,index)=>({kind:'timeline',entry,index,createdAt:entry?.createdAt||'',sortIndex:index})),
+    ...kabaneriChanceEyeCycleHitBoundaryRows(hitEvents)
+  ];
+  sortByCreatedAtWithIndex(mixedRows,false).forEach(row=>{
+    if(row.kind!=='hit')return;
+    boundary.kabane=rows.reduce((latest,entry,index)=>{
+      const rowTime=String(row.createdAt||'');
+      const entryTime=String(entry?.createdAt||'');
+      return entryTime&&rowTime&&entryTime<=rowTime?index:latest;
+    },boundary.kabane);
+  });
+  return boundary;
+}
+function kabaneriChanceEyeCarryoverMovesIntoScope(rows,index,charKey,boundaryIndex,finalDefenseActive){
+  if(!(boundaryIndex>=0)||index>boundaryIndex)return false;
+  const char=kabaneriChanceEyeTableChar(charKey);
+  if(!char)return false;
+  if(charKey==='kabane')return !!finalDefenseActive&&boundaryIndex>index;
+  if(!char.czStart)return false;
+  for(let i=index+1;i<=boundaryIndex&&i<rows.length;i++){
+    const diff=kabaneriChanceEyeAxisDistance(rows[index],rows[i]);
+    if(diff!==null&&diff>20)break;
+    if(diff!==null&&diff<0)continue;
+    if(diff===null&&i>index+8)break;
+    if(timelineHasAnyTag(rows[i],[char.czStart]))return true;
+  }
+  return false;
+}
+function kabaneriChanceEyeTableSummary(timeline=currentTimeline,machine=currentMachine(),hitEvents=[]){
   const rows=kabaneriChanceEyeTimelineRows(timeline);
-  const lastCzStartIndex=rows.reduce((latest,row,index)=>timelineHasAnyTag(row,KABANERI_CZ_START_IDS)?index:latest,-1);
+  const boundaryIndexes=kabaneriChanceEyeTableBoundaryIndexes(rows,hitEvents);
   const summary={sinceCz:emptyKabaneriChanceEyeTableBucket(),total:emptyKabaneriChanceEyeTableBucket(),core:{numerator:0,denominator:0}};
   const active={flash:new Set(),high:new Set(),super:false,finalDefense:false};
   rows.forEach((entry,index)=>{
     const members=kabaneriChanceEyeMembersForEntry(entry,machine);
     members.forEach(member=>{
       const carryover=kabaneriChanceEyeIsCarryover(rows,index,member.charKey,active.finalDefense);
-      const inScope=index>lastCzStartIndex;
+      const inScope=index>(boundaryIndexes[member.charKey]??-1);
       if(carryover){
         addKabaneriChanceEyeCarryover(summary.total,member.charKey);
-        if(inScope)addKabaneriChanceEyeCarryover(summary.sinceCz,member.charKey);
+        if(inScope||kabaneriChanceEyeCarryoverMovesIntoScope(rows,index,member.charKey,boundaryIndexes[member.charKey]??-1,active.finalDefense)){
+          addKabaneriChanceEyeCarryover(summary.sinceCz,member.charKey);
+        }
         return;
       }
       const column=kabaneriChanceEyeColumnForChar(rows,index,member.charKey,active);
@@ -8323,7 +8371,7 @@ function setKabaneriChanceEyeTableScope(scope){
   openBattleModeKabaneriChanceEyeSheet(kabaneriChanceEyeTableScope);
 }
 function battleModeKabaneriChanceEyeSituationHtml(){
-  const data=kabaneriChanceEyeTableSummary(kabaneriChanceEyeAllTimelineRows());
+  const data=kabaneriChanceEyeTableSummary(kabaneriChanceEyeAllTimelineRows(),currentMachine(),kabaneriChanceEyeAllHitRows());
   const scope=kabaneriChanceEyeTableScope==='total'?'total':'sinceCz';
   const bucket=data[scope];
   return `
