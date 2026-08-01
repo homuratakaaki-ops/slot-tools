@@ -861,7 +861,11 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(style, /\.bm-grid\{[^}]*grid-auto-rows:minmax\(52px,auto\)/);
   assert.match(style, /\.bm-grid\{[^}]*align-content:start/);
   assert.doesNotMatch(style, /\.bm-grid\{[^}]*align-content:end/);
-  assert.match(style, /\.bm-shell\{[^}]*grid-template-rows:auto auto auto auto minmax\(0,1fr\) auto auto auto/);
+  assert.match(style, /\.bm-overlay\{[^}]*overflow:auto/);
+  assert.match(style, /\.bm-shell\{[^}]*height:auto/);
+  assert.match(style, /\.bm-shell\{[^}]*max-height:none/);
+  assert.match(style, /\.bm-shell\{[^}]*grid-template-rows:auto auto auto auto auto auto auto auto/);
+  assert.doesNotMatch(style, /\.bm-shell\{[^}]*minmax\(0,1fr\)/);
   assert.match(style, /\.bm-state-badges\{[^}]*flex-wrap:wrap/);
   assert.match(style, /\.bm-state-badges\{[^}]*align-content:flex-start/);
   assert.match(style, /\.bm-state-badges\{[^}]*overflow:visible/);
