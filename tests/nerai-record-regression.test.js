@@ -1110,32 +1110,66 @@ function testKabaneriChanceEyeSituationView() {
 
 function testKabaneriSettingSummaryGroupRatiosAndCurrentLabels() {
   const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
   const html = vm.runInContext(`
     selectedMachineId='m_kabaneri';
     selectedAimId=firstAimIdForMachine(currentMachine())||'';
     const legacyTrophy={id:'legacy_trophy',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_trophy',itemId:'sgp_kabaneri_setting_trophy_i1',category:'設定示唆',place:'サミートロフィー',item:'銅（確定級）',carryType:'setting',createdAt:'2026-07-31T10:00'};
+    const legacyFallback={id:'legacy_fallback',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_trophy',itemId:'unknown_legacy',category:'設定示唆',place:'サミートロフィー',item:'謎（確定級）',carryType:'setting',createdAt:'2026-07-31T10:00:30'};
+    const legacyGenealogy={id:'legacy_genealogy',categoryId:'sgc_kabaneri_point',placeId:'sgp_kabaneri_point_minichara',itemId:'sgp_kabaneri_point_minichara_i3',category:'規定pt示唆',place:'ミニキャラ',item:'無名・もうすぐだよ（確定級）',carryType:'mode',pointRole:'hint',dataGame:120,liquidGame:120,createdAt:'2026-07-31T10:00:45'};
     const entries=[
       legacyTrophy,
+      legacyFallback,
+      legacyGenealogy,
       {id:'st_default_1',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_st_end',itemId:'sgi_kabaneri_st_end_default',category:'設定示唆',place:'ST終了画面',item:'デフォルト',carryType:'setting',createdAt:'2026-07-31T10:01'},
       {id:'st_default_2',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_st_end',itemId:'sgi_kabaneri_st_end_default',category:'設定示唆',place:'ST終了画面',item:'デフォルト',carryType:'setting',createdAt:'2026-07-31T10:02'},
       {id:'st_default_3',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_st_end',itemId:'sgi_kabaneri_st_end_default',category:'設定示唆',place:'ST終了画面',item:'デフォルト',carryType:'setting',createdAt:'2026-07-31T10:03'},
       {id:'st_ayame_1',categoryId:'sgc_kabaneri_setting',placeId:'sgp_kabaneri_setting_st_end',itemId:'sgi_kabaneri_st_end_ayame',category:'設定示唆',place:'ST終了画面',item:'菖蒲（高設定示唆）',carryType:'setting',createdAt:'2026-07-31T10:04'}
     ];
     const rows=settingSummaryRows(currentMachine(),entries);
+    currentSuggestLog=entries;
+    renderCurrentSuggestLog();
+    const log={id:'legacy_log',machineId:'m_kabaneri',sessionId:'legacy_session',aimNumber:1,date:'2026-08-01',createdAt:'2026-08-01T10:00',segments:[{id:'legacy_seg',branch:1,createdAt:'2026-08-01T10:00',timeline:[],suggestLog:entries,hitEvents:[]}],suggestLog:entries,hitEvents:[]};
+    const aim={aimNumber:1,logs:[log]};
+    openBattleModeOtherSheet();
+    const otherHtml=__stateElements.battleModeOtherGrid.innerHTML;
+    openSuggestItemPicker('sgc_kabaneri_setting','sgp_kabaneri_setting_trophy','hit');
+    const pickerHtml=__stateElements.suggestPickerOptions.innerHTML;
+    const combined=[
+      suggestLogLine(legacyTrophy),
+      suggestLogLine(legacyFallback),
+      suggestLogLineHtml(legacyTrophy),
+      suggestLogLineHtml(legacyFallback),
+      renderBattleModeRecent(),
+      __stateElements.suggestLogList.innerHTML,
+      renderSettingSummaryBlock(rows),
+      organizedRowsHtml(aim),
+      organizedDetailText(aim),
+      organizedShortText(aim),
+      organizedSettingSummaryPanelHtml(aim),
+      battleModeKabaneriGenealogyHtml(),
+      otherHtml,
+      pickerHtml
+    ].join('\\n');
     JSON.stringify({
       line:suggestLogLine(legacyTrophy),
+      fallback:suggestLogLine(legacyFallback),
+      combined,
       html:renderSettingSummaryBlock(rows)
     });
   `, context);
   const parsed = JSON.parse(html);
   assert.match(parsed.line, /銅（設定2以上濃厚）/);
+  assert.match(parsed.fallback, /謎/);
   assert.doesNotMatch(parsed.line, /確定級/);
+  assert.doesNotMatch(parsed.fallback, /確定級/);
   assert.match(parsed.html, /ST終了画面/);
   assert.match(parsed.html, /デフォルト ×3（75\.0%）/);
   assert.match(parsed.html, /菖蒲（高設定示唆） ×1（25\.0%）/);
   assert.match(parsed.html, /出現：銅（設定2以上濃厚）/);
   assert.doesNotMatch(parsed.html, /銅（設定2以上濃厚） ×/);
   assert.doesNotMatch(parsed.html, /確定級/);
+  assert.doesNotMatch(parsed.combined, /確定級/);
 }
 
 function testKabaneriVoiceGroupRatioUsesSharedDenominator() {
@@ -2622,6 +2656,11 @@ function testKabaneriShunjoPtStep() {
   assert.match(html, /タップで入力/);
   assert.match(html, /id="shunjoPtInputChip"/);
   assert.doesNotMatch(html, /id="shunjoPtInput" class="numeric-input"/);
+  assert.match(html, /bm-count-stepper/);
+  assert.match(html, /単独チャ目回数/);
+  assert.match(html, /うち3000pt獲得/);
+  assert.match(html, /adjustShunjoPtCount\('shunjoPtTanChaCount',1\)/);
+  assert.match(html, /adjustShunjoPtCount\('shunjoPtTanChaCount',-1\)/);
   assert.match(html, /不明（スキップ）/);
 
   vm.runInContext(`
@@ -2629,18 +2668,29 @@ function testKabaneriShunjoPtStep() {
     __stateElements.shunjoPtInputChip = { textContent: 'タップで入力', classList: { toggle() {} } };
     __stateElements.shunjoPtTanChaCount = { value: '0' };
     __stateElements.shunjoPtTanCha3000Count = { value: '0' };
+    __stateElements.shunjoPtTanChaCountDisplay = { textContent: '0' };
+    __stateElements.shunjoPtTanCha3000CountDisplay = { textContent: '0' };
     __stateElements.numericKeypadOverlay = { classList: { add() {}, remove() {} } };
     __stateElements.numericKeypadLabel = { textContent: '' };
     __stateElements.numericKeypadValue = { textContent: '' };
     __stateElements.numericKeypadHint = { textContent: '', classList: { add() {}, remove() {} } };
     openKabaneriStNumericInput('shunjoPtInput','最終pt');
     pressKeypad('4'); pressKeypad('1'); pressKeypad('0'); pressKeypad('0'); closeNumericKeypad();
-    setShunjoPtCount('shunjoPtTanChaCount',3);
-    setShunjoPtCount('shunjoPtTanCha3000Count',2);
+    adjustShunjoPtCount('shunjoPtTanChaCount',1);
+    adjustShunjoPtCount('shunjoPtTanChaCount',1);
+    adjustShunjoPtCount('shunjoPtTanChaCount',1);
+    adjustShunjoPtCount('shunjoPtTanChaCount',1);
+    globalThis.__shunjoTanChaAfterFour = __stateElements.shunjoPtTanChaCountDisplay.textContent;
+    adjustShunjoPtCount('shunjoPtTanChaCount',-1);
+    adjustShunjoPtCount('shunjoPtTanCha3000Count',1);
+    adjustShunjoPtCount('shunjoPtTanCha3000Count',1);
     submitShunjoPtStep();
   `, context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 1);
   assert.equal(vm.runInContext("__stateElements.shunjoPtInputChip.textContent", context), '4100');
+  assert.equal(vm.runInContext("__shunjoTanChaAfterFour", context), '4');
+  assert.equal(vm.runInContext("__stateElements.shunjoPtTanChaCountDisplay.textContent", context), '3');
+  assert.equal(vm.runInContext("__stateElements.shunjoPtTanCha3000CountDisplay.textContent", context), '2');
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline[0].tagIds)", context)),
     ['t_kabaneri_shunjo_pt']
