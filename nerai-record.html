@@ -2900,6 +2900,7 @@ function normalizeData(data){
     ensureKabaneriThroughNoFlowSeedV1(m);
     ensureKabaneriChanceFollowUpSeedV1(m);
     ensureKabaneriKabaneHighManualStartSeedV1(m);
+    ensureKabaneriMumeiIkomaHighManualStartSeedV1(m);
     ensureKabaneriChanceFollowUpMultiSeedV1(m);
     ensureKabaneriStateAutoEndSeedV1(m);
     ensureKabaneriMumeiDefeatSeedV1(m);
@@ -5421,6 +5422,16 @@ function ensureKabaneriKabaneHighManualStartSeedV1(machine){
   }));
   machine.kabaneriKabaneHighManualStartSeedV1=true;
 }
+function ensureKabaneriMumeiIkomaHighManualStartSeedV1(machine){
+  if(!machine||!isKabaneriMachine(machine)||machine.kabaneriMumeiIkomaHighManualStartSeedV1)return;
+  const manualStateIds=new Set(['kabaneri_mumei_high','kabaneri_ikoma_high']);
+  machine.states=normalizeMachineStates(machineStates(machine).map(state=>{
+    if(!manualStateIds.has(state.id))return state;
+    const {startViaFollowUpOnly,...rest}=state;
+    return rest;
+  }));
+  machine.kabaneriMumeiIkomaHighManualStartSeedV1=true;
+}
 function ensureKabaneriChanceFollowUpMultiSeedV1(machine){
   if(!machine||!isKabaneriMachine(machine)||machine.kabaneriChanceFollowUpMultiSeedV1)return;
   const mumei={label:'無名',color:'red',flash:'t_kabaneri_state_mumei_flash_start',high:'t_kabaneri_state_mumei_high_start'};
@@ -6206,7 +6217,7 @@ function switchFlowStep(step){
 
 function renderAll(){
   ensurePresetMachines(db);
-  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriShunjoPtBeforeThroughSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriStagePickerToneSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
+  db.machines.forEach(m=>{ensureRequiredAims(m);ensureSuggestSeed(m);ensureMonkeyTurnSeed(m);ensureNangokuSpecialSeed(m);ensureKarakuriCircus2Seed(m);ensureKabaneriSeed(m);ensureKabaneriUiSeedV11(m);ensureKabaneriSuggestSeedV11(m);ensureKabaneriSuggestSeedV12(m);ensureKabaneriSuggestSeedV13(m);ensureKabaneriSuggestSeedV14(m);ensureKabaneriPanelSeedV12(m);ensureKabaneriCounterSeed(m);ensureKabaneriReelFlashSeedV1(m);ensureKabaneriHitCauseSeedV1(m);ensureKabaneriHitCauseFirstSeedV1(m);ensureKabaneriCounterDisplayBaseSeedV1(m);ensureKabaneriLowerBellPreserveSeedV1(m);ensureKabaneriEpisodeAutoStSeedV1(m);ensureKabaneriThroughNoFlowSeedV1(m);ensureKabaneriChanceFollowUpSeedV1(m);ensureKabaneriKabaneHighManualStartSeedV1(m);ensureKabaneriMumeiIkomaHighManualStartSeedV1(m);ensureKabaneriChanceFollowUpMultiSeedV1(m);ensureKabaneriStateAutoEndSeedV1(m);ensureKabaneriMumeiDefeatSeedV1(m);ensureKabaneriShunjoPtSeedV1(m);ensureKabaneriEpisodeStStartSeedV1(m);ensureKabaneriShunjoPtBeforeThroughSeedV1(m);ensureKabaneriPickerStyleSeedV1(m);ensureKabaneriStagePickerToneSeedV1(m);ensureKabaneriPointFlattenSeedV1(m);ensureKabaneriEyecatchDefaultSeedV1(m);ensureKabaneriGameStateTriggersSeedV1(m);ensureKabaneriStFlowSeedV1(m);ensureKabaneriStPanelRefineSeedV1(m);ensureKabaneriCompareMetricsSeedV1(m);});
   db.stores=db.stores.map(normalizeStore).filter(Boolean);
   renderMachineList();
   renderAimList();
@@ -6263,6 +6274,7 @@ function addMachine(){
   ensureKabaneriThroughNoFlowSeedV1(machine);
   ensureKabaneriChanceFollowUpSeedV1(machine);
   ensureKabaneriKabaneHighManualStartSeedV1(machine);
+  ensureKabaneriMumeiIkomaHighManualStartSeedV1(machine);
   ensureKabaneriChanceFollowUpMultiSeedV1(machine);
   ensureKabaneriStateAutoEndSeedV1(machine);
   ensureKabaneriMumeiDefeatSeedV1(machine);
@@ -8407,7 +8419,7 @@ function battleModeReplayFlashMeterText(){
 }
 function renderBattleModeReplayFlashMeter(){
   const rows=[];
-  if(isKabaneriMachine(currentMachine()))rows.push(`<button class="bm-replay-flash-meter" type="button" onclick="openBattleModeKabaneriChanceEyeSheet()">${escapeHtml(battleModeKabaneriChanceEyeMeterText())}</button>`);
+  if(isKabaneriMachine(currentMachine()))rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeKabaneriChanceEyeMeterText())}</div>`);
   if(battleModeHasReplayFlashMeter())rows.push(`<button class="bm-replay-flash-meter" type="button" onclick="openBattleModeReplayScopeSheet()">${escapeHtml(battleModeReplayFlashMeterText())}</button>`);
   if(battleModeHasReplaySplitMeter())rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplaySplitMeterText())}</div>`);
   return rows.join('');
@@ -10147,6 +10159,7 @@ function openBattleModeOtherSheet(){
     excludedModals.has('memo')?'':'<button class="bm-btn other" type="button" onclick="openBattleModeMemoSheet()">メモ</button>'
   ];
   if(isKabaneriMachine(currentMachine())){
+    modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModeKabaneriChanceEyeSheet()">チャ目状況</button>');
     modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModeKabaneriGenealogySheet()">系譜ビュー</button>');
     if(machineCompareMetrics(currentMachine()).length)modalButtons.push('<button class="bm-btn other" type="button" onclick="openBattleModeKabaneriCompareSheet()">比較ビュー</button>');
     modalButtons.push('<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModeKabaneriUpperStPicker()">上位ST突入</button>');
