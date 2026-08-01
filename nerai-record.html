@@ -7641,6 +7641,7 @@ const KABANERI_CHANCE_EYE_TABLE_COLUMNS=[
   {key:'flashHigh',label:'💡🔥',tone:'red'},
   {key:'high',label:'🔥',tone:'red'},
   {key:'super',label:'⚡',tone:'blue'},
+  {key:'deduction',label:'減算',tone:'gold'},
   {key:'total',label:'計'}
 ];
 const KABANERI_CHANCE_EYE_TABLE_CHARS=[
@@ -7740,6 +7741,12 @@ function addKabaneriChanceEyeTableCount(bucket,charKey,rowKind,columnKey){
   bucket.rows.total[columnKey]=(bucket.rows.total[columnKey]||0)+1;
   bucket.rows.total.total=(bucket.rows.total.total||0)+1;
 }
+function addKabaneriChanceEyeDeductionCount(bucket,charKey,rowKind){
+  const row=bucket.rows?.[charKey]?.[rowKind];
+  if(!row)return;
+  row.deduction=(row.deduction||0)+1;
+  bucket.rows.total.deduction=(bucket.rows.total.deduction||0)+1;
+}
 function addKabaneriChanceEyeCarryover(bucket,charKey){
   if(!Object.prototype.hasOwnProperty.call(bucket.carryover,charKey))return;
   bucket.carryover[charKey]=(bucket.carryover[charKey]||0)+1;
@@ -7818,6 +7825,11 @@ function kabaneriChanceEyeColumnForChar(rows,index,charKey,active){
   if(high)return 'high';
   return kabaneriHasFollowFlashStartForChar(rows,index,charKey)?'normalFlash':'normalNoFlash';
 }
+function kabaneriChanceEyeIsDeduction(rows,index,charKey,columnKey){
+  if(columnKey==='normalFlash'||columnKey==='flashHigh')return true;
+  if(columnKey==='high')return kabaneriHasFollowFlashStartForChar(rows,index,charKey);
+  return false;
+}
 function updateKabaneriChanceEyeActiveState(entry,active){
   KABANERI_CHANCE_EYE_TABLE_CHARS.forEach(char=>{
     if(timelineHasAnyTag(entry,[char.flashEnd]))active.flash.delete(char.flashStart);
@@ -7894,8 +7906,13 @@ function kabaneriChanceEyeTableSummary(timeline=currentTimeline,machine=currentM
         return;
       }
       const column=kabaneriChanceEyeColumnForChar(rows,index,member.charKey,active);
+      const deduction=kabaneriChanceEyeIsDeduction(rows,index,member.charKey,column);
       addKabaneriChanceEyeTableCount(summary.total,member.charKey,member.rowKind,column);
-      if(inScope)addKabaneriChanceEyeTableCount(summary.sinceCz,member.charKey,member.rowKind,column);
+      if(deduction)addKabaneriChanceEyeDeductionCount(summary.total,member.charKey,member.rowKind);
+      if(inScope){
+        addKabaneriChanceEyeTableCount(summary.sinceCz,member.charKey,member.rowKind,column);
+        if(deduction)addKabaneriChanceEyeDeductionCount(summary.sinceCz,member.charKey,member.rowKind);
+      }
       if(member.rowKind==='single'&&(member.charKey==='mumei'||member.charKey==='ikoma')&&(column==='normalNoFlash'||column==='normalFlash')){
         summary.core.denominator+=1;
         if(column==='normalFlash')summary.core.numerator+=1;
@@ -7910,11 +7927,15 @@ function kabaneriChanceEyeMetaRows(timeline=currentTimeline,machine=currentMachi
   const rows=kabaneriChanceEyeTimelineRows(timeline);
   const active={flash:new Set(),high:new Set(),super:false,finalDefense:false};
   return rows.map((entry,index)=>{
-    const members=kabaneriChanceEyeMembersForEntry(entry,machine).map(member=>({
-      ...member,
-      column:kabaneriChanceEyeColumnForChar(rows,index,member.charKey,active),
-      carryover:kabaneriChanceEyeIsCarryover(rows,index,member.charKey,active.finalDefense)
-    }));
+    const members=kabaneriChanceEyeMembersForEntry(entry,machine).map(member=>{
+      const column=kabaneriChanceEyeColumnForChar(rows,index,member.charKey,active);
+      return {
+        ...member,
+        column,
+        deduction:kabaneriChanceEyeIsDeduction(rows,index,member.charKey,column),
+        carryover:kabaneriChanceEyeIsCarryover(rows,index,member.charKey,active.finalDefense)
+      };
+    });
     const row={entry,index,members,finalDefenseActive:active.finalDefense};
     updateKabaneriChanceEyeActiveState(entry,active);
     updateKabaneriChanceEyeStageState(entry,active);
@@ -7952,7 +7973,7 @@ function kabaneriGenealogyChipGame(entry){
 }
 function kabaneriGenealogyChip(label,entry,type='event',extra={}){
   const game=kabaneriGenealogyChipGame(entry);
-  return {label,type,game,entry,carryover:!!extra.carryover,column:extra.column||'',tone:extra.tone||'',terminal:!!extra.terminal};
+  return {label,type,game,entry,carryover:!!extra.carryover,deduction:!!extra.deduction,column:extra.column||'',tone:extra.tone||'',terminal:!!extra.terminal};
 }
 function kabaneriGenealogyChanceLabel(column,entry){
   const labels={normalNoFlash:'無→無',normalFlash:'無→💡',flashing:'💡',flashHigh:'💡🔥',high:'🔥',super:'⚡'};
@@ -8020,7 +8041,7 @@ function kabaneriGenealogyChains(sources={},machine=currentMachine()){
     if(row.kind==='timeline'){
       const entry=row.entry;
       row.meta.members.forEach(member=>{
-        const chip=kabaneriGenealogyChip(kabaneriGenealogyChanceLabel(member.column,entry),entry,'chance',{column:member.column,carryover:member.carryover});
+        const chip=kabaneriGenealogyChip(kabaneriGenealogyChanceLabel(member.column,entry),entry,'chance',{column:member.column,deduction:member.deduction,carryover:member.carryover});
         if(member.carryover){
           carry[member.charKey].push(chip);
         }else{
@@ -8081,10 +8102,11 @@ function kabaneriGenealogyCompressedChipHtml(chips){
 }
 function kabaneriGenealogyChainMeta(chain){
   const chanceCount=chain.chips.filter(chip=>chip.type==='chance').length;
+  const deductionCount=chain.chips.filter(chip=>chip.type==='chance'&&chip.deduction).length;
   const start=chain.startEntry;
   const end=chain.endEntry||chain.chips.at(-1)?.entry;
   const interval=kabaneriChanceEyeAxisDistance(start,end);
-  return `${chanceCount}チャ目${interval!==null?`・${interval}G`:''}`;
+  return `${chanceCount}チャ目（減算${deductionCount}）${interval!==null?`・${interval}G`:''}`;
 }
 function kabaneriGenealogyChainHtml(chain){
   return `<div class="bm-genealogy-chain ${chain.ongoing?'ongoing':''}">
@@ -8793,7 +8815,7 @@ function kabaneriStPanelSummary(){
 function kabaneriStPanelSummaryHtml(){
   const summary=kabaneriStPanelSummary();
   const v=summary.voices;
-  return `<div class="bm-st-summary">ボイス 男${v.male}(${summary.voiceMalePct})・女${v.female}(${summary.voiceFemalePct})｜紹介 男${summary.introMale}(${summary.introMalePct})・女${summary.introFemale}(${settingGroupPercentText(summary.introFemale,settingGroupTotal(kabaneriStIntroGroupRows()))})</div>`;
+  return `<div class="bm-st-summary">ボイス 男${v.male}(${summary.voiceMalePct})・女${v.female}(${summary.voiceFemalePct})｜景之 弱${v.kageWeak}/中${v.kageMid}/強${v.kageStrong}｜紹介 男${summary.introMale}(${summary.introMalePct})・女${summary.introFemale}(${settingGroupPercentText(summary.introFemale,settingGroupTotal(kabaneriStIntroGroupRows()))})</div>`;
 }
 function kabaneriStVoiceRecentLabel(entry){
   if(!isKabaneriMachine(currentMachine())||entry?.placeId!=='sgp_kabaneri_setting_voice')return '';

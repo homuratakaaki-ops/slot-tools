@@ -1006,6 +1006,7 @@ function testKabaneriChanceEyeSituationView() {
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.flashHigh", context), 1);
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.high", context), 1);
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.normalNoFlash", context), 1);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.deduction", context), 2);
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.ikoma.single.super", context), 1);
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.multi.normalNoFlash", context), 1);
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.kabane.multi.normalNoFlash", context), 1);
@@ -1017,6 +1018,7 @@ function testKabaneriChanceEyeSituationView() {
   assert.match(html, /無→💡/);
   assert.match(html, /💡🔥/);
   assert.match(html, /⚡/);
+  assert.match(html, /減算/);
   assert.match(html, /└複合/);
   assert.doesNotMatch(html, /<th>合計<\/th>/);
   assert.match(html, /<td>—<\/td>/);
@@ -1074,6 +1076,36 @@ function testKabaneriChanceEyeSituationView() {
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.rows.kabane.single.total", context), 0);
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.total", context), 5);
   assert.equal(vm.runInContext("kabaneriChanceEyeCoreLine(kabaneriChanceEyeTableSummary())", context), '無→💡率（単独・無名+生駒・通算固定）0/8 (0.0%)');
+
+  vm.runInContext(`
+    currentTimeline=[
+      {id:'deduct_1',game:10,liquidGame:10,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei','t_kabaneri_state_mumei_flash_start'],countAs:[],createdAt:'2026-07-30T12:20'},
+      {id:'deduct_2',game:11,liquidGame:11,text:'無名高確 開始',tagIds:['t_kabaneri_state_mumei_high_start'],countAs:[],createdAt:'2026-07-30T12:21'},
+      {id:'deduct_3',game:12,liquidGame:12,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:22'},
+      {id:'deduct_4',game:13,liquidGame:13,text:'無名発光 終了',tagIds:['t_kabaneri_state_mumei_flash_end'],countAs:[],createdAt:'2026-07-30T12:23'},
+      {id:'deduct_5',game:14,liquidGame:14,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei','t_kabaneri_state_mumei_flash_start'],countAs:[],createdAt:'2026-07-30T12:24'},
+      {id:'deduct_6',game:15,liquidGame:15,text:'無名高確 終了',tagIds:['t_kabaneri_state_mumei_high_end'],countAs:[],createdAt:'2026-07-30T12:25'},
+      {id:'deduct_7',game:16,liquidGame:16,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:26'},
+      {id:'deduct_8',game:17,liquidGame:17,text:'無名発光 終了',tagIds:['t_kabaneri_state_mumei_flash_end'],countAs:[],createdAt:'2026-07-30T12:27'},
+      {id:'deduct_9',game:18,liquidGame:18,text:'無名高確 開始',tagIds:['t_kabaneri_state_mumei_high_start'],countAs:[],createdAt:'2026-07-30T12:28'},
+      {id:'deduct_10',game:19,liquidGame:19,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:29'},
+      {id:'deduct_11',game:20,liquidGame:20,text:'無名高確 終了',tagIds:['t_kabaneri_state_mumei_high_end'],countAs:[],createdAt:'2026-07-30T12:30'},
+      {id:'deduct_12',game:21,liquidGame:21,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:31'},
+      {id:'deduct_13',game:22,liquidGame:22,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:32'},
+      {id:'deduct_14',game:23,liquidGame:23,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:33'},
+      {id:'deduct_15',game:24,liquidGame:24,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:34'},
+      {id:'deduct_16',game:25,liquidGame:25,text:'無名チャンス目',tagIds:['t_kabaneri_chance_mumei'],countAs:[],createdAt:'2026-07-30T12:35'},
+      {id:'deduct_17',game:30,liquidGame:30,text:'無名CZ 終了',tagIds:['t_kabaneri_cz_mumei_end'],countAs:[],createdAt:'2026-07-30T12:36'}
+    ];
+    currentHitEvents=[];
+  `, context);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.deduction", context), 3);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.normalFlash", context), 1);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.flashHigh", context), 1);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.high", context), 2);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.flashing", context), 1);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.single.normalNoFlash", context), 5);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().sinceCz.rows.mumei.single.deduction", context), 0);
 
   vm.runInContext(`
     currentTimeline=[
@@ -1214,7 +1246,7 @@ function testKabaneriVoiceGroupRatioUsesSharedDenominator() {
   assert.equal(parsed.shared, '31.6%');
   assert.match(parsed.panel, /男6\(31\.6%\)/);
   assert.match(parsed.panel, /女5\(26\.3%\)/);
-  assert.doesNotMatch(parsed.panel, /景之|弱6|中2/);
+  assert.match(parsed.panel, /景之 弱6\/中2\/強0/);
   assert.match(parsed.recent, /ボイス男 ×6（31\.6%）/);
   assert.match(parsed.summary, /男性（示唆） ×6（31\.6%）/);
 }
@@ -1423,6 +1455,7 @@ function testKabaneriGenealogyView() {
   assert.match(text, /💡/);
   assert.match(text, /CZ突入/);
   assert.match(text, /失敗（撃破5）/);
+  assert.match(text, /4チャ目（減算1）・125G/);
   assert.match(text, /持越/);
   assert.match(text, /高確ON/);
   assert.match(text, /一廻以内好機/);
@@ -2879,16 +2912,17 @@ function testKabaneriStFlowAndCounters() {
   assert.match(stGrid, /ST終了/);
   assert.match(stGrid, /bm-st-end-action/);
   assert.match(stGrid, /ボイス 男0\(-\)・女0\(-\)/);
+  assert.match(stGrid, /景之 弱0\/中0\/強0/);
   assert.match(stGrid, /紹介 男0\(-\)・女0\(-\)/);
   assert.match(stGrid, /ボイス男/);
   assert.match(stGrid, /ボイス女/);
   assert.match(stGrid, /他ボイス\/美馬/);
   assert.ok(stGrid.indexOf('ボイス男') < stGrid.indexOf('ボイス女'));
   assert.ok(stGrid.indexOf('ボイス女') < stGrid.indexOf('他ボイス/美馬'));
-  assert.doesNotMatch(stGrid, /景之/);
   assert.doesNotMatch(stGrid, /景之・弱/);
   assert.doesNotMatch(stGrid, /景之・中/);
   assert.doesNotMatch(stGrid, /景之・強/);
+  assert.doesNotMatch(stGrid, /recordKabaneriStVoice\('sgp_kabaneri_setting_voice_i3'\)/);
   assert.match(stGrid, /紹介男 \+1/);
   assert.match(stGrid, /紹介女 \+1/);
   assert.ok(stGrid.indexOf('紹介男 +1') < stGrid.indexOf('紹介女 +1'));
@@ -2946,7 +2980,8 @@ function testKabaneriStFlowAndCounters() {
   vm.runInContext("selectSuggestItem('sgp_kabaneri_setting_voice_i3')", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i3')", context), true);
   assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×1（100\.0%）/);
-  assert.doesNotMatch(vm.runInContext("renderKabaneriStPanel()", context), /景之/);
+  assert.match(vm.runInContext("renderKabaneriStPanel()", context), /景之 弱1\/中0\/強0/);
+  assert.doesNotMatch(vm.runInContext("renderKabaneriStPanel()", context), /景之・弱/);
   vm.runInContext("openSuggestItemPicker('sgc_kabaneri_setting','sgp_kabaneri_setting_voice','play')", context);
   vm.runInContext("selectSuggestItem('sgp_kabaneri_setting_voice_i6')", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i6')", context), true);
@@ -2983,7 +3018,7 @@ function testKabaneriStFlowAndCounters() {
   `, context);
   const stGridAfterTallies = vm.runInContext("renderKabaneriStPanel()", context);
   assert.match(stGridAfterTallies, /ボイス 男1\(25\.0%\)・女1\(25\.0%\)/);
-  assert.doesNotMatch(stGridAfterTallies, /景之/);
+  assert.match(stGridAfterTallies, /景之 弱2\/中0\/強0/);
   assert.match(stGridAfterTallies, /紹介 男1\(33\.3%\)・女2\(66\.7%\)/);
   assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /下段ベル/);
   assert.equal(vm.runInContext("subCounterValue('introFemaleTally')", context), 2);
