@@ -916,18 +916,25 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.equal(vm.runInContext("subCounterValue('lowerBell')", context), 0);
   assert.equal(vm.runInContext("JSON.stringify(currentMachine().counters).includes('preserveOnArchive')", context), true);
   const style = extractStyle();
-  assert.match(style, /\.bm-grid\{[^}]*grid-auto-rows:minmax\(52px,auto\)/);
-  assert.match(style, /\.bm-grid\{[^}]*align-content:start/);
-  assert.doesNotMatch(style, /\.bm-grid\{[^}]*align-content:end/);
   assert.match(style, /\.bm-overlay\{[^}]*overflow:auto/);
   assert.match(style, /\.bm-shell\{[^}]*height:auto/);
   assert.match(style, /\.bm-shell\{[^}]*max-height:none/);
-  assert.match(style, /\.bm-shell\{[^}]*grid-template-rows:auto auto auto auto auto auto auto auto/);
+  assert.match(style, /\.bm-shell\{[^}]*display:flex/);
+  assert.match(style, /\.bm-shell\{[^}]*flex-direction:column/);
+  assert.match(style, /\.bm-grid\{[^}]*display:flex/);
+  assert.match(style, /\.bm-grid\{[^}]*flex-direction:column/);
+  assert.doesNotMatch(style, /\.bm-shell\{[^}]*grid-template-rows/);
+  assert.doesNotMatch(style, /\.bm-grid\{[^}]*grid-auto-rows/);
+  assert.doesNotMatch(style, /\.bm-grid\{[^}]*grid-template-rows/);
   assert.doesNotMatch(style, /\.bm-shell\{[^}]*minmax\(0,1fr\)/);
   assert.match(style, /\.bm-state-badges\{[^}]*flex-wrap:wrap/);
   assert.match(style, /\.bm-state-badges\{[^}]*align-content:flex-start/);
   assert.match(style, /\.bm-state-badges\{[^}]*overflow:visible/);
-  assert.doesNotMatch(style, /\.bm-grid\{[^}]*grid-template-rows:repeat\(4/);
+  const shellSource = fs.readFileSync(HTML_PATH, 'utf8').match(/<div class="bm-shell">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="bm-toast"/)?.[1] || '';
+  assert.ok(shellSource.indexOf('battleModeStateBadges') < shellSource.indexOf('battleModeCounters'));
+  assert.ok(shellSource.indexOf('battleModeCounters') < shellSource.indexOf('battleModeGrid'));
+  assert.ok(shellSource.indexOf('battleModeGrid') < shellSource.indexOf('battleModeRecent'));
+  assert.ok(shellSource.indexOf('battleModeRecent') < shellSource.indexOf('battleModeUndoBar'));
 }
 
 function testKabaneriChanceEyeSituationView() {
@@ -1892,7 +1899,8 @@ function testBattleModeEventRowBeforeCounterRow() {
   assert.match(grid, /当選・ヤメ・その他 ▼/);
   assert.match(grid, /さざなみ\s+前兆/);
   const style = extractStyle();
-  assert.match(style, /\.bm-grid\{[^}]*align-content:start/);
+  assert.match(style, /\.bm-grid\{[^}]*display:flex/);
+  assert.match(style, /\.bm-grid\{[^}]*flex-direction:column/);
   assert.match(style, /\.bm-quit-area\{[^}]*display:none/);
   assert.match(style, /\.bm-event-row \.bm-btn\{[^}]*white-space:pre-line/);
 }

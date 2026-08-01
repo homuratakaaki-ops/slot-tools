@@ -479,7 +479,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-open-btn{min-height:54px;border-color:rgba(201,168,76,.72);color:var(--gold-light);background:rgba(201,168,76,.12);font-weight:900;}
 .bm-overlay{position:fixed;inset:0;z-index:9000;display:none;background:var(--bg);color:var(--text);padding:calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));overflow:auto;}
 .bm-overlay.open{display:flex;}
-.bm-shell{width:100%;max-width:480px;min-height:100%;height:auto;max-height:none;margin:0 auto;display:grid;grid-template-rows:auto auto auto auto auto auto auto auto;align-content:start;gap:6px;}
+.bm-shell{width:100%;max-width:480px;min-height:100%;height:auto;max-height:none;margin:0 auto;display:flex;flex-direction:column;gap:6px;}
 .bm-header{display:grid;grid-template-columns:minmax(0,1fr) 48px;align-items:center;gap:8px;border-bottom:1px solid rgba(201,168,76,.28);padding:2px 0 7px;}
 .bm-title{min-width:0;font-size:13px;font-weight:900;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-close{width:48px;height:48px;border:1px solid rgba(201,168,76,.42);border-radius:8px;background:rgba(201,168,76,.08);color:var(--gold-light);font-size:24px;font-weight:900;cursor:pointer;}
@@ -505,7 +505,7 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-credit-update.credit-ok{border-color:rgba(76,175,125,.95);background:rgba(76,175,125,.42);color:#f0fff6;box-shadow:0 0 0 1px rgba(76,175,125,.28) inset;}
 .bm-credit-update.credit-warn{border-color:rgba(234,179,8,.98);background:rgba(234,179,8,.44);color:#fff8df;box-shadow:0 0 0 1px rgba(234,179,8,.34) inset;}
 .bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
-.bm-grid{display:grid;grid-auto-rows:minmax(52px,auto);gap:7px;min-height:0;align-content:start;}
+.bm-grid{display:flex;flex-direction:column;gap:7px;min-height:0;}
 .bm-button-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
 .bm-button-row.four{grid-template-columns:repeat(4,minmax(0,1fr));}
 .bm-event-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;}
