@@ -39,9 +39,15 @@
   "id": "string",
   "name": "string",
   "isPersonal": true,
+  "lendRate": 4,
+  "exchangeRate": 4,
   "createdAt": "ISO8601"
 }
 ```
+
+- `lendRate` は貸玉レート（円/玉）。現金投資の玉換算に使う。
+- `exchangeRate` は交換レート（円/玉）。差玉から換算収支を出す時に使う。
+- 既存店は読み込み時に `lendRate: 4`、`exchangeRate: 4` を補完する。
 
 ### 2.2 MapLayout
 
@@ -86,8 +92,9 @@
 - フロアマップから台番だけの Machine を自動生成する。
 - 機種名、1R 玉数、台メモ（釘・癖など）は後付け編集できる。
 - B1 で `payoutType` は廃止。旧データに存在する場合も読み込み時に保持しない。
-- B2 で機種プリセットを追加。`MACHINE_PRESETS = [{ id, name, roundBalls, evSupported, spec }]` の定数テーブルで管理する。
+- B2 で機種プリセットを追加。B5 以降は `MACHINE_PRESETS = [{ id, name, roundBalls, standardRounds, standardPayout, evSupported, spec }]` の定数テーブルで管理する。
 - 初期プリセットは P大海物語スペシャル5 のみ。選択時は機種名、1R玉数 140、期待値対応フラグを自動セットする。
+- P大海物語スペシャル5 の標準出玉は `standardRounds: 10`、`standardPayout: 1400` とする。
 - その他（自由入力）では機種名と 1R玉数を手入力し、期待値対応フラグは false とする。
 
 ### 2.4 Session
@@ -134,9 +141,10 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
+| `ytv3:corrupt:<ISO日時>` | 破損した `ytv3:data` の退避 | `loadData()` で `ytv3:data` が JSON として読めなかった場合に作成。自動削除しない | 破損していた `ytv3:data` raw 文字列 |
 
 ### 3.1 容量予算記録
 
@@ -150,11 +158,12 @@ v3 は以下の localStorage キーのみを使用する。
 
 実装上、画面下部にも保存キー、現在保存 chars、フロアマップ chars、台データ 1 件 chars、セッション 1 件 chars、引き継ぎ chars を表示する。
 
-B4 実測値:
+B5 実測値:
 
-- schema 5 空フロアマップ: 14 chars (`{"islands":[]}`)
-- schema 5 台データ 1 件サンプル: 151 chars
-- schema 5 セッション 1 件サンプル（`carriedFromSessionId`、normal/yutime 投資各1件、`yutimeEnterTime`あり）: 696 chars
+- schema 6 Store 1 件サンプル（`lendRate`、`exchangeRate`あり）: 122 chars
+- schema 6 空フロアマップ: 14 chars (`{"islands":[]}`)
+- schema 6 台データ 1 件サンプル: 151 chars
+- schema 6 セッション 1 件サンプル（`carriedFromSessionId`、normal/yutime 投資各1件、`yutimeEnterTime`あり）: 699 chars
 - `ytv3:carryover` 1 件サンプル: 203 chars
 
 ## 4. 派生値
@@ -163,13 +172,19 @@ B4 実測値:
 
 - 投資レコードは `phase: "normal" | "yutime"` を持つ。既存の `phase` なし投資は読み込み時に `normal` として扱う。
 - 遊タイム突入後に追記された投資は `yutime` phase として保存する。
+- 現金投資の玉換算は `投資金額 / store.lendRate`。
 - 通常消費玉 = 開始持ち玉 + 通常 phase 投資玉換算 - 遊タイム突入玉。突入なしの場合は当選時残り玉を引く。
 - 非パーソナル店、遊タイム突入玉未入力、または当選時残り玉未入力の場合は投入玉ベースにフォールバックする。
+- `startMochidama === null` のセッションは回転率を算出せず、台の参考回転率集計から除外する。持ち玉なし現金スタートは `0` を入力する。
+- 当選時残り玉が未入力で、プリセット機種かつ `hitCount` と `endTotalBalls` がある場合は標準出玉で概算する。
+- 概算獲得出玉 = `hitCount * standardPayout`。ただし `totalRounds` が入力済みなら `roundBalls * totalRounds` を優先する。
+- 概算残り玉 = `endTotalBalls - 概算獲得出玉`。負数は 0 にクリップする。
+- 概算を使った回転率・獲得出玉には「概算」を表示する。台の参考回転率には概算セッションも含め、台詳細で「概算◯件を含む」と注記する。
 - セッション回転率 = 通常回転数 / 通常消費玉 * 250
 - 台の参考回転率 = セッション群の通常回転数合計 / 通常消費玉合計 * 250
 - 遊タイム玉減り = 遊タイム突入玉 + yutime phase 投資玉換算 - 当選時玉数。当たらず終了の場合は終了時玉数を引く。
 - 差玉 = 終了時玉数 - (開始持ち玉 + 全投資玉換算) + 残保留増減。
-- 換算収支 = 差玉 * 4円。
+- 換算収支 = 差玉 * `store.exchangeRate`。
 - R数ベース出玉 = `roundBalls * totalRounds`
 - 1回あたりR数ベース平均出玉 = `roundBalls * totalRounds / hitCount`
 
@@ -228,6 +243,14 @@ B4 実測値:
 - ウィザード確定時に `carriedFromSessionId` を保存し、`ytv3:carryover` を削除する。
 - 台帳には `carriedFromSessionId` をもとに「⇐ 台◯◯から続き」を表示する。
 
+## 5.5 B5 デバッグ修正
+
+- `ytv3:data` が破損 JSON の場合は、初期状態へフォールバックする前に `ytv3:corrupt:<ISO日時>` へ raw 文字列を退避する。
+- 破損退避時は起動時に「保存データが読み取れなかったため退避しました」と表示し、フッターに「破損退避データあり」を出す。
+- `persist()` は `lastSaveChars` を計上してから 1 回の `localStorage.setItem()` で保存する。
+- 店ごとに貸玉レートと交換レートを持つ。店追加・店設定から編集できる。
+- ウィザードの「戻る」は、現在ステップの入力値を保存してから前ステップへ戻る。
+
 ## 6. QA 観点
 
 - 全項目スキップでセッション保存できること。
@@ -257,6 +280,13 @@ B4 実測値:
 - 引き継ぎ破棄でバナーと `ytv3:carryover` が消えること。
 - 引き継ぎ値を手修正した場合、その値が次セッションに保存されること。
 - 台帳に「⇐ 台◯◯から続き」が表示されること。
+- 破損した `ytv3:data` が `ytv3:corrupt:<ISO日時>` に退避され、複数回保存後も原本が残ること。
+- 3.6円設定の店で、現金投資の玉換算と換算収支が店レートで計算されること。既定4/4の店は従来値と同じこと。
+- 持ち玉スキップのセッションは回転率が `-（持ち玉未入力）` となり、参考回転率集計に入らないこと。
+- 持ち玉を「記録の修正」で後入力すると、回転率と参考回転率集計に復帰すること。
+- 残り玉スキップ、P大海物語スペシャル5、`hitCount = 3`、`endTotalBalls = 4200` で、概算出玉 4200、概算残り玉 0、概算回転率が表示されること。
+- `totalRounds` 入力済みの場合は、標準出玉より `roundBalls * totalRounds` を優先すること。
+- 残り玉入力ありの実測セッションには「概算」表示が付かないこと。
 - `ytv3:` 以外の localStorage キーを読み書きしないこと。
 - TOP ページ、既存ページ、sitemap から `yutime-v3.html` へリンクしないこと。
 - 公開後、`https://slot-tools.jp/yutime-v3.html` が 200 応答すること。

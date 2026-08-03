@@ -704,8 +704,10 @@
     const PREMIGRATE_KEY = STORAGE_PREFIX + "premigrate";
     const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
-    const SCHEMA_VERSION = 5;
-    const CASH_TO_BALLS_RATE = 4;
+    const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
+    const SCHEMA_VERSION = 6;
+    const DEFAULT_LEND_RATE = 4;
+    const DEFAULT_EXCHANGE_RATE = 4;
     const AUTO_LABELS = [
       "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日",
       "1のつく日", "2のつく日", "3のつく日", "4のつく日", "5のつく日",
@@ -713,7 +715,7 @@
       "ゾロ目日"
     ];
     const MACHINE_PRESETS = [
-      { id: "umi-sp5", name: "P大海物語スペシャル5", roundBalls: 140, evSupported: true, spec: { note: "B2時点の期待値対応プリセット" } }
+      { id: "umi-sp5", name: "P大海物語スペシャル5", roundBalls: 140, standardRounds: 10, standardPayout: 1400, evSupported: true, spec: { note: "B5時点の期待値対応プリセット" } }
     ];
 
     const blankSession = () => ({
@@ -762,10 +764,11 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 5: 持ち玉引き継ぎ追加後のフロアマップchars、台データ1件chars、セッション1件chars、carryover charsを記録"
+        schemaBudgetNote: "v3 schema 6: 店レート/概算出玉/破損退避追加後のStore chars、セッションchars、carryover charsを記録"
       }
     });
 
+    let bootToastMessage = "";
     let data = loadData();
     let carryover = loadCarryover();
     let currentView = "storesView";
@@ -807,6 +810,7 @@
     });
 
     renderAll();
+    if (bootToastMessage) showToast(bootToastMessage);
 
     function byId(id) {
       return document.getElementById(id);
@@ -841,6 +845,11 @@
       if (value === "" || value === null || value === undefined) return null;
       const n = Number(value);
       return Number.isFinite(n) ? n : null;
+    }
+
+    function positiveNumberOrDefault(value, fallback) {
+      const n = normalizeNumber(value);
+      return n !== null && n > 0 ? n : fallback;
     }
 
     function numberText(value, fallback = "未入力") {
@@ -919,7 +928,18 @@
         return normalizeData(parsed);
       } catch (error) {
         console.warn("ytv3 load failed", error);
+        preserveCorruptData(raw);
         return base;
+      }
+    }
+
+    function preserveCorruptData(raw) {
+      if (!raw) return;
+      try {
+        localStorage.setItem(CORRUPT_PREFIX + new Date().toISOString(), raw);
+        bootToastMessage = "保存データが読み取れなかったため退避しました";
+      } catch (error) {
+        console.warn("ytv3 corrupt preserve failed", error);
       }
     }
 
@@ -984,6 +1004,8 @@
         id: store.id || cryptoId("st"),
         name: String(store.name || "無名店"),
         isPersonal: Boolean(store.isPersonal),
+        lendRate: positiveNumberOrDefault(store.lendRate, DEFAULT_LEND_RATE),
+        exchangeRate: positiveNumberOrDefault(store.exchangeRate, DEFAULT_EXCHANGE_RATE),
         createdAt: store.createdAt || nowIso()
       }));
       next.layouts = normalizeLayouts(next.layouts);
@@ -1018,17 +1040,20 @@
       data.meta.sampleSessionChars = measureSampleSessionChars();
       data.meta.sampleMachineChars = measureSampleMachineChars();
       data.meta.mapLayoutChars = measureActiveMapLayoutChars();
+      data.meta.lastSaveChars = 0;
+      const draftRaw = JSON.stringify(data);
+      data.meta.lastSaveChars = draftRaw.length;
       const raw = JSON.stringify(data);
-      if (raw.length < 12) {
+      data.meta.lastSaveChars = raw.length;
+      const finalRaw = JSON.stringify(data);
+      if (finalRaw.length < 12) {
         console.warn("ytv3 empty-write guard blocked save");
         return false;
       }
       try {
         const before = localStorage.getItem(STORAGE_KEY);
         if (before) localStorage.setItem(BACKUP_KEY, before);
-        localStorage.setItem(STORAGE_KEY, raw);
-        data.meta.lastSaveChars = raw.length;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        localStorage.setItem(STORAGE_KEY, finalRaw);
         return true;
       } catch (error) {
         console.warn("ytv3 persist failed", error);
@@ -1084,6 +1109,10 @@
       return JSON.stringify(sample).length;
     }
 
+    function hasCorruptData() {
+      return Object.keys(localStorage).some((key) => key.startsWith(CORRUPT_PREFIX));
+    }
+
     function measureSampleMachineChars() {
       const sample = data.machines[0] || {
         id: "m_sample",
@@ -1106,6 +1135,18 @@
 
     function activeStore() {
       return data.stores.find((store) => store.id === data.activeStoreId) || null;
+    }
+
+    function storeById(storeId) {
+      return data.stores.find((store) => store.id === storeId) || null;
+    }
+
+    function lendRateForStore(store) {
+      return positiveNumberOrDefault(store?.lendRate, DEFAULT_LEND_RATE);
+    }
+
+    function exchangeRateForStore(store) {
+      return positiveNumberOrDefault(store?.exchangeRate, DEFAULT_EXCHANGE_RATE);
     }
 
     function storeLabels(storeId = data.activeStoreId) {
@@ -1146,10 +1187,15 @@
         return;
       }
       els.storeList.innerHTML = data.stores.map((store) => `
-        <button class="store-card ${store.id === data.activeStoreId ? "primary" : ""}" data-store-id="${escapeHtml(store.id)}">
-          <strong>${escapeHtml(store.name)}</strong>
-          <span>${store.isPersonal ? "パーソナルあり" : "非パーソナル / 概算入力"}</span>
-        </button>
+        <div class="row-card">
+          <div class="row-card-head">
+            <button class="store-card ${store.id === data.activeStoreId ? "primary" : ""}" data-store-id="${escapeHtml(store.id)}">
+              <strong>${escapeHtml(store.name)}</strong>
+              <span>${store.isPersonal ? "パーソナルあり" : "非パーソナル / 概算入力"} / 貸玉${escapeHtml(store.lendRate)}円 / 交換${escapeHtml(store.exchangeRate)}円</span>
+            </button>
+            <button class="small" data-edit-store="${escapeHtml(store.id)}">店設定</button>
+          </div>
+        </div>
       `).join("");
       els.storeList.querySelectorAll("[data-store-id]").forEach((button) => {
         button.addEventListener("click", () => {
@@ -1158,6 +1204,9 @@
           persist();
           showView("mapView");
         });
+      });
+      els.storeList.querySelectorAll("[data-edit-store]").forEach((button) => {
+        button.addEventListener("click", () => openStoreSettings(button.dataset.editStore));
       });
     }
 
@@ -1286,7 +1335,7 @@
         return;
       }
       const machine = data.machines.find((item) => item.id === session.machineId);
-      const derived = deriveSession(session);
+      const derived = deriveSession(session, machine);
       const balances = deriveBalances(session);
       const yutimeMode = isYutimeInvestmentPhase(session);
       els.runningArea.innerHTML = `
@@ -1303,7 +1352,7 @@
             <div class="metric"><span>カード残高</span><strong>${balanceText(balances.credit, "円")}</strong></div>
             <div class="metric"><span>再プレ残り</span><strong>${balanceText(balances.saipurei, "玉")}</strong></div>
             <div class="metric"><span>通常回転</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
-            <div class="metric"><span>概算回転率</span><strong>${derived.rate ? derived.rate.toFixed(1) : "-"} /250玉</strong></div>
+            <div class="metric"><span>概算回転率</span><strong>${rateText(derived)} /250玉</strong></div>
             <div class="metric"><span>遊タイム突入玉</span><strong>${numberText(session.yutimeEnterBalls, "-")}</strong></div>
           </div>
           ${yutimeMode ? '<p class="phase-note">遊タイム中の投資として記録されます。</p>' : ""}
@@ -1370,7 +1419,7 @@
       els.sessionList.innerHTML = sessions.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map((session) => {
         const machine = data.machines.find((item) => item.id === session.machineId);
         const sourceMachine = carryoverSourceMachine(session);
-        const derived = deriveSession(session);
+        const derived = deriveSession(session, machine);
         const misses = missingFields(session);
         return `
           <div class="row-card" data-session-row="${escapeHtml(session.id)}">
@@ -1382,9 +1431,10 @@
                   ${misses.length ? '<span class="badge warn">未入力あり</span>' : ""}
                   ${automaticLabelsForDate(session.date).map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
                   ${session.labels.map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
+                  ${derived.isEstimatedRate || derived.isEstimatedPayout ? '<span class="badge warn">概算</span>' : ""}
                   ${sourceMachine ? `<span class="badge">⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き</span>` : ""}
                 </div>
-                <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${derived.rate ? derived.rate.toFixed(1) : "-"} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
+                <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${rateText(derived)} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
               </div>
               <button class="small" data-edit-session="${escapeHtml(session.id)}">記録の修正</button>
             </div>
@@ -1398,13 +1448,19 @@
 
     function renderStorageNote() {
       const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, CARRYOVER_KEY].join(" / ");
-      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。引き継ぎchars: ${measureCarryoverChars()}。v2キーは読み書きしません。`;
+      const corruptNote = hasCorruptData() ? "。破損退避データあり" : "";
+      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。引き継ぎchars: ${measureCarryoverChars()}。v2キーは読み書きしません${corruptNote}。`;
     }
 
     function openStoreForm() {
       openModal("店を追加", "店ごとにマップ、台、イベントメモ、セッションを分離します。", `
         <div class="field-row"><label for="storeName">店名</label><input id="storeName" placeholder="例: ミレスト東口店"></div>
         <label class="check-chip"><input id="storePersonal" type="checkbox"> パーソナルシステムあり</label>
+        <div class="grid two">
+          <div class="field-row"><label for="storeLendRate">貸玉レート（円/玉）</label><input id="storeLendRate" inputmode="decimal" value="4"></div>
+          <div class="field-row"><label for="storeExchangeRate">交換レート（円/玉）</label><input id="storeExchangeRate" inputmode="decimal" value="4"></div>
+        </div>
+        <p class="hint">貸玉4円・等価なら両方4のままで構いません。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="createStoreBtn">追加</button>
@@ -1413,13 +1469,48 @@
       byId("createStoreBtn").addEventListener("click", () => {
         const name = byId("storeName").value.trim();
         if (!name) return;
-        const store = { id: cryptoId("st"), name, isPersonal: byId("storePersonal").checked, createdAt: nowIso() };
+        const store = {
+          id: cryptoId("st"),
+          name,
+          isPersonal: byId("storePersonal").checked,
+          lendRate: positiveNumberOrDefault(byId("storeLendRate").value, DEFAULT_LEND_RATE),
+          exchangeRate: positiveNumberOrDefault(byId("storeExchangeRate").value, DEFAULT_EXCHANGE_RATE),
+          createdAt: nowIso()
+        };
         data.stores.push(store);
         data.activeStoreId = store.id;
         data.labelsByStore[store.id] = [];
         if (!persistWithToast("保存しました")) return;
         closeModal();
         showView("mapView");
+      });
+    }
+
+    function openStoreSettings(storeId) {
+      const store = data.stores.find((item) => item.id === storeId);
+      if (!store) return;
+      openModal("店設定", "貸玉4円・等価なら両方4のままで構いません。", `
+        <div class="field-row"><label for="editStoreName">店名</label><input id="editStoreName" value="${escapeHtml(store.name)}"></div>
+        <label class="check-chip"><input id="editStorePersonal" type="checkbox" ${store.isPersonal ? "checked" : ""}> パーソナルシステムあり</label>
+        <div class="grid two">
+          <div class="field-row"><label for="editStoreLendRate">貸玉レート（円/玉）</label><input id="editStoreLendRate" inputmode="decimal" value="${escapeHtml(store.lendRate)}"></div>
+          <div class="field-row"><label for="editStoreExchangeRate">交換レート（円/玉）</label><input id="editStoreExchangeRate" inputmode="decimal" value="${escapeHtml(store.exchangeRate)}"></div>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveStoreSettingsBtn">保存</button>
+        </div>
+      `);
+      byId("saveStoreSettingsBtn").addEventListener("click", () => {
+        const name = byId("editStoreName").value.trim();
+        if (!name) return;
+        store.name = name;
+        store.isPersonal = byId("editStorePersonal").checked;
+        store.lendRate = positiveNumberOrDefault(byId("editStoreLendRate").value, DEFAULT_LEND_RATE);
+        store.exchangeRate = positiveNumberOrDefault(byId("editStoreExchangeRate").value, DEFAULT_EXCHANGE_RATE);
+        if (!persistWithToast("保存しました")) return;
+        closeModal();
+        renderAll();
       });
     }
 
@@ -1755,7 +1846,7 @@
       const presetId = normalizeMachinePresetId(machine);
       openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
         <div class="metric-grid">
-          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? stats.rate.toFixed(1) : "-"}</strong></div>
+          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? stats.rate.toFixed(1) : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}</div>
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
         </div>
@@ -1769,7 +1860,10 @@
         <div class="field-row"><label for="machineMemo">台メモ（釘・癖など）</label><textarea id="machineMemo" placeholder="釘の癖、ストローク、止め打ち手順など">${escapeHtml(machine.memo || "")}</textarea></div>
         <p class="hint warn" id="presetSupportNote"></p>
         <div class="list">
-          ${sessions.slice(-5).reverse().map((session) => `<div class="row-card"><strong>${escapeHtml(session.date)}</strong><br><small>${session.status === "completed" ? "確定" : "稼働中"} / 回転率 ${deriveSession(session).rate?.toFixed(1) || "-"}</small></div>`).join("") || '<div class="row-card"><small>過去セッションなし</small></div>'}
+          ${sessions.slice(-5).reverse().map((session) => {
+            const derived = deriveSession(session, machine);
+            return `<div class="row-card"><strong>${escapeHtml(session.date)}</strong><br><small>${session.status === "completed" ? "確定" : "稼働中"} / 回転率 ${rateText(derived)}${derived.isEstimatedRate || derived.isEstimatedPayout ? " / 概算" : ""}</small></div>`;
+          }).join("") || '<div class="row-card"><small>過去セッションなし</small></div>'}
         </div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
@@ -1844,7 +1938,7 @@
           hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` 据え置きなら 前日${session.prevDayEndSpin} + 現在表示値 を別途確認してください。` : " 前日ヤメ回転数は未記録です。")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
-        { key: "startMochidama", label: "持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。" : "" },
+        { key: "startMochidama", label: "持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
         { key: "startSaipurei", label: "再プレイ残り玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。未入力だった場合は空欄のままです。" : "" },
         { key: "startCredit", label: "カード残高（クレジット残金）", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : "" },
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
@@ -1948,6 +2042,7 @@
         });
         byId("backStepBtn").addEventListener("click", () => {
           if (index > 0) {
+            draft[step.key] = readWizardValue(step);
             index -= 1;
             renderStep();
           }
@@ -2011,6 +2106,17 @@
       return value === null ? "未入力" : `${numberText(value, 0)} ${unit}`;
     }
 
+    function rateText(derived) {
+      if (derived.rateUnavailableReason) return `-（${derived.rateUnavailableReason}）`;
+      if (derived.rate === null) return "-";
+      return `${derived.rate.toFixed(1)}${derived.isEstimatedRate ? "（概算）" : ""}`;
+    }
+
+    function payoutText(derived) {
+      if (derived.hitBalls === null) return "-";
+      return `${numberText(derived.hitBalls, "-")}${derived.isEstimatedPayout ? "（概算）" : ""}`;
+    }
+
     function deriveBalances(session) {
       const cashTotal = session.investments.filter((item) => item.type === "cash").reduce((sum, item) => sum + Number(item.amount || 0), 0);
       const replayTotal = session.investments.filter((item) => item.type === "saipurei").reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -2054,7 +2160,7 @@
       const item = { type, amount, time, phase: currentInvestmentPhase(session) };
       session.investments.push(item);
       session.updatedAt = nowIso();
-      const balls = Math.round(investmentToBalls(item));
+      const balls = Math.round(investmentToBalls(item, storeById(session.storeId)));
       const balances = deriveBalances(session);
       const negative = (type === "cash" && balances.credit !== null && balances.credit < 0) || (type === "saipurei" && balances.saipurei !== null && balances.saipurei < 0);
       const message = negative ? `投資を追記しました（+${balls}玉）。残高がマイナスです` : `投資を追記しました（+${balls}玉）`;
@@ -2120,12 +2226,13 @@
         <div class="metric-grid">
           <div class="metric"><span>通常回転数</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${numberText(derived.consumedBalls, "-")}</strong></div>
-          <div class="metric"><span>セッション回転率</span><strong>${derived.rate ? derived.rate.toFixed(1) : "-"}</strong></div>
+          <div class="metric"><span>セッション回転率</span><strong>${rateText(derived)}</strong></div>
           <div class="metric"><span>大当たり回数</span><strong>${numberText(session.hitCount, "-")}</strong></div>
-          <div class="metric"><span>獲得出玉</span><strong>${numberText(derived.hitBalls, "-")}</strong></div>
+          ${derived.estimatedRemainBalls !== null ? `<div class="metric"><span>当選時残り玉</span><strong>${numberText(derived.estimatedRemainBalls, "-")}（概算）</strong></div>` : ""}
+          <div class="metric"><span>獲得出玉</span><strong>${payoutText(derived)}</strong></div>
           <div class="metric"><span>R数ベース出玉</span><strong>${numberText(derived.roundBasedPayout, "-")}</strong></div>
           <div class="metric"><span>差玉</span><strong>${numberText(derived.diffBalls, "-")}</strong></div>
-          <div class="metric"><span>換算収支</span><strong>${numberText(derived.profitYen, "-")} 円</strong></div>
+          <div class="metric"><span>換算収支</span><strong>${numberText(derived.profitYen, "-")} 円</strong><small>${derived.profitYen !== null ? `（${escapeHtml(derived.exchangeRate)}円換算）` : ""}</small></div>
           ${session.hitVia === "yutime" ? `<div class="metric"><span>遊タイム玉減り</span><strong>${numberText(derived.yutimeLoss, "-")}</strong></div>` : ""}
         </div>
         <div class="status-line">${missingFields(session).length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>'}</div>
@@ -2236,32 +2343,43 @@
       return data.sessions.find((session) => session.storeId === store.id && session.status === "active") || null;
     }
 
-    function investmentToBalls(item) {
-      if (item.type === "cash") return Number(item.amount || 0) / CASH_TO_BALLS_RATE;
+    function investmentToBalls(item, store = activeStore()) {
+      if (item.type === "cash") return Number(item.amount || 0) / lendRateForStore(store);
       return Number(item.amount || 0);
     }
 
     function deriveSession(session, machine = null) {
-      const normalInvestedBalls = session.investments.filter((item) => item.phase !== "yutime").reduce((sum, item) => sum + investmentToBalls(item), 0);
-      const yutimeInvestedBalls = session.investments.filter((item) => item.phase === "yutime").reduce((sum, item) => sum + investmentToBalls(item), 0);
+      const store = storeById(session.storeId);
+      const normalInvestedBalls = session.investments.filter((item) => item.phase !== "yutime").reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+      const yutimeInvestedBalls = session.investments.filter((item) => item.phase === "yutime").reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const investedBalls = Math.round(normalInvestedBalls + yutimeInvestedBalls);
+      const hasStartMochidama = session.startMochidama !== null && session.startMochidama !== undefined;
       const startingBalls = Number(session.startMochidama || 0);
       const totalInputBalls = startingBalls + investedBalls;
       const normalInputBalls = startingBalls + normalInvestedBalls;
       const normalSpins = session.hitSpin !== null && session.startSpin !== null ? session.hitSpin - session.startSpin : null;
-      const normalEndBalls = session.yutimeEnterBalls !== null ? session.yutimeEnterBalls : session.hitRemainBalls;
+      const preset = machine ? presetById(normalizeMachinePresetId(machine)) : null;
+      const roundBasedPayout = machine?.roundBalls !== null && machine?.roundBalls !== undefined && session.totalRounds !== null && session.totalRounds !== undefined ? machine.roundBalls * session.totalRounds : null;
+      const standardPayout = preset?.standardPayout && session.hitCount > 0 ? preset.standardPayout * session.hitCount : null;
+      const estimatedPayout = roundBasedPayout !== null ? roundBasedPayout : standardPayout;
+      const estimatedRemainBalls = session.hitRemainBalls === null && estimatedPayout !== null && session.endTotalBalls !== null ? Math.max(0, session.endTotalBalls - estimatedPayout) : null;
+      const normalEndBalls = session.yutimeEnterBalls !== null ? session.yutimeEnterBalls : (session.hitRemainBalls !== null ? session.hitRemainBalls : estimatedRemainBalls);
       const consumedBalls = normalSpins !== null && normalEndBalls !== null ? Math.max(0, normalInputBalls - Number(normalEndBalls || 0)) : null;
       const fallbackConsumed = normalSpins !== null ? Math.max(0, normalInputBalls) : null;
-      const rateBase = normalEndBalls !== null ? consumedBalls : fallbackConsumed;
+      const rateBase = hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null;
       const rate = normalSpins !== null && rateBase > 0 ? normalSpins / rateBase * 250 : null;
-      const pointBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : totalInputBalls;
-      const hitBalls = session.endTotalBalls !== null && session.hitCount > 0 && pointBalls !== null ? session.endTotalBalls - pointBalls : null;
-      const roundBasedPayout = machine?.roundBalls !== null && machine?.roundBalls !== undefined && session.totalRounds !== null ? machine.roundBalls * session.totalRounds : null;
+      const rateUnavailableReason = !hasStartMochidama ? "持ち玉未入力" : "";
+      const pointBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : (estimatedRemainBalls !== null ? estimatedRemainBalls : totalInputBalls);
+      const rawHitBalls = session.endTotalBalls !== null && session.hitCount > 0 && pointBalls !== null ? session.endTotalBalls - pointBalls : null;
+      const hitBalls = session.hitRemainBalls === null && estimatedPayout !== null ? estimatedPayout : rawHitBalls;
       const averageRoundPayout = roundBasedPayout !== null && session.hitCount > 0 ? Math.round(roundBasedPayout / session.hitCount) : null;
       const yutimeEndBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : session.endTotalBalls;
       const yutimeLoss = session.hitVia === "yutime" && session.yutimeEnterBalls !== null && yutimeEndBalls !== null ? session.yutimeEnterBalls + yutimeInvestedBalls - yutimeEndBalls : null;
       const diffBalls = session.endTotalBalls !== null ? session.endTotalBalls - totalInputBalls + Number(session.zanhoryuBalls || 0) : null;
-      const profitYen = diffBalls !== null ? Math.round(diffBalls * CASH_TO_BALLS_RATE) : null;
+      const exchangeRate = exchangeRateForStore(store);
+      const profitYen = diffBalls !== null ? Math.round(diffBalls * exchangeRate) : null;
+      const isEstimatedPayout = session.hitRemainBalls === null && estimatedPayout !== null;
+      const isEstimatedRate = isEstimatedPayout && rate !== null && (session.yutimeEnterBalls === null || session.yutimeEnterBalls === undefined);
       return {
         investedBalls,
         normalInvestedBalls: Math.round(normalInvestedBalls),
@@ -2270,12 +2388,17 @@
         normalSpins,
         consumedBalls: rateBase,
         rate,
+        rateUnavailableReason,
+        isEstimatedRate,
         hitBalls,
+        estimatedRemainBalls,
+        isEstimatedPayout,
         roundBasedPayout,
         averageRoundPayout,
         yutimeLoss: yutimeLoss !== null ? Math.round(yutimeLoss) : null,
         diffBalls,
-        profitYen
+        profitYen,
+        exchangeRate
       };
     }
 
@@ -2287,14 +2410,17 @@
     function aggregateStats(sessions) {
       let spins = 0;
       let consumed = 0;
+      let estimatedCount = 0;
       sessions.forEach((session) => {
-        const derived = deriveSession(session);
+        const machine = data.machines.find((item) => item.id === session.machineId) || null;
+        const derived = deriveSession(session, machine);
         if (derived.normalSpins !== null && derived.normalSpins > 0 && derived.consumedBalls > 0) {
           spins += derived.normalSpins;
           consumed += derived.consumedBalls;
+          if (derived.isEstimatedRate || derived.isEstimatedPayout) estimatedCount += 1;
         }
       });
-      return { spins, consumed: Math.round(consumed), rate: consumed > 0 ? spins / consumed * 250 : null };
+      return { spins, consumed: Math.round(consumed), rate: consumed > 0 ? spins / consumed * 250 : null, estimatedCount };
     }
 
     function filteredSessions() {
