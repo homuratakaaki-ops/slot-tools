@@ -482,6 +482,51 @@
       box-shadow: none;
     }
 
+    .running-headline {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .running-live-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin-top: 10px;
+      padding: 8px 10px;
+      border: 1px solid rgba(35, 108, 104, .25);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .running-live-row span,
+    .running-total-row span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .running-live-row strong {
+      font-size: 22px;
+    }
+
+    .editable-value {
+      border-style: dashed;
+      background: #fff;
+      text-align: left;
+    }
+
+    .editable-value strong {
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .editable-value small {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
     .counter-row, .balance-row {
       display: flex;
       flex-wrap: wrap;
@@ -511,6 +556,35 @@
 
     .balance-row .balance-value {
       min-width: 86px;
+    }
+
+    .balance-row.is-collapsed {
+      padding: 8px 10px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: rgba(255,255,255,.68);
+    }
+
+    .running-total-row {
+      margin-top: 10px;
+      font-weight: 700;
+    }
+
+    .running-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .history-toggle {
+      width: 100%;
+      justify-content: space-between;
+      margin-top: 12px;
+    }
+
+    .history-list {
+      margin-top: 8px;
     }
 
     .metric-grid {
@@ -878,6 +952,7 @@
     let selectedLabelFilters = new Set();
     let activeSessionId = null;
     let expandedInvestmentSessions = new Set();
+    let expandedReplayRows = new Set();
     let spinUndoStacks = {};
     let autoFilterExpanded = false;
     let mapEditorOpenByStore = {};
@@ -1554,18 +1629,30 @@
       const yutimeMode = isYutimeInvestmentPhase(session);
       const otherActiveSessions = activeSessionsForStore(store.id).filter((item) => item.id !== session.id);
       const currentSpin = session.currentSpin ?? session.startSpin;
-      const liveRate = liveRunningRate(session);
+      const liveRate = runningPanelRate(session);
       const totals = investmentTotals(session);
-      const visibleInvestments = expandedInvestmentSessions.has(session.id) ? session.investments : session.investments.slice(-5);
-      const hiddenInvestmentCount = Math.max(0, session.investments.length - visibleInvestments.length);
+      const totalSpins = runningSpinCount(session);
+      const panelInputBalls = runningPanelInputBalls(session, derived);
+      const showHistory = expandedInvestmentSessions.has(session.id);
+      const entries = historyEntries(session);
+      const replayCollapsed = balances.saipurei === 0 && !expandedReplayRows.has(session.id);
       const stickyClass = runningStickyEnabled ? "" : " sticky-off";
       els.runningArea.innerHTML = `
         <div class="section running-panel">
           <div class="running-sticky${stickyClass}">
-            <div class="row-card-head"><strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong><button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button></div>
+            <div class="running-headline"><strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong><button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button></div>
+            <div class="running-live-row">
+              <div>
+                <span>現在回転数</span>
+                <button class="editable-value" data-edit-spin><strong>${numberText(currentSpin, "-")}</strong><small>修正</small></button>
+              </div>
+              <div>
+                <span>回転率</span>
+                <strong>${liveRate !== null ? liveRate.toFixed(1) : "-"} /250玉</strong>
+                ${yutimeMode ? `<small>遊タイム突入 ${numberText(session.yutimeEnterBalls, "-")}玉</small>` : ""}
+              </div>
+            </div>
             <div class="counter-row">
-              <span>現在回転数</span>
-              <strong>${numberText(currentSpin, "-")}</strong>
               <button data-spin-add="1">+1</button>
               <button data-spin-add="3">+3</button>
               <button data-spin-add="5">+5</button>
@@ -1573,11 +1660,56 @@
               <button id="undoSpinBtn">元に戻す</button>
             </div>
             <div class="balance-row">
-              <span class="balance-label">持ち玉</span><button class="ghost balance-value" data-edit-balance="startMochidama">${balanceText(balances.mochidama, "玉")}</button><button class="${balances.mochidama === null ? "needs-balance" : ""}" data-source-btn="mochidama" ${balances.mochidama !== null && !canUseSource(session, "mochidama", 125) ? "disabled" : ""}>+125玉</button>
-              <span class="balance-label">再プレ残</span><button class="ghost balance-value" data-edit-balance="startSaipurei">${balanceText(balances.saipurei, "玉")}</button><button class="${balances.saipurei === null ? "needs-balance" : ""}" data-source-btn="saipurei" ${balances.saipurei !== null && !canUseSource(session, "saipurei", 125) ? "disabled" : ""}>+125玉</button>
-              <span class="balance-label">カード残</span><button class="ghost balance-value" data-edit-balance="startCredit">${balanceText(balances.credit, "円")}</button><button class="${balances.credit === null ? "needs-balance" : ""}" data-source-btn="cash" ${balances.credit !== null && !canUseSource(session, "cash", 500) ? "disabled" : ""}>+500円</button><button id="openChargeBtn">入金</button>
+              <span class="balance-label">持ち玉</span><button class="editable-value balance-value" data-edit-balance="startMochidama"><strong>${balanceText(balances.mochidama, "玉")}</strong><small>修正</small></button><button class="${balances.mochidama === null ? "needs-balance" : ""}" data-source-btn="mochidama" ${balances.mochidama !== null && !canUseSource(session, "mochidama", 125) ? "disabled" : ""}>-125玉</button>
             </div>
-            <div class="hint">投入 ${numberText(derived.investedBalls, 0)}玉（持ち玉${numberText(totals.mochidamaBalls, 0)}・再プレ${numberText(totals.saipureiBalls, 0)}・現金${numberText(totals.cashYen, 0)}円）/ 概算回転率 ${liveRate !== null ? liveRate.toFixed(1) : "-"}</div>
+            ${replayCollapsed ? `
+              <button class="balance-row is-collapsed" id="showReplayRowBtn">再プレ使い切り</button>
+            ` : `
+              <div class="balance-row">
+                <span class="balance-label">再プレ残</span><button class="editable-value balance-value" data-edit-balance="startSaipurei"><strong>${balanceText(balances.saipurei, "玉")}</strong><small>修正</small></button><button class="${balances.saipurei === null ? "needs-balance" : ""}" data-source-btn="saipurei" ${balances.saipurei !== null && !canUseSource(session, "saipurei", 125) ? "disabled" : ""}>-125玉</button>
+              </div>
+            `}
+            <div class="balance-row">
+              <span class="balance-label">カード残</span><button class="editable-value balance-value" data-edit-balance="startCredit"><strong>${balanceText(balances.credit, "円")}</strong><small>修正</small></button><button class="${balances.credit === null ? "needs-balance" : ""}" data-source-btn="cash" ${balances.credit !== null && !canUseSource(session, "cash", 500) ? "disabled" : ""}>-500円</button><button id="openChargeBtn">入金</button>
+            </div>
+            <div class="running-total-row">累計投入 ${numberText(panelInputBalls, 0)}玉 / 累計回転 ${numberText(totalSpins, "-")}<br><span>内訳: 持ち玉${numberText(totals.mochidamaBalls, 0)}玉・再プレ${numberText(totals.saipureiBalls, 0)}玉・現金${numberText(totals.cashYen, 0)}円</span></div>
+            ${yutimeMode ? '<p class="phase-note">遊タイム中の投資として記録されます。</p>' : ""}
+            <div class="running-actions">
+              <button id="enterYutimeBtn">遊タイム突入</button>
+              <button class="primary" id="hitBtn">大当たり</button>
+              <button id="finishBtn">ヤメ</button>
+            </div>
+            <button class="ghost history-toggle" id="toggleInvestmentsBtn">履歴 ${showHistory ? "▲" : "▼"}</button>
+            ${showHistory ? `
+              <div class="list history-list">
+                ${entries.length ? entries.map((entry) => {
+                  if (entry.kind === "charge") {
+                    return `
+                      <div class="row-card">
+                        <div class="row-card-head">
+                          <div><strong>入金 ${escapeHtml(entry.item.amount)}円</strong><br><small>${escapeHtml(entry.item.time || "")}</small></div>
+                          <button class="small" data-delete-charge="${entry.index}">削除</button>
+                        </div>
+                      </div>
+                    `;
+                  }
+                  const item = entry.item;
+                  const source = investmentSource(item);
+                  const snapshot = investmentSnapshot(session, entry.index);
+                  return `
+                    <div class="row-card">
+                      <div class="row-card-head">
+                        <div>
+                          <strong>${investmentSourceLabel(source)} -${escapeHtml(item.amount)}${source === "cash" ? "円" : "玉"}</strong>
+                          <br><small>${escapeHtml(item.time || "")} / ${investmentPhaseLabel(item)}${item.spinAt !== null && item.spinAt !== undefined ? ` / ${escapeHtml(item.spinAt)}回転時` : ""}${snapshot ? ` / 累計投入${escapeHtml(snapshot.inputBalls)}玉・累計${escapeHtml(numberText(snapshot.spins, "-"))}回転・${snapshot.rate !== null ? snapshot.rate.toFixed(1) : "-"} /250玉` : ""}</small>
+                        </div>
+                        <button class="small" data-delete-investment="${entry.index}">削除</button>
+                      </div>
+                    </div>
+                  `;
+                }).join("") : '<div class="row-card"><small>履歴はまだありません。</small></div>'}
+              </div>
+            ` : ""}
           </div>
           ${otherActiveSessions.length ? `
             <div class="status-line" style="margin:0 0 12px">
@@ -1595,50 +1727,6 @@
             </div>
             <button class="small" id="editActiveBtn">記録の修正</button>
           </div>
-          <div class="metric-grid">
-            <div class="metric"><span>投入合計</span><strong>${derived.investedBalls} 玉</strong></div>
-            <div class="metric"><span>カード残高</span><strong>${balanceText(balances.credit, "円")}</strong></div>
-            <div class="metric"><span>再プレ残り</span><strong>${balanceText(balances.saipurei, "玉")}</strong></div>
-            <div class="metric"><span>通常回転</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
-            <div class="metric"><span>概算回転率</span><strong>${rateText(derived)} /250玉</strong></div>
-            <div class="metric"><span>遊タイム突入玉</span><strong>${numberText(session.yutimeEnterBalls, "-")}</strong></div>
-          </div>
-          ${yutimeMode ? '<p class="phase-note">遊タイム中の投資として記録されます。</p>' : ""}
-          <div class="grid three" style="margin-top:12px">
-            <button class="primary" id="addMochidamaBtn">持ち玉を直接入力</button>
-            <button class="primary" id="addSaipureiBtn">再プレイを直接入力</button>
-            <button class="primary" id="addCashBtn">金額を直接入力</button>
-          </div>
-          <div class="list" style="margin-top:12px">
-            ${hiddenInvestmentCount ? `<button class="small" id="toggleInvestmentsBtn">過去${hiddenInvestmentCount}件を表示</button>` : ""}
-            ${session.investments.length ? visibleInvestments.map((item) => {
-              const index = session.investments.indexOf(item);
-              const source = investmentSource(item);
-              return `
-              <div class="row-card">
-                <div class="row-card-head">
-                  <div>
-                    <strong>${investmentSourceLabel(source)} ${escapeHtml(item.amount)}${source === "cash" ? "円" : "玉"}</strong>
-                    <br><small>${escapeHtml(item.time || "")} / ${investmentPhaseLabel(item)}${item.spinAt !== null && item.spinAt !== undefined ? ` / ${escapeHtml(item.spinAt)}回転時` : ""}</small>
-                  </div>
-                  <button class="small" data-delete-investment="${index}">削除</button>
-                </div>
-              </div>
-            `}).join("") : '<div class="row-card"><small>投資履歴はまだありません。</small></div>'}
-            ${(session.charges || []).map((item, index) => `
-              <div class="row-card">
-                <div class="row-card-head">
-                  <div><strong>入金 ${escapeHtml(item.amount)}円</strong><br><small>${escapeHtml(item.time || "")}</small></div>
-                  <button class="small" data-delete-charge="${index}">削除</button>
-                </div>
-              </div>
-            `).join("")}
-          </div>
-          <div class="grid three" style="margin-top:12px">
-            <button id="enterYutimeBtn">遊タイム突入</button>
-            <button class="primary" id="hitBtn">大当たり</button>
-            <button id="finishBtn">終了入力</button>
-          </div>
         </div>
       `;
       byId("editActiveBtn").addEventListener("click", () => openSessionEditor(session.id));
@@ -1649,6 +1737,13 @@
       byId("toggleStickyBtn").addEventListener("click", () => {
         runningStickyEnabled = !runningStickyEnabled;
         localStorage.setItem(STICKY_PREF_KEY, runningStickyEnabled ? "on" : "off");
+        renderRunning();
+      });
+      const spinEditButton = els.runningArea.querySelector("[data-edit-spin]");
+      if (spinEditButton) spinEditButton.addEventListener("click", () => openSpinEditForm(session));
+      const showReplayButton = byId("showReplayRowBtn");
+      if (showReplayButton) showReplayButton.addEventListener("click", () => {
+        expandedReplayRows.add(session.id);
         renderRunning();
       });
       els.runningArea.querySelectorAll("[data-source-btn]").forEach((button) => {
@@ -1667,13 +1762,14 @@
           renderRunning();
         });
       });
-      byId("addMochidamaBtn").addEventListener("click", () => openInvestmentForm("mochidama"));
-      byId("addSaipureiBtn").addEventListener("click", () => openInvestmentForm("saipurei"));
-      byId("addCashBtn").addEventListener("click", () => openInvestmentForm("cash"));
       const toggleInvestmentsButton = byId("toggleInvestmentsBtn");
       if (toggleInvestmentsButton) {
         toggleInvestmentsButton.addEventListener("click", () => {
-          expandedInvestmentSessions.add(session.id);
+          if (expandedInvestmentSessions.has(session.id)) {
+            expandedInvestmentSessions.delete(session.id);
+          } else {
+            expandedInvestmentSessions.add(session.id);
+          }
           renderRunning();
         });
       }
@@ -2277,9 +2373,9 @@
     function openActiveStartGuard(machineId, active) {
       const activeMachine = data.machines.find((item) => item.id === active.machineId);
       const daiNo = activeMachine?.daiNo || "不明";
-      openModal("稼働中の記録があります", `台${daiNo}が終了入力されていません。`, `
+      openModal("稼働中の記録があります", `台${daiNo}がヤメ入力されていません。`, `
         <div class="grid">
-          <button class="primary" id="goActiveEndBtn">台${escapeHtml(daiNo)}の終了入力へ</button>
+          <button class="primary" id="goActiveEndBtn">台${escapeHtml(daiNo)}のヤメ入力へ</button>
           <button id="forceStartBtn">そのまま新しく開始</button>
           <button class="ghost" data-close>キャンセル</button>
         </div>
@@ -2353,7 +2449,7 @@
     function openEndWizard(sessionId) {
       const session = findSession(sessionId);
       if (!session) return;
-      openModal("終了入力", "結果を選んでから、必要な項目だけ記録します。", `
+      openModal("ヤメ入力", "結果を選んでから、必要な項目だけ記録します。", `
         <div class="grid two">
           <button class="primary" id="endWithHitBtn">大当たりあり</button>
           <button id="endNoHitBtn">当たらず終了（遊タイム抜け含む）</button>
@@ -2514,6 +2610,63 @@
       const inputBalls = usesTapInvestmentMode(session) ? normalInvestedBalls : Number(session.startMochidama || 0) + normalInvestedBalls;
       const spins = Number(session.currentSpin) - Number(session.startSpin);
       return inputBalls > 0 && spins >= 0 ? spins / inputBalls * 250 : null;
+    }
+
+    function runningPanelRate(session) {
+      if (session.startSpin === null || session.currentSpin === null || session.currentSpin === undefined) return null;
+      const store = storeById(session.storeId);
+      const investedBalls = session.investments.reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+      const inputBalls = usesTapInvestmentMode(session) ? investedBalls : Number(session.startMochidama || 0) + investedBalls;
+      const spins = Number(session.currentSpin) - Number(session.startSpin);
+      return inputBalls > 0 && spins >= 0 ? spins / inputBalls * 250 : null;
+    }
+
+    function runningPanelInputBalls(session, derived = null) {
+      const stats = derived || deriveSession(session);
+      return usesTapInvestmentMode(session) ? stats.investedBalls : Math.round(stats.totalInputBalls || stats.investedBalls || 0);
+    }
+
+    function runningSpinCount(session) {
+      if (session.startSpin === null || session.currentSpin === null || session.currentSpin === undefined) return null;
+      return Number(session.currentSpin) - Number(session.startSpin);
+    }
+
+    function investmentSnapshot(session, investmentIndex) {
+      const item = session.investments[investmentIndex];
+      if (!item) return null;
+      const store = storeById(session.storeId);
+      const investedBalls = session.investments.slice(0, investmentIndex + 1).reduce((sum, investment) => sum + investmentToBalls(investment, store), 0);
+      const inputBalls = usesTapInvestmentMode(session) ? investedBalls : Number(session.startMochidama || 0) + investedBalls;
+      const spinAt = item.spinAt !== null && item.spinAt !== undefined ? Number(item.spinAt) : null;
+      const spins = spinAt !== null && session.startSpin !== null ? spinAt - Number(session.startSpin) : null;
+      const rate = inputBalls > 0 && spins !== null && spins >= 0 ? spins / inputBalls * 250 : null;
+      return {
+        inputBalls: Math.round(inputBalls),
+        spins,
+        rate
+      };
+    }
+
+    function historyEntries(session) {
+      const investments = session.investments.map((item, index) => ({
+        kind: "investment",
+        item,
+        index,
+        time: item.time || "",
+        order: index
+      }));
+      const chargeOffset = session.investments.length;
+      const charges = (session.charges || []).map((item, index) => ({
+        kind: "charge",
+        item,
+        index,
+        time: item.time || "",
+        order: chargeOffset + index
+      }));
+      return investments.concat(charges).sort((a, b) => {
+        const timeCompare = String(b.time).localeCompare(String(a.time));
+        return timeCompare || b.order - a.order;
+      });
     }
 
     function addCurrentSpin(session, amount) {
@@ -2738,6 +2891,23 @@
         session[key] = normalizeNumber(byId("balanceValue").value);
         session.updatedAt = nowIso();
         if (!persistWithToast("残高を修正しました")) return;
+        closeModal();
+        renderAll();
+      });
+    }
+
+    function openSpinEditForm(session) {
+      openModal("現在回転数を修正", "液晶表示と合わせるための回転数修正です。", `
+        <div class="field-row"><label for="currentSpinValue">現在回転数</label><input id="currentSpinValue" inputmode="numeric" value="${escapeHtml(session.currentSpin ?? session.startSpin ?? "")}"></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveCurrentSpinBtn">保存</button>
+        </div>
+      `);
+      byId("saveCurrentSpinBtn").addEventListener("click", () => {
+        session.currentSpin = normalizeNumber(byId("currentSpinValue").value);
+        session.updatedAt = nowIso();
+        if (!persistWithToast("現在回転数を修正しました")) return;
         closeModal();
         renderAll();
       });
