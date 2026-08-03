@@ -460,6 +460,24 @@
       box-shadow: inset 0 0 0 2px rgba(35, 108, 104, 0.18);
     }
 
+    .machine-button.ev-good {
+      border-color: var(--good);
+      box-shadow: inset 0 0 0 2px rgba(28, 124, 84, 0.22);
+    }
+
+    .machine-button .eve-sign {
+      position: absolute;
+      left: 4px;
+      top: 4px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: #ecfdf3;
+      color: #067647;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
     .running-panel {
       border-color: #7aa7a3;
       background: #f3fbfa;
@@ -509,6 +527,13 @@
 
     .running-live-row strong {
       font-size: 22px;
+    }
+
+    .live-ev-line {
+      margin: -2px 0 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
     }
 
     .editable-value {
@@ -610,6 +635,34 @@
       display: block;
       margin-top: 2px;
       font-size: 18px;
+    }
+
+    .expectation-box {
+      margin: 12px 0;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .expectation-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 8px;
+      font-weight: 800;
+    }
+
+    .expectation-title.good { color: var(--good); }
+    .expectation-title.warn { color: var(--warn); }
+    .expectation-title.bad { color: var(--danger); }
+
+    .expectation-inputs {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 10px;
     }
 
     .list {
@@ -883,6 +936,7 @@
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
+    const EV_THRESHOLDS = { good: 2000, warn: 0 };
     const AUTO_LABELS = [
       "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日",
       "1のつく日", "2のつく日", "3のつく日", "4のつく日", "5のつく日",
@@ -892,6 +946,104 @@
     const MACHINE_PRESETS = [
       { id: "umi-sp5", name: "P大海物語スペシャル5", roundBalls: 140, standardRounds: 10, standardPayout: 1400, evSupported: true, spec: { note: "B5時点の期待値対応プリセット" } }
     ];
+
+    const YUTIME_EXPECTATION_ENGINE = (() => {
+      const preset = {
+        id: "umi-sp5",
+        name: "P大海物語スペシャル5",
+        spec: {
+          hitProb: 0.00312891,
+          hitProbLabel: "1/319.6",
+          tenjo: 950,
+          yutimeJitan: 350,
+          kakuhenRate: 0.54,
+          jitanNormal: 100,
+          jitanChain: 200,
+          jitanRule: "確変中・通常時の通常当り→時短100 / 時短中(遊タイム含む)の通常当り→時短200"
+        },
+        defaults: {
+          netBallsPerWin: 1400,
+          densapoDelta: 0,
+          spinsPerHour: 250,
+          secPerHit: 120,
+          secPerDensapoSpin: 6,
+          slotGamesPerHour: 800,
+          yenPerBall: 4
+        }
+      };
+      function rebound(prob, spins) {
+        return 1 - Math.pow(1 - prob, spins);
+      }
+      function finiteExpectedSpins(prob, limit) {
+        return rebound(prob, limit) / prob;
+      }
+      function chainValues(settings = {}) {
+        const spec = preset.spec;
+        const p = spec.hitProb;
+        const kaku = spec.kakuhenRate;
+        const normal = 1 - kaku;
+        const r100 = rebound(p, spec.jitanNormal);
+        const r200 = rebound(p, spec.jitanChain);
+        const r350 = rebound(p, spec.yutimeJitan);
+        const a = 1 - kaku;
+        const b = -normal * r100;
+        const c = -kaku;
+        const d = 1 - normal * r200;
+        const det = a * d - b * c;
+        const wInit = (d - b) / det;
+        const jitanHit = (a - c) / det;
+        const s100 = finiteExpectedSpins(p, spec.jitanNormal);
+        const s200 = finiteExpectedSpins(p, spec.jitanChain);
+        const dA = 1 - kaku;
+        const dB = -normal * r100;
+        const dC = -kaku;
+        const dD = 1 - normal * r200;
+        const dDet = dA * dD - dB * dC;
+        const dRightE = normal * s100;
+        const dRightJ = normal * s200;
+        const densapoInit = (dRightE * dD - dB * dRightJ) / dDet;
+        const densapoJitanHit = (dA * dRightJ - dRightE * dC) / dDet;
+        return { r100, r200, r350, wInit, jitanHit, yutimeWins: r350 * jitanHit, densapoInit, densapoJitanHit, settings };
+      }
+      function calculate(input, settings = {}) {
+        const merged = { ...preset.defaults, ...settings };
+        const p = preset.spec.hitProb;
+        const currentSpin = Math.max(0, Number(input.currentSpin) || 0);
+        const spinsToTenjo = Math.max(0, preset.spec.tenjo - currentSpin);
+        const rate = Number(input.rotationRate) || 0;
+        if (rate <= 0) return null;
+        const chains = chainValues(merged);
+        const pHit = rebound(p, spinsToTenjo);
+        const pReach = Math.pow(1 - p, spinsToTenjo);
+        const expectedNormalSpins = pHit / p;
+        const expectedWins = pHit * chains.wInit + pReach * chains.yutimeWins;
+        const yutimeDensapoBeforeHit = finiteExpectedSpins(p, preset.spec.yutimeJitan);
+        const expectedDensapoSpins = pHit * chains.densapoInit + pReach * (yutimeDensapoBeforeHit + chains.r350 * chains.densapoJitanHit);
+        const investBalls = expectedNormalSpins * 250 / rate;
+        const evBalls = expectedWins * merged.netBallsPerWin + expectedDensapoSpins * merged.densapoDelta - investBalls;
+        const evYen = evBalls * merged.yenPerBall;
+        const normalHours = expectedNormalSpins / merged.spinsPerHour;
+        const hitHours = expectedWins * merged.secPerHit / 3600;
+        const densapoHours = expectedDensapoSpins * merged.secPerDensapoSpin / 3600;
+        const totalHours = normalHours + hitHours + densapoHours;
+        const hourlyYen = totalHours > 0 ? evYen / totalHours : 0;
+        const slotRate = 100 + hourlyYen / (merged.slotGamesPerHour * 3 * 20 * 0.01);
+        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedDensapoSpins, investBalls, evBalls, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, chains };
+      }
+      function logRate(log) {
+        const balls = Number(log.usedBalls ?? log.balls) || 0;
+        const spins = Number(log.normalSpin ?? log.spins) || 0;
+        return balls > 0 ? spins / (balls / 250) : 0;
+      }
+      return { preset, rebound, chainValues, calculate, logRate };
+    })();
+    window.YutimeExpectationEngine = YUTIME_EXPECTATION_ENGINE;
+    MACHINE_PRESETS[0] = {
+      ...MACHINE_PRESETS[0],
+      name: YUTIME_EXPECTATION_ENGINE.preset.name,
+      spec: YUTIME_EXPECTATION_ENGINE.preset.spec,
+      defaults: YUTIME_EXPECTATION_ENGINE.preset.defaults
+    };
 
     const blankSession = () => ({
       id: cryptoId("s"),
@@ -1093,6 +1245,95 @@
       if (presetById(machine?.presetId)) return machine.presetId;
       const matched = presetByName(machine?.modelName || "");
       return matched ? matched.id : "";
+    }
+
+    function yenText(value) {
+      if (value === null || value === undefined || !Number.isFinite(Number(value))) return "-";
+      const rounded = Math.round(Number(value));
+      return `${rounded >= 0 ? "+" : ""}${rounded.toLocaleString("ja-JP")}円`;
+    }
+
+    function hourText(value) {
+      if (value === null || value === undefined || !Number.isFinite(Number(value))) return "-";
+      return `${Number(value).toFixed(2)}h`;
+    }
+
+    function percentText(value) {
+      if (value === null || value === undefined || !Number.isFinite(Number(value))) return "-";
+      return `${Number(value).toFixed(1)}%`;
+    }
+
+    function evJudgment(result) {
+      if (!result) return { className: "", label: "未判定" };
+      if (result.evYen >= EV_THRESHOLDS.good) return { className: "good", label: "打てる" };
+      if (result.evYen >= EV_THRESHOLDS.warn) return { className: "warn", label: "微妙" };
+      return { className: "bad", label: "打てない" };
+    }
+
+    function expectationYenPerBall(store) {
+      return 100 / exchangeBallsFromStore(store);
+    }
+
+    function measuredNetBallsForPreset(storeId, presetId) {
+      let hitBalls = 0;
+      let hitCount = 0;
+      data.sessions.forEach((session) => {
+        if (session.storeId !== storeId || session.status !== "completed") return;
+        const machine = data.machines.find((item) => item.id === session.machineId);
+        if (normalizeMachinePresetId(machine) !== presetId) return;
+        const derived = deriveSession(session, machine);
+        if (derived.hitBalls !== null && !derived.isEstimatedPayout && Number(session.hitCount) > 0) {
+          hitBalls += derived.hitBalls;
+          hitCount += Number(session.hitCount);
+        }
+      });
+      return hitCount >= 3 ? { value: hitBalls / hitCount, count: hitCount } : null;
+    }
+
+    function expectationSettings(store, machine) {
+      const presetId = normalizeMachinePresetId(machine);
+      const measured = measuredNetBallsForPreset(store?.id, presetId);
+      const defaults = YUTIME_EXPECTATION_ENGINE.preset.defaults;
+      return {
+        settings: {
+          ...defaults,
+          yenPerBall: expectationYenPerBall(store),
+          netBallsPerWin: measured ? measured.value : defaults.netBallsPerWin
+        },
+        payoutSource: measured
+          ? `実測平均${Math.round(measured.value).toLocaleString("ja-JP")}玉使用（n=${measured.count}）`
+          : `既定${defaults.netBallsPerWin.toLocaleString("ja-JP")}玉使用`
+      };
+    }
+
+    function expectationRate(stats, manualRate) {
+      const manual = normalizeNumber(manualRate);
+      if (manual !== null && manual > 0) return { rate: manual, source: "手入力" };
+      if (stats?.rate) return { rate: stats.rate, source: "台帳累計" };
+      return { rate: null, source: "回転率なし" };
+    }
+
+    function calculateMachineExpectation(machine, options = {}) {
+      const store = storeById(machine?.storeId);
+      const preset = presetById(normalizeMachinePresetId(machine));
+      if (!store || !preset?.evSupported) return { result: null, reason: "期待値対応プリセットではありません" };
+      const stats = options.stats || machineStats(machine.id);
+      const rateInfo = expectationRate(stats, options.manualRate);
+      if (!rateInfo.rate) return { result: null, reason: "回転率データがありません" };
+      const currentSpin = Math.max(0, Number(options.currentSpin) || 0);
+      const previousSpin = Math.max(0, Number(options.previousSpin) || 0);
+      const effectiveSpin = currentSpin + previousSpin;
+      const settingsInfo = expectationSettings(store, machine);
+      const result = YUTIME_EXPECTATION_ENGINE.calculate({ currentSpin: effectiveSpin, rotationRate: rateInfo.rate }, settingsInfo.settings);
+      return {
+        result,
+        currentSpin,
+        previousSpin,
+        effectiveSpin,
+        rateSource: rateInfo.source,
+        payoutSource: settingsInfo.payoutSource,
+        exchangeBalls: exchangeBallsFromStore(store)
+      };
     }
 
     function showToast(message, type = "success", options = {}) {
@@ -1608,14 +1849,22 @@
       const rateClass = machine && stats?.rate ? rateToneClass(machine, stats.rate) : "";
       const estimatedMark = stats?.estimatedCount ? "&#8776;" : "";
       const isActive = machine && activeMachineIds.has(machine.id);
+      const eveSign = machine ? mapExpectationSign(machine, stats, prev) : false;
       return `
-        <button class="machine-button ${stats?.rate || prev !== null ? "has-data" : ""} ${isActive ? "is-active" : ""}" data-dai-no="${escapeHtml(daiNo)}">
+        <button class="machine-button ${stats?.rate || prev !== null ? "has-data" : ""} ${isActive ? "is-active" : ""} ${eveSign ? "ev-good" : ""}" data-dai-no="${escapeHtml(daiNo)}">
           ${isActive ? '<span class="active-badge">稼働中</span>' : ""}
+          ${eveSign ? '<span class="eve-sign">宵</span>' : ""}
           <span class="dai">${escapeHtml(daiNo)}</span>
           <span class="rate ${rateClass}">${escapeHtml(rate)}${estimatedMark}</span>
           ${prev !== null ? `<span class="prev">前${escapeHtml(prev)}</span>` : ""}
         </button>
       `;
+    }
+
+    function mapExpectationSign(machine, stats, prev) {
+      if (prev === null || prev === undefined || !stats?.rate) return false;
+      const expectation = calculateMachineExpectation(machine, { currentSpin: prev, stats });
+      return Boolean(expectation.result && expectation.result.evYen >= EV_THRESHOLDS.good);
     }
 
     function renderRunning() {
@@ -1636,6 +1885,7 @@
       const otherActiveSessions = activeSessionsForStore(store.id).filter((item) => item.id !== session.id);
       const currentSpin = session.currentSpin ?? session.startSpin;
       const liveRate = runningPanelRate(session);
+      const liveEv = runningExpectation(session, machine, liveRate);
       const totals = investmentTotals(session);
       const totalSpins = runningSpinCount(session);
       const panelInputBalls = runningPanelInputBalls(session, derived);
@@ -1658,6 +1908,7 @@
                 ${yutimeMode ? `<small>遊タイム突入 ${numberText(session.yutimeEnterBalls, "-")}玉</small>` : ""}
               </div>
             </div>
+            ${liveEv?.result ? `<p class="live-ev-line">${escapeHtml(liveExpectationText(liveEv))}</p>` : ""}
             <div class="counter-row">
               <button data-spin-add="1">+1</button>
               <button data-spin-add="3">+3</button>
@@ -2301,6 +2552,16 @@
           ${stats.averageYutimeLoss !== null ? `<div class="metric"><span>遊タイム玉減り</span><strong>${Math.round(stats.averageYutimeLoss)}</strong><small>${stats.yutimeLossCount}件平均</small></div>` : ""}
         </div>
         ${filteredNote}
+        <div class="expectation-box">
+          <div class="expectation-title" id="machineEvTitle"><span>期待値判定</span><small>未判定</small></div>
+          <div class="expectation-inputs">
+            <div class="field-row"><label for="evCurrentSpin">現在回転数</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
+            <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(latestEnd?.spin ?? "")}"></div>
+            <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${stats.rate ? stats.rate.toFixed(1) : "台帳なし"}"></div>
+          </div>
+          <div class="metric-grid" id="machineEvMetrics"></div>
+          <p class="hint" id="machineEvDetail"></p>
+        </div>
         <div class="field-row" style="margin-top:12px"><label for="machinePreset">機種プリセット</label><select id="machinePreset">
           ${MACHINE_PRESETS.map((preset) => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`).join("")}
           <option value="">その他（自由入力）</option>
@@ -2324,7 +2585,15 @@
       `);
       byId("machinePreset").value = presetId;
       applyPresetSelectionToForm();
-      byId("machinePreset").addEventListener("change", applyPresetSelectionToForm);
+      renderMachineExpectation(machine.id);
+      ["evCurrentSpin", "evPrevSpin", "evManualRate"].forEach((id) => {
+        byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
+      });
+      byId("machinePreset").addEventListener("change", () => {
+        applyPresetSelectionToForm();
+        readMachineDetailForm(machine);
+        renderMachineExpectation(machine.id);
+      });
       byId("saveMachineBtn").addEventListener("click", () => {
         readMachineDetailForm(machine);
         if (!persistWithToast(`台番${daiNo}の情報を保存しました`)) return;
@@ -2340,6 +2609,41 @@
         closeModal();
         openStartWizard(machine.id);
       });
+    }
+
+    function renderMachineExpectation(machineId) {
+      const machine = data.machines.find((item) => item.id === machineId);
+      const title = byId("machineEvTitle");
+      const metrics = byId("machineEvMetrics");
+      const detail = byId("machineEvDetail");
+      if (!machine || !title || !metrics || !detail) return;
+      const stats = machineStats(machine.id);
+      const expectation = calculateMachineExpectation(machine, {
+        currentSpin: byId("evCurrentSpin")?.value,
+        previousSpin: byId("evPrevSpin")?.value,
+        manualRate: byId("evManualRate")?.value,
+        stats
+      });
+      title.className = "expectation-title";
+      if (!expectation.result) {
+        title.querySelector("small").textContent = "未判定";
+        metrics.innerHTML = '<div class="metric"><span>判定</span><strong>-</strong></div>';
+        detail.textContent = expectation.reason || "回転率を入力するか、台帳累計を作ってください。";
+        return;
+      }
+      const judgment = evJudgment(expectation.result);
+      title.classList.add(judgment.className);
+      title.querySelector("small").textContent = judgment.label;
+      metrics.innerHTML = `
+        <div class="metric"><span>判定</span><strong>${escapeHtml(judgment.label)}</strong></div>
+        <div class="metric"><span>残り回転数</span><strong>${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}</strong></div>
+        <div class="metric"><span>期待値</span><strong>${escapeHtml(yenText(expectation.result.evYen))}</strong></div>
+        <div class="metric"><span>時給</span><strong>${escapeHtml(yenText(expectation.result.hourlyYen))}</strong></div>
+        <div class="metric"><span>スロ換算機械割</span><strong>${escapeHtml(percentText(expectation.result.slotRate))}</strong></div>
+        <div class="metric"><span>拘束時間</span><strong>${escapeHtml(hourText(expectation.result.totalHours))}</strong></div>
+      `;
+      const near = expectation.result.spinsToTenjo < 100 && expectation.result.spinsToTenjo > 0;
+      detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 実効${expectation.effectiveSpin}回転${expectation.previousSpin ? `（宵越し${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
     }
 
     function applyPresetSelectionToForm() {
@@ -2646,6 +2950,24 @@
       const inputBalls = usesTapInvestmentMode(session) ? investedBalls : Number(session.startMochidama || 0) + investedBalls;
       const spins = Number(session.currentSpin) - Number(session.startSpin);
       return inputBalls > 0 && spins >= 0 ? spins / inputBalls * 250 : null;
+    }
+
+    function runningExpectation(session, machine, liveRate) {
+      if (!session || !machine || isYutimeInvestmentPhase(session) || session.hitSpin !== null) return null;
+      const stats = machineStats(machine.id);
+      const rate = liveRate !== null && liveRate !== undefined ? liveRate : stats.rate;
+      if (!rate) return null;
+      return calculateMachineExpectation(machine, {
+        currentSpin: session.currentSpin ?? session.startSpin ?? 0,
+        previousSpin: session.prevDayEndSpin || 0,
+        manualRate: rate,
+        stats
+      });
+    }
+
+    function liveExpectationText(expectation) {
+      if (!expectation?.result) return "";
+      return `残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転 / ここからの期待値 ${yenText(expectation.result.evYen)}`;
     }
 
     function runningPanelInputBalls(session, derived = null) {
