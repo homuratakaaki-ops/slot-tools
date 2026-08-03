@@ -879,7 +879,7 @@
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
-    const SCHEMA_VERSION = 9;
+    const SCHEMA_VERSION = 10;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
@@ -906,6 +906,7 @@
       startMochidama: null,
       startSaipurei: null,
       startCredit: null,
+      startTotalHits: null,
       currentSpin: null,
       prevDayEndSpin: null,
       investments: [],
@@ -915,6 +916,7 @@
       hitVia: null,
       yutimeEnterBalls: null,
       yutimeEnterTime: null,
+      endTotalHits: null,
       hitCount: null,
       totalRounds: null,
       endTotalBalls: null,
@@ -941,7 +943,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 9: 投資source/charges/固定表示設定追加後のSession charsを記録"
+        schemaBudgetNote: "v3 schema 10: startTotalHits/endTotalHits追加後のSession charsを記録"
       }
     });
 
@@ -1246,6 +1248,8 @@
       next.sessions = next.sessions.map((session) => ({
         ...blankSession(),
         ...session,
+        startTotalHits: normalizeNumber(session.startTotalHits),
+        endTotalHits: normalizeNumber(session.endTotalHits),
         currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
         carriedFromSessionId: session.carriedFromSessionId || null,
         yutimeEnterTime: session.yutimeEnterTime || null,
@@ -1305,6 +1309,7 @@
         startMochidama: 250,
         startSaipurei: 250,
         startCredit: 3000,
+        startTotalHits: 12,
         investments: [
           { type: "mochidama", source: "mochidama", amount: 500, time: "10:05", phase: "normal", spinAt: 20 },
           { type: "cash", source: "cash", amount: 500, time: "10:30", phase: "yutime", spinAt: 80 }
@@ -1315,6 +1320,7 @@
         hitVia: "yutime",
         yutimeEnterBalls: 0,
         yutimeEnterTime: "10:25",
+        endTotalHits: 13,
         hitCount: 1,
         totalRounds: 10,
         endTotalBalls: 2000,
@@ -1679,6 +1685,7 @@
               <button class="primary" id="hitBtn">大当たり</button>
               <button id="finishBtn">ヤメ</button>
             </div>
+            <p class="phase-note">大当たり=当選の瞬間 / ヤメ=全部終わった後の結果入力</p>
             <button class="ghost history-toggle" id="toggleInvestmentsBtn">履歴 ${showHistory ? "▲" : "▼"}</button>
             ${showHistory ? `
               <div class="list history-list">
@@ -2417,6 +2424,7 @@
         { key: "startMochidama", label: "持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
         { key: "startSaipurei", label: "再プレイ残り玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。未入力だった場合は空欄のままです。" : "" },
         { key: "startCredit", label: "カード残高（クレジット残金）", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : "" },
+        { key: "startTotalHits", label: "データカウンタの累計大当たり回数", type: "number", hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" },
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         if (session.currentSpin === null || session.currentSpin === undefined) session.currentSpin = session.startSpin;
@@ -2435,7 +2443,7 @@
       const session = findSession(sessionId);
       if (!session) return;
       runWizard("当選ウィザード", [
-        { key: "hitSpin", label: "当選回転数", type: "number", preset: session.currentSpin },
+        { key: "hitSpin", label: "当選回転数", type: "number", preset: session.currentSpin, wizardHint: "初当たりの瞬間の記録です。大当たり回数・出玉は、連チャンが全て終わったあと [ヤメ] でまとめて入力します。" },
         { key: "hitRemainBalls", label: "残り玉", type: "number", hint: activeStore()?.isPersonal ? "パーソナル店では確定回転率に使います。" : "非パーソナル店ではスキップ前提です。" }
       ], session, () => {
         if (!session.hitVia) session.hitVia = session.yutimeEnterBalls !== null ? "yutime" : "normal";
@@ -2467,8 +2475,20 @@
       });
     }
 
+    function presetHitCountFromCounters(session) {
+      if (session.startTotalHits === null || session.startTotalHits === undefined || session.endTotalHits === null || session.endTotalHits === undefined) return;
+      const diff = Number(session.endTotalHits) - Number(session.startTotalHits);
+      if (diff < 0) {
+        showToast("累計大当たり回数を確認してください。ヤメ時点が開始時点より少なくなっています。", "error");
+        if (session.hitCount === null || session.hitCount === undefined) session.hitCount = null;
+        return;
+      }
+      session.hitCount = diff;
+    }
+
     function runEndWizard(session, hasHit) {
       const steps = hasHit ? [
+        { key: "endTotalHits", label: "ヤメ時点の累計大当たり回数", type: "number" },
         { key: "hitCount", label: "大当たり回数", type: "number" },
         { key: "totalRounds", label: "合計R数", type: "number", hint: "1R玉数と合わせてR数ベース出玉を計算します。" },
         { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number" },
@@ -2481,7 +2501,7 @@
         { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
         { key: "memo", label: "メモ", type: "textarea" }
       ];
-      runWizard("終了ウィザード", steps, session, () => {
+      runWizard("ヤメ入力", steps, session, () => {
         session.status = "completed";
         if (!hasHit) session.hitCount = 0;
         session.endTime = session.endTime || currentTime();
@@ -2490,15 +2510,20 @@
         if (!persistWithToast("記録を保存しました")) return;
         showView("mapView");
         openRateSummary(session);
+      }, {
+        afterStep: (step) => {
+          if (hasHit && step.key === "endTotalHits") presetHitCountFromCounters(session);
+        }
       });
     }
 
-    function runWizard(title, steps, target, done) {
+    function runWizard(title, steps, target, done, options = {}) {
       let index = 0;
       const draft = target;
       const renderStep = () => {
         const step = steps[index];
-        openModal(title, `${index + 1} / ${steps.length}: ${step.label}。未入力でスキップできます。`, wizardInputHtml(step, draft[step.key]) + `
+        const wizardHint = step.wizardHint || `${index + 1} / ${steps.length}: ${step.label}。未入力でスキップできます。`;
+        openModal(title, wizardHint, wizardInputHtml(step, draft[step.key]) + `
           <div class="modal-actions wizard-actions">
             <button class="primary" id="nextStepBtn">${index === steps.length - 1 ? "完了" : "次へ"}</button>
             <button id="skipStepBtn">スキップ</button>
@@ -2517,6 +2542,7 @@
         }
         byId("skipStepBtn").addEventListener("click", () => {
           draft[step.key] = step.type === "labels" ? [] : null;
+          if (options.afterStep) options.afterStep(step, draft, index);
           advance();
         });
         byId("backStepBtn").addEventListener("click", () => {
@@ -2528,6 +2554,7 @@
         });
         byId("nextStepBtn").addEventListener("click", () => {
           draft[step.key] = readWizardValue(step);
+          if (options.afterStep) options.afterStep(step, draft, index);
           advance();
         });
       };
@@ -2981,11 +3008,13 @@
           ${fieldHtml("startMochidama", "開始持ち玉", session.startMochidama)}
           ${fieldHtml("startSaipurei", "再プレイ残り", session.startSaipurei)}
           ${fieldHtml("startCredit", "カード残高（クレジット残金）", session.startCredit)}
+          ${fieldHtml("startTotalHits", "開始時点の累計大当たり回数", session.startTotalHits)}
           ${fieldHtml("prevDayEndSpin", "前日ヤメ", session.prevDayEndSpin)}
           ${fieldHtml("hitSpin", "当選回転数", session.hitSpin)}
           ${fieldHtml("hitRemainBalls", "当選時残り玉", session.hitRemainBalls)}
           ${fieldHtml("yutimeEnterBalls", "遊タイム突入玉", session.yutimeEnterBalls)}
           ${fieldHtml("yutimeEnterTime", "遊タイム突入時刻", session.yutimeEnterTime, "time")}
+          ${fieldHtml("endTotalHits", "ヤメ時点の累計大当たり回数", session.endTotalHits)}
           ${fieldHtml("hitCount", "大当たり回数", session.hitCount)}
           ${fieldHtml("totalRounds", "合計R数", session.totalRounds)}
           ${fieldHtml("endTotalBalls", "終了合計玉", session.endTotalBalls)}
@@ -3022,7 +3051,7 @@
           const value = byId("edit_" + key).value.trim();
           session[key] = value || null;
         });
-        ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls"].forEach((key) => {
+        ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "startTotalHits", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "endTotalHits", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls"].forEach((key) => {
           session[key] = normalizeNumber(byId("edit_" + key).value);
         });
         session.hitVia = byId("editHitVia").value || null;
@@ -3252,8 +3281,9 @@
     }
 
     function missingFields(session) {
-      const keys = ["startSpin", "startTime", "startMochidama", "startSaipurei", "startCredit", "hitCount", "endTotalBalls", "endSpin", "endTime"];
+      const keys = ["startSpin", "startTime", "startMochidama", "startSaipurei", "startCredit", "startTotalHits", "hitCount", "endTotalBalls", "endSpin", "endTime"];
       if (session.hitCount !== 0) keys.splice(5, 0, "hitSpin", "hitRemainBalls", "hitVia");
+      if (session.hitCount !== 0) keys.splice(keys.indexOf("hitCount"), 0, "endTotalHits");
       return keys.filter((key) => session[key] === null || session[key] === undefined || session[key] === "");
     }
 

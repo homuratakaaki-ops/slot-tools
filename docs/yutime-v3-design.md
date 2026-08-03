@@ -114,6 +114,7 @@
   "startMochidama": null,
   "startSaipurei": null,
   "startCredit": null,
+  "startTotalHits": null,
   "currentSpin": null,
   "prevDayEndSpin": null,
   "investments": [
@@ -127,6 +128,7 @@
   "hitVia": null,
   "yutimeEnterBalls": null,
   "yutimeEnterTime": null,
+  "endTotalHits": null,
   "hitCount": null,
   "totalRounds": null,
   "endTotalBalls": null,
@@ -331,6 +333,7 @@ B5 実測値:
 
 - 機種スペック登録の別枠化。
 - セッション数が数千件を超えた段階で、マップ描画の前日ヤメ集計も `machineId` で1パス集計へ統合する。現状の主なホットスポットは `latestEndInfo()` の台ごとの全セッションsortと、`aggregateStats()` 内の `data.machines.find()`。
+- 当たり後続行タイプの機種対応（当たり→通常継続のセッション分割 or 連続記録）。現状は大海SP5＝遊タイム狙い即ヤメ前提でスコープ外。
 
 ## 9. B6 実戦フィードバック反映
 
@@ -409,3 +412,13 @@ B5 実測値:
 - 履歴は既定で畳み、展開時は最新上に並べる。投資行には、その投資時点の累計投入玉、累計回転、回転率を表示する。入金行は投資ではないためスナップショットを付けず、時刻のみ表示する。
 - 「終了入力」の画面文言は「ヤメ」「ヤメ入力」に統一する。
 - B8は表示のみの変更のため、容量予算の増分はなし。
+
+## 13. B9 大当たり入力の明確化
+
+- schema は 10 とする。
+- Session に `startTotalHits` / `endTotalHits` を追加する。どちらも null 許容で、旧セッションは読み込み時に null 補完する。
+- 打ち始めウィザードに「データカウンタの累計大当たり回数」を追加する。台の本日累計大当たり回数を記録し、ヤメ時の差引計算に使う。
+- ヤメ入力の「大当たりあり」では、「ヤメ時点の累計大当たり回数」を大当たり回数の前に入力する。
+- `startTotalHits` と `endTotalHits` が両方入力済みの場合、`endTotalHits - startTotalHits` を自分の大当たり回数としてプリセットする。差が負の場合は警告を出し、プリセットしない。
+- 当選ウィザードは初当たりの瞬間だけを記録する画面であることを説明する。大当たり回数と出玉は、連チャン後にヤメ入力でまとめて記録する。
+- schema 10 Session 1件サンプル（`startTotalHits` / `endTotalHits` あり）: 870 chars
