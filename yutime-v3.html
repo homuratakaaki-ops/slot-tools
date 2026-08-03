@@ -268,6 +268,79 @@
       padding: 0;
     }
 
+    .island-builder {
+      display: grid;
+      gap: 12px;
+    }
+
+    .island-card {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .island-card-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .island-card-head strong {
+      font-size: 15px;
+    }
+
+    .island-sides {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .island-side {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .island-side h4 {
+      grid-column: 1 / -1;
+      margin: 0;
+      font-size: 13px;
+    }
+
+    .island-preview {
+      display: grid;
+      grid-template-columns: minmax(84px, 1fr) 24px minmax(84px, 1fr);
+      gap: 8px;
+      align-items: stretch;
+      margin-top: 10px;
+    }
+
+    .preview-side {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    .preview-machine {
+      min-height: 44px;
+      padding: 5px;
+      font-weight: 800;
+      background: #fff;
+    }
+
+    .preview-machine.excluded {
+      color: #98a2b3;
+      background: #eef2f6;
+      text-decoration: line-through;
+    }
+
     .map-wrap {
       overflow-x: auto;
       padding-bottom: 8px;
@@ -447,6 +520,7 @@
       .two, .three { grid-template-columns: 1fr; }
       .field-row { grid-template-columns: 1fr; gap: 5px; }
       .section-head { grid-template-columns: 1fr; }
+      .island-sides { grid-template-columns: 1fr; }
       .map-row { grid-template-columns: minmax(118px, 1fr) 22px minmax(118px, 1fr); }
       .map-side { grid-template-columns: 1fr; }
       .modal-actions { grid-template-columns: 1fr; }
@@ -488,11 +562,14 @@
         <div class="section-head">
           <div>
             <h2>マップ定義</h2>
-            <p>1行が島の片面です。例: <code>100-104 | 199-195</code></p>
+            <p>島ごとに台番の範囲を入力します。存在しない台番はプレビューをタップして除外できます。</p>
           </div>
-          <button class="primary small" id="saveMapBtn">定義を保存</button>
+          <div class="status-line">
+            <button class="small" id="addIslandBtn">島を追加</button>
+            <button class="primary small" id="saveMapBtn">保存</button>
+          </div>
         </div>
-        <textarea id="mapInput" placeholder="100-104 | 199-195&#10;105-109 | 194-190"></textarea>
+        <div id="islandBuilder" class="island-builder"></div>
         <div class="status-line" id="mapStatus"></div>
       </div>
 
@@ -502,7 +579,7 @@
             <h2>台探索</h2>
             <p>台番をタップすると過去概要を確認して、打ち始めに進めます。</p>
           </div>
-          <button class="small" id="openLabelFormBtn">ラベル管理</button>
+          <button class="small" id="openLabelFormBtn">イベントメモ管理</button>
         </div>
         <div id="labelFilters" class="label-checks"></div>
         <div class="map-wrap">
@@ -553,7 +630,7 @@
     const STORAGE_KEY = STORAGE_PREFIX + "data";
     const PREMIGRATE_KEY = STORAGE_PREFIX + "premigrate";
     const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
-    const SCHEMA_VERSION = 1;
+    const SCHEMA_VERSION = 2;
     const CASH_TO_BALLS_RATE = 4;
 
     const blankSession = () => ({
@@ -575,6 +652,7 @@
       hitVia: null,
       yutimeEnterBalls: null,
       hitCount: null,
+      totalRounds: null,
       endTotalBalls: null,
       endSpin: null,
       endTime: null,
@@ -597,19 +675,22 @@
         updatedAt: nowIso(),
         lastSaveChars: 0,
         sampleSessionChars: 0,
-        schemaBudgetNote: "v3 schema 1: Session 1件のJSON文字数をsampleSessionCharsに記録"
+        mapLayoutChars: 0,
+        sampleMachineChars: 0,
+        schemaBudgetNote: "v3 schema 2: 島構造化後のマップ定義chars、Machine 1件chars、Session 1件charsを記録"
       }
     });
 
     let data = loadData();
     let currentView = "storesView";
     let selectedLabelFilters = new Set();
+    let mapDraft = { storeId: null, islands: [] };
     let modalCancel = null;
 
     const els = {
       currentStorePill: byId("currentStorePill"),
       storeList: byId("storeList"),
-      mapInput: byId("mapInput"),
+      islandBuilder: byId("islandBuilder"),
       mapStatus: byId("mapStatus"),
       machineMap: byId("machineMap"),
       labelFilters: byId("labelFilters"),
@@ -627,11 +708,9 @@
       button.addEventListener("click", () => showView(button.dataset.view));
     });
 
+    byId("addIslandBtn").addEventListener("click", addIslandDraft);
     byId("openStoreFormBtn").addEventListener("click", openStoreForm);
     byId("saveMapBtn").addEventListener("click", saveCurrentMap);
-    els.mapInput.addEventListener("input", () => {
-      els.mapStatus.innerHTML = mapStatusHtml(parseMapLayout(els.mapInput.value));
-    });
     byId("openLabelFormBtn").addEventListener("click", openLabelForm);
     byId("exportBtn").addEventListener("click", exportJson);
     byId("closeModalBtn").addEventListener("click", closeModal);
@@ -725,13 +804,14 @@
         isPersonal: Boolean(store.isPersonal),
         createdAt: store.createdAt || nowIso()
       }));
+      next.layouts = normalizeLayouts(next.layouts);
       next.machines = next.machines.map((machine) => ({
         id: machine.id || cryptoId("m"),
         storeId: machine.storeId || null,
         daiNo: String(machine.daiNo || ""),
         modelName: machine.modelName || "",
-        payoutType: machine.payoutType === "variable" ? "variable" : "fixed",
-        roundBalls: normalizeNumber(machine.roundBalls)
+        roundBalls: normalizeNumber(machine.roundBalls),
+        memo: machine.memo || ""
       })).filter((machine) => machine.storeId && machine.daiNo);
       next.sessions = next.sessions.map((session) => ({ ...blankSession(), ...session, investments: Array.isArray(session.investments) ? session.investments : [] }));
       if (!next.stores.some((store) => store.id === next.activeStoreId)) next.activeStoreId = next.stores[0]?.id || null;
@@ -741,6 +821,8 @@
     function persist() {
       data.meta.updatedAt = nowIso();
       data.meta.sampleSessionChars = measureSampleSessionChars();
+      data.meta.sampleMachineChars = measureSampleMachineChars();
+      data.meta.mapLayoutChars = measureActiveMapLayoutChars();
       const raw = JSON.stringify(data);
       if (raw.length < 12) {
         console.warn("ytv3 empty-write guard blocked save");
@@ -764,12 +846,34 @@
       return JSON.stringify(sample).length;
     }
 
+    function measureSampleMachineChars() {
+      const sample = data.machines[0] || {
+        id: "m_sample",
+        storeId: "st_sample",
+        daiNo: "101",
+        modelName: "P大海物語スペシャル5",
+        roundBalls: 140,
+        memo: "釘・癖など"
+      };
+      return JSON.stringify(sample).length;
+    }
+
+    function measureActiveMapLayoutChars() {
+      const store = activeStore();
+      const layout = store ? data.layouts[store.id] : Object.values(data.layouts)[0];
+      return layout ? JSON.stringify(layout).length : JSON.stringify({ islands: [] }).length;
+    }
+
     function activeStore() {
       return data.stores.find((store) => store.id === data.activeStoreId) || null;
     }
 
     function storeLabels(storeId = data.activeStoreId) {
       return data.labelsByStore[storeId] || [];
+    }
+
+    function eventMemoHelp() {
+      return "7の日・旧イベなど、釘が変わる日に印を付ける機能です。記録に付けておくと、あとからその日だけに絞った平均回転率を見られます。";
     }
 
     function renderAll() {
@@ -811,14 +915,17 @@
 
     function renderMapEditor() {
       const store = activeStore();
-      els.mapInput.disabled = !store;
+      byId("addIslandBtn").disabled = !store;
       byId("saveMapBtn").disabled = !store;
-      els.mapInput.value = store ? (data.layouts[store.id]?.source || "") : "";
       if (!store) {
+        els.islandBuilder.innerHTML = '<div class="row-card">店を選択してください。</div>';
         els.mapStatus.innerHTML = '<span class="badge warn">店を選択してください</span>';
         return;
       }
-      const parsed = parseMapLayout(els.mapInput.value);
+      ensureMapDraft(store.id);
+      els.islandBuilder.innerHTML = mapDraft.islands.length ? mapDraft.islands.map(islandEditorHtml).join("") : '<div class="row-card">島が未登録です。「島を追加」から始めてください。</div>';
+      bindIslandEditor();
+      const parsed = parseIslandLayout({ islands: mapDraft.islands });
       els.mapStatus.innerHTML = mapStatusHtml(parsed);
     }
 
@@ -829,7 +936,7 @@
         return;
       }
       if (!labels.length) {
-        els.labelFilters.innerHTML = '<span class="hint">イベント日ラベルは未登録です。</span>';
+        els.labelFilters.innerHTML = '<span class="hint">イベントメモは未登録です。</span>';
         return;
       }
       els.labelFilters.innerHTML = labels.map((label) => `
@@ -853,8 +960,7 @@
         els.machineMap.innerHTML = '<div class="row-card">店を選択してください。</div>';
         return;
       }
-      const source = data.layouts[store.id]?.source || "";
-      const parsed = parseMapLayout(source);
+      const parsed = parseIslandLayout(data.layouts[store.id] || { islands: [] });
       if (!parsed.rows.length) {
         els.machineMap.innerHTML = '<div class="row-card">マップ定義を保存すると、台番ボタンを表示します。</div>';
         return;
@@ -990,11 +1096,11 @@
 
     function renderStorageNote() {
       const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY].join(" / ");
-      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。Session 1件サンプルchars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。v2キーは読み書きしません。`;
+      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。マップ定義chars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。v2キーは読み書きしません。`;
     }
 
     function openStoreForm() {
-      openModal("店を追加", "店ごとにマップ、台、ラベル、セッションを分離します。", `
+      openModal("店を追加", "店ごとにマップ、台、イベントメモ、セッションを分離します。", `
         <div class="field-row"><label for="storeName">店名</label><input id="storeName" placeholder="例: ミレスト東口店"></div>
         <label class="check-chip"><input id="storePersonal" type="checkbox"> パーソナルシステムあり</label>
         <div class="modal-actions">
@@ -1017,8 +1123,8 @@
 
     function openLabelForm() {
       const labels = storeLabels();
-      openModal("ラベル管理", "旧イベ、特定日などを店ごとに定義します。", `
-        <div class="field-row"><label for="newLabel">追加ラベル</label><input id="newLabel" placeholder="例: 旧イベ"></div>
+      openModal("イベントメモ管理", eventMemoHelp(), `
+        <div class="field-row"><label for="newLabel">追加するイベントメモ</label><input id="newLabel" placeholder="例: 旧イベ"></div>
         <div class="list" id="labelList">
           ${labels.map((label) => `<div class="row-card"><strong>${escapeHtml(label)}</strong></div>`).join("") || '<div class="row-card"><small>未登録です。</small></div>'}
         </div>
@@ -1043,15 +1149,226 @@
     function saveCurrentMap() {
       const store = activeStore();
       if (!store) return;
-      const source = els.mapInput.value;
-      const parsed = parseMapLayout(source);
-      data.layouts[store.id] = { source, updatedAt: nowIso(), errors: parsed.errors };
+      const islands = readIslandDraftFromDom();
+      const parsed = parseIslandLayout({ islands });
+      data.layouts[store.id] = { islands, updatedAt: nowIso(), errors: parsed.errors };
+      mapDraft = { storeId: store.id, islands: cloneIslands(islands) };
       syncMachinesFromMap(store.id, parsed);
       persist();
       renderAll();
     }
 
-    function parseMapLayout(source) {
+    function ensureMapDraft(storeId) {
+      if (mapDraft.storeId === storeId) return;
+      const layout = data.layouts[storeId] || { islands: [] };
+      mapDraft = { storeId, islands: cloneIslands(layout.islands || []) };
+    }
+
+    function addIslandDraft() {
+      const store = activeStore();
+      if (!store) return;
+      ensureMapDraft(store.id);
+      mapDraft.islands.push({ left: { from: null, to: null }, right: null, excluded: [] });
+      renderMapEditor();
+    }
+
+    function islandEditorHtml(island, index) {
+      const left = island.left || {};
+      const right = island.right || {};
+      const parsed = parseIslandLayout({ islands: [island] });
+      const row = parsed.rows[0] || { sides: [[], []], allSides: [[], []] };
+      return `
+        <div class="island-card" data-island-index="${index}">
+          <div class="island-card-head">
+            <strong>島 ${index + 1}</strong>
+            <button class="small" data-delete-island="${index}">島を削除</button>
+          </div>
+          <div class="island-sides">
+            ${islandSideInputHtml(index, "left", "左列", left)}
+            ${islandSideInputHtml(index, "right", "右列", right)}
+          </div>
+          <div class="island-preview">
+            <div class="preview-side">${previewSideHtml(row.allSides[0], island.excluded || [])}</div>
+            <div class="aisle" aria-hidden="true"></div>
+            <div class="preview-side">${previewSideHtml(row.allSides[1], island.excluded || [])}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function islandSideInputHtml(index, side, label, value) {
+      return `
+        <div class="island-side">
+          <h4>${label}</h4>
+          <label class="hint" for="island_${index}_${side}_from">開始台番</label>
+          <label class="hint" for="island_${index}_${side}_to">終了台番</label>
+          <input id="island_${index}_${side}_from" data-island-input="${index}" data-side="${side}" data-part="from" inputmode="numeric" value="${escapeHtml(value.from ?? "")}">
+          <input id="island_${index}_${side}_to" data-island-input="${index}" data-side="${side}" data-part="to" inputmode="numeric" value="${escapeHtml(value.to ?? "")}">
+        </div>
+      `;
+    }
+
+    function previewSideHtml(daiNos, excluded) {
+      if (!daiNos.length) return '<span class="hint">片面なし</span>';
+      const excludedSet = new Set((excluded || []).map(String));
+      return daiNos.map((daiNo) => `
+        <button class="preview-machine ${excludedSet.has(String(daiNo)) ? "excluded" : ""}" data-preview-dai="${escapeHtml(daiNo)}">${escapeHtml(daiNo)}</button>
+      `).join("");
+    }
+
+    function bindIslandEditor() {
+      els.islandBuilder.querySelectorAll("[data-island-input]").forEach((input) => {
+        input.addEventListener("input", () => {
+          const focusId = input.id;
+          const cursor = input.selectionStart;
+          updateIslandDraftFromDom();
+          renderMapEditor();
+          const nextInput = byId(focusId);
+          if (nextInput) {
+            nextInput.focus();
+            if (cursor !== null) nextInput.setSelectionRange(cursor, cursor);
+          }
+        });
+      });
+      els.islandBuilder.querySelectorAll("[data-preview-dai]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const card = button.closest("[data-island-index]");
+          const index = Number(card.dataset.islandIndex);
+          const daiNo = String(button.dataset.previewDai);
+          const excluded = new Set((mapDraft.islands[index].excluded || []).map(String));
+          if (excluded.has(daiNo)) excluded.delete(daiNo);
+          else excluded.add(daiNo);
+          mapDraft.islands[index].excluded = [...excluded];
+          renderMapEditor();
+        });
+      });
+      els.islandBuilder.querySelectorAll("[data-delete-island]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const index = Number(button.dataset.deleteIsland);
+          mapDraft.islands.splice(index, 1);
+          renderMapEditor();
+        });
+      });
+    }
+
+    function updateIslandDraftFromDom() {
+      mapDraft.islands = readIslandDraftFromDom();
+    }
+
+    function readIslandDraftFromDom() {
+      return [...els.islandBuilder.querySelectorAll("[data-island-index]")].map((card) => {
+        const index = Number(card.dataset.islandIndex);
+        const left = readIslandSideFromDom(index, "left");
+        const right = readIslandSideFromDom(index, "right");
+        return {
+          left,
+          right: right.from === null && right.to === null ? null : right,
+          excluded: (mapDraft.islands[index]?.excluded || []).map(String)
+        };
+      });
+    }
+
+    function readIslandSideFromDom(index, side) {
+      const from = normalizeNumber(byId(`island_${index}_${side}_from`)?.value);
+      const to = normalizeNumber(byId(`island_${index}_${side}_to`)?.value);
+      return { from, to };
+    }
+
+    function normalizeLayouts(layouts) {
+      const normalized = {};
+      Object.entries(layouts || {}).forEach(([storeId, layout]) => {
+        if (layout && Array.isArray(layout.islands)) {
+          normalized[storeId] = {
+            islands: cloneIslands(layout.islands),
+            updatedAt: layout.updatedAt || nowIso(),
+            errors: Array.isArray(layout.errors) ? layout.errors : []
+          };
+          return;
+        }
+        if (layout && typeof layout.source === "string") {
+          const islands = textMapToIslands(layout.source);
+          normalized[storeId] = { islands, updatedAt: layout.updatedAt || nowIso(), errors: [] };
+          return;
+        }
+        normalized[storeId] = { islands: [], updatedAt: nowIso(), errors: [] };
+      });
+      return normalized;
+    }
+
+    function cloneIslands(islands) {
+      return (Array.isArray(islands) ? islands : []).map((island) => normalizeIsland(island));
+    }
+
+    function normalizeIsland(island) {
+      return {
+        left: normalizeIslandSide(island?.left),
+        right: island?.right ? normalizeIslandSide(island.right) : null,
+        excluded: Array.isArray(island?.excluded) ? [...new Set(island.excluded.map(String))] : []
+      };
+    }
+
+    function normalizeIslandSide(side) {
+      return {
+        from: normalizeNumber(side?.from),
+        to: normalizeNumber(side?.to)
+      };
+    }
+
+    function textMapToIslands(source) {
+      const parsed = parseTextMapLayout(source);
+      return parsed.rows.map((row) => {
+        const left = daiNosToSide(row.sides[0]);
+        const right = daiNosToSide(row.sides[1]);
+        const leftExcluded = sideExcluded(row.sides[0], left);
+        const rightExcluded = sideExcluded(row.sides[1], right);
+        return {
+          left,
+          right: right.from === null || right.to === null ? null : right,
+          excluded: [...leftExcluded, ...rightExcluded]
+        };
+      });
+    }
+
+    function daiNosToSide(daiNos) {
+      if (!Array.isArray(daiNos) || !daiNos.length) return { from: null, to: null };
+      return { from: normalizeNumber(daiNos[0]), to: normalizeNumber(daiNos[daiNos.length - 1]) };
+    }
+
+    function sideExcluded(existingDaiNos, side) {
+      const wanted = new Set((existingDaiNos || []).map(String));
+      return expandIslandSide(side).filter((daiNo) => !wanted.has(String(daiNo)));
+    }
+
+    function parseIslandLayout(layout) {
+      const errors = [];
+      const seen = new Set();
+      const rows = cloneIslands(layout?.islands || []).map((island, index) => {
+        const excluded = new Set((island.excluded || []).map(String));
+        const allLeft = expandIslandSide(island.left);
+        const allRight = island.right ? expandIslandSide(island.right) : [];
+        const left = allLeft.filter((daiNo) => !excluded.has(String(daiNo)));
+        const right = allRight.filter((daiNo) => !excluded.has(String(daiNo)));
+        if (!allLeft.length) errors.push(`島${index + 1}: 左列の台番を入力してください`);
+        [...left, ...right].forEach((daiNo) => {
+          if (seen.has(daiNo)) errors.push(`島${index + 1}: 台番${daiNo}が重複しています`);
+          seen.add(daiNo);
+        });
+        return { sides: [left, right], allSides: [allLeft, allRight] };
+      }).filter((row) => row.allSides[0].length || row.allSides[1].length);
+      return { rows, errors, daiNos: [...seen] };
+    }
+
+    function expandIslandSide(side) {
+      const from = normalizeNumber(side?.from);
+      const to = normalizeNumber(side?.to);
+      if (from === null || to === null) return [];
+      const step = from <= to ? 1 : -1;
+      const values = [];
+      for (let n = from; step > 0 ? n <= to : n >= to; n += step) values.push(String(n));
+      return values;
+    }
+
+    function parseTextMapLayout(source) {
       const errors = [];
       const seen = new Set();
       const rows = [];
@@ -1088,7 +1405,7 @@
           values.push(token);
           return;
         }
-        errors.push(`${lineNo}行目: ${token} は読めません`);
+        errors.push(`${lineNo}行目: ${token} は読み取れません`);
       });
       return values;
     }
@@ -1100,7 +1417,7 @@
         chips.push(...parsed.errors.slice(0, 3).map((error) => `<span class="badge warn">${escapeHtml(error)}</span>`));
         if (parsed.errors.length > 3) chips.push(`<span class="badge warn">ほか${parsed.errors.length - 3}件</span>`);
       } else {
-        chips.push('<span class="badge">パース正常</span>');
+        chips.push('<span class="badge">読み取りOK</span>');
       }
       return chips.join("");
     }
@@ -1113,8 +1430,8 @@
             storeId,
             daiNo,
             modelName: "",
-            payoutType: "fixed",
-            roundBalls: null
+            roundBalls: null,
+            memo: ""
           });
         }
       });
@@ -1138,10 +1455,12 @@
           <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
         </div>
         <div class="field-row" style="margin-top:12px"><label for="machineModel">機種名</label><input id="machineModel" value="${escapeHtml(machine.modelName || "")}" placeholder="任意"></div>
-        <div class="field-row"><label for="payoutType">出玉タイプ</label><select id="payoutType"><option value="fixed">固定</option><option value="variable">variable</option></select></div>
-        <div class="field-row"><label for="roundBalls">1R玉数</label><input id="roundBalls" inputmode="numeric" value="${escapeHtml(machine.roundBalls ?? "")}" placeholder="variable用"></div>
+        <div class="field-row"><label for="roundBalls">1R玉数</label><input id="roundBalls" inputmode="numeric" value="${escapeHtml(machine.roundBalls ?? "")}" placeholder="例: 140"></div>
+        <p class="hint">1ラウンドあたりの獲得玉数。例: 大海物語スペシャル5 なら 140</p>
+        <div class="field-row"><label for="machineMemo">台メモ（釘・癖など）</label><textarea id="machineMemo" placeholder="釘の癖、ストローク、止め打ち手順など">${escapeHtml(machine.memo || "")}</textarea></div>
+        <p class="hint warn">期待値算出は現在 P大海物語スペシャル5 のみ対応しています。</p>
         <div class="list">
-          ${sessions.slice(-5).reverse().map((session) => `<div class="row-card"><strong>${escapeHtml(session.date)}</strong><br><small>${escapeHtml(session.status)} / 回転率 ${deriveSession(session).rate?.toFixed(1) || "-"}</small></div>`).join("") || '<div class="row-card"><small>過去セッションなし</small></div>'}
+          ${sessions.slice(-5).reverse().map((session) => `<div class="row-card"><strong>${escapeHtml(session.date)}</strong><br><small>${session.status === "completed" ? "確定" : "稼働中"} / 回転率 ${deriveSession(session).rate?.toFixed(1) || "-"}</small></div>`).join("") || '<div class="row-card"><small>過去セッションなし</small></div>'}
         </div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
@@ -1149,19 +1468,18 @@
           <button class="primary" id="startSessionBtn">この台を打つ</button>
         </div>
       `);
-      byId("payoutType").value = machine.payoutType;
       byId("saveMachineBtn").addEventListener("click", () => {
         machine.modelName = byId("machineModel").value.trim();
-        machine.payoutType = byId("payoutType").value;
         machine.roundBalls = normalizeNumber(byId("roundBalls").value);
+        machine.memo = byId("machineMemo").value.trim();
         persist();
         closeModal();
         renderAll();
       });
       byId("startSessionBtn").addEventListener("click", () => {
         machine.modelName = byId("machineModel").value.trim();
-        machine.payoutType = byId("payoutType").value;
         machine.roundBalls = normalizeNumber(byId("roundBalls").value);
+        machine.memo = byId("machineMemo").value.trim();
         persist();
         closeModal();
         openStartWizard(machine.id);
@@ -1186,7 +1504,7 @@
         { key: "startMochidama", label: "持ち玉", type: "number" },
         { key: "startSaipurei", label: "再プレイ残り玉", type: "number" },
         { key: "startCredit", label: "クレジット残金", type: "number" },
-        { key: "labels", label: "イベントラベル", type: "labels", labels }
+        { key: "labels", label: "イベントメモ", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         data.sessions.push(session);
         persist();
@@ -1214,6 +1532,7 @@
       if (!session) return;
       runWizard("終了ウィザード", [
         { key: "hitCount", label: "大当たり回数", type: "number" },
+        { key: "totalRounds", label: "合計R数", type: "number", hint: "1R玉数と合わせてR数ベース出玉を計算します。" },
         { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number" },
         { key: "endSpin", label: "ヤメ回転数", type: "number" },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
@@ -1276,9 +1595,9 @@
       }
       if (step.type === "labels") {
         const chosen = new Set(Array.isArray(value) ? value : []);
-        return `<div class="label-checks">${(step.labels || []).map((label) => `
+        return `${step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : ""}<div class="label-checks">${(step.labels || []).map((label) => `
           <label class="check-chip"><input class="wizardLabel" type="checkbox" value="${escapeHtml(label)}" ${chosen.has(label) ? "checked" : ""}> ${escapeHtml(label)}</label>
-        `).join("") || '<span class="hint">ラベル未登録です。</span>'}</div>`;
+        `).join("") || '<span class="hint">イベントメモ未登録です。</span>'}</div>`;
       }
       const inputType = step.type === "time" ? "time" : "text";
       const inputMode = step.type === "number" ? ' inputmode="numeric"' : "";
@@ -1337,12 +1656,13 @@
     }
 
     function openRateSummary(session) {
-      const derived = deriveSession(session);
+      const machine = data.machines.find((item) => item.id === session.machineId);
+      const derived = deriveSession(session, machine);
       openModal("セッションサマリ", "保存済みです。未入力は台帳から補完できます。", `
         <div class="metric-grid">
           <div class="metric"><span>通常消費玉</span><strong>${numberText(derived.consumedBalls, "-")}</strong></div>
           <div class="metric"><span>回転率</span><strong>${derived.rate ? derived.rate.toFixed(1) : "-"}</strong></div>
-          <div class="metric"><span>大当たり出玉</span><strong>${numberText(derived.hitBalls, "-")}</strong></div>
+          <div class="metric"><span>R数ベース出玉</span><strong>${numberText(derived.roundBasedPayout, "-")}</strong></div>
           <div class="metric"><span>遊タイム玉減り</span><strong>${numberText(derived.yutimeLoss, "-")}</strong></div>
           <div class="metric"><span>差玉</span><strong>${numberText(derived.diffBalls, "-")}</strong></div>
         </div>
@@ -1371,13 +1691,14 @@
           ${fieldHtml("hitRemainBalls", "当選時残り玉", session.hitRemainBalls)}
           ${fieldHtml("yutimeEnterBalls", "遊タイム突入玉", session.yutimeEnterBalls)}
           ${fieldHtml("hitCount", "大当たり回数", session.hitCount)}
+          ${fieldHtml("totalRounds", "合計R数", session.totalRounds)}
           ${fieldHtml("endTotalBalls", "終了合計玉", session.endTotalBalls)}
           ${fieldHtml("endSpin", "ヤメ回転数", session.endSpin)}
           ${fieldHtml("endTime", "終了時刻", session.endTime, "time")}
           ${fieldHtml("zanhoryuBalls", "残保留増減", session.zanhoryuBalls)}
         </div>
         <div class="field-row"><label for="editHitVia">当選経路</label><select id="editHitVia"><option value="">未入力</option><option value="normal">通常</option><option value="yutime">遊タイム</option></select></div>
-        <div class="field-row"><label>ラベル</label><div class="label-checks">${labels.map((label) => `<label class="check-chip"><input class="editLabel" type="checkbox" value="${escapeHtml(label)}" ${session.labels.includes(label) ? "checked" : ""}> ${escapeHtml(label)}</label>`).join("") || '<span class="hint">ラベル未登録</span>'}</div></div>
+        <div class="field-row"><label>イベントメモ</label><div><p class="hint">${eventMemoHelp()}</p><div class="label-checks">${labels.map((label) => `<label class="check-chip"><input class="editLabel" type="checkbox" value="${escapeHtml(label)}" ${session.labels.includes(label) ? "checked" : ""}> ${escapeHtml(label)}</label>`).join("") || '<span class="hint">イベントメモ未登録</span>'}</div></div></div>
         <div class="field-row"><label for="editMemo">メモ</label><textarea id="editMemo">${escapeHtml(session.memo || "")}</textarea></div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
@@ -1395,7 +1716,7 @@
           const value = byId("edit_" + key).value.trim();
           session[key] = value || null;
         });
-        ["startSpin", "startMochidama", "startSaipurei", "startCredit", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "hitCount", "endTotalBalls", "endSpin", "zanhoryuBalls"].forEach((key) => {
+        ["startSpin", "startMochidama", "startSaipurei", "startCredit", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls"].forEach((key) => {
           session[key] = normalizeNumber(byId("edit_" + key).value);
         });
         session.hitVia = byId("editHitVia").value || null;
@@ -1446,7 +1767,7 @@
       return Number(item.amount || 0);
     }
 
-    function deriveSession(session) {
+    function deriveSession(session, machine = null) {
       const investedBalls = Math.round(session.investments.reduce((sum, item) => sum + investmentToBalls(item), 0));
       const startingBalls = Number(session.startMochidama || 0);
       const totalInputBalls = startingBalls + investedBalls;
@@ -1457,9 +1778,11 @@
       const rate = normalSpins !== null && rateBase > 0 ? normalSpins / rateBase * 250 : null;
       const pointBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : totalInputBalls;
       const hitBalls = session.endTotalBalls !== null && pointBalls !== null ? session.endTotalBalls - pointBalls : null;
+      const roundBasedPayout = machine?.roundBalls !== null && machine?.roundBalls !== undefined && session.totalRounds !== null ? machine.roundBalls * session.totalRounds : null;
+      const averageRoundPayout = roundBasedPayout !== null && session.hitCount > 0 ? Math.round(roundBasedPayout / session.hitCount) : null;
       const yutimeLoss = session.hitVia === "yutime" && session.yutimeEnterBalls !== null && session.hitRemainBalls !== null ? session.yutimeEnterBalls - session.hitRemainBalls : null;
       const diffBalls = session.endTotalBalls !== null ? session.endTotalBalls - totalInputBalls + Number(session.zanhoryuBalls || 0) : null;
-      return { investedBalls, totalInputBalls, normalSpins, consumedBalls: rateBase, rate, hitBalls, yutimeLoss, diffBalls };
+      return { investedBalls, totalInputBalls, normalSpins, consumedBalls: rateBase, rate, hitBalls, roundBasedPayout, averageRoundPayout, yutimeLoss, diffBalls };
     }
 
     function machineStats(machineId) {
