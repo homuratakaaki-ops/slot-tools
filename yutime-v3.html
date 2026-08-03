@@ -1,0 +1,1516 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>遊タイム実戦ツール v3</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f4ef;
+      --panel: #ffffff;
+      --ink: #1f2933;
+      --muted: #667085;
+      --line: #d8d5ca;
+      --accent: #236c68;
+      --accent-dark: #174b48;
+      --warn: #b45309;
+      --danger: #b42318;
+      --good: #1c7c54;
+      --soft: #e8f3f1;
+      --button: #f8fafc;
+      --shadow: 0 10px 24px rgba(31, 41, 51, 0.08);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+    }
+
+    button, input, textarea, select {
+      font: inherit;
+    }
+
+    button {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--button);
+      color: var(--ink);
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    button:active { transform: translateY(1px); }
+    button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    button.primary:hover { background: var(--accent-dark); }
+    button.danger { color: #fff; background: var(--danger); border-color: var(--danger); }
+    button.ghost { background: transparent; }
+    button.small { min-height: 36px; padding: 0 10px; }
+    button.icon { width: 44px; padding: 0; display: inline-grid; place-items: center; }
+
+    input, textarea, select {
+      width: 100%;
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
+      background: #fff;
+      color: var(--ink);
+    }
+
+    textarea {
+      min-height: 110px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .app {
+      width: min(1180px, 100%);
+      margin: 0 auto;
+      padding: 14px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+      padding: 12px 0;
+      background: rgba(245, 244, 239, 0.95);
+      backdrop-filter: blur(10px);
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    .brand p {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .store-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 40px;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+      margin: 6px 0 14px;
+    }
+
+    .tab {
+      min-height: 42px;
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .tab.active {
+      background: var(--ink);
+      color: #fff;
+      border-color: var(--ink);
+    }
+
+    .view { display: none; }
+    .view.active { display: block; }
+
+    .section {
+      margin: 0 0 14px;
+      padding: 14px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .section h2, .section h3 {
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    .section p {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+    .store-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 10px;
+    }
+
+    .store-card {
+      min-height: 72px;
+      padding: 12px;
+      text-align: left;
+      background: #fff;
+    }
+
+    .store-card strong { display: block; font-size: 16px; }
+    .store-card span { display: block; margin-top: 4px; color: var(--muted); font-size: 12px; }
+
+    .field-row {
+      display: grid;
+      grid-template-columns: minmax(120px, 180px) 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .field-row label {
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .warn {
+      color: var(--warn);
+      font-weight: 700;
+    }
+
+    .danger-text {
+      color: var(--danger);
+      font-weight: 700;
+    }
+
+    .status-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 8px 0 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      background: #eef2f6;
+      color: #344054;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .badge.warn { background: #fff7ed; color: #9a3412; }
+    .badge.good { background: #ecfdf3; color: #067647; }
+    .badge.dark { background: var(--ink); color: #fff; }
+
+    .label-checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 8px 0 0;
+    }
+
+    .check-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 36px;
+      padding: 0 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #fff;
+      font-size: 13px;
+    }
+
+    .check-chip input {
+      width: auto;
+      min-height: auto;
+      padding: 0;
+    }
+
+    .map-wrap {
+      overflow-x: auto;
+      padding-bottom: 8px;
+    }
+
+    .map-grid {
+      display: grid;
+      gap: 8px;
+      align-items: start;
+      min-width: 320px;
+    }
+
+    .map-row {
+      display: grid;
+      grid-template-columns: minmax(90px, 1fr) 28px minmax(90px, 1fr);
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .map-side {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+
+    .aisle {
+      min-height: 48px;
+      border-radius: 8px;
+      background: repeating-linear-gradient(
+        90deg,
+        #e3e0d5,
+        #e3e0d5 4px,
+        #f3f0e7 4px,
+        #f3f0e7 8px
+      );
+    }
+
+    .machine-button {
+      min-height: 58px;
+      display: grid;
+      grid-template-rows: auto auto;
+      gap: 2px;
+      padding: 7px 5px;
+      background: #fff;
+      text-align: center;
+    }
+
+    .machine-button .dai {
+      font-size: 18px;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .machine-button .meta {
+      display: flex;
+      justify-content: center;
+      gap: 5px;
+      color: var(--muted);
+      font-size: 11px;
+      min-height: 15px;
+      white-space: nowrap;
+    }
+
+    .machine-button.has-data {
+      border-color: #7aa7a3;
+      background: var(--soft);
+    }
+
+    .running-panel {
+      border-color: #7aa7a3;
+      background: #f3fbfa;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .metric span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .metric strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 18px;
+    }
+
+    .list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .row-card {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .row-card-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .row-card strong { font-size: 15px; }
+    .row-card small { color: var(--muted); }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: none;
+      align-items: end;
+      justify-content: center;
+      padding: 12px;
+      background: rgba(15, 23, 42, 0.42);
+    }
+
+    .modal-backdrop.open { display: flex; }
+
+    .modal {
+      width: min(680px, 100%);
+      max-height: min(86vh, 760px);
+      overflow: auto;
+      padding: 16px;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+    }
+
+    .modal-head {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 12px;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .modal h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .modal-actions {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .hidden { display: none !important; }
+
+    .footer-note {
+      margin: 16px 0 6px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 720px) {
+      .app { padding: 10px; }
+      .topbar { grid-template-columns: 1fr; }
+      .tabs { grid-template-columns: repeat(2, 1fr); }
+      .two, .three { grid-template-columns: 1fr; }
+      .field-row { grid-template-columns: 1fr; gap: 5px; }
+      .section-head { grid-template-columns: 1fr; }
+      .map-row { grid-template-columns: minmax(118px, 1fr) 22px minmax(118px, 1fr); }
+      .map-side { grid-template-columns: 1fr; }
+      .modal-actions { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <h1>遊タイム実戦ツール v3</h1>
+        <p>店を選び、台を探し、実戦の時系列で追記する記録台帳</p>
+      </div>
+      <div class="store-pill" id="currentStorePill">店未選択</div>
+    </header>
+
+    <nav class="tabs" aria-label="画面切替">
+      <button class="tab active" data-view="storesView">店</button>
+      <button class="tab" data-view="mapView">マップ</button>
+      <button class="tab" data-view="runView">稼働中</button>
+      <button class="tab" data-view="ledgerView">台帳</button>
+    </nav>
+
+    <section class="view active" id="storesView">
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2>店選択</h2>
+            <p>v3専用データです。v2とはlocalStorageキーを共有しません。</p>
+          </div>
+          <button class="primary small" id="openStoreFormBtn">店を追加</button>
+        </div>
+        <div class="store-list" id="storeList"></div>
+      </div>
+    </section>
+
+    <section class="view" id="mapView">
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2>マップ定義</h2>
+            <p>1行が島の片面です。例: <code>100-104 | 199-195</code></p>
+          </div>
+          <button class="primary small" id="saveMapBtn">定義を保存</button>
+        </div>
+        <textarea id="mapInput" placeholder="100-104 | 199-195&#10;105-109 | 194-190"></textarea>
+        <div class="status-line" id="mapStatus"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2>台探索</h2>
+            <p>台番をタップすると過去概要を確認して、打ち始めに進めます。</p>
+          </div>
+          <button class="small" id="openLabelFormBtn">ラベル管理</button>
+        </div>
+        <div id="labelFilters" class="label-checks"></div>
+        <div class="map-wrap">
+          <div id="machineMap" class="map-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="view" id="runView">
+      <div id="runningArea"></div>
+    </section>
+
+    <section class="view" id="ledgerView">
+      <div class="section">
+        <div class="section-head">
+          <div>
+            <h2>セッション台帳</h2>
+            <p>未入力ありの記録は、ここから後で補完できます。</p>
+          </div>
+          <button class="small" id="exportBtn">JSON書き出し</button>
+        </div>
+        <div class="metric-grid" id="ledgerSummary"></div>
+        <div class="list" id="sessionList"></div>
+      </div>
+    </section>
+
+    <p class="footer-note" id="storageNote"></p>
+  </main>
+
+  <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modal-head">
+        <div>
+          <h2 id="modalTitle"></h2>
+          <p class="hint" id="modalHint"></p>
+        </div>
+        <button class="icon" id="closeModalBtn" aria-label="閉じる">×</button>
+      </div>
+      <div id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    "use strict";
+
+    const STORAGE_PREFIX = "ytv3:";
+    const STORAGE_KEY = STORAGE_PREFIX + "data";
+    const PREMIGRATE_KEY = STORAGE_PREFIX + "premigrate";
+    const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
+    const SCHEMA_VERSION = 1;
+    const CASH_TO_BALLS_RATE = 4;
+
+    const blankSession = () => ({
+      id: cryptoId("s"),
+      storeId: null,
+      machineId: null,
+      date: today(),
+      status: "active",
+      labels: [],
+      startSpin: null,
+      startTime: null,
+      startMochidama: null,
+      startSaipurei: null,
+      startCredit: null,
+      prevDayEndSpin: null,
+      investments: [],
+      hitSpin: null,
+      hitRemainBalls: null,
+      hitVia: null,
+      yutimeEnterBalls: null,
+      hitCount: null,
+      endTotalBalls: null,
+      endSpin: null,
+      endTime: null,
+      zanhoryuBalls: null,
+      memo: "",
+      createdAt: nowIso(),
+      updatedAt: nowIso()
+    });
+
+    const defaultData = () => ({
+      version: SCHEMA_VERSION,
+      stores: [],
+      layouts: {},
+      machines: [],
+      sessions: [],
+      labelsByStore: {},
+      activeStoreId: null,
+      meta: {
+        createdAt: nowIso(),
+        updatedAt: nowIso(),
+        lastSaveChars: 0,
+        sampleSessionChars: 0,
+        schemaBudgetNote: "v3 schema 1: Session 1件のJSON文字数をsampleSessionCharsに記録"
+      }
+    });
+
+    let data = loadData();
+    let currentView = "storesView";
+    let selectedLabelFilters = new Set();
+    let modalCancel = null;
+
+    const els = {
+      currentStorePill: byId("currentStorePill"),
+      storeList: byId("storeList"),
+      mapInput: byId("mapInput"),
+      mapStatus: byId("mapStatus"),
+      machineMap: byId("machineMap"),
+      labelFilters: byId("labelFilters"),
+      runningArea: byId("runningArea"),
+      ledgerSummary: byId("ledgerSummary"),
+      sessionList: byId("sessionList"),
+      storageNote: byId("storageNote"),
+      modalBackdrop: byId("modalBackdrop"),
+      modalTitle: byId("modalTitle"),
+      modalHint: byId("modalHint"),
+      modalBody: byId("modalBody")
+    };
+
+    document.querySelectorAll(".tab").forEach((button) => {
+      button.addEventListener("click", () => showView(button.dataset.view));
+    });
+
+    byId("openStoreFormBtn").addEventListener("click", openStoreForm);
+    byId("saveMapBtn").addEventListener("click", saveCurrentMap);
+    els.mapInput.addEventListener("input", () => {
+      els.mapStatus.innerHTML = mapStatusHtml(parseMapLayout(els.mapInput.value));
+    });
+    byId("openLabelFormBtn").addEventListener("click", openLabelForm);
+    byId("exportBtn").addEventListener("click", exportJson);
+    byId("closeModalBtn").addEventListener("click", closeModal);
+    els.modalBackdrop.addEventListener("click", (event) => {
+      if (event.target === els.modalBackdrop) closeModal();
+    });
+
+    renderAll();
+
+    function byId(id) {
+      return document.getElementById(id);
+    }
+
+    function nowIso() {
+      return new Date().toISOString();
+    }
+
+    function today() {
+      return new Date().toISOString().slice(0, 10);
+    }
+
+    function currentTime() {
+      const d = new Date();
+      return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    }
+
+    function cryptoId(prefix) {
+      const raw = (crypto && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString(16).slice(2);
+      return prefix + "_" + raw.replace(/-/g, "").slice(0, 16);
+    }
+
+    function showView(viewId) {
+      currentView = viewId;
+      document.querySelectorAll(".view").forEach((view) => view.classList.toggle("active", view.id === viewId));
+      document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.view === viewId));
+      renderAll();
+    }
+
+    function normalizeNumber(value) {
+      if (value === "" || value === null || value === undefined) return null;
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function numberText(value, fallback = "未入力") {
+      return value === null || value === undefined || value === "" ? fallback : String(value);
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+    }
+
+    function loadData() {
+      const base = defaultData();
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return base;
+      try {
+        const parsed = JSON.parse(raw);
+        if (!parsed || typeof parsed !== "object") return base;
+        if (parsed.version !== SCHEMA_VERSION && !localStorage.getItem(PREMIGRATE_KEY)) {
+          localStorage.setItem(PREMIGRATE_KEY, raw);
+        }
+        return normalizeData(parsed);
+      } catch (error) {
+        console.warn("ytv3 load failed", error);
+        return base;
+      }
+    }
+
+    function normalizeData(source) {
+      const base = defaultData();
+      const next = {
+        ...base,
+        ...source,
+        stores: Array.isArray(source.stores) ? source.stores : [],
+        layouts: source.layouts && typeof source.layouts === "object" ? source.layouts : {},
+        machines: Array.isArray(source.machines) ? source.machines : [],
+        sessions: Array.isArray(source.sessions) ? source.sessions : [],
+        labelsByStore: source.labelsByStore && typeof source.labelsByStore === "object" ? source.labelsByStore : {},
+        meta: { ...base.meta, ...(source.meta || {}) }
+      };
+      next.version = SCHEMA_VERSION;
+      next.stores = next.stores.map((store) => ({
+        id: store.id || cryptoId("st"),
+        name: String(store.name || "無名店"),
+        isPersonal: Boolean(store.isPersonal),
+        createdAt: store.createdAt || nowIso()
+      }));
+      next.machines = next.machines.map((machine) => ({
+        id: machine.id || cryptoId("m"),
+        storeId: machine.storeId || null,
+        daiNo: String(machine.daiNo || ""),
+        modelName: machine.modelName || "",
+        payoutType: machine.payoutType === "variable" ? "variable" : "fixed",
+        roundBalls: normalizeNumber(machine.roundBalls)
+      })).filter((machine) => machine.storeId && machine.daiNo);
+      next.sessions = next.sessions.map((session) => ({ ...blankSession(), ...session, investments: Array.isArray(session.investments) ? session.investments : [] }));
+      if (!next.stores.some((store) => store.id === next.activeStoreId)) next.activeStoreId = next.stores[0]?.id || null;
+      return next;
+    }
+
+    function persist() {
+      data.meta.updatedAt = nowIso();
+      data.meta.sampleSessionChars = measureSampleSessionChars();
+      const raw = JSON.stringify(data);
+      if (raw.length < 12) {
+        console.warn("ytv3 empty-write guard blocked save");
+        return false;
+      }
+      try {
+        const before = localStorage.getItem(STORAGE_KEY);
+        if (before) localStorage.setItem(BACKUP_KEY, before);
+        localStorage.setItem(STORAGE_KEY, raw);
+        data.meta.lastSaveChars = raw.length;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        return true;
+      } catch (error) {
+        console.warn("ytv3 persist failed", error);
+        return false;
+      }
+    }
+
+    function measureSampleSessionChars() {
+      const sample = data.sessions[0] || blankSession();
+      return JSON.stringify(sample).length;
+    }
+
+    function activeStore() {
+      return data.stores.find((store) => store.id === data.activeStoreId) || null;
+    }
+
+    function storeLabels(storeId = data.activeStoreId) {
+      return data.labelsByStore[storeId] || [];
+    }
+
+    function renderAll() {
+      renderStorePill();
+      renderStores();
+      renderMapEditor();
+      renderLabelFilters();
+      renderMachineMap();
+      renderRunning();
+      renderLedger();
+      renderStorageNote();
+    }
+
+    function renderStorePill() {
+      const store = activeStore();
+      els.currentStorePill.textContent = store ? store.name + (store.isPersonal ? " / パーソナル" : " / 非パーソナル") : "店未選択";
+    }
+
+    function renderStores() {
+      if (!data.stores.length) {
+        els.storeList.innerHTML = '<div class="row-card"><strong>店が未登録です</strong><br><small>まず店を追加してください。</small></div>';
+        return;
+      }
+      els.storeList.innerHTML = data.stores.map((store) => `
+        <button class="store-card ${store.id === data.activeStoreId ? "primary" : ""}" data-store-id="${escapeHtml(store.id)}">
+          <strong>${escapeHtml(store.name)}</strong>
+          <span>${store.isPersonal ? "パーソナルあり" : "非パーソナル / 概算入力"}</span>
+        </button>
+      `).join("");
+      els.storeList.querySelectorAll("[data-store-id]").forEach((button) => {
+        button.addEventListener("click", () => {
+          data.activeStoreId = button.dataset.storeId;
+          selectedLabelFilters = new Set();
+          persist();
+          showView("mapView");
+        });
+      });
+    }
+
+    function renderMapEditor() {
+      const store = activeStore();
+      els.mapInput.disabled = !store;
+      byId("saveMapBtn").disabled = !store;
+      els.mapInput.value = store ? (data.layouts[store.id]?.source || "") : "";
+      if (!store) {
+        els.mapStatus.innerHTML = '<span class="badge warn">店を選択してください</span>';
+        return;
+      }
+      const parsed = parseMapLayout(els.mapInput.value);
+      els.mapStatus.innerHTML = mapStatusHtml(parsed);
+    }
+
+    function renderLabelFilters() {
+      const labels = storeLabels();
+      if (!activeStore()) {
+        els.labelFilters.innerHTML = "";
+        return;
+      }
+      if (!labels.length) {
+        els.labelFilters.innerHTML = '<span class="hint">イベント日ラベルは未登録です。</span>';
+        return;
+      }
+      els.labelFilters.innerHTML = labels.map((label) => `
+        <label class="check-chip">
+          <input type="checkbox" value="${escapeHtml(label)}" ${selectedLabelFilters.has(label) ? "checked" : ""}>
+          ${escapeHtml(label)}
+        </label>
+      `).join("");
+      els.labelFilters.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (input.checked) selectedLabelFilters.add(input.value);
+          else selectedLabelFilters.delete(input.value);
+          renderMachineMap();
+        });
+      });
+    }
+
+    function renderMachineMap() {
+      const store = activeStore();
+      if (!store) {
+        els.machineMap.innerHTML = '<div class="row-card">店を選択してください。</div>';
+        return;
+      }
+      const source = data.layouts[store.id]?.source || "";
+      const parsed = parseMapLayout(source);
+      if (!parsed.rows.length) {
+        els.machineMap.innerHTML = '<div class="row-card">マップ定義を保存すると、台番ボタンを表示します。</div>';
+        return;
+      }
+      els.machineMap.innerHTML = parsed.rows.map((row) => {
+        const left = row.sides[0] || [];
+        const right = row.sides[1] || [];
+        return `
+          <div class="map-row">
+            <div class="map-side">${left.map(machineButtonHtml).join("")}</div>
+            <div class="aisle" aria-hidden="true"></div>
+            <div class="map-side">${right.map(machineButtonHtml).join("")}</div>
+          </div>
+        `;
+      }).join("");
+      els.machineMap.querySelectorAll("[data-dai-no]").forEach((button) => {
+        button.addEventListener("click", () => openMachineDetail(button.dataset.daiNo));
+      });
+    }
+
+    function machineButtonHtml(daiNo) {
+      const machine = findMachineByDai(daiNo);
+      const stats = machine ? machineStats(machine.id) : null;
+      const prev = machine ? latestEndSpin(machine.id) : null;
+      const rate = stats && stats.rate ? stats.rate.toFixed(1) : "";
+      return `
+        <button class="machine-button ${rate || prev !== null ? "has-data" : ""}" data-dai-no="${escapeHtml(daiNo)}">
+          <span class="dai">${escapeHtml(daiNo)}</span>
+          <span class="meta">
+            ${rate ? `<span>${rate}</span>` : ""}
+            ${prev !== null ? `<span>前${escapeHtml(prev)}</span>` : ""}
+          </span>
+        </button>
+      `;
+    }
+
+    function renderRunning() {
+      const store = activeStore();
+      if (!store) {
+        els.runningArea.innerHTML = '<div class="section"><h2>稼働中</h2><p>店を選択してください。</p></div>';
+        return;
+      }
+      const session = activeSession();
+      if (!session) {
+        els.runningArea.innerHTML = '<div class="section"><h2>稼働中</h2><p>現在進行中のセッションはありません。マップから台を選んで開始してください。</p></div>';
+        return;
+      }
+      const machine = data.machines.find((item) => item.id === session.machineId);
+      const derived = deriveSession(session);
+      els.runningArea.innerHTML = `
+        <div class="section running-panel">
+          <div class="section-head">
+            <div>
+              <h2>稼働中: ${escapeHtml(machine?.daiNo || "台番不明")}</h2>
+              <p>${escapeHtml(session.date)} / ${missingFields(session).length ? "未入力あり" : "入力済み"}</p>
+            </div>
+            <button class="small" id="editActiveBtn">補完編集</button>
+          </div>
+          <div class="metric-grid">
+            <div class="metric"><span>投入合計</span><strong>${derived.investedBalls} 玉</strong></div>
+            <div class="metric"><span>通常回転</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
+            <div class="metric"><span>概算回転率</span><strong>${derived.rate ? derived.rate.toFixed(1) : "-"} /250玉</strong></div>
+            <div class="metric"><span>遊タイム突入玉</span><strong>${numberText(session.yutimeEnterBalls, "-")}</strong></div>
+          </div>
+          <div class="grid two" style="margin-top:12px">
+            <button class="primary" id="addCashBtn">現金投資</button>
+            <button class="primary" id="addSaipureiBtn">再プレイ</button>
+          </div>
+          <div class="list" style="margin-top:12px">
+            ${session.investments.length ? session.investments.map((item) => `
+              <div class="row-card"><strong>${item.type === "cash" ? "現金" : "再プレイ"} ${escapeHtml(item.amount)}${item.type === "cash" ? "円" : "玉"}</strong><br><small>${escapeHtml(item.time || "")}</small></div>
+            `).join("") : '<div class="row-card"><small>投資履歴はまだありません。</small></div>'}
+          </div>
+          <div class="grid three" style="margin-top:12px">
+            <button id="enterYutimeBtn">遊タイム突入</button>
+            <button class="primary" id="hitBtn">当たった</button>
+            <button id="finishBtn">終了入力</button>
+          </div>
+        </div>
+      `;
+      byId("editActiveBtn").addEventListener("click", () => openSessionEditor(session.id));
+      byId("addCashBtn").addEventListener("click", () => openInvestmentForm("cash"));
+      byId("addSaipureiBtn").addEventListener("click", () => openInvestmentForm("saipurei"));
+      byId("enterYutimeBtn").addEventListener("click", () => openYutimeEnterForm(session.id));
+      byId("hitBtn").addEventListener("click", () => openHitWizard(session.id));
+      byId("finishBtn").addEventListener("click", () => openEndWizard(session.id));
+    }
+
+    function renderLedger() {
+      const store = activeStore();
+      if (!store) {
+        els.ledgerSummary.innerHTML = "";
+        els.sessionList.innerHTML = '<div class="row-card">店を選択してください。</div>';
+        return;
+      }
+      const sessions = data.sessions.filter((session) => session.storeId === store.id);
+      const completed = sessions.filter((session) => session.status === "completed");
+      const allStats = aggregateStats(sessions);
+      els.ledgerSummary.innerHTML = `
+        <div class="metric"><span>総セッション</span><strong>${sessions.length}</strong></div>
+        <div class="metric"><span>確定済み</span><strong>${completed.length}</strong></div>
+        <div class="metric"><span>累計参考回転率</span><strong>${allStats.rate ? allStats.rate.toFixed(1) : "-"}</strong></div>
+      `;
+      if (!sessions.length) {
+        els.sessionList.innerHTML = '<div class="row-card">セッションはまだありません。</div>';
+        return;
+      }
+      els.sessionList.innerHTML = sessions.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map((session) => {
+        const machine = data.machines.find((item) => item.id === session.machineId);
+        const derived = deriveSession(session);
+        const misses = missingFields(session);
+        return `
+          <div class="row-card">
+            <div class="row-card-head">
+              <div>
+                <strong>${escapeHtml(session.date)} / ${escapeHtml(machine?.daiNo || "台番不明")}</strong>
+                <div class="status-line">
+                  <span class="badge ${session.status === "completed" ? "good" : "dark"}">${session.status === "completed" ? "確定" : "稼働中"}</span>
+                  ${misses.length ? '<span class="badge warn">未入力あり</span>' : ""}
+                  ${session.labels.map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
+                </div>
+                <small>回転率 ${derived.rate ? derived.rate.toFixed(1) : "-"} /250玉、差玉 ${numberText(derived.diffBalls, "-")}</small>
+              </div>
+              <button class="small" data-edit-session="${escapeHtml(session.id)}">編集</button>
+            </div>
+          </div>
+        `;
+      }).join("");
+      els.sessionList.querySelectorAll("[data-edit-session]").forEach((button) => {
+        button.addEventListener("click", () => openSessionEditor(button.dataset.editSession));
+      });
+    }
+
+    function renderStorageNote() {
+      const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY].join(" / ");
+      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。Session 1件サンプルchars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。v2キーは読み書きしません。`;
+    }
+
+    function openStoreForm() {
+      openModal("店を追加", "店ごとにマップ、台、ラベル、セッションを分離します。", `
+        <div class="field-row"><label for="storeName">店名</label><input id="storeName" placeholder="例: ミレスト東口店"></div>
+        <label class="check-chip"><input id="storePersonal" type="checkbox"> パーソナルシステムあり</label>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="createStoreBtn">追加</button>
+        </div>
+      `);
+      byId("createStoreBtn").addEventListener("click", () => {
+        const name = byId("storeName").value.trim();
+        if (!name) return;
+        const store = { id: cryptoId("st"), name, isPersonal: byId("storePersonal").checked, createdAt: nowIso() };
+        data.stores.push(store);
+        data.activeStoreId = store.id;
+        data.labelsByStore[store.id] = [];
+        persist();
+        closeModal();
+        showView("mapView");
+      });
+    }
+
+    function openLabelForm() {
+      const labels = storeLabels();
+      openModal("ラベル管理", "旧イベ、特定日などを店ごとに定義します。", `
+        <div class="field-row"><label for="newLabel">追加ラベル</label><input id="newLabel" placeholder="例: 旧イベ"></div>
+        <div class="list" id="labelList">
+          ${labels.map((label) => `<div class="row-card"><strong>${escapeHtml(label)}</strong></div>`).join("") || '<div class="row-card"><small>未登録です。</small></div>'}
+        </div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="addLabelBtn">追加</button>
+        </div>
+      `);
+      byId("addLabelBtn").addEventListener("click", () => {
+        const store = activeStore();
+        const label = byId("newLabel").value.trim();
+        if (!store || !label) return;
+        const next = new Set(storeLabels(store.id));
+        next.add(label);
+        data.labelsByStore[store.id] = [...next];
+        persist();
+        closeModal();
+        renderAll();
+      });
+    }
+
+    function saveCurrentMap() {
+      const store = activeStore();
+      if (!store) return;
+      const source = els.mapInput.value;
+      const parsed = parseMapLayout(source);
+      data.layouts[store.id] = { source, updatedAt: nowIso(), errors: parsed.errors };
+      syncMachinesFromMap(store.id, parsed);
+      persist();
+      renderAll();
+    }
+
+    function parseMapLayout(source) {
+      const errors = [];
+      const seen = new Set();
+      const rows = [];
+      String(source || "").split(/\r?\n/).forEach((line, index) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const sides = trimmed.split("|").slice(0, 2).map((side) => parseMapSide(side, index + 1, errors));
+        while (sides.length < 2) sides.push([]);
+        sides.flat().forEach((daiNo) => {
+          if (seen.has(daiNo)) errors.push(`${index + 1}行目: 台番${daiNo}が重複しています`);
+          seen.add(daiNo);
+        });
+        rows.push({ sides });
+      });
+      return { rows, errors, daiNos: [...seen] };
+    }
+
+    function parseMapSide(side, lineNo, errors) {
+      const values = [];
+      String(side || "").split(/[,\s]+/).filter(Boolean).forEach((token) => {
+        const range = token.match(/^(\d+)-(\d+)$/);
+        if (range) {
+          const start = Number(range[1]);
+          const end = Number(range[2]);
+          if (!Number.isInteger(start) || !Number.isInteger(end)) {
+            errors.push(`${lineNo}行目: ${token} は不正なレンジです`);
+            return;
+          }
+          const step = start <= end ? 1 : -1;
+          for (let n = start; step > 0 ? n <= end : n >= end; n += step) values.push(String(n));
+          return;
+        }
+        if (/^\d+$/.test(token)) {
+          values.push(token);
+          return;
+        }
+        errors.push(`${lineNo}行目: ${token} は読めません`);
+      });
+      return values;
+    }
+
+    function mapStatusHtml(parsed) {
+      const count = parsed.daiNos.length;
+      const chips = [`<span class="badge good">${count}台</span>`];
+      if (parsed.errors.length) {
+        chips.push(...parsed.errors.slice(0, 3).map((error) => `<span class="badge warn">${escapeHtml(error)}</span>`));
+        if (parsed.errors.length > 3) chips.push(`<span class="badge warn">ほか${parsed.errors.length - 3}件</span>`);
+      } else {
+        chips.push('<span class="badge">パース正常</span>');
+      }
+      return chips.join("");
+    }
+
+    function syncMachinesFromMap(storeId, parsed) {
+      parsed.daiNos.forEach((daiNo) => {
+        if (!data.machines.some((machine) => machine.storeId === storeId && machine.daiNo === daiNo)) {
+          data.machines.push({
+            id: cryptoId("m"),
+            storeId,
+            daiNo,
+            modelName: "",
+            payoutType: "fixed",
+            roundBalls: null
+          });
+        }
+      });
+    }
+
+    function findMachineByDai(daiNo) {
+      const store = activeStore();
+      if (!store) return null;
+      return data.machines.find((machine) => machine.storeId === store.id && machine.daiNo === String(daiNo)) || null;
+    }
+
+    function openMachineDetail(daiNo) {
+      const machine = findMachineByDai(daiNo);
+      if (!machine) return;
+      const sessions = data.sessions.filter((session) => session.machineId === machine.id);
+      const stats = machineStats(machine.id);
+      openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
+        <div class="metric-grid">
+          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? stats.rate.toFixed(1) : "-"}</strong></div>
+          <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
+          <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
+        </div>
+        <div class="field-row" style="margin-top:12px"><label for="machineModel">機種名</label><input id="machineModel" value="${escapeHtml(machine.modelName || "")}" placeholder="任意"></div>
+        <div class="field-row"><label for="payoutType">出玉タイプ</label><select id="payoutType"><option value="fixed">固定</option><option value="variable">variable</option></select></div>
+        <div class="field-row"><label for="roundBalls">1R玉数</label><input id="roundBalls" inputmode="numeric" value="${escapeHtml(machine.roundBalls ?? "")}" placeholder="variable用"></div>
+        <div class="list">
+          ${sessions.slice(-5).reverse().map((session) => `<div class="row-card"><strong>${escapeHtml(session.date)}</strong><br><small>${escapeHtml(session.status)} / 回転率 ${deriveSession(session).rate?.toFixed(1) || "-"}</small></div>`).join("") || '<div class="row-card"><small>過去セッションなし</small></div>'}
+        </div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button id="saveMachineBtn">台情報保存</button>
+          <button class="primary" id="startSessionBtn">この台を打つ</button>
+        </div>
+      `);
+      byId("payoutType").value = machine.payoutType;
+      byId("saveMachineBtn").addEventListener("click", () => {
+        machine.modelName = byId("machineModel").value.trim();
+        machine.payoutType = byId("payoutType").value;
+        machine.roundBalls = normalizeNumber(byId("roundBalls").value);
+        persist();
+        closeModal();
+        renderAll();
+      });
+      byId("startSessionBtn").addEventListener("click", () => {
+        machine.modelName = byId("machineModel").value.trim();
+        machine.payoutType = byId("payoutType").value;
+        machine.roundBalls = normalizeNumber(byId("roundBalls").value);
+        persist();
+        closeModal();
+        openStartWizard(machine.id);
+      });
+    }
+
+    function openStartWizard(machineId) {
+      const store = activeStore();
+      const session = blankSession();
+      session.storeId = store.id;
+      session.machineId = machineId;
+      session.prevDayEndSpin = latestEndSpin(machineId);
+      const labels = storeLabels(store.id);
+      runWizard("打ち始めウィザード", [
+        {
+          key: "startSpin",
+          label: "現在回転数",
+          type: "number",
+          hint: session.prevDayEndSpin !== null ? `据え置きなら 前日${session.prevDayEndSpin} + 現在表示値 を別途確認してください。` : "前日ヤメ回転数は未記録です。"
+        },
+        { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
+        { key: "startMochidama", label: "持ち玉", type: "number" },
+        { key: "startSaipurei", label: "再プレイ残り玉", type: "number" },
+        { key: "startCredit", label: "クレジット残金", type: "number" },
+        { key: "labels", label: "イベントラベル", type: "labels", labels }
+      ], session, () => {
+        data.sessions.push(session);
+        persist();
+        showView("runView");
+      });
+    }
+
+    function openHitWizard(sessionId) {
+      const session = findSession(sessionId);
+      if (!session) return;
+      runWizard("当選ウィザード", [
+        { key: "hitSpin", label: "当選回転数", type: "number" },
+        { key: "hitRemainBalls", label: "残り玉", type: "number", hint: activeStore()?.isPersonal ? "パーソナル店では確定回転率に使います。" : "非パーソナル店ではスキップ前提です。" }
+      ], session, () => {
+        if (!session.hitVia) session.hitVia = session.yutimeEnterBalls !== null ? "yutime" : "normal";
+        session.updatedAt = nowIso();
+        persist();
+        renderAll();
+        openRateSummary(session);
+      });
+    }
+
+    function openEndWizard(sessionId) {
+      const session = findSession(sessionId);
+      if (!session) return;
+      runWizard("終了ウィザード", [
+        { key: "hitCount", label: "大当たり回数", type: "number" },
+        { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number" },
+        { key: "endSpin", label: "ヤメ回転数", type: "number" },
+        { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
+        { key: "memo", label: "メモ", type: "textarea" }
+      ], session, () => {
+        session.status = "completed";
+        session.endTime = session.endTime || currentTime();
+        session.updatedAt = nowIso();
+        persist();
+        showView("mapView");
+        openRateSummary(session);
+      });
+    }
+
+    function runWizard(title, steps, target, done) {
+      let index = 0;
+      const draft = target;
+      const renderStep = () => {
+        const step = steps[index];
+        openModal(title, `${index + 1} / ${steps.length}: ${step.label}。未入力でスキップできます。`, wizardInputHtml(step, draft[step.key]) + `
+          <div class="modal-actions">
+            <button id="skipStepBtn">スキップ</button>
+            <button id="backStepBtn" ${index === 0 ? "disabled" : ""}>戻る</button>
+            <button class="primary" id="nextStepBtn">${index === steps.length - 1 ? "完了" : "次へ"}</button>
+          </div>
+        `);
+        const input = byId("wizardValue");
+        if (input && step.preset && !input.value) input.value = step.preset;
+        byId("skipStepBtn").addEventListener("click", () => {
+          draft[step.key] = step.type === "labels" ? [] : null;
+          advance();
+        });
+        byId("backStepBtn").addEventListener("click", () => {
+          if (index > 0) {
+            index -= 1;
+            renderStep();
+          }
+        });
+        byId("nextStepBtn").addEventListener("click", () => {
+          draft[step.key] = readWizardValue(step);
+          advance();
+        });
+      };
+      const advance = () => {
+        if (index >= steps.length - 1) {
+          closeModal();
+          done();
+        } else {
+          index += 1;
+          renderStep();
+        }
+      };
+      modalCancel = () => renderAll();
+      renderStep();
+    }
+
+    function wizardInputHtml(step, value) {
+      if (step.type === "textarea") {
+        return `<textarea id="wizardValue">${escapeHtml(value || "")}</textarea>${step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : ""}`;
+      }
+      if (step.type === "labels") {
+        const chosen = new Set(Array.isArray(value) ? value : []);
+        return `<div class="label-checks">${(step.labels || []).map((label) => `
+          <label class="check-chip"><input class="wizardLabel" type="checkbox" value="${escapeHtml(label)}" ${chosen.has(label) ? "checked" : ""}> ${escapeHtml(label)}</label>
+        `).join("") || '<span class="hint">ラベル未登録です。</span>'}</div>`;
+      }
+      const inputType = step.type === "time" ? "time" : "text";
+      const inputMode = step.type === "number" ? ' inputmode="numeric"' : "";
+      const displayValue = value ?? step.preset ?? "";
+      return `<input id="wizardValue" type="${inputType}"${inputMode} value="${escapeHtml(displayValue)}">${step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : ""}`;
+    }
+
+    function readWizardValue(step) {
+      if (step.type === "labels") return [...document.querySelectorAll(".wizardLabel:checked")].map((input) => input.value);
+      const input = byId("wizardValue");
+      if (!input) return null;
+      if (step.type === "number") return normalizeNumber(input.value);
+      const value = input.value.trim();
+      return value ? value : null;
+    }
+
+    function openInvestmentForm(type) {
+      const session = activeSession();
+      if (!session) return;
+      openModal(type === "cash" ? "現金投資" : "再プレイ", "入力すると即時に投資履歴へ追記します。", `
+        <div class="field-row"><label for="investmentAmount">${type === "cash" ? "金額" : "玉数"}</label><input id="investmentAmount" inputmode="numeric"></div>
+        <div class="field-row"><label for="investmentTime">時刻</label><input id="investmentTime" type="time" value="${currentTime()}"></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveInvestmentBtn">追記</button>
+        </div>
+      `);
+      byId("saveInvestmentBtn").addEventListener("click", () => {
+        const amount = normalizeNumber(byId("investmentAmount").value);
+        if (amount === null) return;
+        session.investments.push({ type, amount, time: byId("investmentTime").value || currentTime() });
+        session.updatedAt = nowIso();
+        persist();
+        closeModal();
+        renderAll();
+      });
+    }
+
+    function openYutimeEnterForm(sessionId) {
+      const session = findSession(sessionId);
+      openModal("遊タイム突入", "突入時の玉数を入れると、後で玉減りを分けて見られます。", `
+        <div class="field-row"><label for="yutimeBalls">突入時玉数</label><input id="yutimeBalls" inputmode="numeric" value="${escapeHtml(session.yutimeEnterBalls ?? "")}"></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveYutimeBtn">保存</button>
+        </div>
+      `);
+      byId("saveYutimeBtn").addEventListener("click", () => {
+        session.yutimeEnterBalls = normalizeNumber(byId("yutimeBalls").value);
+        session.hitVia = "yutime";
+        session.updatedAt = nowIso();
+        persist();
+        closeModal();
+        renderAll();
+      });
+    }
+
+    function openRateSummary(session) {
+      const derived = deriveSession(session);
+      openModal("セッションサマリ", "保存済みです。未入力は台帳から補完できます。", `
+        <div class="metric-grid">
+          <div class="metric"><span>通常消費玉</span><strong>${numberText(derived.consumedBalls, "-")}</strong></div>
+          <div class="metric"><span>回転率</span><strong>${derived.rate ? derived.rate.toFixed(1) : "-"}</strong></div>
+          <div class="metric"><span>大当たり出玉</span><strong>${numberText(derived.hitBalls, "-")}</strong></div>
+          <div class="metric"><span>遊タイム玉減り</span><strong>${numberText(derived.yutimeLoss, "-")}</strong></div>
+          <div class="metric"><span>差玉</span><strong>${numberText(derived.diffBalls, "-")}</strong></div>
+        </div>
+        <div class="status-line">${missingFields(session).length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>'}</div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" data-close>確認</button>
+        </div>
+      `);
+    }
+
+    function openSessionEditor(sessionId) {
+      const session = findSession(sessionId);
+      if (!session) return;
+      const labels = storeLabels(session.storeId);
+      openModal("セッション補完編集", "スキップした項目もここで補完できます。", `
+        <div class="grid two">
+          ${fieldHtml("date", "日付", session.date, "date")}
+          ${fieldHtml("startTime", "開始時刻", session.startTime, "time")}
+          ${fieldHtml("startSpin", "開始回転数", session.startSpin)}
+          ${fieldHtml("startMochidama", "開始持ち玉", session.startMochidama)}
+          ${fieldHtml("startSaipurei", "再プレイ残り", session.startSaipurei)}
+          ${fieldHtml("startCredit", "クレジット残金", session.startCredit)}
+          ${fieldHtml("prevDayEndSpin", "前日ヤメ", session.prevDayEndSpin)}
+          ${fieldHtml("hitSpin", "当選回転数", session.hitSpin)}
+          ${fieldHtml("hitRemainBalls", "当選時残り玉", session.hitRemainBalls)}
+          ${fieldHtml("yutimeEnterBalls", "遊タイム突入玉", session.yutimeEnterBalls)}
+          ${fieldHtml("hitCount", "大当たり回数", session.hitCount)}
+          ${fieldHtml("endTotalBalls", "終了合計玉", session.endTotalBalls)}
+          ${fieldHtml("endSpin", "ヤメ回転数", session.endSpin)}
+          ${fieldHtml("endTime", "終了時刻", session.endTime, "time")}
+          ${fieldHtml("zanhoryuBalls", "残保留増減", session.zanhoryuBalls)}
+        </div>
+        <div class="field-row"><label for="editHitVia">当選経路</label><select id="editHitVia"><option value="">未入力</option><option value="normal">通常</option><option value="yutime">遊タイム</option></select></div>
+        <div class="field-row"><label>ラベル</label><div class="label-checks">${labels.map((label) => `<label class="check-chip"><input class="editLabel" type="checkbox" value="${escapeHtml(label)}" ${session.labels.includes(label) ? "checked" : ""}> ${escapeHtml(label)}</label>`).join("") || '<span class="hint">ラベル未登録</span>'}</div></div>
+        <div class="field-row"><label for="editMemo">メモ</label><textarea id="editMemo">${escapeHtml(session.memo || "")}</textarea></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button id="markCompletedBtn">確定扱い</button>
+          <button class="primary" id="saveSessionEditBtn">保存</button>
+        </div>
+      `);
+      byId("editHitVia").value = session.hitVia || "";
+      byId("markCompletedBtn").addEventListener("click", () => {
+        session.status = "completed";
+        byId("saveSessionEditBtn").click();
+      });
+      byId("saveSessionEditBtn").addEventListener("click", () => {
+        ["date", "startTime", "endTime"].forEach((key) => {
+          const value = byId("edit_" + key).value.trim();
+          session[key] = value || null;
+        });
+        ["startSpin", "startMochidama", "startSaipurei", "startCredit", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "hitCount", "endTotalBalls", "endSpin", "zanhoryuBalls"].forEach((key) => {
+          session[key] = normalizeNumber(byId("edit_" + key).value);
+        });
+        session.hitVia = byId("editHitVia").value || null;
+        session.labels = [...document.querySelectorAll(".editLabel:checked")].map((input) => input.value);
+        session.memo = byId("editMemo").value.trim();
+        session.updatedAt = nowIso();
+        persist();
+        closeModal();
+        renderAll();
+      });
+    }
+
+    function fieldHtml(key, label, value, type = "text") {
+      const inputMode = type === "text" ? ' inputmode="numeric"' : "";
+      return `<div class="field-row"><label for="edit_${key}">${label}</label><input id="edit_${key}" type="${type}"${inputMode} value="${escapeHtml(value ?? "")}"></div>`;
+    }
+
+    function openModal(title, hint, html) {
+      els.modalTitle.textContent = title;
+      els.modalHint.textContent = hint || "";
+      els.modalBody.innerHTML = html;
+      els.modalBackdrop.classList.add("open");
+      els.modalBody.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", closeModal));
+    }
+
+    function closeModal() {
+      els.modalBackdrop.classList.remove("open");
+      els.modalBody.innerHTML = "";
+      if (modalCancel) {
+        const cancel = modalCancel;
+        modalCancel = null;
+        cancel();
+      }
+    }
+
+    function findSession(sessionId) {
+      return data.sessions.find((session) => session.id === sessionId) || null;
+    }
+
+    function activeSession() {
+      const store = activeStore();
+      if (!store) return null;
+      return data.sessions.find((session) => session.storeId === store.id && session.status === "active") || null;
+    }
+
+    function investmentToBalls(item) {
+      if (item.type === "cash") return Number(item.amount || 0) / CASH_TO_BALLS_RATE;
+      return Number(item.amount || 0);
+    }
+
+    function deriveSession(session) {
+      const investedBalls = Math.round(session.investments.reduce((sum, item) => sum + investmentToBalls(item), 0));
+      const startingBalls = Number(session.startMochidama || 0);
+      const totalInputBalls = startingBalls + investedBalls;
+      const normalSpins = session.hitSpin !== null && session.startSpin !== null ? session.hitSpin - session.startSpin : null;
+      const consumedBalls = normalSpins !== null ? Math.max(0, totalInputBalls - Number(session.hitRemainBalls || 0)) : null;
+      const fallbackConsumed = normalSpins !== null ? Math.max(0, totalInputBalls) : null;
+      const rateBase = session.hitRemainBalls !== null ? consumedBalls : fallbackConsumed;
+      const rate = normalSpins !== null && rateBase > 0 ? normalSpins / rateBase * 250 : null;
+      const pointBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : totalInputBalls;
+      const hitBalls = session.endTotalBalls !== null && pointBalls !== null ? session.endTotalBalls - pointBalls : null;
+      const yutimeLoss = session.hitVia === "yutime" && session.yutimeEnterBalls !== null && session.hitRemainBalls !== null ? session.yutimeEnterBalls - session.hitRemainBalls : null;
+      const diffBalls = session.endTotalBalls !== null ? session.endTotalBalls - totalInputBalls + Number(session.zanhoryuBalls || 0) : null;
+      return { investedBalls, totalInputBalls, normalSpins, consumedBalls: rateBase, rate, hitBalls, yutimeLoss, diffBalls };
+    }
+
+    function machineStats(machineId) {
+      const sessions = filteredSessions().filter((session) => session.machineId === machineId);
+      return aggregateStats(sessions);
+    }
+
+    function aggregateStats(sessions) {
+      let spins = 0;
+      let consumed = 0;
+      sessions.forEach((session) => {
+        const derived = deriveSession(session);
+        if (derived.normalSpins !== null && derived.normalSpins > 0 && derived.consumedBalls > 0) {
+          spins += derived.normalSpins;
+          consumed += derived.consumedBalls;
+        }
+      });
+      return { spins, consumed: Math.round(consumed), rate: consumed > 0 ? spins / consumed * 250 : null };
+    }
+
+    function filteredSessions() {
+      const store = activeStore();
+      if (!store) return [];
+      const sessions = data.sessions.filter((session) => session.storeId === store.id && session.status === "completed");
+      if (!selectedLabelFilters.size) return sessions;
+      return sessions.filter((session) => session.labels.some((label) => selectedLabelFilters.has(label)));
+    }
+
+    function latestEndSpin(machineId) {
+      const candidates = data.sessions
+        .filter((session) => session.machineId === machineId && session.endSpin !== null)
+        .sort((a, b) => String(b.date + b.updatedAt).localeCompare(String(a.date + a.updatedAt)));
+      return candidates[0]?.endSpin ?? null;
+    }
+
+    function missingFields(session) {
+      const keys = ["startSpin", "startTime", "startMochidama", "startSaipurei", "startCredit", "hitSpin", "hitRemainBalls", "hitVia", "hitCount", "endTotalBalls", "endSpin", "endTime"];
+      return keys.filter((key) => session[key] === null || session[key] === undefined || session[key] === "");
+    }
+
+    function exportJson() {
+      const raw = JSON.stringify(data, null, 2);
+      const blob = new Blob([raw], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "yutime-v3-export-" + today() + ".json";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  })();
+  </script>
+</body>
+</html>
