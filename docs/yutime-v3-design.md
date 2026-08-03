@@ -100,6 +100,7 @@
   "date": "YYYY-MM-DD",
   "status": "active",
   "labels": [],
+  "carriedFromSessionId": null,
   "startSpin": null,
   "startTime": null,
   "startMochidama": null,
@@ -133,8 +134,9 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
+| `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 
 ### 3.1 容量予算記録
 
@@ -146,13 +148,14 @@ v3 は以下の localStorage キーのみを使用する。
 - `mapLayoutChars`: 現在の MapLayout 1 件の `JSON.stringify(layout).length`
 - `schemaBudgetNote`: 容量予算の注記
 
-実装上、画面下部にも保存キー、現在保存 chars、フロアマップ chars、台データ 1 件 chars、セッション 1 件 chars を表示する。
+実装上、画面下部にも保存キー、現在保存 chars、フロアマップ chars、台データ 1 件 chars、セッション 1 件 chars、引き継ぎ chars を表示する。
 
-B3 実測値:
+B4 実測値:
 
-- schema 4 空フロアマップ: 14 chars (`{"islands":[]}`)
-- schema 4 台データ 1 件サンプル: 151 chars
-- schema 4 セッション 1 件サンプル（normal/yutime 投資各1件、`yutimeEnterTime`あり）: 664 chars
+- schema 5 空フロアマップ: 14 chars (`{"islands":[]}`)
+- schema 5 台データ 1 件サンプル: 151 chars
+- schema 5 セッション 1 件サンプル（`carriedFromSessionId`、normal/yutime 投資各1件、`yutimeEnterTime`あり）: 696 chars
+- `ytv3:carryover` 1 件サンプル: 203 chars
 
 ## 4. 派生値
 
@@ -213,6 +216,18 @@ B3 実測値:
 - 終了入力の最初に「大当たりあり」「当たらず終了（遊タイム抜け含む）」を選ぶ。当たらず終了は `hitCount = 0` として保存する。
 - セッション確定後はサマリカードを表示し、「台帳で見る」から当該記録へ移動できる。
 
+## 5.4 B4 持ち玉引き継ぎ
+
+- 引き継ぎは終了サマリの「この持ち玉で次の台へ」を押した時だけ発生する。
+- 引き継ぎ待機状態は `ytv3:carryover` に保存し、同日内のページ再読み込みでも残す。
+- 日付が変わった `ytv3:carryover` は読み込み時に削除する。日またぎ引き継ぎはスコープ外。
+- フロアマップ上部に「引き継ぎ中」バナーを表示し、持ち玉、カード残、再プレ残、元台番を示す。
+- 「引き継ぎを破棄」で `ytv3:carryover` を削除する。
+- 打ち始めウィザードでは、持ち玉、カード残高、再プレ残りをプリセットする。元が未入力だった項目は空欄のままにする。
+- 引き継ぎ値はウィザード内で手修正できる。
+- ウィザード確定時に `carriedFromSessionId` を保存し、`ytv3:carryover` を削除する。
+- 台帳には `carriedFromSessionId` をもとに「⇐ 台◯◯から続き」を表示する。
+
 ## 6. QA 観点
 
 - 全項目スキップでセッション保存できること。
@@ -236,6 +251,12 @@ B3 実測値:
 - `phase` なしの既存投資は通常投資として再計算されること。
 - 当たらず終了で `hitCount = 0`、終了時玉数、ヤメ回転数、サマリ、台帳反映まで動くこと。
 - サマリの通常消費玉、遊タイム玉減り、差玉、換算収支が手計算と一致すること。
+- 終了サマリから引き継ぎを開始し、次の台の打ち始めウィザードに持ち玉、カード残、再プレ残がプリセットされること。
+- 元セッションで未入力だった引き継ぎ項目は、次セッションでも空欄のままになること。
+- 引き継ぎ待機中にリロードしても、バナーと値が残ること。
+- 引き継ぎ破棄でバナーと `ytv3:carryover` が消えること。
+- 引き継ぎ値を手修正した場合、その値が次セッションに保存されること。
+- 台帳に「⇐ 台◯◯から続き」が表示されること。
 - `ytv3:` 以外の localStorage キーを読み書きしないこと。
 - TOP ページ、既存ページ、sitemap から `yutime-v3.html` へリンクしないこと。
 - 公開後、`https://slot-tools.jp/yutime-v3.html` が 200 応答すること。

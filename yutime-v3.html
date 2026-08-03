@@ -535,6 +535,23 @@
       font-size: 12px;
     }
 
+    .carryover-banner {
+      margin-bottom: 12px;
+      padding: 12px;
+      border: 1px solid #e3b341;
+      border-radius: 8px;
+      background: #fff8dc;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .carryover-banner strong {
+      display: block;
+      margin-bottom: 2px;
+    }
+
     .hidden { display: none !important; }
 
     .toast {
@@ -576,6 +593,7 @@
       .map-row { grid-template-columns: minmax(118px, 1fr) 28px minmax(118px, 1fr); gap: 10px; }
       .map-side { grid-template-columns: 1fr; }
       .modal-actions { grid-template-columns: 1fr; }
+      .carryover-banner { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -634,6 +652,7 @@
           <button class="small" id="openLabelFormBtn">店イベントの登録</button>
         </div>
         <div id="labelFilters" class="label-checks"></div>
+        <div id="carryoverBanner"></div>
         <div class="map-wrap">
           <div id="machineMap" class="map-grid"></div>
         </div>
@@ -684,7 +703,8 @@
     const STORAGE_KEY = STORAGE_PREFIX + "data";
     const PREMIGRATE_KEY = STORAGE_PREFIX + "premigrate";
     const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
-    const SCHEMA_VERSION = 4;
+    const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
+    const SCHEMA_VERSION = 5;
     const CASH_TO_BALLS_RATE = 4;
     const AUTO_LABELS = [
       "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日",
@@ -703,6 +723,7 @@
       date: today(),
       status: "active",
       labels: [],
+      carriedFromSessionId: null,
       startSpin: null,
       startTime: null,
       startMochidama: null,
@@ -741,11 +762,12 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 4: 投資phase/yutimeEnterTime追加後のフロアマップchars、台データ1件chars、セッション1件charsを記録"
+        schemaBudgetNote: "v3 schema 5: 持ち玉引き継ぎ追加後のフロアマップchars、台データ1件chars、セッション1件chars、carryover charsを記録"
       }
     });
 
     let data = loadData();
+    let carryover = loadCarryover();
     let currentView = "storesView";
     let selectedLabelFilters = new Set();
     let mapDraft = { storeId: null, islands: [] };
@@ -756,6 +778,7 @@
       storeList: byId("storeList"),
       islandBuilder: byId("islandBuilder"),
       mapStatus: byId("mapStatus"),
+      carryoverBanner: byId("carryoverBanner"),
       machineMap: byId("machineMap"),
       labelFilters: byId("labelFilters"),
       runningArea: byId("runningArea"),
@@ -900,6 +923,50 @@
       }
     }
 
+    function loadCarryover() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(CARRYOVER_KEY) || "null");
+        if (!parsed || typeof parsed !== "object") return null;
+        if (!parsed.storeId || !parsed.sourceSessionId || !parsed.date) return null;
+        if (parsed.date !== today()) {
+          localStorage.removeItem(CARRYOVER_KEY);
+          return null;
+        }
+        return {
+          storeId: parsed.storeId,
+          sourceSessionId: parsed.sourceSessionId,
+          sourceMachineId: parsed.sourceMachineId || null,
+          sourceDaiNo: parsed.sourceDaiNo || "",
+          date: parsed.date,
+          mochidama: normalizeNumber(parsed.mochidama),
+          credit: normalizeNumber(parsed.credit),
+          saipurei: normalizeNumber(parsed.saipurei),
+          createdAt: parsed.createdAt || nowIso()
+        };
+      } catch (error) {
+        console.warn("ytv3 carryover load failed", error);
+        return null;
+      }
+    }
+
+    function saveCarryover(nextCarryover) {
+      carryover = nextCarryover;
+      if (!carryover) {
+        localStorage.removeItem(CARRYOVER_KEY);
+        renderAll();
+        return true;
+      }
+      try {
+        localStorage.setItem(CARRYOVER_KEY, JSON.stringify(carryover));
+        renderAll();
+        return true;
+      } catch (error) {
+        console.warn("ytv3 carryover save failed", error);
+        showToast("引き継ぎの保存に失敗しました。容量を確認してください。", "error");
+        return false;
+      }
+    }
+
     function normalizeData(source) {
       const base = defaultData();
       const next = {
@@ -933,6 +1000,7 @@
       next.sessions = next.sessions.map((session) => ({
         ...blankSession(),
         ...session,
+        carriedFromSessionId: session.carriedFromSessionId || null,
         yutimeEnterTime: session.yutimeEnterTime || null,
         investments: Array.isArray(session.investments) ? session.investments.map((item) => ({
           type: item.type === "saipurei" ? "saipurei" : "cash",
@@ -974,6 +1042,7 @@
         id: "s_sample",
         storeId: "st_sample",
         machineId: "m_sample",
+        carriedFromSessionId: "s_prev",
         status: "completed",
         startSpin: 0,
         startTime: "10:00",
@@ -996,6 +1065,21 @@
         endTime: "10:45",
         zanhoryuBalls: 0,
         memo: "B3 sample"
+      };
+      return JSON.stringify(sample).length;
+    }
+
+    function measureCarryoverChars() {
+      const sample = carryover || {
+        storeId: "st_sample",
+        sourceSessionId: "s_sample",
+        sourceMachineId: "m_sample",
+        sourceDaiNo: "101",
+        date: today(),
+        mochidama: 2000,
+        credit: 0,
+        saipurei: 250,
+        createdAt: nowIso()
       };
       return JSON.stringify(sample).length;
     }
@@ -1028,6 +1112,13 @@
       return data.labelsByStore[storeId] || [];
     }
 
+    function carryoverSourceMachine(session) {
+      if (!session.carriedFromSessionId) return null;
+      const source = data.sessions.find((item) => item.id === session.carriedFromSessionId);
+      if (!source) return null;
+      return data.machines.find((machine) => machine.id === source.machineId) || null;
+    }
+
     function eventMemoHelp() {
       return "曜日や「7のつく日」は日付から自動で判定されます。ここでは店独自のイベント（例: 旧イベ・周年）だけ登録してください。";
     }
@@ -1037,6 +1128,7 @@
       renderStores();
       renderMapEditor();
       renderLabelFilters();
+      renderCarryoverBanner();
       renderMachineMap();
       renderRunning();
       renderLedger();
@@ -1107,6 +1199,26 @@
           else selectedLabelFilters.delete(input.value);
           renderMachineMap();
         });
+      });
+    }
+
+    function renderCarryoverBanner() {
+      if (!carryover || carryover.storeId !== data.activeStoreId) {
+        els.carryoverBanner.innerHTML = "";
+        return;
+      }
+      els.carryoverBanner.innerHTML = `
+        <div class="carryover-banner">
+          <div>
+            <strong>引き継ぎ中: 持ち玉${numberText(carryover.mochidama, "未入力")}玉 / カード残${numberText(carryover.credit, "未入力")}円 / 再プレ残${numberText(carryover.saipurei, "未入力")}玉</strong>
+            <small>台${escapeHtml(carryover.sourceDaiNo || "不明")}から続き。次に選んだ台の打ち始めへプリセットします。</small>
+          </div>
+          <button class="small" id="discardCarryoverBtn">引き継ぎを破棄</button>
+        </div>
+      `;
+      byId("discardCarryoverBtn").addEventListener("click", () => {
+        saveCarryover(null);
+        showToast("引き継ぎを破棄しました");
       });
     }
 
@@ -1257,6 +1369,7 @@
       }
       els.sessionList.innerHTML = sessions.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map((session) => {
         const machine = data.machines.find((item) => item.id === session.machineId);
+        const sourceMachine = carryoverSourceMachine(session);
         const derived = deriveSession(session);
         const misses = missingFields(session);
         return `
@@ -1269,6 +1382,7 @@
                   ${misses.length ? '<span class="badge warn">未入力あり</span>' : ""}
                   ${automaticLabelsForDate(session.date).map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
                   ${session.labels.map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
+                  ${sourceMachine ? `<span class="badge">⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き</span>` : ""}
                 </div>
                 <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${derived.rate ? derived.rate.toFixed(1) : "-"} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
               </div>
@@ -1283,8 +1397,8 @@
     }
 
     function renderStorageNote() {
-      const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY].join(" / ");
-      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。v2キーは読み書きしません。`;
+      const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, CARRYOVER_KEY].join(" / ");
+      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。引き継ぎchars: ${measureCarryoverChars()}。v2キーは読み書きしません。`;
     }
 
     function openStoreForm() {
@@ -1714,6 +1828,13 @@
       session.storeId = store.id;
       session.machineId = machineId;
       session.prevDayEndSpin = latestEndSpin(machineId);
+      const activeCarryover = carryover && carryover.storeId === store.id ? carryover : null;
+      if (activeCarryover) {
+        session.carriedFromSessionId = activeCarryover.sourceSessionId;
+        session.startMochidama = activeCarryover.mochidama;
+        session.startSaipurei = activeCarryover.saipurei;
+        session.startCredit = activeCarryover.credit;
+      }
       const labels = storeLabels(store.id);
       runWizard("打ち始めウィザード", [
         {
@@ -1723,13 +1844,17 @@
           hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` 据え置きなら 前日${session.prevDayEndSpin} + 現在表示値 を別途確認してください。` : " 前日ヤメ回転数は未記録です。")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
-        { key: "startMochidama", label: "持ち玉", type: "number" },
-        { key: "startSaipurei", label: "再プレイ残り玉", type: "number" },
-        { key: "startCredit", label: "カード残高（クレジット残金）", type: "number" },
+        { key: "startMochidama", label: "持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。" : "" },
+        { key: "startSaipurei", label: "再プレイ残り玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。未入力だった場合は空欄のままです。" : "" },
+        { key: "startCredit", label: "カード残高（クレジット残金）", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : "" },
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         data.sessions.push(session);
         if (!persistWithToast("稼働を開始しました")) return;
+        if (activeCarryover) {
+          carryover = null;
+          localStorage.removeItem(CARRYOVER_KEY);
+        }
         showView("runView");
       });
     }
@@ -1895,6 +2020,35 @@
       };
     }
 
+    function finalMochidamaForCarryover(session) {
+      if (session.endTotalBalls === null || session.endTotalBalls === undefined) return null;
+      return Number(session.endTotalBalls || 0) + Number(session.zanhoryuBalls || 0);
+    }
+
+    function createCarryoverFromSession(session) {
+      const machine = data.machines.find((item) => item.id === session.machineId);
+      const balances = deriveBalances(session);
+      return {
+        storeId: session.storeId,
+        sourceSessionId: session.id,
+        sourceMachineId: session.machineId,
+        sourceDaiNo: machine?.daiNo || "",
+        date: session.date,
+        mochidama: finalMochidamaForCarryover(session),
+        credit: balances.credit,
+        saipurei: balances.saipurei,
+        createdAt: nowIso()
+      };
+    }
+
+    function startCarryover(session) {
+      const nextCarryover = createCarryoverFromSession(session);
+      if (!saveCarryover(nextCarryover)) return;
+      closeModal();
+      showView("mapView");
+      showToast("持ち玉を引き継ぎ待機にしました");
+    }
+
     function addInvestment(session, type, amount, time = currentTime()) {
       if (amount === null) return;
       const item = { type, amount, time, phase: currentInvestmentPhase(session) };
@@ -1977,9 +2131,11 @@
         <div class="status-line">${missingFields(session).length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>'}</div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
+          <button id="summaryCarryoverBtn">この持ち玉で次の台へ</button>
           <button class="primary" id="summaryLedgerBtn">台帳で見る</button>
         </div>
       `);
+      byId("summaryCarryoverBtn").addEventListener("click", () => startCarryover(session));
       byId("summaryLedgerBtn").addEventListener("click", () => {
         closeModal();
         showView("ledgerView");
