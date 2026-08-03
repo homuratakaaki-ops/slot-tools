@@ -477,6 +477,11 @@
       box-shadow: var(--shadow);
     }
 
+    .running-sticky.sticky-off {
+      position: static;
+      box-shadow: none;
+    }
+
     .counter-row, .balance-row {
       display: flex;
       flex-wrap: wrap;
@@ -493,6 +498,19 @@
     .counter-row button, .balance-row button {
       min-height: 34px;
       padding: 0 10px;
+    }
+
+    .balance-row button.needs-balance {
+      opacity: .55;
+    }
+
+    .balance-row .balance-label {
+      min-width: 96px;
+      font-weight: 700;
+    }
+
+    .balance-row .balance-value {
+      min-width: 86px;
     }
 
     .metric-grid {
@@ -647,6 +665,15 @@
     .toast.show { display: block; }
     .toast.error { background: var(--danger); }
 
+    .toast button {
+      margin-left: 10px;
+      min-height: 28px;
+      padding: 0 10px;
+      border-color: rgba(255,255,255,.7);
+      color: #fff;
+      background: rgba(255,255,255,.16);
+    }
+
     .footer-note {
       margin: 16px 0 6px;
       color: var(--muted);
@@ -777,7 +804,8 @@
     const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
-    const SCHEMA_VERSION = 8;
+    const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
+    const SCHEMA_VERSION = 9;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
@@ -807,6 +835,7 @@
       currentSpin: null,
       prevDayEndSpin: null,
       investments: [],
+      charges: [],
       hitSpin: null,
       hitRemainBalls: null,
       hitVia: null,
@@ -838,7 +867,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 8: 交換玉数方式、列機種再保存ガード追加後のStore charsを記録"
+        schemaBudgetNote: "v3 schema 9: 投資source/charges/固定表示設定追加後のSession charsを記録"
       }
     });
 
@@ -852,6 +881,7 @@
     let spinUndoStacks = {};
     let autoFilterExpanded = false;
     let mapEditorOpenByStore = {};
+    let runningStickyEnabled = localStorage.getItem(STICKY_PREF_KEY) !== "off";
     let mapDraft = { storeId: null, islands: [] };
     let modalCancel = null;
 
@@ -949,6 +979,18 @@
       return Number.isInteger(balls) ? String(balls) : balls.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     }
 
+    function normalizeInvestmentSource(value) {
+      return value === "mochidama" || value === "saipurei" ? value : "cash";
+    }
+
+    function investmentSource(item) {
+      return normalizeInvestmentSource(item?.source || item?.type);
+    }
+
+    function usesTapInvestmentMode(session) {
+      return Array.isArray(session.investments) && session.investments.some((item) => item.source);
+    }
+
     function numberText(value, fallback = "未入力") {
       return value === null || value === undefined || value === "" ? fallback : String(value);
     }
@@ -976,14 +1018,19 @@
       return matched ? matched.id : "";
     }
 
-    function showToast(message, type = "success") {
+    function showToast(message, type = "success", options = {}) {
       clearTimeout(showToast.timer);
-      els.toast.textContent = message;
+      els.toast.innerHTML = `${escapeHtml(message)}${options.undo ? ` <button id="toastUndoBtn">元に戻す</button>` : ""}`;
       els.toast.classList.toggle("error", type === "error");
       els.toast.classList.add("show");
+      if (options.undo) byId("toastUndoBtn").addEventListener("click", () => {
+        clearTimeout(showToast.timer);
+        els.toast.classList.remove("show", "error");
+        options.undo();
+      });
       showToast.timer = setTimeout(() => {
         els.toast.classList.remove("show", "error");
-      }, 2200);
+      }, options.undo ? 4200 : 2200);
     }
 
     function persistWithToast(successMessage) {
@@ -1128,11 +1175,16 @@
         carriedFromSessionId: session.carriedFromSessionId || null,
         yutimeEnterTime: session.yutimeEnterTime || null,
         investments: Array.isArray(session.investments) ? session.investments.map((item) => ({
-          type: item.type === "saipurei" ? "saipurei" : "cash",
+          type: normalizeInvestmentSource(item.source || item.type),
+          ...(item.source ? { source: normalizeInvestmentSource(item.source) } : {}),
           amount: normalizeNumber(item.amount),
           time: item.time || null,
           phase: item.phase === "yutime" ? "yutime" : "normal",
           spinAt: normalizeNumber(item.spinAt)
+        })).filter((item) => item.amount !== null) : [],
+        charges: Array.isArray(session.charges) ? session.charges.map((item) => ({
+          amount: normalizeNumber(item.amount),
+          time: item.time || null
         })).filter((item) => item.amount !== null) : []
       }));
       if (!next.stores.some((store) => store.id === next.activeStoreId)) next.activeStoreId = next.stores[0]?.id || null;
@@ -1179,9 +1231,10 @@
         startSaipurei: 250,
         startCredit: 3000,
         investments: [
-          { type: "cash", amount: 2500, time: "10:05", phase: "normal" },
-          { type: "cash", amount: 500, time: "10:30", phase: "yutime" }
+          { type: "mochidama", source: "mochidama", amount: 500, time: "10:05", phase: "normal", spinAt: 20 },
+          { type: "cash", source: "cash", amount: 500, time: "10:30", phase: "yutime", spinAt: 80 }
         ],
+        charges: [{ amount: 1000, time: "10:20" }],
         hitSpin: 100,
         hitRemainBalls: 0,
         hitVia: "yutime",
@@ -1502,14 +1555,14 @@
       const otherActiveSessions = activeSessionsForStore(store.id).filter((item) => item.id !== session.id);
       const currentSpin = session.currentSpin ?? session.startSpin;
       const liveRate = liveRunningRate(session);
-      const cashTotal = session.investments.filter((item) => item.type === "cash").reduce((sum, item) => sum + Number(item.amount || 0), 0);
-      const replayTotal = session.investments.filter((item) => item.type === "saipurei").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const totals = investmentTotals(session);
       const visibleInvestments = expandedInvestmentSessions.has(session.id) ? session.investments : session.investments.slice(-5);
       const hiddenInvestmentCount = Math.max(0, session.investments.length - visibleInvestments.length);
+      const stickyClass = runningStickyEnabled ? "" : " sticky-off";
       els.runningArea.innerHTML = `
         <div class="section running-panel">
-          <div class="running-sticky">
-            <strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong>
+          <div class="running-sticky${stickyClass}">
+            <div class="row-card-head"><strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong><button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button></div>
             <div class="counter-row">
               <span>現在回転数</span>
               <strong>${numberText(currentSpin, "-")}</strong>
@@ -1520,10 +1573,11 @@
               <button id="undoSpinBtn">元に戻す</button>
             </div>
             <div class="balance-row">
-              <span>再プレ残 ${balanceText(balances.saipurei, "玉")}</span><button id="quickSaipureiHeaderBtn">+125玉</button>
-              <span>カード残 ${balanceText(balances.credit, "円")}</span><button id="quickCashHeaderBtn">+500円</button>
+              <span class="balance-label">持ち玉</span><button class="ghost balance-value" data-edit-balance="startMochidama">${balanceText(balances.mochidama, "玉")}</button><button class="${balances.mochidama === null ? "needs-balance" : ""}" data-source-btn="mochidama" ${balances.mochidama !== null && !canUseSource(session, "mochidama", 125) ? "disabled" : ""}>+125玉</button>
+              <span class="balance-label">再プレ残</span><button class="ghost balance-value" data-edit-balance="startSaipurei">${balanceText(balances.saipurei, "玉")}</button><button class="${balances.saipurei === null ? "needs-balance" : ""}" data-source-btn="saipurei" ${balances.saipurei !== null && !canUseSource(session, "saipurei", 125) ? "disabled" : ""}>+125玉</button>
+              <span class="balance-label">カード残</span><button class="ghost balance-value" data-edit-balance="startCredit">${balanceText(balances.credit, "円")}</button><button class="${balances.credit === null ? "needs-balance" : ""}" data-source-btn="cash" ${balances.credit !== null && !canUseSource(session, "cash", 500) ? "disabled" : ""}>+500円</button><button id="openChargeBtn">入金</button>
             </div>
-            <div class="hint">持ち込み合計 ${numberText(session.startMochidama, "-")}玉 / 概算回転率 ${liveRate !== null ? liveRate.toFixed(1) : "-"} / 投入 ${numberText(derived.investedBalls, 0)}玉（現金${numberText(cashTotal, 0)}円・再プレ${numberText(replayTotal, 0)}玉）</div>
+            <div class="hint">投入 ${numberText(derived.investedBalls, 0)}玉（持ち玉${numberText(totals.mochidamaBalls, 0)}・再プレ${numberText(totals.saipureiBalls, 0)}・現金${numberText(totals.cashYen, 0)}円）/ 概算回転率 ${liveRate !== null ? liveRate.toFixed(1) : "-"}</div>
           </div>
           ${otherActiveSessions.length ? `
             <div class="status-line" style="margin:0 0 12px">
@@ -1550,29 +1604,35 @@
             <div class="metric"><span>遊タイム突入玉</span><strong>${numberText(session.yutimeEnterBalls, "-")}</strong></div>
           </div>
           ${yutimeMode ? '<p class="phase-note">遊タイム中の投資として記録されます。</p>' : ""}
-          <div class="grid two" style="margin-top:12px">
-            <button class="primary" id="addCashBtn">現金投資</button>
-            <button class="primary" id="addSaipureiBtn">再プレイ</button>
-          </div>
-          <div class="quick-invest">
-            <button id="quickCashBtn">+500円</button>
-            <button id="quickSaipureiBtn">+125玉</button>
+          <div class="grid three" style="margin-top:12px">
+            <button class="primary" id="addMochidamaBtn">持ち玉を直接入力</button>
+            <button class="primary" id="addSaipureiBtn">再プレイを直接入力</button>
+            <button class="primary" id="addCashBtn">金額を直接入力</button>
           </div>
           <div class="list" style="margin-top:12px">
             ${hiddenInvestmentCount ? `<button class="small" id="toggleInvestmentsBtn">過去${hiddenInvestmentCount}件を表示</button>` : ""}
             ${session.investments.length ? visibleInvestments.map((item) => {
               const index = session.investments.indexOf(item);
+              const source = investmentSource(item);
               return `
               <div class="row-card">
                 <div class="row-card-head">
                   <div>
-                    <strong>${item.type === "cash" ? "現金" : "再プレイ"} ${escapeHtml(item.amount)}${item.type === "cash" ? "円" : "玉"}</strong>
+                    <strong>${investmentSourceLabel(source)} ${escapeHtml(item.amount)}${source === "cash" ? "円" : "玉"}</strong>
                     <br><small>${escapeHtml(item.time || "")} / ${investmentPhaseLabel(item)}${item.spinAt !== null && item.spinAt !== undefined ? ` / ${escapeHtml(item.spinAt)}回転時` : ""}</small>
                   </div>
                   <button class="small" data-delete-investment="${index}">削除</button>
                 </div>
               </div>
             `}).join("") : '<div class="row-card"><small>投資履歴はまだありません。</small></div>'}
+            ${(session.charges || []).map((item, index) => `
+              <div class="row-card">
+                <div class="row-card-head">
+                  <div><strong>入金 ${escapeHtml(item.amount)}円</strong><br><small>${escapeHtml(item.time || "")}</small></div>
+                  <button class="small" data-delete-charge="${index}">削除</button>
+                </div>
+              </div>
+            `).join("")}
           </div>
           <div class="grid three" style="margin-top:12px">
             <button id="enterYutimeBtn">遊タイム突入</button>
@@ -1586,18 +1646,30 @@
         button.addEventListener("click", () => addCurrentSpin(session, Number(button.dataset.spinAdd)));
       });
       byId("undoSpinBtn").addEventListener("click", () => undoCurrentSpin(session));
-      byId("quickCashHeaderBtn").addEventListener("click", () => addInvestment(session, "cash", 500));
-      byId("quickSaipureiHeaderBtn").addEventListener("click", () => addInvestment(session, "saipurei", 125));
+      byId("toggleStickyBtn").addEventListener("click", () => {
+        runningStickyEnabled = !runningStickyEnabled;
+        localStorage.setItem(STICKY_PREF_KEY, runningStickyEnabled ? "on" : "off");
+        renderRunning();
+      });
+      els.runningArea.querySelectorAll("[data-source-btn]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const source = button.dataset.sourceBtn;
+          addInvestment(session, source, source === "cash" ? 500 : 125);
+        });
+      });
+      els.runningArea.querySelectorAll("[data-edit-balance]").forEach((button) => {
+        button.addEventListener("click", () => openBalanceEditForm(session, button.dataset.editBalance));
+      });
+      byId("openChargeBtn").addEventListener("click", () => openChargeForm(session));
       els.runningArea.querySelectorAll("[data-switch-active]").forEach((button) => {
         button.addEventListener("click", () => {
           activeSessionId = button.dataset.switchActive;
           renderRunning();
         });
       });
-      byId("addCashBtn").addEventListener("click", () => openInvestmentForm("cash"));
+      byId("addMochidamaBtn").addEventListener("click", () => openInvestmentForm("mochidama"));
       byId("addSaipureiBtn").addEventListener("click", () => openInvestmentForm("saipurei"));
-      byId("quickCashBtn").addEventListener("click", () => addInvestment(session, "cash", 500));
-      byId("quickSaipureiBtn").addEventListener("click", () => addInvestment(session, "saipurei", 125));
+      byId("addCashBtn").addEventListener("click", () => openInvestmentForm("cash"));
       const toggleInvestmentsButton = byId("toggleInvestmentsBtn");
       if (toggleInvestmentsButton) {
         toggleInvestmentsButton.addEventListener("click", () => {
@@ -1607,6 +1679,9 @@
       }
       els.runningArea.querySelectorAll("[data-delete-investment]").forEach((button) => {
         button.addEventListener("click", () => deleteInvestment(session, Number(button.dataset.deleteInvestment)));
+      });
+      els.runningArea.querySelectorAll("[data-delete-charge]").forEach((button) => {
+        button.addEventListener("click", () => deleteCharge(session, Number(button.dataset.deleteCharge)));
       });
       byId("enterYutimeBtn").addEventListener("click", () => openYutimeEnterForm(session.id));
       byId("hitBtn").addEventListener("click", () => openHitWizard(session.id));
@@ -2410,6 +2485,13 @@
       return item.phase === "yutime" ? "遊タイム中" : "通常時";
     }
 
+    function investmentSourceLabel(source) {
+      const normalized = normalizeInvestmentSource(source);
+      if (normalized === "mochidama") return "持ち玉";
+      if (normalized === "saipurei") return "再プレイ";
+      return "現金";
+    }
+
     function balanceText(value, unit) {
       return value === null ? "未入力" : `${numberText(value, 0)} ${unit}`;
     }
@@ -2426,10 +2508,10 @@
     }
 
     function liveRunningRate(session) {
-      if (session.startSpin === null || session.currentSpin === null || session.currentSpin === undefined || session.startMochidama === null) return null;
+      if (session.startSpin === null || session.currentSpin === null || session.currentSpin === undefined) return null;
       const store = storeById(session.storeId);
       const normalInvestedBalls = session.investments.filter((item) => item.phase !== "yutime").reduce((sum, item) => sum + investmentToBalls(item, store), 0);
-      const inputBalls = Number(session.startMochidama || 0) + normalInvestedBalls;
+      const inputBalls = usesTapInvestmentMode(session) ? normalInvestedBalls : Number(session.startMochidama || 0) + normalInvestedBalls;
       const spins = Number(session.currentSpin) - Number(session.startSpin);
       return inputBalls > 0 && spins >= 0 ? spins / inputBalls * 250 : null;
     }
@@ -2455,12 +2537,37 @@
     }
 
     function deriveBalances(session) {
-      const cashTotal = session.investments.filter((item) => item.type === "cash").reduce((sum, item) => sum + Number(item.amount || 0), 0);
-      const replayTotal = session.investments.filter((item) => item.type === "saipurei").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const cashTotal = session.investments.filter((item) => investmentSource(item) === "cash").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const replayTotal = session.investments.filter((item) => investmentSource(item) === "saipurei").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const mochidamaTotal = session.investments.filter((item) => investmentSource(item) === "mochidama").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const chargeTotal = (session.charges || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
       return {
-        credit: session.startCredit === null ? null : Number(session.startCredit || 0) - cashTotal,
+        mochidama: session.startMochidama === null ? null : Number(session.startMochidama || 0) - mochidamaTotal,
+        credit: session.startCredit === null ? null : Number(session.startCredit || 0) + chargeTotal - cashTotal,
         saipurei: session.startSaipurei === null ? null : Number(session.startSaipurei || 0) - replayTotal
       };
+    }
+
+    function investmentTotals(session) {
+      return (session.investments || []).reduce((totals, item) => {
+        const source = investmentSource(item);
+        if (source === "cash") totals.cashYen += Number(item.amount || 0);
+        if (source === "saipurei") totals.saipureiBalls += Number(item.amount || 0);
+        if (source === "mochidama") totals.mochidamaBalls += Number(item.amount || 0);
+        return totals;
+      }, { cashYen: 0, saipureiBalls: 0, mochidamaBalls: 0 });
+    }
+
+    function balanceForSource(session, source) {
+      const balances = deriveBalances(session);
+      if (source === "mochidama") return balances.mochidama;
+      if (source === "saipurei") return balances.saipurei;
+      return balances.credit;
+    }
+
+    function canUseSource(session, source, amount) {
+      const balance = balanceForSource(session, source);
+      return balance !== null && balance >= amount;
     }
 
     function finalMochidamaForCarryover(session) {
@@ -2492,20 +2599,37 @@
       showToast("持ち玉を引き継ぎ待機にしました");
     }
 
-    function addInvestment(session, type, amount, time = currentTime()) {
+    function addInvestment(session, source, amount, time = currentTime()) {
       if (amount === null) return;
-      const item = { type, amount, time, phase: currentInvestmentPhase(session), spinAt: session.currentSpin ?? session.startSpin };
+      source = normalizeInvestmentSource(source);
+      const balance = balanceForSource(session, source);
+      if (balance === null) {
+        showToast("先に残高を入力してください", "error");
+        return;
+      }
+      if (balance < amount) {
+        showToast("残高が不足しています", "error");
+        return;
+      }
+      const item = { type: source, source, amount, time, phase: currentInvestmentPhase(session), spinAt: session.currentSpin ?? session.startSpin };
       session.investments.push(item);
       session.updatedAt = nowIso();
       const balls = Math.round(investmentToBalls(item, storeById(session.storeId)));
-      const balances = deriveBalances(session);
-      const negative = (type === "cash" && balances.credit !== null && balances.credit < 0) || (type === "saipurei" && balances.saipurei !== null && balances.saipurei < 0);
-      const message = negative ? `投資を追記しました（+${balls}玉）。残高がマイナスです` : `投資を追記しました（+${balls}玉）`;
       if (!persist()) {
         showToast("保存に失敗しました。容量を確認してください。", "error");
         return;
       }
-      showToast(message, negative ? "error" : "success");
+      showToast(`投資を追記しました（+${balls}玉）`, "success", {
+        undo: () => {
+          const index = session.investments.indexOf(item);
+          if (index >= 0) {
+            session.investments.splice(index, 1);
+            session.updatedAt = nowIso();
+            persist();
+            renderAll();
+          }
+        }
+      });
       renderAll();
     }
 
@@ -2517,10 +2641,43 @@
       renderAll();
     }
 
+    function addCharge(session, amount, time = currentTime()) {
+      if (amount === null || amount <= 0) return;
+      const item = { amount, time };
+      if (!Array.isArray(session.charges)) session.charges = [];
+      session.charges.push(item);
+      session.updatedAt = nowIso();
+      if (!persist()) {
+        showToast("保存に失敗しました。容量を確認してください。", "error");
+        return;
+      }
+      showToast(`入金を記録しました（+${amount}円）`, "success", {
+        undo: () => {
+          const index = session.charges.indexOf(item);
+          if (index >= 0) {
+            session.charges.splice(index, 1);
+            session.updatedAt = nowIso();
+            persist();
+            renderAll();
+          }
+        }
+      });
+      renderAll();
+    }
+
+    function deleteCharge(session, index) {
+      if (!Number.isInteger(index) || !session.charges?.[index]) return;
+      session.charges.splice(index, 1);
+      session.updatedAt = nowIso();
+      if (!persistWithToast("入金履歴を削除しました")) return;
+      renderAll();
+    }
+
     function openInvestmentForm(type) {
       const session = activeSession();
       if (!session) return;
-      openModal(type === "cash" ? "現金投資" : "再プレイ", "入力すると即時に投資履歴へ追記します。", `
+      const label = investmentSourceLabel(type);
+      openModal(`${label}を直接入力`, "入力すると即時に投入履歴へ追記します。残高を超える入力は保存できません。", `
         <div class="field-row"><label for="investmentAmount">${type === "cash" ? "金額" : "玉数"}</label><input id="investmentAmount" inputmode="numeric"></div>
         <div class="field-row"><label for="investmentTime">時刻</label><input id="investmentTime" type="time" value="${currentTime()}"></div>
         <div class="modal-actions">
@@ -2533,6 +2690,56 @@
         if (amount === null) return;
         addInvestment(session, type, amount, byId("investmentTime").value || currentTime());
         closeModal();
+      });
+    }
+
+    function openChargeForm(session) {
+      openModal("入金", "カード残高を増やします。入金は投入玉・差玉には含めません。", `
+        <div class="quick-invest">
+          <button data-charge-amount="1000">+1,000円</button>
+          <button data-charge-amount="5000">+5,000円</button>
+          <button data-charge-amount="10000">+10,000円</button>
+        </div>
+        <div class="field-row"><label for="chargeAmount">直接入力</label><input id="chargeAmount" inputmode="numeric"></div>
+        <div class="field-row"><label for="chargeTime">時刻</label><input id="chargeTime" type="time" value="${currentTime()}"></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveChargeBtn">入金</button>
+        </div>
+      `);
+      els.modalBody.querySelectorAll("[data-charge-amount]").forEach((button) => {
+        button.addEventListener("click", () => {
+          addCharge(session, Number(button.dataset.chargeAmount), byId("chargeTime").value || currentTime());
+          closeModal();
+        });
+      });
+      byId("saveChargeBtn").addEventListener("click", () => {
+        const amount = normalizeNumber(byId("chargeAmount").value);
+        if (amount === null || amount <= 0) return;
+        addCharge(session, amount, byId("chargeTime").value || currentTime());
+        closeModal();
+      });
+    }
+
+    function openBalanceEditForm(session, key) {
+      const labels = {
+        startMochidama: "持ち玉",
+        startSaipurei: "再プレ残",
+        startCredit: "カード残"
+      };
+      openModal(`${labels[key]}を修正`, "実機表示と合わせるための残高修正です。", `
+        <div class="field-row"><label for="balanceValue">${labels[key]}</label><input id="balanceValue" inputmode="numeric" value="${escapeHtml(session[key] ?? "")}"></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveBalanceBtn">保存</button>
+        </div>
+      `);
+      byId("saveBalanceBtn").addEventListener("click", () => {
+        session[key] = normalizeNumber(byId("balanceValue").value);
+        session.updatedAt = nowIso();
+        if (!persistWithToast("残高を修正しました")) return;
+        closeModal();
+        renderAll();
       });
     }
 
@@ -2559,6 +2766,7 @@
     function openRateSummary(session) {
       const machine = data.machines.find((item) => item.id === session.machineId);
       const derived = deriveSession(session, machine);
+      const totals = investmentTotals(session);
       openModal("戦果報告", "お疲れ様でした。記録は台帳に保存済みです。未入力は「記録の修正」から補完できます。", `
         <div class="metric-grid">
           <div class="metric"><span>通常回転数</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
@@ -2569,6 +2777,7 @@
           <div class="metric"><span>獲得出玉</span><strong>${payoutText(derived)}</strong></div>
           <div class="metric"><span>R数ベース出玉</span><strong>${numberText(derived.roundBasedPayout, "-")}</strong></div>
           <div class="metric"><span>差玉</span><strong>${numberText(derived.diffBalls, "-")}</strong></div>
+          <div class="metric"><span>現金投入合計</span><strong>${numberText(totals.cashYen, 0)} 円</strong></div>
           <div class="metric"><span>換算収支</span><strong>${numberText(derived.profitYen, "-")} 円</strong><small>${derived.profitYen !== null ? `（${escapeHtml(exchangeBallsText(derived.exchangeBalls))}玉交換）` : ""}</small></div>
           ${session.hitVia === "yutime" ? `<div class="metric"><span>遊タイム玉減り</span><strong>${numberText(derived.yutimeLoss, "-")}</strong></div>` : ""}
         </div>
@@ -2706,7 +2915,7 @@
     }
 
     function investmentToBalls(item, store = activeStore()) {
-      if (item.type === "cash") return Number(item.amount || 0) / lendRateForStore(store);
+      if (investmentSource(item) === "cash") return Number(item.amount || 0) / lendRateForStore(store);
       return Number(item.amount || 0);
     }
 
@@ -2715,10 +2924,11 @@
       const normalInvestedBalls = session.investments.filter((item) => item.phase !== "yutime").reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const yutimeInvestedBalls = session.investments.filter((item) => item.phase === "yutime").reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const investedBalls = Math.round(normalInvestedBalls + yutimeInvestedBalls);
+      const tapMode = usesTapInvestmentMode(session);
       const hasStartMochidama = session.startMochidama !== null && session.startMochidama !== undefined;
       const startingBalls = Number(session.startMochidama || 0);
-      const totalInputBalls = startingBalls + investedBalls;
-      const normalInputBalls = startingBalls + normalInvestedBalls;
+      const totalInputBalls = tapMode ? investedBalls : startingBalls + investedBalls;
+      const normalInputBalls = tapMode ? normalInvestedBalls : startingBalls + normalInvestedBalls;
       const normalSpins = session.hitSpin !== null && session.startSpin !== null ? session.hitSpin - session.startSpin : null;
       const preset = machine ? presetById(normalizeMachinePresetId(machine)) : null;
       const roundBasedPayout = machine?.roundBalls !== null && machine?.roundBalls !== undefined && session.totalRounds !== null && session.totalRounds !== undefined ? machine.roundBalls * session.totalRounds : null;
@@ -2728,9 +2938,9 @@
       const normalEndBalls = session.yutimeEnterBalls !== null ? session.yutimeEnterBalls : (session.hitRemainBalls !== null ? session.hitRemainBalls : estimatedRemainBalls);
       const consumedBalls = normalSpins !== null && normalEndBalls !== null ? Math.max(0, normalInputBalls - Number(normalEndBalls || 0)) : null;
       const fallbackConsumed = normalSpins !== null ? Math.max(0, normalInputBalls) : null;
-      const rateBase = hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null;
+      const rateBase = tapMode ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : (hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null);
       const rate = normalSpins !== null && rateBase > 0 ? normalSpins / rateBase * 250 : null;
-      const rateUnavailableReason = !hasStartMochidama ? "持ち玉未入力" : "";
+      const rateUnavailableReason = !tapMode && !hasStartMochidama ? "持ち玉未入力" : "";
       const pointBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : (estimatedRemainBalls !== null ? estimatedRemainBalls : totalInputBalls);
       const rawHitBalls = session.endTotalBalls !== null && session.hitCount > 0 && pointBalls !== null ? session.endTotalBalls - pointBalls : null;
       const hitBalls = session.hitRemainBalls === null && estimatedPayout !== null ? estimatedPayout : rawHitBalls;
@@ -2747,6 +2957,7 @@
         investedBalls,
         normalInvestedBalls: Math.round(normalInvestedBalls),
         yutimeInvestedBalls: Math.round(yutimeInvestedBalls),
+        tapMode,
         totalInputBalls,
         normalSpins,
         consumedBalls: rateBase,

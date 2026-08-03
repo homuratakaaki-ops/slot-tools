@@ -114,9 +114,13 @@
   "startMochidama": null,
   "startSaipurei": null,
   "startCredit": null,
+  "currentSpin": null,
   "prevDayEndSpin": null,
   "investments": [
-    { "type": "cash", "amount": 1000, "time": "12:34", "phase": "normal" }
+    { "type": "cash", "source": "cash", "amount": 1000, "time": "12:34", "phase": "normal", "spinAt": 320 }
+  ],
+  "charges": [
+    { "amount": 5000, "time": "12:20" }
   ],
   "hitSpin": null,
   "hitRemainBalls": null,
@@ -146,6 +150,7 @@ v3 は以下の localStorage キーのみを使用する。
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:corrupt:<ISO日時>` | 破損した `ytv3:data` の退避 | `loadData()` で `ytv3:data` が JSON として読めなかった場合に作成。自動削除しない | 破損していた `ytv3:data` raw 文字列 |
+| `ytv3:running:sticky` | 稼働中ヘッダの固定表示設定 | 固定ON/OFF切替時 | `"on"` または `"off"` |
 
 ### 3.1 容量予算記録
 
@@ -377,3 +382,17 @@ B5 実測値:
 - 旧 `exchangeRate` は読み込み時に `exchangeBalls = 100 / exchangeRate` へ自動変換する。例: `exchangeRate: 3.57` は約 `28.01` 玉交換として扱う。
 - `exchangeBalls` の入力許容範囲は 20〜50。範囲外または数値化できない値は 25玉交換へ救済する。
 - schema 8 Store 1件サンプル（`exchangeBalls: 28.01`）: 103 chars
+
+## 11. B7 稼働中パネル完成形
+
+- schema は 9 とする。
+- 投資レコードに `source: "mochidama" | "saipurei" | "cash"` を追加する。B7以後の投入タップ・直接入力は `source` を必ず保存する。旧データは `source` なしのまま保持し、`type` を旧互換の判定に使う。
+- Session に `charges: [{ amount, time }]` を追加する。入金はカード残高を増やすだけで、投入玉・消費玉・差玉には含めない。
+- 稼働中ヘッダは、現在回転数、持ち玉、再プレ残、カード残、入金、投入内訳、概算回転率を表示する。旧下部の単独 `+500円` / `+125玉` 行は撤去する。
+- 稼働中ヘッダの固定表示は `ytv3:running:sticky` に保存する。既定はON、OFF時は通常配置に戻す。
+- B7以後のタップ方式セッションは、通常消費玉を通常phaseの投入タップ合計で計算する。開始持ち玉は残高プールであり、消費玉へ直接加算しない。当選時残り玉がある場合は、打ちかけ補正として投入タップ合計から差し引く。
+- `source` なしの旧セッションは従来式を維持し、開始持ち玉 + 投資玉換算 - 当選時残り玉で回転率を計算する。
+- 残高不足時は即時ボタンを無効化する。残高未入力時はボタンを薄く表示し、押下時に「先に残高を入力してください」を表示する。直接入力でも残高を超える投入は保存しない。
+- 投資タップ・入金のトーストには「元に戻す」を表示する。undo付きトーストは約4秒表示し、押下時に直近レコードを削除して残高表示を復元する。
+- 戦果報告には現金投入合計を表示する。これはチャージ額ではなく、`source: "cash"` の投入金額合計とする。
+- schema 9 Session 1件サンプル（`source` 付き3ソース投入、`charges` 1件）: 870 chars
