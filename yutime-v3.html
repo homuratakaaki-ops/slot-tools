@@ -813,6 +813,7 @@
     let carryover = loadCarryover();
     let currentView = "storesView";
     let selectedLabelFilters = new Set();
+    let activeSessionId = null;
     let mapDraft = { storeId: null, islands: [] };
     let modalCancel = null;
 
@@ -1403,8 +1404,18 @@
       const derived = deriveSession(session, machine);
       const balances = deriveBalances(session);
       const yutimeMode = isYutimeInvestmentPhase(session);
+      const otherActiveSessions = activeSessionsForStore(store.id).filter((item) => item.id !== session.id);
       els.runningArea.innerHTML = `
         <div class="section running-panel">
+          ${otherActiveSessions.length ? `
+            <div class="status-line" style="margin:0 0 12px">
+              <span class="badge warn">他に稼働中の記録があります</span>
+              ${otherActiveSessions.map((item) => {
+                const otherMachine = data.machines.find((machineItem) => machineItem.id === item.machineId);
+                return `<button class="small" data-switch-active="${escapeHtml(item.id)}">台${escapeHtml(otherMachine?.daiNo || "不明")}へ切替</button>`;
+              }).join("")}
+            </div>
+          ` : ""}
           <div class="section-head">
             <div>
               <h2>稼働中: ${escapeHtml(machine?.daiNo || "台番不明")}</h2>
@@ -1450,6 +1461,12 @@
         </div>
       `;
       byId("editActiveBtn").addEventListener("click", () => openSessionEditor(session.id));
+      els.runningArea.querySelectorAll("[data-switch-active]").forEach((button) => {
+        button.addEventListener("click", () => {
+          activeSessionId = button.dataset.switchActive;
+          renderRunning();
+        });
+      });
       byId("addCashBtn").addEventListener("click", () => openInvestmentForm("cash"));
       byId("addSaipureiBtn").addEventListener("click", () => openInvestmentForm("saipurei"));
       byId("quickCashBtn").addEventListener("click", () => addInvestment(session, "cash", 500));
@@ -1990,6 +2007,38 @@
 
     function openStartWizard(machineId) {
       const store = activeStore();
+      const currentActive = activeSessionsForStore(store?.id)[0] || null;
+      if (currentActive) {
+        openActiveStartGuard(machineId, currentActive);
+        return;
+      }
+      beginStartWizard(machineId);
+    }
+
+    function openActiveStartGuard(machineId, active) {
+      const activeMachine = data.machines.find((item) => item.id === active.machineId);
+      const daiNo = activeMachine?.daiNo || "不明";
+      openModal("稼働中の記録があります", `台${daiNo}が終了入力されていません。`, `
+        <div class="grid">
+          <button class="primary" id="goActiveEndBtn">台${escapeHtml(daiNo)}の終了入力へ</button>
+          <button id="forceStartBtn">そのまま新しく開始</button>
+          <button class="ghost" data-close>キャンセル</button>
+        </div>
+      `);
+      byId("goActiveEndBtn").addEventListener("click", () => {
+        activeSessionId = active.id;
+        closeModal();
+        showView("runView");
+        openEndWizard(active.id);
+      });
+      byId("forceStartBtn").addEventListener("click", () => {
+        closeModal();
+        setTimeout(() => beginStartWizard(machineId), 0);
+      });
+    }
+
+    function beginStartWizard(machineId) {
+      const store = activeStore();
       const session = blankSession();
       session.storeId = store.id;
       session.machineId = machineId;
@@ -2016,6 +2065,7 @@
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         data.sessions.push(session);
+        activeSessionId = session.id;
         if (!persistWithToast("稼働を開始しました")) return;
         if (activeCarryover) {
           carryover = null;
@@ -2080,6 +2130,7 @@
         if (!hasHit) session.hitCount = 0;
         session.endTime = session.endTime || currentTime();
         session.updatedAt = nowIso();
+        if (activeSessionId === session.id) activeSessionId = activeSessionsForStore(session.storeId).find((item) => item.id !== session.id)?.id || null;
         if (!persistWithToast("記録を保存しました")) return;
         showView("mapView");
         openRateSummary(session);
@@ -2412,7 +2463,21 @@
     function activeSession() {
       const store = activeStore();
       if (!store) return null;
-      return data.sessions.find((session) => session.storeId === store.id && session.status === "active") || null;
+      const sessions = activeSessionsForStore(store.id);
+      const selected = sessions.find((session) => session.id === activeSessionId);
+      const session = selected || sessions[0] || null;
+      activeSessionId = session?.id || null;
+      return session;
+    }
+
+    function activeSessionsForStore(storeId = data.activeStoreId) {
+      return data.sessions
+        .filter((session) => session.storeId === storeId && session.status === "active")
+        .sort((a, b) => activeSortKey(b).localeCompare(activeSortKey(a)));
+    }
+
+    function activeSortKey(session) {
+      return String(session.updatedAt || session.createdAt || "") + String(session.createdAt || "");
     }
 
     function investmentToBalls(item, store = activeStore()) {
