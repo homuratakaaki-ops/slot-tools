@@ -268,6 +268,14 @@
       padding: 0;
     }
 
+    .filter-block {
+      margin: 0 0 14px;
+    }
+
+    .filter-block + .filter-block {
+      margin-top: 12px;
+    }
+
     .island-builder {
       display: grid;
       gap: 12px;
@@ -316,8 +324,8 @@
 
     .island-preview {
       display: grid;
-      grid-template-columns: minmax(84px, 1fr) 24px minmax(84px, 1fr);
-      gap: 8px;
+      grid-template-columns: minmax(84px, 1fr) 34px minmax(84px, 1fr);
+      gap: 12px;
       align-items: stretch;
       margin-top: 10px;
     }
@@ -343,6 +351,7 @@
 
     .map-wrap {
       overflow-x: auto;
+      margin-top: 14px;
       padding-bottom: 8px;
     }
 
@@ -355,8 +364,8 @@
 
     .map-row {
       display: grid;
-      grid-template-columns: minmax(90px, 1fr) 28px minmax(90px, 1fr);
-      gap: 8px;
+      grid-template-columns: minmax(90px, 1fr) 34px minmax(90px, 1fr);
+      gap: 12px;
       align-items: stretch;
     }
 
@@ -506,6 +515,27 @@
 
     .hidden { display: none !important; }
 
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      z-index: 120;
+      display: none;
+      width: min(520px, calc(100% - 24px));
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: var(--ink);
+      color: #fff;
+      box-shadow: 0 12px 28px rgba(15, 23, 42, 0.24);
+      transform: translateX(-50%);
+      font-weight: 700;
+      font-size: 14px;
+      line-height: 1.4;
+    }
+
+    .toast.show { display: block; }
+    .toast.error { background: var(--danger); }
+
     .footer-note {
       margin: 16px 0 6px;
       color: var(--muted);
@@ -521,7 +551,7 @@
       .field-row { grid-template-columns: 1fr; gap: 5px; }
       .section-head { grid-template-columns: 1fr; }
       .island-sides { grid-template-columns: 1fr; }
-      .map-row { grid-template-columns: minmax(118px, 1fr) 22px minmax(118px, 1fr); }
+      .map-row { grid-template-columns: minmax(118px, 1fr) 28px minmax(118px, 1fr); gap: 10px; }
       .map-side { grid-template-columns: 1fr; }
       .modal-actions { grid-template-columns: 1fr; }
     }
@@ -561,7 +591,7 @@
       <div class="section">
         <div class="section-head">
           <div>
-            <h2>マップ定義</h2>
+            <h2>フロアマップ作成</h2>
             <p>島ごとに台番の範囲を入力します。存在しない台番はプレビューをタップして除外できます。</p>
           </div>
           <div class="status-line">
@@ -576,10 +606,10 @@
       <div class="section">
         <div class="section-head">
           <div>
-            <h2>台探索</h2>
+            <h2>台を探す</h2>
             <p>台番をタップすると過去概要を確認して、打ち始めに進めます。</p>
           </div>
-          <button class="small" id="openLabelFormBtn">イベントメモ管理</button>
+          <button class="small" id="openLabelFormBtn">店イベントの登録</button>
         </div>
         <div id="labelFilters" class="label-checks"></div>
         <div class="map-wrap">
@@ -622,6 +652,8 @@
     </div>
   </div>
 
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
   <script>
   (() => {
     "use strict";
@@ -630,8 +662,17 @@
     const STORAGE_KEY = STORAGE_PREFIX + "data";
     const PREMIGRATE_KEY = STORAGE_PREFIX + "premigrate";
     const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
-    const SCHEMA_VERSION = 2;
+    const SCHEMA_VERSION = 3;
     const CASH_TO_BALLS_RATE = 4;
+    const AUTO_LABELS = [
+      "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日",
+      "1のつく日", "2のつく日", "3のつく日", "4のつく日", "5のつく日",
+      "6のつく日", "7のつく日", "8のつく日", "9のつく日", "0のつく日",
+      "ゾロ目日"
+    ];
+    const MACHINE_PRESETS = [
+      { id: "umi-sp5", name: "P大海物語スペシャル5", roundBalls: 140, evSupported: true, spec: { note: "B2時点の期待値対応プリセット" } }
+    ];
 
     const blankSession = () => ({
       id: cryptoId("s"),
@@ -677,7 +718,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 2: 島構造化後のマップ定義chars、Machine 1件chars、Session 1件charsを記録"
+        schemaBudgetNote: "v3 schema 3: プリセット追加後のフロアマップchars、台データ1件chars、セッション1件charsを記録"
       }
     });
 
@@ -698,6 +739,7 @@
       ledgerSummary: byId("ledgerSummary"),
       sessionList: byId("sessionList"),
       storageNote: byId("storageNote"),
+      toast: byId("toast"),
       modalBackdrop: byId("modalBackdrop"),
       modalTitle: byId("modalTitle"),
       modalHint: byId("modalHint"),
@@ -768,6 +810,56 @@
         .replace(/'/g, "&#39;");
     }
 
+    function presetById(id) {
+      return MACHINE_PRESETS.find((preset) => preset.id === id) || null;
+    }
+
+    function presetByName(name) {
+      return MACHINE_PRESETS.find((preset) => preset.name === name) || null;
+    }
+
+    function normalizeMachinePresetId(machine) {
+      if (presetById(machine?.presetId)) return machine.presetId;
+      const matched = presetByName(machine?.modelName || "");
+      return matched ? matched.id : "";
+    }
+
+    function showToast(message, type = "success") {
+      clearTimeout(showToast.timer);
+      els.toast.textContent = message;
+      els.toast.classList.toggle("error", type === "error");
+      els.toast.classList.add("show");
+      showToast.timer = setTimeout(() => {
+        els.toast.classList.remove("show", "error");
+      }, 2200);
+    }
+
+    function persistWithToast(successMessage) {
+      const ok = persist();
+      if (ok) showToast(successMessage);
+      else showToast("保存に失敗しました。容量を確認してください。", "error");
+      return ok;
+    }
+
+    function automaticLabelsForDate(dateValue) {
+      const parts = String(dateValue || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!parts) return [];
+      const year = Number(parts[1]);
+      const month = Number(parts[2]);
+      const day = Number(parts[3]);
+      const date = new Date(year, month - 1, day);
+      if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return [];
+      const weekdays = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"];
+      const labels = [weekdays[date.getDay()], `${day % 10}のつく日`];
+      if (day === 11 || day === 22) labels.push("ゾロ目日");
+      return labels;
+    }
+
+    function dateWithAutoLabels(dateValue) {
+      const labels = automaticLabelsForDate(dateValue);
+      return `${dateValue || "日付未入力"}${labels.length ? " / " + labels.join("・") : ""}`;
+    }
+
     function loadData() {
       const base = defaultData();
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -811,7 +903,9 @@
         daiNo: String(machine.daiNo || ""),
         modelName: machine.modelName || "",
         roundBalls: normalizeNumber(machine.roundBalls),
-        memo: machine.memo || ""
+        memo: machine.memo || "",
+        presetId: normalizeMachinePresetId(machine),
+        evSupported: Boolean(presetById(normalizeMachinePresetId(machine))?.evSupported || machine.evSupported)
       })).filter((machine) => machine.storeId && machine.daiNo);
       next.sessions = next.sessions.map((session) => ({ ...blankSession(), ...session, investments: Array.isArray(session.investments) ? session.investments : [] }));
       if (!next.stores.some((store) => store.id === next.activeStoreId)) next.activeStoreId = next.stores[0]?.id || null;
@@ -853,7 +947,9 @@
         daiNo: "101",
         modelName: "P大海物語スペシャル5",
         roundBalls: 140,
-        memo: "釘・癖など"
+        memo: "釘・癖など",
+        presetId: "umi-sp5",
+        evSupported: true
       };
       return JSON.stringify(sample).length;
     }
@@ -873,7 +969,7 @@
     }
 
     function eventMemoHelp() {
-      return "7の日・旧イベなど、釘が変わる日に印を付ける機能です。記録に付けておくと、あとからその日だけに絞った平均回転率を見られます。";
+      return "曜日や「7のつく日」は日付から自動で判定されます。ここでは店独自のイベント（例: 旧イベ・周年）だけ登録してください。";
     }
 
     function renderAll() {
@@ -930,21 +1026,21 @@
     }
 
     function renderLabelFilters() {
-      const labels = storeLabels();
+      const manualLabels = storeLabels();
       if (!activeStore()) {
         els.labelFilters.innerHTML = "";
         return;
       }
-      if (!labels.length) {
-        els.labelFilters.innerHTML = '<span class="hint">イベントメモは未登録です。</span>';
-        return;
-      }
-      els.labelFilters.innerHTML = labels.map((label) => `
-        <label class="check-chip">
-          <input type="checkbox" value="${escapeHtml(label)}" ${selectedLabelFilters.has(label) ? "checked" : ""}>
-          ${escapeHtml(label)}
-        </label>
-      `).join("");
+      els.labelFilters.innerHTML = `
+        <div class="filter-block">
+          <strong class="hint">日付から自動判定</strong>
+          <div class="label-checks">${AUTO_LABELS.map(filterChipHtml).join("")}</div>
+        </div>
+        <div class="filter-block">
+          <strong class="hint">店イベント</strong>
+          <div class="label-checks">${manualLabels.length ? manualLabels.map(filterChipHtml).join("") : '<span class="hint">店イベントは未登録です。</span>'}</div>
+        </div>
+      `;
       els.labelFilters.querySelectorAll("input").forEach((input) => {
         input.addEventListener("change", () => {
           if (input.checked) selectedLabelFilters.add(input.value);
@@ -952,6 +1048,15 @@
           renderMachineMap();
         });
       });
+    }
+
+    function filterChipHtml(label) {
+      return `
+        <label class="check-chip">
+          <input type="checkbox" value="${escapeHtml(label)}" ${selectedLabelFilters.has(label) ? "checked" : ""}>
+          ${escapeHtml(label)}
+        </label>
+      `;
     }
 
     function renderMachineMap() {
@@ -962,7 +1067,7 @@
       }
       const parsed = parseIslandLayout(data.layouts[store.id] || { islands: [] });
       if (!parsed.rows.length) {
-        els.machineMap.innerHTML = '<div class="row-card">マップ定義を保存すると、台番ボタンを表示します。</div>';
+        els.machineMap.innerHTML = '<div class="row-card">フロアマップを保存すると、台番ボタンを表示します。</div>';
         return;
       }
       els.machineMap.innerHTML = parsed.rows.map((row) => {
@@ -1015,7 +1120,7 @@
           <div class="section-head">
             <div>
               <h2>稼働中: ${escapeHtml(machine?.daiNo || "台番不明")}</h2>
-              <p>${escapeHtml(session.date)} / ${missingFields(session).length ? "未入力あり" : "入力済み"}</p>
+              <p>${escapeHtml(dateWithAutoLabels(session.date))} / ${missingFields(session).length ? "未入力あり" : "入力済み"}</p>
             </div>
             <button class="small" id="editActiveBtn">補完編集</button>
           </div>
@@ -1060,7 +1165,7 @@
       const completed = sessions.filter((session) => session.status === "completed");
       const allStats = aggregateStats(sessions);
       els.ledgerSummary.innerHTML = `
-        <div class="metric"><span>総セッション</span><strong>${sessions.length}</strong></div>
+        <div class="metric"><span>総記録</span><strong>${sessions.length}</strong></div>
         <div class="metric"><span>確定済み</span><strong>${completed.length}</strong></div>
         <div class="metric"><span>累計参考回転率</span><strong>${allStats.rate ? allStats.rate.toFixed(1) : "-"}</strong></div>
       `;
@@ -1076,10 +1181,11 @@
           <div class="row-card">
             <div class="row-card-head">
               <div>
-                <strong>${escapeHtml(session.date)} / ${escapeHtml(machine?.daiNo || "台番不明")}</strong>
+                <strong>${escapeHtml(dateWithAutoLabels(session.date))} / ${escapeHtml(machine?.daiNo || "台番不明")}</strong>
                 <div class="status-line">
                   <span class="badge ${session.status === "completed" ? "good" : "dark"}">${session.status === "completed" ? "確定" : "稼働中"}</span>
                   ${misses.length ? '<span class="badge warn">未入力あり</span>' : ""}
+                  ${automaticLabelsForDate(session.date).map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
                   ${session.labels.map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
                 </div>
                 <small>回転率 ${derived.rate ? derived.rate.toFixed(1) : "-"} /250玉、差玉 ${numberText(derived.diffBalls, "-")}</small>
@@ -1096,7 +1202,7 @@
 
     function renderStorageNote() {
       const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY].join(" / ");
-      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。マップ定義chars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。v2キーは読み書きしません。`;
+      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。v2キーは読み書きしません。`;
     }
 
     function openStoreForm() {
@@ -1115,7 +1221,7 @@
         data.stores.push(store);
         data.activeStoreId = store.id;
         data.labelsByStore[store.id] = [];
-        persist();
+        if (!persistWithToast("保存しました")) return;
         closeModal();
         showView("mapView");
       });
@@ -1123,7 +1229,7 @@
 
     function openLabelForm() {
       const labels = storeLabels();
-      openModal("イベントメモ管理", eventMemoHelp(), `
+      openModal("店イベントの登録", eventMemoHelp(), `
         <div class="field-row"><label for="newLabel">追加するイベントメモ</label><input id="newLabel" placeholder="例: 旧イベ"></div>
         <div class="list" id="labelList">
           ${labels.map((label) => `<div class="row-card"><strong>${escapeHtml(label)}</strong></div>`).join("") || '<div class="row-card"><small>未登録です。</small></div>'}
@@ -1140,7 +1246,7 @@
         const next = new Set(storeLabels(store.id));
         next.add(label);
         data.labelsByStore[store.id] = [...next];
-        persist();
+        if (!persistWithToast("保存しました")) return;
         closeModal();
         renderAll();
       });
@@ -1154,7 +1260,7 @@
       data.layouts[store.id] = { islands, updatedAt: nowIso(), errors: parsed.errors };
       mapDraft = { storeId: store.id, islands: cloneIslands(islands) };
       syncMachinesFromMap(store.id, parsed);
-      persist();
+      if (!persistWithToast(`フロアマップを保存しました（${parsed.daiNos.length}台）`)) return;
       renderAll();
     }
 
@@ -1431,7 +1537,9 @@
             daiNo,
             modelName: "",
             roundBalls: null,
-            memo: ""
+            memo: "",
+            presetId: "",
+            evSupported: false
           });
         }
       });
@@ -1448,17 +1556,22 @@
       if (!machine) return;
       const sessions = data.sessions.filter((session) => session.machineId === machine.id);
       const stats = machineStats(machine.id);
+      const presetId = normalizeMachinePresetId(machine);
       openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
         <div class="metric-grid">
           <div class="metric"><span>参考回転率</span><strong>${stats.rate ? stats.rate.toFixed(1) : "-"}</strong></div>
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
         </div>
-        <div class="field-row" style="margin-top:12px"><label for="machineModel">機種名</label><input id="machineModel" value="${escapeHtml(machine.modelName || "")}" placeholder="任意"></div>
+        <div class="field-row" style="margin-top:12px"><label for="machinePreset">機種プリセット</label><select id="machinePreset">
+          ${MACHINE_PRESETS.map((preset) => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`).join("")}
+          <option value="">その他（自由入力）</option>
+        </select></div>
+        <div class="field-row"><label for="machineModel">機種名</label><input id="machineModel" value="${escapeHtml(machine.modelName || "")}" placeholder="任意"></div>
         <div class="field-row"><label for="roundBalls">1R玉数</label><input id="roundBalls" inputmode="numeric" value="${escapeHtml(machine.roundBalls ?? "")}" placeholder="例: 140"></div>
         <p class="hint">1ラウンドあたりの獲得玉数。例: 大海物語スペシャル5 なら 140</p>
         <div class="field-row"><label for="machineMemo">台メモ（釘・癖など）</label><textarea id="machineMemo" placeholder="釘の癖、ストローク、止め打ち手順など">${escapeHtml(machine.memo || "")}</textarea></div>
-        <p class="hint warn">期待値算出は現在 P大海物語スペシャル5 のみ対応しています。</p>
+        <p class="hint warn" id="presetSupportNote"></p>
         <div class="list">
           ${sessions.slice(-5).reverse().map((session) => `<div class="row-card"><strong>${escapeHtml(session.date)}</strong><br><small>${session.status === "completed" ? "確定" : "稼働中"} / 回転率 ${deriveSession(session).rate?.toFixed(1) || "-"}</small></div>`).join("") || '<div class="row-card"><small>過去セッションなし</small></div>'}
         </div>
@@ -1468,22 +1581,49 @@
           <button class="primary" id="startSessionBtn">この台を打つ</button>
         </div>
       `);
+      byId("machinePreset").value = presetId;
+      applyPresetSelectionToForm();
+      byId("machinePreset").addEventListener("change", applyPresetSelectionToForm);
       byId("saveMachineBtn").addEventListener("click", () => {
-        machine.modelName = byId("machineModel").value.trim();
-        machine.roundBalls = normalizeNumber(byId("roundBalls").value);
-        machine.memo = byId("machineMemo").value.trim();
-        persist();
+        readMachineDetailForm(machine);
+        if (!persistWithToast(`台番${daiNo}の情報を保存しました`)) return;
         closeModal();
         renderAll();
       });
       byId("startSessionBtn").addEventListener("click", () => {
-        machine.modelName = byId("machineModel").value.trim();
-        machine.roundBalls = normalizeNumber(byId("roundBalls").value);
-        machine.memo = byId("machineMemo").value.trim();
-        persist();
+        readMachineDetailForm(machine);
+        if (!persist()) {
+          showToast("保存に失敗しました。容量を確認してください。", "error");
+          return;
+        }
         closeModal();
         openStartWizard(machine.id);
       });
+    }
+
+    function applyPresetSelectionToForm() {
+      const preset = presetById(byId("machinePreset").value);
+      const modelInput = byId("machineModel");
+      const roundInput = byId("roundBalls");
+      const note = byId("presetSupportNote");
+      if (preset) {
+        modelInput.value = preset.name;
+        roundInput.value = preset.roundBalls;
+        modelInput.disabled = true;
+        note.textContent = preset.evSupported ? "期待値算出はこのプリセット選択時のみ対応しています。" : "このプリセットは期待値算出に未対応です。";
+      } else {
+        modelInput.disabled = false;
+        note.textContent = "期待値算出は P大海物語スペシャル5 のプリセット選択時のみ対応しています。";
+      }
+    }
+
+    function readMachineDetailForm(machine) {
+      const preset = presetById(byId("machinePreset").value);
+      machine.presetId = preset ? preset.id : "";
+      machine.modelName = byId("machineModel").value.trim();
+      machine.roundBalls = normalizeNumber(byId("roundBalls").value);
+      machine.memo = byId("machineMemo").value.trim();
+      machine.evSupported = Boolean(preset?.evSupported);
     }
 
     function openStartWizard(machineId) {
@@ -1498,16 +1638,16 @@
           key: "startSpin",
           label: "現在回転数",
           type: "number",
-          hint: session.prevDayEndSpin !== null ? `据え置きなら 前日${session.prevDayEndSpin} + 現在表示値 を別途確認してください。` : "前日ヤメ回転数は未記録です。"
+          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` 据え置きなら 前日${session.prevDayEndSpin} + 現在表示値 を別途確認してください。` : " 前日ヤメ回転数は未記録です。")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
         { key: "startMochidama", label: "持ち玉", type: "number" },
         { key: "startSaipurei", label: "再プレイ残り玉", type: "number" },
         { key: "startCredit", label: "クレジット残金", type: "number" },
-        { key: "labels", label: "イベントメモ", type: "labels", labels, hint: eventMemoHelp() }
+        { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         data.sessions.push(session);
-        persist();
+        if (!persistWithToast("稼働を開始しました")) return;
         showView("runView");
       });
     }
@@ -1521,7 +1661,7 @@
       ], session, () => {
         if (!session.hitVia) session.hitVia = session.yutimeEnterBalls !== null ? "yutime" : "normal";
         session.updatedAt = nowIso();
-        persist();
+        if (!persistWithToast("当選を記録しました")) return;
         renderAll();
         openRateSummary(session);
       });
@@ -1541,7 +1681,7 @@
         session.status = "completed";
         session.endTime = session.endTime || currentTime();
         session.updatedAt = nowIso();
-        persist();
+        if (!persistWithToast("記録を保存しました")) return;
         showView("mapView");
         openRateSummary(session);
       });
@@ -1630,7 +1770,8 @@
         if (amount === null) return;
         session.investments.push({ type, amount, time: byId("investmentTime").value || currentTime() });
         session.updatedAt = nowIso();
-        persist();
+        const balls = Math.round(investmentToBalls({ type, amount }));
+        if (!persistWithToast(`投資を追記しました（+${balls}玉）`)) return;
         closeModal();
         renderAll();
       });
@@ -1649,7 +1790,7 @@
         session.yutimeEnterBalls = normalizeNumber(byId("yutimeBalls").value);
         session.hitVia = "yutime";
         session.updatedAt = nowIso();
-        persist();
+        if (!persistWithToast("遊タイム突入玉を記録しました")) return;
         closeModal();
         renderAll();
       });
@@ -1723,7 +1864,7 @@
         session.labels = [...document.querySelectorAll(".editLabel:checked")].map((input) => input.value);
         session.memo = byId("editMemo").value.trim();
         session.updatedAt = nowIso();
-        persist();
+        if (!persistWithToast("編集を保存しました")) return;
         closeModal();
         renderAll();
       });
@@ -1808,7 +1949,10 @@
       if (!store) return [];
       const sessions = data.sessions.filter((session) => session.storeId === store.id && session.status === "completed");
       if (!selectedLabelFilters.size) return sessions;
-      return sessions.filter((session) => session.labels.some((label) => selectedLabelFilters.has(label)));
+      return sessions.filter((session) => {
+        const labels = [...automaticLabelsForDate(session.date), ...(session.labels || [])];
+        return labels.some((label) => selectedLabelFilters.has(label));
+      });
     }
 
     function latestEndSpin(machineId) {
