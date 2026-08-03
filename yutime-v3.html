@@ -135,6 +135,9 @@
 
     .view { display: none; }
     .view.active { display: block; }
+    #mapView.active { display: flex; flex-direction: column; gap: 0; }
+    #mapView > .section:first-of-type { order: 2; }
+    #mapView > .section:nth-of-type(2) { order: 1; }
 
     .section {
       margin: 0 0 14px;
@@ -462,6 +465,36 @@
       background: #f3fbfa;
     }
 
+    .running-sticky {
+      position: sticky;
+      top: 78px;
+      z-index: 15;
+      margin: -2px -2px 12px;
+      padding: 12px;
+      border: 1px solid #7aa7a3;
+      border-radius: 8px;
+      background: #f3fbfa;
+      box-shadow: var(--shadow);
+    }
+
+    .counter-row, .balance-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .counter-row strong {
+      font-size: 26px;
+      line-height: 1;
+    }
+
+    .counter-row button, .balance-row button {
+      min-height: 34px;
+      padding: 0 10px;
+    }
+
     .metric-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
@@ -744,7 +777,7 @@
     const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
-    const SCHEMA_VERSION = 6;
+    const SCHEMA_VERSION = 7;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_RATE = 4;
     const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
@@ -771,6 +804,7 @@
       startMochidama: null,
       startSaipurei: null,
       startCredit: null,
+      currentSpin: null,
       prevDayEndSpin: null,
       investments: [],
       hitSpin: null,
@@ -804,7 +838,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 6: 店レート/概算出玉/破損退避追加後のStore chars、セッションchars、carryover charsを記録"
+        schemaBudgetNote: "v3 schema 7: currentSpin/spinAt/列機種設定追加後のStore chars、セッションchars、MapLayout charsを記録"
       }
     });
 
@@ -814,6 +848,10 @@
     let currentView = "storesView";
     let selectedLabelFilters = new Set();
     let activeSessionId = null;
+    let expandedInvestmentSessions = new Set();
+    let spinUndoStacks = {};
+    let autoFilterExpanded = false;
+    let mapEditorOpenByStore = {};
     let mapDraft = { storeId: null, islands: [] };
     let modalCancel = null;
 
@@ -1068,13 +1106,15 @@
       next.sessions = next.sessions.map((session) => ({
         ...blankSession(),
         ...session,
+        currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
         carriedFromSessionId: session.carriedFromSessionId || null,
         yutimeEnterTime: session.yutimeEnterTime || null,
         investments: Array.isArray(session.investments) ? session.investments.map((item) => ({
           type: item.type === "saipurei" ? "saipurei" : "cash",
           amount: normalizeNumber(item.amount),
           time: item.time || null,
-          phase: item.phase === "yutime" ? "yutime" : "normal"
+          phase: item.phase === "yutime" ? "yutime" : "normal",
+          spinAt: normalizeNumber(item.spinAt)
         })).filter((item) => item.amount !== null) : []
       }));
       if (!next.stores.some((store) => store.id === next.activeStoreId)) next.activeStoreId = next.stores[0]?.id || null;
@@ -1266,10 +1306,25 @@
         return;
       }
       ensureMapDraft(store.id);
+      const hasLayout = parseIslandLayout(data.layouts[store.id] || { islands: [] }).rows.length > 0;
+      if (mapEditorOpenByStore[store.id] === undefined) mapEditorOpenByStore[store.id] = !hasLayout;
+      if (!mapEditorOpenByStore[store.id]) {
+        els.islandBuilder.innerHTML = '<div class="row-card"><div class="row-card-head"><div><strong>フロアマップ作成</strong><br><small>台を探す画面を優先表示しています。</small></div><button class="small" id="toggleMapEditorBtn">開く</button></div></div>';
+        els.mapStatus.innerHTML = "";
+        byId("toggleMapEditorBtn").addEventListener("click", () => {
+          mapEditorOpenByStore[store.id] = true;
+          renderMapEditor();
+        });
+        return;
+      }
       els.islandBuilder.innerHTML = mapDraft.islands.length ? mapDraft.islands.map(islandEditorHtml).join("") : '<div class="row-card">島が未登録です。「島を追加」から始めてください。</div>';
       bindIslandEditor();
       const parsed = parseIslandLayout({ islands: mapDraft.islands });
-      els.mapStatus.innerHTML = mapStatusHtml(parsed);
+      els.mapStatus.innerHTML = `<button class="small" id="toggleMapEditorBtn">閉じる</button>${mapStatusHtml(parsed)}`;
+      byId("toggleMapEditorBtn").addEventListener("click", () => {
+        mapEditorOpenByStore[store.id] = false;
+        renderMapEditor();
+      });
     }
 
     function renderLabelFilters() {
@@ -1279,6 +1334,9 @@
         return;
       }
       const activeFilters = [...selectedLabelFilters];
+      const todayLabels = automaticLabelsForDate(today());
+      const pinnedAutoLabels = AUTO_LABELS.filter((label) => todayLabels.includes(label));
+      const otherAutoLabels = AUTO_LABELS.filter((label) => !todayLabels.includes(label));
       els.labelFilters.innerHTML = `
         ${activeFilters.length ? `
           <div class="filter-status">
@@ -1287,13 +1345,18 @@
           </div>
         ` : ""}
         <div class="filter-block">
-          <strong class="hint">日付から自動判定</strong>
-          <div class="label-checks">${AUTO_LABELS.map(filterChipHtml).join("")}</div>
-        </div>
-        <div class="filter-block">
           <strong class="hint">店イベント</strong>
           <div class="label-checks">${manualLabels.length ? manualLabels.map(filterChipHtml).join("") : '<span class="hint">店イベントは未登録です。</span>'}</div>
         </div>
+        <div class="filter-block">
+          <strong class="hint">今日の日付・曜日</strong>
+          <div class="label-checks">${pinnedAutoLabels.length ? pinnedAutoLabels.map(filterChipHtml).join("") : '<span class="hint">今日の自動ラベルはありません。</span>'}</div>
+        </div>
+        <div class="filter-block"><button class="small" id="clearAllFiltersBtn">クリア</button></div>
+        <details class="filter-block" ${autoFilterExpanded ? "open" : ""} id="otherAutoFilterDetails">
+          <summary class="hint">その他の日付・曜日</summary>
+          <div class="label-checks">${otherAutoLabels.map(filterChipHtml).join("")}</div>
+        </details>
       `;
       els.labelFilters.querySelectorAll("input").forEach((input) => {
         input.addEventListener("change", () => {
@@ -1311,6 +1374,16 @@
           renderMachineMap();
         });
       }
+      const clearAllButton = byId("clearAllFiltersBtn");
+      if (clearAllButton) {
+        clearAllButton.addEventListener("click", () => {
+          selectedLabelFilters = new Set();
+          renderLabelFilters();
+          renderMachineMap();
+        });
+      }
+      const details = byId("otherAutoFilterDetails");
+      if (details) details.addEventListener("toggle", () => { autoFilterExpanded = details.open; });
     }
 
     function renderCarryoverBanner() {
@@ -1405,8 +1478,31 @@
       const balances = deriveBalances(session);
       const yutimeMode = isYutimeInvestmentPhase(session);
       const otherActiveSessions = activeSessionsForStore(store.id).filter((item) => item.id !== session.id);
+      const currentSpin = session.currentSpin ?? session.startSpin;
+      const liveRate = liveRunningRate(session);
+      const cashTotal = session.investments.filter((item) => item.type === "cash").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const replayTotal = session.investments.filter((item) => item.type === "saipurei").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      const visibleInvestments = expandedInvestmentSessions.has(session.id) ? session.investments : session.investments.slice(-5);
+      const hiddenInvestmentCount = Math.max(0, session.investments.length - visibleInvestments.length);
       els.runningArea.innerHTML = `
         <div class="section running-panel">
+          <div class="running-sticky">
+            <strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong>
+            <div class="counter-row">
+              <span>現在回転数</span>
+              <strong>${numberText(currentSpin, "-")}</strong>
+              <button data-spin-add="1">+1</button>
+              <button data-spin-add="3">+3</button>
+              <button data-spin-add="5">+5</button>
+              <button data-spin-add="10">+10</button>
+              <button id="undoSpinBtn">元に戻す</button>
+            </div>
+            <div class="balance-row">
+              <span>再プレ残 ${balanceText(balances.saipurei, "玉")}</span><button id="quickSaipureiHeaderBtn">+125玉</button>
+              <span>カード残 ${balanceText(balances.credit, "円")}</span><button id="quickCashHeaderBtn">+500円</button>
+            </div>
+            <div class="hint">持ち込み合計 ${numberText(session.startMochidama, "-")}玉 / 概算回転率 ${liveRate !== null ? liveRate.toFixed(1) : "-"} / 投入 ${numberText(derived.investedBalls, 0)}玉（現金${numberText(cashTotal, 0)}円・再プレ${numberText(replayTotal, 0)}玉）</div>
+          </div>
           ${otherActiveSessions.length ? `
             <div class="status-line" style="margin:0 0 12px">
               <span class="badge warn">他に稼働中の記録があります</span>
@@ -1441,17 +1537,20 @@
             <button id="quickSaipureiBtn">+125玉</button>
           </div>
           <div class="list" style="margin-top:12px">
-            ${session.investments.length ? session.investments.map((item, index) => `
+            ${hiddenInvestmentCount ? `<button class="small" id="toggleInvestmentsBtn">過去${hiddenInvestmentCount}件を表示</button>` : ""}
+            ${session.investments.length ? visibleInvestments.map((item) => {
+              const index = session.investments.indexOf(item);
+              return `
               <div class="row-card">
                 <div class="row-card-head">
                   <div>
                     <strong>${item.type === "cash" ? "現金" : "再プレイ"} ${escapeHtml(item.amount)}${item.type === "cash" ? "円" : "玉"}</strong>
-                    <br><small>${escapeHtml(item.time || "")} / ${investmentPhaseLabel(item)}</small>
+                    <br><small>${escapeHtml(item.time || "")} / ${investmentPhaseLabel(item)}${item.spinAt !== null && item.spinAt !== undefined ? ` / ${escapeHtml(item.spinAt)}回転時` : ""}</small>
                   </div>
                   <button class="small" data-delete-investment="${index}">削除</button>
                 </div>
               </div>
-            `).join("") : '<div class="row-card"><small>投資履歴はまだありません。</small></div>'}
+            `}).join("") : '<div class="row-card"><small>投資履歴はまだありません。</small></div>'}
           </div>
           <div class="grid three" style="margin-top:12px">
             <button id="enterYutimeBtn">遊タイム突入</button>
@@ -1461,6 +1560,12 @@
         </div>
       `;
       byId("editActiveBtn").addEventListener("click", () => openSessionEditor(session.id));
+      els.runningArea.querySelectorAll("[data-spin-add]").forEach((button) => {
+        button.addEventListener("click", () => addCurrentSpin(session, Number(button.dataset.spinAdd)));
+      });
+      byId("undoSpinBtn").addEventListener("click", () => undoCurrentSpin(session));
+      byId("quickCashHeaderBtn").addEventListener("click", () => addInvestment(session, "cash", 500));
+      byId("quickSaipureiHeaderBtn").addEventListener("click", () => addInvestment(session, "saipurei", 125));
       els.runningArea.querySelectorAll("[data-switch-active]").forEach((button) => {
         button.addEventListener("click", () => {
           activeSessionId = button.dataset.switchActive;
@@ -1471,6 +1576,13 @@
       byId("addSaipureiBtn").addEventListener("click", () => openInvestmentForm("saipurei"));
       byId("quickCashBtn").addEventListener("click", () => addInvestment(session, "cash", 500));
       byId("quickSaipureiBtn").addEventListener("click", () => addInvestment(session, "saipurei", 125));
+      const toggleInvestmentsButton = byId("toggleInvestmentsBtn");
+      if (toggleInvestmentsButton) {
+        toggleInvestmentsButton.addEventListener("click", () => {
+          expandedInvestmentSessions.add(session.id);
+          renderRunning();
+        });
+      }
       els.runningArea.querySelectorAll("[data-delete-investment]").forEach((button) => {
         button.addEventListener("click", () => deleteInvestment(session, Number(button.dataset.deleteInvestment)));
       });
@@ -1562,6 +1674,7 @@
         data.stores.push(store);
         data.activeStoreId = store.id;
         data.labelsByStore[store.id] = [];
+        mapEditorOpenByStore[store.id] = true;
         if (!persistWithToast("保存しました")) return;
         closeModal();
         showView("mapView");
@@ -1629,6 +1742,7 @@
       data.layouts[store.id] = { islands, updatedAt: nowIso(), errors: parsed.errors };
       mapDraft = { storeId: store.id, islands: cloneIslands(islands) };
       syncMachinesFromMap(store.id, parsed);
+      applyColumnPresetsToMachines(store.id, islands, parsed);
       if (!persistWithToast(`フロアマップを保存しました（${parsed.daiNos.length}台）`)) return;
       renderAll();
     }
@@ -1643,7 +1757,8 @@
       const store = activeStore();
       if (!store) return;
       ensureMapDraft(store.id);
-      mapDraft.islands.push({ left: { from: null, to: null }, right: null, excluded: [] });
+      mapEditorOpenByStore[store.id] = true;
+      mapDraft.islands.push({ left: { from: null, to: null }, right: null, excluded: [], leftPresetId: "", rightPresetId: "" });
       renderMapEditor();
     }
 
@@ -1659,8 +1774,8 @@
             <button class="small" data-delete-island="${index}">島を削除</button>
           </div>
           <div class="island-sides">
-            ${islandSideInputHtml(index, "left", "左列", left)}
-            ${islandSideInputHtml(index, "right", "右列", right)}
+            ${islandSideInputHtml(index, "left", "左列", left, island.leftPresetId)}
+            ${islandSideInputHtml(index, "right", "右列", right, island.rightPresetId)}
           </div>
           <div class="island-preview">
             <div class="preview-side">${previewSideHtml(row.allSides[0], island.excluded || [])}</div>
@@ -1671,7 +1786,7 @@
       `;
     }
 
-    function islandSideInputHtml(index, side, label, value) {
+    function islandSideInputHtml(index, side, label, value, presetId = "") {
       return `
         <div class="island-side">
           <h4>${label}</h4>
@@ -1679,6 +1794,11 @@
           <label class="hint" for="island_${index}_${side}_to">終了台番</label>
           <input id="island_${index}_${side}_from" data-island-input="${index}" data-side="${side}" data-part="from" inputmode="numeric" value="${escapeHtml(value.from ?? "")}">
           <input id="island_${index}_${side}_to" data-island-input="${index}" data-side="${side}" data-part="to" inputmode="numeric" value="${escapeHtml(value.to ?? "")}">
+          <label class="hint" for="island_${index}_${side}_preset">機種</label>
+          <select id="island_${index}_${side}_preset" data-island-input="${index}" data-side="${side}" data-part="presetId">
+            <option value="">未設定</option>
+            ${MACHINE_PRESETS.map((preset) => `<option value="${escapeHtml(preset.id)}" ${preset.id === presetId ? "selected" : ""}>${escapeHtml(preset.name)}</option>`).join("")}
+          </select>
         </div>
       `;
     }
@@ -1701,7 +1821,7 @@
           const nextInput = byId(focusId);
           if (nextInput) {
             nextInput.focus();
-            if (cursor !== null) nextInput.setSelectionRange(cursor, cursor);
+            if (cursor !== null && typeof nextInput.setSelectionRange === "function") nextInput.setSelectionRange(cursor, cursor);
           }
         });
       });
@@ -1738,6 +1858,8 @@
         return {
           left,
           right: right.from === null && right.to === null ? null : right,
+          leftPresetId: byId(`island_${index}_left_preset`)?.value || "",
+          rightPresetId: byId(`island_${index}_right_preset`)?.value || "",
           excluded: (mapDraft.islands[index]?.excluded || []).map(String)
         };
       });
@@ -1778,6 +1900,8 @@
       return {
         left: normalizeIslandSide(island?.left),
         right: island?.right ? normalizeIslandSide(island.right) : null,
+        leftPresetId: presetById(island?.leftPresetId) ? island.leftPresetId : "",
+        rightPresetId: presetById(island?.rightPresetId) ? island.rightPresetId : "",
         excluded: Array.isArray(island?.excluded) ? [...new Set(island.excluded.map(String))] : []
       };
     }
@@ -1912,6 +2036,42 @@
           });
         }
       });
+    }
+
+    function applyColumnPresetsToMachines(storeId, islands, parsed) {
+      let overwriteAsked = false;
+      let allowOverwrite = false;
+      islands.forEach((island, islandIndex) => {
+        ["left", "right"].forEach((sideName, sideIndex) => {
+          const presetId = sideName === "left" ? island.leftPresetId : island.rightPresetId;
+          const preset = presetById(presetId);
+          if (!preset) return;
+          const daiNos = parsed.rows[islandIndex]?.sides?.[sideIndex] || [];
+          const machines = daiNos.map((daiNo) => data.machines.find((machine) => machine.storeId === storeId && machine.daiNo === String(daiNo))).filter(Boolean);
+          const alreadySet = machines.filter((machine) => {
+            const currentPresetId = normalizeMachinePresetId(machine);
+            const hasIndividualSetting = Boolean(currentPresetId || machine.modelName || machine.roundBalls !== null || machine.memo || machine.evSupported);
+            return hasIndividualSetting && currentPresetId !== presetId;
+          });
+          if (alreadySet.length && !overwriteAsked) {
+            overwriteAsked = true;
+            allowOverwrite = confirm(`この列の台${machines.length}台の機種を${preset.name}に更新しますか？`);
+          }
+          machines.forEach((machine) => {
+            const currentPresetId = normalizeMachinePresetId(machine);
+            const hasIndividualSetting = Boolean(currentPresetId || machine.modelName || machine.roundBalls !== null || machine.memo || machine.evSupported);
+            if (hasIndividualSetting && currentPresetId !== presetId && !allowOverwrite) return;
+            if (!currentPresetId || currentPresetId !== presetId) applyPresetToMachine(machine, preset);
+          });
+        });
+      });
+    }
+
+    function applyPresetToMachine(machine, preset) {
+      machine.presetId = preset.id;
+      machine.modelName = preset.name;
+      machine.roundBalls = preset.roundBalls;
+      machine.evSupported = Boolean(preset.evSupported);
     }
 
     function findMachineByDai(daiNo) {
@@ -2064,6 +2224,7 @@
         { key: "startCredit", label: "カード残高（クレジット残金）", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : "" },
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
+        if (session.currentSpin === null || session.currentSpin === undefined) session.currentSpin = session.startSpin;
         data.sessions.push(session);
         activeSessionId = session.id;
         if (!persistWithToast("稼働を開始しました")) return;
@@ -2079,7 +2240,7 @@
       const session = findSession(sessionId);
       if (!session) return;
       runWizard("当選ウィザード", [
-        { key: "hitSpin", label: "当選回転数", type: "number" },
+        { key: "hitSpin", label: "当選回転数", type: "number", preset: session.currentSpin },
         { key: "hitRemainBalls", label: "残り玉", type: "number", hint: activeStore()?.isPersonal ? "パーソナル店では確定回転率に使います。" : "非パーソナル店ではスキップ前提です。" }
       ], session, () => {
         if (!session.hitVia) session.hitVia = session.yutimeEnterBalls !== null ? "yutime" : "normal";
@@ -2240,6 +2401,35 @@
       return `${numberText(derived.hitBalls, "-")}${derived.isEstimatedPayout ? "（概算）" : ""}`;
     }
 
+    function liveRunningRate(session) {
+      if (session.startSpin === null || session.currentSpin === null || session.currentSpin === undefined || session.startMochidama === null) return null;
+      const store = storeById(session.storeId);
+      const normalInvestedBalls = session.investments.filter((item) => item.phase !== "yutime").reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+      const inputBalls = Number(session.startMochidama || 0) + normalInvestedBalls;
+      const spins = Number(session.currentSpin) - Number(session.startSpin);
+      return inputBalls > 0 && spins >= 0 ? spins / inputBalls * 250 : null;
+    }
+
+    function addCurrentSpin(session, amount) {
+      if (!spinUndoStacks[session.id]) spinUndoStacks[session.id] = [];
+      spinUndoStacks[session.id].push(amount);
+      if (spinUndoStacks[session.id].length > 20) spinUndoStacks[session.id].shift();
+      session.currentSpin = Number(session.currentSpin ?? session.startSpin ?? 0) + amount;
+      session.updatedAt = nowIso();
+      persist();
+      renderRunning();
+    }
+
+    function undoCurrentSpin(session) {
+      const stack = spinUndoStacks[session.id] || [];
+      const amount = stack.pop();
+      if (!amount) return;
+      session.currentSpin = Number(session.currentSpin ?? session.startSpin ?? 0) - amount;
+      session.updatedAt = nowIso();
+      persist();
+      renderRunning();
+    }
+
     function deriveBalances(session) {
       const cashTotal = session.investments.filter((item) => item.type === "cash").reduce((sum, item) => sum + Number(item.amount || 0), 0);
       const replayTotal = session.investments.filter((item) => item.type === "saipurei").reduce((sum, item) => sum + Number(item.amount || 0), 0);
@@ -2280,7 +2470,7 @@
 
     function addInvestment(session, type, amount, time = currentTime()) {
       if (amount === null) return;
-      const item = { type, amount, time, phase: currentInvestmentPhase(session) };
+      const item = { type, amount, time, phase: currentInvestmentPhase(session), spinAt: session.currentSpin ?? session.startSpin };
       session.investments.push(item);
       session.updatedAt = nowIso();
       const balls = Math.round(investmentToBalls(item, storeById(session.storeId)));
@@ -2345,7 +2535,7 @@
     function openRateSummary(session) {
       const machine = data.machines.find((item) => item.id === session.machineId);
       const derived = deriveSession(session, machine);
-      openModal("セッションサマリ", "保存済みです。未入力は台帳の「記録の修正」から補完できます。", `
+      openModal("戦果報告", "お疲れ様でした。記録は台帳に保存済みです。未入力は「記録の修正」から補完できます。", `
         <div class="metric-grid">
           <div class="metric"><span>通常回転数</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${numberText(derived.consumedBalls, "-")}</strong></div>
@@ -2384,6 +2574,7 @@
           ${fieldHtml("date", "日付", session.date, "date")}
           ${fieldHtml("startTime", "開始時刻", session.startTime, "time")}
           ${fieldHtml("startSpin", "開始回転数", session.startSpin)}
+          ${fieldHtml("currentSpin", "現在回転数", session.currentSpin)}
           ${fieldHtml("startMochidama", "開始持ち玉", session.startMochidama)}
           ${fieldHtml("startSaipurei", "再プレイ残り", session.startSaipurei)}
           ${fieldHtml("startCredit", "カード残高（クレジット残金）", session.startCredit)}
@@ -2404,11 +2595,21 @@
         <div class="field-row"><label for="editMemo">メモ</label><textarea id="editMemo">${escapeHtml(session.memo || "")}</textarea></div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
+          <button class="danger" id="deleteSessionBtn">この記録を削除</button>
           <button id="markCompletedBtn">確定扱い</button>
           <button class="primary" id="saveSessionEditBtn">保存</button>
         </div>
       `);
       byId("editHitVia").value = session.hitVia || "";
+      byId("deleteSessionBtn").addEventListener("click", () => {
+        if (!confirm("削除しますか？")) return;
+        if (!confirm("元に戻せません。削除を確定しますか？")) return;
+        data.sessions = data.sessions.filter((item) => item.id !== session.id);
+        if (activeSessionId === session.id) activeSessionId = null;
+        if (!persistWithToast("記録を削除しました")) return;
+        closeModal();
+        renderAll();
+      });
       byId("markCompletedBtn").addEventListener("click", () => {
         session.status = "completed";
         byId("saveSessionEditBtn").click();
@@ -2418,7 +2619,7 @@
           const value = byId("edit_" + key).value.trim();
           session[key] = value || null;
         });
-        ["startSpin", "startMochidama", "startSaipurei", "startCredit", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls"].forEach((key) => {
+        ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls"].forEach((key) => {
           session[key] = normalizeNumber(byId("edit_" + key).value);
         });
         session.hitVia = byId("editHitVia").value || null;
