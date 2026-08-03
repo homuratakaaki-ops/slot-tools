@@ -276,6 +276,18 @@
       margin-top: 12px;
     }
 
+    .filter-status {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin: 0 0 14px;
+      padding: 10px;
+      border: 1px solid #7aa7a3;
+      border-radius: 8px;
+      background: var(--soft);
+    }
+
     .island-builder {
       display: grid;
       gap: 12px;
@@ -388,11 +400,12 @@
     }
 
     .machine-button {
-      min-height: 58px;
+      position: relative;
+      min-height: 72px;
       display: grid;
-      grid-template-rows: auto auto;
-      gap: 2px;
-      padding: 7px 5px;
+      grid-template-rows: auto auto auto;
+      gap: 3px;
+      padding: 7px 5px 8px;
       background: #fff;
       text-align: center;
     }
@@ -403,19 +416,45 @@
       line-height: 1;
     }
 
-    .machine-button .meta {
-      display: flex;
-      justify-content: center;
-      gap: 5px;
+    .machine-button .rate {
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.1;
+      color: var(--muted);
+      min-height: 17px;
+    }
+
+    .machine-button .rate.good { color: var(--good); }
+    .machine-button .rate.bad { color: var(--danger); }
+
+    .machine-button .prev {
       color: var(--muted);
       font-size: 11px;
-      min-height: 15px;
+      line-height: 1.1;
       white-space: nowrap;
+    }
+
+    .machine-button .active-badge {
+      position: absolute;
+      top: 4px;
+      right: 4px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: var(--ink);
+      color: #fff;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.1;
     }
 
     .machine-button.has-data {
       border-color: #7aa7a3;
       background: var(--soft);
+    }
+
+    .machine-button.is-active {
+      border-color: var(--accent);
+      box-shadow: inset 0 0 0 2px rgba(35, 108, 104, 0.18);
     }
 
     .running-panel {
@@ -708,6 +747,7 @@
     const SCHEMA_VERSION = 6;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_RATE = 4;
+    const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
     const AUTO_LABELS = [
       "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日",
       "1のつく日", "2のつく日", "3のつく日", "4のつく日", "5のつく日",
@@ -913,6 +953,11 @@
     function dateWithAutoLabels(dateValue) {
       const labels = automaticLabelsForDate(dateValue);
       return `${dateValue || "日付未入力"}${labels.length ? " / " + labels.join("・") : ""}`;
+    }
+
+    function shortDate(dateValue) {
+      const parts = String(dateValue || "").match(/^\d{4}-(\d{2})-(\d{2})$/);
+      return parts ? `${Number(parts[1])}/${Number(parts[2])}` : (dateValue || "-");
     }
 
     function loadData() {
@@ -1232,7 +1277,14 @@
         els.labelFilters.innerHTML = "";
         return;
       }
+      const activeFilters = [...selectedLabelFilters];
       els.labelFilters.innerHTML = `
+        ${activeFilters.length ? `
+          <div class="filter-status">
+            <span class="badge good">絞り込み中: ${activeFilters.map(escapeHtml).join(" / ")}</span>
+            <button class="small" id="clearLabelFiltersBtn">解除</button>
+          </div>
+        ` : ""}
         <div class="filter-block">
           <strong class="hint">日付から自動判定</strong>
           <div class="label-checks">${AUTO_LABELS.map(filterChipHtml).join("")}</div>
@@ -1246,9 +1298,18 @@
         input.addEventListener("change", () => {
           if (input.checked) selectedLabelFilters.add(input.value);
           else selectedLabelFilters.delete(input.value);
+          renderLabelFilters();
           renderMachineMap();
         });
       });
+      const clearButton = byId("clearLabelFiltersBtn");
+      if (clearButton) {
+        clearButton.addEventListener("click", () => {
+          selectedLabelFilters = new Set();
+          renderLabelFilters();
+          renderMachineMap();
+        });
+      }
     }
 
     function renderCarryoverBanner() {
@@ -1291,14 +1352,16 @@
         els.machineMap.innerHTML = '<div class="row-card">フロアマップを保存すると、台番ボタンを表示します。</div>';
         return;
       }
+      const statsByMachine = buildMachineStatsMap(filteredSessions());
+      const activeMachineIds = new Set(data.sessions.filter((session) => session.storeId === store.id && session.status === "active").map((session) => session.machineId));
       els.machineMap.innerHTML = parsed.rows.map((row) => {
         const left = row.sides[0] || [];
         const right = row.sides[1] || [];
         return `
           <div class="map-row">
-            <div class="map-side">${left.map(machineButtonHtml).join("")}</div>
+            <div class="map-side">${left.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds)).join("")}</div>
             <div class="aisle" aria-hidden="true"></div>
-            <div class="map-side">${right.map(machineButtonHtml).join("")}</div>
+            <div class="map-side">${right.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds)).join("")}</div>
           </div>
         `;
       }).join("");
@@ -1307,18 +1370,20 @@
       });
     }
 
-    function machineButtonHtml(daiNo) {
+    function machineButtonHtml(daiNo, statsByMachine = null, activeMachineIds = new Set()) {
       const machine = findMachineByDai(daiNo);
-      const stats = machine ? machineStats(machine.id) : null;
-      const prev = machine ? latestEndSpin(machine.id) : null;
-      const rate = stats && stats.rate ? stats.rate.toFixed(1) : "";
+      const stats = machine ? (statsByMachine?.get(machine.id) || emptyStats()) : null;
+      const prev = machine ? latestEndInfo(machine.id)?.spin ?? null : null;
+      const rate = stats && stats.rate ? stats.rate.toFixed(1) : "-";
+      const rateClass = machine && stats?.rate ? rateToneClass(machine, stats.rate) : "";
+      const estimatedMark = stats?.estimatedCount ? "&#8776;" : "";
+      const isActive = machine && activeMachineIds.has(machine.id);
       return `
-        <button class="machine-button ${rate || prev !== null ? "has-data" : ""}" data-dai-no="${escapeHtml(daiNo)}">
+        <button class="machine-button ${stats?.rate || prev !== null ? "has-data" : ""} ${isActive ? "is-active" : ""}" data-dai-no="${escapeHtml(daiNo)}">
+          ${isActive ? '<span class="active-badge">稼働中</span>' : ""}
           <span class="dai">${escapeHtml(daiNo)}</span>
-          <span class="meta">
-            ${rate ? `<span>${rate}</span>` : ""}
-            ${prev !== null ? `<span>前${escapeHtml(prev)}</span>` : ""}
-          </span>
+          <span class="rate ${rateClass}">${escapeHtml(rate)}${estimatedMark}</span>
+          ${prev !== null ? `<span class="prev">前${escapeHtml(prev)}</span>` : ""}
         </button>
       `;
     }
@@ -1844,12 +1909,19 @@
       const sessions = data.sessions.filter((session) => session.machineId === machine.id);
       const stats = machineStats(machine.id);
       const presetId = normalizeMachinePresetId(machine);
+      const latestEnd = latestEndInfo(machine.id);
+      const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
+      const averagePayoutNote = stats.estimatedCount ? "（概算含む）" : "";
       openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
         <div class="metric-grid">
           <div class="metric"><span>参考回転率</span><strong>${stats.rate ? stats.rate.toFixed(1) : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}</div>
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
+          <div class="metric"><span>前回ヤメ</span><strong>${latestEnd ? `${escapeHtml(latestEnd.spin)}回転` : "-"}</strong>${latestEnd ? `<small>（${escapeHtml(shortDate(latestEnd.date))}）</small>` : ""}</div>
+          <div class="metric"><span>平均出玉</span><strong>${stats.averagePayout !== null ? Math.round(stats.averagePayout) : "-"}</strong>${stats.averagePayout !== null ? `<small>${averagePayoutNote}</small>` : ""}</div>
+          ${stats.averageYutimeLoss !== null ? `<div class="metric"><span>遊タイム玉減り</span><strong>${Math.round(stats.averageYutimeLoss)}</strong><small>${stats.yutimeLossCount}件平均</small></div>` : ""}
         </div>
+        ${filteredNote}
         <div class="field-row" style="margin-top:12px"><label for="machinePreset">機種プリセット</label><select id="machinePreset">
           ${MACHINE_PRESETS.map((preset) => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`).join("")}
           <option value="">その他（自由入力）</option>
@@ -2407,20 +2479,80 @@
       return aggregateStats(sessions);
     }
 
+    function emptyStats() {
+      return {
+        spins: 0,
+        consumed: 0,
+        rate: null,
+        estimatedCount: 0,
+        hitBalls: 0,
+        hitCount: 0,
+        averagePayout: null,
+        yutimeLoss: 0,
+        yutimeLossCount: 0,
+        averageYutimeLoss: null
+      };
+    }
+
+    function buildMachineStatsMap(sessions) {
+      const groups = new Map();
+      sessions.forEach((session) => {
+        if (!groups.has(session.machineId)) groups.set(session.machineId, []);
+        groups.get(session.machineId).push(session);
+      });
+      const statsByMachine = new Map();
+      groups.forEach((groupSessions, machineId) => {
+        statsByMachine.set(machineId, aggregateStats(groupSessions));
+      });
+      return statsByMachine;
+    }
+
+    function rateToneClass(machine, rate) {
+      const preset = presetById(normalizeMachinePresetId(machine));
+      if (!preset?.evSupported || rate === null || rate === undefined) return "";
+      if (rate >= RATE_THRESHOLDS.good) return "good";
+      if (rate < RATE_THRESHOLDS.bad) return "bad";
+      return "";
+    }
+
     function aggregateStats(sessions) {
       let spins = 0;
       let consumed = 0;
       let estimatedCount = 0;
+      let hitBalls = 0;
+      let hitCount = 0;
+      let yutimeLoss = 0;
+      let yutimeLossCount = 0;
       sessions.forEach((session) => {
         const machine = data.machines.find((item) => item.id === session.machineId) || null;
         const derived = deriveSession(session, machine);
+        const isEstimated = derived.isEstimatedRate || derived.isEstimatedPayout;
         if (derived.normalSpins !== null && derived.normalSpins > 0 && derived.consumedBalls > 0) {
           spins += derived.normalSpins;
           consumed += derived.consumedBalls;
-          if (derived.isEstimatedRate || derived.isEstimatedPayout) estimatedCount += 1;
+        }
+        if (derived.hitBalls !== null && session.hitCount > 0) {
+          hitBalls += derived.hitBalls;
+          hitCount += session.hitCount;
+        }
+        if (isEstimated) estimatedCount += 1;
+        if (derived.yutimeLoss !== null) {
+          yutimeLoss += derived.yutimeLoss;
+          yutimeLossCount += 1;
         }
       });
-      return { spins, consumed: Math.round(consumed), rate: consumed > 0 ? spins / consumed * 250 : null, estimatedCount };
+      return {
+        spins,
+        consumed: Math.round(consumed),
+        rate: consumed > 0 ? spins / consumed * 250 : null,
+        estimatedCount,
+        hitBalls: Math.round(hitBalls),
+        hitCount,
+        averagePayout: hitCount > 0 ? hitBalls / hitCount : null,
+        yutimeLoss: Math.round(yutimeLoss),
+        yutimeLossCount,
+        averageYutimeLoss: yutimeLossCount > 0 ? yutimeLoss / yutimeLossCount : null
+      };
     }
 
     function filteredSessions() {
@@ -2434,11 +2566,16 @@
       });
     }
 
-    function latestEndSpin(machineId) {
+    function latestEndInfo(machineId) {
       const candidates = data.sessions
         .filter((session) => session.machineId === machineId && session.endSpin !== null)
         .sort((a, b) => String(b.date + b.updatedAt).localeCompare(String(a.date + a.updatedAt)));
-      return candidates[0]?.endSpin ?? null;
+      const latest = candidates[0];
+      return latest ? { spin: latest.endSpin, date: latest.date } : null;
+    }
+
+    function latestEndSpin(machineId) {
+      return latestEndInfo(machineId)?.spin ?? null;
     }
 
     function missingFields(session) {
