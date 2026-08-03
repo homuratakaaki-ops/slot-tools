@@ -777,9 +777,9 @@
     const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
-    const SCHEMA_VERSION = 7;
+    const SCHEMA_VERSION = 8;
     const DEFAULT_LEND_RATE = 4;
-    const DEFAULT_EXCHANGE_RATE = 4;
+    const DEFAULT_EXCHANGE_BALLS = 25;
     const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
     const AUTO_LABELS = [
       "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日",
@@ -838,7 +838,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 7: currentSpin/spinAt/列機種設定追加後のStore chars、セッションchars、MapLayout charsを記録"
+        schemaBudgetNote: "v3 schema 8: 交換玉数方式、列機種再保存ガード追加後のStore charsを記録"
       }
     });
 
@@ -929,6 +929,24 @@
     function positiveNumberOrDefault(value, fallback) {
       const n = normalizeNumber(value);
       return n !== null && n > 0 ? n : fallback;
+    }
+
+    function normalizeExchangeBalls(value) {
+      const n = normalizeNumber(value);
+      return n !== null && n >= 20 && n <= 50 ? Number(n.toFixed(2)) : DEFAULT_EXCHANGE_BALLS;
+    }
+
+    function exchangeBallsFromStore(store) {
+      if (store?.exchangeBalls !== undefined) return normalizeExchangeBalls(store.exchangeBalls);
+      const oldRate = normalizeNumber(store?.exchangeRate);
+      if (oldRate !== null && oldRate >= 2 && oldRate <= 5) return normalizeExchangeBalls(100 / oldRate);
+      if (oldRate !== null && oldRate >= 20 && oldRate <= 50) return normalizeExchangeBalls(oldRate);
+      return DEFAULT_EXCHANGE_BALLS;
+    }
+
+    function exchangeBallsText(value) {
+      const balls = normalizeExchangeBalls(value);
+      return Number.isInteger(balls) ? String(balls) : balls.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     }
 
     function numberText(value, fallback = "未入力") {
@@ -1089,7 +1107,7 @@
         name: String(store.name || "無名店"),
         isPersonal: Boolean(store.isPersonal),
         lendRate: positiveNumberOrDefault(store.lendRate, DEFAULT_LEND_RATE),
-        exchangeRate: positiveNumberOrDefault(store.exchangeRate, DEFAULT_EXCHANGE_RATE),
+        exchangeBalls: exchangeBallsFromStore(store),
         createdAt: store.createdAt || nowIso()
       }));
       next.layouts = normalizeLayouts(next.layouts);
@@ -1231,8 +1249,12 @@
       return positiveNumberOrDefault(store?.lendRate, DEFAULT_LEND_RATE);
     }
 
+    function exchangeBallsForStore(store) {
+      return exchangeBallsFromStore(store);
+    }
+
     function exchangeRateForStore(store) {
-      return positiveNumberOrDefault(store?.exchangeRate, DEFAULT_EXCHANGE_RATE);
+      return 100 / exchangeBallsForStore(store);
     }
 
     function storeLabels(storeId = data.activeStoreId) {
@@ -1277,7 +1299,7 @@
           <div class="row-card-head">
             <button class="store-card ${store.id === data.activeStoreId ? "primary" : ""}" data-store-id="${escapeHtml(store.id)}">
               <strong>${escapeHtml(store.name)}</strong>
-              <span>${store.isPersonal ? "パーソナルあり" : "非パーソナル / 概算入力"} / 貸玉${escapeHtml(store.lendRate)}円 / 交換${escapeHtml(store.exchangeRate)}円</span>
+              <span>${store.isPersonal ? "パーソナルあり" : "非パーソナル / 概算入力"} / 貸玉${escapeHtml(store.lendRate)}円 / ${escapeHtml(exchangeBallsText(store.exchangeBalls))}玉交換</span>
             </button>
             <button class="small" data-edit-store="${escapeHtml(store.id)}">店設定</button>
           </div>
@@ -1652,9 +1674,9 @@
         <label class="check-chip"><input id="storePersonal" type="checkbox"> パーソナルシステムあり</label>
         <div class="grid two">
           <div class="field-row"><label for="storeLendRate">貸玉レート（円/玉）</label><input id="storeLendRate" inputmode="decimal" value="4"></div>
-          <div class="field-row"><label for="storeExchangeRate">交換レート（円/玉）</label><input id="storeExchangeRate" inputmode="decimal" value="4"></div>
+          <div class="field-row"><label for="storeExchangeBalls">交換玉数（100円あたり）</label><input id="storeExchangeBalls" inputmode="decimal" value="25"></div>
         </div>
-        <p class="hint">貸玉4円・等価なら両方4のままで構いません。</p>
+        <p class="hint">貸玉4円・等価なら交換玉数は25のままで構いません。28玉交換なら28を入力します。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="createStoreBtn">追加</button>
@@ -1668,7 +1690,7 @@
           name,
           isPersonal: byId("storePersonal").checked,
           lendRate: positiveNumberOrDefault(byId("storeLendRate").value, DEFAULT_LEND_RATE),
-          exchangeRate: positiveNumberOrDefault(byId("storeExchangeRate").value, DEFAULT_EXCHANGE_RATE),
+          exchangeBalls: normalizeExchangeBalls(byId("storeExchangeBalls").value),
           createdAt: nowIso()
         };
         data.stores.push(store);
@@ -1684,12 +1706,12 @@
     function openStoreSettings(storeId) {
       const store = data.stores.find((item) => item.id === storeId);
       if (!store) return;
-      openModal("店設定", "貸玉4円・等価なら両方4のままで構いません。", `
+      openModal("店設定", "貸玉4円・等価なら交換玉数は25のままで構いません。28玉交換なら28を入力します。", `
         <div class="field-row"><label for="editStoreName">店名</label><input id="editStoreName" value="${escapeHtml(store.name)}"></div>
         <label class="check-chip"><input id="editStorePersonal" type="checkbox" ${store.isPersonal ? "checked" : ""}> パーソナルシステムあり</label>
         <div class="grid two">
           <div class="field-row"><label for="editStoreLendRate">貸玉レート（円/玉）</label><input id="editStoreLendRate" inputmode="decimal" value="${escapeHtml(store.lendRate)}"></div>
-          <div class="field-row"><label for="editStoreExchangeRate">交換レート（円/玉）</label><input id="editStoreExchangeRate" inputmode="decimal" value="${escapeHtml(store.exchangeRate)}"></div>
+          <div class="field-row"><label for="editStoreExchangeBalls">交換玉数（100円あたり）</label><input id="editStoreExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(store.exchangeBalls))}"></div>
         </div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
@@ -1702,7 +1724,7 @@
         store.name = name;
         store.isPersonal = byId("editStorePersonal").checked;
         store.lendRate = positiveNumberOrDefault(byId("editStoreLendRate").value, DEFAULT_LEND_RATE);
-        store.exchangeRate = positiveNumberOrDefault(byId("editStoreExchangeRate").value, DEFAULT_EXCHANGE_RATE);
+        store.exchangeBalls = normalizeExchangeBalls(byId("editStoreExchangeBalls").value);
         if (!persistWithToast("保存しました")) return;
         closeModal();
         renderAll();
@@ -1737,12 +1759,13 @@
     function saveCurrentMap() {
       const store = activeStore();
       if (!store) return;
+      const previousIslands = cloneIslands(data.layouts[store.id]?.islands || []);
       const islands = readIslandDraftFromDom();
       const parsed = parseIslandLayout({ islands });
       data.layouts[store.id] = { islands, updatedAt: nowIso(), errors: parsed.errors };
       mapDraft = { storeId: store.id, islands: cloneIslands(islands) };
       syncMachinesFromMap(store.id, parsed);
-      applyColumnPresetsToMachines(store.id, islands, parsed);
+      applyColumnPresetsToMachines(store.id, islands, parsed, previousIslands);
       if (!persistWithToast(`フロアマップを保存しました（${parsed.daiNos.length}台）`)) return;
       renderAll();
     }
@@ -2038,33 +2061,34 @@
       });
     }
 
-    function applyColumnPresetsToMachines(storeId, islands, parsed) {
-      let overwriteAsked = false;
-      let allowOverwrite = false;
+    function applyColumnPresetsToMachines(storeId, islands, parsed, previousIslands = []) {
       islands.forEach((island, islandIndex) => {
         ["left", "right"].forEach((sideName, sideIndex) => {
           const presetId = sideName === "left" ? island.leftPresetId : island.rightPresetId;
           const preset = presetById(presetId);
           if (!preset) return;
+          const previousPresetId = sideName === "left" ? previousIslands[islandIndex]?.leftPresetId || "" : previousIslands[islandIndex]?.rightPresetId || "";
+          const presetChanged = previousPresetId !== presetId;
           const daiNos = parsed.rows[islandIndex]?.sides?.[sideIndex] || [];
           const machines = daiNos.map((daiNo) => data.machines.find((machine) => machine.storeId === storeId && machine.daiNo === String(daiNo))).filter(Boolean);
           const alreadySet = machines.filter((machine) => {
             const currentPresetId = normalizeMachinePresetId(machine);
-            const hasIndividualSetting = Boolean(currentPresetId || machine.modelName || machine.roundBalls !== null || machine.memo || machine.evSupported);
+            const hasIndividualSetting = machineHasIndividualSetting(machine);
             return hasIndividualSetting && currentPresetId !== presetId;
           });
-          if (alreadySet.length && !overwriteAsked) {
-            overwriteAsked = true;
-            allowOverwrite = confirm(`この列の台${machines.length}台の機種を${preset.name}に更新しますか？`);
-          }
+          const allowOverwrite = alreadySet.length && presetChanged ? confirm(`この列の台${alreadySet.length}台の機種を${preset.name}に更新しますか？`) : false;
           machines.forEach((machine) => {
             const currentPresetId = normalizeMachinePresetId(machine);
-            const hasIndividualSetting = Boolean(currentPresetId || machine.modelName || machine.roundBalls !== null || machine.memo || machine.evSupported);
+            const hasIndividualSetting = machineHasIndividualSetting(machine);
             if (hasIndividualSetting && currentPresetId !== presetId && !allowOverwrite) return;
             if (!currentPresetId || currentPresetId !== presetId) applyPresetToMachine(machine, preset);
           });
         });
       });
+    }
+
+    function machineHasIndividualSetting(machine) {
+      return Boolean(normalizeMachinePresetId(machine) || machine.modelName || machine.roundBalls !== null || machine.memo || machine.evSupported);
     }
 
     function applyPresetToMachine(machine, preset) {
@@ -2545,7 +2569,7 @@
           <div class="metric"><span>獲得出玉</span><strong>${payoutText(derived)}</strong></div>
           <div class="metric"><span>R数ベース出玉</span><strong>${numberText(derived.roundBasedPayout, "-")}</strong></div>
           <div class="metric"><span>差玉</span><strong>${numberText(derived.diffBalls, "-")}</strong></div>
-          <div class="metric"><span>換算収支</span><strong>${numberText(derived.profitYen, "-")} 円</strong><small>${derived.profitYen !== null ? `（${escapeHtml(derived.exchangeRate)}円換算）` : ""}</small></div>
+          <div class="metric"><span>換算収支</span><strong>${numberText(derived.profitYen, "-")} 円</strong><small>${derived.profitYen !== null ? `（${escapeHtml(exchangeBallsText(derived.exchangeBalls))}玉交換）` : ""}</small></div>
           ${session.hitVia === "yutime" ? `<div class="metric"><span>遊タイム玉減り</span><strong>${numberText(derived.yutimeLoss, "-")}</strong></div>` : ""}
         </div>
         <div class="status-line">${missingFields(session).length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>'}</div>
@@ -2714,6 +2738,7 @@
       const yutimeEndBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : session.endTotalBalls;
       const yutimeLoss = session.hitVia === "yutime" && session.yutimeEnterBalls !== null && yutimeEndBalls !== null ? session.yutimeEnterBalls + yutimeInvestedBalls - yutimeEndBalls : null;
       const diffBalls = session.endTotalBalls !== null ? session.endTotalBalls - totalInputBalls + Number(session.zanhoryuBalls || 0) : null;
+      const exchangeBalls = exchangeBallsForStore(store);
       const exchangeRate = exchangeRateForStore(store);
       const profitYen = diffBalls !== null ? Math.round(diffBalls * exchangeRate) : null;
       const isEstimatedPayout = session.hitRemainBalls === null && estimatedPayout !== null;
@@ -2736,6 +2761,7 @@
         yutimeLoss: yutimeLoss !== null ? Math.round(yutimeLoss) : null,
         diffBalls,
         profitYen,
+        exchangeBalls,
         exchangeRate
       };
     }

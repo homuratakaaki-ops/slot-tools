@@ -40,14 +40,15 @@
   "name": "string",
   "isPersonal": true,
   "lendRate": 4,
-  "exchangeRate": 4,
+  "exchangeBalls": 25,
   "createdAt": "ISO8601"
 }
 ```
 
 - `lendRate` は貸玉レート（円/玉）。現金投資の玉換算に使う。
-- `exchangeRate` は交換レート（円/玉）。差玉から換算収支を出す時に使う。
-- 既存店は読み込み時に `lendRate: 4`、`exchangeRate: 4` を補完する。
+- `exchangeBalls` は交換玉数（100円あたり）。25玉交換なら25、28玉交換なら28を入れる。
+- 換算収支は `差玉 * (100 / exchangeBalls)` で計算する。
+- 既存店は読み込み時に `lendRate: 4`、`exchangeBalls: 25` を補完する。旧 `exchangeRate` がある場合は `100 / exchangeRate` で `exchangeBalls` へ自動変換する。
 
 ### 2.2 MapLayout
 
@@ -184,7 +185,7 @@ B5 実測値:
 - 台の参考回転率 = セッション群の通常回転数合計 / 通常消費玉合計 * 250
 - 遊タイム玉減り = 遊タイム突入玉 + yutime phase 投資玉換算 - 当選時玉数。当たらず終了の場合は終了時玉数を引く。
 - 差玉 = 終了時玉数 - (開始持ち玉 + 全投資玉換算) + 残保留増減。
-- 換算収支 = 差玉 * `store.exchangeRate`。
+- 換算収支 = 差玉 * `(100 / store.exchangeBalls)`。
 - R数ベース出玉 = `roundBalls * totalRounds`
 - 1回あたりR数ベース平均出玉 = `roundBalls * totalRounds / hitCount`
 
@@ -248,7 +249,7 @@ B5 実測値:
 - `ytv3:data` が破損 JSON の場合は、初期状態へフォールバックする前に `ytv3:corrupt:<ISO日時>` へ raw 文字列を退避する。
 - 破損退避時は起動時に「保存データが読み取れなかったため退避しました」と表示し、フッターに「破損退避データあり」を出す。
 - `persist()` は `lastSaveChars` を計上してから 1 回の `localStorage.setItem()` で保存する。
-- 店ごとに貸玉レートと交換レートを持つ。店追加・店設定から編集できる。
+- 店ごとに貸玉レートと交換玉数を持つ。店追加・店設定から編集できる。
 - ウィザードの「戻る」は、現在ステップの入力値を保存してから前ステップへ戻る。
 
 ## 5.6 Phase 3 フロアマップへのデータ表示
@@ -365,3 +366,14 @@ B5 実測値:
 - schema 7 Machine 1件サンプル（大海SP5プリセット）: 137 chars
 - schema 7 Session 1件サンプル（`currentSpin`、通常投資2件、`spinAt`あり）: 691 chars
 - schema 7 `ytv3:carryover` 1件サンプル: 176 chars
+
+## 10. B6差し戻し1回目
+
+- schema は 8 とする。
+- 列機種の上書き確認は、保存済みレイアウトの列 `presetId` と今回保存する列 `presetId` が異なる場合のみ表示する。
+- 列 `presetId` が未変更の再保存では、列内に個別設定済みの例外台があっても確認を出さず、個別設定を保持する。増台などで新しく追加された未設定台には列プリセットを自動適用する。
+- 確認メッセージの台数は、個別設定が列プリセットと異なる台だけを数える。
+- Store の交換設定は `exchangeRate`（円/玉）を廃止し、`exchangeBalls`（100円あたりの交換玉数）を保存する。画面表示は「28玉交換」とする。
+- 旧 `exchangeRate` は読み込み時に `exchangeBalls = 100 / exchangeRate` へ自動変換する。例: `exchangeRate: 3.57` は約 `28.01` 玉交換として扱う。
+- `exchangeBalls` の入力許容範囲は 20〜50。範囲外または数値化できない値は 25玉交換へ救済する。
+- schema 8 Store 1件サンプル（`exchangeBalls: 28.01`）: 103 chars
