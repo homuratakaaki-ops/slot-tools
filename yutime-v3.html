@@ -3020,7 +3020,7 @@
           return;
         }
         closeModal();
-        openStartWizard(machine.id);
+        openStartWizard(machine.id, { startSpin: normalizeNumber(byId("evCurrentSpin")?.value) });
       });
     }
 
@@ -3098,17 +3098,17 @@
       machine.evSupported = Boolean(preset?.evSupported);
     }
 
-    function openStartWizard(machineId) {
+    function openStartWizard(machineId, presets = {}) {
       const store = activeStore();
       const currentActive = activeSessionsForStore(store?.id)[0] || null;
       if (currentActive) {
-        openActiveStartGuard(machineId, currentActive);
+        openActiveStartGuard(machineId, currentActive, presets);
         return;
       }
-      beginStartWizard(machineId);
+      beginStartWizard(machineId, presets);
     }
 
-    function openActiveStartGuard(machineId, active) {
+    function openActiveStartGuard(machineId, active, presets = {}) {
       const activeMachine = data.machines.find((item) => item.id === active.machineId);
       const daiNo = activeMachine?.daiNo || "不明";
       openModal("稼働中の記録があります", `台${daiNo}がヤメ入力されていません。`, `
@@ -3126,11 +3126,23 @@
       });
       byId("forceStartBtn").addEventListener("click", () => {
         closeModal();
-        setTimeout(() => beginStartWizard(machineId), 0);
+        setTimeout(() => beginStartWizard(machineId, presets), 0);
       });
     }
 
-    function beginStartWizard(machineId) {
+    function latestCompletedSessionForStoreToday(storeId) {
+      return data.sessions
+        .filter((session) => session.storeId === storeId && session.date === today() && session.status === "completed")
+        .sort((a, b) => activeSortKey(b).localeCompare(activeSortKey(a)))[0] || null;
+    }
+
+    function latestCompletedSessionForMachineToday(machineId) {
+      return data.sessions
+        .filter((session) => session.machineId === machineId && session.date === today() && session.status === "completed")
+        .sort((a, b) => activeSortKey(b).localeCompare(activeSortKey(a)))[0] || null;
+    }
+
+    function beginStartWizard(machineId, presets = {}) {
       const store = activeStore();
       const session = blankSession();
       session.storeId = store.id;
@@ -3143,19 +3155,28 @@
         session.startSaipurei = activeCarryover.saipurei;
         session.startCredit = activeCarryover.credit;
       }
+      const latestStoreSession = !activeCarryover ? latestCompletedSessionForStoreToday(store.id) : null;
+      const latestStoreBalances = latestStoreSession ? deriveBalances(latestStoreSession) : null;
+      const latestMachineSession = latestCompletedSessionForMachineToday(machineId);
+      const startSpinPreset = normalizeNumber(presets.startSpin);
+      const startSaipureiPreset = !activeCarryover && latestStoreBalances?.saipurei != null ? latestStoreBalances.saipurei : null;
+      const startCreditPreset = !activeCarryover && latestStoreBalances?.credit != null ? latestStoreBalances.credit : null;
+      const startTotalHitsPreset = latestMachineSession?.endTotalHits ?? null;
+      const previousBalanceHint = "本日の前の台の終了時点の残高を初期値にしています。台の表示と違う場合は修正してください。";
       const labels = storeLabels(store.id);
       runWizard("打ち始めウィザード", [
         {
           key: "startSpin",
           label: "現在回転数",
           type: "number",
-          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` 閉店チェック${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、またはラムクリ確認済みです。")
+          preset: startSpinPreset,
+          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` 閉店チェック${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、またはラムクリ確認済みです。") + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
         { key: "startMochidama", label: "持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
-        { key: "startSaipurei", label: "再プレイ残り玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。未入力だった場合は空欄のままです。" : "" },
-        { key: "startCredit", label: "カード残高（クレジット残金）", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : "" },
-        { key: "startTotalHits", label: "データカウンタの累計大当たり回数", type: "number", hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" },
+        { key: "startSaipurei", label: "再プレイ残り玉", type: "number", preset: startSaipureiPreset, hint: activeCarryover ? "前の台から引き継いだ値です。未入力だった場合は空欄のままです。" : (startSaipureiPreset !== null ? previousBalanceHint : "") },
+        { key: "startCredit", label: "カード残高（クレジット残金）", type: "number", preset: startCreditPreset, hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : (startCreditPreset !== null ? previousBalanceHint : "") },
+        { key: "startTotalHits", label: "データカウンタの累計大当たり回数", type: "number", preset: startTotalHitsPreset, hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         if (session.currentSpin === null || session.currentSpin === undefined) session.currentSpin = session.startSpin;
@@ -3173,9 +3194,12 @@
     function openHitWizard(sessionId) {
       const session = findSession(sessionId);
       if (!session) return;
+      const currentBalances = deriveBalances(session);
+      const mochidamaPreset = currentBalances.mochidama;
+      const balancePresetHint = "稼働中の持ち玉残を初期値にしています。台の表示と違う場合は修正してください。";
       runWizard("当選ウィザード", [
         { key: "hitSpin", label: "当選回転数", type: "number", preset: session.currentSpin, wizardHint: "初当たりの瞬間の記録です。大当たり回数・出玉は、連チャンが全て終わったあと [ヤメ] でまとめて入力します。" },
-        { key: "hitRemainBalls", label: "残り玉", type: "number", hint: activeStore()?.isPersonal ? "パーソナル店では確定回転率に使います。" : "非パーソナル店ではスキップ前提です。" }
+        { key: "hitRemainBalls", label: "残り玉", type: "number", preset: mochidamaPreset, hint: (mochidamaPreset !== null ? `${balancePresetHint} ` : "") + (activeStore()?.isPersonal ? "パーソナル店では確定回転率に使います。" : "非パーソナル店ではスキップ前提です。") }
       ], session, () => {
         if (!session.hitVia) session.hitVia = session.yutimeEnterBalls !== null ? "yutime" : "normal";
         session.updatedAt = nowIso();
@@ -3218,17 +3242,22 @@
     }
 
     function runEndWizard(session, hasHit) {
+      const currentBalances = deriveBalances(session);
+      const endTotalBallsPreset = currentBalances.mochidama;
+      const endTotalBallsHint = endTotalBallsPreset !== null ? "稼働中の持ち玉残を初期値にしています。台の表示と違う場合は修正してください。" : "";
+      const endSpinPreset = !hasHit && session.hitSpin === null && Number(session.hitCount || 0) === 0 ? session.currentSpin : null;
+      const endSpinHint = endSpinPreset !== null ? "稼働中カウンタの現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "";
       const steps = hasHit ? [
         { key: "endTotalHits", label: "ヤメ時点の累計大当たり回数", type: "number" },
         { key: "hitCount", label: "大当たり回数", type: "number" },
         { key: "totalRounds", label: "合計R数", type: "number", hint: "1R玉数と合わせてR数ベース出玉を計算します。" },
-        { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number" },
+        { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
         { key: "endSpin", label: "ヤメ回転数", type: "number" },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
         { key: "memo", label: "メモ", type: "textarea" }
       ] : [
-        { key: "endTotalBalls", label: "終了時玉数", type: "number" },
-        { key: "endSpin", label: "ヤメ回転数", type: "number" },
+        { key: "endTotalBalls", label: "終了時玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
+        { key: "endSpin", label: "ヤメ回転数", type: "number", preset: endSpinPreset, hint: endSpinHint },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
         { key: "memo", label: "メモ", type: "textarea" }
       ];
