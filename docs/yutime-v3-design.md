@@ -41,6 +41,7 @@
   "isPersonal": true,
   "lendRate": 4,
   "exchangeBalls": 25,
+  "netBallsPerWin": 1400,
   "createdAt": "ISO8601"
 }
 ```
@@ -48,7 +49,8 @@
 - `lendRate` は貸玉レート（円/玉）。現金投資の玉換算に使う。
 - `exchangeBalls` は交換玉数（100円あたり）。25玉交換なら25、28玉交換なら28を入れる。
 - 換算収支は `差玉 * (100 / exchangeBalls)` で計算する。
-- 既存店は読み込み時に `lendRate: 4`、`exchangeBalls: 25` を補完する。旧 `exchangeRate` がある場合は `100 / exchangeRate` で `exchangeBalls` へ自動変換する。
+- `netBallsPerWin` は期待値計算用の1回あたり純増玉。既定は1400で、技術介入に合わせて手動調整する。実測出玉からの自動切替は行わない。
+- 既存店は読み込み時に `lendRate: 4`、`exchangeBalls: 25`、`netBallsPerWin: 1400` を補完する。旧 `exchangeRate` がある場合は `100 / exchangeRate` で `exchangeBalls` へ自動変換する。
 
 ### 2.2 MapLayout
 
@@ -148,7 +150,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:corrupt:<ISO日時>` | 破損した `ytv3:data` の退避 | `loadData()` で `ytv3:data` が JSON として読めなかった場合に作成。自動削除しない | 破損していた `ytv3:data` raw 文字列 |
@@ -213,7 +215,7 @@ B5 実測値:
 | 1 | データモデル、店選択、フロアマップ作成/描画 | B3更新済み |
 | 2 | セッション記録一式、スキップ、記録の修正 | B3更新済み |
 | 3 | マップへのデータオーバーレイ、イベントフィルタ強化 | 一部土台のみ |
-| 4 | 期待値エンジン | 未実装 |
+| 4 | 期待値エンジン | 実装済み |
 
 ## 5.1 B2 名称変更一覧
 
@@ -427,10 +429,12 @@ B5 実測値:
 - Phase 4 期待値エンジンは v2 `yutime-record.html` の `YUTIME_RECORD_ENGINE` を式変更なしで移植し、v3 では `YUTIME_EXPECTATION_ENGINE` として `umi-sp5` プリセットに接続する。対象スペックは `hitProb: 1/319.6`、`tenjo: 950`、`yutimeJitan: 350`、`kakuhenRate: 0.54`、`jitanNormal: 100`、`jitanChain: 200`、既定 `netBallsPerWin: 1400`。
 - 期待値の円換算は v2 の固定 `yenPerBall: 4` から、v3 店舗設定の交換玉数を使う `100 / exchangeBalls` に差し替える。これは持ち玉遊技前提の換算であり、現金投資が主体の場合は貸玉4円との差分だけ実質やや下振れする。
 - 判定閾値は `EV_THRESHOLDS = { good: 2000, warn: 0 }`。期待値2000円以上を「打てる」、0円以上2000円未満を「微妙」、0円未満を「打てない」とする。
-- `netBallsPerWin` は既定1400玉。当該店・当該プリセットの実測平均出玉が大当たり回数 n>=3 で存在する場合のみ、実測平均を優先して表示に明示する。n<3 は既定値を使う。
+- `netBallsPerWin` は既定1400玉。実測出玉からの自動切替は行わない。技術介入の個人差を避けるため、店設定の「期待値用の1回あたり純増玉」で手動調整する。
 - 回転率の優先順位は、手入力、フィルタ適用後の台帳累計、なし。回転率がない台では期待値を表示しない。
 - 台詳細ポップアップには、現在回転数、前日ヤメ回転数、手入力回転率、実効回転数、残り回転数、期待値円、時給、スロ換算機械割、拘束時間、使用回転率と出玉の出所を表示する。打てない判定でも「この台を打つ」はブロックしない。
 - 稼働中パネルには、遊タイム突入前かつ当選前のみ「残り回転数 / ここからの期待値」を淡色で表示する。`currentSpin` 更新に追従し、遊タイム突入または当選後は非表示にする。
 - マップの台番ボタンには、前日ヤメと回転率がある台だけ宵越し期待値を軽量計算し、期待値2000円以上なら「宵」サインと枠強調を出す。期待値金額そのものは情報過多を避けるため載せない。
-- Phase 4 は表示・計算ロジックのみの追加で、schema は 10 のまま。容量予算の増分はなし。
+- Phase 4差し戻し1で Store に `netBallsPerWin` を追加したため、schema は 11 とする。既存店は読み込み時に1400を補完する。
+- schema 11 Store 1件サンプル（`exchangeBalls: 28`、`netBallsPerWin: 1400`）: 127 chars
 - アイデアメモ: 貸玉/交換レートを厳密に分離した期待値会計は将来課題とする。
+- アイデアメモ: Phase 4.1 では、期待値判定の入力設定を店設定から独立させるか、機種別設定へ分けるかを検討する。

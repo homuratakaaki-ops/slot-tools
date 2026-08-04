@@ -932,9 +932,10 @@
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
-    const SCHEMA_VERSION = 10;
+    const SCHEMA_VERSION = 11;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
+    const DEFAULT_NET_BALLS_PER_WIN = 1400;
     const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
     const EV_THRESHOLDS = { good: 2000, warn: 0 };
     const AUTO_LABELS = [
@@ -962,7 +963,7 @@
           jitanRule: "確変中・通常時の通常当り→時短100 / 時短中(遊タイム含む)の通常当り→時短200"
         },
         defaults: {
-          netBallsPerWin: 1400,
+          netBallsPerWin: DEFAULT_NET_BALLS_PER_WIN,
           densapoDelta: 0,
           spinsPerHour: 250,
           secPerHit: 120,
@@ -1095,7 +1096,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 10: startTotalHits/endTotalHits追加後のSession charsを記録"
+        schemaBudgetNote: "v3 schema 11: Store netBallsPerWin追加後のStore charsを記録"
       }
     });
 
@@ -1274,35 +1275,16 @@
       return 100 / exchangeBallsFromStore(store);
     }
 
-    function measuredNetBallsForPreset(storeId, presetId) {
-      let hitBalls = 0;
-      let hitCount = 0;
-      data.sessions.forEach((session) => {
-        if (session.storeId !== storeId || session.status !== "completed") return;
-        const machine = data.machines.find((item) => item.id === session.machineId);
-        if (normalizeMachinePresetId(machine) !== presetId) return;
-        const derived = deriveSession(session, machine);
-        if (derived.hitBalls !== null && !derived.isEstimatedPayout && Number(session.hitCount) > 0) {
-          hitBalls += derived.hitBalls;
-          hitCount += Number(session.hitCount);
-        }
-      });
-      return hitCount >= 3 ? { value: hitBalls / hitCount, count: hitCount } : null;
-    }
-
     function expectationSettings(store, machine) {
-      const presetId = normalizeMachinePresetId(machine);
-      const measured = measuredNetBallsForPreset(store?.id, presetId);
       const defaults = YUTIME_EXPECTATION_ENGINE.preset.defaults;
+      const netBallsPerWin = positiveNumberOrDefault(store?.netBallsPerWin, defaults.netBallsPerWin);
       return {
         settings: {
           ...defaults,
           yenPerBall: expectationYenPerBall(store),
-          netBallsPerWin: measured ? measured.value : defaults.netBallsPerWin
+          netBallsPerWin
         },
-        payoutSource: measured
-          ? `実測平均${Math.round(measured.value).toLocaleString("ja-JP")}玉使用（n=${measured.count}）`
-          : `既定${defaults.netBallsPerWin.toLocaleString("ja-JP")}玉使用`
+        payoutSource: `純増${Math.round(netBallsPerWin).toLocaleString("ja-JP")}玉使用（手動設定）`
       };
     }
 
@@ -1473,6 +1455,7 @@
         isPersonal: Boolean(store.isPersonal),
         lendRate: positiveNumberOrDefault(store.lendRate, DEFAULT_LEND_RATE),
         exchangeBalls: exchangeBallsFromStore(store),
+        netBallsPerWin: positiveNumberOrDefault(store.netBallsPerWin, DEFAULT_NET_BALLS_PER_WIN),
         createdAt: store.createdAt || nowIso()
       }));
       next.layouts = normalizeLayouts(next.layouts);
@@ -2105,7 +2088,9 @@
           <div class="field-row"><label for="storeLendRate">貸玉レート（円/玉）</label><input id="storeLendRate" inputmode="decimal" value="4"></div>
           <div class="field-row"><label for="storeExchangeBalls">交換玉数（100円あたり）</label><input id="storeExchangeBalls" inputmode="decimal" value="25"></div>
         </div>
+        <div class="field-row"><label for="storeNetBallsPerWin">期待値用の1回あたり純増玉</label><input id="storeNetBallsPerWin" inputmode="numeric" value="${DEFAULT_NET_BALLS_PER_WIN}"></div>
         <p class="hint">貸玉4円・等価なら交換玉数は25のままで構いません。28玉交換なら28を入力します。</p>
+        <p class="hint">純増玉は自分の技術介入に合わせて手動調整する欄です。実測出玉からの自動切替は行いません。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="createStoreBtn">追加</button>
@@ -2120,6 +2105,7 @@
           isPersonal: byId("storePersonal").checked,
           lendRate: positiveNumberOrDefault(byId("storeLendRate").value, DEFAULT_LEND_RATE),
           exchangeBalls: normalizeExchangeBalls(byId("storeExchangeBalls").value),
+          netBallsPerWin: positiveNumberOrDefault(byId("storeNetBallsPerWin").value, DEFAULT_NET_BALLS_PER_WIN),
           createdAt: nowIso()
         };
         data.stores.push(store);
@@ -2142,6 +2128,8 @@
           <div class="field-row"><label for="editStoreLendRate">貸玉レート（円/玉）</label><input id="editStoreLendRate" inputmode="decimal" value="${escapeHtml(store.lendRate)}"></div>
           <div class="field-row"><label for="editStoreExchangeBalls">交換玉数（100円あたり）</label><input id="editStoreExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(store.exchangeBalls))}"></div>
         </div>
+        <div class="field-row"><label for="editStoreNetBallsPerWin">期待値用の1回あたり純増玉</label><input id="editStoreNetBallsPerWin" inputmode="numeric" value="${escapeHtml(positiveNumberOrDefault(store.netBallsPerWin, DEFAULT_NET_BALLS_PER_WIN))}"></div>
+        <p class="hint">自分の技術介入に合わせて手動調整する欄です。実測出玉からの自動切替は行いません。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveStoreSettingsBtn">保存</button>
@@ -2154,6 +2142,7 @@
         store.isPersonal = byId("editStorePersonal").checked;
         store.lendRate = positiveNumberOrDefault(byId("editStoreLendRate").value, DEFAULT_LEND_RATE);
         store.exchangeBalls = normalizeExchangeBalls(byId("editStoreExchangeBalls").value);
+        store.netBallsPerWin = positiveNumberOrDefault(byId("editStoreNetBallsPerWin").value, DEFAULT_NET_BALLS_PER_WIN);
         if (!persistWithToast("保存しました")) return;
         closeModal();
         renderAll();
