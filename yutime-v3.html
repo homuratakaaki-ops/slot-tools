@@ -3287,23 +3287,21 @@
           <button data-closing-digit="0">0</button>
           <button data-closing-back>⌫</button>
         </div>
-        ${ended ? `<p class="hint warn">この列は終わりです。</p><div class="modal-actions"><button class="primary" data-close>マップへ戻る</button></div>` : `
+        ${ended ? `<p class="hint warn">この列は終わりです。</p><div class="modal-actions"><button class="primary" data-close>マップへ戻る</button></div>` : closingInputFlow.direction === null ? `
+          <div class="closing-direction">
+            <p class="hint">数字を入れて方向をタップ＝保存して移動 / 空のまま＝スキップ</p>
+            <div class="grid two">
+              <button id="chooseClosingBackwardBtn" ${leftDai ? "" : "disabled"}>← ${escapeHtml(leftDai || "端") }へ</button>
+              <button id="chooseClosingForwardBtn" ${rightDai ? "" : "disabled"}>${escapeHtml(rightDai || "端")}へ →</button>
+            </div>
+          </div>
+        ` : `
           <div class="closing-flow-actions">
             <button id="skipClosingBtn">スキップ</button>
             <button class="primary" id="saveClosingNextBtn">確定して次へ</button>
           </div>
           <div class="closing-direction">
-            ${closingInputFlow.direction === null && closingInputFlow.awaitingDirection ? `
-              <p class="hint">最初の確定後、進む方向を選んでください。</p>
-              <div class="grid two">
-                <button id="chooseClosingBackwardBtn" ${leftDai ? "" : "disabled"}>← ${escapeHtml(leftDai || "端") }へ</button>
-                <button id="chooseClosingForwardBtn" ${rightDai ? "" : "disabled"}>${escapeHtml(rightDai || "端")}へ →</button>
-              </div>
-            ` : closingInputFlow.direction === null ? `
-              <p class="hint">最初に確定またはスキップすると、進行方向を選べます。</p>
-            ` : `
-              <button class="small" id="toggleClosingDirectionBtn">進行方向: ${escapeHtml(directionPreviewText())}（切替▼）</button>
-            `}
+            <button class="small" id="toggleClosingDirectionBtn">進行方向: ${escapeHtml(directionPreviewText())}（切替▼）</button>
           </div>
         `}
         <div class="closing-recent">${escapeHtml(closingInputFlow.recent)}</div>
@@ -3392,7 +3390,8 @@
       closingInputFlow.direction = direction;
       closingInputFlow.awaitingDirection = false;
       closingInputFlow.ended = false;
-      advanceClosingFlow(true);
+      if (normalizeNumber(closingInputFlow.buffer) !== null) saveClosingAndAdvance();
+      else advanceClosingFlow(false);
     }
 
     function advanceClosingFlow(savedCurrent) {
@@ -3455,23 +3454,23 @@
             <label class="check-chip"><input id="morningPrevInvalid" type="checkbox" ${prevInvalid ? "checked" : ""}> 前日分を無効にする（当日すでに大当たり or リセット）</label>
             <label class="check-chip"><input id="morningRamClear" type="checkbox" ${ramClear ? "checked" : ""}> ラムクリだった（リセット傾向の記録用）</label>
           </div>
-          <div class="modal-actions">
-            <button id="skipMorningBtn">スキップ</button>
-            <button class="primary" id="saveMorningNextBtn">保存して次へ</button>
-          </div>
-          <div class="closing-direction">
-            ${morningCheckFlow.direction === null && morningCheckFlow.awaitingDirection ? `
-              <p class="hint">最初の保存またはスキップ後、進む方向を選んでください。</p>
+          ${morningCheckFlow.direction === null ? `
+            <div class="closing-direction">
+              <p class="hint">チェックして方向をタップ＝保存して移動 / 未チェック＝スキップ</p>
               <div class="grid two">
                 <button id="chooseMorningBackwardBtn" ${leftDai ? "" : "disabled"}>← ${escapeHtml(leftDai || "端") }へ</button>
                 <button id="chooseMorningForwardBtn" ${rightDai ? "" : "disabled"}>${escapeHtml(rightDai || "端")}へ →</button>
               </div>
-            ` : morningCheckFlow.direction === null ? `
-              <p class="hint">最初に保存またはスキップすると、進行方向を選べます。</p>
-            ` : `
+            </div>
+          ` : `
+            <div class="modal-actions">
+              <button id="skipMorningBtn">スキップ</button>
+              <button class="primary" id="saveMorningNextBtn">保存して次へ</button>
+            </div>
+            <div class="closing-direction">
               <button class="small" id="toggleMorningDirectionBtn">進行方向: ${escapeHtml(morningDirectionPreviewText())}（切替▼）</button>
-            `}
-          </div>
+            </div>
+          `}
         `}
         <div class="closing-recent">${escapeHtml(morningCheckFlow.recent)}</div>
       `);
@@ -3537,7 +3536,9 @@
       morningCheckFlow.direction = direction;
       morningCheckFlow.awaitingDirection = false;
       morningCheckFlow.ended = false;
-      advanceMorningFlow(true);
+      const hasCheckedState = Boolean(byId("morningRamClear")?.checked || byId("morningPrevInvalid")?.checked);
+      if (hasCheckedState) saveMorningAndAdvance();
+      else advanceMorningFlow(false);
     }
 
     function advanceMorningFlow(savedCurrent) {
