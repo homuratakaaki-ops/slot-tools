@@ -275,6 +275,12 @@
       margin: 0 0 14px;
     }
 
+    .filter-panel {
+      display: grid;
+      gap: 4px;
+      margin-top: 8px;
+    }
+
     .filter-block + .filter-block {
       margin-top: 12px;
     }
@@ -1110,13 +1116,8 @@
             <h2>台を探す</h2>
             <p>台番をタップすると過去概要を確認して、打ち始めに進めます。</p>
           </div>
-          <div class="status-line">
-            <button class="small" id="toggleClosingCheckBtn">閉店時ゲーム数登録OFF</button>
-            <button class="small" id="toggleMorningCheckBtn">ラムクリアチェックOFF</button>
-            <button class="small" id="openLabelFormBtn">店イベントの登録</button>
-          </div>
         </div>
-        <div id="labelFilters" class="label-checks"></div>
+        <div id="labelFilters" class="filter-panel"></div>
         <div id="carryoverBanner"></div>
         <div class="map-wrap">
           <div id="machineMap" class="map-grid"></div>
@@ -1186,7 +1187,7 @@
       "ゾロ目日"
     ];
     const MACHINE_PRESETS = [
-      { id: "umi-sp5", name: "P大海物語5スペシャル", roundBalls: 140, standardRounds: 10, standardPayout: 1400, evSupported: true, spec: { note: "B5時点の期待値対応プリセット" } }
+      { id: "umi-sp5", name: "P大海物語5スペシャル", roundBalls: 140, standardRounds: 10, standardPayout: 1400, evSupported: true, hasYutime: true, spec: { note: "B5時点の期待値対応プリセット" } }
     ];
     const RAM_CLEAR_VALUE = "cleared";
     const RAM_NOT_CLEARED_VALUE = "not_cleared";
@@ -1393,20 +1394,6 @@
     byId("addIslandBtn").addEventListener("click", addIslandDraft);
     byId("openStoreFormBtn").addEventListener("click", openStoreForm);
     byId("saveMapBtn").addEventListener("click", saveCurrentMap);
-    byId("openLabelFormBtn").addEventListener("click", openLabelForm);
-    byId("toggleClosingCheckBtn").addEventListener("click", () => {
-      closingCheckMode = !closingCheckMode;
-      if (closingCheckMode) {
-        morningCheckMode = false;
-        closingTargetDate = defaultClosingTargetDate();
-      }
-      renderMachineMap();
-    });
-    byId("toggleMorningCheckBtn").addEventListener("click", () => {
-      morningCheckMode = !morningCheckMode;
-      if (morningCheckMode) closingCheckMode = false;
-      renderMachineMap();
-    });
     byId("exportBtn").addEventListener("click", exportJson);
     byId("closeModalBtn").addEventListener("click", closeModal);
     els.modalBackdrop.addEventListener("click", (event) => {
@@ -1550,6 +1537,16 @@
       if (presetById(machine?.presetId)) return machine.presetId;
       const matched = presetByName(machine?.modelName || "");
       return matched ? matched.id : "";
+    }
+
+    function machineHasYutime(machine) {
+      return Boolean(presetById(normalizeMachinePresetId(machine))?.hasYutime);
+    }
+
+    function activeMapHasYutime(storeId = activeStore()?.id) {
+      if (!storeId) return false;
+      const parsed = parseIslandLayout(activeMapLayoutForParse(storeId));
+      return parsed.daiNos.some((daiNo) => machineHasYutime(findMachineByDai(daiNo)));
     }
 
     function yenText(value) {
@@ -2195,15 +2192,31 @@
       const pinnedAutoLabels = AUTO_LABELS.filter((label) => todayLabels.includes(label));
       const otherAutoLabels = AUTO_LABELS.filter((label) => !todayLabels.includes(label));
       const layout = storeLayout(store.id);
+      const hasYutime = activeMapHasYutime(store.id);
+      if (!hasYutime) {
+        closingCheckMode = false;
+        morningCheckMode = false;
+      }
       els.labelFilters.innerHTML = `
         <div class="filter-block">
-          <label class="hint" for="activeFloorMapSelect">機種・コーナーを選ぶ</label>
+          <strong class="hint">① 機種・コーナーを選ぶ</strong>
           <select id="activeFloorMapSelect">
             ${layout.maps.map((map) => `<option value="${escapeHtml(map.id)}" ${map.id === layout.activeMapId ? "selected" : ""}>${escapeHtml(map.name)}</option>`).join("")}
           </select>
         </div>
+        ${hasYutime ? `
+          <div class="filter-block">
+            <strong class="hint">② この機種でやること</strong>
+            <div class="status-line" style="margin-top:8px">
+              <button class="small" id="toggleClosingCheckBtn">閉店時ゲーム数登録${closingCheckMode ? "ON" : "OFF"}</button>
+              <button class="small" id="toggleMorningCheckBtn">ラムクリアチェック${morningCheckMode ? "ON" : "OFF"}</button>
+              <button class="small" id="quickAssumedRateBtn">推定回転率 ${store.assumedRate !== null && store.assumedRate !== undefined ? Number(store.assumedRate).toFixed(1) : "未設定"}（タップで変更）</button>
+            </div>
+          </div>
+        ` : ""}
         <div class="filter-block">
-          <button class="small" id="quickAssumedRateBtn">推定回転率 ${store.assumedRate !== null && store.assumedRate !== undefined ? Number(store.assumedRate).toFixed(1) : "未設定"}（タップで変更）</button>
+          <strong class="hint">③ 台をしぼる・記録する</strong>
+          <div class="status-line" style="margin-top:8px"><button class="small" id="openLabelFormBtn">店イベントの登録</button></div>
         </div>
         ${activeFilters.length ? `
           <div class="filter-status">
@@ -2231,7 +2244,33 @@
         if (!persistWithToast("保存しました")) return;
         renderAll();
       });
-      byId("quickAssumedRateBtn").addEventListener("click", () => openAssumedRateQuickForm(store.id));
+      const labelFormButton = byId("openLabelFormBtn");
+      if (labelFormButton) labelFormButton.addEventListener("click", openLabelForm);
+      const quickAssumedRateButton = byId("quickAssumedRateBtn");
+      if (quickAssumedRateButton) quickAssumedRateButton.addEventListener("click", () => openAssumedRateQuickForm(store.id));
+      const closingToggle = byId("toggleClosingCheckBtn");
+      if (closingToggle) {
+        closingToggle.classList.toggle("primary", closingCheckMode);
+        closingToggle.addEventListener("click", () => {
+          closingCheckMode = !closingCheckMode;
+          if (closingCheckMode) {
+            morningCheckMode = false;
+            closingTargetDate = defaultClosingTargetDate();
+          }
+          renderLabelFilters();
+          renderMachineMap();
+        });
+      }
+      const morningToggle = byId("toggleMorningCheckBtn");
+      if (morningToggle) {
+        morningToggle.classList.toggle("primary", morningCheckMode);
+        morningToggle.addEventListener("click", () => {
+          morningCheckMode = !morningCheckMode;
+          if (morningCheckMode) closingCheckMode = false;
+          renderLabelFilters();
+          renderMachineMap();
+        });
+      }
       els.labelFilters.querySelectorAll("input").forEach((input) => {
         input.addEventListener("change", () => {
           if (input.checked) selectedLabelFilters.add(input.value);
@@ -2354,10 +2393,11 @@
         els.machineMap.innerHTML = '<div class="row-card">店を選択してください。</div>';
         return;
       }
-      byId("toggleClosingCheckBtn").textContent = closingCheckMode ? "閉店時ゲーム数登録ON" : "閉店時ゲーム数登録OFF";
-      byId("toggleClosingCheckBtn").classList.toggle("primary", closingCheckMode);
-      byId("toggleMorningCheckBtn").textContent = morningCheckMode ? "ラムクリアチェックON" : "ラムクリアチェックOFF";
-      byId("toggleMorningCheckBtn").classList.toggle("primary", morningCheckMode);
+      const hasYutime = activeMapHasYutime(store.id);
+      if (!hasYutime) {
+        closingCheckMode = false;
+        morningCheckMode = false;
+      }
       const parsed = parseIslandLayout(activeMapLayoutForParse(store.id));
       if (!parsed.rows.length) {
         els.machineMap.innerHTML = '<div class="row-card">フロアマップを保存すると、台番ボタンを表示します。</div>';
@@ -2370,9 +2410,9 @@
         const right = row.sides[1] || [];
         return `
           <div class="map-row">
-            <div class="map-side">${left.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds)).join("")}</div>
+            <div class="map-side">${left.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds, hasYutime)).join("")}</div>
             <div class="aisle" aria-hidden="true"></div>
-            <div class="map-side">${right.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds)).join("")}</div>
+            <div class="map-side">${right.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds, hasYutime)).join("")}</div>
           </div>
         `;
       }).join("");
@@ -2385,20 +2425,20 @@
       });
     }
 
-    function machineButtonHtml(daiNo, statsByMachine = null, activeMachineIds = new Set()) {
+    function machineButtonHtml(daiNo, statsByMachine = null, activeMachineIds = new Set(), showYutimeTools = true) {
       const machine = findMachineByDai(daiNo);
       const stats = machine ? (statsByMachine?.get(machine.id) || emptyStats()) : null;
-      const closing = machine ? validClosingInfo(machine.id) : null;
-      const targetClosing = machine ? dailyStateFor(machine.id, closingTargetDate)?.closingSpin ?? null : null;
-      const rawClosing = machine ? closingInfoForDate(machine.id, offsetDate(today(), -1)) : null;
-      const prevInvalid = machine ? todayPrevInvalid(machine.id) : false;
-      const ramClear = machine ? todayRamClear(machine.id) : null;
+      const closing = showYutimeTools && machine ? validClosingInfo(machine.id) : null;
+      const targetClosing = showYutimeTools && machine ? dailyStateFor(machine.id, closingTargetDate)?.closingSpin ?? null : null;
+      const rawClosing = showYutimeTools && machine ? closingInfoForDate(machine.id, offsetDate(today(), -1)) : null;
+      const prevInvalid = showYutimeTools && machine ? todayPrevInvalid(machine.id) : false;
+      const ramClear = showYutimeTools && machine ? todayRamClear(machine.id) : null;
       const hasMachineMemo = Boolean(machine?.memo);
       const rate = stats && stats.rate ? stats.rate.toFixed(1) : "-";
       const rateClass = machine && stats?.rate ? rateToneClass(machine, stats.rate) : "";
       const estimatedMark = stats?.estimatedCount ? "&#8776;" : "";
       const isActive = machine && activeMachineIds.has(machine.id);
-      const eveSign = machine ? mapExpectationSign(machine, stats, closing) : null;
+      const eveSign = showYutimeTools && machine ? mapExpectationSign(machine, stats, closing) : null;
       return `
         <button class="machine-button ${stats?.rate || closing || hasMachineMemo ? "has-data" : ""} ${isActive ? "is-active" : ""} ${eveSign?.good ? "ev-good" : ""} ${eveSign?.assumed ? "ev-assumed" : ""}" data-dai-no="${escapeHtml(daiNo)}">
           ${isActive ? '<span class="active-badge">稼働中</span>' : ""}
@@ -3767,6 +3807,7 @@
       const sessions = data.sessions.filter((session) => session.machineId === machine.id);
       const stats = machineStats(machine.id);
       const presetId = normalizeMachinePresetId(machine);
+      const showExpectationBlock = machineHasYutime(machine);
       const closing = validClosingInfo(machine.id);
       const closingStateNote = todayPrevInvalid(machine.id) ? `<small>朝チェックで前日分を無効にしています</small>` : "";
       const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
@@ -3782,7 +3823,7 @@
           ${stats.averageYutimeLoss !== null ? `<div class="metric"><span>遊タイム玉減り</span><strong>${Math.round(stats.averageYutimeLoss)}</strong><small>${stats.yutimeLossCount}件平均</small></div>` : ""}
         </div>
         ${filteredNote}
-        <div class="expectation-box">
+        ${showExpectationBlock ? `<div class="expectation-box">
           <div class="expectation-title" id="machineEvTitle"><span>期待値判定</span><small>未判定</small></div>
           <div class="expectation-inputs">
             <div class="field-row"><label for="evCurrentSpin">現在回転数</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
@@ -3791,7 +3832,7 @@
           </div>
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
-        </div>
+        </div>` : ""}
         <div class="field-row" style="margin-top:12px"><label for="machinePreset">機種プリセット</label><select id="machinePreset">
           ${MACHINE_PRESETS.map((preset) => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`).join("")}
           <option value="">その他（自由入力）</option>
@@ -3814,14 +3855,16 @@
       `);
       byId("machinePreset").value = presetId;
       applyPresetSelectionToForm();
-      renderMachineExpectation(machine.id);
-      ["evCurrentSpin", "evPrevSpin", "evManualRate"].forEach((id) => {
-        byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
-      });
+      if (showExpectationBlock) {
+        renderMachineExpectation(machine.id);
+        ["evCurrentSpin", "evPrevSpin", "evManualRate"].forEach((id) => {
+          byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
+        });
+      }
       byId("machinePreset").addEventListener("change", () => {
         applyPresetSelectionToForm();
         readMachineDetailForm(machine);
-        renderMachineExpectation(machine.id);
+        if (showExpectationBlock) renderMachineExpectation(machine.id);
       });
       byId("saveMachineBtn").addEventListener("click", () => {
         readMachineDetailForm(machine);
