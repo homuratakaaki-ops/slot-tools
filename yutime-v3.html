@@ -1194,7 +1194,7 @@
     let closingInputFlow = null;
     let mapEditorOpenByStore = {};
     let runningStickyEnabled = localStorage.getItem(STICKY_PREF_KEY) !== "off";
-    let mapDraft = { storeId: null, islands: [] };
+    let mapDraft = { storeId: null, islands: [], allowEmptySave: false };
     let modalCancel = null;
 
     const els = {
@@ -1816,6 +1816,7 @@
         return;
       }
       ensureMapDraft(store.id);
+      hydrateMapDraftFromSavedLayout(store.id);
       const hasLayout = parseIslandLayout(data.layouts[store.id] || { islands: [] }).rows.length > 0;
       if (mapEditorOpenByStore[store.id] === undefined) mapEditorOpenByStore[store.id] = !hasLayout;
       if (!mapEditorOpenByStore[store.id]) {
@@ -2343,11 +2344,17 @@
     function saveCurrentMap() {
       const store = activeStore();
       if (!store) return;
+      ensureMapDraft(store.id);
       const previousIslands = cloneIslands(data.layouts[store.id]?.islands || []);
       const islands = readIslandDraftFromDom();
+      if (!islands.length && previousIslands.length && !mapDraft.allowEmptySave) {
+        showToast(`フロアマップが空です。既存の${previousIslands.length}島を消す場合は、島ごとに[島を削除]してから保存してください。`, "error");
+        renderMapEditor();
+        return;
+      }
       const parsed = parseIslandLayout({ islands });
       data.layouts[store.id] = { islands, updatedAt: nowIso(), errors: parsed.errors };
-      mapDraft = { storeId: store.id, islands: cloneIslands(islands) };
+      mapDraft = { storeId: store.id, islands: cloneIslands(islands), allowEmptySave: false };
       syncMachinesFromMap(store.id, parsed);
       applyColumnPresetsToMachines(store.id, islands, parsed, previousIslands);
       if (!persistWithToast(`フロアマップを保存しました（${parsed.daiNos.length}台）`)) return;
@@ -2357,7 +2364,14 @@
     function ensureMapDraft(storeId) {
       if (mapDraft.storeId === storeId) return;
       const layout = data.layouts[storeId] || { islands: [] };
-      mapDraft = { storeId, islands: cloneIslands(layout.islands || []) };
+      mapDraft = { storeId, islands: cloneIslands(layout.islands || []), allowEmptySave: false };
+    }
+
+    function hydrateMapDraftFromSavedLayout(storeId) {
+      const savedIslands = cloneIslands(data.layouts[storeId]?.islands || []);
+      if (savedIslands.length && !mapDraft.islands.length && !mapDraft.allowEmptySave) {
+        mapDraft = { storeId, islands: savedIslands, allowEmptySave: false };
+      }
     }
 
     function addIslandDraft() {
@@ -2365,6 +2379,7 @@
       if (!store) return;
       ensureMapDraft(store.id);
       mapEditorOpenByStore[store.id] = true;
+      mapDraft.allowEmptySave = false;
       mapDraft.islands.push({ left: { from: null, to: null }, right: null, excluded: [], leftPresetId: "", rightPresetId: "" });
       renderMapEditor();
     }
@@ -2448,6 +2463,7 @@
         button.addEventListener("click", () => {
           const index = Number(button.dataset.deleteIsland);
           mapDraft.islands.splice(index, 1);
+          mapDraft.allowEmptySave = mapDraft.islands.length === 0;
           renderMapEditor();
         });
       });
