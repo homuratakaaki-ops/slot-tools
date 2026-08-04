@@ -2699,7 +2699,8 @@
         direction: null,
         awaitingDirection: false,
         buffer: "",
-        recent: ""
+        recent: "",
+        ended: false
       };
       hydrateClosingBuffer();
       renderClosingInputModal();
@@ -2734,7 +2735,7 @@
       const atEnd = closingInputFlow.index >= closingInputFlow.sequence.length - 1;
       const leftDai = atStart ? null : closingInputFlow.sequence[closingInputFlow.index - 1];
       const rightDai = atEnd ? null : closingInputFlow.sequence[closingInputFlow.index + 1];
-      const ended = (closingInputFlow.direction === -1 && atStart) || (closingInputFlow.direction === 1 && atEnd);
+      const ended = closingInputFlow.ended;
       openModal(`台 ${daiNo} の閉店回転数`, "端末キーボードを使わず、この画面だけで連続入力します。", `
         <div class="closing-display" id="closingDisplay">${escapeHtml(closingInputFlow.buffer || "0")}</div>
         <div class="closing-keypad">
@@ -2834,6 +2835,7 @@
     function chooseClosingDirection(direction) {
       closingInputFlow.direction = direction;
       closingInputFlow.awaitingDirection = false;
+      closingInputFlow.ended = false;
       advanceClosingFlow(true);
     }
 
@@ -2847,10 +2849,12 @@
       const skippedDaiNo = currentClosingDaiNo();
       const nextIndex = closingInputFlow.index + closingInputFlow.direction;
       if (nextIndex < 0 || nextIndex >= closingInputFlow.sequence.length) {
+        closingInputFlow.ended = true;
         renderClosingInputModal();
         return;
       }
       closingInputFlow.index = nextIndex;
+      closingInputFlow.ended = false;
       hydrateClosingBuffer();
       if (!savedCurrent) closingInputFlow.recent = `スキップ: ${skippedDaiNo}`;
       renderClosingInputModal();
