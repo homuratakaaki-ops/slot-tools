@@ -3119,12 +3119,13 @@
       byId("startSessionBtn").addEventListener("click", () => {
         readMachineDetailForm(machine);
         const startSpinPreset = normalizeNumber(byId("evCurrentSpin")?.value);
+        const prevDayEndSpinPreset = normalizeNumber(byId("evPrevSpin")?.value);
         if (!persist()) {
           showToast("保存に失敗しました。容量を確認してください。", "error");
           return;
         }
         closeModal();
-        openStartWizard(machine.id, { startSpin: startSpinPreset });
+        openStartWizard(machine.id, { startSpin: startSpinPreset, prevDayEndSpin: prevDayEndSpinPreset });
       });
     }
 
@@ -3251,7 +3252,8 @@
       const session = blankSession();
       session.storeId = store.id;
       session.machineId = machineId;
-      session.prevDayEndSpin = validClosingInfo(machineId)?.spin ?? null;
+      const manualPrevDayEndSpin = normalizeNumber(presets.prevDayEndSpin);
+      session.prevDayEndSpin = manualPrevDayEndSpin ?? validClosingInfo(machineId)?.spin ?? null;
       const activeCarryover = carryover && carryover.storeId === store.id ? carryover : null;
       if (activeCarryover) {
         session.carriedFromSessionId = activeCarryover.sourceSessionId;
@@ -3263,6 +3265,7 @@
       const latestStoreBalances = latestStoreSession ? deriveBalances(latestStoreSession) : null;
       const latestMachineSession = latestCompletedSessionForMachineToday(machineId);
       const startSpinPreset = normalizeNumber(presets.startSpin);
+      const prevDayEndSpinWasManual = manualPrevDayEndSpin !== null;
       const startSaipureiPreset = !activeCarryover && latestStoreBalances?.saipurei != null ? latestStoreBalances.saipurei : null;
       const startCreditPreset = !activeCarryover && latestStoreBalances?.credit != null ? latestStoreBalances.credit : null;
       const startTotalHitsPreset = latestMachineSession?.endTotalHits ?? null;
@@ -3274,7 +3277,7 @@
           label: "現在回転数",
           type: "number",
           preset: startSpinPreset,
-          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` 閉店チェック${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、またはラムクリ確認済みです。") + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
+          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、またはラムクリ確認済みです。") + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
         { key: "startMochidama", label: "持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
