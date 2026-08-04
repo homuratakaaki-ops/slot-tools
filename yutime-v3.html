@@ -4147,11 +4147,11 @@
       const estimatedPayout = hasHit ? (roundBasedPayout !== null ? roundBasedPayout : standardPayout) : null;
       const estimatedRemainBalls = hasHit && session.hitRemainBalls === null && estimatedPayout !== null && session.endTotalBalls !== null ? Math.max(0, session.endTotalBalls - estimatedPayout) : null;
       const normalEndBalls = session.yutimeEnterBalls !== null ? session.yutimeEnterBalls : (hasHit && session.hitRemainBalls !== null ? session.hitRemainBalls : estimatedRemainBalls);
-      const rawConsumedBalls = normalSpins !== null && normalEndBalls !== null ? normalInputBalls - Number(normalEndBalls || 0) : null;
+      const rawConsumedBalls = normalSpins !== null ? (tapMode ? normalInputBalls : (normalEndBalls !== null ? normalInputBalls - Number(normalEndBalls || 0) : null)) : null;
       const consumedBalls = rawConsumedBalls !== null && rawConsumedBalls < 0 ? null : rawConsumedBalls;
       if (rawConsumedBalls !== null && rawConsumedBalls < 0) warnings.push("通常消費玉の入力を確認");
       const fallbackConsumed = normalSpins !== null && normalInputBalls >= 0 ? normalInputBalls : null;
-      const rateBase = tapMode ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : (hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null);
+      const rateBase = tapMode ? consumedBalls : (hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null);
       const rate = normalSpins !== null && rateBase > 0 ? normalSpins / rateBase * 250 : null;
       const rateUnavailableReason = !tapMode && !hasStartMochidama ? "持ち玉未入力" : "";
       const pointBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : (estimatedRemainBalls !== null ? estimatedRemainBalls : totalInputBalls);
