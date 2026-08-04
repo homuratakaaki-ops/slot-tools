@@ -761,6 +761,56 @@
       margin-top: 14px;
     }
 
+    .closing-display {
+      min-height: 72px;
+      display: grid;
+      place-items: center;
+      margin: 8px 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      font-size: 34px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .closing-keypad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .closing-keypad button {
+      min-height: 54px;
+      font-size: 22px;
+      font-weight: 800;
+    }
+
+    .closing-flow-actions {
+      display: grid;
+      grid-template-columns: 1fr 1.3fr;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .closing-direction {
+      display: grid;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .closing-direction .grid {
+      margin: 0;
+    }
+
+    .closing-recent {
+      min-height: 18px;
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
     .modal-actions.wizard-actions {
       grid-template-columns: 1fr;
     }
@@ -1141,6 +1191,7 @@
     let spinUndoStacks = {};
     let autoFilterExpanded = false;
     let closingCheckMode = false;
+    let closingInputFlow = null;
     let mapEditorOpenByStore = {};
     let runningStickyEnabled = localStorage.getItem(STICKY_PREF_KEY) !== "off";
     let mapDraft = { storeId: null, islands: [] };
@@ -1940,6 +1991,7 @@
       const machine = findMachineByDai(daiNo);
       const stats = machine ? (statsByMachine?.get(machine.id) || emptyStats()) : null;
       const closing = machine ? validClosingInfo(machine.id) : null;
+      const todayClosing = machine ? dailyStateFor(machine.id, today())?.closingSpin ?? null : null;
       const ramState = machine ? todayRamState(machine.id) : null;
       const rate = stats && stats.rate ? stats.rate.toFixed(1) : "-";
       const rateClass = machine && stats?.rate ? rateToneClass(machine, stats.rate) : "";
@@ -1953,7 +2005,7 @@
           ${ramState ? `<span class="state-badge ${ramState === "retained" ? "retained" : ""}">${ramState === "retained" ? "据" : "リ"}</span>` : ""}
           <span class="dai">${escapeHtml(daiNo)}</span>
           <span class="rate ${rateClass}">${escapeHtml(rate)}${estimatedMark}<small>回/千円</small></span>
-          ${closing ? `<span class="prev">宵${escapeHtml(closing.spin)} <small>${escapeHtml(shortDate(closing.date))}</small></span>` : ""}
+          ${closingCheckMode && todayClosing !== null ? `<span class="prev">✓ ${escapeHtml(todayClosing)}回転</span>` : closing ? `<span class="prev">宵${escapeHtml(closing.spin)} <small>${escapeHtml(shortDate(closing.date))}</small></span>` : ""}
         </button>
       `;
     }
@@ -2639,26 +2691,169 @@
     function openClosingCheckForm(daiNo) {
       const machine = findMachineByDai(daiNo);
       if (!machine) return;
-      const state = dailyStateFor(machine.id, today());
-      openModal(`台番 ${daiNo} 閉店チェック`, "閉店時点の回転数を保存します。翌日の宵越し判定にだけ使います。", `
-        <div class="field-row"><label for="closingSpinInput">閉店時回転数</label><input id="closingSpinInput" inputmode="numeric" value="${escapeHtml(state?.closingSpin ?? "")}" autofocus></div>
-        <div class="modal-actions">
-          <button class="ghost" data-close>閉じる</button>
-          <button class="primary" id="saveClosingSpinBtn">保存</button>
-        </div>
-      `);
-      byId("saveClosingSpinBtn").addEventListener("click", () => {
-        const value = normalizeNumber(byId("closingSpinInput").value);
-        if (value === null) {
-          showToast("閉店時回転数を入力してください", "error");
-          return;
+      const sequence = closingColumnSequence(daiNo);
+      const index = sequence.indexOf(String(daiNo));
+      closingInputFlow = {
+        sequence,
+        index: index >= 0 ? index : 0,
+        direction: null,
+        awaitingDirection: false,
+        buffer: "",
+        recent: ""
+      };
+      hydrateClosingBuffer();
+      renderClosingInputModal();
+    }
+
+    function closingColumnSequence(daiNo) {
+      const store = activeStore();
+      const parsed = parseIslandLayout(data.layouts[store?.id] || { islands: [] });
+      const wanted = String(daiNo);
+      for (const row of parsed.rows) {
+        for (const side of row.sides) {
+          if ((side || []).map(String).includes(wanted)) return (side || []).map(String);
         }
-        const next = ensureDailyState(machine.id, today());
-        next.closingSpin = value;
-        if (!persistWithToast(`台番${daiNo}の閉店チェックを保存しました`)) return;
-        closeModal();
+      }
+      return [wanted];
+    }
+
+    function hydrateClosingBuffer() {
+      const machine = findMachineByDai(currentClosingDaiNo());
+      const existing = machine ? dailyStateFor(machine.id, today())?.closingSpin ?? "" : "";
+      closingInputFlow.buffer = existing === "" ? "" : String(existing);
+    }
+
+    function currentClosingDaiNo() {
+      return closingInputFlow?.sequence[closingInputFlow.index] || "";
+    }
+
+    function renderClosingInputModal() {
+      if (!closingInputFlow) return;
+      const daiNo = currentClosingDaiNo();
+      const atStart = closingInputFlow.index <= 0;
+      const atEnd = closingInputFlow.index >= closingInputFlow.sequence.length - 1;
+      const leftDai = atStart ? null : closingInputFlow.sequence[closingInputFlow.index - 1];
+      const rightDai = atEnd ? null : closingInputFlow.sequence[closingInputFlow.index + 1];
+      const ended = (closingInputFlow.direction === -1 && atStart) || (closingInputFlow.direction === 1 && atEnd);
+      openModal(`台 ${daiNo} の閉店回転数`, "端末キーボードを使わず、この画面だけで連続入力します。", `
+        <div class="closing-display" id="closingDisplay">${escapeHtml(closingInputFlow.buffer || "0")}</div>
+        <div class="closing-keypad">
+          ${[7, 8, 9, 4, 5, 6, 1, 2, 3].map((digit) => `<button data-closing-digit="${digit}">${digit}</button>`).join("")}
+          <button data-closing-clear>C</button>
+          <button data-closing-digit="0">0</button>
+          <button data-closing-back>⌫</button>
+        </div>
+        ${ended ? `<p class="hint warn">この列は終わりです。</p><div class="modal-actions"><button class="primary" data-close>マップへ戻る</button></div>` : `
+          <div class="closing-flow-actions">
+            <button id="skipClosingBtn">スキップ</button>
+            <button class="primary" id="saveClosingNextBtn">確定して次へ</button>
+          </div>
+          <div class="closing-direction">
+            ${closingInputFlow.direction === null && closingInputFlow.awaitingDirection ? `
+              <p class="hint">最初の確定後、進む方向を選んでください。</p>
+              <div class="grid two">
+                <button id="chooseClosingBackwardBtn" ${leftDai ? "" : "disabled"}>← ${escapeHtml(leftDai || "端") }へ</button>
+                <button id="chooseClosingForwardBtn" ${rightDai ? "" : "disabled"}>${escapeHtml(rightDai || "端")}へ →</button>
+              </div>
+            ` : closingInputFlow.direction === null ? `
+              <p class="hint">最初に確定またはスキップすると、進行方向を選べます。</p>
+            ` : `
+              <button class="small" id="toggleClosingDirectionBtn">進行方向: ${escapeHtml(directionPreviewText())}（切替▼）</button>
+            `}
+          </div>
+        `}
+        <div class="closing-recent">${escapeHtml(closingInputFlow.recent)}</div>
+      `);
+      bindClosingInputModal();
+      modalCancel = () => {
+        closingInputFlow = null;
         renderMachineMap();
+      };
+    }
+
+    function directionPreviewText() {
+      if (!closingInputFlow?.direction) return "未設定";
+      const current = currentClosingDaiNo();
+      const next = closingInputFlow.sequence[closingInputFlow.index + closingInputFlow.direction];
+      return next ? `${current} → ${next}` : `${current} → 端`;
+    }
+
+    function bindClosingInputModal() {
+      els.modalBody.querySelectorAll("[data-closing-digit]").forEach((button) => {
+        button.addEventListener("click", () => {
+          closingInputFlow.buffer = (closingInputFlow.buffer + button.dataset.closingDigit).replace(/^0+(\d)/, "$1");
+          byId("closingDisplay").textContent = closingInputFlow.buffer || "0";
+        });
       });
+      const clearButton = els.modalBody.querySelector("[data-closing-clear]");
+      if (clearButton) clearButton.addEventListener("click", () => {
+        closingInputFlow.buffer = "";
+        byId("closingDisplay").textContent = "0";
+      });
+      const backButton = els.modalBody.querySelector("[data-closing-back]");
+      if (backButton) backButton.addEventListener("click", () => {
+        closingInputFlow.buffer = closingInputFlow.buffer.slice(0, -1);
+        byId("closingDisplay").textContent = closingInputFlow.buffer || "0";
+      });
+      const saveButton = byId("saveClosingNextBtn");
+      if (saveButton) saveButton.addEventListener("click", saveClosingAndAdvance);
+      const skipButton = byId("skipClosingBtn");
+      if (skipButton) skipButton.addEventListener("click", () => advanceClosingFlow(false));
+      const backwardButton = byId("chooseClosingBackwardBtn");
+      if (backwardButton) backwardButton.addEventListener("click", () => chooseClosingDirection(-1));
+      const forwardButton = byId("chooseClosingForwardBtn");
+      if (forwardButton) forwardButton.addEventListener("click", () => chooseClosingDirection(1));
+      const toggleButton = byId("toggleClosingDirectionBtn");
+      if (toggleButton) toggleButton.addEventListener("click", () => {
+        closingInputFlow.direction *= -1;
+        renderClosingInputModal();
+      });
+    }
+
+    function saveClosingAndAdvance() {
+      const value = normalizeNumber(closingInputFlow.buffer);
+      if (value === null) {
+        closingInputFlow.recent = "数値を入力してください";
+        renderClosingInputModal();
+        return;
+      }
+      const daiNo = currentClosingDaiNo();
+      const machine = findMachineByDai(daiNo);
+      if (!machine) return;
+      const next = ensureDailyState(machine.id, today());
+      next.closingSpin = value;
+      if (!persist()) {
+        closingInputFlow.recent = "保存に失敗しました";
+        renderClosingInputModal();
+        return;
+      }
+      closingInputFlow.recent = `保存: ${daiNo}=${value}`;
+      advanceClosingFlow(true);
+    }
+
+    function chooseClosingDirection(direction) {
+      closingInputFlow.direction = direction;
+      closingInputFlow.awaitingDirection = false;
+      advanceClosingFlow(true);
+    }
+
+    function advanceClosingFlow(savedCurrent) {
+      if (!closingInputFlow) return;
+      if (closingInputFlow.direction === null) {
+        closingInputFlow.awaitingDirection = true;
+        renderClosingInputModal();
+        return;
+      }
+      const skippedDaiNo = currentClosingDaiNo();
+      const nextIndex = closingInputFlow.index + closingInputFlow.direction;
+      if (nextIndex < 0 || nextIndex >= closingInputFlow.sequence.length) {
+        renderClosingInputModal();
+        return;
+      }
+      closingInputFlow.index = nextIndex;
+      hydrateClosingBuffer();
+      if (!savedCurrent) closingInputFlow.recent = `スキップ: ${skippedDaiNo}`;
+      renderClosingInputModal();
     }
 
     function openMachineDetail(daiNo) {
