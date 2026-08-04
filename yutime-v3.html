@@ -478,6 +478,32 @@
       line-height: 1.1;
     }
 
+    .machine-button .state-badge {
+      position: absolute;
+      left: 4px;
+      bottom: 4px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: #f2f4f7;
+      color: #475467;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
+    .machine-button .state-badge.retained {
+      background: #ecfdf3;
+      color: #067647;
+    }
+
+    .machine-button .rate small {
+      display: block;
+      margin-top: 1px;
+      font-size: 10px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
     .running-panel {
       border-color: #7aa7a3;
       background: #f3fbfa;
@@ -875,7 +901,10 @@
             <h2>台を探す</h2>
             <p>台番をタップすると過去概要を確認して、打ち始めに進めます。</p>
           </div>
-          <button class="small" id="openLabelFormBtn">店イベントの登録</button>
+          <div class="status-line">
+            <button class="small" id="toggleClosingCheckBtn">閉店チェックOFF</button>
+            <button class="small" id="openLabelFormBtn">店イベントの登録</button>
+          </div>
         </div>
         <div id="labelFilters" class="label-checks"></div>
         <div id="carryoverBanner"></div>
@@ -932,7 +961,7 @@
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
-    const SCHEMA_VERSION = 11;
+    const SCHEMA_VERSION = 12;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1087,6 +1116,7 @@
       layouts: {},
       machines: [],
       sessions: [],
+      dailyState: {},
       labelsByStore: {},
       activeStoreId: null,
       meta: {
@@ -1096,7 +1126,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 11: Store netBallsPerWin追加後のStore charsを記録"
+        schemaBudgetNote: "v3 schema 12: dailyState追加後のcharsを記録"
       }
     });
 
@@ -1110,6 +1140,7 @@
     let expandedReplayRows = new Set();
     let spinUndoStacks = {};
     let autoFilterExpanded = false;
+    let closingCheckMode = false;
     let mapEditorOpenByStore = {};
     let runningStickyEnabled = localStorage.getItem(STICKY_PREF_KEY) !== "off";
     let mapDraft = { storeId: null, islands: [] };
@@ -1142,6 +1173,10 @@
     byId("openStoreFormBtn").addEventListener("click", openStoreForm);
     byId("saveMapBtn").addEventListener("click", saveCurrentMap);
     byId("openLabelFormBtn").addEventListener("click", openLabelForm);
+    byId("toggleClosingCheckBtn").addEventListener("click", () => {
+      closingCheckMode = !closingCheckMode;
+      renderMachineMap();
+    });
     byId("exportBtn").addEventListener("click", exportJson);
     byId("closeModalBtn").addEventListener("click", closeModal);
     els.modalBackdrop.addEventListener("click", (event) => {
@@ -1161,6 +1196,13 @@
 
     function today() {
       return new Date().toISOString().slice(0, 10);
+    }
+
+    function offsetDate(dateValue, days) {
+      const parts = String(dateValue || today()).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      const base = parts ? new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3])) : new Date();
+      base.setDate(base.getDate() + days);
+      return base.toISOString().slice(0, 10);
     }
 
     function currentTime() {
@@ -1445,6 +1487,7 @@
         layouts: source.layouts && typeof source.layouts === "object" ? source.layouts : {},
         machines: Array.isArray(source.machines) ? source.machines : [],
         sessions: Array.isArray(source.sessions) ? source.sessions : [],
+        dailyState: source.dailyState && typeof source.dailyState === "object" ? source.dailyState : {},
         labelsByStore: source.labelsByStore && typeof source.labelsByStore === "object" ? source.labelsByStore : {},
         meta: { ...base.meta, ...(source.meta || {}) }
       };
@@ -1491,6 +1534,7 @@
         })).filter((item) => item.amount !== null) : []
       }));
       if (!next.stores.some((store) => store.id === next.activeStoreId)) next.activeStoreId = next.stores[0]?.id || null;
+      next.dailyState = normalizeDailyState(next.dailyState, next.machines);
       return next;
     }
 
@@ -1518,6 +1562,31 @@
         console.warn("ytv3 persist failed", error);
         return false;
       }
+    }
+
+    function normalizeDailyState(source, machines) {
+      const validMachineIds = new Set(machines.map((machine) => machine.id));
+      const next = {};
+      Object.entries(source || {}).forEach(([machineId, byDate]) => {
+        if (!validMachineIds.has(machineId) || !byDate || typeof byDate !== "object") return;
+        Object.entries(byDate).forEach(([date, state]) => {
+          if (!isDateString(date) || !state || typeof state !== "object") return;
+          const normalized = { date };
+          const ramClear = state.ramClear === "cleared" || state.ramClear === "retained" ? state.ramClear : null;
+          const closingSpin = normalizeNumber(state.closingSpin);
+          if (ramClear) normalized.ramClear = ramClear;
+          if (closingSpin !== null) normalized.closingSpin = closingSpin;
+          if (normalized.ramClear || normalized.closingSpin !== undefined) {
+            if (!next[machineId]) next[machineId] = {};
+            next[machineId][date] = normalized;
+          }
+        });
+      });
+      return next;
+    }
+
+    function isDateString(value) {
+      return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
     }
 
     function measureSampleSessionChars() {
@@ -1567,6 +1636,16 @@
         credit: 0,
         saipurei: 250,
         createdAt: nowIso()
+      };
+      return JSON.stringify(sample).length;
+    }
+
+    function measureDailyStateChars() {
+      const sample = Object.keys(data.dailyState || {}).length ? data.dailyState : {
+        m_sample: {
+          [today()]: { date: today(), ramClear: "retained" },
+          [offsetDate(today(), -1)]: { date: offsetDate(today(), -1), closingSpin: 575 }
+        }
       };
       return JSON.stringify(sample).length;
     }
@@ -1795,12 +1874,42 @@
       `;
     }
 
+    function dailyStateFor(machineId, dateValue = today()) {
+      return data.dailyState?.[machineId]?.[dateValue] || null;
+    }
+
+    function ensureDailyState(machineId, dateValue = today()) {
+      if (!data.dailyState[machineId]) data.dailyState[machineId] = {};
+      if (!data.dailyState[machineId][dateValue]) data.dailyState[machineId][dateValue] = { date: dateValue };
+      return data.dailyState[machineId][dateValue];
+    }
+
+    function cleanupEmptyDailyState(machineId, dateValue) {
+      const state = data.dailyState?.[machineId]?.[dateValue];
+      if (!state) return;
+      if (!state.ramClear && state.closingSpin === undefined) delete data.dailyState[machineId][dateValue];
+      if (data.dailyState[machineId] && !Object.keys(data.dailyState[machineId]).length) delete data.dailyState[machineId];
+    }
+
+    function todayRamState(machineId) {
+      return dailyStateFor(machineId, today())?.ramClear || null;
+    }
+
+    function validClosingInfo(machineId) {
+      const state = dailyStateFor(machineId, offsetDate(today(), -1));
+      if (!state || state.closingSpin === undefined) return null;
+      if (todayRamState(machineId) === "cleared") return null;
+      return { spin: state.closingSpin, date: state.date };
+    }
+
     function renderMachineMap() {
       const store = activeStore();
       if (!store) {
         els.machineMap.innerHTML = '<div class="row-card">店を選択してください。</div>';
         return;
       }
+      byId("toggleClosingCheckBtn").textContent = closingCheckMode ? "閉店チェックON" : "閉店チェックOFF";
+      byId("toggleClosingCheckBtn").classList.toggle("primary", closingCheckMode);
       const parsed = parseIslandLayout(data.layouts[store.id] || { islands: [] });
       if (!parsed.rows.length) {
         els.machineMap.innerHTML = '<div class="row-card">フロアマップを保存すると、台番ボタンを表示します。</div>';
@@ -1820,33 +1929,38 @@
         `;
       }).join("");
       els.machineMap.querySelectorAll("[data-dai-no]").forEach((button) => {
-        button.addEventListener("click", () => openMachineDetail(button.dataset.daiNo));
+        button.addEventListener("click", () => {
+          if (closingCheckMode) openClosingCheckForm(button.dataset.daiNo);
+          else openMachineDetail(button.dataset.daiNo);
+        });
       });
     }
 
     function machineButtonHtml(daiNo, statsByMachine = null, activeMachineIds = new Set()) {
       const machine = findMachineByDai(daiNo);
       const stats = machine ? (statsByMachine?.get(machine.id) || emptyStats()) : null;
-      const prev = machine ? latestEndInfo(machine.id)?.spin ?? null : null;
+      const closing = machine ? validClosingInfo(machine.id) : null;
+      const ramState = machine ? todayRamState(machine.id) : null;
       const rate = stats && stats.rate ? stats.rate.toFixed(1) : "-";
       const rateClass = machine && stats?.rate ? rateToneClass(machine, stats.rate) : "";
       const estimatedMark = stats?.estimatedCount ? "&#8776;" : "";
       const isActive = machine && activeMachineIds.has(machine.id);
-      const eveSign = machine ? mapExpectationSign(machine, stats, prev) : false;
+      const eveSign = machine ? mapExpectationSign(machine, stats, closing) : false;
       return `
-        <button class="machine-button ${stats?.rate || prev !== null ? "has-data" : ""} ${isActive ? "is-active" : ""} ${eveSign ? "ev-good" : ""}" data-dai-no="${escapeHtml(daiNo)}">
+        <button class="machine-button ${stats?.rate || closing ? "has-data" : ""} ${isActive ? "is-active" : ""} ${eveSign ? "ev-good" : ""}" data-dai-no="${escapeHtml(daiNo)}">
           ${isActive ? '<span class="active-badge">稼働中</span>' : ""}
           ${eveSign ? '<span class="eve-sign">宵</span>' : ""}
+          ${ramState ? `<span class="state-badge ${ramState === "retained" ? "retained" : ""}">${ramState === "retained" ? "据" : "リ"}</span>` : ""}
           <span class="dai">${escapeHtml(daiNo)}</span>
-          <span class="rate ${rateClass}">${escapeHtml(rate)}${estimatedMark}</span>
-          ${prev !== null ? `<span class="prev">前${escapeHtml(prev)}</span>` : ""}
+          <span class="rate ${rateClass}">${escapeHtml(rate)}${estimatedMark}<small>回/千円</small></span>
+          ${closing ? `<span class="prev">宵${escapeHtml(closing.spin)} <small>${escapeHtml(shortDate(closing.date))}</small></span>` : ""}
         </button>
       `;
     }
 
-    function mapExpectationSign(machine, stats, prev) {
-      if (prev === null || prev === undefined || !stats?.rate) return false;
-      const expectation = calculateMachineExpectation(machine, { currentSpin: prev, stats });
+    function mapExpectationSign(machine, stats, closing) {
+      if (!closing || !stats?.rate) return false;
+      const expectation = calculateMachineExpectation(machine, { currentSpin: 0, previousSpin: closing.spin, stats });
       return Boolean(expectation.result && expectation.result.evYen >= EV_THRESHOLDS.good);
     }
 
@@ -2077,7 +2191,7 @@
     function renderStorageNote() {
       const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, CARRYOVER_KEY].join(" / ");
       const corruptNote = hasCorruptData() ? "。破損退避データあり" : "";
-      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。引き継ぎchars: ${measureCarryoverChars()}。v2キーは読み書きしません${corruptNote}。`;
+      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。dailyState chars: ${measureDailyStateChars()}。引き継ぎchars: ${measureCarryoverChars()}。v2キーは読み書きしません${corruptNote}。`;
     }
 
     function openStoreForm() {
@@ -2522,6 +2636,31 @@
       return data.machines.find((machine) => machine.storeId === store.id && machine.daiNo === String(daiNo)) || null;
     }
 
+    function openClosingCheckForm(daiNo) {
+      const machine = findMachineByDai(daiNo);
+      if (!machine) return;
+      const state = dailyStateFor(machine.id, today());
+      openModal(`台番 ${daiNo} 閉店チェック`, "閉店時点の回転数を保存します。翌日の宵越し判定にだけ使います。", `
+        <div class="field-row"><label for="closingSpinInput">閉店時回転数</label><input id="closingSpinInput" inputmode="numeric" value="${escapeHtml(state?.closingSpin ?? "")}" autofocus></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveClosingSpinBtn">保存</button>
+        </div>
+      `);
+      byId("saveClosingSpinBtn").addEventListener("click", () => {
+        const value = normalizeNumber(byId("closingSpinInput").value);
+        if (value === null) {
+          showToast("閉店時回転数を入力してください", "error");
+          return;
+        }
+        const next = ensureDailyState(machine.id, today());
+        next.closingSpin = value;
+        if (!persistWithToast(`台番${daiNo}の閉店チェックを保存しました`)) return;
+        closeModal();
+        renderMachineMap();
+      });
+    }
+
     function openMachineDetail(daiNo) {
       const machine = findMachineByDai(daiNo);
       if (!machine) return;
@@ -2529,14 +2668,21 @@
       const stats = machineStats(machine.id);
       const presetId = normalizeMachinePresetId(machine);
       const latestEnd = latestEndInfo(machine.id);
+      const closing = validClosingInfo(machine.id);
+      const ramState = todayRamState(machine.id);
       const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
       const averagePayoutNote = stats.estimatedCount ? "（概算含む）" : "";
       openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
+        <div class="status-line" style="margin-bottom:10px">
+          <button class="${ramState === "cleared" ? "primary" : ""}" id="markClearedBtn">リセットされてた（ラムクリ）</button>
+          <button class="${ramState === "retained" ? "primary" : ""}" id="markRetainedBtn">据え置きだった</button>
+        </div>
         <div class="metric-grid">
-          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? stats.rate.toFixed(1) : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}</div>
+          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}</div>
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
-          <div class="metric"><span>前回ヤメ</span><strong>${latestEnd ? `${escapeHtml(latestEnd.spin)}回転` : "-"}</strong>${latestEnd ? `<small>（${escapeHtml(shortDate(latestEnd.date))}）</small>` : ""}</div>
+          <div class="metric"><span>前回ヤメ（履歴）</span><strong>${latestEnd ? `${escapeHtml(latestEnd.spin)}回転` : "-"}</strong>${latestEnd ? `<small>（${escapeHtml(shortDate(latestEnd.date))} / 宵越し根拠には使いません）</small>` : ""}</div>
+          <div class="metric"><span>閉店チェック</span><strong>${closing ? `${escapeHtml(closing.spin)}回転` : "-"}</strong>${closing ? `<small>（${escapeHtml(shortDate(closing.date))}）</small>` : ramState === "cleared" ? "<small>ラムクリ確認済み</small>" : ""}</div>
           <div class="metric"><span>平均出玉</span><strong>${stats.averagePayout !== null ? Math.round(stats.averagePayout) : "-"}</strong>${stats.averagePayout !== null ? `<small>${averagePayoutNote}</small>` : ""}</div>
           ${stats.averageYutimeLoss !== null ? `<div class="metric"><span>遊タイム玉減り</span><strong>${Math.round(stats.averageYutimeLoss)}</strong><small>${stats.yutimeLossCount}件平均</small></div>` : ""}
         </div>
@@ -2545,7 +2691,7 @@
           <div class="expectation-title" id="machineEvTitle"><span>期待値判定</span><small>未判定</small></div>
           <div class="expectation-inputs">
             <div class="field-row"><label for="evCurrentSpin">現在回転数</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
-            <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(latestEnd?.spin ?? "")}"></div>
+            <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
             <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${stats.rate ? stats.rate.toFixed(1) : "台帳なし"}"></div>
           </div>
           <div class="metric-grid" id="machineEvMetrics"></div>
@@ -2575,6 +2721,8 @@
       byId("machinePreset").value = presetId;
       applyPresetSelectionToForm();
       renderMachineExpectation(machine.id);
+      byId("markClearedBtn").addEventListener("click", () => toggleRamState(machine.id, "cleared"));
+      byId("markRetainedBtn").addEventListener("click", () => toggleRamState(machine.id, "retained"));
       ["evCurrentSpin", "evPrevSpin", "evManualRate"].forEach((id) => {
         byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
       });
@@ -2598,6 +2746,18 @@
         closeModal();
         openStartWizard(machine.id);
       });
+    }
+
+    function toggleRamState(machineId, nextState) {
+      const state = ensureDailyState(machineId, today());
+      if (state.ramClear === nextState) delete state.ramClear;
+      else state.ramClear = nextState;
+      cleanupEmptyDailyState(machineId, today());
+      if (!persistWithToast("保存しました")) return;
+      const machine = data.machines.find((item) => item.id === machineId);
+      closeModal();
+      if (machine) openMachineDetail(machine.daiNo);
+      renderMachineMap();
     }
 
     function renderMachineExpectation(machineId) {
@@ -2697,7 +2857,7 @@
       const session = blankSession();
       session.storeId = store.id;
       session.machineId = machineId;
-      session.prevDayEndSpin = latestEndSpin(machineId);
+      session.prevDayEndSpin = validClosingInfo(machineId)?.spin ?? null;
       const activeCarryover = carryover && carryover.storeId === store.id ? carryover : null;
       if (activeCarryover) {
         session.carriedFromSessionId = activeCarryover.sourceSessionId;
@@ -2711,7 +2871,7 @@
           key: "startSpin",
           label: "現在回転数",
           type: "number",
-          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` 据え置きなら 前日${session.prevDayEndSpin} + 現在表示値 を別途確認してください。` : " 前日ヤメ回転数は未記録です。")
+          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` 閉店チェック${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、またはラムクリ確認済みです。")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
         { key: "startMochidama", label: "持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
@@ -3320,7 +3480,7 @@
           ${fieldHtml("startSaipurei", "再プレイ残り", session.startSaipurei)}
           ${fieldHtml("startCredit", "カード残高（クレジット残金）", session.startCredit)}
           ${fieldHtml("startTotalHits", "開始時点の累計大当たり回数", session.startTotalHits)}
-          ${fieldHtml("prevDayEndSpin", "前日ヤメ", session.prevDayEndSpin)}
+          ${fieldHtml("prevDayEndSpin", "閉店チェック由来の前日回転", session.prevDayEndSpin)}
           ${fieldHtml("hitSpin", "当選回転数", session.hitSpin)}
           ${fieldHtml("hitRemainBalls", "当選時残り玉", session.hitRemainBalls)}
           ${fieldHtml("yutimeEnterBalls", "遊タイム突入玉", session.yutimeEnterBalls)}
@@ -3585,10 +3745,6 @@
         .sort((a, b) => String(b.date + b.updatedAt).localeCompare(String(a.date + a.updatedAt)));
       const latest = candidates[0];
       return latest ? { spin: latest.endSpin, date: latest.date } : null;
-    }
-
-    function latestEndSpin(machineId) {
-      return latestEndInfo(machineId)?.spin ?? null;
     }
 
     function missingFields(session) {

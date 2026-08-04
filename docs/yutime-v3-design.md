@@ -143,6 +143,28 @@
 }
 ```
 
+### 2.5 DailyState
+
+台×日付で、朝一状態と閉店チェック値を保存する。
+
+```json
+{
+  "dailyState": {
+    "machineId": {
+      "YYYY-MM-DD": {
+        "date": "YYYY-MM-DD",
+        "ramClear": "cleared | retained",
+        "closingSpin": 575
+      }
+    }
+  }
+}
+```
+
+- `ramClear` は当日だけ有効。`cleared` はラムクリ確認済み、`retained` は据え置き確認済み。翌日は未確認に戻す。
+- `closingSpin` は閉店チェックで入力する閉店時点の回転数。翌日の宵越し判断にのみ使う。2日以上前の値は判定・マップ表示に使わない。
+- 自分のセッション `endSpin` は履歴表示には使うが、宵越し期待値の根拠には使わない。
+
 ## 3. 保存キー仕様
 
 v3 は以下の localStorage キーのみを使用する。
@@ -150,7 +172,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:corrupt:<ISO日時>` | 破損した `ytv3:data` の退避 | `loadData()` で `ytv3:data` が JSON として読めなかった場合に作成。自動削除しない | 破損していた `ytv3:data` raw 文字列 |
@@ -433,8 +455,17 @@ B5 実測値:
 - 回転率の優先順位は、手入力、フィルタ適用後の台帳累計、なし。回転率がない台では期待値を表示しない。
 - 台詳細ポップアップには、現在回転数、前日ヤメ回転数、手入力回転率、実効回転数、残り回転数、期待値円、時給、スロ換算機械割、拘束時間、使用回転率と出玉の出所を表示する。打てない判定でも「この台を打つ」はブロックしない。
 - 稼働中パネルには、遊タイム突入前かつ当選前のみ「残り回転数 / ここからの期待値」を淡色で表示する。`currentSpin` 更新に追従し、遊タイム突入または当選後は非表示にする。
-- マップの台番ボタンには、前日ヤメと回転率がある台だけ宵越し期待値を軽量計算し、期待値2000円以上なら「宵」サインと枠強調を出す。期待値金額そのものは情報過多を避けるため載せない。
+- マップの台番ボタンには、閉店チェック由来の `closingSpin` と回転率がある台だけ宵越し期待値を軽量計算し、期待値2000円以上なら「宵」サインと枠強調を出す。期待値金額そのものは情報過多を避けるため載せない。
 - Phase 4差し戻し1で Store に `netBallsPerWin` を追加したため、schema は 11 とする。既存店は読み込み時に1400を補完する。
 - schema 11 Store 1件サンプル（`exchangeBalls: 28`、`netBallsPerWin: 1400`）: 127 chars
 - アイデアメモ: 貸玉/交換レートを厳密に分離した期待値会計は将来課題とする。
 - アイデアメモ: Phase 4.1 では、期待値判定の入力設定を店設定から独立させるか、機種別設定へ分けるかを検討する。
+
+## 15. B10 朝一状態と閉店チェック
+
+- schema は 12 とする。`dailyState[machineId][date] = { date, ramClear?, closingSpin? }` を追加し、既存データは空オブジェクトで補完する。
+- マップの「前◯◯」表示と、自分の `endSpin` 由来の宵サイン・判定プリセットは廃止する。`latestEndInfo()` は台詳細の「前回ヤメ（履歴）」表示にのみ使う。
+- 閉店チェックON中は、台番タップで閉店時回転数だけを入力するミニダイアログを開く。保存した `closingSpin` は翌日のみ有効で、マップに「宵◯◯」を表示し、期待値2000円以上なら宵サインを出す。2日以上前は失効する。
+- 台詳細上部に「リセットされてた（ラムクリ）」「据え置きだった」の2ボタンを置く。同じボタンをもう一度押すと未確認に戻す。当日 `ramClear: cleared` の台は closingSpin を判定・宵サインから除外する。
+- マップと台詳細の参考回転率は「回/千円」単位付きで表示する。
+- schema 12 dailyState サンプル（当日ramClear＋前日closingSpin）: 124 chars
