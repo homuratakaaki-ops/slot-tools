@@ -172,9 +172,10 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
+| `ytv3:mapbackup` | フロアマップ定義だけの1世代退避 | フロアマップ保存時、保存直前のアクティブマップ定義を店ID・マップID単位で退避する。復元ボタン押下時に該当マップの島構成・除外・列機種のみ戻す。台・セッション・dailyState は触らない | `{ backups: { [storeId]: { [mapId]: { storeId, mapId, map, createdAt } } } }` の JSON 文字列 |
 | `ytv3:corrupt:<ISO日時>` | 破損した `ytv3:data` の退避 | `loadData()` で `ytv3:data` が JSON として読めなかった場合に作成。自動削除しない | 破損していた `ytv3:data` raw 文字列 |
 | `ytv3:running:sticky` | 稼働中ヘッダの固定表示設定 | 固定ON/OFF切替時 | `"on"` または `"off"` |
 
@@ -188,7 +189,7 @@ v3 は以下の localStorage キーのみを使用する。
 - `mapLayoutChars`: 現在の MapLayout 1 件の `JSON.stringify(layout).length`
 - `schemaBudgetNote`: 容量予算の注記
 
-実装上、画面下部にも保存キー、現在保存 chars、フロアマップ chars、台データ 1 件 chars、セッション 1 件 chars、引き継ぎ chars を表示する。
+実装上、画面下部にも保存キー、現在保存 chars、フロアマップ chars、台データ 1 件 chars、セッション 1 件 chars、引き継ぎ chars、マップ退避 chars を表示する。
 
 B5 実測値:
 
@@ -553,3 +554,17 @@ B5 実測値:
 - タップ方式（`source` 付き投資があるセッション）の通常消費玉は、通常 phase のタップ投入合計をそのまま使う。当選時残り玉や遊タイム突入玉は差し引かない。
 - 旧方式（`source` なし投資）は従来どおり、開始持ち玉 + 投資 - 当選時残り玉で通常消費玉を計算する。
 - 当選時残り玉は、獲得出玉と遊タイム玉減りの計算には引き続き使用する。
+
+## 25. B13/B22 フロアマップ複数化と編集安全装置
+
+- schema は 14 とする。`layouts[storeId]` は `{ maps: [ { id, name, islands, updatedAt, errors } ], activeMapId }` に変更する。
+- 既存の単一 `islands` 形式は、読み込み時に `name: "メインフロア"` の1マップへ包む。島、除外、列機種は無損失で移行する。
+- 台、セッション、dailyState、閉店チェックは従来どおり店×台番を実体とする。マップは表示グルーピングであり、マップ削除や台番除外で台データ・記録は削除しない。
+- 台を探す画面の上部で表示マップを切り替えられる。選択中マップだけをグリッド、閉店チェック連続入力、宵表示、稼働中バッジの対象にする。
+- フロアマップ作成内でマップ追加、名前変更、削除を行う。マップ削除は2段階確認とし、「台と記録は消えません」を明示する。
+- 同一台番が複数マップに定義された場合は同じ台実体を指す。禁止はしないが、フロアマップ作成に警告を表示する。
+- マップ保存時、新旧定義を比較し、記録を持つ台が選択中マップから外れる場合のみ確認を出す。記録を持たない台だけが外れる場合は確認しない。
+- マップ保存直前の定義は `ytv3:mapbackup` に店ID・マップID単位で1世代退避する。「直前のマップ定義に戻す」は島構成・除外・列機種だけを戻し、台・セッション・dailyState は触らない。
+- 保存トーストは `フロアマップを保存しました（+N台 / -N台）` とし、今回の保存で増減した台数を明示する。
+- schema 14 Layoutサンプル（2マップ、各1島、除外/列機種あり）: 449 chars
+- `ytv3:mapbackup` サンプル（1店1マップ退避）: 345 chars

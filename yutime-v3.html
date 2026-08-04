@@ -1107,10 +1107,11 @@
     const PREMIGRATE_KEY = STORAGE_PREFIX + "premigrate";
     const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
+    const MAP_BACKUP_KEY = STORAGE_PREFIX + "mapbackup";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
-    const SCHEMA_VERSION = 13;
+    const SCHEMA_VERSION = 14;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1281,7 +1282,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 13: Store.assumedRate追加後のcharsを記録"
+        schemaBudgetNote: "v3 schema 14: layoutsを名前付き複数マップ構造へ変更"
       }
     });
 
@@ -1300,7 +1301,7 @@
     let mapEditorOpenByStore = {};
     let runningStickyEnabled = localStorage.getItem(STICKY_PREF_KEY) !== "off";
     let runningSource = normalizeInvestmentSource(localStorage.getItem(SOURCE_PREF_KEY) || "cash");
-    let mapDraft = { storeId: null, islands: [], allowEmptySave: false };
+    let mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
     let modalCancel = null;
 
     const els = {
@@ -1823,6 +1824,30 @@
       return JSON.stringify(sample).length;
     }
 
+    function measureMapBackupChars() {
+      const raw = localStorage.getItem(MAP_BACKUP_KEY);
+      if (raw) return raw.length;
+      const sample = {
+        backups: {
+          st_sample: {
+            map_sample: {
+              storeId: "st_sample",
+              mapId: "map_sample",
+              map: {
+                id: "map_sample",
+                name: "メインフロア",
+                islands: [{ left: { from: 101, to: 103 }, right: null, leftPresetId: "umi-sp5", rightPresetId: "", excluded: ["102"] }],
+                updatedAt: nowIso(),
+                errors: []
+              },
+              createdAt: nowIso()
+            }
+          }
+        }
+      };
+      return JSON.stringify(sample).length;
+    }
+
     function hasCorruptData() {
       return Object.keys(localStorage).some((key) => key.startsWith(CORRUPT_PREFIX));
     }
@@ -1843,8 +1868,8 @@
 
     function measureActiveMapLayoutChars() {
       const store = activeStore();
-      const layout = store ? data.layouts[store.id] : Object.values(data.layouts)[0];
-      return layout ? JSON.stringify(layout).length : JSON.stringify({ islands: [] }).length;
+      const layout = store ? storeLayout(store.id) : Object.values(data.layouts)[0];
+      return layout ? JSON.stringify(layout).length : JSON.stringify(normalizeStoreLayout(null)).length;
     }
 
     function activeStore() {
@@ -1869,6 +1894,31 @@
 
     function storeLabels(storeId = data.activeStoreId) {
       return data.labelsByStore[storeId] || [];
+    }
+
+    function storeLayout(storeId = data.activeStoreId) {
+      const normalized = normalizeStoreLayout(data.layouts[storeId]);
+      data.layouts[storeId] = normalized;
+      return normalized;
+    }
+
+    function activeMap(storeId = data.activeStoreId) {
+      const layout = storeLayout(storeId);
+      let map = layout.maps.find((item) => item.id === layout.activeMapId);
+      if (!map) {
+        map = layout.maps[0] || defaultMap();
+        layout.maps = layout.maps.length ? layout.maps : [map];
+        layout.activeMapId = map.id;
+      }
+      return map;
+    }
+
+    function activeMapName(storeId = data.activeStoreId) {
+      return activeMap(storeId)?.name || "メインフロア";
+    }
+
+    function activeMapLayoutForParse(storeId = data.activeStoreId) {
+      return activeMap(storeId) || { islands: [] };
     }
 
     function carryoverSourceMachine(session) {
@@ -1939,10 +1989,10 @@
       }
       ensureMapDraft(store.id);
       hydrateMapDraftFromSavedLayout(store.id);
-      const hasLayout = parseIslandLayout(data.layouts[store.id] || { islands: [] }).rows.length > 0;
+      const hasLayout = parseIslandLayout(activeMapLayoutForParse(store.id)).rows.length > 0;
       if (mapEditorOpenByStore[store.id] === undefined) mapEditorOpenByStore[store.id] = !hasLayout;
       if (!mapEditorOpenByStore[store.id]) {
-        els.islandBuilder.innerHTML = '<div class="row-card"><div class="row-card-head"><div><strong>フロアマップ作成</strong><br><small>台を探す画面を優先表示しています。</small></div><button class="small" id="toggleMapEditorBtn">開く</button></div></div>';
+        els.islandBuilder.innerHTML = `<div class="row-card"><div class="row-card-head"><div><strong>フロアマップ作成</strong><br><small>${escapeHtml(activeMapName(store.id))} / 台を探す画面を優先表示しています。</small></div><button class="small" id="toggleMapEditorBtn">開く</button></div></div>`;
         els.mapStatus.innerHTML = "";
         byId("toggleMapEditorBtn").addEventListener("click", () => {
           mapEditorOpenByStore[store.id] = true;
@@ -1950,14 +2000,61 @@
         });
         return;
       }
-      els.islandBuilder.innerHTML = mapDraft.islands.length ? mapDraft.islands.map(islandEditorHtml).join("") : '<div class="row-card">島が未登録です。「島を追加」から始めてください。</div>';
+      els.islandBuilder.innerHTML = mapManagementHtml(store) + (mapDraft.islands.length ? mapDraft.islands.map(islandEditorHtml).join("") : '<div class="row-card">島が未登録です。「島を追加」から始めてください。</div>');
+      bindMapManagement(store.id);
       bindIslandEditor();
       const parsed = parseIslandLayout({ islands: mapDraft.islands });
-      els.mapStatus.innerHTML = `<button class="small" id="toggleMapEditorBtn">閉じる</button>${mapStatusHtml(parsed)}`;
+      const duplicateDaiNos = duplicateDaiNosAcrossMaps(store.id);
+      const duplicateHtml = duplicateDaiNos.length ? `<span class="badge warn">複数マップに同じ台番: ${escapeHtml(duplicateDaiNos.slice(0, 5).join(" / "))}${duplicateDaiNos.length > 5 ? "..." : ""}</span>` : "";
+      els.mapStatus.innerHTML = `<button class="small" id="toggleMapEditorBtn">閉じる</button>${mapStatusHtml(parsed)}${duplicateHtml}`;
       byId("toggleMapEditorBtn").addEventListener("click", () => {
         mapEditorOpenByStore[store.id] = false;
         renderMapEditor();
       });
+    }
+
+    function mapManagementHtml(store) {
+      const layout = storeLayout(store.id);
+      const map = activeMap(store.id);
+      const backup = mapBackupFor(store.id, map.id);
+      return `
+        <div class="row-card">
+          <div class="row-card-head">
+            <div>
+              <strong>${escapeHtml(map.name)}</strong>
+              <br><small>このマップに表示する島だけを編集します。台と記録はマップから外しても消えません。</small>
+            </div>
+            <div class="status-line">
+              <button class="small" id="addFloorMapBtn">マップを追加</button>
+              <button class="small" id="renameFloorMapBtn">名前変更</button>
+              <button class="small" id="deleteFloorMapBtn" ${layout.maps.length <= 1 && !map.islands.length ? "disabled" : ""}>このマップを削除</button>
+              <button class="small" id="restoreMapBackupBtn" ${backup ? "" : "disabled"}>直前のマップ定義に戻す</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function duplicateDaiNosAcrossMaps(storeId) {
+      const counts = new Map();
+      storeLayout(storeId).maps.forEach((map) => {
+        parseIslandLayout(map).daiNos.forEach((daiNo) => {
+          const key = String(daiNo);
+          counts.set(key, (counts.get(key) || 0) + 1);
+        });
+      });
+      return [...counts.entries()].filter(([, count]) => count > 1).map(([daiNo]) => daiNo);
+    }
+
+    function bindMapManagement(storeId) {
+      const addButton = byId("addFloorMapBtn");
+      if (addButton) addButton.addEventListener("click", () => openAddFloorMapForm(storeId));
+      const renameButton = byId("renameFloorMapBtn");
+      if (renameButton) renameButton.addEventListener("click", () => openRenameFloorMapForm(storeId));
+      const deleteButton = byId("deleteFloorMapBtn");
+      if (deleteButton) deleteButton.addEventListener("click", () => deleteActiveFloorMap(storeId));
+      const restoreButton = byId("restoreMapBackupBtn");
+      if (restoreButton) restoreButton.addEventListener("click", () => restoreActiveMapBackup(storeId));
     }
 
     function renderLabelFilters() {
@@ -1971,7 +2068,14 @@
       const todayLabels = automaticLabelsForDate(today());
       const pinnedAutoLabels = AUTO_LABELS.filter((label) => todayLabels.includes(label));
       const otherAutoLabels = AUTO_LABELS.filter((label) => !todayLabels.includes(label));
+      const layout = storeLayout(store.id);
       els.labelFilters.innerHTML = `
+        <div class="filter-block">
+          <label class="hint" for="activeFloorMapSelect">表示するマップ</label>
+          <select id="activeFloorMapSelect">
+            ${layout.maps.map((map) => `<option value="${escapeHtml(map.id)}" ${map.id === layout.activeMapId ? "selected" : ""}>${escapeHtml(map.name)}</option>`).join("")}
+          </select>
+        </div>
         <div class="filter-block">
           <button class="small" id="quickAssumedRateBtn">推定回転率 ${store.assumedRate !== null && store.assumedRate !== undefined ? Number(store.assumedRate).toFixed(1) : "未設定"}（タップで変更）</button>
         </div>
@@ -1995,6 +2099,12 @@
           <div class="label-checks">${otherAutoLabels.map(filterChipHtml).join("")}</div>
         </details>
       `;
+      byId("activeFloorMapSelect").addEventListener("change", (event) => {
+        storeLayout(store.id).activeMapId = event.target.value;
+        mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
+        if (!persistWithToast("保存しました")) return;
+        renderAll();
+      });
       byId("quickAssumedRateBtn").addEventListener("click", () => openAssumedRateQuickForm(store.id));
       els.labelFilters.querySelectorAll("input").forEach((input) => {
         input.addEventListener("change", () => {
@@ -2109,7 +2219,7 @@
       }
       byId("toggleClosingCheckBtn").textContent = closingCheckMode ? "閉店チェックON" : "閉店チェックOFF";
       byId("toggleClosingCheckBtn").classList.toggle("primary", closingCheckMode);
-      const parsed = parseIslandLayout(data.layouts[store.id] || { islands: [] });
+      const parsed = parseIslandLayout(activeMapLayoutForParse(store.id));
       if (!parsed.rows.length) {
         els.machineMap.innerHTML = '<div class="row-card">フロアマップを保存すると、台番ボタンを表示します。</div>';
         return;
@@ -2426,9 +2536,9 @@
     }
 
     function renderStorageNote() {
-      const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, CARRYOVER_KEY].join(" / ");
+      const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, CARRYOVER_KEY, MAP_BACKUP_KEY].join(" / ");
       const corruptNote = hasCorruptData() ? "。破損退避データあり" : "";
-      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。dailyState chars: ${measureDailyStateChars()}。引き継ぎchars: ${measureCarryoverChars()}。v2キーは読み書きしません${corruptNote}。`;
+      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。dailyState chars: ${measureDailyStateChars()}。引き継ぎchars: ${measureCarryoverChars()}。マップ退避chars: ${measureMapBackupChars()}。v2キーは読み書きしません${corruptNote}。`;
     }
 
     function openStoreForm() {
@@ -2535,7 +2645,9 @@
       const store = activeStore();
       if (!store) return;
       ensureMapDraft(store.id);
-      const previousIslands = cloneIslands(data.layouts[store.id]?.islands || []);
+      const layout = storeLayout(store.id);
+      const map = activeMap(store.id);
+      const previousIslands = cloneIslands(map.islands || []);
       const islands = readIslandDraftFromDom();
       if (!islands.length && previousIslands.length && !mapDraft.allowEmptySave) {
         showToast(`フロアマップが空です。既存の${previousIslands.length}島を消す場合は、島ごとに[島を削除]してから保存してください。`, "error");
@@ -2543,25 +2655,173 @@
         return;
       }
       const parsed = parseIslandLayout({ islands });
-      data.layouts[store.id] = { islands, updatedAt: nowIso(), errors: parsed.errors };
-      mapDraft = { storeId: store.id, islands: cloneIslands(islands), allowEmptySave: false };
+      const previousParsed = parseIslandLayout({ islands: previousIslands });
+      const previousDaiNos = new Set(previousParsed.daiNos.map(String));
+      const nextDaiNos = new Set(parsed.daiNos.map(String));
+      const removedDaiNos = [...previousDaiNos].filter((daiNo) => !nextDaiNos.has(daiNo));
+      const addedDaiNos = parsed.daiNos.filter((daiNo) => !previousDaiNos.has(String(daiNo)));
+      const removedRecordedMachines = machinesWithSessions(store.id, removedDaiNos);
+      if (removedRecordedMachines.length) {
+        const ok = confirm(`${removedRecordedMachines.length}台（記録あり）がこのマップから外れます。台の記録は消えませんが、マップに表示されなくなります。保存しますか？`);
+        if (!ok) {
+          renderMapEditor();
+          return;
+        }
+      }
+      saveMapBackup(store.id, map);
+      map.islands = cloneIslands(islands);
+      map.updatedAt = nowIso();
+      map.errors = parsed.errors;
+      layout.activeMapId = map.id;
+      mapDraft = { storeId: store.id, mapId: map.id, islands: cloneIslands(islands), allowEmptySave: false };
       syncMachinesFromMap(store.id, parsed);
       applyColumnPresetsToMachines(store.id, islands, parsed, previousIslands);
-      if (!persistWithToast(`フロアマップを保存しました（${parsed.daiNos.length}台）`)) return;
+      if (!persistWithToast(`フロアマップを保存しました（+${addedDaiNos.length}台 / -${removedDaiNos.length}台）`)) return;
       renderAll();
     }
 
     function ensureMapDraft(storeId) {
-      if (mapDraft.storeId === storeId) return;
-      const layout = data.layouts[storeId] || { islands: [] };
-      mapDraft = { storeId, islands: cloneIslands(layout.islands || []), allowEmptySave: false };
+      const map = activeMap(storeId);
+      if (mapDraft.storeId === storeId && mapDraft.mapId === map.id) return;
+      mapDraft = { storeId, mapId: map.id, islands: cloneIslands(map.islands || []), allowEmptySave: false };
     }
 
     function hydrateMapDraftFromSavedLayout(storeId) {
-      const savedIslands = cloneIslands(data.layouts[storeId]?.islands || []);
+      const map = activeMap(storeId);
+      const savedIslands = cloneIslands(map.islands || []);
       if (savedIslands.length && !mapDraft.islands.length && !mapDraft.allowEmptySave) {
-        mapDraft = { storeId, islands: savedIslands, allowEmptySave: false };
+        mapDraft = { storeId, mapId: map.id, islands: savedIslands, allowEmptySave: false };
       }
+    }
+
+    function machinesWithSessions(storeId, daiNos) {
+      const wanted = new Set((daiNos || []).map(String));
+      const recordedMachineIds = new Set(data.sessions.map((session) => session.machineId));
+      return data.machines.filter((machine) => (
+        machine.storeId === storeId &&
+        wanted.has(String(machine.daiNo)) &&
+        recordedMachineIds.has(machine.id)
+      ));
+    }
+
+    function loadMapBackup() {
+      try {
+        const backup = JSON.parse(localStorage.getItem(MAP_BACKUP_KEY) || "null");
+        if (!backup || typeof backup !== "object") return null;
+        if (backup.backups && typeof backup.backups === "object") return backup;
+        if (!backup.storeId || !backup.mapId || !backup.map) return null;
+        return { backups: { [backup.storeId]: { [backup.mapId]: backup } } };
+      } catch (error) {
+        console.warn("ytv3 map backup load failed", error);
+        return null;
+      }
+    }
+
+    function mapBackupFor(storeId, mapId) {
+      const entry = loadMapBackup()?.backups?.[storeId]?.[mapId];
+      if (!entry || !entry.map) return null;
+      return {
+        storeId,
+        mapId,
+        map: normalizeNamedMap(entry.map, 0),
+        createdAt: entry.createdAt || nowIso()
+      };
+    }
+
+    function saveMapBackup(storeId, map) {
+      try {
+        const root = loadMapBackup() || { backups: {} };
+        if (!root.backups[storeId]) root.backups[storeId] = {};
+        root.backups[storeId][map.id] = {
+          storeId,
+          mapId: map.id,
+          map: {
+            id: map.id,
+            name: map.name,
+            islands: cloneIslands(map.islands || []),
+            updatedAt: map.updatedAt || nowIso(),
+            errors: Array.isArray(map.errors) ? map.errors : []
+          },
+          createdAt: nowIso()
+        };
+        localStorage.setItem(MAP_BACKUP_KEY, JSON.stringify(root));
+      } catch (error) {
+        console.warn("ytv3 map backup save failed", error);
+        showToast("直前のマップ退避に失敗しました。容量を確認してください。", "error");
+      }
+    }
+
+    function restoreActiveMapBackup(storeId) {
+      const layout = storeLayout(storeId);
+      const map = activeMap(storeId);
+      const backup = mapBackupFor(storeId, map.id);
+      if (!backup) {
+        showToast("戻せる直前のマップ定義がありません", "error");
+        return;
+      }
+      if (!confirm("直前のマップ定義に戻します。台と記録には触りません。よろしいですか？")) return;
+      map.islands = cloneIslands(backup.map.islands || []);
+      map.updatedAt = nowIso();
+      layout.activeMapId = map.id;
+      const parsed = parseIslandLayout(map);
+      map.errors = parsed.errors;
+      syncMachinesFromMap(storeId, parsed);
+      mapDraft = { storeId, mapId: map.id, islands: cloneIslands(map.islands), allowEmptySave: false };
+      if (!persistWithToast("直前のマップ定義に戻しました")) return;
+      renderAll();
+    }
+
+    function openAddFloorMapForm(storeId) {
+      openModal("マップを追加", "コーナー名など、歩きながら選びやすい名前にしてください。", `
+        <div class="field-row"><label for="newFloorMapName">マップ名</label><input id="newFloorMapName" value="" placeholder="例: リコリス・リコイル"></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveNewFloorMapBtn">追加</button>
+        </div>
+      `);
+      byId("saveNewFloorMapBtn").addEventListener("click", () => {
+        const name = byId("newFloorMapName").value.trim() || "新しいマップ";
+        const layout = storeLayout(storeId);
+        const map = defaultMap(name);
+        layout.maps.push(map);
+        layout.activeMapId = map.id;
+        mapDraft = { storeId, mapId: map.id, islands: [], allowEmptySave: false };
+        mapEditorOpenByStore[storeId] = true;
+        if (!persistWithToast("保存しました")) return;
+        closeModal();
+        renderAll();
+      });
+    }
+
+    function openRenameFloorMapForm(storeId) {
+      const map = activeMap(storeId);
+      openModal("マップ名を変更", "表示上の名前だけを変更します。台と記録には触りません。", `
+        <div class="field-row"><label for="floorMapName">マップ名</label><input id="floorMapName" value="${escapeHtml(map.name)}"></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveFloorMapNameBtn">保存</button>
+        </div>
+      `);
+      byId("saveFloorMapNameBtn").addEventListener("click", () => {
+        map.name = byId("floorMapName").value.trim() || "無題のマップ";
+        map.updatedAt = nowIso();
+        if (!persistWithToast("保存しました")) return;
+        closeModal();
+        renderAll();
+      });
+    }
+
+    function deleteActiveFloorMap(storeId) {
+      const layout = storeLayout(storeId);
+      const map = activeMap(storeId);
+      if (!confirm(`「${map.name}」を削除しますか？台と記録は消えません。`)) return;
+      if (!confirm("元に戻せません。マップ削除を確定しますか？台と記録は残ります。")) return;
+      layout.maps = layout.maps.filter((item) => item.id !== map.id);
+      if (!layout.maps.length) layout.maps.push(defaultMap());
+      layout.activeMapId = layout.maps[0].id;
+      mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
+      if (!persistWithToast("保存しました")) return;
+      renderAll();
     }
 
     function addIslandDraft() {
@@ -2687,22 +2947,63 @@
     function normalizeLayouts(layouts) {
       const normalized = {};
       Object.entries(layouts || {}).forEach(([storeId, layout]) => {
-        if (layout && Array.isArray(layout.islands)) {
-          normalized[storeId] = {
-            islands: cloneIslands(layout.islands),
-            updatedAt: layout.updatedAt || nowIso(),
-            errors: Array.isArray(layout.errors) ? layout.errors : []
-          };
-          return;
-        }
-        if (layout && typeof layout.source === "string") {
-          const islands = textMapToIslands(layout.source);
-          normalized[storeId] = { islands, updatedAt: layout.updatedAt || nowIso(), errors: [] };
-          return;
-        }
-        normalized[storeId] = { islands: [], updatedAt: nowIso(), errors: [] };
+        normalized[storeId] = normalizeStoreLayout(layout);
       });
       return normalized;
+    }
+
+    function defaultMap(name = "メインフロア") {
+      return {
+        id: cryptoId("map"),
+        name,
+        islands: [],
+        updatedAt: nowIso(),
+        errors: []
+      };
+    }
+
+    function normalizeStoreLayout(layout) {
+      if (layout && Array.isArray(layout.maps)) {
+        const maps = layout.maps.map((map, index) => normalizeNamedMap(map, index)).filter(Boolean);
+        const fallback = maps[0] || defaultMap();
+        return {
+          maps: maps.length ? maps : [fallback],
+          activeMapId: maps.some((map) => map.id === layout.activeMapId) ? layout.activeMapId : fallback.id
+        };
+      }
+      if (layout && Array.isArray(layout.islands)) {
+        const main = normalizeNamedMap({
+          id: "map_main",
+          name: "メインフロア",
+          islands: layout.islands,
+          updatedAt: layout.updatedAt,
+          errors: layout.errors
+        }, 0);
+        return { maps: [main], activeMapId: main.id };
+      }
+      if (layout && typeof layout.source === "string") {
+        const main = normalizeNamedMap({
+          id: "map_main",
+          name: "メインフロア",
+          islands: textMapToIslands(layout.source),
+          updatedAt: layout.updatedAt,
+          errors: []
+        }, 0);
+        return { maps: [main], activeMapId: main.id };
+      }
+      const main = defaultMap();
+      return { maps: [main], activeMapId: main.id };
+    }
+
+    function normalizeNamedMap(map, index = 0) {
+      if (!map || typeof map !== "object") return null;
+      return {
+        id: map.id || (index === 0 ? "map_main" : cryptoId("map")),
+        name: String(map.name || (index === 0 ? "メインフロア" : `マップ${index + 1}`)),
+        islands: cloneIslands(map.islands || []),
+        updatedAt: map.updatedAt || nowIso(),
+        errors: Array.isArray(map.errors) ? map.errors : []
+      };
     }
 
     function cloneIslands(islands) {
@@ -2914,7 +3215,7 @@
 
     function closingColumnSequence(daiNo) {
       const store = activeStore();
-      const parsed = parseIslandLayout(data.layouts[store?.id] || { islands: [] });
+      const parsed = parseIslandLayout(store ? activeMapLayoutForParse(store.id) : { islands: [] });
       const wanted = String(daiNo);
       for (const row of parsed.rows) {
         for (const side of row.sides) {
