@@ -1428,6 +1428,20 @@
       return new Date().toISOString().slice(0, 10);
     }
 
+    function localDateString(date = new Date()) {
+      return [
+        date.getFullYear(),
+        String(date.getMonth() + 1).padStart(2, "0"),
+        String(date.getDate()).padStart(2, "0")
+      ].join("-");
+    }
+
+    function offsetLocalDate(date, days) {
+      const next = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      next.setDate(next.getDate() + days);
+      return localDateString(next);
+    }
+
     function offsetDate(dateValue, days) {
       const parts = String(dateValue || today()).match(/^(\d{4})-(\d{2})-(\d{2})$/);
       const base = parts ? new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3])) : new Date();
@@ -2330,9 +2344,8 @@
       return closingInfoForDate(machineId, offsetDate(today(), -1));
     }
 
-    function defaultClosingTargetDate() {
-      const hour = new Date().getHours();
-      return hour >= 20 || hour <= 3 ? today() : offsetDate(today(), -1);
+    function defaultClosingTargetDate(now = new Date()) {
+      return now.getHours() >= 18 ? localDateString(now) : offsetLocalDate(now, -1);
     }
 
     function renderMachineMap() {
@@ -3340,6 +3353,7 @@
     function openClosingCheckForm(daiNo) {
       const machine = findMachineByDai(daiNo);
       if (!machine) return;
+      closingTargetDate = defaultClosingTargetDate();
       const sequence = closingColumnSequence(daiNo);
       const index = sequence.indexOf(String(daiNo));
       closingInputFlow = {
@@ -3391,6 +3405,7 @@
       const savedValue = currentClosingSavedValue();
       openModal(`台 ${daiNo} の閉店回転数`, "端末キーボードを使わず、この画面だけで連続入力します。", `
         <button class="small" id="changeClosingTargetDateBtn">${escapeHtml(shortDate(closingTargetDate))} の閉店回転数として保存（タップで日付変更）</button>
+        <input id="closingTargetDateInput" type="date" value="${escapeHtml(closingTargetDate)}" hidden>
         <div class="closing-display" id="closingDisplay">${escapeHtml(closingInputFlow.buffer || "0")}</div>
         <p class="hint">${savedValue !== null ? `保存済み: ${escapeHtml(savedValue)}` : "保存済み: -"}</p>
         <div class="closing-keypad">
@@ -3416,6 +3431,7 @@
             <button class="small" id="toggleClosingDirectionBtn">進行方向: ${escapeHtml(directionPreviewText())}（切替▼）</button>
           </div>
         `}
+        ${ended ? "" : `<div class="modal-actions"><button class="small" id="saveClosingCloseBtn">保存して閉じる</button></div>`}
         <div class="closing-recent">${escapeHtml(closingInputFlow.recent)}</div>
       `);
       bindClosingInputModal();
@@ -3451,6 +3467,8 @@
       });
       const saveButton = byId("saveClosingNextBtn");
       if (saveButton) saveButton.addEventListener("click", saveClosingAndAdvance);
+      const saveCloseButton = byId("saveClosingCloseBtn");
+      if (saveCloseButton) saveCloseButton.addEventListener("click", saveClosingAndClose);
       const skipButton = byId("skipClosingBtn");
       if (skipButton) skipButton.addEventListener("click", () => advanceClosingFlow(false));
       const backwardButton = byId("chooseClosingBackwardBtn");
@@ -3464,38 +3482,52 @@
       });
       const dateButton = byId("changeClosingTargetDateBtn");
       if (dateButton) dateButton.addEventListener("click", () => {
-        const nextDate = prompt("閉店チェックの対象日を YYYY-MM-DD で入力してください", closingTargetDate);
-        if (!nextDate) return;
-        if (!isDateString(nextDate)) {
-          closingInputFlow.recent = "日付は YYYY-MM-DD で入力してください";
-          renderClosingInputModal();
-          return;
-        }
-        closingTargetDate = nextDate;
+        const input = byId("closingTargetDateInput");
+        if (!input) return;
+        input.hidden = false;
+        input.focus();
+        if (input.showPicker) input.showPicker();
+      });
+      const dateInput = byId("closingTargetDateInput");
+      if (dateInput) dateInput.addEventListener("change", () => {
+        if (!isDateString(dateInput.value)) return;
+        closingTargetDate = dateInput.value;
         hydrateClosingBuffer();
         renderClosingInputModal();
       });
     }
 
-    function saveClosingAndAdvance() {
+    function saveClosingCurrent() {
       const value = normalizeNumber(closingInputFlow.buffer);
       if (value === null) {
         closingInputFlow.recent = "数値を入力してください";
         renderClosingInputModal();
-        return;
+        return false;
       }
       const daiNo = currentClosingDaiNo();
       const machine = findMachineByDai(daiNo);
-      if (!machine) return;
+      if (!machine) return false;
       const next = ensureDailyState(machine.id, closingTargetDate);
       next.closingSpin = value;
       if (!persist()) {
         closingInputFlow.recent = "保存に失敗しました";
         renderClosingInputModal();
-        return;
+        return false;
       }
       closingInputFlow.recent = `保存: ${daiNo}=${value}`;
+      return true;
+    }
+
+    function saveClosingAndAdvance() {
+      if (!saveClosingCurrent()) return;
       advanceClosingFlow(true);
+    }
+
+    function saveClosingAndClose() {
+      if (!saveClosingCurrent()) return;
+      closingInputFlow = null;
+      closeModal();
+      renderAll();
     }
 
     function chooseClosingDirection(direction) {
@@ -3590,6 +3622,7 @@
               <button class="small" id="toggleMorningDirectionBtn">進行方向: ${escapeHtml(morningDirectionPreviewText())}（切替▼）</button>
             </div>
           `}
+          <div class="modal-actions"><button class="small" id="saveMorningCloseBtn">保存して閉じる</button></div>
         `}
         <div class="closing-recent">${escapeHtml(morningCheckFlow.recent)}</div>
       `);
@@ -3628,6 +3661,8 @@
       });
       const saveButton = byId("saveMorningNextBtn");
       if (saveButton) saveButton.addEventListener("click", saveMorningAndAdvance);
+      const saveCloseButton = byId("saveMorningCloseBtn");
+      if (saveCloseButton) saveCloseButton.addEventListener("click", saveMorningAndClose);
       const skipButton = byId("skipMorningBtn");
       if (skipButton) skipButton.addEventListener("click", () => advanceMorningFlow(false));
       const backwardButton = byId("chooseMorningBackwardBtn");
@@ -3641,10 +3676,10 @@
       });
     }
 
-    function saveMorningAndAdvance() {
+    function saveMorningCurrent() {
       const daiNo = currentMorningDaiNo();
       const machine = findMachineByDai(daiNo);
-      if (!machine) return;
+      if (!machine) return false;
       const ramClear = currentMorningRamClearSelection();
       const prevInvalid = Boolean(byId("morningPrevInvalid")?.checked) || ramClear === RAM_CLEAR_VALUE;
       const state = ensureDailyState(machine.id, today());
@@ -3656,10 +3691,22 @@
       if (!persist()) {
         morningCheckFlow.recent = "保存に失敗しました";
         renderMorningCheckModal();
-        return;
+        return false;
       }
       morningCheckFlow.recent = `保存: ${daiNo}`;
+      return true;
+    }
+
+    function saveMorningAndAdvance() {
+      if (!saveMorningCurrent()) return;
       advanceMorningFlow(true);
+    }
+
+    function saveMorningAndClose() {
+      if (!saveMorningCurrent()) return;
+      morningCheckFlow = null;
+      closeModal();
+      renderAll();
     }
 
     function chooseMorningDirection(direction) {
