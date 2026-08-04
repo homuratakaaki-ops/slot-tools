@@ -827,6 +827,48 @@
       align-items: start;
     }
 
+    .row-card-head > div {
+      min-width: 0;
+    }
+
+    .map-name-text {
+      display: inline-block;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: bottom;
+    }
+
+    .ledger-day-heading {
+      margin: 14px 0 4px;
+      text-align: center;
+      color: var(--muted);
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .session-details summary {
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .session-details summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .session-summary-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 10px;
+      align-items: baseline;
+    }
+
+    .session-start-ev {
+      font-weight: 800;
+      color: #067647;
+    }
+
     .row-card strong { font-size: 15px; }
     .row-card small { color: var(--muted); }
 
@@ -1069,8 +1111,8 @@
             <p>台番をタップすると過去概要を確認して、打ち始めに進めます。</p>
           </div>
           <div class="status-line">
-            <button class="small" id="toggleClosingCheckBtn">閉店チェックOFF</button>
-            <button class="small" id="toggleMorningCheckBtn">朝チェックOFF</button>
+            <button class="small" id="toggleClosingCheckBtn">閉店時ゲーム数登録OFF</button>
+            <button class="small" id="toggleMorningCheckBtn">ラムクリアチェックOFF</button>
             <button class="small" id="openLabelFormBtn">店イベントの登録</button>
           </div>
         </div>
@@ -1131,7 +1173,7 @@
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
-    const SCHEMA_VERSION = 16;
+    const SCHEMA_VERSION = 17;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1148,6 +1190,7 @@
     ];
     const RAM_CLEAR_VALUE = "cleared";
     const RAM_NOT_CLEARED_VALUE = "not_cleared";
+    const RAM_UNKNOWN_VALUE = "unknown";
 
     const YUTIME_EXPECTATION_ENGINE = (() => {
       const preset = {
@@ -1263,6 +1306,7 @@
       startTotalHits: null,
       currentSpin: null,
       prevDayEndSpin: null,
+      startEv: null,
       investments: [],
       charges: [],
       hitSpin: null,
@@ -1298,7 +1342,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 16: ramClearにnot_cleared追加、ラムクリ確認を3値化"
+        schemaBudgetNote: "v3 schema 17: startEv追加、ramClearにunknown追加、台帳折りたたみ化"
       }
     });
 
@@ -1442,7 +1486,21 @@
     }
 
     function normalizeRamClear(value) {
-      return value === RAM_CLEAR_VALUE || value === RAM_NOT_CLEARED_VALUE ? value : null;
+      return value === RAM_CLEAR_VALUE || value === RAM_NOT_CLEARED_VALUE || value === RAM_UNKNOWN_VALUE ? value : null;
+    }
+
+    function normalizeStartEv(value) {
+      if (!value || typeof value !== "object") return null;
+      const evYen = normalizeNumber(value.evYen);
+      const usedRate = normalizeNumber(value.usedRate);
+      const effectiveSpin = normalizeNumber(value.effectiveSpin);
+      if (evYen === null || usedRate === null || effectiveSpin === null) return null;
+      return {
+        evYen,
+        usedRate,
+        rateSource: value.rateSource || "",
+        effectiveSpin
+      };
     }
 
     function investmentSource(item) {
@@ -1551,6 +1609,29 @@
         payoutSource: settingsInfo.payoutSource,
         exchangeBalls: exchangeBallsFromStore(store)
       };
+    }
+
+    function calculateStartEvSnapshot(session, machine, presets = {}) {
+      if (!session || !machine) return null;
+      const startSpin = normalizeNumber(session.startSpin);
+      if (startSpin === null) return null;
+      const expectation = calculateMachineExpectation(machine, {
+        currentSpin: startSpin,
+        previousSpin: session.prevDayEndSpin,
+        manualRate: presets.manualRate
+      });
+      if (!expectation.result) return null;
+      return {
+        evYen: Math.round(expectation.result.evYen),
+        usedRate: Number(expectation.result.rotationRate.toFixed(2)),
+        rateSource: expectation.rateSource,
+        effectiveSpin: expectation.effectiveSpin
+      };
+    }
+
+    function startEvText(startEv) {
+      const normalized = normalizeStartEv(startEv);
+      return normalized ? yenText(normalized.evYen) : "-";
     }
 
     function showToast(message, type = "success", options = {}) {
@@ -1716,6 +1797,7 @@
         startTotalHits: normalizeNumber(session.startTotalHits),
         endTotalHits: normalizeNumber(session.endTotalHits),
         currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
+        startEv: normalizeStartEv(session.startEv),
         carriedFromSessionId: session.carriedFromSessionId || null,
         yutimeEnterTime: session.yutimeEnterTime || null,
         investments: Array.isArray(session.investments) ? session.investments.map((item) => ({
@@ -1772,8 +1854,8 @@
           const normalized = { date };
           const legacyRamState = state.ramClear;
           const ramClear = normalizeRamClear(legacyRamState);
-          const hasLegacyRamState = ["retained", "unknown", "hitToday", "cleared"].includes(legacyRamState);
-          const prevInvalid = state.prevInvalid === true || (hasLegacyRamState && legacyRamState !== "retained");
+          const hasLegacyRamState = ["retained", "hitToday", "cleared"].includes(legacyRamState);
+          const prevInvalid = state.prevInvalid === true || legacyRamState === "cleared" || legacyRamState === "hitToday";
           const closingSpin = normalizeNumber(state.closingSpin);
           if (ramClear) normalized.ramClear = ramClear;
           if (prevInvalid) normalized.prevInvalid = true;
@@ -1806,6 +1888,7 @@
         startSaipurei: 250,
         startCredit: 3000,
         startTotalHits: 12,
+        startEv: { evYen: 2400, usedRate: 17.2, rateSource: "手入力", effectiveSpin: 575 },
         investments: [
           { type: "mochidama", source: "mochidama", amount: 500, time: "10:05", phase: "normal", spinAt: 20 },
           { type: "cash", source: "cash", amount: 500, time: "10:30", phase: "yutime", spinAt: 80 }
@@ -1846,7 +1929,7 @@
     function measureDailyStateChars() {
       const sample = Object.keys(data.dailyState || {}).length ? data.dailyState : {
         m_sample: {
-          [today()]: { date: today(), prevInvalid: true, ramClear: RAM_CLEAR_VALUE },
+          [today()]: { date: today(), prevInvalid: false, ramClear: RAM_UNKNOWN_VALUE },
           [offsetDate(today(), -1)]: { date: offsetDate(today(), -1), closingSpin: 575 }
         }
       };
@@ -2021,7 +2104,7 @@
       const hasLayout = parseIslandLayout(activeMapLayoutForParse(store.id)).rows.length > 0;
       if (mapEditorOpenByStore[store.id] === undefined) mapEditorOpenByStore[store.id] = !hasLayout;
       if (!mapEditorOpenByStore[store.id]) {
-        els.islandBuilder.innerHTML = `<div class="row-card"><div class="row-card-head"><div><strong>フロアマップ作成</strong><br><small>${escapeHtml(activeMapName(store.id))} / 台を探す画面を優先表示しています。</small></div><button class="small" id="toggleMapEditorBtn">開く</button></div></div>`;
+        els.islandBuilder.innerHTML = `<div class="row-card"><div class="row-card-head"><div><strong>フロアマップ作成</strong><br><small><span class="map-name-text">${escapeHtml(activeMapName(store.id))}</span> / 台を探す画面を優先表示しています。</small></div><button class="small" id="toggleMapEditorBtn">開く</button></div></div>`;
         els.mapStatus.innerHTML = "";
         byId("toggleMapEditorBtn").addEventListener("click", () => {
           mapEditorOpenByStore[store.id] = true;
@@ -2050,7 +2133,7 @@
         <div class="row-card">
           <div class="row-card-head">
             <div>
-              <strong>${escapeHtml(map.name)}</strong>
+              <strong class="map-name-text">${escapeHtml(map.name)}</strong>
               <br><small>このマップに表示する島だけを編集します。台と記録はマップから外しても消えません。</small>
             </div>
             <div class="status-line">
@@ -2258,9 +2341,9 @@
         els.machineMap.innerHTML = '<div class="row-card">店を選択してください。</div>';
         return;
       }
-      byId("toggleClosingCheckBtn").textContent = closingCheckMode ? "閉店チェックON" : "閉店チェックOFF";
+      byId("toggleClosingCheckBtn").textContent = closingCheckMode ? "閉店時ゲーム数登録ON" : "閉店時ゲーム数登録OFF";
       byId("toggleClosingCheckBtn").classList.toggle("primary", closingCheckMode);
-      byId("toggleMorningCheckBtn").textContent = morningCheckMode ? "朝チェックON" : "朝チェックOFF";
+      byId("toggleMorningCheckBtn").textContent = morningCheckMode ? "ラムクリアチェックON" : "ラムクリアチェックOFF";
       byId("toggleMorningCheckBtn").classList.toggle("primary", morningCheckMode);
       const parsed = parseIslandLayout(activeMapLayoutForParse(store.id));
       if (!parsed.rows.length) {
@@ -2309,6 +2392,7 @@
           ${eveSign?.good ? `<span class="eve-sign">${eveSign.assumed ? "宵≈" : "宵"}</span>` : ""}
           ${ramClear === RAM_CLEAR_VALUE ? '<span class="state-badge">ラ</span>' : ""}
           ${ramClear === RAM_NOT_CLEARED_VALUE ? '<span class="state-badge retained">据✓</span>' : ""}
+          ${ramClear === RAM_UNKNOWN_VALUE ? '<span class="state-badge">?</span>' : ""}
           ${hasMachineMemo ? '<span class="memo-badge">メ</span>' : ""}
           <span class="dai">${escapeHtml(daiNo)}</span>
           <span class="rate ${rateClass}">${escapeHtml(rate)}${estimatedMark}<small>回/千円</small></span>
@@ -2550,31 +2634,43 @@
         els.sessionList.innerHTML = '<div class="row-card">セッションはまだありません。</div>';
         return;
       }
-      els.sessionList.innerHTML = sessions.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map((session) => {
+      let lastDate = "";
+      els.sessionList.innerHTML = sessions.slice().sort((a, b) => {
+        const dateCompare = String(b.date || "").localeCompare(String(a.date || ""));
+        return dateCompare || String(b.createdAt).localeCompare(String(a.createdAt));
+      }).map((session) => {
         const machine = data.machines.find((item) => item.id === session.machineId);
         const sourceMachine = carryoverSourceMachine(session);
         const sameMachineCarryover = sourceMachine && sourceMachine.id === machine?.id;
         const derived = deriveSession(session, machine);
         const misses = missingFields(session);
-        return `
-          <div class="row-card" data-session-row="${escapeHtml(session.id)}">
-            <div class="row-card-head">
-              <div>
-                <strong>${escapeHtml(dateWithAutoLabels(session.date))} / ${escapeHtml(machine?.daiNo || "台番不明")}</strong>
-                <div class="status-line">
-                  <span class="badge ${session.status === "completed" ? "good" : "dark"}">${session.status === "completed" ? "確定" : "稼働中"}</span>
-                  ${misses.length ? '<span class="badge warn">未入力あり</span>' : ""}
-                  ${automaticLabelsForDate(session.date).map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
-                  ${session.labels.map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
-                  ${derived.isEstimatedRate || derived.isEstimatedPayout ? '<span class="badge warn">概算</span>' : ""}
-                  ${sourceMachine ? `<span class="badge">${sameMachineCarryover ? "⇐ 同台続行" : `⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き`}</span>` : ""}
+        const dateHeading = session.date !== lastDate ? `<div class="ledger-day-heading">― ${escapeHtml(shortDate(session.date))} の履歴 ―</div>` : "";
+        lastDate = session.date;
+        const daiLabel = machine?.daiNo ? `${machine.daiNo}番` : "台番不明";
+        const title = `${machine?.modelName || "機種未設定"}　${daiLabel}　${session.startTime || "--:--"}`;
+        return `${dateHeading}
+          <details class="row-card session-details" data-session-row="${escapeHtml(session.id)}">
+            <summary>
+              <div class="row-card-head">
+                <div>
+                  <strong class="session-summary-line"><span>${escapeHtml(title)}</span><span class="session-start-ev">${escapeHtml(startEvText(session.startEv))}</span></strong>
                 </div>
-                <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${rateText(derived)} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
+                <span class="badge ${session.status === "completed" ? "good" : "dark"}">${session.status === "completed" ? "確定" : "稼働中"}</span>
               </div>
+            </summary>
+            <div class="status-line" style="margin-top:8px">
+              ${misses.length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>'}
+              ${automaticLabelsForDate(session.date).map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
+              ${session.labels.map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
+              ${derived.isEstimatedRate || derived.isEstimatedPayout ? '<span class="badge warn">概算</span>' : ""}
+              ${sourceMachine ? `<span class="badge">${sameMachineCarryover ? "⇐ 同台続行" : `⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き`}</span>` : ""}
+            </div>
+            <small>開始時期待値 ${escapeHtml(startEvText(session.startEv))}${session.startEv?.rateSource ? ` / ${escapeHtml(session.startEv.rateSource)} / 実効${escapeHtml(session.startEv.effectiveSpin)}回転` : ""}</small><br>
+            <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${rateText(derived)} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
+            <div class="modal-actions" style="margin-top:8px">
               <button class="small" data-edit-session="${escapeHtml(session.id)}">記録の修正</button>
             </div>
-          </div>
-        `;
+          </details>`;
       }).join("");
       els.sessionList.querySelectorAll("[data-edit-session]").forEach((button) => {
         button.addEventListener("click", () => openSessionEditor(button.dataset.editSession));
@@ -3471,8 +3567,9 @@
             <div>
               <p class="hint">ラムクリ確認</p>
               <div class="ram-choice-row">
-                <button class="small" data-morning-ram="${RAM_CLEAR_VALUE}" aria-pressed="${ramClear === RAM_CLEAR_VALUE ? "true" : "false"}">されてた</button>
-                <button class="small" data-morning-ram="${RAM_NOT_CLEARED_VALUE}" aria-pressed="${ramClear === RAM_NOT_CLEARED_VALUE ? "true" : "false"}">されてなかった</button>
+                <button class="small" data-morning-ram="${RAM_CLEAR_VALUE}" aria-pressed="${ramClear === RAM_CLEAR_VALUE ? "true" : "false"}">有り</button>
+                <button class="small" data-morning-ram="${RAM_NOT_CLEARED_VALUE}" aria-pressed="${ramClear === RAM_NOT_CLEARED_VALUE ? "true" : "false"}">無し</button>
+                <button class="small" data-morning-ram="${RAM_UNKNOWN_VALUE}" aria-pressed="${ramClear === RAM_UNKNOWN_VALUE ? "true" : "false"}">不明</button>
               </div>
             </div>
           </div>
@@ -3516,9 +3613,16 @@
         button.addEventListener("click", () => {
           const wasPressed = button.getAttribute("aria-pressed") === "true";
           els.modalBody.querySelectorAll("[data-morning-ram]").forEach((item) => item.setAttribute("aria-pressed", "false"));
+          if (invalidInput?.dataset.ramAutoInvalid === "1") {
+            invalidInput.checked = false;
+            delete invalidInput.dataset.ramAutoInvalid;
+          }
           if (!wasPressed) {
             button.setAttribute("aria-pressed", "true");
-            if (button.dataset.morningRam === RAM_CLEAR_VALUE && invalidInput) invalidInput.checked = true;
+            if (button.dataset.morningRam === RAM_CLEAR_VALUE && invalidInput && !invalidInput.checked) {
+              invalidInput.checked = true;
+              invalidInput.dataset.ramAutoInvalid = "1";
+            }
           }
         });
       });
@@ -3682,12 +3786,13 @@
         readMachineDetailForm(machine);
         const startSpinPreset = normalizeNumber(byId("evCurrentSpin")?.value);
         const prevDayEndSpinPreset = normalizeNumber(byId("evPrevSpin")?.value);
+        const manualRatePreset = normalizeNumber(byId("evManualRate")?.value);
         if (!persist()) {
           showToast("保存に失敗しました。容量を確認してください。", "error");
           return;
         }
         closeModal();
-        openStartWizard(machine.id, { startSpin: startSpinPreset, prevDayEndSpin: prevDayEndSpinPreset });
+        openStartWizard(machine.id, { startSpin: startSpinPreset, prevDayEndSpin: prevDayEndSpinPreset, manualRate: manualRatePreset });
       });
     }
 
@@ -3835,6 +3940,8 @@
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         if (session.currentSpin === null || session.currentSpin === undefined) session.currentSpin = session.startSpin;
+        const machine = data.machines.find((item) => item.id === machineId);
+        session.startEv = calculateStartEvSnapshot(session, machine, presets);
         data.sessions.push(session);
         activeSessionId = session.id;
         if (!persistWithToast("稼働を開始しました")) return;
@@ -4277,6 +4384,7 @@
       next.startSaipurei = balances.saipurei;
       next.startCredit = balances.credit;
       next.startTotalHits = sourceSession.endTotalHits ?? null;
+      next.startEv = calculateStartEvSnapshot(next, data.machines.find((item) => item.id === next.machineId));
       data.sessions.push(next);
       activeSessionId = next.id;
       if (!persistWithToast("同じ台で続行を開始しました")) return;
