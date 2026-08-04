@@ -41,7 +41,6 @@
   "isPersonal": true,
   "lendRate": 4,
   "exchangeBalls": 25,
-  "netBallsPerWin": 1400,
   "createdAt": "ISO8601"
 }
 ```
@@ -49,33 +48,59 @@
 - `lendRate` は貸玉レート（円/玉）。現金投資の玉換算に使う。
 - `exchangeBalls` は交換玉数（100円あたり）。25玉交換なら25、28玉交換なら28を入れる。
 - 換算収支は `差玉 * (100 / exchangeBalls)` で計算する。
-- `netBallsPerWin` は期待値計算用の1回あたり純増玉。既定は1400で、技術介入に合わせて手動調整する。実測出玉からの自動切替は行わない。
-- 既存店は読み込み時に `lendRate: 4`、`exchangeBalls: 25`、`netBallsPerWin: 1400` を補完する。旧 `exchangeRate` がある場合は `100 / exchangeRate` で `exchangeBalls` へ自動変換する。
+- 店フォームは店名、パーソナル有無、貸玉レート、交換玉数だけを扱う。期待値用の純増玉と推定回転率は店属性ではないため保存しない。
+- 既存店は読み込み時に `lendRate: 4`、`exchangeBalls: 25` を補完する。旧 `exchangeRate` がある場合は `100 / exchangeRate` で `exchangeBalls` へ自動変換する。
 
 ### 2.2 MapLayout
 
-店に 1 つ持つ。B1 以降は島ビルダーで入力し、構造化データとして保存する。
+店に複数持てる。B13以降は機種・コーナー単位の名前付きマップとして扱い、島ビルダーで入力した構造化データを保存する。
 
 ```json
 {
-  "islands": [
+  "maps": [
     {
-      "left": { "from": 101, "to": 105 },
-      "right": { "from": 199, "to": 195 },
-      "excluded": ["104"]
+      "id": "map_main",
+      "name": "P大海物語5スペシャル",
+      "islands": [
+        {
+          "left": { "from": 101, "to": 105 },
+          "right": { "from": 199, "to": 195 },
+          "leftPresetId": "umi-sp5",
+          "rightPresetId": "umi-sp5",
+          "excluded": ["104"]
+        }
+      ],
+      "assumedRate": 16.5,
+      "updatedAt": "ISO8601",
+      "errors": []
     }
   ],
-  "updatedAt": "ISO8601",
-  "errors": []
+  "activeMapId": "map_main"
 }
 ```
 
 - `left` は左列、`right` は右列。右列が空欄の場合は `null` として片面島を表す。
 - `from` と `to` は昇順・降順どちらでもよい。
 - `excluded` は存在しない台番の一覧。プレビュー上の台番をタップして除外/復帰する。
+- `leftPresetId` / `rightPresetId` は列単位の機種プリセット。未設定台への一括適用と、遊タイム機能の出し分けに使う。
+- `assumedRate` はそのマップ（機種・コーナー）の推定回転率。台帳データがない台の期待値判定に使い、店単位では保存しない。
 - 旧テキスト定義 `{ source: "100-104 | 199-195" }` は読み込み時に `islands` へ自動変換する。
 - 旧テキストに歯抜け指定がある場合は、先頭から末尾までの範囲に展開し、存在しない中間台を `excluded` に入れて台番構成を維持する。
 - 重複台番など、読めても危険な状態は警告表示する。
+
+### 2.2.1 PresetSettings
+
+```json
+{
+  "umi-sp5": {
+    "netBallsPerWin": 1400
+  }
+}
+```
+
+- `presetSettings` は機種プリセット単位の手動設定を保存する。
+- `netBallsPerWin` は期待値計算用の1回あたり純増玉。既定はプリセット定義の1400で、本人の技術介入に合わせて手動調整する。
+- 店をまたいで同じ機種プリセットに共通適用する。実測出玉からの自動切替は行わない。
 
 ### 2.3 Machine
 
@@ -174,7 +199,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:mapbackup` | フロアマップ定義だけの1世代退避 | フロアマップ保存時、保存直前のアクティブマップ定義を店ID・マップID単位で退避する。復元ボタン押下時に該当マップの島構成・除外・列機種のみ戻す。台・セッション・dailyState は触らない | `{ backups: { [storeId]: { [mapId]: { storeId, mapId, map, createdAt } } } }` の JSON 文字列 |
@@ -455,13 +480,13 @@ B5 実測値:
 - Phase 4 期待値エンジンは v2 `yutime-record.html` の `YUTIME_RECORD_ENGINE` を式変更なしで移植し、v3 では `YUTIME_EXPECTATION_ENGINE` として `umi-sp5` プリセットに接続する。対象スペックは `hitProb: 1/319.6`、`tenjo: 950`、`yutimeJitan: 350`、`kakuhenRate: 0.54`、`jitanNormal: 100`、`jitanChain: 200`、既定 `netBallsPerWin: 1400`。
 - 期待値の円換算は v2 の固定 `yenPerBall: 4` から、v3 店舗設定の交換玉数を使う `100 / exchangeBalls` に差し替える。これは持ち玉遊技前提の換算であり、現金投資が主体の場合は貸玉4円との差分だけ実質やや下振れする。
 - 判定閾値は `EV_THRESHOLDS = { good: 2000, warn: 0 }`。期待値2000円以上を「打てる」、0円以上2000円未満を「微妙」、0円未満を「打てない」とする。
-- `netBallsPerWin` は既定1400玉。実測出玉からの自動切替は行わない。技術介入の個人差を避けるため、店設定の「期待値用の1回あたり純増玉」で手動調整する。
-- 回転率の優先順位は、手入力、フィルタ適用後の台帳累計、なし。回転率がない台では期待値を表示しない。
+- `netBallsPerWin` は既定1400玉。実測出玉からの自動切替は行わない。技術介入の個人差を避けるため、B29以降は `presetSettings["umi-sp5"].netBallsPerWin` として機種プリセット単位で手動調整する。
+- 回転率の優先順位は、手入力、フィルタ適用後の台帳累計、推定回転率、なし。B29以降の推定回転率は選択中マップ（機種・コーナー）の `assumedRate` を使う。
 - 台詳細ポップアップには、現在回転数、前日ヤメ回転数、手入力回転率、実効回転数、残り回転数、期待値円、時給、スロ換算機械割、拘束時間、使用回転率と出玉の出所を表示する。打てない判定でも「この台を打つ」はブロックしない。
 - B16追補で、稼働中パネルのライブ期待値表示は撤去する。稼働中は遊タイム突入前かつ当選前のみ「遊タイム残り」を表示し、`currentSpin` 更新に追従する。
 - マップの台番ボタンには、閉店チェック由来の `closingSpin` と回転率がある台だけ宵越し期待値を軽量計算し、期待値2000円以上なら「宵」サインと枠強調を出す。期待値金額そのものは情報過多を避けるため載せない。
-- Phase 4差し戻し1で Store に `netBallsPerWin` を追加したため、schema は 11 とする。既存店は読み込み時に1400を補完する。
-- schema 11 Store 1件サンプル（`exchangeBalls: 28`、`netBallsPerWin: 1400`）: 127 chars
+- Phase 4差し戻し1では Store に `netBallsPerWin` を追加したが、B29以降は `presetSettings` へ移す。
+- schema 11 Store 1件サンプル（`exchangeBalls: 28`、当時の`netBallsPerWin: 1400`）: 127 chars
 - アイデアメモ: 貸玉/交換レートを厳密に分離した期待値会計は将来課題とする。
 - アイデアメモ: Phase 4.1 では、期待値判定の入力設定を店設定から独立させるか、機種別設定へ分けるかを検討する。
 
@@ -544,12 +569,12 @@ B5 実測値:
 
 ## 23. B20 推定回転率
 
-- schema は 13 とする。Store に `assumedRate`（推定回転率、null許容）を追加する。既存店は読み込み時に `null` として補完する。
-- 店追加・店設定に「推定回転率」を追加する。マップ画面上部にも「推定回転率 ◯◯（タップで変更）」のクイック編集チップを置き、即保存できるようにする。
-- 期待値判定の回転率優先順位は、手入力、台帳累計（フィルタ適用後）、推定回転率、なし。
+- schema は 13 とする。B20時点では Store に `assumedRate`（推定回転率、null許容）を追加したが、B29以降はマップ単位へ移す。
+- B29以降、店追加・店設定には「推定回転率」を置かない。マップ画面上部の「推定回転率 ◯◯（タップで変更）」クイック編集チップは、選択中マップの `assumedRate` を即保存する。
+- 期待値判定の回転率優先順位は、手入力、台帳累計（フィルタ適用後）、選択中マップの推定回転率、なし。
 - 台詳細の期待値判定では、推定を使った場合に `推定16.5使用` のように出所を表示する。
 - マップの台番ボタンに表示する回転率は実測のみとし、推定値は表示しない。推定由来の宵サインは `宵≈` と点線枠で、実測由来の `宵` と区別する。
-- schema 13 Store 1件サンプル（`exchangeBalls: 28`、`netBallsPerWin: 1400`、`assumedRate: 16.5`）: 164 chars
+- schema 13 Store 1件サンプル（当時の`exchangeBalls: 28`、`netBallsPerWin: 1400`、`assumedRate: 16.5`）: 164 chars
 
 ## 24. B21 タップ方式の通常消費玉修正
 
@@ -604,7 +629,7 @@ B5 実測値:
 - schema は 17 とする。セッションに `startEv: { evYen, usedRate, rateSource, effectiveSpin } | null` を追加する。旧セッションは `startEv: null` として扱う。
 - `startEv` は打ち始め確定時に保存する固定スナップショットで、後から台帳累計や推定回転率が変わっても再計算しない。
 - 実効回転数は開始回転数 + 前日分で計算する。前日分は判定手入力、ラムクリアチェックで無効化されていない閉店時ゲーム数登録値、なしの順で決まる。
-- 回転率の優先順位は、判定手入力、台帳累計、推定回転率、なし。期待値対応プリセット以外、または回転率なしの場合は `startEv: null`。
+- 回転率の優先順位は、判定手入力、台帳累計、選択中マップの推定回転率、なし。期待値対応プリセット以外、または回転率なしの場合は `startEv: null`。
 - 台帳は日付見出しごとにセッションをグループ化し、カードは既定で折りたたむ。畳み状態は「機種名 台番 開始時刻 開始時期待値」のみを表示し、日付・曜日タグ・イベントタグは展開側へ移す。
 - マップ切替・管理部のマップ名は横書きを維持し、長い名前は省略表示する。
 - schema 17 セッションサンプル（startEv込み）: 938 chars。schema 17 dailyState サンプル（当日unknown＋前日closingSpin）: 143 chars。
@@ -627,3 +652,15 @@ B5 実測値:
 - 遊タイムなしマップでは、台番ボタンの宵表示・宵サイン・ラムクリ系バッジ（ラ/据✓/?）を非表示にする。回転率表示、台メモ、記録フロー、台帳は全機種共通で維持する。
 - 遊タイムなし機種の台詳細では期待値判定ブロックを表示しない。非対応注記も出さず、台メモ・参考回転率・過去記録・記録開始に専念させる。
 - スキーマ変更はないため容量予算は不変。プリセット定義の構造のみ拡張する。
+
+## 32. B29 純増玉・推定回転率の保存単位
+
+- schema は 18 とする。Store から `netBallsPerWin` と `assumedRate` を撤去し、店フォームからも該当入力欄と説明文を撤去する。
+- `netBallsPerWin` は `presetSettings: { "umi-sp5": { netBallsPerWin } }` へ移す。既定値は機種プリセット定義の1400玉で、②「この機種でやること」ブロックの「純増 ◯◯玉（変更）」から手動調整する。設定は全店の同じ機種プリセットに共通適用する。
+- `assumedRate` は選択中マップの `map.assumedRate` へ移す。マップ画面上部のクイック編集チップは、現在選んでいる機種・コーナーだけに保存する。
+- 期待値計算と開始時期待値 `startEv` は、純増玉に `presetSettings[presetId].netBallsPerWin`、推定回転率に選択中マップの `assumedRate` を使う。
+- 回転率の優先順位は、判定手入力、台帳累計（フィルタ適用後）、選択中マップの推定回転率、なし。
+- 移行時、旧 `store.netBallsPerWin` は `presetSettings["umi-sp5"].netBallsPerWin` へ引き継ぐ。旧 `store.assumedRate` は、その店の遊タイム対応マップすべての `assumedRate` へコピーする。
+- schema 18 Store 1件サンプル（店属性のみ、`exchangeBalls: 28.01`）: 125 chars。
+- schema 18 Map 1件サンプル（`assumedRate: 16.5`、列プリセット・除外1台）: 227 chars。
+- schema 18 `presetSettings` サンプル（`umi-sp5.netBallsPerWin: 1400`）: 35 chars。

@@ -1174,7 +1174,7 @@
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
-    const SCHEMA_VERSION = 17;
+    const SCHEMA_VERSION = 18;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1334,6 +1334,7 @@
       machines: [],
       sessions: [],
       dailyState: {},
+      presetSettings: {},
       labelsByStore: {},
       activeStoreId: null,
       meta: {
@@ -1343,7 +1344,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 17: startEv追加、ramClearにunknown追加、台帳折りたたみ化"
+        schemaBudgetNote: "v3 schema 18: netBallsPerWinをpresetSettingsへ、assumedRateをmapへ移動"
       }
     });
 
@@ -1543,6 +1544,15 @@
       return Boolean(presetById(normalizeMachinePresetId(machine))?.hasYutime);
     }
 
+    function presetNetBallsPerWin(presetId) {
+      const preset = presetById(presetId);
+      return positiveNumberOrDefault(data.presetSettings?.[presetId]?.netBallsPerWin, preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN);
+    }
+
+    function activeMapAssumedRate(storeId = activeStore()?.id) {
+      return normalizeNumber(activeMap(storeId)?.assumedRate);
+    }
+
     function activeMapHasYutime(storeId = activeStore()?.id) {
       if (!storeId) return false;
       const parsed = parseIslandLayout(activeMapLayoutForParse(storeId));
@@ -1578,7 +1588,8 @@
 
     function expectationSettings(store, machine) {
       const defaults = YUTIME_EXPECTATION_ENGINE.preset.defaults;
-      const netBallsPerWin = positiveNumberOrDefault(store?.netBallsPerWin, defaults.netBallsPerWin);
+      const presetId = normalizeMachinePresetId(machine);
+      const netBallsPerWin = presetNetBallsPerWin(presetId);
       return {
         settings: {
           ...defaults,
@@ -1593,7 +1604,7 @@
       const manual = normalizeNumber(manualRate);
       if (manual !== null && manual > 0) return { rate: manual, source: "手入力" };
       if (stats?.rate) return { rate: stats.rate, source: "台帳累計" };
-      const assumed = normalizeNumber(store?.assumedRate);
+      const assumed = activeMapAssumedRate(store?.id);
       if (assumed !== null && assumed > 0) return { rate: assumed, source: `推定${assumed.toFixed(1)}使用`, assumed: true };
       return { rate: null, source: "回転率なし" };
     }
@@ -1773,21 +1784,24 @@
         machines: Array.isArray(source.machines) ? source.machines : [],
         sessions: Array.isArray(source.sessions) ? source.sessions : [],
         dailyState: source.dailyState && typeof source.dailyState === "object" ? source.dailyState : {},
+        presetSettings: source.presetSettings && typeof source.presetSettings === "object" ? source.presetSettings : {},
         labelsByStore: source.labelsByStore && typeof source.labelsByStore === "object" ? source.labelsByStore : {},
         meta: { ...base.meta, ...(source.meta || {}) }
       };
       next.version = SCHEMA_VERSION;
+      const legacyNetBallsPerWin = next.stores.map((store) => normalizeNumber(store.netBallsPerWin)).find((value) => value !== null && value > 0);
+      if (!next.presetSettings["umi-sp5"]) next.presetSettings["umi-sp5"] = {};
+      next.presetSettings["umi-sp5"].netBallsPerWin = positiveNumberOrDefault(next.presetSettings["umi-sp5"].netBallsPerWin ?? legacyNetBallsPerWin, DEFAULT_NET_BALLS_PER_WIN);
       next.stores = next.stores.map((store) => ({
         id: store.id || cryptoId("st"),
         name: String(store.name || "無名店"),
         isPersonal: Boolean(store.isPersonal),
         lendRate: positiveNumberOrDefault(store.lendRate, DEFAULT_LEND_RATE),
         exchangeBalls: exchangeBallsFromStore(store),
-        netBallsPerWin: positiveNumberOrDefault(store.netBallsPerWin, DEFAULT_NET_BALLS_PER_WIN),
-        assumedRate: normalizeNumber(store.assumedRate),
         createdAt: store.createdAt || nowIso()
       }));
       next.layouts = normalizeLayouts(next.layouts);
+      migrateStoreAssumedRatesToMaps(next, source.stores || []);
       next.machines = next.machines.map((machine) => {
         const presetId = normalizeMachinePresetId(machine);
         const preset = presetById(presetId);
@@ -1881,6 +1895,27 @@
       return next;
     }
 
+    function migrateStoreAssumedRatesToMaps(nextData, legacyStores) {
+      const legacyRates = new Map((legacyStores || []).map((store) => [store.id, normalizeNumber(store.assumedRate)]));
+      Object.entries(nextData.layouts || {}).forEach(([storeId, layout]) => {
+        const legacyRate = legacyRates.get(storeId);
+        if (legacyRate === null || legacyRate <= 0 || !layout?.maps) return;
+        layout.maps.forEach((map) => {
+          if (normalizeNumber(map.assumedRate) !== null) return;
+          const parsed = parseIslandLayout(map);
+          const hasYutimeByMachine = parsed.daiNos.some((daiNo) => {
+            const machine = nextData.machines.find((item) => item.storeId === storeId && item.daiNo === String(daiNo));
+            return Boolean(presetById(normalizeMachinePresetId(machine))?.hasYutime);
+          });
+          const hasYutimeByColumn = (map.islands || []).some((island) => (
+            Boolean(presetById(island.leftPresetId)?.hasYutime) || Boolean(presetById(island.rightPresetId)?.hasYutime)
+          ));
+          const hasYutime = hasYutimeByMachine || hasYutimeByColumn;
+          if (hasYutime) map.assumedRate = legacyRate;
+        });
+      });
+    }
+
     function isDateString(value) {
       return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ""));
     }
@@ -1959,6 +1994,7 @@
               map: {
                 id: "map_sample",
                 name: "メインフロア",
+                assumedRate: 16.5,
                 islands: [{ left: { from: 101, to: 103 }, right: null, leftPresetId: "umi-sp5", rightPresetId: "", excluded: ["102"] }],
                 updatedAt: nowIso(),
                 errors: []
@@ -2193,6 +2229,8 @@
       const otherAutoLabels = AUTO_LABELS.filter((label) => !todayLabels.includes(label));
       const layout = storeLayout(store.id);
       const hasYutime = activeMapHasYutime(store.id);
+      const assumedRate = activeMapAssumedRate(store.id);
+      const umiNetBalls = presetNetBallsPerWin("umi-sp5");
       if (!hasYutime) {
         closingCheckMode = false;
         morningCheckMode = false;
@@ -2210,7 +2248,8 @@
             <div class="status-line" style="margin-top:8px">
               <button class="small" id="toggleClosingCheckBtn">閉店時ゲーム数登録${closingCheckMode ? "ON" : "OFF"}</button>
               <button class="small" id="toggleMorningCheckBtn">ラムクリアチェック${morningCheckMode ? "ON" : "OFF"}</button>
-              <button class="small" id="quickAssumedRateBtn">推定回転率 ${store.assumedRate !== null && store.assumedRate !== undefined ? Number(store.assumedRate).toFixed(1) : "未設定"}（タップで変更）</button>
+              <button class="small" id="quickAssumedRateBtn">推定回転率 ${assumedRate !== null && assumedRate !== undefined ? Number(assumedRate).toFixed(1) : "未設定"}（タップで変更）</button>
+              <button class="small" id="quickNetBallsBtn">純増 ${Math.round(umiNetBalls).toLocaleString("ja-JP")}玉（変更）</button>
             </div>
           </div>
         ` : ""}
@@ -2248,6 +2287,8 @@
       if (labelFormButton) labelFormButton.addEventListener("click", openLabelForm);
       const quickAssumedRateButton = byId("quickAssumedRateBtn");
       if (quickAssumedRateButton) quickAssumedRateButton.addEventListener("click", () => openAssumedRateQuickForm(store.id));
+      const quickNetBallsButton = byId("quickNetBallsBtn");
+      if (quickNetBallsButton) quickNetBallsButton.addEventListener("click", () => openNetBallsQuickForm("umi-sp5"));
       const closingToggle = byId("toggleClosingCheckBtn");
       if (closingToggle) {
         closingToggle.classList.toggle("primary", closingCheckMode);
@@ -2320,21 +2361,42 @@
     }
 
     function openAssumedRateQuickForm(storeId) {
-      const store = data.stores.find((item) => item.id === storeId);
-      if (!store) return;
-      openModal("推定回転率", "台帳データがない台の期待値計算に使用します。空欄で未設定に戻します。", `
-        <div class="field-row"><label for="quickAssumedRate">推定回転率</label><input id="quickAssumedRate" inputmode="decimal" value="${escapeHtml(store.assumedRate ?? "")}" placeholder="例: 16.5"></div>
+      const map = activeMap(storeId);
+      if (!map) return;
+      openModal("推定回転率", "選択中の機種・コーナーで、台帳データがない台の期待値計算に使用します。空欄で未設定に戻します。", `
+        <div class="field-row"><label for="quickAssumedRate">推定回転率</label><input id="quickAssumedRate" inputmode="decimal" value="${escapeHtml(map.assumedRate ?? "")}" placeholder="例: 16.5"></div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveQuickAssumedRateBtn">保存</button>
         </div>
       `);
       byId("saveQuickAssumedRateBtn").addEventListener("click", () => {
-        store.assumedRate = normalizeNumber(byId("quickAssumedRate").value);
+        map.assumedRate = normalizeNumber(byId("quickAssumedRate").value);
         if (!persistWithToast("保存しました")) return;
         closeModal();
         renderLabelFilters();
         renderMachineMap();
+      });
+    }
+
+    function openNetBallsQuickForm(presetId) {
+      const preset = presetById(presetId);
+      if (!preset) return;
+      openModal("期待値用の純増玉", "自分の技術介入に合わせて手動調整する欄です。全店の同じ機種プリセットに反映します。", `
+        <div class="field-row"><label for="quickNetBallsPerWin">1回あたり純増玉</label><input id="quickNetBallsPerWin" inputmode="numeric" value="${escapeHtml(presetNetBallsPerWin(presetId))}"></div>
+        <p class="hint">空欄または0以下なら既定値 ${escapeHtml(preset.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN)} 玉に戻します。実測出玉からの自動切替は行いません。</p>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveQuickNetBallsBtn">保存</button>
+        </div>
+      `);
+      byId("saveQuickNetBallsBtn").addEventListener("click", () => {
+        if (!data.presetSettings) data.presetSettings = {};
+        if (!data.presetSettings[presetId]) data.presetSettings[presetId] = {};
+        data.presetSettings[presetId].netBallsPerWin = positiveNumberOrDefault(byId("quickNetBallsPerWin").value, preset.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN);
+        if (!persistWithToast("保存しました")) return;
+        closeModal();
+        renderAll();
       });
     }
 
@@ -2744,11 +2806,7 @@
           <div class="field-row"><label for="storeLendRate">貸玉レート（円/玉）</label><input id="storeLendRate" inputmode="decimal" value="4"></div>
           <div class="field-row"><label for="storeExchangeBalls">交換玉数（100円あたり）</label><input id="storeExchangeBalls" inputmode="decimal" value="25"></div>
         </div>
-        <div class="field-row"><label for="storeNetBallsPerWin">期待値用の1回あたり純増玉</label><input id="storeNetBallsPerWin" inputmode="numeric" value="${DEFAULT_NET_BALLS_PER_WIN}"></div>
-        <div class="field-row"><label for="storeAssumedRate">推定回転率</label><input id="storeAssumedRate" inputmode="decimal" placeholder="例: 16.5"></div>
-        <p class="hint">台帳データがない台の期待値計算に使用します。日々の釘に合わせてマップ画面からも変更できます。</p>
         <p class="hint">貸玉4円・等価なら交換玉数は25のままで構いません。28玉交換なら28を入力します。</p>
-        <p class="hint">純増玉は自分の技術介入に合わせて手動調整する欄です。実測出玉からの自動切替は行いません。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="createStoreBtn">追加</button>
@@ -2763,8 +2821,6 @@
           isPersonal: byId("storePersonal").checked,
           lendRate: positiveNumberOrDefault(byId("storeLendRate").value, DEFAULT_LEND_RATE),
           exchangeBalls: normalizeExchangeBalls(byId("storeExchangeBalls").value),
-          netBallsPerWin: positiveNumberOrDefault(byId("storeNetBallsPerWin").value, DEFAULT_NET_BALLS_PER_WIN),
-          assumedRate: normalizeNumber(byId("storeAssumedRate").value),
           createdAt: nowIso()
         };
         data.stores.push(store);
@@ -2787,10 +2843,6 @@
           <div class="field-row"><label for="editStoreLendRate">貸玉レート（円/玉）</label><input id="editStoreLendRate" inputmode="decimal" value="${escapeHtml(store.lendRate)}"></div>
           <div class="field-row"><label for="editStoreExchangeBalls">交換玉数（100円あたり）</label><input id="editStoreExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(store.exchangeBalls))}"></div>
         </div>
-        <div class="field-row"><label for="editStoreNetBallsPerWin">期待値用の1回あたり純増玉</label><input id="editStoreNetBallsPerWin" inputmode="numeric" value="${escapeHtml(positiveNumberOrDefault(store.netBallsPerWin, DEFAULT_NET_BALLS_PER_WIN))}"></div>
-        <div class="field-row"><label for="editStoreAssumedRate">推定回転率</label><input id="editStoreAssumedRate" inputmode="decimal" value="${escapeHtml(store.assumedRate ?? "")}" placeholder="例: 16.5"></div>
-        <p class="hint">台帳データがない台の期待値計算に使用します。日々の釘に合わせてマップ画面からも変更できます。</p>
-        <p class="hint">自分の技術介入に合わせて手動調整する欄です。実測出玉からの自動切替は行いません。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveStoreSettingsBtn">保存</button>
@@ -2803,8 +2855,6 @@
         store.isPersonal = byId("editStorePersonal").checked;
         store.lendRate = positiveNumberOrDefault(byId("editStoreLendRate").value, DEFAULT_LEND_RATE);
         store.exchangeBalls = normalizeExchangeBalls(byId("editStoreExchangeBalls").value);
-        store.netBallsPerWin = positiveNumberOrDefault(byId("editStoreNetBallsPerWin").value, DEFAULT_NET_BALLS_PER_WIN);
-        store.assumedRate = normalizeNumber(byId("editStoreAssumedRate").value);
         if (!persistWithToast("保存しました")) return;
         closeModal();
         renderAll();
@@ -3151,6 +3201,7 @@
       return {
         id: cryptoId("map"),
         name,
+        assumedRate: null,
         islands: [],
         updatedAt: nowIso(),
         errors: []
@@ -3196,6 +3247,7 @@
         id: map.id || (index === 0 ? "map_main" : cryptoId("map")),
         name: String(map.name || (index === 0 ? "メインフロア" : `マップ${index + 1}`)),
         islands: cloneIslands(map.islands || []),
+        assumedRate: normalizeNumber(map.assumedRate),
         updatedAt: map.updatedAt || nowIso(),
         errors: Array.isArray(map.errors) ? map.errors : []
       };
