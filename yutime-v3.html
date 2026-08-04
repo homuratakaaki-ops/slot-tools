@@ -616,6 +616,72 @@
       padding: 0 10px;
     }
 
+    .running-bottom-controls {
+      position: sticky;
+      bottom: 8px;
+      z-index: 16;
+      margin: 12px -2px 0;
+      padding: 10px;
+      border: 1px solid #7aa7a3;
+      border-radius: 8px;
+      background: rgba(243, 251, 250, .96);
+      box-shadow: var(--shadow);
+    }
+
+    .running-bottom-controls.sticky-off {
+      position: static;
+      box-shadow: none;
+    }
+
+    .source-chip-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .source-chip {
+      min-height: 42px;
+      background: #fff;
+    }
+
+    .source-chip.selected {
+      border-color: var(--accent);
+      background: #e9f7f5;
+      color: var(--accent-dark);
+      font-weight: 800;
+    }
+
+    .source-chip.is-low {
+      opacity: .48;
+    }
+
+    .unified-invest-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .unified-invest-row button {
+      min-height: 52px;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .running-bottom-controls .counter-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr) auto;
+      gap: 8px;
+      margin-top: 0;
+    }
+
+    .running-bottom-controls .counter-row button {
+      min-height: 52px;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
     .balance-row button.needs-balance {
       opacity: .55;
     }
@@ -1031,6 +1097,7 @@
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
+    const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const SCHEMA_VERSION = 12;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
@@ -1044,7 +1111,7 @@
       "ゾロ目日"
     ];
     const MACHINE_PRESETS = [
-      { id: "umi-sp5", name: "P大海物語スペシャル5", roundBalls: 140, standardRounds: 10, standardPayout: 1400, evSupported: true, spec: { note: "B5時点の期待値対応プリセット" } }
+      { id: "umi-sp5", name: "P大海物語5スペシャル", roundBalls: 140, standardRounds: 10, standardPayout: 1400, evSupported: true, spec: { note: "B5時点の期待値対応プリセット" } }
     ];
     const RAM_STATE_OPTIONS = [
       { value: "cleared", label: "リセットされてた（ラムクリ）", badge: "リ", retained: false },
@@ -1056,7 +1123,7 @@
     const YUTIME_EXPECTATION_ENGINE = (() => {
       const preset = {
         id: "umi-sp5",
-        name: "P大海物語スペシャル5",
+        name: "P大海物語5スペシャル",
         spec: {
           hitProb: 0.00312891,
           hitProbLabel: "1/319.6",
@@ -1220,6 +1287,7 @@
     let closingInputFlow = null;
     let mapEditorOpenByStore = {};
     let runningStickyEnabled = localStorage.getItem(STICKY_PREF_KEY) !== "off";
+    let runningSource = normalizeInvestmentSource(localStorage.getItem(SOURCE_PREF_KEY) || "cash");
     let mapDraft = { storeId: null, islands: [], allowEmptySave: false };
     let modalCancel = null;
 
@@ -1587,16 +1655,20 @@
         createdAt: store.createdAt || nowIso()
       }));
       next.layouts = normalizeLayouts(next.layouts);
-      next.machines = next.machines.map((machine) => ({
-        id: machine.id || cryptoId("m"),
-        storeId: machine.storeId || null,
-        daiNo: String(machine.daiNo || ""),
-        modelName: machine.modelName || "",
-        roundBalls: normalizeNumber(machine.roundBalls),
-        memo: machine.memo || "",
-        presetId: normalizeMachinePresetId(machine),
-        evSupported: Boolean(presetById(normalizeMachinePresetId(machine))?.evSupported || machine.evSupported)
-      })).filter((machine) => machine.storeId && machine.daiNo);
+      next.machines = next.machines.map((machine) => {
+        const presetId = normalizeMachinePresetId(machine);
+        const preset = presetById(presetId);
+        return {
+          id: machine.id || cryptoId("m"),
+          storeId: machine.storeId || null,
+          daiNo: String(machine.daiNo || ""),
+          modelName: presetId === "umi-sp5" && machine.presetId === "umi-sp5" ? preset?.name || machine.modelName || "" : machine.modelName || "",
+          roundBalls: normalizeNumber(machine.roundBalls),
+          memo: machine.memo || "",
+          presetId,
+          evSupported: Boolean(preset?.evSupported || machine.evSupported)
+        };
+      }).filter((machine) => machine.storeId && machine.daiNo);
       next.sessions = next.sessions.map((session) => ({
         ...blankSession(),
         ...session,
@@ -1744,7 +1816,7 @@
         id: "m_sample",
         storeId: "st_sample",
         daiNo: "101",
-        modelName: "P大海物語スペシャル5",
+        modelName: "P大海物語5スペシャル",
         roundBalls: 140,
         memo: "釘・癖など",
         presetId: "umi-sp5",
@@ -2081,6 +2153,14 @@
       const entries = historyEntries(session);
       const replayCollapsed = balances.saipurei === 0 && !expandedReplayRows.has(session.id);
       const stickyClass = runningStickyEnabled ? "" : " sticky-off";
+      const selectedSource = runningSource;
+      const selectedAmount = selectedSource === "cash" ? 500 : 125;
+      const selectedCanUse = canUseSource(session, selectedSource, selectedAmount);
+      const sourceOptions = [
+        { value: "mochidama", label: "持ち玉", amount: 125 },
+        { value: "saipurei", label: "再プレ", amount: 125 },
+        { value: "cash", label: "現金", amount: 500 }
+      ];
       els.runningArea.innerHTML = `
         <div class="section running-panel">
           <div class="running-sticky${stickyClass}">
@@ -2097,25 +2177,18 @@
               </div>
             </div>
             ${liveEv?.result ? `<p class="live-ev-line">${escapeHtml(liveExpectationText(liveEv))}</p>` : ""}
-            <div class="counter-row">
-              <button data-spin-add="1">+1</button>
-              <button data-spin-add="3">+3</button>
-              <button data-spin-add="5">+5</button>
-              <button data-spin-add="10">+10</button>
-              <button id="undoSpinBtn">元に戻す</button>
-            </div>
             <div class="balance-row">
-              <span class="balance-label">持ち玉</span><button class="editable-value balance-value" data-edit-balance="startMochidama"><strong>${balanceText(balances.mochidama, "玉")}</strong><small>修正</small></button><button class="${balances.mochidama === null ? "needs-balance" : ""}" data-source-btn="mochidama" ${balances.mochidama !== null && !canUseSource(session, "mochidama", 125) ? "disabled" : ""}>-125玉</button>
+              <span class="balance-label">持ち玉</span><button class="editable-value balance-value" data-edit-balance="startMochidama"><strong>${balanceText(balances.mochidama, "玉")}</strong><small>修正</small></button>
             </div>
             ${replayCollapsed ? `
               <button class="balance-row is-collapsed" id="showReplayRowBtn">再プレ使い切り</button>
             ` : `
               <div class="balance-row">
-                <span class="balance-label">再プレ残</span><button class="editable-value balance-value" data-edit-balance="startSaipurei"><strong>${balanceText(balances.saipurei, "玉")}</strong><small>修正</small></button><button class="${balances.saipurei === null ? "needs-balance" : ""}" data-source-btn="saipurei" ${balances.saipurei !== null && !canUseSource(session, "saipurei", 125) ? "disabled" : ""}>-125玉</button>
+                <span class="balance-label">再プレ残</span><button class="editable-value balance-value" data-edit-balance="startSaipurei"><strong>${balanceText(balances.saipurei, "玉")}</strong><small>修正</small></button>
               </div>
             `}
             <div class="balance-row">
-              <span class="balance-label">カード残</span><button class="editable-value balance-value" data-edit-balance="startCredit"><strong>${balanceText(balances.credit, "円")}</strong><small>修正</small></button><button class="${balances.credit === null ? "needs-balance" : ""}" data-source-btn="cash" ${balances.credit !== null && !canUseSource(session, "cash", 500) ? "disabled" : ""}>-500円</button><button id="openChargeBtn">入金</button>
+              <span class="balance-label">カード残</span><button class="editable-value balance-value" data-edit-balance="startCredit"><strong>${balanceText(balances.credit, "円")}</strong><small>修正</small></button>
             </div>
             <div class="running-total-row">累計投入 ${numberText(panelInputBalls, 0)}玉 / 累計回転 ${numberText(totalSpins, "-")}<br><span>内訳: 持ち玉${numberText(totals.mochidamaBalls, 0)}玉・再プレ${numberText(totals.saipureiBalls, 0)}玉・現金${numberText(totals.cashYen, 0)}円</span></div>
             ${yutimeMode ? '<p class="phase-note">遊タイム中の投資として記録されます。</p>' : ""}
@@ -2157,6 +2230,26 @@
               </div>
             ` : ""}
           </div>
+          <div class="running-bottom-controls${stickyClass}">
+            <div class="source-chip-row">
+              ${sourceOptions.map((option) => {
+                const balance = balanceForSource(session, option.value);
+                const low = balance === null || balance < option.amount;
+                return `<button class="source-chip${option.value === selectedSource ? " selected" : ""}${low ? " is-low" : ""}" data-source-select="${escapeHtml(option.value)}">${escapeHtml(option.label)}</button>`;
+              }).join("")}
+            </div>
+            <div class="unified-invest-row">
+              <button class="primary" id="unifiedInvestBtn" ${selectedCanUse ? "" : "disabled"}>${selectedSource === "cash" ? "-500円" : "-125玉"}</button>
+              ${selectedSource === "cash" ? '<button id="openChargeBtn">入金</button>' : ""}
+            </div>
+            <div class="counter-row">
+              <button data-spin-add="1">+1</button>
+              <button data-spin-add="3">+3</button>
+              <button data-spin-add="5">+5</button>
+              <button data-spin-add="10">+10</button>
+              <button id="undoSpinBtn">元に戻す</button>
+            </div>
+          </div>
           ${otherActiveSessions.length ? `
             <div class="status-line" style="margin:0 0 12px">
               <span class="badge warn">他に稼働中の記録があります</span>
@@ -2195,16 +2288,22 @@
         expandedReplayRows.add(session.id);
         renderRunning();
       });
-      els.runningArea.querySelectorAll("[data-source-btn]").forEach((button) => {
+      els.runningArea.querySelectorAll("[data-source-select]").forEach((button) => {
         button.addEventListener("click", () => {
-          const source = button.dataset.sourceBtn;
-          addInvestment(session, source, source === "cash" ? 500 : 125);
+          runningSource = normalizeInvestmentSource(button.dataset.sourceSelect);
+          localStorage.setItem(SOURCE_PREF_KEY, runningSource);
+          renderRunning();
         });
+      });
+      const unifiedInvestButton = byId("unifiedInvestBtn");
+      if (unifiedInvestButton) unifiedInvestButton.addEventListener("click", () => {
+        addInvestment(session, runningSource, runningSource === "cash" ? 500 : 125);
       });
       els.runningArea.querySelectorAll("[data-edit-balance]").forEach((button) => {
         button.addEventListener("click", () => openBalanceEditForm(session, button.dataset.editBalance));
       });
-      byId("openChargeBtn").addEventListener("click", () => openChargeForm(session));
+      const chargeButton = byId("openChargeBtn");
+      if (chargeButton) chargeButton.addEventListener("click", () => openChargeForm(session));
       els.runningArea.querySelectorAll("[data-switch-active]").forEach((button) => {
         button.addEventListener("click", () => {
           activeSessionId = button.dataset.switchActive;
@@ -3085,7 +3184,7 @@
         note.textContent = preset.evSupported ? "期待値算出はこのプリセット選択時のみ対応しています。" : "このプリセットは期待値算出に未対応です。";
       } else {
         modelInput.disabled = false;
-        note.textContent = "期待値算出は P大海物語スペシャル5 のプリセット選択時のみ対応しています。";
+        note.textContent = "期待値算出は P大海物語5スペシャル のプリセット選択時のみ対応しています。";
       }
     }
 
