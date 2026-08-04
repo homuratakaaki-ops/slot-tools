@@ -1658,7 +1658,7 @@
           yenPerBall: expectationYenPerBall(store),
           netBallsPerWin
         },
-        payoutSource: `純増${Math.round(netBallsPerWin).toLocaleString("ja-JP")}玉使用（手動設定）`
+        payoutSource: `平均出玉${Math.round(netBallsPerWin).toLocaleString("ja-JP")}玉/回使用`
       };
     }
 
@@ -1667,7 +1667,7 @@
       if (manual !== null && manual > 0) return { rate: manual, source: "手入力" };
       if (stats?.rate) return { rate: stats.rate, source: "台帳累計" };
       const assumed = activeMapAssumedRate(store?.id);
-      if (assumed !== null && assumed > 0) return { rate: assumed, source: `推定${assumed.toFixed(1)}使用`, assumed: true };
+      if (assumed !== null && assumed > 0) return { rate: assumed, source: `コーナー平均${assumed.toFixed(1)}使用`, assumed: true };
       return { rate: null, source: "回転率なし" };
     }
 
@@ -2310,9 +2310,10 @@
             <div class="status-line" style="margin-top:8px">
               <button class="small" id="toggleClosingCheckBtn">閉店時ゲーム数登録${closingCheckMode ? "ON" : "OFF"}</button>
               <button class="small" id="toggleMorningCheckBtn">ラムクリアチェック${morningCheckMode ? "ON" : "OFF"}</button>
-              <button class="small" id="quickAssumedRateBtn">推定回転率 ${assumedRate !== null && assumedRate !== undefined ? Number(assumedRate).toFixed(1) : "未設定"}（タップで変更）</button>
-              <button class="small" id="quickNetBallsBtn">純増 ${Math.round(umiNetBalls).toLocaleString("ja-JP")}玉（変更）</button>
+              <button class="small" id="quickAssumedRateBtn">このコーナーの平均回転率 ${assumedRate !== null && assumedRate !== undefined ? Number(assumedRate).toFixed(1) : "未設定"}（タップで${assumedRate !== null && assumedRate !== undefined ? "変更" : "設定"}）</button>
+              <button class="small" id="quickNetBallsBtn">大当たり1回の平均出玉 ${Math.round(umiNetBalls).toLocaleString("ja-JP")}玉（変更）</button>
             </div>
+            <p class="hint" style="margin:6px 0 0">台ごとの実測・手入力がない台は、この値を基準に期待値を計算します。</p>
           </div>
         ` : ""}
         <div class="filter-block">
@@ -2426,8 +2427,8 @@
     function openAssumedRateQuickForm(storeId) {
       const map = activeMap(storeId);
       if (!map) return;
-      openModal("推定回転率", "選択中の機種・コーナーで、台帳データがない台の期待値計算に使用します。空欄で未設定に戻します。", `
-        <div class="field-row"><label for="quickAssumedRate">推定回転率</label><input id="quickAssumedRate" inputmode="decimal" value="${escapeHtml(map.assumedRate ?? "")}" placeholder="例: 16.5"></div>
+      openModal("このコーナーの平均回転率", "台ごとの実測・手入力がない台は、この値を基準に期待値を計算します。空欄で未設定に戻します。", `
+        <div class="field-row"><label for="quickAssumedRate">このコーナーの平均回転率</label><input id="quickAssumedRate" inputmode="decimal" value="${escapeHtml(map.assumedRate ?? "")}" placeholder="例: 16.5"></div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveQuickAssumedRateBtn">保存</button>
@@ -2445,8 +2446,8 @@
     function openNetBallsQuickForm(presetId) {
       const preset = presetById(presetId);
       if (!preset) return;
-      openModal("期待値用の純増玉", "自分の技術介入に合わせて手動調整する欄です。全店の同じ機種プリセットに反映します。", `
-        <div class="field-row"><label for="quickNetBallsPerWin">1回あたり純増玉</label><input id="quickNetBallsPerWin" inputmode="numeric" value="${escapeHtml(presetNetBallsPerWin(presetId))}"></div>
+      openModal("大当たり1回の平均出玉", "連チャン込みの大当たり1回あたり平均出玉。自分の止め打ち精度に合わせて調整できます。", `
+        <div class="field-row"><label for="quickNetBallsPerWin">大当たり1回の平均出玉</label><input id="quickNetBallsPerWin" inputmode="numeric" value="${escapeHtml(presetNetBallsPerWin(presetId))}"></div>
         <p class="hint">空欄または0以下なら既定値 ${escapeHtml(preset.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN)} 玉に戻します。実測出玉からの自動切替は行いません。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
