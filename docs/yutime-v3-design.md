@@ -172,7 +172,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:corrupt:<ISO日時>` | 破損した `ytv3:data` の退避 | `loadData()` で `ytv3:data` が JSON として読めなかった場合に作成。自動削除しない | 破損していた `ytv3:data` raw 文字列 |
@@ -537,3 +537,12 @@ B5 実測値:
 - 遊タイム玉減りは `yutimeEnterBalls + yutime phase 投入玉 - 当選時玉数` とする。当選時玉数は実測 `hitRemainBalls` を優先し、なければ概算残り玉を使う。概算出玉を二重に引かない。
 - 戦果報告に「同じ台で続行」を追加する。開始回転数を `0` / `100` / `200` から選び、持ち玉、再プレ残、カード残、開始時累計大当たりを引き継いだ新activeセッションを即開始する。
 - 稼働中パネルの残高表示は選択中ソースのみ表示する。統合投資ボタンは最頻操作として縦幅を拡大する。
+
+## 23. B20 推定回転率
+
+- schema は 13 とする。Store に `assumedRate`（推定回転率、null許容）を追加する。既存店は読み込み時に `null` として補完する。
+- 店追加・店設定に「推定回転率」を追加する。マップ画面上部にも「推定回転率 ◯◯（タップで変更）」のクイック編集チップを置き、即保存できるようにする。
+- 期待値判定の回転率優先順位は、手入力、台帳累計（フィルタ適用後）、推定回転率、なし。
+- 台詳細の期待値判定では、推定を使った場合に `推定16.5使用` のように出所を表示する。
+- マップの台番ボタンに表示する回転率は実測のみとし、推定値は表示しない。推定由来の宵サインは `宵≈` と点線枠で、実測由来の `宵` と区別する。
+- schema 13 Store 1件サンプル（`exchangeBalls: 28`、`netBallsPerWin: 1400`、`assumedRate: 16.5`）: 164 chars
