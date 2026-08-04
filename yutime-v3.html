@@ -668,9 +668,13 @@
     }
 
     .unified-invest-row button {
-      min-height: 52px;
+      min-height: 96px;
       font-size: 18px;
       font-weight: 800;
+    }
+
+    .unified-invest-row #unifiedInvestBtn {
+      font-size: 24px;
     }
 
     .running-bottom-controls .counter-row {
@@ -2181,19 +2185,21 @@
               </div>
             </div>
             ${yutimeRemaining ? `<p class="live-ev-line${yutimeRemaining.near ? " warn" : ""}">${escapeHtml(yutimeRemaining.text)}</p>` : ""}
-            <div class="balance-row">
-              <span class="balance-label">持ち玉</span><button class="editable-value balance-value" data-edit-balance="startMochidama"><strong>${balanceText(balances.mochidama, "玉")}</strong><small>修正</small></button>
-            </div>
-            ${replayCollapsed ? `
+            ${selectedSource === "mochidama" ? `
+              <div class="balance-row">
+                <span class="balance-label">持ち玉</span><button class="editable-value balance-value" data-edit-balance="startMochidama"><strong>${balanceText(balances.mochidama, "玉")}</strong><small>修正</small></button>
+              </div>
+            ` : selectedSource === "saipurei" ? (replayCollapsed ? `
               <button class="balance-row is-collapsed" id="showReplayRowBtn">再プレ使い切り</button>
             ` : `
               <div class="balance-row">
                 <span class="balance-label">再プレ残</span><button class="editable-value balance-value" data-edit-balance="startSaipurei"><strong>${balanceText(balances.saipurei, "玉")}</strong><small>修正</small></button>
               </div>
+            `) : `
+              <div class="balance-row">
+                <span class="balance-label">カード残</span><button class="editable-value balance-value" data-edit-balance="startCredit"><strong>${balanceText(balances.credit, "円")}</strong><small>修正</small></button>
+              </div>
             `}
-            <div class="balance-row">
-              <span class="balance-label">カード残</span><button class="editable-value balance-value" data-edit-balance="startCredit"><strong>${balanceText(balances.credit, "円")}</strong><small>修正</small></button>
-            </div>
             <div class="running-total-row">累計投入 ${numberText(panelInputBalls, 0)}玉 / 累計回転 ${numberText(totalSpins, "-")}<br><span>内訳: 持ち玉${numberText(totals.mochidamaBalls, 0)}玉・再プレ${numberText(totals.saipureiBalls, 0)}玉・現金${numberText(totals.cashYen, 0)}円</span></div>
             ${yutimeMode ? '<p class="phase-note">遊タイム中の投資として記録されます。</p>' : ""}
             <div class="running-actions">
@@ -2358,6 +2364,7 @@
       els.sessionList.innerHTML = sessions.slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).map((session) => {
         const machine = data.machines.find((item) => item.id === session.machineId);
         const sourceMachine = carryoverSourceMachine(session);
+        const sameMachineCarryover = sourceMachine && sourceMachine.id === machine?.id;
         const derived = deriveSession(session, machine);
         const misses = missingFields(session);
         return `
@@ -2371,7 +2378,7 @@
                   ${automaticLabelsForDate(session.date).map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
                   ${session.labels.map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
                   ${derived.isEstimatedRate || derived.isEstimatedPayout ? '<span class="badge warn">概算</span>' : ""}
-                  ${sourceMachine ? `<span class="badge">⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き</span>` : ""}
+                  ${sourceMachine ? `<span class="badge">${sameMachineCarryover ? "⇐ 同台続行" : `⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き`}</span>` : ""}
                 </div>
                 <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${rateText(derived)} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
               </div>
@@ -3312,7 +3319,36 @@
         session.updatedAt = nowIso();
         if (!persistWithToast("当選を記録しました")) return;
         renderAll();
-        openRateSummary(session);
+        openHitResetPrompt(session);
+      });
+    }
+
+    function hitResetOptions(machine) {
+      const preset = presetById(normalizeMachinePresetId(machine));
+      const values = [0];
+      if (preset?.spec?.jitanNormal !== undefined) values.push(Number(preset.spec.jitanNormal));
+      if (preset?.spec?.jitanChain !== undefined) values.push(Number(preset.spec.jitanChain));
+      return [...new Set(values.filter((value) => Number.isFinite(value) && value >= 0))];
+    }
+
+    function openHitResetPrompt(session) {
+      const machine = data.machines.find((item) => item.id === session.machineId);
+      const options = hitResetOptions(machine);
+      openModal("現在回転数をリセット", "選ばず閉じると現在回転数はそのままです。続行する場合だけ、時短消化後の起点に合わせてください。", `
+        <div class="quick-invest">
+          ${options.map((value) => `<button data-hit-reset="${value}">${value}</button>`).join("")}
+        </div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+        </div>
+      `);
+      els.modalBody.querySelectorAll("[data-hit-reset]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const value = Number(button.dataset.hitReset);
+          closeModal();
+          setCurrentSpinWithUndo(session, value);
+          showToast(`現在回転数を${value}にリセットしました`);
+        });
       });
     }
 
@@ -3580,10 +3616,17 @@
     }
 
     function addCurrentSpin(session, amount) {
+      setCurrentSpinWithUndo(session, Number(session.currentSpin ?? session.startSpin ?? 0) + amount);
+    }
+
+    function setCurrentSpinWithUndo(session, value) {
+      const current = Number(session.currentSpin ?? session.startSpin ?? 0);
+      const next = Number(value || 0);
+      const amount = next - current;
       if (!spinUndoStacks[session.id]) spinUndoStacks[session.id] = [];
       spinUndoStacks[session.id].push(amount);
       if (spinUndoStacks[session.id].length > 20) spinUndoStacks[session.id].shift();
-      session.currentSpin = Number(session.currentSpin ?? session.startSpin ?? 0) + amount;
+      session.currentSpin = next;
       session.updatedAt = nowIso();
       persist();
       renderRunning();
@@ -3660,6 +3703,45 @@
       closeModal();
       showView("mapView");
       showToast("持ち玉を引き継ぎ待機にしました");
+    }
+
+    function openSameMachineContinuePrompt(session) {
+      const machine = data.machines.find((item) => item.id === session.machineId);
+      const options = hitResetOptions(machine);
+      openModal("同じ台で続行", "開始回転数を選ぶと、同じ台の新しい記録をすぐ開始します。値はあとから修正できます。", `
+        <div class="quick-invest">
+          ${options.map((value) => `<button class="${Number(session.currentSpin) === value ? "primary" : ""}" data-same-start="${value}">${value}</button>`).join("")}
+        </div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+        </div>
+      `);
+      els.modalBody.querySelectorAll("[data-same-start]").forEach((button) => {
+        button.addEventListener("click", () => startSameMachineContinuation(session, Number(button.dataset.sameStart)));
+      });
+    }
+
+    function startSameMachineContinuation(sourceSession, startSpin) {
+      const balances = deriveBalances(sourceSession);
+      const next = blankSession();
+      next.storeId = sourceSession.storeId;
+      next.machineId = sourceSession.machineId;
+      next.date = today();
+      next.labels = Array.isArray(sourceSession.labels) ? [...sourceSession.labels] : [];
+      next.carriedFromSessionId = sourceSession.id;
+      next.startSpin = startSpin;
+      next.currentSpin = startSpin;
+      next.startTime = currentTime();
+      next.startMochidama = finalMochidamaForCarryover(sourceSession);
+      next.startSaipurei = balances.saipurei;
+      next.startCredit = balances.credit;
+      next.startTotalHits = sourceSession.endTotalHits ?? null;
+      data.sessions.push(next);
+      activeSessionId = next.id;
+      if (!persistWithToast("同じ台で続行を開始しました")) return;
+      closeModal();
+      showView("runView");
+      renderAll();
     }
 
     function addInvestment(session, source, amount, time = currentTime()) {
@@ -3861,14 +3943,17 @@
           <div class="metric"><span>換算収支</span><strong>${numberText(derived.profitYen, "-")} 円</strong><small>${derived.profitYen !== null ? `（${escapeHtml(exchangeBallsText(derived.exchangeBalls))}玉交換）` : ""}</small></div>
           ${session.hitVia === "yutime" ? `<div class="metric"><span>遊タイム玉減り</span><strong>${numberText(derived.yutimeLoss, "-")}</strong></div>` : ""}
         </div>
+        ${derived.warnings?.length ? `<p class="hint warn">${escapeHtml(derived.warnings.join(" / "))}</p>` : ""}
         <div class="status-line">${missingFields(session).length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>'}</div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button id="summaryCarryoverBtn">この持ち玉で次の台へ</button>
+          <button id="summarySameMachineBtn">同じ台で続行</button>
           <button class="primary" id="summaryLedgerBtn">台帳で見る</button>
         </div>
       `);
       byId("summaryCarryoverBtn").addEventListener("click", () => startCarryover(session));
+      byId("summarySameMachineBtn").addEventListener("click", () => openSameMachineContinuePrompt(session));
       byId("summaryLedgerBtn").addEventListener("click", () => {
         closeModal();
         showView("ledgerView");
@@ -4011,17 +4096,22 @@
       const startingBalls = Number(session.startMochidama || 0);
       const totalInputBalls = tapMode ? investedBalls : startingBalls + investedBalls;
       const normalInputBalls = tapMode ? normalInvestedBalls : startingBalls + normalInvestedBalls;
-      const normalEndSpin = session.hitSpin !== null ? session.hitSpin : (session.yutimeEnterBalls !== null ? null : session.endSpin);
-      const normalSpins = normalEndSpin !== null && session.startSpin !== null ? normalEndSpin - session.startSpin : null;
       const preset = machine ? presetById(normalizeMachinePresetId(machine)) : null;
       const hasHit = Number(session.hitCount || 0) > 0;
+      const warnings = [];
+      const normalEndSpin = session.hitSpin !== null ? session.hitSpin : (session.yutimeEnterBalls !== null || hasHit ? null : session.endSpin);
+      const rawNormalSpins = normalEndSpin !== null && session.startSpin !== null ? normalEndSpin - session.startSpin : null;
+      const normalSpins = rawNormalSpins !== null && rawNormalSpins < 0 ? null : rawNormalSpins;
+      if (rawNormalSpins !== null && rawNormalSpins < 0) warnings.push("通常回転数の入力を確認");
       const roundBasedPayout = hasHit && machine?.roundBalls !== null && machine?.roundBalls !== undefined && session.totalRounds !== null && session.totalRounds !== undefined ? machine.roundBalls * session.totalRounds : null;
       const standardPayout = hasHit && preset?.standardPayout ? preset.standardPayout * session.hitCount : null;
       const estimatedPayout = hasHit ? (roundBasedPayout !== null ? roundBasedPayout : standardPayout) : null;
       const estimatedRemainBalls = hasHit && session.hitRemainBalls === null && estimatedPayout !== null && session.endTotalBalls !== null ? Math.max(0, session.endTotalBalls - estimatedPayout) : null;
       const normalEndBalls = session.yutimeEnterBalls !== null ? session.yutimeEnterBalls : (hasHit && session.hitRemainBalls !== null ? session.hitRemainBalls : estimatedRemainBalls);
-      const consumedBalls = normalSpins !== null && normalEndBalls !== null ? Math.max(0, normalInputBalls - Number(normalEndBalls || 0)) : null;
-      const fallbackConsumed = normalSpins !== null ? Math.max(0, normalInputBalls) : null;
+      const rawConsumedBalls = normalSpins !== null && normalEndBalls !== null ? normalInputBalls - Number(normalEndBalls || 0) : null;
+      const consumedBalls = rawConsumedBalls !== null && rawConsumedBalls < 0 ? null : rawConsumedBalls;
+      if (rawConsumedBalls !== null && rawConsumedBalls < 0) warnings.push("通常消費玉の入力を確認");
+      const fallbackConsumed = normalSpins !== null && normalInputBalls >= 0 ? normalInputBalls : null;
       const rateBase = tapMode ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : (hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null);
       const rate = normalSpins !== null && rateBase > 0 ? normalSpins / rateBase * 250 : null;
       const rateUnavailableReason = !tapMode && !hasStartMochidama ? "持ち玉未入力" : "";
@@ -4029,8 +4119,10 @@
       const rawHitBalls = session.endTotalBalls !== null && hasHit && pointBalls !== null ? session.endTotalBalls - pointBalls : null;
       const hitBalls = session.hitRemainBalls === null && estimatedPayout !== null ? estimatedPayout : rawHitBalls;
       const averageRoundPayout = roundBasedPayout !== null && hasHit ? Math.round(roundBasedPayout / session.hitCount) : null;
-      const yutimeEndBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : session.endTotalBalls;
-      const yutimeLoss = session.hitVia === "yutime" && session.yutimeEnterBalls !== null && yutimeEndBalls !== null ? session.yutimeEnterBalls + yutimeInvestedBalls - yutimeEndBalls : null;
+      const yutimeEndBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : (estimatedRemainBalls !== null ? estimatedRemainBalls : session.endTotalBalls);
+      const rawYutimeLoss = session.hitVia === "yutime" && session.yutimeEnterBalls !== null && yutimeEndBalls !== null ? session.yutimeEnterBalls + yutimeInvestedBalls - yutimeEndBalls : null;
+      const yutimeLoss = rawYutimeLoss !== null && rawYutimeLoss < 0 ? null : rawYutimeLoss;
+      if (rawYutimeLoss !== null && rawYutimeLoss < 0) warnings.push("遊タイム玉減りの入力を確認");
       const externalInvestedBalls = session.investments.filter((item) => investmentSource(item) !== "mochidama").reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const diffInputBalls = tapMode ? startingBalls + externalInvestedBalls : totalInputBalls;
       const diffBalls = session.endTotalBalls !== null ? Math.round(session.endTotalBalls - diffInputBalls + Number(session.zanhoryuBalls || 0)) : null;
@@ -4059,7 +4151,8 @@
         diffBalls,
         profitYen,
         exchangeBalls,
-        exchangeRate
+        exchangeRate,
+        warnings
       };
     }
 
