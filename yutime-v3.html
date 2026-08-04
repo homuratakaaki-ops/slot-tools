@@ -582,6 +582,10 @@
       font-weight: 700;
     }
 
+    .live-ev-line.warn {
+      color: var(--danger);
+    }
+
     .editable-value {
       border-style: dashed;
       background: #fff;
@@ -2145,7 +2149,7 @@
       const otherActiveSessions = activeSessionsForStore(store.id).filter((item) => item.id !== session.id);
       const currentSpin = session.currentSpin ?? session.startSpin;
       const liveRate = runningPanelRate(session);
-      const liveEv = runningExpectation(session, machine, liveRate);
+      const yutimeRemaining = runningYutimeRemaining(session, machine);
       const totals = investmentTotals(session);
       const totalSpins = runningSpinCount(session);
       const panelInputBalls = runningPanelInputBalls(session, derived);
@@ -2176,7 +2180,7 @@
                 ${yutimeMode ? `<small>遊タイム突入 ${numberText(session.yutimeEnterBalls, "-")}玉</small>` : ""}
               </div>
             </div>
-            ${liveEv?.result ? `<p class="live-ev-line">${escapeHtml(liveExpectationText(liveEv))}</p>` : ""}
+            ${yutimeRemaining ? `<p class="live-ev-line${yutimeRemaining.near ? " warn" : ""}">${escapeHtml(yutimeRemaining.text)}</p>` : ""}
             <div class="balance-row">
               <span class="balance-label">持ち玉</span><button class="editable-value balance-value" data-edit-balance="startMochidama"><strong>${balanceText(balances.mochidama, "玉")}</strong><small>修正</small></button>
             </div>
@@ -3114,12 +3118,13 @@
       });
       byId("startSessionBtn").addEventListener("click", () => {
         readMachineDetailForm(machine);
+        const startSpinPreset = normalizeNumber(byId("evCurrentSpin")?.value);
         if (!persist()) {
           showToast("保存に失敗しました。容量を確認してください。", "error");
           return;
         }
         closeModal();
-        openStartWizard(machine.id, { startSpin: normalizeNumber(byId("evCurrentSpin")?.value) });
+        openStartWizard(machine.id, { startSpin: startSpinPreset });
       });
     }
 
@@ -3507,22 +3512,20 @@
       return inputBalls > 0 && spins >= 0 ? spins / inputBalls * 250 : null;
     }
 
-    function runningExpectation(session, machine, liveRate) {
+    function runningYutimeRemaining(session, machine) {
       if (!session || !machine || isYutimeInvestmentPhase(session) || session.hitSpin !== null) return null;
-      const stats = machineStats(machine.id);
-      const rate = liveRate !== null && liveRate !== undefined ? liveRate : stats.rate;
-      if (!rate) return null;
-      return calculateMachineExpectation(machine, {
-        currentSpin: session.currentSpin ?? session.startSpin ?? 0,
-        previousSpin: session.prevDayEndSpin || 0,
-        manualRate: rate,
-        stats
-      });
-    }
-
-    function liveExpectationText(expectation) {
-      if (!expectation?.result) return "";
-      return `残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転 / ここからの期待値 ${yenText(expectation.result.evYen)}`;
+      const preset = presetById(normalizeMachinePresetId(machine));
+      if (!preset?.evSupported || !preset.spec?.tenjo) return null;
+      const current = normalizeNumber(session.currentSpin ?? session.startSpin);
+      if (current === null) return null;
+      const previous = normalizeNumber(session.prevDayEndSpin) || 0;
+      const effective = current + previous;
+      const remaining = Math.max(0, Number(preset.spec.tenjo) - effective);
+      return {
+        remaining,
+        near: remaining < 100,
+        text: `遊タイム残り ${remaining.toLocaleString("ja-JP")}回転`
+      };
     }
 
     function runningPanelInputBalls(session, derived = null) {
