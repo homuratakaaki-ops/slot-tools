@@ -500,6 +500,20 @@
       color: #067647;
     }
 
+    .ram-choice-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .ram-choice-row button[aria-pressed="true"] {
+      border-color: var(--accent);
+      background: #ecfdf3;
+      color: #067647;
+      font-weight: 800;
+    }
+
     .machine-button .prev.invalid {
       text-decoration: line-through;
       color: var(--muted);
@@ -1117,7 +1131,7 @@
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
-    const SCHEMA_VERSION = 15;
+    const SCHEMA_VERSION = 16;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1133,6 +1147,7 @@
       { id: "umi-sp5", name: "P大海物語5スペシャル", roundBalls: 140, standardRounds: 10, standardPayout: 1400, evSupported: true, spec: { note: "B5時点の期待値対応プリセット" } }
     ];
     const RAM_CLEAR_VALUE = "cleared";
+    const RAM_NOT_CLEARED_VALUE = "not_cleared";
 
     const YUTIME_EXPECTATION_ENGINE = (() => {
       const preset = {
@@ -1283,7 +1298,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 15: dailyState.prevInvalid追加、朝チェックをマップ操作へ一本化"
+        schemaBudgetNote: "v3 schema 16: ramClearにnot_cleared追加、ラムクリ確認を3値化"
       }
     });
 
@@ -1427,7 +1442,7 @@
     }
 
     function normalizeRamClear(value) {
-      return value === RAM_CLEAR_VALUE ? RAM_CLEAR_VALUE : null;
+      return value === RAM_CLEAR_VALUE || value === RAM_NOT_CLEARED_VALUE ? value : null;
     }
 
     function investmentSource(item) {
@@ -2085,7 +2100,7 @@
       const layout = storeLayout(store.id);
       els.labelFilters.innerHTML = `
         <div class="filter-block">
-          <label class="hint" for="activeFloorMapSelect">表示するマップ</label>
+          <label class="hint" for="activeFloorMapSelect">機種・コーナーを選ぶ</label>
           <select id="activeFloorMapSelect">
             ${layout.maps.map((map) => `<option value="${escapeHtml(map.id)}" ${map.id === layout.activeMapId ? "selected" : ""}>${escapeHtml(map.name)}</option>`).join("")}
           </select>
@@ -2292,7 +2307,8 @@
         <button class="machine-button ${stats?.rate || closing || hasMachineMemo ? "has-data" : ""} ${isActive ? "is-active" : ""} ${eveSign?.good ? "ev-good" : ""} ${eveSign?.assumed ? "ev-assumed" : ""}" data-dai-no="${escapeHtml(daiNo)}">
           ${isActive ? '<span class="active-badge">稼働中</span>' : ""}
           ${eveSign?.good ? `<span class="eve-sign">${eveSign.assumed ? "宵≈" : "宵"}</span>` : ""}
-          ${ramClear ? '<span class="state-badge">ラ</span>' : ""}
+          ${ramClear === RAM_CLEAR_VALUE ? '<span class="state-badge">ラ</span>' : ""}
+          ${ramClear === RAM_NOT_CLEARED_VALUE ? '<span class="state-badge retained">据✓</span>' : ""}
           ${hasMachineMemo ? '<span class="memo-badge">メ</span>' : ""}
           <span class="dai">${escapeHtml(daiNo)}</span>
           <span class="rate ${rateClass}">${escapeHtml(rate)}${estimatedMark}<small>回/千円</small></span>
@@ -3442,7 +3458,7 @@
       const previous = machine ? closingInfoForDate(machine.id, offsetDate(today(), -1)) : null;
       const todayState = machine ? dailyStateFor(machine.id, today()) || {} : {};
       const prevInvalid = todayState.prevInvalid === true;
-      const ramClear = todayState.ramClear === RAM_CLEAR_VALUE;
+      const ramClear = normalizeRamClear(todayState.ramClear);
       const atStart = morningCheckFlow.index <= 0;
       const atEnd = morningCheckFlow.index >= morningCheckFlow.sequence.length - 1;
       const leftDai = atStart ? null : morningCheckFlow.sequence[morningCheckFlow.index - 1];
@@ -3452,7 +3468,13 @@
         ${ended ? `<p class="hint warn">この列は終わりです。</p><div class="modal-actions"><button class="primary" data-close>マップへ戻る</button></div>` : `
           <div class="list">
             <label class="check-chip"><input id="morningPrevInvalid" type="checkbox" ${prevInvalid ? "checked" : ""}> 前日分を無効にする（当日すでに大当たり or リセット）</label>
-            <label class="check-chip"><input id="morningRamClear" type="checkbox" ${ramClear ? "checked" : ""}> ラムクリだった（リセット傾向の記録用）</label>
+            <div>
+              <p class="hint">ラムクリ確認</p>
+              <div class="ram-choice-row">
+                <button class="small" data-morning-ram="${RAM_CLEAR_VALUE}" aria-pressed="${ramClear === RAM_CLEAR_VALUE ? "true" : "false"}">されてた</button>
+                <button class="small" data-morning-ram="${RAM_NOT_CLEARED_VALUE}" aria-pressed="${ramClear === RAM_NOT_CLEARED_VALUE ? "true" : "false"}">されてなかった</button>
+              </div>
+            </div>
           </div>
           ${morningCheckFlow.direction === null ? `
             <div class="closing-direction">
@@ -3489,13 +3511,17 @@
     }
 
     function bindMorningCheckModal() {
-      const ramInput = byId("morningRamClear");
       const invalidInput = byId("morningPrevInvalid");
-      if (ramInput && invalidInput) {
-        ramInput.addEventListener("change", () => {
-          if (ramInput.checked) invalidInput.checked = true;
+      els.modalBody.querySelectorAll("[data-morning-ram]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const wasPressed = button.getAttribute("aria-pressed") === "true";
+          els.modalBody.querySelectorAll("[data-morning-ram]").forEach((item) => item.setAttribute("aria-pressed", "false"));
+          if (!wasPressed) {
+            button.setAttribute("aria-pressed", "true");
+            if (button.dataset.morningRam === RAM_CLEAR_VALUE && invalidInput) invalidInput.checked = true;
+          }
         });
-      }
+      });
       const saveButton = byId("saveMorningNextBtn");
       if (saveButton) saveButton.addEventListener("click", saveMorningAndAdvance);
       const skipButton = byId("skipMorningBtn");
@@ -3515,12 +3541,12 @@
       const daiNo = currentMorningDaiNo();
       const machine = findMachineByDai(daiNo);
       if (!machine) return;
-      const ramClear = Boolean(byId("morningRamClear")?.checked);
-      const prevInvalid = Boolean(byId("morningPrevInvalid")?.checked) || ramClear;
+      const ramClear = currentMorningRamClearSelection();
+      const prevInvalid = Boolean(byId("morningPrevInvalid")?.checked) || ramClear === RAM_CLEAR_VALUE;
       const state = ensureDailyState(machine.id, today());
       if (prevInvalid) state.prevInvalid = true;
       else delete state.prevInvalid;
-      if (ramClear) state.ramClear = RAM_CLEAR_VALUE;
+      if (ramClear) state.ramClear = ramClear;
       else delete state.ramClear;
       cleanupEmptyDailyState(machine.id, today());
       if (!persist()) {
@@ -3536,9 +3562,14 @@
       morningCheckFlow.direction = direction;
       morningCheckFlow.awaitingDirection = false;
       morningCheckFlow.ended = false;
-      const hasCheckedState = Boolean(byId("morningRamClear")?.checked || byId("morningPrevInvalid")?.checked);
+      const hasCheckedState = Boolean(byId("morningPrevInvalid")?.checked || currentMorningRamClearSelection());
       if (hasCheckedState) saveMorningAndAdvance();
       else advanceMorningFlow(false);
+    }
+
+    function currentMorningRamClearSelection() {
+      const selected = els.modalBody.querySelector("[data-morning-ram][aria-pressed='true']");
+      return normalizeRamClear(selected?.dataset.morningRam);
     }
 
     function advanceMorningFlow(savedCurrent) {
