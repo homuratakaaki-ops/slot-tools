@@ -321,6 +321,35 @@
       font-size: 15px;
     }
 
+    .island-title-button {
+      appearance: none;
+      border: 0;
+      background: transparent;
+      padding: 0;
+      color: var(--ink);
+      text-align: left;
+      font: inherit;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .island-title-button small {
+      display: block;
+      margin-top: 2px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .island-card-summary {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.4;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .island-sides {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -388,6 +417,14 @@
       grid-template-columns: minmax(90px, 1fr) 34px minmax(90px, 1fr);
       gap: 12px;
       align-items: stretch;
+    }
+
+    .map-island-label {
+      margin: 8px 0 2px;
+      padding: 0 2px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
     }
 
     .map-side {
@@ -1174,7 +1211,7 @@
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
-    const SCHEMA_VERSION = 18;
+    const SCHEMA_VERSION = 19;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1344,7 +1381,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 18: netBallsPerWinをpresetSettingsへ、assumedRateをmapへ移動"
+        schemaBudgetNote: "v3 schema 19: island.name追加、島ビルダー折りたたみ"
       }
     });
 
@@ -1367,6 +1404,7 @@
     let runningStickyEnabled = localStorage.getItem(STICKY_PREF_KEY) !== "off";
     let runningSource = normalizeInvestmentSource(localStorage.getItem(SOURCE_PREF_KEY) || "cash");
     let mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
+    let expandedIslandIndexes = new Set();
     let modalCancel = null;
 
     const els = {
@@ -1557,6 +1595,30 @@
       if (!storeId) return false;
       const parsed = parseIslandLayout(activeMapLayoutForParse(storeId));
       return parsed.daiNos.some((daiNo) => machineHasYutime(findMachineByDai(daiNo)));
+    }
+
+    function islandDisplayName(island, index = 0) {
+      const manualName = String(island?.name || "").trim();
+      if (manualName) return manualName;
+      const leftPreset = presetById(island?.leftPresetId);
+      const rightPreset = presetById(island?.rightPresetId);
+      const hasRightSide = Boolean(island?.right && (normalizeNumber(island.right.from) !== null || normalizeNumber(island.right.to) !== null));
+      if (!hasRightSide && leftPreset) return leftPreset.name;
+      if (hasRightSide && leftPreset && rightPreset && leftPreset.id === rightPreset.id) return leftPreset.name;
+      return `島${index + 1}`;
+    }
+
+    function islandRangeSummary(island) {
+      const sideText = (side) => {
+        const from = normalizeNumber(side?.from);
+        const to = normalizeNumber(side?.to);
+        if (from === null && to === null) return "未入力";
+        if (from === null || to === null) return `${from ?? ""}-${to ?? ""}`;
+        return `${from}-${to}`;
+      };
+      const left = sideText(island?.left);
+      const right = island?.right ? sideText(island.right) : "右列なし";
+      return `${left}｜${right}`;
     }
 
     function yenText(value) {
@@ -2237,14 +2299,14 @@
       }
       els.labelFilters.innerHTML = `
         <div class="filter-block">
-          <strong class="hint">① 機種・コーナーを選ぶ</strong>
+          <strong class="hint">機種・コーナーを選ぶ</strong>
           <select id="activeFloorMapSelect">
             ${layout.maps.map((map) => `<option value="${escapeHtml(map.id)}" ${map.id === layout.activeMapId ? "selected" : ""}>${escapeHtml(map.name)}</option>`).join("")}
           </select>
         </div>
         ${hasYutime ? `
           <div class="filter-block">
-            <strong class="hint">② この機種でやること</strong>
+            <strong class="hint">この機種でやること</strong>
             <div class="status-line" style="margin-top:8px">
               <button class="small" id="toggleClosingCheckBtn">閉店時ゲーム数登録${closingCheckMode ? "ON" : "OFF"}</button>
               <button class="small" id="toggleMorningCheckBtn">ラムクリアチェック${morningCheckMode ? "ON" : "OFF"}</button>
@@ -2254,7 +2316,7 @@
           </div>
         ` : ""}
         <div class="filter-block">
-          <strong class="hint">③ 台をしぼる・記録する</strong>
+          <strong class="hint">台をしぼる・記録する</strong>
           <div class="status-line" style="margin-top:8px"><button class="small" id="openLabelFormBtn">店イベントの登録</button></div>
         </div>
         ${activeFilters.length ? `
@@ -2280,6 +2342,7 @@
       byId("activeFloorMapSelect").addEventListener("change", (event) => {
         storeLayout(store.id).activeMapId = event.target.value;
         mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
+        expandedIslandIndexes = new Set();
         if (!persistWithToast("保存しました")) return;
         renderAll();
       });
@@ -2471,10 +2534,13 @@
         const left = row.sides[0] || [];
         const right = row.sides[1] || [];
         return `
-          <div class="map-row">
-            <div class="map-side">${left.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds, hasYutime)).join("")}</div>
-            <div class="aisle" aria-hidden="true"></div>
-            <div class="map-side">${right.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds, hasYutime)).join("")}</div>
+          <div class="map-island">
+            <div class="map-island-label">${escapeHtml(islandDisplayName(row.island, row.index))}</div>
+            <div class="map-row">
+              <div class="map-side">${left.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds, hasYutime)).join("")}</div>
+              <div class="aisle" aria-hidden="true"></div>
+              <div class="map-side">${right.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds, hasYutime)).join("")}</div>
+            </div>
           </div>
         `;
       }).join("");
@@ -2929,6 +2995,7 @@
       const map = activeMap(storeId);
       if (mapDraft.storeId === storeId && mapDraft.mapId === map.id) return;
       mapDraft = { storeId, mapId: map.id, islands: cloneIslands(map.islands || []), allowEmptySave: false };
+      expandedIslandIndexes = new Set();
     }
 
     function hydrateMapDraftFromSavedLayout(storeId) {
@@ -2936,6 +3003,7 @@
       const savedIslands = cloneIslands(map.islands || []);
       if (savedIslands.length && !mapDraft.islands.length && !mapDraft.allowEmptySave) {
         mapDraft = { storeId, mapId: map.id, islands: savedIslands, allowEmptySave: false };
+        expandedIslandIndexes = new Set();
       }
     }
 
@@ -3012,6 +3080,7 @@
       map.errors = parsed.errors;
       syncMachinesFromMap(storeId, parsed);
       mapDraft = { storeId, mapId: map.id, islands: cloneIslands(map.islands), allowEmptySave: false };
+      expandedIslandIndexes = new Set();
       if (!persistWithToast("直前のマップ定義に戻しました")) return;
       renderAll();
     }
@@ -3031,6 +3100,7 @@
         layout.maps.push(map);
         layout.activeMapId = map.id;
         mapDraft = { storeId, mapId: map.id, islands: [], allowEmptySave: false };
+        expandedIslandIndexes = new Set();
         mapEditorOpenByStore[storeId] = true;
         if (!persistWithToast("保存しました")) return;
         closeModal();
@@ -3065,6 +3135,7 @@
       if (!layout.maps.length) layout.maps.push(defaultMap());
       layout.activeMapId = layout.maps[0].id;
       mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
+      expandedIslandIndexes = new Set();
       if (!persistWithToast("保存しました")) return;
       renderAll();
     }
@@ -3075,7 +3146,9 @@
       ensureMapDraft(store.id);
       mapEditorOpenByStore[store.id] = true;
       mapDraft.allowEmptySave = false;
-      mapDraft.islands.push({ left: { from: null, to: null }, right: null, excluded: [], leftPresetId: "", rightPresetId: "" });
+      const nextIndex = mapDraft.islands.length;
+      mapDraft.islands.push({ name: "", left: { from: null, to: null }, right: null, excluded: [], leftPresetId: "", rightPresetId: "" });
+      expandedIslandIndexes.add(nextIndex);
       renderMapEditor();
     }
 
@@ -3084,12 +3157,22 @@
       const right = island.right || {};
       const parsed = parseIslandLayout({ islands: [island] });
       const row = parsed.rows[0] || { sides: [[], []], allSides: [[], []] };
+      const title = islandDisplayName(island, index);
+      const summary = islandRangeSummary(island);
+      const isOpen = mapDraft.islands.length <= 1 || expandedIslandIndexes.has(index);
       return `
         <div class="island-card" data-island-index="${index}">
           <div class="island-card-head">
-            <strong>島 ${index + 1}</strong>
-            <button class="small" data-delete-island="${index}">島を削除</button>
+            <div>
+              <button class="island-title-button" data-edit-island-name="${index}">${escapeHtml(title)}<small>名前変更</small></button>
+              <div class="island-card-summary">${escapeHtml(summary)}</div>
+            </div>
+            <div class="status-line">
+              ${mapDraft.islands.length > 1 ? `<button class="small" data-toggle-island="${index}">${isOpen ? "閉じる" : "開く"}</button>` : ""}
+              <button class="small" data-delete-island="${index}">島を削除</button>
+            </div>
           </div>
+          ${isOpen ? `
           <div class="island-sides">
             ${islandSideInputHtml(index, "left", "左列", left, island.leftPresetId)}
             ${islandSideInputHtml(index, "right", "右列", right, island.rightPresetId)}
@@ -3099,6 +3182,7 @@
             <div class="aisle" aria-hidden="true"></div>
             <div class="preview-side">${previewSideHtml(row.allSides[1], island.excluded || [])}</div>
           </div>
+          ` : ""}
         </div>
       `;
     }
@@ -3129,6 +3213,21 @@
     }
 
     function bindIslandEditor() {
+      els.islandBuilder.querySelectorAll("[data-toggle-island]").forEach((button) => {
+        button.addEventListener("click", () => {
+          updateIslandDraftFromDom();
+          const index = Number(button.dataset.toggleIsland);
+          if (expandedIslandIndexes.has(index)) expandedIslandIndexes.delete(index);
+          else expandedIslandIndexes.add(index);
+          renderMapEditor();
+        });
+      });
+      els.islandBuilder.querySelectorAll("[data-edit-island-name]").forEach((button) => {
+        button.addEventListener("click", () => {
+          updateIslandDraftFromDom();
+          openIslandNameForm(Number(button.dataset.editIslandName));
+        });
+      });
       els.islandBuilder.querySelectorAll("[data-island-input]").forEach((input) => {
         input.addEventListener("input", () => {
           const focusId = input.id;
@@ -3156,11 +3255,30 @@
       });
       els.islandBuilder.querySelectorAll("[data-delete-island]").forEach((button) => {
         button.addEventListener("click", () => {
+          updateIslandDraftFromDom();
           const index = Number(button.dataset.deleteIsland);
           mapDraft.islands.splice(index, 1);
+          expandedIslandIndexes = new Set([...expandedIslandIndexes].filter((item) => item !== index).map((item) => item > index ? item - 1 : item));
           mapDraft.allowEmptySave = mapDraft.islands.length === 0;
           renderMapEditor();
         });
+      });
+    }
+
+    function openIslandNameForm(index) {
+      const island = mapDraft.islands[index];
+      if (!island) return;
+      openModal("島の名前", "空欄にすると、列機種または島番号から自動表示します。", `
+        <div class="field-row"><label for="islandNameInput">島名</label><input id="islandNameInput" value="${escapeHtml(island.name || "")}" placeholder="${escapeHtml(islandDisplayName({ ...island, name: "" }, index))}"></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveIslandNameBtn">保存</button>
+        </div>
+      `);
+      byId("saveIslandNameBtn").addEventListener("click", () => {
+        mapDraft.islands[index].name = byId("islandNameInput").value.trim();
+        closeModal();
+        renderMapEditor();
       });
     }
 
@@ -3171,9 +3289,14 @@
     function readIslandDraftFromDom() {
       return [...els.islandBuilder.querySelectorAll("[data-island-index]")].map((card) => {
         const index = Number(card.dataset.islandIndex);
+        const existing = mapDraft.islands[index] || {};
+        if (!byId(`island_${index}_left_from`) && !byId(`island_${index}_right_from`)) {
+          return normalizeIsland(existing);
+        }
         const left = readIslandSideFromDom(index, "left");
         const right = readIslandSideFromDom(index, "right");
         return {
+          name: existing.name || "",
           left,
           right: right.from === null && right.to === null ? null : right,
           leftPresetId: byId(`island_${index}_left_preset`)?.value || "",
@@ -3259,6 +3382,7 @@
 
     function normalizeIsland(island) {
       return {
+        name: String(island?.name || "").trim(),
         left: normalizeIslandSide(island?.left),
         right: island?.right ? normalizeIslandSide(island.right) : null,
         leftPresetId: presetById(island?.leftPresetId) ? island.leftPresetId : "",
@@ -3313,7 +3437,7 @@
           if (seen.has(daiNo)) errors.push(`島${index + 1}: 台番${daiNo}が重複しています`);
           seen.add(daiNo);
         });
-        return { sides: [left, right], allSides: [allLeft, allRight] };
+        return { sides: [left, right], allSides: [allLeft, allRight], island, index };
       }).filter((row) => row.allSides[0].length || row.allSides[1].length);
       return { rows, errors, daiNos: [...seen] };
     }
