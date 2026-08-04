@@ -321,7 +321,7 @@
       font-size: 15px;
     }
 
-    .island-title-button {
+    .island-name-button {
       appearance: none;
       border: 0;
       background: transparent;
@@ -331,14 +331,6 @@
       font: inherit;
       font-weight: 800;
       cursor: pointer;
-    }
-
-    .island-title-button small {
-      display: block;
-      margin-top: 2px;
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 600;
     }
 
     .island-card-summary {
@@ -1230,6 +1222,7 @@
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
+    const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     const SCHEMA_VERSION = 19;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
@@ -1422,6 +1415,7 @@
     let mapEditorOpenByStore = {};
     let runningStickyEnabled = localStorage.getItem(STICKY_PREF_KEY) !== "off";
     let runningSource = normalizeInvestmentSource(localStorage.getItem(SOURCE_PREF_KEY) || "cash");
+    let islandFilterByStore = loadIslandFilters();
     let mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
     let expandedIslandIndexes = new Set();
     let modalCancel = null;
@@ -1607,13 +1601,25 @@
     }
 
     function activeMapAssumedRate(storeId = activeStore()?.id) {
-      return normalizeNumber(activeMap(storeId)?.assumedRate);
+      return normalizeNumber(selectedIslandFilter(storeId).map?.assumedRate);
     }
 
     function activeMapHasYutime(storeId = activeStore()?.id) {
       if (!storeId) return false;
-      const parsed = parseIslandLayout(activeMapLayoutForParse(storeId));
+      const selection = selectedIslandFilter(storeId);
+      if (selection.islandIndex !== null) return islandHasYutime(selection.map.islands[selection.islandIndex], storeId);
+      const parsed = parseIslandLayout(selectedMapLayoutForParse(storeId));
       return parsed.daiNos.some((daiNo) => machineHasYutime(findMachineByDai(daiNo)));
+    }
+
+    function islandHasYutime(island, storeId = activeStore()?.id) {
+      if (!island) return false;
+      if (presetById(island.leftPresetId)?.hasYutime || presetById(island.rightPresetId)?.hasYutime) return true;
+      const parsed = parseIslandLayout({ islands: [island] });
+      return parsed.daiNos.some((daiNo) => {
+        const machine = data.machines.find((item) => item.storeId === storeId && item.daiNo === String(daiNo));
+        return machineHasYutime(machine);
+      });
     }
 
     function islandDisplayName(island, index = 0) {
@@ -1624,7 +1630,7 @@
       const hasRightSide = Boolean(island?.right && (normalizeNumber(island.right.from) !== null || normalizeNumber(island.right.to) !== null));
       if (!hasRightSide && leftPreset) return leftPreset.name;
       if (hasRightSide && leftPreset && rightPreset && leftPreset.id === rightPreset.id) return leftPreset.name;
-      return `島${index + 1}`;
+      return `島${(island?.displayIndex ?? index) + 1}`;
     }
 
     function islandRangeSummary(island) {
@@ -2142,6 +2148,71 @@
       return normalized;
     }
 
+    function loadIslandFilters() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(ISLAND_FILTER_KEY) || "{}");
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveIslandFilters() {
+      try {
+        localStorage.setItem(ISLAND_FILTER_KEY, JSON.stringify(islandFilterByStore));
+      } catch (error) {
+        console.warn("ytv3 island filter save failed", error);
+      }
+    }
+
+    function islandFilterValue(mapId, islandIndex = null) {
+      return islandIndex === null ? `map:${mapId}` : `island:${mapId}:${islandIndex}`;
+    }
+
+    function parseIslandFilterValue(value) {
+      const parts = String(value || "").split(":");
+      if (parts[0] === "island" && parts.length === 3) {
+        const index = Number(parts[2]);
+        return { mapId: parts[1], islandIndex: Number.isInteger(index) && index >= 0 ? index : null };
+      }
+      if (parts[0] === "map" && parts[1]) return { mapId: parts[1], islandIndex: null };
+      return null;
+    }
+
+    function selectedIslandFilter(storeId = data.activeStoreId) {
+      const layout = storeLayout(storeId);
+      const fallbackMap = activeMap(storeId);
+      const requested = parseIslandFilterValue(islandFilterByStore[storeId]) || { mapId: layout.activeMapId || fallbackMap.id, islandIndex: null };
+      const map = layout.maps.find((item) => item.id === requested.mapId) || fallbackMap;
+      const islandIndex = requested.islandIndex !== null && map.islands[requested.islandIndex] ? requested.islandIndex : null;
+      const value = islandFilterValue(map.id, islandIndex);
+      layout.activeMapId = map.id;
+      if (islandFilterByStore[storeId] !== value) {
+        islandFilterByStore[storeId] = value;
+        saveIslandFilters();
+      }
+      return { map, mapId: map.id, islandIndex, value };
+    }
+
+    function setSelectedIslandFilter(storeId, value) {
+      const layout = storeLayout(storeId);
+      const parsed = parseIslandFilterValue(value);
+      const map = parsed ? layout.maps.find((item) => item.id === parsed.mapId) : null;
+      if (!map) return false;
+      const islandIndex = parsed.islandIndex !== null && map.islands[parsed.islandIndex] ? parsed.islandIndex : null;
+      islandFilterByStore[storeId] = islandFilterValue(map.id, islandIndex);
+      layout.activeMapId = map.id;
+      saveIslandFilters();
+      return true;
+    }
+
+    function selectedMapLayoutForParse(storeId = data.activeStoreId) {
+      const selection = selectedIslandFilter(storeId);
+      if (selection.islandIndex === null) return selection.map || { islands: [] };
+      const island = selection.map.islands[selection.islandIndex];
+      return { ...selection.map, islands: island ? [{ ...island, displayIndex: selection.islandIndex }] : [] };
+    }
+
     function activeMap(storeId = data.activeStoreId) {
       const layout = storeLayout(storeId);
       let map = layout.maps.find((item) => item.id === layout.activeMapId);
@@ -2297,6 +2368,26 @@
       if (restoreButton) restoreButton.addEventListener("click", () => restoreActiveMapBackup(storeId));
     }
 
+    function islandFilterOptionsHtml(storeId) {
+      const layout = storeLayout(storeId);
+      const selected = selectedIslandFilter(storeId);
+      const optionForMap = (map) => `<option value="${escapeHtml(islandFilterValue(map.id))}" ${selected.value === islandFilterValue(map.id) ? "selected" : ""}>${layout.maps.length > 1 ? `（${escapeHtml(map.name)}）すべて` : "すべての島"}</option>`;
+      const islandOptions = (map) => (map.islands || []).map((island, index) => {
+        const value = islandFilterValue(map.id, index);
+        return `<option value="${escapeHtml(value)}" ${selected.value === value ? "selected" : ""}>${escapeHtml(islandDisplayName(island, index))}</option>`;
+      }).join("");
+      if (layout.maps.length <= 1) {
+        const map = layout.maps[0] || activeMap(storeId);
+        return optionForMap(map) + islandOptions(map);
+      }
+      return layout.maps.map((map) => `
+        <optgroup label="${escapeHtml(map.name)}">
+          ${optionForMap(map)}
+          ${islandOptions(map)}
+        </optgroup>
+      `).join("");
+    }
+
     function renderLabelFilters() {
       const manualLabels = storeLabels();
       const store = activeStore();
@@ -2319,8 +2410,8 @@
       els.labelFilters.innerHTML = `
         <div class="filter-block">
           <strong class="hint">機種・コーナーを選ぶ</strong>
-          <select id="activeFloorMapSelect">
-            ${layout.maps.map((map) => `<option value="${escapeHtml(map.id)}" ${map.id === layout.activeMapId ? "selected" : ""}>${escapeHtml(map.name)}</option>`).join("")}
+          <select id="activeIslandFilterSelect">
+            ${islandFilterOptionsHtml(store.id)}
           </select>
         </div>
         ${hasYutime ? `
@@ -2359,8 +2450,8 @@
           <div class="label-checks">${otherAutoLabels.map(filterChipHtml).join("")}</div>
         </details>
       `;
-      byId("activeFloorMapSelect").addEventListener("change", (event) => {
-        storeLayout(store.id).activeMapId = event.target.value;
+      byId("activeIslandFilterSelect").addEventListener("change", (event) => {
+        setSelectedIslandFilter(store.id, event.target.value);
         mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
         expandedIslandIndexes = new Set();
         if (!persistWithToast("保存しました")) return;
@@ -2543,7 +2634,7 @@
         closingCheckMode = false;
         morningCheckMode = false;
       }
-      const parsed = parseIslandLayout(activeMapLayoutForParse(store.id));
+      const parsed = parseIslandLayout(selectedMapLayoutForParse(store.id));
       if (!parsed.rows.length) {
         els.machineMap.innerHTML = '<div class="row-card">フロアマップを保存すると、台番ボタンを表示します。</div>';
         return;
@@ -3184,10 +3275,11 @@
         <div class="island-card" data-island-index="${index}">
           <div class="island-card-head">
             <div>
-              <button class="island-title-button" data-edit-island-name="${index}">${escapeHtml(title)}<small>名前変更</small></button>
+              <button class="island-name-button" data-edit-island-name="${index}">${escapeHtml(title)}</button>
               <div class="island-card-summary">${escapeHtml(summary)}</div>
             </div>
             <div class="status-line">
+              <button class="small" data-edit-island-name="${index}">✎ 名前変更</button>
               ${mapDraft.islands.length > 1 ? `<button class="small" data-toggle-island="${index}">${isOpen ? "閉じる" : "開く"}</button>` : ""}
               <button class="small" data-delete-island="${index}">島を削除</button>
             </div>
@@ -3407,7 +3499,8 @@
         right: island?.right ? normalizeIslandSide(island.right) : null,
         leftPresetId: presetById(island?.leftPresetId) ? island.leftPresetId : "",
         rightPresetId: presetById(island?.rightPresetId) ? island.rightPresetId : "",
-        excluded: Array.isArray(island?.excluded) ? [...new Set(island.excluded.map(String))] : []
+        excluded: Array.isArray(island?.excluded) ? [...new Set(island.excluded.map(String))] : [],
+        displayIndex: Number.isInteger(island?.displayIndex) ? island.displayIndex : undefined
       };
     }
 
@@ -3457,7 +3550,7 @@
           if (seen.has(daiNo)) errors.push(`島${index + 1}: 台番${daiNo}が重複しています`);
           seen.add(daiNo);
         });
-        return { sides: [left, right], allSides: [allLeft, allRight], island, index };
+        return { sides: [left, right], allSides: [allLeft, allRight], island, index: island.displayIndex ?? index };
       }).filter((row) => row.allSides[0].length || row.allSides[1].length);
       return { rows, errors, daiNos: [...seen] };
     }
@@ -3607,7 +3700,7 @@
 
     function closingColumnSequence(daiNo) {
       const store = activeStore();
-      const parsed = parseIslandLayout(store ? activeMapLayoutForParse(store.id) : { islands: [] });
+      const parsed = parseIslandLayout(store ? selectedMapLayoutForParse(store.id) : { islands: [] });
       const wanted = String(daiNo);
       for (const row of parsed.rows) {
         for (const side of row.sides) {
