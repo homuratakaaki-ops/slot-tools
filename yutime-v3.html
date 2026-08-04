@@ -496,6 +496,19 @@
       color: #067647;
     }
 
+    .machine-button .memo-badge {
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      padding: 2px 5px;
+      border-radius: 999px;
+      background: #fff4e5;
+      color: #a15c07;
+      font-size: 10px;
+      font-weight: 800;
+      line-height: 1.1;
+    }
+
     .machine-button .rate small {
       display: block;
       margin-top: 1px;
@@ -531,6 +544,13 @@
       grid-template-columns: 1fr auto;
       gap: 10px;
       align-items: start;
+    }
+
+    .running-headline-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      flex-shrink: 0;
     }
 
     .running-live-row {
@@ -1026,6 +1046,12 @@
     const MACHINE_PRESETS = [
       { id: "umi-sp5", name: "P大海物語スペシャル5", roundBalls: 140, standardRounds: 10, standardPayout: 1400, evSupported: true, spec: { note: "B5時点の期待値対応プリセット" } }
     ];
+    const RAM_STATE_OPTIONS = [
+      { value: "cleared", label: "リセットされてた（ラムクリ）", badge: "リ", retained: false },
+      { value: "unknown", label: "不明（当日まだ大当たりなし）", badge: "不", retained: false },
+      { value: "hitToday", label: "当選済み（当日すでに大当たり）", badge: "当", retained: false },
+      { value: "retained", label: "据え置きだった", badge: "据", retained: true }
+    ];
 
     const YUTIME_EXPECTATION_ENGINE = (() => {
       const preset = {
@@ -1304,6 +1330,14 @@
 
     function normalizeInvestmentSource(value) {
       return value === "mochidama" || value === "saipurei" ? value : "cash";
+    }
+
+    function normalizeRamState(value) {
+      return RAM_STATE_OPTIONS.some((option) => option.value === value) ? value : null;
+    }
+
+    function ramStateOption(value) {
+      return RAM_STATE_OPTIONS.find((option) => option.value === value) || null;
     }
 
     function investmentSource(item) {
@@ -1623,7 +1657,7 @@
         Object.entries(byDate).forEach(([date, state]) => {
           if (!isDateString(date) || !state || typeof state !== "object") return;
           const normalized = { date };
-          const ramClear = state.ramClear === "cleared" || state.ramClear === "retained" ? state.ramClear : null;
+          const ramClear = normalizeRamState(state.ramClear);
           const closingSpin = normalizeNumber(state.closingSpin);
           if (ramClear) normalized.ramClear = ramClear;
           if (closingSpin !== null) normalized.closingSpin = closingSpin;
@@ -1694,7 +1728,7 @@
     function measureDailyStateChars() {
       const sample = Object.keys(data.dailyState || {}).length ? data.dailyState : {
         m_sample: {
-          [today()]: { date: today(), ramClear: "retained" },
+          [today()]: { date: today(), ramClear: "hitToday" },
           [offsetDate(today(), -1)]: { date: offsetDate(today(), -1), closingSpin: 575 }
         }
       };
@@ -1950,7 +1984,8 @@
     function validClosingInfo(machineId) {
       const state = dailyStateFor(machineId, offsetDate(today(), -1));
       if (!state || state.closingSpin === undefined) return null;
-      if (todayRamState(machineId) === "cleared") return null;
+      const ramState = todayRamState(machineId);
+      if (ramState && ramState !== "retained") return null;
       return { spin: state.closingSpin, date: state.date };
     }
 
@@ -1994,16 +2029,19 @@
       const closing = machine ? validClosingInfo(machine.id) : null;
       const todayClosing = machine ? dailyStateFor(machine.id, today())?.closingSpin ?? null : null;
       const ramState = machine ? todayRamState(machine.id) : null;
+      const ramOption = ramStateOption(ramState);
+      const hasMachineMemo = Boolean(machine?.memo);
       const rate = stats && stats.rate ? stats.rate.toFixed(1) : "-";
       const rateClass = machine && stats?.rate ? rateToneClass(machine, stats.rate) : "";
       const estimatedMark = stats?.estimatedCount ? "&#8776;" : "";
       const isActive = machine && activeMachineIds.has(machine.id);
       const eveSign = machine ? mapExpectationSign(machine, stats, closing) : false;
       return `
-        <button class="machine-button ${stats?.rate || closing ? "has-data" : ""} ${isActive ? "is-active" : ""} ${eveSign ? "ev-good" : ""}" data-dai-no="${escapeHtml(daiNo)}">
+        <button class="machine-button ${stats?.rate || closing || hasMachineMemo ? "has-data" : ""} ${isActive ? "is-active" : ""} ${eveSign ? "ev-good" : ""}" data-dai-no="${escapeHtml(daiNo)}">
           ${isActive ? '<span class="active-badge">稼働中</span>' : ""}
           ${eveSign ? '<span class="eve-sign">宵</span>' : ""}
-          ${ramState ? `<span class="state-badge ${ramState === "retained" ? "retained" : ""}">${ramState === "retained" ? "据" : "リ"}</span>` : ""}
+          ${ramOption ? `<span class="state-badge ${ramOption.retained ? "retained" : ""}">${escapeHtml(ramOption.badge)}</span>` : ""}
+          ${hasMachineMemo ? '<span class="memo-badge">メ</span>' : ""}
           <span class="dai">${escapeHtml(daiNo)}</span>
           <span class="rate ${rateClass}">${escapeHtml(rate)}${estimatedMark}<small>回/千円</small></span>
           ${closingCheckMode && todayClosing !== null ? `<span class="prev">✓ ${escapeHtml(todayClosing)}回転</span>` : closing ? `<span class="prev">宵${escapeHtml(closing.spin)} <small>${escapeHtml(shortDate(closing.date))}</small></span>` : ""}
@@ -2046,7 +2084,7 @@
       els.runningArea.innerHTML = `
         <div class="section running-panel">
           <div class="running-sticky${stickyClass}">
-            <div class="running-headline"><strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong><button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button></div>
+            <div class="running-headline"><strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong><div class="running-headline-actions"><button class="small" id="openRunningMachineMemoBtn">メモ${machine?.memo ? "あり" : ""}</button><button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button></div></div>
             <div class="running-live-row">
               <div>
                 <span>現在回転数</span>
@@ -2146,6 +2184,9 @@
         runningStickyEnabled = !runningStickyEnabled;
         localStorage.setItem(STICKY_PREF_KEY, runningStickyEnabled ? "on" : "off");
         renderRunning();
+      });
+      byId("openRunningMachineMemoBtn").addEventListener("click", () => {
+        if (machine) openMachineMemoEditor(machine.id);
       });
       const spinEditButton = els.runningArea.querySelector("[data-edit-spin]");
       if (spinEditButton) spinEditButton.addEventListener("click", () => openSpinEditForm(session));
@@ -2876,6 +2917,24 @@
       renderClosingInputModal();
     }
 
+    function openMachineMemoEditor(machineId) {
+      const machine = data.machines.find((item) => item.id === machineId);
+      if (!machine) return;
+      openModal("台メモ（釘・癖など）", "セッションのメモではなく、この台そのものに残すメモです。", `
+        <div class="field-row"><label for="quickMachineMemo">台メモ（釘・癖など）</label><textarea id="quickMachineMemo" placeholder="＋台メモを追加">${escapeHtml(machine.memo || "")}</textarea></div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveQuickMachineMemoBtn">保存</button>
+        </div>
+      `);
+      byId("saveQuickMachineMemoBtn").addEventListener("click", () => {
+        machine.memo = byId("quickMachineMemo").value.trim();
+        if (!persistWithToast(`台番${machine.daiNo}の情報を保存しました`)) return;
+        closeModal();
+        renderAll();
+      });
+    }
+
     function openMachineDetail(daiNo) {
       const machine = findMachineByDai(daiNo);
       if (!machine) return;
@@ -2885,19 +2944,21 @@
       const latestEnd = latestEndInfo(machine.id);
       const closing = validClosingInfo(machine.id);
       const ramState = todayRamState(machine.id);
+      const ramButtons = RAM_STATE_OPTIONS.map((option) => `<button class="${ramState === option.value ? "primary" : ""}" data-ram-state="${escapeHtml(option.value)}">${escapeHtml(option.label)}</button>`).join("");
+      const closingStateNote = ramState && ramState !== "retained" ? `<small>${escapeHtml(ramStateOption(ramState)?.label || "")} / 前日は考慮しません</small>` : "";
       const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
       const averagePayoutNote = stats.estimatedCount ? "（概算含む）" : "";
       openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
         <div class="status-line" style="margin-bottom:10px">
-          <button class="${ramState === "cleared" ? "primary" : ""}" id="markClearedBtn">リセットされてた（ラムクリ）</button>
-          <button class="${ramState === "retained" ? "primary" : ""}" id="markRetainedBtn">据え置きだった</button>
+          ${ramButtons}
         </div>
+        <div class="field-row"><label for="machineMemo">台メモ（釘・癖など）</label><textarea id="machineMemo" placeholder="＋台メモを追加">${escapeHtml(machine.memo || "")}</textarea></div>
         <div class="metric-grid">
           <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}</div>
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
           <div class="metric"><span>前回ヤメ（履歴）</span><strong>${latestEnd ? `${escapeHtml(latestEnd.spin)}回転` : "-"}</strong>${latestEnd ? `<small>（${escapeHtml(shortDate(latestEnd.date))} / 宵越し根拠には使いません）</small>` : ""}</div>
-          <div class="metric"><span>閉店チェック</span><strong>${closing ? `${escapeHtml(closing.spin)}回転` : "-"}</strong>${closing ? `<small>（${escapeHtml(shortDate(closing.date))}）</small>` : ramState === "cleared" ? "<small>ラムクリ確認済み</small>" : ""}</div>
+          <div class="metric"><span>閉店チェック</span><strong>${closing ? `${escapeHtml(closing.spin)}回転` : "-"}</strong>${closing ? `<small>（${escapeHtml(shortDate(closing.date))}）</small>` : closingStateNote}</div>
           <div class="metric"><span>平均出玉</span><strong>${stats.averagePayout !== null ? Math.round(stats.averagePayout) : "-"}</strong>${stats.averagePayout !== null ? `<small>${averagePayoutNote}</small>` : ""}</div>
           ${stats.averageYutimeLoss !== null ? `<div class="metric"><span>遊タイム玉減り</span><strong>${Math.round(stats.averageYutimeLoss)}</strong><small>${stats.yutimeLossCount}件平均</small></div>` : ""}
         </div>
@@ -2919,7 +2980,6 @@
         <div class="field-row"><label for="machineModel">機種名</label><input id="machineModel" value="${escapeHtml(machine.modelName || "")}" placeholder="任意"></div>
         <div class="field-row"><label for="roundBalls">1R玉数</label><input id="roundBalls" inputmode="numeric" value="${escapeHtml(machine.roundBalls ?? "")}" placeholder="例: 140"></div>
         <p class="hint">1ラウンドあたりの獲得玉数。例: 大海物語スペシャル5 なら 140</p>
-        <div class="field-row"><label for="machineMemo">台メモ（釘・癖など）</label><textarea id="machineMemo" placeholder="釘の癖、ストローク、止め打ち手順など">${escapeHtml(machine.memo || "")}</textarea></div>
         <p class="hint warn" id="presetSupportNote"></p>
         <div class="list">
           ${sessions.slice(-5).reverse().map((session) => {
@@ -2936,8 +2996,9 @@
       byId("machinePreset").value = presetId;
       applyPresetSelectionToForm();
       renderMachineExpectation(machine.id);
-      byId("markClearedBtn").addEventListener("click", () => toggleRamState(machine.id, "cleared"));
-      byId("markRetainedBtn").addEventListener("click", () => toggleRamState(machine.id, "retained"));
+      els.modalBody.querySelectorAll("[data-ram-state]").forEach((button) => {
+        button.addEventListener("click", () => toggleRamState(machine.id, button.dataset.ramState));
+      });
       ["evCurrentSpin", "evPrevSpin", "evManualRate"].forEach((id) => {
         byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
       });
@@ -2964,6 +3025,8 @@
     }
 
     function toggleRamState(machineId, nextState) {
+      nextState = normalizeRamState(nextState);
+      if (!nextState) return;
       const state = ensureDailyState(machineId, today());
       if (state.ramClear === nextState) delete state.ramClear;
       else state.ramClear = nextState;

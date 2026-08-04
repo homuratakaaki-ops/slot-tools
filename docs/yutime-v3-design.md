@@ -489,3 +489,13 @@ B5 実測値:
 - タップ投入方式の差玉は `endTotalBalls - startMochidama - Σ(再プレ引き出し玉 + 現金の貸玉換算) + zanhoryuBalls` とする。持ち玉タップは開始持ち玉プール内の移動なので、差玉の投入側には数えない。
 - 旧方式（source なしの投資レコード）は従来式 `endTotalBalls - totalInputBalls + zanhoryuBalls` を維持する。
 - hitCount が 0 の当たりなし戦果報告では、当選時残り玉の概算と獲得出玉の概算は表示しない。
+
+## 18. B14 朝一状態の4分岐と台メモ露出
+
+- schema は 12 のまま。`dailyState[machineId][date].ramClear` の保存値として `cleared` / `unknown` / `hitToday` / `retained` を許可する。
+- 朝一状態のマップバッジは `cleared=リ`、`unknown=不`、`hitToday=当`、`retained=据`。据え置きのみ緑、それ以外はグレー系で表示する。
+- 閉店チェック値を宵越し判定・前日回転数プリセット・宵サインに使うのは、未確認または `retained` の場合のみ。`cleared` / `unknown` / `hitToday` は安全側として前日を考慮しない。
+- 既存の `cleared` / `retained` データはそのまま読み込む。ボタンは同じ状態を再タップすると未確認へ戻す。
+- 台メモは `Machine.memo` の単一フィールドを使う。マップにはメモ印、台詳細では朝一状態ボタン直下、稼働中パネルでは台名行のメモボタンから同じ内容を閲覧・編集する。
+- セッション側の `memo` はヤメ時の記録メモであり、台メモ（釘・癖など）とは別物として扱う。
+- B14 dailyState サンプル（当日hitToday＋前日closingSpin）: 124 chars
