@@ -1041,7 +1041,7 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(style, /\.bm-state-badges\{[^}]*align-content:flex-start/);
   assert.match(style, /\.bm-state-badges\{[^}]*overflow:visible/);
   const shellSource = fs.readFileSync(HTML_PATH, 'utf8').match(/<div class="bm-shell">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="bm-toast"/)?.[1] || '';
-  assert.match(shellSource, /id="battleModeVersion">UI 6y/);
+  assert.match(shellSource, /id="battleModeVersion">UI 6z/);
   assert.ok(shellSource.indexOf('battleModeVersion') < shellSource.indexOf('battleModeCheckpointStatus'));
   assert.ok(shellSource.indexOf('battleModeStateBadges') < shellSource.indexOf('battleModeCounters'));
   assert.ok(shellSource.indexOf('battleModeCounters') < shellSource.indexOf('battleModeGrid'));
@@ -2649,6 +2649,24 @@ function testBattleModeCounterRowUsesExistingTagFlow() {
   vm.runInContext('undoBattleModeLast()', context);
   assert.equal(vm.runInContext('currentTimeline.length', context), 2);
   assert.equal(vm.runInContext('currentSubCounters.suika || 0', context), 0);
+}
+
+function testBattleModeNangokuCompactCountersUseThreeColumns() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    setTimelineGames(200, 191);
+  `, context);
+  const html = vm.runInContext('renderBattleModeCompactCounters()', context);
+  assert.match(html, /bm-compact-counter-row nangoku-special-row/);
+  assert.match(html, /openBattleModeCounterKeypad\('data'\)/);
+  assert.match(html, /openBattleModeCounterKeypad\('liquid'\)/);
+  assert.match(html, /battleModeSetLiquidOffsetPreset\(9\)/);
+  assert.match(html, /openBattleModeCounterKeypad\('subCounter','suika'\)/);
+  assert.match(html, /battleModeIncrementSubCounter\('suika'\)/);
+  assert.doesNotMatch(html, /openBattleModeCounterKeypad\('liquidOffset'\)/);
+  assert.doesNotMatch(html, /bm-main-counter-row/);
 }
 
 function testBattleModeSazanamiPickerStoresEntryCause() {
@@ -4887,6 +4905,7 @@ function run() {
   testBattleModeMemoUsesTimelineTextEntryFormat();
   testLogSegmentCollapseDefaultsLatestTodayOpen();
   testBattleModeCounterRowUsesExistingTagFlow();
+  testBattleModeNangokuCompactCountersUseThreeColumns();
   testBattleModeSazanamiPickerStoresEntryCause();
   testBattleModeBonusPickerStartsExistingHitWizard();
   testNangokuBonusTypeSuggestStepIsSkippedAfterBonusPicker();

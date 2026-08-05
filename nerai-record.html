@@ -490,6 +490,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-close{width:48px;height:48px;border:1px solid rgba(201,168,76,.42);border-radius:8px;background:rgba(201,168,76,.08);color:var(--gold-light);font-size:24px;font-weight:900;cursor:pointer;}
 .bm-counters{display:grid;gap:6px;}
 .bm-main-counter-row,.bm-compact-counter-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
+.bm-compact-counter-row.nangoku-special-row{grid-template-columns:minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,.9fr);gap:6px;}
 .bm-counter{min-height:64px;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:7px 8px;text-align:center;cursor:pointer;}
 .bm-counter-label{font-size:11px;font-weight:900;color:var(--text-muted);}
 .bm-counter-value{font-size:24px;font-weight:900;line-height:1.25;color:var(--gold-light);}
@@ -1129,7 +1130,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="bm-title" id="battleModeTitle">実戦モード</div>
       <button class="bm-close" type="button" onclick="closeBattleMode()" aria-label="閉じる">×</button>
     </div>
-    <div class="bm-version" id="battleModeVersion">UI 6y</div>
+    <div class="bm-version" id="battleModeVersion">UI 6z</div>
     <div id="battleModeCheckpointStatus"></div>
     <div class="bm-state-badges" id="battleModeStateBadges"></div>
     <div class="bm-counters" id="battleModeCounters"></div>
@@ -7537,12 +7538,42 @@ function renderBattleModeTopActions(){
   </div>`;
 }
 function renderBattleModeCompactCounters(){
+  const machine=currentMachine();
   const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
   const counters=machineCounters();
   if(!useLiquidOffsetCounter&&!counters.length)return '';
-  const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
-  const counterSlots=counters.slice(0,isKabaneriMachine(currentMachine())?2:1);
+  const liquidPreset=normalizeOptionalNumber(machine?.liquidOffsetPreset);
   const hideIncrement=kabaneriStActive();
+  if(isNangokuSpecialMachine(machine)){
+    const data=timelineDataValue();
+    const liquid=timelineLiquidValue();
+    const counter=counters[0]||machineSubCounter();
+    const counterValue=counter?subCounterDisplayValue(counter):0;
+    return `<div class="bm-compact-counter-row nangoku-special-row">
+    <div class="bm-compact-counter">
+      <button class="bm-compact-counter-read" type="button" onclick="openBattleModeCounterKeypad('data')">
+        <div class="bm-counter-label">データG</div>
+        <div class="bm-counter-value">${escapeHtml(battleModeCounterText(data))}</div>
+      </button>
+      <span></span>
+    </div>
+    <div class="bm-compact-counter">
+      <button class="bm-compact-counter-read" type="button" onclick="openBattleModeCounterKeypad('liquid')">
+        <div class="bm-counter-label">液晶G</div>
+        <div class="bm-counter-value">${escapeHtml(battleModeCounterText(liquid))}</div>
+      </button>
+      ${liquidPreset!==null&&!hideIncrement?`<button class="bm-mini-btn" type="button" onclick="battleModeSetLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span></span>'}
+    </div>
+    ${counter?`<div class="bm-compact-counter">
+      <button class="bm-compact-counter-read" type="button" onclick="openBattleModeCounterKeypad('subCounter','${escapeHtml(counter.key)}')">
+        <div class="bm-counter-label">${escapeHtml(compactCounterLabel(counter))}</div>
+        <div class="bm-counter-value">${escapeHtml(counterValue)}</div>
+      </button>
+      ${hideIncrement?'<span></span>':`<button class="bm-mini-btn" type="button" onclick="battleModeIncrementSubCounter('${escapeHtml(counter.key)}')">+1</button>`}
+    </div>`:'<div></div>'}
+  </div>`;
+  }
+  const counterSlots=counters.slice(0,isKabaneriMachine(machine)?2:1);
   const counterHtml=counterSlots.map(counter=>{
     const counterValue=subCounterDisplayValue(counter);
     return `
@@ -9284,6 +9315,22 @@ function renderBattleMode(){
   if(badges)badges.innerHTML=renderBattleModeStateBadges();
   const counters=document.getElementById('battleModeCounters');
   if(counters)counters.innerHTML=`
+    ${renderBattleModeMainCounterRow()}
+    ${renderBattleModeReplayFlashMeter()}
+    ${isTokyoGhoulMachine(machine)?renderBattleModeTopActions():renderBattleModeIntervalTracker()}`;
+  const grid=document.getElementById('battleModeGrid');
+  if(grid)grid.innerHTML=renderBattleModeGrid();
+  const recent=document.getElementById('battleModeRecent');
+  if(recent)recent.innerHTML=renderBattleModeRecent();
+  renderBattleModeUndoBar();
+  const quit=document.getElementById('battleModeQuitArea');
+  if(quit)quit.innerHTML='';
+}
+function renderBattleModeMainCounterRow(){
+  if(isNangokuSpecialMachine(currentMachine()))return renderBattleModeCompactCounters();
+  const data=timelineDataValue();
+  const liquid=timelineLiquidValue();
+  return `
     <div class="bm-main-counter-row">
     <button class="bm-counter" type="button" onclick="openBattleModeCounterKeypad('data')">
       <div class="bm-counter-label">データG</div>
@@ -9294,16 +9341,7 @@ function renderBattleMode(){
       <div class="bm-counter-value">${escapeHtml(battleModeCounterText(liquid))}</div>
     </button>
     </div>
-    ${renderBattleModeCompactCounters()}
-    ${renderBattleModeReplayFlashMeter()}
-    ${isTokyoGhoulMachine(machine)?renderBattleModeTopActions():renderBattleModeIntervalTracker()}`;
-  const grid=document.getElementById('battleModeGrid');
-  if(grid)grid.innerHTML=renderBattleModeGrid();
-  const recent=document.getElementById('battleModeRecent');
-  if(recent)recent.innerHTML=renderBattleModeRecent();
-  renderBattleModeUndoBar();
-  const quit=document.getElementById('battleModeQuitArea');
-  if(quit)quit.innerHTML='';
+    ${renderBattleModeCompactCounters()}`;
 }
 function openBattleModeCounterKeypad(role,counterKey=''){
   const counter=role==='subCounter'?(machineCounters().find(row=>row.key===counterKey)||machineSubCounter()):machineSubCounter();
@@ -11861,12 +11899,12 @@ function renderGamePairInputs(prefix){
     <div class="counter-compact-row nangoku-special-row">
       <div class="game-pair-field">
         <label for="${dataId}">${dataLabel}</label>
-        <input type="text" id="${dataId}" data-game-role="${rolePrefix}-data" class="numeric-input" inputmode="none" readonly value="${escapeHtml(dataValue)}" placeholder="萓具ｼ・23" oninput="${dataHandler}" onchange="${dataHandler}">
+        <input type="text" id="${dataId}" data-game-role="${rolePrefix}-data" class="numeric-input" inputmode="none" readonly value="${escapeHtml(dataValue)}" placeholder="例：523" oninput="${dataHandler}" onchange="${dataHandler}">
       </div>
       <div class="counter-compact-control">
         <div class="game-pair-field">
           <label for="${liquidId}">${liquidLabel}</label>
-          <input type="text" id="${liquidId}" data-game-role="${rolePrefix}-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="萓具ｼ・23" oninput="${liquidHandler}" onchange="${liquidHandler}">
+          <input type="text" id="${liquidId}" data-game-role="${rolePrefix}-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="例：523" oninput="${liquidHandler}" onchange="${liquidHandler}">
           <input type="hidden" id="timelineLiquidOffset" data-signed="1" value="${escapeHtml(timelineLiquidOffset())}">
         </div>
         ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span class="counter-compact-spacer" aria-hidden="true"></span>'}
