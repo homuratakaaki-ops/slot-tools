@@ -230,6 +230,30 @@
       margin: 8px 0 0;
     }
 
+    .baseline-chip-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+      margin-top: 8px;
+    }
+
+    .baseline-chip {
+      min-height: 42px;
+      padding: 0 6px;
+      white-space: nowrap;
+      font-size: 11px;
+      text-align: center;
+    }
+
+    .baseline-chip strong {
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    @media (max-width: 340px) {
+      .baseline-chip-grid { grid-template-columns: 1fr; }
+    }
+
     .badge {
       display: inline-flex;
       align-items: center;
@@ -2421,10 +2445,12 @@
             <div class="status-line" style="margin-top:8px">
               <button class="small" id="toggleClosingCheckBtn">閉店時ゲーム数登録${closingCheckMode ? "ON" : "OFF"}</button>
               <button class="small" id="toggleMorningCheckBtn">ラムクリアチェック${morningCheckMode ? "ON" : "OFF"}</button>
-              <button class="small" id="quickAssumedRateBtn">このコーナーの平均回転率 ${assumedRate !== null && assumedRate !== undefined ? Number(assumedRate).toFixed(1) : "未設定"}（タップで${assumedRate !== null && assumedRate !== undefined ? "変更" : "設定"}）</button>
-              <button class="small" id="quickNetBallsBtn">大当たり1回の平均出玉 ${Math.round(umiNetBalls).toLocaleString("ja-JP")}玉（変更）</button>
             </div>
-            <p class="hint" style="margin:6px 0 0">台ごとの実測・手入力がない台は、この値を基準に期待値を計算します。</p>
+            <div class="baseline-chip-grid">
+              <button class="small baseline-chip" id="quickAssumedRateBtn">平均回転率 <strong>${assumedRate !== null && assumedRate !== undefined ? Number(assumedRate).toFixed(1) : "未設定"}</strong>（${assumedRate !== null && assumedRate !== undefined ? "変更" : "設定"}）</button>
+              <button class="small baseline-chip" id="quickNetBallsBtn">平均出玉 <strong>${Math.round(umiNetBalls).toLocaleString("ja-JP")}玉</strong>（変更）</button>
+            </div>
+            <p class="hint" style="margin:6px 0 0">このコーナーの基準値です。台ごとの実測・手入力がない台は、この値で期待値を計算します。</p>
           </div>
         ` : ""}
         <div class="filter-block">
