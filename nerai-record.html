@@ -494,7 +494,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-main-counter-row,.bm-compact-counter-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
 .bm-compact-counter-row.nangoku-special-row{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.1fr);gap:6px;}
 .bm-compact-counter-row.nangoku-special-row .bm-counter-label{white-space:nowrap;font-size:10px;line-height:1.2;}
-.bm-compact-counter-row.nangoku-special-row .bm-counter-value{text-align:center;}
+.bm-compact-counter-row.nangoku-special-row .bm-counter-value{text-align:center;font-size:26px;}
+.bm-compact-counter-row.nangoku-special-row .bm-compact-counter{min-height:64px;}
 .bm-counter{min-height:64px;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:7px 8px;text-align:center;cursor:pointer;}
 .bm-counter-label{font-size:11px;font-weight:900;color:var(--text-muted);}
 .bm-counter-value{font-size:24px;font-weight:900;line-height:1.25;color:var(--gold-light);}
@@ -1134,7 +1135,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="bm-title" id="battleModeTitle">実戦モード</div>
       <button class="bm-close" type="button" onclick="closeBattleMode()" aria-label="閉じる">×</button>
     </div>
-    <div class="bm-version" id="battleModeVersion">UI 7c</div>
+    <div class="bm-version" id="battleModeVersion">UI 7d</div>
     <div id="battleModeCheckpointStatus"></div>
     <div class="bm-state-badges" id="battleModeStateBadges"></div>
     <div class="bm-counters" id="battleModeCounters"></div>
@@ -8548,7 +8549,7 @@ function renderBattleModeReplayFlashMeter(){
   const rows=[];
   if(isKabaneriMachine(currentMachine()))rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeKabaneriChanceEyeMeterText())}</div>`);
   if(battleModeHasReplayFlashMeter())rows.push(`<button class="bm-replay-flash-meter" type="button" onclick="openBattleModeReplayScopeSheet()">${escapeHtml(battleModeReplayFlashMeterText())}</button>`);
-  if(battleModeHasReplaySplitMeter())rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplaySplitMeterText())}</div>`);
+  if(battleModeHasReplaySplitMeter()&&!isNangokuSpecialMachine(currentMachine()))rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplaySplitMeterText())}</div>`);
   return rows.join('');
 }
 function battleModeReplayScopeRow(segment,index){

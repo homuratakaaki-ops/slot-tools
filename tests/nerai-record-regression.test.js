@@ -1041,10 +1041,12 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(style, /\.bm-state-badges\{[^}]*align-content:flex-start/);
   assert.match(style, /\.bm-state-badges\{[^}]*overflow:visible/);
   const shellSource = fs.readFileSync(HTML_PATH, 'utf8').match(/<div class="bm-shell">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="bm-toast"/)?.[1] || '';
-  assert.match(shellSource, /id="battleModeVersion">UI 7c/);
+  assert.match(shellSource, /id="battleModeVersion">UI 7d/);
   assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-label\{[^}]*white-space:nowrap/);
   assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-label\{[^}]*font-size:10px/);
   assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-value\{[^}]*text-align:center/);
+  assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-value\{[^}]*font-size:26px/);
+  assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-compact-counter\{[^}]*min-height:64px/);
   assert.match(style, /\.counter-compact-row\.nangoku-special-row \.game-pair-field label\{[^}]*white-space:nowrap/);
   assert.match(style, /\.counter-compact-row\.nangoku-special-row \.game-pair-field input\{[^}]*text-align:center/);
   assert.ok(shellSource.indexOf('battleModeVersion') < shellSource.indexOf('battleModeCheckpointStatus'));
@@ -2281,6 +2283,42 @@ function testBattleModeReplayFlashMeterUsesCurrentLiquidGames() {
 
   vm.runInContext("currentTimeline = []", context);
   assert.equal(vm.runInContext('battleModeReplayFlashMeterText()', context), 'リプフラ 0／168G');
+}
+
+function testBattleModeReplaySplitMeterHiddenOnlyForNangokuSpecial() {
+  const { context } = runRecord(undefined);
+  vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    setTimelineGames(240, 231);
+    currentTimeline = [
+      { id: 'tl_replay_early', game: 120, liquidGame: 111, text: 'リプレイ', tagIds: ['t_nangoku_replay'], countAs: [], createdAt: '2026-07-21T00:02:00.000Z' },
+      { id: 'tl_replay_late', game: 230, liquidGame: 221, text: 'リプレイ', tagIds: ['t_nangoku_replay'], countAs: [], createdAt: '2026-07-21T00:03:00.000Z' },
+      { id: 'tl_rf', game: 235, liquidGame: 226, text: 'リプレイフラッシュ', tagIds: ['t_nangoku_replay_flash'], countAs: [], createdAt: '2026-07-21T00:04:00.000Z' }
+    ];
+  `, context);
+  assert.equal(vm.runInContext('battleModeReplaySplitMeterText()', context), 'リプレイ 〜200: 1 ／ 201〜: 1');
+  const nangokuHtml = vm.runInContext('renderBattleModeReplayFlashMeter()', context);
+  assert.doesNotMatch(nangokuHtml, /リプレイ 〜200/);
+  assert.match(nangokuHtml, /リプフラ 1／240G/);
+
+  vm.runInContext(`
+    db.machines.push({
+      id: 'm_replay_split_test',
+      name: 'Replay Split Test',
+      useLcdCounter: true,
+      quickPanel: { counters: ['replay'], gainButtons: [], events: [] },
+      tags: [{ id: 't_nangoku_replay', label: 'リプレイ', tagClass: '' }],
+      aims: [{ id: 'aim_replay_split', name: 'テスト' }],
+      startTags: [],
+      labelTags: [],
+      suggestMaster: []
+    });
+    selectedMachineId = 'm_replay_split_test';
+    selectedAimId = 'aim_replay_split';
+  `, context);
+  assert.equal(vm.runInContext('isNangokuSpecialMachine(currentMachine())', context), false);
+  assert.match(vm.runInContext('renderBattleModeReplayFlashMeter()', context), /リプレイ 〜200: 1 ／ 201〜: 1/);
 }
 
 function testDraftRestoreKeepsPostHitBattleContext() {
@@ -4907,6 +4945,7 @@ function run() {
   testBattleModeHitStartScrollsNextInputOnlyFromBattleMode();
   testBattleModeOtherSheetExcludesQuickPanelTags();
   testBattleModeReplayFlashMeterUsesCurrentLiquidGames();
+  testBattleModeReplaySplitMeterHiddenOnlyForNangokuSpecial();
   testDraftRestoreKeepsPostHitBattleContext();
   testDraftRestoreFallsBackToLatestHitBeforeStartCounter();
   testDraftRestoreKeepsCounterOnlyGameProgress();
