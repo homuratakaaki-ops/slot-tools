@@ -4775,7 +4775,8 @@
 
     function runningSpinCount(session) {
       if (session.startSpin === null || session.currentSpin === null || session.currentSpin === undefined) return null;
-      return Number(session.currentSpin) - Number(session.startSpin);
+      const spins = Number(session.currentSpin) - Number(session.startSpin);
+      return spins >= 0 ? spins : null;
     }
 
     function investmentSnapshot(session, investmentIndex) {
@@ -4855,10 +4856,29 @@
       };
     }
 
+    function balanceStartValueForCurrent(session, key, currentValue) {
+      const value = Number(currentValue || 0);
+      const totals = investmentTotals(session);
+      if (key === "startMochidama") return value + totals.mochidamaBalls;
+      if (key === "startSaipurei") return value + totals.saipureiBalls;
+      if (key === "startCredit") {
+        const chargeTotal = (session.charges || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
+        return value - chargeTotal + totals.cashYen;
+      }
+      return value;
+    }
+
+    function currentBalanceForStartKey(session, key) {
+      const balances = deriveBalances(session);
+      if (key === "startMochidama") return balances.mochidama;
+      if (key === "startSaipurei") return balances.saipurei;
+      if (key === "startCredit") return balances.credit;
+      return null;
+    }
+
     function updateMochidamaBalanceWithUndo(session, value) {
       const previous = session.startMochidama;
-      const mochidamaTotal = session.investments.filter((item) => investmentSource(item) === "mochidama").reduce((sum, item) => sum + Number(item.amount || 0), 0);
-      session.startMochidama = Number(value || 0) + mochidamaTotal;
+      session.startMochidama = balanceStartValueForCurrent(session, "startMochidama", value);
       session.updatedAt = nowIso();
       if (!persist()) {
         session.startMochidama = previous;
@@ -5092,15 +5112,17 @@
         startSaipurei: "再プレ残",
         startCredit: "カード残"
       };
+      const currentBalance = currentBalanceForStartKey(session, key);
       openModal(`${labels[key]}を修正`, "実機表示と合わせるための残高修正です。", `
-        <div class="field-row"><label for="balanceValue">${labels[key]}</label><input id="balanceValue" inputmode="numeric" value="${escapeHtml(session[key] ?? "")}"></div>
+        <div class="field-row"><label for="balanceValue">${labels[key]}</label><input id="balanceValue" inputmode="numeric" value="${escapeHtml(currentBalance ?? "")}"></div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveBalanceBtn">保存</button>
         </div>
       `);
       byId("saveBalanceBtn").addEventListener("click", () => {
-        session[key] = normalizeNumber(byId("balanceValue").value);
+        const value = normalizeNumber(byId("balanceValue").value);
+        session[key] = value === null ? null : balanceStartValueForCurrent(session, key, value);
         session.updatedAt = nowIso();
         if (!persistWithToast("残高を修正しました")) return;
         closeModal();
