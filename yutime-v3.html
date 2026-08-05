@@ -1406,7 +1406,7 @@
     let expandedInvestmentSessions = new Set();
     let expandedReplayRows = new Set();
     let spinUndoStacks = {};
-    let autoFilterExpanded = false;
+    let eventFilterExpanded = false;
     let closingCheckMode = false;
     let morningCheckMode = false;
     let closingInputFlow = null;
@@ -2403,6 +2403,7 @@
       const hasYutime = activeMapHasYutime(store.id);
       const assumedRate = activeMapAssumedRate(store.id);
       const umiNetBalls = presetNetBallsPerWin("umi-sp5");
+      const filterSummary = activeFilters.length ? `　適用中: ${activeFilters.map(escapeHtml).join("・")}` : "";
       if (!hasYutime) {
         closingCheckMode = false;
         morningCheckMode = false;
@@ -2428,27 +2429,30 @@
         ` : ""}
         <div class="filter-block">
           <strong class="hint">台をしぼる・記録する</strong>
-          <div class="status-line" style="margin-top:8px"><button class="small" id="openLabelFormBtn">店イベントの登録</button></div>
+          <details class="filter-block" ${eventFilterExpanded ? "open" : ""} id="eventFilterDetails">
+            <summary class="hint">絞り込み・イベント ▼${filterSummary}</summary>
+            <div class="status-line" style="margin-top:8px"><button class="small" id="openLabelFormBtn">店イベントの登録</button></div>
+            ${activeFilters.length ? `
+              <div class="filter-status">
+                <span class="badge good">絞り込み中: ${activeFilters.map(escapeHtml).join(" / ")}</span>
+                <button class="small" id="clearLabelFiltersBtn">解除</button>
+              </div>
+            ` : ""}
+            <div class="filter-block">
+              <strong class="hint">店イベント</strong>
+              <div class="label-checks">${manualLabels.length ? manualLabels.map(filterChipHtml).join("") : '<span class="hint">店イベントは未登録です。</span>'}</div>
+            </div>
+            <div class="filter-block">
+              <strong class="hint">今日の日付・曜日</strong>
+              <div class="label-checks">${pinnedAutoLabels.length ? pinnedAutoLabels.map(filterChipHtml).join("") : '<span class="hint">今日の自動ラベルはありません。</span>'}</div>
+            </div>
+            <div class="filter-block"><button class="small" id="clearAllFiltersBtn">クリア</button></div>
+            <details class="filter-block" id="otherAutoFilterDetails">
+              <summary class="hint">その他の日付・曜日</summary>
+              <div class="label-checks">${otherAutoLabels.map(filterChipHtml).join("")}</div>
+            </details>
+          </details>
         </div>
-        ${activeFilters.length ? `
-          <div class="filter-status">
-            <span class="badge good">絞り込み中: ${activeFilters.map(escapeHtml).join(" / ")}</span>
-            <button class="small" id="clearLabelFiltersBtn">解除</button>
-          </div>
-        ` : ""}
-        <div class="filter-block">
-          <strong class="hint">店イベント</strong>
-          <div class="label-checks">${manualLabels.length ? manualLabels.map(filterChipHtml).join("") : '<span class="hint">店イベントは未登録です。</span>'}</div>
-        </div>
-        <div class="filter-block">
-          <strong class="hint">今日の日付・曜日</strong>
-          <div class="label-checks">${pinnedAutoLabels.length ? pinnedAutoLabels.map(filterChipHtml).join("") : '<span class="hint">今日の自動ラベルはありません。</span>'}</div>
-        </div>
-        <div class="filter-block"><button class="small" id="clearAllFiltersBtn">クリア</button></div>
-        <details class="filter-block" ${autoFilterExpanded ? "open" : ""} id="otherAutoFilterDetails">
-          <summary class="hint">その他の日付・曜日</summary>
-          <div class="label-checks">${otherAutoLabels.map(filterChipHtml).join("")}</div>
-        </details>
       `;
       byId("activeIslandFilterSelect").addEventListener("change", (event) => {
         setSelectedIslandFilter(store.id, event.target.value);
@@ -2510,8 +2514,8 @@
           renderMachineMap();
         });
       }
-      const details = byId("otherAutoFilterDetails");
-      if (details) details.addEventListener("toggle", () => { autoFilterExpanded = details.open; });
+      const eventDetails = byId("eventFilterDetails");
+      if (eventDetails) eventDetails.addEventListener("toggle", () => { eventFilterExpanded = eventDetails.open; });
     }
 
     function renderCarryoverBanner() {
