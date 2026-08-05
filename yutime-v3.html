@@ -1392,7 +1392,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 19;
+    const SCHEMA_VERSION = 20;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1533,6 +1533,7 @@
       hitVia: null,
       yutimeEnterBalls: null,
       yutimeEnterTime: null,
+      yutimeEnterSpin: null,
       endTotalHits: null,
       hitCount: null,
       totalRounds: null,
@@ -1562,7 +1563,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 19: island.name追加、島ビルダー折りたたみ"
+        schemaBudgetNote: "v3 schema 20: yutimeEnterSpin追加、遊タイム抜けヤメ回転率補完"
       }
     });
 
@@ -2080,6 +2081,7 @@
         currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
         startEv: normalizeStartEv(session.startEv),
         carriedFromSessionId: session.carriedFromSessionId || null,
+        yutimeEnterSpin: normalizeNumber(session.yutimeEnterSpin),
         yutimeEnterTime: session.yutimeEnterTime || null,
         investments: Array.isArray(session.investments) ? session.investments.map((item) => ({
           type: normalizeInvestmentSource(item.source || item.type),
@@ -2200,6 +2202,7 @@
         hitRemainBalls: 0,
         hitVia: "yutime",
         yutimeEnterBalls: 0,
+        yutimeEnterSpin: 80,
         yutimeEnterTime: "10:25",
         endTotalHits: 13,
         hitCount: 1,
@@ -5276,8 +5279,10 @@
 
     function openYutimeEnterForm(sessionId) {
       const session = findSession(sessionId);
-      openModal("遊タイム突入", "突入時の玉数を入れると、後で玉減りを分けて見られます。", `
+      const spinPreset = session.yutimeEnterSpin ?? session.currentSpin ?? session.startSpin;
+      openModal("遊タイム突入", "突入時の玉数と回転数を入れると、玉減りと通常回転率を分けて見られます。", `
         <div class="field-row"><label for="yutimeBalls">突入時玉数</label><input id="yutimeBalls" inputmode="numeric" value="${escapeHtml(session.yutimeEnterBalls ?? "")}"></div>
+        <div class="field-row"><label for="yutimeSpin">突入時回転数</label><input id="yutimeSpin" inputmode="numeric" value="${escapeHtml(spinPreset ?? "")}"></div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveYutimeBtn">保存</button>
@@ -5285,6 +5290,7 @@
       `);
       byId("saveYutimeBtn").addEventListener("click", () => {
         session.yutimeEnterBalls = normalizeNumber(byId("yutimeBalls").value);
+        session.yutimeEnterSpin = normalizeNumber(byId("yutimeSpin").value);
         session.yutimeEnterTime = currentTime();
         session.hitVia = "yutime";
         session.updatedAt = nowIso();
@@ -5350,6 +5356,7 @@
           ${fieldHtml("hitSpin", "当選回転数", session.hitSpin)}
           ${fieldHtml("hitRemainBalls", "当選時残り玉", session.hitRemainBalls)}
           ${fieldHtml("yutimeEnterBalls", "遊タイム突入玉", session.yutimeEnterBalls)}
+          ${fieldHtml("yutimeEnterSpin", "遊タイム突入時の回転数", session.yutimeEnterSpin)}
           ${fieldHtml("yutimeEnterTime", "遊タイム突入時刻", session.yutimeEnterTime, "time")}
           ${fieldHtml("endTotalHits", "ヤメ時点の累計大当たり回数", session.endTotalHits)}
           ${fieldHtml("hitCount", "大当たり回数", session.hitCount)}
@@ -5388,7 +5395,7 @@
           const value = byId("edit_" + key).value.trim();
           session[key] = value || null;
         });
-        ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "startTotalHits", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "endTotalHits", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls"].forEach((key) => {
+        ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "startTotalHits", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "yutimeEnterSpin", "endTotalHits", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls"].forEach((key) => {
           session[key] = normalizeNumber(byId("edit_" + key).value);
         });
         session.hitVia = byId("editHitVia").value || null;
@@ -5468,7 +5475,8 @@
       const preset = machine ? presetById(normalizeMachinePresetId(machine)) : null;
       const hasHit = Number(session.hitCount || 0) > 0;
       const warnings = [];
-      const normalEndSpin = session.hitSpin !== null ? session.hitSpin : (session.yutimeEnterBalls !== null || hasHit ? null : session.endSpin);
+      const yutimeNormalEndSpin = !hasHit && (session.hitVia === "yutime" || session.yutimeEnterBalls !== null) ? yutimeEnterSpinForRate(session, preset) : null;
+      const normalEndSpin = session.hitSpin !== null ? session.hitSpin : (hasHit ? null : (session.hitVia === "yutime" || session.yutimeEnterBalls !== null ? yutimeNormalEndSpin : session.endSpin));
       const rawNormalSpins = normalEndSpin !== null && session.startSpin !== null ? normalEndSpin - session.startSpin : null;
       const normalSpins = rawNormalSpins !== null && rawNormalSpins < 0 ? null : rawNormalSpins;
       if (rawNormalSpins !== null && rawNormalSpins < 0) warnings.push("通常回転数の入力を確認");
@@ -5523,6 +5531,16 @@
         exchangeRate,
         warnings
       };
+    }
+
+    function yutimeEnterSpinForRate(session, preset = null) {
+      const explicitSpin = normalizeNumber(session.yutimeEnterSpin);
+      if (explicitSpin !== null) return explicitSpin;
+      const prevSpin = normalizeNumber(session.prevDayEndSpin);
+      if (prevSpin === null) return null;
+      const tenjo = preset?.spec?.tenjo || 950;
+      const inferred = tenjo - prevSpin;
+      return inferred >= 0 ? inferred : null;
     }
 
     function machineStats(machineId) {
