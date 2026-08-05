@@ -1041,7 +1041,12 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(style, /\.bm-state-badges\{[^}]*align-content:flex-start/);
   assert.match(style, /\.bm-state-badges\{[^}]*overflow:visible/);
   const shellSource = fs.readFileSync(HTML_PATH, 'utf8').match(/<div class="bm-shell">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="bm-toast"/)?.[1] || '';
-  assert.match(shellSource, /id="battleModeVersion">UI 7b/);
+  assert.match(shellSource, /id="battleModeVersion">UI 7c/);
+  assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-label\{[^}]*white-space:nowrap/);
+  assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-label\{[^}]*font-size:10px/);
+  assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-value\{[^}]*text-align:center/);
+  assert.match(style, /\.counter-compact-row\.nangoku-special-row \.game-pair-field label\{[^}]*white-space:nowrap/);
+  assert.match(style, /\.counter-compact-row\.nangoku-special-row \.game-pair-field input\{[^}]*text-align:center/);
   assert.ok(shellSource.indexOf('battleModeVersion') < shellSource.indexOf('battleModeCheckpointStatus'));
   assert.ok(shellSource.indexOf('battleModeStateBadges') < shellSource.indexOf('battleModeCounters'));
   assert.ok(shellSource.indexOf('battleModeCounters') < shellSource.indexOf('battleModeGrid'));

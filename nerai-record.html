@@ -67,6 +67,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .game-pair-field input{min-width:0;width:0;flex:1 1 0;text-align:center;padding-left:6px;padding-right:6px;}
 .counter-compact-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-items:stretch;margin:8px 0;width:100%;max-width:100%;}
 .counter-compact-row.nangoku-special-row{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.1fr);}
+.counter-compact-row.nangoku-special-row .game-pair-field label{white-space:nowrap;font-size:11px;line-height:1.2;}
+.counter-compact-row.nangoku-special-row .game-pair-field input{text-align:center;}
 .counter-compact-row .game-pair-field{padding:6px;}
 .counter-compact-row .btn-small{min-height:52px;height:auto;min-width:52px;padding:10px 8px;font-size:15px;font-weight:900;border-radius:14px;}
 .counter-compact-row .input-hint{grid-column:1/-1;margin-top:-2px;}
@@ -491,6 +493,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-counters{display:grid;gap:6px;}
 .bm-main-counter-row,.bm-compact-counter-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
 .bm-compact-counter-row.nangoku-special-row{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.1fr);gap:6px;}
+.bm-compact-counter-row.nangoku-special-row .bm-counter-label{white-space:nowrap;font-size:10px;line-height:1.2;}
+.bm-compact-counter-row.nangoku-special-row .bm-counter-value{text-align:center;}
 .bm-counter{min-height:64px;border:1px solid var(--border);border-radius:8px;background:var(--surface);padding:7px 8px;text-align:center;cursor:pointer;}
 .bm-counter-label{font-size:11px;font-weight:900;color:var(--text-muted);}
 .bm-counter-value{font-size:24px;font-weight:900;line-height:1.25;color:var(--gold-light);}
@@ -1130,7 +1134,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="bm-title" id="battleModeTitle">実戦モード</div>
       <button class="bm-close" type="button" onclick="closeBattleMode()" aria-label="閉じる">×</button>
     </div>
-    <div class="bm-version" id="battleModeVersion">UI 7b</div>
+    <div class="bm-version" id="battleModeVersion">UI 7c</div>
     <div id="battleModeCheckpointStatus"></div>
     <div class="bm-state-badges" id="battleModeStateBadges"></div>
     <div class="bm-counters" id="battleModeCounters"></div>
