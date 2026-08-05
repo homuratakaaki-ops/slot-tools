@@ -2848,8 +2848,7 @@
               ${sourceOptions.map((option) => {
                 const balance = balanceForSource(session, option.value);
                 const low = balance === null || balance < option.amount;
-                const unit = option.value === "cash" ? "円" : "玉";
-                return `<button class="source-chip${option.value === selectedSource ? " selected" : ""}${low ? " is-low" : ""}" data-source-select="${escapeHtml(option.value)}"><span>${escapeHtml(option.label)}</span><strong>${balanceText(balance, unit)}</strong></button>`;
+                return `<button class="source-chip${option.value === selectedSource ? " selected" : ""}${low ? " is-low" : ""}" data-source-select="${escapeHtml(option.value)}"><span>${escapeHtml(option.label)}</span><strong>${sourceChipBalanceText(balance)}</strong></button>`;
               }).join("")}
             </div>
             <div class="unified-invest-row">
@@ -4588,8 +4587,27 @@
       return "現金";
     }
 
+    function investmentSourceShortLabel(source) {
+      const normalized = normalizeInvestmentSource(source);
+      if (normalized === "mochidama") return "持ち玉";
+      if (normalized === "saipurei") return "再プレ";
+      return "現金";
+    }
+
     function balanceText(value, unit) {
       return value === null ? "未入力" : `${numberText(value, 0)} ${unit}`;
+    }
+
+    function sourceChipBalanceText(value) {
+      return value === null ? "-" : numberText(value, 0);
+    }
+
+    function sourceUnavailableMessage(session, source, amount) {
+      const balance = balanceForSource(session, source);
+      const label = investmentSourceShortLabel(source);
+      if (balance === null) return `${label}が未入力です。`;
+      if (balance < amount) return `${label}がありません。値をタップして修正するか、他のソースを選んでください。`;
+      return "";
     }
 
     function rateText(derived) {
@@ -4818,13 +4836,9 @@
     function addInvestment(session, source, amount, time = currentTime()) {
       if (amount === null) return;
       source = normalizeInvestmentSource(source);
-      const balance = balanceForSource(session, source);
-      if (balance === null) {
-        showToast("先に残高を入力してください", "error");
-        return;
-      }
-      if (balance < amount) {
-        showToast("残高が不足しています", "error");
+      const unavailableMessage = sourceUnavailableMessage(session, source, amount);
+      if (unavailableMessage) {
+        showToast(unavailableMessage, "error");
         return;
       }
       const item = { type: source, source, amount, time, phase: currentInvestmentPhase(session), spinAt: session.currentSpin ?? session.startSpin };
