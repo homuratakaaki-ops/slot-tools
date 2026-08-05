@@ -1041,7 +1041,7 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(style, /\.bm-state-badges\{[^}]*align-content:flex-start/);
   assert.match(style, /\.bm-state-badges\{[^}]*overflow:visible/);
   const shellSource = fs.readFileSync(HTML_PATH, 'utf8').match(/<div class="bm-shell">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="bm-toast"/)?.[1] || '';
-  assert.match(shellSource, /id="battleModeVersion">UI 6z/);
+  assert.match(shellSource, /id="battleModeVersion">UI 7a/);
   assert.ok(shellSource.indexOf('battleModeVersion') < shellSource.indexOf('battleModeCheckpointStatus'));
   assert.ok(shellSource.indexOf('battleModeStateBadges') < shellSource.indexOf('battleModeCounters'));
   assert.ok(shellSource.indexOf('battleModeCounters') < shellSource.indexOf('battleModeGrid'));
@@ -2664,9 +2664,17 @@ function testBattleModeNangokuCompactCountersUseThreeColumns() {
   assert.match(html, /openBattleModeCounterKeypad\('liquid'\)/);
   assert.match(html, /battleModeSetLiquidOffsetPreset\(9\)/);
   assert.match(html, /openBattleModeCounterKeypad\('subCounter','suika'\)/);
+  assert.match(html, /🍉/);
   assert.match(html, /battleModeIncrementSubCounter\('suika'\)/);
   assert.doesNotMatch(html, /openBattleModeCounterKeypad\('liquidOffset'\)/);
   assert.doesNotMatch(html, /bm-main-counter-row/);
+  const gridHtml = vm.runInContext('renderBattleModeGrid()', context);
+  assert.match(gridHtml, /🍒チェリー/);
+  assert.match(gridHtml, /🍉スイカ/);
+  assert.match(gridHtml, /data-tag-id="t_nangoku_cherry" onclick="battleModeRecordTag\('t_nangoku_cherry'\)">🍒チェリー/);
+  assert.match(gridHtml, /data-tag-id="t_nangoku_suika" onclick="battleModeRecordTag\('t_nangoku_suika'\)">🍉スイカ/);
+  assert.doesNotMatch(gridHtml, /🍒チェリー\s*<br/);
+  assert.doesNotMatch(gridHtml, /🍉スイカ\s*<br/);
 }
 
 function testBattleModeSazanamiPickerStoresEntryCause() {

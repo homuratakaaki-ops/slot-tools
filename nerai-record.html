@@ -1130,7 +1130,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="bm-title" id="battleModeTitle">実戦モード</div>
       <button class="bm-close" type="button" onclick="closeBattleMode()" aria-label="閉じる">×</button>
     </div>
-    <div class="bm-version" id="battleModeVersion">UI 6z</div>
+    <div class="bm-version" id="battleModeVersion">UI 7a</div>
     <div id="battleModeCheckpointStatus"></div>
     <div class="bm-state-badges" id="battleModeStateBadges"></div>
     <div class="bm-counters" id="battleModeCounters"></div>
@@ -7566,7 +7566,7 @@ function renderBattleModeCompactCounters(){
     </div>
     ${counter?`<div class="bm-compact-counter">
       <button class="bm-compact-counter-read" type="button" onclick="openBattleModeCounterKeypad('subCounter','${escapeHtml(counter.key)}')">
-        <div class="bm-counter-label">${escapeHtml(compactCounterLabel(counter))}</div>
+        <div class="bm-counter-label">${escapeHtml(counter.key==='suika'?'\uD83C\uDF49':compactCounterLabel(counter))}</div>
         <div class="bm-counter-value">${escapeHtml(counterValue)}</div>
       </button>
       ${hideIncrement?'<span></span>':`<button class="bm-mini-btn" type="button" onclick="battleModeIncrementSubCounter('${escapeHtml(counter.key)}')">+1</button>`}
@@ -8749,10 +8749,11 @@ function battleModePanel(){
   return normalizeQuickPanel(machine?.quickPanel);
 }
 function battleModeCounterButtonDef(ref){
+  const nangokuSpecial=isNangokuSpecialMachine(currentMachine());
   const map={
     replay:{label:'リプレイ',tagId:'t_nangoku_replay'},
-    cherry:{label:'チェリー',tagId:'t_nangoku_cherry'},
-    suika:{label:'スイカ',tagId:'t_nangoku_suika'}
+    cherry:{label:nangokuSpecial?'\uD83C\uDF52\u30c1\u30a7\u30ea\u30fc':'チェリー',tagId:'t_nangoku_cherry'},
+    suika:{label:nangokuSpecial?'\uD83C\uDF49\u30b9\u30a4\u30ab':'スイカ',tagId:'t_nangoku_suika'}
   };
   return map[ref]||null;
 }
