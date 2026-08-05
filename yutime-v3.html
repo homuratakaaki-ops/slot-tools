@@ -4483,7 +4483,18 @@
     function openHitResetPrompt(session) {
       const machine = data.machines.find((item) => item.id === session.machineId);
       const options = hitResetOptions(machine);
+      const balances = deriveBalances(session);
       openModal("現在回転数をリセット", "選ばず閉じると現在回転数はそのままです。続行する場合だけ、時短消化後の起点に合わせてください。", `
+        <div class="field-row">
+          <label for="hitMochidamaValue">持ち玉</label>
+          <div>
+            <span class="hint">現在 ${balanceText(balances.mochidama, "玉")} → </span>
+            <input id="hitMochidamaValue" inputmode="numeric" placeholder="消化後の値">
+            <span class="hint"> 玉（任意）</span>
+            <button class="small" id="saveHitMochidamaBtn">持ち玉を更新</button>
+            <p class="hint">台の玉数表示に合わせて入力してください。</p>
+          </div>
+        </div>
         <div class="quick-invest">
           ${options.map((value) => `<button data-hit-reset="${value}">${value}</button>`).join("")}
         </div>
@@ -4491,6 +4502,9 @@
           <button class="ghost" data-close>閉じる</button>
         </div>
       `);
+      byId("saveHitMochidamaBtn").addEventListener("click", () => {
+        saveHitMochidamaInput(session);
+      });
       els.modalBody.querySelectorAll("[data-hit-reset]").forEach((button) => {
         button.addEventListener("click", () => {
           const value = Number(button.dataset.hitReset);
@@ -4499,6 +4513,21 @@
           showToast(`現在回転数を${value}にリセットしました`);
         });
       });
+    }
+
+    function saveHitMochidamaInput(session, options = {}) {
+      const input = byId("hitMochidamaValue");
+      if (!input) return false;
+      const raw = input.value.trim();
+      if (!raw) return false;
+      const value = normalizeNumber(raw);
+      if (value === null) {
+        if (!options.silentEmpty) showToast("持ち玉を数値で入力してください", "error");
+        return false;
+      }
+      updateMochidamaBalanceWithUndo(session, value);
+      input.value = "";
+      return true;
     }
 
     function openEndWizard(sessionId) {
@@ -4824,6 +4853,28 @@
         credit: session.startCredit === null ? null : Number(session.startCredit || 0) + chargeTotal - cashTotal,
         saipurei: session.startSaipurei === null ? null : Number(session.startSaipurei || 0) - replayTotal
       };
+    }
+
+    function updateMochidamaBalanceWithUndo(session, value) {
+      const previous = session.startMochidama;
+      const mochidamaTotal = session.investments.filter((item) => investmentSource(item) === "mochidama").reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      session.startMochidama = Number(value || 0) + mochidamaTotal;
+      session.updatedAt = nowIso();
+      if (!persist()) {
+        session.startMochidama = previous;
+        showToast("保存に失敗しました。容量を確認してください。", "error");
+        return false;
+      }
+      renderAll();
+      showToast("持ち玉を更新しました", "success", {
+        undo: () => {
+          session.startMochidama = previous;
+          session.updatedAt = nowIso();
+          persist();
+          renderAll();
+        }
+      });
+      return true;
     }
 
     function investmentTotals(session) {

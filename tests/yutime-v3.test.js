@@ -4,6 +4,7 @@ const path = require('node:path');
 
 const root = path.resolve(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'yutime-v3.html'), 'utf8');
+const design = fs.readFileSync(path.join(root, 'docs', 'yutime-v3-design.md'), 'utf8');
 
 function section(startMarker, endMarker) {
   const start = html.indexOf(startMarker);
@@ -16,6 +17,7 @@ function section(startMarker, endMarker) {
 const hitWizard = section('function openHitWizard', 'function hitResetOptions');
 const runWizard = section('function runWizard', 'function wizardInputHtml');
 const hitResetPrompt = section('function openHitResetPrompt', 'function openEndWizard');
+const updateMochidamaBalance = section('function updateMochidamaBalanceWithUndo', 'function investmentTotals');
 const renderRunning = section('function renderRunning', 'function renderLedger');
 const addInvestment = section('function addInvestment', 'function deleteInvestment');
 const sourceUnavailableMessage = section('function sourceUnavailableMessage', 'function rateText');
@@ -39,6 +41,14 @@ assert.match(
 assert.ok(hitWizard.includes('key: "hitSpin"'), 'hitSpin step should remain in the hit wizard');
 assert.ok(hitResetPrompt.includes('data-hit-reset'), 'reset chip buttons should remain after hit completion');
 assert.ok(hitResetPrompt.includes('data-close'), 'reset chip close button should remain unchanged');
+assert.match(hitResetPrompt, /id="hitMochidamaValue"/);
+assert.match(hitResetPrompt, /id="saveHitMochidamaBtn"/);
+assert.match(hitResetPrompt, /closeModal\(\);\s*setCurrentSpinWithUndo\(session, value\);/);
+assert.doesNotMatch(hitResetPrompt, /saveHitMochidamaInput\(session, \{ silentEmpty: true \}\)/);
+assert.match(hitResetPrompt, /if \(!raw\) return false;/);
+assert.match(updateMochidamaBalance, /session\.startMochidama = Number\(value \|\| 0\) \+ mochidamaTotal;/);
+assert.match(updateMochidamaBalance, /undo: \(\) => \{\s*session\.startMochidama = previous;/);
+assert.ok(design.includes('スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。'));
 assert.match(renderRunning, /<span>\$\{escapeHtml\(option\.label\)\}<\/span><strong>\$\{sourceChipBalanceText\(balance\)\}<\/strong>/);
 assert.match(renderRunning, /class="primary\$\{selectedCanUse \? "" : " is-low"\}" id="unifiedInvestBtn"/);
 assert.doesNotMatch(renderRunning, /id="unifiedInvestBtn"[^>]*disabled/);
