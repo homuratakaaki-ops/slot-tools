@@ -1587,6 +1587,29 @@ function testOtherPresetMachinesRemainStable() {
   assert.equal(vm.runInContext("machineById('m_karakuri_circus_2').counters.length > 0", context), true);
 }
 
+function testNangokuTimelineFirstRowMovesOffsetAndSuikaControls() {
+  const { context } = runRecord(undefined);
+  vm.runInContext("selectedMachineId='m_nangoku_special'; currentTimelineDataGame=100; currentTimelineSuikaOffset=0; currentTimelineManualCorrection=0;", context);
+  const rowHtml = vm.runInContext("renderGamePairInputs('timeline')", context);
+  assert.match(rowHtml, /counter-compact-row nangoku-special-row/);
+  assert.match(rowHtml, /id="timelineGame"/);
+  assert.match(rowHtml, /id="timelineLiquidGame"/);
+  assert.match(rowHtml, /type="hidden" id="timelineLiquidOffset"/);
+  assert.match(rowHtml, /setTimelineLiquidOffsetPreset\(9\)/);
+  assert.match(rowHtml, /id="subCounter_suika"/);
+  assert.match(rowHtml, /incrementSubCounter\('suika',1\)/);
+  assert.equal(vm.runInContext("renderCounterCompactRow()", context), '');
+
+  vm.runInContext(`
+    const offsetEl = { value: '', dataset: {}, style: { setProperty() {} }, classList: { add() {}, remove() {}, toggle() {} } };
+    document.getElementById = id => id === 'timelineLiquidOffset' ? offsetEl : null;
+    setTimelineGames(100, 100);
+    setTimelineLiquidOffsetPreset(9);
+  `, context);
+  assert.equal(vm.runInContext('timelineLiquidOffset()', context), 9);
+  assert.equal(vm.runInContext('timelineLiquidValue()', context), 91);
+}
+
 function noHitQuitLog(machineId, machineName, timelineText) {
   return {
     id: `l_no_hit_quit_${machineId}`,
@@ -4826,6 +4849,7 @@ function run() {
   testKabaneriGenealogyView();
   testStandardAimSeedsNoDuplicatesAndDeleteTombstone();
   testOtherPresetMachinesRemainStable();
+  testNangokuTimelineFirstRowMovesOffsetAndSuikaControls();
   testNoHitQuitSegmentsAreIncludedInTextOutputs();
   testHitSegmentsRemainIncludedInTextOutputs();
   testYameOutcomeTabClosesNoHitSegmentWithoutMemoDuplicate();

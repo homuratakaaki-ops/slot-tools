@@ -66,10 +66,12 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .game-pair-field label{font-size:12px;color:var(--text-muted);font-weight:700;white-space:nowrap;}
 .game-pair-field input{min-width:0;width:0;flex:1 1 0;text-align:center;padding-left:6px;padding-right:6px;}
 .counter-compact-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-items:stretch;margin:8px 0;width:100%;max-width:100%;}
+.counter-compact-row.nangoku-special-row{grid-template-columns:minmax(0,1.2fr) minmax(0,1.4fr) minmax(0,.9fr);}
 .counter-compact-row .game-pair-field{padding:6px;}
 .counter-compact-row .btn-small{min-height:52px;height:auto;min-width:52px;padding:10px 8px;font-size:15px;font-weight:900;border-radius:14px;}
 .counter-compact-row .input-hint{grid-column:1/-1;margin-top:-2px;}
 .counter-compact-control{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;}
+.counter-compact-row .counter-compact-control{min-width:0;}
 .counter-compact-control.readonly{display:block;}
 .counter-compact-spacer{min-width:52px;}
 .readonly-game-input{background:rgba(0,0,0,.2)!important;border-color:rgba(122,122,138,.35)!important;color:var(--gold-light)!important;text-align:center;cursor:default;}
@@ -11850,6 +11852,35 @@ function renderGamePairInputs(prefix){
   const dataHandler=prefix==='suggest'?`markSuggestInputsDirty()`:`syncTimelineDataGame('${dataId}')`;
   const liquidHandler=prefix==='suggest'?`markSuggestInputsDirty()`:`syncTimelineLiquidGame('${liquidId}')`;
   const gapAttr=prefix==='suggest'?` data-gap-offset="${escapeHtml(timelineLiquidOffset())}"`:'';
+  const machine=currentMachine();
+  const counter=machineSubCounter();
+  const liquidPreset=normalizeOptionalNumber(machine?.liquidOffsetPreset);
+  if(prefix==='timeline'&&isNangokuSpecialMachine(machine)&&showLiquidCounter&&counter){
+    const counterValue=subCounterDisplayValue(counter);
+    return `
+    <div class="counter-compact-row nangoku-special-row">
+      <div class="game-pair-field">
+        <label for="${dataId}">${dataLabel}</label>
+        <input type="text" id="${dataId}" data-game-role="${rolePrefix}-data" class="numeric-input" inputmode="none" readonly value="${escapeHtml(dataValue)}" placeholder="萓具ｼ・23" oninput="${dataHandler}" onchange="${dataHandler}">
+      </div>
+      <div class="counter-compact-control">
+        <div class="game-pair-field">
+          <label for="${liquidId}">${liquidLabel}</label>
+          <input type="text" id="${liquidId}" data-game-role="${rolePrefix}-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="萓具ｼ・23" oninput="${liquidHandler}" onchange="${liquidHandler}">
+          <input type="hidden" id="timelineLiquidOffset" data-signed="1" value="${escapeHtml(timelineLiquidOffset())}">
+        </div>
+        ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span class="counter-compact-spacer" aria-hidden="true"></span>'}
+      </div>
+      <div class="counter-compact-control">
+        <div class="game-pair-field">
+          <label for="subCounter_${escapeHtml(counter.key)}">${escapeHtml(compactCounterLabel(counter))}</label>
+          <input type="text" id="subCounter_${escapeHtml(counter.key)}" class="numeric-input" inputmode="none" readonly value="${escapeHtml(counterValue)}" placeholder="${escapeHtml(counterDisplayBase(counter))}" oninput="syncSubCounterInput('${escapeHtml(counter.key)}')" onchange="syncSubCounterInput('${escapeHtml(counter.key)}')">
+        </div>
+        <button class="btn-small counter-btn" type="button" onclick="incrementSubCounter('${escapeHtml(counter.key)}',1)">+1</button>
+      </div>
+      ${renderCounterHistorySummary(counter)}
+    </div>`;
+  }
   return `
     ${prefix==='suggest'?'<div class="btn-row"><button class="btn-small" onclick="resetSuggestInputsToCurrent()">現在値</button></div>':''}
     <div class="game-pair-row">
@@ -12036,13 +12067,16 @@ function compactCounterLabel(counter){
   return label.replace(/回数$/,'')||label;
 }
 function renderCounterCompactRow(){
-  const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter();
+  const machine=currentMachine();
+  const nangokuSpecial=isNangokuSpecialMachine(machine);
+  const useLiquidOffsetCounter=machineUsesLiquidOffsetCounter()&&!nangokuSpecial;
   const counter=machineSubCounter();
-  const usesAttachment=(currentMachine()?.tags||[]).some(tag=>normalizeTagNumberAttachment(tag.numberAttachment));
-  if(!useLiquidOffsetCounter&&!counter&&!usesAttachment)return '';
-  const liquidPreset=normalizeOptionalNumber(currentMachine()?.liquidOffsetPreset);
-  const counterValue=counter?subCounterDisplayValue(counter):0;
-  const counterHistory=counter?renderCounterHistorySummary(counter):'';
+  const showCounter=!!counter&&!nangokuSpecial;
+  const usesAttachment=(machine?.tags||[]).some(tag=>normalizeTagNumberAttachment(tag.numberAttachment));
+  if(!useLiquidOffsetCounter&&!showCounter&&!usesAttachment)return '';
+  const liquidPreset=normalizeOptionalNumber(machine?.liquidOffsetPreset);
+  const counterValue=showCounter?subCounterDisplayValue(counter):0;
+  const counterHistory=showCounter?renderCounterHistorySummary(counter):'';
   return `
     <div class="counter-compact-row">
       ${useLiquidOffsetCounter?`
@@ -12053,7 +12087,7 @@ function renderCounterCompactRow(){
         </div>
         ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span class="counter-compact-spacer" aria-hidden="true"></span>'}
       </div>`:''}
-      ${counter?`
+      ${showCounter?`
       <div class="counter-compact-control">
         <div class="game-pair-field">
           <label for="subCounter_${escapeHtml(counter.key)}">${escapeHtml(compactCounterLabel(counter))}</label>
