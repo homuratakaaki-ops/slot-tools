@@ -32,6 +32,11 @@
       color: var(--ink);
     }
 
+    body.running-fullscreen-lock {
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+
     button, input, textarea, select {
       font: inherit;
     }
@@ -604,6 +609,22 @@
       background: #f3fbfa;
     }
 
+    .running-panel.fullscreen {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      width: 100vw;
+      height: 100dvh;
+      margin: 0;
+      padding: 8px;
+      overflow: hidden;
+      border: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
     .running-sticky {
       position: sticky;
       top: 78px;
@@ -621,6 +642,17 @@
       box-shadow: none;
     }
 
+    .running-panel.fullscreen .running-sticky {
+      position: static;
+      flex: 1 1 auto;
+      min-height: 0;
+      margin: 0;
+      padding: 8px;
+      overflow: hidden;
+      border: 0;
+      box-shadow: none;
+    }
+
     .running-headline {
       display: grid;
       grid-template-columns: 1fr auto;
@@ -633,6 +665,23 @@
       gap: 6px;
       align-items: center;
       flex-shrink: 0;
+    }
+
+    .running-panel.fullscreen .running-headline {
+      gap: 6px;
+    }
+
+    .running-panel.fullscreen .running-headline strong {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .running-panel.fullscreen .running-headline-actions button {
+      min-height: 34px;
+      padding: 0 8px;
+      white-space: nowrap;
     }
 
     .running-live-row {
@@ -655,6 +704,15 @@
 
     .running-live-row strong {
       font-size: 22px;
+    }
+
+    .running-panel.fullscreen .running-live-row {
+      margin-top: 8px;
+      padding: 6px 8px;
+    }
+
+    .running-panel.fullscreen .running-live-row strong {
+      font-size: 20px;
     }
 
     .live-ev-line {
@@ -692,6 +750,10 @@
       margin-top: 8px;
     }
 
+    .running-panel.fullscreen .balance-row {
+      margin-top: 8px;
+    }
+
     .counter-row strong {
       font-size: 26px;
       line-height: 1;
@@ -714,6 +776,17 @@
       box-shadow: var(--shadow);
     }
 
+    .running-panel.fullscreen .running-bottom-controls {
+      position: static;
+      z-index: auto;
+      flex: 0 0 auto;
+      margin: 8px 0 0;
+      padding: 8px;
+      border-radius: 8px;
+      box-shadow: none;
+      background: #f3fbfa;
+    }
+
     .running-bottom-controls.sticky-off {
       position: static;
       box-shadow: none;
@@ -732,6 +805,13 @@
       display: grid;
       gap: 2px;
       align-content: center;
+      padding: 0 6px;
+      white-space: nowrap;
+    }
+
+    .running-panel.fullscreen .source-chip {
+      min-height: 38px;
+      font-size: 12px;
     }
 
     .source-chip.selected {
@@ -781,6 +861,14 @@
       font-weight: 800;
     }
 
+    .running-panel.fullscreen .unified-invest-row {
+      margin-bottom: 6px;
+    }
+
+    .running-panel.fullscreen .unified-invest-row button {
+      min-height: 82px;
+    }
+
     .unified-invest-row #unifiedInvestBtn {
       font-size: 24px;
     }
@@ -796,6 +884,16 @@
       min-height: 52px;
       font-size: 18px;
       font-weight: 800;
+    }
+
+    .running-panel.fullscreen .running-bottom-controls .counter-row {
+      gap: 6px;
+    }
+
+    .running-panel.fullscreen .running-bottom-controls .counter-row button {
+      min-height: 48px;
+      padding: 0 6px;
+      font-size: 17px;
     }
 
     .balance-row button.needs-balance {
@@ -823,11 +921,25 @@
       font-weight: 700;
     }
 
+    .running-panel.fullscreen .running-total-row {
+      margin-top: 8px;
+      font-size: 13px;
+    }
+
     .running-actions {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 8px;
       margin-top: 12px;
+    }
+
+    .running-panel.fullscreen .running-actions {
+      margin-top: 8px;
+      gap: 6px;
+    }
+
+    .running-panel.fullscreen .running-actions button {
+      min-height: 42px;
     }
 
     .history-toggle {
@@ -838,6 +950,13 @@
 
     .history-list {
       margin-top: 8px;
+    }
+
+    .running-panel.fullscreen .history-toggle,
+    .running-panel.fullscreen .history-list,
+    .running-panel.fullscreen > .status-line,
+    .running-panel.fullscreen > .section-head {
+      display: none;
     }
 
     .metric-grid {
@@ -2305,6 +2424,10 @@
       renderStorageNote();
     }
 
+    function setRunningFullscreenLock(enabled) {
+      document.body.classList.toggle("running-fullscreen-lock", Boolean(enabled));
+    }
+
     function renderStorePill() {
       const store = activeStore();
       els.currentStorePill.textContent = store ? store.name + (store.isPersonal ? " / パーソナル" : " / 非パーソナル") : "店未選択";
@@ -2759,11 +2882,13 @@
     function renderRunning() {
       const store = activeStore();
       if (!store) {
+        setRunningFullscreenLock(false);
         els.runningArea.innerHTML = '<div class="section"><h2>稼働中</h2><p>店を選択してください。</p></div>';
         return;
       }
       const session = activeSession();
       if (!session) {
+        setRunningFullscreenLock(false);
         els.runningArea.innerHTML = '<div class="section"><h2>稼働中</h2><p>現在進行中のセッションはありません。マップから台を選んで開始してください。</p></div>';
         return;
       }
@@ -2782,6 +2907,8 @@
       const entries = historyEntries(session);
       const replayCollapsed = balances.saipurei === 0 && !expandedReplayRows.has(session.id);
       const stickyClass = runningStickyEnabled ? "" : " sticky-off";
+      const fullscreenMode = runningStickyEnabled && currentView === "runView";
+      setRunningFullscreenLock(fullscreenMode);
       const selectedSource = runningSource;
       const selectedAmount = selectedSource === "cash" ? 500 : 125;
       const selectedCanUse = canUseSource(session, selectedSource, selectedAmount);
@@ -2791,7 +2918,7 @@
         { value: "cash", label: "現金", amount: 500 }
       ];
       els.runningArea.innerHTML = `
-        <div class="section running-panel">
+        <div class="section running-panel${fullscreenMode ? " fullscreen" : ""}">
           <div class="running-sticky${stickyClass}">
             <div class="running-headline"><strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong><div class="running-headline-actions"><button class="small" id="openRunningMachineMemoBtn">メモ${machine?.memo ? "あり" : ""}</button><button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button></div></div>
             <div class="running-live-row">
