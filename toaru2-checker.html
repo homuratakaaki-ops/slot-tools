@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>とある2 設定判別カウンター | slot-tools.jp</title>
+<meta name="description" content="Lとある魔術の禁書目録2の設定判別向けカウンターです。規定ゲーム数、CZ、AT中CZ、終了画面、藤丸コイン、ED示唆をタップで記録し、テンプレ形式のテキストと共有カード画像を生成できます。">
+<link rel="canonical" href="https://slot-tools.jp/toaru2-checker.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="slot-tools.jp">
+<meta property="og:title" content="とある2 設定判別カウンター | slot-tools.jp">
+<meta property="og:description" content="Lとある魔術の禁書目録2の設定判別向けカウンター。割合表示、テンプレ出力、共有カード画像生成に対応。">
+<meta property="og:url" content="https://slot-tools.jp/toaru2-checker.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+1p:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0d0a10; --panel:#171220; --panel2:#1f1830; --line:#2c2340;
+  --pink:#ff3d8f; --pink-dim:#a8265f; --gold:#ffc94d; --cyan:#6fd8ff;
+  --txt:#f2eef5; --muted:#9a90a8; --danger:#ff5c5c;
+  --seg:'DotGothic16',monospace; --body:'M PLUS 1p',sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;overscroll-behavior:none}
+body{
+  font-family:var(--body);background:var(--bg);color:var(--txt);
+  position:fixed;inset:0;display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top);
+  user-select:none;-webkit-user-select:none;
+}
+/* ===== header ===== */
+header{
+  flex:none;padding:10px 14px 8px;border-bottom:1px solid var(--line);
+  background:linear-gradient(180deg,#150f1e,#0d0a10);
+}
+.hd-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.hd-title{font-weight:800;font-size:15px;letter-spacing:.02em}
+.hd-title small{display:block;font-size:10px;font-weight:500;color:var(--pink);letter-spacing:.15em}
+.hd-title small a{color:var(--cyan);text-decoration:none;letter-spacing:0;margin-left:6px}
+.hd-actions{display:flex;gap:6px}
+.hd-btn{
+  font-family:var(--body);font-size:11px;font-weight:700;color:var(--txt);
+  background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:7px 10px;
+}
+.hd-btn:active{background:var(--line)}
+.hd-btn.danger{color:var(--danger)}
+.hd-btn.mode.on{color:#fff;background:var(--danger);border-color:var(--danger)}
+body.minus .crow .plus{border-color:#7a3040;background:rgba(255,92,92,.14);color:var(--danger)}
+body.minus .crow .plus:active{background:var(--danger);color:#fff}
+body.minus .crow:active{border-color:#7a3040}
+.feed{
+  margin-top:6px;font-size:10.5px;color:var(--muted);min-height:14px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.feed b{color:var(--cyan);font-weight:700}
+/* ===== tabs ===== */
+nav{
+  flex:none;display:grid;grid-template-columns:repeat(4,1fr);
+  border-top:1px solid var(--line);background:#120d1a;
+  padding-bottom:env(safe-area-inset-bottom);
+}
+nav button{
+  font-family:var(--body);appearance:none;background:none;border:none;color:var(--muted);
+  font-size:11px;font-weight:700;padding:11px 0 13px;letter-spacing:.05em;
+  border-top:2px solid transparent;
+}
+nav button.on{color:var(--pink);border-top-color:var(--pink)}
+/* ===== main ===== */
+main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 24px}
+.page{display:none}.page.on{display:block}
+.sec{margin-bottom:16px}
+.sec-h{
+  display:flex;align-items:baseline;justify-content:space-between;
+  font-size:12px;font-weight:800;color:var(--gold);letter-spacing:.1em;margin-bottom:8px;
+}
+.sec-h .sub{font-size:10px;font-weight:500;color:var(--muted);letter-spacing:0}
+/* counter rows */
+.cgrid{display:grid;gap:6px}
+.cgrid.two{grid-template-columns:1fr 1fr}
+.crow{
+  display:flex;align-items:center;gap:8px;
+  background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;
+}
+.crow:active{border-color:var(--pink-dim)}
+.crow .lbl{flex:1;min-width:0}
+.crow .lbl .nm{font-size:12px;font-weight:700;line-height:1.25}
+.crow .lbl .mn{font-size:9.5px;color:var(--muted);line-height:1.3}
+.crow .mn.hot{color:var(--gold)}
+.crow .num{
+  font-family:var(--seg);font-size:22px;color:var(--pink);min-width:34px;text-align:right;
+  text-shadow:0 0 8px rgba(255,61,143,.45);
+}
+.crow .pct{font-family:var(--seg);font-size:11px;color:var(--cyan);min-width:52px;text-align:right}
+.crow .plus{
+  flex:none;width:34px;height:34px;border-radius:9px;border:1px solid var(--pink-dim);
+  background:rgba(255,61,143,.12);color:var(--pink);font-size:18px;font-weight:700;
+  display:flex;align-items:center;justify-content:center;font-family:var(--body);
+}
+.crow .plus:active{background:var(--pink);color:#fff}
+/* inputs */
+.inrow{display:flex;align-items:center;gap:10px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px}
+.inrow label{flex:1;font-size:12px;font-weight:700}
+.inrow input{
+  width:110px;font-family:var(--seg);font-size:20px;text-align:right;color:var(--gold);
+  background:#0d0a12;border:1px solid var(--line);border-radius:8px;padding:6px 8px;
+}
+.inrow input:focus{outline:none;border-color:var(--gold)}
+/* probability table */
+.ptable{width:100%;border-collapse:collapse;font-size:11px}
+.ptable th,.ptable td{padding:5px 6px;text-align:right;border-bottom:1px solid var(--line)}
+.ptable th{color:var(--muted);font-weight:500;text-align:right}
+.ptable td:first-child,.ptable th:first-child{text-align:left}
+.ptable .me td{color:var(--gold);font-weight:700;font-family:var(--seg);font-size:13px}
+.ptable .near td{color:var(--pink)}
+.hint{font-size:10px;color:var(--muted);line-height:1.5;margin-top:6px}
+/* ===== card page ===== */
+.cardwrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
+#cardCanvas{width:100%;height:auto;border-radius:10px;display:block;background:#000}
+.btnrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.btnrow.one{grid-template-columns:1fr}
+.act{
+  font-family:var(--body);font-size:13px;font-weight:800;padding:12px;border-radius:10px;
+  border:1px solid var(--pink-dim);background:rgba(255,61,143,.14);color:var(--pink);
+}
+.act:active{background:var(--pink);color:#fff}
+.act.gold{border-color:#8a6c1e;background:rgba(255,201,77,.12);color:var(--gold)}
+.act.plain{border-color:var(--line);background:var(--panel2);color:var(--txt)}
+.imgnote{font-size:10px;color:var(--muted);line-height:1.6;margin-top:8px}
+textarea#tpl{
+  width:100%;height:140px;margin-top:10px;background:#0d0a12;color:var(--txt);
+  border:1px solid var(--line);border-radius:10px;padding:10px;font-size:11px;line-height:1.5;
+  font-family:var(--body);user-select:text;-webkit-user-select:text;
+}
+.credit{
+  margin-top:4px;padding:12px;border-top:1px dashed var(--line);
+  font-size:10.5px;color:var(--muted);line-height:1.7;text-align:center;
+}
+.credit a{color:var(--cyan);font-weight:700;text-decoration:none}
+.toast{
+  position:fixed;left:50%;bottom:90px;transform:translateX(-50%);
+  background:var(--pink);color:#fff;font-size:12px;font-weight:700;
+  padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .25s;
+  z-index:99;box-shadow:0 0 18px rgba(255,61,143,.6);
+}
+.toast.show{opacity:1}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+
+<header>
+  <div class="hd-row">
+    <div class="hd-title">Lとある魔術の禁書目録2<small>SETTING CHECKER — slot-tools.jp <a href="index.html">TOP</a><a href="toaru2-guide.html">GUIDE</a></small></div>
+    <div class="hd-actions">
+      <button class="hd-btn mode" id="modeBtn">＋加算</button>
+      <button class="hd-btn" id="undoBtn">↩ 取消</button>
+      <button class="hd-btn danger" id="resetBtn">リセット</button>
+    </div>
+  </div>
+  <div class="feed" id="feed">タップでカウント。最後の操作はここに表示されます</div>
+</header>
+
+<main id="main"></main>
+
+<nav id="nav">
+  <button data-p="0" class="on">ゾーン</button>
+  <button data-p="1">初当り</button>
+  <button data-p="2">示唆</button>
+  <button data-p="3">カード</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= data ================= */
+const NANA_COLLAB=false;
+function nanaCreditText(kind){
+  if(NANA_COLLAB){
+    if(kind==='card')return 'テンプレ：鈴白なな様（@nana_szsr）';
+    if(kind==='share')return 'ﾃﾝﾌﾟﾚ:@nana_szsr 様';
+    return 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr';
+  }
+  return 'テンプレ形式：考案者様の許諾確認中';
+}
+function shareText(){
+  const lines=['Lとある魔術の禁書目録2 設定判別メモ'];
+  if(NANA_COLLAB)lines.push(nanaCreditText('share'));
+  lines.push('#とある魔術の禁書目録2 #設定判別');
+  return lines.join('\n');
+}
+const ZONES=[50,100,150,200,300,400,500,600,700,800];
+const DEF={
+  games:0,
+  zones:Object.fromEntries(ZONES.map(z=>[z,0])),
+  cz:{rg:0,ac:0}, atcz:{gab:0,useki:0}, choku:0, atCount:0,
+  screens:{s1:0,s2:0,s3:0,s4:0,s5:0,s6:0,s7:0,s8:0},
+  ed:{e1:0,e2:0,e3:0,e4:0,e5:0,e6:0,e7:0,e8:0,e9:0},
+  icons:{blue:0,green:0,red:0,gold:0},
+  coins:{cu:0,ag:0,au:0,dg:0,rb:0},
+  img:null
+};
+const SCREENS=[
+  ['s1','当麻＆インデックス','奇数設定 期待度UP',0],
+  ['s2','黒子＆美琴','偶数設定 期待度UP',0],
+  ['s3','打ち止め＆一方通行','高設定 期待度UP（弱）',0],
+  ['s4','番外個体＆一方通行','高設定 期待度UP（中）',0],
+  ['s5','アリサ＆シャットアウラ','設定2・4・6 濃厚',1],
+  ['s6','初春＆美琴','設定4以上 濃厚',1],
+  ['s7','当麻ハーレム','設定6 濃厚',1],
+  ['s8','その他（残りG示唆等）','アイテム/スクール/グループ等',0]
+];
+const ED=[
+  ['e1','頑張ったね','奇数設定 期待度UP',0],
+  ['e2','調子良いね','偶数設定 期待度UP',0],
+  ['e3','ワクワクしてきたかも','高設定 期待度UP（弱）',0],
+  ['e4','いけるかも','高設定 期待度UP（中）',0],
+  ['e5','やったあ！','設定2以上 濃厚',1],
+  ['e6','すごい！すごい！','設定3以上 濃厚',1],
+  ['e7','とっても美味しい！','設定4以上 濃厚',1],
+  ['e8','すっごくうれしい！','設定5以上 濃厚',1],
+  ['e9','おめでとう！','設定6 濃厚',1]
+];
+const ICONS=[
+  ['blue','🔵 青アイコン','AT+10G以上 or Vスト',0],
+  ['green','🟢 緑アイコン','AT+30G以上 or Vスト',0],
+  ['red','🔴 赤アイコン','AT+50G以上',0],
+  ['gold','✨ 金アイコン','AT+100G以上',1]
+];
+const COINS=[
+  ['cu','藤丸コイン 銅','設定2以上 濃厚',1],
+  ['ag','藤丸コイン 銀','設定3以上 濃厚',1],
+  ['au','藤丸コイン 金','設定4以上 濃厚',1],
+  ['dg','藤丸コイン デンジャー柄','設定5以上 濃厚',1],
+  ['rb','藤丸コイン 虹','設定6 濃厚',1]
+];
+const CZ_TH=[235.6,233.4,230.8,222.3,215.8,207.2];
+const AT_TH=[398.8,394.5,389.6,369.5,358.0,338.4];
+
+/* ================= state ================= */
+const KEY='toaru2-checker-v1';
+let S=load(); let hist=[];
+function load(){try{const j=JSON.parse(localStorage.getItem(KEY));return j?Object.assign(structuredClone(DEF),j):structuredClone(DEF);}catch(e){return structuredClone(DEF);}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('保存失敗（容量超過の可能性）');}}
+function get(path){const p=path.split('.');return p.length===1?S[p[0]]:S[p[0]][p[1]];}
+function set(path,v){const p=path.split('.');if(p.length===1)S[p[0]]=v;else S[p[0]][p[1]]=v;}
+let mode=1;
+function bump(path,label){
+  if(mode<0&&get(path)<=0){feed(`${label} は0のため減算できません`);return;}
+  set(path,get(path)+mode);
+  hist.push({path,label,delta:mode});if(hist.length>50)hist.shift();
+  feed(`<b>${mode<0?'−1':'＋1'}</b> ${label}（累計 ${get(path)}）`);save();renderAll();}
+document.getElementById('modeBtn').onclick=()=>{
+  mode*=-1;
+  document.body.classList.toggle('minus',mode<0);
+  const b=document.getElementById('modeBtn');
+  b.textContent=mode<0?'−減算':'＋加算';
+  b.classList.toggle('on',mode<0);
+  feed(mode<0?'<b>減算モード</b>：タップで−1します。もう一度押すと加算に戻ります':'加算モードに戻しました');
+  renderAll();
+};
+document.getElementById('undoBtn').onclick=()=>{
+  const a=hist.pop();
+  if(!a){feed('取り消せる操作がありません');return;}
+  if(a.reset){
+    try{S=JSON.parse(a.snap);}catch(e){feed('復元に失敗しました');return;}
+    feed('<b>復元</b> リセット前の状態に戻しました');save();renderAll();return;
+  }
+  set(a.path,Math.max(0,get(a.path)-(a.delta||1)));
+  feed(`<b>取消</b> ${a.label}（累計 ${get(a.path)}）`);save();renderAll();
+};
+let resetArm=null;
+document.getElementById('resetBtn').onclick=()=>{
+  const b=document.getElementById('resetBtn');
+  if(resetArm){
+    clearTimeout(resetArm);resetArm=null;
+    const snap=JSON.stringify(S);
+    try{localStorage.setItem(KEY+'-bak',snap);}catch(e){}
+    hist.push({reset:true,snap});if(hist.length>50)hist.shift();
+    const img=S.img;S=structuredClone(DEF);S.img=img;
+    b.textContent='リセット';
+    feed('<b>リセット完了</b> 「↩ 取消」で直前の状態に戻せます');
+    save();renderAll();
+    return;
+  }
+  b.textContent='実行する？';
+  feed('もう一度「実行する？」を押すとリセットします（3秒で解除）');
+  resetArm=setTimeout(()=>{resetArm=null;b.textContent='リセット';feed('リセットを解除しました');},3000);
+};
+function feed(html){document.getElementById('feed').innerHTML=html;}
+let toastT;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),1800);}
+
+/* ================= view helpers ================= */
+function pct(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:`${n}/0 —`;}
+function crow(path,name,mean,hot,pctFn){
+  const n=get(path);
+  return `<div class="crow" data-c="${path}" data-l="${name}">
+    <div class="lbl"><div class="nm">${name}</div><div class="mn ${hot?'hot':''}">${mean}</div></div>
+    <div class="num">${n}</div>${pctFn?`<div class="pct">${pctFn(n)}</div>`:''}
+    <button class="plus" aria-label="${name}を1回${mode<0?'減算':'追加'}">${mode<0?'−':'＋'}</button></div>`;
+}
+
+/* ================= pages ================= */
+function pageZones(){
+  const total=ZONES.reduce((a,z)=>a+S.zones[z],0);
+  return `<section class="sec">
+    <div class="sec-h">規定ゲーム数 当選ゾーン<span class="sub">分母＝ゾーン当選 計${total}回</span></div>
+    <div class="cgrid two">
+      ${ZONES.map(z=>crow('zones.'+z, z+'G台','',0,n=>pct(n,total))).join('')}
+    </div>
+    <div class="hint">当選したゲーム数帯をタップ。分布からモード（通常A：偶数百G／通常B：奇数百G／天国準備：100G毎）を推測します。％は全ゾーン当選に対する割合です。</div>
+  </section>`;
+}
+function pageHatsu(){
+  const czN=S.cz.rg+S.cz.ac, atczN=S.atcz.gab+S.atcz.useki;
+  const g=S.games, czP=czN>0&&g>0?g/czN:0, atP=S.atCount>0&&g>0?g/S.atCount:0;
+  const rows=[1,2,3,4,5,6].map(i=>{
+    const near=(czP>0&&Math.abs(CZ_TH[i-1]-czP)===Math.min(...CZ_TH.map(t=>Math.abs(t-czP))));
+    return `<tr class="${near?'near':''}"><td>設定${i}</td><td>1/${CZ_TH[i-1]}</td><td>1/${AT_TH[i-1]}</td></tr>`;
+  }).join('');
+  return `
+  <section class="sec">
+    <div class="sec-h">総回転数</div>
+    <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">初当り</div>
+    <div class="cgrid">
+      ${crow('cz.rg','CZ 超電磁砲チャンス','通常CZ（期待度約52%）',0,n=>pct(n,czN))}
+      ${crow('cz.ac','CZ 一方通行チャンス','上位CZ（約80%）割合に設定差の可能性',1,n=>pct(n,czN))}
+      ${crow('atCount','AT当選','幻想殺しRUSH突入',0)}
+      ${crow('choku','AT直撃','設1 約1/8000 ⇔ 設6 約1/4000',1)}
+    </div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">AT中CZ 振り分け</div>
+    <div class="cgrid">
+      ${crow('atcz.gab','神の力BATTLE','AT中CZ（約50%）',0,n=>pct(n,atczN))}
+      ${crow('atcz.useki','神の右席BATTLE','上位CZ 割合に設定差の可能性',1,n=>pct(n,atczN))}
+    </div>
+    <div class="hint">⚠ 神の右席の割合はAT獲得枚数・上乗遊技回数でも変化するため参考値です。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">実践値 vs 理論値</div>
+    <table class="ptable">
+      <tr class="me"><td>実践値</td><td>${czP?'1/'+czP.toFixed(1):'—'}</td><td>${atP?'1/'+atP.toFixed(1):'—'}</td></tr>
+      <tr><th></th><th>CZ確率</th><th>AT確率</th></tr>
+      ${rows}
+    </table>
+    <div class="hint">ピンク行＝CZ実践値に最も近い設定。分母が小さいうちは参考程度に。</div>
+  </section>`;
+}
+function pageShisa(){
+  const scN=Object.values(S.screens).reduce((a,b)=>a+b,0);
+  const edN=Object.values(S.ed).reduce((a,b)=>a+b,0);
+  return `
+  <section class="sec"><div class="sec-h">CZ・AT終了時 アイコン</div>
+    <div class="cgrid">${ICONS.map(c=>crow('icons.'+c[0],c[1],c[2],c[3])).join('')}</div></section>
+  <section class="sec"><div class="sec-h">AT終了画面<span class="sub">計${scN}回</span></div>
+    <div class="cgrid">${SCREENS.map(c=>crow('screens.'+c[0],c[1],c[2],c[3],n=>pct(n,scN))).join('')}</div></section>
+  <section class="sec"><div class="sec-h">藤丸コイン（AT終了画面）</div>
+    <div class="cgrid">${COINS.map(c=>crow('coins.'+c[0],c[1],c[2],c[3])).join('')}</div></section>
+  <section class="sec"><div class="sec-h">ED中 お知らせ演出<span class="sub">計${edN}回</span></div>
+    <div class="cgrid">${ED.map(c=>crow('ed.'+c[0],c[1],c[2],c[3],n=>pct(n,edN))).join('')}</div></section>`;
+}
+function pageCard(){
+  return `
+  <div class="cardwrap">
+    <canvas id="cardCanvas" width="1080" height="1080"></canvas>
+    <div class="btnrow">
+      <button class="act" id="shareBtn">Xで共有する</button>
+      <button class="act gold" id="dlBtn">画像を保存</button>
+    </div>
+    <div class="btnrow one" style="margin-top:8px">
+      <button class="act plain" id="imgBtn">カード用アイコン画像を選ぶ</button>
+    </div>
+    <input type="file" id="imgIn" accept="image/*" style="display:none">
+    <div class="imgnote">※ アイコン枠は空でも生成できます。他者のイラストを使用する場合は、本人および絵師の許可を得たうえで設定してください。</div>
+  </div>
+  <section class="sec" style="margin-top:14px">
+    <div class="sec-h">テキスト出力（テンプレ形式）</div>
+    <textarea id="tpl" readonly></textarea>
+    <div class="btnrow one" style="margin-top:8px"><button class="act plain" id="cpBtn">テキストをコピー</button></div>
+  </section>`;
+}
+
+/* ================= render ================= */
+const PAGES=[pageZones,pageHatsu,pageShisa,pageCard];
+const CREDIT=`<div class="credit">示唆内容・解析数値の出典：ちょんぼりすた パチスロ解析様<br>
+より詳しい解析・最新情報は <a href="https://chonborista.com/slot/fuji-slot/260325/" target="_blank" rel="noopener">ちょんぼりすた様の解析ページ</a> をご覧ください。</div>`;
+let cur=0;
+function renderAll(){
+  const main=document.getElementById('main');
+  const sc=main.scrollTop;
+  main.innerHTML=PAGES[cur]()+CREDIT;
+  main.scrollTop=sc;
+  main.querySelectorAll('.crow').forEach(el=>{
+    el.querySelector('.plus').addEventListener('click',ev=>{ev.stopPropagation();bump(el.dataset.c,el.dataset.l);});
+    el.addEventListener('click',()=>bump(el.dataset.c,el.dataset.l));
+  });
+  const gIn=document.getElementById('gIn');
+  if(gIn)gIn.addEventListener('change',()=>{S.games=Math.max(0,parseInt(gIn.value)||0);save();renderAll();});
+  if(cur===3)initCard();
+}
+document.getElementById('nav').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  cur=+b.dataset.p;
+  document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  renderAll();
+});
+
+/* ================= card ================= */
+function highlights(){
+  const out=[];
+  COINS.forEach(c=>{if(S.coins[c[0]]>0)out.push([c[1].replace('藤丸コイン ','コイン'),c[2],S.coins[c[0]]]);});
+  SCREENS.forEach(c=>{if(c[3]&&S.screens[c[0]]>0)out.push([c[1],c[2],S.screens[c[0]]]);});
+  ED.forEach(c=>{if(c[3]&&S.ed[c[0]]>0)out.push([c[1],c[2],S.ed[c[0]]]);});
+  if(S.choku>0)out.push(['AT直撃','設定差 約2倍',S.choku]);
+  if(S.icons.gold>0)out.push(['✨金アイコン','+100G以上',S.icons.gold]);
+  return out.slice(0,4);
+}
+function drawCard(){
+  const cv=document.getElementById('cardCanvas');if(!cv)return;
+  const x=cv.getContext('2d');
+  const W=1080,H=1080;
+  x.fillStyle='#0a070d';x.fillRect(0,0,W,H);
+  /* ambient glow */
+  let g=x.createRadialGradient(W/2,H/2,100,W/2,H/2,760);
+  g.addColorStop(0,'rgba(255,61,143,.10)');g.addColorStop(1,'rgba(0,0,0,0)');
+  x.fillStyle=g;x.fillRect(0,0,W,H);
+  /* neon frame */
+  x.strokeStyle='#ff3d8f';x.lineWidth=6;x.shadowColor='#ff3d8f';x.shadowBlur=26;
+  rr(x,34,34,W-68,H-68,40);x.stroke();x.shadowBlur=0;
+  /* header */
+  x.fillStyle='#ff3d8f';x.font="700 30px 'M PLUS 1p'";
+  x.fillText('SETTING CHECK RESULT',70,110);
+  x.fillStyle='#f2eef5';x.font="800 52px 'M PLUS 1p'";
+  x.fillText('Lとある魔術の禁書目録2',70,172);
+  x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
+  const d=new Date();
+  x.fillText(`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}  ${S.games||0}G`,70,215);
+  /* avatar ring */
+  const cx=W-190,cy=175,r=105;
+  x.save();x.strokeStyle='#ff3d8f';x.lineWidth=8;x.shadowColor='#ff3d8f';x.shadowBlur=22;
+  x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();x.restore();
+  if(cardImg){
+    x.save();x.beginPath();x.arc(cx,cy,r-8,0,7);x.clip();
+    const s=Math.max((r*2-16)/cardImg.width,(r*2-16)/cardImg.height);
+    x.drawImage(cardImg,cx-cardImg.width*s/2,cy-cardImg.height*s/2,cardImg.width*s,cardImg.height*s);
+    x.restore();
+  }else{
+    x.fillStyle='#1f1830';x.beginPath();x.arc(cx,cy,r-8,0,7);x.fill();
+    x.fillStyle='#9a90a8';x.font="700 28px 'M PLUS 1p'";x.textAlign='center';
+    x.fillText('ICON',cx,cy+10);x.textAlign='left';
+  }
+  /* stat blocks */
+  const czN=S.cz.rg+S.cz.ac, atczN=S.atcz.gab+S.atcz.useki, g0=S.games;
+  const czP=czN&&g0?'1/'+(g0/czN).toFixed(1):'—';
+  const atP=S.atCount&&g0?'1/'+(g0/S.atCount).toFixed(1):'—';
+  const acR=czN?(100*S.cz.ac/czN).toFixed(0)+'%':'—';
+  const usR=atczN?(100*S.atcz.useki/atczN).toFixed(0)+'%':'—';
+  const blocks=[['CZ確率',czP],['AT確率',atP],['一方通行率',acR],['神の右席率',usR]];
+  blocks.forEach((b,i)=>{
+    const bx=70+i*242,by=270;
+    x.fillStyle='#171220';rr(x,bx,by,222,130,18);x.fill();
+    x.strokeStyle='#2c2340';x.lineWidth=2;rr(x,bx,by,222,130,18);x.stroke();
+    x.fillStyle='#9a90a8';x.font="700 24px 'M PLUS 1p'";x.fillText(b[0],bx+18,by+42);
+    x.fillStyle='#ffc94d';x.font="34px 'DotGothic16'";x.fillText(b[1],bx+18,by+98);
+  });
+  /* zone bar */
+  const zTot=ZONES.reduce((a,z)=>a+S.zones[z],0)||1;
+  x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText('当選ゾーン分布',70,470);
+  ZONES.forEach((z,i)=>{
+    const bx=70+i*96,by=630,h=Math.round(120*S.zones[z]/Math.max(1,Math.max(...ZONES.map(k=>S.zones[k]))));
+    x.fillStyle='#2c2340';x.fillRect(bx,by-120,72,120);
+    if(S.zones[z]>0){x.fillStyle='#ff3d8f';x.shadowColor='#ff3d8f';x.shadowBlur=12;x.fillRect(bx,by-h,72,h);x.shadowBlur=0;}
+    x.fillStyle='#9a90a8';x.font="22px 'DotGothic16'";x.textAlign='center';
+    x.fillText(z,bx+36,by+30);
+    if(S.zones[z]>0){x.fillStyle='#f2eef5';x.fillText(S.zones[z],bx+36,by-h-8);}
+    x.textAlign='left';
+  });
+  /* highlights */
+  x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText('示唆ハイライト',70,720);
+  const hs=highlights();
+  if(hs.length===0){
+    x.fillStyle='#6b6278';x.font="500 28px 'M PLUS 1p'";x.fillText('濃厚系の示唆はまだ出ていません',70,775);
+  }else hs.forEach((h,i)=>{
+    const by=768+i*48;
+    x.fillStyle='#ffc94d';x.font="800 30px 'M PLUS 1p'";x.fillText(`★ ${h[0]} ×${h[2]}`,70,by);
+    x.fillStyle='#f2eef5';x.font="500 26px 'M PLUS 1p'";x.fillText(h[1],470,by);
+  });
+  /* footer: 2-line credits */
+  x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";
+  x.fillText('slot-tools.jp',70,H-104);
+  x.fillStyle='#9a90a8';x.font="500 22px 'M PLUS 1p'";
+  x.fillText('#とある魔術の禁書目録2 #設定判別',300,H-104);
+  x.fillStyle='#9a90a8';x.font="500 21px 'M PLUS 1p'";
+  x.fillText(`${nanaCreditText('card')}／ 解析出典：ちょんぼりすた様`,70,H-62);
+}
+function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();}
+
+let cardImg=null;
+function loadCardImg(cb){
+  if(!S.img){cardImg=null;cb&&cb();return;}
+  const im=new Image();im.onload=()=>{cardImg=im;cb&&cb();};im.src=S.img;
+}
+function initCard(){
+  loadCardImg(()=>document.fonts.ready.then(drawCard));
+  document.fonts.ready.then(drawCard);drawCard();
+  document.getElementById('tpl').value=tplText();
+  document.getElementById('imgBtn').onclick=()=>document.getElementById('imgIn').click();
+  document.getElementById('imgIn').onchange=e=>{
+    const f=e.target.files[0];if(!f)return;
+    const rd=new FileReader();
+    rd.onload=()=>{
+      const im=new Image();
+      im.onload=()=>{
+        const c=document.createElement('canvas');const m=512;
+        const s=Math.min(1,m/Math.max(im.width,im.height));
+        c.width=im.width*s;c.height=im.height*s;
+        c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+        S.img=c.toDataURL('image/jpeg',.85);save();
+        loadCardImg(drawCard);toast('画像を設定しました');
+      };
+      im.src=rd.result;
+    };
+    rd.readAsDataURL(f);
+  };
+  document.getElementById('dlBtn').onclick=()=>{
+    const a=document.createElement('a');
+    a.download='toaru2_check.png';
+    a.href=document.getElementById('cardCanvas').toDataURL('image/png');
+    a.click();toast('画像を書き出しました');
+  };
+  document.getElementById('shareBtn').onclick=()=>{
+    document.getElementById('cardCanvas').toBlob(async b=>{
+      const f=new File([b],'toaru2_check.png',{type:'image/png'});
+      if(navigator.canShare&&navigator.canShare({files:[f]})){
+        try{await navigator.share({files:[f],text:shareText()});}catch(e){}
+      }else{toast('この端末は直接共有に非対応。画像を保存してください');}
+    });
+  };
+  document.getElementById('cpBtn').onclick=async()=>{
+    try{await navigator.clipboard.writeText(tplText());toast('コピーしました');}
+    catch(e){document.getElementById('tpl').select();document.execCommand('copy');toast('コピーしました');}
+  };
+}
+function tplText(){
+  const czN=S.cz.rg+S.cz.ac,atczN=S.atcz.gab+S.atcz.useki;
+  const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
+  let t=`設定判別メモ｜Lとある魔術の禁書目録2\n総回転数 ${S.games||0}G / CZ${czN}回 / AT${S.atCount}回\n_______\n\n■規定ゲーム数\n`;
+  for(let i=0;i<ZONES.length;i+=2){
+    t+=`${ZONES[i]}g▶︎ ${S.zones[ZONES[i]]}回`;
+    if(ZONES[i+1])t+=`　${ZONES[i+1]}g▶︎ ${S.zones[ZONES[i+1]]}回`;
+    t+='\n';
+  }
+  t+=`\n■AT直撃▶︎ ${S.choku}回\n\n■通常CZ振り分け\n超電磁砲ﾁｬﾝｽ▶︎ ${p(S.cz.rg,czN)}\n一方通行ﾁｬﾝｽ▶︎ ${p(S.cz.ac,czN)}\n\n■AT中CZ振り分け\n神の力ﾊﾞﾄﾙ▶︎ ${p(S.atcz.gab,atczN)}\n神の右席ﾊﾞﾄﾙ▶︎ ${p(S.atcz.useki,atczN)}\n\n■終了時アイコン\n🔵▶︎ ${S.icons.blue}回　🟢▶︎ ${S.icons.green}回\n🔴▶︎ ${S.icons.red}回　✨▶︎ ${S.icons.gold}回\n\n■藤丸コイン\n銅▶︎ ${S.coins.cu}回　銀▶︎ ${S.coins.ag}回　金▶︎ ${S.coins.au}回\nﾃﾞﾝｼﾞｬｰ▶︎ ${S.coins.dg}回　虹▶︎ ${S.coins.rb}回\n\n■AT終了画面\n`;
+  const scN=Object.values(S.screens).reduce((a,b)=>a+b,0);
+  SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${p(S.screens[c[0]],scN)}\n`;});
+  t+=`\n■エンディング中お知らせ演出\n`;
+  const edN=Object.values(S.ed).reduce((a,b)=>a+b,0);
+  ED.forEach(c=>{t+=`${c[1]}▶︎ ${p(S.ed[c[0]],edN)}\n`;});
+  t+=`\nby slot-tools.jp\n${nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+  return t;
+}
+
+renderAll();
+</script>
+</body>
+</html>
