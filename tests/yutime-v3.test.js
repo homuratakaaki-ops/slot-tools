@@ -19,6 +19,11 @@ const hitResetPrompt = section('function openHitResetPrompt', 'function openEndW
 const renderRunning = section('function renderRunning', 'function renderLedger');
 const addInvestment = section('function addInvestment', 'function deleteInvestment');
 const sourceUnavailableMessage = section('function sourceUnavailableMessage', 'function rateText');
+const machineSummary = section('function machineModelSummaryHtml', 'function machineDetailFormHtml');
+const machineDetailForm = section('function machineDetailFormHtml', 'function openMachineDetail');
+const openMachineDetail = section('function openMachineDetail', 'function renderMachineExpectation');
+const machineModelDisplay = section('function machineModelDisplay', 'function applyPresetToMachine');
+const columnPresetApply = section('function applyColumnPresetsToMachines', 'function machineHasIndividualSetting');
 const style = section('.source-chip-row', '.unified-invest-row');
 
 assert.match(hitWizard, /openHitResetPrompt\(session\);\s*\}, \{ firstBackCancels: true \}\);/);
@@ -41,5 +46,18 @@ assert.match(style, /\.source-chip\.selected \{\s*border-color: var\(--accent\);
 assert.match(sourceUnavailableMessage, /if \(balance === null\) return `\$\{label\}が未入力です。`;/);
 assert.match(sourceUnavailableMessage, /if \(balance < amount\) return `\$\{label\}がありません。値をタップして修正するか、他のソースを選んでください。`;/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
+
+assert.match(openMachineDetail, /function openMachineDetail\(daiNo, machineFormExpanded = false, memoDraft = null\)/);
+assert.match(openMachineDetail, /\$\{machineModelSummaryHtml\(machine\)\}\s*\$\{machineFormExpanded \? machineDetailFormHtml\(machine\) : ""\}/);
+assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMachineBtn">[^']+<\/button>' : ""\}/);
+assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
+assert.match(openMachineDetail, /openMachineDetail\(daiNo, true, byId\("machineMemo"\)\?\.value \|\| ""\)/);
+assert.match(machineSummary, /id="toggleMachineFormBtn"/);
+assert.match(machineDetailForm, /id="machinePreset"/);
+assert.match(machineDetailForm, /id="machineModel"/);
+assert.match(machineDetailForm, /id="roundBalls"/);
+assert.match(machineModelDisplay, /source: "[^"]+"/);
+assert.match(machineModelDisplay, /name: "[^"]+"/);
+assert.match(columnPresetApply, /if \(hasIndividualSetting && currentPresetId !== presetId && !allowOverwrite\) return;/);
 
 console.log('yutime-v3 tests passed');

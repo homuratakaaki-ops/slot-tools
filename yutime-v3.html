@@ -750,6 +750,24 @@
       line-height: 1.2;
     }
 
+    .machine-summary-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 8px;
+      margin-top: 12px;
+      padding: 10px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .machine-summary-row strong {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
     .unified-invest-row {
       display: grid;
       grid-template-columns: minmax(0, 1fr) auto;
@@ -3704,6 +3722,41 @@
       return Boolean(normalizeMachinePresetId(machine) || machine.modelName || machine.roundBalls !== null || machine.memo || machine.evSupported);
     }
 
+    function columnPresetForMachine(machine) {
+      if (!machine) return null;
+      const map = activeMap(machine.storeId);
+      const parsed = parseIslandLayout(map);
+      const wanted = String(machine.daiNo);
+      for (const row of parsed.rows) {
+        const left = (row.sides[0] || []).map(String);
+        const right = (row.sides[1] || []).map(String);
+        if (left.includes(wanted)) return presetById(row.island.leftPresetId);
+        if (right.includes(wanted)) return presetById(row.island.rightPresetId);
+      }
+      return null;
+    }
+
+    function machineMatchesPreset(machine, preset) {
+      if (!machine || !preset) return false;
+      return normalizeMachinePresetId(machine) === preset.id
+        && (machine.modelName || "") === preset.name
+        && Number(machine.roundBalls) === Number(preset.roundBalls)
+        && Boolean(machine.evSupported) === Boolean(preset.evSupported);
+    }
+
+    function machineModelDisplay(machine) {
+      const columnPreset = columnPresetForMachine(machine);
+      const machinePreset = presetById(normalizeMachinePresetId(machine));
+      const hasMachineModelSetting = Boolean(machinePreset || machine?.modelName || machine?.roundBalls !== null || machine?.evSupported);
+      if (columnPreset && (!hasMachineModelSetting || machineMatchesPreset(machine, columnPreset))) {
+        return { name: columnPreset.name, source: "島の設定", action: "変更" };
+      }
+      if (hasMachineModelSetting) {
+        return { name: machine.modelName || machinePreset?.name || "個別設定", source: "個別設定", action: "変更" };
+      }
+      return { name: "未設定", source: "", action: "設定" };
+    }
+
     function applyPresetToMachine(machine, preset) {
       machine.presetId = preset.id;
       machine.modelName = preset.name;
@@ -4128,7 +4181,33 @@
       });
     }
 
-    function openMachineDetail(daiNo) {
+    function machineModelSummaryHtml(machine) {
+      const summary = machineModelDisplay(machine);
+      const source = summary.source ? `（${escapeHtml(summary.source)}）` : "";
+      return `
+        <div class="machine-summary-row">
+          <strong>機種: ${escapeHtml(summary.name)}${source}</strong>
+          <button class="small" id="toggleMachineFormBtn">${escapeHtml(summary.action)}</button>
+        </div>
+      `;
+    }
+
+    function machineDetailFormHtml(machine) {
+      return `
+        <div id="machineDetailForm">
+          <div class="field-row" style="margin-top:12px"><label for="machinePreset">機種プリセット</label><select id="machinePreset">
+            ${MACHINE_PRESETS.map((preset) => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`).join("")}
+            <option value="">その他（自由入力）</option>
+          </select></div>
+          <div class="field-row"><label for="machineModel">機種名</label><input id="machineModel" value="${escapeHtml(machine.modelName || "")}" placeholder="任意"></div>
+          <div class="field-row"><label for="roundBalls">1R玉数</label><input id="roundBalls" inputmode="numeric" value="${escapeHtml(machine.roundBalls ?? "")}" placeholder="例: 140"></div>
+          <p class="hint">1ラウンドあたりの獲得玉数。例: 大海物語スペシャル5 なら 140</p>
+          <p class="hint warn" id="presetSupportNote"></p>
+        </div>
+      `;
+    }
+
+    function openMachineDetail(daiNo, machineFormExpanded = false, memoDraft = null) {
       const machine = findMachineByDai(daiNo);
       if (!machine) return;
       const sessions = data.sessions.filter((session) => session.machineId === machine.id);
@@ -4140,7 +4219,7 @@
       const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
       const averagePayoutNote = stats.estimatedCount ? "（概算含む）" : "";
       openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
-        <div class="field-row"><label for="machineMemo">台メモ（釘・癖など）</label><textarea id="machineMemo" placeholder="＋台メモを追加">${escapeHtml(machine.memo || "")}</textarea></div>
+        <div class="field-row"><label for="machineMemo">台メモ（釘・癖など）</label><textarea id="machineMemo" placeholder="＋台メモを追加">${escapeHtml((memoDraft ?? machine.memo) || "")}</textarea></div>
         <div class="metric-grid">
           <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}</div>
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
@@ -4160,14 +4239,8 @@
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
         </div>` : ""}
-        <div class="field-row" style="margin-top:12px"><label for="machinePreset">機種プリセット</label><select id="machinePreset">
-          ${MACHINE_PRESETS.map((preset) => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`).join("")}
-          <option value="">その他（自由入力）</option>
-        </select></div>
-        <div class="field-row"><label for="machineModel">機種名</label><input id="machineModel" value="${escapeHtml(machine.modelName || "")}" placeholder="任意"></div>
-        <div class="field-row"><label for="roundBalls">1R玉数</label><input id="roundBalls" inputmode="numeric" value="${escapeHtml(machine.roundBalls ?? "")}" placeholder="例: 140"></div>
-        <p class="hint">1ラウンドあたりの獲得玉数。例: 大海物語スペシャル5 なら 140</p>
-        <p class="hint warn" id="presetSupportNote"></p>
+        ${machineModelSummaryHtml(machine)}
+        ${machineFormExpanded ? machineDetailFormHtml(machine) : ""}
         <div class="list">
           ${sessions.slice(-5).reverse().map((session) => {
             const derived = deriveSession(session, machine);
@@ -4176,31 +4249,38 @@
         </div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
-          <button id="saveMachineBtn">台情報保存</button>
+          ${machineFormExpanded ? '<button id="saveMachineBtn">台情報保存</button>' : ""}
           <button class="primary" id="startSessionBtn">この台を打つ</button>
         </div>
       `);
-      byId("machinePreset").value = presetId;
-      applyPresetSelectionToForm();
+      const toggleMachineFormBtn = byId("toggleMachineFormBtn");
+      if (toggleMachineFormBtn) toggleMachineFormBtn.addEventListener("click", () => {
+        openMachineDetail(daiNo, true, byId("machineMemo")?.value || "");
+      });
+      if (machineFormExpanded) {
+        byId("machinePreset").value = presetId;
+        applyPresetSelectionToForm();
+        byId("machinePreset").addEventListener("change", () => {
+          applyPresetSelectionToForm();
+          readMachineDetailForm(machine);
+          if (showExpectationBlock) renderMachineExpectation(machine.id);
+        });
+        byId("saveMachineBtn").addEventListener("click", () => {
+          readMachineDetailForm(machine);
+          if (!persistWithToast(`台番${daiNo}の情報を保存しました`)) return;
+          closeModal();
+          renderAll();
+        });
+      }
       if (showExpectationBlock) {
         renderMachineExpectation(machine.id);
         ["evCurrentSpin", "evPrevSpin", "evManualRate"].forEach((id) => {
           byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
         });
       }
-      byId("machinePreset").addEventListener("change", () => {
-        applyPresetSelectionToForm();
-        readMachineDetailForm(machine);
-        if (showExpectationBlock) renderMachineExpectation(machine.id);
-      });
-      byId("saveMachineBtn").addEventListener("click", () => {
-        readMachineDetailForm(machine);
-        if (!persistWithToast(`台番${daiNo}の情報を保存しました`)) return;
-        closeModal();
-        renderAll();
-      });
       byId("startSessionBtn").addEventListener("click", () => {
-        readMachineDetailForm(machine);
+        if (machineFormExpanded) readMachineDetailForm(machine);
+        else readMachineMemoForm(machine);
         const startSpinPreset = normalizeNumber(byId("evCurrentSpin")?.value);
         const prevDayEndSpinPreset = normalizeNumber(byId("evPrevSpin")?.value);
         const manualRatePreset = normalizeNumber(byId("evManualRate")?.value);
@@ -4264,12 +4344,16 @@
       }
     }
 
+    function readMachineMemoForm(machine) {
+      machine.memo = byId("machineMemo")?.value.trim() || "";
+    }
+
     function readMachineDetailForm(machine) {
       const preset = presetById(byId("machinePreset").value);
       machine.presetId = preset ? preset.id : "";
       machine.modelName = byId("machineModel").value.trim();
       machine.roundBalls = normalizeNumber(byId("roundBalls").value);
-      machine.memo = byId("machineMemo").value.trim();
+      readMachineMemoForm(machine);
       machine.evSupported = Boolean(preset?.evSupported);
     }
 
