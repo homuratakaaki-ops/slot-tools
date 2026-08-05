@@ -1041,12 +1041,16 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(style, /\.bm-state-badges\{[^}]*align-content:flex-start/);
   assert.match(style, /\.bm-state-badges\{[^}]*overflow:visible/);
   const shellSource = fs.readFileSync(HTML_PATH, 'utf8').match(/<div class="bm-shell">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="bm-toast"/)?.[1] || '';
-  assert.match(shellSource, /id="battleModeVersion">UI 7d/);
+  assert.match(shellSource, /id="battleModeVersion">UI 7e/);
+  assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1\.45fr\) minmax\(0,1\.45fr\)/);
+  assert.match(style, /\.counter-compact-row\.nangoku-special-row\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1\.45fr\) minmax\(0,1\.45fr\)/);
   assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-label\{[^}]*white-space:nowrap/);
   assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-label\{[^}]*font-size:10px/);
   assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-value\{[^}]*text-align:center/);
   assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-value\{[^}]*font-size:26px/);
   assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-compact-counter\{[^}]*min-height:64px/);
+  assert.match(style, /\.bm-replay-flash-meter\.nangoku-special-meter\{[^}]*min-height:60px/);
+  assert.match(style, /\.bm-replay-flash-meter\.nangoku-special-meter\{[^}]*font-size:15px/);
   assert.match(style, /\.counter-compact-row\.nangoku-special-row \.game-pair-field label\{[^}]*white-space:nowrap/);
   assert.match(style, /\.counter-compact-row\.nangoku-special-row \.game-pair-field input\{[^}]*text-align:center/);
   assert.ok(shellSource.indexOf('battleModeVersion') < shellSource.indexOf('battleModeCheckpointStatus'));
@@ -2276,7 +2280,10 @@ function testBattleModeReplayFlashMeterUsesCurrentLiquidGames() {
     ];
   `, context);
   assert.equal(vm.runInContext('battleModeReplayFlashMeterText()', context), 'リプフラ 2／168G（1/84）');
-  assert.match(vm.runInContext('renderBattleModeReplayFlashMeter()', context), /リプフラ 2／168G（1\/84）/);
+  const meterHtml = vm.runInContext('renderBattleModeReplayFlashMeter()', context);
+  assert.match(meterHtml, /class="bm-replay-flash-meter nangoku-special-meter"/);
+  assert.match(meterHtml, /onclick="openBattleModeReplayScopeSheet\(\)"/);
+  assert.match(meterHtml, /リプフラ 2／168G（1\/84）/);
 
   vm.runInContext("currentTimeline = currentTimeline.filter(item => item.id !== 'tl_rf2')", context);
   assert.equal(vm.runInContext('battleModeReplayFlashMeterText()', context), 'リプフラ 1／168G（1/168）');

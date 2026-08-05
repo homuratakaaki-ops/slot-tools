@@ -66,7 +66,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .game-pair-field label{font-size:12px;color:var(--text-muted);font-weight:700;white-space:nowrap;}
 .game-pair-field input{min-width:0;width:0;flex:1 1 0;text-align:center;padding-left:6px;padding-right:6px;}
 .counter-compact-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;align-items:stretch;margin:8px 0;width:100%;max-width:100%;}
-.counter-compact-row.nangoku-special-row{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.1fr);}
+.counter-compact-row.nangoku-special-row{grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,1.45fr);}
 .counter-compact-row.nangoku-special-row .game-pair-field label{white-space:nowrap;font-size:11px;line-height:1.2;}
 .counter-compact-row.nangoku-special-row .game-pair-field input{text-align:center;}
 .counter-compact-row .game-pair-field{padding:6px;}
@@ -492,7 +492,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-close{width:48px;height:48px;border:1px solid rgba(201,168,76,.42);border-radius:8px;background:rgba(201,168,76,.08);color:var(--gold-light);font-size:24px;font-weight:900;cursor:pointer;}
 .bm-counters{display:grid;gap:6px;}
 .bm-main-counter-row,.bm-compact-counter-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;}
-.bm-compact-counter-row.nangoku-special-row{grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1.1fr);gap:6px;}
+.bm-compact-counter-row.nangoku-special-row{grid-template-columns:minmax(0,1fr) minmax(0,1.45fr) minmax(0,1.45fr);gap:6px;}
 .bm-compact-counter-row.nangoku-special-row .bm-counter-label{white-space:nowrap;font-size:10px;line-height:1.2;}
 .bm-compact-counter-row.nangoku-special-row .bm-counter-value{text-align:center;font-size:26px;}
 .bm-compact-counter-row.nangoku-special-row .bm-compact-counter{min-height:64px;}
@@ -504,6 +504,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-compact-counter .bm-counter-value{font-size:20px;}
 .bm-mini-btn{width:48px;min-height:42px;border:1px solid rgba(76,175,125,.58);border-radius:8px;background:rgba(76,175,125,.12);color:#a8efb4;font-size:16px;font-weight:900;cursor:pointer;}
 .bm-replay-flash-meter{width:100%;min-height:30px;border:1px solid rgba(201,168,76,.24);border-radius:8px;background:rgba(0,0,0,.1);color:var(--text-muted);font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:5px 8px;line-height:1.2;}
+.bm-replay-flash-meter.nangoku-special-meter{min-height:60px;font-size:15px;}
 button.bm-replay-flash-meter{cursor:pointer;}
 .bm-diff-row{display:grid;grid-template-columns:minmax(0,1fr) 74px 104px;gap:8px;align-items:stretch;}
 .bm-top-action-row{display:grid;grid-template-columns:minmax(0,1fr) 48px 68px repeat(3,44px);gap:5px;align-items:stretch;}
@@ -1135,7 +1136,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="bm-title" id="battleModeTitle">実戦モード</div>
       <button class="bm-close" type="button" onclick="closeBattleMode()" aria-label="閉じる">×</button>
     </div>
-    <div class="bm-version" id="battleModeVersion">UI 7d</div>
+    <div class="bm-version" id="battleModeVersion">UI 7e</div>
     <div id="battleModeCheckpointStatus"></div>
     <div class="bm-state-badges" id="battleModeStateBadges"></div>
     <div class="bm-counters" id="battleModeCounters"></div>
@@ -8548,7 +8549,7 @@ function battleModeReplayFlashMeterText(){
 function renderBattleModeReplayFlashMeter(){
   const rows=[];
   if(isKabaneriMachine(currentMachine()))rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeKabaneriChanceEyeMeterText())}</div>`);
-  if(battleModeHasReplayFlashMeter())rows.push(`<button class="bm-replay-flash-meter" type="button" onclick="openBattleModeReplayScopeSheet()">${escapeHtml(battleModeReplayFlashMeterText())}</button>`);
+  if(battleModeHasReplayFlashMeter())rows.push(`<button class="bm-replay-flash-meter${isNangokuSpecialMachine(currentMachine())?' nangoku-special-meter':''}" type="button" onclick="openBattleModeReplayScopeSheet()">${escapeHtml(battleModeReplayFlashMeterText())}</button>`);
   if(battleModeHasReplaySplitMeter()&&!isNangokuSpecialMachine(currentMachine()))rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplaySplitMeterText())}</div>`);
   return rows.join('');
 }
