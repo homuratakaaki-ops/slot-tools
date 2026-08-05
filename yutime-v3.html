@@ -729,17 +729,25 @@
     .source-chip {
       min-height: 42px;
       background: #fff;
+      display: grid;
+      gap: 2px;
+      align-content: center;
     }
 
     .source-chip.selected {
       border-color: var(--accent);
-      background: #e9f7f5;
-      color: var(--accent-dark);
+      background: var(--accent);
+      color: #fff;
       font-weight: 800;
     }
 
     .source-chip.is-low {
       opacity: .48;
+    }
+
+    .source-chip strong {
+      font-size: 13px;
+      line-height: 1.2;
     }
 
     .unified-invest-row {
@@ -2840,11 +2848,12 @@
               ${sourceOptions.map((option) => {
                 const balance = balanceForSource(session, option.value);
                 const low = balance === null || balance < option.amount;
-                return `<button class="source-chip${option.value === selectedSource ? " selected" : ""}${low ? " is-low" : ""}" data-source-select="${escapeHtml(option.value)}">${escapeHtml(option.label)}</button>`;
+                const unit = option.value === "cash" ? "円" : "玉";
+                return `<button class="source-chip${option.value === selectedSource ? " selected" : ""}${low ? " is-low" : ""}" data-source-select="${escapeHtml(option.value)}"><span>${escapeHtml(option.label)}</span><strong>${balanceText(balance, unit)}</strong></button>`;
               }).join("")}
             </div>
             <div class="unified-invest-row">
-              <button class="primary" id="unifiedInvestBtn" ${selectedCanUse ? "" : "disabled"}>${selectedSource === "cash" ? "-500円" : "-125玉"}</button>
+              <button class="primary${selectedCanUse ? "" : " is-low"}" id="unifiedInvestBtn">${selectedSource === "cash" ? "-500円" : "-125玉"}</button>
               ${selectedSource === "cash" ? '<button id="openChargeBtn">入金</button>' : ""}
             </div>
             <div class="counter-row">
@@ -4377,7 +4386,7 @@
         if (!persistWithToast("当選を記録しました")) return;
         renderAll();
         openHitResetPrompt(session);
-      });
+      }, { firstBackCancels: true });
     }
 
     function hitResetOptions(machine) {
@@ -4487,7 +4496,7 @@
           <div class="modal-actions wizard-actions">
             <button class="primary" id="nextStepBtn">${index === steps.length - 1 ? "完了" : "次へ"}</button>
             <button id="skipStepBtn">スキップ</button>
-            <button id="backStepBtn" ${index === 0 ? "disabled" : ""}>戻る</button>
+            <button id="backStepBtn" ${index === 0 && !options.firstBackCancels ? "disabled" : ""}>戻る</button>
           </div>
         `, "wizard");
         const input = byId("wizardValue");
@@ -4506,6 +4515,10 @@
           advance();
         });
         byId("backStepBtn").addEventListener("click", () => {
+          if (index === 0 && options.firstBackCancels) {
+            closeModal();
+            return;
+          }
           if (index > 0) {
             draft[step.key] = readWizardValue(step);
             index -= 1;
