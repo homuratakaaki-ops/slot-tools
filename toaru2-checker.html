@@ -114,8 +114,8 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 2
 .ptable .near td{color:var(--pink)}
 .hint{font-size:10px;color:var(--muted);line-height:1.5;margin-top:6px}
 /* ===== card page ===== */
-.cardwrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px}
-#cardCanvas{width:100%;height:auto;border-radius:10px;display:block;background:#000}
+.cardwrap{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;width:100%;max-width:100%;overflow:hidden}
+#cardCanvas{width:100%;max-width:100%;min-width:0;height:auto;border-radius:10px;display:block;background:#000}
 .btnrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .btnrow.one{grid-template-columns:1fr}
 .act{
@@ -197,7 +197,7 @@ const DEF={
   cz:{rg:0,ac:0}, atcz:{gab:0,useki:0}, choku:0, atCount:0,
   screens:{s1:0,s2:0,s3:0,s4:0,s5:0,s6:0,s7:0,s8:0},
   ed:{e1:0,e2:0,e3:0,e4:0,e5:0,e6:0,e7:0,e8:0,e9:0},
-  icons:{blue:0,green:0,red:0,gold:0},
+  icons:{blue:0,green:0,red:0,gold:0,none:0},
   coins:{cu:0,ag:0,au:0,dg:0,rb:0},
   img:null
 };
@@ -226,7 +226,8 @@ const ICONS=[
   ['blue','🔵 青アイコン','AT+10G以上 or Vスト',0],
   ['green','🟢 緑アイコン','AT+30G以上 or Vスト',0],
   ['red','🔴 赤アイコン','AT+50G以上',0],
-  ['gold','✨ 金アイコン','AT+100G以上',1]
+  ['gold','✨ 金アイコン','AT+100G以上',1],
+  ['none','アイコンなし','恩恵なし（分母確定用）',0]
 ];
 const COINS=[
   ['cu','藤丸コイン 銅','設定2以上 濃厚',1],
@@ -241,7 +242,20 @@ const AT_TH=[398.8,394.5,389.6,369.5,358.0,338.4];
 /* ================= state ================= */
 const KEY='toaru2-checker-v1';
 let S=load(); let hist=[];
-function load(){try{const j=JSON.parse(localStorage.getItem(KEY));return j?Object.assign(structuredClone(DEF),j):structuredClone(DEF);}catch(e){return structuredClone(DEF);}}
+function normalizeState(data){
+  const base=structuredClone(DEF);
+  const src=data&&typeof data==='object'?data:{};
+  const out=Object.assign(base,src);
+  out.zones=Object.assign({},DEF.zones,src.zones||{});
+  out.cz=Object.assign({},DEF.cz,src.cz||{});
+  out.atcz=Object.assign({},DEF.atcz,src.atcz||{});
+  out.screens=Object.assign({},DEF.screens,src.screens||{});
+  out.ed=Object.assign({},DEF.ed,src.ed||{});
+  out.icons=Object.assign({},DEF.icons,src.icons||{});
+  out.coins=Object.assign({},DEF.coins,src.coins||{});
+  return out;
+}
+function load(){try{const j=JSON.parse(localStorage.getItem(KEY));return normalizeState(j);}catch(e){return structuredClone(DEF);}}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('保存失敗（容量超過の可能性）');}}
 function get(path){const p=path.split('.');return p.length===1?S[p[0]]:S[p[0]][p[1]];}
 function set(path,v){const p=path.split('.');if(p.length===1)S[p[0]]=v;else S[p[0]][p[1]]=v;}
@@ -354,9 +368,10 @@ function pageHatsu(){
 function pageShisa(){
   const scN=Object.values(S.screens).reduce((a,b)=>a+b,0);
   const edN=Object.values(S.ed).reduce((a,b)=>a+b,0);
+  const iconN=Object.values(S.icons).reduce((a,b)=>a+b,0);
   return `
   <section class="sec"><div class="sec-h">CZ・AT終了時 アイコン</div>
-    <div class="cgrid">${ICONS.map(c=>crow('icons.'+c[0],c[1],c[2],c[3])).join('')}</div></section>
+    <div class="cgrid">${ICONS.map(c=>crow('icons.'+c[0],c[1],c[2],c[3],n=>pct(n,iconN))).join('')}</div></section>
   <section class="sec"><div class="sec-h">AT終了画面<span class="sub">計${scN}回</span></div>
     <div class="cgrid">${SCREENS.map(c=>crow('screens.'+c[0],c[1],c[2],c[3],n=>pct(n,scN))).join('')}</div></section>
   <section class="sec"><div class="sec-h">藤丸コイン（AT終了画面）</div>
@@ -411,15 +426,6 @@ document.getElementById('nav').addEventListener('click',e=>{
 });
 
 /* ================= card ================= */
-function highlights(){
-  const out=[];
-  COINS.forEach(c=>{if(S.coins[c[0]]>0)out.push([c[1].replace('藤丸コイン ','コイン'),c[2],S.coins[c[0]]]);});
-  SCREENS.forEach(c=>{if(c[3]&&S.screens[c[0]]>0)out.push([c[1],c[2],S.screens[c[0]]]);});
-  ED.forEach(c=>{if(c[3]&&S.ed[c[0]]>0)out.push([c[1],c[2],S.ed[c[0]]]);});
-  if(S.choku>0)out.push(['AT直撃','設定差 約2倍',S.choku]);
-  if(S.icons.gold>0)out.push(['✨金アイコン','+100G以上',S.icons.gold]);
-  return out.slice(0,4);
-}
 function drawCard(){
   const cv=document.getElementById('cardCanvas');if(!cv)return;
   const x=cv.getContext('2d');
@@ -458,8 +464,8 @@ function drawCard(){
   const czN=S.cz.rg+S.cz.ac, atczN=S.atcz.gab+S.atcz.useki, g0=S.games;
   const czP=czN&&g0?'1/'+(g0/czN).toFixed(1):'—';
   const atP=S.atCount&&g0?'1/'+(g0/S.atCount).toFixed(1):'—';
-  const acR=czN?(100*S.cz.ac/czN).toFixed(0)+'%':'—';
-  const usR=atczN?(100*S.atcz.useki/atczN).toFixed(0)+'%':'—';
+  const acR=czN?`${S.cz.ac}/${czN} ${(100*S.cz.ac/czN).toFixed(0)}%`:'—';
+  const usR=atczN?`${S.atcz.useki}/${atczN} ${(100*S.atcz.useki/atczN).toFixed(0)}%`:'—';
   const blocks=[['CZ確率',czP],['AT確率',atP],['一方通行率',acR],['神の右席率',usR]];
   blocks.forEach((b,i)=>{
     const bx=70+i*242,by=270;
@@ -480,15 +486,18 @@ function drawCard(){
     if(S.zones[z]>0){x.fillStyle='#f2eef5';x.fillText(S.zones[z],bx+36,by-h-8);}
     x.textAlign='left';
   });
-  /* highlights */
-  x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText('示唆ハイライト',70,720);
-  const hs=highlights();
-  if(hs.length===0){
-    x.fillStyle='#6b6278';x.font="500 28px 'M PLUS 1p'";x.fillText('濃厚系の示唆はまだ出ていません',70,775);
-  }else hs.forEach((h,i)=>{
-    const by=768+i*48;
-    x.fillStyle='#ffc94d';x.font="800 30px 'M PLUS 1p'";x.fillText(`★ ${h[0]} ×${h[2]}`,70,by);
-    x.fillStyle='#f2eef5';x.font="500 26px 'M PLUS 1p'";x.fillText(h[1],470,by);
+  /* AT end screens: final row y=906, footer starts at y=976, so the section does not collide. */
+  const scN=Object.values(S.screens).reduce((a,b)=>a+b,0);
+  x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText(`AT終了画面（計${scN}回）`,70,720);
+  SCREENS.forEach((screen,i)=>{
+    const col=i<4?0:1;
+    const row=i%4;
+    const bx=col?560:70;
+    const by=762+row*48;
+    const count=S.screens[screen[0]];
+    x.fillStyle=count>0?'#ffc94d':'#6b6278';
+    x.font="800 25px 'M PLUS 1p'";
+    x.fillText(`${screen[1]} ×${count}`,bx,by);
   });
   /* footer: 2-line credits */
   x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";
@@ -555,7 +564,7 @@ function tplText(){
     if(ZONES[i+1])t+=`　${ZONES[i+1]}g▶︎ ${S.zones[ZONES[i+1]]}回`;
     t+='\n';
   }
-  t+=`\n■AT直撃▶︎ ${S.choku}回\n\n■通常CZ振り分け\n超電磁砲ﾁｬﾝｽ▶︎ ${p(S.cz.rg,czN)}\n一方通行ﾁｬﾝｽ▶︎ ${p(S.cz.ac,czN)}\n\n■AT中CZ振り分け\n神の力ﾊﾞﾄﾙ▶︎ ${p(S.atcz.gab,atczN)}\n神の右席ﾊﾞﾄﾙ▶︎ ${p(S.atcz.useki,atczN)}\n\n■終了時アイコン\n🔵▶︎ ${S.icons.blue}回　🟢▶︎ ${S.icons.green}回\n🔴▶︎ ${S.icons.red}回　✨▶︎ ${S.icons.gold}回\n\n■藤丸コイン\n銅▶︎ ${S.coins.cu}回　銀▶︎ ${S.coins.ag}回　金▶︎ ${S.coins.au}回\nﾃﾞﾝｼﾞｬｰ▶︎ ${S.coins.dg}回　虹▶︎ ${S.coins.rb}回\n\n■AT終了画面\n`;
+  t+=`\n■AT直撃▶︎ ${S.choku}回\n\n■通常CZ振り分け\n超電磁砲ﾁｬﾝｽ▶︎ ${p(S.cz.rg,czN)}\n一方通行ﾁｬﾝｽ▶︎ ${p(S.cz.ac,czN)}\n\n■AT中CZ振り分け\n神の力ﾊﾞﾄﾙ▶︎ ${p(S.atcz.gab,atczN)}\n神の右席ﾊﾞﾄﾙ▶︎ ${p(S.atcz.useki,atczN)}\n\n■終了時アイコン\n🔵▶︎ ${S.icons.blue}回　🟢▶︎ ${S.icons.green}回\n🔴▶︎ ${S.icons.red}回　✨▶︎ ${S.icons.gold}回\nなし▶︎ ${S.icons.none}回\n\n■藤丸コイン\n銅▶︎ ${S.coins.cu}回　銀▶︎ ${S.coins.ag}回　金▶︎ ${S.coins.au}回\nﾃﾞﾝｼﾞｬｰ▶︎ ${S.coins.dg}回　虹▶︎ ${S.coins.rb}回\n\n■AT終了画面\n`;
   const scN=Object.values(S.screens).reduce((a,b)=>a+b,0);
   SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${p(S.screens[c[0]],scN)}\n`;});
   t+=`\n■エンディング中お知らせ演出\n`;
