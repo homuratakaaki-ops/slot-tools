@@ -125,6 +125,11 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 2
 .act:active{background:var(--pink);color:#fff}
 .act.gold{border-color:#8a6c1e;background:rgba(255,201,77,.12);color:var(--gold)}
 .act.plain{border-color:var(--line);background:var(--panel2);color:var(--txt)}
+.text-btn{
+  appearance:none;background:none;border:none;color:var(--cyan);font-family:var(--body);
+  font-size:11px;font-weight:700;text-decoration:underline;padding:8px 4px 0;
+}
+.text-btn[hidden]{display:none}
 .imgnote{font-size:10px;color:var(--muted);line-height:1.6;margin-top:8px}
 textarea#tpl{
   width:100%;height:140px;margin-top:10px;background:#0d0a12;color:var(--txt);
@@ -390,6 +395,7 @@ function pageCard(){
     <div class="btnrow one" style="margin-top:8px">
       <button class="act plain" id="imgBtn">カード用アイコン画像を選ぶ</button>
     </div>
+    <button class="text-btn" id="resetImgBtn" type="button" ${S.img?'':'hidden'}>アイコンをデフォルトに戻す</button>
     <input type="file" id="imgIn" accept="image/*" style="display:none">
     <div class="imgnote">※ アイコン枠は空でも生成できます。他者のイラストを使用する場合は、本人および絵師の許可を得たうえで設定してください。</div>
   </div>
@@ -509,16 +515,26 @@ function drawCard(){
 }
 function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath();}
 
+const DEFAULT_CARD_ICON='assets/toaru2-default-icon.jpg';
 let cardImg=null;
 function loadCardImg(cb){
-  if(!S.img){cardImg=null;cb&&cb();return;}
-  const im=new Image();im.onload=()=>{cardImg=im;cb&&cb();};im.src=S.img;
+  const src=S.img||DEFAULT_CARD_ICON;
+  const im=new Image();
+  im.onload=()=>{cardImg=im;cb&&cb();};
+  im.onerror=()=>{cardImg=null;cb&&cb();};
+  im.src=src;
 }
 function initCard(){
   loadCardImg(()=>document.fonts.ready.then(drawCard));
   document.fonts.ready.then(drawCard);drawCard();
   document.getElementById('tpl').value=tplText();
   document.getElementById('imgBtn').onclick=()=>document.getElementById('imgIn').click();
+  const resetImgBtn=document.getElementById('resetImgBtn');
+  resetImgBtn.hidden=!S.img;
+  resetImgBtn.onclick=()=>{
+    if(!S.img)return;
+    S.img=null;save();toast('デフォルト画像に戻しました');renderAll();
+  };
   document.getElementById('imgIn').onchange=e=>{
     const f=e.target.files[0];if(!f)return;
     const rd=new FileReader();
