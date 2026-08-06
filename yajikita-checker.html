@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>とある2 設定判別カウンター | slot-tools.jp</title>
-<meta name="description" content="Lとある魔術の禁書目録2の設定判別向けカウンターです。規定ゲーム数、CZ、AT中CZ、終了画面、藤丸コイン、ED示唆をタップで記録し、テンプレ形式のテキストと共有カード画像を生成できます。">
-<link rel="canonical" href="https://slot-tools.jp/toaru2-checker.html">
+<title>スマスロ やじきた道中記参る！ 設定判別カウンター | slot-tools.jp</title>
+<meta name="description" content="スマスロ やじきた道中記参る！の設定判別向けカウンターです。まいるテーブル、関所チャレンジ、やじきた祭、あっぱれキャラ、終了画面、ユニバプレートを記録し、テンプレ形式のテキストと共有カード画像を生成できます。">
+<link rel="canonical" href="https://slot-tools.jp/yajikita-checker.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="slot-tools.jp">
-<meta property="og:title" content="とある2 設定判別カウンター | slot-tools.jp">
-<meta property="og:description" content="Lとある魔術の禁書目録2の設定判別向けカウンター。割合表示、テンプレ出力、共有カード画像生成に対応。">
-<meta property="og:url" content="https://slot-tools.jp/toaru2-checker.html">
+<meta property="og:title" content="スマスロ やじきた道中記参る！ 設定判別カウンター | slot-tools.jp">
+<meta property="og:description" content="スマスロ やじきた道中記参る！の設定判別向けカウンター。ユニメモ直近5回を超えてテーブルや示唆を累計できます。">
+<meta property="og:url" content="https://slot-tools.jp/yajikita-checker.html">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=M+PLUS+1p:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
@@ -164,7 +164,7 @@ textarea#tpl{
 
 <header>
   <div class="hd-row">
-    <div class="hd-title">Lとある魔術の禁書目録2<small>SETTING CHECKER — slot-tools.jp <a href="index.html">TOP</a><a href="toaru2-guide.html">GUIDE</a></small></div>
+    <div class="hd-title">スマスロ やじきた道中記参る！<small>SETTING CHECKER — slot-tools.jp <a href="index.html">TOP</a><a href="yajikita-guide.html">GUIDE</a></small></div>
     <div class="hd-actions">
       <button class="hd-btn mode" id="modeBtn">＋加算</button>
       <button class="hd-btn" id="undoBtn">↩ 取消</button>
@@ -177,7 +177,7 @@ textarea#tpl{
 <main id="main"></main>
 
 <nav id="nav">
-  <button data-p="0" class="on">ゾーン</button>
+  <button data-p="0" class="on">テーブル</button>
   <button data-p="1">初当り</button>
   <button data-p="2">示唆</button>
   <button data-p="3">カード</button>
@@ -197,63 +197,61 @@ function nanaCreditText(kind){
   return 'テンプレ形式：考案者様の許諾確認中';
 }
 function shareText(){
-  const lines=['Lとある魔術の禁書目録2 設定判別メモ'];
+  const lines=['スマスロ やじきた道中記参る！ 設定判別メモ'];
   if(NANA_COLLAB)lines.push(nanaCreditText('share'));
-  lines.push('#とある魔術の禁書目録2 #設定判別');
+  lines.push('#やじきた道中記参る #設定判別');
   return lines.join('\n');
 }
-const ZONES=[50,100,150,200,300,400,500,600,700,800];
+const TABLES=[
+  ['a','通常A','最大999まいる・奇数百ゾーン',0,'通A'],
+  ['b','通常B','最大699まいる・偶数百ゾーン',0,'通B'],
+  ['sa','特殊A','最大399まいる・設定変更時に移行しやすい',0,'特A'],
+  ['sb','特殊B','最大999まいる・次回天国濃厚',1,'特B'],
+  ['ta','天国A','最大199まいる',0,'天A'],
+  ['tb','天国B','最大199まいる・次回天国濃厚',1,'天B']
+];
+const CHARACTERS=[
+  ['yaji','やじ','変更後15.2%（通常時は調査中）',0],
+  ['kita','きた','変更後15.2%（通常時は調査中）',0],
+  ['akane','茜','変更後25.0%（通常時は調査中）',0],
+  ['kurige','くりげ','変更後25.0%（通常時は調査中）',0],
+  ['kappa','河童','変更後12.1%（通常時は調査中）',0],
+  ['tengu','天狗','変更後7.0%（通常時は調査中）',0],
+  ['yajikita','やじきた','変更後0.4%（通常時は調査中）',1]
+];
 const DEF={
   games:0,
-  zones:Object.fromEntries(ZONES.map(z=>[z,0])),
+  zones:Object.fromEntries(TABLES.map(t=>[t[0],0])),
   cz:{rg:0,ac:0}, atcz:{gab:0,useki:0}, choku:0, atCount:0,
-  screens:{s1:0,s2:0,s3:0,s4:0,s5:0,s6:0,s7:0,s8:0},
-  ed:{e1:0,e2:0,e3:0,e4:0,e5:0,e6:0,e7:0,e8:0,e9:0},
-  icons:{blue:0,green:0,red:0,gold:0,none:0},
+  screens:{s1:0,s2:0,s3:0,s4:0,s5:0},
+  ed:{e1:0},
+  icons:Object.fromEntries(CHARACTERS.map(c=>[c[0],0])),
   coins:{cu:0,ag:0,au:0,dg:0,rb:0},
   img:null,
   iconChoice:'default'
 };
 const SCREENS=[
-  ['s1','当麻＆インデックス','奇数設定 期待度UP',0],
-  ['s2','黒子＆美琴','偶数設定 期待度UP',0],
-  ['s3','打ち止め＆一方通行','高設定 期待度UP（弱）',0],
-  ['s4','番外個体＆一方通行','高設定 期待度UP（中）',0],
-  ['s5','アリサ＆シャットアウラ','設定2・4・6 濃厚',1],
-  ['s6','初春＆美琴','設定4以上 濃厚',1],
-  ['s7','当麻ハーレム','設定6 濃厚',1],
-  ['s8','その他（残りG示唆等）','アイテム/スクール/グループ等',0]
+  ['s1','街道','奇数設定 期待度UP',0],
+  ['s2','茶屋','偶数設定 期待度UP',0],
+  ['s3','茜ちゃん','高設定 期待度UP',1],
+  ['s4','男湯','示唆内容調査中',0],
+  ['s5','その他','その他の終了画面',0]
 ];
 const ED=[
-  ['e1','頑張ったね','奇数設定 期待度UP',0],
-  ['e2','調子良いね','偶数設定 期待度UP',0],
-  ['e3','ワクワクしてきたかも','高設定 期待度UP（弱）',0],
-  ['e4','いけるかも','高設定 期待度UP（中）',0],
-  ['e5','やったあ！','設定2以上 濃厚',1],
-  ['e6','すごい！すごい！','設定3以上 濃厚',1],
-  ['e7','とっても美味しい！','設定4以上 濃厚',1],
-  ['e8','すっごくうれしい！','設定5以上 濃厚',1],
-  ['e9','おめでとう！','設定6 濃厚',1]
-];
-const ICONS=[
-  ['blue','🔵 青アイコン','AT+10G以上 or Vスト',0],
-  ['green','🟢 緑アイコン','AT+30G以上 or Vスト',0],
-  ['red','🔴 赤アイコン','AT+50G以上',0],
-  ['gold','✨ 金アイコン','AT+100G以上',1],
-  ['none','アイコンなし','恩恵なし（分母確定用）',0]
+  ['e1','ED中の手形','レア役成立で出現・設定示唆と推測（詳細調査中）',1]
 ];
 const COINS=[
-  ['cu','藤丸コイン 銅','設定2以上 濃厚',1],
-  ['ag','藤丸コイン 銀','設定3以上 濃厚',1],
-  ['au','藤丸コイン 金','設定4以上 濃厚',1],
-  ['dg','藤丸コイン デンジャー柄','設定5以上 濃厚',1],
-  ['rb','藤丸コイン 虹','設定6 濃厚',1]
+  ['cu','ユニバプレート 銅','設定2以上濃厚（推測値）',1],
+  ['ag','ユニバプレート 銀','設定3以上濃厚（推測値）',1],
+  ['au','ユニバプレート 金','設定4以上濃厚（推測値）',1],
+  ['dg','ユニバプレート 花火柄','設定5以上濃厚（推測値）',1],
+  ['rb','ユニバプレート 虹','設定6濃厚（推測値）',1]
 ];
-const CZ_TH=[235.6,233.4,230.8,222.3,215.8,207.2];
-const AT_TH=[398.8,394.5,389.6,369.5,358.0,338.4];
+const CZ_TH=[231.1,222.7,209.5,191.5,173.1,157.5];
+const AT_TH=[473.9,457.5,431.6,388.1,352.1,318.3];
 
 /* ================= state ================= */
-const KEY='toaru2-checker-v1';
+const KEY='yajikita-checker-v1';
 let S=load(); let hist=[];
 function normalizeState(data){
   const base=structuredClone(DEF);
@@ -333,17 +331,17 @@ function crow(path,name,mean,hot,pctFn){
 
 /* ================= pages ================= */
 function pageZones(){
-  const total=ZONES.reduce((a,z)=>a+S.zones[z],0);
+  const total=TABLES.reduce((a,t)=>a+S.zones[t[0]],0);
   return `<section class="sec">
-    <div class="sec-h">規定ゲーム数 当選ゾーン<span class="sub">分母＝ゾーン当選 計${total}回</span></div>
-    <div class="cgrid two">
-      ${ZONES.map(z=>crow('zones.'+z, z+'G台','',0,n=>pct(n,total))).join('')}
+    <div class="sec-h">まいるテーブル<span class="sub">分母＝テーブル記録 計${total}回</span></div>
+    <div class="cgrid">
+      ${TABLES.map(t=>crow('zones.'+t[0],t[1],t[2],t[3],n=>pct(n,total))).join('')}
     </div>
-    <div class="hint">当選したゲーム数帯をタップ。分布からモード（通常A：偶数百G／通常B：奇数百G／天国準備：100G毎）を推測します。％は全ゾーン当選に対する割合です。</div>
+    <div class="hint">ユニメモは直近5回分しか表示されないため、本ツールで累計を記録。特殊Aの出やすさは設定変更（リセット）判別の参考に。</div>
   </section>`;
 }
 function pageHatsu(){
-  const czN=S.cz.rg+S.cz.ac, atczN=S.atcz.gab+S.atcz.useki;
+  const czN=S.cz.rg;
   const g=S.games, czP=czN>0&&g>0?g/czN:0, atP=S.atCount>0&&g>0?g/S.atCount:0;
   const rows=[1,2,3,4,5,6].map(i=>{
     const near=(czP>0&&Math.abs(CZ_TH[i-1]-czP)===Math.min(...CZ_TH.map(t=>Math.abs(t-czP))));
@@ -357,19 +355,12 @@ function pageHatsu(){
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
-      ${crow('cz.rg','CZ 超電磁砲チャンス','通常CZ（期待度約52%）',0,n=>pct(n,czN))}
-      ${crow('cz.ac','CZ 一方通行チャンス','上位CZ（約80%）割合に設定差の可能性',1,n=>pct(n,czN))}
-      ${crow('atCount','AT当選','幻想殺しRUSH突入',0)}
-      ${crow('choku','AT直撃','設1 約1/8000 ⇔ 設6 約1/4000',1)}
+      ${crow('cz.rg','関所チャレンジ当選','CZ',0)}
+      ${crow('atCount','やじきた祭当選','AT',0)}
+      ${crow('choku','AT直撃','当選時は勝率100%関所チャレンジ',1)}
+      ${crow('atcz.gab','関頂アタック突入','主にレア役で突入・成功期待度約50%',0)}
+      ${crow('atcz.useki','温泉ステージ移行','関所チャレンジ本前兆濃厚',0)}
     </div>
-  </section>
-  <section class="sec">
-    <div class="sec-h">AT中CZ 振り分け</div>
-    <div class="cgrid">
-      ${crow('atcz.gab','神の力BATTLE','AT中CZ（約50%）',0,n=>pct(n,atczN))}
-      ${crow('atcz.useki','神の右席BATTLE','上位CZ 割合に設定差の可能性',1,n=>pct(n,atczN))}
-    </div>
-    <div class="hint">⚠ 神の右席の割合はAT獲得枚数・上乗遊技回数でも変化するため参考値です。</div>
   </section>
   <section class="sec">
     <div class="sec-h">実践値 vs 理論値</div>
@@ -378,7 +369,7 @@ function pageHatsu(){
       <tr><th></th><th>CZ確率</th><th>AT確率</th></tr>
       ${rows}
     </table>
-    <div class="hint">ピンク行＝CZ実践値に最も近い設定。分母が小さいうちは参考程度に。</div>
+    <div class="hint">ピンク行＝CZ実践値に最も近い設定。CZ・ATとも設定差が大きく判別の主軸です。分母が小さいうちは参考程度に。</div>
   </section>`;
 }
 function pageShisa(){
@@ -386,13 +377,14 @@ function pageShisa(){
   const edN=Object.values(S.ed).reduce((a,b)=>a+b,0);
   const iconN=Object.values(S.icons).reduce((a,b)=>a+b,0);
   return `
-  <section class="sec"><div class="sec-h">CZ・AT終了時 アイコン</div>
-    <div class="cgrid">${ICONS.map(c=>crow('icons.'+c[0],c[1],c[2],c[3],n=>pct(n,iconN))).join('')}</div></section>
+  <section class="sec"><div class="sec-h">あっぱれチャンス キャラ<span class="sub">計${iconN}回</span></div>
+    <div class="cgrid">${CHARACTERS.map(c=>crow('icons.'+c[0],c[1],c[2],c[3],n=>pct(n,iconN))).join('')}</div></section>
   <section class="sec"><div class="sec-h">AT終了画面<span class="sub">計${scN}回</span></div>
     <div class="cgrid">${SCREENS.map(c=>crow('screens.'+c[0],c[1],c[2],c[3],n=>pct(n,scN))).join('')}</div></section>
-  <section class="sec"><div class="sec-h">藤丸コイン（AT終了画面）</div>
-    <div class="cgrid">${COINS.map(c=>crow('coins.'+c[0],c[1],c[2],c[3])).join('')}</div></section>
-  <section class="sec"><div class="sec-h">ED中 お知らせ演出<span class="sub">計${edN}回</span></div>
+  <section class="sec"><div class="sec-h">ユニバプレート</div>
+    <div class="cgrid">${COINS.map(c=>crow('coins.'+c[0],c[1],c[2],c[3])).join('')}</div>
+    <div class="hint">⚠ 示唆内容は推測値。ホール側カスタム機能で出現バランスが変化するため過信は禁物（出典参照）。</div></section>
+  <section class="sec"><div class="sec-h">ED中の手形<span class="sub">計${edN}回</span></div>
     <div class="cgrid">${ED.map(c=>crow('ed.'+c[0],c[1],c[2],c[3],n=>pct(n,edN))).join('')}</div></section>`;
 }
 function pageCard(){
@@ -422,7 +414,7 @@ function pageCard(){
 /* ================= render ================= */
 const PAGES=[pageZones,pageHatsu,pageShisa,pageCard];
 const CREDIT=`<div class="credit">示唆内容・解析数値の出典：ちょんぼりすた パチスロ解析様<br>
-より詳しい解析・最新情報は <a href="https://chonborista.com/slot/fuji-slot/260325/" target="_blank" rel="noopener">ちょんぼりすた様の解析ページ</a> をご覧ください。</div>`;
+より詳しい解析・最新情報は <a href="https://chonborista.com/slot/universal-slot/259841/" target="_blank" rel="noopener">ちょんぼりすた様の解析ページ</a> をご覧ください。</div>`;
 let cur=0;
 function renderAll(){
   const main=document.getElementById('main');
@@ -460,8 +452,10 @@ function drawCard(){
   /* header */
   x.fillStyle='#ff3d8f';x.font="700 30px 'M PLUS 1p'";
   x.fillText('SETTING CHECK RESULT',70,110);
-  x.fillStyle='#f2eef5';x.font="800 52px 'M PLUS 1p'";
-  x.fillText('Lとある魔術の禁書目録2',70,172);
+  x.fillStyle='#f2eef5';
+  let titleSize=52;
+  do{x.font=`800 ${titleSize}px 'M PLUS 1p'`;titleSize-=2;}while(x.measureText('スマスロ やじきた道中記参る！').width>690&&titleSize>=38);
+  x.fillText('スマスロ やじきた道中記参る！',70,172);
   x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
   const d=new Date();
   x.fillText(`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}  ${S.games||0}G`,70,215);
@@ -480,12 +474,10 @@ function drawCard(){
     x.fillText('ICON',cx,cy+10);x.textAlign='left';
   }
   /* stat blocks */
-  const czN=S.cz.rg+S.cz.ac, atczN=S.atcz.gab+S.atcz.useki, g0=S.games;
+  const czN=S.cz.rg, g0=S.games;
   const czP=czN&&g0?'1/'+(g0/czN).toFixed(1):'—';
   const atP=S.atCount&&g0?'1/'+(g0/S.atCount).toFixed(1):'—';
-  const acR=czN?`${S.cz.ac}/${czN} ${(100*S.cz.ac/czN).toFixed(0)}%`:'—';
-  const usR=atczN?`${S.atcz.useki}/${atczN} ${(100*S.atcz.useki/atczN).toFixed(0)}%`:'—';
-  const blocks=[['CZ確率',czP],['AT確率',atP],['一方通行率',acR],['神の右席率',usR]];
+  const blocks=[['CZ確率',czP],['AT確率',atP],['AT直撃',S.choku+'回'],['関頂アタック',S.atcz.gab+'回']];
   blocks.forEach((b,i)=>{
     const bx=70+i*242,by=270;
     x.fillStyle='#171220';rr(x,bx,by,222,130,18);x.fill();
@@ -494,35 +486,41 @@ function drawCard(){
     x.fillStyle='#ffc94d';x.font="34px 'DotGothic16'";x.fillText(b[1],bx+18,by+98);
   });
   /* zone bar */
-  const zTot=ZONES.reduce((a,z)=>a+S.zones[z],0)||1;
-  x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText('当選ゾーン分布',70,470);
-  ZONES.forEach((z,i)=>{
-    const bx=70+i*96,by=630,h=Math.round(120*S.zones[z]/Math.max(1,Math.max(...ZONES.map(k=>S.zones[k]))));
+  const zTot=TABLES.reduce((a,z)=>a+S.zones[z[0]],0)||1;
+  x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText('まいるテーブル分布',70,470);
+  TABLES.forEach((t,i)=>{
+    const bx=110+i*145,by=630,h=Math.round(120*S.zones[t[0]]/Math.max(1,Math.max(...TABLES.map(k=>S.zones[k[0]]))));
     x.fillStyle='#2c2340';x.fillRect(bx,by-120,72,120);
-    if(S.zones[z]>0){x.fillStyle='#ff3d8f';x.shadowColor='#ff3d8f';x.shadowBlur=12;x.fillRect(bx,by-h,72,h);x.shadowBlur=0;}
+    if(S.zones[t[0]]>0){x.fillStyle='#ff3d8f';x.shadowColor='#ff3d8f';x.shadowBlur=12;x.fillRect(bx,by-h,72,h);x.shadowBlur=0;}
     x.fillStyle='#9a90a8';x.font="22px 'DotGothic16'";x.textAlign='center';
-    x.fillText(z,bx+36,by+30);
-    if(S.zones[z]>0){x.fillStyle='#f2eef5';x.fillText(S.zones[z],bx+36,by-h-8);}
+    x.fillText(t[4],bx+36,by+30);
+    if(S.zones[t[0]]>0){x.fillStyle='#f2eef5';x.fillText(S.zones[t[0]],bx+36,by-h-8);}
     x.textAlign='left';
   });
-  /* AT end screens: final row y=906, footer starts at y=976, so the section does not collide. */
+  /* End screens and plates: final row y=936, footer starts at y=976, so the section does not collide. */
   const scN=Object.values(S.screens).reduce((a,b)=>a+b,0);
-  x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText(`AT終了画面（計${scN}回）`,70,720);
+  x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText(`終了画面・プレート（計${scN}回）`,70,720);
   SCREENS.forEach((screen,i)=>{
-    const col=i<4?0:1;
-    const row=i%4;
-    const bx=col?560:70;
-    const by=762+row*48;
+    const bx=70;
+    const by=760+i*44;
     const count=S.screens[screen[0]];
     x.fillStyle=count>0?'#ffc94d':'#6b6278';
-    x.font="800 25px 'M PLUS 1p'";
+    x.font="800 24px 'M PLUS 1p'";
     x.fillText(`${screen[1]} ×${count}`,bx,by);
+  });
+  COINS.forEach((coin,i)=>{
+    const bx=560;
+    const by=760+i*44;
+    const count=S.coins[coin[0]];
+    x.fillStyle=count>0?'#ffc94d':'#6b6278';
+    x.font="800 24px 'M PLUS 1p'";
+    x.fillText(`${coin[1].replace('ユニバプレート ','')} ×${count}`,bx,by);
   });
   /* footer: 2-line credits */
   x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";
   x.fillText('slot-tools.jp',70,H-104);
   x.fillStyle='#9a90a8';x.font="500 22px 'M PLUS 1p'";
-  x.fillText('#とある魔術の禁書目録2 #設定判別',300,H-104);
+  x.fillText('#やじきた道中記参る #設定判別',300,H-104);
   x.fillStyle='#9a90a8';x.font="500 21px 'M PLUS 1p'";
   x.fillText(`${nanaCreditText('card')}／ 解析出典：ちょんぼりすた様`,70,H-62);
 }
@@ -587,13 +585,13 @@ function initCard(){
   };
   document.getElementById('dlBtn').onclick=()=>{
     const a=document.createElement('a');
-    a.download='toaru2_check.png';
+    a.download='yajikita_check.png';
     a.href=document.getElementById('cardCanvas').toDataURL('image/png');
     a.click();toast('画像を書き出しました');
   };
   document.getElementById('shareBtn').onclick=()=>{
     document.getElementById('cardCanvas').toBlob(async b=>{
-      const f=new File([b],'toaru2_check.png',{type:'image/png'});
+      const f=new File([b],'yajikita_check.png',{type:'image/png'});
       if(navigator.canShare&&navigator.canShare({files:[f]})){
         try{await navigator.share({files:[f],text:shareText()});}catch(e){}
       }else{toast('この端末は直接共有に非対応。画像を保存してください');}
@@ -605,20 +603,17 @@ function initCard(){
   };
 }
 function tplText(){
-  const czN=S.cz.rg+S.cz.ac,atczN=S.atcz.gab+S.atcz.useki;
+  const czN=S.cz.rg;
   const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
-  let t=`設定判別メモ｜Lとある魔術の禁書目録2\n総回転数 ${S.games||0}G / CZ${czN}回 / AT${S.atCount}回\n_______\n\n■規定ゲーム数\n`;
-  for(let i=0;i<ZONES.length;i+=2){
-    t+=`${ZONES[i]}g▶︎ ${S.zones[ZONES[i]]}回`;
-    if(ZONES[i+1])t+=`　${ZONES[i+1]}g▶︎ ${S.zones[ZONES[i+1]]}回`;
-    t+='\n';
-  }
-  t+=`\n■AT直撃▶︎ ${S.choku}回\n\n■通常CZ振り分け\n超電磁砲ﾁｬﾝｽ▶︎ ${p(S.cz.rg,czN)}\n一方通行ﾁｬﾝｽ▶︎ ${p(S.cz.ac,czN)}\n\n■AT中CZ振り分け\n神の力ﾊﾞﾄﾙ▶︎ ${p(S.atcz.gab,atczN)}\n神の右席ﾊﾞﾄﾙ▶︎ ${p(S.atcz.useki,atczN)}\n\n■終了時アイコン\n🔵▶︎ ${S.icons.blue}回　🟢▶︎ ${S.icons.green}回\n🔴▶︎ ${S.icons.red}回　✨▶︎ ${S.icons.gold}回\nなし▶︎ ${S.icons.none}回\n\n■藤丸コイン\n銅▶︎ ${S.coins.cu}回　銀▶︎ ${S.coins.ag}回　金▶︎ ${S.coins.au}回\nﾃﾞﾝｼﾞｬｰ▶︎ ${S.coins.dg}回　虹▶︎ ${S.coins.rb}回\n\n■AT終了画面\n`;
+  const charN=Object.values(S.icons).reduce((a,b)=>a+b,0);
+  let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n総回転数 ${S.games||0}G / CZ${czN}回 / AT${S.atCount}回\n_______\n\n■まいるテーブル\n`;
+  TABLES.forEach(c=>{t+=`${c[1]}▶︎ ${S.zones[c[0]]}回\n`;});
+  t+=`\n■関頂アタック▶︎ ${S.atcz.gab}回\n■温泉ステージ▶︎ ${S.atcz.useki}回\n■AT直撃▶︎ ${S.choku}回\n\n■あっぱれキャラ\n`;
+  CHARACTERS.forEach(c=>{t+=`${c[1]}▶︎ ${p(S.icons[c[0]],charN)}\n`;});
+  t+=`\n■AT終了画面\n`;
   const scN=Object.values(S.screens).reduce((a,b)=>a+b,0);
   SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${p(S.screens[c[0]],scN)}\n`;});
-  t+=`\n■エンディング中お知らせ演出\n`;
-  const edN=Object.values(S.ed).reduce((a,b)=>a+b,0);
-  ED.forEach(c=>{t+=`${c[1]}▶︎ ${p(S.ed[c[0]],edN)}\n`;});
+  t+=`\n■ユニバプレート\n銅▶︎ ${S.coins.cu}回　銀▶︎ ${S.coins.ag}回　金▶︎ ${S.coins.au}回\n花火▶︎ ${S.coins.dg}回　虹▶︎ ${S.coins.rb}回\n\n■ED中の手形▶︎ ${S.ed.e1}回\n`;
   t+=`\nby slot-tools.jp\n${nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
   return t;
 }
