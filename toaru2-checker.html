@@ -212,7 +212,7 @@ const DEF={
   icons:{blue:0,green:0,red:0,gold:0,none:0},
   coins:{cu:0,ag:0,au:0,dg:0,rb:0},
   img:null,
-  iconChoice:'default'
+  iconChoice:null
 };
 const SCREENS=[
   ['s1','当麻＆インデックス','奇数設定 期待度UP',0],
@@ -266,7 +266,7 @@ function normalizeState(data){
   out.ed=Object.assign({},DEF.ed,src.ed||{});
   out.icons=Object.assign({},DEF.icons,src.icons||{});
   out.coins=Object.assign({},DEF.coins,src.coins||{});
-  if(!src.iconChoice)out.iconChoice=src.img?'upload':'default';
+  if(!src.iconChoice)out.iconChoice=src.img?'upload':(NANA_COLLAB?'nana':'default');
   return out;
 }
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));return normalizeState(j);}catch(e){return structuredClone(DEF);}}
@@ -308,7 +308,7 @@ document.getElementById('resetBtn').onclick=()=>{
     hist.push({reset:true,snap});if(hist.length>50)hist.shift();
     const img=S.img,iconChoice=S.iconChoice;
     S=structuredClone(DEF);S.img=img;
-    S.iconChoice=iconChoice==='upload'&&img?'upload':(iconChoice==='nana'&&NANA_COLLAB?'nana':'default');
+    S.iconChoice=iconChoice==='upload'&&img?'upload':(iconChoice==='nana'&&NANA_COLLAB?'nana':(iconChoice==='default'?'default':(NANA_COLLAB?'nana':'default')));
     b.textContent='リセット';
     feed('<b>リセット完了</b> 「↩ 取消」で直前の状態に戻せます');
     save();renderAll();
@@ -531,10 +531,12 @@ function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);
 const DEFAULT_CARD_ICON='assets/toaru2-default-icon.jpg';
 const NANA_CARD_ICON='assets/nana-icon.jpg';
 let cardImg=null;
+function defaultIconChoice(){return NANA_COLLAB?'nana':'default';}
 function effectiveIconChoice(){
   if(S.iconChoice==='upload'&&S.img)return 'upload';
   if(S.iconChoice==='nana'&&NANA_COLLAB)return 'nana';
-  return 'default';
+  if(S.iconChoice==='default')return 'default';
+  return defaultIconChoice();
 }
 function iconSrc(){
   const choice=effectiveIconChoice();
@@ -543,11 +545,13 @@ function iconSrc(){
   return DEFAULT_CARD_ICON;
 }
 function loadCardImg(cb){
-  const src=iconSrc();
+  const primary=iconSrc();
+  const sources=primary===NANA_CARD_ICON?[NANA_CARD_ICON,DEFAULT_CARD_ICON]:[primary];
+  let i=0;
   const im=new Image();
   im.onload=()=>{cardImg=im;cb&&cb();};
-  im.onerror=()=>{cardImg=null;cb&&cb();};
-  im.src=src;
+  im.onerror=()=>{i++;if(i<sources.length){im.src=sources[i];return;}cardImg=null;cb&&cb();};
+  im.src=sources[i];
 }
 function initCard(){
   loadCardImg(()=>document.fonts.ready.then(drawCard));
@@ -564,9 +568,9 @@ function initCard(){
     };
   });
   const resetImgBtn=document.getElementById('resetImgBtn');
-  resetImgBtn.hidden=effectiveIconChoice()==='default';
+  resetImgBtn.hidden=effectiveIconChoice()===defaultIconChoice();
   resetImgBtn.onclick=()=>{
-    S.iconChoice='default';S.img=null;save();toast('デフォルト画像に戻しました');renderAll();
+    S.iconChoice=defaultIconChoice();S.img=null;save();toast('デフォルト画像に戻しました');renderAll();
   };
   document.getElementById('imgIn').onchange=e=>{
     const f=e.target.files[0];if(!f)return;
