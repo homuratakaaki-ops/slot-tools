@@ -3514,6 +3514,123 @@ function testBattleModeInvestmentResetUsesHistoryBoundaryAndUndo() {
   })`, context), 9);
 }
 
+function testBattleModeSandBalanceTracksDepositSpendCashInAndUndo() {
+  const { context } = runRecord(undefined);
+  const result = JSON.parse(vm.runInContext(`
+    selectedMachineId = 'm_nangoku_special';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentFlowStep = 2;
+    battleModeOpen = false;
+    currentStartCounterGame = 0;
+    currentIntervalEstimate = normalizeIntervalEstimate({ initialDiff: null, loanRate: 46 });
+    const generic = document.getElementById('generic');
+    const make = value => ({
+      ...generic,
+      value: value || '',
+      textContent: '',
+      innerHTML: '',
+      style: { display: '', setProperty() {} },
+      classList: { add() {}, remove() {}, toggle() {} }
+    });
+    const elements = {
+      battleModeToast: make(''),
+      moneyStart: make('10:00'),
+      moneyEnd: make('11:00'),
+      moneyStore: make(''),
+      moneyStartMedals: make('1000'),
+      moneyEndMedals: make('1200'),
+      moneyCashIn: make(''),
+      moneySandReturn: make(''),
+      moneyCashInLinkHint: make(''),
+      calcWork: make(''),
+      calcDiff: make(''),
+      calcBalance: make(''),
+      calcHourly: make(''),
+      rateHint: make(''),
+      timeWarning: make(''),
+      moneyRegistrationStatus: make(''),
+      settingLabelValueButtons: make(''),
+      settingLabelAtLeast: { ...make(''), checked: false },
+      settingLabelConfirmed: { ...make(''), checked: false }
+    };
+    const originalGet = document.getElementById;
+    document.getElementById = id => elements[id] || originalGet(id);
+
+    battleModeApplyDiffTrackerInput('sandDeposit', 5000, { reopenSheet: false });
+    const afterDeposit = {
+      deposits: currentIntervalEstimate.sandDeposits,
+      balance: currentIntervalEstimate.sandBalance,
+      html: renderBattleModeSandBalance()
+    };
+    battleModeQuickInvestYen();
+    battleModeQuickInvestLastAt = 0;
+    battleModeQuickInvestYen();
+    const afterInvests = {
+      balance: currentIntervalEstimate.sandBalance,
+      investedTotal: currentIntervalEstimate.investedTotal,
+      cashUnits: battleModeCashInvestUnits(),
+      html: renderBattleModeSandBalance()
+    };
+
+    currentFlowStep = 4;
+    moneyCashInEdited = false;
+    syncMoneyCashInFromSand({ force: true });
+    const fallbackCashIn = elements.moneyCashIn.value;
+    elements.moneySandReturn.value = '3000';
+    syncMoneyCashInFromSand({ force: true });
+    const returnedCashIn = elements.moneyCashIn.value;
+    const savedMoney = currentInputLogObject(false).money;
+
+    undoBattleModeLast();
+    const afterUndoInvest = {
+      balance: currentIntervalEstimate.sandBalance,
+      investedTotal: currentIntervalEstimate.investedTotal,
+      cashUnits: battleModeCashInvestUnits()
+    };
+    redoBattleModeUndo();
+    const afterRedoInvest = {
+      balance: currentIntervalEstimate.sandBalance,
+      investedTotal: currentIntervalEstimate.investedTotal,
+      cashUnits: battleModeCashInvestUnits()
+    };
+
+    currentFlowStep = 2;
+    currentIntervalEstimate = normalizeIntervalEstimate({ initialDiff: null, loanRate: 46 });
+    battleModeApplyDiffTrackerInput('investYen', 1, { reopenSheet: false });
+    const negative = {
+      balance: currentIntervalEstimate.sandBalance,
+      html: renderBattleModeSandBalance()
+    };
+
+    currentIntervalEstimate = normalizeIntervalEstimate({ initialDiff: null, loanRate: 46 });
+    battleModeApplyDiffTrackerInput('sandDeposit', 5000, { reopenSheet: false });
+    undoBattleModeLast();
+    const afterUndoDeposit = {
+      deposits: currentIntervalEstimate.sandDeposits,
+      balance: currentIntervalEstimate.sandBalance
+    };
+    JSON.stringify({ afterDeposit, afterInvests, fallbackCashIn, returnedCashIn, savedMoney, afterUndoInvest, afterRedoInvest, negative, afterUndoDeposit });
+  `, context));
+
+  assert.equal(result.afterDeposit.deposits, 5000);
+  assert.equal(result.afterDeposit.balance, 5000);
+  assert.match(result.afterDeposit.html, /サンド残/);
+  assert.match(result.afterDeposit.html, /5,000円/);
+  assert.equal(result.afterInvests.balance, 3000);
+  assert.equal(result.afterInvests.investedTotal, 92);
+  assert.equal(result.afterInvests.cashUnits, 2);
+  assert.match(result.afterInvests.html, /3,000円/);
+  assert.equal(result.fallbackCashIn, '2000');
+  assert.equal(result.returnedCashIn, '2000');
+  assert.equal(result.savedMoney.cashIn, 2000);
+  assert.equal(result.savedMoney.sandReturn, 3000);
+  assert.deepEqual(result.afterUndoInvest, { balance: 4000, investedTotal: 46, cashUnits: 1 });
+  assert.deepEqual(result.afterRedoInvest, { balance: 3000, investedTotal: 92, cashUnits: 2 });
+  assert.equal(result.negative.balance, -1000);
+  assert.match(result.negative.html, /bm-sand-balance warn/);
+  assert.deepEqual(result.afterUndoDeposit, { deposits: 0, balance: 0 });
+}
+
 function testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
@@ -4979,6 +5096,7 @@ function run() {
   testBattleModeGameIncrementUndoAndRedo();
   testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo();
   testBattleModeInvestmentResetUsesHistoryBoundaryAndUndo();
+  testBattleModeSandBalanceTracksDepositSpendCashInAndUndo();
   testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo();
   testHitPayoutStepDoesNotDuplicateSameCreditHistory();
   testHitPayoutCreditInputSelectsAndClears();

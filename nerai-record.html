@@ -450,6 +450,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .keypad-value{font-size:20px;font-weight:700;color:var(--gold-light);min-height:32px;text-align:right;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:10px;}
 .keypad-hint{display:none;margin:-2px 0 10px;color:var(--gold-light);font-size:16px;font-weight:900;line-height:1.45;text-align:right;background:rgba(201,168,76,.1);border:1px solid rgba(201,168,76,.35);border-radius:8px;padding:8px 10px;}
 .keypad-hint.open{display:block;}
+.keypad-shortcuts{display:none;grid-template-columns:repeat(3,1fr);gap:8px;margin:-2px 0 10px;}
+.keypad-shortcuts.open{display:grid;}
 .keypad-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
 .keypad-btn{min-height:54px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:22px;font-weight:700;cursor:pointer;}
 .keypad-btn:active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12);}
@@ -506,8 +508,8 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .bm-replay-flash-meter{width:100%;min-height:30px;border:1px solid rgba(201,168,76,.24);border-radius:8px;background:rgba(0,0,0,.1);color:var(--text-muted);font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center;padding:5px 8px;line-height:1.2;}
 .bm-replay-flash-meter.nangoku-special-meter{min-height:60px;font-size:15px;}
 button.bm-replay-flash-meter{cursor:pointer;}
-.bm-diff-row{display:grid;grid-template-columns:minmax(0,1fr) 74px 104px;gap:8px;align-items:stretch;}
-.bm-top-action-row{display:grid;grid-template-columns:minmax(0,1fr) 48px 68px repeat(3,44px);gap:5px;align-items:stretch;}
+.bm-diff-row{display:grid;grid-template-columns:minmax(0,1fr) 74px 86px 104px;gap:8px;align-items:stretch;}
+.bm-top-action-row{display:grid;grid-template-columns:minmax(0,1fr) 48px 80px 68px repeat(3,44px);gap:5px;align-items:stretch;}
 .bm-top-action-row .bm-diff-tracker{min-height:42px;font-size:13px;padding:5px 6px;}
 .bm-top-action-row .bm-diff-tracker .muted{display:block;margin:1px 0 0;font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .bm-action-mini{min-height:42px;border:1px solid rgba(98,181,255,.55);border-radius:8px;background:rgba(98,181,255,.1);color:#b9dcff;font-size:12px;font-weight:900;line-height:1.15;padding:4px;cursor:pointer;}
@@ -517,6 +519,8 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-credit-update.credit-ok{border-color:rgba(76,175,125,.95);background:rgba(76,175,125,.42);color:#f0fff6;box-shadow:0 0 0 1px rgba(76,175,125,.28) inset;}
 .bm-credit-update.credit-warn{border-color:rgba(234,179,8,.98);background:rgba(234,179,8,.44);color:#fff8df;box-shadow:0 0 0 1px rgba(234,179,8,.34) inset;}
 .bm-diff-tracker .muted{color:var(--text-muted);font-size:12px;font-weight:700;margin-left:6px;}
+.bm-sand-balance{min-height:44px;border:1px solid rgba(98,181,255,.42);border-radius:8px;background:rgba(98,181,255,.1);color:#cfe9ff;font-size:12px;font-weight:900;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.15;padding:4px 5px;}
+.bm-sand-balance.warn{border-color:rgba(248,113,113,.85);background:rgba(248,113,113,.18);color:#fecaca;}
 .bm-grid{display:flex;flex-direction:column;gap:7px;min-height:0;}
 .bm-button-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
 .bm-button-row.four{grid-template-columns:repeat(4,minmax(0,1fr));}
@@ -784,7 +788,12 @@ footer a:hover{color:var(--gold-light);}
       </div>
       <div class="input-row">
         <div class="input-label">現金投入<div class="input-hint">この台で追加した円だけ</div></div>
-        <div class="inline-field"><input type="text" id="moneyCashIn" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()" onchange="updateCalc()"><span class="input-hint">円</span></div>
+        <div class="inline-field"><input type="text" id="moneyCashIn" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="markMoneyCashInEdited();updateCalc()" onchange="markMoneyCashInEdited();updateCalc()"><span class="input-hint">円</span></div>
+        <div class="input-hint" id="moneyCashInLinkHint"></div>
+      </div>
+      <div class="input-row">
+        <div class="input-label">サンド残額（返却額）<div class="input-hint">入力時は「入金合計 − 返却額」を現金投入に反映</div></div>
+        <div class="inline-field"><input type="text" id="moneySandReturn" class="numeric-input" inputmode="none" readonly placeholder="任意" oninput="syncMoneyCashInFromSand({force:true})" onchange="syncMoneyCashInFromSand({force:true})"><span class="input-hint">円</span></div>
       </div>
       <div class="input-row">
         <div class="input-label">推定設定<div class="input-hint">比較ビューのプール集計用</div></div>
@@ -1024,6 +1033,7 @@ footer a:hover{color:var(--gold-light);}
     </div>
     <div class="keypad-value" id="numericKeypadValue"></div>
     <div class="keypad-hint" id="numericKeypadHint"></div>
+    <div class="keypad-shortcuts" id="numericKeypadShortcuts"></div>
     <div class="keypad-grid">
       <button class="keypad-btn" onclick="pressKeypad('7')">7</button>
       <button class="keypad-btn" onclick="pressKeypad('8')">8</button>
@@ -1446,6 +1456,7 @@ let battleModeKabaneriMultiDraft=null;
 let kabaneriStEndSelections={endScreen:'',trophy:''};
 let kabaneriPendingFailureTrophyPrompt='';
 let moneyEndMedalsEdited=false;
+let moneyCashInEdited=false;
 let carriedMedalsAppliedKey='';
 let battleModeScrollToHitNext=false;
 const postHitCreditToastEventIds=new Set();
@@ -1905,6 +1916,10 @@ function compactLogForStorage(log){
     next.timeline=compactTimelineForStorage(next.timeline);
     return next;
   }):[];
+  if(compact.intervalEstimate&&typeof compact.intervalEstimate==='object'){
+    if(Number(compact.intervalEstimate.sandDeposits)===0)delete compact.intervalEstimate.sandDeposits;
+    if(Number(compact.intervalEstimate.sandBalance)===0)delete compact.intervalEstimate.sandBalance;
+  }
   return compact;
 }
 function storageDataForSave(data){
@@ -2812,7 +2827,7 @@ function normalizeData(data){
     if(!log.money)log.money={};
     log.money.publishStore=!!log.money.publishStore;
     log.money.publishMachineNo=!!log.money.publishMachineNo;
-    ['startMedals','endMedals','cashIn','lendRate','exchangeRate','medalDiff','yenDiff'].forEach(key=>{
+    ['startMedals','endMedals','cashIn','sandReturn','lendRate','exchangeRate','medalDiff','yenDiff'].forEach(key=>{
       log.money[key]=normalizeOptionalNumber(log.money[key]);
     });
     if(log.money.cashIn===null&&normalizeOptionalNumber(log.money.startMedals)!==null)log.money.cashIn=0;
@@ -5754,7 +5769,7 @@ function calcMoney(money){
 }
 function clearMoneyResult(money){
   if(!money)return;
-  ['endMedals','cashIn','diff','balance','hourlyRate','medalDiff','yenDiff'].forEach(key=>{money[key]=null;});
+  ['endMedals','cashIn','sandReturn','diff','balance','hourlyRate','medalDiff','yenDiff'].forEach(key=>{money[key]=null;});
 }
 function recalcLogMoney(log){
   if(!log?.money)return;
@@ -5813,6 +5828,8 @@ function normalizeIntervalEstimate(value){
   const rate=normalizeOptionalNumber(source.loanRate);
   const investedTotal=normalizeOptionalNumber(source.investedTotal);
   const credit=normalizeOptionalNumber(source.credit);
+  const sandDeposits=normalizeOptionalNumber(source.sandDeposits);
+  const sandBalance=normalizeOptionalNumber(source.sandBalance);
   const history=Array.isArray(source.history)?source.history.map(normalizeIntervalDiffHistoryEntry).filter(Boolean).slice(-INTERVAL_DIFF_HISTORY_LIMIT):[];
   return {
     initialDiff:normalizeOptionalNumber(source.initialDiff),
@@ -5820,12 +5837,14 @@ function normalizeIntervalEstimate(value){
     loanRate:rate!==null&&rate>0?rate:DEFAULT_LOAN_RATE,
     investedTotal:investedTotal!==null?Math.max(0,Math.round(investedTotal)):0,
     credit:credit!==null?Math.max(0,Math.round(credit)):0,
+    sandDeposits:sandDeposits!==null?Math.max(0,Math.round(sandDeposits)):0,
+    sandBalance:sandBalance!==null?Math.round(sandBalance):0,
     history
   };
 }
 function intervalEstimateHasActivity(interval){
   const state=normalizeIntervalEstimate(interval);
-  return state.initialDiff!==null||state.certainty!=='unknown'||Number(state.investedTotal)>0||Number(state.credit)>0||state.history.length>0;
+  return state.initialDiff!==null||state.certainty!=='unknown'||Number(state.investedTotal)>0||Number(state.credit)>0||Number(state.sandDeposits)>0||Number(state.sandBalance)!==0||state.history.length>0;
 }
 function isDefaultLikeLoanRate(value){
   const rate=normalizeOptionalNumber(value);
@@ -5893,7 +5912,9 @@ function normalizeIntervalDiffHistoryState(value){
   return {
     initialDiff:normalizeOptionalNumber(source.initialDiff),
     investedTotal:Math.max(0,Math.round(normalizeOptionalNumber(source.investedTotal)??0)),
-    credit:Math.max(0,Math.round(normalizeOptionalNumber(source.credit)??0))
+    credit:Math.max(0,Math.round(normalizeOptionalNumber(source.credit)??0)),
+    sandDeposits:Math.max(0,Math.round(normalizeOptionalNumber(source.sandDeposits)??0)),
+    sandBalance:Math.round(normalizeOptionalNumber(source.sandBalance)??0)
   };
 }
 function normalizeIntervalDiffHistoryEntry(entry){
@@ -6288,6 +6309,7 @@ function switchFlowStep(step){
   bindNumericInputs();
   bindMoneyEndMedalsLink();
   applyBattleCreditToMoneyEndMedals();
+  syncMoneyCashInFromSand();
 }
 
 function renderAll(){
@@ -6319,6 +6341,7 @@ function renderAll(){
   bindNumericInputs();
   bindMoneyEndMedalsLink();
   applyBattleCreditToMoneyEndMedals();
+  syncMoneyCashInFromSand();
   bindDraftAutosave();
 }
 
@@ -7200,6 +7223,7 @@ function restoreBattleModeSnapshot(snapshot){
   suggestInputsDirty=!!snapshot.suggestInputsDirty;
   if(currentTimelineDataGame!==null&&currentTimelineDataGame!==undefined)setTimelineGames(currentTimelineDataGame,liquidFromDataWithOffset(currentTimelineDataGame));
   renderLogFields();
+  syncMoneyCashInFromSand();
   renderBattleMode();
   saveDraftImmediately();
 }
@@ -7454,6 +7478,16 @@ function battleModeCashInvestText(state=battleModeIntervalTrackerState()){
   const text=Number.isInteger(units)?String(units):units.toLocaleString('ja-JP',{maximumFractionDigits:1});
   return `（現金 ${text}千円）`;
 }
+function battleModeSandBalanceValue(state=battleModeIntervalTrackerState()){
+  return Math.round(normalizeIntervalEstimate(state).sandBalance||0);
+}
+function battleModeSandBalanceText(state=battleModeIntervalTrackerState()){
+  return `${battleModeSandBalanceValue(state).toLocaleString('ja-JP')}円`;
+}
+function renderBattleModeSandBalance(state=battleModeIntervalTrackerState()){
+  const balance=battleModeSandBalanceValue(state);
+  return `<button class="bm-sand-balance ${balance<0?'warn':''}" type="button" onclick="openBattleModeDiffInput('sandDeposit')"><span>サンド残</span><strong>${escapeHtml(balance.toLocaleString('ja-JP'))}円</strong></button>`;
+}
 function battleModeInvestHistorySinceReset(state=battleModeIntervalTrackerState()){
   const interval=normalizeIntervalEstimate(state);
   const index=interval.history.map(row=>row.mode).lastIndexOf('resetInvest');
@@ -7521,6 +7555,7 @@ function renderBattleModeIntervalTracker(){
   return `<div class="bm-diff-row">
     <button class="bm-diff-tracker" type="button" onclick="openBattleModeDiffTrackerSheet()">${escapeHtml(battleModeIntervalDiffText(diff))}<span class="muted">${escapeHtml(battleModeIntervalTrackerMeasured(state)?battleModeIntervalDetailText(state):'未計測')}</span></button>
     <button class="bm-mini-btn bm-credit-update${creditClass}" type="button" onclick="openBattleModeDiffInput('credit')">クレ更新</button>
+    ${renderBattleModeSandBalance(state)}
     <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">＋1000</button>
   </div>`;
 }
@@ -7537,6 +7572,7 @@ function renderBattleModeTopActions(){
   return `<div class="bm-top-action-row">
     <button class="bm-diff-tracker" type="button" onclick="openBattleModeDiffTrackerSheet()">${escapeHtml(battleModeIntervalDiffText(diff))}<span class="muted">${escapeHtml(battleModeIntervalTrackerMeasured(state)?battleModeIntervalDetailText(state):'\u672a\u8a08\u6e2c')}</span></button>
     <button class="bm-mini-btn bm-credit-update${creditClass}" type="button" onclick="openBattleModeDiffInput('credit')">\u30af\u30ec</button>
+    ${renderBattleModeSandBalance(state)}
     <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">＋1000</button>
     <button class="bm-action-mini" type="button" onclick="openSuggestPlacePicker('play')">\u793a\u5506</button>
     <button class="bm-action-mini" type="button" onclick="battleModeOpenModal('shopNote')">\u4ed6\u53f0</button>
@@ -8596,12 +8632,14 @@ function openBattleModeDiffTrackerSheet(){
   setBattleModeSheet('有利区間差枚',`
     <div class="bm-recent-line" style="grid-column:1/-1;font-weight:900;color:var(--gold-light);">現在: ${escapeHtml(diff===null?'—':`${diff>0?'+':''}${diff}枚`)}</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">内訳: ${escapeHtml(battleModeIntervalDetailText(state))}</div>
+    <div class="bm-recent-line" style="grid-column:1/-1;color:${state.sandBalance<0?'#fecaca':'var(--text-muted)'};">サンド残: ${escapeHtml(battleModeSandBalanceText(state))} / 入金合計 ${escapeHtml((state.sandDeposits||0).toLocaleString('ja-JP'))}円</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">${escapeHtml(battleModeInvestmentBreakdownText(state))}</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">${escapeHtml(battleModeCashReconcileText(state))}</div>
     ${resetReference?`<div class="bm-recent-line" style="grid-column:1/-1;color:var(--gold-light);">${escapeHtml(resetReference)}</div>`:''}
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">投資追加は±で修正可（マイナスで取り消し）。現金は「投資追加（千円）」を−1などで調整してください。</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">「投資合計を修正」は内訳（現金/メダル）と連動しない非常用です。通常は±付きの追加で修正してください。</div>
     <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('investYen')">投資追加（千円）</button>
+    <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('sandDeposit')">入金</button>
     <button class="bm-btn counter" type="button" onclick="openBattleModeDiffInput('investMedals')">投資追加（枚）</button>
     <button class="bm-btn" type="button" onclick="openBattleModeDiffInput('setInvestedTotal')">投資合計を修正</button>
     <button class="bm-btn" type="button" onclick="battleModeResetInvestment()">投資をリセット</button>
@@ -8615,6 +8653,7 @@ function openBattleModeDiffTrackerSheet(){
 function battleModeDiffInputLabel(mode){
   return {
     investYen:'投資追加（千円）',
+    sandDeposit:'入金',
     investMedals:'投資追加（枚）',
     setInvestedTotal:'投資合計を修正',
     credit:'クレジット更新',
@@ -8650,6 +8689,7 @@ function openBattleModeDiffInput(mode){
   if(mode==='credit')input.dataset.replaceOnNextDigit=input.dataset.currentValue?'1':'';
   if(mode==='correct'||mode==='initial')input.dataset.signed='1';
   if(mode==='investYen')input.dataset.decimal='1';
+  if(mode==='sandDeposit')input.dataset.shortcuts='1000,5000,10000';
   input.style.position='fixed';
   input.style.left='-9999px';
   input.addEventListener('change',()=>{
@@ -8691,6 +8731,7 @@ function battleModeResetInvestment(){
 function battleModeDiffCurrentValueForMode(mode,state=normalizeIntervalEstimate(currentIntervalEstimate)){
   if(mode==='setInvestedTotal')return state.investedTotal;
   if(mode==='credit')return state.credit;
+  if(mode==='sandDeposit')return state.sandBalance;
   if(mode==='initial')return normalizeOptionalNumber(state.initialDiff)??0;
   if(mode==='correct')return battleModeIntervalDiffValue(state);
   return null;
@@ -8704,8 +8745,13 @@ function battleModeApplyDiffTrackerInput(mode,value,options={}){
   let summary='';
   if(mode==='investYen'){
     const medals=Math.round(normalized*state.loanRate);
-    next={...state,investedTotal:Math.max(0,Math.round(state.investedTotal+medals))};
-    summary=`+${Math.round(normalized*1000).toLocaleString('ja-JP')}円 → +${medals.toLocaleString('ja-JP')}枚（投資 ${state.investedTotal.toLocaleString('ja-JP')} → ${next.investedTotal.toLocaleString('ja-JP')}）`;
+    const yen=Math.round(normalized*1000);
+    next={...state,investedTotal:Math.max(0,Math.round(state.investedTotal+medals)),sandBalance:Math.round((state.sandBalance||0)-yen)};
+    summary=`+${yen.toLocaleString('ja-JP')}円 → +${medals.toLocaleString('ja-JP')}枚（投資 ${state.investedTotal.toLocaleString('ja-JP')} → ${next.investedTotal.toLocaleString('ja-JP')} / サンド残 ${state.sandBalance.toLocaleString('ja-JP')} → ${next.sandBalance.toLocaleString('ja-JP')}円）`;
+  }else if(mode==='sandDeposit'){
+    const yen=Math.max(0,Math.round(normalized));
+    next={...state,sandDeposits:Math.max(0,Math.round((state.sandDeposits||0)+yen)),sandBalance:Math.round((state.sandBalance||0)+yen)};
+    summary=`入金 +${yen.toLocaleString('ja-JP')}円（サンド残 ${state.sandBalance.toLocaleString('ja-JP')} → ${next.sandBalance.toLocaleString('ja-JP')}円）`;
   }else if(mode==='investMedals'){
     const medals=Math.round(normalized);
     next={...state,investedTotal:Math.max(0,Math.round(state.investedTotal+medals))};
@@ -8729,7 +8775,10 @@ function battleModeApplyDiffTrackerInput(mode,value,options={}){
     currentIntervalEstimate=normalizeIntervalEstimate(next);
     if(typeof options.afterApply==='function')options.afterApply({mode,input:normalized,before:state,after:normalizeIntervalEstimate(next),entry});
   },{meta:{kind:'intervalDiff',mode,input:normalized,before:state,after:next,summary},toastMessage:options.toastMessage});
-  if(ok&&options.toastSummary)battleModeToast(summary,{duration:1800});
+  if(ok&&['investYen','sandDeposit'].includes(mode)){
+    syncMoneyCashInFromSand();
+    battleModeToast(summary,{duration:3600,action:{label:'元に戻す',onclick:'undoBattleModeLast()'}});
+  }else if(ok&&options.toastSummary)battleModeToast(summary,{duration:1800});
   if(ok&&options.reopenSheet!==false)openBattleModeDiffTrackerSheet();
   return ok;
 }
@@ -9308,6 +9357,7 @@ function battleModeQuitAndGoMoney(){
   switchFlowStep(4);
   ensureMoneyEndTimeNow();
   applyBattleCreditToMoneyEndMedals();
+  syncMoneyCashInFromSand({force:true});
 }
 function renderBattleMode(){
   if(!battleModeOpen)return;
@@ -15694,6 +15744,29 @@ function closeNumericKeypad(){
 function updateKeypadValue(){
   document.getElementById('numericKeypadValue').textContent=activeNumericInput?.value||'0';
   updateNumericKeypadHint();
+  updateNumericKeypadShortcuts();
+}
+function updateNumericKeypadShortcuts(){
+  const holder=document.getElementById('numericKeypadShortcuts');
+  if(!holder)return;
+  const values=String(activeNumericInput?.dataset?.shortcuts||'').split(',').map(row=>normalizeOptionalNumber(row)).filter(row=>row!==null);
+  if(!values.length){
+    holder.innerHTML='';
+    holder.classList.remove('open');
+    return;
+  }
+  holder.innerHTML=values.map(value=>`<button type="button" class="keypad-btn action" onclick="setNumericKeypadValue(${escapeHtml(value)})">+${escapeHtml(value.toLocaleString('ja-JP'))}円</button>`).join('');
+  holder.classList.add('open');
+}
+function setNumericKeypadValue(value){
+  if(!activeNumericInput)return;
+  const normalized=normalizeOptionalNumber(value);
+  if(normalized===null)return;
+  activeNumericInput.dataset.replaceOnNextDigit='';
+  activeNumericInput.value=String(Math.round(normalized));
+  updateKeypadValue();
+  updateCalc();
+  updateMoneyRegistrationStatus();
 }
 function updateNumericKeypadHint(){
   const hint=document.getElementById('numericKeypadHint');
@@ -15713,6 +15786,9 @@ function updateNumericKeypadHint(){
     const medals=value===null?0:Math.round(value*rate);
     const yen=value===null?0:Math.round(value*1000);
     text=`千円単位（1 = 1,000円） / ${activeNumericInput.value||'0'} → ${yen.toLocaleString('ja-JP')}円 → ${medals.toLocaleString('ja-JP')}枚。±で修正可（マイナスで取り消し）`;
+  }else if(mode==='sandDeposit'){
+    const yen=value===null?0:Math.round(value);
+    text=`サンドへの入金額。投資ではないため、現金投入は使った分だけ自動計算します。入力: ${yen.toLocaleString('ja-JP')}円`;
   }else if(mode==='investMedals'){
     text=`${currentText}単位: 枚（投資枚数）`;
   }else if(mode==='setInvestedTotal'){
@@ -15810,6 +15886,34 @@ function applyBattleCreditToMoneyEndMedals(){
   if(credit===null)return false;
   el.value=String(Math.max(0,Math.round(credit)));
   syncMoneyEndMedalsLinkHint('実戦モードのクレジットから自動入力');
+  updateCalc();
+  return true;
+}
+function markMoneyCashInEdited(){
+  moneyCashInEdited=true;
+}
+function syncMoneyCashInHint(message=''){
+  const hint=document.getElementById('moneyCashInLinkHint');
+  if(hint)hint.textContent=message;
+}
+function sandReturnInputValue(){
+  return normalizeOptionalNumber(document.getElementById('moneySandReturn')?.value||'');
+}
+function actualCashInFromSand(state=battleModeIntervalTrackerState(),sandReturn=sandReturnInputValue()){
+  const interval=normalizeIntervalEstimate(state);
+  if(sandReturn!==null&&Number(interval.sandDeposits)>0)return Math.max(0,Math.round(interval.sandDeposits-sandReturn));
+  return Math.max(0,Math.round(battleModeCashInvestUnits(interval)*1000));
+}
+function syncMoneyCashInFromSand(options={}){
+  const el=document.getElementById('moneyCashIn');
+  if(!el||currentFlowStep!==4)return false;
+  if(moneyCashInEdited&&!options.force)return false;
+  const state=battleModeIntervalTrackerState();
+  const sandReturn=sandReturnInputValue();
+  const value=actualCashInFromSand(state,sandReturn);
+  el.value=String(value);
+  moneyCashInEdited=false;
+  syncMoneyCashInHint(sandReturn!==null&&Number(state.sandDeposits)>0?'入金合計 − サンド残額から自動入力':'+1000タップ履歴から自動入力');
   updateCalc();
   return true;
 }
@@ -15911,6 +16015,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
   flushStartMemoSave();
   const machine=currentMachine();const aim=currentAim();
   if(!machine||!aim)return null;
+  syncMoneyCashInFromSand();
   const enteredStartMedals=normalizeOptionalNumber(document.getElementById('moneyStartMedals')?.value||'');
   const chainStartMedals=currentChainStartMedals(enteredStartMedals);
   const baseMoney={
@@ -15924,6 +16029,7 @@ function currentInputLogObject(finalized=false, existingLog=null){
     startMedals:chainStartMedals,
     endMedals:normalizeOptionalNumber(document.getElementById('moneyEndMedals')?.value||''),
     cashIn:normalizeOptionalNumber(document.getElementById('moneyCashIn')?.value||'')??0,
+    sandReturn:normalizeOptionalNumber(document.getElementById('moneySandReturn')?.value||''),
     invest:null,
     recover:null
   };
@@ -16049,6 +16155,7 @@ function saveLog(options={}){
   const legacyMoneyMode=!!editingLog&&enteredStartMedals===null&&normalizeOptionalNumber(editingLog.money?.startMedals)===null&&((editingLog.money?.invest!==null&&editingLog.money?.invest!==undefined)||(editingLog.money?.recover!==null&&editingLog.money?.recover!==undefined));
   const chainStartMedals=currentChainStartMedals(enteredStartMedals);
   const finalizingChain=!options.continueAfter;
+  if(!legacyMoneyMode&&!options.continueAfter)syncMoneyCashInFromSand();
   const baseMoney={
     date:document.getElementById('moneyDate').value,
     store:document.getElementById('moneyStore').value,
@@ -16060,6 +16167,7 @@ function saveLog(options={}){
     startMedals:legacyMoneyMode?null:chainStartMedals,
     endMedals:legacyMoneyMode||options.continueAfter?null:normalizeOptionalNumber(document.getElementById('moneyEndMedals').value),
     cashIn:legacyMoneyMode||options.continueAfter?null:normalizeOptionalNumber(document.getElementById('moneyCashIn').value),
+    sandReturn:legacyMoneyMode||options.continueAfter?null:normalizeOptionalNumber(document.getElementById('moneySandReturn')?.value||''),
     invest:legacyMoneyMode?editingLog.money?.invest:null,
     recover:legacyMoneyMode?editingLog.money?.recover:null
   };
@@ -16205,12 +16313,16 @@ function clearLogInput(cancelEdit=true){
   document.getElementById('publishMachineNo').checked=false;
   const startMedals=document.getElementById('moneyStartMedals');
   const cashIn=document.getElementById('moneyCashIn');
+  const sandReturn=document.getElementById('moneySandReturn');
   if(startMedals)startMedals.value='';
   if(cashIn)cashIn.value='';
+  if(sandReturn)sandReturn.value='';
   currentStartLog=[];
   resetStartMemoState();
   moneyEndMedalsEdited=false;
+  moneyCashInEdited=false;
   syncMoneyEndMedalsLinkHint('');
+  syncMoneyCashInHint('');
   applySettingLabelToInputs(null);
   currentStartCounterEdited=false;
   currentStartCzFailCount=null;
@@ -16313,6 +16425,10 @@ function fillLogInputs(log){
   document.getElementById('moneyEndMedals').value=money.endMedals!==null&&money.endMedals!==undefined?String(money.endMedals):'';
   moneyEndMedalsEdited=normalizeOptionalNumber(money.endMedals)!==null;
   document.getElementById('moneyCashIn').value=money.cashIn!==null&&money.cashIn!==undefined?String(money.cashIn):'';
+  moneyCashInEdited=normalizeOptionalNumber(money.cashIn)!==null;
+  const sandReturn=document.getElementById('moneySandReturn');
+  if(sandReturn)sandReturn.value=money.sandReturn!==null&&money.sandReturn!==undefined?String(money.sandReturn):'';
+  syncMoneyCashInHint(money.sandReturn!==null&&money.sandReturn!==undefined?'保存済みのサンド残額を復元':'');
   applySettingLabelToInputs(log.settingLabel);
   document.getElementById('publicMemo').value=log.publicMemo||'';
   document.getElementById('privateMemo').value=log.privateMemo||'';
@@ -16514,6 +16630,10 @@ function continueFromLog(id,skipConfirm=false){
   document.getElementById('moneyStartMedals').value=chainStartMedals!==null&&chainStartMedals!==undefined?String(chainStartMedals):'';
   document.getElementById('moneyEndMedals').value='';
   document.getElementById('moneyCashIn').value='';
+  const sandReturn=document.getElementById('moneySandReturn');
+  if(sandReturn)sandReturn.value='';
+  moneyCashInEdited=false;
+  syncMoneyCashInHint('');
   document.getElementById('publicMemo').value='';
   document.getElementById('privateMemo').value='';
   syncHeaderFromMoney();
