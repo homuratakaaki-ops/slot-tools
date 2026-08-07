@@ -354,6 +354,13 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .money-status-item{display:flex;align-items:center;gap:6px;line-height:1.35;}
 .money-status-item.done{color:#9be0bd;}
 .money-status-item.todo{color:#ffb3b3;}
+.transfer-summary{margin-top:10px;padding:10px;border:1px solid rgba(201,168,76,.35);border-radius:8px;background:rgba(0,0,0,.16);}
+.transfer-summary-title{font-size:12px;font-weight:900;color:var(--gold-light);margin-bottom:7px;}
+.transfer-summary-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;}
+.transfer-summary-cell{border:1px solid var(--border);border-radius:6px;background:rgba(255,255,255,.03);padding:7px;}
+.transfer-summary-cell span{display:block;font-size:11px;color:var(--text-muted);}
+.transfer-summary-cell strong{display:block;margin-top:2px;font-size:15px;color:var(--text);}
+.transfer-summary-line{margin-top:8px;font-size:12px;color:var(--text-muted);word-break:break-word;}
 .current-context-bar{border:1px solid rgba(201,168,76,.28);border-radius:8px;background:rgba(0,0,0,.16);padding:9px 10px;margin:10px 0 12px;}
 .current-context-main{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;}
 .current-context-title{font-size:12px;font-weight:900;color:var(--gold-light);}
@@ -799,6 +806,10 @@ footer a:hover{color:var(--gold-light);}
         <div class="input-hint" id="moneyCashInLinkHint"></div>
       </div>
       <div class="input-row">
+        <div class="input-label">回収金額<div class="input-hint">換金した現金のみ。貯玉/貯メダル預けは0</div></div>
+        <div class="inline-field"><input type="text" id="moneyRecoverYen" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()" onchange="updateCalc()"><span class="input-hint">円</span></div>
+      </div>
+      <div class="input-row">
         <div class="input-label">サンド残額（返却額）<div class="input-hint">入力時は「入金合計 − 返却額」を現金投入に反映</div></div>
         <div class="inline-field"><input type="text" id="moneySandReturn" class="numeric-input" inputmode="none" readonly placeholder="任意" oninput="syncMoneyCashInFromSand({force:true})" onchange="syncMoneyCashInFromSand({force:true})"><span class="input-hint">円</span></div>
       </div>
@@ -818,6 +829,7 @@ footer a:hover{color:var(--gold-light);}
         </div>
         <div class="input-hint" id="rateHint" style="margin-top:8px;">交換率未設定</div>
         <div class="money-status incomplete" id="moneyRegistrationStatus"></div>
+        <div id="transferSummary"></div>
         <div class="warning" id="timeWarning">終了時間が開始時間より前です。MVPでは日跨ぎを計算しないため、稼働時間は0分にします。</div>
       </div>
       <div class="state4-actions">
@@ -5775,6 +5787,57 @@ function calcMoney(money){
   const diff=hasResult?recover-invest:null;
   const hourlyRate=hasResult&&workMinutes>0?Math.round(diff/workMinutes*60):null;
   return {workMinutes,diff,balance:diff,hourlyRate,invalidTime,hasResult,medalDiff:diff,yenDiff:null,lendRate,exchangeRate,cashIn:null,model:'legacy'};
+}
+function transferRecoverYen(money={}){
+  return normalizeOptionalNumber(money.settlementRecoverYen)??0;
+}
+function transferSummaryForMoney(money={},unit='枚'){
+  return {
+    investYen:normalizeOptionalNumber(money.cashIn)??0,
+    recoverYen:transferRecoverYen(money),
+    withdraw:normalizeOptionalNumber(money.startMedals)??0,
+    deposit:normalizeOptionalNumber(money.endMedals)??0,
+    unit
+  };
+}
+function transferSummaryText(summary){
+  return `投資${formatYenAmount(summary.investYen)}/回収${formatYenAmount(summary.recoverYen)}/引出${Number(summary.withdraw||0).toLocaleString('ja-JP')}${summary.unit}/預入${Number(summary.deposit||0).toLocaleString('ja-JP')}${summary.unit}`;
+}
+function transferSummaryHtml(summary,copyAction){
+  const line=transferSummaryText(summary);
+  const id=copyAction==='copyTransferSummaryFromInputs()'?'transferCopied':'transferCopied_'+copyAction.match(/'([^']+)'/)?.[1];
+  return `
+    <div class="transfer-summary">
+      <div class="transfer-summary-title">転記用</div>
+      <div class="transfer-summary-grid">
+        <div class="transfer-summary-cell"><span>投資金額</span><strong>${formatYenAmount(summary.investYen)}</strong></div>
+        <div class="transfer-summary-cell"><span>回収金額</span><strong>${formatYenAmount(summary.recoverYen)}</strong></div>
+        <div class="transfer-summary-cell"><span>貯玉引出</span><strong>${Number(summary.withdraw||0).toLocaleString('ja-JP')}${summary.unit}</strong></div>
+        <div class="transfer-summary-cell"><span>貯玉預入</span><strong>${Number(summary.deposit||0).toLocaleString('ja-JP')}${summary.unit}</strong></div>
+      </div>
+      <div class="transfer-summary-line">${escapeHtml(line)}</div>
+      <button class="btn-copy" type="button" onclick="${copyAction}">転記用をコピー</button>
+      <div class="copy-done" id="${escapeHtml(id||'transferCopied')}">コピーしました</div>
+    </div>`;
+}
+function transferMoneyFromInputs(){
+  return {
+    cashIn:normalizeOptionalNumber(document.getElementById('moneyCashIn')?.value||'')??0,
+    settlementRecoverYen:normalizeOptionalNumber(document.getElementById('moneyRecoverYen')?.value||'')??0,
+    startMedals:normalizeOptionalNumber(document.getElementById('moneyStartMedals')?.value||'')??0,
+    endMedals:normalizeOptionalNumber(document.getElementById('moneyEndMedals')?.value||'')??0
+  };
+}
+function renderTransferSummaryFromInputs(){
+  const el=document.getElementById('transferSummary');
+  if(el)el.innerHTML=transferSummaryHtml(transferSummaryForMoney(transferMoneyFromInputs()),'copyTransferSummaryFromInputs()');
+}
+function copyTransferSummaryFromInputs(){
+  copyText(transferSummaryText(transferSummaryForMoney(transferMoneyFromInputs())),'transferCopied');
+}
+function copyTransferSummaryForLog(id){
+  const log=db.logs.find(l=>l.id===id);if(!log)return;
+  copyText(transferSummaryText(transferSummaryForMoney(log.money||{})),'transferCopied_'+id);
 }
 function clearMoneyResult(money){
   if(!money)return;
@@ -16198,6 +16261,7 @@ function updateCalc(){
   const rateHint=document.getElementById('rateHint');
   if(rateHint)rateHint.textContent=calc.exchangeRate?`貸し ${calc.lendRate??'-'}枚 / 交換 ${calc.exchangeRate}枚で円換算`:'交換率未設定のため円収支は未計算';
   updateMoneyRegistrationStatus();
+  renderTransferSummaryFromInputs();
   const warning=document.getElementById('timeWarning');
   if(warning)warning.style.display=calc.invalidTime?'block':'none';
 }
@@ -16297,6 +16361,8 @@ function currentInputLogObject(finalized=false, existingLog=null){
     invest:null,
     recover:null
   };
+  const settlementRecoverYen=normalizeOptionalNumber(document.getElementById('moneyRecoverYen')?.value||'')??0;
+  if(settlementRecoverYen>0)baseMoney.settlementRecoverYen=settlementRecoverYen;
   const store=storeByName(baseMoney.store);
   baseMoney.lendRate=store?.lendRate??null;
   baseMoney.exchangeRate=store?.exchangeRate??null;
@@ -16435,6 +16501,8 @@ function saveLog(options={}){
     invest:legacyMoneyMode?editingLog.money?.invest:null,
     recover:legacyMoneyMode?editingLog.money?.recover:null
   };
+  const settlementRecoverYen=legacyMoneyMode||options.continueAfter?0:(normalizeOptionalNumber(document.getElementById('moneyRecoverYen')?.value||'')??0);
+  if(settlementRecoverYen>0)baseMoney.settlementRecoverYen=settlementRecoverYen;
   if(!legacyMoneyMode&&baseMoney.startMedals===null){alert('開始持ちメダルを入力してください');return;}
   if(finalizingChain&&!editingLog&&!confirm('この続行中の稼働の収支を登録します。終了持ちメダル・現金投入が未入力でも保存できますが、ログ上では収支未登録として扱います。よろしいですか？'))return;
   const store=storeByName(baseMoney.store);
@@ -16579,9 +16647,11 @@ function clearLogInput(cancelEdit=true){
   const startMedals=document.getElementById('moneyStartMedals');
   const cashIn=document.getElementById('moneyCashIn');
   const sandReturn=document.getElementById('moneySandReturn');
+  const recoverYen=document.getElementById('moneyRecoverYen');
   if(startMedals)startMedals.value='';
   if(cashIn)cashIn.value='';
   if(sandReturn)sandReturn.value='';
+  if(recoverYen)recoverYen.value='';
   currentStartLog=[];
   resetStartMemoState();
   moneyEndMedalsEdited=false;
@@ -16693,6 +16763,8 @@ function fillLogInputs(log){
   moneyCashInEdited=normalizeOptionalNumber(money.cashIn)!==null;
   const sandReturn=document.getElementById('moneySandReturn');
   if(sandReturn)sandReturn.value=money.sandReturn!==null&&money.sandReturn!==undefined?String(money.sandReturn):'';
+  const recoverYen=document.getElementById('moneyRecoverYen');
+  if(recoverYen)recoverYen.value=money.settlementRecoverYen!==null&&money.settlementRecoverYen!==undefined?String(money.settlementRecoverYen):'';
   syncMoneyCashInHint(money.sandReturn!==null&&money.sandReturn!==undefined?'保存済みのサンド残額を復元':'');
   applySettingLabelToInputs(log.settingLabel);
   document.getElementById('publicMemo').value=log.publicMemo||'';
@@ -16897,6 +16969,8 @@ function continueFromLog(id,skipConfirm=false){
   document.getElementById('moneyCashIn').value='';
   const sandReturn=document.getElementById('moneySandReturn');
   if(sandReturn)sandReturn.value='';
+  const recoverYen=document.getElementById('moneyRecoverYen');
+  if(recoverYen)recoverYen.value='';
   moneyCashInEdited=false;
   syncMoneyCashInHint('');
   document.getElementById('publicMemo').value='';
@@ -18035,6 +18109,7 @@ function renderLogItem(log,options={}){
           ${log.excludeFromStats?'<div class="unfinalized-note">収支未登録のため集計対象外です。</div>':''}
           <div class="log-summary-meta">${escapeHtml(logSummaryMeta(log))}</div>
           <div class="log-summary-meta">${escapeHtml(practiceStatsLine(calculatePracticeStats(log)))}</div>
+          <div class="log-summary-meta">${escapeHtml(transferSummaryText(transferSummaryForMoney(log.money||{})))}</div>
         </button>
         <div class="item-actions">
           <button class="btn-small edit-strong" onclick="loadLogForEdit('${log.id}')">編集</button>
@@ -18043,6 +18118,7 @@ function renderLogItem(log,options={}){
       </div>
       ${isOpen?`
         <div class="log-detail">
+          ${transferSummaryHtml(transferSummaryForMoney(log.money||{}),`copyTransferSummaryForLog('${escapeHtml(log.id)}')`)}
           <textarea id="share_${log.id}" style="min-height:180px;">${escapeHtml(buildShareText(log))}</textarea>
           <div class="item-actions" style="margin-top:8px;">
             <button class="btn-copy" onclick="copyLog('${log.id}')">詳細をコピー</button>

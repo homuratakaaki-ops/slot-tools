@@ -5488,6 +5488,30 @@ function testTimelineSameMinuteOrderUsesArrayOrderFallback() {
   assert.deepEqual(sortedIds, ['tl_slim_2', 'tl_slim_1']);
 }
 
+function testTransferSummaryUsesSettlementFieldsAndCopies() {
+  const { context } = runRecord();
+  const result = JSON.parse(vm.runInContext(`JSON.stringify({
+    line: transferSummaryText(transferSummaryForMoney({ cashIn: 11000, startMedals: 0, endMedals: 1911 })),
+    html: transferSummaryHtml(transferSummaryForMoney({ cashIn: 11000, startMedals: 0, endMedals: 1911 }), 'copyTransferSummaryFromInputs()')
+  })`, context));
+  assert.equal(result.line, '投資11,000円/回収0円/引出0枚/預入1,911枚');
+  assert.match(stripTags(result.html), /転記用/);
+  assert.match(stripTags(result.html), /投資金額11,000円/);
+  assert.match(stripTags(result.html), /回収金額0円/);
+  assert.match(stripTags(result.html), /貯玉引出0枚/);
+  assert.match(stripTags(result.html), /貯玉預入1,911枚/);
+
+  let copied = '';
+  context.navigator.clipboard = {
+    writeText(text) {
+      copied = text;
+      return Promise.resolve();
+    }
+  };
+  vm.runInContext("copyText(transferSummaryText(transferSummaryForMoney({ cashIn: 11000, startMedals: 0, endMedals: 1911 })), 'missingCopied')", context);
+  assert.equal(copied, '投資11,000円/回収0円/引出0枚/預入1,911枚');
+}
+
 function run() {
   new vm.Script(extractScript(), { filename: 'nerai-record.html<script>' });
   testTokyoGhoulPresetInitialDisplayAndSpecificFeatures();
@@ -5595,6 +5619,7 @@ function run() {
   testSuggestLogSlimFallbackForMissingMaster();
   testTimelineStorageSlimAndHydratesDefaults();
   testTimelineSameMinuteOrderUsesArrayOrderFallback();
+  testTransferSummaryUsesSettlementFieldsAndCopies();
   testLegacyBackupLoad();
   testTokyoGhoulCustomMachineDataSurvivesSeedOnRestore();
   testLegacyBackupWithSyntheticLogAndGuard();
