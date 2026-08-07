@@ -1165,6 +1165,7 @@ footer a:hover{color:var(--gold-light);}
 
 <script>
 const STORAGE_KEY='nerai_record_v1';
+const STORAGE_POOL_KEY='nerai_pool_v1';
 const STORAGE_LAST_GOOD_KEY='nerai_record_v1_last_good';
 const STORAGE_PREMIGRATE_KEY='nerai_record_v1_premigrate';
 const STORAGE_PRERESTORE_KEY='nerai_record_v1_prerestore';
@@ -1370,6 +1371,7 @@ let storageProtectionLocked=false;
 let storageProtectionReason='';
 let checkpointWarning='';
 let db=null;
+let poolStore={v:1,items:[]};
 let selectedMachineId='';
 let selectedAimId='';
 let activeNumericInput=null;
@@ -8404,11 +8406,174 @@ function compareMetricPairsForLogs(logs,metric,machine=currentMachine()){
     return sum;
   },comparePair());
 }
-function comparePoolLogs(machine,mode,targetLabel){
+function compactPoolPair(pair){
+  const num=Math.max(0,Number(pair?.num)||0);
+  const den=Math.max(0,Number(pair?.den)||0);
+  if(num<=0&&den<=0)return null;
+  return [num,den];
+}
+function expandPoolPair(pair){
+  if(Array.isArray(pair))return comparePair(pair[0],pair[1]);
+  return comparePair(pair?.num,pair?.den);
+}
+function poolSummaryKeyForLog(log){
+  const date=String(log?.money?.date||log?.date||'');
+  const machineId=String(log?.machineId||'');
+  const session=String(log?.sessionId||log?.id||'');
+  const aimNumber=Number.isFinite(Number(log?.aimNumber))?String(Number(log.aimNumber)):'';
+  const start=normalizeOptionalNumber(log?.startCounterGame);
+  const created=String(log?.createdAt||'').slice(0,16);
+  return [date,machineId,session,aimNumber,start!==null?String(start):'',created].join('|');
+}
+function compactSettingLabelForPool(label){
+  const normalized=normalizeSettingLabel(label);
+  if(!normalized)return null;
+  const out={v:normalized.value};
+  if(normalized.atLeast)out.a=1;
+  if(normalized.confirmed)out.c=1;
+  return out;
+}
+function expandPoolSettingLabel(label){
+  if(!label||typeof label!=='object')return null;
+  return normalizeSettingLabel({value:label.v,atLeast:label.a===1||label.atLeast===true,confirmed:label.c===1||label.confirmed===true});
+}
+function poolChanceEyeCharPairs(log,machine){
+  if(!isKabaneriMachine(machine))return null;
+  const summary=kabaneriChanceEyeTableSummary(logAllTimelineRows(log),machine,logAllHitRows(log)).total;
+  const map={mumei:'m',ikoma:'i',kabane:'k'};
+  const out={};
+  Object.entries(map).forEach(([charKey,short])=>{
+    const row=summary.rows?.[charKey]||{};
+    const total=(Number(row.single?.total)||0)+(Number(row.multi?.total)||0);
+    const deduction=(Number(row.single?.deduction)||0)+(Number(row.multi?.deduction)||0);
+    if(total>0||deduction>0)out[short]=[deduction,total];
+  });
+  return Object.keys(out).length?out:null;
+}
+function buildPoolSummaryFromLog(log,machine=machineById(log?.machineId)){
+  if(!log||!machine)return null;
+  const metrics=machineCompareMetrics(machine);
+  const pairs={};
+  metrics.forEach(metric=>{
+    const pair=compactPoolPair(compareMetricPairForLog(log,metric,machine));
+    if(pair)pairs[metric.key]=pair;
+  });
+  const out={
+    k:poolSummaryKeyForLog(log),
+    d:String(log?.money?.date||log?.date||''),
+    m:String(log?.machineId||'')
+  };
+  const start=normalizeOptionalNumber(log?.startCounterGame);
+  if(start!==null)out.g=start;
+  const label=compactSettingLabelForPool(log.settingLabel);
+  if(label)out.l=label;
+  if(Object.keys(pairs).length)out.p=pairs;
+  const chance=poolChanceEyeCharPairs(log,machine);
+  if(chance)out.ch=chance;
+  return out.k&&out.m?out:null;
+}
+function normalizePoolSummary(item){
+  if(!item||typeof item!=='object')return null;
+  const key=String(item.k||'');
+  const machineId=String(item.m||'');
+  if(!key||!machineId)return null;
+  const out={k:key,m:machineId};
+  if(item.d)out.d=String(item.d);
+  const start=normalizeOptionalNumber(item.g);
+  if(start!==null)out.g=start;
+  const label=compactSettingLabelForPool(expandPoolSettingLabel(item.l));
+  if(label)out.l=label;
+  const pairs={};
+  Object.entries(item.p||{}).forEach(([metricKey,pair])=>{
+    const compact=compactPoolPair(expandPoolPair(pair));
+    if(compact)pairs[metricKey]=compact;
+  });
+  if(Object.keys(pairs).length)out.p=pairs;
+  const chance={};
+  Object.entries(item.ch||{}).forEach(([key,pair])=>{
+    const compact=compactPoolPair({num:Array.isArray(pair)?pair[0]:pair?.num,den:Array.isArray(pair)?pair[1]:pair?.den});
+    if(compact)chance[key]=compact;
+  });
+  if(Object.keys(chance).length)out.ch=chance;
+  return out;
+}
+function normalizePoolStore(data){
+  const items=Array.isArray(data?.items)?data.items:Array.isArray(data)?data:[];
+  const byKey=new Map();
+  items.map(normalizePoolSummary).filter(Boolean).forEach(item=>byKey.set(item.k,item));
+  return {v:1,items:[...byKey.values()]};
+}
+function loadPoolSummaries(){
+  try{
+    return normalizePoolStore(JSON.parse(localStorage.getItem(STORAGE_POOL_KEY)||'null'));
+  }catch(error){
+    console.warn('pool summary load failed',error);
+    return {v:1,items:[]};
+  }
+}
+function persistPoolSummaries(){
+  try{
+    localStorage.setItem(STORAGE_POOL_KEY,JSON.stringify(normalizePoolStore(poolStore)));
+    poolStore=loadPoolSummaries();
+    renderStorageUsage();
+    return true;
+  }catch(error){
+    console.warn('pool summary persist failed',error);
+    renderStorageUsage();
+    return false;
+  }
+}
+function upsertPoolSummary(summary){
+  const normalized=normalizePoolSummary(summary);
+  if(!normalized)return false;
+  const next=normalizePoolStore(poolStore);
+  const index=next.items.findIndex(item=>item.k===normalized.k);
+  if(index>=0)next.items[index]=normalized;
+  else next.items.push(normalized);
+  poolStore=next;
+  return true;
+}
+function appendLogToPoolSummary(log,{persistNow=true}={}){
+  const summary=buildPoolSummaryFromLog(log);
+  if(!upsertPoolSummary(summary))return false;
+  return persistNow?persistPoolSummaries():true;
+}
+function importPoolSummariesFromLogs({persistNow=false}={}){
+  let changed=false;
+  (Array.isArray(db?.logs)?db.logs:[]).forEach(log=>{
+    const summary=buildPoolSummaryFromLog(log);
+    if(summary&&!poolStore.items.some(item=>item.k===summary.k)){
+      upsertPoolSummary(summary);
+      changed=true;
+    }
+  });
+  if(changed&&persistNow)return persistPoolSummaries();
+  return changed;
+}
+function poolSummaryMetricPair(summary,metric){
+  return expandPoolPair(summary?.p?.[metric?.key]);
+}
+function poolMetricPairsForEntries(entries,metric){
+  return (Array.isArray(entries)?entries:[]).reduce((sum,entry)=>{
+    const pair=poolSummaryMetricPair(entry,metric);
+    sum.num+=pair.num;
+    sum.den+=pair.den;
+    return sum;
+  },comparePair());
+}
+function comparePoolEntries(machine,mode,targetLabel){
   const target=normalizeSettingLabel(targetLabel);
-  return (db.logs||[]).filter(log=>{
-    if(log?.machineId!==machine?.id)return false;
-    const label=normalizeSettingLabel(log.settingLabel);
+  const byKey=new Map();
+  normalizePoolStore(poolStore).items.forEach(item=>byKey.set(item.k,item));
+  (db.logs||[]).forEach(log=>{
+    const key=poolSummaryKeyForLog(log);
+    if(!key||byKey.has(key))return;
+    const summary=buildPoolSummaryFromLog(log,machineById(log?.machineId));
+    if(summary)byKey.set(summary.k,summary);
+  });
+  return [...byKey.values()].filter(summary=>{
+    if(summary?.m!==machine?.id)return false;
+    const label=expandPoolSettingLabel(summary.l);
     if(!label||label.value===null)return false;
     if(mode==='same')return target?settingLabelEquals(label,target):false;
     if(mode==='atLeast')return label.value>=((target?.value)||5);
@@ -8462,7 +8627,7 @@ function kabaneriCompareSummary({mode='same'}={}){
   const metrics=machineCompareMetrics(machine);
   const todayLog=currentCompareSourceLog();
   const target=normalizeSettingLabel(todayLog.settingLabel)||{value:5,atLeast:true,confirmed:false};
-  const poolLogs=comparePoolLogs(machine,mode,target);
+  const poolLogs=comparePoolEntries(machine,mode,target);
   return {
     machine,
     metrics,
@@ -8472,7 +8637,7 @@ function kabaneriCompareSummary({mode='same'}={}){
     rows:metrics.map(metric=>({
       metric,
       today:compareMetricPairForLog(todayLog,metric,machine),
-      pool:compareMetricPairsForLogs(poolLogs,metric,machine)
+      pool:poolMetricPairsForEntries(poolLogs,metric)
     }))
   };
 }
@@ -16260,6 +16425,7 @@ function saveLog(options={}){
   db.draftLog=null;
   const saved=persist();
   if(!saved)return null;
+  appendLogToPoolSummary(log);
   clearBattleMemoDraft();
   if(saved)saveCheckpoint(finalized?'収支登録後':'区切り保存後',log.sessionId);
   const wasEditing=!!editingLog;
@@ -17898,6 +18064,8 @@ window.addEventListener('focus',()=>handlePageResume('focus復帰'));
 window.addEventListener('pageshow',()=>handlePageResume('pageshow復帰'));
 
 db=loadData();
+poolStore=loadPoolSummaries();
+importPoolSummariesFromLogs({persistNow:true});
 cleanupLegacyDailyStorageBackups();
 setDraftRestorePending(hasPendingRestorableDraft());
 const initialDraftMachine=pendingDraftRestore?machineById(db.draftLog?.machineId):null;

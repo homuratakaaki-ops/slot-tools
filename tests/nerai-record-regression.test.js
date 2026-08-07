@@ -3247,6 +3247,85 @@ function testKabaneriCompareViewAndSettingLabel() {
   assert.equal(vm.runInContext("machineCompareMetrics(currentMachine()).length", context), 0);
 }
 
+function testPoolSummaryPersistsAfterLogDeleteAndDedupes() {
+  const seed = {
+    version: 1,
+    machines: [],
+    stores: [],
+    logs: [
+      {
+        id: 'pool_a', schemaVersion: 4, sessionId: 'sess_a', aimNumber: 1, status: 'settled',
+        machineId: 'm_kabaneri', money: { date: '2026-08-02' }, startCounterGame: 0,
+        createdAt: '2026-08-02T10:00:00.000Z', settingLabel: { value: 5, atLeast: false, confirmed: false },
+        subCounters: { lowerBell: 10 }, timeline: [], segments: [], hitEvents: [], endLog: { game: 100, liquidGame: 100 }
+      },
+      {
+        id: 'pool_b', schemaVersion: 4, sessionId: 'sess_b', aimNumber: 1, status: 'settled',
+        machineId: 'm_kabaneri', money: { date: '2026-08-03' }, startCounterGame: 0,
+        createdAt: '2026-08-03T10:00:00.000Z', settingLabel: { value: 5, atLeast: false, confirmed: false },
+        subCounters: { lowerBell: 20 }, timeline: [
+          { id:'b_chance', game:10, liquidGame:10, tagIds:['t_kabaneri_chance_mumei'], attachments:[], createdAt:'2026-08-03T10:01:00.000Z' },
+          { id:'b_flash', game:11, liquidGame:11, tagIds:['t_kabaneri_state_mumei_flash_start'], attachments:[], createdAt:'2026-08-03T10:01:30.000Z' }
+        ], segments: [], hitEvents: [], endLog: { game: 200, liquidGame: 200 }
+      },
+      {
+        id: 'pool_c', schemaVersion: 4, sessionId: 'sess_c', aimNumber: 1, status: 'settled',
+        machineId: 'm_kabaneri', money: { date: '2026-08-04' }, startCounterGame: 0,
+        createdAt: '2026-08-04T10:00:00.000Z', settingLabel: { value: 6, atLeast: false, confirmed: false },
+        subCounters: { lowerBell: 30 }, timeline: [
+          { id:'c_pt', game:20, liquidGame:20, tagIds:['t_kabaneri_shunjo_pt'], attachments:[{key:'shunjoTanCha',label:'単チャ目',value:3,unit:''},{key:'tanCha3000',label:'単チャ目3000pt',value:1,unit:''}], createdAt:'2026-08-04T10:01:00.000Z' }
+        ], segments: [], hitEvents: [], endLog: { game: 300, liquidGame: 300 }
+      },
+      {
+        id: 'pool_no_label', schemaVersion: 4, sessionId: 'sess_no_label', aimNumber: 1, status: 'settled',
+        machineId: 'm_kabaneri', money: { date: '2026-08-05' }, startCounterGame: 0,
+        createdAt: '2026-08-05T10:00:00.000Z',
+        subCounters: { lowerBell: 99 }, timeline: [], segments: [], hitEvents: [], endLog: { game: 999, liquidGame: 999 }
+      }
+    ]
+  };
+  const { context, localStorage } = runRecord(JSON.stringify(seed), [true, true]);
+
+  const imported = JSON.parse(localStorage.getItem('nerai_pool_v1'));
+  assert.equal(imported.items.length, 4);
+  assert.ok(imported.items.every(item => item.k && item.m === 'm_kabaneri'));
+  const oneSize = JSON.stringify(imported.items[0]).length;
+  assert.ok(oneSize < 260, `pool summary too large: ${oneSize}`);
+
+  vm.runInContext(`
+    selectedMachineId = 'm_kabaneri';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    currentSettingLabel = { value:5, atLeast:false, confirmed:false };
+  `, context);
+  const before = JSON.parse(vm.runInContext(`JSON.stringify({
+    count: kabaneriCompareSummary({mode:'atLeast'}).poolLogs.length,
+    rows: kabaneriCompareSummary({mode:'atLeast'}).rows.map(row => ({ key: row.metric.key, pool: row.pool }))
+  })`, context));
+  assert.equal(before.count, 3);
+  assert.deepEqual(before.rows.find(row => row.key === 'lowerBell').pool, { num: 60, den: 600 });
+  assert.deepEqual(before.rows.find(row => row.key === 'tanCha3000').pool, { num: 1, den: 3 });
+
+  vm.runInContext("deleteLog('pool_a')", context);
+  const storedAfterDelete = JSON.parse(localStorage.getItem('nerai_record_v1'));
+  assert.equal(storedAfterDelete.logs.some(log => log.id === 'pool_a'), false);
+  assert.equal(JSON.parse(localStorage.getItem('nerai_pool_v1')).items.length, 4);
+
+  const after = JSON.parse(vm.runInContext(`JSON.stringify({
+    count: kabaneriCompareSummary({mode:'atLeast'}).poolLogs.length,
+    rows: kabaneriCompareSummary({mode:'atLeast'}).rows.map(row => ({ key: row.metric.key, pool: row.pool }))
+  })`, context));
+  assert.equal(after.count, before.count);
+  assert.deepEqual(after.rows, before.rows);
+
+  vm.runInContext(`
+    const noLabelLog = db.logs.find(log => log.id === 'pool_no_label');
+    appendLogToPoolSummary(noLabelLog);
+  `, context);
+  assert.equal(JSON.parse(localStorage.getItem('nerai_pool_v1')).items.length, 4);
+  const allMode = JSON.parse(vm.runInContext("JSON.stringify(kabaneriCompareSummary({mode:'all'}).poolLogs.map(row => row.k))", context));
+  assert.equal(allMode.some(key => key.includes('sess_no_label')), false);
+}
+
 function testKabaneriStFlowAndCounters() {
   const { context } = runRecord(undefined);
   installBattleModeStateDom(context);
@@ -5291,6 +5370,7 @@ function run() {
   testKabaneriHitCauseFirstFlow();
   testKabaneriShunjoPtStep();
   testKabaneriCompareViewAndSettingLabel();
+  testPoolSummaryPersistsAfterLogDeleteAndDedupes();
   testKabaneriStFlowAndCounters();
   testKabaneriChanceEyeMeterAndCounters();
   testKabaneriChanceEyeSituationView();
