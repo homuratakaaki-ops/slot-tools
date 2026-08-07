@@ -1143,6 +1143,18 @@
       margin-top: 14px;
     }
 
+    .modal-dai-title {
+      margin: 4px 0 8px;
+      color: var(--ink);
+      font-weight: 800;
+    }
+
+    .modal-dai-title strong {
+      font-size: 1.5em;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
     .closing-display {
       min-height: 72px;
       display: grid;
@@ -3954,6 +3966,7 @@
       const ended = closingInputFlow.ended;
       const savedValue = currentClosingSavedValue();
       openModal(`台 ${daiNo} の閉店回転数`, "端末キーボードを使わず、この画面だけで連続入力します。", `
+        <p class="modal-dai-title">台 <strong>${escapeHtml(daiNo)}</strong> の閉店回転数</p>
         <button class="small" id="changeClosingTargetDateBtn">${escapeHtml(shortDate(closingTargetDate))} の閉店回転数として保存（タップで日付変更）</button>
         <input id="closingTargetDateInput" type="date" value="${escapeHtml(closingTargetDate)}" hidden>
         <div class="closing-display" id="closingDisplay">${escapeHtml(closingInputFlow.buffer || "0")}</div>
@@ -4129,6 +4142,23 @@
       return morningCheckFlow?.sequence[morningCheckFlow.index] || "";
     }
 
+    function morningRamClearLabel(value) {
+      if (value === RAM_CLEAR_VALUE) return "有り";
+      if (value === RAM_NOT_CLEARED_VALUE) return "無し";
+      if (value === RAM_UNKNOWN_VALUE) return "不明";
+      return "";
+    }
+
+    function morningStateSummary(state) {
+      const ramClear = normalizeRamClear(state?.ramClear);
+      const prevInvalid = state?.prevInvalid === true;
+      const parts = [];
+      const ramLabel = morningRamClearLabel(ramClear);
+      if (ramLabel) parts.push(`ラムクリ${ramLabel}`);
+      if (prevInvalid) parts.push("前日無効");
+      return parts.length ? parts.join("・") : "";
+    }
+
     function renderMorningCheckModal() {
       if (!morningCheckFlow) return;
       const daiNo = currentMorningDaiNo();
@@ -4142,7 +4172,10 @@
       const leftDai = atStart ? null : morningCheckFlow.sequence[morningCheckFlow.index - 1];
       const rightDai = atEnd ? null : morningCheckFlow.sequence[morningCheckFlow.index + 1];
       const ended = morningCheckFlow.ended;
+      const savedSummary = morningStateSummary(todayState);
       openModal(`台 ${daiNo} / 前日ヤメ ${previous ? `${previous.spin}回転` : "-"}`, "朝の状態だけを記録します。前日分を無効にしても閉店チェック値は消しません。", `
+        <p class="modal-dai-title">台 <strong>${escapeHtml(daiNo)}</strong> / 前日ヤメ ${previous ? `${escapeHtml(previous.spin)}回転` : "-"}</p>
+        <p class="hint">${savedSummary ? `保存済み: ${escapeHtml(savedSummary)}` : "未登録"}</p>
         ${ended ? `<p class="hint warn">この列は終わりです。</p><div class="modal-actions"><button class="primary" data-close>マップへ戻る</button></div>` : `
           <div class="list">
             <label class="check-chip"><input id="morningPrevInvalid" type="checkbox" ${prevInvalid ? "checked" : ""}> 前日分を無効にする（当日すでに大当たり or リセット）</label>
@@ -4243,7 +4276,7 @@
         renderMorningCheckModal();
         return false;
       }
-      morningCheckFlow.recent = `保存: ${daiNo}`;
+      morningCheckFlow.recent = `保存: ${daiNo}=${morningStateSummary(state) || "未登録"}`;
       return true;
     }
 

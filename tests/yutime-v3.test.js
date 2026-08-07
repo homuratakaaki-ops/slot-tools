@@ -35,6 +35,11 @@ const machineDetailForm = section('function machineDetailFormHtml', 'function op
 const openMachineDetail = section('function openMachineDetail', 'function renderMachineExpectation');
 const machineModelDisplay = section('function machineModelDisplay', 'function applyPresetToMachine');
 const columnPresetApply = section('function applyColumnPresetsToMachines', 'function machineHasIndividualSetting');
+const renderClosingInputModal = section('function renderClosingInputModal', 'function directionPreviewText');
+const morningStateSummary = section('function morningStateSummary', 'function renderMorningCheckModal');
+const renderMorningCheckModal = section('function renderMorningCheckModal', 'function morningDirectionPreviewText');
+const saveMorningCurrent = section('function saveMorningCurrent', 'function saveMorningAndAdvance');
+const modalStyle = section('.modal-actions', '.closing-display');
 const style = section('.source-chip-row', '.unified-invest-row');
 
 assert.match(hitWizard, /openHitResetPrompt\(session\);\s*\}, \{ firstBackCancels: true \}\);/);
@@ -101,5 +106,14 @@ assert.match(machineDetailForm, /id="roundBalls"/);
 assert.match(machineModelDisplay, /source: "[^"]+"/);
 assert.match(machineModelDisplay, /name: "[^"]+"/);
 assert.match(columnPresetApply, /if \(hasIndividualSetting && currentPresetId !== presetId && !allowOverwrite\) return;/);
+
+assert.match(modalStyle, /\.modal-dai-title strong \{\s*font-size: 1\.5em;\s*font-weight: 900;/);
+assert.match(renderClosingInputModal, /<p class="modal-dai-title">台 <strong>\$\{escapeHtml\(daiNo\)\}<\/strong> の閉店回転数<\/p>/);
+assert.match(morningStateSummary, /if \(ramLabel\) parts\.push\(`ラムクリ\$\{ramLabel\}`\);/);
+assert.match(morningStateSummary, /if \(prevInvalid\) parts\.push\("前日無効"\);/);
+assert.match(renderMorningCheckModal, /const savedSummary = morningStateSummary\(todayState\);/);
+assert.match(renderMorningCheckModal, /<p class="modal-dai-title">台 <strong>\$\{escapeHtml\(daiNo\)\}<\/strong> \/ 前日ヤメ/);
+assert.match(renderMorningCheckModal, /\$\{savedSummary \? `保存済み: \$\{escapeHtml\(savedSummary\)\}` : "未登録"\}/);
+assert.match(saveMorningCurrent, /morningCheckFlow\.recent = `保存: \$\{daiNo\}=\$\{morningStateSummary\(state\) \|\| "未登録"\}`;/);
 
 console.log('yutime-v3 tests passed');
