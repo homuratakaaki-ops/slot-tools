@@ -9698,6 +9698,22 @@ function chanceFollowUpMultiAllMembersHigh(followUp){
   const members=Array.isArray(followUp?.members)?followUp.members:[];
   return members.length>0&&members.every(member=>member?.high&&battleModeStateActiveForStartTag(member.high));
 }
+function chanceFollowUpTagIncludesKabane(tagId,followUp=null){
+  const id=String(tagId||'').trim();
+  if(id==='t_kabaneri_chance_kabane')return true;
+  const row=followUp||chanceFollowUpMultiForTagId(id);
+  return Array.isArray(row?.members)&&row.members.some(member=>
+    member?.high==='t_kabaneri_state_kabane_high_start'||
+    member?.flash==='t_kabaneri_state_kabane_flash_start'||
+    String(member?.label||'').includes('カバネ')
+  );
+}
+function maybeAutoEndKabaneriSuperHighAfterChance(tagId,followUp=null){
+  if(!isKabaneriMachine(currentMachine()))return;
+  if(!chanceFollowUpTagIncludesKabane(tagId,followUp))return;
+  if(!battleModeStateActiveForEndTag('t_kabaneri_state_super_high_end'))return;
+  addAutomaticTimelineTagById('t_kabaneri_state_super_high_end');
+}
 function stateAutoEndExtraTagIds(tagIds,machine=currentMachine()){
   const rules=machineStateAutoEnd(machine);
   const ids=[];
@@ -9800,7 +9816,10 @@ function battleModeRecordChanceFollowUp(tagId,choice,options={}){
   const extraTagIds=chanceFollowUpExtraTagIds(followUp,choice);
   const textSuffix=`（${chanceFollowUpStateCompactText(stateChoice)}→${chanceFollowUpTransitionCompactText(choice)}）`;
   closeBattleModeOtherSheet();
-  battleModeCommit(tag.label,()=>addInstantTimelineTagWithAttachments(tag,[],{extraTagIds,textSuffix}));
+  battleModeCommit(tag.label,()=>{
+    addInstantTimelineTagWithAttachments(tag,[],{extraTagIds,textSuffix});
+    maybeAutoEndKabaneriSuperHighAfterChance(tag.id,followUp);
+  });
 }
 function openBattleModeChanceFollowUpMultiFlashPicker(tagId){
   const tag=battleModeCurrentTagById(tagId);
@@ -9842,7 +9861,10 @@ function battleModeRecordChanceFollowUpMulti(highChoice){
   const extraTagIds=[...new Set([...autoFlashIds,...flashIds,...highIds])];
   battleModeKabaneriMultiDraft=null;
   closeBattleModeOtherSheet();
-  battleModeCommit(tag.label,()=>addInstantTimelineTagWithAttachments(tag,[],{extraTagIds}));
+  battleModeCommit(tag.label,()=>{
+    addInstantTimelineTagWithAttachments(tag,[],{extraTagIds});
+    maybeAutoEndKabaneriSuperHighAfterChance(tag.id,followUp);
+  });
 }
 function battleModeRecordTag(id){
   const tag=currentMachine()?.tags?.find(row=>row.id===id);

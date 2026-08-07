@@ -420,6 +420,43 @@ function testKabaneriPresetSeedAndPickers() {
   const superBadgeHtml = vm.runInContext("renderBattleModeStateBadges()", context);
   assert.match(superBadgeHtml, /bm-state-badge kabaneri-gold/);
   assert.match(superBadgeHtml, /bm-choice-text-gold">超<\/span><span class="bm-choice-text-blue">高確/);
+
+  vm.runInContext("setTimelineGames(121,121); battleModeRecordChanceFollowUp('t_kabaneri_chance_kabane','none')", context);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_super_high')", context), false);
+  assert.equal(vm.runInContext("currentTimeline.at(-1).auto", context), true);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_state_super_high_end']
+  );
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.kabane.single.super", context), 1);
+
+  vm.runInContext(`
+    currentTimeline=[];
+    setTimelineGames(130,130);
+    battleModeRecordState('kabaneri_super_high','start');
+    setTimelineGames(131,131);
+    battleModeKabaneriMultiDraft = { tagId:'t_kabaneri_multi_mumei_kabane', flashChoice:'none' };
+    battleModeRecordChanceFollowUpMulti('none');
+  `, context);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_super_high')", context), false);
+  assert.equal(vm.runInContext("currentTimeline.at(-1).auto", context), true);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_state_super_high_end']
+  );
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.kabane.multi.super", context), 1);
+
+  vm.runInContext(`
+    currentTimeline=[];
+    setTimelineGames(140,140);
+    battleModeRecordState('kabaneri_kabane_high','start');
+    setTimelineGames(141,141);
+    battleModeRecordChanceFollowUp('t_kabaneri_chance_kabane','flash');
+  `, context);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_kabane_high')", context), true);
+  assert.equal(vm.runInContext("currentTimeline.some(entry => entry.tagIds && entry.tagIds.includes('t_kabaneri_state_super_high_end'))", context), false);
+
+  vm.runInContext("currentTimeline=[]; setTimelineGames(122,122); battleModeRecordState('kabaneri_mumei_flash','start'); battleModeRecordState('kabaneri_super_high','start')", context);
   vm.runInContext("undoBattleModeLast()", context);
   vm.runInContext("openBattleModeStatePicker()", context);
   stateHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
