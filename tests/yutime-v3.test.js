@@ -37,6 +37,7 @@ const machineSummary = section('function machineModelSummaryHtml', 'function mac
 const machineDetailForm = section('function machineDetailFormHtml', 'function openMachineDetail');
 const openMachineDetail = section('function openMachineDetail', 'function renderMachineExpectation');
 const nailRatingSection = section('function nailRatingSummary', 'function machineModelSummaryHtml');
+const normalizeNailRatingBlock = section('function normalizeRatingValue', 'function normalizeStartEv');
 const machineModelDisplay = section('function machineModelDisplay', 'function applyPresetToMachine');
 const columnPresetApply = section('function applyColumnPresetsToMachines', 'function machineHasIndividualSetting');
 const normalizeData = section('function normalizeData', 'function persist');
@@ -183,9 +184,120 @@ assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMac
 assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
 assert.match(openMachineDetail, /openMachineDetail\(daiNo, true, byId\("machineMemo"\)\?\.value \|\| ""\)/);
 assert.match(html, /const NAIL_RATING_KEYS = \["heso", "yori", "michi", "nekase", "migi"\];/);
+assert.ok(html.indexOf('const NAIL_RATING_KEYS') < html.indexOf('let data = loadData();'), 'nail rating constants must be initialized before loadData');
 assert.match(html, /heso: "ヘソ"/);
+assert.match(normalizeNailRatingBlock, /const input = source && typeof source === "object" \? source : \{\};/);
 assert.match(nailRatingSection, /data-nail-rating="\$\{value\}"/);
 assert.match(html, /machine\.nailRating = readNailRatingFromDom\(\);/);
+const nailNormalizeContext = vm.createContext({});
+new vm.Script(`
+  const NAIL_RATING_KEYS = ["heso", "yori", "michi", "nekase", "migi"];
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  ${normalizeNailRatingBlock}
+  globalThis.nailRatings = [
+    normalizeNailRating(undefined),
+    normalizeNailRating(null),
+    normalizeNailRating("legacy"),
+    normalizeNailRating({ heso: "4", yori: "bad", michi: 0, nekase: 5, migi: 6 })
+  ];
+`).runInContext(nailNormalizeContext);
+assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[0]), JSON.stringify({ heso: null, yori: null, michi: null, nekase: null, migi: null }));
+assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[1]), JSON.stringify({ heso: null, yori: null, michi: null, nekase: null, migi: null }));
+assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify({ heso: null, yori: null, michi: null, nekase: null, migi: null }));
+assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ heso: 4, yori: null, michi: null, nekase: 5, migi: null }));
+const legacyMachineContext = vm.createContext({});
+new vm.Script(`
+  const SCHEMA_VERSION = 21;
+  const DEFAULT_LEND_RATE = 4;
+  const DEFAULT_EXCHANGE_BALLS = 25;
+  const DEFAULT_NET_BALLS_PER_WIN = 1400;
+  const RAM_CLEAR_VALUE = "cleared";
+  const RAM_NOT_CLEARED_VALUE = "not_cleared";
+  const RAM_UNKNOWN_VALUE = "unknown";
+  const MACHINE_PRESETS = [{ id: "umi-sp5", name: "P大海物語5スペシャル", evSupported: true, defaults: { netBallsPerWin: 1400 } }];
+  function cryptoId(prefix) { return prefix + "_legacy"; }
+  function nowIso() { return "2026-08-07T00:00:00.000Z"; }
+  function defaultData() {
+    return {
+      version: SCHEMA_VERSION,
+      activeStoreId: null,
+      stores: [],
+      layouts: {},
+      machines: [],
+      sessions: [],
+      dailyState: {},
+      presetSettings: {},
+      labelsByStore: {},
+      meta: {}
+    };
+  }
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  function positiveNumberOrDefault(value, fallback) {
+    const n = normalizeNumber(value);
+    return n !== null && n > 0 ? n : fallback;
+  }
+  function normalizeExchangeBalls(value) {
+    const n = normalizeNumber(value);
+    return n !== null && n >= 20 && n <= 50 ? Number(n.toFixed(2)) : DEFAULT_EXCHANGE_BALLS;
+  }
+  function exchangeBallsFromStore(store) {
+    if (store?.exchangeBalls !== undefined) return normalizeExchangeBalls(store.exchangeBalls);
+    const oldRate = normalizeNumber(store?.exchangeRate);
+    if (oldRate !== null && oldRate >= 2 && oldRate <= 5) return normalizeExchangeBalls(100 / oldRate);
+    if (oldRate !== null && oldRate >= 20 && oldRate <= 50) return normalizeExchangeBalls(oldRate);
+    return DEFAULT_EXCHANGE_BALLS;
+  }
+  function normalizeInvestmentSource(value) { return value === "mochidama" || value === "saipurei" ? value : "cash"; }
+  function normalizeRamClear(value) { return value === RAM_CLEAR_VALUE || value === RAM_NOT_CLEARED_VALUE || value === RAM_UNKNOWN_VALUE ? value : null; }
+  const NAIL_RATING_KEYS = ["heso", "yori", "michi", "nekase", "migi"];
+  ${normalizeNailRatingBlock}
+  function presetById(id) { return MACHINE_PRESETS.find((preset) => preset.id === id) || null; }
+  function presetByName(name) { return MACHINE_PRESETS.find((preset) => preset.name === name) || null; }
+  function normalizeMachinePresetId(machine) {
+    if (presetById(machine?.presetId)) return machine.presetId;
+    const matched = presetByName(machine?.modelName || "");
+    return matched ? matched.id : "";
+  }
+  function normalizeLayouts(value) { return value && typeof value === "object" ? value : {}; }
+  function migrateStoreAssumedRatesToMaps() {}
+  function blankSession() {
+    return {
+      startTotalHits: null,
+      endTotalHits: null,
+      currentSpin: null,
+      startEv: null,
+      carriedFromSessionId: null,
+      yutimeEnterSpin: null,
+      yutimeEnterTime: null,
+      settlementRecoverYen: null,
+      investments: [],
+      charges: []
+    };
+  }
+  function normalizeDailyState(source) { return source && typeof source === "object" ? source : {}; }
+  ${normalizeData}
+  globalThis.normalizedLegacy = normalizeData({
+    version: 20,
+    activeStoreId: "st_1",
+    stores: [{ id: "st_1", name: "Legacy Store", isPersonal: true, createdAt: "2026-08-01T00:00:00.000Z" }],
+    layouts: {},
+    machines: [{ id: "m_1", storeId: "st_1", daiNo: "101", modelName: "Legacy Machine", roundBalls: 140, memo: "old memo" }],
+    sessions: [],
+    dailyState: {}
+  });
+`).runInContext(legacyMachineContext);
+assert.equal(legacyMachineContext.normalizedLegacy.machines.length, 1);
+assert.equal(legacyMachineContext.normalizedLegacy.machines[0].daiNo, "101");
+assert.equal(legacyMachineContext.normalizedLegacy.machines[0].memo, "old memo");
+assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].nailRating), JSON.stringify({ heso: null, yori: null, michi: null, nekase: null, migi: null }));
 assert.match(machineSummary, /id="toggleMachineFormBtn"/);
 assert.match(machineDetailForm, /id="machinePreset"/);
 assert.match(machineDetailForm, /id="machineModel"/);
