@@ -1240,6 +1240,53 @@
       margin-bottom: 2px;
     }
 
+    .transfer-summary {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #d8b653;
+      border-radius: 8px;
+      background: #fff8dc;
+    }
+
+    .transfer-summary-title {
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--accent-dark);
+      margin-bottom: 7px;
+    }
+
+    .transfer-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 7px;
+    }
+
+    .transfer-summary-cell {
+      border: 1px solid #ead9a2;
+      border-radius: 6px;
+      background: #fff;
+      padding: 7px;
+    }
+
+    .transfer-summary-cell span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .transfer-summary-cell strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 15px;
+    }
+
+    .transfer-summary-line {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      word-break: break-word;
+    }
+
     .hidden { display: none !important; }
 
     .toast {
@@ -1554,6 +1601,7 @@
       endSpin: null,
       endTime: null,
       zanhoryuBalls: null,
+      settlementRecoverYen: null,
       memo: "",
       createdAt: nowIso(),
       updatedAt: nowIso()
@@ -2096,6 +2144,7 @@
         carriedFromSessionId: session.carriedFromSessionId || null,
         yutimeEnterSpin: normalizeNumber(session.yutimeEnterSpin),
         yutimeEnterTime: session.yutimeEnterTime || null,
+        settlementRecoverYen: normalizeNumber(session.settlementRecoverYen),
         investments: Array.isArray(session.investments) ? session.investments.map((item) => ({
           type: normalizeInvestmentSource(item.source || item.type),
           ...(item.source ? { source: normalizeInvestmentSource(item.source) } : {}),
@@ -3158,6 +3207,7 @@
             </div>
             <small>開始時期待値 ${escapeHtml(startEvText(session.startEv))}${session.startEv?.rateSource ? ` / ${escapeHtml(session.startEv.rateSource)} / 実効${escapeHtml(session.startEv.effectiveSpin)}回転` : ""}</small><br>
             <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${rateText(derived)} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
+            ${session.status === "completed" ? transferSummaryHtml(session) : ""}
             <div class="modal-actions" style="margin-top:8px">
               <button class="small" data-edit-session="${escapeHtml(session.id)}">記録の修正</button>
             </div>
@@ -3165,6 +3215,9 @@
       }).join("");
       els.sessionList.querySelectorAll("[data-edit-session]").forEach((button) => {
         button.addEventListener("click", () => openSessionEditor(button.dataset.editSession));
+      });
+      els.sessionList.querySelectorAll("[data-copy-transfer]").forEach((button) => {
+        button.addEventListener("click", () => copyTransferSummary(button.dataset.copyTransfer));
       });
     }
 
@@ -5071,6 +5124,68 @@
       }, { cashYen: 0, saipureiBalls: 0, mochidamaBalls: 0 });
     }
 
+    function transferSummaryForSession(session) {
+      const totals = investmentTotals(session);
+      return {
+        investYen: totals.cashYen,
+        recoverYen: normalizeNumber(session.settlementRecoverYen) ?? 0,
+        withdrawBalls: totals.mochidamaBalls + totals.saipureiBalls,
+        depositBalls: finalMochidamaForCarryover(session) ?? 0
+      };
+    }
+
+    function transferYenText(value) {
+      return `${Math.round(Number(value || 0)).toLocaleString("ja-JP")}円`;
+    }
+
+    function transferBallText(value) {
+      return Math.round(Number(value || 0)).toLocaleString("ja-JP");
+    }
+
+    function transferSummaryText(summary) {
+      return `投資${transferYenText(summary.investYen)}/回収${transferYenText(summary.recoverYen)}/引出${transferBallText(summary.withdrawBalls)}個/預入${transferBallText(summary.depositBalls)}個`;
+    }
+
+    function transferSummaryHtml(session) {
+      const summary = transferSummaryForSession(session);
+      return `
+        <div class="transfer-summary">
+          <div class="transfer-summary-title">転記用</div>
+          <div class="transfer-summary-grid">
+            <div class="transfer-summary-cell"><span>投資金額</span><strong>${transferYenText(summary.investYen)}</strong></div>
+            <div class="transfer-summary-cell"><span>回収金額</span><strong>${transferYenText(summary.recoverYen)}</strong></div>
+            <div class="transfer-summary-cell"><span>貯玉引出</span><strong>${transferBallText(summary.withdrawBalls)}個</strong></div>
+            <div class="transfer-summary-cell"><span>貯玉預入</span><strong>${transferBallText(summary.depositBalls)}個</strong></div>
+          </div>
+          <div class="transfer-summary-line">${escapeHtml(transferSummaryText(summary))}</div>
+          <button class="small" data-copy-transfer="${escapeHtml(session.id)}">転記用をコピー</button>
+        </div>`;
+    }
+
+    function copyText(text) {
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast("コピーしました")).catch(() => fallbackCopyText(text));
+        return;
+      }
+      fallbackCopyText(text);
+    }
+
+    function fallbackCopyText(text) {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      textarea.remove();
+      showToast("コピーしました");
+    }
+
+    function copyTransferSummary(sessionId) {
+      const session = findSession(sessionId);
+      if (!session) return;
+      copyText(transferSummaryText(transferSummaryForSession(session)));
+    }
+
     function balanceForSource(session, source) {
       const balances = deriveBalances(session);
       if (source === "mochidama") return balances.mochidama;
@@ -5399,6 +5514,7 @@
           ${fieldHtml("endSpin", "ヤメ回転数", session.endSpin)}
           ${fieldHtml("endTime", "終了時刻", session.endTime, "time")}
           ${fieldHtml("zanhoryuBalls", "残保留増減", session.zanhoryuBalls)}
+          ${fieldHtml("settlementRecoverYen", "回収金額", session.settlementRecoverYen)}
         </div>
         <div class="field-row"><label for="editHitVia">当選経路</label><select id="editHitVia"><option value="">未入力</option><option value="normal">通常</option><option value="yutime">遊タイム</option></select></div>
         <div class="field-row"><label>イベントメモ</label><div><p class="hint">${eventMemoHelp()}</p><div class="label-checks">${labels.map((label) => `<label class="check-chip"><input class="editLabel" type="checkbox" value="${escapeHtml(label)}" ${session.labels.includes(label) ? "checked" : ""}> ${escapeHtml(label)}</label>`).join("") || '<span class="hint">イベントメモ未登録</span>'}</div></div></div>
@@ -5429,9 +5545,10 @@
           const value = byId("edit_" + key).value.trim();
           session[key] = value || null;
         });
-        ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "startTotalHits", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "yutimeEnterSpin", "endTotalHits", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls"].forEach((key) => {
+        ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "startTotalHits", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "yutimeEnterSpin", "endTotalHits", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls", "settlementRecoverYen"].forEach((key) => {
           session[key] = normalizeNumber(byId("edit_" + key).value);
         });
+        if (!session.settlementRecoverYen) session.settlementRecoverYen = null;
         session.hitVia = byId("editHitVia").value || null;
         session.labels = [...document.querySelectorAll(".editLabel:checked")].map((input) => input.value);
         session.memo = byId("editMemo").value.trim();
