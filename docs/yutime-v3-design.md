@@ -118,7 +118,7 @@
   "modelName": "string",
   "roundBalls": null,
   "memo": "",
-  "nailRating": { "heso": null, "yori": null, "michi": null, "nekase": null, "migi": null },
+  "nailRating": { "yori": null, "michi": null, "nekase": null, "through": null, "warp": null },
   "presetId": "",
   "evSupported": false
 }
@@ -126,7 +126,7 @@
 
 - フロアマップから台番だけの Machine を自動生成する。
 - 機種名、1R 玉数、台メモ（釘・癖など）は後付け編集できる。
-- `nailRating` は台単位の釘・ネカセ評価。`heso`（ヘソ）、`yori`（寄り）、`michi`（道）、`nekase`（ネカセ）、`migi`（右打ち）を1〜5または null で保存する。マップボタンには表示しない。
+- `nailRating` は台単位の釘・ネカセ評価。`yori`（寄り）、`michi`（道）、`nekase`（ネカセ）、`through`（スルー）、`warp`（ワープ）を1〜5または null で保存する。`heso`（ヘソ）は `dailyState[machineId][date].hesoRating` として日次保存する。マップボタンには表示しない。
 - B1 で `payoutType` は廃止。旧データに存在する場合も読み込み時に保持しない。
 - B2 で機種プリセットを追加。B5 以降は `MACHINE_PRESETS = [{ id, name, roundBalls, standardRounds, standardPayout, evSupported, spec }]` の定数テーブルで管理する。
 - 初期プリセットは P大海物語5スペシャル のみ。選択時は機種名、1R玉数 140、期待値対応フラグを自動セットする。
@@ -208,7 +208,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:mapbackup` | フロアマップ定義だけの1世代退避 | フロアマップ保存時、保存直前のアクティブマップ定義を店ID・マップID単位で退避する。復元ボタン押下時に該当マップの島構成・除外・列機種のみ戻す。台・セッション・dailyState は触らない | `{ backups: { [storeId]: { [mapId]: { storeId, mapId, map, createdAt } } } }` の JSON 文字列 |
@@ -740,14 +740,14 @@ B5 実測値:
 ## 41. B44 釘・ネカセ評価と物理区切り
 
 - schema は 21 とする。Machine に `nailRating`、MapLayout の島に `gaps` を追加する。
-- `nailRating` は `heso` / `yori` / `michi` / `nekase` / `migi` の5項目を1〜5または null で保存する。再タップで未評価へ戻せる。
+- B46以降、`nailRating` は `yori` / `michi` / `nekase` / `through` / `warp` の5項目を1〜5または null で保存する。ヘソは日次 `hesoRating` として扱う。
 - 台詳細では台メモの近くに「釘・ネカセ」セクションを常時表示し、評価済み項目だけを「釘: ヘソ4・寄り3・ネカセ2」のように要約する。
 - マップの台番ボタンには釘評価を表示しない。歩きながら見る情報量を増やしすぎないため、メモ印だけを維持する。
 - `gaps` は `{ left: [台番...], right: [台番...] }` で保存する。各値は「その台番の後に区切り」を意味し、左右列で独立して指定できる。
 - グリッドとプレビューでは、区切り位置に空白スペーサーと細い柱マークを表示する。
 - 閉店時ゲーム数登録・ラムクリアチェックの連続入力順は、`gaps` を無視して台番列の順序どおり進む。
 - schema 21 Map 1件サンプル（`gaps.left: ["101"]`、列プリセット・除外1台）: 259 chars。
-- schema 21 Machine 1件サンプル（`nailRating` 5項目あり）: 220 chars。
+- schema 21 Machine 1件サンプル（旧 `nailRating` 5項目あり）: 220 chars。
 
 ## 42. B45 投資合計の修正と履歴表記
 
@@ -755,6 +755,16 @@ B5 実測値:
 - 保存時は既存の投資履歴を書き換えず、入力値と現在合計の差分だけを `investments` に `adjustment: true` の調整レコードとして追加する。
 - 調整レコードは `phase: "normal"`、`spinAt: null` とし、遊タイム中投資の修正は対象外とする。投入合計、差玉、収支には反映するが、投資時点の回転率スナップショット計算からは除外する。
 - UI表示は「台帳」ではなく「履歴」に統一する。内部IDや既存の `ledgerView` などの実装名は互換性維持のため変更しない。
+
+## 43. B46 釘評価の再構成と稼働中パネル操作群
+
+- schema は 22 とする。旧 `nailRating.migi` は読み込み時に無視し、新規保存しない。
+- 台単位の `nailRating` は `yori` / `michi` / `nekase` / `through` / `warp` の5項目とする。表示名は寄り、道、ネカセ、スルー、ワープ。
+- ヘソは日次評価として `dailyState[machineId][date].hesoRating` に1〜5または未設定で保存する。当日値だけを選択状態として表示し、直近過去値は「前日参考: N（日付）」として参考表示する。
+- 釘評価サマリは当日のヘソ評価と台単位評価を合わせて表示する。過去ヘソの参考値はサマリには含めない。
+- 稼働中パネルでは、メモ、固定ON/OFF、統合投資ボタン、入金ボタンを同じ操作エリアに近接配置する。投資ボタンの金額・玉数ロジックは変更しない。
+- schema 22 Machine 1件サンプル（台単位 `nailRating` 5項目あり）: 223 chars。
+- schema 22 dailyState サンプル（当日 `hesoRating` あり）: 158 chars。
 
 ## アイデアメモ
 

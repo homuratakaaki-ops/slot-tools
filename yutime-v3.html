@@ -923,13 +923,14 @@
 
     .unified-invest-row {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
+      grid-template-columns: auto auto minmax(120px, 1fr) auto;
       gap: 8px;
       margin-bottom: 8px;
+      align-items: stretch;
     }
 
     .unified-invest-row button {
-      min-height: 96px;
+      min-height: 72px;
       font-size: 18px;
       font-weight: 800;
     }
@@ -939,11 +940,17 @@
     }
 
     .running-panel.fullscreen .unified-invest-row button {
-      min-height: 82px;
+      min-height: 68px;
     }
 
     .unified-invest-row #unifiedInvestBtn {
-      font-size: 24px;
+      font-size: 22px;
+    }
+
+    .unified-invest-row .small {
+      min-height: 72px;
+      padding: 0 12px;
+      font-size: 13px;
     }
 
     .running-bottom-controls .counter-row {
@@ -1524,7 +1531,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 21;
+    const SCHEMA_VERSION = 22;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1542,13 +1549,16 @@
     const RAM_CLEAR_VALUE = "cleared";
     const RAM_NOT_CLEARED_VALUE = "not_cleared";
     const RAM_UNKNOWN_VALUE = "unknown";
-    const NAIL_RATING_KEYS = ["heso", "yori", "michi", "nekase", "migi"];
+    const DAILY_NAIL_RATING_KEY = "heso";
+    const NAIL_RATING_KEYS = ["yori", "michi", "nekase", "through", "warp"];
+    const NAIL_DISPLAY_KEYS = ["heso", ...NAIL_RATING_KEYS];
     const NAIL_RATING_LABELS = {
       heso: "ヘソ",
       yori: "寄り",
       michi: "道",
       nekase: "ネカセ",
-      migi: "右打ち"
+      through: "スルー",
+      warp: "ワープ"
     };
 
     const YUTIME_EXPECTATION_ENGINE = (() => {
@@ -1704,7 +1714,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 21: nailRating追加、島gaps追加"
+        schemaBudgetNote: "v3 schema 22: ヘソ日次化、スルー/ワープ追加"
       }
     });
 
@@ -2298,11 +2308,13 @@
           const hasLegacyRamState = ["retained", "hitToday", "cleared"].includes(legacyRamState);
           const prevInvalid = state.prevInvalid === true || legacyRamState === "cleared" || legacyRamState === "hitToday";
           const closingSpin = normalizeNumber(state.closingSpin);
+          const hesoRating = normalizeRatingValue(state.hesoRating);
           if (ramClear) normalized.ramClear = ramClear;
           if (prevInvalid) normalized.prevInvalid = true;
           else if (state.prevInvalid === false || legacyRamState === "retained") normalized.prevInvalid = false;
           if (closingSpin !== null) normalized.closingSpin = closingSpin;
-          if (normalized.ramClear || normalized.prevInvalid !== undefined || normalized.closingSpin !== undefined) {
+          if (hesoRating !== null) normalized.hesoRating = hesoRating;
+          if (normalized.ramClear || normalized.prevInvalid !== undefined || normalized.closingSpin !== undefined || normalized.hesoRating !== undefined) {
             if (!next[machineId]) next[machineId] = {};
             next[machineId][date] = normalized;
           }
@@ -2392,7 +2404,7 @@
     function measureDailyStateChars() {
       const sample = Object.keys(data.dailyState || {}).length ? data.dailyState : {
         m_sample: {
-          [today()]: { date: today(), prevInvalid: false, ramClear: RAM_UNKNOWN_VALUE },
+          [today()]: { date: today(), prevInvalid: false, ramClear: RAM_UNKNOWN_VALUE, hesoRating: 4 },
           [offsetDate(today(), -1)]: { date: offsetDate(today(), -1), closingSpin: 575 }
         }
       };
@@ -2436,7 +2448,7 @@
         modelName: "P大海物語5スペシャル",
         roundBalls: 140,
         memo: "釘・癖など",
-        nailRating: { heso: 4, yori: 3, michi: null, nekase: 2, migi: null },
+        nailRating: { yori: 3, michi: null, nekase: 2, through: 3, warp: null },
         presetId: "umi-sp5",
         evSupported: true
       };
@@ -2937,8 +2949,20 @@
     function cleanupEmptyDailyState(machineId, dateValue) {
       const state = data.dailyState?.[machineId]?.[dateValue];
       if (!state) return;
-      if (!state.ramClear && state.prevInvalid === undefined && state.closingSpin === undefined) delete data.dailyState[machineId][dateValue];
+      if (!state.ramClear && state.prevInvalid === undefined && state.closingSpin === undefined && state.hesoRating === undefined) delete data.dailyState[machineId][dateValue];
       if (data.dailyState[machineId] && !Object.keys(data.dailyState[machineId]).length) delete data.dailyState[machineId];
+    }
+
+    function dailyHesoRating(machineId, dateValue = today()) {
+      return normalizeRatingValue(dailyStateFor(machineId, dateValue)?.hesoRating);
+    }
+
+    function latestHesoRatingBefore(machineId, beforeDate = today()) {
+      const entries = Object.values(data.dailyState?.[machineId] || {})
+        .filter((state) => state?.date && state.date < beforeDate && normalizeRatingValue(state.hesoRating) !== null)
+        .sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      if (!entries.length) return null;
+      return { date: entries[0].date, value: normalizeRatingValue(entries[0].hesoRating) };
     }
 
     function todayRamClear(machineId) {
@@ -3090,7 +3114,7 @@
       els.runningArea.innerHTML = `
         <div class="section running-panel${fullscreenMode ? " fullscreen" : ""}">
           <div class="running-sticky${stickyClass}">
-            <div class="running-headline"><strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong><div class="running-headline-actions"><button class="small" id="openRunningMachineMemoBtn">メモ${machine?.memo ? "あり" : ""}</button><button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button></div></div>
+            <div class="running-headline"><strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong></div>
             <div class="running-live-row">
               <div>
                 <span>現在回転数</span>
@@ -3167,6 +3191,8 @@
               }).join("")}
             </div>
             <div class="unified-invest-row">
+              <button class="small" id="openRunningMachineMemoBtn">メモ${machine?.memo ? "あり" : ""}</button>
+              <button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button>
               <button class="primary${selectedCanUse ? "" : " is-low"}" id="unifiedInvestBtn">${selectedSource === "cash" ? "-500円" : "-125玉"}</button>
               ${selectedSource === "cash" ? '<button id="openChargeBtn">入金</button>' : ""}
             </div>
@@ -4535,28 +4561,37 @@
       });
     }
 
-    function nailRatingSummary(rating) {
-      const normalized = normalizeNailRating(rating);
-      return NAIL_RATING_KEYS
-        .filter((key) => normalized[key] !== null)
-        .map((key) => `${NAIL_RATING_LABELS[key]}${normalized[key]}`)
+    function nailRatingSummary(machine) {
+      const normalized = normalizeNailRating(machine?.nailRating);
+      const values = {
+        heso: dailyHesoRating(machine?.id),
+        ...normalized
+      };
+      return NAIL_DISPLAY_KEYS
+        .filter((key) => values[key] !== null)
+        .map((key) => `${NAIL_RATING_LABELS[key]}${values[key]}`)
         .join("・");
     }
 
     function nailRatingSectionHtml(machine) {
       const rating = normalizeNailRating(machine.nailRating);
-      const summary = nailRatingSummary(rating);
+      const todayHeso = dailyHesoRating(machine.id);
+      const latestHeso = latestHesoRatingBefore(machine.id);
+      const summary = nailRatingSummary(machine);
       return `
         <div class="nail-rating-section">
           <div><strong>釘・ネカセ</strong><br><small>${summary ? `釘: ${escapeHtml(summary)}` : "未評価"}</small></div>
-          ${NAIL_RATING_KEYS.map((key) => `
+          ${NAIL_DISPLAY_KEYS.map((key) => {
+            const value = key === DAILY_NAIL_RATING_KEY ? todayHeso : rating[key];
+            const reference = key === DAILY_NAIL_RATING_KEY && latestHeso ? `<small class="hint">前日参考: ${escapeHtml(latestHeso.value)}（${escapeHtml(shortDate(latestHeso.date))}）</small>` : "";
+            return `
             <div class="nail-rating-row">
-              <span>${escapeHtml(NAIL_RATING_LABELS[key])}</span>
+              <span>${escapeHtml(NAIL_RATING_LABELS[key])}${reference}</span>
               <div class="nail-rating-chips" data-nail-key="${escapeHtml(key)}">
-                ${[1, 2, 3, 4, 5].map((value) => `<button type="button" data-nail-rating="${value}" aria-pressed="${rating[key] === value ? "true" : "false"}">${value}</button>`).join("")}
+                ${[1, 2, 3, 4, 5].map((buttonValue) => `<button type="button" data-nail-rating="${buttonValue}" aria-pressed="${value === buttonValue ? "true" : "false"}">${buttonValue}</button>`).join("")}
               </div>
             </div>
-          `).join("")}
+          `}).join("")}
         </div>
       `;
     }
@@ -4569,7 +4604,16 @@
           const wasPressed = button.getAttribute("aria-pressed") === "true";
           row.querySelectorAll("[data-nail-rating]").forEach((item) => item.setAttribute("aria-pressed", "false"));
           if (!wasPressed) button.setAttribute("aria-pressed", "true");
-          machine.nailRating = readNailRatingFromDom();
+          if (row.dataset.nailKey === DAILY_NAIL_RATING_KEY) {
+            const state = ensureDailyState(machine.id, today());
+            const selected = row.querySelector('[data-nail-rating][aria-pressed="true"]');
+            const rating = normalizeRatingValue(selected?.dataset.nailRating);
+            if (rating === null) delete state.hesoRating;
+            else state.hesoRating = rating;
+            cleanupEmptyDailyState(machine.id, today());
+          } else {
+            machine.nailRating = readNailRatingFromDom();
+          }
           persist();
         });
       });

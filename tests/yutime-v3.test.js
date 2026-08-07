@@ -43,6 +43,7 @@ const normalizeNailRatingBlock = section('function normalizeRatingValue', 'funct
 const machineModelDisplay = section('function machineModelDisplay', 'function applyPresetToMachine');
 const columnPresetApply = section('function applyColumnPresetsToMachines', 'function machineHasIndividualSetting');
 const normalizeData = section('function normalizeData', 'function persist');
+const normalizeDailyStateBlock = section('function normalizeDailyState', 'function migrateStoreAssumedRatesToMaps');
 const bindNailRatingChips = section('function bindNailRatingChips', 'function readNailRatingFromDom');
 const readMachineMemoForm = section('function readMachineMemoForm', 'function readMachineDetailForm');
 const islandEditor = section('function islandEditorHtml', 'function bindIslandEditor');
@@ -225,7 +226,7 @@ assert.match(style, /\.source-chip\.selected \{\s*border-color: var\(--accent\);
 assert.match(sourceUnavailableMessage, /if \(balance === null\) return `\$\{label\}が未入力です。`;/);
 assert.match(sourceUnavailableMessage, /if \(balance < amount\) return `\$\{label\}がありません。値をタップして修正するか、他のソースを選んでください。`;/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
-assert.match(html, /const SCHEMA_VERSION = 21;/);
+assert.match(html, /const SCHEMA_VERSION = 22;/);
 assert.match(html, /yutimeEnterSpin: null,/);
 assert.match(openYutimeEnterForm, /const spinPreset = session\.yutimeEnterSpin \?\? session\.currentSpin \?\? session\.startSpin;/);
 assert.match(openYutimeEnterForm, /id="yutimeSpin"/);
@@ -236,7 +237,7 @@ assert.match(deriveSession, /const yutimeNormalEndSpin = !hasHit && \(session\.h
 assert.match(deriveSession, /session\.hitVia === "yutime" \|\| session\.yutimeEnterBalls !== null \? yutimeNormalEndSpin : session\.endSpin/);
 assert.match(yutimeEnterSpinForRate, /const explicitSpin = normalizeNumber\(session\.yutimeEnterSpin\);\s*if \(explicitSpin !== null\) return explicitSpin;/);
 assert.match(yutimeEnterSpinForRate, /const inferred = tenjo - prevSpin;\s*return inferred >= 0 \? inferred : null;/);
-assert.ok(design.includes('schema 21 Machine 1件サンプル'));
+assert.ok(design.includes('schema 22 Machine 1件サンプル'));
 
 assert.match(openMachineDetail, /function openMachineDetail\(daiNo, machineFormExpanded = false, memoDraft = null\)/);
 assert.match(openMachineDetail, /\$\{nailRatingSectionHtml\(machine\)\}/);
@@ -245,18 +246,26 @@ assert.match(openMachineDetail, /\$\{machineModelSummaryHtml\(machine\)\}\s*\$\{
 assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMachineBtn">[^']+<\/button>' : ""\}/);
 assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
 assert.match(openMachineDetail, /openMachineDetail\(daiNo, true, byId\("machineMemo"\)\?\.value \|\| ""\)/);
-assert.match(html, /const NAIL_RATING_KEYS = \["heso", "yori", "michi", "nekase", "migi"\];/);
+assert.match(html, /const DAILY_NAIL_RATING_KEY = "heso";/);
+assert.match(html, /const NAIL_RATING_KEYS = \["yori", "michi", "nekase", "through", "warp"\];/);
+assert.match(html, /const NAIL_DISPLAY_KEYS = \["heso", \.\.\.NAIL_RATING_KEYS\];/);
 assert.ok(html.indexOf('const NAIL_RATING_KEYS') < html.indexOf('let data = loadData();'), 'nail rating constants must be initialized before loadData');
 assert.match(html, /heso: "ヘソ"/);
+assert.match(html, /through: "スルー"/);
+assert.match(html, /warp: "ワープ"/);
+assert.doesNotMatch(html, /右打ち/);
 assert.match(normalizeNailRatingBlock, /const input = source && typeof source === "object" \? source : \{\};/);
-assert.match(nailRatingSection, /data-nail-rating="\$\{value\}"/);
+assert.match(nailRatingSection, /data-nail-rating="\$\{buttonValue\}"/);
+assert.match(nailRatingSection, /前日参考: \$\{escapeHtml\(latestHeso\.value\)\}/);
 assert.match(bindNailRatingChips, /function bindNailRatingChips\(machine\)/);
-assert.match(bindNailRatingChips, /machine\.nailRating = readNailRatingFromDom\(\);\s*persist\(\);/);
+assert.match(bindNailRatingChips, /row\.dataset\.nailKey === DAILY_NAIL_RATING_KEY/);
+assert.match(bindNailRatingChips, /state\.hesoRating = rating;/);
+assert.match(bindNailRatingChips, /machine\.nailRating = readNailRatingFromDom\(\);/);
 assert.doesNotMatch(bindNailRatingChips, /showToast|persistWithToast/);
 assert.doesNotMatch(readMachineMemoForm, /nailRating|readNailRatingFromDom/);
 const nailNormalizeContext = vm.createContext({});
 new vm.Script(`
-  const NAIL_RATING_KEYS = ["heso", "yori", "michi", "nekase", "migi"];
+  const NAIL_RATING_KEYS = ["yori", "michi", "nekase", "through", "warp"];
   function normalizeNumber(value) {
     if (value === "" || value === null || value === undefined) return null;
     const n = Number(value);
@@ -267,16 +276,16 @@ new vm.Script(`
     normalizeNailRating(undefined),
     normalizeNailRating(null),
     normalizeNailRating("legacy"),
-    normalizeNailRating({ heso: "4", yori: "bad", michi: 0, nekase: 5, migi: 6 })
+    normalizeNailRating({ heso: "4", yori: "bad", michi: 0, nekase: 5, migi: 3, through: 4, warp: 2 })
   ];
 `).runInContext(nailNormalizeContext);
-assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[0]), JSON.stringify({ heso: null, yori: null, michi: null, nekase: null, migi: null }));
-assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[1]), JSON.stringify({ heso: null, yori: null, michi: null, nekase: null, migi: null }));
-assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify({ heso: null, yori: null, michi: null, nekase: null, migi: null }));
-assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ heso: 4, yori: null, michi: null, nekase: 5, migi: null }));
+assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[0]), JSON.stringify({ yori: null, michi: null, nekase: null, through: null, warp: null }));
+assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[1]), JSON.stringify({ yori: null, michi: null, nekase: null, through: null, warp: null }));
+assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify({ yori: null, michi: null, nekase: null, through: null, warp: null }));
+assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 21;
+  const SCHEMA_VERSION = 22;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
   const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -322,7 +331,7 @@ new vm.Script(`
   }
   function normalizeInvestmentSource(value) { return value === "mochidama" || value === "saipurei" ? value : "cash"; }
   function normalizeRamClear(value) { return value === RAM_CLEAR_VALUE || value === RAM_NOT_CLEARED_VALUE || value === RAM_UNKNOWN_VALUE ? value : null; }
-  const NAIL_RATING_KEYS = ["heso", "yori", "michi", "nekase", "migi"];
+  const NAIL_RATING_KEYS = ["yori", "michi", "nekase", "through", "warp"];
   ${normalizeNailRatingBlock}
   function presetById(id) { return MACHINE_PRESETS.find((preset) => preset.id === id) || null; }
   function presetByName(name) { return MACHINE_PRESETS.find((preset) => preset.name === name) || null; }
@@ -350,11 +359,11 @@ new vm.Script(`
   function normalizeDailyState(source) { return source && typeof source === "object" ? source : {}; }
   ${normalizeData}
   globalThis.normalizedLegacy = normalizeData({
-    version: 20,
+    version: 21,
     activeStoreId: "st_1",
     stores: [{ id: "st_1", name: "Legacy Store", isPersonal: true, createdAt: "2026-08-01T00:00:00.000Z" }],
     layouts: {},
-    machines: [{ id: "m_1", storeId: "st_1", daiNo: "101", modelName: "Legacy Machine", roundBalls: 140, memo: "old memo" }],
+    machines: [{ id: "m_1", storeId: "st_1", daiNo: "101", modelName: "Legacy Machine", roundBalls: 140, memo: "old memo", nailRating: { heso: 4, yori: 3, michi: 2, nekase: 1, migi: 5, through: 4, warp: 2 } }],
     sessions: [],
     dailyState: {}
   });
@@ -362,7 +371,40 @@ new vm.Script(`
 assert.equal(legacyMachineContext.normalizedLegacy.machines.length, 1);
 assert.equal(legacyMachineContext.normalizedLegacy.machines[0].daiNo, "101");
 assert.equal(legacyMachineContext.normalizedLegacy.machines[0].memo, "old memo");
-assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].nailRating), JSON.stringify({ heso: null, yori: null, michi: null, nekase: null, migi: null }));
+assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].nailRating), JSON.stringify({ yori: 3, michi: 2, nekase: 1, through: 4, warp: 2 }));
+const dailyHesoContext = vm.createContext({});
+new vm.Script(`
+  const RAM_CLEAR_VALUE = "cleared";
+  const RAM_NOT_CLEARED_VALUE = "not_cleared";
+  const RAM_UNKNOWN_VALUE = "unknown";
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  function normalizeRatingValue(value) {
+    const number = normalizeNumber(value);
+    return Number.isInteger(number) && number >= 1 && number <= 5 ? number : null;
+  }
+  function normalizeRamClear(value) {
+    return value === RAM_CLEAR_VALUE || value === RAM_NOT_CLEARED_VALUE || value === RAM_UNKNOWN_VALUE ? value : null;
+  }
+  function isDateString(value) {
+    return /^\\d{4}-\\d{2}-\\d{2}$/.test(String(value || ""));
+  }
+  ${normalizeDailyStateBlock}
+  globalThis.normalizedDaily = normalizeDailyState({
+    m_1: {
+      "2026-08-07": { date: "2026-08-07", hesoRating: "4", ramClear: "not_cleared" },
+      "2026-08-08": { date: "2026-08-08", hesoRating: "bad" }
+    }
+  }, [{ id: "m_1" }]);
+`).runInContext(dailyHesoContext);
+assert.equal(JSON.stringify(dailyHesoContext.normalizedDaily), JSON.stringify({
+  m_1: {
+    "2026-08-07": { date: "2026-08-07", ramClear: "not_cleared", hesoRating: 4 }
+  }
+}));
 assert.match(machineSummary, /id="toggleMachineFormBtn"/);
 assert.match(machineDetailForm, /id="machinePreset"/);
 assert.match(machineDetailForm, /id="machineModel"/);
