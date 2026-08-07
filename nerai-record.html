@@ -623,7 +623,7 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-st-summary{font-size:11px;line-height:1.45;color:var(--text-muted);font-weight:800;}
 .bm-st-end-action{border-color:rgba(239,68,68,.75)!important;background:rgba(127,29,29,.24)!important;color:#fecaca!important;}
 .bm-st-step-anchor{scroll-margin-top:12px;}
-.bm-st-choice-selected{border-color:rgba(201,168,76,.96)!important;box-shadow:0 0 0 2px rgba(201,168,76,.35) inset;background:rgba(201,168,76,.14)!important;}
+.bm-btn.active,.bm-st-choice-selected{border-color:rgba(201,168,76,.96)!important;box-shadow:0 0 0 2px rgba(201,168,76,.35) inset;background:rgba(201,168,76,.14)!important;}
 .bm-st-sheet{display:grid;gap:10px;font-variant-numeric:tabular-nums;}
 .bm-st-choice-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
 .bm-st-input-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;}
@@ -16195,7 +16195,7 @@ function settingLabelSheetButton(value){
   const state=normalizeSettingLabelOrDefault(settingLabelSheetState);
   const active=(value===null&&state.value===null)||value===state.value;
   const label=value===null?'不明':String(value);
-  return `<button class="bm-btn ${active?'gold':''}" type="button" onclick="selectSettingLabelSheetValue(${value===null?'null':value})">${escapeHtml(label)}</button>`;
+  return `<button class="bm-btn ${active?'active':''}" type="button" onclick="selectSettingLabelSheetValue(${value===null?'null':value})">${escapeHtml(label)}</button>`;
 }
 function renderSettingLabelSheet(){
   const state=normalizeSettingLabelOrDefault(settingLabelSheetState);
@@ -16207,8 +16207,8 @@ function renderSettingLabelSheet(){
       <span>以上確定</span>
     </label>
     <div class="bm-sheet-note">確定はトロフィー等の根拠がある場合のみ</div>
-    <button class="bm-btn gold" type="button" onclick="confirmSettingLabelSheet()">確定</button>
-    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
+    <button class="bm-btn gold" type="button" onclick="confirmSettingLabelSheet()">登録</button>
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">キャンセル</button>
   `);
 }
 function selectSettingLabelSheetValue(value){

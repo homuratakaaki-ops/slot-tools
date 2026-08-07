@@ -2301,20 +2301,33 @@ function testSettingLabelUsesSheetChip() {
 
       openSettingLabelSheet();
       const sheetInitial = __stateElements.battleModeOtherGrid.innerHTML;
+      selectSettingLabelSheetValue(6);
+      closeBattleModeOtherSheet();
+      const canceled = currentSettingLabelFromInputs();
+      const chipAfterCancel = chip.textContent;
+
+      openSettingLabelSheet();
       selectSettingLabelSheetValue(4);
+      const sheetAfterSelect = __stateElements.battleModeOtherGrid.innerHTML;
       toggleSettingLabelSheetConfirmed(true);
       confirmSettingLabelSheet();
       const selected = currentSettingLabelFromInputs();
       const chipAfter = chip.textContent;
 
       document.getElementById = originalGet;
-      return JSON.stringify({ chipBefore, legacyChip, sheetInitial, selected, chipAfter });
+      return JSON.stringify({ chipBefore, legacyChip, sheetInitial, sheetAfterSelect, canceled, chipAfterCancel, selected, chipAfter });
     })()
   `, context));
   assert.equal(result.chipBefore, '4');
   assert.equal(result.legacyChip, '3以上確定');
   assert.match(result.sheetInitial, /bm-setting-label-grid/);
   assert.match(result.sheetInitial, /class="bm-btn/);
+  assert.match(result.sheetInitial, /confirmSettingLabelSheet\(\)">登録/);
+  assert.match(result.sheetInitial, /closeBattleModeOtherSheet\(\)">キャンセル/);
+  assert.deepEqual(result.canceled, { value: 3, atLeast: true, confirmed: false });
+  assert.equal(result.chipAfterCancel, '3以上確定');
+  assert.match(result.sheetAfterSelect, /class="bm-btn active" type="button" onclick="selectSettingLabelSheetValue\(4\)">4/);
+  assert.doesNotMatch(result.sheetAfterSelect, /class="bm-btn active" type="button" onclick="selectSettingLabelSheetValue\(6\)">6/);
   assert.deepEqual(result.selected, { value: 4, atLeast: true, confirmed: true });
   assert.equal(result.chipAfter, '4以上確定');
 }
