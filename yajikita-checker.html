@@ -37,6 +37,13 @@ header{
 .hd-title{font-weight:800;font-size:15px;letter-spacing:.02em}
 .hd-title small{display:block;font-size:10px;font-weight:500;color:var(--pink);letter-spacing:.15em}
 .hd-title small a{color:var(--cyan);text-decoration:none;letter-spacing:0;margin-left:6px}
+.hd-links{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.hd-link{
+  display:inline-flex;align-items:center;justify-content:center;min-height:30px;
+  padding:6px 10px;border-radius:8px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--cyan);font-size:11px;font-weight:800;
+  text-decoration:none;letter-spacing:0;
+}
 .hd-actions{display:flex;gap:6px}
 .hd-btn{
   font-family:var(--body);font-size:11px;font-weight:700;color:var(--txt);
@@ -164,7 +171,7 @@ textarea#tpl{
 
 <header>
   <div class="hd-row">
-    <div class="hd-title">スマスロ やじきた道中記参る！<small>SETTING CHECKER — slot-tools.jp <a href="index.html">TOP</a><a href="yajikita-guide.html">GUIDE</a></small></div>
+    <div class="hd-title">スマスロ やじきた道中記参る！<small>SETTING CHECKER — slot-tools.jp</small><div class="hd-links"><a class="hd-link" href="checkers.html">← 機種選択</a><a class="hd-link" href="yajikita-guide.html">使い方</a></div></div>
     <div class="hd-actions">
       <button class="hd-btn mode" id="modeBtn">＋加算</button>
       <button class="hd-btn" id="undoBtn">↩ 取消</button>
@@ -228,7 +235,8 @@ const DEF={
   icons:Object.fromEntries(CHARACTERS.map(c=>[c[0],0])),
   coins:{cu:0,ag:0,au:0,dg:0,rb:0},
   img:null,
-  iconChoice:null
+  iconChoice:null,
+  tableHist:[]
 };
 const SCREENS=[
   ['s1','街道','奇数設定 期待度UP',0],
@@ -265,6 +273,7 @@ function normalizeState(data){
   out.icons=Object.assign({},DEF.icons,src.icons||{});
   out.coins=Object.assign({},DEF.coins,src.coins||{});
   if(!src.iconChoice)out.iconChoice=src.img?'upload':(NANA_COLLAB?'nana':'default');
+  out.tableHist=Array.isArray(src.tableHist)?src.tableHist.filter(v=>v&&v.key&&v.label).slice(-50):[];
   return out;
 }
 function load(){try{const j=JSON.parse(localStorage.getItem(KEY));return normalizeState(j);}catch(e){return structuredClone(DEF);}}
@@ -274,8 +283,21 @@ function set(path,v){const p=path.split('.');if(p.length===1)S[p[0]]=v;else S[p[
 let mode=1;
 function bump(path,label){
   if(mode<0&&get(path)<=0){feed(`${label} は0のため減算できません`);return;}
+  const isTable=path.startsWith('zones.');
+  let tableAdded=null,tableRemoved=null,tableRemovedIndex=-1;
+  if(isTable){
+    const key=path.split('.')[1];
+    if(mode>0){
+      tableAdded={key,label};
+      S.tableHist.push(tableAdded);
+      if(S.tableHist.length>50)S.tableHist.shift();
+    }else{
+      tableRemovedIndex=S.tableHist.map(v=>v.key).lastIndexOf(key);
+      if(tableRemovedIndex>=0)tableRemoved=S.tableHist.splice(tableRemovedIndex,1)[0];
+    }
+  }
   set(path,get(path)+mode);
-  hist.push({path,label,delta:mode});if(hist.length>50)hist.shift();
+  hist.push({path,label,delta:mode,tableAdded,tableRemoved,tableRemovedIndex});if(hist.length>50)hist.shift();
   feed(`<b>${mode<0?'−1':'＋1'}</b> ${label}（累計 ${get(path)}）`);save();renderAll();}
 document.getElementById('modeBtn').onclick=()=>{
   mode*=-1;
@@ -294,6 +316,15 @@ document.getElementById('undoBtn').onclick=()=>{
     feed('<b>復元</b> リセット前の状態に戻しました');save();renderAll();return;
   }
   set(a.path,Math.max(0,get(a.path)-(a.delta||1)));
+  if(a.tableAdded){
+    const idx=S.tableHist.map(v=>v.key).lastIndexOf(a.tableAdded.key);
+    if(idx>=0)S.tableHist.splice(idx,1);
+  }
+  if(a.tableRemoved){
+    const idx=Math.max(0,Math.min(a.tableRemovedIndex,S.tableHist.length));
+    S.tableHist.splice(idx,0,a.tableRemoved);
+    if(S.tableHist.length>50)S.tableHist.shift();
+  }
   feed(`<b>取消</b> ${a.label}（累計 ${get(a.path)}）`);save();renderAll();
 };
 let resetArm=null;
@@ -321,6 +352,7 @@ let toastT;function toast(m){const t=document.getElementById('toast');t.textCont
 
 /* ================= view helpers ================= */
 function pct(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:`${n}/0 —`;}
+function tableShort(key){const t=TABLES.find(v=>v[0]===key);return t?t[4]:key;}
 function crow(path,name,mean,hot,pctFn){
   const n=get(path);
   return `<div class="crow" data-c="${path}" data-l="${name}">
@@ -332,12 +364,18 @@ function crow(path,name,mean,hot,pctFn){
 /* ================= pages ================= */
 function pageZones(){
   const total=TABLES.reduce((a,t)=>a+S.zones[t[0]],0);
+  const hist=[...S.tableHist].reverse().slice(0,10);
+  const histHtml=hist.length?hist.map((h,i)=>`<div class="hint">${i===0?'前回':(i+1)+'回前'}：${h.label}</div>`).join(''):'<div class="hint">まだ入力履歴はありません。</div>';
   return `<section class="sec">
     <div class="sec-h">まいるテーブル<span class="sub">分母＝テーブル記録 計${total}回</span></div>
     <div class="cgrid">
       ${TABLES.map(t=>crow('zones.'+t[0],t[1],t[2],t[3],n=>pct(n,total))).join('')}
     </div>
     <div class="hint">ユニメモは直近5回分しか表示されないため、本ツールで累計を記録。特殊Aの出やすさは設定変更（リセット）判別の参考に。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">入力履歴<span class="sub">直近10件</span></div>
+    ${histHtml}
   </section>`;
 }
 function pageHatsu(){
@@ -612,6 +650,8 @@ function tplText(){
   const charN=Object.values(S.icons).reduce((a,b)=>a+b,0);
   let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n総回転数 ${S.games||0}G / CZ${czN}回 / AT${S.atCount}回\n_______\n\n■まいるテーブル\n`;
   TABLES.forEach(c=>{t+=`${c[1]}▶︎ ${S.zones[c[0]]}回\n`;});
+  const recent=S.tableHist.slice(-5).reverse().map(h=>tableShort(h.key)).join('←')||'なし';
+  t+=`直近履歴：${recent}\n`;
   t+=`\n■関頂アタック▶︎ ${S.atcz.gab}回\n■温泉ステージ▶︎ ${S.atcz.useki}回\n■AT直撃▶︎ ${S.choku}回\n\n■あっぱれキャラ\n`;
   CHARACTERS.forEach(c=>{t+=`${c[1]}▶︎ ${p(S.icons[c[0]],charN)}\n`;});
   t+=`\n■AT終了画面\n`;

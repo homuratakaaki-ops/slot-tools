@@ -37,6 +37,13 @@ header{
 .hd-title{font-weight:800;font-size:15px;letter-spacing:.02em}
 .hd-title small{display:block;font-size:10px;font-weight:500;color:var(--pink);letter-spacing:.15em}
 .hd-title small a{color:var(--cyan);text-decoration:none;letter-spacing:0;margin-left:6px}
+.hd-links{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
+.hd-link{
+  display:inline-flex;align-items:center;justify-content:center;min-height:30px;
+  padding:6px 10px;border-radius:8px;border:1px solid var(--line);
+  background:var(--panel2);color:var(--cyan);font-size:11px;font-weight:800;
+  text-decoration:none;letter-spacing:0;
+}
 .hd-actions{display:flex;gap:6px}
 .hd-btn{
   font-family:var(--body);font-size:11px;font-weight:700;color:var(--txt);
@@ -164,7 +171,7 @@ textarea#tpl{
 
 <header>
   <div class="hd-row">
-    <div class="hd-title">Lとある魔術の禁書目録2<small>SETTING CHECKER — slot-tools.jp <a href="index.html">TOP</a><a href="toaru2-guide.html">GUIDE</a></small></div>
+    <div class="hd-title">Lとある魔術の禁書目録2<small>SETTING CHECKER — slot-tools.jp</small><div class="hd-links"><a class="hd-link" href="checkers.html">← 機種選択</a><a class="hd-link" href="toaru2-guide.html">使い方</a></div></div>
     <div class="hd-actions">
       <button class="hd-btn mode" id="modeBtn">＋加算</button>
       <button class="hd-btn" id="undoBtn">↩ 取消</button>
