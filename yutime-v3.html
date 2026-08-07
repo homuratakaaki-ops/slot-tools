@@ -394,6 +394,10 @@
       font-size: 13px;
     }
 
+    .island-side .wide {
+      grid-column: 1 / -1;
+    }
+
     .island-preview {
       display: grid;
       grid-template-columns: minmax(84px, 1fr) 34px minmax(84px, 1fr);
@@ -419,6 +423,34 @@
       color: #98a2b3;
       background: #eef2f6;
       text-decoration: line-through;
+    }
+
+    .map-gap,
+    .preview-gap {
+      min-height: 28px;
+      display: grid;
+      place-items: center;
+      color: #667085;
+    }
+
+    .map-gap::before,
+    .preview-gap::before {
+      content: "";
+      width: 6px;
+      height: 100%;
+      min-height: 26px;
+      border-radius: 999px;
+      background: repeating-linear-gradient(
+        180deg,
+        #98a2b3 0,
+        #98a2b3 6px,
+        #e4e7ec 6px,
+        #e4e7ec 10px
+      );
+    }
+
+    .preview-gap {
+      min-height: 18px;
     }
 
     .map-wrap {
@@ -577,6 +609,46 @@
       background: #ecfdf3;
       color: #067647;
       font-weight: 800;
+    }
+
+    .nail-rating-section {
+      display: grid;
+      gap: 8px;
+      margin: 10px 0;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .nail-rating-row {
+      display: grid;
+      grid-template-columns: 4.5em 1fr;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .nail-rating-row span {
+      font-weight: 800;
+      font-size: 13px;
+    }
+
+    .nail-rating-chips {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(34px, 1fr));
+      gap: 6px;
+    }
+
+    .nail-rating-chips button {
+      min-height: 38px;
+      padding: 0;
+      font-weight: 800;
+    }
+
+    .nail-rating-chips button[aria-pressed="true"] {
+      border-color: var(--accent);
+      background: #ecfdf3;
+      color: #067647;
     }
 
     .machine-button .prev.invalid {
@@ -1452,7 +1524,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 20;
+    const SCHEMA_VERSION = 21;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1624,7 +1696,7 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 20: yutimeEnterSpin追加、遊タイム抜けヤメ回転率補完"
+        schemaBudgetNote: "v3 schema 21: nailRating追加、島gaps追加"
       }
     });
 
@@ -1771,6 +1843,28 @@
 
     function normalizeRamClear(value) {
       return value === RAM_CLEAR_VALUE || value === RAM_NOT_CLEARED_VALUE || value === RAM_UNKNOWN_VALUE ? value : null;
+    }
+
+    const NAIL_RATING_KEYS = ["heso", "yori", "michi", "nekase", "migi"];
+    const NAIL_RATING_LABELS = {
+      heso: "ヘソ",
+      yori: "寄り",
+      michi: "道",
+      nekase: "ネカセ",
+      migi: "右打ち"
+    };
+
+    function normalizeRatingValue(value) {
+      const number = normalizeNumber(value);
+      return Number.isInteger(number) && number >= 1 && number <= 5 ? number : null;
+    }
+
+    function normalizeNailRating(source) {
+      const rating = {};
+      NAIL_RATING_KEYS.forEach((key) => {
+        rating[key] = normalizeRatingValue(source?.[key]);
+      });
+      return rating;
     }
 
     function normalizeStartEv(value) {
@@ -2130,6 +2224,7 @@
           modelName: presetId === "umi-sp5" && machine.presetId === "umi-sp5" ? preset?.name || machine.modelName || "" : machine.modelName || "",
           roundBalls: normalizeNumber(machine.roundBalls),
           memo: machine.memo || "",
+          nailRating: normalizeNailRating(machine.nailRating),
           presetId,
           evSupported: Boolean(preset?.evSupported || machine.evSupported)
         };
@@ -2316,7 +2411,7 @@
                 id: "map_sample",
                 name: "メインフロア",
                 assumedRate: 16.5,
-                islands: [{ left: { from: 101, to: 103 }, right: null, leftPresetId: "umi-sp5", rightPresetId: "", excluded: ["102"] }],
+                islands: [{ left: { from: 101, to: 103 }, right: null, gaps: { left: ["101"], right: [] }, leftPresetId: "umi-sp5", rightPresetId: "", excluded: ["102"] }],
                 updatedAt: nowIso(),
                 errors: []
               },
@@ -2340,6 +2435,7 @@
         modelName: "P大海物語5スペシャル",
         roundBalls: 140,
         memo: "釘・癖など",
+        nailRating: { heso: 4, yori: 3, michi: null, nekase: 2, migi: null },
         presetId: "umi-sp5",
         evSupported: true
       };
@@ -2892,9 +2988,9 @@
           <div class="map-island">
             <div class="map-island-label">${escapeHtml(islandDisplayName(row.island, row.index))}</div>
             <div class="map-row">
-              <div class="map-side">${left.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds, hasYutime)).join("")}</div>
+              <div class="map-side">${mapSideHtml(left, row.island?.gaps?.left, statsByMachine, activeMachineIds, hasYutime)}</div>
               <div class="aisle" aria-hidden="true"></div>
-              <div class="map-side">${right.map((daiNo) => machineButtonHtml(daiNo, statsByMachine, activeMachineIds, hasYutime)).join("")}</div>
+              <div class="map-side">${mapSideHtml(right, row.island?.gaps?.right, statsByMachine, activeMachineIds, hasYutime)}</div>
             </div>
           </div>
         `;
@@ -2906,6 +3002,14 @@
           else openMachineDetail(button.dataset.daiNo);
         });
       });
+    }
+
+    function mapSideHtml(daiNos, gaps = [], statsByMachine = null, activeMachineIds = new Set(), showYutimeTools = true) {
+      const gapSet = new Set((gaps || []).map(String));
+      return (daiNos || []).map((daiNo) => `
+        ${machineButtonHtml(daiNo, statsByMachine, activeMachineIds, showYutimeTools)}
+        ${gapSet.has(String(daiNo)) ? '<div class="map-gap" aria-label="区切り"></div>' : ""}
+      `).join("");
     }
 
     function machineButtonHtml(daiNo, statsByMachine = null, activeMachineIds = new Set(), showYutimeTools = true) {
@@ -3510,7 +3614,7 @@
       mapEditorOpenByStore[store.id] = true;
       mapDraft.allowEmptySave = false;
       const nextIndex = mapDraft.islands.length;
-      mapDraft.islands.push({ name: "", left: { from: null, to: null }, right: null, excluded: [], leftPresetId: "", rightPresetId: "" });
+      mapDraft.islands.push({ name: "", left: { from: null, to: null }, right: null, gaps: { left: [], right: [] }, excluded: [], leftPresetId: "", rightPresetId: "" });
       expandedIslandIndexes.add(nextIndex);
       renderMapEditor();
     }
@@ -3538,20 +3642,20 @@
           </div>
           ${isOpen ? `
           <div class="island-sides">
-            ${islandSideInputHtml(index, "left", "左列", left, island.leftPresetId)}
-            ${islandSideInputHtml(index, "right", "右列", right, island.rightPresetId)}
+            ${islandSideInputHtml(index, "left", "左列", left, island.leftPresetId, island.gaps?.left)}
+            ${islandSideInputHtml(index, "right", "右列", right, island.rightPresetId, island.gaps?.right)}
           </div>
           <div class="island-preview">
-            <div class="preview-side">${previewSideHtml(row.allSides[0], island.excluded || [])}</div>
+            <div class="preview-side">${previewSideHtml(row.allSides[0], island.excluded || [], island.gaps?.left)}</div>
             <div class="aisle" aria-hidden="true"></div>
-            <div class="preview-side">${previewSideHtml(row.allSides[1], island.excluded || [])}</div>
+            <div class="preview-side">${previewSideHtml(row.allSides[1], island.excluded || [], island.gaps?.right)}</div>
           </div>
           ` : ""}
         </div>
       `;
     }
 
-    function islandSideInputHtml(index, side, label, value, presetId = "") {
+    function islandSideInputHtml(index, side, label, value, presetId = "", gaps = []) {
       return `
         <div class="island-side">
           <h4>${label}</h4>
@@ -3564,15 +3668,18 @@
             <option value="">未設定</option>
             ${MACHINE_PRESETS.map((preset) => `<option value="${escapeHtml(preset.id)}" ${preset.id === presetId ? "selected" : ""}>${escapeHtml(preset.name)}</option>`).join("")}
           </select>
+          <div class="field-row wide"><label for="island_${index}_${side}_gaps">区切り位置</label><input id="island_${index}_${side}_gaps" data-island-input="${index}" data-side="${side}" data-part="gaps" inputmode="numeric" value="${escapeHtml(formatGapList(gaps))}" placeholder="例: 297,303"><small>入力した台番の後に隙間を入れます。</small></div>
         </div>
       `;
     }
 
-    function previewSideHtml(daiNos, excluded) {
+    function previewSideHtml(daiNos, excluded, gaps = []) {
       if (!daiNos.length) return '<span class="hint">片面なし</span>';
       const excludedSet = new Set((excluded || []).map(String));
+      const gapSet = new Set((gaps || []).map(String));
       return daiNos.map((daiNo) => `
         <button class="preview-machine ${excludedSet.has(String(daiNo)) ? "excluded" : ""}" data-preview-dai="${escapeHtml(daiNo)}">${escapeHtml(daiNo)}</button>
+        ${gapSet.has(String(daiNo)) ? '<div class="preview-gap" aria-label="区切り"></div>' : ""}
       `).join("");
     }
 
@@ -3663,6 +3770,10 @@
           name: existing.name || "",
           left,
           right: right.from === null && right.to === null ? null : right,
+          gaps: {
+            left: readGapListFromDom(index, "left"),
+            right: readGapListFromDom(index, "right")
+          },
           leftPresetId: byId(`island_${index}_left_preset`)?.value || "",
           rightPresetId: byId(`island_${index}_right_preset`)?.value || "",
           excluded: (mapDraft.islands[index]?.excluded || []).map(String)
@@ -3674,6 +3785,18 @@
       const from = normalizeNumber(byId(`island_${index}_${side}_from`)?.value);
       const to = normalizeNumber(byId(`island_${index}_${side}_to`)?.value);
       return { from, to };
+    }
+
+    function readGapListFromDom(index, side) {
+      return parseGapList(byId(`island_${index}_${side}_gaps`)?.value);
+    }
+
+    function parseGapList(value) {
+      return [...new Set(String(value || "").split(/[,\s、]+/).map((item) => normalizeNumber(item)).filter((item) => item !== null).map(String))];
+    }
+
+    function formatGapList(gaps) {
+      return (Array.isArray(gaps) ? gaps : []).map(String).join(", ");
     }
 
     function normalizeLayouts(layouts) {
@@ -3749,6 +3872,7 @@
         name: String(island?.name || "").trim(),
         left: normalizeIslandSide(island?.left),
         right: island?.right ? normalizeIslandSide(island.right) : null,
+        gaps: normalizeIslandGaps(island?.gaps),
         leftPresetId: presetById(island?.leftPresetId) ? island.leftPresetId : "",
         rightPresetId: presetById(island?.rightPresetId) ? island.rightPresetId : "",
         excluded: Array.isArray(island?.excluded) ? [...new Set(island.excluded.map(String))] : [],
@@ -3760,6 +3884,17 @@
       return {
         from: normalizeNumber(side?.from),
         to: normalizeNumber(side?.to)
+      };
+    }
+
+    function normalizeIslandGaps(gaps) {
+      if (Array.isArray(gaps)) {
+        const legacy = [...new Set(gaps.map((item) => normalizeNumber(item)).filter((item) => item !== null).map(String))];
+        return { left: legacy, right: [] };
+      }
+      return {
+        left: Array.isArray(gaps?.left) ? [...new Set(gaps.left.map((item) => normalizeNumber(item)).filter((item) => item !== null).map(String))] : [],
+        right: Array.isArray(gaps?.right) ? [...new Set(gaps.right.map((item) => normalizeNumber(item)).filter((item) => item !== null).map(String))] : []
       };
     }
 
@@ -3881,6 +4016,7 @@
             modelName: "",
             roundBalls: null,
             memo: "",
+            nailRating: normalizeNailRating(null),
             presetId: "",
             evSupported: false
           });
@@ -4398,6 +4534,53 @@
       });
     }
 
+    function nailRatingSummary(rating) {
+      const normalized = normalizeNailRating(rating);
+      return NAIL_RATING_KEYS
+        .filter((key) => normalized[key] !== null)
+        .map((key) => `${NAIL_RATING_LABELS[key]}${normalized[key]}`)
+        .join("・");
+    }
+
+    function nailRatingSectionHtml(machine) {
+      const rating = normalizeNailRating(machine.nailRating);
+      const summary = nailRatingSummary(rating);
+      return `
+        <div class="nail-rating-section">
+          <div><strong>釘・ネカセ</strong><br><small>${summary ? `釘: ${escapeHtml(summary)}` : "未評価"}</small></div>
+          ${NAIL_RATING_KEYS.map((key) => `
+            <div class="nail-rating-row">
+              <span>${escapeHtml(NAIL_RATING_LABELS[key])}</span>
+              <div class="nail-rating-chips" data-nail-key="${escapeHtml(key)}">
+                ${[1, 2, 3, 4, 5].map((value) => `<button type="button" data-nail-rating="${value}" aria-pressed="${rating[key] === value ? "true" : "false"}">${value}</button>`).join("")}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function bindNailRatingChips() {
+      els.modalBody.querySelectorAll("[data-nail-rating]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const row = button.closest("[data-nail-key]");
+          if (!row) return;
+          const wasPressed = button.getAttribute("aria-pressed") === "true";
+          row.querySelectorAll("[data-nail-rating]").forEach((item) => item.setAttribute("aria-pressed", "false"));
+          if (!wasPressed) button.setAttribute("aria-pressed", "true");
+        });
+      });
+    }
+
+    function readNailRatingFromDom() {
+      const rating = {};
+      NAIL_RATING_KEYS.forEach((key) => {
+        const selected = els.modalBody.querySelector(`[data-nail-key="${key}"] [data-nail-rating][aria-pressed="true"]`);
+        rating[key] = normalizeRatingValue(selected?.dataset.nailRating);
+      });
+      return normalizeNailRating(rating);
+    }
+
     function machineModelSummaryHtml(machine) {
       const summary = machineModelDisplay(machine);
       const source = summary.source ? `（${escapeHtml(summary.source)}）` : "";
@@ -4437,6 +4620,7 @@
       const averagePayoutNote = stats.estimatedCount ? "（概算含む）" : "";
       openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
         <div class="field-row"><label for="machineMemo">台メモ（釘・癖など）</label><textarea id="machineMemo" placeholder="＋台メモを追加">${escapeHtml((memoDraft ?? machine.memo) || "")}</textarea></div>
+        ${nailRatingSectionHtml(machine)}
         <div class="metric-grid">
           <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}</div>
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
@@ -4471,7 +4655,9 @@
         </div>
       `);
       const toggleMachineFormBtn = byId("toggleMachineFormBtn");
+      bindNailRatingChips();
       if (toggleMachineFormBtn) toggleMachineFormBtn.addEventListener("click", () => {
+        readMachineMemoForm(machine);
         openMachineDetail(daiNo, true, byId("machineMemo")?.value || "");
       });
       if (machineFormExpanded) {
@@ -4563,6 +4749,7 @@
 
     function readMachineMemoForm(machine) {
       machine.memo = byId("machineMemo")?.value.trim() || "";
+      machine.nailRating = readNailRatingFromDom();
     }
 
     function readMachineDetailForm(machine) {

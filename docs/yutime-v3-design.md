@@ -68,6 +68,7 @@
           "name": "大海入口島",
           "left": { "from": 101, "to": 105 },
           "right": { "from": 199, "to": 195 },
+          "gaps": { "left": ["103"], "right": ["197"] },
           "leftPresetId": "umi-sp5",
           "rightPresetId": "umi-sp5",
           "excluded": ["104"]
@@ -86,6 +87,7 @@
 - `from` と `to` は昇順・降順どちらでもよい。
 - `excluded` は存在しない台番の一覧。プレビュー上の台番をタップして除外/復帰する。
 - `name` は島の任意名。空欄の場合は、列機種プリセットが同一または片面島なら機種名、判定できなければ「島N」を表示する。
+- `gaps.left` / `gaps.right` は物理区切りの位置。指定した台番の後ろに空白スペーサーと柱マークを表示する。連続入力の遷移順には影響しない。
 - `leftPresetId` / `rightPresetId` は列単位の機種プリセット。未設定台への一括適用と、遊タイム機能の出し分けに使う。
 - `assumedRate` はそのマップ（機種・コーナー）の推定回転率。台帳データがない台の期待値判定に使い、店単位では保存しない。
 - 旧テキスト定義 `{ source: "100-104 | 199-195" }` は読み込み時に `islands` へ自動変換する。
@@ -116,6 +118,7 @@
   "modelName": "string",
   "roundBalls": null,
   "memo": "",
+  "nailRating": { "heso": null, "yori": null, "michi": null, "nekase": null, "migi": null },
   "presetId": "",
   "evSupported": false
 }
@@ -123,6 +126,7 @@
 
 - フロアマップから台番だけの Machine を自動生成する。
 - 機種名、1R 玉数、台メモ（釘・癖など）は後付け編集できる。
+- `nailRating` は台単位の釘・ネカセ評価。`heso`（ヘソ）、`yori`（寄り）、`michi`（道）、`nekase`（ネカセ）、`migi`（右打ち）を1〜5または null で保存する。マップボタンには表示しない。
 - B1 で `payoutType` は廃止。旧データに存在する場合も読み込み時に保持しない。
 - B2 で機種プリセットを追加。B5 以降は `MACHINE_PRESETS = [{ id, name, roundBalls, standardRounds, standardPayout, evSupported, spec }]` の定数テーブルで管理する。
 - 初期プリセットは P大海物語5スペシャル のみ。選択時は機種名、1R玉数 140、期待値対応フラグを自動セットする。
@@ -204,7 +208,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:mapbackup` | フロアマップ定義だけの1世代退避 | フロアマップ保存時、保存直前のアクティブマップ定義を店ID・マップID単位で退避する。復元ボタン押下時に該当マップの島構成・除外・列機種のみ戻す。台・セッション・dailyState は触らない | `{ backups: { [storeId]: { [mapId]: { storeId, mapId, map, createdAt } } } }` の JSON 文字列 |
@@ -733,6 +737,19 @@ B5 実測値:
 - 通常消費玉は変更しない。タップ方式では通常phase投入合計のみを使い、当選時残り玉や突入時玉数を差し引かない。
 - schema 20 Session 1件サンプル（`yutimeEnterSpin: 80`、通常/yutime 投資各1件、`charges` 1件）: 962 chars。
 
+## 41. B44 釘・ネカセ評価と物理区切り
+
+- schema は 21 とする。Machine に `nailRating`、MapLayout の島に `gaps` を追加する。
+- `nailRating` は `heso` / `yori` / `michi` / `nekase` / `migi` の5項目を1〜5または null で保存する。再タップで未評価へ戻せる。
+- 台詳細では台メモの近くに「釘・ネカセ」セクションを常時表示し、評価済み項目だけを「釘: ヘソ4・寄り3・ネカセ2」のように要約する。
+- マップの台番ボタンには釘評価を表示しない。歩きながら見る情報量を増やしすぎないため、メモ印だけを維持する。
+- `gaps` は `{ left: [台番...], right: [台番...] }` で保存する。各値は「その台番の後に区切り」を意味し、左右列で独立して指定できる。
+- グリッドとプレビューでは、区切り位置に空白スペーサーと細い柱マークを表示する。
+- 閉店時ゲーム数登録・ラムクリアチェックの連続入力順は、`gaps` を無視して台番列の順序どおり進む。
+- schema 21 Map 1件サンプル（`gaps.left: ["101"]`、列プリセット・除外1台）: 259 chars。
+- schema 21 Machine 1件サンプル（`nailRating` 5項目あり）: 220 chars。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。
+- ヘソ釘の写真登録（カメラ/ファイル添付）。localStorage容量の制約があるため、実装時は圧縮または外部保存の設計が必要。
