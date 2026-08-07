@@ -3,9 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>スロット稼働ノート｜収支・狙い目・実戦メモをまとめて記録</title>
-<meta name="description" content="スロット稼働ノートは、パチスロ・パチンコ実戦をサポートする無料ツール集です。">
-<link rel="canonical" href="https://slot-tools.jp/index.html">
+<title>スロット稼働ノート｜無料パチスロ実戦ツール集</title>
+<meta name="description" content="スロット稼働ノートは、パチスロ・パチンコ実戦を記録、計算、検証するための無料パチスロ実戦ツール集です。端末内保存を中心に、実戦中の判断と振り返りを補助します。">
+<link rel="canonical" href="https://slot-tools.jp/">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:type" content="website">
+<meta property="og:title" content="スロット稼働ノート｜無料パチスロ実戦ツール集">
+<meta property="og:description" content="スロット稼働ノートは、パチスロ・パチンコ実戦を記録、計算、検証するための無料パチスロ実戦ツール集です。端末内保存を中心に、実戦中の判断と振り返りを補助します。">
+<meta property="og:url" content="https://slot-tools.jp/">
 <style>
 body{background:#0d0d0f;color:#e8e4d9;font-family:'Hiragino Kaku Gothic ProN',sans-serif;margin:0;padding:0;}
 header{background:linear-gradient(135deg,#1a1008,#0d0d0f);border-bottom:1px solid #c9a84c;padding:20px;text-align:center;}
@@ -20,6 +25,10 @@ header p{color:#7a7a8a;font-size:13px;margin-top:6px;}
 .tool-card p{color:#7a7a8a;font-size:13px;margin:0;line-height:1.6;}
 .guide-link{display:inline-block;color:#c9a84c;font-size:13px;font-weight:700;margin-top:10px;text-decoration:none;}
 .guide-link:hover{color:#e8c96a;}
+.info-block{background:#1a1a1f;border:1px solid #2e2e38;border-radius:8px;padding:16px;margin-bottom:14px;line-height:1.8;}
+.info-block h2{color:#e8c96a;font-size:16px;margin:0 0 8px;}
+.info-block p{color:#d8d2c6;font-size:14px;margin:0;}
+.info-block a{color:#e8c96a;}
 footer{text-align:center;padding:40px 16px;color:#4a4a5a;font-size:12px;}
 footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
 footer a{color:#7a7a8a;text-decoration:none;}
@@ -34,31 +43,50 @@ footer a:hover{color:#e8c96a;}
   <p>パチスロ・パチンコ実戦をサポートする無料ツール集</p>
 </header>
 <div class="container">
+
+  <section class="info-block">
+    <h2>このサイトでできること</h2>
+    <p>スロット稼働ノートは、パチスロ・パチンコの実戦中に必要になる記録、計算、示唆確認をスマホで扱いやすくまとめた無料パチスロ実戦ツール集です。収支や展開を残す稼働ログ、パチンコの回転単価計算、遊タイム期待値の台帳、機種別の推測補助を公開しています。各ページは単体で使えるようにし、入力内容や保存データは原則として利用中の端末内に残す設計です。</p>
+  </section>
+  <section class="info-block">
+    <h2>攻略サイト・記録アプリとの違い</h2>
+    <p>一般的な解析まとめを転載するのではなく、実戦中に「何を入力し、あとで何を検証するか」を基準に作っています。記録データはサーバーへ送らず、localStorageなど端末内保存を基本にしているため、個人の稼働メモを外部アカウントなしで扱えます。無料で使える範囲を優先し、ガイドページでは計算の前提、限界、未確認情報を分けて説明します。</p>
+  </section>
+  <section class="info-block">
+    <h2>初めての人へのおすすめ</h2>
+    <p>まずは<a href="nerai-record.html">稼働記録ツール</a>で、打ち始めから収支登録までの流れを残すのがおすすめです。パチンコの期待値を確認したい場合は<a href="pachinko-unit-calc.html">パチンコ回転単価計算ツール</a>、南国育ちSPECIALの単発抜け判断には<a href="mode-estimator.html?machine=nangoku-sp">モード推測ツール</a>を使ってください。北斗転生2を打つ場合は、<a href="abechi-calc.html">あべしズレ推定</a>と<a href="shutter-record.html">シャッターなし台記録</a>を目的別に分けると整理しやすくなります。</p>
+  </section>
+
   <div class="section-label">実戦ログ</div>
   <div class="tool-card" role="link" tabindex="0" onclick="location.href='nerai-record.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='nerai-record.html';}">
     <h2>稼働記録ツール</h2>
     <p>機種別・狙い方別に入力項目を作り、実戦中の記録と収支を保存します。</p>
+    <a class="guide-link" href="nerai-record.html" onclick="event.stopPropagation();">ツールを開く →</a>
     <a class="guide-link" href="nerai-guide.html" onclick="event.stopPropagation();">📖 使い方・詳しい説明 →</a>
   </div>
   <div class="section-label">パチンコ計算</div>
   <div class="tool-card" role="link" tabindex="0" onclick="location.href='pachinko-unit-calc.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='pachinko-unit-calc.html';}">
     <h2>パチンコ回転単価計算ツール</h2>
     <p>回転率・基準出玉・換算トータル確率・交換率・現金比率から、回転単価、千円期待値、ボーダー、日当を計算します。</p>
+    <a class="guide-link" href="pachinko-unit-calc.html" onclick="event.stopPropagation();">ツールを開く →</a>
     <a class="guide-link" href="pachi-unit-guide.html" onclick="event.stopPropagation();">📖 使い方・詳しい説明 →</a>
   </div>
   <div class="tool-card" role="link" tabindex="0" onclick="location.href='yutime-record.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='yutime-record.html';}">
     <h2>パチンコ遊タイム期待値・台帳ツール</h2>
     <p>台番ごとの実測回転率を残し、P大海物語5スペシャルの遊タイム狙い期待値・時給・スロ換算機械割を判定します。</p>
+    <a class="guide-link" href="yutime-record.html" onclick="event.stopPropagation();">ツールを開く →</a>
   </div>
   <div class="section-label">L南国育ち SPECIAL</div>
   <div class="tool-card" role="link" tabindex="0" onclick="location.href='mode-estimator.html?machine=nangoku-sp'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='mode-estimator.html?machine=nangoku-sp';}">
     <h2>モード推測ツール</h2>
     <p>起点・初当たりG数・飛翔突入の有無から、滞在モードの推定割合と状態評価を表示します。</p>
+    <a class="guide-link" href="mode-estimator.html?machine=nangoku-sp" onclick="event.stopPropagation();">ツールを開く →</a>
     <a class="guide-link" href="guide/mode-estimator.html" onclick="event.stopPropagation();">📖 使い方・詳しい説明 →</a>
   </div>
   <div class="tool-card" role="link" tabindex="0" onclick="location.href='nangoku-sp-voice.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='nangoku-sp-voice.html';}">
     <h2>ボーナス終了時ボイスまとめ</h2>
     <p>設定示唆ボイスの種類、発生条件、実戦で使う時の注意点を出典リンク付きで整理しています。</p>
+    <a class="guide-link" href="nangoku-sp-voice.html" onclick="event.stopPropagation();">ページを開く →</a>
   </div>
   <div class="section-label">設定判別</div>
   <div class="tool-card" role="link" tabindex="0" onclick="location.href='checkers.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='checkers.html';}">
@@ -70,13 +98,26 @@ footer a:hover{color:#e8c96a;}
   <div class="tool-card" role="link" tabindex="0" onclick="location.href='abechi-calc.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='abechi-calc.html';}">
     <h2>あべしズレ推定ツール</h2>
     <p>リセット時の不可視加算量を推定し、次に確認すべき判別ゾーンを表示します。</p>
+    <a class="guide-link" href="abechi-calc.html" onclick="event.stopPropagation();">ツールを開く →</a>
     <a class="guide-link" href="abechi-guide.html" onclick="event.stopPropagation();">📖 使い方・詳しい説明 →</a>
   </div>
   <div class="tool-card" role="link" tabindex="0" onclick="location.href='shutter-record.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='shutter-record.html';}">
     <h2>シャッターなし台記録ツール</h2>
     <p>896あべし超えの可能性がある台を店舗・台番ごとに記録・管理します。</p>
+    <a class="guide-link" href="shutter-record.html" onclick="event.stopPropagation();">ツールを開く →</a>
     <a class="guide-link" href="shutter-guide.html" onclick="event.stopPropagation();">📖 使い方・詳しい説明 →</a>
   </div>
+
+  <section class="info-block">
+    <h2>更新履歴</h2>
+    <ul>
+      <li>2026年7月30日: AdSense再申請に向けて、各ツールページの説明、canonical、サイト内導線を整理。</li>
+      <li>2026年7月29日: L南国育ち SPECIALのボーナス終了時ボイスまとめを公開。</li>
+      <li>2026年7月29日: トップページにPWAインストール案内を追加。</li>
+      <li>2026年7月22日: 稼働記録ツールのガイドページをサイトマップへ追加。</li>
+      <li>2026年7月20日: パチンコ遊タイム期待値・台帳ツールを公開。</li>
+    </ul>
+  </section>
 </div>
 <footer>
   <p>&copy; 2026 slot-tools.jp</p>
@@ -85,6 +126,7 @@ footer a:hover{color:#e8c96a;}
     <a href="/privacy.html">プライバシーポリシー</a>
     <a href="/disclaimer.html">免責事項</a>
     <a href="/contact.html">お問い合わせ</a>
+      <a href="/partner.html">広告掲載・提携について</a>
   </nav>
 </footer>
 </body>

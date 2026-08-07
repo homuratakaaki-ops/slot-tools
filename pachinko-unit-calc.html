@@ -3,9 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>パチンコ回転単価計算ツール | slot-tools.jp</title>
-<meta name="description" content="4円パチンコの回転率、基準出玉、基準出玉に対するトータル確率、交換率、現金比率から回転単価・千円期待値・ボーダー・日当を計算する無料ツールです。">
+<title>パチンコ回転単価計算ツール｜スロット稼働ノート</title>
+<meta name="description" content="4円パチンコの回転率、基準出玉、トータル確率、交換率、現金比率から回転単価・千円期待値・ボーダー・日当を計算する無料ツールです。スロット稼働ノートで公開しています。">
 <link rel="canonical" href="https://slot-tools.jp/pachinko-unit-calc.html">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:type" content="website">
+<meta property="og:title" content="パチンコ回転単価計算ツール｜スロット稼働ノート">
+<meta property="og:description" content="4円パチンコの回転率、基準出玉、トータル確率、交換率、現金比率から回転単価・千円期待値・ボーダー・日当を計算する無料ツールです。スロット稼働ノートで公開しています。">
+<meta property="og:url" content="https://slot-tools.jp/pachinko-unit-calc.html">
 <style>
   :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--red:#e07070;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66}
   *{box-sizing:border-box}
@@ -40,7 +45,7 @@
 </head>
 <body>
 <header>
-  <a class="top-link" href="index.html">TOP</a>
+  <a class="top-link" href="/">TOP</a>
   <a class="top-link" href="pachi-unit-guide.html" style="margin-left:8px;">使い方・詳しい説明 →</a>
   <h1>パチンコ回転単価計算ツール</h1>
   <p>4円パチンコ専用。交換率と現金比率込みでボーダーを計算します。</p>
@@ -79,9 +84,16 @@
     <div class="formula">実効投資玉/千円 C = 250 × (c/100 × 4/P + (1 - c/100))<br>ボーダー = C × Tb ÷ B<br>※出玉は払い出しではなく実質出玉（アタッカー消化中の打ち込み分を控除）の使用を推奨</div>
   </section>
 </main>
+
+<section class="tool-info" style="max-width:720px;margin:28px auto 0;padding:18px 16px;background:#1a1a1f;border:1px solid #2e2e38;border-radius:8px;line-height:1.8;">
+  <h2 style="color:#e8c96a;font-size:18px;margin:0 0 10px;">パチンコ回転単価計算ツールについて</h2>
+    <p>4円パチンコの回転率、基準出玉、基準出玉に対するトータル確率、交換率、現金比率から、回転単価、千円期待値、ボーダー、日当を計算するツールです。単にボーダーを表示するだけでなく、現金投資の比率や交換率を入れて実戦条件に近い期待値を確認できます。日当欄では想定回転数を変えながら、終日打つ価値があるかをざっくり比較できます。計算結果は入力値に依存する理論値で、実際の出玉や収支を保証するものではありません。</p>
+    <p>想定ユーザーは、回転率を測りながら持ち玉比率や交換率込みで打つかどうかを判断したい人です。台を試し打ちした直後、または終日稼働の候補を比較するときに使うと、感覚だけの判断を減らせます。入力値はこの端末のブラウザ内にlocalStorageで保存され、サーバーへ送信されません。計算式と入力項目の意味は<a href="pachi-unit-guide.html">パチンコ回転単価計算ツールの使い方</a>にまとめています。</p>
+</section>
 <footer>
   <p>&copy; 2026 slot-tools.jp</p>
-  <nav><a href="/about.html">運営者情報</a><a href="/privacy.html">プライバシーポリシー</a><a href="/disclaimer.html">免責事項</a><a href="/contact.html">お問い合わせ</a></nav>
+  <nav><a href="/about.html">運営者情報</a><a href="/privacy.html">プライバシーポリシー</a><a href="/disclaimer.html">免責事項</a><a href="/contact.html">お問い合わせ</a>    <a href="/partner.html">広告掲載・提携について</a>
+  </nav>
 </footer>
 <script>
 const STORAGE_KEY='pachiEvCalc.v2';
@@ -188,5 +200,6 @@ inputIds.filter(id=>id!=='cashRatio').forEach(id=>document.getElementById(id).ad
 restoreState();
 calculate();
 </script>
+
 </body>
 </html>

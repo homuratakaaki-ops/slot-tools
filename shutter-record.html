@@ -6,6 +6,11 @@
 <title>シャッターなし台記録ツール｜北斗転生2の実戦メモ補助</title>
 <meta name="description" content="北斗転生2のシャッターなし台を記録・整理するための無料ツールです。実戦データの確認や振り返りに使えます。">
 <link rel="canonical" href="https://slot-tools.jp/shutter-record.html">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:type" content="website">
+<meta property="og:title" content="シャッターなし台記録ツール｜北斗転生2の実戦メモ補助">
+<meta property="og:description" content="北斗転生2のシャッターなし台を記録・整理するための無料ツールです。実戦データの確認や振り返りに使えます。">
+<meta property="og:url" content="https://slot-tools.jp/shutter-record.html">
 <style>
 :root{
   --bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;
@@ -133,7 +138,7 @@ footer a:hover{color:var(--gold-light);}
 </head>
 <body>
 <header>
-  <a class="top-link" href="index.html">← TOP</a>
+  <a class="top-link" href="/">← TOP</a>
   <h1>シャッターなし台記録｜北斗の拳 転生の章2</h1>
   <a class="top-link" href="shutter-guide.html" style="margin-top:8px;margin-bottom:0;">使い方はこちら →</a>
 </header>
@@ -302,6 +307,12 @@ footer a:hover{color:var(--gold-light);}
   </div>
 </div>
 
+
+<section class="tool-info" style="max-width:720px;margin:28px auto 0;padding:18px 16px;background:#1a1a1f;border:1px solid #2e2e38;border-radius:8px;line-height:1.8;">
+  <h2 style="color:#e8c96a;font-size:18px;margin:0 0 10px;">シャッターなし台記録ツールについて</h2>
+    <p>北斗の拳 転生の章2で、896あべし超えの可能性がある台を店舗・台番ごとに残すための記録ツールです。シャッター演出の有無、初当たり回数、メモを台単位で管理し、翌日以降に同じ店舗を見るときの確認材料を整理できます。単発の記憶に頼らず、台ごとの履歴として見返せる点が差別化ポイントです。判定は観測記録にもとづく補助であり、内部状態を保証するものではありません。</p>
+    <p>想定ユーザーは、同じ店舗で北斗転生2を継続的に見る人、閉店前や翌日の候補台を絞り込みたい人です。店舗配置を登録しておくと、実戦中でも台番号からすばやく記録へ入れます。入力データはこの端末のブラウザ内にlocalStorageで保存され、外部サーバーへ送信されません。使い方と削除時の注意は<a href="shutter-guide.html">シャッターなし台記録ツールの使い方</a>にまとめています。</p>
+</section>
 <footer>
   <p>&copy; 2026 slot-tools.jp</p>
   <nav>
@@ -309,6 +320,7 @@ footer a:hover{color:var(--gold-light);}
     <a href="/privacy.html">プライバシーポリシー</a>
     <a href="/disclaimer.html">免責事項</a>
     <a href="/contact.html">お問い合わせ</a>
+      <a href="/partner.html">広告掲載・提携について</a>
   </nav>
 </footer>
 
@@ -847,5 +859,6 @@ function closeModal(id){document.getElementById(id).classList.remove('open');}
 syncSelects();renderStoreList();renderCellTags();
 document.getElementById('globalDate').value=today();
 </script>
+
 </body>
 </html>

@@ -4,9 +4,6 @@
     <loc>https://slot-tools.jp/</loc>
   </url>
   <url>
-    <loc>https://slot-tools.jp/index.html</loc>
-  </url>
-  <url>
     <loc>https://slot-tools.jp/abechi-calc.html</loc>
   </url>
   <url>
@@ -68,5 +65,8 @@
   </url>
   <url>
     <loc>https://slot-tools.jp/contact.html</loc>
+  </url>
+  <url>
+    <loc>https://slot-tools.jp/partner.html</loc>
   </url>
 </urlset>
