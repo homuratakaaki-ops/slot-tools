@@ -800,12 +800,8 @@ footer a:hover{color:var(--gold-light);}
         <div class="field-stack">
           <div class="quick-row" id="settingLabelValueButtons"></div>
           <label class="toggle-row" style="justify-content:flex-start;gap:8px;">
-            <input type="checkbox" id="settingLabelAtLeast" onchange="syncSettingLabelUi()">
-            <span>以上</span>
-          </label>
-          <label class="toggle-row" style="justify-content:flex-start;gap:8px;">
             <input type="checkbox" id="settingLabelConfirmed" onchange="syncSettingLabelUi()">
-            <span>確定</span>
+            <span>以上確定</span>
           </label>
           <div class="input-hint">確定はトロフィー等の根拠がある場合のみ</div>
         </div>
@@ -6272,7 +6268,7 @@ function renderFlowStepTabs(){
     </button>`).join('');
   document.querySelectorAll('#pageLog .flow-panel').forEach(panel=>{
     const step=Number(panel.dataset.flowStep||currentFlowStep);
-    const isActive=!panel.dataset.flowStep||step===currentFlowStep;
+    const isActive=panel.dataset.flowStep?step===currentFlowStep:currentFlowStep!==4;
     panel.classList.toggle('active',isActive);
     panel.toggleAttribute?.('hidden',!isActive);
     panel.toggleAttribute?.('inert',!isActive);
@@ -10458,11 +10454,17 @@ function renderLogFields(){
   const aim=currentAim();
   const el=document.getElementById('dynamicFields');
   if(!aim){el.innerHTML='<div class="empty-hint">機種と狙い方を登録してください</div>';return;}
+  if(currentFlowStep===4){
+    el.innerHTML='';
+    renderStoreSelect();
+    syncHeaderFromMoney();
+    updateMoneyRegistrationStatus();
+    return;
+  }
   const panels={
     1:`<div class="card work-section-card"><div class="work-section-title">打ち始め</div>${renderStartLogArea()}</div>`,
     2:`${renderBattleModeOpenButton()}<div class="card work-section-card play"><div class="work-section-title">実戦メモ</div>${renderFollowBranchControls()}${renderTimelineArea('play')}</div><div id="carrySummaryBox"></div><div id="practiceStatsBox"></div>`,
-    3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div>`,
-    4:`<div class="card work-section-card"><div class="work-section-title">ヤメ（収支登録）</div>${renderSegmentUndoNotice()}<div id="practiceStatsBox"></div></div>`
+    3:`<div class="card work-section-card play"><div class="work-section-title">AT/CZ当選時の記録</div>${renderTimelineArea('hit')}</div>`
   };
   el.innerHTML=panels[currentFlowStep]||panels[1];
   renderCurrentStartLog();
@@ -15997,9 +15999,8 @@ function updateCalc(){
 }
 function currentSettingLabelFromInputs(){
   const base=normalizeSettingLabelOrDefault(currentSettingLabel);
-  const atLeast=!!document.getElementById('settingLabelAtLeast')?.checked;
-  const confirmed=!!document.getElementById('settingLabelConfirmed')?.checked;
-  return normalizeSettingLabelOrDefault({value:base.value,atLeast,confirmed});
+  const aboveConfirmed=!!document.getElementById('settingLabelConfirmed')?.checked;
+  return normalizeSettingLabelOrDefault({value:base.value,atLeast:aboveConfirmed,confirmed:aboveConfirmed});
 }
 function renderSettingLabelUi(){
   const holder=document.getElementById('settingLabelValueButtons');
@@ -16012,10 +16013,8 @@ function renderSettingLabelUi(){
       return `<button type="button" class="btn-small ${active?'active':''}" onclick="selectSettingLabelValue(${value===null?'null':value})">${label}</button>`;
     }).join('');
   }
-  const atLeast=document.getElementById('settingLabelAtLeast');
   const confirmed=document.getElementById('settingLabelConfirmed');
-  if(atLeast)atLeast.checked=!!normalized.atLeast;
-  if(confirmed)confirmed.checked=!!normalized.confirmed;
+  if(confirmed)confirmed.checked=!!(normalized.atLeast||normalized.confirmed);
 }
 function applySettingLabelToInputs(label){
   currentSettingLabel=normalizeSettingLabelOrDefault(label);

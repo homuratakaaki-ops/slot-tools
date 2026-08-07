@@ -2172,10 +2172,138 @@ function testFlowPanelsDoNotExposeInactiveSteps() {
   `, context));
   assert.deepEqual(states, [
     { active:false, hidden:true, inert:true, inertAttr:'', ariaHidden:'true' },
-    { active:true, hidden:false, inert:false, inertAttr:'__removed__', ariaHidden:'false' },
+    { active:false, hidden:true, inert:true, inertAttr:'', ariaHidden:'true' },
     { active:true, hidden:false, inert:false, inertAttr:'__removed__', ariaHidden:'false' },
     { active:true, hidden:false, inert:false, inertAttr:'__removed__', ariaHidden:'false' }
   ]);
+}
+
+function testStep4HidesDynamicFieldsDuringPendingHit() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  const result = JSON.parse(vm.runInContext(`
+    (() => {
+      const dynamic = {
+        dataset: {},
+        hidden: false,
+        inert: false,
+        attrs: {},
+        classList: {
+          active: true,
+          toggle(name, value) { if (name === 'active') this.active = !!value; }
+        },
+        toggleAttribute(name, value) {
+          if (name === 'hidden') this.hidden = !!value;
+          if (name === 'inert') this.attrs.inert = value ? '' : '__removed__';
+        },
+        setAttribute(name, value) { this.attrs[name] = String(value); }
+      };
+      const step1 = {
+        dataset: { flowStep: '1' },
+        hidden: false,
+        inert: false,
+        attrs: {},
+        classList: {
+          active: false,
+          toggle(name, value) { if (name === 'active') this.active = !!value; }
+        },
+        toggleAttribute(name, value) {
+          if (name === 'hidden') this.hidden = !!value;
+          if (name === 'inert') this.attrs.inert = value ? '' : '__removed__';
+        },
+        setAttribute(name, value) { this.attrs[name] = String(value); }
+      };
+      const step4 = {
+        dataset: { flowStep: '4' },
+        hidden: false,
+        inert: false,
+        attrs: {},
+        classList: {
+          active: false,
+          toggle(name, value) { if (name === 'active') this.active = !!value; }
+        },
+        toggleAttribute(name, value) {
+          if (name === 'hidden') this.hidden = !!value;
+          if (name === 'inert') this.attrs.inert = value ? '' : '__removed__';
+        },
+        setAttribute(name, value) { this.attrs[name] = String(value); }
+      };
+      const tabs = { innerHTML: '' };
+      const title = { textContent: '' };
+      const originalGet = document.getElementById;
+      const originalQuery = document.querySelectorAll;
+      document.getElementById = id => id === 'flowStepTabs' ? tabs : id === 'dynamicFieldsTitle' ? title : originalGet(id);
+      document.querySelectorAll = selector => selector === '#pageLog .flow-panel' ? [step1, dynamic, step4] : originalQuery(selector);
+      currentFlowStep = 4;
+      currentHitEvents = [normalizeHitEvent({ id:'he_pending', trigger:'at', dataGame:100, liquidGame:100, createdAt:'2026-08-02T10:00:00.000Z', wizardDone:false })];
+      hitBranchWizard = { route:'atHit', stepIndex:0, through:null, done:[], eventId:'he_pending' };
+      renderFlowStepTabs();
+      document.getElementById = originalGet;
+      document.querySelectorAll = originalQuery;
+      return JSON.stringify({
+        dynamic: {
+          active: dynamic.classList.active,
+          hidden: dynamic.hidden,
+          inert: dynamic.inert,
+          ariaHidden: dynamic.attrs['aria-hidden']
+        },
+        step1: {
+          active: step1.classList.active,
+          hidden: step1.hidden,
+          inert: step1.inert,
+          ariaHidden: step1.attrs['aria-hidden']
+        },
+        step4: {
+          active: step4.classList.active,
+          hidden: step4.hidden,
+          inert: step4.inert,
+          ariaHidden: step4.attrs['aria-hidden']
+        },
+        tabHtml: tabs.innerHTML
+      });
+    })()
+  `, context));
+  assert.deepEqual(result.dynamic, { active: false, hidden: true, inert: true, ariaHidden: 'true' });
+  assert.deepEqual(result.step1, { active: false, hidden: true, inert: true, ariaHidden: 'true' });
+  assert.deepEqual(result.step4, { active: true, hidden: false, inert: false, ariaHidden: 'false' });
+  assert.match(result.tabHtml, /処理中/);
+}
+
+function testSettingLabelUsesSingleAboveConfirmedCheckbox() {
+  const html = fs.readFileSync(HTML_PATH, 'utf8');
+  assert.match(html, /id="settingLabelConfirmed"[\s\S]*以上確定/);
+  assert.doesNotMatch(html, /id="settingLabelAtLeast"/);
+
+  const { context } = runRecord(undefined);
+  const result = JSON.parse(vm.runInContext(`
+    (() => {
+      const generic = document.getElementById('generic');
+      const holder = { ...generic, innerHTML: '' };
+      const checkbox = { ...generic, checked: false };
+      const originalGet = document.getElementById;
+      document.getElementById = id => id === 'settingLabelValueButtons' ? holder : id === 'settingLabelConfirmed' ? checkbox : originalGet(id);
+
+      currentSettingLabel = normalizeSettingLabelOrDefault({ value:4, atLeast:false, confirmed:false });
+      checkbox.checked = true;
+      const fromChecked = currentSettingLabelFromInputs();
+
+      applySettingLabelToInputs({ value:3, atLeast:true, confirmed:false });
+      const legacyAtLeastChecked = checkbox.checked;
+      checkbox.checked = false;
+      const fromUnchecked = currentSettingLabelFromInputs();
+
+      checkbox.checked = true;
+      selectSettingLabelValue(6);
+      const selected = currentSettingLabel;
+
+      document.getElementById = originalGet;
+      return JSON.stringify({ fromChecked, legacyAtLeastChecked, fromUnchecked, selected });
+    })()
+  `, context));
+  assert.deepEqual(result.fromChecked, { value: 4, atLeast: true, confirmed: true });
+  assert.equal(result.legacyAtLeastChecked, true);
+  assert.deepEqual(result.fromUnchecked, { value: 3, atLeast: false, confirmed: false });
+  assert.deepEqual(result.selected, { value: 6, atLeast: true, confirmed: true });
 }
 
 function testShopNoteOverlayOpensFromVisibleTop() {
@@ -5192,6 +5320,8 @@ function run() {
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeKeypadOverlayStacksAboveBattleMode();
   testFlowPanelsDoNotExposeInactiveSteps();
+  testStep4HidesDynamicFieldsDuringPendingHit();
+  testSettingLabelUsesSingleAboveConfirmedCheckbox();
   testShopNoteOverlayOpensFromVisibleTop();
   testBattleModeMemoSheetTracksViewportOnResume();
   testBattleModeToastUsesTopPosition();
