@@ -453,18 +453,15 @@ function testKabaneriPresetSeedAndPickers() {
   vm.runInContext("closeBattleModeOtherSheet()", context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
   vm.runInContext("currentTimeline=[]; setTimelineGames(119,119); battleModeRecordState('kabaneri_ikoma_high','start'); setTimelineGames(120,120); battleModeRecordTag('t_kabaneri_chance_ikoma')", context);
-  const followUpHighHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
-  assert.match(stripTags(followUpHighHtml), /成立時：🔥高確中（バッジから）/);
-  assert.match(stripTags(followUpHighHtml), /変化なし/);
-  assert.match(followUpHighHtml, /💡発光開始/);
-  assert.doesNotMatch(followUpHighHtml, /🔥高確開始/);
-  vm.runInContext("battleModeRecordChanceFollowUp('t_kabaneri_chance_ikoma','flash')", context);
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
     ['t_kabaneri_chance_ikoma', 't_kabaneri_state_ikoma_flash_start']
   );
   assert.match(vm.runInContext("timelineEntryText(currentTimeline.at(-1))", context), /生駒チャンス目（🔥中→💡開始）/);
   assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.ikoma.single.high", context), 1);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.ikoma.single.deduction", context), 1);
+  assert.equal(vm.runInContext("battleModeActiveStates().some(state => state.id === 'kabaneri_ikoma_flash')", context), true);
+  assert.equal(vm.runInContext("battleModeOtherSheetOpen", context), false);
   vm.runInContext("currentTimeline=[]; setTimelineGames(119,119); battleModeRecordState('kabaneri_ikoma_flash','start'); battleModeRecordState('kabaneri_ikoma_high','start'); setTimelineGames(120,120); battleModeRecordTag('t_kabaneri_chance_ikoma')", context);
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
@@ -701,6 +698,16 @@ function testKabaneriPresetSeedAndPickers() {
   assert.match(multiHtml, /suggest-color-gold">全部/);
   vm.runInContext("closeBattleModeOtherSheet()", context);
   assert.equal(vm.runInContext("currentTimeline.length", context), 0);
+  vm.runInContext("currentTimeline=[]; setTimelineGames(178,178); battleModeRecordState('kabaneri_mumei_high','start'); battleModeRecordState('kabaneri_kabane_high','start'); setTimelineGames(179,179); openBattleModeChanceFollowUpMultiFlashPicker('t_kabaneri_multi_mumei_kabane')", context);
+  assert.deepEqual(
+    JSON.parse(vm.runInContext("JSON.stringify(currentTimeline.at(-1).tagIds)", context)),
+    ['t_kabaneri_multi_mumei_kabane', 't_kabaneri_state_mumei_flash_start', 't_kabaneri_state_kabane_flash_start']
+  );
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.multi.high", context), 1);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.kabane.multi.high", context), 1);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.mumei.multi.deduction", context), 1);
+  assert.equal(vm.runInContext("kabaneriChanceEyeTableSummary().total.rows.kabane.multi.deduction", context), 1);
+  assert.equal(vm.runInContext("battleModeOtherSheetOpen", context), false);
   vm.runInContext("openBattleModeOtherSheet()", context);
   let otherHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   assert.match(otherHtml, /当選/);

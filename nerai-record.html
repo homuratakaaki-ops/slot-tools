@@ -9443,7 +9443,7 @@ function battleModeChanceFollowUpPresetChoice(followUp){
 }
 const CHANCE_FOLLOW_UP_TRANSITIONS={
   none:['none','flash','high','both'],
-  high:['none','flash'],
+  high:['flash'],
   flash:['none','high'],
   both:['none']
 };
@@ -9468,6 +9468,22 @@ function chanceFollowUpMultiChoiceTagIds(followUp,kind,choice){
     if(tagId&&!battleModeStateActiveForStartTag(tagId))ids.push(tagId);
   }
   return ids;
+}
+function chanceFollowUpMultiHighAutoFlashTagIds(followUp){
+  const members=Array.isArray(followUp?.members)?followUp.members:[];
+  const ids=[];
+  members.forEach(member=>{
+    const highTagId=member?.high;
+    const flashTagId=member?.flash;
+    if(highTagId&&flashTagId&&battleModeStateActiveForStartTag(highTagId)&&!battleModeStateActiveForStartTag(flashTagId)){
+      ids.push(flashTagId);
+    }
+  });
+  return [...new Set(ids)];
+}
+function chanceFollowUpMultiAllMembersHigh(followUp){
+  const members=Array.isArray(followUp?.members)?followUp.members:[];
+  return members.length>0&&members.every(member=>member?.high&&battleModeStateActiveForStartTag(member.high));
 }
 function stateAutoEndExtraTagIds(tagIds,machine=currentMachine()){
   const rules=machineStateAutoEnd(machine);
@@ -9578,7 +9594,12 @@ function openBattleModeChanceFollowUpMultiFlashPicker(tagId){
   const followUp=chanceFollowUpMultiForTagId(tagId);
   if(!tag||!followUp){battleModeRecordKabaneriPickerTag(tagId);return;}
   if(timelineDataValue()===null){battleModeInvalid('G謨ｰ繧貞・蜉帙＠縺ｦ縺上□縺輔＞');return;}
-  battleModeKabaneriMultiDraft={tagId:tag.id,flashChoice:'none'};
+  const autoFlashIds=chanceFollowUpMultiHighAutoFlashTagIds(followUp);
+  battleModeKabaneriMultiDraft={tagId:tag.id,flashChoice:'none',autoFlashIds};
+  if(autoFlashIds.length&&chanceFollowUpMultiAllMembersHigh(followUp)){
+    battleModeRecordChanceFollowUpMulti('none');
+    return;
+  }
   setBattleModeSheet(`${tag.label} 発光`,
     '<div class="bm-sheet-note">発光したキャラを選んでください。閉じると記録しません。</div>'+
     chanceFollowUpMultiChoiceButtons(followUp,'battleModeSelectChanceFollowUpMultiFlash')
@@ -9603,8 +9624,9 @@ function battleModeRecordChanceFollowUpMulti(highChoice){
   if(!tag||!followUp){battleModeInvalid('複合チャンス目を選び直してください');return;}
   if(timelineDataValue()===null){battleModeInvalid('G謨ｰ繧貞・蜉帙＠縺ｦ縺上□縺輔＞');return;}
   const flashIds=chanceFollowUpMultiChoiceTagIds(followUp,'flash',String(draft.flashChoice||'none'));
+  const autoFlashIds=Array.isArray(draft.autoFlashIds)?draft.autoFlashIds:[];
   const highIds=chanceFollowUpMultiChoiceTagIds(followUp,'high',String(highChoice||'none'));
-  const extraTagIds=[...new Set([...flashIds,...highIds])];
+  const extraTagIds=[...new Set([...autoFlashIds,...flashIds,...highIds])];
   battleModeKabaneriMultiDraft=null;
   closeBattleModeOtherSheet();
   battleModeCommit(tag.label,()=>addInstantTimelineTagWithAttachments(tag,[],{extraTagIds}));
