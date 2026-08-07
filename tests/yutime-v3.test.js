@@ -32,6 +32,8 @@ const addInvestment = section('function addInvestment', 'function deleteInvestme
 const sourceUnavailableMessage = section('function sourceUnavailableMessage', 'function rateText');
 const runningPanelRate = section('function runningPanelRate', 'function runningYutimeRemaining');
 const runningSpinCount = section('function runningSpinCount', 'function investmentSnapshot');
+const investmentSnapshot = section('function investmentSnapshot', 'function historyEntries');
+const investmentTotalsBlock = section('function investmentTotals', 'function transferSummaryForSession');
 const openBalanceEditForm = section('function openBalanceEditForm', 'function openSpinEditForm');
 const machineSummary = section('function machineModelSummaryHtml', 'function machineDetailFormHtml');
 const machineDetailForm = section('function machineDetailFormHtml', 'function openMachineDetail');
@@ -93,6 +95,15 @@ assert.match(renderLedger, /session\.status === "completed" \? transferSummaryHt
 assert.match(renderLedger, /data-copy-transfer/);
 assert.match(openSessionEditor, /fieldHtml\("settlementRecoverYen", "回収金額", session\.settlementRecoverYen\)/);
 assert.match(openSessionEditor, /"zanhoryuBalls", "settlementRecoverYen"/);
+assert.match(openSessionEditor, /investmentTotalEditorHtml\(session\)/);
+assert.match(openSessionEditor, /applyInvestmentTotalAdjustments\(session\);/);
+assert.match(investmentTotalsBlock, /adjustment: true/);
+assert.match(investmentTotalsBlock, /spinAt: null/);
+assert.match(investmentTotalsBlock, /phase: "normal"/);
+assert.match(investmentSnapshot, /if \(!item \|\| item\.adjustment\) return null;/);
+assert.match(investmentSnapshot, /return investment\.adjustment \? sum : sum \+ investmentToBalls\(investment, store\);/);
+assert.match(normalizeData, /adjustment: item\.adjustment === true/);
+assert.doesNotMatch(html, /台帳/);
 const transferContext = vm.createContext({
   __copied: '',
   __session: null,
@@ -134,6 +145,55 @@ const transferContext = vm.createContext({
   }
 });
 new vm.Script(transferSummary).runInContext(transferContext);
+const investmentAdjustContext = vm.createContext({
+  __inputs: {
+    editInvest_mochidama: { value: '1000' },
+    editInvest_saipurei: { value: '500' },
+    editInvest_cash: { value: '2500' }
+  },
+  normalizeNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  investmentSource(item) {
+    return item?.source || item?.type || 'cash';
+  },
+  currentTime() {
+    return '12:34';
+  },
+  byId(id) {
+    return investmentAdjustContext.__inputs[id] || null;
+  },
+  escapeHtml(value) {
+    return String(value ?? '');
+  }
+});
+new vm.Script(`
+  ${investmentTotalsBlock}
+  globalThis.session = {
+    investments: [
+      { type: 'mochidama', source: 'mochidama', amount: 6125, phase: 'normal', spinAt: 300 },
+      { type: 'saipurei', source: 'saipurei', amount: 750, phase: 'normal', spinAt: 310 },
+      { type: 'cash', source: 'cash', amount: 500, phase: 'normal', spinAt: 320 }
+    ]
+  };
+  applyInvestmentTotalAdjustments(globalThis.session);
+  globalThis.totals = investmentTotals(globalThis.session);
+`).runInContext(investmentAdjustContext);
+assert.equal(investmentAdjustContext.session.investments.length, 6);
+assert.equal(JSON.stringify(investmentAdjustContext.session.investments.slice(3).map((item) => ({
+    source: item.source,
+    amount: item.amount,
+    phase: item.phase,
+    spinAt: item.spinAt,
+    adjustment: item.adjustment
+  }))), JSON.stringify([
+    { source: 'mochidama', amount: -5125, phase: 'normal', spinAt: null, adjustment: true },
+    { source: 'saipurei', amount: -250, phase: 'normal', spinAt: null, adjustment: true },
+    { source: 'cash', amount: 2000, phase: 'normal', spinAt: null, adjustment: true }
+  ]));
+assert.equal(JSON.stringify(investmentAdjustContext.totals), JSON.stringify({ cashYen: 2500, saipureiBalls: 500, mochidamaBalls: 1000 }));
 const transferFixture = {
   id: 's_transfer',
   settlementRecoverYen: null,

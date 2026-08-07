@@ -1418,7 +1418,7 @@
     <header class="topbar">
       <div class="brand">
         <h1>遊タイム実戦ツール v3</h1>
-        <p>店を選び、台を探し、実戦の時系列で追記する記録台帳</p>
+        <p>店を選び、台を探し、実戦の時系列で追記する記録履歴</p>
       </div>
       <div class="store-pill" id="currentStorePill">店未選択</div>
     </header>
@@ -1427,7 +1427,7 @@
       <button class="tab active" data-view="storesView">店</button>
       <button class="tab" data-view="mapView">マップ</button>
       <button class="tab" data-view="runView">稼働中</button>
-      <button class="tab" data-view="ledgerView">台帳</button>
+      <button class="tab" data-view="ledgerView">履歴</button>
     </nav>
 
     <section class="view active" id="storesView">
@@ -1482,7 +1482,7 @@
       <div class="section">
         <div class="section-head">
           <div>
-            <h2>セッション台帳</h2>
+            <h2>履歴</h2>
             <p>未入力ありの記録は、ここから後で補完できます。</p>
           </div>
           <button class="small" id="exportBtn">JSON書き出し</button>
@@ -2015,7 +2015,7 @@
     function expectationRate(stats, manualRate, store = null) {
       const manual = normalizeNumber(manualRate);
       if (manual !== null && manual > 0) return { rate: manual, source: "手入力" };
-      if (stats?.rate) return { rate: stats.rate, source: "台帳累計" };
+      if (stats?.rate) return { rate: stats.rate, source: "履歴累計" };
       const assumed = activeMapAssumedRate(store?.id);
       if (assumed !== null && assumed > 0) return { rate: assumed, source: `コーナー平均${assumed.toFixed(1)}使用`, assumed: true };
       return { rate: null, source: "回転率なし" };
@@ -2246,7 +2246,8 @@
           amount: normalizeNumber(item.amount),
           time: item.time || null,
           phase: item.phase === "yutime" ? "yutime" : "normal",
-          spinAt: normalizeNumber(item.spinAt)
+          spinAt: normalizeNumber(item.spinAt),
+          adjustment: item.adjustment === true
         })).filter((item) => item.amount !== null) : [],
         charges: Array.isArray(session.charges) ? session.charges.map((item) => ({
           amount: normalizeNumber(item.amount),
@@ -4637,7 +4638,7 @@
           <div class="expectation-inputs">
             <div class="field-row"><label for="evCurrentSpin">現在回転数</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
-            <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${stats.rate ? stats.rate.toFixed(1) : "台帳なし"}"></div>
+            <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${stats.rate ? stats.rate.toFixed(1) : "履歴なし"}"></div>
           </div>
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
@@ -4715,7 +4716,7 @@
       if (!expectation.result) {
         title.querySelector("small").textContent = "未判定";
         metrics.innerHTML = '<div class="metric"><span>判定</span><strong>-</strong></div>';
-        detail.textContent = expectation.reason || "回転率を入力するか、台帳累計を作ってください。";
+        detail.textContent = expectation.reason || "回転率を入力するか、履歴累計を作ってください。";
         return;
       }
       const judgment = evJudgment(expectation.result);
@@ -5186,9 +5187,11 @@
 
     function investmentSnapshot(session, investmentIndex) {
       const item = session.investments[investmentIndex];
-      if (!item) return null;
+      if (!item || item.adjustment) return null;
       const store = storeById(session.storeId);
-      const investedBalls = session.investments.slice(0, investmentIndex + 1).reduce((sum, investment) => sum + investmentToBalls(investment, store), 0);
+      const investedBalls = session.investments.slice(0, investmentIndex + 1).reduce((sum, investment) => {
+        return investment.adjustment ? sum : sum + investmentToBalls(investment, store);
+      }, 0);
       const inputBalls = usesTapInvestmentMode(session) ? investedBalls : Number(session.startMochidama || 0) + investedBalls;
       const spinAt = item.spinAt !== null && item.spinAt !== undefined ? Number(item.spinAt) : null;
       const spins = spinAt !== null && session.startSpin !== null ? spinAt - Number(session.startSpin) : null;
@@ -5310,6 +5313,51 @@
         if (source === "mochidama") totals.mochidamaBalls += Number(item.amount || 0);
         return totals;
       }, { cashYen: 0, saipureiBalls: 0, mochidamaBalls: 0 });
+    }
+
+    function investmentTotalEditorHtml(session) {
+      const totals = investmentTotals(session);
+      return `
+        <div class="section compact">
+          <h3>投資合計</h3>
+          <div class="grid three">
+            ${investmentTotalFieldHtml("mochidama", "持ち玉投入", totals.mochidamaBalls, "玉")}
+            ${investmentTotalFieldHtml("saipurei", "再プレ引き出し", totals.saipureiBalls, "玉")}
+            ${investmentTotalFieldHtml("cash", "現金", totals.cashYen, "円")}
+          </div>
+          <p class="hint">修正は差分だけを調整レコードとして追加します。タップ履歴は書き換えません。遊タイム中の投資修正は対象外です。</p>
+        </div>
+      `;
+    }
+
+    function investmentTotalFieldHtml(source, label, value, unit) {
+      return `<div class="field-row"><label for="editInvest_${source}">${label}</label><input id="editInvest_${source}" inputmode="numeric" value="${escapeHtml(value)}"><small>${unit}</small></div>`;
+    }
+
+    function applyInvestmentTotalAdjustments(session) {
+      const current = investmentTotals(session);
+      const targets = {
+        mochidama: normalizeNumber(byId("editInvest_mochidama")?.value),
+        saipurei: normalizeNumber(byId("editInvest_saipurei")?.value),
+        cash: normalizeNumber(byId("editInvest_cash")?.value)
+      };
+      const diffs = {
+        mochidama: targets.mochidama === null ? 0 : targets.mochidama - current.mochidamaBalls,
+        saipurei: targets.saipurei === null ? 0 : targets.saipurei - current.saipureiBalls,
+        cash: targets.cash === null ? 0 : targets.cash - current.cashYen
+      };
+      Object.entries(diffs).forEach(([source, diff]) => {
+        if (!diff) return;
+        session.investments.push({
+          type: source,
+          source,
+          amount: diff,
+          time: currentTime(),
+          phase: "normal",
+          spinAt: null,
+          adjustment: true
+        });
+      });
     }
 
     function transferSummaryForSession(session) {
@@ -5641,7 +5689,7 @@
       const machine = data.machines.find((item) => item.id === session.machineId);
       const derived = deriveSession(session, machine);
       const totals = investmentTotals(session);
-      openModal("戦果報告", "お疲れ様でした。記録は台帳に保存済みです。未入力は「記録の修正」から補完できます。", `
+      openModal("戦果報告", "お疲れ様でした。記録は履歴に保存済みです。未入力は「記録の修正」から補完できます。", `
         <div class="metric-grid">
           <div class="metric"><span>通常回転数</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${numberText(derived.consumedBalls, "-")}</strong></div>
@@ -5661,7 +5709,7 @@
           <button class="ghost" data-close>閉じる</button>
           <button id="summaryCarryoverBtn">この持ち玉で次の台へ</button>
           <button id="summarySameMachineBtn">同じ台で続行</button>
-          <button class="primary" id="summaryLedgerBtn">台帳で見る</button>
+          <button class="primary" id="summaryLedgerBtn">履歴で見る</button>
         </div>
       `);
       byId("summaryCarryoverBtn").addEventListener("click", () => startCarryover(session));
@@ -5704,6 +5752,7 @@
           ${fieldHtml("zanhoryuBalls", "残保留増減", session.zanhoryuBalls)}
           ${fieldHtml("settlementRecoverYen", "回収金額", session.settlementRecoverYen)}
         </div>
+        ${investmentTotalEditorHtml(session)}
         <div class="field-row"><label for="editHitVia">当選経路</label><select id="editHitVia"><option value="">未入力</option><option value="normal">通常</option><option value="yutime">遊タイム</option></select></div>
         <div class="field-row"><label>イベントメモ</label><div><p class="hint">${eventMemoHelp()}</p><div class="label-checks">${labels.map((label) => `<label class="check-chip"><input class="editLabel" type="checkbox" value="${escapeHtml(label)}" ${session.labels.includes(label) ? "checked" : ""}> ${escapeHtml(label)}</label>`).join("") || '<span class="hint">イベントメモ未登録</span>'}</div></div></div>
         <div class="field-row"><label for="editMemo">メモ</label><textarea id="editMemo">${escapeHtml(session.memo || "")}</textarea></div>
@@ -5737,6 +5786,7 @@
           session[key] = normalizeNumber(byId("edit_" + key).value);
         });
         if (!session.settlementRecoverYen) session.settlementRecoverYen = null;
+        applyInvestmentTotalAdjustments(session);
         session.hitVia = byId("editHitVia").value || null;
         session.labels = [...document.querySelectorAll(".editLabel:checked")].map((input) => input.value);
         session.memo = byId("editMemo").value.trim();
