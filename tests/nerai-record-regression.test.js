@@ -3631,10 +3631,129 @@ function testBattleModeSandBalanceTracksDepositSpendCashInAndUndo() {
   assert.deepEqual(result.afterUndoDeposit, { deposits: 0, balance: 0 });
 }
 
+function testNonKabaneriHitPayoutDoesNotMutateInvestment() {
+  const { context } = runRecord(undefined);
+  const result = JSON.parse(vm.runInContext(`
+    const machineIds = ['m_nangoku_special', 'm_tokyo_ghoul', 'm_karakuri_circus_2'];
+    const results = {};
+    machineIds.forEach(machineId => {
+      selectedMachineId = machineId;
+      selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+      currentIntervalEstimate = normalizeIntervalEstimate({
+        initialDiff: null,
+        loanRate: 46,
+        investedTotal: 1020,
+        credit: 50,
+        history: [
+          { id:'idh_cash', at:'2026-08-02T09:00:00.000Z', mode:'investYen', input:20, before:{ investedTotal:0, credit:0 }, after:{ investedTotal:920, credit:0 }, summary:'cash' },
+          { id:'idh_medal', at:'2026-08-02T09:01:00.000Z', mode:'investMedals', input:100, before:{ investedTotal:920, credit:0 }, after:{ investedTotal:1020, credit:0 }, summary:'medal' }
+        ]
+      });
+      const before = {
+        investedTotal: currentIntervalEstimate.investedTotal,
+        cashUnits: battleModeCashInvestUnits(),
+        cashMedals: battleModeCashInvestMedals(),
+        historyLength: currentIntervalEstimate.history.length,
+        creditRows: currentIntervalEstimate.history.filter(row => row.mode === 'credit').length
+      };
+      const repeats = machineId === 'm_nangoku_special' ? 3 : 1;
+      for (let i = 0; i < repeats; i += 1) {
+        const eventId = machineId + '_hit_' + i;
+        currentHitEvents = [normalizeHitEvent({ id:eventId, trigger:'at', dataGame:100 + i, liquidGame:100 + i, createdAt:'2026-08-02T10:0' + i + ':00.000Z', wizardDone:false })];
+        hitBranchWizard = { route:'atHit', stepIndex:0, through:null, done:[], eventId };
+        const generic = document.getElementById('generic');
+        const input = { ...generic, value:String(777 + i) };
+        const overlay = { ...generic, classList: { add() {}, remove() {}, toggle() {} } };
+        document.getElementById = id => id === 'hitPayoutInput' ? input : id === 'hitPayoutOverlay' ? overlay : generic;
+        submitHitEventPayout();
+      }
+      results[machineId] = {
+        before,
+        after: {
+          investedTotal: currentIntervalEstimate.investedTotal,
+          cashUnits: battleModeCashInvestUnits(),
+          cashMedals: battleModeCashInvestMedals(),
+          historyLength: currentIntervalEstimate.history.length,
+          creditRows: currentIntervalEstimate.history.filter(row => row.mode === 'credit').length,
+          payout: currentHitEvents[0]?.payout ?? null
+        }
+      };
+    });
+    JSON.stringify(results);
+  `, context));
+  for (const [machineId, row] of Object.entries(result)) {
+    assert.equal(row.after.investedTotal, row.before.investedTotal, `${machineId} investedTotal`);
+    assert.equal(row.after.cashUnits, row.before.cashUnits, `${machineId} cashUnits`);
+    assert.equal(row.after.cashMedals, row.before.cashMedals, `${machineId} cashMedals`);
+    assert.equal(row.after.historyLength, row.before.historyLength, `${machineId} historyLength`);
+    assert.equal(row.after.creditRows, row.before.creditRows, `${machineId} creditRows`);
+    assert.equal(row.after.payout >= 777, true, `${machineId} payout recorded`);
+  }
+}
+
+function testAllMachineHitStartDoesNotMutateInvestment() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  const result = JSON.parse(vm.runInContext(`
+    const rows = [];
+    db.machines.forEach(machine => {
+      selectedMachineId = machine.id;
+      selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+      const triggers = machineHitTriggers();
+      if (!triggers.length) return;
+      currentIntervalEstimate = normalizeIntervalEstimate({
+        initialDiff: null,
+        loanRate: 46,
+        investedTotal: 1020,
+        credit: 50,
+        history: [
+          { id:'idh_cash_' + machine.id, at:'2026-08-02T09:00:00.000Z', mode:'investYen', input:20, before:{ investedTotal:0, credit:0 }, after:{ investedTotal:920, credit:0 }, summary:'cash' },
+          { id:'idh_medal_' + machine.id, at:'2026-08-02T09:01:00.000Z', mode:'investMedals', input:100, before:{ investedTotal:920, credit:0 }, after:{ investedTotal:1020, credit:0 }, summary:'medal' }
+        ]
+      });
+      currentHitEvents = [];
+      hitBranchWizard = { route:'', stepIndex:0, through:null, done:[], eventId:'' };
+      battleModeOpen = true;
+      currentFlowStep = 2;
+      setTimelineGames(100,100);
+      const before = {
+        investedTotal: currentIntervalEstimate.investedTotal,
+        cashUnits: battleModeCashInvestUnits(),
+        cashMedals: battleModeCashInvestMedals(),
+        historyLength: currentIntervalEstimate.history.length,
+        creditRows: currentIntervalEstimate.history.filter(row => row.mode === 'credit').length
+      };
+      const trigger = triggers[0];
+      const variant = Array.isArray(trigger.variants) && trigger.variants.length ? trigger.variants[0].key : '';
+      battleModeStartHit(trigger.key, variant);
+      rows.push({
+        machineId: machine.id,
+        before,
+        after: {
+          investedTotal: currentIntervalEstimate.investedTotal,
+          cashUnits: battleModeCashInvestUnits(),
+          cashMedals: battleModeCashInvestMedals(),
+          historyLength: currentIntervalEstimate.history.length,
+          creditRows: currentIntervalEstimate.history.filter(row => row.mode === 'credit').length
+        }
+      });
+    });
+    JSON.stringify(rows);
+  `, context));
+  assert.ok(result.length > 0);
+  result.forEach(row => {
+    assert.equal(row.after.investedTotal, row.before.investedTotal, `${row.machineId} investedTotal`);
+    assert.equal(row.after.cashUnits, row.before.cashUnits, `${row.machineId} cashUnits`);
+    assert.equal(row.after.cashMedals, row.before.cashMedals, `${row.machineId} cashMedals`);
+    assert.equal(row.after.historyLength, row.before.historyLength, `${row.machineId} historyLength`);
+    assert.equal(row.after.creditRows, row.before.creditRows, `${row.machineId} creditRows`);
+  });
+}
+
 function testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
-    selectedMachineId = 'm_tokyo_ghoul';
+    selectedMachineId = 'm_kabaneri';
     selectedAimId = firstAimIdForMachine(currentMachine()) || '';
     currentHitEvents = [normalizeHitEvent({ id: 'he_credit', trigger: 'at', dataGame: 100, liquidGame: 100, createdAt: '2026-07-21T10:00:00.000Z', wizardDone: false })];
     hitBranchWizard = { route: 'atHit', stepIndex: 1, through: null, done: ['through'], eventId: 'he_credit' };
@@ -3670,7 +3789,7 @@ function testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo() {
 function testHitPayoutStepDoesNotDuplicateSameCreditHistory() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
-    selectedMachineId = 'm_tokyo_ghoul';
+    selectedMachineId = 'm_kabaneri';
     selectedAimId = firstAimIdForMachine(currentMachine()) || '';
     currentHitEvents = [normalizeHitEvent({ id: 'he_same_credit', trigger: 'at', dataGame: 100, liquidGame: 100, createdAt: '2026-07-21T10:00:00.000Z', wizardDone: false })];
     hitBranchWizard = { route: 'atHit', stepIndex: 1, through: null, done: ['through'], eventId: 'he_same_credit' };
@@ -3699,7 +3818,7 @@ function testHitPayoutStepDoesNotDuplicateSameCreditHistory() {
 function testHitPayoutCreditInputSelectsAndClears() {
   const { context } = runRecord(undefined);
   const result = JSON.parse(vm.runInContext(`
-    selectedMachineId = 'm_tokyo_ghoul';
+    selectedMachineId = 'm_kabaneri';
     selectedAimId = firstAimIdForMachine(currentMachine()) || '';
     currentHitEvents = [normalizeHitEvent({ id: 'he_credit_select', trigger: 'at', dataGame: 100, liquidGame: 100, createdAt: '2026-07-21T10:00:00.000Z', wizardDone: false })];
     hitBranchWizard = { route: 'atHit', stepIndex: 1, through: null, done: ['through'], eventId: 'he_credit_select' };
@@ -3734,7 +3853,7 @@ function testNumericKeypadReplaceOnNextDigit() {
 function testHitPayoutStepRecordsCreditOnlyWithoutBaseCredit() {
   const { context } = runRecord(undefined);
   vm.runInContext(`
-    selectedMachineId = 'm_tokyo_ghoul';
+    selectedMachineId = 'm_kabaneri';
     selectedAimId = firstAimIdForMachine(currentMachine()) || '';
     currentHitEvents = [normalizeHitEvent({ id: 'he_no_base', trigger: 'at', dataGame: 100, liquidGame: 100, createdAt: '2026-07-21T10:00:00.000Z', wizardDone: false })];
     hitBranchWizard = { route: 'atHit', stepIndex: 1, through: null, done: ['through'], eventId: 'he_no_base' };
@@ -5097,6 +5216,8 @@ function run() {
   testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo();
   testBattleModeInvestmentResetUsesHistoryBoundaryAndUndo();
   testBattleModeSandBalanceTracksDepositSpendCashInAndUndo();
+  testNonKabaneriHitPayoutDoesNotMutateInvestment();
+  testAllMachineHitStartDoesNotMutateInvestment();
   testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo();
   testHitPayoutStepDoesNotDuplicateSameCreditHistory();
   testHitPayoutCreditInputSelectsAndClears();

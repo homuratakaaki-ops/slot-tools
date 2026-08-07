@@ -13348,12 +13348,19 @@ function skipShunjoPtStep(){
 function promptHitEventPayout(){
   const event=currentHitEvent();
   if(!event)return;
+  const usesCredit=hitPayoutUsesCreditInput(event);
+  const payoutLabel=machinePayoutLabel();
   const titleEl=document.getElementById('hitPayoutTitle');
   const labelEl=document.getElementById('hitPayoutLabel');
   if(titleEl)titleEl.textContent='ボーナス後クレジット';
   if(labelEl)labelEl.textContent='現在のクレジット枚数';
   const input=document.getElementById('hitPayoutInput');
   if(input)input.value=String(normalizeIntervalEstimate(currentIntervalEstimate).credit||'');
+  if(!usesCredit){
+    if(titleEl)titleEl.textContent=payoutLabel;
+    if(labelEl)labelEl.textContent=payoutLabel;
+    if(input)input.value=event.payout!==null&&event.payout!==undefined?String(event.payout):'';
+  }
   renderHitPayoutCreditAssist();
   document.getElementById('hitPayoutOverlay')?.classList.add('open');
   setTimeout(()=>{
@@ -13372,6 +13379,17 @@ function renderHitPayoutCreditAssist(){
   const warning=document.getElementById('hitPayoutCreditWarning');
   const estimate=document.getElementById('hitPayoutCreditEstimate');
   const event=currentHitEvent();
+  if(!hitPayoutUsesCreditInput(event)){
+    if(warning){
+      warning.style.display='none';
+      warning.textContent='';
+    }
+    if(estimate){
+      estimate.style.display='none';
+      estimate.innerHTML='';
+    }
+    return;
+  }
   const inputCredit=normalizeOptionalNumber(document.getElementById('hitPayoutInput')?.value||'');
   const hitAt=historyTimeValue(event?.createdAt);
   const hasBase=hitAt!==null&&!!latestCreditEntry(at=>at!==null&&at<=hitAt);
@@ -13410,6 +13428,9 @@ function finishHitEventPayout(value){
   event.payout=value;
   finishHitEventPayoutStep(event);
 }
+function hitPayoutUsesCreditInput(event=currentHitEvent()){
+  return isKabaneriMachine(currentMachine());
+}
 function finishHitEventPayoutStep(event=currentHitEvent()){
   if(!event)return;
   closeHitPayoutPicker();
@@ -13430,6 +13451,15 @@ function submitHitEventPayout(){
   const input=document.getElementById('hitPayoutInput');
   const value=input?input.value.trim():'';
   const normalized=normalizeOptionalNumber(value);
+  {
+    const event=currentHitEvent();
+    if(!event)return;
+    if(!hitPayoutUsesCreditInput(event)){
+      if(value!==''&&normalized===null){alert('獲得枚数を数値で入力してください');return;}
+      finishHitEventPayout(normalized);
+      return;
+    }
+  }
   if(value===''||normalized===null){alert('現在のクレジット枚数を数値で入力してください');return;}
   const event=currentHitEvent();
   if(!event)return;
