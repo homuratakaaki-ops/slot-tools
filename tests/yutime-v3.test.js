@@ -39,6 +39,7 @@ const machineSummary = section('function machineModelSummaryHtml', 'function mac
 const machineDetailForm = section('function machineDetailFormHtml', 'function openMachineDetail');
 const openMachineDetail = section('function openMachineDetail', 'function renderMachineExpectation');
 const nailRatingSection = section('function nailRatingSummary', 'function machineModelSummaryHtml');
+const machineHistoryHtml = section('function machineHistoryHtml', 'function bindNailRatingChips');
 const normalizeNailRatingBlock = section('function normalizeRatingValue', 'function normalizeStartEv');
 const machineModelDisplay = section('function machineModelDisplay', 'function applyPresetToMachine');
 const columnPresetApply = section('function applyColumnPresetsToMachines', 'function machineHasIndividualSetting');
@@ -241,6 +242,9 @@ assert.ok(design.includes('schema 22 Machine 1件サンプル'));
 
 assert.match(openMachineDetail, /function openMachineDetail\(daiNo, machineFormExpanded = false, memoDraft = null\)/);
 assert.match(openMachineDetail, /\$\{nailRatingSectionHtml\(machine\)\}/);
+assert.match(openMachineDetail, /\$\{machineHistoryHtml\(machine\)\}/);
+assert.match(openMachineDetail, /id="toggleMachineHistoryBtn">履歴<\/button>/);
+assert.match(openMachineDetail, /panel\.hidden = hidden;/);
 assert.match(openMachineDetail, /bindNailRatingChips\(machine\);/);
 assert.match(openMachineDetail, /\$\{machineModelSummaryHtml\(machine\)\}\s*\$\{machineFormExpanded \? machineDetailFormHtml\(machine\) : ""\}/);
 assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMachineBtn">[^']+<\/button>' : ""\}/);
@@ -257,6 +261,12 @@ assert.doesNotMatch(html, /右打ち/);
 assert.match(normalizeNailRatingBlock, /const input = source && typeof source === "object" \? source : \{\};/);
 assert.match(nailRatingSection, /data-nail-rating="\$\{buttonValue\}"/);
 assert.match(nailRatingSection, /前日参考: \$\{escapeHtml\(latestHeso\.value\)\}/);
+assert.match(machineHistoryHtml, /filter\(\(session\) => session\.machineId === machine\.id\)/);
+assert.match(machineHistoryHtml, /ヘソ評価 \$\{escapeHtml\(hesoText\)\}/);
+assert.match(machineHistoryHtml, /heso === null \? "未記録"/);
+assert.match(machineHistoryHtml, /台メモ（現在）:/);
+assert.match(machineHistoryHtml, /deriveSession\(session, machine\)/);
+assert.ok(design.includes('B47 台詳細の台別履歴'));
 assert.match(bindNailRatingChips, /function bindNailRatingChips\(machine\)/);
 assert.match(bindNailRatingChips, /row\.dataset\.nailKey === DAILY_NAIL_RATING_KEY/);
 assert.match(bindNailRatingChips, /state\.hesoRating = rating;/);
@@ -405,6 +415,58 @@ assert.equal(JSON.stringify(dailyHesoContext.normalizedDaily), JSON.stringify({
     "2026-08-07": { date: "2026-08-07", ramClear: "not_cleared", hesoRating: 4 }
   }
 }));
+const machineHistoryContext = vm.createContext({
+  data: {
+    sessions: [
+      { id: 's_target_1', machineId: 'm_1', date: '2026-08-08', startTime: '09:00', status: 'completed', createdAt: '2026-08-08T00:00:02.000Z' },
+      { id: 's_target_2', machineId: 'm_1', date: '2026-08-08', startTime: '12:00', status: 'completed', createdAt: '2026-08-08T00:00:03.000Z' },
+      { id: 's_other', machineId: 'm_2', date: '2026-08-08', startTime: '10:00', status: 'completed', createdAt: '2026-08-08T00:00:04.000Z' },
+      { id: 's_target_3', machineId: 'm_1', date: '2026-08-07', startTime: '18:00', status: 'completed', createdAt: '2026-08-07T00:00:01.000Z' }
+    ],
+    dailyState: {
+      m_1: {
+        '2026-08-08': { date: '2026-08-08', hesoRating: 4 },
+        '2026-08-06': { date: '2026-08-06', hesoRating: 2 }
+      },
+      m_2: {
+        '2026-08-08': { date: '2026-08-08', hesoRating: 5 }
+      }
+    }
+  },
+  normalizeRatingValue(value) {
+    const number = Number(value);
+    return Number.isInteger(number) && number >= 1 && number <= 5 ? number : null;
+  },
+  dailyHesoRating(machineId, date) {
+    return machineHistoryContext.normalizeRatingValue(machineHistoryContext.data.dailyState?.[machineId]?.[date]?.hesoRating);
+  },
+  deriveSession(session) {
+    return session.id === 's_target_3' ? { normalSpins: 90, rate: null } : { normalSpins: 100, rate: 16.5 };
+  },
+  numberText(value, fallback = '') {
+    return value === null || value === undefined ? fallback : String(value);
+  },
+  rateText(derived) {
+    return derived.rate === null ? '-' : derived.rate.toFixed(1);
+  },
+  shortDate(date) {
+    return date.slice(5).replace('-', '/');
+  },
+  escapeHtml(value) {
+    return String(value ?? '');
+  }
+});
+new vm.Script(`${machineHistoryHtml}
+  globalThis.historyHtml = machineHistoryHtml({ id: 'm_1', memo: '寄り注意' });
+`).runInContext(machineHistoryContext);
+assert.match(machineHistoryContext.historyHtml, /08\/08 の履歴/);
+assert.match(machineHistoryContext.historyHtml, /09:00/);
+assert.match(machineHistoryContext.historyHtml, /12:00/);
+assert.doesNotMatch(machineHistoryContext.historyHtml, /10:00/);
+assert.match(machineHistoryContext.historyHtml, /ヘソ評価 4/);
+assert.match(machineHistoryContext.historyHtml, /ヘソ評価 未記録/);
+assert.match(machineHistoryContext.historyHtml, /台メモ（現在）: 寄り注意/);
+assert.match(machineHistoryContext.historyHtml, /セッションなし/);
 assert.match(machineSummary, /id="toggleMachineFormBtn"/);
 assert.match(machineDetailForm, /id="machinePreset"/);
 assert.match(machineDetailForm, /id="machineModel"/);

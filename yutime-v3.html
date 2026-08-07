@@ -1172,6 +1172,14 @@
       color: #067647;
     }
 
+    .machine-history-panel {
+      margin-top: 12px;
+    }
+
+    .machine-history-panel[hidden] {
+      display: none;
+    }
+
     .row-card strong { font-size: 15px; }
     .row-card small { color: var(--muted); }
 
@@ -4596,6 +4604,51 @@
       `;
     }
 
+    function machineHistoryHtml(machine) {
+      const sessions = data.sessions
+        .filter((session) => session.machineId === machine.id)
+        .slice()
+        .sort((a, b) => {
+          const dateCompare = String(b.date || "").localeCompare(String(a.date || ""));
+          return dateCompare || String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+        });
+      const dates = new Set(sessions.map((session) => session.date).filter(Boolean));
+      Object.values(data.dailyState?.[machine.id] || {}).forEach((state) => {
+        if (state?.date && normalizeRatingValue(state.hesoRating) !== null) dates.add(state.date);
+      });
+      const sortedDates = [...dates].sort((a, b) => String(b).localeCompare(String(a)));
+      if (!sortedDates.length) return '<div class="row-card"><small>この台の履歴はまだありません。</small></div>';
+      return sortedDates.map((date) => {
+        const heso = dailyHesoRating(machine.id, date);
+        const dateSessions = sessions.filter((session) => session.date === date);
+        const hesoText = heso === null ? "未記録" : `${heso}`;
+        const memoHtml = machine.memo ? `<small>台メモ（現在）: ${escapeHtml(machine.memo)}</small>` : '<small>台メモ（現在）: 未記入</small>';
+        const cards = dateSessions.length ? dateSessions.map((session) => {
+          const derived = deriveSession(session, machine);
+          const title = `${session.startTime || "--:--"} / ${session.status === "completed" ? "確定" : "稼働中"}`;
+          return `
+            <details class="row-card session-details">
+              <summary>
+                <div class="row-card-head">
+                  <div><strong>${escapeHtml(title)}</strong></div>
+                  <span class="badge ${session.status === "completed" ? "good" : "dark"}">${session.status === "completed" ? "確定" : "稼働中"}</span>
+                </div>
+              </summary>
+              <small>ヘソ評価 ${escapeHtml(hesoText)} / 回転数 ${numberText(derived.normalSpins, "-")} / 回転率 ${rateText(derived)} /250玉</small><br>
+              ${memoHtml}
+            </details>
+          `;
+        }).join("") : `
+          <div class="row-card">
+            <strong>セッションなし</strong><br>
+            <small>ヘソ評価 ${escapeHtml(hesoText)} / 回転数 - / 回転率 -</small><br>
+            ${memoHtml}
+          </div>
+        `;
+        return `<div class="ledger-day-heading">― ${escapeHtml(shortDate(date))} の履歴 ―</div>${cards}`;
+      }).join("");
+    }
+
     function bindNailRatingChips(machine) {
       els.modalBody.querySelectorAll("[data-nail-rating]").forEach((button) => {
         button.addEventListener("click", () => {
@@ -4695,8 +4748,12 @@
             return `<div class="row-card"><strong>${escapeHtml(session.date)}</strong><br><small>${session.status === "completed" ? "確定" : "稼働中"} / 回転率 ${rateText(derived)}${derived.isEstimatedRate || derived.isEstimatedPayout ? " / 概算" : ""}</small></div>`;
           }).join("") || '<div class="row-card"><small>過去セッションなし</small></div>'}
         </div>
+        <div class="machine-history-panel" id="machineHistoryPanel" hidden>
+          ${machineHistoryHtml(machine)}
+        </div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
+          <button class="ghost" id="toggleMachineHistoryBtn">履歴</button>
           ${machineFormExpanded ? '<button id="saveMachineBtn">台情報保存</button>' : ""}
           <button class="primary" id="startSessionBtn">この台を打つ</button>
         </div>
@@ -4722,6 +4779,14 @@
           renderAll();
         });
       }
+      byId("toggleMachineHistoryBtn").addEventListener("click", () => {
+        const panel = byId("machineHistoryPanel");
+        const button = byId("toggleMachineHistoryBtn");
+        if (!panel || !button) return;
+        const hidden = !panel.hidden;
+        panel.hidden = hidden;
+        button.textContent = hidden ? "履歴" : "履歴を閉じる";
+      });
       if (showExpectationBlock) {
         renderMachineExpectation(machine.id);
         ["evCurrentSpin", "evPrevSpin", "evManualRate"].forEach((id) => {
