@@ -117,7 +117,7 @@
   "daiNo": "string",
   "modelName": "string",
   "roundBalls": null,
-  "memo": "",
+  "memoEntries": [],
   "nailRating": { "yori": null, "michi": null, "nekase": null, "through": null, "warp": null },
   "presetId": "",
   "evSupported": false
@@ -208,7 +208,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22、B48では schema 22 から 23 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:mapbackup` | フロアマップ定義だけの1世代退避 | フロアマップ保存時、保存直前のアクティブマップ定義を店ID・マップID単位で退避する。復元ボタン押下時に該当マップの島構成・除外・列機種のみ戻す。台・セッション・dailyState は触らない | `{ backups: { [storeId]: { [mapId]: { storeId, mapId, map, createdAt } } } }` の JSON 文字列 |
@@ -535,7 +535,7 @@ B5 実測値:
 - 朝一状態のマップバッジは `cleared=リ`、`unknown=不`、`hitToday=当`、`retained=据`。据え置きのみ緑、それ以外はグレー系で表示する。
 - 閉店チェック値を宵越し判定・前日回転数プリセット・宵サインに使うのは、未確認または `retained` の場合のみ。`cleared` / `unknown` / `hitToday` は安全側として前日を考慮しない。
 - 既存の `cleared` / `retained` データはそのまま読み込む。ボタンは同じ状態を再タップすると未確認へ戻す。
-- 台メモは `Machine.memo` の単一フィールドを使う。マップにはメモ印、台詳細では朝一状態ボタン直下、稼働中パネルでは台名行のメモボタンから同じ内容を閲覧・編集する。
+- B48以降、台メモは `Machine.memoEntries` の追記ログを使う。マップにはメモ印、台詳細では追記フォームと過去エントリ一覧、稼働中パネルでは台名行のメモボタンから同じログを閲覧・追記する。
 - セッション側の `memo` はヤメ時の記録メモであり、台メモ（釘・癖など）とは別物として扱う。
 - B14 dailyState サンプル（当日hitToday＋前日closingSpin）: 124 chars
 
@@ -770,9 +770,18 @@ B5 実測値:
 
 - schema 変更は行わない。台詳細内に「履歴」ボタンを追加し、同じモーダル内で対象台だけの全期間履歴を開閉表示する。
 - 表示は既存の履歴画面と同じ日付見出し＋畳みカード形式を使う。対象台のセッションだけを抽出し、同日複数セッションはカードを複数並べる。
-- 各カードには `dailyState[machineId][date].hesoRating` のヘソ評価、`deriveSession()` による通常回転数と回転率、台メモを表示する。ヘソ未記録日は「未記録」と明示する。
+- 各カードには `dailyState[machineId][date].hesoRating` のヘソ評価、`deriveSession()` による通常回転数と回転率、その日に追加された `memoEntries` を表示する。ヘソ未記録日は「未記録」と明示する。
 - セッションがなくヘソ評価だけがある日も、確認用に「セッションなし」のカードを表示する。
-- 現行の台メモは `Machine.memo` の単一フィールドで、追加日時を持つ複数エントリではない。そのためB47では日付別メモ履歴としては扱わず、各カードに「台メモ（現在）」として表示する。日付つき台メモ履歴が必要になった場合は、別途スキーマ変更として検討する。
+- B48以降、台メモは日付つき追記ログとして扱う。日付不明の旧メモ移行エントリは台メモ一覧には表示するが、日付別履歴には出さない。
+
+## 45. B48 台メモの蓄積型ログ化
+
+- schema は 23 とする。旧 `Machine.memo` は読み込み時だけ参照し、新規保存では書き戻さない。
+- 台メモは `Machine.memoEntries = [{ id, date, text, createdAt }]` で保存する。`date` は追記日の `YYYY-MM-DD`、旧メモに日付根拠がない場合は null を許容する。
+- 旧 `Machine.memo` が空でない場合、`memoEntries` が空の台だけ1件のエントリへ移行する。`date` は `Machine.createdAt` の日付部分、なければ null、`createdAt` は `Machine.createdAt` または移行時刻を使う。
+- 台詳細と稼働中メモボタンは追記フォーム＋新しい順の一覧を表示する。過去エントリの編集・削除UIは置かない。
+- 台別履歴では、対象日付と一致する `memoEntries` だけを表示する。メモがない日は何も表示しない。
+- schema 23 Machine 1件サンプル（`memoEntries` 1件、台単位 `nailRating` 5項目あり）: 318 chars。
 
 ## アイデアメモ
 

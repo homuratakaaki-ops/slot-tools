@@ -38,6 +38,7 @@ const openBalanceEditForm = section('function openBalanceEditForm', 'function op
 const machineSummary = section('function machineModelSummaryHtml', 'function machineDetailFormHtml');
 const machineDetailForm = section('function machineDetailFormHtml', 'function openMachineDetail');
 const openMachineDetail = section('function openMachineDetail', 'function renderMachineExpectation');
+const machineMemoHelpers = section('function machineMemoEntriesForDate', 'function nailRatingSummary');
 const nailRatingSection = section('function nailRatingSummary', 'function machineModelSummaryHtml');
 const machineHistoryHtml = section('function machineHistoryHtml', 'function bindNailRatingChips');
 const normalizeNailRatingBlock = section('function normalizeRatingValue', 'function normalizeStartEv');
@@ -227,7 +228,7 @@ assert.match(style, /\.source-chip\.selected \{\s*border-color: var\(--accent\);
 assert.match(sourceUnavailableMessage, /if \(balance === null\) return `\$\{label\}が未入力です。`;/);
 assert.match(sourceUnavailableMessage, /if \(balance < amount\) return `\$\{label\}がありません。値をタップして修正するか、他のソースを選んでください。`;/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
-assert.match(html, /const SCHEMA_VERSION = 22;/);
+assert.match(html, /const SCHEMA_VERSION = 23;/);
 assert.match(html, /yutimeEnterSpin: null,/);
 assert.match(openYutimeEnterForm, /const spinPreset = session\.yutimeEnterSpin \?\? session\.currentSpin \?\? session\.startSpin;/);
 assert.match(openYutimeEnterForm, /id="yutimeSpin"/);
@@ -238,9 +239,12 @@ assert.match(deriveSession, /const yutimeNormalEndSpin = !hasHit && \(session\.h
 assert.match(deriveSession, /session\.hitVia === "yutime" \|\| session\.yutimeEnterBalls !== null \? yutimeNormalEndSpin : session\.endSpin/);
 assert.match(yutimeEnterSpinForRate, /const explicitSpin = normalizeNumber\(session\.yutimeEnterSpin\);\s*if \(explicitSpin !== null\) return explicitSpin;/);
 assert.match(yutimeEnterSpinForRate, /const inferred = tenjo - prevSpin;\s*return inferred >= 0 \? inferred : null;/);
-assert.ok(design.includes('schema 22 Machine 1件サンプル'));
+assert.ok(design.includes('schema 23 Machine 1件サンプル'));
 
-assert.match(openMachineDetail, /function openMachineDetail\(daiNo, machineFormExpanded = false, memoDraft = null\)/);
+assert.match(openMachineDetail, /function openMachineDetail\(daiNo, machineFormExpanded = false\)/);
+assert.match(openMachineDetail, /\$\{machineMemoSectionHtml\(machine\)\}/);
+assert.match(openMachineDetail, /bindMachineMemoAdd\(machine\);/);
+assert.doesNotMatch(openMachineDetail, /id="machineMemo"|byId\("machineMemo"\)|memoDraft/);
 assert.match(openMachineDetail, /\$\{nailRatingSectionHtml\(machine\)\}/);
 assert.match(openMachineDetail, /\$\{machineHistoryHtml\(machine\)\}/);
 assert.match(openMachineDetail, /id="toggleMachineHistoryBtn">履歴<\/button>/);
@@ -249,7 +253,12 @@ assert.match(openMachineDetail, /bindNailRatingChips\(machine\);/);
 assert.match(openMachineDetail, /\$\{machineModelSummaryHtml\(machine\)\}\s*\$\{machineFormExpanded \? machineDetailFormHtml\(machine\) : ""\}/);
 assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMachineBtn">[^']+<\/button>' : ""\}/);
 assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
-assert.match(openMachineDetail, /openMachineDetail\(daiNo, true, byId\("machineMemo"\)\?\.value \|\| ""\)/);
+assert.match(openMachineDetail, /openMachineDetail\(daiNo, true\)/);
+assert.match(machineMemoHelpers, /function machineMemoSectionHtml\(machine, inputId = "machineMemoText", buttonId = "addMachineMemoBtn"\)/);
+assert.match(machineMemoHelpers, /machine\.memoEntries\.unshift/);
+assert.match(machineMemoHelpers, /id: cryptoId\("memo"\)/);
+assert.match(machineMemoHelpers, /date: today\(\)/);
+assert.doesNotMatch(machineMemoHelpers, /data-delete|data-edit/);
 assert.match(html, /const DAILY_NAIL_RATING_KEY = "heso";/);
 assert.match(html, /const NAIL_RATING_KEYS = \["yori", "michi", "nekase", "through", "warp"\];/);
 assert.match(html, /const NAIL_DISPLAY_KEYS = \["heso", \.\.\.NAIL_RATING_KEYS\];/);
@@ -264,9 +273,11 @@ assert.match(nailRatingSection, /前日参考: \$\{escapeHtml\(latestHeso\.value
 assert.match(machineHistoryHtml, /filter\(\(session\) => session\.machineId === machine\.id\)/);
 assert.match(machineHistoryHtml, /ヘソ評価 \$\{escapeHtml\(hesoText\)\}/);
 assert.match(machineHistoryHtml, /heso === null \? "未記録"/);
-assert.match(machineHistoryHtml, /台メモ（現在）:/);
+assert.match(machineHistoryHtml, /machineMemoEntriesForDate\(machine, date\)/);
+assert.doesNotMatch(machineHistoryHtml, /台メモ（現在）|未記入/);
 assert.match(machineHistoryHtml, /deriveSession\(session, machine\)/);
 assert.ok(design.includes('B47 台詳細の台別履歴'));
+assert.ok(design.includes('B48 台メモの蓄積型ログ化'));
 assert.match(bindNailRatingChips, /function bindNailRatingChips\(machine\)/);
 assert.match(bindNailRatingChips, /row\.dataset\.nailKey === DAILY_NAIL_RATING_KEY/);
 assert.match(bindNailRatingChips, /state\.hesoRating = rating;/);
@@ -295,7 +306,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 22;
+  const SCHEMA_VERSION = 23;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
   const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -341,6 +352,7 @@ new vm.Script(`
   }
   function normalizeInvestmentSource(value) { return value === "mochidama" || value === "saipurei" ? value : "cash"; }
   function normalizeRamClear(value) { return value === RAM_CLEAR_VALUE || value === RAM_NOT_CLEARED_VALUE || value === RAM_UNKNOWN_VALUE ? value : null; }
+  function isDateString(value) { return /^\\d{4}-\\d{2}-\\d{2}$/.test(String(value || "")); }
   const NAIL_RATING_KEYS = ["yori", "michi", "nekase", "through", "warp"];
   ${normalizeNailRatingBlock}
   function presetById(id) { return MACHINE_PRESETS.find((preset) => preset.id === id) || null; }
@@ -373,14 +385,15 @@ new vm.Script(`
     activeStoreId: "st_1",
     stores: [{ id: "st_1", name: "Legacy Store", isPersonal: true, createdAt: "2026-08-01T00:00:00.000Z" }],
     layouts: {},
-    machines: [{ id: "m_1", storeId: "st_1", daiNo: "101", modelName: "Legacy Machine", roundBalls: 140, memo: "old memo", nailRating: { heso: 4, yori: 3, michi: 2, nekase: 1, migi: 5, through: 4, warp: 2 } }],
+    machines: [{ id: "m_1", storeId: "st_1", daiNo: "101", modelName: "Legacy Machine", roundBalls: 140, memo: "old memo", createdAt: "2026-08-06T12:00:00.000Z", nailRating: { heso: 4, yori: 3, michi: 2, nekase: 1, migi: 5, through: 4, warp: 2 } }],
     sessions: [],
     dailyState: {}
   });
 `).runInContext(legacyMachineContext);
 assert.equal(legacyMachineContext.normalizedLegacy.machines.length, 1);
 assert.equal(legacyMachineContext.normalizedLegacy.machines[0].daiNo, "101");
-assert.equal(legacyMachineContext.normalizedLegacy.machines[0].memo, "old memo");
+assert.equal(Object.prototype.hasOwnProperty.call(legacyMachineContext.normalizedLegacy.machines[0], 'memo'), false);
+assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].memoEntries), JSON.stringify([{ id: 'memo_legacy', date: '2026-08-06', text: 'old memo', createdAt: '2026-08-06T12:00:00.000Z' }]));
 assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].nailRating), JSON.stringify({ yori: 3, michi: 2, nekase: 1, through: 4, warp: 2 }));
 const dailyHesoContext = vm.createContext({});
 new vm.Script(`
@@ -440,6 +453,9 @@ const machineHistoryContext = vm.createContext({
   dailyHesoRating(machineId, date) {
     return machineHistoryContext.normalizeRatingValue(machineHistoryContext.data.dailyState?.[machineId]?.[date]?.hesoRating);
   },
+  normalizeMemoEntries(entries) {
+    return Array.isArray(entries) ? entries : [];
+  },
   deriveSession(session) {
     return session.id === 's_target_3' ? { normalSpins: 90, rate: null } : { normalSpins: 100, rate: 16.5 };
   },
@@ -456,8 +472,13 @@ const machineHistoryContext = vm.createContext({
     return String(value ?? '');
   }
 });
-new vm.Script(`${machineHistoryHtml}
-  globalThis.historyHtml = machineHistoryHtml({ id: 'm_1', memo: '寄り注意' });
+new vm.Script(`${machineMemoHelpers}
+  ${machineHistoryHtml}
+  globalThis.historyHtml = machineHistoryHtml({ id: 'm_1', memoEntries: [
+    { id: 'memo_1', date: '2026-08-08', text: '寄り注意', createdAt: '2026-08-08T10:00:00.000Z' },
+    { id: 'memo_2', date: '2026-08-08', text: 'ワープ良化', createdAt: '2026-08-08T11:00:00.000Z' },
+    { id: 'memo_unknown', date: null, text: '日付不明メモ', createdAt: '2026-08-01T00:00:00.000Z' }
+  ] });
 `).runInContext(machineHistoryContext);
 assert.match(machineHistoryContext.historyHtml, /08\/08 の履歴/);
 assert.match(machineHistoryContext.historyHtml, /09:00/);
@@ -465,7 +486,9 @@ assert.match(machineHistoryContext.historyHtml, /12:00/);
 assert.doesNotMatch(machineHistoryContext.historyHtml, /10:00/);
 assert.match(machineHistoryContext.historyHtml, /ヘソ評価 4/);
 assert.match(machineHistoryContext.historyHtml, /ヘソ評価 未記録/);
-assert.match(machineHistoryContext.historyHtml, /台メモ（現在）: 寄り注意/);
+assert.match(machineHistoryContext.historyHtml, /寄り注意/);
+assert.match(machineHistoryContext.historyHtml, /ワープ良化/);
+assert.doesNotMatch(machineHistoryContext.historyHtml, /日付不明メモ|未記入|未記録<\/small><br>\s*<small>台メモ/);
 assert.match(machineHistoryContext.historyHtml, /セッションなし/);
 assert.match(machineSummary, /id="toggleMachineFormBtn"/);
 assert.match(machineDetailForm, /id="machinePreset"/);
@@ -474,6 +497,7 @@ assert.match(machineDetailForm, /id="roundBalls"/);
 assert.match(machineModelDisplay, /source: "[^"]+"/);
 assert.match(machineModelDisplay, /name: "[^"]+"/);
 assert.match(columnPresetApply, /if \(hasIndividualSetting && currentPresetId !== presetId && !allowOverwrite\) return;/);
+assert.match(normalizeData, /memoEntries: normalizeMemoEntries\(machine\.memoEntries, machine\.memo, machine\.createdAt\),/);
 assert.match(normalizeData, /nailRating: normalizeNailRating\(machine\.nailRating\),/);
 assert.match(islandEditor, /id="island_\$\{index\}_\$\{side\}_gaps"/);
 assert.match(readIslandDraft, /gaps: \{\s*left: readGapListFromDom\(index, "left"\),\s*right: readGapListFromDom\(index, "right"\)\s*\}/);

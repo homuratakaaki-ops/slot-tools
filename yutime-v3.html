@@ -1539,7 +1539,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 22;
+    const SCHEMA_VERSION = 23;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1883,6 +1883,35 @@
         rating[key] = normalizeRatingValue(input[key]);
       });
       return rating;
+    }
+
+    function dateFromIso(value) {
+      const text = String(value || "");
+      return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
+    }
+
+    function normalizeMemoEntries(entries, legacyMemo = "", legacyCreatedAt = null) {
+      const normalized = (Array.isArray(entries) ? entries : []).map((entry) => {
+        const text = String(entry?.text || "").trim();
+        if (!text) return null;
+        return {
+          id: entry.id || cryptoId("memo"),
+          date: isDateString(entry.date) ? entry.date : null,
+          text,
+          createdAt: entry.createdAt || nowIso()
+        };
+      }).filter(Boolean);
+      const legacyText = String(legacyMemo || "").trim();
+      if (legacyText && !normalized.length) {
+        const createdAt = legacyCreatedAt || nowIso();
+        normalized.push({
+          id: cryptoId("memo"),
+          date: dateFromIso(legacyCreatedAt),
+          text: legacyText,
+          createdAt
+        });
+      }
+      return normalized.sort((a, b) => String(b.createdAt || "").localeCompare(String(a.createdAt || "")));
     }
 
     function normalizeStartEv(value) {
@@ -2241,7 +2270,7 @@
           daiNo: String(machine.daiNo || ""),
           modelName: presetId === "umi-sp5" && machine.presetId === "umi-sp5" ? preset?.name || machine.modelName || "" : machine.modelName || "",
           roundBalls: normalizeNumber(machine.roundBalls),
-          memo: machine.memo || "",
+          memoEntries: normalizeMemoEntries(machine.memoEntries, machine.memo, machine.createdAt),
           nailRating: normalizeNailRating(machine.nailRating),
           presetId,
           evSupported: Boolean(preset?.evSupported || machine.evSupported)
@@ -2455,7 +2484,7 @@
         daiNo: "101",
         modelName: "P大海物語5スペシャル",
         roundBalls: 140,
-        memo: "釘・癖など",
+        memoEntries: [{ id: "memo_sample", date: today(), text: "寄り注意", createdAt: nowIso() }],
         nailRating: { yori: 3, michi: null, nekase: 2, through: 3, warp: null },
         presetId: "umi-sp5",
         evSupported: true
@@ -4086,7 +4115,7 @@
     }
 
     function machineHasIndividualSetting(machine) {
-      return Boolean(normalizeMachinePresetId(machine) || machine.modelName || machine.roundBalls !== null || machine.memo || machine.evSupported);
+      return Boolean(normalizeMachinePresetId(machine) || machine.modelName || machine.roundBalls !== null || (machine.memoEntries || []).length || machine.evSupported);
     }
 
     function columnPresetForMachine(machine) {
@@ -4551,22 +4580,75 @@
       renderMorningCheckModal();
     }
 
+    function machineMemoEntriesForDate(machine, dateValue) {
+      return (machine?.memoEntries || []).filter((entry) => entry.date === dateValue);
+    }
+
+    function machineMemoEntriesHtml(machine) {
+      const entries = normalizeMemoEntries(machine.memoEntries);
+      if (!entries.length) return '<div class="row-card"><small>台メモはまだありません。</small></div>';
+      return entries.map((entry) => `
+        <div class="row-card">
+          <strong>${entry.date ? escapeHtml(shortDate(entry.date)) : "日付不明"}</strong><br>
+          <small>${escapeHtml(entry.text)}</small>
+        </div>
+      `).join("");
+    }
+
+    function machineMemoSectionHtml(machine, inputId = "machineMemoText", buttonId = "addMachineMemoBtn") {
+      return `
+        <div class="machine-memo-section">
+          <div class="field-row">
+            <label for="${escapeHtml(inputId)}">台メモ（釘・癖など）</label>
+            <textarea id="${escapeHtml(inputId)}" placeholder="今日の気づきを追記"></textarea>
+          </div>
+          <div class="modal-actions" style="margin-top:6px">
+            <button class="primary" id="${escapeHtml(buttonId)}">追加</button>
+          </div>
+          <div class="list" id="${escapeHtml(inputId)}List">
+            ${machineMemoEntriesHtml(machine)}
+          </div>
+        </div>
+      `;
+    }
+
+    function bindMachineMemoAdd(machine, inputId = "machineMemoText", buttonId = "addMachineMemoBtn") {
+      const input = byId(inputId);
+      const button = byId(buttonId);
+      if (!machine || !input || !button) return;
+      button.addEventListener("click", () => {
+        const text = input.value.trim();
+        if (!text) {
+          showToast("台メモを入力してください", "error");
+          return;
+        }
+        machine.memoEntries = normalizeMemoEntries(machine.memoEntries);
+        machine.memoEntries.unshift({
+          id: cryptoId("memo"),
+          date: today(),
+          text,
+          createdAt: nowIso()
+        });
+        if (!persistWithToast(`台番${machine.daiNo}の台メモを追加しました`)) return;
+        input.value = "";
+        const list = byId(`${inputId}List`);
+        if (list) list.innerHTML = machineMemoEntriesHtml(machine);
+        const historyPanel = byId("machineHistoryPanel");
+        if (historyPanel) historyPanel.innerHTML = machineHistoryHtml(machine);
+        renderAll();
+      });
+    }
+
     function openMachineMemoEditor(machineId) {
       const machine = data.machines.find((item) => item.id === machineId);
       if (!machine) return;
-      openModal("台メモ（釘・癖など）", "セッションのメモではなく、この台そのものに残すメモです。", `
-        <div class="field-row"><label for="quickMachineMemo">台メモ（釘・癖など）</label><textarea id="quickMachineMemo" placeholder="＋台メモを追加">${escapeHtml(machine.memo || "")}</textarea></div>
+      openModal("台メモ（釘・癖など）", "セッションのメモではなく、この台そのものに追記するメモです。過去メモは編集・削除しません。", `
+        ${machineMemoSectionHtml(machine, "quickMemoEntryText", "addQuickMemoEntryBtn")}
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
-          <button class="primary" id="saveQuickMachineMemoBtn">保存</button>
         </div>
       `);
-      byId("saveQuickMachineMemoBtn").addEventListener("click", () => {
-        machine.memo = byId("quickMachineMemo").value.trim();
-        if (!persistWithToast(`台番${machine.daiNo}の情報を保存しました`)) return;
-        closeModal();
-        renderAll();
-      });
+      bindMachineMemoAdd(machine, "quickMemoEntryText", "addQuickMemoEntryBtn");
     }
 
     function nailRatingSummary(machine) {
@@ -4621,8 +4703,9 @@
       return sortedDates.map((date) => {
         const heso = dailyHesoRating(machine.id, date);
         const dateSessions = sessions.filter((session) => session.date === date);
+        const memoEntries = machineMemoEntriesForDate(machine, date);
         const hesoText = heso === null ? "未記録" : `${heso}`;
-        const memoHtml = machine.memo ? `<small>台メモ（現在）: ${escapeHtml(machine.memo)}</small>` : '<small>台メモ（現在）: 未記入</small>';
+        const memoHtml = memoEntries.length ? `<div class="status-line">${memoEntries.map((entry) => `<span class="badge">${escapeHtml(entry.text)}</span>`).join("")}</div>` : "";
         const cards = dateSessions.length ? dateSessions.map((session) => {
           const derived = deriveSession(session, machine);
           const title = `${session.startTime || "--:--"} / ${session.status === "completed" ? "確定" : "稼働中"}`;
@@ -4707,7 +4790,7 @@
       `;
     }
 
-    function openMachineDetail(daiNo, machineFormExpanded = false, memoDraft = null) {
+    function openMachineDetail(daiNo, machineFormExpanded = false) {
       const machine = findMachineByDai(daiNo);
       if (!machine) return;
       const sessions = data.sessions.filter((session) => session.machineId === machine.id);
@@ -4719,7 +4802,7 @@
       const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
       const averagePayoutNote = stats.estimatedCount ? "（概算含む）" : "";
       openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
-        <div class="field-row"><label for="machineMemo">台メモ（釘・癖など）</label><textarea id="machineMemo" placeholder="＋台メモを追加">${escapeHtml((memoDraft ?? machine.memo) || "")}</textarea></div>
+        ${machineMemoSectionHtml(machine)}
         ${nailRatingSectionHtml(machine)}
         <div class="metric-grid">
           <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}</div>
@@ -4759,10 +4842,10 @@
         </div>
       `);
       const toggleMachineFormBtn = byId("toggleMachineFormBtn");
+      bindMachineMemoAdd(machine);
       bindNailRatingChips(machine);
       if (toggleMachineFormBtn) toggleMachineFormBtn.addEventListener("click", () => {
-        readMachineMemoForm(machine);
-        openMachineDetail(daiNo, true, byId("machineMemo")?.value || "");
+        openMachineDetail(daiNo, true);
       });
       if (machineFormExpanded) {
         byId("machinePreset").value = presetId;
@@ -4860,7 +4943,8 @@
     }
 
     function readMachineMemoForm(machine) {
-      machine.memo = byId("machineMemo")?.value.trim() || "";
+      if (!machine) return;
+      machine.memoEntries = normalizeMemoEntries(machine.memoEntries);
     }
 
     function readMachineDetailForm(machine) {
