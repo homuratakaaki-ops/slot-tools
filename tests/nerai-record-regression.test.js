@@ -311,7 +311,7 @@ function testKabaneriPresetSeedAndPickers() {
   assert.equal(vm.runInContext("findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_kiriban')", context), null);
   assert.equal(vm.runInContext("enabledSuggestItems('sgc_kabaneri_omikuji','sgp_kabaneri_point_kiriban').length", context), 6);
   assert.equal(vm.runInContext("findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_omikuji'),'sgp_kabaneri_point_kiriban'),'sgp_kabaneri_point_kiriban_i1').enabled", context), false);
-  assert.equal(vm.runInContext("findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara'),'sgp_kabaneri_point_minichara_i1').label", context), '無名・無言（予想）');
+  assert.equal(vm.runInContext("findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara'),'sgp_kabaneri_point_minichara_i1').label", context), '無名・無言');
   assert.deepEqual(
     JSON.parse(vm.runInContext("JSON.stringify(findSuggestItem(findSuggestPlace(findSuggestCategory(currentMachine(),'sgc_kabaneri_point'),'sgp_kabaneri_point_minichara'),'sgp_kabaneri_point_minichara_i1').decorations)", context)),
     [{ text: '無名', color: 'red' }]
@@ -830,7 +830,8 @@ function testKabaneriPresetSeedAndPickers() {
   const pointSheetHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
   const pointSheetText = stripTags(pointSheetHtml);
   assert.match(pointSheetText, /ミニキャラ/);
-  assert.match(pointSheetText, /無名・無言（予想）/);
+  assert.match(pointSheetText, /無名・無言/);
+  assert.doesNotMatch(pointSheetText, /（予想）/);
   assert.match(pointSheetText, /生駒・近いよ（間近!\?）/);
   assert.match(pointSheetText, /会話演出/);
   assert.match(pointSheetText, /舵取り・返答あり（強・示唆）/);
@@ -1011,8 +1012,9 @@ function testKabaneriChanceEyeMeterAndCounters() {
 
   assert.match(vm.runInContext("renderBattleModeCompactCounters()", context), /周期/);
   assert.match(vm.runInContext("renderBattleModeCompactCounters()", context), /下段ベル/);
-  assert.match(vm.runInContext("renderBattleModeReplayFlashMeter()", context), /チャ目/);
+  assert.equal(vm.runInContext("renderBattleModeReplayFlashMeter()", context), '');
   assert.doesNotMatch(vm.runInContext("renderBattleModeReplayFlashMeter()", context), /openBattleModeKabaneriChanceEyeSheet/);
+  assert.doesNotMatch(vm.runInContext("renderBattleModeGrid()", context), /チャ目 .*合算/);
   vm.runInContext("openBattleModeOtherSheet()", context);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /チャ目状況/);
   assert.match(vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context), /openBattleModeKabaneriChanceEyeSheet/);
@@ -1142,7 +1144,7 @@ function testKabaneriChanceEyeSituationView() {
   assert.match(html, /無→💡/);
   assert.match(html, /💡🔥/);
   assert.match(html, /⚡/);
-  assert.match(html, /減算/);
+  assert.match(html, /減算大/);
   assert.match(html, /└複合/);
   assert.doesNotMatch(html, /<th>合計<\/th>/);
   assert.match(html, /<td>—<\/td>/);
@@ -1558,7 +1560,7 @@ function testKabaneriGenealogyView() {
     };
   })())`, context));
   assert.equal(summary.mumeiCompleted, 2);
-  assert.deepEqual(summary.mumeiFirstLabels, ['無名・無言（予想） 10G', '無→無', '無→無', '無→💡 103G', '💡', 'CZ突入', '失敗（撃破5）']);
+  assert.deepEqual(summary.mumeiFirstLabels, ['無名・無言 10G', '無→無', '無→無', '無→💡 103G', '💡', 'CZ突入', '失敗（撃破5）']);
   assert.equal(summary.mumeiFirstCarry.some(Boolean), false);
   assert.deepEqual(summary.mumeiOngoingLabels, ['無→無']);
   assert.deepEqual(summary.mumeiOngoingCarry, [true]);
@@ -1579,7 +1581,7 @@ function testKabaneriGenealogyView() {
   assert.match(text, /💡/);
   assert.match(text, /CZ突入/);
   assert.match(text, /失敗（撃破5）/);
-  assert.match(text, /4チャ目（減算1）・125G/);
+  assert.match(text, /4チャ目（減算大1）・125G/);
   assert.match(text, /持越/);
   assert.match(text, /高確ON/);
   assert.match(text, /一廻以内好機/);
@@ -3468,6 +3470,9 @@ function testKabaneriStFlowAndCounters() {
     globalThis.__introDenAfterBiba = settingGroupTotal(kabaneriStIntroGroupRows());
   `, context);
   const otherVoicePickerHtml = vm.runInContext("__otherVoicePickerHtml", context);
+  assert.match(otherVoicePickerHtml, /景之・弱/);
+  assert.match(otherVoicePickerHtml, /景之・中/);
+  assert.match(otherVoicePickerHtml, /景之・強/);
   assert.match(otherVoicePickerHtml, /無名「普通じゃないね」（設定2以上濃厚）/);
   assert.match(otherVoicePickerHtml, /ボイスなし（設定5以上濃厚）/);
   assert.match(otherVoicePickerHtml, /美馬（設定4以上濃厚）/);
@@ -3478,6 +3483,15 @@ function testKabaneriStFlowAndCounters() {
   assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /示唆/);
   vm.runInContext("undoBattleModeLast()", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_intro_i3')", context), false);
+  vm.runInContext(`
+    openKabaneriStOtherVoicePicker();
+    recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_voice','sgp_kabaneri_setting_voice_i3');
+  `, context);
+  assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×1（100\.0%）/);
+  assert.match(vm.runInContext("renderKabaneriStPanel()", context), /景之 弱1\/中0\/強0/);
+  assert.match(vm.runInContext("__stateElements.battleModeUndoBar.textContent", context), /示唆/);
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i3')", context), false);
   vm.runInContext("selectSuggestItem('sgp_kabaneri_setting_voice_i3')", context);
   assert.equal(vm.runInContext("currentSuggestLog.some(entry => entry.itemId === 'sgp_kabaneri_setting_voice_i3')", context), true);
   assert.match(vm.runInContext("renderBattleModeRecent()", context), /景之・弱 ×1（100\.0%）/);

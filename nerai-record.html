@@ -5068,16 +5068,16 @@ function ensureKabaneriSeed(machine){
   ];
   const seed=[
     {id:KABANERI_POINT_CATEGORY_ID,category:'規定pt示唆',enabled:true,useAppearG:true,places:[
-      kabaneriSuggestPlace('sgp_kabaneri_point_minichara','ミニキャラ',['無言（予想）','えへへ（予想）','もうすぐだよ（近い!?）','近いよ（間近!?）']),
+      kabaneriSuggestPlace('sgp_kabaneri_point_minichara','ミニキャラ',['無言','えへへ','もうすぐだよ（近い!?）','近いよ（間近!?）']),
       kabaneriSuggestPlace('sgp_kabaneri_point_eyecatch','アイキャッチ',['無名（無名CZ近い!?）','生駒（生駒CZ近い!?）','景之（海門前兆近い!?）','銅藍（銅藍CZ前兆!?）']),
       kabaneriSuggestPlace('sgp_kabaneri_point_talk','会話演出',['無名・赤文字（示唆）','生駒・緑文字（示唆）','舵取り・青文字（示唆）','返答あり（強・示唆）']),
-      kabaneriSuggestPlace('sgp_kabaneri_point_blue_serif','非前兆の青セリフ',['無名系（予想）','生駒系（予想）']),
+      kabaneriSuggestPlace('sgp_kabaneri_point_blue_serif','非前兆の青セリフ',['無名系','生駒系']),
       kabaneriSuggestPlace('sgp_kabaneri_point_reel_flash','リールフラッシュ',['非前兆中（CZ近い・示唆）','CZ前兆中（CZ濃厚・示唆）','周期前兆中V（ボーナス濃厚・示唆）'])
     ]},
     {id:KABANERI_OMIKUJI_CATEGORY_ID,category:'おみくじ',enabled:true,useAppearG:true,places:[
       kabaneriSuggestPlace('sgp_kabaneri_omikuji_cycle','輪廻くじ・周期',['一廻以内好機（示唆）','二廻以内（示唆）','三廻以内（示唆）','四廻以内（示唆）','複数廻組合せ（一・二等）（示唆）','輪廻の果報（当該周期ボーナス濃厚・示唆）','六根清浄（エピボ濃厚!?・反例あり/予想）']),
-      kabaneriSuggestPlace('sgp_kabaneri_omikuji_cz','輪廻くじ・CZ',['無名・小吉（予想）','生駒・小吉（予想）','無名・中吉（残り僅か・示唆）','生駒・中吉（残り僅か・示唆）']),
-      kabaneriSuggestPlace('sgp_kabaneri_omikuji_item','アイテムくじ',['ツラヌキ筒（予想）','無名の短銃（予想）','自決袋（予想）','来栖の刀（予想）','無名のけん玉（予想）','菖蒲の弓（予想）','ミヤマカラスアゲハ（強・示唆）','小吉（設定2以上濃厚）','中吉（設定4以上濃厚）','大吉（設定6濃厚）'])
+      kabaneriSuggestPlace('sgp_kabaneri_omikuji_cz','輪廻くじ・CZ',['無名・小吉','生駒・小吉','無名・中吉（残り僅か・示唆）','生駒・中吉（残り僅か・示唆）']),
+      kabaneriSuggestPlace('sgp_kabaneri_omikuji_item','アイテムくじ',['ツラヌキ筒','無名の短銃','自決袋','来栖の刀','無名のけん玉','菖蒲の弓','ミヤマカラスアゲハ（強・示唆）','小吉（設定2以上濃厚）','中吉（設定4以上濃厚）','大吉（設定6濃厚）'])
     ]},
     {id:'sgc_kabaneri_setting',category:'設定示唆',enabled:true,useAppearG:true,places:[
       kabaneriSuggestPlace('sgp_kabaneri_setting_st_end','ST終了画面',['鉄下駄（示唆）','集合（示唆）','水着（設定6濃厚）'],'hit'),
@@ -5233,12 +5233,12 @@ function ensureKabaneriSuggestSeedV11(machine){
   const category=ensureSuggestCategory(machine,KABANERI_POINT_CATEGORY_ID,'規定pt示唆');
   const minichara=ensureKabaneriSuggestPlace(category,'sgp_kabaneri_point_minichara','ミニキャラ');
   upsertKabaneriSuggestItems(minichara,[
-    {id:'sgp_kabaneri_point_minichara_i1',label:'無名・無言（予想）'},
-    {id:'sgp_kabaneri_point_minichara_i2',label:'無名・えへへ（予想）'},
+    {id:'sgp_kabaneri_point_minichara_i1',label:'無名・無言'},
+    {id:'sgp_kabaneri_point_minichara_i2',label:'無名・えへへ'},
     {id:'sgp_kabaneri_point_minichara_i3',label:'無名・もうすぐだよ（近い!?）'},
     {id:'sgp_kabaneri_point_minichara_i4',label:'無名・近いよ（間近!?）'},
-    {id:'sgi_kabaneri_point_minichara_ikoma_silent',label:'生駒・無言（予想）'},
-    {id:'sgi_kabaneri_point_minichara_ikoma_ehehe',label:'生駒・えへへ（予想）'},
+    {id:'sgi_kabaneri_point_minichara_ikoma_silent',label:'生駒・無言'},
+    {id:'sgi_kabaneri_point_minichara_ikoma_ehehe',label:'生駒・えへへ'},
     {id:'sgi_kabaneri_point_minichara_ikoma_soon',label:'生駒・もうすぐだよ（近い!?）'},
     {id:'sgi_kabaneri_point_minichara_ikoma_near',label:'生駒・近いよ（間近!?）'}
   ]);
@@ -7764,7 +7764,7 @@ const KABANERI_CHANCE_EYE_TABLE_COLUMNS=[
   {key:'flashHigh',label:'💡🔥',tone:'red'},
   {key:'high',label:'🔥',tone:'red'},
   {key:'super',label:'⚡',tone:'blue'},
-  {key:'deduction',label:'減算',tone:'gold'},
+  {key:'deduction',label:'減算大',tone:'gold'},
   {key:'total',label:'計'}
 ];
 const KABANERI_CHANCE_EYE_TABLE_CHARS=[
@@ -8229,7 +8229,7 @@ function kabaneriGenealogyChainMeta(chain){
   const start=chain.startEntry;
   const end=chain.endEntry||chain.chips.at(-1)?.entry;
   const interval=kabaneriChanceEyeAxisDistance(start,end);
-  return `${chanceCount}チャ目（減算${deductionCount}）${interval!==null?`・${interval}G`:''}`;
+  return `${chanceCount}チャ目（減算大${deductionCount}）${interval!==null?`・${interval}G`:''}`;
 }
 function kabaneriGenealogyChainHtml(chain){
   return `<div class="bm-genealogy-chain ${chain.ongoing?'ongoing':''}">
@@ -8744,7 +8744,6 @@ function battleModeReplayFlashMeterText(){
 }
 function renderBattleModeReplayFlashMeter(){
   const rows=[];
-  if(isKabaneriMachine(currentMachine()))rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeKabaneriChanceEyeMeterText())}</div>`);
   if(battleModeHasReplayFlashMeter())rows.push(`<button class="bm-replay-flash-meter${isNangokuSpecialMachine(currentMachine())?' nangoku-special-meter':''}" type="button" onclick="openBattleModeReplayScopeSheet()">${escapeHtml(battleModeReplayFlashMeterText())}</button>`);
   if(battleModeHasReplaySplitMeter()&&!isNangokuSpecialMachine(currentMachine()))rows.push(`<div class="bm-replay-flash-meter">${escapeHtml(battleModeReplaySplitMeterText())}</div>`);
   return rows.join('');
@@ -9229,6 +9228,9 @@ function recordKabaneriStShortcutSuggest(placeId,itemId,options={}){
 function openKabaneriStOtherVoicePicker(){
   setBattleModeSheet('他ボイス/美馬',`
     <div class="bm-sheet-note">低頻度の確定系・強示唆を記録します。ST集計行の男女比率には含めません。</div>
+    <button class="bm-btn bm-choice-neutral bm-choice-text-gold" type="button" onclick="recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_voice','sgp_kabaneri_setting_voice_i3')">景之・弱</button>
+    <button class="bm-btn bm-choice-neutral bm-choice-text-gold" type="button" onclick="recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_voice','sgp_kabaneri_setting_voice_i4')">景之・中</button>
+    <button class="bm-btn bm-choice-neutral bm-choice-text-gold" type="button" onclick="recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_voice','sgp_kabaneri_setting_voice_i5')">景之・強</button>
     <button class="bm-btn bm-choice-neutral" type="button" onclick="recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_voice','sgp_kabaneri_setting_voice_i6')">無名「普通じゃないね」（設定2以上濃厚）</button>
     <button class="bm-btn bm-choice-neutral" type="button" onclick="recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_voice','sgp_kabaneri_setting_voice_i7')">ボイスなし（設定5以上濃厚）</button>
     <button class="bm-btn bm-choice-neutral bm-choice-text-gold" type="button" onclick="recordKabaneriStShortcutSuggest('sgp_kabaneri_setting_intro','sgp_kabaneri_setting_intro_i3')">美馬（設定4以上濃厚）</button>
