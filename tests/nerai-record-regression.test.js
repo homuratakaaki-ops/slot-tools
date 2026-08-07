@@ -2259,7 +2259,13 @@ function testStep4HidesDynamicFieldsDuringPendingHit() {
           inert: step4.inert,
           ariaHidden: step4.attrs['aria-hidden']
         },
-        tabHtml: tabs.innerHTML
+        tabHtml: tabs.innerHTML,
+        canOpenSettingSheet: (() => {
+          openSettingLabelSheet();
+          const opened = battleModeOtherSheetOpen && __stateElements.battleModeOtherGrid.innerHTML.includes('bm-setting-label-grid');
+          closeBattleModeOtherSheet();
+          return opened && !battleModeOtherSheetOpen;
+        })()
       });
     })()
   `, context));
@@ -2267,43 +2273,50 @@ function testStep4HidesDynamicFieldsDuringPendingHit() {
   assert.deepEqual(result.step1, { active: false, hidden: true, inert: true, ariaHidden: 'true' });
   assert.deepEqual(result.step4, { active: true, hidden: false, inert: false, ariaHidden: 'false' });
   assert.match(result.tabHtml, /処理中/);
+  assert.equal(result.canOpenSettingSheet, true);
 }
 
-function testSettingLabelUsesSingleAboveConfirmedCheckbox() {
+function testSettingLabelUsesSheetChip() {
   const html = fs.readFileSync(HTML_PATH, 'utf8');
-  assert.match(html, /id="settingLabelConfirmed"[\s\S]*以上確定/);
+  assert.match(html, /id="settingLabelChip"[\s\S]*openSettingLabelSheet/);
+  assert.doesNotMatch(html, /id="settingLabelValueButtons"/);
+  assert.doesNotMatch(html, /id="settingLabelConfirmed"/);
   assert.doesNotMatch(html, /id="settingLabelAtLeast"/);
 
   const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
   const result = JSON.parse(vm.runInContext(`
     (() => {
       const generic = document.getElementById('generic');
-      const holder = { ...generic, innerHTML: '' };
-      const checkbox = { ...generic, checked: false };
+      const chip = { ...generic, textContent: '' };
       const originalGet = document.getElementById;
-      document.getElementById = id => id === 'settingLabelValueButtons' ? holder : id === 'settingLabelConfirmed' ? checkbox : originalGet(id);
+      document.getElementById = id => id === 'settingLabelChip' ? chip : originalGet(id);
 
       currentSettingLabel = normalizeSettingLabelOrDefault({ value:4, atLeast:false, confirmed:false });
-      checkbox.checked = true;
-      const fromChecked = currentSettingLabelFromInputs();
+      renderSettingLabelUi();
+      const chipBefore = chip.textContent;
 
       applySettingLabelToInputs({ value:3, atLeast:true, confirmed:false });
-      const legacyAtLeastChecked = checkbox.checked;
-      checkbox.checked = false;
-      const fromUnchecked = currentSettingLabelFromInputs();
+      const legacyChip = chip.textContent;
 
-      checkbox.checked = true;
-      selectSettingLabelValue(6);
-      const selected = currentSettingLabel;
+      openSettingLabelSheet();
+      const sheetInitial = __stateElements.battleModeOtherGrid.innerHTML;
+      selectSettingLabelSheetValue(4);
+      toggleSettingLabelSheetConfirmed(true);
+      confirmSettingLabelSheet();
+      const selected = currentSettingLabelFromInputs();
+      const chipAfter = chip.textContent;
 
       document.getElementById = originalGet;
-      return JSON.stringify({ fromChecked, legacyAtLeastChecked, fromUnchecked, selected });
+      return JSON.stringify({ chipBefore, legacyChip, sheetInitial, selected, chipAfter });
     })()
   `, context));
-  assert.deepEqual(result.fromChecked, { value: 4, atLeast: true, confirmed: true });
-  assert.equal(result.legacyAtLeastChecked, true);
-  assert.deepEqual(result.fromUnchecked, { value: 3, atLeast: false, confirmed: false });
-  assert.deepEqual(result.selected, { value: 6, atLeast: true, confirmed: true });
+  assert.equal(result.chipBefore, '4');
+  assert.equal(result.legacyChip, '3以上確定');
+  assert.match(result.sheetInitial, /bm-setting-label-grid/);
+  assert.match(result.sheetInitial, /class="bm-btn/);
+  assert.deepEqual(result.selected, { value: 4, atLeast: true, confirmed: true });
+  assert.equal(result.chipAfter, '4以上確定');
 }
 
 function testShopNoteOverlayOpensFromVisibleTop() {
@@ -3755,10 +3768,7 @@ function testBattleModeSandBalanceTracksDepositSpendCashInAndUndo() {
       calcHourly: make(''),
       rateHint: make(''),
       timeWarning: make(''),
-      moneyRegistrationStatus: make(''),
-      settingLabelValueButtons: make(''),
-      settingLabelAtLeast: { ...make(''), checked: false },
-      settingLabelConfirmed: { ...make(''), checked: false }
+      moneyRegistrationStatus: make('')
     };
     const originalGet = document.getElementById;
     document.getElementById = id => elements[id] || originalGet(id);
@@ -5401,7 +5411,7 @@ function run() {
   testBattleModeKeypadOverlayStacksAboveBattleMode();
   testFlowPanelsDoNotExposeInactiveSteps();
   testStep4HidesDynamicFieldsDuringPendingHit();
-  testSettingLabelUsesSingleAboveConfirmedCheckbox();
+  testSettingLabelUsesSheetChip();
   testShopNoteOverlayOpensFromVisibleTop();
   testBattleModeMemoSheetTracksViewportOnResume();
   testBattleModeToastUsesTopPosition();

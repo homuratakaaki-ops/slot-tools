@@ -656,6 +656,8 @@ button.bm-replay-flash-meter{cursor:pointer;}
 .bm-sheet-title{font-size:14px;font-weight:900;color:var(--gold-light);}
 .bm-sheet-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
 .bm-sheet.memo-mode .bm-sheet-panel{margin-bottom:var(--bm-keyboard-inset,0px);max-height:min(72dvh,calc(100dvh - var(--bm-keyboard-inset,0px) - 12px));}
+.setting-label-chip{width:100%;min-height:48px;border:1px solid rgba(201,168,76,.5);border-radius:8px;background:rgba(201,168,76,.12);color:var(--gold-light);font-size:20px;font-weight:900;text-align:left;padding:10px 12px;cursor:pointer;}
+.bm-setting-label-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;}
 .bm-memo-text{grid-column:1/-1;min-height:120px;resize:vertical;}
 @media (max-height:560px){
   .bm-shell{gap:5px;}
@@ -798,11 +800,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="input-row">
         <div class="input-label">推定設定<div class="input-hint">比較ビューのプール集計用</div></div>
         <div class="field-stack">
-          <div class="quick-row" id="settingLabelValueButtons"></div>
-          <label class="toggle-row" style="justify-content:flex-start;gap:8px;">
-            <input type="checkbox" id="settingLabelConfirmed" onchange="syncSettingLabelUi()">
-            <span>以上確定</span>
-          </label>
+          <button class="setting-label-chip" id="settingLabelChip" type="button" onclick="openSettingLabelSheet()">未設定</button>
           <div class="input-hint">確定はトロフィー等の根拠がある場合のみ</div>
         </div>
       </div>
@@ -1400,6 +1398,7 @@ let currentSegmentStartedAt=new Date().toISOString();
 let lastSegmentUndo=null;
 let currentEndingCards={};
 let currentSettingLabel={value:null,atLeast:false,confirmed:false};
+let settingLabelSheetState=null;
 let endingCardGroupsOpen={};
 let pendingTimelineTagIds=[];
 let pendingTagNumberAttachment=null;
@@ -16163,37 +16162,68 @@ function updateCalc(){
   if(warning)warning.style.display=calc.invalidTime?'block':'none';
 }
 function currentSettingLabelFromInputs(){
-  const base=normalizeSettingLabelOrDefault(currentSettingLabel);
-  const aboveConfirmed=!!document.getElementById('settingLabelConfirmed')?.checked;
-  return normalizeSettingLabelOrDefault({value:base.value,atLeast:aboveConfirmed,confirmed:aboveConfirmed});
+  return normalizeSettingLabelOrDefault(currentSettingLabel);
+}
+function settingLabelChipText(label=currentSettingLabel){
+  const normalized=normalizeSettingLabelOrDefault(label);
+  if(normalized.value===null)return '未設定';
+  return `${normalized.value}${normalized.atLeast||normalized.confirmed?'以上確定':''}`;
 }
 function renderSettingLabelUi(){
-  const holder=document.getElementById('settingLabelValueButtons');
   const normalized=normalizeSettingLabelOrDefault(currentSettingLabel);
-  if(holder){
-    const rows=[null,1,2,3,4,5,6];
-    holder.innerHTML=rows.map(value=>{
-      const active=(value===null&&normalized.value===null)||value===normalized.value;
-      const label=value===null?'不明':String(value);
-      return `<button type="button" class="btn-small ${active?'active':''}" onclick="selectSettingLabelValue(${value===null?'null':value})">${label}</button>`;
-    }).join('');
-  }
-  const confirmed=document.getElementById('settingLabelConfirmed');
-  if(confirmed)confirmed.checked=!!(normalized.atLeast||normalized.confirmed);
+  const chip=document.getElementById('settingLabelChip');
+  if(chip)chip.textContent=settingLabelChipText(normalized);
 }
 function applySettingLabelToInputs(label){
   currentSettingLabel=normalizeSettingLabelOrDefault(label);
   renderSettingLabelUi();
 }
 function selectSettingLabelValue(value){
-  const base=currentSettingLabelFromInputs();
-  currentSettingLabel=normalizeSettingLabelOrDefault({value,atLeast:base.atLeast,confirmed:base.confirmed});
+  currentSettingLabel=normalizeSettingLabelOrDefault({value,atLeast:currentSettingLabel.atLeast,confirmed:currentSettingLabel.confirmed});
   renderSettingLabelUi();
   scheduleDraftSave();
 }
 function syncSettingLabelUi(){
-  currentSettingLabel=currentSettingLabelFromInputs();
   renderSettingLabelUi();
+  scheduleDraftSave();
+}
+function openSettingLabelSheet(){
+  settingLabelSheetState=normalizeSettingLabelOrDefault(currentSettingLabel);
+  renderSettingLabelSheet();
+}
+function settingLabelSheetButton(value){
+  const state=normalizeSettingLabelOrDefault(settingLabelSheetState);
+  const active=(value===null&&state.value===null)||value===state.value;
+  const label=value===null?'不明':String(value);
+  return `<button class="bm-btn ${active?'gold':''}" type="button" onclick="selectSettingLabelSheetValue(${value===null?'null':value})">${escapeHtml(label)}</button>`;
+}
+function renderSettingLabelSheet(){
+  const state=normalizeSettingLabelOrDefault(settingLabelSheetState);
+  setBattleModeSheet('推定設定',`
+    <div class="bm-sheet-note">現在：<strong>${escapeHtml(settingLabelChipText(state))}</strong></div>
+    <div class="bm-setting-label-grid">${[null,1,2,3,4,5,6].map(settingLabelSheetButton).join('')}</div>
+    <label class="toggle-row" style="grid-column:1/-1;justify-content:flex-start;gap:10px;padding:10px 2px;">
+      <input type="checkbox" ${state.atLeast||state.confirmed?'checked':''} onchange="toggleSettingLabelSheetConfirmed(this.checked)">
+      <span>以上確定</span>
+    </label>
+    <div class="bm-sheet-note">確定はトロフィー等の根拠がある場合のみ</div>
+    <button class="bm-btn gold" type="button" onclick="confirmSettingLabelSheet()">確定</button>
+    <button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>
+  `);
+}
+function selectSettingLabelSheetValue(value){
+  const state=normalizeSettingLabelOrDefault(settingLabelSheetState);
+  settingLabelSheetState=normalizeSettingLabelOrDefault({value,atLeast:state.atLeast,confirmed:state.confirmed});
+  renderSettingLabelSheet();
+}
+function toggleSettingLabelSheetConfirmed(checked){
+  const state=normalizeSettingLabelOrDefault(settingLabelSheetState);
+  settingLabelSheetState=normalizeSettingLabelOrDefault({value:state.value,atLeast:!!checked,confirmed:!!checked});
+}
+function confirmSettingLabelSheet(){
+  currentSettingLabel=normalizeSettingLabelOrDefault(settingLabelSheetState);
+  renderSettingLabelUi();
+  closeBattleModeOtherSheet();
   scheduleDraftSave();
 }
 function currentTimelineCounterStateSnapshot(endLog=null){
