@@ -3861,6 +3861,49 @@ function testBattleModeSandBalanceTracksDepositSpendCashInAndUndo() {
   assert.deepEqual(result.afterUndoDeposit, { deposits: 0, balance: 0 });
 }
 
+function testBattleModeCreditUpdateGoesDirectAndManagementMovesToOtherSheet() {
+  const { context } = runRecord(undefined);
+  installBattleModeStateDom(context);
+  vm.runInContext(`
+    selectedMachineId = 'm_kabaneri';
+    selectedAimId = firstAimIdForMachine(currentMachine()) || '';
+    battleModeOpen = true;
+    currentIntervalEstimate = normalizeIntervalEstimate({ initialDiff: null, loanRate: 46, investedTotal: 100, credit: 20, history: [] });
+    __stateElements.numericKeypadOverlay = { classList: { add() {}, remove() {} } };
+    __stateElements.numericKeypadLabel = { textContent: '' };
+    __stateElements.numericKeypadValue = { textContent: '' };
+    __stateElements.numericKeypadHint = { textContent: '', classList: { add() {}, remove() {} } };
+  `, context);
+
+  const trackerHtml = vm.runInContext("renderBattleModeIntervalTracker()", context);
+  assert.match(trackerHtml, /openBattleModeCreditUpdateInput\(\)">クレ更新/);
+  assert.doesNotMatch(trackerHtml, /openBattleModeDiffTrackerSheet\(\)">クレ更新/);
+
+  vm.runInContext("openBattleModeOtherSheet()", context);
+  const otherHtml = vm.runInContext("__stateElements.battleModeOtherGrid.innerHTML", context);
+  assert.match(otherHtml, /投資・差枚の管理/);
+  assert.match(otherHtml, /openBattleModeDiffTrackerSheet\(\)/);
+  vm.runInContext("closeBattleModeOtherSheet()", context);
+
+  const directCall = JSON.parse(vm.runInContext(`
+    const originalOpenBattleModeDiffInput = openBattleModeDiffInput;
+    let captured = null;
+    openBattleModeDiffInput = (mode, options) => { captured = { mode, options }; };
+    openBattleModeCreditUpdateInput();
+    openBattleModeDiffInput = originalOpenBattleModeDiffInput;
+    JSON.stringify(captured);
+  `, context));
+  assert.deepEqual(directCall, { mode: 'credit', options: { reopenSheet: false } });
+
+  vm.runInContext("battleModeApplyDiffTrackerInput('credit', 188, { reopenSheet: false })", context);
+  assert.equal(vm.runInContext("currentIntervalEstimate.credit", context), 188);
+  assert.equal(vm.runInContext("battleModeOtherSheetOpen", context), false);
+  assert.equal(vm.runInContext("currentIntervalEstimate.history.at(-1).mode", context), 'credit');
+
+  vm.runInContext("undoBattleModeLast()", context);
+  assert.equal(vm.runInContext("currentIntervalEstimate.credit", context), 20);
+}
+
 function testNonKabaneriHitPayoutClearAndReinputDoesNotMutateInvestment() {
   const { context } = runRecord(undefined);
   const result = JSON.parse(vm.runInContext(`
@@ -5453,6 +5496,7 @@ function run() {
   testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo();
   testBattleModeInvestmentResetUsesHistoryBoundaryAndUndo();
   testBattleModeSandBalanceTracksDepositSpendCashInAndUndo();
+  testBattleModeCreditUpdateGoesDirectAndManagementMovesToOtherSheet();
   testNonKabaneriHitPayoutClearAndReinputDoesNotMutateInvestment();
   testAllMachineHitStartDoesNotMutateInvestment();
   testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo();

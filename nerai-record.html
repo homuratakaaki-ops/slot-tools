@@ -7551,7 +7551,7 @@ function renderBattleModeIntervalTracker(){
   const creditClass=battleModeCreditUpdateButtonClass();
   return `<div class="bm-diff-row">
     <button class="bm-diff-tracker" type="button" onclick="openBattleModeDiffTrackerSheet()">${escapeHtml(battleModeIntervalDiffText(diff))}<span class="muted">${escapeHtml(battleModeIntervalTrackerMeasured(state)?battleModeIntervalDetailText(state):'未計測')}</span></button>
-    <button class="bm-mini-btn bm-credit-update${creditClass}" type="button" onclick="openBattleModeDiffInput('credit')">クレ更新</button>
+    <button class="bm-mini-btn bm-credit-update${creditClass}" type="button" onclick="openBattleModeCreditUpdateInput()">クレ更新</button>
     ${renderBattleModeSandBalance(state)}
     <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">＋1000</button>
   </div>`;
@@ -7568,7 +7568,7 @@ function renderBattleModeTopActions(){
   const creditClass=battleModeCreditUpdateButtonClass();
   return `<div class="bm-top-action-row">
     <button class="bm-diff-tracker" type="button" onclick="openBattleModeDiffTrackerSheet()">${escapeHtml(battleModeIntervalDiffText(diff))}<span class="muted">${escapeHtml(battleModeIntervalTrackerMeasured(state)?battleModeIntervalDetailText(state):'\u672a\u8a08\u6e2c')}</span></button>
-    <button class="bm-mini-btn bm-credit-update${creditClass}" type="button" onclick="openBattleModeDiffInput('credit')">\u30af\u30ec</button>
+    <button class="bm-mini-btn bm-credit-update${creditClass}" type="button" onclick="openBattleModeCreditUpdateInput()">\u30af\u30ec</button>
     ${renderBattleModeSandBalance(state)}
     <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">＋1000</button>
     <button class="bm-action-mini" type="button" onclick="openSuggestPlacePicker('play')">\u793a\u5506</button>
@@ -8835,7 +8835,10 @@ function renderBattleModeDiffHistory(){
     <div class="bm-recent-line" style="color:var(--text-muted);">履歴行からの個別取消は行わず、直前操作は下部の取り消しバー、過去分は「投資合計を修正」等で復旧する。</div>
   </div>`;
 }
-function openBattleModeDiffInput(mode){
+function openBattleModeCreditUpdateInput(){
+  openBattleModeDiffInput('credit',{reopenSheet:false});
+}
+function openBattleModeDiffInput(mode,options={}){
   const input=document.createElement('input');
   input.type='text';
   input.className='numeric-input';
@@ -8856,7 +8859,7 @@ function openBattleModeDiffInput(mode){
     const value=normalizeOptionalNumber(input.value);
     input.remove();
     if(value===null){battleModeInvalid('数値を入力してください');return;}
-    battleModeApplyDiffTrackerInput(mode,value);
+    battleModeApplyDiffTrackerInput(mode,value,options);
   },{once:true});
   document.body.appendChild(input);
   openNumericKeypad(input);
@@ -10543,6 +10546,7 @@ function openBattleModeOtherSheet(){
   const modalButtons=[
     '<button class="bm-btn tag-style-kabaneri-gold" type="button" onclick="openBattleModePicker(\'hit\')">当選</button>',
     '<button class="bm-btn quit-action" type="button" onclick="openBattleModeQuitSheet()">ヤメ</button>',
+    '<button class="bm-btn other" type="button" onclick="openBattleModeDiffTrackerSheet()">投資・差枚の管理</button>',
     '<button class="bm-btn close-action" type="button" onclick="closeBattleModeOtherSheet()">閉じる</button>',
     excludedModals.has('suggestion')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'suggestion\')">示唆記録</button>',
     excludedModals.has('shopNote')?'':'<button class="bm-btn other" type="button" onclick="selectBattleModeOtherModal(\'shopNote\')">他台メモ</button>',
