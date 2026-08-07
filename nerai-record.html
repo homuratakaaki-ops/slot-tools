@@ -61,6 +61,7 @@ input[type="checkbox"]{width:19px;height:19px;accent-color:var(--gold);}
 .inline-field{display:flex;align-items:center;gap:8px;flex:1;min-width:0;}
 .inline-field input,.inline-field select{min-width:0;flex:1;}
 .inline-field .btn-small{flex:0 0 auto;}
+#moneyEndMedals{flex:0 0 9ch;width:9ch;min-width:9ch;text-align:right;}
 .game-pair-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin:8px 0;width:100%;max-width:100%;}
 .game-pair-field{display:flex;align-items:center;gap:5px;min-width:0;background:rgba(0,0,0,.12);border:1px solid var(--border);border-radius:8px;padding:7px;}
 .game-pair-field label{font-size:12px;color:var(--text-muted);font-weight:700;white-space:nowrap;}
@@ -786,7 +787,6 @@ footer a:hover{color:var(--gold-light);}
       <div class="input-row">
         <div class="input-label">終了持ちメダル</div>
         <div class="inline-field"><input type="text" id="moneyEndMedals" class="numeric-input" inputmode="none" readonly placeholder="0" oninput="updateCalc()" onchange="updateCalc()"><span class="input-hint">枚</span></div>
-        <div class="input-hint" id="moneyEndMedalsLinkHint"></div>
       </div>
       <div class="input-row">
         <div class="input-label">現金投入<div class="input-hint">この台で追加した円だけ</div></div>
@@ -16100,7 +16100,7 @@ function latestBattleModeCreditValue(){
 }
 function syncMoneyEndMedalsLinkHint(message=''){
   const hint=document.getElementById('moneyEndMedalsLinkHint');
-  if(hint)hint.textContent=message;
+  if(hint)hint.textContent='';
 }
 function applyBattleCreditToMoneyEndMedals(){
   const el=document.getElementById('moneyEndMedals');
@@ -16109,7 +16109,7 @@ function applyBattleCreditToMoneyEndMedals(){
   const credit=latestBattleModeCreditValue();
   if(credit===null)return false;
   el.value=String(Math.max(0,Math.round(credit)));
-  syncMoneyEndMedalsLinkHint('実戦モードのクレジットから自動入力');
+  syncMoneyEndMedalsLinkHint();
   updateCalc();
   return true;
 }
@@ -16150,7 +16150,7 @@ function syncBattleCreditFromMoneyEndMedals(){
   const state=normalizeIntervalEstimate(currentIntervalEstimate);
   if(Math.round(value)===(Number(state.credit)||0))return;
   if(battleModeApplyDiffTrackerInput('credit',value,{label:'クレジット更新（収支から）',reopenSheet:false})){
-    syncMoneyEndMedalsLinkHint('終了時メダルから実戦モードのクレジットへ反映');
+    syncMoneyEndMedalsLinkHint();
   }
 }
 function hasMoneyResultInput(money=null){

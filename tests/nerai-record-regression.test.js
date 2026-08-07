@@ -2120,8 +2120,17 @@ function testBattleModeQuitAndGoMoneyAppliesCreditLink() {
   assert.equal(result.endLiquid, 213);
   assert.notEqual(result.moneyEnd, '');
   assert.equal(result.moneyEndMedals, '166');
-  assert.notEqual(result.linkHint, '');
+  assert.equal(result.linkHint, '');
   assert.equal(result.undoCount, 1);
+}
+
+function testStep4EndMedalsShowsFiveDigitsWithoutCreditHint() {
+  const html = fs.readFileSync(HTML_PATH, 'utf8');
+  const style = extractStyle();
+  assert.match(html, /id="moneyEndMedals"/);
+  assert.doesNotMatch(html, /id="moneyEndMedalsLinkHint"/);
+  assert.match(style, /#moneyEndMedals\{[^}]*min-width:9ch/);
+  assert.doesNotMatch(html, /実戦モードのクレジットから自動入力/);
 }
 
 function testNewRegistrationGuardClosesOpenNoHitSegment() {
@@ -5513,6 +5522,7 @@ function run() {
   testEditEndLogUsesKeypadInsteadOfPrompt();
   testBattleModeQuitOnlyRecordsEndLogAndUndo();
   testBattleModeQuitAndGoMoneyAppliesCreditLink();
+  testStep4EndMedalsShowsFiveDigitsWithoutCreditHint();
   testNewRegistrationGuardClosesOpenNoHitSegment();
   testBattleModeUndefinedQuickPanelRendersEmptySlots();
   testBattleModeKeypadOverlayStacksAboveBattleMode();
