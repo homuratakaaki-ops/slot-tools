@@ -4560,14 +4560,16 @@
       `;
     }
 
-    function bindNailRatingChips() {
+    function bindNailRatingChips(machine) {
       els.modalBody.querySelectorAll("[data-nail-rating]").forEach((button) => {
         button.addEventListener("click", () => {
           const row = button.closest("[data-nail-key]");
-          if (!row) return;
+          if (!row || !machine) return;
           const wasPressed = button.getAttribute("aria-pressed") === "true";
           row.querySelectorAll("[data-nail-rating]").forEach((item) => item.setAttribute("aria-pressed", "false"));
           if (!wasPressed) button.setAttribute("aria-pressed", "true");
+          machine.nailRating = readNailRatingFromDom();
+          persist();
         });
       });
     }
@@ -4655,7 +4657,7 @@
         </div>
       `);
       const toggleMachineFormBtn = byId("toggleMachineFormBtn");
-      bindNailRatingChips();
+      bindNailRatingChips(machine);
       if (toggleMachineFormBtn) toggleMachineFormBtn.addEventListener("click", () => {
         readMachineMemoForm(machine);
         openMachineDetail(daiNo, true, byId("machineMemo")?.value || "");
@@ -4749,7 +4751,6 @@
 
     function readMachineMemoForm(machine) {
       machine.memo = byId("machineMemo")?.value.trim() || "";
-      machine.nailRating = readNailRatingFromDom();
     }
 
     function readMachineDetailForm(machine) {

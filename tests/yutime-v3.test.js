@@ -41,6 +41,8 @@ const normalizeNailRatingBlock = section('function normalizeRatingValue', 'funct
 const machineModelDisplay = section('function machineModelDisplay', 'function applyPresetToMachine');
 const columnPresetApply = section('function applyColumnPresetsToMachines', 'function machineHasIndividualSetting');
 const normalizeData = section('function normalizeData', 'function persist');
+const bindNailRatingChips = section('function bindNailRatingChips', 'function readNailRatingFromDom');
+const readMachineMemoForm = section('function readMachineMemoForm', 'function readMachineDetailForm');
 const islandEditor = section('function islandEditorHtml', 'function bindIslandEditor');
 const readIslandDraft = section('function readIslandDraftFromDom', 'function readIslandSideFromDom');
 const normalizeIsland = section('function normalizeIsland', 'function textMapToIslands');
@@ -178,7 +180,7 @@ assert.ok(design.includes('schema 21 Machine 1件サンプル'));
 
 assert.match(openMachineDetail, /function openMachineDetail\(daiNo, machineFormExpanded = false, memoDraft = null\)/);
 assert.match(openMachineDetail, /\$\{nailRatingSectionHtml\(machine\)\}/);
-assert.match(openMachineDetail, /bindNailRatingChips\(\);/);
+assert.match(openMachineDetail, /bindNailRatingChips\(machine\);/);
 assert.match(openMachineDetail, /\$\{machineModelSummaryHtml\(machine\)\}\s*\$\{machineFormExpanded \? machineDetailFormHtml\(machine\) : ""\}/);
 assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMachineBtn">[^']+<\/button>' : ""\}/);
 assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
@@ -188,7 +190,10 @@ assert.ok(html.indexOf('const NAIL_RATING_KEYS') < html.indexOf('let data = load
 assert.match(html, /heso: "ヘソ"/);
 assert.match(normalizeNailRatingBlock, /const input = source && typeof source === "object" \? source : \{\};/);
 assert.match(nailRatingSection, /data-nail-rating="\$\{value\}"/);
-assert.match(html, /machine\.nailRating = readNailRatingFromDom\(\);/);
+assert.match(bindNailRatingChips, /function bindNailRatingChips\(machine\)/);
+assert.match(bindNailRatingChips, /machine\.nailRating = readNailRatingFromDom\(\);\s*persist\(\);/);
+assert.doesNotMatch(bindNailRatingChips, /showToast|persistWithToast/);
+assert.doesNotMatch(readMachineMemoForm, /nailRating|readNailRatingFromDom/);
 const nailNormalizeContext = vm.createContext({});
 new vm.Script(`
   const NAIL_RATING_KEYS = ["heso", "yori", "michi", "nekase", "migi"];
