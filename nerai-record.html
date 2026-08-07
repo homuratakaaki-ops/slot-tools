@@ -7486,7 +7486,7 @@ function battleModeSandBalanceText(state=battleModeIntervalTrackerState()){
 }
 function renderBattleModeSandBalance(state=battleModeIntervalTrackerState()){
   const balance=battleModeSandBalanceValue(state);
-  return `<button class="bm-sand-balance ${balance<0?'warn':''}" type="button" onclick="openBattleModeDiffInput('sandDeposit')"><span>サンド残</span><strong>${escapeHtml(balance.toLocaleString('ja-JP'))}円</strong></button>`;
+  return `<button class="bm-sand-balance ${balance<0?'warn':''}" type="button" onclick="openBattleModeDiffInput('sandDeposit')"><span>残高</span><strong>${escapeHtml(balance.toLocaleString('ja-JP'))}円</strong></button>`;
 }
 function battleModeInvestHistorySinceReset(state=battleModeIntervalTrackerState()){
   const interval=normalizeIntervalEstimate(state);
@@ -8632,7 +8632,7 @@ function openBattleModeDiffTrackerSheet(){
   setBattleModeSheet('有利区間差枚',`
     <div class="bm-recent-line" style="grid-column:1/-1;font-weight:900;color:var(--gold-light);">現在: ${escapeHtml(diff===null?'—':`${diff>0?'+':''}${diff}枚`)}</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">内訳: ${escapeHtml(battleModeIntervalDetailText(state))}</div>
-    <div class="bm-recent-line" style="grid-column:1/-1;color:${state.sandBalance<0?'#fecaca':'var(--text-muted)'};">サンド残: ${escapeHtml(battleModeSandBalanceText(state))} / 入金合計 ${escapeHtml((state.sandDeposits||0).toLocaleString('ja-JP'))}円</div>
+    <div class="bm-recent-line" style="grid-column:1/-1;color:${state.sandBalance<0?'#fecaca':'var(--text-muted)'};">残高: ${escapeHtml(battleModeSandBalanceText(state))} / 入金合計 ${escapeHtml((state.sandDeposits||0).toLocaleString('ja-JP'))}円</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">${escapeHtml(battleModeInvestmentBreakdownText(state))}</div>
     <div class="bm-recent-line" style="grid-column:1/-1;color:var(--text-muted);">${escapeHtml(battleModeCashReconcileText(state))}</div>
     ${resetReference?`<div class="bm-recent-line" style="grid-column:1/-1;color:var(--gold-light);">${escapeHtml(resetReference)}</div>`:''}

@@ -3614,7 +3614,7 @@ function testBattleModeSandBalanceTracksDepositSpendCashInAndUndo() {
 
   assert.equal(result.afterDeposit.deposits, 5000);
   assert.equal(result.afterDeposit.balance, 5000);
-  assert.match(result.afterDeposit.html, /サンド残/);
+  assert.match(result.afterDeposit.html, /残高/);
   assert.match(result.afterDeposit.html, /5,000円/);
   assert.equal(result.afterInvests.balance, 3000);
   assert.equal(result.afterInvests.investedTotal, 92);
@@ -3631,7 +3631,7 @@ function testBattleModeSandBalanceTracksDepositSpendCashInAndUndo() {
   assert.deepEqual(result.afterUndoDeposit, { deposits: 0, balance: 0 });
 }
 
-function testNonKabaneriHitPayoutDoesNotMutateInvestment() {
+function testNonKabaneriHitPayoutClearAndReinputDoesNotMutateInvestment() {
   const { context } = runRecord(undefined);
   const result = JSON.parse(vm.runInContext(`
     const machineIds = ['m_nangoku_special', 'm_tokyo_ghoul', 'm_karakuri_circus_2'];
@@ -3662,9 +3662,11 @@ function testNonKabaneriHitPayoutDoesNotMutateInvestment() {
         currentHitEvents = [normalizeHitEvent({ id:eventId, trigger:'at', dataGame:100 + i, liquidGame:100 + i, createdAt:'2026-08-02T10:0' + i + ':00.000Z', wizardDone:false })];
         hitBranchWizard = { route:'atHit', stepIndex:0, through:null, done:[], eventId };
         const generic = document.getElementById('generic');
-        const input = { ...generic, value:String(777 + i) };
+        const input = { ...generic, value:String(100 + i) };
         const overlay = { ...generic, classList: { add() {}, remove() {}, toggle() {} } };
         document.getElementById = id => id === 'hitPayoutInput' ? input : id === 'hitPayoutOverlay' ? overlay : generic;
+        clearHitPayoutCreditInput();
+        input.value = String(777 + i);
         submitHitEventPayout();
       }
       results[machineId] = {
@@ -3711,11 +3713,6 @@ function testAllMachineHitStartDoesNotMutateInvestment() {
           { id:'idh_medal_' + machine.id, at:'2026-08-02T09:01:00.000Z', mode:'investMedals', input:100, before:{ investedTotal:920, credit:0 }, after:{ investedTotal:1020, credit:0 }, summary:'medal' }
         ]
       });
-      currentHitEvents = [];
-      hitBranchWizard = { route:'', stepIndex:0, through:null, done:[], eventId:'' };
-      battleModeOpen = true;
-      currentFlowStep = 2;
-      setTimelineGames(100,100);
       const before = {
         investedTotal: currentIntervalEstimate.investedTotal,
         cashUnits: battleModeCashInvestUnits(),
@@ -3725,7 +3722,14 @@ function testAllMachineHitStartDoesNotMutateInvestment() {
       };
       const trigger = triggers[0];
       const variant = Array.isArray(trigger.variants) && trigger.variants.length ? trigger.variants[0].key : '';
-      battleModeStartHit(trigger.key, variant);
+      for (let i = 0; i < 3; i += 1) {
+        currentHitEvents = [];
+        hitBranchWizard = { route:'', stepIndex:0, through:null, done:[], eventId:'' };
+        battleModeOpen = true;
+        currentFlowStep = 2;
+        setTimelineGames(100 + i, 100 + i);
+        battleModeStartHit(trigger.key, variant);
+      }
       rows.push({
         machineId: machine.id,
         before,
@@ -5216,7 +5220,7 @@ function run() {
   testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo();
   testBattleModeInvestmentResetUsesHistoryBoundaryAndUndo();
   testBattleModeSandBalanceTracksDepositSpendCashInAndUndo();
-  testNonKabaneriHitPayoutDoesNotMutateInvestment();
+  testNonKabaneriHitPayoutClearAndReinputDoesNotMutateInvestment();
   testAllMachineHitStartDoesNotMutateInvestment();
   testHitPayoutStepRecordsCreditAndAdoptsPayoutWithUndo();
   testHitPayoutStepDoesNotDuplicateSameCreditHistory();
