@@ -7,14 +7,7 @@
  * 実行: node test/verify.mjs
  */
 import { readFileSync } from "node:fs";
-
-const estimatorSource = readFileSync(
-  new URL("../js/estimator.js", import.meta.url),
-  "utf8"
-);
-const estimatorModuleUrl =
-  "data:text/javascript;base64," + Buffer.from(estimatorSource, "utf8").toString("base64");
-const { estimate } = await import(estimatorModuleUrl);
+import { estimate } from "../js/estimator.js";
 
 const machine = JSON.parse(
   readFileSync(new URL("../data/machines/my_juggler_v.json", import.meta.url))
