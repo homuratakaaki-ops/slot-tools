@@ -100,11 +100,12 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .now-line .numfield { width: 130px; font-size: 19px; padding: 9px 8px; }
 
 /* カウントボタン(可変高で画面を埋める) */
-.count-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 7px; }
+.count-wrap { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 7px; }
 .count-grid {
-  flex: 1; min-height: 0;
+  height: clamp(150px, 27dvh, 230px);
   display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 7px;
 }
+@supports not (height: 1dvh) { .count-grid { height: clamp(150px, 27vh, 230px); } }
 .count-btn {
   border-radius: 12px; border: 1px solid var(--line);
   background: var(--card2); color: var(--ink);
@@ -113,7 +114,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
   overflow: hidden;
 }
 .count-btn .cl { font-size: clamp(10px, 3vw, 12.5px); line-height: 1.2; text-align: center; }
-.count-btn .cv { font-size: clamp(20px, 7vw, 30px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.count-btn .cv { font-size: clamp(19px, 6vw, 26px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .count-btn:active { transform: scale(.97); filter: brightness(1.18); }
 .count-btn.grape { border-color: #3c5a36; } .count-btn.grape .cv { color: var(--grape); }
 .count-btn.cherry { border-color: #5c3540; } .count-btn.cherry .cv { color: var(--cherry); }
@@ -289,10 +290,10 @@ select.rate {
 
     <div class="count-wrap">
       <div class="count-grid">
-        <button type="button" class="count-btn grape" data-count="grape"><span class="cl">ぶどう</span><span class="cv" id="c_grape">0</span></button>
+        <button type="button" class="count-btn cherry" data-count="cherry"><span class="cl">チェリー</span><span class="cv" id="c_cherry">0</span></button>
         <button type="button" class="count-btn bigk" data-count="solo_big"><span class="cl">単独BIG</span><span class="cv" id="c_solo_big">0</span></button>
         <button type="button" class="count-btn bigk" data-count="cherry_big"><span class="cl">チェリー重複BIG</span><span class="cv" id="c_cherry_big">0</span></button>
-        <button type="button" class="count-btn cherry" data-count="cherry"><span class="cl">チェリー</span><span class="cv" id="c_cherry">0</span></button>
+        <button type="button" class="count-btn grape" data-count="grape"><span class="cl">ぶどう</span><span class="cv" id="c_grape">0</span></button>
         <button type="button" class="count-btn regk" data-count="solo_reg"><span class="cl">単独REG</span><span class="cv" id="c_solo_reg">0</span></button>
         <button type="button" class="count-btn regk" data-count="cherry_reg"><span class="cl">チェリー重複REG</span><span class="cv" id="c_cherry_reg">0</span></button>
       </div>
