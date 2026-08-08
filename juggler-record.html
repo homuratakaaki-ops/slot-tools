@@ -145,9 +145,17 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .invest-line { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); flex-wrap: nowrap; }
 .invest-line .chip {
   border: 1px solid var(--line); background: var(--card2); color: var(--ink);
-  border-radius: 8px; padding: 5px 8px; font-size: 12px; cursor: pointer;
+  border-radius: 10px; padding: 11px 12px; font-size: 13px; cursor: pointer;
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
+.invest-line .sum b.neg { color: var(--lamp); }
+.dep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.dep-grid button {
+  padding: 14px 0; font-size: 16px; font-weight: 600;
+  border-radius: 10px; border: 1px solid var(--line);
+  background: var(--card2); color: var(--ink); cursor: pointer;
+}
+.dep-grid button:active { filter: brightness(1.25); }
 .invest-line .sum { flex: 1; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .invest-line .sum b { color: var(--ink); }
 .invest-line .sum b.plus { color: var(--grape); }
@@ -307,8 +315,8 @@ select.rate {
 
     <div class="panel">
       <div class="invest-row">
-        <button type="button" class="invest-main" id="inv1000">投資 +1000円</button>
-        <button type="button" class="invest-sub" id="inv5000">+5000円</button>
+        <button type="button" class="invest-main" id="invSpend">−1000円</button>
+        <button type="button" class="invest-sub" id="depositBtn">入金</button>
         <select class="rate" id="rate" aria-label="貸メダル枚数">
           <option value="50">50枚/千円</option>
           <option value="47">47枚/千円</option>
@@ -394,6 +402,22 @@ select.rate {
   </div>
 </div>
 
+<!-- ===== 入金モーダル ===== -->
+<div class="keypad-overlay" id="depositOverlay">
+  <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="depTitle">
+    <p class="kp-label" id="depTitle">入金 — カード残高を増やします（投資には含めません）</p>
+    <div class="dep-grid">
+      <button type="button" data-dep="1000">+1,000円</button>
+      <button type="button" data-dep="5000">+5,000円</button>
+      <button type="button" data-dep="10000">+10,000円</button>
+      <button type="button" id="depOther">その他の金額</button>
+    </div>
+    <div class="kp-actions" style="grid-template-columns: 1fr;">
+      <button type="button" class="kp-cancel" id="depClose">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== 電卓モーダル ===== -->
 <div class="keypad-overlay" id="keypadOverlay">
   <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="kpLabel">
@@ -447,10 +471,10 @@ function defaultState() {
     start: { g: 0, big: 0, reg: 0 },
     nowG: 0,
     counts: Object.fromEntries(COUNT_IDS.map((id) => [id, 0])),
-    invest: { yen: 0, rate: 50, hold: 0 },
+    invest: { yen: 0, rate: 50, hold: 0, card: null },
+    usePrior: false,
     useGrape: true,
     useBreakdown: true,
-    usePrior: false,
     priorWeights: [1, 1, 1, 1, 1, 1],
     log: [],
   };
@@ -485,8 +509,6 @@ function restore() {
       state = { ...defaultState(), ...d };
       state.counts = { ...defaultState().counts, ...(d.counts || {}) };
       state.invest = { ...defaultState().invest, ...(d.invest || {}) };
-      state.useGrape = d.useGrape !== false;
-      state.useBreakdown = d.useBreakdown !== false;
       if (!Array.isArray(state.log)) state.log = [];
     }
   } catch (e) {}
@@ -494,6 +516,7 @@ function restore() {
 
 /* ---------- 数値フィールドへの反映 ---------- */
 function fieldGet(field) {
+  if (field === "deposit_add") return state.invest.card == null ? 0 : state.invest.card;
   if (field === "cu_g") return state.nowG;
   if (field === "hold") return state.invest.hold;
   if (field.startsWith("st_")) return state.start[field.slice(3)];
@@ -501,6 +524,7 @@ function fieldGet(field) {
   return 0;
 }
 function fieldSet(field, v) {
+  if (field === "deposit_add") { addDeposit(v); return; }
   if (field === "cu_g") state.nowG = v;
   else if (field === "hold") state.invest.hold = v;
   else if (field.startsWith("st_")) state.start[field.slice(3)] = v;
@@ -586,22 +610,27 @@ function bind() {
     });
   });
 
-  $("inv1000").addEventListener("click", () => addInvest(1000));
-  $("inv5000").addEventListener("click", () => addInvest(5000));
+  $("invSpend").addEventListener("click", () => addInvest(1000));
+  $("depositBtn").addEventListener("click", () => $("depositOverlay").classList.add("open"));
+  document.querySelectorAll("[data-dep]").forEach((b) =>
+    b.addEventListener("click", () => { addDeposit(parseInt(b.dataset.dep, 10)); $("depositOverlay").classList.remove("open"); }));
+  $("depOther").addEventListener("click", () => {
+    $("depositOverlay").classList.remove("open");
+    openKeypad("deposit_add", "入金額（カード残高に追加）");
+  });
+  $("depClose").addEventListener("click", () => $("depositOverlay").classList.remove("open"));
+  $("depositOverlay").addEventListener("click", (e) => { if (e.target === $("depositOverlay")) $("depositOverlay").classList.remove("open"); });
   $("rate").addEventListener("change", () => { state.invest.rate = parseInt($("rate").value, 10); persist(); renderAll(); });
   $("undoBtn").addEventListener("click", undo);
 
   $("useGrapeBtn").addEventListener("click", () => {
     state.useGrape = !state.useGrape;
-    persist();
-    renderAll();
+    persist(); renderAll();
   });
   $("useBreakdownBtn").addEventListener("click", () => {
     state.useBreakdown = !state.useBreakdown;
-    persist();
-    renderAll();
+    persist(); renderAll();
   });
-
   $("usePrior").addEventListener("change", () => {
     state.usePrior = $("usePrior").checked;
     $("priorGrid").hidden = !state.usePrior;
@@ -624,10 +653,19 @@ function bind() {
 
 function addInvest(yen) {
   state.invest.yen += yen;
+  if (state.invest.card != null) state.invest.card -= yen;
   pushLog({ k: "invest", yen });
   persist();
   renderAll();
-  $("lastOp").textContent = `直前: 投資 +${yen.toLocaleString()}円`;
+  $("lastOp").textContent = `直前: 投資 ${yen.toLocaleString()}円（カード残から）`;
+}
+
+function addDeposit(yen) {
+  state.invest.card = (state.invest.card == null ? 0 : state.invest.card) + yen;
+  pushLog({ k: "deposit", yen });
+  persist();
+  renderAll();
+  $("lastOp").textContent = `直前: 入金 +${yen.toLocaleString()}円`;
 }
 
 function pushLog(op) {
@@ -639,7 +677,11 @@ function undo() {
   const op = state.log.pop();
   if (!op) { $("lastOp").textContent = "取り消す操作がありません"; return; }
   if (op.k === "count" && state.counts[op.id] > 0) state.counts[op.id]--;
-  if (op.k === "invest") state.invest.yen = Math.max(0, state.invest.yen - op.yen);
+  if (op.k === "invest") {
+    state.invest.yen = Math.max(0, state.invest.yen - op.yen);
+    if (state.invest.card != null) state.invest.card += op.yen;
+  }
+  if (op.k === "deposit" && state.invest.card != null) state.invest.card -= op.yen;
   persist();
   renderAll();
   $("lastOp").textContent = `取り消し: ${op.k === "count" ? COUNT_LABELS[op.id] : `投資 ${op.yen.toLocaleString()}円`}`;
@@ -675,27 +717,29 @@ function buildObservation(uiWarnings) {
   if (ownG > 0) {
     const counts = {};
     if (state.useGrape && c.grape > 0) counts.grape = c.grape;
-    // BIG: 全数の内訳が判明している時のみ内訳を使用。
-    // 不明分が混ざる場合は合算(big_total)に切り替える(不明分だけを合算二項分布に
-    // すると「残り全Gで未発生」という誤った主張が尤度に入り、低設定へ歪むため)。
     if (!state.useBreakdown) {
+      // 内訳オフ: 合算のみで計算(カウントは記録として保持)
       if (ownBig > 0) counts.big_total = ownBig;
-    } else if (c.unk_big > 0) {
-      counts.big_total = ownBig;
-      uiWarnings.push("不明BIGがあるため、BIGは内訳ではなく合算で計算します。");
-    } else if (c.solo_big + c.cherry_big > 0) {
-      counts.solo_big = c.solo_big;
-      counts.cherry_big = c.cherry_big;
-    }
-    // REG: 同様
-    if (!state.useBreakdown) {
       if (ownReg > 0) counts.reg_total = ownReg;
-    } else if (c.unk_reg > 0) {
-      counts.reg_total = ownReg;
-      uiWarnings.push("不明REGがあるため、REGは内訳ではなく合算で計算します。");
-    } else if (c.solo_reg + c.cherry_reg > 0) {
-      counts.solo_reg = c.solo_reg;
-      counts.cherry_reg = c.cherry_reg;
+    } else {
+      // BIG: 全数の内訳が判明している時のみ内訳を使用。
+      // 不明分が混ざる場合は合算(big_total)に切り替える(不明分だけを合算二項分布に
+      // すると「残り全Gで未発生」という誤った主張が尤度に入り、低設定へ歪むため)。
+      if (c.unk_big > 0) {
+        counts.big_total = ownBig;
+        uiWarnings.push("不明BIGがあるため、BIGは内訳ではなく合算で計算します。");
+      } else if (c.solo_big + c.cherry_big > 0) {
+        counts.solo_big = c.solo_big;
+        counts.cherry_big = c.cherry_big;
+      }
+      // REG: 同様
+      if (c.unk_reg > 0) {
+        counts.reg_total = ownReg;
+        uiWarnings.push("不明REGがあるため、REGは内訳ではなく合算で計算します。");
+      } else if (c.solo_reg + c.cherry_reg > 0) {
+        counts.solo_reg = c.solo_reg;
+        counts.cherry_reg = c.cherry_reg;
+      }
     }
     if (Object.keys(counts).length > 0) segments.push({ games: ownG, counts });
   }
@@ -738,7 +782,12 @@ function renderInvest() {
   const inv = state.invest;
   const medals = Math.round((inv.yen / 1000) * inv.rate);
   $("s_invest").textContent = `¥${inv.yen.toLocaleString()}`;
-  let sum = `投資 ¥${inv.yen.toLocaleString()}（${medals.toLocaleString()}枚）`;
+  let sum = "";
+  if (inv.card != null) {
+    const cardCls = inv.card < 0 ? ' class="neg"' : "";
+    sum += `カード <b${cardCls}>¥${inv.card.toLocaleString()}</b>　`;
+  }
+  sum += `投資 ¥${inv.yen.toLocaleString()}（${medals.toLocaleString()}枚）`;
   if (inv.hold > 0) {
     const diff = inv.hold - medals;
     const cash = diff * 20;
@@ -768,7 +817,7 @@ function renderEstimate() {
   $("r_big").textContent = fmtRate(totBig, state.nowG);
   $("r_reg").textContent = fmtRate(totReg, state.nowG);
   $("r_total").textContent = fmtRate(totBig + totReg, state.nowG);
-  $("r_grape").textContent = fmtRate(c.grape, ownG);
+  $("r_grape").textContent = fmtRate(c.grape, ownG) + (state.useGrape ? "" : "（不使用）");
   $("r_cherry").textContent = fmtRate(c.cherry, ownG);
   $("r_solo_reg").textContent = fmtRate(c.solo_reg, ownG);
 
