@@ -274,6 +274,8 @@ assert.match(machineHistoryHtml, /filter\(\(session\) => session\.machineId === 
 assert.match(machineHistoryHtml, /ヘソ評価 \$\{escapeHtml\(hesoText\)\}/);
 assert.match(machineHistoryHtml, /heso === null \? "未記録"/);
 assert.match(machineHistoryHtml, /machineMemoEntriesForDate\(machine, date\)/);
+assert.match(machineHistoryHtml, /machine\.memoEntries \|\| \[\]\)\.forEach/);
+assert.match(machineHistoryHtml, /if \(entry\?\.date\) dates\.add\(entry\.date\);/);
 assert.doesNotMatch(machineHistoryHtml, /台メモ（現在）|未記入/);
 assert.match(machineHistoryHtml, /deriveSession\(session, machine\)/);
 assert.ok(design.includes('B47 台詳細の台別履歴'));
@@ -477,6 +479,7 @@ new vm.Script(`${machineMemoHelpers}
   globalThis.historyHtml = machineHistoryHtml({ id: 'm_1', memoEntries: [
     { id: 'memo_1', date: '2026-08-08', text: '寄り注意', createdAt: '2026-08-08T10:00:00.000Z' },
     { id: 'memo_2', date: '2026-08-08', text: 'ワープ良化', createdAt: '2026-08-08T11:00:00.000Z' },
+    { id: 'memo_only', date: '2026-08-05', text: 'メモだけの日', createdAt: '2026-08-05T10:00:00.000Z' },
     { id: 'memo_unknown', date: null, text: '日付不明メモ', createdAt: '2026-08-01T00:00:00.000Z' }
   ] });
 `).runInContext(machineHistoryContext);
@@ -488,6 +491,8 @@ assert.match(machineHistoryContext.historyHtml, /ヘソ評価 4/);
 assert.match(machineHistoryContext.historyHtml, /ヘソ評価 未記録/);
 assert.match(machineHistoryContext.historyHtml, /寄り注意/);
 assert.match(machineHistoryContext.historyHtml, /ワープ良化/);
+assert.match(machineHistoryContext.historyHtml, /08\/05 の履歴/);
+assert.match(machineHistoryContext.historyHtml, /メモだけの日/);
 assert.doesNotMatch(machineHistoryContext.historyHtml, /日付不明メモ|未記入|未記録<\/small><br>\s*<small>台メモ/);
 assert.match(machineHistoryContext.historyHtml, /セッションなし/);
 assert.match(machineSummary, /id="toggleMachineFormBtn"/);

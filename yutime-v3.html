@@ -4698,6 +4698,9 @@
       Object.values(data.dailyState?.[machine.id] || {}).forEach((state) => {
         if (state?.date && normalizeRatingValue(state.hesoRating) !== null) dates.add(state.date);
       });
+      (machine.memoEntries || []).forEach((entry) => {
+        if (entry?.date) dates.add(entry.date);
+      });
       const sortedDates = [...dates].sort((a, b) => String(b).localeCompare(String(a)));
       if (!sortedDates.length) return '<div class="row-card"><small>この台の履歴はまだありません。</small></div>';
       return sortedDates.map((date) => {
