@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.0",
+  "machine": {
+    "id": "my_juggler_v",
+    "name": "SマイジャグラーV",
+    "maker": "北電子",
+    "type": "normal",
+    "settings": [1, 2, 3, 4, 5, 6],
+    "notes": "確率は分母表記(denominators)で保持する。p = 1 / denominator。"
+  },
+  "sources": {
+    "official_spec": {
+      "label": "メーカー公表値(ちょんぼりすた掲載)",
+      "url": "https://chonborista.com/slot/kitadenshi/152973/",
+      "retrieved_at": "2026-08-08",
+      "reliability": "official"
+    },
+    "app_estimate": {
+      "label": "北電子公式アプリ『SマイジャグラーV』からの算出値(ジャグトピ掲載)",
+      "url": "https://jugglertopics.jp/mjv/256/",
+      "retrieved_at": "2026-08-08",
+      "reliability": "app_estimate",
+      "notes": "公式アプリのシミュレーションに基づく推定値。公式解析発表ではない点をUIで注記すること。"
+    }
+  },
+  "elements": [
+    {
+      "id": "big_total",
+      "label": "BIG合計",
+      "input": "required",
+      "source": "official_spec",
+      "denominators": { "1": 273.1, "2": 270.8, "3": 266.4, "4": 254.0, "5": 240.1, "6": 229.1 }
+    },
+    {
+      "id": "reg_total",
+      "label": "REG合計",
+      "input": "required",
+      "source": "official_spec",
+      "denominators": { "1": 409.6, "2": 385.5, "3": 336.1, "4": 290.0, "5": 268.6, "6": 229.1 }
+    },
+    {
+      "id": "grape",
+      "label": "ぶどう",
+      "input": "optional",
+      "source": "app_estimate",
+      "denominators": { "1": 5.98, "2": 5.88, "3": 5.84, "4": 5.81, "5": 5.76, "6": 5.65 },
+      "notes": "分母が小さいため短時間では収束しない。補助要素として扱う。"
+    },
+    {
+      "id": "solo_reg",
+      "label": "単独REG",
+      "input": "optional",
+      "group": "reg_breakdown",
+      "source": "app_estimate",
+      "denominators": { "1": 628.1, "2": 598.1, "3": 498.3, "4": 403.4, "5": 381.1, "6": 334.3 },
+      "notes": "設定1と6で約2倍の差がある主力判別要素。"
+    },
+    {
+      "id": "cherry_reg",
+      "label": "共通チェリー重複REG",
+      "input": "optional",
+      "group": "reg_breakdown",
+      "source": "app_estimate",
+      "denominators": { "1": 1079.9, "2": 1071.8, "3": 1079.9, "4": 1078.7, "5": 890.5, "6": 813.0 },
+      "notes": "設定5・6で顕著に軽くなる。"
+    },
+    {
+      "id": "solo_big",
+      "label": "単独BIG",
+      "input": "optional",
+      "group": "big_breakdown",
+      "source": "app_estimate",
+      "denominators": { "1": 414.8, "2": 399.7, "3": 394.8, "4": 381.1, "5": 346.0, "6": 336.1 }
+    },
+    {
+      "id": "cherry_big",
+      "label": "共通チェリー重複BIG",
+      "input": "optional",
+      "group": "big_breakdown",
+      "source": "app_estimate",
+      "denominators": { "1": 1381.2, "2": 1381.2, "3": 1295.3, "4": 1251.6, "5": 1246.9, "6": 1250.0 },
+      "notes": "設定差が小さいため寄与に限定的。内訳整合のために保持。"
+    }
+  ],
+  "input_rules": {
+    "modes": [
+      {
+        "id": "simple",
+        "label": "簡易モード",
+        "uses": ["big_total", "reg_total", "grape"]
+      },
+      {
+        "id": "detail",
+        "label": "詳細モード",
+        "uses": ["solo_big", "cherry_big", "solo_reg", "cherry_reg", "grape"],
+        "notes": "内訳を使う場合、合計(big_total/reg_total)は二重計上になるため尤度計算に使わない。"
+      }
+    ],
+    "validation": [
+      "詳細モードでは 単独REG + チェリー重複REG の回数合計がREG総数と一致すること(単独BIG側も同様)。",
+      "内訳確率の合成値は公表合算値と厳密には一致しない(app_estimate由来の誤差)。整合チェックは回数ベースで行い、確率の突き合わせには使わない。"
+    ]
+  },
+  "excluded_elements": [
+    {
+      "id": "corner_cherry",
+      "label": "角チェリー(非重複)",
+      "reason": "設定1と6で1/38.1〜1/35.1と差が小さく、判別寄与が低いため初期実装から除外。"
+    },
+    {
+      "id": "special_yaku",
+      "label": "特殊役A〜D",
+      "reason": "出現率が1万分の1以下で1日の試行では情報量がほぼゼロのため除外。"
+    }
+  ]
+}
