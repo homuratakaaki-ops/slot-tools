@@ -3,13 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>設定判別ツール（ベイズ推定）｜スロット稼働ノート</title>
-<meta name="description" content="BIG・REG・ぶどう等の実戦データから、各設定の事後確率をベイズ推定で計算します。事前分布の切り替えに対応し、入力は端末内にのみ保存します。">
+<title>設定判別ツール（ジャグラー）｜スロット稼働ノート</title>
+<meta name="description" content="データカウンターの値と自分の実戦カウント（ぶどう・ボーナス内訳）から、各設定の事後確率をベイズ推定で計算します。打ち始めデータに対応し、入力は端末内にのみ保存します。">
 <link rel="canonical" href="https://slot-tools.jp/settei-estimator.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="スロット稼働ノート">
-<meta property="og:title" content="設定判別ツール（ベイズ推定）｜スロット稼働ノート">
-<meta property="og:description" content="BIG・REG・ぶどう等の実戦データから、各設定の事後確率をベイズ推定で計算します。事前分布の切り替えに対応し、入力は端末内にのみ保存します。">
+<meta property="og:title" content="設定判別ツール（ジャグラー）｜スロット稼働ノート">
+<meta property="og:description" content="データカウンターの値と自分の実戦カウント（ぶどう・ボーナス内訳）から、各設定の事後確率をベイズ推定で計算します。打ち始めデータに対応し、入力は端末内にのみ保存します。">
 <meta property="og:url" content="https://slot-tools.jp/settei-estimator.html">
 <style>
 :root {
@@ -21,9 +21,8 @@
   --bar-bg: #edebe5;
   --lamp: #d5342f;        /* GOGOランプの赤: 最有力設定の強調にのみ使う */
   --lamp-soft: #fdeceb;
-  --est-badge: #9a6b15;   /* 実戦推定値バッジ */
-  --est-badge-bg: #faf3e3;
-  --ok: #2f7d4f;
+  --warn-ink: #9a6b15;
+  --warn-bg: #faf3e3;
   --focus: #2757d6;
 }
 * { box-sizing: border-box; }
@@ -57,8 +56,25 @@ h1 { font-size: 21px; line-height: 1.4; margin: 6px 0 2px; }
   border-bottom: 1px solid var(--line);
   letter-spacing: .02em;
 }
+.hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 
-/* 入力 */
+/* 台データ(打ち始め/現在の2列) */
+.snap-grid {
+  display: grid;
+  grid-template-columns: 78px 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.snap-grid .head { font-size: 12px; color: var(--muted); text-align: center; }
+.snap-grid .rowname { font-size: 13px; }
+.snap-grid input {
+  width: 100%; padding: 10px 8px; font-size: 17px; text-align: right;
+  border: 1px solid var(--line); border-radius: 8px; background: #fff;
+  font-variant-numeric: tabular-nums;
+}
+input:focus, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* 自分の実戦カウント */
 .mode-switch { display: flex; gap: 6px; margin-bottom: 12px; }
 .mode-switch button {
   flex: 1; padding: 9px 0; font-size: 14px;
@@ -68,22 +84,28 @@ h1 { font-size: 21px; line-height: 1.4; margin: 6px 0 2px; }
 .mode-switch button[aria-pressed="true"] {
   background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600;
 }
-.field { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; }
-.field label { font-size: 14px; flex: 1; }
-.field .sub { display: block; font-size: 11px; color: var(--muted); }
-.badge {
-  display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 999px;
-  vertical-align: 1px; margin-left: 4px;
+.counter-row {
+  display: grid;
+  grid-template-columns: 1fr 46px 74px 56px;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
 }
-.badge.est { color: var(--est-badge); background: var(--est-badge-bg); }
-input[type="number"] {
-  width: 108px; padding: 9px 10px; font-size: 16px; text-align: right;
+.counter-row .label { font-size: 14px; }
+.counter-row input {
+  width: 100%; padding: 10px 6px; font-size: 18px; text-align: center;
   border: 1px solid var(--line); border-radius: 8px; background: #fff;
   font-variant-numeric: tabular-nums;
 }
-input[type="number"]:focus, button:focus-visible, select:focus-visible {
-  outline: 2px solid var(--focus); outline-offset: 1px;
+.cnt-btn {
+  height: 46px; border-radius: 10px; border: 1px solid var(--line);
+  font-size: 22px; line-height: 1; cursor: pointer;
+  touch-action: manipulation; user-select: none; -webkit-user-select: none;
 }
+.cnt-btn.plus { background: var(--lamp-soft); border-color: #eec4c1; color: var(--lamp); font-weight: 700; }
+.cnt-btn.minus { background: var(--bg); color: var(--muted); }
+.cnt-btn:active { transform: scale(.96); filter: brightness(.95); }
+
 .row-actions { display: flex; gap: 8px; margin-top: 12px; }
 .row-actions button {
   padding: 8px 14px; font-size: 13px; border-radius: 8px;
@@ -93,12 +115,13 @@ input[type="number"]:focus, button:focus-visible, select:focus-visible {
 /* 事前分布 */
 .prior-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .prior-toggle input { width: 18px; height: 18px; }
-.prior-grid {
-  display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px;
-}
+.prior-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
 .prior-grid .cell { text-align: center; }
 .prior-grid .cell span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
-.prior-grid input { width: 100%; padding: 7px 4px; text-align: center; font-size: 14px; }
+.prior-grid input {
+  width: 100%; padding: 7px 4px; text-align: center; font-size: 14px;
+  border: 1px solid var(--line); border-radius: 8px;
+}
 .prior-note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
 
 /* 結果 */
@@ -125,13 +148,13 @@ input[type="number"]:focus, button:focus-visible, select:focus-visible {
 }
 .summary .pill b { display: block; font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
 .tick-legend { font-size: 11.5px; color: var(--muted); margin: 10px 0 0; display: none; }
-.tick-legend .tick-sample {
+.tick-sample {
   display: inline-block; width: 2px; height: 11px; background: var(--ink); opacity: .55;
   vertical-align: -1px; margin: 0 3px;
 }
 .warnings { margin: 10px 0 0; padding: 0; list-style: none; }
 .warnings li {
-  font-size: 12.5px; color: var(--est-badge); background: var(--est-badge-bg);
+  font-size: 12.5px; color: var(--warn-ink); background: var(--warn-bg);
   border-radius: 6px; padding: 6px 9px; margin-top: 6px;
 }
 .reliability { font-size: 12.5px; margin-top: 10px; color: var(--muted); }
@@ -143,28 +166,42 @@ input[type="number"]:focus, button:focus-visible, select:focus-visible {
 
 footer { max-width: 640px; margin: 0 auto; padding: 0 14px 30px; font-size: 12px; color: var(--muted); }
 footer nav a { margin-right: 10px; }
-@media (prefers-reduced-motion: reduce) { .bar-fill { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .bar-fill { transition: none; } .cnt-btn:active { transform: none; } }
 </style>
 </head>
 <body>
 <main>
   <a class="top-link" href="./">← TOP</a>
   <h1>設定判別ツール <span class="machine-name" id="machineName">読み込み中…</span></h1>
-  <p class="lede">実戦データから各設定の事後確率をベイズ推定で計算します。入力は端末内にのみ保存されます。</p>
+  <p class="lede">データカウンターの値と自分の実戦カウントから、各設定の事後確率をベイズ推定で計算します。入力は端末内にのみ保存されます。</p>
 
-  <section class="card" aria-labelledby="h-input">
-    <h2 id="h-input">実戦データ入力</h2>
+  <section class="card" aria-labelledby="h-snap">
+    <h2 id="h-snap">台データ（データカウンターの累計値）</h2>
+    <div class="snap-grid">
+      <div></div><div class="head">打ち始め</div><div class="head">現在</div>
+      <div class="rowname">総回転数</div>
+      <input type="number" id="st_g" inputmode="numeric" min="0" step="1" value="0">
+      <input type="number" id="cu_g" inputmode="numeric" min="0" step="1" value="0">
+      <div class="rowname">BIG</div>
+      <input type="number" id="st_big" inputmode="numeric" min="0" step="1" value="0">
+      <input type="number" id="cu_big" inputmode="numeric" min="0" step="1" value="0">
+      <div class="rowname">REG</div>
+      <input type="number" id="st_reg" inputmode="numeric" min="0" step="1" value="0">
+      <input type="number" id="cu_reg" inputmode="numeric" min="0" step="1" value="0">
+    </div>
+    <p class="hint">座った時点のカウンター表示を「打ち始め」に入れます。朝一リセット台なら0のままにしてください。打ち始め前のデータも判別に使います。</p>
+  </section>
+
+  <section class="card" aria-labelledby="h-own">
+    <h2 id="h-own">自分の実戦カウント（打ち始めから）</h2>
     <div class="mode-switch" role="group" aria-label="入力モード">
-      <button type="button" id="modeSimple" aria-pressed="true">簡易（合計のみ）</button>
+      <button type="button" id="modeSimple" aria-pressed="true">簡易（ぶどうのみ）</button>
       <button type="button" id="modeDetail" aria-pressed="false">詳細（内訳あり）</button>
     </div>
-    <div class="field">
-      <label for="games">総回転数<span class="sub">必須</span></label>
-      <input type="number" id="games" inputmode="numeric" min="1" step="1" placeholder="0">
-    </div>
-    <div id="elementInputs"></div>
+    <div id="counterRows"></div>
+    <p class="hint">＋をタップでカウントできます。数えていない項目は0のままで構いません（0の項目は計算に使いません）。</p>
     <div class="row-actions">
-      <button type="button" id="resetBtn">入力をリセット</button>
+      <button type="button" id="resetBtn">入力をすべてリセット</button>
     </div>
   </section>
 
@@ -174,20 +211,16 @@ footer nav a { margin-right: 10px; }
       <input type="checkbox" id="usePrior">
       店の設定配分の想定を反映する
     </label>
-    <div class="prior-grid" id="priorGrid" hidden>
-      <!-- JSで生成: 設定1〜6の重み -->
-    </div>
+    <div class="prior-grid" id="priorGrid" hidden></div>
     <p class="prior-note" id="priorNote" hidden>
       重みは比率です（例: 設定6を「3」にすると設定1の「1」の3倍入りやすい想定）。
-      オンにすると、結果のバー上に均等時の値が
-      <span class="tick-sample" style="display:inline-block;width:2px;height:11px;background:#22252d;opacity:.55;"></span>
-      で表示され、事前分布の影響を確認できます。
+      オンにすると、結果のバー上に均等時の値が<span class="tick-sample"></span>で表示され、事前分布の影響を確認できます。
     </p>
   </section>
 
   <section class="card" aria-labelledby="h-result">
     <h2 id="h-result">判別結果</h2>
-    <p class="result-empty" id="resultEmpty">総回転数とボーナス回数を入力すると、結果が表示されます。</p>
+    <p class="result-empty" id="resultEmpty">「現在」の総回転数を入力すると、結果が表示されます。</p>
     <div id="resultBars" hidden></div>
     <div class="summary" id="summary" hidden>
       <div class="pill">設定4以上<b id="p4up">–</b></div>
@@ -203,10 +236,12 @@ footer nav a { margin-right: 10px; }
 
   <section class="card notes" aria-labelledby="h-notes">
     <h2 id="h-notes">前提と限界</h2>
-    <ul id="sourceNotes">
+    <ul>
       <li>各要素を二項分布で独立と近似したベイズ推定です。結果は確率であり、設定の断定はできません。</li>
       <li>隣接する設定（特に2〜5）は確率差が小さく、数千G程度では判別しきれないのが正常です。</li>
-      <li><span class="badge est">実戦推定値</span> の付いた要素は、メーカー公表値ではなく公式アプリ等からの算出値です。</li>
+      <li>打ち始め前の台データはBIG・REGのみを判別に使います。ぶどう・内訳は自分が数えた区間（打ち始めから現在まで）のデータとして計算します。</li>
+      <li>ぶどう・ボーナス内訳の確率値は、メーカー公表値ではなく公式アプリ等からの算出値です。</li>
+      <li>カウントが0の項目（ぶどう・内訳）は「数えていない」ものとして計算から除外します。</li>
     </ul>
   </section>
 </main>
@@ -230,6 +265,7 @@ const machineId = MACHINES[params.get("machine")] ? params.get("machine") : "my_
 const STORAGE_KEY = `settei-estimator:${machineId}`;
 
 const $ = (id) => document.getElementById(id);
+const SNAP_IDS = ["st_g", "st_big", "st_reg", "cu_g", "cu_big", "cu_reg"];
 let machine = null;
 let mode = "simple";
 
@@ -247,7 +283,7 @@ async function init() {
   document.title = `設定判別ツール ${machine.machine.name}｜スロット稼働ノート`;
   buildPriorGrid();
   restore();
-  renderInputs();
+  renderCounters();
   bind();
   recalc();
 }
@@ -256,27 +292,41 @@ function elementsById() {
   return Object.fromEntries(machine.elements.map((e) => [e.id, e]));
 }
 
-function renderInputs() {
-  const box = $("elementInputs");
+/* 自分の実戦カウント欄: モードに応じた項目をカウンター行として生成 */
+function counterIds() {
+  return mode === "simple"
+    ? ["grape"]
+    : ["solo_big", "cherry_big", "solo_reg", "cherry_reg", "grape"];
+}
+
+function renderCounters() {
+  const box = $("counterRows");
   box.innerHTML = "";
   const els = elementsById();
-  const uses = machine.input_rules.modes.find((m) => m.id === mode).uses;
   const saved = load();
-  for (const id of uses) {
+  for (const id of counterIds()) {
     const el = els[id];
-    const isEst = machine.sources[el.source]?.reliability !== "official";
-    const wrap = document.createElement("div");
-    wrap.className = "field";
-    wrap.innerHTML = `
-      <label for="in_${id}">${el.label}${isEst ? '<span class="badge est">実戦推定値</span>' : ""}
-        <span class="sub">${el.input === "required" ? "必須" : "任意（未入力なら計算に使いません）"}</span>
-      </label>
-      <input type="number" id="in_${id}" inputmode="numeric" min="0" step="1" placeholder="—">`;
-    box.appendChild(wrap);
-    const input = wrap.querySelector("input");
-    if (saved.counts && id in saved.counts) input.value = saved.counts[id];
+    const row = document.createElement("div");
+    row.className = "counter-row";
+    row.innerHTML = `
+      <div class="label"><label for="cnt_${id}">${el.label}</label></div>
+      <button type="button" class="cnt-btn minus" data-target="cnt_${id}" data-delta="-1" aria-label="${el.label}を1減らす">−</button>
+      <input type="number" id="cnt_${id}" inputmode="numeric" min="0" step="1" value="0">
+      <button type="button" class="cnt-btn plus" data-target="cnt_${id}" data-delta="1" aria-label="${el.label}を1増やす">＋</button>`;
+    box.appendChild(row);
+    const input = row.querySelector("input");
+    if (saved.counters && saved.counters[id] != null) input.value = saved.counters[id];
     input.addEventListener("input", () => { persist(); recalc(); });
   }
+  box.querySelectorAll(".cnt-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const input = $(btn.dataset.target);
+      const next = Math.max(0, (parseInt(input.value, 10) || 0) + parseInt(btn.dataset.delta, 10));
+      input.value = next;
+      persist();
+      recalc();
+    });
+  });
 }
 
 function buildPriorGrid() {
@@ -292,7 +342,9 @@ function buildPriorGrid() {
 }
 
 function bind() {
-  $("games").addEventListener("input", () => { persist(); recalc(); });
+  for (const id of SNAP_IDS) {
+    $(id).addEventListener("input", () => { persist(); recalc(); });
+  }
   $("modeSimple").addEventListener("click", () => setMode("simple"));
   $("modeDetail").addEventListener("click", () => setMode("detail"));
   $("usePrior").addEventListener("change", () => {
@@ -311,20 +363,73 @@ function setMode(m) {
   mode = m;
   $("modeSimple").setAttribute("aria-pressed", String(m === "simple"));
   $("modeDetail").setAttribute("aria-pressed", String(m === "detail"));
-  renderInputs();
+  renderCounters();
   persist();
   recalc();
 }
 
-function collect() {
-  const games = parseInt($("games").value, 10);
-  const counts = {};
-  const uses = machine.input_rules.modes.find((m) => m.id === mode).uses;
-  for (const id of uses) {
-    const v = $(`in_${id}`)?.value;
-    if (v !== "" && v != null) counts[id] = parseInt(v, 10);
+function intVal(id) {
+  const v = parseInt($(id).value, 10);
+  return Number.isInteger(v) && v >= 0 ? v : 0;
+}
+
+/**
+ * 観測データを2区間に組み立てる。
+ *  区間A: 打ち始め前(データカウンターのBIG/REGのみ)
+ *  区間B: 自分の実戦区間(カウンター差分のBIG/REG or 内訳、ぶどう)
+ */
+function buildObservation(uiWarnings) {
+  const st = { g: intVal("st_g"), big: intVal("st_big"), reg: intVal("st_reg") };
+  const cu = { g: intVal("cu_g"), big: intVal("cu_big"), reg: intVal("cu_reg") };
+  if (cu.g === 0) return null;
+  if (cu.g < st.g || cu.big < st.big || cu.reg < st.reg) {
+    throw new Error("「現在」の値が「打ち始め」より小さくなっています。入力を確認してください。");
   }
-  return { mode, games, counts };
+  const ownG = cu.g - st.g;
+  const ownBig = cu.big - st.big;
+  const ownReg = cu.reg - st.reg;
+
+  const segments = [];
+  if (st.g > 0) {
+    segments.push({ games: st.g, counts: { big_total: st.big, reg_total: st.reg } });
+  }
+  if (ownG > 0) {
+    const counts = {};
+    const grape = intVal("cnt_grape");
+    if (grape > 0) counts.grape = grape;
+
+    if (mode === "simple") {
+      counts.big_total = ownBig;
+      counts.reg_total = ownReg;
+    } else {
+      const sb = intVal("cnt_solo_big"), cb = intVal("cnt_cherry_big");
+      const sr = intVal("cnt_solo_reg"), cr = intVal("cnt_cherry_reg");
+      // BIG: 内訳をカウントしていれば内訳を使い、していなければ差分合計を使う
+      if (sb + cb > 0) {
+        counts.solo_big = sb;
+        counts.cherry_big = cb;
+        if (sb + cb > ownBig) {
+          uiWarnings.push(`BIG内訳(${sb + cb})が台データの差分(${ownBig})を超えています。入力を確認してください。`);
+        }
+      } else {
+        counts.big_total = ownBig;
+        uiWarnings.push("BIG内訳が未カウントのため、台データの差分(BIG合計)で計算します。");
+      }
+      // REG: 同様
+      if (sr + cr > 0) {
+        counts.solo_reg = sr;
+        counts.cherry_reg = cr;
+        if (sr + cr !== ownReg) {
+          uiWarnings.push(`REG内訳の合計(${sr + cr})が台データの差分(${ownReg})と一致しません。内訳を優先して計算します。`);
+        }
+      } else {
+        counts.reg_total = ownReg;
+        uiWarnings.push("REG内訳が未カウントのため、台データの差分(REG合計)で計算します。");
+      }
+    }
+    segments.push({ games: ownG, counts });
+  }
+  return { segments, totalGames: cu.g };
 }
 
 function currentPrior() {
@@ -333,32 +438,40 @@ function currentPrior() {
 }
 
 function recalc() {
-  const obs = collect();
-  const hasBonus = Object.keys(obs.counts).length > 0;
-  if (!Number.isInteger(obs.games) || obs.games <= 0 || !hasBonus) {
-    $("resultEmpty").hidden = false;
-    $("resultBars").hidden = true;
-    $("summary").hidden = true;
-    $("tickLegend").style.display = "none";
-    $("warnings").innerHTML = "";
-    $("reliability").textContent = "";
+  const uiWarnings = [];
+  let obs;
+  try {
+    obs = buildObservation(uiWarnings);
+  } catch (e) {
+    showEmpty(`入力エラー: ${e.message}`);
+    return;
+  }
+  if (!obs) {
+    showEmpty("「現在」の総回転数を入力すると、結果が表示されます。");
     return;
   }
   let out, outUniform;
   try {
-    out = estimate(machine, obs, currentPrior());
-    outUniform = $("usePrior").checked ? estimate(machine, obs, null) : null;
+    out = estimate(machine, { segments: obs.segments }, currentPrior());
+    outUniform = $("usePrior").checked ? estimate(machine, { segments: obs.segments }, null) : null;
   } catch (e) {
-    $("resultEmpty").hidden = false;
-    $("resultEmpty").textContent = `入力エラー: ${e.message}`;
-    $("resultBars").hidden = true;
-    $("summary").hidden = true;
+    showEmpty(`入力エラー: ${e.message}`);
     return;
   }
   $("resultEmpty").hidden = true;
   renderBars(out.posterior, outUniform ? outUniform.posterior : null);
   renderSummary(out.posterior);
-  renderWarnings(out.warnings, obs.games);
+  renderWarnings([...uiWarnings, ...out.warnings], obs.totalGames);
+}
+
+function showEmpty(msg) {
+  $("resultEmpty").hidden = false;
+  $("resultEmpty").textContent = msg;
+  $("resultBars").hidden = true;
+  $("summary").hidden = true;
+  $("tickLegend").style.display = "none";
+  $("warnings").innerHTML = "";
+  $("reliability").textContent = "";
 }
 
 function renderBars(post, uniformPost) {
@@ -403,15 +516,18 @@ function renderWarnings(warnings, games) {
   else if (games < 3000) rel = "信頼度: 中（傾向は出ますが、隣接設定の区別はまだ困難です）";
   else if (games < 6000) rel = "信頼度: 中〜高（高低の傾向は概ね信頼できます）";
   else rel = "信頼度: 高（それでも隣接設定の完全な判別は原理的に困難です）";
-  $("reliability").textContent = `${rel}`;
+  $("reliability").textContent = rel;
 }
 
 /* ---- 端末内保存 ---- */
 function persist() {
+  const counters = {};
+  for (const id of counterIds()) counters[id] = $(`cnt_${id}`)?.value ?? "0";
   const data = {
+    v: 2,
     mode,
-    games: $("games").value,
-    counts: collect().counts,
+    snap: Object.fromEntries(SNAP_IDS.map((id) => [id, $(id).value])),
+    counters: { ...((load().counters) || {}), ...counters },
     usePrior: $("usePrior").checked,
     priorWeights: machine.machine.settings.map((s) => $(`pw_${s}`).value),
   };
@@ -422,12 +538,13 @@ function load() {
 }
 function restore() {
   const d = load();
+  if (d.v !== 2) return; // 旧形式は引き継がない
   if (d.mode === "detail") {
     mode = "detail";
     $("modeSimple").setAttribute("aria-pressed", "false");
     $("modeDetail").setAttribute("aria-pressed", "true");
   }
-  if (d.games) $("games").value = d.games;
+  if (d.snap) for (const id of SNAP_IDS) { if (d.snap[id] != null) $(id).value = d.snap[id]; }
   if (d.usePrior) {
     $("usePrior").checked = true;
     $("priorGrid").hidden = false;

@@ -123,6 +123,30 @@ function sanityTest() {
   return allOk;
 }
 
+
+// --- 検証5: 区間分割の不変性(同一データを2区間に分けても事後確率が一致するか) ---
+function segmentTest() {
+  console.log("\n■ 区間分割の不変性: 単一区間 vs 打ち始め前+実戦区間の分割");
+  let allOk = true;
+  for (const s of machine.machine.settings) {
+    const games = 6000, split = 2500;
+    const big = binomial(games, 1 / den(machine, "big_total", s));
+    const reg = binomial(games, 1 / den(machine, "reg_total", s));
+    const bigA = Math.min(big, binomial(split, 1 / den(machine, "big_total", s)));
+    const regA = Math.min(reg, binomial(split, 1 / den(machine, "reg_total", s)));
+    const single = estimate(machine, { mode: "simple", games, counts: { big_total: big, reg_total: reg } }, null);
+    const seg = estimate(machine, { segments: [
+      { games: split, counts: { big_total: bigA, reg_total: regA } },
+      { games: games - split, counts: { big_total: big - bigA, reg_total: reg - regA } },
+    ]}, null);
+    const maxDiff = Math.max(...single.posterior.map((p, i) => Math.abs(p - seg.posterior[i])));
+    const ok = maxDiff < 1e-12;
+    if (!ok) allOk = false;
+    console.log(`  設定${s}: 最大差=${maxDiff.toExponential(2)} ${ok ? "OK" : "NG"}`);
+  }
+  return allOk;
+}
+
 console.log("=== マイジャグラーV 判別エンジン検証 ===");
 const sane = sanityTest();
 accuracyTest("simple", 3000, 1000);
@@ -130,4 +154,5 @@ accuracyTest("simple", 8000, 1000);
 accuracyTest("detail", 8000, 1000);
 convergenceTest("simple", 6);
 priorTest();
-console.log(`\n=== サニティチェック: ${sane ? "全設定OK" : "失敗あり"} ===`);
+const segOk = segmentTest();
+console.log(`\n=== サニティチェック: ${sane ? "全設定OK" : "失敗あり"} / 区間分割: ${segOk ? "全設定OK" : "失敗あり"} ===`);

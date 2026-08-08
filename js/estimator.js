@@ -7,64 +7,66 @@
  * 数理:
  *   P(設定s | データ) ∝ P(データ | 設定s) × prior(s)
  *   各要素は二項分布で独立近似する。
- *   logL(s) = Σ_e [ k_e·ln(p_es) + (n_e − k_e)·ln(1 − p_es) ]
+ *   logL(s) = Σ_seg Σ_e [ k·ln(p_es) + (n_seg − k)·ln(1 − p_es) ]
  *   (二項係数は設定間で共通のため省略)
+ *
+ * 観測は2形式に対応する:
+ *   A) 区間形式(推奨): { segments: [ { games, counts }, ... ] }
+ *      観測窓が異なるデータ(打ち始め前の台データ / 自分の実戦区間)を
+ *      別区間として渡す。二項対数尤度は加法的なので、同一区間を
+ *      分割しても結果は変わらないことが保証される。
+ *   B) 従来形式: { mode, games, counts } — 単一区間。後方互換用。
  */
 
-/**
- * 事後確率を計算する。
- *
- * @param {object} machine  機種データJSON(パース済み)
- * @param {object} obs      観測データ
- *   {
- *     mode: "simple" | "detail",
- *     games: 総回転数(整数, 必須),
- *     counts: { 要素id: 回数 }  // 未入力要素はキーごと省略(0とは区別する)
- *   }
- * @param {number[]|null} prior  設定1〜6の事前重み(長さ6)。nullで均等。
- * @returns {{
- *   posterior: number[],          // 設定1〜6の事後確率(合計1)
- *   logLikelihoods: number[],     // 各設定の対数尤度(診断用)
- *   usedElements: string[],       // 尤度計算に使った要素id
- *   warnings: string[]
- * }}
- */
 export function estimate(machine, obs, prior = null) {
   const settings = machine.machine.settings;
   const nS = settings.length;
   const warnings = [];
-
-  validateObs(machine, obs, warnings);
-
   const p = normalizePrior(prior, nS);
-
-  const mode = machine.input_rules.modes.find((m) => m.id === obs.mode);
-  if (!mode) throw new Error(`未知の入力モード: ${obs.mode}`);
-
   const elements = Object.fromEntries(machine.elements.map((e) => [e.id, e]));
-  const usedElements = [];
-  const logL = new Array(nS).fill(0);
 
-  for (const id of mode.uses) {
-    const el = elements[id];
-    if (!el) throw new Error(`機種データに要素がありません: ${id}`);
-    if (!(id in obs.counts)) continue; // 任意要素の未入力はスキップ
-    const k = obs.counts[id];
-    const n = obs.games;
-    if (k > n) throw new Error(`${id}: 回数(${k})が総回転数(${n})を超えています`);
-    usedElements.push(id);
-    for (let i = 0; i < nS; i++) {
-      const ps = 1 / el.denominators[String(settings[i])];
-      logL[i] += k * Math.log(ps) + (n - k) * Math.log(1 - ps);
-    }
+  let segments;
+  if (Array.isArray(obs.segments)) {
+    segments = obs.segments;
+  } else {
+    segments = [legacyToSegment(machine, obs, warnings)];
   }
 
+  const usedElements = [];
+  const logL = new Array(nS).fill(0);
+  let totalGames = 0;
+
+  segments.forEach((seg, si) => {
+    if (!Number.isInteger(seg.games) || seg.games < 0) {
+      throw new Error(`区間${si + 1}: G数は0以上の整数で入力してください`);
+    }
+    if (seg.games === 0) return;
+    totalGames += seg.games;
+    for (const [id, k] of Object.entries(seg.counts || {})) {
+      const el = elements[id];
+      if (!el) throw new Error(`機種データに要素がありません: ${id}`);
+      if (!Number.isInteger(k) || k < 0) {
+        throw new Error(`${el.label}: 回数は0以上の整数で入力してください`);
+      }
+      if (k > seg.games) {
+        throw new Error(`${el.label}: 回数(${k})が区間のG数(${seg.games})を超えています`);
+      }
+      if (!usedElements.includes(id)) usedElements.push(id);
+      for (let i = 0; i < nS; i++) {
+        const ps = 1 / el.denominators[String(settings[i])];
+        logL[i] += k * Math.log(ps) + (seg.games - k) * Math.log(1 - ps);
+      }
+    }
+  });
+
+  if (totalGames > 0 && totalGames < 1000) {
+    warnings.push("総回転数が1000G未満です。判別精度は参考程度になります。");
+  }
   if (usedElements.length === 0) {
     warnings.push("尤度計算に使える入力がありません。事前分布をそのまま返します。");
     return { posterior: p.slice(), logLikelihoods: logL, usedElements, warnings };
   }
 
-  // log-sum-exp で安定に正規化
   const maxL = Math.max(...logL);
   const unnorm = logL.map((l, i) => Math.exp(l - maxL) * p[i]);
   const z = unnorm.reduce((a, b) => a + b, 0);
@@ -73,28 +75,13 @@ export function estimate(machine, obs, prior = null) {
   return { posterior, logLikelihoods: logL, usedElements, warnings };
 }
 
-/** 事前分布の正規化。null→均等。 */
-export function normalizePrior(prior, nS) {
-  if (prior == null) return new Array(nS).fill(1 / nS);
-  if (prior.length !== nS) throw new Error(`事前分布の長さが不正です: ${prior.length}`);
-  if (prior.some((w) => w < 0)) throw new Error("事前分布に負の重みがあります");
-  const z = prior.reduce((a, b) => a + b, 0);
-  if (z <= 0) throw new Error("事前分布の合計が0以下です");
-  return prior.map((w) => w / z);
-}
-
-/** 入力の整合チェック(machine.input_rules.validation の実装) */
-function validateObs(machine, obs, warnings) {
+function legacyToSegment(machine, obs, warnings) {
   if (!Number.isInteger(obs.games) || obs.games <= 0) {
     throw new Error("総回転数(games)は正の整数で入力してください");
   }
-  for (const [id, k] of Object.entries(obs.counts)) {
-    if (!Number.isInteger(k) || k < 0) {
-      throw new Error(`${id}: 回数は0以上の整数で入力してください`);
-    }
-  }
-  // 詳細モード: 内訳と合計の両方が入力された場合の回数整合チェック
-  const c = obs.counts;
+  const mode = machine.input_rules.modes.find((m) => m.id === obs.mode);
+  if (!mode) throw new Error(`未知の入力モード: ${obs.mode}`);
+  const c = obs.counts || {};
   if (obs.mode === "detail") {
     if ("reg_total" in c && "solo_reg" in c && "cherry_reg" in c) {
       if (c.solo_reg + c.cherry_reg !== c.reg_total) {
@@ -109,10 +96,18 @@ function validateObs(machine, obs, warnings) {
           `BIG内訳(${c.solo_big}+${c.cherry_big})が合計(${c.big_total})を超えています。入力を確認してください。`
         );
       }
-      // 注: BIGは特殊役重複等が別にあるため「未満」は正常
     }
   }
-  if (obs.games < 1000) {
-    warnings.push("総回転数が1000G未満です。判別精度は参考程度になります。");
-  }
+  const counts = {};
+  for (const id of mode.uses) if (id in c) counts[id] = c[id];
+  return { games: obs.games, counts };
+}
+
+export function normalizePrior(prior, nS) {
+  if (prior == null) return new Array(nS).fill(1 / nS);
+  if (prior.length !== nS) throw new Error(`事前分布の長さが不正です: ${prior.length}`);
+  if (prior.some((w) => w < 0)) throw new Error("事前分布に負の重みがあります");
+  const z = prior.reduce((a, b) => a + b, 0);
+  if (z <= 0) throw new Error("事前分布の合計が0以下です");
+  return prior.map((w) => w / z);
 }
