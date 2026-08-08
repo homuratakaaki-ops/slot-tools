@@ -167,6 +167,14 @@ select.rate {
   display: flex; justify-content: space-between; gap: 6px;
 }
 .rates .pill b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.use-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.use-btn {
+  padding: 10px 0; font-size: 13.5px; font-weight: 600; border-radius: 9px;
+  border: 1px solid var(--line); background: var(--card2); color: var(--muted); cursor: pointer;
+}
+.use-btn[aria-pressed="true"] { border-color: #3c5a36; background: #22301f; color: var(--grape); }
+.use-btn[aria-pressed="true"]::after { content: " 使用中"; font-size: 10.5px; }
+.use-btn[aria-pressed="false"]::after { content: " 不使用"; font-size: 10.5px; }
 .prior-toggle { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
 .prior-toggle input { width: 18px; height: 18px; }
 .prior-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
@@ -327,6 +335,15 @@ select.rate {
       </div>
     </section>
 
+    <section class="card" aria-labelledby="h-use">
+      <h2 id="h-use">計算に使うカウント</h2>
+      <div class="use-toggles">
+        <button type="button" class="use-btn" id="useGrapeBtn" aria-pressed="true">ぶどう</button>
+        <button type="button" class="use-btn" id="useBreakdownBtn" aria-pressed="true">ボーナス内訳</button>
+      </div>
+      <p class="prior-note">オフにするとカウントは記録のみになり、設定推測には使いません（内訳オフ時はBIG/REGの合算で計算します）。</p>
+    </section>
+
     <section class="card" aria-labelledby="h-prior">
       <h2 id="h-prior">事前分布（任意）</h2>
       <label class="prior-toggle">
@@ -362,7 +379,7 @@ select.rate {
         <li>成立役を確認できなかったボーナスは「不明BIG/REG」へ。不明分がある種別は内訳ではなく合算で計算します。</li>
         <li>チェリーは設定2〜5の数値が公開されていないため、記録・確率表示のみで判別には使いません。</li>
         <li>ぶどう・ボーナス内訳の確率値は、メーカー公表値ではなく公式アプリ等からの算出値です。</li>
-        <li>カウントが0の項目は「数えていない」ものとして計算から除外します。</li>
+        <li>カウントが0の項目は「数えていない」ものとして計算から除外します。ぶどう・内訳は途中からの部分的なカウントだと実態と乖離するため、「全部数える」か「計算に使わない」のどちらかにしてください（使う/使わないは上の切替でいつでも変更できます）。</li>
       </ul>
     </section>
 
@@ -430,6 +447,8 @@ function defaultState() {
     nowG: 0,
     counts: Object.fromEntries(COUNT_IDS.map((id) => [id, 0])),
     invest: { yen: 0, rate: 50, hold: 0 },
+    useGrape: true,
+    useBreakdown: true,
     usePrior: false,
     priorWeights: [1, 1, 1, 1, 1, 1],
     log: [],
@@ -465,6 +484,8 @@ function restore() {
       state = { ...defaultState(), ...d };
       state.counts = { ...defaultState().counts, ...(d.counts || {}) };
       state.invest = { ...defaultState().invest, ...(d.invest || {}) };
+      state.useGrape = d.useGrape !== false;
+      state.useBreakdown = d.useBreakdown !== false;
       if (!Array.isArray(state.log)) state.log = [];
     }
   } catch (e) {}
@@ -569,6 +590,17 @@ function bind() {
   $("rate").addEventListener("change", () => { state.invest.rate = parseInt($("rate").value, 10); persist(); renderAll(); });
   $("undoBtn").addEventListener("click", undo);
 
+  $("useGrapeBtn").addEventListener("click", () => {
+    state.useGrape = !state.useGrape;
+    persist();
+    renderAll();
+  });
+  $("useBreakdownBtn").addEventListener("click", () => {
+    state.useBreakdown = !state.useBreakdown;
+    persist();
+    renderAll();
+  });
+
   $("usePrior").addEventListener("change", () => {
     state.usePrior = $("usePrior").checked;
     $("priorGrid").hidden = !state.usePrior;
@@ -617,8 +649,6 @@ function setTab(t) {
   $("tabEstimate").setAttribute("aria-selected", String(t === "estimate"));
   $("paneCount").hidden = t !== "count";
   $("paneEstimate").hidden = t !== "estimate";
-  // 固定シェル内でカウントタブはflex表示に戻す
-  $("paneCount").style.display = t === "count" ? "flex" : "none";
 }
 
 /* ---------- 観測の組み立て ---------- */
@@ -643,11 +673,13 @@ function buildObservation(uiWarnings) {
   }
   if (ownG > 0) {
     const counts = {};
-    if (c.grape > 0) counts.grape = c.grape;
+    if (state.useGrape && c.grape > 0) counts.grape = c.grape;
     // BIG: 全数の内訳が判明している時のみ内訳を使用。
     // 不明分が混ざる場合は合算(big_total)に切り替える(不明分だけを合算二項分布に
     // すると「残り全Gで未発生」という誤った主張が尤度に入り、低設定へ歪むため)。
-    if (c.unk_big > 0) {
+    if (!state.useBreakdown) {
+      if (ownBig > 0) counts.big_total = ownBig;
+    } else if (c.unk_big > 0) {
       counts.big_total = ownBig;
       uiWarnings.push("不明BIGがあるため、BIGは内訳ではなく合算で計算します。");
     } else if (c.solo_big + c.cherry_big > 0) {
@@ -655,7 +687,9 @@ function buildObservation(uiWarnings) {
       counts.cherry_big = c.cherry_big;
     }
     // REG: 同様
-    if (c.unk_reg > 0) {
+    if (!state.useBreakdown) {
+      if (ownReg > 0) counts.reg_total = ownReg;
+    } else if (c.unk_reg > 0) {
       counts.reg_total = ownReg;
       uiWarnings.push("不明REGがあるため、REGは内訳ではなく合算で計算します。");
     } else if (c.solo_reg + c.cherry_reg > 0) {
@@ -688,6 +722,8 @@ function syncFields() {
   $("f_cu_g").textContent = state.nowG.toLocaleString();
   $("f_hold").textContent = `持ち枚数 ${state.invest.hold.toLocaleString()}`;
   $("rate").value = String(state.invest.rate);
+  $("useGrapeBtn").setAttribute("aria-pressed", String(state.useGrape));
+  $("useBreakdownBtn").setAttribute("aria-pressed", String(state.useBreakdown));
   $("usePrior").checked = state.usePrior;
   $("priorGrid").hidden = !state.usePrior;
   $("priorNote").hidden = !state.usePrior;
