@@ -3082,7 +3082,7 @@
       const rawClosing = showYutimeTools && machine ? closingInfoForDate(machine.id, offsetDate(today(), -1)) : null;
       const prevInvalid = showYutimeTools && machine ? todayPrevInvalid(machine.id) : false;
       const ramClear = showYutimeTools && machine ? todayRamClear(machine.id) : null;
-      const hasMachineMemo = Boolean(machine?.memo);
+      const hasMachineMemo = (machine?.memoEntries || []).length > 0;
       const rate = stats && stats.rate ? stats.rate.toFixed(1) : "-";
       const rateClass = machine && stats?.rate ? rateToneClass(machine, stats.rate) : "";
       const estimatedMark = stats?.estimatedCount ? "&#8776;" : "";
@@ -3230,7 +3230,7 @@
             <div class="unified-invest-row">
               <button class="primary${selectedCanUse ? "" : " is-low"}" id="unifiedInvestBtn">${selectedSource === "cash" ? "-500円" : "-125玉"}</button>
               ${selectedSource === "cash" ? '<button id="openChargeBtn">入金</button>' : ""}
-              <button class="small" id="openRunningMachineMemoBtn">メモ${machine?.memo ? "あり" : ""}</button>
+              <button class="small" id="openRunningMachineMemoBtn">メモ${(machine?.memoEntries || []).length > 0 ? "あり" : ""}</button>
               <button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button>
             </div>
             <div class="counter-row">

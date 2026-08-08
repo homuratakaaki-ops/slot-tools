@@ -53,6 +53,7 @@ const readIslandDraft = section('function readIslandDraftFromDom', 'function rea
 const normalizeIsland = section('function normalizeIsland', 'function textMapToIslands');
 const parseIslandLayout = section('function parseIslandLayout', 'function expandIslandSide');
 const renderMachineMap = section('function renderMachineMap', 'function machineButtonHtml');
+const machineButtonHtml = section('function machineButtonHtml', 'function saveCurrentMap');
 const renderClosingInputModal = section('function renderClosingInputModal', 'function directionPreviewText');
 const morningStateSummary = section('function morningStateSummary', 'function renderMorningCheckModal');
 const renderMorningCheckModal = section('function renderMorningCheckModal', 'function morningDirectionPreviewText');
@@ -223,6 +224,7 @@ assert.match(runningPanelRate, /return inputBalls > 0 && spins >= 0 \? spins \/ 
 assert.ok(design.includes('スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。'));
 assert.match(renderRunning, /<span>\$\{escapeHtml\(option\.label\)\}<\/span><strong>\$\{sourceChipBalanceText\(balance\)\}<\/strong>/);
 assert.match(renderRunning, /class="primary\$\{selectedCanUse \? "" : " is-low"\}" id="unifiedInvestBtn"/);
+assert.match(renderRunning, /メモ\$\{\(machine\?\.memoEntries \|\| \[\]\)\.length > 0 \? "あり" : ""\}/);
 assert.ok(
   renderRunning.indexOf('id="unifiedInvestBtn"') < renderRunning.indexOf('id="openChargeBtn"')
   && renderRunning.indexOf('id="openChargeBtn"') < renderRunning.indexOf('id="openRunningMachineMemoBtn"')
@@ -286,6 +288,7 @@ assert.doesNotMatch(machineHistoryHtml, /台メモ（現在）|未記入/);
 assert.match(machineHistoryHtml, /deriveSession\(session, machine\)/);
 assert.ok(design.includes('B47 台詳細の台別履歴'));
 assert.ok(design.includes('B48 台メモの蓄積型ログ化'));
+assert.match(machineButtonHtml, /const hasMachineMemo = \(machine\?\.memoEntries \|\| \[\]\)\.length > 0;/);
 assert.match(bindNailRatingChips, /function bindNailRatingChips\(machine\)/);
 assert.match(bindNailRatingChips, /row\.dataset\.nailKey === DAILY_NAIL_RATING_KEY/);
 assert.match(bindNailRatingChips, /state\.hesoRating = rating;/);
