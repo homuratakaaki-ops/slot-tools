@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ジャグラー実戦記録・設定推測｜スロット稼働ノート</title>
+<meta name="description" content="ホールで使うジャグラーの実戦記録ツール。ぶどう・ボーナス内訳をタップでカウントし、投資を記録しながら、設定の事後確率をベイズ推定でリアルタイムに確認できます。入力は端末内にのみ保存します。">
+<link rel="canonical" href="https://slot-tools.jp/juggler-record.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:title" content="ジャグラー実戦記録・設定推測｜スロット稼働ノート">
+<meta property="og:description" content="ぶどう・ボーナス内訳をタップでカウントし、投資を記録しながら、設定の事後確率をベイズ推定でリアルタイムに確認できます。">
+<meta property="og:url" content="https://slot-tools.jp/juggler-record.html">
+<style>
+:root {
+  --bg: #101216;
+  --card: #191d24;
+  --card2: #1f242d;
+  --ink: #e9e9e6;
+  --muted: #9aa1ad;
+  --line: #2b303b;
+  --bar-bg: #2b303b;
+  --lamp: #ff5a52;         /* GOGOランプ */
+  --lamp-soft: #3a2220;
+  --grape: #7ac26a;
+  --cherry: #e4788a;
+  --big: #f2c14e;
+  --reg: #5aa9e6;
+  --warn-ink: #e6c06a;
+  --warn-bg: #2c2617;
+  --focus: #6ea2ff;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+}
+a { color: var(--focus); }
+main { max-width: 640px; margin: 0 auto; padding: 10px 12px 60px; }
+.top-link { display: inline-block; margin: 6px 0 2px; font-size: 13px; text-decoration: none; color: var(--muted); }
+h1 { font-size: 18px; line-height: 1.4; margin: 4px 0 8px; }
+.machine-name { color: var(--lamp); }
+button { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+input:focus, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  margin: 0 0 12px;
+}
+.card h2 {
+  font-size: 13px; color: var(--muted);
+  margin: 0 0 10px; padding-bottom: 7px;
+  border-bottom: 1px solid var(--line);
+  letter-spacing: .03em;
+}
+.hint { font-size: 11.5px; color: var(--muted); margin: 8px 0 0; }
+
+/* 現在地サマリー(常時表示) */
+.status {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.status .stat {
+  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  padding: 6px 4px; text-align: center;
+}
+.status .stat span { display: block; font-size: 10.5px; color: var(--muted); }
+.status .stat b { display: block; font-size: 15px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.status .stat.hot b { color: var(--lamp); }
+
+/* タブ */
+.tabs { display: flex; gap: 6px; margin: 0 0 12px; }
+.tabs button {
+  flex: 1; padding: 11px 0; font-size: 14px; font-weight: 600;
+  border: 1px solid var(--line); border-radius: 10px;
+  background: var(--card); color: var(--muted); cursor: pointer;
+}
+.tabs button[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: #14161a; }
+
+/* データカウンタ(初期値) */
+.snap-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.snap-grid .cell span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.snap-grid input, .now-row input, .invest-grid input, .prior-grid input {
+  width: 100%; padding: 10px 8px; font-size: 17px; text-align: right;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card2); color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.now-row { display: grid; grid-template-columns: 1fr 130px; gap: 10px; align-items: center; margin-bottom: 10px; }
+.now-row label { font-size: 14px; }
+.now-row .sub { display: block; font-size: 11px; color: var(--muted); }
+
+/* カウントボタン */
+.count-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.count-btn {
+  border-radius: 12px; border: 1px solid var(--line);
+  background: var(--card2); color: var(--ink);
+  padding: 12px 4px 10px; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+}
+.count-btn .cl { font-size: 12px; line-height: 1.25; }
+.count-btn .cv { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.count-btn:active { transform: scale(.97); filter: brightness(1.15); }
+.count-btn.grape { border-color: #3c5a36; } .count-btn.grape .cv { color: var(--grape); }
+.count-btn.cherry { border-color: #5c3540; } .count-btn.cherry .cv { color: var(--cherry); }
+.count-btn.bigk { border-color: #5a4a24; } .count-btn.bigk .cv { color: var(--big); }
+.count-btn.regk { border-color: #2d465c; } .count-btn.regk .cv { color: var(--reg); }
+.sub-actions { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 8px; margin-top: 8px; }
+.sub-actions button {
+  padding: 9px 2px; font-size: 12.5px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--card2); color: var(--muted); cursor: pointer;
+}
+.sub-actions button b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.sub-actions .undo { color: var(--ink); }
+.last-op { font-size: 11.5px; color: var(--muted); margin: 8px 0 0; min-height: 1.2em; }
+
+/* 投資 */
+.invest-top { display: flex; gap: 8px; align-items: stretch; margin-bottom: 8px; }
+.invest-main {
+  flex: 1.3; border-radius: 12px; border: 1px solid #5a2a26;
+  background: var(--lamp-soft); color: var(--lamp);
+  font-size: 18px; font-weight: 700; padding: 14px 4px; cursor: pointer;
+}
+.invest-main:active { transform: scale(.97); }
+.invest-sub {
+  flex: 1; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--card2); color: var(--ink); font-size: 15px; cursor: pointer;
+}
+.invest-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.invest-grid .cell span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.invest-summary { display: flex; gap: 6px; margin-top: 10px; }
+.invest-summary .pill {
+  flex: 1; text-align: center; background: var(--card2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 6px 2px; font-size: 11px; color: var(--muted);
+}
+.invest-summary .pill b { display: block; font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.invest-summary .pill b.plus { color: var(--grape); }
+.invest-summary .pill b.minus { color: var(--lamp); }
+select {
+  width: 100%; padding: 10px 8px; font-size: 15px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--card2); color: var(--ink);
+}
+
+/* 推測タブ(結果) */
+.prior-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.prior-toggle input { width: 18px; height: 18px; }
+.prior-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
+.prior-grid .cell { text-align: center; }
+.prior-grid .cell span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.prior-grid input { text-align: center; font-size: 14px; padding: 7px 2px; }
+.prior-note { font-size: 11.5px; color: var(--muted); margin: 8px 0 0; }
+.result-empty { font-size: 13px; color: var(--muted); }
+.bar-row { display: grid; grid-template-columns: 44px 1fr 62px; align-items: center; gap: 8px; margin: 9px 0; }
+.bar-row .name { font-size: 13px; }
+.bar-track { position: relative; height: 22px; background: var(--bar-bg); border-radius: 6px; overflow: hidden; }
+.bar-fill { position: absolute; inset: 0 auto 0 0; width: 0%; background: #6a7180; border-radius: 6px; transition: width .3s ease; }
+.bar-row.top .bar-fill { background: var(--lamp); }
+.bar-row.top .name, .bar-row.top .pct { color: var(--lamp); font-weight: 700; }
+.uniform-tick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fff; opacity: .6; display: none; }
+.pct { font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+.summary { display: flex; gap: 8px; margin-top: 12px; }
+.summary .pill {
+  flex: 1; text-align: center; background: var(--card2); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 4px; font-size: 12px; color: var(--muted);
+}
+.summary .pill b { display: block; font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tick-legend { font-size: 11.5px; color: var(--muted); margin: 10px 0 0; display: none; }
+.tick-sample { display: inline-block; width: 2px; height: 11px; background: #fff; opacity: .6; vertical-align: -1px; margin: 0 3px; }
+.warnings { margin: 10px 0 0; padding: 0; list-style: none; }
+.warnings li {
+  font-size: 12px; color: var(--warn-ink); background: var(--warn-bg);
+  border-radius: 6px; padding: 6px 9px; margin-top: 6px;
+}
+.reliability { font-size: 12px; margin-top: 10px; color: var(--muted); }
+.rates { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
+.rates .pill {
+  background: var(--card2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 8px; font-size: 12px; color: var(--muted);
+  display: flex; justify-content: space-between;
+}
+.rates .pill b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.notes { font-size: 12px; color: var(--muted); }
+.notes ul { margin: 6px 0 0; padding-left: 18px; }
+.notes li { margin: 4px 0; }
+
+.session-actions { margin: 4px 0 14px; }
+.session-actions button {
+  padding: 8px 14px; font-size: 12.5px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card); color: var(--muted); cursor: pointer;
+}
+footer { max-width: 640px; margin: 0 auto; padding: 0 12px 30px; font-size: 12px; color: var(--muted); }
+footer nav a { margin-right: 10px; }
+@media (prefers-reduced-motion: reduce) { .bar-fill { transition: none; } .count-btn:active, .invest-main:active { transform: none; } }
+</style>
+</head>
+<body>
+<main>
+  <a class="top-link" href="./">← TOP</a>
+  <h1>実戦記録・設定推測 <span class="machine-name" id="machineName">読み込み中…</span></h1>
+
+  <!-- 現在地サマリー -->
+  <div class="status" id="statusBar">
+    <div class="stat"><span>消化G</span><b id="s_own">0</b></div>
+    <div class="stat"><span>BIG / REG</span><b id="s_bonus">0 / 0</b></div>
+    <div class="stat"><span>投資</span><b id="s_invest">¥0</b></div>
+    <div class="stat hot"><span>最有力</span><b id="s_top">–</b></div>
+  </div>
+
+  <!-- タブ -->
+  <div class="tabs" role="tablist">
+    <button type="button" id="tabCount" role="tab" aria-selected="true">カウント</button>
+    <button type="button" id="tabEstimate" role="tab" aria-selected="false">設定推測</button>
+  </div>
+
+  <!-- ========== タブ1: カウント ========== -->
+  <div id="paneCount">
+    <section class="card" aria-labelledby="h-snap">
+      <h2 id="h-snap">データカウンタ（打ち始め時点）</h2>
+      <div class="snap-grid">
+        <div class="cell"><span>総回転数</span><input type="number" id="st_g" inputmode="numeric" min="0" step="1" value="0"></div>
+        <div class="cell"><span>BIG</span><input type="number" id="st_big" inputmode="numeric" min="0" step="1" value="0"></div>
+        <div class="cell"><span>REG</span><input type="number" id="st_reg" inputmode="numeric" min="0" step="1" value="0"></div>
+      </div>
+      <p class="hint">座った時点の値を入れます。朝一リセット台なら0のまま。打ち始め前のデータも判別に使います。</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-count">
+      <h2 id="h-count">実戦カウント</h2>
+      <div class="now-row">
+        <label for="cu_g">現在のデータG<span class="sub">データカウンターの総回転数</span></label>
+        <input type="number" id="cu_g" inputmode="numeric" min="0" step="1" value="0">
+      </div>
+      <div class="count-grid">
+        <button type="button" class="count-btn grape" data-count="grape"><span class="cl">ぶどう</span><span class="cv" id="c_grape">0</span></button>
+        <button type="button" class="count-btn bigk" data-count="solo_big"><span class="cl">単独BIG</span><span class="cv" id="c_solo_big">0</span></button>
+        <button type="button" class="count-btn bigk" data-count="cherry_big"><span class="cl">チェリー重複BIG</span><span class="cv" id="c_cherry_big">0</span></button>
+        <button type="button" class="count-btn cherry" data-count="cherry"><span class="cl">チェリー</span><span class="cv" id="c_cherry">0</span></button>
+        <button type="button" class="count-btn regk" data-count="solo_reg"><span class="cl">単独REG</span><span class="cv" id="c_solo_reg">0</span></button>
+        <button type="button" class="count-btn regk" data-count="cherry_reg"><span class="cl">チェリー重複REG</span><span class="cv" id="c_cherry_reg">0</span></button>
+      </div>
+      <div class="sub-actions">
+        <button type="button" data-count="unk_big">不明BIG <b id="c_unk_big">0</b></button>
+        <button type="button" data-count="unk_reg">不明REG <b id="c_unk_reg">0</b></button>
+        <button type="button" class="undo" id="undoBtn">↩ 元に戻す</button>
+      </div>
+      <p class="last-op" id="lastOp"></p>
+      <p class="hint">成立役を確認できなかったボーナスは「不明BIG/REG」に入れてください（合算確率で判別に使います）。チェリーは記録のみで、判別計算には使いません。</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-invest">
+      <h2 id="h-invest">投資</h2>
+      <div class="invest-top">
+        <button type="button" class="invest-main" id="inv1000">投資 +1000円</button>
+        <button type="button" class="invest-sub" id="inv5000">+5000円</button>
+      </div>
+      <div class="invest-grid">
+        <div class="cell"><span>貸メダル（1000円あたり）</span>
+          <select id="rate">
+            <option value="50">50枚（等価）</option>
+            <option value="47">47枚</option>
+            <option value="46">46枚</option>
+          </select>
+        </div>
+        <div class="cell"><span>推定持ち枚数（任意）</span><input type="number" id="hold" inputmode="numeric" min="0" step="1" value="0"></div>
+      </div>
+      <div class="invest-summary">
+        <div class="pill">投資額<b id="i_yen">¥0</b></div>
+        <div class="pill">投資枚数<b id="i_medals">0枚</b></div>
+        <div class="pill">推定差枚<b id="i_diff">–</b></div>
+        <div class="pill">等価換算<b id="i_cash">–</b></div>
+      </div>
+      <p class="hint">持ち枚数はおおよそで構いません。差枚・換算は目安表示です（等価20円/枚で換算）。</p>
+    </section>
+
+    <div class="session-actions">
+      <button type="button" id="resetBtn">新しい台（すべてリセット）</button>
+    </div>
+  </div>
+
+  <!-- ========== タブ2: 設定推測 ========== -->
+  <div id="paneEstimate" hidden>
+    <section class="card" aria-labelledby="h-rates">
+      <h2 id="h-rates">実戦値</h2>
+      <div class="rates">
+        <div class="pill"><span>BIG確率</span><b id="r_big">–</b></div>
+        <div class="pill"><span>REG確率</span><b id="r_reg">–</b></div>
+        <div class="pill"><span>合算</span><b id="r_total">–</b></div>
+        <div class="pill"><span>ぶどう</span><b id="r_grape">–</b></div>
+        <div class="pill"><span>チェリー（参考）</span><b id="r_cherry">–</b></div>
+        <div class="pill"><span>単独REG</span><b id="r_solo_reg">–</b></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-prior">
+      <h2 id="h-prior">事前分布（任意）</h2>
+      <label class="prior-toggle">
+        <input type="checkbox" id="usePrior">
+        店の設定配分の想定を反映する
+      </label>
+      <div class="prior-grid" id="priorGrid" hidden></div>
+      <p class="prior-note" id="priorNote" hidden>
+        重みは比率です。オンにすると、バー上に均等時の値が<span class="tick-sample"></span>で表示され、事前分布の影響を確認できます。
+      </p>
+    </section>
+
+    <section class="card" aria-labelledby="h-result">
+      <h2 id="h-result">判別結果</h2>
+      <p class="result-empty" id="resultEmpty">「現在のデータG」を入力すると、結果が表示されます。</p>
+      <div id="resultBars" hidden></div>
+      <div class="summary" id="summary" hidden>
+        <div class="pill">設定4以上<b id="p4up">–</b></div>
+        <div class="pill">設定5以上<b id="p5up">–</b></div>
+        <div class="pill">設定6<b id="p6">–</b></div>
+      </div>
+      <p class="tick-legend" id="tickLegend"><span class="tick-sample"></span> は事前分布を使わない場合（均等）の値です。</p>
+      <ul class="warnings" id="warnings"></ul>
+      <p class="reliability" id="reliability"></p>
+    </section>
+
+    <section class="card notes" aria-labelledby="h-notes">
+      <h2 id="h-notes">前提と限界</h2>
+      <ul>
+        <li>各要素を二項分布で独立と近似したベイズ推定です。結果は確率であり、設定の断定はできません。</li>
+        <li>隣接する設定（特に2〜5）は確率差が小さく、数千G程度では判別しきれないのが正常です。</li>
+        <li>打ち始め前の台データはBIG・REGのみを判別に使います。ぶどう・内訳は自分がカウントした区間のデータとして計算します。</li>
+        <li>ぶどう・ボーナス内訳の確率値は、メーカー公表値ではなく公式アプリ等からの算出値です。</li>
+        <li>チェリーは設定2〜5の数値が公開されていないため、記録・確率表示のみで判別には使いません。</li>
+        <li>カウントが0の項目は「数えていない」ものとして計算から除外します。</li>
+      </ul>
+    </section>
+  </div>
+</main>
+
+<footer>
+  <nav>
+    <a href="about.html">運営者情報</a><a href="privacy.html">プライバシーポリシー</a><a href="disclaimer.html">免責事項</a><a href="contact.html">お問い合わせ</a>
+  </nav>
+  <p>© 2026 slot-tools.jp</p>
+</footer>
+
+<script type="module">
+import { estimate } from "./js/estimator.js";
+
+const MACHINES = {
+  my_juggler_v: "data/machines/my_juggler_v.json",
+};
+const params = new URLSearchParams(location.search);
+const machineId = MACHINES[params.get("machine")] ? params.get("machine") : "my_juggler_v";
+const STORAGE_KEY = `juggler-record:${machineId}`;
+const $ = (id) => document.getElementById(id);
+
+const COUNT_IDS = ["grape", "cherry", "solo_big", "cherry_big", "solo_reg", "cherry_reg", "unk_big", "unk_reg"];
+const COUNT_LABELS = {
+  grape: "ぶどう", cherry: "チェリー",
+  solo_big: "単独BIG", cherry_big: "チェリー重複BIG",
+  solo_reg: "単独REG", cherry_reg: "チェリー重複REG",
+  unk_big: "不明BIG", unk_reg: "不明REG",
+};
+
+let machine = null;
+let state = defaultState();
+
+function defaultState() {
+  return {
+    v: 1,
+    start: { g: 0, big: 0, reg: 0 },
+    nowG: 0,
+    counts: Object.fromEntries(COUNT_IDS.map((id) => [id, 0])),
+    invest: { yen: 0, rate: 50, hold: 0 },
+    usePrior: false,
+    priorWeights: [1, 1, 1, 1, 1, 1],
+    log: [],
+  };
+}
+
+init();
+
+async function init() {
+  try {
+    const res = await fetch(MACHINES[machineId], { cache: "no-cache" });
+    machine = await res.json();
+  } catch (e) {
+    $("machineName").textContent = "機種データの読み込みに失敗しました";
+    return;
+  }
+  $("machineName").textContent = machine.machine.name;
+  document.title = `実戦記録・設定推測 ${machine.machine.name}｜スロット稼働ノート`;
+  restore();
+  buildPriorGrid();
+  bind();
+  renderAll();
+}
+
+/* ---------- 保存/復元 ---------- */
+function persist() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch (e) {}
+}
+function restore() {
+  try {
+    const d = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    if (d && d.v === 1) {
+      state = { ...defaultState(), ...d };
+      state.counts = { ...defaultState().counts, ...(d.counts || {}) };
+      state.invest = { ...defaultState().invest, ...(d.invest || {}) };
+      if (!Array.isArray(state.log)) state.log = [];
+    }
+  } catch (e) {}
+}
+
+/* ---------- イベント ---------- */
+function bind() {
+  // タブ
+  $("tabCount").addEventListener("click", () => setTab("count"));
+  $("tabEstimate").addEventListener("click", () => setTab("estimate"));
+  // 数値入力
+  const numBind = (id, fn) => $(id).addEventListener("input", () => { fn(intOf(id)); persist(); renderAll(); });
+  numBind("st_g", (v) => (state.start.g = v));
+  numBind("st_big", (v) => (state.start.big = v));
+  numBind("st_reg", (v) => (state.start.reg = v));
+  numBind("cu_g", (v) => (state.nowG = v));
+  numBind("hold", (v) => (state.invest.hold = v));
+  $("rate").addEventListener("change", () => { state.invest.rate = parseInt($("rate").value, 10); persist(); renderAll(); });
+  // カウントボタン
+  document.querySelectorAll("[data-count]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.count;
+      state.counts[id]++;
+      pushLog({ k: "count", id });
+      persist();
+      renderAll();
+    });
+  });
+  // 投資
+  $("inv1000").addEventListener("click", () => addInvest(1000));
+  $("inv5000").addEventListener("click", () => addInvest(5000));
+  // 取消
+  $("undoBtn").addEventListener("click", undo);
+  // 事前分布
+  $("usePrior").addEventListener("change", () => {
+    state.usePrior = $("usePrior").checked;
+    $("priorGrid").hidden = !state.usePrior;
+    $("priorNote").hidden = !state.usePrior;
+    persist();
+    renderAll();
+  });
+  // リセット
+  $("resetBtn").addEventListener("click", () => {
+    if (!confirm("この台の記録をすべて消去します。よろしいですか？")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  });
+}
+
+function addInvest(yen) {
+  state.invest.yen += yen;
+  pushLog({ k: "invest", yen });
+  persist();
+  renderAll();
+}
+
+function pushLog(op) {
+  state.log.push(op);
+  if (state.log.length > 300) state.log.shift();
+}
+
+function undo() {
+  const op = state.log.pop();
+  if (!op) { $("lastOp").textContent = "取り消す操作がありません"; return; }
+  if (op.k === "count" && state.counts[op.id] > 0) state.counts[op.id]--;
+  if (op.k === "invest") state.invest.yen = Math.max(0, state.invest.yen - op.yen);
+  persist();
+  renderAll();
+  $("lastOp").textContent = `取り消し: ${op.k === "count" ? COUNT_LABELS[op.id] : `投資 ${op.yen}円`}`;
+}
+
+function setTab(t) {
+  $("tabCount").setAttribute("aria-selected", String(t === "count"));
+  $("tabEstimate").setAttribute("aria-selected", String(t === "estimate"));
+  $("paneCount").hidden = t !== "count";
+  $("paneEstimate").hidden = t !== "estimate";
+}
+
+function intOf(id) {
+  const v = parseInt($(id).value, 10);
+  return Number.isInteger(v) && v >= 0 ? v : 0;
+}
+
+/* ---------- 観測の組み立て ---------- */
+function buildObservation(uiWarnings) {
+  const st = state.start;
+  const nowG = state.nowG;
+  if (nowG <= 0) return null;
+  if (nowG < st.g) throw new Error("現在のデータGが打ち始めより小さくなっています。");
+  const ownG = nowG - st.g;
+  const c = state.counts;
+  const ownBig = c.solo_big + c.cherry_big + c.unk_big;
+  const ownReg = c.solo_reg + c.cherry_reg + c.unk_reg;
+
+  const segments = [];
+  if (st.g > 0) {
+    segments.push({ games: st.g, counts: { big_total: st.big, reg_total: st.reg } });
+  }
+  if (ownG > 0) {
+    const counts = {};
+    if (c.grape > 0) counts.grape = c.grape;
+    // BIG: 全数の内訳が判明している時のみ内訳を使用。
+    // 不明分が混ざる場合は合算(big_total)に切り替える(不明分だけを合算二項分布に
+    // すると「残り全Gで未発生」という誤った主張が尤度に入り、低設定へ歪むため)。
+    if (c.unk_big > 0) {
+      counts.big_total = ownBig;
+      uiWarnings.push("不明BIGがあるため、BIGは内訳ではなく合算で計算します。");
+    } else if (c.solo_big + c.cherry_big > 0) {
+      counts.solo_big = c.solo_big;
+      counts.cherry_big = c.cherry_big;
+    }
+    // REG: 同様
+    if (c.unk_reg > 0) {
+      counts.reg_total = ownReg;
+      uiWarnings.push("不明REGがあるため、REGは内訳ではなく合算で計算します。");
+    } else if (c.solo_reg + c.cherry_reg > 0) {
+      counts.solo_reg = c.solo_reg;
+      counts.cherry_reg = c.cherry_reg;
+    }
+    if (Object.keys(counts).length > 0) segments.push({ games: ownG, counts });
+  }
+  if (segments.length === 0) return null;
+  return { segments, totalGames: nowG, ownG, ownBig, ownReg };
+}
+
+function currentPrior() {
+  if (!state.usePrior) return null;
+  return machine.machine.settings.map((s) => parseFloat($(`pw_${s}`).value) || 0);
+}
+
+/* ---------- 描画 ---------- */
+function renderAll() {
+  syncInputs();
+  renderCounts();
+  renderInvest();
+  renderEstimate();
+}
+
+function syncInputs() {
+  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = v; };
+  set("st_g", state.start.g); set("st_big", state.start.big); set("st_reg", state.start.reg);
+  set("cu_g", state.nowG); set("hold", state.invest.hold);
+  $("rate").value = String(state.invest.rate);
+  $("usePrior").checked = state.usePrior;
+  $("priorGrid").hidden = !state.usePrior;
+  $("priorNote").hidden = !state.usePrior;
+}
+
+function renderCounts() {
+  for (const id of COUNT_IDS) $(`c_${id}`).textContent = state.counts[id];
+  const last = state.log[state.log.length - 1];
+  if (last) {
+    $("lastOp").textContent = `直前: ${last.k === "count" ? COUNT_LABELS[last.id] + " +1" : `投資 +${last.yen}円`}`;
+  }
+}
+
+function renderInvest() {
+  const inv = state.invest;
+  const medals = Math.round((inv.yen / 1000) * inv.rate);
+  $("i_yen").textContent = `¥${inv.yen.toLocaleString()}`;
+  $("i_medals").textContent = `${medals.toLocaleString()}枚`;
+  $("s_invest").textContent = `¥${inv.yen.toLocaleString()}`;
+  if (inv.hold > 0 || inv.yen > 0) {
+    const diff = inv.hold - medals;
+    const dEl = $("i_diff");
+    dEl.textContent = `${diff >= 0 ? "+" : ""}${diff.toLocaleString()}枚`;
+    dEl.className = diff >= 0 ? "plus" : "minus";
+    const cash = diff * 20;
+    const cEl = $("i_cash");
+    cEl.textContent = `${cash >= 0 ? "+" : "-"}¥${Math.abs(cash).toLocaleString()}`;
+    cEl.className = cash >= 0 ? "plus" : "minus";
+  } else {
+    $("i_diff").textContent = "–";
+    $("i_cash").textContent = "–";
+  }
+}
+
+function fmtRate(count, games) {
+  if (count <= 0 || games <= 0) return "–";
+  return `1/${(games / count).toFixed(1)}`;
+}
+
+function renderEstimate() {
+  const uiWarnings = [];
+  let obs = null, err = null;
+  try { obs = buildObservation(uiWarnings); } catch (e) { err = e.message; }
+
+  // 実戦値・サマリー
+  const c = state.counts;
+  const ownG = obs ? obs.ownG : Math.max(0, state.nowG - state.start.g);
+  const ownBig = c.solo_big + c.cherry_big + c.unk_big;
+  const ownReg = c.solo_reg + c.cherry_reg + c.unk_reg;
+  const totBig = state.start.big + ownBig;
+  const totReg = state.start.reg + ownReg;
+  $("s_own").textContent = ownG.toLocaleString();
+  $("s_bonus").textContent = `${ownBig} / ${ownReg}`;
+  $("r_big").textContent = fmtRate(totBig, state.nowG);
+  $("r_reg").textContent = fmtRate(totReg, state.nowG);
+  $("r_total").textContent = fmtRate(totBig + totReg, state.nowG);
+  $("r_grape").textContent = fmtRate(c.grape, ownG);
+  $("r_cherry").textContent = fmtRate(c.cherry, ownG);
+  $("r_solo_reg").textContent = fmtRate(c.solo_reg, ownG);
+
+  if (err) { showEmpty(`入力エラー: ${err}`); $("s_top").textContent = "–"; return; }
+  if (!obs) { showEmpty("「現在のデータG」を入力すると、結果が表示されます。"); $("s_top").textContent = "–"; return; }
+
+  let out, outUniform;
+  try {
+    out = estimate(machine, { segments: obs.segments }, currentPrior());
+    outUniform = state.usePrior ? estimate(machine, { segments: obs.segments }, null) : null;
+  } catch (e) {
+    showEmpty(`入力エラー: ${e.message}`);
+    $("s_top").textContent = "–";
+    return;
+  }
+  $("resultEmpty").hidden = true;
+  renderBars(out.posterior, outUniform ? outUniform.posterior : null);
+  renderSummary(out.posterior);
+  renderWarnings([...uiWarnings, ...out.warnings], obs.totalGames);
+  const topIdx = out.posterior.indexOf(Math.max(...out.posterior));
+  $("s_top").textContent = `設定${machine.machine.settings[topIdx]} ${(100 * out.posterior[topIdx]).toFixed(0)}%`;
+}
+
+function showEmpty(msg) {
+  $("resultEmpty").hidden = false;
+  $("resultEmpty").textContent = msg;
+  $("resultBars").hidden = true;
+  $("summary").hidden = true;
+  $("tickLegend").style.display = "none";
+  $("warnings").innerHTML = "";
+  $("reliability").textContent = "";
+}
+
+function buildPriorGrid() {
+  const grid = $("priorGrid");
+  grid.innerHTML = "";
+  machine.machine.settings.forEach((s, i) => {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.innerHTML = `<span>設定${s}</span><input type="number" id="pw_${s}" inputmode="decimal" min="0" step="0.5" value="${state.priorWeights[i] ?? 1}">`;
+    grid.appendChild(cell);
+    cell.querySelector("input").addEventListener("input", () => {
+      state.priorWeights = machine.machine.settings.map((x) => parseFloat($(`pw_${x}`).value) || 0);
+      persist();
+      renderAll();
+    });
+  });
+}
+
+function renderBars(post, uniformPost) {
+  const box = $("resultBars");
+  box.hidden = false;
+  box.innerHTML = "";
+  const topIdx = post.indexOf(Math.max(...post));
+  machine.machine.settings.forEach((s, i) => {
+    const row = document.createElement("div");
+    row.className = "bar-row" + (i === topIdx ? " top" : "");
+    row.innerHTML = `
+      <div class="name">設定${s}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${(100 * post[i]).toFixed(1)}%"></div>
+        <div class="uniform-tick" style="left:${uniformPost ? (100 * uniformPost[i]).toFixed(1) : 0}%"></div>
+      </div>
+      <div class="pct">${(100 * post[i]).toFixed(1)}%</div>`;
+    box.appendChild(row);
+    if (uniformPost) row.querySelector(".uniform-tick").style.display = "block";
+  });
+  $("tickLegend").style.display = uniformPost ? "block" : "none";
+}
+
+function renderSummary(post) {
+  $("summary").hidden = false;
+  const pct = (x) => (100 * x).toFixed(1) + "%";
+  $("p4up").textContent = pct(post[3] + post[4] + post[5]);
+  $("p5up").textContent = pct(post[4] + post[5]);
+  $("p6").textContent = pct(post[5]);
+}
+
+function renderWarnings(warnings, games) {
+  const ul = $("warnings");
+  ul.innerHTML = "";
+  for (const w of warnings) {
+    const li = document.createElement("li");
+    li.textContent = w;
+    ul.appendChild(li);
+  }
+  let rel;
+  if (games < 1000) rel = "信頼度: 低（1000G未満。参考程度に見てください）";
+  else if (games < 3000) rel = "信頼度: 中（傾向は出ますが、隣接設定の区別はまだ困難です）";
+  else if (games < 6000) rel = "信頼度: 中〜高（高低の傾向は概ね信頼できます）";
+  else rel = "信頼度: 高（それでも隣接設定の完全な判別は原理的に困難です）";
+  $("reliability").textContent = rel;
+}
+</script>
+</body>
+</html>
