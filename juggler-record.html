@@ -31,6 +31,7 @@
   --focus: #6ea2ff;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 html, body { height: 100%; }
 html { -webkit-text-size-adjust: 100%; }
 body {
@@ -107,8 +108,9 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .count-btn {
   border-radius: 12px; border: 1px solid var(--line);
   background: var(--card2); color: var(--ink);
-  padding: 4px 2px; cursor: pointer; min-height: 0;
+  padding: 4px 2px; cursor: pointer; min-height: 56px;
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  overflow: hidden;
 }
 .count-btn .cl { font-size: clamp(10px, 3vw, 12.5px); line-height: 1.2; text-align: center; }
 .count-btn .cv { font-size: clamp(20px, 7vw, 30px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
