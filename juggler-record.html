@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>ジャグラー実戦記録・設定推測｜スロット稼働ノート</title>
 <meta name="description" content="ホールで使うジャグラーの実戦記録ツール。ぶどう・ボーナス内訳をタップでカウントし、投資を記録しながら、設定の事後確率をベイズ推定でリアルタイムに確認できます。入力は端末内にのみ保存します。">
 <link rel="canonical" href="https://slot-tools.jp/juggler-record.html">
@@ -15,12 +15,12 @@
 :root {
   --bg: #101216;
   --card: #191d24;
-  --card2: #1f242d;
+  --card2: #21262f;
   --ink: #e9e9e6;
   --muted: #9aa1ad;
   --line: #2b303b;
   --bar-bg: #2b303b;
-  --lamp: #ff5a52;         /* GOGOランプ */
+  --lamp: #ff5a52;
   --lamp-soft: #3a2220;
   --grape: #7ac26a;
   --cherry: #e4788a;
@@ -31,216 +31,253 @@
   --focus: #6ea2ff;
 }
 * { box-sizing: border-box; }
+html, body { height: 100%; }
 html { -webkit-text-size-adjust: 100%; }
 body {
-  margin: 0;
-  background: var(--bg);
-  color: var(--ink);
+  margin: 0; overflow: hidden;
+  background: var(--bg); color: var(--ink);
   font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 14px; line-height: 1.45;
 }
 a { color: var(--focus); }
-main { max-width: 640px; margin: 0 auto; padding: 10px 12px 60px; }
-.top-link { display: inline-block; margin: 6px 0 2px; font-size: 13px; text-decoration: none; color: var(--muted); }
-h1 { font-size: 18px; line-height: 1.4; margin: 4px 0 8px; }
+button { touch-action: manipulation; user-select: none; -webkit-user-select: none; font-family: inherit; }
+input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* ===== 全画面シェル(スクロールなし) ===== */
+.shell {
+  height: 100dvh;
+  max-width: 640px; margin: 0 auto;
+  padding: 6px 10px calc(8px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; gap: 7px;
+}
+@supports not (height: 100dvh) { .shell { height: 100vh; } }
+
+.head { display: flex; align-items: baseline; gap: 10px; flex: none; }
+.head a { font-size: 12px; text-decoration: none; color: var(--muted); }
+.head h1 { font-size: 15px; margin: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .machine-name { color: var(--lamp); }
-button { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
-input:focus, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
 
-.card {
-  background: var(--card);
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  padding: 12px;
-  margin: 0 0 12px;
-}
-.card h2 {
-  font-size: 13px; color: var(--muted);
-  margin: 0 0 10px; padding-bottom: 7px;
-  border-bottom: 1px solid var(--line);
-  letter-spacing: .03em;
-}
-.hint { font-size: 11.5px; color: var(--muted); margin: 8px 0 0; }
-
-/* 現在地サマリー(常時表示) */
-.status {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 6px;
-  margin: 0 0 12px;
-}
+.status { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; flex: none; }
 .status .stat {
-  background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-  padding: 6px 4px; text-align: center;
+  background: var(--card); border: 1px solid var(--line); border-radius: 9px;
+  padding: 4px 2px; text-align: center; min-width: 0;
 }
-.status .stat span { display: block; font-size: 10.5px; color: var(--muted); }
-.status .stat b { display: block; font-size: 15px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.status .stat span { display: block; font-size: 10px; color: var(--muted); }
+.status .stat b { display: block; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .status .stat.hot b { color: var(--lamp); }
 
-/* タブ */
-.tabs { display: flex; gap: 6px; margin: 0 0 12px; }
+.tabs { display: flex; gap: 6px; flex: none; }
 .tabs button {
-  flex: 1; padding: 11px 0; font-size: 14px; font-weight: 600;
-  border: 1px solid var(--line); border-radius: 10px;
+  flex: 1; padding: 9px 0; font-size: 13.5px; font-weight: 600;
+  border: 1px solid var(--line); border-radius: 9px;
   background: var(--card); color: var(--muted); cursor: pointer;
 }
 .tabs button[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: #14161a; }
 
-/* データカウンタ(初期値) */
-.snap-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.snap-grid .cell span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
-.snap-grid input, .now-row input, .invest-grid input, .prior-grid input {
-  width: 100%; padding: 10px 8px; font-size: 17px; text-align: right;
-  border: 1px solid var(--line); border-radius: 8px;
-  background: var(--card2); color: var(--ink);
-  font-variant-numeric: tabular-nums;
+/* ===== カウントタブ(固定・内部スクロールなし) ===== */
+#paneCount { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 7px; }
+.panel {
+  background: var(--card); border: 1px solid var(--line); border-radius: 11px;
+  padding: 8px 9px; flex: none;
 }
-.now-row { display: grid; grid-template-columns: 1fr 130px; gap: 10px; align-items: center; margin-bottom: 10px; }
-.now-row label { font-size: 14px; }
-.now-row .sub { display: block; font-size: 11px; color: var(--muted); }
+.panel .ptitle { font-size: 10.5px; color: var(--muted); margin: 0 0 5px; letter-spacing: .03em; }
 
-/* カウントボタン */
-.count-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+/* 数値フィールド(電卓で入力) */
+.numfield {
+  width: 100%; padding: 8px 6px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--card2); color: var(--ink);
+  font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums;
+  text-align: right; cursor: pointer;
+}
+.numfield:active { filter: brightness(1.2); }
+.snap-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 6px; }
+.snap-grid .cell span { display: block; font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+
+.now-line { display: flex; align-items: center; gap: 8px; }
+.now-line .lbl { flex: 1; font-size: 13px; }
+.now-line .lbl small { display: block; font-size: 10px; color: var(--muted); }
+.now-line .numfield { width: 130px; font-size: 19px; padding: 9px 8px; }
+
+/* カウントボタン(可変高で画面を埋める) */
+.count-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 7px; }
+.count-grid {
+  flex: 1; min-height: 0;
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 7px;
+}
 .count-btn {
   border-radius: 12px; border: 1px solid var(--line);
   background: var(--card2); color: var(--ink);
-  padding: 12px 4px 10px; cursor: pointer;
-  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 4px 2px; cursor: pointer; min-height: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
 }
-.count-btn .cl { font-size: 12px; line-height: 1.25; }
-.count-btn .cv { font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.count-btn:active { transform: scale(.97); filter: brightness(1.15); }
+.count-btn .cl { font-size: clamp(10px, 3vw, 12.5px); line-height: 1.2; text-align: center; }
+.count-btn .cv { font-size: clamp(20px, 7vw, 30px); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.count-btn:active { transform: scale(.97); filter: brightness(1.18); }
 .count-btn.grape { border-color: #3c5a36; } .count-btn.grape .cv { color: var(--grape); }
 .count-btn.cherry { border-color: #5c3540; } .count-btn.cherry .cv { color: var(--cherry); }
 .count-btn.bigk { border-color: #5a4a24; } .count-btn.bigk .cv { color: var(--big); }
 .count-btn.regk { border-color: #2d465c; } .count-btn.regk .cv { color: var(--reg); }
-.sub-actions { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 8px; margin-top: 8px; }
+
+.sub-actions { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 6px; flex: none; }
 .sub-actions button {
-  padding: 9px 2px; font-size: 12.5px; border-radius: 10px;
+  padding: 8px 2px; font-size: 12px; border-radius: 9px;
   border: 1px solid var(--line); background: var(--card2); color: var(--muted); cursor: pointer;
+  white-space: nowrap;
 }
 .sub-actions button b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .sub-actions .undo { color: var(--ink); }
-.last-op { font-size: 11.5px; color: var(--muted); margin: 8px 0 0; min-height: 1.2em; }
+.count-hint { font-size: 10px; color: var(--muted); margin: 0; flex: none; text-align: center; }
 
-/* 投資 */
-.invest-top { display: flex; gap: 8px; align-items: stretch; margin-bottom: 8px; }
+/* 投資(1パネルに集約) */
+.invest-row { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 6px; margin-bottom: 6px; }
 .invest-main {
-  flex: 1.3; border-radius: 12px; border: 1px solid #5a2a26;
-  background: var(--lamp-soft); color: var(--lamp);
-  font-size: 18px; font-weight: 700; padding: 14px 4px; cursor: pointer;
+  border-radius: 10px; border: 1px solid #5a2a26; background: var(--lamp-soft); color: var(--lamp);
+  font-size: 14.5px; font-weight: 700; padding: 10px 2px; cursor: pointer; white-space: nowrap;
 }
 .invest-main:active { transform: scale(.97); }
 .invest-sub {
-  flex: 1; border-radius: 12px; border: 1px solid var(--line);
-  background: var(--card2); color: var(--ink); font-size: 15px; cursor: pointer;
+  border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--ink);
+  font-size: 13px; cursor: pointer; white-space: nowrap;
 }
-.invest-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-.invest-grid .cell span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
-.invest-summary { display: flex; gap: 6px; margin-top: 10px; }
-.invest-summary .pill {
-  flex: 1; text-align: center; background: var(--card2); border: 1px solid var(--line);
-  border-radius: 8px; padding: 6px 2px; font-size: 11px; color: var(--muted);
+.invest-line { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); flex-wrap: nowrap; }
+.invest-line .chip {
+  border: 1px solid var(--line); background: var(--card2); color: var(--ink);
+  border-radius: 8px; padding: 5px 8px; font-size: 12px; cursor: pointer;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
 }
-.invest-summary .pill b { display: block; font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.invest-summary .pill b.plus { color: var(--grape); }
-.invest-summary .pill b.minus { color: var(--lamp); }
-select {
-  width: 100%; padding: 10px 8px; font-size: 15px;
-  border: 1px solid var(--line); border-radius: 8px;
+.invest-line .sum { flex: 1; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.invest-line .sum b { color: var(--ink); }
+.invest-line .sum b.plus { color: var(--grape); }
+.invest-line .sum b.minus { color: var(--lamp); }
+select.rate {
+  padding: 5px 4px; font-size: 12px; border: 1px solid var(--line); border-radius: 8px;
   background: var(--card2); color: var(--ink);
 }
 
-/* 推測タブ(結果) */
-.prior-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+/* ===== 推測タブ(閲覧画面: 内部スクロール可) ===== */
+#paneEstimate { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 8px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 11px; flex: none; }
+.card h2 { font-size: 12.5px; color: var(--muted); margin: 0 0 9px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.rates { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.rates .pill {
+  background: var(--card2); border: 1px solid var(--line); border-radius: 8px;
+  padding: 6px 8px; font-size: 12px; color: var(--muted);
+  display: flex; justify-content: space-between; gap: 6px;
+}
+.rates .pill b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.prior-toggle { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
 .prior-toggle input { width: 18px; height: 18px; }
 .prior-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
 .prior-grid .cell { text-align: center; }
-.prior-grid .cell span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
-.prior-grid input { text-align: center; font-size: 14px; padding: 7px 2px; }
-.prior-note { font-size: 11.5px; color: var(--muted); margin: 8px 0 0; }
-.result-empty { font-size: 13px; color: var(--muted); }
-.bar-row { display: grid; grid-template-columns: 44px 1fr 62px; align-items: center; gap: 8px; margin: 9px 0; }
-.bar-row .name { font-size: 13px; }
-.bar-track { position: relative; height: 22px; background: var(--bar-bg); border-radius: 6px; overflow: hidden; }
+.prior-grid .cell span { display: block; font-size: 10.5px; color: var(--muted); margin-bottom: 3px; }
+.prior-grid input {
+  width: 100%; padding: 7px 2px; text-align: center; font-size: 14px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--card2); color: var(--ink);
+}
+.prior-note { font-size: 11px; color: var(--muted); margin: 8px 0 0; }
+.result-empty { font-size: 12.5px; color: var(--warn-ink); background: var(--warn-bg); border-radius: 8px; padding: 8px 10px; }
+.result-empty.neutral { color: var(--muted); background: transparent; padding: 0; }
+.bar-row { display: grid; grid-template-columns: 42px 1fr 60px; align-items: center; gap: 8px; margin: 8px 0; }
+.bar-row .name { font-size: 12.5px; }
+.bar-track { position: relative; height: 21px; background: var(--bar-bg); border-radius: 6px; overflow: hidden; }
 .bar-fill { position: absolute; inset: 0 auto 0 0; width: 0%; background: #6a7180; border-radius: 6px; transition: width .3s ease; }
 .bar-row.top .bar-fill { background: var(--lamp); }
 .bar-row.top .name, .bar-row.top .pct { color: var(--lamp); font-weight: 700; }
 .uniform-tick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: #fff; opacity: .6; display: none; }
-.pct { font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
-.summary { display: flex; gap: 8px; margin-top: 12px; }
-.summary .pill {
-  flex: 1; text-align: center; background: var(--card2); border: 1px solid var(--line);
-  border-radius: 8px; padding: 7px 4px; font-size: 12px; color: var(--muted);
-}
-.summary .pill b { display: block; font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
-.tick-legend { font-size: 11.5px; color: var(--muted); margin: 10px 0 0; display: none; }
+.pct { font-size: 13.5px; text-align: right; font-variant-numeric: tabular-nums; }
+.summary { display: flex; gap: 8px; margin-top: 11px; }
+.summary .pill { flex: 1; text-align: center; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; padding: 6px 2px; font-size: 11.5px; color: var(--muted); }
+.summary .pill b { display: block; font-size: 15px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tick-legend { font-size: 11px; color: var(--muted); margin: 9px 0 0; display: none; }
 .tick-sample { display: inline-block; width: 2px; height: 11px; background: #fff; opacity: .6; vertical-align: -1px; margin: 0 3px; }
-.warnings { margin: 10px 0 0; padding: 0; list-style: none; }
-.warnings li {
-  font-size: 12px; color: var(--warn-ink); background: var(--warn-bg);
-  border-radius: 6px; padding: 6px 9px; margin-top: 6px;
-}
-.reliability { font-size: 12px; margin-top: 10px; color: var(--muted); }
-.rates { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 10px; }
-.rates .pill {
-  background: var(--card2); border: 1px solid var(--line); border-radius: 8px;
-  padding: 6px 8px; font-size: 12px; color: var(--muted);
-  display: flex; justify-content: space-between;
-}
-.rates .pill b { color: var(--ink); font-variant-numeric: tabular-nums; }
-.notes { font-size: 12px; color: var(--muted); }
-.notes ul { margin: 6px 0 0; padding-left: 18px; }
-.notes li { margin: 4px 0; }
-
-.session-actions { margin: 4px 0 14px; }
+.warnings { margin: 9px 0 0; padding: 0; list-style: none; }
+.warnings li { font-size: 11.5px; color: var(--warn-ink); background: var(--warn-bg); border-radius: 6px; padding: 6px 9px; margin-top: 6px; }
+.reliability { font-size: 11.5px; margin-top: 9px; color: var(--muted); }
+.notes { font-size: 11.5px; color: var(--muted); }
+.notes ul { margin: 5px 0 0; padding-left: 17px; }
+.notes li { margin: 3px 0; }
 .session-actions button {
-  padding: 8px 14px; font-size: 12.5px; border-radius: 8px;
+  padding: 8px 14px; font-size: 12px; border-radius: 8px;
   border: 1px solid var(--line); background: var(--card); color: var(--muted); cursor: pointer;
 }
-footer { max-width: 640px; margin: 0 auto; padding: 0 12px 30px; font-size: 12px; color: var(--muted); }
-footer nav a { margin-right: 10px; }
-@media (prefers-reduced-motion: reduce) { .bar-fill { transition: none; } .count-btn:active, .invest-main:active { transform: none; } }
+.foot { font-size: 11px; color: var(--muted); padding: 2px 2px 10px; }
+.foot a { margin-right: 9px; }
+
+/* ===== 電卓モーダル ===== */
+.keypad-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.6);
+  display: none; align-items: flex-end; justify-content: center; z-index: 50;
+}
+.keypad-overlay.open { display: flex; }
+.keypad {
+  width: 100%; max-width: 640px;
+  background: var(--card); border: 1px solid var(--line); border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  padding: 12px 12px calc(12px + env(safe-area-inset-bottom));
+}
+.kp-label { font-size: 12.5px; color: var(--muted); margin: 0 0 2px; }
+.kp-display {
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+  margin-bottom: 10px;
+}
+.kp-value {
+  flex: 1; text-align: right; font-size: 32px; font-weight: 700;
+  font-variant-numeric: tabular-nums; min-height: 1.2em; color: var(--ink);
+}
+.kp-value.empty { color: #4a505c; }
+.kp-current { font-size: 11.5px; color: var(--muted); white-space: nowrap; }
+.kp-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.kp-grid button {
+  padding: 13px 0; font-size: 20px; font-weight: 600;
+  border-radius: 10px; border: 1px solid var(--line);
+  background: var(--card2); color: var(--ink); cursor: pointer;
+}
+.kp-grid button:active { filter: brightness(1.25); }
+.kp-grid .fn { font-size: 15px; color: var(--muted); }
+.kp-actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px; margin-top: 8px; }
+.kp-actions button { padding: 12px 0; font-size: 15px; font-weight: 700; border-radius: 10px; cursor: pointer; }
+.kp-cancel { border: 1px solid var(--line); background: var(--card2); color: var(--muted); }
+.kp-ok { border: 1px solid var(--ink); background: var(--ink); color: #14161a; }
 </style>
 </head>
 <body>
-<main>
-  <a class="top-link" href="./">← TOP</a>
-  <h1>実戦記録・設定推測 <span class="machine-name" id="machineName">読み込み中…</span></h1>
+<div class="shell">
+  <div class="head">
+    <a href="./">← TOP</a>
+    <h1>実戦記録・設定推測 <span class="machine-name" id="machineName">読み込み中…</span></h1>
+  </div>
 
-  <!-- 現在地サマリー -->
-  <div class="status" id="statusBar">
+  <div class="status">
     <div class="stat"><span>消化G</span><b id="s_own">0</b></div>
     <div class="stat"><span>BIG / REG</span><b id="s_bonus">0 / 0</b></div>
     <div class="stat"><span>投資</span><b id="s_invest">¥0</b></div>
     <div class="stat hot"><span>最有力</span><b id="s_top">–</b></div>
   </div>
 
-  <!-- タブ -->
   <div class="tabs" role="tablist">
     <button type="button" id="tabCount" role="tab" aria-selected="true">カウント</button>
     <button type="button" id="tabEstimate" role="tab" aria-selected="false">設定推測</button>
   </div>
 
-  <!-- ========== タブ1: カウント ========== -->
+  <!-- ========== タブ1: カウント(固定全画面・スクロールなし) ========== -->
   <div id="paneCount">
-    <section class="card" aria-labelledby="h-snap">
-      <h2 id="h-snap">データカウンタ（打ち始め時点）</h2>
+    <div class="panel">
+      <p class="ptitle">データカウンタ（打ち始め時点）　※朝一リセット台は0のまま</p>
       <div class="snap-grid">
-        <div class="cell"><span>総回転数</span><input type="number" id="st_g" inputmode="numeric" min="0" step="1" value="0"></div>
-        <div class="cell"><span>BIG</span><input type="number" id="st_big" inputmode="numeric" min="0" step="1" value="0"></div>
-        <div class="cell"><span>REG</span><input type="number" id="st_reg" inputmode="numeric" min="0" step="1" value="0"></div>
+        <div class="cell"><span>総回転数</span><button type="button" class="numfield" id="f_st_g" data-field="st_g">0</button></div>
+        <div class="cell"><span>BIG</span><button type="button" class="numfield" id="f_st_big" data-field="st_big">0</button></div>
+        <div class="cell"><span>REG</span><button type="button" class="numfield" id="f_st_reg" data-field="st_reg">0</button></div>
       </div>
-      <p class="hint">座った時点の値を入れます。朝一リセット台なら0のまま。打ち始め前のデータも判別に使います。</p>
-    </section>
+    </div>
 
-    <section class="card" aria-labelledby="h-count">
-      <h2 id="h-count">実戦カウント</h2>
-      <div class="now-row">
-        <label for="cu_g">現在のデータG<span class="sub">データカウンターの総回転数</span></label>
-        <input type="number" id="cu_g" inputmode="numeric" min="0" step="1" value="0">
+    <div class="panel">
+      <div class="now-line">
+        <div class="lbl">現在のデータG<small>データカウンターの総回転数</small></div>
+        <button type="button" class="numfield" id="f_cu_g" data-field="cu_g">0</button>
       </div>
+    </div>
+
+    <div class="count-wrap">
       <div class="count-grid">
         <button type="button" class="count-btn grape" data-count="grape"><span class="cl">ぶどう</span><span class="cv" id="c_grape">0</span></button>
         <button type="button" class="count-btn bigk" data-count="solo_big"><span class="cl">単独BIG</span><span class="cv" id="c_solo_big">0</span></button>
@@ -254,41 +291,27 @@ footer nav a { margin-right: 10px; }
         <button type="button" data-count="unk_reg">不明REG <b id="c_unk_reg">0</b></button>
         <button type="button" class="undo" id="undoBtn">↩ 元に戻す</button>
       </div>
-      <p class="last-op" id="lastOp"></p>
-      <p class="hint">成立役を確認できなかったボーナスは「不明BIG/REG」に入れてください（合算確率で判別に使います）。チェリーは記録のみで、判別計算には使いません。</p>
-    </section>
+      <p class="count-hint" id="lastOp">タップで+1／長押しで数値をまとめて入力</p>
+    </div>
 
-    <section class="card" aria-labelledby="h-invest">
-      <h2 id="h-invest">投資</h2>
-      <div class="invest-top">
+    <div class="panel">
+      <div class="invest-row">
         <button type="button" class="invest-main" id="inv1000">投資 +1000円</button>
         <button type="button" class="invest-sub" id="inv5000">+5000円</button>
+        <select class="rate" id="rate" aria-label="貸メダル枚数">
+          <option value="50">50枚/千円</option>
+          <option value="47">47枚/千円</option>
+          <option value="46">46枚/千円</option>
+        </select>
       </div>
-      <div class="invest-grid">
-        <div class="cell"><span>貸メダル（1000円あたり）</span>
-          <select id="rate">
-            <option value="50">50枚（等価）</option>
-            <option value="47">47枚</option>
-            <option value="46">46枚</option>
-          </select>
-        </div>
-        <div class="cell"><span>推定持ち枚数（任意）</span><input type="number" id="hold" inputmode="numeric" min="0" step="1" value="0"></div>
+      <div class="invest-line">
+        <button type="button" class="chip" id="f_hold" data-field="hold">持ち枚数 0</button>
+        <span class="sum" id="investSum">投資 ¥0（0枚）</span>
       </div>
-      <div class="invest-summary">
-        <div class="pill">投資額<b id="i_yen">¥0</b></div>
-        <div class="pill">投資枚数<b id="i_medals">0枚</b></div>
-        <div class="pill">推定差枚<b id="i_diff">–</b></div>
-        <div class="pill">等価換算<b id="i_cash">–</b></div>
-      </div>
-      <p class="hint">持ち枚数はおおよそで構いません。差枚・換算は目安表示です（等価20円/枚で換算）。</p>
-    </section>
-
-    <div class="session-actions">
-      <button type="button" id="resetBtn">新しい台（すべてリセット）</button>
     </div>
   </div>
 
-  <!-- ========== タブ2: 設定推測 ========== -->
+  <!-- ========== タブ2: 設定推測(閲覧・スクロール可) ========== -->
   <div id="paneEstimate" hidden>
     <section class="card" aria-labelledby="h-rates">
       <h2 id="h-rates">実戦値</h2>
@@ -316,7 +339,7 @@ footer nav a { margin-right: 10px; }
 
     <section class="card" aria-labelledby="h-result">
       <h2 id="h-result">判別結果</h2>
-      <p class="result-empty" id="resultEmpty">「現在のデータG」を入力すると、結果が表示されます。</p>
+      <p class="result-empty neutral" id="resultEmpty">「現在のデータG」を入力すると、結果が表示されます。</p>
       <div id="resultBars" hidden></div>
       <div class="summary" id="summary" hidden>
         <div class="pill">設定4以上<b id="p4up">–</b></div>
@@ -334,20 +357,43 @@ footer nav a { margin-right: 10px; }
         <li>各要素を二項分布で独立と近似したベイズ推定です。結果は確率であり、設定の断定はできません。</li>
         <li>隣接する設定（特に2〜5）は確率差が小さく、数千G程度では判別しきれないのが正常です。</li>
         <li>打ち始め前の台データはBIG・REGのみを判別に使います。ぶどう・内訳は自分がカウントした区間のデータとして計算します。</li>
-        <li>ぶどう・ボーナス内訳の確率値は、メーカー公表値ではなく公式アプリ等からの算出値です。</li>
+        <li>成立役を確認できなかったボーナスは「不明BIG/REG」へ。不明分がある種別は内訳ではなく合算で計算します。</li>
         <li>チェリーは設定2〜5の数値が公開されていないため、記録・確率表示のみで判別には使いません。</li>
+        <li>ぶどう・ボーナス内訳の確率値は、メーカー公表値ではなく公式アプリ等からの算出値です。</li>
         <li>カウントが0の項目は「数えていない」ものとして計算から除外します。</li>
       </ul>
     </section>
-  </div>
-</main>
 
-<footer>
-  <nav>
-    <a href="about.html">運営者情報</a><a href="privacy.html">プライバシーポリシー</a><a href="disclaimer.html">免責事項</a><a href="contact.html">お問い合わせ</a>
-  </nav>
-  <p>© 2026 slot-tools.jp</p>
-</footer>
+    <div class="session-actions">
+      <button type="button" id="resetBtn">新しい台（すべてリセット）</button>
+    </div>
+
+    <p class="foot">
+      <a href="about.html">運営者情報</a><a href="privacy.html">プライバシーポリシー</a><a href="disclaimer.html">免責事項</a><a href="contact.html">お問い合わせ</a><br>© 2026 slot-tools.jp
+    </p>
+  </div>
+</div>
+
+<!-- ===== 電卓モーダル ===== -->
+<div class="keypad-overlay" id="keypadOverlay">
+  <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="kpLabel">
+    <p class="kp-label" id="kpLabel">入力</p>
+    <div class="kp-display">
+      <span class="kp-current" id="kpCurrent"></span>
+      <span class="kp-value empty" id="kpValue">タップして入力</span>
+    </div>
+    <div class="kp-grid">
+      <button type="button" data-kp="7">7</button><button type="button" data-kp="8">8</button><button type="button" data-kp="9">9</button>
+      <button type="button" data-kp="4">4</button><button type="button" data-kp="5">5</button><button type="button" data-kp="6">6</button>
+      <button type="button" data-kp="1">1</button><button type="button" data-kp="2">2</button><button type="button" data-kp="3">3</button>
+      <button type="button" class="fn" data-kp="C">C</button><button type="button" data-kp="0">0</button><button type="button" class="fn" data-kp="B">⌫</button>
+    </div>
+    <div class="kp-actions">
+      <button type="button" class="kp-cancel" id="kpCancel">キャンセル</button>
+      <button type="button" class="kp-ok" id="kpOk">決定</button>
+    </div>
+  </div>
+</div>
 
 <script type="module">
 import { estimate } from "./js/estimator.js";
@@ -366,6 +412,10 @@ const COUNT_LABELS = {
   solo_big: "単独BIG", cherry_big: "チェリー重複BIG",
   solo_reg: "単独REG", cherry_reg: "チェリー重複REG",
   unk_big: "不明BIG", unk_reg: "不明REG",
+};
+const FIELD_LABELS = {
+  st_g: "打ち始めの総回転数", st_big: "打ち始めのBIG", st_reg: "打ち始めのREG",
+  cu_g: "現在のデータG", hold: "推定持ち枚数",
 };
 
 let machine = null;
@@ -418,35 +468,105 @@ function restore() {
   } catch (e) {}
 }
 
+/* ---------- 数値フィールドへの反映 ---------- */
+function fieldGet(field) {
+  if (field === "cu_g") return state.nowG;
+  if (field === "hold") return state.invest.hold;
+  if (field.startsWith("st_")) return state.start[field.slice(3)];
+  if (field.startsWith("count:")) return state.counts[field.slice(6)];
+  return 0;
+}
+function fieldSet(field, v) {
+  if (field === "cu_g") state.nowG = v;
+  else if (field === "hold") state.invest.hold = v;
+  else if (field.startsWith("st_")) state.start[field.slice(3)] = v;
+  else if (field.startsWith("count:")) state.counts[field.slice(6)] = v;
+}
+
+/* ---------- 電卓 ---------- */
+let kp = { field: null, buffer: "" };
+function openKeypad(field, label) {
+  kp = { field, buffer: "" };
+  $("kpLabel").textContent = label;
+  $("kpCurrent").textContent = `現在: ${fieldGet(field).toLocaleString()}`;
+  renderKeypad();
+  $("keypadOverlay").classList.add("open");
+}
+function closeKeypad() {
+  $("keypadOverlay").classList.remove("open");
+  kp = { field: null, buffer: "" };
+}
+function renderKeypad() {
+  const v = $("kpValue");
+  if (kp.buffer === "") {
+    v.textContent = "タップして入力";
+    v.classList.add("empty");
+  } else {
+    v.textContent = parseInt(kp.buffer, 10).toLocaleString();
+    v.classList.remove("empty");
+  }
+}
+function kpInput(key) {
+  if (key === "C") kp.buffer = "";
+  else if (key === "B") kp.buffer = kp.buffer.slice(0, -1);
+  else if (kp.buffer.length < 6) {
+    if (kp.buffer === "" && key === "0") kp.buffer = "0";
+    else if (kp.buffer === "0") kp.buffer = key;
+    else kp.buffer += key;
+  }
+  renderKeypad();
+}
+function kpCommit() {
+  if (kp.field != null && kp.buffer !== "") {
+    fieldSet(kp.field, parseInt(kp.buffer, 10));
+    persist();
+  }
+  closeKeypad();
+  renderAll();
+}
+
 /* ---------- イベント ---------- */
 function bind() {
-  // タブ
   $("tabCount").addEventListener("click", () => setTab("count"));
   $("tabEstimate").addEventListener("click", () => setTab("estimate"));
-  // 数値入力
-  const numBind = (id, fn) => $(id).addEventListener("input", () => { fn(intOf(id)); persist(); renderAll(); });
-  numBind("st_g", (v) => (state.start.g = v));
-  numBind("st_big", (v) => (state.start.big = v));
-  numBind("st_reg", (v) => (state.start.reg = v));
-  numBind("cu_g", (v) => (state.nowG = v));
-  numBind("hold", (v) => (state.invest.hold = v));
-  $("rate").addEventListener("change", () => { state.invest.rate = parseInt($("rate").value, 10); persist(); renderAll(); });
-  // カウントボタン
+
+  // 数値フィールド(電卓を開く)
+  document.querySelectorAll("[data-field]").forEach((btn) => {
+    btn.addEventListener("click", () => openKeypad(btn.dataset.field, FIELD_LABELS[btn.dataset.field]));
+  });
+
+  // カウントボタン: タップ+1 / 長押しで電卓
   document.querySelectorAll("[data-count]").forEach((btn) => {
+    const id = btn.dataset.count;
+    let timer = null, longPressed = false;
+    const start = () => {
+      longPressed = false;
+      timer = setTimeout(() => {
+        longPressed = true;
+        openKeypad(`count:${id}`, `${COUNT_LABELS[id]}（まとめて入力）`);
+      }, 550);
+    };
+    const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    btn.addEventListener("pointerdown", start);
+    btn.addEventListener("pointerup", cancel);
+    btn.addEventListener("pointerleave", cancel);
+    btn.addEventListener("pointercancel", cancel);
+    btn.addEventListener("contextmenu", (e) => e.preventDefault());
     btn.addEventListener("click", () => {
-      const id = btn.dataset.count;
+      if (longPressed) { longPressed = false; return; }
       state.counts[id]++;
       pushLog({ k: "count", id });
       persist();
       renderAll();
+      $("lastOp").textContent = `直前: ${COUNT_LABELS[id]} +1`;
     });
   });
-  // 投資
+
   $("inv1000").addEventListener("click", () => addInvest(1000));
   $("inv5000").addEventListener("click", () => addInvest(5000));
-  // 取消
+  $("rate").addEventListener("change", () => { state.invest.rate = parseInt($("rate").value, 10); persist(); renderAll(); });
   $("undoBtn").addEventListener("click", undo);
-  // 事前分布
+
   $("usePrior").addEventListener("change", () => {
     state.usePrior = $("usePrior").checked;
     $("priorGrid").hidden = !state.usePrior;
@@ -454,12 +574,17 @@ function bind() {
     persist();
     renderAll();
   });
-  // リセット
   $("resetBtn").addEventListener("click", () => {
     if (!confirm("この台の記録をすべて消去します。よろしいですか？")) return;
     localStorage.removeItem(STORAGE_KEY);
     location.reload();
   });
+
+  // 電卓
+  document.querySelectorAll("[data-kp]").forEach((b) => b.addEventListener("click", () => kpInput(b.dataset.kp)));
+  $("kpOk").addEventListener("click", kpCommit);
+  $("kpCancel").addEventListener("click", closeKeypad);
+  $("keypadOverlay").addEventListener("click", (e) => { if (e.target === $("keypadOverlay")) closeKeypad(); });
 }
 
 function addInvest(yen) {
@@ -467,6 +592,7 @@ function addInvest(yen) {
   pushLog({ k: "invest", yen });
   persist();
   renderAll();
+  $("lastOp").textContent = `直前: 投資 +${yen.toLocaleString()}円`;
 }
 
 function pushLog(op) {
@@ -481,7 +607,7 @@ function undo() {
   if (op.k === "invest") state.invest.yen = Math.max(0, state.invest.yen - op.yen);
   persist();
   renderAll();
-  $("lastOp").textContent = `取り消し: ${op.k === "count" ? COUNT_LABELS[op.id] : `投資 ${op.yen}円`}`;
+  $("lastOp").textContent = `取り消し: ${op.k === "count" ? COUNT_LABELS[op.id] : `投資 ${op.yen.toLocaleString()}円`}`;
 }
 
 function setTab(t) {
@@ -489,11 +615,8 @@ function setTab(t) {
   $("tabEstimate").setAttribute("aria-selected", String(t === "estimate"));
   $("paneCount").hidden = t !== "count";
   $("paneEstimate").hidden = t !== "estimate";
-}
-
-function intOf(id) {
-  const v = parseInt($(id).value, 10);
-  return Number.isInteger(v) && v >= 0 ? v : 0;
+  // 固定シェル内でカウントタブはflex表示に戻す
+  $("paneCount").style.display = t === "count" ? "flex" : "none";
 }
 
 /* ---------- 観測の組み立て ---------- */
@@ -501,11 +624,16 @@ function buildObservation(uiWarnings) {
   const st = state.start;
   const nowG = state.nowG;
   if (nowG <= 0) return null;
-  if (nowG < st.g) throw new Error("現在のデータGが打ち始めより小さくなっています。");
+  if (nowG < st.g) {
+    return { error: `現在のデータG（${nowG.toLocaleString()}）が打ち始めの総回転数（${st.g.toLocaleString()}）より小さくなっています。カウントタブの「現在のデータG」か「打ち始めの総回転数」のどちらかが誤入力です。` };
+  }
   const ownG = nowG - st.g;
   const c = state.counts;
   const ownBig = c.solo_big + c.cherry_big + c.unk_big;
   const ownReg = c.solo_reg + c.cherry_reg + c.unk_reg;
+  if (ownG > 0 && ownBig > ownG) {
+    return { error: `自分のボーナス数（BIG ${ownBig}回）が消化G数（${ownG.toLocaleString()}G）を超えています。入力を確認してください。` };
+  }
 
   const segments = [];
   if (st.g > 0) {
@@ -545,16 +673,18 @@ function currentPrior() {
 
 /* ---------- 描画 ---------- */
 function renderAll() {
-  syncInputs();
+  syncFields();
   renderCounts();
   renderInvest();
   renderEstimate();
 }
 
-function syncInputs() {
-  const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = v; };
-  set("st_g", state.start.g); set("st_big", state.start.big); set("st_reg", state.start.reg);
-  set("cu_g", state.nowG); set("hold", state.invest.hold);
+function syncFields() {
+  $("f_st_g").textContent = state.start.g.toLocaleString();
+  $("f_st_big").textContent = state.start.big.toLocaleString();
+  $("f_st_reg").textContent = state.start.reg.toLocaleString();
+  $("f_cu_g").textContent = state.nowG.toLocaleString();
+  $("f_hold").textContent = `持ち枚数 ${state.invest.hold.toLocaleString()}`;
   $("rate").value = String(state.invest.rate);
   $("usePrior").checked = state.usePrior;
   $("priorGrid").hidden = !state.usePrior;
@@ -562,32 +692,21 @@ function syncInputs() {
 }
 
 function renderCounts() {
-  for (const id of COUNT_IDS) $(`c_${id}`).textContent = state.counts[id];
-  const last = state.log[state.log.length - 1];
-  if (last) {
-    $("lastOp").textContent = `直前: ${last.k === "count" ? COUNT_LABELS[last.id] + " +1" : `投資 +${last.yen}円`}`;
-  }
+  for (const id of COUNT_IDS) $(`c_${id}`).textContent = state.counts[id].toLocaleString();
 }
 
 function renderInvest() {
   const inv = state.invest;
   const medals = Math.round((inv.yen / 1000) * inv.rate);
-  $("i_yen").textContent = `¥${inv.yen.toLocaleString()}`;
-  $("i_medals").textContent = `${medals.toLocaleString()}枚`;
   $("s_invest").textContent = `¥${inv.yen.toLocaleString()}`;
-  if (inv.hold > 0 || inv.yen > 0) {
+  let sum = `投資 ¥${inv.yen.toLocaleString()}（${medals.toLocaleString()}枚）`;
+  if (inv.hold > 0) {
     const diff = inv.hold - medals;
-    const dEl = $("i_diff");
-    dEl.textContent = `${diff >= 0 ? "+" : ""}${diff.toLocaleString()}枚`;
-    dEl.className = diff >= 0 ? "plus" : "minus";
     const cash = diff * 20;
-    const cEl = $("i_cash");
-    cEl.textContent = `${cash >= 0 ? "+" : "-"}¥${Math.abs(cash).toLocaleString()}`;
-    cEl.className = cash >= 0 ? "plus" : "minus";
-  } else {
-    $("i_diff").textContent = "–";
-    $("i_cash").textContent = "–";
+    const cls = diff >= 0 ? "plus" : "minus";
+    sum += `　差枚 <b class="${cls}">${diff >= 0 ? "+" : ""}${diff.toLocaleString()}</b>（<b class="${cls}">${cash >= 0 ? "+" : "-"}¥${Math.abs(cash).toLocaleString()}</b>）`;
   }
+  $("investSum").innerHTML = sum;
 }
 
 function fmtRate(count, games) {
@@ -597,12 +716,10 @@ function fmtRate(count, games) {
 
 function renderEstimate() {
   const uiWarnings = [];
-  let obs = null, err = null;
-  try { obs = buildObservation(uiWarnings); } catch (e) { err = e.message; }
+  const obs = buildObservation(uiWarnings);
 
-  // 実戦値・サマリー
   const c = state.counts;
-  const ownG = obs ? obs.ownG : Math.max(0, state.nowG - state.start.g);
+  const ownG = Math.max(0, state.nowG - state.start.g);
   const ownBig = c.solo_big + c.cherry_big + c.unk_big;
   const ownReg = c.solo_reg + c.cherry_reg + c.unk_reg;
   const totBig = state.start.big + ownBig;
@@ -616,16 +733,16 @@ function renderEstimate() {
   $("r_cherry").textContent = fmtRate(c.cherry, ownG);
   $("r_solo_reg").textContent = fmtRate(c.solo_reg, ownG);
 
-  if (err) { showEmpty(`入力エラー: ${err}`); $("s_top").textContent = "–"; return; }
-  if (!obs) { showEmpty("「現在のデータG」を入力すると、結果が表示されます。"); $("s_top").textContent = "–"; return; }
+  if (obs && obs.error) { showEmpty(obs.error, false); $("s_top").textContent = "要確認"; return; }
+  if (!obs) { showEmpty("「現在のデータG」を入力すると、結果が表示されます。", true); $("s_top").textContent = "–"; return; }
 
   let out, outUniform;
   try {
     out = estimate(machine, { segments: obs.segments }, currentPrior());
     outUniform = state.usePrior ? estimate(machine, { segments: obs.segments }, null) : null;
   } catch (e) {
-    showEmpty(`入力エラー: ${e.message}`);
-    $("s_top").textContent = "–";
+    showEmpty(`計算できません: ${e.message}`, false);
+    $("s_top").textContent = "要確認";
     return;
   }
   $("resultEmpty").hidden = true;
@@ -636,9 +753,11 @@ function renderEstimate() {
   $("s_top").textContent = `設定${machine.machine.settings[topIdx]} ${(100 * out.posterior[topIdx]).toFixed(0)}%`;
 }
 
-function showEmpty(msg) {
-  $("resultEmpty").hidden = false;
-  $("resultEmpty").textContent = msg;
+function showEmpty(msg, neutral) {
+  const el = $("resultEmpty");
+  el.hidden = false;
+  el.textContent = msg;
+  el.className = "result-empty" + (neutral ? " neutral" : "");
   $("resultBars").hidden = true;
   $("summary").hidden = true;
   $("tickLegend").style.display = "none";
