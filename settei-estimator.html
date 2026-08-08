@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>設定判別ツール（ベイズ推定）｜スロット稼働ノート</title>
+<meta name="description" content="BIG・REG・ぶどう等の実戦データから、各設定の事後確率をベイズ推定で計算します。事前分布の切り替えに対応し、入力は端末内にのみ保存します。">
+<link rel="canonical" href="https://slot-tools.jp/settei-estimator.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:title" content="設定判別ツール（ベイズ推定）｜スロット稼働ノート">
+<meta property="og:description" content="BIG・REG・ぶどう等の実戦データから、各設定の事後確率をベイズ推定で計算します。事前分布の切り替えに対応し、入力は端末内にのみ保存します。">
+<meta property="og:url" content="https://slot-tools.jp/settei-estimator.html">
+<style>
+:root {
+  --bg: #f6f5f2;
+  --card: #ffffff;
+  --ink: #22252d;
+  --muted: #6e7480;
+  --line: #e4e2dc;
+  --bar-bg: #edebe5;
+  --lamp: #d5342f;        /* GOGOランプの赤: 最有力設定の強調にのみ使う */
+  --lamp-soft: #fdeceb;
+  --est-badge: #9a6b15;   /* 実戦推定値バッジ */
+  --est-badge-bg: #faf3e3;
+  --ok: #2f7d4f;
+  --focus: #2757d6;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+  font-size: 15px;
+  line-height: 1.65;
+}
+a { color: var(--focus); }
+main { max-width: 640px; margin: 0 auto; padding: 12px 14px 48px; }
+.top-link { display: inline-block; margin: 10px 0 2px; font-size: 13px; text-decoration: none; color: var(--muted); }
+h1 { font-size: 21px; line-height: 1.4; margin: 6px 0 2px; }
+.machine-name { color: var(--lamp); }
+.lede { font-size: 13px; color: var(--muted); margin: 0 0 14px; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px;
+  margin: 0 0 14px;
+}
+.card h2 {
+  font-size: 14px;
+  margin: 0 0 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  letter-spacing: .02em;
+}
+
+/* 入力 */
+.mode-switch { display: flex; gap: 6px; margin-bottom: 12px; }
+.mode-switch button {
+  flex: 1; padding: 9px 0; font-size: 14px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--muted); cursor: pointer;
+}
+.mode-switch button[aria-pressed="true"] {
+  background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600;
+}
+.field { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; }
+.field label { font-size: 14px; flex: 1; }
+.field .sub { display: block; font-size: 11px; color: var(--muted); }
+.badge {
+  display: inline-block; font-size: 10px; padding: 1px 6px; border-radius: 999px;
+  vertical-align: 1px; margin-left: 4px;
+}
+.badge.est { color: var(--est-badge); background: var(--est-badge-bg); }
+input[type="number"] {
+  width: 108px; padding: 9px 10px; font-size: 16px; text-align: right;
+  border: 1px solid var(--line); border-radius: 8px; background: #fff;
+  font-variant-numeric: tabular-nums;
+}
+input[type="number"]:focus, button:focus-visible, select:focus-visible {
+  outline: 2px solid var(--focus); outline-offset: 1px;
+}
+.row-actions { display: flex; gap: 8px; margin-top: 12px; }
+.row-actions button {
+  padding: 8px 14px; font-size: 13px; border-radius: 8px;
+  border: 1px solid var(--line); background: var(--bg); cursor: pointer; color: var(--ink);
+}
+
+/* 事前分布 */
+.prior-toggle { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.prior-toggle input { width: 18px; height: 18px; }
+.prior-grid {
+  display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px;
+}
+.prior-grid .cell { text-align: center; }
+.prior-grid .cell span { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+.prior-grid input { width: 100%; padding: 7px 4px; text-align: center; font-size: 14px; }
+.prior-note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+
+/* 結果 */
+.result-empty { font-size: 13px; color: var(--muted); }
+.bar-row { display: grid; grid-template-columns: 44px 1fr 62px; align-items: center; gap: 8px; margin: 9px 0; }
+.bar-row .name { font-size: 13px; }
+.bar-track { position: relative; height: 22px; background: var(--bar-bg); border-radius: 6px; overflow: hidden; }
+.bar-fill {
+  position: absolute; inset: 0 auto 0 0; width: 0%;
+  background: #8a8f99; border-radius: 6px;
+  transition: width .35s ease;
+}
+.bar-row.top .bar-fill { background: var(--lamp); }
+.bar-row.top .name, .bar-row.top .pct { color: var(--lamp); font-weight: 700; }
+.uniform-tick {
+  position: absolute; top: -3px; bottom: -3px; width: 2px;
+  background: var(--ink); opacity: .55; display: none;
+}
+.pct { font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+.summary { display: flex; gap: 8px; margin-top: 12px; }
+.summary .pill {
+  flex: 1; text-align: center; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 7px 4px; font-size: 12px; color: var(--muted);
+}
+.summary .pill b { display: block; font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.tick-legend { font-size: 11.5px; color: var(--muted); margin: 10px 0 0; display: none; }
+.tick-legend .tick-sample {
+  display: inline-block; width: 2px; height: 11px; background: var(--ink); opacity: .55;
+  vertical-align: -1px; margin: 0 3px;
+}
+.warnings { margin: 10px 0 0; padding: 0; list-style: none; }
+.warnings li {
+  font-size: 12.5px; color: var(--est-badge); background: var(--est-badge-bg);
+  border-radius: 6px; padding: 6px 9px; margin-top: 6px;
+}
+.reliability { font-size: 12.5px; margin-top: 10px; color: var(--muted); }
+
+/* 注意・出典 */
+.notes { font-size: 12.5px; color: var(--muted); }
+.notes ul { margin: 6px 0 0; padding-left: 18px; }
+.notes li { margin: 4px 0; }
+
+footer { max-width: 640px; margin: 0 auto; padding: 0 14px 30px; font-size: 12px; color: var(--muted); }
+footer nav a { margin-right: 10px; }
+@media (prefers-reduced-motion: reduce) { .bar-fill { transition: none; } }
+</style>
+</head>
+<body>
+<main>
+  <a class="top-link" href="./">← TOP</a>
+  <h1>設定判別ツール <span class="machine-name" id="machineName">読み込み中…</span></h1>
+  <p class="lede">実戦データから各設定の事後確率をベイズ推定で計算します。入力は端末内にのみ保存されます。</p>
+
+  <section class="card" aria-labelledby="h-input">
+    <h2 id="h-input">実戦データ入力</h2>
+    <div class="mode-switch" role="group" aria-label="入力モード">
+      <button type="button" id="modeSimple" aria-pressed="true">簡易（合計のみ）</button>
+      <button type="button" id="modeDetail" aria-pressed="false">詳細（内訳あり）</button>
+    </div>
+    <div class="field">
+      <label for="games">総回転数<span class="sub">必須</span></label>
+      <input type="number" id="games" inputmode="numeric" min="1" step="1" placeholder="0">
+    </div>
+    <div id="elementInputs"></div>
+    <div class="row-actions">
+      <button type="button" id="resetBtn">入力をリセット</button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="h-prior">
+    <h2 id="h-prior">事前分布（任意）</h2>
+    <label class="prior-toggle">
+      <input type="checkbox" id="usePrior">
+      店の設定配分の想定を反映する
+    </label>
+    <div class="prior-grid" id="priorGrid" hidden>
+      <!-- JSで生成: 設定1〜6の重み -->
+    </div>
+    <p class="prior-note" id="priorNote" hidden>
+      重みは比率です（例: 設定6を「3」にすると設定1の「1」の3倍入りやすい想定）。
+      オンにすると、結果のバー上に均等時の値が
+      <span class="tick-sample" style="display:inline-block;width:2px;height:11px;background:#22252d;opacity:.55;"></span>
+      で表示され、事前分布の影響を確認できます。
+    </p>
+  </section>
+
+  <section class="card" aria-labelledby="h-result">
+    <h2 id="h-result">判別結果</h2>
+    <p class="result-empty" id="resultEmpty">総回転数とボーナス回数を入力すると、結果が表示されます。</p>
+    <div id="resultBars" hidden></div>
+    <div class="summary" id="summary" hidden>
+      <div class="pill">設定4以上<b id="p4up">–</b></div>
+      <div class="pill">設定5以上<b id="p5up">–</b></div>
+      <div class="pill">設定6<b id="p6">–</b></div>
+    </div>
+    <p class="tick-legend" id="tickLegend">
+      <span class="tick-sample"></span> は事前分布を使わない場合（均等）の値です。
+    </p>
+    <ul class="warnings" id="warnings"></ul>
+    <p class="reliability" id="reliability"></p>
+  </section>
+
+  <section class="card notes" aria-labelledby="h-notes">
+    <h2 id="h-notes">前提と限界</h2>
+    <ul id="sourceNotes">
+      <li>各要素を二項分布で独立と近似したベイズ推定です。結果は確率であり、設定の断定はできません。</li>
+      <li>隣接する設定（特に2〜5）は確率差が小さく、数千G程度では判別しきれないのが正常です。</li>
+      <li><span class="badge est">実戦推定値</span> の付いた要素は、メーカー公表値ではなく公式アプリ等からの算出値です。</li>
+    </ul>
+  </section>
+</main>
+
+<footer>
+  <nav>
+    <a href="about.html">運営者情報</a><a href="privacy.html">プライバシーポリシー</a><a href="disclaimer.html">免責事項</a><a href="contact.html">お問い合わせ</a>
+  </nav>
+  <p>© 2026 slot-tools.jp</p>
+</footer>
+
+<script type="module">
+import { estimate } from "./js/estimator.js";
+
+const MACHINES = {
+  my_juggler_v: "data/machines/my_juggler_v.json",
+};
+
+const params = new URLSearchParams(location.search);
+const machineId = MACHINES[params.get("machine")] ? params.get("machine") : "my_juggler_v";
+const STORAGE_KEY = `settei-estimator:${machineId}`;
+
+const $ = (id) => document.getElementById(id);
+let machine = null;
+let mode = "simple";
+
+init();
+
+async function init() {
+  try {
+    const res = await fetch(MACHINES[machineId], { cache: "no-cache" });
+    machine = await res.json();
+  } catch (e) {
+    $("machineName").textContent = "機種データの読み込みに失敗しました";
+    return;
+  }
+  $("machineName").textContent = machine.machine.name;
+  document.title = `設定判別ツール ${machine.machine.name}｜スロット稼働ノート`;
+  buildPriorGrid();
+  restore();
+  renderInputs();
+  bind();
+  recalc();
+}
+
+function elementsById() {
+  return Object.fromEntries(machine.elements.map((e) => [e.id, e]));
+}
+
+function renderInputs() {
+  const box = $("elementInputs");
+  box.innerHTML = "";
+  const els = elementsById();
+  const uses = machine.input_rules.modes.find((m) => m.id === mode).uses;
+  const saved = load();
+  for (const id of uses) {
+    const el = els[id];
+    const isEst = machine.sources[el.source]?.reliability !== "official";
+    const wrap = document.createElement("div");
+    wrap.className = "field";
+    wrap.innerHTML = `
+      <label for="in_${id}">${el.label}${isEst ? '<span class="badge est">実戦推定値</span>' : ""}
+        <span class="sub">${el.input === "required" ? "必須" : "任意（未入力なら計算に使いません）"}</span>
+      </label>
+      <input type="number" id="in_${id}" inputmode="numeric" min="0" step="1" placeholder="—">`;
+    box.appendChild(wrap);
+    const input = wrap.querySelector("input");
+    if (saved.counts && id in saved.counts) input.value = saved.counts[id];
+    input.addEventListener("input", () => { persist(); recalc(); });
+  }
+}
+
+function buildPriorGrid() {
+  const grid = $("priorGrid");
+  grid.innerHTML = "";
+  for (const s of machine.machine.settings) {
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.innerHTML = `<span>設定${s}</span><input type="number" id="pw_${s}" inputmode="decimal" min="0" step="0.5" value="1">`;
+    grid.appendChild(cell);
+    cell.querySelector("input").addEventListener("input", () => { persist(); recalc(); });
+  }
+}
+
+function bind() {
+  $("games").addEventListener("input", () => { persist(); recalc(); });
+  $("modeSimple").addEventListener("click", () => setMode("simple"));
+  $("modeDetail").addEventListener("click", () => setMode("detail"));
+  $("usePrior").addEventListener("change", () => {
+    const on = $("usePrior").checked;
+    $("priorGrid").hidden = !on;
+    $("priorNote").hidden = !on;
+    persist(); recalc();
+  });
+  $("resetBtn").addEventListener("click", () => {
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  });
+}
+
+function setMode(m) {
+  mode = m;
+  $("modeSimple").setAttribute("aria-pressed", String(m === "simple"));
+  $("modeDetail").setAttribute("aria-pressed", String(m === "detail"));
+  renderInputs();
+  persist();
+  recalc();
+}
+
+function collect() {
+  const games = parseInt($("games").value, 10);
+  const counts = {};
+  const uses = machine.input_rules.modes.find((m) => m.id === mode).uses;
+  for (const id of uses) {
+    const v = $(`in_${id}`)?.value;
+    if (v !== "" && v != null) counts[id] = parseInt(v, 10);
+  }
+  return { mode, games, counts };
+}
+
+function currentPrior() {
+  if (!$("usePrior").checked) return null;
+  return machine.machine.settings.map((s) => parseFloat($(`pw_${s}`).value) || 0);
+}
+
+function recalc() {
+  const obs = collect();
+  const hasBonus = Object.keys(obs.counts).length > 0;
+  if (!Number.isInteger(obs.games) || obs.games <= 0 || !hasBonus) {
+    $("resultEmpty").hidden = false;
+    $("resultBars").hidden = true;
+    $("summary").hidden = true;
+    $("tickLegend").style.display = "none";
+    $("warnings").innerHTML = "";
+    $("reliability").textContent = "";
+    return;
+  }
+  let out, outUniform;
+  try {
+    out = estimate(machine, obs, currentPrior());
+    outUniform = $("usePrior").checked ? estimate(machine, obs, null) : null;
+  } catch (e) {
+    $("resultEmpty").hidden = false;
+    $("resultEmpty").textContent = `入力エラー: ${e.message}`;
+    $("resultBars").hidden = true;
+    $("summary").hidden = true;
+    return;
+  }
+  $("resultEmpty").hidden = true;
+  renderBars(out.posterior, outUniform ? outUniform.posterior : null);
+  renderSummary(out.posterior);
+  renderWarnings(out.warnings, obs.games);
+}
+
+function renderBars(post, uniformPost) {
+  const box = $("resultBars");
+  box.hidden = false;
+  box.innerHTML = "";
+  const topIdx = post.indexOf(Math.max(...post));
+  machine.machine.settings.forEach((s, i) => {
+    const row = document.createElement("div");
+    row.className = "bar-row" + (i === topIdx ? " top" : "");
+    row.innerHTML = `
+      <div class="name">設定${s}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${(100 * post[i]).toFixed(1)}%"></div>
+        <div class="uniform-tick" style="left:${uniformPost ? (100 * uniformPost[i]).toFixed(1) : 0}%"></div>
+      </div>
+      <div class="pct">${(100 * post[i]).toFixed(1)}%</div>`;
+    box.appendChild(row);
+    if (uniformPost) row.querySelector(".uniform-tick").style.display = "block";
+  });
+  $("tickLegend").style.display = uniformPost ? "block" : "none";
+}
+
+function renderSummary(post) {
+  $("summary").hidden = false;
+  const pct = (x) => (100 * x).toFixed(1) + "%";
+  $("p4up").textContent = pct(post[3] + post[4] + post[5]);
+  $("p5up").textContent = pct(post[4] + post[5]);
+  $("p6").textContent = pct(post[5]);
+}
+
+function renderWarnings(warnings, games) {
+  const ul = $("warnings");
+  ul.innerHTML = "";
+  for (const w of warnings) {
+    const li = document.createElement("li");
+    li.textContent = w;
+    ul.appendChild(li);
+  }
+  let rel;
+  if (games < 1000) rel = "信頼度: 低（1000G未満。参考程度に見てください）";
+  else if (games < 3000) rel = "信頼度: 中（傾向は出ますが、隣接設定の区別はまだ困難です）";
+  else if (games < 6000) rel = "信頼度: 中〜高（高低の傾向は概ね信頼できます）";
+  else rel = "信頼度: 高（それでも隣接設定の完全な判別は原理的に困難です）";
+  $("reliability").textContent = `${rel}`;
+}
+
+/* ---- 端末内保存 ---- */
+function persist() {
+  const data = {
+    mode,
+    games: $("games").value,
+    counts: collect().counts,
+    usePrior: $("usePrior").checked,
+    priorWeights: machine.machine.settings.map((s) => $(`pw_${s}`).value),
+  };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch (e) {}
+}
+function load() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (e) { return {}; }
+}
+function restore() {
+  const d = load();
+  if (d.mode === "detail") {
+    mode = "detail";
+    $("modeSimple").setAttribute("aria-pressed", "false");
+    $("modeDetail").setAttribute("aria-pressed", "true");
+  }
+  if (d.games) $("games").value = d.games;
+  if (d.usePrior) {
+    $("usePrior").checked = true;
+    $("priorGrid").hidden = false;
+    $("priorNote").hidden = false;
+  }
+  if (Array.isArray(d.priorWeights)) {
+    machine.machine.settings.forEach((s, i) => {
+      if (d.priorWeights[i] != null) $(`pw_${s}`).value = d.priorWeights[i];
+    });
+  }
+}
+</script>
+</body>
+</html>
