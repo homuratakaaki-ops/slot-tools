@@ -121,7 +121,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .count-btn.bigk { border-color: #5a4a24; } .count-btn.bigk .cv { color: var(--big); }
 .count-btn.regk { border-color: #2d465c; } .count-btn.regk .cv { color: var(--reg); }
 
-.sub-actions { display: grid; grid-template-columns: 1fr 1fr 1.15fr; gap: 6px; flex: none; }
+.sub-actions { display: grid; grid-template-columns: 1fr 1fr 1.1fr 0.8fr; gap: 6px; flex: none; }
 .sub-actions button {
   padding: 8px 2px; font-size: 12px; border-radius: 9px;
   border: 1px solid var(--line); background: var(--card2); color: var(--muted); cursor: pointer;
@@ -309,6 +309,7 @@ select.rate {
         <button type="button" data-count="unk_big">不明BIG <b id="c_unk_big">0</b></button>
         <button type="button" data-count="unk_reg">不明REG <b id="c_unk_reg">0</b></button>
         <button type="button" class="undo" id="undoBtn">↩ 元に戻す</button>
+        <button type="button" id="clearBtn">クリア</button>
       </div>
       <p class="count-hint" id="lastOp">タップで+1／長押しで数値をまとめて入力</p>
     </div>
@@ -399,6 +400,20 @@ select.rate {
     <p class="foot">
       <a href="about.html">運営者情報</a><a href="privacy.html">プライバシーポリシー</a><a href="disclaimer.html">免責事項</a><a href="contact.html">お問い合わせ</a><br>© 2026 slot-tools.jp
     </p>
+  </div>
+</div>
+
+<!-- ===== クリアモーダル ===== -->
+<div class="keypad-overlay" id="clearOverlay">
+  <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="clearTitle">
+    <p class="kp-label" id="clearTitle">クリアする範囲を選んでください</p>
+    <div class="dep-grid" style="grid-template-columns: 1fr;">
+      <button type="button" id="clearCounts">カウントのみクリア（台データ・投資は残す）</button>
+      <button type="button" id="clearAll" style="color: var(--lamp); border-color: #5a2a26;">すべてクリア（新しい台）</button>
+    </div>
+    <div class="kp-actions" style="grid-template-columns: 1fr;">
+      <button type="button" class="kp-cancel" id="clearClose">キャンセル</button>
+    </div>
   </div>
 </div>
 
@@ -640,6 +655,22 @@ function bind() {
   });
   $("resetBtn").addEventListener("click", () => {
     if (!confirm("この台の記録をすべて消去します。よろしいですか？")) return;
+    localStorage.removeItem(STORAGE_KEY);
+    location.reload();
+  });
+  $("clearBtn").addEventListener("click", () => $("clearOverlay").classList.add("open"));
+  $("clearClose").addEventListener("click", () => $("clearOverlay").classList.remove("open"));
+  $("clearOverlay").addEventListener("click", (e) => { if (e.target === $("clearOverlay")) $("clearOverlay").classList.remove("open"); });
+  $("clearCounts").addEventListener("click", () => {
+    for (const id of COUNT_IDS) state.counts[id] = 0;
+    state.log = [];
+    persist();
+    renderAll();
+    $("clearOverlay").classList.remove("open");
+    $("lastOp").textContent = "カウントをクリアしました（台データ・投資は保持）";
+  });
+  $("clearAll").addEventListener("click", () => {
+    if (!confirm("台データ・カウント・投資をすべて消去します。よろしいですか？")) return;
     localStorage.removeItem(STORAGE_KEY);
     location.reload();
   });
