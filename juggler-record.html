@@ -58,14 +58,13 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .head h1 { font-size: 15px; margin: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .machine-name { color: var(--lamp); }
 
-.status { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; flex: none; }
+.status { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; flex: none; }
 .status .stat {
   background: var(--card); border: 1px solid var(--line); border-radius: 9px;
   padding: 4px 2px; text-align: center; min-width: 0;
 }
 .status .stat span { display: block; font-size: 10px; color: var(--muted); }
 .status .stat b { display: block; font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.status .stat.hot b { color: var(--lamp); }
 
 .tabs { display: flex; gap: 6px; flex: none; }
 .tabs button {
@@ -270,7 +269,6 @@ select.rate {
     <div class="stat"><span>消化G</span><b id="s_own">0</b></div>
     <div class="stat"><span>BIG / REG</span><b id="s_bonus">0 / 0</b></div>
     <div class="stat"><span>投資</span><b id="s_invest">¥0</b></div>
-    <div class="stat hot"><span>最有力</span><b id="s_top">–</b></div>
   </div>
 
   <div class="tabs" role="tablist">
@@ -662,12 +660,12 @@ function bind() {
   $("clearClose").addEventListener("click", () => $("clearOverlay").classList.remove("open"));
   $("clearOverlay").addEventListener("click", (e) => { if (e.target === $("clearOverlay")) $("clearOverlay").classList.remove("open"); });
   $("clearCounts").addEventListener("click", () => {
+    pushLog({ k: "clear_counts", counts: { ...state.counts } });
     for (const id of COUNT_IDS) state.counts[id] = 0;
-    state.log = [];
     persist();
     renderAll();
     $("clearOverlay").classList.remove("open");
-    $("lastOp").textContent = "カウントをクリアしました（台データ・投資は保持）";
+    $("lastOp").textContent = "カウントをクリアしました（元に戻すで復元できます）";
   });
   $("clearAll").addEventListener("click", () => {
     if (!confirm("台データ・カウント・投資をすべて消去します。よろしいですか？")) return;
@@ -708,6 +706,9 @@ function undo() {
   const op = state.log.pop();
   if (!op) { $("lastOp").textContent = "取り消す操作がありません"; return; }
   if (op.k === "count" && state.counts[op.id] > 0) state.counts[op.id]--;
+  if (op.k === "clear_counts") {
+    state.counts = { ...defaultState().counts, ...(op.counts || {}) };
+  }
   if (op.k === "invest") {
     state.invest.yen = Math.max(0, state.invest.yen - op.yen);
     if (state.invest.card != null) state.invest.card += op.yen;
@@ -715,7 +716,15 @@ function undo() {
   if (op.k === "deposit" && state.invest.card != null) state.invest.card -= op.yen;
   persist();
   renderAll();
-  $("lastOp").textContent = `取り消し: ${op.k === "count" ? COUNT_LABELS[op.id] : `投資 ${op.yen.toLocaleString()}円`}`;
+  $("lastOp").textContent = `取り消し: ${undoLabel(op)}`;
+}
+
+function undoLabel(op) {
+  if (op.k === "count") return COUNT_LABELS[op.id];
+  if (op.k === "clear_counts") return "カウントクリア";
+  if (op.k === "invest") return `投資 ${op.yen.toLocaleString()}円`;
+  if (op.k === "deposit") return `入金 ${op.yen.toLocaleString()}円`;
+  return "操作";
 }
 
 function setTab(t) {
@@ -852,8 +861,8 @@ function renderEstimate() {
   $("r_cherry").textContent = fmtRate(c.cherry, ownG);
   $("r_solo_reg").textContent = fmtRate(c.solo_reg, ownG);
 
-  if (obs && obs.error) { showEmpty(obs.error, false); $("s_top").textContent = "要確認"; return; }
-  if (!obs) { showEmpty("「現在のデータG」を入力すると、結果が表示されます。", true); $("s_top").textContent = "–"; return; }
+  if (obs && obs.error) { showEmpty(obs.error, false); return; }
+  if (!obs) { showEmpty("「現在のデータG」を入力すると、結果が表示されます。", true); return; }
 
   let out, outUniform;
   try {
@@ -861,15 +870,12 @@ function renderEstimate() {
     outUniform = state.usePrior ? estimate(machine, { segments: obs.segments }, null) : null;
   } catch (e) {
     showEmpty(`計算できません: ${e.message}`, false);
-    $("s_top").textContent = "要確認";
     return;
   }
   $("resultEmpty").hidden = true;
   renderBars(out.posterior, outUniform ? outUniform.posterior : null);
   renderSummary(out.posterior);
   renderWarnings([...uiWarnings, ...out.warnings], obs.totalGames);
-  const topIdx = out.posterior.indexOf(Math.max(...out.posterior));
-  $("s_top").textContent = `設定${machine.machine.settings[topIdx]} ${(100 * out.posterior[topIdx]).toFixed(0)}%`;
 }
 
 function showEmpty(msg, neutral) {
