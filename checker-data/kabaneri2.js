@@ -80,6 +80,10 @@
   function cycleReach(S,id){return Number(S.zones[`${id}r`])||0;}
   function cycleWin(S,id){return Number(S.zones[`${id}w`])||0;}
   function cycleRate(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
+  function shown(prefix,items){
+    const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
+    return `${prefix} ${out.length?out.join('・'):'−'}`;
+  }
   function cycleRowRate(S,id){
     const n=cycleWin(S,id), d=cycleReach(S,id);
     return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:`${n}/0 —`;
@@ -255,16 +259,16 @@
           columns:[
             {x:70,items:[
               {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
-              {text:`ボイス 女${S.atcz.female}・男${S.atcz.male}`,value:S.atcz.female+S.atcz.male},
-              {text:`キャラ紹介 女${S.ed.female}・男${S.ed.male}・美馬${S.ed.biba}`,value:S.ed.female+S.ed.male+S.ed.biba},
-              {text:`くじ 弓${S.icons.ayame}・アゲハ${S.icons.butterfly}`,value:S.icons.ayame+S.icons.butterfly},
+              {text:shown('ボイス',[['女',S.atcz.female],['男',S.atcz.male]]),value:S.atcz.female+S.atcz.male},
+              {text:shown('キャラ紹介',[['女',S.ed.female],['男',S.ed.male],['美馬',S.ed.biba]]),value:S.ed.female+S.ed.male+S.ed.biba},
+              {text:shown('くじ',[['弓',S.icons.ayame],['アゲハ',S.icons.butterfly]]),value:S.icons.ayame+S.icons.butterfly},
               {text:`周期③④ ${c34.text}`,value:c34.n}
             ]},
             {x:560,items:[
               {text:`濃厚示唆 計${strong}回`,value:strong},
-              {text:`景之 弱${S.atcz.kage1}・中${S.atcz.kage2}・強${S.atcz.kage3}`,value:S.atcz.kage1+S.atcz.kage2+S.atcz.kage3},
-              {text:`終了画面 鉄${S.screens.geta}・集${S.screens.group}・水${S.screens.swim}`,value:S.screens.geta+S.screens.group+S.screens.swim},
-              {text:`吉 小${S.icons.shokichi}・中${S.icons.chukichi}・大${S.icons.daikichi}`,value:S.icons.shokichi+S.icons.chukichi+S.icons.daikichi},
+              {text:shown('景之',[['弱',S.atcz.kage1],['中',S.atcz.kage2],['強',S.atcz.kage3]]),value:S.atcz.kage1+S.atcz.kage2+S.atcz.kage3},
+              {text:shown('終了画面',[['鉄',S.screens.geta],['集',S.screens.group],['水',S.screens.swim]]),value:S.screens.geta+S.screens.group+S.screens.swim},
+              {text:shown('吉',[['小',S.icons.shokichi],['中',S.icons.chukichi],['大',S.icons.daikichi]]),value:S.icons.shokichi+S.icons.chukichi+S.icons.daikichi},
               {text:`連打/枚数 ×${attackOver}`,value:attackOver}
             ]}
           ]

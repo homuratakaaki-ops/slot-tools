@@ -65,6 +65,10 @@
   function rate(g,n){return n&&g?'1/'+(g/n).toFixed(1):'-';}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'-';}
   function pctText(n,d){return d>0?`${n}回 (${(100*n/d).toFixed(0)}%)`:`${n}回 (-)`;}
+  function shown(prefix,items){
+    const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
+    return `${prefix} ${out.length?out.join('・'):'−'}`;
+  }
 
   function pageHatsu(ctx){
     const g=ctx.S.games;
@@ -215,7 +219,7 @@
               {text:`濃厚示唆 計${strong}回`,value:strong},
               {text:`SC1・2戦デスガン ×${S.atcz.deathgun}`,value:S.atcz.deathgun},
               {text:`引き戻し ${ratio(S.atcz.return50,atEnd)}`,value:S.atcz.return50,active:atEnd>0&&S.atcz.return50>0},
-              {text:`終了画面 幼${S.screens.childhood}・祭${S.screens.festival}・木${S.screens.sunlight}`,value:S.screens.childhood+S.screens.festival+S.screens.sunlight},
+              {text:shown('終了画面',[['幼',S.screens.childhood],['祭',S.screens.festival],['木',S.screens.sunlight]]),value:S.screens.childhood+S.screens.festival+S.screens.sunlight},
               {text:`共通ベル ${rate(S.games,S.cz.bell)}`,value:S.cz.bell}
             ]}
           ]

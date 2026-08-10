@@ -197,7 +197,9 @@
         x:110,
         step:124,
         width:72,
-        items:BONUS_SCREENS.map(v=>({label:v[2],value:bonusTotal(ctx.S,v[0])}))
+        color2:'#7aa8ff',
+        legend:[{label:'REG',color:'#ff3d8f'},{label:'BIG',color:'#7aa8ff'}],
+        items:BONUS_SCREENS.map(v=>({label:v[2],value:ctx.S.zonesReg[v[0]],value2:ctx.S.zonesBig[v[0]],color2:'#7aa8ff'}))
       }),
       bottom:ctx=>{
         const S=ctx.S;
@@ -229,7 +231,8 @@
         const specialTotal=sum(S.ed);
         const edPick=S.atcz.tamaki+S.atcz.iris+S.atcz.benij+S.atcz.sho;
         const overTotal=sum(S.coins);
-        const bonusBlack=bonusTotal(S,'blackFrame'), bonusRed=bonusTotal(S,'redFrame'), bonusGold=bonusTotal(S,'goldFrame');
+        const endR=shown('終了R',[['黒',S.zonesReg.blackFrame],['赤',S.zonesReg.redFrame],['金',S.zonesReg.goldFrame]]);
+        const endB=shown('終了B',[['黒',S.zonesBig.blackFrame],['赤',S.zonesBig.redFrame],['金',S.zonesBig.goldFrame]]);
         return {
           title:'サマリー',
           startY:760,
@@ -238,17 +241,16 @@
           columns:[
             {x:70,items:[
               {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
-              {text:`終了 黒枠${bonusBlack}・赤枠${bonusRed}・金枠${bonusGold}`,value:bonusBlack+bonusRed+bonusGold},
-              {text:`シナリオ 第8${scenarioD8}・伝${scenarioConduct}・ア${scenarioIris}・隊${S.screens.captain}`,value:scenarioTotal},
-              {text:`ED タマ${S.atcz.tamaki}・アイ${S.atcz.iris}・紅J${S.atcz.benij}・ショ${S.atcz.sho}`,value:edPick},
-              {text:`罠成功 ${ratio(S.cz.trapHit,S.cz.trap)}`,value:S.cz.trapHit,active:S.cz.trap>0&&S.cz.trapHit>0}
+              {text:endR,value:S.zonesReg.blackFrame+S.zonesReg.redFrame+S.zonesReg.goldFrame},
+              {text:endB,value:S.zonesBig.blackFrame+S.zonesBig.redFrame+S.zonesBig.goldFrame},
+              {text:shown('シナリオ',[['第8系',scenarioD8],['伝',scenarioConduct],['ア',scenarioIris],['隊',S.screens.captain]]),value:scenarioTotal},
+              {text:shown('ED',[['タマ',S.atcz.tamaki],['アイ',S.atcz.iris],['紅J',S.atcz.benij],['ショ',S.atcz.sho]]),value:edPick}
             ]},
             {x:560,items:[
               {text:`濃厚示唆 計${strong}回`,value:strong},
               {text:shown('まもる否定',[['①',S.icons.m1],['②',S.icons.m2],['③',S.icons.m3],['④',S.icons.m4],['⑤',S.icons.m5]]),value:mamoru},
-              {text:`特殊 金${S.ed.gold}・黒${S.ed.kurono}・ジ${S.ed.joker}・死${S.ed.death}`,value:specialTotal},
-              {text:shown('枚数',[['119',S.coins.o119],['246',S.coins.o246],['456',S.coins.o456],['666',S.coins.o666]]),value:overTotal},
-              {text:`変換 ${ratio(S.cz.convert,S.cz.smallv)}`,value:S.cz.convert,active:S.cz.smallv>0&&S.cz.convert>0}
+              {text:shown('特殊',[['金',S.ed.gold],['黒',S.ed.kurono],['ジ',S.ed.joker],['死',S.ed.death]]),value:specialTotal},
+              {text:shown('枚数',[['119',S.coins.o119],['246',S.coins.o246],['456',S.coins.o456],['666',S.coins.o666]]),value:overTotal}
             ]}
           ]
         };

@@ -245,15 +245,15 @@
           columns:[
             {x:70,items:[
               {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
-              {text:`AT終了 歯${S.screens.gear}・鳴勝${S.screens.narukatsu}・笑${S.screens.smile}`,value:S.screens.gear+S.screens.narukatsu+S.screens.smile},
-              {text:`シナリオ ミ${S.ed.min}・リ${S.ed.lise}・ヴ${S.ed.vil}・ジ${S.ed.geo}`,value:sum(S.ed)},
-              {text:`EDランプ 紫${S.coins.purple}・虹${S.coins.rainbow}`,value:S.coins.purple+S.coins.rainbow},
+              {text:shown('AT終了',[['歯',S.screens.gear],['鳴勝',S.screens.narukatsu],['笑',S.screens.smile]]),value:S.screens.gear+S.screens.narukatsu+S.screens.smile},
+              {text:shown('シナリオ',[['ミ',S.ed.min],['リ',S.ed.lise],['ヴ',S.ed.vil],['ジ',S.ed.geo]]),value:sum(S.ed)},
+              {text:shown('EDランプ',[['紫',S.coins.purple],['虹',S.coins.rainbow]]),value:S.coins.purple+S.coins.rainbow},
               {text:`CZ絵 天国系${heaven}`,value:heaven}
             ]},
             {x:560,items:[
               {text:`濃厚示唆 計${strong}回`,value:strong},
               {text:shown('否定',[['②',S.atcz.neg2],['③',S.atcz.neg3],['④',S.atcz.neg4],['⑤',S.atcz.neg5]]),value:neg},
-              {text:`開始 鳴${S.stages.narumi}・勝${S.stages.masaru}`,value:sum(S.stages)},
+              {text:shown('開始',[['鳴',S.stages.narumi],['勝',S.stages.masaru]]),value:sum(S.stages)},
               {text:shown('枚数',[['246',S.over.o246],['456',S.over.o456],['666',S.over.o666]]),value:S.over.o246+S.over.o456+S.over.o666},
               {text:`CZ絵 D系${dMode}`,value:dMode}
             ]}

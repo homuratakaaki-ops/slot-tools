@@ -86,6 +86,10 @@
   function shienTotal(S){return ['c1s','c2s','c3s','c4s','c5s','c6s'].reduce((a,k)=>a+S.zones[k],0);}
   function ryoranTotal(S){return sum(S.zones);}
   function cycleTotal(S,n){return S.zones[`c${n}e`]+S.zones[`c${n}s`];}
+  function shown(prefix,items){
+    const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
+    return `${prefix} ${out.length?out.join('・'):'−'}`;
+  }
 
   function pageRyoran(ctx){
     const total=ryoranTotal(ctx.S);
@@ -236,15 +240,15 @@
           columns:[
             {x:70,items:[
               {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
-              {text:`ストラップ差 ゴ${S.icons.goemon}・ノ${S.icons.nobunaga}・ヒ${S.icons.hideyoshi}`,value:S.icons.goemon+S.icons.nobunaga+S.icons.hideyoshi},
-              {text:`AT終了 4人${S.screens.four}・集A${S.screens.allA}・集B${S.screens.allB}`,value:S.screens.four+S.screens.allA+S.screens.allB},
+              {text:shown('ストラップ差',[['ゴ',S.icons.goemon],['ノ',S.icons.nobunaga],['ヒ',S.icons.hideyoshi]]),value:S.icons.goemon+S.icons.nobunaga+S.icons.hideyoshi},
+              {text:shown('AT終了',[['4人',S.screens.four],['集A',S.screens.allA],['集B',S.screens.allB]]),value:S.screens.four+S.screens.allA+S.screens.allB},
               {text:`乙女アタック ${ratio(S.cz.attack,S.cz.miko)}`,value:S.cz.attack,active:S.cz.miko>0&&S.cz.attack>0},
               {text:`ハルルナ ×${S.over.haru}`,value:S.over.haru}
             ]},
             {x:560,items:[
               {text:`濃厚示唆 計${strong}回`,value:strong},
               {text:`紫炎 ${ratio(shien,ryoran)}`,value:shien,active:ryoran>0&&shien>0},
-              {text:`EDボイス 高弱${S.ed.v4}・高強${S.ed.v5}`,value:S.ed.v4+S.ed.v5},
+              {text:shown('EDボイス',[['高弱',S.ed.v4],['高強',S.ed.v5]]),value:S.ed.v4+S.ed.v5},
               {text:`直撃 ×${S.choku}`,value:S.choku},
               {text:`スタンプ 計${stampTotal}`,value:stampTotal}
             ]}
