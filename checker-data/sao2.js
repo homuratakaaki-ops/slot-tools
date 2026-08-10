@@ -2,9 +2,6 @@
   'use strict';
   window.CheckerConfigs=window.CheckerConfigs||{};
 
-  const CZ_TH=[238.4,232.3,232.7,218.9,225.2,191.7];
-  const AT_TH=[386.2,364.3,368.1,326.8,340.6,269.6];
-
   const SETS=[
     ['set1','1セット','高設定ほど2セット以上継続しやすい',0,'1'],
     ['set2','2セット','高設定ほど2セット以上継続しやすい',0,'2'],
@@ -69,18 +66,8 @@
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'-';}
   function pctText(n,d){return d>0?`${n}回 (${(100*n/d).toFixed(0)}%)`:`${n}回 (-)`;}
 
-  function theoryRows(g,czN,atN){
-    const czP=czN>0&&g>0?g/czN:0;
-    const atP=atN>0&&g>0?g/atN:0;
-    const czNear=czP>0?Math.min(...CZ_TH.map(t=>Math.abs(t-czP))):null;
-    const atNear=atP>0?Math.min(...AT_TH.map(t=>Math.abs(t-atP))):null;
-    return [1,2,3,4,5,6].map(i=>{
-      const near=(czNear!==null&&Math.abs(CZ_TH[i-1]-czP)===czNear)||(atNear!==null&&Math.abs(AT_TH[i-1]-atP)===atNear);
-      return `<tr class="${near?'near':''}"><td>設定${i}</td><td>1/${CZ_TH[i-1]}</td><td>1/${AT_TH[i-1]}</td></tr>`;
-    }).join('');
-  }
   function pageHatsu(ctx){
-    const g=ctx.S.games, czN=ctx.S.cz.cz, atN=ctx.S.atCount;
+    const g=ctx.S.games;
     return `
   <section class="sec">
     <div class="sec-h">総ゲーム数</div>
@@ -90,21 +77,13 @@
   <section class="sec">
     <div class="sec-h">初当り・小役</div>
     <div class="cgrid">
-      ${ctx.crow('cz.cz','CZ当選','スコードロンバトル',0)}
-      ${ctx.crow('atCount','AT当選','ALO RUSH突入',0)}
+      ${ctx.crow('cz.cz','CZ当選','設1:1/238.4⇔設6:1/191.7',0)}
+      ${ctx.crow('atCount','AT当選','設1:1/386.2⇔設6:1/269.6',0)}
       ${ctx.crow('cz.end','確定CZ','THE END状態スタート・設1:1/20178⇔設6:1/7077',1)}
       ${ctx.crow('cz.duel','曠野の決闘','CZ失敗時フリーズ・設1:1/128⇔設6:1/64',1)}
       ${ctx.crow('cz.bell','共通ベル（斜め揃い）',`実戦値 設5:1/47.6・設6:1/45.4 / 現在 ${rate(g,ctx.S.cz.bell)}`,0)}
       ${ctx.crow('cz.chanceB','強チャンス目B',`設1:1/1057⇔設6実戦値:1/769 / 現在 ${rate(g,ctx.S.cz.chanceB)}`,0)}
     </div>
-  </section>
-  <section class="sec">
-    <div class="sec-h">実践値 vs 理論値</div>
-    <table class="ptable">
-      <tr class="me"><td>実践値</td><td>${rate(g,czN)}</td><td>${rate(g,atN)}</td></tr>
-      <tr><th></th><th>CZ確率</th><th>AT確率</th></tr>
-      ${theoryRows(g,czN,atN)}
-    </table>
   </section>`;
   }
   function pageYuugu(ctx){

@@ -48,9 +48,6 @@
     ['dg','ユニバプレート 花火柄','設定5以上濃厚',1],
     ['rb','ユニバプレート 虹','設定6濃厚',1]
   ];
-  const CZ_TH=[231.1,222.7,209.5,191.5,173.1,157.5];
-  const AT_TH=[473.9,457.5,431.6,388.1,352.1,318.3];
-
   function tableShort(key){
     const t=TABLES.find(v=>v[0]===key);
     return t?t[4]:key;
@@ -72,12 +69,7 @@
   </section>`;
   }
   function pageHatsu(ctx){
-    const czN=ctx.S.cz.rg;
-    const g=ctx.S.games, czP=czN>0&&g>0?g/czN:0, atP=ctx.S.atCount>0&&g>0?g/ctx.S.atCount:0;
-    const rows=[1,2,3,4,5,6].map(i=>{
-      const near=(czP>0&&Math.abs(CZ_TH[i-1]-czP)===Math.min(...CZ_TH.map(t=>Math.abs(t-czP))));
-      return `<tr class="${near?'near':''}"><td>設定${i}</td><td>1/${CZ_TH[i-1]}</td><td>1/${AT_TH[i-1]}</td></tr>`;
-    }).join('');
+    const g=ctx.S.games;
     return `
   <section class="sec">
     <div class="sec-h">総回転数</div>
@@ -86,21 +78,12 @@
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
-      ${ctx.crow('cz.rg','関所チャレンジ当選','CZ',0)}
-      ${ctx.crow('atCount','やじきた祭当選','AT',0)}
+      ${ctx.crow('cz.rg','関所チャレンジ当選','設1:1/231.1⇔設6:1/157.5',0)}
+      ${ctx.crow('atCount','やじきた祭当選','設1:1/473.9⇔設6:1/318.3',0)}
       ${ctx.crow('choku','AT直撃','当選時は勝率100%関所チャレンジ',1)}
       ${ctx.crow('atcz.gab','関頂アタック突入','主にレア役で突入・成功期待度約50%',0)}
       ${ctx.crow('atcz.useki','温泉ステージ移行','関所チャレンジ本前兆濃厚',0)}
     </div>
-  </section>
-  <section class="sec">
-    <div class="sec-h">実践値 vs 理論値</div>
-    <table class="ptable">
-      <tr class="me"><td>実践値</td><td>${czP?'1/'+czP.toFixed(1):'—'}</td><td>${atP?'1/'+atP.toFixed(1):'—'}</td></tr>
-      <tr><th></th><th>CZ確率</th><th>AT確率</th></tr>
-      ${rows}
-    </table>
-    <div class="hint">ピンク行＝CZ実践値に最も近い設定。CZ・ATとも設定差が大きく判別の主軸です。分母が小さいうちは参考程度に。</div>
   </section>`;
   }
   function pageShisa(ctx){

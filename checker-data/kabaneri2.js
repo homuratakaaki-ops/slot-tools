@@ -58,8 +58,6 @@
     ['o456','456 OVER','設定4以上濃厚',1],
     ['o666','666 OVER','設定6濃厚',1]
   ];
-  const BONUS_TH=[254.2,242.3,239.6,214.0,203.2,195.1];
-  const ST_TH=[422.5,405.9,398.7,357.2,332.6,318.5];
   const DEF={
     games:0,
     zones:Object.fromEntries(CYCLES.flatMap(c=>[[`${c[0]}r`,0],[`${c[0]}w`,0]])),
@@ -118,12 +116,7 @@
   </section>`;
   }
   function pageHatsu(ctx){
-    const bonusN=ctx.S.cz.rg;
-    const g=ctx.S.games, bonusP=bonusN>0&&g>0?g/bonusN:0, stP=ctx.S.atCount>0&&g>0?g/ctx.S.atCount:0;
-    const rows=[1,2,3,4,5,6].map(i=>{
-      const near=(bonusP>0&&Math.abs(BONUS_TH[i-1]-bonusP)===Math.min(...BONUS_TH.map(t=>Math.abs(t-bonusP))));
-      return `<tr class="${near?'near':''}"><td>設定${i}</td><td>1/${BONUS_TH[i-1]}</td><td>1/${ST_TH[i-1]}</td></tr>`;
-    }).join('');
+    const g=ctx.S.games;
     return `
   <section class="sec">
     <div class="sec-h">総回転数</div>
@@ -132,18 +125,9 @@
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
-      ${ctx.crow('cz.rg','ボーナス初当り','カバネリボーナス／エピソードボーナス',0)}
-      ${ctx.crow('atCount','ST当選','ST突入',0)}
+      ${ctx.crow('cz.rg','ボーナス初当り','設1:1/254.2⇔設6:1/195.1',0)}
+      ${ctx.crow('atCount','ST当選','設1:1/422.5⇔設6:1/318.5',0)}
     </div>
-  </section>
-  <section class="sec">
-    <div class="sec-h">実践値 vs 理論値</div>
-    <table class="ptable">
-      <tr class="me"><td>実践値</td><td>${bonusP?'1/'+bonusP.toFixed(1):'—'}</td><td>${stP?'1/'+stP.toFixed(1):'—'}</td></tr>
-      <tr><th></th><th>ボーナス確率</th><th>ST確率</th></tr>
-      ${rows}
-    </table>
-    <div class="hint">ピンク行＝ボーナス実践値に最も近い設定。初当り・STとも設定差が大きく判別の主軸です。</div>
   </section>`;
   }
   function pageShisa(ctx){

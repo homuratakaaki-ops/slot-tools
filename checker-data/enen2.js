@@ -59,8 +59,6 @@
     ['benij','紅丸＆ジョーカー','設定5以上濃厚',1],
     ['sho','ショウ','設定6濃厚',1]
   ];
-  const BONUS_TH=[272,269,257,242,236,227];
-  const LOOP_TH=[684,662,617,546,518,486];
   const DEF={
     games:0,
     zones:Object.fromEntries(BONUS_SCREENS.map(v=>[v[0],0])),
@@ -81,12 +79,7 @@
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
 
   function pageHatsu(ctx){
-    const bonusN=ctx.S.cz.bonus, loopN=ctx.S.atCount;
-    const g=ctx.S.games, bonusP=bonusN>0&&g>0?g/bonusN:0, loopP=loopN>0&&g>0?g/loopN:0;
-    const rows=[1,2,3,4,5,6].map(i=>{
-      const near=(loopP>0&&Math.abs(LOOP_TH[i-1]-loopP)===Math.min(...LOOP_TH.map(t=>Math.abs(t-loopP))));
-      return `<tr class="${near?'near':''}"><td>設定${i}</td><td>1/${BONUS_TH[i-1]}</td><td>1/${LOOP_TH[i-1]}</td></tr>`;
-    }).join('');
+    const g=ctx.S.games;
     return `
   <section class="sec">
     <div class="sec-h">総回転数</div>
@@ -95,20 +88,11 @@
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
-      ${ctx.crow('cz.bonus','ボーナス初当り','通常時のボーナス初当り',0)}
+      ${ctx.crow('cz.bonus','ボーナス初当り','設1:1/272⇔設6:1/227',0)}
       ${ctx.crow('atCount','炎炎ループ','設1:1/684⇔設6:1/486',1)}
       ${ctx.crow('choku','SPエピソードボーナス','突入で炎炎激闘濃厚',0)}
     </div>
     <div class="hint">初当りと炎炎ループの両輪で判別。天井はボーナス間850G/炎炎ループ間2000G（リセット時650G/1500G）。</div>
-  </section>
-  <section class="sec">
-    <div class="sec-h">実践値 vs 理論値</div>
-    <table class="ptable">
-      <tr class="me"><td>実践値</td><td>${bonusP?'1/'+bonusP.toFixed(1):'—'}</td><td>${loopP?'1/'+loopP.toFixed(1):'—'}</td></tr>
-      <tr><th></th><th>ボナ</th><th>ループ</th></tr>
-      ${rows}
-    </table>
-    <div class="hint">ピンク行＝炎炎ループ実践値に最も近い設定。分母が小さいうちは参考程度に。</div>
   </section>`;
   }
   function pageTrap(ctx){

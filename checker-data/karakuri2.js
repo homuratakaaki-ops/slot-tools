@@ -73,8 +73,6 @@
     ['narumi','鳴海ステージ','奇数設定期待度UP',0],
     ['masaru','勝ステージ','偶数設定期待度UP',0]
   ];
-  const CZ_TH=[342,341,339,339,327,318];
-  const AT_TH=[519,504,474,458,430,410];
   const DEF={
     games:0,
     zones:Object.fromEntries(REWARDS.map(v=>[v[0],0])),
@@ -97,12 +95,7 @@
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
 
   function pageHatsu(ctx){
-    const czN=ctx.S.cz.rg, atN=ctx.S.atCount;
-    const g=ctx.S.games, czP=czN>0&&g>0?g/czN:0, atP=atN>0&&g>0?g/atN:0;
-    const rows=[1,2,3,4,5,6].map(i=>{
-      const near=(atP>0&&Math.abs(AT_TH[i-1]-atP)===Math.min(...AT_TH.map(t=>Math.abs(t-atP))));
-      return `<tr class="${near?'near':''}"><td>設定${i}</td><td>1/${CZ_TH[i-1]}</td><td>1/${AT_TH[i-1]}</td></tr>`;
-    }).join('');
+    const g=ctx.S.games;
     return `
   <section class="sec">
     <div class="sec-h">総回転数</div>
@@ -111,20 +104,11 @@
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
-      ${ctx.crow('cz.rg','CZ当選','女神/幕間/劇場の合算。設1〜4はほぼ差なし',0)}
-      ${ctx.crow('atCount','AT当選','1/460を切れば設4以上の目安',1)}
+      ${ctx.crow('cz.rg','CZ当選','設1:1/342⇔設6:1/318・設1〜4はほぼ差なし',0)}
+      ${ctx.crow('atCount','AT当選','設1:1/519⇔設6:1/410・1/460を切れば設4以上の目安',1)}
       ${ctx.crow('choku','AT直撃','通常時の直撃は強材料',1)}
     </div>
     <div class="hint">CZ・AT初当りが判別の主軸。CZ間天井は液晶1200G/実890G、AT間2500G。</div>
-  </section>
-  <section class="sec">
-    <div class="sec-h">実践値 vs 理論値</div>
-    <table class="ptable">
-      <tr class="me"><td>実践値</td><td>${czP?'1/'+czP.toFixed(1):'—'}</td><td>${atP?'1/'+atP.toFixed(1):'—'}</td></tr>
-      <tr><th></th><th>CZ確率</th><th>AT確率</th></tr>
-      ${rows}
-    </table>
-    <div class="hint">ピンク行＝AT実践値に最も近い設定。分母が小さいうちは参考程度に。</div>
   </section>`;
   }
   function pageFate(ctx){

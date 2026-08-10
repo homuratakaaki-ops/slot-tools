@@ -49,9 +49,6 @@
     ['dg','藤丸コイン デンジャー柄','設定5以上 濃厚',1],
     ['rb','藤丸コイン 虹','設定6 濃厚',1]
   ];
-  const CZ_TH=[235.6,233.4,230.8,222.3,215.8,207.2];
-  const AT_TH=[398.8,394.5,389.6,369.5,358.0,338.4];
-
   function pageZones(ctx){
     const total=ZONES.reduce((a,z)=>a+ctx.S.zones[z],0);
     return `<section class="sec">
@@ -64,11 +61,7 @@
   }
   function pageHatsu(ctx){
     const czN=ctx.S.cz.rg+ctx.S.cz.ac, atczN=ctx.S.atcz.gab+ctx.S.atcz.useki;
-    const g=ctx.S.games, czP=czN>0&&g>0?g/czN:0, atP=ctx.S.atCount>0&&g>0?g/ctx.S.atCount:0;
-    const rows=[1,2,3,4,5,6].map(i=>{
-      const near=(czP>0&&Math.abs(CZ_TH[i-1]-czP)===Math.min(...CZ_TH.map(t=>Math.abs(t-czP))));
-      return `<tr class="${near?'near':''}"><td>設定${i}</td><td>1/${CZ_TH[i-1]}</td><td>1/${AT_TH[i-1]}</td></tr>`;
-    }).join('');
+    const g=ctx.S.games;
     return `
   <section class="sec">
     <div class="sec-h">総回転数</div>
@@ -77,9 +70,9 @@
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
-      ${ctx.crow('cz.rg','CZ 超電磁砲チャンス','通常CZ（期待度約52%）',0,n=>ctx.pct(n,czN))}
+      ${ctx.crow('cz.rg','CZ 超電磁砲チャンス','CZ合算 設1:1/235.6⇔設6:1/207.2',0,n=>ctx.pct(n,czN))}
       ${ctx.crow('cz.ac','CZ 一方通行チャンス','上位CZ（約80%）割合に設定差の可能性',1,n=>ctx.pct(n,czN))}
-      ${ctx.crow('atCount','AT当選','幻想殺しRUSH突入',0)}
+      ${ctx.crow('atCount','AT当選','設1:1/398.8⇔設6:1/338.4',0)}
       ${ctx.crow('choku','AT直撃','設1 約1/8000 ⇔ 設6 約1/4000',1)}
     </div>
   </section>
@@ -90,15 +83,6 @@
       ${ctx.crow('atcz.useki','神の右席BATTLE','上位CZ 割合に設定差の可能性',1,n=>ctx.pct(n,atczN))}
     </div>
     <div class="hint">⚠ 神の右席の割合はAT獲得枚数・上乗遊技回数でも変化するため参考値です。</div>
-  </section>
-  <section class="sec">
-    <div class="sec-h">実践値 vs 理論値</div>
-    <table class="ptable">
-      <tr class="me"><td>実践値</td><td>${czP?'1/'+czP.toFixed(1):'—'}</td><td>${atP?'1/'+atP.toFixed(1):'—'}</td></tr>
-      <tr><th></th><th>CZ確率</th><th>AT確率</th></tr>
-      ${rows}
-    </table>
-    <div class="hint">ピンク行＝CZ実践値に最も近い設定。分母が小さいうちは参考程度に。</div>
   </section>`;
   }
   function pageShisa(ctx){

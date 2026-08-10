@@ -64,7 +64,6 @@
     ['v11','なになに、気になるー？','設定2否定',0],
     ['v12','ちょ〜っとホンキ出しちゃおっかな？','設定3否定',0]
   ];
-  const AT_TH=[359.5,350.8,332.5,302.8,281.0,262.9];
   const DEF={
     games:0,
     zones:Object.fromEntries(RYORAN.map(c=>[c[0],0])),
@@ -108,11 +107,7 @@
   </section>`;
   }
   function pageHatsu(ctx){
-    const g=ctx.S.games, atP=ctx.S.atCount>0&&g>0?g/ctx.S.atCount:0;
-    const rows=[1,2,3,4,5,6].map(i=>{
-      const near=(atP>0&&Math.abs(AT_TH[i-1]-atP)===Math.min(...AT_TH.map(t=>Math.abs(t-atP))));
-      return `<tr class="${near?'near':''}"><td>設定${i}</td><td>1/${AT_TH[i-1]}</td></tr>`;
-    }).join('');
+    const g=ctx.S.games;
     return `
   <section class="sec">
     <div class="sec-h">総回転数</div>
@@ -121,20 +116,12 @@
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
-      ${ctx.crow('atCount','AT当選','強カワRUSH突入',0)}
+      ${ctx.crow('atCount','AT当選','設1:1/359.5⇔設6:1/262.9',0)}
       ${ctx.crow('choku','ボーナス直撃','設1:1/21207⇔設6:1/5503・約4倍の設定差',1)}
       ${ctx.crow('cz.miko','巫女pt 0到達','乙女アタック抽選の分母',0)}
       ${ctx.crow('cz.attack','乙女アタック当選','当選率に設定差 設1:20.3%⇔設6:25.7%',1,n=>ctx.pct(n,ctx.S.cz.miko))}
     </div>
     <div class="hint">⚠ 乙女アタックのカウントは、乙女ストラップモード「カンスケ」滞在時とリールロック2段階経由を除外して記録（解析の分母定義に合わせるため）。</div>
-  </section>
-  <section class="sec">
-    <div class="sec-h">実践値 vs 理論値</div>
-    <table class="ptable">
-      <tr class="me"><td>実践値</td><td>${atP?'1/'+atP.toFixed(1):'—'}</td></tr>
-      <tr><th></th><th>AT確率</th></tr>
-      ${rows}
-    </table>
   </section>`;
   }
   function pageShisa(ctx){
