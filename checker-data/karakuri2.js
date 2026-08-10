@@ -93,6 +93,10 @@
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function pctLine(n,d){return d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
+  function shown(prefix,items){
+    const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
+    return `${prefix} ${out.length?out.join('・'):'−'}`;
+  }
 
   function pageHatsu(ctx){
     const g=ctx.S.games;
@@ -248,9 +252,9 @@
             ]},
             {x:560,items:[
               {text:`濃厚示唆 計${strong}回`,value:strong},
-              {text:`否定 ②${S.atcz.neg2}・③${S.atcz.neg3}・④${S.atcz.neg4}・⑤${S.atcz.neg5}`,value:neg},
+              {text:shown('否定',[['②',S.atcz.neg2],['③',S.atcz.neg3],['④',S.atcz.neg4],['⑤',S.atcz.neg5]]),value:neg},
               {text:`開始 鳴${S.stages.narumi}・勝${S.stages.masaru}`,value:sum(S.stages)},
-              {text:`枚数 246${S.over.o246}・456${S.over.o456}・666${S.over.o666}`,value:S.over.o246+S.over.o456+S.over.o666},
+              {text:shown('枚数',[['246',S.over.o246],['456',S.over.o456],['666',S.over.o666]]),value:S.over.o246+S.over.o456+S.over.o666},
               {text:`CZ絵 D系${dMode}`,value:dMode}
             ]}
           ]

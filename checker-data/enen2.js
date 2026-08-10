@@ -76,6 +76,10 @@
   function pctLine(n,d){return d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
   function bonusTotal(S,id){return (S.zonesReg[id]||0)+(S.zonesBig[id]||0);}
+  function shown(prefix,items){
+    const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
+    return `${prefix} ${out.length?out.join('・'):'−'}`;
+  }
 
   function pageHatsu(ctx){
     const g=ctx.S.games;
@@ -241,9 +245,9 @@
             ]},
             {x:560,items:[
               {text:`濃厚示唆 計${strong}回`,value:strong},
-              {text:`まもる否定 ①${S.icons.m1}②${S.icons.m2}③${S.icons.m3}④${S.icons.m4}⑤${S.icons.m5}`,value:mamoru},
+              {text:shown('まもる否定',[['①',S.icons.m1],['②',S.icons.m2],['③',S.icons.m3],['④',S.icons.m4],['⑤',S.icons.m5]]),value:mamoru},
               {text:`特殊 金${S.ed.gold}・黒${S.ed.kurono}・ジ${S.ed.joker}・死${S.ed.death}`,value:specialTotal},
-              {text:`枚数 119${S.coins.o119}・246${S.coins.o246}・456${S.coins.o456}・666${S.coins.o666}`,value:overTotal},
+              {text:shown('枚数',[['119',S.coins.o119],['246',S.coins.o246],['456',S.coins.o456],['666',S.coins.o666]]),value:overTotal},
               {text:`変換 ${ratio(S.cz.convert,S.cz.smallv)}`,value:S.cz.convert,active:S.cz.smallv>0&&S.cz.convert>0}
             ]}
           ]
