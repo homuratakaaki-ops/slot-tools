@@ -199,26 +199,49 @@
         items:CYCLES.map(c=>({label:c[4],value:ctx.S.zones[c[0]]}))
       }),
       bottom:ctx=>{
-        const strong=sum(ctx.S.coins)+ctx.S.screens.swim+ctx.S.ed.biba+sum(ctx.S.attack)+sum(ctx.S.over);
+        const S=ctx.S;
+        const strongItems=[
+          {tier:6,order:1,label:'虹トロフィー(6濃厚)',value:S.coins.rb},
+          {tier:6,order:2,label:'大吉(6濃厚)',value:S.icons.daikichi},
+          {tier:6,order:3,label:'水着画面(6濃厚)',value:S.screens.swim},
+          {tier:6,order:4,label:'666 OVER(6濃厚)',value:S.over.o666},
+          {tier:6,order:5,label:'+66・77連打(6濃厚)',value:S.attack.a66+S.attack.a77},
+          {tier:5,order:1,label:'キリン柄トロフィー(5以上)',value:S.coins.dg},
+          {tier:5,order:2,label:'ボイスなし(5以上)',value:S.atcz.none},
+          {tier:5,order:3,label:'+55連打(5以上)',value:S.attack.a55},
+          {tier:4,order:1,label:'金トロフィー(4以上)',value:S.coins.au},
+          {tier:4,order:2,label:'中吉(4以上)',value:S.icons.chukichi},
+          {tier:4,order:3,label:'美馬紹介(4以上)',value:S.ed.biba},
+          {tier:4,order:4,label:'456 OVER(4以上)',value:S.over.o456},
+          {tier:4,order:5,label:'+44連打(4以上)',value:S.attack.a44},
+          {tier:3,order:1,label:'銀トロフィー(3以上)',value:S.coins.ag},
+          {tier:2,order:1,label:'銅トロフィー(2以上)',value:S.coins.cu},
+          {tier:2,order:2,label:'小吉(2以上)',value:S.icons.shokichi},
+          {tier:2,order:3,label:'無名ボイス(2以上)',value:S.atcz.mumei}
+        ];
+        const strong=strongItems.reduce((a,b)=>a+b.value,0);
+        const best=strongItems.filter(v=>v.value>0).sort((a,b)=>b.tier-a.tier||a.order-b.order)[0];
+        const c34=S.zones.c3+S.zones.c4;
+        const attackOver=sum(S.attack)+sum(S.over);
         return {
-          title:`濃厚示唆（計${strong}回）`,
+          title:'サマリー',
           startY:760,
           rowGap:44,
           fontSize:24,
           columns:[
             {x:70,items:[
-              {label:'銅トロ',value:ctx.S.coins.cu},
-              {label:'銀トロ',value:ctx.S.coins.ag},
-              {label:'金トロ',value:ctx.S.coins.au},
-              {label:'キリン柄',value:ctx.S.coins.dg},
-              {label:'虹トロ',value:ctx.S.coins.rb}
+              {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
+              {text:`ボイス 女${S.atcz.female}・男${S.atcz.male}`,value:S.atcz.female+S.atcz.male},
+              {text:`キャラ紹介 女${S.ed.female}・男${S.ed.male}・美馬${S.ed.biba}`,value:S.ed.female+S.ed.male+S.ed.biba},
+              {text:`くじ 弓${S.icons.ayame}・アゲハ${S.icons.butterfly}`,value:S.icons.ayame+S.icons.butterfly},
+              {text:`周期③④当選 ×${c34}`,value:c34}
             ]},
             {x:560,items:[
-              {label:'水着画面',value:ctx.S.screens.swim},
-              {label:'美馬紹介',value:ctx.S.ed.biba},
-              {label:'連打44-77',value:sum(ctx.S.attack)},
-              {label:'456 OVER',value:ctx.S.over.o456},
-              {label:'666 OVER',value:ctx.S.over.o666}
+              {text:`濃厚示唆 計${strong}回`,value:strong},
+              {text:`景之 弱${S.atcz.kage1}・中${S.atcz.kage2}・強${S.atcz.kage3}`,value:S.atcz.kage1+S.atcz.kage2+S.atcz.kage3},
+              {text:`終了画面 鉄${S.screens.geta}・集${S.screens.group}・水${S.screens.swim}`,value:S.screens.geta+S.screens.group+S.screens.swim},
+              {text:`吉 小${S.icons.shokichi}・中${S.icons.chukichi}・大${S.icons.daikichi}`,value:S.icons.shokichi+S.icons.chukichi+S.icons.daikichi},
+              {text:`連打/枚数 ×${attackOver}`,value:attackOver}
             ]}
           ]
         };
