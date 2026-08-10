@@ -200,20 +200,44 @@
         items:SETS.map(s=>({label:s[4],value:ctx.S.atcz[s[0]]}))
       }),
       bottom:ctx=>{
-        const strong=sum(ctx.S.coins)+ctx.S.screens.shirt+ctx.S.screens.bath+ctx.S.screens.swimsuit+ctx.S.screens.pajamas+ctx.S.ed.edRainbow;
+        const S=ctx.S;
+        const strongItems=[
+          {tier:6,order:1,label:'虹コパンダ',value:S.coins.rainbow},
+          {tier:6,order:2,label:'パジャマ',value:S.screens.pajamas},
+          {tier:6,order:3,label:'ED虹',value:S.ed.edRainbow},
+          {tier:5,order:1,label:'イナズマコパンダ',value:S.coins.thunder},
+          {tier:4,order:1,label:'金コパンダ',value:S.coins.gold},
+          {tier:4,order:2,label:'水着',value:S.screens.swimsuit},
+          {tier:4,order:3,label:'ED詩乃・ユイ',value:S.ed.shinoYui},
+          {tier:3,order:1,label:'銀コパンダ',value:S.coins.silver},
+          {tier:3,order:2,label:'お風呂',value:S.screens.bath},
+          {tier:2,order:1,label:'銅コパンダ',value:S.coins.bronze},
+          {tier:2,order:2,label:'Yシャツ',value:S.screens.shirt}
+        ];
+        const strong=strongItems.reduce((a,b)=>a+b.value,0);
+        const best=strongItems.filter(v=>v.value>0).sort((a,b)=>b.tier-a.tier||a.order-b.order)[0];
+        const fail=S.atcz.fail, atEnd=S.atcz.atEnd;
+        const over2=S.atcz.set2+S.atcz.set3+S.atcz.set4;
+        const ggo=sum(S.icons);
         return {
-          title:`濃厚示唆（計${strong}回）`,
+          title:'サマリー',
           startY:760,
           rowGap:44,
           fontSize:24,
           columns:[
-            {x:70,items:TROPHIES.map(v=>({label:v[1],value:ctx.S.coins[v[0]]}))},
+            {x:70,items:[
+              {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
+              {text:`確定CZ ×${S.cz.end}`,value:S.cz.end},
+              {text:`CZ失敗→アイテム ${ratio(S.atcz.item,fail)}`,value:S.atcz.item,active:fail>0&&S.atcz.item>0},
+              {text:`2セット以上 ${ratio(over2,atEnd)}`,value:over2,active:atEnd>0&&over2>0},
+              {text:`GGO示唆 計${ggo}`,value:ggo}
+            ]},
             {x:560,items:[
-              {label:'Yシャツ',value:ctx.S.screens.shirt},
-              {label:'お風呂',value:ctx.S.screens.bath},
-              {label:'水着',value:ctx.S.screens.swimsuit},
-              {label:'パジャマ',value:ctx.S.screens.pajamas},
-              {label:'ED虹',value:ctx.S.ed.edRainbow}
+              {text:`濃厚示唆 計${strong}回`,value:strong},
+              {text:`SC1・2戦デスガン ×${S.atcz.deathgun}`,value:S.atcz.deathgun},
+              {text:`引き戻し ${ratio(S.atcz.return50,atEnd)}`,value:S.atcz.return50,active:atEnd>0&&S.atcz.return50>0},
+              {text:`終了画面 幼${S.screens.childhood}・祭${S.screens.festival}・木${S.screens.sunlight}`,value:S.screens.childhood+S.screens.festival+S.screens.sunlight},
+              {text:`共通ベル ${rate(S.games,S.cz.bell)}`,value:S.cz.bell}
             ]}
           ]
         };
