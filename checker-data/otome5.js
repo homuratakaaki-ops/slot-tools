@@ -216,26 +216,50 @@
         items:[1,2,3,4,5,6].map(n=>({label:String(n),value:cycleTotal(ctx.S,n)}))
       }),
       bottom:ctx=>{
-        const strong=ctx.S.coins.ka+ctx.S.coins.kichi+ctx.S.coins.ryo+ctx.S.coins.yu+ctx.S.coins.goku+sum(ctx.S.attack);
+        const S=ctx.S;
+        const ryoran=ryoranTotal(S), shien=shienTotal(S);
+        const ratio=(n,d)=>d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'-';
+        const stampTotal=S.coins.ka+S.coins.kichi+S.coins.ryo+S.coins.yu+S.coins.goku;
+        const strongItems=[
+          {tier:6,order:1,label:'極スタンプ',value:S.coins.goku},
+          {tier:6,order:2,label:'666 OVER',value:S.attack.m666},
+          {tier:6,order:3,label:'ED 6濃厚',value:S.ed.v10},
+          {tier:5,order:1,label:'優スタンプ',value:S.coins.yu},
+          {tier:5,order:2,label:'555 OVER',value:S.attack.m555},
+          {tier:5,order:3,label:'ED 5以上',value:S.ed.v9},
+          {tier:4,order:1,label:'良スタンプ',value:S.coins.ryo},
+          {tier:4,order:2,label:'444 OVER',value:S.attack.m444},
+          {tier:4,order:3,label:'ED 4以上',value:S.ed.v8},
+          {tier:4,order:4,label:'ハルルナPUSH',value:S.over.haru},
+          {tier:3,order:1,label:'吉スタンプ',value:S.coins.kichi},
+          {tier:3,order:2,label:'333 OVER',value:S.attack.m333},
+          {tier:3,order:3,label:'ED 3以上',value:S.ed.v7},
+          {tier:2,order:1,label:'可スタンプ',value:S.coins.ka},
+          {tier:2,order:2,label:'222 OVER',value:S.attack.m222},
+          {tier:2,order:3,label:'ED 2以上',value:S.ed.v6},
+          {tier:2,order:4,label:'乙女集合B',value:S.screens.allB}
+        ];
+        const strong=strongItems.reduce((a,b)=>a+b.value,0);
+        const best=strongItems.filter(v=>v.value>0).sort((a,b)=>b.tier-a.tier||a.order-b.order)[0];
         return {
-          title:`濃厚示唆（計${strong}回）`,
+          title:'サマリー',
           startY:760,
           rowGap:44,
           fontSize:24,
           columns:[
             {x:70,items:[
-              {label:'可スタンプ',value:ctx.S.coins.ka},
-              {label:'吉スタンプ',value:ctx.S.coins.kichi},
-              {label:'良スタンプ',value:ctx.S.coins.ryo},
-              {label:'優スタンプ',value:ctx.S.coins.yu},
-              {label:'極スタンプ',value:ctx.S.coins.goku}
+              {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
+              {text:`ストラップ差 ゴ${S.icons.goemon}・ノ${S.icons.nobunaga}・ヒ${S.icons.hideyoshi}`,value:S.icons.goemon+S.icons.nobunaga+S.icons.hideyoshi},
+              {text:`AT終了 4人${S.screens.four}・集A${S.screens.allA}・集B${S.screens.allB}`,value:S.screens.four+S.screens.allA+S.screens.allB},
+              {text:`乙女アタック ${ratio(S.cz.attack,S.cz.miko)}`,value:S.cz.attack,active:S.cz.miko>0&&S.cz.attack>0},
+              {text:`ハルルナ ×${S.over.haru}`,value:S.over.haru}
             ]},
             {x:560,items:[
-              {label:'222 OVER',value:ctx.S.attack.m222},
-              {label:'333 OVER',value:ctx.S.attack.m333},
-              {label:'444 OVER',value:ctx.S.attack.m444},
-              {label:'555 OVER',value:ctx.S.attack.m555},
-              {label:'666 OVER',value:ctx.S.attack.m666}
+              {text:`濃厚示唆 計${strong}回`,value:strong},
+              {text:`紫炎 ${ratio(shien,ryoran)}`,value:shien,active:ryoran>0&&shien>0},
+              {text:`EDボイス 高弱${S.ed.v4}・高強${S.ed.v5}`,value:S.ed.v4+S.ed.v5},
+              {text:`直撃 ×${S.choku}`,value:S.choku},
+              {text:`スタンプ 計${stampTotal}`,value:stampTotal}
             ]}
           ]
         };
