@@ -3,16 +3,13 @@
   window.CheckerConfigs=window.CheckerConfigs||{};
 
   const BONUS_SCREENS=[
-    ['def','デフォルト','低設定ほど出現率高（設1:BIG後86%⇔設6:70%）',0,'デ'],
-    ['s2','設定示唆②','全設定出現・高設定ほど率UP',0,'②'],
-    ['s3','設定示唆③','全設定出現・高設定ほど率UP',0,'③'],
-    ['s4','設定示唆④','設定4以上濃厚',1,'④'],
-    ['s5','設定示唆⑤','設定5以上濃厚',1,'⑤'],
-    ['s6','設定示唆⑥','設定6濃厚',1,'⑥'],
-    ['mode','モード示唆（黒シル/帽子/119）','モード示唆・設定示唆なし',0,'モ'],
-    ['stock1','ストック示唆①','序列①＜②＜③',0,'S1'],
-    ['stock2','ストック示唆②','序列①＜②＜③',0,'S2'],
-    ['stock3','ストック示唆③','序列①＜②＜③',0,'S3']
+    ['def','デフォルト','デ'],
+    ['laugh','大笑い','笑'],
+    ['blackWoman','黒の女','女'],
+    ['blackFrame','黒枠','黒'],
+    ['redFrame','赤枠','赤'],
+    ['goldFrame','金枠','金'],
+    ['other','その他','他']
   ];
   const SCENARIOS=[
     ['d8_1','第8①','第8特殊シナリオ',0],
@@ -61,7 +58,8 @@
   ];
   const DEF={
     games:0,
-    zones:Object.fromEntries(BONUS_SCREENS.map(v=>[v[0],0])),
+    zonesReg:Object.fromEntries(BONUS_SCREENS.map(v=>[v[0],0])),
+    zonesBig:Object.fromEntries(BONUS_SCREENS.map(v=>[v[0],0])),
     cz:{bonus:0,trap:0,trapHit:0,smallv:0,convert:0,convertBonus:0,giovanni:0,orochi:0},
     atcz:Object.fromEntries(ED_CHARS.map(v=>[v[0],0])),
     choku:0,
@@ -77,6 +75,7 @@
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function pctLine(n,d){return d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
+  function bonusTotal(S,id){return (S.zonesReg[id]||0)+(S.zonesBig[id]||0);}
 
   function pageHatsu(ctx){
     const g=ctx.S.games;
@@ -111,11 +110,13 @@
   </section>`;
   }
   function pageShisa(ctx){
-    const zoneN=sum(ctx.S.zones), scenarioN=sum(ctx.S.screens), mamoruN=sum(ctx.S.icons), edN=sum(ctx.S.atcz);
+    const regN=sum(ctx.S.zonesReg), bigN=sum(ctx.S.zonesBig), scenarioN=sum(ctx.S.screens), mamoruN=sum(ctx.S.icons), edN=sum(ctx.S.atcz);
     return `
-  <section class="sec"><div class="sec-h">ボーナス終了画面<span class="sub">計${zoneN}回</span></div>
-    <div class="cgrid">${BONUS_SCREENS.map(c=>ctx.crow('zones.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,zoneN))).join('')}</div>
-    <div class="hint">⚠ 店長カスタム搭載機（カスタム報知機能あり）。設定狙い時はホールのカスタム設定を必ず確認。REG系後の方がBIG後より設定差大（デフォ率 設1:77%⇔設6:55%）。</div></section>
+  <section class="sec"><div class="sec-h">REG後 ボーナス終了画面<span class="sub">計${regN}回</span></div>
+    <div class="cgrid">${BONUS_SCREENS.map(c=>ctx.crow('zonesReg.'+c[0],c[1],'',0,n=>ctx.pct(n,regN))).join('')}</div></section>
+  <section class="sec"><div class="sec-h">BIG後 ボーナス終了画面<span class="sub">計${bigN}回</span></div>
+    <div class="cgrid">${BONUS_SCREENS.map(c=>ctx.crow('zonesBig.'+c[0],c[1],'',0,n=>ctx.pct(n,bigN))).join('')}</div>
+    <div class="hint">黒枠＜赤枠＜金枠の順で上位ほど高設定に期待。⚠店長カスタム搭載機（カスタム報知機能あり）。</div></section>
   <section class="sec"><div class="sec-h">RB中のキャラ紹介シナリオ<span class="sub">計${scenarioN}回</span></div>
     <div class="cgrid">${SCENARIOS.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,scenarioN))).join('')}</div>
     <div class="hint">REG中のキャラ紹介順でシナリオ判別。1〜2キャラ目の組み合わせで特定（例：シンラ→リヒト系は伝導者系）。詳細は出典参照。</div></section>
@@ -140,9 +141,11 @@
     MAMORU.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.icons[c[0]]}回\n`;});
     t+=`\n■罠・変換\n伝導者の罠成功▶︎ ${ratio(ctx.S.cz.trapHit,ctx.S.cz.trap)}\n十字目変換▶︎ ${ratio(ctx.S.cz.convert,ctx.S.cz.smallv)}\n変換からボーナス▶︎ ${ratio(ctx.S.cz.convertBonus,ctx.S.cz.convert)}\n`;
     t+=`\n■バトル\nジョヴァンニ▶︎ ${ctx.S.cz.giovanni}回\nオロチ▶︎ ${ctx.S.cz.orochi}回\n`;
-    t+=`\n■ボーナス終了画面\n`;
-    const zoneN=sum(ctx.S.zones);
-    BONUS_SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.zones[c[0]],zoneN)}\n`;});
+    t+=`\n■ボーナス終了画面\nREG後\n`;
+    const regN=sum(ctx.S.zonesReg), bigN=sum(ctx.S.zonesBig);
+    BONUS_SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.zonesReg[c[0]],regN)}\n`;});
+    t+=`BIG後\n`;
+    BONUS_SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.zonesBig[c[0]],bigN)}\n`;});
     t+=`\n■獲得枚数\n`;
     OVER.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.coins[c[0]]}回\n`;});
     t+=`\n■EDミニキャラ\n`;
@@ -156,7 +159,13 @@
     nanaCollab:true,
     storageKey:'enen2-checker-v1',
     defaults:DEF,
-    mergeKeys:['zones','cz','atcz','screens','ed','icons','coins'],
+    mergeKeys:['zonesReg','zonesBig','cz','atcz','screens','ed','icons','coins'],
+    normalizeState:out=>{
+      delete out.zones;
+      out.zonesReg=Object.assign({},DEF.zonesReg,out.zonesReg||{});
+      out.zonesBig=Object.assign({},DEF.zonesBig,out.zonesBig||{});
+      return out;
+    },
     sourceUrl:'https://chonborista.com/slot/sankyo-slot/247643/',
     share:{
       title:'L炎炎ノ消防隊2 設定判別メモ',
@@ -182,30 +191,27 @@
       chart:ctx=>({
         title:'ボーナス終了画面分布',
         x:110,
-        step:145,
+        step:124,
         width:72,
-        items:BONUS_SCREENS.slice(0,6).map(v=>({label:v[4],value:ctx.S.zones[v[0]]}))
+        items:BONUS_SCREENS.map(v=>({label:v[2],value:bonusTotal(ctx.S,v[0])}))
       }),
       bottom:ctx=>{
         const S=ctx.S;
         const strongItems=[
           {tier:6,order:1,label:'シンラ死ノ圧(6濃厚)',value:S.ed.death},
-          {tier:6,order:2,label:'示唆⑥(6濃厚)',value:S.zones.s6},
-          {tier:6,order:3,label:'666 OVER(6濃厚)',value:S.coins.o666},
-          {tier:6,order:4,label:'ショウ(6濃厚)',value:S.atcz.sho},
-          {tier:6,order:5,label:'第8④(6濃厚)',value:S.screens.d8_4},
-          {tier:6,order:6,label:'アイリス⑥(6濃厚)',value:S.screens.iris_6},
+          {tier:6,order:2,label:'666 OVER(6濃厚)',value:S.coins.o666},
+          {tier:6,order:3,label:'ショウ(6濃厚)',value:S.atcz.sho},
+          {tier:6,order:4,label:'第8④(6濃厚)',value:S.screens.d8_4},
+          {tier:6,order:5,label:'アイリス⑥(6濃厚)',value:S.screens.iris_6},
           {tier:5,order:1,label:'ジョーカー(5以上)',value:S.ed.joker},
-          {tier:5,order:2,label:'示唆⑤(5以上)',value:S.zones.s5},
-          {tier:5,order:3,label:'紅丸＆ジョーカー(5以上)',value:S.atcz.benij},
-          {tier:5,order:4,label:'伝導者④(5以上)',value:S.screens.conduct_4},
+          {tier:5,order:2,label:'紅丸＆ジョーカー(5以上)',value:S.atcz.benij},
+          {tier:5,order:3,label:'伝導者④(5以上)',value:S.screens.conduct_4},
           {tier:4,order:1,label:'金背景(4以上)',value:S.ed.gold},
-          {tier:4,order:2,label:'示唆④(4以上)',value:S.zones.s4},
-          {tier:4,order:3,label:'456 OVER(4以上)',value:S.coins.o456},
-          {tier:4,order:4,label:'アイリスED(4以上)',value:S.atcz.iris},
-          {tier:4,order:5,label:'黒野(4以上)',value:S.ed.kurono},
-          {tier:4,order:6,label:'大隊長(4以上)',value:S.screens.captain},
-          {tier:4,order:7,label:'第8③(4以上)',value:S.screens.d8_3},
+          {tier:4,order:2,label:'456 OVER(4以上)',value:S.coins.o456},
+          {tier:4,order:3,label:'アイリスED(4以上)',value:S.atcz.iris},
+          {tier:4,order:4,label:'黒野(4以上)',value:S.ed.kurono},
+          {tier:4,order:5,label:'大隊長(4以上)',value:S.screens.captain},
+          {tier:4,order:6,label:'第8③(4以上)',value:S.screens.d8_3},
           {tier:2.46,order:1,label:'246 OVER(偶数)',value:S.coins.o246},
           {tier:2,order:1,label:'119枚OVER(2以上)',value:S.coins.o119}
         ];
@@ -219,6 +225,7 @@
         const specialTotal=sum(S.ed);
         const edPick=S.atcz.tamaki+S.atcz.iris+S.atcz.benij+S.atcz.sho;
         const overTotal=sum(S.coins);
+        const bonusBlack=bonusTotal(S,'blackFrame'), bonusRed=bonusTotal(S,'redFrame'), bonusGold=bonusTotal(S,'goldFrame');
         return {
           title:'サマリー',
           startY:760,
@@ -227,7 +234,7 @@
           columns:[
             {x:70,items:[
               {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
-              {text:`終了 ②${S.zones.s2}③${S.zones.s3}④${S.zones.s4}⑤${S.zones.s5}⑥${S.zones.s6}`,value:S.zones.s2+S.zones.s3+S.zones.s4+S.zones.s5+S.zones.s6},
+              {text:`終了 黒枠${bonusBlack}・赤枠${bonusRed}・金枠${bonusGold}`,value:bonusBlack+bonusRed+bonusGold},
               {text:`シナリオ 第8${scenarioD8}・伝${scenarioConduct}・ア${scenarioIris}・隊${S.screens.captain}`,value:scenarioTotal},
               {text:`ED タマ${S.atcz.tamaki}・アイ${S.atcz.iris}・紅J${S.atcz.benij}・ショ${S.atcz.sho}`,value:edPick},
               {text:`罠成功 ${ratio(S.cz.trapHit,S.cz.trap)}`,value:S.cz.trapHit,active:S.cz.trap>0&&S.cz.trapHit>0}
