@@ -93,6 +93,8 @@
     return `<style>
     .ryoran-grid .crow{padding:8px 6px;gap:5px}
     .ryoran-grid .crow .lbl .mn{display:none}
+    .ryoran-grid .crow:has(.mn.hot){border-color:rgba(255,201,77,.38)}
+    .ryoran-grid .crow:has(.mn.hot) .nm{color:var(--gold)}
     .ryoran-grid .crow .num{min-width:24px}
     .ryoran-grid .crow .pct{min-width:42px;font-size:10px}
     .ryoran-grid .crow .plus{width:30px;height:30px}
