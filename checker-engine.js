@@ -304,9 +304,10 @@
         col.items.forEach((item,i)=>{
           const by=bottom.startY+i*bottom.rowGap;
           const count=item.value;
-          x.fillStyle=count>0?'#ffc94d':'#6b6278';
+          const active=item.active!==undefined?item.active:count>0;
+          x.fillStyle=item.color||(active?'#ffc94d':'#6b6278');
           x.font=`800 ${bottom.fontSize}px 'M PLUS 1p'`;
-          x.fillText(`${item.label} ×${count}`,col.x,by);
+          x.fillText(item.text||`${item.label} ×${count}`,col.x,by);
         });
       });
       x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";
