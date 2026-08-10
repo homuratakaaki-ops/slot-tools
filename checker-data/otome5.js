@@ -155,7 +155,7 @@
     <div class="cgrid">${VOICES.map(c=>ctx.crow('ed.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,voiceN))).join('')}</div>
     <div class="hint">EDでレア役成立時に発生。否定系ボイスも判別上重要なので必ず記録。</div></section>
   <section class="sec"><div class="sec-h">ハルルナPUSH</div>
-    <div class="cgrid">${ctx.crow('over.haru','ハルルナPUSH','出現で設定4以上濃厚（推測段階）',1)}</div></section>`;
+    <div class="cgrid">${ctx.crow('over.haru','ハルルナPUSH','出現で設定4以上濃厚',1)}</div></section>`;
   }
   function tplText(ctx){
     const strapN=sum(ctx.S.icons), bonusN=sum(ctx.S.coins), screenN=sum(ctx.S.screens), voiceN=sum(ctx.S.ed);
