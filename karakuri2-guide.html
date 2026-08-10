@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lからくりサーカス2 設定判別カウンターの使い方｜スロット稼働ノート</title>
+<meta name="description" content="Lパチスロ からくりサーカス2 設定判別カウンターの使い方。CZ終了画面、AT終了画面、タッチボイス、EDランプ、強チェ直撃の記録方法と注意点を説明します。">
+<link rel="canonical" href="https://slot-tools.jp/karakuri2-guide.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:title" content="Lからくりサーカス2 設定判別カウンターの使い方｜スロット稼働ノート">
+<meta property="og:description" content="CZ終了画面14種、タッチボイス11種、EDランプ、獲得枚数表示をタップで累計する専用カウンターです。">
+<meta property="og:url" content="https://slot-tools.jp/karakuri2-guide.html">
+<style>
+  :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px}
+  .container{max-width:520px;margin:0 auto;padding:20px 16px 0}
+  .section{margin-top:22px}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0}
+  li{margin-bottom:8px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:8px}
+  th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:left;vertical-align:top;word-break:break-word}
+  th{color:var(--text-muted)}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none}
+  a{color:var(--gold)}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
+  footer a{color:var(--text-muted);text-decoration:none}
+</style>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944" crossorigin="anonymous"></script>
+</head>
+<body>
+<header>
+  <a class="top-link" href="/">← TOP</a>
+  <a class="top-link" href="karakuri2-checker.html" style="margin-left:8px;">ツールを使う →</a>
+  <h1>Lからくりサーカス2 設定判別カウンターの使い方</h1>
+  <p>初当り、運命盤、示唆、共有カードまでを実戦中にまとめる専用カウンターです。</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>ツールの目的</h2>
+    <p>このツールは、Lパチスロ からくりサーカス2の設定判別で確認したい項目を、実戦中にタップで累計するための専用カウンターです。CZ当選、AT当選、AT直撃、運命盤の報酬、強チェリーからの直撃、CZ終了画面、AT終了画面、タッチボイス、激情ジャッジの1キャラ目、ED中のレア役ランプ、獲得枚数表示、踊れ！オリンピア、AT開始ステージを1画面内で整理できます。</p>
+    <p>CZ終了画面イラストは14種類あり、さらに「3回以内」「5回以内」など数回先のモード示唆が絡みます。記憶だけで追うと、どの示唆が残っているのか曖昧になりやすい項目です。本ツールでは出現した画面をタップで残せるため、通常D系や天国系の示唆を実戦中に取りこぼしにくくなります。</p>
+  </section>
+
+  <section class="section">
+    <h2>重要な見方</h2>
+    <div class="card">
+      <h3>タッチボイスの否定系</h3>
+      <p>AT終了画面のタッチボイスには、設定2否定、設定3否定、設定4否定、設定5否定があります。否定系は単独でも重要ですが、濃厚画面と組み合わせると判別精度が上がります。たとえば歯車画面は設定2以上濃厚なので、そこに設定2否定ボイスが重なると設定3以上まで絞れます。見逃さず記録してください。</p>
+    </div>
+    <div class="card">
+      <h3>AT終了画面のカスタム</h3>
+      <p>AT終了画面はホール側がカスタム可能です。歯車、鳴海＆勝、エレオノール（笑顔）などの強い示唆が出た場合は有効ですが、出現しないことを低設定の根拠にしすぎるのは危険です。ホールのカスタム傾向、時間帯、後乗せSHOW TIMEや幕間引き戻しで増えたサンプル数も合わせて判断してください。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>基本操作</h2>
+    <ol>
+      <li>下部タブから「初当り」「運命盤」「示唆」「カード」を切り替えます。</li>
+      <li>該当する行、または行右側の＋ボタンをタップすると1回加算されます。</li>
+      <li>ヘッダーの「＋加算」を押すと減算モードへ切り替わり、誤入力を0未満にならない範囲で戻せます。</li>
+      <li>「↩ 取消」は直近操作を戻します。リセット後も、ページを再読み込みしていなければリセット前の状態へ戻せます。</li>
+    </ol>
+  </section>
+
+  <section class="section">
+    <h2>記録対象</h2>
+    <table>
+      <thead><tr><th>タブ</th><th>主な入力内容</th></tr></thead>
+      <tbody>
+        <tr><td>初当り</td><td>総ゲーム数、CZ当選、AT当選、AT直撃を記録し、設定1〜6の理論値と比較します。</td></tr>
+        <tr><td>運命盤</td><td>運命盤の報酬、劇場ジャッジ突入、強チェリー成立、強チェリーからの直撃当選を記録します。</td></tr>
+        <tr><td>示唆</td><td>CZ終了画面14種、AT終了画面6種、タッチボイス11種、激情ジャッジ、EDランプ、獲得枚数表示、AT開始ステージを記録します。</td></tr>
+        <tr><td>カード</td><td>設定推測の根拠を共有カード画像とテンプレ形式テキストにまとめます。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>出典と注意事項</h2>
+    <p>示唆内容と理論値の出典は、ちょんぼりすた パチスロ解析様です。解析値や示唆内容は更新される可能性があるため、最新情報と照合しながら使ってください。本ツールは設定判別を補助する記録・集計ツールであり、設定や勝敗を保証するものではありません。</p>
+  </section>
+
+  <a class="cta" href="karakuri2-checker.html">設定判別カウンターを使う</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+    <a href="/partner.html">広告掲載・提携について</a>
+  </nav>
+</footer>
+</body>
+</html>
