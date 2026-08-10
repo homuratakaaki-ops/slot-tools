@@ -62,7 +62,7 @@
   const ST_TH=[422.5,405.9,398.7,357.2,332.6,318.5];
   const DEF={
     games:0,
-    zones:Object.fromEntries(CYCLES.map(c=>[c[0],0])),
+    zones:Object.fromEntries(CYCLES.flatMap(c=>[[`${c[0]}r`,0],[`${c[0]}w`,0]])),
     cz:{rg:0},
     atcz:Object.fromEntries(VOICES.map(v=>[v[0],0])),
     choku:0,
@@ -79,14 +79,45 @@
 
   function sum(obj){return Object.values(obj).reduce((a,b)=>a+b,0);}
   function pctLine(n,d){return d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;}
+  function cycleReach(S,id){return Number(S.zones[`${id}r`])||0;}
+  function cycleWin(S,id){return Number(S.zones[`${id}w`])||0;}
+  function cycleRate(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
+  function cycleRowRate(S,id){
+    const n=cycleWin(S,id), d=cycleReach(S,id);
+    return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:`${n}/0 —`;
+  }
+  function c34Rate(S){
+    const n=cycleWin(S,'c3')+cycleWin(S,'c4');
+    const d=cycleReach(S,'c3')+cycleReach(S,'c4');
+    return {n,d,text:cycleRate(n,d)};
+  }
   function pageCycles(ctx){
-    const total=CYCLES.reduce((a,c)=>a+ctx.S.zones[c[0]],0);
+    const totalReach=CYCLES.reduce((a,c)=>a+cycleReach(ctx.S,c[0]),0);
+    const totalWin=CYCLES.reduce((a,c)=>a+cycleWin(ctx.S,c[0]),0);
+    const op=ctx.mode<0?'−':'＋';
     return `<section class="sec">
-    <div class="sec-h">周期当選<span class="sub">分母＝周期当選 計${total}回</span></div>
+    <style>
+      .cycle-card{border:1px solid rgba(255,255,255,.10);background:#15111d;border-radius:8px;padding:10px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
+      .cycle-card .nm{font-weight:800;color:#fff}
+      .cycle-card .mn{font-size:11px;color:#a99db9;line-height:1.35;margin-top:2px}
+      .cycle-card .mn.hot{color:#ffc94d}
+      .cycle-card .pct{font-size:18px;font-weight:900;color:#ffc94d;text-align:right;white-space:nowrap}
+      .cycle-actions{grid-column:1/3;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+      .cycle-actions button{min-height:36px;border:0;border-radius:8px;background:#2c2338;color:#f2eef5;font-weight:800}
+      .minus .cycle-actions button{background:#4a202b;color:#ffd7df}
+    </style>
+    <div class="sec-h">周期到達／当選<span class="sub">到達${totalReach}回・当選${totalWin}回</span></div>
     <div class="cgrid">
-      ${CYCLES.map(c=>ctx.crow('zones.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,total))).join('')}
+      ${CYCLES.map(c=>`<div class="cycle-card">
+        <div><div class="nm">${c[1]}</div><div class="mn ${c[3]?'hot':''}">${c[2]}</div></div>
+        <div class="pct">${cycleRowRate(ctx.S,c[0])}</div>
+        <div class="cycle-actions">
+          <button data-bump="zones.${c[0]}r" data-label="${c[1]} 到達">到達${op}</button>
+          <button data-bump="zones.${c[0]}w" data-label="${c[1]} 当選">当選${op}</button>
+        </div>
+      </div>`).join('')}
     </div>
-    <div class="hint">③④周期での当選が多いほど好材料。リセット・ST駆け抜け・上位ST後は天井が596G／最大4周期に短縮。</div>
+    <div class="hint">周期到達（規定ゲーム数消化で周期抽選発生）ごとに「到達」をタップ。その周期で当選したら「当選」もタップ。⑥周期は天井のため当選率100%（到達＝当選）。</div>
   </section>`;
   }
   function pageHatsu(ctx){
@@ -147,7 +178,7 @@
     let t=`設定判別メモ｜スマスロ カバネリ海門決戦\n総回転数 ${ctx.S.games||0}G / ボーナス${ctx.S.cz.rg}回 / ST${ctx.S.atCount}回\n_______\n\n■アイテムくじ\n`;
     ITEMS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.icons[c[0]],itemN)}\n`;});
     t+=`\n■周期当選\n`;
-    CYCLES.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.zones[c[0]]}回\n`;});
+    CYCLES.forEach(c=>{t+=`${c[1]}▶︎ ${cycleWin(ctx.S,c[0])}/${cycleReach(ctx.S,c[0])}当選\n`;});
     t+=`\n■ボイス\n`;
     VOICES.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.atcz[c[0]],voiceN)}\n`;});
     t+=`\n■キャラ紹介\n`;
@@ -166,6 +197,18 @@
     storageKey:'kabaneri2-checker-v1',
     defaults:DEF,
     mergeKeys:['zones','cz','atcz','screens','ed','icons','coins','attack','over'],
+    normalizeState:(out,src)=>{
+      const oldZones=src&&src.zones&&typeof src.zones==='object'?src.zones:{};
+      CYCLES.forEach(c=>{
+        const id=c[0];
+        const legacy=Number(oldZones[id]);
+        if(Number.isFinite(legacy)&&oldZones[`${id}w`]===undefined&&oldZones[`${id}r`]===undefined){
+          out.zones[`${id}w`]=legacy;
+          out.zones[`${id}r`]=0;
+        }
+      });
+      return out;
+    },
     sourceUrl:'https://chonborista.com/slot/sammy-slot/248689/',
     share:{
       title:'スマスロ カバネリ海門決戦 設定判別メモ',
@@ -187,16 +230,16 @@
         const g0=ctx.S.games;
         const bonusP=ctx.S.cz.rg&&g0?'1/'+(g0/ctx.S.cz.rg).toFixed(1):'—';
         const stP=ctx.S.atCount&&g0?'1/'+(g0/ctx.S.atCount).toFixed(1):'—';
-        const c34=ctx.S.zones.c3+ctx.S.zones.c4;
+        const c34=c34Rate(ctx.S);
         const trophy=sum(ctx.S.coins);
-        return [['ボーナス確率',bonusP],['ST確率',stP],['3・4周期当選',c34+'回'],['トロフィー',trophy+'回']];
+        return [['ボーナス確率',bonusP],['ST確率',stP],['3・4周期当選',c34.text],['トロフィー',trophy+'回']];
       },
       chart:ctx=>({
         title:'周期当選分布',
         x:110,
         step:145,
         width:72,
-        items:CYCLES.map(c=>({label:c[4],value:ctx.S.zones[c[0]]}))
+        items:CYCLES.map(c=>({label:c[4],value:cycleWin(ctx.S,c[0])}))
       }),
       bottom:ctx=>{
         const S=ctx.S;
@@ -221,7 +264,7 @@
         ];
         const strong=strongItems.reduce((a,b)=>a+b.value,0);
         const best=strongItems.filter(v=>v.value>0).sort((a,b)=>b.tier-a.tier||a.order-b.order)[0];
-        const c34=S.zones.c3+S.zones.c4;
+        const c34=c34Rate(S);
         const attackOver=sum(S.attack)+sum(S.over);
         return {
           title:'サマリー',
@@ -234,7 +277,7 @@
               {text:`ボイス 女${S.atcz.female}・男${S.atcz.male}`,value:S.atcz.female+S.atcz.male},
               {text:`キャラ紹介 女${S.ed.female}・男${S.ed.male}・美馬${S.ed.biba}`,value:S.ed.female+S.ed.male+S.ed.biba},
               {text:`くじ 弓${S.icons.ayame}・アゲハ${S.icons.butterfly}`,value:S.icons.ayame+S.icons.butterfly},
-              {text:`周期③④当選 ×${c34}`,value:c34}
+              {text:`周期③④ ${c34.text}`,value:c34.n}
             ]},
             {x:560,items:[
               {text:`濃厚示唆 計${strong}回`,value:strong},

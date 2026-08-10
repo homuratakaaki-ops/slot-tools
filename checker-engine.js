@@ -75,6 +75,7 @@
         const filtered=rule.filter?list.filter(rule.filter):list;
         out[rule.key]=filtered.slice(rule.max?-rule.max:undefined);
       });
+      if(typeof config.normalizeState==='function')return config.normalizeState(out,src);
       return out;
     }
     function load(){
@@ -237,6 +238,12 @@
         const plus=el.querySelector('.plus');
         if(plus)plus.addEventListener('click',ev=>{ev.stopPropagation();bump(el.dataset.c,el.dataset.l);});
         el.addEventListener('click',()=>bump(el.dataset.c,el.dataset.l));
+      });
+      main.querySelectorAll('[data-bump]').forEach(el=>{
+        el.addEventListener('click',ev=>{
+          ev.stopPropagation();
+          bump(el.dataset.bump,el.dataset.label||el.textContent.trim());
+        });
       });
       const gIn=document.getElementById('gIn');
       if(gIn)gIn.addEventListener('change',()=>{S.games=Math.max(0,parseInt(gIn.value)||0);save();renderAll();});
