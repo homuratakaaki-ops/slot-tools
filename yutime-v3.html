@@ -1642,15 +1642,18 @@
         const yutimeDensapoBeforeHit = finiteExpectedSpins(p, preset.spec.yutimeJitan);
         const expectedDensapoSpins = pHit * chains.densapoInit + pReach * (yutimeDensapoBeforeHit + chains.r350 * chains.densapoJitanHit);
         const investBalls = expectedNormalSpins * 250 / rate;
-        const evBalls = expectedWins * merged.netBallsPerWin + expectedDensapoSpins * merged.densapoDelta - investBalls;
-        const evYen = evBalls * merged.yenPerBall;
+        const winBalls = expectedWins * merged.netBallsPerWin + expectedDensapoSpins * merged.densapoDelta;
+        const evBalls = winBalls - investBalls;
+        const cashSpentYen = expectedNormalSpins / rate * 1000;
+        const winBallsYen = winBalls * merged.yenPerBall;
+        const evYen = winBallsYen - cashSpentYen;
         const normalHours = expectedNormalSpins / merged.spinsPerHour;
         const hitHours = expectedWins * merged.secPerHit / 3600;
         const densapoHours = expectedDensapoSpins * merged.secPerDensapoSpin / 3600;
         const totalHours = normalHours + hitHours + densapoHours;
         const hourlyYen = totalHours > 0 ? evYen / totalHours : 0;
         const slotRate = 100 + hourlyYen / (merged.slotGamesPerHour * 3 * 20 * 0.01);
-        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedDensapoSpins, investBalls, evBalls, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, chains };
+        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedDensapoSpins, investBalls, winBalls, evBalls, cashSpentYen, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, chains };
       }
       function logRate(log) {
         const balls = Number(log.usedBalls ?? log.balls) || 0;

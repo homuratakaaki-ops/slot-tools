@@ -488,7 +488,7 @@ B5 実測値:
 ## 14. Phase 4 期待値エンジン
 
 - Phase 4 期待値エンジンは v2 `yutime-record.html` の `YUTIME_RECORD_ENGINE` を式変更なしで移植し、v3 では `YUTIME_EXPECTATION_ENGINE` として `umi-sp5` プリセットに接続する。対象スペックは `hitProb: 1/319.6`、`tenjo: 950`、`yutimeJitan: 350`、`kakuhenRate: 0.54`、`jitanNormal: 100`、`jitanChain: 200`、既定 `netBallsPerWin: 1400`。
-- 期待値の円換算は v2 の固定 `yenPerBall: 4` から、v3 店舗設定の交換玉数を使う `100 / exchangeBalls` に差し替える。これは持ち玉遊技前提の換算であり、現金投資が主体の場合は貸玉4円との差分だけ実質やや下振れする。
+- B51以降、`evBalls` は従来どおり玉ベースの期待値として維持する。円換算 `evYen` は、通常回転に必要な現金支出 `expectedNormalSpins / rate * 1000` と、勝ち玉価値 `(expectedWins * netBallsPerWin + expectedDensapoSpins * densapoDelta) * (100 / exchangeBalls)` を分けて計算し、`winBallsYen - cashSpentYen` とする。等価交換では従来値と一致するが、非等価店では投資玉を交換レートで割り戻さない。
 - 判定閾値は `EV_THRESHOLDS = { good: 2000, warn: 0 }`。期待値2000円以上を「打てる」、0円以上2000円未満を「微妙」、0円未満を「打てない」とする。
 - `netBallsPerWin` は既定1400玉。実測出玉からの自動切替は行わない。技術介入の個人差を避けるため、B29以降は `presetSettings["umi-sp5"].netBallsPerWin` として機種プリセット単位で手動調整する。
 - 回転率の優先順位は、手入力、フィルタ適用後の台帳累計、推定回転率、なし。B29以降の推定回転率は選択中マップ（機種・コーナー）の `assumedRate` を使う。

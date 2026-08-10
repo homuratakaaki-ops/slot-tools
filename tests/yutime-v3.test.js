@@ -60,6 +60,8 @@ const renderMorningCheckModal = section('function renderMorningCheckModal', 'fun
 const saveMorningCurrent = section('function saveMorningCurrent', 'function saveMorningAndAdvance');
 const modalStyle = section('.modal-actions', '.closing-display');
 const style = section('.source-chip-row', '.unified-invest-row');
+const yutimeExpectationEngine = section('const YUTIME_EXPECTATION_ENGINE', 'window.YutimeExpectationEngine');
+const evJudgmentBlock = section('function evJudgment', 'function expectationYenPerBall');
 
 assert.match(hitWizard, /openHitResetPrompt\(session\);\s*\}, \{ firstBackCancels: true \}\);/);
 assert.match(runWizard, /id="backStepBtn" \$\{index === 0 && !options\.firstBackCancels \? "disabled" : ""\}>戻る<\/button>/);
@@ -108,6 +110,38 @@ assert.match(investmentSnapshot, /if \(!item \|\| item\.adjustment\) return null
 assert.match(investmentSnapshot, /return investment\.adjustment \? sum : sum \+ investmentToBalls\(investment, store\);/);
 assert.match(normalizeData, /adjustment: item\.adjustment === true/);
 assert.doesNotMatch(html, /台帳/);
+assert.match(yutimeExpectationEngine, /const winBalls = expectedWins \* merged\.netBallsPerWin \+ expectedDensapoSpins \* merged\.densapoDelta;/);
+assert.match(yutimeExpectationEngine, /const evBalls = winBalls - investBalls;/);
+assert.match(yutimeExpectationEngine, /const cashSpentYen = expectedNormalSpins \/ rate \* 1000;/);
+assert.match(yutimeExpectationEngine, /const winBallsYen = winBalls \* merged\.yenPerBall;/);
+assert.match(yutimeExpectationEngine, /const evYen = winBallsYen - cashSpentYen;/);
+const expectationContext = vm.createContext({
+  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  EV_THRESHOLDS: { good: 2000, warn: 0 },
+  window: {}
+});
+new vm.Script(`
+  ${yutimeExpectationEngine}
+  ${evJudgmentBlock}
+  globalThis.engine = YUTIME_EXPECTATION_ENGINE;
+  globalThis.judge = evJudgment;
+`).runInContext(expectationContext);
+const equalExchangeResult = expectationContext.engine.calculate(
+  { currentSpin: 0, rotationRate: 18 },
+  { yenPerBall: 4, netBallsPerWin: 1400 }
+);
+const nonEqualExchangeResult = expectationContext.engine.calculate(
+  { currentSpin: 0, rotationRate: 18 },
+  { yenPerBall: 100 / 28, netBallsPerWin: 1400 }
+);
+assert.ok(equalExchangeResult, 'equal exchange EV should calculate');
+assert.ok(nonEqualExchangeResult, 'non-equal exchange EV should calculate');
+assert.ok(Math.abs(equalExchangeResult.evYen - equalExchangeResult.evBalls * 4) < 0.000001, 'equal exchange yen conversion should remain unchanged');
+assert.ok(Math.abs(equalExchangeResult.evBalls - nonEqualExchangeResult.evBalls) < 0.000001, 'exchange rate should not change evBalls');
+assert.ok(Math.abs(nonEqualExchangeResult.cashSpentYen - nonEqualExchangeResult.expectedNormalSpins / 18 * 1000) < 0.000001, 'cash spent should be derived from rotations per 1000 yen');
+assert.ok(Math.abs(nonEqualExchangeResult.winBallsYen - nonEqualExchangeResult.winBalls * (100 / 28)) < 0.000001, 'win balls should use exchange yen per ball');
+assert.ok(Math.abs(nonEqualExchangeResult.evYen - -1626.5) < 1, '28 balls exchange scenario should reproduce the corrected negative EV');
+assert.equal(expectationContext.judge(nonEqualExchangeResult).label, '打てない');
 const transferContext = vm.createContext({
   __copied: '',
   __session: null,
