@@ -94,30 +94,27 @@
   function pageCycles(ctx){
     const totalReach=CYCLES.reduce((a,c)=>a+cycleReach(ctx.S,c[0]),0);
     const totalWin=CYCLES.reduce((a,c)=>a+cycleWin(ctx.S,c[0]),0);
-    const op=ctx.mode<0?'−':'＋';
     return `<section class="sec">
     <style>
-      .cycle-card{border:1px solid rgba(255,255,255,.10);background:#15111d;border-radius:8px;padding:10px;display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center}
-      .cycle-card .nm{font-weight:800;color:#fff}
-      .cycle-card .mn{font-size:11px;color:#a99db9;line-height:1.35;margin-top:2px}
-      .cycle-card .mn.hot{color:#ffc94d}
-      .cycle-card .pct{font-size:18px;font-weight:900;color:#ffc94d;text-align:right;white-space:nowrap}
-      .cycle-actions{grid-column:1/3;display:grid;grid-template-columns:1fr 1fr;gap:8px}
-      .cycle-actions button{min-height:36px;border:0;border-radius:8px;background:#2c2338;color:#f2eef5;font-weight:800}
-      .minus .cycle-actions button{background:#4a202b;color:#ffd7df}
+      .cycle-row .pct{min-width:74px;color:#ffc94d;font-size:12px;white-space:nowrap}
+      .cycle-row .cycle-plus{
+        flex:none;width:34px;height:34px;border-radius:9px;border:1px solid var(--pink-dim);
+        background:rgba(255,61,143,.12);color:var(--pink);font-size:12px;font-weight:800;
+        display:flex;align-items:center;justify-content:center;font-family:var(--body);
+      }
+      .cycle-row .cycle-plus:active{background:var(--pink);color:#fff}
+      body.minus .cycle-row .cycle-plus{border-color:#7a3040;background:rgba(255,92,92,.14);color:var(--danger)}
+      body.minus .cycle-row .cycle-plus:active{background:var(--danger);color:#fff}
     </style>
     <div class="sec-h">周期到達／当選<span class="sub">到達${totalReach}回・当選${totalWin}回</span></div>
     <div class="cgrid">
-      ${CYCLES.map(c=>`<div class="cycle-card">
-        <div><div class="nm">${c[1]}</div><div class="mn ${c[3]?'hot':''}">${c[2]}</div></div>
+      ${CYCLES.map(c=>`<div class="crow cycle-row" data-c="zones.${c[0]}r" data-l="${c[1]} 到達">
+        <div class="lbl"><div class="nm">${c[1]}</div><div class="mn ${c[3]?'hot':''}">${c[2]}</div></div>
         <div class="pct">${cycleRowRate(ctx.S,c[0])}</div>
-        <div class="cycle-actions">
-          <button data-bump="zones.${c[0]}r" data-label="${c[1]} 到達">到達${op}</button>
-          <button data-bump="zones.${c[0]}w" data-label="${c[1]} 当選">当選${op}</button>
-        </div>
+        <button class="cycle-plus" data-bump="zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]}当選を1回${ctx.mode<0?'減算':'追加'}">当</button>
       </div>`).join('')}
     </div>
-    <div class="hint">周期到達（規定ゲーム数消化で周期抽選発生）ごとに「到達」をタップ。その周期で当選したら「当選」もタップ。⑥周期は天井のため当選率100%（到達＝当選）。</div>
+    <div class="hint">周期到達（規定ゲーム数消化で周期抽選発生）ごとに行をタップ。その周期で当選したら右端の「当」もタップ。⑥周期は天井のため当選率100%（到達＝当選）。</div>
   </section>`;
   }
   function pageHatsu(ctx){
