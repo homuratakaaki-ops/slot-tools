@@ -823,7 +823,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="calc-box">
         <div class="calc-grid">
           <div class="calc-cell"><div class="calc-label">稼働時間</div><div class="calc-value" id="calcWork">-</div></div>
-          <div class="calc-cell"><div class="calc-label">メダル増減</div><div class="calc-value" id="calcDiff">-</div></div>
+          <div class="calc-cell"><div class="calc-label">差枚（投入込み）</div><div class="calc-value" id="calcDiff">-</div></div>
           <div class="calc-cell"><div class="calc-label">円収支</div><div class="calc-value" id="calcBalance">-</div></div>
           <div class="calc-cell"><div class="calc-label">時給</div><div class="calc-value" id="calcHourly">-</div></div>
         </div>
@@ -1164,7 +1164,7 @@ footer a:hover{color:var(--gold-light);}
       <div class="bm-title" id="battleModeTitle">実戦モード</div>
       <button class="bm-close" type="button" onclick="closeBattleMode()" aria-label="閉じる">×</button>
     </div>
-    <div class="bm-version" id="battleModeVersion">UI 7e</div>
+    <div class="bm-version" id="battleModeVersion">UI 7u</div>
     <div id="battleModeCheckpointStatus"></div>
     <div class="bm-state-badges" id="battleModeStateBadges"></div>
     <div class="bm-counters" id="battleModeCounters"></div>
@@ -5774,10 +5774,13 @@ function calcMoney(money){
   const exchangeRate=normalizeOptionalNumber(money.exchangeRate)??store?.exchangeRate??null;
   const hasNewMoney=startMedals!==null||endMedals!==null||cashIn!==null;
   const medalDiff=startMedals!==null&&endMedals!==null?endMedals-startMedals:null;
-  const yenDiff=medalDiff!==null&&exchangeRate?Math.round(medalDiff*1000/exchangeRate-(cashIn||0)):null;
+  const cashInMedals=cashIn!==null&&lendRate?Math.round(cashIn/1000*lendRate):0;
+  const effectiveMedalDiff=medalDiff!==null?medalDiff-cashInMedals:null;
+  const medalValueYen=medalDiff!==null&&exchangeRate?Math.round(medalDiff*1000/exchangeRate):null;
+  const yenDiff=medalValueYen!==null?medalValueYen-(cashIn||0):null;
   if(hasNewMoney){
     const hourlyRate=yenDiff!==null&&workMinutes>0?Math.round(yenDiff/workMinutes*60):null;
-    return {workMinutes,diff:medalDiff,balance:yenDiff,hourlyRate,invalidTime,hasResult:yenDiff!==null,medalDiff,yenDiff,lendRate,exchangeRate,cashIn:cashIn||0,model:'medals'};
+    return {workMinutes,diff:effectiveMedalDiff,balance:yenDiff,hourlyRate,invalidTime,hasResult:yenDiff!==null,medalDiff,effectiveMedalDiff,cashInMedals,medalValueYen,yenDiff,lendRate,exchangeRate,cashIn:cashIn||0,model:'medals'};
   }
   const hasInvest=money.invest!==null&&money.invest!==undefined&&money.invest!=='';
   const hasRecover=money.recover!==null&&money.recover!==undefined&&money.recover!=='';
@@ -5887,6 +5890,16 @@ function formatChainPayout(payout,short=false){
   const value=normalizeOptionalNumber(payout);
   if(value===null)return '';
   return `連チャン獲得 ${value>0?'+':''}${value}枚`;
+}
+function calcDiffHtml(calc){
+  const main=escapeHtml(formatDiff(calc.diff));
+  if(calc.model!=='medals'||calc.medalDiff===null||calc.medalDiff===undefined)return main;
+  return `${main}<div class="input-hint">持ちメダルだけ ${escapeHtml(formatDiff(calc.medalDiff))}</div>`;
+}
+function calcBalanceHtml(calc){
+  const main=escapeHtml(formatYenDiff(calc.balance));
+  if(calc.model!=='medals'||calc.medalValueYen===null||calc.medalValueYen===undefined)return main;
+  return `${main}<div class="input-hint">＝メダル換算 ${escapeHtml(formatYenDiff(calc.medalValueYen))} − 現金 ${escapeHtml(formatYenAmount(calc.cashIn||0))}</div>`;
 }
 function formatIntervalDiff(value,certainty='unknown'){
   const num=normalizeOptionalNumber(value);
@@ -7628,7 +7641,7 @@ function renderBattleModeIntervalTracker(){
     <button class="bm-diff-tracker" type="button" onclick="openBattleModeDiffTrackerSheet()">${escapeHtml(battleModeIntervalDiffText(diff))}<span class="muted">${escapeHtml(battleModeIntervalTrackerMeasured(state)?battleModeIntervalDetailText(state):'未計測')}</span></button>
     <button class="bm-mini-btn bm-credit-update${creditClass}" type="button" onclick="openBattleModeCreditUpdateInput()">クレ更新</button>
     ${renderBattleModeSandBalance(state)}
-    <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">＋1000</button>
+    <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">−1000</button>
   </div>`;
 }
 function battleModeQuickInvestYen(){
@@ -7645,7 +7658,7 @@ function renderBattleModeTopActions(){
     <button class="bm-diff-tracker" type="button" onclick="openBattleModeDiffTrackerSheet()">${escapeHtml(battleModeIntervalDiffText(diff))}<span class="muted">${escapeHtml(battleModeIntervalTrackerMeasured(state)?battleModeIntervalDetailText(state):'\u672a\u8a08\u6e2c')}</span></button>
     <button class="bm-mini-btn bm-credit-update${creditClass}" type="button" onclick="openBattleModeCreditUpdateInput()">\u30af\u30ec</button>
     ${renderBattleModeSandBalance(state)}
-    <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">＋1000</button>
+    <button class="bm-mini-btn bm-quick-invest" type="button" onclick="battleModeQuickInvestYen()">−1000</button>
     <button class="bm-action-mini" type="button" onclick="openSuggestPlacePicker('play')">\u793a\u5506</button>
     <button class="bm-action-mini" type="button" onclick="battleModeOpenModal('shopNote')">\u4ed6\u53f0</button>
     <button class="bm-action-mini" type="button" onclick="openBattleModeMemoSheet()">\u30e1\u30e2</button>
@@ -7676,7 +7689,7 @@ function renderBattleModeCompactCounters(){
         <div class="bm-counter-label">液晶G</div>
         <div class="bm-counter-value">${escapeHtml(battleModeCounterText(liquid))}</div>
       </button>
-      ${liquidPreset!==null&&!hideIncrement?`<button class="bm-mini-btn" type="button" onclick="battleModeSetLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span></span>'}
+      ${liquidPreset!==null&&!hideIncrement?`<button class="bm-mini-btn" type="button" onclick="battleModeSetLiquidOffsetPreset(${escapeHtml(liquidPreset)})">−${escapeHtml(liquidPreset)}</button>`:'<span></span>'}
     </div>
     ${counter?`<div class="bm-compact-counter">
       <button class="bm-compact-counter-read" type="button" onclick="openBattleModeCounterKeypad('subCounter','${escapeHtml(counter.key)}')">
@@ -7706,7 +7719,7 @@ function renderBattleModeCompactCounters(){
         <div class="bm-counter-label">差分</div>
         <div class="bm-counter-value">${escapeHtml(timelineLiquidOffset())}</div>
       </button>
-      ${liquidPreset!==null&&!hideIncrement?`<button class="bm-mini-btn" type="button" onclick="battleModeSetLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span></span>'}
+      ${liquidPreset!==null&&!hideIncrement?`<button class="bm-mini-btn" type="button" onclick="battleModeSetLiquidOffsetPreset(${escapeHtml(liquidPreset)})">−${escapeHtml(liquidPreset)}</button>`:'<span></span>'}
     </div>`:''}
     ${counterHtml||'<div></div>'}
   </div>`;
@@ -9192,7 +9205,7 @@ function kabaneriStPanelSummary(){
 function kabaneriStPanelSummaryHtml(){
   const summary=kabaneriStPanelSummary();
   const v=summary.voices;
-  return `<div class="bm-st-summary">ボイス 男${v.male}(${summary.voiceMalePct})・女${v.female}(${summary.voiceFemalePct})｜景之 弱${v.kageWeak}/中${v.kageMid}/強${v.kageStrong}｜紹介 男${summary.introMale}(${summary.introMalePct})・女${summary.introFemale}(${settingGroupPercentText(summary.introFemale,settingGroupTotal(kabaneriStIntroGroupRows()))})</div>`;
+  return `<div class="bm-st-summary"><div>ボイス 男${v.male}(${summary.voiceMalePct})・女${v.female}(${summary.voiceFemalePct})｜景之 弱${v.kageWeak}/中${v.kageMid}/強${v.kageStrong}</div><div>紹介 男${summary.introMale}(${summary.introMalePct})・女${summary.introFemale}(${settingGroupPercentText(summary.introFemale,settingGroupTotal(kabaneriStIntroGroupRows()))})</div></div>`;
 }
 function kabaneriStVoiceRecentLabel(entry){
   if(!isKabaneriMachine(currentMachine())||entry?.placeId!=='sgp_kabaneri_setting_voice')return '';
@@ -9682,7 +9695,7 @@ function battleModeIncrementGame(delta){
 function battleModeSetLiquidOffsetPreset(value){
   const delta=normalizeOptionalNumber(value);
   if(delta===null){battleModeInvalid('差分を更新できません');return;}
-  battleModeCommit(`差分+${delta}`,()=>setTimelineLiquidOffsetPreset(delta));
+  battleModeCommit(`液晶G−${delta}`,()=>setTimelineLiquidOffsetPreset(delta));
 }
 function battleModeIncrementSubCounter(key){
   const counter=machineCounters().find(row=>row.key===key)||machineSubCounter();
@@ -12255,7 +12268,7 @@ function renderGamePairInputs(prefix){
           <input type="text" id="${liquidId}" data-game-role="${rolePrefix}-liquid" class="numeric-input" inputmode="none" readonly value="${escapeHtml(liquidValue)}" placeholder="例：523" oninput="${liquidHandler}" onchange="${liquidHandler}">
           <input type="hidden" id="timelineLiquidOffset" data-signed="1" value="${escapeHtml(timelineLiquidOffset())}">
         </div>
-        ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span class="counter-compact-spacer" aria-hidden="true"></span>'}
+        ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">−${escapeHtml(liquidPreset)}</button>`:'<span class="counter-compact-spacer" aria-hidden="true"></span>'}
       </div>
       <div class="counter-compact-control">
         <div class="game-pair-field">
@@ -12471,7 +12484,7 @@ function renderCounterCompactRow(){
           <label for="timelineLiquidOffset">差分</label>
           <input type="text" id="timelineLiquidOffset" class="numeric-input" inputmode="none" readonly data-signed="1" value="${escapeHtml(timelineLiquidOffset())}" placeholder="0" oninput="syncTimelineLiquidOffset()" onchange="syncTimelineLiquidOffset()">
         </div>
-        ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">+${escapeHtml(liquidPreset)}</button>`:'<span class="counter-compact-spacer" aria-hidden="true"></span>'}
+        ${liquidPreset!==null?`<button class="btn-small counter-btn" type="button" onclick="setTimelineLiquidOffsetPreset(${escapeHtml(liquidPreset)})">−${escapeHtml(liquidPreset)}</button>`:'<span class="counter-compact-spacer" aria-hidden="true"></span>'}
       </div>`:''}
       ${showCounter?`
       <div class="counter-compact-control">
@@ -15404,8 +15417,13 @@ function setTimelineLiquidOffsetPreset(value){
   const preset=normalizeOptionalNumber(value);
   if(preset===null)return;
   const source=document.getElementById('timelineLiquidOffset');
-  if(source)source.value=String(preset);
-  syncTimelineLiquidOffset();
+  if(source){
+    source.value=String(preset);
+    syncTimelineLiquidOffset();
+  }else{
+    setTimelineOffsetPreservingData(preset);
+    scheduleDraftSave();
+  }
 }
 function incrementTimelineGame(delta){
   const current=currentTimelineDataGame??timelineDataValue()??0;
@@ -16212,7 +16230,7 @@ function syncMoneyCashInFromSand(options={}){
   const value=actualCashInFromSand(state,sandReturn);
   el.value=String(value);
   moneyCashInEdited=false;
-  syncMoneyCashInHint(sandReturn!==null&&Number(state.sandDeposits)>0?'入金合計 − サンド残額から自動入力':'+1000タップ履歴から自動入力');
+  syncMoneyCashInHint(sandReturn!==null&&Number(state.sandDeposits)>0?'入金合計 − サンド残額から自動入力':'−1000タップ履歴から自動入力');
   updateCalc();
   return true;
 }
@@ -16255,8 +16273,8 @@ function updateCalc(){
     cashIn:document.getElementById('moneyCashIn')?.value||''
   });
   document.getElementById('calcWork').textContent=calc.workMinutes===null?'-':calc.workMinutes+'分';
-  document.getElementById('calcDiff').textContent=formatDiff(calc.diff);
-  document.getElementById('calcBalance').textContent=formatYenDiff(calc.balance);
+  document.getElementById('calcDiff').innerHTML=calcDiffHtml(calc);
+  document.getElementById('calcBalance').innerHTML=calcBalanceHtml(calc);
   document.getElementById('calcHourly').textContent=calc.hourlyRate===null?'-':formatYenDiff(calc.hourlyRate)+'/h';
   const rateHint=document.getElementById('rateHint');
   if(rateHint)rateHint.textContent=calc.exchangeRate?`貸し ${calc.lendRate??'-'}枚 / 交換 ${calc.exchangeRate}枚で円換算`:'交換率未設定のため円収支は未計算';
@@ -17063,7 +17081,8 @@ function moneyResultLine(money){
       `開始${formatMoneyAmount(money.startMedals)}`,
       `終了${formatMoneyAmount(money.endMedals)}`,
       `現金${formatYenAmount(money.cashIn||0)}`,
-      `メダル増減${formatDiff(calc.medalDiff)}`,
+      `差枚（投入込み）${formatDiff(calc.diff)}`,
+      `持ちメダル${formatDiff(calc.medalDiff)}`,
       `円収支${formatYenDiff(calc.yenDiff)}`
     ];
     if(calc.exchangeRate)parts.push(`交換${calc.exchangeRate}枚`);
@@ -17075,7 +17094,7 @@ function logSummaryMoney(log){
   if(log.excludeFromStats)return '未確定 / 集計対象外';
   const calc=calcMoney(log.money||{});
   if(calc.model==='medals'&&!hasMoneyResultInput(log.money))return '収支未登録';
-  if(calc.model==='medals')return `メダル ${formatDiff(calc.medalDiff)}　円収支 ${formatYenDiff(calc.yenDiff)}`;
+  if(calc.model==='medals')return `差枚 ${formatDiff(calc.diff)}　円収支 ${formatYenDiff(calc.yenDiff)}`;
   return `差枚 ${formatDiff(log.money?.diff)}`;
 }
 function latestLogGameLine(log){

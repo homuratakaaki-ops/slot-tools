@@ -1087,7 +1087,7 @@ function testKabaneriChanceEyeMeterAndCounters() {
   assert.match(style, /\.bm-state-badges\{[^}]*align-content:flex-start/);
   assert.match(style, /\.bm-state-badges\{[^}]*overflow:visible/);
   const shellSource = fs.readFileSync(HTML_PATH, 'utf8').match(/<div class="bm-shell">([\s\S]*?)<\/div>\s*<\/div>\s*<div class="bm-toast"/)?.[1] || '';
-  assert.match(shellSource, /id="battleModeVersion">UI 7e/);
+  assert.match(shellSource, /id="battleModeVersion">UI 7u/);
   assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1\.45fr\) minmax\(0,1\.45fr\)/);
   assert.match(style, /\.counter-compact-row\.nangoku-special-row\{[^}]*grid-template-columns:minmax\(0,1fr\) minmax\(0,1\.45fr\) minmax\(0,1\.45fr\)/);
   assert.match(style, /\.bm-compact-counter-row\.nangoku-special-row \.bm-counter-label\{[^}]*white-space:nowrap/);
@@ -1653,15 +1653,37 @@ function testNangokuTimelineFirstRowMovesOffsetAndSuikaControls() {
   assert.match(rowHtml, /id="timelineLiquidGame"/);
   assert.match(rowHtml, /type="hidden" id="timelineLiquidOffset"/);
   assert.match(rowHtml, /setTimelineLiquidOffsetPreset\(9\)/);
+  assert.match(rowHtml, />−9<\/button>/);
   assert.match(rowHtml, /id="subCounter_suika"/);
   assert.match(rowHtml, /incrementSubCounter\('suika',1\)/);
   assert.equal(vm.runInContext("renderCounterCompactRow()", context), '');
 
   vm.runInContext(`
+    const originalGetElementByIdForOffset = document.getElementById;
     const offsetEl = { value: '', dataset: {}, style: { setProperty() {} }, classList: { add() {}, remove() {}, toggle() {} } };
     document.getElementById = id => id === 'timelineLiquidOffset' ? offsetEl : null;
     setTimelineGames(100, 100);
     setTimelineLiquidOffsetPreset(9);
+    document.getElementById = originalGetElementByIdForOffset;
+  `, context);
+  assert.equal(vm.runInContext('timelineLiquidOffset()', context), 9);
+  assert.equal(vm.runInContext('timelineLiquidValue()', context), 91);
+
+  installBattleModeStateDom(context);
+  const compactHtml = vm.runInContext(`
+    selectedMachineId='m_nangoku_special';
+    selectedAimId=firstAimIdForMachine(currentMachine())||'';
+    renderBattleModeCompactCounters();
+  `, context);
+  assert.match(compactHtml, /battleModeSetLiquidOffsetPreset\(9\)/);
+  assert.match(compactHtml, />−9<\/button>/);
+  vm.runInContext(`
+    selectedMachineId='m_nangoku_special';
+    selectedAimId=firstAimIdForMachine(currentMachine())||'';
+    battleModeOpen = true;
+    setTimelineGames(100, 100);
+    resetTimelineOffsets(0, 0);
+    battleModeSetLiquidOffsetPreset(9);
   `, context);
   assert.equal(vm.runInContext('timelineLiquidOffset()', context), 9);
   assert.equal(vm.runInContext('timelineLiquidValue()', context), 91);
@@ -3426,6 +3448,7 @@ function testKabaneriStFlowAndCounters() {
   assert.match(stGrid, /ボイス 男0\(-\)・女0\(-\)/);
   assert.match(stGrid, /景之 弱0\/中0\/強0/);
   assert.match(stGrid, /紹介 男0\(-\)・女0\(-\)/);
+  assert.match(stGrid, /<div>ボイス 男0\(-\)・女0\(-\)｜景之 弱0\/中0\/強0<\/div><div>紹介 男0\(-\)・女0\(-\)<\/div>/);
   assert.match(stGrid, /ボイス男/);
   assert.match(stGrid, /ボイス女/);
   assert.match(stGrid, /他ボイス\/美馬/);
@@ -3845,6 +3868,8 @@ function testBattleModeSandBalanceTracksDepositSpendCashInAndUndo() {
     };
     const originalGet = document.getElementById;
     document.getElementById = id => elements[id] || originalGet(id);
+    const trackerHtml = renderBattleModeIntervalTracker();
+    const topHtml = renderBattleModeTopActions();
 
     battleModeApplyDiffTrackerInput('sandDeposit', 5000, { reopenSheet: false });
     const afterDeposit = {
@@ -3899,9 +3924,13 @@ function testBattleModeSandBalanceTracksDepositSpendCashInAndUndo() {
       deposits: currentIntervalEstimate.sandDeposits,
       balance: currentIntervalEstimate.sandBalance
     };
-    JSON.stringify({ afterDeposit, afterInvests, fallbackCashIn, returnedCashIn, savedMoney, afterUndoInvest, afterRedoInvest, negative, afterUndoDeposit });
+    JSON.stringify({ trackerHtml, topHtml, afterDeposit, afterInvests, fallbackCashIn, returnedCashIn, savedMoney, afterUndoInvest, afterRedoInvest, negative, afterUndoDeposit });
   `, context));
 
+  assert.match(result.trackerHtml, />−1000<\/button>/);
+  assert.match(result.topHtml, />−1000<\/button>/);
+  assert.doesNotMatch(result.trackerHtml, />\+1000<\/button>/);
+  assert.doesNotMatch(result.topHtml, />\+1000<\/button>/);
   assert.equal(result.afterDeposit.deposits, 5000);
   assert.equal(result.afterDeposit.balance, 5000);
   assert.match(result.afterDeposit.html, /残高/);
@@ -3919,6 +3948,31 @@ function testBattleModeSandBalanceTracksDepositSpendCashInAndUndo() {
   assert.equal(result.negative.balance, -1000);
   assert.match(result.negative.html, /bm-sand-balance warn/);
   assert.deepEqual(result.afterUndoDeposit, { deposits: 0, balance: 0 });
+}
+
+function testMoneyCalcUsesEffectiveMedalDiffForStep4() {
+  const { context } = runRecord(undefined);
+  const result = JSON.parse(vm.runInContext(`
+    const calc = calcMoney({ startMedals: 460, endMedals: 705, cashIn: 6000, lendRate: 46, exchangeRate: 52 });
+    JSON.stringify({
+      medalDiff: calc.medalDiff,
+      cashInMedals: calc.cashInMedals,
+      diff: calc.diff,
+      medalValueYen: calc.medalValueYen,
+      yenDiff: calc.yenDiff,
+      diffHtml: calcDiffHtml(calc),
+      balanceHtml: calcBalanceHtml(calc)
+    });
+  `, context));
+  assert.equal(result.medalDiff, 245);
+  assert.equal(result.cashInMedals, 276);
+  assert.equal(result.diff, -31);
+  assert.equal(result.medalValueYen, 4712);
+  assert.equal(result.yenDiff, -1288);
+  assert.match(result.diffHtml, /-31/);
+  assert.match(result.diffHtml, /持ちメダルだけ \+245/);
+  assert.match(result.balanceHtml, /-1,288円/);
+  assert.match(result.balanceHtml, /メダル換算 \+4,712円 − 現金 6,000円/);
 }
 
 function testBattleModeCreditUpdateGoesDirectAndManagementMovesToOtherSheet() {
@@ -5581,6 +5635,7 @@ function run() {
   testBattleModeIntervalDiffTrackerCalculatesPersistsAndUndoRedo();
   testBattleModeInvestmentResetUsesHistoryBoundaryAndUndo();
   testBattleModeSandBalanceTracksDepositSpendCashInAndUndo();
+  testMoneyCalcUsesEffectiveMedalDiffForStep4();
   testBattleModeCreditUpdateGoesDirectAndManagementMovesToOtherSheet();
   testNonKabaneriHitPayoutClearAndReinputDoesNotMutateInvestment();
   testAllMachineHitStartDoesNotMutateInvestment();
