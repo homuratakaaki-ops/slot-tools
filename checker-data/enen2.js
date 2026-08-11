@@ -75,7 +75,6 @@
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function pctLine(n,d){return d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
-  function bonusTotal(S,id){return (S.zonesReg[id]||0)+(S.zonesBig[id]||0);}
   function shown(prefix,items){
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
     return `${prefix} ${out.length?out.join('・'):'−'}`;
@@ -194,12 +193,40 @@
       },
       chart:ctx=>({
         title:'ボーナス終了画面分布',
-        x:110,
-        step:124,
-        width:72,
-        color2:'#7aa8ff',
-        legend:[{label:'REG',color:'#ff3d8f'},{label:'BIG',color:'#7aa8ff'}],
-        items:BONUS_SCREENS.map(v=>({label:v[2],value:ctx.S.zonesReg[v[0]],value2:ctx.S.zonesBig[v[0]],color2:'#7aa8ff'}))
+        type:'percentGroups',
+        dividerX:540,
+        groups:[
+          {
+            title:'REG後',
+            titleX:290,
+            x:95,
+            step:90,
+            width:56,
+            total:sum(ctx.S.zonesReg),
+            color:'#ff3d8f',
+            items:[
+              {label:'デ',value:ctx.S.zonesReg.def},
+              {label:'笑',value:ctx.S.zonesReg.laugh},
+              {label:'女',value:ctx.S.zonesReg.blackWoman},
+              {label:'他',value:ctx.S.zonesReg.other}
+            ]
+          },
+          {
+            title:'BIG後',
+            titleX:790,
+            x:595,
+            step:90,
+            width:56,
+            total:sum(ctx.S.zonesBig),
+            color:'#7aa8ff',
+            items:[
+              {label:'デ',value:ctx.S.zonesBig.def},
+              {label:'笑',value:ctx.S.zonesBig.laugh},
+              {label:'女',value:ctx.S.zonesBig.blackWoman},
+              {label:'他',value:ctx.S.zonesBig.other}
+            ]
+          }
+        ]
       }),
       bottom:ctx=>{
         const S=ctx.S;
@@ -248,7 +275,7 @@
             ]},
             {x:560,items:[
               {text:`濃厚示唆 計${strong}回`,value:strong},
-              {text:shown('まもる否定',[['①',S.icons.m1],['②',S.icons.m2],['③',S.icons.m3],['④',S.icons.m4],['⑤',S.icons.m5]]),value:mamoru},
+              {text:shown('否定',[['①',S.icons.m1],['②',S.icons.m2],['③',S.icons.m3],['④',S.icons.m4],['⑤',S.icons.m5]]),value:mamoru},
               {text:shown('特殊',[['金',S.ed.gold],['黒',S.ed.kurono],['ジ',S.ed.joker],['死',S.ed.death]]),value:specialTotal},
               {text:shown('枚数',[['119',S.coins.o119],['246',S.coins.o246],['456',S.coins.o456],['666',S.coins.o666]]),value:overTotal}
             ]}

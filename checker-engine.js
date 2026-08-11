@@ -295,6 +295,32 @@
       });
       const chart=config.card.chart(context());
       x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText(chart.title,70,470);
+      if(chart.type==='percentGroups'){
+        const barMax=100,by=630;
+        x.strokeStyle='#3b314f';x.lineWidth=2;
+        if(chart.dividerX){x.beginPath();x.moveTo(chart.dividerX,495);x.lineTo(chart.dividerX,670);x.stroke();}
+        chart.groups.forEach(group=>{
+          x.fillStyle='#9a90a8';x.font="700 21px 'M PLUS 1p'";x.textAlign='center';
+          x.fillText(`${group.title} ${group.total}回`,group.titleX,500);
+          group.items.forEach((item,i)=>{
+            const bx=group.x+i*group.step;
+            const pct=group.total>0?(item.value/group.total*100):0;
+            const h=Math.round(120*pct/barMax);
+            x.fillStyle='#2c2340';x.fillRect(bx,by-120,group.width,120);
+            if(group.total>0&&item.value>0){
+              x.fillStyle=item.color||group.color||'#ff3d8f';
+              x.shadowColor=x.fillStyle;x.shadowBlur=12;x.fillRect(bx,by-h,group.width,h);x.shadowBlur=0;
+            }else if(group.total===0){
+              x.fillStyle='#46404f';x.fillRect(bx,by-120,group.width,120);
+            }
+            x.fillStyle='#9a90a8';x.font="22px 'DotGothic16'";
+            x.fillText(item.label,bx+group.width/2,by+30);
+            x.fillStyle='#f2eef5';
+            x.fillText(group.total>0?`${pct.toFixed(0)}%`:'-',bx+group.width/2,by-h-8);
+          });
+        });
+        x.textAlign='left';
+      }else{
       const hasStack=chart.items.some(item=>item.value2!==undefined);
       if(hasStack){
         const legend=chart.legend||[{label:'REG',color:'#ff3d8f'},{label:'BIG',color:chart.color2||'#7aa8ff'}];
@@ -314,6 +340,7 @@
         if(total>0){x.fillStyle='#f2eef5';x.fillText(total,bx+chart.width/2,by-h-8);}
         x.textAlign='left';
       });
+      }
       const bottom=config.card.bottom(context());
       x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText(bottom.title,70,720);
       bottom.columns.forEach(col=>{
