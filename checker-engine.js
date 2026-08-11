@@ -279,7 +279,7 @@
       }else{x.font="800 52px 'M PLUS 1p'";}
       x.fillText(config.card.title,70,172);
       x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
-      const d=new Date();x.fillText(d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+'  '+cardGameText(),70,215);
+      x.fillText(cardMetaText(),70,215);
       const cx=W-190,cy=175,r=105;
       x.save();x.strokeStyle='#ff3d8f';x.lineWidth=8;x.shadowColor='#ff3d8f';x.shadowBlur=22;x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();x.restore();
       if(cardImg){
@@ -299,6 +299,11 @@
     function cardGameText(){
       const label=config.card.gameLabel;
       return label?label+' '+(S.games||0)+'G':(S.games||0)+'G';
+    }
+    function cardMetaText(){
+      const d=new Date();
+      const date=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();
+      return config.card.hideGames?date:date+'  '+cardGameText();
     }
     function detailSections(){
       if(!config.card.detail)return [];
@@ -398,8 +403,7 @@
       }
       x.fillText(config.card.title,70,172);
       x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
-      const d=new Date();
-      x.fillText(`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}  ${cardGameText()}`,70,215);
+      x.fillText(cardMetaText(),70,215);
       const cx=W-190,cy=175,r=105;
       x.save();x.strokeStyle='#ff3d8f';x.lineWidth=8;x.shadowColor='#ff3d8f';x.shadowBlur=22;
       x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();x.restore();
