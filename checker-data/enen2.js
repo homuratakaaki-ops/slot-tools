@@ -1,5 +1,22 @@
 (function(){
   'use strict';
+  function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
+  function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]));}
+  function detailRatio(label,n,d,hot){return {label,value:Number(n)||0,hot:!!hot,text:label+' '+(d>0?(n+'/'+d+' '+(100*n/d).toFixed(0)+'%'):'—'),show:d>0};}
+  function detail(ctx){
+    const S=ctx.S;
+    return [
+      {title:'キャラ紹介シナリオ',items:detailItems(SCENARIOS,S.screens)},
+      {title:'特殊パターン',items:detailItems(SPECIALS,S.ed)},
+      {title:'まもるくん',items:detailItems(MAMORU,S.icons)},
+      {title:'罠・変換',items:[detailRatio('罠成功',S.cz.trapHit,S.cz.trap,0),detailRatio('十字目変換',S.cz.convert,S.cz.smallv,1),detailRatio('変換→ボーナス',S.cz.convertBonus,S.cz.convert,1)]},
+      {title:'バトル',items:[detailItem('ジョヴァンニ',S.cz.giovanni,0),detailItem('オロチ',S.cz.orochi,0)]},
+      {title:'ボーナス終了画面 REG後',items:detailItems(BONUS_SCREENS,S.zonesReg)},
+      {title:'ボーナス終了画面 BIG後',items:detailItems(BONUS_SCREENS,S.zonesBig)},
+      {title:'獲得枚数',items:detailItems(OVER,S.coins)},
+      {title:'EDミニキャラ',items:detailItems(ED_CHARS,S.atcz)}
+    ];
+  }
   window.CheckerConfigs=window.CheckerConfigs||{};
 
   const BONUS_SCREENS=[
@@ -221,6 +238,8 @@
       title:'L炎炎ノ消防隊2',
       footerTags:'#炎炎ノ消防隊2 #設定判別',
       downloadName:'enen2_check.png',
+      detailDownloadName:'enen2_check_detail.png',
+      detail:detail,
       blocks:ctx=>{
         const g0=ctx.S.games;
         const bonusP=ctx.S.cz.bonus&&g0?'1/'+(g0/ctx.S.cz.bonus).toFixed(1):'—';

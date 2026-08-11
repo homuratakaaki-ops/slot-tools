@@ -1,5 +1,21 @@
 (function(){
   'use strict';
+  function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
+  function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]));}
+  function detailRatio(label,n,d,hot){return {label,value:Number(n)||0,hot:!!hot,text:label+' '+(d>0?(n+'/'+d+' '+(100*n/d).toFixed(0)+'%'):'—'),show:d>0};}
+  function detail(ctx){
+    const S=ctx.S;
+    return [
+      {title:'運命盤・優遇',items:detailItems(REWARDS,S.zones).concat([detailItem('劇場ジャッジ突入',S.cz.theater,0),detailRatio('強チェ直撃',S.cz.strongHit,S.cz.strong,1)])},
+      {title:'AT開始ステージ',items:detailItems(STAGES,S.stages)},
+      {title:'AT終了画面',items:detailItems(AT_SCREENS,S.screens)},
+      {title:'タッチボイス',items:detailItems(VOICES,S.atcz)},
+      {title:'激情ジャッジシナリオ',items:detailItems(JUDGES,S.ed)},
+      {title:'EDランプ',items:detailItems(LAMPS,S.coins)},
+      {title:'枚数・オリンピア',items:detailItems(OVER,S.over)},
+      {title:'CZ終了画面イラスト',items:detailItems(CZ_ILLUST,S.icons)}
+    ];
+  }
   window.CheckerConfigs=window.CheckerConfigs||{};
 
   const REWARDS=[
@@ -230,6 +246,8 @@
       title:'Lからくりサーカス2',
       footerTags:'#からくりサーカス2 #設定判別',
       downloadName:'karakuri2_check.png',
+      detailDownloadName:'karakuri2_check_detail.png',
+      detail:detail,
       blocks:ctx=>{
         const g0=ctx.S.games;
         const czP=ctx.S.cz.rg&&g0?'1/'+(g0/ctx.S.cz.rg).toFixed(1):'—';

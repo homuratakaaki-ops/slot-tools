@@ -1,5 +1,21 @@
 (function(){
   'use strict';
+  function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
+  function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]));}
+  function detailRatio(label,n,d,hot){return {label,value:Number(n)||0,hot:!!hot,text:label+' '+(d>0?(n+'/'+d+' '+(100*n/d).toFixed(0)+'%'):'—'),show:d>0};}
+  function detail(ctx){
+    const S=ctx.S;
+    const atEnd=S.atcz.atEnd||0;
+    const over2=(S.atcz.set2||0)+(S.atcz.set3||0)+(S.atcz.set4||0);
+    return [
+      {title:'GGOモード示唆',items:detailItems(GGO,S.icons)},
+      {title:'AT継続セット数',items:detailItems(SETS,S.atcz)},
+      {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
+      {title:'コパンダトロフィー',items:detailItems(TROPHIES,S.coins)},
+      {title:'EDミニキャラ',items:detailItems(ED,S.ed)},
+      {title:'優遇項目',items:[detailItem('確定CZ',S.cz.end,1),detailItem('曠野の決闘',S.cz.duel,1),detailRatio('CZ失敗→アイテム',S.atcz.item,S.atcz.fail,1),detailItem('SC1・2戦目デスガン',S.atcz.deathgun,1),detailRatio('AT引き戻し',S.atcz.return50,atEnd,1),detailRatio('2セット以上継続',over2,atEnd,0),{label:'共通ベル',value:S.cz.bell,hot:false,text:S.cz.bell>0?'共通ベル 1/'+((S.games||0)/S.cz.bell).toFixed(1):'',show:S.cz.bell>0},{label:'強チャンス目B',value:S.cz.chanceB,hot:false,text:S.cz.chanceB>0?'強チャンス目B 1/'+((S.games||0)/S.cz.chanceB).toFixed(1):'',show:S.cz.chanceB>0}]}
+    ];
+  }
   window.CheckerConfigs=window.CheckerConfigs||{};
 
   const SETS=[
@@ -191,6 +207,8 @@
       title:'L SAO2',
       footerTags:'#SAO2 #設定判別',
       downloadName:'sao2_check.png',
+      detailDownloadName:'sao2_check_detail.png',
+      detail:detail,
       blocks:ctx=>{
         const S=ctx.S,g=S.games;
         return [

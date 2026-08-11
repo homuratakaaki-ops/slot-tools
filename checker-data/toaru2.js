@@ -1,5 +1,21 @@
 (function(){
   'use strict';
+  function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
+  function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]));}
+  function detailRatio(label,n,d,hot){return {label,value:Number(n)||0,hot:!!hot,text:label+' '+(d>0?(n+'/'+d+' '+(100*n/d).toFixed(0)+'%'):'—'),show:d>0};}
+  function detail(ctx){
+    const S=ctx.S;
+    return [
+      {title:'規定ゲーム数',items:ZONES.map(z=>detailItem(z+'G台',S.zones[z],0))},
+      {title:'初当り',items:[detailItem('AT当選',S.atCount,0),detailItem('AT直撃',S.choku,1)]},
+      {title:'通常CZ',items:[detailItem('CZ 超電磁砲チャンス',S.cz.rg,0),detailItem('CZ 一方通行チャンス',S.cz.ac,1)]},
+      {title:'AT中CZ',items:[detailItem('神の力BATTLE',S.atcz.gab,0),detailItem('神の右席BATTLE',S.atcz.useki,1)]},
+      {title:'終了時アイコン',items:detailItems(ICONS,S.icons)},
+      {title:'藤丸コイン',items:detailItems(COINS,S.coins)},
+      {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
+      {title:'ED演出',items:detailItems(ED,S.ed)}
+    ];
+  }
   window.CheckerConfigs=window.CheckerConfigs||{};
 
   const ZONES=[50,100,150,200,300,400,500,600,700,800];
@@ -162,6 +178,8 @@
       title:'Lとある魔術の禁書目録2',
       footerTags:'#とある魔術の禁書目録2 #設定判別',
       downloadName:'toaru2_check.png',
+      detailDownloadName:'toaru2_check_detail.png',
+      detail:detail,
       blocks:ctx=>{
         const czN=ctx.S.cz.rg+ctx.S.cz.ac, atczN=ctx.S.atcz.gab+ctx.S.atcz.useki, g0=ctx.S.games;
         const czP=czN&&g0?'1/'+(g0/czN).toFixed(1):'—';

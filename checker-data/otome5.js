@@ -1,5 +1,20 @@
 (function(){
   'use strict';
+  function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
+  function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]));}
+  function detailRatio(label,n,d,hot){return {label,value:Number(n)||0,hot:!!hot,text:label+' '+(d>0?(n+'/'+d+' '+(100*n/d).toFixed(0)+'%'):'—'),show:d>0};}
+  function detail(ctx){
+    const S=ctx.S;
+    return [
+      {title:'繚乱の刻',items:detailItems(RYORAN,S.zones)},
+      {title:'乙女ストラップ',items:detailItems(STRAPS,S.icons)},
+      {title:'ボーナス終了画面',items:detailItems(BONUS,S.coins)},
+      {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
+      {title:'獲得枚数',items:detailItems(MEDALS,S.attack)},
+      {title:'EDゴエモンボイス',items:detailItems(VOICES,S.ed)},
+      {title:'ハルルナPUSH',items:[detailItem('ハルルナPUSH',S.over.haru,1)]}
+    ];
+  }
   window.CheckerConfigs=window.CheckerConfigs||{};
 
   const RYORAN=[
@@ -210,6 +225,8 @@
       title:'L戦国乙女5',
       footerTags:'#L戦国乙女5 #設定判別',
       downloadName:'otome5_check.png',
+      detailDownloadName:'otome5_check_detail.png',
+      detail:detail,
       blocks:ctx=>{
         const g0=ctx.S.games;
         const atP=ctx.S.atCount&&g0?'1/'+(g0/ctx.S.atCount).toFixed(1):'—';

@@ -47,6 +47,7 @@
     let resetArm=null;
     let toastT=null;
     let cardImg=null;
+    let detailReady=false;
 
     function nanaCreditText(kind){
       if(NANA_COLLAB){
@@ -195,12 +196,24 @@
     <button class="plus" aria-label="${name}を1回${mode<0?'減算':'追加'}">${mode<0?'−':'＋'}</button></div>`;
     }
     function pageCard(){
+      const canDetail=hasDetailItems();
+      if(!canDetail)detailReady=false;
       return `
   <div class="cardwrap">
     <canvas id="cardCanvas" width="1080" height="1080"></canvas>
     <div class="btnrow">
       <button class="act" id="shareBtn">Xで共有する</button>
       <button class="act gold" id="dlBtn">画像を保存</button>
+    </div>
+    <div class="btnrow one" style="margin-top:8px">
+      <button class="act plain" id="detailBtn" type="button" ${canDetail?'':'disabled'}>${canDetail?'詳細カードも作成':'記録が増えると作成できます'}</button>
+    </div>
+    <div id="detailWrap" class="detailwrap" ${detailReady?'':'hidden'}>
+      <canvas id="detailCanvas" width="1080" height="1080"></canvas>
+      <div class="btnrow">
+        <button class="act" id="detailShareBtn">詳細カードを共有</button>
+        <button class="act gold" id="detailDlBtn">詳細カードを保存</button>
+      </div>
     </div>
     <div class="icon-choices">
       <button class="icon-choice" type="button" data-icon-choice="default">slot-tools</button>
@@ -248,6 +261,116 @@
       const gIn=document.getElementById('gIn');
       if(gIn)gIn.addEventListener('change',()=>{S.games=Math.max(0,parseInt(gIn.value)||0);save();renderAll();});
       if(cur===3)initCard();
+    }
+    function drawCardShell(x,headline){
+      const W=1080,H=1080;
+      x.fillStyle='#0a070d';x.fillRect(0,0,W,H);
+      let g=x.createRadialGradient(W/2,H/2,100,W/2,H/2,760);
+      g.addColorStop(0,'rgba(255,61,143,.10)');g.addColorStop(1,'rgba(0,0,0,0)');
+      x.fillStyle=g;x.fillRect(0,0,W,H);
+      x.strokeStyle='#ff3d8f';x.lineWidth=6;x.shadowColor='#ff3d8f';x.shadowBlur=26;
+      roundRect(x,34,34,W-68,H-68,40);x.stroke();x.shadowBlur=0;
+      x.fillStyle='#ff3d8f';x.font="700 30px 'M PLUS 1p'";x.fillText(headline,70,110);
+      x.fillStyle='#f2eef5';
+      let titleSize=52;
+      if(config.card.titleFitMax){
+        do{x.font='800 '+titleSize+"px 'M PLUS 1p'";titleSize-=2;}
+        while(x.measureText(config.card.title).width>config.card.titleFitMax&&titleSize>=38);
+      }else{x.font="800 52px 'M PLUS 1p'";}
+      x.fillText(config.card.title,70,172);
+      x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
+      const d=new Date();x.fillText(d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+'  '+(S.games||0)+'G',70,215);
+      const cx=W-190,cy=175,r=105;
+      x.save();x.strokeStyle='#ff3d8f';x.lineWidth=8;x.shadowColor='#ff3d8f';x.shadowBlur=22;x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();x.restore();
+      if(cardImg){
+        x.save();x.beginPath();x.arc(cx,cy,r-8,0,7);x.clip();
+        const s=Math.max((r*2-16)/cardImg.width,(r*2-16)/cardImg.height);
+        x.drawImage(cardImg,cx-cardImg.width*s/2,cy-cardImg.height*s/2,cardImg.width*s,cardImg.height*s);x.restore();
+      }else{
+        x.fillStyle='#1f1830';x.beginPath();x.arc(cx,cy,r-8,0,7);x.fill();
+        x.fillStyle='#9a90a8';x.font="700 28px 'M PLUS 1p'";x.textAlign='center';x.fillText('ICON',cx,cy+10);x.textAlign='left';
+      }
+    }
+    function drawCardFooter(x,W,H){
+      x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";x.fillText('slot-tools.jp',70,H-104);
+      x.fillStyle='#9a90a8';x.font="500 22px 'M PLUS 1p'";x.fillText(config.card.footerTags,300,H-104);
+      x.fillStyle='#9a90a8';x.font="500 21px 'M PLUS 1p'";x.fillText(nanaCreditText('card')+'／ 解析出典：ちょんぼりすた様',70,H-62);
+    }
+    function detailSections(){
+      if(!config.card.detail)return [];
+      return (config.card.detail(context())||[]).map(sec=>({
+        title:sec.title,
+        items:(sec.items||[]).filter(item=>item&&(item.show!==false)&&((item.value||0)>0||item.text))
+      })).filter(sec=>sec.items.length>0);
+    }
+    function detailValue(item){return Number(item.value)||0;}
+    function detailText(item){
+      if(item.text)return item.text;
+      return item.label+' ×'+detailValue(item);
+    }
+    function hasDetailItems(){return detailSections().some(sec=>sec.items.length>0);}
+    function detailRows(sections){
+      const maxRows=36;
+      const rows=[];
+      sections.forEach(sec=>{
+        const items=sec.items.map(item=>Object.assign({},item,{_section:sec.title,_text:detailText(item),_value:detailValue(item)}));
+        if(items.length===1){rows.push({type:'inline',title:sec.title,item:items[0],hot:!!items[0].hot,value:items[0]._value});return;}
+        rows.push({type:'section',title:sec.title,hot:false,value:0});
+        items.forEach(item=>rows.push({type:'item',item,hot:!!item.hot,value:item._value}));
+      });
+      if(rows.length<=maxRows)return rows;
+      const removable=rows.map((row,index)=>({row,index})).filter(x=>x.row.type==='item'&&!x.row.hot).sort((a,b)=>(a.row.value-b.row.value)||(b.index-a.index));
+      const removed=new Set();
+      while(rows.length-removed.size>maxRows-1&&removable.length)removed.add(removable.shift().index);
+      if(rows.length-removed.size>maxRows-1){
+        const rest=rows.map((row,index)=>({row,index})).filter(x=>x.row.type==='item'&&!removed.has(x.index)).sort((a,b)=>(a.row.value-b.row.value)||(b.index-a.index));
+        while(rows.length-removed.size>maxRows-1&&rest.length)removed.add(rest.shift().index);
+      }
+      let compact=rows.filter((_,i)=>!removed.has(i));
+      compact=compact.filter((row,i)=>{
+        if(row.type!=='section')return true;
+        return compact[i+1]&&(compact[i+1].type==='item');
+      });
+      if(removed.size>0){
+        if(compact.length>=maxRows)compact=compact.slice(0,maxRows-1);
+        compact.push({type:'more',text:'ほか '+removed.size+'項目',hot:false,value:0});
+      }
+      return compact;
+    }
+    function fitText(x,text,tx,ty,maxWidth,fontSize,color,weight){
+      let size=fontSize;
+      do{x.font=(weight||700)+' '+size+"px 'M PLUS 1p'";size-=1;}
+      while(x.measureText(text).width>maxWidth&&size>=18);
+      x.fillStyle=color;x.fillText(text,tx,ty);
+    }
+    function drawDetailCard(){
+      const cv=document.getElementById('detailCanvas');if(!cv)return;
+      const x=cv.getContext('2d');const W=1080,H=1080;
+      drawCardShell(x,'SETTING CHECK RESULT - DETAIL -');
+      const sections=detailSections();
+      const rows=detailRows(sections);
+      x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText('詳細カウント',70,286);
+      x.strokeStyle='#2c2340';x.lineWidth=2;x.beginPath();x.moveTo(70,306);x.lineTo(1010,306);x.stroke();
+      const colX=[70,560],maxRows=18,rowGap=34,startY=338;
+      rows.forEach((row,i)=>{
+        const col=Math.floor(i/maxRows),slot=i%maxRows,x0=colX[col]||colX[1],y=startY+slot*rowGap;
+        if(row.type==='section'){
+          x.fillStyle='#ff3d8f';x.font="800 22px 'M PLUS 1p'";x.fillText(row.title,x0,y);return;
+        }
+        if(row.type==='inline'){
+          x.fillStyle='#ff3d8f';x.font="800 21px 'M PLUS 1p'";x.fillText(row.title,x0,y);
+          const tx=x0+x.measureText(row.title).width+18;
+          fitText(x,row.item._text,tx,y,1010-tx,22,row.item.hot?'#ffc94d':'#f2eef5',800);return;
+        }
+        if(row.type==='more'){
+          fitText(x,row.text,x0,y,420,22,'#6b6278',800);return;
+        }
+        const color=row.item.hot?'#ffc94d':'#f2eef5';
+        fitText(x,row.item._text,x0+18,y,420,22,color,700);
+        x.fillStyle=color;x.font="700 20px 'M PLUS 1p'";x.fillText('•',x0,y);
+      });
+      drawCardFooter(x,W,H);
+      return rows;
     }
     function drawCard(){
       const cv=document.getElementById('cardCanvas');if(!cv)return;
@@ -373,8 +496,8 @@
       return document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve();
     }
     function initCard(){
-      loadCardImg(()=>fontsReady().then(drawCard));
-      fontsReady().then(drawCard);drawCard();
+      loadCardImg(()=>fontsReady().then(()=>{drawCard();if(detailReady)drawDetailCard();}));
+      fontsReady().then(()=>{drawCard();if(detailReady)drawDetailCard();});drawCard();
       const tpl=document.getElementById('tpl');
       if(tpl)tpl.value=tplText();
       document.querySelectorAll('.icon-choice').forEach(btn=>{
@@ -406,11 +529,31 @@
             c.width=im.width*s;c.height=im.height*s;
             c.getContext('2d').drawImage(im,0,0,c.width,c.height);
             S.img=c.toDataURL('image/jpeg',.85);S.iconChoice='upload';save();
-            loadCardImg(drawCard);toast('画像を設定しました');
+            loadCardImg(()=>{drawCard();if(detailReady)drawDetailCard();});toast('画像を設定しました');
           };
           im.src=rd.result;
         };
         rd.readAsDataURL(f);
+      };
+      const detailBtn=document.getElementById('detailBtn');
+      if(detailBtn)detailBtn.onclick=()=>{detailReady=true;const w=document.getElementById('detailWrap');if(w)w.hidden=false;drawDetailCard();};
+      const detailDlBtn=document.getElementById('detailDlBtn');
+      if(detailDlBtn)detailDlBtn.onclick=()=>{
+        detailReady=true;drawDetailCard();
+        const a=document.createElement('a');
+        a.download=config.card.detailDownloadName||config.card.downloadName.replace(/(\.[^.]+)?$/,'_detail.png');
+        a.href=document.getElementById('detailCanvas').toDataURL('image/png');
+        a.click();toast('詳細カードを保存しました');
+      };
+      const detailShareBtn=document.getElementById('detailShareBtn');
+      if(detailShareBtn)detailShareBtn.onclick=()=>{
+        detailReady=true;drawDetailCard();
+        document.getElementById('detailCanvas').toBlob(async b=>{
+          const f=new FileCtor([b],config.card.detailDownloadName||config.card.downloadName.replace(/(\.[^.]+)?$/,'_detail.png'),{type:'image/png'});
+          if(navigatorRef.canShare&&navigatorRef.canShare({files:[f]})){
+            try{await navigatorRef.share({files:[f],text:shareText()});}catch(e){}
+          }else{toast('この端末は直接共有に非対応。詳細カードを保存してください');}
+        });
       };
       const dlBtn=document.getElementById('dlBtn');
       if(dlBtn)dlBtn.onclick=()=>{
@@ -469,10 +612,10 @@
     function testSetMode(next){setMode(next);}
 
     return {
-      mount,normalizeState,shareText,tplText,drawCard,renderAll,bump,undo,reset,
+      mount,normalizeState,shareText,tplText,drawCard,drawDetailCard,renderAll,bump,undo,reset,
       getState:testState,setState:testSetState,setMode:testSetMode,
       effectiveIconChoice,defaultIconChoice,nanaCreditText,
-      _context:context
+      _context:context,_detailRows:()=>detailRows(detailSections())
     };
   }
 

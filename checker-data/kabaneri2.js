@@ -1,5 +1,24 @@
 (function(){
   'use strict';
+  function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
+  function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]));}
+  function detailRatio(label,n,d,hot){return {label,value:Number(n)||0,hot:!!hot,text:label+' '+(d>0?(n+'/'+d+' '+(100*n/d).toFixed(0)+'%'):'—'),show:d>0};}
+  function detail(ctx){
+    const S=ctx.S;
+    const c34n=['c3','c4'].reduce((a,k)=>a+(S.zones[k+'w']||0),0);
+    const c34d=['c3','c4'].reduce((a,k)=>a+(S.zones[k+'r']||0),0);
+    return [
+      {title:'アイテムくじ',items:detailItems(ITEMS,S.icons)},
+      {title:'周期当選',items:CYCLES.map(c=>detailRatio(c[1],S.zones[c[0]+'w']||0,S.zones[c[0]+'r']||0,c[3]))},
+      {title:'3・4周期',items:[detailRatio('3・4周期',c34n,c34d,1)]},
+      {title:'ボイス',items:detailItems(VOICES,S.atcz)},
+      {title:'キャラ紹介',items:detailItems(CHARS,S.ed)},
+      {title:'ST終了画面',items:detailItems(SCREENS,S.screens)},
+      {title:'サミートロフィー',items:detailItems(TROPHIES,S.coins)},
+      {title:'連打枚数',items:detailItems(ATTACK,S.attack)},
+      {title:'獲得枚数',items:detailItems(OVER,S.over)}
+    ];
+  }
   window.CheckerConfigs=window.CheckerConfigs||{};
 
   const CYCLES=[
@@ -228,6 +247,8 @@
       titleFitMax:690,
       footerTags:'#カバネリ海門決戦 #設定判別',
       downloadName:'kabaneri2_check.png',
+      detailDownloadName:'kabaneri2_check_detail.png',
+      detail:detail,
       blocks:ctx=>{
         const g0=ctx.S.games;
         const bonusP=ctx.S.cz.rg&&g0?'1/'+(g0/ctx.S.cz.rg).toFixed(1):'—';
