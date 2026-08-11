@@ -39,11 +39,13 @@ Assert-Contains $html "const G_COLORS=\[[^\]]+\]" 'G color list is missing'
 Assert-Contains $html "const HOT_VOICES=new Set\(\[[^\]]+\]\)" 'hot voice list is missing'
 Assert-Contains $html "const BONUSES=\[[^\]]+\]" 'bonus list is missing'
 Assert-Contains $html "const RANKS=\[[^\]]+\]" 'rank list is missing'
+Assert-Contains $html "const ICATCHES=\[[^\]]+\]" 'icatch list is missing'
 if ((($html -match "const GAIN_KINDS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 5)) -eq $false) { throw 'gain kind count is incorrect' }
 if ((($html -match "const VOICES=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 8)) -eq $false) { throw 'voice count is incorrect' }
 if ((($html -match "const G_COLORS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 3)) -eq $false) { throw 'G color count is incorrect' }
 if ((($html -match "const BONUSES=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 2)) -eq $false) { throw 'bonus count is incorrect' }
 if ((($html -match "const RANKS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 5)) -eq $false) { throw 'rank count is incorrect' }
+if ((($html -match "const ICATCHES=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 2)) -eq $false) { throw 'icatch count is incorrect' }
 Assert-Contains $html "fbThroughCount" 'FB through counter function is missing'
 Assert-Contains $html "log\.kind===[^?]+\?null" 'judge voice null guard is missing'
 Assert-Contains $html "bonus:win\?selectedBonus:null" 'FB loss bonus null guard is missing'
@@ -64,6 +66,12 @@ Assert-Contains $html "latestFbHit" 'latest FB hit helper is missing'
 Assert-Contains $html "kiteiG" 'kiteiG field is missing'
 Assert-Contains $html "opponentText" 'opponent field is missing'
 Assert-Contains $html "fbExitLcdG" 'FB exit lcd field is missing'
+Assert-Contains $html "fbLossFields" 'FB loss-only field group is missing'
+Assert-Contains $html "icatchKinds" 'icatch chips are missing'
+Assert-Contains $html "icatchNoteText" 'icatch note field is missing'
+Assert-Contains $html "selectedIcatch" 'icatch selection state is missing'
+Assert-Contains $html "icatch:win\?null:icatch" 'FB win icatch null guard is missing'
+Assert-Contains $html "icatchNote:win\?null:icatchNote" 'FB win icatch note null guard is missing'
 Assert-Contains $html "selectedRank" 'rank selection state is missing'
 Assert-Contains $html "el\.textContent=text" 'textContent helper is missing'
 Assert-Contains $html "setText\(el,log\.text\)" 'memo log must use textContent helper'

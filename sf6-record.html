@@ -311,9 +311,16 @@ textarea{
       <label for="opponentText">対戦相手</label>
       <input id="opponentText" type="text" maxlength="20" placeholder="任意">
     </div>
-    <div class="field-row">
-      <label for="fbExitLcdG">抜け時液晶G</label>
-      <input id="fbExitLcdG" type="number" inputmode="numeric" min="0" step="1" placeholder="必須">
+    <div id="fbLossFields" hidden>
+      <div class="field-row">
+        <label for="fbExitLcdG">抜け時液晶G</label>
+        <input id="fbExitLcdG" type="number" inputmode="numeric" min="0" step="1" placeholder="敗北時必須">
+      </div>
+      <div class="chips" id="icatchKinds" aria-label="敗北時アイキャッチ"></div>
+      <div class="field-row" id="icatchNoteRow" hidden>
+        <label for="icatchNoteText">アイキャッチ</label>
+        <input id="icatchNoteText" type="text" maxlength="20" placeholder="例 豪鬼">
+      </div>
     </div>
     <div class="chips" id="bonusKinds" aria-label="ボーナス"></div>
     <div class="actions">
@@ -360,6 +367,7 @@ textarea{
   const G_COLORS=['青','赤','デフォ復帰'];
   const BONUSES=['赤7','青7'];
   const RANKS=['ルーキー','ブロンズ','シルバー','ゴールド','レジェンド'];
+  const ICATCHES=['ルーク（デフォ）','その他'];
   const $=id=>document.getElementById(id);
   let state={machine:MACHINE,ver:VERSION,currentState:{realG:null,lcdG:null},logs:[]};
   let selectedGainKind='';
@@ -367,6 +375,7 @@ textarea{
   let selectedGColor=null;
   let selectedBonus=null;
   let selectedRank=null;
+  let selectedIcatch=null;
   let adjustTarget=null;
   let stepHistory=[];
   let resetTimer=null;
@@ -458,7 +467,9 @@ textarea{
       const rank=RANKS.includes(log.rank)?log.rank:null;
       const opponent=String(log.opponent||'').trim().slice(0,20)||null;
       const kiteiG=log.kiteiG==null?null:nonnegativeInt(log.kiteiG);
-      return {...base,win,bonus:win&&BONUSES.includes(log.bonus)?log.bonus:null,rank,opponent,kiteiG};
+      const icatch=!win&&ICATCHES.includes(log.icatch)?log.icatch:null;
+      const icatchNote=!win&&icatch==='その他'?(String(log.icatchNote||'').trim().slice(0,20)||null):null;
+      return {...base,win,bonus:win&&BONUSES.includes(log.bonus)?log.bonus:null,rank,opponent,kiteiG,icatch,icatchNote};
     }
     const text=String(log.text||'').slice(0,100);
     return text?{...base,text}:null;
@@ -530,6 +541,14 @@ textarea{
       btn.addEventListener('click',()=>{selectedRank=selectedRank===label?null:label;renderChips();});
       ranks.appendChild(btn);
     });
+    const icatches=$('icatchKinds');
+    icatches.textContent='';
+    ICATCHES.forEach(label=>{
+      const btn=makeChip(label,selectedIcatch===label,label==='その他');
+      btn.addEventListener('click',()=>{selectedIcatch=selectedIcatch===label?null:label;renderChips();syncIcatchNote();});
+      icatches.appendChild(btn);
+    });
+    syncIcatchNote();
   }
   function fbThroughCount(logs=state.logs){
     let count=0;
@@ -581,6 +600,10 @@ textarea{
       setText(el,`FB ${log.win?'勝利':'敗北'}`);
       if(log.rank||log.opponent)setText(el,` / ${[log.rank,log.opponent].filter(Boolean).join('／')}`);
       if(log.kiteiG!==null&&log.kiteiG!==undefined)setText(el,` / 規定${log.kiteiG}G`);
+      if(log.icatch){
+        setText(el,' / アイキャッチ ');
+        setText(el,log.icatchNote?`${log.icatch}：${log.icatchNote}`:log.icatch,log.icatch==='その他'?'voice-mark':'');
+      }
       if(log.bonus)setText(el,` / ${log.bonus}`);
     }else{
       setText(el,log.text);
@@ -653,6 +676,22 @@ textarea{
     const input=$('adjustValue');
     if(document.activeElement!==input)input.value=value==null?'':String(value);
   }
+  function showFbLossFields(){
+    $('fbLossFields').hidden=false;
+    syncIcatchNote();
+  }
+  function hideFbLossFields(){
+    $('fbLossFields').hidden=true;
+    $('fbExitLcdG').value='';
+    $('icatchNoteText').value='';
+    selectedIcatch=null;
+    syncIcatchNote();
+    renderChips();
+  }
+  function syncIcatchNote(){
+    const row=$('icatchNoteRow');
+    if(row)row.hidden=selectedIcatch!=='その他';
+  }
   function addLog(log){
     state.logs.push({...log,id:nextId(),t:Date.now()});
     save();
@@ -693,22 +732,34 @@ textarea{
   }
   function recordFb(win){
     const snap=snapshot();
-    const exitLcdG=optionalGame($('fbExitLcdG').value);
-    if(exitLcdG===null){toast('抜け時液晶Gを入力してください');return;}
-    const recentHit=latestFbHit();
+    let exitLcdG=snap.lcdG;
+    let recentHit=null;
     let kiteiG=null;
     let kiteiWarning=false;
-    if(recentHit){
-      const diff=recentHit.lcdG-exitLcdG;
-      if(diff>=0)kiteiG=diff;
-      else kiteiWarning=true;
+    let icatch=null;
+    let icatchNote=null;
+    if(!win){
+      showFbLossFields();
+      exitLcdG=optionalGame($('fbExitLcdG').value);
+      if(exitLcdG===null){toast('抜け時液晶Gを入力してください');return;}
+      recentHit=latestFbHit();
+      if(recentHit){
+        const diff=recentHit.lcdG-exitLcdG;
+        if(diff>=0)kiteiG=diff;
+        else kiteiWarning=true;
+      }
+      icatch=ICATCHES.includes(selectedIcatch)?selectedIcatch:null;
+      icatchNote=icatch==='その他'?($('icatchNoteText').value.trim().slice(0,20)||null):null;
+      state.currentState=normalizeCurrentState({realG:snap.realG,lcdG:exitLcdG});
     }
-    state.currentState=normalizeCurrentState({realG:snap.realG,lcdG:exitLcdG});
-    addLog({type:'fb',win,bonus:win?selectedBonus:null,rank:selectedRank,opponent:$('opponentText').value.trim().slice(0,20)||null,kiteiG,realG:snap.realG,lcdG:exitLcdG});
+    addLog({type:'fb',win,bonus:win?selectedBonus:null,rank:selectedRank,opponent:$('opponentText').value.trim().slice(0,20)||null,kiteiG,icatch:win?null:icatch,icatchNote:win?null:icatchNote,realG:snap.realG,lcdG:exitLcdG});
     $('fbExitLcdG').value='';
     $('opponentText').value='';
+    $('icatchNoteText').value='';
     selectedRank=null;
+    selectedIcatch=null;
     selectedBonus=null;
+    if(win)hideFbLossFields();
     render();
     toast(kiteiWarning?`${win?'FB勝利':'FB敗北'}を記録しました（規定Gは未保存）`:(win?'FB勝利を記録しました':'FB敗北を記録しました'));
   }
