@@ -279,7 +279,7 @@
       }else{x.font="800 52px 'M PLUS 1p'";}
       x.fillText(config.card.title,70,172);
       x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
-      const d=new Date();x.fillText(d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+'  '+(S.games||0)+'G',70,215);
+      const d=new Date();x.fillText(d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate()+'  '+cardGameText(),70,215);
       const cx=W-190,cy=175,r=105;
       x.save();x.strokeStyle='#ff3d8f';x.lineWidth=8;x.shadowColor='#ff3d8f';x.shadowBlur=22;x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();x.restore();
       if(cardImg){
@@ -295,6 +295,10 @@
       x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";x.fillText('slot-tools.jp',70,H-104);
       x.fillStyle='#9a90a8';x.font="500 22px 'M PLUS 1p'";x.fillText(config.card.footerTags,300,H-104);
       x.fillStyle='#9a90a8';x.font="500 21px 'M PLUS 1p'";x.fillText(nanaCreditText('card')+'／ 解析出典：ちょんぼりすた様',70,H-62);
+    }
+    function cardGameText(){
+      const label=config.card.gameLabel;
+      return label?label+' '+(S.games||0)+'G':(S.games||0)+'G';
     }
     function detailSections(){
       if(!config.card.detail)return [];
@@ -395,7 +399,7 @@
       x.fillText(config.card.title,70,172);
       x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
       const d=new Date();
-      x.fillText(`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}  ${S.games||0}G`,70,215);
+      x.fillText(`${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}  ${cardGameText()}`,70,215);
       const cx=W-190,cy=175,r=105;
       x.save();x.strokeStyle='#ff3d8f';x.lineWidth=8;x.shadowColor='#ff3d8f';x.shadowBlur=22;
       x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();x.restore();

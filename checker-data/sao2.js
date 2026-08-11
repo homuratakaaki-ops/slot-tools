@@ -90,8 +90,9 @@
     const g=ctx.S.games;
     return `
   <section class="sec">
-    <div class="sec-h">総ゲーム数</div>
-    <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="sec-h">通常回転数</div>
+    <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="hint">ダイトモの通常回転数を入力（AT中は含めない）</div>
     <div class="hint">⚠ 本機はCZ・AT確率だと設定5が設定4よりやや重い。設定5は確率ではなく優遇項目群（優遇タブ）で見抜く機種。</div>
   </section>
   <section class="sec">
@@ -144,7 +145,7 @@
   }
   function tplText(ctx){
     const S=ctx.S, czN=S.cz.cz, atN=S.atCount, fail=S.atcz.fail, atEnd=S.atcz.atEnd;
-    let t=`設定判別メモ｜L SAO2\n総回転数 ${S.games||0}G / CZ${czN}回 / AT${atN}回\n_______\n\n■GGOモード示唆\n`;
+    let t=`設定判別メモ｜L SAO2\n通常 ${S.games||0}G / CZ${czN}回 / AT${atN}回\n_______\n\n■GGOモード示唆\n`;
     GGO.forEach(c=>{t+=`${c[1]}▶︎ ${S.icons[c[0]]}回\n`;});
     t+='\n■AT継続セット数\n';
     SETS.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.atcz[c[0]],atEnd)}\n`;});
@@ -164,7 +165,7 @@
   function tplTextCompact(ctx){
     const S=ctx.S, czN=S.cz.cz, atN=S.atCount, fail=S.atcz.fail, atEnd=S.atcz.atEnd;
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
-    let t=`設定判別メモ｜L SAO2\n総回転数 ${S.games||0}G / CZ${czN}回 / AT${atN}回\n_______\n`;
+    let t=`設定判別メモ｜L SAO2\n通常 ${S.games||0}G / CZ${czN}回 / AT${atN}回\n_______\n`;
     t+=sec('GGOモード示唆',GGO.filter(c=>S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.icons[c[0]]}回`));
     t+=sec('AT継続セット数',atEnd>0?SETS.filter(c=>S.atcz[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.atcz[c[0]],atEnd)}`):[]);
     const scN=sum(S.screens);
@@ -205,6 +206,7 @@
     compactTemplate:tplTextCompact,
     card:{
       title:'L SAO2',
+      gameLabel:'通常',
       footerTags:'#SAO2 #設定判別',
       downloadName:'sao2_check.png',
       detailDownloadName:'sao2_check_detail.png',

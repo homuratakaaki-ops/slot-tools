@@ -142,8 +142,9 @@
     const g=ctx.S.games;
     return `
   <section class="sec">
-    <div class="sec-h">総回転数</div>
-    <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="sec-h">通常回転数</div>
+    <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="hint">マイスロの通常回転数を入力（ボーナス・ST中は含めない）</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り</div>
@@ -179,7 +180,7 @@
   }
   function tplText(ctx){
     const itemN=sum(ctx.S.icons), voiceN=sum(ctx.S.atcz), charN=sum(ctx.S.ed), screenN=sum(ctx.S.screens);
-    let t=`設定判別メモ｜スマスロ カバネリ海門決戦\n総回転数 ${ctx.S.games||0}G / ボーナス${ctx.S.cz.rg}回 / ST${ctx.S.atCount}回\n_______\n\n■アイテムくじ\n`;
+    let t=`設定判別メモ｜スマスロ カバネリ海門決戦\n通常 ${ctx.S.games||0}G / ボーナス${ctx.S.cz.rg}回 / ST${ctx.S.atCount}回\n_______\n\n■アイテムくじ\n`;
     ITEMS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.icons[c[0]],itemN)}\n`;});
     t+=`\n■周期当選\n`;
     CYCLES.forEach(c=>{t+=`${c[1]}▶︎ ${cycleWin(ctx.S,c[0])}/${cycleReach(ctx.S,c[0])}当選\n`;});
@@ -199,7 +200,7 @@
   function tplTextCompact(ctx){
     const itemN=sum(ctx.S.icons), voiceN=sum(ctx.S.atcz), charN=sum(ctx.S.ed), screenN=sum(ctx.S.screens);
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
-    let t=`設定判別メモ｜スマスロ カバネリ海門決戦\n総回転数 ${ctx.S.games||0}G / ボーナス${ctx.S.cz.rg}回 / ST${ctx.S.atCount}回\n_______\n`;
+    let t=`設定判別メモ｜スマスロ カバネリ海門決戦\n通常 ${ctx.S.games||0}G / ボーナス${ctx.S.cz.rg}回 / ST${ctx.S.atCount}回\n_______\n`;
     t+=sec('アイテムくじ',itemN>0?ITEMS.filter(c=>ctx.S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.icons[c[0]],itemN)}`):[]);
     t+=`\n■周期当選\n`;
     CYCLES.forEach(c=>{t+=`${c[1]}▶︎ ${cycleWin(ctx.S,c[0])}/${cycleReach(ctx.S,c[0])}当選\n`;});
@@ -244,6 +245,7 @@
     compactTemplate:tplTextCompact,
     card:{
       title:'スマスロ カバネリ海門決戦',
+      gameLabel:'通常',
       titleFitMax:690,
       footerTags:'#カバネリ海門決戦 #設定判別',
       downloadName:'kabaneri2_check.png',

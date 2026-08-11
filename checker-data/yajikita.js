@@ -86,8 +86,9 @@
     const g=ctx.S.games;
     return `
   <section class="sec">
-    <div class="sec-h">総回転数</div>
-    <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="sec-h">通常回転数</div>
+    <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="hint">ユニメモの通常回転数を入力（AT中は含めない）</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り</div>
@@ -119,7 +120,7 @@
     const czN=ctx.S.cz.rg;
     const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
     const charN=Object.values(ctx.S.icons).reduce((a,b)=>a+b,0);
-    let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n総回転数 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■まいるテーブル\n`;
+    let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n通常 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■まいるテーブル\n`;
     TABLES.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.zones[c[0]]}回\n`;});
     const recent=ctx.S.tableHist.slice(-5).reverse().map(h=>tableShort(h.key)).join('←')||'なし';
     t+=`直近履歴：${recent}\n`;
@@ -138,7 +139,7 @@
     const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
     const charN=Object.values(ctx.S.icons).reduce((a,b)=>a+b,0);
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
-    let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n総回転数 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■まいるテーブル\n`;
+    let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n通常 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■まいるテーブル\n`;
     TABLES.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.zones[c[0]]}回\n`;});
     const recent=ctx.S.tableHist.slice(-5).reverse().map(h=>tableShort(h.key)).join('←')||'なし';
     t+=`直近履歴：${recent}\n`;
@@ -188,6 +189,7 @@
     compactTemplate:tplTextCompact,
     card:{
       title:'スマスロ やじきた道中記参る！',
+      gameLabel:'通常',
       titleFitMax:690,
       footerTags:'#やじきた道中記参る #設定判別',
       downloadName:'yajikita_check.png',

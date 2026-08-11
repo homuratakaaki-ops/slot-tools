@@ -129,8 +129,9 @@
     const g=ctx.S.games;
     return `
   <section class="sec">
-    <div class="sec-h">総回転数</div>
-    <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="sec-h">通常回転数</div>
+    <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="hint">打-WINの通常回転数を入力（遊技終了時に台のQRコードを読み取って確認できます）</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り</div>
@@ -165,7 +166,7 @@
   }
   function tplText(ctx){
     const strapN=sum(ctx.S.icons), bonusN=sum(ctx.S.coins), screenN=sum(ctx.S.screens), voiceN=sum(ctx.S.ed);
-    let t=`設定判別メモ｜L戦国乙女5\n総回転数 ${ctx.S.games||0}G / AT${ctx.S.atCount}回 / 直撃${ctx.S.choku}回\n_______\n\n■繚乱の刻\n`;
+    let t=`設定判別メモ｜L戦国乙女5\n通常 ${ctx.S.games||0}G / AT${ctx.S.atCount}回 / 直撃${ctx.S.choku}回\n_______\n\n■繚乱の刻\n`;
     ['①','②','③','④','⑤','⑥'].forEach((mark,idx)=>{
       const i=idx+1;
       t+=`${mark}周期▶焔舞${ctx.S.zones[`c${i}e`]}回・紫炎${ctx.S.zones[`c${i}s`]}回\n`;
@@ -188,7 +189,7 @@
   function tplTextCompact(ctx){
     const strapN=sum(ctx.S.icons), bonusN=sum(ctx.S.coins), screenN=sum(ctx.S.screens), voiceN=sum(ctx.S.ed);
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
-    let t=`設定判別メモ｜L戦国乙女5\n総回転数 ${ctx.S.games||0}G / AT${ctx.S.atCount}回 / 直撃${ctx.S.choku}回\n_______\n\n■繚乱の刻\n`;
+    let t=`設定判別メモ｜L戦国乙女5\n通常 ${ctx.S.games||0}G / AT${ctx.S.atCount}回 / 直撃${ctx.S.choku}回\n_______\n\n■繚乱の刻\n`;
     ['①','②','③','④','⑤','⑥'].forEach((mark,idx)=>{
       const i=idx+1;
       t+=`${mark}周期▶焔舞${ctx.S.zones[`c${i}e`]}回・紫炎${ctx.S.zones[`c${i}s`]}回\n`;
@@ -223,6 +224,7 @@
     compactTemplate:tplTextCompact,
     card:{
       title:'L戦国乙女5',
+      gameLabel:'通常',
       footerTags:'#L戦国乙女5 #設定判別',
       downloadName:'otome5_check.png',
       detailDownloadName:'otome5_check_detail.png',
