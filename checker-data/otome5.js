@@ -7,11 +7,12 @@
     const S=ctx.S;
     return [
       {title:'繚乱の刻',items:detailItems(RYORAN,S.zones)},
+      {title:'初当り',items:[detailItem('AT当選',S.atCount,0),detailItem('ボーナス直撃',S.choku,1),detailItem('巫女pt 0到達',S.cz.miko,0),detailRatio('乙女アタック当選',S.cz.attack,S.cz.miko,1)]},
       {title:'乙女ストラップ',items:detailItems(STRAPS,S.icons)},
       {title:'ボーナス終了画面',items:detailItems(BONUS,S.coins)},
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
-      {title:'獲得枚数',items:detailItems(MEDALS,S.attack)},
-      {title:'EDゴエモンボイス',items:detailItems(VOICES,S.ed)},
+      {title:'獲得枚数表示',items:detailItems(MEDALS,S.attack)},
+      {title:'ED中のゴエモンボイス',items:detailItems(VOICES,S.ed)},
       {title:'ハルルナPUSH',items:[detailItem('ハルルナPUSH',S.over.haru,1)]}
     ];
   }

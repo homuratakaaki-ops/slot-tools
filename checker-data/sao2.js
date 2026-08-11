@@ -8,12 +8,13 @@
     const atEnd=S.atcz.atEnd||0;
     const over2=(S.atcz.set2||0)+(S.atcz.set3||0)+(S.atcz.set4||0);
     return [
-      {title:'GGOモード示唆',items:detailItems(GGO,S.icons)},
-      {title:'AT継続セット数',items:detailItems(SETS,S.atcz)},
+      {title:'初当り・小役',items:[detailItem('CZ当選',S.cz.cz,0),detailItem('AT当選',S.atCount,0),detailItem('確定CZ',S.cz.end,1),detailItem('曠野の決闘',S.cz.duel,1),{label:'共通ベル',value:S.cz.bell,hot:false,text:S.cz.bell>0?'共通ベル 1/'+((S.games||0)/S.cz.bell).toFixed(1):'',show:S.cz.bell>0},{label:'強チャンス目B',value:S.cz.chanceB,hot:false,text:S.cz.chanceB>0?'強チャンス目B 1/'+((S.games||0)/S.cz.chanceB).toFixed(1):'',show:S.cz.chanceB>0}]},
+      {title:'CZ失敗後',items:[detailItem('CZ失敗',S.atcz.fail,0),detailRatio('CZ失敗後のアイテム獲得',S.atcz.item,S.atcz.fail,1),detailItem('SC1・2戦目デスガン',S.atcz.deathgun,1)]},
+      {title:'AT終了後・継続セット',items:[detailItem('AT終了',atEnd,0)].concat(detailItems(SETS,S.atcz),[detailRatio('AT後50G以内の引き戻し',S.atcz.return50,atEnd,1),detailRatio('2セット以上継続',over2,atEnd,0)])},
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
       {title:'コパンダトロフィー',items:detailItems(TROPHIES,S.coins)},
-      {title:'EDミニキャラ',items:detailItems(ED,S.ed)},
-      {title:'優遇項目',items:[detailItem('確定CZ',S.cz.end,1),detailItem('曠野の決闘',S.cz.duel,1),detailRatio('CZ失敗→アイテム',S.atcz.item,S.atcz.fail,1),detailItem('SC1・2戦目デスガン',S.atcz.deathgun,1),detailRatio('AT引き戻し',S.atcz.return50,atEnd,1),detailRatio('2セット以上継続',over2,atEnd,0),{label:'共通ベル',value:S.cz.bell,hot:false,text:S.cz.bell>0?'共通ベル 1/'+((S.games||0)/S.cz.bell).toFixed(1):'',show:S.cz.bell>0},{label:'強チャンス目B',value:S.cz.chanceB,hot:false,text:S.cz.chanceB>0?'強チャンス目B 1/'+((S.games||0)/S.cz.chanceB).toFixed(1):'',show:S.cz.chanceB>0}]}
+      {title:'ED中のミニキャラ',items:detailItems(ED,S.ed)},
+      {title:'GGOモード示唆',items:detailItems(GGO,S.icons)}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};

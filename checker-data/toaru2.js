@@ -6,14 +6,13 @@
   function detail(ctx){
     const S=ctx.S;
     return [
-      {title:'規定ゲーム数',items:ZONES.map(z=>detailItem(z+'G台',S.zones[z],0))},
-      {title:'初当り',items:[detailItem('AT当選',S.atCount,0),detailItem('AT直撃',S.choku,1)]},
-      {title:'通常CZ',items:[detailItem('CZ 超電磁砲チャンス',S.cz.rg,0),detailItem('CZ 一方通行チャンス',S.cz.ac,1)]},
-      {title:'AT中CZ',items:[detailItem('神の力BATTLE',S.atcz.gab,0),detailItem('神の右席BATTLE',S.atcz.useki,1)]},
-      {title:'終了時アイコン',items:detailItems(ICONS,S.icons)},
-      {title:'藤丸コイン',items:detailItems(COINS,S.coins)},
+      {title:'規定ゲーム数 当選ゾーン',items:ZONES.map(z=>detailItem(z+'G台',S.zones[z],0))},
+      {title:'初当り',items:[detailItem('CZ 超電磁砲チャンス',S.cz.rg,0),detailItem('CZ 一方通行チャンス',S.cz.ac,1),detailItem('AT当選',S.atCount,0),detailItem('AT直撃',S.choku,1)]},
+      {title:'AT中CZ 振り分け',items:[detailItem('神の力BATTLE',S.atcz.gab,0),detailItem('神の右席BATTLE',S.atcz.useki,1)]},
+      {title:'CZ・AT終了時 アイコン',items:detailItems(ICONS,S.icons)},
+      {title:'藤丸コイン（AT終了画面）',items:detailItems(COINS,S.coins)},
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
-      {title:'ED演出',items:detailItems(ED,S.ed)}
+      {title:'ED中 お知らせ演出',items:detailItems(ED,S.ed)}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};

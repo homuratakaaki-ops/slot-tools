@@ -331,19 +331,29 @@
       const removable=rows.map((row,index)=>({row,index})).filter(x=>x.row.type==='item'&&!x.row.hot).sort((a,b)=>(a.row.value-b.row.value)||(b.index-a.index));
       const removed=new Set();
       while(rows.length-removed.size>maxRows-1&&removable.length)removed.add(removable.shift().index);
-      if(rows.length-removed.size>maxRows-1){
-        const rest=rows.map((row,index)=>({row,index})).filter(x=>x.row.type==='item'&&!removed.has(x.index)).sort((a,b)=>(a.row.value-b.row.value)||(b.index-a.index));
-        while(rows.length-removed.size>maxRows-1&&rest.length)removed.add(rest.shift().index);
-      }
+      let moreCount=removed.size;
       let compact=rows.filter((_,i)=>!removed.has(i));
       compact=compact.filter((row,i)=>{
         if(row.type!=='section')return true;
         return compact[i+1]&&(compact[i+1].type==='item');
       });
-      if(removed.size>0){
-        if(compact.length>=maxRows)compact=compact.slice(0,maxRows-1);
-        compact.push({type:'more',text:'ほか '+removed.size+'項目',hot:false,value:0});
+      while(compact.length>maxRows-1){
+        const sectionIndex=compact.findIndex(row=>row.type==='section');
+        if(sectionIndex<0)break;
+        compact.splice(sectionIndex,1);
       }
+      if(compact.length>maxRows-1){
+        const rest=compact.map((row,index)=>({row,index})).filter(x=>x.row.type==='item').sort((a,b)=>(a.row.value-b.row.value)||(b.index-a.index));
+        while(compact.length>maxRows-1&&rest.length){
+          const target=rest.shift().row;
+          const index=compact.indexOf(target);
+          if(index>=0){
+            compact.splice(index,1);
+            moreCount++;
+          }
+        }
+      }
+      if(moreCount>0)compact.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});
       return compact;
     }
     function fitText(x,text,tx,ty,maxWidth,fontSize,color,weight){
