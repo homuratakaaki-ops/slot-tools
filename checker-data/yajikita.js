@@ -105,16 +105,21 @@
     const czN=ctx.S.cz.rg;
     const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
     const charN=Object.values(ctx.S.icons).reduce((a,b)=>a+b,0);
+    const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
     let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n総回転数 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■まいるテーブル\n`;
     TABLES.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.zones[c[0]]}回\n`;});
     const recent=ctx.S.tableHist.slice(-5).reverse().map(h=>tableShort(h.key)).join('←')||'なし';
     t+=`直近履歴：${recent}\n`;
-    t+=`\n■関頂アタック▶︎ ${ctx.S.atcz.gab}回\n■温泉ステージ▶︎ ${ctx.S.atcz.useki}回\n■AT直撃▶︎ ${ctx.S.choku}回\n\n■あっぱれキャラ\n`;
-    CHARACTERS.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.icons[c[0]],charN)}\n`;});
-    t+=`\n■AT終了画面\n`;
+    t+=sec('関頂アタック',ctx.S.atcz.gab>0?[`関頂アタック▶︎ ${ctx.S.atcz.gab}回`]:[]);
+    t+=sec('温泉ステージ',ctx.S.atcz.useki>0?[`温泉ステージ▶︎ ${ctx.S.atcz.useki}回`]:[]);
+    t+=sec('AT直撃',ctx.S.choku>0?[`AT直撃▶︎ ${ctx.S.choku}回`]:[]);
+    t+=sec('あっぱれキャラ',charN>0?CHARACTERS.filter(c=>ctx.S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${p(ctx.S.icons[c[0]],charN)}`):[]);
     const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
-    SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.screens[c[0]],scN)}\n`;});
-    t+=`\n■ユニバプレート\n銅▶︎ ${ctx.S.coins.cu}回　銀▶︎ ${ctx.S.coins.ag}回　金▶︎ ${ctx.S.coins.au}回\n花火▶︎ ${ctx.S.coins.dg}回　虹▶︎ ${ctx.S.coins.rb}回\n\n■ED中の手形▶︎ ${ctx.S.ed.e1}回\n`;
+    t+=sec('AT終了画面',scN>0?SCREENS.filter(c=>ctx.S.screens[c[0]]>0).map(c=>`${c[1]}▶︎ ${p(ctx.S.screens[c[0]],scN)}`):[]);
+    t+=sec('ユニバプレート',[
+      ['銅',ctx.S.coins.cu],['銀',ctx.S.coins.ag],['金',ctx.S.coins.au],['花火',ctx.S.coins.dg],['虹',ctx.S.coins.rb]
+    ].filter(v=>v[1]>0).map(v=>`${v[0]}▶︎ ${v[1]}回`));
+    t+=sec('ED中の手形',ctx.S.ed.e1>0?[`ED中の手形▶︎ ${ctx.S.ed.e1}回`]:[]);
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
     return t;
   }

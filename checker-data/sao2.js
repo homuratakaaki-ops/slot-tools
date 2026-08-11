@@ -128,19 +128,24 @@
   }
   function tplText(ctx){
     const S=ctx.S, czN=S.cz.cz, atN=S.atCount, fail=S.atcz.fail, atEnd=S.atcz.atEnd;
-    let t=`設定判別メモ｜L SAO2\n総回転数 ${S.games||0}G / CZ${czN}回 / AT${atN}回\n_______\n\n■GGOモード示唆\n`;
-    GGO.forEach(c=>{t+=`${c[1]}▶︎ ${S.icons[c[0]]}回\n`;});
-    t+='\n■AT継続セット数\n';
-    SETS.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.atcz[c[0]],atEnd)}\n`;});
-    t+='\n■AT終了画面\n';
+    const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
+    let t=`設定判別メモ｜L SAO2\n総回転数 ${S.games||0}G / CZ${czN}回 / AT${atN}回\n_______\n`;
+    t+=sec('GGOモード示唆',GGO.filter(c=>S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.icons[c[0]]}回`));
+    t+=sec('AT継続セット数',atEnd>0?SETS.filter(c=>S.atcz[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.atcz[c[0]],atEnd)}`):[]);
     const scN=sum(S.screens);
-    SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.screens[c[0]],scN)}\n`;});
-    t+='\n■コパンダトロフィー\n';
-    TROPHIES.forEach(c=>{t+=`${c[1]}▶︎ ${S.coins[c[0]]}回\n`;});
-    t+='\n■EDミニキャラ\n';
+    t+=sec('AT終了画面',scN>0?SCREENS.filter(c=>S.screens[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.screens[c[0]],scN)}`):[]);
+    t+=sec('コパンダトロフィー',TROPHIES.filter(c=>S.coins[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.coins[c[0]]}回`));
     const edN=sum(S.ed);
-    ED.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.ed[c[0]],edN)}\n`;});
-    t+=`\n■優遇項目\n確定CZ▶︎ ${S.cz.end}回\n曠野の決闘▶︎ ${S.cz.duel}回\nCZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}\nSC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回\nAT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}\n共通ベル▶︎ ${rate(S.games,S.cz.bell)}（${S.cz.bell}回）\n強チャンス目B▶︎ ${rate(S.games,S.cz.chanceB)}（${S.cz.chanceB}回）\n`;
+    t+=sec('EDミニキャラ',edN>0?ED.filter(c=>S.ed[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.ed[c[0]],edN)}`):[]);
+    const yuugu=[];
+    if(S.cz.end>0)yuugu.push(`確定CZ▶︎ ${S.cz.end}回`);
+    if(S.cz.duel>0)yuugu.push(`曠野の決闘▶︎ ${S.cz.duel}回`);
+    if(fail>0)yuugu.push(`CZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}`);
+    if(S.atcz.deathgun>0)yuugu.push(`SC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回`);
+    if(atEnd>0)yuugu.push(`AT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}`);
+    if(S.cz.bell>0)yuugu.push(`共通ベル▶︎ ${rate(S.games,S.cz.bell)}（${S.cz.bell}回）`);
+    if(S.cz.chanceB>0)yuugu.push(`強チャンス目B▶︎ ${rate(S.games,S.cz.chanceB)}（${S.cz.chanceB}回）`);
+    t+=sec('優遇項目',yuugu);
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
     return t;
   }

@@ -135,25 +135,36 @@
     <div class="hint">EDレア役成立時に液晶左下。十字リプレイ契機は高設定確定系のチャンス。</div></section>`;
   }
   function tplText(ctx){
-    let t=`設定判別メモ｜L炎炎ノ消防隊2\n総回転数 ${ctx.S.games||0}G / ボーナス${ctx.S.cz.bonus}回 / 炎炎ループ${ctx.S.atCount}回\n_______\n\n■キャラ紹介シナリオ（系統別）\n`;
-    const scenarioN=sum(ctx.S.screens);
-    SCENARIOS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.screens[c[0]],scenarioN)}\n`;});
-    t+=`\n■特殊パターン\n`;
-    SPECIALS.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.ed[c[0]]}回\n`;});
-    t+=`\n■まもるくん\n`;
-    MAMORU.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.icons[c[0]]}回\n`;});
-    t+=`\n■罠・変換\n伝導者の罠成功▶︎ ${ratio(ctx.S.cz.trapHit,ctx.S.cz.trap)}\n十字目変換▶︎ ${ratio(ctx.S.cz.convert,ctx.S.cz.smallv)}\n変換からボーナス▶︎ ${ratio(ctx.S.cz.convertBonus,ctx.S.cz.convert)}\n`;
-    t+=`\n■バトル\nジョヴァンニ▶︎ ${ctx.S.cz.giovanni}回\nオロチ▶︎ ${ctx.S.cz.orochi}回\n`;
-    t+=`\n■ボーナス終了画面\nREG後\n`;
-    const regN=sum(ctx.S.zonesReg), bigN=sum(ctx.S.zonesBig);
-    BONUS_SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.zonesReg[c[0]],regN)}\n`;});
-    t+=`BIG後\n`;
-    BONUS_SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.zonesBig[c[0]],bigN)}\n`;});
-    t+=`\n■獲得枚数\n`;
-    OVER.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.coins[c[0]]}回\n`;});
-    t+=`\n■EDミニキャラ\n`;
-    const edN=sum(ctx.S.atcz);
-    ED_CHARS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.atcz[c[0]],edN)}\n`;});
+    const S=ctx.S;
+    const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
+    let t=`設定判別メモ｜L炎炎ノ消防隊2\n総回転数 ${S.games||0}G / ボーナス${S.cz.bonus}回 / 炎炎ループ${S.atCount}回\n_______\n`;
+    const scenarioN=sum(S.screens);
+    t+=sec('キャラ紹介シナリオ（系統別）',scenarioN>0?SCENARIOS.filter(c=>S.screens[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(S.screens[c[0]],scenarioN)}`):[]);
+    t+=sec('特殊パターン',SPECIALS.filter(c=>S.ed[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.ed[c[0]]}回`));
+    t+=sec('まもるくん',MAMORU.filter(c=>S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.icons[c[0]]}回`));
+    const trap=[];
+    if(S.cz.trap>0)trap.push(`伝導者の罠成功▶︎ ${ratio(S.cz.trapHit,S.cz.trap)}`);
+    if(S.cz.smallv>0)trap.push(`十字目変換▶︎ ${ratio(S.cz.convert,S.cz.smallv)}`);
+    if(S.cz.convert>0)trap.push(`変換からボーナス▶︎ ${ratio(S.cz.convertBonus,S.cz.convert)}`);
+    t+=sec('罠・変換',trap);
+    const battle=[];
+    if(S.cz.giovanni>0)battle.push(`ジョヴァンニ▶︎ ${S.cz.giovanni}回`);
+    if(S.cz.orochi>0)battle.push(`オロチ▶︎ ${S.cz.orochi}回`);
+    t+=sec('バトル',battle);
+    const regN=sum(S.zonesReg), bigN=sum(S.zonesBig);
+    const bonus=[];
+    if(regN>0){
+      bonus.push('REG後');
+      BONUS_SCREENS.filter(c=>S.zonesReg[c[0]]>0).forEach(c=>bonus.push(`${c[1]}▶︎ ${pctLine(S.zonesReg[c[0]],regN)}`));
+    }
+    if(bigN>0){
+      bonus.push('BIG後');
+      BONUS_SCREENS.filter(c=>S.zonesBig[c[0]]>0).forEach(c=>bonus.push(`${c[1]}▶︎ ${pctLine(S.zonesBig[c[0]],bigN)}`));
+    }
+    t+=sec('ボーナス終了画面',bonus);
+    t+=sec('獲得枚数',OVER.filter(c=>S.coins[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.coins[c[0]]}回`));
+    const edN=sum(S.atcz);
+    t+=sec('EDミニキャラ',edN>0?ED_CHARS.filter(c=>S.atcz[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(S.atcz[c[0]],edN)}`):[]);
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
     return t;
   }

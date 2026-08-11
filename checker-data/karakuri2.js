@@ -155,29 +155,27 @@
     <div class="cgrid">${STAGES.map(c=>ctx.crow('stages.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,stageN))).join('')}</div></section>`;
   }
   function tplText(ctx){
-    let t=`設定判別メモ｜Lからくりサーカス2\n総回転数 ${ctx.S.games||0}G / CZ${ctx.S.cz.rg}回 / AT${ctx.S.atCount}回\n_______\n\n■運命盤・スイカ規定\n`;
+    const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
+    let t=`設定判別メモ｜Lからくりサーカス2\n総回転数 ${ctx.S.games||0}G / CZ${ctx.S.cz.rg}回 / AT${ctx.S.atCount}回\n_______\n`;
     const rewardN=sum(ctx.S.zones);
-    REWARDS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.zones[c[0]],rewardN)}\n`;});
-    t+=`\n■CZ劇場ジャッジ・強チェ直撃\n劇場ジャッジ▶︎ ${ctx.S.cz.theater}回\n強チェ直撃▶︎ ${ctx.S.cz.strongHit}/${ctx.S.cz.strong} ${ctx.S.cz.strong?`${(100*ctx.S.cz.strongHit/ctx.S.cz.strong).toFixed(0)}%`:'—'}\n\n■AT開始ステージ\n`;
+    t+=sec('運命盤・スイカ規定',rewardN>0?REWARDS.filter(c=>ctx.S.zones[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.zones[c[0]],rewardN)}`):[]);
+    const czLines=[];
+    if(ctx.S.cz.theater>0)czLines.push(`劇場ジャッジ▶︎ ${ctx.S.cz.theater}回`);
+    if(ctx.S.cz.strong>0)czLines.push(`強チェ直撃▶︎ ${ctx.S.cz.strongHit}/${ctx.S.cz.strong} ${(100*ctx.S.cz.strongHit/ctx.S.cz.strong).toFixed(0)}%`);
+    t+=sec('CZ劇場ジャッジ・強チェ直撃',czLines);
     const stageN=sum(ctx.S.stages);
-    STAGES.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.stages[c[0]],stageN)}\n`;});
-    t+=`\n■AT終了画面\n`;
+    t+=sec('AT開始ステージ',stageN>0?STAGES.filter(c=>ctx.S.stages[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.stages[c[0]],stageN)}`):[]);
     const scN=sum(ctx.S.screens);
-    AT_SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.screens[c[0]],scN)}\n`;});
-    t+=`\n■タッチボイス\n`;
+    t+=sec('AT終了画面',scN>0?AT_SCREENS.filter(c=>ctx.S.screens[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.screens[c[0]],scN)}`):[]);
     const voiceN=sum(ctx.S.atcz);
-    VOICES.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.atcz[c[0]],voiceN)}\n`;});
-    t+=`\n■激情ジャッジシナリオ\n`;
+    t+=sec('タッチボイス',voiceN>0?VOICES.filter(c=>ctx.S.atcz[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.atcz[c[0]],voiceN)}`):[]);
     const judgeN=sum(ctx.S.ed);
-    JUDGES.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.ed[c[0]],judgeN)}\n`;});
-    t+=`\n■EDランプ\n`;
+    t+=sec('激情ジャッジシナリオ',judgeN>0?JUDGES.filter(c=>ctx.S.ed[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.ed[c[0]],judgeN)}`):[]);
     const lampN=sum(ctx.S.coins);
-    LAMPS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.coins[c[0]],lampN)}\n`;});
-    t+=`\n■獲得枚数・オリンピア\n`;
-    OVER.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.over[c[0]]}回\n`;});
-    t+=`\n■CZ終了画面イラスト\n`;
+    t+=sec('EDランプ',lampN>0?LAMPS.filter(c=>ctx.S.coins[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.coins[c[0]],lampN)}`):[]);
+    t+=sec('獲得枚数・オリンピア',OVER.filter(c=>ctx.S.over[c[0]]>0).map(c=>`${c[1]}▶︎ ${ctx.S.over[c[0]]}回`));
     const czIllN=sum(ctx.S.icons);
-    CZ_ILLUST.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.icons[c[0]],czIllN)}\n`;});
+    t+=sec('CZ終了画面イラスト',czIllN>0?CZ_ILLUST.filter(c=>ctx.S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.icons[c[0]],czIllN)}`):[]);
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
     return t;
   }
