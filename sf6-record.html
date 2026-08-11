@@ -336,9 +336,11 @@ textarea{
   </section>
 
   <section class="section" aria-labelledby="dataTitle">
-    <h2 id="dataTitle">バックアップ / リセット</h2>
+    <h2 id="dataTitle">データ出力 / リセット</h2>
     <div class="actions">
-      <button class="action secondary" type="button" id="exportBtn">JSONエクスポート</button>
+      <button class="action secondary" type="button" id="exportBtn">JSONを表示</button>
+      <button class="action secondary" type="button" id="copyJsonBtn">コピー</button>
+      <button class="action secondary" type="button" id="downloadJsonBtn">ファイル保存</button>
       <button class="action danger" type="button" id="resetBtn">リセット</button>
     </div>
     <textarea id="exportBox" class="export-box" readonly hidden></textarea>
@@ -737,14 +739,50 @@ textarea{
     render();
     toast('記録を削除しました');
   }
+  function exportData(){
+    return normalize(state);
+  }
+  function exportJsonText(){
+    return JSON.stringify(exportData(),null,1);
+  }
   function exportJson(){
-    const text=JSON.stringify(normalize(state),null,2);
     const box=$('exportBox');
     box.hidden=false;
-    box.value=text;
+    box.value=exportJsonText();
     box.focus();
     box.select();
     toast('JSONを出力しました');
+  }
+  async function copyJson(){
+    const text=exportJsonText();
+    $('exportBox').hidden=false;
+    $('exportBox').value=text;
+    try{
+      await navigator.clipboard.writeText(text);
+      toast('JSONをコピーしました');
+    }catch(e){
+      $('exportBox').focus();
+      $('exportBox').select();
+      toast('コピーできませんでした。手動で選択してください');
+    }
+  }
+  function exportFilename(date=new Date()){
+    const pad=n=>String(n).padStart(2,'0');
+    return `sf6-record_${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}_${pad(date.getHours())}${pad(date.getMinutes())}.json`;
+  }
+  function downloadJson(){
+    const blob=new Blob([exportJsonText()],{type:'application/json'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    const filename=exportFilename();
+    a.href=url;
+    a.download=filename;
+    $('downloadJsonBtn').dataset.lastFilename=filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),0);
+    toast('JSONファイルを保存しました');
   }
   function resetAll(){
     const btn=$('resetBtn');
@@ -784,12 +822,14 @@ textarea{
     $('fbLoseBtn').addEventListener('click',()=>recordFb(false));
     $('memoBtn').addEventListener('click',recordMemo);
     $('exportBtn').addEventListener('click',exportJson);
+    $('copyJsonBtn').addEventListener('click',copyJson);
+    $('downloadJsonBtn').addEventListener('click',downloadJson);
     $('resetBtn').addEventListener('click',resetAll);
   }
   load();
   bind();
   render();
-  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,optionalGame,nonnegativeInt,STORAGE_KEY,MACHINE,VERSION};
+  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,optionalGame,nonnegativeInt,exportFilename,exportData,exportJsonText,STORAGE_KEY,MACHINE,VERSION};
 })();
 </script>
 </body>
