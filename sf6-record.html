@@ -9,7 +9,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="スロット稼働ノート">
 <meta property="og:title" content="Lストリートファイター6 液晶G履歴入力｜スロット稼働ノート">
-<meta property="og:description" content="実Gと液晶Gの乖離、DC終了時の合計加算、FB結果を端末内に記録します。判断ロジックは入れず、実記録に徹したPhase 1ツールです。">
+<meta property="og:description" content="実G、液晶G、DC終了時の合計加算、FB結果を端末内に記録します。判断ロジックは入れず、実記録に徹したPhase 1ツールです。">
 <meta property="og:url" content="https://slot-tools.jp/sf6-record.html">
 <style>
 :root{
@@ -29,6 +29,8 @@
   --pink:#ff7aa2;
   --memo:#c4e86b;
   --focus:#9af285;
+  --red:#ff5d6c;
+  --soft-green:#94d982;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -74,7 +76,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   border-radius:8px;
   padding:5px 2px;
   text-align:center;
+  cursor:pointer;
 }
+.stat[aria-disabled="true"]{cursor:default;opacity:.78}
 .stat span{display:block;color:var(--muted);font-size:10px;white-space:nowrap}
 .stat b{display:block;color:var(--ink);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .section{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
@@ -96,6 +100,13 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .actions,.chips{display:flex;gap:8px;flex-wrap:wrap}
 .actions{margin-top:10px}
 .chips{margin:8px 0}
+.step-actions{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 12px}
+.step-actions .action{flex:1 1 58px;padding-left:6px;padding-right:6px}
+.adjust-panel[hidden]{display:none!important}
+.adjust-panel{margin:10px 0 12px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.adjust-title{font-size:12px;color:var(--drive);font-weight:800;margin-bottom:8px}
+.adjust-steps{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.adjust-steps .action{flex:1 1 58px;padding-left:6px;padding-right:6px}
 .chip,.action{
   border:1px solid var(--line);
   border-radius:999px;
@@ -107,6 +118,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 }
 .chip{font-size:12px;font-weight:700}
 .chip[aria-pressed="true"]{border-color:var(--drive);background:var(--drive-dark);color:var(--drive)}
+.chip.color-blue{color:var(--blue)}
+.chip.color-red{color:var(--red)}
 .chip.voice-hot{border-color:#633039;color:var(--danger)}
 .chip.voice-hot[aria-pressed="true"]{background:#35171c;border-color:var(--danger);color:#fff}
 .action{
@@ -153,15 +166,20 @@ textarea{
   color:#07100b;
 }
 .tag.gain{background:var(--drive)}
+.tag.dcin{background:var(--soft-green)}
 .tag.judge{background:var(--amber)}
 .tag.in{background:var(--blue)}
+.tag.stage{background:#3f75c8;color:#eef5ff}
 .tag.out{background:var(--purple)}
+.tag.gcolor{background:#d7e8ef}
 .tag.fb{background:var(--pink)}
+.tag.fbhit{background:#ffb4c8}
 .tag.memo{background:var(--memo)}
 .log-main{flex:1;min-width:0}
 .log-text{font-size:13px;word-break:break-word}
 .log-sub{font-size:11px;color:var(--muted);margin-top:3px}
 .voice-mark{color:var(--danger);font-weight:800}
+.red-mark{color:var(--red);font-weight:800}
 .delete{
   flex:none;
   width:34px;
@@ -221,22 +239,31 @@ textarea{
       <a class="head-link" href="/">トップ</a>
     </div>
     <div class="status" aria-label="現在値">
-      <div class="stat"><span>実G</span><b id="statReal">-</b></div>
-      <div class="stat"><span>液晶G</span><b id="statLcd">-</b></div>
-      <div class="stat"><span>乖離</span><b id="statGap">-</b></div>
-      <div class="stat"><span>FBスルー</span><b id="statThrough">0</b></div>
+      <button class="stat" type="button" id="statRealBtn" data-adjust="realG"><span>実G</span><b id="statReal">-</b></button>
+      <button class="stat" type="button" id="statLcdBtn" data-adjust="lcdG"><span>液晶G</span><b id="statLcd">-</b></button>
+      <div class="stat" aria-disabled="true"><span>FBスルー</span><b id="statThrough">0</b></div>
     </div>
   </div>
 
-  <section class="section" aria-labelledby="snapTitle">
-    <h2 id="snapTitle">G数スナップショット</h2>
+  <div class="step-actions" aria-label="通常消化">
+    <button class="action secondary" type="button" data-step="1">+1</button>
+    <button class="action secondary" type="button" data-step="3">+3</button>
+    <button class="action secondary" type="button" data-step="5">+5</button>
+    <button class="action secondary" type="button" data-step="10">+10</button>
+    <button class="action secondary" type="button" id="stepUndoBtn">元に戻す</button>
+  </div>
+
+  <section class="adjust-panel" id="adjustPanel" aria-labelledby="adjustTitle" hidden>
+    <div class="adjust-title" id="adjustTitle">G数調整</div>
     <div class="field-row">
-      <label for="realG">実ゲーム数</label>
-      <input id="realG" type="number" inputmode="numeric" min="0" step="1" placeholder="未入力可">
+      <label for="adjustValue" id="adjustLabel">現在値</label>
+      <input id="adjustValue" type="number" inputmode="numeric" min="0" step="1" placeholder="未入力可">
     </div>
-    <div class="field-row">
-      <label for="lcdG">液晶ゲーム数</label>
-      <input id="lcdG" type="number" inputmode="numeric" min="0" step="1" placeholder="例 350">
+    <div class="adjust-steps">
+      <button class="action secondary" type="button" data-adjust-step="-10">-10</button>
+      <button class="action secondary" type="button" data-adjust-step="-1">-1</button>
+      <button class="action secondary" type="button" data-adjust-step="1">+1</button>
+      <button class="action secondary" type="button" data-adjust-step="10">+10</button>
     </div>
   </section>
 
@@ -244,12 +271,24 @@ textarea{
     <h2 id="zenTitle">前兆</h2>
     <div class="actions">
       <button class="action secondary" type="button" data-zen="in">前兆 突入</button>
+      <button class="action secondary" type="button" data-zen="stage">前兆ステージ突入</button>
       <button class="action secondary" type="button" data-zen="out">前兆 抜け</button>
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="colorTitle">
+    <h2 id="colorTitle">G数色変化</h2>
+    <div class="chips" id="gColorKinds" aria-label="G数色"></div>
+    <div class="actions">
+      <button class="action secondary" type="button" id="gColorBtn">色変化を記録</button>
     </div>
   </section>
 
   <section class="section" aria-labelledby="gainTitle">
     <h2 id="gainTitle">ゲーム数加算</h2>
+    <div class="actions">
+      <button class="action secondary" type="button" id="dcInBtn">DC突入</button>
+    </div>
     <div class="chips" id="gainKinds" aria-label="加算種別"></div>
     <div class="field-row">
       <label for="addG">加算G数</label>
@@ -264,7 +303,18 @@ textarea{
 
   <section class="section" aria-labelledby="fbTitle">
     <h2 id="fbTitle">ファイターズバトル</h2>
-    <div class="chips" id="fbTriggers" aria-label="当選契機"></div>
+    <div class="actions">
+      <button class="action secondary" type="button" id="fbHitBtn">FB当選</button>
+    </div>
+    <div class="chips" id="rankKinds" aria-label="ランク"></div>
+    <div class="field-row">
+      <label for="opponentText">対戦相手</label>
+      <input id="opponentText" type="text" maxlength="20" placeholder="任意">
+    </div>
+    <div class="field-row">
+      <label for="fbExitLcdG">抜け時液晶G</label>
+      <input id="fbExitLcdG" type="number" inputmode="numeric" min="0" step="1" placeholder="必須">
+    </div>
     <div class="chips" id="bonusKinds" aria-label="ボーナス"></div>
     <div class="actions">
       <button class="action win" type="button" id="fbWinBtn">勝利</button>
@@ -303,16 +353,20 @@ textarea{
   const MACHINE='L-SF6';
   const VERSION='1';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
-  const VOICES=['ルーク','春麗','キャミィ','キンバリー','ジェイミー','未確認'];
+  const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
   const HOT_VOICES=new Set(['キンバリー','ジェイミー']);
-  const FB_TRIGGERS=['規定G','天井','その他'];
+  const G_COLORS=['青','赤','デフォ復帰'];
   const BONUSES=['赤7','青7'];
+  const RANKS=['ルーキー','ブロンズ','シルバー','ゴールド','レジェンド'];
   const $=id=>document.getElementById(id);
-  let state={machine:MACHINE,ver:VERSION,logs:[]};
+  let state={machine:MACHINE,ver:VERSION,currentState:{realG:null,lcdG:null},logs:[]};
   let selectedGainKind='';
   let selectedVoice=null;
-  let selectedFbTrig='規定G';
+  let selectedGColor=null;
   let selectedBonus=null;
+  let selectedRank=null;
+  let adjustTarget=null;
+  let stepHistory=[];
   let resetTimer=null;
 
   function positiveInt(value){
@@ -320,6 +374,12 @@ textarea{
     if(!/^\d+$/.test(text))return null;
     const n=Number(text);
     return Number.isSafeInteger(n)&&n>0?n:null;
+  }
+  function nonnegativeInt(value){
+    const text=String(value??'').trim();
+    if(!/^\d+$/.test(text))return null;
+    const n=Number(text);
+    return Number.isSafeInteger(n)?n:null;
   }
   function optionalGame(value){
     const text=String(value??'').trim();
@@ -329,7 +389,42 @@ textarea{
     return Number.isSafeInteger(n)?n:null;
   }
   function snapshot(){
-    return {realG:optionalGame($('realG').value),lcdG:optionalGame($('lcdG').value)};
+    const current=state.currentState||{};
+    return {realG:current.realG==null?null:optionalGame(current.realG),lcdG:current.lcdG==null?null:optionalGame(current.lcdG)};
+  }
+  function normalizeCurrentState(value){
+    return {realG:value?.realG==null?null:optionalGame(value.realG),lcdG:value?.lcdG==null?null:optionalGame(value.lcdG)};
+  }
+  function setCurrentValue(key,value){
+    state.currentState=normalizeCurrentState(state.currentState);
+    state.currentState[key]=value==null?null:optionalGame(value);
+    save();
+    renderStatus();
+    syncAdjustPanel();
+  }
+  function adjustCurrentValue(key,delta){
+    const current=snapshot()[key]??0;
+    setCurrentValue(key,Math.max(0,current+delta));
+  }
+  function stepBoth(delta){
+    const before=snapshot();
+    const nextReal=(before.realG??0)+delta;
+    const nextLcd=(before.lcdG??0)+delta;
+    state.currentState={realG:nextReal,lcdG:nextLcd};
+    stepHistory.push(before);
+    if(stepHistory.length>10)stepHistory.shift();
+    save();
+    renderStatus();
+    syncAdjustPanel();
+  }
+  function undoStep(){
+    const prev=stepHistory.pop();
+    if(!prev){toast('戻す通常消化がありません');return;}
+    state.currentState={realG:prev.realG,lcdG:prev.lcdG};
+    save();
+    renderStatus();
+    syncAdjustPanel();
+    toast('通常消化を戻しました');
   }
   function nextId(){
     return state.logs.reduce((max,log)=>Math.max(max,Number(log.id)||0),0)+1;
@@ -337,7 +432,7 @@ textarea{
   function sanitizeLog(log){
     if(!log||typeof log!=='object')return null;
     const base={id:Number(log.id)||0,type:String(log.type||''),realG:log.realG==null?null:optionalGame(log.realG),lcdG:log.lcdG==null?null:optionalGame(log.lcdG),t:Number(log.t)||Date.now()};
-    if(!base.id||!['gain','zenchou','fb','memo'].includes(base.type))return null;
+    if(!base.id||!['gain','zenchou','fb','memo','gcolor','dcin','fbhit'].includes(base.type))return null;
     if(base.type==='gain'){
       if(!GAIN_KINDS.includes(log.kind))return null;
       const addG=positiveInt(log.addG);
@@ -345,26 +440,36 @@ textarea{
       return {...base,kind:log.kind,addG,voice:log.kind==='ジャッジ'?null:(VOICES.includes(log.voice)?log.voice:null)};
     }
     if(base.type==='zenchou'){
-      if(!['in','out'].includes(log.dir)||base.lcdG===null)return null;
+      if(!['in','stage','out'].includes(log.dir)||base.lcdG===null)return null;
       return {...base,dir:log.dir};
+    }
+    if(base.type==='gcolor'){
+      if(!G_COLORS.includes(log.color)||base.lcdG===null)return null;
+      return {...base,color:log.color};
+    }
+    if(base.type==='dcin'||base.type==='fbhit'){
+      if(base.lcdG===null)return null;
+      return base;
     }
     if(base.type==='fb'){
       const win=log.win===true;
-      const trig=FB_TRIGGERS.includes(log.trig)?log.trig:'規定G';
-      return {...base,win,trig,bonus:win&&BONUSES.includes(log.bonus)?log.bonus:null};
+      const rank=RANKS.includes(log.rank)?log.rank:null;
+      const opponent=String(log.opponent||'').trim().slice(0,20)||null;
+      const kiteiG=log.kiteiG==null?null:nonnegativeInt(log.kiteiG);
+      return {...base,win,bonus:win&&BONUSES.includes(log.bonus)?log.bonus:null,rank,opponent,kiteiG};
     }
     const text=String(log.text||'').slice(0,100);
     return text?{...base,text}:null;
   }
   function normalize(data){
     const logs=Array.isArray(data?.logs)?data.logs.map(sanitizeLog).filter(Boolean):[];
-    return {machine:MACHINE,ver:VERSION,logs};
+    return {machine:MACHINE,ver:VERSION,currentState:normalizeCurrentState(data?.currentState),logs};
   }
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){toast('保存に失敗しました');}
   }
   function load(){
-    try{state=normalize(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}catch(e){state={machine:MACHINE,ver:VERSION,logs:[]};}
+    try{state=normalize(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}catch(e){state={machine:MACHINE,ver:VERSION,currentState:{realG:null,lcdG:null},logs:[]};}
   }
   function toast(message){
     const el=$('toast');
@@ -381,7 +486,20 @@ textarea{
     btn.setAttribute('aria-pressed',pressed?'true':'false');
     return btn;
   }
+  function colorChipClass(label){
+    if(label==='青')return ' color-blue';
+    if(label==='赤')return ' color-red';
+    return '';
+  }
   function renderChips(){
+    const colors=$('gColorKinds');
+    colors.textContent='';
+    G_COLORS.forEach(label=>{
+      const btn=makeChip(label,selectedGColor===label,false);
+      btn.className+=colorChipClass(label);
+      btn.addEventListener('click',()=>{selectedGColor=label;renderChips();});
+      colors.appendChild(btn);
+    });
     const gain=$('gainKinds');
     gain.textContent='';
     GAIN_KINDS.forEach(label=>{
@@ -396,19 +514,19 @@ textarea{
       btn.addEventListener('click',()=>{selectedVoice=selectedVoice===label?null:label;renderChips();});
       voices.appendChild(btn);
     });
-    const trigs=$('fbTriggers');
-    trigs.textContent='';
-    FB_TRIGGERS.forEach(label=>{
-      const btn=makeChip(label,selectedFbTrig===label,false);
-      btn.addEventListener('click',()=>{selectedFbTrig=label;renderChips();});
-      trigs.appendChild(btn);
-    });
     const bonuses=$('bonusKinds');
     bonuses.textContent='';
     BONUSES.forEach(label=>{
       const btn=makeChip(label,selectedBonus===label,false);
       btn.addEventListener('click',()=>{selectedBonus=selectedBonus===label?null:label;renderChips();});
       bonuses.appendChild(btn);
+    });
+    const ranks=$('rankKinds');
+    ranks.textContent='';
+    RANKS.forEach(label=>{
+      const btn=makeChip(label,selectedRank===label,false);
+      btn.addEventListener('click',()=>{selectedRank=selectedRank===label?null:label;renderChips();});
+      ranks.appendChild(btn);
     });
   }
   function fbThroughCount(logs=state.logs){
@@ -429,7 +547,10 @@ textarea{
   }
   function logLabel(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'ジャッジ':'加算DC';
-    if(log.type==='zenchou')return log.dir==='in'?'前兆IN':'前兆OUT';
+    if(log.type==='dcin')return 'DC-IN';
+    if(log.type==='gcolor')return '色';
+    if(log.type==='zenchou')return log.dir==='stage'?'WT':(log.dir==='in'?'前兆IN':'前兆OUT');
+    if(log.type==='fbhit')return 'FB当選';
     if(log.type==='fb')return 'FB';
     return 'メモ';
   }
@@ -446,9 +567,18 @@ textarea{
         setText(el,log.voice,HOT_VOICES.has(log.voice)?'voice-mark':'');
       }
     }else if(log.type==='zenchou'){
-      setText(el,log.dir==='in'?'前兆 突入':'前兆 抜け');
+      setText(el,log.dir==='stage'?'前兆ステージ突入':(log.dir==='in'?'前兆 突入':'前兆 抜け'));
+    }else if(log.type==='gcolor'){
+      setText(el,'色：');
+      setText(el,log.color,log.color==='赤'?'red-mark':'');
+    }else if(log.type==='dcin'){
+      setText(el,'DC突入');
+    }else if(log.type==='fbhit'){
+      setText(el,'FB当選');
     }else if(log.type==='fb'){
-      setText(el,`FB ${log.win?'勝利':'敗北'} / ${log.trig}`);
+      setText(el,`FB ${log.win?'勝利':'敗北'}`);
+      if(log.rank||log.opponent)setText(el,` / ${[log.rank,log.opponent].filter(Boolean).join('／')}`);
+      if(log.kiteiG!==null&&log.kiteiG!==undefined)setText(el,` / 規定${log.kiteiG}G`);
       if(log.bonus)setText(el,` / ${log.bonus}`);
     }else{
       setText(el,log.text);
@@ -499,13 +629,27 @@ textarea{
     const snap=snapshot();
     $('statReal').textContent=snap.realG==null?'-':String(snap.realG);
     $('statLcd').textContent=snap.lcdG==null?'-':String(snap.lcdG);
-    $('statGap').textContent=snap.realG==null||snap.lcdG==null?'-':String(snap.lcdG-snap.realG);
     $('statThrough').textContent=String(fbThroughCount());
   }
   function render(){
     renderChips();
     renderStatus();
     renderLogs();
+  }
+  function openAdjustPanel(key){
+    adjustTarget=key;
+    $('adjustPanel').hidden=false;
+    $('adjustTitle').textContent=key==='realG'?'実G調整':'液晶G調整';
+    $('adjustLabel').textContent=key==='realG'?'実ゲーム数':'液晶ゲーム数';
+    syncAdjustPanel();
+    $('adjustValue').focus();
+    $('adjustValue').select();
+  }
+  function syncAdjustPanel(){
+    if(!adjustTarget||!$('adjustPanel')||$('adjustPanel').hidden)return;
+    const value=snapshot()[adjustTarget];
+    const input=$('adjustValue');
+    if(document.activeElement!==input)input.value=value==null?'':String(value);
   }
   function addLog(log){
     state.logs.push({...log,id:nextId(),t:Date.now()});
@@ -516,7 +660,20 @@ textarea{
     const snap=snapshot();
     if(snap.lcdG===null){toast('液晶Gを入力してください');return;}
     addLog({type:'zenchou',dir,realG:snap.realG,lcdG:snap.lcdG});
-    toast(dir==='in'?'前兆突入を記録しました':'前兆抜けを記録しました');
+    toast(dir==='stage'?'前兆ステージ突入を記録しました':(dir==='in'?'前兆突入を記録しました':'前兆抜けを記録しました'));
+  }
+  function recordGColor(){
+    const snap=snapshot();
+    if(snap.lcdG===null){toast('液晶Gを入力してください');return;}
+    if(!selectedGColor){toast('色を選択してください');return;}
+    addLog({type:'gcolor',color:selectedGColor,realG:snap.realG,lcdG:snap.lcdG});
+    toast('色変化を記録しました');
+  }
+  function recordDcIn(){
+    const snap=snapshot();
+    if(snap.lcdG===null){toast('液晶Gを入力してください');return;}
+    addLog({type:'dcin',realG:snap.realG,lcdG:snap.lcdG});
+    toast('DC突入を記録しました');
   }
   function recordGain(){
     const snap=snapshot();
@@ -524,7 +681,9 @@ textarea{
     if(!selectedGainKind){toast('加算種別を選択してください');return;}
     if(!addG){toast('加算G数を入力してください');return;}
     if(snap.lcdG===null){toast('液晶Gを入力してください');return;}
-    addLog({type:'gain',kind:selectedGainKind,addG,voice:selectedGainKind==='ジャッジ'?null:selectedVoice,realG:snap.realG,lcdG:snap.lcdG});
+    const nextLcd=snap.lcdG+addG;
+    state.currentState={realG:snap.realG,lcdG:nextLcd};
+    addLog({type:'gain',kind:selectedGainKind,addG,voice:selectedGainKind==='ジャッジ'?null:selectedVoice,realG:snap.realG,lcdG:nextLcd});
     $('addG').value='';
     selectedVoice=null;
     render();
@@ -532,10 +691,36 @@ textarea{
   }
   function recordFb(win){
     const snap=snapshot();
-    addLog({type:'fb',win,trig:selectedFbTrig,bonus:win?selectedBonus:null,realG:snap.realG,lcdG:snap.lcdG});
+    const exitLcdG=optionalGame($('fbExitLcdG').value);
+    if(exitLcdG===null){toast('抜け時液晶Gを入力してください');return;}
+    const recentHit=latestFbHit();
+    let kiteiG=null;
+    let kiteiWarning=false;
+    if(recentHit){
+      const diff=recentHit.lcdG-exitLcdG;
+      if(diff>=0)kiteiG=diff;
+      else kiteiWarning=true;
+    }
+    state.currentState=normalizeCurrentState({realG:snap.realG,lcdG:exitLcdG});
+    addLog({type:'fb',win,bonus:win?selectedBonus:null,rank:selectedRank,opponent:$('opponentText').value.trim().slice(0,20)||null,kiteiG,realG:snap.realG,lcdG:exitLcdG});
+    $('fbExitLcdG').value='';
+    $('opponentText').value='';
+    selectedRank=null;
     selectedBonus=null;
     render();
-    toast(win?'FB勝利を記録しました':'FB敗北を記録しました');
+    toast(kiteiWarning?`${win?'FB勝利':'FB敗北'}を記録しました（規定Gは未保存）`:(win?'FB勝利を記録しました':'FB敗北を記録しました'));
+  }
+  function latestFbHit(){
+    for(let i=state.logs.length-1;i>=0;i--){
+      if(state.logs[i].type==='fbhit')return state.logs[i];
+    }
+    return null;
+  }
+  function recordFbHit(){
+    const snap=snapshot();
+    if(snap.lcdG===null){toast('液晶Gを入力してください');return;}
+    addLog({type:'fbhit',realG:snap.realG,lcdG:snap.lcdG});
+    toast('FB当選を記録しました');
   }
   function recordMemo(){
     const input=$('memoText');
@@ -566,7 +751,8 @@ textarea{
     if(resetTimer){
       clearTimeout(resetTimer);
       resetTimer=null;
-      state={machine:MACHINE,ver:VERSION,logs:[]};
+      state={machine:MACHINE,ver:VERSION,currentState:{realG:null,lcdG:null},logs:[]};
+      stepHistory=[];
       localStorage.removeItem(STORAGE_KEY);
       $('exportBox').hidden=true;
       $('exportBox').value='';
@@ -584,10 +770,16 @@ textarea{
     },3000);
   }
   function bind(){
-    $('realG').addEventListener('input',renderStatus);
-    $('lcdG').addEventListener('input',renderStatus);
+    document.querySelectorAll('[data-adjust]').forEach(btn=>btn.addEventListener('click',()=>openAdjustPanel(btn.dataset.adjust)));
+    $('adjustValue').addEventListener('input',()=>setCurrentValue(adjustTarget,optionalGame($('adjustValue').value)));
+    document.querySelectorAll('[data-adjust-step]').forEach(btn=>btn.addEventListener('click',()=>adjustCurrentValue(adjustTarget,Number(btn.dataset.adjustStep)||0)));
+    document.querySelectorAll('[data-step]').forEach(btn=>btn.addEventListener('click',()=>stepBoth(Number(btn.dataset.step)||0)));
+    $('stepUndoBtn').addEventListener('click',undoStep);
     document.querySelectorAll('[data-zen]').forEach(btn=>btn.addEventListener('click',()=>recordZenchou(btn.dataset.zen)));
+    $('gColorBtn').addEventListener('click',recordGColor);
+    $('dcInBtn').addEventListener('click',recordDcIn);
     $('gainBtn').addEventListener('click',recordGain);
+    $('fbHitBtn').addEventListener('click',recordFbHit);
     $('fbWinBtn').addEventListener('click',()=>recordFb(true));
     $('fbLoseBtn').addEventListener('click',()=>recordFb(false));
     $('memoBtn').addEventListener('click',recordMemo);
@@ -597,7 +789,7 @@ textarea{
   load();
   bind();
   render();
-  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,optionalGame,STORAGE_KEY,MACHINE,VERSION};
+  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,optionalGame,nonnegativeInt,STORAGE_KEY,MACHINE,VERSION};
 })();
 </script>
 </body>
