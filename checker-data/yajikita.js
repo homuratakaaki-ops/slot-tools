@@ -105,6 +105,24 @@
     const czN=ctx.S.cz.rg;
     const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
     const charN=Object.values(ctx.S.icons).reduce((a,b)=>a+b,0);
+    let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n総回転数 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■まいるテーブル\n`;
+    TABLES.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.zones[c[0]]}回\n`;});
+    const recent=ctx.S.tableHist.slice(-5).reverse().map(h=>tableShort(h.key)).join('←')||'なし';
+    t+=`直近履歴：${recent}\n`;
+    t+=`\n■関頂アタック▶︎ ${ctx.S.atcz.gab}回\n■温泉ステージ▶︎ ${ctx.S.atcz.useki}回\n■AT直撃▶︎ ${ctx.S.choku}回\n\n■あっぱれキャラ\n`;
+    CHARACTERS.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.icons[c[0]],charN)}\n`;});
+    t+=`\n■AT終了画面\n`;
+    const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
+    SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.screens[c[0]],scN)}\n`;});
+    t+=`\n■ユニバプレート\n銅▶︎ ${ctx.S.coins.cu}回　銀▶︎ ${ctx.S.coins.ag}回　金▶︎ ${ctx.S.coins.au}回\n花火▶︎ ${ctx.S.coins.dg}回　虹▶︎ ${ctx.S.coins.rb}回\n\n■ED中の手形▶︎ ${ctx.S.ed.e1}回\n`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return t;
+  }
+
+  function tplTextCompact(ctx){
+    const czN=ctx.S.cz.rg;
+    const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
+    const charN=Object.values(ctx.S.icons).reduce((a,b)=>a+b,0);
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
     let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n総回転数 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■まいるテーブル\n`;
     TABLES.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.zones[c[0]]}回\n`;});
@@ -153,6 +171,7 @@
       pageCard
     ],
     template:tplText,
+    compactTemplate:tplTextCompact,
     card:{
       title:'スマスロ やじきた道中記参る！',
       titleFitMax:690,

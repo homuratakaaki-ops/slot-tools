@@ -128,6 +128,25 @@
   }
   function tplText(ctx){
     const S=ctx.S, czN=S.cz.cz, atN=S.atCount, fail=S.atcz.fail, atEnd=S.atcz.atEnd;
+    let t=`設定判別メモ｜L SAO2\n総回転数 ${S.games||0}G / CZ${czN}回 / AT${atN}回\n_______\n\n■GGOモード示唆\n`;
+    GGO.forEach(c=>{t+=`${c[1]}▶︎ ${S.icons[c[0]]}回\n`;});
+    t+='\n■AT継続セット数\n';
+    SETS.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.atcz[c[0]],atEnd)}\n`;});
+    t+='\n■AT終了画面\n';
+    const scN=sum(S.screens);
+    SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.screens[c[0]],scN)}\n`;});
+    t+='\n■コパンダトロフィー\n';
+    TROPHIES.forEach(c=>{t+=`${c[1]}▶︎ ${S.coins[c[0]]}回\n`;});
+    t+='\n■EDミニキャラ\n';
+    const edN=sum(S.ed);
+    ED.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.ed[c[0]],edN)}\n`;});
+    t+=`\n■優遇項目\n確定CZ▶︎ ${S.cz.end}回\n曠野の決闘▶︎ ${S.cz.duel}回\nCZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}\nSC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回\nAT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}\n共通ベル▶︎ ${rate(S.games,S.cz.bell)}（${S.cz.bell}回）\n強チャンス目B▶︎ ${rate(S.games,S.cz.chanceB)}（${S.cz.chanceB}回）\n`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return t;
+  }
+
+  function tplTextCompact(ctx){
+    const S=ctx.S, czN=S.cz.cz, atN=S.atCount, fail=S.atcz.fail, atEnd=S.atcz.atEnd;
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
     let t=`設定判別メモ｜L SAO2\n総回転数 ${S.games||0}G / CZ${czN}回 / AT${atN}回\n_______\n`;
     t+=sec('GGOモード示唆',GGO.filter(c=>S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.icons[c[0]]}回`));
@@ -167,6 +186,7 @@
       pageCard
     ],
     template:tplText,
+    compactTemplate:tplTextCompact,
     card:{
       title:'L SAO2',
       footerTags:'#SAO2 #設定判別',

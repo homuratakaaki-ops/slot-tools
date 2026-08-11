@@ -135,6 +135,30 @@
     <div class="hint">EDレア役成立時に液晶左下。十字リプレイ契機は高設定確定系のチャンス。</div></section>`;
   }
   function tplText(ctx){
+    let t=`設定判別メモ｜L炎炎ノ消防隊2\n総回転数 ${ctx.S.games||0}G / ボーナス${ctx.S.cz.bonus}回 / 炎炎ループ${ctx.S.atCount}回\n_______\n\n■キャラ紹介シナリオ（系統別）\n`;
+    const scenarioN=sum(ctx.S.screens);
+    SCENARIOS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.screens[c[0]],scenarioN)}\n`;});
+    t+=`\n■特殊パターン\n`;
+    SPECIALS.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.ed[c[0]]}回\n`;});
+    t+=`\n■まもるくん\n`;
+    MAMORU.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.icons[c[0]]}回\n`;});
+    t+=`\n■罠・変換\n伝導者の罠成功▶︎ ${ratio(ctx.S.cz.trapHit,ctx.S.cz.trap)}\n十字目変換▶︎ ${ratio(ctx.S.cz.convert,ctx.S.cz.smallv)}\n変換からボーナス▶︎ ${ratio(ctx.S.cz.convertBonus,ctx.S.cz.convert)}\n`;
+    t+=`\n■バトル\nジョヴァンニ▶︎ ${ctx.S.cz.giovanni}回\nオロチ▶︎ ${ctx.S.cz.orochi}回\n`;
+    t+=`\n■ボーナス終了画面\nREG後\n`;
+    const regN=sum(ctx.S.zonesReg), bigN=sum(ctx.S.zonesBig);
+    BONUS_SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.zonesReg[c[0]],regN)}\n`;});
+    t+=`BIG後\n`;
+    BONUS_SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.zonesBig[c[0]],bigN)}\n`;});
+    t+=`\n■獲得枚数\n`;
+    OVER.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.coins[c[0]]}回\n`;});
+    t+=`\n■EDミニキャラ\n`;
+    const edN=sum(ctx.S.atcz);
+    ED_CHARS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.atcz[c[0]],edN)}\n`;});
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return t;
+  }
+
+  function tplTextCompact(ctx){
     const S=ctx.S;
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
     let t=`設定判別メモ｜L炎炎ノ消防隊2\n総回転数 ${S.games||0}G / ボーナス${S.cz.bonus}回 / 炎炎ループ${S.atCount}回\n_______\n`;
@@ -192,6 +216,7 @@
       pageCard
     ],
     template:tplText,
+    compactTemplate:tplTextCompact,
     card:{
       title:'L炎炎ノ消防隊2',
       footerTags:'#炎炎ノ消防隊2 #設定判別',

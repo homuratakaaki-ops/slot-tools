@@ -155,6 +155,34 @@
     <div class="cgrid">${STAGES.map(c=>ctx.crow('stages.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,stageN))).join('')}</div></section>`;
   }
   function tplText(ctx){
+    let t=`設定判別メモ｜Lからくりサーカス2\n総回転数 ${ctx.S.games||0}G / CZ${ctx.S.cz.rg}回 / AT${ctx.S.atCount}回\n_______\n\n■運命盤・スイカ規定\n`;
+    const rewardN=sum(ctx.S.zones);
+    REWARDS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.zones[c[0]],rewardN)}\n`;});
+    t+=`\n■CZ劇場ジャッジ・強チェ直撃\n劇場ジャッジ▶︎ ${ctx.S.cz.theater}回\n強チェ直撃▶︎ ${ctx.S.cz.strongHit}/${ctx.S.cz.strong} ${ctx.S.cz.strong?`${(100*ctx.S.cz.strongHit/ctx.S.cz.strong).toFixed(0)}%`:'—'}\n\n■AT開始ステージ\n`;
+    const stageN=sum(ctx.S.stages);
+    STAGES.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.stages[c[0]],stageN)}\n`;});
+    t+=`\n■AT終了画面\n`;
+    const scN=sum(ctx.S.screens);
+    AT_SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.screens[c[0]],scN)}\n`;});
+    t+=`\n■タッチボイス\n`;
+    const voiceN=sum(ctx.S.atcz);
+    VOICES.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.atcz[c[0]],voiceN)}\n`;});
+    t+=`\n■激情ジャッジシナリオ\n`;
+    const judgeN=sum(ctx.S.ed);
+    JUDGES.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.ed[c[0]],judgeN)}\n`;});
+    t+=`\n■EDランプ\n`;
+    const lampN=sum(ctx.S.coins);
+    LAMPS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.coins[c[0]],lampN)}\n`;});
+    t+=`\n■獲得枚数・オリンピア\n`;
+    OVER.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.over[c[0]]}回\n`;});
+    t+=`\n■CZ終了画面イラスト\n`;
+    const czIllN=sum(ctx.S.icons);
+    CZ_ILLUST.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.icons[c[0]],czIllN)}\n`;});
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return t;
+  }
+
+  function tplTextCompact(ctx){
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
     let t=`設定判別メモ｜Lからくりサーカス2\n総回転数 ${ctx.S.games||0}G / CZ${ctx.S.cz.rg}回 / AT${ctx.S.atCount}回\n_______\n`;
     const rewardN=sum(ctx.S.zones);
@@ -197,6 +225,7 @@
       pageCard
     ],
     template:tplText,
+    compactTemplate:tplTextCompact,
     card:{
       title:'Lからくりサーカス2',
       footerTags:'#からくりサーカス2 #設定判別',

@@ -160,6 +160,25 @@
   }
   function tplText(ctx){
     const itemN=sum(ctx.S.icons), voiceN=sum(ctx.S.atcz), charN=sum(ctx.S.ed), screenN=sum(ctx.S.screens);
+    let t=`設定判別メモ｜スマスロ カバネリ海門決戦\n総回転数 ${ctx.S.games||0}G / ボーナス${ctx.S.cz.rg}回 / ST${ctx.S.atCount}回\n_______\n\n■アイテムくじ\n`;
+    ITEMS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.icons[c[0]],itemN)}\n`;});
+    t+=`\n■周期当選\n`;
+    CYCLES.forEach(c=>{t+=`${c[1]}▶︎ ${cycleWin(ctx.S,c[0])}/${cycleReach(ctx.S,c[0])}当選\n`;});
+    t+=`\n■ボイス\n`;
+    VOICES.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.atcz[c[0]],voiceN)}\n`;});
+    t+=`\n■キャラ紹介\n`;
+    CHARS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.ed[c[0]],charN)}\n`;});
+    t+=`\n■ST終了画面\n`;
+    SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.screens[c[0]],screenN)}\n`;});
+    t+=`\n■サミートロフィー\n銅▶︎ ${ctx.S.coins.cu}回　銀▶︎ ${ctx.S.coins.ag}回　金▶︎ ${ctx.S.coins.au}回\nキリン柄▶︎ ${ctx.S.coins.dg}回　虹▶︎ ${ctx.S.coins.rb}回\n\n■連打枚数・獲得枚数\n`;
+    ATTACK.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.attack[c[0]]}回\n`;});
+    OVER.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.over[c[0]]}回\n`;});
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return t;
+  }
+
+  function tplTextCompact(ctx){
+    const itemN=sum(ctx.S.icons), voiceN=sum(ctx.S.atcz), charN=sum(ctx.S.ed), screenN=sum(ctx.S.screens);
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
     let t=`設定判別メモ｜スマスロ カバネリ海門決戦\n総回転数 ${ctx.S.games||0}G / ボーナス${ctx.S.cz.rg}回 / ST${ctx.S.atCount}回\n_______\n`;
     t+=sec('アイテムくじ',itemN>0?ITEMS.filter(c=>ctx.S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.icons[c[0]],itemN)}`):[]);
@@ -203,6 +222,7 @@
       pageCard
     ],
     template:tplText,
+    compactTemplate:tplTextCompact,
     card:{
       title:'スマスロ カバネリ海門決戦',
       titleFitMax:690,

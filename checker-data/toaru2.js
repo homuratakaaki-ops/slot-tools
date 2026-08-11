@@ -102,6 +102,25 @@
   function tplText(ctx){
     const czN=ctx.S.cz.rg+ctx.S.cz.ac,atczN=ctx.S.atcz.gab+ctx.S.atcz.useki;
     const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
+    let t=`設定判別メモ｜Lとある魔術の禁書目録2\n総回転数 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■規定ゲーム数\n`;
+    for(let i=0;i<ZONES.length;i+=2){
+      t+=`${ZONES[i]}g▶︎ ${ctx.S.zones[ZONES[i]]}回`;
+      if(ZONES[i+1])t+=`　${ZONES[i+1]}g▶︎ ${ctx.S.zones[ZONES[i+1]]}回`;
+      t+='\n';
+    }
+    t+=`\n■AT直撃▶︎ ${ctx.S.choku}回\n\n■通常CZ振り分け\n超電磁砲ﾁｬﾝｽ▶︎ ${p(ctx.S.cz.rg,czN)}\n一方通行ﾁｬﾝｽ▶︎ ${p(ctx.S.cz.ac,czN)}\n\n■AT中CZ振り分け\n神の力ﾊﾞﾄﾙ▶︎ ${p(ctx.S.atcz.gab,atczN)}\n神の右席ﾊﾞﾄﾙ▶︎ ${p(ctx.S.atcz.useki,atczN)}\n\n■終了時アイコン\n🔵▶︎ ${ctx.S.icons.blue}回　🟢▶︎ ${ctx.S.icons.green}回\n🔴▶︎ ${ctx.S.icons.red}回　✨▶︎ ${ctx.S.icons.gold}回\nなし▶︎ ${ctx.S.icons.none}回\n\n■藤丸コイン\n銅▶︎ ${ctx.S.coins.cu}回　銀▶︎ ${ctx.S.coins.ag}回　金▶︎ ${ctx.S.coins.au}回\nﾃﾞﾝｼﾞｬｰ▶︎ ${ctx.S.coins.dg}回　虹▶︎ ${ctx.S.coins.rb}回\n\n■AT終了画面\n`;
+    const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
+    SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.screens[c[0]],scN)}\n`;});
+    t+=`\n■エンディング中お知らせ演出\n`;
+    const edN=Object.values(ctx.S.ed).reduce((a,b)=>a+b,0);
+    ED.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.ed[c[0]],edN)}\n`;});
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return t;
+  }
+
+  function tplTextCompact(ctx){
+    const czN=ctx.S.cz.rg+ctx.S.cz.ac,atczN=ctx.S.atcz.gab+ctx.S.atcz.useki;
+    const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
     let t=`設定判別メモ｜Lとある魔術の禁書目録2\n総回転数 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n`;
     t+=sec('規定ゲーム数',ZONES.filter(z=>ctx.S.zones[z]>0).map(z=>`${z}g▶︎ ${ctx.S.zones[z]}回`));
@@ -138,6 +157,7 @@
       pageCard
     ],
     template:tplText,
+    compactTemplate:tplTextCompact,
     card:{
       title:'Lとある魔術の禁書目録2',
       footerTags:'#とある魔術の禁書目録2 #設定判別',

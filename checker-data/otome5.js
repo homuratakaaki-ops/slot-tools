@@ -150,6 +150,28 @@
   }
   function tplText(ctx){
     const strapN=sum(ctx.S.icons), bonusN=sum(ctx.S.coins), screenN=sum(ctx.S.screens), voiceN=sum(ctx.S.ed);
+    let t=`設定判別メモ｜L戦国乙女5\n総回転数 ${ctx.S.games||0}G / AT${ctx.S.atCount}回 / 直撃${ctx.S.choku}回\n_______\n\n■繚乱の刻\n`;
+    ['①','②','③','④','⑤','⑥'].forEach((mark,idx)=>{
+      const i=idx+1;
+      t+=`${mark}周期▶焔舞${ctx.S.zones[`c${i}e`]}回・紫炎${ctx.S.zones[`c${i}s`]}回\n`;
+    });
+    t+=`\n■乙女ストラップモード\n`;
+    STRAPS.forEach(c=>{t+=`${c[1]}▶ ${ctx.S.icons[c[0]]}回\n`;});
+    t+=`\n■ボーナス終了画面\n`;
+    t+=`スタンプ無しA▶ ${ctx.S.coins.a}回\nスタンプ無しB▶ ${ctx.S.coins.b}回\nスタンプ無しC▶ ${ctx.S.coins.c}回\n`;
+    t+=`可▶ ${ctx.S.coins.ka}回・吉▶ ${ctx.S.coins.kichi}回\n良▶ ${ctx.S.coins.ryo}回・優▶ ${ctx.S.coins.yu}回・極▶ ${ctx.S.coins.goku}回\n`;
+    t+=`\n■AT終了画面\n`;
+    SCREENS.forEach(c=>{t+=`${c[1]}▶ ${p(ctx.S.screens[c[0]],screenN)}\n`;});
+    t+=`\n■獲得枚数\n222▶ ${ctx.S.attack.m222}回・333▶ ${ctx.S.attack.m333}回・444▶ ${ctx.S.attack.m444}回・555▶ ${ctx.S.attack.m555}回・666▶ ${ctx.S.attack.m666}回\n`;
+    t+=`\n■EDゴエモンボイス\n`;
+    VOICES.forEach(c=>{t+=`${c[1]}▶ ${p(ctx.S.ed[c[0]],voiceN)}\n`;});
+    t+=`\n■ハルルナPUSH▶ ${ctx.S.over.haru}回\n`;
+    t+=`\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return t;
+  }
+
+  function tplTextCompact(ctx){
+    const strapN=sum(ctx.S.icons), bonusN=sum(ctx.S.coins), screenN=sum(ctx.S.screens), voiceN=sum(ctx.S.ed);
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
     let t=`設定判別メモ｜L戦国乙女5\n総回転数 ${ctx.S.games||0}G / AT${ctx.S.atCount}回 / 直撃${ctx.S.choku}回\n_______\n\n■繚乱の刻\n`;
     ['①','②','③','④','⑤','⑥'].forEach((mark,idx)=>{
@@ -183,6 +205,7 @@
       pageCard
     ],
     template:tplText,
+    compactTemplate:tplTextCompact,
     card:{
       title:'L戦国乙女5',
       footerTags:'#L戦国乙女5 #設定判別',
