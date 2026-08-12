@@ -1,0 +1,24 @@
+{
+  "machine": "L-SF6",
+  "ver": "2",
+  "currentState": {
+    "realG": 200,
+    "lcdG": 450
+  },
+  "logs": [
+    {
+      "id": 1,
+      "type": "fb",
+      "realG": 200,
+      "lcdG": 450,
+      "t": 1,
+      "win": false,
+      "bonus": null,
+      "rank": "シルバー",
+      "opponent": "ザンギエフ",
+      "kiteiG": 840,
+      "icatch": null,
+      "icatchNote": null
+    }
+  ]
+}
