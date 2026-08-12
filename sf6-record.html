@@ -377,7 +377,9 @@ textarea{
   const RARE_KINDS=['スイカ','弱チェリー','チャンス目','強チェリー'];
   const BONUSES=['赤7','青7'];
   const RANKS=['ルーキー','ブロンズ','シルバー','ゴールド','レジェンド'];
+  const RANK_RATE_LABELS=[['ルーキー','50%'],['ブロンズ','60%'],['シルバー','70%'],['ゴールド','80%'],['レジェンド','88%']];
   const ROUND_STARTS=['青','緑','味方全員集合','敵全員集合'];
+  const ROUND_START_LABELS=[['青','青（デフォ）','blue-default'],['緑','緑（上位キャラ）','green-upper'],['味方全員集合','味方全員集合','ally-all'],['敵全員集合','敵全員集合','enemy-all']];
   const OPPONENTS=['マリーザ','ガイル','マノン','ジュリ','JP','リュウ'];
   const END_SCREENS=['基本画面','男性ファイター集合','女性ファイター集合','ケン&JP','リュウ','ルーク&ジェイミー','全員集合','エンタライオン'];
   const CONTINUES=[{key:'none',label:'なし'},{key:'success',label:'成功'},{key:'fail',label:'失敗'}];
@@ -712,36 +714,25 @@ textarea{
     let r=row();
     const dcIn=button('DC突入','primary',recordDcIn);
     dcIn.id='dcInBtn';
-    r.append(dcIn);
-    grid.append(r);
-    grid.append(el('div','muted','液晶色'));
-    r=row();
-    G_COLORS.forEach(color=>{
-      const cls=color==='青'?'secondary blue-text':color==='赤'?'secondary red-text':'secondary';
-      r.append(button(`色：${color}`,cls,()=>recordGColor(color)));
-    });
-    r.id='gColorKinds';
-    grid.append(r);
-    grid.append(el('div','muted','ステージ'));
-    r=row('choice-row');
-    r.id='stageKinds';
-    STAGE_CHOICES.forEach(label=>r.append(button(label,'secondary',()=>recordStage(label))));
-    grid.append(r);
-    grid.append(el('div','muted','レア役'));
-    r=row('choice-row');
-    r.id='rareKinds';
-    RARE_KINDS.forEach(label=>r.append(button(label,'secondary',()=>recordRare(label))));
+    const gain=button('DC結果','primary',openGainSheet);
+    gain.id='normalDcResultBtn';
+    const memo=button('メモ','secondary',openMemoSheet);
+    memo.id='normalMemoBtn';
+    r.append(dcIn,gain,memo);
     grid.append(r);
     r=row();
-    r.append(button('前兆突入','secondary',()=>recordZenchou('in')));
-    r.append(button('前兆ステージ突入','secondary',()=>recordZenchou('stage')));
-    r.append(button('前兆抜け','secondary',()=>recordZenchou('out')));
+    const rare=button('レア役','secondary',openRareSheet);
+    rare.id='normalRareBtn';
+    const color=button('液晶色','secondary',openGColorSheet);
+    color.id='normalGColorBtn';
+    const stage=button('ステージ','secondary',openStageSheet);
+    stage.id='normalStageBtn';
+    r.append(rare,color,stage);
     grid.append(r);
     r=row();
-    r.append(button('加算入力を開く','primary',openGainSheet));
-    r.append(button('メモ','secondary',openMemoSheet));
-    grid.append(r);
-    r=row();
+    const zenchou=button('前兆','secondary',openZenchouSheet);
+    zenchou.id='normalZenchouBtn';
+    r.append(zenchou);
     const fbHit=button('FB当選','danger',recordFbHit);
     fbHit.id='fbHitBtn';
     r.append(fbHit);
@@ -757,15 +748,16 @@ textarea{
     header.append(el('div','muted','開始情報'));
     let r=row('choice-row');
     r.id='rankKinds';
-    RANKS.forEach(label=>{
-      r.append(chip(label,selectedRank===label,()=>{selectedRank=selectedRank===label?null:label;render();}));
+    RANK_RATE_LABELS.forEach(([value,label])=>{
+      r.append(chip(label,selectedRank===value,()=>{selectedRank=selectedRank===value?null:value;render();}));
     });
     header.append(r);
+    header.append(el('div','muted','ラウンド開始画面'));
     r=row('choice-row');
     r.id='roundStartKinds';
-    ROUND_STARTS.forEach(label=>{
-      const cls=label==='青'?'blue-text':label==='緑'?'':'hot';
-      r.append(chip(label,selectedRoundStart===label,()=>{selectedRoundStart=selectedRoundStart===label?null:label;render();},cls));
+    ROUND_START_LABELS.forEach(([value,label])=>{
+      const cls=value==='青'?'blue-text':value==='緑'?'':'hot';
+      r.append(chip(label,selectedRoundStart===value,()=>{selectedRoundStart=selectedRoundStart===value?null:value;render();},cls));
     });
     header.append(r);
     const opponentSelect=selectInput('opponentText',OPPONENTS,'対戦相手');
@@ -875,7 +867,7 @@ textarea{
     if(add)add.value='';
     gainAddDraft='';
     selectedVoice=null;
-    closeSheet();
+    openGainSheet();
   }
   function fbStartDraft(){
     return {rank:selectedRank,roundStart:selectedRoundStart,opponent:currentOpponentDraft()||null};
@@ -1050,10 +1042,47 @@ textarea{
     }
     setText(el,logTextPlain(log));
   }
+  function openGColorSheet(){
+    openSheet('液晶色',body=>{
+      const choices=row('choice-row');
+      choices.id='gColorKinds';
+      G_COLORS.forEach(color=>{
+        const cls=color==='青'?'blue-text':color==='赤'?'red-text':'';
+        choices.append(chip(color,false,()=>recordGColor(color),cls));
+      });
+      body.append(choices);
+    });
+  }
+  function openRareSheet(){
+    openSheet('レア役',body=>{
+      const choices=row('choice-row');
+      choices.id='rareKinds';
+      RARE_KINDS.forEach(label=>choices.append(chip(label,false,()=>recordRare(label),label==='強チェリー'?'hot':'')));
+      body.append(choices);
+    });
+  }
+  function openStageSheet(){
+    openSheet('ステージ',body=>{
+      const choices=row('choice-row');
+      choices.id='stageKinds';
+      STAGE_CHOICES.forEach(label=>choices.append(chip(label,false,()=>recordStage(label),label==='ジェイミー'?'hot':'')));
+      body.append(choices);
+    });
+  }
+  function openZenchouSheet(){
+    openSheet('前兆',body=>{
+      const choices=row();
+      choices.id='zenchouKinds';
+      choices.append(button('前兆突入','secondary',()=>recordZenchou('in')));
+      choices.append(button('前兆ステージ突入','secondary',()=>recordZenchou('stage')));
+      choices.append(button('前兆抜け','secondary',()=>recordZenchou('out')));
+      body.append(choices);
+    });
+  }
   function openGainSheet(){
     const liveAdd=$('addG');
     if(liveAdd)gainAddDraft=String(liveAdd.value||'');
-    openSheet('DC加算',body=>{
+    openSheet('DC結果',body=>{
       const kinds=row('choice-row');
       kinds.id='gainKinds';
       GAIN_KINDS.forEach(label=>{
