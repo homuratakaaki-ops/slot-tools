@@ -156,6 +156,11 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .bm-btn.blue-text{color:var(--blue)}
 .bm-btn.red-text{color:var(--danger)}
 .bm-btn.gold-text{color:var(--amber)}
+.bm-btn:disabled,.chip:disabled,.counter-btn:disabled{
+  opacity:.45;
+  cursor:not-allowed;
+  filter:grayscale(.35);
+}
 .chip{
   flex:1 1 auto;
   min-height:42px;
@@ -167,6 +172,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .chip.hot{border-color:#633039;color:var(--danger)}
 .chip.hot[aria-pressed="true"]{border-color:var(--danger);background:#35171c;color:#fff}
 .chip.blue-text{color:var(--blue)}
+.chip.green-text{color:var(--drive)}
 .chip.red-text{color:var(--danger)}
 .panel{
   border:1px solid rgba(105,216,79,.22);
@@ -373,6 +379,7 @@ textarea{
   const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
   const HOT_VOICES=new Set(['キンバリー','ジェイミー']);
   const G_COLORS=['青','赤','デフォ復帰'];
+  const DEFAULT_RETURN_COLOR=G_COLORS[2];
   const STAGE_CHOICES=['ジェイミー','キャミィ','春麗','ルーク'];
   const RARE_KINDS=['スイカ','弱チェリー','チャンス目','強チェリー'];
   const BONUSES=['赤7','青7'];
@@ -385,6 +392,8 @@ textarea{
   const CONTINUES=[{key:'none',label:'なし'},{key:'success',label:'成功'},{key:'fail',label:'失敗'}];
   const CASH_AMOUNTS=[1000,5000,10000];
   const ICATCHES=['ルーク','春麗','キンバリー','キャミィ','JP','ジェイミー','豪鬼','リュウ'];
+  const BATTLE_STEP_LOCK_TOAST='FB中は通常消化を操作できません';
+  const BATTLE_ADJUST_LOCK_TOAST='FB中はG数調整を操作できません';
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
   let state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},logs:[]};
@@ -621,12 +630,16 @@ textarea{
     lastLcdTouchedAt=Date.now();
     lcdLogCountAtTouch=state.logs.length;
   }
+  function isBattleLocked(){
+    return state.battleState==='battle';
+  }
   function lcdNeedsAttention(){
     const snap=snapshot();
     if(snap.lcdG===null)return false;
     return state.logs.length-lcdLogCountAtTouch>=5 || Date.now()-lastLcdTouchedAt>5*60*1000;
   }
   function setCurrentValue(key,value){
+    if(isBattleLocked()&&(key==='realG'||key==='lcdG'))return;
     state.currentState=normalizeCurrentState(state.currentState);
     state.currentState[key]=value==null?null:optionalGame(value);
     if(key==='lcdG')markLcdTouched();
@@ -634,11 +647,13 @@ textarea{
     render();
   }
   function adjustCurrentValue(key,delta){
+    if(isBattleLocked())return;
     if(!key)return;
     const current=snapshot()[key]??0;
     setCurrentValue(key,Math.max(0,current+delta));
   }
   function stepBoth(delta){
+    if(isBattleLocked()){toast(BATTLE_STEP_LOCK_TOAST);return;}
     const before=snapshot();
     state.currentState={realG:(before.realG??0)+delta,lcdG:(before.lcdG??0)+delta};
     stepHistory.push(before);
@@ -648,6 +663,7 @@ textarea{
     render();
   }
   function undoStep(){
+    if(isBattleLocked()){toast(BATTLE_STEP_LOCK_TOAST);return;}
     const prev=stepHistory.pop();
     if(!prev){toast('戻せる通常消化がありません');return;}
     state.currentState={realG:prev.realG,lcdG:prev.lcdG};
@@ -688,9 +704,18 @@ textarea{
   }
   function renderStatus(){
     const snap=snapshot();
+    const locked=isBattleLocked();
     $('realCounter').textContent=snap.realG==null?'-':String(snap.realG);
     $('lcdCounter').textContent=snap.lcdG==null?'-':String(snap.lcdG);
     $('lcdCounterBtn').classList.toggle('lcd-attention',lcdNeedsAttention());
+    document.querySelectorAll('[data-adjust]').forEach(btn=>{btn.disabled=locked;btn.classList.toggle('disabled',locked);});
+    document.querySelectorAll('[data-step]').forEach(btn=>{btn.disabled=locked;btn.classList.toggle('disabled',locked);});
+    $('stepUndoBtn').disabled=locked;
+    $('stepUndoBtn').classList.toggle('disabled',locked);
+    if(locked&&$('adjustPanel')&&!$('adjustPanel').hidden){
+      $('adjustPanel').hidden=true;
+      adjustTarget=null;
+    }
     $('throughCount').textContent=String(fbThroughCount());
     $('cashTotal').textContent=`${cashTotal().toLocaleString()}円`;
     $('collectTotal').textContent=`${collectTotal().toLocaleString()}枚`;
@@ -756,7 +781,7 @@ textarea{
     r=row('choice-row');
     r.id='roundStartKinds';
     ROUND_START_LABELS.forEach(([value,label])=>{
-      const cls=value==='青'?'blue-text':value==='緑'?'':'hot';
+      const cls=value==='青'?'blue-text':value==='緑'?'green-text':'hot';
       r.append(chip(label,selectedRoundStart===value,()=>{selectedRoundStart=selectedRoundStart===value?null:value;render();},cls));
     });
     header.append(r);
@@ -817,26 +842,33 @@ textarea{
     if(snap.lcdG===null){toast('液晶Gを入力してください');return null;}
     return snap;
   }
-  function recordZenchou(dir){
+  function recordZenchou(dir,options={}){
     const snap=requireLcd();
     if(!snap)return;
     const label=dir==='stage'?'前兆ステージ突入':dir==='in'?'前兆突入':'前兆抜け';
-    commit(label,()=>addLogDirect({type:'zenchou',dir,realG:snap.realG,lcdG:snap.lcdG}),{toast:`${label}を記録しました`});
+    commit(label,()=>{
+      addLogDirect({type:'zenchou',dir,realG:snap.realG,lcdG:snap.lcdG});
+      if(dir==='out')addLogDirect({type:'gcolor',color:DEFAULT_RETURN_COLOR,realG:snap.realG,lcdG:snap.lcdG});
+    },{toast:dir==='out'?'前兆抜けとデフォ復帰を記録しました':`${label}を記録しました`});
+    if(options.closeAfter)closeSheet();
   }
-  function recordGColor(color){
+  function recordGColor(color,options={}){
     const snap=requireLcd();
     if(!snap)return;
     commit(`色：${color}`,()=>addLogDirect({type:'gcolor',color,realG:snap.realG,lcdG:snap.lcdG}),{toast:`色：${color}を記録しました`});
+    if(options.closeAfter)closeSheet();
   }
-  function recordStage(stage){
+  function recordStage(stage,options={}){
     const snap=requireLcd();
     if(!snap)return;
     commit(`ステージ：${stage}`,()=>addLogDirect({type:'stage_sel',stage,realG:snap.realG,lcdG:snap.lcdG}),{toast:`ステージ：${stage}を記録しました`});
+    if(options.closeAfter)closeSheet();
   }
-  function recordRare(kind){
+  function recordRare(kind,options={}){
     const snap=requireLcd();
     if(!snap)return;
     commit(`レア役：${kind}`,()=>addLogDirect({type:'rare',kind,realG:snap.realG,lcdG:snap.lcdG}),{toast:`レア役：${kind}を記録しました`});
+    if(options.closeAfter)closeSheet();
   }
   function recordDcIn(){
     const snap=requireLcd();
@@ -949,6 +981,7 @@ textarea{
     const snap=snapshot();
     commit('メモ',()=>addLogDirect({type:'memo',text:text.slice(0,100),realG:snap.realG,lcdG:snap.lcdG}),{toast:'メモを記録しました'});
     inputNode.value='';
+    closeSheet();
   }
   function tagClass(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'judge':'gain';
@@ -1048,7 +1081,7 @@ textarea{
       choices.id='gColorKinds';
       G_COLORS.forEach(color=>{
         const cls=color==='青'?'blue-text':color==='赤'?'red-text':'';
-        choices.append(chip(color,false,()=>recordGColor(color),cls));
+        choices.append(chip(color,false,()=>recordGColor(color,{closeAfter:true}),cls));
       });
       body.append(choices);
     });
@@ -1057,7 +1090,7 @@ textarea{
     openSheet('レア役',body=>{
       const choices=row('choice-row');
       choices.id='rareKinds';
-      RARE_KINDS.forEach(label=>choices.append(chip(label,false,()=>recordRare(label),label==='強チェリー'?'hot':'')));
+      RARE_KINDS.forEach(label=>choices.append(chip(label,false,()=>recordRare(label,{closeAfter:true}),label==='強チェリー'?'hot':'')));
       body.append(choices);
     });
   }
@@ -1065,7 +1098,7 @@ textarea{
     openSheet('ステージ',body=>{
       const choices=row('choice-row');
       choices.id='stageKinds';
-      STAGE_CHOICES.forEach(label=>choices.append(chip(label,false,()=>recordStage(label),label==='ジェイミー'?'hot':'')));
+      STAGE_CHOICES.forEach(label=>choices.append(chip(label,false,()=>recordStage(label,{closeAfter:true}),label==='ジェイミー'?'hot':'')));
       body.append(choices);
     });
   }
@@ -1073,9 +1106,9 @@ textarea{
     openSheet('前兆',body=>{
       const choices=row();
       choices.id='zenchouKinds';
-      choices.append(button('前兆突入','secondary',()=>recordZenchou('in')));
-      choices.append(button('前兆ステージ突入','secondary',()=>recordZenchou('stage')));
-      choices.append(button('前兆抜け','secondary',()=>recordZenchou('out')));
+      choices.append(button('前兆突入','secondary',()=>recordZenchou('in',{closeAfter:true})));
+      choices.append(button('前兆ステージ突入','secondary',()=>recordZenchou('stage',{closeAfter:true})));
+      choices.append(button('前兆抜け','secondary',()=>recordZenchou('out',{closeAfter:true})));
       body.append(choices);
     });
   }
@@ -1221,6 +1254,7 @@ textarea{
     clearNode($('sheetBody'));
   }
   function openAdjustPanel(key){
+    if(isBattleLocked()){toast(BATTLE_ADJUST_LOCK_TOAST);return;}
     adjustTarget=key;
     $('adjustPanel').hidden=false;
     $('adjustTitle').textContent=key==='realG'?'実G調整':'液晶G調整';
