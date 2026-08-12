@@ -3,24 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>Lストリートファイター6 液晶G履歴入力｜スロット稼働ノート</title>
-<meta name="description" content="Lストリートファイター6の液晶ゲーム数、実ゲーム数、DC加算、前兆、ファイターズバトル、メモを端末内に記録する実戦ログです。">
+<title>Lストリートファイター6 実戦記録ツール</title>
+<meta name="description" content="Lストリートファイター6の実G、液晶G、DC加算、前兆、FB、投資、回収を全画面式で記録する実戦ログツールです。">
 <link rel="canonical" href="https://slot-tools.jp/sf6-record.html">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="スロット稼働ノート">
-<meta property="og:title" content="Lストリートファイター6 液晶G履歴入力｜スロット稼働ノート">
-<meta property="og:description" content="実G、液晶G、DC終了時の合計加算、FB結果を端末内に記録します。判断ロジックは入れず、実記録に徹したPhase 1ツールです。">
+<meta property="og:site_name" content="スロット稼働ツール">
+<meta property="og:title" content="Lストリートファイター6 実戦記録ツール">
+<meta property="og:description" content="液晶Gと実Gの二軸カウンタ、DC加算、FB勝敗、投資回収を全画面式で記録します。">
 <meta property="og:url" content="https://slot-tools.jp/sf6-record.html">
 <style>
 :root{
   --bg:#0c1110;
-  --panel:#151b1a;
-  --panel2:#1d2523;
+  --surface:#151b1a;
+  --surface2:#1d2523;
   --ink:#eef5ee;
   --muted:#92a099;
   --line:#2a3632;
   --drive:#69d84f;
-  --drive-dark:#20391e;
+  --drive-soft:#20391e;
   --accent:#7ce6b0;
   --danger:#ff5d6c;
   --amber:#f0ba51;
@@ -29,14 +29,13 @@
   --pink:#ff7aa2;
   --memo:#c4e86b;
   --focus:#9af285;
-  --red:#ff5d6c;
-  --soft-green:#94d982;
 }
 *{box-sizing:border-box}
 [hidden]{display:none!important}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;background:var(--bg)}
 body{
   margin:0;
+  min-height:100dvh;
   background:var(--bg);
   color:var(--ink);
   font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif;
@@ -47,97 +46,153 @@ a{color:var(--accent);text-decoration:none}
 button,input,textarea{font:inherit}
 button{touch-action:manipulation;user-select:none;-webkit-user-select:none}
 button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
-.shell{
+.bm-overlay{
+  position:fixed;
+  inset:0;
+  z-index:9000;
+  background:var(--bg);
+  color:var(--ink);
+  padding:calc(8px + env(safe-area-inset-top)) calc(8px + env(safe-area-inset-right)) calc(8px + env(safe-area-inset-bottom)) calc(8px + env(safe-area-inset-left));
+  overflow:auto;
+}
+.bm-shell{
   width:100%;
-  max-width:640px;
-  min-height:100dvh;
+  max-width:480px;
+  min-height:100%;
   margin:0 auto;
-  padding:0 10px calc(18px + env(safe-area-inset-bottom));
+  display:flex;
+  flex-direction:column;
+  gap:7px;
 }
-.top{
-  position:sticky;
-  top:0;
-  z-index:10;
-  margin:0 -10px;
-  padding:calc(8px + env(safe-area-inset-top)) 10px 8px;
-  background:linear-gradient(180deg,#122016,#0c1110);
-  border-bottom:1px solid var(--line);
+.bm-header{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  border-bottom:1px solid rgba(105,216,79,.28);
+  padding:2px 0 7px;
 }
-.head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
-.head h1{font-size:15px;line-height:1.3;margin:0;font-weight:800}
-.head small{display:block;color:var(--drive);font-size:10px;letter-spacing:.08em;margin-top:2px}
-.head-link{flex:none;color:var(--muted);font-size:12px;padding:4px 0}
-.status{display:flex;gap:6px}
-.stat{
+.bm-title{min-width:0;font-size:13px;font-weight:900;color:var(--drive);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bm-close{
+  flex:none;
+  width:48px;
+  height:48px;
+  border:1px solid rgba(105,216,79,.42);
+  border-radius:8px;
+  background:rgba(105,216,79,.08);
+  color:var(--drive);
+  font-size:22px;
+  font-weight:900;
+}
+.state-badges{display:flex;gap:6px;flex-wrap:wrap;min-height:32px}
+.state-badge{
+  border:1px solid rgba(148,163,184,.35);
+  border-radius:999px;
+  background:rgba(148,163,184,.11);
+  color:var(--muted);
+  min-height:32px;
+  padding:5px 10px;
+  font-size:12px;
+  font-weight:900;
+}
+.state-badge.active-normal{border-color:rgba(105,216,79,.52);background:rgba(105,216,79,.12);color:var(--drive)}
+.state-badge.active-battle{border-color:rgba(255,93,108,.72);background:rgba(255,93,108,.14);color:#ffc2ca}
+.counter-row,.money-row,.step-row,.button-row,.sheet-row,.choice-row{
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+}
+.counter-btn{
   flex:1 1 0;
   min-width:0;
+  min-height:64px;
   border:1px solid var(--line);
-  background:var(--panel);
   border-radius:8px;
-  padding:5px 2px;
+  background:var(--surface);
+  color:var(--ink);
   text-align:center;
-  cursor:pointer;
+  padding:7px 8px;
 }
-.stat[aria-disabled="true"]{cursor:default;opacity:.78}
-.stat span{display:block;color:var(--muted);font-size:10px;white-space:nowrap}
-.stat b{display:block;color:var(--ink);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.section{margin:12px 0;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
-.section h2{font-size:13px;color:var(--drive);margin:0 0 10px}
-.field-row{display:flex;gap:8px;align-items:center;margin:8px 0}
-.field-row label{flex:1;color:var(--muted);font-size:12px}
+.counter-btn span{display:block;color:var(--muted);font-size:11px;font-weight:900}
+.counter-btn b{display:block;color:var(--drive);font-size:24px;line-height:1.25;font-variant-numeric:tabular-nums}
+.counter-btn.lcd-attention{animation:lcdPulse 1.1s ease-in-out infinite}
+@keyframes lcdPulse{
+  0%,100%{border-color:var(--line);box-shadow:none}
+  50%{border-color:rgba(240,186,81,.95);box-shadow:0 0 0 2px rgba(240,186,81,.22) inset}
+}
+.money-pill{
+  flex:1 1 110px;
+  min-height:38px;
+  border:1px solid rgba(105,216,79,.25);
+  border-radius:8px;
+  background:rgba(0,0,0,.14);
+  color:var(--muted);
+  padding:7px 9px;
+  font-size:12px;
+  font-weight:900;
+  text-align:center;
+}
+.money-pill strong{color:var(--ink);font-variant-numeric:tabular-nums}
+.bm-btn,.chip{
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--surface2);
+  color:var(--ink);
+  min-height:52px;
+  padding:8px 9px;
+  font-weight:900;
+  cursor:pointer;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+.bm-btn{flex:1 1 92px;font-size:15px}
+.bm-btn.small{flex:1 1 58px;min-height:48px}
+.bm-btn.primary{border-color:#315b2d;background:var(--drive-soft);color:var(--drive)}
+.bm-btn.secondary{border-color:var(--line);background:var(--surface2);color:var(--ink)}
+.bm-btn.danger{border-color:#70313b;background:#32171b;color:var(--danger)}
+.bm-btn.win{border-color:#3a6b35;background:#1d3521;color:var(--drive)}
+.bm-btn.lose{border-color:#74344c;background:#33202a;color:var(--pink)}
+.bm-btn.hot-text{color:var(--danger)}
+.bm-btn.blue-text{color:var(--blue)}
+.bm-btn.red-text{color:var(--danger)}
+.bm-btn.gold-text{color:var(--amber)}
+.chip{
+  flex:1 1 auto;
+  min-height:42px;
+  border-radius:999px;
+  font-size:12px;
+  padding:8px 11px;
+}
+.chip[aria-pressed="true"]{border-color:var(--drive);background:var(--drive-soft);color:var(--drive)}
+.chip.hot{border-color:#633039;color:var(--danger)}
+.chip.hot[aria-pressed="true"]{border-color:var(--danger);background:#35171c;color:#fff}
+.chip.blue-text{color:var(--blue)}
+.chip.red-text{color:var(--danger)}
+.panel{
+  border:1px solid rgba(105,216,79,.22);
+  border-radius:8px;
+  background:rgba(0,0,0,.12);
+  padding:8px;
+}
+.panel-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px;color:var(--drive);font-size:12px;font-weight:900}
+.field-row{display:flex;align-items:center;gap:8px;margin:8px 0}
+.field-row label{flex:1;color:var(--muted);font-size:12px;font-weight:900}
 .field-row input{
-  width:128px;
-  max-width:48%;
+  width:138px;
+  max-width:54%;
   border:1px solid var(--line);
   border-radius:8px;
   background:#0a0f0d;
   color:var(--ink);
   padding:10px 9px;
-  font-size:18px;
+  font-size:17px;
   text-align:right;
   font-variant-numeric:tabular-nums;
 }
-.actions,.chips{display:flex;gap:8px;flex-wrap:wrap}
-.actions{margin-top:10px}
-.chips{margin:8px 0}
-.step-actions{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0 12px}
-.step-actions .action{flex:1 1 58px;padding-left:6px;padding-right:6px}
-.adjust-panel[hidden]{display:none!important}
-.adjust-panel{margin:10px 0 12px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
-.adjust-title{font-size:12px;color:var(--drive);font-weight:800;margin-bottom:8px}
-.adjust-steps{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
-.adjust-steps .action{flex:1 1 58px;padding-left:6px;padding-right:6px}
-.chip,.action{
-  border:1px solid var(--line);
-  border-radius:999px;
-  background:var(--panel2);
-  color:var(--ink);
-  padding:9px 12px;
-  min-height:40px;
-  cursor:pointer;
-}
-.chip{font-size:12px;font-weight:700}
-.chip[aria-pressed="true"]{border-color:var(--drive);background:var(--drive-dark);color:var(--drive)}
-.chip.color-blue{color:var(--blue)}
-.chip.color-red{color:var(--red)}
-.chip.voice-hot{border-color:#633039;color:var(--danger)}
-.chip.voice-hot[aria-pressed="true"]{background:#35171c;border-color:var(--danger);color:#fff}
-.action{
-  flex:1 1 130px;
-  border-radius:8px;
-  font-weight:800;
-  background:var(--drive-dark);
-  border-color:#315b2d;
-  color:var(--drive);
-}
-.action.secondary{background:var(--panel2);color:var(--ink);border-color:var(--line)}
-.action.danger{background:#32171b;color:var(--danger);border-color:#70313b}
-.action.win{background:#1d3521;color:var(--drive);border-color:#3a6b35}
-.action.lose{background:#33202a;color:var(--pink);border-color:#74344c}
-.input-note{color:var(--muted);font-size:11px;margin:6px 0 0}
+.field-row input[type="text"]{text-align:left;font-size:15px}
 textarea{
   width:100%;
-  min-height:72px;
+  min-height:96px;
   resize:vertical;
   border:1px solid var(--line);
   border-radius:8px;
@@ -145,28 +200,79 @@ textarea{
   color:var(--ink);
   padding:10px;
 }
-.log-list{display:flex;flex-direction:column;gap:8px}
-.log-item{
-  display:flex;
-  gap:8px;
-  align-items:flex-start;
-  border:1px solid var(--line);
+.recent,.undo-bar{
+  border:1px solid rgba(105,216,79,.25);
   border-radius:8px;
-  background:var(--panel2);
-  padding:10px;
+  background:rgba(0,0,0,.16);
 }
+.recent{padding:7px 9px;min-height:40px;color:var(--muted);font-size:12px;overflow:hidden}
+.recent-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.undo-bar{
+  min-height:48px;
+  color:var(--drive);
+  background:rgba(105,216,79,.10);
+  font-size:14px;
+  font-weight:900;
+  padding:9px 10px;
+}
+.undo-bar.disabled{opacity:.52;color:var(--muted);border-color:rgba(122,122,138,.35);background:rgba(122,122,138,.08)}
+.bm-sheet{
+  position:fixed;
+  inset:0;
+  z-index:9050;
+  display:none;
+  align-items:flex-end;
+  background:rgba(0,0,0,.58);
+}
+.bm-sheet.open{display:flex}
+.bm-sheet-panel{
+  width:100%;
+  max-width:480px;
+  max-height:76dvh;
+  overflow:auto;
+  margin:0 auto;
+  background:var(--surface);
+  border:1px solid var(--line);
+  border-bottom:0;
+  border-radius:14px 14px 0 0;
+  padding:12px;
+}
+.sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.sheet-title{font-size:14px;font-weight:900;color:var(--drive)}
+.sheet-body{display:flex;flex-direction:column;gap:8px}
+.export-box{min-height:130px;font-size:12px;user-select:text;-webkit-user-select:text}
+.toast{
+  position:fixed;
+  left:50%;
+  top:72px;
+  transform:translateX(-50%);
+  z-index:12000;
+  display:none;
+  max-width:calc(100vw - 22px);
+  border:1px solid rgba(105,216,79,.45);
+  border-radius:999px;
+  background:rgba(20,20,24,.95);
+  color:var(--drive);
+  font-size:16px;
+  font-weight:900;
+  padding:12px 18px;
+  box-shadow:0 8px 22px rgba(0,0,0,.35);
+  text-align:center;
+}
+.toast.show{display:block}
 .tag{
-  flex:none;
-  min-width:62px;
+  display:inline-block;
+  min-width:60px;
   text-align:center;
   border-radius:999px;
-  padding:4px 7px;
+  padding:3px 7px;
+  margin-right:5px;
   font-size:11px;
-  font-weight:800;
+  font-weight:900;
   color:#07100b;
 }
 .tag.gain{background:var(--drive)}
-.tag.dcin{background:var(--soft-green)}
+.tag.dcin{background:#94d982}
 .tag.judge{background:var(--amber)}
 .tag.in{background:var(--blue)}
 .tag.stage{background:#3f75c8;color:#eef5ff}
@@ -177,199 +283,80 @@ textarea{
 .tag.cash{background:#9fd37b}
 .tag.collect{background:#87d8d0;color:#061110}
 .tag.memo{background:var(--memo)}
-.log-main{flex:1;min-width:0}
-.log-text{font-size:13px;word-break:break-word}
-.log-sub{font-size:11px;color:var(--muted);margin-top:3px}
-.voice-mark{color:var(--danger);font-weight:800}
-.red-mark{color:var(--red);font-weight:800}
-.delete{
-  flex:none;
-  width:34px;
-  height:34px;
-  border:1px solid var(--line);
-  border-radius:8px;
-  background:#121716;
-  color:var(--muted);
-  font-size:18px;
-}
-.empty{color:var(--muted);font-size:12px;padding:4px 0}
-.export-box{
-  width:100%;
-  min-height:118px;
-  margin-top:8px;
-  font-size:12px;
-  user-select:text;
-  -webkit-user-select:text;
-}
-.toast{
-  position:fixed;
-  left:50%;
-  bottom:22px;
-  transform:translateX(-50%);
-  z-index:30;
-  max-width:calc(100vw - 28px);
-  padding:10px 14px;
-  border-radius:999px;
-  background:var(--danger);
-  color:#fff;
-  font-weight:800;
-  font-size:12px;
-  opacity:0;
-  pointer-events:none;
-  transition:opacity .18s;
-  box-shadow:0 10px 24px rgba(0,0,0,.4);
-}
-.toast.show{opacity:1}
+.voice-mark,.red-mark{color:var(--danger);font-weight:900}
+.muted{color:var(--muted)}
 @media (max-width:380px){
-  .shell{padding-left:8px;padding-right:8px}
-  .top{margin-left:-8px;margin-right:-8px;padding-left:8px;padding-right:8px}
-  .section{padding:10px}
-  .field-row input{width:112px}
-  .chip{padding-left:10px;padding-right:10px}
-  .tag{min-width:54px}
+  .bm-shell{gap:6px}
+  .bm-btn{flex-basis:76px;padding-left:6px;padding-right:6px;font-size:14px}
+  .bm-btn.small{flex-basis:52px}
+  .field-row input{width:118px}
+  .chip{padding-left:9px;padding-right:9px}
 }
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944"
      crossorigin="anonymous"></script>
 </head>
 <body>
-<div class="shell">
-  <div class="top">
-    <div class="head">
-      <h1>Lストリートファイター6<small>LCD GAME LOG - Phase 1</small></h1>
-      <a class="head-link" href="/">トップ</a>
-    </div>
-    <div class="status" aria-label="現在値">
-      <button class="stat" type="button" id="statRealBtn" data-adjust="realG"><span>実G</span><b id="statReal">-</b></button>
-      <button class="stat" type="button" id="statLcdBtn" data-adjust="lcdG"><span>液晶G</span><b id="statLcd">-</b></button>
-      <div class="stat" aria-disabled="true"><span>FBスルー</span><b id="statThrough">0</b></div>
-    </div>
-  </div>
+<main class="bm-overlay" id="battleModeOverlay">
+  <div class="bm-shell">
+    <header class="bm-header">
+      <div class="bm-title">Lストリートファイター6 / 実戦記録</div>
+      <a class="bm-close" href="/" aria-label="トップへ">×</a>
+    </header>
 
-  <div class="step-actions" aria-label="通常消化">
-    <button class="action secondary" type="button" data-step="1">+1</button>
-    <button class="action secondary" type="button" data-step="3">+3</button>
-    <button class="action secondary" type="button" data-step="5">+5</button>
-    <button class="action secondary" type="button" data-step="10">+10</button>
-    <button class="action secondary" type="button" id="stepUndoBtn">元に戻す</button>
-  </div>
+    <div class="state-badges" id="stateBadges"></div>
 
-  <section class="adjust-panel" id="adjustPanel" aria-labelledby="adjustTitle" hidden>
-    <div class="adjust-title" id="adjustTitle">G数調整</div>
-    <div class="field-row">
-      <label for="adjustValue" id="adjustLabel">現在値</label>
-      <input id="adjustValue" type="number" inputmode="numeric" min="0" step="1" placeholder="未入力可">
-    </div>
-    <div class="adjust-steps">
-      <button class="action secondary" type="button" data-adjust-step="-10">-10</button>
-      <button class="action secondary" type="button" data-adjust-step="-1">-1</button>
-      <button class="action secondary" type="button" data-adjust-step="1">+1</button>
-      <button class="action secondary" type="button" data-adjust-step="10">+10</button>
-    </div>
-  </section>
+    <section class="counter-row" aria-label="現在G数">
+      <button class="counter-btn" type="button" id="realCounterBtn" data-adjust="realG"><span>実G</span><b id="realCounter">-</b></button>
+      <button class="counter-btn" type="button" id="lcdCounterBtn" data-adjust="lcdG"><span>液晶G</span><b id="lcdCounter">-</b></button>
+    </section>
 
-  <section class="section" aria-labelledby="zenTitle">
-    <h2 id="zenTitle">前兆</h2>
-    <div class="actions">
-      <button class="action secondary" type="button" data-zen="in">前兆 突入</button>
-      <button class="action secondary" type="button" data-zen="stage">前兆ステージ突入</button>
-      <button class="action secondary" type="button" data-zen="out">前兆 抜け</button>
-    </div>
-  </section>
+    <section class="money-row" aria-label="投資回収">
+      <div class="money-pill">投資 <strong id="cashTotal">0円</strong></div>
+      <div class="money-pill">回収 <strong id="collectTotal">0枚</strong></div>
+      <div class="money-pill">FBスルー <strong id="throughCount">0</strong></div>
+    </section>
 
-  <section class="section" aria-labelledby="colorTitle">
-    <h2 id="colorTitle">G数色変化</h2>
-    <div class="chips" id="gColorKinds" aria-label="G数色"></div>
-    <div class="actions">
-      <button class="action secondary" type="button" id="gColorBtn">色変化を記録</button>
-    </div>
-  </section>
+    <section class="step-row" aria-label="通常消化">
+      <button class="bm-btn small secondary" type="button" data-step="1">+1</button>
+      <button class="bm-btn small secondary" type="button" data-step="3">+3</button>
+      <button class="bm-btn small secondary" type="button" data-step="5">+5</button>
+      <button class="bm-btn small secondary" type="button" data-step="10">+10</button>
+      <button class="bm-btn small secondary" type="button" id="stepUndoBtn">元に戻す</button>
+    </section>
 
-  <section class="section" aria-labelledby="gainTitle">
-    <h2 id="gainTitle">ゲーム数加算</h2>
-    <div class="actions">
-      <button class="action secondary" type="button" id="dcInBtn">DC突入</button>
-    </div>
-    <div class="chips" id="gainKinds" aria-label="加算種別"></div>
-    <div class="field-row">
-      <label for="addG">加算G数</label>
-      <input id="addG" type="number" inputmode="numeric" min="1" step="1" placeholder="例 120">
-    </div>
-    <div class="chips" id="voiceKinds" aria-label="DC終了時ボイス"></div>
-    <p class="input-note">ジャッジ選択時はボイスを保存しません。</p>
-    <div class="actions">
-      <button class="action" type="button" id="gainBtn">加算を記録</button>
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="fbTitle">
-    <h2 id="fbTitle">ファイターズバトル</h2>
-    <div class="actions">
-      <button class="action secondary" type="button" id="fbHitBtn">FB当選</button>
-    </div>
-    <div class="field-row">
-      <label for="opponentText">対戦相手</label>
-      <input id="opponentText" type="text" maxlength="20" placeholder="任意">
-    </div>
-    <div id="fbLossFields" hidden>
+    <section class="panel" id="adjustPanel" hidden>
+      <div class="panel-title"><span id="adjustTitle">G数調整</span><button class="bm-btn small secondary" type="button" id="adjustCloseBtn">閉じる</button></div>
       <div class="field-row">
-        <label for="fbExitLcdG">抜け時液晶G</label>
-        <input id="fbExitLcdG" type="number" inputmode="numeric" min="0" step="1" placeholder="敗北時必須">
+        <label for="adjustValue" id="adjustLabel">現在値</label>
+        <input id="adjustValue" type="number" inputmode="numeric" min="0" step="1" placeholder="未入力可">
       </div>
-      <div class="chips" id="icatchKinds" aria-label="敗北時アイキャッチ"></div>
-      <div class="field-row" id="icatchNoteRow" hidden>
-        <label for="icatchNoteText">アイキャッチ</label>
-        <input id="icatchNoteText" type="text" maxlength="20" placeholder="例 豪鬼">
+      <div class="button-row">
+        <button class="bm-btn small secondary" type="button" data-adjust-step="-10">-10</button>
+        <button class="bm-btn small secondary" type="button" data-adjust-step="-1">-1</button>
+        <button class="bm-btn small secondary" type="button" data-adjust-step="1">+1</button>
+        <button class="bm-btn small secondary" type="button" data-adjust-step="10">+10</button>
       </div>
-    </div>
-    <div class="chips" id="bonusKinds" aria-label="ボーナス"></div>
-    <div class="actions">
-      <button class="action win" type="button" id="fbWinBtn">勝利</button>
-      <button class="action lose" type="button" id="fbLoseBtn">敗北</button>
-    </div>
-  </section>
+    </section>
 
-  <section class="section" aria-labelledby="cashTitle">
-    <h2 id="cashTitle">投資 / 回収</h2>
-    <div class="chips" id="cashKinds" aria-label="投資額"></div>
-    <div class="actions">
-      <button class="action secondary" type="button" id="cashBtn">投資を記録</button>
-    </div>
-    <div class="field-row">
-      <label for="collectMedals">回収枚数</label>
-      <input id="collectMedals" type="number" inputmode="numeric" min="1" step="1" placeholder="例 1417">
-    </div>
-    <div class="actions">
-      <button class="action secondary" type="button" id="collectBtn">回収を記録</button>
-    </div>
-  </section>
+    <section id="modeGrid" class="panel"></section>
+    <section id="recentLog" class="recent" aria-label="直近ログ"></section>
+    <button class="undo-bar disabled" id="undoBtn" type="button">直前の記録はありません</button>
+    <button class="bm-btn secondary" type="button" id="openUtilityBtn">投資・回収・メモ・出力</button>
+  </div>
+</main>
 
-  <section class="section" aria-labelledby="memoTitle">
-    <h2 id="memoTitle">メモ</h2>
-    <textarea id="memoText" maxlength="100" placeholder="100文字まで"></textarea>
-    <div class="actions">
-      <button class="action secondary" type="button" id="memoBtn">メモを記録</button>
-    </div>
-  </section>
-
-  <section class="section" aria-labelledby="logTitle">
-    <h2 id="logTitle">ログ一覧</h2>
-    <div id="logList" class="log-list"></div>
-  </section>
-
-  <section class="section" aria-labelledby="dataTitle">
-    <h2 id="dataTitle">データ出力 / リセット</h2>
-    <div class="actions">
-      <button class="action secondary" type="button" id="exportBtn">JSONを表示</button>
-      <button class="action secondary" type="button" id="copyJsonBtn">コピー</button>
-      <button class="action secondary" type="button" id="downloadJsonBtn">ファイル保存</button>
-      <button class="action danger" type="button" id="resetBtn">リセット</button>
-    </div>
-    <textarea id="exportBox" class="export-box" readonly hidden></textarea>
-  </section>
-</div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<div class="bm-sheet" id="sheet" aria-modal="true" role="dialog">
+  <div class="bm-sheet-panel">
+    <div class="sheet-head">
+      <div class="sheet-title" id="sheetTitle">入力</div>
+      <button class="bm-btn small secondary" type="button" id="sheetCloseBtn">閉じる</button>
+    </div>
+    <div class="sheet-body" id="sheetBody"></div>
+  </div>
+</div>
 
 <script src="sf6-schema.js"></script>
 <script>
@@ -386,16 +373,21 @@ textarea{
   const CASH_AMOUNTS=[1000,5000,10000];
   const ICATCHES=['ルーク（デフォ）','その他'];
   const $=id=>document.getElementById(id);
-  let state={machine:MACHINE,ver:VERSION,currentState:{realG:null,lcdG:null},logs:[]};
+  const txt=(text)=>document.createTextNode(String(text??''));
+  let state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},logs:[]};
   let selectedGainKind='';
   let selectedVoice=null;
-  let selectedGColor=null;
+  let gainAddDraft='';
   let selectedBonus=null;
   let selectedCashAmount=10000;
   let selectedIcatch=null;
   let adjustTarget=null;
   let stepHistory=[];
+  let undoStack=[];
+  let redoAction=null;
   let resetTimer=null;
+  let lastLcdTouchedAt=Date.now();
+  let lcdLogCountAtTouch=0;
 
   function positiveInt(value){
     const text=String(value??'').trim();
@@ -416,46 +408,54 @@ textarea{
     const n=Number(text);
     return Number.isSafeInteger(n)?n:null;
   }
-  function snapshot(){
-    const current=state.currentState||{};
-    return {realG:current.realG==null?null:optionalGame(current.realG),lcdG:current.lcdG==null?null:optionalGame(current.lcdG)};
+  function normalizeBattleState(value){
+    return value==='battle'?'battle':'normal';
   }
   function normalizeCurrentState(value){
     return {realG:value?.realG==null?null:optionalGame(value.realG),lcdG:value?.lcdG==null?null:optionalGame(value.lcdG)};
   }
-  function setCurrentValue(key,value){
+  function snapshot(){
+    const current=state.currentState||{};
+    return {realG:current.realG==null?null:optionalGame(current.realG),lcdG:current.lcdG==null?null:optionalGame(current.lcdG)};
+  }
+  function deepClone(value){
+    return JSON.parse(JSON.stringify(value));
+  }
+  function appSnapshot(){
+    return deepClone({battleState:state.battleState,currentState:normalizeCurrentState(state.currentState),logs:state.logs});
+  }
+  function restoreSnapshot(snap){
+    state.battleState=normalizeBattleState(snap?.battleState);
+    state.currentState=normalizeCurrentState(snap?.currentState);
+    state.logs=Array.isArray(snap?.logs)?snap.logs.map(sanitizeLog).filter(Boolean):[];
+    save();
+    render();
+  }
+  function commit(label,mutator,options={}){
+    const before=appSnapshot();
+    const ok=mutator();
+    if(ok===false)return false;
+    state.battleState=normalizeBattleState(state.battleState);
     state.currentState=normalizeCurrentState(state.currentState);
-    state.currentState[key]=value==null?null:optionalGame(value);
+    const after=appSnapshot();
+    if(JSON.stringify(before)===JSON.stringify(after)){
+      render();
+      return false;
+    }
+    undoStack.push({label,before,after});
+    if(undoStack.length>80)undoStack.shift();
+    redoAction=null;
+    if(options.lcdTouched)markLcdTouched();
     save();
-    renderStatus();
-    syncAdjustPanel();
-  }
-  function adjustCurrentValue(key,delta){
-    const current=snapshot()[key]??0;
-    setCurrentValue(key,Math.max(0,current+delta));
-  }
-  function stepBoth(delta){
-    const before=snapshot();
-    const nextReal=(before.realG??0)+delta;
-    const nextLcd=(before.lcdG??0)+delta;
-    state.currentState={realG:nextReal,lcdG:nextLcd};
-    stepHistory.push(before);
-    if(stepHistory.length>10)stepHistory.shift();
-    save();
-    renderStatus();
-    syncAdjustPanel();
-  }
-  function undoStep(){
-    const prev=stepHistory.pop();
-    if(!prev){toast('戻す通常消化がありません');return;}
-    state.currentState={realG:prev.realG,lcdG:prev.lcdG};
-    save();
-    renderStatus();
-    syncAdjustPanel();
-    toast('通常消化を戻しました');
+    render();
+    toast(options.toast||`${label}を記録しました`);
+    return true;
   }
   function nextId(){
     return state.logs.reduce((max,log)=>Math.max(max,Number(log.id)||0),0)+1;
+  }
+  function addLogDirect(log){
+    state.logs.push({...log,id:nextId(),t:Date.now()});
   }
   function sanitizeLog(log){
     if(!log||typeof log!=='object')return null;
@@ -507,82 +507,116 @@ textarea{
   }
   function normalize(data){
     const schemaNormalize=globalThis.normalizeSf6Export||window.normalizeSf6Export||((value)=>value);
-    const normalized=schemaNormalize(data||{machine:MACHINE,ver:VERSION,currentState:{realG:null,lcdG:null},logs:[]});
+    const normalized=schemaNormalize(data||{machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},logs:[]});
     const logs=Array.isArray(normalized?.logs)?normalized.logs.map(sanitizeLog).filter(Boolean):[];
     const sourceVer=normalized&&Object.prototype.hasOwnProperty.call(normalized,'sourceVer')?normalized.sourceVer:VERSION;
-    return {machine:MACHINE,ver:VERSION,sourceVer,currentState:normalizeCurrentState(normalized?.currentState),logs};
+    return {machine:MACHINE,ver:VERSION,sourceVer,battleState:normalizeBattleState(normalized?.battleState),currentState:normalizeCurrentState(normalized?.currentState),logs};
   }
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){toast('保存に失敗しました');}
   }
   function load(){
-    try{state=normalize(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}catch(e){state={machine:MACHINE,ver:VERSION,currentState:{realG:null,lcdG:null},logs:[]};}
+    try{state=normalize(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}catch(e){state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},logs:[]};}
+    markLcdTouched();
   }
   function toast(message){
     const el=$('toast');
     el.textContent=message;
     el.classList.add('show');
     clearTimeout(toast._timer);
-    toast._timer=setTimeout(()=>el.classList.remove('show'),1800);
+    toast._timer=setTimeout(()=>el.classList.remove('show'),1700);
   }
-  function makeChip(label,pressed,hot){
-    const btn=document.createElement('button');
+  function clearNode(node){
+    while(node.firstChild)node.removeChild(node.firstChild);
+  }
+  function el(tag,className,text){
+    const node=document.createElement(tag);
+    if(className)node.className=className;
+    if(text!==undefined)node.textContent=text;
+    return node;
+  }
+  function button(label,className,handler){
+    const btn=el('button',`bm-btn ${className||'secondary'}`,label);
     btn.type='button';
-    btn.className='chip'+(hot?' voice-hot':'');
-    btn.textContent=label;
-    btn.setAttribute('aria-pressed',pressed?'true':'false');
+    btn.addEventListener('click',handler);
     return btn;
   }
-  function colorChipClass(label){
-    if(label==='青')return ' color-blue';
-    if(label==='赤')return ' color-red';
-    return '';
+  function chip(label,pressed,handler,extraClass=''){
+    const btn=el('button',`chip ${extraClass}`.trim(),label);
+    btn.type='button';
+    btn.setAttribute('aria-pressed',pressed?'true':'false');
+    btn.addEventListener('click',handler);
+    return btn;
   }
-  function renderChips(){
-    const colors=$('gColorKinds');
-    colors.textContent='';
-    G_COLORS.forEach(label=>{
-      const btn=makeChip(label,selectedGColor===label,false);
-      btn.className+=colorChipClass(label);
-      btn.addEventListener('click',()=>{selectedGColor=label;renderChips();});
-      colors.appendChild(btn);
-    });
-    const gain=$('gainKinds');
-    gain.textContent='';
-    GAIN_KINDS.forEach(label=>{
-      const btn=makeChip(label,selectedGainKind===label,false);
-      btn.addEventListener('click',()=>{selectedGainKind=label;renderChips();});
-      gain.appendChild(btn);
-    });
-    const voices=$('voiceKinds');
-    voices.textContent='';
-    VOICES.forEach(label=>{
-      const btn=makeChip(label,selectedVoice===label,HOT_VOICES.has(label));
-      btn.addEventListener('click',()=>{selectedVoice=selectedVoice===label?null:label;renderChips();});
-      voices.appendChild(btn);
-    });
-    const bonuses=$('bonusKinds');
-    bonuses.textContent='';
-    BONUSES.forEach(label=>{
-      const btn=makeChip(label,selectedBonus===label,false);
-      btn.addEventListener('click',()=>{selectedBonus=selectedBonus===label?null:label;renderChips();});
-      bonuses.appendChild(btn);
-    });
-    const cashes=$('cashKinds');
-    cashes.textContent='';
-    CASH_AMOUNTS.forEach(amount=>{
-      const btn=makeChip(amount.toLocaleString(),selectedCashAmount===amount,false);
-      btn.addEventListener('click',()=>{selectedCashAmount=amount;renderChips();});
-      cashes.appendChild(btn);
-    });
-    const icatches=$('icatchKinds');
-    icatches.textContent='';
-    ICATCHES.forEach(label=>{
-      const btn=makeChip(label,selectedIcatch===label,label==='その他');
-      btn.addEventListener('click',()=>{selectedIcatch=selectedIcatch===label?null:label;renderChips();syncIcatchNote();});
-      icatches.appendChild(btn);
-    });
-    syncIcatchNote();
+  function input(id,type='number',placeholder='',maxLength=null){
+    const node=document.createElement('input');
+    node.id=id;
+    node.type=type;
+    if(type==='number'){
+      node.inputMode='numeric';
+      node.min='0';
+      node.step='1';
+    }
+    if(maxLength)node.maxLength=maxLength;
+    node.placeholder=placeholder;
+    return node;
+  }
+  function field(labelText,inputNode){
+    const row=el('div','field-row');
+    const label=document.createElement('label');
+    label.setAttribute('for',inputNode.id);
+    label.textContent=labelText;
+    row.append(label,inputNode);
+    return row;
+  }
+  function row(className='button-row'){
+    return el('div',className);
+  }
+  function markLcdTouched(){
+    lastLcdTouchedAt=Date.now();
+    lcdLogCountAtTouch=state.logs.length;
+  }
+  function lcdNeedsAttention(){
+    const snap=snapshot();
+    if(snap.lcdG===null)return false;
+    return state.logs.length-lcdLogCountAtTouch>=5 || Date.now()-lastLcdTouchedAt>5*60*1000;
+  }
+  function setCurrentValue(key,value){
+    state.currentState=normalizeCurrentState(state.currentState);
+    state.currentState[key]=value==null?null:optionalGame(value);
+    if(key==='lcdG')markLcdTouched();
+    save();
+    render();
+  }
+  function adjustCurrentValue(key,delta){
+    if(!key)return;
+    const current=snapshot()[key]??0;
+    setCurrentValue(key,Math.max(0,current+delta));
+  }
+  function stepBoth(delta){
+    const before=snapshot();
+    state.currentState={realG:(before.realG??0)+delta,lcdG:(before.lcdG??0)+delta};
+    stepHistory.push(before);
+    if(stepHistory.length>10)stepHistory.shift();
+    markLcdTouched();
+    save();
+    render();
+  }
+  function undoStep(){
+    const prev=stepHistory.pop();
+    if(!prev){toast('戻せる通常消化がありません');return;}
+    state.currentState={realG:prev.realG,lcdG:prev.lcdG};
+    markLcdTouched();
+    save();
+    render();
+    toast('通常消化を戻しました');
+  }
+  function undoLast(){
+    const action=undoStack.pop();
+    if(!action){toast('取り消す記録がありません');return;}
+    redoAction=action;
+    restoreSnapshot(action.before);
+    toast(`${action.label}を取り消しました`);
   }
   function fbThroughCount(logs=state.logs){
     let count=0;
@@ -594,11 +628,250 @@ textarea{
     }
     return count;
   }
-  function setText(parent,text,className){
-    const el=document.createElement('span');
-    if(className)el.className=className;
-    el.textContent=text;
-    parent.appendChild(el);
+  function latestFbHit(){
+    for(let i=state.logs.length-1;i>=0;i--){
+      if(state.logs[i].type==='fbhit')return state.logs[i];
+    }
+    return null;
+  }
+  function cashTotal(){
+    return state.logs.filter(log=>log.type==='cash').reduce((sum,log)=>sum+(Number(log.amount)||0),0);
+  }
+  function collectTotal(){
+    return state.logs.filter(log=>log.type==='collect').reduce((sum,log)=>sum+(Number(log.medals)||0),0);
+  }
+  function renderStatus(){
+    const snap=snapshot();
+    $('realCounter').textContent=snap.realG==null?'-':String(snap.realG);
+    $('lcdCounter').textContent=snap.lcdG==null?'-':String(snap.lcdG);
+    $('lcdCounterBtn').classList.toggle('lcd-attention',lcdNeedsAttention());
+    $('throughCount').textContent=String(fbThroughCount());
+    $('cashTotal').textContent=`${cashTotal().toLocaleString()}円`;
+    $('collectTotal').textContent=`${collectTotal().toLocaleString()}枚`;
+  }
+  function renderBadges(){
+    const box=$('stateBadges');
+    clearNode(box);
+    box.append(el('div',`state-badge ${state.battleState==='normal'?'active-normal':''}`,'normal'));
+    box.append(el('div',`state-badge ${state.battleState==='battle'?'active-battle':''}`,'FB中'));
+  }
+  function renderModeGrid(){
+    const grid=$('modeGrid');
+    clearNode(grid);
+    const title=el('div','panel-title');
+    title.append(el('span','',state.battleState==='battle'?'FB中':'通常時'));
+    grid.append(title);
+    if(state.battleState==='battle')renderBattleGrid(grid);
+    else renderNormalGrid(grid);
+  }
+  function renderNormalGrid(grid){
+    let r=row();
+    const dcIn=button('DC突入','primary',recordDcIn);
+    dcIn.id='dcInBtn';
+    r.append(dcIn);
+    grid.append(r);
+    r=row();
+    r.append(button('前兆突入','secondary',()=>recordZenchou('in')));
+    r.append(button('前兆ステージ突入','secondary',()=>recordZenchou('stage')));
+    r.append(button('前兆抜け','secondary',()=>recordZenchou('out')));
+    grid.append(r);
+    r=row();
+    G_COLORS.forEach(color=>{
+      const cls=color==='青'?'secondary blue-text':color==='赤'?'secondary red-text':'secondary';
+      r.append(button(`色：${color}`,cls,()=>recordGColor(color)));
+    });
+    r.id='gColorKinds';
+    grid.append(r);
+    r=row();
+    r.append(button('加算入力を開く','primary',openGainSheet));
+    grid.append(r);
+    r=row();
+    const fbHit=button('FB当選','danger',recordFbHit);
+    fbHit.id='fbHitBtn';
+    r.append(fbHit);
+    grid.append(r);
+  }
+  function renderBattleGrid(grid){
+    const opponent=currentOpponentDraft();
+    const header=el('div','panel');
+    header.id='fbLossFields';
+    const p=el('div','panel-title');
+    p.append(el('span','',`FB中${opponent?`：対戦相手 ${opponent}`:''}`));
+    header.append(p);
+    let r=row();
+    r.append(button('勝利','win',()=>recordFb(true)));
+    r.append(button('敗北','lose',openLossSheet));
+    header.append(r);
+    header.append(field('対戦相手', input('opponentText','text','任意',20)));
+    $('opponentText')?.addEventListener?.('input',()=>{});
+    r=row('choice-row');
+    r.id='bonusKinds';
+    BONUSES.forEach(label=>{
+      r.append(chip(label,selectedBonus===label,()=>{selectedBonus=selectedBonus===label?null:label;render();}));
+    });
+    header.append(el('div','muted','ボーナス種別（勝利時のみ・任意）'));
+    header.append(r);
+    r=row();
+    r.append(button('FB終了（手動）','danger',manualEndBattle));
+    header.append(r);
+    grid.append(header);
+    const inputNode=$('opponentText');
+    if(inputNode)inputNode.value=opponentDraft;
+  }
+  let opponentDraft='';
+  function currentOpponentDraft(){
+    const live=$('opponentText');
+    if(live)opponentDraft=String(live.value||'').slice(0,20);
+    return opponentDraft;
+  }
+  function renderRecent(){
+    const box=$('recentLog');
+    clearNode(box);
+    const logs=[...state.logs].sort((a,b)=>b.t-a.t||b.id-a.id).slice(0,3);
+    if(!logs.length){
+      box.append(el('div','recent-line','直近：記録なし'));
+      return;
+    }
+    logs.forEach((log,index)=>{
+      const line=el('div','recent-line');
+      line.append(txt(index===0?'直近：':'　　　'));
+      const tag=el('span',`tag ${tagClass(log)}`,logLabel(log));
+      line.append(tag,txt(logTextPlain(log)),txt(` / ${gameSub(log)}`));
+      box.append(line);
+    });
+  }
+  function renderUndo(){
+    const btn=$('undoBtn');
+    const latest=undoStack[undoStack.length-1];
+    btn.classList.toggle('disabled',!latest);
+    btn.textContent=latest?`↶ 直前「${latest.label}」を取り消す`:'直前の記録はありません';
+  }
+  function render(){
+    state.battleState=normalizeBattleState(state.battleState);
+    renderStatus();
+    renderBadges();
+    renderModeGrid();
+    renderRecent();
+    renderUndo();
+    syncAdjustPanel();
+  }
+  function requireLcd(){
+    const snap=snapshot();
+    if(snap.lcdG===null){toast('液晶Gを入力してください');return null;}
+    return snap;
+  }
+  function recordZenchou(dir){
+    const snap=requireLcd();
+    if(!snap)return;
+    const label=dir==='stage'?'前兆ステージ突入':dir==='in'?'前兆突入':'前兆抜け';
+    commit(label,()=>addLogDirect({type:'zenchou',dir,realG:snap.realG,lcdG:snap.lcdG}),{toast:`${label}を記録しました`});
+  }
+  function recordGColor(color){
+    const snap=requireLcd();
+    if(!snap)return;
+    commit(`色：${color}`,()=>addLogDirect({type:'gcolor',color,realG:snap.realG,lcdG:snap.lcdG}),{toast:`色：${color}を記録しました`});
+  }
+  function recordDcIn(){
+    const snap=requireLcd();
+    if(!snap)return;
+    commit('DC突入',()=>addLogDirect({type:'dcin',realG:snap.realG,lcdG:snap.lcdG}),{toast:'DC突入を記録しました'});
+  }
+  function recordFbHit(){
+    const snap=requireLcd();
+    if(!snap)return;
+    commit('FB当選',()=>{
+      addLogDirect({type:'fbhit',realG:snap.realG,lcdG:snap.lcdG});
+      state.battleState='battle';
+    },{toast:'FB当選を記録しました'});
+  }
+  function recordGainFromSheet(){
+    const snap=requireLcd();
+    if(!snap)return;
+    const addG=positiveInt($('addG')?.value);
+    if(!selectedGainKind){toast('加算種別を選択してください');return;}
+    if(!addG){toast('加算G数を入力してください');return;}
+    const nextLcd=snap.lcdG+addG;
+    const voice=selectedGainKind==='ジャッジ'?null:selectedVoice;
+    commit('加算',()=>{
+      state.currentState={realG:snap.realG,lcdG:nextLcd};
+      addLogDirect({type:'gain',kind:selectedGainKind,addG,voice,realG:snap.realG,lcdG:nextLcd});
+    },{toast:'加算を記録しました',lcdTouched:true});
+    const add=$('addG');
+    if(add)add.value='';
+    gainAddDraft='';
+    selectedVoice=null;
+    closeSheet();
+  }
+  function recordFb(win){
+    const snap=snapshot();
+    const opponent=currentOpponentDraft();
+    if(win){
+      const icatch=null;
+      const icatchNote=null;
+      commit('FB勝利',()=>{
+        addLogDirect({type:'fb',win,bonus:win?selectedBonus:null,opponent:opponent||null,kiteiG:null,icatch:win?null:icatch,icatchNote:win?null:icatchNote,realG:snap.realG,lcdG:snap.lcdG});
+      },{toast:'FB勝利を記録しました'});
+      selectedBonus=null;
+      opponentDraft='';
+      return;
+    }
+    openLossSheet();
+  }
+  function recordLossFromSheet(){
+    const snap=snapshot();
+    const exitLcdG=optionalGame($('fbExitLcdG')?.value);
+    if(exitLcdG===null){toast('抜け時液晶Gを入力してください');return;}
+    let kiteiG=null;
+    let warning=false;
+    const recentHit=latestFbHit();
+    if(recentHit){
+      const diff=recentHit.lcdG-exitLcdG;
+      if(diff>=0)kiteiG=diff;
+      else warning=true;
+    }
+    const icatch=ICATCHES.includes(selectedIcatch)?selectedIcatch:null;
+    const icatchNote=icatch==='その他'?String($('icatchNoteText')?.value||'').trim().slice(0,20)||null:null;
+    const opponent=currentOpponentDraft();
+    commit('FB敗北',()=>{
+      state.currentState={realG:snap.realG,lcdG:exitLcdG};
+      addLogDirect({type:'fb',win:false,bonus:null,opponent:opponent||null,kiteiG,icatch,icatchNote,realG:snap.realG,lcdG:exitLcdG});
+      state.battleState='normal';
+    },{toast:warning?'FB敗北を記録しました（規定Gは未保存）':'FB敗北を記録しました',lcdTouched:true});
+    selectedIcatch=null;
+    selectedBonus=null;
+    opponentDraft='';
+    closeSheet();
+  }
+  function manualEndBattle(){
+    commit('FB終了',()=>{state.battleState='normal';},{toast:'FB状態を通常へ戻しました'});
+  }
+  function recordCash(){
+    const amount=positiveInt(selectedCashAmount);
+    if(!amount){toast('投資額を選択してください');return;}
+    const snap=snapshot();
+    commit('投資',()=>addLogDirect({type:'cash',amount,realG:snap.realG,lcdG:snap.lcdG}),{toast:`投資 ${amount.toLocaleString()}円を記録しました`});
+  }
+  function recordCollect(){
+    const medals=positiveInt($('collectMedals')?.value);
+    if(!medals){toast('回収枚数を入力してください');return;}
+    const snap=snapshot();
+    commit('回収',()=>addLogDirect({type:'collect',medals,realG:snap.realG,lcdG:snap.lcdG}),{toast:`回収 ${medals.toLocaleString()}枚を記録しました`});
+    const inputNode=$('collectMedals');
+    if(inputNode)inputNode.value='';
+  }
+  function recordMemo(){
+    const inputNode=$('memoText');
+    const text=String(inputNode?.value||'').trim();
+    if(!text){toast('メモを入力してください');return;}
+    const snap=snapshot();
+    commit('メモ',()=>addLogDirect({type:'memo',text:text.slice(0,100),realG:snap.realG,lcdG:snap.lcdG}),{toast:'メモを記録しました'});
+    inputNode.value='';
+  }
+  function tagClass(log){
+    if(log.type==='gain')return log.kind==='ジャッジ'?'judge':'gain';
+    if(log.type==='zenchou')return log.dir;
+    if(['gain','dcin','gcolor','zenchou','fbhit','fb','cash','collect','memo'].includes(log.type))return log.type;
+    return 'memo';
   }
   function logLabel(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'ジャッジ':'加算DC';
@@ -612,98 +885,162 @@ textarea{
     if(log.type==='memo')return 'メモ';
     return '不明';
   }
-  function tagClass(log){
-    if(log.type==='gain')return log.kind==='ジャッジ'?'judge':'gain';
-    if(log.type==='zenchou')return log.dir;
-    if(['gain','dcin','gcolor','zenchou','fbhit','fb','cash','collect','memo'].includes(log.type))return log.type;
-    return 'memo';
-  }
-  function fillLogText(el,log){
-    if(log.type==='gain'){
-      setText(el,`${log.kind} +${log.addG}G`);
-      if(log.voice){
-        setText(el,' / ボイス ');
-        setText(el,log.voice,HOT_VOICES.has(log.voice)?'voice-mark':'');
-      }
-    }else if(log.type==='zenchou'){
-      setText(el,log.dir==='stage'?'前兆ステージ突入':(log.dir==='in'?'前兆 突入':'前兆 抜け'));
-    }else if(log.type==='gcolor'){
-      setText(el,'色：');
-      setText(el,log.color,log.color==='赤'?'red-mark':'');
-    }else if(log.type==='dcin'){
-      setText(el,'DC突入');
-    }else if(log.type==='fbhit'){
-      setText(el,'FB当選');
-    }else if(log.type==='fb'){
-      setText(el,`FB ${log.win?'勝利':'敗北'}`);
-      if(log.rank||log.opponent)setText(el,` / ${[log.rank,log.opponent].filter(Boolean).join('／')}`);
-      if(log.kiteiG!==null&&log.kiteiG!==undefined)setText(el,` / 規定${log.kiteiG}G`);
-      if(log.icatch){
-        setText(el,' / アイキャッチ ');
-        setText(el,log.icatchNote?`${log.icatch}：${log.icatchNote}`:log.icatch,log.icatch==='その他'?'voice-mark':'');
-      }
-      if(log.bonus)setText(el,` / ${log.bonus}`);
-    }else if(log.type==='cash'){
-      setText(el,`投資 ${log.amount.toLocaleString()}円`);
-    }else if(log.type==='collect'){
-      setText(el,`回収 ${log.medals.toLocaleString()}枚`);
-    }else if(log.type==='memo'){
-      setText(el,log.text);
-    }else{
-      setText(el,`未対応: ${log.type}`);
+  function logTextPlain(log){
+    if(log.type==='gain')return `${log.kind} +${log.addG}G${log.voice?` / ボイス ${log.voice}`:''}`;
+    if(log.type==='zenchou')return log.dir==='stage'?'前兆ステージ突入':(log.dir==='in'?'前兆突入':'前兆抜け');
+    if(log.type==='gcolor')return `色：${log.color}`;
+    if(log.type==='dcin')return 'DC突入';
+    if(log.type==='fbhit')return 'FB当選';
+    if(log.type==='fb'){
+      const parts=[`FB ${log.win?'勝利':'敗北'}`];
+      if(log.rank||log.opponent)parts.push([log.rank,log.opponent].filter(Boolean).join('／'));
+      if(log.kiteiG!==null&&log.kiteiG!==undefined)parts.push(`規定${log.kiteiG}G`);
+      if(log.icatch)parts.push(`アイキャッチ ${log.icatchNote?`${log.icatch}：${log.icatchNote}`:log.icatch}`);
+      if(log.bonus)parts.push(log.bonus);
+      return parts.join(' / ');
     }
+    if(log.type==='cash')return `投資 ${log.amount.toLocaleString()}円`;
+    if(log.type==='collect')return `回収 ${log.medals.toLocaleString()}枚`;
+    if(log.type==='memo')return log.text;
+    return `未対応 ${log.type}`;
   }
   function gameSub(log){
     const lcd=log.lcdG==null?'液晶-':`液晶${log.lcdG}G`;
     const real=log.realG==null?'実-':`実${log.realG}G`;
     return `${lcd} / ${real}`;
   }
-  function renderLogs(){
-    const list=$('logList');
-    list.textContent='';
-    const logs=[...state.logs].sort((a,b)=>b.t-a.t||b.id-a.id);
-    if(!logs.length){
-      const empty=document.createElement('div');
-      empty.className='empty';
-      empty.textContent='まだ記録がありません';
-      list.appendChild(empty);
+  function setText(el,text,className){
+    const node=document.createElement('span');
+    if(className)node.className=className;
+    node.textContent=text;
+    el.appendChild(node);
+  }
+  function fillLogText(el,log){
+    if(log.type==='gcolor'){
+      setText(el,'色：');
+      setText(el,log.color,log.color==='赤'?'red-mark':'');
       return;
     }
-    logs.forEach(log=>{
-      const row=document.createElement('div');
-      row.className='log-item';
-      const tag=document.createElement('div');
-      tag.className=`tag ${tagClass(log)}`;
-      tag.textContent=logLabel(log);
-      const main=document.createElement('div');
-      main.className='log-main';
-      const text=document.createElement('div');
-      text.className='log-text';
-      fillLogText(text,log);
-      const sub=document.createElement('div');
-      sub.className='log-sub';
-      sub.textContent=gameSub(log);
-      main.append(text,sub);
-      const del=document.createElement('button');
-      del.type='button';
-      del.className='delete';
-      del.setAttribute('aria-label','この記録を削除');
-      del.textContent='×';
-      del.addEventListener('click',()=>deleteLog(log.id));
-      row.append(tag,main,del);
-      list.appendChild(row);
+    if(log.type==='gain'){
+      setText(el,`${log.kind} +${log.addG}G`);
+      if(log.voice){
+        setText(el,' / ボイス ');
+        setText(el,log.voice,HOT_VOICES.has(log.voice)?'voice-mark':'');
+      }
+      return;
+    }
+    if(log.type==='fb'&&log.icatch){
+      setText(el,logTextPlain({...log,icatch:null,icatchNote:null}));
+      setText(el,' / アイキャッチ ');
+      setText(el,log.icatchNote?`${log.icatch}：${log.icatchNote}`:log.icatch,log.icatch==='その他'?'voice-mark':'');
+      return;
+    }
+    if(log.type==='memo'){
+      setText(el,log.text);
+      return;
+    }
+    setText(el,logTextPlain(log));
+  }
+  function openGainSheet(){
+    const liveAdd=$('addG');
+    if(liveAdd)gainAddDraft=String(liveAdd.value||'');
+    openSheet('DC加算',body=>{
+      const kinds=row('choice-row');
+      kinds.id='gainKinds';
+      GAIN_KINDS.forEach(label=>{
+        kinds.append(chip(label,selectedGainKind===label,()=>{selectedGainKind=label;openGainSheet();}));
+      });
+      body.append(kinds);
+      const addInput=input('addG','number','例 120');
+      addInput.value=gainAddDraft;
+      addInput.addEventListener('input',()=>{gainAddDraft=addInput.value;});
+      body.append(field('加算G数',addInput));
+      const voices=row('choice-row');
+      voices.id='voiceKinds';
+      VOICES.forEach(label=>{
+        voices.append(chip(label,selectedVoice===label,()=>{selectedVoice=selectedVoice===label?null:label;openGainSheet();},HOT_VOICES.has(label)?'hot':''));
+      });
+      body.append(el('div','muted','ジャッジ選択時はボイスを保存しません'));
+      body.append(voices);
+      const actions=row();
+      const gainBtn=button('加算を記録','primary',recordGainFromSheet);
+      gainBtn.id='gainBtn';
+      actions.append(gainBtn);
+      body.append(actions);
     });
   }
-  function renderStatus(){
-    const snap=snapshot();
-    $('statReal').textContent=snap.realG==null?'-':String(snap.realG);
-    $('statLcd').textContent=snap.lcdG==null?'-':String(snap.lcdG);
-    $('statThrough').textContent=String(fbThroughCount());
+  function openLossSheet(){
+    openSheet('敗北記録',body=>{
+      body.append(field('抜け時液晶G',input('fbExitLcdG','number','必須')));
+      const choices=row('choice-row');
+      choices.id='icatchKinds';
+      ICATCHES.forEach(label=>{
+        choices.append(chip(label,selectedIcatch===label,()=>{selectedIcatch=selectedIcatch===label?null:label;openLossSheet();},label==='その他'?'hot':''));
+      });
+      body.append(el('div','muted','アイキャッチ（任意）'));
+      body.append(choices);
+      if(selectedIcatch==='その他')body.append(field('その他内容',input('icatchNoteText','text','例 豪鬼',20)));
+      const actions=row();
+      actions.append(button('敗北を確定','lose',recordLossFromSheet));
+      body.append(actions);
+    });
   }
-  function render(){
-    renderChips();
-    renderStatus();
-    renderLogs();
+  function openUtilitySheet(){
+    openSheet('投資・回収・メモ・出力',body=>{
+      const cashRow=row('choice-row');
+      cashRow.id='cashKinds';
+      CASH_AMOUNTS.forEach(amount=>{
+        cashRow.append(chip(`${amount.toLocaleString()}円`,selectedCashAmount===amount,()=>{selectedCashAmount=amount;openUtilitySheet();}));
+      });
+      body.append(el('div','muted','投資'));
+      body.append(cashRow);
+      const cashBtn=button('投資を記録','primary',recordCash);
+      cashBtn.id='cashBtn';
+      body.append(cashBtn);
+      body.append(field('回収枚数',input('collectMedals','number','例 1417')));
+      const collectBtn=button('回収を記録','secondary',recordCollect);
+      collectBtn.id='collectBtn';
+      body.append(collectBtn);
+      const memo=document.createElement('textarea');
+      memo.id='memoText';
+      memo.maxLength=100;
+      memo.placeholder='メモ（100文字まで）';
+      body.append(memo);
+      const memoBtn=button('メモを記録','secondary',recordMemo);
+      memoBtn.id='memoBtn';
+      body.append(memoBtn);
+      const out=row();
+      const exportBtn=button('JSONを表示','secondary',exportJson);
+      exportBtn.id='exportBtn';
+      const copyBtn=button('コピー','secondary',copyJson);
+      copyBtn.id='copyJsonBtn';
+      const downloadBtn=button('ファイル保存','secondary',downloadJson);
+      downloadBtn.id='downloadJsonBtn';
+      const resetBtn=button('リセット','danger',resetAll);
+      resetBtn.id='resetBtn';
+      out.append(exportBtn);
+      out.append(copyBtn);
+      out.append(downloadBtn);
+      out.append(resetBtn);
+      body.append(out);
+      const exportBox=document.createElement('textarea');
+      exportBox.id='exportBox';
+      exportBox.className='export-box';
+      exportBox.readOnly=true;
+      exportBox.hidden=true;
+      body.append(exportBox);
+    });
+  }
+  function openSheet(title,build){
+    $('sheetTitle').textContent=title;
+    const body=$('sheetBody');
+    clearNode(body);
+    build(body);
+    $('sheet').classList.add('open');
+  }
+  function closeSheet(){
+    $('sheet').classList.remove('open');
+    clearNode($('sheetBody'));
   }
   function openAdjustPanel(key){
     adjustTarget=key;
@@ -717,136 +1054,8 @@ textarea{
   function syncAdjustPanel(){
     if(!adjustTarget||!$('adjustPanel')||$('adjustPanel').hidden)return;
     const value=snapshot()[adjustTarget];
-    const input=$('adjustValue');
-    if(document.activeElement!==input)input.value=value==null?'':String(value);
-  }
-  function showFbLossFields(){
-    $('fbLossFields').hidden=false;
-    syncIcatchNote();
-  }
-  function hideFbLossFields(){
-    $('fbLossFields').hidden=true;
-    $('fbExitLcdG').value='';
-    $('icatchNoteText').value='';
-    selectedIcatch=null;
-    syncIcatchNote();
-    renderChips();
-  }
-  function syncIcatchNote(){
-    const row=$('icatchNoteRow');
-    if(row)row.hidden=selectedIcatch!=='その他';
-  }
-  function addLog(log){
-    state.logs.push({...log,id:nextId(),t:Date.now()});
-    save();
-    render();
-  }
-  function recordZenchou(dir){
-    const snap=snapshot();
-    if(snap.lcdG===null){toast('液晶Gを入力してください');return;}
-    addLog({type:'zenchou',dir,realG:snap.realG,lcdG:snap.lcdG});
-    toast(dir==='stage'?'前兆ステージ突入を記録しました':(dir==='in'?'前兆突入を記録しました':'前兆抜けを記録しました'));
-  }
-  function recordGColor(){
-    const snap=snapshot();
-    if(snap.lcdG===null){toast('液晶Gを入力してください');return;}
-    if(!selectedGColor){toast('色を選択してください');return;}
-    addLog({type:'gcolor',color:selectedGColor,realG:snap.realG,lcdG:snap.lcdG});
-    toast('色変化を記録しました');
-  }
-  function recordDcIn(){
-    const snap=snapshot();
-    if(snap.lcdG===null){toast('液晶Gを入力してください');return;}
-    addLog({type:'dcin',realG:snap.realG,lcdG:snap.lcdG});
-    toast('DC突入を記録しました');
-  }
-  function recordGain(){
-    const snap=snapshot();
-    const addG=positiveInt($('addG').value);
-    if(!selectedGainKind){toast('加算種別を選択してください');return;}
-    if(!addG){toast('加算G数を入力してください');return;}
-    if(snap.lcdG===null){toast('液晶Gを入力してください');return;}
-    const nextLcd=snap.lcdG+addG;
-    state.currentState={realG:snap.realG,lcdG:nextLcd};
-    addLog({type:'gain',kind:selectedGainKind,addG,voice:selectedGainKind==='ジャッジ'?null:selectedVoice,realG:snap.realG,lcdG:nextLcd});
-    $('addG').value='';
-    selectedVoice=null;
-    render();
-    toast('加算を記録しました');
-  }
-  function recordFb(win){
-    const snap=snapshot();
-    let exitLcdG=snap.lcdG;
-    let recentHit=null;
-    let kiteiG=null;
-    let kiteiWarning=false;
-    let icatch=null;
-    let icatchNote=null;
-    if(!win){
-      showFbLossFields();
-      exitLcdG=optionalGame($('fbExitLcdG').value);
-      if(exitLcdG===null){toast('抜け時液晶Gを入力してください');return;}
-      recentHit=latestFbHit();
-      if(recentHit){
-        const diff=recentHit.lcdG-exitLcdG;
-        if(diff>=0)kiteiG=diff;
-        else kiteiWarning=true;
-      }
-      icatch=ICATCHES.includes(selectedIcatch)?selectedIcatch:null;
-      icatchNote=icatch==='その他'?($('icatchNoteText').value.trim().slice(0,20)||null):null;
-      state.currentState=normalizeCurrentState({realG:snap.realG,lcdG:exitLcdG});
-    }
-    addLog({type:'fb',win,bonus:win?selectedBonus:null,opponent:$('opponentText').value.trim().slice(0,20)||null,kiteiG,icatch:win?null:icatch,icatchNote:win?null:icatchNote,realG:snap.realG,lcdG:exitLcdG});
-    $('fbExitLcdG').value='';
-    $('opponentText').value='';
-    $('icatchNoteText').value='';
-    selectedIcatch=null;
-    selectedBonus=null;
-    if(win)hideFbLossFields();
-    render();
-    toast(kiteiWarning?`${win?'FB勝利':'FB敗北'}を記録しました（規定Gは未保存）`:(win?'FB勝利を記録しました':'FB敗北を記録しました'));
-  }
-  function latestFbHit(){
-    for(let i=state.logs.length-1;i>=0;i--){
-      if(state.logs[i].type==='fbhit')return state.logs[i];
-    }
-    return null;
-  }
-  function recordFbHit(){
-    const snap=snapshot();
-    if(snap.lcdG===null){toast('液晶Gを入力してください');return;}
-    addLog({type:'fbhit',realG:snap.realG,lcdG:snap.lcdG});
-    toast('FB当選を記録しました');
-  }
-  function recordCash(){
-    const amount=positiveInt(selectedCashAmount);
-    if(!amount){toast('投資額を選択してください');return;}
-    const snap=snapshot();
-    addLog({type:'cash',amount,realG:snap.realG,lcdG:snap.lcdG});
-    toast(`投資 ${amount.toLocaleString()}円を記録しました`);
-  }
-  function recordCollect(){
-    const medals=positiveInt($('collectMedals').value);
-    if(!medals){toast('回収枚数を入力してください');return;}
-    const snap=snapshot();
-    addLog({type:'collect',medals,realG:snap.realG,lcdG:snap.lcdG});
-    $('collectMedals').value='';
-    toast(`回収 ${medals.toLocaleString()}枚を記録しました`);
-  }
-  function recordMemo(){
-    const input=$('memoText');
-    const text=input.value.trim();
-    if(!text){toast('メモを入力してください');return;}
-    const snap=snapshot();
-    addLog({type:'memo',text:text.slice(0,100),realG:snap.realG,lcdG:snap.lcdG});
-    input.value='';
-    toast('メモを記録しました');
-  }
-  function deleteLog(id){
-    state.logs=state.logs.filter(log=>log.id!==id);
-    save();
-    render();
-    toast('記録を削除しました');
+    const target=$('adjustValue');
+    if(document.activeElement!==target)target.value=value==null?'':String(value);
   }
   function exportData(){
     return normalize(state);
@@ -855,23 +1064,25 @@ textarea{
     return JSON.stringify(exportData(),null,1);
   }
   function exportJson(){
-    const box=$('exportBox');
+    const box=$('exportBox')||document.createElement('textarea');
     box.hidden=false;
     box.value=exportJsonText();
     box.focus();
     box.select();
-    toast('JSONを出力しました');
+    toast('JSONを表示しました');
   }
   async function copyJson(){
     const text=exportJsonText();
-    $('exportBox').hidden=false;
-    $('exportBox').value=text;
+    const box=$('exportBox');
+    if(box){
+      box.hidden=false;
+      box.value=text;
+    }
     try{
       await navigator.clipboard.writeText(text);
       toast('JSONをコピーしました');
     }catch(e){
-      $('exportBox').focus();
-      $('exportBox').select();
+      if(box){box.focus();box.select();}
       toast('コピーできませんでした。手動で選択してください');
     }
   }
@@ -886,7 +1097,8 @@ textarea{
     const filename=exportFilename();
     a.href=url;
     a.download=filename;
-    $('downloadJsonBtn').dataset.lastFilename=filename;
+    a.dataset.lastFilename=filename;
+    if($('downloadJsonBtn'))$('downloadJsonBtn').dataset.lastFilename=filename;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -894,48 +1106,34 @@ textarea{
     toast('JSONファイルを保存しました');
   }
   function resetAll(){
-    const btn=$('resetBtn');
     if(resetTimer){
       clearTimeout(resetTimer);
       resetTimer=null;
-      state={machine:MACHINE,ver:VERSION,currentState:{realG:null,lcdG:null},logs:[]};
+      state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},logs:[]};
       stepHistory=[];
+      undoStack=[];
+      redoAction=null;
       localStorage.removeItem(STORAGE_KEY);
-      $('exportBox').hidden=true;
-      $('exportBox').value='';
-      btn.textContent='リセット';
+      closeSheet();
       render();
       toast('全記録をリセットしました');
       return;
     }
-    btn.textContent='もう一度タップで全削除';
-    toast('3秒以内にもう一度タップで全削除');
-    resetTimer=setTimeout(()=>{
-      resetTimer=null;
-      btn.textContent='リセット';
-      toast('リセットを解除しました');
-    },3000);
+    toast('3秒以内にもう一度リセットで全削除');
+    resetTimer=setTimeout(()=>{resetTimer=null;toast('リセットを解除しました');},3000);
   }
   function bind(){
     document.querySelectorAll('[data-adjust]').forEach(btn=>btn.addEventListener('click',()=>openAdjustPanel(btn.dataset.adjust)));
+    $('adjustCloseBtn').addEventListener('click',()=>{$('adjustPanel').hidden=true;adjustTarget=null;});
     $('adjustValue').addEventListener('input',()=>setCurrentValue(adjustTarget,optionalGame($('adjustValue').value)));
     document.querySelectorAll('[data-adjust-step]').forEach(btn=>btn.addEventListener('click',()=>adjustCurrentValue(adjustTarget,Number(btn.dataset.adjustStep)||0)));
     document.querySelectorAll('[data-step]').forEach(btn=>btn.addEventListener('click',()=>stepBoth(Number(btn.dataset.step)||0)));
     $('stepUndoBtn').addEventListener('click',undoStep);
-    document.querySelectorAll('[data-zen]').forEach(btn=>btn.addEventListener('click',()=>recordZenchou(btn.dataset.zen)));
-    $('gColorBtn').addEventListener('click',recordGColor);
-    $('dcInBtn').addEventListener('click',recordDcIn);
-    $('gainBtn').addEventListener('click',recordGain);
-    $('fbHitBtn').addEventListener('click',recordFbHit);
-    $('fbWinBtn').addEventListener('click',()=>recordFb(true));
-    $('fbLoseBtn').addEventListener('click',()=>recordFb(false));
-    $('cashBtn').addEventListener('click',recordCash);
-    $('collectBtn').addEventListener('click',recordCollect);
-    $('memoBtn').addEventListener('click',recordMemo);
-    $('exportBtn').addEventListener('click',exportJson);
-    $('copyJsonBtn').addEventListener('click',copyJson);
-    $('downloadJsonBtn').addEventListener('click',downloadJson);
-    $('resetBtn').addEventListener('click',resetAll);
+    $('undoBtn').addEventListener('click',undoLast);
+    $('openUtilityBtn').addEventListener('click',openUtilitySheet);
+    $('sheetCloseBtn').addEventListener('click',closeSheet);
+    $('sheet').addEventListener('click',event=>{if(event.target===$('sheet'))closeSheet();});
+    setInterval(()=>renderStatus(),30000);
   }
   load();
   bind();

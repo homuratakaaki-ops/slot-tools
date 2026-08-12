@@ -15,16 +15,19 @@ function testExportVersion3() {
   const normalized = normalizeSf6Export({
     machine: 'L-SF6',
     ver: '3',
+    battleState: 'normal',
     currentState: { realG: 100, lcdG: 250 },
     logs: []
   });
   assert.equal(normalized.ver, '3');
+  assert.equal(normalized.battleState, 'normal');
 }
 
 function testLegacyTrigPreserved() {
   const normalized = normalizeSf6Export(legacyFixture);
   assert.equal(normalized.ver, '3');
   assert.equal(normalized.sourceVer, '1');
+  assert.equal(normalized.battleState, 'normal');
   assert.deepEqual(normalized.currentState, { realG: null, lcdG: null });
   assert.equal(normalized.logs[0].legacy_trig, '規定G');
   assert.equal(Object.prototype.hasOwnProperty.call(normalized.logs[0], 'trig'), false);
@@ -50,6 +53,7 @@ function testIdempotentVersion3() {
     machine: 'L-SF6',
     ver: '3',
     sourceVer: '1',
+    battleState: 'battle',
     currentState: { realG: 12, lcdG: 34 },
     logs: [
       {
@@ -70,6 +74,12 @@ function testIdempotentVersion3() {
     ]
   };
   assert.deepEqual(normalizeSf6Export(input), input);
+}
+
+function testBattleStateDefaultAndPreserved() {
+  assert.equal(normalizeSf6Export({ machine: 'L-SF6', ver: '3', logs: [] }).battleState, 'normal');
+  assert.equal(normalizeSf6Export({ machine: 'L-SF6', ver: '3', battleState: 'battle', logs: [] }).battleState, 'battle');
+  assert.equal(normalizeSf6Export({ machine: 'L-SF6', ver: '3', battleState: 'bad', logs: [] }).battleState, 'normal');
 }
 
 function testVersion2RankPreserved() {
@@ -112,6 +122,7 @@ testExportVersion3();
 testLegacyTrigPreserved();
 testMissingVersionAsLegacy();
 testIdempotentVersion3();
+testBattleStateDefaultAndPreserved();
 testVersion2RankPreserved();
 testCashAndCollectPreserved();
 testUnknownTypePreserved();

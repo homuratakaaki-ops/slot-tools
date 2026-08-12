@@ -23,6 +23,10 @@
     return {realG:gameValue(src.realG),lcdG:gameValue(src.lcdG)};
   }
 
+  function normalizeBattleState(value){
+    return value==='battle'?'battle':'normal';
+  }
+
   function normalizeFbLog(log,isLegacy){
     const out={...log};
     if(isLegacy&&Object.prototype.hasOwnProperty.call(out,'trig')){
@@ -56,6 +60,7 @@
       machine:src.machine||'L-SF6',
       ver:SCHEMA_VERSION,
       sourceVer,
+      battleState:normalizeBattleState(src.battleState),
       currentState:normalizeCurrentState(src.currentState),
       logs
     };
