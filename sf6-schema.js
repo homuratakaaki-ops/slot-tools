@@ -6,7 +6,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const SCHEMA_VERSION='3';
+  const SCHEMA_VERSION='4';
 
   function safeObject(value){
     return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
@@ -33,13 +33,15 @@
       out.legacy_trig=out.trig;
       delete out.trig;
     }
-    if(isLegacy){
-      if(!Object.prototype.hasOwnProperty.call(out,'rank'))out.rank=null;
-      if(!Object.prototype.hasOwnProperty.call(out,'opponent'))out.opponent=null;
-      if(!Object.prototype.hasOwnProperty.call(out,'kiteiG'))out.kiteiG=null;
-      if(!Object.prototype.hasOwnProperty.call(out,'icatch'))out.icatch=null;
-      if(!Object.prototype.hasOwnProperty.call(out,'icatchNote'))out.icatchNote=null;
-    }
+    if(!Object.prototype.hasOwnProperty.call(out,'rank'))out.rank=null;
+    if(!Object.prototype.hasOwnProperty.call(out,'opponent'))out.opponent=null;
+    if(!Object.prototype.hasOwnProperty.call(out,'kiteiG'))out.kiteiG=null;
+    if(!Object.prototype.hasOwnProperty.call(out,'icatch'))out.icatch=null;
+    if(!Object.prototype.hasOwnProperty.call(out,'icatchNote'))out.icatchNote=null;
+    if(!Object.prototype.hasOwnProperty.call(out,'roundStart'))out.roundStart=null;
+    if(!Object.prototype.hasOwnProperty.call(out,'bonusMedals'))out.bonusMedals=null;
+    if(!Object.prototype.hasOwnProperty.call(out,'endScreen'))out.endScreen=null;
+    if(!Object.prototype.hasOwnProperty.call(out,'continue'))out.continue=null;
     return out;
   }
 
@@ -53,7 +55,7 @@
     const src=safeObject(data);
     const inputVer=src.ver==null?null:String(src.ver);
     const sourceVer=src.sourceVer==null?inputVer:String(src.sourceVer);
-    const isLegacy=inputVer!=='2'&&inputVer!==SCHEMA_VERSION;
+    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!==SCHEMA_VERSION;
     const logs=Array.isArray(src.logs)?src.logs.map(log=>normalizeLog(log,isLegacy)):[];
     return {
       ...src,

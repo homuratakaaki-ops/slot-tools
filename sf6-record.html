@@ -177,7 +177,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .panel-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px;color:var(--drive);font-size:12px;font-weight:900}
 .field-row{display:flex;align-items:center;gap:8px;margin:8px 0}
 .field-row label{flex:1;color:var(--muted);font-size:12px;font-weight:900}
-.field-row input{
+.field-row input,.field-row select{
   width:138px;
   max-width:54%;
   border:1px solid var(--line);
@@ -186,10 +186,11 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   color:var(--ink);
   padding:10px 9px;
   font-size:17px;
-  text-align:right;
   font-variant-numeric:tabular-nums;
 }
+.field-row input{text-align:right}
 .field-row input[type="text"]{text-align:left;font-size:15px}
+.field-row select{font-size:15px}
 textarea{
   width:100%;
   min-height:96px;
@@ -278,8 +279,11 @@ textarea{
 .tag.stage{background:#3f75c8;color:#eef5ff}
 .tag.out{background:var(--purple)}
 .tag.gcolor{background:#d7e8ef}
+.tag.stage_sel{background:#8ecf9e;color:#07100b}
+.tag.rare{background:#f0d27b;color:#161006}
 .tag.fb{background:var(--pink)}
 .tag.fbhit{background:#ffb4c8}
+.tag.continue{background:#f7a7b7;color:#16070b}
 .tag.cash{background:#9fd37b}
 .tag.collect{background:#87d8d0;color:#061110}
 .tag.memo{background:var(--memo)}
@@ -289,7 +293,7 @@ textarea{
   .bm-shell{gap:6px}
   .bm-btn{flex-basis:76px;padding-left:6px;padding-right:6px;font-size:14px}
   .bm-btn.small{flex-basis:52px}
-  .field-row input{width:118px}
+  .field-row input,.field-row select{width:118px}
   .chip{padding-left:9px;padding-right:9px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -364,14 +368,21 @@ textarea{
   'use strict';
   const STORAGE_KEY='sf6_record_v1';
   const MACHINE='L-SF6';
-  const VERSION='3';
+  const VERSION='4';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
   const HOT_VOICES=new Set(['キンバリー','ジェイミー']);
   const G_COLORS=['青','赤','デフォ復帰'];
+  const STAGE_CHOICES=['ジェイミー','キャミィ','春麗','ルーク'];
+  const RARE_KINDS=['スイカ','弱チェリー','チャンス目','強チェリー'];
   const BONUSES=['赤7','青7'];
+  const RANKS=['ルーキー','ブロンズ','シルバー','ゴールド','レジェンド'];
+  const ROUND_STARTS=['青','緑','味方全員集合','敵全員集合'];
+  const OPPONENTS=['マリーザ','ガイル','マノン','ジュリ','JP','リュウ'];
+  const END_SCREENS=['基本画面','男性ファイター集合','女性ファイター集合','ケン&JP','リュウ','ルーク&ジェイミー','全員集合','エンタライオン'];
+  const CONTINUES=[{key:'none',label:'なし'},{key:'success',label:'成功'},{key:'fail',label:'失敗'}];
   const CASH_AMOUNTS=[1000,5000,10000];
-  const ICATCHES=['ルーク（デフォ）','その他'];
+  const ICATCHES=['ルーク','春麗','キンバリー','キャミィ','JP','ジェイミー','豪鬼','リュウ'];
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
   let state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},logs:[]};
@@ -379,8 +390,11 @@ textarea{
   let selectedVoice=null;
   let gainAddDraft='';
   let selectedBonus=null;
+  let selectedRank=null;
+  let selectedRoundStart=null;
   let selectedCashAmount=10000;
   let selectedIcatch=null;
+  let selectedContinue='none';
   let adjustTarget=null;
   let stepHistory=[];
   let undoStack=[];
@@ -475,21 +489,35 @@ textarea{
       if(!G_COLORS.includes(log.color)||base.lcdG===null)return null;
       return {...log,...base,color:log.color};
     }
+    if(base.type==='stage_sel'){
+      if(!STAGE_CHOICES.includes(log.stage)||base.lcdG===null)return null;
+      return {...log,...base,stage:log.stage};
+    }
+    if(base.type==='rare'){
+      if(!RARE_KINDS.includes(log.kind)||base.lcdG===null)return null;
+      return {...log,...base,kind:log.kind};
+    }
     if(base.type==='dcin'||base.type==='fbhit'){
       if(base.lcdG===null)return null;
       return {...log,...base};
     }
+    if(base.type==='continue'){
+      return {...log,...base,result:log.result==='success'?'success':'success'};
+    }
     if(base.type==='fb'){
       const win=log.win===true;
-      const hasRank=Object.prototype.hasOwnProperty.call(log,'rank');
       const rank=log.rank==null?null:(String(log.rank).trim().slice(0,20)||null);
+      const roundStart=log.roundStart==null?null:(String(log.roundStart).trim().slice(0,20)||null);
       const opponent=String(log.opponent||'').trim().slice(0,20)||null;
       const kiteiG=log.kiteiG==null?null:nonnegativeInt(log.kiteiG);
-      const icatch=!win&&ICATCHES.includes(log.icatch)?log.icatch:null;
-      const icatchNote=!win&&icatch==='その他'?(String(log.icatchNote||'').trim().slice(0,20)||null):null;
-      const fbLog={...log,...base,win,bonus:win&&BONUSES.includes(log.bonus)?log.bonus:null,opponent,kiteiG,icatch,icatchNote};
-      if(hasRank)fbLog.rank=rank;
-      return fbLog;
+      const knownLegacyIcatch=['ルーク（デフォ）','その他'];
+      const icatchValue=String(log.icatch||'').trim();
+      const icatch=!win&&(ICATCHES.includes(icatchValue)||knownLegacyIcatch.includes(icatchValue))?icatchValue:null;
+      const icatchNote=!win&&Object.prototype.hasOwnProperty.call(log,'icatchNote')?(String(log.icatchNote||'').trim().slice(0,20)||null):null;
+      const bonusMedals=log.bonusMedals==null?null:positiveInt(log.bonusMedals);
+      const endScreen=log.endScreen==null?null:(String(log.endScreen).trim().slice(0,30)||null);
+      const cont=['none','success','fail'].includes(log.continue)?log.continue:null;
+      return {...log,...base,win,bonus:win&&BONUSES.includes(log.bonus)?log.bonus:null,rank,roundStart,opponent,kiteiG,icatch,icatchNote,bonusMedals:win?bonusMedals:null,endScreen:win?endScreen:null,continue:win?null:cont};
     }
     if(base.type==='cash'){
       const amount=positiveInt(log.amount);
@@ -561,6 +589,21 @@ textarea{
     node.placeholder=placeholder;
     return node;
   }
+  function selectInput(id,options,placeholder='選択なし'){
+    const node=document.createElement('select');
+    node.id=id;
+    const empty=document.createElement('option');
+    empty.value='';
+    empty.textContent=placeholder;
+    node.append(empty);
+    options.forEach(label=>{
+      const option=document.createElement('option');
+      option.value=label;
+      option.textContent=label;
+      node.append(option);
+    });
+    return node;
+  }
   function field(labelText,inputNode){
     const row=el('div','field-row');
     const label=document.createElement('label');
@@ -623,6 +666,7 @@ textarea{
     for(let i=logs.length-1;i>=0;i--){
       const log=logs[i];
       if(log.type!=='fb')continue;
+      if(log.continue==='success')continue;
       if(log.win)return 0;
       count++;
     }
@@ -670,11 +714,7 @@ textarea{
     dcIn.id='dcInBtn';
     r.append(dcIn);
     grid.append(r);
-    r=row();
-    r.append(button('前兆突入','secondary',()=>recordZenchou('in')));
-    r.append(button('前兆ステージ突入','secondary',()=>recordZenchou('stage')));
-    r.append(button('前兆抜け','secondary',()=>recordZenchou('out')));
-    grid.append(r);
+    grid.append(el('div','muted','液晶色'));
     r=row();
     G_COLORS.forEach(color=>{
       const cls=color==='青'?'secondary blue-text':color==='赤'?'secondary red-text':'secondary';
@@ -682,8 +722,24 @@ textarea{
     });
     r.id='gColorKinds';
     grid.append(r);
+    grid.append(el('div','muted','ステージ'));
+    r=row('choice-row');
+    r.id='stageKinds';
+    STAGE_CHOICES.forEach(label=>r.append(button(label,'secondary',()=>recordStage(label))));
+    grid.append(r);
+    grid.append(el('div','muted','レア役'));
+    r=row('choice-row');
+    r.id='rareKinds';
+    RARE_KINDS.forEach(label=>r.append(button(label,'secondary',()=>recordRare(label))));
+    grid.append(r);
+    r=row();
+    r.append(button('前兆突入','secondary',()=>recordZenchou('in')));
+    r.append(button('前兆ステージ突入','secondary',()=>recordZenchou('stage')));
+    r.append(button('前兆抜け','secondary',()=>recordZenchou('out')));
+    grid.append(r);
     r=row();
     r.append(button('加算入力を開く','primary',openGainSheet));
+    r.append(button('メモ','secondary',openMemoSheet));
     grid.append(r);
     r=row();
     const fbHit=button('FB当選','danger',recordFbHit);
@@ -698,25 +754,34 @@ textarea{
     const p=el('div','panel-title');
     p.append(el('span','',`FB中${opponent?`：対戦相手 ${opponent}`:''}`));
     header.append(p);
-    let r=row();
-    r.append(button('勝利','win',()=>recordFb(true)));
+    header.append(el('div','muted','開始情報'));
+    let r=row('choice-row');
+    r.id='rankKinds';
+    RANKS.forEach(label=>{
+      r.append(chip(label,selectedRank===label,()=>{selectedRank=selectedRank===label?null:label;render();}));
+    });
+    header.append(r);
+    r=row('choice-row');
+    r.id='roundStartKinds';
+    ROUND_STARTS.forEach(label=>{
+      const cls=label==='青'?'blue-text':label==='緑'?'':'hot';
+      r.append(chip(label,selectedRoundStart===label,()=>{selectedRoundStart=selectedRoundStart===label?null:label;render();},cls));
+    });
+    header.append(r);
+    const opponentSelect=selectInput('opponentText',OPPONENTS,'対戦相手');
+    opponentSelect.value=opponentDraft;
+    opponentSelect.addEventListener('change',()=>{opponentDraft=opponentSelect.value;render();});
+    header.append(field('対戦相手',opponentSelect));
+    header.append(el('div','muted','結果'));
+    r=row();
+    r.append(button('勝利','win',openWinSheet));
     r.append(button('敗北','lose',openLossSheet));
     header.append(r);
-    header.append(field('対戦相手', input('opponentText','text','任意',20)));
-    $('opponentText')?.addEventListener?.('input',()=>{});
     r=row('choice-row');
-    r.id='bonusKinds';
-    BONUSES.forEach(label=>{
-      r.append(chip(label,selectedBonus===label,()=>{selectedBonus=selectedBonus===label?null:label;render();}));
-    });
-    header.append(el('div','muted','ボーナス種別（勝利時のみ・任意）'));
-    header.append(r);
-    r=row();
+    r.append(button('メモ','secondary',openMemoSheet));
     r.append(button('FB終了（手動）','danger',manualEndBattle));
     header.append(r);
     grid.append(header);
-    const inputNode=$('opponentText');
-    if(inputNode)inputNode.value=opponentDraft;
   }
   let opponentDraft='';
   function currentOpponentDraft(){
@@ -771,6 +836,16 @@ textarea{
     if(!snap)return;
     commit(`色：${color}`,()=>addLogDirect({type:'gcolor',color,realG:snap.realG,lcdG:snap.lcdG}),{toast:`色：${color}を記録しました`});
   }
+  function recordStage(stage){
+    const snap=requireLcd();
+    if(!snap)return;
+    commit(`ステージ：${stage}`,()=>addLogDirect({type:'stage_sel',stage,realG:snap.realG,lcdG:snap.lcdG}),{toast:`ステージ：${stage}を記録しました`});
+  }
+  function recordRare(kind){
+    const snap=requireLcd();
+    if(!snap)return;
+    commit(`レア役：${kind}`,()=>addLogDirect({type:'rare',kind,realG:snap.realG,lcdG:snap.lcdG}),{toast:`レア役：${kind}を記録しました`});
+  }
   function recordDcIn(){
     const snap=requireLcd();
     if(!snap)return;
@@ -802,23 +877,41 @@ textarea{
     selectedVoice=null;
     closeSheet();
   }
-  function recordFb(win){
+  function fbStartDraft(){
+    return {rank:selectedRank,roundStart:selectedRoundStart,opponent:currentOpponentDraft()||null};
+  }
+  function clearBattleDrafts(){
+    selectedBonus=null;
+    selectedRank=null;
+    selectedRoundStart=null;
+    selectedIcatch=null;
+    selectedContinue='none';
+    opponentDraft='';
+  }
+  function recordWinFromSheet(){
     const snap=snapshot();
-    const opponent=currentOpponentDraft();
-    if(win){
-      const icatch=null;
-      const icatchNote=null;
-      commit('FB勝利',()=>{
-        addLogDirect({type:'fb',win,bonus:win?selectedBonus:null,opponent:opponent||null,kiteiG:null,icatch:win?null:icatch,icatchNote:win?null:icatchNote,realG:snap.realG,lcdG:snap.lcdG});
-      },{toast:'FB勝利を記録しました'});
-      selectedBonus=null;
-      opponentDraft='';
-      return;
-    }
-    openLossSheet();
+    const start=fbStartDraft();
+    const bonusMedals=positiveInt($('bonusMedals')?.value);
+    const endScreen=String($('endScreenSelect')?.value||'')||null;
+    commit('FB勝利',()=>{
+      addLogDirect({type:'fb',win:true,bonus:selectedBonus,bonusMedals,endScreen,rank:start.rank,roundStart:start.roundStart,opponent:start.opponent,kiteiG:null,icatch:null,icatchNote:null,continue:null,realG:snap.realG,lcdG:snap.lcdG});
+      state.battleState='battle';
+    },{toast:'FB勝利を記録しました'});
+    clearBattleDrafts();
+    closeSheet();
+  }
+  function recordContinueSuccess(){
+    const snap=snapshot();
+    commit('コンティニュー成功',()=>{
+      addLogDirect({type:'continue',result:'success',realG:snap.realG,lcdG:snap.lcdG});
+      state.battleState='battle';
+    },{toast:'コンティニュー成功を記録しました'});
+    clearBattleDrafts();
+    closeSheet();
   }
   function recordLossFromSheet(){
     const snap=snapshot();
+    if(selectedContinue==='success'){recordContinueSuccess();return;}
     const exitLcdG=optionalGame($('fbExitLcdG')?.value);
     if(exitLcdG===null){toast('抜け時液晶Gを入力してください');return;}
     let kiteiG=null;
@@ -830,16 +923,14 @@ textarea{
       else warning=true;
     }
     const icatch=ICATCHES.includes(selectedIcatch)?selectedIcatch:null;
-    const icatchNote=icatch==='その他'?String($('icatchNoteText')?.value||'').trim().slice(0,20)||null:null;
-    const opponent=currentOpponentDraft();
+    const start=fbStartDraft();
+    const cont=selectedContinue==='fail'?'fail':'none';
     commit('FB敗北',()=>{
       state.currentState={realG:snap.realG,lcdG:exitLcdG};
-      addLogDirect({type:'fb',win:false,bonus:null,opponent:opponent||null,kiteiG,icatch,icatchNote,realG:snap.realG,lcdG:exitLcdG});
+      addLogDirect({type:'fb',win:false,bonus:null,bonusMedals:null,endScreen:null,rank:start.rank,roundStart:start.roundStart,opponent:start.opponent,kiteiG,icatch,icatchNote:null,continue:cont,realG:snap.realG,lcdG:exitLcdG});
       state.battleState='normal';
     },{toast:warning?'FB敗北を記録しました（規定Gは未保存）':'FB敗北を記録しました',lcdTouched:true});
-    selectedIcatch=null;
-    selectedBonus=null;
-    opponentDraft='';
+    clearBattleDrafts();
     closeSheet();
   }
   function manualEndBattle(){
@@ -870,16 +961,19 @@ textarea{
   function tagClass(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'judge':'gain';
     if(log.type==='zenchou')return log.dir;
-    if(['gain','dcin','gcolor','zenchou','fbhit','fb','cash','collect','memo'].includes(log.type))return log.type;
+    if(['gain','dcin','gcolor','stage_sel','rare','zenchou','fbhit','fb','continue','cash','collect','memo'].includes(log.type))return log.type;
     return 'memo';
   }
   function logLabel(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'ジャッジ':'加算DC';
     if(log.type==='dcin')return 'DC-IN';
     if(log.type==='gcolor')return '色';
+    if(log.type==='stage_sel')return 'ステージ';
+    if(log.type==='rare')return 'レア役';
     if(log.type==='zenchou')return log.dir==='stage'?'WT':(log.dir==='in'?'前兆IN':'前兆OUT');
     if(log.type==='fbhit')return 'FB当選';
     if(log.type==='fb')return 'FB';
+    if(log.type==='continue')return '継続';
     if(log.type==='cash')return '投資';
     if(log.type==='collect')return '回収';
     if(log.type==='memo')return 'メモ';
@@ -889,14 +983,20 @@ textarea{
     if(log.type==='gain')return `${log.kind} +${log.addG}G${log.voice?` / ボイス ${log.voice}`:''}`;
     if(log.type==='zenchou')return log.dir==='stage'?'前兆ステージ突入':(log.dir==='in'?'前兆突入':'前兆抜け');
     if(log.type==='gcolor')return `色：${log.color}`;
+    if(log.type==='stage_sel')return `ステージ：${log.stage}`;
+    if(log.type==='rare')return `レア役：${log.kind}`;
     if(log.type==='dcin')return 'DC突入';
     if(log.type==='fbhit')return 'FB当選';
+    if(log.type==='continue')return 'コンティニュー成功';
     if(log.type==='fb'){
       const parts=[`FB ${log.win?'勝利':'敗北'}`];
-      if(log.rank||log.opponent)parts.push([log.rank,log.opponent].filter(Boolean).join('／'));
+      if(log.rank||log.roundStart||log.opponent)parts.push([log.rank,log.roundStart,log.opponent].filter(Boolean).join('／'));
+      if(!log.win&&log.continue)parts.push(`コンティニュー ${CONTINUES.find(item=>item.key===log.continue)?.label||log.continue}`);
       if(log.kiteiG!==null&&log.kiteiG!==undefined)parts.push(`規定${log.kiteiG}G`);
       if(log.icatch)parts.push(`アイキャッチ ${log.icatchNote?`${log.icatch}：${log.icatchNote}`:log.icatch}`);
       if(log.bonus)parts.push(log.bonus);
+      if(log.bonusMedals)parts.push(`${log.bonusMedals}枚`);
+      if(log.endScreen)parts.push(`終了画面 ${log.endScreen}`);
       return parts.join(' / ');
     }
     if(log.type==='cash')return `投資 ${log.amount.toLocaleString()}円`;
@@ -921,6 +1021,15 @@ textarea{
       setText(el,log.color,log.color==='赤'?'red-mark':'');
       return;
     }
+    if(log.type==='stage_sel'){
+      setText(el,'ステージ：');
+      setText(el,log.stage,log.stage==='ジェイミー'?'voice-mark':'');
+      return;
+    }
+    if(log.type==='rare'){
+      setText(el,`レア役：${log.kind}`,log.kind==='強チェリー'?'voice-mark':'');
+      return;
+    }
     if(log.type==='gain'){
       setText(el,`${log.kind} +${log.addG}G`);
       if(log.voice){
@@ -932,7 +1041,7 @@ textarea{
     if(log.type==='fb'&&log.icatch){
       setText(el,logTextPlain({...log,icatch:null,icatchNote:null}));
       setText(el,' / アイキャッチ ');
-      setText(el,log.icatchNote?`${log.icatch}：${log.icatchNote}`:log.icatch,log.icatch==='その他'?'voice-mark':'');
+      setText(el,log.icatchNote?`${log.icatch}：${log.icatchNote}`:log.icatch,log.icatch!=='ルーク'&&log.icatch!=='ルーク（デフォ）'?'voice-mark':'');
       return;
     }
     if(log.type==='memo'){
@@ -969,20 +1078,60 @@ textarea{
       body.append(actions);
     });
   }
+  function openWinSheet(){
+    openSheet('勝利記録',body=>{
+      const bonusKinds=row('choice-row');
+      bonusKinds.id='bonusKinds';
+      BONUSES.forEach(label=>{
+        bonusKinds.append(chip(label,selectedBonus===label,()=>{selectedBonus=selectedBonus===label?null:label;openWinSheet();}));
+      });
+      body.append(el('div','muted','ボーナス種別（任意）'));
+      body.append(bonusKinds);
+      body.append(field('ボーナス枚数',input('bonusMedals','number','任意')));
+      const endScreen=selectInput('endScreenSelect',END_SCREENS,'終了画面');
+      body.append(field('ボーナス終了画面',endScreen));
+      const actions=row();
+      actions.append(button('勝利を記録','win',recordWinFromSheet));
+      body.append(actions);
+    });
+  }
   function openLossSheet(){
     openSheet('敗北記録',body=>{
-      body.append(field('抜け時液晶G',input('fbExitLcdG','number','必須')));
-      const choices=row('choice-row');
-      choices.id='icatchKinds';
-      ICATCHES.forEach(label=>{
-        choices.append(chip(label,selectedIcatch===label,()=>{selectedIcatch=selectedIcatch===label?null:label;openLossSheet();},label==='その他'?'hot':''));
+      const continueKinds=row('choice-row');
+      continueKinds.id='continueKinds';
+      CONTINUES.forEach(item=>{
+        continueKinds.append(chip(item.label,selectedContinue===item.key,()=>{selectedContinue=item.key;openLossSheet();},item.key==='success'?'hot':''));
       });
-      body.append(el('div','muted','アイキャッチ（任意）'));
-      body.append(choices);
-      if(selectedIcatch==='その他')body.append(field('その他内容',input('icatchNoteText','text','例 豪鬼',20)));
+      body.append(el('div','muted','コンティニュー'));
+      body.append(continueKinds);
+      if(selectedContinue==='success'){
+        body.append(el('div','muted','成功時は敗北レコードを作らず、FB中を維持します'));
+      }else{
+        body.append(field('抜け時液晶G',input('fbExitLcdG','number','必須')));
+        const choices=row('choice-row');
+        choices.id='icatchKinds';
+        ICATCHES.forEach(label=>{
+          const cls=label==='ルーク'?'':(label==='リュウ'||label==='豪鬼'||label==='キンバリー'?'hot':'');
+          choices.append(chip(label,selectedIcatch===label,()=>{selectedIcatch=selectedIcatch===label?null:label;openLossSheet();},cls));
+        });
+        body.append(el('div','muted','アイキャッチ（任意）'));
+        body.append(choices);
+      }
       const actions=row();
-      actions.append(button('敗北を確定','lose',recordLossFromSheet));
+      actions.append(button(selectedContinue==='success'?'成功を記録':'敗北を確定',selectedContinue==='success'?'win':'lose',recordLossFromSheet));
       body.append(actions);
+    });
+  }
+  function openMemoSheet(){
+    openSheet('メモ',body=>{
+      const memo=document.createElement('textarea');
+      memo.id='memoText';
+      memo.maxLength=100;
+      memo.placeholder='メモ（100文字まで）';
+      body.append(memo);
+      const memoBtn=button('メモを記録','secondary',recordMemo);
+      memoBtn.id='memoBtn';
+      body.append(memoBtn);
     });
   }
   function openUtilitySheet(){
