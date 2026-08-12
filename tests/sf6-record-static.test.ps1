@@ -2,7 +2,9 @@ $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
 $htmlPath = Join-Path $root 'sf6-record.html'
+$schemaPath = Join-Path $root 'sf6-schema.js'
 $html = Get-Content -LiteralPath $htmlPath -Raw -Encoding UTF8
+$schema = Get-Content -LiteralPath $schemaPath -Raw -Encoding UTF8
 
 function Assert-Contains($Text, $Pattern, $Message) {
   if ($Text -notmatch $Pattern) {
@@ -32,7 +34,8 @@ function Assert-NotContains($Text, $Pattern, $Message) {
 Assert-Contains $html '<link rel="canonical" href="https://slot-tools\.jp/sf6-record\.html">' 'canonical is missing'
 Assert-Fixed $html "const STORAGE_KEY='sf6_record_v1'" 'storage key is missing'
 Assert-Fixed $html "const MACHINE='L-SF6'" 'machine export id is missing'
-Assert-Fixed $html "const VERSION='1'" 'version is missing'
+Assert-Fixed $html "const VERSION='2'" 'version 2 is missing'
+Assert-Fixed $html '<script src="sf6-schema.js"></script>' 'schema script tag is missing'
 Assert-Contains $html "const GAIN_KINDS=\[[^\]]+\]" 'gain kind list is missing'
 Assert-Contains $html "const VOICES=\[[^\]]+\]" 'voice list is missing'
 Assert-Contains $html "const G_COLORS=\[[^\]]+\]" 'G color list is missing'
@@ -78,6 +81,7 @@ Assert-Contains $html "setText\(el,log\.text\)" 'memo log must use textContent h
 Assert-Contains $html "JSON\.stringify\(exportData\(\),null,1\)" 'JSON export formatting is missing'
 Assert-Contains $html "window\.SF6RecordApp=" 'test hook is missing'
 Assert-Contains $html "exportData" 'export data test hook is missing'
+Assert-Contains $html "normalizeSf6Export" 'schema normalizer integration is missing'
 Assert-Contains $html "inputmode=""numeric""" 'numeric input mode is missing'
 Assert-Contains $html "resetTimer" 'two-tap reset state is missing'
 Assert-Contains $html "lcdG" 'lcd field is missing'
@@ -90,5 +94,12 @@ $index = Get-Content -LiteralPath (Join-Path $root 'index.html') -Raw -Encoding 
 $sitemap = Get-Content -LiteralPath (Join-Path $root 'sitemap.xml') -Raw -Encoding UTF8
 Assert-Contains $index "sf6-record\.html" 'index link is missing'
 Assert-Contains $sitemap "https://slot-tools\.jp/sf6-record\.html" 'sitemap link is missing'
+
+Assert-Fixed $schema "function normalizeSf6Export(data)" 'normalizeSf6Export definition is missing'
+Assert-Fixed $schema "const SCHEMA_VERSION='2'" 'schema version 2 is missing'
+Assert-Fixed $schema "ver:SCHEMA_VERSION" 'schema output version is missing'
+Assert-Fixed $schema "legacy_trig" 'legacy trig preservation is missing'
+Assert-Fixed $schema "currentState:normalizeCurrentState" 'currentState default normalization is missing'
+Assert-Fixed $schema "root.normalizeSf6Export=api.normalizeSf6Export" 'browser global normalizer export is missing'
 
 "sf6-record static checks passed"

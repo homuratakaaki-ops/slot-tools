@@ -355,12 +355,13 @@ textarea{
 </div>
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+<script src="sf6-schema.js"></script>
 <script>
 (function(){
   'use strict';
   const STORAGE_KEY='sf6_record_v1';
   const MACHINE='L-SF6';
-  const VERSION='1';
+  const VERSION='2';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
   const HOT_VOICES=new Set(['キンバリー','ジェイミー']);
@@ -443,24 +444,24 @@ textarea{
   function sanitizeLog(log){
     if(!log||typeof log!=='object')return null;
     const base={id:Number(log.id)||0,type:String(log.type||''),realG:log.realG==null?null:optionalGame(log.realG),lcdG:log.lcdG==null?null:optionalGame(log.lcdG),t:Number(log.t)||Date.now()};
-    if(!base.id||!['gain','zenchou','fb','memo','gcolor','dcin','fbhit'].includes(base.type))return null;
+    if(!base.id||!base.type)return null;
     if(base.type==='gain'){
       if(!GAIN_KINDS.includes(log.kind))return null;
       const addG=positiveInt(log.addG);
       if(!addG||base.lcdG===null)return null;
-      return {...base,kind:log.kind,addG,voice:log.kind==='ジャッジ'?null:(VOICES.includes(log.voice)?log.voice:null)};
+      return {...log,...base,kind:log.kind,addG,voice:log.kind==='ジャッジ'?null:(VOICES.includes(log.voice)?log.voice:null)};
     }
     if(base.type==='zenchou'){
       if(!['in','stage','out'].includes(log.dir)||base.lcdG===null)return null;
-      return {...base,dir:log.dir};
+      return {...log,...base,dir:log.dir};
     }
     if(base.type==='gcolor'){
       if(!G_COLORS.includes(log.color)||base.lcdG===null)return null;
-      return {...base,color:log.color};
+      return {...log,...base,color:log.color};
     }
     if(base.type==='dcin'||base.type==='fbhit'){
       if(base.lcdG===null)return null;
-      return base;
+      return {...log,...base};
     }
     if(base.type==='fb'){
       const win=log.win===true;
@@ -469,14 +470,19 @@ textarea{
       const kiteiG=log.kiteiG==null?null:nonnegativeInt(log.kiteiG);
       const icatch=!win&&ICATCHES.includes(log.icatch)?log.icatch:null;
       const icatchNote=!win&&icatch==='その他'?(String(log.icatchNote||'').trim().slice(0,20)||null):null;
-      return {...base,win,bonus:win&&BONUSES.includes(log.bonus)?log.bonus:null,rank,opponent,kiteiG,icatch,icatchNote};
+      return {...log,...base,win,bonus:win&&BONUSES.includes(log.bonus)?log.bonus:null,rank,opponent,kiteiG,icatch,icatchNote};
     }
-    const text=String(log.text||'').slice(0,100);
-    return text?{...base,text}:null;
+    if(base.type==='memo'){
+      const text=String(log.text||'').slice(0,100);
+      return text?{...log,...base,text}:null;
+    }
+    return {...log,...base};
   }
   function normalize(data){
-    const logs=Array.isArray(data?.logs)?data.logs.map(sanitizeLog).filter(Boolean):[];
-    return {machine:MACHINE,ver:VERSION,currentState:normalizeCurrentState(data?.currentState),logs};
+    const schemaNormalize=globalThis.normalizeSf6Export||window.normalizeSf6Export||((value)=>value);
+    const normalized=schemaNormalize(data||{machine:MACHINE,ver:VERSION,currentState:{realG:null,lcdG:null},logs:[]});
+    const logs=Array.isArray(normalized?.logs)?normalized.logs.map(sanitizeLog).filter(Boolean):[];
+    return {machine:MACHINE,ver:VERSION,sourceVer:normalized?.sourceVer??VERSION,currentState:normalizeCurrentState(normalized?.currentState),logs};
   }
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){toast('保存に失敗しました');}
@@ -573,12 +579,14 @@ textarea{
     if(log.type==='zenchou')return log.dir==='stage'?'WT':(log.dir==='in'?'前兆IN':'前兆OUT');
     if(log.type==='fbhit')return 'FB当選';
     if(log.type==='fb')return 'FB';
-    return 'メモ';
+    if(log.type==='memo')return 'メモ';
+    return '不明';
   }
   function tagClass(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'judge':'gain';
     if(log.type==='zenchou')return log.dir;
-    return log.type;
+    if(['gain','dcin','gcolor','zenchou','fbhit','fb','memo'].includes(log.type))return log.type;
+    return 'memo';
   }
   function fillLogText(el,log){
     if(log.type==='gain'){
@@ -605,8 +613,10 @@ textarea{
         setText(el,log.icatchNote?`${log.icatch}：${log.icatchNote}`:log.icatch,log.icatch==='その他'?'voice-mark':'');
       }
       if(log.bonus)setText(el,` / ${log.bonus}`);
-    }else{
+    }else if(log.type==='memo'){
       setText(el,log.text);
+    }else{
+      setText(el,`未対応: ${log.type}`);
     }
   }
   function gameSub(log){

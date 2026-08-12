@@ -1,0 +1,16 @@
+{
+  "machine": "L-SF6",
+  "ver": "1",
+  "logs": [
+    {
+      "id": 1,
+      "type": "fb",
+      "realG": 100,
+      "lcdG": 350,
+      "t": 1,
+      "win": false,
+      "trig": "規定G",
+      "bonus": null
+    }
+  ]
+}
