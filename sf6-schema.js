@@ -6,7 +6,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const SCHEMA_VERSION='5';
+  const SCHEMA_VERSION='6';
   const MONEY_OPS=['init','deposit','loan','creditUpdate','mochidama','saipurei','diffSync','collectEnd'];
 
   function safeObject(value){
@@ -73,6 +73,7 @@
     if(!Object.prototype.hasOwnProperty.call(out,'bonusMedals'))out.bonusMedals=null;
     if(!Object.prototype.hasOwnProperty.call(out,'endScreen'))out.endScreen=null;
     if(!Object.prototype.hasOwnProperty.call(out,'continue'))out.continue=null;
+    if(!Object.prototype.hasOwnProperty.call(out,'exitRealG'))out.exitRealG=null;
     return out;
   }
 
@@ -93,7 +94,7 @@
     const src=safeObject(data);
     const inputVer=src.ver==null?null:String(src.ver);
     const sourceVer=src.sourceVer==null?inputVer:String(src.sourceVer);
-    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!==SCHEMA_VERSION;
+    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!==SCHEMA_VERSION;
     const logs=Array.isArray(src.logs)?src.logs.map(log=>normalizeLog(log,isLegacy)):[];
     return {
       ...src,
