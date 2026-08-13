@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L真打吉宗 設定判別カウンターの使い方｜スロット稼働ノート</title>
+<meta name="description" content="L真打吉宗 設定判別カウンターの使い方。柳生選択率、抜刀チャンス当選率、周期・規定pt、真BB中ボイス、AT終了画面を分母付きで記録するポイントを説明します。">
+<link rel="canonical" href="https://slot-tools.jp/yoshimune-guide.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:title" content="L真打吉宗 設定判別カウンターの使い方｜スロット稼働ノート">
+<meta property="og:description" content="L真打吉宗の柳生選択率、抜刀当選率、周期・規定pt、真BBボイスをタップで記録するためのガイドです。">
+<meta property="og:url" content="https://slot-tools.jp/yoshimune-guide.html">
+<style>
+  :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px}
+  .container{max-width:520px;margin:0 auto;padding:20px 16px 0}
+  .section{margin-top:22px}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0}
+  li{margin-bottom:8px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:8px}
+  th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:left;vertical-align:top;word-break:break-word}
+  th{color:var(--text-muted)}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none}
+  a{color:var(--gold)}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
+  footer a{color:var(--text-muted);text-decoration:none}
+</style>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+<header>
+  <a class="top-link" href="/">← TOP</a>
+  <a class="top-link" href="yoshimune-checker.html" style="margin-left:8px;">ツールを使う →</a>
+  <h1>L真打吉宗 設定判別カウンターの使い方</h1>
+  <p>柳生選択率、抜刀当選率、周期・規定pt、真BBボイスを端末内で累計する専用カウンターです。</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>このツールの目的</h2>
+    <p>L真打吉宗は、CZ当選やAT当選だけでなく、CZ対戦相手のVS柳生選択率、抜刀メーターMAX到達時の抜刀チャンス当選率、周期当選、規定pt帯、真BB中のボイスを合わせて見る機種です。特に柳生と抜刀は「何回中何回出たか」という分母管理がないと判別材料になりません。本ツールでは、柳生はCZ対戦相手の合計、抜刀はMAX到達回数を分母として自動で割合表示します。</p>
+    <p>通常回転数はダイトモの通常回転数を入力してください。AT中のゲーム数を混ぜるとCZ確率・AT確率が重く見え、判断を誤ります。ダイトモで通常回転数を確認し、本ツールでは台データや連動サービスで拾いきれない細かい示唆をタップで補完する、という使い分けが安全です。</p>
+  </section>
+
+  <section class="section">
+    <h2>基本操作</h2>
+    <ol>
+      <li>下部タブから「初当り」「周期CZ」「示唆」「カード」を切り替えます。</li>
+      <li>該当する行、または行右側の＋ボタンをタップすると1回加算されます。</li>
+      <li>ヘッダーの「＋加算」を押すと減算モードへ切り替わり、誤入力を0未満にならない範囲で戻せます。</li>
+      <li>「↩ 取消」は直近操作を戻します。リセット後も、ページを再読み込みしていなければリセット前の状態へ復元できます。</li>
+    </ol>
+    <div class="card">
+      <h3>抜刀チャンスの除外条件</h3>
+      <p>抜刀メーターMAX到達と抜刀チャンス当選は、AT後1回目と5周期目をサンプル外として扱います。この2つは当選が濃厚になる条件のため、到達・当選ともカウントしないでください。解析の分母定義に合わせるための重要なルールです。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>記録対象</h2>
+    <table>
+      <thead><tr><th>タブ</th><th>主な入力内容</th></tr></thead>
+      <tbody>
+        <tr><td>初当り</td><td>通常回転数、CZ当選、AT当選、AT直撃を記録します。</td></tr>
+        <tr><td>周期CZ</td><td>周期当選①〜⑥、規定pt帯、百花繚乱チャンス、人馬一体チャンス、CZ対戦相手、抜刀チャンスを記録します。</td></tr>
+        <tr><td>示唆</td><td>御白洲ビジョン、メニュー画面、AT終了画面、コパンダトロフィー、獲得枚数、真BB中のボイスを記録します。</td></tr>
+        <tr><td>カード</td><td>現在の記録から1080×1080の共有カード画像、詳細カード画像、テンプレ形式テキストを生成します。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>出力と共有</h2>
+    <p>カードにはCZ確率、AT確率、VS柳生率、抜刀当選率、周期当選分布、濃厚示唆サマリーをまとめます。詳細カードでは、出現したカウント項目をセクション別に整理します。テンプレテキストでは、なな様テンプレの構成に合わせて、ポイント特化ゾーン、御白洲ビジョン、CZ対戦相手、規定pt帯、周期当選、真BBボイス、AT終了画面、メニュー画面、抜刀、トロフィー、枚数示唆を出力します。</p>
+    <p>規定pt帯と周期①〜⑥は、0であること自体も実戦メモ上の意味を持つため、簡易出力でも全行を残します。それ以外の項目は、共有時に読みやすくするためゼロ省略の対象です。</p>
+  </section>
+
+  <section class="section">
+    <h2>出典と注意事項</h2>
+    <p>示唆内容と解析数値の出典は、<a href="https://chonborista.com/slot/daito-slot/252676/" target="_blank" rel="noopener">ちょんぼりすた パチスロ解析様</a>です。メニュー画面の示唆には予想段階の情報を含むため、ツール内でもその旨を明記しています。解析更新により表記や数値が変わる場合があります。本ツールは設定判別を補助する記録・集計ツールであり、設定や勝敗を保証するものではありません。</p>
+  </section>
+
+  <a class="cta" href="yoshimune-checker.html">設定判別カウンターを使う</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+    <a href="/partner.html">広告掲載のご相談について</a>
+  </nav>
+</footer>
+</body>
+</html>
