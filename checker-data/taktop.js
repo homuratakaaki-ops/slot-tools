@@ -104,6 +104,10 @@
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}${item[1]}`);
     return `${prefix} ${out.length?out.join('・'):'-'}`;
   }
+  function shownTimes(prefix,items){
+    const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
+    return `${prefix} ${out.length?out.join('・'):'-'}`;
+  }
   function sec(title,rows){return rows.length?`\n■${title}\n${rows.join('\n')}\n`:'';}
 
   function pageHatsu(ctx){
@@ -307,7 +311,7 @@
           columns:[
             {x:70,items:[
               {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
-              {text:`AT終了 ①${S.screens.girl}・②${S.screens.boy}`,value:S.screens.girl+S.screens.boy},
+              {text:shownTimes('AT終了',[['①',S.screens.girl],['②',S.screens.boy]]),value:S.screens.girl+S.screens.boy},
               {text:shown('バトル',[['地',S.atcz.hell],['天',S.atcz.heaven],['オ',S.atcz.orphe]]),value:battleN},
               {text:`小役なし勝利 ×${S.cz.giantNoRole}`,value:S.cz.giantNoRole},
               {text:`報酬Ch ${ratio(S.cz.rewardHit,S.cz.rewardReach)}`,value:S.cz.rewardHit,active:S.cz.rewardReach>0&&S.cz.rewardHit>0}

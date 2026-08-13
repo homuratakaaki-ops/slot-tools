@@ -319,42 +319,49 @@
     }
     function hasDetailItems(){return detailSections().some(sec=>sec.items.length>0);}
     function detailRows(sections){
-      const maxRows=36;
-      const rows=[];
-      sections.forEach(sec=>{
-        const items=sec.items.map(item=>Object.assign({},item,{_section:sec.title,_text:detailText(item),_value:detailValue(item)}));
-        if(items.length===1){rows.push({type:'inline',title:sec.title,item:items[0],hot:!!items[0].hot,value:items[0]._value});return;}
-        rows.push({type:'section',title:sec.title,hot:false,value:0});
-        items.forEach(item=>rows.push({type:'item',item,hot:!!item.hot,value:item._value}));
-      });
+      const maxRows=40;
+      function prepare(){
+        return sections.map(sec=>({
+          title:sec.title,
+          items:sec.items.map(item=>Object.assign({},item,{_section:sec.title,_text:detailText(item),_value:detailValue(item)}))
+        })).filter(sec=>sec.items.length>0);
+      }
+      function build(prepared){
+        const rows=[];
+        prepared.forEach(sec=>{
+          if(sec.items.length===1){rows.push({type:'inline',title:sec.title,item:sec.items[0],hot:!!sec.items[0].hot,value:sec.items[0]._value});return;}
+          rows.push({type:'section',title:sec.title,hot:false,value:0});
+          sec.items.forEach(item=>rows.push({type:'item',item,hot:!!item.hot,value:item._value}));
+        });
+        return rows;
+      }
+      function removeOne(prepared,allowHot){
+        const candidates=[];
+        prepared.forEach((sec,si)=>{
+          sec.items.forEach((item,ii)=>{
+            if(!allowHot&&item.hot)return;
+            candidates.push({si,ii,item});
+          });
+        });
+        candidates.sort((a,b)=>(a.item._value-b.item._value)||(a.item.hot-b.item.hot)||(b.si-a.si)||(b.ii-a.ii));
+        const target=candidates[0];
+        if(!target)return false;
+        prepared[target.si].items.splice(target.ii,1);
+        return true;
+      }
+      let prepared=prepare();
+      let rows=build(prepared);
       if(rows.length<=maxRows)return rows;
-      const removable=rows.map((row,index)=>({row,index})).filter(x=>x.row.type==='item'&&!x.row.hot).sort((a,b)=>(a.row.value-b.row.value)||(b.index-a.index));
-      const removed=new Set();
-      while(rows.length-removed.size>maxRows-1&&removable.length)removed.add(removable.shift().index);
-      let moreCount=removed.size;
-      let compact=rows.filter((_,i)=>!removed.has(i));
-      compact=compact.filter((row,i)=>{
-        if(row.type!=='section')return true;
-        return compact[i+1]&&(compact[i+1].type==='item');
-      });
-      while(compact.length>maxRows-1){
-        const sectionIndex=compact.findIndex(row=>row.type==='section');
-        if(sectionIndex<0)break;
-        compact.splice(sectionIndex,1);
+      let moreCount=0;
+      while(build(prepared).length>maxRows-1&&removeOne(prepared,false))moreCount++;
+      prepared=prepared.filter(sec=>sec.items.length>0);
+      while(build(prepared).length>maxRows-1&&removeOne(prepared,true)){
+        moreCount++;
+        prepared=prepared.filter(sec=>sec.items.length>0);
       }
-      if(compact.length>maxRows-1){
-        const rest=compact.map((row,index)=>({row,index})).filter(x=>x.row.type==='item').sort((a,b)=>(a.row.value-b.row.value)||(b.index-a.index));
-        while(compact.length>maxRows-1&&rest.length){
-          const target=rest.shift().row;
-          const index=compact.indexOf(target);
-          if(index>=0){
-            compact.splice(index,1);
-            moreCount++;
-          }
-        }
-      }
-      if(moreCount>0)compact.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});
-      return compact;
+      rows=build(prepared);
+      if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});
+      return rows;
     }
     function fitText(x,text,tx,ty,maxWidth,fontSize,color,weight){
       let size=fontSize;
@@ -370,7 +377,7 @@
       const rows=detailRows(sections);
       x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText('詳細カウント',70,286);
       x.strokeStyle='#2c2340';x.lineWidth=2;x.beginPath();x.moveTo(70,306);x.lineTo(1010,306);x.stroke();
-      const colX=[70,560],maxRows=18,rowGap=34,startY=338;
+      const colX=[70,560],maxRows=20,rowGap=30,startY=338;
       rows.forEach((row,i)=>{
         const col=Math.floor(i/maxRows),slot=i%maxRows,x0=colX[col]||colX[1],y=startY+slot*rowGap;
         if(row.type==='section'){
