@@ -290,6 +290,7 @@ textarea{
 .tag.fb{background:var(--pink)}
 .tag.fbhit{background:#ffb4c8}
 .tag.continue{background:#f7a7b7;color:#16070b}
+.tag.money{background:#c7d7ff;color:#071024}
 .tag.cash{background:#9fd37b}
 .tag.collect{background:#87d8d0;color:#061110}
 .tag.memo{background:var(--memo)}
@@ -324,8 +325,14 @@ textarea{
 
     <section class="money-row" aria-label="投資回収">
       <div class="money-pill">投資 <strong id="cashTotal">0円</strong></div>
-      <div class="money-pill">回収 <strong id="collectTotal">0枚</strong></div>
+      <div class="money-pill">差枚 <strong id="diffTotal">-</strong></div>
       <div class="money-pill">FBスルー <strong id="throughCount">0</strong></div>
+    </section>
+
+    <section class="button-row" aria-label="収支操作">
+      <button class="bm-btn small danger" type="button" id="moneyLoanBtn">−1000</button>
+      <button class="bm-btn small secondary" type="button" id="moneyDepositBtn">入金</button>
+      <button class="bm-btn small secondary" type="button" id="moneyCreditBtn">クレ更新</button>
     </section>
 
     <section class="step-row" aria-label="通常消化">
@@ -374,7 +381,7 @@ textarea{
   'use strict';
   const STORAGE_KEY='sf6_record_v1';
   const MACHINE='L-SF6';
-  const VERSION='4';
+  const VERSION='5';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
   const HOT_VOICES=new Set(['キンバリー','ジェイミー']);
@@ -391,12 +398,14 @@ textarea{
   const END_SCREENS=['基本画面','男性ファイター集合','女性ファイター集合','ケン&JP','リュウ','ルーク&ジェイミー','全員集合','エンタライオン'];
   const CONTINUES=[{key:'none',label:'なし'},{key:'success',label:'成功'},{key:'fail',label:'失敗'}];
   const CASH_AMOUNTS=[1000,5000,10000];
+  const MONEY_OPS=['init','deposit','loan','creditUpdate','mochidama','saipurei','diffSync','collectEnd'];
+  const DEFAULT_LOAN_RATE=50;
   const ICATCHES=['ルーク','春麗','キンバリー','キャミィ','JP','ジェイミー','豪鬼','リュウ'];
   const BATTLE_STEP_LOCK_TOAST='FB中は通常消化を操作できません';
   const BATTLE_ADJUST_LOCK_TOAST='FB中はG数調整を操作できません';
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
-  let state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},logs:[]};
+  let state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]};
   let selectedGainKind='';
   let selectedVoice=null;
   let gainAddDraft='';
@@ -420,6 +429,12 @@ textarea{
     const n=Number(text);
     return Number.isSafeInteger(n)&&n>0?n:null;
   }
+  function positiveNumber(value){
+    const text=String(value??'').trim();
+    if(!/^\d+(?:\.\d+)?$/.test(text))return null;
+    const n=Number(text);
+    return Number.isFinite(n)&&n>0?n:null;
+  }
   function nonnegativeInt(value){
     const text=String(value??'').trim();
     if(!/^\d+$/.test(text))return null;
@@ -439,6 +454,41 @@ textarea{
   function normalizeCurrentState(value){
     return {realG:value?.realG==null?null:optionalGame(value.realG),lcdG:value?.lcdG==null?null:optionalGame(value.lcdG)};
   }
+  function signedInt(value){
+    const text=String(value??'').trim();
+    if(text==='')return null;
+    if(!/^-?\d+$/.test(text))return null;
+    const n=Number(text);
+    return Number.isSafeInteger(n)?n:null;
+  }
+  function moneyNumber(value,defaultValue=0){
+    const n=signedInt(value);
+    return n===null?defaultValue:n;
+  }
+  function normalizeSessionMoney(value){
+    if(!value||typeof value!=='object')return null;
+    const startCredit=value.startCredit==null?null:optionalGame(value.startCredit);
+    const startMochidama=value.startMochidama==null?null:optionalGame(value.startMochidama);
+    const startSaipurei=value.startSaipurei==null?null:optionalGame(value.startSaipurei);
+    const loanRate=positiveNumber(value.loanRate)||DEFAULT_LOAN_RATE;
+    return {
+      startCredit,
+      startMochidama,
+      startSaipurei,
+      loanRate,
+      sandBalance:moneyNumber(value.sandBalance,startCredit||0),
+      credit:value.credit==null?null:optionalGame(value.credit),
+      investedYen:Math.max(0,moneyNumber(value.investedYen,0)),
+      usedMochidama:Math.max(0,moneyNumber(value.usedMochidama,0)),
+      usedSaipurei:Math.max(0,moneyNumber(value.usedSaipurei,0)),
+      initialDiff:value.initialDiff==null?null:signedInt(value.initialDiff),
+      diffAdjust:moneyNumber(value.diffAdjust,0),
+      collectMedals:value.collectMedals==null?null:optionalGame(value.collectMedals)
+    };
+  }
+  function blankSessionMoney(){
+    return normalizeSessionMoney({startCredit:null,startMochidama:null,startSaipurei:null,loanRate:DEFAULT_LOAN_RATE,sandBalance:0,credit:null,investedYen:0,usedMochidama:0,usedSaipurei:0,initialDiff:null,diffAdjust:0,collectMedals:null});
+  }
   function snapshot(){
     const current=state.currentState||{};
     return {realG:current.realG==null?null:optionalGame(current.realG),lcdG:current.lcdG==null?null:optionalGame(current.lcdG)};
@@ -447,11 +497,12 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,currentState:normalizeCurrentState(state.currentState),logs:state.logs});
+    return deepClone({battleState:state.battleState,currentState:normalizeCurrentState(state.currentState),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
     state.currentState=normalizeCurrentState(snap?.currentState);
+    state.sessionMoney=normalizeSessionMoney(snap?.sessionMoney);
     state.logs=Array.isArray(snap?.logs)?snap.logs.map(sanitizeLog).filter(Boolean):[];
     save();
     render();
@@ -515,6 +566,12 @@ textarea{
     if(base.type==='continue'){
       return {...log,...base,result:log.result==='success'?'success':'success'};
     }
+    if(base.type==='money'){
+      if(!MONEY_OPS.includes(log.op))return null;
+      const amount=log.amount==null?null:signedInt(log.amount);
+      const after=normalizeSessionMoney(log.after);
+      return {...log,...base,op:log.op,amount,after};
+    }
     if(base.type==='fb'){
       const win=log.win===true;
       const rank=log.rank==null?null:(String(log.rank).trim().slice(0,20)||null);
@@ -546,16 +603,16 @@ textarea{
   }
   function normalize(data){
     const schemaNormalize=globalThis.normalizeSf6Export||window.normalizeSf6Export||((value)=>value);
-    const normalized=schemaNormalize(data||{machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},logs:[]});
+    const normalized=schemaNormalize(data||{machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]});
     const logs=Array.isArray(normalized?.logs)?normalized.logs.map(sanitizeLog).filter(Boolean):[];
     const sourceVer=normalized&&Object.prototype.hasOwnProperty.call(normalized,'sourceVer')?normalized.sourceVer:VERSION;
-    return {machine:MACHINE,ver:VERSION,sourceVer,battleState:normalizeBattleState(normalized?.battleState),currentState:normalizeCurrentState(normalized?.currentState),logs};
+    return {machine:MACHINE,ver:VERSION,sourceVer,battleState:normalizeBattleState(normalized?.battleState),currentState:normalizeCurrentState(normalized?.currentState),sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
   }
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){toast('保存に失敗しました');}
   }
   function load(){
-    try{state=normalize(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}catch(e){state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},logs:[]};}
+    try{state=normalize(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}catch(e){state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]};}
     markLcdTouched();
   }
   function toast(message){
@@ -702,6 +759,48 @@ textarea{
   function collectTotal(){
     return state.logs.filter(log=>log.type==='collect').reduce((sum,log)=>sum+(Number(log.medals)||0),0);
   }
+  function moneyInitialized(){
+    return !!state.sessionMoney;
+  }
+  function currentMoney(){
+    return normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
+  }
+  function moneyAfterSummary(money=currentMoney()){
+    const m=normalizeSessionMoney(money)||blankSessionMoney();
+    return {sandBalance:m.sandBalance,credit:m.credit,investedYen:m.investedYen,usedMochidama:m.usedMochidama,usedSaipurei:m.usedSaipurei,initialDiff:m.initialDiff,diffAdjust:m.diffAdjust,collectMedals:m.collectMedals,loanRate:m.loanRate};
+  }
+  function investedMedals(money=currentMoney()){
+    const m=normalizeSessionMoney(money)||blankSessionMoney();
+    return Math.round((m.investedYen/1000)*m.loanRate)+m.usedMochidama+m.usedSaipurei;
+  }
+  function intervalDiffValue(money=currentMoney()){
+    const m=normalizeSessionMoney(money);
+    if(!m||m.initialDiff===null)return null;
+    return Math.round(m.initialDiff+(m.credit||0)-investedMedals(m)+m.diffAdjust);
+  }
+  function diffText(value){
+    if(value===null||value===undefined)return '-';
+    return `${value>0?'+':''}${value}枚`;
+  }
+  function cashDisplayTotal(){
+    const m=normalizeSessionMoney(state.sessionMoney);
+    return m?m.investedYen:cashTotal();
+  }
+  function moneySummary(money=currentMoney()){
+    const m=normalizeSessionMoney(money)||blankSessionMoney();
+    const cashMedals=Math.round((m.investedYen/1000)*m.loanRate);
+    const collect=m.collectMedals||0;
+    const credit=m.credit||0;
+    const medalDiff=collect+credit-cashMedals-m.usedMochidama-m.usedSaipurei;
+    const yenDiff=Math.round(medalDiff*1000/m.loanRate);
+    return {cashMedals,collect,credit,medalDiff,yenDiff};
+  }
+  function ensureMoneyForOperation(){
+    if(moneyInitialized())return true;
+    toast('初期登録をしてください');
+    openMoneyInitSheet();
+    return false;
+  }
   function renderStatus(){
     const snap=snapshot();
     const locked=isBattleLocked();
@@ -717,8 +816,8 @@ textarea{
       adjustTarget=null;
     }
     $('throughCount').textContent=String(fbThroughCount());
-    $('cashTotal').textContent=`${cashTotal().toLocaleString()}円`;
-    $('collectTotal').textContent=`${collectTotal().toLocaleString()}枚`;
+    $('cashTotal').textContent=`${cashDisplayTotal().toLocaleString()}円`;
+    $('diffTotal').textContent=diffText(intervalDiffValue());
   }
   function renderBadges(){
     const box=$('stateBadges');
@@ -960,19 +1059,72 @@ textarea{
   function manualEndBattle(){
     commit('FB終了',()=>{state.battleState='normal';},{toast:'FB状態を通常へ戻しました'});
   }
-  function recordCash(){
-    const amount=positiveInt(selectedCashAmount);
-    if(!amount){toast('投資額を選択してください');return;}
+  function commitMoney(label,op,amount,mutator,options={}){
     const snap=snapshot();
-    commit('投資',()=>addLogDirect({type:'cash',amount,realG:snap.realG,lcdG:snap.lcdG}),{toast:`投資 ${amount.toLocaleString()}円を記録しました`});
+    return commit(label,()=>{
+      const base=normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
+      const next=normalizeSessionMoney(mutator(base))||blankSessionMoney();
+      state.sessionMoney=next;
+      addLogDirect({type:'money',op,amount:amount==null?null:Math.round(amount),after:moneyAfterSummary(next),realG:snap.realG,lcdG:snap.lcdG});
+    },{toast:options.toast||`${label}を記録しました`});
   }
-  function recordCollect(){
-    const medals=positiveInt($('collectMedals')?.value);
+  function recordMoneyInit(){
+    const startCredit=optionalGame($('moneyStartCredit')?.value);
+    const startMochidama=optionalGame($('moneyStartMochidama')?.value);
+    const startSaipurei=optionalGame($('moneyStartSaipurei')?.value);
+    const loanRate=positiveNumber($('moneyLoanRate')?.value)||DEFAULT_LOAN_RATE;
+    const initialDiffRaw=String($('moneyInitialDiff')?.value||'').trim();
+    const initialDiff=initialDiffRaw===''?null:signedInt(initialDiffRaw);
+    if(initialDiffRaw!==''&&initialDiff===null){toast('初期差枚を数値で入力してください');return;}
+    commitMoney('初期登録','init',null,()=>normalizeSessionMoney({startCredit,startMochidama,startSaipurei,loanRate,sandBalance:startCredit||0,credit:null,investedYen:0,usedMochidama:0,usedSaipurei:0,initialDiff,diffAdjust:0,collectMedals:null}),{toast:'初期登録を保存しました'});
+    closeSheet();
+  }
+  function recordMoneyLoan(){
+    if(!ensureMoneyForOperation())return;
+    const before=currentMoney();
+    const warn=before.sandBalance<1000;
+    commitMoney('−1000','loan',1000,m=>({...m,sandBalance:m.sandBalance-1000,investedYen:m.investedYen+1000}),{toast:warn?'残高不足ですが−1000を記録しました':'−1000を記録しました'});
+  }
+  function recordMoneyDeposit(amount){
+    if(!ensureMoneyForOperation())return;
+    const value=positiveInt(amount);
+    if(!value){toast('入金額を入力してください');return;}
+    commitMoney('入金','deposit',value,m=>({...m,sandBalance:m.sandBalance+value}),{toast:`入金 ${value.toLocaleString()}円を記録しました`});
+    closeSheet();
+  }
+  function recordMoneyCreditUpdate(){
+    if(!ensureMoneyForOperation())return;
+    const value=optionalGame($('moneyCreditValue')?.value);
+    if(value===null){toast('クレジット枚数を入力してください');return;}
+    commitMoney('クレ更新','creditUpdate',value,m=>({...m,credit:value}),{toast:`クレ ${value.toLocaleString()}枚に更新しました`});
+    closeSheet();
+  }
+  function recordMoneyMedalUse(source){
+    if(!ensureMoneyForOperation())return;
+    const value=positiveInt($('moneyMedalUse')?.value);
+    if(!value){toast('使用枚数を入力してください');return;}
+    const op=source==='saipurei'?'saipurei':'mochidama';
+    const label=op==='saipurei'?'再プレイ投入':'持ちメダル投入';
+    commitMoney(label,op,value,m=>op==='saipurei'?{...m,usedSaipurei:m.usedSaipurei+value}:{...m,usedMochidama:m.usedMochidama+value},{toast:`${label} ${value.toLocaleString()}枚を記録しました`});
+    closeSheet();
+  }
+  function recordMoneyDiffSync(){
+    if(!ensureMoneyForOperation())return;
+    const actual=signedInt($('moneyDiffSyncValue')?.value);
+    if(actual===null){toast('実機差枚を数値で入力してください');return;}
+    const current=intervalDiffValue();
+    commitMoney('差枚一致','diffSync',actual,m=>{
+      if(current===null)return {...m,initialDiff:actual};
+      return {...m,diffAdjust:m.diffAdjust+(actual-current)};
+    },{toast:`差枚を${diffText(actual)}に一致させました`});
+    closeSheet();
+  }
+  function recordMoneyCollectEnd(){
+    if(!ensureMoneyForOperation())return;
+    const medals=positiveInt($('moneyCollectMedals')?.value);
     if(!medals){toast('回収枚数を入力してください');return;}
-    const snap=snapshot();
-    commit('回収',()=>addLogDirect({type:'collect',medals,realG:snap.realG,lcdG:snap.lcdG}),{toast:`回収 ${medals.toLocaleString()}枚を記録しました`});
-    const inputNode=$('collectMedals');
-    if(inputNode)inputNode.value='';
+    commitMoney('終了・回収','collectEnd',medals,m=>({...m,collectMedals:medals}),{toast:`回収 ${medals.toLocaleString()}枚を記録しました`});
+    renderMoneySummaryInSheet();
   }
   function recordMemo(){
     const inputNode=$('memoText');
@@ -986,7 +1138,7 @@ textarea{
   function tagClass(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'judge':'gain';
     if(log.type==='zenchou')return log.dir;
-    if(['gain','dcin','gcolor','stage_sel','rare','zenchou','fbhit','fb','continue','cash','collect','memo'].includes(log.type))return log.type;
+    if(['gain','dcin','gcolor','stage_sel','rare','zenchou','fbhit','fb','continue','money','cash','collect','memo'].includes(log.type))return log.type;
     return 'memo';
   }
   function logLabel(log){
@@ -999,6 +1151,7 @@ textarea{
     if(log.type==='fbhit')return 'FB当選';
     if(log.type==='fb')return 'FB';
     if(log.type==='continue')return '継続';
+    if(log.type==='money')return '収支';
     if(log.type==='cash')return '投資';
     if(log.type==='collect')return '回収';
     if(log.type==='memo')return 'メモ';
@@ -1023,6 +1176,12 @@ textarea{
       if(log.bonusMedals)parts.push(`${log.bonusMedals}枚`);
       if(log.endScreen)parts.push(`終了画面 ${log.endScreen}`);
       return parts.join(' / ');
+    }
+    if(log.type==='money'){
+      const labels={init:'初期登録',deposit:'入金',loan:'−1000',creditUpdate:'クレ更新',mochidama:'持ちメダル',saipurei:'再プレ',diffSync:'差枚一致',collectEnd:'終了回収'};
+      const amount=log.amount==null?'':` ${Number(log.amount).toLocaleString()}${['deposit','loan'].includes(log.op)?'円':'枚'}`;
+      const after=log.after?` / 投資${Number(log.after.investedYen||0).toLocaleString()}円 / 残高${Number(log.after.sandBalance||0).toLocaleString()}円 / 差枚${diffText(intervalDiffValue(log.after))}`:'';
+      return `${labels[log.op]||log.op}${amount}${after}`;
     }
     if(log.type==='cash')return `投資 ${log.amount.toLocaleString()}円`;
     if(log.type==='collect')return `回収 ${log.medals.toLocaleString()}枚`;
@@ -1196,22 +1355,102 @@ textarea{
       body.append(memoBtn);
     });
   }
+  function openMoneyInitSheet(){
+    openSheet('初期登録',body=>{
+      const m=currentMoney();
+      const startCredit=input('moneyStartCredit','number','例 10000');
+      startCredit.value=m.startCredit??'';
+      const startMochidama=input('moneyStartMochidama','number','例 500');
+      startMochidama.value=m.startMochidama??'';
+      const startSaipurei=input('moneyStartSaipurei','number','例 0');
+      startSaipurei.value=m.startSaipurei??'';
+      const loanRate=input('moneyLoanRate','number','50');
+      loanRate.step='0.1';
+      loanRate.value=m.loanRate||DEFAULT_LOAN_RATE;
+      const initialDiff=input('moneyInitialDiff','text','例 -800');
+      initialDiff.inputMode='numeric';
+      initialDiff.value=m.initialDiff??'';
+      body.append(field('現金残高',startCredit));
+      body.append(field('持ちメダル',startMochidama));
+      body.append(field('再プレイ',startSaipurei));
+      body.append(field('貸出レート',loanRate));
+      body.append(field('初期差枚',initialDiff));
+      body.append(button('初期登録を保存','primary',recordMoneyInit));
+    });
+  }
+  function openMoneyDepositSheet(){
+    if(!ensureMoneyForOperation())return;
+    openSheet('入金',body=>{
+      const choices=row('choice-row');
+      CASH_AMOUNTS.forEach(amount=>choices.append(chip(`+${amount.toLocaleString()}円`,false,()=>recordMoneyDeposit(amount))));
+      body.append(choices);
+      const direct=input('moneyDepositAmount','number','直接入力');
+      body.append(field('入金額',direct));
+      body.append(button('入金を記録','primary',()=>recordMoneyDeposit($('moneyDepositAmount')?.value)));
+    });
+  }
+  function openMoneyCreditSheet(){
+    if(!ensureMoneyForOperation())return;
+    openSheet('クレ更新',body=>{
+      body.append(field('現在クレジット',input('moneyCreditValue','number','枚数')));
+      body.append(button('クレを更新','primary',recordMoneyCreditUpdate));
+    });
+  }
+  function openMoneyMedalUseSheet(){
+    if(!ensureMoneyForOperation())return;
+    openSheet('持ちメダル・再プレイ投入',body=>{
+      const quick=row('choice-row');
+      [50,100,500].forEach(amount=>quick.append(chip(`${amount}枚`,false,()=>{$('moneyMedalUse').value=String(amount);})));
+      body.append(quick);
+      body.append(field('使用枚数',input('moneyMedalUse','number','例 50')));
+      const actions=row();
+      actions.append(button('持ちメダル投入','secondary',()=>recordMoneyMedalUse('mochidama')));
+      actions.append(button('再プレイ投入','secondary',()=>recordMoneyMedalUse('saipurei')));
+      body.append(actions);
+    });
+  }
+  function openMoneyDiffSyncSheet(){
+    if(!ensureMoneyForOperation())return;
+    openSheet('差枚一致',body=>{
+      const now=intervalDiffValue();
+      body.append(el('div','muted',`現在推定：${diffText(now)}`));
+      const inputNode=input('moneyDiffSyncValue','text','実機の差枚');
+      inputNode.inputMode='numeric';
+      body.append(field('実機差枚',inputNode));
+      body.append(button('差枚を一致','primary',recordMoneyDiffSync));
+    });
+  }
+  function renderMoneySummaryInSheet(){
+    const box=$('moneySummaryBox');
+    if(!box)return;
+    clearNode(box);
+    const m=currentMoney();
+    const s=moneySummary(m);
+    box.append(el('div','muted',`現金投資 ${m.investedYen.toLocaleString()}円 / 持ちメダル ${m.usedMochidama.toLocaleString()}枚 / 再プレ ${m.usedSaipurei.toLocaleString()}枚`));
+    box.append(el('div','muted',`回収 ${s.collect.toLocaleString()}枚 / クレ ${s.credit.toLocaleString()}枚 / メダル収支 ${diffText(s.medalDiff)}`));
+    box.append(el('div','muted',`円換算 ${s.yenDiff.toLocaleString()}円（貸出レートによる等価換算）`));
+  }
+  function openMoneyCollectSheet(){
+    if(!ensureMoneyForOperation())return;
+    openSheet('終了・回収',body=>{
+      const inputNode=input('moneyCollectMedals','number','流し枚数');
+      inputNode.value=currentMoney().collectMedals??'';
+      body.append(field('回収メダル',inputNode));
+      body.append(button('回収を記録','primary',recordMoneyCollectEnd));
+      const box=el('div','panel');
+      box.id='moneySummaryBox';
+      body.append(box);
+      renderMoneySummaryInSheet();
+    });
+  }
   function openUtilitySheet(){
-    openSheet('投資・回収・メモ・出力',body=>{
-      const cashRow=row('choice-row');
-      cashRow.id='cashKinds';
-      CASH_AMOUNTS.forEach(amount=>{
-        cashRow.append(chip(`${amount.toLocaleString()}円`,selectedCashAmount===amount,()=>{selectedCashAmount=amount;openUtilitySheet();}));
-      });
-      body.append(el('div','muted','投資'));
-      body.append(cashRow);
-      const cashBtn=button('投資を記録','primary',recordCash);
-      cashBtn.id='cashBtn';
-      body.append(cashBtn);
-      body.append(field('回収枚数',input('collectMedals','number','例 1417')));
-      const collectBtn=button('回収を記録','secondary',recordCollect);
-      collectBtn.id='collectBtn';
-      body.append(collectBtn);
+    openSheet('収支・メモ・出力',body=>{
+      const moneyActions=row();
+      moneyActions.append(button('初期登録','secondary',openMoneyInitSheet));
+      moneyActions.append(button('持ちメダル/再プレ','secondary',openMoneyMedalUseSheet));
+      moneyActions.append(button('差枚一致','secondary',openMoneyDiffSyncSheet));
+      moneyActions.append(button('終了・回収','secondary',openMoneyCollectSheet));
+      body.append(moneyActions);
       const memo=document.createElement('textarea');
       memo.id='memoText';
       memo.maxLength=100;
@@ -1321,7 +1560,7 @@ textarea{
     if(resetTimer){
       clearTimeout(resetTimer);
       resetTimer=null;
-      state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},logs:[]};
+      state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]};
       stepHistory=[];
       undoStack=[];
       redoAction=null;
@@ -1341,6 +1580,9 @@ textarea{
     document.querySelectorAll('[data-adjust-step]').forEach(btn=>btn.addEventListener('click',()=>adjustCurrentValue(adjustTarget,Number(btn.dataset.adjustStep)||0)));
     document.querySelectorAll('[data-step]').forEach(btn=>btn.addEventListener('click',()=>stepBoth(Number(btn.dataset.step)||0)));
     $('stepUndoBtn').addEventListener('click',undoStep);
+    $('moneyLoanBtn').addEventListener('click',recordMoneyLoan);
+    $('moneyDepositBtn').addEventListener('click',openMoneyDepositSheet);
+    $('moneyCreditBtn').addEventListener('click',openMoneyCreditSheet);
     $('undoBtn').addEventListener('click',undoLast);
     $('openUtilityBtn').addEventListener('click',openUtilitySheet);
     $('sheetCloseBtn').addEventListener('click',closeSheet);
@@ -1350,7 +1592,7 @@ textarea{
   load();
   bind();
   render();
-  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,optionalGame,nonnegativeInt,exportFilename,exportData,exportJsonText,STORAGE_KEY,MACHINE,VERSION};
+  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,positiveNumber,optionalGame,nonnegativeInt,normalizeSessionMoney,intervalDiffValue,moneySummary,exportFilename,exportData,exportJsonText,STORAGE_KEY,MACHINE,VERSION};
 })();
 </script>
 </body>
