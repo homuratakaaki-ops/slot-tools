@@ -383,7 +383,9 @@ textarea{
   'use strict';
   const STORAGE_KEY='sf6_record_v1';
   const MACHINE='L-SF6';
+  const MACHINE_ID='l-sf6';
   const VERSION='6';
+  const PAYLOAD_VERSION='2.2';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
   const HOT_VOICES=new Set(['キンバリー','ジェイミー']);
@@ -407,7 +409,7 @@ textarea{
   const BATTLE_ADJUST_LOCK_TOAST='FB中はG数調整を操作できません';
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
-  let state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]};
+  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]};
   let selectedGainKind='';
   let selectedVoice=null;
   let gainAddDraft='';
@@ -434,6 +436,13 @@ textarea{
   }
   function positiveNumber(value){
     const text=String(value??'').trim();
+    if(!/^\d+(?:\.\d+)?$/.test(text))return null;
+    const n=Number(text);
+    return Number.isFinite(n)&&n>0?n:null;
+  }
+  function optionalNumber(value){
+    const text=String(value??'').trim();
+    if(text==='')return null;
     if(!/^\d+(?:\.\d+)?$/.test(text))return null;
     const n=Number(text);
     return Number.isFinite(n)&&n>0?n:null;
@@ -467,6 +476,44 @@ textarea{
   function moneyNumber(value,defaultValue=0){
     const n=signedInt(value);
     return n===null?defaultValue:n;
+  }
+  function uuidV4(){
+    if(globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function')return globalThis.crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+      const r=Math.random()*16|0;
+      const v=c==='x'?r:(r&0x3|0x8);
+      return v.toString(16);
+    });
+  }
+  function isoWithOffset(date=new Date()){
+    const d=date instanceof Date?date:new Date(date);
+    const pad=(value,size=2)=>String(Math.trunc(Math.abs(value))).padStart(size,'0');
+    const offset=-d.getTimezoneOffset();
+    const sign=offset>=0?'+':'-';
+    const hours=Math.trunc(Math.abs(offset)/60);
+    const minutes=Math.abs(offset)%60;
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${pad(hours)}:${pad(minutes)}`;
+  }
+  function isoFromLogTime(value){
+    const n=Number(value);
+    return Number.isFinite(n)&&n>0?isoWithOffset(new Date(n)):isoWithOffset();
+  }
+  function normalizeSessionInfo(value){
+    const src=value&&typeof value==='object'?value:{};
+    const textOrNull=v=>{
+      const text=String(v??'').trim();
+      return text?text:null;
+    };
+    return {
+      storeName:textOrNull(src.storeName),
+      unitNo:textOrNull(src.unitNo),
+      lendRate:optionalNumber(src.lendRate),
+      exchangeRate:optionalNumber(src.exchangeRate),
+      memo:String(src.memo??'')
+    };
+  }
+  function defaultState(){
+    return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]};
   }
   function normalizeSessionMoney(value){
     if(!value||typeof value!=='object')return null;
@@ -606,17 +653,31 @@ textarea{
     return {...log,...base};
   }
   function normalize(data){
+    const raw=data&&data.schema==='slot-session'&&data.schemaVer===2?{
+      ...(data.payload||{}),
+      sessionId:data.sessionId,
+      startedAt:data.startedAt,
+      sessionInfo:{
+        storeName:data.storeName,
+        unitNo:data.unitNo,
+        lendRate:data.lendRate,
+        exchangeRate:data.exchangeRate,
+        memo:data.memo
+      }
+    }:data;
     const schemaNormalize=globalThis.normalizeSf6Export||window.normalizeSf6Export||((value)=>value);
-    const normalized=schemaNormalize(data||{machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]});
+    const normalized=schemaNormalize(raw||defaultState());
     const logs=Array.isArray(normalized?.logs)?normalized.logs.map(sanitizeLog).filter(Boolean):[];
     const sourceVer=normalized&&Object.prototype.hasOwnProperty.call(normalized,'sourceVer')?normalized.sourceVer:VERSION;
-    return {machine:MACHINE,ver:VERSION,sourceVer,battleState:normalizeBattleState(normalized?.battleState),currentState:normalizeCurrentState(normalized?.currentState),sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
+    const startedAt=String(normalized?.startedAt||'').trim()||(logs.length?isoFromLogTime(logs[0].t):isoWithOffset());
+    return {machine:MACHINE,ver:VERSION,sourceVer,sessionId:String(normalized?.sessionId||'').trim()||uuidV4(),startedAt,sessionInfo:normalizeSessionInfo(normalized?.sessionInfo),battleState:normalizeBattleState(normalized?.battleState),currentState:normalizeCurrentState(normalized?.currentState),sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
   }
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){toast('保存に失敗しました');}
   }
   function load(){
-    try{state=normalize(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}catch(e){state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]};}
+    try{state=normalize(JSON.parse(localStorage.getItem(STORAGE_KEY)||'null'));}catch(e){state=defaultState();}
+    save();
     markLcdTouched();
   }
   function toast(message){
@@ -798,6 +859,51 @@ textarea{
     const medalDiff=collect+credit-cashMedals-m.usedMochidama-m.usedSaipurei;
     const yenDiff=Math.round(medalDiff*1000/m.loanRate);
     return {cashMedals,collect,credit,medalDiff,yenDiff};
+  }
+  function recoveryYen(payout,exchangeRate){
+    if(payout===null||payout===undefined||exchangeRate===null||exchangeRate===undefined)return null;
+    const p=Number(payout);
+    const rate=Number(exchangeRate);
+    if(!Number.isFinite(p)||!Number.isFinite(rate)||rate<=0)return null;
+    return Math.round(p/rate*1000);
+  }
+  function finalBalanceYen(invest,payout,exchangeRate){
+    const recovered=recoveryYen(payout,exchangeRate);
+    if(recovered===null||invest===null||invest===undefined)return null;
+    const i=Number(invest);
+    return Number.isFinite(i)?recovered-i:null;
+  }
+  function formatYen(value){
+    if(value===null||value===undefined)return '-';
+    return `${value>0?'+':''}${Number(value).toLocaleString()}円`;
+  }
+  function exportEnvelope(now=new Date()){
+    const normalized=normalize(state);
+    const logs=Array.isArray(normalized.logs)?normalized.logs:[];
+    const maxLogT=logs.reduce((max,log)=>Math.max(max,Number(log.t)||0),0);
+    const info=normalizeSessionInfo(normalized.sessionInfo);
+    const money=normalizeSessionMoney(normalized.sessionMoney);
+    return {
+      schema:'slot-session',
+      schemaVer:2,
+      sessionId:normalized.sessionId,
+      machineId:MACHINE_ID,
+      payloadVer:PAYLOAD_VERSION,
+      startedAt:normalized.startedAt,
+      endedAt:isoWithOffset(new Date(Math.max(now.getTime(),maxLogT))),
+      invest:money?money.investedYen:null,
+      payout:money?money.collectMedals:null,
+      storeId:null,
+      storeName:info.storeName,
+      unitNo:info.unitNo,
+      lendRate:info.lendRate??(money?money.loanRate:null),
+      exchangeRate:info.exchangeRate,
+      memo:info.memo||'',
+      payload:{
+        currentState:normalizeCurrentState(normalized.currentState),
+        logs
+      }
+    };
   }
   function ensureMoneyForOperation(){
     if(moneyInitialized())return true;
@@ -1462,9 +1568,12 @@ textarea{
     clearNode(box);
     const m=currentMoney();
     const s=moneySummary(m);
+    const info=normalizeSessionInfo(state.sessionInfo);
+    const balance=finalBalanceYen(m.investedYen,m.collectMedals,info.exchangeRate);
     box.append(el('div','muted',`現金投資 ${m.investedYen.toLocaleString()}円 / 持ちメダル ${m.usedMochidama.toLocaleString()}枚 / 再プレ ${m.usedSaipurei.toLocaleString()}枚`));
     box.append(el('div','muted',`回収 ${s.collect.toLocaleString()}枚 / クレ ${s.credit.toLocaleString()}枚 / メダル収支 ${diffText(s.medalDiff)}`));
     box.append(el('div','muted',`円換算 ${s.yenDiff.toLocaleString()}円（貸出レートによる等価換算）`));
+    box.append(el('div','muted',info.exchangeRate?`交換率${info.exchangeRate}枚: 最終収支 ${formatYen(balance)}`:'交換率未入力: 円換算なし'));
   }
   function openMoneyCollectSheet(){
     if(!ensureMoneyForOperation())return;
@@ -1479,6 +1588,51 @@ textarea{
       renderMoneySummaryInSheet();
     });
   }
+  function openSessionInfoSheet(){
+    openSheet('セッション情報',body=>{
+      const info=normalizeSessionInfo(state.sessionInfo);
+      const money=normalizeSessionMoney(state.sessionMoney);
+      const storeName=input('sessionStoreName','text','店舗名',40);
+      storeName.value=info.storeName||'';
+      const unitNo=input('sessionUnitNo','text','台番号',20);
+      unitNo.value=info.unitNo||'';
+      const lendRate=input('sessionLendRate','number','46');
+      lendRate.step='0.1';
+      lendRate.value=info.lendRate??(money?money.loanRate:'');
+      const exchangeRate=input('sessionExchangeRate','number','52');
+      exchangeRate.step='0.1';
+      exchangeRate.value=info.exchangeRate??'';
+      const memo=document.createElement('textarea');
+      memo.id='sessionMemo';
+      memo.maxLength=500;
+      memo.placeholder='セッション全体メモ';
+      memo.value=info.memo||'';
+      body.append(field('店舗名',storeName));
+      body.append(field('台番号',unitNo));
+      body.append(field('貸出レート',lendRate));
+      body.append(field('交換レート',exchangeRate));
+      body.append(memo);
+      body.append(button('セッション情報を保存','primary',recordSessionInfo));
+    });
+  }
+  function recordSessionInfo(){
+    const next=normalizeSessionInfo({
+      storeName:$('sessionStoreName')?.value,
+      unitNo:$('sessionUnitNo')?.value,
+      lendRate:$('sessionLendRate')?.value,
+      exchangeRate:$('sessionExchangeRate')?.value,
+      memo:$('sessionMemo')?.value
+    });
+    const lendRaw=String($('sessionLendRate')?.value||'').trim();
+    const exchangeRaw=String($('sessionExchangeRate')?.value||'').trim();
+    if(lendRaw!==''&&next.lendRate===null){toast('貸出レートを数値で入力してください');return;}
+    if(exchangeRaw!==''&&next.exchangeRate===null){toast('交換レートを数値で入力してください');return;}
+    state.sessionInfo=next;
+    save();
+    render();
+    closeSheet();
+    toast('セッション情報を保存しました');
+  }
   function openUtilitySheet(){
     openSheet('収支・メモ・出力',body=>{
       const moneyActions=row();
@@ -1486,6 +1640,7 @@ textarea{
       moneyActions.append(button('持ちメダル/再プレ','secondary',openMoneyMedalUseSheet));
       moneyActions.append(button('差枚一致','secondary',openMoneyDiffSyncSheet));
       moneyActions.append(button('終了・回収','secondary',openMoneyCollectSheet));
+      moneyActions.append(button('セッション情報','secondary',openSessionInfoSheet));
       body.append(moneyActions);
       const memo=document.createElement('textarea');
       memo.id='memoText';
@@ -1545,7 +1700,9 @@ textarea{
     if(document.activeElement!==target)target.value=value==null?'':String(value);
   }
   function exportData(){
-    return normalize(state);
+    state=normalize(state);
+    save();
+    return exportEnvelope();
   }
   function exportJsonText(){
     return JSON.stringify(exportData(),null,1);
@@ -1596,7 +1753,7 @@ textarea{
     if(resetTimer){
       clearTimeout(resetTimer);
       resetTimer=null;
-      state={machine:MACHINE,ver:VERSION,battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]};
+      state=defaultState();
       initialMoneyPromptShown=false;
       stepHistory=[];
       undoStack=[];
@@ -1632,7 +1789,7 @@ textarea{
   bind();
   render();
   maybePromptInitialMoney();
-  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,positiveNumber,optionalGame,nonnegativeInt,normalizeSessionMoney,intervalDiffValue,moneySummary,exportFilename,exportData,exportJsonText,STORAGE_KEY,MACHINE,VERSION};
+  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,positiveNumber,optionalGame,nonnegativeInt,normalizeSessionMoney,intervalDiffValue,moneySummary,recoveryYen,finalBalanceYen,exportEnvelope,exportFilename,exportData,exportJsonText,STORAGE_KEY,MACHINE,MACHINE_ID,VERSION,PAYLOAD_VERSION};
 })();
 </script>
 </body>
