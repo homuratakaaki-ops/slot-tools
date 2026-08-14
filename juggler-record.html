@@ -81,6 +81,12 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
   padding: 8px 9px; flex: none;
 }
 .panel .ptitle { font-size: 10.5px; color: var(--muted); margin: 0 0 5px; letter-spacing: .03em; }
+.step-badge {
+  display: inline-block; background: var(--big); color: #14161a;
+  font-weight: 700; font-size: 10px; border-radius: 6px;
+  padding: 1px 7px; margin-right: 7px;
+}
+.panel.attention { border-color: #6b5a2c; box-shadow: 0 0 0 1px #6b5a2c inset; }
 
 /* 数値フィールド(電卓で入力) */
 .numfield {
@@ -278,8 +284,8 @@ select.rate {
 
   <!-- ========== タブ1: カウント(固定全画面・スクロールなし) ========== -->
   <div id="paneCount">
-    <div class="panel">
-      <p class="ptitle">データカウンタ（打ち始め時点）　※朝一リセット台は0のまま</p>
+    <div class="panel" id="snapPanel">
+      <p class="ptitle"><span class="step-badge">最初に入力</span>データカウンタ（打ち始め時点）　※朝一リセット台は0のまま</p>
       <div class="snap-grid">
         <div class="cell"><span>総回転数</span><button type="button" class="numfield" id="f_st_g" data-field="st_g">0</button></div>
         <div class="cell"><span>BIG</span><button type="button" class="numfield" id="f_st_big" data-field="st_big">0</button></div>
@@ -409,6 +415,7 @@ select.rate {
       <button type="button" id="clearCounts">カウントのみクリア（台データ・投資は残す）</button>
       <button type="button" id="clearAll" style="color: var(--lamp); border-color: #5a2a26;">すべてクリア（新しい台）</button>
     </div>
+    <p class="prior-note">どちらも直後なら「元に戻す」で復元できます。</p>
     <div class="kp-actions" style="grid-template-columns: 1fr;">
       <button type="button" class="kp-cancel" id="clearClose">キャンセル</button>
     </div>
@@ -668,9 +675,15 @@ function bind() {
     $("lastOp").textContent = "カウントをクリアしました（元に戻すで復元できます）";
   });
   $("clearAll").addEventListener("click", () => {
-    if (!confirm("台データ・カウント・投資をすべて消去します。よろしいですか？")) return;
-    localStorage.removeItem(STORAGE_KEY);
-    location.reload();
+    if (!confirm("台データ・カウント・投資をすべてクリアします。直後なら「元に戻す」で復元できます。よろしいですか？")) return;
+    const prev = JSON.parse(JSON.stringify({ ...state, log: [] }));
+    const fresh = defaultState();
+    fresh.log = [...state.log, { k: "clear_all", prev }];
+    state = fresh;
+    persist();
+    renderAll();
+    $("clearOverlay").classList.remove("open");
+    $("lastOp").textContent = "すべてクリアしました（「元に戻す」で復元できます）";
   });
 
   // 電卓
@@ -709,6 +722,13 @@ function undo() {
   if (op.k === "clear_counts") {
     state.counts = { ...defaultState().counts, ...(op.counts || {}) };
   }
+  if (op.k === "clear_all") {
+    const keepLog = state.log;
+    state = { ...defaultState(), ...op.prev };
+    state.counts = { ...defaultState().counts, ...(op.prev.counts || {}) };
+    state.invest = { ...defaultState().invest, ...(op.prev.invest || {}) };
+    state.log = keepLog;
+  }
   if (op.k === "invest") {
     state.invest.yen = Math.max(0, state.invest.yen - op.yen);
     if (state.invest.card != null) state.invest.card += op.yen;
@@ -722,6 +742,7 @@ function undo() {
 function undoLabel(op) {
   if (op.k === "count") return COUNT_LABELS[op.id];
   if (op.k === "clear_counts") return "カウントクリア";
+  if (op.k === "clear_all") return "すべてクリア（復元）";
   if (op.k === "invest") return `投資 ${op.yen.toLocaleString()}円`;
   if (op.k === "deposit") return `入金 ${op.yen.toLocaleString()}円`;
   return "操作";
@@ -794,6 +815,10 @@ function currentPrior() {
 
 /* ---------- 描画 ---------- */
 function renderAll() {
+  $("snapPanel").classList.toggle(
+    "attention",
+    state.start.g === 0 && state.start.big === 0 && state.start.reg === 0 && state.nowG === 0
+  );
   syncFields();
   renderCounts();
   renderInvest();
