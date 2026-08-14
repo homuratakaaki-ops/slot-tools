@@ -177,7 +177,13 @@ a{color:var(--accent);text-decoration:none}
   padding:8px 9px;
 }
 .event.memo{border-left-color:var(--accent)}
-.event.stamp{border-left-color:var(--warn)}
+.event.zenchou{
+  border-left-color:var(--warn);
+  background:#241f13;
+  box-shadow:0 0 0 1px rgba(232,188,91,.22) inset;
+}
+.event.zenchou .event-body{font-weight:900;color:#f3d27a}
+.event.stamp{border-left-color:var(--line)}
 .event-time{color:var(--muted);font-size:11px;font-weight:800}
 .event-body{margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
 .event-type{font-weight:900}
@@ -427,10 +433,55 @@ a{color:var(--accent);text-decoration:none}
     if(Number.isNaN(d.getTime())||!Number(log.t))return '--:--';
     return d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
   }
+  function sf6GameText(log){
+    const real=log.realG===null||log.realG===undefined?'-':String(log.realG);
+    const lcd=log.lcdG===null||log.lcdG===undefined?'-':String(log.lcdG);
+    return `実${real} / 液晶${lcd}`;
+  }
+  function eventTimeText(session,log){
+    const renderer=EVENT_RENDERERS[session.machineId];
+    const base=fmtTimeFromLog(log);
+    return renderer&&renderer.gameText?`${base} / ${renderer.gameText(log)}`:base;
+  }
   function machineName(session){
     if(session.machineId==='l-sf6')return 'L-SF6';
     return session.machineId;
   }
+  const SF6_DEFAULT_RETURN_COLOR='デフォ復帰';
+  const SF6_GCOLOR_ICONS={青:'🔵',赤:'🔴',緑:'🟢',黄:'🟡'};
+  function sf6ColorText(color){
+    const value=String(color??'');
+    if(value===SF6_DEFAULT_RETURN_COLOR)return SF6_DEFAULT_RETURN_COLOR;
+    return SF6_GCOLOR_ICONS[value]?`${SF6_GCOLOR_ICONS[value]} ${value}`:value;
+  }
+  function sf6ZenchouText(dir){
+    if(dir==='in')return '前兆突入';
+    if(dir==='stage')return '前兆ステージ移行';
+    return '前兆';
+  }
+  function sf6FbText(log){
+    const parts=[`FB ${log.win?'勝利':'敗北'}`];
+    if(log.opponent)parts.push(`vs${log.opponent}`);
+    if(log.bonus)parts.push(String(log.bonus));
+    if(log.rank)parts.push(String(log.rank));
+    if(log.kiteiG!==null&&log.kiteiG!==undefined)parts.push(`規定${log.kiteiG}G`);
+    return parts.join('／');
+  }
+  function renderSf6Event(log){
+    if(log.type==='gcolor')return `液晶色 ${sf6ColorText(log.color)}`;
+    if(log.type==='dcin')return 'ドライブチャンス突入';
+    if(log.type==='gain'){
+      const text=`＋${log.addG??'-'}G獲得（${log.kind??'-'}）`;
+      return log.voice?`${text}／ボイス: ${log.voice}`:text;
+    }
+    if(log.type==='zenchou')return sf6ZenchouText(log.dir);
+    if(log.type==='fbhit')return 'FB当選';
+    if(log.type==='fb')return sf6FbText(log);
+    return null;
+  }
+  const EVENT_RENDERERS={
+    'l-sf6':{render:renderSf6Event,gameText:sf6GameText}
+  };
   function profitClass(value){
     if(value===null)return 'na';
     if(value>0)return 'plus';
@@ -569,17 +620,21 @@ a{color:var(--accent);text-decoration:none}
       return;
     }
     [...visible].sort((a,b)=>(Number(a.t)||0)-(Number(b.t)||0)||(Number(a.id)||0)-(Number(b.id)||0)).forEach(log=>{
+      const renderer=EVENT_RENDERERS[session.machineId];
+      const machineText=renderer&&renderer.render?renderer.render(log,session):null;
       const event=document.createElement('article');
-      event.className=`event ${log.type==='memo'?'memo':log.type==='stamp'?'stamp':''}`.trim();
+      event.className=`event ${log.type==='memo'?'memo':log.type==='zenchou'?'zenchou':log.type==='stamp'?'stamp':''}`.trim();
       const time=document.createElement('div');
       time.className='event-time';
-      time.textContent=fmtTimeFromLog(log);
+      time.textContent=eventTimeText(session,log);
       const body=document.createElement('div');
       body.className='event-body';
       if(log.type==='memo'){
         body.textContent=String(log.text??'');
       }else if(log.type==='stamp'){
         body.textContent=[log.semanticId,log.stampId].filter(Boolean).join(' / ')||'stamp';
+      }else if(machineText){
+        body.textContent=machineText;
       }else{
         const type=document.createElement('span');
         type.className='event-type';
