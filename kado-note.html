@@ -171,6 +171,7 @@ a{color:var(--accent);text-decoration:none}
 .switch[aria-pressed="true"]{border-color:#31513e;background:var(--accent-soft);color:var(--accent)}
 .timeline{display:flex;flex-direction:column;gap:7px}
 .event{
+  position:relative;
   border-left:3px solid var(--line);
   background:var(--surface);
   border-radius:0 8px 8px 0;
@@ -188,10 +189,38 @@ a{color:var(--accent);text-decoration:none}
   background:#2b171b;
   box-shadow:0 0 0 1px rgba(255,107,118,.25) inset;
 }
-.event.fbend{border-left-color:var(--danger)}
-.event.fb-zone{border-left-color:#7a343d}
+.event.fbhit,.event.fbend{
+  border-left-width:5px;
+  border-radius:0 6px 6px 0;
+}
+.event.fbend{
+  border-left-color:var(--danger);
+  background:#24191c;
+  box-shadow:0 0 0 1px rgba(255,107,118,.18) inset;
+}
+.event.fb-zone{
+  border-left-color:#7a343d;
+  margin-left:14px;
+}
 .event.dcset{border-left-color:#557463}
 .event.stamp{border-left-color:var(--line)}
+.event.has-bonus{padding-left:34px}
+.bonus-badge{
+  position:absolute;
+  left:8px;
+  top:50%;
+  transform:translateY(-50%);
+  width:20px;
+  height:20px;
+  border-radius:999px;
+  display:grid;
+  place-items:center;
+  background:#ffb1b8;
+  color:#2b0e13;
+  font-size:12px;
+  font-weight:900;
+  line-height:1;
+}
 .event-time{color:var(--muted);font-size:11px;font-weight:800}
 .event-time .game{font-variant-numeric:tabular-nums}
 .event-time .game.lcd-blue{color:#6ab7ff}
@@ -539,7 +568,8 @@ a{color:var(--accent);text-decoration:none}
   }
   function sf6DcSetText(dcin,gain){
     const gainText=`＋${gain.addG??'-'}G獲得（${gain.kind??'-'}）`;
-    return `ドライブチャンス突入 → ${gain.voice?`${gainText}／ボイス: ${gain.voice}`:gainText}`;
+    const exitGame=sf6GameText(gain);
+    return `ドライブチャンス突入 → ${gain.voice?`${gainText}／ボイス: ${gain.voice}`:gainText}／抜け ${exitGame}`;
   }
   const EVENT_RENDERERS={
     'l-sf6':{render:renderSf6Event,gameText:sf6GameText}
@@ -722,7 +752,23 @@ a{color:var(--accent);text-decoration:none}
       const renderer=EVENT_RENDERERS[session.machineId];
       const machineText=item.joinedLog?sf6DcSetText(log,item.joinedLog):(renderer&&renderer.render?renderer.render(log,session):null);
       const event=document.createElement('article');
-      event.className=`event ${log.type==='memo'?'memo':item.kind==='dcset'?'dcset':log.type==='zenchou'?'zenchou':item.fbStart?'fbhit':item.fbEnd?'fbend':item.fbZone?'fb-zone':log.type==='stamp'?'stamp':''}`.trim();
+      const eventClasses=['event'];
+      if(log.type==='memo')eventClasses.push('memo');
+      else if(item.kind==='dcset')eventClasses.push('dcset');
+      else if(log.type==='zenchou')eventClasses.push('zenchou');
+      else if(item.fbStart)eventClasses.push('fbhit');
+      else if(item.fbEnd)eventClasses.push('fbend');
+      else if(item.fbZone)eventClasses.push('fb-zone');
+      else if(log.type==='stamp')eventClasses.push('stamp');
+      if(item.fbEnd&&log.bonus)eventClasses.push('has-bonus');
+      event.className=eventClasses.join(' ');
+      if(item.fbEnd&&log.bonus){
+        const badge=document.createElement('span');
+        badge.className='bonus-badge';
+        badge.textContent='ボ';
+        badge.setAttribute('aria-label','ボーナスあり');
+        event.append(badge);
+      }
       const time=document.createElement('div');
       time.className='event-time';
       appendEventTime(time,session,item);
