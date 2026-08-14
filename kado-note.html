@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>振り返りノート | slot-tools</title>
+<meta name="description" content="slot-toolsのschemaVer 2セッションJSONを取り込み、一覧の収支帳と詳細タイムラインで振り返る共通ビューアです。">
+<link rel="canonical" href="https://slot-tools.jp/kado-note.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="スロット稼働ツール">
+<meta property="og:title" content="振り返りノート">
+<meta property="og:description" content="セッションJSONを一覧と詳細タイムラインで読む共通ビューア。">
+<meta property="og:url" content="https://slot-tools.jp/kado-note.html">
+<style>
+:root{
+  --bg:#101412;
+  --surface:#171d1b;
+  --surface2:#202826;
+  --ink:#edf3ef;
+  --muted:#9aa7a0;
+  --line:#2f3a36;
+  --accent:#76d99f;
+  --accent-soft:#1e3327;
+  --danger:#ff6b76;
+  --warn:#e8bc5b;
+  --plus:#89e38e;
+  --minus:#ff8d7e;
+  --focus:#9af2b8;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%;background:var(--bg)}
+body{
+  margin:0;
+  min-height:100dvh;
+  background:var(--bg);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif;
+  font-size:14px;
+  line-height:1.5;
+}
+button,input{font:inherit}
+button{touch-action:manipulation;user-select:none;-webkit-user-select:none}
+button:focus-visible,input:focus-visible{outline:2px solid var(--focus);outline-offset:2px}
+a{color:var(--accent);text-decoration:none}
+.shell{
+  width:100%;
+  max-width:720px;
+  min-height:100dvh;
+  margin:0 auto;
+  padding:calc(10px + env(safe-area-inset-top)) 10px calc(16px + env(safe-area-inset-bottom));
+}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px}
+.brand{min-width:0}
+.brand h1{margin:0;font-size:18px;line-height:1.2}
+.brand p{margin:3px 0 0;color:var(--muted);font-size:12px}
+.home-link{flex:none;color:var(--muted);font-size:12px}
+.toolbar{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.file-label,.btn{
+  min-height:44px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--surface2);
+  color:var(--ink);
+  padding:10px 12px;
+  font-weight:800;
+  cursor:pointer;
+}
+.file-label{border-color:#31513e;background:var(--accent-soft);color:var(--accent)}
+.file-label input{position:absolute;inline-size:1px;block-size:1px;opacity:0;pointer-events:none}
+.btn.danger{border-color:#6a3038;background:#35191e;color:var(--danger)}
+.btn.ghost{background:transparent;color:var(--muted)}
+.status-line{min-height:22px;color:var(--muted);font-size:12px;margin:2px 0 10px}
+.status-line.error{color:var(--danger)}
+.summary{
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  padding:10px 0;
+  margin-bottom:10px;
+  display:flex;
+  gap:8px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.metric{
+  flex:1 0 118px;
+  min-height:58px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--surface);
+  padding:7px 9px;
+}
+.metric span{display:block;color:var(--muted);font-size:11px;font-weight:800}
+.metric b{display:block;font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.note{color:var(--muted);font-size:12px;margin:0 0 8px}
+.session-list{display:flex;flex-direction:column;gap:8px}
+.session-row{
+  width:100%;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--surface);
+  color:var(--ink);
+  padding:9px;
+  text-align:left;
+  cursor:pointer;
+}
+.session-row:active{filter:brightness(1.12)}
+.row-main{display:flex;justify-content:space-between;gap:8px;align-items:flex-start}
+.row-title{font-weight:900;min-width:0}
+.row-title small{display:block;color:var(--muted);font-weight:700;font-size:12px;margin-top:2px}
+.profit{font-weight:900;font-variant-numeric:tabular-nums;white-space:nowrap}
+.profit.plus{color:var(--plus)}
+.profit.minus{color:var(--minus)}
+.profit.na{color:var(--muted)}
+.row-cols{
+  margin-top:8px;
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  -webkit-overflow-scrolling:touch;
+}
+.cell{
+  flex:1 0 84px;
+  border-top:1px solid rgba(255,255,255,.06);
+  padding-top:5px;
+}
+.cell span{display:block;color:var(--muted);font-size:10px;font-weight:800}
+.cell b{display:block;font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.empty{
+  border:1px dashed var(--line);
+  border-radius:8px;
+  padding:18px 12px;
+  color:var(--muted);
+  text-align:center;
+}
+.detail-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.detail-title h2{margin:0;font-size:17px}
+.detail-title p{margin:4px 0 0;color:var(--muted);font-size:12px}
+.detail-meta{
+  border-top:1px solid var(--line);
+  border-bottom:1px solid var(--line);
+  padding:10px 0;
+  margin-bottom:10px;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+.meta-line{display:flex;gap:8px;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.05);padding-bottom:5px}
+.meta-line:last-child{border-bottom:0;padding-bottom:0}
+.meta-line span{color:var(--muted)}
+.meta-line b{font-weight:800;text-align:right}
+.memo-box{
+  white-space:pre-wrap;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--surface);
+  padding:9px;
+  margin-bottom:10px;
+}
+.toggle-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0}
+.toggle-row label{color:var(--muted);font-weight:800}
+.switch{
+  min-width:82px;
+  min-height:40px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  background:var(--surface2);
+  color:var(--muted);
+  font-weight:900;
+}
+.switch[aria-pressed="true"]{border-color:#31513e;background:var(--accent-soft);color:var(--accent)}
+.timeline{display:flex;flex-direction:column;gap:7px}
+.event{
+  border-left:3px solid var(--line);
+  background:var(--surface);
+  border-radius:0 8px 8px 0;
+  padding:8px 9px;
+}
+.event.memo{border-left-color:var(--accent)}
+.event.stamp{border-left-color:var(--warn)}
+.event-time{color:var(--muted);font-size:11px;font-weight:800}
+.event-body{margin-top:3px;white-space:pre-wrap;overflow-wrap:anywhere}
+.event-type{font-weight:900}
+@media (max-width:380px){
+  .shell{padding-left:8px;padding-right:8px}
+  .brand h1{font-size:17px}
+  .file-label,.btn{padding-left:10px;padding-right:10px}
+}
+</style>
+</head>
+<body>
+<main class="shell">
+  <div id="listView">
+    <header class="topbar">
+      <div class="brand">
+        <h1>振り返りノート</h1>
+        <p>エクスポートJSONを読み込んで、一覧と時系列で確認します。</p>
+      </div>
+      <a class="home-link" href="./">TOP</a>
+    </header>
+
+    <div class="toolbar">
+      <label class="file-label">JSON取り込み
+        <input id="fileInput" type="file" accept="application/json,.json" multiple>
+      </label>
+      <button id="reloadBtn" class="btn ghost" type="button">再読み込み</button>
+    </div>
+    <div id="message" class="status-line" aria-live="polite"></div>
+    <section class="summary" aria-label="表示中セッションの合計">
+      <div class="metric"><span>対象</span><b id="totalCount">0件</b></div>
+      <div class="metric"><span>投資合計</span><b id="totalInvest">-</b></div>
+      <div class="metric"><span>回収金額</span><b id="totalRecovery">-</b></div>
+      <div class="metric"><span>収支合計</span><b id="totalProfit">-</b></div>
+    </section>
+    <p id="excludedNote" class="note"></p>
+    <section id="sessionList" class="session-list" aria-label="セッション一覧"></section>
+  </div>
+
+  <div id="detailView" hidden>
+    <div class="detail-head">
+      <button id="backBtn" class="btn ghost" type="button">一覧へ</button>
+      <button id="deleteDetailBtn" class="btn danger" type="button">削除</button>
+    </div>
+    <header class="detail-title">
+      <h2 id="detailMachine">-</h2>
+      <p id="detailDate">-</p>
+    </header>
+    <section id="detailMeta" class="detail-meta" aria-label="セッション情報"></section>
+    <section id="detailMemo" class="memo-box" hidden></section>
+    <div class="toggle-row">
+      <label for="stampToggle">実戦中スタンプ</label>
+      <button id="stampToggle" class="switch" type="button" aria-pressed="true">表示</button>
+    </div>
+    <section id="timeline" class="timeline" aria-label="タイムライン"></section>
+  </div>
+</main>
+
+<script>
+(function(){
+  'use strict';
+  const STORAGE_KEY='kadonote_sessions_v1';
+  const STAMP_TOGGLE_KEY='kadonote_stamp_visible_v1';
+  const SCHEMA='slot-session';
+  const SCHEMA_VER=2;
+  const $=id=>document.getElementById(id);
+  let sessions=[];
+  let selectedId=null;
+  let stampVisible=true;
+
+  function uuidV4(){
+    if(globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function')return globalThis.crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g,c=>{
+      const r=Math.random()*16|0;
+      const v=c==='x'?r:(r&0x3|0x8);
+      return v.toString(16);
+    });
+  }
+  function clone(value){
+    return JSON.parse(JSON.stringify(value));
+  }
+  function safeObject(value){
+    return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+  }
+  function textOrNull(value){
+    const text=String(value??'').trim();
+    return text?text:null;
+  }
+  function numberOrNull(value){
+    if(value===null||value===undefined||value==='')return null;
+    const n=Number(value);
+    return Number.isFinite(n)?n:null;
+  }
+  function toKebab(value){
+    return String(value||'unknown-machine')
+      .trim()
+      .replace(/([a-z0-9])([A-Z])/g,'$1-$2')
+      .replace(/[_\s]+/g,'-')
+      .replace(/[^A-Za-z0-9-]+/g,'-')
+      .replace(/-+/g,'-')
+      .replace(/^-|-$/g,'')
+      .toLowerCase()||'unknown-machine';
+  }
+  function isoWithOffset(date=new Date()){
+    const d=date instanceof Date?date:new Date(date);
+    const pad=n=>String(n).padStart(2,'0');
+    const offset=-d.getTimezoneOffset();
+    const sign=offset>=0?'+':'-';
+    const abs=Math.abs(offset);
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}${sign}${pad(Math.trunc(abs/60))}:${pad(abs%60)}`;
+  }
+  function isoFromLogT(value){
+    const n=Number(value);
+    return Number.isFinite(n)&&n>0?isoWithOffset(new Date(n)):isoWithOffset();
+  }
+  function logsFromRaw(raw){
+    if(Array.isArray(raw?.payload?.logs))return raw.payload.logs;
+    if(Array.isArray(raw?.logs))return raw.logs;
+    return [];
+  }
+  function isLegacySession(raw){
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))return false;
+    if(raw.schema)return false;
+    return Array.isArray(raw.logs)||Object.prototype.hasOwnProperty.call(raw,'currentState')||Object.prototype.hasOwnProperty.call(raw,'sessionMoney')||Object.prototype.hasOwnProperty.call(raw,'machine');
+  }
+  function normalizeLogs(logs){
+    return Array.isArray(logs)?logs.filter(log=>log&&typeof log==='object'&&!Array.isArray(log)).map(log=>clone(log)):[];
+  }
+  function normalizeSchemaV2(raw){
+    const src=safeObject(raw);
+    const payload=safeObject(src.payload);
+    return {
+      schema:SCHEMA,
+      schemaVer:SCHEMA_VER,
+      sessionId:textOrNull(src.sessionId)||uuidV4(),
+      machineId:toKebab(src.machineId),
+      payloadVer:textOrNull(src.payloadVer)||'unknown',
+      startedAt:textOrNull(src.startedAt)||isoFromLogT(logsFromRaw(src)[0]?.t),
+      endedAt:textOrNull(src.endedAt)||isoFromLogT(logsFromRaw(src).slice(-1)[0]?.t),
+      invest:numberOrNull(src.invest),
+      payout:numberOrNull(src.payout),
+      storeId:textOrNull(src.storeId),
+      storeName:textOrNull(src.storeName),
+      unitNo:textOrNull(src.unitNo),
+      lendRate:numberOrNull(src.lendRate),
+      exchangeRate:numberOrNull(src.exchangeRate),
+      memo:String(src.memo??''),
+      estimated:src.estimated===true,
+      payload:{...clone(payload),logs:normalizeLogs(payload.logs)}
+    };
+  }
+  function normalizeLegacy(raw){
+    const src=safeObject(raw);
+    const logs=normalizeLogs(src.logs);
+    const payload=clone(src);
+    delete payload.machine;
+    delete payload.ver;
+    delete payload.sourceVer;
+    return {
+      schema:SCHEMA,
+      schemaVer:SCHEMA_VER,
+      sessionId:uuidV4(),
+      machineId:toKebab(src.machine),
+      payloadVer:textOrNull(src.ver)||textOrNull(src.sourceVer)||'legacy',
+      startedAt:isoFromLogT(logs[0]?.t),
+      endedAt:isoFromLogT(logs[logs.length-1]?.t),
+      invest:null,
+      payout:null,
+      storeId:null,
+      storeName:null,
+      unitNo:null,
+      lendRate:null,
+      exchangeRate:null,
+      memo:'',
+      estimated:true,
+      payload:{...payload,logs}
+    };
+  }
+  function normalizeSession(raw){
+    if(raw&&raw.schema===SCHEMA&&Number(raw.schemaVer)===SCHEMA_VER)return normalizeSchemaV2(raw);
+    if(raw&&raw.schema&&raw.schema!==SCHEMA)throw new Error('schema が slot-session ではありません');
+    if(isLegacySession(raw))return normalizeLegacy(raw);
+    throw new Error('slot-session JSONとして判定できません');
+  }
+  function load(){
+    try{
+      const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'[]');
+      sessions=Array.isArray(saved)?saved.map(normalizeSession):[];
+    }catch(e){
+      sessions=[];
+      setMessage('保存データの読み込みに失敗しました',true);
+    }
+    stampVisible=localStorage.getItem(STAMP_TOGGLE_KEY)!=='false';
+  }
+  function save(){
+    localStorage.setItem(STORAGE_KEY,JSON.stringify(sessions));
+  }
+  function saveStampToggle(){
+    localStorage.setItem(STAMP_TOGGLE_KEY,stampVisible?'true':'false');
+  }
+  function setMessage(text,isError=false){
+    const box=$('message');
+    box.textContent=text||'';
+    box.classList.toggle('error',!!isError);
+  }
+  function yen(value){
+    if(value===null||value===undefined)return '-';
+    return `${Number(value).toLocaleString()}円`;
+  }
+  function signedYen(value){
+    if(value===null||value===undefined)return '-';
+    const n=Number(value);
+    return `${n>0?'+':''}${n.toLocaleString()}円`;
+  }
+  function medals(value){
+    if(value===null||value===undefined)return '-';
+    return `${Number(value).toLocaleString()}枚`;
+  }
+  function recoveryYen(session){
+    if(session.payout===null||session.payout===undefined||session.exchangeRate===null||session.exchangeRate===undefined)return null;
+    const payout=Number(session.payout);
+    const rate=Number(session.exchangeRate);
+    if(!Number.isFinite(payout)||!Number.isFinite(rate)||rate<=0)return null;
+    return Math.round(payout/rate*1000);
+  }
+  function profitYen(session){
+    const recovered=recoveryYen(session);
+    if(recovered===null||session.invest===null||session.invest===undefined)return null;
+    const invest=Number(session.invest);
+    return Number.isFinite(invest)?recovered-invest:null;
+  }
+  function dateValue(session){
+    const time=Date.parse(session.startedAt);
+    return Number.isFinite(time)?time:0;
+  }
+  function fmtDate(iso){
+    const d=new Date(iso);
+    if(Number.isNaN(d.getTime()))return '-';
+    return d.toLocaleDateString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit'});
+  }
+  function fmtDateTime(iso){
+    const d=new Date(iso);
+    if(Number.isNaN(d.getTime()))return '-';
+    return d.toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+  }
+  function fmtTimeFromLog(log){
+    const d=new Date(Number(log.t)||0);
+    if(Number.isNaN(d.getTime())||!Number(log.t))return '--:--';
+    return d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  }
+  function machineName(session){
+    if(session.machineId==='l-sf6')return 'L-SF6';
+    return session.machineId;
+  }
+  function profitClass(value){
+    if(value===null)return 'na';
+    if(value>0)return 'plus';
+    if(value<0)return 'minus';
+    return '';
+  }
+  function sortedSessions(){
+    return [...sessions].sort((a,b)=>dateValue(b)-dateValue(a)||String(b.sessionId).localeCompare(String(a.sessionId)));
+  }
+  function renderSummary(ordered){
+    let invest=0;
+    let recovery=0;
+    let profit=0;
+    let included=0;
+    let excluded=0;
+    ordered.forEach(session=>{
+      const r=recoveryYen(session);
+      const p=profitYen(session);
+      if(r===null||p===null){excluded++;return;}
+      invest+=Number(session.invest)||0;
+      recovery+=r;
+      profit+=p;
+      included++;
+    });
+    $('totalCount').textContent=`${ordered.length}件`;
+    $('totalInvest').textContent=included?yen(invest):'-';
+    $('totalRecovery').textContent=included?yen(recovery):'-';
+    $('totalProfit').textContent=included?signedYen(profit):'-';
+    $('totalProfit').className=profitClass(included?profit:null);
+    $('excludedNote').textContent=excluded?`収支算出不能の${excluded}件は合計から除外しています。`:'';
+  }
+  function rowCell(label,value){
+    const cell=document.createElement('div');
+    cell.className='cell';
+    const s=document.createElement('span');
+    s.textContent=label;
+    const b=document.createElement('b');
+    b.textContent=value;
+    cell.append(s,b);
+    return cell;
+  }
+  function renderList(){
+    $('listView').hidden=false;
+    $('detailView').hidden=true;
+    const list=$('sessionList');
+    list.textContent='';
+    const ordered=sortedSessions();
+    renderSummary(ordered);
+    if(!ordered.length){
+      const empty=document.createElement('div');
+      empty.className='empty';
+      empty.textContent='JSONを取り込むと、ここにセッション一覧が表示されます。';
+      list.append(empty);
+      return;
+    }
+    ordered.forEach(session=>{
+      const profit=profitYen(session);
+      const btn=document.createElement('button');
+      btn.type='button';
+      btn.className='session-row';
+      btn.addEventListener('click',()=>openDetail(session.sessionId));
+      const main=document.createElement('div');
+      main.className='row-main';
+      const title=document.createElement('div');
+      title.className='row-title';
+      title.textContent=`${fmtDate(session.startedAt)}${session.estimated?' ※':''} / ${machineName(session)}`;
+      const sub=document.createElement('small');
+      sub.textContent=session.storeName||'店舗未入力';
+      title.append(sub);
+      const p=document.createElement('div');
+      p.className=`profit ${profitClass(profit)}`.trim();
+      p.textContent=signedYen(profit);
+      main.append(title,p);
+      const cols=document.createElement('div');
+      cols.className='row-cols';
+      cols.append(
+        rowCell('日付',`${fmtDate(session.startedAt)}${session.estimated?' ※':''}`),
+        rowCell('機種',machineName(session)),
+        rowCell('店舗',session.storeName||'-'),
+        rowCell('投資',yen(session.invest)),
+        rowCell('回収',medals(session.payout)),
+        rowCell('収支',signedYen(profit))
+      );
+      btn.append(main,cols);
+      list.append(btn);
+    });
+  }
+  function metaLine(label,value){
+    const row=document.createElement('div');
+    row.className='meta-line';
+    const s=document.createElement('span');
+    s.textContent=label;
+    const b=document.createElement('b');
+    b.textContent=value;
+    row.append(s,b);
+    return row;
+  }
+  function openDetail(sessionId){
+    selectedId=sessionId;
+    renderDetail();
+  }
+  function renderDetail(){
+    const session=sessions.find(item=>item.sessionId===selectedId);
+    if(!session){selectedId=null;renderList();return;}
+    $('listView').hidden=true;
+    $('detailView').hidden=false;
+    $('detailMachine').textContent=machineName(session);
+    $('detailDate').textContent=`${fmtDateTime(session.startedAt)}${session.estimated?' ※推定':''} 〜 ${fmtDateTime(session.endedAt)}${session.estimated?' ※推定':''}`;
+    const profit=profitYen(session);
+    const meta=$('detailMeta');
+    meta.textContent='';
+    meta.append(
+      metaLine('店舗・台番号',[session.storeName,session.unitNo].filter(Boolean).join(' / ')||'-'),
+      metaLine('投資',yen(session.invest)),
+      metaLine('回収',medals(session.payout)),
+      metaLine('収支',signedYen(profit)),
+      metaLine('貸出/交換',[session.lendRate?`${session.lendRate}枚貸し`:null,session.exchangeRate?`${session.exchangeRate}枚交換`:null].filter(Boolean).join(' / ')||'-')
+    );
+    const memo=$('detailMemo');
+    memo.hidden=!session.memo;
+    memo.textContent=session.memo||'';
+    $('stampToggle').setAttribute('aria-pressed',stampVisible?'true':'false');
+    $('stampToggle').textContent=stampVisible?'表示':'非表示';
+    renderTimeline(session);
+  }
+  function renderTimeline(session){
+    const box=$('timeline');
+    box.textContent='';
+    const logs=Array.isArray(session.payload?.logs)?session.payload.logs:[];
+    const visible=stampVisible?logs:logs.filter(log=>log.type!=='stamp');
+    if(!visible.length){
+      const empty=document.createElement('div');
+      empty.className='empty';
+      empty.textContent='イベントなし';
+      box.append(empty);
+      return;
+    }
+    [...visible].sort((a,b)=>(Number(a.t)||0)-(Number(b.t)||0)||(Number(a.id)||0)-(Number(b.id)||0)).forEach(log=>{
+      const event=document.createElement('article');
+      event.className=`event ${log.type==='memo'?'memo':log.type==='stamp'?'stamp':''}`.trim();
+      const time=document.createElement('div');
+      time.className='event-time';
+      time.textContent=fmtTimeFromLog(log);
+      const body=document.createElement('div');
+      body.className='event-body';
+      if(log.type==='memo'){
+        body.textContent=String(log.text??'');
+      }else if(log.type==='stamp'){
+        body.textContent=[log.semanticId,log.stampId].filter(Boolean).join(' / ')||'stamp';
+      }else{
+        const type=document.createElement('span');
+        type.className='event-type';
+        type.textContent=String(log.type||'unknown');
+        body.append(type);
+      }
+      event.append(time,body);
+      box.append(event);
+    });
+  }
+  async function importFiles(files){
+    const list=Array.from(files||[]);
+    if(!list.length)return;
+    let imported=0;
+    let skipped=0;
+    const errors=[];
+    for(const file of list){
+      try{
+        const raw=JSON.parse(await file.text());
+        if(raw&&raw.schema&&raw.schema!==SCHEMA)throw new Error('schema が slot-session ではありません');
+        const session=normalizeSession(raw);
+        const index=sessions.findIndex(item=>item.sessionId===session.sessionId);
+        if(index>=0){
+          const ok=confirm(`同じsessionIdのデータがあります。\n${session.sessionId}\n上書きしますか？`);
+          if(!ok){skipped++;continue;}
+          sessions[index]=session;
+        }else{
+          sessions.push(session);
+        }
+        imported++;
+      }catch(e){
+        errors.push(`${file.name}: ${e.message}`);
+      }
+    }
+    save();
+    renderList();
+    if(errors.length)setMessage(`${imported}件取り込み、${skipped}件スキップ。エラー: ${errors.join(' / ')}`,true);
+    else setMessage(`${imported}件取り込み、${skipped}件スキップしました。`);
+    $('fileInput').value='';
+  }
+  function deleteSelected(){
+    const session=sessions.find(item=>item.sessionId===selectedId);
+    if(!session)return;
+    const ok=confirm('このセッションを振り返りノートの保管データから削除します。\n元のエクスポートJSONファイルには影響しません。\n削除しますか？');
+    if(!ok)return;
+    sessions=sessions.filter(item=>item.sessionId!==session.sessionId);
+    save();
+    selectedId=null;
+    setMessage('セッションを削除しました。');
+    renderList();
+  }
+  function bind(){
+    $('fileInput').addEventListener('change',event=>importFiles(event.target.files));
+    $('reloadBtn').addEventListener('click',()=>{load();renderList();setMessage('再読み込みしました。');});
+    $('backBtn').addEventListener('click',()=>{selectedId=null;renderList();});
+    $('deleteDetailBtn').addEventListener('click',deleteSelected);
+    $('stampToggle').addEventListener('click',()=>{
+      stampVisible=!stampVisible;
+      saveStampToggle();
+      renderDetail();
+    });
+  }
+  load();
+  bind();
+  renderList();
+  window.KadoNoteApp={normalizeSession,recoveryYen,profitYen,STORAGE_KEY,STAMP_TOGGLE_KEY};
+})();
+</script>
+</body>
+</html>
