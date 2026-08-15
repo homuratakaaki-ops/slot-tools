@@ -121,7 +121,7 @@
   <section class="sec">
     <div class="sec-h">通常回転数</div>
     <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
-    <div class="hint">ダイトモの通常回転数を入力（AT中は含めない）</div>
+    <div class="hint">ダイトモの『通常プレイ数』を入力（CZ込みの方ではなく、CZを含まない値）</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り</div>

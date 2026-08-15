@@ -12,20 +12,21 @@
 <meta property="og:description" content="スロット稼働ノートの設定判別関連ツール一覧です。マイジャグラーVのベイズ推定、Lとある魔術の禁書目録2、やじきた、カバネリ海門決戦、からくりサーカス2、L戦国乙女5、L SAO2、L炎炎ノ消防隊2、Lタクトオーパス、L真打吉宗など、目的別に選べます。">
 <meta property="og:url" content="https://slot-tools.jp/checkers.html">
 <style>
+html,body{width:100%;max-width:100%;overflow-x:hidden;}
 body{background:#0d0d0f;color:#e8e4d9;font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;margin:0;padding:0;}
+*,*::before,*::after{box-sizing:border-box;}
 header{background:linear-gradient(135deg,#1a1008,#0d0d0f);border-bottom:1px solid #c9a84c;padding:18px 20px;text-align:center;}
 .top-link{display:inline-flex;align-items:center;justify-content:center;color:#c9a84c;font-size:12px;font-weight:700;text-decoration:none;margin-bottom:10px;padding:6px 10px;border:1px solid rgba(201,168,76,.35);border-radius:8px;}
 header h1{color:#e8c96a;font-size:21px;margin:0;}
 header p{color:#9a98a3;font-size:13px;line-height:1.7;margin:8px auto 0;max-width:520px;}
-.container{max-width:560px;margin:0 auto;padding:20px 16px;}
+.container{width:100%;max-width:560px;margin:0 auto;padding:20px 16px;}
 .lead{color:#9a98a3;font-size:14px;line-height:1.8;margin-bottom:16px;}
-.checker-list{display:grid;gap:12px;}
-.checker-card{background:#1a1a1f;border:1px solid #2e2e38;border-radius:8px;padding:16px;text-decoration:none;color:inherit;display:block;}
-.checker-card:hover{border-color:#c9a84c;}
-.checker-card h2{color:#e8c96a;font-size:16px;line-height:1.5;margin:0 0 8px;}
-.checker-card p{color:#9a98a3;font-size:13px;line-height:1.7;margin:0;}
-.link-row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;}
-.link-row a{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 11px;border-radius:8px;border:1px solid rgba(201,168,76,.35);color:#c9a84c;font-size:13px;font-weight:700;text-decoration:none;}
+.checker-list{display:grid;gap:8px;}
+.checker-row{position:relative;background:#1a1a1f;border:1px solid #2e2e38;border-radius:8px;overflow:hidden;}
+.checker-row:hover{border-color:#c9a84c;}
+.checker-main{display:flex;align-items:center;min-height:48px;padding:11px 104px 11px 14px;color:#e8c96a;font-size:15px;font-weight:700;line-height:1.45;text-decoration:none;word-break:normal;overflow-wrap:anywhere;}
+.checker-guide{position:absolute;right:0;top:0;bottom:0;display:flex;align-items:center;justify-content:center;width:86px;padding:10px 12px;border-left:1px solid rgba(201,168,76,.24);color:#c9a84c;font-size:13px;font-weight:700;text-decoration:none;background:rgba(201,168,76,.06);white-space:nowrap;}
+.checker-main:focus-visible,.checker-guide:focus-visible{outline:2px solid #e8c96a;outline-offset:-2px;}
 .note{color:#777385;font-size:12px;line-height:1.7;margin-top:18px;}
 footer{text-align:center;padding:36px 16px;color:#4a4a5a;font-size:12px;}
 footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px;}
@@ -44,86 +45,15 @@ footer a{color:#7a7a8a;text-decoration:none;}
 <main class="container">
   <p class="lead">使うツールを選んでください。入力内容は端末の localStorage に保存され、機種ごとに保存キーを分けています。</p>
   <div class="checker-list">
-    <section class="checker-card">
-      <h2>設定判別ツール（ジャグラー）</h2>
-      <p>マイジャグラーVの事後計算と、ホールで使う実戦記録・リアルタイム推測に対応しています。</p>
-      <div class="link-row">
-        <a href="juggler-record.html?machine=my_juggler_v">実戦記録を開く</a>
-        <a href="settei-estimator.html?machine=my_juggler_v">事後計算を開く</a>
-      </div>
-    </section>
-    <section class="checker-card">
-      <h2>Lとある魔術の禁書目録2</h2>
-      <p>規定ゲーム数、通常CZ、AT中CZ、終了時アイコン、AT終了画面、藤丸コイン、ED示唆を記録できます。</p>
-      <div class="link-row">
-        <a href="toaru2-checker.html">カウンターを開く</a>
-        <a href="toaru2-guide.html">使い方</a>
-      </div>
-    </section>
-    <section class="checker-card">
-      <h2>スマスロ やじきた道中記参る！</h2>
-      <p>まいるテーブル、関所チャレンジ、やじきた祭、あっぱれキャラ、AT終了画面、ユニバプレートを記録できます。</p>
-      <div class="link-row">
-        <a href="yajikita-checker.html">カウンターを開く</a>
-        <a href="yajikita-guide.html">使い方</a>
-      </div>
-    </section>
-    <section class="checker-card">
-      <h2>スマスロ カバネリ海門決戦</h2>
-      <p>周期当選、ボーナス初当り、ST当選、アイテムくじ、ボイス、終了画面、トロフィーを記録できます。</p>
-      <div class="link-row">
-        <a href="kabaneri2-checker.html">カウンターを開く</a>
-        <a href="kabaneri2-guide.html">使い方</a>
-      </div>
-    </section>
-    <section class="checker-card">
-      <h2>Lからくりサーカス2</h2>
-      <p>CZ・AT初当り、運命盤、CZ終了画面、AT終了画面、タッチボイス、EDランプ、枚数示唆を記録できます。</p>
-      <div class="link-row">
-        <a href="karakuri2-checker.html">カウンターを開く</a>
-        <a href="karakuri2-guide.html">使い方</a>
-      </div>
-    </section>
-    <section class="checker-card">
-      <h2>L戦国乙女5</h2>
-      <p>繚乱の刻、AT当選、直撃、乙女ストラップ、終了画面、スタンプ、EDボイスを記録できます。</p>
-      <div class="link-row">
-        <a href="otome5-checker.html">カウンターを開く</a>
-        <a href="otome5-guide.html">使い方</a>
-      </div>
-    </section>
-    <section class="checker-card">
-      <h2>Lソードアート・オンラインII（SAO2）</h2>
-      <p>CZ・AT、設定5優遇項目、AT終了画面、コパンダトロフィー、EDミニキャラ、GGOモード示唆を記録できます。</p>
-      <div class="link-row">
-        <a href="sao2-checker.html">カウンターを開く</a>
-        <a href="sao2-guide.html">使い方</a>
-      </div>
-    </section>
-    <section class="checker-card">
-      <h2>L炎炎ノ消防隊2</h2>
-      <p>初当り、伝導者の罠、十字目変換、終了画面、キャラ紹介シナリオ、まもるくん、ED示唆を記録できます。</p>
-      <div class="link-row">
-        <a href="enen2-checker.html">カウンターを開く</a>
-        <a href="enen2-guide.html">使い方</a>
-      </div>
-    </section>
-    <section class="checker-card">
-      <h2>Lタクトオーパス デスティニー</h2>
-      <p>AT、CZムジカートチャンス、報酬チャンス、オルフェ出現、終了画面、ED画面、凪のセリフを記録できます。</p>
-      <div class="link-row">
-        <a href="taktop-checker.html">カウンターを開く</a>
-        <a href="taktop-guide.html">使い方</a>
-      </div>
-    </section>
-    <section class="checker-card">
-      <h2>L真打吉宗</h2>
-      <p>通常回転数、周期当選、規定pt帯、CZ対戦相手、抜刀チャンス、AT終了画面、真BBボイスを記録できます。</p>
-      <div class="link-row">
-        <a href="yoshimune-checker.html">カウンターを開く</a>
-        <a href="yoshimune-guide.html">使い方</a>
-      </div>
-    </section>
+    <div class="checker-row"><a class="checker-main" href="yoshimune-checker.html">L真打吉宗</a><a class="checker-guide" href="yoshimune-guide.html">使い方</a></div>
+    <div class="checker-row"><a class="checker-main" href="taktop-checker.html">Lタクトオーパス デスティニー</a><a class="checker-guide" href="taktop-guide.html">使い方</a></div>
+    <div class="checker-row"><a class="checker-main" href="enen2-checker.html">L炎炎ノ消防隊2</a><a class="checker-guide" href="enen2-guide.html">使い方</a></div>
+    <div class="checker-row"><a class="checker-main" href="sao2-checker.html">Lソードアート・オンラインII（SAO2）</a><a class="checker-guide" href="sao2-guide.html">使い方</a></div>
+    <div class="checker-row"><a class="checker-main" href="otome5-checker.html">L戦国乙女5</a><a class="checker-guide" href="otome5-guide.html">使い方</a></div>
+    <div class="checker-row"><a class="checker-main" href="karakuri2-checker.html">Lからくりサーカス2</a><a class="checker-guide" href="karakuri2-guide.html">使い方</a></div>
+    <div class="checker-row"><a class="checker-main" href="kabaneri2-checker.html">スマスロ カバネリ海門決戦</a><a class="checker-guide" href="kabaneri2-guide.html">使い方</a></div>
+    <div class="checker-row"><a class="checker-main" href="yajikita-checker.html">スマスロ やじきた道中記参る！</a><a class="checker-guide" href="yajikita-guide.html">使い方</a></div>
+    <div class="checker-row"><a class="checker-main" href="toaru2-checker.html">Lとある魔術の禁書目録2</a><a class="checker-guide" href="toaru2-guide.html">使い方</a></div>
   </div>
   <p class="note">今後、機種別の設定判別ツールやカウンターを追加する場合も、このページに一覧として追加します。</p>
 </main>
