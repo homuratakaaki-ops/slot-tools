@@ -785,7 +785,6 @@ textarea{
     render();
   }
   function undoStep(){
-    if(isBattleLocked()){toast(BATTLE_STEP_LOCK_TOAST);return;}
     const prev=stepHistory.pop();
     if(!prev){toast('戻せる通常消化がありません');return;}
     state.currentState={realG:prev.realG,lcdG:prev.lcdG};
@@ -798,6 +797,7 @@ textarea{
     const action=undoStack.pop();
     if(!action){toast('取り消す記録がありません');return;}
     redoAction=action;
+    closeSheet();
     restoreSnapshot(action.before);
     toast(`${action.label}を取り消しました`);
   }
@@ -919,8 +919,6 @@ textarea{
     $('lcdCounterBtn').classList.toggle('lcd-attention',lcdNeedsAttention());
     document.querySelectorAll('[data-adjust]').forEach(btn=>{btn.disabled=locked;btn.classList.toggle('disabled',locked);});
     document.querySelectorAll('[data-step]').forEach(btn=>{btn.disabled=locked;btn.classList.toggle('disabled',locked);});
-    $('stepUndoBtn').disabled=locked;
-    $('stepUndoBtn').classList.toggle('disabled',locked);
     if(locked&&$('adjustPanel')&&!$('adjustPanel').hidden){
       $('adjustPanel').hidden=true;
       adjustTarget=null;
