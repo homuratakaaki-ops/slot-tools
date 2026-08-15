@@ -6,7 +6,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const SCHEMA_VERSION='6';
+  const SCHEMA_VERSION='7';
   const MONEY_OPS=['init','deposit','loan','creditUpdate','mochidama','saipurei','diffSync','collectEnd'];
 
   function safeObject(value){
@@ -94,7 +94,7 @@
     const src=safeObject(data);
     const inputVer=src.ver==null?null:String(src.ver);
     const sourceVer=src.sourceVer==null?inputVer:String(src.sourceVer);
-    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!==SCHEMA_VERSION;
+    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!==SCHEMA_VERSION;
     const logs=Array.isArray(src.logs)?src.logs.map(log=>normalizeLog(log,isLegacy)):[];
     return {
       ...src,
@@ -103,6 +103,7 @@
       sourceVer,
       battleState:normalizeBattleState(src.battleState),
       currentState:normalizeCurrentState(src.currentState),
+      initialThrough:gameValue(src.initialThrough)??0,
       sessionMoney:normalizeSessionMoney(src.sessionMoney),
       logs
     };

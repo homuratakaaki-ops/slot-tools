@@ -384,7 +384,7 @@ textarea{
   const STORAGE_KEY='sf6_record_v1';
   const MACHINE='L-SF6';
   const MACHINE_ID='l-sf6';
-  const VERSION='6';
+  const VERSION='7';
   const PAYLOAD_VERSION='2.2';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
@@ -409,7 +409,7 @@ textarea{
   const BATTLE_ADJUST_LOCK_TOAST='FB中はG数調整を操作できません';
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
-  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]};
+  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',currentState:{realG:null,lcdG:null},initialThrough:0,sessionMoney:null,logs:[]};
   let selectedGainKind='';
   let selectedVoice=null;
   let gainAddDraft='';
@@ -419,6 +419,8 @@ textarea{
   let selectedCashAmount=10000;
   let selectedIcatch=null;
   let selectedContinue='none';
+  let winSheetDraft={bonusMedals:'',endScreen:''};
+  let lossSheetDraft={exitLcdG:'',exitRealG:'',exitCredit:''};
   let adjustTarget=null;
   let stepHistory=[];
   let undoStack=[];
@@ -513,7 +515,7 @@ textarea{
     };
   }
   function defaultState(){
-    return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',currentState:{realG:null,lcdG:null},sessionMoney:null,logs:[]};
+    return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',currentState:{realG:null,lcdG:null},initialThrough:0,sessionMoney:null,logs:[]};
   }
   function normalizeSessionMoney(value){
     if(!value||typeof value!=='object')return null;
@@ -547,11 +549,12 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,currentState:normalizeCurrentState(state.currentState),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs});
+    return deepClone({battleState:state.battleState,currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
     state.currentState=normalizeCurrentState(snap?.currentState);
+    state.initialThrough=nonnegativeInt(snap?.initialThrough)??0;
     state.sessionMoney=normalizeSessionMoney(snap?.sessionMoney);
     state.logs=Array.isArray(snap?.logs)?snap.logs.map(sanitizeLog).filter(Boolean):[];
     save();
@@ -670,7 +673,7 @@ textarea{
     const logs=Array.isArray(normalized?.logs)?normalized.logs.map(sanitizeLog).filter(Boolean):[];
     const sourceVer=normalized&&Object.prototype.hasOwnProperty.call(normalized,'sourceVer')?normalized.sourceVer:VERSION;
     const startedAt=String(normalized?.startedAt||'').trim()||(logs.length?isoFromLogTime(logs[0].t):isoWithOffset());
-    return {machine:MACHINE,ver:VERSION,sourceVer,sessionId:String(normalized?.sessionId||'').trim()||uuidV4(),startedAt,sessionInfo:normalizeSessionInfo(normalized?.sessionInfo),battleState:normalizeBattleState(normalized?.battleState),currentState:normalizeCurrentState(normalized?.currentState),sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
+    return {machine:MACHINE,ver:VERSION,sourceVer,sessionId:String(normalized?.sessionId||'').trim()||uuidV4(),startedAt,sessionInfo:normalizeSessionInfo(normalized?.sessionInfo),battleState:normalizeBattleState(normalized?.battleState),currentState:normalizeCurrentState(normalized?.currentState),initialThrough:nonnegativeInt(normalized?.initialThrough)??0,sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
   }
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){toast('保存に失敗しました');}
@@ -803,14 +806,15 @@ textarea{
   }
   function fbThroughCount(logs=state.logs){
     let count=0;
+    const initial=nonnegativeInt(state.initialThrough)??0;
     for(let i=logs.length-1;i>=0;i--){
       const log=logs[i];
       if(log.type!=='fb')continue;
       if(log.continue==='success')continue;
-      if(log.win)return 0;
+      if(log.win)return count;
       count++;
     }
-    return count;
+    return initial+count;
   }
   function latestFbHit(){
     for(let i=state.logs.length-1;i>=0;i--){
@@ -886,6 +890,8 @@ textarea{
     return {
       schema:'slot-session',
       schemaVer:2,
+      machine:MACHINE,
+      ver:VERSION,
       sessionId:normalized.sessionId,
       machineId:MACHINE_ID,
       payloadVer:PAYLOAD_VERSION,
@@ -900,7 +906,12 @@ textarea{
       exchangeRate:info.exchangeRate,
       memo:info.memo||'',
       payload:{
+        machine:MACHINE,
+        ver:VERSION,
+        battleState:normalizeBattleState(normalized.battleState),
         currentState:normalizeCurrentState(normalized.currentState),
+        initialThrough:nonnegativeInt(normalized.initialThrough)??0,
+        sessionMoney:money,
         logs
       }
     };
@@ -1128,12 +1139,29 @@ textarea{
     selectedIcatch=null;
     selectedContinue='none';
     opponentDraft='';
+    winSheetDraft={bonusMedals:'',endScreen:''};
+    lossSheetDraft={exitLcdG:'',exitRealG:'',exitCredit:''};
+  }
+  function syncWinSheetDraft(){
+    const bonusMedals=$('bonusMedals');
+    if(bonusMedals)winSheetDraft.bonusMedals=bonusMedals.value;
+    const endScreen=$('endScreenSelect');
+    if(endScreen)winSheetDraft.endScreen=endScreen.value;
+  }
+  function syncLossSheetDraft(){
+    const exitLcd=$('fbExitLcdG');
+    if(exitLcd)lossSheetDraft.exitLcdG=exitLcd.value;
+    const exitReal=$('fbExitRealG');
+    if(exitReal)lossSheetDraft.exitRealG=exitReal.value;
+    const exitCredit=$('fbExitCredit');
+    if(exitCredit)lossSheetDraft.exitCredit=exitCredit.value;
   }
   function recordWinFromSheet(){
+    syncWinSheetDraft();
     const snap=snapshot();
     const start=fbStartDraft();
-    const bonusMedals=positiveInt($('bonusMedals')?.value);
-    const endScreen=String($('endScreenSelect')?.value||'')||null;
+    const bonusMedals=positiveInt(winSheetDraft.bonusMedals);
+    const endScreen=String(winSheetDraft.endScreen||'')||null;
     commit('FB勝利',()=>{
       addLogDirect({type:'fb',win:true,bonus:selectedBonus,bonusMedals,endScreen,rank:start.rank,roundStart:start.roundStart,opponent:start.opponent,kiteiG:null,icatch:null,icatchNote:null,continue:null,realG:snap.realG,lcdG:snap.lcdG});
       state.battleState='battle';
@@ -1151,13 +1179,14 @@ textarea{
     closeSheet();
   }
   function recordLossFromSheet(){
+    syncLossSheetDraft();
     const snap=snapshot();
     if(selectedContinue==='success'){recordContinueSuccess();return;}
-    const exitLcdG=optionalGame($('fbExitLcdG')?.value);
+    const exitLcdG=optionalGame(lossSheetDraft.exitLcdG);
     if(exitLcdG===null){toast('抜け時液晶Gを入力してください');return;}
-    const exitRealG=optionalGame($('fbExitRealG')?.value);
+    const exitRealG=optionalGame(lossSheetDraft.exitRealG);
     if(exitRealG===null){toast('抜け時実Gを入力してください');return;}
-    const creditRaw=String($('fbExitCredit')?.value||'').trim();
+    const creditRaw=String(lossSheetDraft.exitCredit||'').trim();
     const exitCredit=creditRaw===''?null:optionalGame(creditRaw);
     if(creditRaw!==''&&exitCredit===null){toast('クレジットを数値で入力してください');return;}
     if(exitCredit!==null&&!moneyInitialized()){toast('クレジット入力には初期登録が必要です');openMoneyInitSheet();return;}
@@ -1206,7 +1235,13 @@ textarea{
     const initialDiffRaw=String($('moneyInitialDiff')?.value||'').trim();
     const initialDiff=initialDiffRaw===''?null:signedInt(initialDiffRaw);
     if(initialDiffRaw!==''&&initialDiff===null){toast('初期差枚を数値で入力してください');return;}
-    commitMoney('初期登録','init',null,m=>normalizeSessionMoney(already?{...m,startCredit,startMochidama,startSaipurei,loanRate,initialDiff}:{startCredit,startMochidama,startSaipurei,loanRate,sandBalance:startCredit||0,credit:null,investedYen:0,usedMochidama:0,usedSaipurei:0,initialDiff,diffAdjust:0,collectMedals:null}),{toast:already?'初期登録を修正しました':'初期登録を保存しました'});
+    const initialThroughRaw=String($('initialThroughInput')?.value||'').trim();
+    const initialThrough=initialThroughRaw===''?0:nonnegativeInt(initialThroughRaw);
+    if(initialThrough===null){toast('FBスルー初期値を0以上の整数で入力してください');return;}
+    commitMoney('初期登録','init',null,m=>{
+      state.initialThrough=initialThrough;
+      return normalizeSessionMoney(already?{...m,startCredit,startMochidama,startSaipurei,loanRate,initialDiff}:{startCredit,startMochidama,startSaipurei,loanRate,sandBalance:startCredit||0,credit:null,investedYen:0,usedMochidama:0,usedSaipurei:0,initialDiff,diffAdjust:0,collectMedals:null});
+    },{toast:already?'初期登録を修正しました':'初期登録を保存しました'});
     closeSheet();
   }
   function recordMoneyLoan(){
@@ -1434,12 +1469,17 @@ textarea{
       const bonusKinds=row('choice-row');
       bonusKinds.id='bonusKinds';
       BONUSES.forEach(label=>{
-        bonusKinds.append(chip(label,selectedBonus===label,()=>{selectedBonus=selectedBonus===label?null:label;openWinSheet();}));
+        bonusKinds.append(chip(label,selectedBonus===label,()=>{syncWinSheetDraft();selectedBonus=selectedBonus===label?null:label;openWinSheet();}));
       });
       body.append(el('div','muted','ボーナス種別（任意）'));
       body.append(bonusKinds);
-      body.append(field('ボーナス枚数',input('bonusMedals','number','任意')));
+      const bonusMedalsInput=input('bonusMedals','number','任意');
+      bonusMedalsInput.value=winSheetDraft.bonusMedals;
+      bonusMedalsInput.addEventListener('input',syncWinSheetDraft);
+      body.append(field('ボーナス枚数',bonusMedalsInput));
       const endScreen=selectInput('endScreenSelect',END_SCREENS,'終了画面');
+      endScreen.value=winSheetDraft.endScreen;
+      endScreen.addEventListener('change',syncWinSheetDraft);
       body.append(field('ボーナス終了画面',endScreen));
       const actions=row();
       actions.append(button('勝利を記録','win',recordWinFromSheet));
@@ -1451,23 +1491,30 @@ textarea{
       const continueKinds=row('choice-row');
       continueKinds.id='continueKinds';
       CONTINUES.forEach(item=>{
-        continueKinds.append(chip(item.label,selectedContinue===item.key,()=>{selectedContinue=item.key;openLossSheet();},item.key==='success'?'hot':''));
+        continueKinds.append(chip(item.label,selectedContinue===item.key,()=>{syncLossSheetDraft();selectedContinue=item.key;openLossSheet();},item.key==='success'?'hot':''));
       });
       body.append(el('div','muted','コンティニュー'));
       body.append(continueKinds);
       if(selectedContinue==='success'){
         body.append(el('div','muted','成功時は敗北レコードを作らず、FB中を維持します'));
       }else{
-        body.append(field('抜け時液晶G',input('fbExitLcdG','number','必須')));
-        body.append(field('抜け時実G',input('fbExitRealG','number','必須')));
+        const exitLcd=input('fbExitLcdG','number','必須');
+        exitLcd.value=lossSheetDraft.exitLcdG;
+        exitLcd.addEventListener('input',syncLossSheetDraft);
+        body.append(field('抜け時液晶G',exitLcd));
+        const exitReal=input('fbExitRealG','number','必須');
+        exitReal.value=lossSheetDraft.exitRealG;
+        exitReal.addEventListener('input',syncLossSheetDraft);
+        body.append(field('抜け時実G',exitReal));
         const credit=input('fbExitCredit','number','任意');
-        credit.value=currentMoney().credit??'';
+        credit.value=lossSheetDraft.exitCredit;
+        credit.addEventListener('input',syncLossSheetDraft);
         body.append(field('クレジット',credit));
         const choices=row('choice-row');
         choices.id='icatchKinds';
         ICATCHES.forEach(label=>{
           const cls=label==='ルーク'?'':(label==='リュウ'||label==='豪鬼'||label==='キンバリー'?'hot':'');
-          choices.append(chip(label,selectedIcatch===label,()=>{selectedIcatch=selectedIcatch===label?null:label;openLossSheet();},cls));
+          choices.append(chip(label,selectedIcatch===label,()=>{syncLossSheetDraft();selectedIcatch=selectedIcatch===label?null:label;openLossSheet();},cls));
         });
         body.append(el('div','muted','アイキャッチ（任意）'));
         body.append(choices);
@@ -1505,13 +1552,16 @@ textarea{
       const initialDiff=input('moneyInitialDiff','text','例 -800');
       initialDiff.inputMode='numeric';
       initialDiff.value=m.initialDiff??'';
-      [startCredit,startMochidama,startSaipurei,loanRate,initialDiff].forEach(node=>{node.disabled=locked;});
+      const initialThrough=input('initialThroughInput','number','0');
+      initialThrough.value=state.initialThrough??0;
+      [startCredit,startMochidama,startSaipurei,loanRate,initialDiff,initialThrough].forEach(node=>{node.disabled=locked;});
       if(locked)body.append(el('div','muted','初期設定はロック中です。修正する場合だけ編集を押してください。'));
       body.append(field('現金残高',startCredit));
       body.append(field('持ちメダル',startMochidama));
       body.append(field('再プレイ',startSaipurei));
       body.append(field('貸出レート',loanRate));
       body.append(field('初期差枚',initialDiff));
+      body.append(field('FBスルー初期値',initialThrough));
       const actions=row();
       if(locked)actions.append(button('編集','secondary',()=>openMoneyInitSheet(true)));
       else actions.append(button(moneyInitialized()?'初期登録を修正':'初期登録を保存','primary',recordMoneyInit));
