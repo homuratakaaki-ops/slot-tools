@@ -7,7 +7,7 @@
     const S=ctx.S;
     return [
       {title:'初当り',items:[detailItem('CZ当選',S.cz.cz,0),detailItem('AT当選',S.atCount,1),detailItem('AT直撃',S.choku,0)]},
-      {title:'周期当選',items:detailItems(CYCLES,S.zones),percent:true},
+      {title:'周期当選',items:CYCLES.map(c=>detailRatio(c[1],cycleWin(S,c[0]),cycleReach(S,c[0]),c[3]))},
       {title:'規定pt帯',items:detailItems(POINTS,S.pts),percent:true},
       {title:'ポイント特化ゾーン',items:[detailItem('百花繚乱チャンス 突入',S.cz.hyakka,0),detailItem('人馬一体チャンス 突入',S.cz.jinba,1)]},
       {title:'CZ対戦相手',items:detailItems(OPPONENTS,S.icons),percent:true},
@@ -90,7 +90,7 @@
   ];
   const DEF={
     games:0,
-    zones:Object.fromEntries(CYCLES.map(c=>[c[0],0])),
+    zones:Object.fromEntries(CYCLES.flatMap(c=>[[c[0]+'r',0],[c[0]+'w',0]])),
     pts:Object.fromEntries(POINTS.map(c=>[c[0],0])),
     cz:{cz:0,hyakka:0,jinba:0,battoMax:0,battoHit:0},
     atcz:{},
@@ -111,6 +111,11 @@
   function rate(g,n){return n&&g?'1/'+(g/n).toFixed(1):'-';}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'-';}
   function pctText(n,d){return d>0?`${n}回 (${(100*n/d).toFixed(0)}%)`:`${n}回 (-)`;}
+  function cycleReach(S,id){return Number(S.zones[id+'r'])||0;}
+  function cycleWin(S,id){return Number(S.zones[id+'w'])||0;}
+  function cycleRate(S,id){return ratio(cycleWin(S,id),cycleReach(S,id));}
+  function cycleTotalReach(S){return CYCLES.reduce((a,c)=>a+cycleReach(S,c[0]),0);}
+  function cycleTotalWin(S){return CYCLES.reduce((a,c)=>a+cycleWin(S,c[0]),0);}
   function shown(prefix,items){
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
     return `${prefix} ${out.length?out.join('・'):'−'}`;
@@ -134,11 +139,31 @@
   </section>`;
   }
   function pageCycle(ctx){
-    const cycleN=sum(ctx.S.zones), ptN=sum(ctx.S.pts), oppN=sum(ctx.S.icons);
+    const cycleReachN=cycleTotalReach(ctx.S), cycleWinN=cycleTotalWin(ctx.S), ptN=sum(ctx.S.pts), oppN=sum(ctx.S.icons);
     return `<section class="sec">
-    <div class="sec-h">周期当選<span class="sub">計${cycleN}回</span></div>
-    <div class="cgrid two">${CYCLES.map(c=>ctx.crow('zones.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,cycleN))).join('')}</div>
-    <div class="hint">当選周期の分布からCZモードを推測（天国=1／B・C=4天井／A=6天井）。周期到達からのAT直撃は通常C濃厚。6周期後は次回最大4周期に短縮（CZ失敗時のみ有効・AT当選時は無効）。</div>
+    <style>
+      .cycle-row .pct{min-width:92px;color:#ffc94d;font-size:12px;white-space:nowrap;text-align:right}
+      .cycle-row .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
+      .cycle-row .cycle-btn{
+        height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);
+        background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;
+        white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center
+      }
+      .cycle-row .cycle-btn.win{color:#ffc94d}
+      body.minus .cycle-row .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+    </style>
+    <div class="sec-h">周期当選<span class="sub">到達${cycleReachN}回・当選${cycleWinN}回</span></div>
+    <div class="cgrid">
+      ${CYCLES.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}">
+        <div class="lbl"><div class="nm">${c[1]}</div><div class="mn ${c[3]?'hot':''}">${c[2]}</div></div>
+        <div class="pct">${cycleRate(ctx.S,c[0])}</div>
+        <div class="cycle-actions">
+          <button type="button" class="cycle-btn win" data-bump-many="zones.${c[0]}r,zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当選</button>
+          <button type="button" class="cycle-btn" data-bump="zones.${c[0]}r" data-label="${c[1]} ハズレ" aria-label="${c[1]} ハズレ">ハズレ</button>
+        </div>
+      </div>`).join('')}
+    </div>
+    <div class="hint">当選周期の分布と、到達あたりの当選率からCZモードを推測（天国=1／B・C=4天井／A=6天井）。周期到達からのAT直撃は通常C濃厚。6周期後は次回最大4周期に短縮（CZ失敗時のみ有効・AT当選時は無効）。周期ごとに「当選」または「ハズレ」を1回タップします。</div>
   </section>
   <section class="sec">
     <div class="sec-h">規定pt帯<span class="sub">計${ptN}回</span></div>
@@ -185,7 +210,7 @@
     <div class="hint">真BB前半・宝船パート中のレア役成立時にPUSHで発生。</div></section>`;
   }
   function tplText(ctx){
-    const S=ctx.S, cycleN=sum(S.zones), ptN=sum(S.pts), oppN=sum(S.icons), visionN=sum(S.vision), voiceN=sum(S.ed), screenN=sum(S.screens), menuN=sum(S.menu);
+    const S=ctx.S, ptN=sum(S.pts), oppN=sum(S.icons), visionN=sum(S.vision), voiceN=sum(S.ed), screenN=sum(S.screens), menuN=sum(S.menu);
     let t=`設定判別メモ｜L真打吉宗\n通常 ${S.games||0}G / CZ${S.cz.cz}回 / AT${S.atCount}回\n_______\n\n■ポイント特化ゾーン\n`;
     t+=`百花繚乱チャンス▶︎ ${S.cz.hyakka}回\n人馬一体チャンス▶︎ ${S.cz.jinba}回\n\n■御白洲ビジョン\n`;
     VISIONS.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.vision[c[0]],visionN)}\n`;});
@@ -194,7 +219,7 @@
     t+='\n■規定pt帯\n';
     POINTS.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.pts[c[0]],ptN)}\n`;});
     t+='\n■周期当選\n';
-    CYCLES.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.zones[c[0]],cycleN)}\n`;});
+    CYCLES.forEach(c=>{t+=`${c[1]}▶︎ ${cycleWin(S,c[0])}/${cycleReach(S,c[0])}当選\n`;});
     t+='\n■真BBボイス\n';
     VOICES.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.ed[c[0]],voiceN)}\n`;});
     t+='\n■AT終了画面\n';
@@ -209,14 +234,14 @@
     return t;
   }
   function tplTextCompact(ctx){
-    const S=ctx.S, cycleN=sum(S.zones), ptN=sum(S.pts), oppN=sum(S.icons), visionN=sum(S.vision), voiceN=sum(S.ed), screenN=sum(S.screens), menuN=sum(S.menu);
+    const S=ctx.S, ptN=sum(S.pts), oppN=sum(S.icons), visionN=sum(S.vision), voiceN=sum(S.ed), screenN=sum(S.screens), menuN=sum(S.menu);
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
     let t=`設定判別メモ｜L真打吉宗\n通常 ${S.games||0}G / CZ${S.cz.cz}回 / AT${S.atCount}回\n_______\n`;
     t+=sec('ポイント特化ゾーン',[['百花繚乱チャンス',S.cz.hyakka],['人馬一体チャンス',S.cz.jinba]].filter(x=>x[1]>0).map(x=>`${x[0]}▶︎ ${x[1]}回`));
     t+=sec('御白洲ビジョン',visionN>0?VISIONS.filter(c=>S.vision[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.vision[c[0]],visionN)}`):[]);
     t+=sec('CZ対戦相手',oppN>0?OPPONENTS.filter(c=>S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.icons[c[0]],oppN)}`):[]);
     t+=sec('規定pt帯',POINTS.map(c=>`${c[1]}▶︎ ${pctText(S.pts[c[0]],ptN)}`));
-    t+=sec('周期当選',CYCLES.map(c=>`${c[1]}▶︎ ${pctText(S.zones[c[0]],cycleN)}`));
+    t+=sec('周期当選',CYCLES.map(c=>`${c[1]}▶︎ ${cycleWin(S,c[0])}/${cycleReach(S,c[0])}当選`));
     t+=sec('真BBボイス',voiceN>0?VOICES.filter(c=>S.ed[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.ed[c[0]],voiceN)}`):[]);
     t+=sec('AT終了画面',screenN>0?SCREENS.filter(c=>S.screens[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.screens[c[0]],screenN)}`):[]);
     t+=sec('メニュー画面',menuN>0?MENUS.filter(c=>S.menu[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.menu[c[0]],menuN)}`):[]);
@@ -233,6 +258,20 @@
     defaults:DEF,
     mergeKeys:['zones','pts','cz','atcz','screens','ed','icons','coins','menu','vision','over'],
     sourceUrl:'https://chonborista.com/slot/daito-slot/252676/',
+    normalizeState:(out,src)=>{
+      const oldZones=src&&src.zones&&typeof src.zones==='object'?src.zones:{};
+      CYCLES.forEach(c=>{
+        const id=c[0];
+        const legacy=Number(oldZones[id]);
+        if(Number.isFinite(legacy)&&oldZones[id+'w']===undefined&&oldZones[id+'r']===undefined){
+          out.zones[id+'w']=legacy;
+          out.zones[id+'r']=0;
+        }
+        out.zones[id+'r']=Number(out.zones[id+'r'])||0;
+        out.zones[id+'w']=Number(out.zones[id+'w'])||0;
+      });
+      return out;
+    },
     share:{title:'L真打吉宗 設定判別メモ',hashtags:'#真打吉宗 #設定判別'},
     pages:(ctx,pageCard)=>[
       ()=>pageHatsu(ctx),
@@ -258,7 +297,7 @@
           ['抜刀',ratio(S.cz.battoHit,S.cz.battoMax)]
         ];
       },
-      chart:ctx=>({title:'周期当選分布',x:135,step:140,width:70,items:CYCLES.map(c=>({label:c[4],value:ctx.S.zones[c[0]]}))}),
+      chart:ctx=>({title:'周期当選分布',x:135,step:140,width:70,items:CYCLES.map(c=>({label:c[4],value:cycleWin(ctx.S,c[0])}))}),
       bottom:ctx=>{
         const S=ctx.S;
         const strongItems=[

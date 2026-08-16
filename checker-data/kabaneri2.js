@@ -116,24 +116,27 @@
     return `<section class="sec">
     <style>
       .cycle-row .pct{min-width:74px;color:#ffc94d;font-size:12px;white-space:nowrap}
-      .cycle-row .cycle-plus{
-        flex:none;width:34px;height:34px;border-radius:9px;border:1px solid var(--pink-dim);
-        background:rgba(255,61,143,.12);color:var(--pink);font-size:12px;font-weight:800;
-        display:flex;align-items:center;justify-content:center;font-family:var(--body);
+      .cycle-row .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
+      .cycle-row .cycle-btn{
+        height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);
+        background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;
+        white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center
       }
-      .cycle-row .cycle-plus:active{background:var(--pink);color:#fff}
-      body.minus .cycle-row .cycle-plus{border-color:#7a3040;background:rgba(255,92,92,.14);color:var(--danger)}
-      body.minus .cycle-row .cycle-plus:active{background:var(--danger);color:#fff}
+      .cycle-row .cycle-btn.win{color:#ffc94d}
+      body.minus .cycle-row .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
     </style>
     <div class="sec-h">周期到達／当選<span class="sub">到達${totalReach}回・当選${totalWin}回</span></div>
     <div class="cgrid">
-      ${CYCLES.map(c=>`<div class="crow cycle-row" data-c="zones.${c[0]}r" data-l="${c[1]} 到達">
+      ${CYCLES.map(c=>`<div class="crow cycle-row">
         <div class="lbl"><div class="nm">${c[1]}</div><div class="mn ${c[3]?'hot':''}">${c[2]}</div></div>
         <div class="pct">${cycleRowRate(ctx.S,c[0])}</div>
-        <button class="cycle-plus" data-bump="zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]}当選を1回${ctx.mode<0?'減算':'追加'}">当</button>
+        <div class="cycle-actions">
+          <button type="button" class="cycle-btn win" data-bump-many="zones.${c[0]}r,zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当選</button>
+          <button type="button" class="cycle-btn" data-bump="zones.${c[0]}r" data-label="${c[1]} ハズレ" aria-label="${c[1]} ハズレ">ハズレ</button>
+        </div>
       </div>`).join('')}
     </div>
-    <div class="hint">周期到達（規定ゲーム数消化で周期抽選発生）ごとに行をタップ。その周期で当選したら右端の「当」もタップ。⑥周期は天井のため当選率100%（到達＝当選）。</div>
+    <div class="hint">周期到達ごとに「当選」または「ハズレ」を1回タップ。③④周期は到達に対する当選率として確認します。⑥周期は天井のため当選率100%（到達＝当選）。</div>
   </section>`;
   }
   function pageHatsu(ctx){
