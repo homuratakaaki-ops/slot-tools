@@ -157,7 +157,7 @@
         ];
         return {
           title:'実測 vs 目安レンジ',
-          startY:768,
+          startY:760,
           rowGap:44,
           fontSize:24,
           columns:[
