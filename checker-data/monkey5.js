@@ -34,14 +34,14 @@
     ['rainbow','虹トロフィー','設定6濃厚',1]
   ];
   const ED=[
-    ['enokiRed','榎木 赤','設定2・6示唆',1],
-    ['enokiPurple','榎木 紫','設定4・6示唆',1],
-    ['aoshimaPurple','青島 紫','設定5・6示唆',1],
+    ['hatanoBlue','波多野 青','デフォルト',0],
+    ['aoshimaBlue','青島 青','偶数設定期待度UP',0],
+    ['hatanoYellow','波多野 黄','高設定期待度UP（弱）',0],
+    ['arisaGreen','ありさ 緑','高設定期待度UP（強）',0],
+    ['enokiRed','榎木 赤','設定2・4・6濃厚',1],
+    ['enokiPurple','榎木 紫','設定4以上濃厚',1],
+    ['aoshimaPurple','青島 紫','設定5以上濃厚',1],
     ['sumiPurple','澄 紫','設定6濃厚',1],
-    ['hatano','波多野','示唆内容調査中',0],
-    ['aoshima','青島','示唆内容調査中',0],
-    ['sumi','澄','示唆内容調査中',0],
-    ['other','その他','示唆なし',0]
   ];
   const TICKETS=[
     ['silver','舟券 銀','設定2・4・6濃厚',1],
@@ -62,8 +62,8 @@
     startGames:0,
     currentGames:0,
     games:0,
-    zones:Object.fromEntries(CYCLES.map(c=>[c[0],0])),
-    cz:{five:0,rare:0,ex:0},
+    zones:Object.fromEntries(CYCLES.flatMap(c=>[[c[0]+'r',0],[c[0]+'w',0]])),
+    cz:{five:0,boat:0,boatEx:0,weakChance:0,weakChanceEx:0,strongChance:0,strongChanceEx:0},
     atcz:Object.fromEntries(CHARGE_VOICES.map(c=>[c[0],0])),
     screens:Object.fromEntries(TROPHIES.map(c=>[c[0],0])),
     ed:Object.fromEntries(ED.map(c=>[c[0],0])),
@@ -79,6 +79,7 @@
   function n(obj,key){return Number((obj||{})[key])||0;}
   function freeGames(S){return (Number(S.currentGames)||0)-(Number(S.startGames)||0);}
   function freeText(S){const g=freeGames(S);return g>=0?g+'G':'−';}
+  function oneIn(count,den){count=Number(count)||0;den=Number(den)||0;return den>0&&count>0?'1/'+(den/count).toFixed(1):'−';}
   function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:'−';}
   function pctText(a,b){return b>0?`${a}回 (${(100*a/b).toFixed(0)}%)`:`${a}回 (−)`;}
   function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
@@ -88,7 +89,12 @@
   function row(text,value,active,color){return {label:text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,text,color};}
   function section(title,lines){const a=lines.filter(Boolean);return a.length?`\n■${title}\n${a.join('\n')}\n`:'';}
 
-  function atTotal(S){return sum(S.zones)+sum(S.triggers);}
+  function cycleReach(S,id){return n(S.zones,id+'r');}
+  function cycleWin(S,id){return n(S.zones,id+'w');}
+  function cycleTotalReach(S){return CYCLES.reduce((a,c)=>a+cycleReach(S,c[0]),0);}
+  function cycleTotalWin(S){return CYCLES.reduce((a,c)=>a+cycleWin(S,c[0]),0);}
+  function cycleRowRate(S,id){return ratio(cycleWin(S,id),cycleReach(S,id));}
+  function atTotal(S){return cycleTotalWin(S)+sum(S.triggers);}
   function strongList(S){
     return [
       {tier:6,order:1,label:'虹トロフィー',value:n(S.screens,'rainbow')},
@@ -99,11 +105,13 @@
       {tier:5,order:2,label:'803枚',value:n(S.over,'m803')},
       {tier:5,order:3,label:'山佐集合',value:n(S.coins,'yamasa')},
       {tier:5,order:4,label:'青島＆波多野',value:n(S.coins,'aohata')},
+      {tier:5,order:5,label:'青島紫',value:n(S.ed,'aoshimaPurple')},
       {tier:4,order:1,label:'金トロフィー',value:n(S.screens,'gold')},
       {tier:4,order:2,label:'456枚',value:n(S.over,'m456')},
       {tier:4,order:3,label:'舟券金',value:n(S.icons,'gold')},
       {tier:4,order:4,label:'AT直撃弱',value:n(S.triggers,'directWeak')},
       {tier:4,order:5,label:'榎木艇王',value:n(S.atcz,'teiou')},
+      {tier:4,order:6,label:'榎木紫',value:n(S.ed,'enokiPurple')},
       {tier:2,order:1,label:'銅トロフィー',value:n(S.screens,'bronze')}
     ];
   }
@@ -123,11 +131,22 @@
   </section>
   <section class="sec">
     <div class="sec-h">AT当選の契機別記録<span class="sub">計${atTotal(S)}回</span></div>
+    <style>
+      .cycle-row .num{min-width:38px}
+      .cycle-row .pct{min-width:118px;text-align:right}
+      .cycle-plus{width:36px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900}
+      .minus .cycle-plus{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+    </style>
     <div class="cgrid">
-      ${CYCLES.map(c=>ctx.crow('zones.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,sum(S.zones)))).join('')}
+      ${CYCLES.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}" data-c="zones.${c[0]}r" data-l="${c[1]} 到達">
+        <div class="ct"><b>${c[1]}</b><small>${c[2]}</small></div>
+        <div class="num">${cycleReach(S,c[0])}</div>
+        <div class="pct">${cycleRowRate(S,c[0])}</div>
+        <button type="button" class="cycle-plus" data-bump="zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当</button>
+      </div>`).join('')}
       ${TRIGGERS.map(c=>ctx.crow('triggers.'+c[0],c[1],c[2],c[3])).join('')}
     </div>
-    <div class="hint">AT当選のたびに契機を1つ記録。直撃はレア役から5G以内・9G超の当選は対象外</div>
+    <div class="hint">周期到達ごとに行をタップ。当選した周期は右端の「当」もタップ。直撃はレア役から5G以内・9G超の当選は対象外</div>
   </section>`;
   }
 
@@ -136,11 +155,15 @@
     return `<section class="sec">
     <div class="sec-h">チャージ・5枚役</div>
     <div class="cgrid">
-      ${ctx.crow('cz.five','5枚役','設定差あり・本機の最重要判別要素。分母は自遊技G',1)}
-      ${ctx.crow('cz.rare','激走チャージ中のレア役 成立（強チェリーを除く）','EXアイテム抽選の分母',0)}
-      ${ctx.crow('cz.ex','EXアイテム 獲得','弱レア役時 設1:25.0%⇔設6:43.0%（強チェは全設定100%のため除外して記録）',1,v=>ratio(v,S.cz.rare))}
+      ${ctx.crow('cz.five','5枚役','設定差あり・本機の最重要判別要素。分母は自遊技G',1,v=>oneIn(v,freeGames(S)))}
+      ${ctx.crow('cz.boat','ボート弱チェ 成立','EXアイテム抽選の分母',0)}
+      ${ctx.crow('cz.boatEx','ボート弱チェ EX獲得','設1:25.0%⇔設6:43.0%',1,v=>ratio(v,S.cz.boat))}
+      ${ctx.crow('cz.weakChance','弱チャンス目 成立','EXアイテム抽選の分母',0)}
+      ${ctx.crow('cz.weakChanceEx','弱チャンス目 EX獲得','設1:31.3%⇔設6:46.9%',1,v=>ratio(v,S.cz.weakChance))}
+      ${ctx.crow('cz.strongChance','強チャンス目 成立','EXアイテム抽選の分母',0)}
+      ${ctx.crow('cz.strongChanceEx','強チャンス目 EX獲得','設1:50.0%⇔設6:66.4%',1,v=>ratio(v,S.cz.strongChance))}
     </div>
-    <div class="hint">設定推定機能は次回更新で対応予定。まずは5枚役をカウント。強チェリーは全設定100%のため、EXアイテム分母から除外して記録します。</div>
+    <div class="hint">設定推定機能は次回更新で対応予定。まずは5枚役をカウント。EXアイテムの対象は上記3役のみで役別に記録します。</div>
   </section>
   <section class="sec">
     <div class="sec-h">チャージ終了画面タッチのボイス<span class="sub">計${voiceN}回</span></div>
@@ -165,15 +188,16 @@
   }
 
   function tplText(ctx){
-    const S=ctx.S, cycleN=sum(S.zones), voiceN=sum(S.atcz), trophyN=sum(S.screens), edN=sum(S.ed), ticketN=sum(S.icons), roundN=sum(S.coins);
+    const S=ctx.S, voiceN=sum(S.atcz), trophyN=sum(S.screens), edN=sum(S.ed), ticketN=sum(S.icons), roundN=sum(S.coins);
     let t=`設定判別メモ｜スマスロ モンキーターンV\n自遊技 ${freeText(S)} / AT計${atTotal(S)}回 / 5枚役${S.cz.five}回\n_______\n`;
     t+='\n■AT当選契機\n';
-    CYCLES.forEach(c=>{t+=`${c[1]}▶${pctText(n(S.zones,c[0]),cycleN)}\n`;});
+    CYCLES.forEach(c=>{t+=`${c[1]}▶${cycleWin(S,c[0])}/${cycleReach(S,c[0])}当選\n`;});
     TRIGGERS.filter(c=>n(S.triggers,c[0])>0).forEach(c=>{t+=`${c[1]}▶${n(S.triggers,c[0])}回\n`;});
-    t+=section('5枚役',[`5枚役▶${S.cz.five}回`]);
+    t+=section('5枚役',[`5枚役▶${S.cz.five}回（${oneIn(S.cz.five,freeGames(S))}）`]);
     t+=section('チャージ・アイテム',[
-      S.cz.rare>0?`激走チャージ中レア役▶${S.cz.rare}回`:null,
-      S.cz.rare>0?`EXアイテム▶${ratio(S.cz.ex,S.cz.rare)}`:null
+      S.cz.boat>0?`ボート弱チェEX▶${ratio(S.cz.boatEx,S.cz.boat)}`:null,
+      S.cz.weakChance>0?`弱チャンス目EX▶${ratio(S.cz.weakChanceEx,S.cz.weakChance)}`:null,
+      S.cz.strongChance>0?`強チャンス目EX▶${ratio(S.cz.strongChanceEx,S.cz.strongChance)}`:null
     ]);
     t+=section('チャージ終了ボイス',voiceN>0?CHARGE_VOICES.filter(c=>n(S.atcz,c[0])>0).map(c=>`${c[1]}▶${pctText(n(S.atcz,c[0]),voiceN)}`):[]);
     t+=section('メダル・トロフィー',trophyN>0?TROPHIES.filter(c=>n(S.screens,c[0])>0).map(c=>`${c[1]}▶${pctText(n(S.screens,c[0]),trophyN)}`):[]);
@@ -188,9 +212,17 @@
   function detail(ctx){
     const S=ctx.S;
     return [
-      {title:'AT当選周期',items:detailItems(CYCLES,S.zones)},
+      {title:'AT当選周期',items:CYCLES.map(c=>detailRatio(c[1],cycleWin(S,c[0]),cycleReach(S,c[0]),c[3]))},
       {title:'AT当選契機',items:detailItems(TRIGGERS,S.triggers)},
-      {title:'チャージ・5枚役',items:[detailItem('5枚役',S.cz.five,1),detailItem('激走チャージ中レア役',S.cz.rare,0),detailRatio('EXアイテム',S.cz.ex,S.cz.rare,1)]},
+      {title:'チャージ・5枚役',items:[
+        {label:'5枚役',value:n(S.cz,'five'),hot:true,text:'5枚役 '+oneIn(S.cz.five,freeGames(S)),show:n(S.cz,'five')>0},
+        detailItem('ボート弱チェ成立',S.cz.boat,0),
+        detailRatio('ボート弱チェEX',S.cz.boatEx,S.cz.boat,1),
+        detailItem('弱チャンス目成立',S.cz.weakChance,0),
+        detailRatio('弱チャンス目EX',S.cz.weakChanceEx,S.cz.weakChance,1),
+        detailItem('強チャンス目成立',S.cz.strongChance,0),
+        detailRatio('強チャンス目EX',S.cz.strongChanceEx,S.cz.strongChance,1)
+      ]},
       {title:'チャージ終了ボイス',items:detailItems(CHARGE_VOICES,S.atcz)},
       {title:'メダル・トロフィー',items:detailItems(TROPHIES,S.screens)},
       {title:'EDボイス',items:detailItems(ED,S.ed)},
@@ -206,6 +238,21 @@
     defaults:DEF,
     mergeKeys:['zones','cz','atcz','screens','ed','icons','coins','over','triggers'],
     sourceUrl:'https://chonborista.com/slot/yamasa-slot/198173/',
+    normalizeState:(out,src)=>{
+      const oldZones=(src&&src.zones)||{};
+      CYCLES.forEach(c=>{
+        const id=c[0];
+        if(oldZones[id]!==undefined && oldZones[id+'w']===undefined){
+          out.zones[id+'w']=Number(oldZones[id])||0;
+        }
+        out.zones[id+'r']=Number(out.zones[id+'r'])||0;
+        out.zones[id+'w']=Number(out.zones[id+'w'])||0;
+      });
+      const oldEd=(src&&src.ed)||{};
+      if(oldEd.hatano!==undefined && oldEd.hatanoBlue===undefined) out.ed.hatanoBlue=Number(oldEd.hatano)||0;
+      if(oldEd.aoshima!==undefined && oldEd.aoshimaBlue===undefined) out.ed.aoshimaBlue=Number(oldEd.aoshima)||0;
+      return out;
+    },
     share:{title:'スマスロ モンキーターンV 設定判別メモ',hashtags:'#モンキーターンV #設定判別'},
     pages:(ctx,pageCard)=>[
       ()=>pageHatsu(ctx),
@@ -228,11 +275,11 @@
         return [
           ['AT当選',`計${atTotal(S)}`],
           ['直撃',`計${n(S.triggers,'directWeak')+n(S.triggers,'directStrong')}`],
-          ['EXアイテム',ratio(S.cz.ex,S.cz.rare)],
-          ['5枚役',`×${S.cz.five}`]
+          ['EX獲得',`計${n(S.cz,'boatEx')+n(S.cz,'weakChanceEx')+n(S.cz,'strongChanceEx')}`],
+          ['5枚役',oneIn(S.cz.five,freeGames(S))]
         ];
       },
-      chart:ctx=>({title:'周期当選分布',x:130,step:140,width:70,items:CYCLES.map(c=>({label:c[4],value:n(ctx.S.zones,c[0])}))}),
+      chart:ctx=>({title:'周期当選分布',x:130,step:140,width:70,items:CYCLES.map(c=>({label:c[4],value:cycleWin(ctx.S,c[0])}))}),
       bottom:ctx=>{
         const S=ctx.S;
         return {
