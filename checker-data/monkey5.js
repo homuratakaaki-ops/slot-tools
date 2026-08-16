@@ -237,7 +237,7 @@
         const S=ctx.S;
         return {
           title:'判別サマリー',
-          startY:768,
+          startY:760,
           rowGap:44,
           fontSize:23,
           columns:[
