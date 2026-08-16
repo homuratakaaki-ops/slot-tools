@@ -218,7 +218,7 @@
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
       {title:'連打時の枚数表示',items:detailItems(RENDA,S.coins)},
       {title:'獲得枚数表示',items:detailItems(PAYOUT,S.over)},
-      {title:'ユウタイマー演出',items:[detailItem('タイマー「6」開始でAT非当選',S.ed.timer6,1)]}
+      {title:'ユウタイマー演出',items:[detailItem('タイマー6',S.ed.timer6,1)]}
     ];
   }
 
