@@ -233,9 +233,9 @@
       .bayes-bar b{display:block;height:10px;border-radius:999px;background:linear-gradient(90deg,#ff3d8f,#ffc94d);min-width:2px}
       .bayes-bar em{font-style:normal;text-align:right;color:#f2eef5}
     </style>
-    <div class="sec-h">設定推定<span class="sub">フェーズ1.5</span></div>
+    <div class="sec-h">5枚役確率（設定推定用）</div>
     <div class="bayes-rate-grid">
-      ${BAYES_SETTINGS.map(setting=>`<div><label>設定${setting} 5枚役</label><input type="number" inputmode="decimal" step="0.1" min="1.1" data-state-path="bayes.${BAYES_RATE_KEYS[setting]}" data-rate-input="1" value="${escAttr((S.bayes||{})[BAYES_RATE_KEYS[setting]])}" placeholder="xx"></div>`).join('')}
+      ${BAYES_SETTINGS.map(setting=>`<div><label>設定${setting}</label><input type="number" inputmode="decimal" step="0.1" min="1.1" data-state-path="bayes.${BAYES_RATE_KEYS[setting]}" data-rate-input="1" value="${escAttr((S.bayes||{})[BAYES_RATE_KEYS[setting]])}" placeholder="xx"></div>`).join('')}
     </div>
     <div class="hint">5枚役確率は手元の数値を分母のみ入力（例：24.3）。入力値は端末内に保存し、カード・テンプレには出力しません。</div>
     ${invalid}
@@ -274,7 +274,7 @@
     <div class="sec-h">回転数<span class="sub">自遊技 <b style="color:${neg?'#ff5c5c':'#6fd8ff'}">${freeText(S)}</b></span></div>
     <div class="inrow"><label>打ち始めの回転数</label><input type="number" inputmode="numeric" data-number-key="startGames" value="${S.startGames||''}" placeholder="0"></div>
     <div class="inrow" style="margin-top:6px"><label>現在の回転数</label><input type="number" inputmode="numeric" data-number-key="currentGames" value="${S.currentGames||''}" placeholder="0"></div>
-    <div class="hint ${neg?'hot':''}">データカウンターのG数を入力。5枚役の設定推定（次回更新予定）の分母になります${neg?'。現在G数が打ち始めG数を下回っています。':''}</div>
+    <div class="hint ${neg?'hot':''}">データカウンターのG数を入力。5枚役の設定推定に使う分母になります${neg?'。現在G数が打ち始めG数を下回っています。':''}</div>
   </section>
   <section class="sec">
     <div class="sec-h">5枚役</div>
