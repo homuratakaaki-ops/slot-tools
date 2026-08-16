@@ -72,7 +72,8 @@
     over:Object.fromEntries(MEDALS.map(c=>[c[0],0])),
     triggers:Object.fromEntries(TRIGGERS.map(c=>[c[0],0])),
     img:null,
-    iconChoice:null
+    iconChoice:null,
+    bayes:{rate1:'',rate2:'',rate4:'',rate5:'',rate6:''}
   };
 
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
@@ -89,12 +90,158 @@
   function row(text,value,active,color){return {label:text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,text,color};}
   function section(title,lines){const a=lines.filter(Boolean);return a.length?`\n■${title}\n${a.join('\n')}\n`:'';}
 
+  const BAYES_SETTINGS=[1,2,4,5,6];
+  const BAYES_RATE_KEYS={1:'rate1',2:'rate2',4:'rate4',5:'rate5',6:'rate6'};
+  const BAYES_EX_PROBS={
+    boat:{1:.250,2:.262,4:.328,5:.391,6:.430},
+    weakChance:{1:.313,2:.320,4:.375,5:.406,6:.469},
+    strongChance:{1:.500,2:.508,4:.586,5:.625,6:.664}
+  };
+  const BAYES_HATANO_PROBS={
+    1:{default:.50,sign:.50},
+    2:{default:.40,sign:.60},
+    4:{default:.40,sign:.60},
+    5:{default:.70,sign:.30},
+    6:{default:.40,sign:.60}
+  };
+  const BAYES_ED_PROBS={
+    1:{hatanoBlue:.50,aoshimaBlue:.35,hatanoYellow:.12,arisaGreen:.03,enokiRed:0,enokiPurple:0,aoshimaPurple:0,sumiPurple:0},
+    2:{hatanoBlue:.375,aoshimaBlue:.45,hatanoYellow:.12,arisaGreen:.03,enokiRed:.025,enokiPurple:0,aoshimaPurple:0,sumiPurple:0},
+    4:{hatanoBlue:.30,aoshimaBlue:.425,hatanoYellow:.15,arisaGreen:.075,enokiRed:.025,enokiPurple:.025,aoshimaPurple:0,sumiPurple:0},
+    5:{hatanoBlue:.50,aoshimaBlue:.15,hatanoYellow:.20,arisaGreen:.10,enokiRed:0,enokiPurple:.025,aoshimaPurple:.025,sumiPurple:0},
+    6:{hatanoBlue:.30,aoshimaBlue:.35,hatanoYellow:.20,arisaGreen:.10,enokiRed:.0125,enokiPurple:.0125,aoshimaPurple:.0125,sumiPurple:.0125}
+  };
+  function bayesRateMap(S){
+    const parsed={},invalid=[],missing=[];
+    if(!window.CheckerBayes)return {parsed,invalid,missing,complete:false};
+    BAYES_SETTINGS.forEach(setting=>{
+      const key=BAYES_RATE_KEYS[setting];
+      const raw=String(((S.bayes||{})[key])||'').trim();
+      if(!raw){missing.push(setting);return;}
+      const p=window.CheckerBayes.parseRate(raw);
+      if(!p)invalid.push(setting);
+      else parsed[setting]=p;
+    });
+    return {parsed,invalid,missing,complete:!invalid.length&&!missing.length};
+  }
+  function bayesExclusions(S){
+    return [
+      {label:'銅トロフィー',count:n(S.screens,'bronze'),exclude:[1]},
+      {label:'金トロフィー',count:n(S.screens,'gold'),exclude:[1,2]},
+      {label:'ケロ柄トロフィー',count:n(S.screens,'kero'),exclude:[1,2,4]},
+      {label:'虹トロフィー',count:n(S.screens,'rainbow'),exclude:[1,2,4,5]},
+      {label:'456枚',count:n(S.over,'m456'),exclude:[1,2]},
+      {label:'803枚',count:n(S.over,'m803'),exclude:[1,2,4]},
+      {label:'666枚',count:n(S.over,'m666'),exclude:[1,2,4,5]},
+      {label:'舟券銀',count:n(S.icons,'silver'),exclude:[1,5]},
+      {label:'舟券金',count:n(S.icons,'gold'),exclude:[1,2]},
+      {label:'舟券虹',count:n(S.icons,'rainbow'),exclude:[1,2,4,5]},
+      {label:'AT直撃弱レア役',count:n(S.triggers,'directWeak'),exclude:[1,2]},
+      {label:'艇王ボイス',count:n(S.atcz,'teiou'),exclude:[1,2]},
+      {label:'おつかれボイス',count:n(S.atcz,'otsu'),exclude:[1,5]},
+      {label:'山佐集合',count:n(S.coins,'yamasa'),exclude:[1,2,4]},
+      {label:'青島＆波多野',count:n(S.coins,'aohata'),exclude:[1,2,4]},
+      {label:'榎木赤',count:n(S.ed,'enokiRed'),exclude:[1,5]},
+      {label:'榎木紫',count:n(S.ed,'enokiPurple'),exclude:[1,2]},
+      {label:'青島紫',count:n(S.ed,'aoshimaPurple'),exclude:[1,2,4]},
+      {label:'澄紫',count:n(S.ed,'sumiPurple'),exclude:[1,2,4,5]}
+    ];
+  }
+  function bayesSpec(S){
+    const rates=bayesRateMap(S);
+    const binomial=[
+      {label:'ボート弱チェEX',hit:n(S.cz,'boatEx'),total:n(S.cz,'boat'),probs:BAYES_EX_PROBS.boat},
+      {label:'弱チャンス目EX',hit:n(S.cz,'weakChanceEx'),total:n(S.cz,'weakChance'),probs:BAYES_EX_PROBS.weakChance},
+      {label:'強チャンス目EX',hit:n(S.cz,'strongChanceEx'),total:n(S.cz,'strongChance'),probs:BAYES_EX_PROBS.strongChance}
+    ];
+    if(rates.complete&&freeGames(S)>0){
+      binomial.unshift({label:'5枚役',hit:n(S.cz,'five'),total:freeGames(S),probs:rates.parsed});
+    }
+    return {
+      settings:BAYES_SETTINGS,
+      binomial,
+      multinomial:[
+        {label:'波多野ボイス',counts:{default:n(S.atcz,'default'),sign:n(S.atcz,'sign')},probs:BAYES_HATANO_PROBS},
+        {label:'EDボイス',counts:{
+          hatanoBlue:n(S.ed,'hatanoBlue'),aoshimaBlue:n(S.ed,'aoshimaBlue'),hatanoYellow:n(S.ed,'hatanoYellow'),arisaGreen:n(S.ed,'arisaGreen'),
+          enokiRed:n(S.ed,'enokiRed'),enokiPurple:n(S.ed,'enokiPurple'),aoshimaPurple:n(S.ed,'aoshimaPurple'),sumiPurple:n(S.ed,'sumiPurple')
+        },probs:BAYES_ED_PROBS}
+      ],
+      exclusions:bayesExclusions(S)
+    };
+  }
+  function bayesResult(S){
+    if(!window.CheckerBayes)return {empty:true};
+    return window.CheckerBayes.estimate(bayesSpec(S));
+  }
+  function bayesPct(v){return window.CheckerBayes?window.CheckerBayes.percent(v):'--';}
+  function bayesExcludedSettings(result){
+    const set=new Set();
+    (result.reasons||[]).forEach(r=>(r.exclude||[]).forEach(s=>set.add(Number(s))));
+    return Array.from(set).sort((a,b)=>a-b);
+  }
+  function bayesSummary(S){
+    const r=bayesResult(S);
+    if(r.contradiction)return row('推定 矛盾',1,true,'#ff5c5c');
+    if(r.empty)return row('推定 −',0,false);
+    return row('推定 4以上'+bayesPct(r.high),1,true,'#ffc94d');
+  }
+  function bayesExcludeSummary(S){
+    const r=bayesResult(S);
+    if(r.contradiction)return row('除外 矛盾',1,true,'#ff5c5c');
+    const excluded=bayesExcludedSettings(r);
+    return row(excluded.length?'除外 設'+excluded.join(','):'除外 −',excluded.length,excluded.length>0);
+  }
+  function escAttr(v){
+    return String(v||'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+
   function cycleReach(S,id){return n(S.zones,id+'r');}
   function cycleWin(S,id){return n(S.zones,id+'w');}
   function cycleTotalReach(S){return CYCLES.reduce((a,c)=>a+cycleReach(S,c[0]),0);}
   function cycleTotalWin(S){return CYCLES.reduce((a,c)=>a+cycleWin(S,c[0]),0);}
   function cycleRowRate(S,id){return ratio(cycleWin(S,id),cycleReach(S,id));}
   function atTotal(S){return cycleTotalWin(S)+sum(S.triggers);}
+  function pageBayes(ctx){
+    const S=ctx.S,r=bayesResult(S),rates=bayesRateMap(S);
+    const invalid=rates.invalid.length?`<div class="hint hot">5枚役の入力形式が不正です：設定${rates.invalid.join('・')}。1/xx形式で入力してください。</div>`:'';
+    let body='';
+    if(r.contradiction){
+      body='<div class="hint hot">⚠記録に矛盾があります（示唆の見間違いの可能性）。</div>';
+    }else if(r.empty){
+      body='<div class="hint">記録が増えると推定できます。</div>';
+    }else{
+      const excluded=bayesExcludedSettings(r);
+      const bars=BAYES_SETTINGS.map(setting=>{
+        const p=(r.posterior||{})[setting]||0;
+        return `<div class="bayes-bar"><span>設定${setting}</span><b style="width:${Math.max(2,p*100)}%"></b><em>${bayesPct(p)}</em></div>`;
+      }).join('');
+      const reasons=(r.reasons||[]).map(x=>`${x.label}×${x.count}`).join('、');
+      body=`<div class="bayes-main"><b>設定4以上 ${bayesPct(r.high)}</b><span>設定2以下 ${bayesPct(r.low)}</span></div>
+      <div class="bayes-bars">${bars}</div>
+      <div class="hint">除外根拠：${reasons||'なし'}${excluded.length?'（除外済み：設定'+excluded.join('・')+'）':''}</div>
+      <div class="hint">推定は入力されたカウントに基づく参考値です。サンプルが少ないほど信頼度は下がります。</div>`;
+    }
+    return `<section class="sec">
+    <style>
+      .bayes-rate-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+      .bayes-rate-grid label{display:block;font-size:10px;color:#9a90a8;margin-bottom:3px}
+      .bayes-rate-grid input{width:100%;box-sizing:border-box;background:#171220;border:1px solid #2c2340;border-radius:8px;color:#f2eef5;font-size:13px;padding:8px 6px}
+      .bayes-main{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#171220;border:1px solid #2c2340;border-radius:10px;padding:10px 12px;margin:8px 0}
+      .bayes-main b{color:#ffc94d;font-size:18px}.bayes-main span{color:#9a90a8;font-size:13px}
+      .bayes-bar{display:grid;grid-template-columns:44px 1fr 48px;gap:8px;align-items:center;margin:6px 0;font-size:12px;color:#9a90a8}
+      .bayes-bar b{display:block;height:10px;border-radius:999px;background:linear-gradient(90deg,#ff3d8f,#ffc94d);min-width:2px}
+      .bayes-bar em{font-style:normal;text-align:right;color:#f2eef5}
+    </style>
+    <div class="sec-h">設定推定<span class="sub">フェーズ1.5</span></div>
+    <div class="bayes-rate-grid">
+      ${BAYES_SETTINGS.map(setting=>`<div><label>設定${setting} 5枚役</label><input data-state-path="bayes.${BAYES_RATE_KEYS[setting]}" data-rate-input="1" value="${escAttr((S.bayes||{})[BAYES_RATE_KEYS[setting]])}" placeholder="1/xx"></div>`).join('')}
+    </div>
+    <div class="hint">5枚役確率は手元の数値を1/xx形式で入力。入力値は端末内に保存し、カード・テンプレには出力しません。</div>
+    ${invalid}
+    ${body}
+  </section>`;
+  }
   function strongList(S){
     return [
       {tier:6,order:1,label:'虹トロフィー',value:n(S.screens,'rainbow')},
@@ -243,7 +390,7 @@
     nanaCollab:false,
     storageKey:'monkey5-checker-v1',
     defaults:DEF,
-    mergeKeys:['zones','cz','atcz','screens','ed','icons','coins','over','triggers'],
+    mergeKeys:['zones','cz','atcz','screens','ed','icons','coins','over','triggers','bayes'],
     sourceUrl:'https://chonborista.com/slot/yamasa-slot/198173/',
     normalizeState:(out,src)=>{
       const oldZones=(src&&src.zones)||{};
@@ -265,7 +412,7 @@
       ()=>pageHatsu(ctx),
       ()=>pageCharge(ctx),
       ()=>pageShisa(ctx),
-      pageCard
+      ()=>pageBayes(ctx)+pageCard()
     ],
     template:tplText,
     compactTemplate:tplText,
@@ -300,14 +447,14 @@
               row('トロフィー '+nonZeroParts([{t:'銅',v:n(S.screens,'bronze')},{t:'金',v:n(S.screens,'gold')},{t:'ケロ',v:n(S.screens,'kero')},{t:'虹',v:n(S.screens,'rainbow')}]),sum(S.screens),sum(S.screens)>0),
               row('EDボイス '+nonZeroParts([{t:'榎赤',v:n(S.ed,'enokiRed')},{t:'榎紫',v:n(S.ed,'enokiPurple')},{t:'青紫',v:n(S.ed,'aoshimaPurple')},{t:'澄',v:n(S.ed,'sumiPurple')}]),sum(S.ed),sum(S.ed)>0),
               row('ボイス '+nonZeroParts([{t:'おつ',v:n(S.atcz,'otsu')},{t:'艇王',v:n(S.atcz,'teiou')}]),sum(S.atcz),sum(S.atcz)>0),
-              row('メダル '+nonZeroParts([{t:'青',v:n(S.screens,'blue')},{t:'黄',v:n(S.screens,'yellow')},{t:'黒',v:n(S.screens,'black')}]),sum(S.screens),sum(S.screens)>0)
+              bayesSummary(S)
             ]},
             {x:560,items:[
               row('濃厚示唆 計'+strongCount(S)+'回',strongCount(S),strongCount(S)>0,'#ffc94d'),
               row('契機 '+nonZeroParts([{t:'直',v:n(S.triggers,'directWeak')+n(S.triggers,'directStrong')},{t:'優',v:n(S.triggers,'yushutsu')},{t:'天',v:n(S.triggers,'tenjo')},{t:'即',v:n(S.triggers,'instant')}]),sum(S.triggers),sum(S.triggers)>0),
               row('舟券 '+nonZeroParts([{t:'銀',v:n(S.icons,'silver')},{t:'金',v:n(S.icons,'gold')},{t:'虹',v:n(S.icons,'rainbow')}]),sum(S.icons),sum(S.icons)>0),
               row('ラウンド '+nonZeroParts([{t:'山',v:n(S.coins,'yamasa')},{t:'青波',v:n(S.coins,'aohata')},{t:'ド',v:n(S.coins,'dress')}]),sum(S.coins),sum(S.coins)>0),
-              row('枚数 '+nonZeroParts([{t:'456',v:n(S.over,'m456')},{t:'803',v:n(S.over,'m803')},{t:'666',v:n(S.over,'m666')}]),sum(S.over),sum(S.over)>0)
+              bayesExcludeSummary(S)
             ]}
           ]
         };

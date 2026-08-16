@@ -11,12 +11,16 @@
   function sumValues(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function byPath(obj,path){
     const p=path.split('.');
-    return p.length===1?obj[p[0]]:obj[p[0]][p[1]];
+    if(p.length===1)return obj[p[0]];
+    return (obj[p[0]]||{})[p[1]];
   }
   function setPath(obj,path,value){
     const p=path.split('.');
     if(p.length===1)obj[p[0]]=value;
-    else obj[p[0]][p[1]]=value;
+    else{
+      if(!obj[p[0]]||typeof obj[p[0]]!=='object')obj[p[0]]={};
+      obj[p[0]][p[1]]=value;
+    }
   }
   function roundRect(x,a,b,w,h,r){
     x.beginPath();
@@ -288,6 +292,19 @@
       main.querySelectorAll('[data-number-key]').forEach(el=>{
         el.addEventListener('change',()=>{
           S[el.dataset.numberKey]=Math.max(0,parseInt(el.value)||0);
+          save();renderAll();
+        });
+      });
+      main.querySelectorAll('[data-state-path]').forEach(el=>{
+        el.addEventListener('change',()=>{
+          const raw=String(el.value||'').trim();
+          if(el.dataset.rateInput==='1'&&raw&&window.CheckerBayes&&!window.CheckerBayes.parseRate(raw)){
+            toast('1/xx形式で入力してください');
+            el.value=get(el.dataset.statePath)||'';
+            return;
+          }
+          const value=el.dataset.valueType==='number'?Math.max(0,parseInt(raw)||0):raw;
+          set(el.dataset.statePath,value);
           save();renderAll();
         });
       });
