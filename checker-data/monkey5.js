@@ -174,12 +174,6 @@
     if(!window.CheckerBayes)return {empty:true};
     return window.CheckerBayes.estimate(bayesSpec(S));
   }
-  function bayesInternalEvidence(S){
-    return n(S.cz,'boat')+n(S.cz,'weakChance')+n(S.cz,'strongChance')+n(S.atcz,'default')+n(S.atcz,'sign')+sum(S.ed);
-  }
-  function bayesInsufficient(S){
-    return freeGames(S)<2000 && bayesInternalEvidence(S)<20;
-  }
   function bayesPct(v){return window.CheckerBayes?window.CheckerBayes.percent(v):'--';}
   function bayesExcludedSettings(result){
     const set=new Set();
@@ -190,7 +184,6 @@
     const r=bayesResult(S);
     if(r.contradiction)return row('推定 矛盾',1,true,'#ff5c5c');
     if(r.empty)return row('推定 −',0,false);
-    if(bayesInsufficient(S))return row('推定中',1,false);
     return row('推定 4以上'+bayesPct(r.high),1,true,'#ffc94d');
   }
   function bayesExcludeSummary(S){
@@ -217,12 +210,6 @@
       body='<div class="hint hot">⚠記録に矛盾があります（示唆の見間違いの可能性）。</div>';
     }else if(r.empty){
       body='<div class="hint">記録が増えると推定できます。</div>';
-    }else if(bayesInsufficient(S)){
-      const excluded=bayesExcludedSettings(r);
-      const reasons=(r.reasons||[]).map(x=>`${x.label}×${x.count}`).join('、');
-      body=`<div class="bayes-main"><b>推定中</b><span>サンプル不足</span></div>
-      <div class="hint">サンプルが増えると表示されます。目安：自遊技2000G以上、または内蔵証拠20件以上。</div>
-      <div class="hint">除外根拠：${reasons||'なし'}${excluded.length?'（除外済み：設定'+excluded.join('・')+'）':''}</div>`;
     }else{
       const excluded=bayesExcludedSettings(r);
       const bars=BAYES_SETTINGS.map(setting=>{
