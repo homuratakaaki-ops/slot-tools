@@ -156,20 +156,21 @@
   <section class="sec">
     <div class="sec-h">その他の契機<span class="sub">AT計${atTotal(S)}回</span></div>
     <div class="cgrid">
-      ${ctx.crow('cz.strong','強チェリー成立','AT直撃の分母。変換強チェリーも同抽選',0)}
-      ${ctx.crow('cz.strongHit','強チェリーからAT直撃','設1:0.4%⇔設6:5.9%・特大設定差',1,v=>ratio(v,S.cz.strong))}
-      ${ctx.crow('cz.czAt','CZ経由 AT当選','アラガミ防衛戦・殲滅モード経由のAT',0)}
-      <div class="crow cycle-row hot">
-        <div class="ct"><b>ED後 神堕移行</b><small>ED後の有利区間移行時に神堕or漆黒を振り分け（設定差あり!?）。⚠神チェリー・フリーズ経由は記録しない</small></div>
-        <div class="num">${n(S.cz,'edReach')}</div>
-        <div class="pct">${ratio(S.cz.edKamiochi,S.cz.edReach)}</div>
-        <div class="cycle-actions">
-          <button type="button" class="cycle-btn win" data-bump-many="cz.edReach,cz.edKamiochi" data-label="ED後 神堕" aria-label="ED後 神堕">神堕</button>
-          <button type="button" class="cycle-btn" data-bump="cz.edReach" data-label="ED後 漆黒等" aria-label="ED後 漆黒等">漆黒等</button>
-        </div>
+    ${ctx.crow('cz.strong','強チェリー成立','AT直撃の分母。変換強チェリーも同抽選',0)}
+    ${ctx.crow('cz.strongHit','強チェリーからAT直撃','設1:0.4%⇔設6:5.9%・特大設定差',1,v=>ratio(v,S.cz.strong))}
+    ${ctx.crow('cz.czAt','CZ経由 AT当選','アラガミ防衛戦・殲滅モード経由のAT',0)}
+    <div class="crow cycle-row hot">
+      <div class="ct"><b>ED後 神堕移行</b></div>
+      <div class="num">${n(S.cz,'edReach')}</div>
+      <div class="pct">${ratio(S.cz.edKamiochi,S.cz.edReach)}</div>
+      <div class="cycle-actions">
+        <button type="button" class="cycle-btn win" data-bump-many="cz.edReach,cz.edKamiochi" data-label="ED後 神堕移行 当選" aria-label="ED後 神堕移行 当選">当選</button>
+        <button type="button" class="cycle-btn" data-bump="cz.edReach" data-label="ED後 神堕移行 ハズレ" aria-label="ED後 神堕移行 ハズレ">ハズレ</button>
       </div>
     </div>
-  </section>`;
+  </div>
+  <div class="hint">ED後の有利区間移行時に神堕or漆黒を振り分け（設定差あり!?）。⚠神チェリー・フリーズ経由の神堕は全設定共通のためサンプル外（記録しない）</div>
+</section>`;
   }
   function pageCz(ctx){
     const S=ctx.S;
