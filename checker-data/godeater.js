@@ -12,7 +12,7 @@
     ['tenjo','天井','1000G+α',0,'天井']
   ];
   const SHORT_G=[
-    ['s100','100G','逆鱗ハンニバル敗北後は100G+α',0],
+    ['s100','100G','設定変更後・漆黒後などの短縮時に使用',0],
     ['s200','200G','設定変更後・漆黒後の短縮時に使用',0],
     ['s300','300G','設定変更後・漆黒後の短縮時に使用',0],
     ['s450','450G','設定変更後・漆黒後の短縮時に使用',0],
@@ -121,27 +121,35 @@
     <div class="sec-h">規定ゲーム数・通常<span class="sub">到達${normalReach}・当選${normalWin}</span></div>
     <style>
       .cycle-row .num{min-width:38px}
-      .cycle-row .pct{min-width:118px;text-align:right}
-      .cycle-plus{width:36px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900}
-      .minus .cycle-plus{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+      .cycle-row .pct{min-width:104px;text-align:right}
+      .cycle-actions{display:flex;gap:5px;margin-left:6px}
+      .cycle-btn{height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px}
+      .cycle-btn.win{color:#ffc94d}
+      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
     </style>
-    <div class="cgrid">${NORMAL_G.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}" data-c="zones.${c[0]}r" data-l="${c[1]} 到達">
+    <div class="cgrid">${NORMAL_G.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}">
       <div class="ct"><b>${c[1]}</b><small>${c[2]}</small></div>
       <div class="num">${zoneReach(S.zones,c[0])}</div>
       <div class="pct">${zoneRate(S.zones,c[0])}</div>
-      <button type="button" class="cycle-plus" data-bump="zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当</button>
+      <div class="cycle-actions">
+        <button type="button" class="cycle-btn win" data-bump-many="zones.${c[0]}r,zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当選</button>
+        <button type="button" class="cycle-btn" data-bump="zones.${c[0]}r" data-label="${c[1]} ハズレ" aria-label="${c[1]} ハズレ">ハズレ</button>
+      </div>
     </div>`).join('')}</div>
-    <div class="hint">ゾーン到達（例:100Gを超えて回した）ごとに行をタップ。そのゾーンでAT当選したら右端の「当」もタップします。</div>
+    <div class="hint">ゾーン到達（例:100Gを超えて回した）ごとに「当選」または「ハズレ」を1回タップ。当選は到達と当選を同時に記録します。</div>
   </section>
   <section class="sec">
     <div class="sec-h">規定ゲーム数・短縮<span class="sub">到達${shortReach}・当選${shortWin}</span></div>
-    <div class="cgrid">${SHORT_G.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}" data-c="triggers.${c[0]}r" data-l="${c[1]} 到達">
+    <div class="cgrid">${SHORT_G.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}">
       <div class="ct"><b>${c[1]}</b><small>${c[2]}</small></div>
       <div class="num">${zoneReach(S.triggers,c[0])}</div>
       <div class="pct">${zoneRate(S.triggers,c[0])}</div>
-      <button type="button" class="cycle-plus" data-bump="triggers.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当</button>
+      <div class="cycle-actions">
+        <button type="button" class="cycle-btn win" data-bump-many="triggers.${c[0]}r,triggers.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当選</button>
+        <button type="button" class="cycle-btn" data-bump="triggers.${c[0]}r" data-label="${c[1]} ハズレ" aria-label="${c[1]} ハズレ">ハズレ</button>
+      </div>
     </div>`).join('')}</div>
-    <div class="hint">設定変更後・漆黒の捕喰者後の天井短縮時に使用。到達ごとに行、当選時は「当」もタップします。</div>
+    <div class="hint">設定変更後・漆黒の捕喰者後は天井600G+α、ST駆け抜け等でも短縮あり（契機で当選しやすいゾーンが変わるため、詳細は出典参照）。⚠逆鱗ハンニバル敗北後は100G+α確定のため、その当選はここに入れず記録対象外とします。</div>
   </section>
   <section class="sec">
     <div class="sec-h">その他の契機<span class="sub">AT計${atTotal(S)}回</span></div>

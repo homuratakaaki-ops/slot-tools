@@ -143,6 +143,17 @@
       save();
       renderAll();
     }
+    function bumpMany(paths,label){
+      const list=(paths||'').split(',').map(s=>s.trim()).filter(Boolean);
+      if(!list.length)return;
+      if(mode<0&&list.some(path=>get(path)<=0)){feed(`${label} は0のため減算できません`);return;}
+      list.forEach(path=>set(path,get(path)+mode));
+      hist.push({multi:list.map(path=>({path,delta:mode})),label});
+      if(hist.length>50)hist.shift();
+      feed(`<b>${mode<0?'−1':'＋1'}</b> ${label}`);
+      save();
+      renderAll();
+    }
     function undo(){
       const a=hist.pop();
       if(!a){feed('取り消せる操作がありません');return;}
@@ -150,6 +161,11 @@
         try{S=JSON.parse(a.snap);}
         catch(e){feed('復元に失敗しました');return;}
         feed('<b>復元</b> リセット前の状態に戻しました');
+        save();renderAll();return;
+      }
+      if(a.multi){
+        a.multi.forEach(item=>set(item.path,Math.max(0,get(item.path)-(item.delta||1))));
+        feed(`<b>取消</b> ${a.label}`);
         save();renderAll();return;
       }
       set(a.path,Math.max(0,get(a.path)-(a.delta||1)));
@@ -250,7 +266,13 @@
       main.querySelectorAll('.crow').forEach(el=>{
         const plus=el.querySelector('.plus');
         if(plus)plus.addEventListener('click',ev=>{ev.stopPropagation();bump(el.dataset.c,el.dataset.l);});
-        el.addEventListener('click',()=>bump(el.dataset.c,el.dataset.l));
+        if(el.dataset.c)el.addEventListener('click',()=>bump(el.dataset.c,el.dataset.l));
+      });
+      main.querySelectorAll('[data-bump-many]').forEach(el=>{
+        el.addEventListener('click',ev=>{
+          ev.stopPropagation();
+          bumpMany(el.dataset.bumpMany,el.dataset.label||el.textContent.trim());
+        });
       });
       main.querySelectorAll('[data-bump]').forEach(el=>{
         el.addEventListener('click',ev=>{

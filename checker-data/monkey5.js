@@ -133,20 +133,25 @@
     <div class="sec-h">AT当選の契機別記録<span class="sub">計${atTotal(S)}回</span></div>
     <style>
       .cycle-row .num{min-width:38px}
-      .cycle-row .pct{min-width:118px;text-align:right}
-      .cycle-plus{width:36px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900}
-      .minus .cycle-plus{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+      .cycle-row .pct{min-width:104px;text-align:right}
+      .cycle-actions{display:flex;gap:5px;margin-left:6px}
+      .cycle-btn{height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px}
+      .cycle-btn.win{color:#ffc94d}
+      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
     </style>
     <div class="cgrid">
-      ${CYCLES.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}" data-c="zones.${c[0]}r" data-l="${c[1]} 到達">
+      ${CYCLES.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}">
         <div class="ct"><b>${c[1]}</b><small>${c[2]}</small></div>
         <div class="num">${cycleReach(S,c[0])}</div>
         <div class="pct">${cycleRowRate(S,c[0])}</div>
-        <button type="button" class="cycle-plus" data-bump="zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当</button>
+        <div class="cycle-actions">
+          <button type="button" class="cycle-btn win" data-bump-many="zones.${c[0]}r,zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当選</button>
+          <button type="button" class="cycle-btn" data-bump="zones.${c[0]}r" data-label="${c[1]} ハズレ" aria-label="${c[1]} ハズレ">ハズレ</button>
+        </div>
       </div>`).join('')}
       ${TRIGGERS.map(c=>ctx.crow('triggers.'+c[0],c[1],c[2],c[3])).join('')}
     </div>
-    <div class="hint">周期到達ごとに行をタップ。当選した周期は右端の「当」もタップ。直撃はレア役から5G以内・9G超の当選は対象外</div>
+    <div class="hint">周期到達ごとに「当選」または「ハズレ」を1回タップ。当選は到達と当選を同時に記録します。直撃はレア役から5G以内・9G超の当選は対象外</div>
   </section>`;
   }
 
