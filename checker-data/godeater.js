@@ -56,8 +56,8 @@
   ];
   const DEF={
     games:0,
-    zones:Object.fromEntries(NORMAL_G.map(v=>[v[0],0])),
-    triggers:Object.fromEntries(SHORT_G.map(v=>[v[0],0])),
+    zones:Object.fromEntries(NORMAL_G.flatMap(v=>[[v[0]+'r',0],[v[0]+'w',0]])),
+    triggers:Object.fromEntries(SHORT_G.flatMap(v=>[[v[0]+'r',0],[v[0]+'w',0]])),
     cz:{strong:0,strongHit:0,czAt:0,kamiochi:0,czTotal:0,chance:0,chanceCz:0},
     atcz:Object.fromEntries(VOICES.map(v=>[v[0],0])),
     screens:Object.fromEntries(SCREENS.map(v=>[v[0],0])),
@@ -76,13 +76,19 @@
   function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
   function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]));}
   function detailRatio(label,a,b,hot){return {label,value:Number(a)||0,hot:!!hot,text:label+' '+(b>0?ratio(a,b):'-'),show:b>0};}
+  function zoneReach(state,id){return n(state,id+'r');}
+  function zoneWin(state,id){return n(state,id+'w');}
+  function zoneRate(state,id){return ratio(zoneWin(state,id),zoneReach(state,id));}
+  function zoneReachTotal(arr,state){return arr.reduce((a,c)=>a+zoneReach(state,c[0]),0);}
+  function zoneWinTotal(arr,state){return arr.reduce((a,c)=>a+zoneWin(state,c[0]),0);}
+  function detailZone(label,state,id,hot){const w=zoneWin(state,id),r=zoneReach(state,id);return {label,value:w,hot:!!hot,text:`${label} ${w}/${r}`,show:w>0||r>0};}
   function shown(prefix,items){
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
     return `${prefix} ${out.length?out.join('・'):'-'}`;
   }
   function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
 
-  function atTotal(S){return sum(S.zones)+sum(S.triggers)+n(S.cz,'strongHit')+n(S.cz,'czAt');}
+  function atTotal(S){return zoneWinTotal(NORMAL_G,S.zones)+zoneWinTotal(SHORT_G,S.triggers)+n(S.cz,'strongHit')+n(S.cz,'czAt');}
   function confirmItems(S){
     return [
       {tier:6,order:1,label:'デフォルメ画面',value:n(S.screens,'deforme'),best:true},
@@ -110,16 +116,32 @@
   function confirmCount(S){return confirmItems(S).reduce((a,b)=>a+(Number(b.value)||0),0);}
 
   function pageHatsu(ctx){
-    const S=ctx.S, normalN=sum(S.zones), shortN=sum(S.triggers);
+    const S=ctx.S, normalReach=zoneReachTotal(NORMAL_G,S.zones), normalWin=zoneWinTotal(NORMAL_G,S.zones), shortReach=zoneReachTotal(SHORT_G,S.triggers), shortWin=zoneWinTotal(SHORT_G,S.triggers);
     return `<section class="sec">
-    <div class="sec-h">規定ゲーム数・通常<span class="sub">計${normalN}回</span></div>
-    <div class="cgrid">${NORMAL_G.map(c=>ctx.crow('zones.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,normalN))).join('')}</div>
-    <div class="hint">規定G到達＝AT当選。CZ経由やレア役で先に当たった場合は、このセクションではなくCZ経由に記録します。</div>
+    <div class="sec-h">規定ゲーム数・通常<span class="sub">到達${normalReach}・当選${normalWin}</span></div>
+    <style>
+      .cycle-row .num{min-width:38px}
+      .cycle-row .pct{min-width:118px;text-align:right}
+      .cycle-plus{width:36px;height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900}
+      .minus .cycle-plus{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+    </style>
+    <div class="cgrid">${NORMAL_G.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}" data-c="zones.${c[0]}r" data-l="${c[1]} 到達">
+      <div class="ct"><b>${c[1]}</b><small>${c[2]}</small></div>
+      <div class="num">${zoneReach(S.zones,c[0])}</div>
+      <div class="pct">${zoneRate(S.zones,c[0])}</div>
+      <button type="button" class="cycle-plus" data-bump="zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当</button>
+    </div>`).join('')}</div>
+    <div class="hint">ゾーン到達（例:100Gを超えて回した）ごとに行をタップ。そのゾーンでAT当選したら右端の「当」もタップします。</div>
   </section>
   <section class="sec">
-    <div class="sec-h">規定ゲーム数・短縮<span class="sub">計${shortN}回</span></div>
-    <div class="cgrid">${SHORT_G.map(c=>ctx.crow('triggers.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,shortN))).join('')}</div>
-    <div class="hint">設定変更後・漆黒の捕喰者後の天井短縮時に使用。逆鱗ハンニバル敗北後は100G+α。</div>
+    <div class="sec-h">規定ゲーム数・短縮<span class="sub">到達${shortReach}・当選${shortWin}</span></div>
+    <div class="cgrid">${SHORT_G.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}" data-c="triggers.${c[0]}r" data-l="${c[1]} 到達">
+      <div class="ct"><b>${c[1]}</b><small>${c[2]}</small></div>
+      <div class="num">${zoneReach(S.triggers,c[0])}</div>
+      <div class="pct">${zoneRate(S.triggers,c[0])}</div>
+      <button type="button" class="cycle-plus" data-bump="triggers.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当</button>
+    </div>`).join('')}</div>
+    <div class="hint">設定変更後・漆黒の捕喰者後の天井短縮時に使用。到達ごとに行、当選時は「当」もタップします。</div>
   </section>
   <section class="sec">
     <div class="sec-h">その他の契機<span class="sub">AT計${atTotal(S)}回</span></div>
@@ -158,13 +180,13 @@
     <div class="cgrid">${ctx.crow('ed.timer6','タイマー「6」開始でAT非当選','設定6濃厚',1)}</div></section>`;
   }
   function tplText(ctx){
-    const S=ctx.S, normalN=sum(S.zones), shortN=sum(S.triggers), voiceN=sum(S.atcz), screenN=sum(S.screens);
+    const S=ctx.S, voiceN=sum(S.atcz), screenN=sum(S.screens);
     let t=`設定判別メモ｜スマスロ ゴッドイーター\nAT計${atTotal(S)}回 / CZ${S.cz.czTotal}回\n_______\n`;
     t+=section('AT直撃',[S.cz.strong>0?`強チェリー直撃▶${ratio(S.cz.strongHit,S.cz.strong)}`:null]);
     t+='\n■規定ゲーム数・通常\n';
-    NORMAL_G.forEach(c=>{t+=`${c[1]}▶${pctLine(n(S.zones,c[0]),normalN)}\n`;});
+    NORMAL_G.forEach(c=>{t+=`${c[1]}▶${zoneWin(S.zones,c[0])}/${zoneReach(S.zones,c[0])}\n`;});
     t+='\n■規定ゲーム数・短縮\n';
-    SHORT_G.forEach(c=>{t+=`${c[1]}▶${pctLine(n(S.triggers,c[0]),shortN)}\n`;});
+    SHORT_G.forEach(c=>{t+=`${c[1]}▶${zoneWin(S.triggers,c[0])}/${zoneReach(S.triggers,c[0])}\n`;});
     t+=section('セリフ',voiceN>0?VOICES.filter(c=>n(S.atcz,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.atcz,c[0]),voiceN)}`):[]);
     t+=section('終了画面',screenN>0?SCREENS.filter(c=>n(S.screens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.screens,c[0]),screenN)}`):[]);
     t+=section('神堕',[S.cz.kamiochi>0?`神堕▶${S.cz.kamiochi}回`:null]);
@@ -179,8 +201,8 @@
   function detail(ctx){
     const S=ctx.S;
     return [
-      {title:'規定ゲーム数・通常',items:detailItems(NORMAL_G,S.zones)},
-      {title:'規定ゲーム数・短縮',items:detailItems(SHORT_G,S.triggers)},
+      {title:'規定ゲーム数・通常',items:NORMAL_G.map(c=>detailZone(c[1],S.zones,c[0],c[3]))},
+      {title:'規定ゲーム数・短縮',items:SHORT_G.map(c=>detailZone(c[1],S.triggers,c[0],c[3]))},
       {title:'その他の契機',items:[
         detailItem('強チェリー成立',S.cz.strong,0),
         detailRatio('強チェリーからAT直撃',S.cz.strongHit,S.cz.strong,1),
@@ -206,6 +228,27 @@
     defaults:DEF,
     mergeKeys:['zones','triggers','cz','atcz','screens','coins','over','ed'],
     sourceUrl:'https://chonborista.com/slot/yamasa-slot/211285/',
+    normalizeState:(out,src)=>{
+      const oldZones=(src&&src.zones)||{};
+      NORMAL_G.forEach(c=>{
+        const id=c[0];
+        if(oldZones[id]!==undefined && oldZones[id+'w']===undefined){
+          out.zones[id+'w']=Number(oldZones[id])||0;
+        }
+        out.zones[id+'r']=Number(out.zones[id+'r'])||0;
+        out.zones[id+'w']=Number(out.zones[id+'w'])||0;
+      });
+      const oldShort=(src&&src.triggers)||{};
+      SHORT_G.forEach(c=>{
+        const id=c[0];
+        if(oldShort[id]!==undefined && oldShort[id+'w']===undefined){
+          out.triggers[id+'w']=Number(oldShort[id])||0;
+        }
+        out.triggers[id+'r']=Number(out.triggers[id+'r'])||0;
+        out.triggers[id+'w']=Number(out.triggers[id+'w'])||0;
+      });
+      return out;
+    },
     share:{title:'スマスロ ゴッドイーター 設定判別メモ',hashtags:'#ゴッドイーター #設定判別'},
     pages:(ctx,pageCard)=>[
       ()=>pageHatsu(ctx),
@@ -232,7 +275,7 @@
           ['神堕',`×${S.cz.kamiochi}`]
         ];
       },
-      chart:ctx=>({title:'規定G当選分布（通常）',x:82,step:135,width:64,items:NORMAL_G.map(c=>({label:c[4],value:n(ctx.S.zones,c[0])}))}),
+      chart:ctx=>({title:'規定G当選分布（通常）',x:82,step:135,width:64,items:NORMAL_G.map(c=>({label:c[4],value:zoneWin(ctx.S.zones,c[0])}))}),
       bottom:ctx=>{
         const S=ctx.S, count=confirmCount(S);
         return {
@@ -251,9 +294,9 @@
             {x:560,items:[
               row(`濃厚示唆 計${count}回`,count,count>0,'#ffc94d'),
               row(shown('ボイス',[['エ',n(S.atcz,'erina')],['リ',n(S.atcz,'lindow')],['シ',n(S.atcz,'shio')]]),n(S.atcz,'erina')+n(S.atcz,'lindow')+n(S.atcz,'shio')),
-              row(`短縮G 計${sum(S.triggers)}`,sum(S.triggers)),
+              row(`短縮G 計${zoneWinTotal(SHORT_G,S.triggers)}`,zoneWinTotal(SHORT_G,S.triggers)),
               row(shown('枚数',[['246',n(S.over,'p246')],['456',n(S.over,'p456')],['555',n(S.over,'p555')],['666',n(S.over,'p666')]]),sum(S.over)),
-              row(`タイマー6 ×${S.ed.timer6}`,S.ed.timer6)
+              {label:'タイマー6',text:`タイマー6 ×${n(S.ed,'timer6')}`,value:n(S.ed,'timer6'),active:n(S.ed,'timer6')>0}
             ]}
           ]
         };
