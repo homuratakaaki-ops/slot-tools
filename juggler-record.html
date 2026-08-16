@@ -68,7 +68,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 
 .tabs { display: flex; gap: 6px; flex: none; }
 .tabs button {
-  flex: 1; padding: 9px 0; font-size: 13.5px; font-weight: 600;
+  flex: 1; padding: 9px 0; min-height: 48px; font-size: 13.5px; font-weight: 600;
   border: 1px solid var(--line); border-radius: 9px;
   background: var(--card); color: var(--muted); cursor: pointer;
 }
@@ -90,7 +90,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 
 /* 数値フィールド(電卓で入力) */
 .numfield {
-  width: 100%; padding: 8px 6px; border-radius: 8px;
+  width: 100%; padding: 8px 6px; min-height: 48px; border-radius: 8px;
   border: 1px solid var(--line); background: var(--card2); color: var(--ink);
   font-size: 17px; font-weight: 600; font-variant-numeric: tabular-nums;
   text-align: right; cursor: pointer;
@@ -107,10 +107,10 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 /* カウントボタン(可変高で画面を埋める) */
 .count-wrap { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 7px; }
 .count-grid {
-  height: clamp(150px, 27dvh, 230px);
+  height: clamp(140px, 23dvh, 210px);
   display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 7px;
 }
-@supports not (height: 1dvh) { .count-grid { height: clamp(150px, 27vh, 230px); } }
+@supports not (height: 1dvh) { .count-grid { height: clamp(140px, 23vh, 210px); } }
 .count-btn {
   border-radius: 12px; border: 1px solid var(--line);
   background: var(--card2); color: var(--ink);
@@ -128,7 +128,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 
 .sub-actions { display: grid; grid-template-columns: 1fr 1fr 1.1fr 0.8fr; gap: 6px; flex: none; }
 .sub-actions button {
-  padding: 8px 2px; font-size: 12px; border-radius: 9px;
+  padding: 8px 2px; min-height: 48px; font-size: 12px; border-radius: 9px;
   border: 1px solid var(--line); background: var(--card2); color: var(--muted); cursor: pointer;
   white-space: nowrap;
 }
@@ -140,17 +140,17 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .invest-row { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 6px; margin-bottom: 6px; }
 .invest-main {
   border-radius: 10px; border: 1px solid #5a2a26; background: var(--lamp-soft); color: var(--lamp);
-  font-size: 14.5px; font-weight: 700; padding: 10px 2px; cursor: pointer; white-space: nowrap;
+  font-size: 14.5px; font-weight: 700; padding: 10px 2px; min-height: 48px; cursor: pointer; white-space: nowrap;
 }
 .invest-main:active { transform: scale(.97); }
 .invest-sub {
   border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--ink);
-  font-size: 13px; cursor: pointer; white-space: nowrap;
+  font-size: 13px; min-height: 48px; cursor: pointer; white-space: nowrap;
 }
 .invest-line { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); flex-wrap: nowrap; }
 .invest-line .chip {
   border: 1px solid var(--line); background: var(--card2); color: var(--ink);
-  border-radius: 10px; padding: 11px 12px; font-size: 13px; cursor: pointer;
+  border-radius: 10px; padding: 11px 12px; min-height: 48px; font-size: 13px; cursor: pointer;
   font-variant-numeric: tabular-nums; white-space: nowrap;
 }
 .invest-line .sum b.neg { color: var(--lamp); }
@@ -166,7 +166,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .invest-line .sum b.plus { color: var(--grape); }
 .invest-line .sum b.minus { color: var(--lamp); }
 select.rate {
-  padding: 5px 4px; font-size: 12px; border: 1px solid var(--line); border-radius: 8px;
+  padding: 5px 4px; font-size: 12px; min-height: 48px; border: 1px solid var(--line); border-radius: 8px;
   background: var(--card2); color: var(--ink);
 }
 
@@ -259,9 +259,16 @@ select.rate {
 .kp-grid button:active { filter: brightness(1.25); }
 .kp-grid .fn { font-size: 15px; color: var(--muted); }
 .kp-actions { display: grid; grid-template-columns: 1fr 1.6fr; gap: 8px; margin-top: 8px; }
-.kp-actions button { padding: 12px 0; font-size: 15px; font-weight: 700; border-radius: 10px; cursor: pointer; }
+.kp-actions button { padding: 12px 0; min-height: 48px; font-size: 15px; font-weight: 700; border-radius: 10px; cursor: pointer; }
 .kp-cancel { border: 1px solid var(--line); background: var(--card2); color: var(--muted); }
 .kp-ok { border: 1px solid var(--ink); background: var(--ink); color: #14161a; }
+@media (max-height: 720px) {
+  .shell { gap: 5px; }
+  .panel { padding: 6px 8px; }
+  .count-grid { height: clamp(120px, 20dvh, 170px); }
+  .tabs button, .sub-actions button, .numfield { min-height: 44px; }
+  .count-hint { display: none; }
+}
 </style>
 </head>
 <body>
