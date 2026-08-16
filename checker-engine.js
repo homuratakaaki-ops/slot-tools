@@ -253,6 +253,9 @@
       };
     }
     function sourceCredit(){
+      if(config.sourceCreditHtml){
+        return typeof config.sourceCreditHtml==='function'?config.sourceCreditHtml(context()):config.sourceCreditHtml;
+      }
       return `<div class="credit">示唆内容・解析数値の出典：ちょんぼりすた パチスロ解析様<br>
 より詳しい解析・最新情報は <a href="${config.sourceUrl}" target="_blank" rel="noopener">ちょんぼりすた様の解析ページ</a> をご覧ください。</div>`;
     }
@@ -288,7 +291,7 @@
           save();renderAll();
         });
       });
-      if(cur===3)initCard();
+      if(cur===(config.cardPageIndex!==undefined?config.cardPageIndex:pages.length-1))initCard();
     }
     function drawCardShell(x,headline){
       const W=1080,H=1080;
