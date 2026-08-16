@@ -10,11 +10,11 @@
     return [
       {title:'初当り・小役',items:[detailItem('CZ当選',S.cz.cz,0),detailItem('AT当選',S.atCount,0),detailItem('確定CZ',S.cz.end,1),detailItem('曠野の決闘',S.cz.duel,1),{label:'共通ベル',value:S.cz.bell,hot:false,text:S.cz.bell>0?'共通ベル 1/'+((S.games||0)/S.cz.bell).toFixed(1):'',show:S.cz.bell>0},{label:'強チャンス目B',value:S.cz.chanceB,hot:false,text:S.cz.chanceB>0?'強チャンス目B 1/'+((S.games||0)/S.cz.chanceB).toFixed(1):'',show:S.cz.chanceB>0}]},
       {title:'CZ失敗後',items:[detailItem('CZ失敗',S.atcz.fail,0),detailRatio('CZ失敗後のアイテム獲得',S.atcz.item,S.atcz.fail,1),detailItem('SC1・2戦目デスガン',S.atcz.deathgun,1)]},
-      {title:'AT終了後・継続セット',items:[detailItem('AT終了',atEnd,0)].concat(detailItems(SETS,S.atcz),[detailRatio('AT後50G以内の引き戻し',S.atcz.return50,atEnd,1),detailRatio('2セット以上継続',over2,atEnd,0)])},
-      {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
+      {title:'AT終了後・継続セット',items:[detailItem('AT終了',atEnd,0)].concat(SETS.map(c=>Object.assign(detailItem(c[1],S.atcz[c[0]],c[3]),{denominator:atEnd})),[detailRatio('AT後50G以内の引き戻し',S.atcz.return50,atEnd,1),detailRatio('2セット以上継続',over2,atEnd,0)])},
+      {title:'AT終了画面',items:detailItems(SCREENS,S.screens),percent:true},
       {title:'コパンダトロフィー',items:detailItems(TROPHIES,S.coins)},
-      {title:'ED中のミニキャラ',items:detailItems(ED,S.ed)},
-      {title:'GGOモード示唆',items:detailItems(GGO,S.icons)}
+      {title:'ED中のミニキャラ',items:detailItems(ED,S.ed),percent:true},
+      {title:'GGOモード示唆',items:detailItems(GGO,S.icons),percent:true}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};

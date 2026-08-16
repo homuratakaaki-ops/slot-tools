@@ -7,17 +7,17 @@
     const S=ctx.S;
     return [
       {title:'初当り',items:[detailItem('CZ当選',S.cz.cz,0),detailItem('AT当選',S.atCount,1),detailItem('AT直撃',S.choku,0)]},
-      {title:'周期当選',items:detailItems(CYCLES,S.zones)},
-      {title:'規定pt帯',items:detailItems(POINTS,S.pts)},
+      {title:'周期当選',items:detailItems(CYCLES,S.zones),percent:true},
+      {title:'規定pt帯',items:detailItems(POINTS,S.pts),percent:true},
       {title:'ポイント特化ゾーン',items:[detailItem('百花繚乱チャンス 突入',S.cz.hyakka,0),detailItem('人馬一体チャンス 突入',S.cz.jinba,1)]},
-      {title:'CZ対戦相手',items:detailItems(OPPONENTS,S.icons)},
+      {title:'CZ対戦相手',items:detailItems(OPPONENTS,S.icons),percent:true},
       {title:'抜刀チャンス',items:[detailItem('抜刀メーターMAX到達',S.cz.battoMax,0),detailRatio('抜刀チャンス当選',S.cz.battoHit,S.cz.battoMax,1)]},
-      {title:'御白洲ビジョン',items:detailItems(VISIONS,S.vision)},
-      {title:'メニュー画面',items:detailItems(MENUS,S.menu)},
-      {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
+      {title:'御白洲ビジョン',items:detailItems(VISIONS,S.vision),percent:true},
+      {title:'メニュー画面',items:detailItems(MENUS,S.menu),percent:true},
+      {title:'AT終了画面',items:detailItems(SCREENS,S.screens),percent:true},
       {title:'コパンダトロフィー',items:detailItems(TROPHIES,S.coins)},
       {title:'獲得枚数表示',items:detailItems(MEDALS,S.over)},
-      {title:'真BB中のボイス',items:detailItems(VOICES,S.ed)}
+      {title:'真BB中のボイス',items:detailItems(VOICES,S.ed),percent:true}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};

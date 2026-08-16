@@ -6,12 +6,12 @@
   function detail(ctx){
     const S=ctx.S;
     return [
-      {title:'まいるテーブル',items:detailItems(TABLES,S.zones)},
+      {title:'まいるテーブル',items:detailItems(TABLES,S.zones),percent:true},
       {title:'初当り',items:[detailItem('関所チャレンジ当選',S.cz.rg,0),detailItem('やじきた祭当選',S.atCount,0),detailItem('AT直撃',S.choku,1),detailItem('関頂アタック突入',S.atcz.gab,0),detailItem('温泉ステージ移行',S.atcz.useki,0)]},
-      {title:'あっぱれチャンス キャラ',items:detailItems(CHARACTERS,S.icons)},
-      {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
+      {title:'あっぱれチャンス キャラ',items:detailItems(CHARACTERS,S.icons),percent:true},
+      {title:'AT終了画面',items:detailItems(SCREENS,S.screens),percent:true},
       {title:'ユニバプレート',items:detailItems(COINS,S.coins)},
-      {title:'ED中の手形',items:detailItems(ED,S.ed)}
+      {title:'ED中の手形',items:detailItems(ED,S.ed),percent:true}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};

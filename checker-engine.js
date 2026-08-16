@@ -336,14 +336,25 @@
     }
     function detailSections(){
       if(!config.card.detail)return [];
-      return (config.card.detail(context())||[]).map(sec=>({
-        title:sec.title,
-        items:(sec.items||[]).filter(item=>item&&(item.show!==false)&&((item.value||0)>0||item.text))
-      })).filter(sec=>sec.items.length>0);
+      return (config.card.detail(context())||[]).map(sec=>{
+        const raw=(sec.items||[]).filter(item=>item&&(item.show!==false)&&((item.value||0)>0||item.text));
+        const denominator=Number(sec.denominator)||(
+          sec.percent?raw.reduce((a,item)=>a+(Number(item.value)||0),0):0
+        );
+        return {
+          title:sec.title,
+          items:raw.map(item=>{
+            if(item.text||item.denominator||denominator<=0)return item;
+            return Object.assign({},item,{denominator});
+          })
+        };
+      }).filter(sec=>sec.items.length>0);
     }
     function detailValue(item){return Number(item.value)||0;}
     function detailText(item){
       if(item.text)return item.text;
+      const denominator=Number(item.denominator)||0;
+      if(denominator>0)return item.label+' ×'+detailValue(item)+' ('+(100*detailValue(item)/denominator).toFixed(0)+'%)';
       return item.label+' ×'+detailValue(item);
     }
     function hasDetailItems(){return detailSections().some(sec=>sec.items.length>0);}

@@ -8,13 +8,13 @@
     return [
       {title:'初当り',items:[detailItem('ボーナス初当り',S.cz.bonus,0),detailItem('炎炎ループ',S.atCount,1),detailItem('SPエピソードボーナス',S.choku,0)]},
       {title:'伝導者の罠',items:[detailItem('伝導者の罠 突入',S.cz.trap,0),detailRatio('罠から炎炎激闘 当選',S.cz.trapHit,S.cz.trap,0),detailItem('罠中 小V成立',S.cz.smallv,0),detailRatio('罠中 十字目変換 発生',S.cz.convert,S.cz.smallv,1),detailRatio('変換からボーナス当選',S.cz.convertBonus,S.cz.convert,1),detailItem('バトル ジョヴァンニ',S.cz.giovanni,0),detailItem('バトル オロチ',S.cz.orochi,0)]},
-      {title:'REG後 ボーナス終了画面',items:detailItems(BONUS_SCREENS,S.zonesReg)},
-      {title:'BIG後 ボーナス終了画面',items:detailItems(BONUS_SCREENS,S.zonesBig)},
-      {title:'RB中のキャラ紹介シナリオ',items:detailItems(SCENARIOS,S.screens)},
+      {title:'REG後 ボーナス終了画面',items:detailItems(BONUS_SCREENS,S.zonesReg),percent:true},
+      {title:'BIG後 ボーナス終了画面',items:detailItems(BONUS_SCREENS,S.zonesBig),percent:true},
+      {title:'RB中のキャラ紹介シナリオ',items:detailItems(SCENARIOS,S.screens),percent:true},
       {title:'キャラ紹介の特殊パターン',items:detailItems(SPECIALS,S.ed)},
-      {title:'まもるくん出現位置',items:detailItems(MAMORU,S.icons)},
+      {title:'まもるくん出現位置',items:detailItems(MAMORU,S.icons),percent:true},
       {title:'獲得枚数表示',items:detailItems(OVER,S.coins)},
-      {title:'エンディング中のミニキャラ',items:detailItems(ED_CHARS,S.atcz)}
+      {title:'エンディング中のミニキャラ',items:detailItems(ED_CHARS,S.atcz),percent:true}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};

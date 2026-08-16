@@ -7,15 +7,15 @@
     const S=ctx.S;
     return [
       {title:'初当り',items:[detailItem('CZ当選',S.cz.rg,0),detailItem('AT当選',S.atCount,0),detailItem('AT直撃',S.choku,1)]},
-      {title:'運命盤の報酬',items:detailItems(REWARDS,S.zones)},
+      {title:'運命盤の報酬',items:detailItems(REWARDS,S.zones),percent:true},
       {title:'CZ・設定差項目',items:[detailItem('劇場ジャッジ突入',S.cz.theater,0),detailItem('強チェリー成立',S.cz.strong,0),detailRatio('強チェリーから直撃当選',S.cz.strongHit,S.cz.strong,1)]},
-      {title:'AT開始ステージ',items:detailItems(STAGES,S.stages)},
-      {title:'AT終了画面',items:detailItems(AT_SCREENS,S.screens)},
-      {title:'AT終了画面タッチボイス',items:detailItems(VOICES,S.atcz)},
-      {title:'激情ジャッジ 1キャラ目',items:detailItems(JUDGES,S.ed)},
-      {title:'ED中のレア役ランプ',items:detailItems(LAMPS,S.coins)},
+      {title:'AT開始ステージ',items:detailItems(STAGES,S.stages),percent:true},
+      {title:'AT終了画面',items:detailItems(AT_SCREENS,S.screens),percent:true},
+      {title:'AT終了画面タッチボイス',items:detailItems(VOICES,S.atcz),percent:true},
+      {title:'激情ジャッジ 1キャラ目',items:detailItems(JUDGES,S.ed),percent:true},
+      {title:'ED中のレア役ランプ',items:detailItems(LAMPS,S.coins),percent:true},
       {title:'獲得枚数表示・踊れ！オリンピア',items:detailItems(OVER,S.over)},
-      {title:'CZ終了画面イラスト',items:detailItems(CZ_ILLUST,S.icons)}
+      {title:'CZ終了画面イラスト',items:detailItems(CZ_ILLUST,S.icons),percent:true}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};

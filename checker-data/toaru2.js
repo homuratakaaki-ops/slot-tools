@@ -3,16 +3,17 @@
   function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
   function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]));}
   function detailRatio(label,n,d,hot){return {label,value:Number(n)||0,hot:!!hot,text:label+' '+(d>0?(n+'/'+d+' '+(100*n/d).toFixed(0)+'%'):'—'),show:d>0};}
-  function detail(ctx){
+function detail(ctx){
     const S=ctx.S;
+    const zoneN=ZONES.reduce((a,z)=>a+(S.zones[z]||0),0), czN=S.cz.rg+S.cz.ac, atczN=S.atcz.gab+S.atcz.useki, iconN=Object.values(S.icons).reduce((a,b)=>a+b,0), scN=Object.values(S.screens).reduce((a,b)=>a+b,0), edN=Object.values(S.ed).reduce((a,b)=>a+b,0);
     return [
-      {title:'規定ゲーム数 当選ゾーン',items:ZONES.map(z=>detailItem(z+'G台',S.zones[z],0))},
-      {title:'初当り',items:[detailItem('CZ 超電磁砲チャンス',S.cz.rg,0),detailItem('CZ 一方通行チャンス',S.cz.ac,1),detailItem('AT当選',S.atCount,0),detailItem('AT直撃',S.choku,1)]},
-      {title:'AT中CZ 振り分け',items:[detailItem('神の力BATTLE',S.atcz.gab,0),detailItem('神の右席BATTLE',S.atcz.useki,1)]},
-      {title:'CZ・AT終了時 アイコン',items:detailItems(ICONS,S.icons)},
+      {title:'規定ゲーム数 当選ゾーン',items:ZONES.map(z=>detailItem(z+'G台',S.zones[z],0)),denominator:zoneN},
+      {title:'初当り',items:[detailRatio('CZ 超電磁砲チャンス',S.cz.rg,czN,0),detailRatio('CZ 一方通行チャンス',S.cz.ac,czN,1),detailItem('AT当選',S.atCount,0),detailItem('AT直撃',S.choku,1)]},
+      {title:'AT中CZ 振り分け',items:[detailRatio('神の力BATTLE',S.atcz.gab,atczN,0),detailRatio('神の右席BATTLE',S.atcz.useki,atczN,1)]},
+      {title:'CZ・AT終了時 アイコン',items:detailItems(ICONS,S.icons),denominator:iconN},
       {title:'藤丸コイン（AT終了画面）',items:detailItems(COINS,S.coins)},
-      {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
-      {title:'ED中 お知らせ演出',items:detailItems(ED,S.ed)}
+      {title:'AT終了画面',items:detailItems(SCREENS,S.screens),denominator:scN},
+      {title:'ED中 お知らせ演出',items:detailItems(ED,S.ed),denominator:edN}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};

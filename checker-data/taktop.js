@@ -7,16 +7,16 @@
     const S=ctx.S;
     return [
       {title:'初当り',items:[detailItem('AT当選',S.atCount,1),detailItem('デスティニーボーナス',S.cz.bonus,0)]},
-      {title:'CZムジカートチャンス種別',items:detailItems(CZ_TYPES,S.zones).concat([detailItem('巨人 小役なし勝利',S.cz.giantNoRole,1)])},
+      {title:'CZムジカートチャンス種別',items:CZ_TYPES.map(c=>Object.assign(detailItem(c[1],S.zones[c[0]],c[3]),{denominator:sum(S.zones)})).concat([detailItem('巨人 小役なし勝利',S.cz.giantNoRole,1)])},
       {title:'報酬チャンス',items:[detailItem('0pt到達',S.cz.rewardReach,0),detailRatio('報酬チャンス当選',S.cz.rewardHit,S.cz.rewardReach,1)]},
-      {title:'ムジカートバトル',items:detailItems(BATTLES,S.atcz)},
+      {title:'ムジカートバトル',items:detailItems(BATTLES,S.atcz),percent:true},
       {title:'上位AT引き戻し',items:[detailItem('引き戻し区間 突入',S.cz.loopEnter,0),detailRatio('オルフェループ 当選',S.cz.loopHit,S.cz.loopEnter,1)]},
-      {title:'CZ失敗時のボイス',items:detailItems(FAIL_VOICES,S.icons)},
-      {title:'AT終了画面',items:detailItems(AT_SCREENS,S.screens)},
-      {title:'デスティニーボーナス終了画面',items:detailItems(BONUS_SCREENS,S.ed)},
-      {title:'ED画面',items:detailItems(ED_SCREENS,S.coins)},
+      {title:'CZ失敗時のボイス',items:detailItems(FAIL_VOICES,S.icons),percent:true},
+      {title:'AT終了画面',items:detailItems(AT_SCREENS,S.screens),percent:true},
+      {title:'デスティニーボーナス終了画面',items:detailItems(BONUS_SCREENS,S.ed),percent:true},
+      {title:'ED画面',items:detailItems(ED_SCREENS,S.coins),percent:true},
       {title:'獲得枚数',items:detailItems(MEDALS,S.over)},
-      {title:'凪のセリフ',items:detailItems(NAGI,S.nagi)}
+      {title:'凪のセリフ',items:detailItems(NAGI,S.nagi),percent:true}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};

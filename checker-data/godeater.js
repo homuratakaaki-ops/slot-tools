@@ -160,7 +160,7 @@
     ${ctx.crow('cz.strongHit','強チェリーからAT直撃','設1:0.4%⇔設6:5.9%・特大設定差',1,v=>ratio(v,S.cz.strong))}
     ${ctx.crow('cz.czAt','CZ経由 AT当選','アラガミ防衛戦・殲滅モード経由のAT',0)}
     <div class="crow cycle-row hot">
-      <div class="ct"><b>ED後 神堕移行</b></div>
+      <div class="ct"><b>ED後<br>神堕移行</b></div>
       <div class="num">${n(S.cz,'edReach')}</div>
       <div class="pct">${ratio(S.cz.edKamiochi,S.cz.edReach)}</div>
       <div class="cycle-actions">
@@ -234,8 +234,8 @@
         detailItem('チャンス目 成立',S.cz.chance,0),
         detailRatio('チャンス目からCZ当選',S.cz.chanceCz,S.cz.chance,1)
       ]},
-      {title:'ストーリー終了画面ボイス',items:detailItems(VOICES,S.atcz)},
-      {title:'AT終了画面',items:detailItems(SCREENS,S.screens)},
+      {title:'ストーリー終了画面ボイス',items:detailItems(VOICES,S.atcz),percent:true},
+      {title:'AT終了画面',items:detailItems(SCREENS,S.screens),percent:true},
       {title:'連打時の枚数表示',items:detailItems(RENDA,S.coins)},
       {title:'獲得枚数表示',items:detailItems(PAYOUT,S.over)},
       {title:'ユウタイマー演出',items:[detailItem('タイマー6',S.ed.timer6,1)]}

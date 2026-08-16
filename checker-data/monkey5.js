@@ -230,11 +230,11 @@
         detailItem('強チャンス目成立',S.cz.strongChance,0),
         detailRatio('強チャンス目EX',S.cz.strongChanceEx,S.cz.strongChance,1)
       ]},
-      {title:'チャージ終了ボイス',items:detailItems(CHARGE_VOICES,S.atcz)},
-      {title:'メダル・トロフィー',items:detailItems(TROPHIES,S.screens)},
-      {title:'EDボイス',items:detailItems(ED,S.ed)},
-      {title:'舟券',items:detailItems(TICKETS,S.icons)},
-      {title:'特殊ラウンド画面',items:detailItems(ROUNDS,S.coins)},
+      {title:'チャージ終了ボイス',items:detailItems(CHARGE_VOICES,S.atcz),percent:true},
+      {title:'メダル・トロフィー',items:detailItems(TROPHIES,S.screens),percent:true},
+      {title:'EDボイス',items:detailItems(ED,S.ed),percent:true},
+      {title:'舟券',items:detailItems(TICKETS,S.icons),percent:true},
+      {title:'特殊ラウンド画面',items:detailItems(ROUNDS,S.coins),percent:true},
       {title:'獲得枚数',items:detailItems(MEDALS,S.over)}
     ];
   }

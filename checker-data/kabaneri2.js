@@ -8,10 +8,10 @@
     return [
       {title:'周期到達／当選',items:CYCLES.map(c=>detailRatio(c[1],S.zones[c[0]+'w']||0,S.zones[c[0]+'r']||0,c[3]))},
       {title:'初当り',items:[detailItem('ボーナス初当り',S.cz.rg,0),detailItem('ST当選',S.atCount,0)]},
-      {title:'アイテムくじ',items:detailItems(ITEMS,S.icons)},
-      {title:'技術介入ボイス',items:detailItems(VOICES,S.atcz)},
-      {title:'キャラ紹介',items:detailItems(CHARS,S.ed)},
-      {title:'ST終了画面',items:detailItems(SCREENS,S.screens)},
+      {title:'アイテムくじ',items:detailItems(ITEMS,S.icons),percent:true},
+      {title:'技術介入ボイス',items:detailItems(VOICES,S.atcz),percent:true},
+      {title:'キャラ紹介',items:detailItems(CHARS,S.ed),percent:true},
+      {title:'ST終了画面',items:detailItems(SCREENS,S.screens),percent:true},
       {title:'サミートロフィー',items:detailItems(TROPHIES,S.coins)},
       {title:'カバネリアタック連打枚数',items:detailItems(ATTACK,S.attack)},
       {title:'獲得枚数表示',items:detailItems(OVER,S.over)}
