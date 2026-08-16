@@ -12,11 +12,11 @@
     ['tenjo','天井','1000G+α',0,'天井']
   ];
   const SHORT_G=[
-    ['s100','100G','設定変更後・漆黒後などの短縮時に使用',0],
-    ['s200','200G','設定変更後・漆黒後の短縮時に使用',0],
-    ['s300','300G','設定変更後・漆黒後の短縮時に使用',0],
-    ['s450','450G','設定変更後・漆黒後の短縮時に使用',0],
-    ['s600','600G','設定変更後・漆黒後は天井600G+α',0]
+    ['s100','100G','',0],
+    ['s200','200G','',0],
+    ['s300','300G','',0],
+    ['s450','450G','',0],
+    ['s600','600G','',0]
   ];
   const VOICES=[
     ['kouta','コウタ「一緒にバガラリー〜」','デフォルト',0],
@@ -58,7 +58,7 @@
     games:0,
     zones:Object.fromEntries(NORMAL_G.flatMap(v=>[[v[0]+'r',0],[v[0]+'w',0]])),
     triggers:Object.fromEntries(SHORT_G.flatMap(v=>[[v[0]+'r',0],[v[0]+'w',0]])),
-    cz:{strong:0,strongHit:0,czAt:0,kamiochi:0,czTotal:0,chance:0,chanceCz:0},
+    cz:{strong:0,strongHit:0,czAt:0,edReach:0,edKamiochi:0,kamiochi:0,czTotal:0,chance:0,chanceCz:0},
     atcz:Object.fromEntries(VOICES.map(v=>[v[0],0])),
     screens:Object.fromEntries(SCREENS.map(v=>[v[0],0])),
     coins:Object.fromEntries(RENDA.map(v=>[v[0],0])),
@@ -121,9 +121,11 @@
     <div class="sec-h">規定ゲーム数・通常<span class="sub">到達${normalReach}・当選${normalWin}</span></div>
     <style>
       .cycle-row .num{min-width:38px}
-      .cycle-row .pct{min-width:104px;text-align:right}
-      .cycle-actions{display:flex;gap:5px;margin-left:6px}
-      .cycle-btn{height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px}
+      .cycle-row .ct{flex:1;min-width:0}
+      .cycle-row .ct b,.cycle-row .ct small{display:block}
+      .cycle-row .pct{min-width:92px;text-align:right}
+      .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
+      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
       .cycle-btn.win{color:#ffc94d}
       .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
     </style>
@@ -157,7 +159,15 @@
       ${ctx.crow('cz.strong','強チェリー成立','AT直撃の分母。変換強チェリーも同抽選',0)}
       ${ctx.crow('cz.strongHit','強チェリーからAT直撃','設1:0.4%⇔設6:5.9%・特大設定差',1,v=>ratio(v,S.cz.strong))}
       ${ctx.crow('cz.czAt','CZ経由 AT当選','アラガミ防衛戦・殲滅モード経由のAT',0)}
-      ${ctx.crow('cz.kamiochi','神堕 突入','フリーズ／リザレクションゲート・リンドウ覚醒／ED後の一部',0)}
+      <div class="crow cycle-row hot">
+        <div class="ct"><b>ED後 神堕移行</b><small>ED後の有利区間移行時に神堕or漆黒を振り分け（設定差あり!?）。⚠神チェリー・フリーズ経由は記録しない</small></div>
+        <div class="num">${n(S.cz,'edReach')}</div>
+        <div class="pct">${ratio(S.cz.edKamiochi,S.cz.edReach)}</div>
+        <div class="cycle-actions">
+          <button type="button" class="cycle-btn win" data-bump-many="cz.edReach,cz.edKamiochi" data-label="ED後 神堕" aria-label="ED後 神堕">神堕</button>
+          <button type="button" class="cycle-btn" data-bump="cz.edReach" data-label="ED後 漆黒等" aria-label="ED後 漆黒等">漆黒等</button>
+        </div>
+      </div>
     </div>
   </section>`;
   }
@@ -197,7 +207,7 @@
     SHORT_G.forEach(c=>{t+=`${c[1]}▶${zoneWin(S.triggers,c[0])}/${zoneReach(S.triggers,c[0])}\n`;});
     t+=section('セリフ',voiceN>0?VOICES.filter(c=>n(S.atcz,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.atcz,c[0]),voiceN)}`):[]);
     t+=section('終了画面',screenN>0?SCREENS.filter(c=>n(S.screens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.screens,c[0]),screenN)}`):[]);
-    t+=section('神堕',[S.cz.kamiochi>0?`神堕▶${S.cz.kamiochi}回`:null]);
+    t+=section('神堕',[S.cz.edReach>0?`ED後 神堕移行▶${ratio(S.cz.edKamiochi,S.cz.edReach)}`:null]);
     t+=section('連打・獲得枚数',[
       ...RENDA.filter(c=>n(S.coins,c[0])>0).map(c=>`${c[1]}▶${n(S.coins,c[0])}回`),
       ...PAYOUT.filter(c=>n(S.over,c[0])>0).map(c=>`${c[1]}▶${n(S.over,c[0])}回`)
@@ -215,7 +225,8 @@
         detailItem('強チェリー成立',S.cz.strong,0),
         detailRatio('強チェリーからAT直撃',S.cz.strongHit,S.cz.strong,1),
         detailItem('CZ経由 AT当選',S.cz.czAt,0),
-        detailItem('神堕 突入',S.cz.kamiochi,0)
+        detailItem('エンディング到達',S.cz.edReach,0),
+        detailRatio('ED後 神堕移行',S.cz.edKamiochi,S.cz.edReach,1)
       ]},
       {title:'CZ',items:[
         detailItem('CZ当選',S.cz.czTotal,0),
@@ -255,6 +266,11 @@
         out.triggers[id+'r']=Number(out.triggers[id+'r'])||0;
         out.triggers[id+'w']=Number(out.triggers[id+'w'])||0;
       });
+      if(src&&src.cz&&src.cz.kamiochi!==undefined&&src.cz.edKamiochi===undefined){
+        out.cz.edKamiochi=Number(src.cz.kamiochi)||0;
+      }
+      out.cz.edReach=Number(out.cz.edReach)||0;
+      out.cz.edKamiochi=Number(out.cz.edKamiochi)||0;
       return out;
     },
     share:{title:'スマスロ ゴッドイーター 設定判別メモ',hashtags:'#ゴッドイーター #設定判別'},
@@ -280,7 +296,7 @@
           ['AT当選',`計${atTotal(S)}`],
           ['CZ',`計${S.cz.czTotal}`],
           ['強チェ直撃',ratio(S.cz.strongHit,S.cz.strong)],
-          ['神堕',`×${S.cz.kamiochi}`]
+          ['神堕',ratio(S.cz.edKamiochi,S.cz.edReach)]
         ];
       },
       chart:ctx=>({title:'規定G当選分布（通常）',x:82,step:135,width:64,items:NORMAL_G.map(c=>({label:c[4],value:zoneWin(ctx.S.zones,c[0])}))}),

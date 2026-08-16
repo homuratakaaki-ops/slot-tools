@@ -133,9 +133,11 @@
     <div class="sec-h">AT当選の契機別記録<span class="sub">計${atTotal(S)}回</span></div>
     <style>
       .cycle-row .num{min-width:38px}
-      .cycle-row .pct{min-width:104px;text-align:right}
-      .cycle-actions{display:flex;gap:5px;margin-left:6px}
-      .cycle-btn{height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px}
+      .cycle-row .ct{flex:1;min-width:0}
+      .cycle-row .ct b,.cycle-row .ct small{display:block}
+      .cycle-row .pct{min-width:92px;text-align:right}
+      .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
+      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
       .cycle-btn.win{color:#ffc94d}
       .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
     </style>
