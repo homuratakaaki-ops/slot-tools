@@ -260,6 +260,12 @@
       });
       const gIn=document.getElementById('gIn');
       if(gIn)gIn.addEventListener('change',()=>{S.games=Math.max(0,parseInt(gIn.value)||0);save();renderAll();});
+      main.querySelectorAll('[data-number-key]').forEach(el=>{
+        el.addEventListener('change',()=>{
+          S[el.dataset.numberKey]=Math.max(0,parseInt(el.value)||0);
+          save();renderAll();
+        });
+      });
       if(cur===3)initCard();
     }
     function drawCardShell(x,headline){
@@ -303,6 +309,7 @@
     function cardMetaText(){
       const d=new Date();
       const date=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();
+      if(config.card.metaText)return config.card.metaText(context(),date);
       return config.card.hideGames?date:date+'  '+cardGameText();
     }
     function detailSections(){
