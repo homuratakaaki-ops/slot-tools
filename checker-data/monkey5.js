@@ -415,11 +415,16 @@
       const oldZones=(src&&src.zones)||{};
       CYCLES.forEach(c=>{
         const id=c[0];
-        if(oldZones[id]!==undefined && oldZones[id+'w']===undefined){
-          out.zones[id+'w']=Number(oldZones[id])||0;
+        const legacy=Number(oldZones[id]);
+        if(Number.isFinite(legacy) && oldZones[id+'w']===undefined && oldZones[id+'r']===undefined){
+          out.zones[id+'w']=legacy;
+          out.zones[id+'r']=legacy;
         }
         out.zones[id+'r']=Number(out.zones[id+'r'])||0;
         out.zones[id+'w']=Number(out.zones[id+'w'])||0;
+        if(out.zones[id+'w']>out.zones[id+'r']){
+          out.zones[id+'r']=Number.isFinite(legacy)?out.zones[id+'w']+out.zones[id+'r']:out.zones[id+'w'];
+        }
       });
       const oldEd=(src&&src.ed)||{};
       if(oldEd.hatano!==undefined && oldEd.hatanoBlue===undefined) out.ed.hatanoBlue=Number(oldEd.hatano)||0;
