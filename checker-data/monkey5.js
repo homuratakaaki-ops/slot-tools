@@ -3,12 +3,12 @@
   window.CheckerConfigs=window.CheckerConfigs||{};
 
   const CYCLES=[
-    ['c1','周期①','1周期目は222pt以内／天国は1周期天井',0,'①'],
-    ['c2','周期②','通常A/B共通でAT当選のチャンス',0,'②'],
-    ['c3','周期③','通常Bは3周期天井',0,'③'],
-    ['c4','周期④','設定変更時・青島VS波多野敗北後は最大4周期',0,'④'],
-    ['c5','周期⑤','通常AでAT当選のチャンス',0,'⑤'],
-    ['c6','周期⑥','通常A天井／6周期目は最大444pt',0,'⑥']
+    ['c1','周期①','',0,'①'],
+    ['c2','周期②','',0,'②'],
+    ['c3','周期③','',0,'③'],
+    ['c4','周期④','',0,'④'],
+    ['c5','周期⑤','',0,'⑤'],
+    ['c6','周期⑥','',0,'⑥']
   ];
   const TRIGGERS=[
     ['directWeak','AT直撃（弱レア役）','設定4以上濃厚（前兆5〜9G経由。本前兆・フェイク前兆中は対象外）',1],
@@ -174,6 +174,12 @@
     if(!window.CheckerBayes)return {empty:true};
     return window.CheckerBayes.estimate(bayesSpec(S));
   }
+  function bayesInternalEvidence(S){
+    return n(S.cz,'boat')+n(S.cz,'weakChance')+n(S.cz,'strongChance')+n(S.atcz,'default')+n(S.atcz,'sign')+sum(S.ed);
+  }
+  function bayesInsufficient(S){
+    return freeGames(S)<2000 && bayesInternalEvidence(S)<20;
+  }
   function bayesPct(v){return window.CheckerBayes?window.CheckerBayes.percent(v):'--';}
   function bayesExcludedSettings(result){
     const set=new Set();
@@ -184,6 +190,7 @@
     const r=bayesResult(S);
     if(r.contradiction)return row('推定 矛盾',1,true,'#ff5c5c');
     if(r.empty)return row('推定 −',0,false);
+    if(bayesInsufficient(S))return row('推定中',1,false);
     return row('推定 4以上'+bayesPct(r.high),1,true,'#ffc94d');
   }
   function bayesExcludeSummary(S){
@@ -204,12 +211,18 @@
   function atTotal(S){return cycleTotalWin(S)+sum(S.triggers);}
   function pageBayes(ctx){
     const S=ctx.S,r=bayesResult(S),rates=bayesRateMap(S);
-    const invalid=rates.invalid.length?`<div class="hint hot">5枚役の入力形式が不正です：設定${rates.invalid.join('・')}。1/xx形式で入力してください。</div>`:'';
+    const invalid=rates.invalid.length?`<div class="hint hot">5枚役の入力形式が不正です：設定${rates.invalid.join('・')}。分母の数値で入力してください。</div>`:'';
     let body='';
     if(r.contradiction){
       body='<div class="hint hot">⚠記録に矛盾があります（示唆の見間違いの可能性）。</div>';
     }else if(r.empty){
       body='<div class="hint">記録が増えると推定できます。</div>';
+    }else if(bayesInsufficient(S)){
+      const excluded=bayesExcludedSettings(r);
+      const reasons=(r.reasons||[]).map(x=>`${x.label}×${x.count}`).join('、');
+      body=`<div class="bayes-main"><b>推定中</b><span>サンプル不足</span></div>
+      <div class="hint">サンプルが増えると表示されます。目安：自遊技2000G以上、または内蔵証拠20件以上。</div>
+      <div class="hint">除外根拠：${reasons||'なし'}${excluded.length?'（除外済み：設定'+excluded.join('・')+'）':''}</div>`;
     }else{
       const excluded=bayesExcludedSettings(r);
       const bars=BAYES_SETTINGS.map(setting=>{
@@ -235,9 +248,9 @@
     </style>
     <div class="sec-h">設定推定<span class="sub">フェーズ1.5</span></div>
     <div class="bayes-rate-grid">
-      ${BAYES_SETTINGS.map(setting=>`<div><label>設定${setting} 5枚役</label><input data-state-path="bayes.${BAYES_RATE_KEYS[setting]}" data-rate-input="1" value="${escAttr((S.bayes||{})[BAYES_RATE_KEYS[setting]])}" placeholder="1/xx"></div>`).join('')}
+      ${BAYES_SETTINGS.map(setting=>`<div><label>設定${setting} 5枚役</label><input type="number" inputmode="decimal" step="0.1" min="1.1" data-state-path="bayes.${BAYES_RATE_KEYS[setting]}" data-rate-input="1" value="${escAttr((S.bayes||{})[BAYES_RATE_KEYS[setting]])}" placeholder="xx"></div>`).join('')}
     </div>
-    <div class="hint">5枚役確率は手元の数値を1/xx形式で入力。入力値は端末内に保存し、カード・テンプレには出力しません。</div>
+    <div class="hint">5枚役確率は手元の数値を分母のみ入力（例：24.3）。入力値は端末内に保存し、カード・テンプレには出力しません。</div>
     ${invalid}
     ${body}
   </section>`;
@@ -277,12 +290,18 @@
     <div class="hint ${neg?'hot':''}">データカウンターのG数を入力。5枚役の設定推定（次回更新予定）の分母になります${neg?'。現在G数が打ち始めG数を下回っています。':''}</div>
   </section>
   <section class="sec">
+    <div class="sec-h">5枚役</div>
+    <div class="cgrid">
+      ${ctx.crow('cz.five','5枚役','設定差あり・本機の最重要判別要素。分母は自遊技G',1,v=>oneIn(v,freeGames(S)))}
+    </div>
+  </section>
+  <section class="sec">
     <div class="sec-h">AT当選の契機別記録<span class="sub">計${atTotal(S)}回</span></div>
     <style>
-      .cycle-row .num{min-width:38px}
       .cycle-row .ct{flex:1;min-width:0}
       .cycle-row .ct b,.cycle-row .ct small{display:block}
-      .cycle-row .pct{min-width:92px;text-align:right}
+      .cycle-row .ct small:empty{display:none}
+      .cycle-row .pct{min-width:104px;text-align:right;color:#ffc94d;font-size:12px;white-space:nowrap}
       .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
       .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
       .cycle-btn.win{color:#ffc94d}
@@ -291,7 +310,6 @@
     <div class="cgrid">
       ${CYCLES.map(c=>`<div class="crow cycle-row ${c[3]?'hot':''}">
         <div class="ct"><b>${c[1]}</b><small>${c[2]}</small></div>
-        <div class="num">${cycleReach(S,c[0])}</div>
         <div class="pct">${cycleRowRate(S,c[0])}</div>
         <div class="cycle-actions">
           <button type="button" class="cycle-btn win" data-bump-many="zones.${c[0]}r,zones.${c[0]}w" data-label="${c[1]} 当選" aria-label="${c[1]} 当選">当選</button>
@@ -307,9 +325,13 @@
   function pageCharge(ctx){
     const S=ctx.S, voiceN=sum(S.atcz);
     return `<section class="sec">
-    <div class="sec-h">チャージ・5枚役</div>
+    <div class="sec-h">チャージ終了画面タッチのボイス<span class="sub">計${voiceN}回</span></div>
+    <div class="cgrid">${CHARGE_VOICES.map(c=>ctx.crow('atcz.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,voiceN))).join('')}</div>
+    <div class="hint">終了画面でサブ液晶タッチ。EXアイテム付近のタッチは説明表示のため誤認注意</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">EXアイテム</div>
     <div class="cgrid">
-      ${ctx.crow('cz.five','5枚役','設定差あり・本機の最重要判別要素。分母は自遊技G',1,v=>oneIn(v,freeGames(S)))}
       ${ctx.crow('cz.boat','ボート弱チェ 成立','EXアイテム抽選の分母',0)}
       ${ctx.crow('cz.boatEx','ボート弱チェ EX獲得','設1:25.0%⇔設6:43.0%',1,v=>ratio(v,S.cz.boat))}
       ${ctx.crow('cz.weakChance','弱チャンス目 成立','EXアイテム抽選の分母',0)}
@@ -317,12 +339,7 @@
       ${ctx.crow('cz.strongChance','強チャンス目 成立','EXアイテム抽選の分母',0)}
       ${ctx.crow('cz.strongChanceEx','強チャンス目 EX獲得','設1:50.0%⇔設6:66.4%',1,v=>ratio(v,S.cz.strongChance))}
     </div>
-    <div class="hint">設定推定機能は次回更新で対応予定。まずは5枚役をカウント。EXアイテムの対象は上記3役のみで役別に記録します。</div>
-  </section>
-  <section class="sec">
-    <div class="sec-h">チャージ終了画面タッチのボイス<span class="sub">計${voiceN}回</span></div>
-    <div class="cgrid">${CHARGE_VOICES.map(c=>ctx.crow('atcz.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,voiceN))).join('')}</div>
-    <div class="hint">終了画面でサブ液晶タッチ。EXアイテム付近のタッチは説明表示のため誤認注意</div>
+    <div class="hint">EXアイテムの対象は上記3役のみで役別に記録します。</div>
   </section>`;
   }
 
@@ -331,10 +348,10 @@
     return `<section class="sec"><div class="sec-h">メダル・トロフィー<span class="sub">計${trophyN}回</span></div>
     <div class="cgrid">${TROPHIES.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,trophyN))).join('')}</div>
     <div class="hint">黒メダル後1回目はトロフィー出現率UP。出現順も考慮してください。</div></section>
-  <section class="sec"><div class="sec-h">EDボイス<span class="sub">計${edN}回</span></div>
-    <div class="cgrid">${ED.map(c=>ctx.crow('ed.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,edN))).join('')}</div></section>
   <section class="sec"><div class="sec-h">舟券<span class="sub">計${ticketN}回</span></div>
     <div class="cgrid">${TICKETS.map(c=>ctx.crow('icons.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,ticketN))).join('')}</div></section>
+  <section class="sec"><div class="sec-h">EDボイス<span class="sub">計${edN}回</span></div>
+    <div class="cgrid">${ED.map(c=>ctx.crow('ed.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,edN))).join('')}</div></section>
   <section class="sec"><div class="sec-h">特殊ラウンド画面<span class="sub">計${roundN}回</span></div>
     <div class="cgrid">${ROUNDS.map(c=>ctx.crow('coins.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,roundN))).join('')}</div></section>
   <section class="sec"><div class="sec-h">獲得枚数</div>
@@ -348,15 +365,15 @@
     CYCLES.forEach(c=>{t+=`${c[1]}▶${cycleWin(S,c[0])}/${cycleReach(S,c[0])}当選\n`;});
     TRIGGERS.filter(c=>n(S.triggers,c[0])>0).forEach(c=>{t+=`${c[1]}▶${n(S.triggers,c[0])}回\n`;});
     t+=section('5枚役',[`5枚役▶${S.cz.five}回（${oneIn(S.cz.five,freeGames(S))}）`]);
+    t+=section('チャージ終了ボイス',voiceN>0?CHARGE_VOICES.filter(c=>n(S.atcz,c[0])>0).map(c=>`${c[1]}▶${pctText(n(S.atcz,c[0]),voiceN)}`):[]);
     t+=section('チャージ・アイテム',[
       S.cz.boat>0?`ボート弱チェEX▶${ratio(S.cz.boatEx,S.cz.boat)}`:null,
       S.cz.weakChance>0?`弱チャンス目EX▶${ratio(S.cz.weakChanceEx,S.cz.weakChance)}`:null,
       S.cz.strongChance>0?`強チャンス目EX▶${ratio(S.cz.strongChanceEx,S.cz.strongChance)}`:null
     ]);
-    t+=section('チャージ終了ボイス',voiceN>0?CHARGE_VOICES.filter(c=>n(S.atcz,c[0])>0).map(c=>`${c[1]}▶${pctText(n(S.atcz,c[0]),voiceN)}`):[]);
     t+=section('メダル・トロフィー',trophyN>0?TROPHIES.filter(c=>n(S.screens,c[0])>0).map(c=>`${c[1]}▶${pctText(n(S.screens,c[0]),trophyN)}`):[]);
-    t+=section('EDボイス',edN>0?ED.filter(c=>n(S.ed,c[0])>0).map(c=>`${c[1]}▶${pctText(n(S.ed,c[0]),edN)}`):[]);
     t+=section('舟券',ticketN>0?TICKETS.filter(c=>n(S.icons,c[0])>0).map(c=>`${c[1]}▶${pctText(n(S.icons,c[0]),ticketN)}`):[]);
+    t+=section('EDボイス',edN>0?ED.filter(c=>n(S.ed,c[0])>0).map(c=>`${c[1]}▶${pctText(n(S.ed,c[0]),edN)}`):[]);
     t+=section('ラウンド',roundN>0?ROUNDS.filter(c=>n(S.coins,c[0])>0).map(c=>`${c[1]}▶${pctText(n(S.coins,c[0]),roundN)}`):[]);
     t+=section('枚数',MEDALS.filter(c=>n(S.over,c[0])>0).map(c=>`${c[1]}▶${n(S.over,c[0])}回`));
     t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
@@ -368,8 +385,11 @@
     return [
       {title:'AT当選周期',items:CYCLES.map(c=>detailRatio(c[1],cycleWin(S,c[0]),cycleReach(S,c[0]),c[3]))},
       {title:'AT当選契機',items:detailItems(TRIGGERS,S.triggers)},
-      {title:'チャージ・5枚役',items:[
-        {label:'5枚役',value:n(S.cz,'five'),hot:true,text:'5枚役 '+oneIn(S.cz.five,freeGames(S)),show:n(S.cz,'five')>0},
+      {title:'5枚役',items:[
+        {label:'5枚役',value:n(S.cz,'five'),hot:true,text:'5枚役 '+oneIn(S.cz.five,freeGames(S)),show:n(S.cz,'five')>0}
+      ]},
+      {title:'チャージ終了ボイス',items:detailItems(CHARGE_VOICES,S.atcz),percent:true},
+      {title:'チャージ・アイテム',items:[
         detailItem('ボート弱チェ成立',S.cz.boat,0),
         detailRatio('ボート弱チェEX',S.cz.boatEx,S.cz.boat,1),
         detailItem('弱チャンス目成立',S.cz.weakChance,0),
@@ -377,10 +397,9 @@
         detailItem('強チャンス目成立',S.cz.strongChance,0),
         detailRatio('強チャンス目EX',S.cz.strongChanceEx,S.cz.strongChance,1)
       ]},
-      {title:'チャージ終了ボイス',items:detailItems(CHARGE_VOICES,S.atcz),percent:true},
       {title:'メダル・トロフィー',items:detailItems(TROPHIES,S.screens),percent:true},
-      {title:'EDボイス',items:detailItems(ED,S.ed),percent:true},
       {title:'舟券',items:detailItems(TICKETS,S.icons),percent:true},
+      {title:'EDボイス',items:detailItems(ED,S.ed),percent:true},
       {title:'特殊ラウンド画面',items:detailItems(ROUNDS,S.coins),percent:true},
       {title:'獲得枚数',items:detailItems(MEDALS,S.over)}
     ];
@@ -405,6 +424,12 @@
       const oldEd=(src&&src.ed)||{};
       if(oldEd.hatano!==undefined && oldEd.hatanoBlue===undefined) out.ed.hatanoBlue=Number(oldEd.hatano)||0;
       if(oldEd.aoshima!==undefined && oldEd.aoshimaBlue===undefined) out.ed.aoshimaBlue=Number(oldEd.aoshima)||0;
+      BAYES_SETTINGS.forEach(setting=>{
+        const key=BAYES_RATE_KEYS[setting];
+        const raw=String((out.bayes||{})[key]||'').trim();
+        const m=raw.match(/^1\s*\/\s*(\d+(?:\.\d+)?)$/);
+        if(m)out.bayes[key]=m[1];
+      });
       return out;
     },
     share:{title:'スマスロ モンキーターンV 設定判別メモ',hashtags:'#モンキーターンV #設定判別'},

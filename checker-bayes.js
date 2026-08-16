@@ -2,7 +2,7 @@
   'use strict';
 
   function parseRate(raw){
-    const m=String(raw||'').trim().match(/^1\s*\/\s*(\d+(?:\.\d+)?)$/);
+    const m=String(raw||'').trim().match(/^(?:1\s*\/\s*)?(\d+(?:\.\d+)?)$/);
     if(!m)return null;
     const den=Number(m[1]);
     if(!Number.isFinite(den)||den<=1||den>100000)return null;

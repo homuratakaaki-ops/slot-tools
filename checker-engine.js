@@ -299,7 +299,7 @@
         el.addEventListener('change',()=>{
           const raw=String(el.value||'').trim();
           if(el.dataset.rateInput==='1'&&raw&&window.CheckerBayes&&!window.CheckerBayes.parseRate(raw)){
-            toast('1/xx形式で入力してください');
+            toast('分母の数値で入力してください');
             el.value=get(el.dataset.statePath)||'';
             return;
           }
