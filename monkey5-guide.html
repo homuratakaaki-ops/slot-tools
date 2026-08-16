@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スマスロ モンキーターンV 設定判別カウンターの使い方｜スロット稼働ノート</title>
+<meta name="description" content="スマスロ モンキーターンV 設定判別カウンターの使い方です。AT当選契機、5枚役、EXアイテム、チャージ終了ボイス、トロフィー、EDボイス、舟券を記録できます。">
+<link rel="canonical" href="https://slot-tools.jp/monkey5-guide.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:title" content="スマスロ モンキーターンV 設定判別カウンターの使い方｜スロット稼働ノート">
+<meta property="og:description" content="モンキーターンVのAT当選契機、5枚役、EXアイテム、示唆演出をタップで記録するためのガイドです。">
+<meta property="og:url" content="https://slot-tools.jp/monkey5-guide.html">
+<style>
+  :root{--bg:#0d0d0f;--surface:#1a1a1f;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px}
+  .container{max-width:520px;margin:0 auto;padding:20px 16px 0}.section{margin-top:22px}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px}p{color:var(--text-muted);font-size:14px;margin-bottom:12px}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0}li{margin-bottom:8px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:8px}th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:left;vertical-align:top;word-break:break-word}th{color:var(--text-muted)}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none}
+  a{color:var(--gold)}footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}footer a{color:var(--text-muted);text-decoration:none}
+</style>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944" crossorigin="anonymous"></script>
+</head>
+<body>
+<header>
+  <a class="top-link" href="/">← TOP</a>
+  <a class="top-link" href="monkey5-checker.html" style="margin-left:8px;">ツールを使う →</a>
+  <h1>スマスロ モンキーターンV 設定判別カウンターの使い方</h1>
+  <p>AT当選契機、5枚役、EXアイテム、示唆演出を分けて記録する単体チェッカーです。</p>
+</header>
+<main class="container">
+  <section class="section">
+    <h2>このツールの目的</h2>
+    <p>スマスロ モンキーターンVは、AT当選の周期や契機、5枚役、EXアイテム獲得率、チャージ終了ボイス、トロフィーやEDボイスなど、記録対象が多い機種です。とくに5枚役は設定推定で重要になる要素ですが、フェーズ1では確率表示やベイズ推定は行わず、打ち始めと現在の回転数から「自遊技G」を表示し、分母用のデータを貯めるところまでに絞っています。</p>
+    <p>ベイズ推定や5枚役確率による設定推定はフェーズ1.5の範囲です。本ページのカウンターでは、AT当選契機、EXアイテムの分数、示唆演出、共有カード、詳細カード、テンプレテキストの出力だけを扱います。未確定の機能を先に混ぜないための区切りです。</p>
+  </section>
+  <section class="section">
+    <h2>基本操作</h2>
+    <ol>
+      <li>初当りタブで、打ち始めの回転数と現在の回転数を入力します。差分が「自遊技」として表示されます。</li>
+      <li>AT当選ごとに、周期①〜⑥、直撃、優出、天井、即優出のうち該当する契機を1つ記録します。</li>
+      <li>チャージタブでは5枚役、激走チャージ中レア役、EXアイテム獲得、終了画面タッチボイスを記録します。</li>
+      <li>示唆タブではメダル・トロフィー、EDボイス、舟券、特殊ラウンド画面、獲得枚数を記録します。</li>
+    </ol>
+    <div class="card">
+      <h3>回転数差分が負になる場合</h3>
+      <p>現在の回転数が打ち始めの回転数を下回ると、自遊技は「−」で表示されます。データカウンターのリセットや入力ミスの可能性があるため、数値を見直してください。</p>
+    </div>
+  </section>
+  <section class="section">
+    <h2>記録対象</h2>
+    <table>
+      <thead><tr><th>タブ</th><th>主な入力項目</th></tr></thead>
+      <tbody>
+        <tr><td>初当り</td><td>自遊技G、周期①〜⑥、弱レア役直撃、強レア役直撃、優出モード経由、天井到達、即優出。</td></tr>
+        <tr><td>チャージ</td><td>5枚役、激走チャージ中のレア役、EXアイテム、チャージ終了画面タッチボイス。強チェリーはEXアイテム分母から除外します。</td></tr>
+        <tr><td>示唆</td><td>メダル・トロフィー、EDボイス、舟券、特殊ラウンド画面、獲得枚数表示。</td></tr>
+        <tr><td>カード</td><td>AT当選合計、直撃合計、EXアイテム、5枚役、周期分布、濃厚示唆サマリーを画像化します。</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="section">
+    <h2>出典と注意</h2>
+    <p>解析情報の出典は <a href="https://chonborista.com/slot/yamasa-slot/198173/" target="_blank" rel="noopener">ちょんぼりすた パチスロ解析様</a> です。周期のサブラベルは、出典で確認できる天井周期や期待度に限定して記載しています。独自解釈での補足は入れていません。</p>
+    <p>本ツールは設定を保証するものではありません。直撃や濃厚系示唆は強い材料ですが、入力ミスや除外条件の混入で意味が変わります。とくに弱レア役直撃は前兆5〜9G経由、本前兆・フェイク前兆中は対象外という条件を守って記録してください。</p>
+  </section>
+  <a class="cta" href="monkey5-checker.html">設定判別カウンターを使う</a>
+</main>
+<footer><p>&copy; 2026 slot-tools.jp</p><nav><a href="/about.html">運営者情報</a><a href="/privacy.html">プライバシーポリシー</a><a href="/disclaimer.html">免責事項</a><a href="/contact.html">お問い合わせ</a><a href="/partner.html">広告掲載のご相談について</a></nav></footer>
+</body>
+</html>
