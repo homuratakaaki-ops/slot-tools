@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SマイジャグラーV 設定判別カウンターの使い方｜スロット稼働ノート</title>
+<meta name="description" content="SマイジャグラーV 設定判別カウンターの使い方です。単独REG、チェリー重複REG、ぶどうなどを総回転数分母の1/xで記録し、共有カードにまとめる方法を説明します。">
+<link rel="canonical" href="https://slot-tools.jp/myjuggler5-guide.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:title" content="SマイジャグラーV 設定判別カウンターの使い方｜スロット稼働ノート">
+<meta property="og:description" content="SマイジャグラーVの単独REG、チェリー重複REG、ぶどう、ガックンチェックをタップで記録するためのガイドです。">
+<meta property="og:url" content="https://slot-tools.jp/myjuggler5-guide.html">
+<style>
+  :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px}
+  .container{max-width:520px;margin:0 auto;padding:20px 16px 0}
+  .section{margin-top:22px}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0}
+  li{margin-bottom:8px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:8px}
+  th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:left;vertical-align:top;word-break:break-word}
+  th{color:var(--text-muted)}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none}
+  a{color:var(--gold)}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
+  footer a{color:var(--text-muted);text-decoration:none}
+</style>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944" crossorigin="anonymous"></script>
+</head>
+<body>
+<header>
+  <a class="top-link" href="/">← TOP</a>
+  <a class="top-link" href="myjuggler5-checker.html" style="margin-left:8px;">ツールを使う →</a>
+  <h1>SマイジャグラーV 設定判別カウンターの使い方</h1>
+  <p>ボーナス契機と小役を、総回転数分母の1/xで整理する単体チェッカーです。</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>このツールの目的</h2>
+    <p>SマイジャグラーVは、台データで見えるBIG・REGの合算だけでなく、単独REG、チェリー重複REG、ぶどうのように実戦中に分けて記録したい材料が重要です。このカウンターは、総回転数を分母にして各項目を1/xで表示し、BB合算・RB合算・総合算をカード側で自動計算します。特に単独REGは設定1と設定6で約2倍の差があるため、REG合算だけでなく契機別に分けて残すことで、後から見返したときの判断がかなり明確になります。</p>
+    <p>フェーズ1では単体チェッカーとして実装しています。既存のジャグラー実戦記録ツールとの接続、保存データ連携、対応表の作成は行っていません。juggler-record側の実戦検証と保存構造の凍結後に、必要であれば別フェーズとして検討します。</p>
+  </section>
+
+  <section class="section">
+    <h2>基本操作</h2>
+    <ol>
+      <li>ボーナスタブで、台データの総スタート回数を入力します。BB/RB中のゲーム数は含めない前提です。</li>
+      <li>単独BIG、チェリー重複BIG、単独REG、チェリー重複REGを、成立契機に合わせてタップします。</li>
+      <li>小役タブでは、ぶどう、単独チェリー、朝一のガックンチェックを記録します。</li>
+      <li>カードタブでは、メインカード、詳細カード、テンプレ形式テキストを出力できます。</li>
+    </ol>
+    <div class="card">
+      <h3>総回転数0のとき</h3>
+      <p>総回転数が0の状態では、すべての1/x表示は「−」になります。回数だけ先に入れておき、あとから総回転数を入れる使い方もできます。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>記録対象</h2>
+    <table>
+      <thead><tr><th>タブ</th><th>主な入力項目</th></tr></thead>
+      <tbody>
+        <tr><td>ボーナス</td><td>単独BIG、チェリー重複BIG、単独REG、チェリー重複REG。BB合算、RB合算、総合算はカードで自動計算します。</td></tr>
+        <tr><td>小役</td><td>ぶどう、単独チェリー、ガックンチェック。ぶどうは分母が大きいほど信頼度が上がるため、2000G未満では強く断定しない前提で見ます。</td></tr>
+        <tr><td>カード</td><td>実測値と設1⇔設6の端点レンジを並べた共有カード、出現項目を並べる詳細カード、テンプレ形式テキストを生成します。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>出典と注意</h2>
+    <p>ボーナス合算の目安は、<a href="https://chonborista.com/slot/kitadenshi/152973/" target="_blank" rel="noopener">ちょんぼりすた パチスロ解析様</a>掲載のボーナス確率を参照しています。単独BIG、チェリー重複BIG、単独REG、チェリー重複REG、ぶどうなどの契機別・小役の端点値は、北電子公式アプリ公表値を前提にしています。本ツールでは中間設定の数値は表示せず、設定1と設定6の端点レンジだけを比較目安として出します。</p>
+    <p>このツールは設定を保証するものではありません。短時間ではぶどうもREGも大きく荒れます。台データ、ホール傾向、差枚推移、打ち手の目押し精度を含めて判断してください。</p>
+  </section>
+
+  <a class="cta" href="myjuggler5-checker.html">設定判別カウンターを使う</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+    <a href="/partner.html">広告掲載のご相談について</a>
+  </nav>
+</footer>
+</body>
+</html>
