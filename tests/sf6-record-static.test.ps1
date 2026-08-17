@@ -117,6 +117,8 @@ Assert-Fixed $html "hintKey:'gain'" 'DC result sheet hint key is missing'
 Assert-Fixed $html "hint-section-title" 'hint section title marker is missing'
 Assert-Fixed $html "hint-name" 'hint item name marker is missing'
 Assert-Fixed $html "hint-text" 'hint description marker is missing'
+Assert-Fixed $html "HINT_REFERENCE_FOOTER" 'hint reference footer constant is missing'
+Assert-Fixed $html "hint-footer" 'hint footer marker is missing'
 function Utf8Text([int[]]$Bytes) {
   return [System.Text.Encoding]::UTF8.GetString([byte[]]$Bytes)
 }

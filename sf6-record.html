@@ -344,6 +344,7 @@ textarea{
 .hint-row:first-child{border-top:0;padding-top:0}
 .hint-name{flex:0 0 112px;font-size:16px;font-weight:900;color:var(--ink)}
 .hint-text{flex:1 1 auto;font-size:13px;line-height:1.45;color:var(--muted)}
+.hint-footer{border-top:1px solid rgba(255,255,255,.08);padding-top:7px;font-size:12px;line-height:1.45;color:var(--muted)}
 .keypad-modal{
   position:fixed;
   inset:0;
@@ -619,6 +620,7 @@ textarea{
   const MEDAL_SOURCES=[['mochidama','持ち玉'],['saipurei','再プレイ'],['unknown','不明']];
   const DEFAULT_LOAN_RATE=50;
   const ICATCHES=['ルーク','春麗','キンバリー','キャミィ','JP','ジェイミー','豪鬼','リュウ'];
+  const HINT_REFERENCE_FOOTER='参考：各種解析媒体の公開情報（2026年8月時点）および実戦調査';
   const HINT_REFERENCES={
     loss:[
       {title:'アイキャッチ',items:[['ルーク','デフォルト'],['春麗','通常B以上の期待度UP'],['キンバリー','通常B以上濃厚'],['キャミィ','通常C以上の期待度UP'],['JP','通常B以上濃厚＋通常C以上の期待度UP'],['ジェイミー','天国の期待度UP'],['豪鬼','通常C以上濃厚'],['リュウ','天国濃厚']]},
@@ -2435,6 +2437,7 @@ textarea{
       });
       panel.append(sec);
     });
+    panel.append(el('div','hint-footer',HINT_REFERENCE_FOOTER));
     body.prepend(panel);
   }
   function openSheet(title,build,options={}){
