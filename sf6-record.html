@@ -88,7 +88,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   font-weight:900;
   line-height:1;
 }
-.state-badges{display:flex;gap:6px;flex-wrap:wrap;min-height:48px}
+.state-badges{display:flex;gap:6px;flex-wrap:wrap;min-height:32px}
 .state-badge{
   border:1px solid rgba(148,163,184,.35);
   border-radius:999px;
@@ -102,8 +102,31 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   align-items:center;
   justify-content:center;
 }
+.state-badge.mode-badge{
+  min-height:32px;
+  min-width:0;
+  padding:5px 10px;
+}
 .state-badges .state-badge,
 .state-badges .bm-btn.state-badge{
+  flex:0 0 auto;
+  width:auto;
+  min-width:48px;
+  max-height:none;
+  font-size:12px;
+}
+.operation-badges{
+  display:flex;
+  flex:1 1 auto;
+  justify-content:flex-end;
+  align-items:center;
+  gap:4px;
+  flex-wrap:wrap;
+  min-width:0;
+}
+.operation-badges:empty{display:none}
+.operation-badges .state-badge,
+.operation-badges .bm-btn.state-badge{
   flex:0 0 auto;
   width:auto;
   min-width:48px;
@@ -413,8 +436,10 @@ textarea{
   .bm-shell{gap:4px}
   .bm-header{position:absolute;top:8px;right:8px;z-index:2;border:0;padding:0}
   .bm-title{display:none}
-  .state-badges{padding-right:56px;min-height:48px;gap:4px}
-  .state-badge{min-height:48px;padding:12px 8px}
+  .state-badges{padding-right:56px;min-height:28px;gap:4px}
+  .state-badge.mode-badge{min-height:28px;padding:3px 8px}
+  .operation-badges{gap:4px}
+  .operation-badges .state-badge{min-height:48px;padding:12px 8px}
   .counter-btn{min-height:52px;padding:4px 8px}
   .counter-btn b{font-size:22px}
   .money-pill{min-height:32px;padding:4px 6px}
@@ -422,6 +447,7 @@ textarea{
   .button-row .bm-btn.small,.step-row .bm-btn.small{min-height:52px;max-height:52px;padding:4px 5px}
   #modeGrid.panel{padding:8px}
   .panel-title{margin-bottom:5px}
+  .normal-actions{margin-bottom:6px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -1139,8 +1165,13 @@ textarea{
     const box=$('stateBadges');
     clearNode(box);
     if(state.battleState==='normal'){
-      box.append(el('div','state-badge active-normal','normal'));
+      box.append(el('div','state-badge mode-badge active-normal','normal'));
     }
+    if(state.battleState==='battle'){
+      box.append(el('div','state-badge mode-badge active-battle','FB中'));
+    }
+  }
+  function renderOperationBadges(box){
     const currentStage=normalizeCurrentStage(state.currentStage);
     if(currentStage){
       const cls=currentStage===STAGE_CHOICES[0]?'stage-jamie':currentStage===STAGE_CHOICES[1]?'stage-cammy':'stage-neutral';
@@ -1163,15 +1194,16 @@ textarea{
       badge.id='currentColorBadge';
       box.append(badge);
     }
-    if(state.battleState==='battle'){
-      box.append(el('div','state-badge active-battle','FB中'));
-    }
   }
   function renderModeGrid(){
     const grid=$('modeGrid');
     clearNode(grid);
     const title=el('div','panel-title');
     title.append(el('span','',state.battleState==='battle'?'FB中':'通常時'));
+    const operationBadges=el('div','operation-badges');
+    operationBadges.id='operationBadges';
+    renderOperationBadges(operationBadges);
+    title.append(operationBadges);
     grid.append(title);
     if(state.battleState==='battle')renderBattleGrid(grid);
     else renderNormalGrid(grid);
