@@ -50,7 +50,7 @@
 - `lendRate` は貸玉レート（円/玉）。現金投資の玉換算に使う。
 - `exchangeBalls` は交換玉数（100円あたり）。25玉交換なら25、28玉交換なら28を入れる。
 - 換算収支は `差玉 * (100 / exchangeBalls)` で計算する。
-- 店フォームは店名、パーソナル有無、貸玉レート、交換玉数だけを扱う。期待値用の純増玉と推定回転率は店属性ではないため保存しない。
+- 店フォームは店名、パーソナル有無、貸玉レート、交換玉数だけを扱う。期待値用の純払い出し量・時短消費率・推定回転率は店属性ではないため保存しない。
 - 既存店は読み込み時に `lendRate: 4`、`exchangeBalls: 25` を補完する。旧 `exchangeRate` がある場合は `100 / exchangeRate` で `exchangeBalls` へ自動変換する。
 
 ### 2.2 MapLayout
@@ -99,13 +99,18 @@
 ```json
 {
   "umi-sp5": {
-    "netBallsPerWin": 1400
+    "netBallsPerWin": 1400,
+    "netBallsPerWinManual": false,
+    "jitanNormalBallsPerSpin": 0,
+    "jitanFastBallsPerSpin": 0
   }
 }
 ```
 
 - `presetSettings` は機種プリセット単位の手動設定を保存する。
-- `netBallsPerWin` は期待値計算用の1回あたり純増玉。既定はプリセット定義の1400で、本人の技術介入に合わせて手動調整する。
+- B52改訂2以降、`netBallsPerWin` は大当たり1回あたりの純払い出し量（ラウンド数×出玉）とし、時短中の玉増減は含めない。既定はプリセット定義の1400。
+- `netBallsPerWinManual` は手入力上書きフラグ。true の場合だけ `netBallsPerWin` を最優先し、false の場合は当選記録から自動算出する。
+- `jitanNormalBallsPerSpin` は100回転時短の1回転あたり玉増減、`jitanFastBallsPerSpin` は200回転時短と遊タイム350回転の1回転あたり玉増減。負の値は消費、0は時短消費なし。
 - 店をまたいで同じ機種プリセットに共通適用する。実測出玉からの自動切替は行わない。
 
 ### 2.3 Machine
@@ -131,6 +136,7 @@
 - B2 で機種プリセットを追加。B5 以降は `MACHINE_PRESETS = [{ id, name, roundBalls, standardRounds, standardPayout, evSupported, spec }]` の定数テーブルで管理する。
 - 初期プリセットは P大海物語5スペシャル のみ。選択時は機種名、1R玉数 140、期待値対応フラグを自動セットする。
 - P大海物語5スペシャル の標準出玉は `standardRounds: 10`、`standardPayout: 1400` とする。
+- B52改訂2以降、プリセットは `roundTypes` を持つ。大海5SPは `[{ id: "r10", label: "10R", balls: 1400 }]` の単一種別。複数ラウンド機はプリセット追加時に種別数ぶん定義する。
 - その他（自由入力）では機種名と 1R玉数を手入力し、期待値対応フラグは false とする。
 
 ### 2.4 Session
@@ -167,6 +173,9 @@
   "endTotalHits": null,
   "hitCount": null,
   "totalRounds": null,
+  "hits": [
+    { "roundTypeId": "r10", "hitSpin": 800, "actualBalls": 1380, "at": "ISO8601" }
+  ],
   "endTotalBalls": null,
   "endSpin": null,
   "endTime": null,
@@ -208,7 +217,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22、B48では schema 22 から 23 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22、B48では schema 22 から 23、B52では schema 23 から 24 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:mapbackup` | フロアマップ定義だけの1世代退避 | フロアマップ保存時、保存直前のアクティブマップ定義を店ID・マップID単位で退避する。復元ボタン押下時に該当マップの島構成・除外・列機種のみ戻す。台・セッション・dailyState は触らない | `{ backups: { [storeId]: { [mapId]: { storeId, mapId, map, createdAt } } } }` の JSON 文字列 |
@@ -488,7 +497,7 @@ B5 実測値:
 ## 14. Phase 4 期待値エンジン
 
 - Phase 4 期待値エンジンは v2 `yutime-record.html` の `YUTIME_RECORD_ENGINE` を式変更なしで移植し、v3 では `YUTIME_EXPECTATION_ENGINE` として `umi-sp5` プリセットに接続する。対象スペックは `hitProb: 1/319.6`、`tenjo: 950`、`yutimeJitan: 350`、`kakuhenRate: 0.54`、`jitanNormal: 100`、`jitanChain: 200`、既定 `netBallsPerWin: 1400`。
-- B51以降、`evBalls` は従来どおり玉ベースの期待値として維持する。円換算 `evYen` は、通常回転に必要な現金支出 `expectedNormalSpins / rate * 1000` と、勝ち玉価値 `(expectedWins * netBallsPerWin + expectedDensapoSpins * densapoDelta) * (100 / exchangeBalls)` を分けて計算し、`winBallsYen - cashSpentYen` とする。等価交換では従来値と一致するが、非等価店では投資玉を交換レートで割り戻さない。
+- B52以降、`evBalls` は従来どおり玉ベースの期待値として維持する。円換算 `evYen` は、通常回転に必要な現金支出 `expectedNormalSpins / rate * 1000` と、勝ち玉価値 `(expectedWins * netBallsPerWin + expectedJitanNormalSpins * jitanNormalBallsPerSpin + expectedJitanFastSpins * jitanFastBallsPerSpin) * (100 / exchangeBalls)` を分けて計算し、`winBallsYen - cashSpentYen` とする。等価交換では玉ベースの `evBalls * 4` と一致するが、非等価店では投資玉を交換レートで割り戻さない。
 - 判定閾値は `EV_THRESHOLDS = { good: 2000, warn: 0 }`。期待値2000円以上を「打てる」、0円以上2000円未満を「微妙」、0円未満を「打てない」とする。
 - `netBallsPerWin` は既定1400玉。実測出玉からの自動切替は行わない。技術介入の個人差を避けるため、B29以降は `presetSettings["umi-sp5"].netBallsPerWin` として機種プリセット単位で手動調整する。
 - 回転率の優先順位は、手入力、フィルタ適用後の台帳累計、推定回転率、なし。B29以降の推定回転率は選択中マップ（機種・コーナー）の `assumedRate` を使う。
@@ -663,12 +672,12 @@ B5 実測値:
 - 遊タイムなし機種の台詳細では期待値判定ブロックを表示しない。非対応注記も出さず、台メモ・参考回転率・過去記録・記録開始に専念させる。
 - スキーマ変更はないため容量予算は不変。プリセット定義の構造のみ拡張する。
 
-## 32. B29 純増玉・推定回転率の保存単位
+## 32. B29 純払い出し量・推定回転率の保存単位
 
 - schema は 18 とする。Store から `netBallsPerWin` と `assumedRate` を撤去し、店フォームからも該当入力欄と説明文を撤去する。
-- `netBallsPerWin` は `presetSettings: { "umi-sp5": { netBallsPerWin } }` へ移す。既定値は機種プリセット定義の1400玉で、「この機種でやること」ブロックの「純増 ◯◯玉（変更）」から手動調整する。設定は全店の同じ機種プリセットに共通適用する。
+- `netBallsPerWin` は `presetSettings: { "umi-sp5": { netBallsPerWin } }` へ移す。既定値は機種プリセット定義の1400玉で、「この機種でやること」ブロックの「純払い出し ◯◯玉（変更）」から手動調整する。設定は全店の同じ機種プリセットに共通適用する。
 - `assumedRate` は選択中マップの `map.assumedRate` へ移す。マップ画面上部のクイック編集チップは、現在選んでいる機種・コーナーだけに保存する。
-- 期待値計算と開始時期待値 `startEv` は、純増玉に `presetSettings[presetId].netBallsPerWin`、推定回転率に選択中マップの `assumedRate` を使う。
+- 期待値計算と開始時期待値 `startEv` は、純払い出し量に `presetSettings[presetId].netBallsPerWin`、推定回転率に選択中マップの `assumedRate` を使う。
 - 回転率の優先順位は、判定手入力、台帳累計（フィルタ適用後）、選択中マップの推定回転率、なし。
 - 移行時、旧 `store.netBallsPerWin` は `presetSettings["umi-sp5"].netBallsPerWin` へ引き継ぐ。旧 `store.assumedRate` は、その店の遊タイム対応マップすべての `assumedRate` へコピーする。
 - schema 18 Store 1件サンプル（店属性のみ、`exchangeBalls: 28.01`）: 125 chars。
@@ -688,8 +697,8 @@ B5 実測値:
 
 - スキーマ変更はない。保存先、優先順位、期待値計算はB29のまま。
 - マップ上部の `assumedRate` 編集チップは「このコーナーの平均回転率」と表示する。台ごとの実測・手入力がない台に使う基準値であることを注記する。
-- `netBallsPerWin` 編集チップは「大当たり1回の平均出玉」と表示する。変更モーダルでは、連チャン込みの大当たり1回あたり平均出玉で、自分の止め打ち精度に合わせて調整できる値として説明する。
-- 判定ブロックの出所は、マップ基準値を使う場合は「コーナー平均◯◯使用」、出玉設定を使う場合は「平均出玉◯◯玉/回使用」と表示する。
+- B52以降、`netBallsPerWin` 編集チップは「純払い出し」と表示する。変更モーダルでは、ラウンド数×出玉の純払い出し量と、時短状態別の玉増減を分けて説明する。
+- 判定ブロックの出所は、マップ基準値を使う場合は「コーナー平均◯◯使用」、出玉設定を使う場合は「純払い出し◯◯玉/回、時短100 ◯玉/回転、時短200/遊タイム ◯玉/回転」と表示する。
 
 ## 35. B32 機種（島）単位の絞り込み
 
@@ -709,8 +718,8 @@ B5 実測値:
 
 ## 37. B34 基準値チップの2列化
 
-- スキーマ変更はない。コーナー平均回転率と平均出玉の保存先、期待値計算、判定注記は変更しない。
-- 「この機種でやること」の基準値チップは2列表示にし、「平均回転率 ◯◯（変更/設定）」「平均出玉 ◯◯玉（変更）」の短い文言にする。
+- スキーマ変更はない。コーナー平均回転率と期待値用出玉設定の保存先、期待値計算、判定注記は変更しない。
+- 「この機種でやること」の基準値チップは2列表示にし、「平均回転率 ◯◯（変更/設定）」「純払い出し ◯◯玉 / 時短 ◯/◯（変更）」の短い文言にする。
 - チップ内では数値部分を太字かつ少し大きく表示する。狭い画面ではチップ単位で折り返し、1チップ内の改行は避ける。
 - 注記は「このコーナーの基準値です。台ごとの実測・手入力がない台は、この値で期待値を計算します。」とし、適用範囲をチップではなく注記側で示す。
 
@@ -782,6 +791,19 @@ B5 実測値:
 - 台詳細と稼働中メモボタンは追記フォーム＋新しい順の一覧を表示する。過去エントリの編集・削除UIは置かない。
 - 台別履歴では、対象日付と一致する `memoEntries` だけを表示する。メモがない日は何も表示しない。
 - schema 23 Machine 1件サンプル（`memoEntries` 1件、台単位 `nailRating` 5項目あり）: 318 chars。
+
+## 46. B52 状態別の時短消費モデル
+
+- schema は 24 とする。`presetSettings["umi-sp5"]` に `jitanNormalBallsPerSpin` と `jitanFastBallsPerSpin` を追加し、旧データは読み込み時にどちらも `0` で補完する。
+- `netBallsPerWin` の定義を「最終手取り平均」から「大当たり1回あたりの純払い出し量」に変更する。既定値1400はそのまま使えるが、旧定義の手取りベースで手動入力済みの場合は再入力が必要。
+- 改訂2では当選記録に `session.hits` を追加する。ラウンド種別チップはプリセットの `roundTypes` から動的生成し、チップ押下ごとに `{ roundTypeId, hitSpin, actualBalls, at }` を1件追加する。`hitSpin` と `actualBalls` は任意入力で、空欄でも記録できる。
+- `netBallsPerWin` の採用優先順位は、手入力上書き、`actualBalls` 実測平均、ラウンド集計、プリセット理論値。期待値パネルには採用ソースと件数を表示する。
+- `session.hits` がある場合、互換用の `hitCount` と `totalRounds` は `hits` から同期する。旧スキーマの `hits` 不在は正常データとして扱う。
+- 期待値エンジンは `expectedDensapoSpins` を互換表示・拘束時間用に残しつつ、内訳として `expectedJitanNormalSpins`（100回転時短）と `expectedJitanFastSpins`（200回転時短＋遊タイム350回転）を算出する。
+- `winBalls = expectedWins * netBallsPerWin + expectedJitanNormalSpins * jitanNormalBallsPerSpin + expectedJitanFastSpins * jitanFastBallsPerSpin` とし、B51の `cashSpentYen` / `winBallsYen` 分離は維持する。
+- 受け入れ検証は `tests/yutime-v3.test.js` に決定的モンテカルロ（各10万試行）を実装し、通常開始 `currentSpin:0` と天井付近 `currentSpin:900` で、解析式の `expectedNormalSpins`、`expectedWins`、`expectedJitanNormalSpins`、`expectedJitanFastSpins` が概ね±2%に収まることを確認する。あわせて `netBallsPerWin` 自動算出の4段階優先順位を固定する。
+- schema 24 `presetSettings` サンプル（`netBallsPerWin: 1400`、`netBallsPerWinManual:false`、時短2項目0）: 118 chars。schema 18/23相当の35 charsから `+83 chars`。
+- schema 24 `Session` hits 1件サンプル（`roundTypeId, hitSpin, actualBalls, at`）は、旧 `hitCount/totalRounds` だけの31 charsから127 charsへ増え、`+96 chars/hit`。
 
 ## アイデアメモ
 

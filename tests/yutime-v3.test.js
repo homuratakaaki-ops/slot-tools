@@ -62,6 +62,7 @@ const modalStyle = section('.modal-actions', '.closing-display');
 const style = section('.source-chip-row', '.unified-invest-row');
 const yutimeExpectationEngine = section('const YUTIME_EXPECTATION_ENGINE', 'window.YutimeExpectationEngine');
 const evJudgmentBlock = section('function evJudgment', 'function expectationYenPerBall');
+const presetSettingsHelpers = section('function presetNetBallsPerWin', 'function activeMapAssumedRate');
 
 assert.match(hitWizard, /openHitResetPrompt\(session\);\s*\}, \{ firstBackCancels: true \}\);/);
 assert.match(runWizard, /id="backStepBtn" \$\{index === 0 && !options\.firstBackCancels \? "disabled" : ""\}>戻る<\/button>/);
@@ -75,6 +76,10 @@ assert.match(
 );
 assert.ok(hitWizard.includes('key: "hitSpin"'), 'hitSpin step should remain in the hit wizard');
 assert.ok(hitResetPrompt.includes('data-hit-reset'), 'reset chip buttons should remain after hit completion');
+assert.ok(hitResetPrompt.includes('data-hit-round'), 'round type chips should be available after hit completion');
+assert.match(hitResetPrompt, /id="hitRecordSpin"/);
+assert.match(hitResetPrompt, /id="hitRecordActualBalls"/);
+assert.match(hitResetPrompt, /appendHitRecord\(session, button\.dataset\.hitRound\);/);
 assert.ok(hitResetPrompt.includes('data-close'), 'reset chip close button should remain unchanged');
 assert.match(hitResetPrompt, /id="hitMochidamaValue"/);
 assert.match(hitResetPrompt, /id="saveHitMochidamaBtn"/);
@@ -110,7 +115,10 @@ assert.match(investmentSnapshot, /if \(!item \|\| item\.adjustment\) return null
 assert.match(investmentSnapshot, /return investment\.adjustment \? sum : sum \+ investmentToBalls\(investment, store\);/);
 assert.match(normalizeData, /adjustment: item\.adjustment === true/);
 assert.doesNotMatch(html, /台帳/);
-assert.match(yutimeExpectationEngine, /const winBalls = expectedWins \* merged\.netBallsPerWin \+ expectedDensapoSpins \* merged\.densapoDelta;/);
+assert.match(yutimeExpectationEngine, /expectedJitanNormalSpins = pHit \* chains\.jitanNormalInit \+ pReach \* chains\.r350 \* chains\.jitanNormalJitanHit;/);
+assert.match(yutimeExpectationEngine, /expectedJitanFastSpins = pHit \* chains\.jitanFastInit \+ pReach \* \(yutimeDensapoBeforeHit \+ chains\.r350 \* chains\.jitanFastJitanHit\);/);
+assert.match(yutimeExpectationEngine, /const expectedDensapoSpins = expectedJitanNormalSpins \+ expectedJitanFastSpins;/);
+assert.match(yutimeExpectationEngine, /const winBalls = expectedWins \* merged\.netBallsPerWin \+ expectedJitanNormalSpins \* merged\.jitanNormalBallsPerSpin \+ expectedJitanFastSpins \* merged\.jitanFastBallsPerSpin;/);
 assert.match(yutimeExpectationEngine, /const evBalls = winBalls - investBalls;/);
 assert.match(yutimeExpectationEngine, /const cashSpentYen = expectedNormalSpins \/ rate \* 1000;/);
 assert.match(yutimeExpectationEngine, /const winBallsYen = winBalls \* merged\.yenPerBall;/);
@@ -134,14 +142,135 @@ const nonEqualExchangeResult = expectationContext.engine.calculate(
   { currentSpin: 0, rotationRate: 18 },
   { yenPerBall: 100 / 28, netBallsPerWin: 1400 }
 );
+const jitanLossResult = expectationContext.engine.calculate(
+  { currentSpin: 900, rotationRate: 18 },
+  { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5 }
+);
 assert.ok(equalExchangeResult, 'equal exchange EV should calculate');
 assert.ok(nonEqualExchangeResult, 'non-equal exchange EV should calculate');
+assert.ok(jitanLossResult, 'state-separated jitan EV should calculate');
 assert.ok(Math.abs(equalExchangeResult.evYen - equalExchangeResult.evBalls * 4) < 0.000001, 'equal exchange yen conversion should remain unchanged');
 assert.ok(Math.abs(equalExchangeResult.evBalls - nonEqualExchangeResult.evBalls) < 0.000001, 'exchange rate should not change evBalls');
 assert.ok(Math.abs(nonEqualExchangeResult.cashSpentYen - nonEqualExchangeResult.expectedNormalSpins / 18 * 1000) < 0.000001, 'cash spent should be derived from rotations per 1000 yen');
 assert.ok(Math.abs(nonEqualExchangeResult.winBallsYen - nonEqualExchangeResult.winBalls * (100 / 28)) < 0.000001, 'win balls should use exchange yen per ball');
 assert.ok(Math.abs(nonEqualExchangeResult.evYen - -1626.5) < 1, '28 balls exchange scenario should reproduce the corrected negative EV');
 assert.equal(expectationContext.judge(nonEqualExchangeResult).label, '打てない');
+assert.ok(Math.abs(equalExchangeResult.expectedDensapoSpins - (equalExchangeResult.expectedJitanNormalSpins + equalExchangeResult.expectedJitanFastSpins)) < 0.000001, 'split jitan spins should add up to legacy total');
+assert.ok(jitanLossResult.winBalls < expectationContext.engine.calculate({ currentSpin: 900, rotationRate: 18 }, { yenPerBall: 4, netBallsPerWin: 1400 }).winBalls, 'negative jitan rates should reduce win balls');
+
+function makeRng(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = (state * 1664525 + 1013904223) >>> 0;
+    return state / 0x100000000;
+  };
+}
+
+function runLimitedJitan(prob, limit, rng) {
+  let spins = 0;
+  for (let i = 0; i < limit; i += 1) {
+    spins += 1;
+    if (rng() < prob) return { hit: true, spins };
+  }
+  return { hit: false, spins };
+}
+
+function simulateExpectation(currentSpin, trials, seed) {
+  const rng = makeRng(seed);
+  const spec = expectationContext.engine.preset.spec;
+  const totals = { normal: 0, wins: 0, jitanNormal: 0, jitanFast: 0 };
+  function playState(state) {
+    while (true) {
+      totals.wins += 1;
+      if (state === 'E') {
+        if (rng() < spec.kakuhenRate) continue;
+        const jitan = runLimitedJitan(spec.hitProb, spec.jitanNormal, rng);
+        totals.jitanNormal += jitan.spins;
+        if (!jitan.hit) return;
+        state = 'J';
+      } else {
+        if (rng() < spec.kakuhenRate) {
+          state = 'E';
+          continue;
+        }
+        const jitan = runLimitedJitan(spec.hitProb, spec.jitanChain, rng);
+        totals.jitanFast += jitan.spins;
+        if (!jitan.hit) return;
+        state = 'J';
+      }
+    }
+  }
+  for (let trial = 0; trial < trials; trial += 1) {
+    const toTenjo = Math.max(0, spec.tenjo - currentSpin);
+    const normal = runLimitedJitan(spec.hitProb, toTenjo, rng);
+    totals.normal += normal.spins;
+    if (normal.hit) {
+      playState('E');
+      continue;
+    }
+    const yutime = runLimitedJitan(spec.hitProb, spec.yutimeJitan, rng);
+    totals.jitanFast += yutime.spins;
+    if (yutime.hit) playState('J');
+  }
+  return Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, value / trials]));
+}
+
+function assertMonteCarloClose(currentSpin, seed) {
+  const analytic = expectationContext.engine.calculate({ currentSpin, rotationRate: 18 }, { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5 });
+  const simulated = simulateExpectation(currentSpin, 100000, seed);
+  const cases = [
+    ['expectedNormalSpins', simulated.normal],
+    ['expectedWins', simulated.wins],
+    ['expectedJitanNormalSpins', simulated.jitanNormal],
+    ['expectedJitanFastSpins', simulated.jitanFast]
+  ];
+  for (const [key, actual] of cases) {
+    const expected = analytic[key];
+    const tolerance = Math.max(Math.abs(expected) * 0.02, 0.05);
+    assert.ok(Math.abs(actual - expected) <= tolerance, `${key} currentSpin=${currentSpin}: analytic=${expected}, simulated=${actual}, tolerance=${tolerance}`);
+  }
+}
+
+assertMonteCarloClose(0, 0xB520);
+assertMonteCarloClose(900, 0xB521);
+const payoutPriorityContext = vm.createContext({
+  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  MACHINE_PRESETS: [{ id: 'umi-sp5', defaults: { netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0 }, roundTypes: [{ id: 'r4', label: '4R', balls: 560 }, { id: 'r10', label: '10R', balls: 1400 }] }],
+  data: { presetSettings: {}, machines: [{ id: 'm1', presetId: 'umi-sp5' }], sessions: [] },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  positiveNumberOrDefault(value, fallback) {
+    const n = payoutPriorityContext.normalizeNumber(value);
+    return n !== null && n > 0 ? n : fallback;
+  },
+  presetById(id) {
+    return payoutPriorityContext.MACHINE_PRESETS.find((preset) => preset.id === id) || null;
+  },
+  normalizeMachinePresetId(machine) {
+    return machine?.presetId || '';
+  },
+  filteredSessions() {
+    return payoutPriorityContext.data.sessions;
+  },
+  nowIso() {
+    return '2026-08-17T00:00:00.000Z';
+  }
+});
+new vm.Script(`
+  ${presetSettingsHelpers}
+  globalThis.info = (settings, sessions) => {
+    data.presetSettings = { 'umi-sp5': settings };
+    data.sessions = sessions;
+    return netBallsPerWinInfo('umi-sp5', data.machines[0]);
+  };
+`).runInContext(payoutPriorityContext);
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWin: 1500, netBallsPerWinManual: true }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }] }])), JSON.stringify({ value: 1500, source: '手入力', count: null }));
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }] }])), JSON.stringify({ value: 990, source: '実測平均', count: 2 }));
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 980, source: 'ラウンド集計', count: 2 }));
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [])), JSON.stringify({ value: 1400, source: '理論値', count: 0 }));
 const transferContext = vm.createContext({
   __copied: '',
   __session: null,
@@ -270,7 +399,19 @@ assert.match(style, /\.source-chip\.selected \{\s*border-color: var\(--accent\);
 assert.match(sourceUnavailableMessage, /if \(balance === null\) return `\$\{label\}が未入力です。`;/);
 assert.match(sourceUnavailableMessage, /if \(balance < amount\) return `\$\{label\}がありません。値をタップして修正するか、他のソースを選んでください。`;/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
-assert.match(html, /const SCHEMA_VERSION = 23;/);
+assert.match(html, /const SCHEMA_VERSION = 24;/);
+assert.match(html, /jitanNormalBallsPerSpin: 0,/);
+assert.match(html, /jitanFastBallsPerSpin: 0,/);
+assert.match(html, /roundTypes: \[\{ id: "r10", label: "10R", balls: 1400 \}\]/);
+assert.match(html, /hits: \[\],/);
+assert.match(html, /function normalizeHits\(hits\)/);
+assert.match(html, /function syncSessionHitTotals\(session, machines = data\.machines\)/);
+assert.match(html, /function netBallsPerWinInfo\(presetId, machine = null\)/);
+assert.match(html, /netBallsPerWinManual/);
+assert.match(html, /純払い出し量/);
+assert.match(html, /100回転時短 玉\/回転/);
+assert.match(html, /200回転時短・遊タイム 玉\/回転/);
+assert.match(html, /旧定義の手取り平均を入れていた場合は再入力してください。/);
 assert.match(html, /yutimeEnterSpin: null,/);
 assert.match(openYutimeEnterForm, /const spinPreset = session\.yutimeEnterSpin \?\? session\.currentSpin \?\? session\.startSpin;/);
 assert.match(openYutimeEnterForm, /id="yutimeSpin"/);
@@ -351,14 +492,14 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 23;
+  const SCHEMA_VERSION = 24;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
   const DEFAULT_NET_BALLS_PER_WIN = 1400;
   const RAM_CLEAR_VALUE = "cleared";
   const RAM_NOT_CLEARED_VALUE = "not_cleared";
   const RAM_UNKNOWN_VALUE = "unknown";
-  const MACHINE_PRESETS = [{ id: "umi-sp5", name: "P大海物語5スペシャル", evSupported: true, defaults: { netBallsPerWin: 1400 } }];
+  const MACHINE_PRESETS = [{ id: "umi-sp5", name: "P大海物語5スペシャル", evSupported: true, defaults: { netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0 } }];
   function cryptoId(prefix) { return prefix + "_legacy"; }
   function nowIso() { return "2026-08-07T00:00:00.000Z"; }
   function defaultData() {

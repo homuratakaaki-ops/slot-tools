@@ -1539,7 +1539,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 23;
+    const SCHEMA_VERSION = 24;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1552,7 +1552,7 @@
       "ゾロ目日"
     ];
     const MACHINE_PRESETS = [
-      { id: "umi-sp5", name: "P大海物語5スペシャル", roundBalls: 140, standardRounds: 10, standardPayout: 1400, evSupported: true, hasYutime: true, spec: { note: "B5時点の期待値対応プリセット" } }
+      { id: "umi-sp5", name: "P大海物語5スペシャル", roundBalls: 140, standardRounds: 10, standardPayout: 1400, roundTypes: [{ id: "r10", label: "10R", balls: 1400 }], evSupported: true, hasYutime: true, spec: { note: "B5時点の期待値対応プリセット" } }
     ];
     const RAM_CLEAR_VALUE = "cleared";
     const RAM_NOT_CLEARED_VALUE = "not_cleared";
@@ -1585,6 +1585,8 @@
         },
         defaults: {
           netBallsPerWin: DEFAULT_NET_BALLS_PER_WIN,
+          jitanNormalBallsPerSpin: 0,
+          jitanFastBallsPerSpin: 0,
           densapoDelta: 0,
           spinsPerHour: 250,
           secPerHit: 120,
@@ -1625,7 +1627,15 @@
         const dRightJ = normal * s200;
         const densapoInit = (dRightE * dD - dB * dRightJ) / dDet;
         const densapoJitanHit = (dA * dRightJ - dRightE * dC) / dDet;
-        return { r100, r200, r350, wInit, jitanHit, yutimeWins: r350 * jitanHit, densapoInit, densapoJitanHit, settings };
+        const normalRightE = normal * s100;
+        const normalRightJ = 0;
+        const fastRightE = 0;
+        const fastRightJ = normal * s200;
+        const jitanNormalInit = (normalRightE * dD - dB * normalRightJ) / dDet;
+        const jitanNormalJitanHit = (dA * normalRightJ - normalRightE * dC) / dDet;
+        const jitanFastInit = (fastRightE * dD - dB * fastRightJ) / dDet;
+        const jitanFastJitanHit = (dA * fastRightJ - fastRightE * dC) / dDet;
+        return { r100, r200, r350, wInit, jitanHit, yutimeWins: r350 * jitanHit, densapoInit, densapoJitanHit, jitanNormalInit, jitanNormalJitanHit, jitanFastInit, jitanFastJitanHit, settings };
       }
       function calculate(input, settings = {}) {
         const merged = { ...preset.defaults, ...settings };
@@ -1640,9 +1650,11 @@
         const expectedNormalSpins = pHit / p;
         const expectedWins = pHit * chains.wInit + pReach * chains.yutimeWins;
         const yutimeDensapoBeforeHit = finiteExpectedSpins(p, preset.spec.yutimeJitan);
-        const expectedDensapoSpins = pHit * chains.densapoInit + pReach * (yutimeDensapoBeforeHit + chains.r350 * chains.densapoJitanHit);
+        const expectedJitanNormalSpins = pHit * chains.jitanNormalInit + pReach * chains.r350 * chains.jitanNormalJitanHit;
+        const expectedJitanFastSpins = pHit * chains.jitanFastInit + pReach * (yutimeDensapoBeforeHit + chains.r350 * chains.jitanFastJitanHit);
+        const expectedDensapoSpins = expectedJitanNormalSpins + expectedJitanFastSpins;
         const investBalls = expectedNormalSpins * 250 / rate;
-        const winBalls = expectedWins * merged.netBallsPerWin + expectedDensapoSpins * merged.densapoDelta;
+        const winBalls = expectedWins * merged.netBallsPerWin + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin;
         const evBalls = winBalls - investBalls;
         const cashSpentYen = expectedNormalSpins / rate * 1000;
         const winBallsYen = winBalls * merged.yenPerBall;
@@ -1653,7 +1665,7 @@
         const totalHours = normalHours + hitHours + densapoHours;
         const hourlyYen = totalHours > 0 ? evYen / totalHours : 0;
         const slotRate = 100 + hourlyYen / (merged.slotGamesPerHour * 3 * 20 * 0.01);
-        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedDensapoSpins, investBalls, winBalls, evBalls, cashSpentYen, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, chains };
+        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedDensapoSpins, investBalls, winBalls, evBalls, cashSpentYen, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, chains };
       }
       function logRate(log) {
         const balls = Number(log.usedBalls ?? log.balls) || 0;
@@ -1698,6 +1710,7 @@
       endTotalHits: null,
       hitCount: null,
       totalRounds: null,
+      hits: [],
       endTotalBalls: null,
       endSpin: null,
       endTime: null,
@@ -1975,6 +1988,69 @@
       return positiveNumberOrDefault(data.presetSettings?.[presetId]?.netBallsPerWin, preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN);
     }
 
+    function netBallsPerWinInfo(presetId, machine = null) {
+      const preset = presetById(presetId);
+      const settings = data.presetSettings?.[presetId] || {};
+      const manual = normalizeNumber(settings.netBallsPerWin);
+      if (settings.netBallsPerWinManual === true && manual !== null && manual > 0) {
+        return { value: manual, source: "手入力", count: null };
+      }
+      const sessions = filteredSessions().filter((session) => {
+        if (machine) return session.machineId === machine.id;
+        const sessionMachine = data.machines.find((item) => item.id === session.machineId);
+        return normalizeMachinePresetId(sessionMachine) === presetId;
+      });
+      const hits = sessions.flatMap((session) => normalizeHits(session.hits));
+      const actualHits = hits.map((hit) => normalizeNumber(hit.actualBalls)).filter((value) => value !== null && value > 0);
+      if (actualHits.length) {
+        return { value: actualHits.reduce((sum, value) => sum + value, 0) / actualHits.length, source: "実測平均", count: actualHits.length };
+      }
+      const roundHits = hits.map((hit) => roundTypeById(presetId, hit.roundTypeId)?.balls).filter((value) => Number(value) > 0);
+      if (roundHits.length) {
+        return { value: roundHits.reduce((sum, value) => sum + Number(value), 0) / roundHits.length, source: "ラウンド集計", count: roundHits.length };
+      }
+      return { value: preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN, source: "理論値", count: 0 };
+    }
+
+    function presetJitanBallsPerSpin(presetId, key) {
+      const preset = presetById(presetId);
+      const fallback = normalizeNumber(preset?.defaults?.[key]) ?? 0;
+      return normalizeNumber(data.presetSettings?.[presetId]?.[key]) ?? fallback;
+    }
+
+    function roundTypeById(presetId, roundTypeId) {
+      const preset = presetById(presetId);
+      return (preset?.roundTypes || []).find((type) => type.id === roundTypeId) || null;
+    }
+
+    function normalizeHits(hits) {
+      return (Array.isArray(hits) ? hits : []).map((hit) => ({
+        roundTypeId: String(hit?.roundTypeId || ""),
+        hitSpin: normalizeNumber(hit?.hitSpin),
+        actualBalls: normalizeNumber(hit?.actualBalls),
+        at: hit?.at || nowIso()
+      })).filter((hit) => hit.roundTypeId || hit.hitSpin !== null || hit.actualBalls !== null);
+    }
+
+    function syncSessionHitTotals(session, machines = data.machines) {
+      if (!Array.isArray(session.hits) || !session.hits.length) return;
+      session.hitCount = session.hits.length;
+      const machine = machines.find((item) => item.id === session.machineId);
+      const presetId = normalizeMachinePresetId(machine);
+      const totalBalls = hitRoundBasedPayout(session, presetId) || 0;
+      if (machine?.roundBalls) session.totalRounds = Math.round(totalBalls / machine.roundBalls);
+    }
+
+    function hitRoundBasedPayout(session, presetId) {
+      const hits = normalizeHits(session?.hits);
+      if (!hits.length) return null;
+      const total = hits.reduce((sum, hit) => {
+        const roundType = roundTypeById(presetId, hit.roundTypeId);
+        return roundType ? sum + Number(roundType.balls || 0) : sum;
+      }, 0);
+      return total > 0 ? total : null;
+    }
+
     function activeMapAssumedRate(storeId = activeStore()?.id) {
       return normalizeNumber(selectedIslandFilter(storeId).map?.assumedRate);
     }
@@ -2051,14 +2127,19 @@
     function expectationSettings(store, machine) {
       const defaults = YUTIME_EXPECTATION_ENGINE.preset.defaults;
       const presetId = normalizeMachinePresetId(machine);
-      const netBallsPerWin = presetNetBallsPerWin(presetId);
+      const netBallsInfo = netBallsPerWinInfo(presetId, machine);
+      const netBallsPerWin = netBallsInfo.value;
+      const jitanNormalBallsPerSpin = presetJitanBallsPerSpin(presetId, "jitanNormalBallsPerSpin");
+      const jitanFastBallsPerSpin = presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin");
       return {
         settings: {
           ...defaults,
           yenPerBall: expectationYenPerBall(store),
-          netBallsPerWin
+          netBallsPerWin,
+          jitanNormalBallsPerSpin,
+          jitanFastBallsPerSpin
         },
-        payoutSource: `平均出玉${Math.round(netBallsPerWin).toLocaleString("ja-JP")}玉/回使用`
+        payoutSource: `純払い出し${Math.round(netBallsPerWin).toLocaleString("ja-JP")}玉/回（${netBallsInfo.source}${netBallsInfo.count ? ` n=${netBallsInfo.count}` : ""}）、時短100 ${jitanNormalBallsPerSpin}玉/回転、時短200/遊タイム ${jitanFastBallsPerSpin}玉/回転`
       };
     }
 
@@ -2253,7 +2334,11 @@
       next.version = SCHEMA_VERSION;
       const legacyNetBallsPerWin = next.stores.map((store) => normalizeNumber(store.netBallsPerWin)).find((value) => value !== null && value > 0);
       if (!next.presetSettings["umi-sp5"]) next.presetSettings["umi-sp5"] = {};
+      const hadPresetNetBalls = Object.prototype.hasOwnProperty.call(next.presetSettings["umi-sp5"], "netBallsPerWin");
       next.presetSettings["umi-sp5"].netBallsPerWin = positiveNumberOrDefault(next.presetSettings["umi-sp5"].netBallsPerWin ?? legacyNetBallsPerWin, DEFAULT_NET_BALLS_PER_WIN);
+      next.presetSettings["umi-sp5"].netBallsPerWinManual = next.presetSettings["umi-sp5"].netBallsPerWinManual === true || (hadPresetNetBalls && next.presetSettings["umi-sp5"].netBallsPerWin !== DEFAULT_NET_BALLS_PER_WIN);
+      next.presetSettings["umi-sp5"].jitanNormalBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].jitanNormalBallsPerSpin) ?? 0;
+      next.presetSettings["umi-sp5"].jitanFastBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].jitanFastBallsPerSpin) ?? 0;
       next.stores = next.stores.map((store) => ({
         id: store.id || cryptoId("st"),
         name: String(store.name || "無名店"),
@@ -2279,18 +2364,20 @@
           evSupported: Boolean(preset?.evSupported || machine.evSupported)
         };
       }).filter((machine) => machine.storeId && machine.daiNo);
-      next.sessions = next.sessions.map((session) => ({
-        ...blankSession(),
-        ...session,
-        startTotalHits: normalizeNumber(session.startTotalHits),
-        endTotalHits: normalizeNumber(session.endTotalHits),
-        currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
-        startEv: normalizeStartEv(session.startEv),
-        carriedFromSessionId: session.carriedFromSessionId || null,
-        yutimeEnterSpin: normalizeNumber(session.yutimeEnterSpin),
-        yutimeEnterTime: session.yutimeEnterTime || null,
-        settlementRecoverYen: normalizeNumber(session.settlementRecoverYen),
-        investments: Array.isArray(session.investments) ? session.investments.map((item) => ({
+      next.sessions = next.sessions.map((session) => {
+        const normalized = {
+          ...blankSession(),
+          ...session,
+          startTotalHits: normalizeNumber(session.startTotalHits),
+          endTotalHits: normalizeNumber(session.endTotalHits),
+          currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
+          startEv: normalizeStartEv(session.startEv),
+          carriedFromSessionId: session.carriedFromSessionId || null,
+          yutimeEnterSpin: normalizeNumber(session.yutimeEnterSpin),
+          yutimeEnterTime: session.yutimeEnterTime || null,
+          settlementRecoverYen: normalizeNumber(session.settlementRecoverYen),
+          hits: normalizeHits(session.hits),
+          investments: Array.isArray(session.investments) ? session.investments.map((item) => ({
           type: normalizeInvestmentSource(item.source || item.type),
           ...(item.source ? { source: normalizeInvestmentSource(item.source) } : {}),
           amount: normalizeNumber(item.amount),
@@ -2303,7 +2390,10 @@
           amount: normalizeNumber(item.amount),
           time: item.time || null
         })).filter((item) => item.amount !== null) : []
-      }));
+        };
+        syncSessionHitTotals(normalized, next.machines);
+        return normalized;
+      });
       if (!next.stores.some((store) => store.id === next.activeStoreId)) next.activeStoreId = next.stores[0]?.id || null;
       next.dailyState = normalizeDailyState(next.dailyState, next.machines);
       return next;
@@ -2790,6 +2880,8 @@
       const hasYutime = activeMapHasYutime(store.id);
       const assumedRate = activeMapAssumedRate(store.id);
       const umiNetBalls = presetNetBallsPerWin("umi-sp5");
+      const umiJitanNormal = presetJitanBallsPerSpin("umi-sp5", "jitanNormalBallsPerSpin");
+      const umiJitanFast = presetJitanBallsPerSpin("umi-sp5", "jitanFastBallsPerSpin");
       const filterSummary = activeFilters.length ? `　適用中: ${activeFilters.map(escapeHtml).join("・")}` : "";
       if (!hasYutime) {
         closingCheckMode = false;
@@ -2811,7 +2903,7 @@
             </div>
             <div class="baseline-chip-grid">
               <button class="small baseline-chip" id="quickAssumedRateBtn">平均回転率 <strong>${assumedRate !== null && assumedRate !== undefined ? Number(assumedRate).toFixed(1) : "未設定"}</strong>（${assumedRate !== null && assumedRate !== undefined ? "変更" : "設定"}）</button>
-              <button class="small baseline-chip" id="quickNetBallsBtn">平均出玉 <strong>${Math.round(umiNetBalls).toLocaleString("ja-JP")}玉</strong>（変更）</button>
+              <button class="small baseline-chip" id="quickNetBallsBtn">純払い出し <strong>${Math.round(umiNetBalls).toLocaleString("ja-JP")}玉</strong> / 時短 <strong>${umiJitanNormal}/${umiJitanFast}</strong>（変更）</button>
             </div>
             <p class="hint" style="margin:6px 0 0">このコーナーの基準値です。台ごとの実測・手入力がない台は、この値で期待値を計算します。</p>
           </div>
@@ -2949,9 +3041,12 @@
     function openNetBallsQuickForm(presetId) {
       const preset = presetById(presetId);
       if (!preset) return;
-      openModal("大当たり1回の平均出玉", "連チャン込みの大当たり1回あたり平均出玉。自分の止め打ち精度に合わせて調整できます。", `
-        <div class="field-row"><label for="quickNetBallsPerWin">大当たり1回の平均出玉</label><input id="quickNetBallsPerWin" inputmode="numeric" value="${escapeHtml(presetNetBallsPerWin(presetId))}"></div>
-        <p class="hint">空欄または0以下なら既定値 ${escapeHtml(preset.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN)} 玉に戻します。実測出玉からの自動切替は行いません。</p>
+      const manualNetBallsValue = data.presetSettings?.[presetId]?.netBallsPerWinManual === true ? presetNetBallsPerWin(presetId) : "";
+      openModal("期待値用の出玉・時短消費", "大当たり出玉はラウンド払い出し量で入力します。時短中の玉増減は状態別に分けます。", `
+        <div class="field-row"><label for="quickNetBallsPerWin">純払い出し量</label><input id="quickNetBallsPerWin" inputmode="numeric" value="${escapeHtml(manualNetBallsValue)}" placeholder="空欄で自動"></div>
+        <div class="field-row"><label for="quickJitanNormalBallsPerSpin">100回転時短 玉/回転</label><input id="quickJitanNormalBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanNormalBallsPerSpin"))}"></div>
+        <div class="field-row"><label for="quickJitanFastBallsPerSpin">200回転時短・遊タイム 玉/回転</label><input id="quickJitanFastBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin"))}"></div>
+        <p class="hint">純払い出し量はラウンド数×出玉です。空欄または0以下なら手入力上書きを解除し、実測平均・ラウンド集計・理論値の順で自動採用します。時短は負の値なら消費、0または空欄なら時短消費なしとして扱います。旧定義の手取り平均を入れていた場合は再入力してください。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveQuickNetBallsBtn">保存</button>
@@ -2960,7 +3055,16 @@
       byId("saveQuickNetBallsBtn").addEventListener("click", () => {
         if (!data.presetSettings) data.presetSettings = {};
         if (!data.presetSettings[presetId]) data.presetSettings[presetId] = {};
-        data.presetSettings[presetId].netBallsPerWin = positiveNumberOrDefault(byId("quickNetBallsPerWin").value, preset.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN);
+        const manualNetBalls = normalizeNumber(byId("quickNetBallsPerWin").value);
+        if (manualNetBalls !== null && manualNetBalls > 0) {
+          data.presetSettings[presetId].netBallsPerWin = manualNetBalls;
+          data.presetSettings[presetId].netBallsPerWinManual = true;
+        } else {
+          delete data.presetSettings[presetId].netBallsPerWin;
+          data.presetSettings[presetId].netBallsPerWinManual = false;
+        }
+        data.presetSettings[presetId].jitanNormalBallsPerSpin = normalizeNumber(byId("quickJitanNormalBallsPerSpin").value) ?? 0;
+        data.presetSettings[presetId].jitanFastBallsPerSpin = normalizeNumber(byId("quickJitanFastBallsPerSpin").value) ?? 0;
         if (!persistWithToast("保存しました")) return;
         closeModal();
         renderAll();
@@ -5089,7 +5193,23 @@
       const machine = data.machines.find((item) => item.id === session.machineId);
       const options = hitResetOptions(machine);
       const balances = deriveBalances(session);
+      const presetId = normalizeMachinePresetId(machine);
+      const roundTypes = presetById(presetId)?.roundTypes || [];
       openModal("現在回転数をリセット", "選ばず閉じると現在回転数はそのままです。続行する場合だけ、時短消化後の起点に合わせてください。", `
+        <div class="field-row">
+          <label>当選ごとのラウンド記録</label>
+          <div>
+            <div class="quick-invest">
+              ${roundTypes.map((type) => `<button data-hit-round="${escapeHtml(type.id)}">${escapeHtml(type.label)} +1</button>`).join("") || '<span class="hint">このプリセットにはラウンド種別がありません。</span>'}
+            </div>
+            <div class="grid two">
+              <input id="hitRecordSpin" inputmode="numeric" value="${escapeHtml(session.hitSpin ?? session.currentSpin ?? "")}" placeholder="当選ゲーム数 任意">
+              <input id="hitRecordActualBalls" inputmode="numeric" placeholder="獲得出玉 任意">
+            </div>
+            <p class="hint">チップを押すと当選1件として保存します。任意入力は空欄でも記録できます。</p>
+            <p class="hint">記録済み ${escapeHtml((session.hits || []).length)}件</p>
+          </div>
+        </div>
         <div class="field-row">
           <label for="hitMochidamaValue">持ち玉</label>
           <div>
@@ -5110,6 +5230,12 @@
       byId("saveHitMochidamaBtn").addEventListener("click", () => {
         saveHitMochidamaInput(session);
       });
+      els.modalBody.querySelectorAll("[data-hit-round]").forEach((button) => {
+        button.addEventListener("click", () => {
+          appendHitRecord(session, button.dataset.hitRound);
+          openHitResetPrompt(session);
+        });
+      });
       els.modalBody.querySelectorAll("[data-hit-reset]").forEach((button) => {
         button.addEventListener("click", () => {
           const value = Number(button.dataset.hitReset);
@@ -5118,6 +5244,19 @@
           showToast(`現在回転数を${value}にリセットしました`);
         });
       });
+    }
+
+    function appendHitRecord(session, roundTypeId) {
+      if (!Array.isArray(session.hits)) session.hits = [];
+      session.hits.push({
+        roundTypeId,
+        hitSpin: normalizeNumber(byId("hitRecordSpin")?.value),
+        actualBalls: normalizeNumber(byId("hitRecordActualBalls")?.value),
+        at: nowIso()
+      });
+      syncSessionHitTotals(session);
+      session.updatedAt = nowIso();
+      persistWithToast("当選を1件追加しました");
     }
 
     function saveHitMochidamaInput(session, options = {}) {
@@ -5173,10 +5312,13 @@
       const endTotalBallsHint = endTotalBallsPreset !== null ? "稼働中の持ち玉残を初期値にしています。台の表示と違う場合は修正してください。" : "";
       const endSpinPreset = !hasHit && session.hitSpin === null && Number(session.hitCount || 0) === 0 ? session.currentSpin : null;
       const endSpinHint = endSpinPreset !== null ? "稼働中カウンタの現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "";
+      const hitRecordSteps = Array.isArray(session.hits) && session.hits.length ? [] : [
+        { key: "hitCount", label: "大当たり回数", type: "number" },
+        { key: "totalRounds", label: "合計R数", type: "number", hint: "1R玉数と合わせてR数ベース出玉を計算します。" }
+      ];
       const steps = hasHit ? [
         { key: "endTotalHits", label: "ヤメ時点の累計大当たり回数", type: "number" },
-        { key: "hitCount", label: "大当たり回数", type: "number" },
-        { key: "totalRounds", label: "合計R数", type: "number", hint: "1R玉数と合わせてR数ベース出玉を計算します。" },
+        ...hitRecordSteps,
         { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
         { key: "endSpin", label: "ヤメ回転数", type: "number" },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
@@ -5190,6 +5332,7 @@
       runWizard("ヤメ入力", steps, session, () => {
         session.status = "completed";
         if (!hasHit) session.hitCount = 0;
+        else syncSessionHitTotals(session);
         session.endTime = session.endTime || currentTime();
         session.updatedAt = nowIso();
         if (activeSessionId === session.id) activeSessionId = activeSessionsForStore(session.storeId).find((item) => item.id !== session.id)?.id || null;
@@ -6068,7 +6211,8 @@
       const rawNormalSpins = normalEndSpin !== null && session.startSpin !== null ? normalEndSpin - session.startSpin : null;
       const normalSpins = rawNormalSpins !== null && rawNormalSpins < 0 ? null : rawNormalSpins;
       if (rawNormalSpins !== null && rawNormalSpins < 0) warnings.push("通常回転数の入力を確認");
-      const roundBasedPayout = hasHit && machine?.roundBalls !== null && machine?.roundBalls !== undefined && session.totalRounds !== null && session.totalRounds !== undefined ? machine.roundBalls * session.totalRounds : null;
+      const hitsRoundPayout = hasHit ? hitRoundBasedPayout(session, normalizeMachinePresetId(machine)) : null;
+      const roundBasedPayout = hitsRoundPayout !== null ? hitsRoundPayout : (hasHit && machine?.roundBalls !== null && machine?.roundBalls !== undefined && session.totalRounds !== null && session.totalRounds !== undefined ? machine.roundBalls * session.totalRounds : null);
       const standardPayout = hasHit && preset?.standardPayout ? preset.standardPayout * session.hitCount : null;
       const estimatedPayout = hasHit ? (roundBasedPayout !== null ? roundBasedPayout : standardPayout) : null;
       const estimatedRemainBalls = hasHit && session.hitRemainBalls === null && estimatedPayout !== null && session.endTotalBalls !== null ? Math.max(0, session.endTotalBalls - estimatedPayout) : null;
