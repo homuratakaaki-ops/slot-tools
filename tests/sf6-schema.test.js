@@ -15,30 +15,35 @@ function assertJsonEqual(actual, expected) {
   assert.equal(JSON.stringify(actual), JSON.stringify(expected));
 }
 
-function testExportVersion7() {
+function testExportVersion8() {
   const normalized = normalizeSf6Export({
     machine: 'L-SF6',
-    ver: '7',
+    ver: '8',
     battleState: 'normal',
+    currentStage: 'ジェイミー',
     currentState: { realG: 100, lcdG: 250 },
     initialThrough: 2,
+    pendingAutoColor: { boundary: 300 },
     sessionMoney: null,
     logs: []
   });
-  assert.equal(normalized.ver, '7');
+  assert.equal(normalized.ver, '8');
   assert.equal(normalized.battleState, 'normal');
+  assert.equal(normalized.currentStage, 'ジェイミー');
   assert.equal(normalized.initialThrough, 2);
+  assert.deepEqual(normalized.pendingAutoColor, { boundary: 300 });
   assert.equal(normalized.sessionMoney, null);
 }
 
 function testLegacyTrigPreserved() {
   const normalized = normalizeSf6Export(legacyFixture);
-  assert.equal(normalized.ver, '7');
+  assert.equal(normalized.ver, '8');
   assert.equal(normalized.sourceVer, '1');
   assert.equal(normalized.battleState, 'normal');
   assert.equal(normalized.sessionMoney, null);
   assertJsonEqual(normalized.currentState, { realG: null, lcdG: null });
   assert.equal(normalized.initialThrough, 0);
+  assert.equal(normalized.currentStage, null);
   assert.equal(normalized.logs[0].legacy_trig, legacyFixture.logs[0].trig);
   assert.equal(Object.prototype.hasOwnProperty.call(normalized.logs[0], 'trig'), false);
   assert.equal(normalized.logs[0].rank, null);
@@ -58,20 +63,22 @@ function testMissingVersionAsLegacy() {
     machine: 'L-SF6',
     logs: [{ id: 1, type: 'fb', realG: 1, lcdG: 2, t: 1, win: false, trig: '螟ｩ莠・' }]
   });
-  assert.equal(normalized.ver, '7');
+  assert.equal(normalized.ver, '8');
   assert.equal(normalized.sourceVer, null);
   assert.equal(normalized.initialThrough, 0);
   assert.equal(normalized.logs[0].legacy_trig, '螟ｩ莠・');
 }
 
-function testIdempotentVersion7() {
+function testIdempotentVersion8() {
   const input = {
     machine: 'L-SF6',
-    ver: '7',
+    ver: '8',
     sourceVer: '6',
     battleState: 'battle',
+    currentStage: 'キャミィ',
     currentState: { realG: 12, lcdG: 34 },
     initialThrough: 3,
+    pendingAutoColor: null,
     sessionMoney: {
       startCredit: 10000,
       startMochidama: 500,
@@ -116,14 +123,14 @@ function testIdempotentVersion7() {
 }
 
 function testBattleStateDefaultAndPreserved() {
-  assert.equal(normalizeSf6Export({ machine: 'L-SF6', ver: '7', logs: [] }).battleState, 'normal');
-  assert.equal(normalizeSf6Export({ machine: 'L-SF6', ver: '7', battleState: 'battle', logs: [] }).battleState, 'battle');
-  assert.equal(normalizeSf6Export({ machine: 'L-SF6', ver: '7', battleState: 'bad', logs: [] }).battleState, 'normal');
+  assert.equal(normalizeSf6Export({ machine: 'L-SF6', ver: '8', logs: [] }).battleState, 'normal');
+  assert.equal(normalizeSf6Export({ machine: 'L-SF6', ver: '8', battleState: 'battle', logs: [] }).battleState, 'battle');
+  assert.equal(normalizeSf6Export({ machine: 'L-SF6', ver: '8', battleState: 'bad', logs: [] }).battleState, 'normal');
 }
 
 function testVersion2RankPreserved() {
   const normalized = normalizeSf6Export(v2RankFixture);
-  assert.equal(normalized.ver, '7');
+  assert.equal(normalized.ver, '8');
   assert.equal(normalized.sourceVer, '2');
   assert.equal(normalized.sessionMoney, null);
   assert.equal(normalized.currentState.realG, 200);
@@ -148,16 +155,16 @@ function testCashAndCollectPreserved() {
       { id: 2, type: 'collect', realG: 10, lcdG: 20, t: 2, medals: 1417 }
     ]
   });
-  assert.equal(normalized.ver, '7');
+  assert.equal(normalized.ver, '8');
   assert.equal(normalized.sourceVer, '4');
   assert.equal(normalized.logs[0].amount, 10000);
   assert.equal(normalized.logs[1].medals, 1417);
 }
 
-function testVersion6UpgradesTo7() {
+function testVersion7UpgradesTo8() {
   const normalized = normalizeSf6Export({
     machine: 'L-SF6',
-    ver: '6',
+    ver: '7',
     battleState: 'battle',
     currentState: { realG: 10, lcdG: 20 },
     logs: [
@@ -167,9 +174,10 @@ function testVersion6UpgradesTo7() {
       { id: 4, type: 'continue', realG: 10, lcdG: 20, t: 4, result: 'success' }
     ]
   });
-  assert.equal(normalized.ver, '7');
-  assert.equal(normalized.sourceVer, '6');
+  assert.equal(normalized.ver, '8');
+  assert.equal(normalized.sourceVer, '7');
   assert.equal(normalized.initialThrough, 0);
+  assert.equal(normalized.currentStage, null);
   assert.equal(normalized.sessionMoney, null);
   assert.equal(normalized.logs[0].rank, 'silver');
   assert.equal(normalized.logs[0].opponent, 'marisa');
@@ -188,7 +196,7 @@ function testVersion6UpgradesTo7() {
 function testMoneyRecordAndSessionMoney() {
   const normalized = normalizeSf6Export({
     machine: 'L-SF6',
-    ver: '7',
+    ver: '8',
     initialThrough: 1,
     sessionMoney: {
       startCredit: 10000,
@@ -217,7 +225,7 @@ function testMoneyRecordAndSessionMoney() {
       }
     ]
   });
-  assert.equal(normalized.ver, '7');
+  assert.equal(normalized.ver, '8');
   assert.equal(normalized.initialThrough, 1);
   assert.equal(normalized.sessionMoney.loanRate, 46.6);
   assert.equal(normalized.sessionMoney.collectMedals, 1417);
@@ -237,15 +245,35 @@ function testUnknownTypePreserved() {
   assert.equal(normalized.logs[0].extra, 'keep');
 }
 
-testExportVersion7();
+function testVersion8StageAndAutoColor() {
+  const normalized = normalizeSf6Export({
+    machine: 'L-SF6',
+    ver: '8',
+    currentStage: 'ルーク',
+    pendingAutoColor: { boundary: 500 },
+    logs: [
+      { id: 1, type: 'gcolor', realG: 1, lcdG: 101, t: 1, color: '青', auto: true },
+      { id: 2, type: 'stage_end', realG: 2, lcdG: 120, t: 2, stage: 'ルーク' }
+    ]
+  });
+  assert.equal(normalized.ver, '8');
+  assert.equal(normalized.currentStage, 'ルーク');
+  assert.deepEqual(normalized.pendingAutoColor, { boundary: 500 });
+  assert.equal(normalized.logs[0].auto, true);
+  assert.equal(normalized.logs[1].type, 'stage_end');
+  assert.equal(normalized.logs[1].stage, 'ルーク');
+}
+
+testExportVersion8();
 testLegacyTrigPreserved();
 testMissingVersionAsLegacy();
-testIdempotentVersion7();
+testIdempotentVersion8();
 testBattleStateDefaultAndPreserved();
 testVersion2RankPreserved();
 testCashAndCollectPreserved();
-testVersion6UpgradesTo7();
+testVersion7UpgradesTo8();
 testMoneyRecordAndSessionMoney();
 testUnknownTypePreserved();
+testVersion8StageAndAutoColor();
 
 console.log('sf6-schema tests passed');

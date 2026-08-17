@@ -6,7 +6,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const SCHEMA_VERSION='7';
+  const SCHEMA_VERSION='8';
   const MONEY_OPS=['init','deposit','loan','creditUpdate','mochidama','saipurei','diffSync','collectEnd'];
 
   function safeObject(value){
@@ -26,6 +26,15 @@
 
   function normalizeBattleState(value){
     return value==='battle'?'battle':'normal';
+  }
+  function normalizeCurrentStage(value){
+    const text=String(value??'').trim();
+    return text||null;
+  }
+  function normalizePendingAutoColor(value){
+    const src=safeObject(value);
+    const boundary=gameValue(src.boundary);
+    return boundary===null?null:{boundary};
   }
   function signedNumber(value){
     if(value===null||value===undefined||value==='')return null;
@@ -87,6 +96,8 @@
       out.after=normalizeSessionMoney(out.after);
       return out;
     }
+    if(log.type==='gcolor')return {...log,auto:log.auto===true};
+    if(log.type==='stage_end')return {...log,stage:normalizeCurrentStage(log.stage)};
     return {...log};
   }
 
@@ -94,7 +105,7 @@
     const src=safeObject(data);
     const inputVer=src.ver==null?null:String(src.ver);
     const sourceVer=src.sourceVer==null?inputVer:String(src.sourceVer);
-    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!==SCHEMA_VERSION;
+    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!==SCHEMA_VERSION;
     const logs=Array.isArray(src.logs)?src.logs.map(log=>normalizeLog(log,isLegacy)):[];
     return {
       ...src,
@@ -102,8 +113,10 @@
       ver:SCHEMA_VERSION,
       sourceVer,
       battleState:normalizeBattleState(src.battleState),
+      currentStage:normalizeCurrentStage(src.currentStage),
       currentState:normalizeCurrentState(src.currentState),
       initialThrough:gameValue(src.initialThrough)??0,
+      pendingAutoColor:normalizePendingAutoColor(src.pendingAutoColor),
       sessionMoney:normalizeSessionMoney(src.sessionMoney),
       logs
     };

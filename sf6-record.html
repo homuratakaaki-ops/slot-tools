@@ -97,11 +97,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 }
 .state-badge.active-normal{border-color:rgba(105,216,79,.52);background:rgba(105,216,79,.12);color:var(--drive)}
 .state-badge.active-battle{border-color:rgba(255,93,108,.72);background:rgba(255,93,108,.14);color:#ffc2ca}
+.state-badge.stage-jamie{border-color:rgba(168,85,247,.72);background:transparent;color:#d8b4fe}
+.state-badge.stage-cammy{border-color:rgba(251,146,60,.72);background:transparent;color:#fdba74}
+.state-badge.stage-neutral{border-color:rgba(148,163,184,.55);background:transparent;color:#e5e7eb}
 .counter-row,.money-row,.step-row,.button-row,.sheet-row,.choice-row{
   display:flex;
   gap:7px;
   flex-wrap:wrap;
 }
+.mode-actions{display:flex;gap:7px;flex-wrap:wrap}
 .counter-btn{
   flex:1 1 0;
   min-width:0;
@@ -141,14 +145,16 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   background:var(--surface2);
   color:var(--ink);
   min-height:52px;
-  padding:8px 9px;
+  padding:7px 9px;
   font-weight:900;
   cursor:pointer;
   white-space:normal;
   overflow-wrap:anywhere;
 }
-.bm-btn{flex:1 1 92px;font-size:15px}
-.bm-btn.small{flex:1 1 58px;min-height:48px}
+.bm-btn{flex:1 1 92px;font-size:16px}
+.mode-actions .bm-btn{min-height:52px;max-height:64px}
+.normal-actions .bm-btn{flex:1 1 0;min-width:0;width:0;word-break:break-all}
+.bm-btn.small{flex:1 1 58px;min-height:48px;font-size:16px}
 .bm-btn.primary{border-color:#315b2d;background:var(--drive-soft);color:var(--drive)}
 .bm-btn.secondary{border-color:var(--line);background:var(--surface2);color:var(--ink)}
 .bm-btn.danger{border-color:#70313b;background:#32171b;color:var(--danger)}
@@ -165,11 +171,26 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 }
 .chip{
   flex:1 1 auto;
-  min-height:42px;
+  min-height:48px;
   border-radius:999px;
-  font-size:12px;
+  font-size:16px;
   padding:8px 11px;
 }
+.choice-grid-4 .chip{flex:1 1 calc(25% - 7px)}
+.choice-grid-3 .chip{flex:1 1 calc(33.333% - 7px)}
+.choice-grid-2 .chip{flex:1 1 calc(50% - 7px)}
+.loss-input-grid .field-row{flex:1 1 calc(33.333% - 7px);min-width:0;display:block;margin:0}
+.loss-input-grid .field-row label{display:block;margin-bottom:4px;font-size:11px}
+.loss-input-grid .field-row input{width:100%;max-width:none}
+.loss-sheet-body > .field-row{
+  display:inline-block;
+  width:calc(33.333% - 7px);
+  margin-right:7px;
+  vertical-align:top;
+}
+.loss-sheet-body > .field-row input{width:100%;max-width:none}
+.loss-sheet-body > .field-row label{font-size:11px}
+.sheet-pad{height:30px;flex:1 1 100%}
 .chip[aria-pressed="true"]{border-color:var(--drive);background:var(--drive-soft);color:var(--drive)}
 .chip.hot{border-color:#633039;color:var(--danger)}
 .chip.hot[aria-pressed="true"]{border-color:var(--danger);background:#35171c;color:#fff}
@@ -237,7 +258,7 @@ textarea{
 .bm-sheet-panel{
   width:100%;
   max-width:480px;
-  max-height:76dvh;
+  max-height:calc(100dvh - 16px);
   overflow:auto;
   margin:0 auto;
   background:var(--surface);
@@ -288,6 +309,7 @@ textarea{
 .tag.out{background:var(--purple)}
 .tag.gcolor{background:#d7e8ef}
 .tag.stage_sel{background:#8ecf9e;color:#07100b}
+.tag.stage_end{background:#d8dee8;color:#111827}
 .tag.rare{background:#f0d27b;color:#161006}
 .tag.fb{background:var(--pink)}
 .tag.fbhit{background:#ffb4c8}
@@ -300,8 +322,10 @@ textarea{
 .muted{color:var(--muted)}
 @media (max-width:380px){
   .bm-shell{gap:6px}
-  .bm-btn{flex-basis:76px;padding-left:6px;padding-right:6px;font-size:14px}
+  .panel{padding:6px}
+  .bm-btn{flex-basis:76px;padding-left:6px;padding-right:6px;font-size:16px}
   .bm-btn.small{flex-basis:52px}
+  .normal-actions{margin-bottom:7px}
   .field-row input,.field-row select{width:118px}
   .chip{padding-left:9px;padding-right:9px}
 }
@@ -384,7 +408,7 @@ textarea{
   const STORAGE_KEY='sf6_record_v1';
   const MACHINE='L-SF6';
   const MACHINE_ID='l-sf6';
-  const VERSION='7';
+  const VERSION='8';
   const PAYLOAD_VERSION='2.2';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
@@ -394,8 +418,8 @@ textarea{
   const STAGE_CHOICES=['ジェイミー','キャミィ','春麗','ルーク'];
   const RARE_KINDS=['スイカ','弱チェリー','チャンス目','強チェリー'];
   const BONUSES=['赤7','青7'];
-  const RANKS=['ルーキー','ブロンズ','シルバー','ゴールド','レジェンド'];
-  const RANK_RATE_LABELS=[['ルーキー','50%'],['ブロンズ','60%'],['シルバー','70%'],['ゴールド','80%'],['レジェンド','88%']];
+  const RANKS=['ルーキー','ブロンズ','シルバー','ゴールド','レジェンド','ceiling'];
+  const RANK_RATE_LABELS=[['ルーキー','50%'],['ブロンズ','60%'],['シルバー','70%'],['ゴールド','80%'],['レジェンド','88%'],['ceiling','99%']];
   const ROUND_STARTS=['青','緑','味方全員集合','敵全員集合'];
   const ROUND_START_LABELS=[['青','青（デフォ）','blue-default'],['緑','緑（上位キャラ）','green-upper'],['味方全員集合','味方全員集合','ally-all'],['敵全員集合','敵全員集合','enemy-all']];
   const OPPONENTS=['マリーザ','ガイル','マノン','ジュリ','JP','リュウ'];
@@ -409,7 +433,7 @@ textarea{
   const BATTLE_ADJUST_LOCK_TOAST='FB中はG数調整を操作できません';
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
-  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',currentState:{realG:null,lcdG:null},initialThrough:0,sessionMoney:null,logs:[]};
+  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',currentStage:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,sessionMoney:null,logs:[]};
   let selectedGainKind='';
   let selectedVoice=null;
   let gainAddDraft='';
@@ -465,6 +489,13 @@ textarea{
   function normalizeBattleState(value){
     return value==='battle'?'battle':'normal';
   }
+  function normalizeCurrentStage(value){
+    return STAGE_CHOICES.includes(value)?value:null;
+  }
+  function normalizePendingAutoColor(value){
+    const boundary=optionalGame(value?.boundary);
+    return boundary===null?null:{boundary};
+  }
   function normalizeCurrentState(value){
     return {realG:value?.realG==null?null:optionalGame(value.realG),lcdG:value?.lcdG==null?null:optionalGame(value.lcdG)};
   }
@@ -515,7 +546,7 @@ textarea{
     };
   }
   function defaultState(){
-    return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',currentState:{realG:null,lcdG:null},initialThrough:0,sessionMoney:null,logs:[]};
+    return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',currentStage:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,sessionMoney:null,logs:[]};
   }
   function normalizeSessionMoney(value){
     if(!value||typeof value!=='object')return null;
@@ -549,12 +580,14 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs});
+    return deepClone({battleState:state.battleState,currentStage:normalizeCurrentStage(state.currentStage),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
+    state.currentStage=normalizeCurrentStage(snap?.currentStage);
     state.currentState=normalizeCurrentState(snap?.currentState);
     state.initialThrough=nonnegativeInt(snap?.initialThrough)??0;
+    state.pendingAutoColor=normalizePendingAutoColor(snap?.pendingAutoColor);
     state.sessionMoney=normalizeSessionMoney(snap?.sessionMoney);
     state.logs=Array.isArray(snap?.logs)?snap.logs.map(sanitizeLog).filter(Boolean):[];
     save();
@@ -565,7 +598,9 @@ textarea{
     const ok=mutator();
     if(ok===false)return false;
     state.battleState=normalizeBattleState(state.battleState);
+    state.currentStage=normalizeCurrentStage(state.currentStage);
     state.currentState=normalizeCurrentState(state.currentState);
+    state.pendingAutoColor=normalizePendingAutoColor(state.pendingAutoColor);
     const after=appSnapshot();
     if(JSON.stringify(before)===JSON.stringify(after)){
       render();
@@ -602,11 +637,15 @@ textarea{
     }
     if(base.type==='gcolor'){
       if(!G_COLORS.includes(log.color)||base.lcdG===null)return null;
-      return {...log,...base,color:log.color};
+      return {...log,...base,color:log.color,auto:log.auto===true};
     }
     if(base.type==='stage_sel'){
       if(!STAGE_CHOICES.includes(log.stage)||base.lcdG===null)return null;
       return {...log,...base,stage:log.stage};
+    }
+    if(base.type==='stage_end'){
+      if(base.lcdG===null)return null;
+      return {...log,...base,stage:normalizeCurrentStage(log.stage)};
     }
     if(base.type==='rare'){
       if(!RARE_KINDS.includes(log.kind)||base.lcdG===null)return null;
@@ -673,7 +712,7 @@ textarea{
     const logs=Array.isArray(normalized?.logs)?normalized.logs.map(sanitizeLog).filter(Boolean):[];
     const sourceVer=normalized&&Object.prototype.hasOwnProperty.call(normalized,'sourceVer')?normalized.sourceVer:VERSION;
     const startedAt=String(normalized?.startedAt||'').trim()||(logs.length?isoFromLogTime(logs[0].t):isoWithOffset());
-    return {machine:MACHINE,ver:VERSION,sourceVer,sessionId:String(normalized?.sessionId||'').trim()||uuidV4(),startedAt,sessionInfo:normalizeSessionInfo(normalized?.sessionInfo),battleState:normalizeBattleState(normalized?.battleState),currentState:normalizeCurrentState(normalized?.currentState),initialThrough:nonnegativeInt(normalized?.initialThrough)??0,sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
+    return {machine:MACHINE,ver:VERSION,sourceVer,sessionId:String(normalized?.sessionId||'').trim()||uuidV4(),startedAt,sessionInfo:normalizeSessionInfo(normalized?.sessionInfo),battleState:normalizeBattleState(normalized?.battleState),currentStage:normalizeCurrentStage(normalized?.currentStage),currentState:normalizeCurrentState(normalized?.currentState),initialThrough:nonnegativeInt(normalized?.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(normalized?.pendingAutoColor),sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
   }
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){toast('保存に失敗しました');}
@@ -777,10 +816,40 @@ textarea{
     const current=snapshot()[key]??0;
     setCurrentValue(key,Math.max(0,current+delta));
   }
+  function colorBoundary(value){
+    const n=optionalGame(value);
+    if(n===null||n<100)return null;
+    return Math.floor(n/100)*100;
+  }
+  function crossedColorBoundary(from,to){
+    const a=optionalGame(from);
+    const b=optionalGame(to);
+    if(a===null||b===null||b<=a)return null;
+    const boundary=Math.floor(b/100)*100;
+    return boundary>0&&a<boundary&&b>=boundary?boundary:null;
+  }
+  function hasBlueColorForBoundary(boundary){
+    if(boundary===null)return false;
+    return state.logs.some(log=>log.type==='gcolor'&&log.color===G_COLORS[0]&&colorBoundary(log.lcdG)===boundary);
+  }
+  function addAutoBlueColor(boundary,snap){
+    if(boundary===null||hasBlueColorForBoundary(boundary))return false;
+    addLogDirect({type:'gcolor',color:G_COLORS[0],auto:true,realG:snap.realG,lcdG:snap.lcdG});
+    return true;
+  }
   function stepBoth(delta){
     if(isBattleLocked()){toast(BATTLE_STEP_LOCK_TOAST);return;}
-    const before=snapshot();
-    state.currentState={realG:(before.realG??0)+delta,lcdG:(before.lcdG??0)+delta};
+    const before=appSnapshot();
+    const current=snapshot();
+    const next={realG:(current.realG??0)+delta,lcdG:(current.lcdG??0)+delta};
+    state.currentState=next;
+    const pending=normalizePendingAutoColor(state.pendingAutoColor);
+    if(pending){
+      addAutoBlueColor(pending.boundary,next);
+      state.pendingAutoColor=null;
+    }else{
+      addAutoBlueColor(crossedColorBoundary(current.lcdG,next.lcdG),next);
+    }
     stepHistory.push(before);
     if(stepHistory.length>10)stepHistory.shift();
     markLcdTouched();
@@ -790,10 +859,8 @@ textarea{
   function undoStep(){
     const prev=stepHistory.pop();
     if(!prev){toast('戻せる通常消化がありません');return;}
-    state.currentState={realG:prev.realG,lcdG:prev.lcdG};
+    restoreSnapshot(prev);
     markLcdTouched();
-    save();
-    render();
     toast('通常消化を戻しました');
   }
   function undoLast(){
@@ -909,8 +976,10 @@ textarea{
         machine:MACHINE,
         ver:VERSION,
         battleState:normalizeBattleState(normalized.battleState),
+        currentStage:normalizeCurrentStage(normalized.currentStage),
         currentState:normalizeCurrentState(normalized.currentState),
         initialThrough:nonnegativeInt(normalized.initialThrough)??0,
+        pendingAutoColor:normalizePendingAutoColor(normalized.pendingAutoColor),
         sessionMoney:money,
         logs
       }
@@ -947,6 +1016,13 @@ textarea{
     const box=$('stateBadges');
     clearNode(box);
     box.append(el('div',`state-badge ${state.battleState==='normal'?'active-normal':''}`,'normal'));
+    const currentStage=normalizeCurrentStage(state.currentStage);
+    if(currentStage){
+      const cls=currentStage===STAGE_CHOICES[0]?'stage-jamie':currentStage===STAGE_CHOICES[1]?'stage-cammy':'stage-neutral';
+      const badge=button(currentStage,`state-badge ${cls}`,recordStageEnd);
+      badge.id='currentStageBadge';
+      box.append(badge);
+    }
     box.append(el('div',`state-badge ${state.battleState==='battle'?'active-battle':''}`,'FB中'));
   }
   function renderModeGrid(){
@@ -959,7 +1035,7 @@ textarea{
     else renderNormalGrid(grid);
   }
   function renderNormalGrid(grid){
-    let r=row();
+    let r=row('mode-actions normal-actions');
     const dcIn=button('ドライブチャンス（DC）突入','primary',recordDcIn);
     dcIn.id='dcInBtn';
     const gain=button('Sジャッジ/DC結果','primary',openGainSheet);
@@ -968,7 +1044,7 @@ textarea{
     memo.id='normalMemoBtn';
     r.append(dcIn,gain,memo);
     grid.append(r);
-    r=row();
+    r=row('mode-actions normal-actions');
     const rare=button('レア役','secondary',openRareSheet);
     rare.id='normalRareBtn';
     const color=button('液晶色','secondary',openGColorSheet);
@@ -977,7 +1053,7 @@ textarea{
     stage.id='normalStageBtn';
     r.append(rare,color,stage);
     grid.append(r);
-    r=row();
+    r=row('mode-actions normal-actions');
     const zenchou=button('前兆','secondary',openZenchouSheet);
     zenchou.id='normalZenchouBtn';
     r.append(zenchou);
@@ -993,6 +1069,21 @@ textarea{
     const p=el('div','panel-title');
     p.append(el('span','',`FB中${opponent?`：対戦相手 ${opponent}`:''}`));
     header.append(p);
+    let battleRow=row('mode-actions');
+    const startInfo=button('開始情報','secondary',openBattleStartSheet);
+    startInfo.id='battleStartInfoBtn';
+    battleRow.append(startInfo);
+    battleRow.append(button('メモ','secondary',openMemoSheet));
+    header.append(battleRow);
+    battleRow=row('mode-actions');
+    battleRow.append(button('勝利','win',openWinSheet));
+    battleRow.append(button('敗北','lose',openLossSheet));
+    header.append(battleRow);
+    battleRow=row('mode-actions');
+    battleRow.append(button('FB終了（手動）','danger',manualEndBattle));
+    header.append(battleRow);
+    grid.append(header);
+    return;
     header.append(el('div','muted','開始情報'));
     let r=row('choice-row');
     r.id='rankKinds';
@@ -1053,6 +1144,8 @@ textarea{
   }
   function render(){
     state.battleState=normalizeBattleState(state.battleState);
+    state.currentStage=normalizeCurrentStage(state.currentStage);
+    state.pendingAutoColor=normalizePendingAutoColor(state.pendingAutoColor);
     renderStatus();
     renderBadges();
     renderModeGrid();
@@ -1080,6 +1173,7 @@ textarea{
     },{toast:dir==='out'?'前兆抜けとデフォ復帰を記録しました':`${label}を記録しました`});
     if(options.closeAfter)closeSheet();
   }
+  /* v2.8 superseded color/stage handlers
   function recordGColor(color,options={}){
     const snap=requireLcd();
     if(!snap)return;
@@ -1091,6 +1185,63 @@ textarea{
     if(!snap)return;
     commit(`ステージ：${stage}`,()=>addLogDirect({type:'stage_sel',stage,realG:snap.realG,lcdG:snap.lcdG}),{toast:`ステージ：${stage}を記録しました`});
     if(options.closeAfter)closeSheet();
+  }
+  function recordGColor(color,options={}){
+    const snap=requireLcd();
+    if(!snap)return;
+    commit(`濶ｲ・・{color}`,()=>{
+      addLogDirect({type:'gcolor',color,realG:snap.realG,lcdG:snap.lcdG});
+      if(color===G_COLORS[0]&&state.pendingAutoColor&&colorBoundary(snap.lcdG)===state.pendingAutoColor.boundary)state.pendingAutoColor=null;
+    },{toast:`濶ｲ・・{color}繧定ｨ倬鹸縺励∪縺励◆`});
+    if(options.closeAfter)closeSheet();
+  }
+  function recordStage(stage,options={}){
+    const snap=requireLcd();
+    if(!snap)return;
+    commit(`繧ｹ繝・・繧ｸ・・{stage}`,()=>{
+      addLogDirect({type:'stage_sel',stage,realG:snap.realG,lcdG:snap.lcdG});
+      state.currentStage=stage;
+    },{toast:`繧ｹ繝・・繧ｸ・・{stage}繧定ｨ倬鹸縺励∪縺励◆`});
+    if(options.closeAfter)closeSheet();
+  }
+  function recordStageEnd(){
+    const stage=normalizeCurrentStage(state.currentStage);
+    if(!stage)return;
+    const snap=requireLcd();
+    if(!snap)return;
+    commit(`繧ｹ繝・・繧ｸ邨ゆｺ・,()=>{
+      addLogDirect({type:'stage_end',stage,realG:snap.realG,lcdG:snap.lcdG});
+      state.currentStage=null;
+    },{toast:'繧ｹ繝・・繧ｸ繧堤ｵゆｺ・＠縺ｾ縺励◆'});
+  }
+  */
+  function recordGColor(color,options={}){
+    const snap=requireLcd();
+    if(!snap)return;
+    commit(`gcolor:${color}`,()=>{
+      addLogDirect({type:'gcolor',color,realG:snap.realG,lcdG:snap.lcdG});
+      if(color===G_COLORS[0]&&state.pendingAutoColor&&colorBoundary(snap.lcdG)===state.pendingAutoColor.boundary)state.pendingAutoColor=null;
+    },{toast:`gcolor:${color}`});
+    if(options.closeAfter)closeSheet();
+  }
+  function recordStage(stage,options={}){
+    const snap=requireLcd();
+    if(!snap)return;
+    commit(`stage:${stage}`,()=>{
+      addLogDirect({type:'stage_sel',stage,realG:snap.realG,lcdG:snap.lcdG});
+      state.currentStage=stage;
+    },{toast:`stage:${stage}`});
+    if(options.closeAfter)closeSheet();
+  }
+  function recordStageEnd(){
+    const stage=normalizeCurrentStage(state.currentStage);
+    if(!stage)return;
+    const snap=requireLcd();
+    if(!snap)return;
+    commit('stage_end',()=>{
+      addLogDirect({type:'stage_end',stage,realG:snap.realG,lcdG:snap.lcdG});
+      state.currentStage=null;
+    },{toast:'stage end'});
   }
   function recordRare(kind,options={}){
     const snap=requireLcd();
@@ -1121,6 +1272,8 @@ textarea{
     const voice=selectedGainKind==='ジャッジ'?null:selectedVoice;
     commit('加算',()=>{
       state.currentState={realG:snap.realG,lcdG:nextLcd};
+      const boundary=crossedColorBoundary(snap.lcdG,nextLcd);
+      if(boundary!==null&&!hasBlueColorForBoundary(boundary))state.pendingAutoColor={boundary};
       addLogDirect({type:'gain',kind:selectedGainKind,addG,voice,realG:snap.realG,lcdG:nextLcd});
     },{toast:'加算を記録しました',lcdTouched:true});
     const add=$('addG');
@@ -1303,7 +1456,7 @@ textarea{
   function tagClass(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'judge':'gain';
     if(log.type==='zenchou')return log.dir;
-    if(['gain','dcin','gcolor','stage_sel','rare','zenchou','fbhit','fb','continue','money','cash','collect','memo'].includes(log.type))return log.type;
+    if(['gain','dcin','gcolor','stage_sel','stage_end','rare','zenchou','fbhit','fb','continue','money','cash','collect','memo'].includes(log.type))return log.type;
     return 'memo';
   }
   function logLabel(log){
@@ -1464,6 +1617,56 @@ textarea{
       body.append(actions);
     });
   }
+  /* v2.8 superseded start sheet draft
+  function openBattleStartSheet(){
+    openSheet('髢句ｧ区ュ蝣ｱ',body=>{
+      body.append(el('div','muted','蜍晏茜邱・));
+      let choices=row('choice-row choice-grid-3');
+      choices.id='rankKinds';
+      RANK_RATE_LABELS.forEach(([value,label])=>{
+        choices.append(chip(label,selectedRank===value,()=>{selectedRank=selectedRank===value?null:value;openBattleStartSheet();}));
+      });
+      body.append(choices);
+      body.append(el('div','muted','繝ｩ繧ｦ繝ｳ繝蛾幕蟋狗判髱｢'));
+      choices=row('choice-row choice-grid-2');
+      choices.id='roundStartKinds';
+      ROUND_START_LABELS.forEach(([value,label])=>{
+        const cls=value==='髱・?'blue-text':value==='邱・?'green-text':'hot';
+        choices.append(chip(label,selectedRoundStart===value,()=>{selectedRoundStart=selectedRoundStart===value?null:value;openBattleStartSheet();},cls));
+      });
+      body.append(choices);
+      const opponentSelect=selectInput('opponentText',OPPONENTS,'蟇ｾ謌ｦ逶ｸ謇・);
+      opponentSelect.value=opponentDraft;
+      opponentSelect.addEventListener('change',()=>{opponentDraft=opponentSelect.value;});
+      body.append(field('蟇ｾ謌ｦ逶ｸ謇・,opponentSelect));
+      body.append(el('div','sheet-pad',''));
+    });
+  }
+  */
+  function openBattleStartSheet(){
+    openSheet('開始情報',body=>{
+      body.append(el('div','muted','勝率'));
+      let choices=row('choice-row choice-grid-3');
+      choices.id='rankKinds';
+      RANK_RATE_LABELS.forEach(([value,label])=>{
+        choices.append(chip(label,selectedRank===value,()=>{selectedRank=selectedRank===value?null:value;openBattleStartSheet();}));
+      });
+      body.append(choices);
+      body.append(el('div','muted','ラウンド開始画面'));
+      choices=row('choice-row choice-grid-2');
+      choices.id='roundStartKinds';
+      ROUND_START_LABELS.forEach(([value,label])=>{
+        const cls=value===ROUND_STARTS[0]?'blue-text':value===ROUND_STARTS[1]?'green-text':'hot';
+        choices.append(chip(label,selectedRoundStart===value,()=>{selectedRoundStart=selectedRoundStart===value?null:value;openBattleStartSheet();},cls));
+      });
+      body.append(choices);
+      const opponentSelect=selectInput('opponentText',OPPONENTS,'対戦相手');
+      opponentSelect.value=opponentDraft;
+      opponentSelect.addEventListener('change',()=>{opponentDraft=opponentSelect.value;});
+      body.append(field('対戦相手',opponentSelect));
+      body.append(el('div','sheet-pad',''));
+    });
+  }
   function openWinSheet(){
     openSheet('勝利記録',body=>{
       const bonusKinds=row('choice-row');
@@ -1488,6 +1691,7 @@ textarea{
   }
   function openLossSheet(){
     openSheet('敗北記録',body=>{
+      body.classList.add('loss-sheet-body');
       const continueKinds=row('choice-row');
       continueKinds.id='continueKinds';
       CONTINUES.forEach(item=>{
@@ -1498,19 +1702,22 @@ textarea{
       if(selectedContinue==='success'){
         body.append(el('div','muted','成功時は敗北レコードを作らず、FB中を維持します'));
       }else{
+        const lossInputs=row('choice-row loss-input-grid');
         const exitLcd=input('fbExitLcdG','number','必須');
         exitLcd.value=lossSheetDraft.exitLcdG;
         exitLcd.addEventListener('input',syncLossSheetDraft);
-        body.append(field('抜け時液晶G',exitLcd));
+        lossInputs.append(field('抜け時液晶G',exitLcd));
         const exitReal=input('fbExitRealG','number','必須');
         exitReal.value=lossSheetDraft.exitRealG;
         exitReal.addEventListener('input',syncLossSheetDraft);
-        body.append(field('抜け時実G',exitReal));
+        lossInputs.append(field('抜け時実G',exitReal));
         const credit=input('fbExitCredit','number','任意');
         credit.value=lossSheetDraft.exitCredit;
         credit.addEventListener('input',syncLossSheetDraft);
-        body.append(field('クレジット',credit));
+        lossInputs.append(field('クレジット',credit));
+        body.append(lossInputs);
         const choices=row('choice-row');
+        choices.classList.add('choice-grid-4');
         choices.id='icatchKinds';
         ICATCHES.forEach(label=>{
           const cls=label==='ルーク'?'':(label==='リュウ'||label==='豪鬼'||label==='キンバリー'?'hot':'');

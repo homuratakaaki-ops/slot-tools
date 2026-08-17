@@ -37,7 +37,7 @@ Assert-Fixed $html "sf6_record_v1" 'storage key value is missing'
 Assert-Fixed $html "MACHINE" 'machine export id is missing'
 Assert-Fixed $html "L-SF6" 'machine export id value is missing'
 Assert-Fixed $html "VERSION" 'version constant is missing'
-Assert-Fixed $html "7" 'version 7 marker is missing'
+Assert-Fixed $html "8" 'version 8 marker is missing'
 Assert-Fixed $html '<script src="sf6-schema.js"></script>' 'schema script tag is missing'
 Assert-Contains $html "const GAIN_KINDS=\[[^\]]+\]" 'gain kind list is missing'
 Assert-Contains $html "const VOICES=\[[^\]]+\]" 'voice list is missing'
@@ -61,7 +61,7 @@ if ((($html -match "const G_COLORS=\[([^\]]+)\]") -and (($Matches[1].Split(',').
 if ((($html -match "const STAGE_CHOICES=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 4)) -eq $false) { throw 'stage count is incorrect' }
 if ((($html -match "const RARE_KINDS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 4)) -eq $false) { throw 'rare kind count is incorrect' }
 if ((($html -match "const BONUSES=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 2)) -eq $false) { throw 'bonus count is incorrect' }
-if ((($html -match "const RANKS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 5)) -eq $false) { throw 'rank count is incorrect' }
+if ((($html -match "const RANKS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 6)) -eq $false) { throw 'rank count is incorrect' }
 if ((($html -match "const ROUND_STARTS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 4)) -eq $false) { throw 'round start count is incorrect' }
 if ((($html -match "const OPPONENTS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 6)) -eq $false) { throw 'opponent count is incorrect' }
 if ((($html -match "const END_SCREENS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 8)) -eq $false) { throw 'end screen count is incorrect' }
@@ -70,6 +70,15 @@ if ((($html -match "const ICATCHES=\[([^\]]+)\]") -and (($Matches[1].Split(',').
 Assert-Contains $html "fbThroughCount" 'FB through counter function is missing'
 Assert-Contains $html "initialThrough" 'initial through state is missing'
 Assert-Contains $html "initialThroughInput" 'initial through input is missing'
+Assert-Contains $html "currentStage" 'current stage state is missing'
+Assert-Contains $html "stage_end" 'stage end record is missing'
+Assert-Contains $html "pendingAutoColor" 'pending auto color state is missing'
+Assert-Contains $html "auto:true" 'auto gcolor marker is missing'
+Assert-Contains $html "ceiling" '99 percent rank marker is missing'
+Assert-Contains $html "battleStartInfoBtn" 'battle start info sheet button is missing'
+Assert-Contains $html "choice-grid-4" '4 column chip grid marker is missing'
+Assert-Contains $html "min-height:48px" '48px chip height token is missing'
+Assert-Contains $html "font-size:16px" '16px text token is missing'
 Assert-Fixed $html "ver:VERSION" 'export version marker is missing'
 Assert-Contains $html "winSheetDraft" 'win sheet draft is missing'
 Assert-Contains $html "lossSheetDraft" 'loss sheet draft is missing'
@@ -216,12 +225,15 @@ Assert-Contains $sitemap "https://slot-tools\.jp/sf6-record\.html" 'sitemap link
 
 Assert-Fixed $schema "function normalizeSf6Export(data)" 'normalizeSf6Export definition is missing'
 Assert-Fixed $schema "SCHEMA_VERSION" 'schema version constant is missing'
-Assert-Fixed $schema "7" 'schema version 7 marker is missing'
+Assert-Fixed $schema "8" 'schema version 8 marker is missing'
 Assert-Fixed $schema "ver:SCHEMA_VERSION" 'schema output version is missing'
 Assert-Fixed $schema "legacy_trig" 'legacy trig preservation is missing'
 Assert-Fixed $schema "currentState:normalizeCurrentState" 'currentState default normalization is missing'
 Assert-Fixed $schema "battleState:normalizeBattleState" 'battleState default normalization is missing'
 Assert-Fixed $schema "initialThrough" 'initial through normalization is missing'
+Assert-Fixed $schema "currentStage" 'current stage normalization is missing'
+Assert-Fixed $schema "stage_end" 'stage end normalization is missing'
+Assert-Fixed $schema "auto" 'gcolor auto normalization is missing'
 Assert-Fixed $schema "sessionMoney:normalizeSessionMoney" 'sessionMoney default normalization is missing'
 Assert-Fixed $schema "function normalizeSessionMoney" 'normalizeSessionMoney definition is missing'
 Assert-Fixed $schema "legacy_trig" 'legacy trig preservation is missing'
