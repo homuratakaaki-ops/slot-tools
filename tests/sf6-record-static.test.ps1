@@ -104,6 +104,19 @@ Assert-Fixed $html "single-choice-grid" 'single choice two-column grid marker is
 Assert-Fixed $html "single-choice-sheet" 'single choice sheet layout marker is missing'
 Assert-Fixed $html "VOICE_SKILLS" 'voice skill labels are missing'
 Assert-Fixed $html "voice-chip" 'two-line voice chip marker is missing'
+Assert-Fixed $html "HINT_REFERENCES" 'hint reference master is missing'
+Assert-Fixed $html "sheetHintBtn" 'sheet hint button marker is missing'
+Assert-Fixed $html "hintPanel" 'hint panel marker is missing'
+Assert-Fixed $html "renderHintPanel" 'hint panel renderer is missing'
+Assert-Fixed $html "hintKey:'loss'" 'loss sheet hint key is missing'
+Assert-Fixed $html "hintKey:'win'" 'win sheet hint key is missing'
+Assert-Fixed $html "hintKey:'start'" 'start info sheet hint key is missing'
+Assert-Fixed $html "hintKey:'stage'" 'stage sheet hint key is missing'
+Assert-Fixed $html "hintKey:'gcolor'" 'G color sheet hint key is missing'
+Assert-Fixed $html "hintKey:'gain'" 'DC result sheet hint key is missing'
+Assert-Fixed $html "hint-section-title" 'hint section title marker is missing'
+Assert-Fixed $html "hint-name" 'hint item name marker is missing'
+Assert-Fixed $html "hint-text" 'hint description marker is missing'
 function Utf8Text([int[]]$Bytes) {
   return [System.Text.Encoding]::UTF8.GetString([byte[]]$Bytes)
 }

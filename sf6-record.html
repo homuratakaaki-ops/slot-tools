@@ -327,6 +327,23 @@ textarea{
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .sheet-title{font-size:14px;font-weight:900;color:var(--drive)}
 .sheet-body{display:flex;flex-direction:column;gap:8px}
+.hint-panel{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  max-height:190px;
+  overflow:auto;
+  border:1px solid rgba(105,216,79,.28);
+  border-radius:10px;
+  background:rgba(105,216,79,.06);
+  padding:10px;
+}
+.hint-section{display:flex;flex-direction:column;gap:5px}
+.hint-section-title{font-size:16px;font-weight:900;color:var(--drive)}
+.hint-row{display:flex;gap:8px;align-items:flex-start;border-top:1px solid rgba(255,255,255,.08);padding-top:6px}
+.hint-row:first-child{border-top:0;padding-top:0}
+.hint-name{flex:0 0 112px;font-size:16px;font-weight:900;color:var(--ink)}
+.hint-text{flex:1 1 auto;font-size:13px;line-height:1.45;color:var(--muted)}
 .keypad-modal{
   position:fixed;
   inset:0;
@@ -602,6 +619,29 @@ textarea{
   const MEDAL_SOURCES=[['mochidama','持ち玉'],['saipurei','再プレイ'],['unknown','不明']];
   const DEFAULT_LOAN_RATE=50;
   const ICATCHES=['ルーク','春麗','キンバリー','キャミィ','JP','ジェイミー','豪鬼','リュウ'];
+  const HINT_REFERENCES={
+    loss:[
+      {title:'アイキャッチ',items:[['ルーク','デフォルト'],['春麗','通常B以上の期待度UP'],['キンバリー','通常B以上濃厚'],['キャミィ','通常C以上の期待度UP'],['JP','通常B以上濃厚＋通常C以上の期待度UP'],['ジェイミー','天国の期待度UP'],['豪鬼','通常C以上濃厚'],['リュウ','天国濃厚']]},
+      {title:'ステージ',items:[['ルーク／春麗','デフォルト'],['キャミィ','高確示唆'],['ジェイミー','超高確示唆']]}
+    ],
+    win:[
+      {title:'ボーナス終了画面',items:[['基本画面','デフォルト'],['男性ファイター集合','奇数設定の期待度UP'],['女性ファイター集合','偶数設定の期待度UP'],['ケン&JP','高設定の期待度UP（弱）'],['リュウ','高設定の期待度UP（強）'],['ルーク&ジェイミー','設定2以上濃厚'],['全員集合','設定4以上濃厚'],['エンタライオン','設定6濃厚']]}
+    ],
+    start:[
+      {title:'ラウンド開始画面',items:[['青','デフォルト'],['緑','上位キャラ登場のチャンス（示唆は青と同等）'],['味方全員集合','ジュリ以上濃厚'],['敵全員集合','JP or リュウ濃厚']]},
+      {title:'対戦相手',items:[['マリーザ／ガイル／マノン','獲得平均 約257枚'],['ジュリ','獲得平均 約350枚（300枚以上）'],['JP','獲得平均 約451枚（400枚以上）'],['リュウ','獲得平均 約524枚（500枚以上）'],['補足','相手による勝率差はなし。獲得枚数の期待度が異なる']]},
+      {title:'勝率',items:[['50%','ルーキー（体力250）'],['60%','ブロンズ（体力240）'],['70%','シルバー（体力230）'],['80%','ゴールド（体力190）'],['88%','レジェンド（体力150）'],['99%','天井到達時']]}
+    ],
+    stage:[
+      {title:'ステージ',items:[['ルーク／春麗','デフォルト'],['キャミィ','高確示唆'],['ジェイミー','超高確示唆']]}
+    ],
+    gcolor:[
+      {title:'液晶色',items:[['青','前兆（ガセ含む）。100G毎の規定G到達でも変化'],['赤','本前兆濃厚']]}
+    ],
+    gain:[
+      {title:'ボイス',items:[['ケン／リュウ','高モード期待（実戦上の傾向）'],['その他','示唆内容は解析未判明']]}
+    ]
+  };
   const BATTLE_STEP_LOCK_TOAST='FB中は通常消化を操作できません';
   const BATTLE_ADJUST_LOCK_TOAST='FB中はG数調整を操作できません';
   const $=id=>document.getElementById(id);
@@ -631,6 +671,8 @@ textarea{
   let redoAction=null;
   let resetTimer=null;
   let initialMoneyPromptShown=false;
+  let activeHintKey=null;
+  let hintPanelOpen=false;
   let lastLcdTouchedAt=Date.now();
   let lcdLogCountAtTouch=0;
 
@@ -1929,7 +1971,7 @@ textarea{
         choices.append(chip(color,false,()=>recordGColor(color,{closeAfter:true}),cls));
       });
       body.append(choices);
-    },{singleChoice:true});
+    },{singleChoice:true,hintKey:'gcolor'});
   }
   function openRareSheet(){
     openSheet('レア役',body=>{
@@ -1945,7 +1987,7 @@ textarea{
       choices.id='stageKinds';
       STAGE_CHOICES.forEach(label=>choices.append(chip(label,false,()=>recordStage(label,{closeAfter:true}),label==='ジェイミー'?'hot':'')));
       body.append(choices);
-    },{singleChoice:true});
+    },{singleChoice:true,hintKey:'stage'});
   }
   function openZenchouSheet(){
     openSheet('前兆',body=>{
@@ -1988,7 +2030,7 @@ textarea{
       gainBtn.id='gainBtn';
       actions.append(gainBtn);
       body.append(actions);
-    });
+    },{hintKey:'gain'});
   }
   /* v2.8 superseded start sheet draft
   function openBattleStartSheet(){
@@ -2042,7 +2084,7 @@ textarea{
       startBtn.id='startInfoRecordBtn';
       actions.append(startBtn);
       body.append(actions);
-    });
+    },{hintKey:'start'});
   }
   function openWinSheet(){
     openSheet('勝利記録',body=>{
@@ -2068,7 +2110,7 @@ textarea{
       const actions=row();
       actions.append(button('勝利を記録','win',recordWinFromSheet));
       body.append(actions);
-    });
+    },{hintKey:'win'});
   }
   function openLossSheet(){
     openSheet('敗北記録',body=>{
@@ -2118,7 +2160,7 @@ textarea{
       const actions=row();
       actions.append(button(selectedContinue==='success'?'成功を記録':'敗北を確定',selectedContinue==='success'?'win':'lose',recordLossFromSheet));
       body.append(actions);
-    });
+    },{hintKey:'loss'});
   }
   function openMemoSheet(){
     openSheet('メモ',body=>{
@@ -2357,17 +2399,62 @@ textarea{
       body.append(exportBox);
     });
   }
+  function renderSheetHintButton(){
+    const closeBtn=$('sheetCloseBtn');
+    if(!closeBtn)return;
+    const old=$('sheetHintBtn');
+    if(old)old.remove();
+    if(!activeHintKey||!HINT_REFERENCES[activeHintKey])return;
+    const hintBtn=button('示唆','secondary',()=>{
+      hintPanelOpen=!hintPanelOpen;
+      const body=$('sheetBody');
+      renderHintPanel(body);
+      hintBtn.setAttribute('aria-pressed',hintPanelOpen?'true':'false');
+    });
+    hintBtn.id='sheetHintBtn';
+    hintBtn.dataset.hintKey=activeHintKey;
+    hintBtn.setAttribute('aria-pressed',hintPanelOpen?'true':'false');
+    closeBtn.parentNode.insertBefore(hintBtn,closeBtn);
+  }
+  function renderHintPanel(body){
+    if(!body)return;
+    const existing=$('hintPanel');
+    if(existing)existing.remove();
+    if(!hintPanelOpen||!activeHintKey||!HINT_REFERENCES[activeHintKey])return;
+    const panel=el('div','hint-panel');
+    panel.id='hintPanel';
+    panel.dataset.hintKey=activeHintKey;
+    HINT_REFERENCES[activeHintKey].forEach(section=>{
+      const sec=el('div','hint-section');
+      sec.append(el('div','hint-section-title',section.title));
+      section.items.forEach(([name,text])=>{
+        const line=el('div','hint-row');
+        line.append(el('div','hint-name',name));
+        line.append(el('div','hint-text',text));
+        sec.append(line);
+      });
+      panel.append(sec);
+    });
+    body.prepend(panel);
+  }
   function openSheet(title,build,options={}){
     $('sheetTitle').textContent=title;
+    activeHintKey=options.hintKey||null;
+    if(!activeHintKey)hintPanelOpen=false;
+    renderSheetHintButton();
     document.querySelector('.bm-sheet-panel')?.classList.toggle('single-choice-sheet',!!options.singleChoice);
     const body=$('sheetBody');
     clearNode(body);
+    renderHintPanel(body);
     build(body);
     $('sheet').classList.add('open');
   }
   function closeSheet(){
     $('sheet').classList.remove('open');
     document.querySelector('.bm-sheet-panel')?.classList.remove('single-choice-sheet');
+    activeHintKey=null;
+    hintPanelOpen=false;
+    renderSheetHintButton();
     clearNode($('sheetBody'));
   }
   function openKeypadInput(key){
