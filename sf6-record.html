@@ -75,6 +75,9 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .bm-title{min-width:0;font-size:13px;font-weight:900;color:var(--drive);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bm-close{
   flex:none;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
   width:48px;
   height:48px;
   border:1px solid rgba(105,216,79,.42);
@@ -83,6 +86,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   color:var(--drive);
   font-size:22px;
   font-weight:900;
+  line-height:1;
 }
 .state-badges{display:flex;gap:6px;flex-wrap:wrap;min-height:32px}
 .state-badge{
@@ -105,7 +109,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   gap:7px;
   flex-wrap:wrap;
 }
-.mode-actions{display:flex;gap:7px;flex-wrap:wrap}
+.mode-actions{display:flex;gap:10px;flex-wrap:wrap}
 .counter-btn{
   flex:1 1 0;
   min-width:0;
@@ -152,8 +156,13 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   overflow-wrap:anywhere;
 }
 .bm-btn{flex:1 1 92px;font-size:16px}
-.mode-actions .bm-btn{min-height:52px;max-height:64px}
-.normal-actions .bm-btn{flex:1 1 0;min-width:0;width:0;word-break:break-all}
+.mode-actions .bm-btn{min-height:52px;max-height:64px;line-height:1.2}
+.bm-btn .btn-line{display:block}
+.normal-actions{margin-bottom:10px}
+.normal-actions .bm-btn{flex:1 1 0;min-width:0;width:0;word-break:keep-all;overflow-wrap:normal}
+.normal-actions .bm-btn.wide{flex-grow:1.7}
+.normal-actions .bm-btn.narrow{flex-grow:.78}
+.normal-actions .bm-btn.mid{flex-grow:1.08}
 .bm-btn.small{flex:1 1 58px;min-height:48px;font-size:16px}
 .bm-btn.primary{border-color:#315b2d;background:var(--drive-soft);color:var(--drive)}
 .bm-btn.secondary{border-color:var(--line);background:var(--surface2);color:var(--ink)}
@@ -179,6 +188,8 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .choice-grid-4 .chip{flex:1 1 calc(25% - 7px)}
 .choice-grid-3 .chip{flex:1 1 calc(33.333% - 7px)}
 .choice-grid-2 .chip{flex:1 1 calc(50% - 7px)}
+.gain-kinds .chip.street-judge{flex-grow:2.1}
+.gain-kinds .chip.dc-cammy{flex-grow:.72}
 .loss-input-grid .field-row{flex:1 1 calc(33.333% - 7px);min-width:0;display:block;margin:0}
 .loss-input-grid .field-row label{display:block;margin-bottom:4px;font-size:11px}
 .loss-input-grid .field-row input{width:100%;max-width:none}
@@ -201,7 +212,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   border:1px solid rgba(105,216,79,.22);
   border-radius:8px;
   background:rgba(0,0,0,.12);
-  padding:8px;
+  padding:10px;
 }
 .panel-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px;color:var(--drive);font-size:12px;font-weight:900}
 .field-row{display:flex;align-items:center;gap:8px;margin:8px 0}
@@ -258,18 +269,69 @@ textarea{
 .bm-sheet-panel{
   width:100%;
   max-width:480px;
+  height:min(64dvh, 430px);
+  min-height:0;
   max-height:calc(100dvh - 16px);
   overflow:auto;
-  margin:0 auto;
+  margin:0 auto max(30px, env(safe-area-inset-bottom));
   background:var(--surface);
   border:1px solid var(--line);
-  border-bottom:0;
-  border-radius:14px 14px 0 0;
+  border-radius:14px;
   padding:12px;
 }
 .sheet-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
 .sheet-title{font-size:14px;font-weight:900;color:var(--drive)}
 .sheet-body{display:flex;flex-direction:column;gap:8px}
+.keypad-modal{
+  position:fixed;
+  inset:0;
+  z-index:9100;
+  display:none;
+  align-items:flex-end;
+  background:rgba(0,0,0,.64);
+}
+.keypad-modal.open{display:flex}
+.keypad-panel{
+  width:100%;
+  max-width:480px;
+  height:min(64dvh, 430px);
+  min-height:0;
+  max-height:calc(100dvh - 16px);
+  margin:0 auto max(30px, env(safe-area-inset-bottom));
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--surface);
+  padding:12px;
+}
+.keypad-display{
+  min-height:56px;
+  border:1px solid rgba(105,216,79,.34);
+  border-radius:8px;
+  background:#0a0f0d;
+  color:var(--drive);
+  font-size:26px;
+  font-weight:900;
+  text-align:right;
+  padding:8px 12px;
+  font-variant-numeric:tabular-nums;
+}
+.keypad-keys,.keypad-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:10px;
+}
+.keypad-key{
+  flex:1 1 calc(33.333% - 10px);
+  min-height:52px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--surface2);
+  color:var(--ink);
+  font-size:20px;
+  font-weight:900;
+}
+.keypad-actions .bm-btn{min-height:52px}
 .export-box{min-height:130px;font-size:12px;user-select:text;-webkit-user-select:text}
 .toast{
   position:fixed;
@@ -322,12 +384,26 @@ textarea{
 .muted{color:var(--muted)}
 @media (max-width:380px){
   .bm-shell{gap:6px}
-  .panel{padding:6px}
+  .panel{padding:10px}
   .bm-btn{flex-basis:76px;padding-left:6px;padding-right:6px;font-size:16px}
   .bm-btn.small{flex-basis:52px}
-  .normal-actions{margin-bottom:7px}
+  .normal-actions{margin-bottom:10px}
   .field-row input,.field-row select{width:118px}
   .chip{padding-left:9px;padding-right:9px}
+}
+@media (max-height:560px){
+  .bm-shell{gap:4px}
+  .bm-header{position:absolute;top:8px;right:8px;z-index:2;border:0;padding:0}
+  .bm-title{display:none}
+  .state-badges{padding-right:56px;min-height:28px}
+  .state-badge{min-height:28px;padding:3px 8px}
+  .counter-btn{min-height:52px;padding:4px 8px}
+  .counter-btn b{font-size:22px}
+  .money-pill{min-height:32px;padding:4px 6px}
+  .button-row,.step-row,.money-row,.counter-row{gap:6px}
+  .button-row .bm-btn.small,.step-row .bm-btn.small{min-height:52px;max-height:52px;padding:4px 5px}
+  #modeGrid.panel{padding:8px}
+  .panel-title{margin-bottom:5px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
@@ -369,20 +445,6 @@ textarea{
       <button class="bm-btn small secondary" type="button" id="stepUndoBtn">元に戻す</button>
     </section>
 
-    <section class="panel" id="adjustPanel" hidden>
-      <div class="panel-title"><span id="adjustTitle">G数調整</span><button class="bm-btn small secondary" type="button" id="adjustCloseBtn">閉じる</button></div>
-      <div class="field-row">
-        <label for="adjustValue" id="adjustLabel">現在値</label>
-        <input id="adjustValue" type="number" inputmode="numeric" min="0" step="1" placeholder="未入力可">
-      </div>
-      <div class="button-row">
-        <button class="bm-btn small secondary" type="button" data-adjust-step="-10">-10</button>
-        <button class="bm-btn small secondary" type="button" data-adjust-step="-1">-1</button>
-        <button class="bm-btn small secondary" type="button" data-adjust-step="1">+1</button>
-        <button class="bm-btn small secondary" type="button" data-adjust-step="10">+10</button>
-      </div>
-    </section>
-
     <section id="modeGrid" class="panel"></section>
     <section id="recentLog" class="recent" aria-label="直近ログ"></section>
     <button class="undo-bar disabled" id="undoBtn" type="button">直前の記録はありません</button>
@@ -398,6 +460,34 @@ textarea{
       <button class="bm-btn small secondary" type="button" id="sheetCloseBtn">閉じる</button>
     </div>
     <div class="sheet-body" id="sheetBody"></div>
+  </div>
+</div>
+
+<div class="keypad-modal" id="keypadModal" aria-modal="true" role="dialog" aria-labelledby="keypadTitle">
+  <div class="keypad-panel">
+    <div class="sheet-head">
+      <div class="sheet-title" id="keypadTitle">G数入力</div>
+      <button class="bm-btn small secondary" type="button" id="keypadCancelTopBtn">キャンセル</button>
+    </div>
+    <div class="keypad-display" id="keypadDisplay">0</div>
+    <div class="keypad-keys" id="keypadKeys">
+      <button class="keypad-key" type="button" data-keypad="7">7</button>
+      <button class="keypad-key" type="button" data-keypad="8">8</button>
+      <button class="keypad-key" type="button" data-keypad="9">9</button>
+      <button class="keypad-key" type="button" data-keypad="4">4</button>
+      <button class="keypad-key" type="button" data-keypad="5">5</button>
+      <button class="keypad-key" type="button" data-keypad="6">6</button>
+      <button class="keypad-key" type="button" data-keypad="1">1</button>
+      <button class="keypad-key" type="button" data-keypad="2">2</button>
+      <button class="keypad-key" type="button" data-keypad="3">3</button>
+      <button class="keypad-key" type="button" data-keypad="C">C</button>
+      <button class="keypad-key" type="button" data-keypad="0">0</button>
+      <button class="keypad-key" type="button" data-keypad="back">⌫</button>
+    </div>
+    <div class="keypad-actions">
+      <button class="bm-btn secondary" type="button" id="keypadCancelBtn">キャンセル</button>
+      <button class="bm-btn primary" type="button" id="keypadApplyBtn">決定</button>
+    </div>
   </div>
 </div>
 
@@ -446,6 +536,8 @@ textarea{
   let winSheetDraft={bonusMedals:'',endScreen:''};
   let lossSheetDraft={exitLcdG:'',exitRealG:'',exitCredit:''};
   let adjustTarget=null;
+  let keypadDraft='';
+  let keypadDirty=false;
   let stepHistory=[];
   let undoStack=[];
   let redoAction=null;
@@ -751,6 +843,9 @@ textarea{
     btn.addEventListener('click',handler);
     return btn;
   }
+  function gainKindDisplay(label){
+    return label==='ジャッジ'?'ストリートジャッジ':label;
+  }
   function input(id,type='number',placeholder='',maxLength=null){
     const node=document.createElement('input');
     node.id=id;
@@ -999,10 +1094,7 @@ textarea{
     $('lcdCounterBtn').classList.toggle('lcd-attention',lcdNeedsAttention());
     document.querySelectorAll('[data-adjust]').forEach(btn=>{btn.disabled=locked;btn.classList.toggle('disabled',locked);});
     document.querySelectorAll('[data-step]').forEach(btn=>{btn.disabled=locked;btn.classList.toggle('disabled',locked);});
-    if(locked&&$('adjustPanel')&&!$('adjustPanel').hidden){
-      $('adjustPanel').hidden=true;
-      adjustTarget=null;
-    }
+    if(locked&&$('keypadModal')?.classList.contains('open'))closeKeypad();
     $('throughCount').textContent=String(fbThroughCount());
     const moneyReady=moneyInitialized();
     $('cashTotal').textContent=moneyReady?`${cashDisplayTotal().toLocaleString()}円`:'未設定';
@@ -1038,10 +1130,17 @@ textarea{
     let r=row('mode-actions normal-actions');
     const dcIn=button('ドライブチャンス（DC）突入','primary',recordDcIn);
     dcIn.id='dcInBtn';
+    dcIn.classList.add('wide');
+    clearNode(dcIn);
+    dcIn.append(el('span','btn-line','ドライブチャンス（DC）'),el('span','btn-line','突入'));
     const gain=button('Sジャッジ/DC結果','primary',openGainSheet);
     gain.id='normalDcResultBtn';
+    gain.classList.add('mid');
+    clearNode(gain);
+    gain.append(el('span','btn-line','Sジャッジ'),el('span','btn-line','DC結果'));
     const memo=button('メモ','secondary',openMemoSheet);
     memo.id='normalMemoBtn';
+    memo.classList.add('narrow');
     r.append(dcIn,gain,memo);
     grid.append(r);
     r=row('mode-actions normal-actions');
@@ -1151,7 +1250,6 @@ textarea{
     renderModeGrid();
     renderRecent();
     renderUndo();
-    syncAdjustPanel();
   }
   function maybePromptInitialMoney(){
     if(initialMoneyPromptShown||moneyInitialized())return;
@@ -1593,10 +1691,11 @@ textarea{
     const liveAdd=$('addG');
     if(liveAdd)gainAddDraft=String(liveAdd.value||'');
     openSheet('DC結果',body=>{
-      const kinds=row('choice-row');
+      const kinds=row('choice-row gain-kinds');
       kinds.id='gainKinds';
       GAIN_KINDS.forEach(label=>{
-        kinds.append(chip(label,selectedGainKind===label,()=>{selectedGainKind=label;openGainSheet();}));
+        const extra=label==='ジャッジ'?'street-judge':label==='DC-キャミィ'?'dc-cammy':'';
+        kinds.append(chip(gainKindDisplay(label),selectedGainKind===label,()=>{selectedGainKind=label;openGainSheet();},extra));
       });
       body.append(kinds);
       const addInput=input('addG','number','例 120');
@@ -1938,21 +2037,47 @@ textarea{
     $('sheet').classList.remove('open');
     clearNode($('sheetBody'));
   }
-  function openAdjustPanel(key){
+  function openKeypadInput(key){
     if(isBattleLocked()){toast(BATTLE_ADJUST_LOCK_TOAST);return;}
     adjustTarget=key;
-    $('adjustPanel').hidden=false;
-    $('adjustTitle').textContent=key==='realG'?'実G調整':'液晶G調整';
-    $('adjustLabel').textContent=key==='realG'?'実ゲーム数':'液晶ゲーム数';
-    syncAdjustPanel();
-    $('adjustValue').focus();
-    $('adjustValue').select();
+    keypadDraft=snapshot()[key]==null?'':String(snapshot()[key]);
+    keypadDirty=false;
+    $('keypadTitle').textContent=key==='realG'?'実G入力':'液晶G入力';
+    renderKeypad();
+    $('keypadModal').classList.add('open');
   }
-  function syncAdjustPanel(){
-    if(!adjustTarget||!$('adjustPanel')||$('adjustPanel').hidden)return;
-    const value=snapshot()[adjustTarget];
-    const target=$('adjustValue');
-    if(document.activeElement!==target)target.value=value==null?'':String(value);
+  function renderKeypad(){
+    const display=$('keypadDisplay');
+    if(display)display.textContent=keypadDraft===''?'0':Number(keypadDraft).toLocaleString();
+  }
+  function handleKeypad(value){
+    if(!adjustTarget)return;
+    if(value==='C'){keypadDraft='';keypadDirty=true;}
+    else if(value==='back'){keypadDraft=keypadDirty?keypadDraft.slice(0,-1):'';keypadDirty=true;}
+    else if(/^\d$/.test(value)){
+      keypadDraft=((keypadDirty?keypadDraft:'')+value).replace(/^0+(?=\d)/,'').slice(0,6);
+      keypadDirty=true;
+    }
+    renderKeypad();
+  }
+  function closeKeypad(){
+    $('keypadModal').classList.remove('open');
+    adjustTarget=null;
+    keypadDraft='';
+    keypadDirty=false;
+  }
+  function applyKeypad(){
+    if(!adjustTarget)return;
+    if(isBattleLocked()){toast(BATTLE_ADJUST_LOCK_TOAST);closeKeypad();return;}
+    const key=adjustTarget;
+    const value=keypadDraft===''?null:optionalGame(keypadDraft);
+    if(keypadDraft!==''&&value===null){toast('G数を数値で入力してください');return;}
+    const label=key==='realG'?'実G入力':'液晶G入力';
+    commit(label,()=>{
+      state.currentState=normalizeCurrentState(state.currentState);
+      state.currentState[key]=value;
+    },{toast:`${label}を反映しました`,lcdTouched:key==='lcdG'});
+    closeKeypad();
   }
   function exportData(){
     state=normalize(state);
@@ -2023,10 +2148,12 @@ textarea{
     resetTimer=setTimeout(()=>{resetTimer=null;toast('リセットを解除しました');},3000);
   }
   function bind(){
-    document.querySelectorAll('[data-adjust]').forEach(btn=>btn.addEventListener('click',()=>openAdjustPanel(btn.dataset.adjust)));
-    $('adjustCloseBtn').addEventListener('click',()=>{$('adjustPanel').hidden=true;adjustTarget=null;});
-    $('adjustValue').addEventListener('input',()=>setCurrentValue(adjustTarget,optionalGame($('adjustValue').value)));
-    document.querySelectorAll('[data-adjust-step]').forEach(btn=>btn.addEventListener('click',()=>adjustCurrentValue(adjustTarget,Number(btn.dataset.adjustStep)||0)));
+    document.querySelectorAll('[data-adjust]').forEach(btn=>btn.addEventListener('click',()=>openKeypadInput(btn.dataset.adjust)));
+    document.querySelectorAll('[data-keypad]').forEach(btn=>btn.addEventListener('click',()=>handleKeypad(btn.dataset.keypad)));
+    $('keypadCancelBtn').addEventListener('click',closeKeypad);
+    $('keypadCancelTopBtn').addEventListener('click',closeKeypad);
+    $('keypadApplyBtn').addEventListener('click',applyKeypad);
+    $('keypadModal').addEventListener('click',event=>{if(event.target===$('keypadModal'))closeKeypad();});
     document.querySelectorAll('[data-step]').forEach(btn=>btn.addEventListener('click',()=>stepBoth(Number(btn.dataset.step)||0)));
     $('stepUndoBtn').addEventListener('click',undoStep);
     $('moneyLoanBtn').addEventListener('click',recordMoneyLoan);
