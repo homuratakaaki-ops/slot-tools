@@ -60,7 +60,7 @@ if ((($html -match "const VOICES=\[([^\]]+)\]") -and (($Matches[1].Split(',').Co
 if ((($html -match "const G_COLORS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 3)) -eq $false) { throw 'G color count is incorrect' }
 if ((($html -match "const STAGE_CHOICES=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 4)) -eq $false) { throw 'stage count is incorrect' }
 if ((($html -match "const RARE_KINDS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 4)) -eq $false) { throw 'rare kind count is incorrect' }
-if ((($html -match "const BONUSES=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 2)) -eq $false) { throw 'bonus count is incorrect' }
+if ((($html -match "const BONUSES=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 3)) -eq $false) { throw 'bonus count is incorrect' }
 if ((($html -match "const RANKS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 6)) -eq $false) { throw 'rank count is incorrect' }
 if ((($html -match "const ROUND_STARTS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 4)) -eq $false) { throw 'round start count is incorrect' }
 if ((($html -match "const OPPONENTS=\[([^\]]+)\]") -and (($Matches[1].Split(',').Count) -eq 6)) -eq $false) { throw 'opponent count is incorrect' }
@@ -96,6 +96,20 @@ Assert-Fixed $html "street-judge" 'street judge wide chip marker is missing'
 Assert-Fixed $html "keypadModal" 'keypad modal is missing'
 Assert-Fixed $html "keypadKeys" 'keypad keys are missing'
 Assert-Fixed $html "data-keypad" 'keypad button markers are missing'
+Assert-Fixed $html "data-keypad-input" 'readonly numeric keypad input marker is missing'
+Assert-Fixed $html "readOnly=true" 'readonly numeric input marker is missing'
+Assert-Fixed $html "openKeypadForField" 'sheet numeric keypad opener is missing'
+Assert-Fixed $html "single-choice-grid" 'single choice two-column grid marker is missing'
+Assert-Fixed $html "single-choice-sheet" 'single choice sheet layout marker is missing'
+Assert-Fixed $html "VOICE_SKILLS" 'voice skill labels are missing'
+Assert-Fixed $html "voice-chip" 'two-line voice chip marker is missing'
+Assert-Fixed $html "startInfoRecordBtn" 'battle start info record button is missing'
+Assert-Fixed $html "startInfoConfirmed" 'battle start info pseudo log state is missing'
+Assert-Fixed $html "utilityPayoutBtn" 'utility payout button marker is missing'
+Assert-Fixed $html "returnStageKinds" 'loss return stage choices are missing'
+Assert-Fixed $html "winCredit" 'win credit input is missing'
+Assert-Fixed $html "ending" 'ending bonus value is missing'
+Assert-Fixed $html "auto:true" 'auto money diff sync marker is missing'
 Assert-Fixed $html "applyKeypad" 'keypad apply handler is missing'
 Assert-Fixed $html "renderKeypad" 'keypad render handler is missing'
 Assert-Fixed $html "height:min(64dvh, 430px)" 'raised sheet/keypad position token is missing'
@@ -237,7 +251,7 @@ Assert-Fixed $html "JSON.stringify" 'JSON export formatting is missing'
 Assert-Fixed $html "SF6RecordApp" 'test hook is missing'
 Assert-Contains $html "exportData" 'export data test hook is missing'
 Assert-Contains $html "normalizeSf6Export" 'schema normalizer integration is missing'
-Assert-Contains $html "inputMode='numeric'" 'numeric input mode is missing'
+Assert-Contains $html "inputMode='none'" 'OS keyboard suppression marker is missing'
 Assert-Contains $html "resetTimer" 'two-tap reset state is missing'
 Assert-Contains $html "lcdG" 'lcd field is missing'
 Assert-NotContains $html "statGap" 'gap display should be removed'

@@ -211,7 +211,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .bm-btn.blue-text{color:var(--blue)}
 .bm-btn.red-text{color:var(--danger)}
 .bm-btn.gold-text{color:var(--amber)}
-.bm-btn:disabled,.chip:disabled,.counter-btn:disabled{
+.bm-btn:disabled,.chip:disabled,.counter-btn:disabled,.keypad-key:disabled{
   opacity:.45;
   cursor:not-allowed;
   filter:grayscale(.35);
@@ -268,7 +268,14 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 }
 .field-row input{text-align:right}
 .field-row input[type="text"]{text-align:left;font-size:15px}
-.field-row select{font-size:15px}
+.field-row select{
+  flex:1 1 190px;
+  width:auto;
+  max-width:none;
+  min-width:min(100%, 190px);
+  min-height:48px;
+  font-size:16px;
+}
 textarea{
   width:100%;
   min-height:96px;
@@ -373,6 +380,31 @@ textarea{
 }
 .keypad-actions .bm-btn{min-height:52px}
 .keypad-actions{margin-top:4px}
+.keypad-actions .keypad-key{flex:0 0 52px}
+.numeric-keypad-input{cursor:pointer;caret-color:transparent}
+.single-choice-sheet .sheet-head{
+  justify-content:flex-start;
+  margin-top:52px;
+}
+.single-choice-sheet .sheet-title{display:none}
+.single-choice-grid{
+  justify-content:flex-start;
+  align-items:flex-start;
+}
+.single-choice-grid .chip,
+.single-choice-grid .bm-btn{
+  flex:0 0 calc(50% - 4px);
+  max-width:160px;
+}
+.voice-chip{
+  flex:0 0 calc(50% - 4px);
+  max-width:160px;
+  min-height:56px;
+  line-height:1.15;
+}
+.voice-chip .voice-main{display:block;font-size:16px}
+.voice-chip .voice-sub{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+.voice-chip.hot .voice-sub{color:#ffc2ca}
 .export-box{min-height:130px;font-size:12px;user-select:text;-webkit-user-select:text}
 .toast{
   position:fixed;
@@ -417,6 +449,7 @@ textarea{
 .tag.fb{background:var(--pink)}
 .tag.fbhit{background:#ffb4c8}
 .tag.continue{background:#f7a7b7;color:#16070b}
+.tag.start_info{background:#b7e3ff;color:#061222}
 .tag.money{background:#c7d7ff;color:#071024}
 .tag.cash{background:#9fd37b}
 .tag.collect{background:#87d8d0;color:#061110}
@@ -429,7 +462,8 @@ textarea{
   .bm-btn{flex-basis:76px;padding-left:6px;padding-right:6px;font-size:16px}
   .bm-btn.small{flex-basis:52px}
   .normal-actions{margin-bottom:10px}
-  .field-row input,.field-row select{width:118px}
+  .field-row input{width:118px}
+  .field-row select{width:auto;min-width:min(100%, 190px)}
   .chip{padding-left:9px;padding-right:9px}
 }
 @media (max-height:560px){
@@ -529,6 +563,8 @@ textarea{
       <button class="keypad-key" type="button" data-keypad="back">⌫</button>
     </div>
     <div class="keypad-actions">
+      <button class="keypad-key" type="button" data-keypad="sign" id="keypadSignBtn">±</button>
+      <button class="keypad-key" type="button" data-keypad="." id="keypadDotBtn">.</button>
       <button class="bm-btn secondary" type="button" id="keypadCancelBtn">キャンセル</button>
       <button class="bm-btn primary" type="button" id="keypadApplyBtn">決定</button>
     </div>
@@ -546,12 +582,14 @@ textarea{
   const PAYLOAD_VERSION='2.2';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
+  const VOICE_SKILLS={ルーク:'ライジングアッパー',春麗:'スピニングバードキック',キャミィ:'',リュウ:'真空波動拳',ケン:'疾風迅雷脚',キンバリー:'武神乱拍子',ジェイミー:'月牙叉炮',未確認:''};
   const HOT_VOICES=new Set(['キンバリー','ジェイミー']);
   const G_COLORS=['青','赤','デフォ復帰'];
   const DEFAULT_RETURN_COLOR=G_COLORS[2];
   const STAGE_CHOICES=['ジェイミー','キャミィ','春麗','ルーク'];
   const RARE_KINDS=['スイカ','弱チェリー','チャンス目','強チェリー'];
-  const BONUSES=['赤7','青7'];
+  const BONUSES=['赤7','青7','ending'];
+  const BONUS_LABELS={赤7:'赤7',青7:'青7',ending:'エンディング'};
   const RANKS=['ルーキー','ブロンズ','シルバー','ゴールド','レジェンド','ceiling'];
   const RANK_RATE_LABELS=[['ルーキー','50%'],['ブロンズ','60%'],['シルバー','70%'],['ゴールド','80%'],['レジェンド','88%'],['ceiling','99%']];
   const ROUND_STARTS=['青','緑','味方全員集合','敵全員集合'];
@@ -577,9 +615,12 @@ textarea{
   let selectedCashAmount=10000;
   let selectedIcatch=null;
   let selectedContinue='none';
-  let winSheetDraft={bonusMedals:'',endScreen:''};
+  let selectedReturnStage=null;
+  let startInfoConfirmed=null;
+  let winSheetDraft={bonusMedals:'',endScreen:'',credit:''};
   let lossSheetDraft={exitLcdG:'',exitRealG:'',exitCredit:''};
   let adjustTarget=null;
+  let keypadOptions={allowDecimal:false,allowNegative:false};
   let keypadDraft='';
   let keypadDirty=false;
   let stepHistory=[];
@@ -722,7 +763,7 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs});
+    return deepClone({battleState:state.battleState,currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,selectedVoice,selectedGainKind}});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
@@ -734,6 +775,20 @@ textarea{
     state.pendingAutoColor=normalizePendingAutoColor(snap?.pendingAutoColor);
     state.sessionMoney=normalizeSessionMoney(snap?.sessionMoney);
     state.logs=Array.isArray(snap?.logs)?snap.logs.map(sanitizeLog).filter(Boolean):[];
+    const drafts=snap?.drafts||{};
+    selectedRank=RANKS.includes(drafts.selectedRank)?drafts.selectedRank:null;
+    selectedRoundStart=ROUND_STARTS.includes(drafts.selectedRoundStart)?drafts.selectedRoundStart:null;
+    opponentDraft=String(drafts.opponentDraft||'').slice(0,20);
+    selectedBonus=BONUSES.includes(drafts.selectedBonus)?drafts.selectedBonus:null;
+    selectedIcatch=ICATCHES.includes(drafts.selectedIcatch)?drafts.selectedIcatch:null;
+    selectedContinue=CONTINUES.some(item=>item.key===drafts.selectedContinue)?drafts.selectedContinue:'none';
+    selectedReturnStage=STAGE_CHOICES.includes(drafts.selectedReturnStage)?drafts.selectedReturnStage:null;
+    startInfoConfirmed=drafts.startInfoConfirmed&&typeof drafts.startInfoConfirmed==='object'?deepClone(drafts.startInfoConfirmed):null;
+    winSheetDraft={bonusMedals:String(drafts.winSheetDraft?.bonusMedals||''),endScreen:String(drafts.winSheetDraft?.endScreen||''),credit:String(drafts.winSheetDraft?.credit||'')};
+    lossSheetDraft={exitLcdG:String(drafts.lossSheetDraft?.exitLcdG||''),exitRealG:String(drafts.lossSheetDraft?.exitRealG||''),exitCredit:String(drafts.lossSheetDraft?.exitCredit||'')};
+    gainAddDraft=String(drafts.gainAddDraft||'');
+    selectedVoice=VOICES.includes(drafts.selectedVoice)?drafts.selectedVoice:null;
+    selectedGainKind=GAIN_KINDS.includes(drafts.selectedGainKind)?drafts.selectedGainKind:'';
     save();
     render();
   }
@@ -905,12 +960,25 @@ textarea{
     node.id=id;
     node.type=type;
     if(type==='number'){
-      node.inputMode='numeric';
-      node.min='0';
-      node.step='1';
+      node.type='text';
+      node.inputMode='none';
+      node.readOnly=true;
+      node.dataset.keypadInput='integer';
+      node.classList.add('numeric-keypad-input');
     }
     if(maxLength)node.maxLength=maxLength;
     node.placeholder=placeholder;
+    return node;
+  }
+  function setKeypadInputMode(node,options={}){
+    if(!node)return node;
+    node.type='text';
+    node.inputMode='none';
+    node.readOnly=true;
+    node.dataset.keypadInput='custom';
+    node.dataset.keypadDecimal=options.decimal?'1':'0';
+    node.dataset.keypadNegative=options.negative?'1':'0';
+    node.classList.add('numeric-keypad-input');
     return node;
   }
   function selectInput(id,options,placeholder='選択なし'){
@@ -1304,7 +1372,8 @@ textarea{
   function renderRecent(){
     const box=$('recentLog');
     clearNode(box);
-    const logs=[...state.logs].sort((a,b)=>b.t-a.t||b.id-a.id).slice(0,3);
+    const pseudo=startInfoConfirmed?{...startInfoConfirmed,type:'start_info',realG:snapshot().realG,lcdG:snapshot().lcdG,id:0,t:startInfoConfirmed.t||Date.now()}:null;
+    const logs=[...state.logs,pseudo].filter(Boolean).sort((a,b)=>b.t-a.t||b.id-a.id).slice(0,3);
     if(!logs.length){
       box.append(el('div','recent-line','直近：記録なし'));
       return;
@@ -1354,6 +1423,7 @@ textarea{
       else{
         addLogDirect({type:'zenchou',dir,realG:snap.realG,lcdG:snap.lcdG});
         state.currentZenchou=dir;
+        if(dir==='stage')state.currentStage=null;
       }
     },{toast:dir==='out'?'前兆抜けとデフォ復帰を記録しました':`${label}を記録しました`});
     if(options.closeAfter)closeSheet();
@@ -1447,12 +1517,7 @@ textarea{
   function recordStageEnd(){
     const stage=normalizeCurrentStage(state.currentStage);
     if(!stage)return;
-    const snap=requireLcd();
-    if(!snap)return;
-    commit('stage_end',()=>{
-      addLogDirect({type:'stage_end',stage,realG:snap.realG,lcdG:snap.lcdG});
-      state.currentStage=null;
-    },{toast:'stage end'});
+    openStageSheet();
   }
   function recordRare(kind,options={}){
     const snap=requireLcd();
@@ -1471,6 +1536,7 @@ textarea{
     commit('FB当選',()=>{
       addLogDirect({type:'fbhit',realG:snap.realG,lcdG:snap.lcdG});
       state.battleState='battle';
+      state.currentStage=null;
       state.currentZenchou=null;
       state.currentColor=null;
     },{toast:'FB当選を記録しました'});
@@ -1481,36 +1547,54 @@ textarea{
     const addG=positiveInt($('addG')?.value);
     if(!selectedGainKind){toast('加算種別を選択してください');return;}
     if(!addG){toast('加算G数を入力してください');return;}
-    const nextLcd=snap.lcdG+addG;
+    const isJudge=selectedGainKind==='ジャッジ';
+    const nextLcd=snap.lcdG+addG+(isJudge?1:0);
+    const nextReal=isJudge&&snap.realG!==null?snap.realG+1:snap.realG;
     const voice=selectedGainKind==='ジャッジ'?null:selectedVoice;
     commit('加算',()=>{
-      state.currentState={realG:snap.realG,lcdG:nextLcd};
+      state.currentState={realG:nextReal,lcdG:nextLcd};
       const boundary=crossedColorBoundary(snap.lcdG,nextLcd);
-      if(boundary!==null&&!hasBlueColorForBoundary(boundary))state.pendingAutoColor={boundary};
-      addLogDirect({type:'gain',kind:selectedGainKind,addG,voice,realG:snap.realG,lcdG:nextLcd});
-    },{toast:'加算を記録しました',lcdTouched:true});
+      if(boundary!==null&&!hasBlueColorForBoundary(boundary)){
+        if(isJudge)addAutoBlueColor(boundary,{realG:nextReal,lcdG:nextLcd});
+        else state.pendingAutoColor={boundary};
+      }
+      addLogDirect({type:'gain',kind:selectedGainKind,addG,voice,realG:nextReal,lcdG:nextLcd});
+    },{toast:isJudge?'ストリートジャッジを記録しました':'DC結果を記録しました',lcdTouched:true});
     const add=$('addG');
     if(add)add.value='';
     gainAddDraft='';
     selectedVoice=null;
-    openGainSheet();
+    if(isJudge)openGainSheet();
+    else closeSheet();
   }
   function fbStartDraft(){
     return {rank:selectedRank,roundStart:selectedRoundStart,opponent:currentOpponentDraft()||null};
+  }
+  function recordBattleStartInfo(){
+    const start=fbStartDraft();
+    if(!start.rank&&!start.roundStart&&!start.opponent){toast('選択がありません');return;}
+    commit('開始情報',()=>{
+      startInfoConfirmed={...start,t:Date.now()};
+    },{toast:'開始情報を記録しました'});
+    closeSheet();
   }
   function clearBattleDrafts(){
     selectedBonus=null;
     selectedRank=null;
     selectedRoundStart=null;
     selectedIcatch=null;
+    selectedReturnStage=null;
     selectedContinue='none';
     opponentDraft='';
-    winSheetDraft={bonusMedals:'',endScreen:''};
+    startInfoConfirmed=null;
+    winSheetDraft={bonusMedals:'',endScreen:'',credit:''};
     lossSheetDraft={exitLcdG:'',exitRealG:'',exitCredit:''};
   }
   function syncWinSheetDraft(){
     const bonusMedals=$('bonusMedals');
     if(bonusMedals)winSheetDraft.bonusMedals=bonusMedals.value;
+    const credit=$('winCredit');
+    if(credit)winSheetDraft.credit=credit.value;
     const endScreen=$('endScreenSelect');
     if(endScreen)winSheetDraft.endScreen=endScreen.value;
   }
@@ -1522,16 +1606,40 @@ textarea{
     const exitCredit=$('fbExitCredit');
     if(exitCredit)lossSheetDraft.exitCredit=exitCredit.value;
   }
+  function syncActiveSheetDrafts(){
+    if($('bonusMedals'))syncWinSheetDraft();
+    if($('fbExitLcdG')||$('fbExitRealG')||$('fbExitCredit'))syncLossSheetDraft();
+    const addInput=$('addG');
+    if(addInput)gainAddDraft=String(addInput.value||'');
+  }
   function recordWinFromSheet(){
     syncWinSheetDraft();
     const snap=snapshot();
     const start=fbStartDraft();
     const bonusMedals=positiveInt(winSheetDraft.bonusMedals);
+    const creditRaw=String(winSheetDraft.credit||'').trim();
+    const winCredit=creditRaw===''?null:optionalGame(creditRaw);
+    if(creditRaw!==''&&winCredit===null){toast('クレジットを数値で入力してください');return;}
+    if(winCredit!==null&&!moneyInitialized()){toast('クレジット入力には初期登録が必要です');openMoneyInitSheet();return;}
     const endScreen=String(winSheetDraft.endScreen||'')||null;
+    const isEnding=selectedBonus==='ending';
     commit('FB勝利',()=>{
+      if(winCredit!==null){
+        const next=normalizeSessionMoney({...currentMoney(),credit:winCredit});
+        state.sessionMoney=next;
+        addLogDirect({type:'money',op:'creditUpdate',amount:winCredit,after:moneyAfterSummary(next),realG:snap.realG,lcdG:snap.lcdG});
+      }
+      if(isEnding&&moneyInitialized()){
+        const base=normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
+        const initial=base.initialDiff===null?0:base.initialDiff;
+        const displayed=Math.round(initial+(base.credit||0)-investedMedals(base)+base.diffAdjust);
+        const next={...base,initialDiff:initial,diffAdjust:base.diffAdjust-displayed};
+        state.sessionMoney=normalizeSessionMoney(next);
+        addLogDirect({type:'money',op:'diffSync',amount:0,auto:true,after:moneyAfterSummary(state.sessionMoney),realG:snap.realG,lcdG:snap.lcdG});
+      }
       addLogDirect({type:'fb',win:true,bonus:selectedBonus,bonusMedals,endScreen,rank:start.rank,roundStart:start.roundStart,opponent:start.opponent,kiteiG:null,icatch:null,icatchNote:null,continue:null,realG:snap.realG,lcdG:snap.lcdG});
       state.battleState='battle';
-    },{toast:'FB勝利を記録しました'});
+    },{toast:isEnding?'エンディング：差枚を0にリセットしました':'FB勝利を記録しました'});
     clearBattleDrafts();
     closeSheet();
   }
@@ -1565,6 +1673,7 @@ textarea{
       else warning=true;
     }
     const icatch=ICATCHES.includes(selectedIcatch)?selectedIcatch:null;
+    const returnStage=STAGE_CHOICES.includes(selectedReturnStage)?selectedReturnStage:null;
     const start=fbStartDraft();
     const cont=selectedContinue==='fail'?'fail':'none';
     commit('FB敗北',()=>{
@@ -1575,6 +1684,10 @@ textarea{
         addLogDirect({type:'money',op:'creditUpdate',amount:exitCredit,after:moneyAfterSummary(next),realG:exitRealG,lcdG:exitLcdG});
       }
       addLogDirect({type:'fb',win:false,bonus:null,bonusMedals:null,endScreen:null,rank:start.rank,roundStart:start.roundStart,opponent:start.opponent,kiteiG,icatch,icatchNote:null,continue:cont,exitRealG,realG:exitRealG,lcdG:exitLcdG});
+      if(returnStage){
+        addLogDirect({type:'stage_sel',stage:returnStage,realG:exitRealG,lcdG:exitLcdG});
+        state.currentStage=returnStage;
+      }
       state.battleState='normal';
     },{toast:warning?'FB敗北を記録しました（規定Gは未保存）':'FB敗北を記録しました',lcdTouched:true});
     clearBattleDrafts();
@@ -1589,7 +1702,7 @@ textarea{
       const base=normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
       const next=normalizeSessionMoney(mutator(base))||blankSessionMoney();
       state.sessionMoney=next;
-      addLogDirect({type:'money',op,amount:amount==null?null:Math.round(amount),after:moneyAfterSummary(next),realG:snap.realG,lcdG:snap.lcdG});
+      addLogDirect({type:'money',op,amount:amount==null?null:Math.round(amount),after:moneyAfterSummary(next),realG:snap.realG,lcdG:snap.lcdG,...(options.source?{source:options.source}:{})});
     },{toast:options.toast||`${label}を記録しました`});
   }
   function recordMoneyInit(){
@@ -1669,7 +1782,7 @@ textarea{
   function tagClass(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'judge':'gain';
     if(log.type==='zenchou')return log.dir;
-    if(['gain','dcin','gcolor','stage_sel','stage_end','rare','zenchou','fbhit','fb','continue','money','cash','collect','memo'].includes(log.type))return log.type;
+    if(['gain','dcin','gcolor','stage_sel','stage_end','rare','zenchou','fbhit','fb','continue','money','cash','collect','memo','start_info'].includes(log.type))return log.type;
     return 'memo';
   }
   function logLabel(log){
@@ -1682,6 +1795,7 @@ textarea{
     if(log.type==='fbhit')return 'FB当選';
     if(log.type==='fb')return 'FB';
     if(log.type==='continue')return '継続';
+    if(log.type==='start_info')return '開始情報';
     if(log.type==='money')return '収支';
     if(log.type==='cash')return '投資';
     if(log.type==='collect')return '回収';
@@ -1697,13 +1811,17 @@ textarea{
     if(log.type==='dcin')return 'DC突入';
     if(log.type==='fbhit')return 'FB当選';
     if(log.type==='continue')return 'コンティニュー成功';
+    if(log.type==='start_info'){
+      const rank=RANK_RATE_LABELS.find(([value])=>value===log.rank)?.[1]||log.rank;
+      return `開始情報：${[rank,log.roundStart,log.opponent].filter(Boolean).join(' / ')}`;
+    }
     if(log.type==='fb'){
       const parts=[`FB ${log.win?'勝利':'敗北'}`];
       if(log.rank||log.roundStart||log.opponent)parts.push([log.rank,log.roundStart,log.opponent].filter(Boolean).join('／'));
       if(!log.win&&log.continue)parts.push(`コンティニュー ${CONTINUES.find(item=>item.key===log.continue)?.label||log.continue}`);
       if(log.kiteiG!==null&&log.kiteiG!==undefined)parts.push(`規定${log.kiteiG}G`);
       if(log.icatch)parts.push(`アイキャッチ ${log.icatchNote?`${log.icatch}：${log.icatchNote}`:log.icatch}`);
-      if(log.bonus)parts.push(log.bonus);
+      if(log.bonus)parts.push(BONUS_LABELS[log.bonus]||log.bonus);
       if(log.bonusMedals)parts.push(`${log.bonusMedals}枚`);
       if(log.endScreen)parts.push(`終了画面 ${log.endScreen}`);
       return parts.join(' / ');
@@ -1767,40 +1885,40 @@ textarea{
   }
   function openGColorSheet(){
     openSheet('液晶色',body=>{
-      const choices=row('choice-row');
+      const choices=row('choice-row single-choice-grid');
       choices.id='gColorKinds';
       G_COLORS.forEach(color=>{
         const cls=color==='青'?'blue-text':color==='赤'?'red-text':'';
         choices.append(chip(color,false,()=>recordGColor(color,{closeAfter:true}),cls));
       });
       body.append(choices);
-    });
+    },{singleChoice:true});
   }
   function openRareSheet(){
     openSheet('レア役',body=>{
-      const choices=row('choice-row');
+      const choices=row('choice-row single-choice-grid');
       choices.id='rareKinds';
       RARE_KINDS.forEach(label=>choices.append(chip(label,false,()=>recordRare(label,{closeAfter:true}),label==='強チェリー'?'hot':'')));
       body.append(choices);
-    });
+    },{singleChoice:true});
   }
   function openStageSheet(){
     openSheet('ステージ',body=>{
-      const choices=row('choice-row');
+      const choices=row('choice-row single-choice-grid');
       choices.id='stageKinds';
       STAGE_CHOICES.forEach(label=>choices.append(chip(label,false,()=>recordStage(label,{closeAfter:true}),label==='ジェイミー'?'hot':'')));
       body.append(choices);
-    });
+    },{singleChoice:true});
   }
   function openZenchouSheet(){
     openSheet('前兆',body=>{
-      const choices=row();
+      const choices=row('choice-row single-choice-grid');
       choices.id='zenchouKinds';
       choices.append(button('前兆突入','secondary',()=>recordZenchou('in',{closeAfter:true})));
       choices.append(button('前兆ステージ突入','secondary',()=>recordZenchou('stage',{closeAfter:true})));
       choices.append(button('前兆抜け','secondary',()=>recordZenchou('out',{closeAfter:true})));
       body.append(choices);
-    });
+    },{singleChoice:true});
   }
   function openGainSheet(){
     const liveAdd=$('addG');
@@ -1820,7 +1938,11 @@ textarea{
       const voices=row('choice-row');
       voices.id='voiceKinds';
       VOICES.forEach(label=>{
-        voices.append(chip(label,selectedVoice===label,()=>{selectedVoice=selectedVoice===label?null:label;openGainSheet();},HOT_VOICES.has(label)?'hot':''));
+        const btn=chip('',selectedVoice===label,()=>{selectedVoice=selectedVoice===label?null:label;openGainSheet();},`voice-chip ${HOT_VOICES.has(label)?'hot':''}`.trim());
+        btn.dataset.voice=label;
+        btn.append(el('span','voice-main',label));
+        if(VOICE_SKILLS[label])btn.append(el('span','voice-sub',VOICE_SKILLS[label]));
+        voices.append(btn);
       });
       body.append(el('div','muted','ジャッジ選択時はボイスを保存しません'));
       body.append(voices);
@@ -1878,15 +2000,19 @@ textarea{
       opponentSelect.value=opponentDraft;
       opponentSelect.addEventListener('change',()=>{opponentDraft=opponentSelect.value;});
       body.append(field('対戦相手',opponentSelect));
-      body.append(el('div','sheet-pad',''));
+      const actions=row();
+      const startBtn=button('開始情報を記録','primary',recordBattleStartInfo);
+      startBtn.id='startInfoRecordBtn';
+      actions.append(startBtn);
+      body.append(actions);
     });
   }
   function openWinSheet(){
     openSheet('勝利記録',body=>{
       const bonusKinds=row('choice-row');
       bonusKinds.id='bonusKinds';
-      BONUSES.forEach(label=>{
-        bonusKinds.append(chip(label,selectedBonus===label,()=>{syncWinSheetDraft();selectedBonus=selectedBonus===label?null:label;openWinSheet();}));
+      BONUSES.forEach(value=>{
+        bonusKinds.append(chip(BONUS_LABELS[value]||value,selectedBonus===value,()=>{syncWinSheetDraft();selectedBonus=selectedBonus===value?null:value;openWinSheet();},value==='ending'?'hot':''));
       });
       body.append(el('div','muted','ボーナス種別（任意）'));
       body.append(bonusKinds);
@@ -1894,6 +2020,10 @@ textarea{
       bonusMedalsInput.value=winSheetDraft.bonusMedals;
       bonusMedalsInput.addEventListener('input',syncWinSheetDraft);
       body.append(field('ボーナス枚数',bonusMedalsInput));
+      const creditInput=input('winCredit','number','任意');
+      creditInput.value=winSheetDraft.credit;
+      creditInput.addEventListener('input',syncWinSheetDraft);
+      body.append(field('クレジット',creditInput));
       const endScreen=selectInput('endScreenSelect',END_SCREENS,'終了画面');
       endScreen.value=winSheetDraft.endScreen;
       endScreen.addEventListener('change',syncWinSheetDraft);
@@ -1939,6 +2069,14 @@ textarea{
         });
         body.append(el('div','muted','アイキャッチ（任意）'));
         body.append(choices);
+        const returnChoices=row('choice-row single-choice-grid');
+        returnChoices.id='returnStageKinds';
+        STAGE_CHOICES.forEach(label=>{
+          const cls=label===STAGE_CHOICES[0]?'hot':'';
+          returnChoices.append(chip(label,selectedReturnStage===label,()=>{syncLossSheetDraft();selectedReturnStage=selectedReturnStage===label?null:label;openLossSheet();},cls));
+        });
+        body.append(el('div','muted','復帰ステージ（任意）'));
+        body.append(returnChoices);
       }
       const actions=row();
       actions.append(button(selectedContinue==='success'?'成功を記録':'敗北を確定',selectedContinue==='success'?'win':'lose',recordLossFromSheet));
@@ -1968,10 +2106,11 @@ textarea{
       const startSaipurei=input('moneyStartSaipurei','number','例 0');
       startSaipurei.value=m.startSaipurei??'';
       const loanRate=input('moneyLoanRate','number','50');
+      setKeypadInputMode(loanRate,{decimal:true});
       loanRate.step='0.1';
       loanRate.value=m.loanRate||DEFAULT_LOAN_RATE;
       const initialDiff=input('moneyInitialDiff','text','例 -800');
-      initialDiff.inputMode='numeric';
+      setKeypadInputMode(initialDiff,{negative:true});
       initialDiff.value=m.initialDiff??'';
       const initialThrough=input('initialThroughInput','number','0');
       initialThrough.value=state.initialThrough??0;
@@ -2026,7 +2165,7 @@ textarea{
       const now=intervalDiffValue();
       body.append(el('div','muted',`現在推定：${diffText(now)}`));
       const inputNode=input('moneyDiffSyncValue','text','実機の差枚');
-      inputNode.inputMode='numeric';
+      setKeypadInputMode(inputNode,{negative:true});
       body.append(field('実機差枚',inputNode));
       body.append(button('差枚を一致','primary',recordMoneyDiffSync));
     });
@@ -2066,9 +2205,11 @@ textarea{
       const unitNo=input('sessionUnitNo','text','台番号',20);
       unitNo.value=info.unitNo||'';
       const lendRate=input('sessionLendRate','number','46');
+      setKeypadInputMode(lendRate,{decimal:true});
       lendRate.step='0.1';
       lendRate.value=info.lendRate??(money?money.loanRate:'');
       const exchangeRate=input('sessionExchangeRate','number','52');
+      setKeypadInputMode(exchangeRate,{decimal:true});
       exchangeRate.step='0.1';
       exchangeRate.value=info.exchangeRate??'';
       const memo=document.createElement('textarea');
@@ -2105,11 +2246,17 @@ textarea{
   function openUtilitySheet(){
     openSheet('収支・メモ・出力',body=>{
       const moneyActions=row();
-      moneyActions.append(button('初期登録','secondary',openMoneyInitSheet));
-      moneyActions.append(button('持ちメダル/再プレ','secondary',openMoneyMedalUseSheet));
-      moneyActions.append(button('差枚一致','secondary',openMoneyDiffSyncSheet));
-      moneyActions.append(button('終了・回収','secondary',openMoneyCollectSheet));
-      moneyActions.append(button('セッション情報','secondary',openSessionInfoSheet));
+      const initBtn=button('初期登録','secondary',openMoneyInitSheet);
+      initBtn.id='utilityInitBtn';
+      const medalBtn=button('持ちメダル/再プレ','secondary',openMoneyMedalUseSheet);
+      medalBtn.id='utilityMedalUseBtn';
+      const diffBtn=button('差枚一致','secondary',openMoneyDiffSyncSheet);
+      diffBtn.id='utilityDiffSyncBtn';
+      const payoutBtn=button('終了・回収','secondary',openMoneyCollectSheet);
+      payoutBtn.id='utilityPayoutBtn';
+      const sessionBtn=button('セッション情報','secondary',openSessionInfoSheet);
+      sessionBtn.id='utilitySessionInfoBtn';
+      moneyActions.append(initBtn,medalBtn,diffBtn,payoutBtn,sessionBtn);
       body.append(moneyActions);
       const memo=document.createElement('textarea');
       memo.id='memoText';
@@ -2141,8 +2288,9 @@ textarea{
       body.append(exportBox);
     });
   }
-  function openSheet(title,build){
+  function openSheet(title,build,options={}){
     $('sheetTitle').textContent=title;
+    document.querySelector('.bm-sheet-panel')?.classList.toggle('single-choice-sheet',!!options.singleChoice);
     const body=$('sheetBody');
     clearNode(body);
     build(body);
@@ -2150,27 +2298,65 @@ textarea{
   }
   function closeSheet(){
     $('sheet').classList.remove('open');
+    document.querySelector('.bm-sheet-panel')?.classList.remove('single-choice-sheet');
     clearNode($('sheetBody'));
   }
   function openKeypadInput(key){
     if(isBattleLocked()){toast(BATTLE_ADJUST_LOCK_TOAST);return;}
-    adjustTarget=key;
+    adjustTarget={type:'counter',key};
+    keypadOptions={allowDecimal:false,allowNegative:false};
     keypadDraft=snapshot()[key]==null?'':String(snapshot()[key]);
     keypadDirty=false;
     $('keypadTitle').textContent=key==='realG'?'実G入力':'液晶G入力';
     renderKeypad();
     $('keypadModal').classList.add('open');
   }
+  function openKeypadForField(inputNode){
+    if(!inputNode||inputNode.disabled)return;
+    syncActiveSheetDrafts();
+    adjustTarget={type:'field',id:inputNode.id};
+    keypadOptions={
+      allowDecimal:inputNode.dataset.keypadDecimal==='1',
+      allowNegative:inputNode.dataset.keypadNegative==='1'
+    };
+    keypadDraft=String(inputNode.value||'');
+    keypadDirty=false;
+    const label=inputNode.closest('.field-row')?.querySelector('label')?.textContent||inputNode.placeholder||'数値入力';
+    $('keypadTitle').textContent=label;
+    renderKeypad();
+    $('keypadModal').classList.add('open');
+  }
   function renderKeypad(){
     const display=$('keypadDisplay');
-    if(display)display.textContent=keypadDraft===''?'0':Number(keypadDraft).toLocaleString();
+    const raw=keypadDraft;
+    if(display){
+      if(raw===''||raw==='-')display.textContent=raw==='-'?'-':'0';
+      else if(raw.includes('.')||raw.endsWith('.'))display.textContent=raw;
+      else display.textContent=Number(raw).toLocaleString();
+    }
+    const sign=$('keypadSignBtn');
+    const dot=$('keypadDotBtn');
+    if(sign)sign.disabled=!keypadOptions.allowNegative;
+    if(dot)dot.disabled=!keypadOptions.allowDecimal;
   }
   function handleKeypad(value){
     if(!adjustTarget)return;
     if(value==='C'){keypadDraft='';keypadDirty=true;}
     else if(value==='back'){keypadDraft=keypadDirty?keypadDraft.slice(0,-1):'';keypadDirty=true;}
+    else if(value==='sign'){
+      if(!keypadOptions.allowNegative)return;
+      keypadDraft=keypadDraft.startsWith('-')?keypadDraft.slice(1):`-${keypadDraft}`;
+      keypadDirty=true;
+    }
+    else if(value==='.'){
+      if(!keypadOptions.allowDecimal||keypadDraft.includes('.'))return;
+      keypadDraft=(keypadDraft===''||keypadDraft==='-')?`${keypadDraft}0.`:`${keypadDraft}.`;
+      keypadDirty=true;
+    }
     else if(/^\d$/.test(value)){
-      keypadDraft=((keypadDirty?keypadDraft:'')+value).replace(/^0+(?=\d)/,'').slice(0,6);
+      const base=keypadDirty?keypadDraft:'';
+      const max=adjustTarget.type==='counter'?6:9;
+      keypadDraft=(base+value).replace(/^(-?)0+(?=\d)/,'$1').slice(0,max);
       keypadDirty=true;
     }
     renderKeypad();
@@ -2178,13 +2364,28 @@ textarea{
   function closeKeypad(){
     $('keypadModal').classList.remove('open');
     adjustTarget=null;
+    keypadOptions={allowDecimal:false,allowNegative:false};
     keypadDraft='';
     keypadDirty=false;
   }
   function applyKeypad(){
     if(!adjustTarget)return;
+    if(adjustTarget.type==='field'){
+      const inputNode=$(adjustTarget.id);
+      if(!inputNode){closeKeypad();return;}
+      const raw=String(keypadDraft||'').trim();
+      const pattern=keypadOptions.allowDecimal
+        ?(keypadOptions.allowNegative?/^-?\d+(?:\.\d+)?$/:/^\d+(?:\.\d+)?$/)
+        :(keypadOptions.allowNegative?/^-?\d+$/:/^\d+$/);
+      if(raw!==''&&!pattern.test(raw)){toast('数値を正しく入力してください');return;}
+      inputNode.value=raw;
+      inputNode.dispatchEvent(new Event('input',{bubbles:true}));
+      inputNode.dispatchEvent(new Event('change',{bubbles:true}));
+      closeKeypad();
+      return;
+    }
     if(isBattleLocked()){toast(BATTLE_ADJUST_LOCK_TOAST);closeKeypad();return;}
-    const key=adjustTarget;
+    const key=adjustTarget.key;
     const value=keypadDraft===''?null:optionalGame(keypadDraft);
     if(keypadDraft!==''&&value===null){toast('G数を数値で入力してください');return;}
     const label=key==='realG'?'実G入力':'液晶G入力';
@@ -2264,6 +2465,14 @@ textarea{
   }
   function bind(){
     document.querySelectorAll('[data-adjust]').forEach(btn=>btn.addEventListener('click',()=>openKeypadInput(btn.dataset.adjust)));
+    document.addEventListener('click',event=>{
+      const node=event.target.closest?.('[data-keypad-input]');
+      if(node){event.preventDefault();openKeypadForField(node);}
+    });
+    document.addEventListener('focusin',event=>{
+      const node=event.target.closest?.('[data-keypad-input]');
+      if(node){event.preventDefault();openKeypadForField(node);}
+    });
     document.querySelectorAll('[data-keypad]').forEach(btn=>btn.addEventListener('click',()=>handleKeypad(btn.dataset.keypad)));
     $('keypadCancelBtn').addEventListener('click',closeKeypad);
     $('keypadCancelTopBtn').addEventListener('click',closeKeypad);
