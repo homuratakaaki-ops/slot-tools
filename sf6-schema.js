@@ -6,8 +6,9 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const SCHEMA_VERSION='9';
-  const MONEY_OPS=['init','deposit','loan','creditUpdate','mochidama','saipurei','diffSync','collectEnd'];
+  const SCHEMA_VERSION='10';
+  const MONEY_OPS=['init','deposit','loan','creditUpdate','medalIn','mochidama','saipurei','diffSync','collectEnd'];
+  const MEDAL_SOURCES=['mochidama','saipurei','unknown'];
 
   function safeObject(value){
     return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
@@ -67,6 +68,7 @@
       investedYen:Math.max(0,signedNumber(src.investedYen)??0),
       usedMochidama:Math.max(0,signedNumber(src.usedMochidama)??0),
       usedSaipurei:Math.max(0,signedNumber(src.usedSaipurei)??0),
+      usedUnknown:Math.max(0,signedNumber(src.usedUnknown)??0),
       initialDiff:signedNumber(src.initialDiff),
       diffAdjust:signedNumber(src.diffAdjust)??0,
       collectMedals:gameValue(src.collectMedals)
@@ -98,6 +100,15 @@
     if(log.type==='money'){
       const out={...log};
       if(!MONEY_OPS.includes(out.op))out.op='init';
+      if(out.op==='mochidama'){
+        out.op='medalIn';
+        out.source='mochidama';
+      }else if(out.op==='saipurei'){
+        out.op='medalIn';
+        out.source='saipurei';
+      }else if(out.op==='medalIn'&&!MEDAL_SOURCES.includes(out.source)){
+        out.source='unknown';
+      }
       out.amount=signedNumber(out.amount);
       out.after=normalizeSessionMoney(out.after);
       return out;
@@ -111,7 +122,7 @@
     const src=safeObject(data);
     const inputVer=src.ver==null?null:String(src.ver);
     const sourceVer=src.sourceVer==null?inputVer:String(src.sourceVer);
-    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!=='8'&&inputVer!==SCHEMA_VERSION;
+    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!=='8'&&inputVer!=='9'&&inputVer!==SCHEMA_VERSION;
     const logs=Array.isArray(src.logs)?src.logs.map(log=>normalizeLog(log,isLegacy)):[];
     return {
       ...src,
