@@ -88,22 +88,37 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   font-weight:900;
   line-height:1;
 }
-.state-badges{display:flex;gap:6px;flex-wrap:wrap;min-height:32px}
+.state-badges{display:flex;gap:6px;flex-wrap:wrap;min-height:48px}
 .state-badge{
   border:1px solid rgba(148,163,184,.35);
   border-radius:999px;
   background:rgba(148,163,184,.11);
   color:var(--muted);
-  min-height:32px;
-  padding:5px 10px;
+  min-height:48px;
+  padding:12px 12px;
   font-size:12px;
   font-weight:900;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+}
+.state-badges .state-badge,
+.state-badges .bm-btn.state-badge{
+  flex:0 0 auto;
+  width:auto;
+  min-width:48px;
+  max-height:none;
+  font-size:12px;
 }
 .state-badge.active-normal{border-color:rgba(105,216,79,.52);background:rgba(105,216,79,.12);color:var(--drive)}
 .state-badge.active-battle{border-color:rgba(255,93,108,.72);background:rgba(255,93,108,.14);color:#ffc2ca}
 .state-badge.stage-jamie{border-color:rgba(168,85,247,.72);background:transparent;color:#d8b4fe}
 .state-badge.stage-cammy{border-color:rgba(251,146,60,.72);background:transparent;color:#fdba74}
 .state-badge.stage-neutral{border-color:rgba(148,163,184,.55);background:transparent;color:#e5e7eb}
+.state-badge.zenchou-in{border-color:rgba(98,168,255,.72);background:transparent;color:var(--blue)}
+.state-badge.zenchou-stage{border-color:rgba(186,140,255,.72);background:transparent;color:#d8b4fe}
+.state-badge.color-blue{border-color:rgba(98,168,255,.72);background:transparent;color:var(--blue)}
+.state-badge.color-red{border-color:rgba(255,93,108,.78);background:transparent;color:var(--danger)}
 .counter-row,.money-row,.step-row,.button-row,.sheet-row,.choice-row{
   display:flex;
   gap:7px;
@@ -398,8 +413,8 @@ textarea{
   .bm-shell{gap:4px}
   .bm-header{position:absolute;top:8px;right:8px;z-index:2;border:0;padding:0}
   .bm-title{display:none}
-  .state-badges{padding-right:56px;min-height:28px}
-  .state-badge{min-height:28px;padding:3px 8px}
+  .state-badges{padding-right:56px;min-height:48px;gap:4px}
+  .state-badge{min-height:48px;padding:12px 8px}
   .counter-btn{min-height:52px;padding:4px 8px}
   .counter-btn b{font-size:22px}
   .money-pill{min-height:32px;padding:4px 6px}
@@ -501,7 +516,7 @@ textarea{
   const STORAGE_KEY='sf6_record_v1';
   const MACHINE='L-SF6';
   const MACHINE_ID='l-sf6';
-  const VERSION='8';
+  const VERSION='9';
   const PAYLOAD_VERSION='2.2';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
@@ -526,7 +541,7 @@ textarea{
   const BATTLE_ADJUST_LOCK_TOAST='FB中はG数調整を操作できません';
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
-  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',currentStage:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,sessionMoney:null,logs:[]};
+  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,sessionMoney:null,logs:[]};
   let selectedGainKind='';
   let selectedVoice=null;
   let gainAddDraft='';
@@ -587,6 +602,12 @@ textarea{
   function normalizeCurrentStage(value){
     return STAGE_CHOICES.includes(value)?value:null;
   }
+  function normalizeCurrentZenchou(value){
+    return value==='in'||value==='stage'?value:null;
+  }
+  function normalizeCurrentColor(value){
+    return value===G_COLORS[0]||value===G_COLORS[1]?value:null;
+  }
   function normalizePendingAutoColor(value){
     const boundary=optionalGame(value?.boundary);
     return boundary===null?null:{boundary};
@@ -641,7 +662,7 @@ textarea{
     };
   }
   function defaultState(){
-    return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',currentStage:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,sessionMoney:null,logs:[]};
+    return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,sessionMoney:null,logs:[]};
   }
   function normalizeSessionMoney(value){
     if(!value||typeof value!=='object')return null;
@@ -675,11 +696,13 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,currentStage:normalizeCurrentStage(state.currentStage),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs});
+    return deepClone({battleState:state.battleState,currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
     state.currentStage=normalizeCurrentStage(snap?.currentStage);
+    state.currentZenchou=normalizeCurrentZenchou(snap?.currentZenchou);
+    state.currentColor=normalizeCurrentColor(snap?.currentColor);
     state.currentState=normalizeCurrentState(snap?.currentState);
     state.initialThrough=nonnegativeInt(snap?.initialThrough)??0;
     state.pendingAutoColor=normalizePendingAutoColor(snap?.pendingAutoColor);
@@ -694,6 +717,8 @@ textarea{
     if(ok===false)return false;
     state.battleState=normalizeBattleState(state.battleState);
     state.currentStage=normalizeCurrentStage(state.currentStage);
+    state.currentZenchou=normalizeCurrentZenchou(state.currentZenchou);
+    state.currentColor=normalizeCurrentColor(state.currentColor);
     state.currentState=normalizeCurrentState(state.currentState);
     state.pendingAutoColor=normalizePendingAutoColor(state.pendingAutoColor);
     const after=appSnapshot();
@@ -807,7 +832,7 @@ textarea{
     const logs=Array.isArray(normalized?.logs)?normalized.logs.map(sanitizeLog).filter(Boolean):[];
     const sourceVer=normalized&&Object.prototype.hasOwnProperty.call(normalized,'sourceVer')?normalized.sourceVer:VERSION;
     const startedAt=String(normalized?.startedAt||'').trim()||(logs.length?isoFromLogTime(logs[0].t):isoWithOffset());
-    return {machine:MACHINE,ver:VERSION,sourceVer,sessionId:String(normalized?.sessionId||'').trim()||uuidV4(),startedAt,sessionInfo:normalizeSessionInfo(normalized?.sessionInfo),battleState:normalizeBattleState(normalized?.battleState),currentStage:normalizeCurrentStage(normalized?.currentStage),currentState:normalizeCurrentState(normalized?.currentState),initialThrough:nonnegativeInt(normalized?.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(normalized?.pendingAutoColor),sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
+    return {machine:MACHINE,ver:VERSION,sourceVer,sessionId:String(normalized?.sessionId||'').trim()||uuidV4(),startedAt,sessionInfo:normalizeSessionInfo(normalized?.sessionInfo),battleState:normalizeBattleState(normalized?.battleState),currentStage:normalizeCurrentStage(normalized?.currentStage),currentZenchou:normalizeCurrentZenchou(normalized?.currentZenchou),currentColor:normalizeCurrentColor(normalized?.currentColor),currentState:normalizeCurrentState(normalized?.currentState),initialThrough:nonnegativeInt(normalized?.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(normalized?.pendingAutoColor),sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
   }
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){toast('保存に失敗しました');}
@@ -933,6 +958,7 @@ textarea{
   function addAutoBlueColor(boundary,snap){
     if(boundary===null||hasBlueColorForBoundary(boundary))return false;
     addLogDirect({type:'gcolor',color:G_COLORS[0],auto:true,realG:snap.realG,lcdG:snap.lcdG});
+    state.currentColor=G_COLORS[0];
     return true;
   }
   function stepBoth(delta){
@@ -1075,6 +1101,8 @@ textarea{
         ver:VERSION,
         battleState:normalizeBattleState(normalized.battleState),
         currentStage:normalizeCurrentStage(normalized.currentStage),
+        currentZenchou:normalizeCurrentZenchou(normalized.currentZenchou),
+        currentColor:normalizeCurrentColor(normalized.currentColor),
         currentState:normalizeCurrentState(normalized.currentState),
         initialThrough:nonnegativeInt(normalized.initialThrough)??0,
         pendingAutoColor:normalizePendingAutoColor(normalized.pendingAutoColor),
@@ -1110,7 +1138,9 @@ textarea{
   function renderBadges(){
     const box=$('stateBadges');
     clearNode(box);
-    box.append(el('div',`state-badge ${state.battleState==='normal'?'active-normal':''}`,'normal'));
+    if(state.battleState==='normal'){
+      box.append(el('div','state-badge active-normal','normal'));
+    }
     const currentStage=normalizeCurrentStage(state.currentStage);
     if(currentStage){
       const cls=currentStage===STAGE_CHOICES[0]?'stage-jamie':currentStage===STAGE_CHOICES[1]?'stage-cammy':'stage-neutral';
@@ -1118,7 +1148,24 @@ textarea{
       badge.id='currentStageBadge';
       box.append(badge);
     }
-    box.append(el('div',`state-badge ${state.battleState==='battle'?'active-battle':''}`,'FB中'));
+    const currentZenchou=normalizeCurrentZenchou(state.currentZenchou);
+    if(currentZenchou){
+      const label=currentZenchou==='stage'?'前兆ST':'前兆';
+      const cls=currentZenchou==='stage'?'zenchou-stage':'zenchou-in';
+      const badge=button(label,`state-badge ${cls}`,recordZenchouEnd);
+      badge.id='currentZenchouBadge';
+      box.append(badge);
+    }
+    const currentColor=normalizeCurrentColor(state.currentColor);
+    if(currentColor){
+      const cls=currentColor===G_COLORS[1]?'color-red':'color-blue';
+      const badge=button(`液晶${currentColor}`,`state-badge ${cls}`,recordColorEnd);
+      badge.id='currentColorBadge';
+      box.append(badge);
+    }
+    if(state.battleState==='battle'){
+      box.append(el('div','state-badge active-battle','FB中'));
+    }
   }
   function renderModeGrid(){
     const grid=$('modeGrid');
@@ -1247,6 +1294,8 @@ textarea{
   function render(){
     state.battleState=normalizeBattleState(state.battleState);
     state.currentStage=normalizeCurrentStage(state.currentStage);
+    state.currentZenchou=normalizeCurrentZenchou(state.currentZenchou);
+    state.currentColor=normalizeCurrentColor(state.currentColor);
     state.pendingAutoColor=normalizePendingAutoColor(state.pendingAutoColor);
     renderStatus();
     renderBadges();
@@ -1269,10 +1318,35 @@ textarea{
     if(!snap)return;
     const label=dir==='stage'?'前兆ステージ突入':dir==='in'?'前兆突入':'前兆抜け';
     commit(label,()=>{
-      addLogDirect({type:'zenchou',dir,realG:snap.realG,lcdG:snap.lcdG});
-      if(dir==='out')addLogDirect({type:'gcolor',color:DEFAULT_RETURN_COLOR,realG:snap.realG,lcdG:snap.lcdG});
+      if(dir==='out')applyZenchouEnd(snap);
+      else{
+        addLogDirect({type:'zenchou',dir,realG:snap.realG,lcdG:snap.lcdG});
+        state.currentZenchou=dir;
+      }
     },{toast:dir==='out'?'前兆抜けとデフォ復帰を記録しました':`${label}を記録しました`});
     if(options.closeAfter)closeSheet();
+  }
+  function applyColorEnd(snap){
+    addLogDirect({type:'gcolor',color:DEFAULT_RETURN_COLOR,realG:snap.realG,lcdG:snap.lcdG});
+    state.currentColor=null;
+  }
+  function applyZenchouEnd(snap){
+    addLogDirect({type:'zenchou',dir:'out',realG:snap.realG,lcdG:snap.lcdG});
+    addLogDirect({type:'gcolor',color:DEFAULT_RETURN_COLOR,realG:snap.realG,lcdG:snap.lcdG});
+    state.currentZenchou=null;
+    state.currentColor=null;
+  }
+  function recordColorEnd(){
+    if(!normalizeCurrentColor(state.currentColor))return;
+    const snap=requireLcd();
+    if(!snap)return;
+    commit('色デフォ復帰',()=>applyColorEnd(snap),{toast:'液晶色をデフォ復帰しました'});
+  }
+  function recordZenchouEnd(){
+    if(!normalizeCurrentZenchou(state.currentZenchou))return;
+    const snap=requireLcd();
+    if(!snap)return;
+    commit('前兆抜け',()=>applyZenchouEnd(snap),{toast:'前兆抜けとデフォ復帰を記録しました'});
   }
   /* v2.8 superseded color/stage handlers
   function recordGColor(color,options={}){
@@ -1320,8 +1394,12 @@ textarea{
     const snap=requireLcd();
     if(!snap)return;
     commit(`gcolor:${color}`,()=>{
-      addLogDirect({type:'gcolor',color,realG:snap.realG,lcdG:snap.lcdG});
-      if(color===G_COLORS[0]&&state.pendingAutoColor&&colorBoundary(snap.lcdG)===state.pendingAutoColor.boundary)state.pendingAutoColor=null;
+      if(color===DEFAULT_RETURN_COLOR)applyColorEnd(snap);
+      else{
+        addLogDirect({type:'gcolor',color,realG:snap.realG,lcdG:snap.lcdG});
+        state.currentColor=color;
+        if(color===G_COLORS[0]&&state.pendingAutoColor&&colorBoundary(snap.lcdG)===state.pendingAutoColor.boundary)state.pendingAutoColor=null;
+      }
     },{toast:`gcolor:${color}`});
     if(options.closeAfter)closeSheet();
   }
@@ -1361,6 +1439,8 @@ textarea{
     commit('FB当選',()=>{
       addLogDirect({type:'fbhit',realG:snap.realG,lcdG:snap.lcdG});
       state.battleState='battle';
+      state.currentZenchou=null;
+      state.currentColor=null;
     },{toast:'FB当選を記録しました'});
   }
   function recordGainFromSheet(){
