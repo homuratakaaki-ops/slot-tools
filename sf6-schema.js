@@ -6,7 +6,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const SCHEMA_VERSION='10';
+  const SCHEMA_VERSION='11';
   const MONEY_OPS=['init','deposit','loan','creditUpdate','medalIn','mochidama','saipurei','diffSync','collectEnd'];
   const MEDAL_SOURCES=['mochidama','saipurei','unknown'];
 
@@ -28,6 +28,9 @@
   function normalizeBattleState(value){
     return value==='battle'?'battle':'normal';
   }
+  function normalizeHadWin(value){
+    return value===true;
+  }
   function normalizeCurrentStage(value){
     const text=String(value??'').trim();
     return text||null;
@@ -42,6 +45,14 @@
     const src=safeObject(value);
     const boundary=gameValue(src.boundary);
     return boundary===null?null:{boundary};
+  }
+  function normalizeAutoColorBoundary(value){
+    const boundary=gameValue(value);
+    return boundary===null?null:boundary;
+  }
+  function normalizeAntenPattern(value){
+    const text=String(value??'').trim();
+    return ['black','blue','logo','red','chance'].includes(text)?text:null;
   }
   function signedNumber(value){
     if(value===null||value===undefined||value==='')return null;
@@ -114,6 +125,7 @@
       return out;
     }
     if(log.type==='gcolor')return {...log,auto:log.auto===true};
+    if(log.type==='anten')return {...log,pattern:normalizeAntenPattern(log.pattern)};
     if(log.type==='stage_end')return {...log,stage:normalizeCurrentStage(log.stage)};
     return {...log};
   }
@@ -130,12 +142,14 @@
       ver:SCHEMA_VERSION,
       sourceVer,
       battleState:normalizeBattleState(src.battleState),
+      hadWin:normalizeHadWin(src.hadWin),
       currentStage:normalizeCurrentStage(src.currentStage),
       currentZenchou:normalizeCurrentZenchou(src.currentZenchou),
       currentColor:normalizeCurrentColor(src.currentColor),
       currentState:normalizeCurrentState(src.currentState),
       initialThrough:gameValue(src.initialThrough)??0,
       pendingAutoColor:normalizePendingAutoColor(src.pendingAutoColor),
+      autoColorBoundary:normalizeAutoColorBoundary(src.autoColorBoundary),
       sessionMoney:normalizeSessionMoney(src.sessionMoney),
       logs
     };
