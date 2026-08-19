@@ -356,6 +356,8 @@
       out.rates=Object.assign({},DEF.rates,out.rates||{});
       out.plates=Object.assign({},DEF.plates,out.plates||{});
       out.bayes=Object.assign({},DEF.bayes,out.bayes||{});
+      if(!String(out.bayes.blue1||'').trim())out.bayes.blue1='1.2';
+      if(!String(out.bayes.blue2||'').trim())out.bayes.blue2='10.2';
       Object.keys(out.counts||{}).forEach(k=>{out.counts[k]=Math.max(0,Number(out.counts[k])||0);});
       ['blue3','zzone'].forEach(id=>{
         out.rates[id+'r']=Math.max(0,Number(out.rates[id+'r'])||0);
