@@ -120,6 +120,7 @@
 
   const DEF={
     startGames:0,
+    nav15StartGames:0,
     currentGames:0,
     games:0,
     counts:{nav15:0,ggFirst:0,mysteryGg:0},
@@ -138,6 +139,10 @@
   function n(obj,key){return Number((obj||{})[key])||0;}
   function freeGames(S){return (Number(S.currentGames)||0)-(Number(S.startGames)||0);}
   function freeText(S){const g=freeGames(S);return g>=0?g+'G':'−';}
+  function nav15StartSet(S){return (Number(S.nav15StartGames)||0)>0;}
+  function nav15Games(S){return nav15StartSet(S)?(Number(S.currentGames)||0)-(Number(S.nav15StartGames)||0):0;}
+  function nav15Text(S){if(!nav15StartSet(S))return '−';const g=nav15Games(S);return g>=0?g+'G':'−';}
+  function nav15OneIn(S){return nav15StartSet(S)&&nav15Games(S)>0?oneIn(n(S.counts,'nav15'),nav15Games(S)):'−';}
   function oneIn(count,den){count=Number(count)||0;den=Number(den)||0;return den>0&&count>0?'1/'+(den/count).toFixed(1):'−';}
   function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:'−';}
   function pctLine(a,b){return b>0?`${a}回 (${(100*a/b).toFixed(0)}%)`:`${a}回`;}
@@ -198,7 +203,7 @@
   }
   function bayesSpec(S){
     const rates=completeRateMap(S),blue=completeBlueMap(S),binomial=[];
-    if(rates.complete&&freeGames(S)>0)binomial.push({label:'押し順ナビ15枚役',hit:n(S.counts,'nav15'),total:freeGames(S),probs:rates.parsed});
+    if(rates.complete&&nav15StartSet(S)&&nav15Games(S)>0)binomial.push({label:'押し順ナビ15枚役',hit:n(S.counts,'nav15'),total:nav15Games(S),probs:rates.parsed});
     if(blue.complete&&rateReach(S,'blue3')>0)binomial.push({label:'青7×3連GG当選',hit:rateWin(S,'blue3'),total:rateReach(S,'blue3'),probs:blue.parsed});
     if(rateReach(S,'zzone')>0)binomial.push({label:'Z-ZONE昇格率',hit:rateWin(S,'zzone'),total:rateReach(S,'zzone'),probs:ZZONE_PROBS});
     return {settings:BAYES_SETTINGS,binomial,multinomial:[],exclusions:bayesExclusions(S)};
@@ -231,6 +236,7 @@
       .cycle-row .pct,.count-row .pct{min-width:78px;text-align:right;color:var(--cyan);font-family:var(--seg);font-size:11px;white-space:nowrap}
       .cycle-actions{display:flex;gap:6px;margin-left:4px;flex:none}.cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}.cycle-btn.win{color:var(--gold)}.minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
       .jump-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}.jump-grid a{display:flex;align-items:center;justify-content:center;min-height:36px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--cyan);font-size:11px;font-weight:800;text-decoration:none;text-align:center;padding:6px}
+      .mini-btn{flex:none;font-family:var(--body);font-size:10px;font-weight:800;padding:7px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--cyan);white-space:nowrap}
       .ref-table{width:100%;border-collapse:collapse;font-size:11px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}.ref-table td{border-bottom:1px solid var(--line);padding:8px 10px;vertical-align:top}.ref-table tr:last-child td{border-bottom:0}.ref-table td:first-child{width:42%;color:var(--txt);font-weight:700}.ref-table td:last-child{color:var(--muted);line-height:1.45}
       .bayes-rate-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}.bayes-rate-grid label{display:block;font-size:10px;color:var(--muted);margin-bottom:3px}.bayes-rate-grid input{width:100%;box-sizing:border-box;background:#171220;border:1px solid #2c2340;border-radius:8px;color:#f2eef5;font-size:13px;padding:8px 6px}
       .bayes-main{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#171220;border:1px solid #2c2340;border-radius:10px;padding:10px 12px;margin:8px 0}.bayes-main b{color:#ffc94d;font-size:18px}.bayes-main span{color:#9a90a8;font-size:13px}
@@ -249,16 +255,17 @@
     </div>`;
   }
   function pageHatsu(ctx){
-    const S=ctx.S,g=freeGames(S),neg=g<0;
+    const S=ctx.S,g=freeGames(S),ng=nav15Games(S),neg=g<0,navNeg=nav15StartSet(S)&&ng<0;
     return pageStyle()+`<section class="sec">
-      <div class="sec-h">回転数<span class="sub">通常回転 <b style="color:${neg?'#ff5c5c':'#6fd8ff'}">${freeText(S)}</b></span></div>
+      <div class="sec-h">回転数<span class="sub">通常回転 <b style="color:${neg?'#ff5c5c':'#6fd8ff'}">${freeText(S)}</b> ／ 15枚役区間 <b style="color:${navNeg?'#ff5c5c':'#6fd8ff'}">${nav15Text(S)}</b></span></div>
       <div class="inrow"><label>打ち始めの回転数</label><input type="number" inputmode="numeric" data-number-key="startGames" value="${S.startGames||''}" placeholder="0"></div>
+      <div class="inrow" style="margin-top:6px"><label>15枚役のカウント開始G数</label><button type="button" class="mini-btn" data-copy-number-from="startGames" data-copy-number-to="nav15StartGames">打ち始めと同じにする</button><input type="number" inputmode="numeric" data-number-key="nav15StartGames" value="${S.nav15StartGames||''}" placeholder="0"></div>
       <div class="inrow" style="margin-top:6px"><label>現在の回転数</label><input type="number" inputmode="numeric" data-number-key="currentGames" value="${S.currentGames||''}" placeholder="0"></div>
-      <div class="hint ${neg?'hot':''}">データカウンターのG数を入力します。設定推定の分母になります。より精度を上げたい場合は、リセット後1回目のGG当選時のG数を「打ち始め」に入力してください。${neg?' 現在G数が打ち始めG数を下回っています。':''}</div>
+      <div class="hint ${(neg||navNeg)?'hot':''}">データカウンターのG数を入力します。15枚役のカウント開始G数は、15枚役を数え始めた時点のG数を入力してください。未入力の場合、15枚役は設定推定に使われません。${neg?' 現在G数が打ち始めG数を下回っています。':''}${navNeg?' 現在G数が15枚役のカウント開始G数を下回っています。':''}</div>
     </section>
     <section class="sec"><div class="sec-h">カウント系</div>
       <div class="cgrid">
-        ${ctx.crow('counts.nav15','押し順ナビあり15枚役','通常時に押し順ナビが出て15枚を獲得した回数。',1,v=>oneIn(v,freeGames(S)))}
+        ${ctx.crow('counts.nav15','押し順ナビあり15枚役','通常時に押し順ナビが出て15枚を獲得した回数。',1,()=>nav15OneIn(S))}
         ${rateRow(ctx,'blue3','青7×3連からのGG当選','小役履歴に青7が3つ並んだ回数と、そこからGGに当選した回数。')}
         ${ctx.crow('counts.ggFirst','GG初当り','設1:1/532.8⇔設6:1/294.8',1,v=>oneIn(v,freeGames(S)))}
         ${rateRow(ctx,'zzone','Z-ZONE昇格','通常時からGGに当選した回数と、Z-ZONEへ移行した回数。')}
@@ -321,7 +328,7 @@
     const S=ctx.S;
     let t=`設定判別メモ｜スマスロ ミリオンゴッド\n通常回転 ${freeText(S)} / 確定演出${strongCount(S)}回\n_______\n`;
     t+=section('カウント系',[
-      `押し順ナビ15枚役▶${n(S.counts,'nav15')}回（${oneIn(n(S.counts,'nav15'),freeGames(S))}）`,
+      `押し順ナビ15枚役▶${n(S.counts,'nav15')}回（${nav15OneIn(S)}）`,
       `青7×3連GG当選▶${rateText(S,'blue3')}`,
       `GG初当り▶${n(S.counts,'ggFirst')}回（${oneIn(n(S.counts,'ggFirst'),freeGames(S))}）`,
       `Z-ZONE昇格▶${rateText(S,'zzone')}`,
@@ -335,7 +342,7 @@
     const S=ctx.S;
     return [
       {title:'カウント系',items:[
-        {label:'押し順ナビ15枚役',value:n(S.counts,'nav15'),hot:true,text:'押し順ナビ15枚役 '+oneIn(n(S.counts,'nav15'),freeGames(S)),show:n(S.counts,'nav15')>0},
+        {label:'押し順ナビ15枚役',value:n(S.counts,'nav15'),hot:true,text:'押し順ナビ15枚役 '+nav15OneIn(S),show:n(S.counts,'nav15')>0},
         detailRatio('青7×3連GG当選',rateWin(S,'blue3'),rateReach(S,'blue3'),1),
         {label:'GG初当り',value:n(S.counts,'ggFirst'),hot:true,text:'GG初当り '+oneIn(n(S.counts,'ggFirst'),freeGames(S)),show:n(S.counts,'ggFirst')>0},
         detailRatio('Z-ZONE昇格',rateWin(S,'zzone'),rateReach(S,'zzone'),1),
@@ -352,6 +359,7 @@
     mergeKeys:['counts','rates','plates','bayes'],
     sourceUrl:'https://chonborista.com/slot/universal-slot/252303/',
     normalizeState:out=>{
+      out.nav15StartGames=Math.max(0,Number(out.nav15StartGames)||0);
       out.counts=Object.assign({},DEF.counts,out.counts||{});
       out.rates=Object.assign({},DEF.rates,out.rates||{});
       out.plates=Object.assign({},DEF.plates,out.plates||{});
@@ -395,7 +403,7 @@
         const S=ctx.S;
         return [
           ['GG初当り',oneIn(n(S.counts,'ggFirst'),freeGames(S))],
-          ['15枚役',oneIn(n(S.counts,'nav15'),freeGames(S))],
+          ['15枚役',nav15OneIn(S)],
           ['Z-ZONE',`${rateWin(S,'zzone')}/${rateReach(S,'zzone')}`],
           ['確定演出',`計${strongCount(S)}回`]
         ];
@@ -423,7 +431,7 @@
             {x:70,items:[
               row(bestStrong(S),strongCount(S),strongCount(S)>0,'#ffc94d'),
               row('プレート '+nonZeroParts([{t:'銅',v:n(S.plates,'bronze')},{t:'銀',v:n(S.plates,'silver')},{t:'金',v:n(S.plates,'gold')},{t:'花',v:n(S.plates,'hanabi')},{t:'虹',v:n(S.plates,'rainbow')}]),plateTotal(S),plateTotal(S)>0),
-              row(`15枚役 ${n(S.counts,'nav15')}回 ${oneIn(n(S.counts,'nav15'),freeGames(S))}`,n(S.counts,'nav15'),n(S.counts,'nav15')>0),
+              row(`15枚役 ${n(S.counts,'nav15')}回 ${nav15OneIn(S)}`,n(S.counts,'nav15'),n(S.counts,'nav15')>0),
               row(`青7×3連 ${rateWin(S,'blue3')}/${rateReach(S,'blue3')}`,rateReach(S,'blue3'),rateReach(S,'blue3')>0)
             ]},
             {x:560,items:[

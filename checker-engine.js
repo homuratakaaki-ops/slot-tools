@@ -296,6 +296,15 @@
           save();renderAll();
         });
       });
+      main.querySelectorAll('[data-copy-number-from][data-copy-number-to]').forEach(el=>{
+        el.addEventListener('click',ev=>{
+          ev.stopPropagation();
+          const from=el.dataset.copyNumberFrom;
+          const to=el.dataset.copyNumberTo;
+          S[to]=Math.max(0,parseInt(S[from])||0);
+          save();renderAll();
+        });
+      });
       main.querySelectorAll('[data-state-path]').forEach(el=>{
         el.addEventListener('change',()=>{
           const raw=String(el.value||'').trim();
