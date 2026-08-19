@@ -304,6 +304,10 @@
       <div class="hint">推定は入力されたカウントに基づく参考値です。サンプルが少ないほど信頼度は下がります。</div>`;
     }
     return pageStyle()+`<section class="sec">
+      <div class="sec-h">数値の入手先について</div>
+      <div class="hint">押し順ナビあり15枚役の設定別出現率、および青7×3連の設定3〜6のGG当選率は、パチマガスロマガ様に掲載されています。本ツールはこれらの数値を収録していないため、お手元の数値を入力してご利用ください。<br><a href="https://cs62.cs-plaza.com/g/pachi/pla/s_conq/mizuho_slot/57/mizuho_slot_57.php" target="_blank" rel="noopener">パチマガスロマガ様の機種ページ</a></div>
+    </section>
+    <section class="sec">
       <div class="sec-h">押し順ナビあり15枚役（分母）</div>
       <div class="bayes-rate-grid">${BAYES_SETTINGS.map(s=>`<div><label>設定${s}</label><input type="number" inputmode="decimal" step="0.01" min="1.1" data-state-path="bayes.${BAYES_RATE_KEYS[s]}" data-rate-input="1" value="${escAttr((S.bayes||{})[BAYES_RATE_KEYS[s]])}" placeholder="xx"></div>`).join('')}</div>
       <div class="hint">手元の数値を入力してください。入力値は端末内に保存され、カード・テンプレートには出力しません。</div>
