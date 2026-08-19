@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>スマスロ ミリオンゴッド 設定判別カウンターの使い方｜スロット稼働ノート</title>
+<meta name="description" content="スマスロ ミリオンゴッド 設定判別カウンターの使い方。ユニバプレート、押し順ナビあり15枚役、青7×3連、Z-ZONE昇格の記録方法とベイズ設定推定の使い方を説明します。">
+<link rel="canonical" href="https://slot-tools.jp/milliongod-guide.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:title" content="スマスロ ミリオンゴッド 設定判別カウンターの使い方｜スロット稼働ノート">
+<meta property="og:description" content="記録した回数から設定を推定できる専用カウンターです。">
+<meta property="og:url" content="https://slot-tools.jp/milliongod-guide.html">
+<style>
+  :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px}
+  .container{max-width:520px;margin:0 auto;padding:20px 16px 0}
+  .section{margin-top:22px}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0}
+  li{margin-bottom:8px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:8px}
+  th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:left;vertical-align:top;word-break:break-word}
+  th{color:var(--text-muted)}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none}
+  a{color:var(--gold)}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
+  footer a{color:var(--text-muted);text-decoration:none}
+</style>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+<header>
+  <a class="top-link" href="/">← TOP</a>
+  <a class="top-link" href="milliongod-checker.html" style="margin-left:8px;">ツールを使う →</a>
+  <h1>スマスロ ミリオンゴッド 設定判別カウンターの使い方</h1>
+  <p>ユニバプレートと設定差のあるカウント項目を記録し、ベイズ推定で設定を絞り込む専用カウンターです。</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>ツールの目的</h2>
+    <p>このツールは、スマスロ ミリオンゴッドの設定判別で確認したい項目を、実戦中にタップで累計するための専用カウンターです。ユニバプレートに加えて、押し順ナビあり15枚役、青7×3連からのGG当選、GG初当り、Z-ZONE昇格を記録できます。</p>
+    <p>本機は示唆演出が少ない一方で、通常時のカウント項目に設定差が出ます。そのため、記録した回数から確率を計算し、ベイズ推定で設定を絞り込む仕組みを備えています。</p>
+    <p>記録が少ない段階では推定の精度は上がりません。サンプルが溜まるほど絞り込みが効くタイプの機種です。</p>
+  </section>
+
+  <section class="section">
+    <h2>基本操作</h2>
+    <ol>
+      <li>下部タブから「初当り」「示唆」「設定」「参照」「カード」を切り替えます。</li>
+      <li>示唆タブは、該当する行または右側の＋ボタンをタップすると1回加算されます。</li>
+      <li>「当選」「ハズレ」ボタンは、当選時に到達と当選を同時に1回、ハズレ時は到達だけを1回加算します。誤タップを防ぐため、この行は行タップでは加算されません。</li>
+      <li>誤入力時はヘッダーの「＋加算」を押して減算モードへ切り替えるか、「↩ 取消」で直近操作を戻します。</li>
+      <li>リセットは2段階です。実行後も、ページを再読み込みしていなければ「↩ 取消」でリセット前へ戻せます。</li>
+    </ol>
+  </section>
+
+  <section class="section">
+    <h2>記録対象</h2>
+    <table>
+      <thead><tr><th>タブ</th><th>主な入力内容</th></tr></thead>
+      <tbody>
+        <tr><td>初当り</td><td>通常回転数、押し順ナビあり15枚役、青7×3連からのGG当選、GG初当り、Z-ZONE昇格、謎GGを記録します。</td></tr>
+        <tr><td>示唆</td><td>ユニバプレート5種を記録します。</td></tr>
+        <tr><td>設定</td><td>設定推定に使う数値を入力し、推定結果を表示します。</td></tr>
+        <tr><td>参照</td><td>天井・狙い目、裏ボタンLED、モード示唆、ガイア・G-ZONE・出目をまとめています。設定判別には使いません。</td></tr>
+        <tr><td>カード</td><td>共有カード画像とテンプレ形式テキストを生成します。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>入力のタイミング</h2>
+    <h3>通常回転数</h3>
+    <p>打ち始めと現在のゲーム数を入力すると、その差が設定推定の分母になります。データカウンターの数字をそのまま入れてください。なお、リセット後1回目のGG当選までの区間は数値の傾向が異なるため、精度を上げたい場合は1回目のGG当選時のゲーム数を「打ち始め」に入力する方法もあります。</p>
+    <h3>押し順ナビあり15枚役</h3>
+    <p>通常時に押し順ナビが出て15枚を獲得した回数です。本機で最も設定差が出る項目なので、こまめに記録してください。設定別の出現率は設定タブで入力します。</p>
+    <h3>青7×3連からのGG当選</h3>
+    <p>小役履歴に青7が3つ並んだ回数と、そこからGGに当選した回数を記録します。白7（ガイアベル）は青7としても扱われます。履歴によるGG当選の前兆は9〜12ゲームのみなので、当選契機の見極めに使えます。</p>
+    <h3>Z-ZONE昇格</h3>
+    <p>通常時からGGに当選したとき、Z-ZONEへ移行したかどうかを記録します。奇数設定が優遇されており、特に設定5で当選率が高くなっています。G-ZONE中やガイアステージ中の昇格は別の抽選なので、この項目では数えません。</p>
+    <h3>ユニバプレート</h3>
+    <p>GG終了画面でプレートが出現すれば、特定設定以上が濃厚です。銅が設定2以上、銀が設定3以上、金が設定4以上、花火柄が設定5以上、虹が設定6濃厚となります。</p>
+  </section>
+
+  <section class="section">
+    <div class="card">
+      <h3>設定推定の使い方</h3>
+      <p>「設定」タブに設定別の数値を入力すると、記録した回数から設定を推定します。入力した数値は端末内にのみ保存され、共有カードやテキストには出力されません。</p>
+      <p>押し順ナビあり15枚役の設定別出現率と、青7×3連の設定3〜6のGG当選率は、パチンコ攻略マガジン様に掲載されています。本ツールはこれらの数値を収録していないため、お手元の数値を入力してご利用ください。青7×3連の設定1・2は公開されている数値のため、あらかじめ入力済みで固定しています。</p>
+      <p>6設定すべての数値が入力されるまで、その項目は推定に使われません。数値を入れていない状態でも、ユニバプレートとZ-ZONE昇格だけで推定は動きます。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>出典と注意事項</h2>
+    <p>示唆内容と理論値の出典は、ちょんぼりすた パチスロ解析様です。解析更新により表記や数値が変わる場合があります。本ツールは設定判別を補助する記録・集計ツールであり、設定や勝敗を保証するものではありません。記録はご利用の端末のブラウザに保存され、別の端末には引き継がれません。ホールのルールを守り、実戦判断は自己責任で行ってください。</p>
+  </section>
+
+  <a class="cta" href="milliongod-checker.html">設定判別カウンターを使う</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+    <a href="/partner.html">広告掲載・提携について</a>
+  </nav>
+</footer>
+</body>
+</html>
