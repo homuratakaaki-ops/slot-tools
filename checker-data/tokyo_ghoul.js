@@ -196,7 +196,7 @@
   }
   function hitRow(ctx,key,name,total){
     return `<div class="crow count-row">
-      <div class="ct"><b>${name}</b><small>AT初当たり全体に占める割合</small></div>
+      <div class="ct"><b>${name}</b><small></small></div>
       <div class="num">${n(ctx.S.hits,key)}</div>
       <div class="pct">${ctx.pct(n(ctx.S.hits,key),total)}</div>
       <button type="button" class="cycle-btn" data-bump="hits.${key}" data-label="${name}" aria-label="${name}を1回${ctx.mode<0?'減算':'追加'}">${ctx.mode<0?'−':'＋'}</button>
@@ -243,8 +243,8 @@
         <div class="ct"><b>超高確(精神世界)の残りG数</b><small>残り30の割合: ${rateText(S,'spirit33')} / 設1:3.1%⇔設6:12.5%</small></div>
         <div class="pct">${sum(S.spirit)}回</div>
       </div>
-      ${countRow(ctx,'spirit.g13','残り10','画面表示の残りG数で加算',0)}
-      ${countRow(ctx,'spirit.g23','残り20','画面表示の残りG数で加算',0)}
+      ${countRow(ctx,'spirit.g13','残り10','',0)}
+      ${countRow(ctx,'spirit.g23','残り20','',0)}
       ${countRow(ctx,'spirit.g33','残り30','判定対象',1)}
       ${cycleRow(ctx,'atReturn','AT引き戻し当選率','設1:7.8%⇔設6:15.2%')}
       ${cycleRow(ctx,'cz100','100G以内のCZ以上当選率','設1:19.6%⇔設6:36.0%')}
@@ -257,9 +257,14 @@
   </section>`;
   }
   function pageReference(){
+    const refHint=title=>{
+      if(title==='前兆発生ゲームの法則')return '<div class="hint">前兆発生=東京上空への移行煽り発生、前兆ステージ=東京上空。レア役による前兆が重なると法則が崩れる場合があります。</div>';
+      if(title==='エンディングカードのキャラ一覧')return '<div class="hint">CZ終了画面のカードとは別系統です。エンディング中に出現するカードのみを記録してください。</div>';
+      return '';
+    };
     return pageStyle()+REF_SECTIONS.map(sec=>`<section class="sec"><div class="sec-h">${sec[0]}</div>
       <table class="ref-table"><tbody>${sec[1].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table>
-      ${sec[0]==='前兆発生ゲームの法則'?'<div class="hint">前兆発生=東京上空への移行煽り発生、前兆ステージ=東京上空。レア役による前兆が重なると法則が崩れる場合があります。</div>':''}
+      ${refHint(sec[0])}
     </section>`).join('');
   }
   function tplText(ctx){
