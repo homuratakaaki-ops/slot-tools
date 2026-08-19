@@ -159,7 +159,7 @@
   function strongCount(S){return allStrong(S).reduce((a,b)=>a+b.value,0);}
   function bestStrong(S){
     const hit=allStrong(S).filter(x=>x.value>0).sort((a,b)=>(b.rank-a.rank))[0];
-    return hit?`最強 ${hit.label}(${hit.rank===6?'6濃厚':hit.rank+'以上'}) ×${hit.value}`:'濃厚示唆 なし';
+    return hit?`確定演出 ${hit.label}(${hit.rank===6?'6濃厚':hit.rank+'以上'}) ×${hit.value}`:'確定演出 なし';
   }
 
   function completeRateMap(S){
@@ -319,7 +319,7 @@
   }
   function tplText(ctx){
     const S=ctx.S;
-    let t=`設定判別メモ｜スマスロ ミリオンゴッド\n通常回転 ${freeText(S)} / 濃厚示唆${strongCount(S)}回\n_______\n`;
+    let t=`設定判別メモ｜スマスロ ミリオンゴッド\n通常回転 ${freeText(S)} / 確定演出${strongCount(S)}回\n_______\n`;
     t+=section('カウント系',[
       `押し順ナビ15枚役▶${n(S.counts,'nav15')}回（${oneIn(n(S.counts,'nav15'),freeGames(S))}）`,
       `青7×3連GG当選▶${rateText(S,'blue3')}`,
@@ -397,7 +397,7 @@
           ['GG初当り',oneIn(n(S.counts,'ggFirst'),freeGames(S))],
           ['15枚役',oneIn(n(S.counts,'nav15'),freeGames(S))],
           ['Z-ZONE',`${rateWin(S,'zzone')}/${rateReach(S,'zzone')}`],
-          ['濃厚示唆',`計${strongCount(S)}回`]
+          ['確定演出',`計${strongCount(S)}回`]
         ];
       },
       chart:ctx=>({
@@ -427,7 +427,7 @@
               row(`青7×3連 ${rateWin(S,'blue3')}/${rateReach(S,'blue3')}`,rateReach(S,'blue3'),rateReach(S,'blue3')>0)
             ]},
             {x:560,items:[
-              row(`濃厚示唆 計${strongCount(S)}回`,strongCount(S),strongCount(S)>0,'#ffc94d'),
+              row(`確定演出 計${strongCount(S)}回`,strongCount(S),strongCount(S)>0,'#ffc94d'),
               row(`GG初当り ${n(S.counts,'ggFirst')}回 ${oneIn(n(S.counts,'ggFirst'),freeGames(S))}`,n(S.counts,'ggFirst'),n(S.counts,'ggFirst')>0),
               row(`Z-ZONE ${rateText(S,'zzone')}`,rateReach(S,'zzone'),rateReach(S,'zzone')>0),
               row(`謎GG ${n(S.counts,'mysteryGg')}回`,n(S.counts,'mysteryGg'),n(S.counts,'mysteryGg')>0),

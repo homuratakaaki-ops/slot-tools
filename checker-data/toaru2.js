@@ -125,7 +125,7 @@ function detail(ctx){
     t+=`\n■エンディング中お知らせ演出\n`;
     const edN=Object.values(ctx.S.ed).reduce((a,b)=>a+b,0);
     ED.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.ed[c[0]],edN)}\n`;});
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -148,7 +148,7 @@ function detail(ctx){
     t+=sec('AT終了画面',scN>0?SCREENS.filter(c=>ctx.S.screens[c[0]]>0).map(c=>`${c[1]}▶︎ ${p(ctx.S.screens[c[0]],scN)}`):[]);
     const edN=Object.values(ctx.S.ed).reduce((a,b)=>a+b,0);
     t+=sec('エンディング中お知らせ演出',edN>0?ED.filter(c=>ctx.S.ed[c[0]]>0).map(c=>`${c[1]}▶︎ ${p(ctx.S.ed[c[0]],edN)}`):[]);
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 

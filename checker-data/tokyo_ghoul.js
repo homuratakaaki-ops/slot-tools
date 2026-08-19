@@ -172,7 +172,7 @@
   function strongCount(S){return allStrong(S).reduce((a,b)=>a+b.value,0);}
   function bestStrong(S){
     const hit=allStrong(S).filter(x=>x.value>0).sort((a,b)=>(b.rank-a.rank))[0];
-    return hit?`最強 ${hit.label} ×${hit.value}`:'濃厚示唆 なし';
+    return hit?`確定演出 ${hit.label} ×${hit.value}`:'確定演出 なし';
   }
 
   function cycleRow(ctx,id,name,sub){
@@ -269,7 +269,7 @@
   }
   function tplText(ctx){
     const S=ctx.S;
-    let t=`設定判別メモ｜L東京喰種\n濃厚示唆${strongCount(S)}回 / 主要率 ${SUMMARY_RATES.map(r=>`${r[1]}:${rateText(S,r[0])}`).join(' / ')}\n_______\n`;
+    let t=`設定判別メモ｜L東京喰種\n確定演出${strongCount(S)}回 / 主要率 ${SUMMARY_RATES.map(r=>`${r[1]}:${rateText(S,r[0])}`).join(' / ')}\n_______\n`;
     t+=section('AT終了画面',sum(S.screens)>0?SCREENS.filter(c=>n(S.screens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.screens,c[0]),sum(S.screens))}`):[]);
     t+=section('トロフィー',sum(S.trophies)>0?TROPHIES.filter(c=>n(S.trophies,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.trophies,c[0]),sum(S.trophies))}`):[]);
     t+=section('招待状（設定示唆）',sum(S.invites)>0?INVITES.filter(c=>n(S.invites,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.invites,c[0]),sum(S.invites))}`):[]);
@@ -334,7 +334,7 @@
       detailDownloadName:'tokyo_ghoul_check_detail.png',
       detail:detail,
       blocks:ctx=>[
-        ['濃厚示唆',strongCount(ctx.S)+'回'],
+        ['確定演出',strongCount(ctx.S)+'回'],
         ['弱チェCZ',rateText(ctx.S,'weakCherryCz')],
         ['残り30',rateText(ctx.S,'spirit33')],
         ['100G以内',rateText(ctx.S,'cz100')]
@@ -375,7 +375,7 @@
               row(shown('CZカード',[{t:'4+',v:n(S.czCards,'owl')},{t:'6',v:n(S.czCards,'arima')}]),n(S.czCards,'owl')+n(S.czCards,'arima'))
             ]},
             {x:560,items:[
-              row(`濃厚示唆 計${strongCount(S)}回`,strongCount(S),strongCount(S)>0,'#ffc94d'),
+              row(`確定演出 計${strongCount(S)}回`,strongCount(S),strongCount(S)>0,'#ffc94d'),
               row(shown('枚数',[{t:'456',v:n(S.over,'o456')},{t:'666',v:n(S.over,'o666')},{t:'1000-7',v:n(S.over,'o1000m7')}]),sum(S.over)),
               row(shown('ED色',[{t:'白',v:edColorTotal(S,'edWhite')},{t:'青',v:edColorTotal(S,'edBlue')},{t:'赤',v:edColorTotal(S,'edRed')}]),edColorTotal(S,'edWhite')+edColorTotal(S,'edBlue')+edColorTotal(S,'edRed')),
               row(shown('ED濃厚',[{t:'3+',v:n(S.edCards,'edSilver')},{t:'4+',v:n(S.edCards,'edGold4')},{t:'5+',v:n(S.edCards,'edGold5')},{t:'6',v:n(S.edCards,'edRainbow')}]),n(S.edCards,'edSilver')+n(S.edCards,'edGold4')+n(S.edCards,'edGold5')+n(S.edCards,'edRainbow')),

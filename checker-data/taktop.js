@@ -205,7 +205,7 @@
       `報酬Ch▶︎ ${ratio(S.cz.rewardHit,S.cz.rewardReach)}`
     ]);
     t+=sec('CZ失敗ボイス',FAIL_VOICES.map(c=>`${c[1]}▶︎ ${pctText(S.icons[c[0]],voiceN)}`));
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t.trim();
   }
 
@@ -227,7 +227,7 @@
       (S.cz.rewardReach||S.cz.rewardHit)?`報酬Ch▶︎ ${ratio(S.cz.rewardHit,S.cz.rewardReach)}`:''
     ].filter(Boolean));
     t+=sec('CZ失敗ボイス',voiceN>0?FAIL_VOICES.filter(c=>S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.icons[c[0]],voiceN)}`):[]);
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t.trim();
   }
 
@@ -310,14 +310,14 @@
           fontSize:24,
           columns:[
             {x:70,items:[
-              {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
+              {text:best?`確定演出 ${best.label} ×${best.value}`:'確定演出 なし',value:best?best.value:0,active:!!best},
               {text:shownTimes('AT終了',[['①',S.screens.girl],['②',S.screens.boy]]),value:S.screens.girl+S.screens.boy},
               {text:shown('バトル',[['地',S.atcz.hell],['天',S.atcz.heaven],['オ',S.atcz.orphe]]),value:battleN},
               {text:`小役なし勝利 ×${S.cz.giantNoRole}`,value:S.cz.giantNoRole},
               {text:`報酬Ch ${ratio(S.cz.rewardHit,S.cz.rewardReach)}`,value:S.cz.rewardHit,active:S.cz.rewardReach>0&&S.cz.rewardHit>0}
             ]},
             {x:560,items:[
-              {text:`濃厚示唆 計${strong}回`,value:strong},
+              {text:`確定演出 計${strong}回`,value:strong},
               {text:shown('CZ',[['巨',S.zones.giant],['運',S.zones.destiny],['シ',S.zones.chicago]]),value:czN},
               {text:shown('ED',[['青',S.coins.blue],['紫',S.coins.purple]]),value:S.coins.blue+S.coins.purple},
               {text:`凪 計${sum(S.nagi)}`,value:sum(S.nagi)},

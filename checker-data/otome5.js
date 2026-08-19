@@ -183,7 +183,7 @@
     t+=`\n■EDゴエモンボイス\n`;
     VOICES.forEach(c=>{t+=`${c[1]}▶ ${p(ctx.S.ed[c[0]],voiceN)}\n`;});
     t+=`\n■ハルルナPUSH▶ ${ctx.S.over.haru}回\n`;
-    t+=`\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -201,7 +201,7 @@
     t+=sec('獲得枚数',MEDALS.filter(c=>ctx.S.attack[c[0]]>0).map(c=>`${c[1]}▶ ${ctx.S.attack[c[0]]}回`));
     t+=sec('EDゴエモンボイス',voiceN>0?VOICES.filter(c=>ctx.S.ed[c[0]]>0).map(c=>`${c[1]}▶ ${p(ctx.S.ed[c[0]],voiceN)}`):[]);
     t+=sec('ハルルナPUSH',ctx.S.over.haru>0?[`ハルルナPUSH▶ ${ctx.S.over.haru}回`]:[]);
-    t+=`\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -278,14 +278,14 @@
           fontSize:24,
           columns:[
             {x:70,items:[
-              {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
+              {text:best?`確定演出 ${best.label} ×${best.value}`:'確定演出 なし',value:best?best.value:0,active:!!best},
               {text:shown('ストラップ差',[['ゴ',S.icons.goemon],['ノ',S.icons.nobunaga],['ヒ',S.icons.hideyoshi]]),value:S.icons.goemon+S.icons.nobunaga+S.icons.hideyoshi},
               {text:shown('AT終了',[['4人',S.screens.four],['集A',S.screens.allA],['集B',S.screens.allB]]),value:S.screens.four+S.screens.allA+S.screens.allB},
               {text:`乙女アタック ${ratio(S.cz.attack,S.cz.miko)}`,value:S.cz.attack,active:S.cz.miko>0&&S.cz.attack>0},
               {text:`ハルルナ ×${S.over.haru}`,value:S.over.haru}
             ]},
             {x:560,items:[
-              {text:`濃厚示唆 計${strong}回`,value:strong},
+              {text:`確定演出 計${strong}回`,value:strong},
               {text:`紫炎 ${ratio(shien,ryoran)}`,value:shien,active:ryoran>0&&shien>0},
               {text:shown('EDボイス',[['高弱',S.ed.v4],['高強',S.ed.v5]]),value:S.ed.v4+S.ed.v5},
               {text:`直撃 ×${S.choku}`,value:S.choku},

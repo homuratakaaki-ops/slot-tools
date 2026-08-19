@@ -98,7 +98,7 @@
       showText('単独チェリー（非重複）',count(S.icons,'soloCherry'),g,false)
     ]);
     t+=section('ガックン',[S.cz.gakkun>0?`ガックンチェック▶${S.cz.gakkun}回`:null]);
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様／契機別・小役:北電子公式アプリ公表値`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様／契機別・小役:北電子公式アプリ公表値`;
     return t;
   }
 

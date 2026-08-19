@@ -111,7 +111,7 @@
   }
   function bestStrong(S){
     const hit=confirmItems(S).filter(x=>x.best&&x.value>0).sort((a,b)=>(b.tier-a.tier)||(a.order-b.order))[0];
-    return hit?`${hit.label}(${hit.tier===6?'6濃厚':hit.tier+'以上'}) ×${hit.value}`:'濃厚示唆 なし';
+    return hit?`${hit.label}(${hit.tier===6?'6濃厚':hit.tier+'以上'}) ×${hit.value}`:'確定演出 なし';
   }
   function confirmCount(S){return confirmItems(S).reduce((a,b)=>a+(Number(b.value)||0),0);}
 
@@ -214,7 +214,7 @@
       ...PAYOUT.filter(c=>n(S.over,c[0])>0).map(c=>`${c[1]}▶${n(S.over,c[0])}回`)
     ]);
     t+=section('ユウタイマー',[S.ed.timer6>0?`タイマー「6」開始でAT非当選▶${S.ed.timer6}回`:null]);
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
   function detail(ctx){
@@ -317,7 +317,7 @@
               row('直撃 '+ratio(S.cz.strongHit,S.cz.strong),S.cz.strongHit,S.cz.strong>0)
             ]},
             {x:560,items:[
-              row(`濃厚示唆 計${count}回`,count,count>0,'#ffc94d'),
+              row(`確定演出 計${count}回`,count,count>0,'#ffc94d'),
               row(shown('ボイス',[['エ',n(S.atcz,'erina')],['リ',n(S.atcz,'lindow')],['シ',n(S.atcz,'shio')]]),n(S.atcz,'erina')+n(S.atcz,'lindow')+n(S.atcz,'shio')),
               row(`短縮G 計${zoneWinTotal(SHORT_G,S.triggers)}`,zoneWinTotal(SHORT_G,S.triggers)),
               row(shown('枚数',[['246',n(S.over,'p246')],['456',n(S.over,'p456')],['555',n(S.over,'p555')],['666',n(S.over,'p666')]]),sum(S.over)),

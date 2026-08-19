@@ -59,11 +59,12 @@
         if(kind==='share')return 'ﾃﾝﾌﾟﾚ:@nana_szsr 様';
         return 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr';
       }
-      return 'テンプレ形式：考案者様の許諾確認中';
+      return '';
     }
     function shareText(){
       const lines=[config.share.title];
-      if(NANA_COLLAB)lines.push(nanaCreditText('share'));
+      const credit=nanaCreditText('share');
+      if(credit)lines.push(credit);
       lines.push(config.share.hashtags);
       return lines.join('\n');
     }
@@ -342,7 +343,9 @@
     function drawCardFooter(x,W,H){
       x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";x.fillText('slot-tools.jp',70,H-104);
       x.fillStyle='#9a90a8';x.font="500 22px 'M PLUS 1p'";x.fillText(config.card.footerTags,300,H-104);
-      x.fillStyle='#9a90a8';x.font="500 21px 'M PLUS 1p'";x.fillText(nanaCreditText('card')+'／ 解析出典：ちょんぼりすた様',70,H-62);
+      const credit=nanaCreditText('card');
+      const line=credit?credit+'／ 解析出典：ちょんぼりすた様':'解析出典：ちょんぼりすた様';
+      x.fillStyle='#9a90a8';x.font="500 21px 'M PLUS 1p'";x.fillText(line,70,H-62);
     }
     function cardGameText(){
       const label=config.card.gameLabel;
@@ -566,7 +569,9 @@
       x.fillStyle='#9a90a8';x.font="500 22px 'M PLUS 1p'";
       x.fillText(config.card.footerTags,300,H-104);
       x.fillStyle='#9a90a8';x.font="500 21px 'M PLUS 1p'";
-      x.fillText(`${nanaCreditText('card')}／ 解析出典：ちょんぼりすた様`,70,H-62);
+      const credit=nanaCreditText('card');
+      const line=credit?credit+'／ 解析出典：ちょんぼりすた様':'解析出典：ちょんぼりすた様';
+      x.fillText(line,70,H-62);
     }
     function loadCardImg(cb){
       const primary=iconSrc();

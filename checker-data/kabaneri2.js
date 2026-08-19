@@ -194,7 +194,7 @@
     t+=`\n■サミートロフィー\n銅▶︎ ${ctx.S.coins.cu}回　銀▶︎ ${ctx.S.coins.ag}回　金▶︎ ${ctx.S.coins.au}回\nキリン柄▶︎ ${ctx.S.coins.dg}回　虹▶︎ ${ctx.S.coins.rb}回\n\n■連打枚数・獲得枚数\n`;
     ATTACK.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.attack[c[0]]}回\n`;});
     OVER.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.over[c[0]]}回\n`;});
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -210,7 +210,7 @@
     t+=sec('ST終了画面',screenN>0?SCREENS.filter(c=>ctx.S.screens[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.screens[c[0]],screenN)}`):[]);
     t+=sec('サミートロフィー',TROPHIES.filter(c=>ctx.S.coins[c[0]]>0).map(c=>`${c[1]}▶︎ ${ctx.S.coins[c[0]]}回`));
     t+=sec('連打枚数・獲得枚数',ATTACK.filter(c=>ctx.S.attack[c[0]]>0).map(c=>`${c[1]}▶︎ ${ctx.S.attack[c[0]]}回`).concat(OVER.filter(c=>ctx.S.over[c[0]]>0).map(c=>`${c[1]}▶︎ ${ctx.S.over[c[0]]}回`)));
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -299,14 +299,14 @@
           fontSize:24,
           columns:[
             {x:70,items:[
-              {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
+              {text:best?`確定演出 ${best.label} ×${best.value}`:'確定演出 なし',value:best?best.value:0,active:!!best},
               {text:shown('ボイス',[['女',S.atcz.female],['男',S.atcz.male]]),value:S.atcz.female+S.atcz.male},
               {text:shown('キャラ紹介',[['女',S.ed.female],['男',S.ed.male],['美馬',S.ed.biba]]),value:S.ed.female+S.ed.male+S.ed.biba},
               {text:shown('くじ',[['弓',S.icons.ayame],['アゲハ',S.icons.butterfly]]),value:S.icons.ayame+S.icons.butterfly},
               {text:`周期③④ ${c34.text}`,value:c34.n}
             ]},
             {x:560,items:[
-              {text:`濃厚示唆 計${strong}回`,value:strong},
+              {text:`確定演出 計${strong}回`,value:strong},
               {text:shown('景之',[['弱',S.atcz.kage1],['中',S.atcz.kage2],['強',S.atcz.kage3]]),value:S.atcz.kage1+S.atcz.kage2+S.atcz.kage3},
               {text:shown('終了画面',[['鉄',S.screens.geta],['集',S.screens.group],['水',S.screens.swim]]),value:S.screens.geta+S.screens.group+S.screens.swim},
               {text:shown('吉',[['小',S.icons.shokichi],['中',S.icons.chukichi],['大',S.icons.daikichi]]),value:S.icons.shokichi+S.icons.chukichi+S.icons.daikichi},

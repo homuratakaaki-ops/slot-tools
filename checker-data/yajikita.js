@@ -130,7 +130,7 @@
     const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
     SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.screens[c[0]],scN)}\n`;});
     t+=`\n■ユニバプレート\n銅▶︎ ${ctx.S.coins.cu}回　銀▶︎ ${ctx.S.coins.ag}回　金▶︎ ${ctx.S.coins.au}回\n花火▶︎ ${ctx.S.coins.dg}回　虹▶︎ ${ctx.S.coins.rb}回\n\n■ED中の手形▶︎ ${ctx.S.ed.e1}回\n`;
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -153,7 +153,7 @@
       ['銅',ctx.S.coins.cu],['銀',ctx.S.coins.ag],['金',ctx.S.coins.au],['花火',ctx.S.coins.dg],['虹',ctx.S.coins.rb]
     ].filter(v=>v[1]>0).map(v=>`${v[0]}▶︎ ${v[1]}回`));
     t+=sec('ED中の手形',ctx.S.ed.e1>0?[`ED中の手形▶︎ ${ctx.S.ed.e1}回`]:[]);
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 

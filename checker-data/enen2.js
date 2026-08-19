@@ -166,7 +166,7 @@
     t+=`\n■EDミニキャラ\n`;
     const edN=sum(ctx.S.atcz);
     ED_CHARS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.atcz[c[0]],edN)}\n`;});
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -201,7 +201,7 @@
     t+=sec('獲得枚数',OVER.filter(c=>S.coins[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.coins[c[0]]}回`));
     const edN=sum(S.atcz);
     t+=sec('EDミニキャラ',edN>0?ED_CHARS.filter(c=>S.atcz[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(S.atcz[c[0]],edN)}`):[]);
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -315,14 +315,14 @@
           fontSize:23,
           columns:[
             {x:70,items:[
-              {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
+              {text:best?`確定演出 ${best.label} ×${best.value}`:'確定演出 なし',value:best?best.value:0,active:!!best},
               {text:endR,value:S.zonesReg.blackFrame+S.zonesReg.redFrame+S.zonesReg.goldFrame},
               {text:endB,value:S.zonesBig.blackFrame+S.zonesBig.redFrame+S.zonesBig.goldFrame},
               {text:shown('シナリオ',[['第8系',scenarioD8],['伝',scenarioConduct],['ア',scenarioIris],['隊',S.screens.captain]]),value:scenarioTotal},
               {text:shown('ED',[['タマ',S.atcz.tamaki],['アイ',S.atcz.iris],['紅J',S.atcz.benij],['ショ',S.atcz.sho]]),value:edPick}
             ]},
             {x:560,items:[
-              {text:`濃厚示唆 計${strong}回`,value:strong},
+              {text:`確定演出 計${strong}回`,value:strong},
               {text:shown('否定',[['①',S.icons.m1],['②',S.icons.m2],['③',S.icons.m3],['④',S.icons.m4],['⑤',S.icons.m5]]),value:mamoru},
               {text:shown('特殊',[['金',S.ed.gold],['黒',S.ed.kurono],['ジ',S.ed.joker],['死',S.ed.death]]),value:specialTotal},
               {text:shown('枚数',[['119',S.coins.o119],['246',S.coins.o246],['456',S.coins.o456],['666',S.coins.o666]]),value:overTotal}

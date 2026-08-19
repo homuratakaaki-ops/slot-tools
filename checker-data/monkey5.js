@@ -264,7 +264,7 @@
   }
   function bestStrong(S){
     const hit=strongList(S).filter(x=>x.value>0).sort((a,b)=>(b.tier-a.tier)||(a.order-b.order))[0];
-    return hit?`${hit.label}(${hit.tier===6?'6濃厚':hit.tier+'以上'}) ×${hit.value}`:'濃厚示唆 なし';
+    return hit?`${hit.label}(${hit.tier===6?'6濃厚':hit.tier+'以上'}) ×${hit.value}`:'確定演出 なし';
   }
   function strongCount(S){return strongList(S).reduce((a,b)=>a+(Number(b.value)||0),0);}
 
@@ -467,7 +467,7 @@
               bayesSummary(S)
             ]},
             {x:560,items:[
-              row('濃厚示唆 計'+strongCount(S)+'回',strongCount(S),strongCount(S)>0,'#ffc94d'),
+              row('確定演出 計'+strongCount(S)+'回',strongCount(S),strongCount(S)>0,'#ffc94d'),
               row('契機 '+nonZeroParts([{t:'直',v:n(S.triggers,'directWeak')+n(S.triggers,'directStrong')},{t:'優',v:n(S.triggers,'yushutsu')},{t:'天',v:n(S.triggers,'tenjo')},{t:'即',v:n(S.triggers,'instant')}]),sum(S.triggers),sum(S.triggers)>0),
               row('舟券 '+nonZeroParts([{t:'銀',v:n(S.icons,'silver')},{t:'金',v:n(S.icons,'gold')},{t:'虹',v:n(S.icons,'rainbow')}]),sum(S.icons),sum(S.icons)>0),
               row('ラウンド '+nonZeroParts([{t:'山',v:n(S.coins,'yamasa')},{t:'青波',v:n(S.coins,'aohata')},{t:'ド',v:n(S.coins,'dress')}]),sum(S.coins),sum(S.coins)>0),

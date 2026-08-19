@@ -191,7 +191,7 @@
     t+=`\n■CZ終了画面イラスト\n`;
     const czIllN=sum(ctx.S.icons);
     CZ_ILLUST.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.icons[c[0]],czIllN)}\n`;});
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -217,7 +217,7 @@
     t+=sec('獲得枚数・オリンピア',OVER.filter(c=>ctx.S.over[c[0]]>0).map(c=>`${c[1]}▶︎ ${ctx.S.over[c[0]]}回`));
     const czIllN=sum(ctx.S.icons);
     t+=sec('CZ終了画面イラスト',czIllN>0?CZ_ILLUST.filter(c=>ctx.S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.icons[c[0]],czIllN)}`):[]);
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -284,14 +284,14 @@
           fontSize:23,
           columns:[
             {x:70,items:[
-              {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
+              {text:best?`確定演出 ${best.label} ×${best.value}`:'確定演出 なし',value:best?best.value:0,active:!!best},
               {text:shown('AT終了',[['歯',S.screens.gear],['鳴勝',S.screens.narukatsu],['笑',S.screens.smile]]),value:S.screens.gear+S.screens.narukatsu+S.screens.smile},
               {text:shown('シナリオ',[['ミ',S.ed.min],['リ',S.ed.lise],['ヴ',S.ed.vil],['ジ',S.ed.geo]]),value:sum(S.ed)},
               {text:shown('EDランプ',[['紫',S.coins.purple],['虹',S.coins.rainbow]]),value:S.coins.purple+S.coins.rainbow},
               {text:`CZ絵 天国系${heaven}`,value:heaven}
             ]},
             {x:560,items:[
-              {text:`濃厚示唆 計${strong}回`,value:strong},
+              {text:`確定演出 計${strong}回`,value:strong},
               {text:shown('否定',[['②',S.atcz.neg2],['③',S.atcz.neg3],['④',S.atcz.neg4],['⑤',S.atcz.neg5]]),value:neg},
               {text:shown('開始',[['鳴',S.stages.narumi],['勝',S.stages.masaru]]),value:sum(S.stages)},
               {text:shown('枚数',[['246',S.over.o246],['456',S.over.o456],['666',S.over.o666]]),value:S.over.o246+S.over.o456+S.over.o666},

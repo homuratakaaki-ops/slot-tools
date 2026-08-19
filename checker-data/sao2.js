@@ -159,7 +159,7 @@
     const edN=sum(S.ed);
     ED.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.ed[c[0]],edN)}\n`;});
     t+=`\n■優遇項目\n確定CZ▶︎ ${S.cz.end}回\n曠野の決闘▶︎ ${S.cz.duel}回\nCZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}\nSC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回\nAT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}\n共通ベル▶︎ ${rate(S.games,S.cz.bell)}（${S.cz.bell}回）\n強チャンス目B▶︎ ${rate(S.games,S.cz.chanceB)}（${S.cz.chanceB}回）\n`;
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -183,7 +183,7 @@
     if(S.cz.bell>0)yuugu.push(`共通ベル▶︎ ${rate(S.games,S.cz.bell)}（${S.cz.bell}回）`);
     if(S.cz.chanceB>0)yuugu.push(`強チャンス目B▶︎ ${rate(S.games,S.cz.chanceB)}（${S.cz.chanceB}回）`);
     t+=sec('優遇項目',yuugu);
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -255,14 +255,14 @@
           fontSize:24,
           columns:[
             {x:70,items:[
-              {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
+              {text:best?`確定演出 ${best.label} ×${best.value}`:'確定演出 なし',value:best?best.value:0,active:!!best},
               {text:`確定CZ ×${S.cz.end}`,value:S.cz.end},
               {text:`CZ失敗→アイテム ${ratio(S.atcz.item,fail)}`,value:S.atcz.item,active:fail>0&&S.atcz.item>0},
               {text:`2セット以上 ${ratio(over2,atEnd)}`,value:over2,active:atEnd>0&&over2>0},
               {text:`GGO示唆 計${ggo}`,value:ggo}
             ]},
             {x:560,items:[
-              {text:`濃厚示唆 計${strong}回`,value:strong},
+              {text:`確定演出 計${strong}回`,value:strong},
               {text:`SC1・2戦デスガン ×${S.atcz.deathgun}`,value:S.atcz.deathgun},
               {text:`引き戻し ${ratio(S.atcz.return50,atEnd)}`,value:S.atcz.return50,active:atEnd>0&&S.atcz.return50>0},
               {text:shown('終了画面',[['幼',S.screens.childhood],['祭',S.screens.festival],['木',S.screens.sunlight]]),value:S.screens.childhood+S.screens.festival+S.screens.sunlight},

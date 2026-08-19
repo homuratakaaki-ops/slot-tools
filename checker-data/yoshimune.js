@@ -230,7 +230,7 @@
     TROPHIES.forEach(c=>{t+=`${c[1]}▶︎ ${S.coins[c[0]]}回\n`;});
     t+='\n■獲得枚数\n';
     MEDALS.forEach(c=>{t+=`${c[1]}▶︎ ${S.over[c[0]]}回\n`;});
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
   function tplTextCompact(ctx){
@@ -248,7 +248,7 @@
     if(S.cz.battoMax>0)t+=sec('抜刀チャンス',[`抜刀チャンス▶︎ ${ratio(S.cz.battoHit,S.cz.battoMax)}`]);
     t+=sec('コパンダトロフィー',TROPHIES.filter(c=>S.coins[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.coins[c[0]]}回`));
     t+=sec('獲得枚数',MEDALS.filter(c=>S.over[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.over[c[0]]}回`));
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
 
@@ -329,14 +329,14 @@
           fontSize:24,
           columns:[
             {x:70,items:[
-              {text:best?`最強 ${best.label} ×${best.value}`:'濃厚示唆 なし',value:best?best.value:0,active:!!best},
+              {text:best?`確定演出 ${best.label} ×${best.value}`:'確定演出 なし',value:best?best.value:0,active:!!best},
               {text:`終了 三日月${S.screens.crescent}・満月${S.screens.fullmoon}`,value:S.screens.crescent+S.screens.fullmoon},
               {text:`ボイス 奇${odd}・偶${even}・高${high}`,value:odd+even+high},
               {text:`特化 百${S.cz.hyakka}・人馬${S.cz.jinba}`,value:S.cz.hyakka+S.cz.jinba},
               {text:`トロフィー 計${trophy}`,value:trophy}
             ]},
             {x:560,items:[
-              {text:`濃厚示唆 計${strong}回`,value:strong,active:strong>0},
+              {text:`確定演出 計${strong}回`,value:strong,active:strong>0},
               {text:`ビジョン 越前${S.vision.echizen}・天英${S.vision.tenei}`,value:S.vision.echizen+S.vision.tenei},
               {text:`メニュー 越前${S.menu.echizen}・天英${S.menu.tenei}`,value:S.menu.echizen+S.menu.tenei},
               {text:`直撃 ×${S.choku}`,value:S.choku},
