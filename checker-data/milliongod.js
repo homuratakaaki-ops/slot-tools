@@ -151,8 +151,6 @@
   function rateWin(S,id){return n(S.rates,id+'w');}
   function rateReach(S,id){return n(S.rates,id+'r');}
   function rateText(S,id){return ratio(rateWin(S,id),rateReach(S,id));}
-  function bluePctValue(S){return rateReach(S,'blue3')>0?100*rateWin(S,'blue3')/rateReach(S,'blue3'):0;}
-  function zzonePctValue(S){return rateReach(S,'zzone')>0?100*rateWin(S,'zzone')/rateReach(S,'zzone'):0;}
   function plateTotal(S){return sum(S.plates);}
 
   function allStrong(S){
@@ -407,23 +405,16 @@
         ];
       },
       chart:ctx=>({
-        title:'主要カウント率',
-        type:'percentGroups',
-        groups:[{
-          title:'設定差項目',
-          titleText:'設定差項目（率）',
-          titleX:540,
-          x:190,
-          step:220,
-          width:90,
-          total:100,
-          color:'#ff3d8f',
-          items:[
-            {label:'15枚',value:freeGames(ctx.S)>0?100*n(ctx.S.counts,'nav15')/freeGames(ctx.S):0},
-            {label:'青7',value:bluePctValue(ctx.S)},
-            {label:'Z-Z',value:zzonePctValue(ctx.S)}
-          ]
-        }]
+        title:'カウント分布',
+        x:130,
+        step:200,
+        width:80,
+        items:[
+          {label:'15枚',value:n(ctx.S.counts,'nav15')},
+          {label:'初当',value:n(ctx.S.counts,'ggFirst')},
+          {label:'青7',value:rateWin(ctx.S,'blue3')},
+          {label:'Z-Z',value:rateWin(ctx.S,'zzone')}
+        ]
       }),
       bottom:ctx=>{
         const S=ctx.S;
