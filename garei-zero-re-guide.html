@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lパチスロ喰霊-零-Re 設定判別カウンターの使い方｜スロット稼働ノート</title>
+<meta name="description" content="Lパチスロ喰霊-零-Re 設定判別カウンターの使い方。スイカ・弱チェリーの記録方法、CZ当選率の取り方、ベイズ設定推定の見方を説明します。">
+<link rel="canonical" href="https://slot-tools.jp/garei-zero-re-guide.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:title" content="Lパチスロ喰霊-零-Re 設定判別カウンターの使い方｜スロット稼働ノート">
+<meta property="og:description" content="小役とボーナスの記録から設定を推定できる専用カウンターです。">
+<meta property="og:url" content="https://slot-tools.jp/garei-zero-re-guide.html">
+<style>
+  :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px}
+  .container{max-width:520px;margin:0 auto;padding:20px 16px 0}
+  .section{margin-top:22px}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0}
+  li{margin-bottom:8px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:8px}
+  th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:left;vertical-align:top;word-break:break-word}
+  th{color:var(--text-muted)}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none}
+  a{color:var(--gold)}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
+  footer a{color:var(--text-muted);text-decoration:none}
+</style>
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-6389066329814944"
+     crossorigin="anonymous"></script>
+</head>
+<body>
+<header>
+  <a class="top-link" href="/">← TOP</a>
+  <a class="top-link" href="garei-zero-re-checker.html" style="margin-left:8px;">ツールを使う →</a>
+  <h1>Lパチスロ喰霊-零-Re 設定判別カウンターの使い方</h1>
+  <p>小役・ボーナス・示唆画面を記録し、ベイズ推定で設定を絞り込む専用カウンターです。</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>ツールの目的</h2>
+    <p>このツールは、Lパチスロ喰霊-零-Reの設定判別で確認したい項目を、実戦中にタップで累計するための専用カウンターです。スイカ、弱チェリー、CZ当選率、BIG、REGに加えて、BB終了画面・ART終了画面・獲得枚数表示の示唆を記録できます。</p>
+    <p>本機はスイカと弱チェリーの出現率に大きな設定差があり、しかも全設定の数値が判明しています。1日で数十回のサンプルが溜まるため、記録を続けるほど推定の精度が上がります。</p>
+    <p>設定別の数値はツールに組み込んであるので、利用者が数値を用意する必要はありません。記録するだけで推定が動きます。</p>
+  </section>
+
+  <section class="section">
+    <h2>基本操作</h2>
+    <ol>
+      <li>下部タブから「初当り」「示唆」「推定」「参照」「カード」を切り替えます。</li>
+      <li>示唆タブは、該当する行または右側の＋ボタンをタップすると1回加算されます。</li>
+      <li>「当選」「ハズレ」ボタンは、当選時に到達と当選を同時に1回、ハズレ時は到達だけを1回加算します。誤タップを防ぐため、この行は行タップでは加算されません。</li>
+      <li>誤入力時はヘッダーの「＋加算」を押して減算モードへ切り替えるか、「↩ 取消」で直近操作を戻します。</li>
+      <li>リセットは2段階です。実行後も、ページを再読み込みしていなければ「↩ 取消」でリセット前へ戻せます。</li>
+    </ol>
+  </section>
+
+  <section class="section">
+    <h2>記録対象</h2>
+    <table>
+      <thead><tr><th>タブ</th><th>主な入力内容</th></tr></thead>
+      <tbody>
+        <tr><td>初当り</td><td>通常回転数、スイカ、弱チェリー、CZ当選率、BIG、REG、特定ボーナスを記録します。</td></tr>
+        <tr><td>示唆</td><td>BB終了画面、ART終了画面、獲得枚数表示を記録します。</td></tr>
+        <tr><td>推定</td><td>記録した内容から設定別の確率を表示します。入力欄はありません。</td></tr>
+        <tr><td>参照</td><td>天井・狙い目、RT状態、内部状態、演出法則などをまとめています。設定判別には使いません。</td></tr>
+        <tr><td>カード</td><td>共有カード画像とテンプレ形式テキストを生成します。</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <section class="section">
+    <h2>レア役の見分け方</h2>
+    <p>記録の正確さがそのまま推定の精度になるため、成立役の判別は確実に行ってください。通常時は左リール上段付近に⑬番のBARを狙います。</p>
+
+    <h3>スイカ</h3>
+    <p>左リール上段にスイカ、または⑪番のBARが停止したときが対象です。中リールに赤7を目安としてスイカを狙い、右リールはフリー打ちで成立を確認します。⑪番のBARはスイカの代用図柄なので、早めに目押しすると取りこぼす可能性があります。左上段にBARが停止したときは、必ずスイカを狙ってください。</p>
+
+    <h3>弱チェリーと強チェリー</h3>
+    <p>左リール角にチェリーが停止したら、中・右リールはフリー打ちです。右リール中段にベルが停止すれば弱チェリー、それ以外なら強チェリーです。この2つは記録する項目が違うので、右リールの停止形まで確認してください。</p>
+
+    <h3>中押し手順もあります</h3>
+    <p>中リール上段付近に赤7を狙う手順もあり、こちらは弱チャンス目を1枚役で取得できます。中リール下段に赤7が停止した場合は、右リール枠上〜上段に黒BARを狙い、右上段に黒BAR停止なら左リールにチェリーを狙って角なら弱チェリー、中段なら強チェリーです。</p>
+  </section>
+
+  <section class="section">
+    <h2>入力のタイミング</h2>
+
+    <h3>通常回転数</h3>
+    <p>打ち始めと現在のゲーム数を入力すると、その差が推定の分母になります。データカウンターの数字をそのまま入れてください。スイカ、弱チェリー、BIG、REGのすべてがこの分母を使います。</p>
+
+    <h3>弱チェリーは2回タップします</h3>
+    <p>弱チェリーを引いたときは、まず「弱チェリー」の＋を押し、続けて「弱チェリーからのCZ当選」で当選かハズレを押します。手間はかかりますが、この2つは記録する範囲が違うため分けてあります。弱チェリーの出現率は打っている全区間が対象ですが、CZ当選率は通常滞在時のみが対象で、高確や超高確に滞在している間は数えません。</p>
+
+    <h3>強チェリーからのCZ当選</h3>
+    <p>強チェリーは出現率の記録がないため、CZに当選したかどうかだけを記録します。こちらも通常滞在時のみが対象です。</p>
+
+    <h3>BB終了画面・ART終了画面</h3>
+    <p>ボーナスまたはARTの終了画面を記録します。ART終了画面の「神楽と黄泉②」は設定示唆ではなく、エンディングに到達したあとに出現する画面です。</p>
+
+    <h3>獲得枚数表示</h3>
+    <p>ART中に特定の枚数が表示されたときに記録します。222枚突破が設定2以上、444枚突破と456枚突破が設定4以上、666枚突破と0123枚突破が設定6濃厚となります。</p>
+
+    <h3>特定ボーナス</h3>
+    <p>ボーナス当選時の契機と種類の組み合わせを記録します。当選契機はボーナス成立時のWINランプの色で判別できます。振り分けの数値が公表されていないため、記録のみで推定には使いません。</p>
+  </section>
+
+  <section class="section">
+    <div class="card">
+      <h3>推定の見方</h3>
+      <p>「推定」タブでは、記録した内容から設定ごとの確率を表示します。サンプルが少ないうちは設定1から6まで数値が近く並びますが、これは絞り込めていないことを正しく表しています。記録が増えるほど差が開きます。</p>
+      <p>本機は設定1と設定2で同じ数値の項目が複数あるため、この2つを区別することは困難です。設定3以上との区別を目的に使ってください。</p>
+      <p>示唆画面や獲得枚数表示を記録すると、該当しない設定が計算から除外されます。除外された設定は0%と表示されます。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>出典と注意事項</h2>
+    <p>示唆内容と理論値の出典は、ちょんぼりすた パチスロ解析様です。解析更新により表記や数値が変わる場合があります。本ツールは設定判別を補助する記録・集計ツールであり、設定や勝敗を保証するものではありません。記録はご利用の端末のブラウザに保存され、別の端末には引き継がれません。ホールのルールを守り、実戦判断は自己責任で行ってください。</p>
+  </section>
+
+  <a class="cta" href="garei-zero-re-checker.html">設定判別カウンターを使う</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+    <a href="/partner.html">広告掲載・提携について</a>
+  </nav>
+</footer>
+</body>
+</html>
