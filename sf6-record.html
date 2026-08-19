@@ -211,6 +211,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 .bm-btn.blue-text{color:var(--blue)}
 .bm-btn.red-text{color:var(--danger)}
 .bm-btn.gold-text{color:var(--amber)}
+.bm-btn.related-link{text-decoration:none;align-items:center;justify-content:center}
 .bm-btn:disabled,.chip:disabled,.counter-btn:disabled,.keypad-key:disabled{
   opacity:.45;
   cursor:not-allowed;
@@ -600,6 +601,7 @@ textarea{
   const VERSION='11';
   const PAYLOAD_VERSION='2.2';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
+  const DC_GAIN_KINDS=GAIN_KINDS.filter(kind=>kind!=='ジャッジ');
   const VOICES=['ルーク','春麗','キャミィ','リュウ','ケン','キンバリー','ジェイミー','未確認'];
   const VOICE_SKILLS={ルーク:'ライジングアッパー',春麗:'スピニングバードキック',キャミィ:'キャノンストライク',リュウ:'しんくうはどうけん',ケン:'しっぷうじんらいきゃく',キンバリー:'ぶしんらんびょうし',ジェイミー:'げつがさほう',未確認:''};
   const HOT_VOICES=new Set(['キンバリー','ジェイミー']);
@@ -619,6 +621,9 @@ textarea{
   const CASH_AMOUNTS=[1000,5000,10000];
   const MONEY_OPS=['init','deposit','loan','creditUpdate','medalIn','mochidama','saipurei','diffSync','collectEnd'];
   const MEDAL_SOURCES=[['mochidama','持ち玉'],['saipurei','再プレイ'],['unknown','不明']];
+  const RELATED_LINKS=[
+    {label:'ちょんぼりすた（SF6解析）',url:'https://chonborista.com/slot/enta-slot/260280/'}
+  ];
   const ANTEN_PATTERNS=[
     {key:'black',label:'黒暗転',hint:'デフォルト',cls:''},
     {key:'blue',label:'青暗転',hint:'残り300G以内の期待度 約55%',cls:'blue-text'},
@@ -655,6 +660,9 @@ textarea{
     gain:[
       {title:'ボイス',items:[['ケン／リュウ','高モード期待（実戦上の傾向）'],['その他','示唆内容は解析未判明']]},
       {title:'暗転パターン',items:ANTEN_PATTERNS.map(item=>[item.label,item.hint])}
+    ],
+    judge:[
+      {title:'暗転パターン',items:ANTEN_PATTERNS.map(item=>[item.label,item.hint])}
     ]
   };
   const BATTLE_STEP_LOCK_TOAST='FB中は通常消化を操作できません';
@@ -666,6 +674,8 @@ textarea{
   let selectedVoice=null;
   let gainAddDraft='';
   let selectedGainAnten=null;
+  let judgeAddDraft='';
+  let selectedJudgeAnten=null;
   let selectedWtAnten=null;
   let selectedWtReturnStage=null;
   let selectedBonus=null;
@@ -838,7 +848,7 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedWtAnten,selectedMedalSource,medalInDraft}});
+    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,judgeAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedJudgeAnten,selectedWtAnten,selectedMedalSource,medalInDraft}});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
@@ -865,9 +875,11 @@ textarea{
     winSheetDraft={bonusMedals:String(drafts.winSheetDraft?.bonusMedals||''),endScreen:String(drafts.winSheetDraft?.endScreen||''),credit:String(drafts.winSheetDraft?.credit||'')};
     lossSheetDraft={exitLcdG:String(drafts.lossSheetDraft?.exitLcdG||''),exitRealG:String(drafts.lossSheetDraft?.exitRealG||''),exitCredit:String(drafts.lossSheetDraft?.exitCredit||'')};
     gainAddDraft=String(drafts.gainAddDraft||'');
+    judgeAddDraft=String(drafts.judgeAddDraft||'');
     selectedVoice=VOICES.includes(drafts.selectedVoice)?drafts.selectedVoice:null;
-    selectedGainKind=GAIN_KINDS.includes(drafts.selectedGainKind)?drafts.selectedGainKind:'';
+    selectedGainKind=DC_GAIN_KINDS.includes(drafts.selectedGainKind)?drafts.selectedGainKind:'';
     selectedGainAnten=normalizeAntenPattern(drafts.selectedGainAnten);
+    selectedJudgeAnten=normalizeAntenPattern(drafts.selectedJudgeAnten);
     selectedWtAnten=normalizeAntenPattern(drafts.selectedWtAnten);
     selectedMedalSource=MEDAL_SOURCES.some(([key])=>key===drafts.selectedMedalSource)?drafts.selectedMedalSource:'unknown';
     medalInDraft=String(drafts.medalInDraft||'');
@@ -1416,15 +1428,11 @@ textarea{
     dcIn.classList.add('wide');
     clearNode(dcIn);
     dcIn.append(el('span','btn-line dc-label-main','ドライブチャンス'),el('span','btn-line dc-label-sub','（DC）突入'));
-    const gain=button('Sジャッジ/DC結果','primary',openGainSheet);
+    const gain=button('DC結果','primary',openGainSheet);
     gain.id='normalDcResultBtn';
-    gain.classList.add('mid');
-    clearNode(gain);
-    gain.append(el('span','btn-line','Sジャッジ'),el('span','btn-line','DC結果'));
-    const memo=button('メモ','secondary',openMemoSheet);
-    memo.id='normalMemoBtn';
-    memo.classList.add('narrow');
-    r.append(dcIn,gain,memo);
+    const judge=button('ストリートジャッジ','primary',openJudgeSheet);
+    judge.id='normalJudgeBtn';
+    r.append(dcIn,gain,judge);
     grid.append(r);
     r=row('mode-actions normal-actions');
     const rare=button('レア役','secondary',openRareSheet);
@@ -1438,7 +1446,9 @@ textarea{
     r=row('mode-actions normal-actions');
     const zenchou=button('前兆','secondary',openZenchouSheet);
     zenchou.id='normalZenchouBtn';
-    r.append(zenchou);
+    const memo=button('メモ','secondary',openMemoSheet);
+    memo.id='normalMemoBtn';
+    r.append(zenchou,memo);
     const fbHit=button('FB当選','danger',recordFbHit);
     fbHit.id='fbHitBtn';
     r.append(fbHit);
@@ -1714,27 +1724,44 @@ textarea{
     const addG=positiveInt($('addG')?.value);
     if(!selectedGainKind){toast('加算種別を選択してください');return;}
     if(!addG){toast('加算G数を入力してください');return;}
-    const isJudge=selectedGainKind==='ジャッジ';
-    const nextLcd=snap.lcdG+addG+(isJudge?1:0);
-    const nextReal=isJudge&&snap.realG!==null?snap.realG+1:snap.realG;
-    const voice=selectedGainKind==='ジャッジ'?null:selectedVoice;
+    const nextLcd=snap.lcdG+addG;
+    const nextReal=snap.realG;
+    const voice=selectedVoice;
     commit('加算',()=>{
       state.currentState={realG:nextReal,lcdG:nextLcd};
       const boundary=crossedColorBoundary(snap.lcdG,nextLcd);
       if(boundary!==null&&!hasBlueColorForBoundary(boundary)){
-        if(isJudge)addAutoBlueColor(boundary,{realG:nextReal,lcdG:nextLcd});
-        else state.pendingAutoColor={boundary};
+        state.pendingAutoColor={boundary};
       }
       addLogDirect({type:'gain',kind:selectedGainKind,addG,voice,realG:nextReal,lcdG:nextLcd});
       if(selectedGainAnten)applyAnten(selectedGainAnten,{realG:nextReal,lcdG:nextLcd});
-    },{toast:isJudge?'ストリートジャッジを記録しました':'DC結果を記録しました',lcdTouched:true});
+    },{toast:'DC結果を記録しました',lcdTouched:true});
     const add=$('addG');
     if(add)add.value='';
     gainAddDraft='';
     selectedVoice=null;
     selectedGainAnten=null;
-    if(isJudge)openGainSheet();
-    else closeSheet();
+    closeSheet();
+  }
+  function recordJudgeFromSheet(){
+    const snap=requireLcd();
+    if(!snap)return;
+    const addG=positiveInt($('judgeAddG')?.value);
+    if(!addG){toast('加算G数を入力してください');return;}
+    const nextLcd=snap.lcdG+addG+1;
+    const nextReal=snap.realG===null?null:snap.realG+1;
+    commit('ストリートジャッジ',()=>{
+      state.currentState={realG:nextReal,lcdG:nextLcd};
+      const boundary=crossedColorBoundary(snap.lcdG,nextLcd);
+      if(boundary!==null&&!hasBlueColorForBoundary(boundary))addAutoBlueColor(boundary,{realG:nextReal,lcdG:nextLcd});
+      addLogDirect({type:'gain',kind:'ジャッジ',addG,voice:null,realG:nextReal,lcdG:nextLcd});
+      if(selectedJudgeAnten)applyAnten(selectedJudgeAnten,{realG:nextReal,lcdG:nextLcd});
+    },{toast:'ストリートジャッジを記録しました',lcdTouched:true});
+    const add=$('judgeAddG');
+    if(add)add.value='';
+    judgeAddDraft='';
+    selectedJudgeAnten=null;
+    openJudgeSheet();
   }
   function fbStartDraft(){
     return {rank:selectedRank,roundStart:selectedRoundStart,opponent:currentOpponentDraft()||null};
@@ -1780,6 +1807,8 @@ textarea{
     if($('fbExitLcdG')||$('fbExitRealG')||$('fbExitCredit'))syncLossSheetDraft();
     const addInput=$('addG');
     if(addInput)gainAddDraft=String(addInput.value||'');
+    const judgeInput=$('judgeAddG');
+    if(judgeInput)judgeAddDraft=String(judgeInput.value||'');
   }
   function recordWinFromSheet(){
     syncWinSheetDraft();
@@ -2153,8 +2182,8 @@ textarea{
     openSheet('DC結果',body=>{
       const kinds=row('choice-row gain-kinds');
       kinds.id='gainKinds';
-      GAIN_KINDS.forEach(label=>{
-        const extra=label==='ジャッジ'?'street-judge':label==='DC-キャミィ'?'dc-cammy':'';
+      DC_GAIN_KINDS.forEach(label=>{
+        const extra=label==='DC-キャミィ'?'dc-cammy':'';
         kinds.append(chip(gainKindDisplay(label),selectedGainKind===label,()=>{selectedGainKind=label;openGainSheet();},extra));
       });
       body.append(kinds);
@@ -2171,7 +2200,6 @@ textarea{
         if(VOICE_SKILLS[label])btn.append(el('span','voice-sub',VOICE_SKILLS[label]));
         voices.append(btn);
       });
-      body.append(el('div','muted','ジャッジ選択時はボイスを保存しません'));
       body.append(voices);
       const antenChoices=row('choice-row single-choice-grid');
       antenChoices.id='gainAntenKinds';
@@ -2186,6 +2214,28 @@ textarea{
       actions.append(gainBtn);
       body.append(actions);
     },{hintKey:'gain'});
+  }
+  function openJudgeSheet(){
+    const liveAdd=$('judgeAddG');
+    if(liveAdd)judgeAddDraft=String(liveAdd.value||'');
+    openSheet('ストリートジャッジ',body=>{
+      const addInput=input('judgeAddG','number','例 30');
+      addInput.value=judgeAddDraft;
+      addInput.addEventListener('input',()=>{judgeAddDraft=addInput.value;});
+      body.append(field('加算G数',addInput));
+      const antenChoices=row('choice-row single-choice-grid');
+      antenChoices.id='judgeAntenKinds';
+      ANTEN_PATTERNS.forEach(item=>{
+        antenChoices.append(chip(item.label,selectedJudgeAnten===item.key,()=>{selectedJudgeAnten=selectedJudgeAnten===item.key?null:item.key;openJudgeSheet();},item.cls));
+      });
+      body.append(el('div','muted','暗転パターン（任意）'));
+      body.append(antenChoices);
+      const actions=row();
+      const judgeBtn=button('加算を記録','primary',recordJudgeFromSheet);
+      judgeBtn.id='judgeGainBtn';
+      actions.append(judgeBtn);
+      body.append(actions);
+    },{hintKey:'judge'});
   }
   /* v2.8 superseded start sheet draft
   function openBattleStartSheet(){
@@ -2552,6 +2602,19 @@ textarea{
       exportBox.readOnly=true;
       exportBox.hidden=true;
       body.append(exportBox);
+      body.append(el('div','section-label','関連リンク'));
+      const links=row('choice-row related-links');
+      links.id='relatedLinks';
+      RELATED_LINKS.forEach(item=>{
+        const link=document.createElement('a');
+        link.className='bm-btn secondary related-link';
+        link.href=item.url;
+        link.target='_blank';
+        link.rel='noopener noreferrer';
+        link.textContent=`${item.label} ↗`;
+        links.append(link);
+      });
+      body.append(links);
     });
   }
   function renderSheetHintButton(){
