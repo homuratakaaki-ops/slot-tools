@@ -125,7 +125,7 @@
     counts:{nav15:0,ggFirst:0,mysteryGg:0},
     rates:{blue3r:0,blue3w:0,zzoner:0,zzonew:0},
     plates:Object.fromEntries(PLATES.map(v=>[v[0],0])),
-    bayes:{rate1:'',rate2:'',rate3:'',rate4:'',rate5:'',rate6:'',blue1:'',blue2:'',blue3:'',blue4:'',blue5:'',blue6:''},
+    bayes:{rate1:'',rate2:'',rate3:'',rate4:'',rate5:'',rate6:'',blue1:'1.2',blue2:'10.2',blue3:'',blue4:'',blue5:'',blue6:''},
     img:null,
     iconChoice:null
   };
@@ -212,12 +212,6 @@
     const set=new Set();
     (result.reasons||[]).forEach(r=>(r.exclude||[]).forEach(s=>set.add(Number(s))));
     return Array.from(set).sort((a,b)=>a-b);
-  }
-  function bayesSummary(S){
-    const r=bayesResult(S);
-    if(r.contradiction)return row('推定 矛盾',1,true,'#ff5c5c');
-    if(r.empty)return row('推定 −',0,false);
-    return row('推定 4以上'+bayesPct(r.high),1,true,'#ffc94d');
   }
   function bayesExcludeSummary(S){
     const r=bayesResult(S);
@@ -310,7 +304,7 @@
     <section class="sec">
       <div class="sec-h">青7×3連のGG当選率（%）</div>
       <div class="bayes-rate-grid">${BAYES_SETTINGS.map(s=>`<div><label>設定${s}</label><input type="number" inputmode="decimal" step="0.1" min="0.1" max="99.9" data-state-path="bayes.${BAYES_BLUE_KEYS[s]}" value="${escAttr((S.bayes||{})[BAYES_BLUE_KEYS[s]])}" placeholder="xx.x"></div>`).join('')}</div>
-      <div class="hint">手元の数値を入力してください。入力値は端末内に保存され、カード・テンプレートには出力しません。</div>
+      <div class="hint">手元の数値を入力してください。設定1・2は公開されている数値をあらかじめ入れてあります。入力値は端末内に保存され、カード・テンプレートには出力しません。</div>
       ${invalidBlue}
     </section>
     <section class="sec"><div class="sec-h">ベイズ設定推定</div>${body}</section>`;
@@ -428,8 +422,7 @@
               row(bestStrong(S),strongCount(S),strongCount(S)>0,'#ffc94d'),
               row('プレート '+nonZeroParts([{t:'銅',v:n(S.plates,'bronze')},{t:'銀',v:n(S.plates,'silver')},{t:'金',v:n(S.plates,'gold')},{t:'花',v:n(S.plates,'hanabi')},{t:'虹',v:n(S.plates,'rainbow')}]),plateTotal(S),plateTotal(S)>0),
               row(`15枚役 ${n(S.counts,'nav15')}回 ${oneIn(n(S.counts,'nav15'),freeGames(S))}`,n(S.counts,'nav15'),n(S.counts,'nav15')>0),
-              row(`青7×3連 ${rateWin(S,'blue3')}/${rateReach(S,'blue3')}`,rateReach(S,'blue3'),rateReach(S,'blue3')>0),
-              bayesSummary(S)
+              row(`青7×3連 ${rateWin(S,'blue3')}/${rateReach(S,'blue3')}`,rateReach(S,'blue3'),rateReach(S,'blue3')>0)
             ]},
             {x:560,items:[
               row(`濃厚示唆 計${strongCount(S)}回`,strongCount(S),strongCount(S)>0,'#ffc94d'),
