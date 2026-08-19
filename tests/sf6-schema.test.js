@@ -29,7 +29,7 @@ function testExportVersion9() {
     sessionMoney: null,
     logs: []
   });
-  assert.equal(normalized.ver, '11');
+  assert.equal(normalized.ver, '12');
   assert.equal(normalized.battleState, 'normal');
   assert.equal(normalized.currentStage, 'ジェイミー');
   assert.equal(normalized.currentZenchou, 'stage');
@@ -41,7 +41,7 @@ function testExportVersion9() {
 
 function testLegacyTrigPreserved() {
   const normalized = normalizeSf6Export(legacyFixture);
-  assert.equal(normalized.ver, '11');
+  assert.equal(normalized.ver, '12');
   assert.equal(normalized.sourceVer, '1');
   assert.equal(normalized.battleState, 'normal');
   assert.equal(normalized.sessionMoney, null);
@@ -71,16 +71,16 @@ function testMissingVersionAsLegacy() {
     machine: 'L-SF6',
     logs: [{ id: 1, type: 'fb', realG: 1, lcdG: 2, t: 1, win: false, trig: '螟ｩ莠・' }]
   });
-  assert.equal(normalized.ver, '11');
+  assert.equal(normalized.ver, '12');
   assert.equal(normalized.sourceVer, null);
   assert.equal(normalized.initialThrough, 0);
   assert.equal(normalized.logs[0].legacy_trig, '螟ｩ莠・');
 }
 
-function testIdempotentVersion11() {
+function testIdempotentVersion12() {
   const input = {
     machine: 'L-SF6',
-    ver: '11',
+    ver: '12',
     sourceVer: '9',
     battleState: 'battle',
     hadWin: true,
@@ -152,7 +152,7 @@ function testBattleStateDefaultAndPreserved() {
 
 function testVersion2RankPreserved() {
   const normalized = normalizeSf6Export(v2RankFixture);
-  assert.equal(normalized.ver, '11');
+  assert.equal(normalized.ver, '12');
   assert.equal(normalized.sourceVer, '2');
   assert.equal(normalized.sessionMoney, null);
   assert.equal(normalized.currentState.realG, 200);
@@ -177,7 +177,7 @@ function testCashAndCollectPreserved() {
       { id: 2, type: 'collect', realG: 10, lcdG: 20, t: 2, medals: 1417 }
     ]
   });
-  assert.equal(normalized.ver, '11');
+  assert.equal(normalized.ver, '12');
   assert.equal(normalized.sourceVer, '4');
   assert.equal(normalized.logs[0].amount, 10000);
   assert.equal(normalized.logs[1].medals, 1417);
@@ -196,7 +196,7 @@ function testVersion7UpgradesTo9() {
       { id: 4, type: 'continue', realG: 10, lcdG: 20, t: 4, result: 'success' }
     ]
   });
-  assert.equal(normalized.ver, '11');
+  assert.equal(normalized.ver, '12');
   assert.equal(normalized.sourceVer, '7');
   assert.equal(normalized.initialThrough, 0);
   assert.equal(normalized.currentStage, null);
@@ -250,7 +250,7 @@ function testMoneyRecordAndSessionMoney() {
       }
     ]
   });
-  assert.equal(normalized.ver, '11');
+  assert.equal(normalized.ver, '12');
   assert.equal(normalized.initialThrough, 1);
   assert.equal(normalized.sessionMoney.loanRate, 46.6);
   assert.equal(normalized.sessionMoney.usedUnknown, 0);
@@ -282,7 +282,7 @@ function testVersion9LegacyMedalOpsNormalizeToMedalIn() {
       { id: 3, type: 'money', realG: 1, lcdG: 2, t: 5, op: 'medalIn', amount: 750, source: 'unknown', after: { usedUnknown: 750, loanRate: 50 } }
     ]
   });
-  assert.equal(normalized.ver, '11');
+  assert.equal(normalized.ver, '12');
   assert.equal(normalized.sourceVer, '9');
   assert.equal(normalized.sessionMoney.usedUnknown, 0);
   assert.equal(normalized.logs[0].op, 'medalIn');
@@ -318,7 +318,7 @@ function testVersion9StageAndAutoColor() {
       { id: 2, type: 'stage_end', realG: 2, lcdG: 120, t: 2, stage: 'ルーク' }
     ]
   });
-  assert.equal(normalized.ver, '11');
+  assert.equal(normalized.ver, '12');
   assert.equal(normalized.currentStage, 'ルーク');
   assert.equal(normalized.currentZenchou, 'in');
   assert.equal(normalized.currentColor, '青');
@@ -329,10 +329,28 @@ function testVersion9StageAndAutoColor() {
   assert.equal(normalized.logs[1].stage, 'ルーク');
 }
 
+function testVersion11SumahoNormalizesTo12() {
+  const normalized = normalizeSf6Export({
+    machine: 'L-SF6',
+    ver: '11',
+    currentState: { realG: 120, lcdG: 340 },
+    logs: [
+      { id: 1, type: 'sumaho', realG: 120, lcdG: 340, t: 1, chara: 'ken' },
+      { id: 2, type: 'sumaho', realG: 121, lcdG: 341, t: 2, chara: 'bad' }
+    ]
+  });
+  assert.equal(normalized.ver, '12');
+  assert.equal(normalized.sourceVer, '11');
+  assert.equal(normalized.logs[0].type, 'sumaho');
+  assert.equal(normalized.logs[0].chara, 'ken');
+  assert.equal(normalized.logs[1].type, 'sumaho');
+  assert.equal(normalized.logs[1].chara, null);
+}
+
 testExportVersion9();
 testLegacyTrigPreserved();
 testMissingVersionAsLegacy();
-testIdempotentVersion11();
+testIdempotentVersion12();
 testBattleStateDefaultAndPreserved();
 testVersion2RankPreserved();
 testCashAndCollectPreserved();
@@ -341,5 +359,6 @@ testMoneyRecordAndSessionMoney();
 testVersion9LegacyMedalOpsNormalizeToMedalIn();
 testUnknownTypePreserved();
 testVersion9StageAndAutoColor();
+testVersion11SumahoNormalizesTo12();
 
 console.log('sf6-schema tests passed');

@@ -6,9 +6,10 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const SCHEMA_VERSION='11';
+  const SCHEMA_VERSION='12';
   const MONEY_OPS=['init','deposit','loan','creditUpdate','medalIn','mochidama','saipurei','diffSync','collectEnd'];
   const MEDAL_SOURCES=['mochidama','saipurei','unknown'];
+  const SUMAHO_CHARAS=['cammy','juri','zangief','blanka','lily','deejay','jp','kimberly','jamie','ken','ryu','other'];
 
   function safeObject(value){
     return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
@@ -53,6 +54,10 @@
   function normalizeAntenPattern(value){
     const text=String(value??'').trim();
     return ['black','blue','logo','red','chance'].includes(text)?text:null;
+  }
+  function normalizeSumahoChara(value){
+    const text=String(value??'').trim();
+    return SUMAHO_CHARAS.includes(text)?text:null;
   }
   function signedNumber(value){
     if(value===null||value===undefined||value==='')return null;
@@ -126,6 +131,7 @@
     }
     if(log.type==='gcolor')return {...log,auto:log.auto===true};
     if(log.type==='anten')return {...log,pattern:normalizeAntenPattern(log.pattern)};
+    if(log.type==='sumaho')return {...log,chara:normalizeSumahoChara(log.chara)};
     if(log.type==='stage_end')return {...log,stage:normalizeCurrentStage(log.stage)};
     return {...log};
   }
@@ -134,7 +140,7 @@
     const src=safeObject(data);
     const inputVer=src.ver==null?null:String(src.ver);
     const sourceVer=src.sourceVer==null?inputVer:String(src.sourceVer);
-    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!=='8'&&inputVer!=='9'&&inputVer!==SCHEMA_VERSION;
+    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!=='8'&&inputVer!=='9'&&inputVer!=='10'&&inputVer!=='11'&&inputVer!==SCHEMA_VERSION;
     const logs=Array.isArray(src.logs)?src.logs.map(log=>normalizeLog(log,isLegacy)):[];
     return {
       ...src,

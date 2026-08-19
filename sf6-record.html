@@ -463,6 +463,7 @@ textarea{
 .tag.out{background:var(--purple)}
 .tag.gcolor{background:#d7e8ef}
 .tag.anten{background:#f8d77a;color:#1d1503}
+.tag.sumaho{background:#c5f0ff;color:#06151c}
 .tag.stage_sel{background:#8ecf9e;color:#07100b}
 .tag.stage_end{background:#d8dee8;color:#111827}
 .tag.rare{background:#f0d27b;color:#161006}
@@ -598,7 +599,7 @@ textarea{
   const STORAGE_KEY='sf6_record_v1';
   const MACHINE='L-SF6';
   const MACHINE_ID='l-sf6';
-  const VERSION='11';
+  const VERSION='12';
   const PAYLOAD_VERSION='2.2';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const DC_GAIN_KINDS=GAIN_KINDS.filter(kind=>kind!=='ジャッジ');
@@ -631,6 +632,20 @@ textarea{
     {key:'red',label:'赤暗転',hint:'残り100G以内濃厚',cls:'red-text'},
     {key:'chance',label:'チャンス表示',hint:'規定G数到達済み',cls:'hot'}
   ];
+  const SUMAHO_CHARAS=[
+    {key:'cammy',label:'キャミィ',hint:'高確示唆'},
+    {key:'juri',label:'ジュリ',hint:'チェリー示唆'},
+    {key:'zangief',label:'ザンギエフ',hint:'スイカ示唆'},
+    {key:'blanka',label:'ブランカ',hint:'WT最終到達ステージ ブラジル示唆'},
+    {key:'lily',label:'リリィ',hint:'WT最終到達ステージ メキシコ示唆'},
+    {key:'deejay',label:'DEE JAY',hint:'WT最終到達ステージ ジャマイカ示唆'},
+    {key:'jp',label:'JP',hint:'WT最終到達ステージ ナイシャール示唆'},
+    {key:'kimberly',label:'キンバリー',hint:'前兆エフェクト発生 or エフェクト段階アップ'},
+    {key:'jamie',label:'ジェイミー',hint:'FB規定回数まで2回以下示唆'},
+    {key:'ken',label:'ケン',hint:'FB規定回数まで2回以下濃厚'},
+    {key:'ryu',label:'リュウ',hint:'FB本前兆濃厚＋規定回数到達の可能性アップ'},
+    {key:'other',label:'その他（デフォ扱い）',hint:'表記のないキャラはデフォルト扱い'}
+  ];
   const DEFAULT_LOAN_RATE=50;
   const ICATCHES=['ルーク','春麗','キンバリー','キャミィ','JP','ジェイミー','豪鬼','リュウ'];
   const HINT_REFERENCE_FOOTER='参考：各種解析媒体の公開情報（2026年8月時点）および実戦調査';
@@ -652,6 +667,9 @@ textarea{
     ],
     gcolor:[
       {title:'液晶色',items:[['青','前兆（ガセ含む）。100G毎の規定G到達でも変化'],['赤','本前兆濃厚']]}
+    ],
+    sumaho:[
+      {title:'スマホ演出',items:SUMAHO_CHARAS.map(item=>[item.label,item.hint])}
     ],
     wtExit:[
       {title:'暗転パターン',items:ANTEN_PATTERNS.map(item=>[item.label,item.hint])},
@@ -676,6 +694,7 @@ textarea{
   let selectedGainAnten=null;
   let judgeAddDraft='';
   let selectedJudgeAnten=null;
+  let selectedSumahoChara='';
   let selectedWtAnten=null;
   let selectedWtReturnStage=null;
   let selectedBonus=null;
@@ -763,6 +782,10 @@ textarea{
     const text=String(value??'').trim();
     return ANTEN_PATTERNS.some(item=>item.key===text)?text:null;
   }
+  function normalizeSumahoChara(value){
+    const text=String(value??'').trim();
+    return SUMAHO_CHARAS.some(item=>item.key===text)?text:null;
+  }
   function normalizeCurrentState(value){
     return {realG:value?.realG==null?null:optionalGame(value.realG),lcdG:value?.lcdG==null?null:optionalGame(value.lcdG)};
   }
@@ -848,7 +871,7 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,judgeAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedJudgeAnten,selectedWtAnten,selectedMedalSource,medalInDraft}});
+    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,judgeAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedJudgeAnten,selectedSumahoChara,selectedWtAnten,selectedMedalSource,medalInDraft}});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
@@ -880,6 +903,7 @@ textarea{
     selectedGainKind=DC_GAIN_KINDS.includes(drafts.selectedGainKind)?drafts.selectedGainKind:'';
     selectedGainAnten=normalizeAntenPattern(drafts.selectedGainAnten);
     selectedJudgeAnten=normalizeAntenPattern(drafts.selectedJudgeAnten);
+    selectedSumahoChara=normalizeSumahoChara(drafts.selectedSumahoChara)||'';
     selectedWtAnten=normalizeAntenPattern(drafts.selectedWtAnten);
     selectedMedalSource=MEDAL_SOURCES.some(([key])=>key===drafts.selectedMedalSource)?drafts.selectedMedalSource:'unknown';
     medalInDraft=String(drafts.medalInDraft||'');
@@ -941,6 +965,11 @@ textarea{
       const pattern=normalizeAntenPattern(log.pattern);
       if(!pattern||base.lcdG===null)return null;
       return {...log,...base,pattern};
+    }
+    if(base.type==='sumaho'){
+      const chara=normalizeSumahoChara(log.chara);
+      if(!chara||base.lcdG===null)return null;
+      return {...log,...base,chara};
     }
     if(base.type==='stage_sel'){
       if(!STAGE_CHOICES.includes(log.stage)||base.lcdG===null)return null;
@@ -1068,6 +1097,9 @@ textarea{
   }
   function antenClass(pattern){
     return ANTEN_PATTERNS.find(item=>item.key===pattern)?.cls||'';
+  }
+  function sumahoLabel(chara){
+    return SUMAHO_CHARAS.find(item=>item.key===chara)?.label||chara;
   }
   function input(id,type='number',placeholder='',maxLength=null){
     const node=document.createElement('input');
@@ -1446,12 +1478,18 @@ textarea{
     r=row('mode-actions normal-actions');
     const zenchou=button('前兆','secondary',openZenchouSheet);
     zenchou.id='normalZenchouBtn';
-    const memo=button('メモ','secondary',openMemoSheet);
-    memo.id='normalMemoBtn';
-    r.append(zenchou,memo);
+    const sumaho=button('スマホ演出','secondary',openSumahoSheet);
+    sumaho.id='normalSumahoBtn';
+    r.append(zenchou,sumaho);
     const fbHit=button('FB当選','danger',recordFbHit);
     fbHit.id='fbHitBtn';
     r.append(fbHit);
+    grid.append(r);
+    r=row('mode-actions normal-actions');
+    const memo=button('メモ','secondary',openMemoSheet);
+    memo.id='normalMemoBtn';
+    memo.classList.add('wide');
+    r.append(memo);
     grid.append(r);
   }
   function renderBattleGrid(grid){
@@ -1701,6 +1739,16 @@ textarea{
     commit(`レア役：${kind}`,()=>addLogDirect({type:'rare',kind,realG:snap.realG,lcdG:snap.lcdG}),{toast:`レア役：${kind}を記録しました`});
     if(options.closeAfter)closeSheet();
   }
+  function recordSumaho(){
+    const snap=requireLcd();
+    if(!snap)return;
+    const chara=normalizeSumahoChara($('sumahoCharaSelect')?.value||selectedSumahoChara);
+    if(!chara){toast('スマホ演出のキャラを選択してください');return;}
+    selectedSumahoChara=chara;
+    commit(`スマホ演出：${sumahoLabel(chara)}`,()=>addLogDirect({type:'sumaho',chara,realG:snap.realG,lcdG:snap.lcdG}),{toast:`スマホ演出：${sumahoLabel(chara)}を記録しました`});
+    selectedSumahoChara='';
+    closeSheet();
+  }
   function recordDcIn(){
     const snap=requireLcd();
     if(!snap)return;
@@ -1809,6 +1857,8 @@ textarea{
     if(addInput)gainAddDraft=String(addInput.value||'');
     const judgeInput=$('judgeAddG');
     if(judgeInput)judgeAddDraft=String(judgeInput.value||'');
+    const sumahoSelect=$('sumahoCharaSelect');
+    if(sumahoSelect)selectedSumahoChara=normalizeSumahoChara(sumahoSelect.value)||'';
   }
   function recordWinFromSheet(){
     syncWinSheetDraft();
@@ -2004,7 +2054,7 @@ textarea{
   function tagClass(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'judge':'gain';
     if(log.type==='zenchou')return log.dir;
-    if(['gain','dcin','gcolor','anten','stage_sel','stage_end','rare','zenchou','fbhit','fb','continue','money','cash','collect','memo','start_info'].includes(log.type))return log.type;
+    if(['gain','dcin','gcolor','anten','sumaho','stage_sel','stage_end','rare','zenchou','fbhit','fb','continue','money','cash','collect','memo','start_info'].includes(log.type))return log.type;
     return 'memo';
   }
   function logLabel(log){
@@ -2012,6 +2062,7 @@ textarea{
     if(log.type==='dcin')return 'DC-IN';
     if(log.type==='gcolor')return '色';
     if(log.type==='anten')return '暗転';
+    if(log.type==='sumaho')return 'スマホ';
     if(log.type==='stage_sel')return 'ステージ';
     if(log.type==='rare')return 'レア役';
     if(log.type==='zenchou')return log.dir==='stage'?'WT':(log.dir==='in'?'前兆IN':'前兆OUT');
@@ -2030,6 +2081,7 @@ textarea{
     if(log.type==='zenchou')return log.dir==='stage'?'前兆ステージ突入':(log.dir==='in'?'前兆突入':'前兆抜け');
     if(log.type==='gcolor')return `色：${log.color}`;
     if(log.type==='anten')return `暗転：${antenLabel(log.pattern)}`;
+    if(log.type==='sumaho')return `スマホ演出：${sumahoLabel(log.chara)}`;
     if(log.type==='stage_sel')return `ステージ：${log.stage}`;
     if(log.type==='rare')return `レア役：${log.kind}`;
     if(log.type==='dcin')return 'DC突入';
@@ -2088,6 +2140,11 @@ textarea{
       setText(el,antenLabel(log.pattern),cls);
       return;
     }
+    if(log.type==='sumaho'){
+      setText(el,'スマホ演出：');
+      setText(el,sumahoLabel(log.chara),['ken','ryu','kimberly','jamie'].includes(log.chara)?'voice-mark':'');
+      return;
+    }
     if(log.type==='stage_sel'){
       setText(el,'ステージ：');
       setText(el,log.stage,log.stage==='ジェイミー'?'voice-mark':'');
@@ -2135,6 +2192,30 @@ textarea{
       RARE_KINDS.forEach(label=>choices.append(chip(label,false,()=>recordRare(label,{closeAfter:true}),label==='強チェリー'?'hot':'')));
       body.append(choices);
     },{singleChoice:true});
+  }
+  function openSumahoSheet(){
+    openSheet('スマホ演出',body=>{
+      const select=document.createElement('select');
+      select.id='sumahoCharaSelect';
+      const empty=document.createElement('option');
+      empty.value='';
+      empty.textContent='キャラを選択';
+      select.append(empty);
+      SUMAHO_CHARAS.forEach(item=>{
+        const option=document.createElement('option');
+        option.value=item.key;
+        option.textContent=item.label;
+        select.append(option);
+      });
+      select.value=normalizeSumahoChara(selectedSumahoChara)||'';
+      select.addEventListener('change',()=>{selectedSumahoChara=normalizeSumahoChara(select.value)||'';});
+      body.append(field('キャラ',select));
+      const actions=row();
+      const btn=button('記録','primary',recordSumaho);
+      btn.id='sumahoRecordBtn';
+      actions.append(btn);
+      body.append(actions);
+    },{hintKey:'sumaho'});
   }
   function openStageSheet(){
     openSheet('ステージ',body=>{
