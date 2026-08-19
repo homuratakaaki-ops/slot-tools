@@ -293,6 +293,7 @@
       main.querySelectorAll('[data-number-key]').forEach(el=>{
         el.addEventListener('change',()=>{
           S[el.dataset.numberKey]=Math.max(0,parseInt(el.value)||0);
+          if(el.dataset.numberSetFlag)S[el.dataset.numberSetFlag]=String(el.value||'').trim()?1:0;
           save();renderAll();
         });
       });
@@ -302,6 +303,7 @@
           const from=el.dataset.copyNumberFrom;
           const to=el.dataset.copyNumberTo;
           S[to]=Math.max(0,parseInt(S[from])||0);
+          if(el.dataset.copyNumberFlag)S[el.dataset.copyNumberFlag]=1;
           save();renderAll();
         });
       });

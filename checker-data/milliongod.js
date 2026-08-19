@@ -121,6 +121,7 @@
   const DEF={
     startGames:0,
     nav15StartGames:0,
+    nav15StartSet:0,
     currentGames:0,
     games:0,
     counts:{nav15:0,ggFirst:0,mysteryGg:0},
@@ -139,10 +140,10 @@
   function n(obj,key){return Number((obj||{})[key])||0;}
   function freeGames(S){return (Number(S.currentGames)||0)-(Number(S.startGames)||0);}
   function freeText(S){const g=freeGames(S);return g>=0?g+'G':'−';}
-  function nav15StartSet(S){return (Number(S.nav15StartGames)||0)>0;}
-  function nav15Games(S){return nav15StartSet(S)?(Number(S.currentGames)||0)-(Number(S.nav15StartGames)||0):0;}
-  function nav15Text(S){if(!nav15StartSet(S))return '−';const g=nav15Games(S);return g>=0?g+'G':'−';}
-  function nav15OneIn(S){return nav15StartSet(S)&&nav15Games(S)>0?oneIn(n(S.counts,'nav15'),nav15Games(S)):'−';}
+  function hasNav15Start(S){return !!Number(S.nav15StartSet);}
+  function nav15Games(S){return hasNav15Start(S)?(Number(S.currentGames)||0)-(Number(S.nav15StartGames)||0):0;}
+  function nav15Text(S){if(!hasNav15Start(S))return '−';const g=nav15Games(S);return g>=0?g+'G':'−';}
+  function nav15OneIn(S){return hasNav15Start(S)&&nav15Games(S)>0?oneIn(n(S.counts,'nav15'),nav15Games(S)):'−';}
   function oneIn(count,den){count=Number(count)||0;den=Number(den)||0;return den>0&&count>0?'1/'+(den/count).toFixed(1):'−';}
   function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:'−';}
   function pctLine(a,b){return b>0?`${a}回 (${(100*a/b).toFixed(0)}%)`:`${a}回`;}
@@ -203,7 +204,7 @@
   }
   function bayesSpec(S){
     const rates=completeRateMap(S),blue=completeBlueMap(S),binomial=[];
-    if(rates.complete&&nav15StartSet(S)&&nav15Games(S)>0)binomial.push({label:'押し順ナビ15枚役',hit:n(S.counts,'nav15'),total:nav15Games(S),probs:rates.parsed});
+    if(rates.complete&&hasNav15Start(S)&&nav15Games(S)>0)binomial.push({label:'押し順ナビ15枚役',hit:n(S.counts,'nav15'),total:nav15Games(S),probs:rates.parsed});
     if(blue.complete&&rateReach(S,'blue3')>0)binomial.push({label:'青7×3連GG当選',hit:rateWin(S,'blue3'),total:rateReach(S,'blue3'),probs:blue.parsed});
     if(rateReach(S,'zzone')>0)binomial.push({label:'Z-ZONE昇格率',hit:rateWin(S,'zzone'),total:rateReach(S,'zzone'),probs:ZZONE_PROBS});
     return {settings:BAYES_SETTINGS,binomial,multinomial:[],exclusions:bayesExclusions(S)};
@@ -255,11 +256,11 @@
     </div>`;
   }
   function pageHatsu(ctx){
-    const S=ctx.S,g=freeGames(S),ng=nav15Games(S),neg=g<0,navNeg=nav15StartSet(S)&&ng<0;
+    const S=ctx.S,g=freeGames(S),ng=nav15Games(S),neg=g<0,navNeg=hasNav15Start(S)&&ng<0;
     return pageStyle()+`<section class="sec">
       <div class="sec-h">回転数<span class="sub">通常回転 <b style="color:${neg?'#ff5c5c':'#6fd8ff'}">${freeText(S)}</b> ／ 15枚役区間 <b style="color:${navNeg?'#ff5c5c':'#6fd8ff'}">${nav15Text(S)}</b></span></div>
       <div class="inrow"><label>打ち始めの回転数</label><input type="number" inputmode="numeric" data-number-key="startGames" value="${S.startGames||''}" placeholder="0"></div>
-      <div class="inrow" style="margin-top:6px"><label>15枚役のカウント開始G数</label><button type="button" class="mini-btn" data-copy-number-from="startGames" data-copy-number-to="nav15StartGames">打ち始めと同じにする</button><input type="number" inputmode="numeric" data-number-key="nav15StartGames" value="${S.nav15StartGames||''}" placeholder="0"></div>
+      <div class="inrow" style="margin-top:6px"><label>15枚役のカウント開始G数</label><button type="button" class="mini-btn" data-copy-number-from="startGames" data-copy-number-to="nav15StartGames" data-copy-number-flag="nav15StartSet">打ち始めと同じにする</button><input type="number" inputmode="numeric" data-number-key="nav15StartGames" data-number-set-flag="nav15StartSet" value="${hasNav15Start(S)?S.nav15StartGames:''}" placeholder="0"></div>
       <div class="inrow" style="margin-top:6px"><label>現在の回転数</label><input type="number" inputmode="numeric" data-number-key="currentGames" value="${S.currentGames||''}" placeholder="0"></div>
       <div class="hint ${(neg||navNeg)?'hot':''}">データカウンターのG数を入力します。15枚役のカウント開始G数は、15枚役を数え始めた時点のG数を入力してください。未入力の場合、15枚役は設定推定に使われません。${neg?' 現在G数が打ち始めG数を下回っています。':''}${navNeg?' 現在G数が15枚役のカウント開始G数を下回っています。':''}</div>
     </section>
@@ -360,6 +361,7 @@
     sourceUrl:'https://chonborista.com/slot/universal-slot/252303/',
     normalizeState:out=>{
       out.nav15StartGames=Math.max(0,Number(out.nav15StartGames)||0);
+      out.nav15StartSet=(Number(out.nav15StartSet)||out.nav15StartGames>0)?1:0;
       out.counts=Object.assign({},DEF.counts,out.counts||{});
       out.rates=Object.assign({},DEF.rates,out.rates||{});
       out.plates=Object.assign({},DEF.plates,out.plates||{});
