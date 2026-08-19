@@ -39,25 +39,39 @@
     ['o1000m7','1000-7OVER','設定6濃厚（993枚獲得時に出現）',6]
   ];
   const ED_CARDS=[
-    ['gold','金カード','高設定濃厚',4],
-    ['rainbow','虹カード','設定6濃厚',6]
+    ['edWhiteW','白・弱','奇数設定示唆(弱)',0],
+    ['edWhiteS','白・強','奇数設定示唆(強)',0],
+    ['edBlueW','青・弱','偶数設定示唆(弱)',0],
+    ['edBlueS','青・強','偶数設定示唆(強)',0],
+    ['edRedW','赤・弱','高設定示唆(弱)',0],
+    ['edRedS','赤・強','高設定示唆(強)',0],
+    ['edBrz1','銅・鈴屋什造','設定1否定',0],
+    ['edBrz2','銅・高槻泉','設定2否定',0],
+    ['edBrz3','銅・梟','設定3否定',0],
+    ['edBrz4','銅・エト','設定4否定',0],
+    ['edSilver','銀・金木研','設定3以上濃厚',3],
+    ['edGold4','金・神代利世','設定4以上濃厚',4],
+    ['edGold5','金・隻眼の梟','設定5以上濃厚',5],
+    ['edRainbow','虹・有馬貴将','設定6濃厚',6]
   ];
   const RATES=[
     ['weakCherryCz','超高確中の弱チェリーからのCZ当選率','精神世界中の弱チェリーからCZ当選','設1:40.3%⇔設6:64.4%',1],
-    ['spirit33','超高確(精神世界)の保証G数 33G割合','33G ÷ 13G/23G/33G合計','設1:3.1%⇔設6:12.5%',1],
+    ['spirit33','超高確(精神世界)の残りG数 残り30の割合','残り30 ÷ 残り10/20/30合計','設1:3.1%⇔設6:12.5%',1],
     ['atReturn','AT引き戻し当選率','AT終了後の引き戻し当選','設1:7.8%⇔設6:15.2%',1],
     ['cz100','100G以内のCZ以上当選率','通常時スタートから100G+前兆以内','設1:19.6%⇔設6:36.0%',1]
   ];
   const RATE_COUNTERS=RATES.filter(v=>v[0]!=='spirit33');
   const SUMMARY_RATES=[
     ['weakCherryCz','弱チェCZ'],
-    ['spirit33','保証33G'],
+    ['spirit33','残り30'],
     ['atReturn','引き戻し'],
     ['cz100','100G以内']
   ];
-  const RECORDS=[
-    ['uraAt','裏AT突入回数','有馬貴将ジャッジメント経由は除外'],
-    ['episodeBonus','エピソードボーナス回数','中段チェリー経由は除外']
+  const AT_HITS=[
+    ['hitCz','CZ経由'],
+    ['hitHighCz','上位CZ経由'],
+    ['hitDirect','AT直撃'],
+    ['hitEpisode','EPボーナス経由']
   ];
   const REF_SECTIONS=[
     ['招待状（規定G数示唆）',[
@@ -99,6 +113,18 @@
       ['400G','前兆発生ナシで通常C濃厚'],
       ['500G','前兆ステージ移行ナシでチャンス濃厚'],
       ['600G','本前兆濃厚']
+    ]],
+    ['エンディングカードのキャラ一覧',[
+      ['白・奇数弱','金木研・霧嶋董香・笛口雛実・永近英良・西尾錦・月山習'],
+      ['白・奇数強','芳村・四方蓮示・ウタ・イトリ・古間円児・入見カヤ'],
+      ['青・偶数弱','金木研・霧嶋董香・笛口雛実・ナキ・西尾錦・月山習'],
+      ['青・偶数強','亜門鋼太朗・篠原幸紀・滝澤政道・真戸暁・真戸呉緒・丸手斎'],
+      ['赤・高設定弱','金木研・霧嶋董香・ヤモリ・霧嶋絢都'],
+      ['赤・高設定強','鯱・亜門鋼太朗・篠原幸紀・鈴屋什造'],
+      ['銅','鈴屋什造=設定1否定・高槻泉=設定2否定・梟=設定3否定・エト=設定4否定'],
+      ['銀','金木研=設定3以上濃厚'],
+      ['金','神代利世=設定4以上濃厚・隻眼の梟=設定5以上濃厚'],
+      ['虹','有馬貴将=設定6濃厚']
     ]]
   ];
 
@@ -112,7 +138,7 @@
     edCards:Object.fromEntries(ED_CARDS.map(v=>[v[0],0])),
     rates:Object.fromEntries(RATE_COUNTERS.flatMap(v=>[[v[0]+'r',0],[v[0]+'w',0]])),
     spirit:{g13:0,g23:0,g33:0},
-    records:Object.fromEntries(RECORDS.map(v=>[v[0],0])),
+    hits:Object.fromEntries(AT_HITS.map(v=>[v[0],0])),
     img:null,
     iconChoice:null
   };
@@ -131,6 +157,8 @@
   function rateWin(S,id){return id==='spirit33'?n(S.spirit,'g33'):n(S.rates,id+'w');}
   function rateReach(S,id){return id==='spirit33'?sum(S.spirit):n(S.rates,id+'r');}
   function rateText(S,id){return ratio(rateWin(S,id),rateReach(S,id));}
+  function hitTotal(S){return sum(S.hits);}
+  function edColorTotal(S,color){return Object.keys(S.edCards||{}).filter(k=>k.startsWith(color)).reduce((a,k)=>a+n(S.edCards,k),0);}
   function allStrong(S){
     return [
       ...SCREENS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.screens,c[0]),rank:c[3]})),
@@ -166,6 +194,14 @@
       <button type="button" class="cycle-btn" data-bump="${path}" data-label="${name}" aria-label="${name}を1回${ctx.mode<0?'減算':'追加'}">${ctx.mode<0?'−':'＋'}</button>
     </div>`;
   }
+  function hitRow(ctx,key,name,total){
+    return `<div class="crow count-row">
+      <div class="ct"><b>${name}</b><small>AT初当たり全体に占める割合</small></div>
+      <div class="num">${n(ctx.S.hits,key)}</div>
+      <div class="pct">${ctx.pct(n(ctx.S.hits,key),total)}</div>
+      <button type="button" class="cycle-btn" data-bump="hits.${key}" data-label="${name}" aria-label="${name}を1回${ctx.mode<0?'減算':'追加'}">${ctx.mode<0?'−':'＋'}</button>
+    </div>`;
+  }
   function pageStyle(){
     return `<style>
       .cycle-row .ct,.count-row .ct{flex:1;min-width:0}.cycle-row .ct b,.cycle-row .ct small,.count-row .ct b,.count-row .ct small{display:block}.cycle-row .ct small,.count-row .ct small{font-size:9.5px;color:var(--muted);line-height:1.35}
@@ -193,30 +229,31 @@
   <section class="sec"><div class="sec-h">獲得枚数表示</div>
     <div class="cgrid">${OVER.map(c=>ctx.crow('over.'+c[0],c[1],c[2],c[3])).join('')}</div>
     <div class="hint">AT中の特定の獲得枚数表示で設定を示唆。</div></section>
-  <section class="sec"><div class="sec-h">エンディング中のカード<span class="sub">計${sum(S.edCards)}回</span></div>
+  <section class="sec"><div class="sec-h">エンディングカード（示唆）<span class="sub">計${sum(S.edCards)}回</span></div>
     <div class="cgrid">${ED_CARDS.map(c=>ctx.crow('edCards.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,sum(S.edCards)))).join('')}</div>
-    <div class="hint">エンディング中に出現するカードで設定を示唆。青・赤等の弱示唆は未収録。</div></section>`;
+    <div class="hint">カードの色とキャラで示唆が決まります。どのキャラがどの強さかは参照タブの一覧を確認。白・青・赤はキャラが多いため強弱でまとめています。</div></section>`;
   }
   function pageCounts(ctx){
     const S=ctx.S;
+    const hits=hitTotal(S);
     return pageStyle()+`<section class="sec"><div class="sec-h">カウント系</div>
     <div class="cgrid">
       ${cycleRow(ctx,'weakCherryCz','超高確中の弱チェリーからのCZ当選率','設1:40.3%⇔設6:64.4%')}
       <div class="crow cycle-row hot">
-        <div class="ct"><b>超高確(精神世界)の保証G数</b><small>33G割合: ${rateText(S,'spirit33')} / 設1:3.1%⇔設6:12.5%</small></div>
+        <div class="ct"><b>超高確(精神世界)の残りG数</b><small>残り30の割合: ${rateText(S,'spirit33')} / 設1:3.1%⇔設6:12.5%</small></div>
         <div class="pct">${sum(S.spirit)}回</div>
       </div>
-      ${countRow(ctx,'spirit.g13','13G','到達したG数で加算',0)}
-      ${countRow(ctx,'spirit.g23','23G','到達したG数で加算',0)}
-      ${countRow(ctx,'spirit.g33','33G','判定対象',1)}
+      ${countRow(ctx,'spirit.g13','残り10','画面表示の残りG数で加算',0)}
+      ${countRow(ctx,'spirit.g23','残り20','画面表示の残りG数で加算',0)}
+      ${countRow(ctx,'spirit.g33','残り30','判定対象',1)}
       ${cycleRow(ctx,'atReturn','AT引き戻し当選率','設1:7.8%⇔設6:15.2%')}
       ${cycleRow(ctx,'cz100','100G以内のCZ以上当選率','設1:19.6%⇔設6:36.0%')}
     </div>
-    <div class="hint">当選=d+1,n+1／ハズレ=d+1。行タップでは加算されません。精神世界中の弱チェリーは滞在が目視できる場合のみ、前兆中の内部超高確は対象外です。100G以内判定は朝一スタートを除外。</div>
+    <div class="hint">当選=d+1,n+1／ハズレ=d+1。行タップでは加算されません。精神世界中の弱チェリーは滞在が目視できる場合のみ、前兆中の内部超高確は対象外です。精神世界に突入すると画面に残りゲーム数が表示されるので、その数字の欄を押してください。設定6は設定1より残り30の選択率が4倍以上高いです。</div>
   </section>
-  <section class="sec"><div class="sec-h">記録枠（判別非関与）</div>
-    <div class="cgrid">${RECORDS.map(c=>countRow(ctx,'records.'+c[0],c[1],c[2],0)).join('')}</div>
-    <div class="hint">裏ATは有馬貴将ジャッジメント経由を除外。エピソードボーナスは中段チェリー経由を除外。B群のため確率表示は行いません。</div>
+  <section class="sec"><div class="sec-h">AT初当たりの内訳<span class="sub">計${hits}回</span></div>
+    <div class="cgrid">${AT_HITS.map(c=>hitRow(ctx,c[0],c[1],hits)).join('')}</div>
+    <div class="hint">AT初当たりの契機を記録します。AT直撃は、引き戻し・天井到達・EPボーナス経由を除いたAT当選。上位CZやAT直撃の比率は設定判別の補助として見てください。</div>
   </section>`;
   }
   function pageReference(){
@@ -233,9 +270,9 @@
     t+=section('招待状（設定示唆）',sum(S.invites)>0?INVITES.filter(c=>n(S.invites,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.invites,c[0]),sum(S.invites))}`):[]);
     t+=section('CZ終了カード',sum(S.czCards)>0?CZ_CARDS.filter(c=>n(S.czCards,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.czCards,c[0]),sum(S.czCards))}`):[]);
     t+=section('獲得枚数',OVER.filter(c=>n(S.over,c[0])>0).map(c=>`${c[1]}▶${n(S.over,c[0])}回`));
-    t+=section('EDカード',sum(S.edCards)>0?ED_CARDS.filter(c=>n(S.edCards,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.edCards,c[0]),sum(S.edCards))}`):[]);
+    t+=section('EDカード（示唆）',sum(S.edCards)>0?ED_CARDS.filter(c=>n(S.edCards,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.edCards,c[0]),sum(S.edCards))}`):[]);
     t+=section('カウント系',RATES.map(c=>`${c[1]}▶${rateText(S,c[0])}`));
-    t+=section('記録枠',RECORDS.filter(c=>n(S.records,c[0])>0).map(c=>`${c[1]}▶${n(S.records,c[0])}回`));
+    t+=section('AT初当たりの内訳',hitTotal(S)>0?AT_HITS.filter(c=>n(S.hits,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.hits,c[0]),hitTotal(S))}`):[]);
     t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
     return t;
   }
@@ -247,9 +284,9 @@
       {title:'招待状（設定示唆）',items:detailItems(INVITES,S.invites),percent:true},
       {title:'CZ終了カード（設定示唆）',items:detailItems(CZ_CARDS,S.czCards),percent:true},
       {title:'獲得枚数表示',items:detailItems(OVER,S.over)},
-      {title:'EDカード',items:detailItems(ED_CARDS,S.edCards),percent:true},
+      {title:'EDカード（示唆）',items:detailItems(ED_CARDS,S.edCards),percent:true},
       {title:'カウント系',items:RATES.map(c=>detailRatio(c[1],rateWin(S,c[0]),rateReach(S,c[0]),c[4]))},
-      {title:'記録枠',items:RECORDS.map(c=>detailItem(c[1],n(S.records,c[0]),0))}
+      {title:'AT初当たりの内訳',items:AT_HITS.map(c=>detailItem(c[1],n(S.hits,c[0]),0)),percent:true}
     ];
   }
 
@@ -257,15 +294,21 @@
     nanaCollab:false,
     storageKey:'tokyo-ghoul-checker-v1',
     defaults:DEF,
-    mergeKeys:['screens','trophies','invites','czCards','over','edCards','rates','spirit','records'],
+    mergeKeys:['screens','trophies','invites','czCards','over','edCards','rates','spirit','hits'],
     normalizeState:out=>{
       out.rates=Object.assign({},DEF.rates,out.rates||{});
       out.spirit=Object.assign({},DEF.spirit,out.spirit||{});
+      out.edCards=Object.assign({},DEF.edCards,out.edCards||{});
+      out.hits=Object.assign({},DEF.hits,out.hits||{});
       delete out.rates.spirit33r;
       delete out.rates.spirit33w;
+      delete out.edCards.gold;
+      delete out.edCards.rainbow;
+      delete out.records;
       Object.keys(out.rates||{}).forEach(k=>{out.rates[k]=Math.max(0,Number(out.rates[k])||0);});
       ['weakCherryCz','atReturn','cz100'].forEach(id=>{if(out.rates[id+'w']>out.rates[id+'r'])out.rates[id+'r']=out.rates[id+'w'];});
       ['g13','g23','g33'].forEach(k=>{out.spirit[k]=Math.max(0,Number(out.spirit[k])||0);});
+      Object.keys(out.hits||{}).forEach(k=>{out.hits[k]=Math.max(0,Number(out.hits[k])||0);});
       return out;
     },
     sourceUrl:'https://chonborista.com/slot/spiky/226073/',
@@ -288,7 +331,7 @@
       blocks:ctx=>[
         ['濃厚示唆',strongCount(ctx.S)+'回'],
         ['弱チェCZ',rateText(ctx.S,'weakCherryCz')],
-        ['保証33G',rateText(ctx.S,'spirit33')],
+        ['残り30',rateText(ctx.S,'spirit33')],
         ['100G以内',rateText(ctx.S,'cz100')]
       ],
       chart:ctx=>({
@@ -305,7 +348,7 @@
           color:'#ff3d8f',
           items:[
             {label:'弱CZ',value:rateReach(ctx.S,'weakCherryCz')>0?100*rateWin(ctx.S,'weakCherryCz')/rateReach(ctx.S,'weakCherryCz'):0},
-            {label:'33G',value:rateReach(ctx.S,'spirit33')>0?100*rateWin(ctx.S,'spirit33')/rateReach(ctx.S,'spirit33'):0},
+            {label:'残30',value:rateReach(ctx.S,'spirit33')>0?100*rateWin(ctx.S,'spirit33')/rateReach(ctx.S,'spirit33'):0},
             {label:'引戻',value:rateReach(ctx.S,'atReturn')>0?100*rateWin(ctx.S,'atReturn')/rateReach(ctx.S,'atReturn'):0},
             {label:'100G',value:rateReach(ctx.S,'cz100')>0?100*rateWin(ctx.S,'cz100')/rateReach(ctx.S,'cz100'):0}
           ]
@@ -329,9 +372,9 @@
             {x:560,items:[
               row(`濃厚示唆 計${strongCount(S)}回`,strongCount(S),strongCount(S)>0,'#ffc94d'),
               row(shown('枚数',[{t:'456',v:n(S.over,'o456')},{t:'666',v:n(S.over,'o666')},{t:'1000-7',v:n(S.over,'o1000m7')}]),sum(S.over)),
-              row(shown('EDカード',[{t:'金',v:n(S.edCards,'gold')},{t:'虹',v:n(S.edCards,'rainbow')}]),sum(S.edCards)),
-              row('弱チェCZ '+rateText(S,'weakCherryCz'),rateReach(S,'weakCherryCz')),
-              row('100G以内 '+rateText(S,'cz100'),rateReach(S,'cz100'))
+              row(shown('ED色',[{t:'白',v:edColorTotal(S,'edWhite')},{t:'青',v:edColorTotal(S,'edBlue')},{t:'赤',v:edColorTotal(S,'edRed')}]),edColorTotal(S,'edWhite')+edColorTotal(S,'edBlue')+edColorTotal(S,'edRed')),
+              row(shown('ED濃厚',[{t:'3+',v:n(S.edCards,'edSilver')},{t:'4+',v:n(S.edCards,'edGold4')},{t:'5+',v:n(S.edCards,'edGold5')},{t:'6',v:n(S.edCards,'edRainbow')}]),n(S.edCards,'edSilver')+n(S.edCards,'edGold4')+n(S.edCards,'edGold5')+n(S.edCards,'edRainbow')),
+              row(shown('初当り',[{t:'CZ',v:n(S.hits,'hitCz')},{t:'上位',v:n(S.hits,'hitHighCz')},{t:'直撃',v:n(S.hits,'hitDirect')},{t:'EP',v:n(S.hits,'hitEpisode')}]),hitTotal(S))
             ]}
           ]
         };
