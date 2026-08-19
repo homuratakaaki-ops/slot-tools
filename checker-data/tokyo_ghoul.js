@@ -9,15 +9,15 @@
     ['rize','神代利世','設定1否定',0],
     ['fueguchi','笛口親子','高設定期待度UP(弱)',0],
     ['yomoItoriUta','四方＆イトリ＆ウタ','高設定期待度UP(強)',0],
-    ['kanekiKirishima','金木＆霧嶋','設定4以上濃厚',1],
-    ['anteiku','あんていく全員集合','設定6濃厚',1]
+    ['kanekiKirishima','金木＆霧嶋','設定4以上濃厚',4],
+    ['anteiku','あんていく全員集合','設定6濃厚',6]
   ];
   const TROPHIES=[
-    ['bronze','銅トロフィー','設定2以上濃厚',1],
-    ['silver','銀トロフィー','設定3以上濃厚',1],
-    ['gold','金トロフィー','設定4以上濃厚',1],
-    ['ghoul','喰柄トロフィー','設定5以上濃厚',1],
-    ['rainbow','虹トロフィー','設定6濃厚',1]
+    ['bronze','銅トロフィー','設定2以上濃厚',2],
+    ['silver','銀トロフィー','設定3以上濃厚',3],
+    ['gold','金トロフィー','設定4以上濃厚',4],
+    ['ghoul','喰柄トロフィー','設定5以上濃厚',5],
+    ['rainbow','虹トロフィー','設定6濃厚',6]
   ];
   const INVITES=[
     ['evenDinner','偶にはディナーでもどうだい','偶数設定期待度UP',0],
@@ -25,28 +25,35 @@
     ['bookworm','君はなかなかの活字中毒らしいね','設定2否定',0],
     ['booksGood','本は良いよね…','設定3否定',0],
     ['sorry','僕としたことがすまない','設定4否定',0],
-    ['enjoy','存分に楽しもうじゃないか','設定4以上濃厚',1],
-    ['specialNight','特別な夜を楽しもうじゃないか','設定6濃厚',1]
+    ['enjoy','存分に楽しもうじゃないか','設定4以上濃厚',4],
+    ['specialNight','特別な夜を楽しもうじゃないか','設定6濃厚',6]
   ];
   const CZ_CARDS=[
     ['suzuya','鈴屋什造','偶数設定濃厚',0],
-    ['owl','梟','設定4以上濃厚',1],
-    ['arima','有馬貴将','設定6濃厚',1]
+    ['owl','梟','設定4以上濃厚',4],
+    ['arima','有馬貴将','設定6濃厚',6]
   ];
   const OVER=[
-    ['o456','456OVER','設定4以上濃厚',1],
-    ['o666','666OVER','設定6濃厚',1],
-    ['o1000m7','1000-7OVER','設定6濃厚（993枚獲得時に出現）',1]
+    ['o456','456OVER','設定4以上濃厚',4],
+    ['o666','666OVER','設定6濃厚',6],
+    ['o1000m7','1000-7OVER','設定6濃厚（993枚獲得時に出現）',6]
   ];
   const ED_CARDS=[
-    ['gold','金カード','高設定濃厚',1],
-    ['rainbow','虹カード','設定6濃厚',1]
+    ['gold','金カード','高設定濃厚',4],
+    ['rainbow','虹カード','設定6濃厚',6]
   ];
   const RATES=[
     ['weakCherryCz','超高確中の弱チェリーからのCZ当選率','精神世界中の弱チェリーからCZ当選','設1:40.3%⇔設6:64.4%',1],
     ['spirit33','超高確(精神世界)の保証G数 33G割合','33G ÷ 13G/23G/33G合計','設1:3.1%⇔設6:12.5%',1],
     ['atReturn','AT引き戻し当選率','AT終了後の引き戻し当選','設1:7.8%⇔設6:15.2%',1],
     ['cz100','100G以内のCZ以上当選率','通常時スタートから100G+前兆以内','設1:19.6%⇔設6:36.0%',1]
+  ];
+  const RATE_COUNTERS=RATES.filter(v=>v[0]!=='spirit33');
+  const SUMMARY_RATES=[
+    ['weakCherryCz','弱チェCZ'],
+    ['spirit33','保証33G'],
+    ['atReturn','引き戻し'],
+    ['cz100','100G以内']
   ];
   const RECORDS=[
     ['uraAt','裏AT突入回数','有馬貴将ジャッジメント経由は除外'],
@@ -103,7 +110,7 @@
     czCards:Object.fromEntries(CZ_CARDS.map(v=>[v[0],0])),
     over:Object.fromEntries(OVER.map(v=>[v[0],0])),
     edCards:Object.fromEntries(ED_CARDS.map(v=>[v[0],0])),
-    rates:Object.fromEntries(RATES.flatMap(v=>[[v[0]+'r',0],[v[0]+'w',0]])),
+    rates:Object.fromEntries(RATE_COUNTERS.flatMap(v=>[[v[0]+'r',0],[v[0]+'w',0]])),
     spirit:{g13:0,g23:0,g33:0},
     records:Object.fromEntries(RECORDS.map(v=>[v[0],0])),
     img:null,
@@ -126,18 +133,17 @@
   function rateText(S,id){return ratio(rateWin(S,id),rateReach(S,id));}
   function allStrong(S){
     return [
-      ...SCREENS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.screens,c[0])})),
-      ...TROPHIES.map(c=>({label:c[1],value:n(S.trophies,c[0])})),
-      ...INVITES.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.invites,c[0])})),
-      ...CZ_CARDS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.czCards,c[0])})),
-      ...OVER.map(c=>({label:c[1],value:n(S.over,c[0])})),
-      ...ED_CARDS.map(c=>({label:c[1],value:n(S.edCards,c[0])}))
+      ...SCREENS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.screens,c[0]),rank:c[3]})),
+      ...TROPHIES.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.trophies,c[0]),rank:c[3]})),
+      ...INVITES.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.invites,c[0]),rank:c[3]})),
+      ...CZ_CARDS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.czCards,c[0]),rank:c[3]})),
+      ...OVER.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.over,c[0]),rank:c[3]})),
+      ...ED_CARDS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.edCards,c[0]),rank:c[3]}))
     ];
   }
   function strongCount(S){return allStrong(S).reduce((a,b)=>a+b.value,0);}
   function bestStrong(S){
-    const rank=label=>label.includes('6')||label.includes('虹')||label.includes('666')||label.includes('1000')||label.includes('全員')||label.includes('特別')||label.includes('有馬')?6:label.includes('5')||label.includes('喰柄')?5:4;
-    const hit=allStrong(S).filter(x=>x.value>0).sort((a,b)=>rank(b.label)-rank(a.label))[0];
+    const hit=allStrong(S).filter(x=>x.value>0).sort((a,b)=>(b.rank-a.rank))[0];
     return hit?`最強 ${hit.label} ×${hit.value}`:'濃厚示唆 なし';
   }
 
@@ -221,7 +227,7 @@
   }
   function tplText(ctx){
     const S=ctx.S;
-    let t=`設定判別メモ｜L東京喰種\n濃厚示唆${strongCount(S)}回 / 主要率 ${RATES.map(r=>r[1].replace('超高確中の','').replace('超高確(精神世界)の保証G数','保証33G')).map((name,i)=>`${name}:${rateText(S,RATES[i][0])}`).join(' / ')}\n_______\n`;
+    let t=`設定判別メモ｜L東京喰種\n濃厚示唆${strongCount(S)}回 / 主要率 ${SUMMARY_RATES.map(r=>`${r[1]}:${rateText(S,r[0])}`).join(' / ')}\n_______\n`;
     t+=section('AT終了画面',sum(S.screens)>0?SCREENS.filter(c=>n(S.screens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.screens,c[0]),sum(S.screens))}`):[]);
     t+=section('トロフィー',sum(S.trophies)>0?TROPHIES.filter(c=>n(S.trophies,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.trophies,c[0]),sum(S.trophies))}`):[]);
     t+=section('招待状（設定示唆）',sum(S.invites)>0?INVITES.filter(c=>n(S.invites,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.invites,c[0]),sum(S.invites))}`):[]);
@@ -253,6 +259,10 @@
     defaults:DEF,
     mergeKeys:['screens','trophies','invites','czCards','over','edCards','rates','spirit','records'],
     normalizeState:out=>{
+      out.rates=Object.assign({},DEF.rates,out.rates||{});
+      out.spirit=Object.assign({},DEF.spirit,out.spirit||{});
+      delete out.rates.spirit33r;
+      delete out.rates.spirit33w;
       Object.keys(out.rates||{}).forEach(k=>{out.rates[k]=Math.max(0,Number(out.rates[k])||0);});
       ['weakCherryCz','atReturn','cz100'].forEach(id=>{if(out.rates[id+'w']>out.rates[id+'r'])out.rates[id+'r']=out.rates[id+'w'];});
       ['g13','g23','g33'].forEach(k=>{out.spirit[k]=Math.max(0,Number(out.spirit[k])||0);});
