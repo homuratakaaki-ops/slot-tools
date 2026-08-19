@@ -296,6 +296,7 @@
         type:'percentGroups',
         groups:[{
           title:'設定差項目',
+          titleText:'設定差項目（率）',
           titleX:540,
           x:170,
           step:185,
@@ -320,7 +321,7 @@
           columns:[
             {x:70,items:[
               row(bestStrong(S),strongCount(S),strongCount(S)>0,'#ffc94d'),
-              row(shown('トロフィー',[{t:'銅',v:n(S.trophies,'bronze')},{t:'銀',v:n(S.trophies,'silver')},{t:'金',v:n(S.trophies,'gold')},{t:'喰',v:n(S.trophies,'ghoul')},{t:'虹',v:n(S.trophies,'rainbow')}]),sum(S.trophies)),
+              row(shown('トロ',[{t:'銅',v:n(S.trophies,'bronze')},{t:'銀',v:n(S.trophies,'silver')},{t:'金',v:n(S.trophies,'gold')},{t:'喰',v:n(S.trophies,'ghoul')},{t:'虹',v:n(S.trophies,'rainbow')}]),sum(S.trophies)),
               row(shown('AT画面',[{t:'4+',v:n(S.screens,'kanekiKirishima')},{t:'6',v:n(S.screens,'anteiku')}]),n(S.screens,'kanekiKirishima')+n(S.screens,'anteiku')),
               row(shown('招待状',[{t:'4+',v:n(S.invites,'enjoy')},{t:'6',v:n(S.invites,'specialNight')}]),n(S.invites,'enjoy')+n(S.invites,'specialNight')),
               row(shown('CZカード',[{t:'4+',v:n(S.czCards,'owl')},{t:'6',v:n(S.czCards,'arima')}]),n(S.czCards,'owl')+n(S.czCards,'arima'))
