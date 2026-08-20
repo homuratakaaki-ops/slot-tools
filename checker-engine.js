@@ -159,6 +159,18 @@
       save();
       renderAll();
     }
+    function customAction(name,dataset,label){
+      if(!config.actions||typeof config.actions[name]!=='function')return;
+      const snap=JSON.stringify(S);
+      const result=config.actions[name](context(),dataset||{});
+      if(result===false)return;
+      const msg=typeof result==='string'?result:(label||name);
+      hist.push({custom:true,snap,label:msg});
+      if(hist.length>50)hist.shift();
+      feed(`<b>実行</b> ${msg}`);
+      save();
+      renderAll();
+    }
     function undo(){
       const a=hist.pop();
       if(!a){feed('取り消せる操作がありません');return;}
@@ -170,6 +182,12 @@
       }
       if(a.multi){
         a.multi.forEach(item=>set(item.path,Math.max(0,get(item.path)-(item.delta||1))));
+        feed(`<b>取消</b> ${a.label}`);
+        save();renderAll();return;
+      }
+      if(a.custom){
+        try{S=normalizeState(JSON.parse(a.snap));}
+        catch(e){feed('復元に失敗しました');return;}
         feed(`<b>取消</b> ${a.label}`);
         save();renderAll();return;
       }
@@ -288,6 +306,12 @@
           bump(el.dataset.bump,el.dataset.label||el.textContent.trim());
         });
       });
+      main.querySelectorAll('[data-action]').forEach(el=>{
+        el.addEventListener('click',ev=>{
+          ev.stopPropagation();
+          customAction(el.dataset.action,el.dataset,el.dataset.label||el.textContent.trim());
+        });
+      });
       const gIn=document.getElementById('gIn');
       if(gIn)gIn.addEventListener('change',()=>{S.games=Math.max(0,parseInt(gIn.value)||0);save();renderAll();});
       main.querySelectorAll('[data-number-key]').forEach(el=>{
@@ -377,6 +401,7 @@
         );
         return {
           title:sec.title,
+          priority:Number(sec.priority)||0,
           items:raw.map(item=>{
             if(item.text||item.denominator||denominator<=0)return item;
             return Object.assign({},item,{denominator});
@@ -397,7 +422,8 @@
       function prepare(){
         return sections.map(sec=>({
           title:sec.title,
-          items:sec.items.map(item=>Object.assign({},item,{_section:sec.title,_text:detailText(item),_value:detailValue(item)}))
+          priority:Number(sec.priority)||0,
+          items:sec.items.map(item=>Object.assign({},item,{_section:sec.title,_text:detailText(item),_value:detailValue(item),_priority:Number(item.priority ?? sec.priority)||0}))
         })).filter(sec=>sec.items.length>0);
       }
       function build(prepared){
@@ -417,7 +443,7 @@
             candidates.push({si,ii,item});
           });
         });
-        candidates.sort((a,b)=>(a.item._value-b.item._value)||(a.item.hot-b.item.hot)||(b.si-a.si)||(b.ii-a.ii));
+        candidates.sort((a,b)=>(b.item._priority-a.item._priority)||(a.item._value-b.item._value)||(a.item.hot-b.item.hot)||(b.si-a.si)||(b.ii-a.ii));
         const target=candidates[0];
         if(!target)return false;
         prepared[target.si].items.splice(target.ii,1);
