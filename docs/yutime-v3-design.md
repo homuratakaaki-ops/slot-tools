@@ -163,6 +163,8 @@
     "rateSource": "手入力",
     "effectiveSpin": 434,
     "availableBalls": 2500,
+    "mochidamaInput": 2000,
+    "saipureiInput": 500,
     "mochidamaBalls": 1941,
     "cashBalls": 1826,
     "normalCostYen": 14237
@@ -817,15 +819,34 @@ B5 実測値:
 
 ## 47. B53 持ち玉・再プレイを考慮した期待値円換算
 
-- schema は 25 とする。判定パネルに `evAvailableBalls`（使える持ち玉・再プレイ玉数）を追加する。未入力または0は全額現金として扱い、B52の計算結果と一致させる。
+- schema は 25 とする。判定パネルでは、使える玉数を `evMochidamaBalls`（持ち玉）と `evSaipureiBalls`（再プレイ）の2入力に分ける。未入力は0扱いとし、合算した `availableBalls` が0なら全額現金として扱い、B52の計算結果と一致させる。
 - 通常時の消費玉は、当選回転数分布に沿って持ち玉充当分と現金分に分ける。期待消費玉数を後から単純分割すると、早い当たりで持ち玉を使い切らないケースを過大評価するため採用しない。
 - 分割式は `Σ[n=1..spinsToTenjo] P(n回転目で終了) * min(n * 250 / rate, availableBalls)` に、天井到達ケース `P(天井到達) * min(spinsToTenjo * 250 / rate, availableBalls)` を加える。
 - `costYen = mochidamaBalls * (100 / exchangeBalls) + cashBalls / 250 * 1000`、`evYen = winBallsYen - costYen` とする。`evBalls` は従来どおり `winBalls - investBalls` で、原資入力では変えない。
 - 判定根拠表示には、持ち玉入力がある場合だけ `持ち玉充当○玉 / 現金分○玉` を表示する。入力が0なら `全額現金` と表示する。
-- 打ち始め時の `startEv` には、`availableBalls`、`mochidamaBalls`、`cashBalls`、`normalCostYen` を保存する。台帳詳細では開始時期待値の根拠として持ち玉・現金分を表示する。
+- 打ち始め時の `startEv` には、合算値の `availableBalls`、入力内訳の `mochidamaInput` / `saipureiInput`、分布計算後の `mochidamaBalls` / `cashBalls` / `normalCostYen` を保存する。台帳詳細では開始時期待値の根拠として持ち玉・再プレイ入力と現金分を表示する。
 - 検証条件 `currentSpin:434`、`rotationRate:17`、`availableBalls:2500`、`exchangeBalls:28` では、分布式により持ち玉充当1941玉、現金分1826玉、通常コスト14236.6円となる。仕様書上の14239円とは丸め差があるため、実装値をテストで固定する。
 - 受け入れ検証は `tests/yutime-v3.test.js` に50万回の独立モンテカルロを実装し、持ち玉充当分、現金分、通常コストが解析式と概ね±2%に収まることを確認する。持ち玉0のB52互換、十分な持ち玉がある場合の全額交換レート換算も固定する。
-- schema 25 `startEv` サンプル（`availableBalls:2500`、`mochidamaBalls:1941`、`cashBalls:1826`、`normalCostYen:14237` 追加）: 150 chars。schema 17/24相当の69 charsから `+81 chars`。
+- schema 25 `startEv` サンプル（`availableBalls:2500`、`mochidamaInput:2000`、`saipureiInput:500`、`mochidamaBalls:1941`、`cashBalls:1826`、`normalCostYen:14237` 追加）: 192 chars。schema 17/24相当の69 charsから `+123 chars`。
+
+## 48. B54 稼働中パネルの期待値・評価セクション
+
+- schema 変更はない。稼働中パネルに既定で折り畳みの `期待値・評価` セクションを追加する。差玉表示、持ち玉表示、親指帯の既存レイアウトは変更しない。
+- 打ち始めの想定期待値は `session.startEv` の保存済みスナップショットを表示する。表示文は履歴カードの `開始時期待値` と同じ `startEvDetailText()` を使い、期待値、使用回転率、ソース、実効回転数、B53の持ち玉充当/現金分を含める。`startEv` がない場合は `記録なし` と表示する。
+- 現在の実測回転率での再判定は保存しない都度計算とする。入力は `session.currentSpin`、`runningPanelRate(session)`、`deriveBalances(session).mochidama` を使い、`calculateMachineExpectation()` 経由で既存期待値エンジンへ渡す。`session.startEv` は上書きしない。
+- 実測回転率が未確定の場合は、再判定を出さず `回転率のサンプルが足りません` と表示する。
+- 釘・ネカセ評価は `nailRatingSectionHtml()` と `bindNailRatingChips()` を稼働中パネルにも流用する。ヘソは日次、その他5項目は台単位保存というB46仕様を維持する。保存経路は台詳細画面と同じ関数を使う。
+- `bindNailRatingChips(machine, root)` と `readNailRatingFromDom(root)` は、モーダルと稼働中パネルのどちらのDOMにも同じ保存処理を適用できるよう、探索ルートだけを引数化する。
+- B54は表示とイベント接続のみのため、容量予算の増分はなし。
+
+## 49. B55 モーダル横はみ出し修正と期待値入力分離
+
+- schema 変更はない。`.expectation-inputs` の列定義を `repeat(3, minmax(0, 1fr))`、`.nail-rating-chips` の列定義を `repeat(5, minmax(0, 1fr))` にする。
+- `.expectation-inputs .field-row` は `grid-template-columns: minmax(0, 1fr)` とし、ラベルと入力欄を縦積みにする。通常の `.field-row` のラベル最小幅は、期待値入力欄の3列グリッド内では横はみ出し要因になるため使わない。
+- `.modal` の `overflow-x: hidden` で隠す対応は使わない。`.modal` の `width: min(680px, 100%)` は変更しない。
+- `.nail-rating-chips button` の `min-height: 38px` は維持する。横幅が実機で押しにくい場合は、ラベル列幅または縦積み化を別バンドルで検討する。
+- 旧入力欄 `evAvailableBalls` は撤去し、期待値判定パネルには `evMochidamaBalls`（持ち玉）と `evSaipureiBalls`（再プレイ）を表示する。計算へ渡す `availableBalls` は両者の合算値とする。
+- B55は入力UIと表示CSSのみの変更で、期待値エンジンの `normalInvestmentSplit()` と円換算ロジックは変更しない。容量予算の増分は、`startEv` の入力内訳2項目ぶんとしてB53のschema 25サンプルへ反映済み。
 
 ## アイデアメモ
 

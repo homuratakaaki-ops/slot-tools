@@ -31,8 +31,10 @@ const yutimeEnterSpinForRate = section('function yutimeEnterSpinForRate', 'funct
 const addInvestment = section('function addInvestment', 'function deleteInvestment');
 const sourceUnavailableMessage = section('function sourceUnavailableMessage', 'function rateText');
 const runningPanelRate = section('function runningPanelRate', 'function runningYutimeRemaining');
+const runningExpectationHtml = section('function runningExpectationHtml', 'function runningPanelInputBalls');
 const runningSpinCount = section('function runningSpinCount', 'function investmentSnapshot');
 const investmentSnapshot = section('function investmentSnapshot', 'function historyEntries');
+const calculateStartEvSnapshot = section('function calculateStartEvSnapshot', 'function startEvText');
 const investmentTotalsBlock = section('function investmentTotals', 'function transferSummaryForSession');
 const openBalanceEditForm = section('function openBalanceEditForm', 'function openSpinEditForm');
 const machineSummary = section('function machineModelSummaryHtml', 'function machineDetailFormHtml');
@@ -42,6 +44,7 @@ const machineMemoHelpers = section('function machineMemoEntriesForDate', 'functi
 const nailRatingSection = section('function nailRatingSummary', 'function machineModelSummaryHtml');
 const machineHistoryHtml = section('function machineHistoryHtml', 'function bindNailRatingChips');
 const normalizeNailRatingBlock = section('function normalizeRatingValue', 'function normalizeStartEv');
+const normalizeStartEvBlock = section('function normalizeStartEv', 'function investmentSource');
 const machineModelDisplay = section('function machineModelDisplay', 'function applyPresetToMachine');
 const columnPresetApply = section('function applyColumnPresetsToMachines', 'function machineHasIndividualSetting');
 const normalizeData = section('function normalizeData', 'function persist');
@@ -63,6 +66,7 @@ const style = section('.source-chip-row', '.unified-invest-row');
 const yutimeExpectationEngine = section('const YUTIME_EXPECTATION_ENGINE', 'window.YutimeExpectationEngine');
 const evJudgmentBlock = section('function evJudgment', 'function expectationYenPerBall');
 const presetSettingsHelpers = section('function presetNetBallsPerWin', 'function activeMapAssumedRate');
+const availableBallsHelpers = section('function availableBallsFromParts', 'function calculateMachineExpectation');
 
 assert.match(hitWizard, /openHitResetPrompt\(session\);\s*\}, \{ firstBackCancels: true \}\);/);
 assert.match(runWizard, /id="backStepBtn" \$\{index === 0 && !options\.firstBackCancels \? "disabled" : ""\}>戻る<\/button>/);
@@ -318,6 +322,20 @@ assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWin: 1500, n
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }] }])), JSON.stringify({ value: 990, source: '実測平均', count: 2 }));
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 980, source: 'ラウンド集計', count: 2 }));
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [])), JSON.stringify({ value: 1400, source: '理論値', count: 0 }));
+const availableBallsContext = vm.createContext({
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+});
+new vm.Script(`
+  ${availableBallsHelpers}
+  globalThis.parts = availableBallsFromParts;
+`).runInContext(availableBallsContext);
+assert.equal(JSON.stringify(availableBallsContext.parts(2000, 500)), JSON.stringify({ mochidama: 2000, saipurei: 500, total: 2500 }));
+assert.equal(JSON.stringify(availableBallsContext.parts('', 500)), JSON.stringify({ mochidama: 0, saipurei: 500, total: 500 }));
+assert.equal(JSON.stringify(availableBallsContext.parts('', '')), JSON.stringify({ mochidama: 0, saipurei: 0, total: 0 }));
 const transferContext = vm.createContext({
   __copied: '',
   __session: null,
@@ -435,12 +453,33 @@ assert.ok(design.includes('スマパチ対応: カード玉と台内クレジッ
 assert.match(renderRunning, /<span>\$\{escapeHtml\(option\.label\)\}<\/span><strong>\$\{sourceChipBalanceText\(balance\)\}<\/strong>/);
 assert.match(renderRunning, /class="primary\$\{selectedCanUse \? "" : " is-low"\}" id="unifiedInvestBtn"/);
 assert.match(renderRunning, /メモ\$\{\(machine\?\.memoEntries \|\| \[\]\)\.length > 0 \? "あり" : ""\}/);
+assert.match(renderRunning, /runningExpectationHtml\(session, machine, liveRate, balances\)/);
+assert.match(renderRunning, /bindNailRatingChips\(machine, els\.runningArea\);/);
 assert.ok(
   renderRunning.indexOf('id="unifiedInvestBtn"') < renderRunning.indexOf('id="openChargeBtn"')
   && renderRunning.indexOf('id="openChargeBtn"') < renderRunning.indexOf('id="openRunningMachineMemoBtn"')
   && renderRunning.indexOf('id="openRunningMachineMemoBtn"') < renderRunning.indexOf('id="toggleStickyBtn"'),
   'running controls should be ordered invest, charge, memo, sticky'
 );
+assert.match(runningExpectationHtml, /<details class="running-evaluation" id="runningEvaluationSection">/);
+assert.doesNotMatch(runningExpectationHtml, /<details[^>]*open/);
+assert.match(runningExpectationHtml, /打ち始めの想定期待値/);
+assert.match(runningExpectationHtml, /startEvDetailText\(session\.startEv\)/);
+assert.match(runningExpectationHtml, /現在の実測回転率で再判定/);
+assert.match(runningExpectationHtml, /回転率のサンプルが足りません/);
+assert.match(runningExpectationHtml, /const currentSpin = normalizeNumber\(session\.currentSpin\);/);
+assert.match(runningExpectationHtml, /manualRate: liveRate/);
+assert.match(runningExpectationHtml, /const availableBalls = Math\.max\(0, Number\(balances\?\.mochidama \|\| 0\)\);/);
+assert.match(runningExpectationHtml, /availableBalls/);
+assert.match(runningExpectationHtml, /calculateMachineExpectation\(machine, \{/);
+assert.match(runningExpectationHtml, /nailRatingSectionHtml\(machine\)/);
+assert.doesNotMatch(runningExpectationHtml, /session\.startEv\s*=/);
+assert.match(normalizeStartEvBlock, /mochidamaInput: Math\.max\(0, normalizeNumber\(value\.mochidamaInput\) \?\? 0\)/);
+assert.match(normalizeStartEvBlock, /saipureiInput: Math\.max\(0, normalizeNumber\(value\.saipureiInput\) \?\? 0\)/);
+assert.match(calculateStartEvSnapshot, /const availableParts = availableBallsFromParts\(presets\.mochidamaInput, presets\.saipureiInput\);/);
+assert.match(calculateStartEvSnapshot, /availableBalls: expectation\.availableBalls/);
+assert.match(calculateStartEvSnapshot, /mochidamaInput: availableParts\.mochidama/);
+assert.match(calculateStartEvSnapshot, /saipureiInput: availableParts\.saipurei/);
 assert.doesNotMatch(renderRunning, /id="unifiedInvestBtn"[^>]*disabled/);
 assert.match(style, /\.source-chip\.selected \{\s*border-color: var\(--accent\);\s*background: var\(--accent\);\s*color: #fff;/);
 assert.match(sourceUnavailableMessage, /if \(balance === null\) return `\$\{label\}が未入力です。`;/);
@@ -481,8 +520,12 @@ assert.match(openMachineDetail, /id="toggleMachineHistoryBtn">履歴<\/button>/)
 assert.match(openMachineDetail, /panel\.hidden = hidden;/);
 assert.match(openMachineDetail, /bindNailRatingChips\(machine\);/);
 assert.match(openMachineDetail, /\$\{machineModelSummaryHtml\(machine\)\}\s*\$\{machineFormExpanded \? machineDetailFormHtml\(machine\) : ""\}/);
-assert.match(openMachineDetail, /id="evAvailableBalls"/);
-assert.match(html, /availableBalls: byId\("evAvailableBalls"\)\?\.value/);
+assert.doesNotMatch(html, /evAvailableBalls/);
+assert.match(openMachineDetail, /id="evMochidamaBalls"/);
+assert.match(openMachineDetail, /id="evSaipureiBalls"/);
+assert.match(html, /availableBallsFromParts\(byId\("evMochidamaBalls"\)\?\.value, byId\("evSaipureiBalls"\)\?\.value\)\.total/);
+assert.match(openMachineDetail, /mochidamaInput: availableBallsPreset\.mochidama/);
+assert.match(openMachineDetail, /saipureiInput: availableBallsPreset\.saipurei/);
 assert.match(html, /持ち玉充当/);
 assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMachineBtn">[^']+<\/button>' : ""\}/);
 assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
@@ -500,6 +543,11 @@ assert.match(html, /heso: "ヘソ"/);
 assert.match(html, /through: "スルー"/);
 assert.match(html, /warp: "ワープ"/);
 assert.doesNotMatch(html, /右打ち/);
+assert.match(html, /\.expectation-inputs \{\s*display: grid;\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);\s*gap: 8px;\s*margin-bottom: 10px;\s*\}/);
+assert.match(html, /\.expectation-inputs \.field-row \{\s*grid-template-columns: minmax\(0, 1fr\);\s*gap: 4px;\s*\}/);
+assert.match(html, /\.nail-rating-chips \{\s*display: grid;\s*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);\s*gap: 6px;\s*\}/);
+assert.match(html, /\.nail-rating-chips button \{\s*min-height: 38px;/);
+assert.doesNotMatch(html, /\.modal \{[^}]*overflow-x: hidden;/);
 assert.match(normalizeNailRatingBlock, /const input = source && typeof source === "object" \? source : \{\};/);
 assert.match(nailRatingSection, /data-nail-rating="\$\{buttonValue\}"/);
 assert.match(nailRatingSection, /前日参考: \$\{escapeHtml\(latestHeso\.value\)\}/);
@@ -516,11 +564,14 @@ assert.ok(design.includes('B48 台メモの蓄積型ログ化'));
 assert.ok(design.includes('B53 持ち玉・再プレイを考慮した期待値円換算'));
 assert.ok(design.includes('schema は 25 とする'));
 assert.ok(design.includes('schema 25 `startEv` サンプル'));
+assert.ok(design.includes('B54 稼働中パネルの期待値・評価セクション'));
+assert.ok(design.includes('容量予算の増分はなし'));
 assert.match(machineButtonHtml, /const hasMachineMemo = \(machine\?\.memoEntries \|\| \[\]\)\.length > 0;/);
-assert.match(bindNailRatingChips, /function bindNailRatingChips\(machine\)/);
+assert.match(bindNailRatingChips, /function bindNailRatingChips\(machine, root = els\.modalBody\)/);
+assert.match(bindNailRatingChips, /root\.querySelectorAll\("\[data-nail-rating\]"\)/);
 assert.match(bindNailRatingChips, /row\.dataset\.nailKey === DAILY_NAIL_RATING_KEY/);
 assert.match(bindNailRatingChips, /state\.hesoRating = rating;/);
-assert.match(bindNailRatingChips, /machine\.nailRating = readNailRatingFromDom\(\);/);
+assert.match(bindNailRatingChips, /machine\.nailRating = readNailRatingFromDom\(root\);/);
 assert.doesNotMatch(bindNailRatingChips, /showToast|persistWithToast/);
 assert.doesNotMatch(readMachineMemoForm, /nailRating|readNailRatingFromDom/);
 const nailNormalizeContext = vm.createContext({});

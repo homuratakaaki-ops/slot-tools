@@ -635,7 +635,7 @@
 
     .nail-rating-chips {
       display: grid;
-      grid-template-columns: repeat(5, minmax(34px, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 6px;
     }
 
@@ -773,6 +773,16 @@
     .running-total-row span {
       color: var(--muted);
       font-size: 12px;
+    }
+    .running-evaluation {
+      margin-top: 12px;
+      border-top: 1px solid var(--line);
+      padding-top: 10px;
+    }
+    .running-evaluation summary {
+      cursor: pointer;
+      font-weight: 700;
+      min-height: 36px;
     }
 
     .running-live-row strong {
@@ -1087,9 +1097,14 @@
 
     .expectation-inputs {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 8px;
       margin-bottom: 10px;
+    }
+
+    .expectation-inputs .field-row {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 4px;
     }
 
     .list {
@@ -1962,6 +1977,8 @@
         rateSource: value.rateSource || "",
         effectiveSpin,
         availableBalls: Math.max(0, normalizeNumber(value.availableBalls) ?? 0),
+        mochidamaInput: Math.max(0, normalizeNumber(value.mochidamaInput) ?? 0),
+        saipureiInput: Math.max(0, normalizeNumber(value.saipureiInput) ?? 0),
         mochidamaBalls: Math.max(0, normalizeNumber(value.mochidamaBalls) ?? 0),
         cashBalls: Math.max(0, normalizeNumber(value.cashBalls) ?? 0),
         normalCostYen: normalizeNumber(value.normalCostYen)
@@ -2176,6 +2193,12 @@
       return { rate: null, source: "回転率なし" };
     }
 
+    function availableBallsFromParts(mochidamaInput, saipureiInput) {
+      const mochidama = Math.max(0, normalizeNumber(mochidamaInput) ?? 0);
+      const saipurei = Math.max(0, normalizeNumber(saipureiInput) ?? 0);
+      return { mochidama, saipurei, total: mochidama + saipurei };
+    }
+
     function calculateMachineExpectation(machine, options = {}) {
       const store = storeById(machine?.storeId);
       const preset = presetById(normalizeMachinePresetId(machine));
@@ -2206,11 +2229,13 @@
       if (!session || !machine) return null;
       const startSpin = normalizeNumber(session.startSpin);
       if (startSpin === null) return null;
+      const availableParts = availableBallsFromParts(presets.mochidamaInput, presets.saipureiInput);
+      const availableBalls = normalizeNumber(presets.availableBalls) ?? availableParts.total;
       const expectation = calculateMachineExpectation(machine, {
         currentSpin: startSpin,
         previousSpin: session.prevDayEndSpin,
         manualRate: presets.manualRate,
-        availableBalls: presets.availableBalls
+        availableBalls
       });
       if (!expectation.result) return null;
       return {
@@ -2219,6 +2244,8 @@
         rateSource: expectation.rateSource,
         effectiveSpin: expectation.effectiveSpin,
         availableBalls: expectation.availableBalls,
+        mochidamaInput: availableParts.mochidama,
+        saipureiInput: availableParts.saipurei,
         mochidamaBalls: Math.round(expectation.result.mochidamaBalls),
         cashBalls: Math.round(expectation.result.cashBalls),
         normalCostYen: Math.round(expectation.result.normalCostYen)
@@ -2228,6 +2255,15 @@
     function startEvText(startEv) {
       const normalized = normalizeStartEv(startEv);
       return normalized ? yenText(normalized.evYen) : "-";
+    }
+
+    function startEvDetailText(startEv) {
+      const normalized = normalizeStartEv(startEv);
+      if (!normalized) return "記録なし";
+      const balanceText = normalized.availableBalls
+        ? ` / 入力 持ち玉${Math.round(normalized.mochidamaInput || 0).toLocaleString("ja-JP")}玉・再プレ${Math.round(normalized.saipureiInput || 0).toLocaleString("ja-JP")}玉 / 充当${Math.round(normalized.mochidamaBalls || 0).toLocaleString("ja-JP")}玉・現金${Math.round(normalized.cashBalls || 0).toLocaleString("ja-JP")}玉`
+        : "";
+      return `${yenText(normalized.evYen)} / ${Number(normalized.usedRate).toFixed(1)} /250玉 / ${normalized.rateSource || "ソース不明"} / 実効${normalized.effectiveSpin}回転${balanceText}`;
     }
 
     function showToast(message, type = "success", options = {}) {
@@ -3395,8 +3431,10 @@
             </div>
             <button class="small" id="editActiveBtn">記録の修正</button>
           </div>
+          ${runningExpectationHtml(session, machine, liveRate, balances)}
         </div>
       `;
+      if (machine) bindNailRatingChips(machine, els.runningArea);
       byId("editActiveBtn").addEventListener("click", () => openSessionEditor(session.id));
       els.runningArea.querySelectorAll("[data-spin-add]").forEach((button) => {
         button.addEventListener("click", () => addCurrentSpin(session, Number(button.dataset.spinAdd)));
@@ -3511,7 +3549,7 @@
               ${derived.isEstimatedRate || derived.isEstimatedPayout ? '<span class="badge warn">概算</span>' : ""}
               ${sourceMachine ? `<span class="badge">${sameMachineCarryover ? "⇐ 同台続行" : `⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き`}</span>` : ""}
             </div>
-            <small>開始時期待値 ${escapeHtml(startEvText(session.startEv))}${session.startEv?.rateSource ? ` / ${escapeHtml(session.startEv.rateSource)} / 実効${escapeHtml(session.startEv.effectiveSpin)}回転` : ""}${session.startEv?.availableBalls ? ` / 持ち玉${Math.round(session.startEv.mochidamaBalls || 0).toLocaleString("ja-JP")}玉・現金${Math.round(session.startEv.cashBalls || 0).toLocaleString("ja-JP")}玉` : ""}</small><br>
+            <small>開始時期待値 ${escapeHtml(startEvDetailText(session.startEv))}</small><br>
             <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${rateText(derived)} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
             ${session.status === "completed" ? transferSummaryHtml(session) : ""}
             <div class="modal-actions" style="margin-top:8px">
@@ -4873,8 +4911,8 @@
       }).join("");
     }
 
-    function bindNailRatingChips(machine) {
-      els.modalBody.querySelectorAll("[data-nail-rating]").forEach((button) => {
+    function bindNailRatingChips(machine, root = els.modalBody) {
+      root.querySelectorAll("[data-nail-rating]").forEach((button) => {
         button.addEventListener("click", () => {
           const row = button.closest("[data-nail-key]");
           if (!row || !machine) return;
@@ -4889,17 +4927,17 @@
             else state.hesoRating = rating;
             cleanupEmptyDailyState(machine.id, today());
           } else {
-            machine.nailRating = readNailRatingFromDom();
+            machine.nailRating = readNailRatingFromDom(root);
           }
           persist();
         });
       });
     }
 
-    function readNailRatingFromDom() {
+    function readNailRatingFromDom(root = els.modalBody) {
       const rating = {};
       NAIL_RATING_KEYS.forEach((key) => {
-        const selected = els.modalBody.querySelector(`[data-nail-key="${key}"] [data-nail-rating][aria-pressed="true"]`);
+        const selected = root.querySelector(`[data-nail-key="${key}"] [data-nail-rating][aria-pressed="true"]`);
         rating[key] = normalizeRatingValue(selected?.dataset.nailRating);
       });
       return normalizeNailRating(rating);
@@ -4960,7 +4998,8 @@
             <div class="field-row"><label for="evCurrentSpin">現在回転数</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
             <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${stats.rate ? stats.rate.toFixed(1) : "履歴なし"}"></div>
-            <div class="field-row"><label for="evAvailableBalls">使える持ち玉・再プレイ（玉）</label><input id="evAvailableBalls" inputmode="numeric" value="" placeholder="0"></div>
+            <div class="field-row"><label for="evMochidamaBalls">持ち玉（玉）</label><input id="evMochidamaBalls" inputmode="numeric" value="" placeholder="0"></div>
+            <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="" placeholder="0"></div>
           </div>
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
@@ -5014,7 +5053,7 @@
       });
       if (showExpectationBlock) {
         renderMachineExpectation(machine.id);
-        ["evCurrentSpin", "evPrevSpin", "evManualRate", "evAvailableBalls"].forEach((id) => {
+        ["evCurrentSpin", "evPrevSpin", "evManualRate", "evMochidamaBalls", "evSaipureiBalls"].forEach((id) => {
           byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
         });
       }
@@ -5024,13 +5063,15 @@
         const startSpinPreset = normalizeNumber(byId("evCurrentSpin")?.value);
         const prevDayEndSpinPreset = normalizeNumber(byId("evPrevSpin")?.value);
         const manualRatePreset = normalizeNumber(byId("evManualRate")?.value);
-        const availableBallsPreset = normalizeNumber(byId("evAvailableBalls")?.value);
+        const mochidamaInputPreset = normalizeNumber(byId("evMochidamaBalls")?.value);
+        const saipureiInputPreset = normalizeNumber(byId("evSaipureiBalls")?.value);
+        const availableBallsPreset = availableBallsFromParts(mochidamaInputPreset, saipureiInputPreset);
         if (!persist()) {
           showToast("保存に失敗しました。容量を確認してください。", "error");
           return;
         }
         closeModal();
-        openStartWizard(machine.id, { startSpin: startSpinPreset, prevDayEndSpin: prevDayEndSpinPreset, manualRate: manualRatePreset, availableBalls: availableBallsPreset });
+        openStartWizard(machine.id, { startSpin: startSpinPreset, prevDayEndSpin: prevDayEndSpinPreset, manualRate: manualRatePreset, availableBalls: availableBallsPreset.total, mochidamaInput: availableBallsPreset.mochidama, saipureiInput: availableBallsPreset.saipurei });
       });
     }
 
@@ -5045,7 +5086,7 @@
         currentSpin: byId("evCurrentSpin")?.value,
         previousSpin: byId("evPrevSpin")?.value,
         manualRate: byId("evManualRate")?.value,
-        availableBalls: byId("evAvailableBalls")?.value,
+        availableBalls: availableBallsFromParts(byId("evMochidamaBalls")?.value, byId("evSaipureiBalls")?.value).total,
         stats
       });
       title.className = "expectation-title";
@@ -5551,6 +5592,48 @@
         near: remaining < 100,
         text: `遊タイム残り ${remaining.toLocaleString("ja-JP")}回転`
       };
+    }
+
+    function runningExpectationHtml(session, machine, liveRate, balances) {
+      const startText = startEvDetailText(session.startEv);
+      let liveHtml = '<p class="hint warn">回転率のサンプルが足りません</p>';
+      if (liveRate !== null && machine) {
+        const currentSpin = normalizeNumber(session.currentSpin);
+        const availableBalls = Math.max(0, Number(balances?.mochidama || 0));
+        const expectation = calculateMachineExpectation(machine, {
+          currentSpin,
+          manualRate: liveRate,
+          availableBalls
+        });
+        if (expectation.result) {
+          const judgment = evJudgment(expectation.result);
+          liveHtml = `
+            <div class="metric-grid">
+              <div class="metric"><span>再判定</span><strong>${escapeHtml(judgment.label)}</strong></div>
+              <div class="metric"><span>期待値</span><strong>${escapeHtml(yenText(expectation.result.evYen))}</strong></div>
+              <div class="metric"><span>残り回転数</span><strong>${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}</strong></div>
+              <div class="metric"><span>時給</span><strong>${escapeHtml(yenText(expectation.result.hourlyYen))}</strong></div>
+            </div>
+            <p class="hint">現在${numberText(currentSpin, "-")}回転 / 実測${liveRate.toFixed(1)} /250玉 / 持ち玉${Math.round(availableBalls).toLocaleString("ja-JP")}玉を自動使用 / 持ち玉充当${Math.round(expectation.result.mochidamaBalls).toLocaleString("ja-JP")}玉・現金${Math.round(expectation.result.cashBalls).toLocaleString("ja-JP")}玉</p>
+          `;
+        } else {
+          liveHtml = `<p class="hint warn">${escapeHtml(expectation.reason || "再判定できません")}</p>`;
+        }
+      }
+      return `
+        <details class="running-evaluation" id="runningEvaluationSection">
+          <summary>期待値・評価</summary>
+          <div class="row-card">
+            <strong>打ち始めの想定期待値</strong><br>
+            <small>${escapeHtml(startText)}</small>
+          </div>
+          <div class="row-card">
+            <strong>現在の実測回転率で再判定</strong>
+            ${liveHtml}
+          </div>
+          ${machine ? nailRatingSectionHtml(machine) : ""}
+        </details>
+      `;
     }
 
     function runningPanelInputBalls(session, derived = null) {
