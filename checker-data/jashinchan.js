@@ -37,6 +37,46 @@
     ['perfect','パーフェクト','設定4以上確定演出',4],
     ['devilYurine','悪魔コス ゆりね','設定6確定演出',6]
   ];
+  const CHARACTER_GROUPS=[
+    ['デフォルト',[
+      ['jashinChan','邪神ちゃん','def'],
+      ['yurine','ゆりね','def'],
+      ['hyouchan','氷ちゃん','def'],
+      ['yusa','遊佐','def']
+    ]],
+    ['奇数設定期待度UP',[
+      ['minosChar','ミノス','odd'],
+      ['pekoraChar','ぺこら','odd'],
+      ['kyonkyon','キョンキョン','odd'],
+      ['ranran','ランラン','odd']
+    ]],
+    ['偶数設定期待度UP',[
+      ['medusaChar','メデューサ','even'],
+      ['persephone2Char','ペル2世','even'],
+      ['pino','ぴの','even'],
+      ['poporonChar','ぽぽろん','even']
+    ]],
+    ['高設定期待度UP・弱',[
+      ['meiChar','芽依','highWeak'],
+      ['lier','リエール','highWeak'],
+      ['persephone1Char','ペル1世','highWeak']
+    ]],
+    ['高設定期待度UP・強',[
+      ['ecuteChar','エキュート','ecute'],
+      ['atreChar','アトレ','atre']
+    ]],
+    ['否定系',[
+      ['justiceChar','ジャスティス','justice'],
+      ['fighterChar','ファイター','fighter'],
+      ['commanderChar','コマンダー','commander'],
+      ['espChar','エスプ','esp'],
+      ['geniusChar','ジーニアス','genius']
+    ]],
+    ['確定演出',[
+      ['perfectChar','パーフェクト','perfect'],
+      ['devilYurineChar','悪魔ゆりね','devilYurine']
+    ]]
+  ];
   const COMBOS=[
     ['combo2','高設定キャラ2回','同一小悪魔ボーナス内。設定2以上期待度UP',0],
     ['combo3','高設定キャラ3回','同一小悪魔ボーナス内。設定3以上期待度UP',0],
@@ -62,17 +102,11 @@
       ['否定系','ジャスティス=設定1否定、ファイター=設定2否定、コマンダー=設定3否定、エスプ=設定1・2否定、ジーニアス=設定1・3否定'],
       ['確定演出','パーフェクト=設定4以上、悪魔コス ゆりね=設定6']
     ]],
-    ['ボーナス終了時PUSH',[
-      ['18種','内部モード示唆。設定判別ではなく次回モードや状態を確認するための演出です。'],
-      ['扱い','本ツールではカウント対象外。必要な場合は出典ページで演出内容を確認してください。']
-    ]],
-    ['ステチェンアイキャッチ',[
-      ['36種','内部モード示唆。設定判別ではなく滞在モード推測の材料です。'],
-      ['扱い','本ツールではカウント対象外。画像やキャラ対応は出典ページを参照してください。']
-    ]],
-    ['ステチェンワイプ',[
-      ['4種','内部モード示唆。設定判別ではなくモード推測用です。'],
-      ['扱い','カウンターには含めません。参照専用の情報として扱います。']
+    ['内部モード示唆（カウント対象外）',[
+      ['扱い','以下はいずれも設定示唆ではなく内部モードの示唆のため、本ツールでは記録しません。詳細はちょんぼりすた様の解析ページをご覧ください。'],
+      ['ボーナス終了時PUSH','18種'],
+      ['ステチェンアイキャッチ','36種'],
+      ['ステチェンワイプ','4種']
     ]]
   ];
   const DEF={
@@ -89,13 +123,10 @@
     iconChoice:null
   };
 
-  const CHAR_NAMES=Object.fromEntries(CHARS.map(c=>[c[0],c[1]]));
-  const CHAR_SHORT={
-    def:'デフォ',odd:'奇数',even:'偶数',highWeak:'高弱',ecute:'エキュ',atre:'アトレ',
-    justice:'1否',fighter:'2否',commander:'3否',esp:'12否',genius:'13否',
-    perfect:'完璧',devilYurine:'悪ゆ'
-  };
-  const CHAR_KEYS=new Set(CHARS.map(c=>c[0]));
+  const CHARACTERS=CHARACTER_GROUPS.flatMap(group=>group[1]);
+  const CHAR_NAMES=Object.fromEntries(CHARACTERS.map(c=>[c[0],c[1]]));
+  const CHAR_TO_CLASS=Object.fromEntries(CHARACTERS.map(c=>[c[0],c[2]]));
+  const CHAR_KEYS=new Set(CHARACTERS.map(c=>c[0]));
   const HIGH_CHAR_KEYS=new Set(['highWeak','ecute','atre']);
 
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
@@ -106,7 +137,7 @@
   function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]>0));}
   function historyItems(S){
     return normalizeBonusLog(S.bonusLog).map((bonus,i)=>({
-      text:`${i+1}回目: ${bonus.map(key=>CHAR_SHORT[key]||CHAR_NAMES[key]||key).join('→')}`,
+      text:`${i+1}回目: ${bonus.map(key=>CHAR_NAMES[key]||key).join('→')}`,
       value:1,
       hot:false,
       priority:100
@@ -145,13 +176,16 @@
       .pending-slots{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
       .pending-slot{min-height:42px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;font-weight:800;color:var(--txt);padding:5px}
       .pending-slot.empty{color:var(--muted)}
+      .char-group{margin-top:10px}
+      .char-group-title{font-size:11px;color:var(--cyan);font-weight:900;margin:10px 0 6px}
+      .char-button-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+      .char-pick{min-height:44px;border-radius:9px;border:1px solid var(--cyan);background:rgba(75,221,255,.10);color:var(--txt);font-weight:900;font-size:12px;line-height:1.15;padding:6px 4px;text-align:center;white-space:normal;overflow-wrap:anywhere}
       .char-row{display:grid;grid-template-columns:minmax(0,1fr) 42px;gap:8px;align-items:stretch;border:1px solid var(--line);border-radius:10px;background:var(--panel);padding:8px}
       .char-row.readonly{grid-template-columns:1fr}
       .char-main{min-width:0}
       .char-name{font-weight:800;font-size:13px;color:var(--txt);line-height:1.25}
       .char-sub{font-size:11px;color:var(--muted);line-height:1.35;margin-top:3px}
       .char-meta{font-size:12px;color:var(--cyan);font-weight:800;margin-top:4px}
-      .char-btn{min-height:44px;border-radius:9px;border:1px solid var(--cyan);background:rgba(75,221,255,.10);color:var(--cyan);font-weight:900;font-size:18px}
       .manual-finalize{min-height:36px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-weight:800}
       .manual-finalize:disabled{opacity:.45;color:var(--muted)}
     </style>`;
@@ -170,11 +204,12 @@
   function finalizePending(S){
     const keys=(S.pending||[]).filter(k=>CHAR_KEYS.has(k)).slice(0,4);
     if(!keys.length)return false;
-    const highCount=keys.filter(k=>HIGH_CHAR_KEYS.has(k)).length;
+    const classKeys=keys.map(key=>CHAR_TO_CLASS[key]).filter(Boolean);
+    const highCount=classKeys.filter(key=>HIGH_CHAR_KEYS.has(key)).length;
     if(highCount>=4)S.combos.combo4=(n(S.combos,'combo4')+1);
     else if(highCount===3)S.combos.combo3=(n(S.combos,'combo3')+1);
     else if(highCount===2)S.combos.combo2=(n(S.combos,'combo2')+1);
-    if(keys.includes('ecute')&&keys.includes('atre'))S.combos.comboEA=(n(S.combos,'comboEA')+1);
+    if(classKeys.includes('ecute')&&classKeys.includes('atre'))S.combos.comboEA=(n(S.combos,'comboEA')+1);
     S.bonusLog=normalizeBonusLog([...(S.bonusLog||[]),keys]);
     S.pending=[];
     return true;
@@ -184,7 +219,8 @@
     const key=dataset.char;
     if(!CHAR_KEYS.has(key))return false;
     ctx.S.pending=(ctx.S.pending||[]).filter(k=>CHAR_KEYS.has(k)).slice(0,3);
-    ctx.S.icons[key]=n(ctx.S.icons,key)+1;
+    const classKey=CHAR_TO_CLASS[key];
+    ctx.S.icons[classKey]=n(ctx.S.icons,classKey)+1;
     ctx.S.pending.push(key);
     const count=ctx.S.pending.length;
     if(count>=4){
@@ -200,16 +236,11 @@
     finalizePending(ctx.S);
     return 'このボーナスを確定';
   }
-  function charActionRow(ctx,c){
-    const count=n(ctx.S.icons,c[0]);
-    return `<div class="char-row">
-      <div class="char-main">
-        <div class="char-name">${c[1]}</div>
-        <div class="char-sub">${c[2]}</div>
-        <div class="char-meta">${count}回</div>
-      </div>
-      <button class="char-btn" type="button" data-action="jashinAddChar" data-char="${c[0]}" data-label="${c[1]}">＋</button>
-    </div>`;
+  function characterGroupRows(){
+    return CHARACTER_GROUPS.map(group=>`<div class="char-group">
+      <div class="char-group-title">${group[0]}</div>
+      <div class="char-button-grid">${group[1].map(c=>`<button class="char-pick" type="button" data-action="jashinAddChar" data-char="${c[0]}" data-label="${c[1]}">${c[1]}</button>`).join('')}</div>
+    </div>`).join('');
   }
   function readOnlyRow(state,c){
     const count=n(state,c[0]);
@@ -227,7 +258,7 @@
     return `<section class="sec">
     <div class="sec-h">総回転数</div>
     <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${S.games||''}" placeholder="0"></div>
-    <div class="hint">台のメニュー画面で総ゲーム数を確認して入力します。AT中の消化分を含むため、確率の算出には使わず記録として保存します。</div>
+    <div class="hint">実機では総ゲーム数を確認できないため、ホールのデータカウンター等の数値を参考値として入力してください。確率の算出には使わず、稼働メモとして保存します。</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り</div>
@@ -251,13 +282,15 @@
     const pending=pendingLabels(ctx.S);
     return pageStyle()+`<section class="sec"><div class="sec-h">今回のボーナス<span class="sub">${(ctx.S.pending||[]).length}/4人</span></div>
     <div class="pending-box">
-      <div class="pending-slots">${pending.map((key,i)=>`<div class="pending-slot ${key?'':'empty'}">${i+1}人目<br>${key?(CHAR_SHORT[key]||CHAR_NAMES[key]):'-'}</div>`).join('')}</div>
+      <div class="pending-slots">${pending.map((key,i)=>`<div class="pending-slot ${key?'':'empty'}">${i+1}人目<br>${key?(CHAR_NAMES[key]||key):'-'}</div>`).join('')}</div>
       <button class="manual-finalize" type="button" data-action="jashinFinalizeBonus" data-label="このボーナスを確定" ${(ctx.S.pending||[]).length?'':'disabled'}>このボーナスを確定</button>
     </div>
-    <div class="hint">小悪魔ボーナス1回につき基本4キャラが紹介されます。出てきた順にタップしてください。4人目で自動確定し、高設定キャラの複合条件も自動で判定します。4人未満で終わった場合のみ「このボーナスを確定」を押してください。継続率示唆のキャラ表示・ミニキャラ参戦演出は別物なので対象外です。異なるパターンに気づいたらお問い合わせから教えてください。押し間違いは右上の取消ボタンで戻せます（このセクションは減算モード非対応です）。</div></section>
-  <section class="sec"><div class="sec-h">キャラ紹介分類<span class="sub">小悪魔ボーナス中</span></div>
-    <div class="cgrid">${CHARS.map(c=>charActionRow(ctx,c)).join('')}</div>
-    <div class="hint">24種を示唆内容ごとに13分類へ集約しています。個々のキャラ名は参照タブで確認できます。</div></section>
+    <div class="hint">小悪魔ボーナス1回につき基本4キャラが紹介されます。出てきた順にタップしてください。4人目で自動確定し、高設定キャラの複合条件も自動で判定します。4人未満で終わった場合のみ「このボーナスを確定」を押してください。継続率示唆のキャラ表示・ミニキャラ参戦演出は別物なので対象外です。異なるパターンに気づいたらお問い合わせから教えてください。押し間違いは右上の取消ボタンで戻せます（このセクションは減算モード非対応です）。順番の法則は解析未掲載です。</div></section>
+  <section class="sec"><div class="sec-h">キャラ紹介<span class="sub">小悪魔ボーナス中</span></div>
+    ${characterGroupRows()}
+    <div class="hint">実機に出たキャラ名をそのまま選びます。集計・カード・テンプレでは従来の13分類へ自動変換します。</div></section>
+  <section class="sec"><div class="sec-h">累計<span class="sub">13分類</span></div>
+    <div class="cgrid">${CHARS.map(c=>readOnlyRow(ctx.S.icons,c)).join('')}</div></section>
   <section class="sec"><div class="sec-h">複合条件<span class="sub">自動判定</span></div>
     <div class="cgrid">${COMBOS.map(c=>readOnlyRow(ctx.S.combos,c)).join('')}</div>
     <div class="hint">複合条件は、今回のボーナスを確定したタイミングで自動加算されます。ここでは累計のみ確認できます。</div></section>`;
@@ -299,13 +332,13 @@
       {title:'キャラ紹介分類',items:detailItems(CHARS,S.icons)},
       {title:'複合条件',items:detailItems(COMBOS,S.combos)},
       {title:'シール',items:detailItems(SEALS,S.coins)},
-      {title:'出現順の記録（順番の法則は解析未掲載）',priority:100,items:historyItems(S)}
+      {title:'キャラ出現順',priority:100,items:historyItems(S)}
     ];
   }
 
   window.CheckerConfigs.jashinchan={
     nanaCollab:false,
-    storageKey:'jashinchan-checker-v2',
+    storageKey:'jashinchan-checker-v3',
     defaults:DEF,
     mergeKeys:['cz','screens','atcz','icons','combos','coins'],
     arrayDefaults:[
