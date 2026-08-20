@@ -3315,8 +3315,9 @@
       const fullscreenMode = runningStickyEnabled && currentView === "runView";
       setRunningFullscreenLock(fullscreenMode);
       const selectedSource = runningSource;
-      const selectedAmount = selectedSource === "cash" ? 500 : 125;
-      const selectedCanUse = canUseSource(session, selectedSource, selectedAmount);
+      const selectedAmount = investmentUnitForSource(selectedSource);
+      const selectedActualAmount = investmentAmountForSource(session, selectedSource, selectedAmount);
+      const selectedCanUse = canUseSource(session, selectedSource);
       const sourceOptions = [
         { value: "mochidama", label: "持ち玉", amount: 125 },
         { value: "saipurei", label: "再プレ", amount: 125 },
@@ -3397,12 +3398,12 @@
             <div class="source-chip-row">
               ${sourceOptions.map((option) => {
                 const balance = balanceForSource(session, option.value);
-                const low = balance === null || balance < option.amount;
+                const low = !canUseSource(session, option.value);
                 return `<button class="source-chip${option.value === selectedSource ? " selected" : ""}${low ? " is-low" : ""}" data-source-select="${escapeHtml(option.value)}"><span>${escapeHtml(option.label)}</span><strong>${sourceChipBalanceText(balance)}</strong></button>`;
               }).join("")}
             </div>
             <div class="unified-invest-row">
-              <button class="primary${selectedCanUse ? "" : " is-low"}" id="unifiedInvestBtn">${selectedSource === "cash" ? "-500円" : "-125玉"}</button>
+              <button class="primary${selectedCanUse ? "" : " is-low"}" id="unifiedInvestBtn">${investmentButtonText(selectedSource, selectedActualAmount)}</button>
               ${selectedSource === "cash" ? '<button id="openChargeBtn">入金</button>' : ""}
               <button class="small" id="openRunningMachineMemoBtn">メモ${(machine?.memoEntries || []).length > 0 ? "あり" : ""}</button>
               <button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button>
@@ -3464,7 +3465,8 @@
       });
       const unifiedInvestButton = byId("unifiedInvestBtn");
       if (unifiedInvestButton) unifiedInvestButton.addEventListener("click", () => {
-        addInvestment(session, runningSource, runningSource === "cash" ? 500 : 125);
+        const requestedAmount = investmentUnitForSource(runningSource);
+        addInvestment(session, runningSource, investmentAmountForSource(session, runningSource, requestedAmount));
       });
       els.runningArea.querySelectorAll("[data-edit-balance]").forEach((button) => {
         button.addEventListener("click", () => openBalanceEditForm(session, button.dataset.editBalance));
@@ -5541,6 +5543,21 @@
       return value === null ? "-" : numberText(value, 0);
     }
 
+    function investmentUnitForSource(source) {
+      return normalizeInvestmentSource(source) === "cash" ? 500 : 125;
+    }
+
+    function investmentAmountForSource(session, source, requestedAmount = investmentUnitForSource(source)) {
+      const requested = Math.max(0, Number(requestedAmount || 0));
+      const balance = balanceForSource(session, source);
+      return balance !== null && balance > 0 && balance < requested ? balance : requested;
+    }
+
+    function investmentButtonText(source, amount) {
+      const normalized = normalizeInvestmentSource(source);
+      return `-${numberText(amount, 0)}${normalized === "cash" ? "円" : "玉"}`;
+    }
+
     function sourceUnavailableMessage(session, source, amount) {
       const balance = balanceForSource(session, source);
       const label = investmentSourceShortLabel(source);
@@ -5893,7 +5910,7 @@
 
     function canUseSource(session, source, amount) {
       const balance = balanceForSource(session, source);
-      return balance !== null && balance >= amount;
+      return balance !== null && balance > 0;
     }
 
     function finalMochidamaForCarryover(session) {

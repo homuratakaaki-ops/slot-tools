@@ -29,6 +29,7 @@ const openSessionEditor = section('function openSessionEditor', 'function fieldH
 const deriveSession = section('function deriveSession', 'function yutimeEnterSpinForRate');
 const yutimeEnterSpinForRate = section('function yutimeEnterSpinForRate', 'function machineStats');
 const addInvestment = section('function addInvestment', 'function deleteInvestment');
+const investmentAmountForSourceBlock = section('function investmentUnitForSource', 'function sourceUnavailableMessage');
 const sourceUnavailableMessage = section('function sourceUnavailableMessage', 'function rateText');
 const runningPanelRate = section('function runningPanelRate', 'function runningYutimeRemaining');
 const runningExpectationHtml = section('function runningExpectationHtml', 'function runningPanelInputBalls');
@@ -336,6 +337,31 @@ new vm.Script(`
 assert.equal(JSON.stringify(availableBallsContext.parts(2000, 500)), JSON.stringify({ mochidama: 2000, saipurei: 500, total: 2500 }));
 assert.equal(JSON.stringify(availableBallsContext.parts('', 500)), JSON.stringify({ mochidama: 0, saipurei: 500, total: 500 }));
 assert.equal(JSON.stringify(availableBallsContext.parts('', '')), JSON.stringify({ mochidama: 0, saipurei: 0, total: 0 }));
+const investmentAmountContext = vm.createContext({
+  normalizeInvestmentSource(source) {
+    return source === 'mochidama' || source === 'saipurei' || source === 'cash' ? source : 'cash';
+  },
+  balanceForSource(session, source) {
+    return session.balances[source];
+  },
+  numberText(value, fallback = '') {
+    return value === null || value === undefined ? fallback : String(value);
+  }
+});
+new vm.Script(`
+  ${investmentAmountForSourceBlock}
+  globalThis.unit = investmentUnitForSource;
+  globalThis.amount = investmentAmountForSource;
+  globalThis.button = investmentButtonText;
+`).runInContext(investmentAmountContext);
+assert.equal(investmentAmountContext.unit('mochidama'), 125);
+assert.equal(investmentAmountContext.unit('cash'), 500);
+assert.equal(investmentAmountContext.amount({ balances: { mochidama: 64 } }, 'mochidama', 125), 64);
+assert.equal(investmentAmountContext.amount({ balances: { mochidama: 200 } }, 'mochidama', 125), 125);
+assert.equal(investmentAmountContext.amount({ balances: { mochidama: 0 } }, 'mochidama', 125), 125);
+assert.equal(investmentAmountContext.amount({ balances: { cash: 300 } }, 'cash', 500), 300);
+assert.equal(investmentAmountContext.button('mochidama', 64), '-64玉');
+assert.equal(investmentAmountContext.button('cash', 300), '-300円');
 const transferContext = vm.createContext({
   __copied: '',
   __session: null,
@@ -451,7 +477,11 @@ assert.match(runningSpinCount, /const spins = Number\(session\.currentSpin\) - N
 assert.match(runningPanelRate, /return inputBalls > 0 && spins >= 0 \? spins \/ inputBalls \* 250 : null;/);
 assert.ok(design.includes('スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。'));
 assert.match(renderRunning, /<span>\$\{escapeHtml\(option\.label\)\}<\/span><strong>\$\{sourceChipBalanceText\(balance\)\}<\/strong>/);
-assert.match(renderRunning, /class="primary\$\{selectedCanUse \? "" : " is-low"\}" id="unifiedInvestBtn"/);
+assert.match(renderRunning, /const selectedAmount = investmentUnitForSource\(selectedSource\);/);
+assert.match(renderRunning, /const selectedActualAmount = investmentAmountForSource\(session, selectedSource, selectedAmount\);/);
+assert.match(renderRunning, /const selectedCanUse = canUseSource\(session, selectedSource\);/);
+assert.match(renderRunning, /const low = !canUseSource\(session, option\.value\);/);
+assert.match(renderRunning, /class="primary\$\{selectedCanUse \? "" : " is-low"\}" id="unifiedInvestBtn">\$\{investmentButtonText\(selectedSource, selectedActualAmount\)\}<\/button>/);
 assert.match(renderRunning, /メモ\$\{\(machine\?\.memoEntries \|\| \[\]\)\.length > 0 \? "あり" : ""\}/);
 assert.match(renderRunning, /runningExpectationHtml\(session, machine, liveRate, balances\)/);
 assert.match(renderRunning, /bindNailRatingChips\(machine, els\.runningArea\);/);
@@ -484,7 +514,12 @@ assert.doesNotMatch(renderRunning, /id="unifiedInvestBtn"[^>]*disabled/);
 assert.match(style, /\.source-chip\.selected \{\s*border-color: var\(--accent\);\s*background: var\(--accent\);\s*color: #fff;/);
 assert.match(sourceUnavailableMessage, /if \(balance === null\) return `\$\{label\}が未入力です。`;/);
 assert.match(sourceUnavailableMessage, /if \(balance < amount\) return `\$\{label\}がありません。値をタップして修正するか、他のソースを選んでください。`;/);
+assert.match(investmentAmountForSourceBlock, /function investmentUnitForSource\(source\) \{\s*return normalizeInvestmentSource\(source\) === "cash" \? 500 : 125;/);
+assert.match(investmentAmountForSourceBlock, /function investmentAmountForSource\(session, source, requestedAmount = investmentUnitForSource\(source\)\) \{/);
+assert.match(investmentAmountForSourceBlock, /return balance !== null && balance > 0 && balance < requested \? balance : requested;/);
+assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
+assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
 assert.match(html, /const SCHEMA_VERSION = 25;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
