@@ -137,11 +137,18 @@
   function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]>0));}
   function historyItems(S){
     return normalizeBonusLog(S.bonusLog).map((bonus,i)=>({
-      text:`${i+1}回目: ${bonus.map(key=>CHAR_NAMES[key]||key).join('→')}`,
+      text:`${i+1}回目: ${bonusLabel(bonus)}`,
       value:1,
       hot:false,
       priority:100
     }));
+  }
+  function bonusLabel(bonus){
+    return (bonus||[]).map(key=>CHAR_NAMES[key]||key).join('→');
+  }
+  function lastBonusText(S){
+    const log=normalizeBonusLog(S.bonusLog);
+    return log.length?`前回: ${bonusLabel(log[log.length-1])}`:'';
   }
   function shown(prefix,items){
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
@@ -172,10 +179,11 @@
       .ref-table tr:last-child td{border-bottom:0}
       .ref-table td:first-child{width:42%;color:var(--txt);font-weight:700}
       .ref-table td:last-child{color:var(--muted);line-height:1.45}
-      .pending-box{display:grid;gap:8px;margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+      .pending-box{display:grid;gap:8px;margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:10px;background:#171220;position:sticky;top:0;z-index:5;box-shadow:0 8px 18px rgba(0,0,0,.35)}
       .pending-slots{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
       .pending-slot{min-height:42px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;font-weight:800;color:var(--txt);padding:5px}
       .pending-slot.empty{color:var(--muted)}
+      .last-bonus{font-size:11px;color:var(--muted);font-weight:800;line-height:1.35;margin:-2px 2px 8px;overflow-wrap:anywhere}
       .char-group{margin-top:10px}
       .char-group-title{font-size:11px;color:var(--cyan);font-weight:900;margin:10px 0 6px}
       .char-button-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
@@ -225,16 +233,16 @@
     const count=ctx.S.pending.length;
     if(count>=4){
       finalizePending(ctx.S);
-      return `キャラ紹介 ${CHAR_NAMES[key]}（自動確定）`;
+      return `4人目: ${CHAR_NAMES[key]} → このボーナスを確定しました`;
     }
-    return `キャラ紹介 ${CHAR_NAMES[key]}（${count}/4）`;
+    return `${count}人目: ${CHAR_NAMES[key]}`;
   }
   function finalizeAction(ctx){
     if(ctx.mode<0)return false;
     ctx.S.pending=(ctx.S.pending||[]).filter(k=>CHAR_KEYS.has(k)).slice(0,4);
     if(!ctx.S.pending.length)return false;
     finalizePending(ctx.S);
-    return 'このボーナスを確定';
+    return 'このボーナスを確定しました';
   }
   function characterGroupRows(){
     return CHARACTER_GROUPS.map(group=>`<div class="char-group">
@@ -285,7 +293,8 @@
       <div class="pending-slots">${pending.map((key,i)=>`<div class="pending-slot ${key?'':'empty'}">${i+1}人目<br>${key?(CHAR_NAMES[key]||key):'-'}</div>`).join('')}</div>
       <button class="manual-finalize" type="button" data-action="jashinFinalizeBonus" data-label="このボーナスを確定" ${(ctx.S.pending||[]).length?'':'disabled'}>このボーナスを確定</button>
     </div>
-    <div class="hint">小悪魔ボーナス1回につき基本4キャラが紹介されます。出てきた順にタップしてください。4人目で自動確定し、高設定キャラの複合条件も自動で判定します。4人未満で終わった場合のみ「このボーナスを確定」を押してください。継続率示唆のキャラ表示・ミニキャラ参戦演出は別物なので対象外です。異なるパターンに気づいたらお問い合わせから教えてください。押し間違いは右上の取消ボタンで戻せます（このセクションは減算モード非対応です）。順番の法則は解析未掲載です。</div></section>
+    ${lastBonusText(ctx.S)?`<div class="last-bonus">${lastBonusText(ctx.S)}</div>`:''}
+    <div class="hint">小悪魔ボーナス1回につき基本4キャラが紹介されます。出てきた順にタップしてください。4人目で自動確定し、高設定キャラの複合条件も自動で判定します。4人未満で終わった場合のみ「このボーナスを確定」を押してください。継続率示唆のキャラ表示・ミニキャラ参戦演出は別物なので対象外です。異なるパターンに気づいたらお問い合わせから教えてください。押し間違いは右上の取消ボタンで戻せます（このセクションは減算モード非対応です）。順番の法則は解析未掲載です。過去のボーナスの並びは、カードタブの詳細カード「キャラ出現順」で確認できます。</div></section>
   <section class="sec"><div class="sec-h">キャラ紹介<span class="sub">小悪魔ボーナス中</span></div>
     ${characterGroupRows()}
     <div class="hint">実機に出たキャラ名をそのまま選びます。集計・カード・テンプレでは従来の13分類へ自動変換します。</div></section>

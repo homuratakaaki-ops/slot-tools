@@ -168,6 +168,7 @@
       hist.push({custom:true,snap,label:msg});
       if(hist.length>50)hist.shift();
       feed(`<b>実行</b> ${msg}`);
+      toast(msg);
       save();
       renderAll();
     }
