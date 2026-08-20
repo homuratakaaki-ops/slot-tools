@@ -111,13 +111,20 @@
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function pctLine(n,d){return d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
+  function rate(g,n){return n&&g?'1/'+(g/n).toFixed(1):'—';}
   function shown(prefix,items){
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
     return `${prefix} ${out.length?out.join('・'):'−'}`;
   }
 
   function pageHatsu(ctx){
+    const g=ctx.S.games;
     return `
+  <section class="sec">
+    <div class="sec-h">総回転数</div>
+    <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="hint">台の履歴画面で実ゲーム数を確認して入力します。幕間スルー時のゲーム数は含まれないため、その分の誤差が出ます。</div>
+  </section>
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
@@ -168,7 +175,7 @@
     <div class="cgrid">${STAGES.map(c=>ctx.crow('stages.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,stageN))).join('')}</div></section>`;
   }
   function tplText(ctx){
-    let t=`設定判別メモ｜Lからくりサーカス2\nCZ${ctx.S.cz.rg}回 / AT${ctx.S.atCount}回\n_______\n\n■運命盤・スイカ規定\n`;
+    let t=`設定判別メモ｜Lからくりサーカス2\n総回転数 ${ctx.S.games||0}G / CZ${ctx.S.cz.rg}回 / AT${ctx.S.atCount}回\n_______\n\n■運命盤・スイカ規定\n`;
     const rewardN=sum(ctx.S.zones);
     REWARDS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.zones[c[0]],rewardN)}\n`;});
     t+=`\n■CZ劇場ジャッジ・強チェ直撃\n劇場ジャッジ▶︎ ${ctx.S.cz.theater}回\n強チェ直撃▶︎ ${ctx.S.cz.strongHit}/${ctx.S.cz.strong} ${ctx.S.cz.strong?`${(100*ctx.S.cz.strongHit/ctx.S.cz.strong).toFixed(0)}%`:'—'}\n\n■AT開始ステージ\n`;
@@ -197,7 +204,7 @@
 
   function tplTextCompact(ctx){
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
-    let t=`設定判別メモ｜Lからくりサーカス2\nCZ${ctx.S.cz.rg}回 / AT${ctx.S.atCount}回\n_______\n`;
+    let t=`設定判別メモ｜Lからくりサーカス2\n総回転数 ${ctx.S.games||0}G / CZ${ctx.S.cz.rg}回 / AT${ctx.S.atCount}回\n_______\n`;
     const rewardN=sum(ctx.S.zones);
     t+=sec('運命盤・スイカ規定',rewardN>0?REWARDS.filter(c=>ctx.S.zones[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.zones[c[0]],rewardN)}`):[]);
     const czLines=[];
@@ -241,13 +248,13 @@
     compactTemplate:tplTextCompact,
     card:{
       title:'Lからくりサーカス2',
-      hideGames:true,
       footerTags:'#からくりサーカス2 #設定判別',
       downloadName:'karakuri2_check.png',
       detailDownloadName:'karakuri2_check_detail.png',
       detail:detail,
       blocks:ctx=>{
-        return [['CZ当選',ctx.S.cz.rg+'回'],['AT当選',ctx.S.atCount+'回'],['AT直撃',ctx.S.choku+'回'],['強チェ直撃',ratio(ctx.S.cz.strongHit,ctx.S.cz.strong)]];
+        const g=ctx.S.games;
+        return [['CZ確率',`${rate(g,ctx.S.cz.rg)} ${ctx.S.cz.rg}回`],['AT確率',`${rate(g,ctx.S.atCount)} ${ctx.S.atCount}回`],['AT直撃',ctx.S.choku+'回'],['強チェ直撃',ratio(ctx.S.cz.strongHit,ctx.S.cz.strong)]];
       },
       chart:ctx=>({
         title:'AT終了画面分布',

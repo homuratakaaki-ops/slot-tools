@@ -92,13 +92,20 @@
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function pctLine(n,d){return d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
+  function rate(g,n){return n&&g?'1/'+(g/n).toFixed(1):'—';}
   function shown(prefix,items){
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
     return `${prefix} ${out.length?out.join('・'):'−'}`;
   }
 
   function pageHatsu(ctx){
+    const g=ctx.S.games;
     return `
+  <section class="sec">
+    <div class="sec-h">総回転数</div>
+    <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="hint">台のサブ液晶メニューで総ゲーム数を確認して入力します。</div>
+  </section>
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
@@ -147,7 +154,7 @@
     <div class="hint">EDレア役成立時に液晶左下。十字リプレイ契機は高設定確定系のチャンス。</div></section>`;
   }
   function tplText(ctx){
-    let t=`設定判別メモ｜L炎炎ノ消防隊2\nボーナス${ctx.S.cz.bonus}回 / 炎炎ループ${ctx.S.atCount}回\n_______\n\n■キャラ紹介シナリオ（系統別）\n`;
+    let t=`設定判別メモ｜L炎炎ノ消防隊2\n総回転数 ${ctx.S.games||0}G / ボーナス${ctx.S.cz.bonus}回 / 炎炎ループ${ctx.S.atCount}回\n_______\n\n■キャラ紹介シナリオ（系統別）\n`;
     const scenarioN=sum(ctx.S.screens);
     SCENARIOS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.screens[c[0]],scenarioN)}\n`;});
     t+=`\n■特殊パターン\n`;
@@ -173,7 +180,7 @@
   function tplTextCompact(ctx){
     const S=ctx.S;
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
-    let t=`設定判別メモ｜L炎炎ノ消防隊2\nボーナス${S.cz.bonus}回 / 炎炎ループ${S.atCount}回\n_______\n`;
+    let t=`設定判別メモ｜L炎炎ノ消防隊2\n総回転数 ${S.games||0}G / ボーナス${S.cz.bonus}回 / 炎炎ループ${S.atCount}回\n_______\n`;
     const scenarioN=sum(S.screens);
     t+=sec('キャラ紹介シナリオ（系統別）',scenarioN>0?SCENARIOS.filter(c=>S.screens[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(S.screens[c[0]],scenarioN)}`):[]);
     t+=sec('特殊パターン',SPECIALS.filter(c=>S.ed[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.ed[c[0]]}回`));
@@ -231,13 +238,13 @@
     compactTemplate:tplTextCompact,
     card:{
       title:'L炎炎ノ消防隊2',
-      hideGames:true,
       footerTags:'#炎炎ノ消防隊2 #設定判別',
       downloadName:'enen2_check.png',
       detailDownloadName:'enen2_check_detail.png',
       detail:detail,
       blocks:ctx=>{
-        return [['ボーナス',ctx.S.cz.bonus+'回'],['炎炎ループ',ctx.S.atCount+'回'],['罠成功',ratio(ctx.S.cz.trapHit,ctx.S.cz.trap)],['変換発生',ratio(ctx.S.cz.convert,ctx.S.cz.smallv)]];
+        const g=ctx.S.games;
+        return [['ボーナス確率',`${rate(g,ctx.S.cz.bonus)} ${ctx.S.cz.bonus}回`],['炎炎ループ',`${rate(g,ctx.S.atCount)} ${ctx.S.atCount}回`],['罠成功',ratio(ctx.S.cz.trapHit,ctx.S.cz.trap)],['変換発生',ratio(ctx.S.cz.convert,ctx.S.cz.smallv)]];
       },
       chart:ctx=>({
         title:'ボーナス終了画面分布',
