@@ -179,6 +179,7 @@
       .ref-table tr:last-child td{border-bottom:0}
       .ref-table td:first-child{width:42%;color:var(--txt);font-weight:700}
       .ref-table td:last-child{color:var(--muted);line-height:1.45}
+      .char-sticky-scope{position:relative}
       .pending-box{display:grid;gap:8px;margin:10px 0;padding:10px;border:1px solid var(--line);border-radius:10px;background:#171220;position:sticky;top:0;z-index:5;box-shadow:0 8px 18px rgba(0,0,0,.35)}
       .pending-slots{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
       .pending-slot{min-height:42px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;font-weight:800;color:var(--txt);padding:5px}
@@ -288,13 +289,14 @@
   }
   function pageChars(ctx){
     const pending=pendingLabels(ctx.S);
-    return pageStyle()+`<section class="sec"><div class="sec-h">今回のボーナス<span class="sub">${(ctx.S.pending||[]).length}/4人</span></div>
+    return pageStyle()+`<div class="char-sticky-scope">
+  <section class="sec"><div class="sec-h">今回のボーナス<span class="sub">${(ctx.S.pending||[]).length}/4人</span></div></section>
     <div class="pending-box">
       <div class="pending-slots">${pending.map((key,i)=>`<div class="pending-slot ${key?'':'empty'}">${i+1}人目<br>${key?(CHAR_NAMES[key]||key):'-'}</div>`).join('')}</div>
       <button class="manual-finalize" type="button" data-action="jashinFinalizeBonus" data-label="このボーナスを確定" ${(ctx.S.pending||[]).length?'':'disabled'}>このボーナスを確定</button>
     </div>
     ${lastBonusText(ctx.S)?`<div class="last-bonus">${lastBonusText(ctx.S)}</div>`:''}
-    <div class="hint">小悪魔ボーナス1回につき基本4キャラが紹介されます。出てきた順にタップしてください。4人目で自動確定し、高設定キャラの複合条件も自動で判定します。4人未満で終わった場合のみ「このボーナスを確定」を押してください。継続率示唆のキャラ表示・ミニキャラ参戦演出は別物なので対象外です。異なるパターンに気づいたらお問い合わせから教えてください。押し間違いは右上の取消ボタンで戻せます（このセクションは減算モード非対応です）。順番の法則は解析未掲載です。過去のボーナスの並びは、カードタブの詳細カード「キャラ出現順」で確認できます。</div></section>
+    <section class="sec"><div class="hint">小悪魔ボーナス1回につき基本4キャラが紹介されます。出てきた順にタップしてください。4人目で自動確定し、高設定キャラの複合条件も自動で判定します。4人未満で終わった場合のみ「このボーナスを確定」を押してください。継続率示唆のキャラ表示・ミニキャラ参戦演出は別物なので対象外です。異なるパターンに気づいたらお問い合わせから教えてください。押し間違いは右上の取消ボタンで戻せます（このセクションは減算モード非対応です）。順番の法則は解析未掲載です。過去のボーナスの並びは、カードタブの詳細カード「キャラ出現順」で確認できます。</div></section>
   <section class="sec"><div class="sec-h">キャラ紹介<span class="sub">小悪魔ボーナス中</span></div>
     ${characterGroupRows()}
     <div class="hint">実機に出たキャラ名をそのまま選びます。集計・カード・テンプレでは従来の13分類へ自動変換します。</div></section>
@@ -302,7 +304,7 @@
     <div class="cgrid">${CHARS.map(c=>readOnlyRow(ctx.S.icons,c)).join('')}</div></section>
   <section class="sec"><div class="sec-h">複合条件<span class="sub">自動判定</span></div>
     <div class="cgrid">${COMBOS.map(c=>readOnlyRow(ctx.S.combos,c)).join('')}</div>
-    <div class="hint">複合条件は、今回のボーナスを確定したタイミングで自動加算されます。ここでは累計のみ確認できます。</div></section>`;
+    <div class="hint">複合条件は、今回のボーナスを確定したタイミングで自動加算されます。ここでは累計のみ確認できます。</div></section></div>`;
   }
   function pageSeals(ctx){
     return `<section class="sec"><div class="sec-h">シール<span class="sub">うれしいちゃんす</span></div>
