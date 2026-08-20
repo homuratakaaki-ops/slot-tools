@@ -7,7 +7,7 @@
     const S=ctx.S;
     return [
       {title:'まいるテーブル',items:detailItems(TABLES,S.zones),percent:true},
-      {title:'初当り',items:[detailItem('関所チャレンジ当選',S.cz.rg,0),detailItem('やじきた祭当選',S.atCount,0),detailItem('AT直撃',S.choku,1),detailItem('関頂アタック突入',S.atcz.gab,0),detailItem('温泉ステージ移行',S.atcz.useki,0)]},
+      {title:'初当り',items:[detailItem('関所チャレンジ当選',S.cz.rg,0),detailItem('やじきた祭当選',S.atCount,0),detailItem('AT直撃',S.choku,1),detailItem('関頂アタック突入',S.atcz.gab,0),detailItem('まいるチャージ終了',S.atcz.chargeEnd,0),detailRatio('温泉前兆移行',S.atcz.useki,S.atcz.chargeEnd,1)]},
       {title:'あっぱれチャンス キャラ',items:detailItems(CHARACTERS,S.icons),percent:true},
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens),percent:true},
       {title:'ユニバプレート',items:detailItems(COINS,S.coins)},
@@ -36,7 +36,7 @@
   const DEF={
     games:0,
     zones:Object.fromEntries(TABLES.map(t=>[t[0],0])),
-    cz:{rg:0,ac:0}, atcz:{gab:0,useki:0}, choku:0, atCount:0,
+    cz:{rg:0,ac:0}, atcz:{gab:0,useki:0,chargeEnd:0}, choku:0, atCount:0,
     screens:{s1:0,s2:0,s3:0,s4:0,s5:0},
     ed:{e1:0},
     icons:Object.fromEntries(CHARACTERS.map(c=>[c[0],0])),
@@ -95,10 +95,12 @@
     <div class="cgrid">
       ${ctx.crow('cz.rg','関所チャレンジ当選','設1:1/231.1⇔設6:1/157.5',0)}
       ${ctx.crow('atCount','やじきた祭当選','設1:1/473.9⇔設6:1/318.3',0)}
-      ${ctx.crow('choku','AT直撃','当選時は勝率100%関所チャレンジ',1)}
+      ${ctx.crow('choku','AT直撃','設1:1/12302.7（他設定は調査中）',1)}
       ${ctx.crow('atcz.gab','関頂アタック突入','主にレア役で突入・成功期待度約50%',0)}
-      ${ctx.crow('atcz.useki','温泉ステージ移行','関所チャレンジ本前兆濃厚',0)}
+      ${ctx.crow('atcz.chargeEnd','まいるチャージ終了','温泉前兆移行率の分母',0)}
+      ${ctx.crow('atcz.useki','温泉前兆移行','まいるチャージ終了後 設1:4.7%⇔設4:7.0%⇔設6:11.7%',1,n=>ctx.pct(n,ctx.S.atcz.chargeEnd))}
     </div>
+    <div class="hint">CZを経由しないAT直撃と、まいるチャージ終了後の温泉前兆移行を記録します。AT直撃は1日ではほとんど発生しないため、引けた場合の材料として扱ってください。</div>
   </section>`;
   }
   function pageShisa(ctx){
@@ -119,12 +121,13 @@
   function tplText(ctx){
     const czN=ctx.S.cz.rg;
     const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
+    const r=(n,d)=>d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:`${n}/${d} -`;
     const charN=Object.values(ctx.S.icons).reduce((a,b)=>a+b,0);
     let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n通常 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■まいるテーブル\n`;
     TABLES.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.zones[c[0]]}回\n`;});
     const recent=ctx.S.tableHist.slice(-5).reverse().map(h=>tableShort(h.key)).join('←')||'なし';
     t+=`直近履歴：${recent}\n`;
-    t+=`\n■関頂アタック▶︎ ${ctx.S.atcz.gab}回\n■温泉ステージ▶︎ ${ctx.S.atcz.useki}回\n■AT直撃▶︎ ${ctx.S.choku}回\n\n■あっぱれキャラ\n`;
+    t+=`\n■関頂アタック▶︎ ${ctx.S.atcz.gab}回\n■まいるチャージ終了▶︎ ${ctx.S.atcz.chargeEnd}回\n■温泉前兆移行▶︎ ${r(ctx.S.atcz.useki,ctx.S.atcz.chargeEnd)}\n■AT直撃▶︎ ${ctx.S.choku}回\n\n■あっぱれキャラ\n`;
     CHARACTERS.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.icons[c[0]],charN)}\n`;});
     t+=`\n■AT終了画面\n`;
     const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
@@ -137,6 +140,7 @@
   function tplTextCompact(ctx){
     const czN=ctx.S.cz.rg;
     const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
+    const r=(n,d)=>d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:`${n}/${d} -`;
     const charN=Object.values(ctx.S.icons).reduce((a,b)=>a+b,0);
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
     let t=`設定判別メモ｜スマスロ やじきた道中記参る！\n通常 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■まいるテーブル\n`;
@@ -144,7 +148,7 @@
     const recent=ctx.S.tableHist.slice(-5).reverse().map(h=>tableShort(h.key)).join('←')||'なし';
     t+=`直近履歴：${recent}\n`;
     t+=sec('関頂アタック',ctx.S.atcz.gab>0?[`関頂アタック▶︎ ${ctx.S.atcz.gab}回`]:[]);
-    t+=sec('温泉ステージ',ctx.S.atcz.useki>0?[`温泉ステージ▶︎ ${ctx.S.atcz.useki}回`]:[]);
+    t+=sec('まいるチャージ',ctx.S.atcz.chargeEnd>0||ctx.S.atcz.useki>0?[`まいるチャージ終了▶︎ ${ctx.S.atcz.chargeEnd}回`,`温泉前兆移行▶︎ ${r(ctx.S.atcz.useki,ctx.S.atcz.chargeEnd)}`]:[]);
     t+=sec('AT直撃',ctx.S.choku>0?[`AT直撃▶︎ ${ctx.S.choku}回`]:[]);
     t+=sec('あっぱれキャラ',charN>0?CHARACTERS.filter(c=>ctx.S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${p(ctx.S.icons[c[0]],charN)}`):[]);
     const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
@@ -199,7 +203,8 @@
         const czN=ctx.S.cz.rg, g0=ctx.S.games;
         const czP=czN&&g0?'1/'+(g0/czN).toFixed(1):'—';
         const atP=ctx.S.atCount&&g0?'1/'+(g0/ctx.S.atCount).toFixed(1):'—';
-        return [['CZ確率',czP],['AT確率',atP],['AT直撃',ctx.S.choku+'回'],['関頂アタック',ctx.S.atcz.gab+'回']];
+        const onsen=ctx.S.atcz.chargeEnd>0?`${ctx.S.atcz.useki}/${ctx.S.atcz.chargeEnd} ${(100*ctx.S.atcz.useki/ctx.S.atcz.chargeEnd).toFixed(0)}%`:'—';
+        return [['CZ確率',czP],['AT確率',atP],['AT直撃',ctx.S.choku+'回'],['温泉前兆',onsen]];
       },
       chart:ctx=>({
         title:'まいるテーブル分布',
