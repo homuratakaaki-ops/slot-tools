@@ -172,6 +172,7 @@ Assert-Fixed $html "usedUnknown" 'unknown medal usage marker is missing'
 Assert-Fixed $html "medalSourceKinds" 'medal source chips are missing'
 Assert-Fixed $html "returnStageKinds" 'loss return stage choices are missing'
 Assert-Fixed $html "winCredit" 'win credit input is missing'
+Assert-Contains $html "bonusMedals[\s\S]+endScreenSelect[\s\S]+winCredit[\s\S]+勝利を記録" 'win sheet field order should be bonus medals, end screen, credit, record'
 Assert-Fixed $html "ending" 'ending bonus value is missing'
 Assert-Fixed $html "auto:true" 'auto money diff sync marker is missing'
 Assert-Fixed $html "applyKeypad" 'keypad apply handler is missing'
@@ -382,5 +383,9 @@ Assert-Fixed $agents "各示唆・演出がどのタイミングで発生する�
 Assert-Fixed $agents "発生契機から切り離した独立入力ボタン" 'AGENTS independent hint button warning is missing'
 Assert-Fixed $agents "DCとストリートジャッジの分離" 'AGENTS SF6 v3.4 lesson marker is missing'
 Assert-Fixed $agents "発生契機が複数ある示唆" 'AGENTS multi-trigger hint rule is missing'
+Assert-Fixed $agents "判定ロジックのスコープ" 'AGENTS state rollback scope rule is missing'
+Assert-Fixed $agents "リセット時刻以降のログだけを対象" 'AGENTS auto trigger duplicate scope marker is missing'
+Assert-Fixed $agents "シート内の入力順は実機の進行順" 'AGENTS sheet input order rule is missing'
+Assert-Fixed $agents "ボーナス種別 → 枚数 → 終了画面 → クレジット" 'AGENTS SF6 win sheet order example is missing'
 
 "sf6-record static checks passed"

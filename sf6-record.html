@@ -2381,14 +2381,14 @@ textarea{
       bonusMedalsInput.value=winSheetDraft.bonusMedals;
       bonusMedalsInput.addEventListener('input',syncWinSheetDraft);
       body.append(field('ボーナス枚数',bonusMedalsInput));
-      const creditInput=input('winCredit','number','任意');
-      creditInput.value=winSheetDraft.credit;
-      creditInput.addEventListener('input',syncWinSheetDraft);
-      body.append(field('クレジット',creditInput));
       const endScreen=selectInput('endScreenSelect',END_SCREENS,'終了画面');
       endScreen.value=winSheetDraft.endScreen;
       endScreen.addEventListener('change',syncWinSheetDraft);
       body.append(field('ボーナス終了画面',endScreen));
+      const creditInput=input('winCredit','number','任意');
+      creditInput.value=winSheetDraft.credit;
+      creditInput.addEventListener('input',syncWinSheetDraft);
+      body.append(field('クレジット',creditInput));
       const actions=row();
       actions.append(button('勝利を記録','win',recordWinFromSheet));
       body.append(actions);
