@@ -180,6 +180,7 @@
     return true;
   }
   function addCharAction(ctx,dataset){
+    if(ctx.mode<0)return false;
     const key=dataset.char;
     if(!CHAR_KEYS.has(key))return false;
     ctx.S.pending=(ctx.S.pending||[]).filter(k=>CHAR_KEYS.has(k)).slice(0,3);
@@ -193,6 +194,7 @@
     return `キャラ紹介 ${CHAR_NAMES[key]}（${count}/4）`;
   }
   function finalizeAction(ctx){
+    if(ctx.mode<0)return false;
     ctx.S.pending=(ctx.S.pending||[]).filter(k=>CHAR_KEYS.has(k)).slice(0,4);
     if(!ctx.S.pending.length)return false;
     finalizePending(ctx.S);
@@ -252,7 +254,7 @@
       <div class="pending-slots">${pending.map((key,i)=>`<div class="pending-slot ${key?'':'empty'}">${i+1}人目<br>${key?(CHAR_SHORT[key]||CHAR_NAMES[key]):'-'}</div>`).join('')}</div>
       <button class="manual-finalize" type="button" data-action="jashinFinalizeBonus" data-label="このボーナスを確定" ${(ctx.S.pending||[]).length?'':'disabled'}>このボーナスを確定</button>
     </div>
-    <div class="hint">小悪魔ボーナス1回につき基本4キャラが紹介されます。出てきた順にタップしてください。4人目で自動確定し、高設定キャラの複合条件も自動で判定します。4人未満で終わった場合のみ「このボーナスを確定」を押してください。継続率示唆のキャラ表示・ミニキャラ参戦演出は別物なので対象外です。異なるパターンに気づいたらお問い合わせから教えてください。</div></section>
+    <div class="hint">小悪魔ボーナス1回につき基本4キャラが紹介されます。出てきた順にタップしてください。4人目で自動確定し、高設定キャラの複合条件も自動で判定します。4人未満で終わった場合のみ「このボーナスを確定」を押してください。継続率示唆のキャラ表示・ミニキャラ参戦演出は別物なので対象外です。異なるパターンに気づいたらお問い合わせから教えてください。押し間違いは右上の取消ボタンで戻せます（このセクションは減算モード非対応です）。</div></section>
   <section class="sec"><div class="sec-h">キャラ紹介分類<span class="sub">小悪魔ボーナス中</span></div>
     <div class="cgrid">${CHARS.map(c=>charActionRow(ctx,c)).join('')}</div>
     <div class="hint">24種を示唆内容ごとに13分類へ集約しています。個々のキャラ名は参照タブで確認できます。</div></section>
