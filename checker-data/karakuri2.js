@@ -111,7 +111,6 @@
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function pctLine(n,d){return d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'—';}
-  function rate(g,n){return n&&g?'1/'+(g/n).toFixed(1):'—';}
   function shown(prefix,items){
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
     return `${prefix} ${out.length?out.join('・'):'−'}`;
@@ -253,8 +252,7 @@
       detailDownloadName:'karakuri2_check_detail.png',
       detail:detail,
       blocks:ctx=>{
-        const g=ctx.S.games;
-        return [['CZ確率',`${rate(g,ctx.S.cz.rg)} ${ctx.S.cz.rg}回`],['AT確率',`${rate(g,ctx.S.atCount)} ${ctx.S.atCount}回`],['AT直撃',ctx.S.choku+'回'],['強チェ直撃',ratio(ctx.S.cz.strongHit,ctx.S.cz.strong)]];
+        return [['CZ当選',ctx.S.cz.rg+'回'],['AT当選',ctx.S.atCount+'回'],['AT直撃',ctx.S.choku+'回'],['強チェ直撃',ratio(ctx.S.cz.strongHit,ctx.S.cz.strong)]];
       },
       chart:ctx=>({
         title:'AT終了画面分布',

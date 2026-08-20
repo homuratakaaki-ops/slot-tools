@@ -183,11 +183,9 @@ function detail(ctx){
       detail:detail,
       blocks:ctx=>{
         const czN=ctx.S.cz.rg+ctx.S.cz.ac, atczN=ctx.S.atcz.gab+ctx.S.atcz.useki;
-        const g=ctx.S.games;
-        const rate=(n)=>n&&g?'1/'+(g/n).toFixed(1):'—';
         const acR=czN?`${ctx.S.cz.ac}/${czN} ${(100*ctx.S.cz.ac/czN).toFixed(0)}%`:'—';
         const usR=atczN?`${ctx.S.atcz.useki}/${atczN} ${(100*ctx.S.atcz.useki/atczN).toFixed(0)}%`:'—';
-        return [['CZ確率',`${rate(czN)} ${czN}回`],['AT確率',`${rate(ctx.S.atCount)} ${ctx.S.atCount}回`],['一方通行',acR],['神の右席',usR]];
+        return [['通常CZ合計',czN+'回'],['AT当選',ctx.S.atCount+'回'],['一方通行',acR],['神の右席',usR]];
       },
       chart:ctx=>({
         title:'当選ゾーン分布',
