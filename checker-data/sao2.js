@@ -8,7 +8,7 @@
     const atEnd=S.atcz.atEnd||0;
     const over2=(S.atcz.set2||0)+(S.atcz.set3||0)+(S.atcz.set4||0);
     return [
-      {title:'初当り・小役',items:[detailItem('CZ当選',S.cz.cz,0),detailItem('AT当選',S.atCount,0),detailItem('確定CZ',S.cz.end,1),detailItem('曠野の決闘',S.cz.duel,1),{label:'共通ベル',value:S.cz.bell,hot:false,text:S.cz.bell>0?'共通ベル 1/'+((S.games||0)/S.cz.bell).toFixed(1):'',show:S.cz.bell>0},{label:'強チャンス目B',value:S.cz.chanceB,hot:false,text:S.cz.chanceB>0?'強チャンス目B 1/'+((S.games||0)/S.cz.chanceB).toFixed(1):'',show:S.cz.chanceB>0}]},
+      {title:'初当り・小役',items:[detailItem('CZ当選',S.cz.cz,0),detailItem('AT当選',S.atCount,0),{label:'AT直撃',value:S.cz.atDirect,hot:false,text:S.cz.atDirect>0?'AT直撃 '+rateCount(S.games,S.cz.atDirect):'',show:S.cz.atDirect>0},detailItem('確定CZ',S.cz.end,1),detailItem('曠野の決闘',S.cz.duel,1),{label:'共通ベル',value:S.cz.bell,hot:false,text:S.cz.bell>0?'共通ベル 1/'+((S.games||0)/S.cz.bell).toFixed(1):'',show:S.cz.bell>0},{label:'強チャンス目B',value:S.cz.chanceB,hot:false,text:S.cz.chanceB>0?'強チャンス目B 1/'+((S.games||0)/S.cz.chanceB).toFixed(1):'',show:S.cz.chanceB>0}]},
       {title:'CZ失敗後',items:[detailItem('CZ失敗',S.atcz.fail,0),detailRatio('CZ失敗後のアイテム獲得',S.atcz.item,S.atcz.fail,1),detailItem('SC1・2戦目デスガン',S.atcz.deathgun,1)]},
       {title:'AT終了後・継続セット',items:[detailItem('AT終了',atEnd,0)].concat(SETS.map(c=>Object.assign(detailItem(c[1],S.atcz[c[0]],c[3]),{denominator:atEnd})),[detailRatio('AT後50G以内の引き戻し',S.atcz.return50,atEnd,1),detailRatio('2セット以上継続',over2,atEnd,0)])},
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens),percent:true},
@@ -66,7 +66,7 @@
   const DEF={
     games:0,
     zones:{},
-    cz:{cz:0,end:0,duel:0,bell:0,chanceB:0},
+    cz:{cz:0,atDirect:0,end:0,duel:0,bell:0,chanceB:0},
     atcz:{fail:0,item:0,deathgun:0,atEnd:0,set1:0,set2:0,set3:0,set4:0,return50:0},
     choku:0,
     atCount:0,
@@ -80,6 +80,7 @@
 
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function rate(g,n){return n&&g?'1/'+(g/n).toFixed(1):'-';}
+  function rateCount(g,n){return n&&g?rate(g,n)+'（'+n+'回）':(n||0)+'回';}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'-';}
   function pctText(n,d){return d>0?`${n}回 (${(100*n/d).toFixed(0)}%)`:`${n}回 (-)`;}
   function shown(prefix,items){
@@ -101,11 +102,13 @@
     <div class="cgrid">
       ${ctx.crow('cz.cz','CZ当選','設1:1/238.4⇔設6:1/191.7',0)}
       ${ctx.crow('atCount','AT当選','設1:1/386.2⇔設6:1/269.6',0)}
+      ${ctx.crow('cz.atDirect','AT直撃',`設1:1/18091.8⇔設6:1/3415.7${g&&ctx.S.cz.atDirect?` / 現在 ${rate(g,ctx.S.cz.atDirect)}`:''}`,0)}
       ${ctx.crow('cz.end','確定CZ','THE END状態スタート・設1:1/20178⇔設6:1/7077',1)}
       ${ctx.crow('cz.duel','曠野の決闘','CZ失敗時フリーズ・設1:1/128⇔設6:1/64',1)}
       ${ctx.crow('cz.bell','共通ベル（斜め揃い）',`実戦値 設5:1/47.6・設6:1/45.4 / 現在 ${rate(g,ctx.S.cz.bell)}`,0)}
       ${ctx.crow('cz.chanceB','強チャンス目B',`設1:1/1057⇔設6実戦値:1/769 / 現在 ${rate(g,ctx.S.cz.chanceB)}`,0)}
     </div>
+    <div class="hint">CZを経由せずAT直撃した回数。AT天井到達と引き戻しによる当選は除きます。AT直撃はGGOモード詩乃の滞在中にのみ発生するとされています。設定1で約1/18000、設定6で約1/3400と5倍以上の差がありますが、1日ではほとんど発生しないため、引けた場合の材料として使ってください。</div>
   </section>`;
   }
   function pageYuugu(ctx){
@@ -158,7 +161,7 @@
     t+='\n■EDミニキャラ\n';
     const edN=sum(S.ed);
     ED.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.ed[c[0]],edN)}\n`;});
-    t+=`\n■優遇項目\n確定CZ▶︎ ${S.cz.end}回\n曠野の決闘▶︎ ${S.cz.duel}回\nCZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}\nSC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回\nAT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}\n共通ベル▶︎ ${rate(S.games,S.cz.bell)}（${S.cz.bell}回）\n強チャンス目B▶︎ ${rate(S.games,S.cz.chanceB)}（${S.cz.chanceB}回）\n`;
+    t+=`\n■優遇項目\nAT直撃▶︎ ${rateCount(S.games,S.cz.atDirect)}\n確定CZ▶︎ ${S.cz.end}回\n曠野の決闘▶︎ ${S.cz.duel}回\nCZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}\nSC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回\nAT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}\n共通ベル▶︎ ${rate(S.games,S.cz.bell)}（${S.cz.bell}回）\n強チャンス目B▶︎ ${rate(S.games,S.cz.chanceB)}（${S.cz.chanceB}回）\n`;
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
@@ -175,6 +178,7 @@
     const edN=sum(S.ed);
     t+=sec('EDミニキャラ',edN>0?ED.filter(c=>S.ed[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.ed[c[0]],edN)}`):[]);
     const yuugu=[];
+    if(S.cz.atDirect>0)yuugu.push(`AT直撃▶︎ ${rateCount(S.games,S.cz.atDirect)}`);
     if(S.cz.end>0)yuugu.push(`確定CZ▶︎ ${S.cz.end}回`);
     if(S.cz.duel>0)yuugu.push(`曠野の決闘▶︎ ${S.cz.duel}回`);
     if(fail>0)yuugu.push(`CZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}`);
