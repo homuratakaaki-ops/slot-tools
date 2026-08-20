@@ -77,7 +77,13 @@ function detail(ctx){
   }
   function pageHatsu(ctx){
     const czN=ctx.S.cz.rg+ctx.S.cz.ac, atczN=ctx.S.atcz.gab+ctx.S.atcz.useki;
+    const g=ctx.S.games;
     return `
+  <section class="sec">
+    <div class="sec-h">総回転数</div>
+    <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+    <div class="hint">台のメニュー画面で総ゲーム数を確認して入力します。AT中の消化ゲーム数も含んだ総回転数です。</div>
+  </section>
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
@@ -113,7 +119,7 @@ function detail(ctx){
   function tplText(ctx){
     const czN=ctx.S.cz.rg+ctx.S.cz.ac,atczN=ctx.S.atcz.gab+ctx.S.atcz.useki;
     const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
-    let t=`設定判別メモ｜Lとある魔術の禁書目録2\nCZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■規定ゲーム数\n`;
+    let t=`設定判別メモ｜Lとある魔術の禁書目録2\n総回転数 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n\n■規定ゲーム数\n`;
     for(let i=0;i<ZONES.length;i+=2){
       t+=`${ZONES[i]}g▶︎ ${ctx.S.zones[ZONES[i]]}回`;
       if(ZONES[i+1])t+=`　${ZONES[i+1]}g▶︎ ${ctx.S.zones[ZONES[i+1]]}回`;
@@ -133,7 +139,7 @@ function detail(ctx){
     const czN=ctx.S.cz.rg+ctx.S.cz.ac,atczN=ctx.S.atcz.gab+ctx.S.atcz.useki;
     const p=(n,d)=>d>0?`${n}回(${(100*n/d).toFixed(0)}%)`:`${n}回`;
     const sec=(title,lines)=>lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';
-    let t=`設定判別メモ｜Lとある魔術の禁書目録2\nCZ${czN}回 / AT${ctx.S.atCount}回\n_______\n`;
+    let t=`設定判別メモ｜Lとある魔術の禁書目録2\n総回転数 ${ctx.S.games||0}G / CZ${czN}回 / AT${ctx.S.atCount}回\n_______\n`;
     t+=sec('規定ゲーム数',ZONES.filter(z=>ctx.S.zones[z]>0).map(z=>`${z}g▶︎ ${ctx.S.zones[z]}回`));
     t+=sec('AT直撃',ctx.S.choku>0?[`AT直撃▶︎ ${ctx.S.choku}回`]:[]);
     t+=sec('通常CZ振り分け',czN>0?[[`超電磁砲ﾁｬﾝｽ`,ctx.S.cz.rg],[`一方通行ﾁｬﾝｽ`,ctx.S.cz.ac]].filter(v=>v[1]>0).map(v=>`${v[0]}▶︎ ${p(v[1],czN)}`):[]);
@@ -171,16 +177,17 @@ function detail(ctx){
     compactTemplate:tplTextCompact,
     card:{
       title:'Lとある魔術の禁書目録2',
-      hideGames:true,
       footerTags:'#とある魔術の禁書目録2 #設定判別',
       downloadName:'toaru2_check.png',
       detailDownloadName:'toaru2_check_detail.png',
       detail:detail,
       blocks:ctx=>{
         const czN=ctx.S.cz.rg+ctx.S.cz.ac, atczN=ctx.S.atcz.gab+ctx.S.atcz.useki;
+        const g=ctx.S.games;
+        const rate=(n)=>n&&g?'1/'+(g/n).toFixed(1):'—';
         const acR=czN?`${ctx.S.cz.ac}/${czN} ${(100*ctx.S.cz.ac/czN).toFixed(0)}%`:'—';
         const usR=atczN?`${ctx.S.atcz.useki}/${atczN} ${(100*ctx.S.atcz.useki/atczN).toFixed(0)}%`:'—';
-        return [['通常CZ合計',czN+'回'],['AT当選',ctx.S.atCount+'回'],['一方通行',acR],['神の右席',usR]];
+        return [['CZ確率',`${rate(czN)} ${czN}回`],['AT確率',`${rate(ctx.S.atCount)} ${ctx.S.atCount}回`],['一方通行',acR],['神の右席',usR]];
       },
       chart:ctx=>({
         title:'当選ゾーン分布',
