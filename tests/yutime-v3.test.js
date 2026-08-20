@@ -120,9 +120,12 @@ assert.match(yutimeExpectationEngine, /expectedJitanFastSpins = pHit \* chains\.
 assert.match(yutimeExpectationEngine, /const expectedDensapoSpins = expectedJitanNormalSpins \+ expectedJitanFastSpins;/);
 assert.match(yutimeExpectationEngine, /const winBalls = expectedWins \* merged\.netBallsPerWin \+ expectedJitanNormalSpins \* merged\.jitanNormalBallsPerSpin \+ expectedJitanFastSpins \* merged\.jitanFastBallsPerSpin;/);
 assert.match(yutimeExpectationEngine, /const evBalls = winBalls - investBalls;/);
-assert.match(yutimeExpectationEngine, /const cashSpentYen = expectedNormalSpins \/ rate \* 1000;/);
+assert.match(yutimeExpectationEngine, /function normalInvestmentSplit\(prob, spinsToTenjo, ballsPerSpin, availableBalls\)/);
+assert.match(yutimeExpectationEngine, /const split = normalInvestmentSplit\(p, spinsToTenjo, 250 \/ rate, input\.availableBalls\);/);
+assert.match(yutimeExpectationEngine, /const cashSpentYen = split\.cashBalls \/ 250 \* 1000;/);
+assert.match(yutimeExpectationEngine, /const normalCostYen = mochidamaCostYen \+ cashSpentYen;/);
 assert.match(yutimeExpectationEngine, /const winBallsYen = winBalls \* merged\.yenPerBall;/);
-assert.match(yutimeExpectationEngine, /const evYen = winBallsYen - cashSpentYen;/);
+assert.match(yutimeExpectationEngine, /const evYen = winBallsYen - normalCostYen;/);
 const expectationContext = vm.createContext({
   DEFAULT_NET_BALLS_PER_WIN: 1400,
   EV_THRESHOLDS: { good: 2000, warn: 0 },
@@ -142,6 +145,14 @@ const nonEqualExchangeResult = expectationContext.engine.calculate(
   { currentSpin: 0, rotationRate: 18 },
   { yenPerBall: 100 / 28, netBallsPerWin: 1400 }
 );
+const nonEqualWithBallsResult = expectationContext.engine.calculate(
+  { currentSpin: 434, rotationRate: 17, availableBalls: 2500 },
+  { yenPerBall: 100 / 28, netBallsPerWin: 1400 }
+);
+const nonEqualAllBallsResult = expectationContext.engine.calculate(
+  { currentSpin: 434, rotationRate: 17, availableBalls: 999999 },
+  { yenPerBall: 100 / 28, netBallsPerWin: 1400 }
+);
 const jitanLossResult = expectationContext.engine.calculate(
   { currentSpin: 900, rotationRate: 18 },
   { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5 }
@@ -152,8 +163,14 @@ assert.ok(jitanLossResult, 'state-separated jitan EV should calculate');
 assert.ok(Math.abs(equalExchangeResult.evYen - equalExchangeResult.evBalls * 4) < 0.000001, 'equal exchange yen conversion should remain unchanged');
 assert.ok(Math.abs(equalExchangeResult.evBalls - nonEqualExchangeResult.evBalls) < 0.000001, 'exchange rate should not change evBalls');
 assert.ok(Math.abs(nonEqualExchangeResult.cashSpentYen - nonEqualExchangeResult.expectedNormalSpins / 18 * 1000) < 0.000001, 'cash spent should be derived from rotations per 1000 yen');
+assert.ok(Math.abs(nonEqualExchangeResult.normalCostYen - nonEqualExchangeResult.cashSpentYen) < 0.000001, 'empty available balls should preserve B52 cash-only cost');
 assert.ok(Math.abs(nonEqualExchangeResult.winBallsYen - nonEqualExchangeResult.winBalls * (100 / 28)) < 0.000001, 'win balls should use exchange yen per ball');
 assert.ok(Math.abs(nonEqualExchangeResult.evYen - -1626.5) < 1, '28 balls exchange scenario should reproduce the corrected negative EV');
+assert.equal(Math.round(nonEqualWithBallsResult.mochidamaBalls), 1941);
+assert.equal(Math.round(nonEqualWithBallsResult.cashBalls), 1826);
+assert.ok(Math.abs(nonEqualWithBallsResult.normalCostYen - 14236.6) < 0.2, '434 spin / 17 rate / 2500 balls cost should use distribution split');
+assert.ok(Math.abs(nonEqualWithBallsResult.evYen - (nonEqualWithBallsResult.winBallsYen - nonEqualWithBallsResult.normalCostYen)) < 0.000001);
+assert.ok(Math.abs(nonEqualAllBallsResult.normalCostYen - nonEqualAllBallsResult.investBalls * (100 / 28)) < 0.000001, 'large available balls should value all investment at exchange rate');
 assert.equal(expectationContext.judge(nonEqualExchangeResult).label, '打てない');
 assert.ok(Math.abs(equalExchangeResult.expectedDensapoSpins - (equalExchangeResult.expectedJitanNormalSpins + equalExchangeResult.expectedJitanFastSpins)) < 0.000001, 'split jitan spins should add up to legacy total');
 assert.ok(jitanLossResult.winBalls < expectationContext.engine.calculate({ currentSpin: 900, rotationRate: 18 }, { yenPerBall: 4, netBallsPerWin: 1400 }).winBalls, 'negative jitan rates should reduce win balls');
@@ -233,6 +250,36 @@ function assertMonteCarloClose(currentSpin, seed) {
 
 assertMonteCarloClose(0, 0xB520);
 assertMonteCarloClose(900, 0xB521);
+
+function simulateInvestmentSplit(currentSpin, rotationRate, availableBalls, trials, seed) {
+  const rng = makeRng(seed);
+  const spec = expectationContext.engine.preset.spec;
+  const ballsPerSpin = 250 / rotationRate;
+  const toTenjo = Math.max(0, spec.tenjo - currentSpin);
+  const totals = { mochidamaBalls: 0, cashBalls: 0, normalCostYen: 0 };
+  for (let trial = 0; trial < trials; trial += 1) {
+    const normal = runLimitedJitan(spec.hitProb, toTenjo, rng);
+    const investBalls = normal.spins * ballsPerSpin;
+    const mochidamaBalls = Math.min(investBalls, availableBalls);
+    const cashBalls = Math.max(0, investBalls - mochidamaBalls);
+    totals.mochidamaBalls += mochidamaBalls;
+    totals.cashBalls += cashBalls;
+    totals.normalCostYen += mochidamaBalls * (100 / 28) + cashBalls / 250 * 1000;
+  }
+  return Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, value / trials]));
+}
+
+const splitAnalytic = expectationContext.engine.calculate(
+  { currentSpin: 434, rotationRate: 17, availableBalls: 2500 },
+  { yenPerBall: 100 / 28, netBallsPerWin: 1400 }
+);
+const splitMonteCarlo = simulateInvestmentSplit(434, 17, 2500, 500000, 0xB530);
+for (const key of ['mochidamaBalls', 'cashBalls', 'normalCostYen']) {
+  const expected = splitAnalytic[key];
+  const actual = splitMonteCarlo[key];
+  const tolerance = Math.max(Math.abs(expected) * 0.02, 0.5);
+  assert.ok(Math.abs(actual - expected) <= tolerance, `${key}: analytic=${expected}, simulated=${actual}, tolerance=${tolerance}`);
+}
 const payoutPriorityContext = vm.createContext({
   DEFAULT_NET_BALLS_PER_WIN: 1400,
   MACHINE_PRESETS: [{ id: 'umi-sp5', defaults: { netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0 }, roundTypes: [{ id: 'r4', label: '4R', balls: 560 }, { id: 'r10', label: '10R', balls: 1400 }] }],
@@ -399,7 +446,7 @@ assert.match(style, /\.source-chip\.selected \{\s*border-color: var\(--accent\);
 assert.match(sourceUnavailableMessage, /if \(balance === null\) return `\$\{label\}が未入力です。`;/);
 assert.match(sourceUnavailableMessage, /if \(balance < amount\) return `\$\{label\}がありません。値をタップして修正するか、他のソースを選んでください。`;/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
-assert.match(html, /const SCHEMA_VERSION = 24;/);
+assert.match(html, /const SCHEMA_VERSION = 25;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /roundTypes: \[\{ id: "r10", label: "10R", balls: 1400 \}\]/);
@@ -434,6 +481,9 @@ assert.match(openMachineDetail, /id="toggleMachineHistoryBtn">履歴<\/button>/)
 assert.match(openMachineDetail, /panel\.hidden = hidden;/);
 assert.match(openMachineDetail, /bindNailRatingChips\(machine\);/);
 assert.match(openMachineDetail, /\$\{machineModelSummaryHtml\(machine\)\}\s*\$\{machineFormExpanded \? machineDetailFormHtml\(machine\) : ""\}/);
+assert.match(openMachineDetail, /id="evAvailableBalls"/);
+assert.match(html, /availableBalls: byId\("evAvailableBalls"\)\?\.value/);
+assert.match(html, /持ち玉充当/);
 assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMachineBtn">[^']+<\/button>' : ""\}/);
 assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
 assert.match(openMachineDetail, /openMachineDetail\(daiNo, true\)/);
@@ -463,6 +513,9 @@ assert.doesNotMatch(machineHistoryHtml, /台メモ（現在）|未記入/);
 assert.match(machineHistoryHtml, /deriveSession\(session, machine\)/);
 assert.ok(design.includes('B47 台詳細の台別履歴'));
 assert.ok(design.includes('B48 台メモの蓄積型ログ化'));
+assert.ok(design.includes('B53 持ち玉・再プレイを考慮した期待値円換算'));
+assert.ok(design.includes('schema は 25 とする'));
+assert.ok(design.includes('schema 25 `startEv` サンプル'));
 assert.match(machineButtonHtml, /const hasMachineMemo = \(machine\?\.memoEntries \|\| \[\]\)\.length > 0;/);
 assert.match(bindNailRatingChips, /function bindNailRatingChips\(machine\)/);
 assert.match(bindNailRatingChips, /row\.dataset\.nailKey === DAILY_NAIL_RATING_KEY/);
@@ -492,7 +545,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 24;
+  const SCHEMA_VERSION = 25;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
   const DEFAULT_NET_BALLS_PER_WIN = 1400;

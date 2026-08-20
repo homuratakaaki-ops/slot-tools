@@ -157,6 +157,16 @@
   "startCredit": null,
   "startTotalHits": null,
   "currentSpin": null,
+  "startEv": {
+    "evYen": 1161,
+    "usedRate": 17,
+    "rateSource": "手入力",
+    "effectiveSpin": 434,
+    "availableBalls": 2500,
+    "mochidamaBalls": 1941,
+    "cashBalls": 1826,
+    "normalCostYen": 14237
+  },
   "prevDayEndSpin": null,
   "investments": [
     { "type": "cash", "source": "cash", "amount": 1000, "time": "12:34", "phase": "normal", "spinAt": 320 }
@@ -217,7 +227,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22、B48では schema 22 から 23、B52では schema 23 から 24 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22、B48では schema 22 から 23、B52では schema 23 から 24、B53では schema 24 から 25 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:mapbackup` | フロアマップ定義だけの1世代退避 | フロアマップ保存時、保存直前のアクティブマップ定義を店ID・マップID単位で退避する。復元ボタン押下時に該当マップの島構成・除外・列機種のみ戻す。台・セッション・dailyState は触らない | `{ backups: { [storeId]: { [mapId]: { storeId, mapId, map, createdAt } } } }` の JSON 文字列 |
@@ -497,7 +507,7 @@ B5 実測値:
 ## 14. Phase 4 期待値エンジン
 
 - Phase 4 期待値エンジンは v2 `yutime-record.html` の `YUTIME_RECORD_ENGINE` を式変更なしで移植し、v3 では `YUTIME_EXPECTATION_ENGINE` として `umi-sp5` プリセットに接続する。対象スペックは `hitProb: 1/319.6`、`tenjo: 950`、`yutimeJitan: 350`、`kakuhenRate: 0.54`、`jitanNormal: 100`、`jitanChain: 200`、既定 `netBallsPerWin: 1400`。
-- B52以降、`evBalls` は従来どおり玉ベースの期待値として維持する。円換算 `evYen` は、通常回転に必要な現金支出 `expectedNormalSpins / rate * 1000` と、勝ち玉価値 `(expectedWins * netBallsPerWin + expectedJitanNormalSpins * jitanNormalBallsPerSpin + expectedJitanFastSpins * jitanFastBallsPerSpin) * (100 / exchangeBalls)` を分けて計算し、`winBallsYen - cashSpentYen` とする。等価交換では玉ベースの `evBalls * 4` と一致するが、非等価店では投資玉を交換レートで割り戻さない。
+- B52以降、`evBalls` は従来どおり玉ベースの期待値として維持する。B53以降の円換算 `evYen` は、通常回転に必要なコストを持ち玉充当分の交換価値と現金購入分に分け、勝ち玉価値 `(expectedWins * netBallsPerWin + expectedJitanNormalSpins * jitanNormalBallsPerSpin + expectedJitanFastSpins * jitanFastBallsPerSpin) * (100 / exchangeBalls)` から差し引く。持ち玉0ならB52の全額現金計算と一致する。
 - 判定閾値は `EV_THRESHOLDS = { good: 2000, warn: 0 }`。期待値2000円以上を「打てる」、0円以上2000円未満を「微妙」、0円未満を「打てない」とする。
 - `netBallsPerWin` は既定1400玉。実測出玉からの自動切替は行わない。技術介入の個人差を避けるため、B29以降は `presetSettings["umi-sp5"].netBallsPerWin` として機種プリセット単位で手動調整する。
 - 回転率の優先順位は、手入力、フィルタ適用後の台帳累計、推定回転率、なし。B29以降の推定回転率は選択中マップ（機種・コーナー）の `assumedRate` を使う。
@@ -645,7 +655,7 @@ B5 実測値:
 
 ## 29. B26 台帳の再設計と開始時期待値の記録
 
-- schema は 17 とする。セッションに `startEv: { evYen, usedRate, rateSource, effectiveSpin } | null` を追加する。旧セッションは `startEv: null` として扱う。
+- schema 17時点では、セッションに `startEv: { evYen, usedRate, rateSource, effectiveSpin } | null` を追加した。B53以降は `{ availableBalls, mochidamaBalls, cashBalls, normalCostYen }` も任意で保持する。旧セッションは不足キーを0またはnullとして扱う。
 - `startEv` は打ち始め確定時に保存する固定スナップショットで、後から台帳累計や推定回転率が変わっても再計算しない。
 - 実効回転数は開始回転数 + 前日分で計算する。前日分は判定手入力、ラムクリアチェックで無効化されていない閉店時ゲーム数登録値、なしの順で決まる。
 - 回転率の優先順位は、判定手入力、台帳累計、選択中マップの推定回転率、なし。期待値対応プリセット以外、または回転率なしの場合は `startEv: null`。
@@ -804,6 +814,18 @@ B5 実測値:
 - 受け入れ検証は `tests/yutime-v3.test.js` に決定的モンテカルロ（各10万試行）を実装し、通常開始 `currentSpin:0` と天井付近 `currentSpin:900` で、解析式の `expectedNormalSpins`、`expectedWins`、`expectedJitanNormalSpins`、`expectedJitanFastSpins` が概ね±2%に収まることを確認する。あわせて `netBallsPerWin` 自動算出の4段階優先順位を固定する。
 - schema 24 `presetSettings` サンプル（`netBallsPerWin: 1400`、`netBallsPerWinManual:false`、時短2項目0）: 118 chars。schema 18/23相当の35 charsから `+83 chars`。
 - schema 24 `Session` hits 1件サンプル（`roundTypeId, hitSpin, actualBalls, at`）は、旧 `hitCount/totalRounds` だけの31 charsから127 charsへ増え、`+96 chars/hit`。
+
+## 47. B53 持ち玉・再プレイを考慮した期待値円換算
+
+- schema は 25 とする。判定パネルに `evAvailableBalls`（使える持ち玉・再プレイ玉数）を追加する。未入力または0は全額現金として扱い、B52の計算結果と一致させる。
+- 通常時の消費玉は、当選回転数分布に沿って持ち玉充当分と現金分に分ける。期待消費玉数を後から単純分割すると、早い当たりで持ち玉を使い切らないケースを過大評価するため採用しない。
+- 分割式は `Σ[n=1..spinsToTenjo] P(n回転目で終了) * min(n * 250 / rate, availableBalls)` に、天井到達ケース `P(天井到達) * min(spinsToTenjo * 250 / rate, availableBalls)` を加える。
+- `costYen = mochidamaBalls * (100 / exchangeBalls) + cashBalls / 250 * 1000`、`evYen = winBallsYen - costYen` とする。`evBalls` は従来どおり `winBalls - investBalls` で、原資入力では変えない。
+- 判定根拠表示には、持ち玉入力がある場合だけ `持ち玉充当○玉 / 現金分○玉` を表示する。入力が0なら `全額現金` と表示する。
+- 打ち始め時の `startEv` には、`availableBalls`、`mochidamaBalls`、`cashBalls`、`normalCostYen` を保存する。台帳詳細では開始時期待値の根拠として持ち玉・現金分を表示する。
+- 検証条件 `currentSpin:434`、`rotationRate:17`、`availableBalls:2500`、`exchangeBalls:28` では、分布式により持ち玉充当1941玉、現金分1826玉、通常コスト14236.6円となる。仕様書上の14239円とは丸め差があるため、実装値をテストで固定する。
+- 受け入れ検証は `tests/yutime-v3.test.js` に50万回の独立モンテカルロを実装し、持ち玉充当分、現金分、通常コストが解析式と概ね±2%に収まることを確認する。持ち玉0のB52互換、十分な持ち玉がある場合の全額交換レート換算も固定する。
+- schema 25 `startEv` サンプル（`availableBalls:2500`、`mochidamaBalls:1941`、`cashBalls:1826`、`normalCostYen:14237` 追加）: 150 chars。schema 17/24相当の69 charsから `+81 chars`。
 
 ## アイデアメモ
 

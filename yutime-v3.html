@@ -1539,7 +1539,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 24;
+    const SCHEMA_VERSION = 25;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1601,6 +1601,23 @@
       function finiteExpectedSpins(prob, limit) {
         return rebound(prob, limit) / prob;
       }
+      function normalInvestmentSplit(prob, spinsToTenjo, ballsPerSpin, availableBalls) {
+        const available = Math.max(0, Number(availableBalls) || 0);
+        const totalBalls = finiteExpectedSpins(prob, spinsToTenjo) * ballsPerSpin;
+        if (spinsToTenjo <= 0 || available <= 0) return { mochidamaBalls: 0, cashBalls: totalBalls };
+        let mochidamaBalls = 0;
+        let missProb = 1;
+        for (let spin = 1; spin <= spinsToTenjo; spin += 1) {
+          const endBalls = Math.min(spin * ballsPerSpin, available);
+          mochidamaBalls += missProb * prob * endBalls;
+          missProb *= 1 - prob;
+        }
+        mochidamaBalls += missProb * Math.min(spinsToTenjo * ballsPerSpin, available);
+        return {
+          mochidamaBalls,
+          cashBalls: Math.max(0, totalBalls - mochidamaBalls)
+        };
+      }
       function chainValues(settings = {}) {
         const spec = preset.spec;
         const p = spec.hitProb;
@@ -1654,25 +1671,28 @@
         const expectedJitanFastSpins = pHit * chains.jitanFastInit + pReach * (yutimeDensapoBeforeHit + chains.r350 * chains.jitanFastJitanHit);
         const expectedDensapoSpins = expectedJitanNormalSpins + expectedJitanFastSpins;
         const investBalls = expectedNormalSpins * 250 / rate;
+        const split = normalInvestmentSplit(p, spinsToTenjo, 250 / rate, input.availableBalls);
         const winBalls = expectedWins * merged.netBallsPerWin + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin;
         const evBalls = winBalls - investBalls;
-        const cashSpentYen = expectedNormalSpins / rate * 1000;
+        const mochidamaCostYen = split.mochidamaBalls * merged.yenPerBall;
+        const cashSpentYen = split.cashBalls / 250 * 1000;
+        const normalCostYen = mochidamaCostYen + cashSpentYen;
         const winBallsYen = winBalls * merged.yenPerBall;
-        const evYen = winBallsYen - cashSpentYen;
+        const evYen = winBallsYen - normalCostYen;
         const normalHours = expectedNormalSpins / merged.spinsPerHour;
         const hitHours = expectedWins * merged.secPerHit / 3600;
         const densapoHours = expectedDensapoSpins * merged.secPerDensapoSpin / 3600;
         const totalHours = normalHours + hitHours + densapoHours;
         const hourlyYen = totalHours > 0 ? evYen / totalHours : 0;
         const slotRate = 100 + hourlyYen / (merged.slotGamesPerHour * 3 * 20 * 0.01);
-        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedDensapoSpins, investBalls, winBalls, evBalls, cashSpentYen, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, chains };
+        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedDensapoSpins, investBalls, mochidamaBalls: split.mochidamaBalls, cashBalls: split.cashBalls, mochidamaCostYen, cashSpentYen, normalCostYen, winBalls, evBalls, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, chains };
       }
       function logRate(log) {
         const balls = Number(log.usedBalls ?? log.balls) || 0;
         const spins = Number(log.normalSpin ?? log.spins) || 0;
         return balls > 0 ? spins / (balls / 250) : 0;
       }
-      return { preset, rebound, chainValues, calculate, logRate };
+      return { preset, rebound, finiteExpectedSpins, normalInvestmentSplit, chainValues, calculate, logRate };
     })();
     window.YutimeExpectationEngine = YUTIME_EXPECTATION_ENGINE;
     MACHINE_PRESETS[0] = {
@@ -1940,7 +1960,11 @@
         evYen,
         usedRate,
         rateSource: value.rateSource || "",
-        effectiveSpin
+        effectiveSpin,
+        availableBalls: Math.max(0, normalizeNumber(value.availableBalls) ?? 0),
+        mochidamaBalls: Math.max(0, normalizeNumber(value.mochidamaBalls) ?? 0),
+        cashBalls: Math.max(0, normalizeNumber(value.cashBalls) ?? 0),
+        normalCostYen: normalizeNumber(value.normalCostYen)
       };
     }
 
@@ -2161,13 +2185,15 @@
       if (!rateInfo.rate) return { result: null, reason: "回転率データがありません" };
       const currentSpin = Math.max(0, Number(options.currentSpin) || 0);
       const previousSpin = Math.max(0, Number(options.previousSpin) || 0);
+      const availableBalls = Math.max(0, normalizeNumber(options.availableBalls) ?? 0);
       const effectiveSpin = currentSpin + previousSpin;
       const settingsInfo = expectationSettings(store, machine);
-      const result = YUTIME_EXPECTATION_ENGINE.calculate({ currentSpin: effectiveSpin, rotationRate: rateInfo.rate }, settingsInfo.settings);
+      const result = YUTIME_EXPECTATION_ENGINE.calculate({ currentSpin: effectiveSpin, rotationRate: rateInfo.rate, availableBalls }, settingsInfo.settings);
       return {
         result,
         currentSpin,
         previousSpin,
+        availableBalls,
         effectiveSpin,
         rateSource: rateInfo.source,
         rateAssumed: Boolean(rateInfo.assumed),
@@ -2183,14 +2209,19 @@
       const expectation = calculateMachineExpectation(machine, {
         currentSpin: startSpin,
         previousSpin: session.prevDayEndSpin,
-        manualRate: presets.manualRate
+        manualRate: presets.manualRate,
+        availableBalls: presets.availableBalls
       });
       if (!expectation.result) return null;
       return {
         evYen: Math.round(expectation.result.evYen),
         usedRate: Number(expectation.result.rotationRate.toFixed(2)),
         rateSource: expectation.rateSource,
-        effectiveSpin: expectation.effectiveSpin
+        effectiveSpin: expectation.effectiveSpin,
+        availableBalls: expectation.availableBalls,
+        mochidamaBalls: Math.round(expectation.result.mochidamaBalls),
+        cashBalls: Math.round(expectation.result.cashBalls),
+        normalCostYen: Math.round(expectation.result.normalCostYen)
       };
     }
 
@@ -3480,7 +3511,7 @@
               ${derived.isEstimatedRate || derived.isEstimatedPayout ? '<span class="badge warn">概算</span>' : ""}
               ${sourceMachine ? `<span class="badge">${sameMachineCarryover ? "⇐ 同台続行" : `⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き`}</span>` : ""}
             </div>
-            <small>開始時期待値 ${escapeHtml(startEvText(session.startEv))}${session.startEv?.rateSource ? ` / ${escapeHtml(session.startEv.rateSource)} / 実効${escapeHtml(session.startEv.effectiveSpin)}回転` : ""}</small><br>
+            <small>開始時期待値 ${escapeHtml(startEvText(session.startEv))}${session.startEv?.rateSource ? ` / ${escapeHtml(session.startEv.rateSource)} / 実効${escapeHtml(session.startEv.effectiveSpin)}回転` : ""}${session.startEv?.availableBalls ? ` / 持ち玉${Math.round(session.startEv.mochidamaBalls || 0).toLocaleString("ja-JP")}玉・現金${Math.round(session.startEv.cashBalls || 0).toLocaleString("ja-JP")}玉` : ""}</small><br>
             <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${rateText(derived)} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
             ${session.status === "completed" ? transferSummaryHtml(session) : ""}
             <div class="modal-actions" style="margin-top:8px">
@@ -4929,6 +4960,7 @@
             <div class="field-row"><label for="evCurrentSpin">現在回転数</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
             <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${stats.rate ? stats.rate.toFixed(1) : "履歴なし"}"></div>
+            <div class="field-row"><label for="evAvailableBalls">使える持ち玉・再プレイ（玉）</label><input id="evAvailableBalls" inputmode="numeric" value="" placeholder="0"></div>
           </div>
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
@@ -4982,7 +5014,7 @@
       });
       if (showExpectationBlock) {
         renderMachineExpectation(machine.id);
-        ["evCurrentSpin", "evPrevSpin", "evManualRate"].forEach((id) => {
+        ["evCurrentSpin", "evPrevSpin", "evManualRate", "evAvailableBalls"].forEach((id) => {
           byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
         });
       }
@@ -4992,12 +5024,13 @@
         const startSpinPreset = normalizeNumber(byId("evCurrentSpin")?.value);
         const prevDayEndSpinPreset = normalizeNumber(byId("evPrevSpin")?.value);
         const manualRatePreset = normalizeNumber(byId("evManualRate")?.value);
+        const availableBallsPreset = normalizeNumber(byId("evAvailableBalls")?.value);
         if (!persist()) {
           showToast("保存に失敗しました。容量を確認してください。", "error");
           return;
         }
         closeModal();
-        openStartWizard(machine.id, { startSpin: startSpinPreset, prevDayEndSpin: prevDayEndSpinPreset, manualRate: manualRatePreset });
+        openStartWizard(machine.id, { startSpin: startSpinPreset, prevDayEndSpin: prevDayEndSpinPreset, manualRate: manualRatePreset, availableBalls: availableBallsPreset });
       });
     }
 
@@ -5012,6 +5045,7 @@
         currentSpin: byId("evCurrentSpin")?.value,
         previousSpin: byId("evPrevSpin")?.value,
         manualRate: byId("evManualRate")?.value,
+        availableBalls: byId("evAvailableBalls")?.value,
         stats
       });
       title.className = "expectation-title";
@@ -5033,7 +5067,10 @@
         <div class="metric"><span>拘束時間</span><strong>${escapeHtml(hourText(expectation.result.totalHours))}</strong></div>
       `;
       const near = expectation.result.spinsToTenjo < 100 && expectation.result.spinsToTenjo > 0;
-      detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 実効${expectation.effectiveSpin}回転${expectation.previousSpin ? `（宵越し${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
+      const costSource = expectation.availableBalls > 0
+        ? `持ち玉充当${Math.round(expectation.result.mochidamaBalls).toLocaleString("ja-JP")}玉 / 現金分${Math.round(expectation.result.cashBalls).toLocaleString("ja-JP")}玉`
+        : "全額現金";
+      detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 実効${expectation.effectiveSpin}回転${expectation.previousSpin ? `（宵越し${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
     }
 
     function applyPresetSelectionToForm() {
