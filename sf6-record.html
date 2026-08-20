@@ -684,7 +684,7 @@ textarea{
   const BATTLE_ADJUST_LOCK_TOAST='FB中はG数調整を操作できません';
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
-  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,sessionMoney:null,logs:[]};
+  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,autoColorResetAt:0,sessionMoney:null,logs:[]};
   let selectedGainKind='';
   let selectedVoice=null;
   let gainAddDraft='';
@@ -774,6 +774,10 @@ textarea{
     const boundary=optionalGame(value);
     return boundary===null?null:boundary;
   }
+  function normalizeAutoColorResetAt(value){
+    const n=Number(value);
+    return Number.isFinite(n)&&n>=0?Math.floor(n):0;
+  }
   function normalizeAntenPattern(value){
     const text=String(value??'').trim();
     return ANTEN_PATTERNS.some(item=>item.key===text)?text:null;
@@ -832,7 +836,7 @@ textarea{
     };
   }
   function defaultState(){
-    return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,sessionMoney:null,logs:[]};
+    return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,autoColorResetAt:Date.now(),sessionMoney:null,logs:[]};
   }
   function normalizeSessionMoney(value){
     if(!value||typeof value!=='object')return null;
@@ -867,7 +871,7 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,judgeAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedSumahoChara,selectedWtAnten,selectedMedalSource,medalInDraft}});
+    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),autoColorResetAt:normalizeAutoColorResetAt(state.autoColorResetAt),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,judgeAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedSumahoChara,selectedWtAnten,selectedMedalSource,medalInDraft}});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
@@ -879,6 +883,7 @@ textarea{
     state.initialThrough=nonnegativeInt(snap?.initialThrough)??0;
     state.pendingAutoColor=normalizePendingAutoColor(snap?.pendingAutoColor);
     state.autoColorBoundary=normalizeAutoColorBoundary(snap?.autoColorBoundary);
+    state.autoColorResetAt=normalizeAutoColorResetAt(snap?.autoColorResetAt);
     state.sessionMoney=normalizeSessionMoney(snap?.sessionMoney);
     state.logs=Array.isArray(snap?.logs)?snap.logs.map(sanitizeLog).filter(Boolean):[];
     const drafts=snap?.drafts||{};
@@ -902,7 +907,6 @@ textarea{
     selectedWtAnten=normalizeAntenPattern(drafts.selectedWtAnten);
     selectedMedalSource=MEDAL_SOURCES.some(([key])=>key===drafts.selectedMedalSource)?drafts.selectedMedalSource:'unknown';
     medalInDraft=String(drafts.medalInDraft||'');
-    resetAutoColorTrackerToCurrent();
     save();
     render();
   }
@@ -918,6 +922,7 @@ textarea{
     state.currentState=normalizeCurrentState(state.currentState);
     state.pendingAutoColor=normalizePendingAutoColor(state.pendingAutoColor);
     state.autoColorBoundary=normalizeAutoColorBoundary(state.autoColorBoundary);
+    state.autoColorResetAt=normalizeAutoColorResetAt(state.autoColorResetAt);
     const after=appSnapshot();
     if(JSON.stringify(before)===JSON.stringify(after)){
       render();
@@ -1044,7 +1049,7 @@ textarea{
     const logs=Array.isArray(normalized?.logs)?normalized.logs.map(sanitizeLog).filter(Boolean):[];
     const sourceVer=normalized&&Object.prototype.hasOwnProperty.call(normalized,'sourceVer')?normalized.sourceVer:VERSION;
     const startedAt=String(normalized?.startedAt||'').trim()||(logs.length?isoFromLogTime(logs[0].t):isoWithOffset());
-    return {machine:MACHINE,ver:VERSION,sourceVer,sessionId:String(normalized?.sessionId||'').trim()||uuidV4(),startedAt,sessionInfo:normalizeSessionInfo(normalized?.sessionInfo),battleState:normalizeBattleState(normalized?.battleState),hadWin:normalizeHadWin(normalized?.hadWin),currentStage:normalizeCurrentStage(normalized?.currentStage),currentZenchou:normalizeCurrentZenchou(normalized?.currentZenchou),currentColor:normalizeCurrentColor(normalized?.currentColor),currentState:normalizeCurrentState(normalized?.currentState),initialThrough:nonnegativeInt(normalized?.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(normalized?.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(normalized?.autoColorBoundary),sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
+    return {machine:MACHINE,ver:VERSION,sourceVer,sessionId:String(normalized?.sessionId||'').trim()||uuidV4(),startedAt,sessionInfo:normalizeSessionInfo(normalized?.sessionInfo),battleState:normalizeBattleState(normalized?.battleState),hadWin:normalizeHadWin(normalized?.hadWin),currentStage:normalizeCurrentStage(normalized?.currentStage),currentZenchou:normalizeCurrentZenchou(normalized?.currentZenchou),currentColor:normalizeCurrentColor(normalized?.currentColor),currentState:normalizeCurrentState(normalized?.currentState),initialThrough:nonnegativeInt(normalized?.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(normalized?.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(normalized?.autoColorBoundary),autoColorResetAt:normalizeAutoColorResetAt(normalized?.autoColorResetAt),sessionMoney:normalizeSessionMoney(normalized?.sessionMoney),logs};
   }
   function save(){
     try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state));}catch(e){toast('保存に失敗しました');}
@@ -1185,6 +1190,7 @@ textarea{
   function resetAutoColorTrackerToCurrent(options={}){
     const boundary=colorBoundary(snapshot().lcdG);
     state.autoColorBoundary=boundary;
+    state.autoColorResetAt=Date.now();
     if(options.clearPending)state.pendingAutoColor=null;
   }
   function crossedColorBoundary(from,to){
@@ -1196,7 +1202,8 @@ textarea{
   }
   function hasBlueColorForBoundary(boundary){
     if(boundary===null)return false;
-    return state.logs.some(log=>log.type==='gcolor'&&log.color===G_COLORS[0]&&colorBoundary(log.lcdG)===boundary);
+    const resetAt=normalizeAutoColorResetAt(state.autoColorResetAt);
+    return state.logs.some(log=>log.type==='gcolor'&&log.color===G_COLORS[0]&&colorBoundary(log.lcdG)===boundary&&(Number(log.t)||0)>=resetAt);
   }
   function addAutoBlueColor(boundary,snap){
     if(boundary===null||hasBlueColorForBoundary(boundary))return false;
@@ -1372,6 +1379,7 @@ textarea{
         initialThrough:nonnegativeInt(normalized.initialThrough)??0,
         pendingAutoColor:normalizePendingAutoColor(normalized.pendingAutoColor),
         autoColorBoundary:normalizeAutoColorBoundary(normalized.autoColorBoundary),
+        autoColorResetAt:normalizeAutoColorResetAt(normalized.autoColorResetAt),
         sessionMoney:money,
         logs
       }
