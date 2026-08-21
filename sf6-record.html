@@ -1193,6 +1193,14 @@ textarea{
     state.autoColorResetAt=Date.now();
     if(options.clearPending)state.pendingAutoColor=null;
   }
+  function cancelPendingAutoColorForObservedColor(snap){
+    const pending=normalizePendingAutoColor(state.pendingAutoColor);
+    if(!pending)return false;
+    if(colorBoundary(snap?.lcdG)!==pending.boundary)return false;
+    state.pendingAutoColor=null;
+    state.autoColorBoundary=pending.boundary;
+    return true;
+  }
   function crossedColorBoundary(from,to){
     const a=optionalGame(from);
     const b=optionalGame(to);
@@ -1298,7 +1306,11 @@ textarea{
   }
   function moneyAfterSummary(money=currentMoney()){
     const m=normalizeSessionMoney(money)||blankSessionMoney();
-    return {sandBalance:m.sandBalance,credit:m.credit,investedYen:m.investedYen,usedMochidama:m.usedMochidama,usedSaipurei:m.usedSaipurei,usedUnknown:m.usedUnknown,initialDiff:m.initialDiff,diffAdjust:m.diffAdjust,collectMedals:m.collectMedals,loanRate:m.loanRate};
+    return {startCredit:m.startCredit,startMochidama:m.startMochidama,startSaipurei:m.startSaipurei,sandBalance:m.sandBalance,credit:m.credit,investedYen:m.investedYen,usedMochidama:m.usedMochidama,usedSaipurei:m.usedSaipurei,usedUnknown:m.usedUnknown,initialDiff:m.initialDiff,diffAdjust:m.diffAdjust,collectMedals:m.collectMedals,loanRate:m.loanRate,initialThrough:nonnegativeInt(state.initialThrough)??0};
+  }
+  function startingMedals(money=currentMoney()){
+    const m=normalizeSessionMoney(money)||blankSessionMoney();
+    return (m.startMochidama||0)+(m.startSaipurei||0);
   }
   function investedMedals(money=currentMoney()){
     const m=normalizeSessionMoney(money)||blankSessionMoney();
@@ -1307,7 +1319,7 @@ textarea{
   function intervalDiffValue(money=currentMoney()){
     const m=normalizeSessionMoney(money);
     if(!m||m.initialDiff===null)return null;
-    return Math.round(m.initialDiff+(m.credit||0)-investedMedals(m)+m.diffAdjust);
+    return Math.round(m.initialDiff+(m.credit||0)+(m.collectMedals||0)-startingMedals(m)-investedMedals(m)-(m.usedMochidama||0)-(m.usedSaipurei||0)-(m.usedUnknown||0)+m.diffAdjust);
   }
   function diffText(value){
     if(value===null||value===undefined)return '-';
@@ -1322,7 +1334,7 @@ textarea{
     const cashMedals=Math.round((m.investedYen/1000)*m.loanRate);
     const collect=m.collectMedals||0;
     const credit=m.credit||0;
-    const medalDiff=collect+credit-cashMedals-m.usedMochidama-m.usedSaipurei-m.usedUnknown;
+    const medalDiff=collect+credit-startingMedals(m)-cashMedals-m.usedMochidama-m.usedSaipurei-m.usedUnknown;
     const yenDiff=Math.round(medalDiff*1000/m.loanRate);
     return {cashMedals,collect,credit,medalDiff,yenDiff};
   }
@@ -1696,11 +1708,11 @@ textarea{
     const snap=requireLcd();
     if(!snap)return;
     commit(`gcolor:${color}`,()=>{
+      cancelPendingAutoColorForObservedColor(snap);
       if(color===DEFAULT_RETURN_COLOR)applyColorEnd(snap);
       else{
         addLogDirect({type:'gcolor',color,realG:snap.realG,lcdG:snap.lcdG});
         state.currentColor=color;
-        if(color===G_COLORS[0]&&state.pendingAutoColor&&colorBoundary(snap.lcdG)===state.pendingAutoColor.boundary)state.pendingAutoColor=null;
       }
     },{toast:`gcolor:${color}`});
     if(options.closeAfter)closeSheet();
@@ -1764,6 +1776,7 @@ textarea{
     if(!snap)return;
     commit('FB当選',()=>{
       addLogDirect({type:'fbhit',realG:snap.realG,lcdG:snap.lcdG});
+      state.pendingAutoColor=null;
       state.battleState='battle';
       state.hadWin=false;
       state.currentStage=null;
@@ -1883,7 +1896,7 @@ textarea{
       if(isEnding&&moneyInitialized()){
         const base=normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
         const initial=base.initialDiff===null?0:base.initialDiff;
-        const displayed=Math.round(initial+(base.credit||0)-investedMedals(base)+base.diffAdjust);
+        const displayed=intervalDiffValue({...base,initialDiff:initial})??0;
         const next={...base,initialDiff:initial,diffAdjust:base.diffAdjust-displayed};
         state.sessionMoney=normalizeSessionMoney(next);
         addLogDirect({type:'money',op:'diffSync',amount:0,auto:true,after:moneyAfterSummary(state.sessionMoney),realG:snap.realG,lcdG:snap.lcdG});
@@ -2734,16 +2747,20 @@ textarea{
     body.prepend(panel);
   }
   function openSheet(title,build,options={}){
+    const sheet=$('sheet');
+    const body=$('sheetBody');
+    const preserveScroll=sheet.classList.contains('open')&&$('sheetTitle').textContent===title&&!options.singleChoice;
+    const previousScrollTop=preserveScroll?body.scrollTop:0;
     $('sheetTitle').textContent=title;
     activeHintKey=options.hintKey||null;
     if(!activeHintKey)hintPanelOpen=false;
     renderSheetHintButton();
     document.querySelector('.bm-sheet-panel')?.classList.toggle('single-choice-sheet',!!options.singleChoice);
-    const body=$('sheetBody');
     clearNode(body);
     renderHintPanel(body);
     build(body);
-    $('sheet').classList.add('open');
+    sheet.classList.add('open');
+    if(preserveScroll)body.scrollTop=previousScrollTop;
   }
   function closeSheet(){
     $('sheet').classList.remove('open');
