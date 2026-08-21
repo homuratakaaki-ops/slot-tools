@@ -7,7 +7,7 @@
     const S=ctx.S;
     return [
       {title:'まいるテーブル',items:detailItems(TABLES,S.zones),percent:true},
-      {title:'初当り',items:[detailItem('関所チャレンジ当選',S.cz.rg,0),detailItem('やじきた祭当選',S.atCount,0),detailItem('AT直撃',S.choku,1),detailItem('関頂アタック突入',S.atcz.gab,0),detailItem('まいるチャージ終了',S.atcz.chargeEnd,0),detailRatio('温泉前兆移行',S.atcz.useki,S.atcz.chargeEnd,1)]},
+      {title:'初当り',items:[detailItem('関所チャレンジ当選',S.cz.rg,0),detailItem('やじきた祭当選',S.atCount,0),detailItem('AT直撃',S.choku,1),detailItem('関頂アタック突入',S.atcz.gab,0),detailItem('まいるチャージ終了(未到達)',S.atcz.chargeEnd,0),detailRatio('温泉前兆移行',S.atcz.useki,S.atcz.chargeEnd,1)]},
       {title:'あっぱれチャンス キャラ',items:detailItems(CHARACTERS,S.icons),percent:true},
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens),percent:true},
       {title:'ユニバプレート',items:detailItems(COINS,S.coins)},
@@ -97,10 +97,10 @@
       ${ctx.crow('atCount','やじきた祭当選','設1:1/473.9⇔設6:1/318.3',0)}
       ${ctx.crow('choku','AT直撃','設1:1/12302.7（他設定は調査中）',1)}
       ${ctx.crow('atcz.gab','関頂アタック突入','主にレア役で突入・成功期待度約50%',0)}
-      ${ctx.crow('atcz.chargeEnd','まいるチャージ終了','温泉前兆移行率の分母',0)}
+      ${ctx.crow('atcz.chargeEnd','まいるチャージ終了(未到達)','規定まいる未到達で終了した回数＝温泉前兆の分母',0)}
       ${ctx.crow('atcz.useki','温泉前兆移行','まいるチャージ終了後 設1:4.7%⇔設4:7.0%⇔設6:11.7%',1,n=>ctx.pct(n,ctx.S.atcz.chargeEnd))}
     </div>
-    <div class="hint">CZを経由しないAT直撃と、まいるチャージ終了後の温泉前兆移行を記録します。AT直撃は1日ではほとんど発生しないため、引けた場合の材料として扱ってください。</div>
+    <div class="hint">CZを経由しないAT直撃と、まいるチャージ終了後の温泉前兆移行を記録します。温泉前兆の分母は、まいるチャージが規定まいるに到達せずに終了した回数だけを数えます（到達して関所チャレンジに進んだ場合は数えません）。出典の設定判別項には「まいるチャージ4回以上」という条件の記載もあるため、%は参考値として扱ってください。AT直撃は1日ではほとんど発生しないため、引けた場合の材料として扱ってください。</div>
   </section>`;
   }
   function pageShisa(ctx){
@@ -127,7 +127,7 @@
     TABLES.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.zones[c[0]]}回\n`;});
     const recent=ctx.S.tableHist.slice(-5).reverse().map(h=>tableShort(h.key)).join('←')||'なし';
     t+=`直近履歴：${recent}\n`;
-    t+=`\n■関頂アタック▶︎ ${ctx.S.atcz.gab}回\n■まいるチャージ終了▶︎ ${ctx.S.atcz.chargeEnd}回\n■温泉前兆移行▶︎ ${r(ctx.S.atcz.useki,ctx.S.atcz.chargeEnd)}\n■AT直撃▶︎ ${ctx.S.choku}回\n\n■あっぱれキャラ\n`;
+    t+=`\n■関頂アタック▶︎ ${ctx.S.atcz.gab}回\n■まいるチャージ終了(未到達)▶︎ ${ctx.S.atcz.chargeEnd}回\n■温泉前兆移行▶︎ ${r(ctx.S.atcz.useki,ctx.S.atcz.chargeEnd)}\n■AT直撃▶︎ ${ctx.S.choku}回\n\n■あっぱれキャラ\n`;
     CHARACTERS.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.icons[c[0]],charN)}\n`;});
     t+=`\n■AT終了画面\n`;
     const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
@@ -148,7 +148,7 @@
     const recent=ctx.S.tableHist.slice(-5).reverse().map(h=>tableShort(h.key)).join('←')||'なし';
     t+=`直近履歴：${recent}\n`;
     t+=sec('関頂アタック',ctx.S.atcz.gab>0?[`関頂アタック▶︎ ${ctx.S.atcz.gab}回`]:[]);
-    t+=sec('まいるチャージ',ctx.S.atcz.chargeEnd>0||ctx.S.atcz.useki>0?[`まいるチャージ終了▶︎ ${ctx.S.atcz.chargeEnd}回`,`温泉前兆移行▶︎ ${r(ctx.S.atcz.useki,ctx.S.atcz.chargeEnd)}`]:[]);
+    t+=sec('まいるチャージ',ctx.S.atcz.chargeEnd>0||ctx.S.atcz.useki>0?[`まいるチャージ終了(未到達)▶︎ ${ctx.S.atcz.chargeEnd}回`,`温泉前兆移行▶︎ ${r(ctx.S.atcz.useki,ctx.S.atcz.chargeEnd)}`]:[]);
     t+=sec('AT直撃',ctx.S.choku>0?[`AT直撃▶︎ ${ctx.S.choku}回`]:[]);
     t+=sec('あっぱれキャラ',charN>0?CHARACTERS.filter(c=>ctx.S.icons[c[0]]>0).map(c=>`${c[1]}▶︎ ${p(ctx.S.icons[c[0]],charN)}`):[]);
     const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
