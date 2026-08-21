@@ -90,7 +90,7 @@ function detail(ctx){
       ${ctx.crow('cz.rg','CZ 超電磁砲チャンス','CZ合算 設1:1/235.6⇔設6:1/207.2',0,n=>ctx.pct(n,czN))}
       ${ctx.crow('cz.ac','CZ 一方通行チャンス','上位CZ（約80%）割合に設定差の可能性',1,n=>ctx.pct(n,czN))}
       ${ctx.crow('atCount','AT当選','設1:1/398.8⇔設6:1/338.4',0)}
-      ${ctx.crow('choku','AT直撃','設1 約1/8000 ⇔ 設6 約1/4000',1)}
+      ${ctx.crow('choku','AT直撃','設1:1/7926.8⇔設6:1/3736.2',1)}
     </div>
   </section>
   <section class="sec">
