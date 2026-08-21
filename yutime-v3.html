@@ -2290,13 +2290,20 @@
       return normalized ? yenText(normalized.evYen) : "-";
     }
 
+    function remainingSpinTextFromEffectiveSpin(effectiveSpin, tenjo = YUTIME_EXPECTATION_ENGINE.preset.spec.tenjo) {
+      const effective = normalizeNumber(effectiveSpin);
+      const ceiling = normalizeNumber(tenjo);
+      if (effective === null || ceiling === null) return "残り-回転";
+      return `残り${Math.max(0, ceiling - effective).toLocaleString("ja-JP")}回転`;
+    }
+
     function startEvDetailText(startEv) {
       const normalized = normalizeStartEv(startEv);
       if (!normalized) return "記録なし";
       const balanceText = normalized.availableBalls
         ? ` / 入力 持ち玉${Math.round(normalized.mochidamaInput || 0).toLocaleString("ja-JP")}玉・再プレ${Math.round(normalized.saipureiInput || 0).toLocaleString("ja-JP")}玉 / 充当${Math.round(normalized.mochidamaBalls || 0).toLocaleString("ja-JP")}玉・現金${Math.round(normalized.cashBalls || 0).toLocaleString("ja-JP")}玉`
         : "";
-      return `${yenText(normalized.evYen)} / ${Number(normalized.usedRate).toFixed(1)} /250玉 / ${normalized.rateSource || "ソース不明"} / 実効${normalized.effectiveSpin}回転${balanceText}`;
+      return `${yenText(normalized.evYen)} / ${Number(normalized.usedRate).toFixed(1)} /250玉 / ${normalized.rateSource || "ソース不明"} / ${remainingSpinTextFromEffectiveSpin(normalized.effectiveSpin)}${balanceText}`;
     }
 
     function showToast(message, type = "success", options = {}) {
@@ -5158,7 +5165,7 @@
       const costSource = expectation.availableBalls > 0
         ? `持ち玉充当${Math.round(expectation.result.mochidamaBalls).toLocaleString("ja-JP")}玉 / 現金分${Math.round(expectation.result.cashBalls).toLocaleString("ja-JP")}玉`
         : "全額現金";
-      detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 実効${expectation.effectiveSpin}回転${expectation.previousSpin ? `（宵越し${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
+      detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（宵越し${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
     }
 
     function applyPresetSelectionToForm() {
@@ -5690,7 +5697,7 @@
       const current = runningTrialRateFor(session, runningPanelRate(session));
       if (current === null) return;
       runningTrialRate = clampTrialRate(current + Number(delta || 0));
-      renderRunning();
+      updateRunningTrialCard(session);
     }
 
     function trialExpectationLine(label, expectation, detail) {
@@ -5698,11 +5705,8 @@
       return `<p class="hint"><strong>${escapeHtml(label)}</strong> ${escapeHtml(yenText(expectation.result.evYen))}（${escapeHtml(detail)}）</p>`;
     }
 
-    function runningTrialExpectationHtml(session, machine, trialRate, balances) {
+    function runningTrialCalculations(session, machine, trialRate, balances) {
       if (!machine) return "";
-      if (trialRate === null) {
-        return '<p class="hint warn">打ち始めの回転率が記録されていません</p>';
-      }
       const currentSpin = normalizeNumber(session.currentSpin);
       const currentAvailableBalls = Math.max(0, Number(balances?.mochidama || 0));
       const currentExpectation = calculateMachineExpectation(machine, {
@@ -5716,18 +5720,50 @@
         manualRate: trialRate,
         availableBalls: startEv.availableBalls
       }) : null;
+      return { currentExpectation, startExpectation };
+    }
+
+    function runningTrialLinesHtml(session, machine, trialRate, balances) {
+      const calculations = runningTrialCalculations(session, machine, trialRate, balances);
+      if (!calculations) return { currentLine: "", startLine: "" };
+      const currentLine = trialExpectationLine("今から打つ場合", calculations.currentExpectation, `残り${calculations.currentExpectation.result ? calculations.currentExpectation.result.spinsToTenjo.toLocaleString("ja-JP") : "-"}回転`);
+      const startLine = calculations.startExpectation
+        ? trialExpectationLine("打ち始めから", calculations.startExpectation, `残り${calculations.startExpectation.result ? calculations.startExpectation.result.spinsToTenjo.toLocaleString("ja-JP") : "-"}回転`)
+        : "";
+      return { currentLine, startLine };
+    }
+
+    function updateRunningTrialCard(session) {
+      const machine = data.machines.find(item => item.id === session?.machineId);
+      const trialRate = runningTrialRateFor(session, runningPanelRate(session));
+      if (!machine || trialRate === null) return;
+      const lines = runningTrialLinesHtml(session, machine, trialRate, deriveBalances(session));
+      const rateValue = byId("runningTrialRateValue");
+      const currentLine = byId("runningTrialCurrentLine");
+      const startLine = byId("runningTrialStartLine");
+      if (rateValue) rateValue.textContent = `${trialRate.toFixed(1)} /250玉`;
+      if (currentLine) currentLine.innerHTML = lines.currentLine;
+      if (startLine) startLine.innerHTML = lines.startLine;
+    }
+
+    function runningTrialExpectationHtml(session, machine, trialRate, balances) {
+      if (!machine) return "";
+      if (trialRate === null) {
+        return '<p class="hint warn">打ち始めの回転率が記録されていません</p>';
+      }
+      const lines = runningTrialLinesHtml(session, machine, trialRate, balances);
       return `
         <div class="row-card">
           <strong>回転率を変えて試算</strong>
           <div class="trial-rate-controls">
             <button type="button" data-trial-rate-delta="-1">-1</button>
             <button type="button" data-trial-rate-delta="-0.5">-0.5</button>
-            <div class="trial-rate-value">${trialRate.toFixed(1)} /250玉</div>
+            <div class="trial-rate-value" id="runningTrialRateValue">${trialRate.toFixed(1)} /250玉</div>
             <button type="button" data-trial-rate-delta="0.5">+0.5</button>
             <button type="button" data-trial-rate-delta="1">+1</button>
           </div>
-          ${trialExpectationLine("今から打つ場合", currentExpectation, `残り${currentExpectation.result ? currentExpectation.result.spinsToTenjo.toLocaleString("ja-JP") : "-"}回転`)}
-          ${startExpectation ? trialExpectationLine("打ち始めから", startExpectation, `残り${startExpectation.result ? startExpectation.result.spinsToTenjo.toLocaleString("ja-JP") : "-"}回転`) : ""}
+          <div id="runningTrialCurrentLine">${lines.currentLine}</div>
+          <div id="runningTrialStartLine">${lines.startLine}</div>
         </div>
       `;
     }

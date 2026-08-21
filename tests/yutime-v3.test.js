@@ -37,11 +37,13 @@ const runningTrialHelpers = section('function clampTrialRate', 'function running
 const runningSpinCount = section('function runningSpinCount', 'function investmentSnapshot');
 const investmentSnapshot = section('function investmentSnapshot', 'function historyEntries');
 const calculateStartEvSnapshot = section('function calculateStartEvSnapshot', 'function startEvText');
+const startEvDetailTextBlock = section('function startEvText', 'function showToast');
 const investmentTotalsBlock = section('function investmentTotals', 'function transferSummaryForSession');
 const openBalanceEditForm = section('function openBalanceEditForm', 'function openSpinEditForm');
 const machineSummary = section('function machineModelSummaryHtml', 'function machineDetailFormHtml');
 const machineDetailForm = section('function machineDetailFormHtml', 'function openMachineDetail');
 const openMachineDetail = section('function openMachineDetail', 'function renderMachineExpectation');
+const renderMachineExpectation = section('function renderMachineExpectation', 'function applyPresetSelectionToForm');
 const machineMemoHelpers = section('function machineMemoEntriesForDate', 'function nailRatingSummary');
 const nailRatingSection = section('function nailRatingSummary', 'function machineModelSummaryHtml');
 const machineHistoryHtml = section('function machineHistoryHtml', 'function bindNailRatingChips');
@@ -538,6 +540,12 @@ assert.match(runningTrialHelpers, /function resetRunningTrialState\(\) \{/);
 assert.match(runningTrialHelpers, /runningEvaluationOpen = false;/);
 assert.match(runningTrialHelpers, /runningNailOpen = false;/);
 assert.match(runningTrialHelpers, /function adjustRunningTrialRate\(delta\) \{/);
+assert.match(runningTrialHelpers, /updateRunningTrialCard\(session\);/);
+assert.doesNotMatch(section('function adjustRunningTrialRate', 'function trialExpectationLine'), /renderRunning\(\)/);
+assert.match(runningTrialHelpers, /function updateRunningTrialCard\(session\) \{/);
+assert.match(runningTrialHelpers, /byId\("runningTrialRateValue"\)/);
+assert.match(runningTrialHelpers, /byId\("runningTrialCurrentLine"\)/);
+assert.match(runningTrialHelpers, /byId\("runningTrialStartLine"\)/);
 assert.match(runningTrialHelpers, /function runningTrialExpectationHtml\(session, machine, trialRate, balances\) \{/);
 assert.match(runningTrialHelpers, /data-trial-rate-delta="-1"/);
 assert.match(runningTrialHelpers, /data-trial-rate-delta="-0\.5"/);
@@ -545,9 +553,27 @@ assert.match(runningTrialHelpers, /data-trial-rate-delta="0\.5"/);
 assert.match(runningTrialHelpers, /data-trial-rate-delta="1"/);
 assert.match(runningTrialHelpers, /currentSpin: startEv\.effectiveSpin/);
 assert.match(runningTrialHelpers, /availableBalls: startEv\.availableBalls/);
-assert.match(runningTrialHelpers, /trialExpectationLine\("打ち始めから", startExpectation, `残り\$\{startExpectation\.result \? startExpectation\.result\.spinsToTenjo\.toLocaleString\("ja-JP"\) : "-"\}回転`\)/);
+assert.match(runningTrialHelpers, /id="runningTrialRateValue"/);
+assert.match(runningTrialHelpers, /id="runningTrialCurrentLine"/);
+assert.match(runningTrialHelpers, /id="runningTrialStartLine"/);
 assert.doesNotMatch(runningTrialHelpers, /`実効/);
+assert.match(startEvDetailTextBlock, /function remainingSpinTextFromEffectiveSpin\(effectiveSpin, tenjo = YUTIME_EXPECTATION_ENGINE\.preset\.spec\.tenjo\) \{/);
+assert.match(startEvDetailTextBlock, /Math\.max\(0, ceiling - effective\)\.toLocaleString\("ja-JP"\)/);
+assert.match(startEvDetailTextBlock, /remainingSpinTextFromEffectiveSpin\(normalized\.effectiveSpin\)/);
+assert.doesNotMatch(startEvDetailTextBlock, /実効\$\{normalized\.effectiveSpin\}/);
+assert.match(renderMachineExpectation, /残り\$\{expectation\.result\.spinsToTenjo\.toLocaleString\("ja-JP"\)\}回転/);
+assert.match(renderMachineExpectation, /宵越し\$\{expectation\.previousSpin\}\+現在\$\{expectation\.currentSpin\}/);
+assert.doesNotMatch(renderMachineExpectation, /実効\$\{expectation\.effectiveSpin\}/);
 const runningExpectationContext = vm.createContext({
+  __renderCount: 0,
+  __nodes: {
+    runningTrialRateValue: { textContent: '' },
+    runningTrialCurrentLine: { innerHTML: '' },
+    runningTrialStartLine: { innerHTML: '' }
+  },
+  data: {
+    machines: [{ id: 'm_1', summary: 'ヘソ4・寄り3・道3・ネカセ3・スルー3・ワープ3' }]
+  },
   startEvDetailText() {
     return '記録なし';
   },
@@ -580,12 +606,20 @@ const runningExpectationContext = vm.createContext({
     return `${value}円`;
   },
   activeSession() {
-    return { id: 's_1', startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500 }, currentSpin: 600 };
+    return { id: 's_1', machineId: 'm_1', startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500 }, currentSpin: 600 };
   },
   runningPanelRate() {
     return 17.2;
   },
-  renderRunning() {},
+  deriveBalances() {
+    return { mochidama: 1200 };
+  },
+  byId(id) {
+    return runningExpectationContext.__nodes[id] || null;
+  },
+  renderRunning() {
+    runningExpectationContext.__renderCount += 1;
+  },
   escapeHtml(value) {
     return String(value ?? '');
   },
@@ -607,6 +641,10 @@ new vm.Script(`
   globalThis.initialTrialRate = runningTrialRate;
   adjustRunningTrialRate(0.5);
   globalThis.adjustedTrialRate = runningTrialRate;
+  globalThis.renderCountAfterAdjust = __renderCount;
+  globalThis.updatedTrialRateText = __nodes.runningTrialRateValue.textContent;
+  globalThis.updatedCurrentLine = __nodes.runningTrialCurrentLine.innerHTML;
+  globalThis.updatedStartLine = __nodes.runningTrialStartLine.innerHTML;
   globalThis.afterRedrawRate = runningTrialRateFor({ id: 's_1', startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500 } }, 17.2);
   globalThis.afterSwitchRate = runningTrialRateFor({ id: 's_2', startEv: { usedRate: 16, effectiveSpin: 400, availableBalls: 0 } }, 20);
   resetRunningTrialState();
@@ -635,6 +673,10 @@ assert.doesNotMatch(renderedRunningExpectation, /実効/);
 assert.doesNotMatch(renderedRunningExpectation, /data-show-header="true"/);
 assert.equal(runningExpectationContext.initialTrialRate, 18.5);
 assert.equal(runningExpectationContext.adjustedTrialRate, 19);
+assert.equal(runningExpectationContext.renderCountAfterAdjust, 0);
+assert.equal(runningExpectationContext.updatedTrialRateText, '19.0 /250玉');
+assert.match(runningExpectationContext.updatedCurrentLine, /今から打つ場合<\/strong> 1900円（残り425回転）/);
+assert.match(runningExpectationContext.updatedStartLine, /打ち始めから<\/strong> 1900円（残り425回転）/);
 assert.equal(runningExpectationContext.afterRedrawRate, 19);
 assert.equal(runningExpectationContext.afterSwitchRate, 16);
 assert.equal(runningExpectationContext.resetEvaluationOpen, false);
