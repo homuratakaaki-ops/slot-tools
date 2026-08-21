@@ -786,6 +786,16 @@
       font-weight: 700;
       min-height: 36px;
     }
+    .running-nail-collapse {
+      margin-top: 10px;
+      border-top: 1px solid var(--line);
+      padding-top: 8px;
+    }
+    .running-nail-collapse summary {
+      cursor: pointer;
+      font-weight: 700;
+      min-height: 34px;
+    }
 
     .running-live-row strong {
       font-size: 22px;
@@ -4843,14 +4853,14 @@
         .join("・");
     }
 
-    function nailRatingSectionHtml(machine) {
+    function nailRatingSectionHtml(machine, options = {}) {
       const rating = normalizeNailRating(machine.nailRating);
       const todayHeso = dailyHesoRating(machine.id);
       const latestHeso = latestHesoRatingBefore(machine.id);
       const summary = nailRatingSummary(machine);
       return `
         <div class="nail-rating-section">
-          <div><strong>釘・ネカセ</strong><br><small>${summary ? `釘: ${escapeHtml(summary)}` : "未評価"}</small></div>
+          ${options.showHeader === false ? "" : `<div><strong>釘・ネカセ</strong><br><small>${summary ? `釘: ${escapeHtml(summary)}` : "未評価"}</small></div>`}
           ${NAIL_DISPLAY_KEYS.map((key) => {
             const value = key === DAILY_NAIL_RATING_KEY ? todayHeso : rating[key];
             const reference = key === DAILY_NAIL_RATING_KEY && latestHeso ? `<small class="hint">前日参考: ${escapeHtml(latestHeso.value)}（${escapeHtml(shortDate(latestHeso.date))}）</small>` : "";
@@ -5615,6 +5625,7 @@
 
     function runningExpectationHtml(session, machine, liveRate, balances) {
       const startText = startEvDetailText(session.startEv);
+      const nailSummary = machine ? nailRatingSummary(machine) : "";
       let liveHtml = '<p class="hint warn">回転率のサンプルが足りません</p>';
       if (liveRate !== null && machine) {
         const currentSpin = normalizeNumber(session.currentSpin);
@@ -5650,7 +5661,12 @@
             <strong>現在の実測回転率で再判定</strong>
             ${liveHtml}
           </div>
-          ${machine ? nailRatingSectionHtml(machine) : ""}
+          ${machine ? `
+            <details class="running-nail-collapse" id="runningNailSection">
+              <summary>釘・ネカセ <small>${nailSummary ? `釘: ${escapeHtml(nailSummary)}` : "未評価"}</small></summary>
+              ${nailRatingSectionHtml(machine, { showHeader: false })}
+            </details>
+          ` : ""}
         </details>
       `;
     }

@@ -865,6 +865,15 @@ B5 実測値:
 - イベント登録は `bindNailRatingChips(machine, els.runningArea)` のままとし、配置移動後も釘評価保存経路を台詳細画面と共通に保つ。
 - DOM/CSSのみの変更で、容量予算の増分はなし。
 
+## 52. B58 稼働中パネルの釘評価入れ子折り畳み
+
+- schema 変更はない。稼働中パネルの `期待値・評価` を開いた直後は、打ち始め期待値と現在の実測回転率での再判定だけを表示し、釘・ネカセ評価は内側の `details.running-nail-collapse` に折り畳む。
+- 内側の `summary` は `釘・ネカセ` に加えて、`nailRatingSummary(machine)` の評価サマリを表示する。評価がない場合は `未評価` と表示する。
+- 釘評価本体は既存の `nailRatingSectionHtml()` を流用する。ただし稼働中パネルでは `showHeader: false` を渡し、外側summaryと既存見出しの二重表示を避ける。
+- 釘評価のイベント登録は引き続き `bindNailRatingChips(machine, els.runningArea)` を使い、ヘソの日次記録と台単位評価の保存経路は台詳細画面と共通に保つ。
+- 台詳細モーダル側は `nailRatingSectionHtml(machine)` の既定動作を使い、従来どおり釘評価を常時展開で表示する。
+- B57の `.running-sticky` 内部スクロールCSSと `.running-bottom-controls` の `flex: 0 0 auto` は維持する。容量予算の増分はなし。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。

@@ -511,8 +511,41 @@ assert.match(runningExpectationHtml, /manualRate: liveRate/);
 assert.match(runningExpectationHtml, /const availableBalls = Math\.max\(0, Number\(balances\?\.mochidama \|\| 0\)\);/);
 assert.match(runningExpectationHtml, /availableBalls/);
 assert.match(runningExpectationHtml, /calculateMachineExpectation\(machine, \{/);
-assert.match(runningExpectationHtml, /nailRatingSectionHtml\(machine\)/);
+assert.match(runningExpectationHtml, /const nailSummary = machine \? nailRatingSummary\(machine\) : "";/);
+assert.match(runningExpectationHtml, /<details class="running-nail-collapse" id="runningNailSection">/);
+assert.match(runningExpectationHtml, /<summary>釘・ネカセ <small>\$\{nailSummary \? `釘: \$\{escapeHtml\(nailSummary\)\}` : "未評価"\}<\/small><\/summary>/);
+assert.match(runningExpectationHtml, /nailRatingSectionHtml\(machine, \{ showHeader: false \}\)/);
+assert.doesNotMatch(runningExpectationHtml, /<details class="running-nail-collapse"[^>]*open/);
 assert.doesNotMatch(runningExpectationHtml, /session\.startEv\s*=/);
+const runningExpectationContext = vm.createContext({
+  startEvDetailText() {
+    return '記録なし';
+  },
+  nailRatingSummary(machine) {
+    return machine.summary || '';
+  },
+  nailRatingSectionHtml(machine, options) {
+    return `<div class="nail-rating-section" data-show-header="${options?.showHeader !== false}">
+      ${['heso', 'yori', 'michi', 'nekase', 'through', 'warp'].map((key) => `<div data-nail-key="${key}"></div>`).join('')}
+    </div>`;
+  },
+  escapeHtml(value) {
+    return String(value ?? '');
+  }
+});
+new vm.Script(`
+  ${runningExpectationHtml}
+  globalThis.renderedRunningExpectation = runningExpectationHtml({ startEv: null }, { id: 'm_1', summary: 'ヘソ4・寄り3・道3・ネカセ3・スルー3・ワープ3' }, null, { mochidama: 0 });
+`).runInContext(runningExpectationContext);
+const renderedRunningExpectation = runningExpectationContext.renderedRunningExpectation;
+const runningNailStart = renderedRunningExpectation.indexOf('id="runningNailSection"');
+const runningNailEnd = renderedRunningExpectation.indexOf('</details>', runningNailStart);
+const nailKeyMatches = [...renderedRunningExpectation.matchAll(/data-nail-key=/g)];
+assert.equal(nailKeyMatches.length, 6);
+assert.ok(runningNailStart > renderedRunningExpectation.indexOf('現在の実測回転率で再判定'));
+assert.ok(nailKeyMatches.every((match) => match.index > runningNailStart && match.index < runningNailEnd));
+assert.match(renderedRunningExpectation, /<summary>釘・ネカセ <small>釘: ヘソ4・寄り3・道3・ネカセ3・スルー3・ワープ3<\/small><\/summary>/);
+assert.doesNotMatch(renderedRunningExpectation, /data-show-header="true"/);
 assert.match(normalizeStartEvBlock, /mochidamaInput: Math\.max\(0, normalizeNumber\(value\.mochidamaInput\) \?\? 0\)/);
 assert.match(normalizeStartEvBlock, /saipureiInput: Math\.max\(0, normalizeNumber\(value\.saipureiInput\) \?\? 0\)/);
 assert.match(calculateStartEvSnapshot, /const availableParts = availableBallsFromParts\(presets\.mochidamaInput, presets\.saipureiInput\);/);
@@ -594,6 +627,8 @@ assert.match(html, /\.nail-rating-chips button \{\s*min-height: 38px;/);
 assert.match(html, /\.running-panel\.fullscreen \{[\s\S]*?height: 100dvh;[\s\S]*?overflow: hidden;[\s\S]*?\}/);
 assert.match(html, /\.running-panel\.fullscreen \.running-sticky \{[\s\S]*?flex: 1 1 auto;[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;[\s\S]*?-webkit-overflow-scrolling: touch;[\s\S]*?overscroll-behavior: contain;[\s\S]*?\}/);
 assert.match(html, /\.running-panel\.fullscreen \.running-bottom-controls \{[\s\S]*?flex: 0 0 auto;[\s\S]*?\}/);
+assert.match(html, /\.running-nail-collapse \{[\s\S]*?margin-top: 10px;[\s\S]*?border-top: 1px solid var\(--line\);[\s\S]*?padding-top: 8px;[\s\S]*?\}/);
+assert.match(html, /\.running-nail-collapse summary \{[\s\S]*?cursor: pointer;[\s\S]*?font-weight: 700;[\s\S]*?min-height: 34px;[\s\S]*?\}/);
 assert.doesNotMatch(html, /\.modal \{[^}]*overflow-x: hidden;/);
 assert.match(normalizeNailRatingBlock, /const input = source && typeof source === "object" \? source : \{\};/);
 assert.match(nailRatingSection, /data-nail-rating="\$\{buttonValue\}"/);
