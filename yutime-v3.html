@@ -2222,7 +2222,8 @@
       if (manual !== null && manual > 0) return { rate: manual, source: "手入力" };
       if (stats?.rate) return { rate: stats.rate, source: "履歴累計" };
       const assumed = activeMapAssumedRate(store?.id);
-      if (assumed !== null && assumed > 0) return { rate: assumed, source: `コーナー平均${assumed.toFixed(1)}使用`, assumed: true };
+      const assumedSourceName = String(store?.name || "").trim() || "島";
+      if (assumed !== null && assumed > 0) return { rate: assumed, source: `${assumedSourceName}の想定回転率${assumed.toFixed(1)}使用`, assumed: true };
       return { rate: null, source: "回転率なし" };
     }
 
@@ -2301,7 +2302,7 @@
       const normalized = normalizeStartEv(startEv);
       if (!normalized) return "記録なし";
       const balanceText = normalized.availableBalls
-        ? ` / 入力 持ち玉${Math.round(normalized.mochidamaInput || 0).toLocaleString("ja-JP")}玉・再プレ${Math.round(normalized.saipureiInput || 0).toLocaleString("ja-JP")}玉 / 充当${Math.round(normalized.mochidamaBalls || 0).toLocaleString("ja-JP")}玉・現金${Math.round(normalized.cashBalls || 0).toLocaleString("ja-JP")}玉`
+        ? ` / 入力 持ち玉${Math.round(normalized.mochidamaInput || 0).toLocaleString("ja-JP")}玉・再プレ${Math.round(normalized.saipureiInput || 0).toLocaleString("ja-JP")}玉 / 充当${Math.round(normalized.mochidamaBalls || 0).toLocaleString("ja-JP")}玉・現金${Math.round((normalized.cashBalls || 0) / 250 * 1000).toLocaleString("ja-JP")}円`
         : "";
       return `${yenText(normalized.evYen)} / ${Number(normalized.usedRate).toFixed(1)} /250玉 / ${normalized.rateSource || "ソース不明"} / ${remainingSpinTextFromEffectiveSpin(normalized.effectiveSpin)}${balanceText}`;
     }
@@ -6006,12 +6007,57 @@
 
     function transferSummaryForSession(session) {
       const totals = investmentTotals(session);
+      const machine = data.machines.find((item) => item.id === session.machineId);
+      const derived = deriveSession(session, machine);
+      const startEv = normalizeStartEv(session.startEv);
+      const tenjo = YUTIME_EXPECTATION_ENGINE.preset.spec.tenjo;
+      const startExpectedSpins = startEv ? Math.max(0, tenjo - startEv.effectiveSpin) : null;
+      const hitCount = normalizeNumber(session.hitCount) ?? 0;
+      const prevDayEndSpin = normalizeNumber(session.prevDayEndSpin) ?? 0;
+      const endSpin = normalizeNumber(session.endSpin);
+      const endEffectiveSpin = endSpin !== null ? endSpin + (hitCount > 0 ? 0 : prevDayEndSpin) : null;
+      const remainingSpins = endEffectiveSpin !== null ? Math.max(0, tenjo - endEffectiveSpin) : null;
+      const startSpin = normalizeNumber(session.startSpin);
+      const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin ? endSpin - startSpin : null;
+      const consumedBalls = Math.round(totals.mochidamaBalls + totals.saipureiBalls + totals.cashYen / 1000 * 250);
+      const actualHitBalls = normalizeHits(session.hits)
+        .map((hit) => normalizeNumber(hit.actualBalls))
+        .filter((value) => value !== null && value > 0)
+        .reduce((sum, value) => sum + value, 0);
+      const totalHitBalls = actualHitBalls > 0 ? actualHitBalls : (derived.isEstimatedPayout ? null : derived.hitBalls);
+      const totalRounds = totalRoundsForSession(session, machine);
+      const averageRoundBalls = totalHitBalls !== null && totalRounds > 0 ? totalHitBalls / totalRounds : null;
       return {
         investYen: totals.cashYen,
         recoverYen: normalizeNumber(session.settlementRecoverYen) ?? 0,
         withdrawBalls: totals.mochidamaBalls + totals.saipureiBalls,
-        depositBalls: finalMochidamaForCarryover(session) ?? 0
+        depositBalls: finalMochidamaForCarryover(session) ?? 0,
+        startEvYen: startEv ? startEv.evYen : null,
+        startExpectedSpins,
+        remainingSpins,
+        consumedBalls,
+        playedSpins,
+        averageRoundBalls,
+        profitYen: derived.profitYen
       };
+    }
+
+    function roundCountFromRoundType(roundType) {
+      const explicit = normalizeNumber(roundType?.rounds);
+      if (explicit !== null) return explicit;
+      const text = `${roundType?.label || ""} ${roundType?.id || ""}`;
+      const match = text.match(/(\d+(?:\.\d+)?)\s*R/i);
+      return match ? Number(match[1]) : null;
+    }
+
+    function totalRoundsForSession(session, machine) {
+      const presetId = normalizeMachinePresetId(machine);
+      const hitRounds = normalizeHits(session.hits).reduce((sum, hit) => {
+        const rounds = roundCountFromRoundType(roundTypeById(presetId, hit.roundTypeId));
+        return rounds !== null ? sum + rounds : sum;
+      }, 0);
+      if (hitRounds > 0) return hitRounds;
+      return normalizeNumber(session.totalRounds) ?? 0;
     }
 
     function transferYenText(value) {
@@ -6022,8 +6068,29 @@
       return Math.round(Number(value || 0)).toLocaleString("ja-JP");
     }
 
+    function transferOptionalYenText(value) {
+      const number = normalizeNumber(value);
+      return number === null ? "-" : transferYenText(number);
+    }
+
+    function transferOptionalSpinText(value) {
+      const number = normalizeNumber(value);
+      return number === null ? "-" : `${Math.round(number).toLocaleString("ja-JP")}回転`;
+    }
+
+    function transferOptionalBallText(value) {
+      const number = normalizeNumber(value);
+      return number === null ? "-" : `${Math.round(number).toLocaleString("ja-JP")}玉`;
+    }
+
+    function transferOptionalRoundAverageText(value) {
+      const number = normalizeNumber(value);
+      return number === null ? "-" : `${Number(number.toFixed(1)).toLocaleString("ja-JP")}玉/R`;
+    }
+
     function transferSummaryText(summary) {
-      return `投資${transferYenText(summary.investYen)}/回収${transferYenText(summary.recoverYen)}/引出${transferBallText(summary.withdrawBalls)}個/預入${transferBallText(summary.depositBalls)}個`;
+      return `投資${transferYenText(summary.investYen)}/回収${transferYenText(summary.recoverYen)}/引出${transferBallText(summary.withdrawBalls)}個/預入${transferBallText(summary.depositBalls)}個
+開始期待値${transferOptionalYenText(summary.startEvYen)}/想定回転数${transferOptionalSpinText(summary.startExpectedSpins)}/残り回転数${transferOptionalSpinText(summary.remainingSpins)}/消費玉数${transferOptionalBallText(summary.consumedBalls)}/消化回転数${transferOptionalSpinText(summary.playedSpins)}/1R平均${transferOptionalRoundAverageText(summary.averageRoundBalls)}/実収支${transferOptionalYenText(summary.profitYen)}`;
     }
 
     function transferSummaryHtml(session) {
@@ -6039,6 +6106,15 @@
           </div>
           <div class="transfer-summary-line">${escapeHtml(transferSummaryText(summary))}</div>
           <button class="small" data-copy-transfer="${escapeHtml(session.id)}">転記用をコピー</button>
+          <div class="transfer-summary-grid">
+            <div class="transfer-summary-cell"><span>開始期待値</span><strong>${transferOptionalYenText(summary.startEvYen)}</strong></div>
+            <div class="transfer-summary-cell"><span>想定回転数</span><strong>${transferOptionalSpinText(summary.startExpectedSpins)}</strong></div>
+            <div class="transfer-summary-cell"><span>残り回転数</span><strong>${transferOptionalSpinText(summary.remainingSpins)}</strong></div>
+            <div class="transfer-summary-cell"><span>消費玉数</span><strong>${transferOptionalBallText(summary.consumedBalls)}</strong></div>
+            <div class="transfer-summary-cell"><span>消化回転数</span><strong>${transferOptionalSpinText(summary.playedSpins)}</strong></div>
+            <div class="transfer-summary-cell"><span>1R平均</span><strong>${transferOptionalRoundAverageText(summary.averageRoundBalls)}</strong></div>
+            <div class="transfer-summary-cell"><span>実収支</span><strong>${transferOptionalYenText(summary.profitYen)}</strong></div>
+          </div>
         </div>`;
     }
 

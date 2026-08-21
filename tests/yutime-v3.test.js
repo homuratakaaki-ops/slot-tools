@@ -71,6 +71,7 @@ const yutimeExpectationEngine = section('const YUTIME_EXPECTATION_ENGINE', 'wind
 const evJudgmentBlock = section('function evJudgment', 'function expectationYenPerBall');
 const presetSettingsHelpers = section('function presetNetBallsPerWin', 'function activeMapAssumedRate');
 const availableBallsHelpers = section('function availableBallsFromParts', 'function calculateMachineExpectation');
+const expectationRateBlock = section('function expectationRate', 'function availableBallsFromParts');
 
 assert.match(hitWizard, /openHitResetPrompt\(session\);\s*\}, \{ firstBackCancels: true \}\);/);
 assert.match(runWizard, /id="backStepBtn" \$\{index === 0 && !options\.firstBackCancels \? "disabled" : ""\}>戻る<\/button>/);
@@ -106,9 +107,18 @@ assert.match(transferSummary, /investYen: totals\.cashYen,/);
 assert.match(transferSummary, /recoverYen: normalizeNumber\(session\.settlementRecoverYen\) \?\? 0,/);
 assert.match(transferSummary, /withdrawBalls: totals\.mochidamaBalls \+ totals\.saipureiBalls,/);
 assert.match(transferSummary, /depositBalls: finalMochidamaForCarryover\(session\) \?\? 0/);
+assert.match(transferSummary, /startExpectedSpins = startEv \? Math\.max\(0, tenjo - startEv\.effectiveSpin\) : null;/);
+assert.match(transferSummary, /remainingSpins = endEffectiveSpin !== null \? Math\.max\(0, tenjo - endEffectiveSpin\) : null;/);
+assert.match(transferSummary, /const consumedBalls = Math\.round\(totals\.mochidamaBalls \+ totals\.saipureiBalls \+ totals\.cashYen \/ 1000 \* 250\);/);
+assert.match(transferSummary, /const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin \? endSpin - startSpin : null;/);
+assert.match(transferSummary, /const totalHitBalls = actualHitBalls > 0 \? actualHitBalls : \(derived\.isEstimatedPayout \? null : derived\.hitBalls\);/);
+assert.match(transferSummary, /const averageRoundBalls = totalHitBalls !== null && totalRounds > 0 \? totalHitBalls \/ totalRounds : null;/);
 assert.match(transferSummary, /function transferYenText\(value\) \{\s*return `\$\{Math\.round\(Number\(value \|\| 0\)\)\.toLocaleString\("ja-JP"\)\}円`;/);
 assert.match(transferSummary, /function transferBallText\(value\) \{\s*return Math\.round\(Number\(value \|\| 0\)\)\.toLocaleString\("ja-JP"\);/);
 assert.match(transferSummary, /投資\$\{transferYenText\(summary\.investYen\)\}\/回収\$\{transferYenText\(summary\.recoverYen\)\}\/引出\$\{transferBallText\(summary\.withdrawBalls\)\}個\/預入\$\{transferBallText\(summary\.depositBalls\)\}個/);
+assert.match(transferSummary, /開始期待値\$\{transferOptionalYenText\(summary\.startEvYen\)\}\/想定回転数\$\{transferOptionalSpinText\(summary\.startExpectedSpins\)\}\/残り回転数\$\{transferOptionalSpinText\(summary\.remainingSpins\)\}/);
+assert.match(transferSummary, /<span>開始期待値<\/span><strong>\$\{transferOptionalYenText\(summary\.startEvYen\)\}<\/strong>/);
+assert.match(transferSummary, /<span>1R平均<\/span><strong>\$\{transferOptionalRoundAverageText\(summary\.averageRoundBalls\)\}<\/strong>/);
 assert.match(transferSummary, /navigator\.clipboard\?\.writeText/);
 assert.match(renderLedger, /session\.status === "completed" \? transferSummaryHtml\(session\) : ""/);
 assert.match(renderLedger, /data-copy-transfer/);
@@ -182,6 +192,30 @@ assert.ok(Math.abs(nonEqualAllBallsResult.normalCostYen - nonEqualAllBallsResult
 assert.equal(expectationContext.judge(nonEqualExchangeResult).label, '打てない');
 assert.ok(Math.abs(equalExchangeResult.expectedDensapoSpins - (equalExchangeResult.expectedJitanNormalSpins + equalExchangeResult.expectedJitanFastSpins)) < 0.000001, 'split jitan spins should add up to legacy total');
 assert.ok(jitanLossResult.winBalls < expectationContext.engine.calculate({ currentSpin: 900, rotationRate: 18 }, { yenPerBall: 4, netBallsPerWin: 1400 }).winBalls, 'negative jitan rates should reduce win balls');
+assert.match(expectationRateBlock, /const assumedSourceName = String\(store\?\.name \|\| ""\)\.trim\(\) \|\| "島";/);
+assert.match(expectationRateBlock, /source: `\$\{assumedSourceName\}の想定回転率\$\{assumed\.toFixed\(1\)\}使用`/);
+assert.doesNotMatch(expectationRateBlock, /コーナー平均/);
+const expectationRateContext = vm.createContext({
+  normalizeNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  activeMapAssumedRate() {
+    return 17;
+  }
+});
+new vm.Script(`
+  ${expectationRateBlock}
+  globalThis.manualRate = expectationRate(null, 18, { id: 'store_1', name: '夢爽店' });
+  globalThis.historyRate = expectationRate({ rate: 16.4 }, null, { id: 'store_1', name: '夢爽店' });
+  globalThis.namedAssumedRate = expectationRate(null, null, { id: 'store_1', name: '夢爽店' });
+  globalThis.fallbackAssumedRate = expectationRate(null, null, { id: 'store_2', name: '  ' });
+`).runInContext(expectationRateContext);
+assert.equal(JSON.stringify(expectationRateContext.manualRate), JSON.stringify({ rate: 18, source: '手入力' }));
+assert.equal(JSON.stringify(expectationRateContext.historyRate), JSON.stringify({ rate: 16.4, source: '履歴累計' }));
+assert.equal(JSON.stringify(expectationRateContext.namedAssumedRate), JSON.stringify({ rate: 17, source: '夢爽店の想定回転率17.0使用', assumed: true }));
+assert.equal(JSON.stringify(expectationRateContext.fallbackAssumedRate), JSON.stringify({ rate: 17, source: '島の想定回転率17.0使用', assumed: true }));
 
 function makeRng(seed) {
   let state = seed >>> 0;
@@ -368,10 +402,38 @@ assert.equal(investmentAmountContext.button('cash', 300), '-300円');
 const transferContext = vm.createContext({
   __copied: '',
   __session: null,
+  data: {
+    machines: [{ id: 'm_transfer', presetId: 'umi-sp5' }]
+  },
+  YUTIME_EXPECTATION_ENGINE: {
+    preset: { spec: { tenjo: 950 } }
+  },
   normalizeNumber(value) {
     if (value === null || value === undefined || value === '') return null;
     const n = Number(value);
     return Number.isFinite(n) ? n : null;
+  },
+  normalizeStartEv(value) {
+    return value && value.usedRate ? value : null;
+  },
+  normalizeHits(value) {
+    return Array.isArray(value) ? value : [];
+  },
+  normalizeMachinePresetId() {
+    return 'umi-sp5';
+  },
+  roundTypeById(presetId, roundTypeId) {
+    return {
+      r4: { id: 'r4', label: '4R', balls: 560 },
+      r10: { id: 'r10', label: '10R', balls: 1400 }
+    }[roundTypeId] || null;
+  },
+  deriveSession(session) {
+    return {
+      hitBalls: session.__hitBalls ?? null,
+      isEstimatedPayout: session.__isEstimatedPayout === true,
+      profitYen: session.__profitYen ?? null
+    };
   },
   investmentSource(item) {
     return item?.source || item?.type || 'cash';
@@ -457,22 +519,60 @@ assert.equal(JSON.stringify(investmentAdjustContext.session.investments.slice(3)
 assert.equal(JSON.stringify(investmentAdjustContext.totals), JSON.stringify({ cashYen: 2500, saipureiBalls: 500, mochidamaBalls: 1000 }));
 const transferFixture = {
   id: 's_transfer',
+  machineId: 'm_transfer',
+  startSpin: 525,
+  endSpin: 620,
+  prevDayEndSpin: null,
+  hitCount: 2,
+  hits: [
+    { roundTypeId: 'r10', actualBalls: 1380 },
+    { roundTypeId: 'r4', actualBalls: 600 }
+  ],
+  startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500, evYen: 1339 },
   settlementRecoverYen: null,
   endTotalBalls: 4750,
   zanhoryuBalls: null,
+  __profitYen: 2500,
   investments: [
     { source: 'mochidama', amount: 250 },
     { source: 'saipurei', amount: 125 },
-    { source: 'cash', amount: 0 }
+    { source: 'cash', amount: 1000 }
   ]
 };
 transferContext.__session = transferFixture;
 assert.equal(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
-  '投資0円/回収0円/引出375個/預入4,750個'
+  '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円'
 );
 vm.runInContext("copyTransferSummary('s_transfer')", transferContext);
-assert.equal(transferContext.__copied, '投資0円/回収0円/引出375個/預入4,750個');
+assert.equal(transferContext.__copied, '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円');
+transferContext.__session = {
+  id: 's_transfer_open',
+  machineId: 'm_transfer',
+  startSpin: 525,
+  endSpin: null,
+  hits: [],
+  investments: []
+};
+assert.equal(
+  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  '投資0円/回収0円/引出0個/預入0個\n開始期待値-/想定回転数-/残り回転数-/消費玉数0玉/消化回転数-/1R平均-/実収支-'
+);
+transferContext.__session = {
+  id: 's_transfer_estimated',
+  machineId: 'm_transfer',
+  startSpin: 100,
+  endSpin: 200,
+  hitCount: 1,
+  hits: [{ roundTypeId: 'r10' }],
+  __hitBalls: 1400,
+  __isEstimatedPayout: true,
+  investments: []
+};
+assert.match(
+  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  /1R平均-/
+);
 assert.match(openBalanceEditForm, /const currentBalance = currentBalanceForStartKey\(session, key\);/);
 assert.match(openBalanceEditForm, /value="\$\{escapeHtml\(currentBalance \?\? ""\)\}"/);
 assert.match(openBalanceEditForm, /session\[key\] = value === null \? null : balanceStartValueForCurrent\(session, key, value\);/);
@@ -560,7 +660,9 @@ assert.doesNotMatch(runningTrialHelpers, /`実効/);
 assert.match(startEvDetailTextBlock, /function remainingSpinTextFromEffectiveSpin\(effectiveSpin, tenjo = YUTIME_EXPECTATION_ENGINE\.preset\.spec\.tenjo\) \{/);
 assert.match(startEvDetailTextBlock, /Math\.max\(0, ceiling - effective\)\.toLocaleString\("ja-JP"\)/);
 assert.match(startEvDetailTextBlock, /remainingSpinTextFromEffectiveSpin\(normalized\.effectiveSpin\)/);
+assert.match(startEvDetailTextBlock, /\(normalized\.cashBalls \|\| 0\) \/ 250 \* 1000/);
 assert.doesNotMatch(startEvDetailTextBlock, /実効\$\{normalized\.effectiveSpin\}/);
+assert.doesNotMatch(startEvDetailTextBlock, /現金\$\{Math\.round\(normalized\.cashBalls/);
 assert.match(renderMachineExpectation, /残り\$\{expectation\.result\.spinsToTenjo\.toLocaleString\("ja-JP"\)\}回転/);
 assert.match(renderMachineExpectation, /宵越し\$\{expectation\.previousSpin\}\+現在\$\{expectation\.currentSpin\}/);
 assert.doesNotMatch(renderMachineExpectation, /実効\$\{expectation\.effectiveSpin\}/);
