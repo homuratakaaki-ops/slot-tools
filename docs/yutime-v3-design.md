@@ -884,6 +884,14 @@ B5 実測値:
 - 試算は既存の `calculateMachineExpectation()` を使う。今から打つ場合は `session.currentSpin` と `deriveBalances(session).mochidama`、打ち始めからは `startEv.effectiveSpin` と `startEv.availableBalls` を使い、`session.startEv` は書き換えない。
 - 試算ボタンは `-1` / `-0.5` / `+0.5` / `+1` の4つとし、1.0〜50.0でクランプし、小数第1位で表示する。容量予算の増分はなし。
 
+## 54. B60 稼働中details開閉保持と試算残り表記
+
+- schema 変更はない。稼働中パネルの `期待値` と `釘・ネカセ` の開閉状態は、モジュールスコープの `runningEvaluationOpen` / `runningNailOpen` に保持する。
+- 各 `details` の `toggle` イベントで開閉状態だけを更新し、`renderRunning()` は呼ばない。投資、試算ボタン、釘評価変更などで再描画が起きても、同一セッション内では開閉状態を維持する。
+- 別セッションへ切り替わった場合は、B59の試算回転率と同じ `resetRunningTrialState()` で、試算値と開閉状態をまとめて初期化する。localStorageには保存しない。
+- 試算カードの2行はどちらも `残り○○回転` 表記に統一する。打ち始めからの行も `calculateMachineExpectation()` の結果に含まれる `spinsToTenjo` を使い、金額計算は変更しない。
+- 試算カード内では `実効` という表記を使わない。容量予算の増分はなし。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。

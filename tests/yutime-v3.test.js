@@ -488,7 +488,11 @@ assert.match(renderRunning, /runningExpectationHtml\(session, machine, liveRate,
 assert.match(renderRunning, /bindNailRatingChips\(machine, els\.runningArea\);/);
 assert.match(renderRunning, /querySelectorAll\("\[data-trial-rate-delta\]"\)/);
 assert.match(renderRunning, /adjustRunningTrialRate\(Number\(button\.dataset\.trialRateDelta\)\)/);
-assert.match(renderRunning, /resetRunningTrialRate\(\);\s*renderRunning\(\);/);
+assert.match(renderRunning, /resetRunningTrialState\(\);\s*renderRunning\(\);/);
+assert.match(renderRunning, /byId\("runningEvaluationSection"\)/);
+assert.match(renderRunning, /runningEvaluationOpen = runningEvaluationSection\.open;/);
+assert.match(renderRunning, /byId\("runningNailSection"\)/);
+assert.match(renderRunning, /runningNailOpen = runningNailSection\.open;/);
 const runningExpectationIndex = renderRunning.indexOf('runningExpectationHtml(session, machine, liveRate, balances)');
 const runningBottomIndex = renderRunning.indexOf('<div class="running-bottom-controls');
 const runningBottomEndIndex = renderRunning.indexOf('</div>', renderRunning.indexOf('<div class="counter-row">'));
@@ -504,8 +508,8 @@ assert.ok(
   && renderRunning.indexOf('id="openRunningMachineMemoBtn"') < renderRunning.indexOf('id="toggleStickyBtn"'),
   'running controls should be ordered invest, charge, memo, sticky'
 );
-assert.match(runningExpectationHtml, /<details class="running-evaluation" id="runningEvaluationSection">/);
-assert.doesNotMatch(runningExpectationHtml, /<details[^>]*open/);
+assert.match(runningExpectationHtml, /<details class="running-evaluation" id="runningEvaluationSection"\$\{runningEvaluationOpen \? " open" : ""\}>/);
+assert.match(runningExpectationHtml, /<details class="running-nail-collapse" id="runningNailSection"\$\{runningNailOpen \? " open" : ""\}>/);
 assert.match(runningExpectationHtml, /<summary>期待値<\/summary>/);
 assert.doesNotMatch(runningExpectationHtml, /期待値・評価/);
 assert.match(runningExpectationHtml, /打ち始めの想定期待値/);
@@ -520,10 +524,9 @@ assert.match(runningExpectationHtml, /calculateMachineExpectation\(machine, \{/)
 assert.match(runningExpectationHtml, /const nailSummary = machine \? nailRatingSummary\(machine\) : "";/);
 assert.match(runningExpectationHtml, /runningTrialRateFor\(session, liveRate\)/);
 assert.match(runningExpectationHtml, /runningTrialExpectationHtml\(session, machine, trialRate, balances\)/);
-assert.match(runningExpectationHtml, /<details class="running-nail-collapse" id="runningNailSection">/);
+assert.match(runningExpectationHtml, /<details class="running-nail-collapse" id="runningNailSection"\$\{runningNailOpen \? " open" : ""\}>/);
 assert.match(runningExpectationHtml, /<summary>釘・ネカセ <small>\$\{nailSummary \? `釘: \$\{escapeHtml\(nailSummary\)\}` : "未評価"\}<\/small><\/summary>/);
 assert.match(runningExpectationHtml, /nailRatingSectionHtml\(machine, \{ showHeader: false \}\)/);
-assert.doesNotMatch(runningExpectationHtml, /<details class="running-nail-collapse"[^>]*open/);
 assert.doesNotMatch(runningExpectationHtml, /session\.startEv\s*=/);
 assert.match(runningTrialHelpers, /function clampTrialRate\(value\)/);
 assert.match(runningTrialHelpers, /return Math\.min\(50, Math\.max\(1, Number\(number\.toFixed\(1\)\)\)\);/);
@@ -531,7 +534,9 @@ assert.match(runningTrialHelpers, /function runningTrialRateFor\(session, liveRa
 assert.match(runningTrialHelpers, /if \(runningTrialSessionId !== session\.id\) \{/);
 assert.match(runningTrialHelpers, /runningTrialRate = initialRunningTrialRate\(session, liveRate\);/);
 assert.doesNotMatch(runningTrialHelpers, /localStorage/);
-assert.match(runningTrialHelpers, /function resetRunningTrialRate\(\) \{/);
+assert.match(runningTrialHelpers, /function resetRunningTrialState\(\) \{/);
+assert.match(runningTrialHelpers, /runningEvaluationOpen = false;/);
+assert.match(runningTrialHelpers, /runningNailOpen = false;/);
 assert.match(runningTrialHelpers, /function adjustRunningTrialRate\(delta\) \{/);
 assert.match(runningTrialHelpers, /function runningTrialExpectationHtml\(session, machine, trialRate, balances\) \{/);
 assert.match(runningTrialHelpers, /data-trial-rate-delta="-1"/);
@@ -540,6 +545,8 @@ assert.match(runningTrialHelpers, /data-trial-rate-delta="0\.5"/);
 assert.match(runningTrialHelpers, /data-trial-rate-delta="1"/);
 assert.match(runningTrialHelpers, /currentSpin: startEv\.effectiveSpin/);
 assert.match(runningTrialHelpers, /availableBalls: startEv\.availableBalls/);
+assert.match(runningTrialHelpers, /trialExpectationLine\("打ち始めから", startExpectation, `残り\$\{startExpectation\.result \? startExpectation\.result\.spinsToTenjo\.toLocaleString\("ja-JP"\) : "-"\}回転`\)/);
+assert.doesNotMatch(runningTrialHelpers, /`実効/);
 const runningExpectationContext = vm.createContext({
   startEvDetailText() {
     return '記録なし';
@@ -589,6 +596,8 @@ const runningExpectationContext = vm.createContext({
 new vm.Script(`
   let runningTrialSessionId = null;
   let runningTrialRate = null;
+  let runningEvaluationOpen = true;
+  let runningNailOpen = true;
   ${runningTrialHelpers}
   globalThis.renderedRunningExpectation = runningExpectationHtml({
     id: 's_1',
@@ -600,6 +609,9 @@ new vm.Script(`
   globalThis.adjustedTrialRate = runningTrialRate;
   globalThis.afterRedrawRate = runningTrialRateFor({ id: 's_1', startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500 } }, 17.2);
   globalThis.afterSwitchRate = runningTrialRateFor({ id: 's_2', startEv: { usedRate: 16, effectiveSpin: 400, availableBalls: 0 } }, 20);
+  resetRunningTrialState();
+  globalThis.resetEvaluationOpen = runningEvaluationOpen;
+  globalThis.resetNailOpen = runningNailOpen;
 `).runInContext(runningExpectationContext);
 const renderedRunningExpectation = runningExpectationContext.renderedRunningExpectation;
 const evaluationStart = renderedRunningExpectation.indexOf('id="runningEvaluationSection"');
@@ -612,15 +624,21 @@ assert.ok(runningNailStart > evaluationEnd);
 assert.ok(nailKeyMatches.every((match) => match.index > runningNailStart && match.index < runningNailEnd));
 assert.ok(!renderedRunningExpectation.slice(evaluationStart, evaluationEnd).includes('id="runningNailSection"'));
 assert.match(renderedRunningExpectation, /<summary>期待値<\/summary>/);
+assert.match(renderedRunningExpectation, /id="runningEvaluationSection" open/);
+assert.match(renderedRunningExpectation, /id="runningNailSection" open/);
 assert.match(renderedRunningExpectation, /<summary>釘・ネカセ <small>釘: ヘソ4・寄り3・道3・ネカセ3・スルー3・ワープ3<\/small><\/summary>/);
 assert.match(renderedRunningExpectation, /18\.5 \/250玉/);
 assert.match(renderedRunningExpectation, /今から打つ場合/);
 assert.match(renderedRunningExpectation, /打ち始めから/);
+assert.match(renderedRunningExpectation, /打ち始めから<\/strong> 1850円（残り425回転）/);
+assert.doesNotMatch(renderedRunningExpectation, /実効/);
 assert.doesNotMatch(renderedRunningExpectation, /data-show-header="true"/);
 assert.equal(runningExpectationContext.initialTrialRate, 18.5);
 assert.equal(runningExpectationContext.adjustedTrialRate, 19);
 assert.equal(runningExpectationContext.afterRedrawRate, 19);
 assert.equal(runningExpectationContext.afterSwitchRate, 16);
+assert.equal(runningExpectationContext.resetEvaluationOpen, false);
+assert.equal(runningExpectationContext.resetNailOpen, false);
 assert.match(normalizeStartEvBlock, /mochidamaInput: Math\.max\(0, normalizeNumber\(value\.mochidamaInput\) \?\? 0\)/);
 assert.match(normalizeStartEvBlock, /saipureiInput: Math\.max\(0, normalizeNumber\(value\.saipureiInput\) \?\? 0\)/);
 assert.match(calculateStartEvSnapshot, /const availableParts = availableBallsFromParts\(presets\.mochidamaInput, presets\.saipureiInput\);/);
