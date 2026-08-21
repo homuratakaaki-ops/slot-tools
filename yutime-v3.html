@@ -796,6 +796,23 @@
       font-weight: 700;
       min-height: 34px;
     }
+    .trial-rate-controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(44px, auto)) minmax(92px, 1fr) repeat(2, minmax(44px, auto));
+      gap: 6px;
+      align-items: center;
+      margin: 8px 0;
+    }
+    .trial-rate-controls button {
+      min-height: 34px;
+      padding: 0 8px;
+      font-weight: 800;
+    }
+    .trial-rate-value {
+      text-align: center;
+      font-weight: 800;
+      white-space: nowrap;
+    }
 
     .running-live-row strong {
       font-size: 22px;
@@ -1807,6 +1824,8 @@
     let mapEditorOpenByStore = {};
     let runningStickyEnabled = localStorage.getItem(STICKY_PREF_KEY) !== "off";
     let runningSource = normalizeInvestmentSource(localStorage.getItem(SOURCE_PREF_KEY) || "cash");
+    let runningTrialSessionId = null;
+    let runningTrialRate = null;
     let islandFilterByStore = loadIslandFilters();
     let mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
     let expandedIslandIndexes = new Set();
@@ -3488,8 +3507,12 @@
       els.runningArea.querySelectorAll("[data-switch-active]").forEach((button) => {
         button.addEventListener("click", () => {
           activeSessionId = button.dataset.switchActive;
+          resetRunningTrialRate();
           renderRunning();
         });
+      });
+      els.runningArea.querySelectorAll("[data-trial-rate-delta]").forEach((button) => {
+        button.addEventListener("click", () => adjustRunningTrialRate(Number(button.dataset.trialRateDelta)));
       });
       const toggleInvestmentsButton = byId("toggleInvestmentsBtn");
       if (toggleInvestmentsButton) {
@@ -5623,9 +5646,84 @@
       };
     }
 
+    function clampTrialRate(value) {
+      const number = normalizeNumber(value);
+      if (number === null) return null;
+      return Math.min(50, Math.max(1, Number(number.toFixed(1))));
+    }
+
+    function initialRunningTrialRate(session, liveRate) {
+      const startEv = normalizeStartEv(session?.startEv);
+      return clampTrialRate(startEv?.usedRate ?? liveRate);
+    }
+
+    function runningTrialRateFor(session, liveRate) {
+      if (!session) return null;
+      if (runningTrialSessionId !== session.id) {
+        runningTrialSessionId = session.id;
+        runningTrialRate = initialRunningTrialRate(session, liveRate);
+      } else if (runningTrialRate === null) {
+        runningTrialRate = initialRunningTrialRate(session, liveRate);
+      }
+      return runningTrialRate;
+    }
+
+    function resetRunningTrialRate() {
+      runningTrialSessionId = null;
+      runningTrialRate = null;
+    }
+
+    function adjustRunningTrialRate(delta) {
+      const session = activeSession();
+      const current = runningTrialRateFor(session, runningPanelRate(session));
+      if (current === null) return;
+      runningTrialRate = clampTrialRate(current + Number(delta || 0));
+      renderRunning();
+    }
+
+    function trialExpectationLine(label, expectation, detail) {
+      if (!expectation?.result) return `<p class="hint warn">${escapeHtml(label)}: ${escapeHtml(expectation?.reason || "試算できません")}</p>`;
+      return `<p class="hint"><strong>${escapeHtml(label)}</strong> ${escapeHtml(yenText(expectation.result.evYen))}（${escapeHtml(detail)}）</p>`;
+    }
+
+    function runningTrialExpectationHtml(session, machine, trialRate, balances) {
+      if (!machine) return "";
+      if (trialRate === null) {
+        return '<p class="hint warn">打ち始めの回転率が記録されていません</p>';
+      }
+      const currentSpin = normalizeNumber(session.currentSpin);
+      const currentAvailableBalls = Math.max(0, Number(balances?.mochidama || 0));
+      const currentExpectation = calculateMachineExpectation(machine, {
+        currentSpin,
+        manualRate: trialRate,
+        availableBalls: currentAvailableBalls
+      });
+      const startEv = normalizeStartEv(session.startEv);
+      const startExpectation = startEv ? calculateMachineExpectation(machine, {
+        currentSpin: startEv.effectiveSpin,
+        manualRate: trialRate,
+        availableBalls: startEv.availableBalls
+      }) : null;
+      return `
+        <div class="row-card">
+          <strong>回転率を変えて試算</strong>
+          <div class="trial-rate-controls">
+            <button type="button" data-trial-rate-delta="-1">-1</button>
+            <button type="button" data-trial-rate-delta="-0.5">-0.5</button>
+            <div class="trial-rate-value">${trialRate.toFixed(1)} /250玉</div>
+            <button type="button" data-trial-rate-delta="0.5">+0.5</button>
+            <button type="button" data-trial-rate-delta="1">+1</button>
+          </div>
+          ${trialExpectationLine("今から打つ場合", currentExpectation, `残り${currentExpectation.result ? currentExpectation.result.spinsToTenjo.toLocaleString("ja-JP") : "-"}回転`)}
+          ${startExpectation ? trialExpectationLine("打ち始めから", startExpectation, `実効${Math.round(startEv.effectiveSpin).toLocaleString("ja-JP")}回転`) : ""}
+        </div>
+      `;
+    }
+
     function runningExpectationHtml(session, machine, liveRate, balances) {
       const startText = startEvDetailText(session.startEv);
       const nailSummary = machine ? nailRatingSummary(machine) : "";
+      const trialRate = runningTrialRateFor(session, liveRate);
       let liveHtml = '<p class="hint warn">回転率のサンプルが足りません</p>';
       if (liveRate !== null && machine) {
         const currentSpin = normalizeNumber(session.currentSpin);
@@ -5652,7 +5750,7 @@
       }
       return `
         <details class="running-evaluation" id="runningEvaluationSection">
-          <summary>期待値・評価</summary>
+          <summary>期待値</summary>
           <div class="row-card">
             <strong>打ち始めの想定期待値</strong><br>
             <small>${escapeHtml(startText)}</small>
@@ -5661,13 +5759,14 @@
             <strong>現在の実測回転率で再判定</strong>
             ${liveHtml}
           </div>
-          ${machine ? `
-            <details class="running-nail-collapse" id="runningNailSection">
-              <summary>釘・ネカセ <small>${nailSummary ? `釘: ${escapeHtml(nailSummary)}` : "未評価"}</small></summary>
-              ${nailRatingSectionHtml(machine, { showHeader: false })}
-            </details>
-          ` : ""}
+          ${runningTrialExpectationHtml(session, machine, trialRate, balances)}
         </details>
+        ${machine ? `
+          <details class="running-nail-collapse" id="runningNailSection">
+            <summary>釘・ネカセ <small>${nailSummary ? `釘: ${escapeHtml(nailSummary)}` : "未評価"}</small></summary>
+            ${nailRatingSectionHtml(machine, { showHeader: false })}
+          </details>
+        ` : ""}
       `;
     }
 
@@ -6329,7 +6428,9 @@
       const sessions = activeSessionsForStore(store.id);
       const selected = sessions.find((session) => session.id === activeSessionId);
       const session = selected || sessions[0] || null;
+      const previousActiveSessionId = activeSessionId;
       activeSessionId = session?.id || null;
+      if (previousActiveSessionId !== activeSessionId) resetRunningTrialRate();
       return session;
     }
 

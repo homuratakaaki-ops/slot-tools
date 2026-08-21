@@ -874,6 +874,16 @@ B5 実測値:
 - 台詳細モーダル側は `nailRatingSectionHtml(machine)` の既定動作を使い、従来どおり釘評価を常時展開で表示する。
 - B57の `.running-sticky` 内部スクロールCSSと `.running-bottom-controls` の `flex: 0 0 auto` は維持する。容量予算の増分はなし。
 
+## 53. B59 期待値と釘評価の並列化、回転率試算
+
+- schema 変更はない。稼働中パネルでは `期待値` と `釘・ネカセ` を兄弟の `details` として `.running-sticky` 末尾に並べ、親指帯の外側配置を維持する。
+- `期待値` セクションには、打ち始め期待値、現在の実測回転率での再判定、回転率を変えた試算カードを表示する。外側summaryは `期待値・評価` ではなく `期待値` とする。
+- `釘・ネカセ` セクションはB58の評価サマリ表示を維持し、未評価時は `未評価` と表示する。`nailRatingSectionHtml(machine, { showHeader: false })` を流用し、台詳細モーダル側は既定の常時展開を維持する。
+- 試算回転率の初期値は `session.startEv.usedRate`、現在の実測回転率の順に採用する。どちらもない場合は試算ボタンを出さず、打ち始め回転率が未記録であることを表示する。
+- 試算回転率はモジュールスコープの `runningTrialSessionId` / `runningTrialRate` に保持し、同一セッションの再描画では維持する。別セッションへ切り替わった場合は初期値へリセットする。localStorageには保存しない。
+- 試算は既存の `calculateMachineExpectation()` を使う。今から打つ場合は `session.currentSpin` と `deriveBalances(session).mochidama`、打ち始めからは `startEv.effectiveSpin` と `startEv.availableBalls` を使い、`session.startEv` は書き換えない。
+- 試算ボタンは `-1` / `-0.5` / `+0.5` / `+1` の4つとし、1.0〜50.0でクランプし、小数第1位で表示する。容量予算の増分はなし。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。

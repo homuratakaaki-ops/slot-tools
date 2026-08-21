@@ -33,6 +33,7 @@ const investmentAmountForSourceBlock = section('function investmentUnitForSource
 const sourceUnavailableMessage = section('function sourceUnavailableMessage', 'function rateText');
 const runningPanelRate = section('function runningPanelRate', 'function runningYutimeRemaining');
 const runningExpectationHtml = section('function runningExpectationHtml', 'function runningPanelInputBalls');
+const runningTrialHelpers = section('function clampTrialRate', 'function runningPanelInputBalls');
 const runningSpinCount = section('function runningSpinCount', 'function investmentSnapshot');
 const investmentSnapshot = section('function investmentSnapshot', 'function historyEntries');
 const calculateStartEvSnapshot = section('function calculateStartEvSnapshot', 'function startEvText');
@@ -485,6 +486,9 @@ assert.match(renderRunning, /class="primary\$\{selectedCanUse \? "" : " is-low"\
 assert.match(renderRunning, /メモ\$\{\(machine\?\.memoEntries \|\| \[\]\)\.length > 0 \? "あり" : ""\}/);
 assert.match(renderRunning, /runningExpectationHtml\(session, machine, liveRate, balances\)/);
 assert.match(renderRunning, /bindNailRatingChips\(machine, els\.runningArea\);/);
+assert.match(renderRunning, /querySelectorAll\("\[data-trial-rate-delta\]"\)/);
+assert.match(renderRunning, /adjustRunningTrialRate\(Number\(button\.dataset\.trialRateDelta\)\)/);
+assert.match(renderRunning, /resetRunningTrialRate\(\);\s*renderRunning\(\);/);
 const runningExpectationIndex = renderRunning.indexOf('runningExpectationHtml(session, machine, liveRate, balances)');
 const runningBottomIndex = renderRunning.indexOf('<div class="running-bottom-controls');
 const runningBottomEndIndex = renderRunning.indexOf('</div>', renderRunning.indexOf('<div class="counter-row">'));
@@ -502,6 +506,8 @@ assert.ok(
 );
 assert.match(runningExpectationHtml, /<details class="running-evaluation" id="runningEvaluationSection">/);
 assert.doesNotMatch(runningExpectationHtml, /<details[^>]*open/);
+assert.match(runningExpectationHtml, /<summary>期待値<\/summary>/);
+assert.doesNotMatch(runningExpectationHtml, /期待値・評価/);
 assert.match(runningExpectationHtml, /打ち始めの想定期待値/);
 assert.match(runningExpectationHtml, /startEvDetailText\(session\.startEv\)/);
 assert.match(runningExpectationHtml, /現在の実測回転率で再判定/);
@@ -512,14 +518,39 @@ assert.match(runningExpectationHtml, /const availableBalls = Math\.max\(0, Numbe
 assert.match(runningExpectationHtml, /availableBalls/);
 assert.match(runningExpectationHtml, /calculateMachineExpectation\(machine, \{/);
 assert.match(runningExpectationHtml, /const nailSummary = machine \? nailRatingSummary\(machine\) : "";/);
+assert.match(runningExpectationHtml, /runningTrialRateFor\(session, liveRate\)/);
+assert.match(runningExpectationHtml, /runningTrialExpectationHtml\(session, machine, trialRate, balances\)/);
 assert.match(runningExpectationHtml, /<details class="running-nail-collapse" id="runningNailSection">/);
 assert.match(runningExpectationHtml, /<summary>釘・ネカセ <small>\$\{nailSummary \? `釘: \$\{escapeHtml\(nailSummary\)\}` : "未評価"\}<\/small><\/summary>/);
 assert.match(runningExpectationHtml, /nailRatingSectionHtml\(machine, \{ showHeader: false \}\)/);
 assert.doesNotMatch(runningExpectationHtml, /<details class="running-nail-collapse"[^>]*open/);
 assert.doesNotMatch(runningExpectationHtml, /session\.startEv\s*=/);
+assert.match(runningTrialHelpers, /function clampTrialRate\(value\)/);
+assert.match(runningTrialHelpers, /return Math\.min\(50, Math\.max\(1, Number\(number\.toFixed\(1\)\)\)\);/);
+assert.match(runningTrialHelpers, /function runningTrialRateFor\(session, liveRate\)/);
+assert.match(runningTrialHelpers, /if \(runningTrialSessionId !== session\.id\) \{/);
+assert.match(runningTrialHelpers, /runningTrialRate = initialRunningTrialRate\(session, liveRate\);/);
+assert.doesNotMatch(runningTrialHelpers, /localStorage/);
+assert.match(runningTrialHelpers, /function resetRunningTrialRate\(\) \{/);
+assert.match(runningTrialHelpers, /function adjustRunningTrialRate\(delta\) \{/);
+assert.match(runningTrialHelpers, /function runningTrialExpectationHtml\(session, machine, trialRate, balances\) \{/);
+assert.match(runningTrialHelpers, /data-trial-rate-delta="-1"/);
+assert.match(runningTrialHelpers, /data-trial-rate-delta="-0\.5"/);
+assert.match(runningTrialHelpers, /data-trial-rate-delta="0\.5"/);
+assert.match(runningTrialHelpers, /data-trial-rate-delta="1"/);
+assert.match(runningTrialHelpers, /currentSpin: startEv\.effectiveSpin/);
+assert.match(runningTrialHelpers, /availableBalls: startEv\.availableBalls/);
 const runningExpectationContext = vm.createContext({
   startEvDetailText() {
     return '記録なし';
+  },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  normalizeStartEv(value) {
+    return value && value.usedRate ? value : null;
   },
   nailRatingSummary(machine) {
     return machine.summary || '';
@@ -529,23 +560,67 @@ const runningExpectationContext = vm.createContext({
       ${['heso', 'yori', 'michi', 'nekase', 'through', 'warp'].map((key) => `<div data-nail-key="${key}"></div>`).join('')}
     </div>`;
   },
+  calculateMachineExpectation(machine, options) {
+    return {
+      result: {
+        evYen: Math.round(options.manualRate * 100),
+        spinsToTenjo: 425,
+        rotationRate: options.manualRate
+      }
+    };
+  },
+  yenText(value) {
+    return `${value}円`;
+  },
+  activeSession() {
+    return { id: 's_1', startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500 }, currentSpin: 600 };
+  },
+  runningPanelRate() {
+    return 17.2;
+  },
+  renderRunning() {},
   escapeHtml(value) {
     return String(value ?? '');
+  },
+  numberText(value, fallback = '') {
+    return value === null || value === undefined ? fallback : String(value);
   }
 });
 new vm.Script(`
-  ${runningExpectationHtml}
-  globalThis.renderedRunningExpectation = runningExpectationHtml({ startEv: null }, { id: 'm_1', summary: 'ヘソ4・寄り3・道3・ネカセ3・スルー3・ワープ3' }, null, { mochidama: 0 });
+  let runningTrialSessionId = null;
+  let runningTrialRate = null;
+  ${runningTrialHelpers}
+  globalThis.renderedRunningExpectation = runningExpectationHtml({
+    id: 's_1',
+    startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500 },
+    currentSpin: 600
+  }, { id: 'm_1', summary: 'ヘソ4・寄り3・道3・ネカセ3・スルー3・ワープ3' }, null, { mochidama: 1200 });
+  globalThis.initialTrialRate = runningTrialRate;
+  adjustRunningTrialRate(0.5);
+  globalThis.adjustedTrialRate = runningTrialRate;
+  globalThis.afterRedrawRate = runningTrialRateFor({ id: 's_1', startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500 } }, 17.2);
+  globalThis.afterSwitchRate = runningTrialRateFor({ id: 's_2', startEv: { usedRate: 16, effectiveSpin: 400, availableBalls: 0 } }, 20);
 `).runInContext(runningExpectationContext);
 const renderedRunningExpectation = runningExpectationContext.renderedRunningExpectation;
+const evaluationStart = renderedRunningExpectation.indexOf('id="runningEvaluationSection"');
+const evaluationEnd = renderedRunningExpectation.indexOf('</details>', evaluationStart);
 const runningNailStart = renderedRunningExpectation.indexOf('id="runningNailSection"');
 const runningNailEnd = renderedRunningExpectation.indexOf('</details>', runningNailStart);
 const nailKeyMatches = [...renderedRunningExpectation.matchAll(/data-nail-key=/g)];
 assert.equal(nailKeyMatches.length, 6);
-assert.ok(runningNailStart > renderedRunningExpectation.indexOf('現在の実測回転率で再判定'));
+assert.ok(runningNailStart > evaluationEnd);
 assert.ok(nailKeyMatches.every((match) => match.index > runningNailStart && match.index < runningNailEnd));
+assert.ok(!renderedRunningExpectation.slice(evaluationStart, evaluationEnd).includes('id="runningNailSection"'));
+assert.match(renderedRunningExpectation, /<summary>期待値<\/summary>/);
 assert.match(renderedRunningExpectation, /<summary>釘・ネカセ <small>釘: ヘソ4・寄り3・道3・ネカセ3・スルー3・ワープ3<\/small><\/summary>/);
+assert.match(renderedRunningExpectation, /18\.5 \/250玉/);
+assert.match(renderedRunningExpectation, /今から打つ場合/);
+assert.match(renderedRunningExpectation, /打ち始めから/);
 assert.doesNotMatch(renderedRunningExpectation, /data-show-header="true"/);
+assert.equal(runningExpectationContext.initialTrialRate, 18.5);
+assert.equal(runningExpectationContext.adjustedTrialRate, 19);
+assert.equal(runningExpectationContext.afterRedrawRate, 19);
+assert.equal(runningExpectationContext.afterSwitchRate, 16);
 assert.match(normalizeStartEvBlock, /mochidamaInput: Math\.max\(0, normalizeNumber\(value\.mochidamaInput\) \?\? 0\)/);
 assert.match(normalizeStartEvBlock, /saipureiInput: Math\.max\(0, normalizeNumber\(value\.saipureiInput\) \?\? 0\)/);
 assert.match(calculateStartEvSnapshot, /const availableParts = availableBallsFromParts\(presets\.mochidamaInput, presets\.saipureiInput\);/);
