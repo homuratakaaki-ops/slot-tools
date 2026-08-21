@@ -5654,7 +5654,7 @@
       if (!preset?.evSupported || !preset.spec?.tenjo) return null;
       const current = normalizeNumber(session.currentSpin ?? session.startSpin);
       if (current === null) return null;
-      const previous = normalizeNumber(session.prevDayEndSpin) || 0;
+      const previous = runningPreviousSpin(session);
       const effective = current + previous;
       const remaining = Math.max(0, Number(preset.spec.tenjo) - effective);
       return {
@@ -5668,6 +5668,10 @@
       const number = normalizeNumber(value);
       if (number === null) return null;
       return Math.min(50, Math.max(1, Number(number.toFixed(1))));
+    }
+
+    function runningPreviousSpin(session) {
+      return Number(session?.hitCount || 0) > 0 ? 0 : (normalizeNumber(session?.prevDayEndSpin) || 0);
     }
 
     function initialRunningTrialRate(session, liveRate) {
@@ -5712,6 +5716,7 @@
       const currentAvailableBalls = Math.max(0, Number(balances?.mochidama || 0));
       const currentExpectation = calculateMachineExpectation(machine, {
         currentSpin,
+        previousSpin: runningPreviousSpin(session),
         manualRate: trialRate,
         availableBalls: currentAvailableBalls
       });
@@ -5779,6 +5784,7 @@
         const availableBalls = Math.max(0, Number(balances?.mochidama || 0));
         const expectation = calculateMachineExpectation(machine, {
           currentSpin,
+          previousSpin: runningPreviousSpin(session),
           manualRate: liveRate,
           availableBalls
         });
@@ -5791,7 +5797,7 @@
               <div class="metric"><span>残り回転数</span><strong>${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}</strong></div>
               <div class="metric"><span>時給</span><strong>${escapeHtml(yenText(expectation.result.hourlyYen))}</strong></div>
             </div>
-            <p class="hint">現在${numberText(currentSpin, "-")}回転 / 実測${liveRate.toFixed(1)} /250玉 / 持ち玉${Math.round(availableBalls).toLocaleString("ja-JP")}玉を自動使用 / 持ち玉充当${Math.round(expectation.result.mochidamaBalls).toLocaleString("ja-JP")}玉・現金${Math.round(expectation.result.cashBalls).toLocaleString("ja-JP")}玉</p>
+            <p class="hint">現在${numberText(currentSpin, "-")}回転 / 実測${liveRate.toFixed(1)} /250玉 / 持ち玉${Math.round(availableBalls).toLocaleString("ja-JP")}玉を自動使用 / 持ち玉充当${Math.round(expectation.result.mochidamaBalls).toLocaleString("ja-JP")}玉・現金見込み${Math.round(expectation.result.cashBalls / 250 * 1000).toLocaleString("ja-JP")}円</p>
           `;
         } else {
           liveHtml = `<p class="hint warn">${escapeHtml(expectation.reason || "再判定できません")}</p>`;

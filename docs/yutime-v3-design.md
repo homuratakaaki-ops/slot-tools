@@ -913,6 +913,13 @@ B5 実測値:
 - 店名は `store?.name` を使い、空または取得できない場合は `島の想定回転率◯◯使用` と表示する。`undefined` や `null` は表示しない。
 - 手入力と履歴累計のソース表示は変更しない。既存セッションの `startEv.rateSource` 文字列も書き換えず、表示時置換もしない。容量予算の増分はなし。
 
+## 58. B64 稼働中再判定の宵越し反映
+
+- schema 変更はない。稼働中パネルの `現在の実測回転率で再判定` と試算カードの `今から打つ場合` は、`calculateMachineExpectation()` に `previousSpin: runningPreviousSpin(session)` を渡し、宵越し回転数を実効回転数へ反映する。
+- `runningPreviousSpin(session)` は当選済みセッションでは0を返し、未当選の場合だけ `session.prevDayEndSpin` を使う。これにより、当選後のカウントリセットに前日分を二重加算しない。
+- 試算カードの `打ち始めから` は `startEv.effectiveSpin` がすでに宵越し込みのため、`previousSpin` を渡さない。`session.startEv` は書き換えない。
+- 再判定の根拠表示では、持ち玉充当分は玉表記のまま、現金分は `cashBalls / 250 * 1000` の円表記で `現金見込み○○円` と表示する。容量予算の増分はなし。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。

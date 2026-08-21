@@ -619,10 +619,12 @@ assert.match(runningExpectationHtml, /startEvDetailText\(session\.startEv\)/);
 assert.match(runningExpectationHtml, /現在の実測回転率で再判定/);
 assert.match(runningExpectationHtml, /回転率のサンプルが足りません/);
 assert.match(runningExpectationHtml, /const currentSpin = normalizeNumber\(session\.currentSpin\);/);
+assert.match(runningExpectationHtml, /previousSpin: runningPreviousSpin\(session\),/);
 assert.match(runningExpectationHtml, /manualRate: liveRate/);
 assert.match(runningExpectationHtml, /const availableBalls = Math\.max\(0, Number\(balances\?\.mochidama \|\| 0\)\);/);
 assert.match(runningExpectationHtml, /availableBalls/);
 assert.match(runningExpectationHtml, /calculateMachineExpectation\(machine, \{/);
+assert.match(runningExpectationHtml, /現金見込み\$\{Math\.round\(expectation\.result\.cashBalls \/ 250 \* 1000\)\.toLocaleString\("ja-JP"\)\}円/);
 assert.match(runningExpectationHtml, /const nailSummary = machine \? nailRatingSummary\(machine\) : "";/);
 assert.match(runningExpectationHtml, /runningTrialRateFor\(session, liveRate\)/);
 assert.match(runningExpectationHtml, /runningTrialExpectationHtml\(session, machine, trialRate, balances\)/);
@@ -632,6 +634,8 @@ assert.match(runningExpectationHtml, /nailRatingSectionHtml\(machine, \{ showHea
 assert.doesNotMatch(runningExpectationHtml, /session\.startEv\s*=/);
 assert.match(runningTrialHelpers, /function clampTrialRate\(value\)/);
 assert.match(runningTrialHelpers, /return Math\.min\(50, Math\.max\(1, Number\(number\.toFixed\(1\)\)\)\);/);
+assert.match(runningTrialHelpers, /function runningPreviousSpin\(session\) \{/);
+assert.match(runningTrialHelpers, /return Number\(session\?\.hitCount \|\| 0\) > 0 \? 0 : \(normalizeNumber\(session\?\.prevDayEndSpin\) \|\| 0\);/);
 assert.match(runningTrialHelpers, /function runningTrialRateFor\(session, liveRate\)/);
 assert.match(runningTrialHelpers, /if \(runningTrialSessionId !== session\.id\) \{/);
 assert.match(runningTrialHelpers, /runningTrialRate = initialRunningTrialRate\(session, liveRate\);/);
@@ -653,6 +657,8 @@ assert.match(runningTrialHelpers, /data-trial-rate-delta="0\.5"/);
 assert.match(runningTrialHelpers, /data-trial-rate-delta="1"/);
 assert.match(runningTrialHelpers, /currentSpin: startEv\.effectiveSpin/);
 assert.match(runningTrialHelpers, /availableBalls: startEv\.availableBalls/);
+assert.match(runningTrialHelpers, /previousSpin: runningPreviousSpin\(session\),/);
+assert.doesNotMatch(section('const startExpectation = startEv ? calculateMachineExpectation', ') : null;'), /previousSpin/);
 assert.match(runningTrialHelpers, /id="runningTrialRateValue"/);
 assert.match(runningTrialHelpers, /id="runningTrialCurrentLine"/);
 assert.match(runningTrialHelpers, /id="runningTrialStartLine"/);
@@ -668,6 +674,7 @@ assert.match(renderMachineExpectation, /宵越し\$\{expectation\.previousSpin\}
 assert.doesNotMatch(renderMachineExpectation, /実効\$\{expectation\.effectiveSpin\}/);
 const runningExpectationContext = vm.createContext({
   __renderCount: 0,
+  __expectationCalls: [],
   __nodes: {
     runningTrialRateValue: { textContent: '' },
     runningTrialCurrentLine: { innerHTML: '' },
@@ -696,19 +703,27 @@ const runningExpectationContext = vm.createContext({
     </div>`;
   },
   calculateMachineExpectation(machine, options) {
+    runningExpectationContext.__expectationCalls.push({ currentSpin: options.currentSpin, previousSpin: options.previousSpin, manualRate: options.manualRate, availableBalls: options.availableBalls });
+    const effectiveSpin = Number(options.currentSpin || 0) + Number(options.previousSpin || 0);
     return {
       result: {
         evYen: Math.round(options.manualRate * 100),
-        spinsToTenjo: 425,
-        rotationRate: options.manualRate
+        spinsToTenjo: Math.max(0, 950 - effectiveSpin),
+        rotationRate: options.manualRate,
+        hourlyYen: Math.round(options.manualRate * 10),
+        mochidamaBalls: 1498,
+        cashBalls: 1784
       }
     };
+  },
+  evJudgment() {
+    return { label: '打てる', className: 'good' };
   },
   yenText(value) {
     return `${value}円`;
   },
   activeSession() {
-    return { id: 's_1', machineId: 'm_1', startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500 }, currentSpin: 600 };
+    return { id: 's_1', machineId: 'm_1', startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500 }, currentSpin: 600, prevDayEndSpin: 100, hitCount: 0 };
   },
   runningPanelRate() {
     return 17.2;
@@ -740,8 +755,24 @@ new vm.Script(`
     startEv: { usedRate: 18.5, effectiveSpin: 525, availableBalls: 2500 },
     currentSpin: 600
   }, { id: 'm_1', summary: 'ヘソ4・寄り3・道3・ネカセ3・スルー3・ワープ3' }, null, { mochidama: 1200 });
+  globalThis.renderedLiveExpectation = runningExpectationHtml({
+    id: 's_live',
+    startEv: { usedRate: 18.5, effectiveSpin: 500, availableBalls: 0 },
+    currentSpin: 400,
+    prevDayEndSpin: 100,
+    hitCount: 0
+  }, { id: 'm_1', summary: '' }, 17, { mochidama: 1200 });
+  globalThis.renderedHitLiveExpectation = runningExpectationHtml({
+    id: 's_hit',
+    startEv: { usedRate: 18.5, effectiveSpin: 500, availableBalls: 0 },
+    currentSpin: 400,
+    prevDayEndSpin: 100,
+    hitCount: 1
+  }, { id: 'm_1', summary: '' }, 17, { mochidama: 1200 });
   globalThis.initialTrialRate = runningTrialRate;
+  const callsBeforeAdjust = __expectationCalls.length;
   adjustRunningTrialRate(0.5);
+  globalThis.adjustCalls = __expectationCalls.slice(callsBeforeAdjust);
   globalThis.adjustedTrialRate = runningTrialRate;
   globalThis.renderCountAfterAdjust = __renderCount;
   globalThis.updatedTrialRateText = __nodes.runningTrialRateValue.textContent;
@@ -754,6 +785,8 @@ new vm.Script(`
   globalThis.resetNailOpen = runningNailOpen;
 `).runInContext(runningExpectationContext);
 const renderedRunningExpectation = runningExpectationContext.renderedRunningExpectation;
+const renderedLiveExpectation = runningExpectationContext.renderedLiveExpectation;
+const renderedHitLiveExpectation = runningExpectationContext.renderedHitLiveExpectation;
 const evaluationStart = renderedRunningExpectation.indexOf('id="runningEvaluationSection"');
 const evaluationEnd = renderedRunningExpectation.indexOf('</details>', evaluationStart);
 const runningNailStart = renderedRunningExpectation.indexOf('id="runningNailSection"');
@@ -773,11 +806,25 @@ assert.match(renderedRunningExpectation, /打ち始めから/);
 assert.match(renderedRunningExpectation, /打ち始めから<\/strong> 1850円（残り425回転）/);
 assert.doesNotMatch(renderedRunningExpectation, /実効/);
 assert.doesNotMatch(renderedRunningExpectation, /data-show-header="true"/);
+assert.match(renderedLiveExpectation, /<span>残り回転数<\/span><strong>450<\/strong>/);
+assert.match(renderedLiveExpectation, /現金見込み7,136円/);
+assert.match(renderedHitLiveExpectation, /<span>残り回転数<\/span><strong>550<\/strong>/);
+assert.ok(
+  runningExpectationContext.__expectationCalls.some((call) => call.currentSpin === 400 && call.previousSpin === 100 && call.manualRate === 17),
+  'live re-judgment should include prevDayEndSpin before a hit'
+);
+assert.ok(
+  runningExpectationContext.__expectationCalls.some((call) => call.currentSpin === 400 && call.previousSpin === 0 && call.manualRate === 17),
+  'live re-judgment should ignore prevDayEndSpin after a hit'
+);
 assert.equal(runningExpectationContext.initialTrialRate, 18.5);
 assert.equal(runningExpectationContext.adjustedTrialRate, 19);
+assert.equal(runningExpectationContext.adjustCalls[0].previousSpin, 100);
+assert.equal(runningExpectationContext.adjustCalls[1].currentSpin, 525);
+assert.equal(runningExpectationContext.adjustCalls[1].previousSpin, undefined);
 assert.equal(runningExpectationContext.renderCountAfterAdjust, 0);
 assert.equal(runningExpectationContext.updatedTrialRateText, '19.0 /250玉');
-assert.match(runningExpectationContext.updatedCurrentLine, /今から打つ場合<\/strong> 1900円（残り425回転）/);
+assert.match(runningExpectationContext.updatedCurrentLine, /今から打つ場合<\/strong> 1900円（残り250回転）/);
 assert.match(runningExpectationContext.updatedStartLine, /打ち始めから<\/strong> 1900円（残り425回転）/);
 assert.equal(runningExpectationContext.afterRedrawRate, 19);
 assert.equal(runningExpectationContext.afterSwitchRate, 16);
