@@ -721,7 +721,9 @@
       min-height: 0;
       margin: 0;
       padding: 8px;
-      overflow: hidden;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+      overscroll-behavior: contain;
       border: 0;
       box-shadow: none;
     }
@@ -3393,6 +3395,7 @@
                 }).join("") : '<div class="row-card"><small>履歴はまだありません。</small></div>'}
               </div>
             ` : ""}
+            ${runningExpectationHtml(session, machine, liveRate, balances)}
           </div>
           <div class="running-bottom-controls${stickyClass}">
             <div class="source-chip-row">
@@ -3432,7 +3435,6 @@
             </div>
             <button class="small" id="editActiveBtn">記録の修正</button>
           </div>
-          ${runningExpectationHtml(session, machine, liveRate, balances)}
         </div>
       `;
       if (machine) bindNailRatingChips(machine, els.runningArea);

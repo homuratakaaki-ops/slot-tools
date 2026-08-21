@@ -856,6 +856,15 @@ B5 実測値:
 - 稼働中パネルのボタン文言は、保存される実消費額と同じ `investmentAmountForSource()` の結果から作る。例: 持ち玉64玉なら `-64玉`、カード残300円なら `-300円`。
 - 手入力の投資追加では、入力額が残高を超える場合の全額拒否を維持する。B56の部分消費は固定投資ボタンの単位額に対する端数使い切りとして扱う。
 
+## 51. B57 期待値・評価の親指帯外配置
+
+- schema 変更はない。B54の期待値・評価セクションは、親指帯である `.running-bottom-controls` には入れず、稼働中上部コンテンツ側へ配置する。
+- 固定ON時も到達できるよう、期待値・評価は `.running-sticky` の末尾に描画し、`.running-panel.fullscreen .running-sticky` は `flex: 1 1 auto` と `min-height: 0` を維持したうえで `overflow-y: auto`、`-webkit-overflow-scrolling: touch`、`overscroll-behavior: contain` を指定する。
+- 固定ONの `.running-panel.fullscreen` は `overflow: hidden` を維持し、パネル外へのページスクロールは防ぐ。
+- `.running-bottom-controls` は `flex: 0 0 auto` のままとし、スクロールしても親指帯を画面下部に残す。ソースチップ、投資ボタン、カウンター、元に戻すは親指帯内に残す。
+- イベント登録は `bindNailRatingChips(machine, els.runningArea)` のままとし、配置移動後も釘評価保存経路を台詳細画面と共通に保つ。
+- DOM/CSSのみの変更で、容量予算の増分はなし。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。

@@ -485,6 +485,15 @@ assert.match(renderRunning, /class="primary\$\{selectedCanUse \? "" : " is-low"\
 assert.match(renderRunning, /メモ\$\{\(machine\?\.memoEntries \|\| \[\]\)\.length > 0 \? "あり" : ""\}/);
 assert.match(renderRunning, /runningExpectationHtml\(session, machine, liveRate, balances\)/);
 assert.match(renderRunning, /bindNailRatingChips\(machine, els\.runningArea\);/);
+const runningExpectationIndex = renderRunning.indexOf('runningExpectationHtml(session, machine, liveRate, balances)');
+const runningBottomIndex = renderRunning.indexOf('<div class="running-bottom-controls');
+const runningBottomEndIndex = renderRunning.indexOf('</div>', renderRunning.indexOf('<div class="counter-row">'));
+assert.ok(runningExpectationIndex > renderRunning.indexOf('<div class="running-sticky'), 'running expectation should be in the upper running content');
+assert.ok(runningExpectationIndex < runningBottomIndex, 'running expectation should render before the thumb controls');
+assert.ok(
+  !renderRunning.slice(runningBottomIndex, runningBottomEndIndex).includes('runningExpectationHtml(session, machine, liveRate, balances)'),
+  'running expectation should not remain inside the thumb controls'
+);
 assert.ok(
   renderRunning.indexOf('id="unifiedInvestBtn"') < renderRunning.indexOf('id="openChargeBtn"')
   && renderRunning.indexOf('id="openChargeBtn"') < renderRunning.indexOf('id="openRunningMachineMemoBtn"')
@@ -582,6 +591,9 @@ assert.match(html, /\.expectation-inputs \{\s*display: grid;\s*grid-template-col
 assert.match(html, /\.expectation-inputs \.field-row \{\s*grid-template-columns: minmax\(0, 1fr\);\s*gap: 4px;\s*\}/);
 assert.match(html, /\.nail-rating-chips \{\s*display: grid;\s*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);\s*gap: 6px;\s*\}/);
 assert.match(html, /\.nail-rating-chips button \{\s*min-height: 38px;/);
+assert.match(html, /\.running-panel\.fullscreen \{[\s\S]*?height: 100dvh;[\s\S]*?overflow: hidden;[\s\S]*?\}/);
+assert.match(html, /\.running-panel\.fullscreen \.running-sticky \{[\s\S]*?flex: 1 1 auto;[\s\S]*?min-height: 0;[\s\S]*?overflow-y: auto;[\s\S]*?-webkit-overflow-scrolling: touch;[\s\S]*?overscroll-behavior: contain;[\s\S]*?\}/);
+assert.match(html, /\.running-panel\.fullscreen \.running-bottom-controls \{[\s\S]*?flex: 0 0 auto;[\s\S]*?\}/);
 assert.doesNotMatch(html, /\.modal \{[^}]*overflow-x: hidden;/);
 assert.match(normalizeNailRatingBlock, /const input = source && typeof source === "object" \? source : \{\};/);
 assert.match(nailRatingSection, /data-nail-rating="\$\{buttonValue\}"/);
