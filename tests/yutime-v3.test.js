@@ -40,6 +40,7 @@ const calculateStartEvSnapshot = section('function calculateStartEvSnapshot', 'f
 const startEvDetailTextBlock = section('function startEvText', 'function showToast');
 const investmentTotalsBlock = section('function investmentTotals', 'function transferSummaryForSession');
 const openBalanceEditForm = section('function openBalanceEditForm', 'function openSpinEditForm');
+const openRateSummary = section('function openRateSummary', 'function openSessionEditor');
 const machineSummary = section('function machineModelSummaryHtml', 'function machineDetailFormHtml');
 const machineDetailForm = section('function machineDetailFormHtml', 'function openMachineDetail');
 const openMachineDetail = section('function openMachineDetail', 'function renderMachineExpectation');
@@ -586,6 +587,7 @@ assert.match(renderRunning, /const selectedCanUse = canUseSource\(session, selec
 assert.match(renderRunning, /const low = !canUseSource\(session, option\.value\);/);
 assert.match(renderRunning, /class="primary\$\{selectedCanUse \? "" : " is-low"\}" id="unifiedInvestBtn">\$\{investmentButtonText\(selectedSource, selectedActualAmount\)\}<\/button>/);
 assert.match(renderRunning, /メモ\$\{\(machine\?\.memoEntries \|\| \[\]\)\.length > 0 \? "あり" : ""\}/);
+assert.match(renderRunning, /id="editActiveBtn">記録の修正・削除<\/button>/);
 assert.match(renderRunning, /runningExpectationHtml\(session, machine, liveRate, balances\)/);
 assert.match(renderRunning, /bindNailRatingChips\(machine, els\.runningArea\);/);
 assert.match(renderRunning, /querySelectorAll\("\[data-trial-rate-delta\]"\)/);
@@ -681,6 +683,12 @@ assert.match(renderMachineExpectation, /残り\$\{expectation\.result\.spinsToTe
 assert.match(renderMachineExpectation, /宵越し\$\{expectation\.previousSpin\}\+現在\$\{expectation\.currentSpin\}/);
 assert.match(renderMachineExpectation, /expectationInvestmentText\(expectation\.result\.mochidamaBalls, expectation\.result\.cashBalls\)/);
 assert.doesNotMatch(renderMachineExpectation, /実効\$\{expectation\.effectiveSpin\}/);
+assert.match(renderLedger, /data-edit-session="\$\{escapeHtml\(session\.id\)\}">記録の修正・削除<\/button>/);
+assert.match(openRateSummary, /未入力は「記録の修正・削除」から補完できます。/);
+assert.match(openSessionEditor, /openModal\("記録の修正・削除", "スキップした項目もここで修正できます。"/);
+assert.doesNotMatch(html, />記録の修正<\/button>/);
+assert.doesNotMatch(html, /openModal\("記録の修正",/);
+assert.doesNotMatch(html, /「記録の修正」/);
 const startEvDetailContext = vm.createContext({
   YUTIME_EXPECTATION_ENGINE: { preset: { spec: { tenjo: 950 } } },
   normalizeNumber(value) {

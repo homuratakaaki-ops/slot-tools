@@ -3484,7 +3484,7 @@
               <h2>稼働中: ${escapeHtml(machine?.daiNo || "台番不明")}</h2>
               <p>${escapeHtml(dateWithAutoLabels(session.date))} / ${missingFields(session).length ? "未入力あり" : "入力済み"}</p>
             </div>
-            <button class="small" id="editActiveBtn">記録の修正</button>
+            <button class="small" id="editActiveBtn">記録の修正・削除</button>
           </div>
         </div>
       `;
@@ -3620,7 +3620,7 @@
             <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${rateText(derived)} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
             ${session.status === "completed" ? transferSummaryHtml(session) : ""}
             <div class="modal-actions" style="margin-top:8px">
-              <button class="small" data-edit-session="${escapeHtml(session.id)}">記録の修正</button>
+              <button class="small" data-edit-session="${escapeHtml(session.id)}">記録の修正・削除</button>
             </div>
           </details>`;
       }).join("");
@@ -6425,7 +6425,7 @@
       const machine = data.machines.find((item) => item.id === session.machineId);
       const derived = deriveSession(session, machine);
       const totals = investmentTotals(session);
-      openModal("戦果報告", "お疲れ様でした。記録は履歴に保存済みです。未入力は「記録の修正」から補完できます。", `
+      openModal("戦果報告", "お疲れ様でした。記録は履歴に保存済みです。未入力は「記録の修正・削除」から補完できます。", `
         <div class="metric-grid">
           <div class="metric"><span>通常回転数</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${numberText(derived.consumedBalls, "-")}</strong></div>
@@ -6463,7 +6463,7 @@
       const session = findSession(sessionId);
       if (!session) return;
       const labels = storeLabels(session.storeId);
-      openModal("記録の修正", "スキップした項目もここで修正できます。", `
+      openModal("記録の修正・削除", "スキップした項目もここで修正できます。", `
         <div class="grid two">
           ${fieldHtml("date", "日付", session.date, "date")}
           ${fieldHtml("startTime", "開始時刻", session.startTime, "time")}
