@@ -5074,7 +5074,11 @@
             <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${stats.rate ? stats.rate.toFixed(1) : "履歴なし"}"></div>
             <div class="field-row"><label for="evMochidamaBalls">持ち玉（玉）</label><input id="evMochidamaBalls" inputmode="numeric" value="" placeholder="0"></div>
             <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="" placeholder="0"></div>
+            <div class="field-row"><label for="evStartTotalHits">開始時点の累計大当たり回数</label><input id="evStartTotalHits" inputmode="numeric" value=""></div>
+            <div class="field-row"><label for="evStartCredit">開始時のカード残高</label><input id="evStartCredit" inputmode="numeric" value=""></div>
           </div>
+          <label class="check-row"><input id="evPrevDisabled" type="checkbox"> 宵越し無効（当日当選済み／ラムクリア）</label>
+          <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。当日当選済みやラムクリア時はチェックで無効化してください。` : "前日ヤメ回転数は未入力です。"}</p>
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
         </div>` : ""}
@@ -5130,22 +5134,18 @@
         ["evCurrentSpin", "evPrevSpin", "evManualRate", "evMochidamaBalls", "evSaipureiBalls"].forEach((id) => {
           byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
         });
+        byId("evPrevDisabled").addEventListener("change", () => renderMachineExpectation(machine.id));
       }
       byId("startSessionBtn").addEventListener("click", () => {
         if (machineFormExpanded) readMachineDetailForm(machine);
         else readMachineMemoForm(machine);
-        const startSpinPreset = normalizeNumber(byId("evCurrentSpin")?.value);
-        const prevDayEndSpinPreset = normalizeNumber(byId("evPrevSpin")?.value);
-        const manualRatePreset = normalizeNumber(byId("evManualRate")?.value);
-        const mochidamaInputPreset = normalizeNumber(byId("evMochidamaBalls")?.value);
-        const saipureiInputPreset = normalizeNumber(byId("evSaipureiBalls")?.value);
-        const availableBallsPreset = availableBallsFromParts(mochidamaInputPreset, saipureiInputPreset);
+        const presets = expectationPanelPresets();
         if (!persist()) {
           showToast("保存に失敗しました。容量を確認してください。", "error");
           return;
         }
         closeModal();
-        openStartWizard(machine.id, { startSpin: startSpinPreset, prevDayEndSpin: prevDayEndSpinPreset, manualRate: manualRatePreset, availableBalls: availableBallsPreset.total, mochidamaInput: availableBallsPreset.mochidama, saipureiInput: availableBallsPreset.saipurei });
+        openStartSession(machine.id, presets);
       });
     }
 
@@ -5156,9 +5156,19 @@
       const detail = byId("machineEvDetail");
       if (!machine || !title || !metrics || !detail) return;
       const stats = machineStats(machine.id);
+      const previousDisabled = Boolean(byId("evPrevDisabled")?.checked);
+      const prevInput = byId("evPrevSpin");
+      if (prevInput) prevInput.disabled = previousDisabled;
+      const prevHint = byId("machineEvPrevHint");
+      if (prevHint) {
+        const prevValue = normalizeNumber(prevInput?.value);
+        prevHint.textContent = previousDisabled
+          ? "期待値判定では宵越しを使わず、前日ヤメ回転数は0として計算しています。"
+          : (prevValue !== null ? `前日ヤメ${prevValue.toLocaleString("ja-JP")}回転を使用中。当日当選済みやラムクリア時はチェックで無効化してください。` : "前日ヤメ回転数は未入力です。");
+      }
       const expectation = calculateMachineExpectation(machine, {
         currentSpin: byId("evCurrentSpin")?.value,
-        previousSpin: byId("evPrevSpin")?.value,
+        previousSpin: previousDisabled ? 0 : byId("evPrevSpin")?.value,
         manualRate: byId("evManualRate")?.value,
         availableBalls: availableBallsFromParts(byId("evMochidamaBalls")?.value, byId("evSaipureiBalls")?.value).total,
         stats
@@ -5184,6 +5194,24 @@
       const near = expectation.result.spinsToTenjo < 100 && expectation.result.spinsToTenjo > 0;
       const costSource = expectationInvestmentText(expectation.result.mochidamaBalls, expectation.result.cashBalls);
       detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（宵越し${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
+    }
+
+    function expectationPanelPresets() {
+      const mochidamaInput = normalizeNumber(byId("evMochidamaBalls")?.value);
+      const saipureiInput = normalizeNumber(byId("evSaipureiBalls")?.value);
+      const availableBalls = availableBallsFromParts(mochidamaInput, saipureiInput);
+      const yoiDisabled = Boolean(byId("evPrevDisabled")?.checked);
+      return {
+        startSpin: normalizeNumber(byId("evCurrentSpin")?.value),
+        prevDayEndSpin: yoiDisabled ? null : normalizeNumber(byId("evPrevSpin")?.value),
+        prevDayDisabled: yoiDisabled,
+        manualRate: normalizeNumber(byId("evManualRate")?.value),
+        availableBalls: availableBalls.total,
+        mochidamaInput: availableBalls.mochidama,
+        saipureiInput: availableBalls.saipurei,
+        startTotalHits: normalizeNumber(byId("evStartTotalHits")?.value),
+        startCredit: normalizeNumber(byId("evStartCredit")?.value)
+      };
     }
 
     function applyPresetSelectionToForm() {
@@ -5220,13 +5248,23 @@
       const store = activeStore();
       const currentActive = activeSessionsForStore(store?.id)[0] || null;
       if (currentActive) {
-        openActiveStartGuard(machineId, currentActive, presets);
+        openActiveStartGuard(machineId, currentActive, presets, () => beginStartWizard(machineId, presets));
         return;
       }
       beginStartWizard(machineId, presets);
     }
 
-    function openActiveStartGuard(machineId, active, presets = {}) {
+    function openStartSession(machineId, presets = {}) {
+      const store = activeStore();
+      const currentActive = activeSessionsForStore(store?.id)[0] || null;
+      if (currentActive) {
+        openActiveStartGuard(machineId, currentActive, presets, () => beginStartSession(machineId, presets));
+        return;
+      }
+      beginStartSession(machineId, presets);
+    }
+
+    function openActiveStartGuard(machineId, active, presets = {}, startCallback = null) {
       const activeMachine = data.machines.find((item) => item.id === active.machineId);
       const daiNo = activeMachine?.daiNo || "不明";
       openModal("稼働中の記録があります", `台${daiNo}がヤメ入力されていません。`, `
@@ -5244,7 +5282,7 @@
       });
       byId("forceStartBtn").addEventListener("click", () => {
         closeModal();
-        setTimeout(() => beginStartWizard(machineId, presets), 0);
+        setTimeout(() => (startCallback || (() => beginStartWizard(machineId, presets)))(), 0);
       });
     }
 
@@ -5260,13 +5298,15 @@
         .sort((a, b) => activeSortKey(b).localeCompare(activeSortKey(a)))[0] || null;
     }
 
-    function beginStartWizard(machineId, presets = {}) {
+    function startSessionBase(machineId, presets = {}) {
       const store = activeStore();
+      if (!store) return null;
       const session = blankSession();
       session.storeId = store.id;
       session.machineId = machineId;
       const manualPrevDayEndSpin = normalizeNumber(presets.prevDayEndSpin);
-      session.prevDayEndSpin = manualPrevDayEndSpin ?? validClosingInfo(machineId)?.spin ?? null;
+      const hasPrevDayPreset = Object.prototype.hasOwnProperty.call(presets, "prevDayEndSpin") || presets.prevDayDisabled;
+      session.prevDayEndSpin = presets.prevDayDisabled ? null : (hasPrevDayPreset ? manualPrevDayEndSpin : (validClosingInfo(machineId)?.spin ?? null));
       const activeCarryover = carryover && carryover.storeId === store.id ? carryover : null;
       if (activeCarryover) {
         session.carriedFromSessionId = activeCarryover.sourceSessionId;
@@ -5274,6 +5314,37 @@
         session.startSaipurei = activeCarryover.saipurei;
         session.startCredit = activeCarryover.credit;
       }
+      return { session, store, activeCarryover, manualPrevDayEndSpin };
+    }
+
+    function beginStartSession(machineId, presets = {}) {
+      const base = startSessionBase(machineId, presets);
+      if (!base) return;
+      const { session, activeCarryover } = base;
+      session.startSpin = normalizeNumber(presets.startSpin);
+      session.currentSpin = session.startSpin;
+      session.startTime = currentTime();
+      session.startMochidama = normalizeNumber(presets.mochidamaInput);
+      session.startSaipurei = normalizeNumber(presets.saipureiInput);
+      session.startCredit = normalizeNumber(presets.startCredit);
+      session.startTotalHits = normalizeNumber(presets.startTotalHits);
+      const machine = data.machines.find((item) => item.id === machineId);
+      session.startEv = calculateStartEvSnapshot(session, machine, presets);
+      data.sessions.push(session);
+      activeSessionId = session.id;
+      const toast = presets.prevDayDisabled ? "稼働を開始しました。宵越し無効で記録しています。取り消しは記録の修正・削除から行えます。" : "稼働を開始しました。取り消しは記録の修正・削除から行えます。";
+      if (!persistWithToast(toast)) return;
+      if (activeCarryover) {
+        carryover = null;
+        localStorage.removeItem(CARRYOVER_KEY);
+      }
+      showView("runView");
+    }
+
+    function beginStartWizard(machineId, presets = {}) {
+      const base = startSessionBase(machineId, presets);
+      if (!base) return;
+      const { session, store, activeCarryover, manualPrevDayEndSpin } = base;
       const latestStoreSession = !activeCarryover ? latestCompletedSessionForStoreToday(store.id) : null;
       const latestStoreBalances = latestStoreSession ? deriveBalances(latestStoreSession) : null;
       const latestMachineSession = latestCompletedSessionForMachineToday(machineId);
@@ -5290,7 +5361,7 @@
           label: "現在回転数",
           type: "number",
           preset: startSpinPreset,
-          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。") + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
+          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (presets.prevDayDisabled ? " 期待値判定で宵越し無効を選択しています。" : (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。")) + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
         { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },

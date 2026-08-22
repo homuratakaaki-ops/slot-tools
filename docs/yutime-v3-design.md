@@ -980,6 +980,21 @@ B5 実測値:
 - 保存後は既存どおり `status = "completed"`、終了時刻補完、active session解除、`openRateSummary()` 表示を行う。閉じる、または×では保存せず、セッションは稼働中のまま残す。
 - `runWizard()` は開始ウィザード、当選ウィザードなどで使うため削除しない。`endTotalHits` は `記録の修正・削除` 画面に残し、当選タップ記録がない場合だけ `presetHitCountFromCounters()` 相当の補完を編集保存時に行う。容量予算の増分はなし。
 
+## 68. B74 宵越し無効チェック
+
+- schema 変更はない。台詳細モーダルの期待値判定パネルに `宵越し無効（当日当選済み／ラムクリア）` チェックを追加する。
+- チェックONでは `renderMachineExpectation()` が `previousSpin: 0` で再計算し、`evPrevSpin` はdisabledにする。入力欄の値は消さず、チェックOFFに戻すと再び前日ヤメ回転数として使う。
+- チェック状態はDOM上だけの一時状態で、閉店チェックや `dailyState` は変更しない。モーダルを開き直すと既定OFFに戻る。
+- チェックONで開始する場合、`expectationPanelPresets()` は `prevDayEndSpin: null` と `prevDayDisabled: true` を渡す。即時開始セッションでは `session.prevDayEndSpin` をnullにし、`startEv` も宵越しなしで保存する。容量予算の増分はなし。
+
+## 69. B75 打ち始め即時開始
+
+- schema 変更はない。台詳細モーダルの期待値判定パネルに `開始時点の累計大当たり回数` と `開始時のカード残高` を追加し、どちらも記録専用入力として扱う。期待値計算には使わない。
+- `この台を打つ` は `openStartWizard()` を呼ばず、`expectationPanelPresets()` の値で `openStartSession()` / `beginStartSession()` から即時にセッションを作る。既存の稼働中セッションがある場合のガードは維持し、強制開始時も即時開始関数へ流す。
+- パネル入力は `startSpin/currentSpin`、`prevDayEndSpin`、`startMochidama`、`startSaipurei`、`startTotalHits`、`startCredit`、`startTime = currentTime()` に保存する。空欄はnullで開始し、`startEv` は同じパネル値から従来どおり計算する。
+- 開始トーストには `記録の修正・削除` から取り消せる旨を表示する。B74の宵越し無効ONで開始した場合は、宵越し無効で記録した旨も併記する。
+- `runWizard()` と旧 `openStartWizard()` / `beginStartWizard()` は残し、当選ウィザードなど既存ウィザードの動作を維持する。容量予算の増分はなし。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。

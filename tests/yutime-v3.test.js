@@ -42,6 +42,7 @@ const runningPanelInputBallsBlock = section('function runningPanelInputBalls', '
 const runningSpinCount = section('function runningSpinCount', 'function investmentSnapshot');
 const investmentSnapshot = section('function investmentSnapshot', 'function historyEntries');
 const calculateStartEvSnapshot = section('function calculateStartEvSnapshot', 'function startEvText');
+const startSessionFlow = section('function openStartWizard', 'function openHitWizard');
 const startEvDetailTextBlock = section('function startEvText', 'function showToast');
 const investmentTotalsBlock = section('function investmentTotals', 'function transferSummaryForSession');
 const openBalanceEditForm = section('function openBalanceEditForm', 'function openSpinEditForm');
@@ -992,6 +993,9 @@ assert.doesNotMatch(startEvDetailTextBlock, /実効\$\{normalized\.effectiveSpin
 assert.doesNotMatch(startEvDetailTextBlock, /現金\$\{Math\.round\(normalized\.cashBalls/);
 assert.match(renderMachineExpectation, /残り\$\{expectation\.result\.spinsToTenjo\.toLocaleString\("ja-JP"\)\}回転/);
 assert.match(renderMachineExpectation, /宵越し\$\{expectation\.previousSpin\}\+現在\$\{expectation\.currentSpin\}/);
+assert.match(renderMachineExpectation, /const previousDisabled = Boolean\(byId\("evPrevDisabled"\)\?\.checked\);/);
+assert.match(renderMachineExpectation, /if \(prevInput\) prevInput\.disabled = previousDisabled;/);
+assert.match(renderMachineExpectation, /previousSpin: previousDisabled \? 0 : byId\("evPrevSpin"\)\?\.value,/);
 assert.match(renderMachineExpectation, /expectationInvestmentText\(expectation\.result\.mochidamaBalls, expectation\.result\.cashBalls\)/);
 assert.doesNotMatch(renderMachineExpectation, /実効\$\{expectation\.effectiveSpin\}/);
 assert.match(renderLedger, /data-edit-session="\$\{escapeHtml\(session\.id\)\}">記録の修正・削除<\/button>/);
@@ -1000,15 +1004,187 @@ assert.match(openSessionEditor, /openModal\("記録の修正・削除", "スキ�
 assert.doesNotMatch(html, />記録の修正<\/button>/);
 assert.doesNotMatch(html, /openModal\("記録の修正",/);
 assert.doesNotMatch(html, /「記録の修正」/);
-assert.match(openStartWizard, /\{ key: "startMochidama", label: "開始時の持ち玉"/);
-assert.match(openStartWizard, /\{ key: "startSaipurei", label: "開始時の再プレイ残り"/);
-assert.match(openStartWizard, /\{ key: "startCredit", label: "開始時のカード残高"/);
-assert.match(openStartWizard, /\{ key: "startTotalHits", label: "開始時点の累計大当たり回数"/);
+assert.match(openMachineDetail, /id="evStartTotalHits"/);
+assert.match(openMachineDetail, /開始時点の累計大当たり回数/);
+assert.match(openMachineDetail, /id="evStartCredit"/);
+assert.match(openMachineDetail, /開始時のカード残高/);
+assert.match(openMachineDetail, /id="evPrevDisabled"/);
+assert.match(openMachineDetail, /宵越し無効（当日当選済み／ラムクリア）/);
+assert.match(openMachineDetail, /openStartSession\(machine\.id, presets\);/);
+assert.doesNotMatch(openMachineDetail, /openStartWizard\(machine\.id/);
 assert.match(openSessionEditor, /fieldHtml\("startMochidama", "開始時の持ち玉", session\.startMochidama\)/);
 assert.match(openSessionEditor, /fieldHtml\("startSaipurei", "開始時の再プレイ残り", session\.startSaipurei\)/);
 assert.match(openSessionEditor, /fieldHtml\("startCredit", "開始時のカード残高", session\.startCredit\)/);
-assert.doesNotMatch(openStartWizard, /label: "持ち玉"|label: "再プレイ残り玉"|label: "カード残高（クレジット残金）"|label: "データカウンタの累計大当たり回数"/);
+assert.doesNotMatch(openMachineDetail, /label: "持ち玉"|label: "再プレイ残り玉"|label: "カード残高（クレジット残金）"|label: "データカウンタの累計大当たり回数"/);
 assert.doesNotMatch(openSessionEditor, /"開始持ち玉"|"再プレイ残り"|"カード残高（クレジット残金）"/);
+const machineExpectationContext = vm.createContext({
+  data: { machines: [{ id: 'm1' }] },
+  __nodes: {
+    machineEvTitle: { className: '', querySelector: () => ({ textContent: '' }), classList: { add() {} } },
+    machineEvMetrics: { innerHTML: '' },
+    machineEvDetail: { textContent: '' },
+    machineEvPrevHint: { textContent: '' },
+    evCurrentSpin: { value: '350' },
+    evPrevSpin: { value: '100', disabled: false },
+    evPrevDisabled: { checked: false },
+    evManualRate: { value: '17' },
+    evMochidamaBalls: { value: '2000' },
+    evSaipureiBalls: { value: '500' },
+    evStartTotalHits: { value: '7' },
+    evStartCredit: { value: '3000' }
+  },
+  __calls: [],
+  byId(id) { return machineExpectationContext.__nodes[id] || null; },
+  machineStats() { return {}; },
+  calculateMachineExpectation(machine, options) {
+    machineExpectationContext.__calls.push(options);
+    const previous = Number(options.previousSpin || 0);
+    const current = Number(options.currentSpin || 0);
+    return {
+      result: {
+        rotationRate: Number(options.manualRate || 0),
+        spinsToTenjo: Math.max(0, 950 - current - previous),
+        evYen: 1000,
+        hourlyYen: 100,
+        slotRate: 101,
+        totalHours: 1,
+        mochidamaBalls: 100,
+        cashBalls: 200
+      },
+      previousSpin: previous,
+      currentSpin: current,
+      rateSource: '手入力',
+      payoutSource: '理論値',
+      exchangeBalls: 28
+    };
+  },
+  evJudgment() { return { label: '打てる', className: 'good' }; },
+  availableBallsFromParts(mochidama, saipurei) {
+    const m = machineExpectationContext.normalizeNumber(mochidama) || 0;
+    const s = machineExpectationContext.normalizeNumber(saipurei) || 0;
+    return { mochidama: m, saipurei: s, total: m + s };
+  },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  expectationInvestmentText() { return '遊タイムまで必要 約300玉（持ち玉から100玉・現金で約800円）'; },
+  exchangeBallsText(value) { return String(value); },
+  yenText(value) { return `${value}円`; },
+  percentText(value) { return `${value}%`; },
+  hourText(value) { return `${value}h`; },
+  escapeHtml(value) { return String(value ?? ''); }
+});
+new vm.Script(`
+  ${renderMachineExpectation}
+  renderMachineExpectation('m1');
+  globalThis.firstPreviousSpin = globalThis.__calls.at(-1).previousSpin;
+  globalThis.firstDisabled = globalThis.__nodes.evPrevSpin.disabled;
+  globalThis.firstHint = globalThis.__nodes.machineEvPrevHint.textContent;
+  globalThis.firstPresets = expectationPanelPresets();
+  globalThis.__nodes.evPrevDisabled.checked = true;
+  renderMachineExpectation('m1');
+  globalThis.disabledPreviousSpin = globalThis.__calls.at(-1).previousSpin;
+  globalThis.disabledInputValue = globalThis.__nodes.evPrevSpin.value;
+  globalThis.disabledInputState = globalThis.__nodes.evPrevSpin.disabled;
+  globalThis.disabledHint = globalThis.__nodes.machineEvPrevHint.textContent;
+  globalThis.disabledPresets = expectationPanelPresets();
+`).runInContext(machineExpectationContext);
+assert.equal(machineExpectationContext.firstPreviousSpin, '100');
+assert.equal(machineExpectationContext.firstDisabled, false);
+assert.match(machineExpectationContext.firstHint, /前日ヤメ100回転を使用中/);
+assert.equal(machineExpectationContext.firstPresets.prevDayEndSpin, 100);
+assert.equal(machineExpectationContext.firstPresets.startTotalHits, 7);
+assert.equal(machineExpectationContext.firstPresets.startCredit, 3000);
+assert.equal(machineExpectationContext.disabledPreviousSpin, 0);
+assert.equal(machineExpectationContext.disabledInputValue, '100');
+assert.equal(machineExpectationContext.disabledInputState, true);
+assert.match(machineExpectationContext.disabledHint, /宵越しを使わず/);
+assert.equal(machineExpectationContext.disabledPresets.prevDayEndSpin, null);
+assert.equal(machineExpectationContext.disabledPresets.prevDayDisabled, true);
+const startSessionContext = vm.createContext({
+  data: { sessions: [], machines: [{ id: 'm1' }] },
+  activeSessionId: null,
+  carryover: null,
+  localStorage: { removeItem(key) { startSessionContext.removed = key; } },
+  CARRYOVER_KEY: 'carry',
+  __toasts: [],
+  __view: null,
+  activeStore() { return { id: 'store' }; },
+  activeSessionsForStore() { return []; },
+  blankSession() {
+    return {
+      id: `s${startSessionContext.data.sessions.length + 1}`,
+      date: '2026-08-22',
+      storeId: null,
+      machineId: null,
+      startSpin: null,
+      currentSpin: null,
+      startTime: null,
+      startMochidama: null,
+      startSaipurei: null,
+      startCredit: null,
+      startTotalHits: null,
+      prevDayEndSpin: null,
+      startEv: null,
+      status: 'active'
+    };
+  },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  validClosingInfo() { return { spin: 100 }; },
+  calculateStartEvSnapshot(session, machine, presets) {
+    return { effectiveSpin: Number(session.startSpin || 0) + Number(session.prevDayEndSpin || 0), usedRate: presets.manualRate, availableBalls: presets.availableBalls };
+  },
+  currentTime() { return '12:34'; },
+  persistWithToast(message) { startSessionContext.__toasts.push(message); return true; },
+  showView(view) { startSessionContext.__view = view; },
+  openModal() {},
+  byId() { return { addEventListener() {} }; },
+  closeModal() {},
+  showToast() {},
+  setTimeout(callback) { callback(); },
+  latestCompletedSessionForStoreToday() { return null; },
+  latestCompletedSessionForMachineToday() { return null; },
+  activeSortKey() { return ''; },
+  runWizard() {},
+  storeLabels() { return []; },
+  dateWithAutoLabels(date) { return date; },
+  eventMemoHelp() { return ''; }
+});
+new vm.Script(`
+  ${startSessionFlow}
+  openStartSession('m1', { startSpin: 350, prevDayEndSpin: 100, manualRate: 17, availableBalls: 2500, mochidamaInput: 2000, saipureiInput: 500, startTotalHits: 7, startCredit: 3000 });
+  globalThis.started = data.sessions[0];
+  openStartSession('m1', { startSpin: 350, prevDayEndSpin: 100, prevDayDisabled: true, manualRate: 17, availableBalls: 2500, mochidamaInput: 2000, saipureiInput: 500, startTotalHits: 7, startCredit: 3000 });
+  globalThis.disabledStarted = data.sessions[1];
+  openStartSession('m1', { startSpin: null, prevDayEndSpin: null, manualRate: null, availableBalls: 0, mochidamaInput: null, saipureiInput: null, startTotalHits: null, startCredit: null });
+  globalThis.blankStarted = data.sessions[2];
+`).runInContext(startSessionContext);
+assert.equal(startSessionContext.started.startSpin, 350);
+assert.equal(startSessionContext.started.currentSpin, 350);
+assert.equal(startSessionContext.started.prevDayEndSpin, 100);
+assert.equal(startSessionContext.started.startMochidama, 2000);
+assert.equal(startSessionContext.started.startSaipurei, 500);
+assert.equal(startSessionContext.started.startCredit, 3000);
+assert.equal(startSessionContext.started.startTotalHits, 7);
+assert.equal(startSessionContext.started.startTime, '12:34');
+assert.equal(startSessionContext.started.startEv.effectiveSpin, 450);
+assert.equal(startSessionContext.disabledStarted.prevDayEndSpin, null);
+assert.equal(startSessionContext.disabledStarted.startEv.effectiveSpin, 350);
+assert.match(startSessionContext.__toasts[1], /宵越し無効/);
+assert.match(startSessionContext.__toasts[1], /記録の修正・削除/);
+assert.equal(startSessionContext.blankStarted.startSpin, null);
+assert.equal(startSessionContext.blankStarted.currentSpin, null);
+assert.equal(startSessionContext.blankStarted.prevDayEndSpin, null);
+assert.equal(startSessionContext.blankStarted.startMochidama, null);
+assert.equal(startSessionContext.blankStarted.startSaipurei, null);
+assert.equal(startSessionContext.blankStarted.startCredit, null);
+assert.equal(startSessionContext.blankStarted.startTotalHits, null);
 const startEvDetailContext = vm.createContext({
   YUTIME_EXPECTATION_ENGINE: { preset: { spec: { tenjo: 950 } } },
   normalizeNumber(value) {
@@ -1266,8 +1442,11 @@ assert.doesNotMatch(html, /evAvailableBalls/);
 assert.match(openMachineDetail, /id="evMochidamaBalls"/);
 assert.match(openMachineDetail, /id="evSaipureiBalls"/);
 assert.match(html, /availableBallsFromParts\(byId\("evMochidamaBalls"\)\?\.value, byId\("evSaipureiBalls"\)\?\.value\)\.total/);
-assert.match(openMachineDetail, /mochidamaInput: availableBallsPreset\.mochidama/);
-assert.match(openMachineDetail, /saipureiInput: availableBallsPreset\.saipurei/);
+assert.match(renderMachineExpectation, /function expectationPanelPresets\(\) \{/);
+assert.match(renderMachineExpectation, /mochidamaInput: availableBalls\.mochidama/);
+assert.match(renderMachineExpectation, /saipureiInput: availableBalls\.saipurei/);
+assert.match(renderMachineExpectation, /startTotalHits: normalizeNumber\(byId\("evStartTotalHits"\)\?\.value\)/);
+assert.match(renderMachineExpectation, /startCredit: normalizeNumber\(byId\("evStartCredit"\)\?\.value\)/);
 assert.doesNotMatch(html, /充当/);
 assert.doesNotMatch(html, /現金見込み/);
 assert.doesNotMatch(renderMachineExpectation, /現金分\$\{/);
