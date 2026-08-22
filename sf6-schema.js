@@ -6,7 +6,7 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const SCHEMA_VERSION='12';
+  const SCHEMA_VERSION='13';
   const MONEY_OPS=['init','deposit','loan','creditUpdate','medalIn','mochidama','saipurei','diffSync','collectEnd'];
   const MEDAL_SOURCES=['mochidama','saipurei','unknown'];
   const SUMAHO_CHARAS=['cammy','juri','zangief','blanka','lily','deejay','jp','kimberly','jamie','ken','ryu','other'];
@@ -74,10 +74,15 @@
     const src=safeObject(value);
     if(!value||typeof value!=='object'||Array.isArray(value))return null;
     const startCredit=gameValue(src.startCredit);
+    const initialMedalInSource=MEDAL_SOURCES.includes(src.initialMedalInSource)?src.initialMedalInSource:null;
     return {
       startCredit,
       startMochidama:gameValue(src.startMochidama),
       startSaipurei:gameValue(src.startSaipurei),
+      startRealG:gameValue(src.startRealG),
+      startLcdG:gameValue(src.startLcdG),
+      initialMedalInAmount:gameValue(src.initialMedalInAmount),
+      initialMedalInSource,
       loanRate:positiveNumberOrDefault(src.loanRate,50),
       sandBalance:signedNumber(src.sandBalance)??(startCredit||0),
       credit:gameValue(src.credit),
@@ -140,7 +145,7 @@
     const src=safeObject(data);
     const inputVer=src.ver==null?null:String(src.ver);
     const sourceVer=src.sourceVer==null?inputVer:String(src.sourceVer);
-    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!=='8'&&inputVer!=='9'&&inputVer!=='10'&&inputVer!=='11'&&inputVer!==SCHEMA_VERSION;
+    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!=='8'&&inputVer!=='9'&&inputVer!=='10'&&inputVer!=='11'&&inputVer!=='12'&&inputVer!==SCHEMA_VERSION;
     const logs=Array.isArray(src.logs)?src.logs.map(log=>normalizeLog(log,isLegacy)):[];
     return {
       ...src,
