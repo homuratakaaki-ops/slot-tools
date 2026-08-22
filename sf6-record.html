@@ -2375,26 +2375,26 @@ textarea{
   function openBattleStartSheet(){
     openSheet('開始情報',body=>{
       body.append(el('div','muted','勝率'));
-      let choices=row('choice-row choice-grid-3');
-      choices.id='rankKinds';
+      const rankChoices=row('choice-row choice-grid-3');
+      rankChoices.id='rankKinds';
       RANK_RATE_LABELS.forEach(([value,label])=>{
-        choices.append(choiceChip(label,value,selectedRank===value,()=>{
+        rankChoices.append(choiceChip(label,value,selectedRank===value,()=>{
           selectedRank=selectedRank===value?null:value;
-          refreshChoiceGroup(choices,selectedRank);
+          refreshChoiceGroup(rankChoices,selectedRank);
         }));
       });
-      body.append(choices);
+      body.append(rankChoices);
       body.append(el('div','muted','ラウンド開始画面'));
-      choices=row('choice-row choice-grid-2');
-      choices.id='roundStartKinds';
+      const roundStartChoices=row('choice-row choice-grid-2');
+      roundStartChoices.id='roundStartKinds';
       ROUND_START_LABELS.forEach(([value,label])=>{
         const cls=value===ROUND_STARTS[0]?'blue-text':value===ROUND_STARTS[1]?'green-text':'hot';
-        choices.append(choiceChip(label,value,selectedRoundStart===value,()=>{
+        roundStartChoices.append(choiceChip(label,value,selectedRoundStart===value,()=>{
           selectedRoundStart=selectedRoundStart===value?null:value;
-          refreshChoiceGroup(choices,selectedRoundStart);
+          refreshChoiceGroup(roundStartChoices,selectedRoundStart);
         },cls));
       });
-      body.append(choices);
+      body.append(roundStartChoices);
       const opponentSelect=selectInput('opponentText',OPPONENTS,'対戦相手');
       opponentSelect.value=opponentDraft;
       opponentSelect.addEventListener('change',()=>{opponentDraft=opponentSelect.value;});
@@ -2596,11 +2596,11 @@ textarea{
       const sources=row('choice-row single-choice-grid');
       sources.id='medalSourceKinds';
       MEDAL_SOURCES.forEach(([key,label])=>{
-        const node=chip(label,selectedMedalSource===key,()=>{
+        const node=choiceChip(label,key,selectedMedalSource===key,()=>{
           const current=$('moneyMedalIn');
           if(current)medalInDraft=String(current.value||'');
           selectedMedalSource=key;
-          openMoneyMedalUseSheet();
+          refreshChoiceGroup(sources,selectedMedalSource);
         });
         node.dataset.medalSource=key;
         sources.append(node);
