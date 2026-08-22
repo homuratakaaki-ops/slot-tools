@@ -282,7 +282,7 @@
     const log=normalizeBonusLog(ctx.S.bonusLog);
     const index=Number(dataset.index);
     if(!Number.isInteger(index)||index<0||index>=log.length)return false;
-    if(!window.confirm('このボーナスを削除しますか'))return false;
+    if(!window.confirm('このボーナス履歴を削除しますか'))return false;
     const removed=log.splice(index,1)[0];
     ctx.S.bonusLog=log;
     recomputeCharTallies(ctx.S);
