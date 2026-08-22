@@ -995,8 +995,10 @@ assert.doesNotMatch(startEvDetailTextBlock, /実効\$\{normalized\.effectiveSpin
 assert.doesNotMatch(startEvDetailTextBlock, /現金\$\{Math\.round\(normalized\.cashBalls/);
 assert.match(renderMachineExpectation, /残り\$\{expectation\.result\.spinsToTenjo\.toLocaleString\("ja-JP"\)\}回転/);
 assert.match(renderMachineExpectation, /宵越し\$\{expectation\.previousSpin\}\+現在\$\{expectation\.currentSpin\}/);
-assert.match(renderMachineExpectation, /const previousDisabled = Boolean\(byId\("evPrevDisabled"\)\?\.checked\);/);
+assert.match(renderMachineExpectation, /const previousState = expectationPreviousSpinState\(\);/);
 assert.match(renderMachineExpectation, /if \(prevInput\) prevInput\.disabled = previousDisabled;/);
+assert.match(renderMachineExpectation, /autoDisabled = startTotalHits !== null && startTotalHits >= 1/);
+assert.match(renderMachineExpectation, /ramClearDisabled = Boolean\(byId\("evPrevDisabled"\)\?\.checked\)/);
 assert.match(renderMachineExpectation, /previousSpin: previousDisabled \? 0 : byId\("evPrevSpin"\)\?\.value,/);
 assert.match(renderMachineExpectation, /expectationInvestmentText\(expectation\.result\.mochidamaBalls, expectation\.result\.cashBalls\)/);
 assert.doesNotMatch(renderMachineExpectation, /実効\$\{expectation\.effectiveSpin\}/);
@@ -1011,7 +1013,8 @@ assert.match(openMachineDetail, /開始時点の累計大当たり回数/);
 assert.match(openMachineDetail, /id="evStartCredit"/);
 assert.match(openMachineDetail, /開始時のカード残高/);
 assert.match(openMachineDetail, /id="evPrevDisabled"/);
-assert.match(openMachineDetail, /宵越し無効（当日当選済み／ラムクリア）/);
+assert.match(openMachineDetail, /<input id="evPrevDisabled" type="checkbox"> ラムクリア/);
+assert.doesNotMatch(openMachineDetail, /宵越し無効（当日当選済み／ラムクリア）|<label class="check-row"><input id="evPrevDisabled"/);
 assert.match(openMachineDetail, /openStartSession\(machine\.id, presets\);/);
 assert.doesNotMatch(openMachineDetail, /openStartWizard\(machine\.id/);
 assert.match(openSessionEditor, /fieldHtml\("startMochidama", "開始時の持ち玉", session\.startMochidama\)/);
@@ -1032,7 +1035,7 @@ const machineExpectationContext = vm.createContext({
     evManualRate: { value: '17' },
     evMochidamaBalls: { value: '2000' },
     evSaipureiBalls: { value: '500' },
-    evStartTotalHits: { value: '7' },
+    evStartTotalHits: { value: '' },
     evStartCredit: { value: '3000' }
   },
   __calls: [],
@@ -1085,6 +1088,22 @@ new vm.Script(`
   globalThis.firstDisabled = globalThis.__nodes.evPrevSpin.disabled;
   globalThis.firstHint = globalThis.__nodes.machineEvPrevHint.textContent;
   globalThis.firstPresets = expectationPanelPresets();
+  globalThis.__nodes.evStartTotalHits.value = '1';
+  renderMachineExpectation('m1');
+  globalThis.autoPreviousSpin = globalThis.__calls.at(-1).previousSpin;
+  globalThis.autoDisabledState = globalThis.__nodes.evPrevSpin.disabled;
+  globalThis.autoHint = globalThis.__nodes.machineEvPrevHint.textContent;
+  globalThis.autoPresets = expectationPanelPresets();
+  globalThis.__nodes.evPrevDisabled.checked = true;
+  renderMachineExpectation('m1');
+  globalThis.bothDisabledPreviousSpin = globalThis.__calls.at(-1).previousSpin;
+  globalThis.bothDisabledPresets = expectationPanelPresets();
+  globalThis.__nodes.evPrevDisabled.checked = false;
+  globalThis.__nodes.evStartTotalHits.value = '0';
+  renderMachineExpectation('m1');
+  globalThis.zeroPreviousSpin = globalThis.__calls.at(-1).previousSpin;
+  globalThis.zeroDisabledState = globalThis.__nodes.evPrevSpin.disabled;
+  globalThis.zeroPresets = expectationPanelPresets();
   globalThis.__nodes.evPrevDisabled.checked = true;
   renderMachineExpectation('m1');
   globalThis.disabledPreviousSpin = globalThis.__calls.at(-1).previousSpin;
@@ -1097,12 +1116,26 @@ assert.equal(machineExpectationContext.firstPreviousSpin, '100');
 assert.equal(machineExpectationContext.firstDisabled, false);
 assert.match(machineExpectationContext.firstHint, /前日ヤメ100回転を使用中/);
 assert.equal(machineExpectationContext.firstPresets.prevDayEndSpin, 100);
-assert.equal(machineExpectationContext.firstPresets.startTotalHits, 7);
+assert.equal(machineExpectationContext.firstPresets.startTotalHits, null);
 assert.equal(machineExpectationContext.firstPresets.startCredit, 3000);
+assert.equal(machineExpectationContext.autoPreviousSpin, 0);
+assert.equal(machineExpectationContext.autoDisabledState, true);
+assert.match(machineExpectationContext.autoHint, /当日当選済みのため宵越しは使いません/);
+assert.equal(machineExpectationContext.autoPresets.prevDayEndSpin, null);
+assert.equal(machineExpectationContext.autoPresets.prevDayDisabled, true);
+assert.equal(machineExpectationContext.autoPresets.startTotalHits, 1);
+assert.equal(machineExpectationContext.bothDisabledPreviousSpin, 0);
+assert.equal(machineExpectationContext.bothDisabledPresets.prevDayEndSpin, null);
+assert.equal(machineExpectationContext.bothDisabledPresets.prevDayDisabled, true);
+assert.equal(machineExpectationContext.zeroPreviousSpin, '100');
+assert.equal(machineExpectationContext.zeroDisabledState, false);
+assert.equal(machineExpectationContext.zeroPresets.prevDayEndSpin, 100);
+assert.equal(machineExpectationContext.zeroPresets.prevDayDisabled, false);
+assert.equal(machineExpectationContext.zeroPresets.startTotalHits, 0);
 assert.equal(machineExpectationContext.disabledPreviousSpin, 0);
 assert.equal(machineExpectationContext.disabledInputValue, '100');
 assert.equal(machineExpectationContext.disabledInputState, true);
-assert.match(machineExpectationContext.disabledHint, /宵越しを使わず/);
+assert.match(machineExpectationContext.disabledHint, /ラムクリアのため宵越しは使いません/);
 assert.equal(machineExpectationContext.disabledPresets.prevDayEndSpin, null);
 assert.equal(machineExpectationContext.disabledPresets.prevDayDisabled, true);
 const startSessionContext = vm.createContext({
@@ -1160,12 +1193,14 @@ const startSessionContext = vm.createContext({
 });
 new vm.Script(`
   ${startSessionFlow}
-  openStartSession('m1', { startSpin: 350, prevDayEndSpin: 100, manualRate: 17, availableBalls: 2500, mochidamaInput: 2000, saipureiInput: 500, startTotalHits: 7, startCredit: 3000 });
+  openStartSession('m1', { startSpin: 350, prevDayEndSpin: 100, manualRate: 17, availableBalls: 2500, mochidamaInput: 2000, saipureiInput: 500, startTotalHits: 0, startCredit: 3000 });
   globalThis.started = data.sessions[0];
-  openStartSession('m1', { startSpin: 350, prevDayEndSpin: 100, prevDayDisabled: true, manualRate: 17, availableBalls: 2500, mochidamaInput: 2000, saipureiInput: 500, startTotalHits: 7, startCredit: 3000 });
-  globalThis.disabledStarted = data.sessions[1];
+  openStartSession('m1', { startSpin: 350, prevDayEndSpin: 100, manualRate: 17, availableBalls: 2500, mochidamaInput: 2000, saipureiInput: 500, startTotalHits: 7, startCredit: 3000 });
+  globalThis.autoDisabledStarted = data.sessions[1];
+  openStartSession('m1', { startSpin: 350, prevDayEndSpin: 100, prevDayDisabled: true, manualRate: 17, availableBalls: 2500, mochidamaInput: 2000, saipureiInput: 500, startTotalHits: 0, startCredit: 3000 });
+  globalThis.disabledStarted = data.sessions[2];
   openStartSession('m1', { startSpin: null, prevDayEndSpin: null, manualRate: null, availableBalls: 0, mochidamaInput: null, saipureiInput: null, startTotalHits: null, startCredit: null });
-  globalThis.blankStarted = data.sessions[2];
+  globalThis.blankStarted = data.sessions[3];
 `).runInContext(startSessionContext);
 assert.equal(startSessionContext.started.startSpin, 350);
 assert.equal(startSessionContext.started.currentSpin, 350);
@@ -1173,13 +1208,17 @@ assert.equal(startSessionContext.started.prevDayEndSpin, 100);
 assert.equal(startSessionContext.started.startMochidama, 2000);
 assert.equal(startSessionContext.started.startSaipurei, 500);
 assert.equal(startSessionContext.started.startCredit, 3000);
-assert.equal(startSessionContext.started.startTotalHits, 7);
+assert.equal(startSessionContext.started.startTotalHits, 0);
 assert.equal(startSessionContext.started.startTime, '12:34');
 assert.equal(startSessionContext.started.startEv.effectiveSpin, 450);
+assert.equal(startSessionContext.autoDisabledStarted.prevDayEndSpin, null);
+assert.equal(startSessionContext.autoDisabledStarted.startTotalHits, 7);
+assert.equal(startSessionContext.autoDisabledStarted.startEv.effectiveSpin, 350);
 assert.equal(startSessionContext.disabledStarted.prevDayEndSpin, null);
 assert.equal(startSessionContext.disabledStarted.startEv.effectiveSpin, 350);
 assert.match(startSessionContext.__toasts[1], /宵越し無効/);
-assert.match(startSessionContext.__toasts[1], /記録の修正・削除/);
+assert.match(startSessionContext.__toasts[2], /宵越し無効/);
+assert.match(startSessionContext.__toasts[2], /記録の修正・削除/);
 assert.equal(startSessionContext.blankStarted.startSpin, null);
 assert.equal(startSessionContext.blankStarted.currentSpin, null);
 assert.equal(startSessionContext.blankStarted.prevDayEndSpin, null);
@@ -1575,6 +1614,9 @@ assert.match(html, /warp: "ワープ"/);
 assert.doesNotMatch(html, /右打ち/);
 assert.match(html, /\.expectation-inputs \{\s*display: grid;\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\);\s*gap: 8px;\s*margin-bottom: 10px;\s*\}/);
 assert.match(html, /\.expectation-inputs \.field-row \{\s*grid-template-columns: minmax\(0, 1fr\);\s*gap: 4px;\s*\}/);
+assert.match(html, /#evPrevSpin:disabled \{\s*text-decoration: line-through;\s*\}/);
+assert.match(html, /input:disabled, textarea:disabled, select:disabled \{\s*background: #eef2f6;\s*color: var\(--muted\);/);
+assert.match(html, /\.ev-ramclear-row \.check-chip \{\s*width: 100%;\s*min-width: 0;/);
 assert.match(html, /\.nail-rating-chips \{\s*display: grid;\s*grid-template-columns: repeat\(5, minmax\(0, 1fr\)\);\s*gap: 6px;\s*\}/);
 assert.match(html, /\.nail-rating-chips button \{\s*min-height: 38px;/);
 assert.match(html, /\.running-panel\.fullscreen \{[\s\S]*?height: 100dvh;[\s\S]*?overflow: hidden;[\s\S]*?\}/);

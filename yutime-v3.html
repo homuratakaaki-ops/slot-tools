@@ -70,6 +70,15 @@
       color: var(--ink);
     }
 
+    input:disabled, textarea:disabled, select:disabled {
+      background: #eef2f6;
+      color: var(--muted);
+    }
+
+    #evPrevSpin:disabled {
+      text-decoration: line-through;
+    }
+
     textarea {
       min-height: 110px;
       resize: vertical;
@@ -1165,6 +1174,16 @@
     .expectation-inputs .field-row {
       grid-template-columns: minmax(0, 1fr);
       gap: 4px;
+    }
+
+    .ev-ramclear-row {
+      align-content: end;
+    }
+
+    .ev-ramclear-row .check-chip {
+      width: 100%;
+      min-width: 0;
+      border-radius: 8px;
     }
 
     .list {
@@ -5245,9 +5264,9 @@
             <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="" placeholder="0"></div>
             <div class="field-row"><label for="evStartTotalHits">開始時点の累計大当たり回数</label><input id="evStartTotalHits" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evStartCredit">開始時のカード残高</label><input id="evStartCredit" inputmode="numeric" value=""></div>
+            <div class="field-row ev-ramclear-row"><label for="evPrevDisabled">宵越し</label><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> ラムクリア</label></div>
           </div>
-          <label class="check-row"><input id="evPrevDisabled" type="checkbox"> 宵越し無効（当日当選済み／ラムクリア）</label>
-          <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。当日当選済みやラムクリア時はチェックで無効化してください。` : "前日ヤメ回転数は未入力です。"}</p>
+          <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリア時は宵越しを使いません。` : "前日ヤメ回転数は未入力です。"}</p>
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
         </div>` : ""}
@@ -5301,7 +5320,7 @@
       });
       if (showExpectationBlock) {
         renderMachineExpectation(machine.id);
-        ["evCurrentSpin", "evPrevSpin", "evManualRate", "evMochidamaBalls", "evSaipureiBalls"].forEach((id) => {
+        ["evCurrentSpin", "evPrevSpin", "evManualRate", "evMochidamaBalls", "evSaipureiBalls", "evStartTotalHits"].forEach((id) => {
           byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
         });
         byId("evPrevDisabled").addEventListener("change", () => renderMachineExpectation(machine.id));
@@ -5367,15 +5386,18 @@
       const detail = byId("machineEvDetail");
       if (!machine || !title || !metrics || !detail) return;
       const stats = machineStats(machine.id);
-      const previousDisabled = Boolean(byId("evPrevDisabled")?.checked);
+      const previousState = expectationPreviousSpinState();
+      const previousDisabled = previousState.disabled;
       const prevInput = byId("evPrevSpin");
       if (prevInput) prevInput.disabled = previousDisabled;
       const prevHint = byId("machineEvPrevHint");
       if (prevHint) {
         const prevValue = normalizeNumber(prevInput?.value);
-        prevHint.textContent = previousDisabled
-          ? "期待値判定では宵越しを使わず、前日ヤメ回転数は0として計算しています。"
-          : (prevValue !== null ? `前日ヤメ${prevValue.toLocaleString("ja-JP")}回転を使用中。当日当選済みやラムクリア時はチェックで無効化してください。` : "前日ヤメ回転数は未入力です。");
+        prevHint.textContent = previousState.autoDisabled
+          ? "当日当選済みのため宵越しは使いません。前日ヤメ回転数は0として計算しています。"
+          : (previousState.ramClearDisabled
+            ? "ラムクリアのため宵越しは使いません。前日ヤメ回転数は0として計算しています。"
+            : (prevValue !== null ? `前日ヤメ${prevValue.toLocaleString("ja-JP")}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリア時は宵越しを使いません。` : "前日ヤメ回転数は未入力です。"));
       }
       const expectation = calculateMachineExpectation(machine, {
         currentSpin: byId("evCurrentSpin")?.value,
@@ -5407,11 +5429,18 @@
       detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（宵越し${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
     }
 
+    function expectationPreviousSpinState() {
+      const startTotalHits = normalizeNumber(byId("evStartTotalHits")?.value);
+      const autoDisabled = startTotalHits !== null && startTotalHits >= 1;
+      const ramClearDisabled = Boolean(byId("evPrevDisabled")?.checked);
+      return { autoDisabled, ramClearDisabled, disabled: autoDisabled || ramClearDisabled };
+    }
+
     function expectationPanelPresets() {
       const mochidamaInput = normalizeNumber(byId("evMochidamaBalls")?.value);
       const saipureiInput = normalizeNumber(byId("evSaipureiBalls")?.value);
       const availableBalls = availableBallsFromParts(mochidamaInput, saipureiInput);
-      const yoiDisabled = Boolean(byId("evPrevDisabled")?.checked);
+      const yoiDisabled = expectationPreviousSpinState().disabled;
       return {
         startSpin: normalizeNumber(byId("evCurrentSpin")?.value),
         prevDayEndSpin: yoiDisabled ? null : normalizeNumber(byId("evPrevSpin")?.value),
@@ -5497,6 +5526,11 @@
       });
     }
 
+    function presetsDisablePrevDay(presets = {}) {
+      const startTotalHits = normalizeNumber(presets.startTotalHits);
+      return presets.prevDayDisabled === true || (startTotalHits !== null && startTotalHits >= 1);
+    }
+
     function latestCompletedSessionForStoreToday(storeId) {
       return data.sessions
         .filter((session) => session.storeId === storeId && session.date === today() && session.status === "completed")
@@ -5516,8 +5550,9 @@
       session.storeId = store.id;
       session.machineId = machineId;
       const manualPrevDayEndSpin = normalizeNumber(presets.prevDayEndSpin);
-      const hasPrevDayPreset = Object.prototype.hasOwnProperty.call(presets, "prevDayEndSpin") || presets.prevDayDisabled;
-      session.prevDayEndSpin = presets.prevDayDisabled ? null : (hasPrevDayPreset ? manualPrevDayEndSpin : (validClosingInfo(machineId)?.spin ?? null));
+      const prevDayDisabled = presetsDisablePrevDay(presets);
+      const hasPrevDayPreset = Object.prototype.hasOwnProperty.call(presets, "prevDayEndSpin") || prevDayDisabled;
+      session.prevDayEndSpin = prevDayDisabled ? null : (hasPrevDayPreset ? manualPrevDayEndSpin : (validClosingInfo(machineId)?.spin ?? null));
       const activeCarryover = carryover && carryover.storeId === store.id ? carryover : null;
       if (activeCarryover) {
         session.carriedFromSessionId = activeCarryover.sourceSessionId;
@@ -5543,7 +5578,7 @@
       session.startEv = calculateStartEvSnapshot(session, machine, presets);
       data.sessions.push(session);
       activeSessionId = session.id;
-      const toast = presets.prevDayDisabled ? "稼働を開始しました。宵越し無効で記録しています。取り消しは記録の修正・削除から行えます。" : "稼働を開始しました。取り消しは記録の修正・削除から行えます。";
+      const toast = presetsDisablePrevDay(presets) ? "稼働を開始しました。宵越し無効で記録しています。取り消しは記録の修正・削除から行えます。" : "稼働を開始しました。取り消しは記録の修正・削除から行えます。";
       if (!persistWithToast(toast)) return;
       if (activeCarryover) {
         carryover = null;
@@ -5572,7 +5607,7 @@
           label: "現在回転数",
           type: "number",
           preset: startSpinPreset,
-          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (presets.prevDayDisabled ? " 期待値判定で宵越し無効を選択しています。" : (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。")) + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
+          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (presetsDisablePrevDay(presets) ? " 期待値判定で宵越し無効を選択しています。" : (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。")) + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
         { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
