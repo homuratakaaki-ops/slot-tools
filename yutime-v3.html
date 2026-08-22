@@ -327,6 +327,31 @@
       background: var(--soft);
     }
 
+    .machine-stats-filter {
+      margin: 10px 0 12px;
+    }
+
+    .machine-stats-filter summary {
+      cursor: pointer;
+      font-weight: 700;
+      min-height: 32px;
+    }
+
+    .machine-stats-selects {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 8px;
+    }
+
+    .machine-stats-selects select {
+      min-width: 0;
+    }
+
+    @media (max-width: 420px) {
+      .machine-stats-selects { grid-template-columns: minmax(0, 1fr); }
+    }
+
     .island-builder {
       display: grid;
       gap: 12px;
@@ -1817,6 +1842,7 @@
     let carryover = loadCarryover();
     let currentView = "storesView";
     let selectedLabelFilters = new Set();
+    let machineStatsFilterState = defaultMachineStatsFilterState();
     let activeSessionId = null;
     let expandedInvestmentSessions = new Set();
     let expandedReplayRows = new Set();
@@ -5043,17 +5069,158 @@
       `;
     }
 
-    function openMachineDetail(daiNo, machineFormExpanded = false) {
+    function defaultMachineStatsFilterState() {
+      return {
+        dateMode: "all",
+        weekday: "",
+        date: "",
+        labels: new Set(),
+        heso: new Set()
+      };
+    }
+
+    function resetMachineStatsFilterState() {
+      machineStatsFilterState = defaultMachineStatsFilterState();
+    }
+
+    function machineStatsFilterActive(filter = machineStatsFilterState) {
+      return filter.dateMode !== "all" || filter.labels.size > 0 || filter.heso.size > 0;
+    }
+
+    function weekdayValueForDate(dateValue) {
+      const parts = String(dateValue || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!parts) return "";
+      const date = new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]));
+      if (date.getFullYear() !== Number(parts[1]) || date.getMonth() !== Number(parts[2]) - 1 || date.getDate() !== Number(parts[3])) return "";
+      return String(date.getDay());
+    }
+
+    function sessionFilterLabels(session) {
+      return [...new Set([...automaticLabelsForDate(session.date), ...(Array.isArray(session.labels) ? session.labels : [])])];
+    }
+
+    function machineStatsBaseSessions(machineId) {
+      return filteredSessions().filter((session) => session.machineId === machineId);
+    }
+
+    function machineStatsFilterOptions(machine, sessions) {
+      const labels = new Set(storeLabels(machine.storeId || data.activeStoreId));
+      const dates = new Set();
+      sessions.forEach((session) => {
+        if (session.date) dates.add(session.date);
+        sessionFilterLabels(session).forEach((label) => labels.add(label));
+      });
+      return {
+        labels: [...labels].filter(Boolean).sort((a, b) => String(a).localeCompare(String(b), "ja")),
+        dates: [...dates].sort((a, b) => String(b).localeCompare(String(a)))
+      };
+    }
+
+    function machineStatsSessionMatches(machine, session, filter = machineStatsFilterState) {
+      if (filter.dateMode === "recent7" || filter.dateMode === "recent14" || filter.dateMode === "recent30") {
+        const days = Number(filter.dateMode.replace("recent", ""));
+        const from = offsetDate(today(), -(days - 1));
+        if (!session.date || session.date < from || session.date > today()) return false;
+      } else if (filter.dateMode === "weekday" && filter.weekday !== "") {
+        if (weekdayValueForDate(session.date) !== filter.weekday) return false;
+      } else if (filter.dateMode === "date" && filter.date) {
+        if (session.date !== filter.date) return false;
+      }
+      if (filter.labels.size > 0) {
+        const labels = sessionFilterLabels(session);
+        if (!labels.some((label) => filter.labels.has(label))) return false;
+      }
+      if (filter.heso.size > 0) {
+        const heso = dailyHesoRating(machine.id, session.date);
+        if (heso === null || !filter.heso.has(String(heso))) return false;
+      }
+      return true;
+    }
+
+    function filteredMachineStatsSessions(machine, sessions, filter = machineStatsFilterState) {
+      if (!machineStatsFilterActive(filter)) return sessions;
+      return sessions.filter((session) => machineStatsSessionMatches(machine, session, filter));
+    }
+
+    function machineStatsFilterHtml(machine, allSessions, filteredSessions, options = {}) {
+      const filter = machineStatsFilterState;
+      const filterOptions = machineStatsFilterOptions(machine, allSessions);
+      const active = machineStatsFilterActive(filter);
+      const weekdayLabels = ["日", "月", "火", "水", "木", "金", "土"];
+      const dateModeChip = (value, label) => `
+        <label class="check-chip">
+          <input type="radio" name="machineStatsDateMode" data-stats-date-mode value="${value}" ${filter.dateMode === value ? "checked" : ""}>
+          ${label}
+        </label>
+      `;
+      const labelChip = (label) => `
+        <label class="check-chip">
+          <input type="checkbox" data-stats-label value="${escapeHtml(label)}" ${filter.labels.has(label) ? "checked" : ""}>
+          ${escapeHtml(label)}
+        </label>
+      `;
+      const hesoChip = (value) => `
+        <label class="check-chip">
+          <input type="checkbox" data-stats-heso value="${value}" ${filter.heso.has(String(value)) ? "checked" : ""}>
+          ヘソ${value}
+        </label>
+      `;
+      return `
+        <details class="row-card machine-stats-filter" id="machineStatsFilter" ${options.open ? "open" : ""}>
+          <summary>絞り込み${active ? `（該当${filteredSessions.length}セッション）` : ""}</summary>
+          <div class="filter-block">
+            <small>日にち</small>
+            <div class="label-checks">
+              ${dateModeChip("all", "すべて")}
+              ${dateModeChip("recent7", "直近7日")}
+              ${dateModeChip("recent14", "直近14日")}
+              ${dateModeChip("recent30", "直近30日")}
+              ${dateModeChip("weekday", "曜日選択")}
+              ${dateModeChip("date", "日付選択")}
+            </div>
+            <div class="machine-stats-selects">
+              <select id="machineStatsWeekday" ${filter.dateMode === "weekday" ? "" : "disabled"}>
+                <option value="">曜日</option>
+                ${weekdayLabels.map((label, index) => `<option value="${index}" ${filter.weekday === String(index) ? "selected" : ""}>${label}曜日</option>`).join("")}
+              </select>
+              <select id="machineStatsDate" ${filter.dateMode === "date" ? "" : "disabled"}>
+                <option value="">日付</option>
+                ${filterOptions.dates.map((date) => `<option value="${escapeHtml(date)}" ${filter.date === date ? "selected" : ""}>${escapeHtml(dateWithAutoLabels(date))}</option>`).join("")}
+              </select>
+            </div>
+          </div>
+          <div class="filter-block">
+            <small>イベント</small>
+            <div class="label-checks">${filterOptions.labels.length ? filterOptions.labels.map(labelChip).join("") : '<span class="hint">イベントラベルはありません。</span>'}</div>
+          </div>
+          <div class="filter-block">
+            <small>ヘソ調整</small>
+            <div class="label-checks">${[1, 2, 3, 4, 5].map(hesoChip).join("")}</div>
+          </div>
+          <div class="modal-actions compact-actions">
+            <button class="ghost" id="clearMachineStatsFilterBtn" type="button">クリア</button>
+          </div>
+        </details>
+      `;
+    }
+
+    function openMachineDetail(daiNo, machineFormExpanded = false, options = {}) {
       const machine = findMachineByDai(daiNo);
       if (!machine) return;
+      if (!options.preserveStatsFilter) resetMachineStatsFilterState();
       const sessions = data.sessions.filter((session) => session.machineId === machine.id);
-      const stats = machineStats(machine.id);
+      const baseStatsSessions = machineStatsBaseSessions(machine.id);
+      const filteredStatsSessions = filteredMachineStatsSessions(machine, baseStatsSessions);
+      const baseStats = aggregateStats(baseStatsSessions);
+      const stats = aggregateStats(filteredStatsSessions);
+      const statsFilterActive = machineStatsFilterActive();
       const presetId = normalizeMachinePresetId(machine);
       const showExpectationBlock = machineHasYutime(machine);
       const closing = validClosingInfo(machine.id);
       const closingStateNote = todayPrevInvalid(machine.id) ? `<small>朝チェックで前日分を無効にしています</small>` : "";
       const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
-      const averagePayoutNote = stats.estimatedCount ? "（概算含む）" : "";
+      const statsFilterNote = statsFilterActive ? `<p class="hint">絞り込み中（該当${filteredStatsSessions.length}セッション）${filteredStatsSessions.length ? "" : " / 該当するサンプルがありません"}</p>` : "";
+      const averagePayoutNote = baseStats.estimatedCount ? "（概算含む）" : "";
       openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
         ${machineMemoSectionHtml(machine)}
         ${nailRatingSectionHtml(machine)}
@@ -5062,16 +5229,18 @@
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
           <div class="metric"><span>閉店チェック</span><strong>${closing ? `${escapeHtml(closing.spin)}回転` : "-"}</strong>${closing ? `<small>（${escapeHtml(shortDate(closing.date))}）</small>` : closingStateNote}</div>
-          <div class="metric"><span>平均出玉</span><strong>${stats.averagePayout !== null ? Math.round(stats.averagePayout) : "-"}</strong>${stats.averagePayout !== null ? `<small>${averagePayoutNote}</small>` : ""}</div>
-          ${stats.averageYutimeLoss !== null ? `<div class="metric"><span>遊タイム玉減り</span><strong>${Math.round(stats.averageYutimeLoss)}</strong><small>${stats.yutimeLossCount}件平均</small></div>` : ""}
+          <div class="metric"><span>平均出玉</span><strong>${baseStats.averagePayout !== null ? Math.round(baseStats.averagePayout) : "-"}</strong>${baseStats.averagePayout !== null ? `<small>${averagePayoutNote}</small>` : ""}</div>
+          ${baseStats.averageYutimeLoss !== null ? `<div class="metric"><span>遊タイム玉減り</span><strong>${Math.round(baseStats.averageYutimeLoss)}</strong><small>${baseStats.yutimeLossCount}件平均</small></div>` : ""}
         </div>
+        ${statsFilterNote}
+        ${machineStatsFilterHtml(machine, baseStatsSessions, filteredStatsSessions, { open: options.statsFilterOpen })}
         ${filteredNote}
         ${showExpectationBlock ? `<div class="expectation-box">
           <div class="expectation-title" id="machineEvTitle"><span>期待値判定</span><small>未判定</small></div>
           <div class="expectation-inputs">
             <div class="field-row"><label for="evCurrentSpin">現在回転数</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
-            <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${stats.rate ? stats.rate.toFixed(1) : "履歴なし"}"></div>
+            <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${baseStats.rate ? baseStats.rate.toFixed(1) : "履歴なし"}"></div>
             <div class="field-row"><label for="evMochidamaBalls">持ち玉（玉）</label><input id="evMochidamaBalls" inputmode="numeric" value="" placeholder="0"></div>
             <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="" placeholder="0"></div>
             <div class="field-row"><label for="evStartTotalHits">開始時点の累計大当たり回数</label><input id="evStartTotalHits" inputmode="numeric" value=""></div>
@@ -5103,8 +5272,9 @@
       const toggleMachineFormBtn = byId("toggleMachineFormBtn");
       bindMachineMemoAdd(machine);
       bindNailRatingChips(machine);
+      bindMachineStatsFilter(machine, daiNo, machineFormExpanded);
       if (toggleMachineFormBtn) toggleMachineFormBtn.addEventListener("click", () => {
-        openMachineDetail(daiNo, true);
+        openMachineDetail(daiNo, true, { preserveStatsFilter: true });
       });
       if (machineFormExpanded) {
         byId("machinePreset").value = presetId;
@@ -5146,6 +5316,47 @@
         }
         closeModal();
         openStartSession(machine.id, presets);
+      });
+    }
+
+    function bindMachineStatsFilter(machine, daiNo, machineFormExpanded) {
+      const filterRoot = byId("machineStatsFilter");
+      if (!filterRoot) return;
+      const rerender = () => openMachineDetail(daiNo, machineFormExpanded, { preserveStatsFilter: true, statsFilterOpen: true });
+      filterRoot.querySelectorAll("[data-stats-date-mode]").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (!input.checked) return;
+          machineStatsFilterState.dateMode = input.value || "all";
+          rerender();
+        });
+      });
+      byId("machineStatsWeekday")?.addEventListener("change", (event) => {
+        machineStatsFilterState.weekday = event.target.value;
+        machineStatsFilterState.dateMode = "weekday";
+        rerender();
+      });
+      byId("machineStatsDate")?.addEventListener("change", (event) => {
+        machineStatsFilterState.date = event.target.value;
+        machineStatsFilterState.dateMode = "date";
+        rerender();
+      });
+      filterRoot.querySelectorAll("[data-stats-label]").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (input.checked) machineStatsFilterState.labels.add(input.value);
+          else machineStatsFilterState.labels.delete(input.value);
+          rerender();
+        });
+      });
+      filterRoot.querySelectorAll("[data-stats-heso]").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (input.checked) machineStatsFilterState.heso.add(input.value);
+          else machineStatsFilterState.heso.delete(input.value);
+          rerender();
+        });
+      });
+      byId("clearMachineStatsFilterBtn")?.addEventListener("click", () => {
+        resetMachineStatsFilterState();
+        rerender();
       });
     }
 

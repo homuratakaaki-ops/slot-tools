@@ -49,7 +49,9 @@ const openBalanceEditForm = section('function openBalanceEditForm', 'function op
 const openRateSummary = section('function openRateSummary', 'function openSessionEditor');
 const machineSummary = section('function machineModelSummaryHtml', 'function machineDetailFormHtml');
 const machineDetailForm = section('function machineDetailFormHtml', 'function openMachineDetail');
+const machineStatsFilters = section('function defaultMachineStatsFilterState', 'function openMachineDetail');
 const openMachineDetail = section('function openMachineDetail', 'function renderMachineExpectation');
+const bindMachineStatsFilterBlock = section('function bindMachineStatsFilter', 'function renderMachineExpectation');
 const renderMachineExpectation = section('function renderMachineExpectation', 'function applyPresetSelectionToForm');
 const openStartWizard = section('function openStartWizard', 'function openHitWizard');
 const machineMemoHelpers = section('function machineMemoEntriesForDate', 'function nailRatingSummary');
@@ -1428,7 +1430,7 @@ assert.match(yutimeEnterSpinForRate, /const explicitSpin = normalizeNumber\(sess
 assert.match(yutimeEnterSpinForRate, /const inferred = tenjo - prevSpin;\s*return inferred >= 0 \? inferred : null;/);
 assert.ok(design.includes('schema 23 Machine 1件サンプル'));
 
-assert.match(openMachineDetail, /function openMachineDetail\(daiNo, machineFormExpanded = false\)/);
+assert.match(openMachineDetail, /function openMachineDetail\(daiNo, machineFormExpanded = false, options = \{\}\)/);
 assert.match(openMachineDetail, /\$\{machineMemoSectionHtml\(machine\)\}/);
 assert.match(openMachineDetail, /bindMachineMemoAdd\(machine\);/);
 assert.doesNotMatch(openMachineDetail, /id="machineMemo"|byId\("machineMemo"\)|memoDraft/);
@@ -1437,6 +1439,12 @@ assert.match(openMachineDetail, /\$\{machineHistoryHtml\(machine\)\}/);
 assert.match(openMachineDetail, /id="toggleMachineHistoryBtn">履歴<\/button>/);
 assert.match(openMachineDetail, /panel\.hidden = hidden;/);
 assert.match(openMachineDetail, /bindNailRatingChips\(machine\);/);
+assert.match(openMachineDetail, /if \(!options\.preserveStatsFilter\) resetMachineStatsFilterState\(\);/);
+assert.match(openMachineDetail, /const baseStatsSessions = machineStatsBaseSessions\(machine\.id\);/);
+assert.match(openMachineDetail, /const filteredStatsSessions = filteredMachineStatsSessions\(machine, baseStatsSessions\);/);
+assert.match(openMachineDetail, /\$\{machineStatsFilterHtml\(machine, baseStatsSessions, filteredStatsSessions, \{ open: options\.statsFilterOpen \}\)\}/);
+assert.match(openMachineDetail, /placeholder="\$\{baseStats\.rate \? baseStats\.rate\.toFixed\(1\) : "履歴なし"\}"/);
+assert.match(openMachineDetail, /bindMachineStatsFilter\(machine, daiNo, machineFormExpanded\);/);
 assert.match(openMachineDetail, /\$\{machineModelSummaryHtml\(machine\)\}\s*\$\{machineFormExpanded \? machineDetailFormHtml\(machine\) : ""\}/);
 assert.doesNotMatch(html, /evAvailableBalls/);
 assert.match(openMachineDetail, /id="evMochidamaBalls"/);
@@ -1452,7 +1460,106 @@ assert.doesNotMatch(html, /現金見込み/);
 assert.doesNotMatch(renderMachineExpectation, /現金分\$\{/);
 assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMachineBtn">[^']+<\/button>' : ""\}/);
 assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
-assert.match(openMachineDetail, /openMachineDetail\(daiNo, true\)/);
+assert.match(openMachineDetail, /openMachineDetail\(daiNo, true, \{ preserveStatsFilter: true \}\)/);
+assert.match(machineStatsFilters, /dateMode: "all"/);
+assert.match(machineStatsFilters, /labels: new Set\(\)/);
+assert.match(machineStatsFilters, /heso: new Set\(\)/);
+assert.match(machineStatsFilters, /filter\.labels\.size > 0/);
+assert.match(machineStatsFilters, /filter\.heso\.size > 0/);
+assert.match(machineStatsFilters, /dailyHesoRating\(machine\.id, session\.date\)/);
+assert.match(machineStatsFilters, /該当\$\{filteredSessions\.length\}セッション/);
+assert.match(machineStatsFilters, /id="clearMachineStatsFilterBtn"/);
+assert.doesNotMatch(machineStatsFilters, /localStorage/);
+assert.match(bindMachineStatsFilterBlock, /machineStatsFilterState\.dateMode = input\.value \|\| "all";/);
+assert.match(bindMachineStatsFilterBlock, /machineStatsFilterState\.labels\.add\(input\.value\)/);
+assert.match(bindMachineStatsFilterBlock, /machineStatsFilterState\.heso\.add\(input\.value\)/);
+assert.match(bindMachineStatsFilterBlock, /resetMachineStatsFilterState\(\);/);
+const machineStatsFilterContext = {};
+vm.runInNewContext(`
+  let data = {
+    activeStoreId: 'st1',
+    labelsByStore: { st1: ['強め', '通常'] },
+    dailyState: {
+      m1: {
+        '2026-08-22': { date: '2026-08-22', hesoRating: 4 },
+        '2026-08-21': { date: '2026-08-21', hesoRating: 5 }
+      }
+    }
+  };
+  function today() { return '2026-08-22'; }
+  function offsetDate(dateValue, days) {
+    const parts = String(dateValue).split('-').map(Number);
+    const date = new Date(parts[0], parts[1] - 1, parts[2]);
+    date.setDate(date.getDate() + days);
+    return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+  }
+  function normalizeRatingValue(value) {
+    const number = Number(value);
+    return Number.isInteger(number) && number >= 1 && number <= 5 ? number : null;
+  }
+  function dailyStateFor(machineId, dateValue) {
+    return data.dailyState?.[machineId]?.[dateValue] || null;
+  }
+  function dailyHesoRating(machineId, dateValue) {
+    return normalizeRatingValue(dailyStateFor(machineId, dateValue)?.hesoRating);
+  }
+  function storeLabels(storeId = data.activeStoreId) {
+    return data.labelsByStore[storeId] || [];
+  }
+  function automaticLabelsForDate(dateValue) {
+    const parts = String(dateValue || '').match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);
+    if (!parts) return [];
+    const year = Number(parts[1]);
+    const month = Number(parts[2]);
+    const day = Number(parts[3]);
+    const date = new Date(year, month - 1, day);
+    const weekdays = ['日曜日', '月曜日', '火曜日', '水曜日', '木曜日', '金曜日', '土曜日'];
+    const labels = [weekdays[date.getDay()], \`\${day % 10}のつく日\`];
+    if (day === 11 || day === 22) labels.push('ゾロ目日');
+    return labels;
+  }
+  function dateWithAutoLabels(value) { return value; }
+  function escapeHtml(value) { return String(value); }
+  function filteredSessions() { return sessions; }
+  ${machineStatsFilters}
+  const machine = { id: 'm1', storeId: 'st1' };
+  const sessions = [
+    { id: 's1', machineId: 'm1', storeId: 'st1', status: 'completed', date: '2026-08-22', labels: ['強め'] },
+    { id: 's2', machineId: 'm1', storeId: 'st1', status: 'completed', date: '2026-08-21', labels: ['通常'] },
+    { id: 's3', machineId: 'm1', storeId: 'st1', status: 'completed', date: '2026-08-15', labels: ['強め'] }
+  ];
+  function ids(filter) {
+    const merged = { dateMode: 'all', weekday: '', date: '', labels: new Set(), heso: new Set(), ...filter };
+    return filteredMachineStatsSessions(machine, sessions, merged).map((session) => session.id).join(',');
+  }
+  result = {
+    all: ids({}),
+    recent7: ids({ dateMode: 'recent7' }),
+    weekdaySaturday: ids({ dateMode: 'weekday', weekday: '6' }),
+    specificDate: ids({ dateMode: 'date', date: '2026-08-15' }),
+    eventOr: ids({ labels: new Set(['強め', '通常']) }),
+    autoEvent: ids({ labels: new Set(['ゾロ目日']) }),
+    heso4: ids({ heso: new Set(['4']) }),
+    heso45: ids({ heso: new Set(['4', '5']) }),
+    comboAnd: ids({ dateMode: 'recent30', labels: new Set(['強め']), heso: new Set(['4']) }),
+    zero: ids({ labels: new Set(['ゾロ目日']), heso: new Set(['5']) }),
+    options: machineStatsFilterOptions(machine, sessions)
+  };
+`, machineStatsFilterContext);
+assert.equal(machineStatsFilterContext.result.all, 's1,s2,s3');
+assert.equal(machineStatsFilterContext.result.recent7, 's1,s2');
+assert.equal(machineStatsFilterContext.result.weekdaySaturday, 's1,s3');
+assert.equal(machineStatsFilterContext.result.specificDate, 's3');
+assert.equal(machineStatsFilterContext.result.eventOr, 's1,s2,s3');
+assert.equal(machineStatsFilterContext.result.autoEvent, 's1');
+assert.equal(machineStatsFilterContext.result.heso4, 's1');
+assert.equal(machineStatsFilterContext.result.heso45, 's1,s2');
+assert.equal(machineStatsFilterContext.result.comboAnd, 's1');
+assert.equal(machineStatsFilterContext.result.zero, '');
+assert.equal(machineStatsFilterContext.result.options.dates.join(','), '2026-08-22,2026-08-21,2026-08-15');
+assert.ok(machineStatsFilterContext.result.options.labels.includes('ゾロ目日'));
+assert.match(html, /\.machine-stats-selects \{\s*display: grid;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+assert.match(html, /\.machine-stats-selects select \{\s*min-width: 0;\s*\}/);
 assert.match(machineMemoHelpers, /function machineMemoSectionHtml\(machine, inputId = "machineMemoText", buttonId = "addMachineMemoBtn"\)/);
 assert.match(machineMemoHelpers, /machine\.memoEntries\.unshift/);
 assert.match(machineMemoHelpers, /id: cryptoId\("memo"\)/);
