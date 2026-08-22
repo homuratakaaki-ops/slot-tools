@@ -17,6 +17,7 @@ function section(startMarker, endMarker) {
 
 const hitWizard = section('function openHitWizard', 'function hitResetOptions');
 const runWizard = section('function runWizard', 'function wizardInputHtml');
+const hitRoundSummaryHtml = section('function hitRoundSummaryHtml', 'function openHitResetPrompt');
 const hitResetPrompt = section('function openHitResetPrompt', 'function openEndWizard');
 const updateMochidamaBalance = section('function updateMochidamaBalanceWithUndo', 'function investmentTotals');
 const transferSummary = section('function transferSummaryForSession', 'function balanceForSource');
@@ -50,6 +51,7 @@ const machineMemoHelpers = section('function machineMemoEntriesForDate', 'functi
 const nailRatingSection = section('function nailRatingSummary', 'function machineModelSummaryHtml');
 const machineHistoryHtml = section('function machineHistoryHtml', 'function bindNailRatingChips');
 const normalizeNailRatingBlock = section('function normalizeRatingValue', 'function normalizeStartEv');
+const normalizeHitsBlock = section('function normalizeHits', 'function syncSessionHitTotals');
 const normalizeStartEvBlock = section('function normalizeStartEv', 'function investmentSource');
 const machineModelDisplay = section('function machineModelDisplay', 'function applyPresetToMachine');
 const columnPresetApply = section('function applyColumnPresetsToMachines', 'function machineHasIndividualSetting');
@@ -74,6 +76,7 @@ const evJudgmentBlock = section('function evJudgment', 'function expectationYenP
 const presetSettingsHelpers = section('function presetNetBallsPerWin', 'function activeMapAssumedRate');
 const availableBallsHelpers = section('function availableBallsFromParts', 'function calculateMachineExpectation');
 const expectationRateBlock = section('function expectationRate', 'function availableBallsFromParts');
+const roundCountFromRoundTypeBlock = section('function roundCountFromRoundType', 'function transferYenText');
 
 assert.match(hitWizard, /openHitResetPrompt\(session\);\s*\}, \{ firstBackCancels: true \}\);/);
 assert.match(runWizard, /id="backStepBtn" \$\{index === 0 && !options\.firstBackCancels \? "disabled" : ""\}>戻る<\/button>/);
@@ -90,6 +93,7 @@ assert.ok(hitResetPrompt.includes('data-hit-reset'), 'reset chip buttons should 
 assert.ok(hitResetPrompt.includes('data-hit-round'), 'round type chips should be available after hit completion');
 assert.match(hitResetPrompt, /id="hitRecordSpin"/);
 assert.match(hitResetPrompt, /id="hitRecordActualBalls"/);
+assert.match(hitResetPrompt, /hitRoundSummaryHtml\(session, presetId\)/);
 assert.match(hitResetPrompt, /appendHitRecord\(session, button\.dataset\.hitRound\);/);
 assert.ok(hitResetPrompt.includes('data-close'), 'reset chip close button should remain unchanged');
 assert.match(hitResetPrompt, /id="hitMochidamaValue"/);
@@ -97,6 +101,61 @@ assert.match(hitResetPrompt, /id="saveHitMochidamaBtn"/);
 assert.match(hitResetPrompt, /closeModal\(\);\s*setCurrentSpinWithUndo\(session, value\);/);
 assert.doesNotMatch(hitResetPrompt, /saveHitMochidamaInput\(session, \{ silentEmpty: true \}\)/);
 assert.match(hitResetPrompt, /if \(!raw\) return false;/);
+assert.match(hitRoundSummaryHtml, /const hits = normalizeHits\(session\?\.hits\);/);
+assert.match(hitRoundSummaryHtml, /const roundTypes = presetById\(presetId\)\?\.roundTypes \|\| \[\];/);
+assert.match(hitRoundSummaryHtml, /const count = counts\.get\(type\.id\) \|\| 0;/);
+assert.match(hitRoundSummaryHtml, /if \(!count\) return "";/);
+assert.match(hitRoundSummaryHtml, /roundCountFromRoundType\(type\)/);
+assert.match(hitRoundSummaryHtml, /今回 \$\{hitCount\.toLocaleString\("ja-JP"\)\}回 \/ 合計\$\{totalRounds\.toLocaleString\("ja-JP"\)\}R/);
+assert.match(hitRoundSummaryHtml, /累計大当たり \$\{Math\.round\(cumulativeHits\)\.toLocaleString\("ja-JP"\)\}回/);
+const hitRoundSummaryContext = vm.createContext({
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  presetById(id) {
+    return {
+      single: { roundTypes: [{ id: 'r10', label: '10R', balls: 1400 }] },
+      multi: { roundTypes: [{ id: 'r4', label: '4R', balls: 560 }, { id: 'r6', label: '6R', balls: 840 }, { id: 'r10', label: '10R', balls: 1400 }] }
+    }[id] || null;
+  },
+  escapeHtml(value) {
+    return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  },
+  nowIso() {
+    return '2026-08-22T00:00:00.000Z';
+  }
+});
+new vm.Script(`
+  ${normalizeHitsBlock}
+  ${roundCountFromRoundTypeBlock}
+  ${hitRoundSummaryHtml}
+  globalThis.singleSummary = hitRoundSummaryHtml({
+    startTotalHits: 3,
+    hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }, { roundTypeId: 'r10' }]
+  }, 'single');
+  globalThis.multiSummary = hitRoundSummaryHtml({
+    startTotalHits: 3,
+    hits: [{ roundTypeId: 'r4' }, { roundTypeId: 'r4' }, { roundTypeId: 'r6' }, { roundTypeId: 'r10' }]
+  }, 'multi');
+  globalThis.noStartSummary = hitRoundSummaryHtml({
+    startTotalHits: null,
+    hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }]
+  }, 'multi');
+`).runInContext(hitRoundSummaryContext);
+assert.match(hitRoundSummaryContext.singleSummary, /10R ×3 ＝ 30R/);
+assert.match(hitRoundSummaryContext.singleSummary, /今回 3回 \/ 合計30R/);
+assert.match(hitRoundSummaryContext.singleSummary, /累計大当たり 6回（開始時3回＋今回3回）/);
+assert.match(hitRoundSummaryContext.multiSummary, /4R ×2 ＝ 8R/);
+assert.match(hitRoundSummaryContext.multiSummary, /6R ×1 ＝ 6R/);
+assert.match(hitRoundSummaryContext.multiSummary, /10R ×1 ＝ 10R/);
+assert.match(hitRoundSummaryContext.multiSummary, /今回 4回 \/ 合計24R/);
+assert.match(hitRoundSummaryContext.multiSummary, /累計大当たり 7回（開始時3回＋今回4回）/);
+assert.doesNotMatch(hitRoundSummaryContext.noStartSummary, /4R ×/);
+assert.doesNotMatch(hitRoundSummaryContext.noStartSummary, /6R ×/);
+assert.match(hitRoundSummaryContext.noStartSummary, /10R ×2 ＝ 20R/);
+assert.match(hitRoundSummaryContext.noStartSummary, /累計大当たり 2回（開始時未入力＋今回2回）/);
 assert.match(updateMochidamaBalance, /session\.startMochidama = balanceStartValueForCurrent\(session, "startMochidama", value\);/);
 assert.match(updateMochidamaBalance, /undo: \(\) => \{\s*session\.startMochidama = previous;/);
 assert.match(balanceStartValueForCurrent, /if \(key === "startMochidama"\) return value \+ totals\.mochidamaBalls;/);

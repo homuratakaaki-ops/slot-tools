@@ -5332,6 +5332,38 @@
       return [...new Set(values.filter((value) => Number.isFinite(value) && value >= 0))];
     }
 
+    function hitRoundSummaryHtml(session, presetId) {
+      const hits = normalizeHits(session?.hits);
+      const roundTypes = presetById(presetId)?.roundTypes || [];
+      const counts = hits.reduce((map, hit) => {
+        if (!hit.roundTypeId) return map;
+        map.set(hit.roundTypeId, (map.get(hit.roundTypeId) || 0) + 1);
+        return map;
+      }, new Map());
+      let totalRounds = 0;
+      const rows = roundTypes.map((type) => {
+        const count = counts.get(type.id) || 0;
+        if (!count) return "";
+        const rounds = roundCountFromRoundType(type);
+        if (rounds === null) return "";
+        const subtotal = rounds * count;
+        totalRounds += subtotal;
+        return `<span>${escapeHtml(type.label)} ×${count.toLocaleString("ja-JP")} ＝ ${subtotal.toLocaleString("ja-JP")}R</span>`;
+      }).filter(Boolean);
+      const hitCount = hits.length;
+      const startTotalHits = normalizeNumber(session?.startTotalHits);
+      const cumulativeHits = (startTotalHits ?? 0) + hitCount;
+      const startText = startTotalHits === null ? "開始時未入力" : `開始時${Math.round(startTotalHits).toLocaleString("ja-JP")}回`;
+      return `
+        <div class="hit-round-summary">
+          ${rows.length ? `<p class="hint">${rows.join(" ・ ")}</p>` : ""}
+          <hr>
+          <p class="hint">今回 ${hitCount.toLocaleString("ja-JP")}回 / 合計${totalRounds.toLocaleString("ja-JP")}R</p>
+          <p class="hint">累計大当たり ${Math.round(cumulativeHits).toLocaleString("ja-JP")}回（${startText}＋今回${hitCount.toLocaleString("ja-JP")}回）</p>
+        </div>
+      `;
+    }
+
     function openHitResetPrompt(session) {
       const machine = data.machines.find((item) => item.id === session.machineId);
       const options = hitResetOptions(machine);
@@ -5345,12 +5377,12 @@
             <div class="quick-invest">
               ${roundTypes.map((type) => `<button data-hit-round="${escapeHtml(type.id)}">${escapeHtml(type.label)} +1</button>`).join("") || '<span class="hint">このプリセットにはラウンド種別がありません。</span>'}
             </div>
+            ${hitRoundSummaryHtml(session, presetId)}
             <div class="grid two">
               <input id="hitRecordSpin" inputmode="numeric" value="${escapeHtml(session.hitSpin ?? session.currentSpin ?? "")}" placeholder="当選ゲーム数 任意">
               <input id="hitRecordActualBalls" inputmode="numeric" placeholder="獲得出玉 任意">
             </div>
             <p class="hint">チップを押すと当選1件として保存します。任意入力は空欄でも記録できます。</p>
-            <p class="hint">記録済み ${escapeHtml((session.hits || []).length)}件</p>
           </div>
         </div>
         <div class="field-row">
