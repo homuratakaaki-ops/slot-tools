@@ -5286,10 +5286,10 @@
           hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。") + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
-        { key: "startMochidama", label: "持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
-        { key: "startSaipurei", label: "再プレイ残り玉", type: "number", preset: startSaipureiPreset, hint: activeCarryover ? "前の台から引き継いだ値です。未入力だった場合は空欄のままです。" : (startSaipureiPreset !== null ? previousBalanceHint : "") },
-        { key: "startCredit", label: "カード残高（クレジット残金）", type: "number", preset: startCreditPreset, hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : (startCreditPreset !== null ? previousBalanceHint : "") },
-        { key: "startTotalHits", label: "データカウンタの累計大当たり回数", type: "number", preset: startTotalHitsPreset, hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
+        { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
+        { key: "startSaipurei", label: "開始時の再プレイ残り", type: "number", preset: startSaipureiPreset, hint: activeCarryover ? "前の台から引き継いだ値です。未入力だった場合は空欄のままです。" : (startSaipureiPreset !== null ? previousBalanceHint : "") },
+        { key: "startCredit", label: "開始時のカード残高", type: "number", preset: startCreditPreset, hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : (startCreditPreset !== null ? previousBalanceHint : "") },
+        { key: "startTotalHits", label: "開始時点の累計大当たり回数", type: "number", preset: startTotalHitsPreset, hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         if (session.currentSpin === null || session.currentSpin === undefined) session.currentSpin = session.startSpin;
@@ -6469,9 +6469,9 @@
           ${fieldHtml("startTime", "開始時刻", session.startTime, "time")}
           ${fieldHtml("startSpin", "開始回転数", session.startSpin)}
           ${fieldHtml("currentSpin", "現在回転数", session.currentSpin)}
-          ${fieldHtml("startMochidama", "開始持ち玉", session.startMochidama)}
-          ${fieldHtml("startSaipurei", "再プレイ残り", session.startSaipurei)}
-          ${fieldHtml("startCredit", "カード残高（クレジット残金）", session.startCredit)}
+          ${fieldHtml("startMochidama", "開始時の持ち玉", session.startMochidama)}
+          ${fieldHtml("startSaipurei", "開始時の再プレイ残り", session.startSaipurei)}
+          ${fieldHtml("startCredit", "開始時のカード残高", session.startCredit)}
           ${fieldHtml("startTotalHits", "開始時点の累計大当たり回数", session.startTotalHits)}
           ${fieldHtml("prevDayEndSpin", "閉店チェック由来の前日回転", session.prevDayEndSpin)}
           ${fieldHtml("hitSpin", "当選回転数", session.hitSpin)}

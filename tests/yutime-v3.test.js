@@ -45,6 +45,7 @@ const machineSummary = section('function machineModelSummaryHtml', 'function mac
 const machineDetailForm = section('function machineDetailFormHtml', 'function openMachineDetail');
 const openMachineDetail = section('function openMachineDetail', 'function renderMachineExpectation');
 const renderMachineExpectation = section('function renderMachineExpectation', 'function applyPresetSelectionToForm');
+const openStartWizard = section('function openStartWizard', 'function openHitWizard');
 const machineMemoHelpers = section('function machineMemoEntriesForDate', 'function nailRatingSummary');
 const nailRatingSection = section('function nailRatingSummary', 'function machineModelSummaryHtml');
 const machineHistoryHtml = section('function machineHistoryHtml', 'function bindNailRatingChips');
@@ -689,6 +690,15 @@ assert.match(openSessionEditor, /openModal\("記録の修正・削除", "スキ�
 assert.doesNotMatch(html, />記録の修正<\/button>/);
 assert.doesNotMatch(html, /openModal\("記録の修正",/);
 assert.doesNotMatch(html, /「記録の修正」/);
+assert.match(openStartWizard, /\{ key: "startMochidama", label: "開始時の持ち玉"/);
+assert.match(openStartWizard, /\{ key: "startSaipurei", label: "開始時の再プレイ残り"/);
+assert.match(openStartWizard, /\{ key: "startCredit", label: "開始時のカード残高"/);
+assert.match(openStartWizard, /\{ key: "startTotalHits", label: "開始時点の累計大当たり回数"/);
+assert.match(openSessionEditor, /fieldHtml\("startMochidama", "開始時の持ち玉", session\.startMochidama\)/);
+assert.match(openSessionEditor, /fieldHtml\("startSaipurei", "開始時の再プレイ残り", session\.startSaipurei\)/);
+assert.match(openSessionEditor, /fieldHtml\("startCredit", "開始時のカード残高", session\.startCredit\)/);
+assert.doesNotMatch(openStartWizard, /label: "持ち玉"|label: "再プレイ残り玉"|label: "カード残高（クレジット残金）"|label: "データカウンタの累計大当たり回数"/);
+assert.doesNotMatch(openSessionEditor, /"開始持ち玉"|"再プレイ残り"|"カード残高（クレジット残金）"/);
 const startEvDetailContext = vm.createContext({
   YUTIME_EXPECTATION_ENGINE: { preset: { spec: { tenjo: 950 } } },
   normalizeNumber(value) {
