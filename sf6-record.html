@@ -682,6 +682,7 @@ textarea{
   };
   const BATTLE_STEP_LOCK_TOAST='FB中は通常消化を操作できません';
   const BATTLE_ADJUST_LOCK_TOAST='FB中はG数調整を操作できません';
+  const JUDGE_ADD_CHOICES=[10,20,30,50,100];
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
   let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,autoColorResetAt:0,sessionMoney:null,logs:[]};
@@ -689,7 +690,6 @@ textarea{
   let selectedVoice=null;
   let gainAddDraft='';
   let selectedGainAnten=null;
-  let judgeAddDraft='';
   let selectedSumahoChara='';
   let selectedWtAnten=null;
   let selectedWtReturnStage=null;
@@ -871,7 +871,7 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),autoColorResetAt:normalizeAutoColorResetAt(state.autoColorResetAt),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,judgeAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedSumahoChara,selectedWtAnten,selectedMedalSource,medalInDraft}});
+    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),autoColorResetAt:normalizeAutoColorResetAt(state.autoColorResetAt),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedSumahoChara,selectedWtAnten,selectedMedalSource,medalInDraft}});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
@@ -899,7 +899,6 @@ textarea{
     winSheetDraft={bonusMedals:String(drafts.winSheetDraft?.bonusMedals||''),endScreen:String(drafts.winSheetDraft?.endScreen||''),credit:String(drafts.winSheetDraft?.credit||'')};
     lossSheetDraft={exitLcdG:String(drafts.lossSheetDraft?.exitLcdG||''),exitRealG:String(drafts.lossSheetDraft?.exitRealG||''),exitCredit:String(drafts.lossSheetDraft?.exitCredit||'')};
     gainAddDraft=String(drafts.gainAddDraft||'');
-    judgeAddDraft=String(drafts.judgeAddDraft||'');
     selectedVoice=VOICES.includes(drafts.selectedVoice)?drafts.selectedVoice:null;
     selectedGainKind=DC_GAIN_KINDS.includes(drafts.selectedGainKind)?drafts.selectedGainKind:'';
     selectedGainAnten=normalizeAntenPattern(drafts.selectedGainAnten);
@@ -1088,6 +1087,18 @@ textarea{
     btn.setAttribute('aria-pressed',pressed?'true':'false');
     btn.addEventListener('click',handler);
     return btn;
+  }
+  function setChipPressed(btn,pressed){
+    btn.setAttribute('aria-pressed',pressed?'true':'false');
+  }
+  function choiceChip(label,value,pressed,handler,extraClass=''){
+    const btn=chip(label,pressed,()=>handler(btn),extraClass);
+    btn.dataset.choiceValue=String(value);
+    return btn;
+  }
+  function refreshChoiceGroup(group,selectedValue){
+    const selected=selectedValue==null?'':String(selectedValue);
+    group.querySelectorAll('.chip[data-choice-value]').forEach(btn=>setChipPressed(btn,selected!==''&&btn.dataset.choiceValue===selected));
   }
   function gainKindDisplay(label){
     return label==='ジャッジ'?'ストリートジャッジ':label;
@@ -1810,9 +1821,12 @@ textarea{
     closeSheet();
   }
   function recordJudgeFromSheet(){
+    return recordJudgeAdd(arguments[0]);
+  }
+  function recordJudgeAdd(addG){
     const snap=requireLcd();
     if(!snap)return;
-    const addG=positiveInt($('judgeAddG')?.value);
+    addG=positiveInt(addG);
     if(!addG){toast('加算G数を入力してください');return;}
     const nextLcd=snap.lcdG+addG+1;
     const nextReal=snap.realG===null?null:snap.realG+1;
@@ -1822,10 +1836,6 @@ textarea{
       if(boundary!==null&&!hasBlueColorForBoundary(boundary))addAutoBlueColor(boundary,{realG:nextReal,lcdG:nextLcd});
       addLogDirect({type:'gain',kind:'ジャッジ',addG,voice:null,realG:nextReal,lcdG:nextLcd});
     },{toast:'ストリートジャッジを記録しました',lcdTouched:true});
-    const add=$('judgeAddG');
-    if(add)add.value='';
-    judgeAddDraft='';
-    openJudgeSheet();
   }
   function fbStartDraft(){
     return {rank:selectedRank,roundStart:selectedRoundStart,opponent:currentOpponentDraft()||null};
@@ -1871,8 +1881,6 @@ textarea{
     if($('fbExitLcdG')||$('fbExitRealG')||$('fbExitCredit'))syncLossSheetDraft();
     const addInput=$('addG');
     if(addInput)gainAddDraft=String(addInput.value||'');
-    const judgeInput=$('judgeAddG');
-    if(judgeInput)judgeAddDraft=String(judgeInput.value||'');
     const sumahoSelect=$('sumahoCharaSelect');
     if(sumahoSelect)selectedSumahoChara=normalizeSumahoChara(sumahoSelect.value)||'';
   }
@@ -2256,7 +2264,10 @@ textarea{
       const antenChoices=row('choice-row single-choice-grid');
       antenChoices.id='wtExitAntenKinds';
       ANTEN_PATTERNS.forEach(item=>{
-        antenChoices.append(chip(item.label,selectedWtAnten===item.key,()=>{selectedWtAnten=selectedWtAnten===item.key?null:item.key;openWtExitSheet();},item.cls));
+        antenChoices.append(choiceChip(item.label,item.key,selectedWtAnten===item.key,()=>{
+          selectedWtAnten=selectedWtAnten===item.key?null:item.key;
+          refreshChoiceGroup(antenChoices,selectedWtAnten);
+        },item.cls));
       });
       body.append(el('div','muted','暗転パターン（任意）'));
       body.append(antenChoices);
@@ -2264,7 +2275,10 @@ textarea{
       returnChoices.id='wtReturnStageKinds';
       STAGE_CHOICES.forEach(label=>{
         const cls=label===STAGE_CHOICES[0]?'hot':'';
-        returnChoices.append(chip(label,selectedWtReturnStage===label,()=>{selectedWtReturnStage=selectedWtReturnStage===label?null:label;openWtExitSheet();},cls));
+        returnChoices.append(choiceChip(label,label,selectedWtReturnStage===label,()=>{
+          selectedWtReturnStage=selectedWtReturnStage===label?null:label;
+          refreshChoiceGroup(returnChoices,selectedWtReturnStage);
+        },cls));
       });
       body.append(el('div','muted','復帰ステージ（任意）'));
       body.append(returnChoices);
@@ -2281,7 +2295,10 @@ textarea{
       kinds.id='gainKinds';
       DC_GAIN_KINDS.forEach(label=>{
         const extra=label==='DC-キャミィ'?'dc-cammy':'';
-        kinds.append(chip(gainKindDisplay(label),selectedGainKind===label,()=>{selectedGainKind=label;openGainSheet();},extra));
+        kinds.append(choiceChip(gainKindDisplay(label),label,selectedGainKind===label,()=>{
+          selectedGainKind=label;
+          refreshChoiceGroup(kinds,selectedGainKind);
+        },extra));
       });
       body.append(kinds);
       const addInput=input('addG','number','例 120');
@@ -2291,7 +2308,10 @@ textarea{
       const voices=row('choice-row');
       voices.id='voiceKinds';
       VOICES.forEach(label=>{
-        const btn=chip('',selectedVoice===label,()=>{selectedVoice=selectedVoice===label?null:label;openGainSheet();},`voice-chip ${HOT_VOICES.has(label)?'hot':''}`.trim());
+        const btn=choiceChip('',label,selectedVoice===label,()=>{
+          selectedVoice=selectedVoice===label?null:label;
+          refreshChoiceGroup(voices,selectedVoice);
+        },`voice-chip ${HOT_VOICES.has(label)?'hot':''}`.trim());
         btn.dataset.voice=label;
         btn.append(el('span','voice-main',label));
         if(VOICE_SKILLS[label])btn.append(el('span','voice-sub',VOICE_SKILLS[label]));
@@ -2301,7 +2321,10 @@ textarea{
       const antenChoices=row('choice-row single-choice-grid');
       antenChoices.id='gainAntenKinds';
       ANTEN_PATTERNS.forEach(item=>{
-        antenChoices.append(chip(item.label,selectedGainAnten===item.key,()=>{selectedGainAnten=selectedGainAnten===item.key?null:item.key;openGainSheet();},item.cls));
+        antenChoices.append(choiceChip(item.label,item.key,selectedGainAnten===item.key,()=>{
+          selectedGainAnten=selectedGainAnten===item.key?null:item.key;
+          refreshChoiceGroup(antenChoices,selectedGainAnten);
+        },item.cls));
       });
       body.append(el('div','muted','暗転パターン（任意）'));
       body.append(antenChoices);
@@ -2313,18 +2336,14 @@ textarea{
     },{hintKey:'gain'});
   }
   function openJudgeSheet(){
-    const liveAdd=$('judgeAddG');
-    if(liveAdd)judgeAddDraft=String(liveAdd.value||'');
     openSheet('ストリートジャッジ',body=>{
-      const addInput=input('judgeAddG','number','例 30');
-      addInput.value=judgeAddDraft;
-      addInput.addEventListener('input',()=>{judgeAddDraft=addInput.value;});
-      body.append(field('加算G数',addInput));
-      const actions=row();
-      const judgeBtn=button('加算を記録','primary',recordJudgeFromSheet);
-      judgeBtn.id='judgeGainBtn';
-      actions.append(judgeBtn);
-      body.append(actions);
+      const choices=row('choice-row single-choice-grid judge-add-grid');
+      choices.id='judgeAddKinds';
+      JUDGE_ADD_CHOICES.forEach(value=>{
+        choices.append(choiceChip(`+${value}`,value,false,()=>recordJudgeAdd(value)));
+      });
+      body.append(el('div','muted','加算G数'));
+      body.append(choices);
     });
   }
   /* v2.8 superseded start sheet draft
@@ -2359,7 +2378,10 @@ textarea{
       let choices=row('choice-row choice-grid-3');
       choices.id='rankKinds';
       RANK_RATE_LABELS.forEach(([value,label])=>{
-        choices.append(chip(label,selectedRank===value,()=>{selectedRank=selectedRank===value?null:value;openBattleStartSheet();}));
+        choices.append(choiceChip(label,value,selectedRank===value,()=>{
+          selectedRank=selectedRank===value?null:value;
+          refreshChoiceGroup(choices,selectedRank);
+        }));
       });
       body.append(choices);
       body.append(el('div','muted','ラウンド開始画面'));
@@ -2367,7 +2389,10 @@ textarea{
       choices.id='roundStartKinds';
       ROUND_START_LABELS.forEach(([value,label])=>{
         const cls=value===ROUND_STARTS[0]?'blue-text':value===ROUND_STARTS[1]?'green-text':'hot';
-        choices.append(chip(label,selectedRoundStart===value,()=>{selectedRoundStart=selectedRoundStart===value?null:value;openBattleStartSheet();},cls));
+        choices.append(choiceChip(label,value,selectedRoundStart===value,()=>{
+          selectedRoundStart=selectedRoundStart===value?null:value;
+          refreshChoiceGroup(choices,selectedRoundStart);
+        },cls));
       });
       body.append(choices);
       const opponentSelect=selectInput('opponentText',OPPONENTS,'対戦相手');
@@ -2386,7 +2411,11 @@ textarea{
       const bonusKinds=row('choice-row');
       bonusKinds.id='bonusKinds';
       BONUSES.forEach(value=>{
-        bonusKinds.append(chip(BONUS_LABELS[value]||value,selectedBonus===value,()=>{syncWinSheetDraft();selectedBonus=selectedBonus===value?null:value;openWinSheet();},value==='ending'?'hot':''));
+        bonusKinds.append(choiceChip(BONUS_LABELS[value]||value,value,selectedBonus===value,()=>{
+          syncWinSheetDraft();
+          selectedBonus=selectedBonus===value?null:value;
+          refreshChoiceGroup(bonusKinds,selectedBonus);
+        },value==='ending'?'hot':''));
       });
       body.append(el('div','muted','ボーナス種別（任意）'));
       body.append(bonusKinds);
@@ -2407,54 +2436,84 @@ textarea{
       body.append(actions);
     },{hintKey:'win'});
   }
+  function refreshLossSheetMode(){
+    const success=selectedContinue==='success';
+    const note=$('lossSuccessNote');
+    const detail=$('lossDetailFields');
+    const recordBtn=$('lossRecordBtn');
+    if(note)note.hidden=!success;
+    if(detail)detail.hidden=success;
+    if(recordBtn){
+      recordBtn.textContent=success?'成功を記録':'敗北を確定';
+      recordBtn.className=`bm-btn ${success?'win':'lose'}`;
+    }
+  }
   function openLossSheet(){
     openSheet('敗北記録',body=>{
       body.classList.add('loss-sheet-body');
       const continueKinds=row('choice-row');
       continueKinds.id='continueKinds';
       CONTINUES.forEach(item=>{
-        continueKinds.append(chip(item.label,selectedContinue===item.key,()=>{syncLossSheetDraft();selectedContinue=item.key;openLossSheet();},item.key==='success'?'hot':''));
+        continueKinds.append(choiceChip(item.label,item.key,selectedContinue===item.key,()=>{
+          syncLossSheetDraft();
+          selectedContinue=item.key;
+          refreshChoiceGroup(continueKinds,selectedContinue);
+          refreshLossSheetMode();
+        },item.key==='success'?'hot':''));
       });
       body.append(el('div','muted','コンティニュー'));
       body.append(continueKinds);
-      if(selectedContinue==='success'){
-        body.append(el('div','muted','成功時は敗北レコードを作らず、FB中を維持します'));
-      }else{
-        const lossInputs=row('choice-row loss-input-grid');
-        const exitLcd=input('fbExitLcdG','number','必須');
-        exitLcd.value=lossSheetDraft.exitLcdG;
-        exitLcd.addEventListener('input',syncLossSheetDraft);
-        lossInputs.append(field('抜け時液晶G',exitLcd));
-        const exitReal=input('fbExitRealG','number','必須');
-        exitReal.value=lossSheetDraft.exitRealG;
-        exitReal.addEventListener('input',syncLossSheetDraft);
-        lossInputs.append(field('抜け時実G',exitReal));
-        const credit=input('fbExitCredit','number','任意');
-        credit.value=lossSheetDraft.exitCredit;
-        credit.addEventListener('input',syncLossSheetDraft);
-        lossInputs.append(field('クレジット',credit));
-        body.append(lossInputs);
-        const choices=row('choice-row');
-        choices.classList.add('choice-grid-4');
-        choices.id='icatchKinds';
-        ICATCHES.forEach(label=>{
-          const cls=label==='ルーク'?'':(label==='リュウ'||label==='豪鬼'||label==='キンバリー'?'hot':'');
-          choices.append(chip(label,selectedIcatch===label,()=>{syncLossSheetDraft();selectedIcatch=selectedIcatch===label?null:label;openLossSheet();},cls));
-        });
-        body.append(el('div','muted','アイキャッチ（任意）'));
-        body.append(choices);
-        const returnChoices=row('choice-row single-choice-grid');
-        returnChoices.id='returnStageKinds';
-        STAGE_CHOICES.forEach(label=>{
-          const cls=label===STAGE_CHOICES[0]?'hot':'';
-          returnChoices.append(chip(label,selectedReturnStage===label,()=>{syncLossSheetDraft();selectedReturnStage=selectedReturnStage===label?null:label;openLossSheet();},cls));
-        });
-        body.append(el('div','muted','復帰ステージ（任意）'));
-        body.append(returnChoices);
-      }
+      const successNote=el('div','muted','成功時は敗北レコードを作らず、FB中を維持します');
+      successNote.id='lossSuccessNote';
+      body.append(successNote);
+      const lossDetail=el('div','loss-detail-fields');
+      lossDetail.id='lossDetailFields';
+      const lossInputs=row('choice-row loss-input-grid');
+      const exitLcd=input('fbExitLcdG','number','必須');
+      exitLcd.value=lossSheetDraft.exitLcdG;
+      exitLcd.addEventListener('input',syncLossSheetDraft);
+      lossInputs.append(field('抜け時液晶G',exitLcd));
+      const exitReal=input('fbExitRealG','number','必須');
+      exitReal.value=lossSheetDraft.exitRealG;
+      exitReal.addEventListener('input',syncLossSheetDraft);
+      lossInputs.append(field('抜け時実G',exitReal));
+      const credit=input('fbExitCredit','number','任意');
+      credit.value=lossSheetDraft.exitCredit;
+      credit.addEventListener('input',syncLossSheetDraft);
+      lossInputs.append(field('クレジット',credit));
+      lossDetail.append(lossInputs);
+      const choices=row('choice-row');
+      choices.classList.add('choice-grid-4');
+      choices.id='icatchKinds';
+      ICATCHES.forEach(label=>{
+        const cls=label==='ルーク'?'':(label==='リュウ'||label==='豪鬼'||label==='キンバリー'?'hot':'');
+        choices.append(choiceChip(label,label,selectedIcatch===label,()=>{
+          syncLossSheetDraft();
+          selectedIcatch=selectedIcatch===label?null:label;
+          refreshChoiceGroup(choices,selectedIcatch);
+        },cls));
+      });
+      lossDetail.append(el('div','muted','アイキャッチ（任意）'));
+      lossDetail.append(choices);
+      const returnChoices=row('choice-row single-choice-grid');
+      returnChoices.id='returnStageKinds';
+      STAGE_CHOICES.forEach(label=>{
+        const cls=label===STAGE_CHOICES[0]?'hot':'';
+        returnChoices.append(choiceChip(label,label,selectedReturnStage===label,()=>{
+          syncLossSheetDraft();
+          selectedReturnStage=selectedReturnStage===label?null:label;
+          refreshChoiceGroup(returnChoices,selectedReturnStage);
+        },cls));
+      });
+      lossDetail.append(el('div','muted','復帰ステージ（任意）'));
+      lossDetail.append(returnChoices);
+      body.append(lossDetail);
       const actions=row();
-      actions.append(button(selectedContinue==='success'?'成功を記録':'敗北を確定',selectedContinue==='success'?'win':'lose',recordLossFromSheet));
+      const recordBtn=button('',selectedContinue==='success'?'win':'lose',recordLossFromSheet);
+      recordBtn.id='lossRecordBtn';
+      actions.append(recordBtn);
       body.append(actions);
+      refreshLossSheetMode();
     },{hintKey:'loss'});
   }
   function openMemoSheet(){
@@ -2749,8 +2808,6 @@ textarea{
   function openSheet(title,build,options={}){
     const sheet=$('sheet');
     const body=$('sheetBody');
-    const preserveScroll=sheet.classList.contains('open')&&$('sheetTitle').textContent===title&&!options.singleChoice;
-    const previousScrollTop=preserveScroll?body.scrollTop:0;
     $('sheetTitle').textContent=title;
     activeHintKey=options.hintKey||null;
     if(!activeHintKey)hintPanelOpen=false;
@@ -2760,7 +2817,6 @@ textarea{
     renderHintPanel(body);
     build(body);
     sheet.classList.add('open');
-    if(preserveScroll)body.scrollTop=previousScrollTop;
   }
   function closeSheet(){
     $('sheet').classList.remove('open');
