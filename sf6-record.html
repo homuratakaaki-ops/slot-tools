@@ -179,8 +179,18 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   text-align:center;
 }
 .money-pill strong{color:var(--ink);font-variant-numeric:tabular-nums}
+.money-pill .money-breakdown{
+  display:block;
+  margin-top:1px;
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.15;
+  font-weight:800;
+  font-variant-numeric:tabular-nums;
+}
 .money-pill.unset{border-color:rgba(255,93,108,.58);background:rgba(255,93,108,.13);cursor:pointer}
 .money-pill.unset strong{color:var(--danger)}
+.money-pill.unset .money-breakdown{color:var(--danger)}
 .bm-btn,.chip{
   border:1px solid var(--line);
   border-radius:8px;
@@ -526,7 +536,7 @@ textarea{
 
     <section class="money-row" aria-label="投資回収">
       <div class="money-pill" id="moneyInvestPill">投資 <strong id="cashTotal">0円</strong></div>
-      <div class="money-pill" id="moneyDiffPill">差枚 <strong id="diffTotal">-</strong></div>
+      <div class="money-pill" id="moneyDiffPill">差枚 <strong id="diffTotal">-</strong><span class="money-breakdown" id="diffBreakdown"></span></div>
       <div class="money-pill">FBスルー <strong id="throughCount">0</strong></div>
     </section>
 
@@ -1349,6 +1359,25 @@ textarea{
     if(!m||m.initialDiff===null)return null;
     return Math.round(m.initialDiff+(m.credit||0)+(m.collectMedals||0)-investedMedals(m)+m.diffAdjust);
   }
+  function intervalDiffBreakdown(money=currentMoney()){
+    const m=normalizeSessionMoney(money);
+    if(!m||m.initialDiff===null)return null;
+    return {
+      base:m.initialDiff||0,
+      credit:m.credit||0,
+      collect:m.collectMedals||0,
+      invest:investedMedals(m),
+      adjust:m.diffAdjust||0
+    };
+  }
+  function intervalDiffBreakdownText(money=currentMoney()){
+    const parts=intervalDiffBreakdown(money);
+    if(!parts)return '';
+    const extras=[];
+    if(parts.base!==0)extras.push(`基${parts.base>0?'+':''}${parts.base}`);
+    if(parts.adjust!==0)extras.push(`補${parts.adjust>0?'+':''}${parts.adjust}`);
+    return `ク${parts.credit}+回${parts.collect} −投${parts.invest}${extras.length?` ${extras.join(' ')}`:''}`;
+  }
   function diffText(value){
     if(value===null||value===undefined)return '-';
     return `${value>0?'+':''}${value}枚`;
@@ -1444,6 +1473,7 @@ textarea{
     const moneyReady=moneyInitialized();
     $('cashTotal').textContent=moneyReady?`${cashDisplayTotal().toLocaleString()}円`:'未設定';
     $('diffTotal').textContent=moneyReady?diffText(intervalDiffValue()):'未設定';
+    $('diffBreakdown').textContent=moneyReady?intervalDiffBreakdownText():'';
     ['moneyInvestPill','moneyDiffPill'].forEach(id=>{
       const pill=$(id);
       if(pill)pill.classList.toggle('unset',!moneyReady);
@@ -3147,7 +3177,7 @@ textarea{
   bind();
   render();
   maybePromptInitialMoney();
-  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,positiveNumber,optionalGame,nonnegativeInt,normalizeSessionMoney,intervalDiffValue,moneySummary,recoveryYen,finalBalanceYen,exportEnvelope,exportFilename,exportData,exportJsonText,STORAGE_KEY,MACHINE,MACHINE_ID,VERSION,PAYLOAD_VERSION};
+  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,positiveNumber,optionalGame,nonnegativeInt,normalizeSessionMoney,intervalDiffValue,intervalDiffBreakdown,intervalDiffBreakdownText,moneySummary,recoveryYen,finalBalanceYen,exportEnvelope,exportFilename,exportData,exportJsonText,STORAGE_KEY,MACHINE,MACHINE_ID,VERSION,PAYLOAD_VERSION};
 })();
 </script>
 </body>
