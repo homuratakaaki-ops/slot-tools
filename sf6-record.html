@@ -179,6 +179,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   text-align:center;
 }
 .money-pill strong{color:var(--ink);font-variant-numeric:tabular-nums}
+#moneyDiffPill{min-height:48px;cursor:pointer}
 .money-pill .money-breakdown{
   display:block;
   margin-top:1px;
@@ -636,6 +637,7 @@ textarea{
   const RELATED_LINKS=[
     {label:'ちょんぼりすた（SF6解析）',url:'https://chonborista.com/slot/enta-slot/260280/'}
   ];
+  const DIFF_LEGEND_TEXT='ク＝クレジット（現在の台内メダル）／回＝回収（計数した枚数）／投＝投入（財布から台へ入れた枚数）／基＝基準（初期差枚）／補＝補正（差枚一致の累積）';
   const ANTEN_PATTERNS=[
     {key:'black',label:'黒暗転',hint:'デフォルト',cls:''},
     {key:'blue',label:'青暗転',hint:'残り300G以内の期待度 約55%',cls:'blue-text'},
@@ -1373,10 +1375,21 @@ textarea{
   function intervalDiffBreakdownText(money=currentMoney()){
     const parts=intervalDiffBreakdown(money);
     if(!parts)return '';
-    const extras=[];
-    if(parts.base!==0)extras.push(`基${parts.base>0?'+':''}${parts.base}`);
-    if(parts.adjust!==0)extras.push(`補${parts.adjust>0?'+':''}${parts.adjust}`);
-    return `ク${parts.credit}+回${parts.collect} −投${parts.invest}${extras.length?` ${extras.join(' ')}`:''}`;
+    const items=[];
+    if(parts.credit!==0)items.push(`ク${parts.credit}`);
+    if(parts.collect!==0)items.push(`回${parts.collect}`);
+    if(parts.invest!==0)items.push(`−投${parts.invest}`);
+    if(parts.base!==0)items.push(`基${parts.base>0?'+':''}${parts.base}`);
+    if(parts.adjust!==0)items.push(`補${parts.adjust>0?'+':''}${parts.adjust}`);
+    return items.join(' ');
+  }
+  function intervalDiffDisplay(money=currentMoney()){
+    const m=normalizeSessionMoney(money);
+    if(!m)return {text:'-',breakdown:''};
+    if(m.credit===null){
+      return {text:m.initialDiff===null?'-':`${diffText(m.initialDiff)}（基準）`,breakdown:'クレ入力待ち'};
+    }
+    return {text:diffText(intervalDiffValue(m)),breakdown:intervalDiffBreakdownText(m)};
   }
   function diffText(value){
     if(value===null||value===undefined)return '-';
@@ -1471,9 +1484,10 @@ textarea{
     if(locked&&$('keypadModal')?.classList.contains('open'))closeKeypad();
     $('throughCount').textContent=String(fbThroughCount());
     const moneyReady=moneyInitialized();
+    const diffDisplay=moneyReady?intervalDiffDisplay():{text:'未設定',breakdown:''};
     $('cashTotal').textContent=moneyReady?`${cashDisplayTotal().toLocaleString()}円`:'未設定';
-    $('diffTotal').textContent=moneyReady?diffText(intervalDiffValue()):'未設定';
-    $('diffBreakdown').textContent=moneyReady?intervalDiffBreakdownText():'';
+    $('diffTotal').textContent=diffDisplay.text;
+    $('diffBreakdown').textContent=diffDisplay.breakdown;
     ['moneyInvestPill','moneyDiffPill'].forEach(id=>{
       const pill=$(id);
       if(pill)pill.classList.toggle('unset',!moneyReady);
@@ -2062,7 +2076,7 @@ textarea{
     if(initialDiffRaw!==''&&initialDiff===null){toast('初期差枚を数値で入力してください');return;}
     const initialMedalInRaw=String($('initialMedalInInput')?.value||initialMedalInDraft||'').trim();
     const initialMedalIn=initialMedalInRaw===''?null:positiveInt(initialMedalInRaw);
-    if(initialMedalInRaw!==''&&!initialMedalIn){toast('初回投入枚数を1以上の整数で入力してください');return;}
+    if(initialMedalInRaw!==''&&!initialMedalIn){toast('最初に台へ入れた枚数を1以上の整数で入力してください');return;}
     const initialMedalSource=MEDAL_SOURCES.some(([key])=>key===selectedInitialMedalSource)?selectedInitialMedalSource:'unknown';
     const initialThroughRaw=String($('initialThroughInput')?.value||'').trim();
     const initialThrough=initialThroughRaw===''?0:nonnegativeInt(initialThroughRaw);
@@ -2679,7 +2693,7 @@ textarea{
       const initialDiff=input('moneyInitialDiff','text','例 -800');
       setKeypadInputMode(initialDiff,{negative:true});
       initialDiff.value=m.initialDiff??'';
-      const initialMedalIn=input('initialMedalInInput','number','例 50');
+      const initialMedalIn=input('initialMedalInInput','number','最初に台へ入れた枚数（例：50）');
       initialMedalIn.value=initialMedalInDraft||m.initialMedalInAmount||'';
       initialMedalIn.addEventListener('change',()=>{initialMedalInDraft=String(initialMedalIn.value||'');});
       const startRealG=input('moneyStartRealG','number','例 120');
@@ -2695,7 +2709,8 @@ textarea{
       body.append(field('再プレイ',startSaipurei));
       body.append(field('貸出レート',loanRate));
       body.append(field('初期差枚',initialDiff));
-      body.append(field('初回投入枚数',initialMedalIn));
+      body.append(field('最初に台へ入れた枚数（例：50）',initialMedalIn));
+      body.append(el('div','muted','持ち玉・再プレイの残りは、台に入れるたびに「メダル投入」で記録'));
       const sources=row('choice-row single-choice-grid');
       sources.id='initialMedalSourceKinds';
       MEDAL_SOURCES.forEach(([key,label])=>{
@@ -3166,7 +3181,7 @@ textarea{
     $('moneyDepositBtn').addEventListener('click',openMoneyDepositSheet);
     $('moneyCreditBtn').addEventListener('click',openMoneyCreditSheet);
     $('moneyInvestPill').addEventListener('click',()=>{if(!moneyInitialized())openMoneyInitSheet();});
-    $('moneyDiffPill').addEventListener('click',()=>{if(!moneyInitialized())openMoneyInitSheet();});
+    $('moneyDiffPill').addEventListener('click',()=>{if(!moneyInitialized())openMoneyInitSheet();else toast(DIFF_LEGEND_TEXT);});
     $('undoBtn').addEventListener('click',undoLast);
     $('openUtilityBtn').addEventListener('click',openUtilitySheet);
     $('sheetCloseBtn').addEventListener('click',closeSheet);
@@ -3177,7 +3192,7 @@ textarea{
   bind();
   render();
   maybePromptInitialMoney();
-  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,positiveNumber,optionalGame,nonnegativeInt,normalizeSessionMoney,intervalDiffValue,intervalDiffBreakdown,intervalDiffBreakdownText,moneySummary,recoveryYen,finalBalanceYen,exportEnvelope,exportFilename,exportData,exportJsonText,STORAGE_KEY,MACHINE,MACHINE_ID,VERSION,PAYLOAD_VERSION};
+  window.SF6RecordApp={normalize,fbThroughCount,positiveInt,positiveNumber,optionalGame,nonnegativeInt,normalizeSessionMoney,intervalDiffValue,intervalDiffBreakdown,intervalDiffBreakdownText,intervalDiffDisplay,moneySummary,recoveryYen,finalBalanceYen,exportEnvelope,exportFilename,exportData,exportJsonText,STORAGE_KEY,MACHINE,MACHINE_ID,VERSION,PAYLOAD_VERSION};
 })();
 </script>
 </body>
