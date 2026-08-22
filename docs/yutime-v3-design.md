@@ -959,6 +959,13 @@ B5 実測値:
 - `hitSpin` がない間は従来の `currentSpin - startSpin` を維持し、`hits` があるのに `hitSpin` がない場合は `null` として `-` 表示を維持する。
 - `deriveSession()` も `normalRateInvestments()` を使い、履歴側と稼働中パネルの確定回転率を一致させる。再判定・試算は `runningPanelRate()` 経由で当選前の確定回転率を使う。容量予算の増分はなし。
 
+## 65. B71 稼働中回転率根拠の表示再構成
+
+- schema 変更はない。稼働中パネルの回転率直下に `通常時合計 ○回転 / ○玉` を表示し、回転率の算出根拠を同じブロック内で示す。
+- 回転数は `runningNormalSpinCount()`、玉数は `runningNormalInputBalls()` を使う。`runningNormalInputBalls()` は `normalRateInvestments()` を分母に使い、非タップ投資モードでは開始持ち玉を加えた値を返すため、`runningPanelRate()` の分母と一致する。
+- 旧来の独立行 `累計投入 ○玉 / 累計回転 ○` は撤去し、総投入の表示は `総投入の内訳: 持ち玉○玉・再プレ○玉・現金○円` に変更する。内訳の計算値は `investmentTotals()` のまま変更しない。
+- 通常時回転数または通常時投入玉が算出できない場合は `通常時合計 -` と表示する。容量予算の増分はなし。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。

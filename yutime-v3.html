@@ -3360,7 +3360,7 @@
       const yutimeRemaining = runningYutimeRemaining(session, machine);
       const totals = investmentTotals(session);
       const totalSpins = runningSpinCount(session);
-      const panelInputBalls = runningPanelInputBalls(session, derived);
+      const normalInputBalls = runningNormalInputBalls(session);
       const showHistory = expandedInvestmentSessions.has(session.id);
       const entries = historyEntries(session);
       const replayCollapsed = balances.saipurei === 0 && !expandedReplayRows.has(session.id);
@@ -3388,6 +3388,7 @@
               <div>
                 <span>回転率</span>
                 <strong>${liveRate !== null ? liveRate.toFixed(1) : "-"} /250玉</strong>
+                <small>通常時合計 ${totalSpins !== null && normalInputBalls !== null ? `${numberText(totalSpins, 0)}回転 / ${numberText(normalInputBalls, 0)}玉` : "-"}</small>
                 ${yutimeMode ? `<small>遊タイム突入 ${numberText(session.yutimeEnterBalls, "-")}玉</small>` : ""}
               </div>
             </div>
@@ -3407,7 +3408,7 @@
                 <span class="balance-label">カード残</span><button class="editable-value balance-value" data-edit-balance="startCredit"><strong>${balanceText(balances.credit, "円")}</strong><small>修正</small></button>
               </div>
             `}
-            <div class="running-total-row">累計投入 ${numberText(panelInputBalls, 0)}玉 / 累計回転 ${numberText(totalSpins, "-")}<br><span>内訳: 持ち玉${numberText(totals.mochidamaBalls, 0)}玉・再プレ${numberText(totals.saipureiBalls, 0)}玉・現金${numberText(totals.cashYen, 0)}円</span></div>
+            <div class="running-total-row"><span>総投入の内訳: 持ち玉${numberText(totals.mochidamaBalls, 0)}玉・再プレ${numberText(totals.saipureiBalls, 0)}玉・現金${numberText(totals.cashYen, 0)}円</span></div>
             ${yutimeMode ? '<p class="phase-note">遊タイム中の投資として記録されます。</p>' : ""}
             <div class="running-actions">
               <button id="enterYutimeBtn">遊タイム突入</button>
@@ -5673,9 +5674,7 @@
     }
 
     function liveRunningRate(session) {
-      const store = storeById(session.storeId);
-      const normalInvestedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
-      const inputBalls = usesTapInvestmentMode(session) ? normalInvestedBalls : Number(session.startMochidama || 0) + normalInvestedBalls;
+      const inputBalls = runningNormalInputBalls(session);
       const spins = runningNormalSpinCount(session);
       return inputBalls > 0 && spins !== null && spins >= 0 ? spins / inputBalls * 250 : null;
     }
@@ -5733,9 +5732,7 @@
     }
 
     function runningPanelRate(session) {
-      const store = storeById(session.storeId);
-      const investedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
-      const inputBalls = usesTapInvestmentMode(session) ? investedBalls : Number(session.startMochidama || 0) + investedBalls;
+      const inputBalls = runningNormalInputBalls(session);
       const spins = runningNormalSpinCount(session);
       return inputBalls > 0 && spins !== null && spins >= 0 ? spins / inputBalls * 250 : null;
     }
@@ -5920,6 +5917,13 @@
     function runningPanelInputBalls(session, derived = null) {
       const stats = derived || deriveSession(session);
       return usesTapInvestmentMode(session) ? stats.investedBalls : Math.round(stats.totalInputBalls || stats.investedBalls || 0);
+    }
+
+    function runningNormalInputBalls(session) {
+      const store = storeById(session.storeId);
+      const investedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+      const inputBalls = usesTapInvestmentMode(session) ? investedBalls : Number(session.startMochidama || 0) + investedBalls;
+      return inputBalls > 0 ? Math.round(inputBalls) : null;
     }
 
     function runningSpinCount(session) {

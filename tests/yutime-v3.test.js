@@ -36,6 +36,7 @@ const runningRateHelpers = section('function liveRunningRate', 'function running
 const runningPanelRate = section('function runningPanelRate', 'function runningYutimeRemaining');
 const runningExpectationHtml = section('function runningExpectationHtml', 'function runningPanelInputBalls');
 const runningTrialHelpers = section('function clampTrialRate', 'function runningPanelInputBalls');
+const runningPanelInputBallsBlock = section('function runningPanelInputBalls', 'function runningSpinCount');
 const runningSpinCount = section('function runningSpinCount', 'function investmentSnapshot');
 const investmentSnapshot = section('function investmentSnapshot', 'function historyEntries');
 const calculateStartEvSnapshot = section('function calculateStartEvSnapshot', 'function startEvText');
@@ -645,9 +646,12 @@ assert.match(runningRateHelpers, /const hitSpin = normalizeNumber\(session\?\.hi
 assert.match(runningRateHelpers, /if \(hitSpin !== null\) \{\s*const spins = hitSpin - start;\s*return spins >= 0 \? spins : null;\s*\}/);
 assert.match(runningRateHelpers, /if \(normalizeHits\(session\?\.hits\)\.length\) return null;/);
 assert.match(runningSpinCount, /return runningNormalSpinCount\(session\);/);
-assert.match(runningPanelRate, /const investedBalls = normalRateInvestments\(session\)\.reduce/);
+assert.match(runningPanelRate, /const inputBalls = runningNormalInputBalls\(session\);/);
 assert.match(runningPanelRate, /const spins = runningNormalSpinCount\(session\);/);
 assert.match(runningPanelRate, /return inputBalls > 0 && spins !== null && spins >= 0 \? spins \/ inputBalls \* 250 : null;/);
+assert.match(runningPanelInputBallsBlock, /function runningNormalInputBalls\(session\) \{/);
+assert.match(runningPanelInputBallsBlock, /const investedBalls = normalRateInvestments\(session\)\.reduce/);
+assert.match(runningPanelInputBallsBlock, /return inputBalls > 0 \? Math\.round\(inputBalls\) : null;/);
 assert.match(deriveSession, /const normalInvestedBalls = normalRateInvestments\(session\)\.reduce/);
 const runningRateContext = vm.createContext({});
 new vm.Script(`
@@ -663,6 +667,7 @@ new vm.Script(`
     return (item.source || item.type) === "cash" ? Number(item.amount || 0) / 4 : Number(item.amount || 0);
   }
   function usesTapInvestmentMode() { return true; }
+  ${runningPanelInputBallsBlock}
   ${runningRateHelpers}
   function normalizeMachinePresetId() { return ""; }
   function presetById() { return null; }
@@ -741,6 +746,11 @@ assert.match(renderRunning, /class="primary\$\{selectedCanUse \? "" : " is-low"\
 assert.match(renderRunning, /メモ\$\{\(machine\?\.memoEntries \|\| \[\]\)\.length > 0 \? "あり" : ""\}/);
 assert.match(renderRunning, /id="editActiveBtn">記録の修正・削除<\/button>/);
 assert.match(renderRunning, /runningExpectationHtml\(session, machine, liveRate, balances\)/);
+assert.match(renderRunning, /const normalInputBalls = runningNormalInputBalls\(session\);/);
+assert.match(renderRunning, /通常時合計 \$\{totalSpins !== null && normalInputBalls !== null \? `\$\{numberText\(totalSpins, 0\)\}回転 \/ \$\{numberText\(normalInputBalls, 0\)\}玉` : "-"\}/);
+assert.match(renderRunning, /総投入の内訳: 持ち玉\$\{numberText\(totals\.mochidamaBalls, 0\)\}玉・再プレ\$\{numberText\(totals\.saipureiBalls, 0\)\}玉・現金\$\{numberText\(totals\.cashYen, 0\)\}円/);
+assert.doesNotMatch(renderRunning, /累計投入 \$\{numberText\(panelInputBalls, 0\)\}玉 \/ 累計回転/);
+assert.doesNotMatch(renderRunning, /<span>内訳: 持ち玉/);
 assert.match(renderRunning, /bindNailRatingChips\(machine, els\.runningArea\);/);
 assert.match(renderRunning, /querySelectorAll\("\[data-trial-rate-delta\]"\)/);
 assert.match(renderRunning, /adjustRunningTrialRate\(Number\(button\.dataset\.trialRateDelta\)\)/);
