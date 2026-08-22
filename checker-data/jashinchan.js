@@ -146,10 +146,6 @@
   function bonusLabel(bonus){
     return (bonus||[]).map(key=>CHAR_NAMES[key]||key).join('→');
   }
-  function lastBonusText(S){
-    const log=normalizeBonusLog(S.bonusLog);
-    return log.length?`前回: ${bonusLabel(log[log.length-1])}`:'';
-  }
   function shown(prefix,items){
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
     return `${prefix} ${out.length?out.join('・'):'-'}`;
@@ -184,7 +180,11 @@
       .pending-slots{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
       .pending-slot{min-height:42px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);display:flex;align-items:center;justify-content:center;text-align:center;font-size:11px;font-weight:800;color:var(--txt);padding:5px}
       .pending-slot.empty{color:var(--muted)}
-      .last-bonus{font-size:11px;color:var(--muted);font-weight:800;line-height:1.35;margin:-2px 2px 8px;overflow-wrap:anywhere}
+      .pending-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+      .bonus-history{display:grid;gap:6px}
+      .bonus-history-row{display:grid;grid-template-columns:minmax(0,1fr) 58px;gap:8px;align-items:center;border:1px solid var(--line);border-radius:9px;background:var(--panel);padding:7px 8px}
+      .bonus-history-text{min-width:0;font-size:11px;color:var(--txt);font-weight:800;line-height:1.35;overflow-wrap:anywhere}
+      .bonus-delete{min-height:32px;border-radius:8px;border:1px solid rgba(255,92,122,.55);background:rgba(255,92,122,.12);color:#ff9bad;font-size:11px;font-weight:900}
       .char-group{margin-top:10px}
       .char-group-title{font-size:11px;color:var(--cyan);font-weight:900;margin:10px 0 6px}
       .char-button-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
@@ -206,6 +206,36 @@
       return row.filter(k=>CHAR_KEYS.has(k)).slice(0,4);
     }).filter(row=>row.length>0).slice(-50);
   }
+  function emptyTallies(list){
+    return Object.fromEntries(list.map(v=>[v[0],0]));
+  }
+  function applyComboTallies(classKeys,combos){
+    const highCount=classKeys.filter(key=>HIGH_CHAR_KEYS.has(key)).length;
+    if(highCount>=4)combos.combo4=n(combos,'combo4')+1;
+    else if(highCount===3)combos.combo3=n(combos,'combo3')+1;
+    else if(highCount===2)combos.combo2=n(combos,'combo2')+1;
+    if(classKeys.includes('ecute')&&classKeys.includes('atre'))combos.comboEA=n(combos,'comboEA')+1;
+  }
+  function recomputeCharTallies(S){
+    const log=normalizeBonusLog(S.bonusLog);
+    const pending=(Array.isArray(S.pending)?S.pending:[]).filter(k=>CHAR_KEYS.has(k)).slice(0,3);
+    const icons=emptyTallies(CHARS);
+    const combos=emptyTallies(COMBOS);
+    const countKey=key=>{
+      const classKey=CHAR_TO_CLASS[key];
+      if(classKey)icons[classKey]=n(icons,classKey)+1;
+    };
+    log.forEach(bonus=>{
+      bonus.forEach(countKey);
+      applyComboTallies(bonus.map(key=>CHAR_TO_CLASS[key]).filter(Boolean),combos);
+    });
+    pending.forEach(countKey);
+    S.bonusLog=log;
+    S.pending=pending;
+    S.icons=icons;
+    S.combos=combos;
+    return S;
+  }
   function pendingLabels(S){
     const pending=(S.pending||[]).slice(0,4);
     return [0,1,2,3].map(i=>pending[i]||null);
@@ -213,14 +243,9 @@
   function finalizePending(S){
     const keys=(S.pending||[]).filter(k=>CHAR_KEYS.has(k)).slice(0,4);
     if(!keys.length)return false;
-    const classKeys=keys.map(key=>CHAR_TO_CLASS[key]).filter(Boolean);
-    const highCount=classKeys.filter(key=>HIGH_CHAR_KEYS.has(key)).length;
-    if(highCount>=4)S.combos.combo4=(n(S.combos,'combo4')+1);
-    else if(highCount===3)S.combos.combo3=(n(S.combos,'combo3')+1);
-    else if(highCount===2)S.combos.combo2=(n(S.combos,'combo2')+1);
-    if(classKeys.includes('ecute')&&classKeys.includes('atre'))S.combos.comboEA=(n(S.combos,'comboEA')+1);
     S.bonusLog=normalizeBonusLog([...(S.bonusLog||[]),keys]);
     S.pending=[];
+    recomputeCharTallies(S);
     return true;
   }
   function addCharAction(ctx,dataset){
@@ -228,14 +253,13 @@
     const key=dataset.char;
     if(!CHAR_KEYS.has(key))return false;
     ctx.S.pending=(ctx.S.pending||[]).filter(k=>CHAR_KEYS.has(k)).slice(0,3);
-    const classKey=CHAR_TO_CLASS[key];
-    ctx.S.icons[classKey]=n(ctx.S.icons,classKey)+1;
     ctx.S.pending.push(key);
     const count=ctx.S.pending.length;
     if(count>=4){
       finalizePending(ctx.S);
       return `4人目: ${CHAR_NAMES[key]} → このボーナスを確定しました`;
     }
+    recomputeCharTallies(ctx.S);
     return `${count}人目: ${CHAR_NAMES[key]}`;
   }
   function finalizeAction(ctx){
@@ -244,6 +268,25 @@
     if(!ctx.S.pending.length)return false;
     finalizePending(ctx.S);
     return 'このボーナスを確定しました';
+  }
+  function removeLastAction(ctx){
+    if(ctx.mode<0)return false;
+    ctx.S.pending=(ctx.S.pending||[]).filter(k=>CHAR_KEYS.has(k)).slice(0,3);
+    const removed=ctx.S.pending.pop();
+    if(!removed)return false;
+    recomputeCharTallies(ctx.S);
+    return `取り消しました: ${CHAR_NAMES[removed]||removed}`;
+  }
+  function deleteBonusAction(ctx,dataset){
+    if(ctx.mode<0)return false;
+    const log=normalizeBonusLog(ctx.S.bonusLog);
+    const index=Number(dataset.index);
+    if(!Number.isInteger(index)||index<0||index>=log.length)return false;
+    if(!window.confirm('このボーナスを削除しますか'))return false;
+    const removed=log.splice(index,1)[0];
+    ctx.S.bonusLog=log;
+    recomputeCharTallies(ctx.S);
+    return `削除しました: ${bonusLabel(removed)}`;
   }
   function characterGroupRows(){
     return CHARACTER_GROUPS.map(group=>`<div class="char-group">
@@ -260,6 +303,18 @@
         <div class="char-meta">${count}回</div>
       </div>
     </div>`;
+  }
+  function bonusHistoryHtml(S){
+    const log=normalizeBonusLog(S.bonusLog);
+    if(!log.length)return '<div class="hint">まだ確定したボーナスはありません。</div>';
+    const start=Math.max(0,log.length-10);
+    return `<div class="bonus-history">${log.slice(start).map((bonus,i)=>{
+      const index=start+i;
+      return `<div class="bonus-history-row">
+        <div class="bonus-history-text">${index+1}回目: ${bonusLabel(bonus)}</div>
+        <button class="bonus-delete" type="button" data-action="jashinDeleteBonus" data-index="${index}" data-label="ボーナス削除">削除</button>
+      </div>`;
+    }).join('')}</div>`;
   }
 
   function pageHatsu(ctx){
@@ -293,10 +348,14 @@
   <section class="sec"><div class="sec-h">今回のボーナス<span class="sub">${(ctx.S.pending||[]).length}/4人</span></div></section>
     <div class="pending-box">
       <div class="pending-slots">${pending.map((key,i)=>`<div class="pending-slot ${key?'':'empty'}">${i+1}人目<br>${key?(CHAR_NAMES[key]||key):'-'}</div>`).join('')}</div>
-      <button class="manual-finalize" type="button" data-action="jashinFinalizeBonus" data-label="このボーナスを確定" ${(ctx.S.pending||[]).length?'':'disabled'}>このボーナスを確定</button>
+      <div class="pending-actions">
+        <button class="manual-finalize" type="button" data-action="jashinRemoveLast" data-label="1人戻す" ${(ctx.S.pending||[]).length?'':'disabled'}>1人戻す</button>
+        <button class="manual-finalize" type="button" data-action="jashinFinalizeBonus" data-label="このボーナスを確定" ${(ctx.S.pending||[]).length?'':'disabled'}>このボーナスを確定</button>
+      </div>
     </div>
-    ${lastBonusText(ctx.S)?`<div class="last-bonus">${lastBonusText(ctx.S)}</div>`:''}
-    <section class="sec"><div class="hint">小悪魔ボーナス1回につき基本4キャラが紹介されます。出てきた順にタップしてください。4人目で自動確定し、高設定キャラの複合条件も自動で判定します。4人未満で終わった場合のみ「このボーナスを確定」を押してください。継続率示唆のキャラ表示・ミニキャラ参戦演出は別物なので対象外です。異なるパターンに気づいたらお問い合わせから教えてください。押し間違いは右上の取消ボタンで戻せます（このセクションは減算モード非対応です）。順番の法則は解析未掲載です。過去のボーナスの並びは、カードタブの詳細カード「キャラ出現順」で確認できます。</div></section>
+    <section class="sec"><div class="hint">小悪魔ボーナス1回につき基本4キャラが紹介されます。出てきた順にタップしてください。4人目で自動確定し、高設定キャラの複合条件も自動で判定します。4人未満で終わった場合のみ「このボーナスを確定」を押してください。継続率示唆のキャラ表示・ミニキャラ参戦演出は別物なので対象外です。異なるパターンに気づいたらお問い合わせから教えてください。押し間違いは枠内の「1人戻す」で戻せます。確定後はボーナス履歴の削除ボタンで1回分を消せます。順番の法則は解析未掲載です。過去のボーナスの並びは、カードタブの詳細カード「キャラ出現順」でも確認できます。</div></section>
+  <section class="sec"><div class="sec-h">ボーナス履歴<span class="sub">直近10件</span></div>
+    ${bonusHistoryHtml(ctx.S)}</section>
   <section class="sec"><div class="sec-h">キャラ紹介<span class="sub">小悪魔ボーナス中</span></div>
     ${characterGroupRows()}
     <div class="hint">実機に出たキャラ名をそのまま選びます。集計・カード・テンプレでは従来の13分類へ自動変換します。</div></section>
@@ -359,11 +418,13 @@
     normalizeState:(out)=>{
       out.bonusLog=normalizeBonusLog(out.bonusLog);
       out.pending=(Array.isArray(out.pending)?out.pending:[]).filter(k=>CHAR_KEYS.has(k)).slice(0,3);
-      return out;
+      return recomputeCharTallies(out);
     },
     actions:{
       jashinAddChar:addCharAction,
-      jashinFinalizeBonus:finalizeAction
+      jashinFinalizeBonus:finalizeAction,
+      jashinRemoveLast:removeLastAction,
+      jashinDeleteBonus:deleteBonusAction
     },
     sourceUrl:'https://chonborista.com/slot/sanyo-slot/260992/',
     share:{title:'L邪神ちゃんドロップキック 設定判別メモ',hashtags:'#邪神ちゃんドロップキック #設定判別'},
