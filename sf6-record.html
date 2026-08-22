@@ -619,6 +619,7 @@ textarea{
   const OPPONENTS=['マリーザ','ガイル','マノン','ジュリ','JP','リュウ'];
   const END_SCREENS=['基本画面','男性ファイター集合','女性ファイター集合','ケン&JP','リュウ','ルーク&ジェイミー','全員集合','エンタライオン'];
   const CONTINUES=[{key:'none',label:'なし'},{key:'success',label:'成功'},{key:'fail',label:'失敗'}];
+  const LOSS_RETURN_COLORS=[{key:'default',label:'デフォ'},{key:'blue',label:'青'}];
   const CASH_AMOUNTS=[1000,5000,10000];
   const MONEY_OPS=['init','deposit','loan','creditUpdate','medalIn','mochidama','saipurei','diffSync','collectEnd'];
   const MEDAL_SOURCES=[['mochidama','持ち玉'],['saipurei','再プレイ'],['unknown','不明']];
@@ -702,6 +703,7 @@ textarea{
   let selectedIcatch=null;
   let selectedContinue='none';
   let selectedReturnStage=null;
+  let selectedLossReturnColor='default';
   let startInfoConfirmed=null;
   let winSheetDraft={bonusMedals:'',endScreen:'',credit:''};
   let lossSheetDraft={exitLcdG:'',exitRealG:'',exitCredit:''};
@@ -871,7 +873,7 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),autoColorResetAt:normalizeAutoColorResetAt(state.autoColorResetAt),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedSumahoChara,selectedWtAnten,selectedMedalSource,medalInDraft}});
+    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),autoColorResetAt:normalizeAutoColorResetAt(state.autoColorResetAt),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedLossReturnColor,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedSumahoChara,selectedWtAnten,selectedMedalSource,medalInDraft}});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
@@ -894,6 +896,7 @@ textarea{
     selectedIcatch=ICATCHES.includes(drafts.selectedIcatch)?drafts.selectedIcatch:null;
     selectedContinue=CONTINUES.some(item=>item.key===drafts.selectedContinue)?drafts.selectedContinue:'none';
     selectedReturnStage=STAGE_CHOICES.includes(drafts.selectedReturnStage)?drafts.selectedReturnStage:null;
+    selectedLossReturnColor=LOSS_RETURN_COLORS.some(item=>item.key===drafts.selectedLossReturnColor)?drafts.selectedLossReturnColor:'default';
     selectedWtReturnStage=STAGE_CHOICES.includes(drafts.selectedWtReturnStage)?drafts.selectedWtReturnStage:null;
     startInfoConfirmed=drafts.startInfoConfirmed&&typeof drafts.startInfoConfirmed==='object'?deepClone(drafts.startInfoConfirmed):null;
     winSheetDraft={bonusMedals:String(drafts.winSheetDraft?.bonusMedals||''),endScreen:String(drafts.winSheetDraft?.endScreen||''),credit:String(drafts.winSheetDraft?.credit||'')};
@@ -1854,6 +1857,7 @@ textarea{
     selectedRoundStart=null;
     selectedIcatch=null;
     selectedReturnStage=null;
+    selectedLossReturnColor='default';
     selectedContinue='none';
     opponentDraft='';
     startInfoConfirmed=null;
@@ -1948,6 +1952,7 @@ textarea{
     }
     const icatch=ICATCHES.includes(selectedIcatch)?selectedIcatch:null;
     const returnStage=STAGE_CHOICES.includes(selectedReturnStage)?selectedReturnStage:null;
+    const lossReturnColor=selectedLossReturnColor==='blue'?'blue':'default';
     const start=fbStartDraft();
     const cont=selectedContinue==='fail'?'fail':'none';
     commit('FB敗北',()=>{
@@ -1965,6 +1970,12 @@ textarea{
       state.battleState='normal';
       state.hadWin=false;
       resetAutoColorTrackerToCurrent({clearPending:true});
+      if(lossReturnColor==='blue'){
+        addLogDirect({type:'gcolor',color:G_COLORS[0],realG:exitRealG,lcdG:exitLcdG});
+        state.currentColor=G_COLORS[0];
+        state.autoColorBoundary=colorBoundary(exitLcdG);
+        state.pendingAutoColor=null;
+      }
     },{toast:warning?'FB敗北を記録しました（規定Gは未保存）':'FB敗北を記録しました',lcdTouched:true});
     clearBattleDrafts();
     closeSheet();
@@ -2507,6 +2518,17 @@ textarea{
       });
       lossDetail.append(el('div','muted','復帰ステージ（任意）'));
       lossDetail.append(returnChoices);
+      const returnColorChoices=row('choice-row single-choice-grid');
+      returnColorChoices.id='lossReturnColorKinds';
+      LOSS_RETURN_COLORS.forEach(item=>{
+        returnColorChoices.append(choiceChip(item.label,item.key,selectedLossReturnColor===item.key,()=>{
+          syncLossSheetDraft();
+          selectedLossReturnColor=item.key;
+          refreshChoiceGroup(returnColorChoices,selectedLossReturnColor);
+        },item.key==='blue'?'blue-text':''));
+      });
+      lossDetail.append(el('div','muted','復帰時の液晶色（任意）'));
+      lossDetail.append(returnColorChoices);
       body.append(lossDetail);
       const actions=row();
       const recordBtn=button('',selectedContinue==='success'?'win':'lose',recordLossFromSheet);
