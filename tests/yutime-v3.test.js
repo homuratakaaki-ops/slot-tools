@@ -685,7 +685,7 @@ new vm.Script(`
     startMochidama: 0,
     hitSpin: 420,
     hitCount: 1,
-    hits: [{ roundTypeId: "r10", at: "2026-08-22T01:10:00.000Z" }],
+    hits: [{ roundTypeId: "r10", at: "2026-08-22T10:10:00" }],
     investments: baseInvestments,
     yutimeEnterBalls: null,
     hitVia: "normal",
@@ -709,7 +709,7 @@ new vm.Script(`
     zanhoryuBalls: 0
   };
   const badCurrent = { ...beforeHit, currentSpin: 160 };
-  const missingHitSpin = { ...afterHit, hitSpin: null, hits: [{ roundTypeId: "r10", at: "2026-08-22T01:10:00.000Z" }] };
+  const missingHitSpin = { ...afterHit, hitSpin: null, hits: [{ roundTypeId: "r10", at: "2026-08-22T10:10:00" }] };
   globalThis.afterHitSpinCount = runningSpinCount(afterHit);
   globalThis.afterHitRate = runningPanelRate(afterHit);
   globalThis.afterHitInvestments = normalRateInvestments(afterHit).length;
