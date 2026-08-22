@@ -624,7 +624,7 @@ assert.match(runningExpectationHtml, /manualRate: liveRate/);
 assert.match(runningExpectationHtml, /const availableBalls = Math\.max\(0, Number\(balances\?\.mochidama \|\| 0\)\);/);
 assert.match(runningExpectationHtml, /availableBalls/);
 assert.match(runningExpectationHtml, /calculateMachineExpectation\(machine, \{/);
-assert.match(runningExpectationHtml, /現金見込み\$\{Math\.round\(expectation\.result\.cashBalls \/ 250 \* 1000\)\.toLocaleString\("ja-JP"\)\}円/);
+assert.match(runningExpectationHtml, /expectationInvestmentText\(expectation\.result\.mochidamaBalls, expectation\.result\.cashBalls\)/);
 assert.match(runningExpectationHtml, /const nailSummary = machine \? nailRatingSummary\(machine\) : "";/);
 assert.match(runningExpectationHtml, /runningTrialRateFor\(session, liveRate\)/);
 assert.match(runningExpectationHtml, /runningTrialExpectationHtml\(session, machine, trialRate, balances\)/);
@@ -666,12 +666,58 @@ assert.doesNotMatch(runningTrialHelpers, /`実効/);
 assert.match(startEvDetailTextBlock, /function remainingSpinTextFromEffectiveSpin\(effectiveSpin, tenjo = YUTIME_EXPECTATION_ENGINE\.preset\.spec\.tenjo\) \{/);
 assert.match(startEvDetailTextBlock, /Math\.max\(0, ceiling - effective\)\.toLocaleString\("ja-JP"\)/);
 assert.match(startEvDetailTextBlock, /remainingSpinTextFromEffectiveSpin\(normalized\.effectiveSpin\)/);
-assert.match(startEvDetailTextBlock, /\(normalized\.cashBalls \|\| 0\) \/ 250 \* 1000/);
+assert.match(startEvDetailTextBlock, /function expectationInvestmentText\(mochidamaBalls, cashBalls\) \{/);
+assert.match(startEvDetailTextBlock, /const total = mochidama \+ cash;/);
+assert.match(startEvDetailTextBlock, /const cashYen = Math\.round\(cash \/ 250 \* 1000\);/);
+assert.match(startEvDetailTextBlock, /全額現金 約\$\{cashYen\.toLocaleString\("ja-JP"\)\}円/);
+assert.match(startEvDetailTextBlock, /持ち玉から\$\{mochidama\.toLocaleString\("ja-JP"\)\}玉・現金で約\$\{cashYen\.toLocaleString\("ja-JP"\)\}円/);
+assert.match(startEvDetailTextBlock, /const hasInvestmentBreakdown = Boolean\(normalized\.availableBalls \|\| normalized\.mochidamaBalls \|\| normalized\.cashBalls\);/);
+assert.match(startEvDetailTextBlock, /expectationInvestmentText\(normalized\.mochidamaBalls, normalized\.cashBalls\)/);
 assert.doesNotMatch(startEvDetailTextBlock, /実効\$\{normalized\.effectiveSpin\}/);
 assert.doesNotMatch(startEvDetailTextBlock, /現金\$\{Math\.round\(normalized\.cashBalls/);
 assert.match(renderMachineExpectation, /残り\$\{expectation\.result\.spinsToTenjo\.toLocaleString\("ja-JP"\)\}回転/);
 assert.match(renderMachineExpectation, /宵越し\$\{expectation\.previousSpin\}\+現在\$\{expectation\.currentSpin\}/);
+assert.match(renderMachineExpectation, /expectationInvestmentText\(expectation\.result\.mochidamaBalls, expectation\.result\.cashBalls\)/);
 assert.doesNotMatch(renderMachineExpectation, /実効\$\{expectation\.effectiveSpin\}/);
+const startEvDetailContext = vm.createContext({
+  YUTIME_EXPECTATION_ENGINE: { preset: { spec: { tenjo: 950 } } },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  yenText(value) {
+    return `${value >= 0 ? '+' : ''}${Math.round(value).toLocaleString('ja-JP')}円`;
+  }
+});
+new vm.Script(`
+  ${normalizeStartEvBlock}
+  ${startEvDetailTextBlock}
+  globalThis.startEvWithMochidama = startEvDetailText({
+    evYen: 1234,
+    usedRate: 17,
+    rateSource: '手入力17.0使用',
+    effectiveSpin: 525,
+    availableBalls: 2500,
+    mochidamaInput: 2000,
+    saipureiInput: 500,
+    mochidamaBalls: 1941,
+    cashBalls: 1826
+  });
+  globalThis.startEvAllCash = startEvDetailText({
+    evYen: -454,
+    usedRate: 17,
+    rateSource: '手入力17.0使用',
+    effectiveSpin: 434,
+    availableBalls: 0,
+    mochidamaInput: 0,
+    saipureiInput: 0,
+    mochidamaBalls: 0,
+    cashBalls: 3768
+  });
+`).runInContext(startEvDetailContext);
+assert.match(startEvDetailContext.startEvWithMochidama, /遊タイムまで必要 約3,767玉（持ち玉から1,941玉・現金で約7,304円）/);
+assert.match(startEvDetailContext.startEvAllCash, /遊タイムまで必要 約3,768玉（全額現金 約15,072円）/);
 const runningExpectationContext = vm.createContext({
   __renderCount: 0,
   __expectationCalls: [],
@@ -701,6 +747,16 @@ const runningExpectationContext = vm.createContext({
     return `<div class="nail-rating-section" data-show-header="${options?.showHeader !== false}">
       ${['heso', 'yori', 'michi', 'nekase', 'through', 'warp'].map((key) => `<div data-nail-key="${key}"></div>`).join('')}
     </div>`;
+  },
+  expectationInvestmentText(mochidamaBalls, cashBalls) {
+    const mochidama = Math.max(0, Math.round(Number(mochidamaBalls) || 0));
+    const cash = Math.max(0, Math.round(Number(cashBalls) || 0));
+    const total = mochidama + cash;
+    const cashYen = Math.round(cash / 250 * 1000);
+    if (mochidama <= 0) {
+      return `遊タイムまで必要 約${total.toLocaleString("ja-JP")}玉（全額現金 約${cashYen.toLocaleString("ja-JP")}円）`;
+    }
+    return `遊タイムまで必要 約${total.toLocaleString("ja-JP")}玉（持ち玉から${mochidama.toLocaleString("ja-JP")}玉・現金で約${cashYen.toLocaleString("ja-JP")}円）`;
   },
   calculateMachineExpectation(machine, options) {
     runningExpectationContext.__expectationCalls.push({ currentSpin: options.currentSpin, previousSpin: options.previousSpin, manualRate: options.manualRate, availableBalls: options.availableBalls });
@@ -807,7 +863,7 @@ assert.match(renderedRunningExpectation, /打ち始めから<\/strong> 1850円�
 assert.doesNotMatch(renderedRunningExpectation, /実効/);
 assert.doesNotMatch(renderedRunningExpectation, /data-show-header="true"/);
 assert.match(renderedLiveExpectation, /<span>残り回転数<\/span><strong>450<\/strong>/);
-assert.match(renderedLiveExpectation, /現金見込み7,136円/);
+assert.match(renderedLiveExpectation, /遊タイムまで必要 約3,282玉（持ち玉から1,498玉・現金で約7,136円）/);
 assert.match(renderedHitLiveExpectation, /<span>残り回転数<\/span><strong>550<\/strong>/);
 assert.ok(
   runningExpectationContext.__expectationCalls.some((call) => call.currentSpin === 400 && call.previousSpin === 100 && call.manualRate === 17),
@@ -887,7 +943,9 @@ assert.match(openMachineDetail, /id="evSaipureiBalls"/);
 assert.match(html, /availableBallsFromParts\(byId\("evMochidamaBalls"\)\?\.value, byId\("evSaipureiBalls"\)\?\.value\)\.total/);
 assert.match(openMachineDetail, /mochidamaInput: availableBallsPreset\.mochidama/);
 assert.match(openMachineDetail, /saipureiInput: availableBallsPreset\.saipurei/);
-assert.match(html, /持ち玉充当/);
+assert.doesNotMatch(html, /充当/);
+assert.doesNotMatch(html, /現金見込み/);
+assert.doesNotMatch(renderMachineExpectation, /現金分\$\{/);
 assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMachineBtn">[^']+<\/button>' : ""\}/);
 assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
 assert.match(openMachineDetail, /openMachineDetail\(daiNo, true\)/);

@@ -509,7 +509,7 @@ B5 実測値:
 ## 14. Phase 4 期待値エンジン
 
 - Phase 4 期待値エンジンは v2 `yutime-record.html` の `YUTIME_RECORD_ENGINE` を式変更なしで移植し、v3 では `YUTIME_EXPECTATION_ENGINE` として `umi-sp5` プリセットに接続する。対象スペックは `hitProb: 1/319.6`、`tenjo: 950`、`yutimeJitan: 350`、`kakuhenRate: 0.54`、`jitanNormal: 100`、`jitanChain: 200`、既定 `netBallsPerWin: 1400`。
-- B52以降、`evBalls` は従来どおり玉ベースの期待値として維持する。B53以降の円換算 `evYen` は、通常回転に必要なコストを持ち玉充当分の交換価値と現金購入分に分け、勝ち玉価値 `(expectedWins * netBallsPerWin + expectedJitanNormalSpins * jitanNormalBallsPerSpin + expectedJitanFastSpins * jitanFastBallsPerSpin) * (100 / exchangeBalls)` から差し引く。持ち玉0ならB52の全額現金計算と一致する。
+- B52以降、`evBalls` は従来どおり玉ベースの期待値として維持する。B53以降の円換算 `evYen` は、通常回転に必要なコストを持ち玉使用分の交換価値と現金購入分に分け、勝ち玉価値 `(expectedWins * netBallsPerWin + expectedJitanNormalSpins * jitanNormalBallsPerSpin + expectedJitanFastSpins * jitanFastBallsPerSpin) * (100 / exchangeBalls)` から差し引く。持ち玉0ならB52の全額現金計算と一致する。
 - 判定閾値は `EV_THRESHOLDS = { good: 2000, warn: 0 }`。期待値2000円以上を「打てる」、0円以上2000円未満を「微妙」、0円未満を「打てない」とする。
 - `netBallsPerWin` は既定1400玉。実測出玉からの自動切替は行わない。技術介入の個人差を避けるため、B29以降は `presetSettings["umi-sp5"].netBallsPerWin` として機種プリセット単位で手動調整する。
 - 回転率の優先順位は、手入力、フィルタ適用後の台帳累計、推定回転率、なし。B29以降の推定回転率は選択中マップ（機種・コーナー）の `assumedRate` を使う。
@@ -820,19 +820,19 @@ B5 実測値:
 ## 47. B53 持ち玉・再プレイを考慮した期待値円換算
 
 - schema は 25 とする。判定パネルでは、使える玉数を `evMochidamaBalls`（持ち玉）と `evSaipureiBalls`（再プレイ）の2入力に分ける。未入力は0扱いとし、合算した `availableBalls` が0なら全額現金として扱い、B52の計算結果と一致させる。
-- 通常時の消費玉は、当選回転数分布に沿って持ち玉充当分と現金分に分ける。期待消費玉数を後から単純分割すると、早い当たりで持ち玉を使い切らないケースを過大評価するため採用しない。
+- 通常時の消費玉は、当選回転数分布に沿って持ち玉使用分と現金購入分に分ける。期待消費玉数を後から単純分割すると、早い当たりで持ち玉を使い切らないケースを過大評価するため採用しない。
 - 分割式は `Σ[n=1..spinsToTenjo] P(n回転目で終了) * min(n * 250 / rate, availableBalls)` に、天井到達ケース `P(天井到達) * min(spinsToTenjo * 250 / rate, availableBalls)` を加える。
 - `costYen = mochidamaBalls * (100 / exchangeBalls) + cashBalls / 250 * 1000`、`evYen = winBallsYen - costYen` とする。`evBalls` は従来どおり `winBalls - investBalls` で、原資入力では変えない。
-- 判定根拠表示には、持ち玉入力がある場合だけ `持ち玉充当○玉 / 現金分○玉` を表示する。入力が0なら `全額現金` と表示する。
-- 打ち始め時の `startEv` には、合算値の `availableBalls`、入力内訳の `mochidamaInput` / `saipureiInput`、分布計算後の `mochidamaBalls` / `cashBalls` / `normalCostYen` を保存する。台帳詳細では開始時期待値の根拠として持ち玉・再プレイ入力と現金分を表示する。
-- 検証条件 `currentSpin:434`、`rotationRate:17`、`availableBalls:2500`、`exchangeBalls:28` では、分布式により持ち玉充当1941玉、現金分1826玉、通常コスト14236.6円となる。仕様書上の14239円とは丸め差があるため、実装値をテストで固定する。
-- 受け入れ検証は `tests/yutime-v3.test.js` に50万回の独立モンテカルロを実装し、持ち玉充当分、現金分、通常コストが解析式と概ね±2%に収まることを確認する。持ち玉0のB52互換、十分な持ち玉がある場合の全額交換レート換算も固定する。
+- B65以降、判定根拠表示には `遊タイムまで必要 約○○玉（持ち玉から○○玉・現金で約○○円）` を表示する。入力が0なら `遊タイムまで必要 約○○玉（全額現金 約○○円）` と表示する。
+- 打ち始め時の `startEv` には、合算値の `availableBalls`、入力内訳の `mochidamaInput` / `saipureiInput`、分布計算後の `mochidamaBalls` / `cashBalls` / `normalCostYen` を保存する。台帳詳細では開始時期待値の根拠として持ち玉・再プレイ入力と現金購入分を表示する。
+- 検証条件 `currentSpin:434`、`rotationRate:17`、`availableBalls:2500`、`exchangeBalls:28` では、分布式により持ち玉使用分1941玉、現金購入分1826玉、通常コスト14236.6円となる。仕様書上の14239円とは丸め差があるため、実装値をテストで固定する。
+- 受け入れ検証は `tests/yutime-v3.test.js` に50万回の独立モンテカルロを実装し、持ち玉使用分、現金購入分、通常コストが解析式と概ね±2%に収まることを確認する。持ち玉0のB52互換、十分な持ち玉がある場合の全額交換レート換算も固定する。
 - schema 25 `startEv` サンプル（`availableBalls:2500`、`mochidamaInput:2000`、`saipureiInput:500`、`mochidamaBalls:1941`、`cashBalls:1826`、`normalCostYen:14237` 追加）: 192 chars。schema 17/24相当の69 charsから `+123 chars`。
 
 ## 48. B54 稼働中パネルの期待値・評価セクション
 
 - schema 変更はない。稼働中パネルに既定で折り畳みの `期待値・評価` セクションを追加する。差玉表示、持ち玉表示、親指帯の既存レイアウトは変更しない。
-- 打ち始めの想定期待値は `session.startEv` の保存済みスナップショットを表示する。表示文は履歴カードの `開始時期待値` と同じ `startEvDetailText()` を使い、期待値、使用回転率、ソース、残り回転数、B53の持ち玉充当/現金分を含める。`startEv` がない場合は `記録なし` と表示する。
+- 打ち始めの想定期待値は `session.startEv` の保存済みスナップショットを表示する。表示文は履歴カードの `開始時期待値` と同じ `startEvDetailText()` を使い、期待値、使用回転率、ソース、残り回転数、B65形式の持ち玉使用分/現金購入分を含める。`startEv` がない場合は `記録なし` と表示する。
 - 現在の実測回転率での再判定は保存しない都度計算とする。入力は `session.currentSpin`、`runningPanelRate(session)`、`deriveBalances(session).mochidama` を使い、`calculateMachineExpectation()` 経由で既存期待値エンジンへ渡す。`session.startEv` は上書きしない。
 - 実測回転率が未確定の場合は、再判定を出さず `回転率のサンプルが足りません` と表示する。
 - 釘・ネカセ評価は `nailRatingSectionHtml()` と `bindNailRatingChips()` を稼働中パネルにも流用する。ヘソは日次、その他5項目は台単位保存というB46仕様を維持する。保存経路は台詳細画面と同じ関数を使う。
@@ -901,7 +901,7 @@ B5 実測値:
 
 ## 56. B62 開始時期待値の現金円表記と転記サマリ追加
 
-- schema 変更はない。`startEv.cashBalls` は保存値を玉数のまま維持し、`startEvDetailText()` の表示だけ `cashBalls / 250 * 1000` で円換算する。持ち玉充当分は玉表記のまま表示する。
+- schema 変更はない。`startEv.cashBalls` は保存値を玉数のまま維持し、`startEvDetailText()` の表示だけ `cashBalls / 250 * 1000` で円換算する。B65以降は、持ち玉側を `持ち玉から○○玉`、現金側を `現金で約○○円` と表示する。
 - 転記用ブロックは既存4項目の投資金額、回収金額、貯玉引出、貯玉預入とコピー導線を維持し、その下に開始期待値、想定回転数、残り回転数、消費玉数、消化回転数、1R平均、実収支を追加表示する。
 - 想定回転数は `startEv.effectiveSpin` から天井までの残り、残り回転数は終了時点の実効回転数から天井までの残りとする。終了値が未入力、または当選リセット等で消化回転数を安全に算出できない場合は `-` を表示する。
 - 消費玉数は投資履歴の持ち玉、再プレイ、現金投資を `1,000円=250玉` で換算して合算する。1R平均は `session.hits[].actualBalls` の合計を優先し、総ラウンド数が0または未入力の場合は `-` とする。
@@ -918,7 +918,14 @@ B5 実測値:
 - schema 変更はない。稼働中パネルの `現在の実測回転率で再判定` と試算カードの `今から打つ場合` は、`calculateMachineExpectation()` に `previousSpin: runningPreviousSpin(session)` を渡し、宵越し回転数を実効回転数へ反映する。
 - `runningPreviousSpin(session)` は当選済みセッションでは0を返し、未当選の場合だけ `session.prevDayEndSpin` を使う。これにより、当選後のカウントリセットに前日分を二重加算しない。
 - 試算カードの `打ち始めから` は `startEv.effectiveSpin` がすでに宵越し込みのため、`previousSpin` を渡さない。`session.startEv` は書き換えない。
-- 再判定の根拠表示では、持ち玉充当分は玉表記のまま、現金分は `cashBalls / 250 * 1000` の円表記で `現金見込み○○円` と表示する。容量予算の増分はなし。
+- 再判定の根拠表示では、持ち玉側は玉表記、現金側は `cashBalls / 250 * 1000` の円表記とする。容量予算の増分はなし。
+
+## 59. B65 期待値内訳の表現統一
+
+- schema 変更はない。期待値内訳の計算値と保存値（`startEv.mochidamaBalls` / `startEv.cashBalls`）は変更せず、表示文言だけを `expectationInvestmentText()` に集約する。
+- 稼働中パネルの再判定、打ち始めの想定期待値、台詳細モーダルの期待値根拠は、いずれも `遊タイムまで必要 約○○玉（持ち玉から○○玉・現金で約○○円）` 形式で表示する。合計玉数は `mochidamaBalls + cashBalls`、現金額は `cashBalls / 250 * 1000` とする。
+- 持ち玉から使う分が0の場合は `遊タイムまで必要 約○○玉（全額現金 約○○円）` と表示する。見込み値であることを示すため、合計玉数と現金額には `約` を付ける。
+- 表示文言から `充当`、`現金分○○玉`、`現金見込み` は使わない。既存セッションの数値データは書き換えず、容量予算の増分もなし。
 
 ## アイデアメモ
 

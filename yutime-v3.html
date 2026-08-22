@@ -2298,11 +2298,23 @@
       return `残り${Math.max(0, ceiling - effective).toLocaleString("ja-JP")}回転`;
     }
 
+    function expectationInvestmentText(mochidamaBalls, cashBalls) {
+      const mochidama = Math.max(0, Math.round(normalizeNumber(mochidamaBalls) || 0));
+      const cash = Math.max(0, Math.round(normalizeNumber(cashBalls) || 0));
+      const total = mochidama + cash;
+      const cashYen = Math.round(cash / 250 * 1000);
+      if (mochidama <= 0) {
+        return `遊タイムまで必要 約${total.toLocaleString("ja-JP")}玉（全額現金 約${cashYen.toLocaleString("ja-JP")}円）`;
+      }
+      return `遊タイムまで必要 約${total.toLocaleString("ja-JP")}玉（持ち玉から${mochidama.toLocaleString("ja-JP")}玉・現金で約${cashYen.toLocaleString("ja-JP")}円）`;
+    }
+
     function startEvDetailText(startEv) {
       const normalized = normalizeStartEv(startEv);
       if (!normalized) return "記録なし";
-      const balanceText = normalized.availableBalls
-        ? ` / 入力 持ち玉${Math.round(normalized.mochidamaInput || 0).toLocaleString("ja-JP")}玉・再プレ${Math.round(normalized.saipureiInput || 0).toLocaleString("ja-JP")}玉 / 充当${Math.round(normalized.mochidamaBalls || 0).toLocaleString("ja-JP")}玉・現金${Math.round((normalized.cashBalls || 0) / 250 * 1000).toLocaleString("ja-JP")}円`
+      const hasInvestmentBreakdown = Boolean(normalized.availableBalls || normalized.mochidamaBalls || normalized.cashBalls);
+      const balanceText = hasInvestmentBreakdown
+        ? ` / 入力 持ち玉${Math.round(normalized.mochidamaInput || 0).toLocaleString("ja-JP")}玉・再プレ${Math.round(normalized.saipureiInput || 0).toLocaleString("ja-JP")}玉 / ${expectationInvestmentText(normalized.mochidamaBalls, normalized.cashBalls)}`
         : "";
       return `${yenText(normalized.evYen)} / ${Number(normalized.usedRate).toFixed(1)} /250玉 / ${normalized.rateSource || "ソース不明"} / ${remainingSpinTextFromEffectiveSpin(normalized.effectiveSpin)}${balanceText}`;
     }
@@ -5163,9 +5175,7 @@
         <div class="metric"><span>拘束時間</span><strong>${escapeHtml(hourText(expectation.result.totalHours))}</strong></div>
       `;
       const near = expectation.result.spinsToTenjo < 100 && expectation.result.spinsToTenjo > 0;
-      const costSource = expectation.availableBalls > 0
-        ? `持ち玉充当${Math.round(expectation.result.mochidamaBalls).toLocaleString("ja-JP")}玉 / 現金分${Math.round(expectation.result.cashBalls).toLocaleString("ja-JP")}玉`
-        : "全額現金";
+      const costSource = expectationInvestmentText(expectation.result.mochidamaBalls, expectation.result.cashBalls);
       detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（宵越し${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
     }
 
@@ -5797,7 +5807,7 @@
               <div class="metric"><span>残り回転数</span><strong>${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}</strong></div>
               <div class="metric"><span>時給</span><strong>${escapeHtml(yenText(expectation.result.hourlyYen))}</strong></div>
             </div>
-            <p class="hint">現在${numberText(currentSpin, "-")}回転 / 実測${liveRate.toFixed(1)} /250玉 / 持ち玉${Math.round(availableBalls).toLocaleString("ja-JP")}玉を自動使用 / 持ち玉充当${Math.round(expectation.result.mochidamaBalls).toLocaleString("ja-JP")}玉・現金見込み${Math.round(expectation.result.cashBalls / 250 * 1000).toLocaleString("ja-JP")}円</p>
+            <p class="hint">現在${numberText(currentSpin, "-")}回転 / 実測${liveRate.toFixed(1)} /250玉 / 持ち玉${Math.round(availableBalls).toLocaleString("ja-JP")}玉を自動使用 / ${expectationInvestmentText(expectation.result.mochidamaBalls, expectation.result.cashBalls)}</p>
           `;
         } else {
           liveHtml = `<p class="hint warn">${escapeHtml(expectation.reason || "再判定できません")}</p>`;
