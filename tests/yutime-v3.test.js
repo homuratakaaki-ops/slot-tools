@@ -19,6 +19,8 @@ const hitWizard = section('function openHitWizard', 'function hitResetOptions');
 const runWizard = section('function runWizard', 'function wizardInputHtml');
 const hitRoundSummaryHtml = section('function hitRoundSummaryHtml', 'function openHitResetPrompt');
 const hitResetPrompt = section('function openHitResetPrompt', 'function openEndWizard');
+const openEndWizardBlock = section('function openEndWizard', 'function presetHitCountFromCounters');
+const runEndWizardBlock = section('function runEndWizard', 'function runWizard');
 const updateMochidamaBalance = section('function updateMochidamaBalanceWithUndo', 'function investmentTotals');
 const transferSummary = section('function transferSummaryForSession', 'function balanceForSource');
 const balanceStartValueForCurrent = section('function balanceStartValueForCurrent', 'function currentBalanceForStartKey');
@@ -90,6 +92,152 @@ assert.match(
   runWizard,
   /byId\("nextStepBtn"\)\.addEventListener\("click", \(\) => \{\s*draft\[step\.key\] = readWizardValue\(step\);/
 );
+assert.doesNotMatch(openEndWizardBlock, /session\.hitCount = 0|session\.totalRounds = 0/);
+assert.match(runEndWizardBlock, /openEndForm\(session, hasHit, steps\);/);
+assert.doesNotMatch(runEndWizardBlock, /runWizard\("ヤメ入力"/);
+assert.doesNotMatch(runEndWizardBlock, /ヤメ時点の累計大当たり回数/);
+assert.match(runEndWizardBlock, /function openEndForm\(session, hasHit, steps\) \{/);
+assert.match(runEndWizardBlock, /id="saveEndFormBtn">保存<\/button>/);
+assert.match(runEndWizardBlock, /function completeEndSession\(session, hasHit\) \{/);
+assert.match(runEndWizardBlock, /\} else \{\s*syncSessionHitTotals\(session\);\s*\}/);
+assert.match(runEndWizardBlock, /if \(!hasHit\) \{\s*session\.hitCount = 0;\s*session\.totalRounds = 0;\s*\}/);
+const endWizardContext = vm.createContext({
+  __modalHtml: '',
+  __handlers: {},
+  __nodes: {},
+  __renderCount: 0,
+  __summarySession: null,
+  __view: null,
+  activeSessionId: 's_hit',
+  deriveBalances() {
+    return { mochidama: 1234 };
+  },
+  openModal(title, hint, body) {
+    endWizardContext.__modalTitle = title;
+    endWizardContext.__modalHint = hint;
+    endWizardContext.__modalHtml = body;
+  },
+  byId(id) {
+    if (!endWizardContext.__nodes[id]) {
+      endWizardContext.__nodes[id] = {
+        value: '',
+        addEventListener: (event, handler) => {
+          endWizardContext.__handlers[`${id}:${event}`] = handler;
+        }
+      };
+    }
+    return endWizardContext.__nodes[id];
+  },
+  closeModal() {
+    endWizardContext.__closed = true;
+    if (endWizardContext.modalCancel) {
+      const cancel = endWizardContext.modalCancel;
+      endWizardContext.modalCancel = null;
+      cancel();
+    }
+  },
+  renderAll() {
+    endWizardContext.__renderCount += 1;
+  },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  escapeHtml(value) {
+    return String(value ?? '');
+  },
+  syncSessionHitTotals(session) {
+    if (!Array.isArray(session.hits) || !session.hits.length) return;
+    session.hitCount = session.hits.length;
+    session.totalRounds = session.hits.length * 10;
+  },
+  currentTime() {
+    return '22:30';
+  },
+  nowIso() {
+    return '2026-08-22T13:30:00.000Z';
+  },
+  activeSessionsForStore() {
+    return [];
+  },
+  persistWithToast() {
+    endWizardContext.__saved = true;
+    return true;
+  },
+  showView(view) {
+    endWizardContext.__view = view;
+  },
+  openRateSummary(session) {
+    endWizardContext.__summarySession = session;
+  }
+});
+new vm.Script([
+  'let modalCancel = null;',
+  'Object.defineProperty(globalThis, "modalCancel", { get: () => modalCancel, set: (value) => { modalCancel = value; } });',
+  runEndWizardBlock,
+  `
+  const sessionWithHits = { id: 's_hit', storeId: 'store', currentSpin: 777, hitSpin: 420, hitCount: null, totalRounds: null, hits: [{ roundTypeId: 'r10' }] };
+  runEndWizard(sessionWithHits, true);
+  globalThis.withHitsHtml = globalThis.__modalHtml;
+  globalThis.__nodes.end_endTotalBalls = { value: '1200' };
+  globalThis.__nodes.end_endSpin = { value: '160' };
+  globalThis.__nodes.end_zanhoryuBalls = { value: '' };
+  globalThis.__nodes.end_memo = { value: 'closed' };
+  globalThis.__handlers['saveEndFormBtn:click']();
+  globalThis.savedHitSession = sessionWithHits;
+  globalThis.savedHitSummarySession = globalThis.__summarySession;
+
+  globalThis.__nodes = {};
+  globalThis.__handlers = {};
+  const sessionWithoutHits = { id: 's_manual', storeId: 'store', currentSpin: 600, hitSpin: null, hitCount: null, totalRounds: null, hits: [] };
+  runEndWizard(sessionWithoutHits, true);
+  globalThis.withoutHitsHtml = globalThis.__modalHtml;
+
+  globalThis.__nodes = {};
+  globalThis.__handlers = {};
+  const noHitSession = { id: 's_nohit', storeId: 'store', currentSpin: 555, hitSpin: null, hitCount: null, totalRounds: null, hits: [] };
+  runEndWizard(noHitSession, false);
+  globalThis.noHitHtml = globalThis.__modalHtml;
+  globalThis.__nodes.end_endTotalBalls = { value: '' };
+  globalThis.__nodes.end_endSpin = { value: '' };
+  globalThis.__nodes.end_zanhoryuBalls = { value: '' };
+  globalThis.__nodes.end_memo = { value: '' };
+  globalThis.__handlers['saveEndFormBtn:click']();
+  globalThis.savedNoHitSession = noHitSession;
+
+  globalThis.__nodes = {};
+  globalThis.__handlers = {};
+  const cancelledSession = { id: 's_cancel', storeId: 'store', currentSpin: 333, hitSpin: null, hitCount: null, totalRounds: null, hits: [] };
+  runEndWizard(cancelledSession, false);
+  closeModal();
+  globalThis.cancelledStatus = cancelledSession.status || null;
+  `
+].join('\n')).runInContext(endWizardContext);
+assert.doesNotMatch(endWizardContext.withHitsHtml, /endTotalHits|大当たり回数|合計R数/);
+assert.match(endWizardContext.withHitsHtml, /end_endTotalBalls/);
+assert.match(endWizardContext.withHitsHtml, /end_endSpin/);
+assert.match(endWizardContext.withHitsHtml, /end_zanhoryuBalls/);
+assert.match(endWizardContext.withHitsHtml, /end_memo/);
+assert.equal(endWizardContext.savedHitSession.status, 'completed');
+assert.equal(endWizardContext.savedHitSession.hitCount, 1);
+assert.equal(endWizardContext.savedHitSession.totalRounds, 10);
+assert.equal(endWizardContext.savedHitSession.endTotalBalls, 1200);
+assert.equal(endWizardContext.savedHitSession.endSpin, 160);
+assert.equal(endWizardContext.savedHitSession.zanhoryuBalls, null);
+assert.equal(endWizardContext.savedHitSession.memo, 'closed');
+assert.equal(endWizardContext.savedHitSummarySession, endWizardContext.savedHitSession);
+assert.match(endWizardContext.withoutHitsHtml, /end_hitCount/);
+assert.match(endWizardContext.withoutHitsHtml, /end_totalRounds/);
+assert.doesNotMatch(endWizardContext.withoutHitsHtml, /endTotalHits/);
+assert.match(endWizardContext.noHitHtml, /id="end_endTotalBalls"[^>]*value="1234"/);
+assert.match(endWizardContext.noHitHtml, /id="end_endSpin"[^>]*value="555"/);
+assert.equal(endWizardContext.savedNoHitSession.status, 'completed');
+assert.equal(endWizardContext.savedNoHitSession.hitCount, 0);
+assert.equal(endWizardContext.savedNoHitSession.totalRounds, 0);
+assert.equal(endWizardContext.savedNoHitSession.endTotalBalls, null);
+assert.equal(endWizardContext.cancelledStatus, null);
+assert.ok(endWizardContext.__renderCount >= 1);
 assert.ok(hitWizard.includes('key: "hitSpin"'), 'hitSpin step should remain in the hit wizard');
 assert.ok(hitResetPrompt.includes('data-hit-reset'), 'reset chip buttons should remain after hit completion');
 assert.ok(hitResetPrompt.includes('data-hit-round'), 'round type chips should be available after hit completion');
@@ -747,10 +895,11 @@ assert.match(renderRunning, /メモ\$\{\(machine\?\.memoEntries \|\| \[\]\)\.len
 assert.match(renderRunning, /id="editActiveBtn">記録の修正・削除<\/button>/);
 assert.match(renderRunning, /runningExpectationHtml\(session, machine, liveRate, balances\)/);
 assert.match(renderRunning, /const normalInputBalls = runningNormalInputBalls\(session\);/);
-assert.match(renderRunning, /通常時合計 \$\{totalSpins !== null && normalInputBalls !== null \? `\$\{numberText\(totalSpins, 0\)\}回転 \/ \$\{numberText\(normalInputBalls, 0\)\}玉` : "-"\}/);
+assert.match(renderRunning, /<p class="running-normal-summary">通常時合計 \$\{totalSpins !== null && normalInputBalls !== null \? `\$\{numberText\(totalSpins, 0\)\}回転 \/ \$\{numberText\(normalInputBalls, 0\)\}玉` : "-"\}<\/p>/);
 assert.match(renderRunning, /総投入の内訳: 持ち玉\$\{numberText\(totals\.mochidamaBalls, 0\)\}玉・再プレ\$\{numberText\(totals\.saipureiBalls, 0\)\}玉・現金\$\{numberText\(totals\.cashYen, 0\)\}円/);
 assert.doesNotMatch(renderRunning, /累計投入 \$\{numberText\(panelInputBalls, 0\)\}玉 \/ 累計回転/);
 assert.doesNotMatch(renderRunning, /<span>内訳: 持ち玉/);
+assert.doesNotMatch(section('class="running-live-row"', '<p class="running-normal-summary"'), /通常時合計/);
 assert.match(renderRunning, /bindNailRatingChips\(machine, els\.runningArea\);/);
 assert.match(renderRunning, /querySelectorAll\("\[data-trial-rate-delta\]"\)/);
 assert.match(renderRunning, /adjustRunningTrialRate\(Number\(button\.dataset\.trialRateDelta\)\)/);
@@ -1094,7 +1243,9 @@ assert.match(openYutimeEnterForm, /const spinPreset = session\.yutimeEnterSpin \
 assert.match(openYutimeEnterForm, /id="yutimeSpin"/);
 assert.match(openYutimeEnterForm, /session\.yutimeEnterSpin = normalizeNumber\(byId\("yutimeSpin"\)\.value\);/);
 assert.match(openSessionEditor, /fieldHtml\("yutimeEnterSpin", "遊タイム突入時の回転数", session\.yutimeEnterSpin\)/);
+assert.match(openSessionEditor, /fieldHtml\("endTotalHits", "ヤメ時点の累計大当たり回数", session\.endTotalHits\)/);
 assert.match(openSessionEditor, /"yutimeEnterBalls", "yutimeEnterSpin", "endTotalHits"/);
+assert.match(openSessionEditor, /if \(Array\.isArray\(session\.hits\) && session\.hits\.length\) syncSessionHitTotals\(session\);\s*else presetHitCountFromCounters\(session\);/);
 assert.match(deriveSession, /const yutimeNormalEndSpin = !hasHit && \(session\.hitVia === "yutime" \|\| session\.yutimeEnterBalls !== null\) \? yutimeEnterSpinForRate\(session, preset\) : null;/);
 assert.match(deriveSession, /session\.hitVia === "yutime" \|\| session\.yutimeEnterBalls !== null \? yutimeNormalEndSpin : session\.endSpin/);
 assert.match(yutimeEnterSpinForRate, /const explicitSpin = normalizeNumber\(session\.yutimeEnterSpin\);\s*if \(explicitSpin !== null\) return explicitSpin;/);

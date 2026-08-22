@@ -827,6 +827,12 @@
       font-size: 20px;
     }
 
+    .running-normal-summary {
+      margin: 4px 10px 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
     .live-ev-line {
       margin: -2px 0 8px;
       color: var(--muted);
@@ -3388,10 +3394,10 @@
               <div>
                 <span>回転率</span>
                 <strong>${liveRate !== null ? liveRate.toFixed(1) : "-"} /250玉</strong>
-                <small>通常時合計 ${totalSpins !== null && normalInputBalls !== null ? `${numberText(totalSpins, 0)}回転 / ${numberText(normalInputBalls, 0)}玉` : "-"}</small>
                 ${yutimeMode ? `<small>遊タイム突入 ${numberText(session.yutimeEnterBalls, "-")}玉</small>` : ""}
               </div>
             </div>
+            <p class="running-normal-summary">通常時合計 ${totalSpins !== null && normalInputBalls !== null ? `${numberText(totalSpins, 0)}回転 / ${numberText(normalInputBalls, 0)}玉` : "-"}</p>
             ${yutimeRemaining ? `<p class="live-ev-line${yutimeRemaining.near ? " warn" : ""}">${escapeHtml(yutimeRemaining.text)}</p>` : ""}
             ${selectedSource === "mochidama" ? `
               <div class="balance-row">
@@ -5464,8 +5470,6 @@
         runEndWizard(session, true);
       });
       byId("endNoHitBtn").addEventListener("click", () => {
-        session.hitCount = 0;
-        session.totalRounds = 0;
         closeModal();
         runEndWizard(session, false);
       });
@@ -5493,33 +5497,73 @@
         { key: "totalRounds", label: "合計R数", type: "number", hint: "1R玉数と合わせてR数ベース出玉を計算します。" }
       ];
       const steps = hasHit ? [
-        { key: "endTotalHits", label: "ヤメ時点の累計大当たり回数", type: "number" },
-        ...hitRecordSteps,
         { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
         { key: "endSpin", label: "ヤメ回転数", type: "number" },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
-        { key: "memo", label: "メモ", type: "textarea" }
+        { key: "memo", label: "メモ", type: "textarea" },
+        ...hitRecordSteps
       ] : [
         { key: "endTotalBalls", label: "終了時玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
         { key: "endSpin", label: "ヤメ回転数", type: "number", preset: endSpinPreset, hint: endSpinHint },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
         { key: "memo", label: "メモ", type: "textarea" }
       ];
-      runWizard("ヤメ入力", steps, session, () => {
-        session.status = "completed";
-        if (!hasHit) session.hitCount = 0;
-        else syncSessionHitTotals(session);
-        session.endTime = session.endTime || currentTime();
-        session.updatedAt = nowIso();
-        if (activeSessionId === session.id) activeSessionId = activeSessionsForStore(session.storeId).find((item) => item.id !== session.id)?.id || null;
-        if (!persistWithToast("記録を保存しました")) return;
-        showView("mapView");
-        openRateSummary(session);
-      }, {
-        afterStep: (step) => {
-          if (hasHit && step.key === "endTotalHits") presetHitCountFromCounters(session);
-        }
+      openEndForm(session, hasHit, steps);
+    }
+
+    function openEndForm(session, hasHit, steps) {
+      openModal("ヤメ入力", "必要な項目だけ入力して保存します。空欄はスキップ扱いです。", `
+        <div class="end-form">
+          ${steps.map((step) => endFormFieldHtml(step, session)).join("")}
+        </div>
+        <div class="modal-actions">
+          <button class="primary" id="saveEndFormBtn">保存</button>
+          <button data-close>閉じる</button>
+        </div>
+      `);
+      byId("saveEndFormBtn").addEventListener("click", () => {
+        steps.forEach((step) => {
+          session[step.key] = readEndFormValue(step);
+        });
+        completeEndSession(session, hasHit);
       });
+      modalCancel = () => renderAll();
+    }
+
+    function endFormFieldHtml(step, session) {
+      const value = session[step.key] ?? step.preset ?? "";
+      const hint = step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : "";
+      if (step.type === "textarea") {
+        return `<div class="field-row"><label for="end_${step.key}">${escapeHtml(step.label)}</label><div><textarea id="end_${step.key}">${escapeHtml(value || "")}</textarea>${hint}</div></div>`;
+      }
+      const inputMode = step.type === "number" ? ' inputmode="numeric"' : "";
+      return `<div class="field-row"><label for="end_${step.key}">${escapeHtml(step.label)}</label><div><input id="end_${step.key}" type="text"${inputMode} value="${escapeHtml(value)}">${hint}</div></div>`;
+    }
+
+    function readEndFormValue(step) {
+      const input = byId(`end_${step.key}`);
+      if (!input) return null;
+      if (step.type === "number") return normalizeNumber(input.value);
+      const value = input.value.trim();
+      return value ? value : null;
+    }
+
+    function completeEndSession(session, hasHit) {
+      session.status = "completed";
+      if (!hasHit) {
+        session.hitCount = 0;
+        session.totalRounds = 0;
+      } else {
+        syncSessionHitTotals(session);
+      }
+      session.endTime = session.endTime || currentTime();
+      session.updatedAt = nowIso();
+      if (activeSessionId === session.id) activeSessionId = activeSessionsForStore(session.storeId).find((item) => item.id !== session.id)?.id || null;
+      if (!persistWithToast("記録を保存しました")) return;
+      modalCancel = null;
+      closeModal();
+      showView("mapView");
+      openRateSummary(session);
     }
 
     function runWizard(title, steps, target, done, options = {}) {
@@ -6605,6 +6649,8 @@
         ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "startTotalHits", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "yutimeEnterSpin", "endTotalHits", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls", "settlementRecoverYen"].forEach((key) => {
           session[key] = normalizeNumber(byId("edit_" + key).value);
         });
+        if (Array.isArray(session.hits) && session.hits.length) syncSessionHitTotals(session);
+        else presetHitCountFromCounters(session);
         if (!session.settlementRecoverYen) session.settlementRecoverYen = null;
         applyInvestmentTotalAdjustments(session);
         session.hitVia = byId("editHitVia").value || null;
