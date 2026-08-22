@@ -32,6 +32,7 @@ const yutimeEnterSpinForRate = section('function yutimeEnterSpinForRate', 'funct
 const addInvestment = section('function addInvestment', 'function deleteInvestment');
 const investmentAmountForSourceBlock = section('function investmentUnitForSource', 'function sourceUnavailableMessage');
 const sourceUnavailableMessage = section('function sourceUnavailableMessage', 'function rateText');
+const runningRateHelpers = section('function liveRunningRate', 'function runningYutimeRemaining');
 const runningPanelRate = section('function runningPanelRate', 'function runningYutimeRemaining');
 const runningExpectationHtml = section('function runningExpectationHtml', 'function runningPanelInputBalls');
 const runningTrialHelpers = section('function clampTrialRate', 'function runningPanelInputBalls');
@@ -637,8 +638,99 @@ assert.match(
 assert.match(openBalanceEditForm, /const currentBalance = currentBalanceForStartKey\(session, key\);/);
 assert.match(openBalanceEditForm, /value="\$\{escapeHtml\(currentBalance \?\? ""\)\}"/);
 assert.match(openBalanceEditForm, /session\[key\] = value === null \? null : balanceStartValueForCurrent\(session, key, value\);/);
-assert.match(runningSpinCount, /const spins = Number\(session\.currentSpin\) - Number\(session\.startSpin\);\s*return spins >= 0 \? spins : null;/);
-assert.match(runningPanelRate, /return inputBalls > 0 && spins >= 0 \? spins \/ inputBalls \* 250 : null;/);
+assert.match(runningRateHelpers, /function normalRateInvestments\(session\) \{/);
+assert.match(runningRateHelpers, /return investments\.filter\(\(item\) => investmentBeforeHit\(item, session, hitSpin\)\);/);
+assert.match(runningRateHelpers, /function runningNormalSpinCount\(session\) \{/);
+assert.match(runningRateHelpers, /const hitSpin = normalizeNumber\(session\?\.hitSpin\);/);
+assert.match(runningRateHelpers, /if \(hitSpin !== null\) \{\s*const spins = hitSpin - start;\s*return spins >= 0 \? spins : null;\s*\}/);
+assert.match(runningRateHelpers, /if \(normalizeHits\(session\?\.hits\)\.length\) return null;/);
+assert.match(runningSpinCount, /return runningNormalSpinCount\(session\);/);
+assert.match(runningPanelRate, /const investedBalls = normalRateInvestments\(session\)\.reduce/);
+assert.match(runningPanelRate, /const spins = runningNormalSpinCount\(session\);/);
+assert.match(runningPanelRate, /return inputBalls > 0 && spins !== null && spins >= 0 \? spins \/ inputBalls \* 250 : null;/);
+assert.match(deriveSession, /const normalInvestedBalls = normalRateInvestments\(session\)\.reduce/);
+const runningRateContext = vm.createContext({});
+new vm.Script(`
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  function nowIso() { return "2026-08-22T00:00:00.000Z"; }
+  ${normalizeHitsBlock}
+  function storeById() { return {}; }
+  function investmentToBalls(item) {
+    return (item.source || item.type) === "cash" ? Number(item.amount || 0) / 4 : Number(item.amount || 0);
+  }
+  function usesTapInvestmentMode() { return true; }
+  ${runningRateHelpers}
+  function normalizeMachinePresetId() { return ""; }
+  function presetById() { return null; }
+  function yutimeEnterSpinForRate() { return null; }
+  function hitRoundBasedPayout() { return null; }
+  function exchangeBallsForStore() { return 25; }
+  function exchangeRateForStore() { return 4; }
+  function investmentSource(item) { return item.source || item.type || "mochidama"; }
+  ${runningSpinCount}
+  ${deriveSession}
+  const baseInvestments = [
+    { source: "mochidama", amount: 250, phase: "normal", spinAt: 360, time: "10:00" },
+    { source: "mochidama", amount: 250, phase: "normal", spinAt: 160, time: "10:20" },
+    { source: "cash", amount: 1000, phase: "yutime", spinAt: 700, time: "10:30" }
+  ];
+  const afterHit = {
+    storeId: "s",
+    startSpin: 350,
+    currentSpin: 160,
+    startMochidama: 0,
+    hitSpin: 420,
+    hitCount: 1,
+    hits: [{ roundTypeId: "r10", at: "2026-08-22T01:10:00.000Z" }],
+    investments: baseInvestments,
+    yutimeEnterBalls: null,
+    hitVia: "normal",
+    hitRemainBalls: null,
+    endTotalBalls: null,
+    zanhoryuBalls: 0
+  };
+  const beforeHit = {
+    storeId: "s",
+    startSpin: 350,
+    currentSpin: 420,
+    startMochidama: 0,
+    hitSpin: null,
+    hitCount: null,
+    hits: [],
+    investments: [{ source: "mochidama", amount: 250, phase: "normal", spinAt: 360, time: "10:00" }],
+    yutimeEnterBalls: null,
+    hitVia: null,
+    hitRemainBalls: null,
+    endTotalBalls: null,
+    zanhoryuBalls: 0
+  };
+  const badCurrent = { ...beforeHit, currentSpin: 160 };
+  const missingHitSpin = { ...afterHit, hitSpin: null, hits: [{ roundTypeId: "r10", at: "2026-08-22T01:10:00.000Z" }] };
+  globalThis.afterHitSpinCount = runningSpinCount(afterHit);
+  globalThis.afterHitRate = runningPanelRate(afterHit);
+  globalThis.afterHitInvestments = normalRateInvestments(afterHit).length;
+  globalThis.afterHitDerived = deriveSession(afterHit).rate;
+  globalThis.beforeHitSpinCount = runningSpinCount(beforeHit);
+  globalThis.beforeHitRate = runningPanelRate(beforeHit);
+  globalThis.badCurrentSpinCount = runningSpinCount(badCurrent);
+  globalThis.badCurrentRate = runningPanelRate(badCurrent);
+  globalThis.missingHitSpinCount = runningSpinCount(missingHitSpin);
+  globalThis.missingHitRate = runningPanelRate(missingHitSpin);
+`).runInContext(runningRateContext);
+assert.equal(runningRateContext.afterHitSpinCount, 70);
+assert.equal(runningRateContext.afterHitRate, 70);
+assert.equal(runningRateContext.afterHitInvestments, 1);
+assert.equal(runningRateContext.afterHitDerived, runningRateContext.afterHitRate);
+assert.equal(runningRateContext.beforeHitSpinCount, 70);
+assert.equal(runningRateContext.beforeHitRate, 70);
+assert.equal(runningRateContext.badCurrentSpinCount, null);
+assert.equal(runningRateContext.badCurrentRate, null);
+assert.equal(runningRateContext.missingHitSpinCount, null);
+assert.equal(runningRateContext.missingHitRate, null);
 assert.ok(design.includes('スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。'));
 assert.match(renderRunning, /<span>\$\{escapeHtml\(option\.label\)\}<\/span><strong>\$\{sourceChipBalanceText\(balance\)\}<\/strong>/);
 assert.match(renderRunning, /const selectedAmount = investmentUnitForSource\(selectedSource\);/);

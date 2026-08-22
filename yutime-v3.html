@@ -5673,21 +5673,71 @@
     }
 
     function liveRunningRate(session) {
-      if (session.startSpin === null || session.currentSpin === null || session.currentSpin === undefined) return null;
       const store = storeById(session.storeId);
-      const normalInvestedBalls = session.investments.filter((item) => item.phase !== "yutime").reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+      const normalInvestedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const inputBalls = usesTapInvestmentMode(session) ? normalInvestedBalls : Number(session.startMochidama || 0) + normalInvestedBalls;
-      const spins = Number(session.currentSpin) - Number(session.startSpin);
-      return inputBalls > 0 && spins >= 0 ? spins / inputBalls * 250 : null;
+      const spins = runningNormalSpinCount(session);
+      return inputBalls > 0 && spins !== null && spins >= 0 ? spins / inputBalls * 250 : null;
+    }
+
+    function firstHitRecordedAt(session) {
+      return (Array.isArray(session?.hits) ? session.hits : [])
+        .map((hit) => hit?.at)
+        .filter(Boolean)
+        .sort()[0] || null;
+    }
+
+    function timeToMinutes(value) {
+      const match = String(value || "").match(/^(\d{1,2}):(\d{2})/);
+      if (!match) return null;
+      const hour = Number(match[1]);
+      const minute = Number(match[2]);
+      return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null;
+    }
+
+    function isoTimeToMinutes(value) {
+      const date = value ? new Date(value) : null;
+      return date && !Number.isNaN(date.getTime()) ? date.getHours() * 60 + date.getMinutes() : null;
+    }
+
+    function investmentBeforeHit(item, session, hitSpin) {
+      if (item?.phase === "yutime") return false;
+      const hitTime = isoTimeToMinutes(firstHitRecordedAt(session));
+      const itemTime = timeToMinutes(item?.time);
+      if (hitTime !== null && itemTime !== null) return itemTime <= hitTime;
+      const spinAt = normalizeNumber(item?.spinAt);
+      if (spinAt !== null) return spinAt <= hitSpin;
+      return true;
+    }
+
+    function normalRateInvestments(session) {
+      const investments = Array.isArray(session?.investments) ? session.investments : [];
+      const hitSpin = normalizeNumber(session?.hitSpin);
+      if (hitSpin === null) return investments.filter((item) => item.phase !== "yutime");
+      return investments.filter((item) => investmentBeforeHit(item, session, hitSpin));
+    }
+
+    function runningNormalSpinCount(session) {
+      const start = normalizeNumber(session?.startSpin);
+      if (start === null) return null;
+      const hitSpin = normalizeNumber(session?.hitSpin);
+      if (hitSpin !== null) {
+        const spins = hitSpin - start;
+        return spins >= 0 ? spins : null;
+      }
+      if (normalizeHits(session?.hits).length) return null;
+      const current = normalizeNumber(session?.currentSpin);
+      if (current === null) return null;
+      const spins = current - start;
+      return spins >= 0 ? spins : null;
     }
 
     function runningPanelRate(session) {
-      if (session.startSpin === null || session.currentSpin === null || session.currentSpin === undefined) return null;
       const store = storeById(session.storeId);
-      const investedBalls = session.investments.reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+      const investedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const inputBalls = usesTapInvestmentMode(session) ? investedBalls : Number(session.startMochidama || 0) + investedBalls;
-      const spins = Number(session.currentSpin) - Number(session.startSpin);
-      return inputBalls > 0 && spins >= 0 ? spins / inputBalls * 250 : null;
+      const spins = runningNormalSpinCount(session);
+      return inputBalls > 0 && spins !== null && spins >= 0 ? spins / inputBalls * 250 : null;
     }
 
     function runningYutimeRemaining(session, machine) {
@@ -5873,9 +5923,7 @@
     }
 
     function runningSpinCount(session) {
-      if (session.startSpin === null || session.currentSpin === null || session.currentSpin === undefined) return null;
-      const spins = Number(session.currentSpin) - Number(session.startSpin);
-      return spins >= 0 ? spins : null;
+      return runningNormalSpinCount(session);
     }
 
     function investmentSnapshot(session, investmentIndex) {
@@ -6623,7 +6671,7 @@
 
     function deriveSession(session, machine = null) {
       const store = storeById(session.storeId);
-      const normalInvestedBalls = session.investments.filter((item) => item.phase !== "yutime").reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+      const normalInvestedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const yutimeInvestedBalls = session.investments.filter((item) => item.phase === "yutime").reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const investedBalls = Math.round(normalInvestedBalls + yutimeInvestedBalls);
       const tapMode = usesTapInvestmentMode(session);

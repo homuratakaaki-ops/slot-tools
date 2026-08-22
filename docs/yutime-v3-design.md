@@ -952,6 +952,13 @@ B5 実測値:
 - 合計行は `今回 ○回 / 合計○R` とする。データカウンター照合用に `累計大当たり ○回（開始時○回＋今回○回）` を表示し、`startTotalHits` が未入力の場合は `開始時未入力` と表示して0扱いにしない。
 - チップ押下後は既存どおり `appendHitRecord()` 後に `openHitResetPrompt(session)` を再表示するため、集計も即時更新される。容量予算の増分はなし。
 
+## 64. B70 当選後の稼働中回転率確定表示
+
+- schema 変更はない。`hitSpin` がある稼働中セッションでは `runningSpinCount()` を `hitSpin - startSpin` に切り替え、`runningPanelRate()` は当選前の通常投資だけを分母にする。
+- 当選前投資の判定は、初当たり記録の `at` と投資の `time` が両方ある場合は時刻比較を優先し、無い場合は `spinAt <= hitSpin` にフォールバックする。`phase === "yutime"` の投資は通常回転率の分母から除外する。
+- `hitSpin` がない間は従来の `currentSpin - startSpin` を維持し、`hits` があるのに `hitSpin` がない場合は `null` として `-` 表示を維持する。
+- `deriveSession()` も `normalRateInvestments()` を使い、履歴側と稼働中パネルの確定回転率を一致させる。再判定・試算は `runningPanelRate()` 経由で当選前の確定回転率を使う。容量予算の増分はなし。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。
