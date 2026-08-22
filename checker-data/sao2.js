@@ -100,8 +100,8 @@
   <section class="sec">
     <div class="sec-h">初当り・小役</div>
     <div class="cgrid">
-      ${ctx.crow('cz.cz','CZ当選','設1:1/238.4⇔設6:1/191.7',0)}
-      ${ctx.crow('atCount','AT当選','設1:1/386.2⇔設6:1/269.6',0)}
+      ${ctx.crow('cz.cz','CZ当選',`設1:1/238.4⇔設6:1/191.7${g&&ctx.S.cz.cz?` / 現在 ${rate(g,ctx.S.cz.cz)}`:''}`,0)}
+      ${ctx.crow('atCount','AT当選',`設1:1/386.2⇔設6:1/269.6${g&&ctx.S.atCount?` / 現在 ${rate(g,ctx.S.atCount)}`:''}`,0)}
       ${ctx.crow('cz.atDirect','AT直撃',`設1:1/18091.8⇔設6:1/3415.7${g&&ctx.S.cz.atDirect?` / 現在 ${rate(g,ctx.S.cz.atDirect)}`:''}`,0)}
       ${ctx.crow('cz.end','確定CZ','THE END状態スタート・設1:1/20178⇔設6:1/7077',1)}
       ${ctx.crow('cz.duel','曠野の決闘','CZ失敗時フリーズ・設1:1/128⇔設6:1/64',1)}
