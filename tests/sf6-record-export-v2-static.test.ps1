@@ -29,6 +29,7 @@ Assert-Fixed $html "schema:'slot-session'" 'slot-session schema marker is missin
 Assert-Fixed $html "schemaVer:2" 'schemaVer 2 marker is missing'
 Assert-Fixed $html "sessionId:normalized.sessionId" 'exported sessionId must come from stored state'
 Assert-Fixed $html "machineId:MACHINE_ID" 'exported machineId must use common machineId'
+Assert-Fixed $html "ver:VERSION" 'exported version must use current app version'
 Assert-Fixed $html "payloadVer:PAYLOAD_VERSION" 'payloadVer export is missing'
 Assert-Fixed $html "invest:money?money.investedYen:null" 'unset invest must export null'
 Assert-Fixed $html "payout:money?money.collectMedals:null" 'unset payout must export null'
@@ -54,7 +55,7 @@ if ($expected -ne -18962) {
 $exportBodyMatch = [regex]::Match($html, 'function exportEnvelope\(now=new Date\(\)\)\{(?s:.*?)\n  \}')
 if (-not $exportBodyMatch.Success) { throw 'exportEnvelope body could not be located' }
 $exportBody = $exportBodyMatch.Value
-if ($exportBody -match '\bver\s*:') { throw 'exportEnvelope must not emit ver' }
+if ($exportBody -notmatch '\bver\s*:VERSION') { throw 'exportEnvelope must emit current ver' }
 if ($exportBody -match '\bsourceVer\s*:') { throw 'exportEnvelope must not emit sourceVer' }
 if ($exportBody -match 'yenDiff|recoveryYen|finalBalanceYen') { throw 'exportEnvelope must not emit derived balance values' }
 

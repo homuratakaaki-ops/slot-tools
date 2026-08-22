@@ -6,8 +6,8 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const SCHEMA_VERSION='13';
-  const MONEY_OPS=['init','deposit','loan','creditUpdate','medalIn','mochidama','saipurei','diffSync','collectEnd'];
+  const SCHEMA_VERSION='14';
+  const MONEY_OPS=['init','deposit','loan','creditUpdate','balanceSync','medalIn','mochidama','saipurei','diffSync','collectEnd'];
   const MEDAL_SOURCES=['mochidama','saipurei','unknown'];
   const SUMAHO_CHARAS=['cammy','juri','zangief','blanka','lily','deejay','jp','kimberly','jamie','ken','ryu','other'];
 
@@ -83,6 +83,9 @@
       startLcdG:gameValue(src.startLcdG),
       initialMedalInAmount:gameValue(src.initialMedalInAmount),
       initialMedalInSource,
+      currentMochidama:gameValue(src.currentMochidama),
+      currentSaipurei:gameValue(src.currentSaipurei),
+      balanceVersion:signedNumber(src.balanceVersion),
       loanRate:positiveNumberOrDefault(src.loanRate,50),
       sandBalance:signedNumber(src.sandBalance)??(startCredit||0),
       credit:gameValue(src.credit),
@@ -132,6 +135,14 @@
       }
       out.amount=signedNumber(out.amount);
       out.after=normalizeSessionMoney(out.after);
+      if(out.op==='balanceSync'){
+        const balance=safeObject(out.balance);
+        out.balance={
+          ...(Object.prototype.hasOwnProperty.call(balance,'credit')?{credit:gameValue(balance.credit)}:{}),
+          ...(Object.prototype.hasOwnProperty.call(balance,'mochidama')?{mochidama:gameValue(balance.mochidama)}:{}),
+          ...(Object.prototype.hasOwnProperty.call(balance,'saipurei')?{saipurei:gameValue(balance.saipurei)}:{})
+        };
+      }
       return out;
     }
     if(log.type==='gcolor')return {...log,auto:log.auto===true};
@@ -145,7 +156,7 @@
     const src=safeObject(data);
     const inputVer=src.ver==null?null:String(src.ver);
     const sourceVer=src.sourceVer==null?inputVer:String(src.sourceVer);
-    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!=='8'&&inputVer!=='9'&&inputVer!=='10'&&inputVer!=='11'&&inputVer!=='12'&&inputVer!==SCHEMA_VERSION;
+    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!=='8'&&inputVer!=='9'&&inputVer!=='10'&&inputVer!=='11'&&inputVer!=='12'&&inputVer!=='13'&&inputVer!==SCHEMA_VERSION;
     const logs=Array.isArray(src.logs)?src.logs.map(log=>normalizeLog(log,isLegacy)):[];
     return {
       ...src,

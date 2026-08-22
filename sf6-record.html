@@ -161,13 +161,15 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
 }
 .counter-btn span{display:block;color:var(--muted);font-size:11px;font-weight:900}
 .counter-btn b{display:block;color:var(--drive);font-size:24px;line-height:1.25;font-variant-numeric:tabular-nums}
+.counter-btn.through-counter{flex:.72 1 74px}
+.counter-btn.through-counter b{font-size:22px}
 .counter-btn.lcd-attention{animation:lcdPulse 1.1s ease-in-out infinite}
 @keyframes lcdPulse{
   0%,100%{border-color:var(--line);box-shadow:none}
   50%{border-color:rgba(240,186,81,.95);box-shadow:0 0 0 2px rgba(240,186,81,.22) inset}
 }
 .money-pill{
-  flex:1 1 110px;
+  flex:1 1 160px;
   min-height:38px;
   border:1px solid rgba(105,216,79,.25);
   border-radius:8px;
@@ -508,6 +510,7 @@ textarea{
   .operation-badges .state-badge{min-height:48px;padding:12px 8px}
   .counter-btn{min-height:52px;padding:4px 8px}
   .counter-btn b{font-size:22px}
+  .counter-btn.through-counter b{font-size:20px}
   .money-pill{min-height:32px;padding:4px 6px}
   .button-row,.step-row,.money-row,.counter-row{gap:6px}
   .button-row .bm-btn.small,.step-row .bm-btn.small{min-height:52px;max-height:52px;padding:4px 5px}
@@ -533,18 +536,18 @@ textarea{
     <section class="counter-row" aria-label="現在G数">
       <button class="counter-btn" type="button" id="realCounterBtn" data-adjust="realG"><span>実G</span><b id="realCounter">-</b></button>
       <button class="counter-btn" type="button" id="lcdCounterBtn" data-adjust="lcdG"><span>液晶G</span><b id="lcdCounter">-</b></button>
+      <div class="counter-btn through-counter" id="throughCounterPill"><span>FBスルー</span><b id="throughCount">0</b></div>
     </section>
 
     <section class="money-row" aria-label="投資回収">
       <div class="money-pill" id="moneyInvestPill">投資 <strong id="cashTotal">0円</strong></div>
       <div class="money-pill" id="moneyDiffPill">差枚 <strong id="diffTotal">-</strong><span class="money-breakdown" id="diffBreakdown"></span></div>
-      <div class="money-pill">FBスルー <strong id="throughCount">0</strong></div>
     </section>
 
     <section class="button-row" aria-label="収支操作">
       <button class="bm-btn small danger" type="button" id="moneyLoanBtn">−1000</button>
       <button class="bm-btn small secondary" type="button" id="moneyDepositBtn">入金</button>
-      <button class="bm-btn small secondary" type="button" id="moneyCreditBtn">クレジット入力</button>
+      <button class="bm-btn small secondary" type="button" id="moneyCreditBtn">残数調整</button>
     </section>
 
     <section class="step-row" aria-label="通常消化">
@@ -610,7 +613,7 @@ textarea{
   const STORAGE_KEY='sf6_record_v1';
   const MACHINE='L-SF6';
   const MACHINE_ID='l-sf6';
-  const VERSION='13';
+  const VERSION='14';
   const PAYLOAD_VERSION='2.2';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const DC_GAIN_KINDS=GAIN_KINDS.filter(kind=>kind!=='ジャッジ');
@@ -632,12 +635,12 @@ textarea{
   const CONTINUES=[{key:'none',label:'なし'},{key:'success',label:'成功'},{key:'fail',label:'失敗'}];
   const LOSS_RETURN_COLORS=[{key:'default',label:'デフォ'},{key:'blue',label:'青'}];
   const CASH_AMOUNTS=[1000,5000,10000];
-  const MONEY_OPS=['init','deposit','loan','creditUpdate','medalIn','mochidama','saipurei','diffSync','collectEnd'];
+  const MONEY_OPS=['init','deposit','loan','creditUpdate','balanceSync','medalIn','mochidama','saipurei','diffSync','collectEnd'];
   const MEDAL_SOURCES=[['mochidama','持ち玉'],['saipurei','再プレイ'],['unknown','不明']];
   const RELATED_LINKS=[
     {label:'ちょんぼりすた（SF6解析）',url:'https://chonborista.com/slot/enta-slot/260280/'}
   ];
-  const DIFF_LEGEND_TEXT='ク＝クレジット（現在の台内メダル）／回＝回収（計数した枚数）／投＝投入（財布から台へ入れた枚数）／基＝基準（初期差枚）／補＝補正（差枚一致の累積）';
+  const DIFF_LEGEND_TEXT='総＝現在総メダル（クレジット＋持ちメダル＋再プレイ＋回収）／始＝開始時の持ちメダル＋再プレイ／現＝現金投資のメダル換算／基＝基準（初期差枚）／補＝補正（差枚一致の累積）';
   const ANTEN_PATTERNS=[
     {key:'black',label:'黒暗転',hint:'デフォルト',cls:''},
     {key:'blue',label:'青暗転',hint:'残り300G以内の期待度 約55%',cls:'blue-text'},
@@ -713,10 +716,7 @@ textarea{
   let selectedRank=null;
   let selectedRoundStart=null;
   let selectedCashAmount=10000;
-  let selectedMedalSource='unknown';
-  let medalInDraft='';
-  let initialMedalInDraft='';
-  let selectedInitialMedalSource='unknown';
+  let balanceSyncDraft={credit:'',mochidama:'',saipurei:''};
   let selectedIcatch=null;
   let selectedContinue='none';
   let selectedReturnStage=null;
@@ -872,6 +872,9 @@ textarea{
       startLcdG:value.startLcdG==null?null:optionalGame(value.startLcdG),
       initialMedalInAmount:value.initialMedalInAmount==null?null:optionalGame(value.initialMedalInAmount),
       initialMedalInSource,
+      currentMochidama:value.currentMochidama==null?null:optionalGame(value.currentMochidama),
+      currentSaipurei:value.currentSaipurei==null?null:optionalGame(value.currentSaipurei),
+      balanceVersion:value.balanceVersion==null?null:signedInt(value.balanceVersion),
       loanRate,
       sandBalance:moneyNumber(value.sandBalance,startCredit||0),
       credit:value.credit==null?null:optionalGame(value.credit),
@@ -885,7 +888,7 @@ textarea{
     };
   }
   function blankSessionMoney(){
-    return normalizeSessionMoney({startCredit:null,startMochidama:null,startSaipurei:null,startRealG:null,startLcdG:null,initialMedalInAmount:null,initialMedalInSource:null,loanRate:DEFAULT_LOAN_RATE,sandBalance:0,credit:null,investedYen:0,usedMochidama:0,usedSaipurei:0,usedUnknown:0,initialDiff:null,diffAdjust:0,collectMedals:null});
+    return normalizeSessionMoney({startCredit:null,startMochidama:null,startSaipurei:null,startRealG:null,startLcdG:null,initialMedalInAmount:null,initialMedalInSource:null,currentMochidama:null,currentSaipurei:null,balanceVersion:14,loanRate:DEFAULT_LOAN_RATE,sandBalance:0,credit:null,investedYen:0,usedMochidama:0,usedSaipurei:0,usedUnknown:0,initialDiff:null,diffAdjust:0,collectMedals:null});
   }
   function snapshot(){
     const current=state.currentState||{};
@@ -895,7 +898,7 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),autoColorResetAt:normalizeAutoColorResetAt(state.autoColorResetAt),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedLossReturnColor,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedGainReturnStage,selectedStageAnten,selectedSumahoChara,selectedWtAnten,selectedMedalSource,medalInDraft,initialMedalInDraft,selectedInitialMedalSource}});
+    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),autoColorResetAt:normalizeAutoColorResetAt(state.autoColorResetAt),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedLossReturnColor,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedGainReturnStage,selectedStageAnten,selectedSumahoChara,selectedWtAnten,balanceSyncDraft}});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
@@ -931,10 +934,7 @@ textarea{
     selectedStageAnten=normalizeAntenPattern(drafts.selectedStageAnten);
     selectedSumahoChara=normalizeSumahoChara(drafts.selectedSumahoChara)||'';
     selectedWtAnten=normalizeAntenPattern(drafts.selectedWtAnten);
-    selectedMedalSource=MEDAL_SOURCES.some(([key])=>key===drafts.selectedMedalSource)?drafts.selectedMedalSource:'unknown';
-    medalInDraft=String(drafts.medalInDraft||'');
-    initialMedalInDraft=String(drafts.initialMedalInDraft||'');
-    selectedInitialMedalSource=MEDAL_SOURCES.some(([key])=>key===drafts.selectedInitialMedalSource)?drafts.selectedInitialMedalSource:'unknown';
+    balanceSyncDraft={credit:String(drafts.balanceSyncDraft?.credit||''),mochidama:String(drafts.balanceSyncDraft?.mochidama||''),saipurei:String(drafts.balanceSyncDraft?.saipurei||'')};
     save();
     render();
   }
@@ -1027,7 +1027,12 @@ textarea{
       if(op==='mochidama'){op='medalIn';source='mochidama';}
       if(op==='saipurei'){op='medalIn';source='saipurei';}
       if(op==='medalIn'&&!MEDAL_SOURCES.some(([key])=>key===source))source='unknown';
-      return {...log,...base,op,amount,after,...(op==='medalIn'?{source}:{})};
+      const balance=log.balance&&typeof log.balance==='object'?{
+        ...(Object.prototype.hasOwnProperty.call(log.balance,'credit')?{credit:optionalGame(log.balance.credit)}:{}),
+        ...(Object.prototype.hasOwnProperty.call(log.balance,'mochidama')?{mochidama:optionalGame(log.balance.mochidama)}:{}),
+        ...(Object.prototype.hasOwnProperty.call(log.balance,'saipurei')?{saipurei:optionalGame(log.balance.saipurei)}:{})
+      }:null;
+      return {...log,...base,op,amount,after,...(op==='medalIn'?{source}:{}),...(op==='balanceSync'&&balance?{balance}:{})};
     }
     if(base.type==='fb'){
       const win=log.win===true;
@@ -1346,7 +1351,7 @@ textarea{
   }
   function moneyAfterSummary(money=currentMoney()){
     const m=normalizeSessionMoney(money)||blankSessionMoney();
-    return {startCredit:m.startCredit,startMochidama:m.startMochidama,startSaipurei:m.startSaipurei,startRealG:m.startRealG,startLcdG:m.startLcdG,initialMedalInAmount:m.initialMedalInAmount,initialMedalInSource:m.initialMedalInSource,sandBalance:m.sandBalance,credit:m.credit,investedYen:m.investedYen,usedMochidama:m.usedMochidama,usedSaipurei:m.usedSaipurei,usedUnknown:m.usedUnknown,initialDiff:m.initialDiff,diffAdjust:m.diffAdjust,collectMedals:m.collectMedals,loanRate:m.loanRate,initialThrough:nonnegativeInt(state.initialThrough)??0};
+    return {startCredit:m.startCredit,startMochidama:m.startMochidama,startSaipurei:m.startSaipurei,startRealG:m.startRealG,startLcdG:m.startLcdG,initialMedalInAmount:m.initialMedalInAmount,initialMedalInSource:m.initialMedalInSource,currentMochidama:m.currentMochidama,currentSaipurei:m.currentSaipurei,balanceVersion:m.balanceVersion,sandBalance:m.sandBalance,credit:m.credit,investedYen:m.investedYen,usedMochidama:m.usedMochidama,usedSaipurei:m.usedSaipurei,usedUnknown:m.usedUnknown,initialDiff:m.initialDiff,diffAdjust:m.diffAdjust,collectMedals:m.collectMedals,loanRate:m.loanRate,initialThrough:nonnegativeInt(state.initialThrough)??0};
   }
   function startingMedals(money=currentMoney()){
     const m=normalizeSessionMoney(money)||blankSessionMoney();
@@ -1356,15 +1361,44 @@ textarea{
     const m=normalizeSessionMoney(money)||blankSessionMoney();
     return Math.round((m.investedYen/1000)*m.loanRate)+m.usedMochidama+m.usedSaipurei+m.usedUnknown;
   }
+  function cashInvestedMedals(money=currentMoney()){
+    const m=normalizeSessionMoney(money)||blankSessionMoney();
+    return Math.round((m.investedYen/1000)*m.loanRate);
+  }
+  function isBalanceSnapshotMoney(money=currentMoney()){
+    const m=normalizeSessionMoney(money);
+    return !!m&&(m.balanceVersion===14||m.currentMochidama!==null||m.currentSaipurei!==null);
+  }
+  function currentTotalMedals(money=currentMoney()){
+    const m=normalizeSessionMoney(money)||blankSessionMoney();
+    return (m.credit||0)+(m.currentMochidama||0)+(m.currentSaipurei||0)+(m.collectMedals||0);
+  }
+  function balanceSyncRecorded(){
+    return state.logs.some(log=>log.type==='money'&&(log.op==='balanceSync'||log.op==='creditUpdate'));
+  }
   function intervalDiffValue(money=currentMoney()){
     const m=normalizeSessionMoney(money);
     if(!m||m.initialDiff===null)return null;
+    if(isBalanceSnapshotMoney(m)){
+      return Math.round(m.initialDiff+currentTotalMedals(m)-startingMedals(m)-cashInvestedMedals(m)+m.diffAdjust);
+    }
     return Math.round(m.initialDiff+(m.credit||0)+(m.collectMedals||0)-investedMedals(m)+m.diffAdjust);
   }
   function intervalDiffBreakdown(money=currentMoney()){
     const m=normalizeSessionMoney(money);
     if(!m||m.initialDiff===null)return null;
+    if(isBalanceSnapshotMoney(m)){
+      return {
+        mode:'snapshot',
+        base:m.initialDiff||0,
+        total:currentTotalMedals(m),
+        start:startingMedals(m),
+        cash:cashInvestedMedals(m),
+        adjust:m.diffAdjust||0
+      };
+    }
     return {
+      mode:'legacy',
       base:m.initialDiff||0,
       credit:m.credit||0,
       collect:m.collectMedals||0,
@@ -1376,9 +1410,15 @@ textarea{
     const parts=intervalDiffBreakdown(money);
     if(!parts)return '';
     const items=[];
-    if(parts.credit!==0)items.push(`ク${parts.credit}`);
-    if(parts.collect!==0)items.push(`回${parts.collect}`);
-    if(parts.invest!==0)items.push(`−投${parts.invest}`);
+    if(parts.mode==='snapshot'){
+      if(parts.total!==0)items.push(`総${parts.total}`);
+      if(parts.start!==0)items.push(`−始${parts.start}`);
+      if(parts.cash!==0)items.push(`−現${parts.cash}`);
+    }else{
+      if(parts.credit!==0)items.push(`ク${parts.credit}`);
+      if(parts.collect!==0)items.push(`回${parts.collect}`);
+      if(parts.invest!==0)items.push(`−投${parts.invest}`);
+    }
     if(parts.base!==0)items.push(`基${parts.base>0?'+':''}${parts.base}`);
     if(parts.adjust!==0)items.push(`補${parts.adjust>0?'+':''}${parts.adjust}`);
     return items.join(' ');
@@ -1386,7 +1426,10 @@ textarea{
   function intervalDiffDisplay(money=currentMoney()){
     const m=normalizeSessionMoney(money);
     if(!m)return {text:'-',breakdown:''};
-    if(m.credit===null){
+    if(isBalanceSnapshotMoney(m)&&!balanceSyncRecorded()){
+      return {text:m.initialDiff===null?'-':`${diffText(intervalDiffValue(m))}（基準）`,breakdown:'残数調整待ち'};
+    }
+    if(!isBalanceSnapshotMoney(m)&&m.credit===null){
       return {text:m.initialDiff===null?'-':`${diffText(m.initialDiff)}（基準）`,breakdown:'クレ入力待ち'};
     }
     return {text:diffText(intervalDiffValue(m)),breakdown:intervalDiffBreakdownText(m)};
@@ -1404,9 +1447,12 @@ textarea{
     const cashMedals=Math.round((m.investedYen/1000)*m.loanRate);
     const collect=m.collectMedals||0;
     const credit=m.credit||0;
-    const medalDiff=collect+credit-startingMedals(m)-cashMedals-m.usedMochidama-m.usedSaipurei-m.usedUnknown;
+    const currentWallet=(m.currentMochidama||0)+(m.currentSaipurei||0);
+    const medalDiff=isBalanceSnapshotMoney(m)
+      ?collect+credit+currentWallet-startingMedals(m)-cashMedals
+      :collect+credit-startingMedals(m)-cashMedals-m.usedMochidama-m.usedSaipurei-m.usedUnknown;
     const yenDiff=Math.round(medalDiff*1000/m.loanRate);
-    return {cashMedals,collect,credit,medalDiff,yenDiff};
+    return {cashMedals,collect,credit,currentWallet,medalDiff,yenDiff};
   }
   function recoveryYen(payout,exchangeRate){
     if(payout===null||payout===undefined||exchangeRate===null||exchangeRate===undefined)return null;
@@ -1954,6 +2000,12 @@ textarea{
     if(addInput)gainAddDraft=String(addInput.value||'');
     const sumahoSelect=$('sumahoCharaSelect');
     if(sumahoSelect)selectedSumahoChara=normalizeSumahoChara(sumahoSelect.value)||'';
+    const balanceCredit=$('moneyBalanceCredit');
+    if(balanceCredit)balanceSyncDraft.credit=String(balanceCredit.value||'');
+    const balanceMochidama=$('moneyBalanceMochidama');
+    if(balanceMochidama)balanceSyncDraft.mochidama=String(balanceMochidama.value||'');
+    const balanceSaipurei=$('moneyBalanceSaipurei');
+    if(balanceSaipurei)balanceSyncDraft.saipurei=String(balanceSaipurei.value||'');
   }
   function recordWinFromSheet(){
     syncWinSheetDraft();
@@ -1963,14 +2015,12 @@ textarea{
     const creditRaw=String(winSheetDraft.credit||'').trim();
     const winCredit=creditRaw===''?null:optionalGame(creditRaw);
     if(creditRaw!==''&&winCredit===null){toast('クレジットを数値で入力してください');return;}
-    if(winCredit!==null&&!moneyInitialized()){toast('クレジット入力には初期登録が必要です');openMoneyInitSheet();return;}
+    if(winCredit!==null&&!moneyInitialized()){toast('残数調整には初期登録が必要です');openMoneyInitSheet();return;}
     const endScreen=String(winSheetDraft.endScreen||'')||null;
     const isEnding=selectedBonus==='ending';
     commit('FB勝利',()=>{
       if(winCredit!==null){
-        const next=normalizeSessionMoney({...currentMoney(),credit:winCredit});
-        state.sessionMoney=next;
-        addLogDirect({type:'money',op:'creditUpdate',amount:winCredit,after:moneyAfterSummary(next),realG:snap.realG,lcdG:snap.lcdG});
+        applyBalanceSync({credit:winCredit},snap);
       }
       if(isEnding&&moneyInitialized()){
         const base=normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
@@ -2008,7 +2058,7 @@ textarea{
     const creditRaw=String(lossSheetDraft.exitCredit||'').trim();
     const exitCredit=creditRaw===''?null:optionalGame(creditRaw);
     if(creditRaw!==''&&exitCredit===null){toast('クレジットを数値で入力してください');return;}
-    if(exitCredit!==null&&!moneyInitialized()){toast('クレジット入力には初期登録が必要です');openMoneyInitSheet();return;}
+    if(exitCredit!==null&&!moneyInitialized()){toast('残数調整には初期登録が必要です');openMoneyInitSheet();return;}
     let kiteiG=null;
     let warning=false;
     const recentHit=latestFbHit();
@@ -2025,9 +2075,7 @@ textarea{
     commit('FB敗北',()=>{
       state.currentState={realG:exitRealG,lcdG:exitLcdG};
       if(exitCredit!==null){
-        const next=normalizeSessionMoney({...currentMoney(),credit:exitCredit});
-        state.sessionMoney=next;
-        addLogDirect({type:'money',op:'creditUpdate',amount:exitCredit,after:moneyAfterSummary(next),realG:exitRealG,lcdG:exitLcdG});
+        applyBalanceSync({credit:exitCredit},{realG:exitRealG,lcdG:exitLcdG});
       }
       addLogDirect({type:'fb',win:false,bonus:null,bonusMedals:null,endScreen:null,rank:start.rank,roundStart:start.roundStart,opponent:start.opponent,kiteiG,icatch,icatchNote:null,continue:cont,exitRealG,realG:exitRealG,lcdG:exitLcdG});
       if(returnStage){
@@ -2074,10 +2122,6 @@ textarea{
     const initialDiffRaw=String($('moneyInitialDiff')?.value||'').trim();
     const initialDiff=initialDiffRaw===''?null:signedInt(initialDiffRaw);
     if(initialDiffRaw!==''&&initialDiff===null){toast('初期差枚を数値で入力してください');return;}
-    const initialMedalInRaw=String($('initialMedalInInput')?.value||initialMedalInDraft||'').trim();
-    const initialMedalIn=initialMedalInRaw===''?null:positiveInt(initialMedalInRaw);
-    if(initialMedalInRaw!==''&&!initialMedalIn){toast('最初に台へ入れた枚数を1以上の整数で入力してください');return;}
-    const initialMedalSource=MEDAL_SOURCES.some(([key])=>key===selectedInitialMedalSource)?selectedInitialMedalSource:'unknown';
     const initialThroughRaw=String($('initialThroughInput')?.value||'').trim();
     const initialThrough=initialThroughRaw===''?0:nonnegativeInt(initialThroughRaw);
     if(initialThrough===null){toast('FBスルー初期値を0以上の整数で入力してください');return;}
@@ -2085,20 +2129,9 @@ textarea{
     commit('初期登録',()=>{
       const m=normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
       const current=normalizeCurrentState(state.currentState);
-      let adjusted={...m};
-      const previousInitial=positiveInt(m.initialMedalInAmount);
-      if(already&&previousInitial){
-        if(m.initialMedalInSource==='mochidama')adjusted.usedMochidama=Math.max(0,m.usedMochidama-previousInitial);
-        else if(m.initialMedalInSource==='saipurei')adjusted.usedSaipurei=Math.max(0,m.usedSaipurei-previousInitial);
-        else adjusted.usedUnknown=Math.max(0,m.usedUnknown-previousInitial);
-      }
-      const base=already?{...adjusted,startCredit,startMochidama,startSaipurei,startRealG,startLcdG,loanRate,initialDiff,initialMedalInAmount:initialMedalIn,initialMedalInSource:initialMedalIn?initialMedalSource:null}:{...adjusted,startCredit,startMochidama,startSaipurei,startRealG,startLcdG,loanRate,sandBalance:startCredit||0,initialDiff,initialMedalInAmount:initialMedalIn,initialMedalInSource:initialMedalIn?initialMedalSource:null};
-      const next={...base};
-      if(initialMedalIn){
-        if(initialMedalSource==='mochidama')next.usedMochidama=adjusted.usedMochidama+initialMedalIn;
-        else if(initialMedalSource==='saipurei')next.usedSaipurei=adjusted.usedSaipurei+initialMedalIn;
-        else next.usedUnknown=adjusted.usedUnknown+initialMedalIn;
-      }
+      const next=already
+        ?{...m,startCredit,startMochidama,startSaipurei,startRealG,startLcdG,loanRate,initialDiff,currentMochidama:startMochidama,currentSaipurei:startSaipurei,balanceVersion:14}
+        :{...m,startCredit,startMochidama,startSaipurei,startRealG,startLcdG,loanRate,sandBalance:startCredit||0,initialDiff,initialMedalInAmount:null,initialMedalInSource:null,currentMochidama:startMochidama,currentSaipurei:startSaipurei,balanceVersion:14};
       state.sessionMoney=normalizeSessionMoney(next)||blankSessionMoney();
       state.initialThrough=initialThrough;
       state.currentState={realG:startRealG===null?current.realG:startRealG,lcdG:startLcdG===null?current.lcdG:startLcdG};
@@ -2107,11 +2140,6 @@ textarea{
         markLcdTouched();
       }
       addLogDirect({type:'money',op:'init',amount:null,after:moneyAfterSummary(state.sessionMoney),realG:snap.realG,lcdG:snap.lcdG});
-      if(initialMedalIn){
-        addLogDirect({type:'money',op:'medalIn',amount:initialMedalIn,source:initialMedalSource,after:moneyAfterSummary(state.sessionMoney),realG:state.currentState.realG,lcdG:state.currentState.lcdG});
-        initialMedalInDraft='';
-        selectedInitialMedalSource='unknown';
-      }
     },{toast:already?'初期登録を修正しました':'初期登録を保存しました'});
     closeSheet();
   }
@@ -2128,40 +2156,50 @@ textarea{
     commitMoney('入金','deposit',value,m=>({...m,sandBalance:m.sandBalance+value}),{toast:`入金 ${value.toLocaleString()}円を記録しました`});
     closeSheet();
   }
-  function recordMoneyCreditUpdate(){
-    if(!ensureMoneyForOperation())return;
-    const value=optionalGame($('moneyCreditValue')?.value);
-    if(value===null){toast('クレジット枚数を入力してください');return;}
-    commitMoney('クレジット入力','creditUpdate',value,m=>({...m,credit:value}),{toast:`クレジット ${value.toLocaleString()}枚を入力しました`});
-    closeSheet();
-  }
-  function recordMoneyMedalUse(source){
-    if(!ensureMoneyForOperation())return;
-    const value=positiveInt($('moneyMedalUse')?.value);
-    if(!value){toast('使用枚数を入力してください');return;}
-    const op=source==='saipurei'?'saipurei':'mochidama';
-    const label=op==='saipurei'?'再プレイ投入':'持ちメダル投入';
-    commitMoney(label,op,value,m=>op==='saipurei'?{...m,usedSaipurei:m.usedSaipurei+value}:{...m,usedMochidama:m.usedMochidama+value},{toast:`${label} ${value.toLocaleString()}枚を記録しました`});
-    closeSheet();
-  }
   function medalSourceLabel(source){
     return MEDAL_SOURCES.find(([key])=>key===source)?.[1]||MEDAL_SOURCES[2][1];
   }
-  function recordMoneyMedalIn(){
-    const inputNode=$('moneyMedalIn');
-    if(inputNode)medalInDraft=String(inputNode.value||'');
-    const value=positiveInt(medalInDraft);
-    if(!value){toast('使用枚数を入力してください');return;}
-    const source=MEDAL_SOURCES.some(([key])=>key===selectedMedalSource)?selectedMedalSource:'unknown';
-    commitMoney('メダル投入','medalIn',value,m=>{
-      const next={...m};
-      if(source==='mochidama')next.usedMochidama=m.usedMochidama+value;
-      else if(source==='saipurei')next.usedSaipurei=m.usedSaipurei+value;
-      else next.usedUnknown=m.usedUnknown+value;
-      medalInDraft='';
-      selectedMedalSource='unknown';
-      return next;
-    },{source,toast:`メダル投入 ${value.toLocaleString()}枚（${medalSourceLabel(source)}）を記録しました`});
+  function balanceSyncLabel(values){
+    const parts=[];
+    if(Object.prototype.hasOwnProperty.call(values,'credit'))parts.push(`クレ${values.credit}`);
+    if(Object.prototype.hasOwnProperty.call(values,'mochidama'))parts.push(`持ち${values.mochidama}`);
+    if(Object.prototype.hasOwnProperty.call(values,'saipurei'))parts.push(`再プレ${values.saipurei}`);
+    return parts.join(' / ');
+  }
+  function applyBalanceSync(values,snap=snapshot()){
+    const base=normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
+    const next={...base,balanceVersion:14};
+    if(Object.prototype.hasOwnProperty.call(values,'credit'))next.credit=values.credit;
+    if(Object.prototype.hasOwnProperty.call(values,'mochidama'))next.currentMochidama=values.mochidama;
+    if(Object.prototype.hasOwnProperty.call(values,'saipurei'))next.currentSaipurei=values.saipurei;
+    state.sessionMoney=normalizeSessionMoney(next)||blankSessionMoney();
+    addLogDirect({type:'money',op:'balanceSync',amount:null,balance:{...values},after:moneyAfterSummary(state.sessionMoney),realG:snap.realG,lcdG:snap.lcdG});
+  }
+  function readBalanceSyncInputs(){
+    const specs=[
+      ['credit','moneyBalanceCredit','クレジット'],
+      ['mochidama','moneyBalanceMochidama','持ちメダル'],
+      ['saipurei','moneyBalanceSaipurei','再プレイ']
+    ];
+    const values={};
+    for(const [key,id,label] of specs){
+      const raw=String($(id)?.value||'').trim();
+      if(raw==='')continue;
+      const value=optionalGame(raw);
+      if(value===null){toast(`${label}を0以上の整数で入力してください`);return null;}
+      values[key]=value;
+    }
+    if(!Object.keys(values).length){toast('調整する残数を入力してください');return null;}
+    return values;
+  }
+  function recordMoneyBalanceSync(){
+    if(!ensureMoneyForOperation())return;
+    const values=readBalanceSyncInputs();
+    if(!values)return;
+    commit('残数調整',()=>{
+      applyBalanceSync(values);
+      balanceSyncDraft={credit:'',mochidama:'',saipurei:''};
+    },{toast:`残数調整 ${balanceSyncLabel(values)} を記録しました`});
     closeSheet();
   }
   function recordMoneyDiffSync(){
@@ -2246,6 +2284,9 @@ textarea{
       if(log.op==='medalIn'){
         const source=MEDAL_SOURCES.some(([key])=>key===log.source)?log.source:'unknown';
         return `メダル投入 ${Number(log.amount||0).toLocaleString()}枚（${medalSourceLabel(source)}）`;
+      }
+      if(log.op==='balanceSync'){
+        return `残数調整${log.balance?` ${balanceSyncLabel(log.balance)}`:''}`;
       }
       const labels={init:'初期登録',deposit:'入金',loan:'−1000',creditUpdate:'クレジット入力',mochidama:'持ちメダル',saipurei:'再プレ',diffSync:'差枚一致',collectEnd:'終了回収'};
       const amount=log.amount==null?'':` ${Number(log.amount).toLocaleString()}${['deposit','loan'].includes(log.op)?'円':'枚'}`;
@@ -2566,7 +2607,7 @@ textarea{
       const creditInput=input('winCredit','number','任意');
       creditInput.value=winSheetDraft.credit;
       creditInput.addEventListener('input',syncWinSheetDraft);
-      body.append(field('クレジット',creditInput));
+      body.append(field('クレジット（残数調整）',creditInput));
       const actions=row();
       actions.append(button('勝利を記録','win',recordWinFromSheet));
       body.append(actions);
@@ -2616,7 +2657,7 @@ textarea{
       const credit=input('fbExitCredit','number','任意');
       credit.value=lossSheetDraft.exitCredit;
       credit.addEventListener('input',syncLossSheetDraft);
-      lossInputs.append(field('クレジット',credit));
+      lossInputs.append(field('クレジット（残数調整）',credit));
       lossDetail.append(lossInputs);
       const choices=row('choice-row');
       choices.classList.add('choice-grid-4');
@@ -2679,7 +2720,6 @@ textarea{
     openSheet('初期登録',body=>{
       const m=currentMoney();
       const locked=moneyInitialized()&&!edit;
-      if(m.initialMedalInSource&&MEDAL_SOURCES.some(([key])=>key===m.initialMedalInSource))selectedInitialMedalSource=m.initialMedalInSource;
       const startCredit=input('moneyStartCredit','number','例 10000');
       startCredit.value=m.startCredit??'';
       const startMochidama=input('moneyStartMochidama','number','例 500');
@@ -2693,40 +2733,22 @@ textarea{
       const initialDiff=input('moneyInitialDiff','text','例 -800');
       setKeypadInputMode(initialDiff,{negative:true});
       initialDiff.value=m.initialDiff??'';
-      const initialMedalIn=input('initialMedalInInput','number','最初に台へ入れた枚数（例：50）');
-      initialMedalIn.value=initialMedalInDraft||m.initialMedalInAmount||'';
-      initialMedalIn.addEventListener('change',()=>{initialMedalInDraft=String(initialMedalIn.value||'');});
       const startRealG=input('moneyStartRealG','number','例 120');
       startRealG.value=m.startRealG??'';
       const startLcdG=input('moneyStartLcdG','number','例 345');
       startLcdG.value=m.startLcdG??'';
       const initialThrough=input('initialThroughInput','number','0');
       initialThrough.value=state.initialThrough??0;
-      [startCredit,startMochidama,startSaipurei,loanRate,initialDiff,initialMedalIn,startRealG,startLcdG,initialThrough].forEach(node=>{node.disabled=locked;});
+      [startCredit,startMochidama,startSaipurei,loanRate,initialDiff,startRealG,startLcdG,initialThrough].forEach(node=>{node.disabled=locked;});
       if(locked)body.append(el('div','muted','初期設定はロック中です。修正する場合だけ編集を押してください。'));
       body.append(field('現金残高',startCredit));
       body.append(field('持ちメダル',startMochidama));
       body.append(field('再プレイ',startSaipurei));
       body.append(field('貸出レート',loanRate));
       body.append(field('初期差枚',initialDiff));
-      body.append(field('最初に台へ入れた枚数（例：50）',initialMedalIn));
-      body.append(el('div','muted','持ち玉・再プレイの残りは、台に入れるたびに「メダル投入」で記録'));
-      const sources=row('choice-row single-choice-grid');
-      sources.id='initialMedalSourceKinds';
-      MEDAL_SOURCES.forEach(([key,label])=>{
-        const node=choiceChip(label,key,selectedInitialMedalSource===key,()=>{
-          const current=$('initialMedalInInput');
-          if(current)initialMedalInDraft=String(current.value||'');
-          selectedInitialMedalSource=key;
-          refreshChoiceGroup(sources,selectedInitialMedalSource);
-        });
-        node.disabled=locked;
-        sources.append(node);
-      });
-      body.append(sources);
+      body.append(field('FBスルー初期値',initialThrough));
       body.append(field('実G（データカウンタ）',startRealG));
       body.append(field('液晶G',startLcdG));
-      body.append(field('FBスルー初期値',initialThrough));
       const actions=row();
       if(locked)actions.append(button('編集','secondary',()=>openMoneyInitSheet(true)));
       else actions.append(button(moneyInitialized()?'初期登録を修正':'初期登録を保存','primary',recordMoneyInit));
@@ -2744,55 +2766,26 @@ textarea{
       body.append(button('入金を記録','primary',()=>recordMoneyDeposit($('moneyDepositAmount')?.value)));
     });
   }
-  function openMoneyCreditSheet(){
+  function openBalanceSyncSheet(){
     if(!ensureMoneyForOperation())return;
-    openSheet('クレジット入力',body=>{
-      body.append(field('現在クレジット',input('moneyCreditValue','number','枚数')));
-      body.append(button('クレジットを入力','primary',recordMoneyCreditUpdate));
-    });
-  }
-  function openMoneyMedalUseSheet(){
-    if(!MEDAL_SOURCES.some(([key])=>key===selectedMedalSource))selectedMedalSource='unknown';
-    openSheet('メダル投入',body=>{
-      const quick=row('choice-row');
-      [50,100,500].forEach(amount=>quick.append(chip(`${amount}枚`,false,()=>{
-        const inputNode=$('moneyMedalIn');
-        medalInDraft=String(amount);
-        if(inputNode)inputNode.value=medalInDraft;
-      })));
-      body.append(quick);
-      const inputNode=input('moneyMedalIn','number','例 750');
-      inputNode.value=medalInDraft;
-      inputNode.addEventListener('change',()=>{medalInDraft=String(inputNode.value||'');});
-      body.append(field('投入枚数',inputNode));
-      const sources=row('choice-row single-choice-grid');
-      sources.id='medalSourceKinds';
-      MEDAL_SOURCES.forEach(([key,label])=>{
-        const node=choiceChip(label,key,selectedMedalSource===key,()=>{
-          const current=$('moneyMedalIn');
-          if(current)medalInDraft=String(current.value||'');
-          selectedMedalSource=key;
-          refreshChoiceGroup(sources,selectedMedalSource);
-        });
-        node.dataset.medalSource=key;
-        sources.append(node);
+    const m=currentMoney();
+    openSheet('残数調整',body=>{
+      const credit=input('moneyBalanceCredit','number',m.credit===null?'未入力':String(m.credit));
+      credit.value=balanceSyncDraft.credit;
+      const mochidama=input('moneyBalanceMochidama','number',m.currentMochidama===null?'未入力':String(m.currentMochidama));
+      mochidama.value=balanceSyncDraft.mochidama;
+      const saipurei=input('moneyBalanceSaipurei','number',m.currentSaipurei===null?'未入力':String(m.currentSaipurei));
+      saipurei.value=balanceSyncDraft.saipurei;
+      [['credit',credit],['mochidama',mochidama],['saipurei',saipurei]].forEach(([key,node])=>{
+        node.addEventListener('change',()=>{balanceSyncDraft[key]=String(node.value||'');});
       });
-      body.append(sources);
-      const recordBtn=button('投入を記録','primary',recordMoneyMedalIn);
-      recordBtn.id='moneyMedalInBtn';
+      body.append(el('div','muted','変わったものだけ入力。未入力の欄は前回値を据え置きます。'));
+      body.append(field('クレジット',credit));
+      body.append(field('持ちメダル',mochidama));
+      body.append(field('再プレイ',saipurei));
+      const recordBtn=button('調整を記録','primary',recordMoneyBalanceSync);
+      recordBtn.id='moneyBalanceSyncBtn';
       body.append(recordBtn);
-    });
-    return;
-    if(!ensureMoneyForOperation())return;
-    openSheet('持ちメダル・再プレイ投入',body=>{
-      const quick=row('choice-row');
-      [50,100,500].forEach(amount=>quick.append(chip(`${amount}枚`,false,()=>{$('moneyMedalUse').value=String(amount);})));
-      body.append(quick);
-      body.append(field('使用枚数',input('moneyMedalUse','number','例 50')));
-      const actions=row();
-      actions.append(button('持ちメダル投入','secondary',()=>recordMoneyMedalUse('mochidama')));
-      actions.append(button('再プレイ投入','secondary',()=>recordMoneyMedalUse('saipurei')));
-      body.append(actions);
     });
   }
   function openMoneyDiffSyncSheet(){
@@ -2814,9 +2807,14 @@ textarea{
     const s=moneySummary(m);
     const info=normalizeSessionInfo(state.sessionInfo);
     const balance=finalBalanceYen(m.investedYen,m.collectMedals,info.exchangeRate);
-    const nonCash=m.usedMochidama+m.usedSaipurei+m.usedUnknown;
-    box.append(el('div','muted',`現金投資 ${m.investedYen.toLocaleString()}円 / 非現金投入 ${nonCash.toLocaleString()}枚（持ち玉 ${m.usedMochidama.toLocaleString()} / 再プレ ${m.usedSaipurei.toLocaleString()} / 不明 ${m.usedUnknown.toLocaleString()}）`));
-    box.append(el('div','muted',`回収 ${s.collect.toLocaleString()}枚 / クレ ${s.credit.toLocaleString()}枚 / メダル収支 ${diffText(s.medalDiff)}`));
+    if(isBalanceSnapshotMoney(m)){
+      box.append(el('div','muted',`現在総 ${currentTotalMedals(m).toLocaleString()}枚（クレ ${s.credit.toLocaleString()} / 持ち ${Number(m.currentMochidama||0).toLocaleString()} / 再プレ ${Number(m.currentSaipurei||0).toLocaleString()} / 回収 ${s.collect.toLocaleString()}）`));
+      box.append(el('div','muted',`開始 ${startingMedals(m).toLocaleString()}枚 / 現金換算 ${s.cashMedals.toLocaleString()}枚 / メダル収支 ${diffText(s.medalDiff)}`));
+    }else{
+      const nonCash=m.usedMochidama+m.usedSaipurei+m.usedUnknown;
+      box.append(el('div','muted',`現金投資 ${m.investedYen.toLocaleString()}円 / 非現金投入 ${nonCash.toLocaleString()}枚（持ち玉 ${m.usedMochidama.toLocaleString()} / 再プレ ${m.usedSaipurei.toLocaleString()} / 不明 ${m.usedUnknown.toLocaleString()}）`));
+      box.append(el('div','muted',`回収 ${s.collect.toLocaleString()}枚 / クレ ${s.credit.toLocaleString()}枚 / メダル収支 ${diffText(s.medalDiff)}`));
+    }
     box.append(el('div','muted',`円換算 ${s.yenDiff.toLocaleString()}円（貸出レートによる等価換算）`));
     box.append(el('div','muted',info.exchangeRate?`交換率${info.exchangeRate}枚: 最終収支 ${formatYen(balance)}`:'交換率未入力: 円換算なし'));
   }
@@ -2834,7 +2832,7 @@ textarea{
     });
   }
   function openSessionInfoSheet(){
-    openSheet('セッション情報',body=>{
+    openSheet('店舗情報',body=>{
       const info=normalizeSessionInfo(state.sessionInfo);
       const money=normalizeSessionMoney(state.sessionMoney);
       const storeName=input('sessionStoreName','text','店舗名',40);
@@ -2852,14 +2850,14 @@ textarea{
       const memo=document.createElement('textarea');
       memo.id='sessionMemo';
       memo.maxLength=500;
-      memo.placeholder='セッション全体メモ';
+      memo.placeholder='店舗・台メモ';
       memo.value=info.memo||'';
       body.append(field('店舗名',storeName));
       body.append(field('台番号',unitNo));
       body.append(field('貸出レート',lendRate));
       body.append(field('交換レート',exchangeRate));
       body.append(memo);
-      body.append(button('セッション情報を保存','primary',recordSessionInfo));
+      body.append(button('店舗情報を保存','primary',recordSessionInfo));
     });
   }
   function recordSessionInfo(){
@@ -2878,22 +2876,22 @@ textarea{
     save();
     render();
     closeSheet();
-    toast('セッション情報を保存しました');
+    toast('店舗情報を保存しました');
   }
   function openUtilitySheet(){
     openSheet('収支・メモ・出力',body=>{
       const moneyActions=row();
       const initBtn=button('初期登録','secondary',openMoneyInitSheet);
       initBtn.id='utilityInitBtn';
-      const medalBtn=button('メダル投入','secondary',openMoneyMedalUseSheet);
-      medalBtn.id='utilityMedalUseBtn';
+      const balanceBtn=button('残数調整','secondary',openBalanceSyncSheet);
+      balanceBtn.id='utilityBalanceSyncBtn';
       const diffBtn=button('差枚一致','secondary',openMoneyDiffSyncSheet);
       diffBtn.id='utilityDiffSyncBtn';
       const payoutBtn=button('終了・回収','secondary',openMoneyCollectSheet);
       payoutBtn.id='utilityPayoutBtn';
-      const sessionBtn=button('セッション情報','secondary',openSessionInfoSheet);
+      const sessionBtn=button('店舗情報','secondary',openSessionInfoSheet);
       sessionBtn.id='utilitySessionInfoBtn';
-      moneyActions.append(initBtn,medalBtn,diffBtn,payoutBtn,sessionBtn);
+      moneyActions.append(initBtn,balanceBtn,diffBtn,payoutBtn,sessionBtn);
       body.append(moneyActions);
       const memo=document.createElement('textarea');
       memo.id='memoText';
@@ -3179,7 +3177,7 @@ textarea{
     $('stepUndoBtn').addEventListener('click',undoStep);
     $('moneyLoanBtn').addEventListener('click',recordMoneyLoan);
     $('moneyDepositBtn').addEventListener('click',openMoneyDepositSheet);
-    $('moneyCreditBtn').addEventListener('click',openMoneyCreditSheet);
+    $('moneyCreditBtn').addEventListener('click',openBalanceSyncSheet);
     $('moneyInvestPill').addEventListener('click',()=>{if(!moneyInitialized())openMoneyInitSheet();});
     $('moneyDiffPill').addEventListener('click',()=>{if(!moneyInitialized())openMoneyInitSheet();else toast(DIFF_LEGEND_TEXT);});
     $('undoBtn').addEventListener('click',undoLast);
