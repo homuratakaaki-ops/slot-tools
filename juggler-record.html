@@ -56,7 +56,10 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .head { display: flex; align-items: baseline; gap: 10px; flex: none; }
 .head a { font-size: 12px; text-decoration: none; color: var(--muted); }
 .head h1 { font-size: 15px; margin: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.machine-name { color: var(--lamp); }
+.machine-name {
+  background: none; border: none; padding: 0; font: inherit; font-weight: 700;
+  color: var(--lamp); cursor: pointer;
+}
 
 .status { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; flex: none; }
 .status .stat {
@@ -94,6 +97,9 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
   padding: 1px 7px; margin-right: 7px;
 }
 .panel.attention { border-color: #6b5a2c; box-shadow: 0 0 0 1px #6b5a2c inset; }
+.snap-summary { font-size: 12px; color: var(--muted); margin: 0; }
+.snap-summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
+#snapPanel.collapsed .ptitle, #snapPanel.collapsed .snap-grid { display: none; }
 
 /* 数値フィールド(電卓で入力) */
 .numfield {
@@ -106,16 +112,19 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .snap-grid { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 6px; }
 .snap-grid .cell span { display: block; font-size: 10px; color: var(--muted); margin-bottom: 2px; }
 
-.now-line { display: flex; align-items: center; gap: 8px; }
-.now-line .lbl { flex: 1; font-size: 13px; }
-.now-line .lbl small { display: block; font-size: 10px; color: var(--muted); }
-.now-line .numfield { width: 130px; font-size: 19px; padding: 9px 8px; }
+.now-line { display: flex; flex-direction: column; gap: 4px; }
+.now-line .lbl { font-size: 12px; color: var(--muted); text-align: center; }
+.now-line .lbl small { font-size: 10px; color: var(--muted); }
+.now-line .numfield {
+  width: 100%; font-size: 27px; padding: 8px; text-align: center;
+  border-color: #7a3a36; background: #241a1b;
+}
 
 /* カウントボタン(可変高で画面を埋める) */
 .count-wrap { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 7px; }
 .count-grid {
   height: clamp(140px, 23dvh, 210px);
-  display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: 1fr 1fr; gap: 7px;
+  display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 7px;
 }
 @supports not (height: 1dvh) { .count-grid { height: clamp(140px, 23vh, 210px); } }
 .count-btn {
@@ -154,7 +163,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
   border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--ink);
   font-size: 13px; min-height: 48px; cursor: pointer; white-space: nowrap;
 }
-.invest-line { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); flex-wrap: nowrap; }
+.invest-line { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); flex-wrap: wrap; }
 .invest-line .chip {
   border: 1px solid var(--line); background: var(--card2); color: var(--ink);
   border-radius: 10px; padding: 11px 12px; min-height: 48px; font-size: 13px; cursor: pointer;
@@ -300,6 +309,7 @@ select.rate {
   <div id="paneCount">
     <div class="panel" id="snapPanel">
       <p class="ptitle"><span class="step-badge">最初に入力</span>データカウンタ（打ち始め時点）　※朝一リセット台は0のまま</p>
+      <p class="snap-summary" id="snapSummary" hidden></p>
       <div class="snap-grid">
         <div class="cell"><span>総回転数</span><button type="button" class="numfield" id="f_st_g" data-field="st_g">0</button></div>
         <div class="cell"><span>BIG</span><button type="button" class="numfield" id="f_st_big" data-field="st_big">0</button></div>
@@ -315,14 +325,7 @@ select.rate {
     </div>
 
     <div class="count-wrap">
-      <div class="count-grid">
-        <button type="button" class="count-btn cherry" data-count="cherry"><span class="cl">チェリー</span><span class="cv" id="c_cherry">0</span></button>
-        <button type="button" class="count-btn bigk" data-count="solo_big"><span class="cl">単独BIG</span><span class="cv" id="c_solo_big">0</span></button>
-        <button type="button" class="count-btn bigk" data-count="cherry_big"><span class="cl">チェリー重複BIG</span><span class="cv" id="c_cherry_big">0</span></button>
-        <button type="button" class="count-btn grape" data-count="grape"><span class="cl">ぶどう</span><span class="cv" id="c_grape">0</span></button>
-        <button type="button" class="count-btn regk" data-count="solo_reg"><span class="cl">単独REG</span><span class="cv" id="c_solo_reg">0</span></button>
-        <button type="button" class="count-btn regk" data-count="cherry_reg"><span class="cl">チェリー重複REG</span><span class="cv" id="c_cherry_reg">0</span></button>
-      </div>
+      <div class="count-grid" id="countGrid"></div>
       <div class="sub-actions">
         <button type="button" data-count="unk_big">不明BIG <b id="c_unk_big">0</b></button>
         <button type="button" data-count="unk_reg">不明REG <b id="c_unk_reg">0</b></button>
@@ -346,6 +349,7 @@ select.rate {
         <button type="button" class="chip" id="f_hold" data-field="hold">持ち枚数 0</button>
         <button type="button" class="chip" id="f_card" data-field="card" hidden>カード ¥0</button>
         <button type="button" class="chip" id="f_invest" data-field="invest">投資 ¥0</button>
+        <button type="button" class="chip" id="snapEditBtn">初期登録</button>
         <span class="sum" id="investSum"></span>
       </div>
     </div>
@@ -424,6 +428,16 @@ select.rate {
 </div>
 
 <!-- ===== クリアモーダル ===== -->
+<div class="keypad-overlay" id="machineOverlay">
+  <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="mcTitle">
+    <p class="kp-label" id="mcTitle">機種を選択（機種ごとに記録は別々に保存されます）</p>
+    <div class="dep-grid" style="grid-template-columns: 1fr;" id="machineList"></div>
+    <div class="kp-actions" style="grid-template-columns: 1fr;">
+      <button type="button" class="kp-cancel" id="mcClose">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div class="keypad-overlay" id="clearOverlay">
   <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="clearTitle">
     <p class="kp-label" id="clearTitle">クリアする範囲を選んでください</p>
@@ -479,20 +493,17 @@ select.rate {
 import { estimate } from "./js/estimator.js";
 
 const MACHINES = {
-  my_juggler_v: "data/machines/my_juggler_v.json",
+  my_juggler_v: { path: "data/machines/my_juggler_v.json", name: "SマイジャグラーV" },
+  im_juggler_ex_6: { path: "data/machines/im_juggler_ex_6.json", name: "SアイムジャグラーEX" },
 };
 const params = new URLSearchParams(location.search);
 const machineId = MACHINES[params.get("machine")] ? params.get("machine") : "my_juggler_v";
 const STORAGE_KEY = `juggler-record:${machineId}`;
 const $ = (id) => document.getElementById(id);
 
-const COUNT_IDS = ["grape", "cherry", "solo_big", "cherry_big", "solo_reg", "cherry_reg", "unk_big", "unk_reg"];
-const COUNT_LABELS = {
-  grape: "ぶどう", cherry: "チェリー",
-  solo_big: "単独BIG", cherry_big: "チェリー重複BIG",
-  solo_reg: "単独REG", cherry_reg: "チェリー重複REG",
-  unk_big: "不明BIG", unk_reg: "不明REG",
-};
+const UNK_IDS = ["unk_big", "unk_reg"];
+let COUNT_IDS = [];
+const COUNT_LABELS = { unk_big: "不明BIG", unk_reg: "不明REG" };
 const FIELD_LABELS = {
   st_g: "打ち始めの総回転数", st_big: "打ち始めのBIG", st_reg: "打ち始めのREG",
   cu_g: "現在のデータG", hold: "推定持ち枚数",
@@ -500,7 +511,8 @@ const FIELD_LABELS = {
 };
 
 let machine = null;
-let state = defaultState();
+let state = null;
+let snapEditOpen = false;
 
 function defaultState() {
   return {
@@ -521,15 +533,20 @@ init();
 
 async function init() {
   try {
-    const res = await fetch(MACHINES[machineId], { cache: "no-cache" });
+    const res = await fetch(MACHINES[machineId].path, { cache: "no-cache" });
     machine = await res.json();
   } catch (e) {
     $("machineName").textContent = "機種データの読み込みに失敗しました";
     return;
   }
-  $("machineName").textContent = machine.machine.name;
+  $("machineName").textContent = machine.machine.name + " ▾";
   document.title = `実戦記録・設定推測 ${machine.machine.name}｜スロット稼働ノート`;
+  const uiBtns = (machine.ui && machine.ui.count_buttons) || [];
+  COUNT_IDS = [...uiBtns.map((b) => b.id), ...UNK_IDS];
+  uiBtns.forEach((b) => (COUNT_LABELS[b.id] = b.label));
+  state = defaultState();
   restore();
+  renderCountButtons(uiBtns);
   buildPriorGrid();
   bind();
   renderAll();
@@ -625,31 +642,7 @@ function bind() {
   });
 
   // カウントボタン: タップ+1 / 長押しで電卓
-  document.querySelectorAll("[data-count]").forEach((btn) => {
-    const id = btn.dataset.count;
-    let timer = null, longPressed = false;
-    const start = () => {
-      longPressed = false;
-      timer = setTimeout(() => {
-        longPressed = true;
-        openKeypad(`count:${id}`, `${COUNT_LABELS[id]}（まとめて入力）`);
-      }, 550);
-    };
-    const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
-    btn.addEventListener("pointerdown", start);
-    btn.addEventListener("pointerup", cancel);
-    btn.addEventListener("pointerleave", cancel);
-    btn.addEventListener("pointercancel", cancel);
-    btn.addEventListener("contextmenu", (e) => e.preventDefault());
-    btn.addEventListener("click", () => {
-      if (longPressed) { longPressed = false; return; }
-      state.counts[id]++;
-      pushLog({ k: "count", id });
-      persist();
-      renderAll();
-      $("lastOp").textContent = `直前: ${COUNT_LABELS[id]} +1`;
-    });
-  });
+  attachCountHandlers(document);
 
   $("invSpend").addEventListener("click", () => addInvest(1000));
   $("depositBtn").addEventListener("click", () => $("depositOverlay").classList.add("open"));
@@ -663,6 +656,25 @@ function bind() {
   $("depositOverlay").addEventListener("click", (e) => { if (e.target === $("depositOverlay")) $("depositOverlay").classList.remove("open"); });
   $("rate").addEventListener("change", () => { state.invest.rate = parseInt($("rate").value, 10); persist(); renderAll(); });
   $("undoBtn").addEventListener("click", undo);
+  $("machineName").addEventListener("click", () => $("machineOverlay").classList.add("open"));
+  $("mcClose").addEventListener("click", () => $("machineOverlay").classList.remove("open"));
+  $("machineOverlay").addEventListener("click", (e) => { if (e.target === $("machineOverlay")) $("machineOverlay").classList.remove("open"); });
+  const list = $("machineList");
+  list.innerHTML = "";
+  for (const [id, mdef] of Object.entries(MACHINES)) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = mdef.name + (id === machineId ? "　✓ 使用中" : "");
+    b.addEventListener("click", () => {
+      if (id !== machineId) location.href = location.pathname + "?machine=" + id;
+      else $("machineOverlay").classList.remove("open");
+    });
+    list.appendChild(b);
+  }
+  $("snapEditBtn").addEventListener("click", () => {
+    snapEditOpen = !snapEditOpen;
+    renderAll();
+  });
 
   $("useGrapeBtn").addEventListener("click", () => {
     state.useGrape = !state.useGrape;
@@ -840,6 +852,12 @@ function renderAll() {
     "attention",
     state.start.g === 0 && state.start.big === 0 && state.start.reg === 0 && state.nowG === 0
   );
+  const collapsed = state.nowG > 0 && !snapEditOpen;
+  $("snapPanel").classList.toggle("collapsed", collapsed);
+  $("snapSummary").hidden = !collapsed;
+  if (collapsed) {
+    $("snapSummary").innerHTML = `打ち始め <b>${state.start.g.toLocaleString()}G</b>／BIG <b>${state.start.big}</b>／REG <b>${state.start.reg}</b>（修正は「初期登録」から）`;
+  }
   syncFields();
   renderCounts();
   renderInvest();
@@ -858,6 +876,50 @@ function syncFields() {
   $("usePrior").checked = state.usePrior;
   $("priorGrid").hidden = !state.usePrior;
   $("priorNote").hidden = !state.usePrior;
+}
+
+function renderCountButtons(uiBtns) {
+  const grid = $("countGrid");
+  grid.innerHTML = "";
+  for (const b of uiBtns) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "count-btn" + (b.color ? " " + b.color : "");
+    btn.dataset.count = b.id;
+    btn.innerHTML = `<span class="cl">${b.label}</span><span class="cv" id="c_${b.id}">0</span>`;
+    grid.appendChild(btn);
+  }
+  attachCountHandlers(grid);
+}
+
+function attachCountHandlers(scope) {
+  scope.querySelectorAll("[data-count]").forEach((btn) => {
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+    const id = btn.dataset.count;
+    let timer = null, longPressed = false;
+    const start = () => {
+      longPressed = false;
+      timer = setTimeout(() => {
+        longPressed = true;
+        openKeypad(`count:${id}`, `${COUNT_LABELS[id]}（まとめて入力）`);
+      }, 550);
+    };
+    const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    btn.addEventListener("pointerdown", start);
+    btn.addEventListener("pointerup", cancel);
+    btn.addEventListener("pointerleave", cancel);
+    btn.addEventListener("pointercancel", cancel);
+    btn.addEventListener("contextmenu", (e) => e.preventDefault());
+    btn.addEventListener("click", () => {
+      if (longPressed) { longPressed = false; return; }
+      state.counts[id]++;
+      pushLog({ k: "count", id });
+      persist();
+      renderAll();
+      $("lastOp").textContent = `直前: ${COUNT_LABELS[id]} +1`;
+    });
+  });
 }
 
 function renderCounts() {
