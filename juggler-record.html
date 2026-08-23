@@ -97,8 +97,13 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
   padding: 1px 7px; margin-right: 7px;
 }
 .panel.attention { border-color: #6b5a2c; box-shadow: 0 0 0 1px #6b5a2c inset; }
-.snap-summary { font-size: 12px; color: var(--muted); margin: 0; }
+.snap-summary {
+  display: block; width: 100%; text-align: left; font-size: 12px; color: var(--muted);
+  margin: 0; padding: 8px 6px; min-height: 44px;
+  background: none; border: none; cursor: pointer;
+}
 .snap-summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.snap-summary .warn { color: var(--warn-ink); font-weight: 700; }
 #snapPanel.collapsed .ptitle, #snapPanel.collapsed .snap-grid { display: none; }
 
 /* 数値フィールド(電卓で入力) */
@@ -203,8 +208,11 @@ select.rate {
   border: 1px solid var(--line); background: var(--card2); color: var(--muted); cursor: pointer;
 }
 .use-btn[aria-pressed="true"] { border-color: #3c5a36; background: #22301f; color: var(--grape); }
-.use-btn[aria-pressed="true"]::after { content: " 使用中"; font-size: 10.5px; }
-.use-btn[aria-pressed="false"]::after { content: " 不使用"; font-size: 10.5px; }
+#useGrapeBtn[aria-pressed="true"]::after, #useBreakdownBtn[aria-pressed="true"]::after { content: " 使用中"; font-size: 10.5px; }
+#useGrapeBtn[aria-pressed="false"]::after, #useBreakdownBtn[aria-pressed="false"]::after { content: " 不使用"; font-size: 10.5px; }
+#visToggles .use-btn[aria-pressed="true"]::after { content: " 表示"; font-size: 10.5px; }
+#visToggles .use-btn[aria-pressed="false"]::after { content: " 非表示"; font-size: 10.5px; }
+#visToggles { grid-template-columns: repeat(3, 1fr); }
 .prior-toggle { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
 .prior-toggle input { width: 18px; height: 18px; }
 .prior-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
@@ -309,7 +317,7 @@ select.rate {
   <div id="paneCount">
     <div class="panel" id="snapPanel">
       <p class="ptitle"><span class="step-badge">最初に入力</span>データカウンタ（打ち始め時点）　※朝一リセット台は0のまま</p>
-      <p class="snap-summary" id="snapSummary" hidden></p>
+      <button type="button" class="snap-summary" id="snapSummary" hidden></button>
       <div class="snap-grid">
         <div class="cell"><span>総回転数</span><button type="button" class="numfield" id="f_st_g" data-field="st_g">0</button></div>
         <div class="cell"><span>BIG</span><button type="button" class="numfield" id="f_st_big" data-field="st_big">0</button></div>
@@ -370,6 +378,12 @@ select.rate {
         <button type="button" class="use-btn" id="useBreakdownBtn" aria-pressed="true">ボーナス内訳</button>
       </div>
       <p class="prior-note">オフにするとカウントは記録のみになり、設定推測には使いません（内訳オフ時はBIG/REGの合算で計算します）。</p>
+    </section>
+
+    <section class="card" id="visSection" aria-labelledby="h-vis">
+      <h2 id="h-vis">表示するカウントボタン</h2>
+      <div class="use-toggles" id="visToggles"></div>
+      <p class="prior-note">オフにするとカウントタブからボタンが消えます（記録した数値は保持されます）。判別に使う項目は常に表示されます。</p>
     </section>
 
     <section class="card" aria-labelledby="h-prior">
@@ -509,6 +523,7 @@ const FIELD_LABELS = {
 let machine = null;
 let state = null;
 let snapEditOpen = false;
+let UI_BTNS = [];
 
 function defaultState() {
   return {
@@ -518,6 +533,7 @@ function defaultState() {
     counts: Object.fromEntries(COUNT_IDS.map((id) => [id, 0])),
     invest: { yen: 0, rate: 50, hold: 0, card: null },
     usePrior: false,
+    hiddenButtons: [],
     useGrape: true,
     useBreakdown: true,
     priorWeights: [1, 1, 1, 1, 1, 1],
@@ -537,13 +553,13 @@ async function init() {
   }
   $("machineName").textContent = machine.machine.name + " ▾";
   document.title = `実戦記録・設定推測 ${machine.machine.name}｜スロット稼働ノート`;
-  const uiBtns = (machine.ui && machine.ui.count_buttons) || [];
-  COUNT_IDS = [...uiBtns.map((b) => b.id), ...UNK_IDS];
-  uiBtns.forEach((b) => (COUNT_LABELS[b.id] = b.label));
+  UI_BTNS = (machine.ui && machine.ui.count_buttons) || [];
+  COUNT_IDS = [...UI_BTNS.map((b) => b.id), ...UNK_IDS];
+  UI_BTNS.forEach((b) => (COUNT_LABELS[b.id] = b.label));
   state = defaultState();
   restore();
-  renderCountButtons(uiBtns);
-  renderRatesPanel(uiBtns);
+  buildVisToggles();
+  rebuildPanels();
   buildPriorGrid();
   bind();
   renderAll();
@@ -560,6 +576,7 @@ function restore() {
       state = { ...defaultState(), ...d };
       state.counts = { ...defaultState().counts, ...(d.counts || {}) };
       state.invest = { ...defaultState().invest, ...(d.invest || {}) };
+      if (!Array.isArray(state.hiddenButtons)) state.hiddenButtons = [];
       if (!Array.isArray(state.log)) state.log = [];
     }
   } catch (e) {}
@@ -670,6 +687,10 @@ function bind() {
   }
   $("snapEditBtn").addEventListener("click", () => {
     snapEditOpen = !snapEditOpen;
+    renderAll();
+  });
+  $("snapSummary").addEventListener("click", () => {
+    snapEditOpen = true;
     renderAll();
   });
 
@@ -849,11 +870,14 @@ function renderAll() {
     "attention",
     state.start.g === 0 && state.start.big === 0 && state.start.reg === 0 && state.nowG === 0
   );
-  const collapsed = state.nowG > 0 && !snapEditOpen;
+  const unset = state.start.g === 0 && state.start.big === 0 && state.start.reg === 0;
+  const collapsed = !snapEditOpen;
   $("snapPanel").classList.toggle("collapsed", collapsed);
   $("snapSummary").hidden = !collapsed;
   if (collapsed) {
-    $("snapSummary").innerHTML = `打ち始め <b>${state.start.g.toLocaleString()}G</b>／BIG <b>${state.start.big}</b>／REG <b>${state.start.reg}</b>（修正は「初期登録」から）`;
+    $("snapSummary").innerHTML = unset
+      ? `<span class="warn">打ち始めデータ未入力</span> ／ タップして入力（朝一リセット台は0のままでOK）`
+      : `打ち始め <b>${state.start.g.toLocaleString()}G</b>／BIG <b>${state.start.big}</b>／REG <b>${state.start.reg}</b>（タップで修正）`;
   }
   syncFields();
   renderCounts();
@@ -873,6 +897,39 @@ function syncFields() {
   $("usePrior").checked = state.usePrior;
   $("priorGrid").hidden = !state.usePrior;
   $("priorNote").hidden = !state.usePrior;
+}
+
+function visibleButtons() {
+  return UI_BTNS.filter((b) => !state.hiddenButtons.includes(b.id));
+}
+
+function rebuildPanels() {
+  renderCountButtons(visibleButtons());
+  renderRatesPanel(visibleButtons());
+}
+
+function buildVisToggles() {
+  const box = $("visToggles");
+  box.innerHTML = "";
+  const targets = UI_BTNS.filter((b) => b.record_only);
+  if (targets.length === 0) { $("visSection").hidden = true; return; }
+  for (const b of targets) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "use-btn";
+    btn.textContent = b.label;
+    btn.setAttribute("aria-pressed", String(!state.hiddenButtons.includes(b.id)));
+    btn.addEventListener("click", () => {
+      const i = state.hiddenButtons.indexOf(b.id);
+      if (i >= 0) state.hiddenButtons.splice(i, 1);
+      else state.hiddenButtons.push(b.id);
+      persist();
+      buildVisToggles();
+      rebuildPanels();
+      renderAll();
+    });
+    box.appendChild(btn);
+  }
 }
 
 function renderCountButtons(uiBtns) {
@@ -937,7 +994,10 @@ function attachCountHandlers(scope) {
 }
 
 function renderCounts() {
-  for (const id of COUNT_IDS) $(`c_${id}`).textContent = state.counts[id].toLocaleString();
+  for (const id of COUNT_IDS) {
+    const el = $(`c_${id}`);
+    if (el) el.textContent = state.counts[id].toLocaleString();
+  }
 }
 
 function renderInvest() {
@@ -980,7 +1040,7 @@ function renderEstimate() {
   $("r_big").textContent = fmtRate(totBig, state.nowG);
   $("r_reg").textContent = fmtRate(totReg, state.nowG);
   $("r_total").textContent = fmtRate(totBig + totReg, state.nowG);
-  for (const b of (machine.ui && machine.ui.count_buttons) || []) {
+  for (const b of visibleButtons()) {
     const cell = $(`r_${b.id}`);
     if (!cell) continue;
     let text = fmtRate(c[b.id] || 0, ownG);
