@@ -5,7 +5,14 @@
     "name": "Sゴーゴージャグラー3",
     "maker": "北電子",
     "type": "normal",
-    "settings": [1, 2, 3, 4, 5, 6],
+    "settings": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
     "notes": "確率は分母表記(denominators)で保持する。p = 1 / denominator。6号機ジャグラーシリーズ第5弾(2023年7月導入)。設定5・6はBIGとREGが同確率(BR比1:1)。"
   },
   "sources": {
@@ -36,7 +43,14 @@
       "label": "BIG合計",
       "input": "required",
       "source": "official_spec",
-      "denominators": { "1": 259.0, "2": 258.0, "3": 257.0, "4": 254.0, "5": 247.3, "6": 234.9 },
+      "denominators": {
+        "1": 259.0,
+        "2": 258.0,
+        "3": 257.0,
+        "4": 254.0,
+        "5": 247.3,
+        "6": 234.9
+      },
       "notes": "設定1でも1/259.0と軽く、設定1〜4の差が小さいためBIG単独では判別力が低い。"
     },
     {
@@ -44,7 +58,14 @@
       "label": "REG合計",
       "input": "required",
       "source": "official_spec",
-      "denominators": { "1": 354.2, "2": 332.7, "3": 306.2, "4": 268.6, "5": 247.3, "6": 234.9 },
+      "denominators": {
+        "1": 354.2,
+        "2": 332.7,
+        "3": 306.2,
+        "4": 268.6,
+        "5": 247.3,
+        "6": 234.9
+      },
       "notes": "最大の判別要素。設定1と6で約1.51倍。ただし設定5と6の差は小さく(1/247.3と1/234.9)、5・6の切り分けは容易ではない。"
     },
     {
@@ -52,7 +73,14 @@
       "label": "ぶどう",
       "input": "optional",
       "source": "field_estimate",
-      "denominators": { "1": 6.25, "2": 6.20, "3": 6.15, "4": 6.07, "5": 6.00, "6": 5.92 },
+      "denominators": {
+        "1": 6.25,
+        "2": 6.2,
+        "3": 6.15,
+        "4": 6.07,
+        "5": 6.0,
+        "6": 5.92
+      },
       "notes": "全設定に段階的な設定差がある。6号機では共通ブドウの概念がなくなり、単純にカウントするだけで判別に使える。試行数が稼げるため補助要素として有効。"
     },
     {
@@ -61,7 +89,14 @@
       "input": "optional",
       "group": "big_breakdown",
       "source": "derived_estimate",
-      "denominators": { "1": 379.1, "2": 376.9, "3": 378.6, "4": 378.7, "5": 369.5, "6": 352.4 },
+      "denominators": {
+        "1": 379.1,
+        "2": 376.9,
+        "3": 378.6,
+        "4": 378.7,
+        "5": 369.5,
+        "6": 352.4
+      },
       "notes": "設定差が小さく寄与は限定的。"
     },
     {
@@ -70,7 +105,14 @@
       "input": "optional",
       "group": "big_breakdown",
       "source": "derived_estimate",
-      "denominators": { "1": 817.5, "2": 817.8, "3": 800.2, "4": 771.4, "5": 747.8, "6": 704.5 },
+      "denominators": {
+        "1": 817.5,
+        "2": 817.8,
+        "3": 800.2,
+        "4": 771.4,
+        "5": 747.8,
+        "6": 704.5
+      },
       "notes": "総BIG確率と単独BIG確率の差から算出。"
     },
     {
@@ -79,7 +121,14 @@
       "input": "optional",
       "group": "reg_breakdown",
       "source": "derived_estimate",
-      "denominators": { "1": 472.3, "2": 447.4, "3": 417.8, "4": 362.9, "5": 331.0, "6": 317.2 },
+      "denominators": {
+        "1": 472.3,
+        "2": 447.4,
+        "3": 417.8,
+        "4": 362.9,
+        "5": 331.0,
+        "6": 317.2
+      },
       "notes": "設定1と6で約1.49倍。内訳の中では最も強い判別要素。ただし推定値である点に注意。"
     },
     {
@@ -88,32 +137,84 @@
       "input": "optional",
       "group": "reg_breakdown",
       "source": "derived_estimate",
-      "denominators": { "1": 1416.5, "2": 1297.7, "3": 1146.3, "4": 1033.7, "5": 978.0, "6": 905.3 },
+      "denominators": {
+        "1": 1416.5,
+        "2": 1297.7,
+        "3": 1146.3,
+        "4": 1033.7,
+        "5": 978.0,
+        "6": 905.3
+      },
       "notes": "総REG確率と単独REG確率の差から算出。設定差は大きめだが分母も大きく、収束には時間がかかる。"
     }
   ],
   "ui": {
     "count_buttons": [
-      { "id": "cherry",     "label": "チェリー",        "color": "cherry", "record_only": true },
-      { "id": "solo_big",   "label": "単独BIG",         "color": "bigk" },
-      { "id": "cherry_big", "label": "チェリー重複BIG", "color": "bigk" },
-      { "id": "grape",      "label": "ぶどう",          "color": "grape" },
-      { "id": "solo_reg",   "label": "単独REG",         "color": "regk" },
-      { "id": "cherry_reg", "label": "チェリー重複REG", "color": "regk" }
+      {
+        "id": "cherry",
+        "label": "チェリー",
+        "color": "cherry",
+        "record_only": true
+      },
+      {
+        "id": "solo_big",
+        "label": "単独BIG",
+        "color": "bigk"
+      },
+      {
+        "id": "cherry_big",
+        "label": "チェリー重複BIG",
+        "color": "bigk"
+      },
+      {
+        "id": "grape",
+        "label": "ぶどう",
+        "color": "grape"
+      },
+      {
+        "id": "solo_reg",
+        "label": "単独REG",
+        "color": "regk"
+      },
+      {
+        "id": "cherry_reg",
+        "label": "チェリー重複REG",
+        "color": "regk"
+      },
+      {
+        "id": "bell",
+        "label": "ベル",
+        "record_only": true
+      },
+      {
+        "id": "pierrot",
+        "label": "ピエロ",
+        "record_only": true
+      }
     ],
-    "notes": "並び順は表示順(3列グリッド)。最頻項目のぶどうを親指ホームポジション(下段左)に配置する。record_only:true は記録・確率表示のみで判別計算に使わない。"
+    "notes": "並び順は表示順(3列グリッド)。最頻項目のぶどうを親指ホームポジション(下段左)に配置し、出現頻度の低いベル・ピエロは最下段に置く。record_only:true は記録・確率表示のみで判別計算に使わない。"
   },
   "input_rules": {
     "modes": [
       {
         "id": "simple",
         "label": "簡易モード",
-        "uses": ["big_total", "reg_total", "grape"]
+        "uses": [
+          "big_total",
+          "reg_total",
+          "grape"
+        ]
       },
       {
         "id": "detail",
         "label": "詳細モード",
-        "uses": ["solo_big", "cherry_big", "solo_reg", "cherry_reg", "grape"],
+        "uses": [
+          "solo_big",
+          "cherry_big",
+          "solo_reg",
+          "cherry_reg",
+          "grape"
+        ],
         "notes": "内訳を使う場合、合計(big_total/reg_total)は二重計上になるため尤度計算に使わない。内訳の確率値はすべて derived_estimate である点に注意。"
       }
     ],
@@ -127,14 +228,28 @@
       "id": "corner_cherry",
       "label": "チェリー(通常時)",
       "record_only": true,
-      "reference_denominators": { "1": 33.56, "2": 33.47, "3": 33.32, "4": 33.15, "5": 33.10, "6": 32.97 },
+      "reference_denominators": {
+        "1": 33.56,
+        "2": 33.47,
+        "3": 33.32,
+        "4": 33.15,
+        "5": 33.1,
+        "6": 32.97
+      },
       "source": "field_estimate",
       "reason": "設定1(1/33.56)と設定6(1/32.97)で約1.8%差しかなく判別寄与が小さいうえ、この値はボーナス重複分を含むため、チェリー重複BIG/REGと二重計上になる恐れがある。判別計算には不使用とし、実戦記録ツールでは記録・確率表示のみ行う。"
     },
     {
       "id": "bell_pierrot",
       "label": "ベル・ピエロ",
-      "reference_denominators": { "1": 1092.27, "2": 1092.27, "3": 1092.27, "4": 1092.27, "5": 1092.27, "6": 1092.27 },
+      "reference_denominators": {
+        "1": 1092.27,
+        "2": 1092.27,
+        "3": 1092.27,
+        "4": 1092.27,
+        "5": 1092.27,
+        "6": 1092.27
+      },
       "source": "field_estimate",
       "reason": "全設定共通(1/1092.27)で設定差がないため判別には使用しない。"
     }

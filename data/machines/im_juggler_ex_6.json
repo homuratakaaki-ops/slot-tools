@@ -5,7 +5,14 @@
     "name": "SアイムジャグラーEX",
     "maker": "北電子",
     "type": "normal",
-    "settings": [1, 2, 3, 4, 5, 6],
+    "settings": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6
+    ],
     "notes": "確率は分母表記(denominators)で保持する。p = 1 / denominator。6号機。ネオアイムジャグラーEXもボーナス確率は同一とされるが、本ファイルはアイムジャグラーEX(6号機)の数値。"
   },
   "sources": {
@@ -29,7 +36,14 @@
       "label": "BIG合計",
       "input": "required",
       "source": "official_spec",
-      "denominators": { "1": 273.1, "2": 269.7, "3": 269.7, "4": 259.0, "5": 259.0, "6": 255.0 },
+      "denominators": {
+        "1": 273.1,
+        "2": 269.7,
+        "3": 269.7,
+        "4": 259.0,
+        "5": 259.0,
+        "6": 255.0
+      },
       "notes": "設定1と6で約1.07倍。設定2-3、4-5は同値のため区別できない。"
     },
     {
@@ -37,7 +51,14 @@
       "label": "REG合計",
       "input": "required",
       "source": "official_spec",
-      "denominators": { "1": 439.8, "2": 399.6, "3": 331.0, "4": 315.1, "5": 255.0, "6": 255.0 },
+      "denominators": {
+        "1": 439.8,
+        "2": 399.6,
+        "3": 331.0,
+        "4": 315.1,
+        "5": 255.0,
+        "6": 255.0
+      },
       "notes": "主力判別要素。設定1と6で約1.72倍。ただし設定5と6は同値のため、REGだけでは5と6を区別できない。"
     },
     {
@@ -45,7 +66,14 @@
       "label": "ぶどう",
       "input": "optional",
       "source": "app_estimate",
-      "denominators": { "1": 6.06, "2": 6.04, "3": 6.04, "4": 6.04, "5": 6.02, "6": 5.80 },
+      "denominators": {
+        "1": 6.06,
+        "2": 6.04,
+        "3": 6.04,
+        "4": 6.04,
+        "5": 6.02,
+        "6": 5.8
+      },
       "notes": "設定1〜5がほぼ同値で設定6のみ突出。実質「設定6か否か」の判別に特化した要素で、設定1〜5の相互判別にはほぼ寄与しない。"
     },
     {
@@ -54,7 +82,14 @@
       "input": "optional",
       "group": "big_breakdown",
       "source": "app_estimate",
-      "denominators": { "1": 415.28, "2": 402.09, "3": 397.61, "4": 388.20, "5": 386.40, "6": 382.26 },
+      "denominators": {
+        "1": 415.28,
+        "2": 402.09,
+        "3": 397.61,
+        "4": 388.2,
+        "5": 386.4,
+        "6": 382.26
+      },
       "notes": "設定差が小さく寄与は限定的。"
     },
     {
@@ -63,7 +98,14 @@
       "input": "optional",
       "group": "big_breakdown",
       "source": "app_estimate",
-      "denominators": { "1": 843.88, "2": 850.34, "3": 862.07, "4": 813.01, "5": 783.09, "6": 786.16 },
+      "denominators": {
+        "1": 843.88,
+        "2": 850.34,
+        "3": 862.07,
+        "4": 813.01,
+        "5": 783.09,
+        "6": 786.16
+      },
       "notes": "中段チェリーも含む。設定差が小さい。"
     },
     {
@@ -72,7 +114,14 @@
       "input": "optional",
       "group": "reg_breakdown",
       "source": "app_estimate",
-      "denominators": { "1": 644.33, "2": 572.74, "3": 490.92, "4": 450.86, "5": 360.23, "6": 373.69 },
+      "denominators": {
+        "1": 644.33,
+        "2": 572.74,
+        "3": 490.92,
+        "4": 450.86,
+        "5": 360.23,
+        "6": 373.69
+      },
       "notes": "設定1と6で約1.72倍の主力要素。ただし設定5が設定6より軽い実戦値の逆転がある。"
     },
     {
@@ -81,32 +130,84 @@
       "input": "optional",
       "group": "reg_breakdown",
       "source": "app_estimate",
-      "denominators": { "1": 1466.28, "2": 1269.04, "3": 1239.16, "4": 1031.99, "5": 843.17, "6": 850.34 },
+      "denominators": {
+        "1": 1466.28,
+        "2": 1269.04,
+        "3": 1239.16,
+        "4": 1031.99,
+        "5": 843.17,
+        "6": 850.34
+      },
       "notes": "設定差は大きめ。こちらも設定5が設定6より軽い逆転がある。"
     }
   ],
   "ui": {
     "count_buttons": [
-      { "id": "cherry", "label": "チェリー", "color": "cherry", "record_only": true },
-      { "id": "solo_big", "label": "単独BIG", "color": "bigk" },
-      { "id": "cherry_big", "label": "チェリー重複BIG", "color": "bigk" },
-      { "id": "grape", "label": "ぶどう", "color": "grape" },
-      { "id": "solo_reg", "label": "単独REG", "color": "regk" },
-      { "id": "cherry_reg", "label": "チェリー重複REG", "color": "regk" }
+      {
+        "id": "cherry",
+        "label": "チェリー",
+        "color": "cherry",
+        "record_only": true
+      },
+      {
+        "id": "solo_big",
+        "label": "単独BIG",
+        "color": "bigk"
+      },
+      {
+        "id": "cherry_big",
+        "label": "チェリー重複BIG",
+        "color": "bigk"
+      },
+      {
+        "id": "grape",
+        "label": "ぶどう",
+        "color": "grape"
+      },
+      {
+        "id": "solo_reg",
+        "label": "単独REG",
+        "color": "regk"
+      },
+      {
+        "id": "cherry_reg",
+        "label": "チェリー重複REG",
+        "color": "regk"
+      },
+      {
+        "id": "bell",
+        "label": "ベル",
+        "record_only": true
+      },
+      {
+        "id": "pierrot",
+        "label": "ピエロ",
+        "record_only": true
+      }
     ],
-    "notes": "並び順は表示順(3列グリッド)。最頻項目のぶどうを親指ホームポジション(下段左)に配置する。record_only:true は記録・確率表示のみで判別計算に使わない。"
+    "notes": "並び順は表示順(3列グリッド)。最頻項目のぶどうを親指ホームポジション(下段左)に配置し、出現頻度の低いベル・ピエロは最下段に置く。record_only:true は記録・確率表示のみで判別計算に使わない。"
   },
   "input_rules": {
     "modes": [
       {
         "id": "simple",
         "label": "簡易モード",
-        "uses": ["big_total", "reg_total", "grape"]
+        "uses": [
+          "big_total",
+          "reg_total",
+          "grape"
+        ]
       },
       {
         "id": "detail",
         "label": "詳細モード",
-        "uses": ["solo_big", "cherry_big", "solo_reg", "cherry_reg", "grape"],
+        "uses": [
+          "solo_big",
+          "cherry_big",
+          "solo_reg",
+          "cherry_reg",
+          "grape"
+        ],
         "notes": "内訳を使う場合、合計(big_total/reg_total)は二重計上になるため尤度計算に使わない。"
       }
     ],
@@ -120,7 +221,14 @@
       "id": "corner_cherry",
       "label": "チェリー(ボーナス非重複)",
       "record_only": true,
-      "reference_denominators": { "1": 36.36, "2": 35.92, "3": 36.00, "4": 36.35, "5": 35.92, "6": 35.73 },
+      "reference_denominators": {
+        "1": 36.36,
+        "2": 35.92,
+        "3": 36.0,
+        "4": 36.35,
+        "5": 35.92,
+        "6": 35.73
+      },
       "source": "app_estimate",
       "reason": "設定1(1/36.36)〜設定6(1/35.73)と差が小さく、立ち回りに使えるほどの設定差はないとされるため判別計算には不使用。実戦記録ツールでは記録・確率表示のみ行う。"
     },
@@ -128,6 +236,12 @@
       "id": "special_yaku",
       "label": "特殊役",
       "reason": "出現率が低く1日の試行では情報量がほぼゼロのため除外。"
+    },
+    {
+      "id": "bell_pierrot",
+      "label": "ベル・ピエロ",
+      "record_only": true,
+      "reason": "設定差がないとされるため判別計算には不使用。実戦記録ツールでは取りこぼし管理のため記録・確率表示のみ行う。確率値は出典が確認できていないため記載しない。"
     }
   ]
 }
