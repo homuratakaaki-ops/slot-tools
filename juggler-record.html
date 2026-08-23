@@ -359,14 +359,8 @@ select.rate {
   <div id="paneEstimate" hidden>
     <section class="card" aria-labelledby="h-rates">
       <h2 id="h-rates">実戦値</h2>
-      <div class="rates">
-        <div class="pill"><span>BIG確率</span><b id="r_big">–</b></div>
-        <div class="pill"><span>REG確率</span><b id="r_reg">–</b></div>
-        <div class="pill"><span>合算</span><b id="r_total">–</b></div>
-        <div class="pill"><span>ぶどう</span><b id="r_grape">–</b></div>
-        <div class="pill"><span>チェリー（参考）</span><b id="r_cherry">–</b></div>
-        <div class="pill"><span>単独REG</span><b id="r_solo_reg">–</b></div>
-      </div>
+      <div class="rates" id="ratesGrid"></div>
+      <p class="prior-note">BIG・REG・合算は台データ全体（打ち始め前を含む）、それ以外は自分がカウントした区間の確率です。</p>
     </section>
 
     <section class="card" aria-labelledby="h-use">
@@ -549,6 +543,7 @@ async function init() {
   state = defaultState();
   restore();
   renderCountButtons(uiBtns);
+  renderRatesPanel(uiBtns);
   buildPriorGrid();
   bind();
   renderAll();
@@ -894,6 +889,23 @@ function renderCountButtons(uiBtns) {
   attachCountHandlers(grid);
 }
 
+function renderRatesPanel(uiBtns) {
+  const grid = $("ratesGrid");
+  grid.innerHTML = "";
+  const rows = [
+    { id: "big", label: "BIG確率" },
+    { id: "reg", label: "REG確率" },
+    { id: "total", label: "合算" },
+    ...uiBtns.map((b) => ({ id: b.id, label: b.label + (b.record_only ? "（参考）" : "") })),
+  ];
+  for (const r of rows) {
+    const div = document.createElement("div");
+    div.className = "pill";
+    div.innerHTML = `<span>${r.label}</span><b id="r_${r.id}">–</b>`;
+    grid.appendChild(div);
+  }
+}
+
 function attachCountHandlers(scope) {
   scope.querySelectorAll("[data-count]").forEach((btn) => {
     if (btn.dataset.bound) return;
@@ -968,9 +980,13 @@ function renderEstimate() {
   $("r_big").textContent = fmtRate(totBig, state.nowG);
   $("r_reg").textContent = fmtRate(totReg, state.nowG);
   $("r_total").textContent = fmtRate(totBig + totReg, state.nowG);
-  $("r_grape").textContent = fmtRate(c.grape, ownG) + (state.useGrape ? "" : "（不使用）");
-  $("r_cherry").textContent = fmtRate(c.cherry, ownG);
-  $("r_solo_reg").textContent = fmtRate(c.solo_reg, ownG);
+  for (const b of (machine.ui && machine.ui.count_buttons) || []) {
+    const cell = $(`r_${b.id}`);
+    if (!cell) continue;
+    let text = fmtRate(c[b.id] || 0, ownG);
+    if (b.id === "grape" && !state.useGrape) text += "（不使用）";
+    cell.textContent = text;
+  }
 
   if (obs && obs.error) { showEmpty(obs.error, false); return; }
   if (!obs) { showEmpty("「現在のデータG」を入力すると、結果が表示されます。", true); return; }
