@@ -102,7 +102,8 @@
     "netBallsPerWin": 1400,
     "netBallsPerWinManual": false,
     "jitanNormalBallsPerSpin": 0,
-    "jitanFastBallsPerSpin": 0
+    "jitanFastBallsPerSpin": 0,
+    "yutimeBallsPerSpin": -0.3
   }
 }
 ```
@@ -110,7 +111,7 @@
 - `presetSettings` は機種プリセット単位の手動設定を保存する。
 - B52改訂2以降、`netBallsPerWin` は大当たり1回あたりの純払い出し量（ラウンド数×出玉）とし、時短中の玉増減は含めない。既定はプリセット定義の1400。
 - `netBallsPerWinManual` は手入力上書きフラグ。true の場合だけ `netBallsPerWin` を最優先し、false の場合は当選記録から自動算出する。
-- `jitanNormalBallsPerSpin` は100回転時短の1回転あたり玉増減、`jitanFastBallsPerSpin` は200回転時短と遊タイム350回転の1回転あたり玉増減。負の値は消費、0は時短消費なし。
+- `jitanNormalBallsPerSpin` は100回転時短、`jitanFastBallsPerSpin` は200回転時短、`yutimeBallsPerSpin` は遊タイム消化の1回転あたり玉増減。負の値は消費、0は消費なし。
 - 店をまたいで同じ機種プリセットに共通適用する。実測出玉からの自動切替は行わない。
 
 ### 2.3 Machine
@@ -229,7 +230,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22、B48では schema 22 から 23、B52では schema 23 から 24、B53では schema 24 から 25 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22、B48では schema 22 から 23、B52では schema 23 から 24、B53では schema 24 から 25、B80では schema 25 から 26 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:mapbackup` | フロアマップ定義だけの1世代退避 | フロアマップ保存時、保存直前のアクティブマップ定義を店ID・マップID単位で退避する。復元ボタン押下時に該当マップの島構成・除外・列機種のみ戻す。台・セッション・dailyState は触らない | `{ backups: { [storeId]: { [mapId]: { storeId, mapId, map, createdAt } } } }` の JSON 文字列 |
@@ -710,7 +711,7 @@ B5 実測値:
 - スキーマ変更はない。保存先、優先順位、期待値計算はB29のまま。
 - マップ上部の `assumedRate` 編集チップは「このコーナーの平均回転率」と表示する。台ごとの実測・手入力がない台に使う基準値であることを注記する。
 - B52以降、`netBallsPerWin` 編集チップは「純払い出し」と表示する。変更モーダルでは、ラウンド数×出玉の純払い出し量と、時短状態別の玉増減を分けて説明する。
-- 判定ブロックの出所は、マップ基準値を使う場合は「店舗名の想定回転率◯◯使用」、出玉設定を使う場合は「純払い出し◯◯玉/回、時短100 ◯玉/回転、時短200/遊タイム ◯玉/回転」と表示する。
+- 判定ブロックの出所は、マップ基準値を使う場合は「店舗名の想定回転率◯◯使用」、出玉設定を使う場合は「純払い出し◯◯玉/回、時短100 ◯玉/回転、時短200 ◯玉/回転、遊タイム ◯玉/回転」と表示する。
 
 ## 35. B32 機種（島）単位の絞り込み
 
@@ -1002,6 +1003,14 @@ B5 実測値:
 - `st-certain` では、ST当選率、時短90/40/15回の振り分け加重、平均連チャン、電サポ消化を解析式で算出する。既定の純払い出しは587.5玉/当り、電サポ増減は暫定で-0.8玉/回転とする。
 - 持ち玉/現金の投資分割、円換算、宵越し無効化、当選ラウンド記録は既存ロジックを流用する。`umi-sp5` の計算結果を変えないことを回帰条件にする。
 - 受け入れ検証は `tests/yutime-v3.test.js` に固定する。継続率57.7%、平均2.366連、初当り期待出玉約1390玉、等価ボーダー17.0/19.0/20.2、独立モンテカルロ30万回との誤差2%以内を確認する。
+
+## 71. B80 遊タイム専用消費レート
+
+- schema は 26 とする。`presetSettings["umi-sp5"]` に `yutimeBallsPerSpin` を追加し、旧schema読み込み時はフィールド不在を正常扱いとして `0` で補完する。schema 26以降で未設定の場合は、大海5SPプリセット既定の `-0.3` を使う。
+- 期待値エンジンの電サポ内訳は、`expectedJitanNormalSpins`（時短100）、`expectedJitanFastSpins`（当り後の時短200）、`expectedYutimeSpins`（遊タイム到達後の消化）に分割する。`expectedDensapoSpins` は3項目の合計として拘束時間・互換表示用に残す。
+- `winBalls` は `expectedWins * netBallsPerWin + expectedJitanNormalSpins * jitanNormalBallsPerSpin + expectedJitanFastSpins * jitanFastBallsPerSpin + expectedYutimeSpins * yutimeBallsPerSpin` とする。3レートをすべて0にした場合は、B79以前の基準点と1円単位で一致する。
+- UIの機種別設定は「時短100」「時短200」「遊タイム」の3枠に分ける。既存の `jitanFastBallsPerSpin` は時短200枠として残し、遊タイム枠へコピーしない。
+- 当選タップの獲得出玉は「大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）」として扱う。遊タイム駆け抜けの減算レート自動集計はB81候補とし、B80では手入力運用に留める。
 
 ## アイデアメモ
 
