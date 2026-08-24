@@ -154,45 +154,57 @@
         "id": "cherry",
         "label": "チェリー",
         "color": "cherry",
-        "record_only": true
+        "record_only": true,
+        "label_sub": "チェリー"
       },
       {
         "id": "solo_big",
         "label": "単独BIG",
-        "color": "bigk"
+        "color": "bigk",
+        "label_top": "BIG",
+        "label_sub": "単独"
       },
       {
         "id": "cherry_big",
         "label": "チェリー重複BIG",
-        "color": "bigk"
+        "color": "bigk",
+        "label_top": "BIG",
+        "label_sub": "🍒重複"
       },
       {
         "id": "grape",
         "label": "ぶどう",
-        "color": "grape"
+        "color": "grape",
+        "label_sub": "ぶどう"
       },
       {
         "id": "solo_reg",
         "label": "単独REG",
-        "color": "regk"
+        "color": "regk",
+        "label_top": "REG",
+        "label_sub": "単独"
       },
       {
         "id": "cherry_reg",
         "label": "チェリー重複REG",
-        "color": "regk"
+        "color": "regk",
+        "label_top": "REG",
+        "label_sub": "🍒重複"
       },
       {
         "id": "bell",
         "label": "ベル",
-        "record_only": true
+        "record_only": true,
+        "label_sub": "ベル"
       },
       {
         "id": "pierrot",
         "label": "ピエロ",
-        "record_only": true
+        "record_only": true,
+        "label_sub": "ピエロ"
       }
     ],
-    "notes": "並び順は表示順(3列グリッド)。最頻項目のぶどうを親指ホームポジション(下段左)に配置し、出現頻度の低いベル・ピエロは最下段に置く。record_only:true は記録・確率表示のみで判別計算に使わない。"
+    "notes": "並び順は表示順(3列グリッド)。label_top/label_sub はボタン内の2行表示用(未指定時は label を使用)。最頻項目のぶどうを親指ホームポジション(下段左)に配置し、出現頻度の低いベル・ピエロは最下段に置く。record_only:true は記録・確率表示のみで判別計算に使わない。"
   },
   "input_rules": {
     "modes": [
