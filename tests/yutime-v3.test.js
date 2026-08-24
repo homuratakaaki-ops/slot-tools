@@ -321,6 +321,7 @@ assert.match(transferSummary, /investYen: totals\.cashYen,/);
 assert.match(transferSummary, /recoverYen: normalizeNumber\(session\.settlementRecoverYen\) \?\? 0,/);
 assert.match(transferSummary, /withdrawBalls: totals\.mochidamaBalls \+ totals\.saipureiBalls,/);
 assert.match(transferSummary, /depositBalls: finalMochidamaForCarryover\(session\) \?\? 0/);
+assert.match(transferSummary, /const tenjo = tenjoForPresetId\(startEv\?\.presetId \|\| normalizeMachinePresetId\(machine\)\);/);
 assert.match(transferSummary, /startExpectedSpins = startEv \? Math\.max\(0, tenjo - startEv\.effectiveSpin\) : null;/);
 assert.match(transferSummary, /remainingSpins = endEffectiveSpin !== null \? Math\.max\(0, tenjo - endEffectiveSpin\) : null;/);
 assert.match(transferSummary, /const consumedBalls = Math\.round\(totals\.mochidamaBalls \+ totals\.saipureiBalls \+ totals\.cashYen \/ 1000 \* 250\);/);
@@ -406,6 +407,31 @@ assert.ok(Math.abs(nonEqualAllBallsResult.normalCostYen - nonEqualAllBallsResult
 assert.equal(expectationContext.judge(nonEqualExchangeResult).label, '打てない');
 assert.ok(Math.abs(equalExchangeResult.expectedDensapoSpins - (equalExchangeResult.expectedJitanNormalSpins + equalExchangeResult.expectedJitanFastSpins)) < 0.000001, 'split jitan spins should add up to legacy total');
 assert.ok(jitanLossResult.winBalls < expectationContext.engine.calculate({ currentSpin: 900, rotationRate: 18 }, { yenPerBall: 4, netBallsPerWin: 1400 }).winBalls, 'negative jitan rates should reduce win balls');
+
+const agnesPreset = expectationContext.engine.presets['agnes-pe'];
+const agnesChains = expectationContext.engine.stCertainValues(agnesPreset);
+assert.ok(agnesPreset, 'agnes-pe preset should be registered in the expectation engine');
+assert.ok(Math.abs(agnesChains.pST - 0.40929428801282375) < 0.000001, 'agnes ST hit rate should match the supplied spec');
+assert.ok(Math.abs(agnesChains.continuation - 0.5773525708771564) < 0.000001, 'agnes continuation should match the supplied spec');
+assert.ok(Math.abs(agnesChains.expectedWins - 2.3660382888768203) < 0.000001, 'agnes average chain should match the supplied spec');
+assert.ok(Math.abs(agnesChains.expectedWins * 587.5 - 1390) / 1390 < 0.005, 'agnes public-payout chain value should be about 1390 balls');
+function agnesBorder(payoutFactor) {
+  let lo = 10;
+  let hi = 30;
+  for (let i = 0; i < 40; i += 1) {
+    const mid = (lo + hi) / 2;
+    const result = expectationContext.engine.calculate(
+      { presetId: 'agnes-pe', currentSpin: 0, rotationRate: mid },
+      { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5 * payoutFactor, jitanFastBallsPerSpin: -0.8 }
+    );
+    if (result.evYen >= 0) hi = mid;
+    else lo = mid;
+  }
+  return hi;
+}
+assert.ok(Math.abs(agnesBorder(1.00) - 17.0) <= 0.1, 'agnes 100% payout border should be 17.0/k');
+assert.ok(Math.abs(agnesBorder(0.90) - 19.0) <= 0.1, 'agnes 90% payout border should be 19.0/k');
+assert.ok(Math.abs(agnesBorder(0.85) - 20.2) <= 0.1, 'agnes 85% payout border should be 20.2/k');
 assert.match(expectationRateBlock, /const assumedSourceName = String\(store\?\.name \|\| ""\)\.trim\(\) \|\| "島";/);
 assert.match(expectationRateBlock, /source: `\$\{assumedSourceName\}の想定回転率\$\{assumed\.toFixed\(1\)\}使用`/);
 assert.doesNotMatch(expectationRateBlock, /コーナー平均/);
@@ -506,6 +532,61 @@ function assertMonteCarloClose(currentSpin, seed) {
 
 assertMonteCarloClose(0, 0xB520);
 assertMonteCarloClose(900, 0xB521);
+
+function chooseAgnesJitanLimit(rng) {
+  const roll = rng();
+  if (roll < 0.04) return 90;
+  if (roll < 0.70) return 40;
+  return 15;
+}
+
+function runUnboundedHit(prob, rng) {
+  let spins = 0;
+  while (true) {
+    spins += 1;
+    if (rng() < prob) return spins;
+  }
+}
+
+function simulateAgnesExpectation(currentSpin, trials, seed) {
+  const rng = makeRng(seed);
+  const spec = agnesPreset.spec;
+  const totals = { normal: 0, wins: 0, support: 0 };
+  function playChain() {
+    while (true) {
+      totals.wins += 1;
+      const st = runLimitedJitan(spec.hitProbHigh, spec.stSpins, rng);
+      totals.support += st.spins;
+      if (st.hit) continue;
+      const jitan = runLimitedJitan(spec.hitProbLow, chooseAgnesJitanLimit(rng), rng);
+      totals.support += jitan.spins;
+      if (!jitan.hit) return;
+    }
+  }
+  for (let trial = 0; trial < trials; trial += 1) {
+    const toTenjo = Math.max(0, spec.tenjo - currentSpin);
+    const normal = runLimitedJitan(spec.hitProbLow, toTenjo, rng);
+    totals.normal += normal.spins;
+    if (!normal.hit) totals.support += runUnboundedHit(spec.hitProbLow, rng);
+    playChain();
+  }
+  return Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, value / trials]));
+}
+
+const agnesAnalytic = expectationContext.engine.calculate(
+  { presetId: 'agnes-pe', currentSpin: 0, rotationRate: 18 },
+  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: -0.8 }
+);
+const agnesSimulated = simulateAgnesExpectation(0, 300000, 0xA679);
+for (const [key, actual] of [
+  ['expectedNormalSpins', agnesSimulated.normal],
+  ['expectedWins', agnesSimulated.wins],
+  ['expectedDensapoSpins', agnesSimulated.support]
+]) {
+  const expected = agnesAnalytic[key];
+  const tolerance = Math.max(Math.abs(expected) * 0.02, 0.05);
+  assert.ok(Math.abs(actual - expected) <= tolerance, `agnes ${key}: analytic=${expected}, simulated=${actual}, tolerance=${tolerance}`);
+}
 
 function simulateInvestmentSplit(currentSpin, rotationRate, availableBalls, trials, seed) {
   const rng = makeRng(seed);
@@ -635,6 +716,9 @@ const transferContext = vm.createContext({
   },
   normalizeMachinePresetId() {
     return 'umi-sp5';
+  },
+  tenjoForPresetId() {
+    return 950;
   },
   roundTypeById(presetId, roundTypeId) {
     return {
@@ -983,7 +1067,7 @@ assert.match(runningTrialHelpers, /id="runningTrialStartLine"/);
 assert.doesNotMatch(runningTrialHelpers, /`実効/);
 assert.match(startEvDetailTextBlock, /function remainingSpinTextFromEffectiveSpin\(effectiveSpin, tenjo = YUTIME_EXPECTATION_ENGINE\.preset\.spec\.tenjo\) \{/);
 assert.match(startEvDetailTextBlock, /Math\.max\(0, ceiling - effective\)\.toLocaleString\("ja-JP"\)/);
-assert.match(startEvDetailTextBlock, /remainingSpinTextFromEffectiveSpin\(normalized\.effectiveSpin\)/);
+assert.match(startEvDetailTextBlock, /remainingSpinTextFromEffectiveSpin\(normalized\.effectiveSpin, tenjoForPresetId\(normalized\.presetId\)\)/);
 assert.match(startEvDetailTextBlock, /function expectationInvestmentText\(mochidamaBalls, cashBalls\) \{/);
 assert.match(startEvDetailTextBlock, /const total = mochidama \+ cash;/);
 assert.match(startEvDetailTextBlock, /const cashYen = Math\.round\(cash \/ 250 \* 1000\);/);
@@ -1228,6 +1312,9 @@ assert.equal(startSessionContext.blankStarted.startCredit, null);
 assert.equal(startSessionContext.blankStarted.startTotalHits, null);
 const startEvDetailContext = vm.createContext({
   YUTIME_EXPECTATION_ENGINE: { preset: { spec: { tenjo: 950 } } },
+  tenjoForPresetId(presetId) {
+    return presetId === 'agnes-pe' ? 239 : 950;
+  },
   normalizeNumber(value) {
     if (value === '' || value === null || value === undefined) return null;
     const n = Number(value);
@@ -1446,6 +1533,10 @@ assert.match(html, /const SCHEMA_VERSION = 25;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /roundTypes: \[\{ id: "r10", label: "10R", balls: 1400 \}\]/);
+assert.match(html, /id: "agnes-pe"/);
+assert.match(html, /name: "PA大海物語Withアグネス・ラムPE"/);
+assert.match(html, /modelType: "st-certain"/);
+assert.match(html, /roundTypes: \[\{ id: "r10", label: "10R", balls: 1080 \}, \{ id: "r6", label: "6R", balls: 648 \}, \{ id: "r4", label: "4R", balls: 432 \}\]/);
 assert.match(html, /hits: \[\],/);
 assert.match(html, /function normalizeHits\(hits\)/);
 assert.match(html, /function syncSessionHitTotals\(session, machines = data\.machines\)/);
