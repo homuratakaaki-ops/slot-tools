@@ -6533,6 +6533,16 @@
       }, { cashYen: 0, saipureiBalls: 0, mochidamaBalls: 0 });
     }
 
+    function profitYenForSession(session, totals = investmentTotals(session), store = storeById(session.storeId)) {
+      const endTotalBalls = normalizeNumber(session.endTotalBalls);
+      if (endTotalBalls === null) return null;
+      const exchangeRate = exchangeRateForStore(store);
+      const recoverBalls = endTotalBalls + Number(session.zanhoryuBalls || 0);
+      const investedPlayerBalls = Number(totals.mochidamaBalls || 0) + Number(totals.saipureiBalls || 0);
+      const cashYen = Number(totals.cashYen || 0);
+      return Math.round((recoverBalls - investedPlayerBalls) * exchangeRate - cashYen);
+    }
+
     function investmentTotalEditorHtml(session) {
       const totals = investmentTotals(session);
       return `
@@ -7192,7 +7202,7 @@
       const diffBalls = session.endTotalBalls !== null ? Math.round(session.endTotalBalls - diffInputBalls + Number(session.zanhoryuBalls || 0)) : null;
       const exchangeBalls = exchangeBallsForStore(store);
       const exchangeRate = exchangeRateForStore(store);
-      const profitYen = diffBalls !== null ? Math.round(diffBalls * exchangeRate) : null;
+      const profitYen = profitYenForSession(session, investmentTotals(session), store);
       const isEstimatedPayout = session.hitRemainBalls === null && estimatedPayout !== null;
       const isEstimatedRate = isEstimatedPayout && rate !== null && (session.yutimeEnterBalls === null || session.yutimeEnterBalls === undefined);
       return {

@@ -837,6 +837,63 @@ assert.equal(JSON.stringify(investmentAdjustContext.session.investments.slice(3)
     { source: 'cash', amount: 2000, phase: 'normal', spinAt: null, adjustment: true }
   ]));
 assert.equal(JSON.stringify(investmentAdjustContext.totals), JSON.stringify({ cashYen: 2500, saipureiBalls: 500, mochidamaBalls: 1000 }));
+const profitContext = vm.createContext({
+  normalizeNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  investmentSource(item) {
+    return item?.source || item?.type || 'cash';
+  },
+  storeById() {
+    return {};
+  },
+  exchangeRateForStore(store) {
+    return 100 / Number(store?.exchangeBalls || 28.01);
+  },
+  byId() {
+    return null;
+  },
+  currentTime() {
+    return '12:34';
+  },
+  escapeHtml(value) {
+    return String(value ?? '');
+  }
+});
+new vm.Script(`
+  ${investmentTotalsBlock}
+  globalThis.profit = (session, exchangeBalls) => {
+    const totals = investmentTotals(session);
+    return profitYenForSession(session, totals, { exchangeBalls });
+  };
+`).runInContext(profitContext);
+const b81Fixture = {
+  endTotalBalls: 5569,
+  zanhoryuBalls: 0,
+  investments: [
+    { source: 'cash', amount: 1500 },
+    { source: 'mochidama', amount: 2500 }
+  ]
+};
+assert.ok(Math.abs(profitContext.profit(b81Fixture, 28.01) - 9457) <= 5);
+const b81EqualExchange = {
+  endTotalBalls: 5569,
+  zanhoryuBalls: 0,
+  investments: [
+    { source: 'cash', amount: 1500 },
+    { source: 'mochidama', amount: 2500 }
+  ]
+};
+const equalExchangeOldDiff = 5569 - (2500 + 1500 / 1000 * 250);
+assert.equal(profitContext.profit(b81EqualExchange, 25), Math.round(equalExchangeOldDiff * 4));
+const b81NoCash = {
+  endTotalBalls: 5569,
+  zanhoryuBalls: 0,
+  investments: [{ source: 'mochidama', amount: 2500 }]
+};
+assert.equal(profitContext.profit(b81NoCash, 28.01), Math.round((5569 - 2500) * (100 / 28.01)));
 const transferFixture = {
   id: 's_transfer',
   machineId: 'm_transfer',
@@ -933,6 +990,16 @@ new vm.Script(`
   function exchangeBallsForStore() { return 25; }
   function exchangeRateForStore() { return 4; }
   function investmentSource(item) { return item.source || item.type || "mochidama"; }
+  function investmentTotals(session) {
+    return (session.investments || []).reduce((totals, item) => {
+      const source = investmentSource(item);
+      if (source === "cash") totals.cashYen += Number(item.amount || 0);
+      if (source === "saipurei") totals.saipureiBalls += Number(item.amount || 0);
+      if (source === "mochidama") totals.mochidamaBalls += Number(item.amount || 0);
+      return totals;
+    }, { cashYen: 0, saipureiBalls: 0, mochidamaBalls: 0 });
+  }
+  function profitYenForSession() { return null; }
   ${runningSpinCount}
   ${deriveSession}
   const baseInvestments = [
