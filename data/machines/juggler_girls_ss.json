@@ -1,0 +1,147 @@
+{
+  "schema_version": "1.1",
+  "machine": {
+    "id": "juggler_girls_ss",
+    "name": "SジャグラーガールズSS",
+    "maker": "北電子",
+    "type": "normal",
+    "settings": [1, 2, 3, 4, 5, 6],
+    "notes": "確率は分母表記(denominators)で保持する。p = 1 / denominator。6号機ジャグラーシリーズ第6弾(2024年4月導入)。5号機ジャグラーガールズの後継機。BIG・REGとも全設定単調に軽くなり、高設定ほどBR比率が1.1:1に近づく。中段チェリーはBIG重複確定。"
+  },
+  "sources": {
+    "official_spec": {
+      "label": "ボーナス確率(メーカー公表値)",
+      "url": "https://juggler7.com/girls-ss/settei-hanbetu.html",
+      "retrieved_at": "2026-08-25",
+      "reliability": "official",
+      "notes": "BIG・REGの個別値は別サイト(けんのスロットシミュレーション https://kenslo65536.com/kaiseki/juggler-s-girls.html )の掲載値とも一致することをシオンが確認済み。なお juggler7 の合算欄の数値は個別値から計算した合成確率と食い違っているため採用せず、合算はツール側で計算する。"
+    },
+    "field_estimate": {
+      "label": "ぶどう確率・チェリー確率の実戦推定値(ガリぞう氏 調査)",
+      "url": "https://juggler7.com/girls-ss/settei-hanbetu.html",
+      "retrieved_at": "2026-08-25",
+      "reliability": "field_estimate",
+      "notes": "公式解析発表ではない。ぶどうは設定1〜4が同値で設定5・6のみ優遇される、5号機ジャグラーガールズ譲りの構造。"
+    },
+    "derived_estimate": {
+      "label": "単独ボーナス確率(5号機ジャグラーガールズとのボーナス比率からの推定値)・チェリー重複ボーナス確率(公表合算値との差から算出)",
+      "url": "https://juggler7.com/girls-ss/settei-hanbetu.html",
+      "retrieved_at": "2026-08-25",
+      "reliability": "derived_estimate",
+      "notes": "本機は単独ボーナス・チェリー重複ボーナスの公式解析値が未公表。単独ボーナスは前作比率からの推定値をそのまま採用し、チェリー重複は『公表合算 − 単独』としてシオンが算出したため、合成値は公表値と厳密に一致する。ただし単独値の誤差をそのまま引き継ぐため、詳細モードの結果は参考程度に扱うこと。"
+    }
+  },
+  "elements": [
+    {
+      "id": "big_total",
+      "label": "BIG合計",
+      "input": "required",
+      "source": "official_spec",
+      "denominators": { "1": 273.1, "2": 270.8, "3": 260.1, "4": 250.1, "5": 243.6, "6": 226.0 },
+      "notes": "設定1と6で約1.21倍。全設定単調に軽くなる。"
+    },
+    {
+      "id": "reg_total",
+      "label": "REG合計",
+      "input": "required",
+      "source": "official_spec",
+      "denominators": { "1": 381.0, "2": 350.5, "3": 316.6, "4": 281.3, "5": 270.8, "6": 252.1 },
+      "notes": "最大の判別要素。設定1と6で約1.51倍、全設定単調。ただしREGの設定差幅はシリーズの中では狭い部類で、設定1でも1/381.0と比較的軽いため判別には試行が必要。BR比率は設定1で1.4:1、設定4〜6で1.1:1。"
+    },
+    {
+      "id": "grape",
+      "label": "ぶどう",
+      "input": "optional",
+      "source": "field_estimate",
+      "denominators": { "1": 5.98, "2": 5.98, "3": 5.98, "4": 5.98, "5": 5.88, "6": 5.83 },
+      "notes": "設定1〜4が同値で、設定5・6のみ段階的に優遇される。実質「設定5以上か否か」の判別に効く要素。1/5.83を切るようなら設定6の期待度が高まる。"
+    },
+    {
+      "id": "solo_big",
+      "label": "単独BIG",
+      "input": "optional",
+      "group": "big_breakdown",
+      "source": "derived_estimate",
+      "denominators": { "1": 389.5, "2": 383.1, "3": 371.5, "4": 352.4, "5": 340.0, "6": 313.7 },
+      "notes": "設定1と6で約1.24倍、全設定単調。他機種より単独BIGの設定差がやや大きい。"
+    },
+    {
+      "id": "cherry_big",
+      "label": "チェリー重複BIG",
+      "input": "optional",
+      "group": "big_breakdown",
+      "source": "derived_estimate",
+      "denominators": { "1": 913.9, "2": 923.8, "3": 867.4, "4": 861.5, "5": 859.2, "6": 808.4 },
+      "notes": "公表BIG合算と単独BIGの差から算出。設定1と2で単調性がわずかに崩れている(算出誤差)。設定4・5もほぼ同値で、判別寄与は限定的。中段チェリー重複BIGもここに含めてカウントしてよい。"
+    },
+    {
+      "id": "solo_reg",
+      "label": "単独REG",
+      "input": "optional",
+      "group": "reg_breakdown",
+      "source": "derived_estimate",
+      "denominators": { "1": 523.8, "2": 485.3, "3": 440.1, "4": 399.2, "5": 385.2, "6": 358.9 },
+      "notes": "設定1と6で約1.46倍、全設定単調。内訳の中では有力な判別要素だが、他機種の単独REG(1.5〜1.75倍)と比べると設定差はやや小さい。"
+    },
+    {
+      "id": "cherry_reg",
+      "label": "チェリー重複REG",
+      "input": "optional",
+      "group": "reg_breakdown",
+      "source": "derived_estimate",
+      "denominators": { "1": 1397.5, "2": 1261.9, "3": 1128.2, "4": 952.5, "5": 911.8, "6": 847.2 },
+      "notes": "公表REG合算と単独REGの差から算出。設定1と6で約1.65倍と設定差は大きく全設定単調だが、分母も大きいため収束には時間がかかる。"
+    }
+  ],
+  "ui": {
+    "count_buttons": [
+      { "id": "cherry", "label": "チェリー", "label_sub": "チェリー", "color": "cherry", "record_only": true },
+      { "id": "solo_big", "label": "単独BIG", "label_top": "BIG", "label_sub": "単独", "color": "bigk" },
+      { "id": "cherry_big", "label": "チェリー重複BIG", "label_top": "BIG", "label_sub": "🍒重複", "color": "bigk" },
+      { "id": "grape", "label": "ぶどう", "label_sub": "ぶどう", "color": "grape" },
+      { "id": "solo_reg", "label": "単独REG", "label_top": "REG", "label_sub": "単独", "color": "regk" },
+      { "id": "cherry_reg", "label": "チェリー重複REG", "label_top": "REG", "label_sub": "🍒重複", "color": "regk" },
+      { "id": "bell", "label": "ベル", "label_sub": "ベル", "record_only": true },
+      { "id": "pierrot", "label": "ピエロ", "label_sub": "ピエロ", "record_only": true }
+    ],
+    "notes": "並び順は表示順(3列グリッド)。label_top/label_sub はボタン内の2行表示用(未指定時は label を使用)。最頻項目のぶどうを親指ホームポジション(下段左)に配置し、出現頻度の低いベル・ピエロは最下段に置く。record_only:true は記録・確率表示のみで判別計算に使わない。"
+  },
+  "input_rules": {
+    "modes": [
+      {
+        "id": "simple",
+        "label": "簡易モード",
+        "uses": ["big_total", "reg_total", "grape"]
+      },
+      {
+        "id": "detail",
+        "label": "詳細モード",
+        "uses": ["solo_big", "cherry_big", "solo_reg", "cherry_reg", "grape"],
+        "notes": "内訳を使う場合、合計(big_total/reg_total)は二重計上になるため尤度計算に使わない。単独ボーナスは前作比率からの derived_estimate である点に注意。"
+      }
+    ],
+    "validation": [
+      "詳細モードでは 単独REG + チェリー重複REG の回数合計がREG総数と一致すること(単独BIG側も同様)。",
+      "チェリー重複は公表合算値から算出しているため、確率の合成値は公表値と厳密に一致する。整合チェックは回数ベースで行う。",
+      "中段チェリー成立時のBIGは実戦では角チェリー重複と区別しにくいため、『チェリー重複BIG』としてカウントしてよい。"
+    ]
+  },
+  "excluded_elements": [
+    {
+      "id": "corner_cherry",
+      "label": "チェリー(ボーナス非重複を含む通常時チェリー)",
+      "record_only": true,
+      "reference_denominators": { "1": 33.56, "2": 33.47, "3": 33.21, "4": 33.15, "5": 33.10, "6": 32.97 },
+      "source": "field_estimate",
+      "reason": "全設定の数値が判明しており設定1と6で約1.02倍の単調な設定差がある(1/32.97を切れば設定6の期待度が高まるとされる)。ただし差が小さいうえ、この値はボーナス重複分を含むためチェリー重複BIG/REGと二重計上になる恐れがあり、現行の判別エンジンの入力経路も非重複チェリーに対応していない。当面は記録・確率表示のみとする。"
+    },
+    {
+      "id": "bell_pierrot",
+      "label": "ベル・ピエロ",
+      "record_only": true,
+      "reference_denominators": { "1": 1092.27, "2": 1092.27, "3": 1092.27, "4": 1092.27, "5": 1092.27, "6": 1092.27 },
+      "source": "derived_estimate",
+      "reason": "5号機ジャグラーガールズと同じ1/1092.27で全設定共通と予想されており設定差がないため判別には使用しない。実戦記録ツールでは取りこぼし管理のため記録・確率表示のみ行う。出典: https://kenslo65536.com/kaiseki/juggler-s-girls.html"
+    }
+  ]
+}
