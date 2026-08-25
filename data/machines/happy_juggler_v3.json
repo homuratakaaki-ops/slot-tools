@@ -1,0 +1,154 @@
+{
+  "schema_version": "1.1",
+  "machine": {
+    "id": "happy_juggler_v3",
+    "name": "SハッピージャグラーVⅢ",
+    "maker": "北電子",
+    "type": "normal",
+    "settings": [1, 2, 3, 4, 5, 6],
+    "notes": "確率は分母表記(denominators)で保持する。p = 1 / denominator。6号機ジャグラーシリーズ第3弾(2022年10月導入)。設定6の機械割111.22%はシリーズ最高クラス。REG確率の設定差が1.55倍と大きく、BR比率(設定6で約1:1)も判別材料になる。中段チェリー(1/6553.6・全設定共通・BIG確定)を搭載。"
+  },
+  "sources": {
+    "official_spec": {
+      "label": "ボーナス確率(メーカー公表値)",
+      "url": "https://juggler7.com/happy3/settei-hanbetu.html",
+      "retrieved_at": "2026-08-25",
+      "reliability": "official"
+    },
+    "app_estimate": {
+      "label": "北電子公式アプリ『SハッピージャグラーVⅢ』からの算出値(ジャグトピ掲載)",
+      "url": "https://jugglertopics.jp/hjv3/334/",
+      "retrieved_at": "2026-08-25",
+      "reliability": "app_estimate",
+      "notes": "ぶどう・チェリー重複ボーナス・角チェリー・ピエロ・ベルの数値はこの出典による。公式解析発表ではない。"
+    },
+    "derived_estimate": {
+      "label": "単独ボーナス確率(公表合算値とチェリー重複確率の差から算出)",
+      "url": "https://juggler7.com/happy3/settei-hanbetu.html",
+      "retrieved_at": "2026-08-25",
+      "reliability": "derived_estimate",
+      "notes": "本機は単独ボーナスの公式解析値が未公表。公表合算値をアンカーとして『公表合算 − チェリー重複』で算出した。チェリー重複BIGは、実戦で角チェリー重複と区別できない中段チェリー(1/6553.6・BIG確定)を合成した実用値を用いている。算出した単独REGは、5号機ハッピージャグラーV2との比率から推定した第三者の独立推定値(設定1で1/635.5、設定6で1/426.6、設定差1.49倍)とほぼ完全に一致しており、妥当性の裏付けとしている。"
+    }
+  },
+  "elements": [
+    {
+      "id": "big_total",
+      "label": "BIG合計",
+      "input": "required",
+      "source": "official_spec",
+      "denominators": { "1": 273.1, "2": 270.8, "3": 263.2, "4": 254.0, "5": 239.2, "6": 226.0 },
+      "notes": "設定1と6で約1.21倍。全設定が単調に軽くなる。"
+    },
+    {
+      "id": "reg_total",
+      "label": "REG合計",
+      "input": "required",
+      "source": "official_spec",
+      "denominators": { "1": 397.2, "2": 362.1, "3": 332.7, "4": 300.6, "5": 273.1, "6": 256.0 },
+      "notes": "最大の判別要素。設定1と6で約1.55倍と全設定単調。BIGの設定差(1.21倍)より大きいため、高設定ほどBR比率が1:1に近づく(設定1は約1.5:1、設定6は約1.1:1)。"
+    },
+    {
+      "id": "grape",
+      "label": "ぶどう",
+      "input": "optional",
+      "source": "app_estimate",
+      "denominators": { "1": 6.05, "2": 6.04, "3": 6.02, "4": 5.90, "5": 5.81, "6": 5.75 },
+      "notes": "設定1〜3がほぼ横ばいで、設定4以降で明確に軽くなる。1/5.80付近を切るようなら設定6の期待度が高まる。試行数が稼げるため補助要素として有効。"
+    },
+    {
+      "id": "solo_big",
+      "label": "単独BIG",
+      "input": "optional",
+      "group": "big_breakdown",
+      "source": "derived_estimate",
+      "denominators": { "1": 352.6, "2": 348.7, "3": 336.0, "4": 337.7, "5": 312.2, "6": 290.0 },
+      "notes": "設定1と6で約1.22倍。設定3と4の間で単調性がわずかに崩れている(算出誤差)。判別寄与は限定的。"
+    },
+    {
+      "id": "cherry_big",
+      "label": "チェリー重複BIG",
+      "input": "optional",
+      "group": "big_breakdown",
+      "source": "app_estimate",
+      "denominators": { "1": 1211.3, "2": 1212.7, "3": 1214.2, "4": 1025.0, "5": 1022.9, "6": 1024.0 },
+      "notes": "角チェリー重複BIGに中段チェリー(1/6553.6・BIG確定)を合成した実用値。設定1〜3と設定4〜6でそれぞれ近似し、設定3と4の間に段差がある。高設定域では差がほぼない。"
+    },
+    {
+      "id": "solo_reg",
+      "label": "単独REG",
+      "input": "optional",
+      "group": "reg_breakdown",
+      "source": "derived_estimate",
+      "denominators": { "1": 636.3, "2": 569.9, "3": 532.9, "4": 478.3, "5": 436.7, "6": 426.2 },
+      "notes": "設定1と6で約1.49倍、全設定単調。内訳の中で最も強い判別要素。第三者の独立推定値とほぼ一致している。"
+    },
+    {
+      "id": "cherry_reg",
+      "label": "チェリー重複REG",
+      "input": "optional",
+      "group": "reg_breakdown",
+      "source": "app_estimate",
+      "denominators": { "1": 1057.1, "2": 993.0, "3": 885.7, "4": 809.1, "5": 728.9, "6": 641.0 },
+      "notes": "設定1と6で約1.65倍と設定差が大きく、全設定単調。分母が大きいため収束には時間がかかるが、シリーズの中では有力な要素。"
+    }
+  ],
+  "ui": {
+    "count_buttons": [
+      { "id": "cherry", "label": "チェリー", "label_sub": "チェリー", "color": "cherry", "record_only": true },
+      { "id": "solo_big", "label": "単独BIG", "label_top": "BIG", "label_sub": "単独", "color": "bigk" },
+      { "id": "cherry_big", "label": "チェリー重複BIG", "label_top": "BIG", "label_sub": "🍒重複", "color": "bigk" },
+      { "id": "grape", "label": "ぶどう", "label_sub": "ぶどう", "color": "grape" },
+      { "id": "solo_reg", "label": "単独REG", "label_top": "REG", "label_sub": "単独", "color": "regk" },
+      { "id": "cherry_reg", "label": "チェリー重複REG", "label_top": "REG", "label_sub": "🍒重複", "color": "regk" },
+      { "id": "bell", "label": "ベル", "label_sub": "ベル", "record_only": true },
+      { "id": "pierrot", "label": "ピエロ", "label_sub": "ピエロ", "record_only": true }
+    ],
+    "notes": "並び順は表示順(3列グリッド)。label_top/label_sub はボタン内の2行表示用(未指定時は label を使用)。最頻項目のぶどうを親指ホームポジション(下段左)に配置し、出現頻度の低いベル・ピエロは最下段に置く。record_only:true は記録・確率表示のみで判別計算に使わない。"
+  },
+  "input_rules": {
+    "modes": [
+      {
+        "id": "simple",
+        "label": "簡易モード",
+        "uses": ["big_total", "reg_total", "grape"]
+      },
+      {
+        "id": "detail",
+        "label": "詳細モード",
+        "uses": ["solo_big", "cherry_big", "solo_reg", "cherry_reg", "grape"],
+        "notes": "内訳を使う場合、合計(big_total/reg_total)は二重計上になるため尤度計算に使わない。単独ボーナスは derived_estimate である点に注意。"
+      }
+    ],
+    "validation": [
+      "詳細モードでは 単独REG + チェリー重複REG の回数合計がREG総数と一致すること(単独BIG側も同様)。",
+      "内訳は公表合算値をアンカーとして算出しているため、確率の合成値は公表値と厳密に一致する。整合チェックは回数ベースで行う。",
+      "中段チェリー成立時のBIGは、実戦では角チェリー重複と区別できないため『チェリー重複BIG』としてカウントしてよい(確率値に合成済み)。"
+    ]
+  },
+  "excluded_elements": [
+    {
+      "id": "corner_cherry",
+      "label": "角チェリー(ボーナス非重複)",
+      "record_only": true,
+      "reference_denominators": { "1": 62.1, "2": 61.5, "3": 61.1, "4": 64.5, "5": 64.9, "6": 65.5 },
+      "source": "app_estimate",
+      "reason": "本機は他のジャグラーと異なり角チェリーに明確な設定差があるが、高設定ほど出現率が下がる逆方向の設定差であり(設定1〜3が1/61前後、設定4〜6が1/65前後)、現行の判別エンジンの入力経路が非重複チェリーに対応していないため、当面は記録・確率表示のみとする。将来的に判別要素へ組み込む余地がある。"
+    },
+    {
+      "id": "bell_pierrot",
+      "label": "ベル・ピエロ",
+      "record_only": true,
+      "reference_denominators_bell": { "1": 624.6, "2": 695.9, "3": 721.5, "4": 657.0, "5": 599.5, "6": 693.5 },
+      "reference_denominators_pierrot": { "1": 587.9, "2": 606.1, "3": 600.2, "4": 713.8, "5": 688.7, "6": 713.3 },
+      "source": "app_estimate",
+      "reason": "設定ごとの数値は判明しているが単調性がなく(ベルは設定3が最も重く設定5が最も軽い等)、シミュレーション由来のブレと考えられるため判別計算には不使用。技術介入機であり取りこぼし管理の価値があるため、記録・確率表示のみ行う。"
+    },
+    {
+      "id": "chudan_cherry",
+      "label": "中段チェリー",
+      "reference_denominators": { "1": 6553.6, "2": 6553.6, "3": 6553.6, "4": 6553.6, "5": 6553.6, "6": 6553.6 },
+      "source": "app_estimate",
+      "reason": "全設定共通(1/6553.6)のBIG確定フラグで設定差がない。実戦では角チェリー重複と区別できないため、cherry_big の確率値に合成済み。単独の判別要素としては使用しない。"
+    }
+  ]
+}
