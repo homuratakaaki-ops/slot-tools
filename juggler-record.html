@@ -527,6 +527,7 @@ const MACHINES = {
   neo_im_juggler_ex: { path: "data/machines/neo_im_juggler_ex.json", name: "SネオアイムジャグラーEX" },
   ultra_miracle_juggler: { path: "data/machines/ultra_miracle_juggler.json", name: "Sウルトラミラクルジャグラー" },
   juggler_girls_ss: { path: "data/machines/juggler_girls_ss.json", name: "SジャグラーガールズSS" },
+  mr_juggler: { path: "data/machines/mr_juggler.json", name: "Sミスタージャグラー" },
 };
 const params = new URLSearchParams(location.search);
 const machineId = MACHINES[params.get("machine")] ? params.get("machine") : "my_juggler_v";
@@ -841,8 +842,9 @@ function buildObservation(uiWarnings) {
   }
   const ownG = nowG - st.g;
   const c = state.counts;
-  const ownBig = c.solo_big + c.cherry_big + c.unk_big;
-  const ownReg = c.solo_reg + c.cherry_reg + c.unk_reg;
+  const nb = (id) => c[id] || 0;
+  const ownBig = nb("solo_big") + nb("cherry_big") + nb("unk_big");
+  const ownReg = nb("solo_reg") + nb("cherry_reg") + nb("unk_reg");
   if (ownG > 0 && ownBig > ownG) {
     return { error: `自分のボーナス数（BIG ${ownBig}回）が消化G数（${ownG.toLocaleString()}G）を超えています。入力を確認してください。` };
   }
@@ -853,7 +855,7 @@ function buildObservation(uiWarnings) {
   }
   if (ownG > 0) {
     const counts = {};
-    if (state.useGrape && c.grape > 0) counts.grape = c.grape;
+    if (state.useGrape && nb("grape") > 0) counts.grape = nb("grape");
     if (!state.useBreakdown) {
       // 内訳オフ: 合算のみで計算(カウントは記録として保持)
       if (ownBig > 0) counts.big_total = ownBig;
@@ -862,26 +864,35 @@ function buildObservation(uiWarnings) {
       // BIG: 全数の内訳が判明している時のみ内訳を使用。
       // 不明分が混ざる場合は合算(big_total)に切り替える(不明分だけを合算二項分布に
       // すると「残り全Gで未発生」という誤った主張が尤度に入り、低設定へ歪むため)。
-      if (c.unk_big > 0) {
+      if (!hasElement("solo_big")) {
+        // 内訳の確率値を持たない機種は合算で計算する
+        if (ownBig > 0) counts.big_total = ownBig;
+      } else if (nb("unk_big") > 0) {
         counts.big_total = ownBig;
         uiWarnings.push("不明BIGがあるため、BIGは内訳ではなく合算で計算します。");
-      } else if (c.solo_big + c.cherry_big > 0) {
-        counts.solo_big = c.solo_big;
-        counts.cherry_big = c.cherry_big;
+      } else if (nb("solo_big") + nb("cherry_big") > 0) {
+        counts.solo_big = nb("solo_big");
+        counts.cherry_big = nb("cherry_big");
       }
       // REG: 同様
-      if (c.unk_reg > 0) {
+      if (!hasElement("solo_reg")) {
+        if (ownReg > 0) counts.reg_total = ownReg;
+      } else if (nb("unk_reg") > 0) {
         counts.reg_total = ownReg;
         uiWarnings.push("不明REGがあるため、REGは内訳ではなく合算で計算します。");
-      } else if (c.solo_reg + c.cherry_reg > 0) {
-        counts.solo_reg = c.solo_reg;
-        counts.cherry_reg = c.cherry_reg;
+      } else if (nb("solo_reg") + nb("cherry_reg") > 0) {
+        counts.solo_reg = nb("solo_reg");
+        counts.cherry_reg = nb("cherry_reg");
       }
     }
     if (Object.keys(counts).length > 0) segments.push({ games: ownG, counts });
   }
   if (segments.length === 0) return null;
   return { segments, totalGames: nowG, ownG, ownBig, ownReg };
+}
+
+function hasElement(id) {
+  return machine.elements.some((e) => e.id === id);
 }
 
 function currentPrior() {
@@ -1077,8 +1088,9 @@ function renderEstimate() {
 
   const c = state.counts;
   const ownG = Math.max(0, state.nowG - state.start.g);
-  const ownBig = c.solo_big + c.cherry_big + c.unk_big;
-  const ownReg = c.solo_reg + c.cherry_reg + c.unk_reg;
+  const nb = (id) => c[id] || 0;
+  const ownBig = nb("solo_big") + nb("cherry_big") + nb("unk_big");
+  const ownReg = nb("solo_reg") + nb("cherry_reg") + nb("unk_reg");
   const totBig = state.start.big + ownBig;
   const totReg = state.start.reg + ownReg;
   $("s_own").textContent = ownG.toLocaleString();

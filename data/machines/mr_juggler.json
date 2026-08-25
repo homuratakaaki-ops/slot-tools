@@ -1,0 +1,110 @@
+{
+  "schema_version": "1.1",
+  "machine": {
+    "id": "mr_juggler",
+    "name": "Sミスタージャグラー",
+    "maker": "北電子",
+    "type": "normal",
+    "settings": [1, 2, 3, 4, 5, 6],
+    "notes": "確率は分母表記(denominators)で保持する。p = 1 / denominator。6号機ジャグラーシリーズ第7弾(2024年7月導入)。シリーズで唯一チェリー確率に設定差がなく、代わりにぶどうが全設定単調という特殊な構成。ピエロ重複ボーナスを搭載する点も本機の特徴。単独ボーナス・チェリー重複ボーナスの解析値が公開されていないため、内訳は判別に使用せず記録専用としている。"
+  },
+  "sources": {
+    "official_spec": {
+      "label": "ボーナス確率(メーカー公表値)",
+      "url": "https://juggler7.com/mrjuggler/settei-hanbetu.html",
+      "retrieved_at": "2026-08-25",
+      "reliability": "official"
+    },
+    "field_estimate": {
+      "label": "ぶどう確率・チェリー確率の実戦推定値(ガリぞう氏 調査)",
+      "url": "https://juggler7.com/mrjuggler/settei-hanbetu.html",
+      "retrieved_at": "2026-08-25",
+      "reliability": "field_estimate",
+      "notes": "公式解析発表ではない。ぶどうは全設定に段階的な設定差があり、チェリーは全設定共通(1/37.24)とされる。"
+    }
+  },
+  "elements": [
+    {
+      "id": "big_total",
+      "label": "BIG合計",
+      "input": "required",
+      "source": "official_spec",
+      "denominators": { "1": 268.6, "2": 267.5, "3": 260.1, "4": 249.2, "5": 240.9, "6": 237.4 },
+      "notes": "設定1と6で約1.13倍と設定差は小さい。BIG単独では判別しにくい。"
+    },
+    {
+      "id": "reg_total",
+      "label": "REG合計",
+      "input": "required",
+      "source": "official_spec",
+      "denominators": { "1": 374.5, "2": 354.2, "3": 331.0, "4": 291.3, "5": 257.0, "6": 237.4 },
+      "notes": "最大の判別要素。設定1と6で約1.58倍、全設定単調。BIGの設定差が小さいためBR比率の変化が大きく(設定1で1.4:1、設定6で1:1)、設定6ではBIGとREGが同確率(1/237.4)になる。BR比率が1:1に近いことが設定6看破の有力材料。"
+    },
+    {
+      "id": "grape",
+      "label": "ぶどう",
+      "input": "optional",
+      "source": "field_estimate",
+      "denominators": { "1": 6.29, "2": 6.22, "3": 6.15, "4": 6.09, "5": 6.02, "6": 5.96 },
+      "notes": "全設定に段階的かつ単調な設定差があり、他機種のように同値の設定がない点が本機の強み。ただし絶対値は他のジャグラーより重めに設定されている(設定6でも1/5.96)。1/6.0を切るようなら設定6の期待度が高まる。試行数が稼げるため主力の判別要素になる。"
+    }
+  ],
+  "ui": {
+    "count_buttons": [
+      { "id": "cherry", "label": "チェリー", "label_sub": "チェリー", "color": "cherry", "record_only": true },
+      { "id": "solo_big", "label": "単独BIG", "label_top": "BIG", "label_sub": "単独", "color": "bigk", "record_only": true },
+      { "id": "cherry_big", "label": "チェリー重複BIG", "label_top": "BIG", "label_sub": "🍒重複", "color": "bigk", "record_only": true },
+      { "id": "grape", "label": "ぶどう", "label_sub": "ぶどう", "color": "grape" },
+      { "id": "solo_reg", "label": "単独REG", "label_top": "REG", "label_sub": "単独", "color": "regk", "record_only": true },
+      { "id": "cherry_reg", "label": "チェリー重複REG", "label_top": "REG", "label_sub": "🍒重複", "color": "regk", "record_only": true },
+      { "id": "bell", "label": "ベル", "label_sub": "ベル", "record_only": true },
+      { "id": "pierrot", "label": "ピエロ", "label_sub": "ピエロ", "record_only": true }
+    ],
+    "notes": "並び順は表示順(3列グリッド)。label_top/label_sub はボタン内の2行表示用(未指定時は label を使用)。本機は単独・チェリー重複の解析値が未公開のため、内訳ボタンは記録専用(record_only)としている。カウントした内訳はBIG・REGの合算として判別に反映される。"
+  },
+  "input_rules": {
+    "modes": [
+      {
+        "id": "simple",
+        "label": "簡易モード",
+        "uses": ["big_total", "reg_total", "grape"]
+      },
+      {
+        "id": "detail",
+        "label": "詳細モード",
+        "uses": ["big_total", "reg_total", "grape"],
+        "notes": "本機は内訳の確率値が存在しないため、詳細モードでも簡易モードと同じ要素(合算+ぶどう)で計算する。内訳ボタンのカウントは合算として集計される。"
+      }
+    ],
+    "validation": [
+      "内訳(単独・チェリー重複)のカウントはBIG・REGの合計として判別に使われる。個別の確率値は未公開のため、内訳ごとの尤度計算は行わない。"
+    ]
+  },
+  "excluded_elements": [
+    {
+      "id": "solo_and_cherry_bonus",
+      "label": "単独ボーナス・チェリー重複ボーナス",
+      "record_only": true,
+      "reason": "本機は単独ボーナス確率・チェリー重複ボーナス確率の解析値・推定値がいずれも公開されていない。他機種のように前作との比率から算出しようにも対応する5号機が存在しないため、推測で数値を埋めることを避け、内訳は記録専用とした。カウントした値はBIG・REGの合算として判別に反映される。"
+    },
+    {
+      "id": "corner_cherry",
+      "label": "チェリー",
+      "record_only": true,
+      "reference_denominators": { "1": 37.24, "2": 37.24, "3": 37.24, "4": 37.24, "5": 37.24, "6": 37.24 },
+      "source": "field_estimate",
+      "reason": "全設定共通(1/37.24)で設定差がないとされる。シリーズの他機種はチェリーに設定差があるため本機は例外的。判別には使用せず、記録・確率表示のみ行う。"
+    },
+    {
+      "id": "pierrot_bonus",
+      "label": "ピエロ重複ボーナス",
+      "reason": "本機固有のフラグ(5号機みんなのジャグラー系)。出現率が非常に低く実戦での確認例も乏しいため、判別には使用しない。"
+    },
+    {
+      "id": "bell_pierrot",
+      "label": "ベル・ピエロ",
+      "record_only": true,
+      "reason": "設定差がないとされるため判別計算には不使用。実戦記録ツールでは取りこぼし管理のため記録・確率表示のみ行う。確率値は出典が確認できていないため記載しない。"
+    }
+  ]
+}
