@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ジャグラー実戦記録・設定推測ツールの使い方｜スロット稼働ノート</title>
+<meta name="description" content="6号機ジャグラー全9機種対応の実戦記録ツールの使い方。打ち始めデータの入れ方、ぶどう・ボーナス内訳のカウント、投資と収支の記録、ベイズ推定による設定推測の読み方と限界を説明します。">
+<link rel="canonical" href="https://slot-tools.jp/juggler-guide.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="スロット稼働ノート">
+<meta property="og:title" content="ジャグラー実戦記録・設定推測ツールの使い方｜スロット稼働ノート">
+<meta property="og:description" content="打ち始めデータの入れ方からカウント、投資記録、ベイズ推定による設定推測の読み方と限界まで。6号機ジャグラー全9機種に対応。">
+<meta property="og:url" content="https://slot-tools.jp/juggler-guide.html">
+<style>
+  :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66;--warn:#e6c06a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.8;min-height:100vh}
+  header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center}
+  .top-link{display:inline-flex;align-items:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin-bottom:8px;padding:4px 8px;border:1px solid rgba(201,168,76,.35);border-radius:6px}
+  header h1{font-size:17px;font-weight:700;color:var(--gold-light);letter-spacing:.02em;line-height:1.5}
+  header p{font-size:12px;color:var(--text-muted);margin-top:4px}
+  .container{max-width:520px;margin:0 auto;padding:20px 16px 0}
+  .section{margin-top:22px}
+  h2{font-size:16px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  h3{font-size:14px;color:var(--text);margin:18px 0 8px}
+  p{color:var(--text-muted);font-size:14px;margin-bottom:12px}
+  ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0}
+  li{margin-bottom:8px}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
+  .card.warn{border-color:#6b5a2c}
+  .card.warn h3{color:var(--warn)}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:8px}
+  th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:left;vertical-align:top;word-break:break-word}
+  th{color:var(--text-muted)}
+  .num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none}
+  a{color:var(--gold)}
+  footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}
+  footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
+  footer a{color:var(--text-muted);text-decoration:none}
+</style>
+</head>
+<body>
+<header>
+  <a class="top-link" href="/">← TOP</a>
+  <a class="top-link" href="juggler-record.html" style="margin-left:8px;">ツールを使う →</a>
+  <h1>ジャグラー実戦記録・設定推測ツールの使い方</h1>
+  <p>打ちながらカウントし、投資を記録し、設定の事後確率をその場で確認できる6号機ジャグラー専用ツールです。</p>
+</header>
+
+<main class="container">
+  <section class="section">
+    <h2>このツールの目的</h2>
+    <p>ジャグラーの設定推測は、BIG・REGの確率だけを眺めていても限界があります。ぶどうやボーナスの内訳を自分でカウントし、それらをまとめて確率計算にかけて初めて精度が上がります。しかし実際のホールでは、小役カウンターを叩きながら投資額も覚えておき、さらに頭の中で確率を計算する、という作業が同時に発生します。</p>
+    <p>本ツールは、その3つを1画面にまとめたものです。タップでカウントし、投資は−1000円ボタンで記録し、判別はベイズ推定でリアルタイムに更新されます。カウント画面はスクロールなしの固定表示で、片手で操作できるようボタンを配置しています。入力内容はすべて端末内にのみ保存され、外部へは送信されません。</p>
+    <p>対応機種は6号機ジャグラーシリーズ全9機種です。ヘッダーの機種名をタップすると切り替えられ、記録は機種ごとに別々に保存されます。</p>
+  </section>
+
+  <section class="section">
+    <h2>基本の流れ</h2>
+    <ol>
+      <li>ヘッダーの機種名をタップして、打つ機種を選びます。</li>
+      <li>「打ち始めデータ未入力」の行をタップし、座った時点のデータカウンターの値（総回転数・BIG・REG）を入力します。朝一のリセット台なら0のままで構いません。</li>
+      <li>「現在のデータG」に、いまのデータカウンターの総回転数を入れます。以降、区切りのいいところで更新してください。</li>
+      <li>ぶどうやボーナスをタップでカウントします。長押しすると数値をまとめて入力できます。</li>
+      <li>メダルを借りたら「−1000円」を押します。事前にサンドへ入金した場合は「入金」から金額を登録しておくと、カード残高も一緒に管理できます。</li>
+      <li>「設定推測」タブを開くと、その時点の判別結果が表示されます。</li>
+    </ol>
+    <div class="card">
+      <h3>打ち始めデータを入れる意味</h3>
+      <p>途中から座った台では、自分が回す前のデータも判別材料になります。ただし前任者が回した区間についてはBIG・REGしか分かりません。本ツールは「打ち始め前」と「自分が打った区間」を別々に扱い、ぶどうや内訳は自分がカウントした区間のゲーム数だけで計算します。この区別をしないと、ぶどう確率が台全体のゲーム数で割られてしまい、判別が大きく狂います。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>カウントの取り方</h2>
+    <p>カウントタブには8つのボタンがあります。上段がBIG系、下段がREG系、最下段にベルとピエロという並びで、最も頻度の高いぶどうは片手持ちの親指が届きやすい下段左に置いています。</p>
+    <table>
+      <thead><tr><th style="width:38%">ボタン</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>ぶどう</td><td>判別の主力。取りこぼしのない小役なので、目押しに関係なくカウントできます。</td></tr>
+        <tr><td>BIG／REG 単独</td><td>小役と重複せずに単独で成立したボーナス。</td></tr>
+        <tr><td>BIG／REG 🍒重複</td><td>チェリーと同時に成立したボーナス。中段チェリーがある機種では、それも重複としてカウントして構いません。</td></tr>
+        <tr><td>チェリー</td><td>記録用。多くの機種で設定差が小さいか、二重計上の恐れがあるため判別計算には使いません。</td></tr>
+        <tr><td>ベル／ピエロ</td><td>記録用。取りこぼし管理に使います。判別計算には使いません。</td></tr>
+        <tr><td>不明BIG／不明REG</td><td>成立役を確認できなかったボーナス。合算確率として判別に反映されます。</td></tr>
+      </tbody>
+    </table>
+    <p>押し間違えたときは「元に戻す」で直前の操作を取り消せます。「クリア」からはカウントだけを消す、あるいはすべてを消す、のどちらかを選べます。どちらも直後なら「元に戻す」で復元できます。</p>
+    <div class="card warn">
+      <h3>数えるなら最後まで、数えないなら0のまま</h3>
+      <p>これが最も重要な注意点です。ぶどうや内訳は、途中から気まぐれにカウントすると実態と大きくかけ離れた確率になり、判別結果が壊れます。たとえば2000G消化した台でぶどうを29個しか数えていない場合、ツールは1/69という異常な確率として扱い、設定1がほぼ確定という誤った結論を出します。</p>
+      <p>数えるなら打ち始めから最後まで、数えないなら0のままにしてください。途中まで数えて止めた場合は、「設定推測」タブの「計算に使うカウント」でぶどうをオフにすれば、記録は残したまま判別からだけ除外できます。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>投資と収支の記録</h2>
+    <p>投資は「−1000円」を押すたびに1000円ずつ加算されます。先にサンドへ入金しておく場合は「入金」から金額を登録すると、カード残高から自動で差し引かれます。</p>
+    <p>持ち枚数を入れると、その時点の推定差枚と換算額が表示されます。計算式は次の通りで、画面にも内訳が併記されます。</p>
+    <div class="card">
+      <p style="margin:0"><span>推定差枚 ＝ 現在の持ち枚数 − 開始時の持ち枚数 − 投資額から借りたメダル数</span></p>
+    </div>
+    <p>前の台から持ちメダルを移して打ち始めた場合は、「開始持ち」にその枚数を入れてください。ここを入れないと、もともと持っていた分が利益として計上されてしまいます。貸メダル枚数（50枚／47枚／46枚）と交換率（等価20円ほか）も選べます。</p>
+  </section>
+
+  <section class="section">
+    <h2>設定推測の読み方</h2>
+    <p>「設定推測」タブを開くと、設定1〜6それぞれの確率が表示されます。これはベイズ推定という方法で、入力された実戦データがどの設定から出やすいかを計算したものです。上部に判別結果、その下に実戦値、計算に使うカウントの切り替え、事前分布の設定が並びます。</p>
+    <h3>事前分布とは</h3>
+    <p>初期状態では「どの設定も等しく入りうる」という前提で計算しています。しかし実際のホールでは、高設定がほとんど入らない日もあれば、イベントで多く入る日もあります。「店の設定配分の想定を反映する」をオンにすると、その想定を比率で入力できます。オンにするとバーの上に等分布のときの値が目盛りで表示されるので、想定によって結果がどれだけ動いたかを確認できます。</p>
+    <h3>信頼度の目安</h3>
+    <table>
+      <thead><tr><th style="width:34%">総回転数</th><th>目安</th></tr></thead>
+      <tbody>
+        <tr><td class="num">1000G未満</td><td>参考程度。結果はほとんど揺れます。</td></tr>
+        <tr><td class="num">1000〜3000G</td><td>傾向は出ますが、隣接する設定の区別はまだ困難です。</td></tr>
+        <tr><td class="num">3000〜6000G</td><td>高設定か低設定かの傾向は概ね信頼できます。</td></tr>
+        <tr><td class="num">6000G以上</td><td>信頼度は高くなりますが、隣接設定の完全な判別は原理的に困難です。</td></tr>
+      </tbody>
+    </table>
+    <div class="card warn">
+      <h3>確率であって、断定ではありません</h3>
+      <p>「設定6が58%」と表示されても、それは設定6であることが確定したという意味ではありません。同じデータが設定5から出る可能性も、設定4から出る可能性も残っています。特に設定2〜5のような隣接する設定は確率の差が小さく、数千ゲーム程度では判別しきれないのが正常です。</p>
+      <p>また、機種によっては構造上どうしても区別できない組み合わせがあります。たとえばアイムジャグラーEXとネオアイムジャグラーEXは設定5と6のREG確率が同じ値のため、ぶどうを数えないと5と6を切り分けられません。ミスタージャグラーは設定6でBIGとREGが同確率になるため、BR比率が1:1に近いことが看破材料になります。</p>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>数値の出典について</h2>
+    <p>判別に使う確率値は、その信頼度によって3つに区分して管理しています。どの区分の数値を使っているかは機種データに記録してあります。</p>
+    <table>
+      <thead><tr><th style="width:34%">区分</th><th>内容</th></tr></thead>
+      <tbody>
+        <tr><td>公表値</td><td>メーカーが公表しているBIG・REGの確率。最も信頼できます。</td></tr>
+        <tr><td>実戦推定値</td><td>公式アプリや実戦データから算出されたぶどう・チェリー重複などの数値。公式の解析発表ではありません。</td></tr>
+        <tr><td>算出値</td><td>公表値と実戦推定値から計算した単独ボーナスなど。前作の比率から推定されたものを含みます。</td></tr>
+      </tbody>
+    </table>
+    <p>6号機ジャグラーは単独ボーナスの解析値が公表されていない機種がほとんどです。そのため本ツールでは、公表されているBIG・REGの合算値を基準として、内訳の合計が必ず公表値と一致するように数値を組み立てています。値が確認できない要素については、推測で埋めずに記録専用として扱っています。</p>
+    <p>ミスタージャグラーのように内訳の数値が一切存在しない機種では、単独・重複のカウントはBIG・REGの合算として判別に反映されます。カウントした記録は無駄になりません。</p>
+  </section>
+
+  <section class="section">
+    <h2>よくある質問</h2>
+    <h3>ページを閉じても記録は残りますか</h3>
+    <p>残ります。入力内容は端末内に保存され、次に開いたときに復元されます。機種ごとに別々に保存されるため、機種を切り替えても前の記録は消えません。</p>
+    <h3>ベルやピエロを表示したくない</h3>
+    <p>「設定推測」タブの「表示するカウントボタン」で、チェリー・ベル・ピエロを個別に非表示にできます。非表示にしてもカウントした数値は保持され、再表示すれば元通りです。</p>
+    <h3>設定推測に使いたくない項目がある</h3>
+    <p>「計算に使うカウント」でぶどうとボーナス内訳を個別にオフにできます。オフにした項目は記録として残りますが、判別計算には使われません。</p>
+    <h3>台を移動したとき</h3>
+    <p>「クリア」から「すべてクリア」を選ぶと、台データ・カウント・投資をまとめて消去できます。直後であれば「元に戻す」で復元可能です。</p>
+  </section>
+
+  <a class="cta" href="juggler-record.html">ツールを開く</a>
+</main>
+
+<footer>
+  <p>&copy; 2026 slot-tools.jp</p>
+  <nav>
+    <a href="/about.html">運営者情報</a>
+    <a href="/privacy.html">プライバシーポリシー</a>
+    <a href="/disclaimer.html">免責事項</a>
+    <a href="/contact.html">お問い合わせ</a>
+    <a href="/partner.html">広告掲載のご相談について</a>
+  </nav>
+</footer>
+</body>
+</html>
