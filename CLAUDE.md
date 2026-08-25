@@ -48,6 +48,7 @@
 `ui.count_buttons` によるJSON駆動化が完了しているため、機種追加はデータ追加で完結する。
 
 1. 解析値を出典付きで調査する（メーカー公表値と実戦推定値を区別すること）
+   - 単独ボーナス・チェリー重複の推定値を採用する場合は、必ず「単独＋チェリー重複＝公表合算」の整合を検算する。乖離する場合は公表値をアンカーとして片方を「公表合算 − もう片方」で算出し、内訳の合成値が公表値と一致するようにする
 2. `data/machines/<machine_id>.json` を作成する。既存の `my_juggler_v.json` / `im_juggler_ex_6.json` と同じスキーマ（schema_version 1.1）に従う
 3. `juggler-record.html` の `MACHINES` に1行追加する
 4. `node test/verify.mjs` と、新機種の全設定サニティチェックを実行する
