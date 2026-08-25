@@ -51,6 +51,7 @@
    - 単独ボーナス・チェリー重複の推定値を採用する場合は、必ず「単独＋チェリー重複＝公表合算」の整合を検算する。乖離する場合は公表値をアンカーとして片方を「公表合算 − もう片方」で算出し、内訳の合成値が公表値と一致するようにする
 2. `data/machines/<machine_id>.json` を作成する。既存の `my_juggler_v.json` / `im_juggler_ex_6.json` と同じスキーマ（schema_version 1.1）に従う
 3. `juggler-record.html` の `MACHINES` に1行追加する
+   - 機種固有の重複役（ピエロ重複など）を記録したい場合は、`ui.count_buttons` の該当ボタンに `sub_counts` を定義する。`group` に `big_breakdown` / `reg_breakdown` を指定すると、ボーナス総数の集計に自動で算入され、長押しで選択シートが開く
 4. `node test/verify.mjs` と、新機種の全設定サニティチェックを実行する
 5. `IDEAS.md` の対応機種一覧を更新する
 

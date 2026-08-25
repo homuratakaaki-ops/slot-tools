@@ -460,6 +460,16 @@ select.rate {
 </div>
 
 <!-- ===== クリアモーダル ===== -->
+<div class="keypad-overlay" id="subOverlay">
+  <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="subTitle">
+    <p class="kp-label" id="subTitle"></p>
+    <div class="dep-grid" style="grid-template-columns: 1fr;" id="subList"></div>
+    <div class="kp-actions" style="grid-template-columns: 1fr;">
+      <button type="button" class="kp-cancel" id="subClose">キャンセル</button>
+    </div>
+  </div>
+</div>
+
 <div class="keypad-overlay" id="machineOverlay">
   <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="mcTitle">
     <p class="kp-label" id="mcTitle">機種を選択（機種ごとに記録は別々に保存されます）</p>
@@ -585,8 +595,14 @@ async function init() {
   $("machineName").textContent = machine.machine.name + " ▾";
   document.title = `実戦記録・設定推測 ${machine.machine.name}｜スロット稼働ノート`;
   UI_BTNS = (machine.ui && machine.ui.count_buttons) || [];
-  COUNT_IDS = [...UI_BTNS.map((b) => b.id), ...UNK_IDS];
-  UI_BTNS.forEach((b) => (COUNT_LABELS[b.id] = b.label));
+  COUNT_IDS = [
+    ...UI_BTNS.flatMap((b) => [b.id, ...(b.sub_counts || []).map((s) => s.id)]),
+    ...UNK_IDS,
+  ];
+  UI_BTNS.forEach((b) => {
+    COUNT_LABELS[b.id] = b.label;
+    for (const s of b.sub_counts || []) COUNT_LABELS[s.id] = s.label;
+  });
   state = defaultState();
   restore();
   buildVisToggles();
@@ -718,6 +734,8 @@ function bind() {
   $("undoBtn").addEventListener("click", undo);
   $("machineName").addEventListener("click", () => $("machineOverlay").classList.add("open"));
   $("mcClose").addEventListener("click", () => $("machineOverlay").classList.remove("open"));
+  $("subClose").addEventListener("click", () => $("subOverlay").classList.remove("open"));
+  $("subOverlay").addEventListener("click", (e) => { if (e.target === $("subOverlay")) $("subOverlay").classList.remove("open"); });
   $("machineOverlay").addEventListener("click", (e) => { if (e.target === $("machineOverlay")) $("machineOverlay").classList.remove("open"); });
   const list = $("machineList");
   list.innerHTML = "";
@@ -867,8 +885,10 @@ function buildObservation(uiWarnings) {
   const ownG = nowG - st.g;
   const c = state.counts;
   const nb = (id) => c[id] || 0;
-  const ownBig = nb("solo_big") + nb("cherry_big") + nb("unk_big");
-  const ownReg = nb("solo_reg") + nb("cherry_reg") + nb("unk_reg");
+  const grp = bonusGroupIds();
+  const sumIds = (ids) => ids.reduce((a, id) => a + nb(id), 0);
+  const ownBig = sumIds(grp.big) + nb("unk_big");
+  const ownReg = sumIds(grp.reg) + nb("unk_reg");
   if (ownG > 0 && ownBig > ownG) {
     return { error: `自分のボーナス数（BIG ${ownBig}回）が消化G数（${ownG.toLocaleString()}G）を超えています。入力を確認してください。` };
   }
@@ -894,6 +914,9 @@ function buildObservation(uiWarnings) {
       } else if (nb("unk_big") > 0) {
         counts.big_total = ownBig;
         uiWarnings.push("不明BIGがあるため、BIGは内訳ではなく合算で計算します。");
+      } else if (sumIds(grp.big.filter((x) => x !== "solo_big" && x !== "cherry_big")) > 0) {
+        // 確率値を持たない重複役(ピエロ重複など)が記録されている場合は合算で計算する
+        counts.big_total = ownBig;
       } else if (nb("solo_big") + nb("cherry_big") > 0) {
         counts.solo_big = nb("solo_big");
         counts.cherry_big = nb("cherry_big");
@@ -904,6 +927,8 @@ function buildObservation(uiWarnings) {
       } else if (nb("unk_reg") > 0) {
         counts.reg_total = ownReg;
         uiWarnings.push("不明REGがあるため、REGは内訳ではなく合算で計算します。");
+      } else if (sumIds(grp.reg.filter((x) => x !== "solo_reg" && x !== "cherry_reg")) > 0) {
+        counts.reg_total = ownReg;
       } else if (nb("solo_reg") + nb("cherry_reg") > 0) {
         counts.solo_reg = nb("solo_reg");
         counts.cherry_reg = nb("cherry_reg");
@@ -913,6 +938,52 @@ function buildObservation(uiWarnings) {
   }
   if (segments.length === 0) return null;
   return { segments, totalGames: nowG, ownG, ownBig, ownReg };
+}
+
+function openSubSheet(def) {
+  const box = $("subList");
+  $("subTitle").textContent = `${def.label} — 記録する内容を選んでください`;
+  box.innerHTML = "";
+  const items = [
+    { id: def.id, label: `${def.label}のみ ＋1` },
+    ...def.sub_counts.map((s) => ({ id: s.id, label: `${s.label} ＋1` })),
+  ];
+  for (const it of items) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = it.label;
+    btn.addEventListener("click", () => {
+      state.counts[it.id]++;
+      pushLog({ k: "count", id: it.id });
+      persist();
+      $("subOverlay").classList.remove("open");
+      renderAll();
+      $("lastOp").textContent = `直前: ${COUNT_LABELS[it.id]} +1`;
+    });
+    box.appendChild(btn);
+  }
+  const kp = document.createElement("button");
+  kp.type = "button";
+  kp.textContent = "数値をまとめて入力";
+  kp.addEventListener("click", () => {
+    $("subOverlay").classList.remove("open");
+    openKeypad(`count:${def.id}`, `${def.label}（まとめて入力）`);
+  });
+  box.appendChild(kp);
+  $("subOverlay").classList.add("open");
+}
+
+function bonusGroupIds() {
+  const DEFAULT = { solo_big: "big", cherry_big: "big", solo_reg: "reg", cherry_reg: "reg" };
+  const big = [], reg = [];
+  for (const b of UI_BTNS) {
+    for (const item of [b, ...(b.sub_counts || [])]) {
+      const g = item.group ? (item.group.startsWith("big") ? "big" : "reg") : DEFAULT[item.id];
+      if (g === "big") big.push(item.id);
+      else if (g === "reg") reg.push(item.id);
+    }
+  }
+  return { big, reg };
 }
 
 function hasElement(id) {
@@ -1032,7 +1103,10 @@ function renderRatesPanel(uiBtns) {
     { id: "big", label: "BIG確率" },
     { id: "reg", label: "REG確率" },
     { id: "total", label: "合算" },
-    ...uiBtns.map((b) => ({ id: b.id, label: b.label + (b.record_only ? "（参考）" : "") })),
+    ...uiBtns.flatMap((b) => [
+      { id: b.id, label: b.label + (b.record_only ? "（参考）" : "") },
+      ...(b.sub_counts || []).map((s) => ({ id: s.id, label: s.label + "（参考）" })),
+    ]),
   ];
   for (const r of rows) {
     const div = document.createElement("div");
@@ -1052,7 +1126,9 @@ function attachCountHandlers(scope) {
       longPressed = false;
       timer = setTimeout(() => {
         longPressed = true;
-        openKeypad(`count:${id}`, `${COUNT_LABELS[id]}（まとめて入力）`);
+        const def = UI_BTNS.find((x) => x.id === id);
+        if (def && def.sub_counts && def.sub_counts.length) openSubSheet(def);
+        else openKeypad(`count:${id}`, `${COUNT_LABELS[id]}（まとめて入力）`);
       }, 550);
     };
     const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
@@ -1120,8 +1196,10 @@ function renderEstimate() {
   const c = state.counts;
   const ownG = Math.max(0, state.nowG - state.start.g);
   const nb = (id) => c[id] || 0;
-  const ownBig = nb("solo_big") + nb("cherry_big") + nb("unk_big");
-  const ownReg = nb("solo_reg") + nb("cherry_reg") + nb("unk_reg");
+  const grp = bonusGroupIds();
+  const sumIds = (ids) => ids.reduce((a, id) => a + nb(id), 0);
+  const ownBig = sumIds(grp.big) + nb("unk_big");
+  const ownReg = sumIds(grp.reg) + nb("unk_reg");
   const totBig = state.start.big + ownBig;
   const totReg = state.start.reg + ownReg;
   $("s_own").textContent = ownG.toLocaleString();
@@ -1129,7 +1207,8 @@ function renderEstimate() {
   $("r_big").textContent = fmtRate(totBig, state.nowG);
   $("r_reg").textContent = fmtRate(totReg, state.nowG);
   $("r_total").textContent = fmtRate(totBig + totReg, state.nowG);
-  for (const b of visibleButtons()) {
+  const rateTargets = visibleButtons().flatMap((b) => [b, ...(b.sub_counts || [])]);
+  for (const b of rateTargets) {
     const cell = $(`r_${b.id}`);
     if (!cell) continue;
     let text = fmtRate(c[b.id] || 0, ownG);
