@@ -106,6 +106,12 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .snap-summary b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .snap-summary .warn { color: var(--warn-ink); font-weight: 700; }
 #snapPanel.collapsed .ptitle, #snapPanel.collapsed .snap-grid { display: none; }
+.snap-done {
+  float: right; margin-top: -2px; padding: 4px 10px; min-height: 30px;
+  background: var(--card2); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--ink); font-size: 11.5px; cursor: pointer;
+}
+.snap-note { grid-column: 1 / -1; margin: 2px 0 0; font-size: 10.5px; color: var(--muted); }
 
 /* 数値フィールド(電卓で入力) */
 .numfield {
@@ -165,8 +171,9 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 }
 
 /* 投資(1パネルに集約) */
-.invest-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px; }
+.invest-row { display: grid; grid-template-columns: 1.15fr 1.15fr 1fr 1.1fr; gap: 6px; margin-bottom: 6px; }
 .calc-note { font-size: 10.5px; color: var(--muted); }
+.invest-line .sum { flex: 1 1 100%; }
 .invest-main {
   border-radius: 10px; border: 1px solid #5a2a26; background: var(--lamp-soft); color: var(--lamp);
   font-size: 14.5px; font-weight: 700; padding: 10px 2px; min-height: 48px; cursor: pointer; white-space: nowrap;
@@ -175,7 +182,11 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .invest-sub {
   border-radius: 10px; border: 1px solid var(--line); background: var(--card2); color: var(--ink);
   font-size: 13px; min-height: 48px; cursor: pointer; white-space: nowrap;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  padding: 4px 2px; overflow: hidden;
 }
+.invest-sub .ib-l { font-size: 10px; color: var(--muted); line-height: 1.1; }
+.invest-sub .ib-v { font-size: 13px; font-variant-numeric: tabular-nums; line-height: 1.15; }
 .invest-line { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); flex-wrap: wrap; }
 .invest-line .chip {
   border: 1px solid var(--line); background: var(--card2); color: var(--ink);
@@ -327,12 +338,14 @@ select.rate {
   <!-- ========== タブ1: カウント(固定全画面・スクロールなし) ========== -->
   <div id="paneCount">
     <div class="panel" id="snapPanel">
-      <p class="ptitle"><span class="step-badge">最初に入力</span>データカウンタ（打ち始め時点）　※朝一リセット台は0のまま</p>
+      <p class="ptitle"><span class="step-badge">最初に入力</span>データカウンタ（打ち始め時点）<button type="button" class="snap-done" id="snapDoneBtn">閉じる</button></p>
       <button type="button" class="snap-summary" id="snapSummary" hidden></button>
       <div class="snap-grid">
         <div class="cell"><span>総回転数</span><button type="button" class="numfield" id="f_st_g" data-field="st_g">0</button></div>
         <div class="cell"><span>BIG</span><button type="button" class="numfield" id="f_st_big" data-field="st_big">0</button></div>
         <div class="cell"><span>REG</span><button type="button" class="numfield" id="f_st_reg" data-field="st_reg">0</button></div>
+        <div class="cell"><span>開始持ちメダル</span><button type="button" class="numfield" id="f_startHold" data-field="startHold">0</button></div>
+        <p class="snap-note">※朝一リセット台は0のまま／前の台から持ち越したメダルは「開始持ち」へ</p>
       </div>
     </div>
 
@@ -358,24 +371,13 @@ select.rate {
       <div class="invest-row">
         <button type="button" class="invest-main" id="invSpend">−1000円</button>
         <button type="button" class="invest-sub" id="depositBtn">入金</button>
-        <select class="rate" id="rate" aria-label="貸メダル枚数">
-          <option value="50">貸50枚</option>
-          <option value="47">貸47枚</option>
-          <option value="46">貸46枚</option>
-        </select>
-        <select class="rate" id="exchange" aria-label="交換率">
-          <option value="20">等価20円</option>
-          <option value="18.5">18.5円</option>
-          <option value="17.9">17.9円</option>
-          <option value="16.6">16.6円</option>
-        </select>
+        <button type="button" class="invest-sub" id="f_rate" data-field="rate"></button>
+        <button type="button" class="invest-sub" id="f_exchangeMai" data-field="exchangeMai"></button>
       </div>
       <div class="invest-line">
         <button type="button" class="chip" id="f_hold" data-field="hold">持ち枚数 0</button>
         <button type="button" class="chip" id="f_card" data-field="card" hidden>カード ¥0</button>
         <button type="button" class="chip" id="f_invest" data-field="invest">投資 ¥0</button>
-        <button type="button" class="chip" id="f_startHold" data-field="startHold">開始持ち 0</button>
-        <button type="button" class="chip" id="snapEditBtn">初期登録</button>
         <span class="sum" id="investSum"></span>
       </div>
     </div>
@@ -489,6 +491,7 @@ select.rate {
       <button type="button" data-dep="5000">+5,000円</button>
       <button type="button" data-dep="10000">+10,000円</button>
       <button type="button" id="depOther">その他の金額</button>
+      <button type="button" id="depFix">残高を直接修正</button>
     </div>
     <div class="kp-actions" style="grid-template-columns: 1fr;">
       <button type="button" class="kp-cancel" id="depClose">閉じる</button>
@@ -543,6 +546,7 @@ const FIELD_LABELS = {
   st_g: "打ち始めの総回転数", st_big: "打ち始めのBIG", st_reg: "打ち始めのREG",
   cu_g: "現在のデータG", hold: "推定持ち枚数",
   card: "カード残高（修正）", invest: "投資額（修正）", startHold: "開始時の持ちメダル",
+  rate: "貸メダル枚数（1,000円で借りられる枚数）", exchangeMai: "交換枚数（1,000円分にするのに必要な枚数・等価は50）",
 };
 
 let machine = null;
@@ -556,7 +560,7 @@ function defaultState() {
     start: { g: 0, big: 0, reg: 0 },
     nowG: 0,
     counts: Object.fromEntries(COUNT_IDS.map((id) => [id, 0])),
-    invest: { yen: 0, rate: 50, hold: 0, startHold: 0, exchange: 20, card: null },
+    invest: { yen: 0, rate: 50, hold: 0, startHold: 0, exchangeMai: 50, card: null },
     usePrior: false,
     hiddenButtons: [],
     useGrape: true,
@@ -600,8 +604,18 @@ function restore() {
     if (d && d.v === 1) {
       state = { ...defaultState(), ...d };
       state.counts = { ...defaultState().counts, ...(d.counts || {}) };
-      state.invest = { ...defaultState().invest, ...(d.invest || {}) };
+      const savedInv = d.invest || {};
+      state.invest = { ...defaultState().invest, ...savedInv };
       if (!Array.isArray(state.hiddenButtons)) state.hiddenButtons = [];
+      // 旧形式(exchange: 円/枚)を交換枚数へ移行。既定値とマージした後の state ではなく
+      // 保存データ側を見ないと、既定の exchangeMai:50 で埋まって分岐に入らない。
+      if (savedInv.exchangeMai == null) {
+        const oldEx = parseFloat(savedInv.exchange);
+        state.invest.exchangeMai = oldEx > 0 ? Math.round(1000 / oldEx) : 50;
+      }
+      delete state.invest.exchange;
+      if (!(state.invest.rate > 0)) state.invest.rate = 50;
+      if (!(state.invest.exchangeMai > 0)) state.invest.exchangeMai = 50;
       if (!Array.isArray(state.log)) state.log = [];
     }
   } catch (e) {}
@@ -615,6 +629,8 @@ function fieldGet(field) {
   if (field === "cu_g") return state.nowG;
   if (field === "hold") return state.invest.hold;
   if (field === "startHold") return state.invest.startHold || 0;
+  if (field === "rate") return state.invest.rate || 50;
+  if (field === "exchangeMai") return state.invest.exchangeMai || 50;
   if (field.startsWith("st_")) return state.start[field.slice(3)];
   if (field.startsWith("count:")) return state.counts[field.slice(6)];
   return 0;
@@ -626,6 +642,8 @@ function fieldSet(field, v) {
   if (field === "cu_g") state.nowG = v;
   else if (field === "hold") state.invest.hold = v;
   else if (field === "startHold") state.invest.startHold = v;
+  else if (field === "rate") state.invest.rate = v > 0 ? v : 50;
+  else if (field === "exchangeMai") state.invest.exchangeMai = v > 0 ? v : 50;
   else if (field.startsWith("st_")) state.start[field.slice(3)] = v;
   else if (field.startsWith("count:")) state.counts[field.slice(6)] = v;
 }
@@ -695,8 +713,6 @@ function bind() {
   });
   $("depClose").addEventListener("click", () => $("depositOverlay").classList.remove("open"));
   $("depositOverlay").addEventListener("click", (e) => { if (e.target === $("depositOverlay")) $("depositOverlay").classList.remove("open"); });
-  $("rate").addEventListener("change", () => { state.invest.rate = parseInt($("rate").value, 10); persist(); renderAll(); });
-  $("exchange").addEventListener("change", () => { state.invest.exchange = parseFloat($("exchange").value); persist(); renderAll(); });
   $("undoBtn").addEventListener("click", undo);
   $("machineName").addEventListener("click", () => $("machineOverlay").classList.add("open"));
   $("mcClose").addEventListener("click", () => $("machineOverlay").classList.remove("open"));
@@ -713,9 +729,13 @@ function bind() {
     });
     list.appendChild(b);
   }
-  $("snapEditBtn").addEventListener("click", () => {
-    snapEditOpen = !snapEditOpen;
+  $("snapDoneBtn").addEventListener("click", () => {
+    snapEditOpen = false;
     renderAll();
+  });
+  $("depFix").addEventListener("click", () => {
+    $("depositOverlay").classList.remove("open");
+    openKeypad("card", FIELD_LABELS.card);
   });
   $("snapSummary").addEventListener("click", () => {
     snapEditOpen = true;
@@ -913,9 +933,11 @@ function renderAll() {
   $("snapPanel").classList.toggle("collapsed", collapsed);
   $("snapSummary").hidden = !collapsed;
   if (collapsed) {
+    const sh = state.invest.startHold || 0;
     $("snapSummary").innerHTML = unset
       ? `<span class="warn">打ち始めデータ未入力</span> ／ タップして入力（朝一リセット台は0のままでOK）`
-      : `打ち始め <b>${state.start.g.toLocaleString()}G</b>／BIG <b>${state.start.big}</b>／REG <b>${state.start.reg}</b>（タップで修正）`;
+      : `打ち始め <b>${state.start.g.toLocaleString()}G</b>／BIG <b>${state.start.big}</b>／REG <b>${state.start.reg}</b>` +
+        (sh > 0 ? `／持ち <b>${sh.toLocaleString()}</b>` : "") + `（タップで修正）`;
   }
   syncFields();
   renderCounts();
@@ -929,8 +951,7 @@ function syncFields() {
   $("f_st_reg").textContent = state.start.reg.toLocaleString();
   $("f_cu_g").textContent = state.nowG.toLocaleString();
   $("f_hold").textContent = `持ち枚数 ${state.invest.hold.toLocaleString()}`;
-  $("rate").value = String(state.invest.rate);
-  $("exchange").value = String(state.invest.exchange || 20);
+  $("f_startHold").textContent = (state.invest.startHold || 0).toLocaleString();
   $("useGrapeBtn").setAttribute("aria-pressed", String(state.useGrape));
   $("useBreakdownBtn").setAttribute("aria-pressed", String(state.useBreakdown));
   $("usePrior").checked = state.usePrior;
@@ -1058,23 +1079,29 @@ function renderCounts() {
 
 function renderInvest() {
   const inv = state.invest;
-  const medals = Math.round((inv.yen / 1000) * inv.rate);
+  const rate = inv.rate > 0 ? inv.rate : 50;
+  const mai = inv.exchangeMai > 0 ? inv.exchangeMai : 50;
+  const medals = Math.round((inv.yen / 1000) * rate);
+  $("f_rate").innerHTML = `<span class="ib-l">貸出</span><span class="ib-v">${rate}枚</span>`;
+  $("f_exchangeMai").innerHTML = `<span class="ib-l">${mai === 50 ? "等価" : "交換"}</span><span class="ib-v">${mai}枚</span>`;
   $("s_invest").textContent = `¥${inv.yen.toLocaleString()}`;
-  $("f_card").hidden = inv.card == null;
-  if (inv.card != null) {
-    $("f_card").textContent = `カード ¥${inv.card.toLocaleString()}`;
-    $("f_card").style.color = inv.card < 0 ? "var(--lamp)" : "";
+  if (inv.card == null) {
+    $("depositBtn").textContent = "入金";
+    $("depositBtn").style.color = "";
+  } else {
+    $("depositBtn").innerHTML = `<span class="ib-l">カード</span><span class="ib-v">¥${inv.card.toLocaleString()}</span>`;
+    $("depositBtn").style.color = inv.card < 0 ? "var(--lamp)" : "";
   }
+  $("f_card").hidden = true;
   $("f_invest").textContent = `投資 ¥${inv.yen.toLocaleString()}`;
   const startHold = inv.startHold || 0;
-  $("f_startHold").textContent = `開始持ち ${startHold.toLocaleString()}`;
   let sum = `（${medals.toLocaleString()}枚）`;
   if (inv.hold > 0 || startHold > 0) {
     const diff = inv.hold - startHold - medals;
-    const cash = Math.round(diff * (inv.exchange || 20));
+    const cash = Math.round((diff * 1000) / mai);
     const cls = diff >= 0 ? "plus" : "minus";
     sum += `　差枚 <b class="${cls}">${diff >= 0 ? "+" : ""}${diff.toLocaleString()}</b>（<b class="${cls}">${cash >= 0 ? "+" : "-"}¥${Math.abs(cash).toLocaleString()}</b>）`;
-    sum += `<br><span class="calc-note">${inv.hold.toLocaleString()} − 開始${startHold.toLocaleString()} − 投資${medals.toLocaleString()}枚 ／ ${inv.exchange || 20}円換算</span>`;
+    sum += `<br><span class="calc-note">${inv.hold.toLocaleString()} − 開始${startHold.toLocaleString()} − 投資${medals.toLocaleString()}枚 ／ ${mai === 50 ? "等価" : mai + "枚交換"}</span>`;
   }
   $("investSum").innerHTML = sum;
 }
