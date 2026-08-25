@@ -1652,7 +1652,7 @@
     ];
     const MACHINE_PRESETS = [
       { id: "umi-sp5", name: "P大海物語5スペシャル", roundBalls: 140, standardRounds: 10, standardPayout: 1400, roundTypes: [{ id: "r10", label: "10R", balls: 1400 }], evSupported: true, hasYutime: true, spec: { note: "B5時点の期待値対応プリセット" } },
-      { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", roundBalls: 108, standardRounds: 6, standardPayout: 648, roundTypes: [{ id: "r10", label: "10R", balls: 1080 }, { id: "r6", label: "6R", balls: 648 }, { id: "r4", label: "4R", balls: 432 }], evSupported: true, hasYutime: true, spec: { hitProbLow: 1 / 99.9, hitProbHigh: 1 / 19.5, tenjo: 239, stSpins: 10, yutimeJitan: 10000, modelType: "st-certain", jitanTable: [{ spins: 90, share: 0.04 }, { spins: 40, share: 0.66 }, { spins: 15, share: 0.30 }] }, defaults: { netBallsPerWin: 587.5, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: -0.8, yutimeBallsPerSpin: 0, densapoDelta: -0.8, spinsPerHour: 250, secPerHit: 120, secPerDensapoSpin: 6, slotGamesPerHour: 800, yenPerBall: 4 } }
+      { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", roundBalls: 108, standardRounds: 6, standardPayout: 648, roundTypes: [{ id: "r10", label: "10R", balls: 1080 }, { id: "r6", label: "6R", balls: 648 }, { id: "r4", label: "4R", balls: 432 }], evSupported: true, hasYutime: true, spec: { hitProbLow: 1 / 99.9, hitProbHigh: 1 / 19.5, tenjo: 239, stSpins: 10, yutimeJitan: 10000, modelType: "st-certain", jitanTable: [{ spins: 90, share: 0.04 }, { spins: 40, share: 0.66 }, { spins: 15, share: 0.30 }] }, defaults: { netBallsPerWin: 587.5, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, densapoDelta: -0.8, spinsPerHour: 250, secPerHit: 120, secPerDensapoSpin: 6, slotGamesPerHour: 800, yenPerBall: 4 } }
     ];
     const RAM_CLEAR_VALUE = "cleared";
     const RAM_NOT_CLEARED_VALUE = "not_cleared";
@@ -1711,8 +1711,8 @@
         defaults: {
           netBallsPerWin: 587.5,
           jitanNormalBallsPerSpin: -0.8,
-          jitanFastBallsPerSpin: -0.8,
-          yutimeBallsPerSpin: 0,
+          jitanFastBallsPerSpin: 0,
+          yutimeBallsPerSpin: -0.8,
           densapoDelta: -0.8,
           spinsPerHour: 250,
           secPerHit: 120,
@@ -1778,12 +1778,12 @@
         const expectedNormalSpins = pHit / p;
         const expectedWins = chains.expectedWins;
         const expectedJitanNormalSpins = 0;
-        const expectedJitanFastSpins = expectedWins * chains.supportSpinsPerWin + pReach * (1 / p);
-        const expectedYutimeSpins = 0;
+        const expectedJitanFastSpins = expectedWins * chains.supportSpinsPerWin;
+        const expectedYutimeSpins = pReach * (1 / p);
         const expectedDensapoSpins = expectedJitanNormalSpins + expectedJitanFastSpins + expectedYutimeSpins;
         const investBalls = expectedNormalSpins * 250 / rate;
         const split = normalInvestmentSplit(p, spinsToTenjo, 250 / rate, input.availableBalls);
-        const winBalls = expectedWins * merged.netBallsPerWin + expectedDensapoSpins * merged.jitanFastBallsPerSpin;
+        const winBalls = expectedWins * merged.netBallsPerWin + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin + expectedYutimeSpins * merged.yutimeBallsPerSpin;
         const evBalls = winBalls - investBalls;
         const mochidamaCostYen = split.mochidamaBalls * merged.yenPerBall;
         const cashSpentYen = split.cashBalls / 250 * 1000;
@@ -2357,7 +2357,7 @@
       const jitanFastBallsPerSpin = presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin");
       const yutimeBallsPerSpin = presetYutimeBallsPerSpin(presetId);
       const supportLabel = preset?.spec?.modelType === "st-certain"
-        ? `電サポ ${jitanFastBallsPerSpin}玉/回転`
+        ? `ST・時短 ${jitanFastBallsPerSpin}玉/回転、遊タイム ${yutimeBallsPerSpin}玉/回転`
         : `時短100 ${jitanNormalBallsPerSpin}玉/回転、時短200 ${jitanFastBallsPerSpin}玉/回転、遊タイム ${yutimeBallsPerSpin}玉/回転`;
       return {
         settings: {
@@ -2619,6 +2619,14 @@
       next.presetSettings["umi-sp5"].jitanNormalBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].jitanNormalBallsPerSpin) ?? 0;
       next.presetSettings["umi-sp5"].jitanFastBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].jitanFastBallsPerSpin) ?? 0;
       next.presetSettings["umi-sp5"].yutimeBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].yutimeBallsPerSpin) ?? (sourceVersion < 26 ? 0 : (presetById("umi-sp5")?.defaults?.yutimeBallsPerSpin ?? 0));
+      if (next.presetSettings["agnes-pe"]) {
+        const agnesDefaults = presetById("agnes-pe")?.defaults || {};
+        next.presetSettings["agnes-pe"].netBallsPerWin = positiveNumberOrDefault(next.presetSettings["agnes-pe"].netBallsPerWin, agnesDefaults.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN);
+        next.presetSettings["agnes-pe"].netBallsPerWinManual = next.presetSettings["agnes-pe"].netBallsPerWinManual === true;
+        next.presetSettings["agnes-pe"].jitanNormalBallsPerSpin = normalizeNumber(next.presetSettings["agnes-pe"].jitanNormalBallsPerSpin) ?? (agnesDefaults.jitanNormalBallsPerSpin ?? 0);
+        next.presetSettings["agnes-pe"].jitanFastBallsPerSpin = normalizeNumber(next.presetSettings["agnes-pe"].jitanFastBallsPerSpin) ?? (agnesDefaults.jitanFastBallsPerSpin ?? 0);
+        next.presetSettings["agnes-pe"].yutimeBallsPerSpin = normalizeNumber(next.presetSettings["agnes-pe"].yutimeBallsPerSpin) ?? (agnesDefaults.yutimeBallsPerSpin ?? 0);
+      }
       next.stores = next.stores.map((store) => ({
         id: store.id || cryptoId("st"),
         name: String(store.name || "無名店"),
@@ -3323,12 +3331,16 @@
       const preset = presetById(presetId);
       if (!preset) return;
       const manualNetBallsValue = data.presetSettings?.[presetId]?.netBallsPerWinManual === true ? presetNetBallsPerWin(presetId) : "";
+      const isStCertain = preset.spec?.modelType === "st-certain";
+      const supportHint = isStCertain
+        ? "込み出玉で記録する運用ではST・時短枠は0のまま。遊タイム枠は遊タイム突入から当りまでの玉減りで、止め打ち次第で0〜-0.8程度と人により大きく変わります。0で考慮しません。"
+        : "遊タイムは仮値-0.3（駆け抜け約100玉相当）。駆け抜けの実測が貯まったら更新してください。";
       openModal("期待値用の出玉・時短消費", "大当たり出玉は大当り開始から電サポ終了までの純増で入力します。時短中の玉増減は状態別に分けます。", `
         <div class="field-row"><label for="quickNetBallsPerWin">純払い出し量</label><input id="quickNetBallsPerWin" inputmode="numeric" value="${escapeHtml(manualNetBallsValue)}" placeholder="空欄で自動"></div>
         <div class="field-row"><label for="quickJitanNormalBallsPerSpin">時短100（玉/回転）</label><input id="quickJitanNormalBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanNormalBallsPerSpin"))}"></div>
-        <div class="field-row"><label for="quickJitanFastBallsPerSpin">時短200（玉/回転）</label><input id="quickJitanFastBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin"))}"></div>
+        <div class="field-row"><label for="quickJitanFastBallsPerSpin">${isStCertain ? "ST・時短" : "時短200"}（玉/回転）</label><input id="quickJitanFastBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin"))}"></div>
         <div class="field-row"><label for="quickYutimeBallsPerSpin">遊タイム（玉/回転）</label><input id="quickYutimeBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetYutimeBallsPerSpin(presetId))}"></div>
-        <p class="hint">獲得出玉は大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）です。空欄または0以下なら手入力上書きを解除し、実測平均・ラウンド集計・理論値の順で自動採用します。遊タイムは仮値-0.3（駆け抜け約100玉相当）。駆け抜けの実測が貯まったら更新してください。</p>
+        <p class="hint">獲得出玉は大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）です。空欄または0以下なら手入力上書きを解除し、実測平均・ラウンド集計・理論値の順で自動採用します。${supportHint}</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveQuickNetBallsBtn">保存</button>

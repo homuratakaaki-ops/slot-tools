@@ -1010,7 +1010,15 @@ B5 実測値:
 - 期待値エンジンの電サポ内訳は、`expectedJitanNormalSpins`（時短100）、`expectedJitanFastSpins`（当り後の時短200）、`expectedYutimeSpins`（遊タイム到達後の消化）に分割する。`expectedDensapoSpins` は3項目の合計として拘束時間・互換表示用に残す。
 - `winBalls` は `expectedWins * netBallsPerWin + expectedJitanNormalSpins * jitanNormalBallsPerSpin + expectedJitanFastSpins * jitanFastBallsPerSpin + expectedYutimeSpins * yutimeBallsPerSpin` とする。3レートをすべて0にした場合は、B79以前の基準点と1円単位で一致する。
 - UIの機種別設定は「時短100」「時短200」「遊タイム」の3枠に分ける。既存の `jitanFastBallsPerSpin` は時短200枠として残し、遊タイム枠へコピーしない。
-- 当選タップの獲得出玉は「大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）」として扱う。遊タイム駆け抜けの減算レート自動集計はB81候補とし、B80では手入力運用に留める。
+- 当選タップの獲得出玉は「大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）」として扱う。遊タイム駆け抜けの減算レート自動集計は行わず、B82時点では手入力運用に留める。
+
+## 72. B82 アグネスPEの込み出玉運用向け電サポ分離
+
+- schema 変更はない。B80で追加済みの `jitanFastBallsPerSpin` と `yutimeBallsPerSpin` を使い、`agnes-pe` の `st-certain` 計算だけ適用先を分ける。
+- `st-certain` の `expectedJitanFastSpins` は当り後のST・時短消化（`expectedWins * supportSpinsPerWin`）だけを表す。天井到達後から当りまでの遊タイム消化は `expectedYutimeSpins = pReach * (1 / pLow)` として別集計する。
+- `agnes-pe` の既定は、込み出玉運用に合わせて `jitanFastBallsPerSpin: 0`、`yutimeBallsPerSpin: -0.8` とする。旧データに `presetSettings["agnes-pe"]` が存在し、`yutimeBallsPerSpin` が無い場合は `-0.8` で補完し、既存の `jitanFastBallsPerSpin` は保持する。
+- UIは新設せず既存3枠を使う。`agnes-pe` 選択時は、ST・時短枠は込み出玉なら0、遊タイム枠は遊タイム突入から当りまでの玉減りで、止め打ち次第で0〜-0.8程度に調整する旨をヒント表示する。
+- 容量予算の増分はなし。保存フィールドはB80の既存キーを使い、表示・計算意味だけを変更する。
 
 ## アイデアメモ
 

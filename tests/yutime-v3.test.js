@@ -573,15 +573,15 @@ function runUnboundedHit(prob, rng) {
 function simulateAgnesExpectation(currentSpin, trials, seed) {
   const rng = makeRng(seed);
   const spec = agnesPreset.spec;
-  const totals = { normal: 0, wins: 0, support: 0 };
+  const totals = { normal: 0, wins: 0, postSupport: 0, yutime: 0 };
   function playChain() {
     while (true) {
       totals.wins += 1;
       const st = runLimitedJitan(spec.hitProbHigh, spec.stSpins, rng);
-      totals.support += st.spins;
+      totals.postSupport += st.spins;
       if (st.hit) continue;
       const jitan = runLimitedJitan(spec.hitProbLow, chooseAgnesJitanLimit(rng), rng);
-      totals.support += jitan.spins;
+      totals.postSupport += jitan.spins;
       if (!jitan.hit) return;
     }
   }
@@ -589,7 +589,7 @@ function simulateAgnesExpectation(currentSpin, trials, seed) {
     const toTenjo = Math.max(0, spec.tenjo - currentSpin);
     const normal = runLimitedJitan(spec.hitProbLow, toTenjo, rng);
     totals.normal += normal.spins;
-    if (!normal.hit) totals.support += runUnboundedHit(spec.hitProbLow, rng);
+    if (!normal.hit) totals.yutime += runUnboundedHit(spec.hitProbLow, rng);
     playChain();
   }
   return Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, value / trials]));
@@ -597,18 +597,47 @@ function simulateAgnesExpectation(currentSpin, trials, seed) {
 
 const agnesAnalytic = expectationContext.engine.calculate(
   { presetId: 'agnes-pe', currentSpin: 0, rotationRate: 18 },
-  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: -0.8 }
+  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 }
 );
 const agnesSimulated = simulateAgnesExpectation(0, 300000, 0xA679);
 for (const [key, actual] of [
   ['expectedNormalSpins', agnesSimulated.normal],
   ['expectedWins', agnesSimulated.wins],
-  ['expectedDensapoSpins', agnesSimulated.support]
+  ['expectedJitanFastSpins', agnesSimulated.postSupport],
+  ['expectedYutimeSpins', agnesSimulated.yutime],
+  ['expectedDensapoSpins', agnesSimulated.postSupport + agnesSimulated.yutime]
 ]) {
   const expected = agnesAnalytic[key];
   const tolerance = Math.max(Math.abs(expected) * 0.02, 0.05);
   assert.ok(Math.abs(actual - expected) <= tolerance, `agnes ${key}: analytic=${expected}, simulated=${actual}, tolerance=${tolerance}`);
 }
+const agnesNoSupportLoss = expectationContext.engine.calculate(
+  { presetId: 'agnes-pe', currentSpin: 0, rotationRate: 18 },
+  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 }
+);
+assert.ok(Math.abs(agnesNoSupportLoss.winBalls - agnesNoSupportLoss.expectedWins * 587.5) < 0.000001, 'agnes zero support rates should not apply support loss');
+for (const currentSpin of [0, 189]) {
+  const base = expectationContext.engine.calculate(
+    { presetId: 'agnes-pe', currentSpin, rotationRate: 17 },
+    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 }
+  );
+  const yutimeOnly = expectationContext.engine.calculate(
+    { presetId: 'agnes-pe', currentSpin, rotationRate: 17 },
+    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 }
+  );
+  const fastOnly = expectationContext.engine.calculate(
+    { presetId: 'agnes-pe', currentSpin, rotationRate: 17 },
+    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: -0.8, yutimeBallsPerSpin: 0 }
+  );
+  assert.ok(Math.abs((yutimeOnly.evYen - base.evYen) - base.expectedYutimeSpins * -0.8 * 4) < 0.000001, `agnes yutime-only loss currentSpin=${currentSpin}`);
+  assert.ok(Math.abs((fastOnly.evYen - base.evYen) - base.expectedJitanFastSpins * -0.8 * 4) < 0.000001, `agnes fast-only loss currentSpin=${currentSpin}`);
+}
+assert.ok(Math.abs((agnesNoSupportLoss.evYen - agnesAnalytic.evYen) - agnesAnalytic.expectedYutimeSpins * 0.8 * 4) < 0.000001, 'agnes default yutime loss should only apply before-hit yutime spins');
+const agnesArticleRev2 = expectationContext.engine.calculate(
+  { presetId: 'agnes-pe', currentSpin: 150, rotationRate: 17 },
+  { presetId: 'agnes-pe', yenPerBall: 100 / 28.01, netBallsPerWin: 580, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 }
+);
+assert.ok(Math.abs(Math.round(agnesArticleRev2.evYen) - 1304) <= 5, `agnes article rev2 representative EV=${agnesArticleRev2.evYen}`);
 
 function simulateInvestmentSplit(currentSpin, rotationRate, availableBalls, trials, seed) {
   const rng = makeRng(seed);
@@ -1626,6 +1655,10 @@ assert.match(html, /roundTypes: \[\{ id: "r10", label: "10R", balls: 1400 \}\]/)
 assert.match(html, /id: "agnes-pe"/);
 assert.match(html, /name: "PA大海物語Withアグネス・ラムPE"/);
 assert.match(html, /modelType: "st-certain"/);
+assert.match(html, /defaults: \{ netBallsPerWin: 587\.5, jitanNormalBallsPerSpin: -0\.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0\.8,/);
+assert.match(yutimeExpectationEngine, /const expectedJitanFastSpins = expectedWins \* chains\.supportSpinsPerWin;/);
+assert.match(yutimeExpectationEngine, /const expectedYutimeSpins = pReach \* \(1 \/ p\);/);
+assert.match(yutimeExpectationEngine, /const winBalls = expectedWins \* merged\.netBallsPerWin \+ expectedJitanNormalSpins \* merged\.jitanNormalBallsPerSpin \+ expectedJitanFastSpins \* merged\.jitanFastBallsPerSpin \+ expectedYutimeSpins \* merged\.yutimeBallsPerSpin;/);
 assert.match(html, /roundTypes: \[\{ id: "r10", label: "10R", balls: 1080 \}, \{ id: "r6", label: "6R", balls: 648 \}, \{ id: "r4", label: "4R", balls: 432 \}\]/);
 assert.match(html, /hits: \[\],/);
 assert.match(html, /function normalizeHits\(hits\)/);
@@ -1634,9 +1667,11 @@ assert.match(html, /function netBallsPerWinInfo\(presetId, machine = null\)/);
 assert.match(html, /netBallsPerWinManual/);
 assert.match(html, /純払い出し量/);
 assert.match(html, /時短100（玉\/回転）/);
-assert.match(html, /時短200（玉\/回転）/);
+assert.match(html, /\$\{isStCertain \? "ST・時短" : "時短200"\}（玉\/回転）/);
 assert.match(html, /遊タイム（玉\/回転）/);
 assert.match(html, /仮値-0\.3（駆け抜け約100玉相当）/);
+assert.match(html, /込み出玉で記録する運用ではST・時短枠は0のまま/);
+assert.match(html, /止め打ち次第で0〜-0\.8程度/);
 assert.match(html, /大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）/);
 assert.match(html, /yutimeEnterSpin: null,/);
 assert.match(openYutimeEnterForm, /const spinPreset = session\.yutimeEnterSpin \?\? session\.currentSpin \?\? session\.startSpin;/);
@@ -1869,7 +1904,10 @@ new vm.Script(`
   const RAM_CLEAR_VALUE = "cleared";
   const RAM_NOT_CLEARED_VALUE = "not_cleared";
   const RAM_UNKNOWN_VALUE = "unknown";
-  const MACHINE_PRESETS = [{ id: "umi-sp5", name: "P大海物語5スペシャル", evSupported: true, defaults: { netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.3 } }];
+  const MACHINE_PRESETS = [
+    { id: "umi-sp5", name: "P大海物語5スペシャル", evSupported: true, defaults: { netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.3 } },
+    { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", evSupported: true, defaults: { netBallsPerWin: 587.5, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 } }
+  ];
   function cryptoId(prefix) { return prefix + "_legacy"; }
   function nowIso() { return "2026-08-07T00:00:00.000Z"; }
   function defaultData() {
@@ -1946,6 +1984,7 @@ new vm.Script(`
     dailyState: {}
   });
   globalThis.normalizedCurrentBlank = normalizeData({ version: 26, presetSettings: { "umi-sp5": {} } });
+  globalThis.normalizedAgnesMissingYutime = normalizeData({ version: 26, presetSettings: { "umi-sp5": {}, "agnes-pe": { jitanFastBallsPerSpin: -0.4 } } });
 `).runInContext(legacyMachineContext);
 assert.equal(legacyMachineContext.normalizedLegacy.machines.length, 1);
 assert.equal(legacyMachineContext.normalizedLegacy.machines[0].daiNo, "101");
@@ -1954,6 +1993,9 @@ assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].me
 assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].nailRating), JSON.stringify({ yori: 3, michi: 2, nekase: 1, through: 4, warp: 2 }));
 assert.equal(legacyMachineContext.normalizedLegacy.presetSettings['umi-sp5'].yutimeBallsPerSpin, 0);
 assert.equal(legacyMachineContext.normalizedCurrentBlank.presetSettings['umi-sp5'].yutimeBallsPerSpin, -0.3);
+assert.equal(Object.prototype.hasOwnProperty.call(legacyMachineContext.normalizedCurrentBlank.presetSettings, 'agnes-pe'), false);
+assert.equal(legacyMachineContext.normalizedAgnesMissingYutime.presetSettings['agnes-pe'].jitanFastBallsPerSpin, -0.4);
+assert.equal(legacyMachineContext.normalizedAgnesMissingYutime.presetSettings['agnes-pe'].yutimeBallsPerSpin, -0.8);
 const dailyHesoContext = vm.createContext({});
 new vm.Script(`
   const RAM_CLEAR_VALUE = "cleared";
