@@ -157,6 +157,11 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .sub-actions button b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .sub-actions .undo { color: var(--ink); }
 .count-hint { font-size: 10px; color: var(--muted); margin: 0; flex: none; text-align: center; }
+.count-hint.in-grid {
+  display: flex; align-items: center; justify-content: center;
+  padding: 4px 6px; font-size: clamp(10px, 2.9vw, 11.5px); line-height: 1.35;
+  border: 1px dashed var(--line); border-radius: 12px; min-height: 0;
+}
 
 /* 投資(1パネルに集約) */
 .invest-row { display: grid; grid-template-columns: 1.3fr 1fr 1fr 1fr; gap: 6px; margin-bottom: 6px; }
@@ -950,6 +955,10 @@ function buildVisToggles() {
 
 function renderCountButtons(uiBtns) {
   const grid = $("countGrid");
+  const hint = $("lastOp");
+  const wrap = grid.parentNode;
+  // 前回グリッド内へ移していた場合、innerHTML クリアで消えないよう先に退避する
+  if (hint.parentNode === grid) wrap.appendChild(hint);
   grid.innerHTML = "";
   for (const b of uiBtns) {
     const btn = document.createElement("button");
@@ -963,6 +972,14 @@ function renderCountButtons(uiBtns) {
       `<span class="cl">${sub}</span><span class="cv" id="c_${b.id}">0</span>`;
     btn.setAttribute("aria-label", b.label);
     grid.appendChild(btn);
+  }
+  // 3列グリッドに余りセルができる場合は、その空きにヒント/直前操作の行を入れる
+  if (uiBtns.length % 3 !== 0) {
+    hint.classList.add("in-grid");
+    grid.appendChild(hint);
+  } else {
+    hint.classList.remove("in-grid");
+    wrap.appendChild(hint);
   }
   attachCountHandlers(grid);
 }
