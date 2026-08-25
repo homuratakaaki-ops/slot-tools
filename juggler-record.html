@@ -183,6 +183,8 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 }
 .invest-line .sum b.neg { color: var(--lamp); }
 .dep-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+#machineList { max-height: 46dvh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+@supports not (height: 1dvh) { #machineList { max-height: 46vh; } }
 .dep-grid button {
   padding: 14px 0; font-size: 16px; font-weight: 600;
   border-radius: 10px; border: 1px solid var(--line);
