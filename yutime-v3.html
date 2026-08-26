@@ -5930,7 +5930,7 @@
     function runEndWizard(session, hasHit) {
       const currentBalances = deriveBalances(session);
       const endTotalBallsPreset = currentBalances.mochidama;
-      const endTotalBallsHint = endTotalBallsPreset !== null ? "稼働中の持ち玉残を初期値にしています。台の表示と違う場合は修正してください。" : "";
+      const endTotalBallsHint = (endTotalBallsPreset !== null ? "稼働中の持ち玉残を初期値にしています。 " : "") + "計数機に流す玉数をそのまま入力してください。";
       const endSpinPreset = !hasHit && session.hitSpin === null && Number(session.hitCount || 0) === 0 ? session.currentSpin : null;
       const endSpinHint = endSpinPreset !== null ? "稼働中カウンタの現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "";
       const hitRecordSteps = Array.isArray(session.hits) && session.hits.length ? [] : [
@@ -6407,7 +6407,9 @@
     function runningNormalInputBalls(session) {
       const store = storeById(session.storeId);
       const investedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
-      const inputBalls = usesTapInvestmentMode(session) ? investedBalls : Number(session.startMochidama || 0) + investedBalls;
+      const tapMode = usesTapInvestmentMode(session);
+      const hasHit = Number(session?.hitCount || 0) > 0;
+      const inputBalls = tapMode ? tapModeNormalConsumedBalls(session, investedBalls, hasHit) : Number(session.startMochidama || 0) + investedBalls;
       return inputBalls > 0 ? Math.round(inputBalls) : null;
     }
 
@@ -6550,7 +6552,9 @@
       if (endTotalBalls === null) return null;
       const exchangeRate = exchangeRateForStore(store);
       const recoverBalls = endTotalBalls + Number(session.zanhoryuBalls || 0);
-      const investedPlayerBalls = Number(totals.mochidamaBalls || 0) + Number(totals.saipureiBalls || 0);
+      const investedPlayerBalls = usesTapInvestmentMode(session)
+        ? Number(session.startMochidama || 0) + Number(totals.saipureiBalls || 0)
+        : Number(totals.mochidamaBalls || 0) + Number(totals.saipureiBalls || 0);
       const cashYen = Number(totals.cashYen || 0);
       return Math.round((recoverBalls - investedPlayerBalls) * exchangeRate - cashYen);
     }
@@ -6625,7 +6629,7 @@
       return {
         investYen: totals.cashYen,
         recoverYen: normalizeNumber(session.settlementRecoverYen) ?? 0,
-        withdrawBalls: totals.mochidamaBalls + totals.saipureiBalls,
+        withdrawBalls: usesTapInvestmentMode(session) ? Number(session.startMochidama || 0) : totals.mochidamaBalls + totals.saipureiBalls,
         depositBalls: finalMochidamaForCarryover(session) ?? 0,
         startEvYen: startEv ? startEv.evYen : null,
         startExpectedSpins,
@@ -7170,6 +7174,11 @@
       return Number(item.amount || 0);
     }
 
+    function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0) {
+      const remainBalls = normalizeNumber(session?.hitRemainBalls);
+      return hasHit && remainBalls !== null ? normalInputBalls - remainBalls : normalInputBalls;
+    }
+
     function deriveSession(session, machine = null) {
       const store = storeById(session.storeId);
       const normalInvestedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
@@ -7194,7 +7203,7 @@
       const estimatedPayout = hasHit ? (roundBasedPayout !== null ? roundBasedPayout : standardPayout) : null;
       const estimatedRemainBalls = hasHit && session.hitRemainBalls === null && estimatedPayout !== null && session.endTotalBalls !== null ? Math.max(0, session.endTotalBalls - estimatedPayout) : null;
       const normalEndBalls = session.yutimeEnterBalls !== null ? session.yutimeEnterBalls : (hasHit && session.hitRemainBalls !== null ? session.hitRemainBalls : estimatedRemainBalls);
-      const rawConsumedBalls = normalSpins !== null ? (tapMode ? normalInputBalls : (normalEndBalls !== null ? normalInputBalls - Number(normalEndBalls || 0) : null)) : null;
+      const rawConsumedBalls = normalSpins !== null ? (tapMode ? tapModeNormalConsumedBalls(session, normalInputBalls, hasHit) : (normalEndBalls !== null ? normalInputBalls - Number(normalEndBalls || 0) : null)) : null;
       const consumedBalls = rawConsumedBalls !== null && rawConsumedBalls < 0 ? null : rawConsumedBalls;
       if (rawConsumedBalls !== null && rawConsumedBalls < 0) warnings.push("通常消費玉の入力を確認");
       const fallbackConsumed = normalSpins !== null && normalInputBalls >= 0 ? normalInputBalls : null;

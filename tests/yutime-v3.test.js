@@ -104,6 +104,7 @@ assert.match(runEndWizardBlock, /id="saveEndFormBtn">保存<\/button>/);
 assert.match(runEndWizardBlock, /function completeEndSession\(session, hasHit\) \{/);
 assert.match(runEndWizardBlock, /\} else \{\s*syncSessionHitTotals\(session\);\s*\}/);
 assert.match(runEndWizardBlock, /if \(!hasHit\) \{\s*session\.hitCount = 0;\s*session\.totalRounds = 0;\s*\}/);
+assert.match(runEndWizardBlock, /計数機に流す玉数をそのまま入力してください。/);
 const endWizardContext = vm.createContext({
   __modalHtml: '',
   __handlers: {},
@@ -319,7 +320,7 @@ assert.match(currentBalanceForStartKey, /if \(key === "startSaipurei"\) return b
 assert.match(currentBalanceForStartKey, /if \(key === "startCredit"\) return balances\.credit;/);
 assert.match(transferSummary, /investYen: totals\.cashYen,/);
 assert.match(transferSummary, /recoverYen: normalizeNumber\(session\.settlementRecoverYen\) \?\? 0,/);
-assert.match(transferSummary, /withdrawBalls: totals\.mochidamaBalls \+ totals\.saipureiBalls,/);
+assert.match(transferSummary, /withdrawBalls: usesTapInvestmentMode\(session\) \? Number\(session\.startMochidama \|\| 0\) : totals\.mochidamaBalls \+ totals\.saipureiBalls,/);
 assert.match(transferSummary, /depositBalls: finalMochidamaForCarryover\(session\) \?\? 0/);
 assert.match(transferSummary, /const tenjo = tenjoForPresetId\(startEv\?\.presetId \|\| normalizeMachinePresetId\(machine\)\);/);
 assert.match(transferSummary, /startExpectedSpins = startEv \? Math\.max\(0, tenjo - startEv\.effectiveSpin\) : null;/);
@@ -796,6 +797,9 @@ const transferContext = vm.createContext({
       return totals;
     }, { cashYen: 0, saipureiBalls: 0, mochidamaBalls: 0 });
   },
+  usesTapInvestmentMode(session) {
+    return session?.__tapMode === true;
+  },
   finalMochidamaForCarryover(session) {
     return session.endTotalBalls === null || session.endTotalBalls === undefined ? null : Number(session.endTotalBalls || 0) + Number(session.zanhoryuBalls || 0);
   },
@@ -887,6 +891,9 @@ const profitContext = vm.createContext({
   currentTime() {
     return '12:34';
   },
+  usesTapInvestmentMode(session) {
+    return session?.__tapMode === true;
+  },
   escapeHtml(value) {
     return String(value ?? '');
   }
@@ -923,6 +930,14 @@ const b81NoCash = {
   investments: [{ source: 'mochidama', amount: 2500 }]
 };
 assert.equal(profitContext.profit(b81NoCash, 28.01), Math.round((5569 - 2500) * (100 / 28.01)));
+const b84TapProfit = {
+  __tapMode: true,
+  startMochidama: 2500,
+  endTotalBalls: 1487,
+  zanhoryuBalls: 0,
+  investments: [{ source: 'mochidama', amount: 250 }]
+};
+assert.equal(profitContext.profit(b84TapProfit, 28), Math.round((1487 - 2500) * (100 / 28)));
 const transferFixture = {
   id: 's_transfer',
   machineId: 'm_transfer',
@@ -952,6 +967,26 @@ assert.equal(
 );
 vm.runInContext("copyTransferSummary('s_transfer')", transferContext);
 assert.equal(transferContext.__copied, '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円');
+transferContext.__session = {
+  id: 's_transfer_tap',
+  machineId: 'm_transfer',
+  __tapMode: true,
+  startSpin: 0,
+  endSpin: 10,
+  startMochidama: 2500,
+  hitCount: 1,
+  hits: [{ roundTypeId: 'r10', actualBalls: 1400 }],
+  startEv: null,
+  settlementRecoverYen: null,
+  endTotalBalls: 1487,
+  zanhoryuBalls: 0,
+  __profitYen: -3618,
+  investments: [{ source: 'mochidama', amount: 250 }]
+};
+assert.match(
+  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  /^投資0円\/回収0円\/引出2,500個\/預入1,487個/
+);
 transferContext.__session = {
   id: 's_transfer_open',
   machineId: 'm_transfer',
@@ -994,8 +1029,10 @@ assert.match(runningPanelRate, /const spins = runningNormalSpinCount\(session\);
 assert.match(runningPanelRate, /return inputBalls > 0 && spins !== null && spins >= 0 \? spins \/ inputBalls \* 250 : null;/);
 assert.match(runningPanelInputBallsBlock, /function runningNormalInputBalls\(session\) \{/);
 assert.match(runningPanelInputBallsBlock, /const investedBalls = normalRateInvestments\(session\)\.reduce/);
+assert.match(runningPanelInputBallsBlock, /tapModeNormalConsumedBalls\(session, investedBalls, hasHit\)/);
 assert.match(runningPanelInputBallsBlock, /return inputBalls > 0 \? Math\.round\(inputBalls\) : null;/);
 assert.match(deriveSession, /const normalInvestedBalls = normalRateInvestments\(session\)\.reduce/);
+assert.match(deriveSession, /tapModeNormalConsumedBalls\(session, normalInputBalls, hasHit\)/);
 const runningRateContext = vm.createContext({});
 new vm.Script(`
   function normalizeNumber(value) {
@@ -1010,6 +1047,10 @@ new vm.Script(`
     return (item.source || item.type) === "cash" ? Number(item.amount || 0) / 4 : Number(item.amount || 0);
   }
   function usesTapInvestmentMode() { return true; }
+  function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0) {
+    const remainBalls = normalizeNumber(session?.hitRemainBalls);
+    return hasHit && remainBalls !== null ? normalInputBalls - remainBalls : normalInputBalls;
+  }
   ${runningPanelInputBallsBlock}
   ${runningRateHelpers}
   function normalizeMachinePresetId() { return ""; }
@@ -1068,6 +1109,22 @@ new vm.Script(`
   };
   const badCurrent = { ...beforeHit, currentSpin: 160 };
   const missingHitSpin = { ...afterHit, hitSpin: null, hits: [{ roundTypeId: "r10", at: "2026-08-22T10:10:00" }] };
+  const b84TapHit = {
+    storeId: "s",
+    startSpin: 0,
+    currentSpin: 0,
+    startMochidama: 2500,
+    hitSpin: 10,
+    hitCount: 1,
+    hits: [{ roundTypeId: "r10", at: "2026-08-22T10:05:00" }],
+    investments: [{ source: "mochidama", amount: 250, phase: "normal", spinAt: 1, time: "10:00" }],
+    yutimeEnterBalls: null,
+    hitVia: "normal",
+    hitRemainBalls: 98,
+    endTotalBalls: 1487,
+    zanhoryuBalls: 0
+  };
+  const b84OverRemain = { ...b84TapHit, hitRemainBalls: 300 };
   globalThis.afterHitSpinCount = runningSpinCount(afterHit);
   globalThis.afterHitRate = runningPanelRate(afterHit);
   globalThis.afterHitInvestments = normalRateInvestments(afterHit).length;
@@ -1078,6 +1135,10 @@ new vm.Script(`
   globalThis.badCurrentRate = runningPanelRate(badCurrent);
   globalThis.missingHitSpinCount = runningSpinCount(missingHitSpin);
   globalThis.missingHitRate = runningPanelRate(missingHitSpin);
+  globalThis.b84InputBalls = runningNormalInputBalls(b84TapHit);
+  globalThis.b84Rate = runningPanelRate(b84TapHit);
+  globalThis.b84Derived = deriveSession(b84TapHit);
+  globalThis.b84OverRemainDerived = deriveSession(b84OverRemain);
 `).runInContext(runningRateContext);
 assert.equal(runningRateContext.afterHitSpinCount, 70);
 assert.equal(runningRateContext.afterHitRate, 70);
@@ -1089,6 +1150,13 @@ assert.equal(runningRateContext.badCurrentSpinCount, null);
 assert.equal(runningRateContext.badCurrentRate, null);
 assert.equal(runningRateContext.missingHitSpinCount, null);
 assert.equal(runningRateContext.missingHitRate, null);
+assert.equal(runningRateContext.b84InputBalls, 152);
+assert.equal(Number(runningRateContext.b84Rate.toFixed(1)), 16.4);
+assert.equal(Number(runningRateContext.b84Derived.rate.toFixed(1)), 16.4);
+assert.equal(runningRateContext.b84Derived.consumedBalls, 152);
+assert.equal(runningRateContext.b84Derived.diffBalls, -1013);
+assert.equal(runningRateContext.b84OverRemainDerived.rate, null);
+assert.equal(JSON.stringify(runningRateContext.b84OverRemainDerived.warnings), JSON.stringify(["通常消費玉の入力を確認"]));
 assert.ok(design.includes('スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。'));
 assert.match(renderRunning, /<span>\$\{escapeHtml\(option\.label\)\}<\/span><strong>\$\{sourceChipBalanceText\(balance\)\}<\/strong>/);
 assert.match(renderRunning, /const selectedAmount = investmentUnitForSource\(selectedSource\);/);
