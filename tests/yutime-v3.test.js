@@ -320,7 +320,7 @@ assert.match(currentBalanceForStartKey, /if \(key === "startSaipurei"\) return b
 assert.match(currentBalanceForStartKey, /if \(key === "startCredit"\) return balances\.credit;/);
 assert.match(transferSummary, /investYen: totals\.cashYen,/);
 assert.match(transferSummary, /recoverYen: normalizeNumber\(session\.settlementRecoverYen\) \?\? 0,/);
-assert.match(transferSummary, /withdrawBalls: usesTapInvestmentMode\(session\) \? Number\(session\.startMochidama \|\| 0\) : totals\.mochidamaBalls \+ totals\.saipureiBalls,/);
+assert.match(transferSummary, /withdrawBalls: usesTapInvestmentMode\(session\) && Boolean\(store\?\.isPersonal\) \? Number\(session\.startMochidama \|\| 0\) : totals\.mochidamaBalls \+ totals\.saipureiBalls,/);
 assert.match(transferSummary, /depositBalls: finalMochidamaForCarryover\(session\) \?\? 0/);
 assert.match(transferSummary, /const tenjo = tenjoForPresetId\(startEv\?\.presetId \|\| normalizeMachinePresetId\(machine\)\);/);
 assert.match(transferSummary, /startExpectedSpins = startEv \? Math\.max\(0, tenjo - startEv\.effectiveSpin\) : null;/);
@@ -749,6 +749,7 @@ assert.equal(investmentAmountContext.button('cash', 300), '-300円');
 const transferContext = vm.createContext({
   __copied: '',
   __session: null,
+  __store: {},
   data: {
     machines: [{ id: 'm_transfer', presetId: 'umi-sp5' }]
   },
@@ -768,6 +769,9 @@ const transferContext = vm.createContext({
   },
   normalizeMachinePresetId() {
     return 'umi-sp5';
+  },
+  storeById() {
+    return transferContext.__store;
   },
   tenjoForPresetId() {
     return 950;
@@ -900,9 +904,9 @@ const profitContext = vm.createContext({
 });
 new vm.Script(`
   ${investmentTotalsBlock}
-  globalThis.profit = (session, exchangeBalls) => {
+  globalThis.profit = (session, exchangeBalls, isPersonal = false) => {
     const totals = investmentTotals(session);
-    return profitYenForSession(session, totals, { exchangeBalls });
+    return profitYenForSession(session, totals, { exchangeBalls, isPersonal });
   };
 `).runInContext(profitContext);
 const b81Fixture = {
@@ -930,6 +934,17 @@ const b81NoCash = {
   investments: [{ source: 'mochidama', amount: 2500 }]
 };
 assert.equal(profitContext.profit(b81NoCash, 28.01), Math.round((5569 - 2500) * (100 / 28.01)));
+const b84NonPersonalPartialTap = {
+  __tapMode: true,
+  startMochidama: 2500,
+  endTotalBalls: 5569,
+  zanhoryuBalls: 0,
+  investments: [
+    { source: 'cash', amount: 1500 },
+    { source: 'mochidama', amount: 1000 }
+  ]
+};
+assert.ok(Math.abs(profitContext.profit(b84NonPersonalPartialTap, 28.01, false) - 14812) <= 5);
 const b84TapProfit = {
   __tapMode: true,
   startMochidama: 2500,
@@ -937,7 +952,7 @@ const b84TapProfit = {
   zanhoryuBalls: 0,
   investments: [{ source: 'mochidama', amount: 250 }]
 };
-assert.equal(profitContext.profit(b84TapProfit, 28), Math.round((1487 - 2500) * (100 / 28)));
+assert.equal(profitContext.profit(b84TapProfit, 28, true), Math.round((1487 - 2500) * (100 / 28)));
 const transferFixture = {
   id: 's_transfer',
   machineId: 'm_transfer',
@@ -967,6 +982,7 @@ assert.equal(
 );
 vm.runInContext("copyTransferSummary('s_transfer')", transferContext);
 assert.equal(transferContext.__copied, '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円');
+transferContext.__store = { isPersonal: true };
 transferContext.__session = {
   id: 's_transfer_tap',
   machineId: 'm_transfer',
@@ -987,6 +1003,31 @@ assert.match(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
   /^投資0円\/回収0円\/引出2,500個\/預入1,487個/
 );
+transferContext.__store = { isPersonal: false };
+transferContext.__session = {
+  id: 's_transfer_non_personal_tap',
+  machineId: 'm_transfer',
+  __tapMode: true,
+  startSpin: 0,
+  endSpin: 10,
+  startMochidama: 2500,
+  hitCount: 1,
+  hits: [{ roundTypeId: 'r10', actualBalls: 1400 }],
+  startEv: null,
+  settlementRecoverYen: null,
+  endTotalBalls: 5569,
+  zanhoryuBalls: 0,
+  __profitYen: 14812,
+  investments: [
+    { source: 'cash', amount: 1500 },
+    { source: 'mochidama', amount: 1000 }
+  ]
+};
+assert.match(
+  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  /^投資1,500円\/回収0円\/引出1,000個/
+);
+transferContext.__store = {};
 transferContext.__session = {
   id: 's_transfer_open',
   machineId: 'm_transfer',

@@ -6552,7 +6552,8 @@
       if (endTotalBalls === null) return null;
       const exchangeRate = exchangeRateForStore(store);
       const recoverBalls = endTotalBalls + Number(session.zanhoryuBalls || 0);
-      const investedPlayerBalls = usesTapInvestmentMode(session)
+      const personalTapMode = usesTapInvestmentMode(session) && Boolean(store?.isPersonal);
+      const investedPlayerBalls = personalTapMode
         ? Number(session.startMochidama || 0) + Number(totals.saipureiBalls || 0)
         : Number(totals.mochidamaBalls || 0) + Number(totals.saipureiBalls || 0);
       const cashYen = Number(totals.cashYen || 0);
@@ -6606,6 +6607,7 @@
 
     function transferSummaryForSession(session) {
       const totals = investmentTotals(session);
+      const store = storeById(session.storeId);
       const machine = data.machines.find((item) => item.id === session.machineId);
       const derived = deriveSession(session, machine);
       const startEv = normalizeStartEv(session.startEv);
@@ -6629,7 +6631,7 @@
       return {
         investYen: totals.cashYen,
         recoverYen: normalizeNumber(session.settlementRecoverYen) ?? 0,
-        withdrawBalls: usesTapInvestmentMode(session) ? Number(session.startMochidama || 0) : totals.mochidamaBalls + totals.saipureiBalls,
+        withdrawBalls: usesTapInvestmentMode(session) && Boolean(store?.isPersonal) ? Number(session.startMochidama || 0) : totals.mochidamaBalls + totals.saipureiBalls,
         depositBalls: finalMochidamaForCarryover(session) ?? 0,
         startEvYen: startEv ? startEv.evYen : null,
         startExpectedSpins,
