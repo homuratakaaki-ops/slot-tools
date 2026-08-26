@@ -110,10 +110,30 @@
       letter-spacing: 0;
     }
 
+    .beta-badge {
+      display: inline-flex;
+      align-items: center;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border: 1px solid var(--accent);
+      border-radius: 999px;
+      color: var(--accent-dark);
+      background: var(--soft);
+      font-size: 12px;
+      font-weight: 700;
+      vertical-align: middle;
+    }
+
     .brand p {
       margin: 3px 0 0;
       color: var(--muted);
       font-size: 13px;
+    }
+
+    .beta-note {
+      margin: 3px 0 0;
+      color: var(--warn);
+      font-size: 12px;
     }
 
     .store-pill {
@@ -1531,8 +1551,9 @@
   <main class="app">
     <header class="topbar">
       <div class="brand">
-        <h1>遊タイム実戦ツール v3</h1>
+        <h1>遊タイム実戦ツール v3 <span class="beta-badge">β版</span></h1>
         <p>店を選び、台を探し、実戦の時系列で追記する記録履歴</p>
+        <p class="beta-note">β版として公開中。実機検証を継続しており、数値・表示は更新されることがあります。</p>
       </div>
       <div class="store-pill" id="currentStorePill">店未選択</div>
     </header>

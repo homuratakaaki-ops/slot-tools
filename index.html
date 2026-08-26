@@ -23,6 +23,7 @@ header p{color:#7a7a8a;font-size:13px;margin-top:6px;}
 .tool-card[role="link"]{cursor:pointer;}
 .tool-card h2{color:#e8c96a;font-size:16px;margin:0 0 6px;}
 .tool-card p{color:#7a7a8a;font-size:13px;margin:0;line-height:1.6;}
+.beta-label{display:inline-flex;align-items:center;margin-left:6px;padding:1px 6px;border:1px solid rgba(201,168,76,.5);border-radius:999px;color:#e8c96a;font-size:10px;font-weight:700;vertical-align:middle;}
 .guide-link{display:inline-block;color:#c9a84c;font-size:13px;font-weight:700;margin-top:10px;text-decoration:none;}
 .guide-link:hover{color:#e8c96a;}
 .info-block{background:#1a1a1f;border:1px solid #2e2e38;border-radius:8px;padding:16px;margin-bottom:14px;line-height:1.8;}
@@ -75,6 +76,11 @@ footer a:hover{color:#e8c96a;}
     <p>回転率・基準出玉・換算トータル確率・交換率・現金比率から、回転単価、千円期待値、ボーダー、日当を計算します。</p>
     <a class="guide-link" href="pachinko-unit-calc.html" onclick="event.stopPropagation();">ツールを開く →</a>
     <a class="guide-link" href="pachi-unit-guide.html" onclick="event.stopPropagation();">📖 使い方・詳しい説明 →</a>
+  </div>
+  <div class="tool-card" role="link" tabindex="0" onclick="location.href='yutime-v3.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='yutime-v3.html';}">
+    <h2>遊タイム実戦ツール v3 <span class="beta-label">β版</span></h2>
+    <p>パチンコ遊タイム天井狙いの実戦記録・期待値判定ツール。店・台ごとの回転率と実測出玉を貯めて判定を更新できます</p>
+    <a class="guide-link" href="yutime-v3.html" onclick="event.stopPropagation();">ツールを開く →</a>
   </div>
   <div class="tool-card" role="link" tabindex="0" onclick="location.href='yutime-record.html'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.href='yutime-record.html';}">
     <h2>パチンコ遊タイム期待値・台帳ツール</h2>
