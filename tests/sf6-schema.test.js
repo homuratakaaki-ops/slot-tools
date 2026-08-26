@@ -29,7 +29,7 @@ function testExportVersion9() {
     sessionMoney: null,
     logs: []
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.battleState, 'normal');
   assert.equal(normalized.currentStage, 'ジェイミー');
   assert.equal(normalized.currentZenchou, 'stage');
@@ -41,7 +41,7 @@ function testExportVersion9() {
 
 function testLegacyTrigPreserved() {
   const normalized = normalizeSf6Export(legacyFixture);
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.sourceVer, '1');
   assert.equal(normalized.battleState, 'normal');
   assert.equal(normalized.sessionMoney, null);
@@ -71,16 +71,16 @@ function testMissingVersionAsLegacy() {
     machine: 'L-SF6',
     logs: [{ id: 1, type: 'fb', realG: 1, lcdG: 2, t: 1, win: false, trig: '螟ｩ莠・' }]
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.sourceVer, null);
   assert.equal(normalized.initialThrough, 0);
   assert.equal(normalized.logs[0].legacy_trig, '螟ｩ莠・');
 }
 
-function testIdempotentVersion14() {
+function testIdempotentVersion15() {
   const input = {
     machine: 'L-SF6',
-    ver: '14',
+    ver: '15',
     sourceVer: '9',
     battleState: 'battle',
     hadWin: true,
@@ -166,7 +166,7 @@ function testBattleStateDefaultAndPreserved() {
 
 function testVersion2RankPreserved() {
   const normalized = normalizeSf6Export(v2RankFixture);
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.sourceVer, '2');
   assert.equal(normalized.sessionMoney, null);
   assert.equal(normalized.currentState.realG, 200);
@@ -191,7 +191,7 @@ function testCashAndCollectPreserved() {
       { id: 2, type: 'collect', realG: 10, lcdG: 20, t: 2, medals: 1417 }
     ]
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.sourceVer, '4');
   assert.equal(normalized.logs[0].amount, 10000);
   assert.equal(normalized.logs[1].medals, 1417);
@@ -210,7 +210,7 @@ function testVersion7UpgradesTo9() {
       { id: 4, type: 'continue', realG: 10, lcdG: 20, t: 4, result: 'success' }
     ]
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.sourceVer, '7');
   assert.equal(normalized.initialThrough, 0);
   assert.equal(normalized.currentStage, null);
@@ -264,7 +264,7 @@ function testMoneyRecordAndSessionMoney() {
       }
     ]
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.initialThrough, 1);
   assert.equal(normalized.sessionMoney.loanRate, 46.6);
   assert.equal(normalized.sessionMoney.usedUnknown, 0);
@@ -307,13 +307,32 @@ function testVersion14BalanceSyncPreserved() {
       }
     ]
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
+  assert.equal(normalized.sourceVer, '14');
   assert.equal(normalized.sessionMoney.currentMochidama, 0);
   assert.equal(normalized.sessionMoney.currentSaipurei, 368);
   assert.equal(normalized.sessionMoney.balanceVersion, 14);
   assert.equal(normalized.logs[0].op, 'balanceSync');
   assert.deepEqual(normalized.logs[0].balance, { credit: 250, mochidama: 0, saipurei: 368 });
   assert.equal(normalized.logs[0].after.currentSaipurei, 368);
+}
+
+function testVersion15InitialIcatchPreserved() {
+  const normalized = normalizeSf6Export({
+    machine: 'L-SF6',
+    ver: '15',
+    currentState: { realG: 12, lcdG: 34 },
+    logs: [
+      { id: 1, type: 'icatch', realG: 12, lcdG: 34, t: 1, chara: 'リュウ' },
+      { id: 2, type: 'icatch', realG: 13, lcdG: 35, t: 2, chara: '未確認' },
+      { id: 3, type: 'icatch', realG: 14, lcdG: 36, t: 3, chara: 'bad' }
+    ]
+  });
+  assert.equal(normalized.ver, '15');
+  assert.equal(normalized.logs[0].type, 'icatch');
+  assert.equal(normalized.logs[0].chara, 'リュウ');
+  assert.equal(normalized.logs[1].chara, '未確認');
+  assert.equal(normalized.logs[2].chara, null);
 }
 
 function testVersion9LegacyMedalOpsNormalizeToMedalIn() {
@@ -337,7 +356,7 @@ function testVersion9LegacyMedalOpsNormalizeToMedalIn() {
       { id: 3, type: 'money', realG: 1, lcdG: 2, t: 5, op: 'medalIn', amount: 750, source: 'unknown', after: { usedUnknown: 750, loanRate: 50 } }
     ]
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.sourceVer, '9');
   assert.equal(normalized.sessionMoney.usedUnknown, 0);
   assert.equal(normalized.logs[0].op, 'medalIn');
@@ -373,7 +392,7 @@ function testVersion9StageAndAutoColor() {
       { id: 2, type: 'stage_end', realG: 2, lcdG: 120, t: 2, stage: 'ルーク' }
     ]
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.currentStage, 'ルーク');
   assert.equal(normalized.currentZenchou, 'in');
   assert.equal(normalized.currentColor, '青');
@@ -394,7 +413,7 @@ function testVersion11SumahoNormalizesTo13() {
       { id: 2, type: 'sumaho', realG: 121, lcdG: 341, t: 2, chara: 'bad' }
     ]
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.sourceVer, '11');
   assert.equal(normalized.logs[0].type, 'sumaho');
   assert.equal(normalized.logs[0].chara, 'ken');
@@ -416,7 +435,7 @@ function testVersion12InitialFieldsDefaultToNull() {
       { id: 1, type: 'money', realG: null, lcdG: null, t: 1, op: 'init', amount: null, after: { startMochidama: 500, startSaipurei: 460, initialDiff: 0, loanRate: 50 } }
     ]
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.sourceVer, '12');
   assert.equal(normalized.sessionMoney.startRealG, null);
   assert.equal(normalized.sessionMoney.startLcdG, null);
@@ -444,7 +463,7 @@ function testVersion13InitialFieldsPreserved() {
       { id: 1, type: 'money', realG: null, lcdG: null, t: 1, op: 'medalIn', amount: 50, source: 'mochidama', after: { startRealG: 120, startLcdG: 345, initialMedalInAmount: 50, initialMedalInSource: 'mochidama', usedMochidama: 50, initialDiff: 0, loanRate: 50 } }
     ]
   });
-  assert.equal(normalized.ver, '14');
+  assert.equal(normalized.ver, '15');
   assert.equal(normalized.sessionMoney.startRealG, 120);
   assert.equal(normalized.sessionMoney.startLcdG, 345);
   assert.equal(normalized.sessionMoney.initialMedalInAmount, 50);
@@ -457,18 +476,18 @@ function testVersion13InitialFieldsPreserved() {
 testExportVersion9();
 testLegacyTrigPreserved();
 testMissingVersionAsLegacy();
-testIdempotentVersion14();
+testIdempotentVersion15();
 testBattleStateDefaultAndPreserved();
 testVersion2RankPreserved();
 testCashAndCollectPreserved();
 testVersion7UpgradesTo9();
 testMoneyRecordAndSessionMoney();
 testVersion14BalanceSyncPreserved();
+testVersion15InitialIcatchPreserved();
 testVersion9LegacyMedalOpsNormalizeToMedalIn();
 testUnknownTypePreserved();
 testVersion9StageAndAutoColor();
 testVersion11SumahoNormalizesTo13();
 testVersion12InitialFieldsDefaultToNull();
 testVersion13InitialFieldsPreserved();
-
 console.log('sf6-schema tests passed');

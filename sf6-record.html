@@ -477,6 +477,7 @@ textarea{
 .tag.gcolor{background:#d7e8ef}
 .tag.anten{background:#f8d77a;color:#1d1503}
 .tag.sumaho{background:#c5f0ff;color:#06151c}
+.tag.icatch{background:#ffd0dd;color:#16070b}
 .tag.stage_sel{background:#8ecf9e;color:#07100b}
 .tag.stage_end{background:#d8dee8;color:#111827}
 .tag.rare{background:#f0d27b;color:#161006}
@@ -613,7 +614,7 @@ textarea{
   const STORAGE_KEY='sf6_record_v1';
   const MACHINE='L-SF6';
   const MACHINE_ID='l-sf6';
-  const VERSION='14';
+  const VERSION='15';
   const PAYLOAD_VERSION='2.2';
   const GAIN_KINDS=['DC-アタック','DC-ルーク','DC-春麗','DC-キャミィ','ジャッジ'];
   const DC_GAIN_KINDS=GAIN_KINDS.filter(kind=>kind!=='ジャッジ');
@@ -664,11 +665,16 @@ textarea{
   ];
   const DEFAULT_LOAN_RATE=50;
   const ICATCHES=['ルーク','春麗','キンバリー','キャミィ','JP','ジェイミー','豪鬼','リュウ'];
+  const INITIAL_ICATCHES=[...ICATCHES,'未確認'];
   const HINT_REFERENCE_FOOTER='参考：各種解析媒体の公開情報（2026年8月時点）および実戦調査';
+  const ICATCH_HINT_ITEMS=[['ルーク','デフォルト'],['春麗','通常B以上の期待度UP'],['キンバリー','通常B以上濃厚'],['キャミィ','通常C以上の期待度UP'],['JP','通常B以上濃厚＋通常C以上の期待度UP'],['ジェイミー','天国の期待度UP'],['豪鬼','通常C以上濃厚'],['リュウ','天国濃厚']];
   const HINT_REFERENCES={
     loss:[
-      {title:'アイキャッチ',items:[['ルーク','デフォルト'],['春麗','通常B以上の期待度UP'],['キンバリー','通常B以上濃厚'],['キャミィ','通常C以上の期待度UP'],['JP','通常B以上濃厚＋通常C以上の期待度UP'],['ジェイミー','天国の期待度UP'],['豪鬼','通常C以上濃厚'],['リュウ','天国濃厚']]},
+      {title:'アイキャッチ',items:ICATCH_HINT_ITEMS},
       {title:'ステージ',items:[['ルーク／春麗','デフォルト'],['キャミィ','高確示唆'],['ジェイミー','超高確示唆']]}
+    ],
+    init:[
+      {title:'前回アイキャッチ',items:[...ICATCH_HINT_ITEMS,['未確認','メニューで確認できなかった場合の記録']]}
     ],
     win:[
       {title:'ボーナス終了画面',items:[['基本画面','デフォルト'],['男性ファイター集合','奇数設定の期待度UP'],['女性ファイター集合','偶数設定の期待度UP'],['ケン&JP','高設定の期待度UP（弱）'],['リュウ','高設定の期待度UP（強）'],['ルーク&ジェイミー','設定2以上濃厚'],['全員集合','設定4以上濃厚'],['エンタライオン','設定6濃厚']]}
@@ -712,6 +718,7 @@ textarea{
   let selectedSumahoChara='';
   let selectedWtAnten=null;
   let selectedWtReturnStage=null;
+  let selectedInitialIcatch=null;
   let selectedBonus=null;
   let selectedRank=null;
   let selectedRoundStart=null;
@@ -737,6 +744,42 @@ textarea{
   let hintPanelOpen=false;
   let lastLcdTouchedAt=Date.now();
   let lcdLogCountAtTouch=0;
+
+  function resetDraftState(){
+    selectedGainKind='';
+    selectedVoice=null;
+    gainAddDraft='';
+    selectedGainAnten=null;
+    selectedGainReturnStage=null;
+    selectedStageAnten=null;
+    selectedSumahoChara='';
+    selectedWtAnten=null;
+    selectedWtReturnStage=null;
+    selectedInitialIcatch=null;
+    selectedBonus=null;
+    selectedRank=null;
+    selectedRoundStart=null;
+    selectedCashAmount=10000;
+    balanceSyncDraft={credit:'',mochidama:'',saipurei:''};
+    selectedIcatch=null;
+    selectedContinue='none';
+    selectedReturnStage=null;
+    selectedLossReturnColor='default';
+    startInfoConfirmed=null;
+    winSheetDraft={bonusMedals:'',endScreen:'',credit:''};
+    lossSheetDraft={exitLcdG:'',exitRealG:'',exitCredit:''};
+    adjustTarget=null;
+    keypadOptions={allowDecimal:false,allowNegative:false};
+    keypadDraft='';
+    keypadDirty=false;
+    stepHistory=[];
+    undoStack=[];
+    redoAction=null;
+    activeHintKey=null;
+    hintPanelOpen=false;
+    lastLcdTouchedAt=Date.now();
+    lcdLogCountAtTouch=0;
+  }
 
   function positiveInt(value){
     const text=String(value??'').trim();
@@ -804,6 +847,10 @@ textarea{
   function normalizeSumahoChara(value){
     const text=String(value??'').trim();
     return SUMAHO_CHARAS.some(item=>item.key===text)?text:null;
+  }
+  function normalizeInitialIcatch(value){
+    const text=String(value??'').trim();
+    return INITIAL_ICATCHES.includes(text)?text:null;
   }
   function normalizeCurrentState(value){
     return {realG:value?.realG==null?null:optionalGame(value.realG),lcdG:value?.lcdG==null?null:optionalGame(value.lcdG)};
@@ -898,7 +945,7 @@ textarea{
     return JSON.parse(JSON.stringify(value));
   }
   function appSnapshot(){
-    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),autoColorResetAt:normalizeAutoColorResetAt(state.autoColorResetAt),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedLossReturnColor,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedGainReturnStage,selectedStageAnten,selectedSumahoChara,selectedWtAnten,balanceSyncDraft}});
+    return deepClone({battleState:state.battleState,hadWin:normalizeHadWin(state.hadWin),currentStage:normalizeCurrentStage(state.currentStage),currentZenchou:normalizeCurrentZenchou(state.currentZenchou),currentColor:normalizeCurrentColor(state.currentColor),currentState:normalizeCurrentState(state.currentState),initialThrough:nonnegativeInt(state.initialThrough)??0,pendingAutoColor:normalizePendingAutoColor(state.pendingAutoColor),autoColorBoundary:normalizeAutoColorBoundary(state.autoColorBoundary),autoColorResetAt:normalizeAutoColorResetAt(state.autoColorResetAt),sessionMoney:normalizeSessionMoney(state.sessionMoney),logs:state.logs,drafts:{selectedRank,selectedRoundStart,opponentDraft,selectedBonus,selectedIcatch,selectedContinue,selectedReturnStage,selectedLossReturnColor,selectedWtReturnStage,startInfoConfirmed,winSheetDraft,lossSheetDraft,gainAddDraft,selectedVoice,selectedGainKind,selectedGainAnten,selectedGainReturnStage,selectedStageAnten,selectedSumahoChara,selectedWtAnten,selectedInitialIcatch,balanceSyncDraft}});
   }
   function restoreSnapshot(snap){
     state.battleState=normalizeBattleState(snap?.battleState);
@@ -934,6 +981,7 @@ textarea{
     selectedStageAnten=normalizeAntenPattern(drafts.selectedStageAnten);
     selectedSumahoChara=normalizeSumahoChara(drafts.selectedSumahoChara)||'';
     selectedWtAnten=normalizeAntenPattern(drafts.selectedWtAnten);
+    selectedInitialIcatch=normalizeInitialIcatch(drafts.selectedInitialIcatch);
     balanceSyncDraft={credit:String(drafts.balanceSyncDraft?.credit||''),mochidama:String(drafts.balanceSyncDraft?.mochidama||''),saipurei:String(drafts.balanceSyncDraft?.saipurei||'')};
     save();
     render();
@@ -997,6 +1045,11 @@ textarea{
     if(base.type==='sumaho'){
       const chara=normalizeSumahoChara(log.chara);
       if(!chara||base.lcdG===null)return null;
+      return {...log,...base,chara};
+    }
+    if(base.type==='icatch'){
+      const chara=normalizeInitialIcatch(log.chara);
+      if(!chara)return null;
       return {...log,...base,chara};
     }
     if(base.type==='stage_sel'){
@@ -1133,6 +1186,15 @@ textarea{
   function refreshChoiceGroup(group,selectedValue){
     const selected=selectedValue==null?'':String(selectedValue);
     group.querySelectorAll('.chip[data-choice-value]').forEach(btn=>setChipPressed(btn,selected!==''&&btn.dataset.choiceValue===selected));
+  }
+  function wireStageAntenChoices(group){
+    group.addEventListener('click',event=>{
+      const btn=event.target.closest?.('[data-stage-anten-choice]');
+      if(!btn||!group.contains(btn))return;
+      const value=normalizeAntenPattern(btn.dataset.stageAntenChoice);
+      selectedStageAnten=selectedStageAnten===value?null:value;
+      refreshChoiceGroup(group,selectedStageAnten);
+    });
   }
   function gainKindDisplay(label){
     return label==='ジャッジ'?'ストリートジャッジ':label;
@@ -1345,6 +1407,16 @@ textarea{
     const m=normalizeSessionMoney(state.sessionMoney);
     if(!m)return false;
     return state.logs.some(log=>log.type==='money'&&log.op==='init')||m.startCredit!==null||m.startMochidama!==null||m.startSaipurei!==null||m.initialDiff!==null;
+  }
+  function latestInitialIcatch(){
+    for(let i=state.logs.length-1;i>=0;i--){
+      const log=state.logs[i];
+      if(log.type==='icatch'){
+        const chara=normalizeInitialIcatch(log.chara);
+        if(chara)return chara;
+      }
+    }
+    return null;
   }
   function currentMoney(){
     return normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
@@ -2125,6 +2197,7 @@ textarea{
     const initialThroughRaw=String($('initialThroughInput')?.value||'').trim();
     const initialThrough=initialThroughRaw===''?0:nonnegativeInt(initialThroughRaw);
     if(initialThrough===null){toast('FBスルー初期値を0以上の整数で入力してください');return;}
+    const initialIcatch=normalizeInitialIcatch($('initialIcatchSelect')?.value||selectedInitialIcatch);
     const snap=snapshot();
     commit('初期登録',()=>{
       const m=normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
@@ -2134,12 +2207,17 @@ textarea{
         :{...m,startCredit,startMochidama,startSaipurei,startRealG,startLcdG,loanRate,sandBalance:startCredit||0,initialDiff,initialMedalInAmount:null,initialMedalInSource:null,currentMochidama:startMochidama,currentSaipurei:startSaipurei,balanceVersion:14};
       state.sessionMoney=normalizeSessionMoney(next)||blankSessionMoney();
       state.initialThrough=initialThrough;
+      selectedInitialIcatch=initialIcatch;
       state.currentState={realG:startRealG===null?current.realG:startRealG,lcdG:startLcdG===null?current.lcdG:startLcdG};
       if(startLcdG!==null){
         resetAutoColorTrackerToCurrent({clearPending:true});
         markLcdTouched();
       }
       addLogDirect({type:'money',op:'init',amount:null,after:moneyAfterSummary(state.sessionMoney),realG:snap.realG,lcdG:snap.lcdG});
+      if(initialIcatch){
+        const initialSnap={realG:startRealG===null?snap.realG:startRealG,lcdG:startLcdG===null?snap.lcdG:startLcdG};
+        addLogDirect({type:'icatch',chara:initialIcatch,realG:initialSnap.realG,lcdG:initialSnap.lcdG});
+      }
     },{toast:already?'初期登録を修正しました':'初期登録を保存しました'});
     closeSheet();
   }
@@ -2232,7 +2310,7 @@ textarea{
   function tagClass(log){
     if(log.type==='gain')return log.kind==='ジャッジ'?'judge':'gain';
     if(log.type==='zenchou')return log.dir;
-    if(['gain','dcin','gcolor','anten','sumaho','stage_sel','stage_end','rare','zenchou','fbhit','fb','continue','money','cash','collect','memo','start_info'].includes(log.type))return log.type;
+    if(['gain','dcin','gcolor','anten','sumaho','icatch','stage_sel','stage_end','rare','zenchou','fbhit','fb','continue','money','cash','collect','memo','start_info'].includes(log.type))return log.type;
     return 'memo';
   }
   function logLabel(log){
@@ -2241,6 +2319,7 @@ textarea{
     if(log.type==='gcolor')return '色';
     if(log.type==='anten')return '暗転';
     if(log.type==='sumaho')return 'スマホ';
+    if(log.type==='icatch')return 'アイキャッチ';
     if(log.type==='stage_sel')return 'ステージ';
     if(log.type==='rare')return 'レア役';
     if(log.type==='zenchou')return log.dir==='stage'?'WT':(log.dir==='in'?'前兆IN':'前兆OUT');
@@ -2260,6 +2339,7 @@ textarea{
     if(log.type==='gcolor')return `色：${log.color}`;
     if(log.type==='anten')return `暗転：${antenLabel(log.pattern)}`;
     if(log.type==='sumaho')return `スマホ演出：${sumahoLabel(log.chara)}`;
+    if(log.type==='icatch')return `前回アイキャッチ：${log.chara}`;
     if(log.type==='stage_sel')return `ステージ：${log.stage}`;
     if(log.type==='rare')return `レア役：${log.kind}`;
     if(log.type==='dcin')return 'DC突入';
@@ -2324,6 +2404,11 @@ textarea{
     if(log.type==='sumaho'){
       setText(el,'スマホ演出：');
       setText(el,sumahoLabel(log.chara),['ken','ryu','kimberly','jamie'].includes(log.chara)?'voice-mark':'');
+      return;
+    }
+    if(log.type==='icatch'){
+      setText(el,'前回アイキャッチ：');
+      setText(el,log.chara,log.chara!=='ルーク'&&log.chara!=='未確認'?'voice-mark':'');
       return;
     }
     if(log.type==='stage_sel'){
@@ -2406,11 +2491,12 @@ textarea{
       body.append(choices);
       const antenChoices=row('choice-row single-choice-grid');
       antenChoices.id='stageAntenKinds';
+      wireStageAntenChoices(antenChoices);
       ANTEN_PATTERNS.forEach(item=>{
-        antenChoices.append(choiceChip(item.label,item.key,selectedStageAnten===item.key,()=>{
-          selectedStageAnten=selectedStageAnten===item.key?null:item.key;
-          refreshChoiceGroup(antenChoices,selectedStageAnten);
-        },item.cls));
+        const btn=chip(item.label,selectedStageAnten===item.key,()=>{},item.cls);
+        btn.dataset.choiceValue=item.key;
+        btn.dataset.stageAntenChoice=item.key;
+        antenChoices.append(btn);
       });
       body.append(el('div','muted','暗転パターン（任意）'));
       body.append(antenChoices);
@@ -2739,7 +2825,10 @@ textarea{
       startLcdG.value=m.startLcdG??'';
       const initialThrough=input('initialThroughInput','number','0');
       initialThrough.value=state.initialThrough??0;
-      [startCredit,startMochidama,startSaipurei,loanRate,initialDiff,startRealG,startLcdG,initialThrough].forEach(node=>{node.disabled=locked;});
+      const initialIcatch=selectInput('initialIcatchSelect',INITIAL_ICATCHES,'前回アイキャッチ');
+      initialIcatch.value=selectedInitialIcatch||latestInitialIcatch()||'';
+      initialIcatch.addEventListener('change',()=>{selectedInitialIcatch=normalizeInitialIcatch(initialIcatch.value);});
+      [startCredit,startMochidama,startSaipurei,loanRate,initialDiff,startRealG,startLcdG,initialThrough,initialIcatch].forEach(node=>{node.disabled=locked;});
       if(locked)body.append(el('div','muted','初期設定はロック中です。修正する場合だけ編集を押してください。'));
       body.append(field('現金残高',startCredit));
       body.append(field('持ちメダル',startMochidama));
@@ -2747,13 +2836,14 @@ textarea{
       body.append(field('貸出レート',loanRate));
       body.append(field('初期差枚',initialDiff));
       body.append(field('FBスルー初期値',initialThrough));
+      body.append(field('前回アイキャッチ',initialIcatch));
       body.append(field('実G（データカウンタ）',startRealG));
       body.append(field('液晶G',startLcdG));
       const actions=row();
       if(locked)actions.append(button('編集','secondary',()=>openMoneyInitSheet(true)));
       else actions.append(button(moneyInitialized()?'初期登録を修正':'初期登録を保存','primary',recordMoneyInit));
       body.append(actions);
-    });
+    },{hintKey:'init'});
   }
   function openMoneyDepositSheet(){
     if(!ensureMoneyForOperation())return;
@@ -2803,6 +2893,11 @@ textarea{
     const box=$('moneySummaryBox');
     if(!box)return;
     clearNode(box);
+    if(!moneyInitialized()){
+      box.append(el('div','muted','初期登録待ち'));
+      box.append(el('div','muted','前セッションの残数は参照しません'));
+      return;
+    }
     const m=currentMoney();
     const s=moneySummary(m);
     const info=normalizeSessionInfo(state.sessionInfo);
@@ -3145,11 +3240,10 @@ textarea{
       clearTimeout(resetTimer);
       resetTimer=null;
       state=defaultState();
+      resetDraftState();
       initialMoneyPromptShown=false;
-      stepHistory=[];
-      undoStack=[];
-      redoAction=null;
       localStorage.removeItem(STORAGE_KEY);
+      closeKeypad();
       closeSheet();
       render();
       toast('全記録をリセットしました');

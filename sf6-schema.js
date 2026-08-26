@@ -6,10 +6,11 @@
 })(typeof globalThis!=='undefined'?globalThis:this,function(){
   'use strict';
 
-  const SCHEMA_VERSION='14';
+  const SCHEMA_VERSION='15';
   const MONEY_OPS=['init','deposit','loan','creditUpdate','balanceSync','medalIn','mochidama','saipurei','diffSync','collectEnd'];
   const MEDAL_SOURCES=['mochidama','saipurei','unknown'];
   const SUMAHO_CHARAS=['cammy','juri','zangief','blanka','lily','deejay','jp','kimberly','jamie','ken','ryu','other'];
+  const INITIAL_ICATCHES=['ルーク','春麗','キンバリー','キャミィ','JP','ジェイミー','豪鬼','リュウ','未確認'];
 
   function safeObject(value){
     return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
@@ -58,6 +59,10 @@
   function normalizeSumahoChara(value){
     const text=String(value??'').trim();
     return SUMAHO_CHARAS.includes(text)?text:null;
+  }
+  function normalizeInitialIcatch(value){
+    const text=String(value??'').trim();
+    return INITIAL_ICATCHES.includes(text)?text:null;
   }
   function signedNumber(value){
     if(value===null||value===undefined||value==='')return null;
@@ -148,6 +153,7 @@
     if(log.type==='gcolor')return {...log,auto:log.auto===true};
     if(log.type==='anten')return {...log,pattern:normalizeAntenPattern(log.pattern)};
     if(log.type==='sumaho')return {...log,chara:normalizeSumahoChara(log.chara)};
+    if(log.type==='icatch')return {...log,chara:normalizeInitialIcatch(log.chara)};
     if(log.type==='stage_end')return {...log,stage:normalizeCurrentStage(log.stage)};
     return {...log};
   }
@@ -156,7 +162,7 @@
     const src=safeObject(data);
     const inputVer=src.ver==null?null:String(src.ver);
     const sourceVer=src.sourceVer==null?inputVer:String(src.sourceVer);
-    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!=='8'&&inputVer!=='9'&&inputVer!=='10'&&inputVer!=='11'&&inputVer!=='12'&&inputVer!=='13'&&inputVer!==SCHEMA_VERSION;
+    const isLegacy=inputVer!=='2'&&inputVer!=='3'&&inputVer!=='4'&&inputVer!=='5'&&inputVer!=='6'&&inputVer!=='7'&&inputVer!=='8'&&inputVer!=='9'&&inputVer!=='10'&&inputVer!=='11'&&inputVer!=='12'&&inputVer!=='13'&&inputVer!=='14'&&inputVer!==SCHEMA_VERSION;
     const logs=Array.isArray(src.logs)?src.logs.map(log=>normalizeLog(log,isLegacy)):[];
     return {
       ...src,
