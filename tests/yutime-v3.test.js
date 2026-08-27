@@ -1070,10 +1070,11 @@ assert.match(runningPanelRate, /const spins = runningNormalSpinCount\(session\);
 assert.match(runningPanelRate, /return inputBalls > 0 && spins !== null && spins >= 0 \? spins \/ inputBalls \* 250 : null;/);
 assert.match(runningPanelInputBallsBlock, /function runningNormalInputBalls\(session\) \{/);
 assert.match(runningPanelInputBallsBlock, /const investedBalls = normalRateInvestments\(session\)\.reduce/);
-assert.match(runningPanelInputBallsBlock, /tapModeNormalConsumedBalls\(session, investedBalls, hasHit\)/);
+assert.match(runningPanelInputBallsBlock, /tapModeNormalConsumedBalls\(session, investedBalls, hasHit, store\)/);
 assert.match(runningPanelInputBallsBlock, /return inputBalls > 0 \? Math\.round\(inputBalls\) : null;/);
 assert.match(deriveSession, /const normalInvestedBalls = normalRateInvestments\(session\)\.reduce/);
-assert.match(deriveSession, /tapModeNormalConsumedBalls\(session, normalInputBalls, hasHit\)/);
+assert.match(deriveSession, /tapModeNormalConsumedBalls\(session, normalInputBalls, hasHit, store\)/);
+assert.match(deriveSession, /tapModeNormalConsumptionFallback\(session, hasHit, store\)/);
 const runningRateContext = vm.createContext({});
 new vm.Script(`
   function normalizeNumber(value) {
@@ -1088,15 +1089,33 @@ new vm.Script(`
     return (item.source || item.type) === "cash" ? Number(item.amount || 0) / 4 : Number(item.amount || 0);
   }
   function usesTapInvestmentMode() { return true; }
-  function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0) {
-    const remainBalls = normalizeNumber(session?.hitRemainBalls);
-    return hasHit && remainBalls !== null ? normalInputBalls - remainBalls : normalInputBalls;
+  function tapModeNormalEndSnapshot(session, hasHit = Number(session?.hitCount || 0) > 0) {
+    const yutimeBalls = normalizeNumber(session?.yutimeEnterBalls);
+    if (yutimeBalls !== null) return yutimeBalls;
+    if (!hasHit) return null;
+    return normalizeNumber(session?.hitRemainBalls);
+  }
+  function tapModeNormalBaselineBalls(session, store = storeById(session?.storeId)) {
+    const normalExtraBalls = normalRateInvestments(session)
+      .filter((item) => investmentSource(item) !== "mochidama")
+      .reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+    return Number(session?.startMochidama || 0) + normalExtraBalls;
+  }
+  function tapModeNormalConsumptionFallback(session, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
+    const endBalls = tapModeNormalEndSnapshot(session, hasHit);
+    return endBalls !== null && tapModeNormalBaselineBalls(session, store) < endBalls;
+  }
+  function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
+    const endBalls = tapModeNormalEndSnapshot(session, hasHit);
+    if (endBalls === null) return normalInputBalls;
+    const baselineBalls = tapModeNormalBaselineBalls(session, store);
+    return baselineBalls >= endBalls ? baselineBalls - endBalls : normalInputBalls;
   }
   ${runningPanelInputBallsBlock}
   ${runningRateHelpers}
   function normalizeMachinePresetId() { return ""; }
   function presetById() { return null; }
-  function yutimeEnterSpinForRate() { return null; }
+  function yutimeEnterSpinForRate(session) { return normalizeNumber(session?.yutimeEnterSpin); }
   function hitRoundBasedPayout() { return null; }
   function exchangeBallsForStore() { return 25; }
   function exchangeRateForStore() { return 4; }
@@ -1154,7 +1173,7 @@ new vm.Script(`
     storeId: "s",
     startSpin: 0,
     currentSpin: 0,
-    startMochidama: 2500,
+    startMochidama: 250,
     hitSpin: 10,
     hitCount: 1,
     hits: [{ roundTypeId: "r10", at: "2026-08-22T10:05:00" }],
@@ -1165,7 +1184,42 @@ new vm.Script(`
     endTotalBalls: 1487,
     zanhoryuBalls: 0
   };
-  const b84OverRemain = { ...b84TapHit, hitRemainBalls: 300 };
+  const b85Dai360 = {
+    ...b84TapHit,
+    startMochidama: 2500,
+    hitRemainBalls: 2250,
+    endTotalBalls: 2250
+  };
+  const b85Dai357 = {
+    ...b84TapHit,
+    startMochidama: 1487,
+    hitRemainBalls: 1312,
+    endTotalBalls: 1312,
+    investments: [{ source: "mochidama", amount: 125, phase: "normal", spinAt: 1, time: "10:00" }]
+  };
+  const b85OverRemain = {
+    ...b84TapHit,
+    startMochidama: 100,
+    hitRemainBalls: 300,
+    investments: [{ source: "mochidama", amount: 125, phase: "normal", spinAt: 1, time: "10:00" }]
+  };
+  const b85NoRemain = {
+    ...b84TapHit,
+    startMochidama: 2500,
+    hitRemainBalls: null,
+    investments: [{ source: "mochidama", amount: 125, phase: "normal", spinAt: 1, time: "10:00" }]
+  };
+  const b85YutimeEnter = {
+    ...b84TapHit,
+    startMochidama: 2500,
+    hitSpin: null,
+    hitCount: null,
+    hits: [],
+    yutimeEnterSpin: 10,
+    yutimeEnterBalls: 2250,
+    hitVia: "yutime",
+    hitRemainBalls: null
+  };
   globalThis.afterHitSpinCount = runningSpinCount(afterHit);
   globalThis.afterHitRate = runningPanelRate(afterHit);
   globalThis.afterHitInvestments = normalRateInvestments(afterHit).length;
@@ -1179,7 +1233,12 @@ new vm.Script(`
   globalThis.b84InputBalls = runningNormalInputBalls(b84TapHit);
   globalThis.b84Rate = runningPanelRate(b84TapHit);
   globalThis.b84Derived = deriveSession(b84TapHit);
-  globalThis.b84OverRemainDerived = deriveSession(b84OverRemain);
+  globalThis.b85Dai360Derived = deriveSession(b85Dai360);
+  globalThis.b85Dai357InputBalls = runningNormalInputBalls(b85Dai357);
+  globalThis.b85Dai357Derived = deriveSession(b85Dai357);
+  globalThis.b85OverRemainDerived = deriveSession(b85OverRemain);
+  globalThis.b85NoRemainDerived = deriveSession(b85NoRemain);
+  globalThis.b85YutimeEnterDerived = deriveSession(b85YutimeEnter);
 `).runInContext(runningRateContext);
 assert.equal(runningRateContext.afterHitSpinCount, 70);
 assert.equal(runningRateContext.afterHitRate, 70);
@@ -1195,9 +1254,18 @@ assert.equal(runningRateContext.b84InputBalls, 152);
 assert.equal(Number(runningRateContext.b84Rate.toFixed(1)), 16.4);
 assert.equal(Number(runningRateContext.b84Derived.rate.toFixed(1)), 16.4);
 assert.equal(runningRateContext.b84Derived.consumedBalls, 152);
-assert.equal(runningRateContext.b84Derived.diffBalls, -1013);
-assert.equal(runningRateContext.b84OverRemainDerived.rate, null);
-assert.equal(JSON.stringify(runningRateContext.b84OverRemainDerived.warnings), JSON.stringify(["通常消費玉の入力を確認"]));
+assert.equal(runningRateContext.b85Dai360Derived.consumedBalls, 250);
+assert.equal(Number(runningRateContext.b85Dai360Derived.rate.toFixed(1)), 10.0);
+assert.equal(runningRateContext.b85Dai357InputBalls, 175);
+assert.equal(runningRateContext.b85Dai357Derived.consumedBalls, 175);
+assert.equal(Number(runningRateContext.b85Dai357Derived.rate.toFixed(1)), 14.3);
+assert.equal(runningRateContext.b85OverRemainDerived.consumedBalls, 125);
+assert.equal(Number(runningRateContext.b85OverRemainDerived.rate.toFixed(1)), 20.0);
+assert.equal(JSON.stringify(runningRateContext.b85OverRemainDerived.warnings), JSON.stringify(["通常消費玉の入力を確認"]));
+assert.equal(runningRateContext.b85NoRemainDerived.consumedBalls, 125);
+assert.equal(Number(runningRateContext.b85NoRemainDerived.rate.toFixed(1)), 20.0);
+assert.equal(runningRateContext.b85YutimeEnterDerived.consumedBalls, 250);
+assert.equal(Number(runningRateContext.b85YutimeEnterDerived.rate.toFixed(1)), 10.0);
 assert.ok(design.includes('スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。'));
 assert.match(renderRunning, /<span>\$\{escapeHtml\(option\.label\)\}<\/span><strong>\$\{sourceChipBalanceText\(balance\)\}<\/strong>/);
 assert.match(renderRunning, /const selectedAmount = investmentUnitForSource\(selectedSource\);/);

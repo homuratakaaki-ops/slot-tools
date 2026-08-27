@@ -6430,7 +6430,7 @@
       const investedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const tapMode = usesTapInvestmentMode(session);
       const hasHit = Number(session?.hitCount || 0) > 0;
-      const inputBalls = tapMode ? tapModeNormalConsumedBalls(session, investedBalls, hasHit) : Number(session.startMochidama || 0) + investedBalls;
+      const inputBalls = tapMode ? tapModeNormalConsumedBalls(session, investedBalls, hasHit, store) : Number(session.startMochidama || 0) + investedBalls;
       return inputBalls > 0 ? Math.round(inputBalls) : null;
     }
 
@@ -7197,9 +7197,30 @@
       return Number(item.amount || 0);
     }
 
-    function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0) {
-      const remainBalls = normalizeNumber(session?.hitRemainBalls);
-      return hasHit && remainBalls !== null ? normalInputBalls - remainBalls : normalInputBalls;
+    function tapModeNormalEndSnapshot(session, hasHit = Number(session?.hitCount || 0) > 0) {
+      const yutimeBalls = normalizeNumber(session?.yutimeEnterBalls);
+      if (yutimeBalls !== null) return yutimeBalls;
+      if (!hasHit) return null;
+      return normalizeNumber(session?.hitRemainBalls);
+    }
+
+    function tapModeNormalBaselineBalls(session, store = storeById(session?.storeId)) {
+      const normalExtraBalls = normalRateInvestments(session)
+        .filter((item) => investmentSource(item) !== "mochidama")
+        .reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+      return Number(session?.startMochidama || 0) + normalExtraBalls;
+    }
+
+    function tapModeNormalConsumptionFallback(session, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
+      const endBalls = tapModeNormalEndSnapshot(session, hasHit);
+      return endBalls !== null && tapModeNormalBaselineBalls(session, store) < endBalls;
+    }
+
+    function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
+      const endBalls = tapModeNormalEndSnapshot(session, hasHit);
+      if (endBalls === null) return normalInputBalls;
+      const baselineBalls = tapModeNormalBaselineBalls(session, store);
+      return baselineBalls >= endBalls ? baselineBalls - endBalls : normalInputBalls;
     }
 
     function deriveSession(session, machine = null) {
@@ -7226,8 +7247,9 @@
       const estimatedPayout = hasHit ? (roundBasedPayout !== null ? roundBasedPayout : standardPayout) : null;
       const estimatedRemainBalls = hasHit && session.hitRemainBalls === null && estimatedPayout !== null && session.endTotalBalls !== null ? Math.max(0, session.endTotalBalls - estimatedPayout) : null;
       const normalEndBalls = session.yutimeEnterBalls !== null ? session.yutimeEnterBalls : (hasHit && session.hitRemainBalls !== null ? session.hitRemainBalls : estimatedRemainBalls);
-      const rawConsumedBalls = normalSpins !== null ? (tapMode ? tapModeNormalConsumedBalls(session, normalInputBalls, hasHit) : (normalEndBalls !== null ? normalInputBalls - Number(normalEndBalls || 0) : null)) : null;
+      const rawConsumedBalls = normalSpins !== null ? (tapMode ? tapModeNormalConsumedBalls(session, normalInputBalls, hasHit, store) : (normalEndBalls !== null ? normalInputBalls - Number(normalEndBalls || 0) : null)) : null;
       const consumedBalls = rawConsumedBalls !== null && rawConsumedBalls < 0 ? null : rawConsumedBalls;
+      if (tapMode && normalSpins !== null && tapModeNormalConsumptionFallback(session, hasHit, store)) warnings.push("通常消費玉の入力を確認");
       if (rawConsumedBalls !== null && rawConsumedBalls < 0) warnings.push("通常消費玉の入力を確認");
       const fallbackConsumed = normalSpins !== null && normalInputBalls >= 0 ? normalInputBalls : null;
       const rateBase = tapMode ? consumedBalls : (hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null);
