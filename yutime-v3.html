@@ -1211,6 +1211,11 @@
       border-radius: 8px;
     }
 
+    .expectation-spacer {
+      visibility: hidden;
+      min-height: 0;
+    }
+
     .list {
       display: grid;
       gap: 8px;
@@ -1423,6 +1428,33 @@
       margin-top: 12px;
     }
 
+    .hit-round-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(140px, 0.8fr);
+      gap: 10px;
+      align-items: start;
+    }
+
+    .hit-round-result {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .hit-round-result strong {
+      display: block;
+      font-size: 18px;
+      line-height: 1.35;
+    }
+
+    .hit-round-result small {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-weight: 700;
+    }
+
     .phase-note {
       margin-top: 8px;
       color: var(--muted);
@@ -1538,11 +1570,13 @@
       .tabs { grid-template-columns: repeat(2, 1fr); }
       .two, .three { grid-template-columns: 1fr; }
       .field-row { grid-template-columns: 1fr; gap: 5px; }
+      .expectation-spacer { display: none; }
       .section-head { grid-template-columns: 1fr; }
       .island-sides { grid-template-columns: 1fr; }
       .map-row { grid-template-columns: minmax(118px, 1fr) 28px minmax(118px, 1fr); gap: 10px; }
       .map-side { grid-template-columns: 1fr; }
       .modal-actions { grid-template-columns: 1fr; }
+      .hit-round-layout { grid-template-columns: 1fr; }
       .carryover-banner { grid-template-columns: 1fr; }
     }
   </style>
@@ -5402,16 +5436,17 @@
         ${showExpectationBlock ? `<div class="expectation-box">
           <div class="expectation-title" id="machineEvTitle"><span>期待値判定</span><small>未判定</small></div>
           <div class="expectation-inputs">
-            <div class="field-row"><label for="evCurrentSpin">現在回転数</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
+            <div class="field-row"><label for="evStartTotalHits">開始時点の累計大当たり回数</label><input id="evStartTotalHits" inputmode="numeric" value=""></div>
+            <div class="field-row ev-ramclear-row"><label for="evPrevDisabled">ラムクリア</label><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> あり</label></div>
             <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
+            <div class="field-row"><label for="evCurrentSpin">現在回転数</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${baseStats.rate ? baseStats.rate.toFixed(1) : "履歴なし"}"></div>
+            <div class="field-row expectation-spacer"></div>
             <div class="field-row"><label for="evMochidamaBalls">持ち玉（玉）</label><input id="evMochidamaBalls" inputmode="numeric" value="" placeholder="0"></div>
             <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="" placeholder="0"></div>
-            <div class="field-row"><label for="evStartTotalHits">開始時点の累計大当たり回数</label><input id="evStartTotalHits" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evStartCredit">開始時のカード残高</label><input id="evStartCredit" inputmode="numeric" value=""></div>
-            <div class="field-row ev-ramclear-row"><label for="evPrevDisabled">宵越し</label><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> ラムクリア</label></div>
           </div>
-          <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリア時は宵越しを使いません。` : "前日ヤメ回転数は未入力です。"}</p>
+          <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"}</p>
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
         </div>` : ""}
@@ -5539,10 +5574,10 @@
       if (prevHint) {
         const prevValue = normalizeNumber(prevInput?.value);
         prevHint.textContent = previousState.autoDisabled
-          ? "当日当選済みのため宵越しは使いません。前日ヤメ回転数は0として計算しています。"
+          ? "当日当選済みのため前日ヤメ回転数は使いません。0回転として計算しています。"
           : (previousState.ramClearDisabled
-            ? "ラムクリアのため宵越しは使いません。前日ヤメ回転数は0として計算しています。"
-            : (prevValue !== null ? `前日ヤメ${prevValue.toLocaleString("ja-JP")}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリア時は宵越しを使いません。` : "前日ヤメ回転数は未入力です。"));
+            ? "ラムクリアありのため前日ヤメ回転数は使いません。0回転として計算しています。"
+            : (prevValue !== null ? `前日ヤメ${prevValue.toLocaleString("ja-JP")}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"));
       }
       const expectation = calculateMachineExpectation(machine, {
         currentSpin: byId("evCurrentSpin")?.value,
@@ -5571,7 +5606,7 @@
       `;
       const near = expectation.result.spinsToTenjo < 100 && expectation.result.spinsToTenjo > 0;
       const costSource = expectationInvestmentText(expectation.result.mochidamaBalls, expectation.result.cashBalls);
-      detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（宵越し${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
+      detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（前日${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
     }
 
     function expectationPreviousSpinState() {
@@ -5781,16 +5816,32 @@
       const currentBalances = deriveBalances(session);
       const mochidamaPreset = currentBalances.mochidama;
       const balancePresetHint = "稼働中の持ち玉残を初期値にしています。台の表示と違う場合は修正してください。";
-      runWizard("当選ウィザード", [
-        { key: "hitSpin", label: "当選回転数", type: "number", preset: session.currentSpin, wizardHint: "初当たりの瞬間の記録です。大当たり回数・出玉は、連チャンが全て終わったあと [ヤメ] でまとめて入力します。" },
-        { key: "hitRemainBalls", label: "残り玉", type: "number", preset: mochidamaPreset, hint: (mochidamaPreset !== null ? `${balancePresetHint} ` : "") + (activeStore()?.isPersonal ? "パーソナル店では確定回転率に使います。" : "非パーソナル店ではスキップ前提です。") }
-      ], session, () => {
+      openModal("当選ウィザード", "初当たりの瞬間の記録です。大当たり回数・出玉は [ヤメ] でまとめて入力します。", `
+        <div class="field-row">
+          <label for="hitWizardSpin">当選回転数</label>
+          <input id="hitWizardSpin" inputmode="numeric" value="${escapeHtml(session.currentSpin ?? "")}">
+        </div>
+        <div class="field-row">
+          <label for="hitWizardRemainBalls">残り持ち玉</label>
+          <div>
+            <input id="hitWizardRemainBalls" inputmode="numeric" value="${escapeHtml(mochidamaPreset ?? "")}">
+            <p class="hint">${mochidamaPreset !== null ? `${balancePresetHint} ` : ""}今ある持ち玉を入力してください（再プレイ分は含めない）。正確な回転率と、当選時点の持ち玉が記録されます。${activeStore()?.isPersonal ? "" : " 非パーソナル店では空欄のままで構いません。"}</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button class="primary" id="saveHitWizardBtn">完了</button>
+        </div>
+      `);
+      byId("saveHitWizardBtn").addEventListener("click", () => {
+        session.hitSpin = normalizeNumber(byId("hitWizardSpin")?.value);
+        session.hitRemainBalls = normalizeNumber(byId("hitWizardRemainBalls")?.value);
         if (!session.hitVia) session.hitVia = session.yutimeEnterBalls !== null ? "yutime" : "normal";
         session.updatedAt = nowIso();
         if (!persistWithToast("当選を記録しました")) return;
         renderAll();
         openHitResetPrompt(session);
-      }, { firstBackCancels: true });
+      });
     }
 
     function hitResetOptions(machine) {
@@ -5823,8 +5874,20 @@
       const startTotalHits = normalizeNumber(session?.startTotalHits);
       const cumulativeHits = (startTotalHits ?? 0) + hitCount;
       const startText = startTotalHits === null ? "開始時未入力" : `開始時${Math.round(startTotalHits).toLocaleString("ja-JP")}回`;
+      const latestHit = hits.at(-1);
+      const latestRounds = roundCountFromRoundType(roundTypeById(presetId, latestHit?.roundTypeId));
+      const actualPayout = hits
+        .map((hit) => normalizeNumber(hit.actualBalls))
+        .filter((value) => value !== null && value > 0)
+        .reduce((sum, value) => sum + value, 0);
+      const payoutValue = actualPayout > 0 ? actualPayout : hitRoundBasedPayout(session, presetId);
+      const payoutLabel = actualPayout > 0 ? "実測出玉" : "R数ベース出玉";
       return `
         <div class="hit-round-summary">
+          <div class="hit-round-result">
+            <strong>今回 ${latestRounds !== null ? `${latestRounds.toLocaleString("ja-JP")}R` : "-"} ／ 合計 ${totalRounds.toLocaleString("ja-JP")}R</strong>
+            <small>${payoutLabel} ${payoutValue !== null ? `${Math.round(payoutValue).toLocaleString("ja-JP")}玉` : "-"}</small>
+          </div>
           ${rows.length ? `<p class="hint">${rows.join(" ・ ")}</p>` : ""}
           <hr>
           <p class="hint">今回 ${hitCount.toLocaleString("ja-JP")}回 / 合計${totalRounds.toLocaleString("ja-JP")}R</p>
@@ -5842,16 +5905,18 @@
       openModal("現在回転数をリセット", "選ばず閉じると現在回転数はそのままです。続行する場合だけ、時短消化後の起点に合わせてください。", `
         <div class="field-row">
           <label>当選ごとのラウンド記録</label>
-          <div>
-            <div class="quick-invest">
-              ${roundTypes.map((type) => `<button data-hit-round="${escapeHtml(type.id)}">${escapeHtml(type.label)} +1</button>`).join("") || '<span class="hint">このプリセットにはラウンド種別がありません。</span>'}
+          <div class="hit-round-layout">
+            <div>
+              <div class="quick-invest">
+                ${roundTypes.map((type) => `<button data-hit-round="${escapeHtml(type.id)}">${escapeHtml(type.label)} +1</button>`).join("") || '<span class="hint">このプリセットにはラウンド種別がありません。</span>'}
+              </div>
+              <div class="grid two">
+                <input id="hitRecordSpin" inputmode="numeric" value="${escapeHtml(session.hitSpin ?? session.currentSpin ?? "")}" placeholder="当選ゲーム数 任意">
+                <input id="hitRecordActualBalls" inputmode="numeric" placeholder="獲得出玉 任意">
+              </div>
+              <p class="hint">獲得出玉は大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）です。チップを押すと当選1件として保存します。任意入力は空欄でも記録できます。</p>
             </div>
             ${hitRoundSummaryHtml(session, presetId)}
-            <div class="grid two">
-              <input id="hitRecordSpin" inputmode="numeric" value="${escapeHtml(session.hitSpin ?? session.currentSpin ?? "")}" placeholder="当選ゲーム数 任意">
-              <input id="hitRecordActualBalls" inputmode="numeric" placeholder="獲得出玉 任意">
-            </div>
-            <p class="hint">獲得出玉は大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）です。チップを押すと当選1件として保存します。任意入力は空欄でも記録できます。</p>
           </div>
         </div>
         <div class="field-row">
@@ -6641,7 +6706,7 @@
       const remainingSpins = endEffectiveSpin !== null ? Math.max(0, tenjo - endEffectiveSpin) : null;
       const startSpin = normalizeNumber(session.startSpin);
       const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin ? endSpin - startSpin : null;
-      const consumedBalls = Math.round(totals.mochidamaBalls + totals.saipureiBalls + totals.cashYen / 1000 * 250);
+      const consumedBalls = derived.consumedBalls !== null && derived.consumedBalls !== undefined ? Math.round(derived.consumedBalls) : null;
       const actualHitBalls = normalizeHits(session.hits)
         .map((hit) => normalizeNumber(hit.actualBalls))
         .filter((value) => value !== null && value > 0)

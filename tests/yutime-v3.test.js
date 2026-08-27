@@ -85,7 +85,99 @@ const availableBallsHelpers = section('function availableBallsFromParts', 'funct
 const expectationRateBlock = section('function expectationRate', 'function availableBallsFromParts');
 const roundCountFromRoundTypeBlock = section('function roundCountFromRoundType', 'function transferYenText');
 
-assert.match(hitWizard, /openHitResetPrompt\(session\);\s*\}, \{ firstBackCancels: true \}\);/);
+assert.doesNotMatch(hitWizard, /runWizard\(/);
+assert.match(hitWizard, /openModal\("当選ウィザード"/);
+assert.match(hitWizard, /label for="hitWizardSpin">当選回転数/);
+assert.match(hitWizard, /label for="hitWizardRemainBalls">残り持ち玉/);
+assert.match(hitWizard, /今ある持ち玉を入力してください（再プレイ分は含めない）/);
+assert.match(hitWizard, /非パーソナル店では空欄のままで構いません/);
+assert.match(hitWizard, /session\.hitSpin = normalizeNumber\(byId\("hitWizardSpin"\)\?\.value\);/);
+assert.match(hitWizard, /session\.hitRemainBalls = normalizeNumber\(byId\("hitWizardRemainBalls"\)\?\.value\);/);
+assert.match(hitWizard, /openHitResetPrompt\(session\);/);
+const hitWizardContext = vm.createContext({
+  __session: {
+    id: 's_hit_wizard',
+    currentSpin: 420,
+    hitSpin: null,
+    hitRemainBalls: null,
+    yutimeEnterBalls: null,
+    hitVia: null
+  },
+  __nodes: {},
+  __modalHtml: '',
+  __resetOpened: false,
+  __renderCount: 0,
+  findSession(id) {
+    return id === 's_hit_wizard' ? hitWizardContext.__session : null;
+  },
+  deriveBalances() {
+    return { mochidama: 1650 };
+  },
+  activeStore() {
+    return { isPersonal: true };
+  },
+  openModal(title, subtitle, htmlText) {
+    hitWizardContext.__modalTitle = title;
+    hitWizardContext.__modalSubtitle = subtitle;
+    hitWizardContext.__modalHtml = htmlText;
+    hitWizardContext.__nodes.hitWizardSpin = { value: '421' };
+    hitWizardContext.__nodes.hitWizardRemainBalls = { value: '1640' };
+    hitWizardContext.__nodes.saveHitWizardBtn = { addEventListener(event, handler) { hitWizardContext.__save = handler; } };
+  },
+  byId(id) {
+    return hitWizardContext.__nodes[id] || null;
+  },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  nowIso() {
+    return '2026-08-27T10:00:00.000Z';
+  },
+  persistWithToast() {
+    return true;
+  },
+  renderAll() {
+    hitWizardContext.__renderCount += 1;
+  },
+  openHitResetPrompt(session) {
+    hitWizardContext.__resetOpened = session;
+  },
+  escapeHtml(value) {
+    return String(value ?? '');
+  }
+});
+new vm.Script(`
+  ${hitWizard}
+  openHitWizard('s_hit_wizard');
+  globalThis.openedTitle = globalThis.__modalTitle;
+  globalThis.openedHtml = globalThis.__modalHtml;
+  globalThis.beforeSaveSpin = globalThis.__session.hitSpin;
+  globalThis.__save();
+  globalThis.savedSpin = globalThis.__session.hitSpin;
+  globalThis.savedRemain = globalThis.__session.hitRemainBalls;
+  globalThis.savedVia = globalThis.__session.hitVia;
+  globalThis.savedResetOpened = globalThis.__resetOpened === globalThis.__session;
+  globalThis.__session.hitSpin = 1;
+  globalThis.__session.hitRemainBalls = 2;
+  globalThis.__session.hitVia = null;
+  globalThis.__nodes.hitWizardSpin.value = '';
+  globalThis.__nodes.hitWizardRemainBalls.value = '';
+  globalThis.__save();
+  globalThis.blankSpin = globalThis.__session.hitSpin;
+  globalThis.blankRemain = globalThis.__session.hitRemainBalls;
+`).runInContext(hitWizardContext);
+assert.equal(hitWizardContext.openedTitle, '当選ウィザード');
+assert.match(hitWizardContext.openedHtml, /当選回転数/);
+assert.match(hitWizardContext.openedHtml, /残り持ち玉/);
+assert.equal(hitWizardContext.beforeSaveSpin, null);
+assert.equal(hitWizardContext.savedSpin, 421);
+assert.equal(hitWizardContext.savedRemain, 1640);
+assert.equal(hitWizardContext.savedVia, 'normal');
+assert.equal(hitWizardContext.savedResetOpened, true);
+assert.equal(hitWizardContext.blankSpin, null);
+assert.equal(hitWizardContext.blankRemain, null);
 assert.match(runWizard, /id="backStepBtn" \$\{index === 0 && !options\.firstBackCancels \? "disabled" : ""\}>戻る<\/button>/);
 assert.match(
   runWizard,
@@ -242,12 +334,14 @@ assert.equal(endWizardContext.savedNoHitSession.totalRounds, 0);
 assert.equal(endWizardContext.savedNoHitSession.endTotalBalls, null);
 assert.equal(endWizardContext.cancelledStatus, null);
 assert.ok(endWizardContext.__renderCount >= 1);
-assert.ok(hitWizard.includes('key: "hitSpin"'), 'hitSpin step should remain in the hit wizard');
+assert.ok(hitWizard.includes('id="hitWizardSpin"'), 'hit spin field should remain in the one-screen hit form');
+assert.ok(hitWizard.includes('id="hitWizardRemainBalls"'), 'hit remain field should remain in the one-screen hit form');
 assert.ok(hitResetPrompt.includes('data-hit-reset'), 'reset chip buttons should remain after hit completion');
 assert.ok(hitResetPrompt.includes('data-hit-round'), 'round type chips should be available after hit completion');
 assert.match(hitResetPrompt, /id="hitRecordSpin"/);
 assert.match(hitResetPrompt, /id="hitRecordActualBalls"/);
 assert.match(hitResetPrompt, /hitRoundSummaryHtml\(session, presetId\)/);
+assert.match(hitResetPrompt, /class="hit-round-layout"/);
 assert.match(hitResetPrompt, /appendHitRecord\(session, button\.dataset\.hitRound\);/);
 assert.ok(hitResetPrompt.includes('data-close'), 'reset chip close button should remain unchanged');
 assert.match(hitResetPrompt, /id="hitMochidamaValue"/);
@@ -260,6 +354,9 @@ assert.match(hitRoundSummaryHtml, /const roundTypes = presetById\(presetId\)\?\.
 assert.match(hitRoundSummaryHtml, /const count = counts\.get\(type\.id\) \|\| 0;/);
 assert.match(hitRoundSummaryHtml, /if \(!count\) return "";/);
 assert.match(hitRoundSummaryHtml, /roundCountFromRoundType\(type\)/);
+assert.match(hitRoundSummaryHtml, /class="hit-round-result"/);
+assert.match(hitRoundSummaryHtml, /今回 \$\{latestRounds !== null \? `\$\{latestRounds\.toLocaleString\("ja-JP"\)\}R` : "-"\} ／ 合計 \$\{totalRounds\.toLocaleString\("ja-JP"\)\}R/);
+assert.match(hitRoundSummaryHtml, /const payoutLabel = actualPayout > 0 \? "実測出玉" : "R数ベース出玉";/);
 assert.match(hitRoundSummaryHtml, /今回 \$\{hitCount\.toLocaleString\("ja-JP"\)\}回 \/ 合計\$\{totalRounds\.toLocaleString\("ja-JP"\)\}R/);
 assert.match(hitRoundSummaryHtml, /累計大当たり \$\{Math\.round\(cumulativeHits\)\.toLocaleString\("ja-JP"\)\}回/);
 const hitRoundSummaryContext = vm.createContext({
@@ -273,6 +370,17 @@ const hitRoundSummaryContext = vm.createContext({
       single: { roundTypes: [{ id: 'r10', label: '10R', balls: 1400 }] },
       multi: { roundTypes: [{ id: 'r4', label: '4R', balls: 560 }, { id: 'r6', label: '6R', balls: 840 }, { id: 'r10', label: '10R', balls: 1400 }] }
     }[id] || null;
+  },
+  roundTypeById(presetId, roundTypeId) {
+    return hitRoundSummaryContext.presetById(presetId)?.roundTypes.find((type) => type.id === roundTypeId) || null;
+  },
+  hitRoundBasedPayout(session, presetId) {
+    const hits = Array.isArray(session?.hits) ? session.hits : [];
+    const total = hits.reduce((sum, hit) => {
+      const roundType = hitRoundSummaryContext.roundTypeById(presetId, hit.roundTypeId);
+      return roundType ? sum + Number(roundType.balls || 0) : sum;
+    }, 0);
+    return total > 0 ? total : null;
   },
   escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -299,16 +407,21 @@ new vm.Script(`
   }, 'multi');
 `).runInContext(hitRoundSummaryContext);
 assert.match(hitRoundSummaryContext.singleSummary, /10R ×3 ＝ 30R/);
+assert.match(hitRoundSummaryContext.singleSummary, /今回 10R ／ 合計 30R/);
+assert.match(hitRoundSummaryContext.singleSummary, /R数ベース出玉 4,200玉/);
 assert.match(hitRoundSummaryContext.singleSummary, /今回 3回 \/ 合計30R/);
 assert.match(hitRoundSummaryContext.singleSummary, /累計大当たり 6回（開始時3回＋今回3回）/);
 assert.match(hitRoundSummaryContext.multiSummary, /4R ×2 ＝ 8R/);
 assert.match(hitRoundSummaryContext.multiSummary, /6R ×1 ＝ 6R/);
 assert.match(hitRoundSummaryContext.multiSummary, /10R ×1 ＝ 10R/);
 assert.match(hitRoundSummaryContext.multiSummary, /今回 4回 \/ 合計24R/);
+assert.match(hitRoundSummaryContext.multiSummary, /今回 10R ／ 合計 24R/);
+assert.match(hitRoundSummaryContext.multiSummary, /R数ベース出玉 3,360玉/);
 assert.match(hitRoundSummaryContext.multiSummary, /累計大当たり 7回（開始時3回＋今回4回）/);
 assert.doesNotMatch(hitRoundSummaryContext.noStartSummary, /4R ×/);
 assert.doesNotMatch(hitRoundSummaryContext.noStartSummary, /6R ×/);
 assert.match(hitRoundSummaryContext.noStartSummary, /10R ×2 ＝ 20R/);
+assert.match(hitRoundSummaryContext.noStartSummary, /今回 10R ／ 合計 20R/);
 assert.match(hitRoundSummaryContext.noStartSummary, /累計大当たり 2回（開始時未入力＋今回2回）/);
 assert.match(updateMochidamaBalance, /session\.startMochidama = balanceStartValueForCurrent\(session, "startMochidama", value\);/);
 assert.match(updateMochidamaBalance, /undo: \(\) => \{\s*session\.startMochidama = previous;/);
@@ -325,7 +438,7 @@ assert.match(transferSummary, /depositBalls: finalMochidamaForCarryover\(session
 assert.match(transferSummary, /const tenjo = tenjoForPresetId\(startEv\?\.presetId \|\| normalizeMachinePresetId\(machine\)\);/);
 assert.match(transferSummary, /startExpectedSpins = startEv \? Math\.max\(0, tenjo - startEv\.effectiveSpin\) : null;/);
 assert.match(transferSummary, /remainingSpins = endEffectiveSpin !== null \? Math\.max\(0, tenjo - endEffectiveSpin\) : null;/);
-assert.match(transferSummary, /const consumedBalls = Math\.round\(totals\.mochidamaBalls \+ totals\.saipureiBalls \+ totals\.cashYen \/ 1000 \* 250\);/);
+assert.match(transferSummary, /const consumedBalls = derived\.consumedBalls !== null && derived\.consumedBalls !== undefined \? Math\.round\(derived\.consumedBalls\) : null;/);
 assert.match(transferSummary, /const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin \? endSpin - startSpin : null;/);
 assert.match(transferSummary, /const totalHitBalls = actualHitBalls > 0 \? actualHitBalls : \(derived\.isEstimatedPayout \? null : derived\.hitBalls\);/);
 assert.match(transferSummary, /const averageRoundBalls = totalHitBalls !== null && totalRounds > 0 \? totalHitBalls \/ totalRounds : null;/);
@@ -786,7 +899,8 @@ const transferContext = vm.createContext({
     return {
       hitBalls: session.__hitBalls ?? null,
       isEstimatedPayout: session.__isEstimatedPayout === true,
-      profitYen: session.__profitYen ?? null
+      profitYen: session.__profitYen ?? null,
+      consumedBalls: session.__consumedBalls ?? null
     };
   },
   investmentSource(item) {
@@ -969,6 +1083,7 @@ const transferFixture = {
   endTotalBalls: 4750,
   zanhoryuBalls: null,
   __profitYen: 2500,
+  __consumedBalls: 625,
   investments: [
     { source: 'mochidama', amount: 250 },
     { source: 'saipurei', amount: 125 },
@@ -997,11 +1112,33 @@ transferContext.__session = {
   endTotalBalls: 1487,
   zanhoryuBalls: 0,
   __profitYen: -3618,
+  __consumedBalls: 152,
   investments: [{ source: 'mochidama', amount: 250 }]
 };
 assert.match(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
   /^投資0円\/回収0円\/引出2,500個\/預入1,487個/
+);
+transferContext.__session = {
+  id: 's_transfer_b85_dai357',
+  machineId: 'm_transfer',
+  __tapMode: true,
+  startSpin: 0,
+  endSpin: 10,
+  startMochidama: 1487,
+  hitCount: 1,
+  hits: [{ roundTypeId: 'r10', actualBalls: 1400 }],
+  startEv: null,
+  settlementRecoverYen: null,
+  endTotalBalls: 1312,
+  zanhoryuBalls: 0,
+  __profitYen: -625,
+  __consumedBalls: 175,
+  investments: [{ source: 'mochidama', amount: 125 }]
+};
+assert.match(
+  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  /消費玉数175玉/
 );
 transferContext.__store = { isPersonal: false };
 transferContext.__session = {
@@ -1018,6 +1155,7 @@ transferContext.__session = {
   endTotalBalls: 5569,
   zanhoryuBalls: 0,
   __profitYen: 14812,
+  __consumedBalls: 1000,
   investments: [
     { source: 'cash', amount: 1500 },
     { source: 'mochidama', amount: 1000 }
@@ -1038,7 +1176,7 @@ transferContext.__session = {
 };
 assert.equal(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
-  '投資0円/回収0円/引出0個/預入0個\n開始期待値-/想定回転数-/残り回転数-/消費玉数0玉/消化回転数-/1R平均-/実収支-'
+  '投資0円/回収0円/引出0個/預入0個\n開始期待値-/想定回転数-/残り回転数-/消費玉数-/消化回転数-/1R平均-/実収支-'
 );
 transferContext.__session = {
   id: 's_transfer_estimated',
@@ -1373,7 +1511,7 @@ assert.doesNotMatch(startEvDetailTextBlock, /expectationInvestmentText\(normaliz
 assert.doesNotMatch(startEvDetailTextBlock, /実効\$\{normalized\.effectiveSpin\}/);
 assert.doesNotMatch(startEvDetailTextBlock, /現金\$\{Math\.round\(normalized\.cashBalls/);
 assert.match(renderMachineExpectation, /残り\$\{expectation\.result\.spinsToTenjo\.toLocaleString\("ja-JP"\)\}回転/);
-assert.match(renderMachineExpectation, /宵越し\$\{expectation\.previousSpin\}\+現在\$\{expectation\.currentSpin\}/);
+assert.match(renderMachineExpectation, /前日\$\{expectation\.previousSpin\}\+現在\$\{expectation\.currentSpin\}/);
 assert.match(renderMachineExpectation, /const previousState = expectationPreviousSpinState\(\);/);
 assert.match(renderMachineExpectation, /if \(prevInput\) prevInput\.disabled = previousDisabled;/);
 assert.match(renderMachineExpectation, /autoDisabled = startTotalHits !== null && startTotalHits >= 1/);
@@ -1392,8 +1530,16 @@ assert.match(openMachineDetail, /開始時点の累計大当たり回数/);
 assert.match(openMachineDetail, /id="evStartCredit"/);
 assert.match(openMachineDetail, /開始時のカード残高/);
 assert.match(openMachineDetail, /id="evPrevDisabled"/);
-assert.match(openMachineDetail, /<input id="evPrevDisabled" type="checkbox"> ラムクリア/);
+assert.match(openMachineDetail, /label for="evPrevDisabled">ラムクリア<\/label><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> あり/);
+assert.doesNotMatch(openMachineDetail, /<label for="evPrevDisabled">宵越し<\/label>|<input id="evPrevDisabled" type="checkbox"> ラムクリア/);
 assert.doesNotMatch(openMachineDetail, /宵越し無効（当日当選済み／ラムクリア）|<label class="check-row"><input id="evPrevDisabled"/);
+assert.ok(openMachineDetail.indexOf('id="evStartTotalHits"') < openMachineDetail.indexOf('id="evPrevDisabled"'));
+assert.ok(openMachineDetail.indexOf('id="evPrevDisabled"') < openMachineDetail.indexOf('id="evPrevSpin"'));
+assert.ok(openMachineDetail.indexOf('id="evPrevSpin"') < openMachineDetail.indexOf('id="evCurrentSpin"'));
+assert.ok(openMachineDetail.indexOf('id="evCurrentSpin"') < openMachineDetail.indexOf('id="evManualRate"'));
+assert.ok(openMachineDetail.indexOf('id="evManualRate"') < openMachineDetail.indexOf('id="evMochidamaBalls"'));
+assert.ok(openMachineDetail.indexOf('id="evMochidamaBalls"') < openMachineDetail.indexOf('id="evSaipureiBalls"'));
+assert.ok(openMachineDetail.indexOf('id="evSaipureiBalls"') < openMachineDetail.indexOf('id="evStartCredit"'));
 assert.match(openMachineDetail, /openStartSession\(machine\.id, presets\);/);
 assert.doesNotMatch(openMachineDetail, /openStartWizard\(machine\.id/);
 assert.match(openSessionEditor, /fieldHtml\("startMochidama", "開始時の持ち玉", session\.startMochidama\)/);
@@ -1499,7 +1645,7 @@ assert.equal(machineExpectationContext.firstPresets.startTotalHits, null);
 assert.equal(machineExpectationContext.firstPresets.startCredit, 3000);
 assert.equal(machineExpectationContext.autoPreviousSpin, 0);
 assert.equal(machineExpectationContext.autoDisabledState, true);
-assert.match(machineExpectationContext.autoHint, /当日当選済みのため宵越しは使いません/);
+assert.match(machineExpectationContext.autoHint, /当日当選済みのため前日ヤメ回転数は使いません/);
 assert.equal(machineExpectationContext.autoPresets.prevDayEndSpin, null);
 assert.equal(machineExpectationContext.autoPresets.prevDayDisabled, true);
 assert.equal(machineExpectationContext.autoPresets.startTotalHits, 1);
@@ -1514,7 +1660,7 @@ assert.equal(machineExpectationContext.zeroPresets.startTotalHits, 0);
 assert.equal(machineExpectationContext.disabledPreviousSpin, 0);
 assert.equal(machineExpectationContext.disabledInputValue, '100');
 assert.equal(machineExpectationContext.disabledInputState, true);
-assert.match(machineExpectationContext.disabledHint, /ラムクリアのため宵越しは使いません/);
+assert.match(machineExpectationContext.disabledHint, /ラムクリアありのため前日ヤメ回転数は使いません/);
 assert.equal(machineExpectationContext.disabledPresets.prevDayEndSpin, null);
 assert.equal(machineExpectationContext.disabledPresets.prevDayDisabled, true);
 const startSessionContext = vm.createContext({
