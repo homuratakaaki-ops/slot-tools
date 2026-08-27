@@ -2511,15 +2511,20 @@
       return `残り${Math.max(0, ceiling - effective).toLocaleString("ja-JP")}回転`;
     }
 
-    function expectationInvestmentText(mochidamaBalls, cashBalls) {
+    function expectationInvestmentText(mochidamaBalls, cashBalls, spinsToTenjo, rotationRate) {
       const mochidama = Math.max(0, Math.round(normalizeNumber(mochidamaBalls) || 0));
       const cash = Math.max(0, Math.round(normalizeNumber(cashBalls) || 0));
       const total = mochidama + cash;
       const cashYen = Math.round(cash / 250 * 1000);
+      const spins = Math.max(0, normalizeNumber(spinsToTenjo) || 0);
+      const rate = normalizeNumber(rotationRate) || 0;
+      const maxNote = rate > 0
+        ? `（途中当選込み・最大${Math.ceil(spins * 250 / rate).toLocaleString("ja-JP")}玉）`
+        : "（途中当選込み）";
       if (mochidama <= 0) {
-        return `遊タイムまで必要 約${total.toLocaleString("ja-JP")}玉（全額現金 約${cashYen.toLocaleString("ja-JP")}円）`;
+        return `遊タイムまで必要 平均約${total.toLocaleString("ja-JP")}玉${maxNote}／全額現金 約${cashYen.toLocaleString("ja-JP")}円`;
       }
-      return `遊タイムまで必要 約${total.toLocaleString("ja-JP")}玉（持ち玉から${mochidama.toLocaleString("ja-JP")}玉・現金で約${cashYen.toLocaleString("ja-JP")}円）`;
+      return `遊タイムまで必要 平均約${total.toLocaleString("ja-JP")}玉${maxNote}／持ち玉・再プレから${mochidama.toLocaleString("ja-JP")}玉・現金約${cashYen.toLocaleString("ja-JP")}円`;
     }
 
     function startEvDetailText(startEv) {
@@ -5605,7 +5610,7 @@
         <div class="metric"><span>拘束時間</span><strong>${escapeHtml(hourText(expectation.result.totalHours))}</strong></div>
       `;
       const near = expectation.result.spinsToTenjo < 100 && expectation.result.spinsToTenjo > 0;
-      const costSource = expectationInvestmentText(expectation.result.mochidamaBalls, expectation.result.cashBalls);
+      const costSource = expectationInvestmentText(expectation.result.mochidamaBalls, expectation.result.cashBalls, expectation.result.spinsToTenjo, expectation.result.rotationRate);
       detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（前日${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
     }
 
