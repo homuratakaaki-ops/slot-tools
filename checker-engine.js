@@ -393,6 +393,12 @@
       if(config.card.metaText)return config.card.metaText(context(),date);
       return config.card.hideGames?date:date+'  '+cardGameText();
     }
+    function stampedName(name){
+      const d=new Date();
+      const p=n=>String(n).padStart(2,'0');
+      const ts=d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
+      return String(name||'').replace(/(\.[^.]+)?$/,m=>'_'+ts+(m||''));
+    }
     function detailSections(){
       if(!config.card.detail)return [];
       return (config.card.detail(context())||[]).map(sec=>{
@@ -669,7 +675,7 @@
       if(detailDlBtn)detailDlBtn.onclick=()=>{
         detailReady=true;drawDetailCard();
         const a=document.createElement('a');
-        a.download=config.card.detailDownloadName||config.card.downloadName.replace(/(\.[^.]+)?$/,'_detail.png');
+        a.download=stampedName(config.card.detailDownloadName||config.card.downloadName.replace(/(\.[^.]+)?$/,'_detail.png'));
         a.href=document.getElementById('detailCanvas').toDataURL('image/png');
         a.click();toast('詳細カードを保存しました');
       };
@@ -677,7 +683,7 @@
       if(detailShareBtn)detailShareBtn.onclick=()=>{
         detailReady=true;drawDetailCard();
         document.getElementById('detailCanvas').toBlob(async b=>{
-          const f=new FileCtor([b],config.card.detailDownloadName||config.card.downloadName.replace(/(\.[^.]+)?$/,'_detail.png'),{type:'image/png'});
+          const f=new FileCtor([b],stampedName(config.card.detailDownloadName||config.card.downloadName.replace(/(\.[^.]+)?$/,'_detail.png')),{type:'image/png'});
           if(navigatorRef.canShare&&navigatorRef.canShare({files:[f]})){
             try{await navigatorRef.share({files:[f],text:shareText()});}catch(e){}
           }else{toast('この端末は直接共有に非対応。詳細カードを保存してください');}
@@ -686,14 +692,14 @@
       const dlBtn=document.getElementById('dlBtn');
       if(dlBtn)dlBtn.onclick=()=>{
         const a=document.createElement('a');
-        a.download=config.card.downloadName;
+        a.download=stampedName(config.card.downloadName);
         a.href=document.getElementById('cardCanvas').toDataURL('image/png');
         a.click();toast('画像を書き出しました');
       };
       const shareBtn=document.getElementById('shareBtn');
       if(shareBtn)shareBtn.onclick=()=>{
         document.getElementById('cardCanvas').toBlob(async b=>{
-          const f=new FileCtor([b],config.card.downloadName,{type:'image/png'});
+          const f=new FileCtor([b],stampedName(config.card.downloadName),{type:'image/png'});
           if(navigatorRef.canShare&&navigatorRef.canShare({files:[f]})){
             try{await navigatorRef.share({files:[f],text:shareText()});}catch(e){}
           }else{toast('この端末は直接共有に非対応。画像を保存してください');}
