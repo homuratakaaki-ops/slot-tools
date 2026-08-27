@@ -340,6 +340,8 @@ assert.ok(hitResetPrompt.includes('data-hit-reset'), 'reset chip buttons should 
 assert.ok(hitResetPrompt.includes('data-hit-round'), 'round type chips should be available after hit completion');
 assert.match(hitResetPrompt, /id="hitRecordSpin"/);
 assert.match(hitResetPrompt, /id="hitRecordActualBalls"/);
+assert.match(hitResetPrompt, /placeholder="累計獲得出玉（カウンター表示）任意"/);
+assert.match(hitResetPrompt, /データカウンターに表示されている累計の獲得出玉を入力してください。大当り開始から電サポ終了までの純増（電サポ中の減りを含む）です。前回入力との差が今回の出玉として記録されます。/);
 assert.match(hitResetPrompt, /hitRoundSummaryHtml\(session, presetId\)/);
 assert.match(hitResetPrompt, /class="hit-round-layout"/);
 assert.match(hitResetPrompt, /appendHitRecord\(session, button\.dataset\.hitRound\);/);
@@ -357,8 +359,13 @@ assert.match(hitRoundSummaryHtml, /roundCountFromRoundType\(type\)/);
 assert.match(hitRoundSummaryHtml, /class="hit-round-result"/);
 assert.match(hitRoundSummaryHtml, /今回 \$\{latestRounds !== null \? `\$\{latestRounds\.toLocaleString\("ja-JP"\)\}R` : "-"\} ／ 合計 \$\{totalRounds\.toLocaleString\("ja-JP"\)\}R/);
 assert.match(hitRoundSummaryHtml, /const payoutLabel = actualPayout > 0 \? "実測出玉" : "R数ベース出玉";/);
+assert.match(hitRoundSummaryHtml, /\$\{payoutLabel\} 今回 \$\{Math\.round\(Math\.max\(0, latestActualBalls \?\? 0\)\)\.toLocaleString\("ja-JP"\)\}玉／累計 \$\{Math\.round\(actualPayout\)\.toLocaleString\("ja-JP"\)\}玉/);
 assert.match(hitRoundSummaryHtml, /今回 \$\{hitCount\.toLocaleString\("ja-JP"\)\}回 \/ 合計\$\{totalRounds\.toLocaleString\("ja-JP"\)\}R/);
 assert.match(hitRoundSummaryHtml, /累計大当たり \$\{Math\.round\(cumulativeHits\)\.toLocaleString\("ja-JP"\)\}回/);
+assert.match(hitResetPrompt, /function cumulativeActualBallsBeforeHit\(session\)/);
+assert.match(hitResetPrompt, /function actualBallsFromCumulativeInput\(session, cumulativeInput\)/);
+assert.match(hitResetPrompt, /if \(cumulativeBalls < previousTotal\) return \{ actualBalls: 0, warning: true \};/);
+assert.match(hitResetPrompt, /入力値が前回までの累計を下回っています。カウンターの累計を入力してください/);
 const hitRoundSummaryContext = vm.createContext({
   normalizeNumber(value) {
     if (value === '' || value === null || value === undefined) return null;
@@ -405,6 +412,10 @@ new vm.Script(`
     startTotalHits: null,
     hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }]
   }, 'multi');
+  globalThis.actualSummary = hitRoundSummaryHtml({
+    startTotalHits: 0,
+    hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r10', actualBalls: 1420 }]
+  }, 'single');
 `).runInContext(hitRoundSummaryContext);
 assert.match(hitRoundSummaryContext.singleSummary, /10R ×3 ＝ 30R/);
 assert.match(hitRoundSummaryContext.singleSummary, /今回 10R ／ 合計 30R/);
@@ -423,6 +434,51 @@ assert.doesNotMatch(hitRoundSummaryContext.noStartSummary, /6R ×/);
 assert.match(hitRoundSummaryContext.noStartSummary, /10R ×2 ＝ 20R/);
 assert.match(hitRoundSummaryContext.noStartSummary, /今回 10R ／ 合計 20R/);
 assert.match(hitRoundSummaryContext.noStartSummary, /累計大当たり 2回（開始時未入力＋今回2回）/);
+assert.match(hitRoundSummaryContext.actualSummary, /実測出玉 今回 1,420玉／累計 2,800玉/);
+const appendHitRecordContext = vm.createContext({
+  __inputs: {},
+  __toasts: [],
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  byId(id) {
+    return { value: appendHitRecordContext.__inputs[id] };
+  },
+  nowIso() {
+    return '2026-08-22T00:00:00.000Z';
+  },
+  syncSessionHitTotals() {},
+  persistWithToast(message) {
+    appendHitRecordContext.__toasts.push({ message, type: 'success' });
+    return true;
+  },
+  showToast(message, type = 'success') {
+    appendHitRecordContext.__toasts.push({ message, type });
+  }
+});
+new vm.Script(`
+  ${normalizeHitsBlock}
+  ${hitResetPrompt}
+  globalThis.session = { hits: [] };
+  globalThis.add = (value) => {
+    __inputs.hitRecordSpin = '';
+    __inputs.hitRecordActualBalls = value;
+    appendHitRecord(session, 'r10');
+    return session.hits.at(-1).actualBalls;
+  };
+`).runInContext(appendHitRecordContext);
+assert.equal(appendHitRecordContext.add('1380'), 1380);
+assert.equal(appendHitRecordContext.add('2800'), 1420);
+assert.equal(appendHitRecordContext.add('4000'), 1200);
+assert.equal(appendHitRecordContext.session.hits.reduce((sum, hit) => sum + (hit.actualBalls || 0), 0), 4000);
+assert.equal(appendHitRecordContext.add('1000'), 0);
+assert.equal(appendHitRecordContext.session.hits.reduce((sum, hit) => sum + (hit.actualBalls || 0), 0), 4000);
+assert.deepEqual(appendHitRecordContext.__toasts.at(-1), {
+  message: '入力値が前回までの累計を下回っています。カウンターの累計を入力してください',
+  type: 'error'
+});
 assert.match(updateMochidamaBalance, /session\.startMochidama = balanceStartValueForCurrent\(session, "startMochidama", value\);/);
 assert.match(updateMochidamaBalance, /undo: \(\) => \{\s*session\.startMochidama = previous;/);
 assert.match(balanceStartValueForCurrent, /if \(key === "startMochidama"\) return value \+ totals\.mochidamaBalls;/);

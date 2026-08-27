@@ -5893,17 +5893,21 @@
       const startText = startTotalHits === null ? "開始時未入力" : `開始時${Math.round(startTotalHits).toLocaleString("ja-JP")}回`;
       const latestHit = hits.at(-1);
       const latestRounds = roundCountFromRoundType(roundTypeById(presetId, latestHit?.roundTypeId));
+      const latestActualBalls = normalizeNumber(latestHit?.actualBalls);
       const actualPayout = hits
         .map((hit) => normalizeNumber(hit.actualBalls))
         .filter((value) => value !== null && value > 0)
         .reduce((sum, value) => sum + value, 0);
       const payoutValue = actualPayout > 0 ? actualPayout : hitRoundBasedPayout(session, presetId);
       const payoutLabel = actualPayout > 0 ? "実測出玉" : "R数ベース出玉";
+      const actualPayoutText = actualPayout > 0
+        ? `${payoutLabel} 今回 ${Math.round(Math.max(0, latestActualBalls ?? 0)).toLocaleString("ja-JP")}玉／累計 ${Math.round(actualPayout).toLocaleString("ja-JP")}玉`
+        : null;
       return `
         <div class="hit-round-summary">
           <div class="hit-round-result">
             <strong>今回 ${latestRounds !== null ? `${latestRounds.toLocaleString("ja-JP")}R` : "-"} ／ 合計 ${totalRounds.toLocaleString("ja-JP")}R</strong>
-            <small>${payoutLabel} ${payoutValue !== null ? `${Math.round(payoutValue).toLocaleString("ja-JP")}玉` : "-"}</small>
+            <small>${actualPayoutText || `${payoutLabel} ${payoutValue !== null ? `${Math.round(payoutValue).toLocaleString("ja-JP")}玉` : "-"}`}</small>
           </div>
           ${rows.length ? `<p class="hint">${rows.join(" ・ ")}</p>` : ""}
           <hr>
@@ -5929,9 +5933,9 @@
               </div>
               <div class="grid two">
                 <input id="hitRecordSpin" inputmode="numeric" value="${escapeHtml(session.hitSpin ?? session.currentSpin ?? "")}" placeholder="当選ゲーム数 任意">
-                <input id="hitRecordActualBalls" inputmode="numeric" placeholder="獲得出玉 任意">
+                <input id="hitRecordActualBalls" inputmode="numeric" placeholder="累計獲得出玉（カウンター表示）任意">
               </div>
-              <p class="hint">獲得出玉は大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）です。チップを押すと当選1件として保存します。任意入力は空欄でも記録できます。</p>
+              <p class="hint">データカウンターに表示されている累計の獲得出玉を入力してください。大当り開始から電サポ終了までの純増（電サポ中の減りを含む）です。前回入力との差が今回の出玉として記録されます。</p>
             </div>
             ${hitRoundSummaryHtml(session, presetId)}
           </div>
@@ -5972,17 +5976,36 @@
       });
     }
 
+    function cumulativeActualBallsBeforeHit(session) {
+      return normalizeHits(session?.hits)
+        .map((hit) => normalizeNumber(hit.actualBalls))
+        .filter((value) => value !== null && value > 0)
+        .reduce((sum, value) => sum + value, 0);
+    }
+
+    function actualBallsFromCumulativeInput(session, cumulativeInput) {
+      const cumulativeBalls = normalizeNumber(cumulativeInput);
+      if (cumulativeBalls === null) return { actualBalls: null, warning: false };
+      const previousTotal = cumulativeActualBallsBeforeHit(session);
+      if (cumulativeBalls < previousTotal) return { actualBalls: 0, warning: true };
+      return { actualBalls: cumulativeBalls - previousTotal, warning: false };
+    }
+
     function appendHitRecord(session, roundTypeId) {
       if (!Array.isArray(session.hits)) session.hits = [];
+      const actualBallsResult = actualBallsFromCumulativeInput(session, byId("hitRecordActualBalls")?.value);
       session.hits.push({
         roundTypeId,
         hitSpin: normalizeNumber(byId("hitRecordSpin")?.value),
-        actualBalls: normalizeNumber(byId("hitRecordActualBalls")?.value),
+        actualBalls: actualBallsResult.actualBalls,
         at: nowIso()
       });
       syncSessionHitTotals(session);
       session.updatedAt = nowIso();
-      persistWithToast("当選を1件追加しました");
+      const saved = persistWithToast("当選を1件追加しました");
+      if (saved && actualBallsResult.warning) {
+        showToast("入力値が前回までの累計を下回っています。カウンターの累計を入力してください", "error");
+      }
     }
 
     function saveHitMochidamaInput(session, options = {}) {
