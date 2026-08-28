@@ -910,7 +910,7 @@ function bind() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `mylog-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `mylog-${localDateStamp()}.json`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 3000);
     $("mylogHint").hidden = false;
@@ -1004,7 +1004,7 @@ function bind() {
   $("cardOverlay").addEventListener("click", (e) => { if (e.target === $("cardOverlay")) $("cardOverlay").classList.remove("open"); });
   $("cardSave").addEventListener("click", () => {
     const cv = $("cardCanvas");
-    const name = `juggler-${machineId}-${new Date().toISOString().slice(0, 10)}.png`;
+    const name = `juggler-${machineId}-${localDateStamp()}.png`;
     cv.toBlob((blob) => {
       if (!blob) {
         $("cardHint").hidden = false;
@@ -1801,6 +1801,11 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+function localDateStamp(d) {
+  const t = d || new Date();
+  return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
+}
+
 function toInt(v) {
   const n = parseInt(String(v).replace(/[^0-9-]/g, ""), 10);
   return Number.isFinite(n) ? n : null;
@@ -1822,7 +1827,7 @@ function buildMylogEntry() {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     savedAt: d.toISOString(),
-    date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+    date: localDateStamp(d),
     shop: $("mlShop").value.trim(),
     seat: $("mlSeat").value.trim(),
     event: $("mlEvent").value.trim(),
