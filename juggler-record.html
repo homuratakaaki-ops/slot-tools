@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;800&display=swap" rel="stylesheet">
 <title>ジャグラー実戦記録・設定推測｜スロット稼働ノート</title>
 <meta name="description" content="ホールで使うジャグラーの実戦記録ツール。ぶどう・ボーナス内訳をタップでカウントし、投資を記録しながら、設定の事後確率をベイズ推定でリアルタイムに確認できます。入力は端末内にのみ保存します。">
 <link rel="canonical" href="https://slot-tools.jp/juggler-record.html">
@@ -423,12 +426,18 @@ select.rate {
         <button type="button" class="use-btn" id="useBreakdownBtn" aria-pressed="true">ボーナス内訳</button>
       </div>
       <p class="prior-note">オフにするとカウントは記録のみになり、設定推測には使いません（内訳オフ時はBIG/REGの合算で計算します）。</p>
+      <p class="prior-note" id="breakdownNote" hidden></p>
     </section>
 
     <section class="card" aria-labelledby="h-card">
       <h2 id="h-card">結果をカードにする</h2>
       <p class="prior-note">いまの判別結果を1枚の画像にします。端末内で作成され、外部には送信されません。収支や店名は含みません。</p>
       <button type="button" class="use-btn" id="cardBtn" style="width:100%;min-height:48px;" disabled>カード画像をつくる</button>
+      <div class="use-toggles" style="grid-template-columns: 1fr 1fr; margin-top: 8px;">
+        <button type="button" class="use-btn" id="iconPickBtn">画像を選ぶ</button>
+        <button type="button" class="use-btn" id="iconClearBtn">画像を外す</button>
+      </div>
+      <input type="file" id="iconFile" accept="image/*" hidden>
     </section>
 
     <section class="card" id="visSection" aria-labelledby="h-vis">
@@ -479,9 +488,10 @@ select.rate {
   <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="cardTitle">
     <p class="kp-label" id="cardTitle">結果カード</p>
     <canvas id="cardCanvas" width="1080" height="1080"></canvas>
-    <p class="prior-note" id="cardHint">長押し（またはPCなら右クリック）で画像を保存できます。</p>
-    <div class="kp-actions">
+    <p class="prior-note" id="cardHint" hidden></p>
+    <div class="kp-actions" style="grid-template-columns: 1fr 1fr 1fr;">
       <button type="button" class="kp-cancel" id="cardClose">閉じる</button>
+      <button type="button" class="kp-cancel" id="cardCopy">テキスト</button>
       <button type="button" class="kp-ok" id="cardSave">保存する</button>
     </div>
   </div>
@@ -633,6 +643,7 @@ async function init() {
   });
   state = defaultState();
   restore();
+  loadCardIcon();
   buildVisToggles();
   rebuildPanels();
   buildPriorGrid();
@@ -763,9 +774,58 @@ function bind() {
   $("machineName").addEventListener("click", () => $("machineOverlay").classList.add("open"));
   $("mcClose").addEventListener("click", () => $("machineOverlay").classList.remove("open"));
   $("subClose").addEventListener("click", () => $("subOverlay").classList.remove("open"));
-  $("cardBtn").addEventListener("click", () => {
+  $("cardBtn").addEventListener("click", async () => {
+    $("cardHint").hidden = true;
+    // canvasのfont指定ではWebフォントの取得が起動しないため、明示的に読み込む
+    try {
+      if (document.fonts) {
+        for (const w of [400, 500, 700, 800]) await document.fonts.load(`${w} 40px 'M PLUS 1p'`);
+        await document.fonts.ready;
+      }
+    } catch (e) {}
     drawResultCard();
     $("cardOverlay").classList.add("open");
+  });
+  $("iconPickBtn").addEventListener("click", () => $("iconFile").click());
+  $("iconFile").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const fr = new FileReader();
+    fr.onload = () => {
+      const im = new Image();
+      im.onload = () => {
+        // 端末保存のため256pxへ縮小する
+        const size = 256;
+        const c = document.createElement("canvas");
+        c.width = size; c.height = size;
+        const cx2 = c.getContext("2d");
+        const s = Math.max(size / im.width, size / im.height);
+        cx2.drawImage(im, size / 2 - im.width * s / 2, size / 2 - im.height * s / 2, im.width * s, im.height * s);
+        const url = c.toDataURL("image/jpeg", 0.85);
+        try { localStorage.setItem(iconKey(), url); } catch (err) {}
+        const im2 = new Image();
+        im2.onload = () => { cardImg = im2; };
+        im2.src = url;
+      };
+      im.src = fr.result;
+    };
+    fr.readAsDataURL(f);
+    e.target.value = "";
+  });
+  $("iconClearBtn").addEventListener("click", () => {
+    cardImg = null;
+    try { localStorage.removeItem(iconKey()); } catch (e) {}
+  });
+  $("cardCopy").addEventListener("click", async () => {
+    const t = cardShareText();
+    try {
+      await navigator.clipboard.writeText(t);
+      $("cardHint").hidden = false;
+      $("cardHint").textContent = "テキストをコピーしました。";
+    } catch (e) {
+      $("cardHint").hidden = false;
+      $("cardHint").textContent = t;
+    }
   });
   $("cardClose").addEventListener("click", () => $("cardOverlay").classList.remove("open"));
   $("cardOverlay").addEventListener("click", (e) => { if (e.target === $("cardOverlay")) $("cardOverlay").classList.remove("open"); });
@@ -773,13 +833,16 @@ function bind() {
     const cv = $("cardCanvas");
     const name = `juggler-${machineId}-${new Date().toISOString().slice(0, 10)}.png`;
     cv.toBlob((blob) => {
-      if (!blob) { $("cardHint").textContent = "画像を作成できませんでした。長押しで保存してください。"; return; }
+      if (!blob) {
+        $("cardHint").hidden = false;
+        $("cardHint").textContent = "画像を作成できませんでした。カード画像を長押しして保存してください。";
+        return;
+      }
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url; a.download = name;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 3000);
-      $("cardHint").textContent = "保存しました。うまくいかない場合は画像を長押ししてください。";
     }, "image/png");
   });
   $("subOverlay").addEventListener("click", (e) => { if (e.target === $("subOverlay")) $("subOverlay").classList.remove("open"); });
@@ -1074,6 +1137,12 @@ function syncFields() {
   $("f_startHold").textContent = (state.invest.startHold || 0).toLocaleString();
   $("useGrapeBtn").setAttribute("aria-pressed", String(state.useGrape));
   $("useBreakdownBtn").setAttribute("aria-pressed", String(state.useBreakdown));
+  const noBreakdown = !!machine && !hasElement("solo_big");
+  $("breakdownNote").hidden = !noBreakdown;
+  if (noBreakdown) {
+    $("breakdownNote").textContent =
+      "この機種は単独・チェリー重複の解析値が公開されていないため、内訳のカウントは常にBIG・REGの合算として計算します。「ボーナス内訳」を切り替えても結果は変わりません（カウントの記録は残ります）。";
+  }
   $("usePrior").checked = state.usePrior;
   $("priorGrid").hidden = !state.usePrior;
   $("priorNote").hidden = !state.usePrior;
@@ -1349,14 +1418,49 @@ function renderSummary(post) {
   $("p6").textContent = pct(post[5]);
 }
 
-function roundRectPath(x, r, y, w, h, rad) {
+function roundRect(x, rx, ry, w, hh, rad) {
   x.beginPath();
-  x.moveTo(r + rad, y);
-  x.arcTo(r + w, y, r + w, y + h, rad);
-  x.arcTo(r + w, y + h, r, y + h, rad);
-  x.arcTo(r, y + h, r, y, rad);
-  x.arcTo(r, y, r + w, y, rad);
+  x.moveTo(rx + rad, ry);
+  x.arcTo(rx + w, ry, rx + w, ry + hh, rad);
+  x.arcTo(rx + w, ry + hh, rx, ry + hh, rad);
+  x.arcTo(rx, ry + hh, rx, ry, rad);
+  x.arcTo(rx, ry, rx + w, ry, rad);
   x.closePath();
+}
+
+const CARD = { bg: "#0a070d", accent: "#ff3d8f", ink: "#f2eef5", muted: "#9a90a8", box: "#1a1420", line: "#2a2033" };
+let cardImg = null;
+
+function iconKey() { return `juggler-record:icon:${machineId}`; }
+
+function loadCardIcon() {
+  cardImg = null;
+  let src = null;
+  try { src = localStorage.getItem(iconKey()); } catch (e) { src = null; }
+  if (!src) return;
+  const im = new Image();
+  im.onload = () => { cardImg = im; };
+  im.src = src;
+}
+
+function fitText(x, text, tx, ty, maxWidth, size, color, weight) {
+  let s = size;
+  do { x.font = `${weight || 700} ${s}px 'M PLUS 1p', sans-serif`; s -= 1; }
+  while (x.measureText(text).width > maxWidth && s >= 20);
+  x.fillStyle = color;
+  x.fillText(text, tx, ty);
+}
+
+function cardStats() {
+  const R = lastResult;
+  const rate = (c, g) => (c > 0 && g > 0 ? `1/${(g / c).toFixed(1)}` : "–");
+  const rows = [
+    ["BIG", `${R.totBig}回`],
+    ["REG", `${R.totReg}回`],
+    ["合算", rate(R.totBig + R.totReg, R.totalGames)],
+  ];
+  rows.push(["ぶどう", R.useGrape && R.grape > 0 ? rate(R.grape, R.ownG) : "–"]);
+  return rows;
 }
 
 function drawResultCard() {
@@ -1365,87 +1469,134 @@ function drawResultCard() {
   const cv = $("cardCanvas");
   const x = cv.getContext("2d");
   const W = 1080, H = 1080;
-  const INK = "#e8e6ee", MUTED = "#9a97a6", LAMP = "#ff5a4d", LINE = "#2b2b33";
 
-  x.fillStyle = "#0d0d10";
+  x.fillStyle = CARD.bg;
   x.fillRect(0, 0, W, H);
-  x.strokeStyle = LAMP;
-  x.lineWidth = 5;
-  roundRectPath(x, 30, 30, W - 60, H - 60, 32);
+  const g = x.createRadialGradient(W / 2, H / 2, 100, W / 2, H / 2, 760);
+  g.addColorStop(0, "rgba(255,61,143,.10)");
+  g.addColorStop(1, "rgba(0,0,0,0)");
+  x.fillStyle = g;
+  x.fillRect(0, 0, W, H);
+  x.strokeStyle = CARD.accent;
+  x.lineWidth = 6;
+  x.shadowColor = CARD.accent;
+  x.shadowBlur = 26;
+  roundRect(x, 34, 34, W - 68, H - 68, 40);
   x.stroke();
+  x.shadowBlur = 0;
 
-  // ヘッダ
-  x.fillStyle = LAMP;
-  x.font = "700 30px sans-serif";
-  x.fillText("実戦記録・設定推測", 74, 108);
-  x.fillStyle = INK;
-  let ts = 56;
-  do { x.font = `800 ${ts}px sans-serif`; ts -= 2; } while (x.measureText(machine.machine.name).width > W - 260 && ts > 28);
-  x.fillText(machine.machine.name, 74, 176);
+  // 見出し・機種名・日付
+  x.fillStyle = CARD.accent;
+  x.font = "700 30px 'M PLUS 1p', sans-serif";
+  x.fillText("SETTING CHECK RESULT", 70, 110);
+  fitText(x, machine.machine.name, 70, 172, 560, 52, CARD.ink, 800);
   const d = new Date();
-  const ds = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
-  x.fillStyle = MUTED;
-  x.font = "500 26px sans-serif";
-  x.fillText(ds, W - 74 - x.measureText(ds).width, 176);
+  const meta = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}  ${R.totalGames.toLocaleString()}G`;
+  x.fillStyle = CARD.muted;
+  x.font = "500 26px 'M PLUS 1p', sans-serif";
+  x.fillText(meta, 70, 215);
 
-  x.strokeStyle = LINE;
-  x.lineWidth = 2;
-  x.beginPath(); x.moveTo(74, 208); x.lineTo(W - 74, 208); x.stroke();
-
-  // 実戦データ
-  const rate = (c, g) => (c > 0 && g > 0 ? `1/${(g / c).toFixed(1)}` : "–");
-  const rows = [
-    ["総回転数", `${R.totalGames.toLocaleString()} G`],
-    ["BIG / REG", `${R.totBig} / ${R.totReg}`],
-    ["合算", rate(R.totBig + R.totReg, R.totalGames)],
-  ];
-  if (R.useGrape && R.grape > 0) rows.push(["ぶどう", `${rate(R.grape, R.ownG)}（${R.ownG.toLocaleString()}G）`]);
-  let y = 262;
-  for (const [k, v] of rows) {
-    x.fillStyle = MUTED; x.font = "500 28px sans-serif"; x.fillText(k, 74, y);
-    x.fillStyle = INK; x.font = "700 34px sans-serif";
-    x.fillText(v, W - 74 - x.measureText(v).width, y);
-    y += 48;
+  // アイコン
+  const cx = W - 190, cy = 175, r = 105;
+  x.save();
+  x.strokeStyle = CARD.accent; x.lineWidth = 8;
+  x.shadowColor = CARD.accent; x.shadowBlur = 22;
+  x.beginPath(); x.arc(cx, cy, r, 0, 7); x.stroke();
+  x.restore();
+  if (cardImg) {
+    x.save();
+    x.beginPath(); x.arc(cx, cy, r - 8, 0, 7); x.clip();
+    const s = Math.max((r * 2 - 16) / cardImg.width, (r * 2 - 16) / cardImg.height);
+    x.drawImage(cardImg, cx - cardImg.width * s / 2, cy - cardImg.height * s / 2, cardImg.width * s, cardImg.height * s);
+    x.restore();
+  } else {
+    x.fillStyle = "#1f1830";
+    x.beginPath(); x.arc(cx, cy, r - 8, 0, 7); x.fill();
+    x.fillStyle = CARD.muted;
+    x.font = "700 28px 'M PLUS 1p', sans-serif";
+    x.textAlign = "center";
+    x.fillText("ICON", cx, cy + 10);
+    x.textAlign = "left";
   }
 
-  // 判別結果(全設定)
-  y += 10;
-  x.fillStyle = LAMP; x.font = "700 30px sans-serif"; x.fillText("設定推測", 74, y);
+  // 実戦データ(4ブロック)
+  const stats = cardStats();
+  const bw = (W - 140 - 3 * 18) / 4, bh = 118, by = 296;
+  stats.forEach((row, i) => {
+    const bx = 70 + i * (bw + 18);
+    x.fillStyle = CARD.box;
+    roundRect(x, bx, by, bw, bh, 16); x.fill();
+    x.strokeStyle = CARD.line; x.lineWidth = 2;
+    roundRect(x, bx, by, bw, bh, 16); x.stroke();
+    x.fillStyle = CARD.muted;
+    x.font = "500 24px 'M PLUS 1p', sans-serif";
+    x.fillText(row[0], bx + 18, by + 44);
+    fitText(x, row[1], bx + 18, by + 92, bw - 36, 34, "#ffc94d", 700);
+  });
+
+  // 設定推測
+  let y = by + bh + 52;
+  x.fillStyle = CARD.muted;
+  x.font = "700 26px 'M PLUS 1p', sans-serif";
+  x.fillText("設定推測", 70, y);
   y += 26;
   const settings = machine.machine.settings;
   const top = R.posterior.indexOf(Math.max(...R.posterior));
-  const barX = 190, barW = W - 74 - barX - 130;
+  const barX = 190, barW = W - 70 - barX - 130;
   for (let i = 0; i < settings.length; i++) {
     const p = R.posterior[i];
-    const bh = 44, by = y + i * 56;
-    x.fillStyle = i === top ? INK : MUTED;
-    x.font = `${i === top ? 800 : 600} 34px sans-serif`;
-    x.fillText(`設定${settings[i]}`, 74, by + 34);
-    x.fillStyle = "#1b1b21";
-    roundRectPath(x, barX, by, barW, bh, 10); x.fill();
+    const bhh = 42, byy = y + i * 54;
+    x.fillStyle = i === top ? CARD.ink : CARD.muted;
+    x.font = `${i === top ? 800 : 600} 32px 'M PLUS 1p', sans-serif`;
+    x.fillText(`設定${settings[i]}`, 70, byy + 32);
+    x.fillStyle = "#221a2c";
+    roundRect(x, barX, byy, barW, bhh, 10); x.fill();
     const w = Math.max(4, Math.round(barW * p));
-    x.fillStyle = i === top ? LAMP : "#4a4a58";
-    roundRectPath(x, barX, by, w, bh, 10); x.fill();
+    x.fillStyle = i === top ? CARD.accent : "#4a3f56";
+    roundRect(x, barX, byy, w, bhh, 10); x.fill();
     const pct = `${(100 * p).toFixed(1)}%`;
-    x.fillStyle = i === top ? INK : MUTED;
-    x.font = `${i === top ? 800 : 600} 32px sans-serif`;
-    x.fillText(pct, W - 74 - x.measureText(pct).width, by + 34);
+    x.fillStyle = i === top ? CARD.ink : CARD.muted;
+    x.font = `${i === top ? 800 : 600} 30px 'M PLUS 1p', sans-serif`;
+    x.fillText(pct, W - 70 - x.measureText(pct).width, byy + 32);
   }
-  y += settings.length * 56 + 18;
+  y += settings.length * 54 + 18;
 
   // 注記
-  x.fillStyle = MUTED;
-  x.font = "500 24px sans-serif";
-  const note = reliabilityText(R.totalGames).replace("信頼度: ", "信頼度 ");
-  wrapText(x, note, 74, y, W - 148, 32);
-  y += 38;
-  wrapText(x, "確率であり、設定を断定するものではありません。隣接する設定の判別は原理的に困難です。", 74, y, W - 148, 32);
+  x.fillStyle = CARD.muted;
+  x.font = "500 23px 'M PLUS 1p', sans-serif";
+  wrapText(x, reliabilityText(R.totalGames).replace("信頼度: ", "信頼度 "), 70, y, W - 140, 32);
+  y += 36;
+  wrapText(x, "確率であり、設定を断定するものではありません。隣接する設定の判別は原理的に困難です。", 70, y, W - 140, 32);
 
   // フッタ
-  x.strokeStyle = LINE; x.lineWidth = 2;
-  x.beginPath(); x.moveTo(74, H - 110); x.lineTo(W - 74, H - 110); x.stroke();
-  x.fillStyle = MUTED; x.font = "600 26px sans-serif";
-  x.fillText("slot-tools.jp", 74, H - 64);
+  x.fillStyle = CARD.accent;
+  x.font = "700 26px 'M PLUS 1p', sans-serif";
+  x.fillText("slot-tools.jp", 70, H - 104);
+  x.fillStyle = CARD.muted;
+  x.font = "500 22px 'M PLUS 1p', sans-serif";
+  x.fillText(`#${machine.machine.name.replace(/^S/, "")} #設定判別`, 300, H - 104);
+  x.font = "500 21px 'M PLUS 1p', sans-serif";
+  x.fillText("解析出典：ちょんぼりすた様ほか", 70, H - 62);
+}
+
+function cardShareText() {
+  const R = lastResult;
+  if (!R) return "";
+  const d = new Date();
+  const rate = (c, g) => (c > 0 && g > 0 ? `1/${(g / c).toFixed(1)}` : "–");
+  const lines = [
+    `${machine.machine.name} 設定判別メモ`,
+    `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}  ${R.totalGames.toLocaleString()}G`,
+    `BIG ${R.totBig} / REG ${R.totReg}（合算 ${rate(R.totBig + R.totReg, R.totalGames)}）`,
+  ];
+  if (R.useGrape && R.grape > 0) lines.push(`ぶどう ${rate(R.grape, R.ownG)}`);
+  lines.push(
+    machine.machine.settings.map((s, i) => `設定${s} ${(100 * R.posterior[i]).toFixed(1)}%`).join(" / ")
+  );
+  lines.push(reliabilityText(R.totalGames));
+  lines.push(`#${machine.machine.name.replace(/^S/, "")} #設定判別`);
+  lines.push("slot-tools.jp");
+  return lines.join("\n");
 }
 
 function wrapText(x, text, left, top, maxW, lh) {
