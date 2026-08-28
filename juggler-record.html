@@ -236,7 +236,13 @@ select.rate {
 /* ===== 推測タブ(閲覧画面: 内部スクロール可) ===== */
 #paneEstimate { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 8px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 11px; flex: none; }
-.card h2 { font-size: 12.5px; color: var(--muted); margin: 0 0 9px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.card h2 {
+  font-size: 14px; font-weight: 700; color: var(--ink);
+  margin: 0 0 10px; padding: 0 0 8px 10px;
+  border-bottom: 1px solid var(--line); border-left: 3px solid var(--lamp);
+  line-height: 1.35;
+}
+.card h2 small { display: block; font-size: 10.5px; font-weight: 400; color: var(--muted); margin-top: 2px; }
 .rates { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .rates .pill {
   background: var(--card2); border: 1px solid var(--line); border-radius: 8px;
@@ -415,7 +421,7 @@ select.rate {
   <!-- ========== タブ2: 設定推測(閲覧・スクロール可) ========== -->
   <div id="paneEstimate" hidden>
     <section class="card" aria-labelledby="h-result">
-      <h2 id="h-result">判別結果</h2>
+      <h2 id="h-result">判別結果<small>いまのデータから推定した設定ごとの確率</small></h2>
       <p class="result-empty neutral" id="resultEmpty">「現在のデータG」を入力すると、結果が表示されます。</p>
       <div id="resultBars" hidden></div>
       <div class="summary" id="summary" hidden>
@@ -429,13 +435,13 @@ select.rate {
     </section>
 
     <section class="card" aria-labelledby="h-rates">
-      <h2 id="h-rates">実戦値</h2>
+      <h2 id="h-rates">実戦値<small>記録した回数と確率</small></h2>
       <div class="rates" id="ratesGrid"></div>
       <p class="prior-note">BIG・REG・合算は台データ全体（打ち始め前を含む）、それ以外は自分がカウントした区間の確率です。</p>
     </section>
 
     <section class="card" aria-labelledby="h-use">
-      <h2 id="h-use">計算に使うカウント</h2>
+      <h2 id="h-use">計算に使うカウント<small>判別に含める項目の切り替え</small></h2>
       <div class="use-toggles">
         <button type="button" class="use-btn" id="useGrapeBtn" aria-pressed="true">ぶどう</button>
         <button type="button" class="use-btn" id="useBreakdownBtn" aria-pressed="true">ボーナス内訳</button>
@@ -445,7 +451,7 @@ select.rate {
     </section>
 
     <section class="card" aria-labelledby="h-card">
-      <h2 id="h-card">結果をカードにする</h2>
+      <h2 id="h-card">結果をカードにする<small>画像とテキストで書き出す</small></h2>
       <p class="prior-note">いまの判別結果を1枚の画像にします。端末内で作成され、外部には送信されません。収支や店名は含みません。</p>
       <button type="button" class="use-btn" id="cardBtn" style="width:100%;min-height:48px;" disabled>カード画像をつくる</button>
       <div class="use-toggles" style="grid-template-columns: 1fr 1fr; margin-top: 8px;">
@@ -456,7 +462,7 @@ select.rate {
     </section>
 
     <section class="card" aria-labelledby="h-mylog">
-      <h2 id="h-mylog">マイログ</h2>
+      <h2 id="h-mylog">マイログ<small>打った台を記録して振り返る</small></h2>
       <p class="prior-note">打った台を記録して、自分だけの実戦データを蓄積・振り返りできます。記録は端末内に保存され、外部には送信されません。</p>
       <button type="button" class="use-btn" id="mylogSaveBtn" style="width:100%;min-height:48px;">マイログに保存して次へ</button>
       <div class="use-toggles" style="grid-template-columns: 1fr 1fr; margin-top: 8px;">
@@ -472,7 +478,7 @@ select.rate {
     </section>
 
     <section class="card" id="visSection" aria-labelledby="h-vis">
-      <h2 id="h-vis">表示するカウントボタン</h2>
+      <h2 id="h-vis">表示するカウントボタン<small>使わない項目を隠せます</small></h2>
       <div class="use-toggles" id="visToggles"></div>
       <p class="prior-note">オフにするとカウントタブからボタンが消えます（記録した数値は保持されます）。判別に使う項目は常に表示されます。</p>
     </section>
@@ -519,6 +525,9 @@ select.rate {
   <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="mylogTitle">
     <p class="kp-label" id="mylogTitle">マイログに保存</p>
     <div class="mylog-form">
+      <label>日付
+        <input type="date" id="mlDate">
+      </label>
       <label>店名
         <input type="text" id="mlShop" list="mlShopList" placeholder="例：〇〇店" autocomplete="off">
         <datalist id="mlShopList"></datalist>
@@ -856,6 +865,7 @@ function bind() {
       return;
     }
     $("mylogHint").hidden = true;
+    $("mlDate").value = localDateStamp();
     $("mlTotalDiff").value = "";
     $("mlMemo").value = "";
     $("mlSeat").value = "";
@@ -987,8 +997,8 @@ function bind() {
     e.target.value = "";
   });
   $("iconClearBtn").addEventListener("click", () => {
-    cardImg = null;
     try { localStorage.removeItem(iconKey()); } catch (e) {}
+    loadCardIcon();
   });
   $("cardCopy").addEventListener("click", async () => {
     const t = cardShareText();
@@ -1607,14 +1617,16 @@ let cardImg = null;
 
 function iconKey() { return `juggler-record:icon:${machineId}`; }
 
+const DEFAULT_CARD_ICON = "assets/toaru2-default-icon.jpg";
+
 function loadCardIcon() {
   cardImg = null;
   let src = null;
   try { src = localStorage.getItem(iconKey()); } catch (e) { src = null; }
-  if (!src) return;
   const im = new Image();
   im.onload = () => { cardImg = im; };
-  im.src = src;
+  im.onerror = () => { cardImg = null; };
+  im.src = src || DEFAULT_CARD_ICON;
 }
 
 function fitText(x, text, tx, ty, maxWidth, size, color, weight) {
@@ -1828,7 +1840,7 @@ function buildMylogEntry() {
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     savedAt: d.toISOString(),
-    date: localDateStamp(d),
+    date: ($("mlDate").value || localDateStamp(d)),
     shop: $("mlShop").value.trim(),
     seat: $("mlSeat").value.trim(),
     event: $("mlEvent").value.trim(),

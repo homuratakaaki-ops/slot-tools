@@ -40,6 +40,17 @@
   .rec .rb{color:var(--text-muted);margin-top:4px;line-height:1.65;font-variant-numeric:tabular-nums}
   .rec .rdel{background:none;border:none;color:var(--text-dim);font-size:11px;min-height:32px;padding:4px 2px}
   .empty{color:var(--text-muted);font-size:12.5px;padding:8px 2px}
+  .overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center;z-index:50;padding:12px}
+  .overlay[hidden]{display:none}
+  .sheet{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:14px;width:100%;max-width:560px;max-height:88dvh;overflow-y:auto}
+  @supports not (height:1dvh){.sheet{max-height:88vh}}
+  .eform{display:grid;gap:8px}
+  .eform label{display:grid;gap:3px;font-size:11.5px;color:var(--text-muted)}
+  .eform input,.eform textarea{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;padding:9px 10px;min-height:44px;width:100%;font-family:inherit}
+  .eform textarea{min-height:56px;resize:vertical}
+  .eform .sub{font-size:11.5px;color:var(--gold-light);margin-top:4px}
+  .e3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
+  .rec .redit{background:none;border:none;color:var(--gold);font-size:11px;min-height:32px;padding:4px 8px}
   footer{text-align:center;padding:30px 16px;color:var(--text-dim);font-size:12px}
   footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
   footer a{color:var(--text-muted);text-decoration:none}
@@ -125,6 +136,48 @@
     <p class="note" id="hint"></p>
   </section>
 </main>
+
+<div class="overlay" id="editOverlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+    <h2 id="editTitle">記録の編集</h2>
+    <div class="eform">
+      <label>日付<input type="date" id="eDate"></label>
+      <label>店名<input type="text" id="eShop" autocomplete="off"></label>
+      <label>台番号<input type="text" id="eSeat" inputmode="numeric" autocomplete="off"></label>
+      <label>イベント名<input type="text" id="eEvent" autocomplete="off"></label>
+      <p class="sub">打ち始め（データカウンター）</p>
+      <div class="e3">
+        <label>総回転数<input type="text" id="eStartG" inputmode="numeric"></label>
+        <label>BIG<input type="text" id="eStartBig" inputmode="numeric"></label>
+        <label>REG<input type="text" id="eStartReg" inputmode="numeric"></label>
+      </div>
+      <p class="sub">打ち終わり（台全体）</p>
+      <div class="e3">
+        <label>総回転数<input type="text" id="eEndG" inputmode="numeric"></label>
+        <label>BIG<input type="text" id="eEndBig" inputmode="numeric"></label>
+        <label>REG<input type="text" id="eEndReg" inputmode="numeric"></label>
+      </div>
+      <label>台全体の差枚（約・任意）<input type="text" id="eTotalDiff" inputmode="numeric"></label>
+      <p class="sub">収支</p>
+      <div class="e3">
+        <label>投資（円）<input type="text" id="eYen" inputmode="numeric"></label>
+        <label>開始持ち<input type="text" id="eStartHold" inputmode="numeric"></label>
+        <label>持ち枚数<input type="text" id="eHold" inputmode="numeric"></label>
+      </div>
+      <div class="e3">
+        <label>貸出（枚/千円）<input type="text" id="eRate" inputmode="numeric"></label>
+        <label>交換（枚）<input type="text" id="eMai" inputmode="numeric"></label>
+        <label></label>
+      </div>
+      <label>メモ<textarea id="eMemo" rows="2"></textarea></label>
+    </div>
+    <p class="note">小役のカウントと判別結果は編集できません（記録時の値のまま残ります）。差枚と収支は入力から再計算します。</p>
+    <div class="btns">
+      <button type="button" id="eCancel">キャンセル</button>
+      <button type="button" class="primary" id="eSave">保存する</button>
+    </div>
+  </div>
+</div>
 
 <footer>
   <p>&copy; 2026 slot-tools.jp</p>
@@ -248,7 +301,8 @@
         台 ${num(r.end && r.end.g).toLocaleString()}G ／ BIG ${num(r.end && r.end.big)} / REG ${num(r.end && r.end.reg)}${td}<br>
         自分 ${num(r.own && r.own.games).toLocaleString()}G ／ ${est}<br>
         ${money}${r.memo ? "<br>" + esc(r.memo) : ""}</div>
-      <button type="button" class="rdel" data-del="${esc(r.id)}">この記録を削除</button>
+      <button type="button" class="redit" data-edit="${esc(r.id)}">編集</button>
+      <button type="button" class="rdel" data-del="${esc(r.id)}">削除</button>
     </div>`;
   }
 
@@ -256,6 +310,9 @@
     $("list").innerHTML = list.length
       ? list.map(recordHtml).join("")
       : `<p class="empty">記録がありません。実戦記録ツールの「マイログに保存して次へ」から記録できます。</p>`;
+    $("list").querySelectorAll("[data-edit]").forEach((b) => {
+      b.addEventListener("click", () => openEdit(b.dataset.edit));
+    });
     $("list").querySelectorAll("[data-del]").forEach((b) => {
       b.addEventListener("click", () => {
         if (!confirm("この記録を削除します。よろしいですか？")) return;
@@ -288,6 +345,71 @@
     renderList(list);
   }
 
+  let editingId = null;
+  const toInt = (v) => { const n = parseInt(String(v).replace(/[^0-9-]/g, ""), 10); return Number.isFinite(n) ? n : null; };
+  const toIntOr = (v, d) => { const n = toInt(v); return n == null ? d : n; };
+
+  function openEdit(id) {
+    const r = load().find((x) => x.id === id);
+    if (!r) return;
+    editingId = id;
+    const m = r.money || {};
+    const st = r.start || {}, en = r.end || {};
+    $("eDate").value = r.date || "";
+    $("eShop").value = r.shop || "";
+    $("eSeat").value = r.seat || "";
+    $("eEvent").value = r.event || "";
+    $("eStartG").value = num(st.g);
+    $("eStartBig").value = num(st.big);
+    $("eStartReg").value = num(st.reg);
+    $("eEndG").value = num(en.g);
+    $("eEndBig").value = num(en.big);
+    $("eEndReg").value = num(en.reg);
+    $("eTotalDiff").value = en.totalDiff == null ? "" : en.totalDiff;
+    $("eYen").value = num(m.yen);
+    $("eStartHold").value = num(m.startHold);
+    $("eHold").value = num(m.hold);
+    $("eRate").value = m.rate > 0 ? m.rate : 50;
+    $("eMai").value = m.exchangeMai > 0 ? m.exchangeMai : 50;
+    $("eMemo").value = r.memo || "";
+    $("editOverlay").hidden = false;
+  }
+
+  function closeEdit() { editingId = null; $("editOverlay").hidden = true; }
+
+  function saveEdit() {
+    const list = load();
+    const i = list.findIndex((x) => x.id === editingId);
+    if (i < 0) { closeEdit(); return; }
+    const r = list[i];
+    const rate = Math.max(1, toIntOr($("eRate").value, 50));
+    const mai = Math.max(1, toIntOr($("eMai").value, 50));
+    const yenV = Math.max(0, toIntOr($("eYen").value, 0));
+    const startHold = Math.max(0, toIntOr($("eStartHold").value, 0));
+    const hold = Math.max(0, toIntOr($("eHold").value, 0));
+    const medals = Math.round((yenV / 1000) * rate);
+    const diff = hold > 0 || startHold > 0 ? hold - startHold - medals : null;
+    const startG = Math.max(0, toIntOr($("eStartG").value, 0));
+    const endG = Math.max(0, toIntOr($("eEndG").value, 0));
+    list[i] = {
+      ...r,
+      date: $("eDate").value || r.date,
+      shop: $("eShop").value.trim(),
+      seat: $("eSeat").value.trim(),
+      event: $("eEvent").value.trim(),
+      start: { ...(r.start || {}), g: startG, big: Math.max(0, toIntOr($("eStartBig").value, 0)), reg: Math.max(0, toIntOr($("eStartReg").value, 0)), hold: startHold },
+      end: { ...(r.end || {}), g: endG, big: Math.max(0, toIntOr($("eEndBig").value, 0)), reg: Math.max(0, toIntOr($("eEndReg").value, 0)), totalDiff: toInt($("eTotalDiff").value) },
+      own: { ...(r.own || {}), games: Math.max(0, endG - startG) },
+      money: { ...(r.money || {}), yen: yenV, hold, startHold, rate, exchangeMai: mai, investMedals: medals, diff, cash: diff == null ? null : Math.round((diff * 1000) / mai) },
+      memo: $("eMemo").value.trim(),
+      editedAt: new Date().toISOString(),
+    };
+    if (!save(list)) { $("hint").textContent = "保存できませんでした。端末の空き容量を確認してください。"; return; }
+    closeEdit();
+    renderAll();
+    $("hint").textContent = "記録を更新しました。";
+  }
+
   function localDateStamp() {
     const t = new Date();
     return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")}`;
@@ -298,6 +420,10 @@
     for (const id of ["fMachine", "fShop", "fFrom", "fTo"]) $(id).value = "";
     renderAll();
   });
+
+  $("eCancel").addEventListener("click", closeEdit);
+  $("eSave").addEventListener("click", saveEdit);
+  $("editOverlay").addEventListener("click", (e) => { if (e.target === $("editOverlay")) closeEdit(); });
 
   $("exportBtn").addEventListener("click", () => {
     const list = load();
