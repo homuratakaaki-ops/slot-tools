@@ -713,7 +713,7 @@ textarea{
   };
   const BATTLE_STEP_LOCK_TOAST='FB中は通常消化を操作できません';
   const BATTLE_ADJUST_LOCK_TOAST='FB中はG数調整を操作できません';
-  const JUDGE_ADD_CHOICES=[10,20,30,50,100];
+  const JUDGE_ADD_CHOICES=[10,20,30,50,70,100,200,300];
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
   let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,autoColorResetAt:0,sessionMoney:null,logs:[]};
