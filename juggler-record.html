@@ -177,6 +177,21 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .invest-row { display: grid; grid-template-columns: 1.15fr 1.15fr 1fr 1.1fr; gap: 6px; margin-bottom: 6px; }
 .calc-note { font-size: 10.5px; color: var(--muted); }
 #cardCanvas { width: 100%; height: auto; border-radius: 12px; display: block; background: #000; margin-bottom: 8px; }
+.mylog-form { display: grid; gap: 8px; margin-bottom: 8px; }
+.mylog-form label { display: grid; gap: 3px; font-size: 11.5px; color: var(--muted); }
+.mylog-form input, .mylog-form textarea {
+  background: var(--card2); border: 1px solid var(--line); border-radius: 8px;
+  color: var(--ink); font-size: 15px; padding: 9px 10px; min-height: 44px; width: 100%;
+  font-family: inherit;
+}
+.mylog-form textarea { min-height: 56px; resize: vertical; }
+.mylog-list { max-height: 46dvh; overflow-y: auto; display: grid; gap: 8px; margin: 8px 0; }
+@supports not (height: 1dvh) { .mylog-list { max-height: 46vh; } }
+.mylog-item { background: var(--card2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; font-size: 12px; }
+.mylog-item .ml-h { display: flex; justify-content: space-between; gap: 8px; color: var(--ink); font-weight: 700; }
+.mylog-item .ml-b { color: var(--muted); margin-top: 4px; line-height: 1.6; font-variant-numeric: tabular-nums; }
+.mylog-item .ml-del { background: none; border: none; color: var(--muted); font-size: 11px; padding: 4px 6px; min-height: 32px; cursor: pointer; }
+.mylog-empty { color: var(--muted); font-size: 12px; padding: 10px 2px; }
 .invest-main {
   border-radius: 10px; border: 1px solid #5a2a26; background: var(--lamp-soft); color: var(--lamp);
   font-size: 14.5px; font-weight: 700; padding: 10px 2px; min-height: 48px; cursor: pointer; white-space: nowrap;
@@ -440,6 +455,21 @@ select.rate {
       <input type="file" id="iconFile" accept="image/*" hidden>
     </section>
 
+    <section class="card" aria-labelledby="h-mylog">
+      <h2 id="h-mylog">マイログ</h2>
+      <p class="prior-note">打った台を記録して、自分だけの実戦データを蓄積・振り返りできます。記録は端末内に保存され、外部には送信されません。</p>
+      <button type="button" class="use-btn" id="mylogSaveBtn" style="width:100%;min-height:48px;">マイログに保存して次へ</button>
+      <div class="use-toggles" style="grid-template-columns: 1fr 1fr; margin-top: 8px;">
+        <button type="button" class="use-btn" id="mylogViewBtn">マイログを見る</button>
+        <button type="button" class="use-btn" id="mylogExportBtn">書き出し</button>
+      </div>
+      <div class="use-toggles" style="grid-template-columns: 1fr; margin-top: 8px;">
+        <button type="button" class="use-btn" id="mylogImportBtn">読み込み</button>
+      </div>
+      <input type="file" id="mylogFile" accept="application/json,.json" hidden>
+      <p class="prior-note" id="mylogHint" hidden></p>
+    </section>
+
     <section class="card" id="visSection" aria-labelledby="h-vis">
       <h2 id="h-vis">表示するカウントボタン</h2>
       <div class="use-toggles" id="visToggles"></div>
@@ -484,6 +514,50 @@ select.rate {
 </div>
 
 <!-- ===== クリアモーダル ===== -->
+<div class="keypad-overlay" id="mylogOverlay">
+  <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="mylogTitle">
+    <p class="kp-label" id="mylogTitle">マイログに保存</p>
+    <div class="mylog-form">
+      <label>店名
+        <input type="text" id="mlShop" list="mlShopList" placeholder="例：〇〇店" autocomplete="off">
+        <datalist id="mlShopList"></datalist>
+      </label>
+      <label>台番号（任意）
+        <input type="text" id="mlSeat" inputmode="numeric" placeholder="例：123" autocomplete="off">
+      </label>
+      <label>イベント名（任意）
+        <input type="text" id="mlEvent" list="mlEventList" placeholder="例：ライター来店" autocomplete="off">
+        <datalist id="mlEventList"></datalist>
+      </label>
+      <label>台全体の差枚（任意・グラフから読んだ概算）
+        <input type="text" id="mlTotalDiff" inputmode="numeric" placeholder="例：-1200" autocomplete="off">
+      </label>
+      <label>メモ（任意）
+        <textarea id="mlMemo" rows="2" placeholder="打ち始めの根拠、ヤメ時の判断など"></textarea>
+      </label>
+    </div>
+    <p class="prior-note">保存するとカウントはクリアされます。直後なら「元に戻す」で復元できます。</p>
+    <div class="kp-actions">
+      <button type="button" class="kp-cancel" id="mlCancel">キャンセル</button>
+      <button type="button" class="kp-ok" id="mlSave">保存する</button>
+    </div>
+  </div>
+</div>
+
+<div class="keypad-overlay" id="mylogListOverlay">
+  <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="mylogListTitle">
+    <p class="kp-label" id="mylogListTitle">マイログ</p>
+    <div class="use-toggles" style="grid-template-columns: 1fr 1fr;">
+      <button type="button" class="use-btn" id="mlFilterMachine" aria-pressed="true">この機種のみ</button>
+      <button type="button" class="use-btn" id="mlFilterShop" aria-pressed="false">この店のみ</button>
+    </div>
+    <div class="mylog-list" id="mylogList"></div>
+    <div class="kp-actions" style="grid-template-columns: 1fr;">
+      <button type="button" class="kp-cancel" id="mlListClose">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div class="keypad-overlay" id="cardOverlay">
   <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="cardTitle">
     <p class="kp-label" id="cardTitle">結果カード</p>
@@ -774,6 +848,105 @@ function bind() {
   $("machineName").addEventListener("click", () => $("machineOverlay").classList.add("open"));
   $("mcClose").addEventListener("click", () => $("machineOverlay").classList.remove("open"));
   $("subClose").addEventListener("click", () => $("subOverlay").classList.remove("open"));
+  $("mylogSaveBtn").addEventListener("click", () => {
+    if (state.nowG <= 0) {
+      $("mylogHint").hidden = false;
+      $("mylogHint").textContent = "「現在のデータG」を入れてから保存してください。";
+      return;
+    }
+    $("mylogHint").hidden = true;
+    $("mlTotalDiff").value = "";
+    $("mlMemo").value = "";
+    $("mlSeat").value = "";
+    mylogSuggest();
+    $("mylogOverlay").classList.add("open");
+  });
+  $("mlCancel").addEventListener("click", () => $("mylogOverlay").classList.remove("open"));
+  $("mylogOverlay").addEventListener("click", (e) => { if (e.target === $("mylogOverlay")) $("mylogOverlay").classList.remove("open"); });
+  $("mlSave").addEventListener("click", () => {
+    const entry = buildMylogEntry();
+    const list = mylogLoad();
+    list.unshift(entry);
+    if (list.length > 500) list.length = 500;
+    if (!mylogSave(list)) {
+      $("mylogHint").hidden = false;
+      $("mylogHint").textContent = "保存できませんでした。端末の空き容量を確認するか、書き出してから古い記録を削除してください。";
+      return;
+    }
+    // 保存後はクリア(直後なら元に戻すで復元できる)
+    const prev = JSON.parse(JSON.stringify({ ...state, log: [] }));
+    const fresh = defaultState();
+    fresh.invest.rate = state.invest.rate;
+    fresh.invest.exchangeMai = state.invest.exchangeMai;
+    fresh.log = [...state.log, { k: "clear_all", prev }];
+    state = fresh;
+    persist();
+    renderAll();
+    $("mylogOverlay").classList.remove("open");
+    $("mylogHint").hidden = false;
+    $("mylogHint").textContent = "マイログに保存しました。カウントはクリアされています（直後なら「元に戻す」で復元できます）。";
+    $("lastOp").textContent = "マイログに保存してクリアしました（元に戻すで復元できます）";
+  });
+  $("mylogViewBtn").addEventListener("click", () => {
+    renderMylogList();
+    $("mylogListOverlay").classList.add("open");
+  });
+  $("mlListClose").addEventListener("click", () => $("mylogListOverlay").classList.remove("open"));
+  $("mylogListOverlay").addEventListener("click", (e) => { if (e.target === $("mylogListOverlay")) $("mylogListOverlay").classList.remove("open"); });
+  for (const id of ["mlFilterMachine", "mlFilterShop"]) {
+    $(id).addEventListener("click", () => {
+      $(id).setAttribute("aria-pressed", String($(id).getAttribute("aria-pressed") !== "true"));
+      renderMylogList();
+    });
+  }
+  $("mylogExportBtn").addEventListener("click", () => {
+    const list = mylogLoad();
+    if (!list.length) {
+      $("mylogHint").hidden = false;
+      $("mylogHint").textContent = "書き出す記録がありません。";
+      return;
+    }
+    const blob = new Blob([JSON.stringify({ format: "juggler-mylog", version: 1, exportedAt: new Date().toISOString(), records: list }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `mylog-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    $("mylogHint").hidden = false;
+    $("mylogHint").textContent = `${list.length}件を書き出しました。`;
+  });
+  $("mylogImportBtn").addEventListener("click", () => $("mylogFile").click());
+  $("mylogFile").addEventListener("change", (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = "";
+    if (!f) return;
+    const fr = new FileReader();
+    fr.onload = () => {
+      let incoming = [];
+      try {
+        const data = JSON.parse(fr.result);
+        incoming = Array.isArray(data) ? data : data.records;
+        if (!Array.isArray(incoming)) throw new Error("形式が違います");
+      } catch (err) {
+        $("mylogHint").hidden = false;
+        $("mylogHint").textContent = "読み込めませんでした。マイログの書き出しファイルを選んでください。";
+        return;
+      }
+      const cur = mylogLoad();
+      const seen = new Set(cur.map((r) => r.id));
+      const added = incoming.filter((r) => r && r.id && !seen.has(r.id));
+      const merged = [...cur, ...added].sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
+      if (!mylogSave(merged)) {
+        $("mylogHint").hidden = false;
+        $("mylogHint").textContent = "保存できませんでした。端末の空き容量を確認してください。";
+        return;
+      }
+      $("mylogHint").hidden = false;
+      $("mylogHint").textContent = `${added.length}件を追加しました（重複${incoming.length - added.length}件は取り込みませんでした）。`;
+    };
+    fr.readAsText(f);
+  });
   $("cardBtn").addEventListener("click", async () => {
     $("cardHint").hidden = true;
     // canvasのfont指定ではWebフォントの取得が起動しないため、明示的に読み込む
@@ -1597,6 +1770,121 @@ function cardShareText() {
   lines.push(`#${machine.machine.name.replace(/^S/, "")} #設定判別`);
   lines.push("slot-tools.jp");
   return lines.join("\n");
+}
+
+const MYLOG_KEY = "juggler-mylog:v1";
+
+function mylogLoad() {
+  try {
+    const raw = localStorage.getItem(MYLOG_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+
+function mylogSave(list) {
+  try { localStorage.setItem(MYLOG_KEY, JSON.stringify(list)); return true; }
+  catch (e) { return false; }
+}
+
+function mylogSuggest() {
+  const list = mylogLoad();
+  const shops = [...new Set(list.map((r) => r.shop).filter(Boolean))].slice(0, 40);
+  const events = [...new Set(list.map((r) => r.event).filter(Boolean))].slice(0, 40);
+  $("mlShopList").innerHTML = shops.map((s) => `<option value="${escapeHtml(s)}"></option>`).join("");
+  $("mlEventList").innerHTML = events.map((s) => `<option value="${escapeHtml(s)}"></option>`).join("");
+  const last = list.find((r) => r.machineId === machineId) || list[0];
+  if (last && !$("mlShop").value) $("mlShop").value = last.shop || "";
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function toInt(v) {
+  const n = parseInt(String(v).replace(/[^0-9-]/g, ""), 10);
+  return Number.isFinite(n) ? n : null;
+}
+
+function buildMylogEntry() {
+  const inv = state.invest;
+  const rate = inv.rate > 0 ? inv.rate : 50;
+  const mai = inv.exchangeMai > 0 ? inv.exchangeMai : 50;
+  const medals = Math.round((inv.yen / 1000) * rate);
+  const startHold = inv.startHold || 0;
+  const ownG = Math.max(0, state.nowG - state.start.g);
+  const grp = bonusGroupIds();
+  const nbc = (id) => state.counts[id] || 0;
+  const ownBig = grp.big.reduce((a, id) => a + nbc(id), 0) + nbc("unk_big");
+  const ownReg = grp.reg.reduce((a, id) => a + nbc(id), 0) + nbc("unk_reg");
+  const diff = inv.hold > 0 || startHold > 0 ? inv.hold - startHold - medals : null;
+  const d = new Date();
+  return {
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    savedAt: d.toISOString(),
+    date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+    shop: $("mlShop").value.trim(),
+    seat: $("mlSeat").value.trim(),
+    event: $("mlEvent").value.trim(),
+    machineId,
+    machineName: machine.machine.name,
+    start: { g: state.start.g, big: state.start.big, reg: state.start.reg, hold: startHold },
+    end: {
+      g: state.nowG,
+      big: state.start.big + ownBig,
+      reg: state.start.reg + ownReg,
+      totalDiff: toInt($("mlTotalDiff").value),
+    },
+    own: { games: ownG, counts: { ...state.counts } },
+    estimate: lastResult
+      ? { posterior: lastResult.posterior.slice(), totalGames: lastResult.totalGames, reliability: reliabilityText(lastResult.totalGames) }
+      : null,
+    money: { yen: inv.yen, hold: inv.hold, startHold, rate, exchangeMai: mai, investMedals: medals, diff, cash: diff == null ? null : Math.round((diff * 1000) / mai) },
+    memo: $("mlMemo").value.trim(),
+  };
+}
+
+function mylogItemHtml(r) {
+  const est = r.estimate
+    ? (() => {
+        const i = r.estimate.posterior.indexOf(Math.max(...r.estimate.posterior));
+        return `推測 設定${i + 1} ${(100 * r.estimate.posterior[i]).toFixed(0)}%`;
+      })()
+    : "推測なし";
+  const money = r.money && r.money.diff != null
+    ? `${r.money.diff >= 0 ? "+" : ""}${r.money.diff.toLocaleString()}枚（${r.money.cash >= 0 ? "+" : "-"}¥${Math.abs(r.money.cash).toLocaleString()}）`
+    : "収支なし";
+  const bigreg = `BIG ${r.end && r.end.big != null ? r.end.big : "–"} / REG ${r.end && r.end.reg != null ? r.end.reg : "–"}`;
+  const tot = r.end && r.end.totalDiff != null ? ` ／ 台差枚 約${r.end.totalDiff >= 0 ? "+" : ""}${r.end.totalDiff.toLocaleString()}` : "";
+  return `<div class="mylog-item" data-id="${r.id}">
+    <div class="ml-h"><span>${escapeHtml(r.machineName || "")}</span><span>${escapeHtml(r.date || "")}</span></div>
+    <div class="ml-b">${escapeHtml(r.shop || "店名なし")}${r.seat ? " " + escapeHtml(r.seat) + "番" : ""}${r.event ? " ／ " + escapeHtml(r.event) : ""}<br>
+      台 ${(r.end && r.end.g != null ? r.end.g : 0).toLocaleString()}G ／ ${bigreg}${tot}<br>
+      自分 ${(r.own && r.own.games != null ? r.own.games : 0).toLocaleString()}G ／ ${est}<br>
+      ${money}${r.memo ? "<br>" + escapeHtml(r.memo) : ""}</div>
+    <button type="button" class="ml-del" data-del="${r.id}">この記録を削除</button>
+  </div>`;
+}
+
+function renderMylogList() {
+  const onlyMachine = $("mlFilterMachine").getAttribute("aria-pressed") === "true";
+  const onlyShop = $("mlFilterShop").getAttribute("aria-pressed") === "true";
+  const lastShop = ($("mlShop") && $("mlShop").value.trim()) || (mylogLoad()[0] || {}).shop || "";
+  let list = mylogLoad();
+  if (onlyMachine) list = list.filter((r) => r.machineId === machineId);
+  if (onlyShop && lastShop) list = list.filter((r) => r.shop === lastShop);
+  const box = $("mylogList");
+  box.innerHTML = list.length
+    ? list.slice(0, 50).map(mylogItemHtml).join("")
+    : `<p class="mylog-empty">該当する記録がありません。</p>`;
+  box.querySelectorAll("[data-del]").forEach((b) => {
+    b.addEventListener("click", () => {
+      if (!confirm("この記録を削除します。よろしいですか？")) return;
+      const all = mylogLoad().filter((r) => r.id !== b.dataset.del);
+      mylogSave(all);
+      renderMylogList();
+    });
+  });
 }
 
 function wrapText(x, text, left, top, maxW, lh) {
