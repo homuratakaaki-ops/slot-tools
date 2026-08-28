@@ -44,6 +44,14 @@
   footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
   footer a{color:var(--text-muted);text-decoration:none}
 </style>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-QCKV9H0DT1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-QCKV9H0DT1');
+</script>
 </head>
 <body>
 <header>
@@ -83,7 +91,7 @@
       <div class="sum-box"><span>勝率</span><b id="sWin">–</b></div>
       <div class="sum-box"><span>BIG / REG 合算</span><b id="sRate">–</b></div>
     </div>
-    <p class="note">差枚と収支は、持ち枚数を入力した記録だけを集計します。勝率は差枚がプラスだった記録の割合です。</p>
+    <p class="note">差枚と収支は、持ち枚数を入力した記録だけを集計します。勝率は差枚がマイナスにならなかった記録の割合です。</p>
   </section>
 
   <section class="card">
