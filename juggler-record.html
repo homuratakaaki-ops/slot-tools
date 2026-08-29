@@ -176,6 +176,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 /* 投資(1パネルに集約) */
 .invest-row { display: grid; grid-template-columns: 1.15fr 1.15fr 1fr 1.1fr; gap: 6px; margin-bottom: 6px; }
 .calc-note { font-size: 10.5px; color: var(--muted); }
+.kp-step { font-size: 11px; color: var(--lamp); font-weight: 700; }
 #cardCanvas { width: 100%; height: auto; border-radius: 12px; display: block; background: #000; margin-bottom: 8px; }
 .mylog-form { display: grid; gap: 8px; margin-bottom: 8px; }
 .mylog-form label { display: grid; gap: 3px; font-size: 11.5px; color: var(--muted); }
@@ -642,6 +643,7 @@ select.rate {
     <p class="kp-label" id="kpLabel">入力</p>
     <div class="kp-display">
       <span class="kp-current" id="kpCurrent"></span>
+      <span class="kp-step" id="kpStep" hidden></span>
       <span class="kp-value empty" id="kpValue">タップして入力</span>
     </div>
     <div class="kp-grid">
@@ -785,6 +787,11 @@ function fieldSet(field, v) {
   if (field === "card") { state.invest.card = v; return; }
   if (field === "invest") { state.invest.yen = v; return; }
   if (field === "cu_g") state.nowG = v;
+  else if (field === "st_g") {
+    state.start.g = v;
+    // 打ち始めを入れた時点では現在G＝打ち始めG。以降に進んだ値は上書きしない
+    if (state.nowG < v) state.nowG = v;
+  }
   else if (field === "hold") state.invest.hold = v;
   else if (field === "startHold") state.invest.startHold = v;
   else if (field === "rate") state.invest.rate = v > 0 ? v : 50;
@@ -795,10 +802,18 @@ function fieldSet(field, v) {
 
 /* ---------- 電卓 ---------- */
 let kp = { field: null, buffer: "" };
-function openKeypad(field, label) {
-  kp = { field, buffer: "" };
+// 打ち始めの4項目は「次へ」で連続入力できる
+const KP_CHAIN = ["st_g", "st_big", "st_reg", "startHold"];
+
+function openKeypad(field, label, chained) {
+  kp = { field, buffer: "", chained: !!chained };
   $("kpLabel").textContent = label;
   $("kpCurrent").textContent = `現在: ${fieldGet(field).toLocaleString()}`;
+  const i = KP_CHAIN.indexOf(field);
+  const hasNext = i >= 0 && i < KP_CHAIN.length - 1;
+  $("kpOk").textContent = hasNext ? "次へ" : "決定";
+  $("kpStep").textContent = i >= 0 ? `打ち始めの入力 ${i + 1}／${KP_CHAIN.length}` : "";
+  $("kpStep").hidden = i < 0;
   renderKeypad();
   $("keypadOverlay").classList.add("open");
 }
@@ -827,12 +842,16 @@ function kpInput(key) {
   renderKeypad();
 }
 function kpCommit() {
-  if (kp.field != null && kp.buffer !== "") {
-    fieldSet(kp.field, parseInt(kp.buffer, 10));
+  const field = kp.field;
+  if (field != null && kp.buffer !== "") {
+    fieldSet(field, parseInt(kp.buffer, 10));
     persist();
   }
+  const i = KP_CHAIN.indexOf(field);
+  const next = i >= 0 && i < KP_CHAIN.length - 1 ? KP_CHAIN[i + 1] : null;
   closeKeypad();
   renderAll();
+  if (next) openKeypad(next, FIELD_LABELS[next], true);
 }
 
 /* ---------- イベント ---------- */
