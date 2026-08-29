@@ -252,7 +252,7 @@ select.rate {
 .rates .pill b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .use-toggles { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .use-btn {
-  padding: 10px 0; font-size: 13.5px; font-weight: 600; border-radius: 9px;
+  padding: 10px 4px; min-height: 48px; font-size: 13.5px; font-weight: 600; border-radius: 9px;
   border: 1px solid var(--line); background: var(--card2); color: var(--muted); cursor: pointer;
 }
 .use-btn[aria-pressed="true"] { border-color: #3c5a36; background: #22301f; color: var(--grape); }
@@ -266,8 +266,7 @@ select.rate {
   min-height: 48px; padding: 4px 2px; cursor: pointer;
 }
 .prior-toggle input[type="checkbox"] { width: 22px; height: 22px; flex: none; }
-@media (max-height: 720px) { .prior-toggle { min-height: 44px; } }
-.prior-toggle input { width: 18px; height: 18px; }
+@media (max-height: 720px) { .prior-toggle { min-height: 44px; } .use-btn { min-height: 44px; } }
 .prior-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
 .prior-grid .cell { text-align: center; }
 .prior-grid .cell span { display: block; font-size: 10.5px; color: var(--muted); margin-bottom: 3px; }
@@ -516,7 +515,7 @@ select.rate {
     </section>
 
     <div class="session-actions">
-      <button type="button" id="resetBtn">新しい台（すべてリセット）</button>
+      <button type="button" id="resetBtn" class="use-btn" style="width:100%;">新しい台（すべてリセット）</button>
     </div>
 
     <p class="foot">
