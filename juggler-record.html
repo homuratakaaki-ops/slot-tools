@@ -261,7 +261,12 @@ select.rate {
 #visToggles .use-btn[aria-pressed="true"]::after { content: " 表示"; font-size: 10.5px; }
 #visToggles .use-btn[aria-pressed="false"]::after { content: " 非表示"; font-size: 10.5px; }
 #visToggles { grid-template-columns: repeat(3, 1fr); }
-.prior-toggle { display: flex; align-items: center; gap: 8px; font-size: 13.5px; }
+.prior-toggle {
+  display: flex; align-items: center; gap: 10px; font-size: 13.5px;
+  min-height: 48px; padding: 4px 2px; cursor: pointer;
+}
+.prior-toggle input[type="checkbox"] { width: 22px; height: 22px; flex: none; }
+@media (max-height: 720px) { .prior-toggle { min-height: 44px; } }
 .prior-toggle input { width: 18px; height: 18px; }
 .prior-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-top: 10px; }
 .prior-grid .cell { text-align: center; }
