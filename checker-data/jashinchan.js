@@ -92,6 +92,11 @@
     ['lierPersephone1','リエール＆ペルセポネ1世','設定4以上確定演出',4],
     ['ecuteAtre','エキュート＆アトレ','設定6確定演出',6]
   ];
+  const CZ_ITEMS=[
+    ['czTawashi','タワシ→ミノス','HITで設定1否定',0],
+    ['czTarai','タライ→ゆりね/メデューサ','HITで設定1否定',0],
+    ['czRakurai','落雷→3キャラ','HITで設定1否定・高設定ほど出やすい',0]
+  ];
   const REF_SECTIONS=[
     ['キャラ分類対応表',[
       ['デフォルト','邪神ちゃん・ゆりね・氷ちゃん・遊佐'],
@@ -114,7 +119,7 @@
     cz:{bonus:0,at:0,direct:0,returnAt:0},
     screens:Object.fromEntries(AT_SCREENS.map(v=>[v[0],0])),
     atcz:Object.fromEntries(KUJILUCKY.map(v=>[v[0],0])),
-    icons:Object.fromEntries(CHARS.map(v=>[v[0],0])),
+    icons:Object.fromEntries([...CHARS,...CZ_ITEMS].map(v=>[v[0],0])),
     combos:Object.fromEntries(COMBOS.map(v=>[v[0],0])),
     coins:Object.fromEntries(SEALS.map(v=>[v[0],0])),
     bonusLog:[],
@@ -160,6 +165,10 @@
       ...COMBOS.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.combos,c[0]),rank:c[3],order:40+c[3]})),
       ...SEALS.filter(c=>c[3]>0).map(c=>({label:c[1]+'シール',value:n(S.coins,c[0]),rank:c[3],order:50+c[3]}))
     ];
+  }
+  function czItemTotal(S){return CZ_ITEMS.reduce((a,c)=>a+n(S.icons,c[0]),0);}
+  function denyTotal(S){
+    return n(S.icons,'justice')+n(S.icons,'fighter')+n(S.icons,'commander')+n(S.icons,'esp')+n(S.icons,'genius')+czItemTotal(S);
   }
   function certCount(S){return allCert(S).reduce((a,b)=>a+b.value,0);}
   function bestCert(S){
@@ -220,6 +229,7 @@
     const log=normalizeBonusLog(S.bonusLog);
     const pending=(Array.isArray(S.pending)?S.pending:[]).filter(k=>CHAR_KEYS.has(k)).slice(0,3);
     const icons=emptyTallies(CHARS);
+    CZ_ITEMS.forEach(item=>{icons[item[0]]=n(S.icons,item[0]);});
     const combos=emptyTallies(COMBOS);
     const countKey=key=>{
       const classKey=CHAR_TO_CLASS[key];
@@ -368,6 +378,9 @@
   function pageSeals(ctx){
     return `<section class="sec"><div class="sec-h">シール<span class="sub">うれしいちゃんす</span></div>
     <div class="cgrid">${SEALS.map(c=>ctx.crow('coins.'+c[0],c[1],c[2],c[3]>0)).join('')}</div></section>
+    <section class="sec"><div class="sec-h">CZ前半アイテム<span class="sub">計${czItemTotal(ctx.S)}回</span></div>
+    <div class="cgrid">${CZ_ITEMS.map(c=>ctx.crow('icons.'+c[0],c[1],c[2],0)).join('')}</div>
+    <div class="hint">CZ前半15G中、純ハズレ成立時に背景モニターのアイテムが対象キャラにHITした場合に記録します。3種とも設定1否定です。落雷は高設定ほど出現しやすい傾向がありますが数値は未公表のため、回数の記録に留めます。</div></section>
     <section class="sec"><div class="sec-h">参照</div>
     <div class="hint">キャラ分類、内部モード示唆、ステチェン系の参照情報です。カウンター・カード出力の対象外です。</div></section>
     ${pageReference()}`;
@@ -390,6 +403,7 @@
     t+=section('キャラ紹介',sum(S.icons)>0?CHARS.filter(c=>n(S.icons,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.icons,c[0]))}`):[]);
     t+=section('複合条件',sum(S.combos)>0?COMBOS.filter(c=>n(S.combos,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.combos,c[0]))}`):[]);
     t+=section('シール',sum(S.coins)>0?SEALS.filter(c=>n(S.coins,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.coins,c[0]))}`):[]);
+    t+=section('CZ前半アイテム',czItemTotal(S)>0?CZ_ITEMS.filter(c=>n(S.icons,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.icons,c[0]))}`):[]);
     t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
     return t;
   }
@@ -402,6 +416,7 @@
       {title:'キャラ紹介分類',items:detailItems(CHARS,S.icons)},
       {title:'複合条件',items:detailItems(COMBOS,S.combos)},
       {title:'シール',items:detailItems(SEALS,S.coins)},
+      {title:'CZ前半アイテム',items:detailItems(CZ_ITEMS,S.icons)},
       {title:'キャラ出現順',priority:100,items:historyItems(S)}
     ];
   }
@@ -461,7 +476,7 @@
           {label:'4+',value:allCert(ctx.S).filter(v=>v.rank===4).reduce((a,b)=>a+b.value,0)},
           {label:'5+',value:allCert(ctx.S).filter(v=>v.rank===5).reduce((a,b)=>a+b.value,0)},
           {label:'6',value:allCert(ctx.S).filter(v=>v.rank===6).reduce((a,b)=>a+b.value,0)},
-          {label:'否',value:n(ctx.S.icons,'justice')+n(ctx.S.icons,'fighter')+n(ctx.S.icons,'commander')+n(ctx.S.icons,'esp')+n(ctx.S.icons,'genius')},
+          {label:'否',value:denyTotal(ctx.S)},
           {label:'奇偶',value:n(ctx.S.screens,'minos')+n(ctx.S.screens,'medusa')+n(ctx.S.screens,'pekora')+n(ctx.S.screens,'poporon')+n(ctx.S.icons,'odd')+n(ctx.S.icons,'even')+n(ctx.S.coins,'mei')+n(ctx.S.coins,'yusaHyouchan')+n(ctx.S.coins,'kyonRan')+n(ctx.S.coins,'pinoPoporon')}
         ]
       }),
@@ -477,7 +492,7 @@
               row(bestCert(S),certCount(S),certCount(S)>0,'#ffc94d'),
               row(shown('終了確定',[['悪',n(S.screens,'evil')],['水',n(S.screens,'swim')],['パ',n(S.screens,'pajama')],['全',n(S.screens,'all')]]),n(S.screens,'evil')+n(S.screens,'swim')+n(S.screens,'pajama')+n(S.screens,'all')),
               row(shown('キャラ確定',[['完',n(S.icons,'perfect')],['悪ゆ',n(S.icons,'devilYurine')]]),n(S.icons,'perfect')+n(S.icons,'devilYurine')),
-              row(shown('否定',[['1否',n(S.icons,'justice')],['2否',n(S.icons,'fighter')],['3否',n(S.icons,'commander')],['12否',n(S.icons,'esp')],['13否',n(S.icons,'genius')]]),n(S.icons,'justice')+n(S.icons,'fighter')+n(S.icons,'commander')+n(S.icons,'esp')+n(S.icons,'genius')),
+              row(shown('否定',[['1否',n(S.icons,'justice')],['2否',n(S.icons,'fighter')],['3否',n(S.icons,'commander')],['12否',n(S.icons,'esp')],['13否',n(S.icons,'genius')],['タワシ',n(S.icons,'czTawashi')],['タライ',n(S.icons,'czTarai')],['落雷',n(S.icons,'czRakurai')]]),denyTotal(S)),
               row(shown('初当り',[['直',S.cz.direct],['戻',S.cz.returnAt]]),S.cz.direct+S.cz.returnAt)
             ]},
             {x:560,items:[
