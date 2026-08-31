@@ -403,6 +403,7 @@
     t+=section('キャラ紹介',sum(S.icons)>0?CHARS.filter(c=>n(S.icons,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.icons,c[0]))}`):[]);
     t+=section('複合条件',sum(S.combos)>0?COMBOS.filter(c=>n(S.combos,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.combos,c[0]))}`):[]);
     t+=section('シール',sum(S.coins)>0?SEALS.filter(c=>n(S.coins,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.coins,c[0]))}`):[]);
+    t+=section('CZ前半アイテム',czItemTotal(S)>0?CZ_ITEMS.filter(c=>n(S.icons,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.icons,c[0]))}`):[]);
     t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
     return t;
   }
