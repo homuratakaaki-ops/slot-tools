@@ -1752,7 +1752,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 29;
+    const SCHEMA_VERSION = 30;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -2044,6 +2044,7 @@
       charges: [],
       hitSpin: null,
       hitRemainBalls: null,
+      hitTrackedBalls: null,
       hitVia: null,
       yutimeEnterBalls: null,
       yutimeEnterTime: null,
@@ -2864,6 +2865,7 @@
           currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
           startEv: normalizeStartEv(session.startEv),
           consumedBallsSource: normalizeConsumedBallsSource(session.consumedBallsSource),
+          hitTrackedBalls: normalizeNumber(session.hitTrackedBalls),
           sessionActualBalls: normalizeNumber(session.sessionActualBalls),
           carriedFromSessionId: session.carriedFromSessionId || null,
           yutimeEnterSpin: normalizeNumber(session.yutimeEnterSpin),
@@ -5986,6 +5988,9 @@
       if (!session) return;
       const currentBalances = deriveBalances(session);
       const mochidamaPreset = currentBalances.mochidama;
+      const hitRemainHint = () => mochidamaPreset !== null
+        ? `今ある持ち玉を台の表示どおりに入力してください。ツールの計算値（${mochidamaPreset.toLocaleString("ja-JP")}玉）と違う分だけ、消費玉を補正します。`
+        : "今ある持ち玉を入力してください（再プレイ分は含めない）。正確な回転率と、当選時点の持ち玉が記録されます。";
       const balancePresetHint = "稼働中の持ち玉残を初期値にしています。台の表示と違う場合は修正してください。";
       openModal("当選ウィザード", "初当たりの瞬間の記録です。大当たり回数・出玉は [ヤメ] でまとめて入力します。", `
         ${machineContextLine(session)}
@@ -5997,7 +6002,7 @@
           <label for="hitWizardRemainBalls">残り持ち玉（実機：台の持ち玉表示）</label>
           <div>
             <input id="hitWizardRemainBalls" inputmode="numeric" value="${escapeHtml(mochidamaPreset ?? "")}">
-            <p class="hint">${mochidamaPreset !== null ? `${balancePresetHint} ` : ""}今ある持ち玉を入力してください（再プレイ分は含めない）。正確な回転率と、当選時点の持ち玉が記録されます。${activeStore()?.isPersonal ? "" : " 非パーソナル店では空欄のままで構いません。"}</p>
+            <p class="hint">${hitRemainHint()}${activeStore()?.isPersonal ? "" : " 非パーソナル店では空欄のままで構いません。"}</p>
           </div>
         </div>
         <div class="modal-actions">
@@ -6008,6 +6013,7 @@
       byId("saveHitWizardBtn").addEventListener("click", () => {
         session.hitSpin = normalizeNumber(byId("hitWizardSpin")?.value);
         session.hitRemainBalls = normalizeNumber(byId("hitWizardRemainBalls")?.value);
+        session.hitTrackedBalls = mochidamaPreset;
         if (!session.hitVia) session.hitVia = session.yutimeEnterBalls !== null ? "yutime" : "normal";
         session.updatedAt = nowIso();
         if (!persistWithToast("当選を記録しました")) return;
@@ -7476,7 +7482,8 @@
         if (!session.settlementRecoverYen) session.settlementRecoverYen = null;
         applyInvestmentTotalAdjustments(session);
         session.hitVia = byId("editHitVia").value || null;
-        session.consumedBallsSource = normalizeConsumedBallsSource(byId("editConsumedBallsSource").value);
+        const consumedBallsSourceSelect = byId("editConsumedBallsSource");
+        if (consumedBallsSourceSelect) session.consumedBallsSource = normalizeConsumedBallsSource(byId("editConsumedBallsSource").value);
         session.labels = [...document.querySelectorAll(".editLabel:checked")].map((input) => input.value);
         session.memo = byId("editMemo").value.trim();
         session.updatedAt = nowIso();
@@ -7487,6 +7494,9 @@
     }
 
     function consumedBallsSourceEditorHtml(session) {
+      if (usesTapInvestmentMode(session) && normalizeNumber(session.hitTrackedBalls) !== null && normalizeNumber(session.yutimeEnterBalls) === null) {
+        return `<p class="hint">通常消費玉はタップ合計と当選時の持ち玉差分で確定しています。</p>`;
+      }
       const selected = normalizeConsumedBallsSource(session.consumedBallsSource);
       return `
         <div class="field-row">
@@ -7587,8 +7597,15 @@
     }
 
     function tapModeNormalConsumedCandidates(session, normalInputBalls = null, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
-      const endBalls = tapModeNormalEndSnapshot(session, hasHit);
       const taps = normalizeNumber(normalInputBalls);
+      const hitTrackedBalls = normalizeNumber(session?.hitTrackedBalls);
+      if (usesTapInvestmentMode(session) && hitTrackedBalls !== null && normalizeNumber(session?.yutimeEnterBalls) === null) {
+        const hitRemainBalls = normalizeNumber(session?.hitRemainBalls);
+        const correction = hitRemainBalls === null ? 0 : hitRemainBalls - hitTrackedBalls;
+        const corrected = taps === null ? null : taps - correction;
+        return { tray: null, taps, corrected, correction, selected: normalizeConsumedBallsSource(session?.consumedBallsSource), fallback: false, divergent: false, threshold: CONSUMED_BALLS_DIVERGENCE_THRESHOLD };
+      }
+      const endBalls = tapModeNormalEndSnapshot(session, hasHit);
       if (endBalls === null) {
         return { tray: null, taps, selected: normalizeConsumedBallsSource(session?.consumedBallsSource), fallback: false, divergent: false, threshold: CONSUMED_BALLS_DIVERGENCE_THRESHOLD };
       }
@@ -7607,6 +7624,7 @@
 
     function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId), candidates = null) {
       const values = candidates || tapModeNormalConsumedCandidates(session, normalInputBalls, hasHit, store);
+      if (values.corrected !== null && values.corrected !== undefined) return values.corrected;
       const selected = normalizeConsumedBallsSource(session?.consumedBallsSource);
       if (values.divergent && selected && values[selected] !== null && values[selected] !== undefined) return values[selected];
       return values.tray !== null && values.tray !== undefined ? values.tray : values.taps;
@@ -7674,6 +7692,8 @@
         consumedBallsCandidates: tapConsumedCandidates && normalSpins !== null ? {
           tray: tapConsumedCandidates.tray !== null ? Math.round(tapConsumedCandidates.tray) : null,
           taps: tapConsumedCandidates.taps !== null ? Math.round(tapConsumedCandidates.taps) : null,
+          corrected: tapConsumedCandidates.corrected !== null && tapConsumedCandidates.corrected !== undefined ? Math.round(tapConsumedCandidates.corrected) : null,
+          correction: tapConsumedCandidates.correction !== null && tapConsumedCandidates.correction !== undefined ? Math.round(tapConsumedCandidates.correction) : null,
           selected: tapConsumedCandidates.selected,
           fallback: tapConsumedCandidates.fallback,
           divergent: tapConsumedCandidates.divergent,
