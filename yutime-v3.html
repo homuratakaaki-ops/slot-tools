@@ -1743,7 +1743,7 @@
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
     const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
-    const EV_THRESHOLDS = { good: 2000, warn: 0 };
+    const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
     const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
     const CONSUMED_BALLS_SOURCE_LABELS = { tray: "台上差", taps: "タップ合計" };
     const AUTO_LABELS = [
@@ -2066,7 +2066,8 @@
         sampleSessionChars: 0,
         mapLayoutChars: 0,
         sampleMachineChars: 0,
-        schemaBudgetNote: "v3 schema 22: ヘソ日次化、スルー/ワープ追加"
+        schemaBudgetNote: "v3 schema 22: ヘソ日次化、スルー/ワープ追加",
+        hourlyThresholdYen: DEFAULT_HOURLY_THRESHOLD_YEN
       }
     });
 
@@ -2492,9 +2493,18 @@
 
     function evJudgment(result) {
       if (!result) return { className: "", label: "未判定" };
-      if (result.evYen >= EV_THRESHOLDS.good) return { className: "good", label: "打てる" };
-      if (result.evYen >= EV_THRESHOLDS.warn) return { className: "warn", label: "微妙" };
+      const threshold = hourlyThresholdYen();
+      const hourly = Number(result.hourlyYen);
+      const hasHourly = Number(result.totalHours) > 0 && Number.isFinite(hourly);
+      // 打てる＝時給がしきい値以上。時給が出せないときは期待値の符号だけで判定する
+      if (hasHourly && hourly >= threshold) return { className: "good", label: "打てる" };
+      if (Number(result.evYen) > 0) return { className: "warn", label: "微妙" };
       return { className: "bad", label: "打てない" };
+    }
+
+    function hourlyThresholdYen() {
+      const value = normalizeNumber(data?.meta?.hourlyThresholdYen);
+      return value === null ? DEFAULT_HOURLY_THRESHOLD_YEN : value;
     }
 
     function expectationYenPerBall(store) {
@@ -2619,7 +2629,9 @@
       const evYen = Number(result.evYen) || 0;
       const machineRate = investYen > 0 ? 100 + evYen / investYen * 100 : null;
       const spinsPerHour = Math.round(Number(result.spinsPerHour) || 0);
-      return `投資 約${investYen.toLocaleString("ja-JP")}円に対し期待値 ${yenText(evYen)}`
+      const threshold = Math.round(hourlyThresholdYen());
+      return `判定基準：時給${threshold.toLocaleString("ja-JP")}円以上で打てる ／ `
+        + `投資 約${investYen.toLocaleString("ja-JP")}円に対し期待値 ${yenText(evYen)}`
         + `（機械割 ${machineRate === null ? "-" : `${machineRate.toFixed(1)}%`} ＝ 期待値÷投資額+100%）`
         + ` ／ 消化時間 ${hourText(result.totalHours)}（通常${hourText(result.normalHours)}＋当選${hourText(result.hitHours)}＋電サポ${hourText(result.densapoHours)}）`
         + ` ／ 通常時${spinsPerHour.toLocaleString("ja-JP")}回転/h想定`;
@@ -2781,7 +2793,7 @@
         dailyState: source.dailyState && typeof source.dailyState === "object" ? source.dailyState : {},
         presetSettings: source.presetSettings && typeof source.presetSettings === "object" ? source.presetSettings : {},
         labelsByStore: source.labelsByStore && typeof source.labelsByStore === "object" ? source.labelsByStore : {},
-        meta: { ...base.meta, ...(source.meta || {}) }
+        meta: { ...base.meta, ...(source.meta || {}), hourlyThresholdYen: normalizeNumber(source.meta?.hourlyThresholdYen) ?? DEFAULT_HOURLY_THRESHOLD_YEN }
       };
       const sourceVersion = normalizeNumber(source.version) ?? 0;
       next.version = SCHEMA_VERSION;
@@ -3524,6 +3536,8 @@
         <div class="field-row"><label for="quickYutimeBallsPerSpin">遊タイム（玉/回転）</label><input id="quickYutimeBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetYutimeBallsPerSpin(presetId))}"></div>
         <div class="field-row"><label for="quickHoldSpins">時短抜け後の残保留（回転）</label><input id="quickHoldSpins" inputmode="numeric" value="${escapeHtml(presetHoldSpins(presetId))}"></div>
         <p class="hint">時短が終わったあと玉代ゼロで回る保留の数。通常4〜5。0で考慮しない。</p>
+        <div class="field-row"><label for="quickHourlyThreshold">「打てる」判定の時給ライン（円）</label><input id="quickHourlyThreshold" inputmode="numeric" value="${escapeHtml(Math.round(hourlyThresholdYen()))}"></div>
+        <p class="hint">打てる判定の時給ライン。スロ機械割105%相当＝約2,400円が目安。全機種・全店共通の値です。</p>
         <p class="hint">獲得出玉は大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）です。空欄または0以下なら手入力上書きを解除し、実測平均・ラウンド集計・理論値の順で自動採用します。${supportHint}</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
@@ -3545,6 +3559,8 @@
         data.presetSettings[presetId].jitanFastBallsPerSpin = normalizeNumber(byId("quickJitanFastBallsPerSpin").value) ?? 0;
         data.presetSettings[presetId].yutimeBallsPerSpin = normalizeNumber(byId("quickYutimeBallsPerSpin").value) ?? 0;
         data.presetSettings[presetId].holdSpins = Math.max(0, normalizeNumber(byId("quickHoldSpins").value) ?? 0);
+        if (!data.meta) data.meta = {};
+        data.meta.hourlyThresholdYen = normalizeNumber(byId("quickHourlyThreshold").value) ?? DEFAULT_HOURLY_THRESHOLD_YEN;
         if (!persistWithToast("保存しました")) return;
         closeModal();
         renderAll();
@@ -3693,7 +3709,7 @@
     function mapExpectationSign(machine, stats, closing) {
       if (!closing) return null;
       const expectation = calculateMachineExpectation(machine, { currentSpin: 0, previousSpin: closing.spin, stats });
-      if (!expectation.result || expectation.result.evYen < EV_THRESHOLDS.good) return null;
+      if (!expectation.result || evJudgment(expectation.result).className !== "good") return null;
       return { good: true, assumed: Boolean(expectation.rateAssumed) };
     }
 

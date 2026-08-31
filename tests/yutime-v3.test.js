@@ -565,7 +565,13 @@ assert.match(yutimeExpectationEngine, /const winBallsYen = winBalls \* merged\.y
 assert.match(yutimeExpectationEngine, /const evYen = winBallsYen - normalCostYen;/);
 const expectationContext = vm.createContext({
   DEFAULT_NET_BALLS_PER_WIN: 1400,
-  EV_THRESHOLDS: { good: 2000, warn: 0 },
+  DEFAULT_HOURLY_THRESHOLD_YEN: 2400,
+  data: { meta: {} },
+  normalizeNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
   window: {}
 });
 new vm.Script(`
@@ -611,6 +617,26 @@ assert.ok(Math.abs(nonEqualWithBallsResult.normalCostYen - 14236.6) < 0.2, '434 
 assert.ok(Math.abs(nonEqualWithBallsResult.evYen - (nonEqualWithBallsResult.winBallsYen - nonEqualWithBallsResult.normalCostYen)) < 0.000001);
 assert.ok(Math.abs(nonEqualAllBallsResult.normalCostYen - nonEqualAllBallsResult.investBalls * (100 / 28)) < 0.000001, 'large available balls should value all investment at exchange rate');
 assert.equal(expectationContext.judge(nonEqualExchangeResult).label, '打てない');
+// B93: 判定は期待値の絶対額ではなく時給で決まる（検算例5ケース）
+const judgeCase = (evYen, hourlyYen) => expectationContext.judge({ evYen, hourlyYen, totalHours: 1 }).label;
+expectationContext.data.meta = {};
+assert.equal(judgeCase(1293, 2576), '打てる');
+assert.equal(judgeCase(2547, 1908), '微妙');
+assert.equal(judgeCase(543, 373), '微妙');
+assert.equal(judgeCase(-2618, -1683), '打てない');
+expectationContext.data.meta = { hourlyThresholdYen: 1800 };
+assert.equal(judgeCase(2547, 1908), '打てる');
+expectationContext.data.meta = {};
+// 時給が出せないときは期待値の符号だけで判定する
+assert.equal(expectationContext.judge({ evYen: 2547, hourlyYen: 0, totalHours: 0 }).label, '微妙');
+assert.equal(expectationContext.judge({ evYen: -100, hourlyYen: 0, totalHours: 0 }).label, '打てない');
+assert.equal(expectationContext.judge({ evYen: 0, hourlyYen: 0, totalHours: 1 }).label, '打てない');
+assert.equal(expectationContext.judge(null).label, '未判定');
+assert.ok(html.includes('const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;'));
+assert.ok(!html.includes('EV_THRESHOLDS'));
+assert.ok(html.includes('判定基準：時給'));
+assert.ok(html.includes('id="quickHourlyThreshold"'));
+assert.ok(html.includes('data.meta.hourlyThresholdYen ='));
 assert.ok(Math.abs(equalExchangeResult.expectedDensapoSpins - (equalExchangeResult.expectedJitanNormalSpins + equalExchangeResult.expectedJitanFastSpins + equalExchangeResult.expectedYutimeSpins)) < 0.000001, 'split support spins should add up to legacy total');
 const legacyFastWithYutimeSpins = equalExchangeResult.pHit * equalExchangeResult.chains.jitanFastInit
   + equalExchangeResult.pReach * (expectationContext.engine.finiteExpectedSpins(expectationContext.engine.preset.spec.hitProb, expectationContext.engine.preset.spec.yutimeJitan) + equalExchangeResult.chains.r350 * equalExchangeResult.chains.jitanFastJitanHit);
@@ -2508,6 +2534,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
   const SCHEMA_VERSION = 29;
+  const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
   const DEFAULT_NET_BALLS_PER_WIN = 1400;
