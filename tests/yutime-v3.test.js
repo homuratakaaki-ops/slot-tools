@@ -84,6 +84,7 @@ const presetSettingsHelpers = section('function presetNetBallsPerWin', 'function
 const availableBallsHelpers = section('function availableBallsFromParts', 'function calculateMachineExpectation');
 const expectationRateBlock = section('function expectationRate', 'function availableBallsFromParts');
 const roundCountFromRoundTypeBlock = section('function roundCountFromRoundType', 'function transferYenText');
+const tapModeConsumedBlock = section('function tapModeNormalEndSnapshot', 'function deriveSession');
 
 assert.doesNotMatch(hitWizard, /runWizard\(/);
 assert.match(hitWizard, /openModal\("当選ウィザード"/);
@@ -1453,45 +1454,7 @@ new vm.Script(`
     return (item.source || item.type) === "cash" ? Number(item.amount || 0) / 4 : Number(item.amount || 0);
   }
   function usesTapInvestmentMode() { return true; }
-  function tapModeNormalEndSnapshot(session, hasHit = Number(session?.hitCount || 0) > 0) {
-    const yutimeBalls = normalizeNumber(session?.yutimeEnterBalls);
-    if (yutimeBalls !== null) return yutimeBalls;
-    if (!hasHit) return null;
-    return normalizeNumber(session?.hitRemainBalls);
-  }
-  function tapModeNormalBaselineBalls(session, store = storeById(session?.storeId)) {
-    const normalExtraBalls = normalRateInvestments(session)
-      .filter((item) => investmentSource(item) !== "mochidama")
-      .reduce((sum, item) => sum + investmentToBalls(item, store), 0);
-    return Number(session?.startMochidama || 0) + normalExtraBalls;
-  }
-  function tapModeNormalConsumptionFallback(session, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
-    return tapModeNormalConsumedCandidates(session, null, hasHit, store).fallback;
-  }
-  function tapModeNormalConsumedCandidates(session, normalInputBalls = null, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
-    const endBalls = tapModeNormalEndSnapshot(session, hasHit);
-    const taps = normalizeNumber(normalInputBalls);
-    if (endBalls === null) {
-      return { tray: null, taps, selected: normalizeConsumedBallsSource(session?.consumedBallsSource), fallback: false, divergent: false, threshold: CONSUMED_BALLS_DIVERGENCE_THRESHOLD };
-    }
-    const baselineBalls = tapModeNormalBaselineBalls(session, store);
-    const tray = baselineBalls >= endBalls ? baselineBalls - endBalls : null;
-    const divergent = tray !== null && taps !== null && Math.abs(tray - taps) >= CONSUMED_BALLS_DIVERGENCE_THRESHOLD;
-    return {
-      tray,
-      taps,
-      selected: normalizeConsumedBallsSource(session?.consumedBallsSource),
-      fallback: baselineBalls < endBalls,
-      divergent,
-      threshold: CONSUMED_BALLS_DIVERGENCE_THRESHOLD
-    };
-  }
-  function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId), candidates = null) {
-    const values = candidates || tapModeNormalConsumedCandidates(session, normalInputBalls, hasHit, store);
-    const selected = normalizeConsumedBallsSource(session?.consumedBallsSource);
-    if (values.divergent && selected && values[selected] !== null && values[selected] !== undefined) return values[selected];
-    return values.tray !== null && values.tray !== undefined ? values.tray : values.taps;
-  }
+  ${tapModeConsumedBlock}
   ${runningPanelInputBallsBlock}
   ${runningRateHelpers}
   function normalizeMachinePresetId() { return ""; }
