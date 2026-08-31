@@ -1,0 +1,848 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>実戦記録</title>
+<style>
+:root{
+  --bg:#0F0E0C; --panel:#191713; --panel2:#221F19; --line:#332E25;
+  --ink:#F2ECE1; --dim:#948A7C; --accent:#D9A441; --accent2:#8B6C22;
+  --hot:#E0574A; --cool:#4FA3D9; --ok:#69C08A; --lcd:#C9A96E;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:-apple-system,"Hiragino Sans","Noto Sans JP","Yu Gothic UI",sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;overflow-x:hidden}
+button{font-family:var(--sans);cursor:pointer;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:14px}
+button:active{filter:brightness(1.35)}
+input,textarea{width:100%;background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:16px;font-family:var(--sans)}
+textarea{min-height:80px;resize:vertical}
+.hide{display:none!important}
+
+.shell{max-width:520px;margin:0 auto;padding:8px 10px 20px}
+.hd{display:flex;align-items:center;gap:8px;padding:4px 2px 8px;border-bottom:1px solid var(--line)}
+.hd .t{flex:1;font-size:15px;font-weight:700;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hd .x{width:44px;height:38px;font-size:18px;color:var(--dim)}
+
+.badges{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 0;min-height:20px}
+.badge{font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--dim)}
+.badge.on{background:rgba(217,164,65,.16);border-color:var(--accent);color:var(--accent)}
+.badge.hit{background:rgba(224,87,74,.16);border-color:var(--hot);color:var(--hot)}
+.badge.zen{background:rgba(79,163,217,.16);border-color:var(--cool);color:var(--cool)}
+
+.cnts{display:flex;gap:6px;margin-top:8px}
+.cnt{flex:1;padding:8px 4px;text-align:center;background:var(--panel);border:1px solid var(--line);border-radius:10px}
+.cnt span{display:block;font-size:11px;color:var(--dim)}
+.cnt b{display:block;font-family:var(--mono);font-size:26px;font-weight:700;line-height:1.15}
+.cnt.lcd b{color:var(--lcd)}
+
+.mrow{display:flex;gap:6px;margin-top:6px}
+.mpill{flex:1;padding:7px 8px;background:var(--panel);border:1px solid var(--line);border-radius:10px;text-align:center;font-size:12px;color:var(--dim)}
+.mpill b{font-family:var(--mono);font-size:15px;color:var(--ink);margin-left:4px}
+.mpill .sub{display:block;font-family:var(--mono);font-size:10px;color:var(--dim);margin-top:1px}
+
+.r3{display:flex;gap:6px;margin-top:6px}
+.r3 button{flex:1;padding:11px 0;font-weight:600}
+.r3 .danger{background:rgba(224,87,74,.14);border-color:#5C2B26;color:#F0968C}
+
+.r5{display:flex;gap:5px;margin-top:6px}
+.r5 button{flex:1;padding:12px 0;font-weight:700;font-family:var(--mono);font-size:15px}
+.r5 .undo{font-family:var(--sans);font-size:12px;font-weight:600;color:var(--dim)}
+
+.grid{margin-top:8px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.grow{display:flex;gap:6px;margin-bottom:6px}
+.grow:last-child{margin-bottom:0}
+.grow button{flex:1;padding:14px 2px;font-weight:700;font-size:14px;line-height:1.25}
+.grow .pri{background:rgba(217,164,65,.14);border-color:var(--accent2);color:var(--accent)}
+.grow .hot{background:rgba(224,87,74,.14);border-color:#5C2B26;color:#F0968C}
+
+.rc{display:flex;gap:5px;margin-top:6px}
+.rcv{flex:1;text-align:center;padding:5px 2px;background:var(--panel2);border:1px solid var(--line);border-radius:8px;font-size:11px;color:var(--dim)}
+.rcv b{display:block;font-family:var(--mono);font-size:16px;color:var(--ink)}
+.rcv.sw{flex:0 0 46px;border-color:var(--accent2);color:var(--accent)}
+.rcv.sw b{color:var(--accent);font-family:var(--sans);font-size:14px}
+
+.log{margin-top:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.log .lg{display:flex;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);align-items:baseline;font-size:13px}
+.log .lg:last-child{border-bottom:none}
+.log .tm{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none;width:34px}
+.log .gs{font-family:var(--mono);font-size:11px;color:var(--lcd);flex:none;width:52px;text-align:right}
+.log .tx{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.log .more{width:100%;border:none;border-radius:0;padding:9px;font-size:12px;color:var(--dim);background:var(--panel2)}
+.log .empty{padding:16px;text-align:center;color:var(--dim);font-size:13px}
+
+.wide{width:100%;padding:12px;margin-top:6px;font-weight:600}
+.wide.dim{color:var(--dim)}
+
+/* sheet */
+.sheet{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.62);display:none;align-items:flex-end}
+.sheet.open{display:flex}
+.sheet .pane{width:100%;max-width:520px;margin:0 auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;max-height:88vh;display:flex;flex-direction:column}
+.sheet .sh{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.sheet .sh .st{flex:1;font-weight:700}
+.sheet .sb{padding:12px 14px 24px;overflow-y:auto}
+.sheet .sb .lbl{font-size:12px;color:var(--dim);margin:12px 0 6px}
+.sheet .sb .lbl:first-child{margin-top:0}
+.opts{display:flex;flex-wrap:wrap;gap:6px}
+.opts button{flex:1 0 calc(33.33% - 4px);padding:13px 2px;font-weight:700}
+.opts button.q4{flex:1 0 calc(25% - 5px)}
+.opts button.on{background:var(--accent);border-color:var(--accent);color:#1A1509}
+.sheet .go{width:100%;padding:14px;margin-top:14px;background:var(--accent);border-color:var(--accent);color:#1A1509;font-weight:700;font-size:15px}
+.sheet .sub{width:100%;padding:11px;margin-top:8px;color:var(--dim)}
+.hint{font-size:12px;color:var(--dim);margin-top:8px;line-height:1.5}
+
+/* keypad */
+.kp{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:none;align-items:flex-end}
+.kp.open{display:flex}
+.kp .pane{width:100%;max-width:520px;margin:0 auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;padding-bottom:18px}
+.kp .disp{font-family:var(--mono);font-size:32px;font-weight:700;text-align:right;padding:14px 18px;border-bottom:1px solid var(--line)}
+.kp .keys{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:12px 12px 0}
+.kp .keys button{padding:16px 0;font-family:var(--mono);font-size:20px;font-weight:700}
+.kp .acts{display:flex;gap:6px;padding:10px 12px 0}
+.kp .acts button{flex:1;padding:14px 0;font-weight:700}
+.kp .acts .ok{background:var(--accent);border-color:var(--accent);color:#1A1509}
+
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#2C2720;border:1px solid var(--line);color:var(--ink);padding:10px 18px;border-radius:999px;font-size:13px;z-index:70;opacity:0;pointer-events:none;transition:opacity .18s}
+.toast.on{opacity:1}
+
+.setup{padding:14px 0}
+.setup .lbl{font-size:12px;color:var(--dim);margin:12px 0 6px}
+.setup .lbl:first-child{margin-top:0}
+.setup .two{display:flex;gap:8px}
+.setup .two>div{flex:1}
+.num{font-family:var(--mono);text-align:right}
+.recent{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.recent button{padding:7px 11px;font-size:13px;color:var(--dim)}
+.err{color:var(--hot);font-size:12px;margin-top:8px}
+.note{white-space:pre-wrap;font-family:var(--mono);font-size:12px;line-height:1.6}
+.sess{border:1px solid var(--line);border-radius:10px;margin:8px 0;overflow:hidden}
+.sess>summary{padding:11px 12px;background:var(--panel);cursor:pointer;list-style:none;display:flex;gap:8px;align-items:baseline}
+.sess>summary::-webkit-details-marker{display:none}
+.sess .sm{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none}
+.sess .sn{font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sess .pl{font-family:var(--mono);font-size:12px;font-weight:700}
+.sess .body{padding:10px 12px;background:var(--bg);border-top:1px solid var(--line)}
+.warn{background:#3A2A16;color:#F0D9A8;font-size:12px;padding:8px 12px;text-align:center;border-radius:8px;margin-top:8px}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <div class="hd">
+    <div class="t" id="hdTitle">実戦記録</div>
+    <button class="x" id="hdMenu">≡</button>
+  </div>
+  <div id="storeWarn" class="warn hide">保存できません。閉じる前に必ず書き出してください。</div>
+
+  <!-- ===== セットアップ ===== -->
+  <section id="scSetup" class="setup hide">
+    <div class="lbl">機種</div>
+    <input id="stMachine" placeholder="機種名" autocomplete="off">
+    <div class="recent" id="stRecent"></div>
+
+    <div class="lbl">レート（1000円で何枚）</div>
+    <div class="opts">
+      <button class="q4" data-lend="46">46</button>
+      <button class="q4" data-lend="47">47</button>
+      <button class="q4" data-lend="50">50</button>
+      <button class="q4" data-lend="52">52</button>
+    </div>
+    <input id="stLend" class="num" inputmode="numeric" style="margin-top:6px" placeholder="52">
+
+    <div class="two" style="margin-top:12px">
+      <div><div class="lbl">開始 実G</div><input id="stRealG" class="num" inputmode="numeric" placeholder="0"></div>
+      <div><div class="lbl">開始 液晶G</div><input id="stLcdG" class="num" inputmode="numeric" placeholder="0"></div>
+    </div>
+    <div class="two" style="margin-top:12px">
+      <div><div class="lbl">持ちメダル</div><input id="stMedal" class="num" inputmode="numeric" placeholder="0"></div>
+      <div><div class="lbl">再プレイ</div><input id="stReplay" class="num" inputmode="numeric" placeholder="0"></div>
+    </div>
+
+    <div class="lbl">打ち始めのメモ</div>
+    <textarea id="stNote" placeholder="リセット / 3スルー など" style="min-height:60px"></textarea>
+
+    <div class="err hide" id="stErr"></div>
+    <button class="go wide" id="stStart" style="background:var(--accent);border-color:var(--accent);color:#1A1509;font-weight:700;padding:15px;margin-top:16px">打ち始める</button>
+  </section>
+
+  <!-- ===== 記録 ===== -->
+  <section id="scMain" class="hide">
+    <div class="badges" id="badges"></div>
+
+    <div class="cnts">
+      <button class="cnt" data-cnt="realG"><span>実G</span><b id="cRealG">0</b></button>
+      <button class="cnt lcd" data-cnt="lcdG"><span>液晶G</span><b id="cLcdG">0</b></button>
+      <button class="cnt" data-cnt="cycle"><span>周期</span><b id="cCycle">0</b></button>
+    </div>
+
+    <div class="mrow">
+      <div class="mpill">投資<b id="mCash">0円</b></div>
+      <div class="mpill">差枚<b id="mDiff">−</b><span class="sub" id="mDiffSub"></span></div>
+    </div>
+
+    <div class="r3">
+      <button class="danger" id="bMinus">−1000</button>
+      <button id="bDeposit">入金</button>
+      <button id="bCredit">残数調整</button>
+    </div>
+
+    <div class="r5">
+      <button data-step="1">+1</button>
+      <button data-step="3">+3</button>
+      <button data-step="5">+5</button>
+      <button data-step="10">+10</button>
+      <button class="undo" id="bStepUndo">元に戻す</button>
+    </div>
+
+    <div class="grid">
+      <div class="grow">
+        <button class="pri" id="bLcdAdd">液晶上乗せ</button>
+        <button class="pri" id="bRare">レア役</button>
+        <button class="hot" id="bHit">当選</button>
+      </div>
+      <div class="grow">
+        <button id="bZenchou">前兆</button>
+        <button id="bCycleUp">周期 +1</button>
+        <button id="bMemo">メモ</button>
+      </div>
+      <div class="rc" id="rareCounts"></div>
+    </div>
+
+    <div class="log" id="log"></div>
+
+    <button class="wide dim" id="bUndo">直前を取り消す</button>
+    <button class="wide" id="bUtil">投資・回収・出力</button>
+  </section>
+
+  <!-- ===== ノート ===== -->
+  <section id="scNote" class="hide">
+    <div style="display:flex;gap:6px;margin-top:12px">
+      <button class="wide" id="nExpText" style="margin:0">テキスト</button>
+      <button class="wide" id="nExpJson" style="margin:0">JSON</button>
+      <button class="wide" id="nDl" style="margin:0">保存</button>
+    </div>
+    <button class="wide dim" id="nImpOpen">JSONを取り込む</button>
+    <div id="nList"></div>
+  </section>
+</div>
+
+<!-- sheet -->
+<div class="sheet" id="sheet"><div class="pane">
+  <div class="sh"><div class="st" id="shTitle">入力</div><button id="shClose" style="padding:8px 14px">閉じる</button></div>
+  <div class="sb" id="shBody"></div>
+</div></div>
+
+<!-- keypad -->
+<div class="kp" id="kp"><div class="pane">
+  <div class="sh"><div class="st" id="kpTitle">数値</div><button id="kpX" style="padding:8px 14px">キャンセル</button></div>
+  <div class="disp" id="kpDisp">0</div>
+  <div class="keys" id="kpKeys"></div>
+  <div class="acts">
+    <button id="kpClear">C</button>
+    <button id="kpBack">⌫</button>
+    <button class="ok" id="kpOk">決定</button>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+const KEY="slot-tools-rec";
+const RARES=[{k:"melon",l:"🍉"},{k:"cherry",l:"🍒"},{k:"chance",l:"チャンス目"},{k:"other",l:"その他"}];
+const HITS=["BIG","REG","CZ","AT"];
+const LCD_ADDS=[10,20,30,50,100];
+const DEF_LEND=46;
+
+let S={version:1,settings:{lend:DEF_LEND,lcdAdds:LCD_ADDS.slice()},sessions:[],cur:null};
+let saveOK=true, logOpen=false, rareView="w";
+
+const el=i=>document.getElementById(i);
+const pad=n=>String(n).padStart(2,"0");
+const nowISO=()=>new Date().toISOString();
+const hm=s=>{const d=new Date(s);return pad(d.getHours())+":"+pad(d.getMinutes())};
+const ymd=s=>{const d=new Date(s);return d.getFullYear()+"/"+pad(d.getMonth()+1)+"/"+pad(d.getDate())};
+const wd=s=>"日月火水木金土"[new Date(s).getDay()];
+const int=v=>{const n=parseInt(String(v).replace(/[^0-9-]/g,""),10);return isNaN(n)?null:n};
+const yen=n=>n.toLocaleString("ja-JP");
+const sgn=n=>(n>0?"+":"")+yen(n);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const sum=a=>(a||[]).reduce((x,y)=>x+y.amount,0);
+
+function toast(m){const t=el("toast");t.textContent=m;t.classList.add("on");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("on"),1400)}
+
+/* ---------- 保存 ---------- */
+function load(){try{const r=localStorage.getItem(KEY);if(r){const d=JSON.parse(r);if(d&&d.sessions){S=d;if(!S.settings)S.settings={};if(!S.settings.lend)S.settings.lend=DEF_LEND;if(!Array.isArray(S.settings.lcdAdds))S.settings.lcdAdds=LCD_ADDS.slice();}}}catch(e){}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));if(!saveOK){saveOK=true;el("storeWarn").classList.add("hide")}}catch(e){saveOK=false;el("storeWarn").classList.remove("hide")}}
+
+/* ---------- シート ---------- */
+function sheet(title,build){
+  el("shTitle").textContent=title;
+  const b=el("shBody"); b.innerHTML="";
+  build(b);
+  el("sheet").classList.add("open");
+}
+function closeSheet(){el("sheet").classList.remove("open")}
+el("shClose").addEventListener("click",closeSheet);
+el("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet()});
+
+function mk(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e}
+function optRow(items,onPick,quarter){
+  const w=mk("div","opts");
+  items.forEach(it=>{
+    const b=mk("button",quarter?"q4":"",it.l!=null?it.l:it);
+    b.addEventListener("click",()=>onPick(it,b,w));
+    w.append(b);
+  });
+  return w;
+}
+
+/* ---------- テンキー ---------- */
+let kpCb=null,kpVal="";
+(function(){
+  const k=el("kpKeys");
+  ["7","8","9","4","5","6","1","2","3","00","0","-"].forEach(n=>{
+    const b=mk("button","",n);
+    b.addEventListener("click",()=>{
+      if(n==="-"){kpVal=kpVal.startsWith("-")?kpVal.slice(1):"-"+kpVal}
+      else{kpVal=(kpVal==="0"?"":kpVal)+n}
+      el("kpDisp").textContent=kpVal||"0";
+    });
+    k.append(b);
+  });
+})();
+el("kpClear").addEventListener("click",()=>{kpVal="";el("kpDisp").textContent="0"});
+el("kpBack").addEventListener("click",()=>{kpVal=kpVal.slice(0,-1);el("kpDisp").textContent=kpVal||"0"});
+el("kpX").addEventListener("click",()=>el("kp").classList.remove("open"));
+el("kpOk").addEventListener("click",()=>{
+  const v=int(kpVal); el("kp").classList.remove("open");
+  if(kpCb)kpCb(v===null?0:v);
+});
+function askNum(title,init,cb){
+  el("kpTitle").textContent=title;
+  kpVal=(init==null||init===0)?"":String(init);
+  el("kpDisp").textContent=kpVal||"0";
+  kpCb=cb; el("kp").classList.add("open");
+}
+
+/* ---------- 記録 ---------- */
+function push(type,text,extra){
+  const c=S.cur;
+  const ev={id:uid(),at:nowISO(),type,text,realG:c.realG,lcdG:c.lcdG,cycle:c.cycle};
+  if(extra)Object.assign(ev,extra);
+  c.events.push(ev); save(); render();
+}
+
+/* ---------- 描画 ---------- */
+function render(){renderBadges();renderCounters();renderMoney();renderRare();renderLog()}
+
+function renderBadges(){
+  const c=S.cur,b=el("badges");b.innerHTML="";
+  const st=mk("div","badge on",c.hit?c.hit.type+"中":"通常時");
+  b.append(st);
+  if(c.zenchou){const z=mk("div","badge zen","前兆");z.addEventListener("click",endZenchou);b.append(z)}
+  if(c.hit){const h=mk("div","badge hit",c.hit.type+" 終了");h.addEventListener("click",endHit);b.append(h)}
+}
+function renderCounters(){
+  el("cRealG").textContent=S.cur.realG;
+  el("cLcdG").textContent=S.cur.lcdG;
+  el("cCycle").textContent=S.cur.cycle;
+}
+function renderMoney(){
+  const c=S.cur,m=c.money;
+  el("mCash").textContent=yen(sum(m.cash))+"円";
+  if(m.credit==null){el("mDiff").textContent="−";el("mDiffSub").textContent=""}
+  else{
+    const bought=Math.round(sum(m.cash)/1000*c.lend);
+    const d=(m.credit+m.startReplay*0)-(m.startMedal+m.startReplay)-bought+m.startReplay;
+    const diff=m.credit-(m.startMedal+m.startReplay)-bought;
+    el("mDiff").textContent=sgn(diff)+"枚";
+    el("mDiffSub").textContent="現"+m.credit+" −始"+(m.startMedal+m.startReplay)+" −買"+bought;
+  }
+}
+function renderRare(){
+  const w=el("rareCounts");w.innerHTML="";
+  const tg=mk("button","rcv sw");
+  tg.append(mk("span","","表示"),mk("b","",rareView==="s"?"強":"弱"));
+  tg.addEventListener("click",()=>{rareView=rareView==="s"?"w":"s";renderRare()});
+  w.append(tg);
+  RARES.forEach(r=>{
+    const d=mk("div","rcv");
+    d.append(mk("span","",r.l),mk("b","",String(S.cur.rare[r.k][rareView]||0)));
+    w.append(d);
+  });
+}
+function renderLog(){
+  const w=el("log"),evs=S.cur.events;
+  w.innerHTML="";
+  if(!evs.length){w.append(mk("div","empty","まだ記録がありません"));return}
+  const list=evs.slice().reverse().slice(0,logOpen?evs.length:3);
+  list.forEach(ev=>{
+    const r=mk("div","lg");
+    r.append(mk("div","tm",hm(ev.at)));
+    r.append(mk("div","gs",(ev.lcdG!=null?ev.lcdG:"")+""));
+    r.append(mk("div","tx",ev.text));
+    r.addEventListener("click",()=>editEvent(ev.id));
+    w.append(r);
+  });
+  if(evs.length>3){
+    const b=mk("button","more",logOpen?"閉じる":"すべて見る（"+evs.length+"件）");
+    b.addEventListener("click",()=>{logOpen=!logOpen;renderLog()});
+    w.append(b);
+  }
+}
+
+/* ---------- カウンター操作 ---------- */
+document.querySelectorAll("[data-cnt]").forEach(b=>b.addEventListener("click",()=>{
+  const k=b.dataset.cnt;
+  const name={realG:"実G",lcdG:"液晶G",cycle:"周期"}[k];
+  askNum(name,S.cur[k],v=>{S.cur[k]=Math.max(0,v);save();render()});
+}));
+document.querySelectorAll("[data-step]").forEach(b=>b.addEventListener("click",()=>{
+  const n=+b.dataset.step;
+  S.cur.realG+=n; S.cur.lcdG+=n;
+  S.cur._steps=S.cur._steps||[]; S.cur._steps.push(n);
+  save(); renderCounters();
+}));
+el("bStepUndo").addEventListener("click",()=>{
+  const st=S.cur._steps;
+  if(!st||!st.length){toast("戻せる操作がありません");return}
+  const n=st.pop(); S.cur.realG=Math.max(0,S.cur.realG-n); S.cur.lcdG=Math.max(0,S.cur.lcdG-n);
+  save(); renderCounters();
+});
+el("bCycleUp").addEventListener("click",()=>{
+  S.cur.cycle++; push("cycle","周期 "+S.cur.cycle+"に加算");
+});
+
+/* ---------- 液晶上乗せ ---------- */
+el("bLcdAdd").addEventListener("click",()=>{
+  sheet("液晶ゲーム数 上乗せ",b=>{
+    b.append(mk("div","lbl","上乗せ数"));
+    b.append(optRow(S.settings.lcdAdds.map(n=>({l:"+"+n,v:n})),it=>{
+      S.cur.lcdG+=it.v; push("lcdAdd","液晶 +"+it.v); closeSheet(); toast("液晶 +"+it.v);
+    },true));
+    const free=mk("button","sub","数値を入れて上乗せ");
+    free.addEventListener("click",()=>{closeSheet();askNum("上乗せ数",0,v=>{
+      if(!v)return; S.cur.lcdG+=v; push("lcdAdd","液晶 +"+v); toast("液晶 +"+v);
+    })});
+    b.append(free);
+    b.append(mk("div","lbl","ボタンの数を増やす／減らす"));
+    const cur=mk("div","hint","今のボタン："+S.settings.lcdAdds.join(" / "));
+    b.append(cur);
+    const addBtn=mk("button","sub","ボタンを追加");
+    addBtn.addEventListener("click",()=>{closeSheet();askNum("追加するボタンの数",0,v=>{
+      if(!v||S.settings.lcdAdds.includes(v))return;
+      S.settings.lcdAdds.push(v); S.settings.lcdAdds.sort((a,b)=>a-b); save(); toast("+"+v+" を追加");
+    })});
+    const delBtn=mk("button","sub","ボタンを削除");
+    delBtn.addEventListener("click",()=>{
+      sheet("削除するボタン",bb=>{
+        bb.append(optRow(S.settings.lcdAdds.map(n=>({l:"+"+n,v:n})),it=>{
+          S.settings.lcdAdds=S.settings.lcdAdds.filter(x=>x!==it.v); save(); closeSheet(); toast("削除しました");
+        },true));
+      });
+    });
+    b.append(addBtn,delBtn);
+  });
+});
+
+/* ---------- レア役 ---------- */
+let rareStrong=false;
+el("bRare").addEventListener("click",()=>{
+  rareStrong=(rareView==="s");
+  sheet("レア役",b=>{
+    b.append(mk("div","lbl","強弱"));
+    const sw=mk("div","opts");
+    [{l:"弱／なし",v:false},{l:"強",v:true}].forEach(o=>{
+      const btn=mk("button","",o.l);
+      if(o.v===rareStrong)btn.classList.add("on");
+      btn.addEventListener("click",()=>{rareStrong=o.v;sw.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")});
+      sw.append(btn);
+    });
+    b.append(sw);
+    b.append(mk("div","lbl","引いた役"));
+    b.append(optRow(RARES.map(r=>({l:r.l,k:r.k})),it=>{
+      const slot=rareStrong?"s":"w";
+      const cell=S.cur.rare[it.k];
+      cell[slot]=(cell[slot]||0)+1;
+      const lab=(rareStrong?"強":"")+RARES.find(r=>r.k===it.k).l;
+      rareView=slot;
+      push("rare",lab+"  ("+cell[slot]+"回目)",{rareKey:it.k,slot,strong:rareStrong});
+      closeSheet();
+    },true));
+
+    b.append(mk("div","lbl","回数をリセット（弱）"));
+    b.append(resetRow("w"));
+    b.append(mk("div","lbl","回数をリセット（強）"));
+    b.append(resetRow("s"));
+    const all=mk("button","sub","すべて0に戻す");
+    all.addEventListener("click",()=>{
+      RARES.forEach(r=>{S.cur.rare[r.k]={w:0,s:0}});
+      rareView="w";
+      push("rareReset","レア役 全リセット"); closeSheet(); toast("すべて0に");
+    });
+    b.append(all);
+  });
+});
+function resetRow(slot){
+  const w=mk("div","opts");
+  RARES.forEach(r=>{
+    const n=S.cur.rare[r.k][slot]||0;
+    const btn=mk("button","q4",r.l+" "+n);
+    btn.addEventListener("click",()=>{
+      S.cur.rare[r.k][slot]=0;
+      rareView=slot;
+      push("rareReset",(slot==="s"?"強":"")+r.l+" 回数リセット");
+      closeSheet(); toast((slot==="s"?"強":"")+r.l+" を0に");
+    });
+    w.append(btn);
+  });
+  return w;
+}
+
+/* ---------- 当選 ---------- */
+el("bHit").addEventListener("click",()=>{
+  if(S.cur.hit){endHit();return}
+  sheet("当選",b=>{
+    b.append(mk("div","lbl","種別"));
+    b.append(optRow(HITS.map(h=>({l:h})),it=>{
+      S.cur.hit={type:it.l,at:nowISO(),realG:S.cur.realG,lcdG:S.cur.lcdG,cycle:S.cur.cycle};
+      push("hitStart",it.l+" 当選");
+      closeSheet(); toast(it.l+" 開始");
+    },true));
+  });
+});
+function endHit(){
+  const h=S.cur.hit; if(!h)return;
+  let memo="", reset=null;
+  sheet(h.type+" 終了",b=>{
+    b.append(mk("div","lbl","終了時のメモ（終了画面・示唆・キャラなど）"));
+    const ta=mk("textarea"); ta.placeholder="例：鳴海、なし、フウ屋敷";
+    ta.addEventListener("input",()=>memo=ta.value);
+    b.append(ta);
+    b.append(mk("div","lbl","周期をリセットしますか（今 "+S.cur.cycle+"）"));
+    const rw=mk("div","opts");
+    [{l:"0に戻す",v:true},{l:"そのまま",v:false}].forEach(o=>{
+      const btn=mk("button","",o.l);
+      btn.addEventListener("click",()=>{reset=o.v;rw.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")});
+      rw.append(btn);
+    });
+    b.append(rw);
+    b.append(mk("div","hint","液晶Gを0に戻す場合は、上の液晶Gをタップして直してください。"));
+    const go=mk("button","go",h.type+" を終了する");
+    go.addEventListener("click",()=>{
+      if(reset===null){toast("周期の扱いを選んでください");return}
+      if(reset)S.cur.cycle=0;
+      S.cur.hit=null;
+      push("hitEnd",h.type+" 終了"+(memo?"："+memo:"")+(reset?"　周期リセット":""));
+      closeSheet();
+    });
+    b.append(go);
+  });
+}
+
+/* ---------- 前兆 ---------- */
+el("bZenchou").addEventListener("click",()=>{
+  if(S.cur.zenchou){endZenchou();return}
+  S.cur.zenchou=true; push("zenchouStart","前兆 開始");
+});
+function endZenchou(){
+  sheet("前兆 終了",b=>{
+    b.append(mk("div","lbl","結果"));
+    b.append(optRow([{l:"抜け"},{l:"当選"},{l:"メモを書く"}],it=>{
+      if(it.l==="メモを書く"){
+        closeSheet();
+        sheet("前兆 終了メモ",bb=>{
+          const ta=mk("textarea");bb.append(ta);
+          const go=mk("button","go","記録する");
+          go.addEventListener("click",()=>{S.cur.zenchou=false;push("zenchouEnd","前兆 終了："+ta.value);closeSheet()});
+          bb.append(go);
+        });
+        return;
+      }
+      S.cur.zenchou=false; push("zenchouEnd","前兆 "+it.l); closeSheet();
+    }));
+  });
+}
+
+/* ---------- メモ ---------- */
+el("bMemo").addEventListener("click",()=>{
+  sheet("メモ",b=>{
+    const ta=mk("textarea"); ta.placeholder="自由に書けます";
+    b.append(ta);
+    const go=mk("button","go","記録する");
+    go.addEventListener("click",()=>{const t=ta.value.trim();if(!t)return;push("memo",t);closeSheet()});
+    b.append(go);
+    setTimeout(()=>ta.focus(),80);
+  });
+});
+
+/* ---------- ログ編集 ---------- */
+function editEvent(id){
+  const ev=S.cur.events.find(x=>x.id===id); if(!ev)return;
+  sheet("記録を直す",b=>{
+    b.append(mk("div","lbl",hm(ev.at)+"　実"+ev.realG+"G／液晶"+ev.lcdG+"G"));
+    const ta=mk("textarea"); ta.value=ev.text; b.append(ta);
+    const go=mk("button","go","直す");
+    go.addEventListener("click",()=>{ev.text=ta.value;ev.edited=true;save();render();closeSheet()});
+    const del=mk("button","sub","この記録を消す");
+    del.addEventListener("click",()=>{
+      S.cur.events=S.cur.events.filter(x=>x.id!==id);save();render();closeSheet();toast("消しました");
+    });
+    b.append(go,del);
+  });
+}
+el("bUndo").addEventListener("click",()=>{
+  const e=S.cur.events; if(!e.length){toast("記録がありません");return}
+  const last=e[e.length-1];
+  if(last.type==="rare"&&last.rareKey){const sl=last.slot||"w";const c=S.cur.rare[last.rareKey];if(c)c[sl]=Math.max(0,(c[sl]||0)-1)}
+  if(last.type==="cycle")S.cur.cycle=Math.max(0,S.cur.cycle-1);
+  e.pop(); save(); render(); toast("直前を取り消しました");
+});
+
+/* ---------- お金 ---------- */
+el("bMinus").addEventListener("click",()=>{
+  S.cur.money.cash.push({at:nowISO(),amount:-1000}); push("money","投資 −1,000円"); toast("−1,000円");
+});
+el("bDeposit").addEventListener("click",()=>{
+  sheet("入金",b=>{
+    b.append(optRow([1000,2000,3000,5000,10000].map(n=>({l:"+"+yen(n),v:n})),it=>{
+      S.cur.money.cash.push({at:nowISO(),amount:it.v}); push("money","投資 +"+yen(it.v)+"円"); closeSheet(); toast("+"+yen(it.v)+"円");
+    },true));
+    const free=mk("button","sub","金額を入れる");
+    free.addEventListener("click",()=>{closeSheet();askNum("入金額",0,v=>{
+      if(!v)return; S.cur.money.cash.push({at:nowISO(),amount:v}); push("money","投資 "+sgn(v)+"円");
+    })});
+    b.append(free);
+  });
+});
+el("bCredit").addEventListener("click",()=>{
+  askNum("今の持ち玉（枚）",S.cur.money.credit||0,v=>{
+    S.cur.money.credit=v; push("money","残数 "+v+"枚"); toast("残数を更新");
+  });
+});
+
+/* ---------- ユーティリティ ---------- */
+el("bUtil").addEventListener("click",()=>{
+  sheet("投資・回収・出力",b=>{
+    b.append(mk("div","lbl","この台を終わる"));
+    const fin=mk("button","go","やめる（終了して記録する）");
+    fin.addEventListener("click",()=>{closeSheet();finish()});
+    b.append(fin);
+    b.append(mk("div","lbl","記録を見る・書き出す"));
+    const nt=mk("button","sub","ノートを開く");
+    nt.addEventListener("click",()=>{closeSheet();showNote()});
+    b.append(nt);
+    b.append(mk("div","lbl","この台の記録を捨てる"));
+    const dp=mk("button","sub","破棄する");
+    dp.addEventListener("click",()=>{
+      if(!confirm("この台の記録を捨てますか？"))return;
+      S.cur=null;save();closeSheet();showSetup();
+    });
+    b.append(dp);
+  });
+});
+
+function finish(){
+  let em=null,er=null,note="";
+  sheet("やめる",b=>{
+    b.append(mk("div","lbl","終了時の持ちメダル"));
+    const i1=mk("button","sub","入力する（今 "+(S.cur.money.credit??"未入力")+"）");
+    i1.addEventListener("click",()=>{closeSheet();askNum("終了時の持ちメダル",S.cur.money.credit||0,v=>{em=v;S.cur.money.endMedal=v;finish()})});
+    b.append(i1);
+    b.append(mk("div","lbl","終了時の再プレイ"));
+    const i2=mk("button","sub","入力する（今 "+(S.cur.money.endReplay??0)+"）");
+    i2.addEventListener("click",()=>{closeSheet();askNum("終了時の再プレイ",S.cur.money.endReplay||0,v=>{S.cur.money.endReplay=v;finish()})});
+    b.append(i2);
+    b.append(mk("div","lbl","終わりのメモ"));
+    const ta=mk("textarea");ta.placeholder="ヤメ";ta.value=S.cur.endNote||"";
+    ta.addEventListener("input",()=>S.cur.endNote=ta.value);
+    b.append(ta);
+    b.append(mk("div","hint","持ちメダル "+(S.cur.money.endMedal??"未入力")+"枚／再プレイ "+(S.cur.money.endReplay??0)+"枚"));
+    const go=mk("button","go","終了する");
+    go.addEventListener("click",()=>{
+      if(S.cur.money.endMedal==null){toast("終了時の持ちメダルを入れてください");return}
+      S.cur.endAt=nowISO(); S.cur.endNote=(S.cur.endNote||"").trim()||"ヤメ";
+      S.sessions.push(S.cur); S.cur=null; save(); closeSheet(); showNote();
+    });
+    b.append(go);
+  });
+}
+
+/* ---------- 収支 ---------- */
+function profit(s){
+  const m=s.money;
+  if(m.endMedal==null)return null;
+  const st=(m.startMedal||0)+(m.startReplay||0);
+  const en=(m.endMedal||0)+(m.endReplay||0);
+  const cash=sum(m.cash);
+  const bought=Math.round(cash/1000*s.lend);
+  return {cash,bought,lend:s.lend,medalDiff:en-st-bought,yen:Math.round((en-st)*(1000/s.lend)-cash)};
+}
+function sessionText(s){
+  const L=[];
+  L.push("■ "+s.machine);
+  L.push(ymd(s.startAt)+"("+wd(s.startAt)+") "+hm(s.startAt)+(s.endAt?"〜"+hm(s.endAt):"〜"));
+  const h=[];
+  h.push("開始 実"+s.startRealG+"G／液晶"+s.startLcdG+"G");
+  if(s.money.startMedal)h.push("持 "+s.money.startMedal+"枚");
+  if(s.money.startReplay)h.push("再 "+s.money.startReplay+"枚");
+  L.push(h.join(" ／ "));
+  if(s.startNote)L.push(s.startNote);
+  L.push("────────");
+  s.events.forEach(ev=>{
+    L.push(hm(ev.at)+"  "+ev.realG+"/"+ev.lcdG+"  "+ev.text);
+  });
+  if(s.endAt)L.push(hm(s.endAt)+"  "+s.realG+"/"+s.lcdG+"  "+(s.endNote||"ヤメ"));
+  const p=profit(s);
+  if(p){
+    L.push("────────");
+    L.push("現金 "+yen(p.cash)+"円（"+p.lend+"枚貸し＝"+p.bought+"枚）");
+    L.push("終了 持 "+(s.money.endMedal||0)+"枚 ／ 再 "+(s.money.endReplay||0)+"枚");
+    L.push("差枚 "+sgn(p.medalDiff)+"枚 ／ 収支 "+sgn(p.yen)+"円");
+  }
+  return L.join("\n");
+}
+
+/* ---------- ノート ---------- */
+function renderNote(){
+  const w=el("nList");w.innerHTML="";
+  const arr=S.sessions.slice().reverse();
+  if(!arr.length){w.innerHTML='<div class="log"><div class="empty">まだ記録がありません</div></div>';return}
+  arr.forEach(s=>{
+    const p=profit(s);
+    const d=mk("details","sess");
+    const sm=mk("summary");
+    sm.append(mk("span","sm",ymd(s.startAt).slice(5)),mk("span","sn",s.machine));
+    if(p){const pl=mk("span","pl",sgn(p.yen));pl.style.color=p.yen>=0?"var(--ok)":"var(--hot)";sm.append(pl)}
+    const bd=mk("div","body");
+    bd.append(mk("div","note",sessionText(s)));
+    const del=mk("button","wide dim","この記録を削除");
+    del.addEventListener("click",()=>{if(!confirm("削除しますか？"))return;S.sessions=S.sessions.filter(x=>x.id!==s.id);save();renderNote()});
+    bd.append(del);
+    d.append(sm,bd); w.append(d);
+  });
+}
+function outSheet(title,text,hint){
+  sheet(title,b=>{
+    const ta=mk("textarea");ta.value=text;ta.readOnly=true;ta.style.minHeight="220px";ta.style.fontFamily="var(--mono)";ta.style.fontSize="12px";
+    b.append(ta);
+    const cp=mk("button","go","コピー");
+    cp.addEventListener("click",async()=>{
+      try{await navigator.clipboard.writeText(text);toast("コピーしました")}
+      catch(e){ta.readOnly=false;ta.select();ta.setSelectionRange(0,999999);ta.readOnly=true;toast("全選択しました")}
+    });
+    b.append(cp);
+    if(hint)b.append(mk("div","hint",hint));
+  });
+}
+el("nExpText").addEventListener("click",()=>outSheet("テキスト",S.sessions.map(sessionText).join("\n\n")||"（記録なし）"));
+el("nExpJson").addEventListener("click",()=>outSheet("JSON",JSON.stringify(S.sessions,null,2)));
+el("nDl").addEventListener("click",()=>{
+  const blob=new Blob([JSON.stringify(S.sessions,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="jissen-"+ymd(nowISO()).replace(/\//g,"")+".json";
+  document.body.append(a);a.click();a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  toast("保存しました");
+});
+el("nImpOpen").addEventListener("click",()=>{
+  sheet("JSONを取り込む",b=>{
+    const ta=mk("textarea");ta.placeholder="書き出したJSONを貼る";ta.style.minHeight="160px";b.append(ta);
+    const fi=mk("input");fi.type="file";fi.accept=".json,application/json";fi.className="hide";
+    const fb=mk("button","sub","ファイルを選ぶ");
+    fb.addEventListener("click",()=>fi.click());
+    fi.addEventListener("change",e=>{
+      const f=e.target.files&&e.target.files[0];if(!f)return;
+      const r=new FileReader();r.onload=()=>{ta.value=r.result;doImport(ta.value)};r.readAsText(f);
+    });
+    const go=mk("button","go","取り込む");
+    go.addEventListener("click",()=>doImport(ta.value));
+    b.append(go,fb,fi);
+    b.append(mk("div","hint","同じ記録は二重に入りません。今ある記録も消えません。"));
+  });
+});
+function doImport(txt){
+  let d;try{d=JSON.parse(txt)}catch(e){toast("JSONとして読めません");return}
+  const arr=Array.isArray(d)?d:(d&&Array.isArray(d.sessions)?d.sessions:null);
+  if(!arr){toast("記録が見つかりません");return}
+  const have=new Set(S.sessions.map(s=>s.id));
+  let n=0;
+  arr.forEach(s=>{if(s&&s.id&&s.startAt&&s.machine&&!have.has(s.id)){S.sessions.push(s);have.add(s.id);n++}});
+  S.sessions.sort((a,b)=>new Date(a.startAt)-new Date(b.startAt));
+  save();renderNote();closeSheet();toast(n+"件を取り込みました");
+}
+
+/* ---------- 画面切替 ---------- */
+function showSetup(){
+  el("scSetup").classList.remove("hide");el("scMain").classList.add("hide");el("scNote").classList.add("hide");
+  el("hdTitle").textContent="実戦記録";
+  el("stLend").value=S.settings.lend;
+  const seen=[];S.sessions.slice().reverse().forEach(s=>{if(!seen.includes(s.machine))seen.push(s.machine)});
+  const w=el("stRecent");w.innerHTML="";
+  seen.slice(0,6).forEach(m=>{const b=mk("button","",m);b.addEventListener("click",()=>el("stMachine").value=m);w.append(b)});
+}
+function showMain(){
+  el("scSetup").classList.add("hide");el("scMain").classList.remove("hide");el("scNote").classList.add("hide");
+  el("hdTitle").textContent=S.cur.machine+" ／ "+hm(S.cur.startAt)+"〜";
+  render();
+}
+function showNote(){
+  el("scSetup").classList.add("hide");el("scMain").classList.add("hide");el("scNote").classList.remove("hide");
+  el("hdTitle").textContent="ノート（"+S.sessions.length+"件）";
+  renderNote();
+}
+el("hdMenu").addEventListener("click",()=>{
+  sheet("メニュー",b=>{
+    if(S.cur){const a=mk("button","sub","記録に戻る");a.addEventListener("click",()=>{closeSheet();showMain()});b.append(a)}
+    const n=mk("button","sub","ノートを開く");n.addEventListener("click",()=>{closeSheet();showNote()});b.append(n);
+    if(!S.cur){const s=mk("button","sub","新しく打ち始める");s.addEventListener("click",()=>{closeSheet();showSetup()});b.append(s)}
+  });
+});
+
+/* ---------- 開始 ---------- */
+document.querySelectorAll("[data-lend]").forEach(b=>b.addEventListener("click",()=>{el("stLend").value=b.dataset.lend}));
+el("stStart").addEventListener("click",()=>{
+  const m=el("stMachine").value.trim(), lend=int(el("stLend").value);
+  const e=el("stErr");
+  if(!m){e.textContent="機種名を入れてください";e.classList.remove("hide");return}
+  if(!lend||lend<=0){e.textContent="レートを入れてください";e.classList.remove("hide");return}
+  e.classList.add("hide");
+  S.settings.lend=lend;
+  S.cur={
+    id:uid(),machine:m,startAt:nowISO(),lend,
+    startRealG:int(el("stRealG").value)||0, startLcdG:int(el("stLcdG").value)||0,
+    realG:int(el("stRealG").value)||0, lcdG:int(el("stLcdG").value)||0, cycle:0,
+    startNote:el("stNote").value.trim(),
+    rare:{melon:{w:0,s:0},cherry:{w:0,s:0},chance:{w:0,s:0},other:{w:0,s:0}},
+    zenchou:false, hit:null, events:[], _steps:[],
+    money:{cash:[],startMedal:int(el("stMedal").value)||0,startReplay:int(el("stReplay").value)||0,credit:null,endMedal:null,endReplay:null},
+    endAt:null,endNote:""
+  };
+  ["stMachine","stRealG","stLcdG","stMedal","stReplay","stNote"].forEach(i=>el(i).value="");
+  save(); showMain();
+});
+
+/* ---------- 起動 ---------- */
+load();
+function fixRare(c){
+  if(!c.rare)c.rare={};
+  RARES.forEach(r=>{
+    const v=c.rare[r.k];
+    if(v==null)c.rare[r.k]={w:0,s:0};
+    else if(typeof v==="number")c.rare[r.k]={w:v,s:0};
+    else{if(typeof v.w!=="number")v.w=0;if(typeof v.s!=="number")v.s=0}
+  });
+}
+if(S.cur){fixRare(S.cur);if(!S.cur._steps)S.cur._steps=[];showMain()}
+else showSetup();
+})();
+</script>
+</body>
+</html>
