@@ -271,6 +271,12 @@ const endWizardContext = vm.createContext({
 new vm.Script([
   'let modalCancel = null;',
   'Object.defineProperty(globalThis, "modalCancel", { get: () => modalCancel, set: (value) => { modalCancel = value; } });',
+  `function cumulativeActualBallsBeforeHit(session) {
+    return (Array.isArray(session?.hits) ? session.hits : [])
+      .map((hit) => normalizeNumber(hit?.actualBalls))
+      .filter((value) => value !== null && value > 0)
+      .reduce((sum, value) => sum + value, 0);
+  }`,
   `function zanhoryuPresetFromHit(session, hasHit) {
     if (!hasHit) return null;
     const currentSpin = normalizeNumber(session.currentSpin);
@@ -285,12 +291,19 @@ new vm.Script([
   runEndWizard(sessionWithHits, true);
   globalThis.withHitsHtml = globalThis.__modalHtml;
   globalThis.__nodes.end_endTotalBalls = { value: '1200' };
+  globalThis.__nodes.end_sessionActualBalls = { value: '2800' };
   globalThis.__nodes.end_endSpin = { value: '160' };
   globalThis.__nodes.end_zanhoryuBalls = { value: '' };
   globalThis.__nodes.end_memo = { value: 'closed' };
   globalThis.__handlers['saveEndFormBtn:click']();
   globalThis.savedHitSession = sessionWithHits;
   globalThis.savedHitSummarySession = globalThis.__summarySession;
+
+  globalThis.__nodes = {};
+  globalThis.__handlers = {};
+  const presetActualSession = { id: 's_preset_actual', storeId: 'store', currentSpin: 777, hitSpin: 420, hitCount: null, totalRounds: null, hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }] };
+  runEndWizard(presetActualSession, true);
+  globalThis.presetActualHtml = globalThis.__modalHtml;
 
   globalThis.__nodes = {};
   globalThis.__handlers = {};
@@ -324,6 +337,13 @@ assert.match(endWizardContext.withHitsHtml, /end_endSpin/);
 assert.match(endWizardContext.withHitsHtml, /id="end_zanhoryuBalls"[^>]*value="357"/);
 assert.match(endWizardContext.withHitsHtml, /時短抜け後に消化した回転数から推定した値です。打ち込んだ場合は実際の残保留に修正してください。/);
 assert.match(endWizardContext.withHitsHtml, /end_memo/);
+// B90: 累計獲得出玉は大当たりありの分岐だけに出し、当選ごとの合計を初期値にする
+assert.match(endWizardContext.withHitsHtml, /id="end_sessionActualBalls"/);
+assert.match(endWizardContext.withHitsHtml, /累計獲得出玉/);
+assert.match(endWizardContext.withHitsHtml, /データカウンターに表示されている最終の累計獲得出玉を入力してください。当選ごとの入力は任意で、ここに入れた値が最終の記録になります。/);
+assert.doesNotMatch(endWizardContext.noHitHtml, /end_sessionActualBalls|累計獲得出玉/);
+assert.equal(endWizardContext.savedHitSession.sessionActualBalls, 2800);
+assert.match(endWizardContext.presetActualHtml, /id="end_sessionActualBalls"[^>]*value="1980"/);
 assert.equal(endWizardContext.savedHitSession.status, 'completed');
 assert.equal(endWizardContext.savedHitSession.hitCount, 1);
 assert.equal(endWizardContext.savedHitSession.totalRounds, 10);
@@ -505,7 +525,8 @@ assert.match(transferSummary, /startExpectedSpins = startEv \? Math\.max\(0, ten
 assert.match(transferSummary, /remainingSpins = endEffectiveSpin !== null \? Math\.max\(0, tenjo - endEffectiveSpin\) : null;/);
 assert.match(transferSummary, /const consumedBalls = derived\.consumedBalls !== null && derived\.consumedBalls !== undefined \? Math\.round\(derived\.consumedBalls\) : null;/);
 assert.match(transferSummary, /const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin \? endSpin - startSpin : null;/);
-assert.match(transferSummary, /const totalHitBalls = actualHitBalls > 0 \? actualHitBalls : \(derived\.isEstimatedPayout \? null : derived\.hitBalls\);/);
+assert.match(transferSummary, /const actualHitBalls = sessionActualBallsTotal\(session\);/);
+assert.match(transferSummary, /const totalHitBalls = actualHitBalls !== null \? actualHitBalls : \(derived\.isEstimatedPayout \? null : derived\.hitBalls\);/);
 assert.match(transferSummary, /const averageRoundBalls = totalHitBalls !== null && totalRounds > 0 \? totalHitBalls \/ totalRounds : null;/);
 assert.match(transferSummary, /function transferYenText\(value\) \{\s*return `\$\{Math\.round\(Number\(value \|\| 0\)\)\.toLocaleString\("ja-JP"\)\}円`;/);
 assert.match(transferSummary, /function transferBallText\(value\) \{\s*return Math\.round\(Number\(value \|\| 0\)\)\.toLocaleString\("ja-JP"\);/);
@@ -888,6 +909,13 @@ assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWin: 1500, n
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }] }])), JSON.stringify({ value: 990, source: '実測平均', count: 2 }));
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 980, source: 'ラウンド集計', count: 2 }));
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [])), JSON.stringify({ value: 1400, source: '理論値', count: 0 }));
+// B90: ヤメ入力の累計値があるセッションは「累計 ÷ 当選件数」で実測平均に載る
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 1200, source: '実測平均', count: 2 }));
+// 累計値のあるセッションと、当選ごとだけのセッションが混在しても合算平均になる
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [
+  { machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] },
+  { machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1000 }] }
+])), JSON.stringify({ value: 1133.3333333333333, source: '実測平均', count: 3 }));
 const availableBallsContext = vm.createContext({
   normalizeNumber(value) {
     if (value === '' || value === null || value === undefined) return null;
@@ -947,6 +975,18 @@ const transferContext = vm.createContext({
   },
   normalizeHits(value) {
     return Array.isArray(value) ? value : [];
+  },
+  cumulativeActualBallsBeforeHit(session) {
+    return (Array.isArray(session?.hits) ? session.hits : [])
+      .map((hit) => transferContext.normalizeNumber(hit?.actualBalls))
+      .filter((value) => value !== null && value > 0)
+      .reduce((sum, value) => sum + value, 0);
+  },
+  sessionActualBallsTotal(session) {
+    const explicit = transferContext.normalizeNumber(session?.sessionActualBalls);
+    if (explicit !== null && explicit > 0) return explicit;
+    const perHit = transferContext.cumulativeActualBallsBeforeHit(session);
+    return perHit > 0 ? perHit : null;
   },
   normalizeMachinePresetId() {
     return 'umi-sp5';
@@ -1163,6 +1203,33 @@ assert.equal(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
   '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円'
 );
+// B90: ヤメ入力の累計獲得出玉を1R平均の分子に採用する
+const b90SessionTotal = { ...transferFixture, id: 's_b90_total', sessionActualBalls: 2800 };
+transferContext.__session = b90SessionTotal;
+assert.match(
+  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  /1R平均200玉\/R/
+);
+// 当選ごとが未入力でも、ヤメの累計だけで1R平均が出る
+const b90NoPerHit = {
+  ...transferFixture,
+  id: 's_b90_nohit_input',
+  sessionActualBalls: 2800,
+  hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }]
+};
+transferContext.__session = b90NoPerHit;
+assert.match(
+  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  /1R平均200玉\/R/
+);
+// 空欄なら従来どおり当選ごとの合計（1,980玉 ÷ 14R）
+const b90Empty = { ...transferFixture, id: 's_b90_empty', sessionActualBalls: null };
+transferContext.__session = b90Empty;
+assert.match(
+  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  /1R平均141\.4玉\/R/
+);
+transferContext.__session = transferFixture;
 vm.runInContext("copyTransferSummary('s_transfer')", transferContext);
 assert.equal(transferContext.__copied, '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円');
 transferContext.__store = { isPersonal: true };
@@ -1297,6 +1364,18 @@ new vm.Script(`
   const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
   ${normalizeHitsBlock}
   function normalizeConsumedBallsSource(value) { return value === "tray" || value === "taps" ? value : null; }
+  function cumulativeActualBallsBeforeHit(session) {
+    return normalizeHits(session?.hits)
+      .map((hit) => normalizeNumber(hit.actualBalls))
+      .filter((value) => value !== null && value > 0)
+      .reduce((sum, value) => sum + value, 0);
+  }
+  function sessionActualBallsTotal(session) {
+    const explicit = normalizeNumber(session?.sessionActualBalls);
+    if (explicit !== null && explicit > 0) return explicit;
+    const perHit = cumulativeActualBallsBeforeHit(session);
+    return perHit > 0 ? perHit : null;
+  }
   function storeById() { return {}; }
   function investmentToBalls(item) {
     return (item.source || item.type) === "cash" ? Number(item.amount || 0) / 4 : Number(item.amount || 0);
@@ -2115,7 +2194,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 27;/);
+assert.match(html, /const SCHEMA_VERSION = 28;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -2335,6 +2414,20 @@ assert.ok(design.includes('schema は 25 とする'));
 assert.ok(design.includes('schema 25 `startEv` サンプル'));
 assert.ok(design.includes('B54 稼働中パネルの期待値・評価セクション'));
 assert.ok(design.includes('容量予算の増分はなし'));
+assert.ok(design.includes('B90 ヤメ入力の累計獲得出玉と判定根拠の内訳'));
+// B90: 判定根拠の内訳行と、実測出玉の採用順位
+assert.ok(html.includes('function expectationBasisText(result)'));
+assert.ok(html.includes('＝ 期待値÷投資額+100%'));
+assert.ok(html.includes('＋当選'));
+assert.ok(html.includes('回転/h想定'));
+assert.ok(html.includes('spinsPerHour: merged.spinsPerHour'));
+assert.ok(html.includes('id="machineEvBasis"'));
+assert.ok(html.includes('function sessionActualBallsTotal(session)'));
+assert.ok(html.includes('const actualPayoutTotal = sessionActualBallsTotal(session);'));
+assert.ok(html.includes('if (derived.actualPayoutTotal !== null && derived.actualPayoutTotal !== undefined) return'));
+assert.ok(html.includes('key: "sessionActualBalls", label: "累計獲得出玉"'));
+assert.ok(html.includes('sessionActualBalls: normalizeNumber(session.sessionActualBalls),'));
+assert.ok(design.includes('schema は 28 とする'));
 assert.match(machineButtonHtml, /const hasMachineMemo = \(machine\?\.memoEntries \|\| \[\]\)\.length > 0;/);
 assert.match(bindNailRatingChips, /function bindNailRatingChips\(machine, root = els\.modalBody\)/);
 assert.match(bindNailRatingChips, /root\.querySelectorAll\("\[data-nail-rating\]"\)/);
@@ -2365,7 +2458,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 27;
+  const SCHEMA_VERSION = 28;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
   const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -2437,6 +2530,7 @@ new vm.Script(`
       currentSpin: null,
       startEv: null,
       consumedBallsSource: null,
+      sessionActualBalls: null,
       carriedFromSessionId: null,
       yutimeEnterSpin: null,
       yutimeEnterTime: null,
@@ -2457,6 +2551,8 @@ new vm.Script(`
     dailyState: {}
   });
   globalThis.normalizedLegacySession = normalizeData({ version: 26, presetSettings: { "umi-sp5": {} }, sessions: [{ id: "s_old", storeId: "st_1", machineId: "m_1", consumedBallsSource: "legacy" }] });
+  globalThis.normalizedB90LegacySession = normalizeData({ version: 27, presetSettings: { "umi-sp5": {} }, sessions: [{ id: "s_b90_old", storeId: "st_1", machineId: "m_1", hits: [] }] });
+  globalThis.normalizedB90NewSession = normalizeData({ version: 28, presetSettings: { "umi-sp5": {} }, sessions: [{ id: "s_b90_new", storeId: "st_1", machineId: "m_1", sessionActualBalls: "2800", hits: [] }] });
   globalThis.normalizedCurrentBlank = normalizeData({ version: 26, presetSettings: { "umi-sp5": {} } });
   globalThis.normalizedAgnesMissingYutime = normalizeData({ version: 26, presetSettings: { "umi-sp5": {}, "agnes-pe": { jitanFastBallsPerSpin: -0.4 } } });
 `).runInContext(legacyMachineContext);
@@ -2467,6 +2563,10 @@ assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].me
 assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].nailRating), JSON.stringify({ yori: 3, michi: 2, nekase: 1, through: 4, warp: 2 }));
 assert.equal(legacyMachineContext.normalizedLegacy.presetSettings['umi-sp5'].yutimeBallsPerSpin, 0);
 assert.equal(legacyMachineContext.normalizedLegacySession.sessions[0].consumedBallsSource, null);
+// B90: sessionActualBalls を持たない旧データは null 補完される
+assert.equal(legacyMachineContext.normalizedB90LegacySession.sessions[0].sessionActualBalls, null);
+assert.equal(Object.prototype.hasOwnProperty.call(legacyMachineContext.normalizedB90LegacySession.sessions[0], 'sessionActualBalls'), true);
+assert.equal(legacyMachineContext.normalizedB90NewSession.sessions[0].sessionActualBalls, 2800);
 assert.equal(legacyMachineContext.normalizedCurrentBlank.presetSettings['umi-sp5'].yutimeBallsPerSpin, -0.3);
 assert.equal(Object.prototype.hasOwnProperty.call(legacyMachineContext.normalizedCurrentBlank.presetSettings, 'agnes-pe'), false);
 assert.equal(legacyMachineContext.normalizedAgnesMissingYutime.presetSettings['agnes-pe'].jitanFastBallsPerSpin, -0.4);

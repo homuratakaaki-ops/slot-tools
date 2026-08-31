@@ -1738,7 +1738,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 27;
+    const SCHEMA_VERSION = 28;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1898,7 +1898,7 @@
         const totalHours = normalHours + hitHours + densapoHours;
         const hourlyYen = totalHours > 0 ? evYen / totalHours : 0;
         const slotRate = 100 + hourlyYen / (merged.slotGamesPerHour * 3 * 20 * 0.01);
-        return { presetId: activePreset.id, currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedYutimeSpins, expectedDensapoSpins, investBalls, mochidamaBalls: split.mochidamaBalls, cashBalls: split.cashBalls, mochidamaCostYen, cashSpentYen, normalCostYen, winBalls, evBalls, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, chains };
+        return { presetId: activePreset.id, currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedYutimeSpins, expectedDensapoSpins, investBalls, mochidamaBalls: split.mochidamaBalls, cashBalls: split.cashBalls, mochidamaCostYen, cashSpentYen, normalCostYen, winBalls, evBalls, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, spinsPerHour: merged.spinsPerHour, secPerDensapoSpin: merged.secPerDensapoSpin, chains };
       }
       function chainValues(settings = {}) {
         const spec = preset.spec;
@@ -1970,7 +1970,7 @@
         const totalHours = normalHours + hitHours + densapoHours;
         const hourlyYen = totalHours > 0 ? evYen / totalHours : 0;
         const slotRate = 100 + hourlyYen / (merged.slotGamesPerHour * 3 * 20 * 0.01);
-        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedYutimeSpins, expectedDensapoSpins, investBalls, mochidamaBalls: split.mochidamaBalls, cashBalls: split.cashBalls, mochidamaCostYen, cashSpentYen, normalCostYen, winBalls, evBalls, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, chains };
+        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedYutimeSpins, expectedDensapoSpins, investBalls, mochidamaBalls: split.mochidamaBalls, cashBalls: split.cashBalls, mochidamaCostYen, cashSpentYen, normalCostYen, winBalls, evBalls, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, spinsPerHour: merged.spinsPerHour, secPerDensapoSpin: merged.secPerDensapoSpin, chains };
       }
       function logRate(log) {
         const balls = Number(log.usedBalls ?? log.balls) || 0;
@@ -2016,6 +2016,7 @@
       endTotalHits: null,
       hitCount: null,
       totalRounds: null,
+      sessionActualBalls: null,
       hits: [],
       endTotalBalls: null,
       endSpin: null,
@@ -2327,9 +2328,27 @@
         return normalizeMachinePresetId(sessionMachine) === presetId;
       });
       const hits = sessions.flatMap((session) => normalizeHits(session.hits));
-      const actualHits = hits.map((hit) => normalizeNumber(hit.actualBalls)).filter((value) => value !== null && value > 0);
-      if (actualHits.length) {
-        return { value: actualHits.reduce((sum, value) => sum + value, 0) / actualHits.length, source: "実測平均", count: actualHits.length };
+      // ヤメ入力の累計値があるセッションは「累計 ÷ 当選件数」、無ければ当選ごとの実測値を使う
+      let actualTotal = 0;
+      let actualCount = 0;
+      sessions.forEach((session) => {
+        const sessionHits = normalizeHits(session.hits);
+        const explicit = normalizeNumber(session.sessionActualBalls);
+        if (explicit !== null && explicit > 0) {
+          const count = sessionHits.length || normalizeNumber(session.hitCount) || 0;
+          if (count > 0) {
+            actualTotal += explicit;
+            actualCount += count;
+          }
+          return;
+        }
+        sessionHits.map((hit) => normalizeNumber(hit.actualBalls)).filter((value) => value !== null && value > 0).forEach((value) => {
+          actualTotal += value;
+          actualCount += 1;
+        });
+      });
+      if (actualCount > 0) {
+        return { value: actualTotal / actualCount, source: "実測平均", count: actualCount };
       }
       const roundHits = hits.map((hit) => roundTypeById(presetId, hit.roundTypeId)?.balls).filter((value) => Number(value) > 0);
       if (roundHits.length) {
@@ -2563,6 +2582,19 @@
       return `残り${Math.max(0, ceiling - effective).toLocaleString("ja-JP")}回転`;
     }
 
+    function expectationBasisText(result) {
+      if (!result) return "";
+      // 投資額は機械割の分母と同じ「持ち玉ぶん＋現金ぶん」の円換算合計
+      const investYen = Math.round(Number(result.normalCostYen) || 0);
+      const evYen = Number(result.evYen) || 0;
+      const machineRate = investYen > 0 ? 100 + evYen / investYen * 100 : null;
+      const spinsPerHour = Math.round(Number(result.spinsPerHour) || 0);
+      return `投資 約${investYen.toLocaleString("ja-JP")}円に対し期待値 ${yenText(evYen)}`
+        + `（機械割 ${machineRate === null ? "-" : `${machineRate.toFixed(1)}%`} ＝ 期待値÷投資額+100%）`
+        + ` ／ 消化時間 ${hourText(result.totalHours)}（通常${hourText(result.normalHours)}＋当選${hourText(result.hitHours)}＋電サポ${hourText(result.densapoHours)}）`
+        + ` ／ 通常時${spinsPerHour.toLocaleString("ja-JP")}回転/h想定`;
+    }
+
     function expectationInvestmentText(mochidamaBalls, cashBalls, spinsToTenjo, rotationRate) {
       const mochidama = Math.max(0, Math.round(normalizeNumber(mochidamaBalls) || 0));
       const cash = Math.max(0, Math.round(normalizeNumber(cashBalls) || 0));
@@ -2773,6 +2805,7 @@
           currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
           startEv: normalizeStartEv(session.startEv),
           consumedBallsSource: normalizeConsumedBallsSource(session.consumedBallsSource),
+          sessionActualBalls: normalizeNumber(session.sessionActualBalls),
           carriedFromSessionId: session.carriedFromSessionId || null,
           yutimeEnterSpin: normalizeNumber(session.yutimeEnterSpin),
           yutimeEnterTime: session.yutimeEnterTime || null,
@@ -5510,6 +5543,7 @@
           <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"}</p>
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
+          <p class="hint" id="machineEvBasis"></p>
         </div>` : ""}
         ${machineModelSummaryHtml(machine)}
         ${machineFormExpanded ? machineDetailFormHtml(machine) : ""}
@@ -5652,6 +5686,8 @@
         title.querySelector("small").textContent = "未判定";
         metrics.innerHTML = '<div class="metric"><span>判定</span><strong>-</strong></div>';
         detail.textContent = expectation.reason || "回転率を入力するか、履歴累計を作ってください。";
+        const basisEmpty = byId("machineEvBasis");
+        if (basisEmpty) basisEmpty.textContent = "";
         return;
       }
       const judgment = evJudgment(expectation.result);
@@ -5668,6 +5704,8 @@
       const near = expectation.result.spinsToTenjo < 100 && expectation.result.spinsToTenjo > 0;
       const costSource = expectationInvestmentText(expectation.result.mochidamaBalls, expectation.result.cashBalls, expectation.result.spinsToTenjo, expectation.result.rotationRate);
       detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（前日${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
+      const basis = byId("machineEvBasis");
+      if (basis) basis.textContent = expectationBasisText(expectation.result);
     }
 
     function expectationPreviousSpinState() {
@@ -6027,6 +6065,13 @@
         .reduce((sum, value) => sum + value, 0);
     }
 
+    function sessionActualBallsTotal(session) {
+      const explicit = normalizeNumber(session?.sessionActualBalls);
+      if (explicit !== null && explicit > 0) return explicit;
+      const perHit = cumulativeActualBallsBeforeHit(session);
+      return perHit > 0 ? perHit : null;
+    }
+
     function actualBallsFromCumulativeInput(session, cumulativeInput) {
       const cumulativeBalls = normalizeNumber(cumulativeInput);
       if (cumulativeBalls === null) return { actualBalls: null, warning: false };
@@ -6118,8 +6163,11 @@
         { key: "hitCount", label: "大当たり回数", type: "number" },
         { key: "totalRounds", label: "合計R数", type: "number", hint: "1R玉数と合わせてR数ベース出玉を計算します。" }
       ];
+      const perHitActualTotal = cumulativeActualBallsBeforeHit(session);
+      const sessionActualPreset = normalizeNumber(session.sessionActualBalls) ?? (perHitActualTotal > 0 ? perHitActualTotal : null);
       const steps = hasHit ? [
         { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
+        { key: "sessionActualBalls", label: "累計獲得出玉", type: "number", preset: sessionActualPreset, hint: "データカウンターに表示されている最終の累計獲得出玉を入力してください。当選ごとの入力は任意で、ここに入れた値が最終の記録になります。" },
         { key: "endSpin", label: "ヤメ回転数", type: "number" },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number", preset: zanhoryuPreset, hint: zanhoryuHint },
         { key: "memo", label: "メモ", type: "textarea" },
@@ -6335,6 +6383,7 @@
     }
 
     function payoutText(derived) {
+      if (derived.actualPayoutTotal !== null && derived.actualPayoutTotal !== undefined) return `${numberText(derived.actualPayoutTotal, "-")}（実測）`;
       if (derived.hitBalls === null) return "-";
       return `${numberText(derived.hitBalls, "-")}${derived.isEstimatedPayout ? "（概算）" : ""}`;
     }
@@ -6839,11 +6888,8 @@
       const startSpin = normalizeNumber(session.startSpin);
       const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin ? endSpin - startSpin : null;
       const consumedBalls = derived.consumedBalls !== null && derived.consumedBalls !== undefined ? Math.round(derived.consumedBalls) : null;
-      const actualHitBalls = normalizeHits(session.hits)
-        .map((hit) => normalizeNumber(hit.actualBalls))
-        .filter((value) => value !== null && value > 0)
-        .reduce((sum, value) => sum + value, 0);
-      const totalHitBalls = actualHitBalls > 0 ? actualHitBalls : (derived.isEstimatedPayout ? null : derived.hitBalls);
+      const actualHitBalls = sessionActualBallsTotal(session);
+      const totalHitBalls = actualHitBalls !== null ? actualHitBalls : (derived.isEstimatedPayout ? null : derived.hitBalls);
       const totalRounds = totalRoundsForSession(session, machine);
       const averageRoundBalls = totalHitBalls !== null && totalRounds > 0 ? totalHitBalls / totalRounds : null;
       return {
@@ -7509,6 +7555,7 @@
       const exchangeBalls = exchangeBallsForStore(store);
       const exchangeRate = exchangeRateForStore(store);
       const profitYen = profitYenForSession(session, investmentTotals(session), store);
+      const actualPayoutTotal = sessionActualBallsTotal(session);
       const isEstimatedPayout = session.hitRemainBalls === null && estimatedPayout !== null;
       const isEstimatedRate = isEstimatedPayout && rate !== null && (session.yutimeEnterBalls === null || session.yutimeEnterBalls === undefined);
       return {
@@ -7532,6 +7579,7 @@
         rateUnavailableReason,
         isEstimatedRate,
         hitBalls,
+        actualPayoutTotal,
         estimatedRemainBalls,
         isEstimatedPayout,
         roundBasedPayout,
