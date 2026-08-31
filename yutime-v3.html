@@ -3229,11 +3229,13 @@
       const parsed = parseIslandLayout({ islands: mapDraft.islands });
       const duplicateDaiNos = duplicateDaiNosAcrossMaps(store.id);
       const duplicateHtml = duplicateDaiNos.length ? `<span class="badge warn">複数マップに同じ台番: ${escapeHtml(duplicateDaiNos.slice(0, 5).join(" / "))}${duplicateDaiNos.length > 5 ? "..." : ""}</span>` : "";
-      els.mapStatus.innerHTML = `<button class="small" id="toggleMapEditorBtn">閉じる</button>${mapStatusHtml(parsed)}${duplicateHtml}`;
+      els.mapStatus.innerHTML = `<button class="small" id="toggleMapEditorBtn">閉じる</button><button class="primary small" id="saveMapBottomBtn">保存</button>${mapStatusHtml(parsed)}${duplicateHtml}`;
       byId("toggleMapEditorBtn").addEventListener("click", () => {
         mapEditorOpenByStore[store.id] = false;
         renderMapEditor();
       });
+      // 上部の保存ボタンと同じ処理を呼ぶ（保存処理は複製しない）
+      byId("saveMapBottomBtn").addEventListener("click", saveCurrentMap);
     }
 
     function mapManagementHtml(store) {
