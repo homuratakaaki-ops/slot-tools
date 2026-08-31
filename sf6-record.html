@@ -385,6 +385,36 @@ textarea{
   background:var(--surface);
   padding:12px;
 }
+.store-modal{
+  position:fixed;
+  inset:0;
+  z-index:9080;
+  display:none;
+  align-items:flex-end;
+  background:rgba(0,0,0,.64);
+}
+.store-modal.open{display:flex}
+.store-panel{
+  width:100%;
+  max-width:480px;
+  height:min(64dvh, 430px);
+  min-height:0;
+  max-height:calc(100dvh - 16px);
+  margin:0 auto max(30px, env(safe-area-inset-bottom));
+  border:1px solid var(--line);
+  border-radius:14px;
+  background:var(--surface);
+  padding:12px;
+  overflow:auto;
+}
+.store-select-row{display:flex;gap:8px;align-items:center;margin:8px 0}
+.store-select-row .field-row{flex:1 1 auto;min-width:0;margin:0}
+.store-select-row .bm-btn{flex:0 0 auto}
+.store-row{display:flex;gap:8px;align-items:center;border-top:1px solid rgba(255,255,255,.08);padding-top:6px}
+.store-row:first-child{border-top:0;padding-top:0}
+.store-row .bm-btn{flex:0 0 auto}
+.store-row-name{flex:1 1 auto;min-width:0;font-size:14px;font-weight:900;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.store-row-rate{flex:0 0 auto;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
 .keypad-display{
   min-height:34px;
   border:1px solid rgba(105,216,79,.34);
@@ -620,12 +650,23 @@ textarea{
   </div>
 </div>
 
+<div class="store-modal" id="storeModal" aria-modal="true" role="dialog" aria-labelledby="storeModalTitle">
+  <div class="store-panel">
+    <div class="sheet-head">
+      <div class="sheet-title" id="storeModalTitle">店舗の登録</div>
+      <button class="bm-btn small secondary" type="button" id="storeModalCloseBtn">閉じる</button>
+    </div>
+    <div class="sheet-body" id="storeModalBody"></div>
+  </div>
+</div>
+
 <script src="sf6-schema.js"></script>
 <script>
 (function(){
   'use strict';
   const STORAGE_KEY='sf6_record_v1';
   const LAST_INFO_KEY='sf6_last_session_info';
+  const STORE_MASTER_KEY='slot-tools-stores-v1';
   const MACHINE='L-SF6';
   const MACHINE_ID='l-sf6';
   const VERSION='15';
@@ -722,7 +763,7 @@ textarea{
   const JUDGE_ADD_CHOICES=[10,20,30,50,70,100,200,300];
   const $=id=>document.getElementById(id);
   const txt=(text)=>document.createTextNode(String(text??''));
-  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,autoColorResetAt:0,sessionMoney:null,logs:[]};
+  let state={machine:MACHINE,ver:VERSION,sessionId:null,startedAt:null,sessionInfo:{storeId:null,storeName:null,unitNo:null,lendRate:null,exchangeRate:null,memo:''},battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,autoColorResetAt:0,sessionMoney:null,logs:[]};
   let selectedGainKind='';
   let selectedVoice=null;
   let gainAddDraft='';
@@ -753,6 +794,13 @@ textarea{
   let undoStack=[];
   let redoAction=null;
   let resetTimer=null;
+  let storeModalContext=null;
+  let storeEditingId=null;
+  let storeDeleteArmedId=null;
+  let storeDeleteTimer=null;
+  let storeDupArmed=false;
+  let storeDupTimer=null;
+  let storeModalDraft={name:'',lendRate:'',exchangeRate:''};
   let initialMoneyPromptShown=false;
   let activeHintKey=null;
   let hintPanelOpen=false;
@@ -908,6 +956,7 @@ textarea{
       return text?text:null;
     };
     return {
+      storeId:textOrNull(src.storeId),
       storeName:textOrNull(src.storeName),
       unitNo:textOrNull(src.unitNo),
       lendRate:optionalNumber(src.lendRate),
@@ -917,20 +966,65 @@ textarea{
   }
   // 店舗名・貸出/交換レートだけをセッションとは別に覚えておき、次のセッションの初期値にする（台番号は毎回違うので覚えない）
   function loadLastSessionInfo(){
-    const blank={storeName:null,lendRate:null,exchangeRate:null};
+    const blank={storeId:null,storeName:null,lendRate:null,exchangeRate:null};
     try{
       const raw=localStorage.getItem(LAST_INFO_KEY);
       const src=raw?JSON.parse(raw):null;
       if(!src||typeof src!=='object')return blank;
-      const info=normalizeSessionInfo({storeName:src.storeName,lendRate:src.lendRate,exchangeRate:src.exchangeRate});
-      return {storeName:info.storeName,lendRate:info.lendRate,exchangeRate:info.exchangeRate};
+      const info=normalizeSessionInfo({storeId:src.storeId,storeName:src.storeName,lendRate:src.lendRate,exchangeRate:src.exchangeRate});
+      return {storeId:info.storeId,storeName:info.storeName,lendRate:info.lendRate,exchangeRate:info.exchangeRate};
     }catch(e){return blank;}
   }
   function rememberSessionInfo(){
     const info=normalizeSessionInfo(state.sessionInfo);
     const money=normalizeSessionMoney(state.sessionMoney);
     // 貸出レートの正本は sessionMoney.loanRate なので、引き継ぎもそこから取る
-    try{localStorage.setItem(LAST_INFO_KEY,JSON.stringify({storeName:info.storeName,lendRate:money?money.loanRate:null,exchangeRate:info.exchangeRate}));}catch(e){}
+    try{localStorage.setItem(LAST_INFO_KEY,JSON.stringify({storeId:info.storeId,storeName:info.storeName,lendRate:money?money.loanRate:null,exchangeRate:info.exchangeRate}));}catch(e){}
+  }
+  function newStoreId(){
+    const raw=globalThis.crypto&&typeof globalThis.crypto.randomUUID==='function'
+      ?globalThis.crypto.randomUUID()
+      :String(Date.now())+Math.random().toString(16).slice(2);
+    return 'st_'+raw.replace(/-/g,'').slice(0,16);
+  }
+  function normalizeStoreEntry(src){
+    if(!src||typeof src!=='object')return null;
+    const name=String(src.name??'').trim();
+    if(!name)return null;
+    // 既存idは形式を問わず保持し、正規化で再採番しない。
+    const id=String(src.id??'').trim()||newStoreId();
+    // 旧フラット形式とyutime由来のレートを各ドメインの入れ子へ吸収する。
+    const hasExchangeRate=Object.prototype.hasOwnProperty.call(src,'exchangeRate');
+    const hasExchangeBalls=Object.prototype.hasOwnProperty.call(src,'exchangeBalls');
+    const slotSrc=src.slot&&typeof src.slot==='object'?src.slot:{lendRate:hasExchangeRate?src.lendRate:null,exchangeRate:src.exchangeRate};
+    const pachinkoSrc=src.pachinko&&typeof src.pachinko==='object'?src.pachinko:{lendRate:hasExchangeBalls?src.lendRate:null,exchangeBalls:src.exchangeBalls};
+    const slot={lendRate:optionalNumber(slotSrc.lendRate),exchangeRate:optionalNumber(slotSrc.exchangeRate)};
+    const pachinko={lendRate:optionalNumber(pachinkoSrc.lendRate),exchangeBalls:optionalNumber(pachinkoSrc.exchangeBalls)};
+    const updatedAt=Number(src.updatedAt);
+    return {id,name,slot,pachinko,updatedAt:Number.isFinite(updatedAt)&&updatedAt>0?updatedAt:Date.now()};
+  }
+  function loadStoreMaster(){
+    try{
+      const raw=localStorage.getItem(STORE_MASTER_KEY);
+      const src=raw?JSON.parse(raw):null;
+      if(!src||typeof src!=='object'||!Array.isArray(src.stores))return {ver:1,stores:[]};
+      const seen=new Set();
+      const stores=[];
+      src.stores.map(normalizeStoreEntry).filter(Boolean).forEach(store=>{
+        if(seen.has(store.id))return;
+        seen.add(store.id);
+        stores.push(store);
+      });
+      return {ver:1,stores};
+    }catch(e){return {ver:1,stores:[]};}
+  }
+  function saveStoreMaster(stores){
+    try{localStorage.setItem(STORE_MASTER_KEY,JSON.stringify({ver:1,stores:stores.map(normalizeStoreEntry).filter(Boolean)}));}
+    catch(e){toast('店舗の保存に失敗しました');}
+  }
+  function storeById(id){
+    const key=String(id??'').trim();
+    return key?loadStoreMaster().stores.find(store=>store.id===key)||null:null;
   }
   function defaultState(){
     return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,autoColorResetAt:Date.now(),sessionMoney:null,logs:[]};
@@ -1154,6 +1248,7 @@ textarea{
       sessionId:data.sessionId,
       startedAt:data.startedAt,
       sessionInfo:{
+        storeId:data.storeId,
         storeName:data.storeName,
         unitNo:data.unitNo,
         lendRate:data.lendRate,
@@ -1280,6 +1375,44 @@ textarea{
     });
     return node;
   }
+  function appendStoreOptions(node,selectedId){
+    clearNode(node);
+    const empty=document.createElement('option');
+    empty.value='';
+    empty.textContent='（未登録・直接入力）';
+    node.append(empty);
+    const stores=loadStoreMaster().stores;
+    stores.forEach(store=>{
+      const option=document.createElement('option');
+      option.value=store.id;
+      option.textContent=store.name;
+      node.append(option);
+    });
+    const selected=String(selectedId??'');
+    node.value=stores.some(store=>store.id===selected)?selected:'';
+  }
+  function storeSelectInput(id,selectedId){
+    const node=document.createElement('select');
+    node.id=id;
+    appendStoreOptions(node,selectedId);
+    return node;
+  }
+  function wireStoreFields(opts){
+    const {selectNode,nameNode,lendNode,exchangeNode,onPick}=opts;
+    if(!selectNode||!nameNode)return;
+    selectNode.addEventListener('change',()=>{
+      const store=storeById(selectNode.value);
+      if(!store)return;
+      nameNode.value=store.name;
+      if(lendNode&&store.slot.lendRate!==null)lendNode.value=store.slot.lendRate;
+      if(exchangeNode&&store.slot.exchangeRate!==null)exchangeNode.value=store.slot.exchangeRate;
+      if(typeof onPick==='function')onPick(store);
+    });
+    nameNode.addEventListener('input',()=>{
+      const store=storeById(selectNode.value);
+      if(store&&nameNode.value!==store.name)selectNode.value='';
+    });
+  }
   function field(labelText,inputNode){
     const row=el('div','field-row');
     const label=document.createElement('label');
@@ -1290,6 +1423,151 @@ textarea{
   }
   function row(className='button-row'){
     return el('div',className);
+  }
+  function captureStoreFormDraft(){
+    if(storeDupTimer){clearTimeout(storeDupTimer);storeDupTimer=null;}
+    storeDupArmed=false;
+    storeModalDraft={
+      name:String($('storeFormName')?.value||''),
+      lendRate:String($('storeFormLendRate')?.value||''),
+      exchangeRate:String($('storeFormExchangeRate')?.value||'')
+    };
+  }
+  function clearStoreTimers(){
+    if(storeDeleteTimer){clearTimeout(storeDeleteTimer);storeDeleteTimer=null;}
+    if(storeDupTimer){clearTimeout(storeDupTimer);storeDupTimer=null;}
+    storeDeleteArmedId=null;
+    storeDupArmed=false;
+  }
+  function openStoreModal(context){
+    storeModalContext=context;
+    storeEditingId=null;
+    clearStoreTimers();
+    storeModalDraft={
+      name:String($(context.nameId)?.value||''),
+      lendRate:String($(context.lendId)?.value||''),
+      exchangeRate:String($(context.exchangeId)?.value||'')
+    };
+    renderStoreModal();
+    $('storeModal').classList.add('open');
+  }
+  function closeStoreModal(){
+    $('storeModal')?.classList.remove('open');
+    clearStoreTimers();
+    storeModalContext=null;
+    storeEditingId=null;
+    storeModalDraft={name:'',lendRate:'',exchangeRate:''};
+  }
+  function refreshStoreSelect(selectedId=null){
+    if(!storeModalContext)return null;
+    const select=$(storeModalContext.selectId);
+    if(!select)return null;
+    appendStoreOptions(select,selectedId);
+    return select;
+  }
+  // 貸出・交換とも1000円あたりの枚数（設計書§1.2）。円ではない
+  function storeRateText(prefix,value){
+    return value===null?`${prefix}−`:`${prefix}${value}枚`;
+  }
+  function editStoreFromModal(store){
+    clearStoreTimers();
+    storeEditingId=store.id;
+    storeModalDraft={name:store.name,lendRate:store.slot.lendRate??'',exchangeRate:store.slot.exchangeRate??''};
+    renderStoreModal();
+  }
+  function deleteStoreFromModal(store){
+    if(storeDeleteArmedId===store.id){
+      clearStoreTimers();
+      const stores=loadStoreMaster().stores.filter(item=>item.id!==store.id);
+      saveStoreMaster(stores);
+      toast('店舗を削除しました');
+      const currentSelected=storeModalContext?String($(storeModalContext.selectId)?.value||''):'';
+      refreshStoreSelect(currentSelected===store.id?null:currentSelected);
+      renderStoreModal();
+      return;
+    }
+    captureStoreFormDraft();
+    if(storeDeleteTimer)clearTimeout(storeDeleteTimer);
+    storeDeleteArmedId=store.id;
+    toast('3秒以内にもう一度で削除します');
+    storeDeleteTimer=setTimeout(()=>{storeDeleteArmedId=null;storeDeleteTimer=null;renderStoreModal();},3000);
+    renderStoreModal();
+  }
+  function saveStoreFromModal(){
+    const name=String($('storeFormName')?.value||'').trim();
+    const lendRaw=String($('storeFormLendRate')?.value||'').trim();
+    const exchangeRaw=String($('storeFormExchangeRate')?.value||'').trim();
+    const lendRate=lendRaw===''?null:optionalNumber(lendRaw);
+    const exchangeRate=exchangeRaw===''?null:optionalNumber(exchangeRaw);
+    if(!name){toast('店舗名を入力してください');return;}
+    if((lendRaw!==''&&lendRate===null)||(exchangeRaw!==''&&exchangeRate===null)){toast('レートを数値で入力してください');return;}
+    const stores=loadStoreMaster().stores;
+    const editing=storeEditingId?stores.find(store=>store.id===storeEditingId):null;
+    const duplicate=stores.some(store=>store.name===name&&store.id!==storeEditingId);
+    if(!editing&&duplicate&&!storeDupArmed){
+      storeDupArmed=true;
+      if(storeDupTimer)clearTimeout(storeDupTimer);
+      storeDupTimer=setTimeout(()=>{storeDupArmed=false;storeDupTimer=null;},3000);
+      toast('同名の店舗があります。もう一度押すと登録します');
+      return;
+    }
+    clearStoreTimers();
+    const now=Date.now();
+    const saved=editing
+      ?{...editing,name,slot:{lendRate,exchangeRate},pachinko:editing.pachinko||{lendRate:null,exchangeBalls:null},updatedAt:now}
+      :{id:newStoreId(),name,slot:{lendRate,exchangeRate},pachinko:{lendRate:null,exchangeBalls:null},updatedAt:now};
+    const next=editing?stores.map(store=>store.id===saved.id?saved:store):[...stores,saved];
+    saveStoreMaster(next);
+    const select=refreshStoreSelect(saved.id);
+    if(select)select.value=saved.id;
+    if(storeModalContext){
+      const nameNode=$(storeModalContext.nameId);
+      const lendNode=$(storeModalContext.lendId);
+      const exchangeNode=$(storeModalContext.exchangeId);
+      if(nameNode)nameNode.value=saved.name;
+      if(lendNode&&saved.slot.lendRate!==null)lendNode.value=saved.slot.lendRate;
+      if(exchangeNode&&saved.slot.exchangeRate!==null)exchangeNode.value=saved.slot.exchangeRate;
+    }
+    storeEditingId=null;
+    storeModalDraft={name:'',lendRate:'',exchangeRate:''};
+    toast(editing?'店舗を更新しました':'店舗を登録しました');
+    renderStoreModal();
+  }
+  function renderStoreModal(){
+    const body=$('storeModalBody');
+    if(!body)return;
+    clearNode(body);
+    const editing=storeEditingId?storeById(storeEditingId):null;
+    const draft=editing?{name:editing.name,lendRate:editing.slot.lendRate??'',exchangeRate:editing.slot.exchangeRate??''}:storeModalDraft;
+    const storeName=input('storeFormName','text','店舗名',40);
+    storeName.value=draft.name||'';
+    const lendRate=input('storeFormLendRate','number','46');
+    setKeypadInputMode(lendRate,{decimal:true});
+    lendRate.step='0.1';
+    lendRate.value=draft.lendRate??'';
+    const exchangeRate=input('storeFormExchangeRate','number','52');
+    setKeypadInputMode(exchangeRate,{decimal:true});
+    exchangeRate.step='0.1';
+    exchangeRate.value=draft.exchangeRate??'';
+    [storeName,lendRate,exchangeRate].forEach(node=>node.addEventListener('input',captureStoreFormDraft));
+    body.append(field('店舗名',storeName));
+    const rates=row('rate-pair');
+    rates.append(field('貸出レート',lendRate),field('交換レート',exchangeRate));
+    body.append(rates);
+    const actions=row();
+    actions.append(button(editing?'変更を保存':'店舗を登録','primary',saveStoreFromModal));
+    if(editing)actions.append(button('編集をやめる','secondary',()=>{storeEditingId=null;storeModalDraft={name:'',lendRate:'',exchangeRate:''};renderStoreModal();}));
+    body.append(actions);
+    body.append(el('div','muted','登録済み店舗'));
+    const stores=loadStoreMaster().stores;
+    if(!stores.length)body.append(el('div','muted','まだ登録された店舗はありません'));
+    stores.forEach(store=>{
+      const line=el('div','store-row');
+      line.append(el('div','store-row-name',store.name),el('div','store-row-rate',`${storeRateText('貸',store.slot.lendRate)} / ${storeRateText('交',store.slot.exchangeRate)}`));
+      line.append(button('編集','small secondary',()=>editStoreFromModal(store)));
+      line.append(button(storeDeleteArmedId===store.id?'削除を確定':'削除','small danger',()=>deleteStoreFromModal(store)));
+      body.append(line);
+    });
   }
   function markLcdTouched(){
     lastLcdTouchedAt=Date.now();
@@ -1596,7 +1874,7 @@ textarea{
       endedAt:isoWithOffset(new Date(Math.max(now.getTime(),maxLogT))),
       invest:money?money.investedYen:null,
       payout:money?money.collectMedals:null,
-      storeId:null,
+      storeId:info.storeId,
       storeName:info.storeName,
       unitNo:info.unitNo,
       lendRate:info.lendRate??(money?money.loanRate:null),
@@ -2267,6 +2545,7 @@ textarea{
     // 貸出レートは sessionMoney.loanRate が正本なので sessionInfo には持たせない
     state.sessionInfo=normalizeSessionInfo({
       ...normalizeSessionInfo(state.sessionInfo),
+      storeId:storeById($('moneyStoreSelect')?.value)?.id??null,
       storeName:$('moneyStoreName')?.value,
       unitNo:$('moneyUnitNo')?.value,
       lendRate:null,
@@ -2879,6 +3158,7 @@ textarea{
       setKeypadInputMode(exchangeRate,{decimal:true});
       exchangeRate.step='0.1';
       exchangeRate.value=(carry?(info.exchangeRate??last.exchangeRate):info.exchangeRate)??'';
+      const storeSelect=storeSelectInput('moneyStoreSelect',carry?(info.storeId??last.storeId):info.storeId);
       const storeName=input('moneyStoreName','text','店舗名',40);
       storeName.value=(carry?(info.storeName??last.storeName):info.storeName)||'';
       const unitNo=input('moneyUnitNo','text','台番号',20);
@@ -2895,16 +3175,22 @@ textarea{
       const initialIcatch=selectInput('initialIcatchSelect',INITIAL_ICATCHES,'前回アイキャッチ');
       initialIcatch.value=selectedInitialIcatch||latestInitialIcatch()||'';
       initialIcatch.addEventListener('change',()=>{selectedInitialIcatch=normalizeInitialIcatch(initialIcatch.value);});
-      [startCredit,startMochidama,startSaipurei,loanRate,exchangeRate,storeName,unitNo,initialDiff,startRealG,startLcdG,initialThrough,initialIcatch].forEach(node=>{node.disabled=locked;});
+      [startCredit,startMochidama,startSaipurei,loanRate,exchangeRate,storeSelect,storeName,unitNo,initialDiff,startRealG,startLcdG,initialThrough,initialIcatch].forEach(node=>{node.disabled=locked;});
+      wireStoreFields({selectNode:storeSelect,nameNode:storeName,lendNode:loanRate,exchangeNode:exchangeRate});
       if(locked)body.append(el('div','muted','初期設定はロック中です。修正する場合だけ編集を押してください。'));
       body.append(field('現金残高',startCredit));
       body.append(field('持ちメダル',startMochidama));
       body.append(field('再プレイ',startSaipurei));
+      const storeLine=row('store-select-row');
+      const storeRegisterBtn=button('店舗を登録','small secondary',()=>openStoreModal({selectId:'moneyStoreSelect',nameId:'moneyStoreName',lendId:'moneyLoanRate',exchangeId:'moneyExchangeRate'}));
+      storeRegisterBtn.disabled=locked;
+      storeLine.append(field('店舗',storeSelect),storeRegisterBtn);
+      body.append(storeLine);
+      body.append(field('店舗名',storeName));
+      body.append(field('台番号',unitNo));
       const ratePair=row('rate-pair');
       ratePair.append(field('貸出レート',loanRate),field('交換レート',exchangeRate));
       body.append(ratePair);
-      body.append(field('店舗名',storeName));
-      body.append(field('台番号',unitNo));
       body.append(field('初期差枚',initialDiff));
       body.append(field('FBスルー初期値',initialThrough));
       body.append(field('前回アイキャッチ',initialIcatch));
@@ -3003,6 +3289,7 @@ textarea{
       const money=currentMoney();
       const last=loadLastSessionInfo();
       const carry=!moneyInitialized();
+      const storeSelect=storeSelectInput('sessionStoreSelect',carry?(info.storeId??last.storeId):info.storeId);
       const storeName=input('sessionStoreName','text','店舗名',40);
       storeName.value=(carry?(info.storeName??last.storeName):info.storeName)||'';
       const unitNo=input('sessionUnitNo','text','台番号',20);
@@ -3021,6 +3308,10 @@ textarea{
       memo.maxLength=500;
       memo.placeholder='店舗・台メモ';
       memo.value=info.memo||'';
+      wireStoreFields({selectNode:storeSelect,nameNode:storeName,lendNode:lendRate,exchangeNode:exchangeRate});
+      const storeLine=row('store-select-row');
+      storeLine.append(field('店舗',storeSelect),button('店舗を登録','small secondary',()=>openStoreModal({selectId:'sessionStoreSelect',nameId:'sessionStoreName',lendId:'sessionLendRate',exchangeId:'sessionExchangeRate'})));
+      body.append(storeLine);
       body.append(field('店舗名',storeName));
       body.append(field('台番号',unitNo));
       body.append(field('貸出レート',lendRate));
@@ -3036,6 +3327,7 @@ textarea{
     if(lendRaw!==''&&lendRate===null){toast('貸出レートを数値で入力してください');return;}
     // 貸出レートは sessionMoney.loanRate が正本なので sessionInfo には持たせない
     const next=normalizeSessionInfo({
+      storeId:storeById($('sessionStoreSelect')?.value)?.id??null,
       storeName:$('sessionStoreName')?.value,
       unitNo:$('sessionUnitNo')?.value,
       lendRate:null,
@@ -3173,6 +3465,7 @@ textarea{
     sheet.classList.add('open');
   }
   function closeSheet(){
+    if($('storeModal')?.classList.contains('open'))closeStoreModal();
     $('sheet').classList.remove('open');
     document.querySelector('.bm-sheet-panel')?.classList.remove('single-choice-sheet');
     activeHintKey=null;
@@ -3356,6 +3649,8 @@ textarea{
     $('keypadCancelTopBtn').addEventListener('click',closeKeypad);
     $('keypadApplyBtn').addEventListener('click',applyKeypad);
     $('keypadModal').addEventListener('click',event=>{if(event.target===$('keypadModal'))closeKeypad();});
+    $('storeModalCloseBtn').addEventListener('click',closeStoreModal);
+    $('storeModal').addEventListener('click',event=>{if(event.target===$('storeModal'))closeStoreModal();});
     document.querySelectorAll('[data-step]').forEach(btn=>btn.addEventListener('click',()=>stepBoth(Number(btn.dataset.step)||0)));
     $('stepUndoBtn').addEventListener('click',undoStep);
     $('moneyLoanBtn').addEventListener('click',recordMoneyLoan);

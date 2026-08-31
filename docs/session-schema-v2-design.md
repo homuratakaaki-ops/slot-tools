@@ -69,7 +69,7 @@ sf6-record ─┐                    ┌─ 一覧・集計（エンベロープ
 | `endedAt` | string | ✓ | 終了日時。ISO 8601 |
 | `invest` | number | ✓ | 投資額（円） |
 | `payout` | number | ✓ | 回収枚数（枚） |
-| `storeId` | string | - | 店舗ID。既存のチェーン/店舗テーブルのIDを使用 |
+| `storeId` | string | - | 店舗ID。共通店舗マスタ（§1.6）の `id`。直接入力の店舗は null |
 | `storeName` | string | - | 店舗名。storeId未登録店舗のフリー入力用 |
 | `unitNo` | string | - | 台番号。文字列型（"312-2"等の表記に対応) |
 | `lendRate` | number | - | 貸出レート（1000円あたりの貸出枚数。例: 46） |
@@ -101,6 +101,56 @@ sf6-record ─┐                    ┌─ 一覧・集計（エンベロープ
 - 注釈レイヤー（§4）・将来の公開レイヤーはすべてこのIDでセッションを参照するため、
   IDが変わると振り返りスタンプ等の紐づけが全て失われる。実装時は
   「エクスポート処理が毎回IDを再生成していないか」を必ず検証すること
+
+---
+
+### 1.6 共通店舗マスタ（slot-tools-stores-v1）
+
+`storeId` の参照先となる店舗マスタは、機種・ツールを問わない**単一の正本**として
+localStorage キー `slot-tools-stores-v1` に置く。特定ツール固有の項目をトップレベルに
+混ぜないこと。
+
+```json
+{
+  "ver": 1,
+  "stores": [
+    {
+      "id": "st_3f9a1c04d7b8e250",
+      "name": "○○店",
+      "slot": { "lendRate": 46, "exchangeRate": 52 },
+      "pachinko": { "lendRate": null, "exchangeBalls": null },
+      "updatedAt": 1756600000000
+    }
+  ]
+}
+```
+
+| キー | 型 | 必須 | 説明 |
+|---|---|---|---|
+| `ver` | number | ✓ | マスタ構造の版。今回を `1` とする |
+| `stores[].id` | string | ✓ | 店舗ID。`st_` ＋ 16桁の小文字hex。yutime-v3 の `cryptoId("st")` と同一生成則 |
+| `stores[].name` | string | ✓ | 店舗名 |
+| `stores[].slot` | object | ✓ | スロット用レート `{lendRate, exchangeRate}`。未設定項目は null |
+| `stores[].pachinko` | object | ✓ | パチンコ用レート `{lendRate, exchangeBalls}`。未設定項目は null |
+| `stores[].updatedAt` | number | ✓ | 最終更新（epoch ms） |
+
+規約:
+
+1. **id は再採番しない。** 既存 id を持つレコードを読んだ場合はそのまま保持する。
+   yutime-v3 の既存店舗IDをそのまま持ち込めるようにするための互換要件
+2. レートは**遊技ドメインごとに入れ子**にする。スロットの `exchangeRate`（枚数）と
+   パチンコの `exchangeBalls`（玉数）は別の量なので、同一キーに畳まない
+3. 各ツールは自分のドメインのブロックのみ読み書きする。sf6-record は `slot` のみ参照し、
+   `pachinko` は null で作成したまま触らない
+4. マスタの値はセッション開始時の**初期値**。セッション側で上書きしてもマスタは変えない
+5. 店舗を削除しても、過去セッションに記録済みの `storeId` / `storeName` は変更しない
+   （エクスポート済みデータの不変性）
+
+移行（別指示書で実施。本節はスコープ外）:
+
+- nerai-record: 店舗名をキーにした自前テーブル（id なし）。name → id の採番が必要
+- yutime-v3: `{id, name, isPersonal, lendRate, exchangeBalls, createdAt}`。
+  id はそのまま、`lendRate` / `exchangeBalls` を `pachinko` ブロックへ移す
 
 ---
 
@@ -302,3 +352,4 @@ IDEAS.md退避項目（設計に影響させない）: 公開稼働ノート（/
 - [x] sessionId: UUID v4、作成時一度だけ生成・以後不変（§1.5）
 - [x] 交換率: lendRate / exchangeRate の2値分離、導出式確定（§1.3）
 - [x] 実戦中スタンプ: 一次記録として保持、ノート側で表示トグル（§2.2）
+- [x] 店舗マスタ: `slot-tools-stores-v1` を全ツール共通の正本、レートは遊技ドメイン別の入れ子（§1.6）
