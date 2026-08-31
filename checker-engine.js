@@ -3,6 +3,8 @@
 
   const DEFAULT_CARD_ICON='assets/toaru2-default-icon.jpg';
   const NANA_CARD_ICON='assets/nana-icon.jpg';
+  const CARD_RIGHT=1010;
+  const BOTTOM_MIN_FONT=16;
 
   function clone(v){
     if(typeof structuredClone==='function')return structuredClone(v);
@@ -470,11 +472,22 @@
       if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});
       return rows;
     }
-    function fitText(x,text,tx,ty,maxWidth,fontSize,color,weight){
+    function fitText(x,text,tx,ty,maxWidth,fontSize,color,weight,minSize,ellipsis){
+      const floor=Number(minSize)||18;
       let size=fontSize;
       do{x.font=(weight||700)+' '+size+"px 'M PLUS 1p'";size-=1;}
-      while(x.measureText(text).width>maxWidth&&size>=18);
-      x.fillStyle=color;x.fillText(text,tx,ty);
+      while(x.measureText(text).width>maxWidth&&size>=floor);
+      let out=text;
+      if(ellipsis&&x.measureText(out).width>maxWidth){
+        while(out.length>1&&x.measureText(out+'…').width>maxWidth)out=out.slice(0,-1);
+        out+='…';
+      }
+      x.fillStyle=color;x.fillText(out,tx,ty);
+    }
+    // サマリー各行の使用可能幅。右隣の列のxまで（最終列はカード右端1010まで）。
+    function bottomColumnWidth(x0,xs){
+      const next=xs.filter(v=>v>x0).sort((a,b)=>a-b)[0];
+      return (next===undefined?CARD_RIGHT:next)-x0;
     }
     function drawDetailCard(){
       const cv=document.getElementById('detailCanvas');if(!cv)return;
@@ -598,14 +611,16 @@
       }
       const bottom=config.card.bottom(context());
       x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText(bottom.title,70,720);
+      const bottomXs=bottom.columns.map(col=>Number(col.x)||0);
       bottom.columns.forEach(col=>{
+        const x0=Number(col.x)||0;
+        const maxWidth=bottomColumnWidth(x0,bottomXs);
         col.items.forEach((item,i)=>{
           const by=bottom.startY+i*bottom.rowGap;
           const count=item.value;
           const active=item.active!==undefined?item.active:count>0;
-          x.fillStyle=item.color||(active?'#ffc94d':'#6b6278');
-          x.font=`800 ${bottom.fontSize}px 'M PLUS 1p'`;
-          x.fillText(item.text||`${item.label} ×${count}`,col.x,by);
+          const color=item.color||(active?'#ffc94d':'#6b6278');
+          fitText(x,item.text||`${item.label} ×${count}`,x0,by,maxWidth,bottom.fontSize,color,800,BOTTOM_MIN_FONT,true);
         });
       });
       x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";
