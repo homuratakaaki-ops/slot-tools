@@ -181,6 +181,7 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   text-align:center;
 }
 .money-pill strong{color:var(--ink);font-variant-numeric:tabular-nums}
+#moneyInvestPill{min-height:48px}
 #moneyDiffPill{min-height:48px;cursor:pointer}
 .money-pill .money-breakdown{
   display:block;
@@ -549,7 +550,7 @@ textarea{
     </section>
 
     <section class="money-row" aria-label="投資回収">
-      <div class="money-pill" id="moneyInvestPill">投資 <strong id="cashTotal">0円</strong></div>
+      <div class="money-pill" id="moneyInvestPill">投資 <strong id="cashTotal">0円</strong><span class="money-breakdown" id="sandBalanceText"></span></div>
       <div class="money-pill" id="moneyDiffPill">差枚 <strong id="diffTotal">-</strong><span class="money-breakdown" id="diffBreakdown"></span></div>
     </section>
 
@@ -1200,8 +1201,8 @@ textarea{
       const btn=event.target.closest?.('[data-stage-anten-choice]');
       if(!btn||!group.contains(btn))return;
       const value=normalizeAntenPattern(btn.dataset.stageAntenChoice);
-      selectedStageAnten=selectedStageAnten===value?null:value;
-      refreshChoiceGroup(group,selectedStageAnten);
+      if(!value)return;
+      recordStageAnten(value,{closeAfter:true});
     });
   }
   function gainKindDisplay(label){
@@ -1522,6 +1523,10 @@ textarea{
     const m=normalizeSessionMoney(state.sessionMoney);
     return m?m.investedYen:cashTotal();
   }
+  function sandBalanceDisplay(){
+    const m=normalizeSessionMoney(state.sessionMoney);
+    return m?m.sandBalance:0;
+  }
   function moneySummary(money=currentMoney()){
     const m=normalizeSessionMoney(money)||blankSessionMoney();
     const cashMedals=Math.round((m.investedYen/1000)*m.loanRate);
@@ -1612,6 +1617,7 @@ textarea{
     const moneyReady=moneyInitialized();
     const diffDisplay=moneyReady?intervalDiffDisplay():{text:'未設定',breakdown:''};
     $('cashTotal').textContent=moneyReady?`${cashDisplayTotal().toLocaleString()}円`:'未設定';
+    $('sandBalanceText').textContent=moneyReady?`残高 ${sandBalanceDisplay().toLocaleString()}円`:'残高 −';
     $('diffTotal').textContent=diffDisplay.text;
     $('diffBreakdown').textContent=diffDisplay.breakdown;
     ['moneyInvestPill','moneyDiffPill'].forEach(id=>{
@@ -1918,13 +1924,18 @@ textarea{
   function recordStage(stage,options={}){
     const snap=requireLcd();
     if(!snap)return;
-    const anten=normalizeAntenPattern(selectedStageAnten);
     commit(`stage:${stage}`,()=>{
       addLogDirect({type:'stage_sel',stage,realG:snap.realG,lcdG:snap.lcdG});
-      if(anten)applyAnten(anten,snap);
       state.currentStage=stage;
     },{toast:`stage:${stage}`});
-    selectedStageAnten=null;
+    if(options.closeAfter)closeSheet();
+  }
+  function recordStageAnten(pattern,options={}){
+    const normalized=normalizeAntenPattern(pattern);
+    if(!normalized)return;
+    const snap=requireLcd();
+    if(!snap)return;
+    commit(`anten:${normalized}`,()=>applyAnten(normalized,snap),{toast:`暗転：${antenLabel(normalized)}を記録しました`});
     if(options.closeAfter)closeSheet();
   }
   function recordStageEnd(){
@@ -2501,7 +2512,7 @@ textarea{
       antenChoices.id='stageAntenKinds';
       wireStageAntenChoices(antenChoices);
       ANTEN_PATTERNS.forEach(item=>{
-        const btn=chip(item.label,selectedStageAnten===item.key,()=>{},item.cls);
+        const btn=chip(item.label,false,()=>{},item.cls);
         btn.dataset.choiceValue=item.key;
         btn.dataset.stageAntenChoice=item.key;
         antenChoices.append(btn);
