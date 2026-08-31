@@ -116,6 +116,10 @@ const hitWizardContext = vm.createContext({
   activeStore() {
     return { isPersonal: true };
   },
+  machineContextLine(target) {
+    const machine = target && target.machineId ? { daiNo: '101', modelName: 'テスト機' } : target;
+    return machine ? `<p class="machine-context">台${machine.daiNo || '不明'} ／ ${machine.modelName || '機種未設定'}</p>` : '';
+  },
   openModal(title, subtitle, htmlText) {
     hitWizardContext.__modalTitle = title;
     hitWizardContext.__modalSubtitle = subtitle;
@@ -196,7 +200,7 @@ assert.match(runEndWizardBlock, /id="saveEndFormBtn">保存<\/button>/);
 assert.match(runEndWizardBlock, /function completeEndSession\(session, hasHit\) \{/);
 assert.match(runEndWizardBlock, /\} else \{\s*syncSessionHitTotals\(session\);\s*\}/);
 assert.match(runEndWizardBlock, /if \(!hasHit\) \{\s*session\.hitCount = 0;\s*session\.totalRounds = 0;\s*\}/);
-assert.match(runEndWizardBlock, /計数機に流す玉数をそのまま入力してください。/);
+assert.match(runEndWizardBlock, /（実機：計数機に流す玉数）そのまま入力してください。/);
 const endWizardContext = vm.createContext({
   __modalHtml: '',
   __handlers: {},
@@ -207,6 +211,10 @@ const endWizardContext = vm.createContext({
   activeSessionId: 's_hit',
   deriveBalances() {
     return { mochidama: 1234 };
+  },
+  machineContextLine(target) {
+    const machine = target && target.machineId ? { daiNo: '101', modelName: 'テスト機' } : target;
+    return machine ? `<p class="machine-context">台${machine.daiNo || '不明'} ／ ${machine.modelName || '機種未設定'}</p>` : '';
   },
   openModal(title, hint, body) {
     endWizardContext.__modalTitle = title;
@@ -340,7 +348,7 @@ assert.match(endWizardContext.withHitsHtml, /end_memo/);
 // B90: 累計獲得出玉は大当たりありの分岐だけに出し、当選ごとの合計を初期値にする
 assert.match(endWizardContext.withHitsHtml, /id="end_sessionActualBalls"/);
 assert.match(endWizardContext.withHitsHtml, /累計獲得出玉/);
-assert.match(endWizardContext.withHitsHtml, /データカウンターに表示されている最終の累計獲得出玉を入力してください。当選ごとの入力は任意で、ここに入れた値が最終の記録になります。/);
+assert.match(endWizardContext.withHitsHtml, /（実機：データカウンターの累計獲得出玉）最終の値を入れてください。当選ごとの入力は任意で、ここに入れた値が最終の記録になります。/);
 assert.doesNotMatch(endWizardContext.noHitHtml, /end_sessionActualBalls|累計獲得出玉/);
 assert.equal(endWizardContext.savedHitSession.sessionActualBalls, 2800);
 assert.match(endWizardContext.presetActualHtml, /id="end_sessionActualBalls"[^>]*value="1980"/);
@@ -370,7 +378,7 @@ assert.ok(hitResetPrompt.includes('data-hit-round'), 'round type chips should be
 assert.match(hitResetPrompt, /id="hitRecordSpin"/);
 assert.match(hitResetPrompt, /id="hitRecordActualBalls"/);
 assert.match(hitResetPrompt, /placeholder="累計獲得出玉（カウンター表示）任意"/);
-assert.match(hitResetPrompt, /データカウンターに表示されている累計の獲得出玉を入力してください。大当り開始から電サポ終了までの純増（電サポ中の減りを含む）です。前回入力との差が今回の出玉として記録されます。/);
+assert.match(hitResetPrompt, /（実機：データカウンターの累計獲得出玉）大当り開始から電サポ終了までの純増（電サポ中の減りを含む）です。前回入力との差が今回の出玉として記録されます。/);
 assert.match(hitResetPrompt, /hitRoundSummaryHtml\(session, presetId\)/);
 assert.match(hitResetPrompt, /class="hit-round-layout"/);
 assert.match(hitResetPrompt, /appendHitRecord\(session, button\.dataset\.hitRound\);/);
@@ -1991,6 +1999,10 @@ const startSessionContext = vm.createContext({
   currentTime() { return '12:34'; },
   persistWithToast(message) { startSessionContext.__toasts.push(message); return true; },
   showView(view) { startSessionContext.__view = view; },
+  machineContextLine(target) {
+    const machine = target && target.machineId ? { daiNo: '101', modelName: 'テスト機' } : target;
+    return machine ? `<p class="machine-context">台${machine.daiNo || '不明'} ／ ${machine.modelName || '機種未設定'}</p>` : '';
+  },
   openModal() {},
   byId() { return { addEventListener() {} }; },
   closeModal() {},
@@ -2479,6 +2491,16 @@ assert.ok(design.includes('schema 25 `startEv` サンプル'));
 assert.ok(design.includes('B54 稼働中パネルの期待値・評価セクション'));
 assert.ok(design.includes('容量予算の増分はなし'));
 assert.ok(design.includes('B90 ヤメ入力の累計獲得出玉と判定根拠の内訳'));
+// B94: 実機と照合するための表示
+assert.ok(design.includes('B94 実機と照合するための表示'));
+assert.ok(design.includes('入力・判断する場所では、いまどの台の・どの状態を扱っているかを、その場で実機と照合できるようにする'));
+assert.ok(html.includes('function machineContextLine(target)'));
+assert.ok(html.includes('function runningStateBadge(session)'));
+assert.ok(html.includes('当り後（時短消化中）'));
+assert.ok(html.includes('id="machineEvContext"'));
+assert.equal(html.split('${machineContextLine(session)}').length - 1, 9);
+assert.equal((html.match(/（実機：/g) || []).length, 13);
+assert.ok(!html.includes('遊タイム中の投資として記録されます'));
 // B91: 残保留込みモデル
 assert.ok(design.includes('B91 残保留込みの引き戻し計算'));
 assert.ok(design.includes('schema は 29 とする'));

@@ -315,6 +315,20 @@
     .badge.warn { background: #fff7ed; color: #9a3412; }
     .badge.good { background: #ecfdf3; color: #067647; }
     .badge.dark { background: var(--ink); color: #fff; }
+    .machine-context {
+      margin: 0 0 10px;
+      padding: 6px 10px;
+      border-radius: 8px;
+      background: var(--panel2, #f4f2ec);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .state-badge-inline { margin-left: 6px; }
+    .spin-note { color: var(--muted); font-size: 11px; margin-left: 4px; }
 
     .label-checks {
       display: flex;
@@ -3730,6 +3744,7 @@
       const derived = deriveSession(session, machine);
       const balances = deriveBalances(session);
       const yutimeMode = isYutimeInvestmentPhase(session);
+      const stateBadge = runningStateBadge(session);
       const otherActiveSessions = activeSessionsForStore(store.id).filter((item) => item.id !== session.id);
       const currentSpin = session.currentSpin ?? session.startSpin;
       const liveRate = runningPanelRate(session);
@@ -3758,7 +3773,7 @@
             <div class="running-headline"><strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong></div>
             <div class="running-live-row">
               <div>
-                <span>現在回転数</span>
+                <span>現在回転数<span class="badge ${stateBadge.className} state-badge-inline">${escapeHtml(stateBadge.label)}</span>${stateBadge.spinNote ? `<span class="spin-note">${escapeHtml(stateBadge.spinNote)}</span>` : ""}</span>
                 <button class="editable-value" data-edit-spin><strong>${numberText(currentSpin, "-")}</strong><small>修正</small></button>
               </div>
               <div>
@@ -3786,7 +3801,7 @@
               </div>
             `}
             <div class="running-total-row"><span>総投入の内訳: 持ち玉${numberText(totals.mochidamaBalls, 0)}玉・再プレ${numberText(totals.saipureiBalls, 0)}玉・現金${numberText(totals.cashYen, 0)}円</span></div>
-            ${yutimeMode ? '<p class="phase-note">遊タイム中の投資として記録されます。</p>' : ""}
+            ${yutimeMode ? '<p class="phase-note">この間の投資は通常時と分けて記録されます。</p>' : ""}
             <div class="running-actions">
               <button id="enterYutimeBtn">遊タイム突入</button>
               <button class="primary" id="hitBtn">大当たり</button>
@@ -5586,14 +5601,15 @@
           <div class="expectation-inputs">
             <div class="field-row"><label for="evStartTotalHits">開始時点の累計大当たり回数</label><input id="evStartTotalHits" inputmode="numeric" value=""></div>
             <div class="field-row ev-ramclear-row"><label for="evPrevDisabled">ラムクリア</label><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> あり</label></div>
-            <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
-            <div class="field-row"><label for="evCurrentSpin">現在回転数</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
+            <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数（実機：前日の最終回転数。閉店チェックがあれば自動）</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
+            <div class="field-row"><label for="evCurrentSpin">現在回転数（実機：データカウンターの回転数）</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${baseStats.rate ? baseStats.rate.toFixed(1) : "履歴なし"}"></div>
             <div class="field-row expectation-spacer"></div>
             <div class="field-row"><label for="evMochidamaBalls">持ち玉（玉）</label><input id="evMochidamaBalls" inputmode="numeric" value="" placeholder="0"></div>
             <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="" placeholder="0"></div>
             <div class="field-row"><label for="evStartCredit">開始時のカード残高</label><input id="evStartCredit" inputmode="numeric" value=""></div>
           </div>
+          <p class="hint" id="machineEvContext"></p>
           <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"}</p>
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
@@ -5714,6 +5730,8 @@
       const metrics = byId("machineEvMetrics");
       const detail = byId("machineEvDetail");
       if (!machine || !title || !metrics || !detail) return;
+      const contextLine = byId("machineEvContext");
+      if (contextLine) contextLine.innerHTML = machineContextLine(machine);
       const stats = machineStats(machine.id);
       const previousState = expectationPreviousSpinState();
       const previousDisabled = previousState.disabled;
@@ -5937,7 +5955,7 @@
       runWizard("打ち始めウィザード", [
         {
           key: "startSpin",
-          label: "現在回転数",
+          label: "現在回転数（実機：データカウンターの回転数）",
           type: "number",
           preset: startSpinPreset,
           hint: `${dateWithAutoLabels(session.date)}で記録します。` + (presetsDisablePrevDay(presets) ? " 期待値判定で宵越し無効を選択しています。" : (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。")) + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
@@ -5946,7 +5964,7 @@
         { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
         { key: "startSaipurei", label: "開始時の再プレイ残り", type: "number", preset: startSaipureiPreset, hint: activeCarryover ? "前の台から引き継いだ値です。未入力だった場合は空欄のままです。" : (startSaipureiPreset !== null ? previousBalanceHint : "") },
         { key: "startCredit", label: "開始時のカード残高", type: "number", preset: startCreditPreset, hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : (startCreditPreset !== null ? previousBalanceHint : "") },
-        { key: "startTotalHits", label: "開始時点の累計大当たり回数", type: "number", preset: startTotalHitsPreset, hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
+        { key: "startTotalHits", label: "開始時点の累計大当たり回数（実機：データカウンターの本日大当り回数）", type: "number", preset: startTotalHitsPreset, hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         if (session.currentSpin === null || session.currentSpin === undefined) session.currentSpin = session.startSpin;
@@ -5970,12 +5988,13 @@
       const mochidamaPreset = currentBalances.mochidama;
       const balancePresetHint = "稼働中の持ち玉残を初期値にしています。台の表示と違う場合は修正してください。";
       openModal("当選ウィザード", "初当たりの瞬間の記録です。大当たり回数・出玉は [ヤメ] でまとめて入力します。", `
+        ${machineContextLine(session)}
         <div class="field-row">
-          <label for="hitWizardSpin">当選回転数</label>
+          <label for="hitWizardSpin">当選回転数（実機：当選時のデータカウンター）</label>
           <input id="hitWizardSpin" inputmode="numeric" value="${escapeHtml(session.currentSpin ?? "")}">
         </div>
         <div class="field-row">
-          <label for="hitWizardRemainBalls">残り持ち玉</label>
+          <label for="hitWizardRemainBalls">残り持ち玉（実機：台の持ち玉表示）</label>
           <div>
             <input id="hitWizardRemainBalls" inputmode="numeric" value="${escapeHtml(mochidamaPreset ?? "")}">
             <p class="hint">${mochidamaPreset !== null ? `${balancePresetHint} ` : ""}今ある持ち玉を入力してください（再プレイ分は含めない）。正確な回転率と、当選時点の持ち玉が記録されます。${activeStore()?.isPersonal ? "" : " 非パーソナル店では空欄のままで構いません。"}</p>
@@ -6059,7 +6078,8 @@
       const balances = deriveBalances(session);
       const presetId = normalizeMachinePresetId(machine);
       const roundTypes = presetById(presetId)?.roundTypes || [];
-      openModal("現在回転数をリセット", "選ばず閉じると現在回転数はそのままです。続行する場合だけ、時短消化後の起点に合わせてください。", `
+      openModal("現在回転数をリセット", "選ばず閉じると現在回転数はそのままです。続行する場合だけ、時短消化後の起点に合わせてください。（実機：時短消化後のデータカウンター表示）", `
+        ${machineContextLine(session)}
         <div class="field-row">
           <label>当選ごとのラウンド記録</label>
           <div class="hit-round-layout">
@@ -6071,7 +6091,7 @@
                 <input id="hitRecordSpin" inputmode="numeric" value="${escapeHtml(session.hitSpin ?? session.currentSpin ?? "")}" placeholder="当選ゲーム数 任意">
                 <input id="hitRecordActualBalls" inputmode="numeric" placeholder="累計獲得出玉（カウンター表示）任意">
               </div>
-              <p class="hint">データカウンターに表示されている累計の獲得出玉を入力してください。大当り開始から電サポ終了までの純増（電サポ中の減りを含む）です。前回入力との差が今回の出玉として記録されます。</p>
+              <p class="hint">（実機：データカウンターの累計獲得出玉）大当り開始から電サポ終了までの純増（電サポ中の減りを含む）です。前回入力との差が今回の出玉として記録されます。</p>
             </div>
             ${hitRoundSummaryHtml(session, presetId)}
           </div>
@@ -6170,6 +6190,7 @@
       const session = findSession(sessionId);
       if (!session) return;
       openModal("ヤメ入力", "結果を選んでから、必要な項目だけ記録します。", `
+        ${machineContextLine(session)}
         <div class="grid two">
           <button class="primary" id="endWithHitBtn">大当たりあり</button>
           <button id="endNoHitBtn">当たらず終了（遊タイム抜け含む）</button>
@@ -6208,7 +6229,7 @@
     function runEndWizard(session, hasHit) {
       const currentBalances = deriveBalances(session);
       const endTotalBallsPreset = currentBalances.mochidama;
-      const endTotalBallsHint = (endTotalBallsPreset !== null ? "稼働中の持ち玉残を初期値にしています。 " : "") + "計数機に流す玉数をそのまま入力してください。";
+      const endTotalBallsHint = (endTotalBallsPreset !== null ? "稼働中の持ち玉残を初期値にしています。 " : "") + "（実機：計数機に流す玉数）そのまま入力してください。";
       const endSpinPreset = !hasHit && session.hitSpin === null && Number(session.hitCount || 0) === 0 ? session.currentSpin : null;
       const endSpinHint = endSpinPreset !== null ? "稼働中カウンタの現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "";
       const zanhoryuPreset = zanhoryuPresetFromHit(session, hasHit);
@@ -6221,14 +6242,14 @@
       const sessionActualPreset = normalizeNumber(session.sessionActualBalls) ?? (perHitActualTotal > 0 ? perHitActualTotal : null);
       const steps = hasHit ? [
         { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
-        { key: "sessionActualBalls", label: "累計獲得出玉", type: "number", preset: sessionActualPreset, hint: "データカウンターに表示されている最終の累計獲得出玉を入力してください。当選ごとの入力は任意で、ここに入れた値が最終の記録になります。" },
-        { key: "endSpin", label: "ヤメ回転数", type: "number" },
+        { key: "sessionActualBalls", label: "累計獲得出玉", type: "number", preset: sessionActualPreset, hint: "（実機：データカウンターの累計獲得出玉）最終の値を入れてください。当選ごとの入力は任意で、ここに入れた値が最終の記録になります。" },
+        { key: "endSpin", label: "ヤメ回転数（実機：ヤメ時のデータカウンター）", type: "number" },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number", preset: zanhoryuPreset, hint: zanhoryuHint },
         { key: "memo", label: "メモ", type: "textarea" },
         ...hitRecordSteps
       ] : [
         { key: "endTotalBalls", label: "終了時玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
-        { key: "endSpin", label: "ヤメ回転数", type: "number", preset: endSpinPreset, hint: endSpinHint },
+        { key: "endSpin", label: "ヤメ回転数（実機：ヤメ時のデータカウンター）", type: "number", preset: endSpinPreset, hint: endSpinHint },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
         { key: "memo", label: "メモ", type: "textarea" }
       ];
@@ -6237,6 +6258,7 @@
 
     function openEndForm(session, hasHit, steps) {
       openModal("ヤメ入力", "必要な項目だけ入力して保存します。空欄はスキップ扱いです。", `
+        ${machineContextLine(session)}
         <div class="end-form">
           ${steps.map((step) => endFormFieldHtml(step, session)).join("")}
         </div>
@@ -6371,6 +6393,20 @@
       if (step.type === "number") return normalizeNumber(input.value);
       const value = input.value.trim();
       return value ? value : null;
+    }
+
+    // B94: いまツールがどの状態として扱っているかを1語で出す
+    function runningStateBadge(session) {
+      if (isYutimeInvestmentPhase(session)) return { label: "遊タイム中", className: "warn" };
+      const hits = normalizeHits(session?.hits);
+      const latest = hits.length ? hits[hits.length - 1] : null;
+      const hitSpin = normalizeNumber(latest?.hitSpin) ?? normalizeNumber(session?.hitSpin);
+      const currentSpin = normalizeNumber(session?.currentSpin) ?? normalizeNumber(session?.startSpin);
+      // 当選後に現在回転数をリセットすると当選時より小さくなる。まだ大きいならリセット前
+      if (hitSpin !== null && currentSpin !== null && currentSpin >= hitSpin) {
+        return { label: "当り後（時短消化中）", className: "dark", spinNote: "リセット前" };
+      }
+      return { label: "通常時", className: "" };
     }
 
     function isYutimeInvestmentPhase(session) {
@@ -7106,6 +7142,7 @@
       const machine = data.machines.find((item) => item.id === session.machineId);
       const options = hitResetOptions(machine);
       openModal("同じ台で続行", "開始回転数を選ぶと、同じ台の新しい記録をすぐ開始します。値はあとから修正できます。", `
+        ${machineContextLine(session)}
         <div class="quick-invest">
           ${options.map((value) => `<button class="${Number(session.currentSpin) === value ? "primary" : ""}" data-same-start="${value}">${value}</button>`).join("")}
         </div>
@@ -7286,7 +7323,8 @@
 
     function openSpinEditForm(session) {
       openModal("現在回転数を修正", "液晶表示と合わせるための回転数修正です。", `
-        <div class="field-row"><label for="currentSpinValue">現在回転数</label><input id="currentSpinValue" inputmode="numeric" value="${escapeHtml(session.currentSpin ?? session.startSpin ?? "")}"></div>
+        ${machineContextLine(session)}
+        <div class="field-row"><label for="currentSpinValue">現在回転数（実機：データカウンターの回転数）</label><input id="currentSpinValue" inputmode="numeric" value="${escapeHtml(session.currentSpin ?? session.startSpin ?? "")}"></div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveCurrentSpinBtn">保存</button>
@@ -7305,6 +7343,7 @@
       const session = findSession(sessionId);
       const spinPreset = session.yutimeEnterSpin ?? session.currentSpin ?? session.startSpin;
       openModal("遊タイム突入", "突入時の玉数と回転数を入れると、玉減りと通常回転率を分けて見られます。", `
+        ${machineContextLine(session)}
         <div class="field-row"><label for="yutimeBalls">突入時玉数</label><input id="yutimeBalls" inputmode="numeric" value="${escapeHtml(session.yutimeEnterBalls ?? "")}"></div>
         <div class="field-row"><label for="yutimeSpin">突入時回転数</label><input id="yutimeSpin" inputmode="numeric" value="${escapeHtml(spinPreset ?? "")}"></div>
         <div class="modal-actions">
@@ -7329,6 +7368,7 @@
       const derived = deriveSession(session, machine);
       const totals = investmentTotals(session);
       openModal("戦果報告", "お疲れ様でした。記録は履歴に保存済みです。未入力は「記録の修正・削除」から補完できます。", `
+        ${machineContextLine(session)}
         <div class="metric-grid">
           <div class="metric"><span>通常回転数</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${numberText(derived.consumedBalls, "-")}</strong></div>
@@ -7372,6 +7412,7 @@
       if (!session) return;
       const labels = storeLabels(session.storeId);
       openModal("記録の修正・削除", "スキップした項目もここで修正できます。", `
+        ${machineContextLine(session)}
         <div class="grid two">
           ${fieldHtml("date", "日付", session.date, "date")}
           ${fieldHtml("startTime", "開始時刻", session.startTime, "time")}
@@ -7465,6 +7506,15 @@
     function fieldHtml(key, label, value, type = "text") {
       const inputMode = type === "text" ? ' inputmode="numeric"' : "";
       return `<div class="field-row"><label for="edit_${key}">${label}</label><input id="edit_${key}" type="${type}"${inputMode} value="${escapeHtml(value ?? "")}"></div>`;
+    }
+
+    // B94: 入力・判断の場に「いまどの台か」を必ず出す。文字列は必ずここで組む
+    function machineContextLine(target) {
+      const machine = target && target.machineId
+        ? data.machines.find((item) => item.id === target.machineId)
+        : target;
+      if (!machine) return "";
+      return `<p class="machine-context">台${escapeHtml(machine.daiNo || "不明")} ／ ${escapeHtml(machine.modelName || "機種未設定")}</p>`;
     }
 
     function openModal(title, hint, html, mode = "") {
