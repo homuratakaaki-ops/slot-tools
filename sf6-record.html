@@ -926,9 +926,11 @@ textarea{
       return {storeName:info.storeName,lendRate:info.lendRate,exchangeRate:info.exchangeRate};
     }catch(e){return blank;}
   }
-  function rememberSessionInfo(value){
-    const info=normalizeSessionInfo(value);
-    try{localStorage.setItem(LAST_INFO_KEY,JSON.stringify({storeName:info.storeName,lendRate:info.lendRate,exchangeRate:info.exchangeRate}));}catch(e){}
+  function rememberSessionInfo(){
+    const info=normalizeSessionInfo(state.sessionInfo);
+    const money=normalizeSessionMoney(state.sessionMoney);
+    // 貸出レートの正本は sessionMoney.loanRate なので、引き継ぎもそこから取る
+    try{localStorage.setItem(LAST_INFO_KEY,JSON.stringify({storeName:info.storeName,lendRate:money?money.loanRate:null,exchangeRate:info.exchangeRate}));}catch(e){}
   }
   function defaultState(){
     return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,autoColorResetAt:Date.now(),sessionMoney:null,logs:[]};
@@ -2261,15 +2263,16 @@ textarea{
         addLogDirect({type:'icatch',chara:initialIcatch,realG:initialSnap.realG,lcdG:initialSnap.lcdG});
       }
     },{toast:already?'初期登録を修正しました':'初期登録を保存しました'});
-    // 店舗名・台番号・レートは店舗情報シートと同じ保存先に書く（二重管理にしない）
+    // 店舗名・台番号・交換レートは店舗情報シートと同じ保存先に書く（二重管理にしない）
+    // 貸出レートは sessionMoney.loanRate が正本なので sessionInfo には持たせない
     state.sessionInfo=normalizeSessionInfo({
       ...normalizeSessionInfo(state.sessionInfo),
       storeName:$('moneyStoreName')?.value,
       unitNo:$('moneyUnitNo')?.value,
-      lendRate:loanRate,
+      lendRate:null,
       exchangeRate
     });
-    rememberSessionInfo(state.sessionInfo);
+    rememberSessionInfo();
     save();
     render();
     closeSheet();
@@ -2871,7 +2874,7 @@ textarea{
       const loanRate=input('moneyLoanRate','number','50');
       setKeypadInputMode(loanRate,{decimal:true});
       loanRate.step='0.1';
-      loanRate.value=(carry?(info.lendRate??last.lendRate??m.loanRate):m.loanRate)||DEFAULT_LOAN_RATE;
+      loanRate.value=(carry?(last.lendRate??m.loanRate):m.loanRate)||DEFAULT_LOAN_RATE;
       const exchangeRate=input('moneyExchangeRate','number','52');
       setKeypadInputMode(exchangeRate,{decimal:true});
       exchangeRate.step='0.1';
@@ -2997,7 +3000,7 @@ textarea{
   function openSessionInfoSheet(){
     openSheet('店舗情報',body=>{
       const info=normalizeSessionInfo(state.sessionInfo);
-      const money=normalizeSessionMoney(state.sessionMoney);
+      const money=currentMoney();
       const last=loadLastSessionInfo();
       const carry=!moneyInitialized();
       const storeName=input('sessionStoreName','text','店舗名',40);
@@ -3007,7 +3010,8 @@ textarea{
       const lendRate=input('sessionLendRate','number','46');
       setKeypadInputMode(lendRate,{decimal:true});
       lendRate.step='0.1';
-      lendRate.value=(carry?(info.lendRate??last.lendRate):info.lendRate)??(money?money.loanRate:'');
+      // 貸出レートは sessionMoney.loanRate を読む（別変数では保持しない）
+      lendRate.value=(carry?(last.lendRate??money.loanRate):money.loanRate)||DEFAULT_LOAN_RATE;
       const exchangeRate=input('sessionExchangeRate','number','52');
       setKeypadInputMode(exchangeRate,{decimal:true});
       exchangeRate.step='0.1';
@@ -3026,19 +3030,33 @@ textarea{
     });
   }
   function recordSessionInfo(){
+    const lendRaw=String($('sessionLendRate')?.value||'').trim();
+    const exchangeRaw=String($('sessionExchangeRate')?.value||'').trim();
+    const lendRate=lendRaw===''?null:positiveNumber(lendRaw);
+    if(lendRaw!==''&&lendRate===null){toast('貸出レートを数値で入力してください');return;}
+    // 貸出レートは sessionMoney.loanRate が正本なので sessionInfo には持たせない
     const next=normalizeSessionInfo({
       storeName:$('sessionStoreName')?.value,
       unitNo:$('sessionUnitNo')?.value,
-      lendRate:$('sessionLendRate')?.value,
+      lendRate:null,
       exchangeRate:$('sessionExchangeRate')?.value,
       memo:$('sessionMemo')?.value
     });
-    const lendRaw=String($('sessionLendRate')?.value||'').trim();
-    const exchangeRaw=String($('sessionExchangeRate')?.value||'').trim();
-    if(lendRaw!==''&&next.lendRate===null){toast('貸出レートを数値で入力してください');return;}
     if(exchangeRaw!==''&&next.exchangeRate===null){toast('交換レートを数値で入力してください');return;}
     state.sessionInfo=next;
-    rememberSessionInfo(next);
+    const beforeRate=currentMoney().loanRate;
+    if(lendRate!==null&&lendRate!==beforeRate){
+      const snap=snapshot();
+      const already=moneyInitialized();
+      const apply=()=>{
+        const m=normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
+        state.sessionMoney=normalizeSessionMoney({...m,loanRate:lendRate})||blankSessionMoney();
+      };
+      // 初期登録済みなら「編集」と同じ扱いでmoneyログにafterを残す
+      if(already)commit('貸出レート変更',()=>{apply();addLogDirect({type:'money',op:'init',amount:null,after:moneyAfterSummary(state.sessionMoney),realG:snap.realG,lcdG:snap.lcdG});},{toast:'店舗情報を保存しました'});
+      else apply();
+    }
+    rememberSessionInfo();
     save();
     render();
     closeSheet();
