@@ -903,6 +903,31 @@
       font-size: 12px;
     }
 
+    .consumed-choice {
+      margin: 8px 10px;
+      padding: 8px;
+      border: 1px solid var(--warn);
+      border-radius: 8px;
+      background: #fff7ed;
+    }
+
+    .consumed-choice p {
+      margin: 0 0 6px;
+      font-size: 12px;
+    }
+
+    .consumed-choice-options {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .consumed-choice-options button {
+      min-width: 0;
+      white-space: normal;
+      text-align: left;
+    }
+
     .live-ev-line {
       margin: -2px 0 8px;
       color: var(--muted);
@@ -1713,12 +1738,14 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 26;
+    const SCHEMA_VERSION = 27;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
     const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
     const EV_THRESHOLDS = { good: 2000, warn: 0 };
+    const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
+    const CONSUMED_BALLS_SOURCE_LABELS = { tray: "台上差", taps: "タップ合計" };
     const AUTO_LABELS = [
       "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日",
       "1のつく日", "2のつく日", "3のつく日", "4のつく日", "5のつく日",
@@ -1977,6 +2004,7 @@
       currentSpin: null,
       prevDayEndSpin: null,
       startEv: null,
+      consumedBallsSource: null,
       investments: [],
       charges: [],
       hitSpin: null,
@@ -2232,6 +2260,10 @@
         cashBalls: Math.max(0, normalizeNumber(value.cashBalls) ?? 0),
         normalCostYen: normalizeNumber(value.normalCostYen)
       };
+    }
+
+    function normalizeConsumedBallsSource(value) {
+      return value === "tray" || value === "taps" ? value : null;
     }
 
     function investmentSource(item) {
@@ -2740,6 +2772,7 @@
           endTotalHits: normalizeNumber(session.endTotalHits),
           currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
           startEv: normalizeStartEv(session.startEv),
+          consumedBallsSource: normalizeConsumedBallsSource(session.consumedBallsSource),
           carriedFromSessionId: session.carriedFromSessionId || null,
           yutimeEnterSpin: normalizeNumber(session.yutimeEnterSpin),
           yutimeEnterTime: session.yutimeEnterTime || null,
@@ -2861,6 +2894,7 @@
         startCredit: 3000,
         startTotalHits: 12,
         startEv: { evYen: 2400, usedRate: 17.2, rateSource: "手入力", effectiveSpin: 575 },
+        consumedBallsSource: null,
         investments: [
           { type: "mochidama", source: "mochidama", amount: 500, time: "10:05", phase: "normal", spinAt: 20 },
           { type: "cash", source: "cash", amount: 500, time: "10:30", phase: "yutime", spinAt: 80 }
@@ -3647,6 +3681,7 @@
               </div>
             </div>
             <p class="running-normal-summary">通常時合計 ${totalSpins !== null && normalInputBalls !== null ? `${numberText(totalSpins, 0)}回転 / ${numberText(normalInputBalls, 0)}玉` : "-"}</p>
+            ${consumedBallsChoiceHtml(session, derived)}
             ${yutimeRemaining ? `<p class="live-ev-line${yutimeRemaining.near ? " warn" : ""}">${escapeHtml(yutimeRemaining.text)}</p>` : ""}
             ${selectedSource === "mochidama" ? `
               <div class="balance-row">
@@ -3745,6 +3780,7 @@
         </div>
       `;
       if (machine) bindNailRatingChips(machine, els.runningArea);
+      bindConsumedBallsChoice(els.runningArea, session);
       byId("editActiveBtn").addEventListener("click", () => openSessionEditor(session.id));
       els.runningArea.querySelectorAll("[data-spin-add]").forEach((button) => {
         button.addEventListener("click", () => addCurrentSpin(session, Number(button.dataset.spinAdd)));
@@ -6061,12 +6097,23 @@
       session.hitCount = diff;
     }
 
+    function zanhoryuPresetFromHit(session, hasHit) {
+      if (!hasHit) return null;
+      const currentSpin = normalizeNumber(session.currentSpin);
+      const hitSpin = normalizeNumber(session.hitSpin);
+      if (currentSpin === null || hitSpin === null) return null;
+      const diff = currentSpin - hitSpin;
+      return diff >= 0 ? diff : null;
+    }
+
     function runEndWizard(session, hasHit) {
       const currentBalances = deriveBalances(session);
       const endTotalBallsPreset = currentBalances.mochidama;
       const endTotalBallsHint = (endTotalBallsPreset !== null ? "稼働中の持ち玉残を初期値にしています。 " : "") + "計数機に流す玉数をそのまま入力してください。";
       const endSpinPreset = !hasHit && session.hitSpin === null && Number(session.hitCount || 0) === 0 ? session.currentSpin : null;
       const endSpinHint = endSpinPreset !== null ? "稼働中カウンタの現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "";
+      const zanhoryuPreset = zanhoryuPresetFromHit(session, hasHit);
+      const zanhoryuHint = zanhoryuPreset !== null ? "時短抜け後に消化した回転数から推定した値です。打ち込んだ場合は実際の残保留に修正してください。" : "";
       const hitRecordSteps = Array.isArray(session.hits) && session.hits.length ? [] : [
         { key: "hitCount", label: "大当たり回数", type: "number" },
         { key: "totalRounds", label: "合計R数", type: "number", hint: "1R玉数と合わせてR数ベース出玉を計算します。" }
@@ -6074,7 +6121,7 @@
       const steps = hasHit ? [
         { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
         { key: "endSpin", label: "ヤメ回転数", type: "number" },
-        { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
+        { key: "zanhoryuBalls", label: "残保留増減", type: "number", preset: zanhoryuPreset, hint: zanhoryuHint },
         { key: "memo", label: "メモ", type: "textarea" },
         ...hitRecordSteps
       ] : [
@@ -6531,6 +6578,43 @@
           </details>
         ` : ""}
       `;
+    }
+
+    function consumedBallsRateText(normalSpins, balls) {
+      return normalSpins !== null && balls > 0 ? `${(normalSpins / balls * 250).toFixed(1)}` : "-";
+    }
+
+    function consumedBallsChoiceHtml(session, derived) {
+      const info = derived?.consumedBallsCandidates;
+      if (!info?.divergent) return "";
+      const selected = normalizeConsumedBallsSource(session?.consumedBallsSource);
+      const buttons = ["tray", "taps"].map((source) => {
+        const value = info[source];
+        if (value === null || value === undefined) return "";
+        const label = CONSUMED_BALLS_SOURCE_LABELS[source];
+        const rate = consumedBallsRateText(derived.normalSpins, value);
+        return `<button type="button" class="check-chip${selected === source ? " selected" : ""}" data-consumed-source="${source}" aria-pressed="${selected === source ? "true" : "false"}">${label} ${numberText(value, "-")}玉（回転率 ${rate}）</button>`;
+      }).join("");
+      return `
+        <div class="consumed-choice">
+          <p><strong>⚠ 2つの値が食い違っています</strong></p>
+          <div class="consumed-choice-options">${buttons}</div>
+          <p class="hint">通常消費玉としてどちらを使いますか。未選択時は台上差を優先します。</p>
+        </div>
+      `;
+    }
+
+    function setConsumedBallsSource(session, source, onSaved = renderAll) {
+      session.consumedBallsSource = normalizeConsumedBallsSource(source);
+      session.updatedAt = nowIso();
+      if (!persistWithToast("通常消費玉の採用値を更新しました")) return;
+      onSaved();
+    }
+
+    function bindConsumedBallsChoice(root, session, onSaved = renderAll) {
+      root.querySelectorAll("[data-consumed-source]").forEach((button) => {
+        button.addEventListener("click", () => setConsumedBallsSource(session, button.dataset.consumedSource, onSaved));
+      });
     }
 
     function runningPanelInputBalls(session, derived = null) {
@@ -7158,6 +7242,7 @@
           <div class="metric"><span>換算収支</span><strong>${numberText(derived.profitYen, "-")} 円</strong><small>${derived.profitYen !== null ? `（${escapeHtml(exchangeBallsText(derived.exchangeBalls))}玉交換）` : ""}</small></div>
           ${session.hitVia === "yutime" ? `<div class="metric"><span>遊タイム玉減り</span><strong>${numberText(derived.yutimeLoss, "-")}</strong></div>` : ""}
         </div>
+        ${consumedBallsChoiceHtml(session, derived)}
         ${derived.warnings?.length ? `<p class="hint warn">${escapeHtml(derived.warnings.join(" / "))}</p>` : ""}
         <div class="status-line">${missingFields(session).length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>'}</div>
         <div class="modal-actions">
@@ -7167,6 +7252,10 @@
           <button class="primary" id="summaryLedgerBtn">履歴で見る</button>
         </div>
       `);
+      bindConsumedBallsChoice(els.modalBody, session, () => {
+        renderAll();
+        openRateSummary(session);
+      });
       byId("summaryCarryoverBtn").addEventListener("click", () => startCarryover(session));
       byId("summarySameMachineBtn").addEventListener("click", () => openSameMachineContinuePrompt(session));
       byId("summaryLedgerBtn").addEventListener("click", () => {
@@ -7207,6 +7296,7 @@
           ${fieldHtml("zanhoryuBalls", "残保留増減", session.zanhoryuBalls)}
           ${fieldHtml("settlementRecoverYen", "回収金額", session.settlementRecoverYen)}
         </div>
+        ${consumedBallsSourceEditorHtml(session)}
         ${investmentTotalEditorHtml(session)}
         <div class="field-row"><label for="editHitVia">当選経路</label><select id="editHitVia"><option value="">未入力</option><option value="normal">通常</option><option value="yutime">遊タイム</option></select></div>
         <div class="field-row"><label>イベントメモ</label><div><p class="hint">${eventMemoHelp()}</p><div class="label-checks">${labels.map((label) => `<label class="check-chip"><input class="editLabel" type="checkbox" value="${escapeHtml(label)}" ${session.labels.includes(label) ? "checked" : ""}> ${escapeHtml(label)}</label>`).join("") || '<span class="hint">イベントメモ未登録</span>'}</div></div></div>
@@ -7245,6 +7335,7 @@
         if (!session.settlementRecoverYen) session.settlementRecoverYen = null;
         applyInvestmentTotalAdjustments(session);
         session.hitVia = byId("editHitVia").value || null;
+        session.consumedBallsSource = normalizeConsumedBallsSource(byId("editConsumedBallsSource").value);
         session.labels = [...document.querySelectorAll(".editLabel:checked")].map((input) => input.value);
         session.memo = byId("editMemo").value.trim();
         session.updatedAt = nowIso();
@@ -7252,6 +7343,23 @@
         closeModal();
         renderAll();
       });
+    }
+
+    function consumedBallsSourceEditorHtml(session) {
+      const selected = normalizeConsumedBallsSource(session.consumedBallsSource);
+      return `
+        <div class="field-row">
+          <label for="editConsumedBallsSource">通常消費玉の採用</label>
+          <div>
+            <select id="editConsumedBallsSource">
+              <option value="">自動判定</option>
+              <option value="tray"${selected === "tray" ? " selected" : ""}>台上差</option>
+              <option value="taps"${selected === "taps" ? " selected" : ""}>タップ合計</option>
+            </select>
+            <p class="hint">台上差とタップ合計が大きく食い違う場合に、後から採用値を変更できます。</p>
+          </div>
+        </div>
+      `;
     }
 
     function fieldHtml(key, label, value, type = "text") {
@@ -7325,15 +7433,33 @@
     }
 
     function tapModeNormalConsumptionFallback(session, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
-      const endBalls = tapModeNormalEndSnapshot(session, hasHit);
-      return endBalls !== null && tapModeNormalBaselineBalls(session, store) < endBalls;
+      return tapModeNormalConsumedCandidates(session, null, hasHit, store).fallback;
     }
 
-    function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
+    function tapModeNormalConsumedCandidates(session, normalInputBalls = null, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
       const endBalls = tapModeNormalEndSnapshot(session, hasHit);
-      if (endBalls === null) return normalInputBalls;
+      const taps = normalizeNumber(normalInputBalls);
+      if (endBalls === null) {
+        return { tray: null, taps, selected: normalizeConsumedBallsSource(session?.consumedBallsSource), fallback: false, divergent: false, threshold: CONSUMED_BALLS_DIVERGENCE_THRESHOLD };
+      }
       const baselineBalls = tapModeNormalBaselineBalls(session, store);
-      return baselineBalls >= endBalls ? baselineBalls - endBalls : normalInputBalls;
+      const tray = baselineBalls >= endBalls ? baselineBalls - endBalls : null;
+      const divergent = tray !== null && taps !== null && Math.abs(tray - taps) >= CONSUMED_BALLS_DIVERGENCE_THRESHOLD;
+      return {
+        tray,
+        taps,
+        selected: normalizeConsumedBallsSource(session?.consumedBallsSource),
+        fallback: baselineBalls < endBalls,
+        divergent,
+        threshold: CONSUMED_BALLS_DIVERGENCE_THRESHOLD
+      };
+    }
+
+    function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId), candidates = null) {
+      const values = candidates || tapModeNormalConsumedCandidates(session, normalInputBalls, hasHit, store);
+      const selected = normalizeConsumedBallsSource(session?.consumedBallsSource);
+      if (values.divergent && selected && values[selected] !== null && values[selected] !== undefined) return values[selected];
+      return values.tray !== null && values.tray !== undefined ? values.tray : values.taps;
     }
 
     function deriveSession(session, machine = null) {
@@ -7360,9 +7486,10 @@
       const estimatedPayout = hasHit ? (roundBasedPayout !== null ? roundBasedPayout : standardPayout) : null;
       const estimatedRemainBalls = hasHit && session.hitRemainBalls === null && estimatedPayout !== null && session.endTotalBalls !== null ? Math.max(0, session.endTotalBalls - estimatedPayout) : null;
       const normalEndBalls = session.yutimeEnterBalls !== null ? session.yutimeEnterBalls : (hasHit && session.hitRemainBalls !== null ? session.hitRemainBalls : estimatedRemainBalls);
-      const rawConsumedBalls = normalSpins !== null ? (tapMode ? tapModeNormalConsumedBalls(session, normalInputBalls, hasHit, store) : (normalEndBalls !== null ? normalInputBalls - Number(normalEndBalls || 0) : null)) : null;
+      const tapConsumedCandidates = tapMode ? tapModeNormalConsumedCandidates(session, normalInputBalls, hasHit, store) : null;
+      const rawConsumedBalls = normalSpins !== null ? (tapMode ? tapModeNormalConsumedBalls(session, normalInputBalls, hasHit, store, tapConsumedCandidates) : (normalEndBalls !== null ? normalInputBalls - Number(normalEndBalls || 0) : null)) : null;
       const consumedBalls = rawConsumedBalls !== null && rawConsumedBalls < 0 ? null : rawConsumedBalls;
-      if (tapMode && normalSpins !== null && tapModeNormalConsumptionFallback(session, hasHit, store)) warnings.push("通常消費玉の入力を確認");
+      if (tapMode && normalSpins !== null && tapConsumedCandidates?.fallback) warnings.push("通常消費玉の入力を確認");
       if (rawConsumedBalls !== null && rawConsumedBalls < 0) warnings.push("通常消費玉の入力を確認");
       const fallbackConsumed = normalSpins !== null && normalInputBalls >= 0 ? normalInputBalls : null;
       const rateBase = tapMode ? consumedBalls : (hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null);
@@ -7392,6 +7519,15 @@
         totalInputBalls,
         normalSpins,
         consumedBalls: rateBase,
+        consumedBallsSource: normalizeConsumedBallsSource(session.consumedBallsSource),
+        consumedBallsCandidates: tapConsumedCandidates && normalSpins !== null ? {
+          tray: tapConsumedCandidates.tray !== null ? Math.round(tapConsumedCandidates.tray) : null,
+          taps: tapConsumedCandidates.taps !== null ? Math.round(tapConsumedCandidates.taps) : null,
+          selected: tapConsumedCandidates.selected,
+          fallback: tapConsumedCandidates.fallback,
+          divergent: tapConsumedCandidates.divergent,
+          threshold: tapConsumedCandidates.threshold
+        } : null,
         rate,
         rateUnavailableReason,
         isEstimatedRate,

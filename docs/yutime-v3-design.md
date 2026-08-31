@@ -230,7 +230,7 @@ v3 は以下の localStorage キーのみを使用する。
 | key | 用途 | 書き込みタイミング | データ形式 |
 |---|---|---|---|
 | `ytv3:data` | v3 本体データ | 店追加、マップ保存、台情報保存、セッション開始、投資追記、投資履歴削除、遊タイム突入、当選保存、終了保存、記録の修正保存 | JSON.stringify された v3 全体データ |
-| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22、B48では schema 22 から 23、B52では schema 23 から 24、B53では schema 24 から 25、B80では schema 25 から 26 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
+| `ytv3:premigrate` | 将来のスキーマ変更時に、旧 schema の raw データを退避する | 読み込み時、保存済み `version` が実装中の `SCHEMA_VERSION` と異なり、かつ `ytv3:premigrate` が未作成の場合。B1 では schema 1 から 2、B2 では schema 2 から 3、B3 では schema 3 から 4、B4 では schema 4 から 5、B5 では schema 5 から 6、Phase 4差し戻し1では schema 10 から 11、B10では schema 11 から 12、B20では schema 12 から 13、B13/B22では schema 13 から 14、B23では schema 14 から 15、B25では schema 15 から 16、B26では schema 16 から 17、B29では schema 17 から 18、B30では schema 18 から 19、B42では schema 19 から 20、B44では schema 20 から 21、B46では schema 21 から 22、B48では schema 22 から 23、B52では schema 23 から 24、B53では schema 24 から 25、B80では schema 25 から 26、B89では schema 26 から 27 への更新時に作成対象となる | 変更前の `ytv3:data` raw 文字列 |
 | `ytv3:backup:latest` | 通常保存前の直近バックアップ | `persist()` 実行時、既存の `ytv3:data` がある場合に、新しい `ytv3:data` を書く直前 | 直前の `ytv3:data` raw 文字列 |
 | `ytv3:carryover` | 次セッションへ引き継ぐ持ち玉・残高の待機状態 | 終了サマリの「この持ち玉で次の台へ」押下時に作成。打ち始めウィザード確定時、破棄ボタン押下時、日付が変わった読み込み時に削除 | `{ storeId, sourceSessionId, sourceMachineId, sourceDaiNo, date, mochidama, credit, saipurei, createdAt }` の JSON 文字列 |
 | `ytv3:mapbackup` | フロアマップ定義だけの1世代退避 | フロアマップ保存時、保存直前のアクティブマップ定義を店ID・マップID単位で退避する。復元ボタン押下時に該当マップの島構成・除外・列機種のみ戻す。台・セッション・dailyState は触らない | `{ backups: { [storeId]: { [mapId]: { storeId, mapId, map, createdAt } } } }` の JSON 文字列 |
@@ -1051,6 +1051,14 @@ B5 実測値:
 - 過去セッションの `actualBalls` は単体値として保存済みだが、合計の算出方法が変わらないためマイグレーションは行わない。変わるのは新規入力時の解釈だけで、旧データの合計表示は従来どおり正しい。
 - 制約: 当選1件ごとの編集・削除UIを実装する場合は、差分の再計算が必須になる。`actualBalls` は入力時点の「それ以前の合計」を基準に確定した差分であり、過去の当選を後から書き換えたり削除したりすると、それ以降の差分がカウンターの累計と合わなくなるため。B88時点では当選の個別編集UIは存在しない（`editHitVia` はセッション単位の当選経路のみ）。
 - 期待値エンジンが使う実測平均は `合計 ÷ 当選件数`、戦果報告の1R平均は `合計 ÷ 合計R` で、いずれも合計が正しくなれば自動的に正しくなる。容量予算の増分はなし。
+
+## 77. B89 残保留初期値と通常消費玉の採用選択
+
+- schema は 27 とする。セッションに `consumedBallsSource: "tray" | "taps" | null` を追加し、旧データは `null` 補完する。`null` はB85の自動判定（台上差優先、基準玉不足時はタップ合計へフォールバック）を意味する。
+- ヤメ入力の `残保留増減` は、大当たりありかつ当選回転数がある場合に `currentSpin - hitSpin` を初期値として入れる。負値、当選記録なし、当選回転数未入力では空欄にする。空欄保存は従来どおり `null`。
+- tapModeの通常消費玉は、候補として `台上差 = startMochidama + 通常phaseの現金投資玉換算 + 通常phaseの再プレ投資玉 - スナップショット玉` と `タップ合計 = 通常phase投資タップ合計` を算出する。両方が算出でき、差が500玉以上なら乖離として扱う。
+- 乖離時は稼働中パネルと戦果報告に `台上差` / `タップ合計` の選択チップを出し、選択値を `consumedBallsSource` に保存する。記録の修正・削除画面からも、自動判定、台上差、タップ合計を選び直せる。
+- 乖離が500玉未満、または片方しか算出できない場合は選択UIを出さず、B85の自動判定を維持する。参考回転率、戦果報告、転記用サマリはすべて `deriveSession().consumedBalls` を参照し、採用値と食い違わないようにする。
 
 ## アイデアメモ
 

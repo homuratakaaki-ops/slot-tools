@@ -271,6 +271,14 @@ const endWizardContext = vm.createContext({
 new vm.Script([
   'let modalCancel = null;',
   'Object.defineProperty(globalThis, "modalCancel", { get: () => modalCancel, set: (value) => { modalCancel = value; } });',
+  `function zanhoryuPresetFromHit(session, hasHit) {
+    if (!hasHit) return null;
+    const currentSpin = normalizeNumber(session.currentSpin);
+    const hitSpin = normalizeNumber(session.hitSpin);
+    if (currentSpin === null || hitSpin === null) return null;
+    const diff = currentSpin - hitSpin;
+    return diff >= 0 ? diff : null;
+  }`,
   runEndWizardBlock,
   `
   const sessionWithHits = { id: 's_hit', storeId: 'store', currentSpin: 777, hitSpin: 420, hitCount: null, totalRounds: null, hits: [{ roundTypeId: 'r10' }] };
@@ -313,7 +321,8 @@ new vm.Script([
 assert.doesNotMatch(endWizardContext.withHitsHtml, /endTotalHits|大当たり回数|合計R数/);
 assert.match(endWizardContext.withHitsHtml, /end_endTotalBalls/);
 assert.match(endWizardContext.withHitsHtml, /end_endSpin/);
-assert.match(endWizardContext.withHitsHtml, /end_zanhoryuBalls/);
+assert.match(endWizardContext.withHitsHtml, /id="end_zanhoryuBalls"[^>]*value="357"/);
+assert.match(endWizardContext.withHitsHtml, /時短抜け後に消化した回転数から推定した値です。打ち込んだ場合は実際の残保留に修正してください。/);
 assert.match(endWizardContext.withHitsHtml, /end_memo/);
 assert.equal(endWizardContext.savedHitSession.status, 'completed');
 assert.equal(endWizardContext.savedHitSession.hitCount, 1);
@@ -509,6 +518,8 @@ assert.match(renderLedger, /session\.status === "completed" \? transferSummaryHt
 assert.match(renderLedger, /data-copy-transfer/);
 assert.match(openSessionEditor, /fieldHtml\("settlementRecoverYen", "回収金額", session\.settlementRecoverYen\)/);
 assert.match(openSessionEditor, /"zanhoryuBalls", "settlementRecoverYen"/);
+assert.match(openSessionEditor, /consumedBallsSourceEditorHtml\(session\)/);
+assert.match(openSessionEditor, /session\.consumedBallsSource = normalizeConsumedBallsSource\(byId\("editConsumedBallsSource"\)\.value\);/);
 assert.match(openSessionEditor, /investmentTotalEditorHtml\(session\)/);
 assert.match(openSessionEditor, /applyInvestmentTotalAdjustments\(session\);/);
 assert.match(investmentTotalsBlock, /adjustment: true/);
@@ -517,6 +528,7 @@ assert.match(investmentTotalsBlock, /phase: "normal"/);
 assert.match(investmentSnapshot, /if \(!item \|\| item\.adjustment\) return null;/);
 assert.match(investmentSnapshot, /return investment\.adjustment \? sum : sum \+ investmentToBalls\(investment, store\);/);
 assert.match(normalizeData, /adjustment: item\.adjustment === true/);
+assert.match(normalizeData, /consumedBallsSource: normalizeConsumedBallsSource\(session\.consumedBallsSource\)/);
 assert.doesNotMatch(html, /台帳/);
 assert.match(yutimeExpectationEngine, /expectedJitanNormalSpins = pHit \* chains\.jitanNormalInit \+ pReach \* chains\.r350 \* chains\.jitanNormalJitanHit;/);
 assert.match(yutimeExpectationEngine, /expectedJitanFastSpins = pHit \* chains\.jitanFastInit \+ pReach \* chains\.r350 \* chains\.jitanFastJitanHit;/);
@@ -1267,8 +1279,13 @@ assert.match(runningPanelInputBallsBlock, /const investedBalls = normalRateInves
 assert.match(runningPanelInputBallsBlock, /tapModeNormalConsumedBalls\(session, investedBalls, hasHit, store\)/);
 assert.match(runningPanelInputBallsBlock, /return inputBalls > 0 \? Math\.round\(inputBalls\) : null;/);
 assert.match(deriveSession, /const normalInvestedBalls = normalRateInvestments\(session\)\.reduce/);
-assert.match(deriveSession, /tapModeNormalConsumedBalls\(session, normalInputBalls, hasHit, store\)/);
-assert.match(deriveSession, /tapModeNormalConsumptionFallback\(session, hasHit, store\)/);
+assert.match(deriveSession, /const tapConsumedCandidates = tapMode \? tapModeNormalConsumedCandidates\(session, normalInputBalls, hasHit, store\) : null;/);
+assert.match(deriveSession, /tapModeNormalConsumedBalls\(session, normalInputBalls, hasHit, store, tapConsumedCandidates\)/);
+assert.match(deriveSession, /consumedBallsCandidates: tapConsumedCandidates && normalSpins !== null \? \{/);
+assert.match(renderRunning, /consumedBallsChoiceHtml\(session, derived\)/);
+assert.match(renderRunning, /bindConsumedBallsChoice\(els\.runningArea, session\)/);
+assert.match(openRateSummary, /consumedBallsChoiceHtml\(session, derived\)/);
+assert.match(openRateSummary, /bindConsumedBallsChoice\(els\.modalBody, session/);
 const runningRateContext = vm.createContext({});
 new vm.Script(`
   function normalizeNumber(value) {
@@ -1277,7 +1294,9 @@ new vm.Script(`
     return Number.isFinite(n) ? n : null;
   }
   function nowIso() { return "2026-08-22T00:00:00.000Z"; }
+  const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
   ${normalizeHitsBlock}
+  function normalizeConsumedBallsSource(value) { return value === "tray" || value === "taps" ? value : null; }
   function storeById() { return {}; }
   function investmentToBalls(item) {
     return (item.source || item.type) === "cash" ? Number(item.amount || 0) / 4 : Number(item.amount || 0);
@@ -1296,14 +1315,31 @@ new vm.Script(`
     return Number(session?.startMochidama || 0) + normalExtraBalls;
   }
   function tapModeNormalConsumptionFallback(session, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
-    const endBalls = tapModeNormalEndSnapshot(session, hasHit);
-    return endBalls !== null && tapModeNormalBaselineBalls(session, store) < endBalls;
+    return tapModeNormalConsumedCandidates(session, null, hasHit, store).fallback;
   }
-  function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
+  function tapModeNormalConsumedCandidates(session, normalInputBalls = null, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
     const endBalls = tapModeNormalEndSnapshot(session, hasHit);
-    if (endBalls === null) return normalInputBalls;
+    const taps = normalizeNumber(normalInputBalls);
+    if (endBalls === null) {
+      return { tray: null, taps, selected: normalizeConsumedBallsSource(session?.consumedBallsSource), fallback: false, divergent: false, threshold: CONSUMED_BALLS_DIVERGENCE_THRESHOLD };
+    }
     const baselineBalls = tapModeNormalBaselineBalls(session, store);
-    return baselineBalls >= endBalls ? baselineBalls - endBalls : normalInputBalls;
+    const tray = baselineBalls >= endBalls ? baselineBalls - endBalls : null;
+    const divergent = tray !== null && taps !== null && Math.abs(tray - taps) >= CONSUMED_BALLS_DIVERGENCE_THRESHOLD;
+    return {
+      tray,
+      taps,
+      selected: normalizeConsumedBallsSource(session?.consumedBallsSource),
+      fallback: baselineBalls < endBalls,
+      divergent,
+      threshold: CONSUMED_BALLS_DIVERGENCE_THRESHOLD
+    };
+  }
+  function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId), candidates = null) {
+    const values = candidates || tapModeNormalConsumedCandidates(session, normalInputBalls, hasHit, store);
+    const selected = normalizeConsumedBallsSource(session?.consumedBallsSource);
+    if (values.divergent && selected && values[selected] !== null && values[selected] !== undefined) return values[selected];
+    return values.tray !== null && values.tray !== undefined ? values.tray : values.taps;
   }
   ${runningPanelInputBallsBlock}
   ${runningRateHelpers}
@@ -1414,6 +1450,33 @@ new vm.Script(`
     hitVia: "yutime",
     hitRemainBalls: null
   };
+  const b89Dai104 = {
+    ...b84TapHit,
+    startMochidama: 5710,
+    hitSpin: 110,
+    currentSpin: 110,
+    hitRemainBalls: 1025,
+    investments: Array.from({ length: 12 }, (_, index) => ({ source: "mochidama", amount: 125, phase: "normal", spinAt: index + 1, time: "10:00" }))
+  };
+  const b89Dai104Taps = { ...b89Dai104, consumedBallsSource: "taps" };
+  const b89Dai104Tray = { ...b89Dai104, consumedBallsSource: "tray" };
+  const b89Dai103 = {
+    ...b84TapHit,
+    startMochidama: 2500,
+    hitSpin: 80,
+    currentSpin: 80,
+    hitRemainBalls: 4200,
+    investments: Array.from({ length: 10 }, (_, index) => ({ source: "mochidama", amount: 125, phase: "normal", spinAt: index + 1, time: "10:00" }))
+  };
+  const b89SmallDiff = {
+    ...b84TapHit,
+    startMochidama: 2500,
+    hitSpin: 120,
+    currentSpin: 120,
+    hitRemainBalls: 1300,
+    investments: Array.from({ length: 10 }, (_, index) => ({ source: "mochidama", amount: 125, phase: "normal", spinAt: index + 1, time: "10:00" }))
+  };
+  const b89SmallDiffSelected = { ...b89SmallDiff, consumedBallsSource: "taps" };
   globalThis.afterHitSpinCount = runningSpinCount(afterHit);
   globalThis.afterHitRate = runningPanelRate(afterHit);
   globalThis.afterHitInvestments = normalRateInvestments(afterHit).length;
@@ -1433,6 +1496,12 @@ new vm.Script(`
   globalThis.b85OverRemainDerived = deriveSession(b85OverRemain);
   globalThis.b85NoRemainDerived = deriveSession(b85NoRemain);
   globalThis.b85YutimeEnterDerived = deriveSession(b85YutimeEnter);
+  globalThis.b89Dai104Auto = deriveSession(b89Dai104);
+  globalThis.b89Dai104Taps = deriveSession(b89Dai104Taps);
+  globalThis.b89Dai104Tray = deriveSession(b89Dai104Tray);
+  globalThis.b89Dai103 = deriveSession(b89Dai103);
+  globalThis.b89SmallDiff = deriveSession(b89SmallDiff);
+  globalThis.b89SmallDiffSelected = deriveSession(b89SmallDiffSelected);
 `).runInContext(runningRateContext);
 assert.equal(runningRateContext.afterHitSpinCount, 70);
 assert.equal(runningRateContext.afterHitRate, 70);
@@ -1460,6 +1529,23 @@ assert.equal(runningRateContext.b85NoRemainDerived.consumedBalls, 125);
 assert.equal(Number(runningRateContext.b85NoRemainDerived.rate.toFixed(1)), 20.0);
 assert.equal(runningRateContext.b85YutimeEnterDerived.consumedBalls, 250);
 assert.equal(Number(runningRateContext.b85YutimeEnterDerived.rate.toFixed(1)), 10.0);
+assert.equal(runningRateContext.b89Dai104Auto.consumedBalls, 4685);
+assert.equal(Number(runningRateContext.b89Dai104Auto.rate.toFixed(1)), 5.9);
+assert.equal(runningRateContext.b89Dai104Auto.consumedBallsCandidates.divergent, true);
+assert.equal(runningRateContext.b89Dai104Auto.consumedBallsCandidates.tray, 4685);
+assert.equal(runningRateContext.b89Dai104Auto.consumedBallsCandidates.taps, 1500);
+assert.equal(runningRateContext.b89Dai104Taps.consumedBalls, 1500);
+assert.equal(Number(runningRateContext.b89Dai104Taps.rate.toFixed(1)), 18.3);
+assert.equal(runningRateContext.b89Dai104Tray.consumedBalls, 4685);
+assert.equal(Number(runningRateContext.b89Dai104Tray.rate.toFixed(1)), 5.9);
+assert.equal(runningRateContext.b89Dai103.consumedBalls, 1250);
+assert.equal(Number(runningRateContext.b89Dai103.rate.toFixed(1)), 16.0);
+assert.equal(runningRateContext.b89Dai103.consumedBallsCandidates.divergent, false);
+assert.equal(JSON.stringify(runningRateContext.b89Dai103.warnings), JSON.stringify(["通常消費玉の入力を確認"]));
+assert.equal(runningRateContext.b89SmallDiff.consumedBalls, 1200);
+assert.equal(Number(runningRateContext.b89SmallDiff.rate.toFixed(1)), 25.0);
+assert.equal(runningRateContext.b89SmallDiff.consumedBallsCandidates.divergent, false);
+assert.equal(runningRateContext.b89SmallDiffSelected.consumedBalls, 1200);
 assert.ok(design.includes('スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。'));
 assert.match(renderRunning, /<span>\$\{escapeHtml\(option\.label\)\}<\/span><strong>\$\{sourceChipBalanceText\(balance\)\}<\/strong>/);
 assert.match(renderRunning, /const selectedAmount = investmentUnitForSource\(selectedSource\);/);
@@ -2029,7 +2115,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 26;/);
+assert.match(html, /const SCHEMA_VERSION = 27;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -2279,7 +2365,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 26;
+  const SCHEMA_VERSION = 27;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
   const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -2327,6 +2413,10 @@ new vm.Script(`
     return DEFAULT_EXCHANGE_BALLS;
   }
   function normalizeInvestmentSource(value) { return value === "mochidama" || value === "saipurei" ? value : "cash"; }
+  function normalizeStartEv() { return null; }
+  function normalizeConsumedBallsSource(value) { return value === "tray" || value === "taps" ? value : null; }
+  function normalizeHits(hits) { return Array.isArray(hits) ? hits : []; }
+  function syncSessionHitTotals() {}
   function normalizeRamClear(value) { return value === RAM_CLEAR_VALUE || value === RAM_NOT_CLEARED_VALUE || value === RAM_UNKNOWN_VALUE ? value : null; }
   function isDateString(value) { return /^\\d{4}-\\d{2}-\\d{2}$/.test(String(value || "")); }
   const NAIL_RATING_KEYS = ["yori", "michi", "nekase", "through", "warp"];
@@ -2346,6 +2436,7 @@ new vm.Script(`
       endTotalHits: null,
       currentSpin: null,
       startEv: null,
+      consumedBallsSource: null,
       carriedFromSessionId: null,
       yutimeEnterSpin: null,
       yutimeEnterTime: null,
@@ -2365,6 +2456,7 @@ new vm.Script(`
     sessions: [],
     dailyState: {}
   });
+  globalThis.normalizedLegacySession = normalizeData({ version: 26, presetSettings: { "umi-sp5": {} }, sessions: [{ id: "s_old", storeId: "st_1", machineId: "m_1", consumedBallsSource: "legacy" }] });
   globalThis.normalizedCurrentBlank = normalizeData({ version: 26, presetSettings: { "umi-sp5": {} } });
   globalThis.normalizedAgnesMissingYutime = normalizeData({ version: 26, presetSettings: { "umi-sp5": {}, "agnes-pe": { jitanFastBallsPerSpin: -0.4 } } });
 `).runInContext(legacyMachineContext);
@@ -2374,6 +2466,7 @@ assert.equal(Object.prototype.hasOwnProperty.call(legacyMachineContext.normalize
 assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].memoEntries), JSON.stringify([{ id: 'memo_legacy', date: '2026-08-06', text: 'old memo', createdAt: '2026-08-06T12:00:00.000Z' }]));
 assert.equal(JSON.stringify(legacyMachineContext.normalizedLegacy.machines[0].nailRating), JSON.stringify({ yori: 3, michi: 2, nekase: 1, through: 4, warp: 2 }));
 assert.equal(legacyMachineContext.normalizedLegacy.presetSettings['umi-sp5'].yutimeBallsPerSpin, 0);
+assert.equal(legacyMachineContext.normalizedLegacySession.sessions[0].consumedBallsSource, null);
 assert.equal(legacyMachineContext.normalizedCurrentBlank.presetSettings['umi-sp5'].yutimeBallsPerSpin, -0.3);
 assert.equal(Object.prototype.hasOwnProperty.call(legacyMachineContext.normalizedCurrentBlank.presetSettings, 'agnes-pe'), false);
 assert.equal(legacyMachineContext.normalizedAgnesMissingYutime.presetSettings['agnes-pe'].jitanFastBallsPerSpin, -0.4);
