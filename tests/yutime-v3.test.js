@@ -574,7 +574,8 @@ new vm.Script(`
   globalThis.engine = YUTIME_EXPECTATION_ENGINE;
   globalThis.judge = evJudgment;
 `).runInContext(expectationContext);
-const zeroSupportSettings = { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 };
+// B91: 既存の基準点はすべて holdSpins=0（残保留なし）の回帰として固定する
+const zeroSupportSettings = { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0, holdSpins: 0 };
 const equalExchangeResult = expectationContext.engine.calculate(
   { currentSpin: 0, rotationRate: 18 },
   zeroSupportSettings
@@ -593,7 +594,7 @@ const nonEqualAllBallsResult = expectationContext.engine.calculate(
 );
 const jitanLossResult = expectationContext.engine.calculate(
   { currentSpin: 900, rotationRate: 18 },
-  { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5, yutimeBallsPerSpin: 0 }
+  { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5, yutimeBallsPerSpin: 0, holdSpins: 0 }
 );
 assert.ok(equalExchangeResult, 'equal exchange EV should calculate');
 assert.ok(nonEqualExchangeResult, 'non-equal exchange EV should calculate');
@@ -617,7 +618,7 @@ assert.ok(Math.abs(legacyFastWithYutimeSpins - (equalExchangeResult.expectedJita
 assert.ok(jitanLossResult.winBalls < expectationContext.engine.calculate({ currentSpin: 900, rotationRate: 18 }, zeroSupportSettings).winBalls, 'negative jitan rates should reduce win balls');
 const defaultYutimeLossResult = expectationContext.engine.calculate(
   { currentSpin: 0, rotationRate: 18 },
-  { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0 }
+  { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, holdSpins: 0 }
 );
 const yutimeMinusOneResult = expectationContext.engine.calculate(
   { currentSpin: 0, rotationRate: 18 },
@@ -638,14 +639,14 @@ assert.ok(Math.abs(agnesChains.pST - 0.40929428801282375) < 0.000001, 'agnes ST 
 assert.ok(Math.abs(agnesChains.continuation - 0.5773525708771564) < 0.000001, 'agnes continuation should match the supplied spec');
 assert.ok(Math.abs(agnesChains.expectedWins - 2.3660382888768203) < 0.000001, 'agnes average chain should match the supplied spec');
 assert.ok(Math.abs(agnesChains.expectedWins * 587.5 - 1390) / 1390 < 0.005, 'agnes public-payout chain value should be about 1390 balls');
-function agnesBorder(payoutFactor) {
+function agnesBorder(payoutFactor, holdSpins = 0) {
   let lo = 10;
   let hi = 30;
   for (let i = 0; i < 40; i += 1) {
     const mid = (lo + hi) / 2;
     const result = expectationContext.engine.calculate(
       { presetId: 'agnes-pe', currentSpin: 0, rotationRate: mid },
-      { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5 * payoutFactor, jitanFastBallsPerSpin: -0.8 }
+      { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5 * payoutFactor, jitanFastBallsPerSpin: -0.8, holdSpins }
     );
     if (result.evYen >= 0) hi = mid;
     else lo = mid;
@@ -697,10 +698,17 @@ function runLimitedJitan(prob, limit, rng) {
   return { hit: false, spins };
 }
 
-function simulateExpectation(currentSpin, trials, seed) {
+function simulateExpectation(currentSpin, trials, seed, holdSpins = 0) {
   const rng = makeRng(seed);
   const spec = expectationContext.engine.preset.spec;
-  const totals = { normal: 0, wins: 0, jitanNormal: 0, jitanFast: 0, yutime: 0 };
+  const totals = { normal: 0, wins: 0, jitanNormal: 0, jitanFast: 0, yutime: 0, hold: 0 };
+  // 時短枠を抜けたあとに回る残保留。電サポ外・玉代ゼロで、当たれば引き戻しになる
+  function runHold() {
+    if (holdSpins <= 0) return false;
+    const held = runLimitedJitan(spec.hitProb, holdSpins, rng);
+    totals.hold += held.spins;
+    return held.hit;
+  }
   function playState(state) {
     while (true) {
       totals.wins += 1;
@@ -708,7 +716,7 @@ function simulateExpectation(currentSpin, trials, seed) {
         if (rng() < spec.kakuhenRate) continue;
         const jitan = runLimitedJitan(spec.hitProb, spec.jitanNormal, rng);
         totals.jitanNormal += jitan.spins;
-        if (!jitan.hit) return;
+        if (!jitan.hit && !runHold()) return;
         state = 'J';
       } else {
         if (rng() < spec.kakuhenRate) {
@@ -717,7 +725,7 @@ function simulateExpectation(currentSpin, trials, seed) {
         }
         const jitan = runLimitedJitan(spec.hitProb, spec.jitanChain, rng);
         totals.jitanFast += jitan.spins;
-        if (!jitan.hit) return;
+        if (!jitan.hit && !runHold()) return;
         state = 'J';
       }
     }
@@ -732,31 +740,35 @@ function simulateExpectation(currentSpin, trials, seed) {
     }
     const yutime = runLimitedJitan(spec.hitProb, spec.yutimeJitan, rng);
     totals.yutime += yutime.spins;
-    if (yutime.hit) playState('J');
+    if (yutime.hit || runHold()) playState('J');
   }
   return Object.fromEntries(Object.entries(totals).map(([key, value]) => [key, value / trials]));
 }
 
-function assertMonteCarloClose(currentSpin, seed) {
-  const analytic = expectationContext.engine.calculate({ currentSpin, rotationRate: 18 }, { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5, yutimeBallsPerSpin: -1.0 });
-  const simulated = simulateExpectation(currentSpin, 300000, seed);
+function assertMonteCarloClose(currentSpin, seed, holdSpins = 0) {
+  const analytic = expectationContext.engine.calculate({ currentSpin, rotationRate: 18 }, { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5, yutimeBallsPerSpin: -1.0, holdSpins });
+  const simulated = simulateExpectation(currentSpin, 300000, seed, holdSpins);
   const cases = [
     ['expectedNormalSpins', simulated.normal],
     ['expectedWins', simulated.wins],
     ['expectedJitanNormalSpins', simulated.jitanNormal],
     ['expectedJitanFastSpins', simulated.jitanFast],
     ['expectedYutimeSpins', simulated.yutime],
-    ['expectedDensapoSpins', simulated.jitanNormal + simulated.jitanFast + simulated.yutime]
+    ['expectedDensapoSpins', simulated.jitanNormal + simulated.jitanFast + simulated.yutime],
+    ['expectedHoldSpins', simulated.hold]
   ];
   for (const [key, actual] of cases) {
     const expected = analytic[key];
     const tolerance = Math.max(Math.abs(expected) * 0.02, 0.05);
-    assert.ok(Math.abs(actual - expected) <= tolerance, `${key} currentSpin=${currentSpin}: analytic=${expected}, simulated=${actual}, tolerance=${tolerance}`);
+    assert.ok(Math.abs(actual - expected) <= tolerance, `${key} currentSpin=${currentSpin} hold=${holdSpins}: analytic=${expected}, simulated=${actual}, tolerance=${tolerance}`);
   }
 }
 
 assertMonteCarloClose(0, 0xB522);
 assertMonteCarloClose(900, 0xB521);
+// B91: 残保留5でもモンテカルロと一致すること（引き戻し・残保留回転の独立検算）
+assertMonteCarloClose(0, 0xB532, 5);
+assertMonteCarloClose(900, 0xB531, 5);
 
 function chooseAgnesJitanLimit(rng) {
   const roll = rng();
@@ -773,10 +785,17 @@ function runUnboundedHit(prob, rng) {
   }
 }
 
-function simulateAgnesExpectation(currentSpin, trials, seed) {
+function simulateAgnesExpectation(currentSpin, trials, seed, holdSpins = 0) {
   const rng = makeRng(seed);
   const spec = agnesPreset.spec;
-  const totals = { normal: 0, wins: 0, postSupport: 0, yutime: 0 };
+  const totals = { normal: 0, wins: 0, postSupport: 0, yutime: 0, hold: 0 };
+  // 時短を抜けたあとに回る残保留（電サポ外・玉代ゼロ）
+  function runHold() {
+    if (holdSpins <= 0) return false;
+    const held = runLimitedJitan(spec.hitProbLow, holdSpins, rng);
+    totals.hold += held.spins;
+    return held.hit;
+  }
   function playChain() {
     while (true) {
       totals.wins += 1;
@@ -785,7 +804,7 @@ function simulateAgnesExpectation(currentSpin, trials, seed) {
       if (st.hit) continue;
       const jitan = runLimitedJitan(spec.hitProbLow, chooseAgnesJitanLimit(rng), rng);
       totals.postSupport += jitan.spins;
-      if (!jitan.hit) return;
+      if (!jitan.hit && !runHold()) return;
     }
   }
   for (let trial = 0; trial < trials; trial += 1) {
@@ -800,37 +819,56 @@ function simulateAgnesExpectation(currentSpin, trials, seed) {
 
 const agnesAnalytic = expectationContext.engine.calculate(
   { presetId: 'agnes-pe', currentSpin: 0, rotationRate: 18 },
-  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 }
+  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, holdSpins: 0 }
 );
-const agnesSimulated = simulateAgnesExpectation(0, 300000, 0xA679);
+const agnesSimulated = simulateAgnesExpectation(0, 300000, 0xA679, 0);
 for (const [key, actual] of [
   ['expectedNormalSpins', agnesSimulated.normal],
   ['expectedWins', agnesSimulated.wins],
   ['expectedJitanFastSpins', agnesSimulated.postSupport],
   ['expectedYutimeSpins', agnesSimulated.yutime],
-  ['expectedDensapoSpins', agnesSimulated.postSupport + agnesSimulated.yutime]
+  ['expectedDensapoSpins', agnesSimulated.postSupport + agnesSimulated.yutime],
+  ['expectedHoldSpins', agnesSimulated.hold]
 ]) {
   const expected = agnesAnalytic[key];
   const tolerance = Math.max(Math.abs(expected) * 0.02, 0.05);
   assert.ok(Math.abs(actual - expected) <= tolerance, `agnes ${key}: analytic=${expected}, simulated=${actual}, tolerance=${tolerance}`);
 }
+// B91: 残保留5でもアグネスPEがモンテカルロと一致すること
+const agnesAnalyticHold = expectationContext.engine.calculate(
+  { presetId: 'agnes-pe', currentSpin: 0, rotationRate: 18 },
+  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, holdSpins: 5 }
+);
+const agnesSimulatedHold = simulateAgnesExpectation(0, 300000, 0xA681, 5);
+for (const [key, actual] of [
+  ['expectedNormalSpins', agnesSimulatedHold.normal],
+  ['expectedWins', agnesSimulatedHold.wins],
+  ['expectedJitanFastSpins', agnesSimulatedHold.postSupport],
+  ['expectedYutimeSpins', agnesSimulatedHold.yutime],
+  ['expectedDensapoSpins', agnesSimulatedHold.postSupport + agnesSimulatedHold.yutime],
+  ['expectedHoldSpins', agnesSimulatedHold.hold]
+]) {
+  const expected = agnesAnalyticHold[key];
+  const tolerance = Math.max(Math.abs(expected) * 0.02, 0.05);
+  assert.ok(Math.abs(actual - expected) <= tolerance, `agnes hold=5 ${key}: analytic=${expected}, simulated=${actual}, tolerance=${tolerance}`);
+}
 const agnesNoSupportLoss = expectationContext.engine.calculate(
   { presetId: 'agnes-pe', currentSpin: 0, rotationRate: 18 },
-  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 }
+  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 , holdSpins: 0 }
 );
 assert.ok(Math.abs(agnesNoSupportLoss.winBalls - agnesNoSupportLoss.expectedWins * 587.5) < 0.000001, 'agnes zero support rates should not apply support loss');
 for (const currentSpin of [0, 189]) {
   const base = expectationContext.engine.calculate(
     { presetId: 'agnes-pe', currentSpin, rotationRate: 17 },
-    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 }
+    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 , holdSpins: 0 }
   );
   const yutimeOnly = expectationContext.engine.calculate(
     { presetId: 'agnes-pe', currentSpin, rotationRate: 17 },
-    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 }
+    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 , holdSpins: 0 }
   );
   const fastOnly = expectationContext.engine.calculate(
     { presetId: 'agnes-pe', currentSpin, rotationRate: 17 },
-    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: -0.8, yutimeBallsPerSpin: 0 }
+    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: -0.8, yutimeBallsPerSpin: 0 , holdSpins: 0 }
   );
   assert.ok(Math.abs((yutimeOnly.evYen - base.evYen) - base.expectedYutimeSpins * -0.8 * 4) < 0.000001, `agnes yutime-only loss currentSpin=${currentSpin}`);
   assert.ok(Math.abs((fastOnly.evYen - base.evYen) - base.expectedJitanFastSpins * -0.8 * 4) < 0.000001, `agnes fast-only loss currentSpin=${currentSpin}`);
@@ -838,7 +876,7 @@ for (const currentSpin of [0, 189]) {
 assert.ok(Math.abs((agnesNoSupportLoss.evYen - agnesAnalytic.evYen) - agnesAnalytic.expectedYutimeSpins * 0.8 * 4) < 0.000001, 'agnes default yutime loss should only apply before-hit yutime spins');
 const agnesArticleRev2 = expectationContext.engine.calculate(
   { presetId: 'agnes-pe', currentSpin: 150, rotationRate: 17 },
-  { presetId: 'agnes-pe', yenPerBall: 100 / 28.01, netBallsPerWin: 580, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 }
+  { presetId: 'agnes-pe', yenPerBall: 100 / 28.01, netBallsPerWin: 580, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 , holdSpins: 0 }
 );
 assert.ok(Math.abs(Math.round(agnesArticleRev2.evYen) - 1304) <= 5, `agnes article rev2 representative EV=${agnesArticleRev2.evYen}`);
 
@@ -2194,7 +2232,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 28;/);
+assert.match(html, /const SCHEMA_VERSION = 29;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -2415,6 +2453,17 @@ assert.ok(design.includes('schema 25 `startEv` サンプル'));
 assert.ok(design.includes('B54 稼働中パネルの期待値・評価セクション'));
 assert.ok(design.includes('容量予算の増分はなし'));
 assert.ok(design.includes('B90 ヤメ入力の累計獲得出玉と判定根拠の内訳'));
+// B91: 残保留込みモデル
+assert.ok(design.includes('B91 残保留込みの引き戻し計算'));
+assert.ok(design.includes('schema は 29 とする'));
+assert.ok(html.includes('holdSpins: 5'));
+assert.ok(html.includes('function presetHoldSpins(presetId)'));
+assert.ok(html.includes('function stCertainValues(activePreset, holdSpins = 0)'));
+assert.ok(html.includes('row.share * rebound(pLow, row.spins + hold)'));
+assert.ok(html.includes('const r100 = rebound(p, spec.jitanNormal + hold);'));
+assert.ok(html.includes('const r350 = rebound(p, spec.yutimeJitan + hold);'));
+assert.ok(html.includes('id="quickHoldSpins"'));
+assert.ok(html.includes('時短が終わったあと玉代ゼロで回る保留の数。通常4〜5。0で考慮しない。'));
 // B90: 判定根拠の内訳行と、実測出玉の採用順位
 assert.ok(html.includes('function expectationBasisText(result)'));
 assert.ok(html.includes('＝ 期待値÷投資額+100%'));
@@ -2458,7 +2507,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 28;
+  const SCHEMA_VERSION = 29;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
   const DEFAULT_NET_BALLS_PER_WIN = 1400;

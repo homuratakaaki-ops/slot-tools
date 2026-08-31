@@ -1738,7 +1738,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 28;
+    const SCHEMA_VERSION = 29;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -1754,7 +1754,7 @@
     ];
     const MACHINE_PRESETS = [
       { id: "umi-sp5", name: "P大海物語5スペシャル", roundBalls: 140, standardRounds: 10, standardPayout: 1400, roundTypes: [{ id: "r10", label: "10R", balls: 1400 }], evSupported: true, hasYutime: true, spec: { note: "B5時点の期待値対応プリセット" } },
-      { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", roundBalls: 108, standardRounds: 6, standardPayout: 648, roundTypes: [{ id: "r10", label: "10R", balls: 1080 }, { id: "r6", label: "6R", balls: 648 }, { id: "r4", label: "4R", balls: 432 }], evSupported: true, hasYutime: true, spec: { hitProbLow: 1 / 99.9, hitProbHigh: 1 / 19.5, tenjo: 239, stSpins: 10, yutimeJitan: 10000, modelType: "st-certain", jitanTable: [{ spins: 90, share: 0.04 }, { spins: 40, share: 0.66 }, { spins: 15, share: 0.30 }] }, defaults: { netBallsPerWin: 587.5, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, densapoDelta: -0.8, spinsPerHour: 250, secPerHit: 120, secPerDensapoSpin: 6, slotGamesPerHour: 800, yenPerBall: 4 } }
+      { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", roundBalls: 108, standardRounds: 6, standardPayout: 648, roundTypes: [{ id: "r10", label: "10R", balls: 1080 }, { id: "r6", label: "6R", balls: 648 }, { id: "r4", label: "4R", balls: 432 }], evSupported: true, hasYutime: true, spec: { hitProbLow: 1 / 99.9, hitProbHigh: 1 / 19.5, tenjo: 239, stSpins: 10, yutimeJitan: 10000, modelType: "st-certain", jitanTable: [{ spins: 90, share: 0.04 }, { spins: 40, share: 0.66 }, { spins: 15, share: 0.30 }] }, defaults: { netBallsPerWin: 587.5, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, densapoDelta: -0.8, spinsPerHour: 250, secPerHit: 120, secPerDensapoSpin: 6, slotGamesPerHour: 800, yenPerBall: 4, holdSpins: 5 } }
     ];
     const RAM_CLEAR_VALUE = "cleared";
     const RAM_NOT_CLEARED_VALUE = "not_cleared";
@@ -1795,7 +1795,8 @@
           secPerHit: 120,
           secPerDensapoSpin: 6,
           slotGamesPerHour: 800,
-          yenPerBall: 4
+          yenPerBall: 4,
+          holdSpins: 5
         }
       };
       const agnesPreset = {
@@ -1820,7 +1821,8 @@
           secPerHit: 120,
           secPerDensapoSpin: 6,
           slotGamesPerHour: 800,
-          yenPerBall: 4
+          yenPerBall: 4,
+          holdSpins: 5
         }
       };
       const presetOverrides = {
@@ -1853,19 +1855,25 @@
           cashBalls: Math.max(0, totalBalls - mochidamaBalls)
         };
       }
-      function stCertainValues(activePreset) {
+      function stCertainValues(activePreset, holdSpins = 0) {
         const spec = activePreset.spec;
         const pLow = spec.hitProbLow;
         const pHigh = spec.hitProbHigh;
+        const hold = Math.max(0, Number(holdSpins) || 0);
         const pST = rebound(pHigh, spec.stSpins);
         const missedSt = 1 - pST;
-        const weightedJitanHit = spec.jitanTable.reduce((sum, row) => sum + row.share * rebound(pLow, row.spins), 0);
+        // 引き戻しは「時短L＋残保留」で判定する（残保留も玉代ゼロで抽選を受ける）
+        const weightedJitanHit = spec.jitanTable.reduce((sum, row) => sum + row.share * rebound(pLow, row.spins + hold), 0);
         const continuation = pST + missedSt * weightedJitanHit;
         const expectedWins = 1 / (1 - continuation);
         const stSupportSpins = finiteExpectedSpins(pHigh, spec.stSpins);
+        // 電サポとして数える回転は時短枠のみ。残保留は電サポではないので別枠にする
         const jitanSupportSpins = spec.jitanTable.reduce((sum, row) => sum + row.share * finiteExpectedSpins(pLow, row.spins), 0);
         const supportSpinsPerWin = stSupportSpins + missedSt * jitanSupportSpins;
-        return { pST, continuation, expectedWins, supportSpinsPerWin };
+        const holdSpinsPerWin = hold > 0
+          ? missedSt * spec.jitanTable.reduce((sum, row) => sum + row.share * Math.pow(1 - pLow, row.spins) * finiteExpectedSpins(pLow, hold), 0)
+          : 0;
+        return { pST, continuation, expectedWins, supportSpinsPerWin, holdSpinsPerWin };
       }
       function calculateStCertain(activePreset, input, settings = {}) {
         const merged = { ...activePreset.defaults, ...settings };
@@ -1874,7 +1882,7 @@
         const spinsToTenjo = Math.max(0, activePreset.spec.tenjo - currentSpin);
         const rate = Number(input.rotationRate) || 0;
         if (rate <= 0) return null;
-        const chains = stCertainValues(activePreset);
+        const chains = stCertainValues(activePreset, merged.holdSpins);
         const pHit = rebound(p, spinsToTenjo);
         const pReach = Math.pow(1 - p, spinsToTenjo);
         const expectedNormalSpins = pHit / p;
@@ -1882,6 +1890,7 @@
         const expectedJitanNormalSpins = 0;
         const expectedJitanFastSpins = expectedWins * chains.supportSpinsPerWin;
         const expectedYutimeSpins = pReach * (1 / p);
+        const expectedHoldSpins = expectedWins * (chains.holdSpinsPerWin || 0);
         const expectedDensapoSpins = expectedJitanNormalSpins + expectedJitanFastSpins + expectedYutimeSpins;
         const investBalls = expectedNormalSpins * 250 / rate;
         const split = normalInvestmentSplit(p, spinsToTenjo, 250 / rate, input.availableBalls);
@@ -1892,22 +1901,25 @@
         const normalCostYen = mochidamaCostYen + cashSpentYen;
         const winBallsYen = winBalls * merged.yenPerBall;
         const evYen = winBallsYen - normalCostYen;
-        const normalHours = expectedNormalSpins / merged.spinsPerHour;
+        // 残保留は玉代ゼロ・電サポ外だが、時間は通常時速で計上する
+        const normalHours = (expectedNormalSpins + expectedHoldSpins) / merged.spinsPerHour;
         const hitHours = expectedWins * merged.secPerHit / 3600;
         const densapoHours = expectedDensapoSpins * merged.secPerDensapoSpin / 3600;
         const totalHours = normalHours + hitHours + densapoHours;
         const hourlyYen = totalHours > 0 ? evYen / totalHours : 0;
         const slotRate = 100 + hourlyYen / (merged.slotGamesPerHour * 3 * 20 * 0.01);
-        return { presetId: activePreset.id, currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedYutimeSpins, expectedDensapoSpins, investBalls, mochidamaBalls: split.mochidamaBalls, cashBalls: split.cashBalls, mochidamaCostYen, cashSpentYen, normalCostYen, winBalls, evBalls, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, spinsPerHour: merged.spinsPerHour, secPerDensapoSpin: merged.secPerDensapoSpin, chains };
+        return { presetId: activePreset.id, currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedYutimeSpins, expectedHoldSpins, expectedDensapoSpins, investBalls, mochidamaBalls: split.mochidamaBalls, cashBalls: split.cashBalls, mochidamaCostYen, cashSpentYen, normalCostYen, winBalls, evBalls, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, spinsPerHour: merged.spinsPerHour, secPerDensapoSpin: merged.secPerDensapoSpin, chains };
       }
       function chainValues(settings = {}) {
         const spec = preset.spec;
         const p = spec.hitProb;
         const kaku = spec.kakuhenRate;
         const normal = 1 - kaku;
-        const r100 = rebound(p, spec.jitanNormal);
-        const r200 = rebound(p, spec.jitanChain);
-        const r350 = rebound(p, spec.yutimeJitan);
+        const hold = Math.max(0, Number(settings.holdSpins) || 0);
+        // 引き戻し・駆け抜け判定は「時短枠＋残保留」で見る
+        const r100 = rebound(p, spec.jitanNormal + hold);
+        const r200 = rebound(p, spec.jitanChain + hold);
+        const r350 = rebound(p, spec.yutimeJitan + hold);
         const a = 1 - kaku;
         const b = -normal * r100;
         const c = -kaku;
@@ -1934,7 +1946,13 @@
         const jitanNormalJitanHit = (dA * normalRightJ - normalRightE * dC) / dDet;
         const jitanFastInit = (fastRightE * dD - dB * fastRightJ) / dDet;
         const jitanFastJitanHit = (dA * fastRightJ - fastRightE * dC) / dDet;
-        return { r100, r200, r350, wInit, jitanHit, yutimeWins: r350 * jitanHit, densapoInit, densapoJitanHit, jitanNormalInit, jitanNormalJitanHit, jitanFastInit, jitanFastJitanHit, settings };
+        // 残保留の消化回転（電サポ外・玉代ゼロ）。時短枠を抜けたときだけ回る
+        const holdPerJitan = hold > 0 ? finiteExpectedSpins(p, hold) : 0;
+        const holdRightE = normal * Math.pow(1 - p, spec.jitanNormal) * holdPerJitan;
+        const holdRightJ = normal * Math.pow(1 - p, spec.jitanChain) * holdPerJitan;
+        const holdInit = (holdRightE * dD - dB * holdRightJ) / dDet;
+        const holdJitanHit = (dA * holdRightJ - holdRightE * dC) / dDet;
+        return { r100, r200, r350, wInit, jitanHit, yutimeWins: r350 * jitanHit, densapoInit, densapoJitanHit, jitanNormalInit, jitanNormalJitanHit, jitanFastInit, jitanFastJitanHit, holdInit, holdJitanHit, holdPerJitan, settings };
       }
       function calculate(input, settings = {}) {
         const activePreset = activePresetFor(input, settings);
@@ -1954,6 +1972,8 @@
         const expectedJitanNormalSpins = pHit * chains.jitanNormalInit + pReach * chains.r350 * chains.jitanNormalJitanHit;
         const expectedJitanFastSpins = pHit * chains.jitanFastInit + pReach * chains.r350 * chains.jitanFastJitanHit;
         const expectedYutimeSpins = pReach * yutimeDensapoBeforeHit;
+        const holdAfterYutime = pReach * Math.pow(1 - p, preset.spec.yutimeJitan) * chains.holdPerJitan;
+        const expectedHoldSpins = pHit * chains.holdInit + pReach * chains.r350 * chains.holdJitanHit + holdAfterYutime;
         const expectedDensapoSpins = expectedJitanNormalSpins + expectedJitanFastSpins + expectedYutimeSpins;
         const investBalls = expectedNormalSpins * 250 / rate;
         const split = normalInvestmentSplit(p, spinsToTenjo, 250 / rate, input.availableBalls);
@@ -1964,13 +1984,14 @@
         const normalCostYen = mochidamaCostYen + cashSpentYen;
         const winBallsYen = winBalls * merged.yenPerBall;
         const evYen = winBallsYen - normalCostYen;
-        const normalHours = expectedNormalSpins / merged.spinsPerHour;
+        // 残保留は玉代ゼロ・電サポ外だが、時間は通常時速で計上する
+        const normalHours = (expectedNormalSpins + expectedHoldSpins) / merged.spinsPerHour;
         const hitHours = expectedWins * merged.secPerHit / 3600;
         const densapoHours = expectedDensapoSpins * merged.secPerDensapoSpin / 3600;
         const totalHours = normalHours + hitHours + densapoHours;
         const hourlyYen = totalHours > 0 ? evYen / totalHours : 0;
         const slotRate = 100 + hourlyYen / (merged.slotGamesPerHour * 3 * 20 * 0.01);
-        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedYutimeSpins, expectedDensapoSpins, investBalls, mochidamaBalls: split.mochidamaBalls, cashBalls: split.cashBalls, mochidamaCostYen, cashSpentYen, normalCostYen, winBalls, evBalls, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, spinsPerHour: merged.spinsPerHour, secPerDensapoSpin: merged.secPerDensapoSpin, chains };
+        return { currentSpin, spinsToTenjo, rotationRate: rate, pHit, pReach, expectedNormalSpins, expectedWins, expectedJitanNormalSpins, expectedJitanFastSpins, expectedYutimeSpins, expectedHoldSpins, expectedDensapoSpins, investBalls, mochidamaBalls: split.mochidamaBalls, cashBalls: split.cashBalls, mochidamaCostYen, cashSpentYen, normalCostYen, winBalls, evBalls, winBallsYen, evYen, normalHours, hitHours, densapoHours, totalHours, hourlyYen, slotRate, spinsPerHour: merged.spinsPerHour, secPerDensapoSpin: merged.secPerDensapoSpin, chains };
       }
       function logRate(log) {
         const balls = Number(log.usedBalls ?? log.balls) || 0;
@@ -2357,6 +2378,13 @@
       return { value: preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN, source: "理論値", count: 0 };
     }
 
+    function presetHoldSpins(presetId) {
+      const preset = presetById(presetId);
+      const fallback = normalizeNumber(preset?.defaults?.holdSpins) ?? 0;
+      const value = normalizeNumber(data.presetSettings?.[presetId]?.holdSpins);
+      return value === null ? fallback : Math.max(0, value);
+    }
+
     function presetJitanBallsPerSpin(presetId, key) {
       const preset = presetById(presetId);
       const fallback = normalizeNumber(preset?.defaults?.[key]) ?? 0;
@@ -2482,6 +2510,7 @@
       const jitanNormalBallsPerSpin = presetJitanBallsPerSpin(presetId, "jitanNormalBallsPerSpin");
       const jitanFastBallsPerSpin = presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin");
       const yutimeBallsPerSpin = presetYutimeBallsPerSpin(presetId);
+      const holdSpins = presetHoldSpins(presetId);
       const supportLabel = preset?.spec?.modelType === "st-certain"
         ? `ST・時短 ${jitanFastBallsPerSpin}玉/回転、遊タイム ${yutimeBallsPerSpin}玉/回転`
         : `時短100 ${jitanNormalBallsPerSpin}玉/回転、時短200 ${jitanFastBallsPerSpin}玉/回転、遊タイム ${yutimeBallsPerSpin}玉/回転`;
@@ -2493,7 +2522,8 @@
           netBallsPerWin,
           jitanNormalBallsPerSpin,
           jitanFastBallsPerSpin,
-          yutimeBallsPerSpin
+          yutimeBallsPerSpin,
+          holdSpins
         },
         payoutSource: `純払い出し${Math.round(netBallsPerWin).toLocaleString("ja-JP")}玉/回（${netBallsInfo.source}${netBallsInfo.count ? ` n=${netBallsInfo.count}` : ""}）、${supportLabel}`
       };
@@ -2763,6 +2793,8 @@
       next.presetSettings["umi-sp5"].jitanNormalBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].jitanNormalBallsPerSpin) ?? 0;
       next.presetSettings["umi-sp5"].jitanFastBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].jitanFastBallsPerSpin) ?? 0;
       next.presetSettings["umi-sp5"].yutimeBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].yutimeBallsPerSpin) ?? (sourceVersion < 26 ? 0 : (presetById("umi-sp5")?.defaults?.yutimeBallsPerSpin ?? 0));
+      // B91: 残保留は既定5で補完する（既定値変更は意図した補正）
+      next.presetSettings["umi-sp5"].holdSpins = normalizeNumber(next.presetSettings["umi-sp5"].holdSpins) ?? (presetById("umi-sp5")?.defaults?.holdSpins ?? 0);
       if (next.presetSettings["agnes-pe"]) {
         const agnesDefaults = presetById("agnes-pe")?.defaults || {};
         next.presetSettings["agnes-pe"].netBallsPerWin = positiveNumberOrDefault(next.presetSettings["agnes-pe"].netBallsPerWin, agnesDefaults.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN);
@@ -2770,6 +2802,7 @@
         next.presetSettings["agnes-pe"].jitanNormalBallsPerSpin = normalizeNumber(next.presetSettings["agnes-pe"].jitanNormalBallsPerSpin) ?? (agnesDefaults.jitanNormalBallsPerSpin ?? 0);
         next.presetSettings["agnes-pe"].jitanFastBallsPerSpin = normalizeNumber(next.presetSettings["agnes-pe"].jitanFastBallsPerSpin) ?? (agnesDefaults.jitanFastBallsPerSpin ?? 0);
         next.presetSettings["agnes-pe"].yutimeBallsPerSpin = normalizeNumber(next.presetSettings["agnes-pe"].yutimeBallsPerSpin) ?? (agnesDefaults.yutimeBallsPerSpin ?? 0);
+        next.presetSettings["agnes-pe"].holdSpins = normalizeNumber(next.presetSettings["agnes-pe"].holdSpins) ?? (agnesDefaults.holdSpins ?? 0);
       }
       next.stores = next.stores.map((store) => ({
         id: store.id || cryptoId("st"),
@@ -3489,6 +3522,8 @@
         <div class="field-row"><label for="quickJitanNormalBallsPerSpin">時短100（玉/回転）</label><input id="quickJitanNormalBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanNormalBallsPerSpin"))}"></div>
         <div class="field-row"><label for="quickJitanFastBallsPerSpin">${isStCertain ? "ST・時短" : "時短200"}（玉/回転）</label><input id="quickJitanFastBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin"))}"></div>
         <div class="field-row"><label for="quickYutimeBallsPerSpin">遊タイム（玉/回転）</label><input id="quickYutimeBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetYutimeBallsPerSpin(presetId))}"></div>
+        <div class="field-row"><label for="quickHoldSpins">時短抜け後の残保留（回転）</label><input id="quickHoldSpins" inputmode="numeric" value="${escapeHtml(presetHoldSpins(presetId))}"></div>
+        <p class="hint">時短が終わったあと玉代ゼロで回る保留の数。通常4〜5。0で考慮しない。</p>
         <p class="hint">獲得出玉は大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）です。空欄または0以下なら手入力上書きを解除し、実測平均・ラウンド集計・理論値の順で自動採用します。${supportHint}</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
@@ -3509,6 +3544,7 @@
         data.presetSettings[presetId].jitanNormalBallsPerSpin = normalizeNumber(byId("quickJitanNormalBallsPerSpin").value) ?? 0;
         data.presetSettings[presetId].jitanFastBallsPerSpin = normalizeNumber(byId("quickJitanFastBallsPerSpin").value) ?? 0;
         data.presetSettings[presetId].yutimeBallsPerSpin = normalizeNumber(byId("quickYutimeBallsPerSpin").value) ?? 0;
+        data.presetSettings[presetId].holdSpins = Math.max(0, normalizeNumber(byId("quickHoldSpins").value) ?? 0);
         if (!persistWithToast("保存しました")) return;
         closeModal();
         renderAll();
