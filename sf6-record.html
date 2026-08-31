@@ -268,6 +268,10 @@ button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px soli
   padding:10px;
 }
 .panel-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:7px;color:var(--drive);font-size:12px;font-weight:900}
+.rate-pair{display:flex;gap:8px;margin:8px 0}
+.rate-pair .field-row{flex:1 1 50%;min-width:0;display:block;margin:0}
+.rate-pair .field-row label{display:block;margin-bottom:4px;font-size:11px}
+.rate-pair .field-row input{width:100%;max-width:none}
 .field-row{display:flex;align-items:center;gap:8px;margin:8px 0}
 .field-row label{flex:1;color:var(--muted);font-size:12px;font-weight:900}
 .field-row input,.field-row select{
@@ -621,6 +625,7 @@ textarea{
 (function(){
   'use strict';
   const STORAGE_KEY='sf6_record_v1';
+  const LAST_INFO_KEY='sf6_last_session_info';
   const MACHINE='L-SF6';
   const MACHINE_ID='l-sf6';
   const VERSION='15';
@@ -909,6 +914,21 @@ textarea{
       exchangeRate:optionalNumber(src.exchangeRate),
       memo:String(src.memo??'')
     };
+  }
+  // 店舗名・貸出/交換レートだけをセッションとは別に覚えておき、次のセッションの初期値にする（台番号は毎回違うので覚えない）
+  function loadLastSessionInfo(){
+    const blank={storeName:null,lendRate:null,exchangeRate:null};
+    try{
+      const raw=localStorage.getItem(LAST_INFO_KEY);
+      const src=raw?JSON.parse(raw):null;
+      if(!src||typeof src!=='object')return blank;
+      const info=normalizeSessionInfo({storeName:src.storeName,lendRate:src.lendRate,exchangeRate:src.exchangeRate});
+      return {storeName:info.storeName,lendRate:info.lendRate,exchangeRate:info.exchangeRate};
+    }catch(e){return blank;}
+  }
+  function rememberSessionInfo(value){
+    const info=normalizeSessionInfo(value);
+    try{localStorage.setItem(LAST_INFO_KEY,JSON.stringify({storeName:info.storeName,lendRate:info.lendRate,exchangeRate:info.exchangeRate}));}catch(e){}
   }
   function defaultState(){
     return {machine:MACHINE,ver:VERSION,sessionId:uuidV4(),startedAt:isoWithOffset(),sessionInfo:normalizeSessionInfo({}),battleState:'normal',hadWin:false,currentStage:null,currentZenchou:null,currentColor:null,currentState:{realG:null,lcdG:null},initialThrough:0,pendingAutoColor:null,autoColorBoundary:null,autoColorResetAt:Date.now(),sessionMoney:null,logs:[]};
@@ -2217,6 +2237,9 @@ textarea{
     const initialThrough=initialThroughRaw===''?0:nonnegativeInt(initialThroughRaw);
     if(initialThrough===null){toast('FBスルー初期値を0以上の整数で入力してください');return;}
     const initialIcatch=normalizeInitialIcatch($('initialIcatchSelect')?.value||selectedInitialIcatch);
+    const exchangeRaw=String($('moneyExchangeRate')?.value||'').trim();
+    const exchangeRate=exchangeRaw===''?null:optionalNumber(exchangeRaw);
+    if(exchangeRaw!==''&&exchangeRate===null){toast('交換レートを数値で入力してください');return;}
     const snap=snapshot();
     commit('初期登録',()=>{
       const m=normalizeSessionMoney(state.sessionMoney)||blankSessionMoney();
@@ -2238,6 +2261,17 @@ textarea{
         addLogDirect({type:'icatch',chara:initialIcatch,realG:initialSnap.realG,lcdG:initialSnap.lcdG});
       }
     },{toast:already?'初期登録を修正しました':'初期登録を保存しました'});
+    // 店舗名・台番号・レートは店舗情報シートと同じ保存先に書く（二重管理にしない）
+    state.sessionInfo=normalizeSessionInfo({
+      ...normalizeSessionInfo(state.sessionInfo),
+      storeName:$('moneyStoreName')?.value,
+      unitNo:$('moneyUnitNo')?.value,
+      lendRate:loanRate,
+      exchangeRate
+    });
+    rememberSessionInfo(state.sessionInfo);
+    save();
+    render();
     closeSheet();
   }
   function recordMoneyLoan(){
@@ -2825,6 +2859,9 @@ textarea{
     openSheet('初期登録',body=>{
       const m=currentMoney();
       const locked=moneyInitialized()&&!edit;
+      const info=normalizeSessionInfo(state.sessionInfo);
+      const last=loadLastSessionInfo();
+      const carry=!moneyInitialized();
       const startCredit=input('moneyStartCredit','number','例 10000');
       startCredit.value=m.startCredit??'';
       const startMochidama=input('moneyStartMochidama','number','例 500');
@@ -2834,7 +2871,15 @@ textarea{
       const loanRate=input('moneyLoanRate','number','50');
       setKeypadInputMode(loanRate,{decimal:true});
       loanRate.step='0.1';
-      loanRate.value=m.loanRate||DEFAULT_LOAN_RATE;
+      loanRate.value=(carry?(info.lendRate??last.lendRate??m.loanRate):m.loanRate)||DEFAULT_LOAN_RATE;
+      const exchangeRate=input('moneyExchangeRate','number','52');
+      setKeypadInputMode(exchangeRate,{decimal:true});
+      exchangeRate.step='0.1';
+      exchangeRate.value=(carry?(info.exchangeRate??last.exchangeRate):info.exchangeRate)??'';
+      const storeName=input('moneyStoreName','text','店舗名',40);
+      storeName.value=(carry?(info.storeName??last.storeName):info.storeName)||'';
+      const unitNo=input('moneyUnitNo','text','台番号',20);
+      unitNo.value=info.unitNo||'';
       const initialDiff=input('moneyInitialDiff','text','例 -800');
       setKeypadInputMode(initialDiff,{negative:true});
       initialDiff.value=m.initialDiff??'';
@@ -2847,12 +2892,16 @@ textarea{
       const initialIcatch=selectInput('initialIcatchSelect',INITIAL_ICATCHES,'前回アイキャッチ');
       initialIcatch.value=selectedInitialIcatch||latestInitialIcatch()||'';
       initialIcatch.addEventListener('change',()=>{selectedInitialIcatch=normalizeInitialIcatch(initialIcatch.value);});
-      [startCredit,startMochidama,startSaipurei,loanRate,initialDiff,startRealG,startLcdG,initialThrough,initialIcatch].forEach(node=>{node.disabled=locked;});
+      [startCredit,startMochidama,startSaipurei,loanRate,exchangeRate,storeName,unitNo,initialDiff,startRealG,startLcdG,initialThrough,initialIcatch].forEach(node=>{node.disabled=locked;});
       if(locked)body.append(el('div','muted','初期設定はロック中です。修正する場合だけ編集を押してください。'));
       body.append(field('現金残高',startCredit));
       body.append(field('持ちメダル',startMochidama));
       body.append(field('再プレイ',startSaipurei));
-      body.append(field('貸出レート',loanRate));
+      const ratePair=row('rate-pair');
+      ratePair.append(field('貸出レート',loanRate),field('交換レート',exchangeRate));
+      body.append(ratePair);
+      body.append(field('店舗名',storeName));
+      body.append(field('台番号',unitNo));
       body.append(field('初期差枚',initialDiff));
       body.append(field('FBスルー初期値',initialThrough));
       body.append(field('前回アイキャッチ',initialIcatch));
@@ -2949,18 +2998,20 @@ textarea{
     openSheet('店舗情報',body=>{
       const info=normalizeSessionInfo(state.sessionInfo);
       const money=normalizeSessionMoney(state.sessionMoney);
+      const last=loadLastSessionInfo();
+      const carry=!moneyInitialized();
       const storeName=input('sessionStoreName','text','店舗名',40);
-      storeName.value=info.storeName||'';
+      storeName.value=(carry?(info.storeName??last.storeName):info.storeName)||'';
       const unitNo=input('sessionUnitNo','text','台番号',20);
       unitNo.value=info.unitNo||'';
       const lendRate=input('sessionLendRate','number','46');
       setKeypadInputMode(lendRate,{decimal:true});
       lendRate.step='0.1';
-      lendRate.value=info.lendRate??(money?money.loanRate:'');
+      lendRate.value=(carry?(info.lendRate??last.lendRate):info.lendRate)??(money?money.loanRate:'');
       const exchangeRate=input('sessionExchangeRate','number','52');
       setKeypadInputMode(exchangeRate,{decimal:true});
       exchangeRate.step='0.1';
-      exchangeRate.value=info.exchangeRate??'';
+      exchangeRate.value=(carry?(info.exchangeRate??last.exchangeRate):info.exchangeRate)??'';
       const memo=document.createElement('textarea');
       memo.id='sessionMemo';
       memo.maxLength=500;
@@ -2987,6 +3038,7 @@ textarea{
     if(lendRaw!==''&&next.lendRate===null){toast('貸出レートを数値で入力してください');return;}
     if(exchangeRaw!==''&&next.exchangeRate===null){toast('交換レートを数値で入力してください');return;}
     state.sessionInfo=next;
+    rememberSessionInfo(next);
     save();
     render();
     closeSheet();
