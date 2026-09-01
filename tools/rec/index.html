@@ -125,6 +125,16 @@ textarea{min-height:80px;resize:vertical}
 .sess .sn{font-weight:700;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sess .pl{font-family:var(--mono);font-size:12px;font-weight:700}
 .sess .body{padding:10px 12px;background:var(--bg);border-top:1px solid var(--line)}
+.dayhd{display:flex;gap:8px;align-items:baseline;padding:14px 4px 7px;border-bottom:1px solid var(--line);margin-top:6px}
+.dayhd .d{font-weight:700;font-size:14px}
+.dayhd .c{font-family:var(--mono);font-size:11px;color:var(--dim)}
+.dayhd .v{flex:1;text-align:right;font-family:var(--mono);font-size:14px;font-weight:700}
+.sumrow{display:flex;gap:8px;align-items:baseline;padding:8px 10px;border-bottom:1px solid var(--line)}
+.sumrow:last-child{border-bottom:none}
+.sumrow .k{font-size:12px;color:var(--accent);font-weight:700;flex:none;width:38px}
+.sumrow .c{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none;width:34px}
+.sumrow .v{font-family:var(--mono);font-size:15px;font-weight:700;flex:1;text-align:right}
+.sumrow .e{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none}
 .warn{background:#3A2A16;color:#F0D9A8;font-size:12px;padding:8px 12px;text-align:center;border-radius:8px;margin-top:8px}
 </style>
 </head>
@@ -161,6 +171,9 @@ textarea{min-height:80px;resize:vertical}
       <div><div class="lbl">再プレイ</div><input id="stReplay" class="num" inputmode="numeric" placeholder="0"></div>
     </div>
 
+    <div class="lbl">想定期待値（円・任意）</div>
+    <input id="stExp" class="num" inputmode="numeric" placeholder="2000">
+
     <div class="lbl">打ち始めのメモ</div>
     <textarea id="stNote" placeholder="リセット / 3スルー など" style="min-height:60px"></textarea>
 
@@ -180,7 +193,8 @@ textarea{min-height:80px;resize:vertical}
 
     <div class="mrow">
       <div class="mpill">投資<b id="mCash">0円</b></div>
-      <div class="mpill">差枚<b id="mDiff">−</b><span class="sub" id="mDiffSub"></span></div>
+      <div class="mpill">残高<b id="mBal">0円</b></div>
+      <div class="mpill">差枚<b id="mDiff">−</b></div>
     </div>
 
     <div class="r3">
@@ -219,6 +233,7 @@ textarea{min-height:80px;resize:vertical}
 
   <!-- ===== ノート ===== -->
   <section id="scNote" class="hide">
+    <div id="nSum"></div>
     <div style="display:flex;gap:6px;margin-top:12px">
       <button class="wide" id="nExpText" style="margin:0">テキスト</button>
       <button class="wide" id="nExpJson" style="margin:0">JSON</button>
@@ -273,6 +288,15 @@ const sgn=n=>(n>0?"+":"")+yen(n);
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const sum=a=>(a||[]).reduce((x,y)=>x+y.amount,0);
+// 投資＝メダルに替えた額／残高＝サンドに残っている額
+function invested(m){return Array.isArray(m.spends)?sum(m.spends):sum(m.cash||[])}
+function balance(m){return Array.isArray(m.deposits)?sum(m.deposits)-sum(m.spends||[]):0}
+function fixMoney(m){
+  if(!m)return;
+  if(!Array.isArray(m.deposits)){m.deposits=(m.cash||[]).slice();m.spends=[]}
+  if(!Array.isArray(m.spends))m.spends=[];
+  if(!Array.isArray(m.cash))m.cash=[];
+}
 
 function toast(m){const t=el("toast");t.textContent=m;t.classList.add("on");clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove("on"),1400)}
 
@@ -345,7 +369,7 @@ function renderBadges(){
   const c=S.cur,b=el("badges");b.innerHTML="";
   const st=mk("div","badge on",c.hit?c.hit.type+"中":"通常時");
   b.append(st);
-  if(c.zenchou){const z=mk("div","badge zen","前兆");z.addEventListener("click",endZenchou);b.append(z)}
+  if(c.zenchou){const z=mk("div","badge zen","前兆");z.addEventListener("click",zenchouEnd);b.append(z)}
   if(c.hit){const h=mk("div","badge hit",c.hit.type+" 終了");h.addEventListener("click",endHit);b.append(h)}
 }
 function renderCounters(){
@@ -355,14 +379,15 @@ function renderCounters(){
 }
 function renderMoney(){
   const c=S.cur,m=c.money;
-  el("mCash").textContent=yen(sum(m.cash))+"円";
-  if(m.credit==null){el("mDiff").textContent="−";el("mDiffSub").textContent=""}
+  el("mCash").textContent=yen(invested(m))+"円";
+  const bal=balance(m);
+  const be=el("mBal");
+  be.textContent=yen(bal)+"円";
+  be.style.color=bal<0?"var(--hot)":"";
+  if(m.credit==null){el("mDiff").textContent="−"}
   else{
-    const bought=Math.round(sum(m.cash)/1000*c.lend);
-    const d=(m.credit+m.startReplay*0)-(m.startMedal+m.startReplay)-bought+m.startReplay;
-    const diff=m.credit-(m.startMedal+m.startReplay)-bought;
-    el("mDiff").textContent=sgn(diff)+"枚";
-    el("mDiffSub").textContent="現"+m.credit+" −始"+(m.startMedal+m.startReplay)+" −買"+bought;
+    const bought=Math.round(invested(m)/1000*c.lend);
+    el("mDiff").textContent=sgn(m.credit-(m.startMedal+m.startReplay)-bought)+"枚";
   }
 }
 function renderRare(){
@@ -454,7 +479,7 @@ el("bLcdAdd").addEventListener("click",()=>{
 /* ---------- レア役 ---------- */
 let rareStrong=false;
 el("bRare").addEventListener("click",()=>{
-  rareStrong=(rareView==="s");
+  rareStrong=false;
   sheet("レア役",b=>{
     b.append(mk("div","lbl","強弱"));
     const sw=mk("div","opts");
@@ -512,8 +537,10 @@ el("bHit").addEventListener("click",()=>{
     b.append(mk("div","lbl","種別"));
     b.append(optRow(HITS.map(h=>({l:h})),it=>{
       S.cur.hit={type:it.l,at:nowISO(),realG:S.cur.realG,lcdG:S.cur.lcdG,cycle:S.cur.cycle};
-      push("hitStart",it.l+" 当選");
-      closeSheet(); toast(it.l+" 開始");
+      push("hitStart",it.l+" 当選　"+S.cur.realG+"/"+S.cur.lcdG+"G");
+      S.cur.realG=0; S.cur.lcdG=0; S.cur._steps=[];
+      save(); render();
+      closeSheet(); toast(it.l+" 開始（G数を0に）");
     },true));
   });
 });
@@ -533,14 +560,16 @@ function endHit(){
       rw.append(btn);
     });
     b.append(rw);
-    b.append(mk("div","hint","液晶Gを0に戻す場合は、上の液晶Gをタップして直してください。"));
+    b.append(mk("div","hint","終了すると実G・液晶Gは0に戻ります。引き継ぐ場合は、あとで数字をタップして直してください。"));
     const go=mk("button","go",h.type+" を終了する");
     go.addEventListener("click",()=>{
       if(reset===null){toast("周期の扱いを選んでください");return}
       if(reset)S.cur.cycle=0;
       S.cur.hit=null;
-      push("hitEnd",h.type+" 終了"+(memo?"："+memo:"")+(reset?"　周期リセット":""));
-      closeSheet();
+      push("hitEnd",h.type+" 終了　"+S.cur.realG+"/"+S.cur.lcdG+"G"+(memo?"："+memo:"")+(reset?"　周期リセット":""));
+      S.cur.realG=0; S.cur.lcdG=0; S.cur._steps=[];
+      save(); render();
+      closeSheet(); toast("G数を0に戻しました");
     });
     b.append(go);
   });
@@ -548,25 +577,52 @@ function endHit(){
 
 /* ---------- 前兆 ---------- */
 el("bZenchou").addEventListener("click",()=>{
-  if(S.cur.zenchou){endZenchou();return}
-  S.cur.zenchou=true; push("zenchouStart","前兆 開始");
-});
-function endZenchou(){
-  sheet("前兆 終了",b=>{
-    b.append(mk("div","lbl","結果"));
-    b.append(optRow([{l:"抜け"},{l:"当選"},{l:"メモを書く"}],it=>{
-      if(it.l==="メモを書く"){
-        closeSheet();
-        sheet("前兆 終了メモ",bb=>{
-          const ta=mk("textarea");bb.append(ta);
-          const go=mk("button","go","記録する");
-          go.addEventListener("click",()=>{S.cur.zenchou=false;push("zenchouEnd","前兆 終了："+ta.value);closeSheet()});
-          bb.append(go);
-        });
-        return;
-      }
-      S.cur.zenchou=false; push("zenchouEnd","前兆 "+it.l); closeSheet();
+  sheet("前兆",b=>{
+    b.append(optRow([{l:"前兆"},{l:"前兆ステージ"},{l:"前兆抜け"}],it=>{
+      if(it.l==="前兆抜け"){closeSheet();zenchouEnd();return}
+      S.cur.zenchou=true;
+      push("zenchou",it.l);
+      closeSheet(); toast(it.l);
     }));
+  });
+});
+function stageHist(){
+  if(!S.settings.stageHist)S.settings.stageHist={};
+  const m=S.cur.machine;
+  if(!Array.isArray(S.settings.stageHist[m]))S.settings.stageHist[m]=["なし"];
+  return S.settings.stageHist[m];
+}
+function pushHist(t){
+  const h=stageHist();
+  const i=h.indexOf(t); if(i>=0)h.splice(i,1);
+  h.unshift(t); if(h.length>8)h.length=8;
+}
+function zenchouEnd(){
+  sheet("前兆抜け",b=>{
+    b.append(mk("div","lbl","抜けた時のステージ・演出"));
+    const ta=mk("input"); ta.placeholder="例：なし／ライト／シルエット";
+    b.append(ta);
+    const h=stageHist();
+    if(h.length){
+      b.append(mk("div","lbl","前に入れたもの"));
+      const w=mk("div","opts");
+      h.forEach(t=>{
+        const btn=mk("button","",t);
+        btn.style.flex="1 0 calc(50% - 3px)";
+        btn.addEventListener("click",()=>{ta.value=t});
+        w.append(btn);
+      });
+      b.append(w);
+    }
+    const go=mk("button","go","記録する");
+    go.addEventListener("click",()=>{
+      const t=ta.value.trim();
+      S.cur.zenchou=false;
+      if(t)pushHist(t);
+      push("zenchouEnd","前兆抜け"+(t?"　"+t:""));
+      closeSheet();
+    });
+    b.append(go);
   });
 }
 
@@ -607,18 +663,28 @@ el("bUndo").addEventListener("click",()=>{
 
 /* ---------- お金 ---------- */
 el("bMinus").addEventListener("click",()=>{
-  S.cur.money.cash.push({at:nowISO(),amount:-1000}); push("money","投資 −1,000円"); toast("−1,000円");
+  const m=S.cur.money;
+  let auto=false;
+  if(balance(m)<1000){m.deposits.push({at:nowISO(),amount:1000});auto=true}
+  m.spends.push({at:nowISO(),amount:1000});
+  push("money","投資 1,000円"+(auto?"（現金1,000円を入金）":"")+"　累計 "+yen(invested(m))+"円");
+  toast(auto?"入金1,000円 → 投資1,000円":"投資 1,000円（残高 "+yen(balance(m))+"円）");
 });
 el("bDeposit").addEventListener("click",()=>{
   sheet("入金",b=>{
     b.append(optRow([1000,2000,3000,5000,10000].map(n=>({l:"+"+yen(n),v:n})),it=>{
-      S.cur.money.cash.push({at:nowISO(),amount:it.v}); push("money","投資 +"+yen(it.v)+"円"); closeSheet(); toast("+"+yen(it.v)+"円");
+      S.cur.money.deposits.push({at:nowISO(),amount:it.v});
+      push("money","入金 "+yen(it.v)+"円　残高 "+yen(balance(S.cur.money))+"円");
+      closeSheet(); toast("入金 "+yen(it.v)+"円");
     },true));
     const free=mk("button","sub","金額を入れる");
     free.addEventListener("click",()=>{closeSheet();askNum("入金額",0,v=>{
-      if(!v)return; S.cur.money.cash.push({at:nowISO(),amount:v}); push("money","投資 "+sgn(v)+"円");
+      if(!v)return;
+      S.cur.money.deposits.push({at:nowISO(),amount:v});
+      push("money","入金 "+sgn(v)+"円　残高 "+yen(balance(S.cur.money))+"円");
     })});
     b.append(free);
+    b.append(mk("div","hint","入金は残高が増えるだけです。「−1000」を押した分が投資になります。"));
   });
 });
 el("bCredit").addEventListener("click",()=>{
@@ -634,6 +700,12 @@ el("bUtil").addEventListener("click",()=>{
     const fin=mk("button","go","やめる（終了して記録する）");
     fin.addEventListener("click",()=>{closeSheet();finish()});
     b.append(fin);
+    b.append(mk("div","lbl","想定期待値（今 "+(S.cur.expected!=null?sgn(S.cur.expected)+"円":"未入力")+"）"));
+    const ex=mk("button","sub","直す");
+    ex.addEventListener("click",()=>{closeSheet();askNum("想定期待値（円）",S.cur.expected||0,v=>{
+      S.cur.expected=v; save(); toast("想定 "+sgn(v)+"円");
+    })});
+    b.append(ex);
     b.append(mk("div","lbl","記録を見る・書き出す"));
     const nt=mk("button","sub","ノートを開く");
     nt.addEventListener("click",()=>{closeSheet();showNote()});
@@ -649,26 +721,47 @@ el("bUtil").addEventListener("click",()=>{
 });
 
 function finish(){
-  let em=null,er=null,note="";
   sheet("やめる",b=>{
-    b.append(mk("div","lbl","終了時の持ちメダル"));
-    const i1=mk("button","sub","入力する（今 "+(S.cur.money.credit??"未入力")+"）");
-    i1.addEventListener("click",()=>{closeSheet();askNum("終了時の持ちメダル",S.cur.money.credit||0,v=>{em=v;S.cur.money.endMedal=v;finish()})});
+    const m=S.cur.money;
+    b.append(mk("div","lbl","終了時の持ちメダル（枚）"));
+    const i1=mk("input"); i1.className="num"; i1.setAttribute("inputmode","numeric");
+    i1.value = m.endMedal!=null ? m.endMedal : (m.credit!=null ? m.credit : "");
     b.append(i1);
-    b.append(mk("div","lbl","終了時の再プレイ"));
-    const i2=mk("button","sub","入力する（今 "+(S.cur.money.endReplay??0)+"）");
-    i2.addEventListener("click",()=>{closeSheet();askNum("終了時の再プレイ",S.cur.money.endReplay||0,v=>{S.cur.money.endReplay=v;finish()})});
+
+    b.append(mk("div","lbl","終了時の再プレイ（枚）"));
+    const i2=mk("input"); i2.className="num"; i2.setAttribute("inputmode","numeric");
+    i2.value = m.endReplay!=null ? m.endReplay : "";
     b.append(i2);
+
     b.append(mk("div","lbl","終わりのメモ"));
-    const ta=mk("textarea");ta.placeholder="ヤメ";ta.value=S.cur.endNote||"";
-    ta.addEventListener("input",()=>S.cur.endNote=ta.value);
+    const ta=mk("textarea"); ta.placeholder="ヤメ"; ta.value=S.cur.endNote||"";
+    ta.style.minHeight="60px";
     b.append(ta);
-    b.append(mk("div","hint","持ちメダル "+(S.cur.money.endMedal??"未入力")+"枚／再プレイ "+(S.cur.money.endReplay??0)+"枚"));
+
+    b.append(mk("div","lbl","この台のまとめ"));
+    b.append(mk("div","hint",
+      "投資 "+yen(invested(m))+"円（"+S.cur.lend+"枚貸し）／残高 "+yen(balance(m))+"円／開始 持"+m.startMedal+"枚・再"+m.startReplay+"枚"));
+
+    const prev=mk("div","hint","");
+    function calc(){
+      const em=int(i1.value), er=int(i2.value)||0;
+      if(em===null){prev.textContent="持ちメダルを入れると収支が出ます。";return}
+      const st=m.startMedal+m.startReplay, en=em+er, cash=invested(m);
+      const bought=Math.round(cash/1000*S.cur.lend);
+      prev.textContent="差枚 "+sgn(en-st-bought)+"枚 ／ 収支 "+sgn(Math.round((en-st)*(1000/S.cur.lend)-cash))+"円";
+    }
+    i1.addEventListener("input",calc); i2.addEventListener("input",calc); calc();
+    b.append(prev);
+
     const go=mk("button","go","終了する");
     go.addEventListener("click",()=>{
-      if(S.cur.money.endMedal==null){toast("終了時の持ちメダルを入れてください");return}
-      S.cur.endAt=nowISO(); S.cur.endNote=(S.cur.endNote||"").trim()||"ヤメ";
-      S.sessions.push(S.cur); S.cur=null; save(); closeSheet(); showNote();
+      const em=int(i1.value);
+      if(em===null){toast("終了時の持ちメダルを入れてください");return}
+      m.endMedal=em; m.endReplay=int(i2.value)||0;
+      S.cur.endNote=ta.value.trim()||"ヤメ";
+      S.cur.endAt=nowISO();
+      S.sessions.push(S.cur); S.cur=null;
+      save(); closeSheet(); showNote();
     });
     b.append(go);
   });
@@ -680,7 +773,7 @@ function profit(s){
   if(m.endMedal==null)return null;
   const st=(m.startMedal||0)+(m.startReplay||0);
   const en=(m.endMedal||0)+(m.endReplay||0);
-  const cash=sum(m.cash);
+  const cash=invested(m);
   const bought=Math.round(cash/1000*s.lend);
   return {cash,bought,lend:s.lend,medalDiff:en-st-bought,yen:Math.round((en-st)*(1000/s.lend)-cash)};
 }
@@ -693,6 +786,7 @@ function sessionText(s){
   if(s.money.startMedal)h.push("持 "+s.money.startMedal+"枚");
   if(s.money.startReplay)h.push("再 "+s.money.startReplay+"枚");
   L.push(h.join(" ／ "));
+  if(s.expected!=null)L.push("想定期待値 "+sgn(s.expected)+"円");
   if(s.startNote)L.push(s.startNote);
   L.push("────────");
   s.events.forEach(ev=>{
@@ -702,23 +796,78 @@ function sessionText(s){
   const p=profit(s);
   if(p){
     L.push("────────");
-    L.push("現金 "+yen(p.cash)+"円（"+p.lend+"枚貸し＝"+p.bought+"枚）");
+    L.push("投資 "+yen(p.cash)+"円（"+p.lend+"枚貸し＝"+p.bought+"枚）"+(balance(s.money)?"／残高 "+yen(balance(s.money))+"円":""));
     L.push("終了 持 "+(s.money.endMedal||0)+"枚 ／ 再 "+(s.money.endReplay||0)+"枚");
-    L.push("差枚 "+sgn(p.medalDiff)+"枚 ／ 収支 "+sgn(p.yen)+"円");
+    L.push("差枚 "+sgn(p.medalDiff)+"枚 ／ 収支 "+sgn(p.yen)+"円"
+      +(s.expected!=null?"（想定 "+sgn(s.expected)+"円 ／ 差 "+sgn(p.yen-s.expected)+"円）":""));
   }
   return L.join("\n");
 }
 
 /* ---------- ノート ---------- */
+function agg(list){
+  let n=0,exp=0,act=0,nExp=0,medal=0;
+  list.forEach(s=>{
+    const p=profit(s);
+    if(p){n++;act+=p.yen;medal+=p.medalDiff}
+    if(s.expected!=null){nExp++;exp+=s.expected}
+  });
+  return {n,nExp,exp,act,medal,gap:act-exp,total:list.length};
+}
+function summaryText(){return agg(S.sessions)}
+function dayKey(s){return ymd(s.startAt)}
+function today(){return ymd(nowISO())}
+function sumRow(label,t){
+  const r=mk("div","sumrow");
+  r.append(mk("div","k",label));
+  r.append(mk("div","c",t.total+"台"));
+  const v=mk("div","v",sgn(t.act)+"円");
+  v.style.color=t.act>=0?"var(--ok)":"var(--hot)";
+  r.append(v);
+  r.append(mk("div","e",t.nExp?"想定 "+sgn(t.exp):"想定 −"));
+  return r;
+}
+function renderSummary(){
+  const w=el("nSum");w.innerHTML="";
+  if(!S.sessions.length)return;
+  const box=mk("div","log");box.style.marginTop="12px";
+  const td=S.sessions.filter(s=>dayKey(s)===today());
+  if(td.length)box.append(sumRow("今日",agg(td)));
+  box.append(sumRow("全体",agg(S.sessions)));
+  const t=agg(S.sessions);
+  if(t.nExp){
+    const h=mk("div","sumrow");
+    h.append(mk("div","k",""));
+    const g=mk("div","v",(t.gap>=0?"想定より +":"想定より ")+yen(t.gap)+"円");
+    g.style.fontSize="12px";g.style.color="var(--dim)";
+    h.append(g);
+    box.append(h);
+  }
+  w.append(box);
+}
 function renderNote(){
+  renderSummary();
   const w=el("nList");w.innerHTML="";
   const arr=S.sessions.slice().reverse();
   if(!arr.length){w.innerHTML='<div class="log"><div class="empty">まだ記録がありません</div></div>';return}
+  let cur=null;
   arr.forEach(s=>{
+    const k=dayKey(s);
+    if(k!==cur){
+      cur=k;
+      const t=agg(S.sessions.filter(x=>dayKey(x)===k));
+      const h=mk("div","dayhd");
+      h.append(mk("div","d",k.slice(5)+"("+wd(s.startAt)+")"));
+      h.append(mk("div","c",t.total+"台"));
+      const v=mk("div","v",sgn(t.act)+"円");
+      v.style.color=t.act>=0?"var(--ok)":"var(--hot)";
+      h.append(v);
+      w.append(h);
+    }
     const p=profit(s);
     const d=mk("details","sess");
     const sm=mk("summary");
-    sm.append(mk("span","sm",ymd(s.startAt).slice(5)),mk("span","sn",s.machine));
+    sm.append(mk("span","sm",hm(s.startAt)),mk("span","sn",s.machine));
     if(p){const pl=mk("span","pl",sgn(p.yen));pl.style.color=p.yen>=0?"var(--ok)":"var(--hot)";sm.append(pl)}
     const bd=mk("div","body");
     bd.append(mk("div","note",sessionText(s)));
@@ -741,7 +890,29 @@ function outSheet(title,text,hint){
     if(hint)b.append(mk("div","hint",hint));
   });
 }
-el("nExpText").addEventListener("click",()=>outSheet("テキスト",S.sessions.map(sessionText).join("\n\n")||"（記録なし）"));
+el("nExpText").addEventListener("click",()=>{
+  const t=agg(S.sessions);
+  const L=[];
+  if(t.total){
+    L.push("【集計】"+t.total+"台 ／ 実収支 "+sgn(t.act)+"円"
+      +(t.nExp?" ／ 想定 "+sgn(t.exp)+"円（"+t.nExp+"台）／ 差 "+sgn(t.gap)+"円":""));
+    L.push("");
+  }
+  let cur=null;
+  S.sessions.forEach(s=>{
+    const k=dayKey(s);
+    if(k!==cur){
+      cur=k;
+      const d=agg(S.sessions.filter(x=>dayKey(x)===k));
+      L.push("──── "+k+"("+wd(s.startAt)+") "+d.total+"台 ／ "+sgn(d.act)+"円"
+        +(d.nExp?" ／ 想定 "+sgn(d.exp)+"円":"")+" ────");
+      L.push("");
+    }
+    L.push(sessionText(s));
+    L.push("");
+  });
+  outSheet("テキスト",L.join("\n").trim()||"（記録なし）");
+});
 el("nExpJson").addEventListener("click",()=>outSheet("JSON",JSON.stringify(S.sessions,null,2)));
 el("nDl").addEventListener("click",()=>{
   const blob=new Blob([JSON.stringify(S.sessions,null,2)],{type:"application/json"});
@@ -775,6 +946,7 @@ function doImport(txt){
   const have=new Set(S.sessions.map(s=>s.id));
   let n=0;
   arr.forEach(s=>{if(s&&s.id&&s.startAt&&s.machine&&!have.has(s.id)){S.sessions.push(s);have.add(s.id);n++}});
+  S.sessions.forEach(x=>fixMoney(x.money));
   S.sessions.sort((a,b)=>new Date(a.startAt)-new Date(b.startAt));
   save();renderNote();closeSheet();toast(n+"件を取り込みました");
 }
@@ -819,13 +991,13 @@ el("stStart").addEventListener("click",()=>{
     id:uid(),machine:m,startAt:nowISO(),lend,
     startRealG:int(el("stRealG").value)||0, startLcdG:int(el("stLcdG").value)||0,
     realG:int(el("stRealG").value)||0, lcdG:int(el("stLcdG").value)||0, cycle:0,
-    startNote:el("stNote").value.trim(),
+    startNote:el("stNote").value.trim(), expected:int(el("stExp").value),
     rare:{melon:{w:0,s:0},cherry:{w:0,s:0},chance:{w:0,s:0},other:{w:0,s:0}},
     zenchou:false, hit:null, events:[], _steps:[],
-    money:{cash:[],startMedal:int(el("stMedal").value)||0,startReplay:int(el("stReplay").value)||0,credit:null,endMedal:null,endReplay:null},
+    money:{cash:[],deposits:[],spends:[],startMedal:int(el("stMedal").value)||0,startReplay:int(el("stReplay").value)||0,credit:null,endMedal:null,endReplay:null},
     endAt:null,endNote:""
   };
-  ["stMachine","stRealG","stLcdG","stMedal","stReplay","stNote"].forEach(i=>el(i).value="");
+  ["stMachine","stRealG","stLcdG","stMedal","stReplay","stNote","stExp"].forEach(i=>el(i).value="");
   save(); showMain();
 });
 
@@ -840,7 +1012,7 @@ function fixRare(c){
     else{if(typeof v.w!=="number")v.w=0;if(typeof v.s!=="number")v.s=0}
   });
 }
-if(S.cur){fixRare(S.cur);if(!S.cur._steps)S.cur._steps=[];showMain()}
+if(S.cur){fixRare(S.cur);fixMoney(S.cur.money);if(!S.cur._steps)S.cur._steps=[];showMain()}
 else showSetup();
 })();
 </script>
