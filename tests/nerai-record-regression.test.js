@@ -10,9 +10,12 @@ const STANDARD_AIM_NAMES = ['天井狙い', '設定狙い', 'ゾーン狙い', '
 
 function extractScript() {
   const html = fs.readFileSync(HTML_PATH, 'utf8');
-  const match = html.match(/<script>([\s\S]*?)<\/script>/);
-  assert.ok(match, 'nerai-record.html inline script not found');
-  return match[1];
+  // GA4等の計測スニペットも素の <script> なので、最初の1件ではなく最大のブロック（アプリ本体）を選ぶ
+  const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+  assert.ok(blocks.length, 'nerai-record.html inline script not found');
+  const script = blocks.reduce((longest, block) => (block.length > longest.length ? block : longest));
+  assert.ok(script.includes('let db=null;'), 'nerai-record.html app script not found');
+  return script;
 }
 
 function extractStyle() {
@@ -118,6 +121,8 @@ function createContext(raw, confirms = []) {
       visualViewport: { height: 800, offsetTop: 0, addEventListener() {} }
     },
     navigator: { clipboard: null },
+    dataLayer: [],
+    gtag: () => {},
     URL: { createObjectURL: () => '', revokeObjectURL() {} },
     Blob: function Blob() {},
     FileReader: function FileReader() {},
