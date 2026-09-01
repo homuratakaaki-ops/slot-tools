@@ -293,8 +293,13 @@ function invested(m){return Array.isArray(m.spends)?sum(m.spends):sum(m.cash||[]
 function balance(m){return Array.isArray(m.deposits)?sum(m.deposits)-sum(m.spends||[]):0}
 function fixMoney(m){
   if(!m)return;
-  if(!Array.isArray(m.deposits)){m.deposits=(m.cash||[]).slice();m.spends=[]}
-  if(!Array.isArray(m.spends))m.spends=[];
+  // 旧形式（cash のみ）：合計＝その台で使った現金。残高は0として引き継ぐ
+  if(!Array.isArray(m.deposits)||!Array.isArray(m.spends)){
+    const t=sum(m.cash||[]);
+    const at=(m.cash&&m.cash.length)?m.cash[0].at:nowISO();
+    m.deposits = t>0 ? [{at,amount:t}] : [];
+    m.spends   = t>0 ? [{at,amount:t}] : [];
+  }
   if(!Array.isArray(m.cash))m.cash=[];
 }
 
@@ -1012,8 +1017,9 @@ function fixRare(c){
     else{if(typeof v.w!=="number")v.w=0;if(typeof v.s!=="number")v.s=0}
   });
 }
-if(S.cur){fixRare(S.cur);fixMoney(S.cur.money);if(!S.cur._steps)S.cur._steps=[];showMain()}
-else showSetup();
+S.sessions.forEach(x=>fixMoney(x.money));
+if(S.cur){fixRare(S.cur);fixMoney(S.cur.money);if(!S.cur._steps)S.cur._steps=[];save();showMain()}
+else{save();showSetup()}
 })();
 </script>
 </body>
