@@ -81,6 +81,8 @@ const saveMorningCurrent = section('function saveMorningCurrent', 'function save
 const modalStyle = section('.modal-actions', '.closing-display');
 const style = section('.source-chip-row', '.unified-invest-row');
 const yutimeExpectationEngine = section('const YUTIME_EXPECTATION_ENGINE', 'window.YutimeExpectationEngine');
+const machinePresetsBlock = section('const MACHINE_PRESETS = [', 'const RAM_CLEAR_VALUE');
+const enginePresetBinding = section('window.YutimeExpectationEngine = YUTIME_EXPECTATION_ENGINE;', 'const blankSession');
 const evJudgmentBlock = section('function evJudgment', 'function expectationYenPerBall');
 const presetSettingsHelpers = section('function presetNetBallsPerWin', 'function activeMapAssumedRate');
 const availableBallsHelpers = section('function availableBallsFromParts', 'function calculateMachineExpectation');
@@ -621,6 +623,33 @@ new vm.Script(`
 const counterApi = counterContext.counterApi;
 assert.equal(expectationContext.engine.presets['agnes-pe'].spec.counterOffset, 11, 'agnes-pe はカウンター250 − 内部239 = 11');
 assert.equal(expectationContext.engine.presets['umi-sp5'].spec.counterOffset, 0, 'umi-sp5 はカウンターと内部天井が一致する');
+
+// B98: 期待値計算に関わる値の出典は期待値エンジンのプリセット1箇所だけ。
+// MACHINE_PRESETS はUI情報（roundTypes等）だけを持ち、計算パラメータを再び書き込んだら落ちる。
+for (const param of ['tenjo', 'hitProbLow', 'hitProbHigh', 'jitanTable', 'holdSpins', 'counterOffset', 'netBallsPerWin']) {
+  assert.equal(machinePresetsBlock.includes(param), false, `MACHINE_PRESETS に計算パラメータ ${param} を書かないこと（出典はエンジン側1箇所）`);
+  assert.equal(yutimeExpectationEngine.includes(param), true, `${param} は期待値エンジンのブロックに存在すること`);
+}
+// MACHINE_PRESETS の spec / defaults はエンジン側から解決する
+const machinePresetContext = vm.createContext({
+  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  window: {}
+});
+new vm.Script(`
+  ${machinePresetsBlock}
+  ${yutimeExpectationEngine}
+  ${enginePresetBinding}
+  globalThis.presets = MACHINE_PRESETS;
+  globalThis.engine = YUTIME_EXPECTATION_ENGINE;
+`).runInContext(machinePresetContext);
+for (const machinePreset of machinePresetContext.presets) {
+  const enginePreset = machinePresetContext.engine.presets[machinePreset.id];
+  assert.ok(enginePreset, `${machinePreset.id} は期待値エンジンにも定義があること`);
+  assert.equal(machinePreset.spec, enginePreset.spec, `${machinePreset.id} の spec はエンジンの実体をそのまま参照すること`);
+  assert.equal(machinePreset.defaults, enginePreset.defaults, `${machinePreset.id} の defaults はエンジンの実体をそのまま参照すること`);
+}
+assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').roundTypes.length, 3, 'UI側の roundTypes は MACHINE_PRESETS に残ること');
+assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').defaults.netBallsPerWin, 587.5, 'agnes-pe の既定値はエンジン側の値で解決されること');
 assert.equal(counterApi.counterOffsetForPresetId('agnes-pe'), 11);
 assert.equal(counterApi.counterOffsetForPresetId('umi-sp5'), 0);
 assert.equal(counterApi.counterOffsetForPresetId(undefined), 0, '未知のプリセットはずれ0として扱う');
@@ -2379,7 +2408,8 @@ assert.match(html, /roundTypes: \[\{ id: "r10", label: "10R", balls: 1400 \}\]/)
 assert.match(html, /id: "agnes-pe"/);
 assert.match(html, /name: "PA大海物語Withアグネス・ラムPE"/);
 assert.match(html, /modelType: "st-certain"/);
-assert.match(html, /defaults: \{ netBallsPerWin: 587\.5, jitanNormalBallsPerSpin: -0\.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0\.8,/);
+// B98: agnes-pe の既定値は MACHINE_PRESETS ではなく期待値エンジンのプリセットに置く
+assert.match(yutimeExpectationEngine, /netBallsPerWin: 587\.5,\s+jitanNormalBallsPerSpin: -0\.8,\s+jitanFastBallsPerSpin: 0,\s+yutimeBallsPerSpin: -0\.8,/);
 assert.match(yutimeExpectationEngine, /const expectedJitanFastSpins = expectedWins \* chains\.supportSpinsPerWin;/);
 assert.match(yutimeExpectationEngine, /const expectedYutimeSpins = pReach \* \(1 \/ p\);/);
 assert.match(yutimeExpectationEngine, /const winBalls = expectedWins \* merged\.netBallsPerWin \+ expectedJitanNormalSpins \* merged\.jitanNormalBallsPerSpin \+ expectedJitanFastSpins \* merged\.jitanFastBallsPerSpin \+ expectedYutimeSpins \* merged\.yutimeBallsPerSpin;/);

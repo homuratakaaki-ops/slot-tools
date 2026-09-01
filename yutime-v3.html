@@ -1768,7 +1768,7 @@
     ];
     const MACHINE_PRESETS = [
       { id: "umi-sp5", name: "P大海物語5スペシャル", roundBalls: 140, standardRounds: 10, standardPayout: 1400, roundTypes: [{ id: "r10", label: "10R", balls: 1400 }], evSupported: true, hasYutime: true, spec: { note: "B5時点の期待値対応プリセット" } },
-      { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", roundBalls: 108, standardRounds: 6, standardPayout: 648, roundTypes: [{ id: "r10", label: "10R", balls: 1080 }, { id: "r6", label: "6R", balls: 648 }, { id: "r4", label: "4R", balls: 432 }], evSupported: true, hasYutime: true, spec: { hitProbLow: 1 / 99.9, hitProbHigh: 1 / 19.5, tenjo: 239, stSpins: 10, yutimeJitan: 10000, modelType: "st-certain", jitanTable: [{ spins: 90, share: 0.04 }, { spins: 40, share: 0.66 }, { spins: 15, share: 0.30 }] }, defaults: { netBallsPerWin: 587.5, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, densapoDelta: -0.8, spinsPerHour: 250, secPerHit: 120, secPerDensapoSpin: 6, slotGamesPerHour: 800, yenPerBall: 4, holdSpins: 5 } }
+      { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", roundBalls: 108, standardRounds: 6, standardPayout: 648, roundTypes: [{ id: "r10", label: "10R", balls: 1080 }, { id: "r6", label: "6R", balls: 648 }, { id: "r4", label: "4R", balls: 432 }], evSupported: true, hasYutime: true }
     ];
     const RAM_CLEAR_VALUE = "cleared";
     const RAM_NOT_CLEARED_VALUE = "not_cleared";
@@ -2020,12 +2020,17 @@
       return { preset, presets: { ...presetOverrides, [preset.id]: preset }, rebound, finiteExpectedSpins, normalInvestmentSplit, stCertainValues, chainValues, calculate, logRate };
     })();
     window.YutimeExpectationEngine = YUTIME_EXPECTATION_ENGINE;
-    MACHINE_PRESETS[0] = {
-      ...MACHINE_PRESETS[0],
-      name: YUTIME_EXPECTATION_ENGINE.preset.name,
-      spec: YUTIME_EXPECTATION_ENGINE.preset.spec,
-      defaults: YUTIME_EXPECTATION_ENGINE.preset.defaults
-    };
+    // spec / defaults の出典は期待値エンジンのプリセット1箇所だけ。MACHINE_PRESETS にはUI情報のみを置く。
+    MACHINE_PRESETS.forEach((machinePreset, index) => {
+      const enginePreset = YUTIME_EXPECTATION_ENGINE.presets[machinePreset.id];
+      if (!enginePreset) return;
+      MACHINE_PRESETS[index] = {
+        ...machinePreset,
+        name: enginePreset.name,
+        spec: enginePreset.spec,
+        defaults: enginePreset.defaults
+      };
+    });
 
     const blankSession = () => ({
       id: cryptoId("s"),

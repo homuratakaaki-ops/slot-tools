@@ -34,6 +34,7 @@
 - [x] マイログ（Phase 1.75）… 打った台の記録を蓄積し振り返る自分専用の場所。実戦記録ツール側の保存機能と、一覧・集計ページ（mylog.html）を公開済み
 - [~] マイホレポ（Phase 2）… 店の台データを蓄積して傾向を比べるツール。入力・保存・比較まで実装済み
 - [x] 遊タイム期待値計算ツール（yutime-calc.html）… 記録機能なしの1画面計算ツール。記事・外部サイトへのiframe埋め込み用。期待値エンジンは yutime-v3.html からインラインで複製し、`tests/yutime-calc.test.js` の文字列完全一致テストで二重管理を防ぐ。カウンター基準の回転数はエンジンのプリセットが持つ `spec.counterOffset` で内部低確回転数に換算する（アグネスPE＝11、大海5SP＝0。B97でv3と共通化）。localStorage不使用。公開範囲（トップ導線・sitemap）は未判断
+- [x] 期待値パラメータの出典一本化（B98）… yutime-v3.html の `MACHINE_PRESETS` はUI情報（roundTypes・evSupported等）だけを持ち、`spec` / `defaults` は期待値エンジンのプリセットから解決する。天井・当り確率・時短テーブル・残保留・counterOffset・純払い出しをページ側のプリセットに書かないことを `tests/yutime-v3.test.js` のアサートで固定する
 - [ ] 判別ツールと店舗分析ツールの連携（Phase 3）
 
 ---
