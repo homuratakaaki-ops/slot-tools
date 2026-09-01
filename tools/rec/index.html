@@ -69,7 +69,9 @@ textarea{min-height:80px;resize:vertical}
 .log .lg{display:flex;gap:8px;padding:8px 10px;border-bottom:1px solid var(--line);align-items:baseline;font-size:13px}
 .log .lg:last-child{border-bottom:none}
 .log .tm{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none;width:34px}
-.log .gs{font-family:var(--mono);font-size:11px;color:var(--lcd);flex:none;width:52px;text-align:right}
+.log .gs{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none;width:58px;text-align:right}
+.log .gs .lc{color:var(--lcd)}
+.log .gs .sl{opacity:.5}
 .log .tx{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .log .more{width:100%;border:none;border-radius:0;padding:9px;font-size:12px;color:var(--dim);background:var(--panel2)}
 .log .empty{padding:16px;text-align:center;color:var(--dim);font-size:13px}
@@ -239,6 +241,10 @@ textarea{min-height:80px;resize:vertical}
       <button class="wide" id="nExpJson" style="margin:0">JSON</button>
       <button class="wide" id="nDl" style="margin:0">保存</button>
     </div>
+    <div style="display:flex;gap:6px;margin-top:6px">
+      <button class="wide" id="nExpNote" style="margin:0">振り返りノート用</button>
+      <button class="wide" id="nDlNote" style="margin:0">同・保存</button>
+    </div>
     <button class="wide dim" id="nImpOpen">JSONを取り込む</button>
     <div id="nList"></div>
   </section>
@@ -407,6 +413,21 @@ function renderRare(){
     w.append(d);
   });
 }
+// 実G/液晶G の並べ方（同じなら1つ、違えば 実/液晶）
+function gsText(ev){
+  const r=ev.realG, l=ev.lcdG;
+  if(r==null&&l==null)return "";
+  if(r==null)return String(l);
+  if(l==null||l===r)return String(r);
+  return r+"/"+l;
+}
+function gsHtml(ev){
+  const r=ev.realG, l=ev.lcdG;
+  if(r==null&&l==null)return "";
+  if(r==null)return '<span class="lc">'+l+'</span>';
+  if(l==null||l===r)return String(r);
+  return r+'<span class="sl">/</span><span class="lc">'+l+'</span>';
+}
 function renderLog(){
   const w=el("log"),evs=S.cur.events;
   w.innerHTML="";
@@ -415,7 +436,7 @@ function renderLog(){
   list.forEach(ev=>{
     const r=mk("div","lg");
     r.append(mk("div","tm",hm(ev.at)));
-    r.append(mk("div","gs",(ev.lcdG!=null?ev.lcdG:"")+""));
+    const gsEl=mk("div","gs"); gsEl.innerHTML=gsHtml(ev); r.append(gsEl);
     r.append(mk("div","tx",ev.text));
     r.addEventListener("click",()=>editEvent(ev.id));
     w.append(r);
@@ -795,9 +816,9 @@ function sessionText(s){
   if(s.startNote)L.push(s.startNote);
   L.push("────────");
   s.events.forEach(ev=>{
-    L.push(hm(ev.at)+"  "+ev.realG+"/"+ev.lcdG+"  "+ev.text);
+    L.push(hm(ev.at)+"  "+gsText(ev)+"  "+ev.text);
   });
-  if(s.endAt)L.push(hm(s.endAt)+"  "+s.realG+"/"+s.lcdG+"  "+(s.endNote||"ヤメ"));
+  if(s.endAt)L.push(hm(s.endAt)+"  "+gsText({realG:s.realG,lcdG:s.lcdG})+"  "+(s.endNote||"ヤメ"));
   const p=profit(s);
   if(p){
     L.push("────────");
@@ -876,6 +897,11 @@ function renderNote(){
     if(p){const pl=mk("span","pl",sgn(p.yen));pl.style.color=p.yen>=0?"var(--ok)":"var(--hot)";sm.append(pl)}
     const bd=mk("div","body");
     bd.append(mk("div","note",sessionText(s)));
+    if(s.endAt){
+      const one=mk("button","wide","この台をノート用に保存");
+      one.addEventListener("click",()=>dlJson(toEnvelope(s),"kadonote-"+hm(s.startAt).replace(":","")+".json"));
+      bd.append(one);
+    }
     const del=mk("button","wide dim","この記録を削除");
     del.addEventListener("click",()=>{if(!confirm("削除しますか？"))return;S.sessions=S.sessions.filter(x=>x.id!==s.id);save();renderNote()});
     bd.append(del);
@@ -919,6 +945,79 @@ el("nExpText").addEventListener("click",()=>{
   outSheet("テキスト",L.join("\n").trim()||"（記録なし）");
 });
 el("nExpJson").addEventListener("click",()=>outSheet("JSON",JSON.stringify(S.sessions,null,2)));
+
+/* ---- kado-note（振り返りノート）用のエンベロープ ---- */
+function uuidV4(){
+  if(crypto&&crypto.randomUUID)return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,c=>{
+    const r=Math.random()*16|0, v=c==="x"?r:(r&0x3|0x8); return v.toString(16);
+  });
+}
+function isoOffset(d){
+  const p=n=>String(n).padStart(2,"0");
+  const o=-d.getTimezoneOffset(), sg=o>=0?"+":"-", a=Math.abs(o);
+  return d.getFullYear()+"-"+p(d.getMonth()+1)+"-"+p(d.getDate())+"T"
+    +p(d.getHours())+":"+p(d.getMinutes())+":"+p(d.getSeconds())
+    +sg+p(Math.trunc(a/60))+":"+p(a%60);
+}
+function dlJson(obj,name){
+  const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob); a.download=name;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+  toast("保存しました");
+}
+function toEnvelope(s){
+  const m=s.money, p=profit(s);
+  const logs=[];
+  if(s.startNote)logs.push({t:new Date(s.startAt).getTime(),type:"memo",
+    text:"打ち始め "+gsText({realG:s.startRealG,lcdG:s.startLcdG})+"G　"+s.startNote});
+  s.events.forEach(ev=>{
+    const g=gsText(ev);
+    logs.push({t:new Date(ev.at).getTime(),type:"memo",text:(g?g+"G　":"")+ev.text});
+  });
+  if(s.endAt)logs.push({t:new Date(s.endAt).getTime(),type:"memo",
+    text:gsText({realG:s.realG,lcdG:s.lcdG})+"G　"+(s.endNote||"ヤメ")});
+  const memo=[s.machine];
+  if(s.expected!=null)memo.push("想定期待値 "+sgn(s.expected)+"円");
+  if(p)memo.push("差枚 "+sgn(p.medalDiff)+"枚");
+  return {
+    schema:"slot-session", schemaVer:2,
+    sessionId:s.id||uuidV4(),
+    machineId:s.machine,
+    payloadVer:"rec-1",
+    startedAt:isoOffset(new Date(s.startAt)),
+    endedAt:isoOffset(new Date(s.endAt||s.startAt)),
+    invest:invested(m),
+    payout:(m.endMedal||0)+(m.endReplay||0),
+    storeId:null, storeName:null, unitNo:null,
+    lendRate:s.lend, exchangeRate:s.lend,
+    memo:memo.join(" ／ "),
+    estimated:false,
+    payload:{
+      machine:s.machine,
+      startRealG:s.startRealG, startLcdG:s.startLcdG,
+      endRealG:s.realG, endLcdG:s.lcdG,
+      startMedal:m.startMedal, startReplay:m.startReplay,
+      endMedal:m.endMedal, endReplay:m.endReplay,
+      expected:s.expected??null,
+      rare:s.rare||null,
+      logs
+    }
+  };
+}
+el("nExpNote").addEventListener("click",()=>{
+  const done=S.sessions.filter(s=>s.endAt);
+  if(!done.length){toast("終わった台がありません");return}
+  outSheet("振り返りノート用",JSON.stringify(done.map(toEnvelope),null,2),
+    "kado-note は今のところ1台ずつの取り込みです。各台の「この台をノート用に保存」を使ってください。");
+});
+el("nDlNote").addEventListener("click",()=>{
+  const done=S.sessions.filter(s=>s.endAt);
+  if(!done.length){toast("終わった台がありません");return}
+  dlJson(done.map(toEnvelope),"kadonote-"+ymd(nowISO()).replace(/\//g,"")+".json");
+});
 el("nDl").addEventListener("click",()=>{
   const blob=new Blob([JSON.stringify(S.sessions,null,2)],{type:"application/json"});
   const a=document.createElement("a");
