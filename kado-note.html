@@ -370,6 +370,7 @@ a{color:var(--accent);text-decoration:none}
       schemaVer:SCHEMA_VER,
       sessionId:textOrNull(src.sessionId)||uuidV4(),
       machineId:toKebab(src.machineId),
+      machineLabel:textOrNull(src.machineLabel)||textOrNull(src.machineId),
       payloadVer:textOrNull(src.payloadVer)||'unknown',
       startedAt:textOrNull(src.startedAt)||isoFromLogT(logsFromRaw(src)[0]?.t),
       endedAt:textOrNull(src.endedAt)||isoFromLogT(logsFromRaw(src).slice(-1)[0]?.t),
@@ -397,6 +398,7 @@ a{color:var(--accent);text-decoration:none}
       schemaVer:SCHEMA_VER,
       sessionId:uuidV4(),
       machineId:toKebab(src.machine),
+      machineLabel:textOrNull(src.machineLabel)||textOrNull(src.machine),
       payloadVer:textOrNull(src.ver)||textOrNull(src.sourceVer)||'legacy',
       startedAt:isoFromLogT(logs[0]?.t),
       endedAt:isoFromLogT(logs[logs.length-1]?.t),
@@ -510,7 +512,11 @@ a{color:var(--accent);text-decoration:none}
     }
   }
   function machineName(session){
-    return MACHINE_NAMES[session.machineId]||session.machineId;
+    if(MACHINE_NAMES[session.machineId])return MACHINE_NAMES[session.machineId];
+    // 日本語などASCII以外の文字は toKebab() で落ちるため、元の文字列を表示する
+    const label=textOrNull(session.machineLabel)||textOrNull(safeObject(session.payload).machine);
+    if(label&&/[^\x20-\x7E]/.test(label))return label;
+    return session.machineId;
   }
   const SF6_DEFAULT_RETURN_COLOR='デフォ復帰';
   const SF6_GCOLOR_ICONS={青:'🔵',赤:'🔴',緑:'🟢',黄:'🟡'};
@@ -805,21 +811,37 @@ a{color:var(--accent);text-decoration:none}
     let skipped=0;
     const errors=[];
     for(const file of list){
+      let raw;
       try{
-        const raw=JSON.parse(await file.text());
-        if(raw&&raw.schema&&raw.schema!==SCHEMA)throw new Error('schema が slot-session ではありません');
-        const session=normalizeSession(raw);
-        const index=sessions.findIndex(item=>item.sessionId===session.sessionId);
-        if(index>=0){
-          const ok=confirm(`同じsessionIdのデータがあります。\n${session.sessionId}\n上書きしますか？`);
-          if(!ok){skipped++;continue;}
-          sessions[index]=session;
-        }else{
-          sessions.push(session);
-        }
-        imported++;
+        raw=JSON.parse(await file.text());
       }catch(e){
-        errors.push(`${file.name}: ${e.message}`);
+        errors.push(`${file.name}: JSONとして読めません`);
+        continue;
+      }
+      // 1ファイルに複数セッションが入っている場合に対応する
+      const items=Array.isArray(raw)?raw:[raw];
+      if(!items.length){
+        errors.push(`${file.name}: セッションが入っていません`);
+        continue;
+      }
+      for(let i=0;i<items.length;i++){
+        const item=items[i];
+        const label=items.length>1?`${file.name}[${i+1}]`:file.name;
+        try{
+          if(item&&item.schema&&item.schema!==SCHEMA)throw new Error('schema が slot-session ではありません');
+          const session=normalizeSession(item);
+          const index=sessions.findIndex(x=>x.sessionId===session.sessionId);
+          if(index>=0){
+            const ok=confirm(`同じsessionIdのデータがあります。\n${machineName(session)}\n${session.sessionId}\n上書きしますか？`);
+            if(!ok){skipped++;continue;}
+            sessions[index]=session;
+          }else{
+            sessions.push(session);
+          }
+          imported++;
+        }catch(e){
+          errors.push(`${label}: ${e.message}`);
+        }
       }
     }
     save();
