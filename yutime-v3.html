@@ -1341,9 +1341,68 @@
       align-items: baseline;
     }
 
-    .session-start-ev {
+    .session-figures {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px 16px;
+      margin-top: 6px;
+    }
+
+    .session-figure {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 9ch;
+    }
+
+    .signed-figure-label {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .signed-figure-value {
       font-weight: 800;
-      color: #067647;
+      font-variant-numeric: tabular-nums;
+      color: var(--ink);
+    }
+
+    .session-figure .signed-figure-value {
+      font-size: 17px;
+      line-height: 1.2;
+    }
+
+    .signed-figure-value.is-plus { color: var(--good); }
+    .signed-figure-value.is-minus { color: var(--danger); }
+    .signed-figure-value.is-zero { color: var(--ink); }
+    .signed-figure-value.is-empty { color: var(--muted); }
+
+    .ledger-day-summary {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 2px 8px;
+      margin: 0 0 8px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .ledger-day-summary-item {
+      display: inline-flex;
+      align-items: baseline;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .ledger-day-summary-item + .ledger-day-summary-item::before {
+      content: "／";
+      color: var(--line);
+    }
+
+    .ledger-day-summary-item strong {
+      color: var(--ink);
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
     }
 
     .machine-history-panel {
@@ -1760,6 +1819,8 @@
     const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
     const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
     const CONSUMED_BALLS_SOURCE_LABELS = { tray: "台上差", taps: "タップ合計" };
+    // 履歴の金額枠で値が出せないときの表示。初回 renderAll より前に評価される位置に置く
+    const LEDGER_EMPTY_TEXT = "—";
     const AUTO_LABELS = [
       "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日", "日曜日",
       "1のつく日", "2のつく日", "3のつく日", "4のつく日", "5のつく日",
@@ -2658,11 +2719,6 @@
       };
     }
 
-    function startEvText(startEv) {
-      const normalized = normalizeStartEv(startEv);
-      return normalized ? yenText(normalized.evYen) : "-";
-    }
-
     function remainingSpinTextFromEffectiveSpin(effectiveSpin, presetId = YUTIME_EXPECTATION_ENGINE.preset.id) {
       const remaining = remainingSpinsFromCounterSpin(effectiveSpin, presetId);
       if (remaining === null) return "残り-回転";
@@ -2700,14 +2756,21 @@
       return `遊タイムまで必要 平均約${total.toLocaleString("ja-JP")}玉${maxNote}／持ち玉・再プレから${mochidama.toLocaleString("ja-JP")}玉・現金約${cashYen.toLocaleString("ja-JP")}円`;
     }
 
-    function startEvDetailText(startEv) {
+    // 金額を含まない期待値の根拠だけを返す。金額は履歴カード上部の2枠が出すので重複させない
+    function startEvBasisText(startEv) {
       const normalized = normalizeStartEv(startEv);
       if (!normalized) return "記録なし";
       const hasInvestmentBreakdown = Boolean(normalized.availableBalls || normalized.mochidamaBalls || normalized.cashBalls);
       const balanceText = hasInvestmentBreakdown
         ? ` / 入力 持ち玉${Math.round(normalized.mochidamaInput || 0).toLocaleString("ja-JP")}玉・再プレ${Math.round(normalized.saipureiInput || 0).toLocaleString("ja-JP")}玉`
         : "";
-      return `${yenText(normalized.evYen)} / ${Number(normalized.usedRate).toFixed(1)} /250玉 / ${normalized.rateSource || "ソース不明"} / ${remainingSpinTextFromEffectiveSpin(normalized.effectiveSpin, normalized.presetId)}${balanceText}`;
+      return `${Number(normalized.usedRate).toFixed(1)} /250玉 / ${normalized.rateSource || "ソース不明"} / ${remainingSpinTextFromEffectiveSpin(normalized.effectiveSpin, normalized.presetId)}${balanceText}`;
+    }
+
+    function startEvDetailText(startEv) {
+      const normalized = normalizeStartEv(startEv);
+      if (!normalized) return "記録なし";
+      return `${yenText(normalized.evYen)} / ${startEvBasisText(startEv)}`;
     }
 
     function showToast(message, type = "success", options = {}) {
@@ -3994,6 +4057,81 @@
       byId("finishBtn").addEventListener("click", () => openEndWizard(session.id));
     }
 
+    // ここから履歴の表示専用ヘルパー。保存データもスキーマも触らない
+    function sessionTimeMinutes(value) {
+      const parts = String(value ?? "").trim().match(/^(\d{1,2}):(\d{2})$/);
+      if (!parts) return null;
+      const hours = Number(parts[1]);
+      const minutes = Number(parts[2]);
+      if (hours > 23 || minutes > 59) return null;
+      return hours * 60 + minutes;
+    }
+
+    // 開始〜終了の実働時間。時刻欠損は null（実働に算入しない）、日またぎは 0 扱いで合計を壊さない
+    function sessionWorkedHours(session) {
+      const start = sessionTimeMinutes(session?.startTime);
+      const end = sessionTimeMinutes(session?.endTime);
+      if (start === null || end === null) return null;
+      const diff = end - start;
+      return diff > 0 ? diff / 60 : 0;
+    }
+
+    function ledgerDaySummary(entries) {
+      const list = Array.isArray(entries) ? entries : [];
+      let profitYen = null;
+      let startEvYen = null;
+      let workedHours = null;
+      list.forEach((entry) => {
+        const profit = normalizeNumber(entry?.profitYen);
+        if (profit !== null) profitYen = (profitYen ?? 0) + profit;
+        const evYen = normalizeNumber(entry?.startEvYen);
+        if (evYen !== null) startEvYen = (startEvYen ?? 0) + evYen;
+        const hours = normalizeNumber(entry?.workedHours);
+        if (hours !== null) workedHours = (workedHours ?? 0) + Math.max(0, hours);
+      });
+      const hourlyYen = profitYen !== null && workedHours !== null && workedHours > 0
+        ? profitYen / workedHours
+        : null;
+      return { count: list.length, profitYen, startEvYen, workedHours, hourlyYen };
+    }
+
+    function signedYenToneClass(value) {
+      const number = normalizeNumber(value);
+      if (number === null) return "is-empty";
+      if (number > 0) return "is-plus";
+      if (number < 0) return "is-minus";
+      return "is-zero";
+    }
+
+    function signedYenDisplayText(value) {
+      const number = normalizeNumber(value);
+      return number === null ? LEDGER_EMPTY_TEXT : yenText(number);
+    }
+
+    function signedFigureHtml(label, value, className) {
+      return `<span class="${className}"><span class="signed-figure-label">${escapeHtml(label)}</span><strong class="signed-figure-value ${signedYenToneClass(value)}">${escapeHtml(signedYenDisplayText(value))}</strong></span>`;
+    }
+
+    // 実収支と期待値は必ずラベル付きで並べる。金額だけを単独で大きく出さない
+    function sessionFiguresHtml(profitYen, startEvYen) {
+      return `<div class="session-figures">`
+        + signedFigureHtml("実収支", profitYen, "session-figure")
+        + signedFigureHtml("期待値", startEvYen, "session-figure")
+        + `</div>`;
+    }
+
+    function ledgerDaySummaryHtml(summary) {
+      if (!summary || !summary.count) return "";
+      const workedText = summary.workedHours === null ? LEDGER_EMPTY_TEXT : hourText(summary.workedHours);
+      return `<div class="ledger-day-summary">`
+        + `<span class="ledger-day-summary-item"><strong>${summary.count}台</strong></span>`
+        + signedFigureHtml("実収支", summary.profitYen, "ledger-day-summary-item")
+        + signedFigureHtml("期待値", summary.startEvYen, "ledger-day-summary-item")
+        + `<span class="ledger-day-summary-item"><span class="signed-figure-label">実働</span><strong>${escapeHtml(workedText)}</strong></span>`
+        + signedFigureHtml("時給", summary.hourlyYen, "ledger-day-summary-item")
+        + `</div>`;
+    }
+
     function renderLedger() {
       const store = activeStore();
       if (!store) {
@@ -4013,17 +4151,39 @@
         els.sessionList.innerHTML = '<div class="row-card">セッションはまだありません。</div>';
         return;
       }
-      let lastDate = "";
-      els.sessionList.innerHTML = sessions.slice().sort((a, b) => {
+      const sortedSessions = sessions.slice().sort((a, b) => {
         const dateCompare = String(b.date || "").localeCompare(String(a.date || ""));
         return dateCompare || String(b.createdAt).localeCompare(String(a.createdAt));
-      }).map((session) => {
+      });
+      const derivedById = new Map();
+      const startEvYenById = new Map();
+      const dayEntries = new Map();
+      sortedSessions.forEach((session) => {
+        const machine = data.machines.find((item) => item.id === session.machineId);
+        const derived = deriveSession(session, machine);
+        const startEv = normalizeStartEv(session.startEv);
+        const startEvYen = startEv ? startEv.evYen : null;
+        derivedById.set(session.id, derived);
+        startEvYenById.set(session.id, startEvYen);
+        const dayKey = String(session.date || "");
+        if (!dayEntries.has(dayKey)) dayEntries.set(dayKey, []);
+        dayEntries.get(dayKey).push({
+          profitYen: derived.profitYen,
+          startEvYen,
+          workedHours: sessionWorkedHours(session)
+        });
+      });
+      let lastDate = "";
+      els.sessionList.innerHTML = sortedSessions.map((session) => {
         const machine = data.machines.find((item) => item.id === session.machineId);
         const sourceMachine = carryoverSourceMachine(session);
         const sameMachineCarryover = sourceMachine && sourceMachine.id === machine?.id;
-        const derived = deriveSession(session, machine);
+        const derived = derivedById.get(session.id);
         const misses = missingFields(session);
-        const dateHeading = session.date !== lastDate ? `<div class="ledger-day-heading">― ${escapeHtml(shortDate(session.date))} の履歴 ―</div>` : "";
+        const dateHeading = session.date !== lastDate
+          ? `<div class="ledger-day-heading">― ${escapeHtml(shortDate(session.date))} の履歴 ―</div>`
+            + ledgerDaySummaryHtml(ledgerDaySummary(dayEntries.get(String(session.date || ""))))
+          : "";
         lastDate = session.date;
         const daiLabel = machine?.daiNo ? `${machine.daiNo}番` : "台番不明";
         const title = `${machine?.modelName || "機種未設定"}　${daiLabel}　${session.startTime || "--:--"}`;
@@ -4032,7 +4192,8 @@
             <summary>
               <div class="row-card-head">
                 <div>
-                  <strong class="session-summary-line"><span>${escapeHtml(title)}</span><span class="session-start-ev">${escapeHtml(startEvText(session.startEv))}</span></strong>
+                  <strong class="session-summary-line"><span>${escapeHtml(title)}</span></strong>
+                  ${sessionFiguresHtml(derived.profitYen, startEvYenById.get(session.id))}
                 </div>
                 <span class="badge ${session.status === "completed" ? "good" : "dark"}">${session.status === "completed" ? "確定" : "稼働中"}</span>
               </div>
@@ -4044,7 +4205,7 @@
               ${derived.isEstimatedRate || derived.isEstimatedPayout ? '<span class="badge warn">概算</span>' : ""}
               ${sourceMachine ? `<span class="badge">${sameMachineCarryover ? "⇐ 同台続行" : `⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き`}</span>` : ""}
             </div>
-            <small>開始時期待値 ${escapeHtml(startEvDetailText(session.startEv))}</small><br>
+            <small>期待値の内訳 ${escapeHtml(startEvBasisText(session.startEv))}</small><br>
             <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${rateText(derived)} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
             ${session.status === "completed" ? transferSummaryHtml(session) : ""}
             <div class="modal-actions" style="margin-top:8px">

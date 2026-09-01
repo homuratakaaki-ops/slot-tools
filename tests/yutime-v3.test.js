@@ -41,9 +41,9 @@ const runningTrialHelpers = section('function clampTrialRate', 'function running
 const runningPanelInputBallsBlock = section('function runningPanelInputBalls', 'function runningSpinCount');
 const runningSpinCount = section('function runningSpinCount', 'function investmentSnapshot');
 const investmentSnapshot = section('function investmentSnapshot', 'function historyEntries');
-const calculateStartEvSnapshot = section('function calculateStartEvSnapshot', 'function startEvText');
+const calculateStartEvSnapshot = section('function calculateStartEvSnapshot', 'function remainingSpinTextFromEffectiveSpin');
 const startSessionFlow = section('function openStartWizard', 'function openHitWizard');
-const startEvDetailTextBlock = section('function startEvText', 'function showToast');
+const startEvDetailTextBlock = section('function remainingSpinTextFromEffectiveSpin', 'function showToast');
 const counterSpinHelpers = section('function counterOffsetForPresetId', 'function presetNetBallsPerWin');
 const tenjoAndCounterHelpers = section('function tenjoForPresetId', 'function presetNetBallsPerWin');
 const investmentTotalsBlock = section('function investmentTotals', 'function transferSummaryForSession');
@@ -2932,5 +2932,152 @@ assert.match(renderMorningCheckModal, /const savedSummary = morningStateSummary\
 assert.match(renderMorningCheckModal, /<p class="modal-dai-title">台 <strong>\$\{escapeHtml\(daiNo\)\}<\/strong> \/ 前日ヤメ/);
 assert.match(renderMorningCheckModal, /\$\{savedSummary \? `保存済み: \$\{escapeHtml\(savedSummary\)\}` : "未登録"\}/);
 assert.match(saveMorningCurrent, /morningCheckFlow\.recent = `保存: \$\{daiNo\}=\$\{morningStateSummary\(state\) \|\| "未登録"\}`;/);
+
+// B96: 履歴カード上部を「実収支」「期待値」の2枠にし、日付区切りの直下に日別サマリーを出す。
+// 表示のみの変更。計算式・保存データ・schema は触らない。
+const ledgerSummaryBlock = section('function sessionTimeMinutes', 'function renderLedger');
+const startEvBasisTextBlock = section('function startEvBasisText', 'function startEvDetailText');
+const numberHelpersBlock = section('function normalizeNumber', 'function positiveNumberOrDefault');
+const escapeHtmlBlock = section('function escapeHtml', 'function presetById');
+const yenHourTextBlock = section('function yenText', 'function percentText');
+const ledgerSummaryContext = vm.createContext({});
+const ledgerEmptyTextBlock = section('const LEDGER_EMPTY_TEXT', 'const AUTO_LABELS');
+new vm.Script(`
+  ${ledgerEmptyTextBlock}
+  ${numberHelpersBlock}
+  ${escapeHtmlBlock}
+  ${yenHourTextBlock}
+  ${ledgerSummaryBlock}
+  globalThis.ledgerApi = {
+    LEDGER_EMPTY_TEXT,
+    sessionTimeMinutes,
+    sessionWorkedHours,
+    ledgerDaySummary,
+    ledgerDaySummaryHtml,
+    sessionFiguresHtml,
+    signedYenToneClass,
+    signedYenDisplayText
+  };
+`).runInContext(ledgerSummaryContext);
+const ledgerApi = ledgerSummaryContext.ledgerApi;
+
+// 実働は開始〜終了の差。時刻欠損は null、日またぎ・逆転は 0 にして合計を壊さない
+assert.equal(ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '10:30' }), 0.5);
+assert.equal(ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '11:00' }), 1);
+assert.equal(ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '10:02' }), 2 / 60);
+assert.equal(ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: null }), null);
+assert.equal(ledgerApi.sessionWorkedHours({ endTime: '10:30' }), null);
+assert.equal(ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '' }), null);
+assert.equal(ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '25:00' }), null);
+assert.equal(ledgerApi.sessionWorkedHours({ startTime: '23:30', endTime: '00:10' }), 0, '日をまたぐ時刻は0扱い');
+assert.equal(ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '10:00' }), 0);
+assert.equal(ledgerApi.sessionWorkedHours(null), null);
+
+// 検算：同日3件（実収支 +4,273／+1,228／−3,877、期待値 +1,000／+1,228／+972、実働 30分／2分／60分）
+const threeSessions = [
+  { profitYen: 4273, startEvYen: 1000, workedHours: ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '10:30' }) },
+  { profitYen: 1228, startEvYen: 1228, workedHours: ledgerApi.sessionWorkedHours({ startTime: '11:00', endTime: '11:02' }) },
+  { profitYen: -3877, startEvYen: 972, workedHours: ledgerApi.sessionWorkedHours({ startTime: '12:00', endTime: '13:00' }) }
+];
+const threeSummary = ledgerApi.ledgerDaySummary(threeSessions);
+assert.equal(threeSummary.count, 3);
+assert.equal(threeSummary.profitYen, 1624);
+assert.equal(threeSummary.startEvYen, 3200);
+assert.ok(Math.abs(threeSummary.workedHours - 92 / 60) < 1e-9, '実働は30分＋2分＋60分＝92分');
+assert.equal(Math.round(threeSummary.hourlyYen), 1059, '時給は実収支合計 ÷ 実働合計（92分＝1.5333h）');
+const threeHtml = ledgerApi.ledgerDaySummaryHtml(threeSummary);
+assert.match(threeHtml, /<strong>3台<\/strong>/);
+assert.match(threeHtml, /実収支<\/span><strong class="signed-figure-value is-plus">\+1,624円<\/strong>/);
+assert.match(threeHtml, /期待値<\/span><strong class="signed-figure-value is-plus">\+3,200円<\/strong>/);
+assert.match(threeHtml, /実働<\/span><strong>1\.53h<\/strong>/);
+assert.match(threeHtml, /時給<\/span><strong class="signed-figure-value is-plus">\+1,059円<\/strong>/);
+
+// endTime 欠損のセッションは実働に入らないが、実収支・期待値の合算には入る
+const missingEndTime = ledgerApi.ledgerDaySummary([
+  { profitYen: 4273, startEvYen: 1000, workedHours: ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '10:30' }) },
+  { profitYen: 1228, startEvYen: 1228, workedHours: ledgerApi.sessionWorkedHours({ startTime: '11:00', endTime: null }) },
+  { profitYen: -3877, startEvYen: 972, workedHours: ledgerApi.sessionWorkedHours({ startTime: '12:00', endTime: '13:00' }) }
+]);
+assert.equal(missingEndTime.count, 3);
+assert.equal(missingEndTime.profitYen, 1624);
+assert.equal(missingEndTime.startEvYen, 3200);
+assert.equal(missingEndTime.workedHours, 1.5);
+assert.equal(Math.round(missingEndTime.hourlyYen), 1083);
+
+// 全件で時刻欠損なら実働も時給も「—」
+const noTimes = ledgerApi.ledgerDaySummary([
+  { profitYen: 4273, startEvYen: 1000, workedHours: null },
+  { profitYen: -3877, startEvYen: 972, workedHours: null }
+]);
+assert.equal(noTimes.workedHours, null);
+assert.equal(noTimes.hourlyYen, null);
+const noTimesHtml = ledgerApi.ledgerDaySummaryHtml(noTimes);
+assert.match(noTimesHtml, /実働<\/span><strong>—<\/strong>/);
+assert.match(noTimesHtml, /時給<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
+
+// 実働0でも時給は「—」。ゼロ除算しない
+const zeroWorked = ledgerApi.ledgerDaySummary([{ profitYen: 500, startEvYen: 100, workedHours: 0 }]);
+assert.equal(zeroWorked.workedHours, 0);
+assert.equal(zeroWorked.hourlyYen, null);
+assert.match(ledgerApi.ledgerDaySummaryHtml(zeroWorked), /実働<\/span><strong>0\.00h<\/strong>/);
+
+// 実収支が算出できないセッションは合算から外す。全件不能なら「—」で時給も出さない
+const partialProfit = ledgerApi.ledgerDaySummary([
+  { profitYen: null, startEvYen: 1000, workedHours: 1 },
+  { profitYen: -3877, startEvYen: null, workedHours: 1 }
+]);
+assert.equal(partialProfit.count, 2);
+assert.equal(partialProfit.profitYen, -3877);
+assert.equal(partialProfit.startEvYen, 1000);
+assert.equal(partialProfit.workedHours, 2);
+assert.equal(Math.round(partialProfit.hourlyYen), -1938, "-3,877円 ÷ 2h = -1938.5 → -1,938円");
+assert.match(ledgerApi.ledgerDaySummaryHtml(partialProfit), /実収支<\/span><strong class="signed-figure-value is-minus">-3,877円<\/strong>/);
+const noProfit = ledgerApi.ledgerDaySummary([{ profitYen: null, startEvYen: null, workedHours: 1 }]);
+assert.equal(noProfit.profitYen, null);
+assert.equal(noProfit.startEvYen, null);
+assert.equal(noProfit.hourlyYen, null);
+const noProfitHtml = ledgerApi.ledgerDaySummaryHtml(noProfit);
+assert.match(noProfitHtml, /実収支<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
+assert.match(noProfitHtml, /期待値<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
+
+// 1件だけの日は正常、0件の日はサマリー自体を出さない
+const single = ledgerApi.ledgerDaySummary([{ profitYen: 1228, startEvYen: 1228, workedHours: 0.5 }]);
+assert.equal(single.count, 1);
+assert.match(ledgerApi.ledgerDaySummaryHtml(single), /<strong>1台<\/strong>/);
+assert.equal(ledgerApi.ledgerDaySummaryHtml(ledgerApi.ledgerDaySummary([])), '');
+assert.equal(ledgerApi.ledgerDaySummaryHtml(ledgerApi.ledgerDaySummary(undefined)), '');
+assert.equal(ledgerApi.ledgerDaySummaryHtml(null), '');
+
+// カード上部は実収支・期待値の2枠。どちらもラベル必須で、金額だけを単独で出さない
+const figuresHtml = ledgerApi.sessionFiguresHtml(-3877, 1228);
+assert.match(figuresHtml, /<div class="session-figures">/);
+assert.match(figuresHtml, /<span class="signed-figure-label">実収支<\/span><strong class="signed-figure-value is-minus">-3,877円<\/strong>/);
+assert.match(figuresHtml, /<span class="signed-figure-label">期待値<\/span><strong class="signed-figure-value is-plus">\+1,228円<\/strong>/);
+assert.ok(figuresHtml.indexOf('実収支') < figuresHtml.indexOf('期待値'), '左が実収支、右が期待値');
+const figuresMissing = ledgerApi.sessionFiguresHtml(null, 1228);
+assert.match(figuresMissing, /<span class="signed-figure-label">実収支<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
+assert.match(figuresMissing, /期待値<\/span><strong class="signed-figure-value is-plus">\+1,228円<\/strong>/);
+assert.match(ledgerApi.sessionFiguresHtml(null, null), /期待値<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
+assert.equal(ledgerApi.signedYenToneClass(0), 'is-zero');
+assert.equal(ledgerApi.signedYenDisplayText(0), '+0円');
+assert.equal(ledgerApi.signedYenDisplayText(undefined), '—');
+assert.equal(ledgerApi.LEDGER_EMPTY_TEXT, '—');
+
+// renderLedger 側の配線
+assert.match(renderLedger, /\$\{sessionFiguresHtml\(derived\.profitYen, startEvYenById\.get\(session\.id\)\)\}/);
+assert.match(renderLedger, /\+ ledgerDaySummaryHtml\(ledgerDaySummary\(dayEntries\.get\(String\(session\.date \|\| ""\)\)\)\)/);
+assert.match(renderLedger, /workedHours: sessionWorkedHours\(session\)/);
+assert.match(renderLedger, /profitYen: derived\.profitYen,/);
+assert.match(renderLedger, /<small>期待値の内訳 \$\{escapeHtml\(startEvBasisText\(session\.startEv\)\)\}<\/small>/);
+// 見出しの単独金額は廃止した
+assert.doesNotMatch(html, /session-start-ev/);
+assert.doesNotMatch(html, /function startEvText\(/);
+assert.doesNotMatch(renderLedger, /開始時期待値 \$\{escapeHtml\(startEvDetailText/);
+// 期待値の内訳から金額を外し、金額の定義そのものは変えない
+assert.match(startEvBasisTextBlock, /function startEvBasisText\(startEv\) \{/);
+assert.match(startEvDetailTextBlock, /return `\$\{yenText\(normalized\.evYen\)\} \/ \$\{startEvBasisText\(startEv\)\}`;/);
+assert.doesNotMatch(startEvBasisTextBlock, /yenText\(/);
+// 表示専用。集計ブロックはセッションを書き換えず保存もしない
+assert.doesNotMatch(ledgerSummaryBlock, /session\.[A-Za-z]+ =|persist\(|localStorage/);
 
 console.log('yutime-v3 tests passed');
