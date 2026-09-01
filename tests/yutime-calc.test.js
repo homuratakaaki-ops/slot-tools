@@ -60,6 +60,12 @@ function evYenOf(input) {
 // アグネスPEはカウンター250回転で遊タイム、エンジンの天井は内部低確239回転。
 // 差の11回転をカウンター値から引いて渡す。大海5SPは差0。
 
+// ずれの数値は共有エンジンのプリセットだけが持つ。ページ側に書かない（二重管理の防止）
+assert.match(calcEngine, /counterOffset: 11,/, 'agnes-pe の counterOffset はエンジンブロック側に置くこと');
+assert.match(calcEngine, /counterOffset: 0,/, 'umi-sp5 の counterOffset はエンジンブロック側に置くこと');
+assert.match(logicBlock, /return Math\.max\(0, Number\(enginePresetFor\(preset\)\.spec\.counterOffset\) \|\| 0\);/, 'ページ側はエンジンの counterOffset を参照すること');
+assert.doesNotMatch(logicBlock, /counterOffset: \d/, 'ページ側のプリセットにずれの数値を持たせないこと');
+
 assert.equal(api.counterOffset(api.PRESETS[0]), 11, 'agnes-pe はカウンター250 − 内部239 = 11 のずれを持つ');
 assert.equal(api.counterOffset(api.PRESETS[1]), 0, 'umi-sp5 はカウンターと内部天井が一致する');
 assert.equal(api.engineSpinFromCounter(api.PRESETS[0], 150), 139);

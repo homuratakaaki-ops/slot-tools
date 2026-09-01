@@ -44,6 +44,8 @@ const investmentSnapshot = section('function investmentSnapshot', 'function hist
 const calculateStartEvSnapshot = section('function calculateStartEvSnapshot', 'function startEvText');
 const startSessionFlow = section('function openStartWizard', 'function openHitWizard');
 const startEvDetailTextBlock = section('function startEvText', 'function showToast');
+const counterSpinHelpers = section('function counterOffsetForPresetId', 'function presetNetBallsPerWin');
+const tenjoAndCounterHelpers = section('function tenjoForPresetId', 'function presetNetBallsPerWin');
 const investmentTotalsBlock = section('function investmentTotals', 'function transferSummaryForSession');
 const openBalanceEditForm = section('function openBalanceEditForm', 'function openSpinEditForm');
 const openRateSummary = section('function openRateSummary', 'function openSessionEditor');
@@ -539,9 +541,9 @@ assert.match(transferSummary, /investYen: totals\.cashYen,/);
 assert.match(transferSummary, /recoverYen: normalizeNumber\(session\.settlementRecoverYen\) \?\? 0,/);
 assert.match(transferSummary, /withdrawBalls: usesTapInvestmentMode\(session\) && Boolean\(store\?\.isPersonal\) \? Number\(session\.startMochidama \|\| 0\) : totals\.mochidamaBalls \+ totals\.saipureiBalls,/);
 assert.match(transferSummary, /depositBalls: finalMochidamaForCarryover\(session\) \?\? 0/);
-assert.match(transferSummary, /const tenjo = tenjoForPresetId\(startEv\?\.presetId \|\| normalizeMachinePresetId\(machine\)\);/);
-assert.match(transferSummary, /startExpectedSpins = startEv \? Math\.max\(0, tenjo - startEv\.effectiveSpin\) : null;/);
-assert.match(transferSummary, /remainingSpins = endEffectiveSpin !== null \? Math\.max\(0, tenjo - endEffectiveSpin\) : null;/);
+assert.match(transferSummary, /const summaryPresetId = startEv\?\.presetId \|\| normalizeMachinePresetId\(machine\);/);
+assert.match(transferSummary, /startExpectedSpins = startEv \? remainingSpinsFromCounterSpin\(startEv\.effectiveSpin, summaryPresetId\) : null;/);
+assert.match(transferSummary, /remainingSpins = endEffectiveSpin !== null \? remainingSpinsFromCounterSpin\(endEffectiveSpin, summaryPresetId\) : null;/);
 assert.match(transferSummary, /const consumedBalls = derived\.consumedBalls !== null && derived\.consumedBalls !== undefined \? Math\.round\(derived\.consumedBalls\) : null;/);
 assert.match(transferSummary, /const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin \? endSpin - startSpin : null;/);
 assert.match(transferSummary, /const actualHitBalls = sessionActualBallsTotal\(session\);/);
@@ -599,6 +601,58 @@ new vm.Script(`
   globalThis.engine = YUTIME_EXPECTATION_ENGINE;
   globalThis.judge = evJudgment;
 `).runInContext(expectationContext);
+// B97: データカウンター基準の回転数を内部低確回転数へ換算する
+// counterOffset の出所は期待値エンジンのプリセット1箇所だけ。ページ側に数値を書かない。
+const counterContext = vm.createContext({
+  YUTIME_EXPECTATION_ENGINE: expectationContext.engine,
+  normalizeNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  presetById(presetId) {
+    return expectationContext.engine.presets[presetId] || null;
+  }
+});
+new vm.Script(`
+  ${tenjoAndCounterHelpers}
+  globalThis.counterApi = { counterOffsetForPresetId, engineSpinFromCounterSpin, remainingSpinsFromCounterSpin };
+`).runInContext(counterContext);
+const counterApi = counterContext.counterApi;
+assert.equal(expectationContext.engine.presets['agnes-pe'].spec.counterOffset, 11, 'agnes-pe はカウンター250 − 内部239 = 11');
+assert.equal(expectationContext.engine.presets['umi-sp5'].spec.counterOffset, 0, 'umi-sp5 はカウンターと内部天井が一致する');
+assert.equal(counterApi.counterOffsetForPresetId('agnes-pe'), 11);
+assert.equal(counterApi.counterOffsetForPresetId('umi-sp5'), 0);
+assert.equal(counterApi.counterOffsetForPresetId(undefined), 0, '未知のプリセットはずれ0として扱う');
+assert.equal(counterApi.engineSpinFromCounterSpin(150, 'agnes-pe'), 139);
+assert.equal(counterApi.engineSpinFromCounterSpin(0, 'agnes-pe'), 0, 'ラムクリア後0回転は内部239回転として扱う');
+assert.equal(counterApi.engineSpinFromCounterSpin(434, 'umi-sp5'), 434, '大海5SPは素通し');
+assert.equal(counterApi.engineSpinFromCounterSpin(null, 'agnes-pe'), null);
+assert.equal(counterApi.remainingSpinsFromCounterSpin(150, 'agnes-pe'), 100, 'カウンター150は遊タイムまで残り100回転');
+assert.equal(counterApi.remainingSpinsFromCounterSpin(0, 'agnes-pe'), 239);
+assert.equal(counterApi.remainingSpinsFromCounterSpin(200, 'agnes-pe'), 50);
+assert.equal(counterApi.remainingSpinsFromCounterSpin(250, 'agnes-pe'), 0);
+assert.equal(counterApi.remainingSpinsFromCounterSpin(434, 'umi-sp5'), 516, '大海5SPの残り回転数は不変');
+assert.equal(counterApi.remainingSpinsFromCounterSpin(525, 'umi-sp5'), 425);
+
+// 受け入れ基準: アグネスPE・カウンター150・回転率17・1R実質100玉・等価・現金 → +1,569円（記事v5と一致）
+const agnesCounterCase = expectationContext.engine.calculate(
+  { presetId: 'agnes-pe', currentSpin: counterApi.engineSpinFromCounterSpin(150, 'agnes-pe'), rotationRate: 17, availableBalls: 0 },
+  { ...expectationContext.engine.presets['agnes-pe'].defaults, presetId: 'agnes-pe', netBallsPerWin: 587.5 * 100 / 108, yenPerBall: 4 }
+);
+assert.equal(Math.round(agnesCounterCase.evYen), 1569, 'アグネスPE・カウンター150 → +1,569円');
+assert.equal(agnesCounterCase.spinsToTenjo, 100, 'エンジンの残り回転数もカウンター基準と一致する');
+
+// エンジンへ渡す前に必ず換算していること
+assert.match(html, /const engineSpin = engineSpinFromCounterSpin\(effectiveSpin, preset\.id\);/);
+assert.match(html, /YUTIME_EXPECTATION_ENGINE\.calculate\(\{ presetId: preset\.id, currentSpin: engineSpin, rotationRate: rateInfo\.rate, availableBalls \}/);
+assert.doesNotMatch(html, /YUTIME_EXPECTATION_ENGINE\.calculate\(\{ presetId: preset\.id, currentSpin: effectiveSpin/);
+// 遊タイム突入回転数の推定もカウンター基準の天井から引く
+assert.match(yutimeEnterSpinForRate, /const counterTenjo = tenjo \+ counterOffsetForPresetId\(preset\?\.id\);/);
+assert.match(yutimeEnterSpinForRate, /const inferred = counterTenjo - prevSpin;/);
+// 稼働中パネルの遊タイム残りも同じ基準
+assert.match(html, /const remaining = remainingSpinsFromCounterSpin\(effective, preset\.id\);/);
+
 // B91: 既存の基準点はすべて holdSpins=0（残保留なし）の回帰として固定する
 const zeroSupportSettings = { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0, holdSpins: 0 };
 const equalExchangeResult = expectationContext.engine.calculate(
@@ -1080,6 +1134,7 @@ const transferContext = vm.createContext({
   tenjoForPresetId() {
     return 950;
   },
+  YUTIME_EXPECTATION_ENGINE: expectationContext.engine,
   roundTypeById(presetId, roundTypeId) {
     return {
       r4: { id: 'r4', label: '4R', balls: 560 },
@@ -1129,7 +1184,7 @@ const transferContext = vm.createContext({
     return transferContext.__session;
   }
 });
-new vm.Script(transferSummary).runInContext(transferContext);
+new vm.Script(`${counterSpinHelpers}\n${transferSummary}`).runInContext(transferContext);
 const investmentAdjustContext = vm.createContext({
   __inputs: {
     editInvest_mochidama: { value: '1000' },
@@ -1836,9 +1891,9 @@ assert.match(runningTrialHelpers, /id="runningTrialRateValue"/);
 assert.match(runningTrialHelpers, /id="runningTrialCurrentLine"/);
 assert.match(runningTrialHelpers, /id="runningTrialStartLine"/);
 assert.doesNotMatch(runningTrialHelpers, /`実効/);
-assert.match(startEvDetailTextBlock, /function remainingSpinTextFromEffectiveSpin\(effectiveSpin, tenjo = YUTIME_EXPECTATION_ENGINE\.preset\.spec\.tenjo\) \{/);
-assert.match(startEvDetailTextBlock, /Math\.max\(0, ceiling - effective\)\.toLocaleString\("ja-JP"\)/);
-assert.match(startEvDetailTextBlock, /remainingSpinTextFromEffectiveSpin\(normalized\.effectiveSpin, tenjoForPresetId\(normalized\.presetId\)\)/);
+assert.match(startEvDetailTextBlock, /function remainingSpinTextFromEffectiveSpin\(effectiveSpin, presetId = YUTIME_EXPECTATION_ENGINE\.preset\.id\) \{/);
+assert.match(startEvDetailTextBlock, /const remaining = remainingSpinsFromCounterSpin\(effectiveSpin, presetId\);/);
+assert.match(startEvDetailTextBlock, /remainingSpinTextFromEffectiveSpin\(normalized\.effectiveSpin, normalized\.presetId\)/);
 assert.match(startEvDetailTextBlock, /function expectationInvestmentText\(mochidamaBalls, cashBalls, spinsToTenjo, rotationRate\) \{/);
 assert.match(startEvDetailTextBlock, /const total = mochidama \+ cash;/);
 assert.match(startEvDetailTextBlock, /const cashYen = Math\.round\(cash \/ 250 \* 1000\);/);
@@ -2097,7 +2152,7 @@ assert.equal(startSessionContext.blankStarted.startSaipurei, null);
 assert.equal(startSessionContext.blankStarted.startCredit, null);
 assert.equal(startSessionContext.blankStarted.startTotalHits, null);
 const startEvDetailContext = vm.createContext({
-  YUTIME_EXPECTATION_ENGINE: { preset: { spec: { tenjo: 950 } } },
+  YUTIME_EXPECTATION_ENGINE: expectationContext.engine,
   tenjoForPresetId(presetId) {
     return presetId === 'agnes-pe' ? 239 : 950;
   },
@@ -2111,6 +2166,7 @@ const startEvDetailContext = vm.createContext({
   }
 });
 new vm.Script(`
+  ${counterSpinHelpers}
   ${normalizeStartEvBlock}
   ${startEvDetailTextBlock}
   globalThis.startEvWithMochidama = startEvDetailText({
@@ -2352,7 +2408,7 @@ assert.match(openSessionEditor, /if \(Array\.isArray\(session\.hits\) && session
 assert.match(deriveSession, /const yutimeNormalEndSpin = !hasHit && \(session\.hitVia === "yutime" \|\| session\.yutimeEnterBalls !== null\) \? yutimeEnterSpinForRate\(session, preset\) : null;/);
 assert.match(deriveSession, /session\.hitVia === "yutime" \|\| session\.yutimeEnterBalls !== null \? yutimeNormalEndSpin : session\.endSpin/);
 assert.match(yutimeEnterSpinForRate, /const explicitSpin = normalizeNumber\(session\.yutimeEnterSpin\);\s*if \(explicitSpin !== null\) return explicitSpin;/);
-assert.match(yutimeEnterSpinForRate, /const inferred = tenjo - prevSpin;\s*return inferred >= 0 \? inferred : null;/);
+assert.match(yutimeEnterSpinForRate, /const inferred = counterTenjo - prevSpin;\s*return inferred >= 0 \? inferred : null;/);
 assert.ok(design.includes('schema 23 Machine 1件サンプル'));
 
 assert.match(openMachineDetail, /function openMachineDetail\(daiNo, machineFormExpanded = false, options = \{\}\)/);

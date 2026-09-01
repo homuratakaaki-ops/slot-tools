@@ -141,6 +141,9 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
           hitProb: 0.00312891,
           hitProbLabel: "1/319.6",
           tenjo: 950,
+          // counterOffset は「データカウンター表示 − 内部低確回転数」。
+          // 入力された回転数はカウンター基準なので、エンジンへ渡す前にこの値を引く。
+          counterOffset: 0,
           yutimeJitan: 350,
           kakuhenRate: 0.54,
           jitanNormal: 100,
@@ -168,6 +171,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
           hitProbLow: 1 / 99.9,
           hitProbHigh: 1 / 19.5,
           tenjo: 239,
+          // カウンター250回転で遊タイム突入。内部低確は239回転なので差は11。
+          counterOffset: 11,
           stSpins: 10,
           yutimeJitan: 10000,
           modelType: "st-certain",
@@ -376,13 +381,12 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       { id: "cash", label: "現金で打つ", availableBalls: 0 },
       { id: "mochidama", label: "持ち玉で打つ", availableBalls: MOCHIDAMA_AVAILABLE_BALLS }
     ];
-    // counterTenjo は実機のデータカウンター基準の遊タイム到達回転数。
-    // エンジンの spec.tenjo は内部の低確回転数なので、差分だけカウンター値から引いて渡す。
+    // 入力される回転数はデータカウンター基準。エンジンの spec.tenjo は内部の低確回転数なので、
+    // エンジンのプリセットが持つ counterOffset だけ引いてから渡す（数値の出所はエンジン1箇所）。
     const PRESETS = [
       {
         id: "agnes-pe",
         name: "PA大海物語Withアグネス・ラムPE",
-        counterTenjo: 250,
         payoutLabel: "1R実質出玉（電サポ中の減り込み）",
         payoutHint: "電サポ中の減りを含めた1Rあたりの実質出玉",
         payoutStep: "1",
@@ -393,7 +397,6 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       {
         id: "umi-sp5",
         name: "P大海物語5スペシャル",
-        counterTenjo: 950,
         payoutLabel: "1回の当りあたり純払い出し",
         payoutHint: "当り1回あたりの純払い出し玉数",
         payoutStep: "10",
@@ -423,7 +426,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     }
 
     function counterOffset(preset) {
-      return preset.counterTenjo - enginePresetFor(preset).spec.tenjo;
+      return Math.max(0, Number(enginePresetFor(preset).spec.counterOffset) || 0);
     }
 
     function engineSpinFromCounter(preset, counterSpin) {

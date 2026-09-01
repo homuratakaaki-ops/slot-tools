@@ -1109,6 +1109,18 @@ B5 実測値:
 - 新方式では台上差の概念を使わないため、B89の乖離選択UIは表示しない。旧データ（`hitTrackedBalls` が null）はB85の自動判定と選択UIを従来どおり維持する。
 - 遊タイム突入経由（`yutimeEnterBalls` あり）の確定処理は変更しない。控除後が負値になる場合は既存警告 `通常消費玉の入力を確認` に乗せ、回転率は `null` とする。
 
+## 83. B97 カウンター基準と内部回転数のズレを修正
+
+- schema 変更はない。保存データの形も値も変えない。入力値の解釈だけを直す。
+- プリセットの `spec.tenjo` は内部低確の解析値（アグネスPE＝239、大海5SP＝950）だが、ユーザーが入力する現在回転数はデータカウンターの表示値（アグネスPEは250回転で遊タイム突入）。両者を無変換で繋いでいたため、アグネスPEの判定が11回転ぶん甘い側にずれていた。
+- 期待値エンジンのプリセット `spec` に `counterOffset`（データカウンター表示 − 内部低確回転数）を追加する。`agnes-pe` は 11、`umi-sp5` は 0。**この数値の出所はここ1箇所だけ**とし、`yutime-v3.html` も `yutime-calc.html` も `counterOffsetForPresetId()` 経由で参照する。実測で250でなかったと分かった場合はこの1箇所を直せば記事・v3・calcが揃う。
+- `engineSpinFromCounterSpin(counterSpin, presetId)` = `max(0, カウンター値 − counterOffset)`。`calculateMachineExpectation()` はエンジンへ渡す直前にこれを通す。カウンター0（ラムクリア後）は内部0回転＝残り239回転になり、記事の前提と一致する。
+- 天井までの残り回転数を出している箇所（`remainingSpinTextFromEffectiveSpin`、`runningYutimeRemaining`、`transferSummaryForSession` の想定回転数・残り回転数）はすべて `remainingSpinsFromCounterSpin()` に統一し、カウンター基準の残りを表示する。`result.spinsToTenjo` は換算後の値なので一致する。
+- `yutimeEnterSpinForRate()`（前日ヤメ回転数から遊タイム突入回転数を推定する）も同じ根の誤りだったので直した。前日ヤメ回転数も突入回転数もカウンター基準なので、`tenjo + counterOffset` から引く。アグネスPEで11回転ぶん少なく見積もっていた。
+- 検算: アグネスPE・カウンター150・回転率17・1R実質100玉・等価・現金 → **+1,807円 → +1,569円**（記事v5と一致）。カウンター0 → 残り239回転。大海5SPは `counterOffset: 0` なので既存の基準点（434回転・想定回転数425・残り330など）が不変であることをテストで固定した。
+- `yutime-calc.html` のページ固有だった −11 の直書きは廃止し、エンジンの `counterOffset` を読む形にした。`tests/yutime-calc.test.js` でページ側にずれの数値が書かれていないことも検証する。
+- 制約: `MACHINE_PRESETS` の `agnes-pe` は spec/defaults をエンジンと別に持つ重複が残っている（B91以前からの状態）。`counterOffset` はエンジン側だけに置き、参照は必ずエンジン経由にすることで二重管理を避けた。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。
