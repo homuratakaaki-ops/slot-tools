@@ -295,7 +295,7 @@ function fixMoney(m){
   if(!m)return;
   // 旧形式（cash のみ）：合計＝その台で使った現金。残高は0として引き継ぐ
   if(!Array.isArray(m.deposits)||!Array.isArray(m.spends)){
-    const t=sum(m.cash||[]);
+    const t=Math.abs(sum(m.cash||[]));
     const at=(m.cash&&m.cash.length)?m.cash[0].at:nowISO();
     m.deposits = t>0 ? [{at,amount:t}] : [];
     m.spends   = t>0 ? [{at,amount:t}] : [];
