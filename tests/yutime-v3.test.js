@@ -91,6 +91,9 @@ const roundCountFromRoundTypeBlock = section('function roundCountFromRoundType',
 const tapModeConsumedBlock = section('function tapModeNormalEndSnapshot', 'function deriveSession');
 const consumedBallsChoiceHtmlBlock = section('function consumedBallsChoiceHtml', 'function setConsumedBallsSource');
 const consumedBallsSourceEditorHtmlBlock = section('function consumedBallsSourceEditorHtml', 'function fieldHtml');
+const selectedYutimePresetIdsBlock = section('function selectedYutimePresetIds', 'function islandDisplayName');
+const baselineChipsBlock = section('function baselineBallText', 'function renderLabelFilters');
+const renderLabelFiltersBlock = section('function renderLabelFilters', 'function renderCarryoverBanner');
 
 assert.doesNotMatch(hitWizard, /runWizard\(/);
 assert.match(hitWizard, /openModal\("当選ウィザード"/);
@@ -3079,5 +3082,131 @@ assert.match(startEvDetailTextBlock, /return `\$\{yenText\(normalized\.evYen\)\}
 assert.doesNotMatch(startEvBasisTextBlock, /yenText\(/);
 // 表示専用。集計ブロックはセッションを書き換えず保存もしない
 assert.doesNotMatch(ledgerSummaryBlock, /session\.[A-Za-z]+ =|persist\(|localStorage/);
+
+// G5: コーナー基準値は選択中のコーナーの機種で解決する。別機種（既定プリセット）の値を出さない
+const cornerBaselineContext = vm.createContext({
+  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  MACHINE_PRESETS: [
+    { id: 'umi-sp5', name: 'P大海物語5スペシャル', hasYutime: true, defaults: { netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.3, holdSpins: 5 } },
+    { id: 'agnes-pe', name: 'PA大海物語Withアグネス・ラムPE', hasYutime: true, defaults: { netBallsPerWin: 587.5, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, holdSpins: 5 } },
+    { id: 'no-yutime', name: '遊タイムなし機', hasYutime: false, defaults: { netBallsPerWin: 1000 } }
+  ],
+  data: { presetSettings: {}, machines: [], sessions: [] },
+  __layout: { islands: [] },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  positiveNumberOrDefault(value, fallback) {
+    const n = cornerBaselineContext.normalizeNumber(value);
+    return n !== null && n > 0 ? n : fallback;
+  },
+  presetById(id) {
+    return cornerBaselineContext.MACHINE_PRESETS.find((preset) => preset.id === id) || null;
+  },
+  presetByName(name) {
+    return cornerBaselineContext.MACHINE_PRESETS.find((preset) => preset.name === name) || null;
+  },
+  normalizeMachinePresetId(machine) {
+    if (cornerBaselineContext.presetById(machine?.presetId)) return machine.presetId;
+    const matched = cornerBaselineContext.presetByName(machine?.modelName || '');
+    return matched ? matched.id : '';
+  },
+  activeStore() {
+    return { id: 'store1' };
+  },
+  selectedMapLayoutForParse() {
+    return cornerBaselineContext.__layout;
+  },
+  parseIslandLayout(layout) {
+    const expand = (side) => {
+      const from = cornerBaselineContext.normalizeNumber(side?.from);
+      const to = cornerBaselineContext.normalizeNumber(side?.to);
+      if (from === null || to === null) return [];
+      const values = [];
+      for (let n = from; n <= to; n += 1) values.push(String(n));
+      return values;
+    };
+    const seen = new Set();
+    (layout?.islands || []).forEach((island) => {
+      const excluded = new Set((island?.excluded || []).map(String));
+      [...expand(island?.left), ...expand(island?.right)].forEach((daiNo) => {
+        if (!excluded.has(daiNo)) seen.add(daiNo);
+      });
+    });
+    return { rows: [], errors: [], daiNos: [...seen] };
+  },
+  escapeHtml(value) {
+    return String(value === null || value === undefined ? '' : value).replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+  },
+  filteredSessions() {
+    return cornerBaselineContext.data.sessions;
+  },
+  normalizeHits(hits) {
+    return Array.isArray(hits) ? hits : [];
+  }
+});
+new vm.Script(`
+  ${presetSettingsHelpers}
+  ${selectedYutimePresetIdsBlock}
+  ${baselineChipsBlock}
+  globalThis.cornerIds = () => selectedYutimePresetIds('store1');
+  globalThis.cornerChips = () => baselineChipsHtml(selectedYutimePresetIds('store1'));
+`).runInContext(cornerBaselineContext);
+const setCorner = (islands, machines = []) => {
+  cornerBaselineContext.__layout = { islands };
+  cornerBaselineContext.data.machines = machines;
+};
+
+// アグネスPEのコーナーはアグネスPEの既定値を出す
+setCorner([{ left: { from: 201, to: 204 }, right: null, leftPresetId: 'agnes-pe', rightPresetId: '' }]);
+assert.equal(cornerBaselineContext.cornerIds().join(','), 'agnes-pe', 'アグネスPEのコーナーは agnes-pe を解決する');
+const agnesChip = cornerBaselineContext.cornerChips();
+assert.match(agnesChip, /data-baseline-preset="agnes-pe"/);
+assert.match(agnesChip, /純払い出し <strong>587\.5玉<\/strong>/, 'アグネスPEの純払い出しは587.5玉');
+assert.match(agnesChip, /時短・遊タイム <strong>-0\.8\/0\/-0\.8<\/strong>/, 'アグネスPEの既定は -0.8 / 0 / -0.8');
+assert.doesNotMatch(agnesChip, /umi-sp5|1,400玉/, '大海5SPの値へフォールバックしない');
+
+// 大海5SPのコーナーは従来どおり
+setCorner([{ left: { from: 101, to: 104 }, right: null, leftPresetId: 'umi-sp5', rightPresetId: '' }]);
+assert.equal(cornerBaselineContext.cornerIds().join(','), 'umi-sp5');
+const umiChip = cornerBaselineContext.cornerChips();
+assert.match(umiChip, /data-baseline-preset="umi-sp5"/);
+assert.match(umiChip, /純払い出し <strong>1,400玉<\/strong> \/ 時短・遊タイム <strong>0\/0\/-0\.3<\/strong>/, '大海5SPの表示は従来どおり');
+
+// 機種別ユーザー設定はプリセットIDごとに分離される（切り替えても混ざらない）
+cornerBaselineContext.data.presetSettings = { 'umi-sp5': { yutimeBallsPerSpin: -0.5, netBallsPerWin: 1300, netBallsPerWinManual: true } };
+assert.match(cornerBaselineContext.cornerChips(), /<strong>1,300玉<\/strong> \/ 時短・遊タイム <strong>0\/0\/-0\.5<\/strong>/, '大海5SPは自分の設定を読む');
+setCorner([{ left: { from: 201, to: 204 }, right: null, leftPresetId: 'agnes-pe', rightPresetId: '' }]);
+assert.match(cornerBaselineContext.cornerChips(), /<strong>587\.5玉<\/strong> \/ 時短・遊タイム <strong>-0\.8\/0\/-0\.8<\/strong>/, '大海5SPの設定はアグネスPEに漏れない');
+cornerBaselineContext.data.presetSettings = {};
+
+// 島に機種未設定でも、そこに並ぶ台の機種から補う
+setCorner([{ left: { from: 301, to: 302 }, right: null, leftPresetId: '', rightPresetId: '' }], [
+  { id: 'm301', storeId: 'store1', daiNo: '301', presetId: 'agnes-pe' },
+  { id: 'm302', storeId: 'store1', daiNo: '302', presetId: 'agnes-pe' }
+]);
+assert.equal(cornerBaselineContext.cornerIds().join(','), 'agnes-pe', '台の機種からコーナーの機種を補う');
+
+// 左右で機種が違うコーナーは機種名つきで両方出す
+setCorner([{ left: { from: 101, to: 102 }, right: { from: 201, to: 202 }, leftPresetId: 'umi-sp5', rightPresetId: 'agnes-pe' }]);
+assert.equal(cornerBaselineContext.cornerIds().join(','), 'umi-sp5,agnes-pe');
+const mixedChips = cornerBaselineContext.cornerChips();
+assert.equal(mixedChips.match(/data-baseline-preset=/g).length, 2, '機種ごとに1つずつチップを出す');
+assert.match(mixedChips, /P大海物語5スペシャル 純払い出し/);
+assert.match(mixedChips, /PA大海物語Withアグネス・ラムPE 純払い出し/);
+
+// 遊タイムのない機種は基準値チップの対象外
+setCorner([{ left: { from: 401, to: 402 }, right: null, leftPresetId: 'no-yutime', rightPresetId: '' }]);
+assert.equal(cornerBaselineContext.cornerIds().join(','), '');
+assert.equal(cornerBaselineContext.cornerChips(), '');
+
+// 描画・保存の両方が選択中のコーナーを見る（既定プリセット決め打ちに戻さない）
+assert.match(renderLabelFiltersBlock, /const baselinePresetIds = selectedYutimePresetIds\(store\.id\);/);
+assert.match(renderLabelFiltersBlock, /\$\{baselineChipsHtml\(baselinePresetIds\)\}/);
+assert.match(renderLabelFiltersBlock, /openNetBallsQuickForm\(button\.dataset\.baselinePreset\)/);
+assert.doesNotMatch(renderLabelFiltersBlock, /presetNetBallsPerWin\("umi-sp5"\)|presetJitanBallsPerSpin\("umi-sp5"|presetYutimeBallsPerSpin\("umi-sp5"\)/);
+assert.doesNotMatch(renderLabelFiltersBlock, /openNetBallsQuickForm\("umi-sp5"\)/);
 
 console.log('yutime-v3 tests passed');

@@ -2558,6 +2558,26 @@
       });
     }
 
+    // コーナー基準値はここで解決する。既定プリセットや1件目へフォールバックしない
+    function selectedYutimePresetIds(storeId = activeStore()?.id) {
+      if (!storeId) return [];
+      const ids = [];
+      const add = (presetId) => {
+        if (presetId && presetById(presetId)?.hasYutime && !ids.includes(presetId)) ids.push(presetId);
+      };
+      const layout = selectedMapLayoutForParse(storeId);
+      (layout.islands || []).forEach((island) => {
+        add(island?.leftPresetId);
+        add(island?.rightPresetId);
+      });
+      // 島に機種が未設定の列は、そこに並ぶ台の機種から補う
+      parseIslandLayout(layout).daiNos.forEach((daiNo) => {
+        const machine = data.machines.find((item) => item.storeId === storeId && item.daiNo === String(daiNo));
+        add(normalizeMachinePresetId(machine));
+      });
+      return ids;
+    }
+
     function islandDisplayName(island, index = 0) {
       const manualName = String(island?.name || "").trim();
       if (manualName) return manualName;
@@ -3458,6 +3478,23 @@
       `).join("");
     }
 
+    function baselineBallText(value) {
+      return Number(value).toLocaleString("ja-JP", { maximumFractionDigits: 1 });
+    }
+
+    // 選択中のコーナーに実在する遊タイム機種ごとに基準値チップを1つ出す
+    function baselineChipsHtml(presetIds) {
+      const showName = presetIds.length > 1;
+      return presetIds.map((presetId) => {
+        const netBalls = presetNetBallsPerWin(presetId);
+        const jitanNormal = presetJitanBallsPerSpin(presetId, "jitanNormalBallsPerSpin");
+        const jitanFast = presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin");
+        const yutimeBalls = presetYutimeBallsPerSpin(presetId);
+        const namePrefix = showName ? `${escapeHtml(presetById(presetId)?.name || "")} ` : "";
+        return `<button class="small baseline-chip" data-baseline-preset="${escapeHtml(presetId)}">${namePrefix}純払い出し <strong>${baselineBallText(netBalls)}玉</strong> / 時短・遊タイム <strong>${jitanNormal}/${jitanFast}/${yutimeBalls}</strong>（変更）</button>`;
+      }).join("");
+    }
+
     function renderLabelFilters() {
       const manualLabels = storeLabels();
       const store = activeStore();
@@ -3472,10 +3509,7 @@
       const layout = storeLayout(store.id);
       const hasYutime = activeMapHasYutime(store.id);
       const assumedRate = activeMapAssumedRate(store.id);
-      const umiNetBalls = presetNetBallsPerWin("umi-sp5");
-      const umiJitanNormal = presetJitanBallsPerSpin("umi-sp5", "jitanNormalBallsPerSpin");
-      const umiJitanFast = presetJitanBallsPerSpin("umi-sp5", "jitanFastBallsPerSpin");
-      const umiYutimeBalls = presetYutimeBallsPerSpin("umi-sp5");
+      const baselinePresetIds = selectedYutimePresetIds(store.id);
       const filterSummary = activeFilters.length ? `　適用中: ${activeFilters.map(escapeHtml).join("・")}` : "";
       if (!hasYutime) {
         closingCheckMode = false;
@@ -3497,7 +3531,7 @@
             </div>
             <div class="baseline-chip-grid">
               <button class="small baseline-chip" id="quickAssumedRateBtn">平均回転率 <strong>${assumedRate !== null && assumedRate !== undefined ? Number(assumedRate).toFixed(1) : "未設定"}</strong>（${assumedRate !== null && assumedRate !== undefined ? "変更" : "設定"}）</button>
-              <button class="small baseline-chip" id="quickNetBallsBtn">純払い出し <strong>${Math.round(umiNetBalls).toLocaleString("ja-JP")}玉</strong> / 時短・遊タイム <strong>${umiJitanNormal}/${umiJitanFast}/${umiYutimeBalls}</strong>（変更）</button>
+              ${baselineChipsHtml(baselinePresetIds)}
             </div>
             <p class="hint" style="margin:6px 0 0">このコーナーの基準値です。台ごとの実測・手入力がない台は、この値で期待値を計算します。</p>
           </div>
@@ -3540,8 +3574,9 @@
       if (labelFormButton) labelFormButton.addEventListener("click", openLabelForm);
       const quickAssumedRateButton = byId("quickAssumedRateBtn");
       if (quickAssumedRateButton) quickAssumedRateButton.addEventListener("click", () => openAssumedRateQuickForm(store.id));
-      const quickNetBallsButton = byId("quickNetBallsBtn");
-      if (quickNetBallsButton) quickNetBallsButton.addEventListener("click", () => openNetBallsQuickForm("umi-sp5"));
+      els.labelFilters.querySelectorAll("[data-baseline-preset]").forEach((button) => {
+        button.addEventListener("click", () => openNetBallsQuickForm(button.dataset.baselinePreset));
+      });
       const closingToggle = byId("toggleClosingCheckBtn");
       if (closingToggle) {
         closingToggle.classList.toggle("primary", closingCheckMode);
