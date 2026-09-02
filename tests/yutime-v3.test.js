@@ -93,6 +93,8 @@ const roundCountFromRoundTypeBlock = section('function roundCountFromRoundType',
 const tapModeConsumedBlock = section('function tapModeNormalEndSnapshot', 'function deriveSession');
 const consumedBallsChoiceHtmlBlock = section('function consumedBallsChoiceHtml', 'function setConsumedBallsSource');
 const consumedBallsSourceEditorHtmlBlock = section('function consumedBallsSourceEditorHtml', 'function fieldHtml');
+const jitanExitBlock = section('function jitanExitOptions', 'function hitRoundSummaryHtml');
+const segmentHoldEditor = section('function segmentHoldSpinsEditorHtml', 'function consumedBallsSourceEditorHtml');
 const selectedYutimePresetIdsBlock = section('function selectedYutimePresetIds', 'function islandDisplayName');
 const baselineChipsBlock = section('function baselineBallText', 'function renderLabelFilters');
 const renderLabelFiltersBlock = section('function renderLabelFilters', 'function renderCarryoverBanner');
@@ -106,6 +108,7 @@ assert.match(hitWizard, /非パーソナル店では空欄のままで構いま�
 assert.match(hitWizard, /session\.hitSpin = normalizeNumber\(byId\("hitWizardSpin"\)\?\.value\);/);
 assert.match(hitWizard, /session\.hitRemainBalls = normalizeNumber\(byId\("hitWizardRemainBalls"\)\?\.value\);/);
 assert.match(hitWizard, /session\.hitTrackedBalls = mochidamaPreset;/);
+assert.match(hitWizard, /closeSegmentOnHit\(session\);/);
 assert.match(hitWizard, /openHitResetPrompt\(session\);/);
 const hitWizardContext = vm.createContext({
   __session: {
@@ -120,6 +123,7 @@ const hitWizardContext = vm.createContext({
   __nodes: {},
   __modalHtml: '',
   __resetOpened: false,
+  __closedOnHit: 0,
   __renderCount: 0,
   findSession(id) {
     return id === 's_hit_wizard' ? hitWizardContext.__session : null;
@@ -158,6 +162,9 @@ const hitWizardContext = vm.createContext({
   },
   renderAll() {
     hitWizardContext.__renderCount += 1;
+  },
+  closeSegmentOnHit() {
+    hitWizardContext.__closedOnHit += 1;
   },
   openHitResetPrompt(session) {
     hitWizardContext.__resetOpened = session;
@@ -199,6 +206,7 @@ assert.equal(hitWizardContext.savedRemain, 1640);
 assert.equal(hitWizardContext.savedTracked, 1650);
 assert.equal(hitWizardContext.savedVia, 'normal');
 assert.equal(hitWizardContext.savedResetOpened, true);
+assert.equal(hitWizardContext.__closedOnHit, 2);
 assert.equal(hitWizardContext.blankSpin, null);
 assert.equal(hitWizardContext.blankRemain, null);
 assert.equal(hitWizardContext.blankTracked, 1650);
@@ -294,6 +302,9 @@ const endWizardContext = vm.createContext({
   },
   openRateSummary(session) {
     endWizardContext.__summarySession = session;
+  },
+  closeTrailingSegmentOnEnd(session) {
+    endWizardContext.__closedTrailingSession = session;
   }
 });
 new vm.Script([
@@ -405,7 +416,11 @@ assert.match(hitResetPrompt, /appendHitRecord\(session, button\.dataset\.hitRoun
 assert.ok(hitResetPrompt.includes('data-close'), 'reset chip close button should remain unchanged');
 assert.match(hitResetPrompt, /id="hitMochidamaValue"/);
 assert.match(hitResetPrompt, /id="saveHitMochidamaBtn"/);
-assert.match(hitResetPrompt, /closeModal\(\);\s*setCurrentSpinWithUndo\(session, value\);/);
+assert.match(hitResetPrompt, /closeModal\(\);\s*applyJitanExit\(session, Number\(button\.dataset\.hitReset\)\);/);
+assert.match(hitResetPrompt, /data-hit-reset="\$\{option\.counterSpin\}"/);
+assert.match(hitResetPrompt, /時短\$\{option\.jitanSpins\} → カウンター\$\{option\.counterSpin\}/);
+assert.match(hitResetPrompt, /id="jitanExitSpin"/);
+assert.match(hitResetPrompt, /id="applyJitanExitBtn"/);
 assert.doesNotMatch(hitResetPrompt, /saveHitMochidamaInput\(session, \{ silentEmpty: true \}\)/);
 assert.match(hitResetPrompt, /if \(!raw\) return false;/);
 assert.match(hitRoundSummaryHtml, /const hits = normalizeHits\(session\?\.hits\);/);
@@ -546,7 +561,7 @@ assert.match(currentBalanceForStartKey, /if \(key === "startSaipurei"\) return b
 assert.match(currentBalanceForStartKey, /if \(key === "startCredit"\) return balances\.credit;/);
 assert.match(transferSummary, /investYen: totals\.cashYen,/);
 assert.match(transferSummary, /recoverYen: normalizeNumber\(session\.settlementRecoverYen\) \?\? 0,/);
-assert.match(transferSummary, /withdrawBalls: usesTapInvestmentMode\(session\) && Boolean\(store\?\.isPersonal\) \? Number\(session\.startMochidama \|\| 0\) : totals\.mochidamaBalls \+ totals\.saipureiBalls,/);
+assert.match(transferSummary, /withdrawBalls: Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\),/);
 assert.match(transferSummary, /depositBalls: finalMochidamaForCarryover\(session\) \?\? 0/);
 assert.match(transferSummary, /const summaryPresetId = startEv\?\.presetId \|\| normalizeMachinePresetId\(machine\);/);
 assert.match(transferSummary, /startExpectedSpins = startEv \? remainingSpinsFromCounterSpin\(startEv\.effectiveSpin, summaryPresetId\) : null;/);
@@ -655,6 +670,27 @@ for (const machinePreset of machinePresetContext.presets) {
 }
 assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').roundTypes.length, 3, 'UI側の roundTypes は MACHINE_PRESETS に残ること');
 assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').defaults.netBallsPerWin, 587.5, 'agnes-pe の既定値はエンジン側の値で解決されること');
+new vm.Script(`
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  function presetById(id) { return presets.find((preset) => preset.id === id) || null; }
+  ${jitanExitBlock}
+  globalThis.agnesJitanExitOptions = jitanExitOptions('agnes-pe');
+  globalThis.umiJitanExitOptions = jitanExitOptions('umi-sp5');
+`).runInContext(machinePresetContext);
+assert.equal(JSON.stringify(machinePresetContext.agnesJitanExitOptions), JSON.stringify([
+  { jitanSpins: 15, counterSpin: 25 },
+  { jitanSpins: 40, counterSpin: 50 },
+  { jitanSpins: 90, counterSpin: 100 }
+]));
+assert.equal(JSON.stringify(machinePresetContext.umiJitanExitOptions), JSON.stringify([
+  { jitanSpins: 100, counterSpin: 100 },
+  { jitanSpins: 200, counterSpin: 200 }
+]));
+assert.doesNotMatch(jitanExitBlock, /counterSpin:\s*\d/);
 assert.equal(counterApi.counterOffsetForPresetId('agnes-pe'), 11);
 assert.equal(counterApi.counterOffsetForPresetId('umi-sp5'), 0);
 assert.equal(counterApi.counterOffsetForPresetId(undefined), 0, '未知のプリセットはずれ0として扱う');
@@ -1373,7 +1409,7 @@ const transferFixture = {
 transferContext.__session = transferFixture;
 assert.equal(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
-  '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円'
+  '投資1,000円/回収0円/引出125個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円'
 );
 // B90: ヤメ入力の累計獲得出玉を1R平均の分子に採用する
 const b90SessionTotal = { ...transferFixture, id: 's_b90_total', sessionActualBalls: 2800 };
@@ -1403,7 +1439,7 @@ assert.match(
 );
 transferContext.__session = transferFixture;
 vm.runInContext("copyTransferSummary('s_transfer')", transferContext);
-assert.equal(transferContext.__copied, '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円');
+assert.equal(transferContext.__copied, '投資1,000円/回収0円/引出125個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円');
 transferContext.__store = { isPersonal: true };
 transferContext.__session = {
   id: 's_transfer_tap',
@@ -1470,7 +1506,7 @@ transferContext.__session = {
 };
 assert.match(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
-  /^投資1,500円\/回収0円\/引出1,000個/
+  /^投資1,500円\/回収0円\/引出2,500個/
 );
 transferContext.__store = {};
 transferContext.__session = {
@@ -1517,16 +1553,25 @@ assert.match(runningPanelInputBallsBlock, /function runningNormalInputBalls\(ses
 assert.match(runningPanelInputBallsBlock, /const investedBalls = normalRateInvestments\(session\)\.reduce/);
 assert.match(runningPanelInputBallsBlock, /tapModeNormalConsumedBalls\(session, investedBalls, hasHit, store\)/);
 assert.match(runningPanelInputBallsBlock, /return inputBalls > 0 \? Math\.round\(inputBalls\) : null;/);
-assert.match(deriveSession, /const normalInvestedBalls = normalRateInvestments\(session\)\.reduce/);
+assert.match(deriveSession, /const multiNormal = normalSegments\.length > 1;/);
+assert.match(deriveSession, /const normalInvestedBalls = \(multiNormal[\s\S]*?normalRateInvestments\(session\)[\s\S]*?\)\.reduce/);
 assert.match(deriveSession, /const tapConsumedCandidates = tapMode \? tapModeNormalConsumedCandidates\(session, normalInputBalls, hasHit, store\) : null;/);
 assert.match(tapModeConsumedBlock, /function segmentConsumedBalls\(segment, context\)[\s\S]*?tapModeNormalConsumedBalls\(session, inputBalls, hasHit, store, candidates\)/);
-assert.match(deriveSession, /const consumedContext = \{ session, store, tapMode, hasHit, inputBalls: normalInputBalls, candidates: tapConsumedCandidates, legacyEndBalls: normalEndBalls \};/);
+assert.match(tapModeConsumedBlock, /function segmentTapConsumedBalls\(segment, session, store\)/);
+assert.match(tapModeConsumedBlock, /function segmentNormalInvestments\(session, segmentId\)/);
+assert.match(deriveSession, /const consumedContext = \{ session, store, tapMode, hasHit, inputBalls: normalInputBalls, candidates: tapConsumedCandidates, legacyEndBalls: normalEndBalls, multiNormal \};/);
 assert.match(deriveSession, /sumSegmentValues\(normalSegments\.map\(\(segment\) => segmentConsumedBalls\(segment, consumedContext\)\)\)/);
 assert.match(deriveSession, /consumedBallsCandidates: tapConsumedCandidates && normalSpins !== null \? \{/);
 assert.match(renderRunning, /consumedBallsChoiceHtml\(session, derived\)/);
 assert.match(renderRunning, /bindConsumedBallsChoice\(els\.runningArea, session\)/);
 assert.match(openRateSummary, /consumedBallsChoiceHtml\(session, derived\)/);
 assert.match(openRateSummary, /bindConsumedBallsChoice\(els\.modalBody, session/);
+assert.match(openYutimeEnterForm, /startYutimeSegment\(session\);/);
+assert.match(html, /closeTrailingSegmentOnEnd\(session\);/);
+assert.match(addInvestment, /segmentId: currentSegmentId\(session\)/);
+assert.match(openSessionEditor, /\$\{segmentHoldSpinsEditorHtml\(session\)\}/);
+assert.match(openSessionEditor, /Math\.min\(9, Math\.max\(0, Math\.round\(value\)\)\)/);
+assert.match(segmentBlock, /if \(raw < 0\) return raw;/);
 const runningRateContext = vm.createContext({});
 new vm.Script(`
   function normalizeNumber(value) {
@@ -1708,6 +1753,29 @@ new vm.Script(`
   const b95TapLeak = { ...b95Base, hitRemainBalls: 5775, endTotalBalls: 5775 };
   const b95SecondLap = { ...b95Base, startMochidama: 11761, hitRemainBalls: 5900, endTotalBalls: 5900 };
   const b95YutimeEnterKeepsB85 = { ...b85YutimeEnter, hitTrackedBalls: 5900 };
+  const s2TwoSegments = {
+    storeId: "s",
+    startSpin: 0,
+    currentSpin: 145,
+    startMochidama: 2500,
+    hitSpin: 145,
+    hitCount: 2,
+    hits: [{ roundTypeId: "r10", at: "2026-09-02T10:10:00" }, { roundTypeId: "r10", at: "2026-09-02T11:10:00" }],
+    hitVia: "normal",
+    hitRemainBalls: 3000,
+    hitTrackedBalls: 3000,
+    endTotalBalls: 3000,
+    zanhoryuBalls: 0,
+    yutimeEnterBalls: null,
+    investments: [
+      { source: "mochidama", amount: 950, phase: "normal", spinAt: 10, time: "10:00", segmentId: "seg_a" },
+      { source: "mochidama", amount: 1000, phase: "normal", spinAt: 100, time: "11:00", segmentId: "seg_b" }
+    ],
+    segments: [
+      { id: "seg_a", kind: "normal", source: "migrated", startSpin: 0, startAt: "10:00", startTrackedBalls: 2500, holdSpins: 0, endSource: "hit", endSpin: 75, endAt: null, endRemainBalls: 1550, endTrackedBalls: 1550 },
+      { id: "seg_b", kind: "normal", source: "user", startSpin: 25, startAt: "10:20", startTrackedBalls: 2000, holdSpins: 5, endSource: "hit", endSpin: 145, endAt: null, endRemainBalls: 3000, endTrackedBalls: 3000 }
+    ]
+  };
   globalThis.afterHitSpinCount = runningSpinCount(afterHit);
   globalThis.afterHitRate = runningPanelRate(afterHit);
   globalThis.afterHitInvestments = normalRateInvestments(afterHit).length;
@@ -1738,6 +1806,13 @@ new vm.Script(`
   globalThis.b95TapLeak = deriveSession(b95TapLeak);
   globalThis.b95SecondLap = deriveSession(b95SecondLap);
   globalThis.b95YutimeEnterKeepsB85 = deriveSession(b95YutimeEnterKeepsB85);
+  globalThis.s2TwoSegmentsDerived = deriveSession(s2TwoSegments);
+  globalThis.s2SegmentRates = s2TwoSegments.segments.map((segment) => {
+    const spins = segmentPlayedSpins(segment, s2TwoSegments, null);
+    const consumed = segmentTapConsumedBalls(segment, s2TwoSegments, {});
+    return { spins, consumed, rate: Number((spins / consumed * 250).toFixed(1)) };
+  });
+  globalThis.s2HoldZero = deriveSession({ ...s2TwoSegments, segments: s2TwoSegments.segments.map((segment) => ({ ...segment, holdSpins: 0 })) });
 `).runInContext(runningRateContext);
 assert.equal(runningRateContext.afterHitSpinCount, 70);
 assert.equal(runningRateContext.afterHitRate, 70);
@@ -1804,6 +1879,11 @@ assert.equal(runningRateContext.b95SecondLap.consumedBallsCandidates.divergent, 
 assert.equal(runningRateContext.b95YutimeEnterKeepsB85.consumedBalls, 250);
 assert.equal(Number(runningRateContext.b95YutimeEnterKeepsB85.rate.toFixed(1)), 10.0);
 assert.equal(runningRateContext.b95YutimeEnterKeepsB85.consumedBallsCandidates.divergent, false);
+assert.equal(JSON.stringify(runningRateContext.s2SegmentRates[0]), JSON.stringify({ spins: 75, consumed: 950, rate: 19.7 }));
+assert.equal(JSON.stringify(runningRateContext.s2SegmentRates[1]), JSON.stringify({ spins: 115, consumed: 1000, rate: 28.8 }));
+assert.equal(runningRateContext.s2TwoSegmentsDerived.normalSpins, 190);
+assert.equal(runningRateContext.s2TwoSegmentsDerived.consumedBalls, 1950);
+assert.equal(runningRateContext.s2HoldZero.normalSpins, 195);
 const consumedBallsUiContext = vm.createContext({});
 new vm.Script(`
   const CONSUMED_BALLS_SOURCE_LABELS = { tray: "台上差", taps: "タップ合計" };
@@ -2823,18 +2903,58 @@ new vm.Script(`
   globalThis.segNoHit = normalizeData({ version: 30, presetSettings: { "umi-sp5": {} }, sessions: [
     { ...segSessionBase, hits: [], endSpin: 200 }
   ] }).sessions[0];
+  globalThis.segNoHitCompleted = normalizeData({ version: 30, presetSettings: { "umi-sp5": {} }, sessions: [
+    { ...segSessionBase, hits: [], endSpin: 200, status: "completed" }
+  ] }).sessions[0];
   globalThis.segTwice = normalizeData({ version: 31, presetSettings: { "umi-sp5": {} }, sessions: [globalThis.segYutimeHit] }).sessions[0];
   globalThis.segNeedsMigration = needsSegmentMigration({ sessions: [{ id: "a" }] });
   globalThis.segNeedsNoMigration = needsSegmentMigration({ sessions: [{ id: "a", segments: [{ kind: "normal" }] }] });
+  const s2ResyncUser = {
+    startSpin: 0,
+    startTime: "10:00",
+    startMochidama: 2500,
+    hitSpin: 145,
+    hitCount: 2,
+    hitVia: "normal",
+    hitRemainBalls: 3000,
+    hitTrackedBalls: 3000,
+    investments: [],
+    hits: [],
+    segments: [
+      { id: "seg_a", kind: "normal", source: "migrated", startSpin: 0, startAt: "10:00", startTrackedBalls: 2500, holdSpins: 0, endSource: "hit", endSpin: 75, endAt: null, endRemainBalls: 1550, endTrackedBalls: 1550 },
+      { id: "seg_b", kind: "normal", source: "user", startSpin: 25, startAt: "10:20", startTrackedBalls: 2000, holdSpins: 5, endSource: "hit", endSpin: 145, endAt: null, endRemainBalls: 3000, endTrackedBalls: 3000 }
+    ]
+  };
+  globalThis.s2ResyncUser = resyncSessionSegments(s2ResyncUser);
+  s2ResyncUser.hitSpin = 150;
+  globalThis.s2ResyncUserHitEdited = resyncSessionSegments(s2ResyncUser);
+  const s2ResyncNoUser = {
+    startSpin: 0,
+    startTime: "10:00",
+    startMochidama: 2500,
+    hitSpin: 110,
+    hitCount: 1,
+    hitVia: "normal",
+    hitRemainBalls: 1025,
+    hitTrackedBalls: 1000,
+    investments: [],
+    hits: [],
+    segments: [
+      { id: "seg_old", kind: "normal", source: "migrated", startSpin: 0, startAt: "10:00", startTrackedBalls: 2500, holdSpins: 3, endSource: "hit", endSpin: 100, endAt: null, endRemainBalls: 1200, endTrackedBalls: 1200 }
+    ]
+  };
+  globalThis.s2ResyncNoUser = resyncSessionSegments(s2ResyncNoUser);
 `).runInContext(legacyMachineContext);
 // S1: 通常時区間モデルへの移行
 const segNormalHit = legacyMachineContext.segNormalHit;
 assert.equal(segNormalHit.segments.length, 1);
 assert.equal(segNormalHit.segments[0].kind, "normal");
+assert.equal(segNormalHit.segments[0].source, "migrated");
 assert.equal(segNormalHit.segments[0].startSpin, 0);
 assert.equal(segNormalHit.segments[0].startAt, "10:00");
 assert.equal(segNormalHit.segments[0].startTrackedBalls, 2500);
 assert.equal(segNormalHit.segments[0].holdSpins, 0);
+assert.equal(segNormalHit.segments[0].endSource, "hit");
 assert.equal(segNormalHit.segments[0].endSpin, 110);
 assert.equal(segNormalHit.segments[0].endRemainBalls, 1025);
 assert.equal(segNormalHit.segments[0].endTrackedBalls, 1000);
@@ -2843,6 +2963,7 @@ assert.equal(segNormalHit.investments[1].segmentId, null);
 assert.equal(segNormalHit.hits[0].segmentId, segNormalHit.segments[0].id);
 const segYutimeHit = legacyMachineContext.segYutimeHit;
 assert.equal(segYutimeHit.segments.length, 2);
+assert.equal(segYutimeHit.segments[0].endSource, "yutime");
 assert.equal(segYutimeHit.segments[0].endSpin, 900);
 assert.equal(segYutimeHit.segments[0].endRemainBalls, null);
 assert.equal(segYutimeHit.segments[0].endAt, "12:00");
@@ -2850,6 +2971,7 @@ assert.equal(segYutimeHit.segments[1].kind, "yutime");
 assert.equal(segYutimeHit.segments[1].startSpin, 900);
 assert.equal(segYutimeHit.segments[1].startTrackedBalls, 800);
 assert.equal(segYutimeHit.segments[1].holdSpins, 0);
+assert.equal(segYutimeHit.segments[1].endSource, "hit");
 assert.equal(segYutimeHit.segments[1].endSpin, 940);
 assert.equal(segYutimeHit.segments[1].endRemainBalls, 600);
 assert.equal(segYutimeHit.investments[0].segmentId, segYutimeHit.segments[0].id);
@@ -2858,10 +2980,21 @@ assert.equal(segYutimeHit.hits[0].segmentId, segYutimeHit.segments[1].id);
 // 当選なしは endSpin 系を埋めない（§2 の表）
 assert.equal(legacyMachineContext.segNoHit.segments.length, 1);
 assert.equal(legacyMachineContext.segNoHit.segments[0].endSpin, null);
+assert.equal(legacyMachineContext.segNoHitCompleted.segments[0].endSpin, 200);
+assert.equal(legacyMachineContext.segNoHitCompleted.segments[0].endSource, "end");
 // 二重移行しない（segments があれば再変換しない）
 assert.equal(JSON.stringify(legacyMachineContext.segTwice.segments), JSON.stringify(segYutimeHit.segments));
 assert.equal(legacyMachineContext.segNeedsMigration, true);
 assert.equal(legacyMachineContext.segNeedsNoMigration, false);
+assert.equal(legacyMachineContext.s2ResyncUser.segments.length, 2);
+assert.equal(legacyMachineContext.s2ResyncUser.segments[1].source, "user");
+assert.equal(legacyMachineContext.s2ResyncUser.segments[1].startSpin, 25);
+assert.equal(legacyMachineContext.s2ResyncUser.segments[1].holdSpins, 5);
+assert.equal(legacyMachineContext.s2ResyncUserHitEdited.segments[1].endSpin, 150);
+assert.equal(legacyMachineContext.s2ResyncUserHitEdited.segments[0].endSpin, 75);
+assert.equal(legacyMachineContext.s2ResyncNoUser.segments.length, 1);
+assert.equal(legacyMachineContext.s2ResyncNoUser.segments[0].endSpin, 110);
+assert.equal(legacyMachineContext.s2ResyncNoUser.segments[0].holdSpins, 3);
 assert.match(segmentMigrationBackup, /localStorage\.setItem\(BACKUP_KEY, raw\);/);
 assert.match(html, /if \(needsSegmentMigration\(parsed\)\) backupBeforeSegmentMigration\(raw\);\s*return normalizeData\(parsed\);/);
 assert.match(normalizeData, /normalized\.segments = normalizeSessionSegments\(normalized\);\s*applySegmentIds\(normalized\);/);
