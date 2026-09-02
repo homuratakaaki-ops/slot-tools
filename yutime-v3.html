@@ -1811,7 +1811,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 30;
+    const SCHEMA_VERSION = 31;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     const DEFAULT_NET_BALLS_PER_WIN = 1400;
@@ -2111,6 +2111,7 @@
       prevDayEndSpin: null,
       startEv: null,
       consumedBallsSource: null,
+      segments: [],
       investments: [],
       charges: [],
       hitSpin: null,
@@ -2511,6 +2512,7 @@
     function normalizeHits(hits) {
       return (Array.isArray(hits) ? hits : []).map((hit) => ({
         roundTypeId: String(hit?.roundTypeId || ""),
+        segmentId: hit?.segmentId || null,
         hitSpin: normalizeNumber(hit?.hitSpin),
         actualBalls: normalizeNumber(hit?.actualBalls),
         at: hit?.at || nowIso()
@@ -2849,11 +2851,27 @@
         if (parsed.version !== SCHEMA_VERSION && !localStorage.getItem(PREMIGRATE_KEY)) {
           localStorage.setItem(PREMIGRATE_KEY, raw);
         }
+        if (needsSegmentMigration(parsed)) backupBeforeSegmentMigration(raw);
         return normalizeData(parsed);
       } catch (error) {
         console.warn("ytv3 load failed", error);
         preserveCorruptData(raw);
         return base;
+      }
+    }
+
+    // §2-2: 区間への移行は不可逆なので、実行前に移行前データを1件退避する。
+    function needsSegmentMigration(source) {
+      const sessions = Array.isArray(source?.sessions) ? source.sessions : [];
+      return sessions.some((session) => !Array.isArray(session?.segments) || !session.segments.length);
+    }
+
+    function backupBeforeSegmentMigration(raw) {
+      if (!raw) return;
+      try {
+        localStorage.setItem(BACKUP_KEY, raw);
+      } catch (error) {
+        console.warn("ytv3 segment migration backup failed", error);
       }
     }
 
@@ -2994,13 +3012,16 @@
           time: item.time || null,
           phase: item.phase === "yutime" ? "yutime" : "normal",
           spinAt: normalizeNumber(item.spinAt),
-          adjustment: item.adjustment === true
+          adjustment: item.adjustment === true,
+          segmentId: item.segmentId || null
         })).filter((item) => item.amount !== null) : [],
         charges: Array.isArray(session.charges) ? session.charges.map((item) => ({
           amount: normalizeNumber(item.amount),
           time: item.time || null
         })).filter((item) => item.amount !== null) : []
         };
+        normalized.segments = normalizeSessionSegments(normalized);
+        applySegmentIds(normalized);
         syncSessionHitTotals(normalized, next.machines);
         return normalized;
       });
@@ -3010,6 +3031,7 @@
     }
 
     function persist() {
+      data.sessions.forEach(resyncSessionSegments);
       data.meta.updatedAt = nowIso();
       data.meta.sampleSessionChars = measureSampleSessionChars();
       data.meta.sampleMachineChars = measureSampleMachineChars();
@@ -7859,6 +7881,158 @@
       return values.tray !== null && values.tray !== undefined ? values.tray : values.taps;
     }
 
+    // S1: 通常時／遊タイムを区間（segment）として持つ。
+    // startSpin / endSpin はカウンター基準の回転数、holdSpins は区間先頭の無料保留（S1では常に0）。
+    function blankSegment(kind, overrides = {}) {
+      return {
+        id: null,
+        kind: kind === "yutime" ? "yutime" : "normal",
+        startSpin: null,
+        startAt: null,
+        startTrackedBalls: null,
+        holdSpins: 0,
+        endSpin: null,
+        endAt: null,
+        endRemainBalls: null,
+        endTrackedBalls: null,
+        ...overrides
+      };
+    }
+
+    function normalizeSegment(segment) {
+      return blankSegment(segment?.kind, {
+        id: segment?.id || null,
+        startSpin: normalizeNumber(segment?.startSpin),
+        startAt: segment?.startAt || null,
+        startTrackedBalls: normalizeNumber(segment?.startTrackedBalls),
+        holdSpins: normalizeNumber(segment?.holdSpins) ?? 0,
+        endSpin: normalizeNumber(segment?.endSpin),
+        endAt: segment?.endAt || null,
+        endRemainBalls: normalizeNumber(segment?.endRemainBalls),
+        endTrackedBalls: normalizeNumber(segment?.endTrackedBalls)
+      });
+    }
+
+    // 移行の入口。読み込み時は segments を持つデータを再変換しない（二重移行の防止）。
+    // 以降フラットフィールドが編集されたときの追従は resyncSessionSegments が担う。
+    function normalizeSessionSegments(session) {
+      const source = Array.isArray(session?.segments) && session.segments.length
+        ? session.segments.map(normalizeSegment)
+        : buildSessionSegments(session);
+      return source.map((segment) => ({ ...segment, id: segment.id || cryptoId("seg") }));
+    }
+
+    // §2-1: 投資・当選を所属区間に紐づける。遊タイム中の投資は遊タイム区間、それ以外は通常区間。
+    // 区間が組み直されて参照先が消えた segmentId は付け直す。
+    function applySegmentIds(session) {
+      const segments = Array.isArray(session?.segments) ? session.segments : [];
+      const validIds = new Set(segments.map((segment) => segment.id).filter(Boolean));
+      const normalSegmentId = segments.find((segment) => segment.kind === "normal")?.id || null;
+      const yutimeSegmentId = segments.find((segment) => segment.kind === "yutime")?.id || null;
+      session.investments = (Array.isArray(session.investments) ? session.investments : []).map((item) => ({
+        ...item,
+        segmentId: validIds.has(item.segmentId) ? item.segmentId : (item.phase === "yutime" ? yutimeSegmentId : normalSegmentId)
+      }));
+      session.hits = (Array.isArray(session.hits) ? session.hits : []).map((hit) => ({
+        ...hit,
+        segmentId: validIds.has(hit.segmentId) ? hit.segmentId : (session.hitVia === "yutime" && yutimeSegmentId ? yutimeSegmentId : normalSegmentId)
+      }));
+      return session;
+    }
+
+    // S1 では区間はフラットフィールドの写像。記録を修正しても両者がずれないよう、
+    // 保存時に区間を組み直す。区間IDは種別ごとに引き継ぐ（segmentId の参照を切らないため）。
+    // S2 で区間を直接編集できるようにするときは、ここで上書きしてよい範囲を見直すこと。
+    function resyncSessionSegments(session) {
+      const previous = Array.isArray(session?.segments) ? session.segments : [];
+      session.segments = buildSessionSegments(session).map((segment) => {
+        const prior = previous.find((item) => item?.kind === segment.kind);
+        return { ...segment, id: prior?.id || cryptoId("seg") };
+      });
+      applySegmentIds(session);
+      return session;
+    }
+
+    // 旧フラットフィールドから区間を組み立てる。移行（normalizeData）と、
+    // segments を持たない素のセッションを計算するときの両方で使う。
+    // 当選時刻は HH:MM の記録欄が無いため endAt には入れない（TZ依存の値を保存しない）。
+    function buildSessionSegments(session) {
+      const hasHit = Number(session?.hitCount || 0) > 0;
+      const hitSpin = normalizeNumber(session?.hitSpin);
+      const yutimeEnterSpin = normalizeNumber(session?.yutimeEnterSpin);
+      const normal = blankSegment("normal", {
+        startSpin: normalizeNumber(session?.startSpin),
+        startAt: session?.startTime || null,
+        startTrackedBalls: normalizeNumber(session?.startMochidama),
+        holdSpins: 0
+      });
+      const segments = [normal];
+      if (yutimeEnterSpin !== null) {
+        normal.endSpin = yutimeEnterSpin;
+        normal.endAt = session?.yutimeEnterTime || null;
+        const yutime = blankSegment("yutime", {
+          startSpin: yutimeEnterSpin,
+          startAt: session?.yutimeEnterTime || null,
+          startTrackedBalls: normalizeNumber(session?.yutimeEnterBalls),
+          holdSpins: 0
+        });
+        if (hasHit || hitSpin !== null) {
+          yutime.endSpin = hitSpin;
+          yutime.endRemainBalls = normalizeNumber(session?.hitRemainBalls);
+          yutime.endTrackedBalls = normalizeNumber(session?.hitTrackedBalls);
+        }
+        segments.push(yutime);
+      } else if (session?.hitVia !== "yutime" && (hasHit || hitSpin !== null)) {
+        normal.endSpin = hitSpin;
+        normal.endRemainBalls = normalizeNumber(session?.hitRemainBalls);
+        normal.endTrackedBalls = normalizeNumber(session?.hitTrackedBalls);
+      }
+      return segments;
+    }
+
+    function sessionSegments(session) {
+      return Array.isArray(session?.segments) && session.segments.length
+        ? session.segments
+        : buildSessionSegments(session);
+    }
+
+    // §3.1: 区間の終端カウンター。保存済みの endSpin を優先し、
+    // 端点が空になる旧データにはこれまでのフォールバック（ヤメ回転数・遊タイム突入回転数の推定）を残す。
+    function segmentEndSpinForRate(segment, session, preset = null) {
+      if (segment?.endSpin !== null && segment?.endSpin !== undefined) return segment.endSpin;
+      if (segment?.kind !== "normal") return null;
+      if (Number(session?.hitCount || 0) > 0) return null;
+      if (session?.hitVia === "yutime" || normalizeNumber(session?.yutimeEnterBalls) !== null) {
+        return yutimeEnterSpinForRate(session, preset);
+      }
+      return normalizeNumber(session?.endSpin);
+    }
+
+    function segmentPlayedSpins(segment, session, preset = null) {
+      const start = normalizeNumber(segment?.startSpin);
+      const end = segmentEndSpinForRate(segment, session, preset);
+      if (start === null || end === null) return null;
+      return end - start - Number(segment?.holdSpins || 0);
+    }
+
+    // §3.1: 区間の消費玉。B95の補正（endRemainBalls − endTrackedBalls）と
+    // B89の乖離時 consumedBallsSource は tapMode 側の既存関数がそのまま担う。
+    // S1 の通常区間は1つなので、tapMode ではセッション単位の集計をそのまま区間の消費玉として使う。
+    function segmentConsumedBalls(segment, context) {
+      const { session, store, tapMode, hasHit, inputBalls, candidates, legacyEndBalls } = context;
+      if (tapMode) return tapModeNormalConsumedBalls(session, inputBalls, hasHit, store, candidates);
+      const endBalls = segment?.endRemainBalls !== null && segment?.endRemainBalls !== undefined
+        ? segment.endRemainBalls
+        : legacyEndBalls;
+      return endBalls !== null && endBalls !== undefined ? inputBalls - Number(endBalls || 0) : null;
+    }
+
+    function sumSegmentValues(values) {
+      if (!values.length) return null;
+      if (values.some((value) => value === null || value === undefined)) return null;
+      return values.reduce((sum, value) => sum + value, 0);
+    }
+
     function deriveSession(session, machine = null) {
       const store = storeById(session.storeId);
       const normalInvestedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
@@ -7872,9 +8046,10 @@
       const preset = machine ? presetById(normalizeMachinePresetId(machine)) : null;
       const hasHit = Number(session.hitCount || 0) > 0;
       const warnings = [];
-      const yutimeNormalEndSpin = !hasHit && (session.hitVia === "yutime" || session.yutimeEnterBalls !== null) ? yutimeEnterSpinForRate(session, preset) : null;
-      const normalEndSpin = session.hitSpin !== null ? session.hitSpin : (hasHit ? null : (session.hitVia === "yutime" || session.yutimeEnterBalls !== null ? yutimeNormalEndSpin : session.endSpin));
-      const rawNormalSpins = normalEndSpin !== null && session.startSpin !== null ? normalEndSpin - session.startSpin : null;
+      // §3.2: 通常時の表示値は通常区間の合算から求める。移行後の区間は1〜2個なので合算＝単区間。
+      const segments = sessionSegments(session);
+      const normalSegments = segments.filter((segment) => segment.kind === "normal");
+      const rawNormalSpins = sumSegmentValues(normalSegments.map((segment) => segmentPlayedSpins(segment, session, preset)));
       const normalSpins = rawNormalSpins !== null && rawNormalSpins < 0 ? null : rawNormalSpins;
       if (rawNormalSpins !== null && rawNormalSpins < 0) warnings.push("通常回転数の入力を確認");
       const hitsRoundPayout = hasHit ? hitRoundBasedPayout(session, normalizeMachinePresetId(machine)) : null;
@@ -7884,7 +8059,8 @@
       const estimatedRemainBalls = hasHit && session.hitRemainBalls === null && estimatedPayout !== null && session.endTotalBalls !== null ? Math.max(0, session.endTotalBalls - estimatedPayout) : null;
       const normalEndBalls = session.yutimeEnterBalls !== null ? session.yutimeEnterBalls : (hasHit && session.hitRemainBalls !== null ? session.hitRemainBalls : estimatedRemainBalls);
       const tapConsumedCandidates = tapMode ? tapModeNormalConsumedCandidates(session, normalInputBalls, hasHit, store) : null;
-      const rawConsumedBalls = normalSpins !== null ? (tapMode ? tapModeNormalConsumedBalls(session, normalInputBalls, hasHit, store, tapConsumedCandidates) : (normalEndBalls !== null ? normalInputBalls - Number(normalEndBalls || 0) : null)) : null;
+      const consumedContext = { session, store, tapMode, hasHit, inputBalls: normalInputBalls, candidates: tapConsumedCandidates, legacyEndBalls: normalEndBalls };
+      const rawConsumedBalls = normalSpins !== null ? sumSegmentValues(normalSegments.map((segment) => segmentConsumedBalls(segment, consumedContext))) : null;
       const consumedBalls = rawConsumedBalls !== null && rawConsumedBalls < 0 ? null : rawConsumedBalls;
       if (tapMode && normalSpins !== null && tapConsumedCandidates?.fallback) warnings.push("通常消費玉の入力を確認");
       if (rawConsumedBalls !== null && rawConsumedBalls < 0) warnings.push("通常消費玉の入力を確認");

@@ -40,6 +40,8 @@
 - [x] 期待値パラメータの出典一本化（B98）… yutime-v3.html の `MACHINE_PRESETS` はUI情報（roundTypes・evSupported等）だけを持ち、`spec` / `defaults` は期待値エンジンのプリセットから解決する。天井・当り確率・時短テーブル・残保留・counterOffset・純払い出しをページ側のプリセットに書かないことを `tests/yutime-v3.test.js` のアサートで固定する
 - [x] 履歴の実収支・期待値の並列表示と日別サマリー（B96）… yutime-v3.html の履歴カード上部を「実収支」「期待値」の2枠にし、どちらにも必ずラベルを付ける（金額だけを単独で大きく出さない）。日付区切りの直下に「台数／実収支／期待値／実働／時給」の日別サマリーを出す。実働は各セッションの `endTime − startTime` の合計で、時刻欠損セッションは実働から除外（実収支・期待値の合算には算入）、`endTime < startTime` は0扱い。表示のみで計算式・保存データ・schemaは不変
 - [x] コーナー基準値を選択中のコーナーの機種で解決（G5）… yutime-v3.html の「このコーナーの基準値」チップが `umi-sp5` 決め打ちだった不具合の修正。選択中のコーナー（島）の左右プリセットと、そこに並ぶ台の機種から遊タイム機種を解決し、機種ごとに1つチップを出す。表示・「変更」フォームの初期値・保存先プリセットIDが同じ解決結果を使う。期待値計算は従来どおり台ごとの `normalizeMachinePresetId(machine)` で機種を決めるため計算式・保存データ・schemaは不変
+- [x] 通常時区間モデルの導入とデータ移行（S1）… yutime-v3.html のセッションに `segments[]`（kind: normal / yutime、startSpin・endSpin・startTrackedBalls・endRemainBalls・endTrackedBalls・holdSpins）を持たせ、通常回転数と通常消費玉を通常区間の合算から求める。`investments[]` / `hits[]` は `segmentId` で所属区間に紐づく。旧フラットフィールド（hitSpin / hitRemainBalls / yutimeEnterBalls 等）は削除せず並走させる。schema 30→31、移行前データは `ytv3:backup:latest` へ退避してから変換する。`holdSpins` はS1では常に0（時短抜け区間はS2）。この移行で、遊タイム経由の当選で遊タイム中の回転を通常回転数に数えつつ消費玉は突入時で止めていた不整合が直り、当該セッションの通常回転数が `hitSpin − startSpin` から `yutimeEnterSpin − startSpin` に変わる（表示値が変わるのはこのパターンのみ。合成データ10パターン×2店の全表示値比較で確認）
+- [x] 区間はフラットフィールドの写像として保存時に組み直す（S1）… 記録の修正で当選回転数や遊タイム突入回転数を直したとき、保存済みの区間が古いまま残って表示値が追従しない事故を防ぐため、`persist()` で `resyncSessionSegments()` を通す。区間IDは種別ごとに引き継ぎ、参照先が消えた `segmentId` は付け直す。S2で区間を直接編集できるようにする際は、ここで上書きしてよい範囲を見直すこと
 - [ ] 判別ツールと店舗分析ツールの連携（Phase 3）
 
 ---

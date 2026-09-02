@@ -65,6 +65,8 @@ const normalizeStartEvBlock = section('function normalizeStartEv', 'function inv
 const machineModelDisplay = section('function machineModelDisplay', 'function applyPresetToMachine');
 const columnPresetApply = section('function applyColumnPresetsToMachines', 'function machineHasIndividualSetting');
 const normalizeData = section('function normalizeData', 'function persist');
+const segmentBlock = section('function blankSegment', 'function deriveSession');
+const segmentMigrationBackup = section('function needsSegmentMigration', 'function preserveCorruptData');
 const normalizeDailyStateBlock = section('function normalizeDailyState', 'function migrateStoreAssumedRatesToMaps');
 const bindNailRatingChips = section('function bindNailRatingChips', 'function readNailRatingFromDom');
 const readMachineMemoForm = section('function readMachineMemoForm', 'function readMachineDetailForm');
@@ -1517,7 +1519,9 @@ assert.match(runningPanelInputBallsBlock, /tapModeNormalConsumedBalls\(session, 
 assert.match(runningPanelInputBallsBlock, /return inputBalls > 0 \? Math\.round\(inputBalls\) : null;/);
 assert.match(deriveSession, /const normalInvestedBalls = normalRateInvestments\(session\)\.reduce/);
 assert.match(deriveSession, /const tapConsumedCandidates = tapMode \? tapModeNormalConsumedCandidates\(session, normalInputBalls, hasHit, store\) : null;/);
-assert.match(deriveSession, /tapModeNormalConsumedBalls\(session, normalInputBalls, hasHit, store, tapConsumedCandidates\)/);
+assert.match(tapModeConsumedBlock, /function segmentConsumedBalls\(segment, context\)[\s\S]*?tapModeNormalConsumedBalls\(session, inputBalls, hasHit, store, candidates\)/);
+assert.match(deriveSession, /const consumedContext = \{ session, store, tapMode, hasHit, inputBalls: normalInputBalls, candidates: tapConsumedCandidates, legacyEndBalls: normalEndBalls \};/);
+assert.match(deriveSession, /sumSegmentValues\(normalSegments\.map\(\(segment\) => segmentConsumedBalls\(segment, consumedContext\)\)\)/);
 assert.match(deriveSession, /consumedBallsCandidates: tapConsumedCandidates && normalSpins !== null \? \{/);
 assert.match(renderRunning, /consumedBallsChoiceHtml\(session, derived\)/);
 assert.match(renderRunning, /bindConsumedBallsChoice\(els\.runningArea, session\)/);
@@ -2403,7 +2407,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 30;/);
+assert.match(html, /const SCHEMA_VERSION = 31;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -2438,8 +2442,9 @@ assert.match(openSessionEditor, /fieldHtml\("yutimeEnterSpin", "遊タイム突�
 assert.match(openSessionEditor, /fieldHtml\("endTotalHits", "ヤメ時点の累計大当たり回数", session\.endTotalHits\)/);
 assert.match(openSessionEditor, /"yutimeEnterBalls", "yutimeEnterSpin", "endTotalHits"/);
 assert.match(openSessionEditor, /if \(Array\.isArray\(session\.hits\) && session\.hits\.length\) syncSessionHitTotals\(session\);\s*else presetHitCountFromCounters\(session\);/);
-assert.match(deriveSession, /const yutimeNormalEndSpin = !hasHit && \(session\.hitVia === "yutime" \|\| session\.yutimeEnterBalls !== null\) \? yutimeEnterSpinForRate\(session, preset\) : null;/);
-assert.match(deriveSession, /session\.hitVia === "yutime" \|\| session\.yutimeEnterBalls !== null \? yutimeNormalEndSpin : session\.endSpin/);
+assert.match(deriveSession, /const normalSegments = segments\.filter\(\(segment\) => segment\.kind === "normal"\);/);
+assert.match(deriveSession, /const rawNormalSpins = sumSegmentValues\(normalSegments\.map\(\(segment\) => segmentPlayedSpins\(segment, session, preset\)\)\);/);
+assert.match(tapModeConsumedBlock, /function segmentEndSpinForRate\(segment, session, preset = null\)[\s\S]*?if \(session\?\.hitVia === "yutime" \|\| normalizeNumber\(session\?\.yutimeEnterBalls\) !== null\) \{\s*return yutimeEnterSpinForRate\(session, preset\);\s*\}\s*return normalizeNumber\(session\?\.endSpin\);/);
 assert.match(yutimeEnterSpinForRate, /const explicitSpin = normalizeNumber\(session\.yutimeEnterSpin\);\s*if \(explicitSpin !== null\) return explicitSpin;/);
 assert.match(yutimeEnterSpinForRate, /const inferred = counterTenjo - prevSpin;\s*return inferred >= 0 \? inferred : null;/);
 assert.ok(design.includes('schema 23 Machine 1件サンプル'));
@@ -2692,7 +2697,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 30;
+  const SCHEMA_VERSION = 31;
   const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
@@ -2776,6 +2781,12 @@ new vm.Script(`
     };
   }
   function normalizeDailyState(source) { return source && typeof source === "object" ? source : {}; }
+  const BACKUP_KEY = "ytv3:backup:latest";
+  const localStorage = { store: {}, setItem(k, v) { this.store[k] = v; }, getItem(k) { return this.store[k] ?? null; } };
+  ${segmentMigrationBackup}
+  function tapModeNormalConsumedBalls() { return null; }
+  function yutimeEnterSpinForRate() { return null; }
+  ${segmentBlock}
   ${normalizeData}
   globalThis.normalizedLegacy = normalizeData({
     version: 21,
@@ -2793,7 +2804,71 @@ new vm.Script(`
   globalThis.normalizedB90NewSession = normalizeData({ version: 28, presetSettings: { "umi-sp5": {} }, sessions: [{ id: "s_b90_new", storeId: "st_1", machineId: "m_1", sessionActualBalls: "2800", hits: [] }] });
   globalThis.normalizedCurrentBlank = normalizeData({ version: 26, presetSettings: { "umi-sp5": {} } });
   globalThis.normalizedAgnesMissingYutime = normalizeData({ version: 26, presetSettings: { "umi-sp5": {}, "agnes-pe": { jitanFastBallsPerSpin: -0.4 } } });
+  const segSessionBase = {
+    id: "s_seg", storeId: "st_1", machineId: "m_1",
+    startSpin: 0, startTime: "10:00", startMochidama: 2500,
+    investments: [
+      { source: "mochidama", amount: 125, phase: "normal", spinAt: 1 },
+      { source: "cash", amount: 1000, phase: "yutime", spinAt: 910 }
+    ],
+    hits: [{ roundTypeId: "r10", hitSpin: 940, actualBalls: 1400, at: "2026-08-20T01:30:00.000Z" }]
+  };
+  globalThis.segNormalHit = normalizeData({ version: 30, presetSettings: { "umi-sp5": {} }, sessions: [
+    { ...segSessionBase, hitSpin: 110, hitCount: 1, hitVia: "normal", hitRemainBalls: 1025, hitTrackedBalls: 1000 }
+  ] }).sessions[0];
+  globalThis.segYutimeHit = normalizeData({ version: 30, presetSettings: { "umi-sp5": {} }, sessions: [
+    { ...segSessionBase, hitSpin: 940, hitCount: 1, hitVia: "yutime", hitRemainBalls: 600,
+      yutimeEnterSpin: 900, yutimeEnterBalls: 800, yutimeEnterTime: "12:00" }
+  ] }).sessions[0];
+  globalThis.segNoHit = normalizeData({ version: 30, presetSettings: { "umi-sp5": {} }, sessions: [
+    { ...segSessionBase, hits: [], endSpin: 200 }
+  ] }).sessions[0];
+  globalThis.segTwice = normalizeData({ version: 31, presetSettings: { "umi-sp5": {} }, sessions: [globalThis.segYutimeHit] }).sessions[0];
+  globalThis.segNeedsMigration = needsSegmentMigration({ sessions: [{ id: "a" }] });
+  globalThis.segNeedsNoMigration = needsSegmentMigration({ sessions: [{ id: "a", segments: [{ kind: "normal" }] }] });
 `).runInContext(legacyMachineContext);
+// S1: 通常時区間モデルへの移行
+const segNormalHit = legacyMachineContext.segNormalHit;
+assert.equal(segNormalHit.segments.length, 1);
+assert.equal(segNormalHit.segments[0].kind, "normal");
+assert.equal(segNormalHit.segments[0].startSpin, 0);
+assert.equal(segNormalHit.segments[0].startAt, "10:00");
+assert.equal(segNormalHit.segments[0].startTrackedBalls, 2500);
+assert.equal(segNormalHit.segments[0].holdSpins, 0);
+assert.equal(segNormalHit.segments[0].endSpin, 110);
+assert.equal(segNormalHit.segments[0].endRemainBalls, 1025);
+assert.equal(segNormalHit.segments[0].endTrackedBalls, 1000);
+assert.equal(segNormalHit.investments[0].segmentId, segNormalHit.segments[0].id);
+assert.equal(segNormalHit.investments[1].segmentId, null);
+assert.equal(segNormalHit.hits[0].segmentId, segNormalHit.segments[0].id);
+const segYutimeHit = legacyMachineContext.segYutimeHit;
+assert.equal(segYutimeHit.segments.length, 2);
+assert.equal(segYutimeHit.segments[0].endSpin, 900);
+assert.equal(segYutimeHit.segments[0].endRemainBalls, null);
+assert.equal(segYutimeHit.segments[0].endAt, "12:00");
+assert.equal(segYutimeHit.segments[1].kind, "yutime");
+assert.equal(segYutimeHit.segments[1].startSpin, 900);
+assert.equal(segYutimeHit.segments[1].startTrackedBalls, 800);
+assert.equal(segYutimeHit.segments[1].holdSpins, 0);
+assert.equal(segYutimeHit.segments[1].endSpin, 940);
+assert.equal(segYutimeHit.segments[1].endRemainBalls, 600);
+assert.equal(segYutimeHit.investments[0].segmentId, segYutimeHit.segments[0].id);
+assert.equal(segYutimeHit.investments[1].segmentId, segYutimeHit.segments[1].id);
+assert.equal(segYutimeHit.hits[0].segmentId, segYutimeHit.segments[1].id);
+// 当選なしは endSpin 系を埋めない（§2 の表）
+assert.equal(legacyMachineContext.segNoHit.segments.length, 1);
+assert.equal(legacyMachineContext.segNoHit.segments[0].endSpin, null);
+// 二重移行しない（segments があれば再変換しない）
+assert.equal(JSON.stringify(legacyMachineContext.segTwice.segments), JSON.stringify(segYutimeHit.segments));
+assert.equal(legacyMachineContext.segNeedsMigration, true);
+assert.equal(legacyMachineContext.segNeedsNoMigration, false);
+assert.match(segmentMigrationBackup, /localStorage\.setItem\(BACKUP_KEY, raw\);/);
+assert.match(html, /if \(needsSegmentMigration\(parsed\)\) backupBeforeSegmentMigration\(raw\);\s*return normalizeData\(parsed\);/);
+assert.match(normalizeData, /normalized\.segments = normalizeSessionSegments\(normalized\);\s*applySegmentIds\(normalized\);/);
+// S1 では保留を引かない（holdSpins は常に0で作る）
+assert.match(segmentBlock, /function blankSegment\(kind, overrides = \{\}\)[\s\S]*?holdSpins: 0,/);
+assert.match(segmentBlock, /startTrackedBalls: normalizeNumber\(session\?\.startMochidama\),\s*holdSpins: 0/);
+assert.match(segmentBlock, /startTrackedBalls: normalizeNumber\(session\?\.yutimeEnterBalls\),\s*holdSpins: 0/);
 assert.equal(legacyMachineContext.normalizedLegacy.machines.length, 1);
 assert.equal(legacyMachineContext.normalizedLegacy.machines[0].daiNo, "101");
 assert.equal(Object.prototype.hasOwnProperty.call(legacyMachineContext.normalizedLegacy.machines[0], 'memo'), false);
