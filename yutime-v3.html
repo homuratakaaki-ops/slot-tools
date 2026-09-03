@@ -328,7 +328,6 @@
       overflow-wrap: anywhere;
     }
     .state-badge-inline { margin-left: 6px; }
-    .spin-note { color: var(--muted); font-size: 11px; margin-left: 4px; }
 
     .label-checks {
       display: flex;
@@ -1076,11 +1075,21 @@
     }
 
     .unified-invest-row {
-      display: grid;
-      grid-template-columns: auto auto minmax(120px, 1fr) auto;
+      display: flex;
+      flex-wrap: nowrap;
       gap: 8px;
       margin-bottom: 8px;
       align-items: stretch;
+    }
+
+    .unified-invest-row > button {
+      flex: 0 1 auto;
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    .unified-invest-row #unifiedInvestBtn {
+      flex: 1 1 auto;
     }
 
     .unified-invest-row button {
@@ -1105,6 +1114,12 @@
       min-height: 72px;
       padding: 0 12px;
       font-size: 13px;
+    }
+
+    /* S4/A-2: 取り消しが増えるぶん、狭幅では余白を詰めて横1行に収める */
+    @media (max-width: 420px) {
+      .unified-invest-row { gap: 6px; }
+      .unified-invest-row .small { padding: 0 8px; }
     }
 
     .running-bottom-controls .counter-row {
@@ -1269,6 +1284,32 @@
     .list {
       display: grid;
       gap: 8px;
+    }
+
+    .hit-history-group {
+      display: grid;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .hit-history-group-title {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--muted);
+    }
+
+    .hit-history-actions {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    .hit-history-actions button {
+      min-height: 44px;
+    }
+
+    .transfer-summary button[data-copy-transfer] {
+      min-height: 44px;
     }
 
     .row-card {
@@ -3957,11 +3998,11 @@
       const stateBadge = runningStateBadge(session);
       const otherActiveSessions = activeSessionsForStore(store.id).filter((item) => item.id !== session.id);
       const currentSpin = session.currentSpin ?? session.startSpin;
-      const liveRate = runningPanelRate(session);
+      const liveRate = runningPanelRate(session, derived);
       const yutimeRemaining = runningYutimeRemaining(session, machine);
       const totals = investmentTotals(session);
-      const totalSpins = runningSpinCount(session);
-      const normalInputBalls = runningNormalInputBalls(session);
+      const totalSpins = runningSpinCount(session, derived);
+      const normalInputBalls = runningNormalInputBalls(session, derived);
       const showHistory = expandedInvestmentSessions.has(session.id);
       const entries = historyEntries(session);
       const replayCollapsed = balances.saipurei === 0 && !expandedReplayRows.has(session.id);
@@ -3972,6 +4013,7 @@
       const selectedAmount = investmentUnitForSource(selectedSource);
       const selectedActualAmount = investmentAmountForSource(session, selectedSource, selectedAmount);
       const selectedCanUse = canUseSource(session, selectedSource);
+      const undoableInvestment = lastInvestmentIndex(session) >= 0;
       const sourceOptions = [
         { value: "mochidama", label: "持ち玉", amount: 125 },
         { value: "saipurei", label: "再プレ", amount: 125 },
@@ -3983,7 +4025,7 @@
             <div class="running-headline"><strong>台${escapeHtml(machine?.daiNo || "不明")} / ${escapeHtml(machine?.modelName || "機種未設定")}</strong></div>
             <div class="running-live-row">
               <div>
-                <span>現在回転数<span class="badge ${stateBadge.className} state-badge-inline">${escapeHtml(stateBadge.label)}</span>${stateBadge.spinNote ? `<span class="spin-note">${escapeHtml(stateBadge.spinNote)}</span>` : ""}</span>
+                <span>現在回転数<span class="badge ${stateBadge.className} state-badge-inline">${escapeHtml(stateBadge.label)}</span></span>
                 <button class="editable-value" data-edit-spin><strong>${numberText(currentSpin, "-")}</strong><small>修正</small></button>
               </div>
               <div>
@@ -4010,7 +4052,7 @@
                 <span class="balance-label">カード残</span><button class="editable-value balance-value" data-edit-balance="startCredit"><strong>${balanceText(balances.credit, "円")}</strong><small>修正</small></button>
               </div>
             `}
-            <div class="running-total-row"><span>総投入の内訳: 持ち玉${numberText(totals.mochidamaBalls, 0)}玉・再プレ${numberText(totals.saipureiBalls, 0)}玉・現金${numberText(totals.cashYen, 0)}円</span></div>
+            <div class="running-total-row"><span>消費玉数の内訳: 持ち玉${numberText(totals.mochidamaBalls, 0)}玉・再プレ${numberText(totals.saipureiBalls, 0)}玉・現金${numberText(totals.cashYen, 0)}円</span></div>
             ${yutimeMode ? '<p class="phase-note">この間の投資は通常時と分けて記録されます。</p>' : ""}
             <div class="running-actions">
               <button id="enterYutimeBtn">遊タイム突入</button>
@@ -4061,6 +4103,7 @@
             </div>
             <div class="unified-invest-row">
               <button class="primary${selectedCanUse ? "" : " is-low"}" id="unifiedInvestBtn">${investmentButtonText(selectedSource, selectedActualAmount)}</button>
+              <button class="small" id="undoInvestBtn"${undoableInvestment ? "" : " disabled"}>取り消し</button>
               ${selectedSource === "cash" ? '<button id="openChargeBtn">入金</button>' : ""}
               <button class="small" id="openRunningMachineMemoBtn">メモ${(machine?.memoEntries || []).length > 0 ? "あり" : ""}</button>
               <button class="small" id="toggleStickyBtn">固定${runningStickyEnabled ? "ON" : "OFF"}</button>
@@ -4128,6 +4171,8 @@
       els.runningArea.querySelectorAll("[data-edit-balance]").forEach((button) => {
         button.addEventListener("click", () => openBalanceEditForm(session, button.dataset.editBalance));
       });
+      const undoInvestButton = byId("undoInvestBtn");
+      if (undoInvestButton) undoInvestButton.addEventListener("click", () => undoLastInvestment(session));
       const chargeButton = byId("openChargeBtn");
       if (chargeButton) chargeButton.addEventListener("click", () => openChargeForm(session));
       els.runningArea.querySelectorAll("[data-switch-active]").forEach((button) => {
@@ -6428,11 +6473,11 @@
       return pool[pool.length - 1].id;
     }
 
-    function hitRoundSummaryHtml(session, presetId) {
-      const hits = normalizeHits(session?.hits);
+    // S4/C-4: R種別ごとの内訳と合計R。引いていない種別は行にしない。
+    function roundBreakdown(hits, presetId) {
       const roundTypes = presetById(presetId)?.roundTypes || [];
-      const counts = hits.reduce((map, hit) => {
-        if (!hit.roundTypeId) return map;
+      const counts = (Array.isArray(hits) ? hits : []).reduce((map, hit) => {
+        if (!hit?.roundTypeId) return map;
         map.set(hit.roundTypeId, (map.get(hit.roundTypeId) || 0) + 1);
         return map;
       }, new Map());
@@ -6442,14 +6487,27 @@
         if (!count) return "";
         const rounds = roundCountFromRoundType(type);
         if (rounds === null) return "";
-        const subtotal = rounds * count;
-        totalRounds += subtotal;
-        return `<span>${escapeHtml(type.label)} ×${count.toLocaleString("ja-JP")} ＝ ${subtotal.toLocaleString("ja-JP")}R</span>`;
+        totalRounds += rounds * count;
+        return `${type.label}×${count.toLocaleString("ja-JP")}`;
       }).filter(Boolean);
-      const hitCount = hits.length;
-      const startTotalHits = normalizeNumber(session?.startTotalHits);
-      const cumulativeHits = (startTotalHits ?? 0) + hitCount;
-      const startText = startTotalHits === null ? "開始時未入力" : `開始時${Math.round(startTotalHits).toLocaleString("ja-JP")}回`;
+      return { rows, totalRounds, hitCount: (Array.isArray(hits) ? hits : []).length };
+    }
+
+    // S4/C-4: 今回の連チャン＝最新の当選と同じ区間に紐づく当たり群。区間モデルで機械的に切り出す。
+    function currentChainHits(session, hits = normalizeHits(session?.hits)) {
+      if (!hits.length) return [];
+      const chainSegmentId = resolveHitSegmentId(session, hits[hits.length - 1]);
+      if (!chainSegmentId) return hits;
+      return hits.filter((hit) => resolveHitSegmentId(session, hit) === chainSegmentId);
+    }
+
+    // S4/C-4,C-5,C-7: 連チャンとセッション合計を分けて出す。出玉は実測の1R当たり玉数だけを見せ、
+    // 実測が無いときは理論値（R数×公称）で代用しない。
+    function hitRoundSummaryHtml(session, presetId) {
+      const hits = normalizeHits(session?.hits);
+      const sessionBreakdown = roundBreakdown(hits, presetId);
+      const chainBreakdown = roundBreakdown(currentChainHits(session, hits), presetId);
+      const totalRounds = sessionBreakdown.totalRounds;
       const latestHit = hits.at(-1);
       const latestRounds = roundCountFromRoundType(roundTypeById(presetId, latestHit?.roundTypeId));
       const latestActualBalls = normalizeNumber(latestHit?.actualBalls);
@@ -6457,21 +6515,18 @@
         .map((hit) => normalizeNumber(hit.actualBalls))
         .filter((value) => value !== null && value > 0)
         .reduce((sum, value) => sum + value, 0);
-      const payoutValue = actualPayout > 0 ? actualPayout : hitRoundBasedPayout(session, presetId);
-      const payoutLabel = actualPayout > 0 ? "実測出玉" : "R数ベース出玉";
-      const actualPayoutText = actualPayout > 0
-        ? `${payoutLabel} 今回 ${Math.round(Math.max(0, latestActualBalls ?? 0)).toLocaleString("ja-JP")}玉／累計 ${Math.round(actualPayout).toLocaleString("ja-JP")}玉`
-        : null;
+      const ballsPerRound = actualPayout > 0 && totalRounds > 0 ? actualPayout / totalRounds : null;
+      const breakdownLine = (label, breakdown, countLabel = "") => `<p class="hint">${label} ${breakdown.rows.length ? breakdown.rows.join(" ／ ") : "-"}（${countLabel}${breakdown.hitCount.toLocaleString("ja-JP")}回・${breakdown.totalRounds.toLocaleString("ja-JP")}R）</p>`;
       return `
         <div class="hit-round-summary">
           <div class="hit-round-result">
-            <strong>今回 ${latestRounds !== null ? `${latestRounds.toLocaleString("ja-JP")}R` : "-"} ／ 合計 ${totalRounds.toLocaleString("ja-JP")}R</strong>
-            <small>${actualPayoutText || `${payoutLabel} ${payoutValue !== null ? `${Math.round(payoutValue).toLocaleString("ja-JP")}玉` : "-"}`}</small>
+            <strong>今回の当選 ${latestRounds !== null ? `${latestRounds.toLocaleString("ja-JP")}R` : "-"} ／ 合計 ${totalRounds.toLocaleString("ja-JP")}R</strong>
+            <small>1R当たり ${ballsPerRound !== null ? `${Math.round(ballsPerRound).toLocaleString("ja-JP")}玉` : "—"}</small>
           </div>
-          ${rows.length ? `<p class="hint">${rows.join(" ・ ")}</p>` : ""}
+          ${breakdownLine("今回の連チャン", chainBreakdown)}
+          ${breakdownLine("このセッション", sessionBreakdown, "今回")}
           <hr>
-          <p class="hint">今回 ${hitCount.toLocaleString("ja-JP")}回 / 合計${totalRounds.toLocaleString("ja-JP")}R</p>
-          <p class="hint">累計大当たり ${Math.round(cumulativeHits).toLocaleString("ja-JP")}回（${startText}＋今回${hitCount.toLocaleString("ja-JP")}回）</p>
+          <p class="hint">実測獲得出玉 今回 ${actualPayout > 0 ? `${Math.round(Math.max(0, latestActualBalls ?? 0)).toLocaleString("ja-JP")}玉／累計 ${Math.round(actualPayout).toLocaleString("ja-JP")}玉` : "—"}</p>
         </div>
       `;
     }
@@ -6482,7 +6537,8 @@
       const presetId = normalizeMachinePresetId(machine);
       const jitanOptions = jitanExitOptions(presetId);
       const roundTypes = presetById(presetId)?.roundTypes || [];
-      openModal("時短抜け", "時短が終わったらカウンターの表示に合わせてください。選ばずに閉じると、現在回転数はそのままです。", `
+      const hitCounterSpin = hitCounterSpinForRecord(session);
+      openModal("大当たり登録", "R数と獲得出玉を記録し、時短が終わったらカウンターの表示に合わせてください。選ばずに閉じると、現在回転数はそのままです。", `
         ${machineContextLine(session)}
         <div class="field-row">
           <label>当選ごとのラウンド記録</label>
@@ -6491,10 +6547,9 @@
               <div class="quick-invest">
                 ${roundTypes.map((type) => `<button data-hit-round="${escapeHtml(type.id)}">${escapeHtml(type.label)} +1</button>`).join("") || '<span class="hint">このプリセットにはラウンド種別がありません。</span>'}
               </div>
-              <div class="grid two">
-                <input id="hitRecordSpin" inputmode="numeric" value="${escapeHtml(session.hitSpin ?? session.currentSpin ?? "")}" placeholder="当選ゲーム数 任意">
-                <input id="hitRecordActualBalls" inputmode="numeric" placeholder="累計獲得出玉（カウンター表示）任意">
-              </div>
+              <p class="hint">当選カウンター <strong>${numberText(hitCounterSpin, "-")}</strong>（当選ウィザードで記録した値です。変えるときは「大当たり履歴」から）</p>
+              <label for="hitRecordActualBalls">累計獲得出玉</label>
+              <input id="hitRecordActualBalls" inputmode="numeric" placeholder="累計獲得出玉（カウンター表示）任意">
               <p class="hint">（実機：データカウンターの累計獲得出玉）大当り開始から電サポ終了までの純増（電サポ中の減りを含む）です。前回入力との差が今回の出玉として記録されます。</p>
             </div>
             ${hitRoundSummaryHtml(session, presetId)}
@@ -6503,11 +6558,10 @@
         <div class="field-row">
           <label for="hitMochidamaValue">持ち玉</label>
           <div>
-            <span class="hint">現在 ${balanceText(balances.mochidama, "玉")} → </span>
+            <span class="hint">現在 <strong id="hitMochidamaCurrent">${balanceText(balances.mochidama, "玉")}</strong> → </span>
             <input id="hitMochidamaValue" inputmode="numeric" placeholder="消化後の値">
             <span class="hint"> 玉（任意）</span>
-            <button class="small" id="saveHitMochidamaBtn">持ち玉を更新</button>
-            <p class="hint">台の玉数表示に合わせて入力してください。</p>
+            <p class="hint">台の玉数表示に合わせて入力してください。入力した時点で反映されます。</p>
           </div>
         </div>
         <div class="field-row">
@@ -6525,10 +6579,18 @@
         </div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
+          <button id="openHitHistoryBtn">大当たり履歴</button>
         </div>
       `);
-      byId("saveHitMochidamaBtn").addEventListener("click", () => {
-        saveHitMochidamaInput(session);
+      // C-6: 確定ボタンを置かず、入力した時点（フォーカスが外れた時点）で反映する。
+      const hitMochidamaInput = byId("hitMochidamaValue");
+      if (hitMochidamaInput) hitMochidamaInput.addEventListener("change", () => {
+        if (!saveHitMochidamaInput(session)) return;
+        const currentText = byId("hitMochidamaCurrent");
+        if (currentText) currentText.textContent = balanceText(deriveBalances(session).mochidama, "玉");
+      });
+      byId("openHitHistoryBtn").addEventListener("click", () => {
+        openHitHistory(session, { back: () => openHitResetPrompt(session) });
       });
       els.modalBody.querySelectorAll("[data-hit-round]").forEach((button) => {
         button.addEventListener("click", () => {
@@ -6558,14 +6620,46 @@
     function applyJitanExit(session, counterSpin) {
       startNormalSegmentAfterJitan(session, counterSpin);
       setCurrentSpinWithUndo(session, counterSpin);
-      showToast(`現在回転数を${counterSpin}にリセットしました`);
+      const switched = switchInvestmentSourceToMochidama(session);
+      showToast(`現在回転数を${counterSpin}にリセットしました${switched ? "／投資元を持ち玉に切り替えました" : ""}`);
+    }
+
+    // S4/C-8: 時短抜け後は出玉を使って打つ。再プレイのままだと気づかずに再プレイを減らすため、
+    // 持ち玉があるときだけ投資元を持ち玉へ寄せる。手動で戻すことは従来どおりできる。
+    function switchInvestmentSourceToMochidama(session) {
+      if (runningSource === "mochidama") return false;
+      const mochidama = deriveBalances(session).mochidama;
+      if (mochidama === null || mochidama <= 0) return false;
+      runningSource = "mochidama";
+      localStorage.setItem(SOURCE_PREF_KEY, runningSource);
+      renderRunning();
+      return true;
+    }
+
+    // index より前の当選の獲得出玉合計。B88の差分方式（累計入力 − ここまでの合計）の基準になる。
+    function cumulativeActualBallsBefore(session, index = Infinity) {
+      return (Array.isArray(session?.hits) ? session.hits : [])
+        .slice(0, index)
+        .map((hit) => normalizeNumber(hit?.actualBalls))
+        .filter((value) => value !== null && value > 0)
+        .reduce((sum, value) => sum + value, 0);
     }
 
     function cumulativeActualBallsBeforeHit(session) {
-      return normalizeHits(session?.hits)
-        .map((hit) => normalizeNumber(hit.actualBalls))
-        .filter((value) => value !== null && value > 0)
-        .reduce((sum, value) => sum + value, 0);
+      return cumulativeActualBallsBefore(session);
+    }
+
+    // S4/C-2: 当選カウンターは当選ウィザードの記録値を使う。大当たり登録画面では編集しない。
+    function hitCounterSpinForRecord(session) {
+      return normalizeNumber(session?.hitSpin) ?? normalizeNumber(session?.currentSpin);
+    }
+
+    // S4/B-1: 当選は、当選ウィザードが閉じた区間（まだ開いた区間が残っていればその区間）に紐づける。
+    // 時短抜けで次の区間が開くので、連チャンの区切りが区間の境界と一致する。
+    function hitRecordSegmentId(session) {
+      const segments = ensureSessionSegments(session);
+      const target = openSegmentOf(session) || segments[segments.length - 1];
+      return target?.id || null;
     }
 
     function sessionActualBallsTotal(session) {
@@ -6575,10 +6669,10 @@
       return perHit > 0 ? perHit : null;
     }
 
-    function actualBallsFromCumulativeInput(session, cumulativeInput) {
+    function actualBallsFromCumulativeInput(session, cumulativeInput, index = Infinity) {
       const cumulativeBalls = normalizeNumber(cumulativeInput);
       if (cumulativeBalls === null) return { actualBalls: null, warning: false };
-      const previousTotal = cumulativeActualBallsBeforeHit(session);
+      const previousTotal = cumulativeActualBallsBefore(session, index);
       if (cumulativeBalls < previousTotal) return { actualBalls: 0, warning: true };
       return { actualBalls: cumulativeBalls - previousTotal, warning: false };
     }
@@ -6588,8 +6682,9 @@
       const actualBallsResult = actualBallsFromCumulativeInput(session, byId("hitRecordActualBalls")?.value);
       session.hits.push({
         roundTypeId,
-        hitSpin: normalizeNumber(byId("hitRecordSpin")?.value),
+        hitSpin: hitCounterSpinForRecord(session),
         actualBalls: actualBallsResult.actualBalls,
+        segmentId: hitRecordSegmentId(session),
         at: nowIso()
       });
       syncSessionHitTotals(session);
@@ -6613,6 +6708,193 @@
       updateMochidamaBalanceWithUndo(session, value);
       input.value = "";
       return true;
+    }
+
+    // S4/B-1: 区間の見出し。リザルトの「区間ごとの内訳」と同じ数え方にそろえる。
+    function segmentHistoryLabels(session) {
+      const marks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
+      let normalIndex = 0;
+      return sessionSegments(session).map((segment) => {
+        if (segment.kind === "yutime") {
+          return { id: segment.id, label: `遊タイム（${numberText(segment.startSpin, "-")}から）` };
+        }
+        const mark = marks[normalIndex] || String(normalIndex + 1);
+        normalIndex += 1;
+        const from = normalIndex === 1 ? "打ち始め" : `時短抜け${numberText(segment.startSpin, "-")}`;
+        return { id: segment.id, label: `区間${mark}（${from}から）` };
+      });
+    }
+
+    // S4/B-1: 当選がどの区間に属するか。記録済みの segmentId を優先し、
+    // 区間より前に記録された旧データは当選カウンターで寄せる。
+    function resolveHitSegmentId(session, hit) {
+      const segments = sessionSegments(session);
+      if (!segments.length) return null;
+      const validIds = new Set(segments.map((segment) => segment.id).filter(Boolean));
+      if (hit?.segmentId && validIds.has(hit.segmentId)) return hit.segmentId;
+      const spin = normalizeNumber(hit?.hitSpin);
+      if (spin !== null) {
+        for (let index = segments.length - 1; index >= 0; index -= 1) {
+          const start = normalizeNumber(segments[index].startSpin);
+          if (start !== null && spin >= start) return segments[index].id;
+        }
+      }
+      return segments[segments.length - 1].id;
+    }
+
+    // S4/B-1: 一覧の行。添字は保存配列の添字（修正・削除がそのまま使う）。
+    // 累計獲得出玉は B88 の差分を古い順に積み上げて表示する。
+    function hitHistoryRows(session) {
+      const hits = Array.isArray(session?.hits) ? session.hits : [];
+      let cumulative = 0;
+      let hasActual = false;
+      return hits.map((hit, index) => {
+        const actualBalls = normalizeNumber(hit?.actualBalls);
+        if (actualBalls !== null && actualBalls > 0) hasActual = true;
+        cumulative += actualBalls !== null && actualBalls > 0 ? actualBalls : 0;
+        return {
+          index,
+          number: index + 1,
+          hit,
+          segmentId: resolveHitSegmentId(session, hit),
+          cumulativeBalls: hasActual ? cumulative : null
+        };
+      });
+    }
+
+    // S4/B-1: 新しい区間が上。区間に紐づかない当選は末尾にまとめる。
+    function hitHistoryGroups(session) {
+      const rows = hitHistoryRows(session);
+      const labels = segmentHistoryLabels(session);
+      const groups = labels.map((entry) => ({ id: entry.id, label: entry.label, rows: rows.filter((row) => row.segmentId === entry.id) }));
+      const orphans = rows.filter((row) => !labels.some((entry) => entry.id === row.segmentId));
+      const ordered = groups.filter((group) => group.rows.length).reverse();
+      if (orphans.length) ordered.push({ id: null, label: "区間不明", rows: orphans });
+      return ordered;
+    }
+
+    // S4/B-1: 当選を修正・削除したあとの合計を作り直す。0件になったら当選なしへ戻す。
+    function applyHitTotals(session) {
+      if (Array.isArray(session.hits) && session.hits.length) {
+        syncSessionHitTotals(session);
+        return;
+      }
+      session.hitCount = 0;
+      session.totalRounds = 0;
+    }
+
+    function removeHitRecord(session, index) {
+      const hits = Array.isArray(session.hits) ? session.hits : [];
+      if (!Number.isInteger(index) || !hits[index]) return false;
+      hits.splice(index, 1);
+      applyHitTotals(session);
+      session.updatedAt = nowIso();
+      if (!persistWithToast("当選を削除しました")) return false;
+      renderAll();
+      return true;
+    }
+
+    function openHitHistory(session, options = {}) {
+      const machine = data.machines.find((item) => item.id === session.machineId);
+      const presetId = normalizeMachinePresetId(machine);
+      const back = typeof options.back === "function" ? options.back : null;
+      const groups = hitHistoryGroups(session);
+      const body = groups.length ? groups.map((group) => `
+        <div class="hit-history-group">
+          <div class="hit-history-group-title">${escapeHtml(group.label)}</div>
+          ${group.rows.slice().reverse().map((row) => {
+            const rounds = roundCountFromRoundType(roundTypeById(presetId, row.hit?.roundTypeId));
+            const cumulativeText = row.cumulativeBalls === null ? "-" : `${Math.round(row.cumulativeBalls).toLocaleString("ja-JP")}玉`;
+            return `
+              <div class="row-card">
+                <div class="row-card-head">
+                  <div>
+                    <strong>#${row.number} ${rounds !== null ? `${rounds.toLocaleString("ja-JP")}R` : "R種別なし"}</strong>
+                    <br><small>当選カウンター ${numberText(normalizeNumber(row.hit?.hitSpin), "-")} / 累計獲得出玉 ${escapeHtml(cumulativeText)}</small>
+                  </div>
+                  <div class="hit-history-actions">
+                    <button class="small" data-edit-hit="${row.index}">修正</button>
+                    <button class="small danger" data-delete-hit="${row.index}">削除</button>
+                  </div>
+                </div>
+              </div>`;
+          }).join("")}
+        </div>`).join("") : '<p class="hint">まだ当選は記録されていません。</p>';
+      openModal("大当たり履歴", "このセッションの当選です。新しいものが上。", `
+        ${machineContextLine(session)}
+        <div class="list">${body}</div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          ${back ? '<button id="hitHistoryBackBtn">戻る</button>' : ""}
+        </div>
+      `);
+      els.modalBody.querySelectorAll("[data-edit-hit]").forEach((button) => {
+        button.addEventListener("click", () => openHitEditForm(session, Number(button.dataset.editHit), options));
+      });
+      els.modalBody.querySelectorAll("[data-delete-hit]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const index = Number(button.dataset.deleteHit);
+          if (!confirm("この当選を削除しますか？")) return;
+          if (!confirm("元に戻せません。削除を確定しますか？")) return;
+          if (!removeHitRecord(session, index)) return;
+          openHitHistory(session, options);
+        });
+      });
+      const backButton = byId("hitHistoryBackBtn");
+      if (backButton) backButton.addEventListener("click", () => back());
+    }
+
+    // S4/B-1: R種別・当選カウンター・累計獲得出玉を直す。
+    // 累計獲得出玉は入力欄も B88 の差分方式で扱い、この当選までの累計を受け取って今回分を出し直す。
+    function openHitEditForm(session, index, options = {}) {
+      const hit = Array.isArray(session.hits) ? session.hits[index] : null;
+      if (!hit) return;
+      const machine = data.machines.find((item) => item.id === session.machineId);
+      const presetId = normalizeMachinePresetId(machine);
+      const roundTypes = presetById(presetId)?.roundTypes || [];
+      const hasActualBalls = normalizeNumber(hit.actualBalls) !== null;
+      const cumulativeBalls = cumulativeActualBallsBefore(session, index + 1);
+      openModal("当選の修正", `#${index + 1} の記録を直します。`, `
+        ${machineContextLine(session)}
+        <div class="field-row">
+          <label for="editHitRoundType">R種別</label>
+          <select id="editHitRoundType">
+            <option value="">未設定</option>
+            ${roundTypes.map((type) => `<option value="${escapeHtml(type.id)}"${type.id === hit.roundTypeId ? " selected" : ""}>${escapeHtml(type.label)}</option>`).join("")}
+          </select>
+        </div>
+        <div class="field-row">
+          <label for="editHitSpin">当選カウンター（実機：当選時のデータカウンター）</label>
+          <input id="editHitSpin" inputmode="numeric" value="${escapeHtml(normalizeNumber(hit.hitSpin) ?? "")}">
+        </div>
+        <div class="field-row">
+          <label for="editHitActualBalls">累計獲得出玉（カウンター表示）</label>
+          <div>
+            <input id="editHitActualBalls" inputmode="numeric" value="${escapeHtml(hasActualBalls ? Math.round(cumulativeBalls) : "")}">
+            <p class="hint">この当選までの累計です。ここまでの合計を引いた分が、今回の獲得出玉として記録し直されます。</p>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>閉じる</button>
+          <button id="cancelHitEditBtn">戻る</button>
+          <button class="primary" id="saveHitEditBtn">保存</button>
+        </div>
+      `);
+      byId("cancelHitEditBtn").addEventListener("click", () => openHitHistory(session, options));
+      byId("saveHitEditBtn").addEventListener("click", () => {
+        const target = Array.isArray(session.hits) ? session.hits[index] : null;
+        if (!target) return;
+        const result = actualBallsFromCumulativeInput(session, byId("editHitActualBalls").value, index);
+        target.roundTypeId = byId("editHitRoundType").value || "";
+        target.hitSpin = normalizeNumber(byId("editHitSpin").value);
+        target.actualBalls = result.actualBalls;
+        applyHitTotals(session);
+        session.updatedAt = nowIso();
+        if (!persistWithToast("当選を修正しました")) return;
+        if (result.warning) showToast("入力値が前回までの累計を下回っています。カウンターの累計を入力してください", "error");
+        renderAll();
+        openHitHistory(session, options);
+      });
     }
 
     function openEndWizard(sessionId) {
@@ -6826,16 +7108,10 @@
     }
 
     // B94: いまツールがどの状態として扱っているかを1語で出す
+    // S4/D-1: S2で時短抜けを入力できるようになり、当選後の宙ぶらりんな状態がほぼ無くなった。
+    // 状態は「通常時」「遊タイム中」の2つだけにする。
     function runningStateBadge(session) {
       if (isYutimeInvestmentPhase(session)) return { label: "遊タイム中", className: "warn" };
-      const hits = normalizeHits(session?.hits);
-      const latest = hits.length ? hits[hits.length - 1] : null;
-      const hitSpin = normalizeNumber(latest?.hitSpin) ?? normalizeNumber(session?.hitSpin);
-      const currentSpin = normalizeNumber(session?.currentSpin) ?? normalizeNumber(session?.startSpin);
-      // 当選後に現在回転数をリセットすると当選時より小さくなる。まだ大きいならリセット前
-      if (hitSpin !== null && currentSpin !== null && currentSpin >= hitSpin) {
-        return { label: "当り後（時短消化中）", className: "dark", spinNote: "リセット前" };
-      }
       return { label: "通常時", className: "" };
     }
 
@@ -6908,10 +7184,8 @@
       return `${numberText(derived.hitBalls, "-")}${derived.isEstimatedPayout ? "（概算）" : ""}`;
     }
 
-    function liveRunningRate(session) {
-      const inputBalls = runningNormalInputBalls(session);
-      const spins = runningNormalSpinCount(session);
-      return inputBalls > 0 && spins !== null && spins >= 0 ? spins / inputBalls * 250 : null;
+    function liveRunningRate(session, derived = null) {
+      return runningPanelRate(session, derived);
     }
 
     function firstHitRecordedAt(session) {
@@ -6951,24 +7225,23 @@
       return investments.filter((item) => investmentBeforeHit(item, session, hitSpin));
     }
 
-    function runningNormalSpinCount(session) {
-      const start = normalizeNumber(session?.startSpin);
-      if (start === null) return null;
-      const hitSpin = normalizeNumber(session?.hitSpin);
-      if (hitSpin !== null) {
-        const spins = hitSpin - start;
-        return spins >= 0 ? spins : null;
-      }
-      if (normalizeHits(session?.hits).length) return null;
-      const current = normalizeNumber(session?.currentSpin);
-      if (current === null) return null;
-      const spins = current - start;
-      return spins >= 0 ? spins : null;
+    // S4/A-1: 通常時の回転数は区間モデルの合算で出す。当選時点で止まっていた旧実装
+    // （hitSpin - startSpin で固定）では、時短抜け後に回した分が加算されなかった。
+    function runningSessionDerived(session, derived = null) {
+      if (derived) return derived;
+      const machine = data.machines.find((item) => item.id === session?.machineId) || null;
+      return deriveSession(session, machine);
     }
 
-    function runningPanelRate(session) {
-      const inputBalls = runningNormalInputBalls(session);
-      const spins = runningNormalSpinCount(session);
+    function runningNormalSpinCount(session, derived = null) {
+      const spins = runningSessionDerived(session, derived).normalSpins;
+      return spins !== null && spins !== undefined && spins >= 0 ? spins : null;
+    }
+
+    function runningPanelRate(session, derived = null) {
+      const stats = runningSessionDerived(session, derived);
+      const inputBalls = runningNormalInputBalls(session, stats);
+      const spins = runningNormalSpinCount(session, stats);
       return inputBalls > 0 && spins !== null && spins >= 0 ? spins / inputBalls * 250 : null;
     }
 
@@ -7192,7 +7465,11 @@
       return usesTapInvestmentMode(session) ? stats.investedBalls : Math.round(stats.totalInputBalls || stats.investedBalls || 0);
     }
 
-    function runningNormalInputBalls(session) {
+    // S4/A-1: 消費玉も区間モデルの合算（deriveSession の rateBase）を使う。
+    // 区間から出せないセッションだけ、従来の投入合計にフォールバックする。
+    function runningNormalInputBalls(session, derived = null) {
+      const segmentBalls = runningSessionDerived(session, derived).consumedBalls;
+      if (segmentBalls !== null && segmentBalls !== undefined && segmentBalls > 0) return Math.round(segmentBalls);
       const store = storeById(session.storeId);
       const investedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const tapMode = usesTapInvestmentMode(session);
@@ -7201,8 +7478,8 @@
       return inputBalls > 0 ? Math.round(inputBalls) : null;
     }
 
-    function runningSpinCount(session) {
-      return runningNormalSpinCount(session);
+    function runningSpinCount(session, derived = null) {
+      return runningNormalSpinCount(session, derived);
     }
 
     function investmentSnapshot(session, investmentIndex) {
@@ -7605,11 +7882,16 @@
         </div>
         <div class="modal-actions">
           <button class="ghost" data-close>実戦一覧に戻る</button>
+          ${(Array.isArray(session.hits) ? session.hits.length : 0) ? '<button id="resultHitHistoryBtn">大当たり履歴</button>' : ""}
           <button id="resultEditBtn">記録の修正</button>
           <button class="danger" id="resultDeleteBtn">記録の削除</button>
         </div>
       `;
       openModal("実戦リザルト", "", html);
+      const resultHitHistoryButton = byId("resultHitHistoryBtn");
+      if (resultHitHistoryButton) resultHitHistoryButton.addEventListener("click", () => {
+        openHitHistory(session, { back: () => openSessionResult(session.id) });
+      });
       els.modalBody.querySelectorAll("[data-copy-transfer]").forEach((button) => {
         button.addEventListener("click", () => copyTransferSummary(button.dataset.copyTransfer));
       });
@@ -7865,23 +8147,37 @@
       showToast(`投資を追記しました（+${balls}玉）`, "success", {
         undo: () => {
           const index = session.investments.indexOf(item);
-          if (index >= 0) {
-            session.investments.splice(index, 1);
-            session.updatedAt = nowIso();
-            persist();
-            renderAll();
-          }
+          if (index >= 0) deleteInvestment(session, index, "直前の投資を取り消しました");
         }
       });
       renderAll();
     }
 
-    function deleteInvestment(session, index) {
+    function deleteInvestment(session, index, message = "投資履歴を削除しました") {
       if (!Number.isInteger(index) || !session.investments[index]) return;
       session.investments.splice(index, 1);
       session.updatedAt = nowIso();
-      if (!persistWithToast("投資履歴を削除しました")) return;
+      if (!persistWithToast(message)) return;
       renderAll();
+    }
+
+    // S4/A-2: 直前の投資（残高調整を除く）。取り消しボタンの活性判定にも使う。
+    function lastInvestmentIndex(session) {
+      const investments = Array.isArray(session?.investments) ? session.investments : [];
+      for (let index = investments.length - 1; index >= 0; index -= 1) {
+        if (!investments[index]?.adjustment) return index;
+      }
+      return -1;
+    }
+
+    // S4/A-2: 投資タップの取り消し。トーストの「元に戻す」と同じ削除処理を共有する。
+    function undoLastInvestment(session) {
+      const index = lastInvestmentIndex(session);
+      if (index < 0) {
+        showToast("取り消せる投資がありません", "error");
+        return;
+      }
+      deleteInvestment(session, index, "直前の投資を取り消しました");
     }
 
     function addCharge(session, amount, time = currentTime()) {
@@ -8493,9 +8789,20 @@
 
     // §3.1: 区間の終端カウンター。保存済みの endSpin を優先し、
     // 端点が空になる旧データにはこれまでのフォールバック（ヤメ回転数・遊タイム突入回転数の推定）を残す。
+    // S4/A-1: 稼働中に閉じていない通常区間は「いま打っている区間」なので、当選の有無に関わらず
+    // 現在回転数で閉じる。当選が1回でもあると null を返していたため、2周目以降の回転率が
+    // 前の区間の値で固定されていた。完了済みセッションの扱いは従来のまま変えない。
     function segmentEndSpinForRate(segment, session, preset = null) {
       if (segment?.endSpin !== null && segment?.endSpin !== undefined) return segment.endSpin;
       if (segment?.kind !== "normal") return null;
+      if (session?.status !== "completed") {
+        // 遊タイム突入回転数が未記録の旧データだけ、従来どおり推定値へフォールバックする。
+        if (normalizeNumber(session?.yutimeEnterSpin) === null
+          && (session?.hitVia === "yutime" || normalizeNumber(session?.yutimeEnterBalls) !== null)) {
+          return yutimeEnterSpinForRate(session, preset);
+        }
+        return normalizeNumber(session?.currentSpin) ?? normalizeNumber(session?.endSpin);
+      }
       if (Number(session?.hitCount || 0) > 0) return null;
       if (session?.hitVia === "yutime" || normalizeNumber(session?.yutimeEnterBalls) !== null) {
         return yutimeEnterSpinForRate(session, preset);

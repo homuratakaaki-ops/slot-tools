@@ -17,7 +17,9 @@ function section(startMarker, endMarker) {
 
 const hitWizard = section('function openHitWizard', 'function hitResetOptions');
 const runWizard = section('function runWizard', 'function wizardInputHtml');
+const roundBreakdownBlock = section('function roundBreakdown', 'function hitRoundSummaryHtml');
 const hitRoundSummaryHtml = section('function hitRoundSummaryHtml', 'function openHitResetPrompt');
+const hitHistoryBlock = section('function segmentHistoryLabels', 'function openEndWizard');
 const hitResetPrompt = section('function openHitResetPrompt', 'function openEndWizard');
 const openEndWizardBlock = section('function openEndWizard', 'function presetHitCountFromCounters');
 const runEndWizardBlock = section('function runEndWizard', 'function runWizard');
@@ -33,6 +35,7 @@ const openSessionEditor = section('function openSessionEditor', 'function fieldH
 const deriveSession = section('function deriveSession', 'function yutimeEnterSpinForRate');
 const yutimeEnterSpinForRate = section('function yutimeEnterSpinForRate', 'function machineStats');
 const addInvestment = section('function addInvestment', 'function deleteInvestment');
+const deleteInvestmentBlock = section('function deleteInvestment', 'function addCharge');
 const investmentAmountForSourceBlock = section('function investmentUnitForSource', 'function sourceUnavailableMessage');
 const sourceUnavailableMessage = section('function sourceUnavailableMessage', 'function rateText');
 const runningRateHelpers = section('function liveRunningRate', 'function runningYutimeRemaining');
@@ -407,7 +410,11 @@ assert.ok(hitWizard.includes('id="hitWizardSpin"'), 'hit spin field should remai
 assert.ok(hitWizard.includes('id="hitWizardRemainBalls"'), 'hit remain field should remain in the one-screen hit form');
 assert.ok(hitResetPrompt.includes('data-hit-reset'), 'reset chip buttons should remain after hit completion');
 assert.ok(hitResetPrompt.includes('data-hit-round'), 'round type chips should be available after hit completion');
-assert.match(hitResetPrompt, /id="hitRecordSpin"/);
+// S4/C-1,C-2,C-3: 画面名は「大当たり登録」。当選カウンターは編集不可の表示にする
+assert.match(hitResetPrompt, /openModal\("大当たり登録"/);
+assert.doesNotMatch(hitResetPrompt, /id="hitRecordSpin"/);
+assert.match(hitResetPrompt, /当選カウンター <strong>\$\{numberText\(hitCounterSpin, "-"\)\}<\/strong>/);
+assert.match(hitResetPrompt, /<label for="hitRecordActualBalls">累計獲得出玉<\/label>/);
 assert.match(hitResetPrompt, /id="hitRecordActualBalls"/);
 assert.match(hitResetPrompt, /placeholder="累計獲得出玉（カウンター表示）任意"/);
 assert.match(hitResetPrompt, /（実機：データカウンターの累計獲得出玉）大当り開始から電サポ終了までの純増（電サポ中の減りを含む）です。前回入力との差が今回の出玉として記録されます。/);
@@ -416,7 +423,10 @@ assert.match(hitResetPrompt, /class="hit-round-layout"/);
 assert.match(hitResetPrompt, /appendHitRecord\(session, button\.dataset\.hitRound\);/);
 assert.ok(hitResetPrompt.includes('data-close'), 'reset chip close button should remain unchanged');
 assert.match(hitResetPrompt, /id="hitMochidamaValue"/);
-assert.match(hitResetPrompt, /id="saveHitMochidamaBtn"/);
+assert.doesNotMatch(hitResetPrompt, /id="saveHitMochidamaBtn"/);
+assert.doesNotMatch(hitResetPrompt, /持ち玉を更新<\/button>/);
+assert.match(hitResetPrompt, /hitMochidamaInput\.addEventListener\("change", \(\) => \{\s*if \(!saveHitMochidamaInput\(session\)\) return;/);
+assert.match(hitResetPrompt, /id="openHitHistoryBtn"/);
 assert.match(hitResetPrompt, /closeModal\(\);\s*applyJitanExit\(session, Number\(button\.dataset\.hitReset\)\);/);
 assert.match(hitResetPrompt, /data-hit-reset="\$\{option\.counterSpin\}"/);
 assert.match(hitResetPrompt, /時短\$\{option\.jitanSpins\} → カウンター\$\{option\.counterSpin\}/);
@@ -425,18 +435,26 @@ assert.match(hitResetPrompt, /id="applyJitanExitBtn"/);
 assert.doesNotMatch(hitResetPrompt, /saveHitMochidamaInput\(session, \{ silentEmpty: true \}\)/);
 assert.match(hitResetPrompt, /if \(!raw\) return false;/);
 assert.match(hitRoundSummaryHtml, /const hits = normalizeHits\(session\?\.hits\);/);
-assert.match(hitRoundSummaryHtml, /const roundTypes = presetById\(presetId\)\?\.roundTypes \|\| \[\];/);
-assert.match(hitRoundSummaryHtml, /const count = counts\.get\(type\.id\) \|\| 0;/);
-assert.match(hitRoundSummaryHtml, /if \(!count\) return "";/);
-assert.match(hitRoundSummaryHtml, /roundCountFromRoundType\(type\)/);
+assert.match(roundBreakdownBlock, /const roundTypes = presetById\(presetId\)\?\.roundTypes \|\| \[\];/);
+assert.match(roundBreakdownBlock, /const count = counts\.get\(type\.id\) \|\| 0;/);
+assert.match(roundBreakdownBlock, /if \(!count\) return "";/);
+assert.match(roundBreakdownBlock, /roundCountFromRoundType\(type\)/);
+// S4/C-4: 連チャンは最新の当選と同じ区間に紐づく当たり群
+assert.match(roundBreakdownBlock, /const chainSegmentId = resolveHitSegmentId\(session, hits\[hits\.length - 1\]\);/);
 assert.match(hitRoundSummaryHtml, /class="hit-round-result"/);
-assert.match(hitRoundSummaryHtml, /今回 \$\{latestRounds !== null \? `\$\{latestRounds\.toLocaleString\("ja-JP"\)\}R` : "-"\} ／ 合計 \$\{totalRounds\.toLocaleString\("ja-JP"\)\}R/);
-assert.match(hitRoundSummaryHtml, /const payoutLabel = actualPayout > 0 \? "実測出玉" : "R数ベース出玉";/);
-assert.match(hitRoundSummaryHtml, /\$\{payoutLabel\} 今回 \$\{Math\.round\(Math\.max\(0, latestActualBalls \?\? 0\)\)\.toLocaleString\("ja-JP"\)\}玉／累計 \$\{Math\.round\(actualPayout\)\.toLocaleString\("ja-JP"\)\}玉/);
-assert.match(hitRoundSummaryHtml, /今回 \$\{hitCount\.toLocaleString\("ja-JP"\)\}回 \/ 合計\$\{totalRounds\.toLocaleString\("ja-JP"\)\}R/);
-assert.match(hitRoundSummaryHtml, /累計大当たり \$\{Math\.round\(cumulativeHits\)\.toLocaleString\("ja-JP"\)\}回/);
+// S4/C-5: R数ベース出玉を出さず、実測の 1R当たり玉数だけを見せる
+assert.doesNotMatch(hitRoundSummaryHtml, /R数ベース出玉/);
+assert.doesNotMatch(hitRoundSummaryHtml, /hitRoundBasedPayout/);
+assert.match(hitRoundSummaryHtml, /const ballsPerRound = actualPayout > 0 && totalRounds > 0 \? actualPayout \/ totalRounds : null;/);
+assert.match(hitRoundSummaryHtml, /1R当たり \$\{ballsPerRound !== null/);
+// S4/C-4: 今回の連チャンとこのセッションを分ける
+assert.match(hitRoundSummaryHtml, /breakdownLine\("今回の連チャン", chainBreakdown\)/);
+assert.match(hitRoundSummaryHtml, /breakdownLine\("このセッション", sessionBreakdown, "今回"\)/);
+// S4/C-7: 開始時の累計大当たりは出さない
+assert.doesNotMatch(hitRoundSummaryHtml, /累計大当たり/);
+assert.doesNotMatch(hitRoundSummaryHtml, /startTotalHits/);
 assert.match(hitResetPrompt, /function cumulativeActualBallsBeforeHit\(session\)/);
-assert.match(hitResetPrompt, /function actualBallsFromCumulativeInput\(session, cumulativeInput\)/);
+assert.match(hitResetPrompt, /function actualBallsFromCumulativeInput\(session, cumulativeInput, index = Infinity\)/);
 assert.match(hitResetPrompt, /if \(cumulativeBalls < previousTotal\) return \{ actualBalls: 0, warning: true \};/);
 assert.match(hitResetPrompt, /入力値が前回までの累計を下回っています。カウンターの累計を入力してください/);
 const hitRoundSummaryContext = vm.createContext({
@@ -454,13 +472,9 @@ const hitRoundSummaryContext = vm.createContext({
   roundTypeById(presetId, roundTypeId) {
     return hitRoundSummaryContext.presetById(presetId)?.roundTypes.find((type) => type.id === roundTypeId) || null;
   },
-  hitRoundBasedPayout(session, presetId) {
-    const hits = Array.isArray(session?.hits) ? session.hits : [];
-    const total = hits.reduce((sum, hit) => {
-      const roundType = hitRoundSummaryContext.roundTypeById(presetId, hit.roundTypeId);
-      return roundType ? sum + Number(roundType.balls || 0) : sum;
-    }, 0);
-    return total > 0 ? total : null;
+  // 区間の解決はここでは検証対象外。記録済みの segmentId をそのまま返す
+  resolveHitSegmentId(session, hit) {
+    return hit?.segmentId ?? null;
   },
   escapeHtml(value) {
     return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
@@ -472,6 +486,7 @@ const hitRoundSummaryContext = vm.createContext({
 new vm.Script(`
   ${normalizeHitsBlock}
   ${roundCountFromRoundTypeBlock}
+  ${roundBreakdownBlock}
   ${hitRoundSummaryHtml}
   globalThis.singleSummary = hitRoundSummaryHtml({
     startTotalHits: 3,
@@ -481,33 +496,38 @@ new vm.Script(`
     startTotalHits: 3,
     hits: [{ roundTypeId: 'r4' }, { roundTypeId: 'r4' }, { roundTypeId: 'r6' }, { roundTypeId: 'r10' }]
   }, 'multi');
-  globalThis.noStartSummary = hitRoundSummaryHtml({
-    startTotalHits: null,
-    hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }]
+  globalThis.chainSummary = hitRoundSummaryHtml({
+    hits: [
+      { roundTypeId: 'r4', segmentId: 'seg1' },
+      { roundTypeId: 'r4', segmentId: 'seg1' },
+      { roundTypeId: 'r6', segmentId: 'seg2' },
+      { roundTypeId: 'r10', segmentId: 'seg2' },
+      { roundTypeId: 'r10', segmentId: 'seg2' }
+    ]
   }, 'multi');
   globalThis.actualSummary = hitRoundSummaryHtml({
     startTotalHits: 0,
     hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r10', actualBalls: 1420 }]
   }, 'single');
 `).runInContext(hitRoundSummaryContext);
-assert.match(hitRoundSummaryContext.singleSummary, /10R ×3 ＝ 30R/);
-assert.match(hitRoundSummaryContext.singleSummary, /今回 10R ／ 合計 30R/);
-assert.match(hitRoundSummaryContext.singleSummary, /R数ベース出玉 4,200玉/);
-assert.match(hitRoundSummaryContext.singleSummary, /今回 3回 \/ 合計30R/);
-assert.match(hitRoundSummaryContext.singleSummary, /累計大当たり 6回（開始時3回＋今回3回）/);
-assert.match(hitRoundSummaryContext.multiSummary, /4R ×2 ＝ 8R/);
-assert.match(hitRoundSummaryContext.multiSummary, /6R ×1 ＝ 6R/);
-assert.match(hitRoundSummaryContext.multiSummary, /10R ×1 ＝ 10R/);
-assert.match(hitRoundSummaryContext.multiSummary, /今回 4回 \/ 合計24R/);
-assert.match(hitRoundSummaryContext.multiSummary, /今回 10R ／ 合計 24R/);
-assert.match(hitRoundSummaryContext.multiSummary, /R数ベース出玉 3,360玉/);
-assert.match(hitRoundSummaryContext.multiSummary, /累計大当たり 7回（開始時3回＋今回4回）/);
-assert.doesNotMatch(hitRoundSummaryContext.noStartSummary, /4R ×/);
-assert.doesNotMatch(hitRoundSummaryContext.noStartSummary, /6R ×/);
-assert.match(hitRoundSummaryContext.noStartSummary, /10R ×2 ＝ 20R/);
-assert.match(hitRoundSummaryContext.noStartSummary, /今回 10R ／ 合計 20R/);
-assert.match(hitRoundSummaryContext.noStartSummary, /累計大当たり 2回（開始時未入力＋今回2回）/);
-assert.match(hitRoundSummaryContext.actualSummary, /実測出玉 今回 1,420玉／累計 2,800玉/);
+// S4/C-4: 引いていないR種別は出さない。連チャンとセッションを分ける
+assert.match(hitRoundSummaryContext.singleSummary, /今回の連チャン 10R×3（3回・30R）/);
+assert.match(hitRoundSummaryContext.singleSummary, /このセッション 10R×3（今回3回・30R）/);
+assert.match(hitRoundSummaryContext.singleSummary, /今回の当選 10R ／ 合計 30R/);
+assert.match(hitRoundSummaryContext.multiSummary, /このセッション 4R×2 ／ 6R×1 ／ 10R×1（今回4回・24R）/);
+assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /4R×/);
+assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /6R×/);
+assert.match(hitRoundSummaryContext.chainSummary, /今回の連チャン 6R×1 ／ 10R×2（3回・26R）/);
+assert.match(hitRoundSummaryContext.chainSummary, /このセッション 4R×2 ／ 6R×1 ／ 10R×2（今回5回・34R）/);
+// S4/C-5: 実測が無ければ理論値で代用せず「—」
+assert.match(hitRoundSummaryContext.singleSummary, /1R当たり —/);
+assert.match(hitRoundSummaryContext.singleSummary, /実測獲得出玉 今回 —/);
+assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /R数ベース出玉/);
+assert.match(hitRoundSummaryContext.actualSummary, /1R当たり 140玉/);
+assert.match(hitRoundSummaryContext.actualSummary, /実測獲得出玉 今回 1,420玉／累計 2,800玉/);
+// S4/C-7: 開始時の累計大当たりは出さない
+assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /累計大当たり/);
+assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /開始時/);
 const appendHitRecordContext = vm.createContext({
   __inputs: {},
   __toasts: [],
@@ -523,6 +543,13 @@ const appendHitRecordContext = vm.createContext({
     return '2026-08-22T00:00:00.000Z';
   },
   syncSessionHitTotals() {},
+  ensureSessionSegments(session) {
+    if (!Array.isArray(session.segments) || !session.segments.length) session.segments = [{ id: 'seg1' }];
+    return session.segments;
+  },
+  openSegmentOf() {
+    return null;
+  },
   persistWithToast(message) {
     appendHitRecordContext.__toasts.push({ message, type: 'success' });
     return true;
@@ -534,15 +561,17 @@ const appendHitRecordContext = vm.createContext({
 new vm.Script(`
   ${normalizeHitsBlock}
   ${hitResetPrompt}
-  globalThis.session = { hits: [] };
+  globalThis.session = { hits: [], hitSpin: 75 };
   globalThis.add = (value) => {
-    __inputs.hitRecordSpin = '';
     __inputs.hitRecordActualBalls = value;
     appendHitRecord(session, 'r10');
     return session.hits.at(-1).actualBalls;
   };
 `).runInContext(appendHitRecordContext);
 assert.equal(appendHitRecordContext.add('1380'), 1380);
+// S4/C-2: 当選カウンターは当選ウィザードの記録値。S4/B-1: 当選は区間に紐づける
+assert.equal(appendHitRecordContext.session.hits.at(-1).hitSpin, 75);
+assert.equal(appendHitRecordContext.session.hits.at(-1).segmentId, 'seg1');
 assert.equal(appendHitRecordContext.add('2800'), 1420);
 assert.equal(appendHitRecordContext.add('4000'), 1200);
 assert.equal(appendHitRecordContext.session.hits.reduce((sum, hit) => sum + (hit.actualBalls || 0), 0), 4000);
@@ -1544,15 +1573,17 @@ assert.match(openBalanceEditForm, /value="\$\{escapeHtml\(currentBalance \?\? ""
 assert.match(openBalanceEditForm, /session\[key\] = value === null \? null : balanceStartValueForCurrent\(session, key, value\);/);
 assert.match(runningRateHelpers, /function normalRateInvestments\(session\) \{/);
 assert.match(runningRateHelpers, /return investments\.filter\(\(item\) => investmentBeforeHit\(item, session, hitSpin\)\);/);
-assert.match(runningRateHelpers, /function runningNormalSpinCount\(session\) \{/);
-assert.match(runningRateHelpers, /const hitSpin = normalizeNumber\(session\?\.hitSpin\);/);
-assert.match(runningRateHelpers, /if \(hitSpin !== null\) \{\s*const spins = hitSpin - start;\s*return spins >= 0 \? spins : null;\s*\}/);
-assert.match(runningRateHelpers, /if \(normalizeHits\(session\?\.hits\)\.length\) return null;/);
-assert.match(runningSpinCount, /return runningNormalSpinCount\(session\);/);
-assert.match(runningPanelRate, /const inputBalls = runningNormalInputBalls\(session\);/);
-assert.match(runningPanelRate, /const spins = runningNormalSpinCount\(session\);/);
+assert.match(runningRateHelpers, /function runningNormalSpinCount\(session, derived = null\) \{/);
+// S4/A-1: 当選時点で止まる旧実装（hitSpin - startSpin）に戻さない
+assert.doesNotMatch(runningRateHelpers, /const spins = hitSpin - start;/);
+assert.doesNotMatch(runningRateHelpers, /if \(normalizeHits\(session\?\.hits\)\.length\) return null;/);
+assert.match(runningRateHelpers, /const spins = runningSessionDerived\(session, derived\)\.normalSpins;/);
+assert.match(runningSpinCount, /return runningNormalSpinCount\(session, derived\);/);
+assert.match(runningPanelRate, /const inputBalls = runningNormalInputBalls\(session, stats\);/);
+assert.match(runningPanelRate, /const spins = runningNormalSpinCount\(session, stats\);/);
 assert.match(runningPanelRate, /return inputBalls > 0 && spins !== null && spins >= 0 \? spins \/ inputBalls \* 250 : null;/);
-assert.match(runningPanelInputBallsBlock, /function runningNormalInputBalls\(session\) \{/);
+assert.match(runningPanelInputBallsBlock, /function runningNormalInputBalls\(session, derived = null\) \{/);
+assert.match(runningPanelInputBallsBlock, /const segmentBalls = runningSessionDerived\(session, derived\)\.consumedBalls;/);
 assert.match(runningPanelInputBallsBlock, /const investedBalls = normalRateInvestments\(session\)\.reduce/);
 assert.match(runningPanelInputBallsBlock, /tapModeNormalConsumedBalls\(session, investedBalls, hasHit, store\)/);
 assert.match(runningPanelInputBallsBlock, /return inputBalls > 0 \? Math\.round\(inputBalls\) : null;/);
@@ -1583,6 +1614,7 @@ new vm.Script(`
     return Number.isFinite(n) ? n : null;
   }
   function nowIso() { return "2026-08-22T00:00:00.000Z"; }
+  const data = { machines: [] };
   const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
   ${normalizeHitsBlock}
   function normalizeConsumedBallsSource(value) { return value === "tray" || value === "taps" ? value : null; }
@@ -1816,7 +1848,55 @@ new vm.Script(`
     return { spins, consumed, rate: Number((spins / consumed * 250).toFixed(1)) };
   });
   globalThis.s2HoldZero = deriveSession({ ...s2TwoSegments, segments: s2TwoSegments.segments.map((segment) => ({ ...segment, holdSpins: 0 })) });
+  // S4/A-1: 区間①20回転/200玉＝25.0 → 時短抜け50 → 現在70回転・消費375玉
+  const s4SecondLap = {
+    storeId: "s",
+    status: "active",
+    startSpin: 0,
+    currentSpin: 70,
+    startMochidama: 2500,
+    hitSpin: 20,
+    hitCount: 1,
+    hits: [{ roundTypeId: "r10", at: "2026-09-03T10:10:00", segmentId: "seg_a" }],
+    hitVia: "normal",
+    hitRemainBalls: null,
+    hitTrackedBalls: null,
+    endTotalBalls: null,
+    zanhoryuBalls: 0,
+    yutimeEnterBalls: null,
+    investments: [
+      { source: "mochidama", amount: 200, phase: "normal", spinAt: 10, time: "10:00", segmentId: "seg_a" },
+      { source: "mochidama", amount: 375, phase: "normal", spinAt: 60, time: "10:30", segmentId: "seg_b" }
+    ],
+    segments: [
+      { id: "seg_a", kind: "normal", source: "migrated", startSpin: 0, startAt: "10:00", startTrackedBalls: 2500, holdSpins: 0, endSource: "hit", endSpin: 20, endAt: null, endRemainBalls: null, endTrackedBalls: null },
+      { id: "seg_b", kind: "normal", source: "user", startSpin: 50, startAt: "10:20", startTrackedBalls: 2300, holdSpins: 5, endSource: null, endSpin: null, endAt: null, endRemainBalls: null, endTrackedBalls: null }
+    ]
+  };
+  globalThis.s4SecondLapSpins = runningSpinCount(s4SecondLap);
+  globalThis.s4SecondLapBalls = runningNormalInputBalls(s4SecondLap);
+  globalThis.s4SecondLapRate = runningPanelRate(s4SecondLap);
+  globalThis.s4SecondLapDerived = deriveSession(s4SecondLap);
+  globalThis.s4SecondLapSegments = s4SecondLap.segments.map((segment) => {
+    const spins = segmentPlayedSpins(segment, s4SecondLap, null);
+    const consumed = segmentTapConsumedBalls(segment, s4SecondLap, {});
+    return { spins, consumed, rate: Number((spins / consumed * 250).toFixed(1)) };
+  });
+  // 回帰: 完了済みで当選のある区間が閉じていないセッションは従来どおり回転率を出さない
+  globalThis.s4CompletedRate = deriveSession({ ...s4SecondLap, status: "completed", endSpin: 90 }).rate;
 `).runInContext(runningRateContext);
+// S4/A-1: 2周目以降も回転率が伸びる（区間②10.0 / セッション合計15.2）
+assert.equal(runningRateContext.s4SecondLapSpins, 35);
+assert.equal(runningRateContext.s4SecondLapBalls, 575);
+assert.equal(Number(runningRateContext.s4SecondLapRate.toFixed(1)), 15.2);
+assert.equal(runningRateContext.s4SecondLapDerived.normalSpins, 35);
+assert.equal(runningRateContext.s4SecondLapDerived.consumedBalls, 575);
+assert.equal(Number(runningRateContext.s4SecondLapDerived.rate.toFixed(1)), 15.2);
+assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s4SecondLapSegments)), [
+  { spins: 20, consumed: 200, rate: 25 },
+  { spins: 15, consumed: 375, rate: 10 }
+]);
+assert.equal(runningRateContext.s4CompletedRate, null);
 assert.equal(runningRateContext.afterHitSpinCount, 70);
 assert.equal(runningRateContext.afterHitRate, 70);
 assert.equal(runningRateContext.afterHitInvestments, 1);
@@ -1926,9 +2006,10 @@ assert.match(renderRunning, /class="primary\$\{selectedCanUse \? "" : " is-low"\
 assert.match(renderRunning, /メモ\$\{\(machine\?\.memoEntries \|\| \[\]\)\.length > 0 \? "あり" : ""\}/);
 assert.match(renderRunning, /id="editActiveBtn">記録の修正・削除<\/button>/);
 assert.match(renderRunning, /runningExpectationHtml\(session, machine, liveRate, balances\)/);
-assert.match(renderRunning, /const normalInputBalls = runningNormalInputBalls\(session\);/);
+assert.match(renderRunning, /const normalInputBalls = runningNormalInputBalls\(session, derived\);/);
 assert.match(renderRunning, /<p class="running-normal-summary">通常時合計 \$\{totalSpins !== null && normalInputBalls !== null \? `\$\{numberText\(totalSpins, 0\)\}回転 \/ \$\{numberText\(normalInputBalls, 0\)\}玉` : "-"\}<\/p>/);
-assert.match(renderRunning, /総投入の内訳: 持ち玉\$\{numberText\(totals\.mochidamaBalls, 0\)\}玉・再プレ\$\{numberText\(totals\.saipureiBalls, 0\)\}玉・現金\$\{numberText\(totals\.cashYen, 0\)\}円/);
+assert.match(renderRunning, /消費玉数の内訳: 持ち玉\$\{numberText\(totals\.mochidamaBalls, 0\)\}玉・再プレ\$\{numberText\(totals\.saipureiBalls, 0\)\}玉・現金\$\{numberText\(totals\.cashYen, 0\)\}円/);
+assert.ok(!html.includes('総投入'));
 assert.doesNotMatch(renderRunning, /累計投入 \$\{numberText\(panelInputBalls, 0\)\}玉 \/ 累計回転/);
 assert.doesNotMatch(renderRunning, /<span>内訳: 持ち玉/);
 assert.doesNotMatch(section('class="running-live-row"', '<p class="running-normal-summary"'), /通常時合計/);
@@ -2529,7 +2610,8 @@ assert.match(openSessionEditor, /"yutimeEnterBalls", "yutimeEnterSpin", "endTota
 assert.match(openSessionEditor, /if \(Array\.isArray\(session\.hits\) && session\.hits\.length\) syncSessionHitTotals\(session\);\s*else presetHitCountFromCounters\(session\);/);
 assert.match(deriveSession, /const normalSegments = segments\.filter\(\(segment\) => segment\.kind === "normal"\);/);
 assert.match(deriveSession, /const rawNormalSpins = sumSegmentValues\(normalSegments\.map\(\(segment\) => segmentPlayedSpins\(segment, session, preset\)\)\);/);
-assert.match(tapModeConsumedBlock, /function segmentEndSpinForRate\(segment, session, preset = null\)[\s\S]*?if \(session\?\.hitVia === "yutime" \|\| normalizeNumber\(session\?\.yutimeEnterBalls\) !== null\) \{\s*return yutimeEnterSpinForRate\(session, preset\);\s*\}\s*return normalizeNumber\(session\?\.endSpin\);/);
+// S4/A-1: 閉じていない区間は当選の有無に関わらず現在回転数で閉じる。完了済みは従来どおり
+assert.match(tapModeConsumedBlock, /function segmentEndSpinForRate\(segment, session, preset = null\)[\s\S]*?if \(session\?\.status !== "completed"\) \{[\s\S]*?return normalizeNumber\(session\?\.currentSpin\) \?\? normalizeNumber\(session\?\.endSpin\);\s*\}\s*if \(Number\(session\?\.hitCount \|\| 0\) > 0\) return null;\s*if \(session\?\.hitVia === "yutime" \|\| normalizeNumber\(session\?\.yutimeEnterBalls\) !== null\) \{\s*return yutimeEnterSpinForRate\(session, preset\);\s*\}\s*return normalizeNumber\(session\?\.endSpin\);/);
 assert.match(yutimeEnterSpinForRate, /const explicitSpin = normalizeNumber\(session\.yutimeEnterSpin\);\s*if \(explicitSpin !== null\) return explicitSpin;/);
 assert.match(yutimeEnterSpinForRate, /const inferred = counterTenjo - prevSpin;\s*return inferred >= 0 \? inferred : null;/);
 assert.ok(design.includes('schema 23 Machine 1件サンプル'));
@@ -2723,10 +2805,12 @@ assert.ok(design.includes('schema は 30 とする'));
 assert.ok(design.includes('B95では schema 29 から 30'));
 assert.ok(html.includes('function machineContextLine(target)'));
 assert.ok(html.includes('function runningStateBadge(session)'));
-assert.ok(html.includes('当り後（時短消化中）'));
+assert.ok(!html.includes('当り後（時短消化中）'));
+assert.ok(!html.includes('リセット前'));
+assert.ok(!html.includes('spin-note'));
 assert.ok(html.includes('id="machineEvContext"'));
-assert.equal(html.split('${machineContextLine(session)}').length - 1, 9);
-assert.equal((html.match(/（実機：/g) || []).length, 13);
+assert.equal(html.split('${machineContextLine(session)}').length - 1, 11);
+assert.equal((html.match(/（実機：/g) || []).length, 14);
 assert.ok(!html.includes('遊タイム中の投資として記録されます'));
 // B91: 残保留込みモデル
 assert.ok(design.includes('B91 残保留込みの引き戻し計算'));
@@ -3538,5 +3622,90 @@ assert.match(renderLabelFiltersBlock, /\$\{baselineChipsHtml\(baselinePresetIds\
 assert.match(renderLabelFiltersBlock, /openNetBallsQuickForm\(button\.dataset\.baselinePreset\)/);
 assert.doesNotMatch(renderLabelFiltersBlock, /presetNetBallsPerWin\("umi-sp5"\)|presetJitanBallsPerSpin\("umi-sp5"|presetYutimeBallsPerSpin\("umi-sp5"\)/);
 assert.doesNotMatch(renderLabelFiltersBlock, /openNetBallsQuickForm\("umi-sp5"\)/);
+
+// ============ S4: 実機テストで出た13件の修正 ============
+
+// A-2: 投資タップの取り消し。トーストの「元に戻す」と同じ削除処理を共有する
+assert.match(renderRunning, /id="undoInvestBtn"\$\{undoableInvestment \? "" : " disabled"\}>取り消し<\/button>/);
+assert.match(renderRunning, /const undoableInvestment = lastInvestmentIndex\(session\) >= 0;/);
+assert.match(renderRunning, /undoInvestButton\.addEventListener\("click", \(\) => undoLastInvestment\(session\)\)/);
+assert.match(deleteInvestmentBlock, /function lastInvestmentIndex\(session\)/);
+assert.match(deleteInvestmentBlock, /function undoLastInvestment\(session\)[\s\S]*?deleteInvestment\(session, index, "直前の投資を取り消しました"\);/);
+assert.match(addInvestment, /if \(index >= 0\) deleteInvestment\(session, index, "直前の投資を取り消しました"\);/);
+assert.doesNotMatch(addInvestment, /session\.investments\.splice\(index, 1\);/);
+
+// C-8: 時短抜けで投資元を持ち玉へ切り替える（持ち玉0なら切り替えない）
+assert.match(hitResetPrompt, /const switched = switchInvestmentSourceToMochidama\(session\);/);
+assert.match(hitResetPrompt, /投資元を持ち玉に切り替えました/);
+assert.match(hitResetPrompt, /if \(runningSource === "mochidama"\) return false;/);
+assert.match(hitResetPrompt, /if \(mochidama === null \|\| mochidama <= 0\) return false;/);
+
+// B-1: 大当たり履歴の導線
+assert.match(resultBlock, /id="resultHitHistoryBtn">大当たり履歴<\/button>/);
+assert.match(resultBlock, /openHitHistory\(session, \{ back: \(\) => openSessionResult\(session\.id\) \}\)/);
+assert.match(hitResetPrompt, /openHitHistory\(session, \{ back: \(\) => openHitResetPrompt\(session\) \}\)/);
+assert.match(hitHistoryBlock, /openModal\("大当たり履歴"/);
+assert.match(hitHistoryBlock, /data-edit-hit="\$\{row\.index\}"/);
+assert.match(hitHistoryBlock, /data-delete-hit="\$\{row\.index\}"/);
+// 削除は二段確認
+assert.match(hitHistoryBlock, /if \(!confirm\("この当選を削除しますか？"\)\) return;\s*if \(!confirm\("元に戻せません。削除を確定しますか？"\)\) return;/);
+// 修正できるのは R種別・当選カウンター・累計獲得出玉の3項目
+assert.match(hitHistoryBlock, /id="editHitRoundType"/);
+assert.match(hitHistoryBlock, /id="editHitSpin"/);
+assert.match(hitHistoryBlock, /id="editHitActualBalls"/);
+// 累計獲得出玉の修正は B88 の差分方式で今回分を出し直す
+assert.match(hitHistoryBlock, /actualBallsFromCumulativeInput\(session, byId\("editHitActualBalls"\)\.value, index\)/);
+assert.match(hitHistoryBlock, /cumulativeActualBallsBefore\(session, index \+ 1\)/);
+// 削除・修正のあとは合計を作り直す
+assert.match(hitHistoryBlock, /function applyHitTotals\(session\)[\s\S]*?session\.hitCount = 0;\s*session\.totalRounds = 0;/);
+assert.match(hitHistoryBlock, /removeHitRecord\(session, index\)/);
+
+// §G: 転記用コピーはタップ下限44px
+assert.match(html, /\.transfer-summary button\[data-copy-transfer\] \{\s*min-height: 44px;/);
+
+// B-1: 区間ごとのグルーピングと累計獲得出玉の積み上げ
+const hitHistoryContext = vm.createContext({
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  numberText(value, fallback = '未入力') {
+    const n = hitHistoryContext.normalizeNumber(value);
+    return n === null ? fallback : n.toLocaleString('ja-JP');
+  },
+  sessionSegments(session) {
+    return session.segments;
+  }
+});
+new vm.Script(`
+  ${hitHistoryBlock}
+  const session = {
+    segments: [
+      { id: 'seg_a', kind: 'normal', startSpin: 0 },
+      { id: 'seg_b', kind: 'normal', startSpin: 50 }
+    ],
+    hits: [
+      { roundTypeId: 'r4', hitSpin: 20, actualBalls: 1380, segmentId: 'seg_a' },
+      { roundTypeId: 'r4', hitSpin: 20, actualBalls: 520, segmentId: 'seg_a' },
+      { roundTypeId: 'r4', hitSpin: 145, actualBalls: 900, segmentId: 'seg_b' },
+      { roundTypeId: 'r6', hitSpin: 145, actualBalls: 600, segmentId: 'seg_b' }
+    ]
+  };
+  globalThis.groups = hitHistoryGroups(session);
+  globalThis.labels = segmentHistoryLabels(session).map((entry) => entry.label);
+  // segmentId を持たない旧データは当選カウンターで寄せる
+  globalThis.legacySegmentId = resolveHitSegmentId(session, { hitSpin: 120 });
+  globalThis.noBallsRows = hitHistoryRows({ segments: session.segments, hits: [{ roundTypeId: 'r4', hitSpin: 20, segmentId: 'seg_a' }] });
+`).runInContext(hitHistoryContext);
+assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.labels)), ['区間①（打ち始めから）', '区間②（時短抜け50から）']);
+// 新しい区間が上
+assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups.map((group) => group.label))), ['区間②（時短抜け50から）', '区間①（打ち始めから）']);
+assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups.map((group) => group.rows.map((row) => row.number)))), [[3, 4], [1, 2]]);
+// 累計獲得出玉は古い順の積み上げ
+assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups[1].rows.map((row) => row.cumulativeBalls))), [1380, 1900]);
+assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups[0].rows.map((row) => row.cumulativeBalls))), [2800, 3400]);
+assert.equal(hitHistoryContext.legacySegmentId, 'seg_b');
+assert.equal(hitHistoryContext.noBallsRows[0].cumulativeBalls, null);
 
 console.log('yutime-v3 tests passed');
