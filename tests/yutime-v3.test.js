@@ -447,6 +447,9 @@ assert.match(hitRoundSummaryHtml, /class="hit-round-result"/);
 assert.doesNotMatch(hitRoundSummaryHtml, /R数ベース出玉/);
 assert.doesNotMatch(hitRoundSummaryHtml, /hitRoundBasedPayout/);
 assert.match(hitRoundSummaryHtml, /const ballsPerRound = sessionBallsPerRound\(session, presetId\);/);
+// 当選ごとの実測合計は cumulativeActualBallsBeforeHit の1本だけ（同じ計算を2つ持たない）
+assert.match(hitRoundSummaryHtml, /const actualPayout = cumulativeActualBallsBeforeHit\(session\);/);
+assert.doesNotMatch(html, /actualHitBallsTotal/);
 // 分子は戦果報告の「獲得出玉」と同じ sessionActualBallsTotal に一本化する
 assert.match(hitRoundSummaryHtml, /const actualPayout = sessionActualBallsTotal\(session\);/);
 // 分母はリザルトの1R平均と同じ totalRoundsForPreset に一本化する
@@ -3732,7 +3735,7 @@ const commitMorningCurrent = section('function commitMorningCurrent', 'function 
 const mapEditorCloseGuard = section('function mapIslandsSignature', 'function mapManagementHtml');
 const renderMapEditorBlock = section('function renderMapEditor', 'function mapIslandsSignature');
 const persistQuietToast = section('function persistWithQuietToast', 'function automaticLabelsForDate');
-const ballsPerRoundHelpers = section('function actualHitBallsTotal', 'function openHitResetPrompt');
+const ballsPerRoundHelpers = section('function sessionBallsPerRound', 'function openHitResetPrompt');
 
 // S5/§0: 閉じる前の関門。false を返したら閉じない
 assert.match(closeModalBlock, /if \(modalGuard && modalGuard\(\) === false\) return;/);

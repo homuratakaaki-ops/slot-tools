@@ -6617,7 +6617,7 @@
       const latestHit = hits.at(-1);
       const latestRounds = roundCountFromRoundType(roundTypeById(presetId, latestHit?.roundTypeId));
       const latestActualBalls = normalizeNumber(latestHit?.actualBalls);
-      const actualPayout = actualHitBallsTotal(hits);
+      const actualPayout = cumulativeActualBallsBeforeHit(session);
       const ballsPerRound = sessionBallsPerRound(session, presetId);
       const breakdownLine = (label, breakdown, countLabel = "") => `<p class="hint">${label} ${breakdown.rows.length ? breakdown.rows.join(" ／ ") : "-"}（${countLabel}${breakdown.hitCount.toLocaleString("ja-JP")}回・${breakdown.totalRounds.toLocaleString("ja-JP")}R）</p>`;
       return `
@@ -6635,13 +6635,6 @@
     }
 
     // S4/C-5・S5/§4: 実測の獲得出玉合計 ÷ 合計R。理論値（R数×公称玉数）では代用しない。
-    function actualHitBallsTotal(hits) {
-      return (Array.isArray(hits) ? hits : [])
-        .map((hit) => normalizeNumber(hit.actualBalls))
-        .filter((value) => value !== null && value > 0)
-        .reduce((sum, value) => sum + value, 0);
-    }
-
     // 分子は戦果報告の「獲得出玉」と同じ sessionActualBallsTotal（ヤメ時の累計入力が本線・B90）。
     // 分母はリザルトの1R平均と同じ totalRoundsForPreset（当選履歴が無ければヤメ入力の合計R数）。
     function sessionBallsPerRound(session, presetId) {
