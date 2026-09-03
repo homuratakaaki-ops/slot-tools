@@ -1634,6 +1634,62 @@
       word-break: break-word;
     }
 
+    .session-row { cursor: pointer; }
+
+    .result-head {
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.5;
+      word-break: break-word;
+    }
+
+    .result-block { margin-top: 12px; }
+
+    .result-block-title {
+      font-size: 12px;
+      font-weight: 900;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+
+    .result-headline {
+      font-size: 26px;
+      font-weight: 900;
+      line-height: 1.2;
+    }
+
+    .result-line {
+      font-size: 13px;
+      line-height: 1.6;
+      word-break: break-word;
+    }
+
+    .result-table-wrap { overflow-x: auto; }
+
+    .result-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .result-table th,
+    .result-table td {
+      border: 1px solid var(--line);
+      padding: 6px 8px;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    /* 320px では項目名を折り返して収める。数値列だけ nowrap を保つ */
+    .result-table th:first-child,
+    .result-table td:first-child { text-align: left; white-space: normal; }
+
+    .result-seg {
+      font-size: 13px;
+      line-height: 1.7;
+      word-break: break-word;
+    }
+
     .hidden { display: none !important; }
 
     .toast {
@@ -4233,10 +4289,7 @@
       let lastDate = "";
       els.sessionList.innerHTML = sortedSessions.map((session) => {
         const machine = data.machines.find((item) => item.id === session.machineId);
-        const sourceMachine = carryoverSourceMachine(session);
-        const sameMachineCarryover = sourceMachine && sourceMachine.id === machine?.id;
         const derived = derivedById.get(session.id);
-        const misses = missingFields(session);
         const dateHeading = session.date !== lastDate
           ? `<div class="ledger-day-heading">― ${escapeHtml(shortDate(session.date))} の履歴 ―</div>`
             + ledgerDaySummaryHtml(ledgerDaySummary(dayEntries.get(String(session.date || ""))))
@@ -4245,36 +4298,23 @@
         const daiLabel = machine?.daiNo ? `${machine.daiNo}番` : "台番不明";
         const title = `${machine?.modelName || "機種未設定"}　${daiLabel}　${session.startTime || "--:--"}`;
         return `${dateHeading}
-          <details class="row-card session-details" data-session-row="${escapeHtml(session.id)}">
-            <summary>
-              <div class="row-card-head">
-                <div>
-                  <strong class="session-summary-line"><span>${escapeHtml(title)}</span></strong>
-                  ${sessionFiguresHtml(derived.profitYen, startEvYenById.get(session.id))}
-                </div>
-                <span class="badge ${session.status === "completed" ? "good" : "dark"}">${session.status === "completed" ? "確定" : "稼働中"}</span>
+          <div class="row-card session-row" data-session-row="${escapeHtml(session.id)}" data-open-result="${escapeHtml(session.id)}" role="button" tabindex="0">
+            <div class="row-card-head">
+              <div>
+                <strong class="session-summary-line"><span>${escapeHtml(title)}</span></strong>
+                ${sessionFiguresHtml(derived.profitYen, startEvYenById.get(session.id))}
               </div>
-            </summary>
-            <div class="status-line" style="margin-top:8px">
-              ${misses.length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>'}
-              ${automaticLabelsForDate(session.date).map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
-              ${session.labels.map((label) => `<span class="badge">${escapeHtml(label)}</span>`).join("")}
-              ${derived.isEstimatedRate || derived.isEstimatedPayout ? '<span class="badge warn">概算</span>' : ""}
-              ${sourceMachine ? `<span class="badge">${sameMachineCarryover ? "⇐ 同台続行" : `⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き`}</span>` : ""}
+              <span class="badge ${session.status === "completed" ? "good" : "dark"}">${session.status === "completed" ? "確定" : "稼働中"}</span>
             </div>
-            <small>期待値の内訳 ${escapeHtml(startEvBasisText(session.startEv))}</small><br>
-            <small>差玉 ${numberText(derived.diffBalls, "-")} / 回転率 ${rateText(derived)} /250玉 / 大当たり ${numberText(session.hitCount, "-")}回</small>
-            ${session.status === "completed" ? transferSummaryHtml(session) : ""}
-            <div class="modal-actions" style="margin-top:8px">
-              <button class="small" data-edit-session="${escapeHtml(session.id)}">記録の修正・削除</button>
-            </div>
-          </details>`;
+          </div>`;
       }).join("");
-      els.sessionList.querySelectorAll("[data-edit-session]").forEach((button) => {
-        button.addEventListener("click", () => openSessionEditor(button.dataset.editSession));
-      });
-      els.sessionList.querySelectorAll("[data-copy-transfer]").forEach((button) => {
-        button.addEventListener("click", () => copyTransferSummary(button.dataset.copyTransfer));
+      els.sessionList.querySelectorAll("[data-open-result]").forEach((card) => {
+        card.addEventListener("click", () => openSessionResult(card.dataset.openResult));
+        card.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          openSessionResult(card.dataset.openResult);
+        });
       });
     }
 
@@ -7353,6 +7393,241 @@
       });
     }
 
+    // S3b: リザルトのヘッダ用。session.date（YYYY-MM-DD）から組むのでTZに依存しない。
+    function longDateText(dateValue) {
+      const parts = String(dateValue || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (!parts) return dateValue || "-";
+      const year = Number(parts[1]);
+      const month = Number(parts[2]);
+      const day = Number(parts[3]);
+      const weekday = ["日", "月", "火", "水", "木", "金", "土"][new Date(year, month - 1, day).getDay()];
+      return `${year}年${month}月${day}日（${weekday}）`;
+    }
+
+    // S3b: リザルトのブロック1〜3。値はすべて既存の算出をそのまま使う（新しい計算をしない）。
+    function sessionResultSummary(session) {
+      const machine = data.machines.find((item) => item.id === session.machineId) || null;
+      const derived = deriveSession(session, machine);
+      const transfer = transferSummaryForSession(session);
+      const startEv = normalizeStartEv(session.startEv);
+      const presetId = startEv?.presetId || normalizeMachinePresetId(machine);
+      const workedHours = sessionWorkedHours(session);
+      const hourlyYen = derived.profitYen !== null && workedHours !== null && workedHours > 0
+        ? derived.profitYen / workedHours
+        : null;
+      // 回転率は大きいほど良い。実測 − 想定 で符号を取る（想定18.0・実測18.5 → +0.5）
+      const rateDiff = startEv && derived.rate !== null ? derived.rate - startEv.usedRate : null;
+      const evDiffYen = startEv && derived.profitYen !== null ? derived.profitYen - startEv.evYen : null;
+      return {
+        machine, derived, transfer, startEv, presetId, workedHours, hourlyYen, rateDiff, evDiffYen,
+        remainingSpins: startEv ? remainingSpinsFromCounterSpin(startEv.effectiveSpin, presetId) : null,
+        averageRoundBalls: transfer.averageRoundBalls
+      };
+    }
+
+    // S3b/G4: 区間ごとの内訳。区間が1つだけなら空配列（＝ブロックを出さない）。
+    // 通常区間の消費玉は、S2で通常区間が複数のときに使う区間別の式をそのまま使う。
+    // 通常区間が1つのセッション（＋遊タイム区間）では、通常区間の消費玉はセッションの値と一致する。
+    function segmentBreakdownRows(session, derived, machine) {
+      const segments = sessionSegments(session);
+      if (segments.length < 2) return [];
+      const store = storeById(session.storeId);
+      const preset = machine ? presetById(normalizeMachinePresetId(machine)) : null;
+      const multiNormal = segments.filter((segment) => segment.kind === "normal").length > 1;
+      let normalIndex = 0;
+      return segments.map((segment, index) => {
+        const isNormal = segment.kind === "normal";
+        if (isNormal) normalIndex += 1;
+        const startLabel = !isNormal ? "遊タイム" : (normalIndex === 1 ? "打ち始め" : "時短抜け");
+        const endLabel = segment.endSource === "hit" ? "当選"
+          : segment.endSource === "yutime" ? "遊タイム突入"
+          : segment.endSource === "end" ? "ヤメ"
+          : "継続中";
+        const holdSpins = Math.max(0, Number(segment.holdSpins || 0));
+        const spins = isNormal ? segmentPlayedSpins(segment, session, preset) : null;
+        const consumed = isNormal
+          ? (multiNormal ? segmentTapConsumedBalls(segment, session, store) : derived.consumedBalls)
+          : derived.yutimeLoss;
+        return {
+          index: index + 1,
+          kind: segment.kind,
+          startLabel,
+          startSpin: normalizeNumber(segment.startSpin),
+          endLabel,
+          endSpin: normalizeNumber(segment.endSpin),
+          holdSpins,
+          spins: spins !== null && spins < 0 ? null : spins,
+          consumed: consumed === null || consumed === undefined ? null : Math.round(consumed),
+          rate: spins !== null && spins >= 0 && consumed > 0 ? spins / consumed * 250 : null
+        };
+      });
+    }
+
+    // S3b: 積み上げの集計軸キー。プリセットが解決できない台は機種名で束ねる。
+    function resultScopeKey(machine) {
+      const presetId = normalizeMachinePresetId(machine);
+      return presetId || String(machine?.modelName || "");
+    }
+
+    // S3b: 同一機種の確定済みセッションと、同一店×同一機種の2軸。
+    function resultScopeSessions(session) {
+      const machineOf = (item) => data.machines.find((entry) => entry.id === item.machineId) || null;
+      const key = resultScopeKey(machineOf(session));
+      const model = key
+        ? data.sessions.filter((item) => item.status === "completed" && resultScopeKey(machineOf(item)) === key)
+        : [];
+      return { key, model, store: model.filter((item) => item.storeId === session.storeId) };
+    }
+
+    // S3b: 実働・期待値合計・実収支合計と、それぞれの時給。判定は出さない。
+    // 実働はB96の日別サマリーと同じ算出（時刻欠損は除外、日またぎは0扱い）。
+    function resultAggregate(sessions) {
+      const list = Array.isArray(sessions) ? sessions : [];
+      let workedHours = null;
+      let evYen = null;
+      let profitYen = null;
+      list.forEach((session) => {
+        const machine = data.machines.find((item) => item.id === session.machineId) || null;
+        const derived = deriveSession(session, machine);
+        const startEv = normalizeStartEv(session.startEv);
+        const hours = sessionWorkedHours(session);
+        if (hours !== null) workedHours = (workedHours ?? 0) + Math.max(0, hours);
+        if (startEv) evYen = (evYen ?? 0) + startEv.evYen;
+        if (derived.profitYen !== null) profitYen = (profitYen ?? 0) + derived.profitYen;
+      });
+      const hourly = (value) => value !== null && workedHours !== null && workedHours > 0 ? value / workedHours : null;
+      return {
+        count: list.length,
+        workedHours,
+        evYen,
+        profitYen,
+        diffYen: profitYen !== null && evYen !== null ? profitYen - evYen : null,
+        evHourlyYen: hourly(evYen),
+        profitHourlyYen: hourly(profitYen),
+        rate: aggregateStats(list).rate
+      };
+    }
+
+    function openSessionResult(sessionId) {
+      const session = findSession(sessionId);
+      if (!session) return;
+      const summary = sessionResultSummary(session);
+      const { machine, derived, startEv } = summary;
+      const store = storeById(session.storeId);
+      const sourceMachine = carryoverSourceMachine(session);
+      const sameMachineCarryover = sourceMachine && sourceMachine.id === machine?.id;
+      const labels = [...automaticLabelsForDate(session.date), ...(Array.isArray(session.labels) ? session.labels : [])];
+      const headParts = [
+        longDateText(session.date),
+        labels.length ? labels.join("・") : "",
+        store?.name || "店未設定",
+        machine?.daiNo ? `台${machine.daiNo}` : "台不明",
+        machine?.modelName || "機種未設定"
+      ].filter(Boolean);
+      const statusBadges = [
+        missingFields(session).length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>',
+        derived.isEstimatedRate || derived.isEstimatedPayout ? '<span class="badge warn">概算</span>' : "",
+        sourceMachine ? `<span class="badge">${sameMachineCarryover ? "⇐ 同台続行" : `⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き`}</span>` : ""
+      ].join("");
+      const diffRateText = summary.rateDiff === null ? "-" : `${summary.rateDiff >= 0 ? "+" : ""}${summary.rateDiff.toFixed(1)}`;
+      const actualRateText = derived.rate === null || derived.rate === undefined ? "-" : derived.rate.toFixed(1);
+      const startEvHtml = startEv ? `
+        <div class="result-block">
+          <div class="result-block-title">打つ前の判断（記録）</div>
+          <div class="result-line">開始カウンター ${escapeHtml(startEv.effectiveSpin)} ／ 遊タイムまで残り ${escapeHtml(summary.remainingSpins ?? "-")}回転</div>
+          <div class="result-line">想定回転率 ${escapeHtml(startEv.usedRate.toFixed(1))}（${escapeHtml(startEv.rateSource || "-")}）／ 開始期待値 ${escapeHtml(yenText(startEv.evYen))}</div>
+        </div>
+        <div class="result-block">
+          <div class="result-block-title">想定と実測のズレ</div>
+          <div class="result-table-wrap">
+            <table class="result-table">
+              <thead><tr><th>項目</th><th>想定</th><th>実測</th><th>差</th></tr></thead>
+              <tbody>
+                <tr><td>回転率</td><td>${escapeHtml(startEv.usedRate.toFixed(1))}</td><td>${escapeHtml(actualRateText)}</td><td>${escapeHtml(diffRateText)}</td></tr>
+                <tr><td>期待値との差</td><td>${escapeHtml(yenText(startEv.evYen))}</td><td>${escapeHtml(yenText(derived.profitYen))}</td><td>${escapeHtml(yenText(summary.evDiffYen))}</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <p class="hint">1回のブレです。判断の良し悪しは下の通算で見ます。</p>
+        </div>` : '<p class="hint">開始時の期待値は記録されていません。</p>';
+      const segmentRows = segmentBreakdownRows(session, derived, machine);
+      const normalMarks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
+      let normalRowIndex = 0;
+      const segmentHtml = segmentRows.length ? `
+        <div class="result-block">
+          <div class="result-block-title">区間ごとの内訳</div>
+          ${segmentRows.map((row) => {
+            const startSpin = row.startSpin === null ? "-" : row.startSpin.toLocaleString("ja-JP");
+            const endSpin = row.endSpin === null ? "-" : row.endSpin.toLocaleString("ja-JP");
+            const consumed = row.consumed === null ? "-" : row.consumed.toLocaleString("ja-JP");
+            if (row.kind === "yutime") {
+              return `<div class="result-seg">遊タイム ${startSpin} → ${escapeHtml(row.endLabel)} ${endSpin}　消費 ${consumed}玉</div>`;
+            }
+            const mark = normalMarks[normalRowIndex] || String(normalRowIndex + 1);
+            normalRowIndex += 1;
+            const spins = row.spins === null ? "-" : row.spins.toLocaleString("ja-JP");
+            const holdText = row.holdSpins > 0 ? `（保留${row.holdSpins}控除後）` : "";
+            const rate = row.rate === null ? "-" : row.rate.toFixed(1);
+            return `<div class="result-seg">区間${mark}　${escapeHtml(row.startLabel)} ${startSpin} → ${escapeHtml(row.endLabel)} ${endSpin}　${spins}回転${holdText} / ${consumed}玉 / ${rate}回転</div>`;
+          }).join("")}
+        </div>` : "";
+      const scopes = resultScopeSessions(session);
+      const modelAggregate = resultAggregate(scopes.model);
+      const storeAggregate = resultAggregate(scopes.store);
+      const storeRateText = storeAggregate.rate === null || storeAggregate.rate === undefined ? "-" : storeAggregate.rate.toFixed(1);
+      const aggregateHtml = `
+        <div class="result-block">
+          <div class="result-block-title">これまでの積み上げ</div>
+          <div class="result-line">この機種の積み上げ（${modelAggregate.count}台）</div>
+          <div class="result-line">実働 ${escapeHtml(hourText(modelAggregate.workedHours))} ／ 期待値合計 ${escapeHtml(yenText(modelAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(modelAggregate.profitYen))} ／ 差 ${escapeHtml(yenText(modelAggregate.diffYen))}</div>
+          <div class="result-line">期待値時給 ${escapeHtml(yenText(modelAggregate.evHourlyYen))} ／ 実収支時給 ${escapeHtml(yenText(modelAggregate.profitHourlyYen))}</div>
+          <div class="result-line" style="margin-top:8px">この店 × この機種（${storeAggregate.count}台）</div>
+          <div class="result-line">実働 ${escapeHtml(hourText(storeAggregate.workedHours))} ／ 平均回転率 ${escapeHtml(storeRateText)}</div>
+          <div class="result-line">期待値合計 ${escapeHtml(yenText(storeAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(storeAggregate.profitYen))}</div>
+          <div class="result-line">期待値時給 ${escapeHtml(yenText(storeAggregate.evHourlyYen))} ／ 実収支時給 ${escapeHtml(yenText(storeAggregate.profitHourlyYen))}</div>
+        </div>`;
+      const html = `
+        <div class="result-head">
+          <div>${escapeHtml(headParts.join(" ／ "))}</div>
+          <div class="status-line">${statusBadges}</div>
+        </div>
+        <div class="result-block">
+          <div class="result-block-title">今回の結果</div>
+          <div class="result-headline">${escapeHtml(yenText(derived.profitYen))}</div>
+          <div class="result-line">実測回転率 ${escapeHtml(rateText(derived))} ／ 大当たり ${escapeHtml(numberText(session.hitCount, "-"))}回 ／ 1R平均 ${escapeHtml(transferOptionalRoundAverageText(summary.averageRoundBalls))}</div>
+          <div class="result-line">実働 ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))}</div>
+        </div>
+        ${startEvHtml}
+        ${segmentHtml}
+        ${aggregateHtml}
+        <div class="result-block">
+          ${transferSummaryHtml(session)}
+        </div>
+        <div class="modal-actions">
+          <button class="ghost" data-close>実戦一覧に戻る</button>
+          <button id="resultEditBtn">記録の修正</button>
+          <button class="danger" id="resultDeleteBtn">記録の削除</button>
+        </div>
+      `;
+      openModal("実戦リザルト", "", html);
+      els.modalBody.querySelectorAll("[data-copy-transfer]").forEach((button) => {
+        button.addEventListener("click", () => copyTransferSummary(button.dataset.copyTransfer));
+      });
+      byId("resultEditBtn").addEventListener("click", () => {
+        closeModal();
+        openSessionEditor(session.id);
+      });
+      byId("resultDeleteBtn").addEventListener("click", () => {
+        if (!confirm("削除しますか？")) return;
+        if (!confirm("元に戻せません。削除を確定しますか？")) return;
+        data.sessions = data.sessions.filter((item) => item.id !== session.id);
+        if (activeSessionId === session.id) activeSessionId = null;
+        if (!persistWithToast("記録を削除しました")) return;
+        closeModal();
+        renderAll();
+      });
+    }
+
     function transferSummaryForSession(session) {
       const totals = investmentTotals(session);
       const store = storeById(session.storeId);
@@ -7782,6 +8057,7 @@
           <button class="ghost" data-close>閉じる</button>
           <button id="summaryCarryoverBtn">この持ち玉で次の台へ</button>
           <button id="summarySameMachineBtn">同じ台で続行</button>
+          <button id="summaryResultBtn">リザルトを見る</button>
           <button class="primary" id="summaryLedgerBtn">履歴で見る</button>
         </div>
       `);
@@ -7791,6 +8067,10 @@
       });
       byId("summaryCarryoverBtn").addEventListener("click", () => startCarryover(session));
       byId("summarySameMachineBtn").addEventListener("click", () => openSameMachineContinuePrompt(session));
+      byId("summaryResultBtn").addEventListener("click", () => {
+        closeModal();
+        openSessionResult(session.id);
+      });
       byId("summaryLedgerBtn").addEventListener("click", () => {
         closeModal();
         showView("ledgerView");

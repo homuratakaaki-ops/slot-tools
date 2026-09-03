@@ -23,6 +23,7 @@ const openEndWizardBlock = section('function openEndWizard', 'function presetHit
 const runEndWizardBlock = section('function runEndWizard', 'function runWizard');
 const updateMochidamaBalance = section('function updateMochidamaBalanceWithUndo', 'function investmentTotals');
 const transferSummary = section('function transferSummaryForSession', 'function balanceForSource');
+const resultBlock = section('function longDateText', 'function transferSummaryForSession');
 const balanceStartValueForCurrent = section('function balanceStartValueForCurrent', 'function currentBalanceForStartKey');
 const currentBalanceForStartKey = section('function currentBalanceForStartKey', 'function updateMochidamaBalanceWithUndo');
 const renderRunning = section('function renderRunning', 'function renderLedger');
@@ -578,8 +579,10 @@ assert.match(transferSummary, /開始期待値\$\{transferOptionalYenText\(summa
 assert.match(transferSummary, /<span>開始期待値<\/span><strong>\$\{transferOptionalYenText\(summary\.startEvYen\)\}<\/strong>/);
 assert.match(transferSummary, /<span>1R平均<\/span><strong>\$\{transferOptionalRoundAverageText\(summary\.averageRoundBalls\)\}<\/strong>/);
 assert.match(transferSummary, /navigator\.clipboard\?\.writeText/);
-assert.match(renderLedger, /session\.status === "completed" \? transferSummaryHtml\(session\) : ""/);
-assert.match(renderLedger, /data-copy-transfer/);
+assert.doesNotMatch(renderLedger, /session\.status === "completed" \? transferSummaryHtml\(session\) : ""/);
+assert.doesNotMatch(renderLedger, /data-copy-transfer/);
+assert.match(resultBlock, /transferSummaryHtml\(session\)/);
+assert.match(resultBlock, /copyTransferSummary\(button\.dataset\.copyTransfer\)/);
 assert.match(openSessionEditor, /fieldHtml\("settlementRecoverYen", "回収金額", session\.settlementRecoverYen\)/);
 assert.match(openSessionEditor, /"zanhoryuBalls", "settlementRecoverYen"/);
 assert.match(openSessionEditor, /consumedBallsSourceEditorHtml\(session\)/);
@@ -2031,10 +2034,12 @@ assert.match(renderMachineExpectation, /ramClearDisabled = Boolean\(byId\("evPre
 assert.match(renderMachineExpectation, /previousSpin: previousDisabled \? 0 : byId\("evPrevSpin"\)\?\.value,/);
 assert.match(renderMachineExpectation, /expectationInvestmentText\(expectation\.result\.mochidamaBalls, expectation\.result\.cashBalls, expectation\.result\.spinsToTenjo, expectation\.result\.rotationRate\)/);
 assert.doesNotMatch(renderMachineExpectation, /実効\$\{expectation\.effectiveSpin\}/);
-assert.match(renderLedger, /data-edit-session="\$\{escapeHtml\(session\.id\)\}">記録の修正・削除<\/button>/);
+assert.doesNotMatch(renderLedger, /data-edit-session="\$\{escapeHtml\(session\.id\)\}">記録の修正・削除<\/button>/);
+assert.match(resultBlock, /id="resultEditBtn">記録の修正<\/button>/);
 assert.match(openRateSummary, /未入力は「記録の修正・削除」から補完できます。/);
 assert.match(openSessionEditor, /openModal\("記録の修正・削除", "スキップした項目もここで修正できます。"/);
-assert.doesNotMatch(html, />記録の修正<\/button>/);
+// 「記録の修正」ラベルのボタンはリザルトのフッタ1箇所だけ。他所に増えたら気づけるように数で固定する
+assert.equal((html.match(/>記録の修正<\/button>/g) || []).length, 1);
 assert.doesNotMatch(html, /openModal\("記録の修正",/);
 assert.doesNotMatch(html, /「記録の修正」/);
 assert.match(openMachineDetail, /id="evStartTotalHits"/);
@@ -3279,7 +3284,10 @@ assert.match(renderLedger, /\$\{sessionFiguresHtml\(derived\.profitYen, startEvY
 assert.match(renderLedger, /\+ ledgerDaySummaryHtml\(ledgerDaySummary\(dayEntries\.get\(String\(session\.date \|\| ""\)\)\)\)/);
 assert.match(renderLedger, /workedHours: sessionWorkedHours\(session\)/);
 assert.match(renderLedger, /profitYen: derived\.profitYen,/);
-assert.match(renderLedger, /<small>期待値の内訳 \$\{escapeHtml\(startEvBasisText\(session\.startEv\)\)\}<\/small>/);
+assert.match(renderLedger, /data-open-result="\$\{escapeHtml\(session\.id\)\}"/);
+assert.match(renderLedger, /openSessionResult\(card\.dataset\.openResult\)/);
+assert.doesNotMatch(renderLedger, /<small>期待値の内訳 \$\{escapeHtml\(startEvBasisText\(session\.startEv\)\)\}<\/small>/);
+assert.match(resultBlock, /startEvBasisText|開始カウンター/);
 // 見出しの単独金額は廃止した
 assert.doesNotMatch(html, /session-start-ev/);
 assert.doesNotMatch(html, /function startEvText\(/);
@@ -3290,6 +3298,120 @@ assert.match(startEvDetailTextBlock, /return `\$\{yenText\(normalized\.evYen\)\}
 assert.doesNotMatch(startEvBasisTextBlock, /yenText\(/);
 // 表示専用。集計ブロックはセッションを書き換えず保存もしない
 assert.doesNotMatch(ledgerSummaryBlock, /session\.[A-Za-z]+ =|persist\(|localStorage/);
+
+for (const word of ['上振れ', '下振れ', 'ほぼ想定どおり', 'サンプル不足', 'やや悪化', '良化', '悪化', 'rateToneClass']) {
+  assert.doesNotMatch(resultBlock, new RegExp(word), `リザルトに判定表現を置かない: ${word}`);
+}
+assert.match(resultBlock, /1回のブレです。判断の良し悪しは下の通算で見ます。/);
+assert.match(resultBlock, /これまでの積み上げ/);
+assert.doesNotMatch(resultBlock, /通算との比較/);
+
+const resultContext = vm.createContext({
+  data: {
+    machines: [{ id: 'm1', storeId: 'store1', modelName: 'Pテスト', presetId: 'preset1' }],
+    sessions: []
+  },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  deriveSession(session) {
+    return { rate: session.__rate ?? 18.5, profitYen: session.__profitYen ?? -6381, consumedBalls: session.__consumedBalls ?? 1000, yutimeLoss: session.__yutimeLoss ?? 210 };
+  },
+  normalizeStartEv(value) {
+    return value || null;
+  },
+  sessionWorkedHours(session) {
+    const parse = (value) => {
+      const match = String(value || '').match(/^(\d{2}):(\d{2})$/);
+      return match ? Number(match[1]) * 60 + Number(match[2]) : null;
+    };
+    const start = parse(session?.startTime);
+    const end = parse(session?.endTime);
+    if (start === null || end === null) return null;
+    return end >= start ? (end - start) / 60 : 0;
+  },
+  aggregateStats(list) {
+    const rateValues = (Array.isArray(list) ? list : []).map((session) => session.__rate).filter((value) => value !== undefined);
+    return { rate: rateValues.length ? rateValues.reduce((sum, value) => sum + value, 0) / rateValues.length : null };
+  },
+  sessionSegments(session) {
+    return Array.isArray(session.segments) ? session.segments : [];
+  },
+  segmentPlayedSpins(segment) {
+    const start = resultContext.normalizeNumber(segment.startSpin);
+    const end = resultContext.normalizeNumber(segment.endSpin);
+    if (start === null || end === null) return null;
+    return end - start - Math.max(0, Number(segment.holdSpins || 0));
+  },
+  segmentTapConsumedBalls(segment) {
+    return segment.consumed;
+  },
+  storeById(id) {
+    return { id };
+  },
+  presetById(id) {
+    return { id };
+  },
+  normalizeMachinePresetId(machine) {
+    return machine?.presetId || '';
+  },
+  transferSummaryForSession() {
+    return { averageRoundBalls: 100 };
+  },
+  remainingSpinsFromCounterSpin(spin) {
+    return 950 - Number(spin || 0);
+  }
+});
+new vm.Script(`
+  ${resultBlock}
+  globalThis.resultApi = { longDateText, sessionResultSummary, resultAggregate, segmentBreakdownRows };
+`).runInContext(resultContext);
+assert.equal(resultContext.resultApi.longDateText('2026-09-02'), '2026年9月2日（水）');
+assert.equal(resultContext.resultApi.longDateText('2026-09-03'), '2026年9月3日（木）');
+assert.equal(resultContext.resultApi.longDateText(''), '-');
+const diffSummary = resultContext.resultApi.sessionResultSummary({
+  machineId: 'm1',
+  startEv: { usedRate: 18.0, evYen: 1769, effectiveSpin: 250, presetId: 'preset1' },
+  __rate: 18.5,
+  __profitYen: -6381
+});
+assert.equal(diffSummary.rateDiff, 0.5);
+assert.equal(diffSummary.evDiffYen, -8150);
+resultContext.data.sessions = [
+  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: { evYen: 1000 }, startTime: '10:00', endTime: '12:00', __profitYen: -600 },
+  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: { evYen: 2000 }, startTime: '13:00', endTime: '14:30', __profitYen: 3000 },
+  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: null, startTime: '', endTime: '', __profitYen: 500 }
+];
+const aggregate = resultContext.resultApi.resultAggregate(resultContext.data.sessions);
+assert.equal(aggregate.count, 3);
+assert.equal(aggregate.workedHours, 3.5);
+assert.equal(aggregate.evYen, 3000);
+assert.equal(aggregate.profitYen, 2900);
+assert.equal(aggregate.diffYen, -100);
+assert.equal(aggregate.evHourlyYen, 3000 / 3.5);
+assert.equal(aggregate.profitHourlyYen, 2900 / 3.5);
+const emptyAggregate = resultContext.resultApi.resultAggregate([]);
+assert.equal(emptyAggregate.count, 0);
+assert.equal(emptyAggregate.workedHours, null);
+assert.equal(emptyAggregate.evYen, null);
+assert.equal(emptyAggregate.profitYen, null);
+assert.equal(emptyAggregate.diffYen, null);
+assert.equal(emptyAggregate.evHourlyYen, null);
+assert.equal(emptyAggregate.profitHourlyYen, null);
+const segmentRows = resultContext.resultApi.segmentBreakdownRows({
+  storeId: 'store1',
+  segments: [
+    { kind: 'normal', startSpin: 473, endSpin: 698, endSource: 'hit', holdSpins: 5, consumed: 1000 },
+    { kind: 'normal', startSpin: 100, endSpin: 250, endSource: 'yutime', holdSpins: 0, consumed: 800 },
+    { kind: 'yutime', startSpin: 250, endSpin: 320, endSource: 'hit', holdSpins: 0 }
+  ]
+}, { consumedBalls: 1800, yutimeLoss: 210 }, { presetId: 'preset1' });
+assert.deepEqual(segmentRows.map((row) => row.startLabel), ['打ち始め', '時短抜け', '遊タイム']);
+assert.equal(segmentRows[0].spins, 220);
+assert.equal(segmentRows[2].consumed, 210);
+assert.equal(resultContext.resultApi.segmentBreakdownRows({ segments: [{ kind: 'normal' }] }, {}, null).length, 0);
 
 // G5: コーナー基準値は選択中のコーナーの機種で解決する。別機種（既定プリセット）の値を出さない
 const cornerBaselineContext = vm.createContext({
