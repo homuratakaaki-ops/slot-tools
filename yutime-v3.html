@@ -6642,9 +6642,9 @@
     }
 
     // 分子は戦果報告の「獲得出玉」と同じ sessionActualBallsTotal（ヤメ時の累計入力が本線・B90）。
-    // 当選ごとの実測だけを入れた場合も同じ値になるため、算出は一系統で足りる。
+    // 分母はリザルトの1R平均と同じ totalRoundsForPreset（当選履歴が無ければヤメ入力の合計R数）。
     function sessionBallsPerRound(session, presetId) {
-      const totalRounds = roundBreakdown(normalizeHits(session?.hits), presetId).totalRounds;
+      const totalRounds = totalRoundsForPreset(session, presetId);
       const actualPayout = sessionActualBallsTotal(session);
       return actualPayout !== null && actualPayout > 0 && totalRounds > 0 ? actualPayout / totalRounds : null;
     }
@@ -8076,14 +8076,19 @@
       return match ? Number(match[1]) : null;
     }
 
-    function totalRoundsForSession(session, machine) {
-      const presetId = normalizeMachinePresetId(machine);
-      const hitRounds = normalizeHits(session.hits).reduce((sum, hit) => {
+    // 合計Rの取得元はここ1本にする。当選履歴（R種別の記録）があればそれ、
+    // 無ければヤメ入力の合計R数。どちらも無ければ0。
+    function totalRoundsForPreset(session, presetId) {
+      const hitRounds = normalizeHits(session?.hits).reduce((sum, hit) => {
         const rounds = roundCountFromRoundType(roundTypeById(presetId, hit.roundTypeId));
         return rounds !== null ? sum + rounds : sum;
       }, 0);
       if (hitRounds > 0) return hitRounds;
-      return normalizeNumber(session.totalRounds) ?? 0;
+      return normalizeNumber(session?.totalRounds) ?? 0;
+    }
+
+    function totalRoundsForSession(session, machine) {
+      return totalRoundsForPreset(session, normalizeMachinePresetId(machine));
     }
 
     function transferYenText(value) {

@@ -449,6 +449,9 @@ assert.doesNotMatch(hitRoundSummaryHtml, /hitRoundBasedPayout/);
 assert.match(hitRoundSummaryHtml, /const ballsPerRound = sessionBallsPerRound\(session, presetId\);/);
 // 分子は戦果報告の「獲得出玉」と同じ sessionActualBallsTotal に一本化する
 assert.match(hitRoundSummaryHtml, /const actualPayout = sessionActualBallsTotal\(session\);/);
+// 分母はリザルトの1R平均と同じ totalRoundsForPreset に一本化する
+assert.match(hitRoundSummaryHtml, /const totalRounds = totalRoundsForPreset\(session, presetId\);/);
+assert.doesNotMatch(hitRoundSummaryHtml, /function sessionBallsPerRound[\s\S]*?roundBreakdown\(/);
 assert.match(hitRoundSummaryHtml, /return actualPayout !== null && actualPayout > 0 && totalRounds > 0 \? actualPayout \/ totalRounds : null;/);
 assert.match(hitRoundSummaryHtml, /1R当たり \$\{ballsPerRoundText\(ballsPerRound\)\}/);
 // S4/C-4: 今回の連チャンとこのセッションを分ける
@@ -3840,13 +3843,30 @@ new vm.Script(`
   globalThis.withSessionTotal = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }] }, 'single'));
   // 累計と当選ごとの両方があれば累計を優先する
   globalThis.withBoth = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r10', actualBalls: 1000 }] }, 'single'));
-  globalThis.withoutActual = ballsPerRoundText(sessionBallsPerRound({ hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }] }, 'single'));
-  globalThis.withoutHits = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, hits: [] }, 'single'));
+  // 当選履歴が無ければヤメ入力の合計R数を使う
+  globalThis.withManualRounds = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, totalRounds: 20, hits: [] }, 'single'));
+  // 当選履歴があれば手入力の合計R数より優先する
+  globalThis.hitsBeatManualRounds = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, totalRounds: 99, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }] }, 'single'));
+  globalThis.withoutActual = ballsPerRoundText(sessionBallsPerRound({ totalRounds: 20, hits: [] }, 'single'));
+  globalThis.withZeroRounds = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, totalRounds: 0, hits: [] }, 'single'));
+  globalThis.withoutRounds = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, hits: [] }, 'single'));
+  // 合計Rの解決は totalRoundsForSession と同じ1本を使う
+  globalThis.roundsFromHits = totalRoundsForPreset({ totalRounds: 99, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }] }, 'single');
+  globalThis.roundsFromManual = totalRoundsForPreset({ totalRounds: 20, hits: [] }, 'single');
+  globalThis.roundsFromNothing = totalRoundsForPreset({ hits: [] }, 'single');
 `).runInContext(ballsPerRoundContext);
 assert.equal(ballsPerRoundContext.withActual, '140玉');
 assert.equal(ballsPerRoundContext.withSessionTotal, '140玉');
 assert.equal(ballsPerRoundContext.withBoth, '140玉');
+assert.equal(ballsPerRoundContext.withManualRounds, '140玉');
+assert.equal(ballsPerRoundContext.hitsBeatManualRounds, '140玉');
 assert.equal(ballsPerRoundContext.withoutActual, '—');
-assert.equal(ballsPerRoundContext.withoutHits, '—');
+assert.equal(ballsPerRoundContext.withZeroRounds, '—');
+assert.equal(ballsPerRoundContext.withoutRounds, '—');
+assert.equal(ballsPerRoundContext.roundsFromHits, 20);
+assert.equal(ballsPerRoundContext.roundsFromManual, 20);
+assert.equal(ballsPerRoundContext.roundsFromNothing, 0);
+// 合計Rの解決は totalRoundsForPreset の1本だけ
+assert.match(roundCountFromRoundTypeBlock, /function totalRoundsForSession\(session, machine\) \{\s*return totalRoundsForPreset\(session, normalizeMachinePresetId\(machine\)\);\s*\}/);
 
 console.log('yutime-v3 tests passed');
