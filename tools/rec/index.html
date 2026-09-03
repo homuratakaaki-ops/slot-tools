@@ -25,7 +25,8 @@ textarea{min-height:80px;resize:vertical}
 .hd{display:flex;align-items:center;gap:8px;padding:4px 2px 8px;border-bottom:1px solid var(--line)}
 .hd .t{flex:1;font-size:15px;font-weight:700;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hd .x{width:44px;height:38px;font-size:18px;color:var(--dim)}
-.badges{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 0;min-height:20px}
+.badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px 2px 2px;min-height:20px}
+.badges .stg{margin-left:auto;font-size:12px;color:var(--dim);font-family:var(--mono)}
 .badge{font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--dim)}
 .badge.on{background:rgba(217,164,65,.16);border-color:var(--accent);color:var(--accent)}
 .badge.hit{background:rgba(224,87,74,.16);border-color:var(--hot);color:var(--hot)}
@@ -45,7 +46,7 @@ textarea{min-height:80px;resize:vertical}
 .r5{display:flex;gap:5px;margin-top:6px}
 .r5 button{flex:1;padding:12px 0;font-weight:700;font-family:var(--mono);font-size:15px}
 .r5 .undo{font-family:var(--sans);font-size:12px;font-weight:600;color:var(--dim)}
-.grid{margin-top:8px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
+.grid{margin-top:6px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:12px}
 .gtitle{display:flex;align-items:center;gap:8px;padding:0 2px 8px}
 .gtitle .m{font-size:12px;font-weight:700;color:var(--accent);flex:1}
 .gtitle .st{font-size:12px;color:var(--dim);font-family:var(--mono)}
@@ -150,10 +151,9 @@ textarea{min-height:80px;resize:vertical}
       <div><div class="lbl">開始 実G</div><input id="stRealG" class="num" inputmode="numeric" placeholder="0"></div>
       <div><div class="lbl">開始 液晶G</div><input id="stLcdG" class="num" inputmode="numeric" placeholder="0"></div>
     </div>
-    <div class="two" style="margin-top:12px">
-      <div><div class="lbl" id="stC3Lbl">3つ目</div><input id="stC3" class="num" inputmode="numeric" placeholder="0"></div>
-      <div><div class="lbl">想定期待値（円）</div><input id="stExp" class="num" inputmode="numeric" placeholder="2000"></div>
-    </div>
+    <div id="stFields"></div>
+    <div class="lbl" style="margin-top:12px">想定期待値（円）</div>
+    <input id="stExp" class="num" inputmode="numeric" placeholder="2000">
     <div class="two" style="margin-top:12px">
       <div><div class="lbl">持ちメダル</div><input id="stMedal" class="num" inputmode="numeric" placeholder="0"></div>
       <div><div class="lbl">再プレイ</div><input id="stReplay" class="num" inputmode="numeric" placeholder="0"></div>
@@ -165,7 +165,6 @@ textarea{min-height:80px;resize:vertical}
   </section>
 
   <section id="scMain" class="hide">
-    <div class="badges" id="badges"></div>
     <div class="cnts">
       <button class="cnt" data-cnt="realG"><span>実G</span><b id="cRealG">0</b></button>
       <button class="cnt lcd" data-cnt="lcdG" id="cLcdWrap"><span>液晶G</span><b id="cLcdG">0</b></button>
@@ -178,8 +177,8 @@ textarea{min-height:80px;resize:vertical}
     </div>
     <div class="r3"><button class="danger" id="bMinus">−1000</button><button id="bDeposit">入金</button><button id="bCredit">残数調整</button></div>
     <div class="r5"><button data-step="1">+1</button><button data-step="3">+3</button><button data-step="5">+5</button><button data-step="10">+10</button><button class="undo" id="bStepUndo">元に戻す</button></div>
+    <div class="badges" id="badges"></div>
     <div class="grid">
-      <div class="gtitle"><div class="m" id="gMode">通常時</div><div class="st" id="gStage"></div></div>
       <div id="gridRows"></div>
       <div class="rc" id="rareCounts"></div>
     </div>
@@ -216,6 +215,7 @@ const MACHINES={
   generic:{
     name:"汎用",
     lcdG:true,
+    setup:[{key:"c3",label:"周期",type:"num"}],
     counter3:{label:"周期",reset:"ask"},
     rares:[
       {key:"melon",label:"🍉",strong:true},
@@ -241,6 +241,12 @@ const MACHINES={
   karakuri2:{
     name:"からくりサーカス2",
     lcdG:true,
+    setup:[
+      {key:"c3",label:"CZスルー回数",type:"num"},
+      {key:"state",label:"状態",type:"select",options:["不明","リセット後","AT後","CZ後"]},
+      {key:"melon",label:"スイカ回数（自分が続行する時だけ）",type:"num",optional:true},
+      {key:"lastCz",label:"前回のCZ終了画面",type:"select",options:["不明","鳴海","勝","しろがね","祈るフランシーヌ","フランシーヌ人形","笑顔のフランシーヌ","アンジェリーナ","リーゼ","敵4人","手","ギイ＆オリンピア","ピエロ","真夜中のサーカス","フェイスレス"]}
+    ],
     counter3:{label:"CZスルー",reset:"at",incOnCzFail:["機械仕掛けの女神"]},
     rares:[
       {key:"melon",label:"🍉",hint:"運命盤で0"},
@@ -331,9 +337,9 @@ function fixSession(c){
   fixMoney(c.money);
   if(!c.machineId)c.machineId="generic";
   if(c.c3===undefined)c.c3=c.cycle||0;
-  if(!c.mode)c.mode=c.hit?(c.hit.kind||"at"):"normal";
   if(c.hit&&!c.hit.label)c.hit.label=c.hit.type||"当選";
   if(c.hit&&!c.hit.kind)c.hit.kind=(c.hit.label==="CZ")?"cz":"at";
+  if(!c.mode)c.mode=c.hit?c.hit.kind:"normal";
   if(!c.parallel)c.parallel={};
   if(!c.rare)c.rare={};
   const d=MACHINES[c.machineId]||MACHINES.generic;
@@ -426,6 +432,7 @@ function renderBadges(){
   if(c.zenchou){const z=mk("div","badge zen","前兆");z.addEventListener("click",zenchouEnd);b.append(z)}
   d.parallel.forEach(p=>{ if(c.parallel[p.key]){const x=mk("div","badge par",p.label+"中");x.addEventListener("click",()=>parallelEnd(p));b.append(x)} });
   if(c.hit){const h=mk("div","badge hit",c.hit.label+" 終了");h.addEventListener("click",hitEnd);b.append(h)}
+  if(c.stage&&d.stages)b.append(mk("div","stg",c.stage));
 }
 function renderCounters(){
   const c=S.cur,d=DEF();
@@ -442,8 +449,6 @@ function renderMoney(){
 }
 function renderGrid(){
   const c=S.cur,d=DEF();
-  el("gMode").textContent=c.mode==="normal"?"通常時":(c.hit?c.hit.label:c.mode);
-  el("gStage").textContent=c.stage?"ステージ："+c.stage:"";
   const w=el("gridRows");w.innerHTML="";
   const rows=d.grids[c.mode]||d.grids.normal;
   rows.forEach(row=>{
@@ -764,16 +769,30 @@ el("nImpOpen").addEventListener("click",()=>{sheet("JSONを取り込む",b=>{con
 function doImport(txt){let d;try{d=JSON.parse(txt)}catch(e){toast("JSONとして読めません");return}const arr=Array.isArray(d)?d:(d&&Array.isArray(d.sessions)?d.sessions:null);if(!arr){toast("記録が見つかりません");return}const have=new Set(S.sessions.map(s=>s.id));let n=0;arr.forEach(s=>{if(s&&s.id&&s.startAt&&s.machine&&!have.has(s.id)){fixSession(s);S.sessions.push(s);have.add(s.id);n++}});S.sessions.sort((a,b)=>new Date(a.startAt)-new Date(b.startAt));save();renderNote();closeSheet();toast(n+"件を取り込みました")}
 
 /* ---------- 画面切替 ---------- */
+let setupVals={};
+function renderSetupFields(){
+  const d=MACHINES[pickedMachine||"generic"],w=el("stFields");w.innerHTML="";setupVals={};
+  d.setup.forEach(f=>{
+    const lbl=mk("div","lbl",f.label);lbl.style.marginTop="12px";
+    if(f.optional)lbl.append(mk("span","hint","任意"));
+    w.append(lbl);
+    if(f.type==="num"){const i=mk("input");i.className="num";i.setAttribute("inputmode","numeric");i.placeholder="0";i.addEventListener("input",()=>setupVals[f.key]=int(i.value));w.append(i)}
+    else if(f.type==="select"){
+      const row=optRow(f.options,(it,btn,wrap)=>{setupVals[f.key]=it;wrap.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")},f.options.length>6?"q4":"");
+      w.append(row);
+    }
+  });
+}
 function showSetup(){
   el("scSetup").classList.remove("hide");el("scMain").classList.add("hide");el("scNote").classList.add("hide");
   el("hdTitle").textContent="実戦記録";el("stLend").value=S.settings.lend;
   const w=el("stMachines");w.innerHTML="";pickedMachine=null;
-  Object.keys(MACHINES).filter(k=>k!=="generic").forEach(k=>{const b=mk("button","",MACHINES[k].name);b.addEventListener("click",()=>{pickedMachine=k;el("stMachine").value=MACHINES[k].name;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");el("stC3Lbl").textContent=MACHINES[k].counter3.label});w.append(b)});
+  Object.keys(MACHINES).filter(k=>k!=="generic").forEach(k=>{const b=mk("button","",MACHINES[k].name);b.addEventListener("click",()=>{pickedMachine=k;el("stMachine").value=MACHINES[k].name;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSetupFields()});w.append(b)});
   const seen=[];S.sessions.slice().reverse().forEach(s=>{if(s.machineId==="generic"&&!seen.includes(s.machine))seen.push(s.machine)});
-  seen.slice(0,4).forEach(m=>{const b=mk("button","",m);b.addEventListener("click",()=>{pickedMachine=null;el("stMachine").value=m;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");el("stC3Lbl").textContent="周期"});w.append(b)});
-  el("stC3Lbl").textContent="周期";
+  seen.slice(0,4).forEach(m=>{const b=mk("button","",m);b.addEventListener("click",()=>{pickedMachine=null;el("stMachine").value=m;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSetupFields()});w.append(b)});
+  renderSetupFields();
 }
-el("stMachine").addEventListener("input",()=>{pickedMachine=null;el("stMachines").querySelectorAll("button").forEach(x=>x.classList.remove("on"));el("stC3Lbl").textContent="周期"});
+el("stMachine").addEventListener("input",()=>{if(pickedMachine){pickedMachine=null;el("stMachines").querySelectorAll("button").forEach(x=>x.classList.remove("on"));renderSetupFields()}});
 function showMain(){el("scSetup").classList.add("hide");el("scMain").classList.remove("hide");el("scNote").classList.add("hide");el("hdTitle").textContent=S.cur.machine+" ／ "+hm(S.cur.startAt)+"〜";render()}
 function showNote(){el("scSetup").classList.add("hide");el("scMain").classList.add("hide");el("scNote").classList.remove("hide");el("hdTitle").textContent="ノート（"+S.sessions.length+"件）";renderNote()}
 el("hdMenu").addEventListener("click",()=>{sheet("メニュー",b=>{if(S.cur){const a=mk("button","sub","記録に戻る");a.addEventListener("click",()=>{closeSheet();showMain()});b.append(a)}const n=mk("button","sub","ノートを開く");n.addEventListener("click",()=>{closeSheet();showNote()});b.append(n);if(!S.cur){const s=mk("button","sub","新しく打ち始める");s.addEventListener("click",()=>{closeSheet();showSetup()});b.append(s)}})});
@@ -787,14 +806,20 @@ el("stStart").addEventListener("click",()=>{
   e.classList.add("hide");S.settings.lend=lend;
   const machineId=pickedMachine||"generic",d=MACHINES[machineId];
   const rare={};d.rares.forEach(r=>{rare[r.key]=r.strong?{w:0,s:0}:{n:0,hit:0}});
-  S.cur={id:uid(),machineId,machine:m,startAt:nowISO(),lend,
+  // 機種ごとの打ち始め項目：c3 と melon は器の状態へ、それ以外はメモ扱い
+  const setup={};d.setup.forEach(f=>{const v=setupVals[f.key];if(v!=null&&v!=="")setup[f.key]=v});
+  const c3=setup.c3!=null?setup.c3:0;
+  if(setup.melon!=null&&rare.melon)rare.melon.n=setup.melon;
+  const setupNote=d.setup.filter(f=>f.key!=="c3"&&f.key!=="melon"&&setup[f.key]!=null&&setup[f.key]!=="不明").map(f=>f.label.replace(/（.*?）/,"")+"："+setup[f.key]);
+  const noteParts=setupNote.concat(el("stNote").value.trim()?[el("stNote").value.trim()]:[]);
+  S.cur={id:uid(),machineId,machine:m,startAt:nowISO(),lend,setup,
     startRealG:int(el("stRealG").value)||0,startLcdG:int(el("stLcdG").value)||0,
-    realG:int(el("stRealG").value)||0,lcdG:int(el("stLcdG").value)||0,c3:int(el("stC3").value)||0,
-    startNote:el("stNote").value.trim(),expected:int(el("stExp").value),
+    realG:int(el("stRealG").value)||0,lcdG:int(el("stLcdG").value)||0,c3,
+    startNote:noteParts.join("　"),expected:int(el("stExp").value),
     rare,zenchou:false,hit:null,mode:"normal",parallel:{},stage:null,events:[],_steps:[],
     money:{cash:[],deposits:[],spends:[],startMedal:int(el("stMedal").value)||0,startReplay:int(el("stReplay").value)||0,credit:null,endMedal:null,endReplay:null},
     endAt:null,endNote:""};
-  ["stMachine","stRealG","stLcdG","stC3","stMedal","stReplay","stNote","stExp"].forEach(i=>el(i).value="");
+  ["stMachine","stRealG","stLcdG","stMedal","stReplay","stNote","stExp"].forEach(i=>el(i).value="");
   save();showMain();
 });
 
