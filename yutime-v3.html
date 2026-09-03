@@ -2618,13 +2618,14 @@
       })).filter((hit) => hit.roundTypeId || hit.hitSpin !== null || hit.actualBalls !== null);
     }
 
+    // 合計R数は totalRoundsForPreset と同じ定義（R種別のR数の合計）で保存する。
+    // 玉数 ÷ 1R玉数の逆算にすると、その比がR数と一致しない機種で保存値と表示値がずれる。
     function syncSessionHitTotals(session, machines = data.machines) {
       if (!Array.isArray(session.hits) || !session.hits.length) return;
       session.hitCount = session.hits.length;
       const machine = machines.find((item) => item.id === session.machineId);
-      const presetId = normalizeMachinePresetId(machine);
-      const totalBalls = hitRoundBasedPayout(session, presetId) || 0;
-      if (machine?.roundBalls) session.totalRounds = Math.round(totalBalls / machine.roundBalls);
+      const rounds = totalRoundsForPreset(session, normalizeMachinePresetId(machine));
+      if (rounds > 0) session.totalRounds = rounds;
     }
 
     function hitRoundBasedPayout(session, presetId) {
@@ -8048,8 +8049,9 @@
       const startSpin = normalizeNumber(session.startSpin);
       const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin ? endSpin - startSpin : null;
       const consumedBalls = derived.consumedBalls !== null && derived.consumedBalls !== undefined ? Math.round(derived.consumedBalls) : null;
-      const actualHitBalls = sessionActualBallsTotal(session);
-      const totalHitBalls = actualHitBalls !== null ? actualHitBalls : (derived.isEstimatedPayout ? null : derived.hitBalls);
+      // S4/C-5: 1R平均は実測の獲得出玉だけで出す。玉数の増減からの推計では代用しない。
+      // 分子・分母とも戦果報告の「1R当たり」と同じ取得元にそろえる。
+      const totalHitBalls = sessionActualBallsTotal(session);
       const totalRounds = totalRoundsForSession(session, machine);
       const averageRoundBalls = totalHitBalls !== null && totalRounds > 0 ? totalHitBalls / totalRounds : null;
       return {

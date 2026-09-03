@@ -606,8 +606,10 @@ assert.match(transferSummary, /startExpectedSpins = startEv \? remainingSpinsFro
 assert.match(transferSummary, /remainingSpins = endEffectiveSpin !== null \? remainingSpinsFromCounterSpin\(endEffectiveSpin, summaryPresetId\) : null;/);
 assert.match(transferSummary, /const consumedBalls = derived\.consumedBalls !== null && derived\.consumedBalls !== undefined \? Math\.round\(derived\.consumedBalls\) : null;/);
 assert.match(transferSummary, /const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin \? endSpin - startSpin : null;/);
-assert.match(transferSummary, /const actualHitBalls = sessionActualBallsTotal\(session\);/);
-assert.match(transferSummary, /const totalHitBalls = actualHitBalls !== null \? actualHitBalls : \(derived\.isEstimatedPayout \? null : derived\.hitBalls\);/);
+// S4/C-5: 1R平均の分子は実測の獲得出玉だけ。推計値（derived.hitBalls）では代用しない
+assert.match(transferSummary, /const totalHitBalls = sessionActualBallsTotal\(session\);/);
+assert.doesNotMatch(transferSummary, /derived\.hitBalls/);
+assert.match(transferSummary, /const totalRounds = totalRoundsForSession\(session, machine\);/);
 assert.match(transferSummary, /const averageRoundBalls = totalHitBalls !== null && totalRounds > 0 \? totalHitBalls \/ totalRounds : null;/);
 assert.match(transferSummary, /function transferYenText\(value\) \{\s*return `\$\{Math\.round\(Number\(value \|\| 0\)\)\.toLocaleString\("ja-JP"\)\}円`;/);
 assert.match(transferSummary, /function transferBallText\(value\) \{\s*return Math\.round\(Number\(value \|\| 0\)\)\.toLocaleString\("ja-JP"\);/);
@@ -3868,5 +3870,53 @@ assert.equal(ballsPerRoundContext.roundsFromManual, 20);
 assert.equal(ballsPerRoundContext.roundsFromNothing, 0);
 // 合計Rの解決は totalRoundsForPreset の1本だけ
 assert.match(roundCountFromRoundTypeBlock, /function totalRoundsForSession\(session, machine\) \{\s*return totalRoundsForPreset\(session, normalizeMachinePresetId\(machine\)\);\s*\}/);
+
+// 合計R数の保存も同じ定義（R種別のR数の合計）。玉数 ÷ 1R玉数の逆算はしない
+const syncSessionHitTotalsBlock = section('function syncSessionHitTotals', 'function hitRoundBasedPayout');
+assert.match(syncSessionHitTotalsBlock, /const rounds = totalRoundsForPreset\(session, normalizeMachinePresetId\(machine\)\);/);
+assert.match(syncSessionHitTotalsBlock, /if \(rounds > 0\) session\.totalRounds = rounds;/);
+assert.doesNotMatch(syncSessionHitTotalsBlock, /roundBalls/);
+assert.doesNotMatch(syncSessionHitTotalsBlock, /hitRoundBasedPayout\(/);
+
+const syncHitTotalsContext = vm.createContext({
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  presetById(id) {
+    // balls ÷ roundBalls が R数と一致しない機種（1R玉数140・10R=1200玉）
+    return { odd: { roundTypes: [{ id: 'r10', label: '10R', balls: 1200 }] } }[id] || null;
+  },
+  presetByName() {
+    return null;
+  },
+  roundTypeById(presetId, roundTypeId) {
+    return syncHitTotalsContext.presetById(presetId)?.roundTypes.find((type) => type.id === roundTypeId) || null;
+  },
+  nowIso() {
+    return '2026-09-03T00:00:00.000Z';
+  }
+});
+new vm.Script(`
+  ${normalizeHitsBlock}
+  ${roundCountFromRoundTypeBlock}
+  ${section('function normalizeMachinePresetId', 'function machineHasYutime')}
+  ${syncSessionHitTotalsBlock}
+  const machines = [{ id: 'm1', presetId: 'odd', roundBalls: 140 }];
+  globalThis.synced = { id: 's1', machineId: 'm1', hitCount: null, totalRounds: null, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }] };
+  syncSessionHitTotals(globalThis.synced, machines);
+  // R種別が解決できないときは手入力の合計R数を残す
+  globalThis.unresolved = { id: 's2', machineId: 'm1', hitCount: null, totalRounds: 12, hits: [{ roundTypeId: 'unknown' }] };
+  syncSessionHitTotals(globalThis.unresolved, machines);
+  globalThis.noHits = { id: 's3', machineId: 'm1', hitCount: 3, totalRounds: 30, hits: [] };
+  syncSessionHitTotals(globalThis.noHits, machines);
+`).runInContext(syncHitTotalsContext);
+// 10R×2 → 20（玉数逆算なら 1200×2÷140 = 17 になっていた）
+assert.equal(syncHitTotalsContext.synced.totalRounds, 20);
+assert.equal(syncHitTotalsContext.synced.hitCount, 2);
+assert.equal(syncHitTotalsContext.unresolved.totalRounds, 12);
+assert.equal(syncHitTotalsContext.noHits.totalRounds, 30);
+assert.equal(syncHitTotalsContext.noHits.hitCount, 3);
 
 console.log('yutime-v3 tests passed');
