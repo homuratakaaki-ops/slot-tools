@@ -332,6 +332,8 @@ function fixSession(c){
   if(!c.machineId)c.machineId="generic";
   if(c.c3===undefined)c.c3=c.cycle||0;
   if(!c.mode)c.mode=c.hit?(c.hit.kind||"at"):"normal";
+  if(c.hit&&!c.hit.label)c.hit.label=c.hit.type||"当選";
+  if(c.hit&&!c.hit.kind)c.hit.kind=(c.hit.label==="CZ")?"cz":"at";
   if(!c.parallel)c.parallel={};
   if(!c.rare)c.rare={};
   const d=MACHINES[c.machineId]||MACHINES.generic;
