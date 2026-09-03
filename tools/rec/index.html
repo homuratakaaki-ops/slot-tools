@@ -70,7 +70,7 @@ textarea{min-height:80px;resize:vertical}
 .log .gs{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none;width:58px;text-align:right}
 .log .gs .lc{color:var(--lcd)} .log .gs .sl{opacity:.5}
 .log .tx{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.log .more{width:100%;border:none;border-radius:0;padding:9px;font-size:12px;color:var(--dim);background:var(--panel2)}
+.log .more{width:100%;border:none;border-radius:0;padding:13px;min-height:44px;font-size:12px;color:var(--dim);background:var(--panel2)}
 .log .empty{padding:16px;text-align:center;color:var(--dim);font-size:13px}
 .wide{width:100%;padding:12px;margin-top:6px;font-weight:600}
 .wide.dim{color:var(--dim)}
@@ -256,7 +256,7 @@ const MACHINES={
     lcdAdd:{steps:[20,30,50,100],chars:["グリモルディ","あるるかん","オリンピア","ジャックオーランターン","鳴海"]},
     hits:[
       {label:"機械仕掛けの女神",kind:"cz"},
-      {label:"幕間チャンス",kind:"cz"},
+      {label:"幕間チャンス",kind:"cz",keepG:true},
       {label:"劇場ジャッジ",kind:"cz"},
       {label:"AT直撃",kind:"at"}
     ],
@@ -339,6 +339,7 @@ function fixSession(c){
   if(c.c3===undefined)c.c3=c.cycle||0;
   if(c.hit&&!c.hit.label)c.hit.label=c.hit.type||"当選";
   if(c.hit&&!c.hit.kind)c.hit.kind=(c.hit.label==="CZ")?"cz":"at";
+  if(c.hit&&c.hit.keepG===undefined)c.hit.keepG=false;
   if(!c.mode)c.mode=c.hit?c.hit.kind:"normal";
   if(!c.parallel)c.parallel={};
   if(!c.rare)c.rare={};
@@ -563,10 +564,12 @@ function startHit(h,trig){
   const d=DEF(),c=S.cur;
   // 契機が強チェリーなら、当選数を1つ増やす
   if(trig){const t=d.rares.find(x=>x.track&&x.trigger===trig);if(t&&c.rare[t.key]){c.rare[t.key].hit=(c.rare[t.key].hit||0)+1}}
-  c.hit={label:h.label,kind:h.kind,at:nowISO(),realG:c.realG,lcdG:c.lcdG,c3:c.c3,trig};
+  const wasZen=c.zenchou;
+  c.zenchou=false;                 // 前兆はCZ/AT当選で終わる（全機種共通）
+  c.hit={label:h.label,kind:h.kind,keepG:!!h.keepG,at:nowISO(),realG:c.realG,lcdG:c.lcdG,c3:c.c3,trig};
   c.mode=h.kind;
-  push("hitStart",h.label+" 当選　"+gsText(c)+"G"+(trig?"（"+trig+"）":""));
-  c.realG=0;c.lcdG=0;c._steps=[];
+  push("hitStart",h.label+" 当選　"+gsText(c)+"G"+(trig?"（"+trig+"）":"")+(wasZen?"　前兆から":""));
+  if(!h.keepG){c.realG=0;c.lcdG=0;c._steps=[]}   // G数を持ち越すCZ（幕間チャンス等）はリセットしない
   if(h.kind==="at"&&d.atStart.groups.length){
     groupSheet(h.label+" 開始",d.atStart.groups,sel=>{push("atStart","AT開始　"+selText(d.atStart.groups,sel),{sel});closeSheet()});
   }else{save();render();closeSheet();toast(h.label+" 開始（G数を0に）")}
@@ -584,9 +587,10 @@ function czEndSheet(){
     const rest=selText(d.czEnd.groups,sel);if(rest)txt+="　"+rest;
     if(fail&&d.counter3.incOnCzFail&&d.counter3.incOnCzFail.includes(h.label)){c.c3++;txt+="　"+d.counter3.label+" "+c.c3}
     if(sel.stage)c.stage=sel.stage;
+    const keep=!!h.keepG;
     c.hit=null;c.mode="normal";
     push("hitEnd",txt,{sel});
-    c.realG=0;c.lcdG=0;c._steps=[];
+    if(!keep){c.realG=0;c.lcdG=0;c._steps=[]}
     closeSheet();
     if(!fail&&d.czEnd.successToAt){
       // 成功＝AT へ（定義で明示した機種のみ）
