@@ -19,6 +19,7 @@ const hitWizard = section('function openHitWizard', 'function hitResetOptions');
 const runWizard = section('function runWizard', 'function wizardInputHtml');
 const roundBreakdownBlock = section('function roundBreakdown', 'function hitRoundSummaryHtml');
 const hitRoundSummaryHtml = section('function hitRoundSummaryHtml', 'function openHitResetPrompt');
+const sessionActualBallsTotalBlock = section('function cumulativeActualBallsBefore', 'function hitCounterSpinForRecord') + section('function sessionActualBallsTotal', 'function actualBallsFromCumulativeInput');
 const hitHistoryBlock = section('function segmentHistoryLabels', 'function openEndWizard');
 const hitResetPrompt = section('function openHitResetPrompt', 'function openEndWizard');
 const openEndWizardBlock = section('function openEndWizard', 'function presetHitCountFromCounters');
@@ -446,7 +447,9 @@ assert.match(hitRoundSummaryHtml, /class="hit-round-result"/);
 assert.doesNotMatch(hitRoundSummaryHtml, /R数ベース出玉/);
 assert.doesNotMatch(hitRoundSummaryHtml, /hitRoundBasedPayout/);
 assert.match(hitRoundSummaryHtml, /const ballsPerRound = sessionBallsPerRound\(session, presetId\);/);
-assert.match(hitRoundSummaryHtml, /return actualPayout > 0 && totalRounds > 0 \? actualPayout \/ totalRounds : null;/);
+// 分子は戦果報告の「獲得出玉」と同じ sessionActualBallsTotal に一本化する
+assert.match(hitRoundSummaryHtml, /const actualPayout = sessionActualBallsTotal\(session\);/);
+assert.match(hitRoundSummaryHtml, /return actualPayout !== null && actualPayout > 0 && totalRounds > 0 \? actualPayout \/ totalRounds : null;/);
 assert.match(hitRoundSummaryHtml, /1R当たり \$\{ballsPerRoundText\(ballsPerRound\)\}/);
 // S4/C-4: 今回の連チャンとこのセッションを分ける
 assert.match(hitRoundSummaryHtml, /breakdownLine\("今回の連チャン", chainBreakdown\)/);
@@ -488,6 +491,7 @@ new vm.Script(`
   ${normalizeHitsBlock}
   ${roundCountFromRoundTypeBlock}
   ${roundBreakdownBlock}
+  ${sessionActualBallsTotalBlock}
   ${hitRoundSummaryHtml}
   globalThis.singleSummary = hitRoundSummaryHtml({
     startTotalHits: 3,
@@ -3829,12 +3833,19 @@ new vm.Script(`
   ${normalizeHitsBlock}
   ${roundCountFromRoundTypeBlock}
   ${roundBreakdownBlock}
+  ${sessionActualBallsTotalBlock}
   ${ballsPerRoundHelpers}
   globalThis.withActual = ballsPerRoundText(sessionBallsPerRound({ hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r10', actualBalls: 1420 }] }, 'single'));
+  // B90: ヤメ時の累計入力だけでも 1R当たりを出す（当選ごとの実測は未入力）
+  globalThis.withSessionTotal = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }] }, 'single'));
+  // 累計と当選ごとの両方があれば累計を優先する
+  globalThis.withBoth = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r10', actualBalls: 1000 }] }, 'single'));
   globalThis.withoutActual = ballsPerRoundText(sessionBallsPerRound({ hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }] }, 'single'));
-  globalThis.withoutHits = ballsPerRoundText(sessionBallsPerRound({ hits: [] }, 'single'));
+  globalThis.withoutHits = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, hits: [] }, 'single'));
 `).runInContext(ballsPerRoundContext);
 assert.equal(ballsPerRoundContext.withActual, '140玉');
+assert.equal(ballsPerRoundContext.withSessionTotal, '140玉');
+assert.equal(ballsPerRoundContext.withBoth, '140玉');
 assert.equal(ballsPerRoundContext.withoutActual, '—');
 assert.equal(ballsPerRoundContext.withoutHits, '—');
 

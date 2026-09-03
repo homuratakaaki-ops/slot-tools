@@ -6641,11 +6641,12 @@
         .reduce((sum, value) => sum + value, 0);
     }
 
+    // 分子は戦果報告の「獲得出玉」と同じ sessionActualBallsTotal（ヤメ時の累計入力が本線・B90）。
+    // 当選ごとの実測だけを入れた場合も同じ値になるため、算出は一系統で足りる。
     function sessionBallsPerRound(session, presetId) {
-      const hits = normalizeHits(session?.hits);
-      const totalRounds = roundBreakdown(hits, presetId).totalRounds;
-      const actualPayout = actualHitBallsTotal(hits);
-      return actualPayout > 0 && totalRounds > 0 ? actualPayout / totalRounds : null;
+      const totalRounds = roundBreakdown(normalizeHits(session?.hits), presetId).totalRounds;
+      const actualPayout = sessionActualBallsTotal(session);
+      return actualPayout !== null && actualPayout > 0 && totalRounds > 0 ? actualPayout / totalRounds : null;
     }
 
     function ballsPerRoundText(value) {
