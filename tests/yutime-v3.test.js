@@ -445,8 +445,9 @@ assert.match(hitRoundSummaryHtml, /class="hit-round-result"/);
 // S4/C-5: R数ベース出玉を出さず、実測の 1R当たり玉数だけを見せる
 assert.doesNotMatch(hitRoundSummaryHtml, /R数ベース出玉/);
 assert.doesNotMatch(hitRoundSummaryHtml, /hitRoundBasedPayout/);
-assert.match(hitRoundSummaryHtml, /const ballsPerRound = actualPayout > 0 && totalRounds > 0 \? actualPayout \/ totalRounds : null;/);
-assert.match(hitRoundSummaryHtml, /1R当たり \$\{ballsPerRound !== null/);
+assert.match(hitRoundSummaryHtml, /const ballsPerRound = sessionBallsPerRound\(session, presetId\);/);
+assert.match(hitRoundSummaryHtml, /return actualPayout > 0 && totalRounds > 0 \? actualPayout \/ totalRounds : null;/);
+assert.match(hitRoundSummaryHtml, /1R当たり \$\{ballsPerRoundText\(ballsPerRound\)\}/);
 // S4/C-4: 今回の連チャンとこのセッションを分ける
 assert.match(hitRoundSummaryHtml, /breakdownLine\("今回の連チャン", chainBreakdown\)/);
 assert.match(hitRoundSummaryHtml, /breakdownLine\("このセッション", sessionBreakdown, "今回"\)/);
@@ -2644,7 +2645,13 @@ assert.match(renderMachineExpectation, /startCredit: normalizeNumber\(byId\("evS
 assert.doesNotMatch(html, /充当/);
 assert.doesNotMatch(html, /現金見込み/);
 assert.doesNotMatch(renderMachineExpectation, /現金分\$\{/);
-assert.match(openMachineDetail, /\$\{machineFormExpanded \? '<button id="saveMachineBtn">[^']+<\/button>' : ""\}/);
+// S5/§1: 台情報は変更した時点で保存する。保存ボタンは置かない
+assert.doesNotMatch(html, /saveMachineBtn/);
+assert.doesNotMatch(html, /台情報保存/);
+assert.match(openMachineDetail, /const commitMachineDetailForm = \(\) => \{\s*readMachineDetailForm\(machine\);\s*if \(!persistWithQuietToast\(`台番\$\{daiNo\}の情報を保存しました`\)\) return;/);
+assert.match(openMachineDetail, /byId\("machineModel"\)\.addEventListener\("change", commitMachineDetailForm\);/);
+assert.match(openMachineDetail, /byId\("roundBalls"\)\.addEventListener\("change", commitMachineDetailForm\);/);
+assert.match(openMachineDetail, /byId\("machinePreset"\)\.addEventListener\("change", \(\) => \{\s*applyPresetSelectionToForm\(\);\s*commitMachineDetailForm\(\);\s*\}\);/);
 assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
 assert.match(openMachineDetail, /openMachineDetail\(daiNo, true, \{ preserveStatsFilter: true \}\)/);
 assert.match(machineStatsFilters, /dateMode: "all"/);
@@ -3707,5 +3714,128 @@ assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups[1].rows.map(
 assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups[0].rows.map((row) => row.cumulativeBalls))), [2800, 3400]);
 assert.equal(hitHistoryContext.legacySegmentId, 'seg_b');
 assert.equal(hitHistoryContext.noBallsRows[0].cumulativeBalls, null);
+
+// --- S5: 入力の即反映化と未保存警告 -------------------------------------------------
+const openModalBlock = section('function openModal', 'function closeModal');
+const closeModalBlock = section('function closeModal', 'function findSession');
+const bindMorningCheckModal = section('function bindMorningCheckModal', 'function saveMorningCurrent');
+const commitMorningCurrent = section('function commitMorningCurrent', 'function chooseMorningDirection');
+const mapEditorCloseGuard = section('function mapIslandsSignature', 'function mapManagementHtml');
+const renderMapEditorBlock = section('function renderMapEditor', 'function mapIslandsSignature');
+const persistQuietToast = section('function persistWithQuietToast', 'function automaticLabelsForDate');
+const ballsPerRoundHelpers = section('function actualHitBallsTotal', 'function openHitResetPrompt');
+
+// S5/§0: 閉じる前の関門。false を返したら閉じない
+assert.match(closeModalBlock, /if \(modalGuard && modalGuard\(\) === false\) return;/);
+assert.match(openModalBlock, /modalGuard = null;/);
+
+// S5/§1: 保存トーストは連続保存でも最後の1回にまとめる
+assert.match(persistQuietToast, /clearTimeout\(persistWithQuietToast\.timer\);/);
+assert.match(persistQuietToast, /persistWithQuietToast\.timer = setTimeout\(\(\) => showToast\(successMessage\), 400\);/);
+// 入力途中の空文字を拾わないよう、保存は change（フォーカスが外れた時）に限る
+assert.doesNotMatch(openMachineDetail, /byId\("(machineModel|roundBalls)"\)\.addEventListener\("input"/);
+
+// S5/§2: 閉店チェックは入力が残ったまま閉じようとしたら確認する
+assert.match(renderClosingInputModal, /modalGuard = \(\) => \{\s*if \(!closingInputFlow\?\.buffer\) return true;\s*openClosingDiscardConfirm\(\);\s*return false;\s*\};/);
+assert.match(renderClosingInputModal, /id="closingSaveCloseBtn">保存して閉じる/);
+assert.match(renderClosingInputModal, /id="closingDiscardCloseBtn">破棄して閉じる/);
+assert.match(renderClosingInputModal, /id="closingCancelCloseBtn">キャンセル/);
+assert.match(renderClosingInputModal, /byId\("closingCancelCloseBtn"\)\.addEventListener\("click", \(\) => \{\s*modalCancel = null;\s*renderClosingInputModal\(\);\s*\}\);/);
+
+// S5/§2: 朝イチチェックは選択した時点で保存する。保存して閉じるは置かない
+assert.doesNotMatch(html, /saveMorningCloseBtn/);
+assert.doesNotMatch(html, /function saveMorningAndClose/);
+assert.match(renderMorningCheckModal, /id="closeMorningBtn">閉じる/);
+assert.match(renderMorningCheckModal, /id="morningSavedSummary"/);
+assert.match(bindMorningCheckModal, /commitMorningCurrent\(\);/);
+assert.match(bindMorningCheckModal, /invalidInput\.addEventListener\("change", commitMorningCurrent\);/);
+assert.match(commitMorningCurrent, /if \(!saveMorningCurrent\(\)\) return;/);
+assert.match(commitMorningCurrent, /savedLine\.textContent = summary \? `保存済み: \$\{summary\}` : "未登録";/);
+
+// S5/§3: マップ編集は明示保存のまま。未保存の変更があるまま閉じようとしたら確認する
+assert.match(renderMapEditorBlock, /byId\("toggleMapEditorBtn"\)\.addEventListener\("click", \(\) => requestCloseMapEditor\(store\.id\)\);/);
+assert.match(renderMapEditorBlock, /id="saveMapBottomBtn">保存/);
+assert.match(html, /byId\("saveMapBtn"\)\.addEventListener\("click", saveCurrentMap\);/);
+assert.match(mapEditorCloseGuard, /if \(!mapEditorHasUnsavedChanges\(storeId\)\) \{\s*closeMapEditor\(storeId\);\s*return;\s*\}/);
+assert.match(mapEditorCloseGuard, /mapIslandsSignature\(currentMapDraftIslands\(\)\) !== mapIslandsSignature\(map\.islands \|\| \[\]\)/);
+assert.match(mapEditorCloseGuard, /id="mapSaveCloseBtn">保存して閉じる/);
+assert.match(mapEditorCloseGuard, /id="mapDiscardCloseBtn">破棄して閉じる/);
+assert.match(mapEditorCloseGuard, /id="mapCancelCloseBtn">キャンセル/);
+// 破棄は保存済みレイアウトへ戻す
+assert.match(mapEditorCloseGuard, /mapDraft = \{ storeId, mapId: map\.id, islands: cloneIslands\(map\.islands \|\| \[\]\), allowEmptySave: false \};/);
+// 保存が中断されたら閉じない
+assert.match(mapEditorCloseGuard, /saveCurrentMap\(\);\s*closeModal\(\);\s*if \(mapEditorHasUnsavedChanges\(storeId\)\) return;\s*closeMapEditor\(storeId\);/);
+
+const mapEditorGuardContext = vm.createContext({
+  mapEditorOpenByStore: { st1: true },
+  mapDraft: { storeId: 'st1', mapId: 'map1', islands: [], allowEmptySave: false },
+  els: { islandBuilder: { querySelector: () => null } },
+  readIslandDraftFromDom() {
+    return [];
+  },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  presetById() {
+    return null;
+  },
+  activeMap() {
+    return mapEditorGuardContext.__map;
+  },
+  __map: { id: 'map1', islands: [{ name: '1島', left: { from: 1, to: 4 }, right: null, gaps: { left: [], right: [] }, excluded: [] }] }
+});
+new vm.Script(`
+  ${section('function cloneIslands', 'function normalizeIsland')}
+  ${normalizeIsland}
+  ${mapEditorCloseGuard}
+  globalThis.dirtyWhenDraftEmpty = mapEditorHasUnsavedChanges('st1');
+  mapDraft.islands = [{ name: '1島', left: { from: 1, to: 4 }, right: null, gaps: { left: [], right: [] }, excluded: [] }];
+  globalThis.cleanWhenSame = mapEditorHasUnsavedChanges('st1');
+  mapDraft.islands = [{ name: '1島', left: { from: 1, to: 6 }, right: null, gaps: { left: [], right: [] }, excluded: [] }];
+  globalThis.dirtyWhenRangeChanged = mapEditorHasUnsavedChanges('st1');
+  mapEditorOpenByStore.st1 = false;
+  globalThis.cleanWhenClosed = mapEditorHasUnsavedChanges('st1');
+`).runInContext(mapEditorGuardContext);
+assert.equal(mapEditorGuardContext.dirtyWhenDraftEmpty, true);
+assert.equal(mapEditorGuardContext.cleanWhenSame, false);
+assert.equal(mapEditorGuardContext.dirtyWhenRangeChanged, true);
+assert.equal(mapEditorGuardContext.cleanWhenClosed, false);
+
+// S5/§4: 戦果報告はR数ベース出玉を出さず、実測の1R当たり玉数を出す
+assert.doesNotMatch(html, /R数ベース出玉/);
+assert.doesNotMatch(openRateSummary, /roundBasedPayout/);
+assert.match(openRateSummary, /<span>1R当たり<\/span><strong>\$\{escapeHtml\(ballsPerRoundText\(sessionBallsPerRound\(session, normalizeMachinePresetId\(machine\)\)\)\)\}<\/strong>/);
+assert.match(runEndWizardBlock, /hint: "実測の獲得出玉と合わせて1R当たりの玉数を計算します。"/);
+
+const ballsPerRoundContext = vm.createContext({
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  presetById(id) {
+    return { single: { roundTypes: [{ id: 'r10', label: '10R' }] } }[id] || null;
+  },
+  roundTypeById(presetId, roundTypeId) {
+    return ballsPerRoundContext.presetById(presetId)?.roundTypes.find((type) => type.id === roundTypeId) || null;
+  },
+  nowIso() {
+    return '2026-09-03T00:00:00.000Z';
+  }
+});
+new vm.Script(`
+  ${normalizeHitsBlock}
+  ${roundCountFromRoundTypeBlock}
+  ${roundBreakdownBlock}
+  ${ballsPerRoundHelpers}
+  globalThis.withActual = ballsPerRoundText(sessionBallsPerRound({ hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r10', actualBalls: 1420 }] }, 'single'));
+  globalThis.withoutActual = ballsPerRoundText(sessionBallsPerRound({ hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }] }, 'single'));
+  globalThis.withoutHits = ballsPerRoundText(sessionBallsPerRound({ hits: [] }, 'single'));
+`).runInContext(ballsPerRoundContext);
+assert.equal(ballsPerRoundContext.withActual, '140玉');
+assert.equal(ballsPerRoundContext.withoutActual, '—');
+assert.equal(ballsPerRoundContext.withoutHits, '—');
 
 console.log('yutime-v3 tests passed');

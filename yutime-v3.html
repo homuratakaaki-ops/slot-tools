@@ -2282,6 +2282,8 @@
     let mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
     let expandedIslandIndexes = new Set();
     let modalCancel = null;
+    // S5/§0: 閉じる前に確認が必要なモーダルはここに関門を置く。false を返すと閉じない。
+    let modalGuard = null;
 
     const els = {
       currentStorePill: byId("currentStorePill"),
@@ -2914,6 +2916,19 @@
       return ok;
     }
 
+    // S5/§1: 即保存の画面用。連続して保存してもトーストは最後の1回にまとめる。
+    function persistWithQuietToast(successMessage) {
+      const ok = persist();
+      if (!ok) {
+        clearTimeout(persistWithQuietToast.timer);
+        showToast("保存に失敗しました。容量を確認してください。", "error");
+        return false;
+      }
+      clearTimeout(persistWithQuietToast.timer);
+      persistWithQuietToast.timer = setTimeout(() => showToast(successMessage), 400);
+      return true;
+    }
+
     function automaticLabelsForDate(dateValue) {
       const parts = String(dateValue || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
       if (!parts) return [];
@@ -3525,12 +3540,64 @@
       const duplicateDaiNos = duplicateDaiNosAcrossMaps(store.id);
       const duplicateHtml = duplicateDaiNos.length ? `<span class="badge warn">複数マップに同じ台番: ${escapeHtml(duplicateDaiNos.slice(0, 5).join(" / "))}${duplicateDaiNos.length > 5 ? "..." : ""}</span>` : "";
       els.mapStatus.innerHTML = `<button class="small" id="toggleMapEditorBtn">閉じる</button><button class="primary small" id="saveMapBottomBtn">保存</button>${mapStatusHtml(parsed)}${duplicateHtml}`;
-      byId("toggleMapEditorBtn").addEventListener("click", () => {
-        mapEditorOpenByStore[store.id] = false;
-        renderMapEditor();
-      });
+      byId("toggleMapEditorBtn").addEventListener("click", () => requestCloseMapEditor(store.id));
       // 上部の保存ボタンと同じ処理を呼ぶ（保存処理は複製しない）
       byId("saveMapBottomBtn").addEventListener("click", saveCurrentMap);
+    }
+
+    // S5/§3: マップ編集は明示保存のまま。ただし未保存の変更を黙って捨てない。
+    function mapIslandsSignature(islands) {
+      return JSON.stringify(cloneIslands(islands).map((island) => ({ ...island, displayIndex: undefined })));
+    }
+
+    function currentMapDraftIslands() {
+      if (els.islandBuilder.querySelector("[data-island-index]")) return readIslandDraftFromDom();
+      return mapDraft.islands || [];
+    }
+
+    function mapEditorHasUnsavedChanges(storeId) {
+      if (!mapEditorOpenByStore[storeId]) return false;
+      if (mapDraft.storeId !== storeId) return false;
+      const map = activeMap(storeId);
+      if (mapDraft.mapId !== map.id) return false;
+      return mapIslandsSignature(currentMapDraftIslands()) !== mapIslandsSignature(map.islands || []);
+    }
+
+    function closeMapEditor(storeId) {
+      mapEditorOpenByStore[storeId] = false;
+      renderMapEditor();
+    }
+
+    function requestCloseMapEditor(storeId) {
+      if (!mapEditorHasUnsavedChanges(storeId)) {
+        closeMapEditor(storeId);
+        return;
+      }
+      openMapEditorDiscardConfirm(storeId);
+    }
+
+    function openMapEditorDiscardConfirm(storeId) {
+      openModal("保存していない変更があります", "フロアマップの編集内容がまだ保存されていません。破棄しますか？", `
+        <div class="grid">
+          <button class="primary" id="mapSaveCloseBtn">保存して閉じる</button>
+          <button id="mapDiscardCloseBtn">破棄して閉じる</button>
+          <button class="ghost" id="mapCancelCloseBtn">キャンセル</button>
+        </div>
+      `);
+      byId("mapSaveCloseBtn").addEventListener("click", () => {
+        saveCurrentMap();
+        closeModal();
+        if (mapEditorHasUnsavedChanges(storeId)) return;
+        closeMapEditor(storeId);
+      });
+      byId("mapDiscardCloseBtn").addEventListener("click", () => {
+        const map = activeMap(storeId);
+        mapDraft = { storeId, mapId: map.id, islands: cloneIslands(map.islands || []), allowEmptySave: false };
+        expandedIslandIndexes = new Set();
+        closeModal();
+        closeMapEditor(storeId);
+      });
+      byId("mapCancelCloseBtn").addEventListener("click", closeModal);
     }
 
     function mapManagementHtml(store) {
@@ -5230,6 +5297,36 @@
         closingInputFlow = null;
         renderMachineMap();
       };
+      // S5/§2: 途中の桁を確定値として保存してしまうため即保存にはしない。入力が残ったまま閉じようとしたら確認する。
+      modalGuard = () => {
+        if (!closingInputFlow?.buffer) return true;
+        openClosingDiscardConfirm();
+        return false;
+      };
+    }
+
+    function openClosingDiscardConfirm() {
+      const daiNo = currentClosingDaiNo();
+      const buffer = closingInputFlow?.buffer || "";
+      openModal("保存していない入力があります", `台${daiNo}に${buffer}を入力したままです。破棄しますか？`, `
+        <div class="grid">
+          <button class="primary" id="closingSaveCloseBtn">保存して閉じる</button>
+          <button id="closingDiscardCloseBtn">破棄して閉じる</button>
+          <button class="ghost" id="closingCancelCloseBtn">キャンセル</button>
+        </div>
+      `);
+      modalCancel = () => renderClosingInputModal();
+      byId("closingSaveCloseBtn").addEventListener("click", saveClosingAndClose);
+      byId("closingDiscardCloseBtn").addEventListener("click", () => {
+        modalCancel = null;
+        closingInputFlow = null;
+        closeModal();
+        renderMachineMap();
+      });
+      byId("closingCancelCloseBtn").addEventListener("click", () => {
+        modalCancel = null;
+        renderClosingInputModal();
+      });
     }
 
     function directionPreviewText() {
@@ -5403,7 +5500,7 @@
       const savedSummary = morningStateSummary(todayState);
       openModal(`台 ${daiNo} / 前日ヤメ ${previous ? `${previous.spin}回転` : "-"}`, "朝の状態だけを記録します。前日分を無効にしても閉店チェック値は消しません。", `
         <p class="modal-dai-title">台 <strong>${escapeHtml(daiNo)}</strong> / 前日ヤメ ${previous ? `${escapeHtml(previous.spin)}回転` : "-"}</p>
-        <p class="hint">${savedSummary ? `保存済み: ${escapeHtml(savedSummary)}` : "未登録"}</p>
+        <p class="hint" id="morningSavedSummary">${savedSummary ? `保存済み: ${escapeHtml(savedSummary)}` : "未登録"}</p>
         ${ended ? `<p class="hint warn">この列は終わりです。</p><div class="modal-actions"><button class="primary" data-close>マップへ戻る</button></div>` : `
           <div class="list">
             <label class="check-chip"><input id="morningPrevInvalid" type="checkbox" ${prevInvalid ? "checked" : ""}> 前日分を無効にする（当日すでに大当たり or リセット）</label>
@@ -5433,7 +5530,7 @@
               <button class="small" id="toggleMorningDirectionBtn">進行方向: ${escapeHtml(morningDirectionPreviewText())}（切替▼）</button>
             </div>
           `}
-          <div class="modal-actions"><button class="small" id="saveMorningCloseBtn">保存して閉じる</button></div>
+          <div class="modal-actions"><button class="small" id="closeMorningBtn">閉じる</button></div>
         `}
         <div class="closing-recent">${escapeHtml(morningCheckFlow.recent)}</div>
       `);
@@ -5468,12 +5565,15 @@
               invalidInput.dataset.ramAutoInvalid = "1";
             }
           }
+          commitMorningCurrent();
         });
       });
+      // S5/§2: チェックした時点で保存する。×で閉じても入力は残る。
+      if (invalidInput) invalidInput.addEventListener("change", commitMorningCurrent);
       const saveButton = byId("saveMorningNextBtn");
       if (saveButton) saveButton.addEventListener("click", saveMorningAndAdvance);
-      const saveCloseButton = byId("saveMorningCloseBtn");
-      if (saveCloseButton) saveCloseButton.addEventListener("click", saveMorningAndClose);
+      const closeButton = byId("closeMorningBtn");
+      if (closeButton) closeButton.addEventListener("click", closeModal);
       const skipButton = byId("skipMorningBtn");
       if (skipButton) skipButton.addEventListener("click", () => advanceMorningFlow(false));
       const backwardButton = byId("chooseMorningBackwardBtn");
@@ -5513,11 +5613,15 @@
       advanceMorningFlow(true);
     }
 
-    function saveMorningAndClose() {
+    // S5/§2: 保存ボタンを待たずに、選択した時点の状態を保存して表示を更新する。
+    function commitMorningCurrent() {
       if (!saveMorningCurrent()) return;
-      morningCheckFlow = null;
-      closeModal();
-      renderAll();
+      const machine = findMachineByDai(currentMorningDaiNo());
+      const summary = machine ? morningStateSummary(dailyStateFor(machine.id, today()) || {}) : "";
+      const savedLine = byId("morningSavedSummary");
+      if (savedLine) savedLine.textContent = summary ? `保存済み: ${summary}` : "未登録";
+      const recentLine = els.modalBody.querySelector(".closing-recent");
+      if (recentLine) recentLine.textContent = morningCheckFlow?.recent || "";
     }
 
     function chooseMorningDirection(direction) {
@@ -5966,7 +6070,6 @@
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="ghost" id="toggleMachineHistoryBtn">履歴</button>
-          ${machineFormExpanded ? '<button id="saveMachineBtn">台情報保存</button>' : ""}
           <button class="primary" id="startSessionBtn">この台を打つ</button>
         </div>
       `);
@@ -5980,17 +6083,19 @@
       if (machineFormExpanded) {
         byId("machinePreset").value = presetId;
         applyPresetSelectionToForm();
+        // S5/§1: 台情報は釘評価チップと同じく変更した時点で保存する。保存ボタンは置かない。
+        const commitMachineDetailForm = () => {
+          readMachineDetailForm(machine);
+          if (!persistWithQuietToast(`台番${daiNo}の情報を保存しました`)) return;
+          if (showExpectationBlock) renderMachineExpectation(machine.id);
+          renderAll();
+        };
         byId("machinePreset").addEventListener("change", () => {
           applyPresetSelectionToForm();
-          readMachineDetailForm(machine);
-          if (showExpectationBlock) renderMachineExpectation(machine.id);
+          commitMachineDetailForm();
         });
-        byId("saveMachineBtn").addEventListener("click", () => {
-          readMachineDetailForm(machine);
-          if (!persistWithToast(`台番${daiNo}の情報を保存しました`)) return;
-          closeModal();
-          renderAll();
-        });
+        byId("machineModel").addEventListener("change", commitMachineDetailForm);
+        byId("roundBalls").addEventListener("change", commitMachineDetailForm);
       }
       byId("toggleMachineHistoryBtn").addEventListener("click", () => {
         const panel = byId("machineHistoryPanel");
@@ -6511,17 +6616,14 @@
       const latestHit = hits.at(-1);
       const latestRounds = roundCountFromRoundType(roundTypeById(presetId, latestHit?.roundTypeId));
       const latestActualBalls = normalizeNumber(latestHit?.actualBalls);
-      const actualPayout = hits
-        .map((hit) => normalizeNumber(hit.actualBalls))
-        .filter((value) => value !== null && value > 0)
-        .reduce((sum, value) => sum + value, 0);
-      const ballsPerRound = actualPayout > 0 && totalRounds > 0 ? actualPayout / totalRounds : null;
+      const actualPayout = actualHitBallsTotal(hits);
+      const ballsPerRound = sessionBallsPerRound(session, presetId);
       const breakdownLine = (label, breakdown, countLabel = "") => `<p class="hint">${label} ${breakdown.rows.length ? breakdown.rows.join(" ／ ") : "-"}（${countLabel}${breakdown.hitCount.toLocaleString("ja-JP")}回・${breakdown.totalRounds.toLocaleString("ja-JP")}R）</p>`;
       return `
         <div class="hit-round-summary">
           <div class="hit-round-result">
             <strong>今回の当選 ${latestRounds !== null ? `${latestRounds.toLocaleString("ja-JP")}R` : "-"} ／ 合計 ${totalRounds.toLocaleString("ja-JP")}R</strong>
-            <small>1R当たり ${ballsPerRound !== null ? `${Math.round(ballsPerRound).toLocaleString("ja-JP")}玉` : "—"}</small>
+            <small>1R当たり ${ballsPerRoundText(ballsPerRound)}</small>
           </div>
           ${breakdownLine("今回の連チャン", chainBreakdown)}
           ${breakdownLine("このセッション", sessionBreakdown, "今回")}
@@ -6529,6 +6631,25 @@
           <p class="hint">実測獲得出玉 今回 ${actualPayout > 0 ? `${Math.round(Math.max(0, latestActualBalls ?? 0)).toLocaleString("ja-JP")}玉／累計 ${Math.round(actualPayout).toLocaleString("ja-JP")}玉` : "—"}</p>
         </div>
       `;
+    }
+
+    // S4/C-5・S5/§4: 実測の獲得出玉合計 ÷ 合計R。理論値（R数×公称玉数）では代用しない。
+    function actualHitBallsTotal(hits) {
+      return (Array.isArray(hits) ? hits : [])
+        .map((hit) => normalizeNumber(hit.actualBalls))
+        .filter((value) => value !== null && value > 0)
+        .reduce((sum, value) => sum + value, 0);
+    }
+
+    function sessionBallsPerRound(session, presetId) {
+      const hits = normalizeHits(session?.hits);
+      const totalRounds = roundBreakdown(hits, presetId).totalRounds;
+      const actualPayout = actualHitBallsTotal(hits);
+      return actualPayout > 0 && totalRounds > 0 ? actualPayout / totalRounds : null;
+    }
+
+    function ballsPerRoundText(value) {
+      return value !== null ? `${Math.round(value).toLocaleString("ja-JP")}玉` : "—";
     }
 
     function openHitResetPrompt(session) {
@@ -6947,7 +7068,7 @@
       const zanhoryuHint = zanhoryuPreset !== null ? "時短抜け後に消化した回転数から推定した値です。打ち込んだ場合は実際の残保留に修正してください。" : "";
       const hitRecordSteps = Array.isArray(session.hits) && session.hits.length ? [] : [
         { key: "hitCount", label: "大当たり回数", type: "number" },
-        { key: "totalRounds", label: "合計R数", type: "number", hint: "1R玉数と合わせてR数ベース出玉を計算します。" }
+        { key: "totalRounds", label: "合計R数", type: "number", hint: "実測の獲得出玉と合わせて1R当たりの玉数を計算します。" }
       ];
       const perHitActualTotal = cumulativeActualBallsBeforeHit(session);
       const sessionActualPreset = normalizeNumber(session.sessionActualBalls) ?? (perHitActualTotal > 0 ? perHitActualTotal : null);
@@ -8340,7 +8461,7 @@
           <div class="metric"><span>大当たり回数</span><strong>${numberText(session.hitCount, "-")}</strong></div>
           ${derived.estimatedRemainBalls !== null ? `<div class="metric"><span>当選時残り玉</span><strong>${numberText(derived.estimatedRemainBalls, "-")}（概算）</strong></div>` : ""}
           <div class="metric"><span>獲得出玉</span><strong>${payoutText(derived)}</strong></div>
-          <div class="metric"><span>R数ベース出玉</span><strong>${numberText(derived.roundBasedPayout, "-")}</strong></div>
+          <div class="metric"><span>1R当たり</span><strong>${escapeHtml(ballsPerRoundText(sessionBallsPerRound(session, normalizeMachinePresetId(machine))))}</strong></div>
           <div class="metric"><span>差玉</span><strong>${numberText(derived.diffBalls, "-")}</strong></div>
           <div class="metric"><span>現金投入合計</span><strong>${numberText(totals.cashYen, 0)} 円</strong></div>
           <div class="metric"><span>換算収支</span><strong>${numberText(derived.profitYen, "-")} 円</strong><small>${derived.profitYen !== null ? `（${escapeHtml(exchangeBallsText(derived.exchangeBalls))}玉交換）` : ""}</small></div>
@@ -8510,6 +8631,7 @@
     }
 
     function openModal(title, hint, html, mode = "") {
+      modalGuard = null;
       els.modalTitle.textContent = title;
       els.modalHint.textContent = hint || "";
       els.modalBody.innerHTML = html;
@@ -8519,6 +8641,8 @@
     }
 
     function closeModal() {
+      if (modalGuard && modalGuard() === false) return;
+      modalGuard = null;
       els.modalBackdrop.classList.remove("open");
       els.modalBackdrop.classList.remove("wizard-mode");
       els.modalBody.innerHTML = "";
