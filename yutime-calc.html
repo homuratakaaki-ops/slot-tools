@@ -131,7 +131,8 @@
   (() => {
     "use strict";
 
-    const DEFAULT_NET_BALLS_PER_WIN = 1400;
+    // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
+    const DEFAULT_NET_BALLS_PER_ROUND = 140;
 
 const YUTIME_EXPECTATION_ENGINE = (() => {
       const preset = {
@@ -148,10 +149,14 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
           kakuhenRate: 0.54,
           jitanNormal: 100,
           jitanChain: 200,
-          jitanRule: "確変中・通常時の通常当り→時短100 / 時短中(遊タイム含む)の通常当り→時短200"
+          jitanRule: "確変中・通常時の通常当り→時短100 / 時短中(遊タイム含む)の通常当り→時短200",
+          // S11: 当選1回あたりの平均R数。R構成は10R単発なので standardPayout 1400 ÷ standardRounds 10 = 140玉/R、
+          // 当選あたり1,400玉 ÷ 140玉/R = 10R。新しい推定は足さず既存のR構成の重みをそのまま使う。
+          averageRoundsPerWin: 10
         },
         defaults: {
-          netBallsPerWin: DEFAULT_NET_BALLS_PER_WIN,
+          // S11: netBallsPerWin は「1Rあたりの実質出玉（玉/R）」。当選あたりの玉数ではない。
+          netBallsPerWin: DEFAULT_NET_BALLS_PER_ROUND,
           jitanNormalBallsPerSpin: 0,
           jitanFastBallsPerSpin: 0,
           yutimeBallsPerSpin: -0.3,
@@ -176,10 +181,14 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
           stSpins: 10,
           yutimeJitan: 10000,
           modelType: "st-certain",
-          jitanTable: [{ spins: 90, share: 0.04 }, { spins: 40, share: 0.66 }, { spins: 15, share: 0.30 }]
+          jitanTable: [{ spins: 90, share: 0.04 }, { spins: 40, share: 0.66 }, { spins: 15, share: 0.30 }],
+          // S11: 当選1回あたりの平均R数。R構成は 4R/6R/10R いずれも108玉/R（standardPayout 648 ÷ standardRounds 6）で、
+          // 当選あたり587.5玉 ÷ 108玉/R ＝ 5.44R。R構成の重みは既存の値をそのまま使い、新しい推定は足さない。
+          averageRoundsPerWin: 587.5 / 108
         },
         defaults: {
-          netBallsPerWin: 587.5,
+          // S11: netBallsPerWin は「1Rあたりの実質出玉（玉/R）」。当選あたりの玉数ではない。
+          netBallsPerWin: 108,
           jitanNormalBallsPerSpin: -0.8,
           jitanFastBallsPerSpin: 0,
           yutimeBallsPerSpin: -0.8,
@@ -261,7 +270,9 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         const expectedDensapoSpins = expectedJitanNormalSpins + expectedJitanFastSpins + expectedYutimeSpins;
         const investBalls = expectedNormalSpins * 250 / rate;
         const split = normalInvestmentSplit(p, spinsToTenjo, 250 / rate, input.availableBalls);
-        const winBalls = expectedWins * merged.netBallsPerWin + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin + expectedYutimeSpins * merged.yutimeBallsPerSpin;
+        // S11: netBallsPerWin は玉/R。当選あたりの出玉は 玉/R × 当選1回あたりの平均R数。
+        const netBallsPerWinTotal = merged.netBallsPerWin * activePreset.spec.averageRoundsPerWin;
+        const winBalls = expectedWins * netBallsPerWinTotal + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin + expectedYutimeSpins * merged.yutimeBallsPerSpin;
         const evBalls = winBalls - investBalls;
         const mochidamaCostYen = split.mochidamaBalls * merged.yenPerBall;
         const cashSpentYen = split.cashBalls / 250 * 1000;
@@ -344,7 +355,9 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         const expectedDensapoSpins = expectedJitanNormalSpins + expectedJitanFastSpins + expectedYutimeSpins;
         const investBalls = expectedNormalSpins * 250 / rate;
         const split = normalInvestmentSplit(p, spinsToTenjo, 250 / rate, input.availableBalls);
-        const winBalls = expectedWins * merged.netBallsPerWin + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin + expectedYutimeSpins * merged.yutimeBallsPerSpin;
+        // S11: netBallsPerWin は玉/R。当選あたりの出玉は 玉/R × 当選1回あたりの平均R数。
+        const netBallsPerWinTotal = merged.netBallsPerWin * preset.spec.averageRoundsPerWin;
+        const winBalls = expectedWins * netBallsPerWinTotal + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin + expectedYutimeSpins * merged.yutimeBallsPerSpin;
         const evBalls = winBalls - investBalls;
         const mochidamaCostYen = split.mochidamaBalls * merged.yenPerBall;
         const cashSpentYen = split.cashBalls / 250 * 1000;
@@ -392,7 +405,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         payoutStep: "1",
         payoutDefault: 100,
         payoutChips: [105, 100, 90],
-        netBallsPerWin: (value) => 587.5 * value / 108
+        // S11: エンジンが受け取る netBallsPerWin は玉/R。入力欄も1R実質出玉なので変換しない
+        netBallsPerWin: (value) => value
       },
       {
         id: "umi-sp5",
@@ -402,7 +416,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         payoutStep: "10",
         payoutDefault: 1400,
         payoutChips: [],
-        netBallsPerWin: (value) => value
+        // S11: この機種の入力欄は当選あたりの純払い出し。エンジンは玉/R なので平均R数で割る
+        netBallsPerWin: (value) => value / YUTIME_EXPECTATION_ENGINE.presets["umi-sp5"].spec.averageRoundsPerWin
       }
     ];
 

@@ -24,9 +24,12 @@ const v3Engine = sectionOf(v3Html, 'yutime-v3.html', 'const YUTIME_EXPECTATION_E
 assert.equal(calcEngine, v3Engine, 'yutime-calc.html と yutime-v3.html の期待値エンジンは完全一致していること');
 
 // エンジンが外側から受け取る唯一の定数も同じ行であること
-const DEFAULT_NET_BALLS_LINE = '    const DEFAULT_NET_BALLS_PER_WIN = 1400;\n';
-assert.ok(calcHtml.includes(DEFAULT_NET_BALLS_LINE), 'yutime-calc.html の DEFAULT_NET_BALLS_PER_WIN が v3 と同じ行であること');
-assert.ok(v3Html.includes(DEFAULT_NET_BALLS_LINE), 'yutime-v3.html の DEFAULT_NET_BALLS_PER_WIN が想定どおりであること');
+// S11: 定数は「1Rあたりの実質出玉（玉/R）」。当選あたりの玉数ではない
+const DEFAULT_NET_BALLS_LINE = '    const DEFAULT_NET_BALLS_PER_ROUND = 140;\n';
+assert.ok(calcHtml.includes(DEFAULT_NET_BALLS_LINE), 'yutime-calc.html の DEFAULT_NET_BALLS_PER_ROUND が v3 と同じ行であること');
+assert.ok(v3Html.includes(DEFAULT_NET_BALLS_LINE), 'yutime-v3.html の DEFAULT_NET_BALLS_PER_ROUND が想定どおりであること');
+assert.doesNotMatch(calcHtml, /DEFAULT_NET_BALLS_PER_WIN/, '当選あたりの定数名は残さないこと');
+assert.doesNotMatch(v3Html, /DEFAULT_NET_BALLS_PER_WIN/, '当選あたりの定数名は残さないこと');
 
 // --- 2. ページ側ロジックを vm で実行する ------------------------------------
 
@@ -36,7 +39,7 @@ const urlBlock = sectionOf(calcHtml, 'yutime-calc.html', 'function presetIdFromU
 
 const context = vm.createContext({ URLSearchParams, window: { location: { search: '' } } });
 vm.runInContext([
-  '    const DEFAULT_NET_BALLS_PER_WIN = 1400;',
+  '    const DEFAULT_NET_BALLS_PER_ROUND = 140;',
   calcEngine,
   presetBlock,
   logicBlock,
@@ -96,7 +99,7 @@ assert.equal(evYenOf(umiCase), -231, '大海5SP・434回転・回転率17・純�
 // エンジンを直接叩いた値と、ページ経由の値が一致すること（大海5SPはずれ0なので素通し）
 const umiDirect = api.YUTIME_EXPECTATION_ENGINE.calculate(
   { presetId: 'umi-sp5', currentSpin: 434, rotationRate: 17, availableBalls: 0 },
-  { ...api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].defaults, presetId: 'umi-sp5', netBallsPerWin: 1400, yenPerBall: 100 / 28 }
+  { ...api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].defaults, presetId: 'umi-sp5', netBallsPerWin: 140, yenPerBall: 100 / 28 }
 );
 assert.equal(Math.round(umiDirect.evYen), evYenOf(umiCase), '大海5SPはカウンター値をそのままエンジンに渡す');
 assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.holdSpins, 5, 'agnes-pe の残保留既定は5');
@@ -129,12 +132,20 @@ assert.equal(api.PRESETS[0].id, 'agnes-pe');
 assert.equal(api.PRESETS[0].payoutLabel, '1R実質出玉（電サポ中の減り込み）');
 assert.equal(api.PRESETS[0].payoutDefault, 100);
 assert.equal(JSON.stringify(Array.from(api.PRESETS[0].payoutChips)), '[105,100,90]');
-assert.ok(Math.abs(api.PRESETS[0].netBallsPerWin(100) - 587.5 * 100 / 108) < 1e-9, 'agnes-pe は 587.5 × 入力値 ÷ 108');
+// S11: エンジンが玉/R を受けるようになったので、1R実質出玉の入力は変換せずそのまま渡す
+assert.equal(api.PRESETS[0].netBallsPerWin(100), 100, 'agnes-pe は入力値（玉/R）をそのまま使う');
+assert.equal(api.PRESETS[0].netBallsPerWin(105), 105);
 assert.equal(api.PRESETS[1].id, 'umi-sp5');
 assert.equal(api.PRESETS[1].payoutLabel, '1回の当りあたり純払い出し');
 assert.equal(api.PRESETS[1].payoutDefault, 1400);
 assert.equal(JSON.stringify(Array.from(api.PRESETS[1].payoutChips)), '[]');
-assert.equal(api.PRESETS[1].netBallsPerWin(1400), 1400, 'umi-sp5 は入力値をそのまま使う');
+// umi-sp5 の入力欄は当選あたりの純払い出しのままなので、平均R数（10R）で割って玉/Rにする
+assert.equal(api.PRESETS[1].netBallsPerWin(1400), 140, 'umi-sp5 は当選あたりの入力を平均R数で割る');
+assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].spec.averageRoundsPerWin, 10);
+assert.ok(Math.abs(api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].spec.averageRoundsPerWin - 587.5 / 108) < 1e-12);
+// 玉/R × 平均R数 は旧 netBallsPerWin と完全に一致する（代表点が動かない根拠）
+assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.netBallsPerWin * api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].spec.averageRoundsPerWin, 587.5);
+assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].defaults.netBallsPerWin * api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].spec.averageRoundsPerWin, 1400);
 assert.match(calcHtml, /byId\("payoutLabel"\)\.textContent = preset\.payoutLabel;/, '機種切替でラベルが差し替わること');
 assert.match(calcHtml, /payoutInput\.placeholder = String\(preset\.payoutDefault\);/, '機種切替で既定値が差し替わること');
 

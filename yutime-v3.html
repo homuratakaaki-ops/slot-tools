@@ -1908,10 +1908,11 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 31;
+    const SCHEMA_VERSION = 32;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
-    const DEFAULT_NET_BALLS_PER_WIN = 1400;
+    // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
+    const DEFAULT_NET_BALLS_PER_ROUND = 140;
     const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
     const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
     const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
@@ -1958,10 +1959,14 @@
           kakuhenRate: 0.54,
           jitanNormal: 100,
           jitanChain: 200,
-          jitanRule: "確変中・通常時の通常当り→時短100 / 時短中(遊タイム含む)の通常当り→時短200"
+          jitanRule: "確変中・通常時の通常当り→時短100 / 時短中(遊タイム含む)の通常当り→時短200",
+          // S11: 当選1回あたりの平均R数。R構成は10R単発なので standardPayout 1400 ÷ standardRounds 10 = 140玉/R、
+          // 当選あたり1,400玉 ÷ 140玉/R = 10R。新しい推定は足さず既存のR構成の重みをそのまま使う。
+          averageRoundsPerWin: 10
         },
         defaults: {
-          netBallsPerWin: DEFAULT_NET_BALLS_PER_WIN,
+          // S11: netBallsPerWin は「1Rあたりの実質出玉（玉/R）」。当選あたりの玉数ではない。
+          netBallsPerWin: DEFAULT_NET_BALLS_PER_ROUND,
           jitanNormalBallsPerSpin: 0,
           jitanFastBallsPerSpin: 0,
           yutimeBallsPerSpin: -0.3,
@@ -1986,10 +1991,14 @@
           stSpins: 10,
           yutimeJitan: 10000,
           modelType: "st-certain",
-          jitanTable: [{ spins: 90, share: 0.04 }, { spins: 40, share: 0.66 }, { spins: 15, share: 0.30 }]
+          jitanTable: [{ spins: 90, share: 0.04 }, { spins: 40, share: 0.66 }, { spins: 15, share: 0.30 }],
+          // S11: 当選1回あたりの平均R数。R構成は 4R/6R/10R いずれも108玉/R（standardPayout 648 ÷ standardRounds 6）で、
+          // 当選あたり587.5玉 ÷ 108玉/R ＝ 5.44R。R構成の重みは既存の値をそのまま使い、新しい推定は足さない。
+          averageRoundsPerWin: 587.5 / 108
         },
         defaults: {
-          netBallsPerWin: 587.5,
+          // S11: netBallsPerWin は「1Rあたりの実質出玉（玉/R）」。当選あたりの玉数ではない。
+          netBallsPerWin: 108,
           jitanNormalBallsPerSpin: -0.8,
           jitanFastBallsPerSpin: 0,
           yutimeBallsPerSpin: -0.8,
@@ -2071,7 +2080,9 @@
         const expectedDensapoSpins = expectedJitanNormalSpins + expectedJitanFastSpins + expectedYutimeSpins;
         const investBalls = expectedNormalSpins * 250 / rate;
         const split = normalInvestmentSplit(p, spinsToTenjo, 250 / rate, input.availableBalls);
-        const winBalls = expectedWins * merged.netBallsPerWin + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin + expectedYutimeSpins * merged.yutimeBallsPerSpin;
+        // S11: netBallsPerWin は玉/R。当選あたりの出玉は 玉/R × 当選1回あたりの平均R数。
+        const netBallsPerWinTotal = merged.netBallsPerWin * activePreset.spec.averageRoundsPerWin;
+        const winBalls = expectedWins * netBallsPerWinTotal + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin + expectedYutimeSpins * merged.yutimeBallsPerSpin;
         const evBalls = winBalls - investBalls;
         const mochidamaCostYen = split.mochidamaBalls * merged.yenPerBall;
         const cashSpentYen = split.cashBalls / 250 * 1000;
@@ -2154,7 +2165,9 @@
         const expectedDensapoSpins = expectedJitanNormalSpins + expectedJitanFastSpins + expectedYutimeSpins;
         const investBalls = expectedNormalSpins * 250 / rate;
         const split = normalInvestmentSplit(p, spinsToTenjo, 250 / rate, input.availableBalls);
-        const winBalls = expectedWins * merged.netBallsPerWin + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin + expectedYutimeSpins * merged.yutimeBallsPerSpin;
+        // S11: netBallsPerWin は玉/R。当選あたりの出玉は 玉/R × 当選1回あたりの平均R数。
+        const netBallsPerWinTotal = merged.netBallsPerWin * preset.spec.averageRoundsPerWin;
+        const winBalls = expectedWins * netBallsPerWinTotal + expectedJitanNormalSpins * merged.jitanNormalBallsPerSpin + expectedJitanFastSpins * merged.jitanFastBallsPerSpin + expectedYutimeSpins * merged.yutimeBallsPerSpin;
         const evBalls = winBalls - investBalls;
         const mochidamaCostYen = split.mochidamaBalls * merged.yenPerBall;
         const cashSpentYen = split.cashBalls / 250 * 1000;
@@ -2541,7 +2554,13 @@
 
     function presetNetBallsPerWin(presetId) {
       const preset = presetById(presetId);
-      return positiveNumberOrDefault(data.presetSettings?.[presetId]?.netBallsPerWin, preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN);
+      return positiveNumberOrDefault(data.presetSettings?.[presetId]?.netBallsPerWin, preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_ROUND);
+    }
+
+    // S11: 当選1回あたりの平均R数。出所は期待値エンジンのプリセット1箇所だけ。
+    function averageRoundsPerWin(presetId) {
+      const rounds = normalizeNumber(presetById(presetId)?.spec?.averageRoundsPerWin);
+      return rounds !== null && rounds > 0 ? rounds : 1;
     }
 
     // S9/§1-2: 1R実質出玉の採用順位。手入力 → 実測平均 → ラウンド集計 → 理論値。
@@ -2594,11 +2613,17 @@
       if (actualRounds > 0) {
         return { value: actualTotal / actualRounds, source: "実測平均", count: actualRounds, countUnit: "rounds" };
       }
-      const roundHits = hits.map((hit) => roundTypeById(presetId, hit.roundTypeId)?.balls).filter((value) => Number(value) > 0);
+      // S11: ラウンド集計も玉/R でそろえる。R種別の公称出玉 ÷ そのR数。
+      const roundHits = hits.map((hit) => {
+        const roundType = roundTypeById(presetId, hit.roundTypeId);
+        const balls = Number(roundType?.balls);
+        const rounds = roundCountFromRoundType(roundType);
+        return balls > 0 && rounds !== null && rounds > 0 ? balls / rounds : null;
+      }).filter((value) => value !== null);
       if (roundHits.length) {
-        return { value: roundHits.reduce((sum, value) => sum + Number(value), 0) / roundHits.length, source: "ラウンド集計", count: roundHits.length };
+        return { value: roundHits.reduce((sum, value) => sum + value, 0) / roundHits.length, source: "ラウンド集計", count: roundHits.length };
       }
-      return { value: preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN, source: "理論値", count: 0 };
+      return { value: preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_ROUND, source: "理論値", count: 0 };
     }
 
     function presetHoldSpins(presetId) {
@@ -3101,11 +3126,19 @@
       };
       const sourceVersion = normalizeNumber(source.version) ?? 0;
       next.version = SCHEMA_VERSION;
+      // S11: schema 32 で netBallsPerWin の単位を「当選あたり」から「1Rあたり（玉/R）」へ変えた。
+      // 31以前に保存された手入力値は当選あたりなので、その機種の平均R数で割って玉/Rに直す。
+      const netBallsToPerRound = (value, presetId) => {
+        const number = normalizeNumber(value);
+        if (number === null || number <= 0) return value;
+        if (sourceVersion <= 0 || sourceVersion >= 32) return number;
+        return number / averageRoundsPerWin(presetId);
+      };
       const legacyNetBallsPerWin = next.stores.map((store) => normalizeNumber(store.netBallsPerWin)).find((value) => value !== null && value > 0);
       if (!next.presetSettings["umi-sp5"]) next.presetSettings["umi-sp5"] = {};
       const hadPresetNetBalls = Object.prototype.hasOwnProperty.call(next.presetSettings["umi-sp5"], "netBallsPerWin");
-      next.presetSettings["umi-sp5"].netBallsPerWin = positiveNumberOrDefault(next.presetSettings["umi-sp5"].netBallsPerWin ?? legacyNetBallsPerWin, DEFAULT_NET_BALLS_PER_WIN);
-      next.presetSettings["umi-sp5"].netBallsPerWinManual = next.presetSettings["umi-sp5"].netBallsPerWinManual === true || (hadPresetNetBalls && next.presetSettings["umi-sp5"].netBallsPerWin !== DEFAULT_NET_BALLS_PER_WIN);
+      next.presetSettings["umi-sp5"].netBallsPerWin = positiveNumberOrDefault(netBallsToPerRound(next.presetSettings["umi-sp5"].netBallsPerWin ?? legacyNetBallsPerWin, "umi-sp5"), DEFAULT_NET_BALLS_PER_ROUND);
+      next.presetSettings["umi-sp5"].netBallsPerWinManual = next.presetSettings["umi-sp5"].netBallsPerWinManual === true || (hadPresetNetBalls && next.presetSettings["umi-sp5"].netBallsPerWin !== DEFAULT_NET_BALLS_PER_ROUND);
       next.presetSettings["umi-sp5"].jitanNormalBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].jitanNormalBallsPerSpin) ?? 0;
       next.presetSettings["umi-sp5"].jitanFastBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].jitanFastBallsPerSpin) ?? 0;
       next.presetSettings["umi-sp5"].yutimeBallsPerSpin = normalizeNumber(next.presetSettings["umi-sp5"].yutimeBallsPerSpin) ?? (sourceVersion < 26 ? 0 : (presetById("umi-sp5")?.defaults?.yutimeBallsPerSpin ?? 0));
@@ -3113,7 +3146,7 @@
       next.presetSettings["umi-sp5"].holdSpins = normalizeNumber(next.presetSettings["umi-sp5"].holdSpins) ?? (presetById("umi-sp5")?.defaults?.holdSpins ?? 0);
       if (next.presetSettings["agnes-pe"]) {
         const agnesDefaults = presetById("agnes-pe")?.defaults || {};
-        next.presetSettings["agnes-pe"].netBallsPerWin = positiveNumberOrDefault(next.presetSettings["agnes-pe"].netBallsPerWin, agnesDefaults.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN);
+        next.presetSettings["agnes-pe"].netBallsPerWin = positiveNumberOrDefault(netBallsToPerRound(next.presetSettings["agnes-pe"].netBallsPerWin, "agnes-pe"), agnesDefaults.netBallsPerWin || DEFAULT_NET_BALLS_PER_ROUND);
         next.presetSettings["agnes-pe"].netBallsPerWinManual = next.presetSettings["agnes-pe"].netBallsPerWinManual === true;
         next.presetSettings["agnes-pe"].jitanNormalBallsPerSpin = normalizeNumber(next.presetSettings["agnes-pe"].jitanNormalBallsPerSpin) ?? (agnesDefaults.jitanNormalBallsPerSpin ?? 0);
         next.presetSettings["agnes-pe"].jitanFastBallsPerSpin = normalizeNumber(next.presetSettings["agnes-pe"].jitanFastBallsPerSpin) ?? (agnesDefaults.jitanFastBallsPerSpin ?? 0);
@@ -3721,7 +3754,7 @@
         const jitanFast = presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin");
         const yutimeBalls = presetYutimeBallsPerSpin(presetId);
         const namePrefix = showName ? `${escapeHtml(presetById(presetId)?.name || "")} ` : "";
-        return `<button class="small baseline-chip" data-baseline-preset="${escapeHtml(presetId)}">${namePrefix}純払い出し <strong>${baselineBallText(netBalls)}玉</strong> / 時短・遊タイム <strong>${jitanNormal}/${jitanFast}/${yutimeBalls}</strong>（変更）</button>`;
+        return `<button class="small baseline-chip" data-baseline-preset="${escapeHtml(presetId)}">${namePrefix}1R実質出玉 <strong>${baselineBallText(netBalls)}玉</strong> / 時短・遊タイム <strong>${jitanNormal}/${jitanFast}/${yutimeBalls}</strong>（変更）</button>`;
       }).join("");
     }
 
@@ -3906,7 +3939,7 @@
         ? "込み出玉で記録する運用ではST・時短枠は0のまま。遊タイム枠は遊タイム突入から当りまでの玉減りで、止め打ち次第で0〜-0.8程度と人により大きく変わります。0で考慮しません。"
         : "遊タイムは仮値-0.3（駆け抜け約100玉相当）。駆け抜けの実測が貯まったら更新してください。";
       openModal("期待値用の出玉・時短消費", "大当たり出玉は大当り開始から電サポ終了までの純増で入力します。時短中の玉増減は状態別に分けます。", `
-        <div class="field-row"><label for="quickNetBallsPerWin">純払い出し量</label><input id="quickNetBallsPerWin" inputmode="numeric" value="${escapeHtml(manualNetBallsValue)}" placeholder="空欄で自動"></div>
+        <div class="field-row"><label for="quickNetBallsPerWin">1R実質出玉（玉/R）</label><input id="quickNetBallsPerWin" inputmode="decimal" value="${escapeHtml(manualNetBallsValue)}" placeholder="空欄で自動"></div>
         <div class="field-row"><label for="quickJitanNormalBallsPerSpin">時短100（玉/回転）</label><input id="quickJitanNormalBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanNormalBallsPerSpin"))}"></div>
         <div class="field-row"><label for="quickJitanFastBallsPerSpin">${isStCertain ? "ST・時短" : "時短200"}（玉/回転）</label><input id="quickJitanFastBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin"))}"></div>
         <div class="field-row"><label for="quickYutimeBallsPerSpin">遊タイム（玉/回転）</label><input id="quickYutimeBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetYutimeBallsPerSpin(presetId))}"></div>
@@ -3914,7 +3947,7 @@
         <p class="hint">時短が終わったあと玉代ゼロで回る保留の数。通常4〜5。0で考慮しない。</p>
         <div class="field-row"><label for="quickHourlyThreshold">「打てる」判定の時給ライン（円）</label><input id="quickHourlyThreshold" inputmode="numeric" value="${escapeHtml(Math.round(hourlyThresholdYen()))}"></div>
         <p class="hint">打てる判定の時給ライン。スロ機械割105%相当＝約2,400円が目安。全機種・全店共通の値です。</p>
-        <p class="hint">獲得出玉は大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）です。空欄または0以下なら手入力上書きを解除し、実測平均・ラウンド集計・理論値の順で自動採用します。${supportHint}</p>
+        <p class="hint">1R実質出玉は「大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）÷ 消化した合計R数」です。空欄または0以下なら手入力上書きを解除し、実測平均・ラウンド集計・理論値の順で自動採用します。${supportHint}</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveQuickNetBallsBtn">保存</button>

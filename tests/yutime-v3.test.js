@@ -703,7 +703,7 @@ assert.match(yutimeExpectationEngine, /expectedJitanNormalSpins = pHit \* chains
 assert.match(yutimeExpectationEngine, /expectedJitanFastSpins = pHit \* chains\.jitanFastInit \+ pReach \* chains\.r350 \* chains\.jitanFastJitanHit;/);
 assert.match(yutimeExpectationEngine, /const expectedYutimeSpins = pReach \* yutimeDensapoBeforeHit;/);
 assert.match(yutimeExpectationEngine, /const expectedDensapoSpins = expectedJitanNormalSpins \+ expectedJitanFastSpins \+ expectedYutimeSpins;/);
-assert.match(yutimeExpectationEngine, /const winBalls = expectedWins \* merged\.netBallsPerWin \+ expectedJitanNormalSpins \* merged\.jitanNormalBallsPerSpin \+ expectedJitanFastSpins \* merged\.jitanFastBallsPerSpin \+ expectedYutimeSpins \* merged\.yutimeBallsPerSpin;/);
+assert.match(yutimeExpectationEngine, /const winBalls = expectedWins \* netBallsPerWinTotal \+ expectedJitanNormalSpins \* merged\.jitanNormalBallsPerSpin \+ expectedJitanFastSpins \* merged\.jitanFastBallsPerSpin \+ expectedYutimeSpins \* merged\.yutimeBallsPerSpin;/);
 assert.match(yutimeExpectationEngine, /const evBalls = winBalls - investBalls;/);
 assert.match(yutimeExpectationEngine, /function normalInvestmentSplit\(prob, spinsToTenjo, ballsPerSpin, availableBalls\)/);
 assert.match(yutimeExpectationEngine, /const split = normalInvestmentSplit\(p, spinsToTenjo, 250 \/ rate, input\.availableBalls\);/);
@@ -712,7 +712,7 @@ assert.match(yutimeExpectationEngine, /const normalCostYen = mochidamaCostYen \+
 assert.match(yutimeExpectationEngine, /const winBallsYen = winBalls \* merged\.yenPerBall;/);
 assert.match(yutimeExpectationEngine, /const evYen = winBallsYen - normalCostYen;/);
 const expectationContext = vm.createContext({
-  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  DEFAULT_NET_BALLS_PER_ROUND: 140,
   DEFAULT_HOURLY_THRESHOLD_YEN: 2400,
   data: { meta: {} },
   normalizeNumber(value) {
@@ -757,7 +757,7 @@ for (const param of ['tenjo', 'hitProbLow', 'hitProbHigh', 'jitanTable', 'holdSp
 }
 // MACHINE_PRESETS の spec / defaults はエンジン側から解決する
 const machinePresetContext = vm.createContext({
-  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  DEFAULT_NET_BALLS_PER_ROUND: 140,
   window: {}
 });
 new vm.Script(`
@@ -774,7 +774,7 @@ for (const machinePreset of machinePresetContext.presets) {
   assert.equal(machinePreset.defaults, enginePreset.defaults, `${machinePreset.id} の defaults はエンジンの実体をそのまま参照すること`);
 }
 assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').roundTypes.length, 3, 'UI側の roundTypes は MACHINE_PRESETS に残ること');
-assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').defaults.netBallsPerWin, 587.5, 'agnes-pe の既定値はエンジン側の値で解決されること');
+assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').defaults.netBallsPerWin, 108, 'agnes-pe の既定値（S11: 玉/R）はエンジン側の値で解決されること');
 new vm.Script(`
   function normalizeNumber(value) {
     if (value === "" || value === null || value === undefined) return null;
@@ -813,7 +813,7 @@ assert.equal(counterApi.remainingSpinsFromCounterSpin(525, 'umi-sp5'), 425);
 // 受け入れ基準: アグネスPE・カウンター150・回転率17・1R実質100玉・等価・現金 → +1,569円（記事v5と一致）
 const agnesCounterCase = expectationContext.engine.calculate(
   { presetId: 'agnes-pe', currentSpin: counterApi.engineSpinFromCounterSpin(150, 'agnes-pe'), rotationRate: 17, availableBalls: 0 },
-  { ...expectationContext.engine.presets['agnes-pe'].defaults, presetId: 'agnes-pe', netBallsPerWin: 587.5 * 100 / 108, yenPerBall: 4 }
+  { ...expectationContext.engine.presets['agnes-pe'].defaults, presetId: 'agnes-pe', netBallsPerWin: 100, yenPerBall: 4 }
 );
 assert.equal(Math.round(agnesCounterCase.evYen), 1569, 'アグネスPE・カウンター150 → +1,569円');
 assert.equal(agnesCounterCase.spinsToTenjo, 100, 'エンジンの残り回転数もカウンター基準と一致する');
@@ -829,7 +829,7 @@ assert.match(yutimeEnterSpinForRate, /const inferred = counterTenjo - prevSpin;/
 assert.match(html, /const remaining = remainingSpinsFromCounterSpin\(effective, preset\.id\);/);
 
 // B91: 既存の基準点はすべて holdSpins=0（残保留なし）の回帰として固定する
-const zeroSupportSettings = { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0, holdSpins: 0 };
+const zeroSupportSettings = { yenPerBall: 4, netBallsPerWin: 140, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0, holdSpins: 0 };
 const equalExchangeResult = expectationContext.engine.calculate(
   { currentSpin: 0, rotationRate: 18 },
   zeroSupportSettings
@@ -848,7 +848,7 @@ const nonEqualAllBallsResult = expectationContext.engine.calculate(
 );
 const jitanLossResult = expectationContext.engine.calculate(
   { currentSpin: 900, rotationRate: 18 },
-  { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5, yutimeBallsPerSpin: 0, holdSpins: 0 }
+  { yenPerBall: 4, netBallsPerWin: 140, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5, yutimeBallsPerSpin: 0, holdSpins: 0 }
 );
 assert.ok(equalExchangeResult, 'equal exchange EV should calculate');
 assert.ok(nonEqualExchangeResult, 'non-equal exchange EV should calculate');
@@ -892,7 +892,7 @@ assert.ok(Math.abs(legacyFastWithYutimeSpins - (equalExchangeResult.expectedJita
 assert.ok(jitanLossResult.winBalls < expectationContext.engine.calculate({ currentSpin: 900, rotationRate: 18 }, zeroSupportSettings).winBalls, 'negative jitan rates should reduce win balls');
 const defaultYutimeLossResult = expectationContext.engine.calculate(
   { currentSpin: 0, rotationRate: 18 },
-  { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, holdSpins: 0 }
+  { yenPerBall: 4, netBallsPerWin: 140, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, holdSpins: 0 }
 );
 const yutimeMinusOneResult = expectationContext.engine.calculate(
   { currentSpin: 0, rotationRate: 18 },
@@ -920,7 +920,7 @@ function agnesBorder(payoutFactor, holdSpins = 0) {
     const mid = (lo + hi) / 2;
     const result = expectationContext.engine.calculate(
       { presetId: 'agnes-pe', currentSpin: 0, rotationRate: mid },
-      { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5 * payoutFactor, jitanFastBallsPerSpin: -0.8, holdSpins }
+      { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 108 * payoutFactor, jitanFastBallsPerSpin: -0.8, holdSpins }
     );
     if (result.evYen >= 0) hi = mid;
     else lo = mid;
@@ -1020,7 +1020,7 @@ function simulateExpectation(currentSpin, trials, seed, holdSpins = 0) {
 }
 
 function assertMonteCarloClose(currentSpin, seed, holdSpins = 0) {
-  const analytic = expectationContext.engine.calculate({ currentSpin, rotationRate: 18 }, { yenPerBall: 4, netBallsPerWin: 1400, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5, yutimeBallsPerSpin: -1.0, holdSpins });
+  const analytic = expectationContext.engine.calculate({ currentSpin, rotationRate: 18 }, { yenPerBall: 4, netBallsPerWin: 140, jitanNormalBallsPerSpin: -0.2, jitanFastBallsPerSpin: -0.5, yutimeBallsPerSpin: -1.0, holdSpins });
   const simulated = simulateExpectation(currentSpin, 300000, seed, holdSpins);
   const cases = [
     ['expectedNormalSpins', simulated.normal],
@@ -1093,7 +1093,7 @@ function simulateAgnesExpectation(currentSpin, trials, seed, holdSpins = 0) {
 
 const agnesAnalytic = expectationContext.engine.calculate(
   { presetId: 'agnes-pe', currentSpin: 0, rotationRate: 18 },
-  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, holdSpins: 0 }
+  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 108, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, holdSpins: 0 }
 );
 const agnesSimulated = simulateAgnesExpectation(0, 300000, 0xA679, 0);
 for (const [key, actual] of [
@@ -1111,7 +1111,7 @@ for (const [key, actual] of [
 // B91: 残保留5でもアグネスPEがモンテカルロと一致すること
 const agnesAnalyticHold = expectationContext.engine.calculate(
   { presetId: 'agnes-pe', currentSpin: 0, rotationRate: 18 },
-  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, holdSpins: 5 }
+  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 108, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, holdSpins: 5 }
 );
 const agnesSimulatedHold = simulateAgnesExpectation(0, 300000, 0xA681, 5);
 for (const [key, actual] of [
@@ -1128,21 +1128,21 @@ for (const [key, actual] of [
 }
 const agnesNoSupportLoss = expectationContext.engine.calculate(
   { presetId: 'agnes-pe', currentSpin: 0, rotationRate: 18 },
-  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 , holdSpins: 0 }
+  { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 108, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 , holdSpins: 0 }
 );
 assert.ok(Math.abs(agnesNoSupportLoss.winBalls - agnesNoSupportLoss.expectedWins * 587.5) < 0.000001, 'agnes zero support rates should not apply support loss');
 for (const currentSpin of [0, 189]) {
   const base = expectationContext.engine.calculate(
     { presetId: 'agnes-pe', currentSpin, rotationRate: 17 },
-    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 , holdSpins: 0 }
+    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 108, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 , holdSpins: 0 }
   );
   const yutimeOnly = expectationContext.engine.calculate(
     { presetId: 'agnes-pe', currentSpin, rotationRate: 17 },
-    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 , holdSpins: 0 }
+    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 108, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 , holdSpins: 0 }
   );
   const fastOnly = expectationContext.engine.calculate(
     { presetId: 'agnes-pe', currentSpin, rotationRate: 17 },
-    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 587.5, jitanFastBallsPerSpin: -0.8, yutimeBallsPerSpin: 0 , holdSpins: 0 }
+    { presetId: 'agnes-pe', yenPerBall: 4, netBallsPerWin: 108, jitanFastBallsPerSpin: -0.8, yutimeBallsPerSpin: 0 , holdSpins: 0 }
   );
   assert.ok(Math.abs((yutimeOnly.evYen - base.evYen) - base.expectedYutimeSpins * -0.8 * 4) < 0.000001, `agnes yutime-only loss currentSpin=${currentSpin}`);
   assert.ok(Math.abs((fastOnly.evYen - base.evYen) - base.expectedJitanFastSpins * -0.8 * 4) < 0.000001, `agnes fast-only loss currentSpin=${currentSpin}`);
@@ -1150,7 +1150,8 @@ for (const currentSpin of [0, 189]) {
 assert.ok(Math.abs((agnesNoSupportLoss.evYen - agnesAnalytic.evYen) - agnesAnalytic.expectedYutimeSpins * 0.8 * 4) < 0.000001, 'agnes default yutime loss should only apply before-hit yutime spins');
 const agnesArticleRev2 = expectationContext.engine.calculate(
   { presetId: 'agnes-pe', currentSpin: 150, rotationRate: 17 },
-  { presetId: 'agnes-pe', yenPerBall: 100 / 28.01, netBallsPerWin: 580, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 , holdSpins: 0 }
+  // S11: 記事rev2の580玉は当選あたりの値。エンジンは玉/R を受けるので平均R数で割って渡す
+  { presetId: 'agnes-pe', yenPerBall: 100 / 28.01, netBallsPerWin: 580 * 108 / 587.5, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 , holdSpins: 0 }
 );
 assert.ok(Math.abs(Math.round(agnesArticleRev2.evYen) - 1304) <= 5, `agnes article rev2 representative EV=${agnesArticleRev2.evYen}`);
 
@@ -1184,8 +1185,8 @@ for (const key of ['mochidamaBalls', 'cashBalls', 'normalCostYen']) {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${key}: analytic=${expected}, simulated=${actual}, tolerance=${tolerance}`);
 }
 const payoutPriorityContext = vm.createContext({
-  DEFAULT_NET_BALLS_PER_WIN: 1400,
-  MACHINE_PRESETS: [{ id: 'umi-sp5', defaults: { netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.3 }, roundTypes: [{ id: 'r4', label: '4R', balls: 560 }, { id: 'r10', label: '10R', balls: 1400 }] }],
+  DEFAULT_NET_BALLS_PER_ROUND: 140,
+  MACHINE_PRESETS: [{ id: 'umi-sp5', defaults: { netBallsPerWin: 140, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.3 }, roundTypes: [{ id: 'r4', label: '4R', balls: 560 }, { id: 'r10', label: '10R', balls: 1400 }] }],
   data: { presetSettings: {}, machines: [{ id: 'm1', presetId: 'umi-sp5' }], sessions: [] },
   normalizeNumber(value) {
     if (value === '' || value === null || value === undefined) return null;
@@ -1221,8 +1222,9 @@ new vm.Script(`
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWin: 1500, netBallsPerWinManual: true }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }] }])), JSON.stringify({ value: 1500, source: '手入力', count: null }));
 // S10/§1-1: 実測平均は 獲得出玉の合計 ÷ 合計R数（1,980玉 ÷ 14R）。当選件数では割らない
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }] }])), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
-assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 980, source: 'ラウンド集計', count: 2 }));
-assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [])), JSON.stringify({ value: 1400, source: '理論値', count: 0 }));
+// S11: ラウンド集計も玉/R（10R1,400玉→140、4R560玉→140）
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 140, source: 'ラウンド集計', count: 2 }));
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [])), JSON.stringify({ value: 140, source: '理論値', count: 0 }));
 // B90: 当選ごとの記録が無い旧データは「ヤメ入力の累計 ÷ そのセッションの合計R数」（2,400玉 ÷ 14R）
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 2400 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
 // 累計値のあるセッションと、当選ごとだけのセッションが混在しても合算平均になる（3,400玉 ÷ 24R）
@@ -2653,7 +2655,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 31;/);
+assert.match(html, /const SCHEMA_VERSION = 32;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -2662,17 +2664,24 @@ assert.match(html, /id: "agnes-pe"/);
 assert.match(html, /name: "PA大海物語Withアグネス・ラムPE"/);
 assert.match(html, /modelType: "st-certain"/);
 // B98: agnes-pe の既定値は MACHINE_PRESETS ではなく期待値エンジンのプリセットに置く
-assert.match(yutimeExpectationEngine, /netBallsPerWin: 587\.5,\s+jitanNormalBallsPerSpin: -0\.8,\s+jitanFastBallsPerSpin: 0,\s+yutimeBallsPerSpin: -0\.8,/);
+assert.match(yutimeExpectationEngine, /netBallsPerWin: 108,\s+jitanNormalBallsPerSpin: -0\.8,\s+jitanFastBallsPerSpin: 0,\s+yutimeBallsPerSpin: -0\.8,/);
+// S11: 玉/R × 平均R数 が旧 netBallsPerWin と一致することを式で固定する
+assert.match(yutimeExpectationEngine, /averageRoundsPerWin: 587\.5 \/ 108/);
+assert.match(yutimeExpectationEngine, /averageRoundsPerWin: 10/);
+assert.match(yutimeExpectationEngine, /const netBallsPerWinTotal = merged\.netBallsPerWin \* activePreset\.spec\.averageRoundsPerWin;/);
+assert.match(yutimeExpectationEngine, /const netBallsPerWinTotal = merged\.netBallsPerWin \* preset\.spec\.averageRoundsPerWin;/);
 assert.match(yutimeExpectationEngine, /const expectedJitanFastSpins = expectedWins \* chains\.supportSpinsPerWin;/);
 assert.match(yutimeExpectationEngine, /const expectedYutimeSpins = pReach \* \(1 \/ p\);/);
-assert.match(yutimeExpectationEngine, /const winBalls = expectedWins \* merged\.netBallsPerWin \+ expectedJitanNormalSpins \* merged\.jitanNormalBallsPerSpin \+ expectedJitanFastSpins \* merged\.jitanFastBallsPerSpin \+ expectedYutimeSpins \* merged\.yutimeBallsPerSpin;/);
+assert.match(yutimeExpectationEngine, /const winBalls = expectedWins \* netBallsPerWinTotal \+ expectedJitanNormalSpins \* merged\.jitanNormalBallsPerSpin \+ expectedJitanFastSpins \* merged\.jitanFastBallsPerSpin \+ expectedYutimeSpins \* merged\.yutimeBallsPerSpin;/);
 assert.match(html, /roundTypes: \[\{ id: "r10", label: "10R", balls: 1080 \}, \{ id: "r6", label: "6R", balls: 648 \}, \{ id: "r4", label: "4R", balls: 432 \}\]/);
 assert.match(html, /hits: \[\],/);
 assert.match(html, /function normalizeHits\(hits\)/);
 assert.match(html, /function syncSessionHitTotals\(session, machines = data\.machines\)/);
 assert.match(html, /function netBallsPerWinInfo\(presetId, machine = null, manualInput = null\)/);
 assert.match(html, /netBallsPerWinManual/);
-assert.match(html, /純払い出し量/);
+// S11: 入力欄の単位は玉/R
+assert.match(html, /1R実質出玉（玉\/R）/);
+assert.doesNotMatch(html, /純払い出し量/);
 assert.match(html, /時短100（玉\/回転）/);
 assert.match(html, /\$\{isStCertain \? "ST・時短" : "時短200"\}（玉\/回転）/);
 assert.match(html, /遊タイム（玉\/回転）/);
@@ -2953,18 +2962,22 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 31;
+  const SCHEMA_VERSION = 32;
   const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
-  const DEFAULT_NET_BALLS_PER_WIN = 1400;
+  const DEFAULT_NET_BALLS_PER_ROUND = 140;
   const RAM_CLEAR_VALUE = "cleared";
   const RAM_NOT_CLEARED_VALUE = "not_cleared";
   const RAM_UNKNOWN_VALUE = "unknown";
   const MACHINE_PRESETS = [
-    { id: "umi-sp5", name: "P大海物語5スペシャル", evSupported: true, defaults: { netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.3 } },
-    { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", evSupported: true, defaults: { netBallsPerWin: 587.5, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 } }
+    { id: "umi-sp5", name: "P大海物語5スペシャル", evSupported: true, spec: { averageRoundsPerWin: 10 }, defaults: { netBallsPerWin: 140, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.3 } },
+    { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", evSupported: true, spec: { averageRoundsPerWin: 587.5 / 108 }, defaults: { netBallsPerWin: 108, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8 } }
   ];
+  function averageRoundsPerWin(presetId) {
+    const rounds = normalizeNumber(presetById(presetId)?.spec?.averageRoundsPerWin);
+    return rounds !== null && rounds > 0 ? rounds : 1;
+  }
   function cryptoId(prefix) { return prefix + "_legacy"; }
   function nowIso() { return "2026-08-07T00:00:00.000Z"; }
   function defaultData() {
@@ -3586,10 +3599,10 @@ assert.equal(resultContext.resultApi.segmentBreakdownRows({ segments: [{ kind: '
 
 // G5: コーナー基準値は選択中のコーナーの機種で解決する。別機種（既定プリセット）の値を出さない
 const cornerBaselineContext = vm.createContext({
-  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  DEFAULT_NET_BALLS_PER_ROUND: 140,
   MACHINE_PRESETS: [
-    { id: 'umi-sp5', name: 'P大海物語5スペシャル', hasYutime: true, defaults: { netBallsPerWin: 1400, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.3, holdSpins: 5 } },
-    { id: 'agnes-pe', name: 'PA大海物語Withアグネス・ラムPE', hasYutime: true, defaults: { netBallsPerWin: 587.5, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, holdSpins: 5 } },
+    { id: 'umi-sp5', name: 'P大海物語5スペシャル', hasYutime: true, defaults: { netBallsPerWin: 140, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.3, holdSpins: 5 } },
+    { id: 'agnes-pe', name: 'PA大海物語Withアグネス・ラムPE', hasYutime: true, defaults: { netBallsPerWin: 108, jitanNormalBallsPerSpin: -0.8, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.8, holdSpins: 5 } },
     { id: 'no-yutime', name: '遊タイムなし機', hasYutime: false, defaults: { netBallsPerWin: 1000 } }
   ],
   data: { presetSettings: {}, machines: [], sessions: [] },
@@ -3665,22 +3678,22 @@ setCorner([{ left: { from: 201, to: 204 }, right: null, leftPresetId: 'agnes-pe'
 assert.equal(cornerBaselineContext.cornerIds().join(','), 'agnes-pe', 'アグネスPEのコーナーは agnes-pe を解決する');
 const agnesChip = cornerBaselineContext.cornerChips();
 assert.match(agnesChip, /data-baseline-preset="agnes-pe"/);
-assert.match(agnesChip, /純払い出し <strong>587\.5玉<\/strong>/, 'アグネスPEの純払い出しは587.5玉');
+assert.match(agnesChip, /1R実質出玉 <strong>108玉<\/strong>/, 'S11: アグネスPEの1R実質出玉は108玉/R');
 assert.match(agnesChip, /時短・遊タイム <strong>-0\.8\/0\/-0\.8<\/strong>/, 'アグネスPEの既定は -0.8 / 0 / -0.8');
-assert.doesNotMatch(agnesChip, /umi-sp5|1,400玉/, '大海5SPの値へフォールバックしない');
+assert.doesNotMatch(agnesChip, /umi-sp5|140玉/, '大海5SPの値へフォールバックしない');
 
 // 大海5SPのコーナーは従来どおり
 setCorner([{ left: { from: 101, to: 104 }, right: null, leftPresetId: 'umi-sp5', rightPresetId: '' }]);
 assert.equal(cornerBaselineContext.cornerIds().join(','), 'umi-sp5');
 const umiChip = cornerBaselineContext.cornerChips();
 assert.match(umiChip, /data-baseline-preset="umi-sp5"/);
-assert.match(umiChip, /純払い出し <strong>1,400玉<\/strong> \/ 時短・遊タイム <strong>0\/0\/-0\.3<\/strong>/, '大海5SPの表示は従来どおり');
+assert.match(umiChip, /1R実質出玉 <strong>140玉<\/strong> \/ 時短・遊タイム <strong>0\/0\/-0\.3<\/strong>/, 'S11: 大海5SPの1R実質出玉は140玉/R');
 
 // 機種別ユーザー設定はプリセットIDごとに分離される（切り替えても混ざらない）
-cornerBaselineContext.data.presetSettings = { 'umi-sp5': { yutimeBallsPerSpin: -0.5, netBallsPerWin: 1300, netBallsPerWinManual: true } };
-assert.match(cornerBaselineContext.cornerChips(), /<strong>1,300玉<\/strong> \/ 時短・遊タイム <strong>0\/0\/-0\.5<\/strong>/, '大海5SPは自分の設定を読む');
+cornerBaselineContext.data.presetSettings = { 'umi-sp5': { yutimeBallsPerSpin: -0.5, netBallsPerWin: 130, netBallsPerWinManual: true } };
+assert.match(cornerBaselineContext.cornerChips(), /<strong>130玉<\/strong> \/ 時短・遊タイム <strong>0\/0\/-0\.5<\/strong>/, '大海5SPは自分の設定を読む');
 setCorner([{ left: { from: 201, to: 204 }, right: null, leftPresetId: 'agnes-pe', rightPresetId: '' }]);
-assert.match(cornerBaselineContext.cornerChips(), /<strong>587\.5玉<\/strong> \/ 時短・遊タイム <strong>-0\.8\/0\/-0\.8<\/strong>/, '大海5SPの設定はアグネスPEに漏れない');
+assert.match(cornerBaselineContext.cornerChips(), /<strong>108玉<\/strong> \/ 時短・遊タイム <strong>-0\.8\/0\/-0\.8<\/strong>/, '大海5SPの設定はアグネスPEに漏れない');
 cornerBaselineContext.data.presetSettings = {};
 
 // 島に機種未設定でも、そこに並ぶ台の機種から補う
@@ -3695,8 +3708,8 @@ setCorner([{ left: { from: 101, to: 102 }, right: { from: 201, to: 202 }, leftPr
 assert.equal(cornerBaselineContext.cornerIds().join(','), 'umi-sp5,agnes-pe');
 const mixedChips = cornerBaselineContext.cornerChips();
 assert.equal(mixedChips.match(/data-baseline-preset=/g).length, 2, '機種ごとに1つずつチップを出す');
-assert.match(mixedChips, /P大海物語5スペシャル 純払い出し/);
-assert.match(mixedChips, /PA大海物語Withアグネス・ラムPE 純払い出し/);
+assert.match(mixedChips, /P大海物語5スペシャル 1R実質出玉/);
+assert.match(mixedChips, /PA大海物語Withアグネス・ラムPE 1R実質出玉/);
 
 // 遊タイムのない機種は基準値チップの対象外
 setCorner([{ left: { from: 401, to: 402 }, right: null, leftPresetId: 'no-yutime', rightPresetId: '' }]);
@@ -4158,7 +4171,7 @@ new vm.Script(`
   globalThis.sourceText = netBallsSourceText;
   globalThis.usedText = netBallsUsedText;
 `).runInContext(netBallsTextContext);
-// 理論値の 587.5 は桁を落とさない。整数はそのまま、4桁以上は区切る
+// 小数は桁を落とさない。整数はそのまま、4桁以上は区切る
 assert.equal(netBallsTextContext.text(587.5), '587.5玉');
 assert.equal(netBallsTextContext.text(1400), '1,400玉');
 assert.equal(netBallsTextContext.text(1133.3333333333333), '1,133.3玉');
@@ -4174,8 +4187,8 @@ assert.equal(netBallsTextContext.usedText({ value: 587.5, source: '理論値', c
 
 // S9/§1-2: 採用順位。パネルの手入力 → プリセットの手入力 → 実測平均 → ラウンド集計 → 理論値
 const s9PayoutContext = vm.createContext({
-  MACHINE_PRESETS: [{ id: 'umi-sp5', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r4', label: '4R', balls: 880 }], defaults: { netBallsPerWin: 1400 } }],
-  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  MACHINE_PRESETS: [{ id: 'umi-sp5', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r4', label: '4R', balls: 880 }], defaults: { netBallsPerWin: 140 } }],
+  DEFAULT_NET_BALLS_PER_ROUND: 140,
   data: { presetSettings: {}, sessions: [], machines: [{ id: 'm1', presetId: 'umi-sp5' }] },
   normalizeHits(hits) {
     return Array.isArray(hits) ? hits : [];
@@ -4220,7 +4233,7 @@ assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWin: 1500, netBall
 // 空欄・0・非数値は手入力とみなさず自動決定へ落ちる（S10で分母は合計R数＝14R）
 assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '')), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
 assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '0')), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
-assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [] }], null)), JSON.stringify({ value: 1400, source: '理論値', count: 0 }));
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [] }], null)), JSON.stringify({ value: 140, source: '理論値', count: 0 }));
 // S9/§1-2: 実測平均は当選ごとの「今回分」（S8）が出典。ヤメ入力の累計は当選ごとが無いときだけ
 assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2800, hits: s9Hits2 }])), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
 assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 2400 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
@@ -4237,13 +4250,13 @@ assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }
 
 // S9/§1-4: expectationSettings が使用値と出典をまとめて返す
 const s9SettingsContext = vm.createContext({
-  YUTIME_EXPECTATION_ENGINE: { preset: { defaults: { netBallsPerWin: 1400 } } },
+  YUTIME_EXPECTATION_ENGINE: { preset: { defaults: { netBallsPerWin: 140 } } },
   normalizeNumber: netBallsTextContext.normalizeNumber,
   normalizeMachinePresetId(machine) {
     return machine?.presetId || '';
   },
   presetById(id) {
-    return { 'agnes-pe': { id: 'agnes-pe', spec: { modelType: 'st-certain' }, defaults: { netBallsPerWin: 587.5 } } }[id] || null;
+    return { 'agnes-pe': { id: 'agnes-pe', spec: { modelType: 'st-certain', averageRoundsPerWin: 587.5 / 108 }, defaults: { netBallsPerWin: 108 } } }[id] || null;
   },
   netBallsPerWinInfo(presetId, machine, manualInput) {
     const manual = s9SettingsContext.normalizeNumber(manualInput);
@@ -4262,15 +4275,15 @@ const s9SettingsContext = vm.createContext({
   expectationYenPerBall() {
     return 4;
   },
-  __auto: { value: 587.5, source: '理論値', count: 0 }
+  __auto: { value: 108, source: '理論値', count: 0 }
 });
 new vm.Script(`
   ${netBallsTextBlock}
   ${expectationSettingsBlock}
   globalThis.settingsFor = (manual) => expectationSettings({}, { presetId: "agnes-pe" }, manual);
 `).runInContext(s9SettingsContext);
-assert.equal(s9SettingsContext.settingsFor(null).netBallsSource, '使用1R実質出玉 587.5玉（理論値）');
-assert.equal(s9SettingsContext.settingsFor(null).settings.netBallsPerWin, 587.5);
+assert.equal(s9SettingsContext.settingsFor(null).netBallsSource, '使用1R実質出玉 108玉（理論値）');
+assert.equal(s9SettingsContext.settingsFor(null).settings.netBallsPerWin, 108);
 assert.equal(s9SettingsContext.settingsFor('105').netBallsSource, '使用1R実質出玉 105玉（手入力）');
 assert.equal(s9SettingsContext.settingsFor('105').settings.netBallsPerWin, 105);
 s9SettingsContext.__auto = { value: 100, source: '実測平均', count: 8, countUnit: 'rounds' };
@@ -4286,8 +4299,8 @@ assert.doesNotMatch(presetSettingsHelpers, /source: "実測平均", count: actua
 
 const s10Context = vm.createContext({
   // アグネスPE相当（1R=108玉のR種別）。roundCountFromRoundType はラベルからR数を読む
-  MACHINE_PRESETS: [{ id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r6', label: '6R', balls: 648 }, { id: 'r4', label: '4R', balls: 432 }], defaults: { netBallsPerWin: 587.5 } }],
-  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  MACHINE_PRESETS: [{ id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r6', label: '6R', balls: 648 }, { id: 'r4', label: '4R', balls: 432 }], defaults: { netBallsPerWin: 108 } }],
+  DEFAULT_NET_BALLS_PER_ROUND: 140,
   data: { presetSettings: { 'agnes-pe': { netBallsPerWinManual: false } }, sessions: [], machines: [{ id: 'm1', presetId: 'agnes-pe' }] },
   normalizeHits(hits) {
     return Array.isArray(hits) ? hits : [];
@@ -4360,5 +4373,67 @@ assert.equal(s10Context.average(s10SameSession).count, 18);
 const s10Partial = [{ roundTypeId: 'r10' }, { roundTypeId: 'r4', actualBalls: 420 }];
 assert.equal(s10Context.perRoundOfSession(s10Partial), 30);
 assert.equal(s10Context.average(s10Partial).value, 105);
+
+// --- S11: 1R実質出玉の単位を期待値エンジンとそろえる ------------------------
+// エンジンは玉/R を受け、当選あたりの出玉は 玉/R × 平均R数 で出す。
+const s11Engine = vm.createContext({});
+new vm.Script(`
+  const DEFAULT_NET_BALLS_PER_ROUND = 140;
+  ${yutimeExpectationEngine}
+  globalThis.E = YUTIME_EXPECTATION_ENGINE;
+  globalThis.ev = (presetId, counterSpin, rate, netBallsPerRound, exchangeBalls, availableBalls, overrides) => {
+    const p = E.presets[presetId];
+    const offset = Number(p.spec.counterOffset) || 0;
+    const settings = Object.assign({}, p.defaults, { presetId, netBallsPerWin: netBallsPerRound, yenPerBall: 100 / exchangeBalls }, overrides || {});
+    return E.calculate({ presetId, currentSpin: Math.max(0, counterSpin - offset), rotationRate: rate, availableBalls }, settings);
+  };
+`).runInContext(s11Engine);
+// 玉/R × 平均R数 が旧 netBallsPerWin と完全に一致する（代表点が動かない根拠）
+assert.equal(s11Engine.E.presets['agnes-pe'].defaults.netBallsPerWin * s11Engine.E.presets['agnes-pe'].spec.averageRoundsPerWin, 587.5);
+assert.equal(s11Engine.E.presets['umi-sp5'].defaults.netBallsPerWin * s11Engine.E.presets['umi-sp5'].spec.averageRoundsPerWin, 1400);
+// 受け入れ基準（記事v5・calc・v3で確認済みの代表点）
+assert.equal(Math.round(s11Engine.ev('agnes-pe', 150, 17, 100, 25, 0).evYen), 1569);
+assert.equal(Math.round(s11Engine.ev('agnes-pe', 0, 17, 105, 25, 0).evYen), 310);
+// 大海5SPの代表点は holdSpins で分岐する。どちらも S11 の前後で不変
+assert.equal(Math.round(s11Engine.ev('umi-sp5', 434, 17, 140, 28, 0, { holdSpins: 0 }).evYen), -499);
+assert.equal(Math.round(s11Engine.ev('umi-sp5', 434, 17, 140, 28, 0).evYen), -231);
+// winBalls は 当選回数 × 玉/R × 平均R数（電サポの増減を除く）
+const s11Win = s11Engine.ev('agnes-pe', 150, 17, 100, 25, 0, { jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 });
+assert.ok(Math.abs(s11Win.winBalls - s11Win.expectedWins * 100 * (587.5 / 108)) < 1e-9);
+// 玉/R を2倍にすれば当選あたりの出玉も2倍になる（単位が線形に効く）
+const s11Double = s11Engine.ev('agnes-pe', 150, 17, 200, 25, 0, { jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: 0 });
+assert.ok(Math.abs(s11Double.winBalls - s11Win.winBalls * 2) < 1e-9);
+
+// S11: schema 32 の移行。31以前の手入力値は当選あたりなので平均R数で割って玉/Rにする
+const s11MigrationContext = vm.createContext({
+  ...legacyMachineContext
+});
+new vm.Script(`
+  globalThis.migrated = normalizeData({
+    version: 31,
+    presetSettings: {
+      "umi-sp5": { netBallsPerWin: 1300, netBallsPerWinManual: true },
+      "agnes-pe": { netBallsPerWin: 587.5, netBallsPerWinManual: true }
+    },
+    sessions: []
+  });
+  globalThis.already32 = normalizeData({
+    version: 32,
+    presetSettings: {
+      "umi-sp5": { netBallsPerWin: 130, netBallsPerWinManual: true },
+      "agnes-pe": { netBallsPerWin: 108, netBallsPerWinManual: true }
+    },
+    sessions: []
+  });
+`).runInContext(s11MigrationContext);
+// 1,300玉/当選 ÷ 10R = 130玉/R、587.5玉/当選 ÷ 5.44R = 108玉/R
+assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerWin, 130);
+assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerWinManual, true);
+assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWin, 108);
+assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWinManual, true);
+assert.equal(s11MigrationContext.migrated.version, 32);
+// 32以降のデータは二重変換しない
+assert.equal(s11MigrationContext.already32.presetSettings['umi-sp5'].netBallsPerWin, 130);
+assert.equal(s11MigrationContext.already32.presetSettings['agnes-pe'].netBallsPerWin, 108);
 
 console.log('yutime-v3 tests passed');
