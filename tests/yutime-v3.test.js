@@ -2501,10 +2501,14 @@ const runningExpectationContext = vm.createContext({
       ${['heso', 'yori', 'michi', 'nekase', 'through', 'warp'].map((key) => `<div data-nail-key="${key}"></div>`).join('')}
     </div>`;
   },
+  netBallsUsedText(info) {
+    return info ? `${info.value}玉（${info.source}${info.count ? `・n=${info.count}` : ""}）` : "-";
+  },
   calculateMachineExpectation(machine, options) {
     runningExpectationContext.__expectationCalls.push({ currentSpin: options.currentSpin, previousSpin: options.previousSpin, manualRate: options.manualRate, availableBalls: options.availableBalls });
     const effectiveSpin = Number(options.currentSpin || 0) + Number(options.previousSpin || 0);
     return {
+      netBallsInfo: { value: 587.5, source: "理論値", count: 0 },
       result: {
         evYen: Math.round(options.manualRate * 100),
         spinsToTenjo: Math.max(0, 950 - effectiveSpin),
@@ -2606,7 +2610,8 @@ assert.match(renderedRunningExpectation, /打ち始めから<\/strong> 1850円�
 assert.doesNotMatch(renderedRunningExpectation, /実効/);
 assert.doesNotMatch(renderedRunningExpectation, /data-show-header="true"/);
 assert.match(renderedLiveExpectation, /<span>残り回転数<\/span><strong>450<\/strong>/);
-assert.match(renderedLiveExpectation, /現在400回転 \/ 実測17\.0 \/250玉 \/ 持ち玉1,200玉を使う前提/);
+// S9/§1-3: 稼働中パネルにも参考1R出玉を出典・サンプル数つきで出す
+assert.match(renderedLiveExpectation, /現在400回転 \/ 実測17\.0 \/250玉 \/ 参考1R出玉 587\.5玉（理論値） \/ 持ち玉1,200玉を使う前提/);
 assert.doesNotMatch(renderedLiveExpectation, /遊タイムまで必要/);
 assert.match(renderedHitLiveExpectation, /<span>残り回転数<\/span><strong>550<\/strong>/);
 assert.ok(
@@ -2663,7 +2668,7 @@ assert.match(html, /roundTypes: \[\{ id: "r10", label: "10R", balls: 1080 \}, \{
 assert.match(html, /hits: \[\],/);
 assert.match(html, /function normalizeHits\(hits\)/);
 assert.match(html, /function syncSessionHitTotals\(session, machines = data\.machines\)/);
-assert.match(html, /function netBallsPerWinInfo\(presetId, machine = null\)/);
+assert.match(html, /function netBallsPerWinInfo\(presetId, machine = null, manualInput = null\)/);
 assert.match(html, /netBallsPerWinManual/);
 assert.match(html, /純払い出し量/);
 assert.match(html, /時短100（玉\/回転）/);
@@ -4116,5 +4121,155 @@ s8Context.__session = { segments: [], hits: [{ roundTypeId: 'r10' }] };
 assert.equal(vm.runInContext('sessionActualBallsTotal(__session)', s8Context), null);
 assert.equal(vm.runInContext('ballsPerRoundText(sessionBallsPerRound(__session, "multi"))', s8Context), '—');
 
+
+// --- S9: 1R実質出玉の可視化・実測平均化 -------------------------------------
+const netBallsTextBlock = section('function netBallsText', 'function expectationSettings');
+const expectationSettingsBlock = section('function expectationSettings', 'function expectationRate');
+const renderMachineExpectationBlock = section('function renderMachineExpectation', 'function expectationPreviousSpinState');
+const expectationPanelPresetsBlock = section('function expectationPanelPresets', 'function applyPresetSelectionToForm');
+
+// S9/§1-1: 手入力欄は回転率の手入力の直後に置く
+assert.match(openMachineDetail, /<label for="evManualRate">回転率（手入力）<\/label>[\s\S]{0,200}?<label for="evManualNetBalls">1R実質出玉（手入力）<\/label>/);
+assert.match(openMachineDetail, /id="evManualNetBalls" inputmode="decimal" placeholder="\$\{escapeHtml\(netBallsUsedText\(netBallsInfo\)\)\}"/);
+// S9/§1-3: 台詳細の参考1R出玉は参考回転率の隣。出典・サンプル数付き
+assert.match(openMachineDetail, /<span>参考回転率<\/span>[\s\S]{0,260}?<span>参考1R出玉<\/span>/);
+assert.match(openMachineDetail, /const netBallsInfo = netBallsPerWinInfo\(presetId, machine\);/);
+// 手入力欄は他の入力欄と同じく即再計算する
+assert.match(openMachineDetail, /"evManualRate", "evManualNetBalls"/);
+// S9/§1-1: 空欄なら自動決定。手入力は判定と打ち始めの記録の両方へ渡す
+assert.match(renderMachineExpectationBlock, /manualNetBallsPerWin: byId\("evManualNetBalls"\)\?\.value,/);
+assert.match(expectationPanelPresetsBlock, /manualNetBallsPerWin: normalizeNumber\(byId\("evManualNetBalls"\)\?\.value\),/);
+assert.match(calculateStartEvSnapshot, /manualNetBallsPerWin: presets\.manualNetBallsPerWin,/);
+// S9/§1-4: 根拠行は 使用回転率 → 使用1R実質出玉 の順
+assert.match(renderMachineExpectationBlock, /使用回転率 \$\{expectation\.result\.rotationRate\.toFixed\(1\)\}（\$\{expectation\.rateSource\}） \/ \$\{expectation\.netBallsSource\}/);
+
+const netBallsTextContext = vm.createContext({
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+});
+new vm.Script(`
+  ${netBallsTextBlock}
+  globalThis.text = netBallsText;
+  globalThis.sourceText = netBallsSourceText;
+  globalThis.usedText = netBallsUsedText;
+`).runInContext(netBallsTextContext);
+// 理論値の 587.5 は桁を落とさない。整数はそのまま、4桁以上は区切る
+assert.equal(netBallsTextContext.text(587.5), '587.5玉');
+assert.equal(netBallsTextContext.text(1400), '1,400玉');
+assert.equal(netBallsTextContext.text(1133.3333333333333), '1,133.3玉');
+assert.equal(netBallsTextContext.text(null), '-');
+assert.equal(netBallsTextContext.sourceText({ source: '実測平均', count: 8 }), '実測平均・n=8');
+assert.equal(netBallsTextContext.sourceText({ source: '手入力', count: null }), '手入力');
+assert.equal(netBallsTextContext.sourceText({ source: '理論値', count: 0 }), '理論値');
+assert.equal(netBallsTextContext.usedText({ value: 100, source: '実測平均', count: 8 }), '100玉（実測平均・n=8）');
+assert.equal(netBallsTextContext.usedText({ value: 587.5, source: '理論値', count: 0 }), '587.5玉（理論値）');
+
+// S9/§1-2: 採用順位。パネルの手入力 → プリセットの手入力 → 実測平均 → ラウンド集計 → 理論値
+const s9PayoutContext = vm.createContext({
+  MACHINE_PRESETS: [{ id: 'umi-sp5', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r4', label: '4R', balls: 880 }], defaults: { netBallsPerWin: 1400 } }],
+  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  data: { presetSettings: {}, sessions: [], machines: [{ id: 'm1', presetId: 'umi-sp5' }] },
+  normalizeHits(hits) {
+    return Array.isArray(hits) ? hits : [];
+  },
+  roundTypeById(presetId, roundTypeId) {
+    return s9PayoutContext.presetById(presetId)?.roundTypes.find((type) => type.id === roundTypeId) || null;
+  },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  positiveNumberOrDefault(value, fallback) {
+    const n = s9PayoutContext.normalizeNumber(value);
+    return n !== null && n > 0 ? n : fallback;
+  },
+  presetById(id) {
+    return s9PayoutContext.MACHINE_PRESETS.find((preset) => preset.id === id) || null;
+  },
+  normalizeMachinePresetId(machine) {
+    return machine?.presetId || '';
+  },
+  filteredSessions() {
+    return s9PayoutContext.data.sessions;
+  },
+  nowIso() {
+    return '2026-09-04T00:00:00.000Z';
+  }
+});
+new vm.Script(`
+  ${presetSettingsHelpers}
+  globalThis.info = (settings, sessions, manual) => {
+    data.presetSettings = { "umi-sp5": settings };
+    data.sessions = sessions;
+    return netBallsPerWinInfo("umi-sp5", data.machines[0], manual);
+  };
+`).runInContext(s9PayoutContext);
+const s9Hits2 = [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }];
+// パネルの手入力はプリセットの手入力より優先する
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWin: 1500, netBallsPerWinManual: true }, [{ machineId: 'm1', hits: s9Hits2 }], '105')), JSON.stringify({ value: 105, source: '手入力', count: null }));
+// 空欄・0・非数値は手入力とみなさず自動決定へ落ちる
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '')), JSON.stringify({ value: 990, source: '実測平均', count: 2 }));
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '0')), JSON.stringify({ value: 990, source: '実測平均', count: 2 }));
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [] }], null)), JSON.stringify({ value: 1400, source: '理論値', count: 0 }));
+// S9/§1-2: 実測平均は当選ごとの「今回分」（S8）が出典。ヤメ入力の累計は当選ごとが無いときだけ
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2800, hits: s9Hits2 }])), JSON.stringify({ value: 990, source: '実測平均', count: 2 }));
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 1200, source: '実測平均', count: 2 }));
+// S9/§2: 連チャンをまたぐセッションでも 今回分の合計 ÷ 当選件数 になる（5,400 ÷ 4 = 1,350）
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{
+  machineId: 'm1',
+  hits: [
+    { roundTypeId: 'r4', segmentId: 'chain1', actualBalls: 1380 },
+    { roundTypeId: 'r4', segmentId: 'chain1', actualBalls: 1420 },
+    { roundTypeId: 'r4', segmentId: 'chain2', actualBalls: 1380 },
+    { roundTypeId: 'r4', segmentId: 'chain2', actualBalls: 1220 }
+  ]
+}])), JSON.stringify({ value: 1350, source: '実測平均', count: 4 }));
+
+// S9/§1-4: expectationSettings が使用値と出典をまとめて返す
+const s9SettingsContext = vm.createContext({
+  YUTIME_EXPECTATION_ENGINE: { preset: { defaults: { netBallsPerWin: 1400 } } },
+  normalizeNumber: netBallsTextContext.normalizeNumber,
+  normalizeMachinePresetId(machine) {
+    return machine?.presetId || '';
+  },
+  presetById(id) {
+    return { 'agnes-pe': { id: 'agnes-pe', spec: { modelType: 'st-certain' }, defaults: { netBallsPerWin: 587.5 } } }[id] || null;
+  },
+  netBallsPerWinInfo(presetId, machine, manualInput) {
+    const manual = s9SettingsContext.normalizeNumber(manualInput);
+    if (manual !== null && manual > 0) return { value: manual, source: '手入力', count: null };
+    return s9SettingsContext.__auto;
+  },
+  presetJitanBallsPerSpin() {
+    return 0;
+  },
+  presetYutimeBallsPerSpin() {
+    return -0.8;
+  },
+  presetHoldSpins() {
+    return 5;
+  },
+  expectationYenPerBall() {
+    return 4;
+  },
+  __auto: { value: 587.5, source: '理論値', count: 0 }
+});
+new vm.Script(`
+  ${netBallsTextBlock}
+  ${expectationSettingsBlock}
+  globalThis.settingsFor = (manual) => expectationSettings({}, { presetId: "agnes-pe" }, manual);
+`).runInContext(s9SettingsContext);
+assert.equal(s9SettingsContext.settingsFor(null).netBallsSource, '使用1R実質出玉 587.5玉（理論値）');
+assert.equal(s9SettingsContext.settingsFor(null).settings.netBallsPerWin, 587.5);
+assert.equal(s9SettingsContext.settingsFor('105').netBallsSource, '使用1R実質出玉 105玉（手入力）');
+assert.equal(s9SettingsContext.settingsFor('105').settings.netBallsPerWin, 105);
+s9SettingsContext.__auto = { value: 100, source: '実測平均', count: 8 };
+assert.equal(s9SettingsContext.settingsFor(null).netBallsSource, '使用1R実質出玉 100玉（実測平均・n=8）');
+// 時短・遊タイムの内訳は payoutSource に残す（根拠行の後半）
+assert.match(s9SettingsContext.settingsFor(null).payoutSource, /^ST・時短 0玉\/回転、遊タイム -0\.8玉\/回転$/);
 
 console.log('yutime-v3 tests passed');

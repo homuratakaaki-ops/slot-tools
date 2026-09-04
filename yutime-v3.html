@@ -2544,9 +2544,15 @@
       return positiveNumberOrDefault(data.presetSettings?.[presetId]?.netBallsPerWin, preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_WIN);
     }
 
-    function netBallsPerWinInfo(presetId, machine = null) {
+    // S9/§1-2: 1R実質出玉の採用順位。手入力 → 実測平均 → ラウンド集計 → 理論値。
+    // manualInput は期待値判定パネルのその場の手入力で、プリセット設定の手入力より優先する。
+    function netBallsPerWinInfo(presetId, machine = null, manualInput = null) {
       const preset = presetById(presetId);
       const settings = data.presetSettings?.[presetId] || {};
+      const panelManual = normalizeNumber(manualInput);
+      if (panelManual !== null && panelManual > 0) {
+        return { value: panelManual, source: "手入力", count: null };
+      }
       const manual = normalizeNumber(settings.netBallsPerWin);
       if (settings.netBallsPerWinManual === true && manual !== null && manual > 0) {
         return { value: manual, source: "手入力", count: null };
@@ -2557,11 +2563,20 @@
         return normalizeMachinePresetId(sessionMachine) === presetId;
       });
       const hits = sessions.flatMap((session) => normalizeHits(session.hits));
-      // ヤメ入力の累計値があるセッションは「累計 ÷ 当選件数」、無ければ当選ごとの実測値を使う
+      // S9/§1-2: 実測平均は当選ごとの「今回分」（S8）を出典にする。採用順位は
+      // sessionActualBallsTotal と同じで、当選ごとの記録が無い旧データだけヤメ入力の累計を使う。
       let actualTotal = 0;
       let actualCount = 0;
       sessions.forEach((session) => {
         const sessionHits = normalizeHits(session.hits);
+        const perHit = sessionHits.map((hit) => normalizeNumber(hit.actualBalls)).filter((value) => value !== null && value > 0);
+        if (perHit.length) {
+          perHit.forEach((value) => {
+            actualTotal += value;
+            actualCount += 1;
+          });
+          return;
+        }
         const explicit = normalizeNumber(session.sessionActualBalls);
         if (explicit !== null && explicit > 0) {
           const count = sessionHits.length || normalizeNumber(session.hitCount) || 0;
@@ -2569,12 +2584,7 @@
             actualTotal += explicit;
             actualCount += count;
           }
-          return;
         }
-        sessionHits.map((hit) => normalizeNumber(hit.actualBalls)).filter((value) => value !== null && value > 0).forEach((value) => {
-          actualTotal += value;
-          actualCount += 1;
-        });
       });
       if (actualCount > 0) {
         return { value: actualTotal / actualCount, source: "実測平均", count: actualCount };
@@ -2740,11 +2750,28 @@
       return 100 / exchangeBallsFromStore(store);
     }
 
-    function expectationSettings(store, machine) {
+    // S9/§1-3,§1-4: 1R実質出玉の表示。587.5 のような小数はそのまま見せる（理論値の桁を落とさない）。
+    function netBallsText(value) {
+      const number = normalizeNumber(value);
+      if (number === null) return "-";
+      return `${(Math.round(number * 10) / 10).toLocaleString("ja-JP", { maximumFractionDigits: 1 })}玉`;
+    }
+
+    // 出典は「手入力」「実測平均・n=◯」「ラウンド集計・n=◯」「理論値」の4種。
+    function netBallsSourceText(info) {
+      if (!info) return "-";
+      return `${info.source}${info.count ? `・n=${info.count}` : ""}`;
+    }
+
+    function netBallsUsedText(info) {
+      return `${netBallsText(info?.value)}（${netBallsSourceText(info)}）`;
+    }
+
+    function expectationSettings(store, machine, manualNetBallsPerWin = null) {
       const presetId = normalizeMachinePresetId(machine);
       const preset = presetById(presetId);
       const defaults = preset?.defaults || YUTIME_EXPECTATION_ENGINE.preset.defaults;
-      const netBallsInfo = netBallsPerWinInfo(presetId, machine);
+      const netBallsInfo = netBallsPerWinInfo(presetId, machine, manualNetBallsPerWin);
       const netBallsPerWin = netBallsInfo.value;
       const jitanNormalBallsPerSpin = presetJitanBallsPerSpin(presetId, "jitanNormalBallsPerSpin");
       const jitanFastBallsPerSpin = presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin");
@@ -2764,7 +2791,10 @@
           yutimeBallsPerSpin,
           holdSpins
         },
-        payoutSource: `純払い出し${Math.round(netBallsPerWin).toLocaleString("ja-JP")}玉/回（${netBallsInfo.source}${netBallsInfo.count ? ` n=${netBallsInfo.count}` : ""}）、${supportLabel}`
+        netBallsInfo,
+        // S9/§1-4: 根拠行に使用値と出典を出す。使用回転率と同じ書式でそろえる。
+        netBallsSource: `使用1R実質出玉 ${netBallsUsedText(netBallsInfo)}`,
+        payoutSource: supportLabel
       };
     }
 
@@ -2797,7 +2827,7 @@
       const effectiveSpin = currentSpin + previousSpin;
       // effectiveSpin はカウンター基準。エンジンの天井は内部低確回転数なのでずれを引いて渡す
       const engineSpin = engineSpinFromCounterSpin(effectiveSpin, preset.id);
-      const settingsInfo = expectationSettings(store, machine);
+      const settingsInfo = expectationSettings(store, machine, options.manualNetBallsPerWin);
       const result = YUTIME_EXPECTATION_ENGINE.calculate({ presetId: preset.id, currentSpin: engineSpin, rotationRate: rateInfo.rate, availableBalls }, settingsInfo.settings);
       return {
         result,
@@ -2808,6 +2838,8 @@
         effectiveSpin,
         rateSource: rateInfo.source,
         rateAssumed: Boolean(rateInfo.assumed),
+        netBallsInfo: settingsInfo.netBallsInfo,
+        netBallsSource: settingsInfo.netBallsSource,
         payoutSource: settingsInfo.payoutSource,
         exchangeBalls: exchangeBallsFromStore(store)
       };
@@ -2823,6 +2855,7 @@
         currentSpin: startSpin,
         previousSpin: session.prevDayEndSpin,
         manualRate: presets.manualRate,
+        manualNetBallsPerWin: presets.manualNetBallsPerWin,
         availableBalls
       });
       if (!expectation.result) return null;
@@ -6019,6 +6052,8 @@
       const statsFilterActive = machineStatsFilterActive();
       const presetId = normalizeMachinePresetId(machine);
       const showExpectationBlock = machineHasYutime(machine);
+      // S9/§1-3: 参考1R出玉は参考回転率と同じ台単位の集計。手入力欄の初期表示にも使う
+      const netBallsInfo = netBallsPerWinInfo(presetId, machine);
       const closing = validClosingInfo(machine.id);
       const closingStateNote = todayPrevInvalid(machine.id) ? `<small>朝チェックで前日分を無効にしています</small>` : "";
       const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
@@ -6029,6 +6064,7 @@
         ${nailRatingSectionHtml(machine)}
         <div class="metric-grid">
           <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}</div>
+          ${showExpectationBlock ? `<div class="metric"><span>参考1R出玉</span><strong>${escapeHtml(netBallsText(netBallsInfo.value))}</strong><small>${escapeHtml(netBallsSourceText(netBallsInfo))}</small></div>` : ""}
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
           <div class="metric"><span>閉店チェック</span><strong>${closing ? `${escapeHtml(closing.spin)}回転` : "-"}</strong>${closing ? `<small>（${escapeHtml(shortDate(closing.date))}）</small>` : closingStateNote}</div>
@@ -6046,6 +6082,7 @@
             <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数（実機：前日の最終回転数。閉店チェックがあれば自動）</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
             <div class="field-row"><label for="evCurrentSpin">現在回転数（実機：データカウンターの回転数）</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${baseStats.rate ? baseStats.rate.toFixed(1) : "履歴なし"}"></div>
+            <div class="field-row"><label for="evManualNetBalls">1R実質出玉（手入力）</label><input id="evManualNetBalls" inputmode="decimal" placeholder="${escapeHtml(netBallsUsedText(netBallsInfo))}"></div>
             <div class="field-row expectation-spacer"></div>
             <div class="field-row"><label for="evMochidamaBalls">持ち玉（玉）</label><input id="evMochidamaBalls" inputmode="numeric" value="" placeholder="0"></div>
             <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="" placeholder="0"></div>
@@ -6108,7 +6145,7 @@
       });
       if (showExpectationBlock) {
         renderMachineExpectation(machine.id);
-        ["evCurrentSpin", "evPrevSpin", "evManualRate", "evMochidamaBalls", "evSaipureiBalls", "evStartTotalHits"].forEach((id) => {
+        ["evCurrentSpin", "evPrevSpin", "evManualRate", "evManualNetBalls", "evMochidamaBalls", "evSaipureiBalls", "evStartTotalHits"].forEach((id) => {
           byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
         });
         byId("evPrevDisabled").addEventListener("change", () => renderMachineExpectation(machine.id));
@@ -6193,6 +6230,7 @@
         currentSpin: byId("evCurrentSpin")?.value,
         previousSpin: previousDisabled ? 0 : byId("evPrevSpin")?.value,
         manualRate: byId("evManualRate")?.value,
+        manualNetBallsPerWin: byId("evManualNetBalls")?.value,
         availableBalls: availableBallsFromParts(byId("evMochidamaBalls")?.value, byId("evSaipureiBalls")?.value).total,
         stats
       });
@@ -6218,7 +6256,7 @@
       `;
       const near = expectation.result.spinsToTenjo < 100 && expectation.result.spinsToTenjo > 0;
       const costSource = expectationInvestmentText(expectation.result.mochidamaBalls, expectation.result.cashBalls, expectation.result.spinsToTenjo, expectation.result.rotationRate);
-      detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（前日${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
+      detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / ${expectation.netBallsSource} / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（前日${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
       const basis = byId("machineEvBasis");
       if (basis) basis.textContent = expectationBasisText(expectation.result);
     }
@@ -6240,6 +6278,7 @@
         prevDayEndSpin: yoiDisabled ? null : normalizeNumber(byId("evPrevSpin")?.value),
         prevDayDisabled: yoiDisabled,
         manualRate: normalizeNumber(byId("evManualRate")?.value),
+        manualNetBallsPerWin: normalizeNumber(byId("evManualNetBalls")?.value),
         availableBalls: availableBalls.total,
         mochidamaInput: availableBalls.mochidama,
         saipureiInput: availableBalls.saipurei,
@@ -7536,7 +7575,7 @@
               <div class="metric"><span>残り回転数</span><strong>${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}</strong></div>
               <div class="metric"><span>時給</span><strong>${escapeHtml(yenText(expectation.result.hourlyYen))}</strong></div>
             </div>
-            <p class="hint">現在${numberText(currentSpin, "-")}回転 / 実測${liveRate.toFixed(1)} /250玉 / 持ち玉${Math.round(availableBalls).toLocaleString("ja-JP")}玉を使う前提</p>
+            <p class="hint">現在${numberText(currentSpin, "-")}回転 / 実測${liveRate.toFixed(1)} /250玉 / 参考1R出玉 ${escapeHtml(netBallsUsedText(expectation.netBallsInfo))} / 持ち玉${Math.round(availableBalls).toLocaleString("ja-JP")}玉を使う前提</p>
           `;
         } else {
           liveHtml = `<p class="hint warn">${escapeHtml(expectation.reason || "再判定できません")}</p>`;
