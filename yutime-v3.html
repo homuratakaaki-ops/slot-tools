@@ -2565,29 +2565,34 @@
       const hits = sessions.flatMap((session) => normalizeHits(session.hits));
       // S9/§1-2: 実測平均は当選ごとの「今回分」（S8）を出典にする。採用順位は
       // sessionActualBallsTotal と同じで、当選ごとの記録が無い旧データだけヤメ入力の累計を使う。
+      // S10/§1-1: 分母は当選件数ではなく消化した合計R数。1R当たりの一般的な意味
+      //（獲得出玉の合計 ÷ 合計R数）にそろえ、戦果報告の sessionBallsPerRound と同じ考え方にする。
+      // 合計Rの出所は totalRoundsForPreset と同じ roundCountFromRoundType 1本だけを使う。
+      const hitRoundCount = (hit) => roundCountFromRoundType(roundTypeById(presetId, hit.roundTypeId));
       let actualTotal = 0;
-      let actualCount = 0;
+      let actualRounds = 0;
       sessions.forEach((session) => {
         const sessionHits = normalizeHits(session.hits);
-        const perHit = sessionHits.map((hit) => normalizeNumber(hit.actualBalls)).filter((value) => value !== null && value > 0);
+        // 獲得出玉が未入力の当選は分子にも分母にも入れない（対応する出玉が無いR数で平均が薄まるため）
+        const perHit = sessionHits.filter((hit) => (normalizeNumber(hit.actualBalls) ?? 0) > 0 && (hitRoundCount(hit) ?? 0) > 0);
         if (perHit.length) {
-          perHit.forEach((value) => {
-            actualTotal += value;
-            actualCount += 1;
+          perHit.forEach((hit) => {
+            actualTotal += normalizeNumber(hit.actualBalls);
+            actualRounds += hitRoundCount(hit);
           });
           return;
         }
         const explicit = normalizeNumber(session.sessionActualBalls);
         if (explicit !== null && explicit > 0) {
-          const count = sessionHits.length || normalizeNumber(session.hitCount) || 0;
-          if (count > 0) {
+          const rounds = totalRoundsForPreset(session, presetId);
+          if (rounds > 0) {
             actualTotal += explicit;
-            actualCount += count;
+            actualRounds += rounds;
           }
         }
       });
-      if (actualCount > 0) {
-        return { value: actualTotal / actualCount, source: "実測平均", count: actualCount };
+      if (actualRounds > 0) {
+        return { value: actualTotal / actualRounds, source: "実測平均", count: actualRounds, countUnit: "rounds" };
       }
       const roundHits = hits.map((hit) => roundTypeById(presetId, hit.roundTypeId)?.balls).filter((value) => Number(value) > 0);
       if (roundHits.length) {
@@ -2757,10 +2762,15 @@
       return `${(Math.round(number * 10) / 10).toLocaleString("ja-JP", { maximumFractionDigits: 1 })}玉`;
     }
 
-    // 出典は「手入力」「実測平均・n=◯」「ラウンド集計・n=◯」「理論値」の4種。
+    // 出典は「手入力」「実測平均・◯R分」「ラウンド集計・n=◯」「理論値」の4種。
+    // S10/§1-1: 実測平均のサンプル数は集計に使った合計R数なので、件数と読めない `◯R分` で出す。
     function netBallsSourceText(info) {
       if (!info) return "-";
-      return `${info.source}${info.count ? `・n=${info.count}` : ""}`;
+      if (!info.count) return `${info.source}`;
+      const sample = info.countUnit === "rounds"
+        ? `${info.count.toLocaleString("ja-JP")}R分`
+        : `n=${info.count}`;
+      return `${info.source}・${sample}`;
     }
 
     function netBallsUsedText(info) {

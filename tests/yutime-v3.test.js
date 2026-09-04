@@ -1210,6 +1210,7 @@ const payoutPriorityContext = vm.createContext({
   }
 });
 new vm.Script(`
+  ${roundCountFromRoundTypeBlock}
   ${presetSettingsHelpers}
   globalThis.info = (settings, sessions) => {
     data.presetSettings = { 'umi-sp5': settings };
@@ -1218,16 +1219,17 @@ new vm.Script(`
   };
 `).runInContext(payoutPriorityContext);
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWin: 1500, netBallsPerWinManual: true }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }] }])), JSON.stringify({ value: 1500, source: '手入力', count: null }));
-assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }] }])), JSON.stringify({ value: 990, source: '実測平均', count: 2 }));
+// S10/§1-1: 実測平均は 獲得出玉の合計 ÷ 合計R数（1,980玉 ÷ 14R）。当選件数では割らない
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }] }])), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 980, source: 'ラウンド集計', count: 2 }));
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [])), JSON.stringify({ value: 1400, source: '理論値', count: 0 }));
-// B90: ヤメ入力の累計値があるセッションは「累計 ÷ 当選件数」で実測平均に載る
-assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 1200, source: '実測平均', count: 2 }));
-// 累計値のあるセッションと、当選ごとだけのセッションが混在しても合算平均になる
+// B90: 当選ごとの記録が無い旧データは「ヤメ入力の累計 ÷ そのセッションの合計R数」（2,400玉 ÷ 14R）
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 2400 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
+// 累計値のあるセッションと、当選ごとだけのセッションが混在しても合算平均になる（3,400玉 ÷ 24R）
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [
   { machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] },
   { machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1000 }] }
-])), JSON.stringify({ value: 1133.3333333333333, source: '実測平均', count: 3 }));
+])), JSON.stringify({ value: 3400 / 24, source: '実測平均', count: 24, countUnit: 'rounds' }));
 const availableBallsContext = vm.createContext({
   normalizeNumber(value) {
     if (value === '' || value === null || value === undefined) return null;
@@ -4161,10 +4163,13 @@ assert.equal(netBallsTextContext.text(587.5), '587.5玉');
 assert.equal(netBallsTextContext.text(1400), '1,400玉');
 assert.equal(netBallsTextContext.text(1133.3333333333333), '1,133.3玉');
 assert.equal(netBallsTextContext.text(null), '-');
-assert.equal(netBallsTextContext.sourceText({ source: '実測平均', count: 8 }), '実測平均・n=8');
+// S10/§1-1: 実測平均のサンプル数は合計R数。件数と読めないよう「◯R分」で出す
+assert.equal(netBallsTextContext.sourceText({ source: '実測平均', count: 14, countUnit: 'rounds' }), '実測平均・14R分');
+assert.equal(netBallsTextContext.sourceText({ source: '実測平均', count: 1200, countUnit: 'rounds' }), '実測平均・1,200R分');
+assert.equal(netBallsTextContext.sourceText({ source: 'ラウンド集計', count: 2 }), 'ラウンド集計・n=2');
 assert.equal(netBallsTextContext.sourceText({ source: '手入力', count: null }), '手入力');
 assert.equal(netBallsTextContext.sourceText({ source: '理論値', count: 0 }), '理論値');
-assert.equal(netBallsTextContext.usedText({ value: 100, source: '実測平均', count: 8 }), '100玉（実測平均・n=8）');
+assert.equal(netBallsTextContext.usedText({ value: 100, source: '実測平均', count: 8, countUnit: 'rounds' }), '100玉（実測平均・8R分）');
 assert.equal(netBallsTextContext.usedText({ value: 587.5, source: '理論値', count: 0 }), '587.5玉（理論値）');
 
 // S9/§1-2: 採用順位。パネルの手入力 → プリセットの手入力 → 実測平均 → ラウンド集計 → 理論値
@@ -4201,6 +4206,7 @@ const s9PayoutContext = vm.createContext({
   }
 });
 new vm.Script(`
+  ${roundCountFromRoundTypeBlock}
   ${presetSettingsHelpers}
   globalThis.info = (settings, sessions, manual) => {
     data.presetSettings = { "umi-sp5": settings };
@@ -4211,14 +4217,14 @@ new vm.Script(`
 const s9Hits2 = [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }];
 // パネルの手入力はプリセットの手入力より優先する
 assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWin: 1500, netBallsPerWinManual: true }, [{ machineId: 'm1', hits: s9Hits2 }], '105')), JSON.stringify({ value: 105, source: '手入力', count: null }));
-// 空欄・0・非数値は手入力とみなさず自動決定へ落ちる
-assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '')), JSON.stringify({ value: 990, source: '実測平均', count: 2 }));
-assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '0')), JSON.stringify({ value: 990, source: '実測平均', count: 2 }));
+// 空欄・0・非数値は手入力とみなさず自動決定へ落ちる（S10で分母は合計R数＝14R）
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '')), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '0')), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
 assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [] }], null)), JSON.stringify({ value: 1400, source: '理論値', count: 0 }));
 // S9/§1-2: 実測平均は当選ごとの「今回分」（S8）が出典。ヤメ入力の累計は当選ごとが無いときだけ
-assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2800, hits: s9Hits2 }])), JSON.stringify({ value: 990, source: '実測平均', count: 2 }));
-assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 1200, source: '実測平均', count: 2 }));
-// S9/§2: 連チャンをまたぐセッションでも 今回分の合計 ÷ 当選件数 になる（5,400 ÷ 4 = 1,350）
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2800, hits: s9Hits2 }])), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 2400 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
+// S9/§2 + S10/§1-1: 連チャンをまたぐセッションは 今回分の合計 ÷ 合計R数（5,400玉 ÷ 16R = 337.5玉）
 assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{
   machineId: 'm1',
   hits: [
@@ -4227,7 +4233,7 @@ assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }
     { roundTypeId: 'r4', segmentId: 'chain2', actualBalls: 1380 },
     { roundTypeId: 'r4', segmentId: 'chain2', actualBalls: 1220 }
   ]
-}])), JSON.stringify({ value: 1350, source: '実測平均', count: 4 }));
+}])), JSON.stringify({ value: 337.5, source: '実測平均', count: 16, countUnit: 'rounds' }));
 
 // S9/§1-4: expectationSettings が使用値と出典をまとめて返す
 const s9SettingsContext = vm.createContext({
@@ -4267,9 +4273,92 @@ assert.equal(s9SettingsContext.settingsFor(null).netBallsSource, '使用1R実質
 assert.equal(s9SettingsContext.settingsFor(null).settings.netBallsPerWin, 587.5);
 assert.equal(s9SettingsContext.settingsFor('105').netBallsSource, '使用1R実質出玉 105玉（手入力）');
 assert.equal(s9SettingsContext.settingsFor('105').settings.netBallsPerWin, 105);
-s9SettingsContext.__auto = { value: 100, source: '実測平均', count: 8 };
-assert.equal(s9SettingsContext.settingsFor(null).netBallsSource, '使用1R実質出玉 100玉（実測平均・n=8）');
+s9SettingsContext.__auto = { value: 100, source: '実測平均', count: 8, countUnit: 'rounds' };
+assert.equal(s9SettingsContext.settingsFor(null).netBallsSource, '使用1R実質出玉 100玉（実測平均・8R分）');
 // 時短・遊タイムの内訳は payoutSource に残す（根拠行の後半）
 assert.match(s9SettingsContext.settingsFor(null).payoutSource, /^ST・時短 0玉\/回転、遊タイム -0\.8玉\/回転$/);
+
+// --- S10: 1R実質出玉の実測平均を合計R数ベースに統一 --------------------------
+// S10/§1-1: 合計Rの出所は totalRoundsForPreset と同じ roundCountFromRoundType 1本だけ
+assert.match(presetSettingsHelpers, /const hitRoundCount = \(hit\) => roundCountFromRoundType\(roundTypeById\(presetId, hit\.roundTypeId\)\);/);
+assert.match(presetSettingsHelpers, /return \{ value: actualTotal \/ actualRounds, source: "実測平均", count: actualRounds, countUnit: "rounds" \};/);
+assert.doesNotMatch(presetSettingsHelpers, /source: "実測平均", count: actualCount/);
+
+const s10Context = vm.createContext({
+  // アグネスPE相当（1R=108玉のR種別）。roundCountFromRoundType はラベルからR数を読む
+  MACHINE_PRESETS: [{ id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r6', label: '6R', balls: 648 }, { id: 'r4', label: '4R', balls: 432 }], defaults: { netBallsPerWin: 587.5 } }],
+  DEFAULT_NET_BALLS_PER_WIN: 1400,
+  data: { presetSettings: { 'agnes-pe': { netBallsPerWinManual: false } }, sessions: [], machines: [{ id: 'm1', presetId: 'agnes-pe' }] },
+  normalizeHits(hits) {
+    return Array.isArray(hits) ? hits : [];
+  },
+  roundTypeById(presetId, roundTypeId) {
+    return s10Context.presetById(presetId)?.roundTypes.find((type) => type.id === roundTypeId) || null;
+  },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  positiveNumberOrDefault(value, fallback) {
+    const n = s10Context.normalizeNumber(value);
+    return n !== null && n > 0 ? n : fallback;
+  },
+  presetById(id) {
+    return s10Context.MACHINE_PRESETS.find((preset) => preset.id === id) || null;
+  },
+  normalizeMachinePresetId(machine) {
+    return machine?.presetId || '';
+  },
+  filteredSessions() {
+    return s10Context.data.sessions;
+  },
+  nowIso() {
+    return '2026-09-04T00:00:00.000Z';
+  }
+});
+new vm.Script(`
+  ${roundCountFromRoundTypeBlock}
+  ${presetSettingsHelpers}
+  ${netBallsTextBlock}
+  ${section('function sessionBallsPerRound', 'function openHitResetPrompt')}
+  ${sessionActualBallsTotalBlock}
+  globalThis.average = (hits) => {
+    data.sessions = [{ machineId: "m1", hits }];
+    return netBallsPerWinInfo("agnes-pe", data.machines[0]);
+  };
+  globalThis.perRoundOfSession = (hits) => sessionBallsPerRound({ hits }, "agnes-pe");
+  globalThis.usedText = netBallsUsedText;
+`).runInContext(s10Context);
+
+// §2-1: 6R・540玉 → 540 ÷ 6 = 90玉
+assert.equal(JSON.stringify(s10Context.average([{ roundTypeId: 'r6', actualBalls: 540 }])), JSON.stringify({ value: 90, source: '実測平均', count: 6, countUnit: 'rounds' }));
+// §2-2: 10R・1,300玉 ＋ 4R・420玉 → 1,720 ÷ 14 ≒ 123玉
+const s10Case2 = s10Context.average([{ roundTypeId: 'r10', actualBalls: 1300 }, { roundTypeId: 'r4', actualBalls: 420 }]);
+assert.equal(s10Case2.value, 1720 / 14);
+assert.equal(Math.round(s10Case2.value), 123);
+assert.equal(s10Case2.count, 14);
+assert.equal(s10Case2.countUnit, 'rounds');
+// §2-3: 出玉未入力の10Rは分子・分母とも除外 → 420 ÷ 4 = 105玉
+assert.equal(JSON.stringify(s10Context.average([{ roundTypeId: 'r10' }, { roundTypeId: 'r4', actualBalls: 420 }])), JSON.stringify({ value: 105, source: '実測平均', count: 4, countUnit: 'rounds' }));
+// §2-4: 当選1回・10R・1,300玉 → 従来は1,300玉（当選件数=1で割っていた）。正しくは130玉
+assert.equal(JSON.stringify(s10Context.average([{ roundTypeId: 'r10', actualBalls: 1300 }])), JSON.stringify({ value: 130, source: '実測平均', count: 10, countUnit: 'rounds' }));
+// 表示は「◯R分」。当選件数と読み違えないこと
+assert.equal(s10Context.usedText(s10Case2), '122.9玉（実測平均・14R分）');
+
+// S10/§1-3: 戦果報告の「1R当たり」と、そのセッションだけを集計したS9実測平均が一致する
+const s10SameSession = [
+  { roundTypeId: 'r4', segmentId: 'chain1', actualBalls: 1380 },
+  { roundTypeId: 'r6', segmentId: 'chain1', actualBalls: 1420 },
+  { roundTypeId: 'r4', segmentId: 'chain2', actualBalls: 1380 },
+  { roundTypeId: 'r4', segmentId: 'chain2', actualBalls: 1220 }
+];
+assert.equal(s10Context.perRoundOfSession(s10SameSession), 300);
+assert.equal(s10Context.average(s10SameSession).value, 300);
+assert.equal(s10Context.average(s10SameSession).count, 18);
+// 出玉未入力の当選が混じるときだけ分母の扱いが分かれる（戦果報告は全Rで割る）
+const s10Partial = [{ roundTypeId: 'r10' }, { roundTypeId: 'r4', actualBalls: 420 }];
+assert.equal(s10Context.perRoundOfSession(s10Partial), 30);
+assert.equal(s10Context.average(s10Partial).value, 105);
 
 console.log('yutime-v3 tests passed');
