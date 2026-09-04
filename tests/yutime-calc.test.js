@@ -92,9 +92,26 @@ assert.equal(
   'アグネスPE・カウンター0・回転率17・1R実質105玉・等価・現金 → +310円'
 );
 
-// 大海5SPは holdSpins=5（残保留込み）の現行値。−454円は holdSpins=0 時代の値なので採らない。
+// 大海5SPは holdSpins=5（残保留込み）の現行値。−454円は遊タイム玉減り -0.3（B80）が入る前の値なので採らない。
 const umiCase = { presetId: 'umi-sp5', currentSpin: 434, rotationRate: 17, payout: 1400, exchangeBalls: 28 };
 assert.equal(evYenOf(umiCase), -231, '大海5SP・434回転・回転率17・純払い出し1400・28玉・現金 → holdSpins=5 の値');
+
+// 記事初出の −454円 は holdSpins ではなく遊タイム玉減りの差。当時と同じ
+// yutimeBallsPerSpin=0 / holdSpins=0 で呼べば現行エンジンでも再現する（回帰点として固定）。
+const umiEngineCase = (overrides) => api.YUTIME_EXPECTATION_ENGINE.calculate(
+  { presetId: 'umi-sp5', currentSpin: 434, rotationRate: 17, availableBalls: 0 },
+  { ...api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].defaults, presetId: 'umi-sp5', netBallsPerWin: 140, yenPerBall: 100 / 28, holdSpins: 0, ...overrides }
+);
+const umiLegacyReference = umiEngineCase({ yutimeBallsPerSpin: 0 });
+const umiHoldZero = umiEngineCase({});
+assert.equal(Math.round(umiLegacyReference.evYen), -454, '大海5SP・434回転・17・28玉・残保留0・遊タイム玉減り0 → 記事初出の -454円');
+assert.equal(Math.round(umiHoldZero.evYen), -499, '遊タイム玉減り -0.3 の現行既定・残保留0 では -499円');
+// 45円の差は遊タイム回転ぶんの玉減りだけ（42.25回転 × 0.3玉）
+assert.ok(
+  Math.abs((umiLegacyReference.winBalls - umiHoldZero.winBalls) - umiHoldZero.expectedYutimeSpins * 0.3) < 1e-9,
+  '-454 と -499 の差は遊タイム回転 × 0.3玉ぶんだけであること'
+);
+assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].defaults.yutimeBallsPerSpin, -0.3, '大海5SPの遊タイム玉減り既定は -0.3');
 
 // エンジンを直接叩いた値と、ページ経由の値が一致すること（大海5SPはずれ0なので素通し）
 const umiDirect = api.YUTIME_EXPECTATION_ENGINE.calculate(
