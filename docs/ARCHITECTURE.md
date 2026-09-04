@@ -160,6 +160,7 @@ tonski-checker.html と tonski-guide.html を main へマージ。checkers.html 
 | **ARCHITECTURE.md**（本書） | 何を作っているか。目的・全体像・現在地 | リポジトリ |
 | **AGENTS.md** | どう作るか。UI規約・データ規約・番号付きルール | リポジトリ |
 | **docs/session-schema-v2-design.md** | エンベロープと注釈レイヤーの詳細仕様 | リポジトリ |
+| **docs/PRE_IMPLEMENTATION.md** | 作る前に何を確認するか。新ツール・大きな機能の実装前チェック手順（骨格書・実装ゲート） | リポジトリ |
 | **IDEAS.md** | 実装項目の台帳＋未着手アイデア置き場。順位は持たない（メメントモリ側は別リポジトリ） | 各リポジトリ |
 
 新しい構想は本書に書かず IDEAS.md へ。本書に載せるのは「やると決めたもの」だけ。
