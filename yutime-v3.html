@@ -6635,7 +6635,7 @@
     }
 
     // S4/C-5・S5/§4: 実測の獲得出玉合計 ÷ 合計R。理論値（R数×公称玉数）では代用しない。
-    // 分子は戦果報告の「獲得出玉」と同じ sessionActualBallsTotal（ヤメ時の累計入力が本線・B90）。
+    // 分子は戦果報告の「獲得出玉」と同じ sessionActualBallsTotal（当選ごとの今回分の合計・S8/§1-2）。
     // 分母はリザルトの1R平均と同じ totalRoundsForPreset（当選履歴が無ければヤメ入力の合計R数）。
     function sessionBallsPerRound(session, presetId) {
       const totalRounds = totalRoundsForPreset(session, presetId);
@@ -6664,9 +6664,9 @@
                 ${roundTypes.map((type) => `<button data-hit-round="${escapeHtml(type.id)}">${escapeHtml(type.label)} +1</button>`).join("") || '<span class="hint">このプリセットにはラウンド種別がありません。</span>'}
               </div>
               <p class="hint">当選カウンター <strong>${numberText(hitCounterSpin, "-")}</strong>（当選ウィザードで記録した値です。変えるときは「大当たり履歴」から）</p>
-              <label for="hitRecordActualBalls">累計獲得出玉</label>
-              <input id="hitRecordActualBalls" inputmode="numeric" placeholder="累計獲得出玉（カウンター表示）任意">
-              <p class="hint">（実機：データカウンターの累計獲得出玉）大当り開始から電サポ終了までの純増（電サポ中の減りを含む）です。前回入力との差が今回の出玉として記録されます。</p>
+              <label for="hitRecordActualBalls">この連チャンの累計出玉</label>
+              <input id="hitRecordActualBalls" inputmode="numeric" placeholder="この連チャンの累計出玉（実機：データカウンター）任意">
+              <p class="hint">いま表示されている、この連チャンの累計出玉を入力してください。時短が終わると0に戻ります。前回の入力との差が、今回の当たりの出玉になります。</p>
             </div>
             ${hitRoundSummaryHtml(session, presetId)}
           </div>
@@ -6752,7 +6752,7 @@
       return true;
     }
 
-    // index より前の当選の獲得出玉合計。B88の差分方式（累計入力 − ここまでの合計）の基準になる。
+    // index より前の当選の獲得出玉合計。セッションの実測出玉合計（S8/§1-2）の基準になる。
     function cumulativeActualBallsBefore(session, index = Infinity) {
       return (Array.isArray(session?.hits) ? session.hits : [])
         .slice(0, index)
@@ -6763,6 +6763,25 @@
 
     function cumulativeActualBallsBeforeHit(session) {
       return cumulativeActualBallsBefore(session);
+    }
+
+    // S8/§1-1: 累計入力の範囲は連チャン＝同じ区間に紐づく当たり群（S4/C-4の切り出しと同じ）。
+    // データカウンターの獲得出玉は時短が終わると0に戻るため、セッション累計では解釈できない。
+    // index が末尾（これから追加する当選）のときは、その当選が紐づく区間で切る。
+    function chainSegmentIdForHit(session, index = Infinity) {
+      const hits = Array.isArray(session?.hits) ? session.hits : [];
+      const target = index < hits.length ? hits[index] : null;
+      return target ? resolveHitSegmentId(session, target) : hitRecordSegmentId(session);
+    }
+
+    // 同じ連チャン内で、index より前に記録された獲得出玉の合計。
+    function chainActualBallsBefore(session, index = Infinity, chainSegmentId = chainSegmentIdForHit(session, index)) {
+      return (Array.isArray(session?.hits) ? session.hits : [])
+        .slice(0, index)
+        .filter((hit) => chainSegmentId === null || resolveHitSegmentId(session, hit) === chainSegmentId)
+        .map((hit) => normalizeNumber(hit?.actualBalls))
+        .filter((value) => value !== null && value > 0)
+        .reduce((sum, value) => sum + value, 0);
     }
 
     // S4/C-2: 当選カウンターは当選ウィザードの記録値を使う。大当たり登録画面では編集しない。
@@ -6778,17 +6797,20 @@
       return target?.id || null;
     }
 
+    // S8/§1-2: セッションの実測出玉合計は当選ごとの「今回分」の単純合計。連チャンをまたいでも正しい。
+    // sessionActualBalls（B90のヤメ入力）は当選ごとの記録が無い旧データのフォールバックとしてだけ使う。
     function sessionActualBallsTotal(session) {
-      const explicit = normalizeNumber(session?.sessionActualBalls);
-      if (explicit !== null && explicit > 0) return explicit;
       const perHit = cumulativeActualBallsBeforeHit(session);
-      return perHit > 0 ? perHit : null;
+      if (perHit > 0) return perHit;
+      const explicit = normalizeNumber(session?.sessionActualBalls);
+      return explicit !== null && explicit > 0 ? explicit : null;
     }
 
+    // S8/§1-1: 入力値はその連チャンの累計。今回分＝入力値 − 同じ連チャン内のそれ以前の合計。
     function actualBallsFromCumulativeInput(session, cumulativeInput, index = Infinity) {
       const cumulativeBalls = normalizeNumber(cumulativeInput);
       if (cumulativeBalls === null) return { actualBalls: null, warning: false };
-      const previousTotal = cumulativeActualBallsBefore(session, index);
+      const previousTotal = chainActualBallsBefore(session, index);
       if (cumulativeBalls < previousTotal) return { actualBalls: 0, warning: true };
       return { actualBalls: cumulativeBalls - previousTotal, warning: false };
     }
@@ -6859,21 +6881,25 @@
     }
 
     // S4/B-1: 一覧の行。添字は保存配列の添字（修正・削除がそのまま使う）。
-    // 累計獲得出玉は B88 の差分を古い順に積み上げて表示する。
+    // S8/§1-1: 累計出玉は連チャン（＝区間）ごとに古い順で積み上げる。カウンターの表示と同じ単位にする。
     function hitHistoryRows(session) {
       const hits = Array.isArray(session?.hits) ? session.hits : [];
-      let cumulative = 0;
-      let hasActual = false;
+      const chainState = new Map();
       return hits.map((hit, index) => {
+        const segmentId = resolveHitSegmentId(session, hit);
+        const state = chainState.get(segmentId) || { cumulative: 0, hasActual: false };
         const actualBalls = normalizeNumber(hit?.actualBalls);
-        if (actualBalls !== null && actualBalls > 0) hasActual = true;
-        cumulative += actualBalls !== null && actualBalls > 0 ? actualBalls : 0;
+        if (actualBalls !== null && actualBalls > 0) {
+          state.hasActual = true;
+          state.cumulative += actualBalls;
+        }
+        chainState.set(segmentId, state);
         return {
           index,
           number: index + 1,
           hit,
-          segmentId: resolveHitSegmentId(session, hit),
-          cumulativeBalls: hasActual ? cumulative : null
+          segmentId,
+          cumulativeBalls: state.hasActual ? state.cumulative : null
         };
       });
     }
@@ -6926,7 +6952,7 @@
                 <div class="row-card-head">
                   <div>
                     <strong>#${row.number} ${rounds !== null ? `${rounds.toLocaleString("ja-JP")}R` : "R種別なし"}</strong>
-                    <br><small>当選カウンター ${numberText(normalizeNumber(row.hit?.hitSpin), "-")} / 累計獲得出玉 ${escapeHtml(cumulativeText)}</small>
+                    <br><small>当選カウンター ${numberText(normalizeNumber(row.hit?.hitSpin), "-")} / この連チャンの累計出玉 ${escapeHtml(cumulativeText)}</small>
                   </div>
                   <div class="hit-history-actions">
                     <button class="small" data-edit-hit="${row.index}">修正</button>
@@ -6960,8 +6986,8 @@
       if (backButton) backButton.addEventListener("click", () => back());
     }
 
-    // S4/B-1: R種別・当選カウンター・累計獲得出玉を直す。
-    // 累計獲得出玉は入力欄も B88 の差分方式で扱い、この当選までの累計を受け取って今回分を出し直す。
+    // S4/B-1: R種別・当選カウンター・この連チャンの累計出玉を直す。
+    // S8/§1-1: 入力欄も連チャン単位の差分方式で扱い、同じ連チャンでこの当選までの累計を受け取って今回分を出し直す。
     function openHitEditForm(session, index, options = {}) {
       const hit = Array.isArray(session.hits) ? session.hits[index] : null;
       if (!hit) return;
@@ -6969,7 +6995,7 @@
       const presetId = normalizeMachinePresetId(machine);
       const roundTypes = presetById(presetId)?.roundTypes || [];
       const hasActualBalls = normalizeNumber(hit.actualBalls) !== null;
-      const cumulativeBalls = cumulativeActualBallsBefore(session, index + 1);
+      const cumulativeBalls = chainActualBallsBefore(session, index + 1, chainSegmentIdForHit(session, index));
       openModal("当選の修正", `#${index + 1} の記録を直します。`, `
         ${machineContextLine(session)}
         <div class="field-row">
@@ -6984,10 +7010,10 @@
           <input id="editHitSpin" inputmode="numeric" value="${escapeHtml(normalizeNumber(hit.hitSpin) ?? "")}">
         </div>
         <div class="field-row">
-          <label for="editHitActualBalls">累計獲得出玉（カウンター表示）</label>
+          <label for="editHitActualBalls">この連チャンの累計出玉（実機：データカウンター）</label>
           <div>
             <input id="editHitActualBalls" inputmode="numeric" value="${escapeHtml(hasActualBalls ? Math.round(cumulativeBalls) : "")}">
-            <p class="hint">この当選までの累計です。ここまでの合計を引いた分が、今回の獲得出玉として記録し直されます。</p>
+            <p class="hint">この連チャンで、この当選までの累計です。同じ連チャン内のここまでの合計を引いた分が、今回の獲得出玉として記録し直されます。</p>
           </div>
         </div>
         <div class="modal-actions">
@@ -7065,11 +7091,10 @@
         { key: "hitCount", label: "大当たり回数", type: "number" },
         { key: "totalRounds", label: "合計R数", type: "number", hint: "実測の獲得出玉と合わせて1R当たりの玉数を計算します。" }
       ];
-      const perHitActualTotal = cumulativeActualBallsBeforeHit(session);
-      const sessionActualPreset = normalizeNumber(session.sessionActualBalls) ?? (perHitActualTotal > 0 ? perHitActualTotal : null);
+      // S8/§1-3: 実機はセッション累計の獲得出玉を表示しないため、ヤメ入力に累計獲得出玉は置かない。
+      // 実測出玉合計は当選ごとの記録（sessionActualBallsTotal）だけで確定する。
       const steps = hasHit ? [
         { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
-        { key: "sessionActualBalls", label: "累計獲得出玉", type: "number", preset: sessionActualPreset, hint: "（実機：データカウンターの累計獲得出玉）最終の値を入れてください。当選ごとの入力は任意で、ここに入れた値が最終の記録になります。" },
         { key: "endSpin", label: "ヤメ回転数（実機：ヤメ時のデータカウンター）", type: "number" },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number", preset: zanhoryuPreset, hint: zanhoryuHint },
         { key: "memo", label: "メモ", type: "textarea" },

@@ -331,11 +331,10 @@ new vm.Script([
   }`,
   runEndWizardBlock,
   `
-  const sessionWithHits = { id: 's_hit', storeId: 'store', currentSpin: 777, hitSpin: 420, hitCount: null, totalRounds: null, hits: [{ roundTypeId: 'r10' }] };
+  const sessionWithHits = { id: 's_hit', storeId: 'store', currentSpin: 777, hitSpin: 420, hitCount: null, totalRounds: null, sessionActualBalls: 2800, hits: [{ roundTypeId: 'r10' }] };
   runEndWizard(sessionWithHits, true);
   globalThis.withHitsHtml = globalThis.__modalHtml;
   globalThis.__nodes.end_endTotalBalls = { value: '1200' };
-  globalThis.__nodes.end_sessionActualBalls = { value: '2800' };
   globalThis.__nodes.end_endSpin = { value: '160' };
   globalThis.__nodes.end_zanhoryuBalls = { value: '' };
   globalThis.__nodes.end_memo = { value: 'closed' };
@@ -381,13 +380,12 @@ assert.match(endWizardContext.withHitsHtml, /end_endSpin/);
 assert.match(endWizardContext.withHitsHtml, /id="end_zanhoryuBalls"[^>]*value="357"/);
 assert.match(endWizardContext.withHitsHtml, /時短抜け後に消化した回転数から推定した値です。打ち込んだ場合は実際の残保留に修正してください。/);
 assert.match(endWizardContext.withHitsHtml, /end_memo/);
-// B90: 累計獲得出玉は大当たりありの分岐だけに出し、当選ごとの合計を初期値にする
-assert.match(endWizardContext.withHitsHtml, /id="end_sessionActualBalls"/);
-assert.match(endWizardContext.withHitsHtml, /累計獲得出玉/);
-assert.match(endWizardContext.withHitsHtml, /（実機：データカウンターの累計獲得出玉）最終の値を入れてください。当選ごとの入力は任意で、ここに入れた値が最終の記録になります。/);
+// S8/§1-3: 実機がセッション累計を表示しないので、ヤメ入力に累計獲得出玉は置かない
+assert.doesNotMatch(endWizardContext.withHitsHtml, /end_sessionActualBalls|累計獲得出玉/);
 assert.doesNotMatch(endWizardContext.noHitHtml, /end_sessionActualBalls|累計獲得出玉/);
+assert.doesNotMatch(endWizardContext.presetActualHtml, /end_sessionActualBalls|累計獲得出玉/);
+// 保存済みの sessionActualBalls は旧データのフォールバックとして残す（ヤメ入力で上書きも消去もしない）
 assert.equal(endWizardContext.savedHitSession.sessionActualBalls, 2800);
-assert.match(endWizardContext.presetActualHtml, /id="end_sessionActualBalls"[^>]*value="1980"/);
 assert.equal(endWizardContext.savedHitSession.status, 'completed');
 assert.equal(endWizardContext.savedHitSession.hitCount, 1);
 assert.equal(endWizardContext.savedHitSession.totalRounds, 10);
@@ -415,10 +413,11 @@ assert.ok(hitResetPrompt.includes('data-hit-round'), 'round type chips should be
 assert.match(hitResetPrompt, /openModal\("大当たり登録"/);
 assert.doesNotMatch(hitResetPrompt, /id="hitRecordSpin"/);
 assert.match(hitResetPrompt, /当選カウンター <strong>\$\{numberText\(hitCounterSpin, "-"\)\}<\/strong>/);
-assert.match(hitResetPrompt, /<label for="hitRecordActualBalls">累計獲得出玉<\/label>/);
+// S8/§1-4: 累計の範囲は連チャン。カウンターは時短が終わると0に戻ることを文言で伝える
+assert.match(hitResetPrompt, /<label for="hitRecordActualBalls">この連チャンの累計出玉<\/label>/);
 assert.match(hitResetPrompt, /id="hitRecordActualBalls"/);
-assert.match(hitResetPrompt, /placeholder="累計獲得出玉（カウンター表示）任意"/);
-assert.match(hitResetPrompt, /（実機：データカウンターの累計獲得出玉）大当り開始から電サポ終了までの純増（電サポ中の減りを含む）です。前回入力との差が今回の出玉として記録されます。/);
+assert.match(hitResetPrompt, /placeholder="この連チャンの累計出玉（実機：データカウンター）任意"/);
+assert.match(hitResetPrompt, /いま表示されている、この連チャンの累計出玉を入力してください。時短が終わると0に戻ります。前回の入力との差が、今回の当たりの出玉になります。/);
 assert.match(hitResetPrompt, /hitRoundSummaryHtml\(session, presetId\)/);
 assert.match(hitResetPrompt, /class="hit-round-layout"/);
 assert.match(hitResetPrompt, /appendHitRecord\(session, button\.dataset\.hitRound\);/);
@@ -558,6 +557,9 @@ const appendHitRecordContext = vm.createContext({
     if (!Array.isArray(session.segments) || !session.segments.length) session.segments = [{ id: 'seg1' }];
     return session.segments;
   },
+  sessionSegments(session) {
+    return Array.isArray(session.segments) ? session.segments : [];
+  },
   openSegmentOf() {
     return null;
   },
@@ -572,11 +574,15 @@ const appendHitRecordContext = vm.createContext({
 new vm.Script(`
   ${normalizeHitsBlock}
   ${hitResetPrompt}
-  globalThis.session = { hits: [], hitSpin: 75 };
+  globalThis.session = { hits: [], hitSpin: 75, segments: [{ id: 'seg1' }] };
   globalThis.add = (value) => {
     __inputs.hitRecordActualBalls = value;
     appendHitRecord(session, 'r10');
     return session.hits.at(-1).actualBalls;
+  };
+  // 時短抜け＝新しい通常時区間。以降の当選は次の連チャンに紐づく
+  globalThis.exitJitan = (id) => {
+    session.segments.push({ id });
   };
 `).runInContext(appendHitRecordContext);
 assert.equal(appendHitRecordContext.add('1380'), 1380);
@@ -586,12 +592,66 @@ assert.equal(appendHitRecordContext.session.hits.at(-1).segmentId, 'seg1');
 assert.equal(appendHitRecordContext.add('2800'), 1420);
 assert.equal(appendHitRecordContext.add('4000'), 1200);
 assert.equal(appendHitRecordContext.session.hits.reduce((sum, hit) => sum + (hit.actualBalls || 0), 0), 4000);
+// 同じ連チャン内で下回る入力は従来どおり警告・今回分0
 assert.equal(appendHitRecordContext.add('1000'), 0);
 assert.equal(appendHitRecordContext.session.hits.reduce((sum, hit) => sum + (hit.actualBalls || 0), 0), 4000);
 assert.deepEqual(appendHitRecordContext.__toasts.at(-1), {
   message: '入力値が前回までの累計を下回っています。カウンターの累計を入力してください',
   type: 'error'
 });
+
+// S8/§2: 連チャンが変われば累計は0から積み直す。前の連チャンの合計とは比べない
+const chainInputContext = vm.createContext({
+  __inputs: {},
+  __toasts: [],
+  normalizeNumber: appendHitRecordContext.normalizeNumber,
+  byId(id) {
+    return { value: chainInputContext.__inputs[id] };
+  },
+  nowIso() {
+    return '2026-09-04T00:00:00.000Z';
+  },
+  syncSessionHitTotals() {},
+  ensureSessionSegments(session) {
+    return session.segments;
+  },
+  sessionSegments(session) {
+    return session.segments;
+  },
+  openSegmentOf(session) {
+    return session.segments[session.segments.length - 1];
+  },
+  persistWithToast() {
+    return true;
+  },
+  showToast(message, type = 'success') {
+    chainInputContext.__toasts.push({ message, type });
+  }
+});
+new vm.Script(`
+  ${normalizeHitsBlock}
+  ${hitResetPrompt}
+  globalThis.session = { hits: [], hitSpin: 75, segments: [{ id: 'chain1' }] };
+  globalThis.add = (value, roundTypeId) => {
+    __inputs.hitRecordActualBalls = value;
+    appendHitRecord(session, roundTypeId);
+    return session.hits.at(-1).actualBalls;
+  };
+`).runInContext(chainInputContext);
+// 連チャン①: 4R → 1,380／6R → 2,800
+assert.equal(chainInputContext.add('1380', 'r4'), 1380);
+assert.equal(chainInputContext.add('2800', 'r6'), 1420);
+// 時短抜け → 通常時 → 連チャン②: 4R → 1,380（カウンターは0に戻っている）
+chainInputContext.session.segments.push({ id: 'chain2' });
+assert.equal(chainInputContext.add('1380', 'r4'), 1380);
+assert.equal(chainInputContext.session.hits.at(-1).segmentId, 'chain2');
+// 連チャンが変わったので下回り扱いにしない
+assert.deepEqual(chainInputContext.__toasts, []);
+assert.equal(chainInputContext.add('2600', 'r4'), 1220);
+assert.deepEqual(chainInputContext.__toasts, []);
+// セッション合計 5,400玉／合計18R → 1R当たり300玉
+assert.equal(chainInputContext.session.hits.reduce((sum, hit) => sum + (hit.actualBalls || 0), 0), 5400);
+assert.deepEqual(JSON.parse(JSON.stringify(chainInputContext.session.hits.map((hit) => hit.actualBalls))), [1380, 1420, 1380, 1220]);
 assert.match(updateMochidamaBalance, /session\.startMochidama = balanceStartValueForCurrent\(session, "startMochidama", value\);/);
 assert.match(updateMochidamaBalance, /undo: \(\) => \{\s*session\.startMochidama = previous;/);
 assert.match(balanceStartValueForCurrent, /if \(key === "startMochidama"\) return value \+ totals\.mochidamaBalls;/);
@@ -1235,10 +1295,10 @@ const transferContext = vm.createContext({
       .reduce((sum, value) => sum + value, 0);
   },
   sessionActualBallsTotal(session) {
-    const explicit = transferContext.normalizeNumber(session?.sessionActualBalls);
-    if (explicit !== null && explicit > 0) return explicit;
     const perHit = transferContext.cumulativeActualBallsBeforeHit(session);
-    return perHit > 0 ? perHit : null;
+    if (perHit > 0) return perHit;
+    const explicit = transferContext.normalizeNumber(session?.sessionActualBalls);
+    return explicit !== null && explicit > 0 ? explicit : null;
   },
   normalizeMachinePresetId() {
     return 'umi-sp5';
@@ -1456,14 +1516,14 @@ assert.equal(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
   '投資1,000円/回収0円/引出125個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円'
 );
-// B90: ヤメ入力の累計獲得出玉を1R平均の分子に採用する
+// S8/§1-2: 当選ごとの今回分の合計が本線。旧データの sessionActualBalls があっても上書きされない（1,980玉 ÷ 14R）
 const b90SessionTotal = { ...transferFixture, id: 's_b90_total', sessionActualBalls: 2800 };
 transferContext.__session = b90SessionTotal;
 assert.match(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
-  /1R平均200玉\/R/
+  /1R平均141\.4玉\/R/
 );
-// 当選ごとが未入力でも、ヤメの累計だけで1R平均が出る
+// 当選ごとが未入力の旧データは、ヤメの累計をフォールバックとして使う
 const b90NoPerHit = {
   ...transferFixture,
   id: 's_b90_nohit_input',
@@ -1638,10 +1698,10 @@ new vm.Script(`
       .reduce((sum, value) => sum + value, 0);
   }
   function sessionActualBallsTotal(session) {
-    const explicit = normalizeNumber(session?.sessionActualBalls);
-    if (explicit !== null && explicit > 0) return explicit;
     const perHit = cumulativeActualBallsBeforeHit(session);
-    return perHit > 0 ? perHit : null;
+    if (perHit > 0) return perHit;
+    const explicit = normalizeNumber(session?.sessionActualBalls);
+    return explicit !== null && explicit > 0 ? explicit : null;
   }
   function storeById() { return {}; }
   function investmentToBalls(item) {
@@ -2852,7 +2912,8 @@ assert.ok(html.includes('id="machineEvBasis"'));
 assert.ok(html.includes('function sessionActualBallsTotal(session)'));
 assert.ok(html.includes('const actualPayoutTotal = sessionActualBallsTotal(session);'));
 assert.ok(html.includes('if (derived.actualPayoutTotal !== null && derived.actualPayoutTotal !== undefined) return'));
-assert.ok(html.includes('key: "sessionActualBalls", label: "累計獲得出玉"'));
+// S8/§1-3: ヤメ入力の累計獲得出玉は廃止。フィールドは旧データのために残す
+assert.ok(!html.includes('key: "sessionActualBalls"'));
 assert.ok(html.includes('sessionActualBalls: normalizeNumber(session.sessionActualBalls),'));
 assert.ok(design.includes('schema は 28 とする'));
 assert.match(machineButtonHtml, /const hasMachineMemo = \(machine\?\.memoEntries \|\| \[\]\)\.length > 0;/);
@@ -3672,9 +3733,9 @@ assert.match(hitHistoryBlock, /if \(!confirm\("この当選を削除しますか
 assert.match(hitHistoryBlock, /id="editHitRoundType"/);
 assert.match(hitHistoryBlock, /id="editHitSpin"/);
 assert.match(hitHistoryBlock, /id="editHitActualBalls"/);
-// 累計獲得出玉の修正は B88 の差分方式で今回分を出し直す
+// S8/§1-1: 累計出玉の修正は同じ連チャン内の差分方式で今回分を出し直す
 assert.match(hitHistoryBlock, /actualBallsFromCumulativeInput\(session, byId\("editHitActualBalls"\)\.value, index\)/);
-assert.match(hitHistoryBlock, /cumulativeActualBallsBefore\(session, index \+ 1\)/);
+assert.match(hitHistoryBlock, /chainActualBallsBefore\(session, index \+ 1, chainSegmentIdForHit\(session, index\)\)/);
 // 削除・修正のあとは合計を作り直す
 assert.match(hitHistoryBlock, /function applyHitTotals\(session\)[\s\S]*?session\.hitCount = 0;\s*session\.totalRounds = 0;/);
 assert.match(hitHistoryBlock, /removeHitRecord\(session, index\)/);
@@ -3721,9 +3782,9 @@ assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.labels)), ['区間�
 // 新しい区間が上
 assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups.map((group) => group.label))), ['区間②（時短抜け50から）', '区間①（打ち始めから）']);
 assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups.map((group) => group.rows.map((row) => row.number)))), [[3, 4], [1, 2]]);
-// 累計獲得出玉は古い順の積み上げ
+// S8/§1-1: 累計出玉は連チャン（区間）ごとに古い順で積み上げる。区間が変われば0から積み直す
 assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups[1].rows.map((row) => row.cumulativeBalls))), [1380, 1900]);
-assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups[0].rows.map((row) => row.cumulativeBalls))), [2800, 3400]);
+assert.deepEqual(JSON.parse(JSON.stringify(hitHistoryContext.groups[0].rows.map((row) => row.cumulativeBalls))), [900, 1500]);
 assert.equal(hitHistoryContext.legacySegmentId, 'seg_b');
 assert.equal(hitHistoryContext.noBallsRows[0].cumulativeBalls, null);
 
@@ -3846,7 +3907,7 @@ new vm.Script(`
   globalThis.withActual = ballsPerRoundText(sessionBallsPerRound({ hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r10', actualBalls: 1420 }] }, 'single'));
   // B90: ヤメ時の累計入力だけでも 1R当たりを出す（当選ごとの実測は未入力）
   globalThis.withSessionTotal = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }] }, 'single'));
-  // 累計と当選ごとの両方があれば累計を優先する
+  // S8/§1-2: 両方あれば当選ごとの今回分の合計を採る（2,380玉 ÷ 20R）
   globalThis.withBoth = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r10', actualBalls: 1000 }] }, 'single'));
   // 当選履歴が無ければヤメ入力の合計R数を使う
   globalThis.withManualRounds = ballsPerRoundText(sessionBallsPerRound({ sessionActualBalls: 2800, totalRounds: 20, hits: [] }, 'single'));
@@ -3862,7 +3923,7 @@ new vm.Script(`
 `).runInContext(ballsPerRoundContext);
 assert.equal(ballsPerRoundContext.withActual, '140玉');
 assert.equal(ballsPerRoundContext.withSessionTotal, '140玉');
-assert.equal(ballsPerRoundContext.withBoth, '140玉');
+assert.equal(ballsPerRoundContext.withBoth, '119玉');
 assert.equal(ballsPerRoundContext.withManualRounds, '140玉');
 assert.equal(ballsPerRoundContext.hitsBeatManualRounds, '140玉');
 assert.equal(ballsPerRoundContext.withoutActual, '—');
@@ -3921,5 +3982,139 @@ assert.equal(syncHitTotalsContext.synced.hitCount, 2);
 assert.equal(syncHitTotalsContext.unresolved.totalRounds, 12);
 assert.equal(syncHitTotalsContext.noHits.totalRounds, 30);
 assert.equal(syncHitTotalsContext.noHits.hitCount, 3);
+
+// --- S8: 獲得出玉の累計を連チャン単位にする ---------------------------------
+// 連チャン＝同じ区間に紐づく当たり群。カウンターは時短が終わると0に戻る。
+const s8Context = vm.createContext({
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  numberText(value, fallback = '未入力') {
+    const n = s8Context.normalizeNumber(value);
+    return n === null ? fallback : n.toLocaleString('ja-JP');
+  },
+  presetById(id) {
+    return { multi: { roundTypes: [{ id: 'r4', label: '4R' }, { id: 'r6', label: '6R' }, { id: 'r10', label: '10R' }] } }[id] || null;
+  },
+  roundTypeById(presetId, roundTypeId) {
+    return s8Context.presetById(presetId)?.roundTypes.find((type) => type.id === roundTypeId) || null;
+  },
+  sessionSegments(session) {
+    return Array.isArray(session?.segments) ? session.segments : [];
+  },
+  ensureSessionSegments(session) {
+    return s8Context.sessionSegments(session);
+  },
+  openSegmentOf(session) {
+    return s8Context.sessionSegments(session).at(-1) || null;
+  },
+  nowIso() {
+    return '2026-09-04T00:00:00.000Z';
+  }
+});
+new vm.Script(`
+  ${normalizeHitsBlock}
+  ${roundCountFromRoundTypeBlock}
+  ${hitResetPrompt}
+  ${ballsPerRoundHelpers}
+`).runInContext(s8Context);
+
+// §2 の検算セッション。連チャン①（4R→6R）→ 時短抜け → 連チャン②（4R→4R）
+const s8Session = {
+  segments: [{ id: 'chain1', kind: 'normal', startSpin: 0 }, { id: 'chain2', kind: 'normal', startSpin: 200 }],
+  hits: [
+    { roundTypeId: 'r4', segmentId: 'chain1', actualBalls: 1380 },
+    { roundTypeId: 'r6', segmentId: 'chain1', actualBalls: 1420 },
+    { roundTypeId: 'r4', segmentId: 'chain2', actualBalls: 1380 },
+    { roundTypeId: 'r4', segmentId: 'chain2', actualBalls: 1220 }
+  ]
+};
+s8Context.__session = s8Session;
+// セッション合計5,400玉・合計18R → 1R当たり300玉
+assert.equal(vm.runInContext('sessionActualBallsTotal(__session)', s8Context), 5400);
+assert.equal(vm.runInContext('totalRoundsForPreset(__session, "multi")', s8Context), 18);
+assert.equal(vm.runInContext('ballsPerRoundText(sessionBallsPerRound(__session, "multi"))', s8Context), '300玉');
+// 連チャンごとの累計。#3 は連チャンが変わるので0から積み直す
+assert.equal(vm.runInContext('chainActualBallsBefore(__session, 0)', s8Context), 0);
+assert.equal(vm.runInContext('chainActualBallsBefore(__session, 1)', s8Context), 1380);
+assert.equal(vm.runInContext('chainActualBallsBefore(__session, 2)', s8Context), 0);
+assert.equal(vm.runInContext('chainActualBallsBefore(__session, 3)', s8Context), 1380);
+// 大当たり履歴からの修正も同じ連チャン内で差分を出し直す（#4 の入力欄は 2,600 が初期値）
+assert.equal(vm.runInContext('chainActualBallsBefore(__session, 4, chainSegmentIdForHit(__session, 3))', s8Context), 2600);
+assert.deepEqual(
+  JSON.parse(JSON.stringify(vm.runInContext('actualBallsFromCumulativeInput(__session, "2400", 3)', s8Context))),
+  { actualBalls: 1020, warning: false }
+);
+// 同じ連チャン内で下回れば警告・今回分0
+assert.deepEqual(
+  JSON.parse(JSON.stringify(vm.runInContext('actualBallsFromCumulativeInput(__session, "1000", 3)', s8Context))),
+  { actualBalls: 0, warning: true }
+);
+// 前の連チャンの合計（2,800玉）とは比べない
+assert.deepEqual(
+  JSON.parse(JSON.stringify(vm.runInContext('actualBallsFromCumulativeInput(__session, "1380", 2)', s8Context))),
+  { actualBalls: 1380, warning: false }
+);
+// 履歴一覧の累計表示も連チャンごと
+assert.deepEqual(
+  JSON.parse(JSON.stringify(vm.runInContext('hitHistoryRows(__session).map((row) => row.cumulativeBalls)', s8Context))),
+  [1380, 2800, 1380, 2600]
+);
+
+// 遊タイム経由の当選も、その区間の当たり群として扱う
+const s8YutimeSession = {
+  segments: [
+    { id: 'seg_normal', kind: 'normal', startSpin: 0 },
+    { id: 'seg_yutime', kind: 'yutime', startSpin: 250 },
+    { id: 'seg_after', kind: 'normal', startSpin: 400 }
+  ],
+  hits: [
+    { roundTypeId: 'r4', segmentId: 'seg_normal', actualBalls: 1380 },
+    { roundTypeId: 'r10', segmentId: 'seg_yutime', actualBalls: 1500 },
+    { roundTypeId: 'r10', segmentId: 'seg_yutime', actualBalls: 1400 }
+  ]
+};
+s8Context.__session = s8YutimeSession;
+assert.equal(vm.runInContext('chainActualBallsBefore(__session, 1)', s8Context), 0);
+assert.equal(vm.runInContext('chainActualBallsBefore(__session, 2)', s8Context), 1500);
+assert.equal(vm.runInContext('sessionActualBallsTotal(__session)', s8Context), 4280);
+
+// 区間を持たない旧データは当選カウンターで寄せる。連チャン単位でも同じ切り出しになる
+const s8LegacySegmentless = {
+  segments: [{ id: 'seg_a', kind: 'normal', startSpin: 0 }, { id: 'seg_b', kind: 'normal', startSpin: 100 }],
+  hits: [
+    { roundTypeId: 'r4', hitSpin: 40, actualBalls: 1380 },
+    { roundTypeId: 'r4', hitSpin: 150, actualBalls: 900 }
+  ]
+};
+s8Context.__session = s8LegacySegmentless;
+assert.equal(vm.runInContext('chainActualBallsBefore(__session, 1)', s8Context), 0);
+
+// §5 回帰: 既存データの実測出玉合計と1R平均は変わらない
+// (a) 当選ごとの記録があるセッション。sessionActualBalls の有無で値が動かない
+const s8LegacyPerHit = {
+  segments: [{ id: 'seg_a', kind: 'normal', startSpin: 0 }],
+  hits: [
+    { roundTypeId: 'r10', segmentId: 'seg_a', actualBalls: 1380 },
+    { roundTypeId: 'r4', segmentId: 'seg_a', actualBalls: 600 }
+  ]
+};
+s8Context.__session = s8LegacyPerHit;
+assert.equal(vm.runInContext('sessionActualBallsTotal(__session)', s8Context), 1980);
+assert.equal(vm.runInContext('ballsPerRoundText(sessionBallsPerRound(__session, "multi"))', s8Context), '141玉');
+s8Context.__session = { ...s8LegacyPerHit, sessionActualBalls: 1980 };
+assert.equal(vm.runInContext('sessionActualBallsTotal(__session)', s8Context), 1980);
+assert.equal(vm.runInContext('ballsPerRoundText(sessionBallsPerRound(__session, "multi"))', s8Context), '141玉');
+// (b) 当選ごとの記録が無い旧データは sessionActualBalls をフォールバックに使う
+s8Context.__session = { segments: [], hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }], sessionActualBalls: 2800 };
+assert.equal(vm.runInContext('sessionActualBallsTotal(__session)', s8Context), 2800);
+assert.equal(vm.runInContext('ballsPerRoundText(sessionBallsPerRound(__session, "multi"))', s8Context), '200玉');
+// (c) 実測がまったく無ければ理論値では代用しない
+s8Context.__session = { segments: [], hits: [{ roundTypeId: 'r10' }] };
+assert.equal(vm.runInContext('sessionActualBallsTotal(__session)', s8Context), null);
+assert.equal(vm.runInContext('ballsPerRoundText(sessionBallsPerRound(__session, "multi"))', s8Context), '—');
+
 
 console.log('yutime-v3 tests passed');
