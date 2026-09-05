@@ -21,7 +21,11 @@
     ['ep4','EP4','-sideハワイ-／調査中',0,'W4']
   ];
   const TROPHY=[
-    ['trophy','トロフィー出現','特定設定以上の示唆（色別ランクは解析待ち）',0,'ト']
+    ['bronze','銅トロフィー','設定2以上確定演出',2,'銅'],
+    ['silver','銀トロフィー','設定3以上確定演出',3,'銀'],
+    ['gold','金トロフィー','設定4以上確定演出',4,'金'],
+    ['kirin','キリン柄トロフィー','設定5以上確定演出',5,'キ'],
+    ['rainbow','虹トロフィー','設定6確定演出',6,'虹']
   ];
 
   const DEF={
@@ -30,7 +34,7 @@
     prologue:{ep1:0,ep2:0,ep3:0,ep4:0},
     rush:{ep1:0,ep2:0,ep3:0,ep4:0},
     wep:{ep1:0,ep2:0,ep3:0,ep4:0},
-    trophy:{trophy:0},
+    trophy:Object.fromEntries(TROPHY.map(v=>[v[0],0])),
     img:null,
     iconChoice:null
   };
@@ -50,10 +54,19 @@
     return `${prefix} ${out.length?out.join('・'):'—'}`;
   }
   function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
-  function epTotal(S){return sum(S.prologue)+sum(S.rush)+sum(S.wep);}
   function normalizeCounterObject(out,key){
     out[key]=Object.assign({},DEF[key],out[key]||{});
     Object.keys(out[key]||{}).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
+  }
+  function rankText(rank){return rank===6?'6確定':rank+'以上';}
+  function allCert(S){
+    return TROPHY.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.trophy,c[0]),rank:c[3],order:10+c[3]}));
+  }
+  function certCount(S){return allCert(S).reduce((a,b)=>a+b.value,0);}
+  function certTier(S,rank){return allCert(S).filter(v=>v.rank===rank).reduce((a,b)=>a+b.value,0);}
+  function bestCert(S){
+    const hit=allCert(S).filter(x=>x.value>0).sort((a,b)=>(b.rank-a.rank)||(a.order-b.order))[0];
+    return hit?`確定 ${hit.label}(${rankText(hit.rank)}) ×${hit.value}`:'確定演出 なし';
   }
 
   function pageHatsu(ctx){
@@ -93,8 +106,7 @@
   </section>
   <section class="sec">
     <div class="sec-h">サミートロフィー<span class="sub">計${sum(S.trophy)}回</span></div>
-    <div class="cgrid">${TROPHY.map(c=>ctx.crow('trophy.'+c[0],c[1],c[2],0)).join('')}</div>
-    <div class="hint">サミートロフィーの色別ランクは解析待ちのため、出現回数のみ記録します。</div>
+    <div class="cgrid">${TROPHY.map(c=>ctx.crow('trophy.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
   </section>
   <section class="sec">
     <div class="sec-h">AT終了画面<span class="sub">本ツール未実装</span></div>
@@ -160,23 +172,23 @@
       blocks:ctx=>{
         const S=ctx.S;
         return [
-          ['CZ当選',n(S.counts,'cz')+'回'],
           ['AT初当り',n(S.counts,'at')+'回'],
-          ['AT直撃',n(S.counts,'direct')+'回'],
-          ['幼少期CZ',n(S.counts,'child')+'回']
+          ['CZ当選',n(S.counts,'cz')+'回'],
+          ['トロフィー',sum(S.trophy)+'回'],
+          ['確定演出','計'+certCount(S)+'回']
         ];
       },
       chart:ctx=>({
-        title:'カウント分布',
+        title:'示唆分布',
         x:150,
         step:160,
         width:80,
         items:[
-          {label:'CZ',value:n(ctx.S.counts,'cz')},
-          {label:'AT',value:n(ctx.S.counts,'at')},
-          {label:'直撃',value:n(ctx.S.counts,'direct')},
-          {label:'幼少',value:n(ctx.S.counts,'child')},
-          {label:'ト',value:n(ctx.S.trophy,'trophy')}
+          {label:'2+',value:certTier(ctx.S,2)},
+          {label:'3+',value:certTier(ctx.S,3)},
+          {label:'4+',value:certTier(ctx.S,4)},
+          {label:'5+',value:certTier(ctx.S,5)},
+          {label:'6',value:certTier(ctx.S,6)}
         ]
       }),
       bottom:ctx=>{
@@ -188,18 +200,19 @@
           fontSize:23,
           columns:[
             {x:70,items:[
+              row(bestCert(S),certCount(S),certCount(S)>0,'#ffc94d'),
               row(`AT初当り ${n(S.counts,'at')}回`,n(S.counts,'at')),
               row(`CZ当選 ${n(S.counts,'cz')}回`,n(S.counts,'cz')),
-              row(`AT直撃 ${n(S.counts,'direct')}回`,n(S.counts,'direct')),
-              row(`幼少期CZ ${n(S.counts,'child')}回`,n(S.counts,'child')),
-              row(`トロフィー ${n(S.trophy,'trophy')}回`,n(S.trophy,'trophy'))
+              row(`AT直撃 ${n(S.counts,'direct')}回 / 幼少期CZ ${n(S.counts,'child')}回`,
+                  n(S.counts,'direct')+n(S.counts,'child')),
+              row(`通常回転 ${S.games||0}G`,S.games||0)
             ]},
             {x:560,items:[
-              row(`EP計 ${epTotal(S)}回`,epTotal(S)),
+              row(`確定演出 計${certCount(S)}回`,certCount(S),certCount(S)>0,'#ffc94d'),
+              row(shown('トロフィー',[['銅',n(S.trophy,'bronze')],['銀',n(S.trophy,'silver')],['金',n(S.trophy,'gold')],['キ',n(S.trophy,'kirin')],['虹',n(S.trophy,'rainbow')]]),sum(S.trophy)),
               row(shown('プロローグ',[['1',n(S.prologue,'ep1')],['2',n(S.prologue,'ep2')],['3',n(S.prologue,'ep3')],['4',n(S.prologue,'ep4')]]),sum(S.prologue)),
               row(shown('RUSH中EP',[['1',n(S.rush,'ep1')],['2',n(S.rush,'ep2')],['3',n(S.rush,'ep3')],['4',n(S.rush,'ep4')]]),sum(S.rush)),
-              row(shown('W中EP',[['1',n(S.wep,'ep1')],['2',n(S.wep,'ep2')],['3',n(S.wep,'ep3')],['4',n(S.wep,'ep4')]]),sum(S.wep)),
-              row(`通常回転 ${S.games||0}G`,S.games||0)
+              row(shown('W中EP',[['1',n(S.wep,'ep1')],['2',n(S.wep,'ep2')],['3',n(S.wep,'ep3')],['4',n(S.wep,'ep4')]]),sum(S.wep))
             ]}
           ]
         };
