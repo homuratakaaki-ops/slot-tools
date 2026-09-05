@@ -86,7 +86,10 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 2
 .sec-h .sub{font-size:10px;font-weight:500;color:var(--muted);letter-spacing:0}
 /* counter rows */
 .cgrid{display:grid;gap:6px}
-.cgrid.two{grid-template-columns:1fr 1fr}
+.cgrid.two{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.cgrid.two .crow{padding:8px 6px;gap:6px}
+.cgrid.two .crow .num{min-width:26px}
+.cgrid.two .crow .pct{min-width:38px}
 .crow{
   display:flex;align-items:center;gap:8px;
   background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px 10px;
