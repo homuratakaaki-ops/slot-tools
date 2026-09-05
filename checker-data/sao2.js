@@ -14,7 +14,8 @@
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens),percent:true},
       {title:'コパンダトロフィー',items:detailItems(TROPHIES,S.coins)},
       {title:'ED中のミニキャラ',items:detailItems(ED,S.ed),percent:true},
-      {title:'GGOモード示唆',items:detailItems(GGO,S.icons),percent:true}
+      {title:'GGOモード示唆',items:detailItems(GGO,S.icons),percent:true},
+      {title:'AT開始時のステージ',items:detailItems(START_STAGE,S.stage),percent:true}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};
@@ -63,6 +64,10 @@
     ['histDeathGun','履歴画面：デス・ガン','死銃モード濃厚',1],
     ['histHost','履歴画面：司会者','モードアップ濃厚',0]
   ];
+  const START_STAGE=[
+    ['wilderness','荒野','奇数設定で選ばれやすい（奇:60%/偶:40%）',0,'odd'],
+    ['buggy','バギー','偶数設定で選ばれやすい（偶:60%/奇:40%）',0,'even']
+  ];
   const DEF={
     games:0,
     zones:{},
@@ -74,6 +79,7 @@
     ed:Object.fromEntries(ED.map(e=>[e[0],0])),
     icons:Object.fromEntries(GGO.map(g=>[g[0],0])),
     coins:Object.fromEntries(TROPHIES.map(t=>[t[0],0])),
+    stage:Object.fromEntries(START_STAGE.map(s=>[s[0],0])),
     img:null,
     iconChoice:null
   };
@@ -145,7 +151,10 @@
     <div class="hint">EDとマザーズ・ロザリオ中のレア役で出現。</div></section>
   <section class="sec"><div class="sec-h">GGOモード示唆<span class="sub">計${ggoN}回</span></div>
     <div class="cgrid">${GGO.map(c=>ctx.crow('icons.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,ggoN))).join('')}</div>
-    <div class="hint">アイテムは青＜緑＜赤。緑＝いずれかのGGOモード滞在期待度約50%、赤＝該当モード濃厚。いずれかのGGOモード滞在で機械割100%超＋高設定ほど滞在率優遇（設1:約20%）。色は共有テキストに手書き補足推奨。</div></section>`;
+    <div class="hint">アイテムは青＜緑＜赤。緑＝いずれかのGGOモード滞在期待度約50%、赤＝該当モード濃厚。いずれかのGGOモード滞在で機械割100%超＋高設定ほど滞在率優遇（設1:約20%）。色は共有テキストに手書き補足推奨。</div></section>
+  <section class="sec"><div class="sec-h">AT開始時のステージ<span class="sub">計${sum(ctx.S.stage)}回</span></div>
+    <div class="cgrid">${START_STAGE.map(c=>ctx.crow('stage.'+c[0],c[1],c[2],c[3])).join('')}</div>
+    <div class="hint">AT初当り時の開始ステージを記録します。高確率スタート時は抽選対象外のため記録しないでください。60%/40%の偏りなので、回数が溜まるほど参考になります。</div></section>`;
   }
   function tplText(ctx){
     const S=ctx.S, czN=S.cz.cz, atN=S.atCount, fail=S.atcz.fail, atEnd=S.atcz.atEnd;
@@ -161,6 +170,9 @@
     t+='\n■EDミニキャラ\n';
     const edN=sum(S.ed);
     ED.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.ed[c[0]],edN)}\n`;});
+    t+='\n■AT開始時のステージ\n';
+    const stN=sum(S.stage);
+    START_STAGE.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.stage[c[0]],stN)}\n`;});
     t+=`\n■優遇項目\nAT直撃▶︎ ${rateCount(S.games,S.cz.atDirect)}\n確定CZ▶︎ ${S.cz.end}回\n曠野の決闘▶︎ ${S.cz.duel}回\nCZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}\nSC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回\nAT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}\n共通ベル▶︎ ${rate(S.games,S.cz.bell)}（${S.cz.bell}回）\n強チャンス目B▶︎ ${rate(S.games,S.cz.chanceB)}（${S.cz.chanceB}回）\n`;
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
@@ -177,6 +189,8 @@
     t+=sec('コパンダトロフィー',TROPHIES.filter(c=>S.coins[c[0]]>0).map(c=>`${c[1]}▶︎ ${S.coins[c[0]]}回`));
     const edN=sum(S.ed);
     t+=sec('EDミニキャラ',edN>0?ED.filter(c=>S.ed[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.ed[c[0]],edN)}`):[]);
+    const stN=sum(S.stage);
+    t+=sec('AT開始時のステージ',stN>0?START_STAGE.filter(c=>S.stage[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctText(S.stage[c[0]],stN)}`):[]);
     const yuugu=[];
     if(S.cz.atDirect>0)yuugu.push(`AT直撃▶︎ ${rateCount(S.games,S.cz.atDirect)}`);
     if(S.cz.end>0)yuugu.push(`確定CZ▶︎ ${S.cz.end}回`);
@@ -195,7 +209,7 @@
     nanaCollab:true,
     storageKey:'sao2-checker-v1',
     defaults:DEF,
-    mergeKeys:['zones','cz','atcz','screens','ed','icons','coins'],
+    mergeKeys:['zones','cz','atcz','screens','ed','icons','coins','stage'],
     sourceUrl:'https://chonborista.com/slot/daito-slot/256112/',
     share:{
       title:'L SAO2 設定判別メモ',
