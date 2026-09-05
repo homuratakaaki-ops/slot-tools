@@ -3,8 +3,9 @@
   window.CheckerConfigs=window.CheckerConfigs||{};
 
   const BB_END=[
-    ['normal','通常パターン','デフォルト',0,'通'],
-    ['rare','レアパターン','示唆調査中',0,'レ']
+    ['normal','通常パターン(夕方)','デフォルト',0,'通'],
+    ['rare','レアパターン(夜)','高設定ほど出現しやすい',0,'レ'],
+    ['rareNoTako','タコゲーム未入賞時のレア画面','設定2以上確定演出',2,'2+']
   ];
 
   const DEF={
@@ -22,6 +23,15 @@
   function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
   function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]>0));}
   function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
+  function rankText(rank){return rank===6?'6確定':rank+'以上';}
+  function allCert(S){
+    return BB_END.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.screens,c[0]),rank:c[3],order:10+c[3]}));
+  }
+  function certCount(S){return allCert(S).reduce((a,b)=>a+b.value,0);}
+  function bestCert(S){
+    const hit=allCert(S).filter(x=>x.value>0).sort((a,b)=>(b.rank-a.rank)||(a.order-b.order))[0];
+    return hit?`確定 ${hit.label}(${rankText(hit.rank)}) ×${hit.value}`:'確定演出 なし';
+  }
 
   function normalizeState(out){
     out.games=Math.max(0,Number(out.games)||0);
@@ -53,7 +63,8 @@
     const S=ctx.S;
     return `<section class="sec">
     <div class="sec-h">BB終了画面<span class="sub">計${sum(S.screens)}回</span></div>
-    <div class="cgrid">${BB_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],0)).join('')}</div>
+    <div class="cgrid">${BB_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
+    <div class="hint">タコゲームに一度も入賞しなかったBBの終了画面がレアパターンだった場合は、専用の行（設定2以上）で記録してください。通常のレアパターン行と重複カウントは不要です。</div>
   </section>
   <section class="sec">
     <div class="sec-h">解析待ちの示唆<span class="sub">未実装</span></div>
@@ -126,16 +137,20 @@
       bottom:ctx=>{
         const S=ctx.S;
         return {
-          title:'サマリー',
-          startY:760,
-          rowGap:44,
-          fontSize:23,
+          title:'サマリー', startY:760, rowGap:44, fontSize:23,
           columns:[
             {x:70,items:[
+              row(bestCert(S),certCount(S),certCount(S)>0,'#ffc94d'),
               row(`通常回転 ${S.games||0}G`,S.games||0),
               row(`BIG ${n(S.counts,'big')}回`,n(S.counts,'big')),
               row(`REG ${n(S.counts,'reg')}回`,n(S.counts,'reg')),
-              row(`レアパターン ${n(S.screens,'rare')}回`,n(S.screens,'rare'))
+              row(`ボーナス計 ${n(S.counts,'big')+n(S.counts,'reg')}回`,n(S.counts,'big')+n(S.counts,'reg'))
+            ]},
+            {x:560,items:[
+              row(`確定演出 計${certCount(S)}回`,certCount(S),certCount(S)>0,'#ffc94d'),
+              row(`通常パターン(夕方) ${n(S.screens,'normal')}回`,n(S.screens,'normal')),
+              row(`レアパターン(夜) ${n(S.screens,'rare')}回`,n(S.screens,'rare')),
+              row(`タコ未入賞レア ${n(S.screens,'rareNoTako')}回`,n(S.screens,'rareNoTako'))
             ]}
           ]
         };
