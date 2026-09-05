@@ -103,9 +103,12 @@
       <div class="sum-box"><span>差枚合計</span><b id="sDiff">–</b></div>
       <div class="sum-box"><span>収支合計</span><b id="sCash">–</b></div>
       <div class="sum-box"><span>勝率</span><b id="sWin">–</b></div>
-      <div class="sum-box"><span>BIG / REG 合算</span><b id="sRate">–</b></div>
+      <div class="sum-box"><span>時給（800回転/時）</span><b id="sHour">–</b></div>
+      <div class="sum-box"><span>BIG確率</span><b id="sBig">–</b></div>
+      <div class="sum-box"><span>REG確率</span><b id="sReg">–</b></div>
     </div>
-    <p class="note">差枚と収支は、持ち枚数を入力した記録だけを集計します。勝率は差枚がマイナスにならなかった記録の割合です。</p>
+    <p class="note" id="sTotal"></p>
+    <p class="note">差枚と収支は、持ち枚数を入力した記録だけを集計します。勝率は差枚がマイナスにならなかった記録の割合です。時給は1時間を800回転として、収支を回した時間で割ったものです。回転数が少ないうちは大きく振れます。</p>
   </section>
 
   <section class="card">
@@ -264,7 +267,20 @@
     } else {
       for (const id of ["sDiff", "sCash", "sWin"]) { $(id).textContent = "–"; $(id).className = ""; }
     }
-    $("sRate").textContent = t.big + t.reg > 0 ? `${rate(t.big + t.reg, t.games)}（${t.big}/${t.reg}）` : "–";
+    $("sBig").textContent = rate(t.big, t.games);
+    $("sReg").textContent = rate(t.reg, t.games);
+    $("sTotal").textContent = t.big + t.reg > 0
+      ? `合算 ${rate(t.big + t.reg, t.games)}（BIG ${t.big}回 / REG ${t.reg}回）`
+      : "";
+    if (t.moneyN && t.games > 0) {
+      const hours = t.games / 800;
+      const perHour = Math.round(t.cash / hours);
+      $("sHour").textContent = yen(perHour);
+      $("sHour").className = cls(perHour);
+    } else {
+      $("sHour").textContent = "–";
+      $("sHour").className = "";
+    }
   }
 
   function groupTable(list, keyFn, labelFn, target) {
