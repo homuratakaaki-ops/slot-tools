@@ -39,8 +39,14 @@
   @supports not (height:1dvh){.rowlist{max-height:40vh}}
   .row{display:flex;justify-content:space-between;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12.5px;font-variant-numeric:tabular-nums}
   .row button{background:none;border:none;color:var(--text-dim);font-size:11px;min-height:32px;padding:0 4px}
+  .row .broken{color:var(--text-dim)}
   .opt{display:flex;align-items:center;gap:10px;min-height:48px;font-size:13px;color:var(--text)}
   .opt input[type=checkbox]{width:22px;height:22px;flex:none}
+  .bulk{border:1px solid var(--border);border-radius:8px;padding:10px;margin-top:10px;background:var(--surface2)}
+  .bulk summary{font-size:13px;font-weight:700;color:var(--gold-light);cursor:pointer;min-height:32px;padding:4px 0}
+  .tips{margin:6px 0 0 1.3em;padding:0;color:var(--text-muted);font-size:12px;line-height:1.7}
+  .tips li{margin-bottom:4px}
+  .bulk textarea{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;padding:10px;width:100%;font-family:inherit;line-height:1.6;font-variant-numeric:tabular-nums}
   footer{text-align:center;padding:30px 16px;color:var(--text-dim);font-size:12px}
   footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
   footer a{color:var(--text-muted);text-decoration:none}
@@ -81,11 +87,39 @@
       <label>REG<input type="text" id="iReg" inputmode="numeric" autocomplete="off"></label>
     </div>
     <label style="margin-top:8px">差枚（任意・データカウンターで分かるときだけ）<input type="text" id="iDiff" inputmode="numeric" autocomplete="off"></label>
+    <label class="opt"><input type="checkbox" id="iBroken">故障・非稼働（集計から除く）</label>
     <div class="btns">
       <button type="button" id="addBtn" class="primary">追加</button>
       <button type="button" id="fromMylogBtn">マイログから取り込む</button>
     </div>
     <p class="note" id="addHint"></p>
+
+    <details class="bulk" id="bulkBox">
+      <summary>まとめて入力する</summary>
+      <p class="note" style="margin-top:6px">1行に1台分を、スペース区切りで打ちます。台番号は上の「台番号」から自動で1つずつ進みます。G数が0の行は故障・非稼働として記録し、集計から除きます。</p>
+      <label class="opt" style="min-height:44px"><input type="checkbox" id="bulkSeat">各行の先頭に台番号を書く（飛び番があるとき）</label>
+      <p class="note" id="bulkFormat"></p>
+      <textarea id="bulkText" rows="6" placeholder="7609 28 21&#10;7235 33 18&#10;8403 35 20"></textarea>
+      <div class="btns">
+        <button type="button" id="bulkClear">消す</button>
+        <button type="button" class="primary" id="bulkAdd">まとめて追加</button>
+      </div>
+      <p class="note" id="bulkHint"></p>
+    </details>
+
+    <details class="bulk">
+      <summary>入力を楽にするコツ</summary>
+      <p class="note" style="margin-top:6px"><b>Androidをお使いの場合</b>：画面を上下に分けると、データを見ながら入力できます。</p>
+      <ol class="tips">
+        <li>データのページとこのページを、それぞれ開いておきます（同じブラウザなら、メニューの「新しいウィンドウで開く」で別ウィンドウにします）</li>
+        <li>履歴ボタン（□）を押して、開いているアプリを一覧にします</li>
+        <li>アプリの上部にあるアイコンをタップし、「分割画面」を選びます</li>
+        <li>もう一方のアプリを選ぶと、上下に並びます</li>
+      </ol>
+      <p class="note">Galaxyは一覧でアプリのアイコンをタップして「分割画面表示で起動」、Pixel・Xperia・AQUOSはほぼ上の手順どおりです。境界線をドラッグすると高さを変えられます（AQUOSは固定の場合があります）。</p>
+      <p class="note"><b>iPhoneをお使いの場合</b>：iPhoneには画面分割がありません（iPadのみ）。上の「まとめて入力する」に何台分かをためてから、一度に登録するのが早いです。</p>
+    </details>
+
     <div class="rowlist" id="todayList"></div>
   </section>
 
@@ -234,7 +268,7 @@ function isWeekend(dateStr) { const w = weekday(dateStr); return w === 0 || w ==
 /* ---------- 集計 ---------- */
 async function summarize(units) {
   const excl = $("optExclude").checked, wt = $("optWeight").checked;
-  const use = units.filter((u) => u.games > 0 && (!excl || u.games >= 1000));
+  const use = units.filter((u) => u.status !== "broken" && u.games > 0 && (!excl || u.games >= 1000));
   if (!use.length) return null;
   let wSum = 0, expSum = 0, hiSum = 0, games = 0, big = 0, reg = 0;
   for (const u of use) {
@@ -349,7 +383,7 @@ function renderTodayList() {
   const list = ALL.filter((u) => u.date === date && u.shop === shop && u.machineId === mid)
     .sort((a, b) => String(a.seat).localeCompare(String(b.seat), "ja", { numeric: true }));
   $("todayList").innerHTML = list.length
-    ? list.map((u) => `<div class="row"><span>${esc(u.seat)}番　${u.games.toLocaleString()}G　BIG${u.big}／REG${u.reg}${u.diff != null ? "　" + (u.diff >= 0 ? "+" : "") + u.diff.toLocaleString() : ""}</span><button type="button" data-del="${esc(u.id)}">削除</button></div>`).join("")
+    ? list.map((u) => `<div class="row"><span>${esc(u.seat)}番　${u.status === "broken" ? '<span class="broken">故障・非稼働</span>' : `${u.games.toLocaleString()}G　BIG${u.big}／REG${u.reg}${u.diff != null ? "　" + (u.diff >= 0 ? "+" : "") + u.diff.toLocaleString() : ""}`}</span><button type="button" data-del="${esc(u.id)}">削除</button></div>`).join("")
     : `<p class="empty">この日・この機種の登録はまだありません。</p>`;
   $("todayList").querySelectorAll("[data-del]").forEach((b) => {
     b.addEventListener("click", async () => {
@@ -371,7 +405,10 @@ async function refresh() {
 async function addUnit() {
   const date = $("iDate").value, shop = $("iShop").value.trim(), mid = $("iMachine").value;
   const seat = $("iSeat").value.trim();
-  const games = toInt($("iGames").value), big = toInt($("iBig").value), reg = toInt($("iReg").value);
+  const broken = $("iBroken").checked;
+  const games = broken ? (toInt($("iGames").value) || 0) : toInt($("iGames").value);
+  const big = broken ? (toInt($("iBig").value) || 0) : toInt($("iBig").value);
+  const reg = broken ? (toInt($("iReg").value) || 0) : toInt($("iReg").value);
   if (!date || !shop) { $("addHint").textContent = "日付と店名を入れてください。"; return; }
   if (!seat) { $("addHint").textContent = "台番号を入れてください。"; return; }
   if (games == null || big == null || reg == null) { $("addHint").textContent = "G数・BIG・REGを入れてください。"; return; }
@@ -381,15 +418,69 @@ async function addUnit() {
     machineName: MACHINES[mid].name,
     seat, games: Math.max(0, games), big: Math.max(0, big), reg: Math.max(0, reg),
     diff: toInt($("iDiff").value),
+    status: broken ? "broken" : "",
     savedAt: new Date().toISOString(),
   };
   await dbPut(rec);
   const n = toInt(seat);
   $("iSeat").value = n == null ? "" : String(n + 1);
   for (const id of ["iGames", "iBig", "iReg", "iDiff"]) $(id).value = "";
-  $("addHint").textContent = `${seat}番を登録しました。次の台番号は ${$("iSeat").value || "（手入力）"} です。`;
+  $("addHint").textContent = `${seat}番${broken ? "（故障・非稼働）" : ""}を登録しました。次の台番号は ${$("iSeat").value || "（手入力）"} です。`;
   await refresh();
   $("iGames").focus();
+}
+
+function bulkFormatText() {
+  return $("bulkSeat").checked
+    ? "書き方：台番号 G数 BIG REG（差枚）　例）846 7609 28 21"
+    : "書き方：G数 BIG REG（差枚）　例）7609 28 21";
+}
+
+function parseBulk(text, withSeat) {
+  const rows = [], errors = [];
+  const lines = String(text).split(/\r?\n/);
+  lines.forEach((raw, i) => {
+    const line = raw.trim();
+    if (!line) return;
+    const nums = line.split(/[\s,、\t]+/).map((v) => toInt(v));
+    if (nums.some((v) => v == null)) { errors.push(`${i + 1}行目: 数字以外が入っています`); return; }
+    const need = withSeat ? 4 : 3;
+    if (nums.length < need) { errors.push(`${i + 1}行目: 項目が足りません`); return; }
+    if (nums.length > need + 1) { errors.push(`${i + 1}行目: 項目が多すぎます`); return; }
+    const seat = withSeat ? nums[0] : null;
+    const rest = withSeat ? nums.slice(1) : nums;
+    rows.push({ seat, games: rest[0], big: rest[1], reg: rest[2], diff: rest.length > 3 ? rest[3] : null });
+  });
+  return { rows, errors };
+}
+
+async function bulkAddUnits() {
+  const date = $("iDate").value, shop = $("iShop").value.trim(), mid = $("iMachine").value;
+  if (!date || !shop) { $("bulkHint").textContent = "日付と店名を入れてください。"; return; }
+  const withSeat = $("bulkSeat").checked;
+  const { rows, errors } = parseBulk($("bulkText").value, withSeat);
+  if (errors.length) { $("bulkHint").textContent = errors.slice(0, 3).join(" ／ ") + (errors.length > 3 ? ` ほか${errors.length - 3}件` : ""); return; }
+  if (!rows.length) { $("bulkHint").textContent = "入力がありません。"; return; }
+  let seat = toInt($("iSeat").value);
+  if (!withSeat && seat == null) { $("bulkHint").textContent = "台番号を入れてください（先頭の台番号から順に振ります）。"; return; }
+  const event = $("iEvent").value.trim();
+  let n = 0;
+  for (const r of rows) {
+    const s = withSeat ? r.seat : seat++;
+    await dbPut({
+      id: `${date}|${shop}|${mid}|${s}`,
+      date, shop, event, machineId: mid, machineName: MACHINES[mid].name,
+      seat: String(s), games: Math.max(0, r.games), big: Math.max(0, r.big), reg: Math.max(0, r.reg),
+      diff: r.diff, status: r.games > 0 ? "" : "broken",
+      savedAt: new Date().toISOString(),
+    });
+    n++;
+  }
+  if (!withSeat) $("iSeat").value = String(seat);
+  $("bulkText").value = "";
+  const zero = rows.filter((r) => !(r.games > 0)).length;
+  $("bulkHint").textContent = `${n}台を登録しました。${zero ? `うち${zero}台は0Gのため故障・非稼働として扱います。` : ""}${withSeat ? "" : `次の台番号は ${$("iSeat").value} です。`}`;
+  await refresh();
 }
 
 async function importFromMylog() {
@@ -444,6 +535,10 @@ async function init() {
 
   $("addBtn").addEventListener("click", addUnit);
   $("fromMylogBtn").addEventListener("click", importFromMylog);
+  $("bulkAdd").addEventListener("click", bulkAddUnits);
+  $("bulkClear").addEventListener("click", () => { $("bulkText").value = ""; $("bulkHint").textContent = ""; });
+  $("bulkSeat").addEventListener("change", () => { $("bulkFormat").textContent = bulkFormatText(); });
+  $("bulkFormat").textContent = bulkFormatText();
   for (const id of ["iDate", "iShop", "iMachine"]) $(id).addEventListener("change", renderTodayList);
   for (const id of ["cShop", "cMachine", "cDate", "optExclude", "optWeight"]) {
     $(id).addEventListener("change", async () => { await renderCompare(); await renderByDate(); await renderBySeat(); });
