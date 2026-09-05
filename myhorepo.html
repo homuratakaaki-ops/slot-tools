@@ -425,6 +425,7 @@ async function addUnit() {
   const n = toInt(seat);
   $("iSeat").value = n == null ? "" : String(n + 1);
   for (const id of ["iGames", "iBig", "iReg", "iDiff"]) $(id).value = "";
+  $("iBroken").checked = false;
   $("addHint").textContent = `${seat}番${broken ? "（故障・非稼働）" : ""}を登録しました。次の台番号は ${$("iSeat").value || "（手入力）"} です。`;
   await refresh();
   $("iGames").focus();
