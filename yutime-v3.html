@@ -7838,17 +7838,19 @@
       }, { cashYen: 0, saipureiBalls: 0, mochidamaBalls: 0 });
     }
 
-    // S12/A-1: 「タップ投資モード かつ パーソナル店」の判定はこの関数だけに置く。
-    // 収支まわり（実収支・転記用の貯玉引出）は必ずここを通し、条件式を個別に書き直さない。
-    // B84で確定した条件がS4の修正で貯玉引出から落ちる事故が2度起きているため、出所を1本にする。
-    function usesPersonalTapMode(session, store = storeById(session?.storeId)) {
-      return usesTapInvestmentMode(session) && Boolean(store?.isPersonal);
+    // S12/A-1: 収支まわり（実収支・転記用の貯玉引出）の分岐はこの関数だけに置く。
+    // 条件式を個別に書き直さない。B84で確定した条件がS4の修正で貯玉引出から落ちる事故が2度起きている。
+    // S12-2: 主軸は店の種別だけにする。タップ投資モードは条件に入れない。
+    // パーソナル店には investments が空の記録（タップ投資導入前の方式）が実在し、
+    // タップ投資モードを条件に混ぜると、その記録が非パーソナル式（＝0玉）へ落ちてしまうため。
+    function usesPersonalBalanceFormula(store) {
+      return Boolean(store?.isPersonal);
     }
 
     // S12/A-1: プレイヤーが自分の玉から出した投資合計（現金は含めない）。
-    // パーソナル店のtapModeは開始持ち玉＋再プレ、それ以外はB81由来のタップ投資合計。
+    // パーソナル店は開始持ち玉＋再プレ、非パーソナル店はB81由来の投資合計（持ち玉投入＋再プレ）。
     function playerInvestedBalls(session, totals = investmentTotals(session), store = storeById(session?.storeId)) {
-      return usesPersonalTapMode(session, store)
+      return usesPersonalBalanceFormula(store)
         ? Number(session.startMochidama || 0) + Number(totals.saipureiBalls || 0)
         : Number(totals.mochidamaBalls || 0) + Number(totals.saipureiBalls || 0);
     }
