@@ -52,6 +52,7 @@ const startEvDetailTextBlock = section('function remainingSpinTextFromEffectiveS
 const counterSpinHelpers = section('function counterOffsetForPresetId', 'function presetNetBallsPerWin');
 const tenjoAndCounterHelpers = section('function tenjoForPresetId', 'function presetNetBallsPerWin');
 const investmentTotalsBlock = section('function investmentTotals', 'function transferSummaryForSession');
+const personalTapModeBlock = section('function usesPersonalTapMode', 'function profitYenForSession');
 const openBalanceEditForm = section('function openBalanceEditForm', 'function openSpinEditForm');
 const openRateSummary = section('function openRateSummary', 'function openSessionEditor');
 const machineSummary = section('function machineModelSummaryHtml', 'function machineDetailFormHtml');
@@ -662,7 +663,15 @@ assert.match(currentBalanceForStartKey, /if \(key === "startSaipurei"\) return b
 assert.match(currentBalanceForStartKey, /if \(key === "startCredit"\) return balances\.credit;/);
 assert.match(transferSummary, /investYen: totals\.cashYen,/);
 assert.match(transferSummary, /recoverYen: normalizeNumber\(session\.settlementRecoverYen\) \?\? 0,/);
-assert.match(transferSummary, /withdrawBalls: Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\),/);
+// S12/A-1: 貯玉引出はパーソナル判定を握り直さず、実収支と同じ playerInvestedBalls を通す
+assert.match(transferSummary, /withdrawBalls: playerInvestedBalls\(session, totals, store\),/);
+assert.doesNotMatch(transferSummary, /withdrawBalls: Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\),/);
+// 判定条件の出所は1本。B84の条件がS4で貯玉引出から落ちた事故を繰り返さないための固定
+assert.equal((html.match(/usesTapInvestmentMode\(session\) && Boolean\(store\?\.isPersonal\)/g) || []).length, 1);
+assert.match(personalTapModeBlock, /function usesPersonalTapMode\(session, store = storeById\(session\?\.storeId\)\) \{\s*return usesTapInvestmentMode\(session\) && Boolean\(store\?\.isPersonal\);/);
+assert.match(personalTapModeBlock, /function playerInvestedBalls\(session, totals = investmentTotals\(session\), store = storeById\(session\?\.storeId\)\) \{/);
+assert.match(personalTapModeBlock, /\? Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\)\s*: Number\(totals\.mochidamaBalls \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\);/);
+assert.match(investmentTotalsBlock, /const investedPlayerBalls = playerInvestedBalls\(session, totals, store\);/);
 assert.match(transferSummary, /depositBalls: finalMochidamaForCarryover\(session\) \?\? 0/);
 assert.match(transferSummary, /const summaryPresetId = startEv\?\.presetId \|\| normalizeMachinePresetId\(machine\);/);
 assert.match(transferSummary, /startExpectedSpins = startEv \? remainingSpinsFromCounterSpin\(startEv\.effectiveSpin, summaryPresetId\) : null;/);
@@ -1363,7 +1372,7 @@ const transferContext = vm.createContext({
     return transferContext.__session;
   }
 });
-new vm.Script(`${counterSpinHelpers}\n${transferSummary}`).runInContext(transferContext);
+new vm.Script(`${counterSpinHelpers}\n${personalTapModeBlock}\n${transferSummary}`).runInContext(transferContext);
 const investmentAdjustContext = vm.createContext({
   __inputs: {
     editInvest_mochidama: { value: '1000' },
@@ -1518,7 +1527,7 @@ const transferFixture = {
 transferContext.__session = transferFixture;
 assert.equal(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
-  '投資1,000円/回収0円/引出125個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円'
+  '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円'
 );
 // S8/§1-2: 当選ごとの今回分の合計が本線。旧データの sessionActualBalls があっても上書きされない（1,980玉 ÷ 14R）
 const b90SessionTotal = { ...transferFixture, id: 's_b90_total', sessionActualBalls: 2800 };
@@ -1548,7 +1557,7 @@ assert.match(
 );
 transferContext.__session = transferFixture;
 vm.runInContext("copyTransferSummary('s_transfer')", transferContext);
-assert.equal(transferContext.__copied, '投資1,000円/回収0円/引出125個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円');
+assert.equal(transferContext.__copied, '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円');
 transferContext.__store = { isPersonal: true };
 transferContext.__session = {
   id: 's_transfer_tap',
@@ -1613,9 +1622,55 @@ transferContext.__session = {
     { source: 'mochidama', amount: 1000 }
   ]
 };
+// S12/A-1: 非パーソナル店では開始持ち玉（2,500）ではなくタップ投資合計（1,000）を引出に出す
 assert.match(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
-  /^投資1,500円\/回収0円\/引出2,500個/
+  /^投資1,500円\/回収0円\/引出1,000個/
+);
+// S12/A-2 検算: 非パーソナル店・125玉×19回＝2,375個。開始持ち玉4,625個はこの店では使わない
+transferContext.__session = {
+  id: 's_s12_non_personal_check',
+  machineId: 'm_transfer',
+  __tapMode: true,
+  startSpin: 0,
+  endSpin: 10,
+  startMochidama: 4625,
+  hitCount: 0,
+  hits: [],
+  startEv: null,
+  settlementRecoverYen: null,
+  endTotalBalls: 3000,
+  zanhoryuBalls: 0,
+  __profitYen: 0,
+  __consumedBalls: 2375,
+  investments: Array.from({ length: 19 }, () => ({ source: 'mochidama', amount: 125 }))
+};
+assert.match(
+  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  /^投資0円\/回収0円\/引出2,375個/
+);
+// S12/A-2 検算: パーソナル店は従来どおり 開始持ち玉2,500 ＋ 再プレイ500 ＝ 3,000個
+transferContext.__store = { isPersonal: true };
+transferContext.__session = {
+  id: 's_s12_personal_check',
+  machineId: 'm_transfer',
+  __tapMode: true,
+  startSpin: 0,
+  endSpin: 10,
+  startMochidama: 2500,
+  hitCount: 0,
+  hits: [],
+  startEv: null,
+  settlementRecoverYen: null,
+  endTotalBalls: 3000,
+  zanhoryuBalls: 0,
+  __profitYen: 0,
+  __consumedBalls: 0,
+  investments: [{ source: 'saipurei', amount: 500 }]
+};
+assert.match(
+  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  /^投資0円\/回収0円\/引出3,000個/
 );
 transferContext.__store = {};
 transferContext.__session = {
@@ -3486,6 +3541,18 @@ assert.doesNotMatch(ledgerSummaryBlock, /session\.[A-Za-z]+ =|persist\(|localSto
 for (const word of ['上振れ', '下振れ', 'ほぼ想定どおり', 'サンプル不足', 'やや悪化', '良化', '悪化', 'rateToneClass']) {
   assert.doesNotMatch(resultBlock, new RegExp(word), `リザルトに判定表現を置かない: ${word}`);
 }
+// S12/B-1: ラベルだけを変える。差の算出（実収支 − 開始期待値）は不変
+assert.match(resultBlock, /<td>開始期待値との差<\/td>/);
+assert.doesNotMatch(resultBlock, /<td>期待値との差<\/td>/);
+assert.match(resultBlock, /const evDiffYen = startEv && derived\.profitYen !== null \? derived\.profitYen - startEv\.evYen : null;/);
+// S12/B-2: 区間ごとの内訳は表。列は 区間／起点／終点／回転数／消費玉／回転率
+assert.match(resultBlock, /<table class="result-table segments">/);
+assert.match(resultBlock, /<thead><tr><th>区間<\/th><th>起点<\/th><th>終点<\/th><th>回転数<\/th><th>消費玉<\/th><th>回転率<\/th><\/tr><\/thead>/);
+assert.doesNotMatch(resultBlock, /class="result-seg"/);
+// 保留控除の注記は表の下に1行でまとめる
+assert.match(resultBlock, /segmentHoldNotes\.push\(`\$\{mark\}保留\$\{row\.holdSpins\}`\)/);
+assert.match(resultBlock, /回転数は残保留の控除後（\$\{escapeHtml\(segmentHoldNotes\.join\("・"\)\)\}）/);
+assert.match(html, /\.result-table\.segments \{ font-size: 11px; \}/);
 assert.match(resultBlock, /1回のブレです。判断の良し悪しは下の通算で見ます。/);
 assert.match(resultBlock, /これまでの積み上げ/);
 assert.doesNotMatch(resultBlock, /通算との比較/);
