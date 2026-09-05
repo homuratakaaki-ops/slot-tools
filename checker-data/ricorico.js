@@ -78,10 +78,10 @@
   function rateWin(S,id){return n(S.rates,id+'w');}
   function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:'-';}
   function rateText(S,id){return ratio(rateWin(S,id),rateReach(S,id));}
-  function cycleRow(ctx,id,name,sub){
+  function cycleRow(ctx,id,name){
     const S=ctx.S;
     return `<div class="crow cycle-row">
-      <div class="ct"><b>${name}</b><small>${sub}</small></div>
+      <div class="ct"><b>${name}</b></div>
       <div class="num">${rateWin(S,id)}</div>
       <div class="pct">${rateText(S,id)}</div>
       <div class="cycle-actions">
@@ -109,16 +109,6 @@
     <div class="hint">通常時のゲーム数を入力してください。確認手段（アプリ等）と分母条件が未確認のため、現時点で1/x表示は行いません。</div>
   </section>
   <section class="sec">
-    <div class="sec-h">初当り<span class="sub">通常 ${g||0}G</span></div>
-    <div class="cgrid">
-      ${ctx.crow('counts.cz','CZ(オポジット)','設1:1/198.7⇔設6:1/169.4',0)}
-      ${ctx.crow('counts.at','AT初当り','設1:1/328.8⇔設6:1/256.7',1)}
-      ${ctx.crow('counts.direct','AT直撃','設1:1/22429.5⇔設6:1/6263.7（他設定は調査中）',1)}
-      ${ctx.crow('counts.child','幼少期CZ(ファースト)','設1:1/3965.0⇔設6:1/2084.8（他設定は調査中）',1)}
-    </div>
-    <div class="hint">AT直撃と幼少期CZは出現率が低いため、引けた場合の判別材料として扱ってください。</div>
-  </section>
-  <section class="sec">
     <div class="sec-h">規定ゲーム数（当選G数帯）<span class="sub">到達 ${ZONES.reduce((a,z)=>a+rateReach(S,z[0]),0)}回</span></div>
     <style>
       .cycle-row .num{min-width:38px}
@@ -130,8 +120,18 @@
       .cycle-btn.win{color:#ffc94d}
       .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
     </style>
-    <div class="cgrid">${ZONES.map(z=>cycleRow(ctx,z[0],z[1],'到達したら記録')).join('')}</div>
-    <div class="hint">各ゾーンに到達したら記録し、そこで当選したら当選側を押してください。到達と当選の両方が残ることで、後からゾーンごとの当選率として使えます。</div>
+    <div class="cgrid">${ZONES.map(z=>cycleRow(ctx,z[0],z[1])).join('')}</div>
+    <div class="hint">各ゾーン到達時に記録。当選したら当選側を押してください。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">初当り<span class="sub">通常 ${g||0}G</span></div>
+    <div class="cgrid">
+      ${ctx.crow('counts.cz','CZ(オポジット)','設1:1/198.7⇔設6:1/169.4',0)}
+      ${ctx.crow('counts.at','AT初当り','設1:1/328.8⇔設6:1/256.7',1)}
+      ${ctx.crow('counts.direct','AT直撃','設1:1/22429.5⇔設6:1/6263.7（他設定は調査中）',1)}
+      ${ctx.crow('counts.child','幼少期CZ(ファースト)','設1:1/3965.0⇔設6:1/2084.8（他設定は調査中）',1)}
+    </div>
+    <div class="hint">AT直撃と幼少期CZは出現率が低いため、引けた場合の判別材料として扱ってください。</div>
   </section>`;
   }
   function pageSuggest(ctx){
