@@ -53,6 +53,7 @@
     let resetArm=null;
     let toastT=null;
     let cardImg=null;
+    let jumpReturnTop=null;
     let detailReady=false;
 
     function nanaCreditText(kind){
@@ -114,6 +115,70 @@
       toastT=setTimeout(()=>t.classList.remove('show'),1800);
     }
     function defaultIconChoice(){return NANA_COLLAB?'nana':'default';}
+    function ensureJumpStyle(){
+      if(document.getElementById('checker-jumpnav-style'))return;
+      const st=document.createElement('style');
+      st.id='checker-jumpnav-style';
+      st.textContent=`
+.jump-nav{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 10px;padding-bottom:2px;scrollbar-width:none}
+.jump-nav::-webkit-scrollbar{display:none}
+.jump-nav button{flex:none;font-family:var(--body);min-height:36px;padding:6px 12px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--cyan);font-size:11px;font-weight:800;white-space:nowrap}
+.jump-back{position:fixed;left:12px;bottom:calc(52px + env(safe-area-inset-bottom));z-index:80;min-height:40px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-family:var(--body);font-size:12px;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+.jump-back[hidden]{display:none}
+`;
+      document.head.appendChild(st);
+    }
+    function ensureBackBtn(){
+      let b=document.getElementById('jumpBack');
+      if(b)return b;
+      b=document.createElement('button');
+      b.id='jumpBack';b.type='button';b.className='jump-back';b.hidden=true;
+      b.textContent='↑ 戻る';
+      b.addEventListener('click',()=>{
+        const main=document.getElementById('main');
+        if(main&&jumpReturnTop!==null)main.scrollTo({top:jumpReturnTop,behavior:'smooth'});
+        clearJump();
+      });
+      document.body.appendChild(b);
+      return b;
+    }
+    function clearJump(){
+      jumpReturnTop=null;
+      const b=document.getElementById('jumpBack');
+      if(b)b.hidden=true;
+    }
+    function jumpTo(sec){
+      const main=document.getElementById('main');
+      if(!main)return;
+      jumpReturnTop=main.scrollTop;
+      ensureBackBtn().hidden=false;
+      const top=main.scrollTop+sec.getBoundingClientRect().top-main.getBoundingClientRect().top;
+      main.scrollTo({top,behavior:'smooth'});
+    }
+    const JUMP_MIN_SECTIONS=3;
+    function buildJumpNav(main){
+      const secs=Array.prototype.filter.call(
+        main.querySelectorAll('section.sec'),s=>s.querySelector('.crow'));
+      if(secs.length<JUMP_MIN_SECTIONS)return;
+      ensureJumpStyle();
+      const nav=document.createElement('div');
+      nav.className='jump-nav';
+      secs.forEach((sec,i)=>{
+        if(!sec.id)sec.id='cjsec'+i;
+        const h=sec.querySelector('.sec-h');
+        let label='';
+        if(h){
+          label=(h.firstChild&&h.firstChild.nodeType===3?h.firstChild.textContent:h.textContent)||'';
+        }
+        label=label.trim()||('セクション'+(i+1));
+        const b=document.createElement('button');
+        b.type='button';
+        b.textContent=label;
+        b.addEventListener('click',ev=>{ev.stopPropagation();jumpTo(sec);});
+        nav.appendChild(b);
+      });
+      main.insertBefore(nav,main.firstChild);
+    }
     function effectiveIconChoice(){
       if(S.iconChoice==='upload'&&S.img)return 'upload';
       if(S.iconChoice==='nana'&&NANA_COLLAB)return 'nana';
@@ -220,6 +285,7 @@
         if(hist.length>50)hist.shift();
         const img=S.img,iconChoice=S.iconChoice;
         S=clone(DEF);
+        clearJump();
         S.img=img;
         S.iconChoice=iconChoice==='upload'&&img?'upload':(iconChoice==='nana'&&NANA_COLLAB?'nana':(iconChoice==='default'?'default':defaultIconChoice()));
         if(b)b.textContent='リセット';
@@ -291,6 +357,7 @@
       const sc=main.scrollTop;
       const pages=config.pages(context(),pageCard);
       main.innerHTML=pages[cur]()+sourceCredit();
+      buildJumpNav(main);
       main.scrollTop=sc;
       main.querySelectorAll('.crow').forEach(el=>{
         const plus=el.querySelector('.plus');
@@ -751,6 +818,7 @@
       if(nav)nav.addEventListener('click',e=>{
         const b=e.target.closest('button');if(!b)return;
         cur=+b.dataset.p;
+        clearJump();
         document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
         renderAll();
       });
