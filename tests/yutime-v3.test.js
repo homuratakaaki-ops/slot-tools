@@ -52,7 +52,7 @@ const startEvDetailTextBlock = section('function remainingSpinTextFromEffectiveS
 const counterSpinHelpers = section('function counterOffsetForPresetId', 'function presetNetBallsPerWin');
 const tenjoAndCounterHelpers = section('function tenjoForPresetId', 'function presetNetBallsPerWin');
 const investmentTotalsBlock = section('function investmentTotals', 'function transferSummaryForSession');
-const personalTapModeBlock = section('function usesPersonalTapMode', 'function profitYenForSession');
+const personalFormulaBlock = section('function usesPersonalBalanceFormula', 'function profitYenForSession');
 const openBalanceEditForm = section('function openBalanceEditForm', 'function openSpinEditForm');
 const openRateSummary = section('function openRateSummary', 'function openSessionEditor');
 const machineSummary = section('function machineModelSummaryHtml', 'function machineDetailFormHtml');
@@ -667,10 +667,15 @@ assert.match(transferSummary, /recoverYen: normalizeNumber\(session\.settlementR
 assert.match(transferSummary, /withdrawBalls: playerInvestedBalls\(session, totals, store\),/);
 assert.doesNotMatch(transferSummary, /withdrawBalls: Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\),/);
 // 判定条件の出所は1本。B84の条件がS4で貯玉引出から落ちた事故を繰り返さないための固定
-assert.equal((html.match(/usesTapInvestmentMode\(session\) && Boolean\(store\?\.isPersonal\)/g) || []).length, 1);
-assert.match(personalTapModeBlock, /function usesPersonalTapMode\(session, store = storeById\(session\?\.storeId\)\) \{\s*return usesTapInvestmentMode\(session\) && Boolean\(store\?\.isPersonal\);/);
-assert.match(personalTapModeBlock, /function playerInvestedBalls\(session, totals = investmentTotals\(session\), store = storeById\(session\?\.storeId\)\) \{/);
-assert.match(personalTapModeBlock, /\? Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\)\s*: Number\(totals\.mochidamaBalls \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\);/);
+assert.match(personalFormulaBlock, /function usesPersonalBalanceFormula\(store\) \{\s*return Boolean\(store\?\.isPersonal\);\s*\}/);
+assert.match(personalFormulaBlock, /function playerInvestedBalls\(session, totals = investmentTotals\(session\), store = storeById\(session\?\.storeId\)\) \{/);
+assert.match(personalFormulaBlock, /\? Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\)\s*: Number\(totals\.mochidamaBalls \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\);/);
+// S12-2: 店種別の分岐も、パーソナル式そのものも、ファイル全体で1箇所だけ
+assert.equal((html.match(/Boolean\(store\?\.isPersonal\)/g) || []).length, 1);
+assert.equal((html.match(/\? Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\)/g) || []).length, 1);
+// S12-2: タップ投資モードは収支の分岐条件から外した。回転率・消費玉の判定としては残す
+assert.doesNotMatch(personalFormulaBlock, /usesTapInvestmentMode/);
+assert.doesNotMatch(investmentTotalsBlock, /usesTapInvestmentMode/);
 assert.match(investmentTotalsBlock, /const investedPlayerBalls = playerInvestedBalls\(session, totals, store\);/);
 assert.match(transferSummary, /depositBalls: finalMochidamaForCarryover\(session\) \?\? 0/);
 assert.match(transferSummary, /const summaryPresetId = startEv\?\.presetId \|\| normalizeMachinePresetId\(machine\);/);
@@ -1372,7 +1377,7 @@ const transferContext = vm.createContext({
     return transferContext.__session;
   }
 });
-new vm.Script(`${counterSpinHelpers}\n${personalTapModeBlock}\n${transferSummary}`).runInContext(transferContext);
+new vm.Script(`${counterSpinHelpers}\n${personalFormulaBlock}\n${transferSummary}`).runInContext(transferContext);
 const investmentAdjustContext = vm.createContext({
   __inputs: {
     editInvest_mochidama: { value: '1000' },
@@ -1501,6 +1506,18 @@ const b84TapProfit = {
   investments: [{ source: 'mochidama', amount: 250 }]
 };
 assert.equal(profitContext.profit(b84TapProfit, 28, true), Math.round((1487 - 2500) * (100 / 28)));
+// S12-2: パーソナル店は investments が空でも開始持ち玉を投資玉として引く。
+// 実収支と貯玉引出は同じ playerInvestedBalls を通るので、分岐がずれない
+const s12PersonalNoInvestments = {
+  __tapMode: false,
+  startMochidama: 26637,
+  endTotalBalls: 30000,
+  zanhoryuBalls: 0,
+  investments: []
+};
+assert.equal(profitContext.profit(s12PersonalNoInvestments, 28, true), Math.round((30000 - 26637) * (100 / 28)));
+// 非パーソナル店の同じ形は従来どおり投資合計（0玉）のまま
+assert.equal(profitContext.profit(s12PersonalNoInvestments, 28, false), Math.round(30000 * (100 / 28)));
 const transferFixture = {
   id: 's_transfer',
   machineId: 'm_transfer',
@@ -1672,6 +1689,31 @@ assert.match(
   vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
   /^投資0円\/回収0円\/引出3,000個/
 );
+// S12-2 検算: パーソナル店（DSG高岡）に実在する investments 空のセッション。
+// タップ投資導入前の記録方式で、タップ投資モードを条件に混ぜると引出0個へ落ちていた
+for (const startMochidama of [26637, 11462]) {
+  transferContext.__session = {
+    id: 's_s12b_personal_no_investments_' + startMochidama,
+    machineId: 'm_transfer',
+    __tapMode: false,
+    startSpin: 0,
+    endSpin: 10,
+    startMochidama,
+    hitCount: 0,
+    hits: [],
+    startEv: null,
+    settlementRecoverYen: null,
+    endTotalBalls: 3000,
+    zanhoryuBalls: 0,
+    __profitYen: 0,
+    __consumedBalls: 0,
+    investments: []
+  };
+  assert.match(
+    vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+    new RegExp('^投資0円/回収0円/引出' + startMochidama.toLocaleString('en-US') + '個')
+  );
+}
 transferContext.__store = {};
 transferContext.__session = {
   id: 's_transfer_open',
