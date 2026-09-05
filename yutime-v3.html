@@ -1725,11 +1725,14 @@
     .result-table th:first-child,
     .result-table td:first-child { text-align: left; white-space: normal; }
 
-    .result-seg {
-      font-size: 13px;
-      line-height: 1.7;
-      word-break: break-word;
-    }
+    /* S12/B-2: 区間の内訳は6列。320px で潰れないよう文字と余白を詰め、終点だけ折り返す */
+    .result-table.segments { font-size: 11px; }
+
+    .result-table.segments th,
+    .result-table.segments td { padding: 4px 5px; }
+
+    .result-table.segments th:nth-child(3),
+    .result-table.segments td:nth-child(3) { white-space: normal; }
 
     .hidden { display: none !important; }
 
@@ -7835,15 +7838,27 @@
       }, { cashYen: 0, saipureiBalls: 0, mochidamaBalls: 0 });
     }
 
+    // S12/A-1: 「タップ投資モード かつ パーソナル店」の判定はこの関数だけに置く。
+    // 収支まわり（実収支・転記用の貯玉引出）は必ずここを通し、条件式を個別に書き直さない。
+    // B84で確定した条件がS4の修正で貯玉引出から落ちる事故が2度起きているため、出所を1本にする。
+    function usesPersonalTapMode(session, store = storeById(session?.storeId)) {
+      return usesTapInvestmentMode(session) && Boolean(store?.isPersonal);
+    }
+
+    // S12/A-1: プレイヤーが自分の玉から出した投資合計（現金は含めない）。
+    // パーソナル店のtapModeは開始持ち玉＋再プレ、それ以外はB81由来のタップ投資合計。
+    function playerInvestedBalls(session, totals = investmentTotals(session), store = storeById(session?.storeId)) {
+      return usesPersonalTapMode(session, store)
+        ? Number(session.startMochidama || 0) + Number(totals.saipureiBalls || 0)
+        : Number(totals.mochidamaBalls || 0) + Number(totals.saipureiBalls || 0);
+    }
+
     function profitYenForSession(session, totals = investmentTotals(session), store = storeById(session.storeId)) {
       const endTotalBalls = normalizeNumber(session.endTotalBalls);
       if (endTotalBalls === null) return null;
       const exchangeRate = exchangeRateForStore(store);
       const recoverBalls = endTotalBalls + Number(session.zanhoryuBalls || 0);
-      const personalTapMode = usesTapInvestmentMode(session) && Boolean(store?.isPersonal);
-      const investedPlayerBalls = personalTapMode
-        ? Number(session.startMochidama || 0) + Number(totals.saipureiBalls || 0)
-        : Number(totals.mochidamaBalls || 0) + Number(totals.saipureiBalls || 0);
+      const investedPlayerBalls = playerInvestedBalls(session, totals, store);
       const cashYen = Number(totals.cashYen || 0);
       return Math.round((recoverBalls - investedPlayerBalls) * exchangeRate - cashYen);
     }
@@ -8044,7 +8059,7 @@
               <thead><tr><th>項目</th><th>想定</th><th>実測</th><th>差</th></tr></thead>
               <tbody>
                 <tr><td>回転率</td><td>${escapeHtml(startEv.usedRate.toFixed(1))}</td><td>${escapeHtml(actualRateText)}</td><td>${escapeHtml(diffRateText)}</td></tr>
-                <tr><td>期待値との差</td><td>${escapeHtml(yenText(startEv.evYen))}</td><td>${escapeHtml(yenText(derived.profitYen))}</td><td>${escapeHtml(yenText(summary.evDiffYen))}</td></tr>
+                <tr><td>開始期待値との差</td><td>${escapeHtml(yenText(startEv.evYen))}</td><td>${escapeHtml(yenText(derived.profitYen))}</td><td>${escapeHtml(yenText(summary.evDiffYen))}</td></tr>
               </tbody>
             </table>
           </div>
@@ -8053,23 +8068,33 @@
       const segmentRows = segmentBreakdownRows(session, derived, machine);
       const normalMarks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
       let normalRowIndex = 0;
+      // S3b/G4 → S12/B-2: 同じ情報を表の列へ割り振るだけ。値の算出方法は変えない。
+      const segmentHoldNotes = [];
+      const segmentBodyHtml = segmentRows.map((row) => {
+        const startSpin = row.startSpin === null ? "-" : row.startSpin.toLocaleString("ja-JP");
+        const endSpin = row.endSpin === null ? "-" : row.endSpin.toLocaleString("ja-JP");
+        const consumed = row.consumed === null ? "-" : row.consumed.toLocaleString("ja-JP");
+        const endText = `${escapeHtml(row.endLabel)}${endSpin}`;
+        if (row.kind === "yutime") {
+          return `<tr><td>${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>-</td><td>${consumed}玉</td><td>-</td></tr>`;
+        }
+        const mark = normalMarks[normalRowIndex] || String(normalRowIndex + 1);
+        normalRowIndex += 1;
+        const spins = row.spins === null ? "-" : row.spins.toLocaleString("ja-JP");
+        const rate = row.rate === null ? "-" : row.rate.toFixed(1);
+        if (row.holdSpins > 0) segmentHoldNotes.push(`${mark}保留${row.holdSpins}`);
+        return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${consumed}玉</td><td>${rate}</td></tr>`;
+      }).join("");
       const segmentHtml = segmentRows.length ? `
         <div class="result-block">
           <div class="result-block-title">区間ごとの内訳</div>
-          ${segmentRows.map((row) => {
-            const startSpin = row.startSpin === null ? "-" : row.startSpin.toLocaleString("ja-JP");
-            const endSpin = row.endSpin === null ? "-" : row.endSpin.toLocaleString("ja-JP");
-            const consumed = row.consumed === null ? "-" : row.consumed.toLocaleString("ja-JP");
-            if (row.kind === "yutime") {
-              return `<div class="result-seg">遊タイム ${startSpin} → ${escapeHtml(row.endLabel)} ${endSpin}　消費 ${consumed}玉</div>`;
-            }
-            const mark = normalMarks[normalRowIndex] || String(normalRowIndex + 1);
-            normalRowIndex += 1;
-            const spins = row.spins === null ? "-" : row.spins.toLocaleString("ja-JP");
-            const holdText = row.holdSpins > 0 ? `（保留${row.holdSpins}控除後）` : "";
-            const rate = row.rate === null ? "-" : row.rate.toFixed(1);
-            return `<div class="result-seg">区間${mark}　${escapeHtml(row.startLabel)} ${startSpin} → ${escapeHtml(row.endLabel)} ${endSpin}　${spins}回転${holdText} / ${consumed}玉 / ${rate}回転</div>`;
-          }).join("")}
+          <div class="result-table-wrap">
+            <table class="result-table segments">
+              <thead><tr><th>区間</th><th>起点</th><th>終点</th><th>回転数</th><th>消費玉</th><th>回転率</th></tr></thead>
+              <tbody>${segmentBodyHtml}</tbody>
+            </table>
+          </div>
+          ${segmentHoldNotes.length ? `<p class="hint">回転数は残保留の控除後（${escapeHtml(segmentHoldNotes.join("・"))}）</p>` : ""}
         </div>` : "";
       const scopes = resultScopeSessions(session);
       const modelAggregate = resultAggregate(scopes.model);
@@ -8157,8 +8182,9 @@
       return {
         investYen: totals.cashYen,
         recoverYen: normalizeNumber(session.settlementRecoverYen) ?? 0,
-        // §5: 貯玉引出 = 開始持ち玉 + 再プレイ投資合計。実収支・差玉の式は変えない。
-        withdrawBalls: Number(session.startMochidama || 0) + Number(totals.saipureiBalls || 0),
+        // S12/A-1: 貯玉引出はプレイヤー投資玉数。パーソナル判定を握り直さず実収支と同じ関数を使う。
+        // 非パーソナル店で常にパーソナル式（開始持ち玉＋再プレ）を返していたバグの修正。実収支・差玉の式は変えない。
+        withdrawBalls: playerInvestedBalls(session, totals, store),
         depositBalls: finalMochidamaForCarryover(session) ?? 0,
         startEvYen: startEv ? startEv.evYen : null,
         startExpectedSpins,
