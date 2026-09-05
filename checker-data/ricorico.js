@@ -27,6 +27,19 @@
     ['kirin','キリン柄トロフィー','設定5以上確定演出',5,'キ'],
     ['rainbow','虹トロフィー','設定6確定演出',6,'虹']
   ];
+  const ZONES=[
+    ['z100','100g'],
+    ['z250','250g'],
+    ['z400','400g'],
+    ['z600','600g'],
+    ['z750','750g']
+  ];
+  const BONUS_ART=[
+    ['appear','一枚絵出現','示唆調査中',0,'絵']
+  ];
+  const AT_END=[
+    ['def','デフォルト','デフォルト',0,'デ']
+  ];
 
   const DEF={
     games:0,
@@ -35,6 +48,9 @@
     rush:{ep1:0,ep2:0,ep3:0,ep4:0},
     wep:{ep1:0,ep2:0,ep3:0,ep4:0},
     trophy:Object.fromEntries(TROPHY.map(v=>[v[0],0])),
+    rates:Object.fromEntries(ZONES.flatMap(z=>[[z[0]+'r',0],[z[0]+'w',0]])),
+    art:Object.fromEntries(BONUS_ART.map(v=>[v[0],0])),
+    atEnd:Object.fromEntries(AT_END.map(v=>[v[0],0])),
     img:null,
     iconChoice:null
   };
@@ -58,6 +74,22 @@
     out[key]=Object.assign({},DEF[key],out[key]||{});
     Object.keys(out[key]||{}).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
   }
+  function rateReach(S,id){return n(S.rates,id+'r');}
+  function rateWin(S,id){return n(S.rates,id+'w');}
+  function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:'-';}
+  function rateText(S,id){return ratio(rateWin(S,id),rateReach(S,id));}
+  function cycleRow(ctx,id,name,sub){
+    const S=ctx.S;
+    return `<div class="crow cycle-row">
+      <div class="ct"><b>${name}</b><small>${sub}</small></div>
+      <div class="num">${rateWin(S,id)}</div>
+      <div class="pct">${rateText(S,id)}</div>
+      <div class="cycle-actions">
+        <button type="button" class="cycle-btn win" data-bump-many="rates.${id}r,rates.${id}w" data-label="${name} 当選" aria-label="${name} 当選">当選</button>
+        <button type="button" class="cycle-btn" data-bump="rates.${id}r" data-label="${name} ハズレ" aria-label="${name} ハズレ">ハズレ</button>
+      </div>
+    </div>`;
+  }
   function rankText(rank){return rank===6?'6確定':rank+'以上';}
   function allCert(S){
     return TROPHY.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.trophy,c[0]),rank:c[3],order:10+c[3]}));
@@ -79,12 +111,27 @@
   <section class="sec">
     <div class="sec-h">初当り<span class="sub">通常 ${g||0}G</span></div>
     <div class="cgrid">
-      ${ctx.crow('counts.cz','CZ当選','設1:1/198.7⇔設6:1/169.4',0)}
+      ${ctx.crow('counts.cz','CZ(オポジット)','設1:1/198.7⇔設6:1/169.4',0)}
       ${ctx.crow('counts.at','AT初当り','設1:1/328.8⇔設6:1/256.7',1)}
       ${ctx.crow('counts.direct','AT直撃','設1:1/22429.5⇔設6:1/6263.7（他設定は調査中）',1)}
-      ${ctx.crow('counts.child','幼少期CZ突入','設1:1/3965.0⇔設6:1/2084.8（他設定は調査中）',1)}
+      ${ctx.crow('counts.child','幼少期CZ(ファースト)','設1:1/3965.0⇔設6:1/2084.8（他設定は調査中）',1)}
     </div>
     <div class="hint">AT直撃と幼少期CZは出現率が低いため、引けた場合の判別材料として扱ってください。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">規定ゲーム数（当選G数帯）<span class="sub">到達 ${ZONES.reduce((a,z)=>a+rateReach(S,z[0]),0)}回</span></div>
+    <style>
+      .cycle-row .num{min-width:38px}
+      .cycle-row .ct{flex:1;min-width:0}
+      .cycle-row .ct b,.cycle-row .ct small{display:block}
+      .cycle-row .pct{min-width:92px;text-align:right}
+      .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
+      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
+      .cycle-btn.win{color:#ffc94d}
+      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+    </style>
+    <div class="cgrid">${ZONES.map(z=>cycleRow(ctx,z[0],z[1],'到達したら記録')).join('')}</div>
+    <div class="hint">各ゾーンに到達したら記録し、そこで当選したら当選側を押してください。到達と当選の両方が残ることで、後からゾーンごとの当選率として使えます。</div>
   </section>`;
   }
   function pageSuggest(ctx){
@@ -109,25 +156,28 @@
     <div class="cgrid">${TROPHY.map(c=>ctx.crow('trophy.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
   </section>
   <section class="sec">
-    <div class="sec-h">AT終了画面<span class="sub">本ツール未実装</span></div>
-    <div class="hint">AT終了画面は複数パターンの存在が判明していますが、各パターンの示唆内容が解析待ちのため本ツールでは未実装です。解析判明後に追加します。詳細はちょんぼりすた様の解析ページをご覧ください。</div>
+    <div class="sec-h">ボーナス中一枚絵<span class="sub">計${sum(S.art)}回</span></div>
+    <div class="cgrid">${BONUS_ART.map(c=>ctx.crow('art.'+c[0],c[1],c[2],0)).join('')}</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">AT終了画面<span class="sub">計${sum(S.atEnd)}回</span></div>
+    <div class="cgrid">${AT_END.map(c=>ctx.crow('atEnd.'+c[0],c[1],c[2],0)).join('')}</div>
+    <div class="hint">現在はデフォルト画面のみ記録できます。AT終了画面は複数パターンの存在が判明していますが、各パターンの示唆内容が解析待ちのため、判明後に行を追加します。詳細はちょんぼりすた様の解析ページをご覧ください。</div>
   </section>`;
   }
 
   function tplText(ctx){
     const S=ctx.S,g=S.games;
-    let t=`設定判別メモ：スマスロ リコリス・リコイル\n通常 ${g||0}G / CZ${n(S.counts,'cz')}回 / AT${n(S.counts,'at')}回\n_______\n`;
-    t+=section('初当り',[
-      `CZ当選▶${countLine(n(S.counts,'cz'))}`,
-      `AT初当り▶${countLine(n(S.counts,'at'))}`,
-      `AT直撃▶${countLine(n(S.counts,'direct'))}`,
-      `幼少期CZ突入▶${countLine(n(S.counts,'child'))}`
-    ]);
-    t+=section('プロローグエピソード',sum(S.prologue)>0?PROLOGUE.filter(c=>n(S.prologue,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.prologue,c[0]))}`):[]);
-    t+=section('RUSH中エピソードボーナス',sum(S.rush)>0?RUSH_EP.filter(c=>n(S.rush,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.rush,c[0]))}`):[]);
-    t+=section('W中エピソードボーナス',sum(S.wep)>0?W_EP.filter(c=>n(S.wep,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.wep,c[0]))}`):[]);
-    t+=section('サミートロフィー',sum(S.trophy)>0?TROPHY.filter(c=>n(S.trophy,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.trophy,c[0]))}`):[]);
-    t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
+    let t=`設定判別メモ｜スマスロ リコリス・リコイル\n通常 ${g||0}G\n_______\n`;
+    const zoneLines=ZONES.filter(z=>rateReach(S,z[0])>0).map(z=>`${z[1]}▶︎ 到達${rateReach(S,z[0])}回/当選${rateWin(S,z[0])}回`);
+    t+=section('規定ゲーム数',zoneLines);
+    t+=`\n■CZ(ｵﾎﾟｼﾞｯﾄ)▶︎ ${n(S.counts,'cz')}回\n`;
+    t+=`\n■幼少期CZ(ﾌｧｰｽﾄ)▶︎ ${n(S.counts,'child')}回\n↪︎(1/3965〜1/2084)\n`;
+    t+=`\n■AT直撃▶︎ ${n(S.counts,'direct')}回\n↪︎(1/22429〜1/6263)\n`;
+    t+=`\n■ボーナス中一枚絵▶︎ ${sum(S.art)}回\n`;
+    t+=`\n■終了画面\nデフォ▶︎ ${n(S.atEnd,'def')}回\n`;
+    t+=section('サミートロフィー',sum(S.trophy)>0?TROPHY.filter(c=>n(S.trophy,c[0])>0).map(c=>`${c[1]}▶︎ ${countLine(n(S.trophy,c[0]))}`):[]);
+    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
   function detail(ctx){
@@ -142,19 +192,25 @@
       {title:'プロローグエピソード',items:detailItems(PROLOGUE,S.prologue)},
       {title:'RUSH中エピソードボーナス',items:detailItems(RUSH_EP,S.rush)},
       {title:'W中エピソードボーナス',items:detailItems(W_EP,S.wep)},
-      {title:'サミートロフィー',items:detailItems(TROPHY,S.trophy)}
+      {title:'サミートロフィー',items:detailItems(TROPHY,S.trophy)},
+      {title:'規定ゲーム数',items:ZONES.map(z=>({label:z[1],value:rateWin(S,z[0]),hot:false,text:`${z[1]} ${rateWin(S,z[0])}/${rateReach(S,z[0])}`,show:rateReach(S,z[0])>0}))},
+      {title:'ボーナス中一枚絵',items:detailItems(BONUS_ART,S.art)},
+      {title:'AT終了画面',items:detailItems(AT_END,S.atEnd)}
     ];
   }
 
   window.CheckerConfigs.ricorico={
-    nanaCollab:false,
+    nanaCollab:true,
     storageKey:'ricorico-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','prologue','rush','wep','trophy'],
+    mergeKeys:['counts','prologue','rush','wep','trophy','rates','art','atEnd'],
     sourceUrl:'https://chonborista.com/slot/sammy-slot/261631/',
     normalizeState:out=>{
       out.games=Math.max(0,Number(out.games)||0);
-      ['counts','prologue','rush','wep','trophy'].forEach(key=>normalizeCounterObject(out,key));
+      ['counts','prologue','rush','wep','trophy','art','atEnd'].forEach(key=>normalizeCounterObject(out,key));
+      out.rates=Object.assign({},DEF.rates,out.rates||{});
+      Object.keys(out.rates).forEach(k=>{out.rates[k]=Math.max(0,Number(out.rates[k])||0);});
+      ZONES.forEach(z=>{if(out.rates[z[0]+'w']>out.rates[z[0]+'r'])out.rates[z[0]+'r']=out.rates[z[0]+'w'];});
       return out;
     },
     share:{title:'スマスロ リコリス・リコイル 設定判別メモ',hashtags:'#リコリコ #設定判別'},
