@@ -453,6 +453,49 @@
       });
       if(cur===(config.cardPageIndex!==undefined?config.cardPageIndex:pages.length-1))initCard();
     }
+    // ---- カード見出し（タイトル＋メタ行）----
+    // タイトルはアイコン円に食い込まない幅まで縮小し、下限でも収まらない場合は2行に折り返す。
+    // 戻り値は1行のときとの高さの差で、呼び出し側は以降の要素のYをこの分だけ下げる。
+    const CARD_ICON_CX=1080-190,CARD_ICON_R=105,CARD_ICON_GAP=24;
+    const TITLE_X=70,TITLE_BASE_Y=172,TITLE_MAX_SIZE=52,TITLE_MIN_SIZE=38,TITLE_MIN_SIZE_2L=34;
+    let lastTitleLayout=null;
+    function titleMaxWidth(){
+      const avail=(CARD_ICON_CX-CARD_ICON_R)-CARD_ICON_GAP-TITLE_X;
+      return config.card.titleFitMax?Math.min(config.card.titleFitMax,avail):avail;
+    }
+    function splitTitle(x,text){
+      // 2行の幅が最も揃う位置で分ける
+      let best=null;
+      for(let i=1;i<text.length;i++){
+        const worst=Math.max(x.measureText(text.slice(0,i)).width,x.measureText(text.slice(i)).width);
+        if(!best||worst<best.worst)best={i,worst};
+      }
+      return best?[text.slice(0,best.i),text.slice(best.i)]:[text];
+    }
+    function drawTitleAndMeta(x){
+      const title=config.card.title,maxWidth=titleMaxWidth();
+      x.fillStyle='#f2eef5';
+      let size=TITLE_MAX_SIZE;
+      x.font='800 '+size+"px 'M PLUS 1p'";
+      while(x.measureText(title).width>maxWidth&&size>TITLE_MIN_SIZE){
+        size-=2;x.font='800 '+size+"px 'M PLUS 1p'";
+      }
+      let lines=[title],extra=0;
+      if(x.measureText(title).width>maxWidth){
+        size=TITLE_MIN_SIZE_2L;x.font='800 '+size+"px 'M PLUS 1p'";
+        lines=splitTitle(x,title);
+        const lh=size+6,y0=TITLE_BASE_Y-lh+18;
+        lines.forEach((line,i)=>x.fillText(line,TITLE_X,y0+i*lh));
+        extra=(y0+(lines.length-1)*lh)-TITLE_BASE_Y;
+      }else{
+        x.fillText(title,TITLE_X,TITLE_BASE_Y);
+      }
+      lastTitleLayout={size,maxWidth,lines,extra,
+        widths:lines.map(line=>x.measureText(line).width)};
+      x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
+      x.fillText(cardMetaText(),TITLE_X,215+extra);
+      return extra;
+    }
     function drawCardShell(x,headline){
       const W=1080,H=1080;
       x.fillStyle='#0a070d';x.fillRect(0,0,W,H);
@@ -462,15 +505,7 @@
       x.strokeStyle='#ff3d8f';x.lineWidth=6;x.shadowColor='#ff3d8f';x.shadowBlur=26;
       roundRect(x,34,34,W-68,H-68,40);x.stroke();x.shadowBlur=0;
       x.fillStyle='#ff3d8f';x.font="700 30px 'M PLUS 1p'";x.fillText(headline,70,110);
-      x.fillStyle='#f2eef5';
-      let titleSize=52;
-      if(config.card.titleFitMax){
-        do{x.font='800 '+titleSize+"px 'M PLUS 1p'";titleSize-=2;}
-        while(x.measureText(config.card.title).width>config.card.titleFitMax&&titleSize>=38);
-      }else{x.font="800 52px 'M PLUS 1p'";}
-      x.fillText(config.card.title,70,172);
-      x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
-      x.fillText(cardMetaText(),70,215);
+      const extra=drawTitleAndMeta(x);
       const cx=W-190,cy=175,r=105;
       x.save();x.strokeStyle='#ff3d8f';x.lineWidth=8;x.shadowColor='#ff3d8f';x.shadowBlur=22;x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();x.restore();
       if(cardImg){
@@ -481,6 +516,7 @@
         x.fillStyle='#1f1830';x.beginPath();x.arc(cx,cy,r-8,0,7);x.fill();
         x.fillStyle='#9a90a8';x.font="700 28px 'M PLUS 1p'";x.textAlign='center';x.fillText('ICON',cx,cy+10);x.textAlign='left';
       }
+      return extra;
     }
     function drawCardFooter(x,W,H){
       x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";x.fillText('slot-tools.jp',70,H-104);
@@ -596,12 +632,13 @@
     function drawDetailCard(){
       const cv=document.getElementById('detailCanvas');if(!cv)return;
       const x=cv.getContext('2d');const W=1080,H=1080;
-      drawCardShell(x,'SETTING CHECK RESULT - DETAIL -');
+      // タイトルが2行になった分だけ、以降の要素を下げる
+      const extra=drawCardShell(x,'SETTING CHECK RESULT - DETAIL -');
       const sections=detailSections();
       const rows=detailRows(sections);
-      x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText('詳細カウント',70,286);
-      x.strokeStyle='#2c2340';x.lineWidth=2;x.beginPath();x.moveTo(70,306);x.lineTo(1010,306);x.stroke();
-      const colX=[70,560],maxRows=20,rowGap=30,startY=338;
+      x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText('詳細カウント',70,286+extra);
+      x.strokeStyle='#2c2340';x.lineWidth=2;x.beginPath();x.moveTo(70,306+extra);x.lineTo(1010,306+extra);x.stroke();
+      const colX=[70,560],maxRows=20,rowGap=30,startY=338+extra;
       rows.forEach((row,i)=>{
         const col=Math.floor(i/maxRows),slot=i%maxRows,x0=colX[col]||colX[1],y=startY+slot*rowGap;
         if(row.type==='section'){
@@ -634,17 +671,9 @@
       roundRect(x,34,34,W-68,H-68,40);x.stroke();x.shadowBlur=0;
       x.fillStyle='#ff3d8f';x.font="700 30px 'M PLUS 1p'";
       x.fillText('SETTING CHECK RESULT',70,110);
-      x.fillStyle='#f2eef5';
-      let titleSize=52;
-      if(config.card.titleFitMax){
-        do{x.font=`800 ${titleSize}px 'M PLUS 1p'`;titleSize-=2;}
-        while(x.measureText(config.card.title).width>config.card.titleFitMax&&titleSize>=38);
-      }else{
-        x.font="800 52px 'M PLUS 1p'";
-      }
-      x.fillText(config.card.title,70,172);
-      x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
-      x.fillText(cardMetaText(),70,215);
+      // 通常カードも同じ見出し処理を使う（重複していたため同じはみ出しが起きていた）。
+      // 直下のブロック群は y=270 固定で、2行時のメタ行(y=215+extra)と干渉しない。
+      drawTitleAndMeta(x);
       const cx=W-190,cy=175,r=105;
       x.save();x.strokeStyle='#ff3d8f';x.lineWidth=8;x.shadowColor='#ff3d8f';x.shadowBlur=22;
       x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();x.restore();
@@ -869,7 +898,8 @@
       mount,normalizeState,shareText,tplText,drawCard,drawDetailCard,renderAll,bump,undo,reset,
       getState:testState,setState:testSetState,setMode:testSetMode,
       effectiveIconChoice,defaultIconChoice,nanaCreditText,
-      _context:context,_detailRows:()=>detailRows(detailSections())
+      _context:context,_detailRows:()=>detailRows(detailSections()),
+      _titleLayout:()=>lastTitleLayout
     };
   }
 
