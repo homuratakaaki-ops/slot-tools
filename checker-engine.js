@@ -78,7 +78,10 @@
       mergeKeys.forEach(key=>{
         out[key]=Object.assign({},DEF[key]||{},src[key]||{});
       });
-      if(!src.iconChoice)out.iconChoice=src.img?'upload':defaultIconChoice();
+      // コラボ機種は、端末に自分の画像が保存済みでも起動時の既定をなな様アイコンにする。
+      // 「自分の画像を選ぶ」をその場で押した場合だけ切り替わる（S.img は残すので1タップで戻せる）。
+      if(NANA_COLLAB&&(!src.iconChoice||src.iconChoice==='upload'))out.iconChoice='nana';
+      else if(!src.iconChoice)out.iconChoice=src.img?'upload':defaultIconChoice();
       (config.arrayDefaults||[]).forEach(rule=>{
         const list=Array.isArray(src[rule.key])?src[rule.key]:[];
         const filtered=rule.filter?list.filter(rule.filter):list;
