@@ -100,6 +100,11 @@
       <span class="label">玉の種類</span>
       <div class="chips" id="ballKindChips"></div>
     </div>
+    <div class="row" id="mochidamaRow">
+      <label class="label" for="mochidamaBalls">持ち玉（玉）</label>
+      <div class="field" style="max-width:140px;margin-top:3px"><input id="mochidamaBalls" type="number" min="0" step="1" inputmode="numeric" placeholder="0"><span class="unit">玉</span></div>
+      <div class="hint">今ある持ち玉を入力してください。空欄なら現金と同じ扱いで計算します。</div>
+    </div>
   </div>
 
   <div class="result" id="resultPanel">
@@ -383,7 +388,6 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     window.YutimeExpectationEngine = YUTIME_EXPECTATION_ENGINE;
 
     const HOURLY_THRESHOLD_YEN = 2400;
-    const MOCHIDAMA_AVAILABLE_BALLS = 999999;
     const EXCHANGE_OPTIONS = [
       { balls: 25, label: "等価(25玉)" },
       { balls: 28, label: "28玉" },
@@ -391,8 +395,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       { balls: 33, label: "33玉" }
     ];
     const BALL_KIND_OPTIONS = [
-      { id: "cash", label: "現金で打つ", availableBalls: 0 },
-      { id: "mochidama", label: "持ち玉で打つ", availableBalls: MOCHIDAMA_AVAILABLE_BALLS }
+      { id: "cash", label: "現金で打つ" },
+      { id: "mochidama", label: "持ち玉で打つ" }
     ];
     // 入力される回転数はデータカウンター基準。エンジンの spec.tenjo は内部の低確回転数なので、
     // エンジンのプリセットが持つ counterOffset だけ引いてから渡す（数値の出所はエンジン1箇所）。
@@ -429,7 +433,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       rotationRate: null,
       payout: PRESETS[0].payoutDefault,
       exchangeBalls: EXCHANGE_OPTIONS[0].balls,
-      ballKind: BALL_KIND_OPTIONS[0].id
+      ballKind: BALL_KIND_OPTIONS[0].id,
+      mochidamaBalls: null
     };
 
     function currentPreset() {
@@ -502,11 +507,16 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       return "";
     }
 
+    // 持ち玉で打つときだけ入力欄の玉数を使う。空欄（null）は0＝現金と同じ扱い
+    function availableBallsFromState() {
+      if (state.ballKind !== "mochidama") return 0;
+      return Math.max(0, Number(state.mochidamaBalls) || 0);
+    }
+
     function calculateFromState() {
       const preset = currentPreset();
       const missing = missingMessage();
       if (missing) return { result: null, missing };
-      const ballKind = BALL_KIND_OPTIONS.find((option) => option.id === state.ballKind) || BALL_KIND_OPTIONS[0];
       const settings = {
         ...enginePresetFor(preset).defaults,
         presetId: preset.id,
@@ -517,7 +527,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         presetId: preset.id,
         currentSpin: engineSpinFromCounter(preset, state.currentSpin),
         rotationRate: state.rotationRate,
-        availableBalls: ballKind.availableBalls
+        availableBalls: availableBallsFromState()
       }, settings);
       return { result, missing: result ? "" : "入力値を確認してください" };
     }
@@ -566,6 +576,10 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       renderPayoutChips();
     }
 
+    function renderBallKindFields() {
+      byId("mochidamaRow").style.display = state.ballKind === "mochidama" ? "" : "none";
+    }
+
     function renderResult() {
       const preset = currentPreset();
       const remaining = remainingSpins(preset, state.currentSpin);
@@ -610,6 +624,15 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       }
     }
 
+    function ballsFromUrl() {
+      try {
+        const balls = numberOrNull(new URLSearchParams(window.location.search).get("balls"));
+        return balls !== null && balls > 0 ? Math.floor(balls) : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
     function inIframe() {
       try {
         return window.self !== window.top;
@@ -621,6 +644,13 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     function init() {
       state.presetId = presetIdFromUrl();
       state.payout = currentPreset().payoutDefault;
+      // ?balls= で初期値が渡されたときだけ持ち玉モードで開く
+      const initialBalls = ballsFromUrl();
+      if (initialBalls !== null) {
+        state.mochidamaBalls = initialBalls;
+        state.ballKind = "mochidama";
+        byId("mochidamaBalls").value = String(initialBalls);
+      }
 
       const select = byId("preset");
       select.innerHTML = PRESETS.map((preset) => `<option value="${preset.id}">${preset.name}</option>`).join("");
@@ -645,6 +675,10 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         renderPayoutChips();
         renderResult();
       });
+      byId("mochidamaBalls").addEventListener("input", (event) => {
+        state.mochidamaBalls = numberOrNull(event.target.value);
+        renderResult();
+      });
 
       bindChipGroup("payoutChips", (value) => {
         state.payout = Number(value);
@@ -655,11 +689,13 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       });
       bindChipGroup("ballKindChips", (value) => {
         state.ballKind = value;
+        renderBallKindFields();
       });
 
       if (inIframe()) byId("embedSection").style.display = "none";
 
       renderPresetFields();
+      renderBallKindFields();
       renderStaticChips();
       renderResult();
     }

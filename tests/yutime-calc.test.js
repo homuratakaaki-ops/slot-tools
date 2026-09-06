@@ -44,12 +44,12 @@ vm.runInContext([
   presetBlock,
   logicBlock,
   urlBlock,
-  'globalThis.api = { state, PRESETS, YUTIME_EXPECTATION_ENGINE, currentPreset, counterOffset, engineSpinFromCounter, remainingSpins, numberOrNull, yenText, hourText, evJudgment, basisText, missingMessage, calculateFromState, presetIdFromUrl };'
+  'globalThis.api = { state, PRESETS, YUTIME_EXPECTATION_ENGINE, currentPreset, counterOffset, engineSpinFromCounter, remainingSpins, numberOrNull, yenText, hourText, evJudgment, basisText, missingMessage, availableBallsFromState, calculateFromState, presetIdFromUrl, ballsFromUrl };'
 ].join('\n'), context);
 const api = context.api;
 
-function evaluate({ presetId, currentSpin, rotationRate, payout, exchangeBalls = 25, ballKind = 'cash' }) {
-  Object.assign(api.state, { presetId, currentSpin, rotationRate, payout, exchangeBalls, ballKind });
+function evaluate({ presetId, currentSpin, rotationRate, payout, exchangeBalls = 25, ballKind = 'cash', mochidamaBalls = null }) {
+  Object.assign(api.state, { presetId, currentSpin, rotationRate, payout, exchangeBalls, ballKind, mochidamaBalls });
   return api.calculateFromState();
 }
 
@@ -174,11 +174,11 @@ const lowExchangeCash = evYenOf({ ...baseCase, exchangeBalls: 28, ballKind: 'cas
 assert.notEqual(equalCash, lowExchangeCash, '交換率を変えると期待値が変わること');
 assert.ok(lowExchangeCash < equalCash, '非等価のほうが期待値は下がること');
 assert.equal(
-  evYenOf({ ...baseCase, exchangeBalls: 25, ballKind: 'mochidama' }),
+  evYenOf({ ...baseCase, exchangeBalls: 25, ballKind: 'mochidama', mochidamaBalls: 3000 }),
   equalCash,
   '等価では現金と持ち玉で期待値は変わらない'
 );
-const lowExchangeMochidama = evYenOf({ ...baseCase, exchangeBalls: 28, ballKind: 'mochidama' });
+const lowExchangeMochidama = evYenOf({ ...baseCase, exchangeBalls: 28, ballKind: 'mochidama', mochidamaBalls: 3000 });
 assert.ok(lowExchangeMochidama > lowExchangeCash, '非等価では持ち玉のほうが期待値は高いこと');
 
 // --- 8. 判定ラベルは時給2,400円基準 -----------------------------------------
@@ -231,5 +231,54 @@ for (const href of ['https://slot-tools.jp/agnespe-yutime.html', 'https://slot-t
 assert.match(calcHtml, /埋め込み・転載は自由です。出典として/, '転載条件を明記すること');
 assert.match(calcHtml, /width="100%" height="700" style="border:0" loading="lazy"/, '埋め込み用コードを掲載すること');
 assert.match(calcHtml, /if \(inIframe\(\)\) byId\("embedSection"\)\.style\.display = "none";/, 'iframe内では埋め込み用コードを隠すこと');
+
+// --- 12. 持ち玉数の入力（S13） ------------------------------------------------
+
+const s13Settings = {
+  ...api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults,
+  presetId: 'agnes-pe',
+  netBallsPerWin: api.PRESETS[0].netBallsPerWin(100),
+  yenPerBall: 100 / 28
+};
+const s13PageCase = evaluate({
+  presetId: 'agnes-pe',
+  currentSpin: 150,
+  rotationRate: 17,
+  payout: 100,
+  exchangeBalls: 28,
+  ballKind: 'mochidama',
+  mochidamaBalls: 3000
+}).result;
+const s13DirectCase = api.YUTIME_EXPECTATION_ENGINE.calculate({
+  presetId: 'agnes-pe',
+  currentSpin: api.engineSpinFromCounter(api.PRESETS[0], 150),
+  rotationRate: 17,
+  availableBalls: 3000
+}, s13Settings);
+assert.equal(Math.round(s13PageCase.evYen), Math.round(s13DirectCase.evYen), '持ち玉3000玉のページ経由計算がエンジン直叩きと一致すること');
+assert.equal(
+  evYenOf({ ...baseCase, exchangeBalls: 28, ballKind: 'mochidama', mochidamaBalls: null }),
+  lowExchangeCash,
+  '持ち玉で打つ＋空欄は現金と同じ期待値になること'
+);
+
+Object.assign(api.state, { ballKind: 'cash', mochidamaBalls: 3000 });
+assert.equal(api.availableBallsFromState(), 0, '現金選択時は持ち玉入力値があっても0');
+Object.assign(api.state, { ballKind: 'mochidama', mochidamaBalls: null });
+assert.equal(api.availableBallsFromState(), 0, '持ち玉空欄は0');
+Object.assign(api.state, { ballKind: 'mochidama', mochidamaBalls: 3000 });
+assert.equal(api.availableBallsFromState(), 3000, '持ち玉3000は3000');
+
+context.window.location.search = '?balls=3000';
+assert.equal(api.ballsFromUrl(), 3000, '?balls=3000 は3000');
+for (const search of ['?balls=abc', '?balls=-5', '?balls=0', '']) {
+  context.window.location.search = search;
+  assert.equal(api.ballsFromUrl(), null, `${search || '未指定'} は null`);
+}
+context.window.location.search = '';
+
+assert.match(calcHtml, /id="mochidamaRow"/, '持ち玉入力行があること');
+assert.match(calcHtml, /今ある持ち玉を入力してください。空欄なら現金と同じ扱いで計算します。/, '持ち玉入力のヒント文言があること');
+assert.doesNotMatch(presetBlock, /MOCHIDAMA_AVAILABLE_BALLS/, '固定ダミー値を残さないこと');
 
 console.log('yutime-calc: OK');
