@@ -91,13 +91,17 @@
   function rateText(S,id){return ratio(rateWin(S,id),rateReach(S,id));}
   function cycleRow(ctx,id,name){
     const S=ctx.S;
+    // 減算モードで「ハズレ」を押すと到達だけが減り、当選回数を下回りうる。
+    // n<=d を壊さないよう、減らせるハズレが残っていない場合はボタンを無効化する。
+    const canMinus=rateReach(S,id)>rateWin(S,id);
+    const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="rates.${id}r"`;
     return `<div class="crow cycle-row">
       <div class="ct"><b>${name}</b></div>
       <div class="num">${rateWin(S,id)}</div>
       <div class="pct">${rateText(S,id)}</div>
       <div class="cycle-actions">
         <button type="button" class="cycle-btn win" data-bump-many="rates.${id}r,rates.${id}w" data-label="${name} 当選" aria-label="${name} 当選">当選</button>
-        <button type="button" class="cycle-btn" data-bump="rates.${id}r" data-label="${name} ハズレ" aria-label="${name} ハズレ">ハズレ</button>
+        <button type="button" class="cycle-btn" ${missAttrs} data-label="${name} ハズレ" aria-label="${name} ハズレ">ハズレ</button>
       </div>
     </div>`;
   }
@@ -150,16 +154,16 @@
       .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
       .cycle-btn.win{color:#ffc94d}
       .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+      .cycle-btn[disabled]{opacity:.4}
     </style>
     <div class="cgrid">${ZONES.map(z=>cycleRow(ctx,z[0],z[1])).join('')}</div>
-    <div class="hint">各ゾーン到達時に記録。当選したら当選側を押してください。</div>
+    <div class="hint">各ゾーン到達時に記録。当選したら当選側を押してください。減算モードでは「当選」が到達と当選の両方を、「ハズレ」が到達だけを1つ戻します。戻せるハズレが残っていない場合、そのボタンは押せません。</div>
   </section>
   <section class="sec">
     <div class="sec-h">変換<span class="sub">弱 ${convHit(S,'weak')}/${convDenom(S,'weak')}・強 ${convHit(S,'strong')}/${convDenom(S,'strong')}</span></div>
     <style>
       .conv-row .pct{min-width:56px}
       .conv-row .cycle-btn{min-width:62px}
-      .conv-row .cycle-btn[disabled]{opacity:.4}
     </style>
     <div class="cgrid">
       ${convRow(ctx,'weak','弱役変換')}
