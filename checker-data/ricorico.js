@@ -37,18 +37,27 @@
   const BONUS_ART=[
     ['appear','一枚絵出現','示唆調査中',0,'絵']
   ];
+  // [id, UI表示名, サブラベル, rank, カード略号, テンプレ表記]
+  // テンプレ表記の全角スペースは、なな様テンプレの ▶︎ 位置を揃えるための原文どおりの詰め物。
   const AT_END=[
     ['def','デフォルト（2パターン）','デフォルト',0,'デ','デフォ(2ﾊﾟﾀｰﾝ)'],
-    ['takina','たきな私服','示唆調査中',0,'た','たきな私服'],
-    ['chisato','千束私服','示唆調査中',0,'千','千束私服'],
-    ['dress','ドレスコード','示唆調査中',0,'ド','ドレスコード'],
-    ['kitaoshiage','北押上の風景','示唆調査中',0,'北','北押上の風景'],
-    ['robota','ロボ太','示唆調査中',0,'ロ','ロボ太'],
-    ['hawaii','ハワイ','示唆調査中',0,'ハ','ハワイ']
+    ['takina','たきな私服','示唆調査中',0,'た','たきな私服　　'],
+    ['chisato','千束私服','示唆調査中',0,'千','千束私服　　　'],
+    ['dress','ドレスコード','示唆調査中',0,'ド','ドレスコード　'],
+    ['kitaoshiage','北押上の風景','示唆調査中',0,'北','北押上の風景　'],
+    ['robota','ロボ太','示唆調査中',0,'ロ','ロボ太　　　　'],
+    ['hawaii','ハワイ','示唆調査中',0,'ハ','ハワイ🌺　　　']
   ];
+  // [id, UI表示名, テンプレ表記]
   const CONV=[
-    ['weak','弱役変換'],
-    ['strong','強役変換']
+    ['weak','弱役変換','弱役変換　'],
+    ['strong','強役変換','強役変換　']
+  ];
+  // [stateキー, ①②合算行, ③行, ④行]（テンプレ表記は原文どおり）
+  const EP_GROUPS=[
+    ['prologue','ﾌﾟﾛﾛｰｸﾞ①.②','ﾌﾟﾛﾛｰｸﾞEP③','ﾌﾟﾛﾛｰｸﾞEP④'],
+    ['rush','ﾗｯｼｭ中①.②','ﾗｯｼｭ中EP③','ﾗｯｼｭ中EP④'],
+    ['wep','ﾗｯｼｭW①.②','ﾗｯｼｭW EP③','ﾗｯｼｭW EP④']
   ];
 
   const DEF={
@@ -69,7 +78,6 @@
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function n(obj,key){return Number((obj||{})[key])||0;}
   function countLine(v){return `${Number(v)||0}回`;}
-  function section(title,lines){const out=lines.filter(Boolean);return out.length?`\n■${title}\n${out.join('\n')}\n`:'';}
   function detailItem(label,value,hot,text){
     const item={label,value:Number(value)||0,hot:!!hot};
     if(text)item.text=text;
@@ -216,34 +224,45 @@
   </section>`;
   }
 
-  function epLines(label,state){
-    return [
-      `${label}①.②▶︎ ${countLine(n(state,'ep1')+n(state,'ep2'))}`,
-      `${label}③▶︎ ${countLine(n(state,'ep3'))}`,
-      `${label}④▶︎ ${countLine(n(state,'ep4'))}`
-    ];
-  }
+  // なな様完成版テンプレの行構成・表記・空行位置に一致させる。
+  // 未記録でも全行を出す（テンプレが記入枠として全行並ぶ形式のため）。
+  // 例外はサミートロフィーのみで、出現時だけ見出しごと追記する。
   function tplText(ctx){
     const S=ctx.S,g=S.games;
-    let t=`設定判別メモ｜スマスロ リコリス・リコイル\n通常 ${g||0}G\n_______\n`;
-    t+=section('規定ゲーム数',ZONES.map(z=>`${z[1]}▶︎ ${rateWin(S,z[0])}/${rateReach(S,z[0])}`));
-    t+=section('変換',CONV.flatMap(c=>[
-      `${c[1]}▶︎ ${convHit(S,c[0])}/${convDenom(S,c[0])}`,
-      `↪︎からの当選▶︎ ${countLine(convWin(S,c[0]))}`
-    ]));
-    t+=`\n■CZ(ｵﾎﾟｼﾞｯﾄ)▶︎ ${n(S.counts,'cz')}回\n`;
-    t+=`\n■幼少期CZ(ﾌｧｰｽﾄ)▶︎ ${n(S.counts,'child')}回\n↪︎(1/3965〜1/2084)\n`;
-    t+=`\n■AT直撃(1/22429〜1/6263)▶︎ ${n(S.counts,'direct')}回\n`;
-    t+=section('エピソード',[].concat(
-      epLines('ﾌﾟﾛﾛｰｸﾞ',S.prologue),
-      epLines('RUSH',S.rush),
-      epLines('W',S.wep)
-    ));
-    t+=`\n■ボーナス中一枚絵▶︎ ${sum(S.art)}回\n`;
-    t+=section('終了画面',AT_END.map(c=>`${c[5]}▶︎ ${countLine(n(S.atEnd,c[0]))}`));
-    t+=section('サミートロフィー',sum(S.trophy)>0?TROPHY.filter(c=>n(S.trophy,c[0])>0).map(c=>`${c[1]}▶︎ ${countLine(n(S.trophy,c[0]))}`):[]);
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
-    return t;
+    const L=['設定判別メモ｜スマスロ リコリス・リコイル',`通常 ${g||0}G`,'_______','','■規定ゲーム数'];
+    ZONES.forEach(z=>L.push(`${z[1]}▶︎ ${rateWin(S,z[0])}/${rateReach(S,z[0])}`));
+    L.push('','■変換');
+    CONV.forEach(c=>{
+      L.push(`${c[2]}▶︎ ${convHit(S,c[0])}/${convDenom(S,c[0])}`);
+      L.push(`からの当選▶︎ ${countLine(convWin(S,c[0]))}`);
+    });
+    L.push('',
+      `■CZ(ｵﾎﾟｼﾞｯﾄ)▶︎ ${countLine(n(S.counts,'cz'))}`,
+      `■幼少期CZ(ﾌｧｰｽﾄ)▶︎ ${countLine(n(S.counts,'child'))}`,
+      '↪︎(1/3965〜1/2084)',
+      '',
+      `■AT直撃(1/22429〜1/6263)▶︎ ${countLine(n(S.counts,'direct'))}`,
+      '',
+      '■エピソード');
+    EP_GROUPS.forEach((grp,i)=>{
+      const st=S[grp[0]];
+      if(i>0)L.push('');
+      L.push(`${grp[1]}▶︎ ${countLine(n(st,'ep1')+n(st,'ep2'))}`);
+      L.push(`${grp[2]}▶︎ ${countLine(n(st,'ep3'))}`);
+      L.push(`${grp[3]}▶︎ ${countLine(n(st,'ep4'))}`);
+    });
+    L.push('',`■ボーナス中一枚絵▶︎ ${countLine(sum(S.art))}`,'','■終了画面');
+    AT_END.forEach(c=>L.push(`${c[5]}▶︎ ${countLine(n(S.atEnd,c[0]))}`));
+    if(sum(S.trophy)>0){
+      L.push('','■サミートロフィー');
+      TROPHY.filter(c=>n(S.trophy,c[0])>0)
+        .forEach(c=>L.push(`${c[1]}▶︎ ${countLine(n(S.trophy,c[0]))}`));
+    }
+    L.push('','by slot-tools.jp');
+    const credit=ctx.nanaCreditText('text');
+    if(credit)L.push(credit);
+    L.push('解析出典:ちょんぼりすた様');
+    return L.join('\n');
   }
   function detail(ctx){
     const S=ctx.S;
