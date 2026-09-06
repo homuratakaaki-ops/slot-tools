@@ -347,7 +347,7 @@
   function pageEnd(ctx){
     const screenN=sum(ctx.S.screens), kujiN=sum(ctx.S.atcz);
     return `<section class="sec"><div class="sec-h">AT終了画面<span class="sub">計${screenN}回</span></div>
-    <div class="cgrid">${AT_SCREENS.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0)).join('')}</div></section>
+    <div class="cgrid">${AT_SCREENS.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,sum(ctx.S.screens)))).join('')}</div></section>
   <section class="sec"><div class="sec-h">クジラッキー<span class="sub">計${kujiN}回</span></div>
     <div class="cgrid">${KUJILUCKY.map(c=>ctx.crow('atcz.'+c[0],c[1],c[2],1)).join('')}</div>
     <div class="hint">初当りの小悪魔ボーナスを除くボーナス終了画面で出現します。ホール側で出現バランスを変更できるカスタムが搭載されているため、出現頻度そのものは設定推測に使えません。</div></section>`;
@@ -411,7 +411,7 @@
     const S=ctx.S;
     return [
       {title:'初当り',items:[detailItem('ボーナス回数',S.cz.bonus,0),detailItem('AT回数',S.cz.at,0),detailItem('AT直撃',S.cz.direct,0),detailItem('AT引き戻し',S.cz.returnAt,0)]},
-      {title:'AT終了画面',items:detailItems(AT_SCREENS,S.screens)},
+      {title:'AT終了画面',items:detailItems(AT_SCREENS,S.screens),percent:true},
       {title:'クジラッキー',items:detailItems(KUJILUCKY,S.atcz)},
       {title:'キャラ紹介分類',items:detailItems(CHARS,S.icons)},
       {title:'複合条件',items:detailItems(COMBOS,S.combos)},

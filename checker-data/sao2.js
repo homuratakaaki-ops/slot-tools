@@ -139,7 +139,7 @@
   </section>`;
   }
   function pageShisa(ctx){
-    const scN=sum(ctx.S.screens), edN=sum(ctx.S.ed), ggoN=sum(ctx.S.icons);
+    const scN=sum(ctx.S.screens), edN=sum(ctx.S.ed), ggoN=sum(ctx.S.icons), stageN=sum(ctx.S.stage);
     return `
   <section class="sec"><div class="sec-h">AT終了画面<span class="sub">計${scN}回</span></div>
     <div class="cgrid">${SCREENS.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,scN))).join('')}</div>
@@ -152,8 +152,8 @@
   <section class="sec"><div class="sec-h">GGOモード示唆<span class="sub">計${ggoN}回</span></div>
     <div class="cgrid">${GGO.map(c=>ctx.crow('icons.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,ggoN))).join('')}</div>
     <div class="hint">アイテムは青＜緑＜赤。緑＝いずれかのGGOモード滞在期待度約50%、赤＝該当モード濃厚。いずれかのGGOモード滞在で機械割100%超＋高設定ほど滞在率優遇（設1:約20%）。色は共有テキストに手書き補足推奨。</div></section>
-  <section class="sec"><div class="sec-h">AT開始時のステージ<span class="sub">計${sum(ctx.S.stage)}回</span></div>
-    <div class="cgrid">${START_STAGE.map(c=>ctx.crow('stage.'+c[0],c[1],c[2],c[3])).join('')}</div>
+  <section class="sec"><div class="sec-h">AT開始時のステージ<span class="sub">計${stageN}回</span></div>
+    <div class="cgrid">${START_STAGE.map(c=>ctx.crow('stage.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,stageN))).join('')}</div>
     <div class="hint">AT初当り時の開始ステージを記録します。高確率スタート時は抽選対象外のため記録しないでください。60%/40%の偏りなので、回数が溜まるほど参考になります。</div></section>`;
   }
   function tplText(ctx){

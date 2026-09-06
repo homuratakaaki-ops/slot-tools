@@ -63,7 +63,7 @@
     const S=ctx.S;
     return `<section class="sec">
     <div class="sec-h">BB終了画面<span class="sub">計${sum(S.screens)}回</span></div>
-    <div class="cgrid">${BB_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
+    <div class="cgrid">${BB_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,sum(S.screens)))).join('')}</div>
     <div class="hint">タコゲームに一度も入賞しなかったBBの終了画面がレアパターンだった場合は、専用の行（設定2以上）で記録してください。通常のレアパターン行と重複カウントは不要です。</div>
   </section>
   <section class="sec">
@@ -91,7 +91,7 @@
         detailItem('BIG',n(S.counts,'big'),1),
         detailItem('REG',n(S.counts,'reg'),1)
       ]},
-      {title:'BB終了画面',items:detailItems(BB_END,S.screens)}
+      {title:'BB終了画面',items:detailItems(BB_END,S.screens),percent:true}
     ];
   }
 

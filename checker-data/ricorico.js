@@ -196,17 +196,17 @@
     const S=ctx.S;
     return `<section class="sec">
     <div class="sec-h">プロローグエピソード<span class="sub">計${sum(S.prologue)}回</span></div>
-    <div class="cgrid">${PROLOGUE.map(c=>ctx.crow('prologue.'+c[0],c[1],c[2],0)).join('')}</div>
+    <div class="cgrid">${PROLOGUE.map(c=>ctx.crow('prologue.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.prologue)))).join('')}</div>
     <div class="hint">プロローグで発生したエピソードを記録します。EP3・EP4の示唆内容は解析待ちです。</div>
   </section>
   <section class="sec">
     <div class="sec-h">RUSH中エピソードボーナス<span class="sub">計${sum(S.rush)}回</span></div>
-    <div class="cgrid">${RUSH_EP.map(c=>ctx.crow('rush.'+c[0],c[1],c[2],0)).join('')}</div>
+    <div class="cgrid">${RUSH_EP.map(c=>ctx.crow('rush.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.rush)))).join('')}</div>
     <div class="hint">RUSH中のエピソードボーナスで発生したエピソードを記録します。EP3・EP4の示唆内容は解析待ちです。</div>
   </section>
   <section class="sec">
     <div class="sec-h">W中エピソードボーナス<span class="sub">計${sum(S.wep)}回</span></div>
-    <div class="cgrid">${W_EP.map(c=>ctx.crow('wep.'+c[0],c[1],c[2],0)).join('')}</div>
+    <div class="cgrid">${W_EP.map(c=>ctx.crow('wep.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.wep)))).join('')}</div>
     <div class="hint">W中のエピソードボーナスで発生したエピソードを記録します。EP3・EP4の示唆内容は解析待ちです。</div>
   </section>
   <section class="sec">
@@ -219,7 +219,7 @@
   </section>
   <section class="sec">
     <div class="sec-h">AT終了画面<span class="sub">計${sum(S.atEnd)}回</span></div>
-    <div class="cgrid">${AT_END.map(c=>ctx.crow('atEnd.'+c[0],c[1],c[2],0)).join('')}</div>
+    <div class="cgrid">${AT_END.map(c=>ctx.crow('atEnd.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.atEnd)))).join('')}</div>
     <div class="hint">現在はデフォルト画面のみ記録できます。AT終了画面は複数パターンの存在が判明していますが、各パターンの示唆内容が解析待ちのため、判明後に行を追加します。詳細はちょんぼりすた様の解析ページをご覧ください。</div>
   </section>`;
   }
@@ -277,13 +277,13 @@
         {label:c[1],value:convHit(S,c[0]),hot:false,text:`${c[1]} ${convHit(S,c[0])}/${convDenom(S,c[0])}`,show:convDenom(S,c[0])>0},
         detailItem(`${c[1]}からの当選`,convWin(S,c[0]),0)
       ])},
-      {title:'プロローグエピソード',items:detailItems(PROLOGUE,S.prologue)},
-      {title:'RUSH中エピソードボーナス',items:detailItems(RUSH_EP,S.rush)},
-      {title:'W中エピソードボーナス',items:detailItems(W_EP,S.wep)},
+      {title:'プロローグエピソード',items:detailItems(PROLOGUE,S.prologue),percent:true},
+      {title:'RUSH中エピソードボーナス',items:detailItems(RUSH_EP,S.rush),percent:true},
+      {title:'W中エピソードボーナス',items:detailItems(W_EP,S.wep),percent:true},
       {title:'サミートロフィー',items:detailItems(TROPHY,S.trophy)},
       {title:'規定ゲーム数',items:ZONES.map(z=>({label:z[1],value:rateWin(S,z[0]),hot:false,text:`${z[1]} ${rateWin(S,z[0])}/${rateReach(S,z[0])}`,show:rateReach(S,z[0])>0}))},
       {title:'ボーナス中一枚絵',items:detailItems(BONUS_ART,S.art)},
-      {title:'AT終了画面',items:detailItems(AT_END,S.atEnd)}
+      {title:'AT終了画面',items:detailItems(AT_END,S.atEnd),percent:true}
     ];
   }
 
