@@ -128,30 +128,59 @@
 `;
       document.head.appendChild(st);
     }
+    // 手動スクロールでも戻れるようにする。下記の閾値より下にいると「↑ 上へ」を出す。
+    // 画面高だけで決めると、可動域が1画面前後しかないタブでは閾値に到達できず
+    // ボタンが一度も出ない（例: リコリコ初当りタブは実機390x844で可動域655px）。
+    // そのため「画面の3/4」と「そのタブの可動域の半分」の小さい方を採り、
+    // 短いタブで出しすぎないよう下限を置く。
+    const BACK_BTN_SCREENS=0.75;
+    const BACK_BTN_MIN_PX=240;
+    function backThreshold(main){
+      const range=Math.max(0,main.scrollHeight-main.clientHeight);
+      return Math.max(BACK_BTN_MIN_PX,Math.min(main.clientHeight*BACK_BTN_SCREENS,range*0.5));
+    }
     function ensureBackBtn(){
       let b=document.getElementById('jumpBack');
       if(b)return b;
       b=document.createElement('button');
       b.id='jumpBack';b.type='button';b.className='jump-back';b.hidden=true;
-      b.textContent='↑ 戻る';
+      b.textContent='↑ 上へ';
       b.addEventListener('click',()=>{
         const main=document.getElementById('main');
-        if(main&&jumpReturnTop!==null)main.scrollTo({top:jumpReturnTop,behavior:'smooth'});
-        clearJump();
+        // ジャンプ直後は元の位置へ、手動スクロール時はタブ先頭へ戻る
+        const top=jumpReturnTop!==null?jumpReturnTop:0;
+        jumpReturnTop=null;
+        if(main)main.scrollTo({top,behavior:'smooth'});
+        // ここでは隠さない。閾値を下回った時点でスクロール側の判定が消す
+        updateBackBtn();
       });
       document.body.appendChild(b);
       return b;
+    }
+    function updateBackBtn(){
+      const main=document.getElementById('main');
+      const b=document.getElementById('jumpBack');
+      if(!main||!b)return;
+      const pending=jumpReturnTop!==null;
+      b.hidden=!(pending||main.scrollTop>=backThreshold(main));
+      b.textContent=pending?'↑ 戻る':'↑ 上へ';
     }
     function clearJump(){
       jumpReturnTop=null;
       const b=document.getElementById('jumpBack');
       if(b)b.hidden=true;
     }
+    function bindBackBtnScroll(main){
+      if(!main||main.dataset.backBtnBound)return;
+      main.dataset.backBtnBound='1';
+      main.addEventListener('scroll',updateBackBtn,{passive:true});
+    }
     function jumpTo(sec){
       const main=document.getElementById('main');
       if(!main)return;
       jumpReturnTop=main.scrollTop;
-      ensureBackBtn().hidden=false;
+      ensureBackBtn();
+      updateBackBtn();
       const top=main.scrollTop+sec.getBoundingClientRect().top-main.getBoundingClientRect().top;
       main.scrollTo({top,behavior:'smooth'});
     }
@@ -359,6 +388,11 @@
       main.innerHTML=pages[cur]()+sourceCredit();
       buildJumpNav(main);
       main.scrollTop=sc;
+      // ジャンプナビの有無に関わらず「↑ 上へ」は使えるようにする
+      ensureJumpStyle();
+      ensureBackBtn();
+      bindBackBtnScroll(main);
+      updateBackBtn();
       main.querySelectorAll('.crow').forEach(el=>{
         const plus=el.querySelector('.plus');
         if(plus)plus.addEventListener('click',ev=>{ev.stopPropagation();bump(el.dataset.c,el.dataset.l);});
