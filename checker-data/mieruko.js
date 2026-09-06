@@ -69,7 +69,7 @@
     const S=ctx.S;
     return `<section class="sec">
     <div class="sec-h">ボーナス終了画面<span class="sub">計${sum(S.screens)}回</span></div>
-    <div class="cgrid">${BONUS_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],0)).join('')}</div>
+    <div class="cgrid">${BONUS_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.screens)))).join('')}</div>
   </section>
   <section class="sec">
     <div class="sec-h">RB中のキャラ紹介<span class="sub">計${sum(S.chara)}回</span></div>
@@ -101,7 +101,7 @@
         detailItem('BIG（超BIG含む）',n(S.counts,'big'),1),
         detailItem('REGULAR',n(S.counts,'reg'),1)
       ]},
-      {title:'ボーナス終了画面',items:detailItems(BONUS_END,S.screens)},
+      {title:'ボーナス終了画面',items:detailItems(BONUS_END,S.screens),percent:true},
       {title:'RB中のキャラ紹介',items:detailItems(RB_CHARA,S.chara)}
     ];
   }

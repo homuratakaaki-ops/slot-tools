@@ -179,12 +179,12 @@
   </section>
   <section class="sec">
     <div class="sec-h">咲太クエスト<span class="sub">計${sum(S.quest)}回</span></div>
-    <div class="cgrid">${QUEST.map(c=>ctx.crow('quest.'+c[0],c[1],c[2],0)).join('')}</div>
+    <div class="cgrid">${QUEST.map(c=>ctx.crow('quest.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.quest)))).join('')}</div>
     <div class="hint">咲太クエストの発生契機となった小役を記録します。</div>
   </section>
   <section class="sec">
     <div class="sec-h">不可思議モード<span class="sub">計${sum(S.fushigi)}回</span></div>
-    <div class="cgrid">${FUSHIGI.map(c=>ctx.crow('fushigi.'+c[0],c[1],c[2],0)).join('')}</div>
+    <div class="cgrid">${FUSHIGI.map(c=>ctx.crow('fushigi.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.fushigi)))).join('')}</div>
     <div class="hint">不可思議モード移行時のキャラを記録します。サブの表記は、そのキャラが示すモードの効果です。設定示唆ではありません。</div>
   </section>`;
   }
@@ -206,7 +206,7 @@
     const total=sum(ctx.S.screens);
     return `<section class="sec">
     <div class="sec-h">ST（青ブタJUDGE）終了画面<span class="sub">計${total}回</span></div>
-    <div class="cgrid">${SCREENS.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
+    <div class="cgrid">${SCREENS.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,total))).join('')}</div>
     <div class="hint">確定演出系の画面にはスタンプ（吉/良/優/極）が併記されます。偶数・奇数示唆と高設定示唆は上下関係を持たないため、確定演出とは別枠で集計します。</div>
   </section>`;
   }
@@ -257,12 +257,12 @@
       {title:'アオハルチャンス',items:AOHAL.map(v=>({
         label:v[1],value:hit(S,'aohal',v[0]),hot:false,
         text:`${v[1]} ${ndText(S,'aohal',v[0])}`,show:den(S,'aohal',v[0])>0}))},
-      {title:'咲太クエスト',items:detailItems(QUEST,S.quest)},
-      {title:'不可思議モード',items:detailItems(FUSHIGI,S.fushigi)},
+      {title:'咲太クエスト',items:detailItems(QUEST,S.quest),percent:true},
+      {title:'不可思議モード',items:detailItems(FUSHIGI,S.fushigi),percent:true},
       {title:'CZ最終G特殊抽選',items:CZ_ROWS.map(r=>({
         label:r[1],value:hit(S,'czr',r[0]),hot:false,
         text:`${r[1]} ${ndText(S,'czr',r[0])}`,show:den(S,'czr',r[0])>0}))},
-      {title:'ST（青ブタJUDGE）終了画面',items:detailItems(SCREENS,S.screens)}
+      {title:'ST（青ブタJUDGE）終了画面',items:detailItems(SCREENS,S.screens),percent:true}
     ];
   }
 

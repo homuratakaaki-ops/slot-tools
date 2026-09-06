@@ -106,7 +106,7 @@
     const total=sum(ctx.S.screens);
     return `<section class="sec">
     <div class="sec-h">ボーナス終了画面<span class="sub">計${total}回</span></div>
-    <div class="cgrid">${BONUS_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
+    <div class="cgrid">${BONUS_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,total))).join('')}</div>
     <div class="hint">ボーナス終了時に表示される画面を記録します。デフォルト以外が出た回数の内訳が判別材料になります。</div>
   </section>`;
   }
@@ -127,7 +127,7 @@
     const edN=sum(ctx.S.ed);
     return `<section class="sec">
     <div class="sec-h">エンディング中のウィンドウ<span class="sub">計${edN}回</span></div>
-    <div class="cgrid">${ED.map(c=>ctx.crow('ed.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
+    <div class="cgrid">${ED.map(c=>ctx.crow('ed.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,edN))).join('')}</div>
     <div class="hint">エンディング中に出現するウィンドウの枠色で記録します。</div>
   </section>
   <section class="sec">
@@ -157,10 +157,10 @@
         detailItem('CZ当選',S.cz.cz,0,S.cz.cz>0?`CZ当選 ×${S.cz.cz}（${rate(g,S.cz.cz)}）`:''),
         detailItem('ボーナス初当り',S.cz.bonus,0,S.cz.bonus>0?`ボーナス初当り ×${S.cz.bonus}（${rate(g,S.cz.bonus)}）`:'')
       ]},
-      {title:'ボーナス終了画面',items:detailItems(BONUS_END,S.screens)},
+      {title:'ボーナス終了画面',items:detailItems(BONUS_END,S.screens),percent:true},
       {title:'アリストロフィー',items:detailItems(TROPHIES,S.coins)},
       {title:'スイCZ失敗時の残り体数',items:detailItems(REMAIN,S.atcz)},
-      {title:'エンディング中のウィンドウ',items:detailItems(ED,S.ed)}
+      {title:'エンディング中のウィンドウ',items:detailItems(ED,S.ed),percent:true}
     ];
   }
 
