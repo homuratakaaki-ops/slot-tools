@@ -37,8 +37,27 @@
   const BONUS_ART=[
     ['appear','一枚絵出現','示唆調査中',0,'絵']
   ];
+  // [id, UI表示名, サブラベル, rank, カード略号, テンプレ表記]
+  // テンプレ表記の全角スペースは、なな様テンプレの ▶︎ 位置を揃えるための原文どおりの詰め物。
   const AT_END=[
-    ['def','デフォルト','デフォルト',0,'デ']
+    ['def','デフォルト（2パターン）','デフォルト',0,'デ','デフォ(2ﾊﾟﾀｰﾝ)'],
+    ['takina','たきな私服','示唆調査中',0,'た','たきな私服　　'],
+    ['chisato','千束私服','示唆調査中',0,'千','千束私服　　　'],
+    ['dress','ドレスコード','示唆調査中',0,'ド','ドレスコード　'],
+    ['kitaoshiage','北押上の風景','示唆調査中',0,'北','北押上の風景　'],
+    ['robota','ロボ太','示唆調査中',0,'ロ','ロボ太　　　　'],
+    ['hawaii','ハワイ','示唆調査中',0,'ハ','ハワイ🌺　　　']
+  ];
+  // [id, UI表示名, テンプレ表記]
+  const CONV=[
+    ['weak','弱役変換','弱役変換　'],
+    ['strong','強役変換','強役変換　']
+  ];
+  // [stateキー, ①②合算行, ③行, ④行]（テンプレ表記は原文どおり）
+  const EP_GROUPS=[
+    ['prologue','ﾌﾟﾛﾛｰｸﾞ①.②','ﾌﾟﾛﾛｰｸﾞEP③','ﾌﾟﾛﾛｰｸﾞEP④'],
+    ['rush','ﾗｯｼｭ中①.②','ﾗｯｼｭ中EP③','ﾗｯｼｭ中EP④'],
+    ['wep','ﾗｯｼｭW①.②','ﾗｯｼｭW EP③','ﾗｯｼｭW EP④']
   ];
 
   const DEF={
@@ -49,6 +68,7 @@
     wep:{ep1:0,ep2:0,ep3:0,ep4:0},
     trophy:Object.fromEntries(TROPHY.map(v=>[v[0],0])),
     rates:Object.fromEntries(ZONES.flatMap(z=>[[z[0]+'r',0],[z[0]+'w',0]])),
+    conv:Object.fromEntries(CONV.flatMap(c=>[[c[0]+'d',0],[c[0]+'c',0],[c[0]+'w',0]])),
     art:Object.fromEntries(BONUS_ART.map(v=>[v[0],0])),
     atEnd:Object.fromEntries(AT_END.map(v=>[v[0],0])),
     img:null,
@@ -58,7 +78,6 @@
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function n(obj,key){return Number((obj||{})[key])||0;}
   function countLine(v){return `${Number(v)||0}回`;}
-  function section(title,lines){const out=lines.filter(Boolean);return out.length?`\n■${title}\n${out.join('\n')}\n`:'';}
   function detailItem(label,value,hot,text){
     const item={label,value:Number(value)||0,hot:!!hot};
     if(text)item.text=text;
@@ -80,13 +99,37 @@
   function rateText(S,id){return ratio(rateWin(S,id),rateReach(S,id));}
   function cycleRow(ctx,id,name){
     const S=ctx.S;
+    // 減算モードで「ハズレ」を押すと到達だけが減り、当選回数を下回りうる。
+    // n<=d を壊さないよう、減らせるハズレが残っていない場合はボタンを無効化する。
+    const canMinus=rateReach(S,id)>rateWin(S,id);
+    const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="rates.${id}r"`;
     return `<div class="crow cycle-row">
       <div class="ct"><b>${name}</b></div>
       <div class="num">${rateWin(S,id)}</div>
       <div class="pct">${rateText(S,id)}</div>
       <div class="cycle-actions">
         <button type="button" class="cycle-btn win" data-bump-many="rates.${id}r,rates.${id}w" data-label="${name} 当選" aria-label="${name} 当選">当選</button>
-        <button type="button" class="cycle-btn" data-bump="rates.${id}r" data-label="${name} ハズレ" aria-label="${name} ハズレ">ハズレ</button>
+        <button type="button" class="cycle-btn" ${missAttrs} data-label="${name} ハズレ" aria-label="${name} ハズレ">ハズレ</button>
+      </div>
+    </div>`;
+  }
+  function convDenom(S,id){return n(S.conv,id+'d');}
+  function convHit(S,id){return n(S.conv,id+'c');}
+  function convWin(S,id){return n(S.conv,id+'w');}
+  function convText(S,id){return `${convHit(S,id)}/${convDenom(S,id)}`;}
+  function convRow(ctx,id,name){
+    const S=ctx.S;
+    // 減算モードで「しなかった」を押すと分母だけが減り、変換した回数を下回りうる。
+    // n<=d を壊さないよう、減らせる「しなかった」が残っていない場合はボタンを無効化する。
+    const canMinus=convDenom(S,id)>convHit(S,id);
+    const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="conv.${id}d"`;
+    return `<div class="crow cycle-row conv-row">
+      <div class="ct"><b>${name}</b></div>
+      <div class="num">${convHit(S,id)}</div>
+      <div class="pct">${convText(S,id)}</div>
+      <div class="cycle-actions">
+        <button type="button" class="cycle-btn win" data-bump-many="conv.${id}d,conv.${id}c" data-label="${name} 変換した" aria-label="${name} 変換した">変換した</button>
+        <button type="button" class="cycle-btn" ${missAttrs} data-label="${name} しなかった" aria-label="${name} しなかった">しなかった</button>
       </div>
     </div>`;
   }
@@ -119,9 +162,24 @@
       .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
       .cycle-btn.win{color:#ffc94d}
       .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+      .cycle-btn[disabled]{opacity:.4}
     </style>
     <div class="cgrid">${ZONES.map(z=>cycleRow(ctx,z[0],z[1])).join('')}</div>
-    <div class="hint">各ゾーン到達時に記録。当選したら当選側を押してください。</div>
+    <div class="hint">各ゾーン到達時に記録。当選したら当選側を押してください。減算モードでは「当選」が到達と当選の両方を、「ハズレ」が到達だけを1つ戻します。戻せるハズレが残っていない場合、そのボタンは押せません。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">変換<span class="sub">弱 ${convHit(S,'weak')}/${convDenom(S,'weak')}・強 ${convHit(S,'strong')}/${convDenom(S,'strong')}</span></div>
+    <style>
+      .conv-row .pct{min-width:56px}
+      .conv-row .cycle-btn{min-width:62px}
+    </style>
+    <div class="cgrid">
+      ${convRow(ctx,'weak','弱役変換')}
+      ${ctx.crow('conv.weakw','弱役変換からの当選','変換後に当選した回数',0)}
+      ${convRow(ctx,'strong','強役変換')}
+      ${ctx.crow('conv.strongw','強役変換からの当選','変換後に当選した回数',0)}
+    </div>
+    <div class="hint">レア役成立時の変換有無と、変換からの当選を記録します。減算モードでは「変換した」が分母と変換回数の両方を、「しなかった」が分母だけを1つ戻します。戻せる「しなかった」が残っていない場合、そのボタンは押せません。</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り<span class="sub">通常 ${g||0}G</span></div>
@@ -166,19 +224,45 @@
   </section>`;
   }
 
+  // なな様完成版テンプレの行構成・表記・空行位置に一致させる。
+  // 未記録でも全行を出す（テンプレが記入枠として全行並ぶ形式のため）。
+  // 例外はサミートロフィーのみで、出現時だけ見出しごと追記する。
   function tplText(ctx){
     const S=ctx.S,g=S.games;
-    let t=`設定判別メモ｜スマスロ リコリス・リコイル\n通常 ${g||0}G\n_______\n`;
-    const zoneLines=ZONES.filter(z=>rateReach(S,z[0])>0).map(z=>`${z[1]}▶︎ 到達${rateReach(S,z[0])}回/当選${rateWin(S,z[0])}回`);
-    t+=section('規定ゲーム数',zoneLines);
-    t+=`\n■CZ(ｵﾎﾟｼﾞｯﾄ)▶︎ ${n(S.counts,'cz')}回\n`;
-    t+=`\n■幼少期CZ(ﾌｧｰｽﾄ)▶︎ ${n(S.counts,'child')}回\n↪︎(1/3965〜1/2084)\n`;
-    t+=`\n■AT直撃▶︎ ${n(S.counts,'direct')}回\n↪︎(1/22429〜1/6263)\n`;
-    t+=`\n■ボーナス中一枚絵▶︎ ${sum(S.art)}回\n`;
-    t+=`\n■終了画面\nデフォ▶︎ ${n(S.atEnd,'def')}回\n`;
-    t+=section('サミートロフィー',sum(S.trophy)>0?TROPHY.filter(c=>n(S.trophy,c[0])>0).map(c=>`${c[1]}▶︎ ${countLine(n(S.trophy,c[0]))}`):[]);
-    t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
-    return t;
+    const L=['設定判別メモ｜スマスロ リコリス・リコイル',`通常 ${g||0}G`,'_______','','■規定ゲーム数'];
+    ZONES.forEach(z=>L.push(`${z[1]}▶︎ ${rateWin(S,z[0])}/${rateReach(S,z[0])}`));
+    L.push('','■変換');
+    CONV.forEach(c=>{
+      L.push(`${c[2]}▶︎ ${convHit(S,c[0])}/${convDenom(S,c[0])}`);
+      L.push(`からの当選▶︎ ${countLine(convWin(S,c[0]))}`);
+    });
+    L.push('',
+      `■CZ(ｵﾎﾟｼﾞｯﾄ)▶︎ ${countLine(n(S.counts,'cz'))}`,
+      `■幼少期CZ(ﾌｧｰｽﾄ)▶︎ ${countLine(n(S.counts,'child'))}`,
+      '↪︎(1/3965〜1/2084)',
+      '',
+      `■AT直撃(1/22429〜1/6263)▶︎ ${countLine(n(S.counts,'direct'))}`,
+      '',
+      '■エピソード');
+    EP_GROUPS.forEach((grp,i)=>{
+      const st=S[grp[0]];
+      if(i>0)L.push('');
+      L.push(`${grp[1]}▶︎ ${countLine(n(st,'ep1')+n(st,'ep2'))}`);
+      L.push(`${grp[2]}▶︎ ${countLine(n(st,'ep3'))}`);
+      L.push(`${grp[3]}▶︎ ${countLine(n(st,'ep4'))}`);
+    });
+    L.push('',`■ボーナス中一枚絵▶︎ ${countLine(sum(S.art))}`,'','■終了画面');
+    AT_END.forEach(c=>L.push(`${c[5]}▶︎ ${countLine(n(S.atEnd,c[0]))}`));
+    if(sum(S.trophy)>0){
+      L.push('','■サミートロフィー');
+      TROPHY.filter(c=>n(S.trophy,c[0])>0)
+        .forEach(c=>L.push(`${c[1]}▶︎ ${countLine(n(S.trophy,c[0]))}`));
+    }
+    L.push('','by slot-tools.jp');
+    const credit=ctx.nanaCreditText('text');
+    if(credit)L.push(credit);
+    L.push('解析出典:ちょんぼりすた様');
+    return L.join('\n');
   }
   function detail(ctx){
     const S=ctx.S;
@@ -189,6 +273,10 @@
         detailItem('AT直撃',n(S.counts,'direct'),1),
         detailItem('幼少期CZ突入',n(S.counts,'child'),1)
       ]},
+      {title:'変換',items:CONV.flatMap(c=>[
+        {label:c[1],value:convHit(S,c[0]),hot:false,text:`${c[1]} ${convHit(S,c[0])}/${convDenom(S,c[0])}`,show:convDenom(S,c[0])>0},
+        detailItem(`${c[1]}からの当選`,convWin(S,c[0]),0)
+      ])},
       {title:'プロローグエピソード',items:detailItems(PROLOGUE,S.prologue)},
       {title:'RUSH中エピソードボーナス',items:detailItems(RUSH_EP,S.rush)},
       {title:'W中エピソードボーナス',items:detailItems(W_EP,S.wep)},
@@ -203,7 +291,7 @@
     nanaCollab:true,
     storageKey:'ricorico-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','prologue','rush','wep','trophy','rates','art','atEnd'],
+    mergeKeys:['counts','prologue','rush','wep','trophy','rates','conv','art','atEnd'],
     sourceUrl:'https://chonborista.com/slot/sammy-slot/261631/',
     normalizeState:out=>{
       out.games=Math.max(0,Number(out.games)||0);
@@ -211,6 +299,9 @@
       out.rates=Object.assign({},DEF.rates,out.rates||{});
       Object.keys(out.rates).forEach(k=>{out.rates[k]=Math.max(0,Number(out.rates[k])||0);});
       ZONES.forEach(z=>{if(out.rates[z[0]+'w']>out.rates[z[0]+'r'])out.rates[z[0]+'r']=out.rates[z[0]+'w'];});
+      out.conv=Object.assign({},DEF.conv,out.conv||{});
+      Object.keys(out.conv).forEach(k=>{out.conv[k]=Math.max(0,Number(out.conv[k])||0);});
+      CONV.forEach(c=>{if(out.conv[c[0]+'c']>out.conv[c[0]+'d'])out.conv[c[0]+'d']=out.conv[c[0]+'c'];});
       return out;
     },
     share:{title:'スマスロ リコリス・リコイル 設定判別メモ',hashtags:'#リコリコ #設定判別'},
