@@ -228,7 +228,8 @@ for (const href of ['https://slot-tools.jp/agnespe-yutime.html', 'https://slot-t
   const anchor = new RegExp(`<a href="${href.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}" target="_blank" rel="noopener">`);
   assert.match(calcHtml, anchor, `${href} は別タブで開くこと`);
 }
-assert.match(calcHtml, /埋め込み・転載は自由です。出典として/, '転載条件を明記すること');
+assert.match(calcHtml, /埋め込み: 自由です。クレジットはツール内に含まれます。/, '埋め込みには追加の条件を付けないこと');
+assert.match(calcHtml, /転載・引用: 自由です。出典として/, '転載・引用には出典リンクを求めること');
 assert.match(calcHtml, /width="100%" height="700" style="border:0" loading="lazy"/, '埋め込み用コードを掲載すること');
 assert.match(calcHtml, /if \(inIframe\(\)\) byId\("embedSection"\)\.style\.display = "none";/, 'iframe内では埋め込み用コードを隠すこと');
 
