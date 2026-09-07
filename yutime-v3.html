@@ -4965,6 +4965,9 @@
         button.addEventListener("click", () => {
           updateIslandDraftFromDom();
           const index = Number(button.dataset.deleteIsland);
+          const islandName = islandDisplayName(mapDraft.islands[index] || {}, index);
+          if (!confirm(`「${islandName}」を削除しますか？台と記録は消えません。`)) return;
+          if (!confirm("元に戻せません。島の削除を確定しますか？台と記録は残ります。")) return;
           mapDraft.islands.splice(index, 1);
           expandedIslandIndexes = new Set([...expandedIslandIndexes].filter((item) => item !== index).map((item) => item > index ? item - 1 : item));
           mapDraft.allowEmptySave = mapDraft.islands.length === 0;

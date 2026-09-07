@@ -80,6 +80,7 @@ const normalizeDailyStateBlock = section('function normalizeDailyState', 'functi
 const bindNailRatingChips = section('function bindNailRatingChips', 'function readNailRatingFromDom');
 const readMachineMemoForm = section('function readMachineMemoForm', 'function readMachineDetailForm');
 const islandEditor = section('function islandEditorHtml', 'function bindIslandEditor');
+const bindIslandEditor = section('function bindIslandEditor', 'function openIslandNameForm');
 const readIslandDraft = section('function readIslandDraftFromDom', 'function readIslandSideFromDom');
 const normalizeIsland = section('function normalizeIsland', 'function textMapToIslands');
 const parseIslandLayout = section('function parseIslandLayout', 'function expandIslandSide');
@@ -3522,6 +3523,8 @@ assert.match(columnPresetApply, /if \(hasIndividualSetting && currentPresetId !=
 assert.match(normalizeData, /memoEntries: normalizeMemoEntries\(machine\.memoEntries, machine\.memo, machine\.createdAt\),/);
 assert.match(normalizeData, /nailRating: normalizeNailRating\(machine\.nailRating\),/);
 assert.match(islandEditor, /id="island_\$\{index\}_\$\{side\}_gaps"/);
+// 島の削除は二段確認（記録の削除・大当たり履歴の削除と同じ形式）
+assert.match(bindIslandEditor, /if \(!confirm\(`「\$\{islandName\}」を削除しますか？台と記録は消えません。`\)\) return;\s*if \(!confirm\("元に戻せません。島の削除を確定しますか？台と記録は残ります。"\)\) return;\s*mapDraft\.islands\.splice\(index, 1\);/);
 assert.match(readIslandDraft, /gaps: \{\s*left: readGapListFromDom\(index, "left"\),\s*right: readGapListFromDom\(index, "right"\)\s*\}/);
 assert.match(normalizeIsland, /gaps: normalizeIslandGaps\(island\?\.gaps\),/);
 assert.match(normalizeIsland, /return \{ left: legacy, right: \[\] \};/);
