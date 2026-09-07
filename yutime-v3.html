@@ -1905,13 +1905,15 @@
     const STORAGE_KEY = STORAGE_PREFIX + "data";
     const PREMIGRATE_KEY = STORAGE_PREFIX + "premigrate";
     const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
+    // S15: 開始持ち玉の復元は過去の収支を訂正する不可逆な移行なので、実行前のデータを専用キーへ1度だけ退避する。
+    const S15_BACKUP_KEY = STORAGE_PREFIX + "backup:s15";
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
     const MAP_BACKUP_KEY = STORAGE_PREFIX + "mapbackup";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 32;
+    const SCHEMA_VERSION = 33;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
@@ -2217,6 +2219,8 @@
       startSpin: null,
       startTime: null,
       startMochidama: null,
+      // S15: 打ち始め時点の持ち玉（startMochidama）は以後不変。稼働中の残高修正は currentMochidama だけを動かす。
+      currentMochidama: null,
       startSaipurei: null,
       startCredit: null,
       startTotalHits: null,
@@ -3036,6 +3040,7 @@
           localStorage.setItem(PREMIGRATE_KEY, raw);
         }
         if (needsSegmentMigration(parsed)) backupBeforeSegmentMigration(raw);
+        if (needsStartMochidamaRepair(parsed)) backupBeforeStartMochidamaRepair(raw);
         return normalizeData(parsed);
       } catch (error) {
         console.warn("ytv3 load failed", error);
@@ -3056,6 +3061,21 @@
         localStorage.setItem(BACKUP_KEY, raw);
       } catch (error) {
         console.warn("ytv3 segment migration backup failed", error);
+      }
+    }
+
+    // S15/§2: 開始持ち玉の復元は過去の実収支を訂正するので、移行前データを専用キーへ1度だけ退避する。
+    // BACKUP_KEY は persist() のたびに上書きされるため、移行前スナップショットには使えない。
+    function needsStartMochidamaRepair(source) {
+      return (normalizeNumber(source?.version) ?? 0) < 33;
+    }
+
+    function backupBeforeStartMochidamaRepair(raw) {
+      if (!raw || localStorage.getItem(S15_BACKUP_KEY)) return;
+      try {
+        localStorage.setItem(S15_BACKUP_KEY, raw);
+      } catch (error) {
+        console.warn("ytv3 startMochidama repair backup failed", error);
       }
     }
 
@@ -3188,6 +3208,7 @@
           startTotalHits: normalizeNumber(session.startTotalHits),
           endTotalHits: normalizeNumber(session.endTotalHits),
           currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
+          currentMochidama: normalizeNumber(session.currentMochidama) ?? normalizeNumber(session.startMochidama),
           startEv: normalizeStartEv(session.startEv),
           consumedBallsSource: normalizeConsumedBallsSource(session.consumedBallsSource),
           hitTrackedBalls: normalizeNumber(session.hitTrackedBalls),
@@ -3212,6 +3233,7 @@
           time: item.time || null
         })).filter((item) => item.amount !== null) : []
         };
+        if (sourceVersion < 33) repairStartMochidama(normalized, source.sessions || []);
         normalized.segments = normalizeSessionSegments(normalized);
         applySegmentIds(normalized);
         syncSessionHitTotals(normalized, next.machines);
@@ -3220,6 +3242,36 @@
       if (!next.stores.some((store) => store.id === next.activeStoreId)) next.activeStoreId = next.stores[0]?.id || null;
       next.dailyState = normalizeDailyState(next.dailyState, next.machines);
       return next;
+    }
+
+    // S15: schema 32 まで、稼働中の持ち玉修正が startMochidama（＝打ち始めの持ち玉）を上書きしていた。
+    // 復元の根拠は次の順。区間の startTrackedBalls は persist() のたびに
+    // resyncSessionSegments() が startMochidama から作り直すため、同じ値に汚染されていて使えない。
+    //   1. 台移動の引き継ぎ元があるセッション … 引き継ぎ玉は「元の台の終了合計玉＋残保留」で決まり、
+    //      どちらも持ち玉修正では動かないので再計算できる（finalMochidamaForCarryover と同じ式）
+    //   2. 打ち始め判定パネルの入力（startEv.mochidamaInput）… 打ち始めに1度だけ保存され、以後変更されない
+    //   3. どちらも無ければ現行値を維持する（他に手がかりがない）
+    // 修復前の値は currentMochidama として残し、画面上の「現在の持ち玉」は移行前と変わらないようにする。
+    function repairStartMochidama(session, sourceSessions) {
+      // currentMochidama は正規化時点で旧 startMochidama を引き継いでいる（＝移行前に見えていた持ち玉）。
+      const carried = legacyCarryoverMochidama(sourceSessions, session.carriedFromSessionId);
+      if (carried !== null) {
+        session.startMochidama = carried;
+        return session;
+      }
+      const startEvMochidama = session.startEv ? normalizeNumber(session.startEv.mochidamaInput) : null;
+      if (startEvMochidama !== null) session.startMochidama = startEvMochidama;
+      return session;
+    }
+
+    // S15: 引き継ぎ元セッションの終了時点の持ち玉。finalMochidamaForCarryover と同じ式を
+    // 移行前の生データに対して使う（正規化前なので session ではなく素の値を見る）。
+    function legacyCarryoverMochidama(sourceSessions, carriedFromSessionId) {
+      if (!carriedFromSessionId) return null;
+      const origin = (Array.isArray(sourceSessions) ? sourceSessions : []).find((item) => item?.id === carriedFromSessionId);
+      const endTotalBalls = normalizeNumber(origin?.endTotalBalls);
+      if (endTotalBalls === null) return null;
+      return endTotalBalls + (normalizeNumber(origin?.zanhoryuBalls) ?? 0);
     }
 
     function persist() {
@@ -4511,7 +4563,7 @@
     }
 
     function renderStorageNote() {
-      const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, CARRYOVER_KEY, MAP_BACKUP_KEY].join(" / ");
+      const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, S15_BACKUP_KEY, CARRYOVER_KEY, MAP_BACKUP_KEY].join(" / ");
       const corruptNote = hasCorruptData() ? "。破損退避データあり" : "";
       els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。dailyState chars: ${measureDailyStateChars()}。引き継ぎchars: ${measureCarryoverChars()}。マップ退避chars: ${measureMapBackupChars()}。v2キーは読み書きしません${corruptNote}。`;
     }
@@ -6436,6 +6488,7 @@
       if (activeCarryover) {
         session.carriedFromSessionId = activeCarryover.sourceSessionId;
         session.startMochidama = activeCarryover.mochidama;
+        session.currentMochidama = activeCarryover.mochidama;
         session.startSaipurei = activeCarryover.saipurei;
         session.startCredit = activeCarryover.credit;
       }
@@ -6450,6 +6503,8 @@
       session.currentSpin = session.startSpin;
       session.startTime = currentTime();
       session.startMochidama = normalizeNumber(presets.mochidamaInput);
+      // S15: 打ち始めは開始値と現在値が同じ。以後 startMochidama は動かさない。
+      session.currentMochidama = session.startMochidama;
       session.startSaipurei = normalizeNumber(presets.saipureiInput);
       session.startCredit = normalizeNumber(presets.startCredit);
       session.startTotalHits = normalizeNumber(presets.startTotalHits);
@@ -6496,6 +6551,8 @@
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         if (session.currentSpin === null || session.currentSpin === undefined) session.currentSpin = session.startSpin;
+        // S15: ウィザードで確定した開始持ち玉を現在値の初期値にする。以後 startMochidama は動かさない。
+        session.currentMochidama = session.startMochidama;
         const machine = data.machines.find((item) => item.id === machineId);
         session.startEv = calculateStartEvSnapshot(session, machine, presets);
         data.sessions.push(session);
@@ -7775,13 +7832,34 @@
       renderRunning();
     }
 
+    // S15: 現在の持ち玉の起点。稼働中の残高修正はここ（currentMochidama）に載り、startMochidama は打ち始めの値のまま残る。
+    // 旧データ（currentMochidama を持たない）と、移行できなかったセッションは startMochidama へフォールバックする。
+    function mochidamaBaseValue(session) {
+      const current = normalizeNumber(session?.currentMochidama);
+      if (current !== null) return current;
+      return normalizeNumber(session?.startMochidama);
+    }
+
+    // S15: 稼働中の残高修正で書き換えてよいフィールド。持ち玉だけ開始値と現在値が別フィールドになる。
+    function balanceCurrentKey(key) {
+      return key === "startMochidama" ? "currentMochidama" : key;
+    }
+
+    // S15: 記録の修正で開始持ち玉を直したときの現在値。開始値の差分だけを動かし、
+    // 稼働中の残高修正で積んだ補正（currentMochidama − startMochidama）は残す。
+    function shiftedCurrentMochidama(previousStart, previousCurrent, nextStart) {
+      if (nextStart === null) return null;
+      if (previousStart === null || previousCurrent === null) return nextStart;
+      return previousCurrent + (nextStart - previousStart);
+    }
+
     function deriveBalances(session) {
       const cashTotal = session.investments.filter((item) => investmentSource(item) === "cash").reduce((sum, item) => sum + Number(item.amount || 0), 0);
       const replayTotal = session.investments.filter((item) => investmentSource(item) === "saipurei").reduce((sum, item) => sum + Number(item.amount || 0), 0);
       const mochidamaTotal = session.investments.filter((item) => investmentSource(item) === "mochidama").reduce((sum, item) => sum + Number(item.amount || 0), 0);
       const chargeTotal = (session.charges || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
       return {
-        mochidama: session.startMochidama === null ? null : Number(session.startMochidama || 0) - mochidamaTotal,
+        mochidama: mochidamaBaseValue(session) === null ? null : Number(mochidamaBaseValue(session) || 0) - mochidamaTotal,
         credit: session.startCredit === null ? null : Number(session.startCredit || 0) + chargeTotal - cashTotal,
         saipurei: session.startSaipurei === null ? null : Number(session.startSaipurei || 0) - replayTotal
       };
@@ -7807,19 +7885,21 @@
       return null;
     }
 
+    // S15: 稼働中の持ち玉修正は currentMochidama だけを動かす。
+    // 打ち始めの持ち玉（startMochidama）を上書きすると、実収支・貯玉引出・履歴表示の土台が壊れる。
     function updateMochidamaBalanceWithUndo(session, value) {
-      const previous = session.startMochidama;
-      session.startMochidama = balanceStartValueForCurrent(session, "startMochidama", value);
+      const previous = mochidamaBaseValue(session);
+      session.currentMochidama = balanceStartValueForCurrent(session, "startMochidama", value);
       session.updatedAt = nowIso();
       if (!persist()) {
-        session.startMochidama = previous;
+        session.currentMochidama = previous;
         showToast("保存に失敗しました。容量を確認してください。", "error");
         return false;
       }
       renderAll();
       showToast("持ち玉を更新しました", "success", {
         undo: () => {
-          session.startMochidama = previous;
+          session.currentMochidama = previous;
           session.updatedAt = nowIso();
           persist();
           renderAll();
@@ -8373,6 +8453,8 @@
       next.currentSpin = startSpin;
       next.startTime = currentTime();
       next.startMochidama = finalMochidamaForCarryover(sourceSession);
+      // S15: 引き継いだ持ち玉が新しい台の開始値。現在値も同じ値で始める。
+      next.currentMochidama = next.startMochidama;
       next.startSaipurei = balances.saipurei;
       next.startCredit = balances.credit;
       next.startTotalHits = sourceSession.endTotalHits ?? null;
@@ -8533,7 +8615,8 @@
       `);
       byId("saveBalanceBtn").addEventListener("click", () => {
         const value = normalizeNumber(byId("balanceValue").value);
-        session[key] = value === null ? null : balanceStartValueForCurrent(session, key, value);
+        // S15: 持ち玉は currentMochidama へ書く。開始持ち玉は稼働中の残高修正では動かさない。
+        session[balanceCurrentKey(key)] = value === null ? null : balanceStartValueForCurrent(session, key, value);
         session.updatedAt = nowIso();
         if (!persistWithToast("残高を修正しました")) return;
         closeModal();
@@ -8695,9 +8778,14 @@
           const value = byId("edit_" + key).value.trim();
           session[key] = value || null;
         });
+        // S15: 開始持ち玉を直したら、稼働中の持ち玉も同じ差分だけ動かす。
+        // 稼働中の残高修正で currentMochidama に積んだ補正は保持する（開始値の訂正だけを反映する）。
+        const previousStartMochidama = normalizeNumber(session.startMochidama);
+        const previousCurrentMochidama = mochidamaBaseValue(session);
         ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "startTotalHits", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "yutimeEnterSpin", "endTotalHits", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls", "settlementRecoverYen"].forEach((key) => {
           session[key] = normalizeNumber(byId("edit_" + key).value);
         });
+        session.currentMochidama = shiftedCurrentMochidama(previousStartMochidama, previousCurrentMochidama, normalizeNumber(session.startMochidama));
         if (Array.isArray(session.hits) && session.hits.length) syncSessionHitTotals(session);
         else presetHitCountFromCounters(session);
         if (!session.settlementRecoverYen) session.settlementRecoverYen = null;

@@ -25,6 +25,9 @@ const hitResetPrompt = section('function openHitResetPrompt', 'function openEndW
 const openEndWizardBlock = section('function openEndWizard', 'function presetHitCountFromCounters');
 const runEndWizardBlock = section('function runEndWizard', 'function runWizard');
 const updateMochidamaBalance = section('function updateMochidamaBalanceWithUndo', 'function investmentTotals');
+// S15: 開始持ち玉（startMochidama）と稼働中の持ち玉（currentMochidama）の分離
+const s15BalanceBlock = section('function mochidamaBaseValue', 'function usesPersonalBalanceFormula');
+const s15RepairBlock = section('function repairStartMochidama', 'function persist');
 const transferSummary = section('function transferSummaryForSession', 'function balanceForSource');
 const resultBlock = section('function longDateText', 'function transferSummaryForSession');
 const balanceStartValueForCurrent = section('function balanceStartValueForCurrent', 'function currentBalanceForStartKey');
@@ -653,8 +656,112 @@ assert.deepEqual(chainInputContext.__toasts, []);
 // セッション合計 5,400玉／合計18R → 1R当たり300玉
 assert.equal(chainInputContext.session.hits.reduce((sum, hit) => sum + (hit.actualBalls || 0), 0), 5400);
 assert.deepEqual(JSON.parse(JSON.stringify(chainInputContext.session.hits.map((hit) => hit.actualBalls))), [1380, 1420, 1380, 1220]);
-assert.match(updateMochidamaBalance, /session\.startMochidama = balanceStartValueForCurrent\(session, "startMochidama", value\);/);
-assert.match(updateMochidamaBalance, /undo: \(\) => \{\s*session\.startMochidama = previous;/);
+// S15: 稼働中の持ち玉修正は currentMochidama だけを動かす。startMochidama（打ち始めの持ち玉）は書き換えない
+assert.match(updateMochidamaBalance, /session\.currentMochidama = balanceStartValueForCurrent\(session, "startMochidama", value\);/);
+assert.match(updateMochidamaBalance, /undo: \(\) => \{\s*session\.currentMochidama = previous;/);
+assert.doesNotMatch(updateMochidamaBalance, /session\.startMochidama =/);
+// S15: 打ち始め・引き継ぎ・同じ台で続行の3経路とも、開始値と現在値を同じ値で初期化する
+assert.match(startSessionFlow, /session\.startMochidama = normalizeNumber\(presets\.mochidamaInput\);[\s\S]{0,160}?session\.currentMochidama = session\.startMochidama;/);
+assert.match(startSessionFlow, /session\.startMochidama = activeCarryover\.mochidama;\s*session\.currentMochidama = activeCarryover\.mochidama;/);
+assert.match(startSessionFlow, /if \(session\.currentSpin === null \|\| session\.currentSpin === undefined\) session\.currentSpin = session\.startSpin;[\s\S]{0,160}?session\.currentMochidama = session\.startMochidama;/);
+assert.match(html, /next\.startMochidama = finalMochidamaForCarryover\(sourceSession\);[\s\S]{0,160}?next\.currentMochidama = next\.startMochidama;/);
+// S15: 台移動の持ち越し玉は「元の台の終了合計玉＋残保留」。持ち玉修正では動かない値から決める
+assert.match(html, /function finalMochidamaForCarryover\(session\) \{\s*if \(session\.endTotalBalls === null \|\| session\.endTotalBalls === undefined\) return null;\s*return Number\(session\.endTotalBalls \|\| 0\) \+ Number\(session\.zanhoryuBalls \|\| 0\);/);
+// S15: 収支・投入玉の土台は開始持ち玉のまま。現在値へ差し替えない
+assert.match(personalFormulaBlock, /Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\)/);
+assert.doesNotMatch(personalFormulaBlock, /currentMochidama/);
+// S15: 稼働中の持ち玉の起点は currentMochidama。deriveBalances だけが持つ
+assert.match(s15BalanceBlock, /mochidama: mochidamaBaseValue\(session\) === null \? null : Number\(mochidamaBaseValue\(session\) \|\| 0\) - mochidamaTotal,/);
+assert.equal((html.match(/function mochidamaBaseValue\(session\)/g) || []).length, 1);
+
+const s15Context = vm.createContext({});
+new vm.Script(`
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  function investmentSource(item) { return item?.source || item?.type || "cash"; }
+  function nowIso() { return "2026-09-08T00:00:00.000Z"; }
+  function persist() { return true; }
+  function renderAll() {}
+  globalThis.__toasts = [];
+  function showToast(message, kind, options) { globalThis.__toasts.push({ message, kind, options }); }
+  ${s15BalanceBlock}
+  globalThis.session = {
+    id: "s_325",
+    startMochidama: 0,
+    currentMochidama: 0,
+    startSaipurei: null,
+    startCredit: null,
+    investments: [{ source: "mochidama", amount: 500 }],
+    charges: []
+  };
+  globalThis.beforeEdit = deriveBalances(globalThis.session).mochidama;
+  updateMochidamaBalanceWithUndo(globalThis.session, 12884);
+  globalThis.afterEdit = deriveBalances(globalThis.session).mochidama;
+  globalThis.undoFn = globalThis.__toasts.at(-1).options.undo;
+  globalThis.legacySession = { id: "s_legacy", startMochidama: 3000, investments: [{ source: "mochidama", amount: 200 }], charges: [] };
+  globalThis.legacyBalance = deriveBalances(globalThis.legacySession).mochidama;
+  globalThis.emptySession = { id: "s_empty", startMochidama: null, investments: [], charges: [] };
+  globalThis.emptyBalance = deriveBalances(globalThis.emptySession).mochidama;
+  globalThis.shifted = [
+    shiftedCurrentMochidama(1000, 8000, 1500),
+    shiftedCurrentMochidama(1000, 8000, 1000),
+    shiftedCurrentMochidama(null, null, 1500),
+    shiftedCurrentMochidama(1000, 8000, null)
+  ];
+  globalThis.writeKeys = [balanceCurrentKey("startMochidama"), balanceCurrentKey("startSaipurei"), balanceCurrentKey("startCredit")];
+`).runInContext(s15Context);
+// 稼働中の修正は現在値だけを動かし、開始持ち玉は不変
+assert.equal(s15Context.beforeEdit, -500);
+assert.equal(s15Context.afterEdit, 12884);
+assert.equal(s15Context.session.startMochidama, 0);
+assert.equal(s15Context.session.currentMochidama, 13384);
+// 取り消しで現在値だけが戻る
+s15Context.undoFn();
+assert.equal(s15Context.session.currentMochidama, 0);
+assert.equal(s15Context.session.startMochidama, 0);
+// currentMochidama を持たない旧セッションは startMochidama へフォールバックする
+assert.equal(s15Context.legacyBalance, 2800);
+assert.equal(s15Context.emptyBalance, null);
+// 開始持ち玉の訂正は現在値を同じ差分だけ動かす（稼働中に積んだ +7,000 の補正は残る）
+assert.equal(JSON.stringify(s15Context.shifted), JSON.stringify([8500, 8000, 1500, null]));
+assert.equal(JSON.stringify(s15Context.writeKeys), JSON.stringify(["currentMochidama", "startSaipurei", "startCredit"]));
+
+// S15/§2: 移行の復元根拠。区間の startTrackedBalls は persist のたびに startMochidama から作り直されるので使わない
+const s15RepairContext = vm.createContext({});
+new vm.Script(`
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  }
+  ${s15RepairBlock}
+  const sourceSessions = [
+    { id: "s_325", endTotalBalls: 12000, zanhoryuBalls: 84 },
+    { id: "s_noend", endTotalBalls: null }
+  ];
+  globalThis.repaired = [
+    // 判定パネルの入力を正とする（実データ17件のケース）
+    repairStartMochidama({ startMochidama: 12884, currentMochidama: 12884, carriedFromSessionId: null, startEv: { mochidamaInput: 0 } }, sourceSessions),
+    // 引き継ぎ元があるなら「終了合計玉＋残保留」で再計算する（判定パネルより優先）
+    repairStartMochidama({ startMochidama: 3882, currentMochidama: 3882, carriedFromSessionId: "s_325", startEv: { mochidamaInput: 500 } }, sourceSessions),
+    // 引き継ぎ元の終了合計玉が無いなら判定パネルへ落ちる
+    repairStartMochidama({ startMochidama: 900, currentMochidama: 900, carriedFromSessionId: "s_noend", startEv: { mochidamaInput: 700 } }, sourceSessions),
+    // 手がかりが無ければ現行値を維持する
+    repairStartMochidama({ startMochidama: 4200, currentMochidama: 4200, carriedFromSessionId: null, startEv: null }, sourceSessions)
+  ];
+`).runInContext(s15RepairContext);
+assert.equal(JSON.stringify(s15RepairContext.repaired.map((session) => session.startMochidama)), JSON.stringify([0, 12084, 700, 4200]));
+// 修復前の値は現在の持ち玉として残す（移行前に見えていた持ち玉を捨てない）
+assert.equal(JSON.stringify(s15RepairContext.repaired.map((session) => session.currentMochidama)), JSON.stringify([12884, 3882, 900, 4200]));
+// 移行は schema 33 未満のデータにだけ掛ける
+assert.match(normalizeData, /if \(sourceVersion < 33\) repairStartMochidama\(normalized, source\.sessions \|\| \[\]\);/);
+assert.match(normalizeData, /currentMochidama: normalizeNumber\(session\.currentMochidama\) \?\? normalizeNumber\(session\.startMochidama\),/);
+// 移行前のスナップショットは persist で上書きされない専用キーへ1度だけ退避する
+assert.match(segmentMigrationBackup, /function backupBeforeStartMochidamaRepair\(raw\) \{\s*if \(!raw \|\| localStorage\.getItem\(S15_BACKUP_KEY\)\) return;/);
+assert.match(html, /const S15_BACKUP_KEY = STORAGE_PREFIX \+ "backup:s15";/);
 assert.match(balanceStartValueForCurrent, /if \(key === "startMochidama"\) return value \+ totals\.mochidamaBalls;/);
 assert.match(balanceStartValueForCurrent, /if \(key === "startSaipurei"\) return value \+ totals\.saipureiBalls;/);
 assert.match(balanceStartValueForCurrent, /return value - chargeTotal \+ totals\.cashYen;/);
@@ -1744,7 +1851,8 @@ assert.match(
 );
 assert.match(openBalanceEditForm, /const currentBalance = currentBalanceForStartKey\(session, key\);/);
 assert.match(openBalanceEditForm, /value="\$\{escapeHtml\(currentBalance \?\? ""\)\}"/);
-assert.match(openBalanceEditForm, /session\[key\] = value === null \? null : balanceStartValueForCurrent\(session, key, value\);/);
+// S15: 残高修正の書き込み先は balanceCurrentKey が決める。持ち玉だけ currentMochidama へ逃がす
+assert.match(openBalanceEditForm, /session\[balanceCurrentKey\(key\)\] = value === null \? null : balanceStartValueForCurrent\(session, key, value\);/);
 assert.match(runningRateHelpers, /function normalRateInvestments\(session\) \{/);
 assert.match(runningRateHelpers, /return investments\.filter\(\(item\) => investmentBeforeHit\(item, session, hitSpin\)\);/);
 assert.match(runningRateHelpers, /function runningNormalSpinCount\(session, derived = null\) \{/);
@@ -2752,7 +2860,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 32;/);
+assert.match(html, /const SCHEMA_VERSION = 33;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3059,7 +3167,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 32;
+  const SCHEMA_VERSION = 33;
   const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
@@ -3148,6 +3256,7 @@ new vm.Script(`
   }
   function normalizeDailyState(source) { return source && typeof source === "object" ? source : {}; }
   const BACKUP_KEY = "ytv3:backup:latest";
+  const S15_BACKUP_KEY = "ytv3:backup:s15";
   const localStorage = { store: {}, setItem(k, v) { this.store[k] = v; }, getItem(k) { return this.store[k] ?? null; } };
   ${segmentMigrationBackup}
   function tapModeNormalConsumedBalls() { return null; }
@@ -3282,7 +3391,7 @@ assert.equal(legacyMachineContext.s2ResyncNoUser.segments.length, 1);
 assert.equal(legacyMachineContext.s2ResyncNoUser.segments[0].endSpin, 110);
 assert.equal(legacyMachineContext.s2ResyncNoUser.segments[0].holdSpins, 3);
 assert.match(segmentMigrationBackup, /localStorage\.setItem\(BACKUP_KEY, raw\);/);
-assert.match(html, /if \(needsSegmentMigration\(parsed\)\) backupBeforeSegmentMigration\(raw\);\s*return normalizeData\(parsed\);/);
+assert.match(html, /if \(needsSegmentMigration\(parsed\)\) backupBeforeSegmentMigration\(raw\);\s*if \(needsStartMochidamaRepair\(parsed\)\) backupBeforeStartMochidamaRepair\(raw\);\s*return normalizeData\(parsed\);/);
 assert.match(normalizeData, /normalized\.segments = normalizeSessionSegments\(normalized\);\s*applySegmentIds\(normalized\);/);
 // S1 では保留を引かない（holdSpins は常に0で作る）
 assert.match(segmentBlock, /function blankSegment\(kind, overrides = \{\}\)[\s\S]*?holdSpins: 0,/);
@@ -4540,7 +4649,7 @@ assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerW
 assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerWinManual, true);
 assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWin, 108);
 assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWinManual, true);
-assert.equal(s11MigrationContext.migrated.version, 32);
+assert.equal(s11MigrationContext.migrated.version, 33);
 // 32以降のデータは二重変換しない
 assert.equal(s11MigrationContext.already32.presetSettings['umi-sp5'].netBallsPerWin, 130);
 assert.equal(s11MigrationContext.already32.presetSettings['agnes-pe'].netBallsPerWin, 108);

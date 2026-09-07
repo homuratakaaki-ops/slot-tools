@@ -1206,6 +1206,22 @@ B5 実測値:
 - B-2: 「区間ごとの内訳」を文字の羅列から表にした。列は 区間／起点／終点／回転数／消費玉／回転率で、現行の文字列と同じ情報を列へ割り振っただけ。値の算出（`segmentBreakdownRows()`）は変更しない。保留控除は各行の括弧書きをやめ、表の下に `回転数は残保留の控除後（②保留5・③保留5）` の1行でまとめる。区間が1つだけのセッションで表ごと省略する既存の挙動は維持する。
 - 6列になるため `.result-table.segments` で文字11px・余白4px/5pxに詰め、終点列だけ折り返しを許す。320px（モーダル内の実効幅264px）で表幅264px・横スクロールなし・セルの文字切れなしを headless Chrome の実測で確認した。
 
+## 89. S15 開始持ち玉と稼働中の持ち玉の分離
+
+- schema は 33 とする（32 → 33）。`startMochidama` が「打ち始めの持ち玉」ではなく「稼働中に最後に修正した時点の持ち玉」になっていたバグの修正。9/7の実戦データ37セッション中17件で、判定パネルへの入力（`startEv.mochidamaInput`）と保存値が食い違っていた。
+- 原因は `updateMochidamaBalanceWithUndo()`（大当たり登録画面の持ち玉入力）と `openBalanceEditForm()`（稼働中パネルの「修正」）が、どちらも `session.startMochidama = balanceStartValueForCurrent(...)` で開始値を逆算・上書きしていたこと。逆算式は `現在値 + 持ち玉投入合計` なので、大当たり後に台表示へ合わせるだけで開始持ち玉が出玉ぶん膨らむ。
+- 対処として **`startMochidama`（打ち始めの持ち玉。以後不変）と `currentMochidama`（稼働中の持ち玉の起点）を別フィールドに分けた。** 稼働中の残高修正はすべて `currentMochidama` に載せる。書き込み先の分岐は `balanceCurrentKey(key)` の1箇所だけに置く。
+- `deriveBalances()` の持ち玉は `mochidamaBaseValue(session)`（`currentMochidama` があればそれ、無ければ `startMochidama`）から `持ち玉投入合計` を引く。表示上の現在持ち玉は移行前と変わらない。
+- 収支側（`playerInvestedBalls()` → 実収支・貯玉引出）と投入玉側（`deriveSession()` の `startingBalls`、`runningNormalInputBalls()`、`tapModeNormalBaselineBalls()`、`investmentSnapshot()`）の参照先は `startMochidama` のまま変えない。もともと「開始時点でいくら持っていたか」を必要とする箇所で、汚染された値を渡していたのが問題だった。
+- **区間モデル側も同じ値で汚染されていた。** `persist()` が毎回 `resyncSessionSegments()` を通し、`syncSegmentEdges()` / `buildSessionSegments()` が `segments[0].startTrackedBalls` を `startMochidama` から作り直すため。したがって区間は復元の根拠に使えない。なお `startTrackedBalls` は現状どの計算にも使われていない記録専用の値なので、汚染による計算面の実害は無かった。
+- 移行（schema 33 未満）の復元順は次の3段。修復前の値は `currentMochidama` として残し、移行前に見えていた持ち玉を捨てない。
+  1. 台移動の引き継ぎ元があるセッション … `引き継ぎ元の終了合計玉 + 残保留`（`finalMochidamaForCarryover()` と同じ式）。どちらも持ち玉修正では動かないので再計算できる
+  2. 打ち始め判定パネルの入力 `startEv.mochidamaInput` … 打ち始めに1度だけ保存され、以後変更されない
+  3. どちらも無ければ現行値を維持する
+- 移行前データは `ytv3:backup:s15` へ1度だけ退避する。`ytv3:backup:latest` は `persist()` のたびに上書きされるため移行前スナップショットには使えない。
+- 記録の修正画面で開始持ち玉を直したときは、`shiftedCurrentMochidama()` で `currentMochidama` を同じ差分だけ動かす。稼働中の残高修正で積んだ補正（`currentMochidama − startMochidama`）は保つ。
+- 検算（headless Chrome の実表示・実ボタン操作）: パーソナル店・終了合計玉12,000＋残保留84・現金3,000円で、汚染時の投資玉12,884個 → 実収支 −6,200円だったものが、復元後は投資玉0個 → **+45,336円**。稼働中パネルの「修正」で持ち玉を9,000に直しても `startMochidama` は2,000のまま、`currentMochidama` だけが9,500になる。
+
 ## アイデアメモ
 
 - スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。
