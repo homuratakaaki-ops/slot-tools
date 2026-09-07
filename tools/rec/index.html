@@ -229,7 +229,7 @@ const MACHINES={
     hits:[{label:"BIG",kind:"at",inline:true},{label:"REG",kind:"at",inline:true},{label:"CZ",kind:"cz"},{label:"AT",kind:"at"}],
     hitTriggers:null,
     stages:null,
-    zenchou:{outGroups:[]},
+    zenchou:{outGroups:[],stageLabel:"前兆ステージ"},
     parallel:[],
     czEndStd:{groups:[]},
     atStart:{groups:[]},
@@ -273,7 +273,9 @@ const MACHINES={
           {key:"screen",label:"1枚絵",options:["エレオノール","最古の四人","ルシール＆アンジェリーナ","歯車","鳴海＆勝","エレオノール（笑顔）"]},
           {key:"voice",label:"ボイス",options:[
             ["私の名前はしろがね","デフォルト"],["人生はそういうものだよ","設定2否定"],["何を恐れることがある","設定3否定"],["俺をしろがねと呼びな","設定4否定"],["僕は僕さ","設定5否定"],
-            ["近づいてきているようです","スイカ残り3回以下"],["すぐそばまで来ているようです","スイカ残り1回"],["何かを感じます","次回 幕間以上"],["あるるかんがある限り〜","SHOW TIMEストック"],["女神が留守のようです","次回 AT直撃以上"],["あなたの運命が変わるかも〜","次回 AT＋上位"]]}
+            {l:"近づいてきているようです",h:"🍉残り3以下",set:{melonLeft:3,approx:true}},{l:"すぐそばまで来ているようです",h:"🍉残り1",set:{melonLeft:1}},
+            {l:"何かを感じます",h:"次回 幕間以上",set:{reward:"幕間以上"}},["あるるかんがある限り〜","SHOW TIMEストック"],
+            {l:"女神が留守のようです",h:"次回 AT以上",set:{reward:"AT以上"}},{l:"あなたの運命が変わるかも〜",h:"次回 AT＋上位",set:{reward:"AT＋上位"}}]}
         ]},
         afterAt:{hit:"幕間チャンス",trig:"AT後"},
         revive:{label:"SHOW TIME復活"},
@@ -287,7 +289,9 @@ const MACHINES={
           {key:"screen",label:"1枚絵",options:["エレオノール","最古の四人","ルシール＆アンジェリーナ","歯車","鳴海＆勝","エレオノール（笑顔）"]},
           {key:"voice",label:"ボイス",options:[
             ["私の名前はしろがね","デフォルト"],["人生はそういうものだよ","設定2否定"],["何を恐れることがある","設定3否定"],["俺をしろがねと呼びな","設定4否定"],["僕は僕さ","設定5否定"],
-            ["近づいてきているようです","スイカ残り3回以下"],["すぐそばまで来ているようです","スイカ残り1回"],["何かを感じます","次回 幕間以上"],["あるるかんがある限り〜","SHOW TIMEストック"],["女神が留守のようです","次回 AT直撃以上"],["あなたの運命が変わるかも〜","次回 AT＋上位"]]}
+            {l:"近づいてきているようです",h:"🍉残り3以下",set:{melonLeft:3,approx:true}},{l:"すぐそばまで来ているようです",h:"🍉残り1",set:{melonLeft:1}},
+            {l:"何かを感じます",h:"次回 幕間以上",set:{reward:"幕間以上"}},["あるるかんがある限り〜","SHOW TIMEストック"],
+            {l:"女神が留守のようです",h:"次回 AT以上",set:{reward:"AT以上"}},{l:"あなたの運命が変わるかも〜",h:"次回 AT＋上位",set:{reward:"AT＋上位"}}]}
         ]},
         afterAt:{hit:"運命の一劇",trig:"上位AT後"},
         revive:null,
@@ -295,8 +299,7 @@ const MACHINES={
       }
     ],
     stages:{
-      options:[["フウ屋敷／仲町サーカス","デフォルト"],["才賀善治屋敷 夕方","高確示唆"],["訪れし者","本前兆期待"]],
-      sub:{label:"ワイプ演出（任意）",options:["なし","スポットライトのみ","＋あるるかんシルエット","＋あるるかんアップ"]}
+      options:[["フウ屋敷／仲町サーカス","デフォルト"],["才賀善治屋敷 夕方","高確示唆"],["訪れし者","本前兆期待"]]
     },
     zenchou:{outGroups:[
       {key:"x",label:"最終幕（任意）",options:["白","青","緑","赤","最終幕"]},
@@ -310,8 +313,17 @@ const MACHINES={
     }],
     extras:[
       {type:"melonLeft",label:"🍉残り",title:"🍉残り回数の表示"},
-      {type:"select",label:"セリフ",title:"セリフ示唆",thenMelonLeft:true,
-        groups:[{key:"serif",label:"セリフ",options:["ピエロ：あと一歩","ピエロ：楽しみな時間","ピエロ：次の運命盤は","ピエロ：邪悪な気配","エレオノール（通常C）","アンジェリーナ（通常D）","フランシーヌ（通常D）"],required:true}]}
+      {type:"select",label:"セリフ",title:"セリフ示唆",
+        groups:[{key:"serif",label:"セリフ",required:true,options:[
+          {l:"ピエロ：あと一歩",h:"🍉残り1",set:{melonLeft:1}},
+          {l:"ピエロ：楽しみな時間",h:"次回 幕間以上",set:{reward:"幕間以上"}},
+          {l:"ピエロ：次の運命盤は",h:"次回 AT以上",set:{reward:"AT以上"}},
+          {l:"ピエロ：邪悪な気配",h:"次回 AT＋上位",set:{reward:"AT＋上位"}},
+          {l:"エレオノール：フランスの",h:"通常C濃厚",set:{mode:"通常C濃厚"}},
+          {l:"エレオノール：幼い頃",h:"通常C濃厚",set:{mode:"通常C濃厚"}},
+          {l:"アンジェリーナ：主さんは",h:"通常D濃厚",set:{mode:"通常D濃厚"}},
+          {l:"フランシーヌ：いつかまた",h:"通常D濃厚",set:{mode:"通常D濃厚"}}
+        ]}]}
     ],
     // CZ失敗時の標準セット（幕間チャンス・運命の一劇・女神・劇場ジャッジ共通）
     czEndStd:{groups:[
@@ -395,6 +407,10 @@ function fixSession(c){
   if(!c._steps)c._steps=[];
   if(c.revive==null)c.revive=0;
   if(c.melonLeft===undefined)c.melonLeft=null;
+  if(c.melonApprox===undefined)c.melonApprox=false;
+  if(c.rewardHint===undefined)c.rewardHint=null;
+  if(c.modeHint===undefined)c.modeHint=null;
+  if(c.zenchou===true)c.zenchou="pre";
   if(!Array.isArray(c.follow))c.follow=[];
 }
 
@@ -429,12 +445,12 @@ function groupSheet(title,groups,onDone,opts){
       const w=mk("div","opts");
       if(g.hideOn===undefined&&groups[0].hideOthersOn&&g!==groups[0])hideable.push(lbl,w);
       g.options.forEach(o=>{
-        const label=Array.isArray(o)?o[0]:o, hint=Array.isArray(o)?o[1]:null;
+        const label=Array.isArray(o)?o[0]:(o&&o.l!=null?o.l:o), hint=Array.isArray(o)?o[1]:(o&&o.h!=null?o.h:null), setv=(o&&o.set)||null;
         const btn=mk("button",g.options.length>6?"q4":(g.options.length<=2?"q2":""),label);
         if(hint)btn.append(mk("small","",hint));
         btn.addEventListener("click",()=>{
-          if(sel[g.key]===label){delete sel[g.key];btn.classList.remove("on");return}
-          sel[g.key]=label;
+          if(sel[g.key]===label){delete sel[g.key];delete sel["_set_"+g.key];btn.classList.remove("on");return}
+          sel[g.key]=label;if(setv)sel["_set_"+g.key]=setv;else delete sel["_set_"+g.key];
           w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));
           btn.classList.add("on");
           if(g===groups[0]&&g.hideOthersOn){
@@ -470,12 +486,17 @@ el("kpOk").addEventListener("click",()=>{const v=int(kpVal);el("kp").classList.r
 function askNum(title,init,cb){el("kpTitle").textContent=title;kpVal=(init==null||init===0)?"":String(init);el("kpDisp").textContent=kpVal||"0";kpCb=cb;el("kp").classList.add("open")}
 
 /* ---------- 記録 ---------- */
+const SNAP_KEYS=["hit","mode","stage","prevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare"];
+function snapshot(c){const o={};SNAP_KEYS.forEach(k=>{o[k]=JSON.parse(JSON.stringify(c[k]===undefined?null:c[k]))});return o}
 function push(type,text,extra){
   const c=S.cur;
   const ev={id:uid(),at:nowISO(),type,text,realG:c.realG,lcdG:c.lcdG,c3:c.c3,mode:c.mode};
   if(extra)Object.assign(ev,extra);
+  if(c._snapBefore){ev.snap=c._snapBefore;c._snapBefore=null}
   c.events.push(ev); save(); render();
 }
+// 状態を変える操作の直前に呼ぶ。次の push がこのスナップショットを持つ
+function mark(){S.cur._snapBefore=snapshot(S.cur)}
 function gsText(ev){const r=ev.realG,l=ev.lcdG;if(r==null&&l==null)return"";if(r==null)return String(l);if(l==null||l===r)return String(r);return r+"/"+l}
 function gsHtml(ev){const r=ev.realG,l=ev.lcdG;if(r==null&&l==null)return"";if(r==null)return'<span class="lc">'+l+'</span>';if(l==null||l===r)return String(r);return r+'<span class="sl">/</span><span class="lc">'+l+'</span>'}
 
@@ -484,11 +505,13 @@ function render(){renderBadges();renderCounters();renderMoney();renderGrid();ren
 function renderBadges(){
   const c=S.cur,d=DEF(),b=el("badges");b.innerHTML="";
   b.append(mk("div","badge on",c.mode==="normal"?"通常時":(c.hit?c.hit.label+"中":c.mode.toUpperCase()+"中")));
-  if(c.zenchou){const z=mk("div","badge zen","前兆");z.addEventListener("click",zenchouEnd);b.append(z)}
+  if(c.zenchou){const z=mk("div","badge zen",c.zenchou==="stage"?"前兆ステージ":"前兆");z.addEventListener("click",openZenchou);b.append(z)}
   d.parallel.forEach(p=>{ if(c.parallel[p.key]){const x=mk("div","badge par",p.label+"中");x.addEventListener("click",()=>parallelEnd(p));b.append(x)} });
   if(c.hit&&c.hit.phase){const hd=curHitDef();const p=hd&&hd.phases&&hd.phases[c.hit.phase];if(p)b.append(mk("div","badge par",p.label+"中"))}
   if(c.hit){const h=mk("div","badge hit",c.hit.label+" 終了");h.addEventListener("click",hitEnd);b.append(h)}
-  if(c.melonLeft!=null){const ml=mk("div","badge",(c.melonLeft>0?"🍉残り"+c.melonLeft:"🍉規定到達"));ml.style.color="var(--lcd)";ml.addEventListener("click",()=>openMelonLeft());b.append(ml)}
+  if(c.melonLeft!=null){const ml=mk("div","badge",(c.melonLeft>0?"🍉残り"+c.melonLeft+(c.melonApprox?"以下":""):"🍉規定到達"));ml.style.color="var(--lcd)";ml.addEventListener("click",()=>openMelonLeft());b.append(ml)}
+  if(c.rewardHint){const rh=mk("div","badge","次回 "+c.rewardHint);rh.style.color="var(--pur)";b.append(rh)}
+  if(c.modeHint){const mh=mk("div","badge",c.modeHint);mh.style.color="var(--ok)";b.append(mh)}
   if(c.stage&&d.stages)b.append(mk("div","stg",c.stage));
 }
 function renderCounters(){
@@ -524,13 +547,13 @@ function makeGridButton(spec){
   if(spec==="rare")return mkb("レア役","pri",openRare);
   if(spec==="hit")return mkb("当選","hot",openHit);
   if(spec==="hitEnd")return mkb((c.hit?c.hit.label:"")+" 終了","hot",hitEnd);
-  if(spec==="zenchou")return mkb(c.zenchou?"前兆 抜け":"前兆",c.zenchou?"on":"",openZenchou);
+  if(spec==="zenchou")return mkb(zenchouLabel(),c.zenchou?"on":"",openZenchou);
   if(spec==="stage")return d.stages?mkb("ステージ","",openStage):null;
   if(spec==="counter3")return mkb(d.counter3.label+" +1","",()=>{c.c3++;push("c3",d.counter3.label+" "+c.c3+"に加算")});
   if(spec==="memo")return mkb("メモ","",openMemo);
   if(spec.startsWith("par:")){const p=d.parallel.find(x=>x.key===spec.slice(4));if(!p)return null;const on=!!c.parallel[p.key];return mkb(on?p.label+" 結果":p.label,"par"+(on?" on":""),()=>on?parallelEnd(p):parallelStart(p))}
   if(spec.startsWith("atx:")){const x=(d.atExtras||[])[+spec.slice(4)];if(!x)return null;return mkb(x.label,"",()=>openExtra(x))}
-  if(spec.startsWith("phase:")){const hd=curHitDef();const k=spec.slice(6);const p=hd&&hd.phases&&hd.phases[k];if(!p)return null;const on=c.hit.phase===k;return mkb(on?p.label+"中":p.label,"par"+(on?" on":""),()=>{if(on)return;c.hit.phase=k;push("phase",p.label+" 突入",{phase:k});toast(p.label)})}
+  if(spec.startsWith("phase:")){const hd=curHitDef();const k=spec.slice(6);const p=hd&&hd.phases&&hd.phases[k];if(!p)return null;const on=c.hit.phase===k;return mkb(on?p.label+"中":p.label,"par"+(on?" on":""),()=>{if(on)return;mark();c.hit.phase=k;push("phase",p.label+" 突入",{phase:k});toast(p.label)})}
   if(spec.startsWith("goto:")){const [_,label,trig]=spec.split(":");const t=hitDef(label);if(!t)return null;return mkb(label,"hot",()=>{if(!confirm(c.hit.label+" を終えて "+label+" に入りますか？"))return;leaveAt({hit:label,trig},"→ "+label)})}
   if(spec.startsWith("extra:")){const x=(d.extras||[])[+spec.slice(6)];if(!x)return null;return mkb(x.label,"",()=>openExtra(x))}
   return null;
@@ -599,7 +622,7 @@ function openRare(){
     }
     b.append(mk("div","lbl","引いた役"));
     b.append(optRow(d.rares.map(r=>({l:r.label,r})),it=>{
-      const r=it.r,cell=c.rare[r.key];let lab=r.label,cnt="";
+      mark();const r=it.r,cell=c.rare[r.key];let lab=r.label,cnt="";
       if(r.strong){const slot=strong?"s":"w";cell[slot]=(cell[slot]||0)+1;rareView=slot;lab=(strong?"強":"")+r.label;cnt="（"+cell[slot]+"回目）";push("rare",lab+cnt,{rareKey:r.key,slot})}
       else if(r.count===false){push("rare",lab,{rareKey:r.key,nocount:true})}
       else{cell.n=(cell.n||0)+1;cnt="（"+cell.n+"回目）";if(r.key==="melon"&&c.melonLeft!=null&&c.melonLeft>0)c.melonLeft--;push("rare",lab+cnt+(r.key==="melon"&&c.melonLeft!=null?"　残り"+c.melonLeft:""),{rareKey:r.key})}
@@ -636,7 +659,7 @@ function openHit(){
   groupSheet("当選",groups,sel=>{startHit(hitDef(sel.type),sel.trig||null)},{goLabel:"当選を記録"});
 }
 function startHit(h,trig,opts){
-  const d=DEF(),c=S.cur;opts=opts||{};
+  const d=DEF(),c=S.cur;opts=opts||{};mark();
   const target=h.enter?hitDef(h.enter):h;   // AT直撃 → AT の定義で開始
   // 契機とレア役の当選を紐づける（trackHit があれば、その当選のときだけ）
   if(trig){const t=d.rares.find(x=>x.track&&x.trigger===trig);if(t&&c.rare[t.key]){const ok=!t.trackHit||t.trackHit.includes(h.label);if(ok)c.rare[t.key].hit=(c.rare[t.key].hit||0)+1}}
@@ -675,44 +698,67 @@ function hitEnd(){
 }
 function czEndSheet(){
   const d=DEF(),c=S.cur,h=c.hit,def=curHitDef(),ce=czEndOf(def);
-  const groups=[{key:"result",label:"結果",options:["成功","失敗"],required:true,hideOthersOn:"成功"}].concat(ce.groups||[]);
-  let memo="",GF=null;
-  groupSheet(h.label+" 終了",groups,sel=>{
-    const fail=sel.result==="失敗";
-    let txt=h.label+" "+sel.result;
-    const rest=selText(ce.groups||[],sel);if(rest)txt+="　"+rest;
-    if(memo)txt+="："+memo;
-    if(fail&&d.counter3.incOnCzFail&&d.counter3.incOnCzFail.includes(h.label)){c.c3++;txt+="　"+d.counter3.label+" "+c.c3}
-    if(sel.stage)c.stage=sel.stage;
-    const prevTrig=h.trig;
-    c.hit=null;c.mode="normal";
-    push("hitEnd",txt,{hit:h.label,sel,result:sel.result});
-    if(fail)applyG(GF);else{c.realG=0;c.lcdG=0;c._steps=[]}
-    afterHitEnd();
-    closeSheet();
-    if(!fail&&ce.successToAt){
-      const at=hitDef(ce.successToAt);
-      // AT後の幕間チャンスからの成功は「引き戻し」として区別する
-      const trig=(prevTrig==="AT後")?"引き戻し":h.label;
-      if(at)startHit(at,trig);else{save();render()}
-    }else{save();render()}
-  },{goLabel:"終了を記録",after:(b)=>{
-    b.append(mk("div","lbl",ce.failNote||"メモ"));const ta=mk("textarea");ta.style.minHeight="56px";ta.addEventListener("input",()=>memo=ta.value);b.append(ta);
-    const before=b.children.length;
-    GF=gInputs(b,!!h.keepG);
-    // 成功時はG数欄を隠す（成功＝次の当選が始まるので0にする）
-    b._extraHide=Array.from(b.children).slice(before);
-  }});
+  sheet(h.label+" 終了",b=>{
+    b.append(mk("div","lbl","結果"));
+    const row=mk("div","opts");
+    const fail=mk("button","q2 hot","失敗");const succ=mk("button","q2","成功");succ.style.background="var(--ok)";succ.style.borderColor="var(--ok)";succ.style.color="#10240f";
+    row.append(fail,succ);b.append(row);
+    b.append(mk("div","hint",ce.successToAt?"成功はそのまま次に進みます。失敗は終了画面などを入れます。":"成功／失敗を選んでください。"));
+    // 成功：即記録して次へ
+    succ.addEventListener("click",()=>{
+      mark();
+      const prevTrig=h.trig;
+      c.hit=null;c.mode="normal";
+      push("hitEnd",h.label+" 成功",{hit:h.label,sel:{result:"成功"},result:"成功"});
+      c.realG=0;c.lcdG=0;c._steps=[];
+      afterHitEnd();
+      closeSheet();
+      if(ce.successToAt){const at=hitDef(ce.successToAt);const trig=(prevTrig==="AT後")?"引き戻し":h.label;if(at){startHit(at,trig);return}}
+      save();render();
+    });
+    // 失敗：終了画面などを入れてから記録
+    fail.addEventListener("click",()=>{
+      closeSheet();
+      const groups=(ce.groups||[]).slice();
+      let memo="",GF=null;
+      groupSheet(h.label+" 失敗",groups,sel=>{
+        mark();
+        let txt=h.label+" 失敗";const rest=selText(groups,sel);if(rest)txt+="　"+rest;if(memo)txt+="："+memo;
+        if(d.counter3.incOnCzFail&&d.counter3.incOnCzFail.includes(h.label)){c.c3++;txt+="　"+d.counter3.label+" "+c.c3}
+        if(sel.stage)c.stage=sel.stage;
+        c.hit=null;c.mode="normal";
+        push("hitEnd",txt,{hit:h.label,sel:Object.assign({result:"失敗"},sel),result:"失敗"});
+        applyG(GF);afterHitEnd();applyHints(sel);
+        closeSheet();save();render();
+      },{goLabel:"失敗を記録",after:(bb)=>{
+        bb.append(mk("div","lbl",ce.failNote||"メモ"));const ta=mk("textarea");ta.style.minHeight="56px";ta.addEventListener("input",()=>memo=ta.value);bb.append(ta);
+        GF=gInputs(bb,!!h.keepG);
+      }});
+    });
+  });
 }
-// 当選を抜けた時の共通処理：運命盤の回数を数え直す、🍉残り表示を消す
+// セリフ・ボイスの示唆を運命盤の手がかり／モード示唆として持つ
+function applyHints(sel){
+  const c=S.cur;let msg=[];
+  if(!sel)return "";
+  Object.keys(sel).filter(k=>k.startsWith("_set_")).forEach(k=>{
+    const v=sel[k];if(!v)return;
+    if(v.melonLeft!=null){c.melonLeft=v.melonLeft;c.melonApprox=!!v.approx;msg.push("🍉残り"+v.melonLeft+(v.approx?"以下":""))}
+    if(v.reward){c.rewardHint=v.reward;msg.push("次回 "+v.reward)}
+    if(v.mode){c.modeHint=v.mode;msg.push(v.mode)}
+  });
+  return msg.join("、");
+}
+// 当選を抜けた時の共通処理：運命盤の回数を数え直す、🍉残り・モード示唆を消す
 function afterHitEnd(){
   const d=DEF(),c=S.cur;
   d.parallel.forEach(p=>{if(p.resetCountOnHitEnd&&c.parCount)c.parCount[p.key]=0});
-  c.melonLeft=null;
+  c.melonLeft=null;c.melonApprox=false;c.modeHint=null;
+  // rewardHint は残す（CZ/ATをまたいでも報酬は引き継ぐ）。運命盤の発動で消える
 }
 // AT を抜けて次へ（afterAt）または通常時へ
 function leaveAt(after,extraTxt,sel,GF){
-  const d=DEF(),c=S.cur,h=c.hit;
+  const d=DEF(),c=S.cur,h=c.hit;mark();
   const reset=d.counter3.reset==="at";
   let t=h.label+" 終了";if(extraTxt)t+="　"+extraTxt;
   if(reset){c.c3=0;t+="　"+d.counter3.label+"リセット"}
@@ -720,6 +766,7 @@ function leaveAt(after,extraTxt,sel,GF){
   push("hitEnd",t,{hit:h.label,sel:sel||null});
   if(GF)applyG(GF);else{c.realG=0;c.lcdG=0;c._steps=[]}
   afterHitEnd();
+  if(sel)applyHints(sel);
   closeSheet();
   if(after){const nxt=hitDef(after.hit);if(nxt){startHit(nxt,after.trig);return}}
   save();render();
@@ -738,10 +785,10 @@ function atEndSheet(){
       const lbl=mk("div","lbl",g.label);if(!g.required)lbl.append(mk("span","hint","任意"));b.append(lbl);
       const w=mk("div","opts");
       g.options.forEach(o=>{
-        const label=Array.isArray(o)?o[0]:o,hint=Array.isArray(o)?o[1]:null;
+        const label=Array.isArray(o)?o[0]:(o&&o.l!=null?o.l:o),hint=Array.isArray(o)?o[1]:(o&&o.h!=null?o.h:null),setv=(o&&o.set)||null;
         const btn=mk("button",g.options.length>6?"q2":(g.options.length<=2?"q2":""),label);
         if(hint)btn.append(mk("small","",hint));
-        btn.addEventListener("click",()=>{if(sel[g.key]===label){delete sel[g.key];btn.classList.remove("on");return}sel[g.key]=label;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")});
+        btn.addEventListener("click",()=>{if(sel[g.key]===label){delete sel[g.key];delete sel["_set_"+g.key];btn.classList.remove("on");return}sel[g.key]=label;if(setv)sel["_set_"+g.key]=setv;else delete sel["_set_"+g.key];w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")});
         w.append(btn);
       });
       b.append(w);
@@ -758,7 +805,7 @@ function atEndSheet(){
       if(d.counter3.reset!=="at"){ // 汎用：周期は選んだ結果（0のときは何もしない）に従う
         let t=h.label+" 終了";const r=txt();if(r)t+="　"+r;
         if(reset){c.c3=0;t+="　"+d.counter3.label+"リセット"}
-        c.hit=null;c.mode="normal";push("hitEnd",t,{hit:h.label,sel});applyG(GF);afterHitEnd();save();render();closeSheet();return;
+        mark();c.hit=null;c.mode="normal";push("hitEnd",t,{hit:h.label,sel});applyG(GF);afterHitEnd();applyHints(sel);save();render();closeSheet();return;
       }
       leaveAt(nextAfter,txt(),sel,GF);
     };
@@ -770,30 +817,29 @@ function atEndSheet(){
     }
     if(revive){
       const rv=mk("button","sub",revive.label+"した（"+h.label+"継続）");rv.style.color="var(--ok)";
-      rv.addEventListener("click",()=>{c.revive=(c.revive||0)+1;let t=revive.label+"（"+c.revive+"回目）";const r=txt();if(r)t+="　終了画面："+r;push("revive",t,{sel});closeSheet();toast(revive.label+" "+c.revive+"回目")});
+      rv.addEventListener("click",()=>{mark();applyHints(sel);c.revive=(c.revive||0)+1;let t=revive.label+"（"+c.revive+"回目）";const r=txt();if(r)t+="　終了画面："+r;push("revive",t,{sel});closeSheet();toast(revive.label+" "+c.revive+"回目")});
       b.append(rv);
     }
   });
 }
 
-/* ---------- 前兆 ---------- */
+/* ---------- 前兆：前兆 → 前兆ステージ → 失敗（終了）の順に進む ---------- */
 function openZenchou(){
   const d=DEF(),c=S.cur;
-  if(c.zenchou){zenchouEnd();return}
-  sheet("前兆",b=>{b.append(optRow([{l:"前兆"},{l:"前兆ステージ"},{l:"前兆抜け"}],it=>{
-    if(it.l==="前兆抜け"){closeSheet();zenchouEnd();return}
-    c.zenchou=true;
-    if(it.l==="前兆ステージ"&&d.zenchou.stageLabel){c.prevStage=c.stage;c.stage=d.zenchou.stageLabel}
-    push("zenchou",it.l);closeSheet()
-  }))});
+  mark();
+  if(!c.zenchou){c.zenchou="pre";push("zenchou","前兆");toast("前兆");return}
+  if(c.zenchou==="pre"){c.zenchou="stage";c.prevStage=c.stage;c.stage=d.zenchou.stageLabel||"前兆ステージ";push("zenchou","前兆ステージ");toast("前兆ステージ");return}
+  zenchouEnd();
 }
+function zenchouLabel(){const z=S.cur.zenchou;return !z?"前兆":(z==="pre"?"前兆ステージへ":"前兆ステージ 失敗")}
 function zenchouEnd(){
   const d=DEF(),c=S.cur;
   const groups=d.zenchou.outGroups||[];
-  groupSheet("前兆抜け",groups,sel=>{
+  groupSheet("前兆ステージ 失敗",groups,sel=>{
+    mark();const wasStage=c.zenchou==="stage";
     c.zenchou=false;
-    if(sel.stage)c.stage=sel.stage;else if(c.stage===d.zenchou.stageLabel)c.stage=c.prevStage||null;
-    push("zenchouEnd","前兆抜け"+(selText(groups,sel)?"　"+selText(groups,sel):""),{sel});closeSheet();
+    if(sel.stage)c.stage=sel.stage;else if(wasStage)c.stage=c.prevStage||null;
+    push("zenchouEnd","前兆 失敗"+(selText(groups,sel)?"　"+selText(groups,sel):""),{sel});closeSheet();
   },{goLabel:"記録する"});
 }
 
@@ -803,7 +849,7 @@ function openStage(){
   const groups=[{key:"stage",label:"ステージ",options:d.stages.options,required:true}];
   if(d.stages.sub)groups.push({key:"sub",label:d.stages.sub.label,options:d.stages.sub.options});
   groupSheet("ステージ",groups,sel=>{
-    c.stage=sel.stage;
+    mark();c.stage=sel.stage;
     push("stage","ステージ："+sel.stage+(sel.sub?"　"+sel.sub:""),{sel});closeSheet();
   });
 }
@@ -812,16 +858,16 @@ function openStage(){
 function parallelStart(p){
   const c=S.cur;
   groupSheet(p.start.title,p.start.groups,sel=>{
-    c.parallel[p.key]=true;
+    mark();c.parallel[p.key]=true;
     c.parCount=c.parCount||{};c.parCount[p.key]=(c.parCount[p.key]||0)+1;
-    if(p.resetRare&&c.rare[p.resetRare]){const cell=c.rare[p.resetRare];if(cell.n!=null)cell.n=0;if(cell.w!=null)cell.w=0;if(cell.s!=null)cell.s=0;c.melonLeft=null}
+    if(p.resetRare&&c.rare[p.resetRare]){const cell=c.rare[p.resetRare];if(cell.n!=null)cell.n=0;if(cell.w!=null)cell.w=0;if(cell.s!=null)cell.s=0;c.melonLeft=null;c.melonApprox=false;c.rewardHint=null}
     push("parStart",p.label+" "+c.parCount[p.key]+"回目　"+selText(p.start.groups,sel)+(p.resetRare?"　🍉リセット":""),{par:p.key,sel,nth:c.parCount[p.key]});closeSheet();
   });
 }
 function parallelEnd(p){
   const c=S.cur;
   groupSheet(p.end.title,p.end.groups,sel=>{
-    c.parallel[p.key]=false;
+    mark();c.parallel[p.key]=false;
     push("parEnd",p.label+" "+selText(p.end.groups,sel),{par:p.key,sel});closeSheet();
   });
 }
@@ -830,7 +876,7 @@ function parallelEnd(p){
 function openMelonLeft(after){
   sheet("🍉残り回数の表示",b=>{
     b.append(optRow([{l:"残り1回",v:1},{l:"残り2回",v:2},{l:"残り3回",v:3}],it=>{
-      S.cur.melonLeft=it.v;push("extra","🍉残り表示 "+it.v+"回",{extra:"🍉残り",n:it.v});closeSheet();if(after)after();
+      mark();S.cur.melonLeft=it.v;S.cur.melonApprox=false;push("extra","🍉残り表示 "+it.v+"回",{extra:"🍉残り",n:it.v});closeSheet();if(after)after();
     }));
     b.append(mk("div","hint","🍉を引くごとに1つ減ります。運命盤で消えます。"));
   });
@@ -843,15 +889,8 @@ function openExtra(x){
   }
   groupSheet(x.title||x.label,x.groups,sel=>{
     const t=selText(x.groups,sel);if(!t){toast("何も選ばれていません");return}
-    push("extra",x.label+"："+t,{sel,extra:x.label});closeSheet();
-    if(x.thenMelonLeft){
-      sheet("🍉残りは分かりますか",b=>{
-        b.append(optRow([{l:"残り1回",v:1},{l:"残り2回",v:2},{l:"残り3回",v:3},{l:"分からない",v:null}],it=>{
-          if(it.v!=null){S.cur.melonLeft=it.v;push("extra","🍉残り表示 "+it.v+"回",{extra:"🍉残り",n:it.v})}
-          closeSheet();
-        },"q4"));
-      });
-    }
+    mark();const hint=applyHints(sel);
+    push("extra",x.label+"："+t+(hint?"　→ "+hint:""),{sel,extra:x.label});closeSheet();
   });
 }
 
@@ -861,6 +900,12 @@ function editEvent(id){editEventIn(S.cur,id,null)}
 el("bUndo").addEventListener("click",()=>{
   const c=S.cur,e=c.events;if(!e.length){toast("記録がありません");return}
   const last=e[e.length-1];
+  if(last.snap){
+    if(!confirm("「"+last.text+"」を取り消して、その前の状態に戻しますか？"))return;
+    SNAP_KEYS.forEach(k=>{c[k]=last.snap[k]});
+    if(c.zenchou===true)c.zenchou="pre";
+    e.pop();save();render();toast("取り消しました");return;
+  }
   if(last.type==="rare"&&last.rareKey&&!last.nocount){const cell=c.rare[last.rareKey];if(cell){if(last.slot)cell[last.slot]=Math.max(0,(cell[last.slot]||0)-1);else cell.n=Math.max(0,(cell.n||0)-1)}if(last.rareKey==="melon"&&c.melonLeft!=null)c.melonLeft++}
   if(last.type==="c3")c.c3=Math.max(0,c.c3-1);
   if(last.type==="revive")c.revive=Math.max(0,(c.revive||0)-1);
@@ -1222,7 +1267,7 @@ el("stStart").addEventListener("click",()=>{
     startRealG:int(el("stRealG").value)||0,startLcdG:int(el("stLcdG").value)||0,
     realG:int(el("stRealG").value)||0,lcdG:int(el("stLcdG").value)||0,c3,
     startNote:noteParts.join("　"),expected:int(el("stExp").value),totalStart:int(el("stTotal").value),totalEnd:null,
-    rare,zenchou:false,hit:null,mode:"normal",parallel:{},stage:null,revive:0,melonLeft:null,follow:[],events:[],_steps:[],
+    rare,zenchou:false,hit:null,mode:"normal",parallel:{},stage:null,revive:0,melonLeft:null,melonApprox:false,rewardHint:null,modeHint:null,follow:[],events:[],_steps:[],
     money:{cash:[],deposits:[],spends:[],replays:[],startMedal:int(el("stMedal").value)||0,startReplay:0,credit:null,endMedal:null,endReplay:0},
     endAt:null,endNote:""};
   ["stMachine","stRealG","stLcdG","stMedal","stNote","stExp","stTotal"].forEach(i=>el(i).value="");
