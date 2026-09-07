@@ -60,8 +60,18 @@
     ['wep','ﾗｯｼｭW①.②','ﾗｯｼｭW EP③','ﾗｯｼｭW EP④']
   ];
 
+  // 通常回転数の入力ソース。[id, チップ表記]
+  const GAME_SRC=[
+    ['myslo','マイスロで記録'],
+    ['real','実機の通常総ゲーム数で記録']
+  ];
+
   const DEF={
     games:0,
+    gameSrc:'myslo',
+    gamesMyslo:0,
+    gamesStart:0,
+    gamesNow:0,
     counts:{cz:0,at:0,direct:0,child:0},
     prologue:{ep1:0,ep2:0,ep3:0,ep4:0},
     rush:{ep1:0,ep2:0,ep3:0,ep4:0},
@@ -77,6 +87,23 @@
 
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function n(obj,key){return Number((obj||{})[key])||0;}
+  function num(v){return Math.max(0,Number(v)||0);}
+
+  // ---- 通常回転数（分母）----
+  // 分母の出典はこの3関数だけにする（§9-84）。1/x・カード・テンプレは必ず denom() を通す。
+  function gameSrcOf(S){return (S&&S.gameSrc)==='real'?'real':'myslo';}
+  function rawDenom(S){
+    if(gameSrcOf(S)==='real')return num(S.gamesNow)-num(S.gamesStart);
+    return num(S.gamesMyslo);
+  }
+  function denom(S){const v=rawDenom(S);return v>0?v:0;}
+  // 打ち始めより現在が小さいときだけ注意を出す。現在が未入力(0)の間は入力途中とみなす。
+  function denomWarn(S){return gameSrcOf(S)==='real'&&num(S.gamesNow)>0&&num(S.gamesNow)<num(S.gamesStart);}
+  // カードのメタ行はエンジンが S.games を直接読むため、描画前に必ず同期させる。
+  function syncGames(S){if(S)S.games=denom(S);return S?S.games:0;}
+  function rate(g,c){return (g>0&&c>0)?'1/'+(g/c).toFixed(1):'';}
+  function rateSuffix(g,c){const r=rate(g,c);return r?` / 現在 ${r}`:'';}
+  function countRate(g,c){const r=rate(g,c);return r?`${c}回 ${r}`:`${c}回`;}
   function countLine(v){return `${Number(v)||0}回`;}
   function detailItem(label,value,hot,text){
     const item={label,value:Number(value)||0,hot:!!hot};
@@ -144,13 +171,38 @@
     return hit?`確定 ${hit.label}(${rankText(hit.rank)}) ×${hit.value}`:'確定演出 なし';
   }
 
-  function pageHatsu(ctx){
-    const S=ctx.S,g=S.games;
+  // 通常回転数セクション。入力ソースをチップで選び、欄は両方DOMに残して表示だけ切り替える
+  // （切替で入力値を消さないため。値は state 側に持つので表示の切替だけで済む）。
+  function gameSection(ctx){
+    const S=ctx.S,src=gameSrcOf(S),g=denom(S);
+    const chips=GAME_SRC.map(v=>
+      `<button type="button" class="srcchip${v[0]===src?' on':''}" data-action="gameSrc" data-src="${v[0]}" data-label="通常回転数：${v[1]}" aria-pressed="${v[0]===src?'true':'false'}">${v[1]}</button>`
+    ).join('');
     return `<section class="sec">
-    <div class="sec-h">通常回転数</div>
-    <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
-    <div class="hint">通常時のゲーム数を入力してください。確認手段（アプリ等）と分母条件が未確認のため、現時点で1/x表示は行いません。</div>
-  </section>
+    <div class="sec-h">通常回転数<span class="sub">分母 ${g}G</span></div>
+    <style>
+      .srcchips{display:flex;gap:8px;margin-bottom:10px}
+      .srcchip{flex:1;min-height:48px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#cfc7da;font-weight:800;font-size:13px;padding:6px 8px;line-height:1.25}
+      .srcchip.on{border-color:#ff3d8f;background:rgba(255,61,143,.16);color:#fff}
+      .gsrc[hidden]{display:none}
+      .hint.warn{color:#ff9b9b}
+    </style>
+    <div class="srcchips" role="group" aria-label="通常回転数の入力ソース">${chips}</div>
+    <div class="gsrc" data-gsrc="myslo"${src==='myslo'?'':' hidden'}>
+      <div class="inrow"><label>マイスロの通常ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesMyslo" value="${S.gamesMyslo||''}" placeholder="0"></div>
+      <div class="hint">サミー公式アプリ『マイスロ』の通常ゲーム数を入力してください。着席時にログインしていれば、自分の遊技分だけが集計されるのでそのまま使えます。総ゲーム数ではなく通常ゲーム数を使用します。</div>
+    </div>
+    <div class="gsrc" data-gsrc="real"${src==='real'?'':' hidden'}>
+      <div class="inrow"><label>打ち始め時の通常総ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesStart" value="${S.gamesStart||''}" placeholder="0"></div>
+      <div class="inrow"><label>現在の通常総ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesNow" value="${S.gamesNow||''}" placeholder="0"></div>
+      ${denomWarn(S)?'<div class="hint warn">現在の通常総ゲーム数が打ち始めを下回っています。分母は0として扱い、確率表示は行いません。入力を確認してください。</div>':''}
+      <div class="hint">実機サブ画面の『通常総ゲーム数』を、打ち始めた時点と現在の2回確認して入力してください。差分があなたの遊技分になります。朝イチから打っている場合は打ち始め0で構いません。</div>
+    </div>
+  </section>`;
+  }
+  function pageHatsu(ctx){
+    const S=ctx.S,g=denom(S);
+    return `${gameSection(ctx)}
   <section class="sec">
     <div class="sec-h">規定ゲーム数（当選G数帯）<span class="sub">到達 ${ZONES.reduce((a,z)=>a+rateReach(S,z[0]),0)}回</span></div>
     <style>
@@ -184,12 +236,12 @@
   <section class="sec">
     <div class="sec-h">初当り<span class="sub">通常 ${g||0}G</span></div>
     <div class="cgrid">
-      ${ctx.crow('counts.cz','CZ(オポジット)','設1:1/198.7⇔設6:1/169.4',0)}
-      ${ctx.crow('counts.at','AT初当り','設1:1/328.8⇔設6:1/256.7',1)}
+      ${ctx.crow('counts.cz','CZ(オポジット)',`設1:1/198.7⇔設6:1/169.4${rateSuffix(g,n(S.counts,'cz'))}`,0)}
+      ${ctx.crow('counts.at','AT初当り',`設1:1/328.8⇔設6:1/256.7${rateSuffix(g,n(S.counts,'at'))}`,1)}
       ${ctx.crow('counts.direct','AT直撃','設1:1/22429.5⇔設6:1/6263.7（他設定は調査中）',1)}
       ${ctx.crow('counts.child','幼少期CZ(ファースト)','設1:1/3965.0⇔設6:1/2084.8（他設定は調査中）',1)}
     </div>
-    <div class="hint">AT直撃と幼少期CZは出現率が低いため、引けた場合の判別材料として扱ってください。</div>
+    <div class="hint">AT直撃と幼少期CZは出現率が低いため、引けた場合の判別材料として扱ってください。出現率が低く1日では分母が足りないため、この2項目は1/x表示を行いません。</div>
   </section>`;
   }
   function pageSuggest(ctx){
@@ -228,7 +280,7 @@
   // 未記録でも全行を出す（テンプレが記入枠として全行並ぶ形式のため）。
   // 例外はサミートロフィーのみで、出現時だけ見出しごと追記する。
   function tplText(ctx){
-    const S=ctx.S,g=S.games;
+    const S=ctx.S,g=denom(S);
     const L=['設定判別メモ｜スマスロ リコリス・リコイル',`通常 ${g||0}G`,'_______','','■規定ゲーム数'];
     ZONES.forEach(z=>L.push(`${z[1]}▶︎ ${rateWin(S,z[0])}/${rateReach(S,z[0])}`));
     L.push('','■変換');
@@ -293,8 +345,22 @@
     defaults:DEF,
     mergeKeys:['counts','prologue','rush','wep','trophy','rates','conv','art','atEnd'],
     sourceUrl:'https://chonborista.com/slot/sammy-slot/261631/',
-    normalizeState:out=>{
-      out.games=Math.max(0,Number(out.games)||0);
+    actions:{
+      // 入力ソースの切替。カウンタではないので減算モードでも同じ動作をする（値は消さない）。
+      gameSrc:(ctx,ds)=>{
+        const v=ds.src==='real'?'real':'myslo';
+        if(gameSrcOf(ctx.S)===v)return false;
+        ctx.S.gameSrc=v;
+        syncGames(ctx.S);
+        return '通常回転数：'+(GAME_SRC.find(x=>x[0]===v)||[,''])[1];
+      }
+    },
+    normalizeState:(out,src)=>{
+      out.gameSrc=gameSrcOf(out);
+      ['gamesMyslo','gamesStart','gamesNow'].forEach(k=>{out[k]=num(out[k]);});
+      // 旧版（単欄）の保存値はマイスロ欄へ引き継ぐ。storageKey は v1 のまま。
+      if((src||{}).gamesMyslo===undefined&&!out.gamesMyslo)out.gamesMyslo=num((src||{}).games);
+      out.games=denom(out);
       ['counts','prologue','rush','wep','trophy','art','atEnd'].forEach(key=>normalizeCounterObject(out,key));
       out.rates=Object.assign({},DEF.rates,out.rates||{});
       Object.keys(out.rates).forEach(k=>{out.rates[k]=Math.max(0,Number(out.rates[k])||0);});
@@ -305,7 +371,12 @@
       return out;
     },
     share:{title:'スマスロ リコリス・リコイル 設定判別メモ',hashtags:'#リコリコ #設定判別'},
-    pages:(ctx,pageCard)=>[()=>pageHatsu(ctx),()=>pageSuggest(ctx),pageCard],
+    // 描画のたびに分母を作り直す。エンジンはカードのメタ行で S.games を直接読むため、
+    // ページ生成（カードページ含む）より前にここで同期させておく。
+    pages:(ctx,pageCard)=>{
+      syncGames(ctx.S);
+      return [()=>pageHatsu(ctx),()=>pageSuggest(ctx),pageCard];
+    },
     template:tplText,
     compactTemplate:tplText,
     card:{
@@ -317,10 +388,12 @@
       detailDownloadName:'ricorico_check_detail.png',
       detail:detail,
       blocks:ctx=>{
-        const S=ctx.S;
+        const S=ctx.S,g=syncGames(S);
+        // 1/x が出せる項目は、回数を見出し側へ寄せて値を確率にする（枠が222pxしかないため）
+        const at=n(S.counts,'at'),cz=n(S.counts,'cz');
         return [
-          ['AT初当り',n(S.counts,'at')+'回'],
-          ['CZ当選',n(S.counts,'cz')+'回'],
+          [rate(g,at)?`AT初当り ${at}回`:'AT初当り',rate(g,at)||`${at}回`],
+          [rate(g,cz)?`CZ当選 ${cz}回`:'CZ当選',rate(g,cz)||`${cz}回`],
           ['トロフィー',sum(S.trophy)+'回'],
           ['確定演出','計'+certCount(S)+'回']
         ];
@@ -339,7 +412,7 @@
         ]
       }),
       bottom:ctx=>{
-        const S=ctx.S;
+        const S=ctx.S,g=syncGames(S);
         return {
           title:'サマリー',
           startY:760,
@@ -348,11 +421,11 @@
           columns:[
             {x:70,items:[
               row(bestCert(S),certCount(S),certCount(S)>0,'#ffc94d'),
-              row(`AT初当り ${n(S.counts,'at')}回`,n(S.counts,'at')),
-              row(`CZ当選 ${n(S.counts,'cz')}回`,n(S.counts,'cz')),
+              row(`AT初当り ${countRate(g,n(S.counts,'at'))}`,n(S.counts,'at')),
+              row(`CZ当選 ${countRate(g,n(S.counts,'cz'))}`,n(S.counts,'cz')),
               row(`AT直撃 ${n(S.counts,'direct')}回 / 幼少期CZ ${n(S.counts,'child')}回`,
                   n(S.counts,'direct')+n(S.counts,'child')),
-              row(`通常回転 ${S.games||0}G`,S.games||0)
+              row(`通常回転 ${g}G`,g)
             ]},
             {x:560,items:[
               row(`確定演出 計${certCount(S)}回`,certCount(S),certCount(S)>0,'#ffc94d'),
