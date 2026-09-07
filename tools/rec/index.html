@@ -76,10 +76,11 @@ textarea{min-height:80px;resize:vertical}
 .wide.dim{color:var(--dim)}
 .sheet{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.62);display:none;align-items:flex-end}
 .sheet.open{display:flex}
-.sheet .pane{width:100%;max-width:520px;margin:0 auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;max-height:88vh;display:flex;flex-direction:column}
+.sheet .pane{width:100%;max-width:520px;margin:0 auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;max-height:88vh;max-height:88dvh;display:flex;flex-direction:column}
 .sheet .sh{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .sheet .sh .st{flex:1;font-weight:700}
-.sheet .sb{padding:12px 14px 24px;overflow-y:auto}
+.sheet .sb{padding:12px 14px 24px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.sheet .sh{position:sticky;top:0;background:var(--panel);z-index:1}
 .sheet .sb .lbl{font-size:12px;color:var(--dim);margin:12px 0 6px}
 .sheet .sb .lbl:first-child{margin-top:0}
 .sheet .sb .lbl .hint{font-weight:400;opacity:.8;margin-left:6px}
@@ -252,7 +253,7 @@ const MACHINES={
     ],
     counter3:{label:"CZスルー",reset:"at",incOnCzFail:["機械仕掛けの女神"]},
     rares:[
-      {key:"melon",label:"🍉",hint:"運命盤で0"},
+      {key:"melon",label:"🍉",hint:"運命盤・CZ/AT終了で0",resetOnHitEnd:true,cutLog:true},
       {key:"cherryS",label:"強🍒",track:true,trigger:"強チェリー",trackHit:["機械仕掛けの女神"]},
       {key:"cherryW",label:"弱🍒",count:false},
       {key:"chance",label:"チャンス目",count:false},
@@ -664,6 +665,7 @@ function startHit(h,trig,opts){
   // 契機とレア役の当選を紐づける（trackHit があれば、その当選のときだけ）
   if(trig){const t=d.rares.find(x=>x.track&&x.trigger===trig);if(t&&c.rare[t.key]){const ok=!t.trackHit||t.trackHit.includes(h.label);if(ok)c.rare[t.key].hit=(c.rare[t.key].hit||0)+1}}
   const wasZen=c.zenchou;
+  if(c.zenchou==="stage"&&c.prevStage!==undefined)c.stage=c.prevStage;   // 前兆ステージ中の当選：ステージ表示を戻す
   c.zenchou=false;
   c.hit={label:target.label,via:h.label,kind:target.kind,keepG:!!target.keepG,phase:null,at:nowISO(),realG:c.realG,lcdG:c.lcdG,c3:c.c3,trig};
   c.mode=target.kind;
@@ -711,7 +713,7 @@ function czEndSheet(){
       c.hit=null;c.mode="normal";
       push("hitEnd",h.label+" 成功",{hit:h.label,sel:{result:"成功"},result:"成功"});
       c.realG=0;c.lcdG=0;c._steps=[];
-      afterHitEnd();
+      afterHitEnd(h.label+" 成功");
       closeSheet();
       if(ce.successToAt){const at=hitDef(ce.successToAt);const trig=(prevTrig==="AT後")?"引き戻し":h.label;if(at){startHit(at,trig);return}}
       save();render();
@@ -728,7 +730,7 @@ function czEndSheet(){
         if(sel.stage)c.stage=sel.stage;
         c.hit=null;c.mode="normal";
         push("hitEnd",txt,{hit:h.label,sel:Object.assign({result:"失敗"},sel),result:"失敗"});
-        applyG(GF);afterHitEnd();applyHints(sel);
+        applyG(GF);afterHitEnd(h.label+" 失敗");applyHints(sel);
         closeSheet();save();render();
       },{goLabel:"失敗を記録",after:(bb)=>{
         bb.append(mk("div","lbl",ce.failNote||"メモ"));const ta=mk("textarea");ta.style.minHeight="56px";ta.addEventListener("input",()=>memo=ta.value);bb.append(ta);
@@ -750,9 +752,16 @@ function applyHints(sel){
   return msg.join("、");
 }
 // 当選を抜けた時の共通処理：運命盤の回数を数え直す、🍉残り・モード示唆を消す
-function afterHitEnd(){
+function afterHitEnd(endedLabel){
   const d=DEF(),c=S.cur;
   d.parallel.forEach(p=>{if(p.resetCountOnHitEnd&&c.parCount)c.parCount[p.key]=0});
+  // 規定回数がCZ/ATでリセットされるレア役：打ち切りとしてログに残してから0に
+  d.rares.forEach(r=>{
+    if(!r.resetOnHitEnd)return;const cell=c.rare[r.key];if(!cell)return;
+    const n=cell.n||0;
+    if(n>0&&r.cutLog){const ev={id:uid(),at:nowISO(),type:"rareCut",text:r.label+" "+n+"回で打ち切り"+(endedLabel?"（"+endedLabel+"）":""),realG:c.realG,lcdG:c.lcdG,c3:c.c3,mode:c.mode,rareKey:r.key,n};c.events.push(ev)}
+    cell.n=0;
+  });
   c.melonLeft=null;c.melonApprox=false;c.modeHint=null;
   // rewardHint は残す（CZ/ATをまたいでも報酬は引き継ぐ）。運命盤の発動で消える
 }
@@ -765,7 +774,7 @@ function leaveAt(after,extraTxt,sel,GF){
   c.hit=null;c.mode="normal";
   push("hitEnd",t,{hit:h.label,sel:sel||null});
   if(GF)applyG(GF);else{c.realG=0;c.lcdG=0;c._steps=[]}
-  afterHitEnd();
+  afterHitEnd(h.label);
   if(sel)applyHints(sel);
   closeSheet();
   if(after){const nxt=hitDef(after.hit);if(nxt){startHit(nxt,after.trig);return}}
@@ -805,7 +814,7 @@ function atEndSheet(){
       if(d.counter3.reset!=="at"){ // 汎用：周期は選んだ結果（0のときは何もしない）に従う
         let t=h.label+" 終了";const r=txt();if(r)t+="　"+r;
         if(reset){c.c3=0;t+="　"+d.counter3.label+"リセット"}
-        mark();c.hit=null;c.mode="normal";push("hitEnd",t,{hit:h.label,sel});applyG(GF);afterHitEnd();applyHints(sel);save();render();closeSheet();return;
+        mark();c.hit=null;c.mode="normal";push("hitEnd",t,{hit:h.label,sel});applyG(GF);afterHitEnd(h.label);applyHints(sel);save();render();closeSheet();return;
       }
       leaveAt(nextAfter,txt(),sel,GF);
     };
@@ -860,8 +869,9 @@ function parallelStart(p){
   groupSheet(p.start.title,p.start.groups,sel=>{
     mark();c.parallel[p.key]=true;
     c.parCount=c.parCount||{};c.parCount[p.key]=(c.parCount[p.key]||0)+1;
-    if(p.resetRare&&c.rare[p.resetRare]){const cell=c.rare[p.resetRare];if(cell.n!=null)cell.n=0;if(cell.w!=null)cell.w=0;if(cell.s!=null)cell.s=0;c.melonLeft=null;c.melonApprox=false;c.rewardHint=null}
-    push("parStart",p.label+" "+c.parCount[p.key]+"回目　"+selText(p.start.groups,sel)+(p.resetRare?"　🍉リセット":""),{par:p.key,sel,nth:c.parCount[p.key]});closeSheet();
+    let fired="";
+    if(p.resetRare&&c.rare[p.resetRare]){const cell=c.rare[p.resetRare];const n=cell.n||0;fired="　🍉 "+n+"回目で発動";if(cell.n!=null)cell.n=0;if(cell.w!=null)cell.w=0;if(cell.s!=null)cell.s=0;c.melonLeft=null;c.melonApprox=false;c.rewardHint=null;sel._melonAt=n}
+    push("parStart",p.label+" "+c.parCount[p.key]+"回目　"+selText(p.start.groups,sel)+fired,{par:p.key,sel,nth:c.parCount[p.key],melonAt:sel._melonAt});closeSheet();
   });
 }
 function parallelEnd(p){
