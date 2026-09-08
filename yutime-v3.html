@@ -1964,6 +1964,9 @@
     // S17/B-2: 獲得期待値に実測回転率を使ってよい範囲。試算カード（clampTrialRate）と同じ帯にそろえる。
     const EARNED_EV_RATE_MIN = 1;
     const EARNED_EV_RATE_MAX = 50;
+    // S17b/3: 実測・参考を「使ってよい」とみなす最小の通常回転数。これ未満は母数が薄すぎる
+    //（例：2回転でヤメた記録の 0.04、10回転で当たった記録の 10.0）。
+    const EARNED_EV_MIN_SPINS = 100;
     const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
     const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
     const CONSUMED_BALLS_SOURCE_LABELS = { tray: "台上差", taps: "タップ合計" };
@@ -7409,9 +7412,23 @@
     // 時短抜けで始まって当選で閉じた区間を並べる。例外的な台や入力ミスの救済用。
     function holdCarrySegments(session) {
       const labels = segmentHistoryLabels(session);
-      return sessionSegments(session)
-        .map((segment, index) => ({ segment, label: labels[index]?.label || `区間${index + 1}` }))
-        .filter((entry) => entry.segment.startSource === "jitan" && entry.segment.endSource === "hit");
+      const segments = sessionSegments(session);
+      const machine = data.machines.find((item) => item.id === session?.machineId) || null;
+      const jitanCounters = new Set(jitanExitOptions(normalizeMachinePresetId(machine)).map((option) => option.counterSpin));
+      return segments
+        .map((segment, index) => ({ segment, index, label: labels[index]?.label || `区間${index + 1}` }))
+        .filter((entry) => entry.segment.kind === "normal" && entry.segment.endSource === "hit"
+          && startedByJitanExit(entry.segment, entry.index, segments, jitanCounters));
+    }
+
+    // S17b/2: 時短抜けで始まった区間。S7b以降は startSource で分かるが、それ以前の記録には印が無い。
+    // 起点がプリセットの時短抜けカウンターと一致し、直前の区間が当選で終わっていれば同じ扱いにする。
+    // 自動判定（detectHoldCarryHit）はこれを見ない。手動切り替えの一覧に載せる範囲だけを広げる。
+    function startedByJitanExit(segment, index, segments, jitanCounters) {
+      if (segment?.startSource === "jitan") return true;
+      if (index <= 0) return false;
+      if (!jitanCounters.has(normalizeNumber(segment?.startSpin))) return false;
+      return segments[index - 1]?.endSource === "hit";
     }
 
     function holdCarrySectionHtml(session) {
@@ -8437,12 +8454,9 @@
       // S17/B-2: 回転率はセッション全体の実測を全区間に使う。区間ごとの実測は
       // 少数のタップに引きずられて異常値になるため（例：342.3）。
       // 実測が出せないセッションだけ、開始期待値の想定回転率で代用して「想定」と出す。
-      // 実測が常識的な範囲（clampTrialRate と同じ 1〜50）から外れるセッションは「出せない」扱いにする。
-      // 例：2回転でヤメた記録（持ち玉11,462個・2回転＝0.04）をそのまま渡すとエンジンが桁違いの値を返す。
-      const measuredRate = normalizeNumber(stats?.rate);
-      const usedMeasured = measuredRate !== null && measuredRate >= EARNED_EV_RATE_MIN && measuredRate <= EARNED_EV_RATE_MAX;
-      const rate = usedMeasured ? measuredRate : normalizeNumber(startEv?.usedRate);
-      if (rate === null || rate <= 0) return null;
+      const rateInfo = earnedExpectationRate(session, targetMachine, stats, startEv);
+      if (!rateInfo) return null;
+      const rate = rateInfo.rate;
       // 持ち玉・再プレ・現金は開始期待値と同じ扱い（startEv の入力を流用）。区間ごとに変えない。
       const availableBalls = Math.max(0, normalizeNumber(startEv?.availableBalls) ?? 0);
       const segments = sessionSegments(session);
@@ -8472,11 +8486,30 @@
       return {
         totalYen,
         rate,
-        rateSource: usedMeasured ? "実測" : "想定",
+        rateSource: rateInfo.source,
         netBallsInfo,
         rows,
         byId: new Map(rows.map((row) => [row.segmentId, row.evYen]))
       };
+    }
+
+    // S17b/3: 獲得期待値に使う回転率は3段。①セッションの実測（母数が十分で常識的な範囲）
+    // → ②その台の参考回転率（machineStats。同じ条件で判定）→ ③開始期待値の想定回転率。
+    // 出典はそのまま合計行に出す（B94「判断の場に前提を置く」）。
+    function earnedExpectationRate(session, machine, derived, startEv) {
+      const measured = normalizeNumber(derived?.rate);
+      if (usableEarnedEvRate(measured, normalizeNumber(derived?.normalSpins))) return { rate: measured, source: "実測" };
+      const reference = machine ? machineStats(machine.id) : null;
+      const referenceRate = normalizeNumber(reference?.rate);
+      if (usableEarnedEvRate(referenceRate, normalizeNumber(reference?.spins))) return { rate: referenceRate, source: "参考" };
+      const assumed = normalizeNumber(startEv?.usedRate);
+      if (assumed !== null && assumed > 0) return { rate: assumed, source: "想定" };
+      return null;
+    }
+
+    function usableEarnedEvRate(rate, spins) {
+      if (rate === null || rate < EARNED_EV_RATE_MIN || rate > EARNED_EV_RATE_MAX) return false;
+      return spins !== null && spins >= EARNED_EV_MIN_SPINS;
     }
 
     function earnedExpectationYen(session, machine = null, derived = null) {
@@ -9832,6 +9865,23 @@
       return normalizeNumber(segment?.lastMeasuredBalls);
     }
 
+    // S17b/1: 遊タイム玉減り＝突入時玉数 ＋ 遊タイム区間内の投資 − 遊タイム区間の終点の持ち玉。
+    // 投資の範囲は従来式（phase:"yutime" の全投資）と同じ扱いにそろえ、区間の紐づけだけを根拠にする。
+    function segmentYutimeLoss(segment, session, store) {
+      if (!segment || segment.kind !== "yutime") return null;
+      const start = normalizeNumber(segment.startTrackedBalls) ?? normalizeNumber(session?.yutimeEnterBalls);
+      const end = normalizeNumber(segment.endRemainBalls);
+      if (start === null || end === null) return null;
+      return start + segmentInvestedBalls(session, segment.id, store) - end;
+    }
+
+    function segmentInvestedBalls(session, segmentId, store) {
+      if (!segmentId) return 0;
+      return (Array.isArray(session?.investments) ? session.investments : [])
+        .filter((item) => item.segmentId === segmentId)
+        .reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+    }
+
     // S7/B-5: 区間内に外から足した玉＝再プレイ投資＋現金投資（玉換算）。
     // 持ち玉タップは起点の持ち玉にすでに含まれているので足さない。
     function segmentAddedBalls(session, segmentId, store) {
@@ -9942,7 +9992,13 @@
       const hitBalls = session.hitRemainBalls === null && estimatedPayout !== null ? estimatedPayout : rawHitBalls;
       const averageRoundPayout = roundBasedPayout !== null && hasHit ? Math.round(roundBasedPayout / session.hitCount) : null;
       const yutimeEndBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : (estimatedRemainBalls !== null ? estimatedRemainBalls : session.endTotalBalls);
-      const rawYutimeLoss = session.hitVia === "yutime" && session.yutimeEnterBalls !== null && yutimeEndBalls !== null ? session.yutimeEnterBalls + yutimeInvestedBalls - yutimeEndBalls : null;
+      // S17b/1: 遊タイム玉減りは遊タイム区間の端点から出す。セッションのフラット項目
+      //（hitRemainBalls＝最後の当選時の残り持ち玉）は、当選が複数あると遊タイム区間の終点とは
+      // 別物になるため使わない。区間の終点が無い旧データだけ従来式へフォールバックする。
+      const segmentLoss = segmentYutimeLoss(segments.find((segment) => segment.kind === "yutime"), session, store);
+      const rawYutimeLoss = segmentLoss !== null
+        ? segmentLoss
+        : (session.hitVia === "yutime" && session.yutimeEnterBalls !== null && yutimeEndBalls !== null ? session.yutimeEnterBalls + yutimeInvestedBalls - yutimeEndBalls : null);
       const yutimeLoss = rawYutimeLoss !== null && rawYutimeLoss < 0 ? null : rawYutimeLoss;
       if (rawYutimeLoss !== null && rawYutimeLoss < 0) warnings.push("遊タイム玉減りの入力を確認");
       const externalInvestedBalls = session.investments.filter((item) => investmentSource(item) !== "mochidama").reduce((sum, item) => sum + investmentToBalls(item, store), 0);

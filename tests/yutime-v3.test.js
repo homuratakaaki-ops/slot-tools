@@ -3736,7 +3736,7 @@ const resultContext = vm.createContext({
     return Number.isFinite(n) ? n : null;
   },
   deriveSession(session) {
-    return { rate: session.__rate ?? 18.5, profitYen: session.__profitYen ?? -6381, consumedBalls: session.__consumedBalls ?? 1000, yutimeLoss: session.__yutimeLoss ?? 210 };
+    return { rate: session.__rate ?? 18.5, normalSpins: session.__normalSpins ?? 200, profitYen: session.__profitYen ?? -6381, consumedBalls: session.__consumedBalls ?? 1000, yutimeLoss: session.__yutimeLoss ?? 210 };
   },
   normalizeStartEv(value) {
     return value || null;
@@ -3786,6 +3786,12 @@ const resultContext = vm.createContext({
 new vm.Script(`
   const EARNED_EV_RATE_MIN = 1;
   const EARNED_EV_RATE_MAX = 50;
+  const EARNED_EV_MIN_SPINS = 100;
+  // S17b/3: 参考回転率は台ごとの集計。この文脈では機種オブジェクトに持たせたスタブを返す
+  function machineStats(machineId) {
+    const machine = data.machines.find((item) => item.id === machineId);
+    return machine && machine.__stats ? machine.__stats : { rate: null, spins: 0 };
+  }
   ${holdCarryBlock}
   ${resultBlock}
   // S17/B: 区間ごとの期待値はエンジンを叩くので、この文脈では起点ごとに固定値を返すスタブに差し替える。
@@ -4983,7 +4989,10 @@ assert.match(hitResetPrompt, /残保留当選（通常時なし）として、�
 assert.match(hitHistoryBlock, /\$\{holdCarrySectionHtml\(session\)\}/);
 assert.match(hitHistoryBlock, /data-toggle-holdcarry="\$\{escapeHtml\(segment\.id\)\}"/);
 assert.match(hitHistoryBlock, /function toggleSegmentHoldCarry\(session, segmentId\) \{[\s\S]*?segment\.holdCarryHit = !segmentIsHoldCarryHit\(segment\);/);
-assert.match(hitHistoryBlock, /\.filter\(\(entry\) => entry\.segment\.startSource === "jitan" && entry\.segment\.endSource === "hit"\)/);
+// S17b/2: 手動切り替えの一覧は startSource だけでなく、時短抜けカウンター一致でも拾う
+assert.match(hitHistoryBlock, /\.filter\(\(entry\) => entry\.segment\.kind === "normal" && entry\.segment\.endSource === "hit"\s*&& startedByJitanExit\(entry\.segment, entry\.index, segments, jitanCounters\)\);/);
+assert.match(hitHistoryBlock, /const jitanCounters = new Set\(jitanExitOptions\(normalizeMachinePresetId\(machine\)\)\.map\(\(option\) => option\.counterSpin\)\);/);
+assert.match(hitHistoryBlock, /function startedByJitanExit\(segment, index, segments, jitanCounters\) \{\s*if \(segment\?\.startSource === "jitan"\) return true;\s*if \(index <= 0\) return false;\s*if \(!jitanCounters\.has\(normalizeNumber\(segment\?\.startSpin\)\)\) return false;\s*return segments\[index - 1\]\?\.endSource === "hit";/);
 // B-4: リザルトの区間内訳
 assert.match(resultBlock, /const holdCarry = isNormal && segmentIsHoldCarryHit\(segment\);/);
 assert.match(resultBlock, /endLabel: holdCarry \? "残保留当選" : endLabel,/);
@@ -5505,26 +5514,26 @@ const mixed = s17EvApi.earnedExpectationForSession(s17Session({
     s17Segment("c", { startSpin: 25, startSource: "jitan", endSpin: 28, shooting: "before" }),
     s17Segment("d", { startSpin: 25, startSource: "jitan", endSpin: 40, endSource: "end", shooting: "before" })
   ]
-}), s17Machine, { rate: 20 });
+}), s17Machine, { rate: 20, normalSpins: 200 });
 assert.equal(mixed.totalYen, 3000, "起点0(+1,000)と起点50(+2,000)だけを足す");
 assert.deepEqual(JSON.parse(JSON.stringify(mixed.rows.map((row) => row.segmentId))), ["a", "b"]);
 assert.equal(mixed.rateSource, "実測");
 assert.equal(mixed.rate, 20);
 // 実測が出せないときは開始期待値の想定回転率で代用し、出典を「想定」にする
-const assumed = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: null });
+const assumed = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: null, normalSpins: 200 });
 assert.equal(assumed.rateSource, "想定");
 assert.equal(assumed.rate, 18.0);
 // 実測が常識的な範囲（1〜50）の外なら実測として採らない
-const outlier = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: 0.04 });
+const outlier = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: 0.04, normalSpins: 200 });
 assert.equal(outlier.rateSource, "想定");
-const tooFast = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: 60 });
+const tooFast = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: 60, normalSpins: 200 });
 assert.equal(tooFast.rateSource, "想定");
 // 実測も想定も無ければ獲得期待値は出さない
-assert.equal(s17EvApi.earnedExpectationForSession(s17Session({ startEv: null, segments: [s17Segment("a")] }), s17Machine, { rate: null }), null);
+assert.equal(s17EvApi.earnedExpectationForSession(s17Session({ startEv: null, segments: [s17Segment("a")] }), s17Machine, { rate: null, normalSpins: 200 }), null);
 // 通常区間が1つも残らなければ null
 assert.equal(s17EvApi.earnedExpectationForSession(s17Session({
   segments: [{ id: "y", kind: "yutime", startSpin: 249, endSpin: 324, endSource: "hit", holdSpins: 0, shooting: "started" }]
-}), s17Machine, { rate: 20 }), null);
+}), s17Machine, { rate: 20, normalSpins: 200 }), null);
 // 合計行の根拠テキスト
 assert.match(s17EvApi.earnedExpectationBasisText(mixed), /回転率20\.0・実測 ／ 1R108玉・実測平均/);
 // 区間内訳の期待値列。合計に入らない区間は null（表示は「—」）
@@ -5541,5 +5550,142 @@ assert.equal(s17Rows[1].evYen, null);
 // yutime-calc との文字列一致テスト（tests/yutime-calc.test.js）が本体。
 // ここでは S17 でエンジンブロックに触っていないことを、呼び出し口の形で固定する。
 assert.match(html, /const result = YUTIME_EXPECTATION_ENGINE\.calculate\(\{ presetId: preset\.id, currentSpin: engineSpin, rotationRate: rateInfo\.rate, availableBalls \}, settingsInfo\.settings\);/);
+
+
+// ===========================================================================
+// S17b: 遊タイム玉減りを区間の端点から／手動切り替えの対象拡大／回転率の出典3段
+// ===========================================================================
+
+// --- 1: 遊タイム玉減りを区間の端点から出す ---------------------------------
+assert.match(tapModeConsumedBlock, /function segmentYutimeLoss\(segment, session, store\)/);
+assert.match(tapModeConsumedBlock, /return start \+ segmentInvestedBalls\(session, segment\.id, store\) - end;/);
+assert.match(tapModeConsumedBlock, /const start = normalizeNumber\(segment\.startTrackedBalls\) \?\? normalizeNumber\(session\?\.yutimeEnterBalls\);\s*const end = normalizeNumber\(segment\.endRemainBalls\);\s*if \(start === null \|\| end === null\) return null;/);
+assert.match(deriveSession, /const segmentLoss = segmentYutimeLoss\(segments\.find\(\(segment\) => segment\.kind === "yutime"\), session, store\);/);
+// 終点が無い旧データは従来式へフォールバック
+assert.match(deriveSession, /const rawYutimeLoss = segmentLoss !== null\s*\? segmentLoss\s*: \(session\.hitVia === "yutime" && session\.yutimeEnterBalls !== null && yutimeEndBalls !== null \? session\.yutimeEnterBalls \+ yutimeInvestedBalls - yutimeEndBalls : null\);/);
+
+new vm.Script(`
+  const s17bYutime = (overrides) => ({
+    storeId: "s", status: "completed", consumedModel: "endpoints",
+    startSpin: 0, currentSpin: 324, startMochidama: 3818,
+    hitSpin: 324, hitCount: 2, hitVia: "yutime", hitTrackedBalls: null,
+    endTotalBalls: 3384, zanhoryuBalls: 0,
+    yutimeEnterSpin: 249, yutimeEnterBalls: 1535,
+    // 最後の当選時の残り持ち玉。遊タイム区間の終点とは別物
+    hitRemainBalls: 2312,
+    hits: [],
+    investments: [],
+    segments: [
+      { id: "n1", kind: "normal", source: "migrated", startSpin: 0, startAt: "10:00", holdSpins: 0,
+        startTrackedBalls: 3818, startBallsSource: "measured", startSource: null, holdCarryHit: null, shooting: "started",
+        lastMeasuredBalls: null, lastMeasuredSpin: null,
+        endSource: "yutime", endSpin: 249, endAt: null, endRemainBalls: null, endTrackedBalls: null },
+      { id: "y1", kind: "yutime", source: "user", startSpin: 249, startAt: "12:00", holdSpins: 0,
+        startTrackedBalls: 1535, startBallsSource: "measured", startSource: null, holdCarryHit: null, shooting: "started",
+        lastMeasuredBalls: null, lastMeasuredSpin: null,
+        endSource: "hit", endSpin: 324, endAt: null, endRemainBalls: 1500, endTrackedBalls: 1693 }
+    ],
+    ...overrides
+  });
+  // 9/7・台325と同じ形。1,535 − 1,500 ＝ 35玉（hitRemainBalls 2,312 は使わない）
+  globalThis.s17bLoss = deriveSession(s17bYutime()).yutimeLoss;
+  // 遊タイム区間内の投資は足す
+  globalThis.s17bLossWithTaps = deriveSession(s17bYutime({
+    investments: [{ source: "saipurei", amount: 500, phase: "yutime", spinAt: 300, time: "12:10", segmentId: "y1" }]
+  })).yutimeLoss;
+  // 遊タイム区間の外の投資は足さない
+  globalThis.s17bLossOutsideTaps = deriveSession(s17bYutime({
+    investments: [{ source: "saipurei", amount: 500, phase: "normal", spinAt: 100, time: "10:10", segmentId: "n1" }]
+  })).yutimeLoss;
+  // 終点が無い旧データは従来式（1,535 + 遊タイム投資 − 2,312）へ落ちる
+  const legacy = s17bYutime();
+  legacy.segments[1].endRemainBalls = null;
+  legacy.investments = [{ source: "saipurei", amount: 1250, phase: "yutime", spinAt: 300, time: "12:10", segmentId: "y1" }];
+  globalThis.s17bLossLegacy = deriveSession(legacy).yutimeLoss;
+`).runInContext(runningRateContext);
+assert.equal(runningRateContext.s17bLoss, 35, "1,535 − 1,500 ＝ 35玉");
+assert.equal(runningRateContext.s17bLossWithTaps, 535);
+assert.equal(runningRateContext.s17bLossOutsideTaps, 35);
+assert.equal(runningRateContext.s17bLossLegacy, 473, "終点が無ければ 1,535 + 1,250 − 2,312 ＝ 473 の従来式");
+
+// --- 2: 残保留当選の手動切り替えの対象拡大 ---------------------------------
+const s17bHistoryContext = vm.createContext({});
+new vm.Script(`
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+  function numberText(value, fallback = "-") { return value === null || value === undefined ? fallback : String(value); }
+  function escapeHtml(value) { return String(value ?? ""); }
+  function sessionSegments(session) { return session.segments || []; }
+  function normalizeMachinePresetId(machine) { return machine?.presetId || ""; }
+  // アグネスPE相当（時短15/40/90 + ST10 → カウンター25/50/100）
+  function jitanExitOptions() { return [{ jitanSpins: 15, counterSpin: 25 }, { jitanSpins: 40, counterSpin: 50 }, { jitanSpins: 90, counterSpin: 100 }]; }
+  const data = { machines: [{ id: "m1", presetId: "agnes-pe" }] };
+  ${holdCarryBlock}
+  ${section('function segmentHistoryLabels', 'function resolveHitSegmentId')}
+  ${section('function holdCarrySegments', 'function toggleSegmentHoldCarry')}
+  const seg = (id, startSpin, endSpin, endSource, overrides = {}) => ({
+    id, kind: "normal", startSpin, endSpin, endSource, holdSpins: 5,
+    startSource: null, shooting: "started", holdCarryHit: null, ...overrides
+  });
+  globalThis.s17bList = holdCarrySegments({
+    machineId: "m1",
+    segments: [
+      seg("s0", 0, 96, "hit"),                                   // 打ち始め区間（対象外）
+      seg("s1", 50, 202, "hit"),                                 // 時短抜けカウンター一致＋直前が当選
+      seg("s2", 25, 28, "hit"),                                  // 台325の区間9に相当
+      seg("s3", 50, 249, "yutime"),                              // 当選で終わっていない（対象外）
+      { id: "y", kind: "yutime", startSpin: 249, endSpin: 324, endSource: "hit", holdSpins: 0, shooting: "started" },
+      seg("s4", 50, 170, "hit"),                                 // 直前が遊タイム区間の当選
+      seg("s5", 50, 51, "hit"),                                  // 台325の区間13に相当
+      seg("s6", 50, 55, "end"),                                  // ヤメで終了（対象外）
+      seg("s7", 33, 90, "hit"),                                  // 起点がカウンター値でない（対象外）
+      seg("s8", 25, 40, "hit", { startSource: "jitan" })         // S7b以降の印がある区間
+    ]
+  }).map((entry) => entry.segment.id);
+`).runInContext(s17bHistoryContext);
+assert.deepEqual(JSON.parse(JSON.stringify(s17bHistoryContext.s17bList)), ["s1", "s2", "s4", "s5", "s8"]);
+
+// --- 3: 回転率の出典3段 ----------------------------------------------------
+assert.match(html, /const EARNED_EV_MIN_SPINS = 100;/);
+assert.match(resultBlock, /function earnedExpectationRate\(session, machine, derived, startEv\)/);
+assert.match(resultBlock, /if \(usableEarnedEvRate\(measured, normalizeNumber\(derived\?\.normalSpins\)\)\) return \{ rate: measured, source: "実測" \};/);
+assert.match(resultBlock, /const reference = machine \? machineStats\(machine\.id\) : null;/);
+assert.match(resultBlock, /if \(usableEarnedEvRate\(referenceRate, normalizeNumber\(reference\?\.spins\)\)\) return \{ rate: referenceRate, source: "参考" \};/);
+assert.match(resultBlock, /if \(assumed !== null && assumed > 0\) return \{ rate: assumed, source: "想定" \};/);
+assert.match(resultBlock, /function usableEarnedEvRate\(rate, spins\) \{\s*if \(rate === null \|\| rate < EARNED_EV_RATE_MIN \|\| rate > EARNED_EV_RATE_MAX\) return false;\s*return spins !== null && spins >= EARNED_EV_MIN_SPINS;/);
+
+const s17bMachine = { id: "m_s17b", storeId: "store1", presetId: "preset1", __evByStart: { 0: 1000 } };
+const s17bSession = (overrides) => ({
+  machineId: "m_s17b", storeId: "store1", startEv: { evYen: 1000, usedRate: 18.0, availableBalls: 2500 },
+  prevDayEndSpin: null,
+  segments: [{ id: "a", kind: "normal", startSpin: 0, endSpin: 200, endSource: "hit", holdSpins: 0, startSource: null, shooting: "started", holdCarryHit: null }],
+  ...overrides
+});
+const rateSourceOf = (derived, stats) => {
+  resultContext.data.machines = [{ ...s17bMachine, __stats: stats }];
+  const earned = resultContext.resultApi.earnedExpectationForSession(s17bSession(), resultContext.data.machines[0], derived);
+  return earned ? [earned.rateSource, earned.rate] : null;
+};
+// ①実測: 母数100回転以上かつ 1〜50
+assert.deepEqual(rateSourceOf({ rate: 20, normalSpins: 200 }, { rate: 17, spins: 500 }), ["実測", 20]);
+// 母数が足りなければ参考へ落ちる（台360・8/26が10回転で当たったケース）
+assert.deepEqual(rateSourceOf({ rate: 10, normalSpins: 10 }, { rate: 17, spins: 500 }), ["参考", 17]);
+// 実測が範囲外でも参考へ落ちる
+assert.deepEqual(rateSourceOf({ rate: 0.04, normalSpins: 200 }, { rate: 17, spins: 500 }), ["参考", 17]);
+// 参考も母数不足なら想定へ（台290・8/5は自分の1件しか無く2回転）
+assert.deepEqual(rateSourceOf({ rate: 0.04, normalSpins: 2 }, { rate: 0.04, spins: 2 }), ["想定", 18]);
+// 想定も無ければ獲得期待値を出さない
+resultContext.data.machines = [{ ...s17bMachine, __stats: { rate: 0.04, spins: 2 } }];
+assert.equal(
+  resultContext.resultApi.earnedExpectationForSession(s17bSession({ startEv: null }), resultContext.data.machines[0], { rate: 0.04, normalSpins: 2 }),
+  null
+);
+// 出典は合計行にそのまま出る
+resultContext.data.machines = [{ ...s17bMachine, __stats: { rate: 17, spins: 500 } }];
+const s17bReference = resultContext.resultApi.earnedExpectationForSession(s17bSession(), resultContext.data.machines[0], { rate: 10, normalSpins: 10 });
+assert.match(resultContext.resultApi.earnedExpectationBasisText(s17bReference), /回転率17\.0・参考 ／ 1R108玉・実測平均/);
 
 console.log('yutime-v3 tests passed');
