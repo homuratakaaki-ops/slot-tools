@@ -4249,7 +4249,7 @@
               </div>
               <div>
                 <span>回転率</span>
-                <strong>${liveRate !== null ? liveRate.toFixed(1) : "-"} /250玉</strong>
+                <strong>${liveRate !== null ? liveRate.toFixed(1) : "-"} /250玉${liveRate !== null ? escapeHtml(consumedBallsSourceNote(session, derived)) : ""}</strong>
                 ${yutimeMode ? `<small>遊タイム突入 ${numberText(session.yutimeEnterBalls, "-")}玉</small>` : ""}
               </div>
             </div>
@@ -6685,6 +6685,8 @@
         startAt: currentTime(),
         startTrackedBalls: measuredBalls !== null ? measuredBalls : deriveBalances(session).mochidama,
         startBallsSource: measuredBalls !== null ? "measured" : "tracked",
+        // S7b/B-2: 残保留当選の判定対象になるのは、時短抜けで始まったこの区間だけ
+        startSource: "jitan",
         holdSpins: presetHoldSpins(presetId)
       });
       segments.push(segment);
@@ -6830,6 +6832,7 @@
       const hitCounterSpin = hitCounterSpinForRecord(session);
       openModal("大当たり登録", "R数と獲得出玉を記録し、時短が終わったらカウンターの表示に合わせてください。選ばずに閉じると、現在回転数はそのままです。", `
         ${machineContextLine(session)}
+        ${holdCarryNoticeHtml(session)}
         <div class="field-row">
           <label>当選ごとのラウンド記録</label>
           <div class="hit-round-layout">
@@ -6911,6 +6914,15 @@
       });
     }
 
+    // S7b/B-4: 直前に閉じた区間が残保留当選なら、その場で明示する。
+    // 扱いの切り替えは大当たり履歴（holdCarrySectionHtml）から行う。
+    function holdCarryNoticeHtml(session) {
+      const segments = sessionSegments(session);
+      const last = segments[segments.length - 1];
+      if (!last || !segmentIsHoldCarryHit(last)) return "";
+      return '<p class="hint warn">残保留当選（通常時なし）として、前の連チャンの続きに記録します。扱いは「大当たり履歴」で切り替えられます。</p>';
+    }
+
     // S7/B-3: 時短抜けの起点になる持ち玉の初期値。
     // 現在の持ち玉＋この連チャンの獲得出玉合計。獲得出玉が無ければ現在の持ち玉のまま（空欄にしない）。
     function jitanExitStartBallsPreset(session) {
@@ -6963,7 +6975,8 @@
     function chainSegmentIdForHit(session, index = Infinity) {
       const hits = Array.isArray(session?.hits) ? session.hits : [];
       const target = index < hits.length ? hits[index] : null;
-      return target ? resolveHitSegmentId(session, target) : hitRecordSegmentId(session);
+      // S7b/B-3: これから追加する当選も、残保留当選の区間なら直前の連チャンとして累計する。
+      return target ? resolveHitSegmentId(session, target) : resolveSegmentChainId(session, hitRecordSegmentId(session));
     }
 
     // 同じ連チャン内で、index より前に記録された獲得出玉の合計。
@@ -7058,6 +7071,10 @@
     // S4/B-1: 当選がどの区間に属するか。記録済みの segmentId を優先し、
     // 区間より前に記録された旧データは当選カウンターで寄せる。
     function resolveHitSegmentId(session, hit) {
+      return resolveSegmentChainId(session, storedHitSegmentId(session, hit));
+    }
+
+    function storedHitSegmentId(session, hit) {
       const segments = sessionSegments(session);
       if (!segments.length) return null;
       const validIds = new Set(segments.map((segment) => segment.id).filter(Boolean));
@@ -7070,6 +7087,18 @@
         }
       }
       return segments[segments.length - 1].id;
+    }
+
+    // S7b/B-3: 残保留当選の区間には通常時が無いので、その当たりは直前の連チャンの続きとして数える。
+    // 当たりに保存する segmentId は打っていた区間そのままにして、寄せるのは参照するときだけにする
+    // （手動で「通常当選として扱う」に戻したとき、当たりが元の区間へ戻るようにするため）。
+    function resolveSegmentChainId(session, segmentId) {
+      if (!segmentId) return segmentId;
+      const segments = sessionSegments(session);
+      let index = segments.findIndex((segment) => segment.id === segmentId);
+      if (index < 0) return segmentId;
+      while (index > 0 && segmentIsHoldCarryHit(segments[index])) index -= 1;
+      return segments[index]?.id || segmentId;
     }
 
     // S4/B-1: 一覧の行。添字は保存配列の添字（修正・削除がそのまま使う）。
@@ -7157,11 +7186,18 @@
       openModal("大当たり履歴", "このセッションの当選です。新しいものが上。", `
         ${machineContextLine(session)}
         <div class="list">${body}</div>
+        ${holdCarrySectionHtml(session)}
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           ${back ? '<button id="hitHistoryBackBtn">戻る</button>' : ""}
         </div>
       `);
+      els.modalBody.querySelectorAll("[data-toggle-holdcarry]").forEach((button) => {
+        button.addEventListener("click", () => {
+          if (!toggleSegmentHoldCarry(session, button.dataset.toggleHoldcarry)) return;
+          openHitHistory(session, options);
+        });
+      });
       els.modalBody.querySelectorAll("[data-edit-hit]").forEach((button) => {
         button.addEventListener("click", () => openHitEditForm(session, Number(button.dataset.editHit), options));
       });
@@ -7176,6 +7212,55 @@
       });
       const backButton = byId("hitHistoryBackBtn");
       if (backButton) backButton.addEventListener("click", () => back());
+    }
+
+    // S7b/B-4: 残保留当選の扱いを手で切り替える場所。判定は区間ごとなので、当選1件ごとではなく
+    // 時短抜けで始まって当選で閉じた区間を並べる。例外的な台や入力ミスの救済用。
+    function holdCarrySegments(session) {
+      const labels = segmentHistoryLabels(session);
+      return sessionSegments(session)
+        .map((segment, index) => ({ segment, label: labels[index]?.label || `区間${index + 1}` }))
+        .filter((entry) => entry.segment.startSource === "jitan" && entry.segment.endSource === "hit");
+    }
+
+    function holdCarrySectionHtml(session) {
+      const entries = holdCarrySegments(session);
+      if (!entries.length) return "";
+      const rows = entries.map((entry) => {
+        const segment = entry.segment;
+        const active = segmentIsHoldCarryHit(segment);
+        const manual = segment.holdCarryHit === true || segment.holdCarryHit === false;
+        const played = normalizeNumber(segment.endSpin) !== null && normalizeNumber(segment.startSpin) !== null
+          ? normalizeNumber(segment.endSpin) - normalizeNumber(segment.startSpin)
+          : null;
+        return `
+          <div class="row-card">
+            <div class="row-card-head">
+              <div>
+                <strong>${escapeHtml(entry.label)}</strong>
+                <br><small>${numberText(segment.startSpin, "-")}→${numberText(segment.endSpin, "-")}（${numberText(played, "-")}回転／保留${Math.max(0, Number(segment.holdSpins || 0))}）／${active ? "残保留当選（通常時なし）" : "通常当選"}${manual ? "（手動）" : "（自動判定）"}</small>
+              </div>
+              <button class="small" data-toggle-holdcarry="${escapeHtml(segment.id)}">${active ? "通常当選にする" : "残保留当選にする"}</button>
+            </div>
+          </div>`;
+      }).join("");
+      return `
+        <div class="hit-history-group">
+          <div class="hit-history-group-title">残保留当選の扱い</div>
+          ${rows}
+          <p class="hint">時短抜けから残保留の数以内で当たった区間は、通常時なし（回転数0・消費玉0）として前の連チャンの続きに数えます。</p>
+        </div>
+      `;
+    }
+
+    function toggleSegmentHoldCarry(session, segmentId) {
+      const segment = sessionSegments(session).find((item) => item.id === segmentId);
+      if (!segment) return false;
+      segment.holdCarryHit = !segmentIsHoldCarryHit(segment);
+      session.updatedAt = nowIso();
+      if (!persistWithToast(segment.holdCarryHit ? "残保留当選として扱います" : "通常当選として扱います")) return false;
+      renderAll();
+      return true;
     }
 
     // S4/B-1: R種別・当選カウンター・この連チャンの累計出玉を直す。
@@ -7768,6 +7853,13 @@
       `;
     }
 
+    // S7b/A-3: 判断の場に前提を置く（B94）。回転率の分母が実測で確定しているか、
+    // タップ合計の目安かを1語で添える。旧セッション（consumedModel 無し）には出さない。
+    function consumedBallsSourceNote(session, derived) {
+      if (!usesEndpointConsumedModel(session)) return "";
+      return derived?.consumedBallsMeasured ? "（実測）" : "（目安）";
+    }
+
     function consumedBallsRateText(normalSpins, balls) {
       return normalSpins !== null && balls > 0 ? `${(normalSpins / balls * 250).toFixed(1)}` : "-";
     }
@@ -7953,10 +8045,13 @@
     // 打ち始めの持ち玉（startMochidama）を上書きすると、実収支・貯玉引出・履歴表示の土台が壊れる。
     function updateMochidamaBalanceWithUndo(session, value) {
       const previous = mochidamaBaseValue(session);
+      const previousMeasurement = segmentMeasurementSnapshot(session);
       session.currentMochidama = balanceStartValueForCurrent(session, "startMochidama", value);
+      recordSegmentMeasurement(session, value);
       session.updatedAt = nowIso();
       if (!persist()) {
         session.currentMochidama = previous;
+        restoreSegmentMeasurement(session, previousMeasurement);
         showToast("保存に失敗しました。容量を確認してください。", "error");
         return false;
       }
@@ -7964,12 +8059,43 @@
       showToast("持ち玉を更新しました", "success", {
         undo: () => {
           session.currentMochidama = previous;
+          // S7b/A-2: 持ち玉の取り消しでは途中測定点も元に戻す
+          restoreSegmentMeasurement(session, previousMeasurement);
           session.updatedAt = nowIso();
           persist();
           renderAll();
         }
       });
       return true;
+    }
+
+    // S7b/A-2: 開いている区間の持ち玉を実測値へ直したときは、その時点までの消費玉を確定できる。
+    // 区間には最新の測定点を1つだけ持たせ、当選・ヤメで終点が入ったらそちらが優先される。
+    // 旧セッション（consumedModel 無し）は記録しない。表示の出し方を変えないため。
+    function recordSegmentMeasurement(session, balls) {
+      if (!usesEndpointConsumedModel(session)) return null;
+      const value = normalizeNumber(balls);
+      if (value === null) return null;
+      const segment = openSegmentOf(session);
+      if (!segment) return null;
+      segment.lastMeasuredBalls = value;
+      segment.lastMeasuredSpin = normalizeNumber(session?.currentSpin) ?? normalizeNumber(session?.startSpin);
+      return segment;
+    }
+
+    function segmentMeasurementSnapshot(session) {
+      if (!usesEndpointConsumedModel(session)) return null;
+      const segment = openSegmentOf(session);
+      if (!segment) return null;
+      return { id: segment.id, balls: segment.lastMeasuredBalls, spin: segment.lastMeasuredSpin };
+    }
+
+    function restoreSegmentMeasurement(session, snapshot) {
+      if (!snapshot) return;
+      const segment = (Array.isArray(session?.segments) ? session.segments : []).find((item) => item.id === snapshot.id);
+      if (!segment) return;
+      segment.lastMeasuredBalls = snapshot.balls;
+      segment.lastMeasuredSpin = snapshot.spin;
     }
 
     function investmentTotals(session) {
@@ -8105,21 +8231,24 @@
           : segment.endSource === "end" ? "ヤメ"
           : "継続中";
         const holdSpins = Math.max(0, Number(segment.holdSpins || 0));
+        // S7b/B-3: 残保留当選の区間は通常時なし。回転数0・消費玉0で出し、回転率は出さない。
+        const holdCarry = isNormal && segmentIsHoldCarryHit(segment);
         const spins = isNormal ? segmentPlayedSpins(segment, session, preset) : null;
-        const consumed = isNormal
+        const consumed = holdCarry ? 0 : (isNormal
           ? (multiNormal ? segmentTapConsumedBalls(segment, session, store) : derived.consumedBalls)
-          : derived.yutimeLoss;
+          : derived.yutimeLoss);
         return {
           index: index + 1,
           kind: segment.kind,
           startLabel,
           startSpin: normalizeNumber(segment.startSpin),
-          endLabel,
+          endLabel: holdCarry ? "残保留当選" : endLabel,
           endSpin: normalizeNumber(segment.endSpin),
           holdSpins,
+          holdCarry,
           spins: spins !== null && spins < 0 ? null : spins,
           consumed: consumed === null || consumed === undefined ? null : Math.round(consumed),
-          rate: spins !== null && spins >= 0 && consumed > 0 ? spins / consumed * 250 : null
+          rate: holdCarry ? null : (spins !== null && spins >= 0 && consumed > 0 ? spins / consumed * 250 : null)
         };
       });
     }
@@ -8216,6 +8345,7 @@
       let normalRowIndex = 0;
       // S3b/G4 → S12/B-2: 同じ情報を表の列へ割り振るだけ。値の算出方法は変えない。
       const segmentHoldNotes = [];
+      const segmentHoldCarryMarks = [];
       const segmentBodyHtml = segmentRows.map((row) => {
         const startSpin = row.startSpin === null ? "-" : row.startSpin.toLocaleString("ja-JP");
         const endSpin = row.endSpin === null ? "-" : row.endSpin.toLocaleString("ja-JP");
@@ -8228,7 +8358,8 @@
         normalRowIndex += 1;
         const spins = row.spins === null ? "-" : row.spins.toLocaleString("ja-JP");
         const rate = row.rate === null ? "-" : row.rate.toFixed(1);
-        if (row.holdSpins > 0) segmentHoldNotes.push(`${mark}保留${row.holdSpins}`);
+        if (row.holdCarry) segmentHoldCarryMarks.push(mark);
+        else if (row.holdSpins > 0) segmentHoldNotes.push(`${mark}保留${row.holdSpins}`);
         return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${consumed}玉</td><td>${rate}</td></tr>`;
       }).join("");
       const segmentHtml = segmentRows.length ? `
@@ -8241,6 +8372,7 @@
             </table>
           </div>
           ${segmentHoldNotes.length ? `<p class="hint">回転数は残保留の控除後（${escapeHtml(segmentHoldNotes.join("・"))}）</p>` : ""}
+          ${segmentHoldCarryMarks.length ? `<p class="hint">${escapeHtml(segmentHoldCarryMarks.join("・"))}は残保留当選（通常時なし）。前の連チャンの続きとして数えます</p>` : ""}
         </div>` : "";
       const scopes = resultScopeSessions(session);
       const modelAggregate = resultAggregate(scopes.model);
@@ -8683,6 +8815,8 @@
         const value = normalizeNumber(byId("balanceValue").value);
         // S15: 持ち玉は currentMochidama へ書く。開始持ち玉は稼働中の残高修正では動かさない。
         session[balanceCurrentKey(key)] = value === null ? null : balanceStartValueForCurrent(session, key, value);
+        // S7b/A-2: 稼働中パネルの「修正」はその時点の実測値。開いている区間の途中測定点にする。
+        if (key === "startMochidama") recordSegmentMeasurement(session, value);
         session.updatedAt = nowIso();
         if (!persistWithToast("残高を修正しました")) return;
         closeModal();
@@ -9041,6 +9175,13 @@
         startTrackedBalls: null,
         // S7/B-2: startTrackedBalls が実測入力（打ち始め・時短抜け・遊タイム突入）か追跡値か
         startBallsSource: null,
+        // S7b/B-2: 区間の始まり方。"jitan" は時短抜けで始まった区間（残保留当選の判定対象）
+        startSource: null,
+        // S7b/B-3: 残保留当選かどうかの手動指定。null は自動判定
+        holdCarryHit: null,
+        // S7b/A-2: 途中測定点。開いている区間の持ち玉を実測値に修正したときの値と、そのときの回転数
+        lastMeasuredBalls: null,
+        lastMeasuredSpin: null,
         holdSpins: 0,
         endSource: null,
         endSpin: null,
@@ -9059,6 +9200,10 @@
         startAt: segment?.startAt || null,
         startTrackedBalls: normalizeNumber(segment?.startTrackedBalls),
         startBallsSource: normalizeStartBallsSource(segment?.startBallsSource),
+        startSource: segment?.startSource === "jitan" ? "jitan" : null,
+        holdCarryHit: segment?.holdCarryHit === true ? true : (segment?.holdCarryHit === false ? false : null),
+        lastMeasuredBalls: normalizeNumber(segment?.lastMeasuredBalls),
+        lastMeasuredSpin: normalizeNumber(segment?.lastMeasuredSpin),
         holdSpins: normalizeNumber(segment?.holdSpins) ?? 0,
         endSource: ["hit", "yutime", "end"].includes(segment?.endSource) ? segment.endSource : null,
         endSpin: normalizeNumber(segment?.endSpin),
@@ -9103,7 +9248,16 @@
       if (!previous.some((segment) => segment?.source === "user")) {
         session.segments = buildSessionSegments(session).map((segment) => {
           const prior = previous.find((item) => item?.kind === segment.kind);
-          return { ...segment, id: prior?.id || cryptoId("seg"), holdSpins: prior ? Number(prior.holdSpins || 0) : segment.holdSpins };
+          return {
+            ...segment,
+            id: prior?.id || cryptoId("seg"),
+            holdSpins: prior ? Number(prior.holdSpins || 0) : segment.holdSpins,
+            // S7b: 組み直しで消してはいけない区間の状態（途中測定点・残保留当選の手動指定・始まり方）
+            startSource: prior?.startSource === "jitan" ? "jitan" : segment.startSource,
+            holdCarryHit: prior && prior.holdCarryHit !== undefined ? prior.holdCarryHit : segment.holdCarryHit,
+            lastMeasuredBalls: prior ? normalizeNumber(prior.lastMeasuredBalls) : segment.lastMeasuredBalls,
+            lastMeasuredSpin: prior ? normalizeNumber(prior.lastMeasuredSpin) : segment.lastMeasuredSpin
+          };
         });
         applySegmentIds(session);
         return session;
@@ -9243,7 +9397,29 @@
       return normalizeNumber(session?.endSpin);
     }
 
+    // S7b/B-2: 時短抜け直後の残保留（既定5個）で当たった区間。実態は通常時0回転なので、
+    // カウンターの差だけで自動判定する（入力欄は増やさない）。境界は「≦」。
+    // 判定対象は時短抜けで始まった区間だけ。打ち始め区間・遊タイム区間は対象外。
+    function detectHoldCarryHit(segment) {
+      if (segment?.kind !== "normal" || segment?.startSource !== "jitan") return false;
+      if (segment?.endSource !== "hit") return false;
+      const start = normalizeNumber(segment?.startSpin);
+      const end = normalizeNumber(segment?.endSpin);
+      if (start === null || end === null) return false;
+      const played = end - start;
+      return played >= 0 && played <= Math.max(0, Number(segment?.holdSpins || 0));
+    }
+
+    // S7b/B-4: 自動判定は holdCarryHit が null のときだけ。true / false は手動指定（大当たり履歴）。
+    function segmentIsHoldCarryHit(segment) {
+      if (segment?.holdCarryHit === true) return true;
+      if (segment?.holdCarryHit === false) return false;
+      return detectHoldCarryHit(segment);
+    }
+
     function segmentPlayedSpins(segment, session, preset = null) {
+      // S7b/B-3: 残保留当選の区間は通常時なし。回転率の集計から外す。
+      if (segmentIsHoldCarryHit(segment)) return 0;
       const start = normalizeNumber(segment?.startSpin);
       const end = segmentEndSpinForRate(segment, session, preset);
       if (start === null || end === null) return null;
@@ -9259,14 +9435,24 @@
     // 起点・終点はどちらも実測（打ち始め入力／時短抜け入力／遊タイム突入入力／当選時の残り持ち玉）。
     // 起点が追跡値どまり（startBallsSource が "measured" でない）か、端点が欠けている区間は
     // null を返し、呼び出し側で従来式へフォールバックする。
+    // S7b/A-2: 終点がまだ無い区間でも、途中で持ち玉を実測値に直していればそこまでの消費玉を確定できる。
     function segmentEndpointConsumedBalls(segment, session, store) {
       if (!usesEndpointConsumedModel(session)) return null;
       if (segment?.startBallsSource !== "measured") return null;
       if (!segment?.id) return null;
       const start = normalizeNumber(segment?.startTrackedBalls);
-      const end = normalizeNumber(segment?.endRemainBalls);
+      const end = segmentMeasuredEndBalls(segment);
       if (start === null || end === null) return null;
       return start + segmentAddedBalls(session, segment.id, store) - end;
+    }
+
+    // S7b/A-2: 終点（当選時の残り持ち玉・ヤメの終了玉）が確定していればそれを使う。終点が優先。
+    // まだ開いている区間だけ、途中測定点（持ち玉を実測値へ修正したときの値）を終点の代わりに使う。
+    function segmentMeasuredEndBalls(segment) {
+      const end = normalizeNumber(segment?.endRemainBalls);
+      if (end !== null) return end;
+      if (segment?.endSpin !== null && segment?.endSpin !== undefined) return null;
+      return normalizeNumber(segment?.lastMeasuredBalls);
     }
 
     // S7/B-5: 区間内に外から足した玉＝再プレイ投資＋現金投資（玉換算）。
@@ -9280,6 +9466,8 @@
 
     function segmentConsumedBalls(segment, context) {
       const { session, store, tapMode, hasHit, inputBalls, candidates, legacyEndBalls, multiNormal } = context;
+      // S7b/B-3: 残保留当選の区間は通常時なし。消費玉0で回転率の集計から外す。
+      if (segmentIsHoldCarryHit(segment)) return 0;
       const endpointBalls = segmentEndpointConsumedBalls(segment, session, store);
       if (endpointBalls !== null) return endpointBalls;
       if (multiNormal) return segmentTapConsumedBalls(segment, session, store);
@@ -9349,6 +9537,15 @@
       // S7/B-5: 起点・終点の実測差で出せた区間が1つでもあれば、そのセッションは新式で扱う。
       // 出せなかった区間は従来式のままなので、混在しても表示値は区間ごとに正しい。
       const endpointConsumedApplied = normalSegments.some((segment) => segmentEndpointConsumedBalls(segment, session, store) !== null);
+      // S7b/A-3: 消費玉の出どころ。全ての通常区間が実測（終点または途中測定点）で出せていれば「実測」、
+      // 1つでもタップ合計に頼っていれば「目安」。残保留当選の区間は通常時なしなので数に入れない。
+      const consumedBallsMeasured = usesEndpointConsumedModel(session)
+        && normalSegments.length > 0
+        && normalSegments.every((segment) => segmentIsHoldCarryHit(segment) || segmentEndpointConsumedBalls(segment, session, store) !== null);
+      // S7b/B-3: 残保留当選の区間に投資が残っているときは入力ミスの可能性があるので警告する。
+      const holdCarryWithTaps = normalSegments.some((segment) => segmentIsHoldCarryHit(segment)
+        && segmentNormalInvestments(session, segment?.id).length > 0);
+      if (holdCarryWithTaps) warnings.push("残保留当選の区間に投資が記録されています");
       // 終点が起点より多い区間（入力ミスの可能性）は、合算が正でも消費玉を出さない。
       const negativeEndpointSegment = endpointConsumedApplied && segmentConsumedValues.some((value) => value !== null && value !== undefined && value < 0);
       const rawConsumedBalls = normalSpins !== null ? sumSegmentValues(segmentConsumedValues) : null;
@@ -9391,6 +9588,8 @@
         consumedBallsSource: normalizeConsumedBallsSource(session.consumedBallsSource),
         // S7/B-5: 新式で出した区間があるか。B89の乖離選択UIの出し分けに使う。
         consumedModelApplied: endpointConsumedApplied,
+        // S7b/A-3: 消費玉が実測で確定しているか（稼働中パネルの「（実測）／（目安）」表示）
+        consumedBallsMeasured,
         consumedBallsCandidates: tapConsumedCandidates && normalSpins !== null ? {
           tray: tapConsumedCandidates.tray !== null ? Math.round(tapConsumedCandidates.tray) : null,
           taps: tapConsumedCandidates.taps !== null ? Math.round(tapConsumedCandidates.taps) : null,

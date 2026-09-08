@@ -103,6 +103,8 @@ const roundCountFromRoundTypeBlock = section('function roundCountFromRoundType',
 const tapModeConsumedBlock = section('function tapModeNormalEndSnapshot', 'function deriveSession');
 // S7: 消費玉の算出方式（consumedModel）と区間の起点の由来（startBallsSource）の正規化
 const consumedModelBlock = section('function normalizeConsumedModel', 'function investmentSource');
+// S7b/B-2: 残保留当選の自動判定と手動指定
+const holdCarryBlock = section('function detectHoldCarryHit', 'function segmentPlayedSpins');
 const consumedBallsChoiceHtmlBlock = section('function consumedBallsChoiceHtml', 'function setConsumedBallsSource');
 const consumedBallsSourceEditorHtmlBlock = section('function consumedBallsSourceEditorHtml', 'function fieldHtml');
 const jitanExitBlock = section('function jitanExitOptions', 'function hitRoundSummaryHtml');
@@ -580,6 +582,7 @@ const appendHitRecordContext = vm.createContext({
 });
 new vm.Script(`
   ${normalizeHitsBlock}
+  ${holdCarryBlock}
   ${hitResetPrompt}
   globalThis.session = { hits: [], hitSpin: 75, segments: [{ id: 'seg1' }] };
   globalThis.add = (value) => {
@@ -637,6 +640,7 @@ const chainInputContext = vm.createContext({
 });
 new vm.Script(`
   ${normalizeHitsBlock}
+  ${holdCarryBlock}
   ${hitResetPrompt}
   globalThis.session = { hits: [], hitSpin: 75, segments: [{ id: 'chain1' }] };
   globalThis.add = (value, roundTypeId) => {
@@ -690,6 +694,7 @@ new vm.Script(`
   function renderAll() {}
   globalThis.__toasts = [];
   function showToast(message, kind, options) { globalThis.__toasts.push({ message, kind, options }); }
+  ${consumedModelBlock}
   ${s15BalanceBlock}
   globalThis.session = {
     id: "s_325",
@@ -1921,6 +1926,7 @@ new vm.Script(`
     return (item.source || item.type) === "cash" ? Number(item.amount || 0) / 4 : Number(item.amount || 0);
   }
   function usesTapInvestmentMode() { return true; }
+  ${holdCarryBlock}
   ${consumedModelBlock}
   ${tapModeConsumedBlock}
   ${runningPanelInputBallsBlock}
@@ -3266,6 +3272,7 @@ new vm.Script(`
   ${segmentMigrationBackup}
   function tapModeNormalConsumedBalls() { return null; }
   function yutimeEnterSpinForRate() { return null; }
+  ${holdCarryBlock}
   ${consumedModelBlock}
   ${segmentBlock}
   ${normalizeData}
@@ -3776,6 +3783,7 @@ const resultContext = vm.createContext({
   }
 });
 new vm.Script(`
+  ${holdCarryBlock}
   ${resultBlock}
   globalThis.resultApi = { longDateText, sessionResultSummary, resultAggregate, segmentBreakdownRows };
 `).runInContext(resultContext);
@@ -4006,6 +4014,7 @@ const hitHistoryContext = vm.createContext({
   }
 });
 new vm.Script(`
+  ${holdCarryBlock}
   ${hitHistoryBlock}
   const session = {
     segments: [
@@ -4264,6 +4273,7 @@ const s8Context = vm.createContext({
 new vm.Script(`
   ${normalizeHitsBlock}
   ${roundCountFromRoundTypeBlock}
+  ${holdCarryBlock}
   ${hitResetPrompt}
   ${ballsPerRoundHelpers}
 `).runInContext(s8Context);
@@ -4896,5 +4906,248 @@ assert.equal(Number(runningRateContext.s7TwoSegments.rate.toFixed(1)), 15.2);
 // 既存の b84 / b85 / b89 / b95 / S2 / S4 のアサート（consumedModel 無し）が
 // そのまま通ることが回帰の本体。ここでは同じ記録に新式を足したときだけ値が動くことを固定する。
 assert.notEqual(runningRateContext.s7Case2.consumedBalls, runningRateContext.s7Case6.consumedBalls);
+
+
+// ===========================================================================
+// S7b: 持ち玉修正での回転率再計算（A）／残保留当選の自動判定（B）
+// ===========================================================================
+
+const openSessionResult = section('function openSessionResult', 'function transferSummaryForSession');
+
+// --- A: 途中測定点 ----------------------------------------------------------
+assert.match(segmentBlock, /lastMeasuredBalls: null,\s*lastMeasuredSpin: null,/);
+assert.match(segmentBlock, /lastMeasuredBalls: normalizeNumber\(segment\?\.lastMeasuredBalls\),/);
+assert.match(tapModeConsumedBlock, /const end = segmentMeasuredEndBalls\(segment\);/);
+assert.match(tapModeConsumedBlock, /function segmentMeasuredEndBalls\(segment\)/);
+// 終点が入っている区間・すでに閉じた区間では途中測定点を使わない（終点優先）
+assert.match(tapModeConsumedBlock, /if \(end !== null\) return end;\s*if \(segment\?\.endSpin !== null && segment\?\.endSpin !== undefined\) return null;\s*return normalizeNumber\(segment\?\.lastMeasuredBalls\);/);
+// 区間の組み直しで途中測定点・残保留当選の指定・始まり方を落とさない
+assert.match(segmentBlock, /lastMeasuredBalls: prior \? normalizeNumber\(prior\.lastMeasuredBalls\) : segment\.lastMeasuredBalls,/);
+assert.match(segmentBlock, /startSource: prior\?\.startSource === "jitan" \? "jitan" : segment\.startSource,/);
+// 持ち玉の修正経路（稼働中パネルの「修正」と updateMochidamaBalanceWithUndo）が測定点を書く
+assert.match(updateMochidamaBalance, /const previousMeasurement = segmentMeasurementSnapshot\(session\);/);
+assert.match(updateMochidamaBalance, /recordSegmentMeasurement\(session, value\);/);
+assert.match(updateMochidamaBalance, /undo: \(\) => \{[\s\S]*?restoreSegmentMeasurement\(session, previousMeasurement\);/);
+assert.match(updateMochidamaBalance, /function recordSegmentMeasurement\(session, balls\) \{\s*if \(!usesEndpointConsumedModel\(session\)\) return null;/);
+assert.match(openBalanceEditForm, /if \(key === "startMochidama"\) recordSegmentMeasurement\(session, value\);/);
+// A-3: 出典の1語。旧セッションには出さない
+assert.match(html, /function consumedBallsSourceNote\(session, derived\) \{\s*if \(!usesEndpointConsumedModel\(session\)\) return "";\s*return derived\?\.consumedBallsMeasured \? "（実測）" : "（目安）";/);
+assert.match(renderRunning, /\$\{liveRate !== null \? escapeHtml\(consumedBallsSourceNote\(session, derived\)\) : ""\}/);
+assert.match(deriveSession, /const consumedBallsMeasured = usesEndpointConsumedModel\(session\)/);
+assert.match(deriveSession, /consumedBallsMeasured,/);
+
+const s7bNoteContext = vm.createContext({});
+new vm.Script(`
+  ${consumedModelBlock}
+  ${section('function consumedBallsSourceNote', 'function consumedBallsRateText')}
+  globalThis.s7bNote = {
+    measured: consumedBallsSourceNote({ consumedModel: "endpoints" }, { consumedBallsMeasured: true }),
+    taps: consumedBallsSourceNote({ consumedModel: "endpoints" }, { consumedBallsMeasured: false }),
+    legacy: consumedBallsSourceNote({}, { consumedBallsMeasured: false })
+  };
+`).runInContext(s7bNoteContext);
+assert.equal(s7bNoteContext.s7bNote.measured, "（実測）");
+assert.equal(s7bNoteContext.s7bNote.taps, "（目安）");
+assert.equal(s7bNoteContext.s7bNote.legacy, "");
+
+// --- B: 残保留当選 ----------------------------------------------------------
+assert.match(holdCarryBlock, /if \(segment\?\.kind !== "normal" \|\| segment\?\.startSource !== "jitan"\) return false;/);
+assert.match(holdCarryBlock, /if \(segment\?\.endSource !== "hit"\) return false;/);
+assert.match(holdCarryBlock, /return played >= 0 && played <= Math\.max\(0, Number\(segment\?\.holdSpins \|\| 0\)\);/);
+assert.match(holdCarryBlock, /function segmentIsHoldCarryHit\(segment\) \{\s*if \(segment\?\.holdCarryHit === true\) return true;\s*if \(segment\?\.holdCarryHit === false\) return false;\s*return detectHoldCarryHit\(segment\);/);
+assert.match(segmentBlock, /if \(segmentIsHoldCarryHit\(segment\)\) return 0;/);
+assert.match(startNormalSegmentBlock, /startSource: "jitan",/);
+// 保存する segmentId は打っていた区間のまま。寄せるのは参照するときだけ
+assert.match(hitHistoryBlock, /function resolveHitSegmentId\(session, hit\) \{\s*return resolveSegmentChainId\(session, storedHitSegmentId\(session, hit\)\);/);
+assert.match(hitHistoryBlock, /while \(index > 0 && segmentIsHoldCarryHit\(segments\[index\]\)\) index -= 1;/);
+assert.match(hitResetPrompt, /return target \? resolveHitSegmentId\(session, target\) : resolveSegmentChainId\(session, hitRecordSegmentId\(session\)\);/);
+assert.match(hitResetPrompt, /function hitRecordSegmentId\(session\) \{[\s\S]*?return target\?\.id \|\| null;/);
+assert.match(hitResetPrompt, /\$\{holdCarryNoticeHtml\(session\)\}/);
+assert.match(hitResetPrompt, /残保留当選（通常時なし）として、前の連チャンの続きに記録します。/);
+// B-4: 手動での切り替え
+assert.match(hitHistoryBlock, /\$\{holdCarrySectionHtml\(session\)\}/);
+assert.match(hitHistoryBlock, /data-toggle-holdcarry="\$\{escapeHtml\(segment\.id\)\}"/);
+assert.match(hitHistoryBlock, /function toggleSegmentHoldCarry\(session, segmentId\) \{[\s\S]*?segment\.holdCarryHit = !segmentIsHoldCarryHit\(segment\);/);
+assert.match(hitHistoryBlock, /\.filter\(\(entry\) => entry\.segment\.startSource === "jitan" && entry\.segment\.endSource === "hit"\)/);
+// B-4: リザルトの区間内訳
+assert.match(resultBlock, /const holdCarry = isNormal && segmentIsHoldCarryHit\(segment\);/);
+assert.match(resultBlock, /endLabel: holdCarry \? "残保留当選" : endLabel,/);
+assert.match(openSessionResult, /は残保留当選（通常時なし）。前の連チャンの続きとして数えます/);
+
+const s7bHoldCarryContext = vm.createContext({});
+new vm.Script(`
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+  ${holdCarryBlock}
+  const jitan = (overrides) => ({ kind: "normal", startSource: "jitan", endSource: "hit", holdSpins: 5, ...overrides });
+  globalThis.s7bHoldCarry = {
+    // C-4: 時短抜け25 → 当選28（hold5）
+    c4: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28 })),
+    // C-5: 時短抜け25 → 当選31（hold5）
+    c5: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 31 })),
+    // C-6: 時短抜け50 → 当選54、hold4。境界は「≦」
+    c6: segmentIsHoldCarryHit(jitan({ startSpin: 50, endSpin: 54, holdSpins: 4 })),
+    c6Over: segmentIsHoldCarryHit(jitan({ startSpin: 50, endSpin: 55, holdSpins: 4 })),
+    // C-7: 打ち始め区間（時短抜け由来でない）は対象外
+    c7: segmentIsHoldCarryHit({ kind: "normal", startSource: null, endSource: "hit", startSpin: 0, endSpin: 3, holdSpins: 5 }),
+    // 遊タイム区間・まだ閉じていない区間・ヤメで閉じた区間は対象外
+    yutime: segmentIsHoldCarryHit({ kind: "yutime", startSource: "jitan", endSource: "hit", startSpin: 900, endSpin: 902, holdSpins: 5 }),
+    open: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: null, endSource: null })),
+    ended: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28, endSource: "end" })),
+    // 手動指定は自動判定より優先する
+    manualOff: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28, holdCarryHit: false })),
+    manualOn: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 31, holdCarryHit: true }))
+  };
+`).runInContext(s7bHoldCarryContext);
+assert.equal(s7bHoldCarryContext.s7bHoldCarry.c4, true);
+assert.equal(s7bHoldCarryContext.s7bHoldCarry.c5, false);
+assert.equal(s7bHoldCarryContext.s7bHoldCarry.c6, true);
+assert.equal(s7bHoldCarryContext.s7bHoldCarry.c6Over, false);
+assert.equal(s7bHoldCarryContext.s7bHoldCarry.c7, false);
+assert.equal(s7bHoldCarryContext.s7bHoldCarry.yutime, false);
+assert.equal(s7bHoldCarryContext.s7bHoldCarry.open, false);
+assert.equal(s7bHoldCarryContext.s7bHoldCarry.ended, false);
+assert.equal(s7bHoldCarryContext.s7bHoldCarry.manualOff, false);
+assert.equal(s7bHoldCarryContext.s7bHoldCarry.manualOn, true);
+
+// --- C: 検算（deriveSession） ----------------------------------------------
+new vm.Script(`
+  const s7bSegment = (overrides) => ({
+    id: "seg_1", kind: "normal", source: "migrated",
+    startSpin: 50, startAt: "10:20", holdSpins: 5,
+    startTrackedBalls: 1620, startBallsSource: "measured",
+    endSource: null, endSpin: null, endAt: null, endRemainBalls: null, endTrackedBalls: null,
+    lastMeasuredBalls: null, lastMeasuredSpin: null,
+    ...overrides
+  });
+  const s7bBase = {
+    storeId: "s", status: "active", consumedModel: "endpoints",
+    startSpin: 50, currentSpin: 75, startMochidama: 1620,
+    hitSpin: null, hitCount: 0, hitVia: null, hitRemainBalls: null, hitTrackedBalls: null,
+    endTotalBalls: null, zanhoryuBalls: 0, yutimeEnterBalls: null, hits: []
+  };
+  // C-1: 起点1,620／追加なし／持ち玉を1,120に修正／現在75・起点50・hold5 → 20回転/500玉＝10.0（実測）
+  globalThis.s7bC1 = deriveSession({
+    ...s7bBase,
+    investments: [],
+    segments: [s7bSegment({ lastMeasuredBalls: 1120, lastMeasuredSpin: 75 })]
+  });
+  // C-2: 修正なし・タップ4回（500玉）→ 500玉/10.0（目安）
+  globalThis.s7bC2 = deriveSession({
+    ...s7bBase,
+    investments: Array.from({ length: 4 }, (unused, index) => ({ source: "mochidama", amount: 125, phase: "normal", spinAt: 55 + index * 5, time: "10:2" + index, segmentId: "seg_1" })),
+    segments: [s7bSegment()]
+  });
+  // C-3: 途中測定のあとに当選（終点120）→ 起点1,620−120＝1,500で確定（終点優先）
+  globalThis.s7bC3 = deriveSession({
+    ...s7bBase, status: "completed", currentSpin: 90, hitSpin: 90, hitCount: 1, hitVia: "normal", hitRemainBalls: 120,
+    hits: [{ roundTypeId: "r10", hitSpin: 90, at: "2026-09-08T10:00:00", segmentId: "seg_1" }],
+    investments: [],
+    segments: [s7bSegment({ lastMeasuredBalls: 1120, lastMeasuredSpin: 75, endSource: "hit", endSpin: 90, endRemainBalls: 120 })]
+  });
+  // C-4: 残保留当選の区間は回転数0・消費玉0で、回転率の集計から外れる
+  const s7bHoldCarrySession = {
+    storeId: "s", status: "completed", consumedModel: "endpoints",
+    startSpin: 0, currentSpin: 28, startMochidama: 2500,
+    hitSpin: 28, hitCount: 2, hitVia: "normal", hitRemainBalls: 1800, hitTrackedBalls: null,
+    endTotalBalls: null, zanhoryuBalls: 0, yutimeEnterBalls: null,
+    hits: [
+      { roundTypeId: "r10", hitSpin: 20, actualBalls: 1400, at: "2026-09-08T10:00:00", segmentId: "seg_a" },
+      { roundTypeId: "r10", hitSpin: 28, actualBalls: 1200, at: "2026-09-08T11:00:00", segmentId: "seg_b" }
+    ],
+    investments: [
+      { source: "mochidama", amount: 200, phase: "normal", spinAt: 10, time: "10:00", segmentId: "seg_a" }
+    ],
+    segments: [
+      { id: "seg_a", kind: "normal", source: "migrated", startSpin: 0, startAt: "10:00", holdSpins: 0,
+        startTrackedBalls: 2500, startBallsSource: "measured", startSource: null, holdCarryHit: null,
+        lastMeasuredBalls: null, lastMeasuredSpin: null,
+        endSource: "hit", endSpin: 20, endAt: null, endRemainBalls: 2300, endTrackedBalls: null },
+      { id: "seg_b", kind: "normal", source: "user", startSpin: 25, startAt: "10:40", holdSpins: 5,
+        startTrackedBalls: 3700, startBallsSource: "measured", startSource: "jitan", holdCarryHit: null,
+        lastMeasuredBalls: null, lastMeasuredSpin: null,
+        endSource: "hit", endSpin: 28, endAt: null, endRemainBalls: 1800, endTrackedBalls: null }
+    ]
+  };
+  globalThis.s7bHoldCarryDerived = deriveSession(s7bHoldCarrySession);
+  // 手動で「通常当選として扱う」に戻すと再計算される（3回転・1,900玉が加算される）
+  globalThis.s7bHoldCarryOffDerived = deriveSession({
+    ...s7bHoldCarrySession,
+    segments: s7bHoldCarrySession.segments.map((segment) => segment.id === "seg_b" ? { ...segment, holdCarryHit: false } : segment)
+  });
+  // 残保留当選の区間に投資が残っていれば警告する
+  globalThis.s7bHoldCarryTapsDerived = deriveSession({
+    ...s7bHoldCarrySession,
+    investments: [
+      ...s7bHoldCarrySession.investments,
+      { source: "mochidama", amount: 125, phase: "normal", spinAt: 26, time: "10:45", segmentId: "seg_b" }
+    ]
+  });
+`).runInContext(runningRateContext);
+// C-1: 途中測定点で 1,620 + 0 − 1,120 = 500玉。打ち出し 75−50−5 = 20回転 → 10.0（実測）
+assert.equal(runningRateContext.s7bC1.normalSpins, 20);
+assert.equal(runningRateContext.s7bC1.consumedBalls, 500);
+assert.equal(Number(runningRateContext.s7bC1.rate.toFixed(1)), 10.0);
+assert.equal(runningRateContext.s7bC1.consumedBallsMeasured, true);
+// C-2: 測定点が無ければタップ合計が目安になる。値は同じ500玉でも出典は「目安」
+assert.equal(runningRateContext.s7bC2.normalSpins, 20);
+assert.equal(runningRateContext.s7bC2.consumedBalls, 500);
+assert.equal(Number(runningRateContext.s7bC2.rate.toFixed(1)), 10.0);
+assert.equal(runningRateContext.s7bC2.consumedBallsMeasured, false);
+// C-3: 終点が入ったら測定点ではなく終点で確定する
+assert.equal(runningRateContext.s7bC3.consumedBalls, 1500);
+assert.equal(runningRateContext.s7bC3.consumedBallsMeasured, true);
+// 残保留当選: 区間②は回転数0・消費玉0。区間①の 20回転/200玉 だけが残る
+assert.equal(runningRateContext.s7bHoldCarryDerived.normalSpins, 20);
+assert.equal(runningRateContext.s7bHoldCarryDerived.consumedBalls, 200);
+assert.equal(Number(runningRateContext.s7bHoldCarryDerived.rate.toFixed(1)), 25.0);
+assert.equal(JSON.stringify(runningRateContext.s7bHoldCarryDerived.warnings), JSON.stringify([]));
+// 手動で通常当選に戻すと区間②（3回転・1,900玉）が集計に戻る
+assert.equal(runningRateContext.s7bHoldCarryOffDerived.normalSpins, 20);
+assert.equal(runningRateContext.s7bHoldCarryOffDerived.consumedBalls, 2100);
+// 残保留当選の区間に投資が残っていたら警告
+assert.equal(JSON.stringify(runningRateContext.s7bHoldCarryTapsDerived.warnings), JSON.stringify(["残保留当選の区間に投資が記録されています"]));
+
+// --- 連チャンの紐づけ（S4/C-4・S8と同じ切り出しに乗ること） -----------------
+const s7bChainContext = vm.createContext({});
+new vm.Script(`
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+  function sessionSegments(session) { return session.segments || []; }
+  ${holdCarryBlock}
+  ${normalizeHitsBlock}
+  ${section('function resolveHitSegmentId', 'function hitHistoryRows')}
+  ${section('function currentChainHits', 'function hitRoundSummaryHtml')}
+  const segments = [
+    { id: "seg_a", kind: "normal", startSource: null, endSource: "hit", startSpin: 0, endSpin: 20, holdSpins: 0 },
+    { id: "seg_b", kind: "normal", startSource: "jitan", endSource: "hit", startSpin: 25, endSpin: 28, holdSpins: 5 }
+  ];
+  const hits = [
+    { roundTypeId: "r10", hitSpin: 20, actualBalls: 1400, at: "2026-09-08T10:00:00", segmentId: "seg_a" },
+    { roundTypeId: "r10", hitSpin: 28, actualBalls: 1200, at: "2026-09-08T11:00:00", segmentId: "seg_b" }
+  ];
+  const holdCarrySession = { segments, hits };
+  const normalSession = { segments: segments.map((s) => s.id === "seg_b" ? { ...s, holdCarryHit: false } : s), hits };
+  globalThis.s7bChain = {
+    holdCarryIds: hits.map((hit) => resolveHitSegmentId(holdCarrySession, hit)),
+    holdCarryChain: currentChainHits(holdCarrySession).length,
+    normalIds: hits.map((hit) => resolveHitSegmentId(normalSession, hit)),
+    normalChain: currentChainHits(normalSession).length,
+    storedIds: hits.map((hit) => hit.segmentId)
+  };
+`).runInContext(s7bChainContext);
+// 残保留当選の当たりは前の連チャン（区間①）に寄る。保存された segmentId は区間②のまま
+assert.deepEqual(JSON.parse(JSON.stringify(s7bChainContext.s7bChain.holdCarryIds)), ["seg_a", "seg_a"]);
+assert.equal(s7bChainContext.s7bChain.holdCarryChain, 2);
+assert.deepEqual(JSON.parse(JSON.stringify(s7bChainContext.s7bChain.storedIds)), ["seg_a", "seg_b"]);
+// 手動で通常当選に戻すと当たりは区間②へ戻り、「今回の連チャン」は1回になる
+assert.deepEqual(JSON.parse(JSON.stringify(s7bChainContext.s7bChain.normalIds)), ["seg_a", "seg_b"]);
+assert.equal(s7bChainContext.s7bChain.normalChain, 1);
 
 console.log('yutime-v3 tests passed');
