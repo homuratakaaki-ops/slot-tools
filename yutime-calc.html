@@ -57,18 +57,13 @@
   .ct-note{font-size:10px;color:var(--text-dim);margin-left:4px}
   .ct-breakeven{margin-top:6px;border-top:1px solid var(--border);padding-top:6px;font-size:12px;color:var(--text-muted)}
   .ct-breakeven b{font-size:15px;font-weight:700;color:var(--gold-light)}
-  .ct-table-title{margin-top:8px;border-top:1px solid var(--border);padding-top:6px;font-size:11px;color:var(--gold)}
-  .ct-table-wrap{margin-top:4px;overflow-x:auto;-webkit-overflow-scrolling:touch}
-  .ct-table{border-collapse:collapse;font-size:11px;white-space:nowrap}
-  .ct-table th,.ct-table td{border:1px solid var(--border);padding:3px 5px;text-align:right;vertical-align:top}
-  .ct-table thead th{background:var(--surface2);color:var(--text-muted);font-weight:400;text-align:center}
-  .ct-table tbody th{background:var(--surface2);color:var(--text);font-weight:700;text-align:left}
-  .ct-table td b{display:block;font-size:12px;font-weight:700}
-  .ct-table td b.good{color:var(--green)}
-  .ct-table td b.warn{color:var(--gold-light)}
-  .ct-table td b.bad{color:var(--red)}
-  .ct-sub{display:block;font-size:10px;color:var(--text-muted);font-weight:400}
-  .ct-table-note{display:block;margin:4px 0 0;line-height:1.5;white-space:normal}
+  .ct-seat-title{font-size:11px;color:var(--gold);margin-bottom:3px}
+  .ct-judgment{font-size:11px;font-weight:700}
+  .ct-judgment.good{color:var(--green)}
+  .ct-judgment.warn{color:var(--gold-light)}
+  .ct-judgment.bad{color:var(--red)}
+  .chip.custom-on{border-color:var(--gold)}
+  input.custom-on{border-color:var(--gold);color:var(--gold-light)}
   details.basis-box{margin-top:3px}
   details.basis-box>summary{font-size:10px;color:var(--gold);cursor:pointer;list-style:none}
   details.basis-box>summary::-webkit-details-marker{display:none}
@@ -119,6 +114,8 @@
     <div class="row">
       <span class="label">交換率</span>
       <div class="chips" id="exchangeChips" style="margin-top:3px"></div>
+      <div class="field" style="max-width:170px;margin-top:5px"><input id="exchangeCustom" type="number" min="20" max="40" step="0.01" inputmode="decimal" placeholder="自由入力"><span class="unit">玉</span></div>
+      <div class="hint">自由入力は20〜40玉。小数も入れられます（例：28.01）</div>
     </div>
     <div class="row inline">
       <span class="label">玉の種類</span>
@@ -162,7 +159,9 @@
           <input id="closeTime" type="time">
         </div>
       </div>
+      <div class="chips" id="quitKindChips" style="margin-top:5px"></div>
       <div class="hint" id="remainHint">現在時刻は端末の時計から入れています。手で直せます</div>
+      <div class="hint">閉店時刻は常に「必ずやめる」として上限に効きます</div>
     </div>
   </div>
 
@@ -183,17 +182,18 @@
   <div class="result" id="continuousPanel" style="display:none">
     <div class="result-grid">
       <div><div class="cell-label">合計期待値</div><div class="cell-value" id="ctEvYen">—</div></div>
-      <div><div class="cell-label">時給</div><div class="cell-value" id="ctHourlyYen">—</div></div>
+      <div><div class="cell-label">時給 <span class="ct-judgment" id="ctJudgment">—</span></div><div class="cell-value" id="ctHourlyYen">—</div></div>
     </div>
     <div class="ct-lines">
+      <div>定常時給 <b id="ctSteady">—</b><span class="ct-note">（この台を打ち続けたときの時給）</span></div>
       <div>想定当たり <b id="ctHits">—</b>（初当り） ／ 遊タイム到達 <b id="ctYutime">—</b></div>
       <div>時短抜け <b id="ctExits">—</b></div>
       <div>時間切れの損失見込み <b id="ctCutoff">—</b><span class="ct-note">（打ちかけの投資が回収できない分）</span></div>
     </div>
-    <div class="ct-breakeven"><span id="ctSeatLabel">座れる残り時間：</span><b id="ctSeat">—</b></div>
-    <div class="ct-table-title">起点ごとの1サイクル（残り時間別）</div>
-    <div class="ct-table-wrap" id="ctTable"></div>
-    <div class="ct-note ct-table-note">判定：時給がしきい値以上なら打てる／期待値がプラスでしきい値未満なら微妙／期待値がマイナスなら打てない。時給は1サイクルの期待値÷消化時間。残り時間で打ち切られた場合の打ちかけの投資も含む</div>
+    <div class="ct-breakeven">
+      <div class="ct-seat-title">閉店の判断</div>
+      <div><span id="ctSeatLabel">座れる残り時間：</span><b id="ctSeat">—</b></div>
+    </div>
     <div class="notice" id="ctNotice"></div>
     <details class="basis-box"><summary>計算の内訳</summary><div class="basis" id="ctBasis"></div></details>
   </div>
@@ -472,9 +472,11 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     const EXCHANGE_OPTIONS = [
       { balls: 25, label: "等価(25玉)" },
       { balls: 28, label: "28玉" },
-      { balls: 30, label: "30玉" },
       { balls: 33, label: "33玉" }
     ];
+    // 交換率の自由入力が受け付ける範囲（玉／100円）
+    const EXCHANGE_MIN_BALLS = 20;
+    const EXCHANGE_MAX_BALLS = 40;
     const BALL_KIND_OPTIONS = [
       { id: "cash", label: "現金で打つ" },
       { id: "mochidama", label: "持ち玉で打つ" }
@@ -525,6 +527,12 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     ];
     const DEFAULT_SPEED = 250;
     const DEFAULT_CLOSE_TIME = "23:45";
+    // ヤメ予定の種類。閉店は種類を選ばせず常に「必ずやめる」
+    const QUIT_KIND_OPTIONS = [
+      { id: "soft", label: "打ちかけは消化" },
+      { id: "hard", label: "必ずやめる" }
+    ];
+    const DEFAULT_QUIT_KIND = "soft";
     // 「座れる残り時間」を探す刻みと上限
     const BREAKEVEN_STEP_MINUTES = 5;
     const BREAKEVEN_MAX_MINUTES = 360;
@@ -534,8 +542,6 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       for (let minutes = BREAKEVEN_STEP_MINUTES; minutes <= BREAKEVEN_MAX_MINUTES; minutes += BREAKEVEN_STEP_MINUTES) list.push(minutes);
       return list;
     })();
-    // 1サイクル表の残り時間（閉店リスク込み。時間切れなら打ちかけの投資は損失）
-    const TABLE_MINUTES = [30, 45, 60, 90, 120, 180];
     // 貸玉単価。1000円で250玉
     const CASH_YEN_PER_BALL = 1000 / 250;
     // 20,000試行のモンテカルロは数百ms掛かるので、入力が止まってから走らせる。
@@ -550,6 +556,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       rotationRate: null,
       payout: PRESETS[0].payoutDefault,
       exchangeBalls: EXCHANGE_OPTIONS[0].balls,
+      // 交換率の自由入力。値が入っていればチップより優先する
+      exchangeCustom: null,
       ballKind: BALL_KIND_OPTIONS[0].id,
       mochidamaBalls: null,
       saipureiBalls: null,
@@ -561,6 +569,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       nowTime: null,
       nowManual: false,
       quitTime: null,
+      // ヤメ予定の種類。soft＝打ちかけは消化してやめる（既定）／hard＝必ずやめる
+      quitKind: DEFAULT_QUIT_KIND,
       closeTime: DEFAULT_CLOSE_TIME,
       // 打ち切りモードの判定・やめるルールの閾値。?hourly= で変えられる。
       // 遊タイム狙いモードの判定は従来どおり HOURLY_THRESHOLD_YEN 固定
@@ -636,10 +646,30 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         + ` ／ 通常時${spinsPerHour.toLocaleString("ja-JP")}回転/h想定`;
     }
 
+    // 交換率は自由入力があればそちらを使う。チップは 25/28/33、自由入力は20〜40玉
+    function exchangeBallsFromState() {
+      const custom = numberOrNull(state.exchangeCustom);
+      return custom === null ? state.exchangeBalls : custom;
+    }
+
+    function yenPerBallFromState() {
+      return 100 / exchangeBallsFromState();
+    }
+
+    function exchangeMessage() {
+      const balls = exchangeBallsFromState();
+      if (balls === null || !Number.isFinite(balls) || balls < EXCHANGE_MIN_BALLS || balls > EXCHANGE_MAX_BALLS) {
+        return `交換率は${EXCHANGE_MIN_BALLS}〜${EXCHANGE_MAX_BALLS}玉で入力してください`;
+      }
+      return "";
+    }
+
     function missingMessage() {
       if (state.currentSpin === null || state.currentSpin < 0) return "現在回転数を入力してください";
       if (state.rotationRate === null || state.rotationRate <= 0) return "回転率を入力してください";
       if (state.payout === null || state.payout <= 0) return "出玉を入力してください";
+      const exchange = exchangeMessage();
+      if (exchange) return exchange;
       return "";
     }
 
@@ -673,13 +703,29 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
     }
 
-    // 打ち終わる時刻＝ヤメ予定と閉店の早いほう
+    function quitKindLabel() {
+      const option = QUIT_KIND_OPTIONS.find((row) => row.id === state.quitKind);
+      return option ? option.label : QUIT_KIND_OPTIONS[0].label;
+    }
+
+    // 打ち終わる予定の時刻＝ヤメ予定と閉店の早いほう。時給の分母もこの時刻までで測る
     function endTimeInfo() {
       const close = parseTimeMinutes(state.closeTime);
       const quit = parseTimeMinutes(state.quitTime);
-      if (quit !== null && (close === null || quit <= close)) return { minutes: quit, label: "ヤメ予定" };
-      if (close !== null) return { minutes: close, label: "閉店" };
+      if (quit !== null && (close === null || quit <= close)) {
+        return { minutes: quit, label: "ヤメ予定", kind: state.quitKind === "hard" ? "hard" : "soft" };
+      }
+      if (close !== null) return { minutes: close, label: "閉店", kind: "hard" };
       return null;
+    }
+
+    // 打ち切りの上限。閉店は常に「必ずやめる」。ヤメ予定が「必ずやめる」ならそちらも上限になる
+    function hardEndMinutes() {
+      const close = parseTimeMinutes(state.closeTime);
+      const quit = parseTimeMinutes(state.quitTime);
+      const hardQuit = state.quitKind === "hard" ? quit : null;
+      if (hardQuit !== null && (close === null || hardQuit <= close)) return hardQuit;
+      return close === null ? hardQuit : close;
     }
 
     function remainMinutesFromState() {
@@ -689,12 +735,31 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       return end.minutes - now;
     }
 
+    // 上限（閉店）までの残り時間。「打ちかけは消化」でもここは超えられない
+    function hardRemainMinutesFromState() {
+      const now = parseTimeMinutes(state.nowTime);
+      const hardEnd = hardEndMinutes();
+      if (now === null || hardEnd === null) return null;
+      return hardEnd - now;
+    }
+
+    // 「打ちかけは消化」のとき、この時刻を過ぎたら新しいサイクルを始めない。無ければ null
+    function softDeadlineMinutesFromState() {
+      const end = endTimeInfo();
+      if (end === null || end.kind !== "soft") return null;
+      const remain = remainMinutesFromState();
+      const hardRemain = hardRemainMinutesFromState();
+      if (remain === null || hardRemain === null || remain >= hardRemain) return null;
+      return remain;
+    }
+
     // 「残り 63分（22:45ヤメ予定・現在21:42）」
     function remainSummaryText() {
       const remain = remainMinutesFromState();
       if (remain === null) return "";
       const end = endTimeInfo();
-      return `残り ${remain}分（${formatTimeMinutes(end.minutes)}${end.label}・現在${formatTimeMinutes(parseTimeMinutes(state.nowTime))}）`;
+      const kind = end.label === "ヤメ予定" ? `（${quitKindLabel()}）` : "";
+      return `残り ${remain}分（${formatTimeMinutes(end.minutes)}${end.label}${kind}・現在${formatTimeMinutes(parseTimeMinutes(state.nowTime))}）`;
     }
 
     function calculateFromState() {
@@ -705,7 +770,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         ...enginePresetFor(preset).defaults,
         presetId: preset.id,
         netBallsPerWin: preset.netBallsPerWin(state.payout),
-        yenPerBall: 100 / state.exchangeBalls
+        yenPerBall: yenPerBallFromState()
       };
       const result = YUTIME_EXPECTATION_ENGINE.calculate({
         presetId: preset.id,
@@ -780,6 +845,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       // 時短抜けの種類ごとの「残り時間 → 1サイクル期待値」表（5分刻み）。未指定ならやめない
       const stopGrid = cfg.stopRuleEv || null;
       const stopGridLast = stopGrid ? stopGrid[0].length - 1 : 0;
+      // 「打ちかけは消化」のヤメ予定。この時刻を過ぎたら新しいサイクルを始めない
+      const softDeadline = Number.isFinite(cfg.softDeadlineMinutes) ? cfg.softDeadlineMinutes : null;
 
       const tenjo = cfg.tenjo;
       const counterOffsetSpins = cfg.counterOffset;
@@ -1038,10 +1105,13 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
           const limit = cps[k];
           rawProfitSums[k] += trialProfit[k];
           let stopIndex = -1;
-          if (stopGrid) {
+          if (stopGrid || softDeadline !== null) {
             for (let i = 0; i < boundaryCount; i += 1) {
               const at = boundaryTime[i];
               if (at > limit + eps) break;
+              // ヤメ予定（打ちかけは消化）を過ぎていたら、そこで新しいサイクルを始めない
+              if (softDeadline !== null && at >= softDeadline - eps) { stopIndex = i; break; }
+              if (!stopGrid) continue;
               // 残り時間は5分刻みの表に丸めて引く。5分未満なら1サイクルぶん打てないのでヤメ
               const gridIndex = Math.floor((limit - at + eps) / BREAKEVEN_STEP_MINUTES) - 1;
               if (gridIndex < 0) { stopIndex = i; break; }
@@ -1122,7 +1192,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       if (state.normalSpeed === null || state.normalSpeed <= 0) return "通常時の時速を入力してください";
       if (parseTimeMinutes(state.nowTime) === null) return "現在時刻を入力してください";
       if (endTimeInfo() === null) return "閉店時刻かヤメ予定時刻を入力してください";
-      if (remainMinutesFromState() <= 0) return "終了時刻を過ぎています";
+      if (hardRemainMinutesFromState() === null) return "閉店時刻を入力してください";
+      if (remainMinutesFromState() <= 0 || hardRemainMinutesFromState() <= 0) return "終了時刻を過ぎています";
       return "";
     }
 
@@ -1133,16 +1204,20 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       const settings = {
         ...enginePreset.defaults,
         netBallsPerWin: preset.netBallsPerWin(state.payout),
-        yenPerBall: 100 / state.exchangeBalls
+        yenPerBall: yenPerBallFromState()
       };
+      // 打ち切りの上限は閉店（＝hard）。時給の分母と表示は打ち終わる予定の時刻まで
       const minutes = remainMinutesFromState();
-      const checkpoints = breakevenCheckpoints(minutes);
+      const hardMinutes = hardRemainMinutesFromState();
+      const checkpoints = breakevenCheckpoints(hardMinutes);
       return {
         trials: CONTINUOUS_TRIALS,
         seed: CONTINUOUS_SEED,
         checkpoints,
-        mainIndex: checkpoints.indexOf(minutes),
+        mainIndex: checkpoints.indexOf(hardMinutes),
         minutes,
+        hardMinutes,
+        softDeadlineMinutes: softDeadlineMinutesFromState(),
         speed: state.normalSpeed,
         hitProbLow: spec.hitProbLow,
         hitProbHigh: spec.hitProbHigh,
@@ -1186,30 +1261,22 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       return null;
     }
 
-    // 起点ごとに「残り T 分で1サイクルだけ打つ」を回し、表の行と5分刻みの表を作る。
-    // 1サイクルは長くても数十分なので、残り時間が何時間あっても探索点は360分までで足りる
+    // 起点ごとに「残り T 分で1サイクルだけ打つ」を5分刻みで回し、やめるルールと
+    // 「座れる残り時間」が引く表を作る。1サイクルは長くても数十分なので、
+    // 残り時間が何時間あっても探索点は360分までで足りる
     function cycleOutlook(cfg, start, thresholdYen) {
       const single = simulateContinuous({
         ...cfg,
         startCounter: start.counter,
         cycleLimit: 1,
         stopRuleEv: null,
+        softDeadlineMinutes: null,
         checkpoints: GRID_CHECKPOINTS,
         mainIndex: GRID_CHECKPOINTS.length - 1
       });
-      const byMinutes = new Map(single.curve.map((entry) => [entry.minutes, entry]));
-      const cells = TABLE_MINUTES.map((minutes) => {
-        const row = byMinutes.get(minutes);
-        const cell = row
-          ? { minutes, evYen: row.evYen, hourlyYen: row.hourlyYen, playHours: row.playHours }
-          : { minutes, evYen: null, hourlyYen: null, playHours: null };
-        cell.judgment = row ? evJudgment({ totalHours: row.playHours, hourlyYen: row.hourlyYen, evYen: row.evYen }, thresholdYen) : { className: "", label: "—" };
-        return cell;
-      });
       return {
         ...start,
-        cells,
-        // やめるルールが引く「残り時間 → 1サイクル期待値」。時給の表は座れる残り時間の検証用
+        // やめるルールが引く「残り時間 → 1サイクル期待値」。時給の表は座れる残り時間の裏付け
         evGrid: gridFrom(single.curve, "evYen"),
         hourlyGrid: gridFrom(single.curve, "hourlyYen"),
         seatMinutes: seatMinutesFrom(single.curve, thresholdYen)
@@ -1228,7 +1295,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         ...enginePreset.defaults,
         presetId: preset.id,
         netBallsPerWin: preset.netBallsPerWin(state.payout),
-        yenPerBall: 100 / state.exchangeBalls,
+        yenPerBall: yenPerBallFromState(),
         spinsPerHour: state.normalSpeed
       };
       const pLow = spec.hitProbLow;
@@ -1313,20 +1380,23 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       return `座れる残り時間（時給${Math.round(thresholdYen).toLocaleString("ja-JP")}円以上）：`;
     }
 
-    // 起点 × 残り時間の1サイクル表。セルは 判定 / 時給 / 期待値
-    function cycleTableHtml(result) {
-      if (!result || !result.outlooks) return "";
-      const head = TABLE_MINUTES.map((minutes) => `<th>${minutes}分</th>`).join("");
-      const body = result.outlooks.map((outlook) => {
-        const counter = `<span class="ct-sub">c${outlook.counter}</span>`;
-        const cells = outlook.cells.map((cell) => {
-          if (cell.evYen === null) return "<td>—</td>";
-          const tone = cell.judgment.className === "good" ? "good" : cell.judgment.className === "bad" ? "bad" : "warn";
-          return `<td><b class="${tone}">${cell.judgment.label}</b><span class="ct-sub">時給 ${yenText(cell.hourlyYen)}</span><span class="ct-sub">${yenText(cell.evYen)}</span></td>`;
-        }).join("");
-        return `<tr><th>${outlook.label}${counter}</th>${cells}</tr>`;
-      }).join("");
-      return `<table class="ct-table"><thead><tr><th>起点</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
+    // 上段の判定（B93）。合計期待値と、入力の残り時間で割った時給で見る
+    function continuousJudgment(result) {
+      if (!result) return { className: "", label: "—" };
+      return evJudgment(
+        { totalHours: result.minutes / 60, hourlyYen: result.hourlyYen, evYen: result.evYen },
+        result.hourlyThreshold
+      );
+    }
+
+    // 「ヤメ予定21:00（打ちかけは消化）／閉店23:45」
+    function quitPlanText() {
+      const quit = parseTimeMinutes(state.quitTime);
+      const close = parseTimeMinutes(state.closeTime);
+      const parts = [];
+      if (quit !== null) parts.push(`ヤメ予定${formatTimeMinutes(quit)}（${quitKindLabel()}）`);
+      if (close !== null) parts.push(`閉店${formatTimeMinutes(close)}`);
+      return parts.length ? parts.join("／") : "終了時刻の指定なし";
     }
 
     function speedNoteText(spinsPerHour) {
@@ -1342,6 +1412,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         + ` ／ 電サポ中は6秒/回転で計算 ／ 想定連チャン ${countText(result.wins)}（初当り込み）`
         + ` ／ 定常時給 ${result.steadyHourlyYen === null ? "—" : yenText(result.steadyHourlyYen)}/h（時短抜け25/50/100を終端分布36/62/2で加重した1サイクル期待値÷所要時間）`
         + ` ／ 上段の時給は合計期待値÷残り${result.minutes}分（表の時給は1サイクルの期待値÷消化時間）`
+        + ` ／ ${quitPlanText()}`
         + ` ／ 時短抜けで残り時間の1サイクル期待値がマイナスならヤメる前提（この条件では${(result.stopRuleShare * 100).toFixed(0)}%の試行でヤメ）`
         + ` ／ 判定の時給しきい値 ${Math.round(result.hourlyThreshold).toLocaleString("ja-JP")}円（表示のみ。集計には使わない）`;
     }
@@ -1367,11 +1438,14 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     }
 
     function renderStaticChips() {
+      const custom = numberOrNull(state.exchangeCustom);
       byId("exchangeChips").innerHTML = chipHtml(EXCHANGE_OPTIONS.map((option) => ({
         value: option.balls,
         label: option.label,
-        selected: state.exchangeBalls === option.balls
+        selected: custom === null && state.exchangeBalls === option.balls
       })));
+      // 自由入力に値が入っていれば、そちらが選択状態
+      byId("exchangeCustom").className = custom === null ? "" : "custom-on";
       byId("ballKindChips").innerHTML = chipHtml(BALL_KIND_OPTIONS.map((option) => ({
         value: option.id,
         label: option.label,
@@ -1416,8 +1490,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       byId("basis").innerHTML = basisText(result);
       byId("notice").textContent = missing;
       byId("embedCode").textContent = state.mode === "continuous"
-        ? `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}&mode=continuous"\n        width="100%" height="1480" style="border:0" loading="lazy"></iframe>`
-        : `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}"\n        width="100%" height="700" style="border:0" loading="lazy"></iframe>`;
+        ? `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}&mode=continuous"\n        width="100%" height="1340" style="border:0" loading="lazy"></iframe>`
+        : `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}"\n        width="100%" height="780" style="border:0" loading="lazy"></iframe>`;
       renderContinuousResult();
     }
 
@@ -1439,6 +1513,11 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         value: option.value,
         label: option.label,
         selected: Number(state.normalSpeed) === option.value
+      })));
+      byId("quitKindChips").innerHTML = chipHtml(QUIT_KIND_OPTIONS.map((option) => ({
+        value: option.id,
+        label: option.label,
+        selected: state.quitKind === option.id
       })));
       const summary = remainSummaryText();
       const remain = remainMinutesFromState();
@@ -1491,6 +1570,11 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       const hourlyNode = byId("ctHourlyYen");
       hourlyNode.textContent = result ? yenText(result.hourlyYen) : "—";
       hourlyNode.className = `cell-value ${result && result.hourlyYen < 0 ? "bad" : ""}`.trim();
+      const judgment = continuousJudgment(result);
+      const judgmentNode = byId("ctJudgment");
+      judgmentNode.textContent = judgment.label;
+      judgmentNode.className = `ct-judgment ${judgment.className === "good" ? "good" : judgment.className === "bad" ? "bad" : judgment.className === "warn" ? "warn" : ""}`.trim();
+      byId("ctSteady").textContent = result && result.steadyHourlyYen !== null ? `${yenText(result.steadyHourlyYen)}/h` : "—";
       byId("ctHits").textContent = result ? countText(result.firstHits) : "—";
       byId("ctYutime").textContent = result ? countText(result.yutimeReaches) : "—";
       byId("ctExits").textContent = result ? exitsText(result) : "—";
@@ -1499,9 +1583,37 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       cutoffNode.className = result && result.cutoffYen < 0 ? "bad" : "";
       byId("ctSeatLabel").textContent = seatSummaryLabel(result);
       byId("ctSeat").textContent = seatSummaryText(result);
-      byId("ctTable").innerHTML = cycleTableHtml(result);
       byId("ctNotice").textContent = missing;
       byId("ctBasis").innerHTML = continuousBasisText(result);
+    }
+
+    // 数値欄はタップした瞬間に空にする（0を消す手間をなくす）。
+    // 何も入れずに離れたらタップ前の値へ戻し、その値で再計算する。
+    // 空にした時点では state を触らないので、触っただけでは再計算も表示の変化も起きない。
+    function bindNumberInput(id, assign) {
+      const element = byId(id);
+      let previous = element.value;
+      element.addEventListener("focus", () => {
+        previous = element.value;
+        element.value = "";
+      });
+      element.addEventListener("input", (event) => {
+        previous = event.target.value;
+        assign(numberOrNull(event.target.value));
+        renderPayoutChips();
+        renderStaticChips();
+        renderModeFields();
+        renderResult();
+      });
+      element.addEventListener("blur", () => {
+        if (element.value !== "") return;
+        element.value = previous;
+        assign(numberOrNull(previous));
+        renderPayoutChips();
+        renderStaticChips();
+        renderModeFields();
+        renderResult();
+      });
     }
 
     function bindChipGroup(containerId, apply) {
@@ -1546,6 +1658,15 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       try {
         const balls = numberOrNull(new URLSearchParams(window.location.search).get("saipurei"));
         return balls !== null && balls > 0 ? Math.floor(balls) : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function exchangeFromUrl() {
+      try {
+        const balls = numberOrNull(new URLSearchParams(window.location.search).get("exchange"));
+        return balls !== null && balls >= EXCHANGE_MIN_BALLS && balls <= EXCHANGE_MAX_BALLS ? balls : null;
       } catch (err) {
         return null;
       }
@@ -1610,6 +1731,16 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       if (initialClose !== null) state.closeTime = initialClose;
       const initialQuit = timeFromUrl("quit");
       if (initialQuit !== null) state.quitTime = initialQuit;
+      // ?exchange= はチップに無い値なら自由入力へ入れる（小数可）
+      const initialExchange = exchangeFromUrl();
+      if (initialExchange !== null) {
+        if (EXCHANGE_OPTIONS.some((option) => option.balls === initialExchange)) {
+          state.exchangeBalls = initialExchange;
+        } else {
+          state.exchangeCustom = initialExchange;
+          byId("exchangeCustom").value = String(initialExchange);
+        }
+      }
       state.hourlyThreshold = hourlyThresholdFromUrl();
       if (supportsContinuous(currentPreset())) state.mode = modeFromUrl();
       // 現在時刻は端末の時計から入れる
@@ -1632,32 +1763,13 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         renderResult();
       });
 
-      byId("currentSpin").addEventListener("input", (event) => {
-        state.currentSpin = numberOrNull(event.target.value);
-        renderResult();
-      });
-      byId("rotationRate").addEventListener("input", (event) => {
-        state.rotationRate = numberOrNull(event.target.value);
-        renderResult();
-      });
-      byId("payout").addEventListener("input", (event) => {
-        state.payout = numberOrNull(event.target.value);
-        renderPayoutChips();
-        renderResult();
-      });
-      byId("mochidamaBalls").addEventListener("input", (event) => {
-        state.mochidamaBalls = numberOrNull(event.target.value);
-        renderResult();
-      });
-      byId("saipureiBalls").addEventListener("input", (event) => {
-        state.saipureiBalls = numberOrNull(event.target.value);
-        renderResult();
-      });
-      byId("normalSpeed").addEventListener("input", (event) => {
-        state.normalSpeed = numberOrNull(event.target.value);
-        renderModeFields();
-        renderResult();
-      });
+      bindNumberInput("currentSpin", (value) => { state.currentSpin = value; });
+      bindNumberInput("rotationRate", (value) => { state.rotationRate = value; });
+      bindNumberInput("payout", (value) => { state.payout = value; });
+      bindNumberInput("mochidamaBalls", (value) => { state.mochidamaBalls = value; });
+      bindNumberInput("saipureiBalls", (value) => { state.saipureiBalls = value; });
+      bindNumberInput("normalSpeed", (value) => { state.normalSpeed = value; });
+      bindNumberInput("exchangeCustom", (value) => { state.exchangeCustom = value; });
       byId("nowTime").addEventListener("input", (event) => {
         // 手で直したら、以後は端末の時計で上書きしない
         state.nowManual = true;
@@ -1686,6 +1798,14 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         renderResult();
       }, 60000);
 
+      byId("quitKindChips").addEventListener("click", (event) => {
+        const chip = event.target.closest(".chip");
+        if (!chip) return;
+        state.quitKind = QUIT_KIND_OPTIONS.some((option) => option.id === chip.dataset.value) ? chip.dataset.value : DEFAULT_QUIT_KIND;
+        renderModeFields();
+        renderResult();
+      });
+
       byId("modeChips").addEventListener("click", (event) => {
         const button = event.target.closest(".mode-btn");
         if (!button || button.disabled) return;
@@ -1705,6 +1825,9 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       });
       bindChipGroup("exchangeChips", (value) => {
         state.exchangeBalls = Number(value);
+        // チップを選んだら自由入力は外す
+        state.exchangeCustom = null;
+        byId("exchangeCustom").value = "";
       });
       bindChipGroup("ballKindChips", (value) => {
         state.ballKind = value;

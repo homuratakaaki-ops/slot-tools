@@ -44,7 +44,7 @@ vm.runInContext([
   presetBlock,
   logicBlock,
   urlBlock,
-  'globalThis.api = { state, PRESETS, MODE_OPTIONS, SPEED_OPTIONS, DEFAULT_SPEED, DEFAULT_CLOSE_TIME, CONTINUOUS_TRIALS, CONTINUOUS_SEED, CONTINUOUS_DEBOUNCE_MS, BREAKEVEN_STEP_MINUTES, BREAKEVEN_MAX_MINUTES, TABLE_MINUTES, HOURLY_THRESHOLD_YEN, YUTIME_EXPECTATION_ENGINE, currentPreset, counterOffset, engineSpinFromCounter, remainingSpins, numberOrNull, yenText, hourText, evJudgment, basisText, missingMessage, availableBallsFromState, calculateFromState, presetIdFromUrl, ballsFromUrl, modeFromUrl, speedFromUrl, saipureiFromUrl, timeFromUrl, supportsContinuous, breakevenCheckpoints, simulateContinuous, continuousConfigFromState, continuousFromState, continuousMissingMessage, continuousBlockMessage, countText, exitsText, seatSummaryText, seatSummaryLabel, unreachableText, cycleTableHtml, gridFrom, seatMinutesFrom, steadyHourlyYen, GRID_CHECKPOINTS, hourlyThresholdFromState, hourlyThresholdFromUrl, continuousBasisText, parseTimeMinutes, formatTimeMinutes, currentClockText, endTimeInfo, remainMinutesFromState, remainSummaryText, speedNoteText };'
+  'globalThis.api = { state, PRESETS, MODE_OPTIONS, SPEED_OPTIONS, DEFAULT_SPEED, DEFAULT_CLOSE_TIME, CONTINUOUS_TRIALS, CONTINUOUS_SEED, CONTINUOUS_DEBOUNCE_MS, BREAKEVEN_STEP_MINUTES, BREAKEVEN_MAX_MINUTES, HOURLY_THRESHOLD_YEN, EXCHANGE_OPTIONS, EXCHANGE_MIN_BALLS, EXCHANGE_MAX_BALLS, QUIT_KIND_OPTIONS, DEFAULT_QUIT_KIND, YUTIME_EXPECTATION_ENGINE, currentPreset, counterOffset, engineSpinFromCounter, remainingSpins, numberOrNull, yenText, hourText, evJudgment, basisText, missingMessage, availableBallsFromState, calculateFromState, presetIdFromUrl, ballsFromUrl, modeFromUrl, speedFromUrl, saipureiFromUrl, timeFromUrl, supportsContinuous, breakevenCheckpoints, simulateContinuous, continuousConfigFromState, continuousFromState, continuousMissingMessage, continuousBlockMessage, countText, exitsText, seatSummaryText, seatSummaryLabel, unreachableText, continuousJudgment, quitPlanText, quitKindLabel, hardEndMinutes, hardRemainMinutesFromState, softDeadlineMinutesFromState, exchangeBallsFromState, yenPerBallFromState, exchangeMessage, exchangeFromUrl, gridFrom, seatMinutesFrom, steadyHourlyYen, GRID_CHECKPOINTS, hourlyThresholdFromState, hourlyThresholdFromUrl, continuousBasisText, parseTimeMinutes, formatTimeMinutes, currentClockText, endTimeInfo, remainMinutesFromState, remainSummaryText, speedNoteText };'
 ].join('\n'), context);
 const api = context.api;
 
@@ -59,8 +59,8 @@ const fastApi = new Function('window', 'URLSearchParams', [
   'return { state, PRESETS, YUTIME_EXPECTATION_ENGINE, engineSpinFromCounter, simulateContinuous, continuousConfigFromState, continuousFromState, gridFrom, steadyHourlyYen };'
 ].join('\n'))({ location: { search: '' } }, URLSearchParams);
 
-function evaluate({ presetId, currentSpin, rotationRate, payout, exchangeBalls = 25, ballKind = 'cash', mochidamaBalls = null, saipureiBalls = null }) {
-  Object.assign(api.state, { presetId, currentSpin, rotationRate, payout, exchangeBalls, ballKind, mochidamaBalls, saipureiBalls });
+function evaluate({ presetId, currentSpin, rotationRate, payout, exchangeBalls = 25, exchangeCustom = null, ballKind = 'cash', mochidamaBalls = null, saipureiBalls = null }) {
+  Object.assign(api.state, { presetId, currentSpin, rotationRate, payout, exchangeBalls, exchangeCustom, ballKind, mochidamaBalls, saipureiBalls });
   return api.calculateFromState();
 }
 
@@ -246,7 +246,7 @@ for (const href of ['https://slot-tools.jp/agnespe-yutime.html', 'https://slot-t
 }
 assert.match(calcHtml, /埋め込み: 自由です。クレジットはツール内に含まれます。/, '埋め込みには追加の条件を付けないこと');
 assert.match(calcHtml, /転載・引用: 自由です。出典として/, '転載・引用には出典リンクを求めること');
-assert.match(calcHtml, /width="100%" height="700" style="border:0" loading="lazy"/, '埋め込み用コードを掲載すること');
+assert.match(calcHtml, /width="100%" height="780" style="border:0" loading="lazy"/, '埋め込み用コードを掲載すること');
 assert.match(calcHtml, /if \(inIframe\(\)\) byId\("embedSection"\)\.style\.display = "none";/, 'iframe内では埋め込み用コードを隠すこと');
 
 // --- 12. 持ち玉数の入力（S13） ------------------------------------------------
@@ -360,11 +360,7 @@ assert.equal(api.supportsContinuous(api.PRESETS[1]), false, '大海5SPはモデ�
 // チェックポイントは5分刻み5〜360分＋入力された残り時間
 assert.equal(api.BREAKEVEN_STEP_MINUTES, 5);
 assert.equal(api.BREAKEVEN_MAX_MINUTES, 360);
-assert.equal(JSON.stringify(Array.from(api.TABLE_MINUTES)), '[30,45,60,90,120,180]', '1サイクル表の残り時間');
-api.TABLE_MINUTES.forEach((minutes) => {
-  assert.equal(minutes % api.BREAKEVEN_STEP_MINUTES, 0, `表の残り時間は5分刻みの探索点に載ること: ${minutes}`);
-  assert.ok(minutes <= api.BREAKEVEN_MAX_MINUTES);
-});
+assert.equal(api.GRID_CHECKPOINTS.length, 72, '1サイクルの探索点は5分刻み5〜360分');
 {
   const cps = api.breakevenCheckpoints(180);
   assert.equal(cps.length, 72, '5分刻み5〜360分で72点');
@@ -382,7 +378,7 @@ function continuousState(overrides) {
     presetId: 'agnes-pe', currentSpin: 50, rotationRate: 17, payout: 100,
     exchangeBalls: 25, ballKind: 'cash', mochidamaBalls: null,
     mode: 'continuous', normalSpeed: 250, hourlyThreshold: null,
-    nowTime: '20:45', nowManual: false, quitTime: null, closeTime: '23:45',
+    nowTime: '20:45', nowManual: false, quitTime: null, quitKind: 'soft', closeTime: '23:45',
     ...overrides
   };
 }
@@ -534,37 +530,26 @@ assert.ok(
   }
 }
 
-// 起点ごとの1サイクル表（判定はB93と同じ基準）
+// 上段の判定（B93と同じ基準）は、合計期待値と「合計期待値÷入力の残り時間」で見る
 {
   const strong = shipped({ currentSpin: 150, rotationRate: 22, normalSpeed: 350 });
   assert.equal(strong.outlooks.length, 4, '起点は「今から」＋時短抜け3種');
   assert.equal(JSON.stringify(strong.outlooks.map((o) => o.label)), '["今から","15抜け","40抜け","90抜け"]', '今から→時短回数の小さい順');
   assert.equal(strong.outlooks[0].counter, 150, '「今から」は現在カウンターが起点');
   strong.outlooks.forEach((outlook) => {
-    assert.equal(JSON.stringify(outlook.cells.map((c) => c.minutes)), '[30,45,60,90,120,180]', `${outlook.label} の残り時間`);
-    outlook.cells.forEach((cell) => {
-      assert.ok(Number.isFinite(cell.evYen) && Number.isFinite(cell.hourlyYen) && cell.playHours > 0, `${outlook.label} ${cell.minutes}分 の値が揃うこと`);
-      // 時給は「1サイクルの期待値 ÷ 消化時間」
-      assert.ok(Math.abs(cell.hourlyYen - cell.evYen / cell.playHours) < 1e-6, '時給＝期待値÷消化時間');
-      assert.ok(cell.playHours * 60 <= cell.minutes + 1e-6, '消化時間は残り時間を超えないこと');
-      assert.ok(['打てる', '微妙', '打てない'].includes(cell.judgment.label), `判定ラベル: ${cell.judgment.label}`);
-      // B93の基準どおりであること
-      const expected = cell.hourlyYen >= 2400 ? '打てる' : cell.evYen > 0 ? '微妙' : '打てない';
-      assert.equal(cell.judgment.label, expected, `${outlook.label} ${cell.minutes}分 の判定: 時給${cell.hourlyYen.toFixed(0)} 期待値${cell.evYen.toFixed(0)}`);
-    });
-    // 残り時間が伸びるほど1サイクルの期待値は増える（頭打ちを含む）
-    for (let i = 1; i < outlook.cells.length; i += 1) {
-      assert.ok(outlook.cells[i].evYen > outlook.cells[i - 1].evYen - 60, `${outlook.label} の1サイクル期待値は残り時間とともに増えること`);
-    }
+    assert.equal(outlook.evGrid.length, 72, `${outlook.label}: やめるルールが引く期待値表は5分刻み72点`);
+    assert.equal(outlook.hourlyGrid.length, 72, `${outlook.label}: 時給表も5分刻み72点`);
+    assert.ok(outlook.cells === undefined, `${outlook.label}: 残り時間別の1サイクル表は持たないこと`);
   });
-  // 表のHTML
-  const table = api.cycleTableHtml(strong);
-  assert.match(table, /<table class="ct-table">/);
-  api.TABLE_MINUTES.forEach((minutes) => assert.ok(table.includes(`<th>${minutes}分</th>`), `見出しに${minutes}分`));
-  ['今から', '15抜け', '40抜け', '90抜け'].forEach((label) => assert.ok(table.includes(label), `行見出しに${label}`));
-  assert.match(table, /<b class="(good|warn|bad)">(打てる|微妙|打てない)<\/b>/, 'セルは判定を色付きで出すこと');
-  assert.match(table, /<span class="ct-sub">時給 [+-][\d,]+円<\/span>/, 'セルに時給を出すこと');
-  assert.equal(api.cycleTableHtml(null), '', '結果が無ければ表は出さない');
+  const judgment = api.continuousJudgment(strong);
+  assert.ok(['打てる', '微妙', '打てない'].includes(judgment.label), `上段の判定ラベル: ${judgment.label}`);
+  const expectedLabel = strong.hourlyYen >= 2400 ? '打てる' : strong.evYen > 0 ? '微妙' : '打てない';
+  assert.equal(judgment.label, expectedLabel, `上段の判定: 時給${strong.hourlyYen.toFixed(0)} 期待値${strong.evYen.toFixed(0)}`);
+  assert.equal(api.continuousJudgment(null).label, '—');
+  // しきい値を上げれば同じ数字でも判定は下がるが、集計は動かない
+  const strict = shipped({ currentSpin: 150, rotationRate: 22, normalSpeed: 350, hourlyThreshold: 99999 });
+  assert.equal(api.continuousJudgment(strict).label, '微妙', 'しきい値を上げれば「微妙」になる');
+  assert.equal(strict.evYen, strong.evYen, 'しきい値を変えても合計期待値は動かない');
 }
 
 // 判定の基準そのもの（B93）と閾値の差し替え
@@ -714,7 +699,6 @@ for (const condition of [{ rotationRate: 17, normalSpeed: 250 }, { rotationRate:
   assert.equal(api.countText(null), '—');
   assert.equal(api.countText(3.04), '3.0回');
   assert.equal(api.seatSummaryText(null), '—');
-  assert.equal(api.cycleTableHtml(null), '');
   assert.equal(api.continuousBasisText(null), '');
 }
 
@@ -738,6 +722,7 @@ for (const condition of [{ rotationRate: 17, normalSpeed: 250 }, { rotationRate:
   assert.match(basis, /上段の時給は合計期待値÷残り180分（表の時給は1サイクルの期待値÷消化時間）/, '2種類の時給の違いを根拠行で明示すること');
   assert.match(basis, /時短抜けで残り時間の1サイクル期待値がマイナスならヤメる前提/, '根拠行にやめるルールを明記すること');
   assert.match(basis, /判定の時給しきい値 2,400円（表示のみ。集計には使わない）/, '時給しきい値の役割を根拠行で明示すること');
+  assert.match(basis, /閉店23:45/, '根拠行に閉店時刻を出すこと');
   assert.match(basis, /定常時給 \+[\d,]+円\/h（時短抜け25\/50\/100を終端分布36\/62\/2で加重した1サイクル期待値÷所要時間）/, '根拠行に定常時給を出すこと');
 }
 
@@ -784,17 +769,21 @@ assert.match(calcHtml, /250＝記事の前提／350＝導入日の実測（22回
 assert.match(calcHtml, /<input id="saipureiBalls" type="number"/, '再プレイの入力欄があること');
 assert.match(calcHtml, /state\.nowManual = true;/, '現在時刻を手で直したら自動更新を止めること');
 assert.match(calcHtml, /if \(state\.nowManual\) return;[\s\S]{0,240}\}, 60000\);/, '1分ごとに現在時刻を進めること');
+assert.match(calcHtml, /<div class="ct-seat-title">閉店の判断<\/div>/, '最下段に「閉店の判断」を置くこと');
 assert.match(calcHtml, /<span id="ctSeatLabel">座れる残り時間：<\/span><b id="ctSeat">/, '座れる残り時間を出すこと');
 assert.match(calcHtml, /\.ct-breakeven b\{font-size:15px;font-weight:700/, '座れる残り時間は太字で出すこと');
-assert.match(calcHtml, /<div class="ct-table-wrap" id="ctTable"><\/div>/, '起点ごとの1サイクル表を置くこと');
-assert.match(calcHtml, /\.ct-table-wrap\{[^}]*overflow-x:auto/, '表は幅が足りなければ横スクロールさせること');
+// 上段は 合計期待値／時給＋判定／定常時給／想定当たり／遊タイム到達／時短抜け／時間切れ損失
+assert.match(calcHtml, /<div class="cell-label">時給 <span class="ct-judgment" id="ctJudgment">/, '判定ラベルは上段の時給の横に出すこと');
+assert.match(calcHtml, /<div>定常時給 <b id="ctSteady">/, '上段に定常時給を出すこと');
+// 残り時間別の1サイクル表は廃止
+assert.doesNotMatch(calcHtml, /ctTable|ct-table|cycleTableHtml|TABLE_MINUTES/, '残り時間別の1サイクル表は削除すること');
 assert.doesNotMatch(calcHtml, /この条件で期待値がプラスになる最短の残り時間|時短抜けから座れる残り時間|ctRestartBreakeven|ctCurrentBreakeven|cycleBreakevenMinutes|stopRuleMinutes/, '期待値±0基準の T* は廃止すること');
 assert.match(calcHtml, /打ちかけの投資が回収できない分/, '時間切れの損失見込みの説明を添えること');
 assert.match(calcHtml, /byId\("resultPanel"\)\.style\.display = continuous \? "none" : "";/, 'モードで結果ブロックを出し分けること');
 assert.match(calcHtml, /if \(!supportsContinuous\(currentPreset\(\)\)\) state\.mode = MODE_OPTIONS\[0\]\.id;/, '未対応機種へ切り替えたら遊タイム狙いへ戻すこと');
-// 実表示の全高は 320px幅で最大1,480px（持ち玉2枠を開いた状態）（埋め込み用コードは iframe 内では隠れる）
-assert.match(calcHtml, /width="100%" height="700" style="border:0" loading="lazy"/, '遊タイム狙いの埋め込み高さは据え置き');
-assert.match(calcHtml, /width="100%" height="1480" style="border:0" loading="lazy"/, '打ち切りモードの埋め込みは表のぶん高さを広げること');
+// 実表示の全高は 320px幅で 遊タイム狙い749px／打ち切り1,328px（持ち玉2枠を開いた状態）。埋め込み用コードは iframe 内では隠れる
+assert.match(calcHtml, /width="100%" height="780" style="border:0" loading="lazy"/, "遊タイム狙いの埋め込み高さ");
+assert.match(calcHtml, /width="100%" height="1340" style="border:0" loading="lazy"/, "打ち切りモードの埋め込みは高さを広げること");
 
 // --- 14. 打ち切りモードの再計算をデバウンスする ------------------------------
 // 20,000試行のモンテカルロは実ブラウザで数百ms掛かるので、1打鍵ごとに走らせると入力が固まる。
@@ -873,7 +862,7 @@ assert.notEqual(api.parseTimeMinutes(api.currentClockText()), null);
   Object.assign(api.state, continuousState({ nowTime: '21:42', quitTime: '22:45', closeTime: '23:45' }));
   assert.equal(api.remainMinutesFromState(), 63, 'ヤメ予定のほうが早ければヤメ予定まで');
   assert.equal(api.endTimeInfo().label, 'ヤメ予定');
-  assert.equal(api.remainSummaryText(), '残り 63分（22:45ヤメ予定・現在21:42）');
+  assert.equal(api.remainSummaryText(), '残り 63分（22:45ヤメ予定（打ちかけは消化）・現在21:42）');
 
   Object.assign(api.state, continuousState({ nowTime: '21:42', quitTime: '23:59', closeTime: '23:45' }));
   assert.equal(api.remainMinutesFromState(), 123, 'ヤメ予定が閉店より遅ければ閉店まで');
@@ -965,7 +954,7 @@ assert.equal(api.state.nowManual, false, '既定は自動更新');
   const weak = shipped({ ...twelveHours, rotationRate: 17, normalSpeed: 250 });
   Object.assign(api.state, continuousState({ ...twelveHours, rotationRate: 17, normalSpeed: 250 }));
   assert.equal(
-    weak.outlooks[0].cells.find((cell) => cell.minutes === 180).judgment.label,
+    api.continuousJudgment(weak).label,
     '微妙',
     '期待値はプラスだが時給が2,400円に届かないので「微妙」'
   );
@@ -1010,6 +999,142 @@ assert.equal(api.state.nowManual, false, '既定は自動更新');
 
   Object.assign(api.state, continuousState({ presetId: 'umi-sp5' }));
   assert.equal(api.steadyHourlyYen(), null, '時短振り分けを持たない機種では出さない');
+}
+
+// --- 17. ヤメ予定の種類 / 交換率の自由入力 / 数値欄の操作 -----------------------
+
+// ヤメ予定の種類。閉店は種類を選ばせず常に「必ずやめる」
+assert.equal(JSON.stringify(api.QUIT_KIND_OPTIONS.map((o) => o.id)), '["soft","hard"]');
+assert.equal(api.QUIT_KIND_OPTIONS[0].label, '打ちかけは消化');
+assert.equal(api.QUIT_KIND_OPTIONS[1].label, '必ずやめる');
+assert.equal(api.DEFAULT_QUIT_KIND, 'soft', '既定は「打ちかけは消化」');
+assert.equal(api.state.quitKind, 'soft');
+
+{
+  // 現在9:00 ／ ヤメ予定21:00 ／ 閉店23:45
+  const times = { nowTime: '09:00', quitTime: '21:00', closeTime: '23:45' };
+  Object.assign(api.state, continuousState({ ...times, quitKind: 'soft' }));
+  assert.equal(api.remainMinutesFromState(), 720, '打ち終わる予定はヤメ予定まで');
+  assert.equal(api.hardRemainMinutesFromState(), 885, '上限は閉店まで');
+  assert.equal(api.softDeadlineMinutesFromState(), 720, 'ヤメ予定を過ぎたら新しいサイクルを始めない');
+  assert.equal(api.quitKindLabel(), '打ちかけは消化');
+  assert.equal(api.quitPlanText(), 'ヤメ予定21:00（打ちかけは消化）／閉店23:45');
+
+  Object.assign(api.state, continuousState({ ...times, quitKind: 'hard' }));
+  assert.equal(api.remainMinutesFromState(), 720);
+  assert.equal(api.hardRemainMinutesFromState(), 720, '「必ずやめる」ならヤメ予定が上限');
+  assert.equal(api.softDeadlineMinutesFromState(), null, '「必ずやめる」に打ちかけの消化は無い');
+  assert.equal(api.quitPlanText(), 'ヤメ予定21:00（必ずやめる）／閉店23:45');
+
+  // 閉店だけならヤメ予定の種類は効かない
+  Object.assign(api.state, continuousState({ nowTime: '09:00', quitTime: null, closeTime: '21:00', quitKind: 'soft' }));
+  assert.equal(api.hardRemainMinutesFromState(), 720, '閉店は常に「必ずやめる」');
+  assert.equal(api.softDeadlineMinutesFromState(), null);
+  assert.equal(api.quitPlanText(), '閉店21:00');
+  // ヤメ予定が閉店より遅ければ閉店が勝つ
+  Object.assign(api.state, continuousState({ nowTime: '09:00', quitTime: '23:59', closeTime: '21:00', quitKind: 'soft' }));
+  assert.equal(api.remainMinutesFromState(), 720);
+  assert.equal(api.hardRemainMinutesFromState(), 720);
+  assert.equal(api.softDeadlineMinutesFromState(), null, 'ヤメ予定が閉店より遅ければ打ちかけの消化は起きない');
+}
+
+// 検算: 打ちかけは消化 vs 必ずやめる
+{
+  const times = { currentSpin: 50, rotationRate: 22, normalSpeed: 350, nowTime: '09:00', quitTime: '21:00', closeTime: '23:45' };
+  const soft = shipped({ ...times, quitKind: 'soft' });
+  const hard = shipped({ ...times, quitKind: 'hard' });
+  assert.equal(soft.minutes, 720, '時給の分母はどちらもヤメ予定まで');
+  assert.equal(hard.minutes, 720);
+  assert.ok(soft.evYen > hard.evYen, `打ちかけを消化するほうが合計期待値は大きいこと: soft ${soft.evYen.toFixed(0)} / hard ${hard.evYen.toFixed(0)}`);
+  assert.ok(Math.abs(soft.cutoffYen) < 50, `打ちかけを消化すれば取り残しはほぼ0: ${soft.cutoffYen.toFixed(1)}円`);
+  assert.equal(Math.abs(soft.cutoffYen), 0, '閉店まで余裕があれば取り残しは0');
+  assert.ok(hard.cutoffYen < -100, `「必ずやめる」なら取り残しが出ること: ${hard.cutoffYen.toFixed(0)}円`);
+  assert.ok(soft.firstHits > hard.firstHits, '打ちかけを消化するぶん初当りも増える');
+
+  // 閉店が近ければ、打ちかけの消化中でも閉店が上限として効く
+  const capped = shipped({ ...times, quitKind: 'soft', closeTime: '21:15' });
+  assert.equal(capped.minutes, 720, '打ち終わる予定はヤメ予定のまま');
+  assert.ok(capped.cutoffYen < -100, `閉店が上限として効き、取り残しが出ること: ${capped.cutoffYen.toFixed(0)}円`);
+  assert.ok(capped.evYen < soft.evYen, '閉店が近いぶん、消化しきれず期待値は下がる');
+  assert.ok(capped.evYen > hard.evYen, 'それでも15分ぶんは消化できるので「必ずやめる」よりは高い');
+  assert.match(logicBlock, /if \(softDeadline !== null && at >= softDeadline - eps\) \{ stopIndex = i; break; \}/, 'ヤメ予定を過ぎたら新しいサイクルを始めないこと');
+}
+
+// 交換率：チップ3つ＋自由入力
+assert.equal(JSON.stringify(api.EXCHANGE_OPTIONS.map((o) => o.balls)), '[25,28,33]', '30玉のチップは廃止');
+assert.equal(api.EXCHANGE_OPTIONS[0].label, '等価(25玉)');
+assert.equal(api.EXCHANGE_MIN_BALLS, 20);
+assert.equal(api.EXCHANGE_MAX_BALLS, 40);
+{
+  Object.assign(api.state, continuousState({ exchangeBalls: 25, exchangeCustom: null }));
+  assert.equal(api.exchangeBallsFromState(), 25, '自由入力が空ならチップの値');
+  assert.equal(api.yenPerBallFromState(), 4);
+  assert.equal(api.exchangeMessage(), '');
+  Object.assign(api.state, continuousState({ exchangeBalls: 25, exchangeCustom: 28.01 }));
+  assert.equal(api.exchangeBallsFromState(), 28.01, '自由入力があればそちらを使う');
+  assert.ok(Math.abs(api.yenPerBallFromState() - 100 / 28.01) < 1e-12, '交換単価＝100÷入力玉数');
+  assert.ok(Math.abs(api.yenPerBallFromState() - 3.5702) < 0.0001, `28.01玉 → 3.570円/玉（実測 ${api.yenPerBallFromState().toFixed(4)}）`);
+  for (const balls of [19.9, 40.1, 0, -5]) {
+    Object.assign(api.state, continuousState({ exchangeCustom: balls }));
+    assert.equal(api.exchangeMessage(), '交換率は20〜40玉で入力してください', `範囲外 ${balls} は案内を出す`);
+    assert.equal(api.missingMessage(), '交換率は20〜40玉で入力してください', '範囲外なら計算しないこと');
+    assert.equal(api.calculateFromState().result, null, '範囲外は「—」になること');
+    assert.equal(api.continuousFromState().result, null, '打ち切りモードでも「—」になること');
+  }
+  for (const balls of [20, 28.01, 40]) {
+    Object.assign(api.state, continuousState({ exchangeCustom: balls }));
+    assert.equal(api.exchangeMessage(), '', `範囲内 ${balls} は通す`);
+  }
+
+  // v3のDSG高岡（28.01）と同条件で同じ期待値になること
+  const pageCase = evaluate({ presetId: 'agnes-pe', currentSpin: 150, rotationRate: 17, payout: 100, exchangeBalls: 25, exchangeCustom: 28.01 }).result;
+  const directCase = api.YUTIME_EXPECTATION_ENGINE.calculate(
+    { presetId: 'agnes-pe', currentSpin: api.engineSpinFromCounter(api.PRESETS[0], 150), rotationRate: 17, availableBalls: 0 },
+    { ...api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults, presetId: 'agnes-pe', netBallsPerWin: 100, yenPerBall: 100 / 28.01 }
+  );
+  assert.ok(Math.abs(pageCase.evYen - directCase.evYen) < 1e-9, '自由入力28.01がエンジンへそのまま渡ること');
+  // 28玉のチップとは違う値になる（28.01は少しだけ悪い）
+  const chipCase = evYenOf({ presetId: 'agnes-pe', currentSpin: 150, rotationRate: 17, payout: 100, exchangeBalls: 28 });
+  assert.ok(Math.round(pageCase.evYen) < chipCase, '28.01玉は28玉よりわずかに不利');
+
+  // ?exchange= は小数も受け付ける
+  context.window.location.search = '?exchange=28.01';
+  assert.equal(api.exchangeFromUrl(), 28.01);
+  context.window.location.search = '?exchange=25';
+  assert.equal(api.exchangeFromUrl(), 25);
+  for (const search of ['?exchange=19.9', '?exchange=40.1', '?exchange=abc', '?exchange=0', '']) {
+    context.window.location.search = search;
+    assert.equal(api.exchangeFromUrl(), null, `${search || '未指定'} は null`);
+  }
+  context.window.location.search = '';
+  assert.match(calcHtml, /state\.exchangeCustom = initialExchange;/, '?exchange= の値をチップに無ければ自由入力へ入れること');
+}
+
+// 数値欄の操作（タップで空・離れたら戻す）と inputmode
+{
+  assert.match(calcHtml, /function bindNumberInput\(id, assign\)/, '数値欄の挙動は1つの関数にまとめること');
+  assert.match(calcHtml, /element\.addEventListener\("focus", \(\) => \{\n\s+previous = element\.value;\n\s+element\.value = "";\n\s+\}\);/, 'タップした瞬間に空にすること');
+  assert.match(calcHtml, /element\.addEventListener\("blur", \(\) => \{\n\s+if \(element\.value !== ""\) return;\n\s+element\.value = previous;\n\s+assign\(numberOrNull\(previous\)\);/, '何も入れずに離れたら元の値へ戻すこと');
+  for (const id of ['currentSpin', 'rotationRate', 'payout', 'mochidamaBalls', 'saipureiBalls', 'normalSpeed', 'exchangeCustom']) {
+    assert.match(calcHtml, new RegExp(`bindNumberInput\\("${id}"`), `${id} は共通の数値欄挙動を使うこと`);
+    const field = new RegExp(`<input id="${id}" type="number"[^>]*inputmode="(numeric|decimal)"`);
+    assert.match(calcHtml, field, `${id} は数字キーボードを出すこと`);
+  }
+  // 時刻の欄は端末の時刻ピッカーのまま
+  for (const id of ['nowTime', 'quitTime', 'closeTime']) {
+    assert.match(calcHtml, new RegExp(`<input id="${id}" type="time">`), `${id} は type="time" のまま`);
+    assert.doesNotMatch(calcHtml, new RegExp(`bindNumberInput\\("${id}"`), `${id} に数値欄の挙動は付けないこと`);
+  }
+}
+
+// ヤメ予定・閉店・現在時刻は打ち切りモードだけ
+assert.match(calcHtml, /byId\("timeRow"\)\.style\.display = continuous \? "" : "none";/, '時刻の入力行は打ち切りモードだけに出すこと');
+assert.match(calcHtml, /<div class="chips" id="quitKindChips"/, 'ヤメ予定の種類は時刻の行に置くこと（＝遊タイム狙いでは隠れる）');
+{
+  const timeRow = sectionOf(calcHtml, 'yutime-calc.html', '<div class="row" id="timeRow">', '</div>\n  </div>');
+  for (const id of ['nowTime', 'quitTime', 'closeTime', 'quitKindChips']) {
+    assert.ok(timeRow.includes(id), `${id} は timeRow の中にあること（モードで隠れる）`);
+  }
 }
 
 console.log('yutime-calc: OK');
