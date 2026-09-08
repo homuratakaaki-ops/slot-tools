@@ -44,7 +44,7 @@ vm.runInContext([
   presetBlock,
   logicBlock,
   urlBlock,
-  'globalThis.api = { state, PRESETS, MODE_OPTIONS, SPEED_OPTIONS, DEFAULT_SPEED, DEFAULT_CLOSE_TIME, CONTINUOUS_TRIALS, CONTINUOUS_SEED, CONTINUOUS_DEBOUNCE_MS, BREAKEVEN_STEP_MINUTES, BREAKEVEN_MAX_MINUTES, TABLE_MINUTES, HOURLY_THRESHOLD_YEN, YUTIME_EXPECTATION_ENGINE, currentPreset, counterOffset, engineSpinFromCounter, remainingSpins, numberOrNull, yenText, hourText, evJudgment, basisText, missingMessage, availableBallsFromState, calculateFromState, presetIdFromUrl, ballsFromUrl, modeFromUrl, speedFromUrl, saipureiFromUrl, timeFromUrl, supportsContinuous, breakevenCheckpoints, simulateContinuous, continuousConfigFromState, continuousFromState, continuousMissingMessage, continuousBlockMessage, countText, exitsText, seatSummaryText, seatSummaryLabel, unreachableText, cycleTableHtml, hourlyGridFrom, seatMinutesFrom, hourlyThresholdFromState, hourlyThresholdFromUrl, continuousBasisText, parseTimeMinutes, formatTimeMinutes, currentClockText, endTimeInfo, remainMinutesFromState, remainSummaryText, speedNoteText };'
+  'globalThis.api = { state, PRESETS, MODE_OPTIONS, SPEED_OPTIONS, DEFAULT_SPEED, DEFAULT_CLOSE_TIME, CONTINUOUS_TRIALS, CONTINUOUS_SEED, CONTINUOUS_DEBOUNCE_MS, BREAKEVEN_STEP_MINUTES, BREAKEVEN_MAX_MINUTES, TABLE_MINUTES, HOURLY_THRESHOLD_YEN, YUTIME_EXPECTATION_ENGINE, currentPreset, counterOffset, engineSpinFromCounter, remainingSpins, numberOrNull, yenText, hourText, evJudgment, basisText, missingMessage, availableBallsFromState, calculateFromState, presetIdFromUrl, ballsFromUrl, modeFromUrl, speedFromUrl, saipureiFromUrl, timeFromUrl, supportsContinuous, breakevenCheckpoints, simulateContinuous, continuousConfigFromState, continuousFromState, continuousMissingMessage, continuousBlockMessage, countText, exitsText, seatSummaryText, seatSummaryLabel, unreachableText, cycleTableHtml, gridFrom, seatMinutesFrom, steadyHourlyYen, GRID_CHECKPOINTS, hourlyThresholdFromState, hourlyThresholdFromUrl, continuousBasisText, parseTimeMinutes, formatTimeMinutes, currentClockText, endTimeInfo, remainMinutesFromState, remainSummaryText, speedNoteText };'
 ].join('\n'), context);
 const api = context.api;
 
@@ -56,7 +56,7 @@ const fastApi = new Function('window', 'URLSearchParams', [
   presetBlock,
   logicBlock,
   urlBlock,
-  'return { state, PRESETS, YUTIME_EXPECTATION_ENGINE, engineSpinFromCounter, simulateContinuous, continuousConfigFromState, continuousFromState, hourlyGridFrom };'
+  'return { state, PRESETS, YUTIME_EXPECTATION_ENGINE, engineSpinFromCounter, simulateContinuous, continuousConfigFromState, continuousFromState, gridFrom, steadyHourlyYen };'
 ].join('\n'))({ location: { search: '' } }, URLSearchParams);
 
 function evaluate({ presetId, currentSpin, rotationRate, payout, exchangeBalls = 25, ballKind = 'cash', mochidamaBalls = null, saipureiBalls = null }) {
@@ -433,8 +433,7 @@ assert.ok(
 // 加重は振り分けの 30/66/4 ではなく「実際に抜けた時短」の終端分布を使う（仕様§3-3の確定事項）。
 // 終端分布は w_J × (1-p)^(J+残保留) に比例して短い時短へ寄る（30/66/4 → 約36/62/2）。
 // 起点は時短抜け50。カウンター150から始めると1サイクル目のぶんだけ時給が持ち上がる。
-// やめるルールの閾値は0円で回す。定常の時給と比べるには「期待値がプラスな限り打ち続ける」必要があり、
-// 出荷時の2,400円だと17回転の台は1サイクルで席を立つのでこの比較にならない。
+// やめるルールは「1サイクル期待値がマイナスならヤメ」なので、定常の時給との比較がそのままできる。
 {
   const spec = fastApi.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].spec;
   const hold = fastApi.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.holdSpins;
@@ -451,12 +450,11 @@ assert.ok(
   });
   const refHourly = refEv / refHours;
 
-  Object.assign(fastApi.state, continuousState({ currentSpin: 50, normalSpeed: 250, nowTime: '00:00', quitTime: null, closeTime: '23:59' }));
-  const cfg = fastApi.continuousConfigFromState();
-  const grid = cfg.jitanTable.map((row) => fastApi.hourlyGridFrom(
-    fastApi.simulateContinuous({ ...cfg, startCounter: cfg.stSpins + row.spins, cycleLimit: 1, stopRuleHourly: null }).curve
-  ));
-  const longRun = fastApi.simulateContinuous({ ...cfg, stopRuleHourly: { grid, threshold: 0 } });
+  const longRun = shipped({ currentSpin: 50, normalSpeed: 250, nowTime: '00:00', quitTime: null, closeTime: '23:59' });
+  // ページが根拠行に出す定常時給も、同じ加重で出していること
+  Object.assign(api.state, continuousState({ currentSpin: 50, normalSpeed: 250, nowTime: '00:00', quitTime: null, closeTime: '23:59' }));
+  assert.ok(Math.abs(api.steadyHourlyYen() - refHourly) < 1e-9, '定常時給は終端分布の加重で出すこと');
+  assert.ok(Math.abs(longRun.steadyHourlyYen - refHourly) < 1e-9, '結果にも定常時給を持たせること');
   assert.ok(
     Math.abs(longRun.hourlyYen / refHourly - 1) <= 0.05,
     `§3-3 24時間の時給が再スタート加重のサイクル時給と±5%で一致すること: ref ${refHourly.toFixed(0)} / sim ${longRun.hourlyYen.toFixed(0)}`
@@ -482,13 +480,16 @@ assert.ok(
     previous = value;
   }
   assert.ok(good.curve[0].evYen < 0, '§3-4 短い残り時間ではマイナスに転じること');
-  // 閾値に届かない台（17回転・時速250）は1サイクルで席を立つので、長い残り時間では頭打ちになる
+  // 時給が閾値に届かない台（17回転・時速250）でも、期待値がプラスな限りは打ち続けるので積み上がる
   const weak = shipped({ rotationRate: 17, normalSpeed: 250 });
   const weakAt = (minutes) => weak.curve.find((row) => row.minutes === minutes).evYen;
+  let weakPrevious = -Infinity;
+  for (const minutes of [60, 120, 180, 240, 300, 360]) {
+    assert.ok(weakAt(minutes) > weakPrevious, `§3-4 時給が届かない台でも残り時間とともに積み上がること: ${minutes}分 ${weakAt(minutes).toFixed(0)}`);
+    weakPrevious = weakAt(minutes);
+  }
   assert.ok(weakAt(60) < 0, '§3-4 打てない台も短い残り時間ではマイナス');
-  assert.ok(weakAt(120) > weakAt(60), '§3-4 残り時間が伸びれば1サイクルぶんは積み上がる');
-  assert.ok(Math.abs(weakAt(360) - weakAt(180)) < 100, 'やめるルールで1サイクルで終わるので、長い残り時間では頭打ちになる');
-  assert.ok(weak.firstHits < 1.2, '閾値に届かない台では初当り1回で席を立つ');
+  assert.ok(weak.firstHits > 3, '期待値がプラスな限り座り直すので初当りは積み上がる');
 }
 
 // 受け入れ基準5 / 6: 座れる残り時間＝1サイクルの時給が閾値以上になる最小の残り時間
@@ -608,22 +609,42 @@ assert.equal(api.evJudgment({ totalHours: 1, hourlyYen: -1, evYen: 0 }, 0).label
   assert.equal(api.unreachableText(400), 'この条件では打てる水準（時給400円）に届きません');
 }
 
-// やめるルール（時短抜けで「残り時間での1サイクル時給 < 閾値」ならヤメ）
-{
-  const weak = shipped({ rotationRate: 17, normalSpeed: 250 });
-  const weakRaw = rawRun({ rotationRate: 17, normalSpeed: 250 });
-  assert.ok(weak.stopRuleShare > 0.99, '閾値に届かない台では、ほぼ全ての試行が1回目の時短抜けでヤメる');
-  assert.ok(weak.firstHits < weakRaw.firstHits, 'やめるルールで初当り回数は減る');
+// やめるルール（時短抜けで「残り時間で打つ1サイクルの期待値 < 0」ならヤメ）
+// 時給のしきい値は判定ラベルの表示だけに使い、集計には効かせない
+for (const condition of [{ rotationRate: 17, normalSpeed: 250 }, { rotationRate: 22, normalSpeed: 350 }]) {
+  const label = `${condition.rotationRate}回転・時速${condition.normalSpeed}`;
+  const withRule = shipped(condition);
+  const noRule = rawRun(condition);
+  assert.ok(withRule.stopRuleShare > 0, `${label}: ヤメが発生すること`);
+  assert.ok(withRule.firstHits < noRule.firstHits, `${label}: やめるルールで初当り回数は減る`);
+  // マイナスのサイクルを打たないぶん、合計期待値は必ず上がる
+  assert.ok(withRule.evYen > noRule.evYen, `${label}: やめるルールで合計期待値が上がること: ${withRule.evYen.toFixed(0)} vs ${noRule.evYen.toFixed(0)}`);
+  withRule.curve.forEach((row, index) => {
+    assert.ok(
+      row.evYen >= withRule.rawCurve[index].evYen - 1e-9,
+      `${label}: やめるルールはどの残り時間でも損を減らすこと: ${row.minutes}分 ${row.evYen.toFixed(0)} vs ${withRule.rawCurve[index].evYen.toFixed(0)}`
+    );
+  });
   // やめた時点で打ちかけの投資は残らないので、時間切れの損失は縮む
-  assert.ok(weak.cutoffYen > weakRaw.cutoffYen, `やめるルールで時間切れ損失が縮むこと: ${weak.cutoffYen.toFixed(0)} vs ${weakRaw.cutoffYen.toFixed(0)}`);
-  assert.ok(weak.evYen > weakRaw.evYen, '打ち続けるとマイナスになる台では、やめるルールで合計期待値も上がる');
+  assert.ok(withRule.cutoffYen > noRule.cutoffYen, `${label}: 時間切れ損失が縮むこと: ${withRule.cutoffYen.toFixed(0)} vs ${noRule.cutoffYen.toFixed(0)}`);
+}
 
-  // 打てる水準の台では、閾値に届く間は座り直すので初当りが積み上がる
-  const strong = shipped({ rotationRate: 22, normalSpeed: 350 });
-  assert.ok(strong.firstHits > 4, '打てる台では座り直して初当りが積み上がること');
-  // 時給を基準にやめるので、合計期待値そのものは打ち続けるより下がりうる（時給と引き換え）
-  assert.ok(strong.evYen <= strong.evYenNoStopRule + 1e-9, 'やめるルールは時給を優先し、合計期待値は打ち続ける場合を上回らない');
-  assert.ok(strong.cutoffYen > rawRun({ rotationRate: 22, normalSpeed: 350 }).cutoffYen, '打てる台でも時間切れ損失は縮むこと');
+// 時給のしきい値を変えても、集計（合計期待値・時給・時間切れ損失・回数）は1円も動かないこと
+{
+  const base = shipped({ rotationRate: 17, normalSpeed: 250 });
+  for (const thresholdYen of [1000, 400, 5000]) {
+    const other = shipped({ rotationRate: 17, normalSpeed: 250, hourlyThreshold: thresholdYen });
+    assert.equal(other.evYen, base.evYen, `しきい値${thresholdYen}円でも合計期待値は同じ`);
+    assert.equal(other.hourlyYen, base.hourlyYen, `しきい値${thresholdYen}円でも時給は同じ`);
+    assert.equal(other.cutoffYen, base.cutoffYen, `しきい値${thresholdYen}円でも時間切れ損失は同じ`);
+    assert.equal(other.firstHits, base.firstHits, `しきい値${thresholdYen}円でも初当り回数は同じ`);
+    assert.equal(other.stopRuleShare, base.stopRuleShare, `しきい値${thresholdYen}円でもヤメ率は同じ`);
+    assert.equal(JSON.stringify(other.curve), JSON.stringify(base.curve), `しきい値${thresholdYen}円でも残り時間別の期待値は同じ`);
+    // 変わるのは表示だけ（判定ラベルと座れる残り時間）
+    assert.equal(other.hourlyThreshold, thresholdYen);
+  }
+  assert.match(logicBlock, /if \(row\[gridIndex < stopGridLast \? gridIndex : stopGridLast\] < 0\)/, 'やめるルールは期待値0を基準にすること');
+  assert.doesNotMatch(logicBlock, /stopRuleHourly|stopThreshold/, '時給のしきい値をシミュレーションへ渡さないこと');
 }
 
 // 受け入れ基準7: 固定シードで同じ入力→同じ出力
@@ -715,7 +736,9 @@ assert.equal(api.evJudgment({ totalHours: 1, hourlyYen: -1, evYen: 0 }, 0).label
   assert.match(basis, /使用回転率 22回転\/千円/, '根拠行に既存の使用回転率を出すこと');
   assert.match(basis, /1R実質出玉（電サポ中の減り込み） 100/, '根拠行に既存の1R実質出玉を出すこと');
   assert.match(basis, /上段の時給は合計期待値÷残り180分（表の時給は1サイクルの期待値÷消化時間）/, '2種類の時給の違いを根拠行で明示すること');
-  assert.match(basis, /時短抜けで残り時間の1サイクル時給が2,400円未満ならヤメる前提/, '根拠行にやめるルールを明記すること');
+  assert.match(basis, /時短抜けで残り時間の1サイクル期待値がマイナスならヤメる前提/, '根拠行にやめるルールを明記すること');
+  assert.match(basis, /判定の時給しきい値 2,400円（表示のみ。集計には使わない）/, '時給しきい値の役割を根拠行で明示すること');
+  assert.match(basis, /定常時給 \+[\d,]+円\/h（時短抜け25\/50\/100を終端分布36\/62\/2で加重した1サイクル期待値÷所要時間）/, '根拠行に定常時給を出すこと');
 }
 
 // URLパラメータ ?mode=continuous&minutes=120&speed=5.0
@@ -904,5 +927,89 @@ assert.notEqual(api.parseTimeMinutes(api.currentClockText()), null);
 assert.match(calcHtml, /state\.nowTime = currentClockText\(\);/, '初期値は端末の時計から入れること');
 assert.match(calcHtml, /byId\("nowTime"\)\.addEventListener\("input", \(event\) => \{\n\s+\/\/ 手で直したら、以後は端末の時計で上書きしない\n\s+state\.nowManual = true;/, '手入力で自動更新を止めること');
 assert.equal(api.state.nowManual, false, '既定は自動更新');
+
+// --- 16. 定常時給と、12時間打ち切りの合計期待値 ---------------------------------
+// やめるルールが「1サイクル期待値がマイナスならヤメ」に戻ったので、
+// 長時間打てば合計期待値は定常時給×時間に寄る。
+// 最初のサイクルの上振れ（起点が天井寄り）と最後の取り残しで前後するため、幅で固定する。
+
+{
+  // 現在9:00・閉店21:00 ＝ 12時間
+  const twelveHours = { currentSpin: 50, nowTime: '09:00', quitTime: null, closeTime: '21:00' };
+  const cases = [
+    { rotationRate: 22, normalSpeed: 250, steady: 2439, range: [25000, 33000] },
+    { rotationRate: 22, normalSpeed: 350, steady: 2986, range: [30000, 40000] },
+    { rotationRate: 17, normalSpeed: 250, steady: 414, range: [3000, 6000] }
+  ];
+  for (const testCase of cases) {
+    const label = `${testCase.rotationRate}回転・時速${testCase.normalSpeed}`;
+    const result = shipped({ ...twelveHours, rotationRate: testCase.rotationRate, normalSpeed: testCase.normalSpeed });
+    assert.equal(result.minutes, 720, `${label}: 9:00→21:00 は720分`);
+    assert.ok(
+      Math.abs(result.steadyHourlyYen - testCase.steady) < 1,
+      `${label}: 定常時給 ${testCase.steady}円/h（実測 ${result.steadyHourlyYen.toFixed(0)}）`
+    );
+    assert.ok(
+      result.evYen >= testCase.range[0] && result.evYen <= testCase.range[1],
+      `${label}: 12時間の合計期待値が ${testCase.range[0]}〜${testCase.range[1]}円 に収まること（実測 ${result.evYen.toFixed(0)}）`
+    );
+    // 定常時給×12時間 から大きく外れないこと
+    assert.ok(
+      Math.abs(result.evYen / (testCase.steady * 12) - 1) <= 0.15,
+      `${label}: 定常時給×12時間（${(testCase.steady * 12).toFixed(0)}円）と±15%で一致すること（実測 ${result.evYen.toFixed(0)}）`
+    );
+    assert.ok(result.firstHits > 10, `${label}: 12時間なら初当りは何度も来る（${result.firstHits.toFixed(1)}回）`);
+  }
+
+  // 17回転・時速250 は時給が2,400円に届かないので、判定は「微妙」で「届きません」を出す
+  const weak = shipped({ ...twelveHours, rotationRate: 17, normalSpeed: 250 });
+  Object.assign(api.state, continuousState({ ...twelveHours, rotationRate: 17, normalSpeed: 250 }));
+  assert.equal(
+    weak.outlooks[0].cells.find((cell) => cell.minutes === 180).judgment.label,
+    '微妙',
+    '期待値はプラスだが時給が2,400円に届かないので「微妙」'
+  );
+  assert.equal(
+    api.seatSummaryText(weak),
+    'この条件では打てる水準（時給2,400円）に届きません',
+    '合計期待値がプラスでも、時給が届かなければ「届きません」を出すこと'
+  );
+  assert.ok(weak.evYen > 0, 'それでも合計期待値そのものはプラス');
+}
+
+// 定常時給の中身（終端分布の加重・時速の反映・エンジンの値であること）
+{
+  const spec = api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].spec;
+  const defaults = api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults;
+  const weights = spec.jitanTable.map((row) => row.share * Math.pow(1 - spec.hitProbLow, row.spins + defaults.holdSpins));
+  const weightSum = weights.reduce((sum, weight) => sum + weight, 0);
+  const shares = weights.map((weight) => weight / weightSum);
+  assert.ok(Math.abs(shares[0] - 0.0226) < 0.001, '時短90の終端構成比は約2%');
+  assert.ok(Math.abs(shares[1] - 0.6168) < 0.001, '時短40の終端構成比は約62%');
+  assert.ok(Math.abs(shares[2] - 0.3605) < 0.001, '時短15の終端構成比は約36%');
+
+  Object.assign(api.state, continuousState({ rotationRate: 22, normalSpeed: 250 }));
+  const slow = api.steadyHourlyYen();
+  Object.assign(api.state, continuousState({ rotationRate: 22, normalSpeed: 350 }));
+  const fast = api.steadyHourlyYen();
+  assert.ok(fast > slow, '時速が速いほうが定常時給は高いこと');
+  assert.ok(Math.abs(slow - 2439) < 1 && Math.abs(fast - 2986) < 1, `22回転の定常時給: 250→${slow.toFixed(0)} / 350→${fast.toFixed(0)}`);
+
+  // エンジンの値をそのまま加重したものであること
+  let refEv = 0;
+  let refHours = 0;
+  spec.jitanTable.forEach((row, index) => {
+    const result = api.YUTIME_EXPECTATION_ENGINE.calculate(
+      { presetId: 'agnes-pe', currentSpin: api.engineSpinFromCounter(api.PRESETS[0], spec.stSpins + row.spins), rotationRate: 22, availableBalls: 0 },
+      { ...defaults, presetId: 'agnes-pe', netBallsPerWin: 100, yenPerBall: 4, spinsPerHour: 350 }
+    );
+    refEv += shares[index] * result.evYen;
+    refHours += shares[index] * result.totalHours;
+  });
+  assert.ok(Math.abs(fast - refEv / refHours) < 1e-9, '定常時給はエンジンの1サイクル期待値÷所要時間の加重平均');
+
+  Object.assign(api.state, continuousState({ presetId: 'umi-sp5' }));
+  assert.equal(api.steadyHourlyYen(), null, '時短振り分けを持たない機種では出さない');
+}
 
 console.log('yutime-calc: OK');
