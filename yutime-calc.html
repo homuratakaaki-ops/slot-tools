@@ -34,6 +34,10 @@
   .chips{display:flex;flex-wrap:wrap;gap:5px}
   .chip{flex:1 1 0;min-width:48px;height:44px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;font-weight:700;padding:2px 4px;cursor:pointer;font-family:inherit;white-space:nowrap}
   .chip[aria-pressed="true"]{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12)}
+  .modes{display:flex;gap:6px;margin-top:8px}
+  .mode-btn{flex:1 1 0;min-width:0;height:44px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:13px;font-weight:700;padding:2px 4px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .mode-btn[aria-pressed="true"]{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12)}
+  .mode-btn[disabled]{opacity:.35;cursor:default}
   .result{margin-top:8px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px 10px}
   .result.good{border-color:rgba(126,201,138,.55)}
   .result.warn{border-color:rgba(201,168,76,.55)}
@@ -45,6 +49,12 @@
   .cell-value.good{color:var(--green)}
   .cell-value.bad{color:var(--red)}
   .threshold{font-size:10px;color:var(--text-dim);margin-top:5px;border-top:1px solid var(--border);padding-top:4px}
+  .ct-lines{margin-top:7px;border-top:1px solid var(--border);padding-top:6px;font-size:12px;line-height:1.75;color:var(--text-muted)}
+  .ct-lines b{color:var(--text);font-weight:700}
+  .ct-lines b.bad{color:var(--red)}
+  .ct-note{font-size:10px;color:var(--text-dim);margin-left:4px}
+  .ct-breakeven{margin-top:6px;border-top:1px solid var(--border);padding-top:6px;font-size:12px;color:var(--text-muted)}
+  .ct-breakeven b{font-size:15px;font-weight:700;color:var(--gold-light)}
   details.basis-box{margin-top:3px}
   details.basis-box>summary{font-size:10px;color:var(--gold);cursor:pointer;list-style:none}
   details.basis-box>summary::-webkit-details-marker{display:none}
@@ -105,7 +115,25 @@
       <div class="field" style="max-width:140px;margin-top:3px"><input id="mochidamaBalls" type="number" min="0" step="1" inputmode="numeric" placeholder="0"><span class="unit">玉</span></div>
       <div class="hint">今ある持ち玉を入力してください。空欄なら現金と同じ扱いで計算します。</div>
     </div>
+    <div class="row" id="speedRow">
+      <label class="label" for="normalSpeed">通常時の時速</label>
+      <div class="field-chips">
+        <div class="field" style="flex:0 0 92px"><input id="normalSpeed" type="number" min="0" step="0.1" inputmode="decimal" placeholder="4.2"><span class="unit">回転/分</span></div>
+        <div class="chips-wrap"><div class="chips" id="speedChips"></div></div>
+      </div>
+      <div class="hint">4.2＝記事の前提（250回転/h）／5.9＝導入日の実測（22回転の良台）</div>
+    </div>
+    <div class="row" id="minutesRow">
+      <label class="label" for="remainMinutes">残り時間</label>
+      <div class="field-chips">
+        <div class="field" style="flex:0 0 92px"><input id="remainMinutes" type="number" min="0" step="5" inputmode="numeric" placeholder="180"><span class="unit">分</span></div>
+        <div class="chips-wrap"><div class="chips" id="minutesChips"></div></div>
+      </div>
+      <div class="hint">閉店や予定までの、この台に張れる時間</div>
+    </div>
   </div>
+
+  <div class="modes" id="modeChips"></div>
 
   <div class="result" id="resultPanel">
     <div class="result-grid">
@@ -117,6 +145,22 @@
     <div class="notice" id="notice"></div>
     <div class="threshold">判定基準：時給2,400円以上で打てる</div>
     <details class="basis-box"><summary>計算の内訳</summary><div class="basis" id="basis"></div></details>
+  </div>
+
+  <div class="result" id="continuousPanel" style="display:none">
+    <div class="result-grid">
+      <div><div class="cell-label">合計期待値</div><div class="cell-value" id="ctEvYen">—</div></div>
+      <div><div class="cell-label">時給</div><div class="cell-value" id="ctHourlyYen">—</div></div>
+    </div>
+    <div class="ct-lines">
+      <div>想定当たり <b id="ctHits">—</b>（初当り） ／ 遊タイム到達 <b id="ctYutime">—</b></div>
+      <div>時短抜け <b id="ctExits">—</b></div>
+      <div>時間切れの損失見込み <b id="ctCutoff">—</b><span class="ct-note">（打ちかけの投資が回収できない分）</span></div>
+      <div>今から座れる残り時間 <b id="ctCurrentBreakeven">—</b><span class="ct-note">（現在カウンターから1サイクル）</span></div>
+    </div>
+    <div class="ct-breakeven">時短抜けから座れる残り時間：<b id="ctRestartBreakeven">—</b></div>
+    <div class="notice" id="ctNotice"></div>
+    <details class="basis-box"><summary>計算の内訳</summary><div class="basis" id="ctBasis"></div></details>
   </div>
 
   <div class="links">
@@ -427,6 +471,31 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       }
     ];
 
+    // --- C2: 打ち切りモード（時間制約つき期待値シミュレーター）の定数 -------------
+    // 遊タイム狙いモードは「打ち始め→1回目の当たり（＋連チャン）」までの期待値。
+    // 打ち切りモードは、時短抜けから打ち続ける前提で、残り時間が尽きるまでの合計期待値を出す。
+    const MODE_OPTIONS = [
+      { id: "yutime", label: "遊タイム狙い" },
+      { id: "continuous", label: "打ち切り" }
+    ];
+    // 固定シード。同じ入力なら常に同じ出力になる（受け入れ基準7）
+    const CONTINUOUS_SEED = 20260908;
+    // 20,000試行。座れる最短時間（T*）の揺れを±10分以内に収めるための既定
+    const CONTINUOUS_TRIALS = 20000;
+    const SPEED_OPTIONS = [
+      { value: 4.2, label: "4.2" },
+      { value: 5.0, label: "5.0" },
+      { value: 5.9, label: "5.9" }
+    ];
+    const DEFAULT_SPEED = 4.2;
+    const MINUTES_OPTIONS = [60, 120, 180, 240, 360];
+    const DEFAULT_MINUTES = 180;
+    // 「プラスになる最短の残り時間」を探す刻みと上限
+    const BREAKEVEN_STEP_MINUTES = 5;
+    const BREAKEVEN_MAX_MINUTES = 360;
+    // 貸玉単価。1000円で250玉
+    const CASH_YEN_PER_BALL = 1000 / 250;
+
     const byId = (id) => document.getElementById(id);
 
     const state = {
@@ -436,7 +505,11 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       payout: PRESETS[0].payoutDefault,
       exchangeBalls: EXCHANGE_OPTIONS[0].balls,
       ballKind: BALL_KIND_OPTIONS[0].id,
-      mochidamaBalls: null
+      mochidamaBalls: null,
+      // C2: 打ち切りモード専用の入力
+      mode: MODE_OPTIONS[0].id,
+      normalSpeed: DEFAULT_SPEED,
+      remainMinutes: DEFAULT_MINUTES
     };
 
     function currentPreset() {
@@ -534,6 +607,513 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       return { result, missing: result ? "" : "入力値を確認してください" };
     }
 
+    // --- C2: 打ち切りモード ------------------------------------------------------
+    // エンジン（解析式）は時間上限を扱えないので、この画面のなかでモンテカルロを回す。
+    // エンジンブロックには手を入れない。整合はテストの一致条件で担保する。
+
+    // 打ち切りモデルはST確定機（アグネスPE）の構造を前提にしている。
+    // それ以外の機種では推測値を出さず、未対応として扱う。
+    function supportsContinuous(preset) {
+      return enginePresetFor(preset).spec?.modelType === "st-certain";
+    }
+
+    // 再現可能な擬似乱数（mulberry32）。固定シードなので同じ入力なら同じ出力になる
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function random() {
+        a = (a + 0x6D2B79F5) >>> 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    // 5分刻みの探索点に、入力された残り時間を混ぜた昇順リスト
+    function breakevenCheckpoints(minutes) {
+      const list = [];
+      for (let t = BREAKEVEN_STEP_MINUTES; t <= BREAKEVEN_MAX_MINUTES; t += BREAKEVEN_STEP_MINUTES) list.push(t);
+      if (!list.includes(minutes)) list.push(minutes);
+      list.sort((a, b) => a - b);
+      return list;
+    }
+
+    // 時間軸に沿って進めるモンテカルロ。
+    // 1試行を最長のチェックポイントまで回し、各チェックポイント時点の累積収支を記録する。
+    // 残り時間が短い試行は同じ試行の前半とまったく同じ経路をたどるので、
+    // 「残り時間ごとの期待値」を1回の試行から全部読み出せる（＝座れる最短時間の探索が実質タダになる）。
+    // 1回転ずつ乱数を引くと数秒かかるので、区間ごとに「何回転目で当たるか」を
+    // 幾何分布の逆関数で1回引き、時間と玉代はまとめて進める（結果の分布は1回転ずつと同じ）。
+    //
+    // やめるルール（C2-2）: 時短抜けの時点で残り時間が「その起点から1サイクル打って
+    // 期待値が0以上になる最短時間 T*」を下回っていたら、そこで打ち止める。実戦で座り直さない判断。
+    // T* は残り時間 T に依存しないので、試行はやめずに最後まで回し、
+    // サイクルの区切りを記録しておいて、チェックポイントごとに「どこでやめたか」を後から当てる。
+    function simulateContinuous(cfg) {
+      const trials = Math.max(1, Math.floor(cfg.trials));
+      const cps = cfg.checkpoints;
+      const mainIndex = cfg.mainIndex;
+      const horizon = cps[cps.length - 1];
+      const cpCount = cps.length;
+      // 浮動小数の積み上げ誤差で境界判定がぶれないための許容幅（0.06ミリ秒相当）
+      const eps = 1e-6;
+
+      const jitanTable = cfg.jitanTable;
+      const jitanCount = jitanTable.length;
+      const jitanCum = new Array(jitanCount);
+      const jitanSpinsOf = new Array(jitanCount);
+      let shareAcc = 0;
+      for (let k = 0; k < jitanCount; k += 1) {
+        shareAcc += jitanTable[k].share;
+        jitanCum[k] = shareAcc;
+        jitanSpinsOf[k] = jitanTable[k].spins;
+      }
+      // 時短抜けの種類ごとの T*。未指定なら「やめない」（0分＝どんな残り時間でも座り直す）
+      const stopRule = new Array(jitanCount).fill(0);
+      if (Array.isArray(cfg.stopRuleMinutes)) {
+        for (let k = 0; k < jitanCount; k += 1) {
+          const value = cfg.stopRuleMinutes[k];
+          stopRule[k] = value === null || value === undefined ? Infinity : value;
+        }
+      }
+
+      const tenjo = cfg.tenjo;
+      const counterOffsetSpins = cfg.counterOffset;
+      const startCounter = cfg.startCounter;
+      const stSpins = cfg.stSpins;
+      const holdSpins = cfg.holdSpins;
+      const ballsPerSpin = cfg.ballsPerSpin;
+      const yenPerBall = cfg.yenPerBall;
+      const payoutBallsPerWin = cfg.payoutBallsPerWin;
+      const yutimeBallsPerSpin = cfg.yutimeBallsPerSpin;
+      const densapoBallsPerSpin = cfg.densapoBallsPerSpin;
+      const spinMinutes = cfg.spinMinutes;
+      const densapoMinutes = cfg.densapoMinutes;
+      const hitMinutes = cfg.hitMinutes;
+      const availableBalls = Math.max(0, cfg.availableBalls);
+      const mochidamaYenPerSpin = ballsPerSpin * yenPerBall;
+      const cashYenPerSpin = ballsPerSpin * CASH_YEN_PER_BALL;
+      const densapoYenPerSpin = densapoBallsPerSpin * yenPerBall;
+      const yutimeYenPerSpin = yutimeBallsPerSpin * yenPerBall;
+      const payoutYenPerWin = payoutBallsPerWin * yenPerBall;
+      const cycleLimit = Number.isFinite(cfg.cycleLimit) ? cfg.cycleLimit : Infinity;
+
+      const random = mulberry32(cfg.seed);
+      const invLogLow = 1 / Math.log1p(-cfg.hitProbLow);
+      const invLogHigh = 1 / Math.log1p(-cfg.hitProbHigh);
+      // 何回転目で当たるか（1始まり）。上限を超えたらその区間では当たらない
+      const spinsUntilHit = (invLog) => Math.floor(Math.log1p(-random()) * invLog) + 1;
+
+      // やめるルール込み（Stopped）と、比較用のルール無し（Raw）を同時に集計する
+      const profitSums = new Array(cpCount).fill(0);
+      const rawProfitSums = new Array(cpCount).fill(0);
+      const exitSums = new Array(jitanCount).fill(0);
+      const exits = new Array(jitanCount).fill(0);
+      const snapExits = new Array(jitanCount).fill(0);
+      const trialProfit = new Array(cpCount).fill(0);
+      let firstHitSum = 0;
+      let winSum = 0;
+      let yutimeSum = 0;
+      let cutoffSum = 0;
+      let stopRuleTrials = 0;
+      // 受け入れ基準1〜3（エンジンとの整合）用に、最初のサイクル単体の値も集計する
+      let cycleYenSum = 0;
+      let cycleWinSum = 0;
+      let cycleMinutesSum = 0;
+      let cycleSamples = 0;
+
+      // サイクルの区切り（＝次に座り直すかを決める地点）の記録
+      const boundaryTime = [];
+      const boundaryStopRule = [];
+      const boundaryProfit = [];
+      const boundaryFirstHits = [];
+      const boundaryWins = [];
+      const boundaryYutime = [];
+      const boundaryExits = [];
+
+      // 試行ごとに使い回す状態（関数を作り直さないぶん速い）
+      let t = 0;
+      let profit = 0;
+      let ci = 0;
+      let bank = 0;
+      let outOfTime = false;
+      let firstHits = 0;
+      let wins = 0;
+      let yutimeReaches = 0;
+      // 打ちかけの通常時投資。当たれば0に戻る
+      let pendingYen = 0;
+      let snapFirstHits = 0;
+      let snapWins = 0;
+      let snapYutime = 0;
+      let snapPending = 0;
+      let cycleYen = 0;
+      let cycleWins = 0;
+      let firstCycle = true;
+
+      // いま見ているチェックポイントを締める
+      function record() {
+        trialProfit[ci] = profit;
+        if (ci === mainIndex) {
+          snapFirstHits = firstHits;
+          snapWins = wins;
+          snapYutime = yutimeReaches;
+          snapPending = pendingYen;
+          for (let k = 0; k < jitanCount; k += 1) snapExits[k] = exits[k];
+        }
+        ci += 1;
+      }
+
+      function credit(yen) {
+        profit += yen;
+        if (firstCycle) cycleYen += yen;
+      }
+
+      // spins回転ぶん時間を進める。チェックポイントを跨ぐ手前で必ず締めるので、
+      // 「その時刻までに確定した収支」がチェックポイントごとに正しく残る。
+      // 残り時間が尽きたら outOfTime を立て、実際に進めた回転数を返す。
+      function advance(spins, dt, yenPerSpin, pendingPerSpin) {
+        let done = 0;
+        while (done < spins) {
+          if (t + dt > horizon + eps) { outOfTime = true; break; }
+          let n = spins - done;
+          const byHorizon = Math.floor((horizon + eps - t) / dt);
+          if (byHorizon < n) n = byHorizon;
+          if (ci < cpCount) {
+            const byCheckpoint = Math.floor((cps[ci] + eps - t) / dt);
+            if (byCheckpoint < n) n = byCheckpoint;
+          }
+          if (n <= 0) { record(); continue; }
+          t += n * dt;
+          if (yenPerSpin !== 0) credit(n * yenPerSpin);
+          if (pendingPerSpin !== 0) pendingYen += n * pendingPerSpin;
+          done += n;
+        }
+        return done;
+      }
+
+      for (let trial = 0; trial < trials; trial += 1) {
+        t = 0;
+        profit = 0;
+        ci = 0;
+        bank = availableBalls;
+        outOfTime = false;
+        firstHits = 0;
+        wins = 0;
+        yutimeReaches = 0;
+        pendingYen = 0;
+        snapFirstHits = 0;
+        snapWins = 0;
+        snapYutime = 0;
+        snapPending = 0;
+        exits.fill(0);
+        snapExits.fill(0);
+        cycleYen = 0;
+        cycleWins = 0;
+        firstCycle = true;
+        boundaryTime.length = 0;
+        boundaryStopRule.length = 0;
+        boundaryProfit.length = 0;
+        boundaryFirstHits.length = 0;
+        boundaryWins.length = 0;
+        boundaryYutime.length = 0;
+        boundaryExits.length = 0;
+        let counter = startCounter;
+        let cycles = 0;
+
+        while (!outOfTime && cycles < cycleLimit) {
+          // --- 通常時：1回転ごとに玉代を払い、低確率で当選する ---
+          pendingYen = 0;
+          const spinsToTenjo = Math.max(0, tenjo - Math.max(0, counter - counterOffsetSpins));
+          const normalDraw = spinsUntilHit(invLogLow);
+          const hit = normalDraw <= spinsToTenjo;
+          let left = hit ? normalDraw : spinsToTenjo;
+          // 持ち玉がある間は交換単価、尽きたら貸玉単価（エンジンと同じ考え方）
+          if (left > 0 && bank > 0) {
+            const fullBankSpins = Math.min(left, Math.floor(bank / ballsPerSpin));
+            if (fullBankSpins > 0) {
+              const done = advance(fullBankSpins, spinMinutes, -mochidamaYenPerSpin, mochidamaYenPerSpin);
+              bank -= done * ballsPerSpin;
+              left -= done;
+            }
+            if (!outOfTime && left > 0 && bank > 0) {
+              // 持ち玉が1回転ぶんに足りない回転。残りを現金で埋める
+              const mixedYen = bank * yenPerBall + (ballsPerSpin - bank) * CASH_YEN_PER_BALL;
+              const done = advance(1, spinMinutes, -mixedYen, mixedYen);
+              if (done > 0) { bank = 0; left -= 1; }
+            }
+          }
+          if (!outOfTime && left > 0) {
+            left -= advance(left, spinMinutes, -cashYenPerSpin, cashYenPerSpin);
+          }
+          if (outOfTime) break;
+
+          if (!hit) {
+            // --- 遊タイム：時短10,000回＝当たるまで電サポで回す。確率は低確のまま ---
+            yutimeReaches += 1;
+            const yutimeDraw = spinsUntilHit(invLogLow);
+            const done = advance(yutimeDraw, densapoMinutes, yutimeYenPerSpin, 0);
+            bank = Math.max(0, bank + done * yutimeBallsPerSpin);
+            if (outOfTime) break;
+          }
+
+          // --- 連チャン：ST→時短→残保留。残り時間が尽きた段階で以降の価値は得られない ---
+          let lastExitIndex = -1;
+          let firstWinOfCycle = true;
+          for (;;) {
+            // 当たり1回の消化時間が残っていなければ出玉は得られない
+            if (advance(1, hitMinutes, 0, 0) < 1) break;
+            bank += payoutBallsPerWin;
+            credit(payoutYenPerWin);
+            wins += 1;
+            if (firstCycle) cycleWins += 1;
+            if (firstWinOfCycle) { firstHits += 1; firstWinOfCycle = false; }
+            pendingYen = 0;
+
+            // ST（高確率・電サポ）
+            const stDraw = spinsUntilHit(invLogHigh);
+            const stDone = advance(Math.min(stDraw, stSpins), densapoMinutes, densapoYenPerSpin, 0);
+            bank = Math.max(0, bank + stDone * densapoBallsPerSpin);
+            if (outOfTime) break;
+            if (stDraw <= stSpins) continue;
+
+            // 時短（低確率・電サポ）。回数は振り分けで決める
+            const roll = random();
+            let exitIndex = jitanCount - 1;
+            for (let k = 0; k < jitanCount; k += 1) {
+              if (roll < jitanCum[k]) { exitIndex = k; break; }
+            }
+            const jitanSpins = jitanSpinsOf[exitIndex];
+            const jitanDraw = spinsUntilHit(invLogLow);
+            const jitanDone = advance(Math.min(jitanDraw, jitanSpins), densapoMinutes, densapoYenPerSpin, 0);
+            bank = Math.max(0, bank + jitanDone * densapoBallsPerSpin);
+            if (outOfTime) break;
+            if (jitanDraw <= jitanSpins) continue;
+
+            // 時短抜け
+            exits[exitIndex] += 1;
+            lastExitIndex = exitIndex;
+
+            // 残保留（玉代ゼロ・電サポ外。時間は通常時速で計上する）。無料なので必ず消化する
+            const holdDraw = spinsUntilHit(invLogLow);
+            advance(Math.min(holdDraw, holdSpins), spinMinutes, 0, 0);
+            if (outOfTime) break;
+            if (holdDraw <= holdSpins) continue;
+            break;
+          }
+          if (outOfTime) break;
+
+          if (firstCycle) {
+            cycleYenSum += cycleYen;
+            cycleWinSum += cycleWins;
+            cycleMinutesSum += t;
+            cycleSamples += 1;
+            firstCycle = false;
+          }
+          cycles += 1;
+          // 次サイクルの起点＝時短回数＋ST回数（データカウンター基準）。
+          // ここが「座り直すかどうか」を決める地点なので、時刻と収支を控えておく
+          boundaryTime.push(t);
+          boundaryStopRule.push(stopRule[lastExitIndex]);
+          boundaryProfit.push(profit);
+          boundaryFirstHits.push(firstHits);
+          boundaryWins.push(wins);
+          boundaryYutime.push(yutimeReaches);
+          for (let k = 0; k < jitanCount; k += 1) boundaryExits.push(exits[k]);
+          counter = stSpins + jitanSpinsOf[lastExitIndex];
+        }
+
+        while (ci < cpCount) record();
+
+        // チェックポイントごとに「やめるルールで、どのサイクル区切りで打ち止めたか」を当てる。
+        // 残り時間（T − 区切りの時刻）が T* を下回る最初の区切りでやめる
+        const boundaryCount = boundaryTime.length;
+        for (let k = 0; k < cpCount; k += 1) {
+          const limit = cps[k];
+          rawProfitSums[k] += trialProfit[k];
+          let stopIndex = -1;
+          for (let i = 0; i < boundaryCount; i += 1) {
+            const at = boundaryTime[i];
+            if (at > limit + eps) break;
+            if (limit - at < boundaryStopRule[i] - eps) { stopIndex = i; break; }
+          }
+          if (stopIndex < 0) {
+            profitSums[k] += trialProfit[k];
+            if (k === mainIndex) {
+              firstHitSum += snapFirstHits;
+              winSum += snapWins;
+              yutimeSum += snapYutime;
+              cutoffSum += snapPending;
+              for (let j = 0; j < jitanCount; j += 1) exitSums[j] += snapExits[j];
+            }
+          } else {
+            profitSums[k] += boundaryProfit[stopIndex];
+            if (k === mainIndex) {
+              stopRuleTrials += 1;
+              firstHitSum += boundaryFirstHits[stopIndex];
+              winSum += boundaryWins[stopIndex];
+              yutimeSum += boundaryYutime[stopIndex];
+              // やめた時点では打ちかけの投資は無い
+              for (let j = 0; j < jitanCount; j += 1) exitSums[j] += boundaryExits[stopIndex * jitanCount + j];
+            }
+          }
+        }
+      }
+
+      const curve = cps.map((minutes, index) => ({ minutes, evYen: profitSums[index] / trials }));
+      const rawCurve = cps.map((minutes, index) => ({ minutes, evYen: rawProfitSums[index] / trials }));
+      const main = curve[mainIndex];
+      const hours = cfg.minutes / 60;
+      return {
+        trials,
+        minutes: cfg.minutes,
+        speed: cfg.speed,
+        evYen: main.evYen,
+        // やめるルールを入れなかった場合の値。ルールが損を減らしていることの確認用
+        evYenNoStopRule: rawCurve[mainIndex].evYen,
+        hourlyYen: hours > 0 ? main.evYen / hours : 0,
+        firstHits: firstHitSum / trials,
+        wins: winSum / trials,
+        yutimeReaches: yutimeSum / trials,
+        exits: exitSums.map((sum) => sum / trials),
+        cutoffYen: -(cutoffSum / trials),
+        stopRuleShare: stopRuleTrials / trials,
+        curve,
+        rawCurve,
+        // 受け入れ基準1〜3用（最初のサイクル単体）
+        cycleEvYen: cycleSamples > 0 ? cycleYenSum / cycleSamples : null,
+        cycleWins: cycleSamples > 0 ? cycleWinSum / cycleSamples : null,
+        cycleHours: cycleSamples > 0 ? cycleMinutesSum / cycleSamples / 60 : null,
+        cycleSamples
+      };
+    }
+
+    function continuousMissingMessage() {
+      const base = missingMessage();
+      if (base) return base;
+      if (state.normalSpeed === null || state.normalSpeed <= 0) return "通常時の時速を入力してください";
+      if (state.remainMinutes === null || state.remainMinutes <= 0) return "残り時間を入力してください";
+      return "";
+    }
+
+    function continuousConfigFromState() {
+      const preset = currentPreset();
+      const enginePreset = enginePresetFor(preset);
+      const spec = enginePreset.spec;
+      const settings = {
+        ...enginePreset.defaults,
+        netBallsPerWin: preset.netBallsPerWin(state.payout),
+        yenPerBall: 100 / state.exchangeBalls
+      };
+      const minutes = state.remainMinutes;
+      const checkpoints = breakevenCheckpoints(minutes);
+      return {
+        trials: CONTINUOUS_TRIALS,
+        seed: CONTINUOUS_SEED,
+        checkpoints,
+        mainIndex: checkpoints.indexOf(minutes),
+        minutes,
+        speed: state.normalSpeed,
+        hitProbLow: spec.hitProbLow,
+        hitProbHigh: spec.hitProbHigh,
+        tenjo: spec.tenjo,
+        stSpins: spec.stSpins,
+        jitanTable: spec.jitanTable,
+        counterOffset: counterOffset(preset),
+        startCounter: state.currentSpin,
+        ballsPerSpin: 250 / state.rotationRate,
+        // S11: netBallsPerWin は玉/R。当選あたりの出玉は 玉/R × 当選1回あたりの平均R数
+        payoutBallsPerWin: settings.netBallsPerWin * spec.averageRoundsPerWin,
+        yenPerBall: settings.yenPerBall,
+        yutimeBallsPerSpin: settings.yutimeBallsPerSpin,
+        densapoBallsPerSpin: settings.jitanFastBallsPerSpin,
+        holdSpins: settings.holdSpins,
+        spinMinutes: 1 / state.normalSpeed,
+        densapoMinutes: settings.secPerDensapoSpin / 60,
+        hitMinutes: settings.secPerHit / 60,
+        availableBalls: availableBallsFromState()
+      };
+    }
+
+    // 単サイクルの損益分岐 T*(c)。起点 c から残り T 分で1サイクルだけ打ち、
+    // 時間切れなら打ちかけの投資を損失として、期待値が0以上になる最小の T（5分刻み）。
+    // 座れないなら null。
+    function cycleBreakevenMinutes(cfg, startCounter) {
+      const single = simulateContinuous({ ...cfg, startCounter, cycleLimit: 1, stopRuleMinutes: null });
+      const row = single.curve.find((entry) => entry.minutes % BREAKEVEN_STEP_MINUTES === 0
+        && entry.minutes <= BREAKEVEN_MAX_MINUTES
+        && entry.evYen >= 0);
+      return row ? row.minutes : null;
+    }
+
+    function continuousFromState() {
+      const preset = currentPreset();
+      if (!supportsContinuous(preset)) {
+        return { result: null, missing: `打ち切りモードは${preset.name}に未対応です` };
+      }
+      const missing = continuousMissingMessage();
+      if (missing) return { result: null, missing };
+      const cfg = continuousConfigFromState();
+      // 先に「その起点から座れる最短の残り時間」を出す。時短抜けごとの3値と、いまのカウンター
+      const restartBreakeven = cfg.jitanTable.map((row) => {
+        const counter = cfg.stSpins + row.spins;
+        return { spins: row.spins, counter, minutes: cycleBreakevenMinutes(cfg, counter) };
+      });
+      const currentBreakeven = {
+        counter: cfg.startCounter,
+        minutes: cycleBreakevenMinutes(cfg, cfg.startCounter)
+      };
+      // 時短抜けで残り時間が T* を下回ったらヤメる。座れないなら Infinity＝必ずヤメる
+      const stopRuleMinutes = restartBreakeven.map((row) => (row.minutes === null ? Infinity : row.minutes));
+      const result = simulateContinuous({ ...cfg, stopRuleMinutes });
+      return { result: { ...result, restartBreakeven, currentBreakeven }, missing: "" };
+    }
+
+    function countText(value) {
+      if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
+      return `${Number(value).toFixed(1)}回`;
+    }
+
+    function exitsText(result) {
+      const preset = currentPreset();
+      const jitanTable = enginePresetFor(preset).spec.jitanTable || [];
+      if (!result) return "—";
+      return jitanTable
+        .map((row, index) => ({ spins: row.spins, count: result.exits[index] }))
+        .sort((a, b) => a.spins - b.spins)
+        .map((row) => `${row.spins}：${countText(row.count)}`)
+        .join(" ／ ");
+    }
+
+    // 座れる最短の残り時間。これを下回るなら座り直さない
+    function seatMinutesText(minutes) {
+      if (minutes === null || minutes === undefined) return `残り${BREAKEVEN_MAX_MINUTES / 60}時間でも座れません`;
+      return `${minutes}分〜`;
+    }
+
+    function restartBreakevenText(result) {
+      if (!result || !result.restartBreakeven) return "—";
+      return result.restartBreakeven
+        .slice()
+        .sort((a, b) => a.spins - b.spins)
+        .map((row) => `${row.spins}抜け ${seatMinutesText(row.minutes)}`)
+        .join(" ／ ");
+    }
+
+    function currentBreakevenText(result) {
+      if (!result || !result.currentBreakeven) return "—";
+      return seatMinutesText(result.currentBreakeven.minutes);
+    }
+
+    function continuousBasisText(result) {
+      if (!result) return "";
+      const preset = currentPreset();
+      const speedNote = Number(result.speed) === 4.2 ? "（記事の前提）" : "";
+      const perHour = Math.round(Number(result.speed) * 60);
+      return `時速${result.speed}回転/分${speedNote}＝${perHour.toLocaleString("ja-JP")}回転/h ／ 残り${result.minutes}分 ／ ${result.trials.toLocaleString("ja-JP")}試行`
+        + ` ／ 使用回転率 ${state.rotationRate}回転/千円 ／ ${preset.payoutLabel} ${state.payout}`
+        + ` ／ 電サポ中は6秒/回転で計算 ／ 想定連チャン ${countText(result.wins)}（初当り込み）`
+        + ` ／ 時短抜けで残り時間が座れる最短を下回ったらヤメる前提（この条件では${(result.stopRuleShare * 100).toFixed(0)}%の試行でヤメ）`;
+    }
+
     function chipHtml(options) {
       return options.map((option) => `<button type="button" class="chip" data-value="${option.value}" aria-pressed="${option.selected ? "true" : "false"}">${option.label}</button>`).join("");
     }
@@ -603,7 +1183,61 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       byId("totalHours").textContent = result ? hourText(result.totalHours) : "—";
       byId("basis").innerHTML = basisText(result);
       byId("notice").textContent = missing;
-      byId("embedCode").textContent = `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}"\n        width="100%" height="700" style="border:0" loading="lazy"></iframe>`;
+      byId("embedCode").textContent = state.mode === "continuous"
+        ? `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}&mode=continuous"\n        width="100%" height="1080" style="border:0" loading="lazy"></iframe>`
+        : `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}"\n        width="100%" height="700" style="border:0" loading="lazy"></iframe>`;
+      renderContinuousResult();
+    }
+
+    function renderModeChips() {
+      const supported = supportsContinuous(currentPreset());
+      byId("modeChips").innerHTML = MODE_OPTIONS.map((option) => {
+        const disabled = option.id === "continuous" && !supported ? " disabled" : "";
+        return `<button type="button" class="mode-btn" data-value="${option.id}" aria-pressed="${state.mode === option.id ? "true" : "false"}"${disabled}>${option.label}</button>`;
+      }).join("");
+    }
+
+    function renderModeFields() {
+      const continuous = state.mode === "continuous";
+      byId("speedRow").style.display = continuous ? "" : "none";
+      byId("minutesRow").style.display = continuous ? "" : "none";
+      byId("resultPanel").style.display = continuous ? "none" : "";
+      byId("continuousPanel").style.display = continuous ? "" : "none";
+      byId("speedChips").innerHTML = chipHtml(SPEED_OPTIONS.map((option) => ({
+        value: option.value,
+        label: option.label,
+        selected: Number(state.normalSpeed) === option.value
+      })));
+      byId("minutesChips").innerHTML = chipHtml(MINUTES_OPTIONS.map((value) => ({
+        value,
+        label: String(value),
+        selected: Number(state.remainMinutes) === value
+      })));
+    }
+
+    function renderContinuousResult() {
+      renderModeChips();
+      if (state.mode !== "continuous") return;
+      const { result, missing } = continuousFromState();
+      const panel = byId("continuousPanel");
+      const tone = !result ? "" : result.evYen >= 0 ? "good" : "bad";
+      panel.className = `result ${tone}`.trim();
+      const evNode = byId("ctEvYen");
+      evNode.textContent = result ? yenText(result.evYen) : "—";
+      evNode.className = `cell-value ${result && result.evYen < 0 ? "bad" : ""}`.trim();
+      const hourlyNode = byId("ctHourlyYen");
+      hourlyNode.textContent = result ? yenText(result.hourlyYen) : "—";
+      hourlyNode.className = `cell-value ${result && result.hourlyYen < 0 ? "bad" : ""}`.trim();
+      byId("ctHits").textContent = result ? countText(result.firstHits) : "—";
+      byId("ctYutime").textContent = result ? countText(result.yutimeReaches) : "—";
+      byId("ctExits").textContent = result ? exitsText(result) : "—";
+      const cutoffNode = byId("ctCutoff");
+      cutoffNode.textContent = result ? yenText(result.cutoffYen) : "—";
+      cutoffNode.className = result && result.cutoffYen < 0 ? "bad" : "";
+      byId("ctCurrentBreakeven").textContent = currentBreakevenText(result);
+      byId("ctRestartBreakeven").textContent = restartBreakevenText(result);
+      byId("ctNotice").textContent = missing;
+      byId("ctBasis").innerHTML = continuousBasisText(result);
     }
 
     function bindChipGroup(containerId, apply) {
@@ -635,6 +1269,33 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       }
     }
 
+    function modeFromUrl() {
+      try {
+        const requested = new URLSearchParams(window.location.search).get("mode");
+        return MODE_OPTIONS.some((option) => option.id === requested) ? requested : MODE_OPTIONS[0].id;
+      } catch (err) {
+        return MODE_OPTIONS[0].id;
+      }
+    }
+
+    function minutesFromUrl() {
+      try {
+        const minutes = numberOrNull(new URLSearchParams(window.location.search).get("minutes"));
+        return minutes !== null && minutes > 0 ? Math.floor(minutes) : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function speedFromUrl() {
+      try {
+        const speed = numberOrNull(new URLSearchParams(window.location.search).get("speed"));
+        return speed !== null && speed > 0 ? speed : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
     function inIframe() {
       try {
         return window.self !== window.top;
@@ -653,6 +1314,14 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         state.ballKind = "mochidama";
         byId("mochidamaBalls").value = String(initialBalls);
       }
+      // ?mode=continuous&minutes=120&speed=5.0 で打ち切りモードの初期状態を渡せる
+      const initialMinutes = minutesFromUrl();
+      if (initialMinutes !== null) state.remainMinutes = initialMinutes;
+      const initialSpeed = speedFromUrl();
+      if (initialSpeed !== null) state.normalSpeed = initialSpeed;
+      if (supportsContinuous(currentPreset())) state.mode = modeFromUrl();
+      byId("normalSpeed").value = String(state.normalSpeed);
+      byId("remainMinutes").value = String(state.remainMinutes);
 
       const select = byId("preset");
       select.innerHTML = PRESETS.map((preset) => `<option value="${preset.id}">${preset.name}</option>`).join("");
@@ -660,7 +1329,10 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       select.addEventListener("change", () => {
         state.presetId = PRESETS.some((preset) => preset.id === select.value) ? select.value : PRESETS[0].id;
         state.payout = currentPreset().payoutDefault;
+        // 打ち切りモデルに未対応の機種へ切り替えたら、推測値を出さずに遊タイム狙いへ戻す
+        if (!supportsContinuous(currentPreset())) state.mode = MODE_OPTIONS[0].id;
         renderPresetFields();
+        renderModeFields();
         renderResult();
       });
 
@@ -681,6 +1353,35 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         state.mochidamaBalls = numberOrNull(event.target.value);
         renderResult();
       });
+      byId("normalSpeed").addEventListener("input", (event) => {
+        state.normalSpeed = numberOrNull(event.target.value);
+        renderModeFields();
+        renderResult();
+      });
+      byId("remainMinutes").addEventListener("input", (event) => {
+        state.remainMinutes = numberOrNull(event.target.value);
+        renderModeFields();
+        renderResult();
+      });
+
+      byId("modeChips").addEventListener("click", (event) => {
+        const button = event.target.closest(".mode-btn");
+        if (!button || button.disabled) return;
+        state.mode = MODE_OPTIONS.some((option) => option.id === button.dataset.value) ? button.dataset.value : MODE_OPTIONS[0].id;
+        renderModeFields();
+        renderResult();
+      });
+
+      bindChipGroup("speedChips", (value) => {
+        state.normalSpeed = Number(value);
+        byId("normalSpeed").value = value;
+        renderModeFields();
+      });
+      bindChipGroup("minutesChips", (value) => {
+        state.remainMinutes = Number(value);
+        byId("remainMinutes").value = value;
+        renderModeFields();
+      });
 
       bindChipGroup("payoutChips", (value) => {
         state.payout = Number(value);
@@ -698,6 +1399,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
 
       renderPresetFields();
       renderBallKindFields();
+      renderModeFields();
       renderStaticChips();
       renderResult();
     }

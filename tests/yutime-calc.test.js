@@ -44,9 +44,20 @@ vm.runInContext([
   presetBlock,
   logicBlock,
   urlBlock,
-  'globalThis.api = { state, PRESETS, YUTIME_EXPECTATION_ENGINE, currentPreset, counterOffset, engineSpinFromCounter, remainingSpins, numberOrNull, yenText, hourText, evJudgment, basisText, missingMessage, availableBallsFromState, calculateFromState, presetIdFromUrl, ballsFromUrl };'
+  'globalThis.api = { state, PRESETS, MODE_OPTIONS, SPEED_OPTIONS, MINUTES_OPTIONS, DEFAULT_SPEED, DEFAULT_MINUTES, CONTINUOUS_TRIALS, CONTINUOUS_SEED, BREAKEVEN_STEP_MINUTES, BREAKEVEN_MAX_MINUTES, YUTIME_EXPECTATION_ENGINE, currentPreset, counterOffset, engineSpinFromCounter, remainingSpins, numberOrNull, yenText, hourText, evJudgment, basisText, missingMessage, availableBallsFromState, calculateFromState, presetIdFromUrl, ballsFromUrl, modeFromUrl, minutesFromUrl, speedFromUrl, supportsContinuous, breakevenCheckpoints, simulateContinuous, continuousConfigFromState, continuousFromState, continuousMissingMessage, countText, exitsText, seatMinutesText, restartBreakevenText, currentBreakevenText, continuousBasisText, cycleBreakevenMinutes };'
 ].join('\n'), context);
 const api = context.api;
+
+// 同じソースを vm 抜きでも読み込む。vm.Context 内はモンテカルロが10倍以上遅く、
+// 試行数を要する整合テスト（§3-1〜3）が現実的な時間で回らないため。
+const fastApi = new Function('window', 'URLSearchParams', [
+  '    const DEFAULT_NET_BALLS_PER_ROUND = 140;',
+  calcEngine,
+  presetBlock,
+  logicBlock,
+  urlBlock,
+  'return { state, PRESETS, YUTIME_EXPECTATION_ENGINE, engineSpinFromCounter, simulateContinuous, continuousConfigFromState, continuousFromState, cycleBreakevenMinutes };'
+].join('\n'))({ location: { search: '' } }, URLSearchParams);
 
 function evaluate({ presetId, currentSpin, rotationRate, payout, exchangeBalls = 25, ballKind = 'cash', mochidamaBalls = null }) {
   Object.assign(api.state, { presetId, currentSpin, rotationRate, payout, exchangeBalls, ballKind, mochidamaBalls });
@@ -286,5 +297,323 @@ context.window.location.search = '';
 assert.match(calcHtml, /id="mochidamaRow"/, '持ち玉入力行があること');
 assert.match(calcHtml, /今ある持ち玉を入力してください。空欄なら現金と同じ扱いで計算します。/, '持ち玉入力のヒント文言があること');
 assert.doesNotMatch(presetBlock, /MOCHIDAMA_AVAILABLE_BALLS/, '固定ダミー値を残さないこと');
+
+// --- 13. 打ち切りモード（C2） -------------------------------------------------
+// 時間制約つきの合計期待値。エンジンは使わないので、
+// 「エンジンと同じ答えになるべき条件で一致すること」を必須条件として固定する。
+
+// エンジンブロックに打ち切りモードのコードが混ざっていないこと（yutime-v3 との一致テストの前提）
+assert.doesNotMatch(calcEngine, /simulateContinuous|mulberry32|breakevenCheckpoints/, '打ち切りモードのコードはエンジンブロックの外に置くこと');
+assert.match(logicBlock, /function simulateContinuous\(cfg\)/, '打ち切りモードはページ側ロジックに置くこと');
+
+// 既定は遊タイム狙い（今の挙動）
+assert.equal(api.MODE_OPTIONS[0].id, 'yutime');
+assert.equal(api.MODE_OPTIONS[0].label, '遊タイム狙い');
+assert.equal(api.MODE_OPTIONS[1].id, 'continuous');
+assert.equal(api.MODE_OPTIONS[1].label, '打ち切り');
+assert.equal(api.state.mode, 'yutime', '既定モードは遊タイム狙い');
+assert.equal(api.DEFAULT_SPEED, 4.2, '時速の既定は4.2回転/分（記事の前提）');
+assert.equal(api.DEFAULT_MINUTES, 180);
+assert.equal(api.CONTINUOUS_TRIALS, 20000, '既定は20,000試行（T*の揺れを±10分以内に収める）');
+assert.equal(JSON.stringify(api.SPEED_OPTIONS.map((o) => o.value)), '[4.2,5,5.9]');
+assert.equal(JSON.stringify(Array.from(api.MINUTES_OPTIONS)), '[60,120,180,240,360]');
+assert.equal(api.supportsContinuous(api.PRESETS[0]), true, 'アグネスPEはST確定機なので対応');
+assert.equal(api.supportsContinuous(api.PRESETS[1]), false, '大海5SPはモデルが異なるので未対応');
+
+// チェックポイントは5分刻み5〜360分＋入力された残り時間
+assert.equal(api.BREAKEVEN_STEP_MINUTES, 5);
+assert.equal(api.BREAKEVEN_MAX_MINUTES, 360);
+{
+  const cps = api.breakevenCheckpoints(180);
+  assert.equal(cps.length, 72, '5分刻み5〜360分で72点');
+  assert.equal(cps[0], 5);
+  assert.equal(cps[cps.length - 1], 360);
+  const odd = api.breakevenCheckpoints(97);
+  assert.equal(odd.length, 73, '5の倍数でない残り時間は探索点に足す');
+  assert.ok(odd.indexOf(97) > 0 && odd[odd.indexOf(97) - 1] === 95 && odd[odd.indexOf(97) + 1] === 100, '昇順に混ぜること');
+  const long = api.breakevenCheckpoints(1440);
+  assert.equal(long[long.length - 1], 1440, '360分を超える残り時間は最後に置く');
+}
+
+function continuousState(overrides) {
+  return {
+    presetId: 'agnes-pe', currentSpin: 50, rotationRate: 17, payout: 100,
+    exchangeBalls: 25, ballKind: 'cash', mochidamaBalls: null,
+    mode: 'continuous', normalSpeed: 4.2, remainMinutes: 180,
+    ...overrides
+  };
+}
+// 出荷される経路（T*を先に出して、やめるルール込みで本シミュレーションを回す）
+function shipped(overrides) {
+  Object.assign(fastApi.state, continuousState(overrides));
+  const { result } = fastApi.continuousFromState();
+  assert.ok(result, `打ち切りモードの結果が得られること: ${JSON.stringify(overrides)}`);
+  return result;
+}
+// やめるルール抜きで直接叩く（整合テスト用）
+function rawRun(overrides, cfgOverrides = {}) {
+  Object.assign(fastApi.state, continuousState(overrides));
+  return fastApi.simulateContinuous({ ...fastApi.continuousConfigFromState(), ...cfgOverrides });
+}
+function engineAt(counterSpin, overrides = {}) {
+  const defaults = fastApi.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults;
+  return fastApi.YUTIME_EXPECTATION_ENGINE.calculate(
+    { presetId: 'agnes-pe', currentSpin: fastApi.engineSpinFromCounter(fastApi.PRESETS[0], counterSpin), rotationRate: 17, availableBalls: 0 },
+    { ...defaults, presetId: 'agnes-pe', netBallsPerWin: 100, yenPerBall: 4, ...overrides }
+  );
+}
+
+// 受け入れ基準1: 残り時間24時間・時間切れ無しなら、最初のサイクルの期待値がエンジンと一致する。
+// エンジンと同じ通常時250回転/h（＝4.1667回転/分）で比較する。
+// 20,000試行でも1σが約1.5%あるので、モデルの一致を見る本テストは試行数を増やして判定する。
+const PARITY_TRIALS = 30000;
+const parity = rawRun(
+  { currentSpin: 150, normalSpeed: 250 / 60, remainMinutes: 24 * 60 },
+  { trials: PARITY_TRIALS, cycleLimit: 1 }
+);
+const engine150 = engineAt(150);
+assert.equal(Math.round(engine150.evYen), 1590, 'エンジン側の基準値（アグネスPE・カウンター150・17回転・1R100玉・等価・現金）');
+assert.equal(parity.cycleSamples, PARITY_TRIALS, '24時間あればサイクルは必ず完了する');
+assert.ok(
+  Math.abs(parity.cycleEvYen / engine150.evYen - 1) <= 0.03,
+  `§3-1 最初のサイクルの期待値がエンジンと±3%で一致すること: engine ${engine150.evYen.toFixed(0)} / sim ${parity.cycleEvYen.toFixed(0)}`
+);
+
+// 受け入れ基準2: 平均連 2.49連（B91・残保留込み）に ±2%
+assert.ok(Math.abs(engine150.expectedWins - 2.49) < 0.01, 'エンジンの平均連は2.49連');
+assert.ok(
+  Math.abs(parity.cycleWins / engine150.expectedWins - 1) <= 0.02,
+  `§3-2 平均連がエンジンと±2%で一致すること: engine ${engine150.expectedWins.toFixed(3)} / sim ${parity.cycleWins.toFixed(3)}`
+);
+
+// 受け入れ基準3: 残り時間24時間の時給が、時短抜けの再スタート加重で出したサイクル期待値÷サイクル時間と一致する。
+// 加重は振り分けの 30/66/4 ではなく「実際に抜けた時短」の終端分布を使う（仕様§3-3の確定事項）。
+// 長い時短ほど引き戻して連チャンが続くため終端になりにくく、
+// 終端分布は w_J × (1-p)^(J+残保留) に比例して短い時短へ寄る（30/66/4 → 約36/62/2）。
+// 起点は時短抜け50。カウンター150から始めると1サイクル目のぶんだけ時給が持ち上がり、
+// 定常の時給との比較にならない（実測 +11%）。
+{
+  const spec = fastApi.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].spec;
+  const hold = fastApi.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.holdSpins;
+  const pLow = spec.hitProbLow;
+  const weights = spec.jitanTable.map((row) => row.share * Math.pow(1 - pLow, row.spins + hold));
+  const weightSum = weights.reduce((sum, w) => sum + w, 0);
+  let refEv = 0;
+  let refHours = 0;
+  spec.jitanTable.forEach((row, index) => {
+    const share = weights[index] / weightSum;
+    const result = engineAt(spec.stSpins + row.spins);
+    refEv += share * result.evYen;
+    refHours += share * result.totalHours;
+  });
+  const refHourly = refEv / refHours;
+  const longRun = shipped({ currentSpin: 50, normalSpeed: 250 / 60, remainMinutes: 24 * 60 });
+  assert.ok(
+    Math.abs(longRun.hourlyYen / refHourly - 1) <= 0.05,
+    `§3-3 24時間の時給が再スタート加重のサイクル時給と±5%で一致すること: ref ${refHourly.toFixed(0)} / sim ${longRun.hourlyYen.toFixed(0)}`
+  );
+  // 終端分布が解析どおりであることも固定する（サイクル起点の決まり方の回帰点）
+  const exitTotal = longRun.exits.reduce((sum, v) => sum + v, 0);
+  spec.jitanTable.forEach((row, index) => {
+    const expected = weights[index] / weightSum;
+    const actual = longRun.exits[index] / exitTotal;
+    assert.ok(Math.abs(actual - expected) < 0.01, `時短${row.spins}の抜け構成比: expected ${expected.toFixed(4)}, got ${actual.toFixed(4)}`);
+  });
+}
+
+// 受け入れ基準4: 残り時間を短くすると合計期待値が下がり、ある時間でマイナスに転じる。
+// 5分刻みは乱数誤差が増分を上回ることがあるので、単調性は60分刻みで見る。
+{
+  const base = shipped({});
+  const at = (minutes) => base.curve.find((row) => row.minutes === minutes).evYen;
+  let previous = -Infinity;
+  for (const minutes of [60, 120, 180, 240, 300, 360]) {
+    const value = at(minutes);
+    assert.ok(value > previous, `§3-4 残り時間が長いほど合計期待値が大きいこと: ${minutes}分 ${value.toFixed(0)}`);
+    previous = value;
+  }
+  assert.ok(at(60) < 0, '§3-4 短い残り時間ではマイナスに転じること');
+  assert.ok(base.curve[0].evYen < 0, '5分ではマイナス');
+}
+
+// 受け入れ基準5 / 6: 単サイクルの損益分岐 T*
+// カウンター50 ＝ ST10回転 + 時短40回転 ＝「時短抜け50」。
+{
+  const slow = shipped({ rotationRate: 17, normalSpeed: 4.2 });
+  const t40 = slow.restartBreakeven.find((row) => row.spins === 40);
+  assert.equal(t40.counter, 50, '時短抜け40はデータカウンター50から再スタートする');
+  assert.ok(t40.minutes >= 45 && t40.minutes <= 70, `§3-5 17回転・時速4.2・c50 の T* が45〜70分であること: ${t40.minutes}分`);
+  assert.equal(slow.currentBreakeven.counter, 50);
+  assert.equal(slow.currentBreakeven.minutes, t40.minutes, 'カウンター50の T* は時短抜け40の T* と一致する');
+
+  const fast = shipped({ rotationRate: 22, normalSpeed: 5.9 });
+  const f40 = fast.restartBreakeven.find((row) => row.spins === 40);
+  assert.ok(f40.minutes >= 15 && f40.minutes <= 30, `§3-6 22回転・時速5.9・c50 の T* が15〜30分であること: ${f40.minutes}分`);
+
+  // 遊タイムに近い起点ほど早く座れる（時短抜け90＝カウンター100 が最短）
+  const bySpins = slow.restartBreakeven.slice().sort((a, b) => a.spins - b.spins);
+  assert.equal(JSON.stringify(bySpins.map((row) => row.counter)), '[25,50,100]', '起点は25/50/100');
+  assert.ok(bySpins[0].minutes >= bySpins[1].minutes, '時短抜け15は40より座りにくい');
+  assert.ok(bySpins[1].minutes >= bySpins[2].minutes, '時短抜け40は90より座りにくい');
+  // T* は「その起点から1サイクル打った期待値が0以上になる最小の残り時間」
+  const cfg = { ...fastApi.continuousConfigFromState() };
+  Object.assign(fastApi.state, continuousState({ rotationRate: 22, normalSpeed: 5.9 }));
+  const cfgFast = fastApi.continuousConfigFromState();
+  const single = fastApi.simulateContinuous({ ...cfgFast, startCounter: 50, cycleLimit: 1, stopRuleMinutes: null });
+  assert.equal(fastApi.cycleBreakevenMinutes(cfgFast, 50), f40.minutes, 'T* は単サイクル曲線のゼロ交差と一致する');
+  const cross = single.curve.find((row) => row.minutes === f40.minutes);
+  assert.ok(cross.evYen >= 0, `T* での単サイクル期待値は0以上: ${cross.evYen.toFixed(0)}`);
+  const before = single.curve.find((row) => row.minutes === f40.minutes - api.BREAKEVEN_STEP_MINUTES);
+  assert.ok(before.evYen < 0, `T* の1つ手前ではマイナス: ${before.evYen.toFixed(0)}`);
+  assert.ok(cfg.startCounter === 50);
+}
+
+// 受け入れ基準（追加）: やめるルールが損を減らしていること
+{
+  const withRule = shipped({});
+  assert.ok(
+    withRule.evYen >= withRule.evYenNoStopRule,
+    `やめるルール込みの合計期待値がルール無し以上であること: ${withRule.evYen.toFixed(0)} vs ${withRule.evYenNoStopRule.toFixed(0)}`
+  );
+  withRule.curve.forEach((row, index) => {
+    assert.ok(
+      row.evYen >= withRule.rawCurve[index].evYen - 1e-9,
+      `やめるルールはどの残り時間でも損を減らすこと: ${row.minutes}分 ${row.evYen.toFixed(0)} vs ${withRule.rawCurve[index].evYen.toFixed(0)}`
+    );
+  });
+  assert.ok(withRule.stopRuleShare > 0 && withRule.stopRuleShare <= 1, 'ヤメが発生した試行の割合を持つこと');
+  // やめれば打ちかけの投資は残らないので、時間切れの損失はルール無しよりずっと小さい
+  const noRule = rawRun({});
+  assert.ok(withRule.cutoffYen > noRule.cutoffYen, `やめるルールで時間切れ損失が縮むこと: ${withRule.cutoffYen.toFixed(0)} vs ${noRule.cutoffYen.toFixed(0)}`);
+}
+
+// 受け入れ基準7: 固定シードで同じ入力→同じ出力
+{
+  const a = shipped({});
+  const b = shipped({});
+  assert.equal(a.evYen, b.evYen, '§3-7 同じ入力なら合計期待値は同じ');
+  assert.equal(JSON.stringify(a.restartBreakeven), JSON.stringify(b.restartBreakeven), '§3-7 同じ入力なら T* も同じ');
+  assert.equal(JSON.stringify(a.curve), JSON.stringify(b.curve));
+  const c = shipped({ rotationRate: 22 });
+  assert.notEqual(a.evYen, c.evYen, '入力が変われば結果も変わる');
+}
+
+// 受け入れ基準8: 実行時間。T*の4本と本シミュレーションを合わせて計る
+{
+  const started = process.hrtime.bigint();
+  shipped({ rotationRate: 22, normalSpeed: 5.9, remainMinutes: 360 });
+  const elapsedMs = Number(process.hrtime.bigint() - started) / 1e6;
+  assert.ok(elapsedMs < 1000, `§3-8 T*の算出込みで1秒以内であること: ${elapsedMs.toFixed(0)}ms`);
+}
+
+// 集計値の整合（回数系）
+{
+  const base = shipped({});
+  assert.ok(base.firstHits > 0 && base.firstHits < 20, '初当り回数が現実的な範囲');
+  assert.ok(base.wins > base.firstHits, '総当選数は初当り数より多い（連チャンぶん）');
+  assert.ok(base.yutimeReaches >= 0 && base.yutimeReaches < base.firstHits, '遊タイム到達は初当りの一部');
+  assert.equal(base.exits.length, 3, '時短抜けは15/40/90の3種');
+  assert.ok(base.cutoffYen <= 0, '時間切れの損失見込みはマイナス表示');
+  assert.equal(base.trials, 20000);
+  assert.equal(base.minutes, 180);
+  // 時給は「実際に打った時間」ではなく入力の残り時間で割る
+  assert.ok(Math.abs(base.hourlyYen - base.evYen / 3) < 1e-9, '時給＝合計期待値÷残り時間');
+}
+
+// 持ち玉・交換率が打ち切りモードにも効くこと
+{
+  const equalCash = shipped({ currentSpin: 150 }).evYen;
+  const lowCash = shipped({ currentSpin: 150, exchangeBalls: 28 }).evYen;
+  assert.ok(lowCash < equalCash, '非等価のほうが合計期待値は下がること');
+  const lowMochidama = shipped({ currentSpin: 150, exchangeBalls: 28, ballKind: 'mochidama', mochidamaBalls: 3000 }).evYen;
+  assert.ok(lowMochidama > lowCash, '非等価では持ち玉のほうが合計期待値は高いこと');
+  const equalMochidama = shipped({ currentSpin: 150, ballKind: 'mochidama', mochidamaBalls: 3000 }).evYen;
+  // 持ち玉ぶんと現金ぶんで玉単価を分けて足すため、等価でも丸め誤差だけは出る
+  assert.ok(Math.abs(equalMochidama - equalCash) < 1e-6, '等価では現金と持ち玉で変わらない');
+}
+
+// 未入力・不正値で「—」＋不足項目の1行提示になり、例外にならないこと
+{
+  Object.assign(api.state, continuousState({ currentSpin: null, rotationRate: null, payout: null }));
+  assert.equal(api.continuousFromState().result, null);
+  assert.equal(api.continuousFromState().missing, '現在回転数を入力してください');
+  Object.assign(api.state, continuousState({ normalSpeed: null }));
+  assert.equal(api.continuousMissingMessage(), '通常時の時速を入力してください');
+  Object.assign(api.state, continuousState({ normalSpeed: 0 }));
+  assert.equal(api.continuousMissingMessage(), '通常時の時速を入力してください');
+  Object.assign(api.state, continuousState({ remainMinutes: null }));
+  assert.equal(api.continuousMissingMessage(), '残り時間を入力してください');
+  Object.assign(api.state, continuousState({ remainMinutes: -30 }));
+  assert.equal(api.continuousFromState().missing, '残り時間を入力してください');
+  Object.assign(api.state, continuousState({ presetId: 'umi-sp5' }));
+  const unsupported = api.continuousFromState();
+  assert.equal(unsupported.result, null);
+  assert.equal(unsupported.missing, '打ち切りモードはP大海物語5スペシャルに未対応です', '未対応機種では推測値を出さない');
+  assert.equal(api.countText(null), '—');
+  assert.equal(api.countText(3.04), '3.0回');
+  assert.equal(api.seatMinutesText(null), '残り6時間でも座れません');
+  assert.equal(api.seatMinutesText(55), '55分〜');
+  assert.equal(api.restartBreakevenText(null), '—');
+  assert.equal(api.currentBreakevenText(null), '—');
+  assert.equal(api.continuousBasisText(null), '');
+}
+
+// 表示テキスト（根拠行・時短抜け内訳・座れる残り時間）
+{
+  const shown = shipped({ currentSpin: 150 });
+  Object.assign(api.state, continuousState({ currentSpin: 150 }));
+  assert.equal(api.exitsText(shown).replace(/[\d.]+回/g, 'N'), '15：N ／ 40：N ／ 90：N', '時短抜けは回数の小さい順に並べる');
+  assert.equal(
+    api.restartBreakevenText(shown).replace(/\d+分〜/g, 'N分〜'),
+    '15抜け N分〜 ／ 40抜け N分〜 ／ 90抜け N分〜',
+    '座れる残り時間は時短回数の小さい順に3値を並べる'
+  );
+  assert.match(api.currentBreakevenText(shown), /^\d+分〜$/, '現在カウンターの座れる残り時間');
+  Object.assign(api.state, continuousState({ currentSpin: 150 }));
+  const basis = api.continuousBasisText(shown);
+  assert.match(basis, /時速4\.2回転\/分（記事の前提）＝252回転\/h/, '根拠行に時速と時間あたり換算を出すこと');
+  assert.match(basis, /残り180分/, '根拠行に残り時間を出すこと');
+  assert.match(basis, /20,000試行/, '根拠行に試行数を添えること（§3-8）');
+  assert.match(basis, /使用回転率 17回転\/千円/, '根拠行に既存の使用回転率を出すこと');
+  assert.match(basis, /1R実質出玉（電サポ中の減り込み） 100/, '根拠行に既存の1R実質出玉を出すこと');
+  assert.match(basis, /時短抜けで残り時間が座れる最短を下回ったらヤメる前提/, '根拠行にやめるルールを明記すること');
+}
+
+// URLパラメータ ?mode=continuous&minutes=120&speed=5.0
+context.window.location.search = '?mode=continuous&minutes=120&speed=5.0';
+assert.equal(api.modeFromUrl(), 'continuous');
+assert.equal(api.minutesFromUrl(), 120);
+assert.equal(api.speedFromUrl(), 5);
+context.window.location.search = '?mode=yutime';
+assert.equal(api.modeFromUrl(), 'yutime');
+for (const search of ['?mode=nonexistent', '']) {
+  context.window.location.search = search;
+  assert.equal(api.modeFromUrl(), 'yutime', `${search || '未指定'} は遊タイム狙いにフォールバック`);
+}
+for (const search of ['?minutes=abc', '?minutes=-30', '?minutes=0', '']) {
+  context.window.location.search = search;
+  assert.equal(api.minutesFromUrl(), null, `${search || '未指定'} は null`);
+}
+for (const search of ['?speed=abc', '?speed=-1', '?speed=0', '']) {
+  context.window.location.search = search;
+  assert.equal(api.speedFromUrl(), null, `${search || '未指定'} は null`);
+}
+context.window.location.search = '';
+
+// 画面側の静的条件
+assert.match(calcHtml, /<div class="modes" id="modeChips"><\/div>/, 'モードのトグルを結果ブロックの上に置くこと');
+assert.match(calcHtml, /id="continuousPanel"/, '打ち切りモード専用の結果ブロックがあること');
+assert.match(calcHtml, /id="speedRow"/, '時速の入力行があること');
+assert.match(calcHtml, /id="minutesRow"/, '残り時間の入力行があること');
+assert.match(calcHtml, /4\.2＝記事の前提（250回転\/h）／5\.9＝導入日の実測（22回転の良台）/, 'チップの注記を出すこと');
+assert.match(calcHtml, /時短抜けから座れる残り時間：<b id="ctRestartBreakeven">/, '時短抜けごとの座れる残り時間を出すこと');
+assert.match(calcHtml, /今から座れる残り時間 <b id="ctCurrentBreakeven">/, '現在カウンターから座れる残り時間を出すこと');
+assert.match(calcHtml, /\.ct-breakeven b\{font-size:15px;font-weight:700/, '座れる残り時間は太字で出すこと');
+assert.doesNotMatch(calcHtml, /この条件で期待値がプラスになる最短の残り時間/, '旧「プラスになる最短の残り時間」は T* の3値に置き換えること');
+assert.match(calcHtml, /打ちかけの投資が回収できない分/, '時間切れの損失見込みの説明を添えること');
+assert.match(calcHtml, /byId\("resultPanel"\)\.style\.display = continuous \? "none" : "";/, 'モードで結果ブロックを出し分けること');
+assert.match(calcHtml, /if \(!supportsContinuous\(currentPreset\(\)\)\) state\.mode = MODE_OPTIONS\[0\]\.id;/, '未対応機種へ切り替えたら遊タイム狙いへ戻すこと');
+// 実表示の全高は 320px幅で最大1,065px（埋め込み用コードは iframe 内では隠れる）
+assert.match(calcHtml, /width="100%" height="1080" style="border:0" loading="lazy"/, '打ち切りモードの埋め込みは高さを広げること');
 
 console.log('yutime-calc: OK');
