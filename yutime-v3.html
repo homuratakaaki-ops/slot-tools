@@ -1913,7 +1913,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 33;
+    const SCHEMA_VERSION = 34;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
@@ -2228,6 +2228,9 @@
       prevDayEndSpin: null,
       startEv: null,
       consumedBallsSource: null,
+      // S7/B-1: 消費玉の算出方式。打ち始めのときだけ "endpoints" を付ける（startSessionBase /
+      // startSameMachineContinuation）。既存データは null のままで、これまでの式を使い続ける。
+      consumedModel: null,
       segments: [],
       investments: [],
       charges: [],
@@ -2493,6 +2496,21 @@
 
     function normalizeConsumedBallsSource(value) {
       return value === "tray" || value === "taps" ? value : null;
+    }
+
+    // S7/B-1: 消費玉の算出方式。"endpoints" は「起点の持ち玉＋外から足した玉−終点の持ち玉」。
+    // 付いていないセッション（S7より前に打ち始めたもの）は従来どおりB95/B85式で出す。
+    function normalizeConsumedModel(value) {
+      return value === "endpoints" ? "endpoints" : null;
+    }
+
+    function usesEndpointConsumedModel(session) {
+      return normalizeConsumedModel(session?.consumedModel) === "endpoints";
+    }
+
+    // S7/B-2: 区間の起点が実測入力か、ツールの追跡値か。新式は実測（measured）のときだけ使う。
+    function normalizeStartBallsSource(value) {
+      return value === "measured" || value === "tracked" ? value : null;
     }
 
     function investmentSource(item) {
@@ -3211,6 +3229,8 @@
           currentMochidama: normalizeNumber(session.currentMochidama) ?? normalizeNumber(session.startMochidama),
           startEv: normalizeStartEv(session.startEv),
           consumedBallsSource: normalizeConsumedBallsSource(session.consumedBallsSource),
+          // S7/B-1: 旧データは consumedModel を持たないので null のまま（＝従来式）。ここで補完しない。
+          consumedModel: normalizeConsumedModel(session.consumedModel),
           hitTrackedBalls: normalizeNumber(session.hitTrackedBalls),
           sessionActualBalls: normalizeNumber(session.sessionActualBalls),
           carriedFromSessionId: session.carriedFromSessionId || null,
@@ -6483,6 +6503,8 @@
       const session = blankSession();
       session.storeId = store.id;
       session.machineId = machineId;
+      // S7/B-1: 新式（起点・終点の実測差）は打ち始めたセッションだけに付ける。
+      session.consumedModel = "endpoints";
       const manualPrevDayEndSpin = normalizeNumber(presets.prevDayEndSpin);
       const prevDayDisabled = presetsDisablePrevDay(presets);
       const hasPrevDayPreset = Object.prototype.hasOwnProperty.call(presets, "prevDayEndSpin") || prevDayDisabled;
@@ -6649,16 +6671,20 @@
     }
 
     // S2/§1-2: 時短抜けで新しい通常時区間を開始する。変更前の区間には触れない。
-    function startNormalSegmentAfterJitan(session, counterSpin) {
+    // S7/B-3: 時短抜けで入力した「そのときの台の持ち玉」があれば、それを新しい区間の起点にする。
+    // 未入力のときはこれまでどおりツールの追跡値を起点にし、実測ではない印（tracked）を付ける。
+    function startNormalSegmentAfterJitan(session, counterSpin, startBalls = null) {
       const segments = ensureSessionSegments(session);
       const machine = data.machines.find((item) => item.id === session.machineId);
       const presetId = normalizeMachinePresetId(machine);
+      const measuredBalls = normalizeNumber(startBalls);
       const segment = blankSegment("normal", {
         id: cryptoId("seg"),
         source: "user",
         startSpin: normalizeNumber(counterSpin),
         startAt: currentTime(),
-        startTrackedBalls: deriveBalances(session).mochidama,
+        startTrackedBalls: measuredBalls !== null ? measuredBalls : deriveBalances(session).mochidama,
+        startBallsSource: measuredBalls !== null ? "measured" : "tracked",
         holdSpins: presetHoldSpins(presetId)
       });
       segments.push(segment);
@@ -6708,6 +6734,9 @@
       if (endSpin === null) return null;
       target.endSpin = endSpin;
       target.endSource = "end";
+      // S7/B-4: 新式だけ、ヤメで終わる区間の終点にヤメ入力の終了玉を入れる。
+      // 旧式のセッションは endRemainBalls を空のままにして、これまでの消費玉の出し方を変えない。
+      if (usesEndpointConsumedModel(session)) target.endRemainBalls = normalizeNumber(session.endTotalBalls);
       return target;
     }
 
@@ -6831,6 +6860,9 @@
             <div class="quick-invest">
               ${jitanOptions.map((option) => `<button data-hit-reset="${option.counterSpin}">時短${option.jitanSpins} → カウンター${option.counterSpin}</button>`).join("") || '<span class="hint">この機種には時短のプリセットがありません。直接入力してください。</span>'}
             </div>
+            <label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）</label>
+            <input id="jitanExitStartBalls" inputmode="numeric" value="${escapeHtml(jitanExitStartBallsPreset(session) ?? "")}">
+            <p class="hint">ここからの回転率を出す起点になります。計数機に入れたときは実際の値に直してください。</p>
             <div class="grid two">
               <input id="jitanExitSpin" inputmode="numeric" placeholder="直接入力（回転数）">
               <button id="applyJitanExitBtn">この回転数で開始</button>
@@ -6861,8 +6893,10 @@
       });
       els.modalBody.querySelectorAll("[data-hit-reset]").forEach((button) => {
         button.addEventListener("click", () => {
+          // S7/B-3: 閉じると入力欄が消えるので、必ず読んでから閉じる。
+          const startBalls = normalizeNumber(byId("jitanExitStartBalls")?.value);
           closeModal();
-          applyJitanExit(session, Number(button.dataset.hitReset));
+          applyJitanExit(session, Number(button.dataset.hitReset), startBalls);
         });
       });
       byId("applyJitanExitBtn").addEventListener("click", () => {
@@ -6871,18 +6905,31 @@
           showToast("回転数を数値で入力してください", "error");
           return;
         }
+        const startBalls = normalizeNumber(byId("jitanExitStartBalls")?.value);
         closeModal();
-        applyJitanExit(session, value);
+        applyJitanExit(session, value, startBalls);
       });
+    }
+
+    // S7/B-3: 時短抜けの起点になる持ち玉の初期値。
+    // 現在の持ち玉＋この連チャンの獲得出玉合計。獲得出玉が無ければ現在の持ち玉のまま（空欄にしない）。
+    function jitanExitStartBallsPreset(session) {
+      const current = deriveBalances(session).mochidama;
+      if (current === null) return null;
+      const chainBalls = chainActualBallsBefore(session);
+      return Math.round(current + (chainBalls > 0 ? chainBalls : 0));
     }
 
     // S2/§1-2: 新しい通常時区間を追加してから現在回転数を合わせる（順序を入れ替えないこと）。
     // setCurrentSpinWithUndo が persist して区間を保存するため。
-    function applyJitanExit(session, counterSpin) {
-      startNormalSegmentAfterJitan(session, counterSpin);
+    function applyJitanExit(session, counterSpin, startBalls = null) {
+      const measuredBalls = normalizeNumber(startBalls);
+      startNormalSegmentAfterJitan(session, counterSpin, measuredBalls);
       setCurrentSpinWithUndo(session, counterSpin);
+      // S7/B-3: 入力した起点の持ち玉は現在の持ち玉にも入れる。直接代入せず既存経路を通す。
+      if (measuredBalls !== null) updateMochidamaBalanceWithUndo(session, measuredBalls);
       const switched = switchInvestmentSourceToMochidama(session);
-      showToast(`現在回転数を${counterSpin}にリセットしました${switched ? "／投資元を持ち玉に切り替えました" : ""}`);
+      showToast(`現在回転数を${counterSpin}にリセットしました${measuredBalls !== null ? `／持ち玉を${measuredBalls.toLocaleString("ja-JP")}玉にしました` : ""}${switched ? "／投資元を持ち玉に切り替えました" : ""}`);
     }
 
     // S4/C-8: 時短抜け後は出玉を使って打つ。再プレイのままだと気づかずに再プレイを減らすため、
@@ -7401,8 +7448,20 @@
       return { label: "通常時", className: "" };
     }
 
+    // S7/A-1: 遊タイム中かどうかは区間モデルで判定する（末尾の区間が遊タイムで、まだ閉じていない）。
+    // yutimeEnterTime / yutimeEnterBalls は記録として残すが判定には使わない。フラグだけを見ていたため、
+    // 遊タイム経由で当選したあとも「遊タイム中」から戻らず、時短抜け後の投資・当選が
+    // 遊タイム区間に紐づき続けて「今回の連チャン」が前回のまま止まっていた。
+    // 遊タイム区間を持たない旧データ（区間が無い／突入回転数が未記録）は従来の判定へフォールバックする。
     function isYutimeInvestmentPhase(session) {
-      return Boolean(session.yutimeEnterTime || session.yutimeEnterBalls !== null);
+      const segments = Array.isArray(session?.segments) ? session.segments : [];
+      if (!segments.some((segment) => segment?.kind === "yutime")) return legacyYutimeInvestmentPhase(session);
+      const last = segments[segments.length - 1];
+      return last?.kind === "yutime" && (last.endSpin === null || last.endSpin === undefined);
+    }
+
+    function legacyYutimeInvestmentPhase(session) {
+      return Boolean(session?.yutimeEnterTime || session?.yutimeEnterBalls !== null);
     }
 
     function currentInvestmentPhase(session) {
@@ -7714,6 +7773,8 @@
     }
 
     function consumedBallsChoiceHtml(session, derived) {
+      // S7/B-5: 起点・終点の実測差で出した区間には「台上差とタップ合計の乖離」という概念がない。
+      if (derived?.consumedModelApplied) return "";
       const info = derived?.consumedBallsCandidates;
       if (!info?.divergent) return "";
       const selected = normalizeConsumedBallsSource(session?.consumedBallsSource);
@@ -8449,6 +8510,8 @@
       const next = blankSession();
       next.storeId = sourceSession.storeId;
       next.machineId = sourceSession.machineId;
+      // S7/B-1: 同じ台で続行も打ち始め。新式で計算する。
+      next.consumedModel = "endpoints";
       next.date = today();
       next.labels = Array.isArray(sourceSession.labels) ? [...sourceSession.labels] : [];
       next.carriedFromSessionId = sourceSession.id;
@@ -8658,7 +8721,8 @@
         </div>
       `);
       byId("saveYutimeBtn").addEventListener("click", () => {
-        session.yutimeEnterBalls = normalizeNumber(byId("yutimeBalls").value);
+        const enterBalls = normalizeNumber(byId("yutimeBalls").value);
+        session.yutimeEnterBalls = enterBalls;
         session.yutimeEnterSpin = normalizeNumber(byId("yutimeSpin").value);
         session.yutimeEnterTime = currentTime();
         session.hitVia = "yutime";
@@ -8667,6 +8731,8 @@
         if (!persistWithToast("遊タイム突入玉を記録しました")) return;
         closeModal();
         renderAll();
+        // S7/A-2: 突入時玉数は実測値なので、現在の持ち玉にも反映する。直接代入せず既存経路を通す。
+        if (enterBalls !== null) updateMochidamaBalanceWithUndo(session, enterBalls);
       });
     }
 
@@ -8973,6 +9039,8 @@
         startSpin: null,
         startAt: null,
         startTrackedBalls: null,
+        // S7/B-2: startTrackedBalls が実測入力（打ち始め・時短抜け・遊タイム突入）か追跡値か
+        startBallsSource: null,
         holdSpins: 0,
         endSource: null,
         endSpin: null,
@@ -8990,6 +9058,7 @@
         startSpin: normalizeNumber(segment?.startSpin),
         startAt: segment?.startAt || null,
         startTrackedBalls: normalizeNumber(segment?.startTrackedBalls),
+        startBallsSource: normalizeStartBallsSource(segment?.startBallsSource),
         holdSpins: normalizeNumber(segment?.holdSpins) ?? 0,
         endSource: ["hit", "yutime", "end"].includes(segment?.endSource) ? segment.endSource : null,
         endSpin: normalizeNumber(segment?.endSpin),
@@ -9053,12 +9122,15 @@
       first.startSpin = normalizeNumber(session?.startSpin);
       first.startAt = session?.startTime || null;
       first.startTrackedBalls = normalizeNumber(session?.startMochidama);
+      // S7/B-2: 打ち始めの持ち玉は打ち始め入力そのもの。遊タイム区間の起点は突入入力。どちらも実測。
+      first.startBallsSource = first.startTrackedBalls !== null ? "measured" : null;
       const yutimeIndex = segments.findIndex((segment) => segment.kind === "yutime");
       if (yutimeIndex >= 0) {
         const enterSpin = normalizeNumber(session?.yutimeEnterSpin);
         segments[yutimeIndex].startSpin = enterSpin;
         segments[yutimeIndex].startAt = session?.yutimeEnterTime || null;
         segments[yutimeIndex].startTrackedBalls = normalizeNumber(session?.yutimeEnterBalls);
+        segments[yutimeIndex].startBallsSource = segments[yutimeIndex].startTrackedBalls !== null ? "measured" : null;
         const before = segments[yutimeIndex - 1];
         if (before) {
           before.endSpin = enterSpin;
@@ -9073,7 +9145,11 @@
         hitSegment.endTrackedBalls = normalizeNumber(session?.hitTrackedBalls);
       }
       const endSegment = lastSegmentByEndSource(segments, "end");
-      if (endSegment) endSegment.endSpin = normalizeNumber(session?.endSpin);
+      if (endSegment) {
+        endSegment.endSpin = normalizeNumber(session?.endSpin);
+        // S7/B-4: 新式だけ、ヤメで終わる区間の終点にヤメ入力の終了玉を入れる。
+        if (usesEndpointConsumedModel(session)) endSegment.endRemainBalls = normalizeNumber(session?.endTotalBalls);
+      }
       return segments;
     }
 
@@ -9095,6 +9171,8 @@
         startSpin: normalizeNumber(session?.startSpin),
         startAt: session?.startTime || null,
         startTrackedBalls: normalizeNumber(session?.startMochidama),
+        // S7/B-2: 打ち始めの持ち玉は打ち始め入力（実測）
+        startBallsSource: normalizeNumber(session?.startMochidama) !== null ? "measured" : null,
         holdSpins: 0
       });
       const segments = [normal];
@@ -9106,6 +9184,8 @@
           startSpin: yutimeEnterSpin,
           startAt: session?.yutimeEnterTime || null,
           startTrackedBalls: normalizeNumber(session?.yutimeEnterBalls),
+          // S7/B-2: 遊タイム区間の起点は突入入力（実測）
+          startBallsSource: normalizeNumber(session?.yutimeEnterBalls) !== null ? "measured" : null,
           holdSpins: 0
         });
         if (hasHit || hitSpin !== null) {
@@ -9128,6 +9208,8 @@
       if (session?.status === "completed" && !hasHit && hitSpin === null && endSpin !== null && last.endSpin === null) {
         last.endSpin = endSpin;
         last.endSource = "end";
+        // S7/B-4: 新式だけ、ヤメで終わる区間の終点にヤメ入力の終了玉を入れる。
+        if (usesEndpointConsumedModel(session)) last.endRemainBalls = normalizeNumber(session?.endTotalBalls);
       }
       return segments;
     }
@@ -9173,8 +9255,33 @@
     // §3.1: 区間の消費玉。B95の補正（endRemainBalls − endTrackedBalls）と
     // B89の乖離時 consumedBallsSource は tapMode 側の既存関数がそのまま担う。
     // S1 の通常区間は1つなので、tapMode ではセッション単位の集計をそのまま区間の消費玉として使う。
+    // S7/B-5: 消費玉＝起点の持ち玉 ＋ 区間内に外から足した玉 − 終点の持ち玉。
+    // 起点・終点はどちらも実測（打ち始め入力／時短抜け入力／遊タイム突入入力／当選時の残り持ち玉）。
+    // 起点が追跡値どまり（startBallsSource が "measured" でない）か、端点が欠けている区間は
+    // null を返し、呼び出し側で従来式へフォールバックする。
+    function segmentEndpointConsumedBalls(segment, session, store) {
+      if (!usesEndpointConsumedModel(session)) return null;
+      if (segment?.startBallsSource !== "measured") return null;
+      if (!segment?.id) return null;
+      const start = normalizeNumber(segment?.startTrackedBalls);
+      const end = normalizeNumber(segment?.endRemainBalls);
+      if (start === null || end === null) return null;
+      return start + segmentAddedBalls(session, segment.id, store) - end;
+    }
+
+    // S7/B-5: 区間内に外から足した玉＝再プレイ投資＋現金投資（玉換算）。
+    // 持ち玉タップは起点の持ち玉にすでに含まれているので足さない。
+    function segmentAddedBalls(session, segmentId, store) {
+      if (!segmentId) return 0;
+      return (Array.isArray(session?.investments) ? session.investments : [])
+        .filter((item) => item.segmentId === segmentId && investmentSource(item) !== "mochidama")
+        .reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+    }
+
     function segmentConsumedBalls(segment, context) {
       const { session, store, tapMode, hasHit, inputBalls, candidates, legacyEndBalls, multiNormal } = context;
+      const endpointBalls = segmentEndpointConsumedBalls(segment, session, store);
+      if (endpointBalls !== null) return endpointBalls;
       if (multiNormal) return segmentTapConsumedBalls(segment, session, store);
       if (tapMode) return tapModeNormalConsumedBalls(session, inputBalls, hasHit, store, candidates);
       const endBalls = segment?.endRemainBalls !== null && segment?.endRemainBalls !== undefined
@@ -9238,12 +9345,22 @@
       const normalEndBalls = session.yutimeEnterBalls !== null ? session.yutimeEnterBalls : (hasHit && session.hitRemainBalls !== null ? session.hitRemainBalls : estimatedRemainBalls);
       const tapConsumedCandidates = tapMode ? tapModeNormalConsumedCandidates(session, normalInputBalls, hasHit, store) : null;
       const consumedContext = { session, store, tapMode, hasHit, inputBalls: normalInputBalls, candidates: tapConsumedCandidates, legacyEndBalls: normalEndBalls, multiNormal };
-      const rawConsumedBalls = normalSpins !== null ? sumSegmentValues(normalSegments.map((segment) => segmentConsumedBalls(segment, consumedContext))) : null;
-      const consumedBalls = rawConsumedBalls !== null && rawConsumedBalls < 0 ? null : rawConsumedBalls;
-      if (tapMode && normalSpins !== null && tapConsumedCandidates?.fallback) warnings.push("通常消費玉の入力を確認");
-      if (rawConsumedBalls !== null && rawConsumedBalls < 0) warnings.push("通常消費玉の入力を確認");
+      const segmentConsumedValues = normalSegments.map((segment) => segmentConsumedBalls(segment, consumedContext));
+      // S7/B-5: 起点・終点の実測差で出せた区間が1つでもあれば、そのセッションは新式で扱う。
+      // 出せなかった区間は従来式のままなので、混在しても表示値は区間ごとに正しい。
+      const endpointConsumedApplied = normalSegments.some((segment) => segmentEndpointConsumedBalls(segment, session, store) !== null);
+      // 終点が起点より多い区間（入力ミスの可能性）は、合算が正でも消費玉を出さない。
+      const negativeEndpointSegment = endpointConsumedApplied && segmentConsumedValues.some((value) => value !== null && value !== undefined && value < 0);
+      const rawConsumedBalls = normalSpins !== null ? sumSegmentValues(segmentConsumedValues) : null;
+      const invalidConsumedBalls = rawConsumedBalls !== null && (rawConsumedBalls < 0 || negativeEndpointSegment);
+      const consumedBalls = invalidConsumedBalls ? null : rawConsumedBalls;
+      // B95のフォールバック警告は台上差（旧式）についての警告なので、新式で出せているときは出さない。
+      if (tapMode && normalSpins !== null && tapConsumedCandidates?.fallback && !endpointConsumedApplied) warnings.push("通常消費玉の入力を確認");
+      if (invalidConsumedBalls) warnings.push("通常消費玉の入力を確認");
       const fallbackConsumed = normalSpins !== null && normalInputBalls >= 0 ? normalInputBalls : null;
-      const rateBase = tapMode ? consumedBalls : (hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null);
+      const rateBase = endpointConsumedApplied
+        ? consumedBalls
+        : (tapMode ? consumedBalls : (hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null));
       const rate = normalSpins !== null && rateBase > 0 ? normalSpins / rateBase * 250 : null;
       const rateUnavailableReason = !tapMode && !hasStartMochidama ? "持ち玉未入力" : "";
       const pointBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : (estimatedRemainBalls !== null ? estimatedRemainBalls : totalInputBalls);
@@ -9272,6 +9389,8 @@
         normalSpins,
         consumedBalls: rateBase,
         consumedBallsSource: normalizeConsumedBallsSource(session.consumedBallsSource),
+        // S7/B-5: 新式で出した区間があるか。B89の乖離選択UIの出し分けに使う。
+        consumedModelApplied: endpointConsumedApplied,
         consumedBallsCandidates: tapConsumedCandidates && normalSpins !== null ? {
           tray: tapConsumedCandidates.tray !== null ? Math.round(tapConsumedCandidates.tray) : null,
           taps: tapConsumedCandidates.taps !== null ? Math.round(tapConsumedCandidates.taps) : null,

@@ -101,6 +101,8 @@ const availableBallsHelpers = section('function availableBallsFromParts', 'funct
 const expectationRateBlock = section('function expectationRate', 'function availableBallsFromParts');
 const roundCountFromRoundTypeBlock = section('function roundCountFromRoundType', 'function transferYenText');
 const tapModeConsumedBlock = section('function tapModeNormalEndSnapshot', 'function deriveSession');
+// S7: 消費玉の算出方式（consumedModel）と区間の起点の由来（startBallsSource）の正規化
+const consumedModelBlock = section('function normalizeConsumedModel', 'function investmentSource');
 const consumedBallsChoiceHtmlBlock = section('function consumedBallsChoiceHtml', 'function setConsumedBallsSource');
 const consumedBallsSourceEditorHtmlBlock = section('function consumedBallsSourceEditorHtml', 'function fieldHtml');
 const jitanExitBlock = section('function jitanExitOptions', 'function hitRoundSummaryHtml');
@@ -432,7 +434,7 @@ assert.doesNotMatch(hitResetPrompt, /id="saveHitMochidamaBtn"/);
 assert.doesNotMatch(hitResetPrompt, /持ち玉を更新<\/button>/);
 assert.match(hitResetPrompt, /hitMochidamaInput\.addEventListener\("change", \(\) => \{\s*if \(!saveHitMochidamaInput\(session\)\) return;/);
 assert.match(hitResetPrompt, /id="openHitHistoryBtn"/);
-assert.match(hitResetPrompt, /closeModal\(\);\s*applyJitanExit\(session, Number\(button\.dataset\.hitReset\)\);/);
+assert.match(hitResetPrompt, /closeModal\(\);\s*applyJitanExit\(session, Number\(button\.dataset\.hitReset\), startBalls\);/);
 assert.match(hitResetPrompt, /data-hit-reset="\$\{option\.counterSpin\}"/);
 assert.match(hitResetPrompt, /時短\$\{option\.jitanSpins\} → カウンター\$\{option\.counterSpin\}/);
 assert.match(hitResetPrompt, /id="jitanExitSpin"/);
@@ -1877,7 +1879,8 @@ assert.match(tapModeConsumedBlock, /function segmentConsumedBalls\(segment, cont
 assert.match(tapModeConsumedBlock, /function segmentTapConsumedBalls\(segment, session, store\)/);
 assert.match(tapModeConsumedBlock, /function segmentNormalInvestments\(session, segmentId\)/);
 assert.match(deriveSession, /const consumedContext = \{ session, store, tapMode, hasHit, inputBalls: normalInputBalls, candidates: tapConsumedCandidates, legacyEndBalls: normalEndBalls, multiNormal \};/);
-assert.match(deriveSession, /sumSegmentValues\(normalSegments\.map\(\(segment\) => segmentConsumedBalls\(segment, consumedContext\)\)\)/);
+assert.match(deriveSession, /const segmentConsumedValues = normalSegments\.map\(\(segment\) => segmentConsumedBalls\(segment, consumedContext\)\);/);
+assert.match(deriveSession, /sumSegmentValues\(segmentConsumedValues\)/);
 assert.match(deriveSession, /consumedBallsCandidates: tapConsumedCandidates && normalSpins !== null \? \{/);
 assert.match(renderRunning, /consumedBallsChoiceHtml\(session, derived\)/);
 assert.match(renderRunning, /bindConsumedBallsChoice\(els\.runningArea, session\)/);
@@ -1918,6 +1921,7 @@ new vm.Script(`
     return (item.source || item.type) === "cash" ? Number(item.amount || 0) / 4 : Number(item.amount || 0);
   }
   function usesTapInvestmentMode() { return true; }
+  ${consumedModelBlock}
   ${tapModeConsumedBlock}
   ${runningPanelInputBallsBlock}
   ${runningRateHelpers}
@@ -2861,7 +2865,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 33;/);
+assert.match(html, /const SCHEMA_VERSION = 34;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3111,7 +3115,7 @@ assert.ok(!html.includes('リセット前'));
 assert.ok(!html.includes('spin-note'));
 assert.ok(html.includes('id="machineEvContext"'));
 assert.equal(html.split('${machineContextLine(session)}').length - 1, 11);
-assert.equal((html.match(/（実機：/g) || []).length, 14);
+assert.equal((html.match(/（実機：/g) || []).length, 15);
 assert.ok(!html.includes('遊タイム中の投資として記録されます'));
 // B91: 残保留込みモデル
 assert.ok(design.includes('B91 残保留込みの引き戻し計算'));
@@ -3168,7 +3172,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 33;
+  const SCHEMA_VERSION = 34;
   const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
@@ -3262,6 +3266,7 @@ new vm.Script(`
   ${segmentMigrationBackup}
   function tapModeNormalConsumedBalls() { return null; }
   function yutimeEnterSpinForRate() { return null; }
+  ${consumedModelBlock}
   ${segmentBlock}
   ${normalizeData}
   globalThis.normalizedLegacy = normalizeData({
@@ -3396,8 +3401,9 @@ assert.match(html, /if \(needsSegmentMigration\(parsed\)\) backupBeforeSegmentMi
 assert.match(normalizeData, /normalized\.segments = normalizeSessionSegments\(normalized\);\s*applySegmentIds\(normalized\);/);
 // S1 では保留を引かない（holdSpins は常に0で作る）
 assert.match(segmentBlock, /function blankSegment\(kind, overrides = \{\}\)[\s\S]*?holdSpins: 0,/);
-assert.match(segmentBlock, /startTrackedBalls: normalizeNumber\(session\?\.startMochidama\),\s*holdSpins: 0/);
-assert.match(segmentBlock, /startTrackedBalls: normalizeNumber\(session\?\.yutimeEnterBalls\),\s*holdSpins: 0/);
+// S7/B-2: 打ち始めと遊タイム突入の起点は実測入力（measured）。holdSpins は従来どおり0で開く。
+assert.match(segmentBlock, /startTrackedBalls: normalizeNumber\(session\?\.startMochidama\),\s*(\/\/[^\n]*\n\s*)?startBallsSource: normalizeNumber\(session\?\.startMochidama\) !== null \? "measured" : null,\s*holdSpins: 0/);
+assert.match(segmentBlock, /startTrackedBalls: normalizeNumber\(session\?\.yutimeEnterBalls\),\s*(\/\/[^\n]*\n\s*)?startBallsSource: normalizeNumber\(session\?\.yutimeEnterBalls\) !== null \? "measured" : null,\s*holdSpins: 0/);
 assert.equal(legacyMachineContext.normalizedLegacy.machines.length, 1);
 assert.equal(legacyMachineContext.normalizedLegacy.machines[0].daiNo, "101");
 assert.equal(Object.prototype.hasOwnProperty.call(legacyMachineContext.normalizedLegacy.machines[0], 'memo'), false);
@@ -4652,9 +4658,243 @@ assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerW
 assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerWinManual, true);
 assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWin, 108);
 assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWinManual, true);
-assert.equal(s11MigrationContext.migrated.version, 33);
+assert.equal(s11MigrationContext.migrated.version, 34);
 // 32以降のデータは二重変換しない
 assert.equal(s11MigrationContext.already32.presetSettings['umi-sp5'].netBallsPerWin, 130);
 assert.equal(s11MigrationContext.already32.presetSettings['agnes-pe'].netBallsPerWin, 108);
+
+
+// ===========================================================================
+// S7: 消費玉を起点・終点の実測差で出す ／ 遊タイム関連バグ3件
+// ===========================================================================
+
+// --- A-1: 「遊タイム中」の判定を区間モデル基準にする -------------------------
+const yutimePhaseBlock = section('function isYutimeInvestmentPhase', 'function currentInvestmentPhase');
+assert.match(yutimePhaseBlock, /const segments = Array\.isArray\(session\?\.segments\) \? session\.segments : \[\];/);
+assert.match(yutimePhaseBlock, /if \(!segments\.some\(\(segment\) => segment\?\.kind === "yutime"\)\) return legacyYutimeInvestmentPhase\(session\);/);
+assert.match(yutimePhaseBlock, /return last\?\.kind === "yutime" && \(last\.endSpin === null \|\| last\.endSpin === undefined\);/);
+assert.match(yutimePhaseBlock, /function legacyYutimeInvestmentPhase\(session\) \{\s*return Boolean\(session\?\.yutimeEnterTime \|\| session\?\.yutimeEnterBalls !== null\);/);
+// 記録としての yutimeEnterTime / yutimeEnterBalls は残す（判定にだけ使わない）
+assert.match(openYutimeEnterForm, /session\.yutimeEnterBalls = enterBalls;/);
+assert.match(openYutimeEnterForm, /session\.yutimeEnterTime = currentTime\(\);/);
+
+const s7PhaseContext = vm.createContext({});
+new vm.Script(`
+  ${yutimePhaseBlock}
+  const normalOpen = { id: "n1", kind: "normal", endSpin: null };
+  const normalClosed = { id: "n1", kind: "normal", endSpin: 900 };
+  const yutimeOpen = { id: "y1", kind: "yutime", endSpin: null };
+  const yutimeClosed = { id: "y1", kind: "yutime", endSpin: 980 };
+  const normalAfterJitan = { id: "n2", kind: "normal", endSpin: null };
+  const enter = { yutimeEnterTime: "12:00", yutimeEnterBalls: 800 };
+  globalThis.s7Phase = {
+    duringYutime: isYutimeInvestmentPhase({ ...enter, segments: [normalClosed, yutimeOpen] }),
+    afterHit: isYutimeInvestmentPhase({ ...enter, segments: [normalClosed, yutimeClosed] }),
+    afterJitanExit: isYutimeInvestmentPhase({ ...enter, segments: [normalClosed, yutimeClosed, normalAfterJitan] }),
+    normal: isYutimeInvestmentPhase({ yutimeEnterTime: null, yutimeEnterBalls: null, segments: [normalOpen] }),
+    legacyNoSegments: isYutimeInvestmentPhase({ ...enter, segments: [] }),
+    legacyNoYutimeSegment: isYutimeInvestmentPhase({ ...enter, segments: [normalOpen] }),
+    legacyNoSegmentsNoEnter: isYutimeInvestmentPhase({ yutimeEnterTime: null, yutimeEnterBalls: null, segments: [] })
+  };
+`).runInContext(s7PhaseContext);
+// 遊タイム区間が開いている間だけ「遊タイム中」。当選ウィザードで閉じたら通常時に戻る
+assert.equal(s7PhaseContext.s7Phase.duringYutime, true);
+assert.equal(s7PhaseContext.s7Phase.afterHit, false);
+assert.equal(s7PhaseContext.s7Phase.afterJitanExit, false);
+assert.equal(s7PhaseContext.s7Phase.normal, false);
+// 区間の無い旧データ・遊タイム区間を作れない旧データは従来の判定のまま
+assert.equal(s7PhaseContext.s7Phase.legacyNoSegments, true);
+assert.equal(s7PhaseContext.s7Phase.legacyNoYutimeSegment, true);
+assert.equal(s7PhaseContext.s7Phase.legacyNoSegmentsNoEnter, false);
+
+// --- A-2: 遊タイム突入の持ち玉入力を現在の持ち玉へ反映する --------------------
+assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBalanceWithUndo\(session, enterBalls\);/);
+assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
+
+// --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
+assert.match(html, /const SCHEMA_VERSION = 34;/);
+assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
+assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
+assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
+assert.match(startSessionFlow, /session\.consumedModel = "endpoints";/);
+assert.match(section('function startSameMachineContinuation', 'function addInvestment'), /next\.consumedModel = "endpoints";/);
+
+const s7SchemaContext = vm.createContext({ ...legacyMachineContext });
+new vm.Script(`
+  globalThis.s7Migrated = normalizeData({
+    version: 33,
+    presetSettings: { "umi-sp5": {} },
+    sessions: [
+      { id: "s_old", storeId: "st_1", machineId: "m_1" },
+      { id: "s_new", storeId: "st_1", machineId: "m_1", consumedModel: "endpoints" },
+      { id: "s_bad", storeId: "st_1", machineId: "m_1", consumedModel: "taps" }
+    ]
+  });
+`).runInContext(s7SchemaContext);
+assert.equal(s7SchemaContext.s7Migrated.version, 34);
+// 旧セッションは補完しない（＝従来式のまま）
+assert.equal(s7SchemaContext.s7Migrated.sessions[0].consumedModel, null);
+assert.equal(s7SchemaContext.s7Migrated.sessions[1].consumedModel, "endpoints");
+assert.equal(s7SchemaContext.s7Migrated.sessions[2].consumedModel, null);
+
+// --- B-3: 時短抜けの入力に「そのときの台の持ち玉」を置く ---------------------
+assert.match(hitResetPrompt, /<label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）<\/label>/);
+assert.match(hitResetPrompt, /id="jitanExitStartBalls" inputmode="numeric" value="\$\{escapeHtml\(jitanExitStartBallsPreset\(session\) \?\? ""\)\}"/);
+assert.match(hitResetPrompt, /const startBalls = normalizeNumber\(byId\("jitanExitStartBalls"\)\?\.value\);\s*closeModal\(\);/);
+assert.match(hitResetPrompt, /applyJitanExit\(session, value, startBalls\);/);
+assert.match(hitResetPrompt, /function jitanExitStartBallsPreset\(session\) \{[\s\S]*?const chainBalls = chainActualBallsBefore\(session\);\s*return Math\.round\(current \+ \(chainBalls > 0 \? chainBalls : 0\)\);/);
+assert.match(hitResetPrompt, /if \(measuredBalls !== null\) updateMochidamaBalanceWithUndo\(session, measuredBalls\);/);
+assert.match(hitResetPrompt, /startNormalSegmentAfterJitan\(session, counterSpin, measuredBalls\);/);
+const startNormalSegmentBlock = section('function startNormalSegmentAfterJitan', 'function closeSegmentOnHit');
+assert.match(startNormalSegmentBlock, /startTrackedBalls: measuredBalls !== null \? measuredBalls : deriveBalances\(session\)\.mochidama,/);
+assert.match(startNormalSegmentBlock, /startBallsSource: measuredBalls !== null \? "measured" : "tracked",/);
+
+const s7JitanPresetContext = vm.createContext({});
+new vm.Script(`
+  function normalizeNumber(value) {
+    if (value === "" || value === null || value === undefined) return null;
+    const number = Number(value);
+    return Number.isFinite(number) ? number : null;
+  }
+  function deriveBalances(session) { return { mochidama: session.__mochidama }; }
+  function chainActualBallsBefore(session) { return session.__chainBalls; }
+  ${section('function jitanExitStartBallsPreset', 'function applyJitanExit')}
+  globalThis.s7JitanPreset = {
+    both: jitanExitStartBallsPreset({ __mochidama: 120, __chainBalls: 1500 }),
+    noChain: jitanExitStartBallsPreset({ __mochidama: 120, __chainBalls: 0 }),
+    noMochidama: jitanExitStartBallsPreset({ __mochidama: null, __chainBalls: 1500 })
+  };
+`).runInContext(s7JitanPresetContext);
+// 初期値は 現在の持ち玉 ＋ この連チャンの獲得出玉合計。獲得出玉が無ければ現在の持ち玉のまま
+assert.equal(s7JitanPresetContext.s7JitanPreset.both, 1620);
+assert.equal(s7JitanPresetContext.s7JitanPreset.noChain, 120);
+assert.equal(s7JitanPresetContext.s7JitanPreset.noMochidama, null);
+
+// --- B-4: ヤメで終わる区間の終点は終了玉。旧式のセッションには入れない -------
+const closeTrailingBlock = section('function closeTrailingSegmentOnEnd', 'function currentSegmentId');
+assert.match(closeTrailingBlock, /if \(usesEndpointConsumedModel\(session\)\) target\.endRemainBalls = normalizeNumber\(session\.endTotalBalls\);/);
+assert.match(segmentBlock, /if \(usesEndpointConsumedModel\(session\)\) last\.endRemainBalls = normalizeNumber\(session\?\.endTotalBalls\);/);
+assert.match(segmentBlock, /if \(usesEndpointConsumedModel\(session\)\) endSegment\.endRemainBalls = normalizeNumber\(session\?\.endTotalBalls\);/);
+
+// --- B-5: 計算式と、新式のときはB89の乖離UIを出さないこと --------------------
+assert.match(tapModeConsumedBlock, /function segmentEndpointConsumedBalls\(segment, session, store\)/);
+assert.match(tapModeConsumedBlock, /if \(segment\?\.startBallsSource !== "measured"\) return null;/);
+assert.match(tapModeConsumedBlock, /return start \+ segmentAddedBalls\(session, segment\.id, store\) - end;/);
+assert.match(tapModeConsumedBlock, /\.filter\(\(item\) => item\.segmentId === segmentId && investmentSource\(item\) !== "mochidama"\)/);
+assert.match(deriveSession, /const endpointConsumedApplied = normalSegments\.some\(\(segment\) => segmentEndpointConsumedBalls\(segment, session, store\) !== null\);/);
+assert.match(deriveSession, /consumedModelApplied: endpointConsumedApplied,/);
+assert.match(consumedBallsChoiceHtmlBlock, /if \(derived\?\.consumedModelApplied\) return "";/);
+assert.equal(vm.runInContext('consumedBallsChoiceHtml({}, { consumedModelApplied: true, consumedBallsCandidates: { divergent: true, tray: 1000, taps: 2000 }, normalSpins: 100 })', consumedBallsUiContext), "");
+
+// --- B-6: 検算6件 -----------------------------------------------------------
+new vm.Script(`
+  const s7Base = {
+    storeId: "s",
+    status: "completed",
+    startSpin: 0,
+    currentSpin: 100,
+    hitSpin: 100,
+    hitCount: 1,
+    hitVia: "normal",
+    hitTrackedBalls: null,
+    endTotalBalls: null,
+    zanhoryuBalls: 0,
+    yutimeEnterBalls: null,
+    hits: [{ roundTypeId: "r10", at: "2026-09-08T10:10:00", segmentId: "seg_1" }]
+  };
+  const s7Segment = (overrides) => ({
+    id: "seg_1", kind: "normal", source: "migrated",
+    startSpin: 0, startAt: "10:00", holdSpins: 0,
+    endSource: "hit", endSpin: 100, endAt: null, endTrackedBalls: null,
+    ...overrides
+  });
+  // 1. 起点0／再プレイ1,000／終点50 → 950
+  globalThis.s7Case1 = deriveSession({
+    ...s7Base, consumedModel: "endpoints", startMochidama: 0, hitRemainBalls: 50,
+    investments: [{ source: "saipurei", amount: 1000, phase: "normal", spinAt: 10, time: "10:05", segmentId: "seg_1" }],
+    segments: [s7Segment({ startTrackedBalls: 0, startBallsSource: "measured", endRemainBalls: 50 })]
+  });
+  // 2. 起点1,620／追加なし／終点120 → 1,500
+  globalThis.s7Case2 = deriveSession({
+    ...s7Base, consumedModel: "endpoints", startMochidama: 1620, hitRemainBalls: 120,
+    investments: [],
+    segments: [s7Segment({ startTrackedBalls: 1620, startBallsSource: "measured", endRemainBalls: 120 })]
+  });
+  // 3. 起点1,620／現金1,000円（250玉）／終点370 → 1,500
+  globalThis.s7Case3 = deriveSession({
+    ...s7Base, consumedModel: "endpoints", startMochidama: 1620, hitRemainBalls: 370,
+    investments: [{ source: "cash", amount: 1000, phase: "normal", spinAt: 40, time: "10:20", segmentId: "seg_1" }],
+    segments: [s7Segment({ startTrackedBalls: 1620, startBallsSource: "measured", endRemainBalls: 370 })]
+  });
+  // 4. 起点1,620／持ち玉タップ12回（1,500玉）／終点120 → 1,500（タップは加算しない）
+  globalThis.s7Case4 = deriveSession({
+    ...s7Base, consumedModel: "endpoints", startMochidama: 1620, hitRemainBalls: 120,
+    investments: Array.from({ length: 12 }, (unused, index) => ({ source: "mochidama", amount: 125, phase: "normal", spinAt: index * 8, time: "10:0" + (index % 10), segmentId: "seg_1" })),
+    segments: [s7Segment({ startTrackedBalls: 1620, startBallsSource: "measured", endRemainBalls: 120 })]
+  });
+  // 5. 起点1,620／終点1,700 → 警告・null
+  globalThis.s7Case5 = deriveSession({
+    ...s7Base, consumedModel: "endpoints", startMochidama: 1620, hitRemainBalls: 1700,
+    investments: [],
+    segments: [s7Segment({ startTrackedBalls: 1620, startBallsSource: "measured", endRemainBalls: 1700 })]
+  });
+  // 6. 旧セッション（フラグ無し）／タップ1,250 → 現行どおり1,250
+  const s7LegacySession = {
+    ...s7Base, startMochidama: 1620, hitRemainBalls: null,
+    investments: Array.from({ length: 10 }, (unused, index) => ({ source: "mochidama", amount: 125, phase: "normal", spinAt: index * 8, time: "10:0" + (index % 10), segmentId: "seg_1" })),
+    segments: [s7Segment({ startTrackedBalls: 1620, startBallsSource: "measured", endRemainBalls: null })]
+  };
+  globalThis.s7Case6 = deriveSession(s7LegacySession);
+  // 同じ記録に新式のフラグを付けても、終点が無ければ従来式のまま（フォールバック）
+  globalThis.s7Case6WithFlag = deriveSession({ ...s7LegacySession, consumedModel: "endpoints" });
+  // 起点が実測でない（tracked）区間は新式を使わない。
+  // 区間①は実測なので新式（2,500＋0−2,300＝200玉）、区間②は tracked なので従来式（タップ375玉）。
+  // tracked を実測として扱ってしまうと区間②が 2,300−1,800＝500玉になり、合計が700玉にずれる。
+  globalThis.s7MixedStart = deriveSession({
+    ...s7Base, consumedModel: "endpoints", startMochidama: 2500, currentSpin: 100, hitCount: 2, hitRemainBalls: 1800,
+    investments: [
+      { source: "mochidama", amount: 200, phase: "normal", spinAt: 10, time: "10:05", segmentId: "seg_1" },
+      { source: "mochidama", amount: 375, phase: "normal", spinAt: 60, time: "10:35", segmentId: "seg_2" }
+    ],
+    segments: [
+      s7Segment({ startTrackedBalls: 2500, startBallsSource: "measured", endSpin: 20, endRemainBalls: 2300 }),
+      s7Segment({ id: "seg_2", source: "user", startSpin: 50, startAt: "10:20", holdSpins: 5, startTrackedBalls: 2300, startBallsSource: "tracked", endRemainBalls: 1800 })
+    ]
+  });
+  // 回転率: 区間①20回転/200玉＝25.0、区間②15回転/375玉＝10.0、合計35回転/575玉＝15.2
+  globalThis.s7TwoSegments = deriveSession({
+    ...s4SecondLap,
+    consumedModel: "endpoints",
+    segments: [
+      { ...s4SecondLap.segments[0], startBallsSource: "measured", endRemainBalls: 2300 },
+      { ...s4SecondLap.segments[1], startBallsSource: "measured" }
+    ]
+  });
+`).runInContext(runningRateContext);
+assert.equal(runningRateContext.s7Case1.consumedBalls, 950);
+assert.equal(runningRateContext.s7Case2.consumedBalls, 1500);
+assert.equal(runningRateContext.s7Case3.consumedBalls, 1500);
+assert.equal(runningRateContext.s7Case4.consumedBalls, 1500);
+assert.equal(runningRateContext.s7Case5.consumedBalls, null);
+assert.equal(JSON.stringify(runningRateContext.s7Case5.warnings), JSON.stringify(["通常消費玉の入力を確認"]));
+assert.equal(runningRateContext.s7Case6.consumedBalls, 1250);
+assert.equal(runningRateContext.s7Case6.consumedModelApplied, false);
+assert.equal(runningRateContext.s7Case6WithFlag.consumedBalls, 1250);
+assert.equal(runningRateContext.s7Case6WithFlag.consumedModelApplied, false);
+// startBallsSource が "measured" の区間だけ新式。"tracked" の区間は従来式のまま
+assert.equal(runningRateContext.s7MixedStart.normalSpins, 65);
+assert.equal(runningRateContext.s7MixedStart.consumedBalls, 575);
+assert.equal(runningRateContext.s7MixedStart.consumedModelApplied, true);
+// 新式で出した区間があるセッションだけ consumedModelApplied が立つ（B89の乖離UIの出し分け）
+assert.equal(runningRateContext.s7Case1.consumedModelApplied, true);
+assert.equal(runningRateContext.s7Case4.consumedModelApplied, true);
+assert.equal(runningRateContext.s7TwoSegments.normalSpins, 35);
+assert.equal(runningRateContext.s7TwoSegments.consumedBalls, 575);
+assert.equal(Number(runningRateContext.s7TwoSegments.rate.toFixed(1)), 15.2);
+
+// --- B-1 回帰: 旧セッションの表示値が1つも変わらないこと ---------------------
+// 既存の b84 / b85 / b89 / b95 / S2 / S4 のアサート（consumedModel 無し）が
+// そのまま通ることが回帰の本体。ここでは同じ記録に新式を足したときだけ値が動くことを固定する。
+assert.notEqual(runningRateContext.s7Case2.consumedBalls, runningRateContext.s7Case6.consumedBalls);
 
 console.log('yutime-v3 tests passed');
