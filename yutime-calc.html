@@ -181,8 +181,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
           hitProbLow: 1 / 99.9,
           hitProbHigh: 1 / 19.5,
           tenjo: 239,
-          // カウンター250回転で遊タイム突入。内部低確は239回転なので差は11。
-          counterOffset: 11,
+          // カウンター249回転で遊タイム突入。内部低確239回転 + ST10回転なので差は10（2026/9/7 実測で確認）。
+          counterOffset: 10,
           stSpins: 10,
           yutimeJitan: 10000,
           modelType: "st-certain",

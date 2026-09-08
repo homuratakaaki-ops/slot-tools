@@ -60,31 +60,33 @@ function evYenOf(input) {
 }
 
 // --- 3. カウンター基準 → エンジン内部回転数の対応 ---------------------------
-// アグネスPEはカウンター250回転で遊タイム、エンジンの天井は内部低確239回転。
-// 差の11回転をカウンター値から引いて渡す。大海5SPは差0。
+// アグネスPEはカウンター249回転で遊タイム、エンジンの天井は内部低確239回転（+ST10）。
+// 差の10回転をカウンター値から引いて渡す。大海5SPは差0。
 
 // ずれの数値は共有エンジンのプリセットだけが持つ。ページ側に書かない（二重管理の防止）
-assert.match(calcEngine, /counterOffset: 11,/, 'agnes-pe の counterOffset はエンジンブロック側に置くこと');
+assert.match(calcEngine, /counterOffset: 10,/, 'agnes-pe の counterOffset はエンジンブロック側に置くこと');
 assert.match(calcEngine, /counterOffset: 0,/, 'umi-sp5 の counterOffset はエンジンブロック側に置くこと');
 assert.match(logicBlock, /return Math\.max\(0, Number\(enginePresetFor\(preset\)\.spec\.counterOffset\) \|\| 0\);/, 'ページ側はエンジンの counterOffset を参照すること');
 assert.doesNotMatch(logicBlock, /counterOffset: \d/, 'ページ側のプリセットにずれの数値を持たせないこと');
 
-assert.equal(api.counterOffset(api.PRESETS[0]), 11, 'agnes-pe はカウンター250 − 内部239 = 11 のずれを持つ');
+assert.equal(api.counterOffset(api.PRESETS[0]), 10, 'agnes-pe はカウンター249 − 内部239 = 10 のずれを持つ');
 assert.equal(api.counterOffset(api.PRESETS[1]), 0, 'umi-sp5 はカウンターと内部天井が一致する');
-assert.equal(api.engineSpinFromCounter(api.PRESETS[0], 150), 139);
+assert.equal(api.engineSpinFromCounter(api.PRESETS[0], 150), 140);
 assert.equal(api.engineSpinFromCounter(api.PRESETS[0], 0), 0, 'ラムクリア後0回転は内部239回転として扱う');
 assert.equal(api.engineSpinFromCounter(api.PRESETS[1], 434), 434);
-assert.equal(api.remainingSpins(api.PRESETS[0], 150), 100, 'カウンター150は遊タイムまで残り100回転');
+assert.equal(api.remainingSpins(api.PRESETS[0], 150), 99, 'カウンター150は遊タイムまで残り99回転');
 assert.equal(api.remainingSpins(api.PRESETS[0], 0), 239);
-assert.equal(api.remainingSpins(api.PRESETS[0], 200), 50);
+assert.equal(api.remainingSpins(api.PRESETS[0], 200), 49);
+assert.equal(api.remainingSpins(api.PRESETS[0], 249), 0, 'カウンター249で遊タイム突入（残り0）');
 assert.equal(api.remainingSpins(api.PRESETS[1], 434), 516);
 
-// --- 4. 受け入れ基準（記事v5と一致すること） --------------------------------
+// --- 4. 受け入れ基準 --------------------------------------------------------
+// 9/7実測で遊タイム突入をカウンター249に修正した。記事v5の +1,569円 は突入250前提の値。
 
 assert.equal(
   evYenOf({ presetId: 'agnes-pe', currentSpin: 150, rotationRate: 17, payout: 100 }),
-  1569,
-  'アグネスPE・カウンター150・回転率17・1R実質100玉・等価・現金 → +1,569円'
+  1590,
+  'アグネスPE・カウンター150・回転率17・1R実質100玉・等価・現金 → +1,590円'
 );
 assert.equal(
   evYenOf({ presetId: 'agnes-pe', currentSpin: 0, rotationRate: 17, payout: 105 }),
@@ -122,14 +124,15 @@ assert.equal(Math.round(umiDirect.evYen), evYenOf(umiCase), '大海5SPはカウ�
 assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.holdSpins, 5, 'agnes-pe の残保留既定は5');
 assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].defaults.holdSpins, 5, 'umi-sp5 の残保留既定は5');
 
-// --- 5. 記事の期待値表を全点で再現すること ----------------------------------
+// --- 5. 期待値表を全点で固定すること ----------------------------------------
 // article-agnespe.md / agnespe-yutime.html の3表（1R実質105/100/90玉 × カウンター6点 × 回転率5点）。
+// 突入249への修正でカウンター基準の行が1回転ぶんずれるため、記事側は本表で更新する。
 
 const ARTICLE_RATES = [14, 15, 16, 17, 18];
 const ARTICLE_TABLES = {
-  105: { 0: [-836, -403, -24, 310, 607], 30: [-706, -282, 89, 416, 706], 55: [-493, -84, 274, 589, 870], 105: [134, 499, 818, 1100, 1351], 150: [1041, 1343, 1607, 1840, 2047], 200: [2671, 2859, 3023, 3168, 3297] },
-  100: { 0: [-1106, -673, -295, 39, 336], 30: [-977, -553, -182, 145, 436], 55: [-763, -355, 3, 319, 599], 105: [-137, 228, 548, 830, 1080], 150: [771, 1072, 1336, 1569, 1776], 200: [2400, 2588, 2752, 2898, 3027] },
-  90: { 0: [-1648, -1215, -836, -502, -205], 30: [-1518, -1094, -723, -396, -106], 55: [-1305, -896, -538, -223, 58], 105: [-678, -313, 6, 288, 539], 150: [229, 531, 795, 1028, 1235], 200: [1858, 2047, 2211, 2356, 2485] }
+  105: { 0: [-836, -403, -24, 310, 607], 30: [-698, -275, 95, 422, 712], 55: [-483, -75, 282, 597, 877], 105: [150, 514, 832, 1113, 1363], 150: [1066, 1366, 1629, 1861, 2066], 200: [2712, 2897, 3059, 3202, 3329] },
+  100: { 0: [-1106, -673, -295, 39, 336], 30: [-969, -546, -176, 151, 442], 55: [-754, -346, 12, 327, 607], 105: [-121, 243, 562, 843, 1092], 150: [796, 1096, 1358, 1590, 1796], 200: [2442, 2627, 2789, 2932, 3059] },
+  90: { 0: [-1648, -1215, -836, -502, -205], 30: [-1510, -1087, -717, -390, -100], 55: [-1295, -887, -530, -215, 65], 105: [-662, -298, 20, 301, 551], 150: [254, 554, 817, 1049, 1254], 200: [1900, 2085, 2247, 2390, 2517] }
 };
 for (const [payout, rows] of Object.entries(ARTICLE_TABLES)) {
   for (const [counterSpin, expected] of Object.entries(rows)) {
@@ -137,7 +140,7 @@ for (const [payout, rows] of Object.entries(ARTICLE_TABLES)) {
       const actual = evYenOf({ presetId: 'agnes-pe', currentSpin: Number(counterSpin), rotationRate, payout: Number(payout) });
       assert.ok(
         Math.abs(actual - expected[index]) <= 1,
-        `記事表 1R${payout}玉 / カウンター${counterSpin} / 回転率${rotationRate}: expected ${expected[index]}, got ${actual}`
+        `期待値表 1R${payout}玉 / カウンター${counterSpin} / 回転率${rotationRate}: expected ${expected[index]}, got ${actual}`
       );
     });
   }

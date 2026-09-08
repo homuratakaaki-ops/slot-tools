@@ -875,7 +875,7 @@ new vm.Script(`
   globalThis.counterApi = { counterOffsetForPresetId, engineSpinFromCounterSpin, remainingSpinsFromCounterSpin };
 `).runInContext(counterContext);
 const counterApi = counterContext.counterApi;
-assert.equal(expectationContext.engine.presets['agnes-pe'].spec.counterOffset, 11, 'agnes-pe はカウンター250 − 内部239 = 11');
+assert.equal(expectationContext.engine.presets['agnes-pe'].spec.counterOffset, 10, 'agnes-pe はカウンター249 − 内部239 = 10（内部239 + ST10 = 249）');
 assert.equal(expectationContext.engine.presets['umi-sp5'].spec.counterOffset, 0, 'umi-sp5 はカウンターと内部天井が一致する');
 
 // B98: 期待値計算に関わる値の出典は期待値エンジンのプリセット1箇所だけ。
@@ -925,27 +925,28 @@ assert.equal(JSON.stringify(machinePresetContext.umiJitanExitOptions), JSON.stri
   { jitanSpins: 200, counterSpin: 200 }
 ]));
 assert.doesNotMatch(jitanExitBlock, /counterSpin:\s*\d/);
-assert.equal(counterApi.counterOffsetForPresetId('agnes-pe'), 11);
+assert.equal(counterApi.counterOffsetForPresetId('agnes-pe'), 10);
 assert.equal(counterApi.counterOffsetForPresetId('umi-sp5'), 0);
 assert.equal(counterApi.counterOffsetForPresetId(undefined), 0, '未知のプリセットはずれ0として扱う');
-assert.equal(counterApi.engineSpinFromCounterSpin(150, 'agnes-pe'), 139);
+assert.equal(counterApi.engineSpinFromCounterSpin(150, 'agnes-pe'), 140);
 assert.equal(counterApi.engineSpinFromCounterSpin(0, 'agnes-pe'), 0, 'ラムクリア後0回転は内部239回転として扱う');
 assert.equal(counterApi.engineSpinFromCounterSpin(434, 'umi-sp5'), 434, '大海5SPは素通し');
 assert.equal(counterApi.engineSpinFromCounterSpin(null, 'agnes-pe'), null);
-assert.equal(counterApi.remainingSpinsFromCounterSpin(150, 'agnes-pe'), 100, 'カウンター150は遊タイムまで残り100回転');
+assert.equal(counterApi.remainingSpinsFromCounterSpin(150, 'agnes-pe'), 99, 'カウンター150は遊タイムまで残り99回転');
 assert.equal(counterApi.remainingSpinsFromCounterSpin(0, 'agnes-pe'), 239);
-assert.equal(counterApi.remainingSpinsFromCounterSpin(200, 'agnes-pe'), 50);
-assert.equal(counterApi.remainingSpinsFromCounterSpin(250, 'agnes-pe'), 0);
+assert.equal(counterApi.remainingSpinsFromCounterSpin(200, 'agnes-pe'), 49);
+assert.equal(counterApi.remainingSpinsFromCounterSpin(249, 'agnes-pe'), 0, 'カウンター249で遊タイム突入（残り0）');
 assert.equal(counterApi.remainingSpinsFromCounterSpin(434, 'umi-sp5'), 516, '大海5SPの残り回転数は不変');
 assert.equal(counterApi.remainingSpinsFromCounterSpin(525, 'umi-sp5'), 425);
 
-// 受け入れ基準: アグネスPE・カウンター150・回転率17・1R実質100玉・等価・現金 → +1,569円（記事v5と一致）
+// 受け入れ基準: アグネスPE・カウンター150・回転率17・1R実質100玉・等価・現金 → +1,590円
+// （9/7実測で突入をカウンター249に修正。記事v5当時の +1,569円 は突入250前提の値）
 const agnesCounterCase = expectationContext.engine.calculate(
   { presetId: 'agnes-pe', currentSpin: counterApi.engineSpinFromCounterSpin(150, 'agnes-pe'), rotationRate: 17, availableBalls: 0 },
   { ...expectationContext.engine.presets['agnes-pe'].defaults, presetId: 'agnes-pe', netBallsPerWin: 100, yenPerBall: 4 }
 );
-assert.equal(Math.round(agnesCounterCase.evYen), 1569, 'アグネスPE・カウンター150 → +1,569円');
-assert.equal(agnesCounterCase.spinsToTenjo, 100, 'エンジンの残り回転数もカウンター基準と一致する');
+assert.equal(Math.round(agnesCounterCase.evYen), 1590, 'アグネスPE・カウンター150 → +1,590円');
+assert.equal(agnesCounterCase.spinsToTenjo, 99, 'エンジンの残り回転数もカウンター基準と一致する');
 
 // エンジンへ渡す前に必ず換算していること
 assert.match(html, /const engineSpin = engineSpinFromCounterSpin\(effectiveSpin, preset\.id\);/);
@@ -4677,7 +4678,7 @@ assert.ok(Math.abs(s11Engine.E.presets['agnes-pe'].spec.averageRoundsPerWin - 58
 // 玉/R × 平均R数 が旧 netBallsPerWin と完全に一致する（代表点が動かない根拠）
 assert.equal(s11Engine.E.presets['umi-sp5'].defaults.netBallsPerWin * s11Engine.E.presets['umi-sp5'].spec.averageRoundsPerWin, 1400);
 // 受け入れ基準（記事v5・calc・v3で確認済みの代表点）
-assert.equal(Math.round(s11Engine.ev('agnes-pe', 150, 17, 100, 25, 0).evYen), 1569);
+assert.equal(Math.round(s11Engine.ev('agnes-pe', 150, 17, 100, 25, 0).evYen), 1590);
 assert.equal(Math.round(s11Engine.ev('agnes-pe', 0, 17, 105, 25, 0).evYen), 310);
 // 大海5SPの代表点は holdSpins で分岐する。どちらも S11 の前後で不変
 assert.equal(Math.round(s11Engine.ev('umi-sp5', 434, 17, 140, 28, 0, { holdSpins: 0 }).evYen), -499);
@@ -5750,12 +5751,12 @@ assert.equal(s18LabelContext.labels.agnes, '基準値（記事の1R100玉）');
 assert.equal(s18LabelContext.labels.umi, '理論値');
 assert.equal(s18LabelContext.labels.unknown, '理論値');
 
-// 受け入れ基準: カウンター150・回転率17・等価・現金・手入力なし・実測なし → 記事v5の +1,569円。
+// 受け入れ基準: カウンター150・回転率17・等価・現金・手入力なし・実測なし → +1,590円。
 // エンジンの既定値をそのまま渡して、既定パスが記事の代表点と一致することを固定する。
 assert.equal(
   Math.round(s11Engine.ev('agnes-pe', 150, 17, s11Engine.E.presets['agnes-pe'].defaults.netBallsPerWin, 25, 0).evYen),
-  1569,
-  'S18: 既定の1R実質出玉で記事v5の代表点（+1,569円）になること'
+  1590,
+  'S18: 既定の1R実質出玉で代表点（+1,590円）になること'
 );
 // umi-sp5 の既定は不変
 assert.equal(s11Engine.E.presets['umi-sp5'].defaults.netBallsPerWin, 140);
