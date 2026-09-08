@@ -193,7 +193,9 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         },
         defaults: {
           // S11: netBallsPerWin は「1Rあたりの実質出玉（玉/R）」。当選あたりの玉数ではない。
-          netBallsPerWin: 108,
+          // S18: 既定は記事v5と同じ実戦基準の100玉/R。公称払い出し（648÷6＝108）ではない。
+          // averageRoundsPerWin は当選あたりの平均R数（R構成の重み）なので 587.5/108 のまま。
+          netBallsPerWin: 100,
           jitanNormalBallsPerSpin: -0.8,
           jitanFastBallsPerSpin: 0,
           yutimeBallsPerSpin: -0.8,

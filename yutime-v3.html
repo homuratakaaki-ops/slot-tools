@@ -1980,7 +1980,9 @@
     ];
     const MACHINE_PRESETS = [
       { id: "umi-sp5", name: "P大海物語5スペシャル", roundBalls: 140, standardRounds: 10, standardPayout: 1400, roundTypes: [{ id: "r10", label: "10R", balls: 1400 }], evSupported: true, hasYutime: true, spec: { note: "B5時点の期待値対応プリセット" } },
-      { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", roundBalls: 108, standardRounds: 6, standardPayout: 648, roundTypes: [{ id: "r10", label: "10R", balls: 1080 }, { id: "r6", label: "6R", balls: 648 }, { id: "r4", label: "4R", balls: 432 }], evSupported: true, hasYutime: true }
+      // S18: defaultNetBallsLabel は既定の1R実質出玉の出典表示。アグネスPEの100玉/Rは
+      // 公称払い出し（648÷6＝108）ではなく記事v5で使っている実戦基準なので「理論値」と呼ばない。
+      { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", roundBalls: 108, standardRounds: 6, standardPayout: 648, roundTypes: [{ id: "r10", label: "10R", balls: 1080 }, { id: "r6", label: "6R", balls: 648 }, { id: "r4", label: "4R", balls: 432 }], evSupported: true, hasYutime: true, defaultNetBallsLabel: "基準値（記事の1R100玉）" }
     ];
     const RAM_CLEAR_VALUE = "cleared";
     const RAM_NOT_CLEARED_VALUE = "not_cleared";
@@ -2051,7 +2053,9 @@
         },
         defaults: {
           // S11: netBallsPerWin は「1Rあたりの実質出玉（玉/R）」。当選あたりの玉数ではない。
-          netBallsPerWin: 108,
+          // S18: 既定は記事v5と同じ実戦基準の100玉/R。公称払い出し（648÷6＝108）ではない。
+          // averageRoundsPerWin は当選あたりの平均R数（R構成の重み）なので 587.5/108 のまま。
+          netBallsPerWin: 100,
           jitanNormalBallsPerSpin: -0.8,
           jitanFastBallsPerSpin: 0,
           yutimeBallsPerSpin: -0.8,
@@ -2711,7 +2715,13 @@
       if (roundHits.length) {
         return { value: roundHits.reduce((sum, value) => sum + value, 0) / roundHits.length, source: "ラウンド集計", count: roundHits.length };
       }
-      return { value: preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_ROUND, source: "理論値", count: 0 };
+      return { value: preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_ROUND, source: netBallsDefaultLabel(presetId), count: 0 };
+    }
+
+    // S18: 既定の1R実質出玉の出典ラベル。機種ごとに既定値の性格が違うので機種側に持たせる。
+    // アグネスPEは記事v5の実戦基準（100玉/R）、大海5SPは夢爽が実戦基準で置いた値（140玉/R）。
+    function netBallsDefaultLabel(presetId) {
+      return presetById(presetId)?.defaultNetBallsLabel || "理論値";
     }
 
     function presetHoldSpins(presetId) {

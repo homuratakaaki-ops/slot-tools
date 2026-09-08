@@ -160,8 +160,10 @@ assert.equal(JSON.stringify(Array.from(api.PRESETS[1].payoutChips)), '[]');
 assert.equal(api.PRESETS[1].netBallsPerWin(1400), 140, 'umi-sp5 は当選あたりの入力を平均R数で割る');
 assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].spec.averageRoundsPerWin, 10);
 assert.ok(Math.abs(api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].spec.averageRoundsPerWin - 587.5 / 108) < 1e-12);
-// 玉/R × 平均R数 は旧 netBallsPerWin と完全に一致する（代表点が動かない根拠）
-assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.netBallsPerWin * api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].spec.averageRoundsPerWin, 587.5);
+// S18: アグネスPEの既定は記事v5と同じ実戦基準の100玉/R。公称払い出し（648÷6＝108）ではない。
+// averageRoundsPerWin は当選あたりの平均R数（R構成の重み）なので 587.5/108 のまま動かさない。
+assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.netBallsPerWin, 100);
+assert.equal(api.PRESETS[0].payoutDefault, api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.netBallsPerWin, 'calc の既定値とエンジンの既定値がそろっていること');
 assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].defaults.netBallsPerWin * api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].spec.averageRoundsPerWin, 1400);
 assert.match(calcHtml, /byId\("payoutLabel"\)\.textContent = preset\.payoutLabel;/, '機種切替でラベルが差し替わること');
 assert.match(calcHtml, /payoutInput\.placeholder = String\(preset\.payoutDefault\);/, '機種切替で既定値が差し替わること');

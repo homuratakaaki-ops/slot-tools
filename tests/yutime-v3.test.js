@@ -903,7 +903,7 @@ for (const machinePreset of machinePresetContext.presets) {
   assert.equal(machinePreset.defaults, enginePreset.defaults, `${machinePreset.id} の defaults はエンジンの実体をそのまま参照すること`);
 }
 assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').roundTypes.length, 3, 'UI側の roundTypes は MACHINE_PRESETS に残ること');
-assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').defaults.netBallsPerWin, 108, 'agnes-pe の既定値（S11: 玉/R）はエンジン側の値で解決されること');
+assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').defaults.netBallsPerWin, 100, 'S18: agnes-pe の既定値は記事v5と同じ実戦基準の100玉/R。エンジン側の値で解決されること');
 new vm.Script(`
   function normalizeNumber(value) {
     if (value === "" || value === null || value === undefined) return null;
@@ -2880,7 +2880,7 @@ assert.match(html, /id: "agnes-pe"/);
 assert.match(html, /name: "PA大海物語Withアグネス・ラムPE"/);
 assert.match(html, /modelType: "st-certain"/);
 // B98: agnes-pe の既定値は MACHINE_PRESETS ではなく期待値エンジンのプリセットに置く
-assert.match(yutimeExpectationEngine, /netBallsPerWin: 108,\s+jitanNormalBallsPerSpin: -0\.8,\s+jitanFastBallsPerSpin: 0,\s+yutimeBallsPerSpin: -0\.8,/);
+assert.match(yutimeExpectationEngine, /netBallsPerWin: 100,\s+jitanNormalBallsPerSpin: -0\.8,\s+jitanFastBallsPerSpin: 0,\s+yutimeBallsPerSpin: -0\.8,/);
 // S11: 玉/R × 平均R数 が旧 netBallsPerWin と一致することを式で固定する
 assert.match(yutimeExpectationEngine, /averageRoundsPerWin: 587\.5 \/ 108/);
 assert.match(yutimeExpectationEngine, /averageRoundsPerWin: 10/);
@@ -4646,8 +4646,11 @@ new vm.Script(`
     return E.calculate({ presetId, currentSpin: Math.max(0, counterSpin - offset), rotationRate: rate, availableBalls }, settings);
   };
 `).runInContext(s11Engine);
+// S18: アグネスPEの既定は記事v5と同じ実戦基準の100玉/R。公称払い出し（648÷6＝108）ではない。
+// averageRoundsPerWin は当選あたりの平均R数（R構成の重み）なので 587.5/108 のまま動かさない。
+assert.equal(s11Engine.E.presets['agnes-pe'].defaults.netBallsPerWin, 100);
+assert.ok(Math.abs(s11Engine.E.presets['agnes-pe'].spec.averageRoundsPerWin - 587.5 / 108) < 1e-12);
 // 玉/R × 平均R数 が旧 netBallsPerWin と完全に一致する（代表点が動かない根拠）
-assert.equal(s11Engine.E.presets['agnes-pe'].defaults.netBallsPerWin * s11Engine.E.presets['agnes-pe'].spec.averageRoundsPerWin, 587.5);
 assert.equal(s11Engine.E.presets['umi-sp5'].defaults.netBallsPerWin * s11Engine.E.presets['umi-sp5'].spec.averageRoundsPerWin, 1400);
 // 受け入れ基準（記事v5・calc・v3で確認済みの代表点）
 assert.equal(Math.round(s11Engine.ev('agnes-pe', 150, 17, 100, 25, 0).evYen), 1569);
@@ -5687,5 +5690,50 @@ assert.equal(
 resultContext.data.machines = [{ ...s17bMachine, __stats: { rate: 17, spins: 500 } }];
 const s17bReference = resultContext.resultApi.earnedExpectationForSession(s17bSession(), resultContext.data.machines[0], { rate: 10, normalSpins: 10 });
 assert.match(resultContext.resultApi.earnedExpectationBasisText(s17bReference), /回転率17\.0・参考 ／ 1R108玉・実測平均/);
+
+
+// ===========================================================================
+// S18: アグネスPEの1R実質出玉の既定値を記事v5の実戦基準（100玉/R）にそろえる
+// ===========================================================================
+
+// エンジンの既定値。公称払い出し（648÷6＝108）ではなく記事v5の基準値
+assert.match(yutimeExpectationEngine, /netBallsPerWin: 100,/);
+assert.doesNotMatch(yutimeExpectationEngine, /netBallsPerWin: 108,/);
+// averageRoundsPerWin は当選あたりの平均R数（R構成の重み）なので動かさない
+assert.match(yutimeExpectationEngine, /averageRoundsPerWin: 587\.5 \/ 108/);
+// umi-sp5 は不変
+assert.match(yutimeExpectationEngine, /netBallsPerWin: DEFAULT_NET_BALLS_PER_ROUND,/);
+
+// 既定値の出典ラベルは機種側（MACHINE_PRESETS）に持たせる
+assert.match(html, /defaultNetBallsLabel: "基準値（記事の1R100玉）"/);
+assert.match(html, /function netBallsDefaultLabel\(presetId\) \{\s*return presetById\(presetId\)\?\.defaultNetBallsLabel \|\| "理論値";/);
+assert.match(html, /return \{ value: preset\?\.defaults\?\.netBallsPerWin \|\| DEFAULT_NET_BALLS_PER_ROUND, source: netBallsDefaultLabel\(presetId\), count: 0 \};/);
+// 大海5SPの1,400玉/当選＝140玉/Rは夢爽が実戦基準で置いた値。ラベルは触らない
+assert.doesNotMatch(html, /umi-sp5[^\n]*defaultNetBallsLabel/);
+
+const s18LabelContext = vm.createContext({
+  MACHINE_PRESETS: [
+    { id: 'umi-sp5', defaults: { netBallsPerWin: 140 } },
+    { id: 'agnes-pe', defaults: { netBallsPerWin: 100 }, defaultNetBallsLabel: '基準値（記事の1R100玉）' }
+  ]
+});
+new vm.Script(`
+  function presetById(id) { return MACHINE_PRESETS.find((preset) => preset.id === id) || null; }
+  ${section('function netBallsDefaultLabel', 'function presetHoldSpins')}
+  globalThis.labels = { agnes: netBallsDefaultLabel('agnes-pe'), umi: netBallsDefaultLabel('umi-sp5'), unknown: netBallsDefaultLabel('none') };
+`).runInContext(s18LabelContext);
+assert.equal(s18LabelContext.labels.agnes, '基準値（記事の1R100玉）');
+assert.equal(s18LabelContext.labels.umi, '理論値');
+assert.equal(s18LabelContext.labels.unknown, '理論値');
+
+// 受け入れ基準: カウンター150・回転率17・等価・現金・手入力なし・実測なし → 記事v5の +1,569円。
+// エンジンの既定値をそのまま渡して、既定パスが記事の代表点と一致することを固定する。
+assert.equal(
+  Math.round(s11Engine.ev('agnes-pe', 150, 17, s11Engine.E.presets['agnes-pe'].defaults.netBallsPerWin, 25, 0).evYen),
+  1569,
+  'S18: 既定の1R実質出玉で記事v5の代表点（+1,569円）になること'
+);
+// umi-sp5 の既定は不変
+assert.equal(s11Engine.E.presets['umi-sp5'].defaults.netBallsPerWin, 140);
 
 console.log('yutime-v3 tests passed');
