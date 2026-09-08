@@ -1351,8 +1351,8 @@ new vm.Script(`
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWin: 1500, netBallsPerWinManual: true }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }] }])), JSON.stringify({ value: 1500, source: '手入力', count: null }));
 // S10/§1-1: 実測平均は 獲得出玉の合計 ÷ 合計R数（1,980玉 ÷ 14R）。当選件数では割らない
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }] }])), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
-// S11: ラウンド集計も玉/R（10R1,400玉→140、4R560玉→140）
-assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 140, source: 'ラウンド集計', count: 2 }));
+// S19: R種別だけ記録して獲得出玉が無い当選は実測にならない。公称に寄せず基準値へ落とす
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 140, source: '理論値', count: 0 }));
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [])), JSON.stringify({ value: 140, source: '理論値', count: 0 }));
 // B90: 当選ごとの記録が無い旧データは「ヤメ入力の累計 ÷ そのセッションの合計R数」（2,400玉 ÷ 14R）
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 2400 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
@@ -4437,13 +4437,12 @@ assert.equal(netBallsTextContext.text(null), '-');
 // S10/§1-1: 実測平均のサンプル数は合計R数。件数と読めないよう「◯R分」で出す
 assert.equal(netBallsTextContext.sourceText({ source: '実測平均', count: 14, countUnit: 'rounds' }), '実測平均・14R分');
 assert.equal(netBallsTextContext.sourceText({ source: '実測平均', count: 1200, countUnit: 'rounds' }), '実測平均・1,200R分');
-assert.equal(netBallsTextContext.sourceText({ source: 'ラウンド集計', count: 2 }), 'ラウンド集計・n=2');
 assert.equal(netBallsTextContext.sourceText({ source: '手入力', count: null }), '手入力');
 assert.equal(netBallsTextContext.sourceText({ source: '理論値', count: 0 }), '理論値');
 assert.equal(netBallsTextContext.usedText({ value: 100, source: '実測平均', count: 8, countUnit: 'rounds' }), '100玉（実測平均・8R分）');
 assert.equal(netBallsTextContext.usedText({ value: 587.5, source: '理論値', count: 0 }), '587.5玉（理論値）');
 
-// S9/§1-2: 採用順位。パネルの手入力 → プリセットの手入力 → 実測平均 → ラウンド集計 → 理論値
+// S9/§1-2: 採用順位。パネルの手入力 → プリセットの手入力 → 実測平均 → 基準値（プリセット既定）
 const s9PayoutContext = vm.createContext({
   MACHINE_PRESETS: [{ id: 'umi-sp5', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r4', label: '4R', balls: 880 }], defaults: { netBallsPerWin: 140 } }],
   DEFAULT_NET_BALLS_PER_ROUND: 140,
@@ -5735,5 +5734,74 @@ assert.equal(
 );
 // umi-sp5 の既定は不変
 assert.equal(s11Engine.E.presets['umi-sp5'].defaults.netBallsPerWin, 140);
+
+
+// ===========================================================================
+// S19: 「ラウンド集計」（R種別の公称出玉 ÷ R数）の段を廃止
+// ===========================================================================
+
+// 経路が残っていないこと。R種別の公称出玉は1R実質出玉の出典にしない
+assert.doesNotMatch(presetSettingsHelpers, /source: "ラウンド集計"/);
+assert.doesNotMatch(presetSettingsHelpers, /roundHits/);
+assert.doesNotMatch(netBallsTextBlock, /`n=\$\{info\.count\}`/);
+// 採用順位は「パネル手入力 → プリセット手入力 → 実測平均 → 基準値」の4段
+assert.match(presetSettingsHelpers, /if \(panelManual !== null && panelManual > 0\) \{\s*return \{ value: panelManual, source: "手入力", count: null \};/);
+assert.match(presetSettingsHelpers, /if \(settings\.netBallsPerWinManual === true && manual !== null && manual > 0\) \{\s*return \{ value: manual, source: "手入力", count: null \};/);
+assert.match(presetSettingsHelpers, /if \(actualRounds > 0\) \{\s*return \{ value: actualTotal \/ actualRounds, source: "実測平均", count: actualRounds, countUnit: "rounds" \};/);
+assert.match(presetSettingsHelpers, /return \{ value: preset\?\.defaults\?\.netBallsPerWin \|\| DEFAULT_NET_BALLS_PER_ROUND, source: netBallsDefaultLabel\(presetId\), count: 0 \};/);
+// 画面の説明文も3段にそろえる
+assert.doesNotMatch(html, /実測平均・ラウンド集計・理論値の順/);
+assert.match(html, /実測平均・基準値の順で自動採用します/);
+
+const s19Context = vm.createContext({
+  DEFAULT_NET_BALLS_PER_ROUND: 140,
+  MACHINE_PRESETS: [
+    { id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r6', label: '6R', balls: 648 }, { id: 'r4', label: '4R', balls: 432 }], defaults: { netBallsPerWin: 100 }, defaultNetBallsLabel: '基準値（記事の1R100玉）' },
+    { id: 'umi-sp5', roundTypes: [{ id: 'r10', label: '10R', balls: 1400 }, { id: 'r4', label: '4R', balls: 560 }], defaults: { netBallsPerWin: 140 } }
+  ],
+  data: { presetSettings: {}, sessions: [], machines: [{ id: 'm1', presetId: 'agnes-pe' }, { id: 'm2', presetId: 'umi-sp5' }] },
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  normalizeMachinePresetId(machine) { return machine?.presetId || ''; },
+  normalizeHits(hits) { return Array.isArray(hits) ? hits : []; },
+  totalRoundsForPreset() { return 0; },
+  positiveNumberOrDefault(value, fallback) { return value > 0 ? value : fallback; },
+  nowIso() { return '2026-09-08T00:00:00.000Z'; }
+});
+new vm.Script(`
+  function presetById(id) { return MACHINE_PRESETS.find((preset) => preset.id === id) || null; }
+  function roundTypeById(presetId, id) { return (presetById(presetId)?.roundTypes || []).find((type) => type.id === id) || null; }
+  function roundCountFromRoundType(type) { const m = String(type?.label || "").match(/^(\\d+)R$/); return m ? Number(m[1]) : null; }
+  function filteredSessions() { return data.sessions; }
+  ${presetSettingsHelpers}
+  globalThis.info = (presetId, machineId, sessions) => {
+    data.sessions = sessions;
+    return netBallsPerWinInfo(presetId, data.machines.find((m) => m.id === machineId));
+  };
+`).runInContext(s19Context);
+
+// アグネスPE・当たりあり・獲得出玉なし → 既定100玉「基準値（記事の1R100玉）」
+// 従来は 1080/10・648/6・432/4 がどれも108玉/R なので、常に公称108が採用されていた
+assert.equal(
+  JSON.stringify(s19Context.info('agnes-pe', 'm1', [{ machineId: 'm1', hits: [{ roundTypeId: 'r6' }, { roundTypeId: 'r4' }, { roundTypeId: 'r10' }] }])),
+  JSON.stringify({ value: 100, source: '基準値（記事の1R100玉）', count: 0 })
+);
+// 獲得出玉ありのセッションは実測平均のまま（1,020玉 ÷ 10R）
+assert.equal(
+  JSON.stringify(s19Context.info('agnes-pe', 'm1', [{ machineId: 'm1', hits: [{ roundTypeId: 'r6', actualBalls: 600 }, { roundTypeId: 'r4', actualBalls: 420 }] }])),
+  JSON.stringify({ value: 102, source: '実測平均', count: 10, countUnit: 'rounds' })
+);
+// umi-sp5 も同じ。R種別だけの当選は基準値へ落とす
+assert.equal(
+  JSON.stringify(s19Context.info('umi-sp5', 'm2', [{ machineId: 'm2', hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])),
+  JSON.stringify({ value: 140, source: '理論値', count: 0 })
+);
+assert.equal(
+  JSON.stringify(s19Context.info('umi-sp5', 'm2', [{ machineId: 'm2', hits: [{ roundTypeId: 'r10', actualBalls: 1300 }] }])),
+  JSON.stringify({ value: 130, source: '実測平均', count: 10, countUnit: 'rounds' })
+);
 
 console.log('yutime-v3 tests passed');

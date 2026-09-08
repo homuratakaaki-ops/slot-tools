@@ -2655,7 +2655,8 @@
       return rounds !== null && rounds > 0 ? rounds : 1;
     }
 
-    // S9/§1-2: 1R実質出玉の採用順位。手入力 → 実測平均 → ラウンド集計 → 理論値。
+    // S9/§1-2 → S19: 1R実質出玉の採用順位。
+    // パネル手入力 → プリセット手入力 → 実測平均（合計R数ベース）→ 基準値（プリセット既定）。
     // manualInput は期待値判定パネルのその場の手入力で、プリセット設定の手入力より優先する。
     function netBallsPerWinInfo(presetId, machine = null, manualInput = null) {
       const preset = presetById(presetId);
@@ -2673,7 +2674,6 @@
         const sessionMachine = data.machines.find((item) => item.id === session.machineId);
         return normalizeMachinePresetId(sessionMachine) === presetId;
       });
-      const hits = sessions.flatMap((session) => normalizeHits(session.hits));
       // S9/§1-2: 実測平均は当選ごとの「今回分」（S8）を出典にする。採用順位は
       // sessionActualBallsTotal と同じで、当選ごとの記録が無い旧データだけヤメ入力の累計を使う。
       // S10/§1-1: 分母は当選件数ではなく消化した合計R数。1R当たりの一般的な意味
@@ -2705,16 +2705,10 @@
       if (actualRounds > 0) {
         return { value: actualTotal / actualRounds, source: "実測平均", count: actualRounds, countUnit: "rounds" };
       }
-      // S11: ラウンド集計も玉/R でそろえる。R種別の公称出玉 ÷ そのR数。
-      const roundHits = hits.map((hit) => {
-        const roundType = roundTypeById(presetId, hit.roundTypeId);
-        const balls = Number(roundType?.balls);
-        const rounds = roundCountFromRoundType(roundType);
-        return balls > 0 && rounds !== null && rounds > 0 ? balls / rounds : null;
-      }).filter((value) => value !== null);
-      if (roundHits.length) {
-        return { value: roundHits.reduce((sum, value) => sum + value, 0) / roundHits.length, source: "ラウンド集計", count: roundHits.length };
-      }
+      // S19: 「ラウンド集計」（R種別の公称出玉 ÷ そのR数）の段は廃止した。
+      // アグネスPEでは 1080/10・648/6・432/4 がどれも108玉/R なので、当選のR種別を記録しただけで
+      // 常に公称108玉が実測より優先され、獲得出玉を入れていない台が全部それで判定されていた。
+      // 実測が無いときは公称に寄せず、プリセットの基準値へ落とす。
       return { value: preset?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_ROUND, source: netBallsDefaultLabel(presetId), count: 0 };
     }
 
@@ -2885,15 +2879,12 @@
       return `${(Math.round(number * 10) / 10).toLocaleString("ja-JP", { maximumFractionDigits: 1 })}玉`;
     }
 
-    // 出典は「手入力」「実測平均・◯R分」「ラウンド集計・n=◯」「理論値」の4種。
+    // S19: 出典は「手入力」「実測平均・◯R分」「基準値（プリセット既定）」の3種。
     // S10/§1-1: 実測平均のサンプル数は集計に使った合計R数なので、件数と読めない `◯R分` で出す。
     function netBallsSourceText(info) {
       if (!info) return "-";
       if (!info.count) return `${info.source}`;
-      const sample = info.countUnit === "rounds"
-        ? `${info.count.toLocaleString("ja-JP")}R分`
-        : `n=${info.count}`;
-      return `${info.source}・${sample}`;
+      return `${info.source}・${info.count.toLocaleString("ja-JP")}R分`;
     }
 
     function netBallsUsedText(info) {
@@ -4137,7 +4128,7 @@
         <p class="hint">時短が終わったあと玉代ゼロで回る保留の数。通常4〜5。0で考慮しない。</p>
         <div class="field-row"><label for="quickHourlyThreshold">「打てる」判定の時給ライン（円）</label><input id="quickHourlyThreshold" inputmode="numeric" value="${escapeHtml(Math.round(hourlyThresholdYen()))}"></div>
         <p class="hint">打てる判定の時給ライン。スロ機械割105%相当＝約2,400円が目安。全機種・全店共通の値です。</p>
-        <p class="hint">1R実質出玉は「大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）÷ 消化した合計R数」です。空欄または0以下なら手入力上書きを解除し、実測平均・ラウンド集計・理論値の順で自動採用します。${supportHint}</p>
+        <p class="hint">1R実質出玉は「大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）÷ 消化した合計R数」です。空欄または0以下なら手入力上書きを解除し、実測平均・基準値の順で自動採用します。${supportHint}</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveQuickNetBallsBtn">保存</button>
