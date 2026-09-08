@@ -62,6 +62,9 @@
 
     input, textarea, select {
       width: 100%;
+      /* S23: date / time の入力欄は min-content 幅が広く、width:100% だけでは縮まない。
+         グリッド列（.field-row / .grid two）を押し広げて320pxで横に溢れるので最小幅を外す */
+      min-width: 0;
       min-height: 44px;
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -246,6 +249,9 @@
       align-items: center;
       margin-bottom: 10px;
     }
+
+    /* S23: グリッド項目の自動最小サイズ（min-content）で列が広がるのを止める */
+    .field-row > * { min-width: 0; }
 
     .field-row label {
       font-weight: 700;
@@ -1765,7 +1771,7 @@
     .result-table th:first-child,
     .result-table td:first-child { text-align: left; white-space: normal; }
 
-    /* S12/B-2 → S20/§2-3: 区間の内訳は8列。320px で潰れないよう文字と余白を詰め、終点だけ折り返す
+    /* S12/B-2 → S20/§2-3 → S23/§3-1: 区間の内訳は9列。320px で潰れないよう文字と余白を詰め、終点だけ折り返す
        （純増と1R実質出玉は1列にまとめ、それでも溢れる分は .result-table-wrap の横スクロールで見る） */
     .result-table.segments { font-size: 11px; }
 
@@ -1774,6 +1780,13 @@
 
     .result-table.segments th:nth-child(3),
     .result-table.segments td:nth-child(3) { white-space: normal; }
+
+    /* S23/§3-1: 当たり消化は区間の行に続く注記なので、列を作らず左寄せの1行で出す */
+    .result-table.segments .segment-clear-row td {
+      text-align: left;
+      color: var(--muted);
+      white-space: normal;
+    }
 
     .hidden { display: none !important; }
 
@@ -1956,7 +1969,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 37;
+    const SCHEMA_VERSION = 38;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
@@ -1969,6 +1982,18 @@
     //（例：2回転でヤメた記録の 0.04、10回転で当たった記録の 10.0）。
     const EARNED_EV_MIN_SPINS = 100;
     const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
+    // S23/§3-2: 参考時速を「実測」として採る条件。回転率（EARNED_EV_MIN_SPINS）と同じ考え方で、
+    // 母数が薄い記録と、計測ミス（押し忘れ・日またぎ）で出る外れ値を実測から外す。
+    const SPEED_MIN_SPINS = 100;
+    const SPEED_MIN_MINUTES = 20;
+    const SPEED_MIN_PER_MINUTE = 1;
+    const SPEED_MAX_PER_MINUTE = 12;
+    // S23/§3-2: 参考時速の集計（台・店）は deriveSession を全走査するので、同じ状態の間は使い回す。
+    // 初回 renderAll より前に評価される位置に置く（LEDGER_EMPTY_TEXT と同じ理由）。
+    const speedStatsCache = new Map();
+    // S23/§1: 記録時のUTCオフセット（分）。normalizeData が記録から決める。null は「記録なし」で、
+    // そのときだけ実行中の端末のTZを使う。deriveRecordedUtcOffset を参照。
+    let recordedUtcOffsetMinutes = null;
     const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
     const CONSUMED_BALLS_SOURCE_LABELS = { tray: "台上差", taps: "タップ合計" };
     // 履歴の金額枠で値が出せないときの表示。初回 renderAll より前に評価される位置に置く
@@ -2431,9 +2456,100 @@
       return base.toISOString().slice(0, 10);
     }
 
-    function currentTime() {
-      const d = new Date();
-      return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+    function currentTime(date = new Date()) {
+      return String(date.getHours()).padStart(2, "0") + ":" + String(date.getMinutes()).padStart(2, "0");
+    }
+
+    // S23/§1: 区間の時刻はISO文字列で持つ（秒まで必要なため。hits[].at と同じ形式）。
+    // 旧データの HH:MM だけを持つ値は、セッションの日付で日を補い秒を00として解決する。
+    function isIsoTimestamp(value) {
+      return typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value));
+    }
+
+    // S23/§1: HH:MM の欄（startTime 等）は「記録した端末のローカル時刻」で、hits[].at はISO（絶対時刻）。
+    // 両者の差を取るには記録時のUTCオフセットが要る。実行中の端末のTZを使うと、TZが違う環境で開いたときに
+    // 所要時間・時速・当たり消化時間がずれるため、記録そのものからオフセットを決める。
+    // startTime と createdAt は打ち始めの同じ瞬間に書かれるので、その差の最頻値（15分刻み）を採る。
+    function deriveRecordedUtcOffset(sessions) {
+      const votes = new Map();
+      (Array.isArray(sessions) ? sessions : []).forEach((session) => {
+        const parts = String(session?.startTime ?? "").trim().match(/^(\d{1,2}):(\d{2})/);
+        if (!parts || !isIsoTimestamp(session?.createdAt)) return;
+        const wall = Number(parts[1]) * 60 + Number(parts[2]);
+        const created = new Date(session.createdAt);
+        const utc = created.getUTCHours() * 60 + created.getUTCMinutes();
+        const rounded = Math.round((((wall - utc) % 1440 + 1440) % 1440) / 15) * 15;
+        // −12:00〜+14:00 に収める（+14:00 = 840分）
+        const offset = rounded > 840 ? rounded - 1440 : rounded;
+        votes.set(offset, (votes.get(offset) || 0) + 1);
+      });
+      let best = null;
+      votes.forEach((count, offset) => {
+        if (!best || count > best.count || (count === best.count && offset < best.offset)) best = { offset, count };
+      });
+      return best ? best.offset : null;
+    }
+
+    // 記録が1件も無いときだけ、実行中の端末のTZを使う（最初の1件が入った時点でそこに固定される）。
+    function recordedUtcOffset() {
+      return recordedUtcOffsetMinutes === null ? -new Date().getTimezoneOffset() : recordedUtcOffsetMinutes;
+    }
+
+    // 記録時のオフセットで組み立てる。TZの違う環境で開いても同じ絶対時刻になる。
+    function isoFromDateAndTime(dateValue, timeValue) {
+      const dateParts = String(dateValue || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      const timeParts = String(timeValue ?? "").trim().match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+      if (!dateParts || !timeParts) return null;
+      const hours = Number(timeParts[1]);
+      const minutes = Number(timeParts[2]);
+      const seconds = Number(timeParts[3] || 0);
+      if (hours > 23 || minutes > 59 || seconds > 59) return null;
+      const ms = Date.UTC(Number(dateParts[1]), Number(dateParts[2]) - 1, Number(dateParts[3]), hours, minutes, seconds)
+        - recordedUtcOffset() * 60000;
+      return Number.isFinite(ms) ? new Date(ms).toISOString() : null;
+    }
+
+    // 保存済みの区間時刻を読むときの唯一の入口。ISOはそのまま、旧データの HH:MM は日付で補う。
+    function segmentIsoAt(session, value) {
+      if (isIsoTimestamp(value)) return value;
+      return isoFromDateAndTime(session?.date, value);
+    }
+
+    // ISOを記録時のオフセットで読み直したもの。表示・日付比較はここを通す（実行中のTZに依存させない）。
+    function recordedDate(isoValue) {
+      return new Date(Date.parse(isoValue) + recordedUtcOffset() * 60000);
+    }
+
+    function localTimeText(isoValue, withSeconds = false) {
+      if (!isIsoTimestamp(isoValue)) return "";
+      const date = recordedDate(isoValue);
+      const parts = [String(date.getUTCHours()).padStart(2, "0"), String(date.getUTCMinutes()).padStart(2, "0")];
+      if (withSeconds) parts.push(String(date.getUTCSeconds()).padStart(2, "0"));
+      return parts.join(":");
+    }
+
+    function recordedDateString(isoValue) {
+      if (!isIsoTimestamp(isoValue)) return "";
+      const date = recordedDate(isoValue);
+      return [
+        date.getUTCFullYear(),
+        String(date.getUTCMonth() + 1).padStart(2, "0"),
+        String(date.getUTCDate()).padStart(2, "0")
+      ].join("-");
+    }
+
+    // S23/§1: HH:MM の欄（startTime / yutimeEnterTime / endTime）から区間の時刻を決める。
+    // 同じ分を指すISOが既にあるときは、記録した秒を落とさないようそのまま残す。
+    function segmentAtFromSessionTime(session, existing, timeValue) {
+      const time = String(timeValue ?? "").trim();
+      if (!time) return null;
+      if (isIsoTimestamp(existing)
+        && localTimeText(existing) === time.slice(0, 5)
+        && recordedDateString(existing) === String(session?.date || "")) {
+        return existing;
+      }
+      // 日付が無い記録はISOに直せない。記録を消さないよう HH:MM のまま残す（読む側は segmentIsoAt が吸収する）
+      return isoFromDateAndTime(session?.date, time) || time;
     }
 
     function cryptoId(prefix) {
@@ -2948,6 +3064,36 @@
       return `${Number(value).toFixed(2)}h`;
     }
 
+    // S23/§3-1: 所要は「分:秒」。時間単位にすると区間の長短が読み取りにくいので分で通す。
+    function minuteSecondText(ms) {
+      const value = normalizeNumber(ms);
+      if (value === null || value < 0) return "-";
+      const total = Math.round(value / 1000);
+      return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+    }
+
+    // S23/§3-1: 当たり消化の1行はそのまま読める日本語で出す。
+    function minuteSecondJaText(ms) {
+      const value = normalizeNumber(ms);
+      if (value === null || value < 0) return "-";
+      const total = Math.round(value / 1000);
+      return `${Math.floor(total / 60)}分${String(total % 60).padStart(2, "0")}秒`;
+    }
+
+    // S23/§2-1: 通常時の時速は回転/分。時速だけでは意味が薄いので、表示側で必ず回転率と並べる（§2-3）。
+    function spinsPerMinuteText(value) {
+      const number = normalizeNumber(value);
+      return number === null ? "-" : `${number.toFixed(1)}回転/分`;
+    }
+
+    // S23/§2-3: 時速は単独では意味が薄い（回転率が高いほど短縮変動で時速も上がる）。必ず回転率と並べる。
+    function speedWithRateText(perMinute, rate) {
+      const speed = normalizeNumber(perMinute);
+      const rateValue = normalizeNumber(rate);
+      if (speed === null) return "-";
+      return `${spinsPerMinuteText(speed)}${rateValue === null ? "" : `（回転率${rateValue.toFixed(1)}）`}`;
+    }
+
     function percentText(value) {
       if (value === null || value === undefined || !Number.isFinite(Number(value))) return "-";
       return `${Number(value).toFixed(1)}%`;
@@ -3042,6 +3188,8 @@
       const jitanFastBallsPerSpin = presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin");
       const yutimeBallsPerSpin = presetYutimeBallsPerSpin(presetId);
       const holdSpins = presetHoldSpins(presetId);
+      // S23/§3-2: 通常時の想定時速。実測があれば実測を使い、出典を根拠行へ出す（既定は250/h）
+      const spinsPerHour = spinsPerHourInfo(presetId, machine);
       const supportLabel = preset?.spec?.modelType === "st-certain"
         ? `ST・時短 ${jitanFastBallsPerSpin}玉/回転、遊タイム ${yutimeBallsPerSpin}玉/回転`
         : `時短100 ${jitanNormalBallsPerSpin}玉/回転、時短200 ${jitanFastBallsPerSpin}玉/回転、遊タイム ${yutimeBallsPerSpin}玉/回転`;
@@ -3054,13 +3202,66 @@
           jitanNormalBallsPerSpin,
           jitanFastBallsPerSpin,
           yutimeBallsPerSpin,
-          holdSpins
+          holdSpins,
+          spinsPerHour: spinsPerHour.value
         },
         netBallsInfo,
+        spinsPerHourInfo: spinsPerHour,
         // S9/§1-4: 根拠行に使用値と出典を出す。使用回転率と同じ書式でそろえる。
         netBallsSource: `使用1R実質出玉 ${netBallsUsedText(netBallsInfo)}`,
         payoutSource: supportLabel
       };
+    }
+
+    // S23/§3-2: 参考時速の集計は deriveSession の全走査になるので、同じ状態の間は結果を使い回す。
+    // キーに選択中の店・絞り込み・最終保存時刻を入れて、状態が変われば自動で作り直す。
+    function speedStatsCacheKey(scope) {
+      return [scope, data?.activeStoreId || "", [...selectedLabelFilters].sort().join(","), data?.meta?.updatedAt || ""].join("|");
+    }
+
+    function cachedSpeedStats(scope, build) {
+      const key = speedStatsCacheKey(scope);
+      if (speedStatsCache.has(key)) return speedStatsCache.get(key);
+      const value = build();
+      if (speedStatsCache.size > 200) speedStatsCache.clear();
+      speedStatsCache.set(key, value);
+      return value;
+    }
+
+    // S23/§3-2: 実測として採ってよい参考時速（回転/h）。母数が薄い記録と外れ値は採らない。
+    function usableSpinsPerHour(stats) {
+      const perMinute = normalizeNumber(stats?.speedPerMinute);
+      if (perMinute === null || perMinute < SPEED_MIN_PER_MINUTE || perMinute > SPEED_MAX_PER_MINUTE) return null;
+      if ((normalizeNumber(stats?.speedSpins) ?? 0) < SPEED_MIN_SPINS) return null;
+      if ((normalizeNumber(stats?.speedMinutes) ?? 0) < SPEED_MIN_MINUTES) return null;
+      return perMinute * 60;
+    }
+
+    // S23/§2-3: 店の参考時速は「同じ店の同じ機種」。回転率の台集計（machineStats）と同じ絞り込みを使う。
+    function storeSpeedStats(machine) {
+      const presetId = normalizeMachinePresetId(machine);
+      return cachedSpeedStats(`store:${presetId}`, () => aggregateStats(filteredSessions().filter((session) => {
+        const item = data.machines.find((entry) => entry.id === session.machineId) || null;
+        return item && normalizeMachinePresetId(item) === presetId;
+      })));
+    }
+
+    function machineSpeedStats(machineId) {
+      return cachedSpeedStats(`machine:${machineId}`, () => machineStats(machineId));
+    }
+
+    // S23/§3-2: 期待値の「通常時◯回転/h想定」。優先順位は回転率と同じ
+    //（手入力 → 台の実測 → 店の実測 → 既定250/h）。出典は根拠行にそのまま出す。
+    function spinsPerHourInfo(presetId, machine) {
+      const defaults = presetById(presetId)?.defaults || YUTIME_EXPECTATION_ENGINE.preset.defaults;
+      const fallback = positiveNumberOrDefault(defaults?.spinsPerHour, 250);
+      const manual = normalizeNumber(data?.presetSettings?.[presetId]?.spinsPerHour);
+      if (manual !== null && manual > 0) return { value: manual, source: "手入力" };
+      const machineSpeed = machine ? usableSpinsPerHour(machineSpeedStats(machine.id)) : null;
+      if (machineSpeed !== null) return { value: machineSpeed, source: "実測・台" };
+      const storeSpeed = machine ? usableSpinsPerHour(storeSpeedStats(machine)) : null;
+      if (storeSpeed !== null) return { value: storeSpeed, source: "実測・店" };
+      return { value: fallback, source: "既定" };
     }
 
     function expectationRate(stats, manualRate, store = null) {
@@ -3105,6 +3306,8 @@
         rateAssumed: Boolean(rateInfo.assumed),
         netBallsInfo: settingsInfo.netBallsInfo,
         netBallsSource: settingsInfo.netBallsSource,
+        // S23/§3-2: 判定の根拠行に出す通常時の想定時速と、その出典
+        spinsPerHourInfo: settingsInfo.spinsPerHourInfo,
         payoutSource: settingsInfo.payoutSource,
         exchangeBalls: exchangeBallsFromStore(store)
       };
@@ -3145,7 +3348,8 @@
       return `残り${remaining.toLocaleString("ja-JP")}回転`;
     }
 
-    function expectationBasisText(result) {
+    // S23/§3-2: 通常時の時速は出典とセットで出す。実測が無ければ既定250/hのまま。
+    function expectationBasisText(result, spinsPerHourSource = null) {
       if (!result) return "";
       // 投資額は機械割の分母と同じ「持ち玉ぶん＋現金ぶん」の円換算合計
       const investYen = Math.round(Number(result.normalCostYen) || 0);
@@ -3157,7 +3361,7 @@
         + `投資 約${investYen.toLocaleString("ja-JP")}円に対し期待値 ${yenText(evYen)}`
         + `（機械割 ${machineRate === null ? "-" : `${machineRate.toFixed(1)}%`} ＝ 期待値÷投資額+100%）`
         + ` ／ 消化時間 ${hourText(result.totalHours)}（通常${hourText(result.normalHours)}＋当選${hourText(result.hitHours)}＋電サポ${hourText(result.densapoHours)}）`
-        + ` ／ 通常時${spinsPerHour.toLocaleString("ja-JP")}回転/h想定`;
+        + ` ／ 通常時${spinsPerHour.toLocaleString("ja-JP")}回転/h${spinsPerHourSource ? `（${spinsPerHourSource}）` : "想定"}`;
     }
 
     function expectationInvestmentText(mochidamaBalls, cashBalls, spinsToTenjo, rotationRate) {
@@ -3469,6 +3673,9 @@
           evSupported: Boolean(preset?.evSupported || machine.evSupported)
         };
       }).filter((machine) => machine.storeId && machine.daiNo);
+      // S23/§1: 区間の時刻を組み立てる前に、記録時のUTCオフセットを記録そのものから決める。
+      // 実行中の端末のTZに依存させないため、区間の移行（applySegmentTimes）より前に確定させる。
+      recordedUtcOffsetMinutes = deriveRecordedUtcOffset(next.sessions);
       next.sessions = next.sessions.map((session) => {
         const normalized = {
           ...blankSession(),
@@ -3510,6 +3717,9 @@
         if (sourceVersion < 33) repairStartMochidama(normalized, source.sessions || []);
         normalized.segments = normalizeSessionSegments(normalized);
         applySegmentIds(normalized);
+        // S23/§5: schema 38。区間の時刻をISOへそろえ、当選で閉じた区間の endAt を hits[].at から埋める。
+        // 埋められない時刻は null のまま（推測で埋めない）。
+        applySegmentTimes(normalized);
         if (sourceVersion < 35) migrateSegmentShooting(normalized);
         // S17/A-2: 区間の紐づけが確定したあとで、矛盾している投資phaseを区間の種別に合わせる
         if (sourceVersion < 36) repairedInvestmentPhases += repairInvestmentPhases(normalized);
@@ -3872,6 +4082,8 @@
     }
 
     function renderAll() {
+      // S23/§3-2: 参考時速の集計キャッシュは1描画ぶんだけ。保存前の書き換えを持ち越さない
+      speedStatsCache.clear();
       renderStorePill();
       renderStores();
       renderMapEditor();
@@ -4722,6 +4934,11 @@
       let profitYen = null;
       let evYen = null;
       let workedHours = null;
+      // S23/§3-3: 平均時速。分子はΣ打ち出し回転数、分母はΣ通常時所要時間。回転率と並べて出す
+      let speedSpins = 0;
+      let speedMinutes = 0;
+      let normalSpins = 0;
+      let consumedBalls = 0;
       list.forEach((entry) => {
         const profit = normalizeNumber(entry?.profitYen);
         if (profit !== null) profitYen = (profitYen ?? 0) + profit;
@@ -4729,11 +4946,27 @@
         if (entryEvYen !== null) evYen = (evYen ?? 0) + entryEvYen;
         const hours = normalizeNumber(entry?.workedHours);
         if (hours !== null) workedHours = (workedHours ?? 0) + Math.max(0, hours);
+        speedSpins += normalizeNumber(entry?.speedSpins) ?? 0;
+        speedMinutes += normalizeNumber(entry?.speedMinutes) ?? 0;
+        const spins = normalizeNumber(entry?.normalSpins);
+        const consumed = normalizeNumber(entry?.consumedBalls);
+        if (spins !== null && spins > 0 && consumed !== null && consumed > 0) {
+          normalSpins += spins;
+          consumedBalls += consumed;
+        }
       });
       const hourlyYen = profitYen !== null && workedHours !== null && workedHours > 0
         ? profitYen / workedHours
         : null;
-      return { count: list.length, profitYen, evYen, workedHours, hourlyYen };
+      return {
+        count: list.length,
+        profitYen,
+        evYen,
+        workedHours,
+        hourlyYen,
+        speedPerMinute: speedMinutes > 0 ? speedSpins / speedMinutes : null,
+        rate: consumedBalls > 0 ? normalSpins / consumedBalls * 250 : null
+      };
     }
 
     function signedYenToneClass(value) {
@@ -4770,6 +5003,7 @@
         + signedFigureHtml("期待値", summary.evYen, "ledger-day-summary-item")
         + `<span class="ledger-day-summary-item"><span class="signed-figure-label">実働</span><strong>${escapeHtml(workedText)}</strong></span>`
         + signedFigureHtml("時給", summary.hourlyYen, "ledger-day-summary-item")
+        + `<span class="ledger-day-summary-item"><span class="signed-figure-label">平均時速</span><strong>${escapeHtml(speedWithRateText(summary.speedPerMinute, summary.rate))}</strong></span>`
         + `</div>`;
     }
 
@@ -4808,10 +5042,16 @@
         evYenById.set(session.id, evYen);
         const dayKey = String(session.date || "");
         if (!dayEntries.has(dayKey)) dayEntries.set(dayKey, []);
+        // S23/§3-3: 平均時速の分子・分母はセッション単位で持ち込み、日別に合算する
+        const speed = sessionNormalSpeed(session, presetById(normalizeMachinePresetId(machine)));
         dayEntries.get(dayKey).push({
           profitYen: derived.profitYen,
           evYen,
-          workedHours: sessionWorkedHours(session)
+          workedHours: sessionWorkedHours(session),
+          speedSpins: speed.spins,
+          speedMinutes: speed.minutes,
+          normalSpins: derived.normalSpins,
+          consumedBalls: derived.consumedBalls
         });
       });
       let lastDate = "";
@@ -6468,7 +6708,7 @@
         ${machineMemoSectionHtml(machine)}
         ${nailRatingSectionHtml(machine)}
         <div class="metric-grid">
-          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}</div>
+          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}${stats.speedPerMinute === null ? "" : `<small>参考時速 ${escapeHtml(spinsPerMinuteText(stats.speedPerMinute))}（${Math.round(stats.speedMinutes).toLocaleString("ja-JP")}分・${Math.round(stats.speedSpins).toLocaleString("ja-JP")}回転）</small>`}</div>
           ${showExpectationBlock ? `<div class="metric"><span>参考1R出玉</span><strong>${escapeHtml(netBallsText(netBallsInfo.value))}</strong><small>${escapeHtml(netBallsSourceText(netBallsInfo))}</small></div>` : ""}
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
@@ -6663,7 +6903,7 @@
       const costSource = expectationInvestmentText(expectation.result.mochidamaBalls, expectation.result.cashBalls, expectation.result.spinsToTenjo, expectation.result.rotationRate);
       detail.textContent = `使用回転率 ${expectation.result.rotationRate.toFixed(1)}（${expectation.rateSource}） / ${expectation.netBallsSource} / 残り${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}回転${expectation.previousSpin ? `（前日${expectation.previousSpin}+現在${expectation.currentSpin}）` : ""} / ${costSource} / ${expectation.payoutSource} / ${exchangeBallsText(expectation.exchangeBalls)}玉交換${near ? " / 天井まで100回転未満です" : ""}`;
       const basis = byId("machineEvBasis");
-      if (basis) basis.textContent = expectationBasisText(expectation.result);
+      if (basis) basis.textContent = expectationBasisText(expectation.result, expectation.spinsPerHourInfo?.source);
     }
 
     function expectationPreviousSpinState() {
@@ -6978,7 +7218,8 @@
         id: cryptoId("seg"),
         source: "user",
         startSpin: normalizeNumber(counterSpin),
-        startAt: currentTime(),
+        // S23/§1: 時短抜けを選んだ瞬間。当たりの消化時間の終端になるので秒まで残す
+        startAt: nowIso(),
         startTrackedBalls: measuredBalls !== null ? measuredBalls : deriveBalances(session).mochidama,
         startBallsSource: measuredBalls !== null ? "measured" : "tracked",
         // S7b/B-2: 残保留当選の判定対象になるのは、時短抜けで始まったこの区間だけ
@@ -7000,25 +7241,28 @@
       target.endRemainBalls = normalizeNumber(session.hitRemainBalls);
       target.endTrackedBalls = normalizeNumber(session.hitTrackedBalls);
       target.endSource = "hit";
+      // S23/§1: 当選ウィザードを完了した瞬間。R種別の登録（hits[].at）より前なのでここで取る
+      target.endAt = nowIso();
       return target;
     }
 
     // S2/§1-3: 遊タイム突入で通常区間を閉じ、遊タイム区間（holdSpins:0）を開く。
-    function startYutimeSegment(session) {
+    // S23/§1: 突入時刻はISOで区間にも写す。enterAt は突入ボタンを押した瞬間。
+    function startYutimeSegment(session, enterAt = nowIso()) {
       const segments = ensureSessionSegments(session);
       if (segments.some((segment) => segment.kind === "yutime")) return null;
       const enterSpin = normalizeNumber(session.yutimeEnterSpin);
       const open = openSegmentOf(session);
       if (open) {
         open.endSpin = enterSpin;
-        open.endAt = session.yutimeEnterTime || null;
+        open.endAt = enterAt;
         open.endSource = "yutime";
       }
       const segment = blankSegment("yutime", {
         id: cryptoId("seg"),
         source: "user",
         startSpin: enterSpin,
-        startAt: session.yutimeEnterTime || null,
+        startAt: enterAt,
         startTrackedBalls: normalizeNumber(session.yutimeEnterBalls),
         holdSpins: 0
       });
@@ -7027,13 +7271,15 @@
     }
 
     // S2/§3: ヤメで終わった区間の終端を確定する。当りではないので率計算系は null のまま。
-    function closeTrailingSegmentOnEnd(session) {
+    // S23/§1: endAt はヤメ確定の瞬間。endTime（HH:MM）と同じ時刻を秒まで残す。
+    function closeTrailingSegmentOnEnd(session, endAt = nowIso()) {
       const target = openSegmentOf(session);
       if (!target) return null;
       const endSpin = normalizeNumber(session.endSpin);
       if (endSpin === null) return null;
       target.endSpin = endSpin;
       target.endSource = "end";
+      target.endAt = endAt;
       // S7/B-4: 新式だけ、ヤメで終わる区間の終点にヤメ入力の終了玉を入れる。
       // 旧式のセッションは endRemainBalls を空のままにして、これまでの消費玉の出し方を変えない。
       if (usesEndpointConsumedModel(session)) target.endRemainBalls = normalizeNumber(session.endTotalBalls);
@@ -7668,6 +7914,13 @@
           <input id="editHitSpin" inputmode="numeric" value="${escapeHtml(normalizeNumber(hit.hitSpin) ?? "")}">
         </div>
         <div class="field-row">
+          <label for="editHitAt">当選時刻（HH:MM:SS）</label>
+          <div>
+            <input id="editHitAt" type="time" step="1" value="${escapeHtml(localTimeText(hit.at, true))}">
+            <p class="hint">当選ボタンを押した瞬間を自動記録しています。ずれている場合だけ直してください。</p>
+          </div>
+        </div>
+        <div class="field-row">
           <label for="editHitActualBalls">この連チャンの累計出玉（実機：データカウンター）</label>
           <div>
             <input id="editHitActualBalls" inputmode="numeric" value="${escapeHtml(hasActualBalls ? Math.round(cumulativeBalls) : "")}">
@@ -7688,6 +7941,15 @@
         target.roundTypeId = byId("editHitRoundType").value || "";
         target.hitSpin = normalizeNumber(byId("editHitSpin").value);
         target.actualBalls = result.actualBalls;
+        // S23/§1: 当選時刻の修正。セッションの日付で日を補う。空欄・不正値は元の値のまま残す。
+        // その当選で閉じた区間の終端が同じ時刻を指していたときは、区間側も一緒に直す。
+        const editedHitAt = isoFromDateAndTime(session.date, byId("editHitAt").value);
+        if (editedHitAt) {
+          const previousAt = target.at;
+          target.at = editedHitAt;
+          const closed = sessionSegments(session).find((segment) => segment.id === storedHitSegmentId(session, target));
+          if (closed && closed.endSource === "hit" && (!closed.endAt || closed.endAt === previousAt)) closed.endAt = editedHitAt;
+        }
         applyHitTotals(session);
         session.updatedAt = nowIso();
         if (!persistWithToast("当選を修正しました")) return;
@@ -7812,8 +8074,10 @@
       } else {
         syncSessionHitTotals(session);
       }
-      session.endTime = session.endTime || currentTime();
-      closeTrailingSegmentOnEnd(session);
+      // S23/§1: ヤメ確定の瞬間を1つの Date から取り、HH:MM の欄と区間のISOをそろえる
+      const endAtDate = new Date();
+      session.endTime = session.endTime || currentTime(endAtDate);
+      closeTrailingSegmentOnEnd(session, endAtDate.toISOString());
       session.updatedAt = nowIso();
       if (activeSessionId === session.id) activeSessionId = activeSessionsForStore(session.storeId).find((item) => item.id !== session.id)?.id || null;
       if (!persistWithToast("記録を保存しました")) return;
@@ -8036,9 +8300,13 @@
       return Number.isFinite(hour) && Number.isFinite(minute) ? hour * 60 + minute : null;
     }
 
+    // S23/§1: hits[].at は絶対時刻で、比較相手の investments[].time は記録時のローカル時刻（HH:MM）。
+    // 実行中の端末のTZで読むと、TZが違う環境で投資の前後判定＝消費玉・回転率が変わってしまう。
+    // 記録時のオフセット（recordedUtcOffset）で読み、記録した環境と同じ結果になるようにする。
     function isoTimeToMinutes(value) {
-      const date = value ? new Date(value) : null;
-      return date && !Number.isNaN(date.getTime()) ? date.getHours() * 60 + date.getMinutes() : null;
+      if (!isIsoTimestamp(value)) return null;
+      const date = recordedDate(value);
+      return date.getUTCHours() * 60 + date.getUTCMinutes();
     }
 
     function investmentBeforeHit(item, session, hitSpin) {
@@ -8608,8 +8876,10 @@
       // 回転率は大きいほど良い。実測 − 想定 で符号を取る（想定18.0・実測18.5 → +0.5）
       const rateDiff = startEv && derived.rate !== null ? derived.rate - startEv.usedRate : null;
       const evDiffYen = startEv && derived.profitYen !== null ? derived.profitYen - startEv.evYen : null;
+      // S23/§3-1: 通常時の時速（回転/分）。実働（startTime〜endTime）とは別に、通常区間の所要時間から出す
+      const normalSpeed = sessionNormalSpeed(session, presetById(presetId));
       return {
-        machine, derived, transfer, startEv, presetId, workedHours, hourlyYen, rateDiff, evDiffYen,
+        machine, derived, transfer, startEv, presetId, workedHours, hourlyYen, rateDiff, evDiffYen, normalSpeed,
         remainingSpins: startEv ? remainingSpinsFromCounterSpin(startEv.effectiveSpin, presetId) : null,
         averageRoundBalls: transfer.averageRoundBalls
       };
@@ -8712,6 +8982,8 @@
       const multiNormal = segments.filter((segment) => segment.kind === "normal").length > 1;
       // S20/§2-3: 当選で終わる区間の行に、その連チャンの純増と1R実質出玉を添える
       const chainById = new Map(chainNetBallsRows(session, normalizeMachinePresetId(machine)).map((row) => [row.chainId, row]));
+      // S23/§3-1: 所要（区間）と当たり消化（連チャン）。時刻が無い区間は null で「-」になる
+      const chainClearById = chainClearMsById(session);
       let normalIndex = 0;
       return segments.map((segment, index) => {
         const isNormal = segment.kind === "normal";
@@ -8750,7 +9022,10 @@
           netBalls: chainNetBalls === null ? null : Math.round(chainNetBalls),
           netPerRound: chainNetBalls !== null && chain.rounds > 0 ? chainNetBalls / chain.rounds : null,
           // S22b: 純増0以下で実測平均から外した連チャンの行に警告を出す
-          netExcluded: chainExcludedFromNetBalls(chain)
+          netExcluded: chainExcludedFromNetBalls(chain),
+          // S23/§3-1: 所要（区間の endAt − startAt）と、その区間で始まった連チャンの当たり消化時間
+          durationMs: segmentDurationMs(session, segment),
+          chainClearMs: segment.id && chainClearById.has(segment.id) ? chainClearById.get(segment.id) : null
         };
       });
     }
@@ -8791,6 +9066,8 @@
         if (derived.profitYen !== null) profitYen = (profitYen ?? 0) + derived.profitYen;
       });
       const hourly = (value) => value !== null && workedHours !== null && workedHours > 0 ? value / workedHours : null;
+      // S23/§3-3: 平均時速。回転率と同じ集計から取り、表示は必ず回転率とセットにする
+      const stats = aggregateStats(list);
       return {
         count: list.length,
         workedHours,
@@ -8799,7 +9076,8 @@
         diffYen: profitYen !== null && evYen !== null ? profitYen - evYen : null,
         evHourlyYen: hourly(evYen),
         profitHourlyYen: hourly(profitYen),
-        rate: aggregateStats(list).rate
+        rate: stats.rate,
+        speedPerMinute: stats.speedPerMinute
       };
     }
 
@@ -8866,9 +9144,14 @@
         // S20/§2-3: 純増と1R実質出玉は1列にまとめる（320px で列が潰れないように）
         // S22b: 除外した行は⚠を付け、文言は表の下の注記に置く（列を広げない）
         const netText = `${segmentNetCellText(row)}${row.netExcluded ? " ⚠" : ""}`;
+        // S23/§3-1: 所要は分:秒。当選で終わる区間の下に、その連チャンの当たり消化を1行はさむ
+        const durationText = minuteSecondText(row.durationMs);
+        const clearRow = row.chainClearMs === null
+          ? ""
+          : `<tr class="segment-clear-row"><td colspan="9">当たり消化 ${escapeHtml(minuteSecondJaText(row.chainClearMs))}</td></tr>`;
         if (row.kind === "yutime") {
           if (row.netExcluded) segmentExcludedMarks.push("遊タイム");
-          return `<tr><td>${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>-</td><td>${consumed}玉</td><td>-</td><td>${escapeHtml(netText)}</td><td>—</td></tr>`;
+          return `<tr><td>${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>-</td><td>${escapeHtml(durationText)}</td><td>${consumed}玉</td><td>-</td><td>${escapeHtml(netText)}</td><td>—</td></tr>${clearRow}`;
         }
         const mark = normalMarks[normalRowIndex] || String(normalRowIndex + 1);
         normalRowIndex += 1;
@@ -8877,14 +9160,14 @@
         if (row.holdCarry) segmentHoldCarryMarks.push(mark);
         else if (row.holdSpins > 0) segmentHoldNotes.push(`${mark}保留${row.holdSpins}`);
         if (row.netExcluded) segmentExcludedMarks.push(mark);
-        return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${consumed}玉</td><td>${rate}</td><td>${escapeHtml(netText)}</td><td>${escapeHtml(evText)}</td></tr>`;
+        return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${escapeHtml(durationText)}</td><td>${consumed}玉</td><td>${rate}</td><td>${escapeHtml(netText)}</td><td>${escapeHtml(evText)}</td></tr>${clearRow}`;
       }).join("");
       const segmentHtml = segmentRows.length ? `
         <div class="result-block">
           <div class="result-block-title">区間ごとの内訳</div>
           <div class="result-table-wrap">
             <table class="result-table segments">
-              <thead><tr><th>区間</th><th>起点</th><th>終点</th><th>回転数</th><th>消費玉</th><th>回転率</th><th>純増／1R</th><th>期待値</th></tr></thead>
+              <thead><tr><th>区間</th><th>起点</th><th>終点</th><th>回転数</th><th>所要</th><th>消費玉</th><th>回転率</th><th>純増／1R</th><th>期待値</th></tr></thead>
               <tbody>${segmentBodyHtml}</tbody>
             </table>
           </div>
@@ -8903,8 +9186,10 @@
           <div class="result-line">この機種の積み上げ（${modelAggregate.count}台）</div>
           <div class="result-line">実働 ${escapeHtml(hourText(modelAggregate.workedHours))} ／ 期待値合計 ${escapeHtml(yenText(modelAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(modelAggregate.profitYen))} ／ 差 ${escapeHtml(yenText(modelAggregate.diffYen))}</div>
           <div class="result-line">期待値時給 ${escapeHtml(yenText(modelAggregate.evHourlyYen))} ／ 実収支時給 ${escapeHtml(yenText(modelAggregate.profitHourlyYen))}</div>
+          <div class="result-line">平均時速 ${escapeHtml(speedWithRateText(modelAggregate.speedPerMinute, modelAggregate.rate))}</div>
           <div class="result-line" style="margin-top:8px">この店 × この機種（${storeAggregate.count}台）</div>
           <div class="result-line">実働 ${escapeHtml(hourText(storeAggregate.workedHours))} ／ 平均回転率 ${escapeHtml(storeRateText)}</div>
+          <div class="result-line">平均時速 ${escapeHtml(speedWithRateText(storeAggregate.speedPerMinute, storeAggregate.rate))}</div>
           <div class="result-line">期待値合計 ${escapeHtml(yenText(storeAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(storeAggregate.profitYen))}</div>
           <div class="result-line">期待値時給 ${escapeHtml(yenText(storeAggregate.evHourlyYen))} ／ 実収支時給 ${escapeHtml(yenText(storeAggregate.profitHourlyYen))}</div>
           <p class="hint">期待値は各区間の起点からの獲得期待値の合計</p>
@@ -8920,6 +9205,7 @@
           <div class="result-line">実測回転率 ${escapeHtml(rateText(derived))} ／ 大当たり ${escapeHtml(numberText(session.hitCount, "-"))}回 ／ 1R平均 ${escapeHtml(transferOptionalRoundAverageText(summary.averageRoundBalls))}</div>
           <div class="result-line">1R実質出玉 ${escapeHtml(netBallsOrDashText(netSummary.netPerRound))}（減算込み）／ 払い出し ${escapeHtml(netBallsOrDashText(netSummary.payoutPerRound))} ／ 時短中の減り ${escapeHtml(ballsOrDashText(netSummary.jitanLossBalls))}</div>
           <div class="result-line">実働 ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))}</div>
+          <div class="result-line">通常時の時速 ${escapeHtml(spinsPerMinuteText(summary.normalSpeed.perMinute))}${summary.normalSpeed.perMinute === null ? "" : `（通常時 ${escapeHtml(minuteSecondJaText(summary.normalSpeed.minutes * 60000))}・${summary.normalSpeed.spins.toLocaleString("ja-JP")}回転）`}</div>
           <div class="result-line">獲得期待値 ${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</div>
         </div>
         ${startEvHtml}
@@ -9385,9 +9671,11 @@
         const enterBalls = normalizeNumber(byId("yutimeBalls").value);
         session.yutimeEnterBalls = enterBalls;
         session.yutimeEnterSpin = normalizeNumber(byId("yutimeSpin").value);
-        session.yutimeEnterTime = currentTime();
+        // S23/§1: 突入ボタンを押した瞬間を1つの Date から取り、HH:MM の欄と区間のISOをそろえる
+        const enterAtDate = new Date();
+        session.yutimeEnterTime = currentTime(enterAtDate);
         session.hitVia = "yutime";
-        startYutimeSegment(session);
+        startYutimeSegment(session, enterAtDate.toISOString());
         session.updatedAt = nowIso();
         if (!persistWithToast("遊タイム突入玉を記録しました")) return;
         closeModal();
@@ -9531,9 +9819,13 @@
         if (!session.settlementRecoverYen) session.settlementRecoverYen = null;
         (Array.isArray(session.segments) ? session.segments : []).forEach((segment, index) => {
           const input = byId(`edit_segment_hold_${index}`);
-          if (!input) return;
-          const value = normalizeNumber(input.value);
-          segment.holdSpins = value === null ? 0 : Math.min(9, Math.max(0, Math.round(value)));
+          if (input) {
+            const value = normalizeNumber(input.value);
+            segment.holdSpins = value === null ? 0 : Math.min(9, Math.max(0, Math.round(value)));
+          }
+          // S23/§1: 区間の開始時刻。空欄は「時刻なし」として消せる（推測で埋め直さない）
+          const startAtInput = byId(`edit_segment_start_at_${index}`);
+          if (startAtInput) segment.startAt = isoFromDateAndTime(session.date, startAtInput.value);
         });
         applyInvestmentTotalAdjustments(session);
         session.hitVia = byId("editHitVia").value || null;
@@ -9579,9 +9871,14 @@
       const rows = segments.map((segment, index) => {
         const kindLabel = segment.kind === "yutime" ? "遊タイム" : "通常";
         const range = `${segment.startSpin ?? "-"}〜${segment.endSpin ?? "継続中"}`;
-        return `<div class="field-row"><label for="edit_segment_hold_${index}">区間${index + 1} ${kindLabel}（${escapeHtml(range)}）の無料保留</label><input id="edit_segment_hold_${index}" type="text" inputmode="numeric" value="${escapeHtml(segment.holdSpins ?? 0)}"></div>`;
+        // S23/§1: 時短抜けで始まった区間の開始時刻。通常時の時速と当たり消化時間の起点になる。
+        // 打ち始め区間・遊タイム区間の時刻は上の「開始時刻」「遊タイム突入時刻」の欄が正本なので出さない。
+        const startAtHtml = index > 0 && segment.kind === "normal"
+          ? `<div class="field-row"><label for="edit_segment_start_at_${index}">区間${index + 1} ${kindLabel}の開始時刻（時短抜け）</label><input id="edit_segment_start_at_${index}" type="time" step="1" value="${escapeHtml(localTimeText(segment.startAt, true))}"></div>`
+          : "";
+        return `<div class="field-row"><label for="edit_segment_hold_${index}">区間${index + 1} ${kindLabel}（${escapeHtml(range)}）の無料保留</label><input id="edit_segment_hold_${index}" type="text" inputmode="numeric" value="${escapeHtml(segment.holdSpins ?? 0)}"></div>${startAtHtml}`;
       }).join("");
-      return `<div class="grid two">${rows}</div><p class="hint">区間の先頭で回した無料保留の数です。0〜9で指定でき、変更すると回転率を計算し直します。</p>`;
+      return `<div class="grid two">${rows}</div><p class="hint">区間の先頭で回した無料保留の数です。0〜9で指定でき、変更すると回転率を計算し直します。時短抜けの開始時刻は通常時の時速と当たり消化時間の起点です（自動記録。ずれている場合だけ直してください）。</p>`;
     }
 
     function consumedBallsSourceEditorHtml(session) {
@@ -9825,10 +10122,41 @@
           };
         });
         applySegmentIds(session);
+        applySegmentTimes(session);
         return session;
       }
       session.segments = syncSegmentEdges(session, previous.map(normalizeSegment));
       applySegmentIds(session);
+      applySegmentTimes(session);
+      return session;
+    }
+
+    // S23/§1・§5: 区間の時刻をISOに揃える唯一の場所。
+    // ・HH:MM の欄と対応する端点（打ち始め・遊タイム突入・ヤメ）はその欄から解決する
+    // ・当選で閉じた区間の終端は hits[].at から写す（S1では欄が無く null だった分の穴埋めを兼ねる）
+    // ・時短抜けの起点のように欄を持たない時刻は、保存済みの値を日付で補ってISOにするだけ
+    // 推測では埋めない。元が空の時刻は null のまま残す。
+    function applySegmentTimes(session) {
+      const segments = Array.isArray(session?.segments) ? session.segments : [];
+      if (!segments.length) return session;
+      segments.forEach((segment) => {
+        // 日付が無くISOに直せない記録は、消さずにそのまま残す
+        segment.startAt = segmentIsoAt(session, segment.startAt) || segment.startAt || null;
+        segment.endAt = segmentIsoAt(session, segment.endAt) || segment.endAt || null;
+      });
+      segments[0].startAt = segmentAtFromSessionTime(session, segments[0].startAt, session?.startTime);
+      const yutimeIndex = segments.findIndex((segment) => segment.kind === "yutime");
+      if (yutimeIndex >= 0) {
+        const enterAt = segmentAtFromSessionTime(session, segments[yutimeIndex].startAt, session?.yutimeEnterTime);
+        segments[yutimeIndex].startAt = enterAt;
+        const before = segments[yutimeIndex - 1];
+        if (before && before.endSource === "yutime") before.endAt = enterAt;
+      }
+      segments.forEach((segment) => {
+        if (segment.endSource === "hit" && !segment.endAt) segment.endAt = segmentHitAt(session, segment.id);
+      });
+      const endSegment = lastSegmentByEndSource(segments, "end");
+      if (endSegment) endSegment.endAt = segmentAtFromSessionTime(session, endSegment.endAt, session?.endTime);
       return session;
     }
 
@@ -9839,7 +10167,8 @@
       if (!segments.length) return segments;
       const first = segments[0];
       first.startSpin = normalizeNumber(session?.startSpin);
-      first.startAt = session?.startTime || null;
+      // S23/§1: 記録した秒を落とさないよう、既にISOで入っている同じ時刻はそのまま残す。
+      first.startAt = segmentAtFromSessionTime(session, first.startAt, session?.startTime);
       first.startTrackedBalls = normalizeNumber(session?.startMochidama);
       // S7/B-2: 打ち始めの持ち玉は打ち始め入力そのもの。遊タイム区間の起点は突入入力。どちらも実測。
       first.startBallsSource = first.startTrackedBalls !== null ? "measured" : null;
@@ -9847,13 +10176,13 @@
       if (yutimeIndex >= 0) {
         const enterSpin = normalizeNumber(session?.yutimeEnterSpin);
         segments[yutimeIndex].startSpin = enterSpin;
-        segments[yutimeIndex].startAt = session?.yutimeEnterTime || null;
+        segments[yutimeIndex].startAt = segmentAtFromSessionTime(session, segments[yutimeIndex].startAt, session?.yutimeEnterTime);
         segments[yutimeIndex].startTrackedBalls = normalizeNumber(session?.yutimeEnterBalls);
         segments[yutimeIndex].startBallsSource = segments[yutimeIndex].startTrackedBalls !== null ? "measured" : null;
         const before = segments[yutimeIndex - 1];
         if (before) {
           before.endSpin = enterSpin;
-          before.endAt = session?.yutimeEnterTime || null;
+          before.endAt = segments[yutimeIndex].startAt;
           before.endSource = "yutime";
         }
       }
@@ -9881,14 +10210,14 @@
 
     // 旧フラットフィールドから区間を組み立てる。移行（normalizeData）と、
     // segments を持たない素のセッションを計算するときの両方で使う。
-    // 当選時刻は HH:MM の記録欄が無いため endAt には入れない（TZ依存の値を保存しない）。
+    // S23/§1: 当選・ヤメで閉じた区間の終端は applySegmentTimes が hits[].at / endTime から埋める。
     function buildSessionSegments(session) {
       const hasHit = Number(session?.hitCount || 0) > 0;
       const hitSpin = normalizeNumber(session?.hitSpin);
       const yutimeEnterSpin = normalizeNumber(session?.yutimeEnterSpin);
       const normal = blankSegment("normal", {
         startSpin: normalizeNumber(session?.startSpin),
-        startAt: session?.startTime || null,
+        startAt: isoFromDateAndTime(session?.date, session?.startTime),
         startTrackedBalls: normalizeNumber(session?.startMochidama),
         // S7/B-2: 打ち始めの持ち玉は打ち始め入力（実測）
         startBallsSource: normalizeNumber(session?.startMochidama) !== null ? "measured" : null,
@@ -9898,10 +10227,10 @@
       if (yutimeEnterSpin !== null) {
         normal.endSpin = yutimeEnterSpin;
         normal.endSource = "yutime";
-        normal.endAt = session?.yutimeEnterTime || null;
+        normal.endAt = isoFromDateAndTime(session?.date, session?.yutimeEnterTime);
         const yutime = blankSegment("yutime", {
           startSpin: yutimeEnterSpin,
-          startAt: session?.yutimeEnterTime || null,
+          startAt: isoFromDateAndTime(session?.date, session?.yutimeEnterTime),
           startTrackedBalls: normalizeNumber(session?.yutimeEnterBalls),
           // S7/B-2: 遊タイム区間の起点は突入入力（実測）
           startBallsSource: normalizeNumber(session?.yutimeEnterBalls) !== null ? "measured" : null,
@@ -10034,6 +10363,72 @@
       const raw = end - start;
       if (raw < 0) return raw;
       return Math.max(0, raw - Math.max(0, Number(segment?.holdSpins || 0)));
+    }
+
+    // S23/§2-1: 区間の所要時間（ミリ秒）。端点が欠けている区間と、日またぎ等で終点が起点を
+    // 下回る区間は出さない（推測で補わない）。
+    function segmentDurationMs(session, segment) {
+      const start = segmentIsoAt(session, segment?.startAt);
+      const end = segmentIsoAt(session, segment?.endAt);
+      if (!start || !end) return null;
+      const diff = Date.parse(end) - Date.parse(start);
+      return Number.isFinite(diff) && diff > 0 ? diff : null;
+    }
+
+    // S23/§2-1: 通常時の時速（回転/分）＝ 打ち出し回転数 ÷ 所要時間。
+    // 打ち出しの無い区間（残保留当選・保留消化だけ）は通常時が無いので対象外。
+    function segmentSpinsPerMinute(session, segment, preset = null) {
+      if (segment?.kind !== "normal" || segmentSkipsNormalPlay(segment)) return null;
+      const ms = segmentDurationMs(session, segment);
+      const spins = segmentPlayedSpins(segment, session, preset);
+      if (ms === null || spins === null || spins <= 0) return null;
+      return spins / (ms / 60000);
+    }
+
+    // S23/§2-2: セッションの通常時の時速＝ Σ打ち出し回転数 ÷ Σ通常時所要時間。
+    // 実働（startTime〜endTime）とは別物。当たりの消化時間も遊タイムも含めない。
+    function sessionNormalSpeed(session, preset = null) {
+      let spins = 0;
+      let minutes = 0;
+      sessionSegments(session).forEach((segment) => {
+        if (segment?.kind !== "normal" || segmentSkipsNormalPlay(segment)) return;
+        const ms = segmentDurationMs(session, segment);
+        const played = segmentPlayedSpins(segment, session, preset);
+        if (ms === null || played === null || played <= 0) return;
+        spins += played;
+        minutes += ms / 60000;
+      });
+      return { spins, minutes, perMinute: minutes > 0 ? spins / minutes : null };
+    }
+
+    // S23/§1: 区間を閉じた当選の時刻。連チャンの複数当選のうち最も早いものがその区間の終端。
+    function segmentHitAt(session, segmentId, resolver = storedHitSegmentId) {
+      if (!segmentId) return null;
+      const times = (Array.isArray(session?.hits) ? session.hits : [])
+        .filter((hit) => resolver(session, hit) === segmentId)
+        .map((hit) => (isIsoTimestamp(hit?.at) ? hit.at : null))
+        .filter(Boolean);
+      if (!times.length) return null;
+      return times.reduce((earliest, value) => (Date.parse(value) < Date.parse(earliest) ? value : earliest));
+    }
+
+    // S23/§2-1: 当たりの消化時間。当選 at → 次の通常区間の startAt（＝時短抜け）。連チャン全体で1つ。
+    // 連チャンの切り方は chainNetBallsRows と同じ（残保留当選の区間は前の連チャンの続きとしてまたぐ）。
+    function chainClearMsById(session) {
+      const segments = sessionSegments(session);
+      const rows = new Map();
+      segments.forEach((segment, index) => {
+        if (!segment?.id || segment.endSource !== "hit" || segmentIsHoldCarryHit(segment)) return;
+        let next = index + 1;
+        while (next < segments.length && segmentIsHoldCarryHit(segments[next])) next += 1;
+        const startIso = segmentIsoAt(session, segment.endAt) || segmentHitAt(session, segment.id, resolveHitSegmentId);
+        const endIso = next < segments.length ? segmentIsoAt(session, segments[next].startAt) : null;
+        if (!startIso || !endIso) return;
+        const ms = Date.parse(endIso) - Date.parse(startIso);
+        if (!Number.isFinite(ms) || ms <= 0) return;
+        rows.set(segment.id, ms);
+      });
+      return rows;
     }
 
     // §3.1: 区間の消費玉。B95の補正（endRemainBalls − endTrackedBalls）と
@@ -10363,7 +10758,11 @@
         averagePayout: null,
         yutimeLoss: 0,
         yutimeLossCount: 0,
-        averageYutimeLoss: null
+        averageYutimeLoss: null,
+        // S23/§2-3: 参考時速。回転率と同じ台・店の集計軸で持ち、表示は必ず回転率とセットにする
+        speedSpins: 0,
+        speedMinutes: 0,
+        speedPerMinute: null
       };
     }
 
@@ -10396,9 +10795,15 @@
       let hitCount = 0;
       let yutimeLoss = 0;
       let yutimeLossCount = 0;
+      // S23/§2-3: 参考時速。Σ打ち出し回転数 ÷ Σ通常時所要時間（分）。時刻が無い記録は分母にも入らない
+      let speedSpins = 0;
+      let speedMinutes = 0;
       sessions.forEach((session) => {
         const machine = data.machines.find((item) => item.id === session.machineId) || null;
         const derived = deriveSession(session, machine);
+        const speed = sessionNormalSpeed(session, presetById(normalizeMachinePresetId(machine)));
+        speedSpins += speed.spins;
+        speedMinutes += speed.minutes;
         const isEstimated = derived.isEstimatedRate || derived.isEstimatedPayout;
         if (derived.normalSpins !== null && derived.normalSpins > 0 && derived.consumedBalls > 0) {
           spins += derived.normalSpins;
@@ -10424,7 +10829,10 @@
         averagePayout: hitCount > 0 ? hitBalls / hitCount : null,
         yutimeLoss: Math.round(yutimeLoss),
         yutimeLossCount,
-        averageYutimeLoss: yutimeLossCount > 0 ? yutimeLoss / yutimeLossCount : null
+        averageYutimeLoss: yutimeLossCount > 0 ? yutimeLoss / yutimeLossCount : null,
+        speedSpins,
+        speedMinutes,
+        speedPerMinute: speedMinutes > 0 ? speedSpins / speedMinutes : null
       };
     }
 

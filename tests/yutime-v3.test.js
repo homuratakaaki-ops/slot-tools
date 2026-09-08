@@ -75,6 +75,12 @@ const machineModelDisplay = section('function machineModelDisplay', 'function ap
 const columnPresetApply = section('function applyColumnPresetsToMachines', 'function machineHasIndividualSetting');
 const normalizeData = section('function normalizeData', 'function persist');
 const segmentBlock = section('function blankSegment', 'function deriveSession');
+// S23/§1: 区間の時刻（ISO）を読み書きするヘルパー。区間を組み立てる vm コンテキストは必ず一緒に読み込む
+const timeHelpers = section('let recordedUtcOffsetMinutes', 'const CONSUMED_BALLS_DIVERGENCE_THRESHOLD')
+  + section('function localDateString', 'function offsetLocalDate')
+  + section('function isIsoTimestamp', 'function cryptoId');
+// S23/§2: 所要時間・通常時の時速・当たり消化時間の導出
+const speedBlock = section('function segmentDurationMs', 'function segmentEndpointConsumedBalls');
 const segmentMigrationBackup = section('function needsSegmentMigration', 'function preserveCorruptData');
 const normalizeDailyStateBlock = section('function normalizeDailyState', 'function migrateStoreAssumedRatesToMaps');
 const bindNailRatingChips = section('function bindNailRatingChips', 'function readNailRatingFromDom');
@@ -1897,8 +1903,9 @@ assert.match(renderRunning, /consumedBallsChoiceHtml\(session, derived\)/);
 assert.match(renderRunning, /bindConsumedBallsChoice\(els\.runningArea, session\)/);
 assert.match(openRateSummary, /consumedBallsChoiceHtml\(session, derived\)/);
 assert.match(openRateSummary, /bindConsumedBallsChoice\(els\.modalBody, session/);
-assert.match(openYutimeEnterForm, /startYutimeSegment\(session\);/);
-assert.match(html, /closeTrailingSegmentOnEnd\(session\);/);
+// S23/§1: 突入・ヤメの時刻は1つの Date から取り、HH:MM の欄と区間のISOをそろえる
+assert.match(openYutimeEnterForm, /startYutimeSegment\(session, enterAtDate\.toISOString\(\)\);/);
+assert.match(html, /closeTrailingSegmentOnEnd\(session, endAtDate\.toISOString\(\)\);/);
 assert.match(addInvestment, /segmentId: currentSegmentId\(session\)/);
 assert.match(openSessionEditor, /\$\{segmentHoldSpinsEditorHtml\(session\)\}/);
 assert.match(openSessionEditor, /Math\.min\(9, Math\.max\(0, Math\.round\(value\)\)\)/);
@@ -1954,6 +1961,7 @@ new vm.Script(`
     }, { cashYen: 0, saipureiBalls: 0, mochidamaBalls: 0 });
   }
   function profitYenForSession() { return null; }
+  ${timeHelpers}
   ${runningSpinCount}
   ${deriveSession}
   const baseInvestments = [
@@ -2877,7 +2885,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 37;/);
+assert.match(html, /const SCHEMA_VERSION = 38;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3141,10 +3149,11 @@ assert.ok(html.includes('const r350 = rebound(p, spec.yutimeJitan + hold);'));
 assert.ok(html.includes('id="quickHoldSpins"'));
 assert.ok(html.includes('時短が終わったあと玉代ゼロで回る保留の数。通常4〜5。0で考慮しない。'));
 // B90: 判定根拠の内訳行と、実測出玉の採用順位
-assert.ok(html.includes('function expectationBasisText(result)'));
+// S23/§3-2: 想定時速に出典を添えるため第2引数が増えた
+assert.ok(html.includes('function expectationBasisText(result, spinsPerHourSource = null)'));
 assert.ok(html.includes('＝ 期待値÷投資額+100%'));
 assert.ok(html.includes('＋当選'));
-assert.ok(html.includes('回転/h想定'));
+assert.ok(html.includes('回転/h'));
 assert.ok(html.includes('spinsPerHour: merged.spinsPerHour'));
 assert.ok(html.includes('id="machineEvBasis"'));
 assert.ok(html.includes('function sessionActualBallsTotal(session)'));
@@ -3278,8 +3287,11 @@ new vm.Script(`
   ${segmentMigrationBackup}
   function tapModeNormalConsumedBalls() { return null; }
   function yutimeEnterSpinForRate() { return null; }
+  // S23/§5: 当選で閉じた区間の endAt は hits[].at から写す。紐づけは保存済みの segmentId だけを見る
+  function storedHitSegmentId(session, hit) { return hit?.segmentId || null; }
   ${holdCarryBlock}
   ${consumedModelBlock}
+  ${timeHelpers}
   ${segmentBlock}
   ${normalizeData}
   globalThis.normalizedLegacy = normalizeData({
@@ -3720,8 +3732,8 @@ assert.doesNotMatch(resultBlock, /<td>期待値との差<\/td>/);
 assert.match(resultBlock, /const evDiffYen = startEv && derived\.profitYen !== null \? derived\.profitYen - startEv\.evYen : null;/);
 // S12/B-2: 区間ごとの内訳は表。列は 区間／起点／終点／回転数／消費玉／回転率
 assert.match(resultBlock, /<table class="result-table segments">/);
-// S17/B-3: 期待値の列が増えて7列になる → S20/§2-3: 純増／1R が加わって8列
-assert.match(resultBlock, /<thead><tr><th>区間<\/th><th>起点<\/th><th>終点<\/th><th>回転数<\/th><th>消費玉<\/th><th>回転率<\/th><th>純増／1R<\/th><th>期待値<\/th><\/tr><\/thead>/);
+// S17/B-3: 期待値の列が増えて7列になる → S20/§2-3: 純増／1R が加わって8列 → S23/§3-1: 所要が加わって9列
+assert.match(resultBlock, /<thead><tr><th>区間<\/th><th>起点<\/th><th>終点<\/th><th>回転数<\/th><th>所要<\/th><th>消費玉<\/th><th>回転率<\/th><th>純増／1R<\/th><th>期待値<\/th><\/tr><\/thead>/);
 assert.doesNotMatch(resultBlock, /class="result-seg"/);
 // 保留控除の注記は表の下に1行でまとめる
 assert.match(resultBlock, /segmentHoldNotes\.push\(`\$\{mark\}保留\$\{row\.holdSpins\}`\)/);
@@ -3805,6 +3817,11 @@ new vm.Script(`
       .map((segment) => ({ chainId: segment.id, netBalls: segment.__chain.netBalls, rounds: segment.__chain.rounds, counterBalls: 0, counterRounds: 0 }));
   }
   ${chainExcludedBlock}
+  // S23/§2: 所要・通常時の時速・当たり消化。当選の区間紐づけはこの文脈では保存済みIDだけを見る
+  ${timeHelpers}
+  function storedHitSegmentId(session, hit) { return hit?.segmentId || null; }
+  function resolveHitSegmentId(session, hit) { return hit?.segmentId || null; }
+  ${speedBlock}
   ${resultBlock}
   // S17/B: 区間ごとの期待値はエンジンを叩くので、この文脈では起点ごとに固定値を返すスタブに差し替える。
   // 集計の配線（resultAggregate が獲得期待値を足すこと）だけをここで固定する。
@@ -4417,7 +4434,9 @@ const expectationPanelPresetsBlock = section('function expectationPanelPresets',
 assert.match(openMachineDetail, /<label for="evManualRate">回転率（手入力）<\/label>[\s\S]{0,200}?<label for="evManualNetBalls">1R実質出玉（手入力）<\/label>/);
 assert.match(openMachineDetail, /id="evManualNetBalls" inputmode="decimal" placeholder="\$\{escapeHtml\(netBallsUsedText\(netBallsInfo\)\)\}"/);
 // S9/§1-3: 台詳細の参考1R出玉は参考回転率の隣。出典・サンプル数付き
-assert.match(openMachineDetail, /<span>参考回転率<\/span>[\s\S]{0,260}?<span>参考1R出玉<\/span>/);
+// S23/§2-3: 参考回転率の枠に参考時速が入ったぶん、隣接判定の間隔を広げる（順序は変えない）
+assert.match(openMachineDetail, /<span>参考回転率<\/span>[\s\S]{0,500}?<span>参考1R出玉<\/span>/);
+assert.match(openMachineDetail, /<span>参考回転率<\/span>[\s\S]{0,400}?参考時速 \$\{escapeHtml\(spinsPerMinuteText\(stats\.speedPerMinute\)\)\}/);
 assert.match(openMachineDetail, /const netBallsInfo = netBallsPerWinInfo\(presetId, machine\);/);
 // 手入力欄は他の入力欄と同じく即再計算する
 assert.match(openMachineDetail, /"evManualRate", "evManualNetBalls"/);
@@ -4553,10 +4572,28 @@ const s9SettingsContext = vm.createContext({
   expectationYenPerBall() {
     return 4;
   },
+  // S23/§3-2: 想定時速の解決。この文脈では実測が無い状態（＝既定250/h）を既定値にする
+  positiveNumberOrDefault(value, fallback) {
+    const n = s9SettingsContext.normalizeNumber(value);
+    return n !== null && n > 0 ? n : fallback;
+  },
+  speedStatsCache: new Map(),
+  selectedLabelFilters: new Set(),
+  data: { activeStoreId: 'st1', meta: {}, machines: [], sessions: [], presetSettings: {} },
+  machineStats() {
+    return s9SettingsContext.__machineSpeed || {};
+  },
+  filteredSessions() {
+    return [];
+  },
+  aggregateStats() {
+    return s9SettingsContext.__storeSpeed || {};
+  },
   __auto: { value: 108, source: '理論値', count: 0 }
 });
 new vm.Script(`
   ${netBallsTextBlock}
+  ${section('const SPEED_MIN_SPINS', 'const speedStatsCache')}
   ${expectationSettingsBlock}
   globalThis.settingsFor = (manual) => expectationSettings({}, { presetId: "agnes-pe" }, manual);
 `).runInContext(s9SettingsContext);
@@ -4740,7 +4777,8 @@ assert.match(yutimePhaseBlock, /return last\?\.kind === "yutime" && \(last\.endS
 assert.match(yutimePhaseBlock, /function legacyYutimeInvestmentPhase\(session\) \{\s*return Boolean\(session\?\.yutimeEnterTime \|\| session\?\.yutimeEnterBalls !== null\);/);
 // 記録としての yutimeEnterTime / yutimeEnterBalls は残す（判定にだけ使わない）
 assert.match(openYutimeEnterForm, /session\.yutimeEnterBalls = enterBalls;/);
-assert.match(openYutimeEnterForm, /session\.yutimeEnterTime = currentTime\(\);/);
+// S23/§1: 突入時刻は1つの Date から HH:MM と区間のISOを取る
+assert.match(openYutimeEnterForm, /session\.yutimeEnterTime = currentTime\(enterAtDate\);/);
 
 const s7PhaseContext = vm.createContext({});
 new vm.Script(`
@@ -4776,7 +4814,7 @@ assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBal
 assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
 
 // --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
-assert.match(html, /const SCHEMA_VERSION = 37;/);
+assert.match(html, /const SCHEMA_VERSION = 38;/);
 assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
 assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
 assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
@@ -5293,7 +5331,7 @@ const shootingBlock = section('function markSegmentShootingStarted', 'function h
 const wizardInputBlock = section('function wizardInputHtml', 'function readWizardValue');
 
 // --- §1: データ構造 --------------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 37;/);
+assert.match(html, /const SCHEMA_VERSION = 38;/);
 assert.match(html, /function normalizePlayStyle\(value\) \{\s*return value === "continuous" \? "continuous" : "yutime";/);
 assert.match(html, /function normalizeShooting\(value\) \{\s*return value === "before" \? "before" : "started";/);
 assert.match(normalizeData, /playStyle: normalizePlayStyle\(session\.playStyle\)/);
@@ -5440,7 +5478,7 @@ assert.equal(Number(runningRateContext.s7cEndedWithoutShooting.rate.toFixed(1)),
 // ===========================================================================
 
 // --- 第1部: 投資phaseの修復 ------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 37;/);
+assert.match(html, /const SCHEMA_VERSION = 38;/);
 assert.match(html, /const S17_BACKUP_KEY = STORAGE_PREFIX \+ "backup:s17";/);
 assert.match(segmentMigrationBackup, /function needsInvestmentPhaseRepair\(source\) \{\s*return \(normalizeNumber\(source\?\.version\) \?\? 0\) < 36;/);
 assert.match(segmentMigrationBackup, /function backupBeforeInvestmentPhaseRepair\(raw\) \{\s*if \(!raw \|\| localStorage\.getItem\(S17_BACKUP_KEY\)\) return;/);
@@ -6376,5 +6414,237 @@ assert.equal(s22bRows[1].netExcluded, false);
 assert.match(resultBlock, /if \(row\.netExcluded\) segmentExcludedMarks\.push\(mark\);/);
 assert.match(resultBlock, /は純増が0以下のため集計から除外（入力を確認）/);
 assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \? " ⚠" : ""\}/);
+
+// ===========================================================================
+// S23: 出来事の時刻を自動記録し、通常時の時速と当たり消化時間を出す
+// ===========================================================================
+
+// --- §1: 時刻はボタンを押した瞬間を自動で取る。手入力欄は増やさない ----------
+assert.match(html, /const SCHEMA_VERSION = 38;/);
+// 当選ウィザード完了・時短抜け・遊タイム突入・ヤメで区間の端点がISOで埋まる
+assert.match(html, /target\.endSource = "hit";\s*\n\s*\/\/[^\n]*\n\s*target\.endAt = nowIso\(\);/);
+assert.match(html, /\/\/ S23\/§1: 時短抜けを選んだ瞬間。当たりの消化時間の終端になるので秒まで残す\n\s*startAt: nowIso\(\),/);
+assert.match(html, /function startYutimeSegment\(session, enterAt = nowIso\(\)\)/);
+assert.match(html, /open\.endAt = enterAt;/);
+assert.match(html, /function closeTrailingSegmentOnEnd\(session, endAt = nowIso\(\)\)/);
+assert.match(html, /target\.endSource = "end";\s*\n\s*target\.endAt = endAt;/);
+// 手入力欄は修正画面の時刻欄だけ。カウント・入力画面には数値欄も時刻欄も足さない
+const openHitEditFormBlock = section('function openHitEditForm', 'function openEndWizard');
+assert.match(openHitEditFormBlock, /<label for="editHitAt">当選時刻（HH:MM:SS）<\/label>/);
+assert.match(openHitEditFormBlock, /<input id="editHitAt" type="time" step="1"/);
+assert.match(openHitEditFormBlock, /const editedHitAt = isoFromDateAndTime\(session\.date, byId\("editHitAt"\)\.value\);/);
+assert.match(segmentHoldEditor, /<input id="edit_segment_start_at_\$\{index\}" type="time" step="1"/);
+// 打ち始め区間・遊タイム区間の時刻は既存の HH:MM 欄が正本なので、区間側には欄を出さない
+assert.match(segmentHoldEditor, /index > 0 && segment\.kind === "normal"/);
+
+// --- §2: 時刻から導出する値 -------------------------------------------------
+const s23Context = vm.createContext({});
+new vm.Script(`
+  ${numberHelpersBlock}
+  ${timeHelpers}
+  function normalizeShooting(value) { return value === "before" ? "before" : "started"; }
+  ${holdCarryBlock}
+  function segmentEndSpinForRate(segment) { return segment?.endSpin ?? null; }
+  function segmentPlayedSpins(segment, session, preset = null) {
+    if (segmentSkipsNormalPlay(segment)) return 0;
+    const start = normalizeNumber(segment?.startSpin);
+    const end = segmentEndSpinForRate(segment, session, preset);
+    if (start === null || end === null) return null;
+    const raw = end - start;
+    if (raw < 0) return raw;
+    return Math.max(0, raw - Math.max(0, Number(segment?.holdSpins || 0)));
+  }
+  function sessionSegments(session) { return Array.isArray(session?.segments) ? session.segments : []; }
+  function storedHitSegmentId(session, hit) { return hit?.segmentId || null; }
+  function resolveHitSegmentId(session, hit) { return hit?.segmentId || null; }
+  ${speedBlock}
+  ${yenHourTextBlock}
+  globalThis.s23 = {
+    isoFromDateAndTime, segmentIsoAt, localTimeText, segmentAtFromSessionTime, isIsoTimestamp,
+    segmentDurationMs, segmentSpinsPerMinute, sessionNormalSpeed, segmentHitAt, chainClearMsById,
+    minuteSecondText, minuteSecondJaText, spinsPerMinuteText, speedWithRateText
+  };
+`).runInContext(s23Context);
+const s23 = s23Context.s23;
+
+// §6: 9/7・台325の実測メモと同じ値が出る構造か。1,052回転／178分20秒 → 5.9回転/分
+const s23Iso = (time) => s23.isoFromDateAndTime('2026-09-07', time);
+const s23SpeedSession = {
+  date: '2026-09-07',
+  segments: [
+    { id: 'n1', kind: 'normal', startSpin: 0, endSpin: 350, holdSpins: 0, shooting: 'started', endSource: 'hit', startAt: s23Iso('10:00:00'), endAt: s23Iso('11:00:00') },
+    { id: 'n2', kind: 'normal', startSource: 'jitan', startSpin: 0, endSpin: 352, holdSpins: 0, shooting: 'started', endSource: 'hit', startAt: s23Iso('11:08:00'), endAt: s23Iso('12:06:20') },
+    { id: 'n3', kind: 'normal', startSource: 'jitan', startSpin: 0, endSpin: 350, holdSpins: 0, shooting: 'started', endSource: 'end', startAt: s23Iso('12:17:50'), endAt: s23Iso('13:17:50') }
+  ],
+  hits: []
+};
+const s23Speed = s23.sessionNormalSpeed(s23SpeedSession);
+assert.equal(s23Speed.spins, 1052, '打ち出し回転数の合計');
+assert.ok(Math.abs(s23Speed.minutes - (178 + 20 / 60)) < 1e-9, '通常時の所要時間は178分20秒');
+assert.equal(s23.spinsPerMinuteText(s23Speed.perMinute), '5.9回転/分', '9/7実測の5.9回転/分と同じ値になる');
+// 区間ごとの時速も同じ式で出る
+assert.equal(s23.spinsPerMinuteText(s23.segmentSpinsPerMinute(s23SpeedSession, s23SpeedSession.segments[0])), '5.8回転/分');
+assert.equal(s23.minuteSecondText(s23.segmentDurationMs(s23SpeedSession, s23SpeedSession.segments[1])), '58:20');
+
+// §6: 当たり消化時間＝当選 at → 次の通常区間の startAt。1連≒8分／3連≒11〜12分／4連≒15分
+const s23ClearSession = {
+  date: '2026-09-07',
+  segments: [
+    { id: 'c1', kind: 'normal', startSpin: 0, endSpin: 300, holdSpins: 0, shooting: 'started', endSource: 'hit', startAt: s23Iso('10:00:00'), endAt: s23Iso('11:00:00') },
+    { id: 'c2', kind: 'normal', startSource: 'jitan', startSpin: 0, endSpin: 300, holdSpins: 0, shooting: 'started', endSource: 'hit', startAt: s23Iso('11:08:00'), endAt: s23Iso('12:00:00') },
+    { id: 'c3', kind: 'normal', startSource: 'jitan', startSpin: 0, endSpin: 300, holdSpins: 0, shooting: 'started', endSource: 'hit', startAt: s23Iso('12:11:30'), endAt: null },
+    { id: 'c4', kind: 'normal', startSource: 'jitan', startSpin: 0, endSpin: 300, holdSpins: 0, shooting: 'started', endSource: 'end', startAt: s23Iso('13:15:00'), endAt: s23Iso('14:00:00') }
+  ],
+  // c3 は区間側の endAt が空。当選の at から消化時間を出す
+  hits: [{ segmentId: 'c3', at: s23Iso('13:00:00') }]
+};
+const s23Clear = s23.chainClearMsById(s23ClearSession);
+assert.equal(s23.minuteSecondJaText(s23Clear.get('c1')), '8分00秒', '1連6R≒8分');
+assert.equal(s23.minuteSecondJaText(s23Clear.get('c2')), '11分30秒', '3連≒11〜12分');
+assert.equal(s23.minuteSecondJaText(s23Clear.get('c3')), '15分00秒', '4連≒15分');
+assert.equal(s23Clear.has('c4'), false, '当選で終わっていない区間に当たり消化は出さない');
+
+// 残保留当選の区間は前の連チャンの続き。窓をまたいで次の通常区間まで延ばす
+const s23HoldCarrySession = {
+  date: '2026-09-07',
+  segments: [
+    { id: 'h1', kind: 'normal', startSpin: 0, endSpin: 300, holdSpins: 0, shooting: 'started', endSource: 'hit', startAt: s23Iso('10:00:00'), endAt: s23Iso('11:00:00') },
+    { id: 'h2', kind: 'normal', startSource: 'jitan', startSpin: 0, endSpin: 0, holdSpins: 5, shooting: 'before', endSource: 'hit', startAt: s23Iso('11:08:00'), endAt: s23Iso('11:09:00') },
+    { id: 'h3', kind: 'normal', startSource: 'jitan', startSpin: 0, endSpin: 300, holdSpins: 0, shooting: 'started', endSource: 'end', startAt: s23Iso('11:20:00'), endAt: s23Iso('12:00:00') }
+  ],
+  hits: []
+};
+const s23HoldCarry = s23.chainClearMsById(s23HoldCarrySession);
+assert.equal(s23.minuteSecondJaText(s23HoldCarry.get('h1')), '20分00秒', '残保留当選の区間をまたいで次の通常区間まで数える');
+assert.equal(s23HoldCarry.has('h2'), false, '残保留当選の区間は連チャンの起点にしない');
+// 打ち出しの無い区間は通常時が無いので時速の分母にも入らない
+assert.equal(s23.segmentSpinsPerMinute(s23HoldCarrySession, s23HoldCarrySession.segments[1]), null);
+assert.equal(s23.sessionNormalSpeed(s23HoldCarrySession).spins, 600);
+
+// 端点が欠けている区間・日またぎで逆転する区間は出さない（推測で補わない）
+assert.equal(s23.segmentDurationMs({ date: '2026-09-07' }, { startAt: s23Iso('10:00:00'), endAt: null }), null);
+assert.equal(s23.segmentDurationMs({ date: '2026-09-07' }, { startAt: s23Iso('23:50:00'), endAt: s23Iso('00:10:00') }), null, '日をまたぐ逆転は出さない');
+assert.equal(s23.minuteSecondText(null), '-');
+assert.equal(s23.spinsPerMinuteText(null), '-');
+
+// --- TZ: 実行中の端末のTZに依らず同じ値になること ---------------------------
+// HH:MM の欄は記録した端末のローカル時刻、hits[].at はISO（絶対時刻）。
+// 両者を混ぜて差を取るので、記録時のUTCオフセットを記録そのものから決める
+assert.match(html, /function deriveRecordedUtcOffset\(sessions\)/);
+assert.match(html, /recordedUtcOffsetMinutes = deriveRecordedUtcOffset\(next\.sessions\);/);
+assert.match(html, /return recordedUtcOffsetMinutes === null \? -new Date\(\)\.getTimezoneOffset\(\) : recordedUtcOffsetMinutes;/);
+// isoFromDateAndTime / localTimeText は実行中のTZではなく記録時のオフセットで組み立てる
+assert.match(html, /const ms = Date\.UTC\(Number\(dateParts\[1\]\), Number\(dateParts\[2\]\) - 1, Number\(dateParts\[3\]\), hours, minutes, seconds\)\s*\n\s*- recordedUtcOffset\(\) \* 60000;/);
+assert.doesNotMatch(section('function localTimeText', 'function recordedDateString'), /getHours\(\)|getMinutes\(\)/);
+// S23/§1: 投資の前後判定も同じ理由で記録時のオフセットで読む（消費玉・回転率がTZで変わらないように）
+assert.match(html, /function isoTimeToMinutes\(value\) \{\s*\n\s*if \(!isIsoTimestamp\(value\)\) return null;\s*\n\s*const date = recordedDate\(value\);\s*\n\s*return date\.getUTCHours\(\) \* 60 \+ date\.getUTCMinutes\(\);/);
+const s23Offset = vm.createContext({});
+new vm.Script(`
+  ${timeHelpers}
+  globalThis.derive = deriveRecordedUtcOffset;
+`).runInContext(s23Offset);
+// 打ち始めの HH:MM と createdAt は同じ瞬間に書かれる。最頻値を採るので1件のずれに引きずられない
+const s23Created = (iso, startTime) => ({ startTime, createdAt: iso });
+assert.equal(s23Offset.derive([
+  s23Created('2026-09-07T06:08:00.000Z', '15:08'),
+  s23Created('2026-09-07T01:00:00.000Z', '10:00'),
+  s23Created('2026-09-07T01:00:00.000Z', '10:30')
+]), 540, 'JSTで記録したデータは +540分');
+assert.equal(s23Offset.derive([s23Created('2026-09-07T15:08:00.000Z', '15:08')]), 0);
+assert.equal(s23Offset.derive([s23Created('2026-09-07T19:00:00.000Z', '15:00')]), -240, '西側は負のオフセットで表す');
+assert.equal(s23Offset.derive([]), null, '記録が無ければ null（実行中の端末のTZへ）');
+assert.equal(s23Offset.derive([{ startTime: '15:08' }]), null, 'createdAt が無い記録は数えない');
+assert.equal(Date.parse(s23Iso('11:00:00')) - Date.parse(s23Iso('10:00:00')), 3600000, '同じ日の1時間差はTZに依らない');
+assert.equal(s23.localTimeText(s23Iso('19:38:05'), true), '19:38:05', 'ローカル時刻として往復する');
+assert.equal(s23.localTimeText(s23Iso('19:38:05')), '19:38');
+assert.equal(s23.isIsoTimestamp('19:38'), false);
+assert.equal(s23.isIsoTimestamp(s23Iso('19:38:00')), true);
+// 旧データの HH:MM はセッションの日付で補って読む（§5）
+assert.equal(s23.segmentIsoAt({ date: '2026-09-07' }, '16:47'), s23Iso('16:47:00'));
+assert.equal(s23.segmentIsoAt({ date: '2026-09-07' }, null), null);
+// 同じ分を指すISOは秒を落とさない。分が変われば HH:MM 欄が正本
+assert.equal(s23.segmentAtFromSessionTime({ date: '2026-09-07' }, s23Iso('19:38:05'), '19:38'), s23Iso('19:38:05'));
+assert.equal(s23.segmentAtFromSessionTime({ date: '2026-09-07' }, s23Iso('19:38:05'), '19:40'), s23Iso('19:40:00'));
+// 日付が無い記録はISOに直せない。消さずに HH:MM のまま残す
+assert.equal(s23.segmentAtFromSessionTime({}, null, '19:38'), '19:38');
+
+// --- §5: 移行。当選で閉じた区間の endAt を hits[].at から埋める -------------
+assert.match(html, /function applySegmentTimes\(session\)/);
+assert.match(segmentBlock, /if \(segment\.endSource === "hit" && !segment\.endAt\) segment\.endAt = segmentHitAt\(session, segment\.id\);/);
+assert.match(normalizeData, /applySegmentTimes\(normalized\);/);
+// 連チャンの複数当選のうち最も早いものが区間の終端
+assert.equal(s23.segmentHitAt({ hits: [
+  { segmentId: 'x', at: s23Iso('12:10:00') },
+  { segmentId: 'x', at: s23Iso('12:04:00') },
+  { segmentId: 'y', at: s23Iso('11:00:00') }
+] }, 'x'), s23Iso('12:04:00'));
+assert.equal(s23.segmentHitAt({ hits: [] }, 'x'), null);
+assert.equal(s23.segmentHitAt({ hits: [{ segmentId: 'x', at: '12:04' }] }, 'x'), null, 'ISO以外は当選時刻として採らない');
+
+// --- §3-2: 想定時速の優先順位（手入力 → 台の実測 → 店の実測 → 既定250/h）----
+const s23Settings = s9SettingsContext;
+s23Settings.__machineSpeed = {};
+s23Settings.__storeSpeed = {};
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).settings.spinsPerHour, 250);
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '既定');
+// 母数が薄い実測・外れ値は採らない
+s23Settings.__machineSpeed = { speedPerMinute: 5.9, speedSpins: 99, speedMinutes: 60 };
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '既定');
+s23Settings.__machineSpeed = { speedPerMinute: 5.9, speedSpins: 1052, speedMinutes: 19 };
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '既定');
+s23Settings.__machineSpeed = { speedPerMinute: 30, speedSpins: 1052, speedMinutes: 60 };
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '既定');
+// 台の実測が条件を満たせば実測。時速は 回転/分 × 60
+s23Settings.__machineSpeed = { speedPerMinute: 5.9, speedSpins: 1052, speedMinutes: 178 };
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '実測・台');
+s23Settings.speedStatsCache.clear();
+assert.equal(Math.round(s23Settings.settingsFor(null).settings.spinsPerHour), 354);
+// 台に実測が無ければ店の実測へ落ちる
+s23Settings.__machineSpeed = {};
+s23Settings.__storeSpeed = { speedPerMinute: 5, speedSpins: 500, speedMinutes: 100 };
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '実測・店');
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).settings.spinsPerHour, 300);
+// 手入力（プリセット設定）が最優先
+s23Settings.data.presetSettings['agnes-pe'] = { spinsPerHour: 200 };
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '手入力');
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).settings.spinsPerHour, 200);
+s23Settings.data.presetSettings['agnes-pe'] = {};
+s23Settings.__storeSpeed = {};
+// 根拠行に出典を添える
+assert.match(html, /通常時\$\{spinsPerHour\.toLocaleString\("ja-JP"\)\}回転\/h\$\{spinsPerHourSource \? `（\$\{spinsPerHourSource\}）` : "想定"\}/);
+assert.match(html, /expectationBasisText\(expectation\.result, expectation\.spinsPerHourInfo\?\.source\)/);
+
+// --- §3-1/§3-3: 表示 --------------------------------------------------------
+assert.match(resultBlock, /通常時の時速 \$\{escapeHtml\(spinsPerMinuteText\(summary\.normalSpeed\.perMinute\)\)\}/);
+assert.match(resultBlock, /当たり消化 \$\{escapeHtml\(minuteSecondJaText\(row\.chainClearMs\)\)\}/);
+assert.match(resultBlock, /durationMs: segmentDurationMs\(session, segment\)/);
+assert.match(resultBlock, /平均時速 \$\{escapeHtml\(speedWithRateText\(modelAggregate\.speedPerMinute, modelAggregate\.rate\)\)\}/);
+assert.match(resultBlock, /平均時速 \$\{escapeHtml\(speedWithRateText\(storeAggregate\.speedPerMinute, storeAggregate\.rate\)\)\}/);
+assert.match(ledgerSummaryBlock, /平均時速<\/span><strong>\$\{escapeHtml\(speedWithRateText\(summary\.speedPerMinute, summary\.rate\)\)\}/);
+// §2-3: 時速は単独では意味が薄いので、必ず回転率と並べる
+assert.equal(s23.speedWithRateText(5.9, 22), '5.9回転/分（回転率22.0）');
+assert.equal(s23.speedWithRateText(5.9, null), '5.9回転/分');
+assert.equal(s23.speedWithRateText(null, 22), '-');
+
+// 区間内訳の所要列と当たり消化行
+const s23Rows = resultContext.resultApi.segmentBreakdownRows({
+  storeId: 'store1',
+  date: '2026-09-07',
+  hits: [],
+  segments: s23ClearSession.segments.map((segment) => ({ ...segment, consumed: 1000 }))
+}, { consumedBalls: 1000, yutimeLoss: 0 }, resultContext.data.machines[0]);
+assert.equal(s23Rows[0].durationMs, 60 * 60 * 1000);
+assert.equal(s23Rows[0].chainClearMs, 8 * 60 * 1000);
+assert.equal(s23Rows[3].chainClearMs, null);
 
 console.log('yutime-v3 tests passed');
