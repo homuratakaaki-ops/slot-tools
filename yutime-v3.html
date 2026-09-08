@@ -1956,7 +1956,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 36;
+    const SCHEMA_VERSION = 37;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
@@ -2656,6 +2656,17 @@
       return rounds !== null && rounds > 0 ? rounds : 1;
     }
 
+    // S22b/①: テスト用の店は店をまたぐ集計から外す。動作確認の記録が実戦の平均を汚さないようにする。
+    function storeIsTest(storeId) {
+      return Boolean(storeById(storeId)?.isTestStore);
+    }
+
+    // 店をまたぐ集計に入れてよいセッションか。テスト店は「その店自身を見ているとき」だけ通す
+    //（その店を選んでいる間の自分の表示は従来どおり出す、という約束のため）。
+    function sessionCountsForAggregate(session, keepStoreId) {
+      return !storeIsTest(session?.storeId) || session?.storeId === keepStoreId;
+    }
+
     // S22/§1-2: 1R実質出玉の店補正（玉）。全店の実測平均に足し引きする値。既定0で、マイナスも取る。
     function netBallsOffsetForStore(store) {
       return normalizeNumber(store?.netBallsOffset) ?? 0;
@@ -2664,10 +2675,18 @@
     // S22/§1-1: 機種単位の集計は全店の同機種セッションを見る。1R実質出玉はアタッカーのこぼれ具合が主因で、
     // 釘（店ごと）より台の個体差・機種の性質が効く。店で分けると標本が貯まらないので店をまたいで集め、
     // 店ごとの差は netBallsOffsetForStore の補正で吸収する。条件は S10・S20 のまま（completed のみ）。
-    function netBallsSessionsForPreset(presetId) {
+    // S22b/①: テスト用の店の記録は入れない。ただし keepStoreId（見ている台の店）だけは通す。
+    function netBallsSessionsForPreset(presetId, keepStoreId = null) {
       const presetIdByMachineId = new Map(data.machines.map((machine) => [machine.id, normalizeMachinePresetId(machine)]));
       return data.sessions.filter((session) => session.status === "completed"
+        && sessionCountsForAggregate(session, keepStoreId)
         && presetIdByMachineId.get(session.machineId) === presetId);
+    }
+
+    // S22b: 当たって玉が減ることは無いので、純増が0以下の連チャンは入力ミス（終了玉の入力漏れ等）とみなし、
+    // 実測平均の分子・分母から外す。除外したR数は出典と区間内訳で必ず見せる（黙って捨てない）。
+    function chainExcludedFromNetBalls(row) {
+      return Boolean(row) && row.rounds > 0 && row.netBalls !== null && row.netBalls <= 0;
     }
 
     // S9/§1-2: 実測平均は当選ごとの「今回分」（S8）を出典にする。採用順位は
@@ -2684,19 +2703,29 @@
       let balanceRounds = 0;
       let counterBalls = 0;
       let counterRounds = 0;
+      // S22b: 純増0以下で外した連チャンのR数。出典と区間内訳で見せるために数える
+      let excludedRounds = 0;
       // S22/§1-1: 出典の「n台」用。実際に分母へ入った台だけ数える
       const machineIds = new Set();
       sessions.forEach((session) => {
+        // 持ち玉差で処理済みの連チャン（採用・除外の両方）。カウンターへ二重に落とさないための印
         const balanceChainIds = new Set();
         chainNetBallsRows(session, presetId).forEach((row) => {
           if (row.netBalls === null || row.rounds <= 0) return;
+          // S22b: 純増0以下は入力ミスとみなして分子・分母から外す。カウンターへも落とさない
+          if (chainExcludedFromNetBalls(row)) {
+            excludedRounds += row.rounds;
+            balanceChainIds.add(row.chainId);
+            return;
+          }
           balanceBalls += row.netBalls;
           balanceRounds += row.rounds;
           balanceChainIds.add(row.chainId);
           machineIds.add(session.machineId);
         });
         const sessionHits = normalizeHits(session.hits);
-        // 獲得出玉が未入力の当選は分子にも分母にも入れない（対応する出玉が無いR数で平均が薄まるため）
+        // 獲得出玉が未入力の当選は分子にも分母にも入れない（対応する出玉が無いR数で平均が薄まるため）。
+        // S22b: カウンター経路は actualBalls > 0 の当選しか採らないので、0以下の連チャンはここには残らない
         const perHit = sessionHits.filter((hit) => !balanceChainIds.has(resolveHitSegmentId(session, hit))
           && (normalizeNumber(hit.actualBalls) ?? 0) > 0 && (hitRoundCount(hit) ?? 0) > 0);
         if (perHit.length) {
@@ -2725,6 +2754,7 @@
         counterBalls,
         counterRounds,
         rounds: balanceRounds + counterRounds,
+        excludedRounds,
         machineCount: machineIds.size
       };
     }
@@ -2741,7 +2771,9 @@
         method: totals.balanceRounds > 0 ? (totals.counterRounds > 0 ? "mixed" : "balance") : "counter",
         balanceRounds: totals.balanceRounds,
         counterRounds: totals.counterRounds,
-        scope
+        scope,
+        // S22b: 純増0以下で外したR数。0なら出典に出さないので持たせない
+        ...(totals.excludedRounds > 0 ? { excludedRounds: totals.excludedRounds } : {})
       };
       if (scope !== "stores") return info;
       return { ...info, value: average + offset, machineCount: totals.machineCount, baseValue: average, offset };
@@ -2767,7 +2799,9 @@
         if (machineTotals.rounds > 0) return netBallsActualInfo(machineTotals, "machine");
       }
       // S22/§1-1,§1-2: 台に実測が無いときだけ機種単位へ落とす。集計は全店、補正はその台の店（無ければ選択中の店）。
-      const presetTotals = netBallsActualTotals(netBallsSessionsForPreset(presetId), presetId);
+      // S22b/①: テスト店は集計から外す。見ている台の店（無ければ選択中の店）だけは自分の記録を使う。
+      const keepStoreId = machine?.storeId || data.activeStoreId;
+      const presetTotals = netBallsActualTotals(netBallsSessionsForPreset(presetId, keepStoreId), presetId);
       if (presetTotals.rounds > 0) {
         const store = (machine ? storeById(machine.storeId) : null) || activeStore();
         return netBallsActualInfo(presetTotals, "stores", netBallsOffsetForStore(store));
@@ -2951,13 +2985,19 @@
     // S20/§2-1: 実測平均は算出方式まで出す。混在した連チャンはR数の内訳で見せる。
     // S22/§1-1,§1-2: 実測平均は集計範囲も添える。台単位は「この台」、機種単位は「全店・n台」。
     // 全店の平均に店の補正を掛けたときは補正値も出す（判断の場に前提を置く）。
+    // S22b: 純増0以下で外したR数も同じ括弧に添える（黙って落とさない）。
     function netBallsScopeText(info) {
-      if (info?.scope === "machine") return "（この台）";
-      if (info?.scope !== "stores") return "";
-      const scope = `全店・${Number(info.machineCount || 0).toLocaleString("ja-JP")}台`;
-      const offset = normalizeNumber(info.offset) ?? 0;
-      if (!offset) return `（${scope}）`;
-      return `（${scope}、この店 ${offset > 0 ? "+" : "−"}${Math.abs(offset).toLocaleString("ja-JP")}玉）`;
+      const parts = [];
+      if (info?.scope === "machine") {
+        parts.push("この台");
+      } else if (info?.scope === "stores") {
+        parts.push(`全店・${Number(info.machineCount || 0).toLocaleString("ja-JP")}台`);
+        const offset = normalizeNumber(info.offset) ?? 0;
+        if (offset) parts.push(`この店 ${offset > 0 ? "+" : "−"}${Math.abs(offset).toLocaleString("ja-JP")}玉`);
+      }
+      const excluded = normalizeNumber(info?.excludedRounds) ?? 0;
+      if (excluded > 0) parts.push(`除外${excluded.toLocaleString("ja-JP")}R`);
+      return parts.length ? `（${parts.join("、")}）` : "";
     }
 
     function netBallsSourceText(info) {
@@ -3395,10 +3435,17 @@
         next.presetSettings["agnes-pe"].yutimeBallsPerSpin = normalizeNumber(next.presetSettings["agnes-pe"].yutimeBallsPerSpin) ?? (agnesDefaults.yutimeBallsPerSpin ?? 0);
         next.presetSettings["agnes-pe"].holdSpins = normalizeNumber(next.presetSettings["agnes-pe"].holdSpins) ?? (agnesDefaults.holdSpins ?? 0);
       }
+      // S22b/①: schema 37 でテスト店フラグを追加した。旧データの初期値は名前で1度だけ決める
+      //（夢爽確認済みのテスト店だけON）。以後は保存された値をそのまま使い、名前で上書きしない。
+      const testStoreFlag = (store) => {
+        if (typeof store.isTestStore === "boolean") return store.isTestStore;
+        return sourceVersion < 37 && String(store.name || "").trim() === "アムズABCビッグトマト";
+      };
       next.stores = next.stores.map((store) => ({
         id: store.id || cryptoId("st"),
         name: String(store.name || "無名店"),
         isPersonal: Boolean(store.isPersonal),
+        isTestStore: testStoreFlag(store),
         lendRate: positiveNumberOrDefault(store.lendRate, DEFAULT_LEND_RATE),
         exchangeBalls: exchangeBallsFromStore(store),
         // S22/§1-2: 1R実質出玉の店補正。既定0で、マイナスも取る
@@ -3854,7 +3901,7 @@
         <div class="row-card">
           <div class="row-card-head">
             <button class="store-card ${store.id === data.activeStoreId ? "primary" : ""}" data-store-id="${escapeHtml(store.id)}">
-              <strong>${escapeHtml(store.name)}</strong>
+              <strong>${escapeHtml(store.name)}${store.isTestStore ? ' <span class="badge warn">テスト</span>' : ""}</strong>
               <span>${store.isPersonal ? "パーソナルあり" : "非パーソナル / 概算入力"} / 貸玉${escapeHtml(store.lendRate)}円 / ${escapeHtml(exchangeBallsText(store.exchangeBalls))}玉交換</span>
             </button>
             <button class="small" data-edit-store="${escapeHtml(store.id)}">店設定</button>
@@ -4826,6 +4873,8 @@
           id: cryptoId("st"),
           name,
           isPersonal: byId("storePersonal").checked,
+          // S22b/①: テスト店の指定は店設定で行う。新規は実戦の店として作る
+          isTestStore: false,
           lendRate: positiveNumberOrDefault(byId("storeLendRate").value, DEFAULT_LEND_RATE),
           exchangeBalls: normalizeExchangeBalls(byId("storeExchangeBalls").value),
           // S22/§1-2: 1R実質出玉の補正は既定0。必要になったら店設定で足し引きする
@@ -4848,6 +4897,8 @@
       openModal("店設定", "貸玉4円・等価なら交換玉数は25のままで構いません。28玉交換なら28を入力します。", `
         <div class="field-row"><label for="editStoreName">店名</label><input id="editStoreName" value="${escapeHtml(store.name)}"></div>
         <label class="check-chip"><input id="editStorePersonal" type="checkbox" ${store.isPersonal ? "checked" : ""}> パーソナルシステムあり</label>
+        <label class="check-chip"><input id="editStoreTest" type="checkbox" ${store.isTestStore ? "checked" : ""}> テスト用の店（集計から除外）</label>
+        <p class="hint">動作確認用の店です。全店の1R実質出玉の平均と、リザルトの「これまでの積み上げ」から外します。この店を選んでいる間は、この店の記録は従来どおり表示します。</p>
         <div class="grid two">
           <div class="field-row"><label for="editStoreLendRate">貸玉レート（円/玉）</label><input id="editStoreLendRate" inputmode="decimal" value="${escapeHtml(store.lendRate)}"></div>
           <div class="field-row"><label for="editStoreExchangeBalls">交換玉数（100円あたり）</label><input id="editStoreExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(store.exchangeBalls))}"></div>
@@ -4859,6 +4910,12 @@
           <button class="primary" id="saveStoreSettingsBtn">保存</button>
         </div>
       `);
+      // S5/§1・S22b/①: テスト店の指定は切り替えた時点で保存する。保存ボタンは待たない
+      byId("editStoreTest").addEventListener("change", () => {
+        store.isTestStore = byId("editStoreTest").checked;
+        if (!persistWithQuietToast(store.isTestStore ? "テスト用の店にしました" : "テスト指定を外しました")) return;
+        renderAll();
+      });
       // S5/§1・S22/§1-2: 補正は変更した時点で保存する。保存ボタンは待たない
       byId("editStoreNetBallsOffset").addEventListener("change", () => {
         store.netBallsOffset = normalizeNumber(byId("editStoreNetBallsOffset").value) ?? 0;
@@ -8691,7 +8748,9 @@
           rate: noShooting ? null : (spins !== null && spins >= 0 && consumed > 0 ? spins / consumed * 250 : null),
           // S20/§2-3: 純増は連チャン単位。残保留当選の区間は前の連チャンに寄せるので自分の行には出さない
           netBalls: chainNetBalls === null ? null : Math.round(chainNetBalls),
-          netPerRound: chainNetBalls !== null && chain.rounds > 0 ? chainNetBalls / chain.rounds : null
+          netPerRound: chainNetBalls !== null && chain.rounds > 0 ? chainNetBalls / chain.rounds : null,
+          // S22b: 純増0以下で実測平均から外した連チャンの行に警告を出す
+          netExcluded: chainExcludedFromNetBalls(chain)
         };
       });
     }
@@ -8706,8 +8765,10 @@
     function resultScopeSessions(session) {
       const machineOf = (item) => data.machines.find((entry) => entry.id === item.machineId) || null;
       const key = resultScopeKey(machineOf(session));
+      // S22b/①: テスト店の記録は機種軸の積み上げに入れない。そのリザルト自身の店だけは従来どおり数える
       const model = key
-        ? data.sessions.filter((item) => item.status === "completed" && resultScopeKey(machineOf(item)) === key)
+        ? data.sessions.filter((item) => item.status === "completed" && resultScopeKey(machineOf(item)) === key
+          && sessionCountsForAggregate(item, session.storeId))
         : [];
       return { key, model, store: model.filter((item) => item.storeId === session.storeId) };
     }
@@ -8793,6 +8854,8 @@
       // S3b/G4 → S12/B-2: 同じ情報を表の列へ割り振るだけ。値の算出方法は変えない。
       const segmentHoldNotes = [];
       const segmentHoldCarryMarks = [];
+      // S22b: 純増0以下で実測平均から外した連チャンの行
+      const segmentExcludedMarks = [];
       const segmentBodyHtml = segmentRows.map((row) => {
         const startSpin = row.startSpin === null ? "-" : row.startSpin.toLocaleString("ja-JP");
         const endSpin = row.endSpin === null ? "-" : row.endSpin.toLocaleString("ja-JP");
@@ -8801,8 +8864,10 @@
         // S17/B-3: 期待値列。通常区間だけ値を入れ、合計に入らない区間は「—」で出す
         const evText = row.evYen === null || row.evYen === undefined ? "—" : yenText(row.evYen);
         // S20/§2-3: 純増と1R実質出玉は1列にまとめる（320px で列が潰れないように）
-        const netText = segmentNetCellText(row);
+        // S22b: 除外した行は⚠を付け、文言は表の下の注記に置く（列を広げない）
+        const netText = `${segmentNetCellText(row)}${row.netExcluded ? " ⚠" : ""}`;
         if (row.kind === "yutime") {
+          if (row.netExcluded) segmentExcludedMarks.push("遊タイム");
           return `<tr><td>${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>-</td><td>${consumed}玉</td><td>-</td><td>${escapeHtml(netText)}</td><td>—</td></tr>`;
         }
         const mark = normalMarks[normalRowIndex] || String(normalRowIndex + 1);
@@ -8811,6 +8876,7 @@
         const rate = row.rate === null ? "-" : row.rate.toFixed(1);
         if (row.holdCarry) segmentHoldCarryMarks.push(mark);
         else if (row.holdSpins > 0) segmentHoldNotes.push(`${mark}保留${row.holdSpins}`);
+        if (row.netExcluded) segmentExcludedMarks.push(mark);
         return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${consumed}玉</td><td>${rate}</td><td>${escapeHtml(netText)}</td><td>${escapeHtml(evText)}</td></tr>`;
       }).join("");
       const segmentHtml = segmentRows.length ? `
@@ -8824,6 +8890,7 @@
           </div>
           ${segmentHoldNotes.length ? `<p class="hint">回転数は残保留の控除後（${escapeHtml(segmentHoldNotes.join("・"))}）</p>` : ""}
           ${segmentHoldCarryMarks.length ? `<p class="hint">${escapeHtml(segmentHoldCarryMarks.join("・"))}は残保留当選（通常時なし）。前の連チャンの続きとして数えます</p>` : ""}
+          ${segmentExcludedMarks.length ? `<p class="hint">⚠ ${escapeHtml(segmentExcludedMarks.join("・"))}は純増が0以下のため集計から除外（入力を確認）</p>` : ""}
           ${earned ? `<div class="result-line result-segment-total"><strong>獲得期待値 ${escapeHtml(yenText(earned.totalYen))}</strong><small>${escapeHtml(earnedExpectationBasisText(earned))}</small></div>` : ""}
         </div>` : "";
       const scopes = resultScopeSessions(session);

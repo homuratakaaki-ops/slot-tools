@@ -97,6 +97,8 @@ const machinePresetsBlock = section('const MACHINE_PRESETS = [', 'const RAM_CLEA
 const enginePresetBinding = section('window.YutimeExpectationEngine = YUTIME_EXPECTATION_ENGINE;', 'const blankSession');
 const evJudgmentBlock = section('function evJudgment', 'function expectationYenPerBall');
 const presetSettingsHelpers = section('function presetNetBallsPerWin', 'function activeMapAssumedRate');
+// S22b: 純増0以下の連チャンを外す判定。集計側と区間内訳の表示で同じ関数を使う
+const chainExcludedBlock = section('function chainExcludedFromNetBalls', 'function netBallsActualTotals');
 const availableBallsHelpers = section('function availableBallsFromParts', 'function calculateMachineExpectation');
 const expectationRateBlock = section('function expectationRate', 'function availableBallsFromParts');
 const roundCountFromRoundTypeBlock = section('function roundCountFromRoundType', 'function transferYenText');
@@ -2875,7 +2877,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 36;/);
+assert.match(html, /const SCHEMA_VERSION = 37;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3182,7 +3184,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 36;
+  const SCHEMA_VERSION = 37;
   const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
@@ -3802,6 +3804,7 @@ new vm.Script(`
     return (session.segments || []).filter((segment) => segment.__chain)
       .map((segment) => ({ chainId: segment.id, netBalls: segment.__chain.netBalls, rounds: segment.__chain.rounds, counterBalls: 0, counterRounds: 0 }));
   }
+  ${chainExcludedBlock}
   ${resultBlock}
   // S17/B: 区間ごとの期待値はエンジンを叩くので、この文脈では起点ごとに固定値を返すスタブに差し替える。
   // 集計の配線（resultAggregate が獲得期待値を足すこと）だけをここで固定する。
@@ -4719,7 +4722,7 @@ assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerW
 assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerWinManual, true);
 assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWin, 108);
 assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWinManual, true);
-assert.equal(s11MigrationContext.migrated.version, 36);
+assert.equal(s11MigrationContext.migrated.version, 37);
 // 32以降のデータは二重変換しない
 assert.equal(s11MigrationContext.already32.presetSettings['umi-sp5'].netBallsPerWin, 130);
 assert.equal(s11MigrationContext.already32.presetSettings['agnes-pe'].netBallsPerWin, 108);
@@ -4773,7 +4776,7 @@ assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBal
 assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
 
 // --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
-assert.match(html, /const SCHEMA_VERSION = 36;/);
+assert.match(html, /const SCHEMA_VERSION = 37;/);
 assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
 assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
 assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
@@ -4792,7 +4795,7 @@ new vm.Script(`
     ]
   });
 `).runInContext(s7SchemaContext);
-assert.equal(s7SchemaContext.s7Migrated.version, 36);
+assert.equal(s7SchemaContext.s7Migrated.version, 37);
 // 旧セッションは補完しない（＝従来式のまま）
 assert.equal(s7SchemaContext.s7Migrated.sessions[0].consumedModel, null);
 assert.equal(s7SchemaContext.s7Migrated.sessions[1].consumedModel, "endpoints");
@@ -5290,7 +5293,7 @@ const shootingBlock = section('function markSegmentShootingStarted', 'function h
 const wizardInputBlock = section('function wizardInputHtml', 'function readWizardValue');
 
 // --- §1: データ構造 --------------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 36;/);
+assert.match(html, /const SCHEMA_VERSION = 37;/);
 assert.match(html, /function normalizePlayStyle\(value\) \{\s*return value === "continuous" \? "continuous" : "yutime";/);
 assert.match(html, /function normalizeShooting\(value\) \{\s*return value === "before" \? "before" : "started";/);
 assert.match(normalizeData, /playStyle: normalizePlayStyle\(session\.playStyle\)/);
@@ -5437,7 +5440,7 @@ assert.equal(Number(runningRateContext.s7cEndedWithoutShooting.rate.toFixed(1)),
 // ===========================================================================
 
 // --- 第1部: 投資phaseの修復 ------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 36;/);
+assert.match(html, /const SCHEMA_VERSION = 37;/);
 assert.match(html, /const S17_BACKUP_KEY = STORAGE_PREFIX \+ "backup:s17";/);
 assert.match(segmentMigrationBackup, /function needsInvestmentPhaseRepair\(source\) \{\s*return \(normalizeNumber\(source\?\.version\) \?\? 0\) < 36;/);
 assert.match(segmentMigrationBackup, /function backupBeforeInvestmentPhaseRepair\(raw\) \{\s*if \(!raw \|\| localStorage\.getItem\(S17_BACKUP_KEY\)\) return;/);
@@ -6100,7 +6103,7 @@ assert.equal(JSON.stringify(s20None), JSON.stringify({ value: 100, source: '基�
 // ===========================================================================
 
 // §1-1: 機種単位の集計は全店。completed のみ（S10・S20の条件は据え置き）
-assert.match(presetSettingsHelpers, /function netBallsSessionsForPreset\(presetId\) \{/);
+assert.match(presetSettingsHelpers, /function netBallsSessionsForPreset\(presetId, keepStoreId = null\) \{/);
 assert.match(presetSettingsHelpers, /session\.status === "completed"/);
 // 回転率など他の集計範囲は触らない。全店集計は1R実質出玉だけで使う
 assert.equal((html.match(/netBallsSessionsForPreset\(/g) || []).length, 2);
@@ -6226,5 +6229,152 @@ assert.equal(s22TwoMachines.value, (14565 + 4000) / 190);
 // 未完了（status が completed でない）セッションは全店集計にも入れない
 s22Context.data.sessions[1].status = 'running';
 assert.equal(s22Context.info('agnes-pe', null).machineCount, 1);
+
+// ===========================================================================
+// S22b①: テスト用の店を店またぎの集計から外す
+// S22b②: 純増0以下の連チャンを実測平均から外す
+// ===========================================================================
+
+// ②: 除外の判定は1箇所（集計と区間内訳の表示で同じ関数を使う）
+const s22bExcluded = vm.createContext({});
+new vm.Script(`${chainExcludedBlock} globalThis.excluded = chainExcludedFromNetBalls;`).runInContext(s22bExcluded);
+assert.equal(s22bExcluded.excluded({ netBalls: -2950, rounds: 40 }), true);
+assert.equal(s22bExcluded.excluded({ netBalls: 0, rounds: 10 }), true);
+assert.equal(s22bExcluded.excluded({ netBalls: 1, rounds: 10 }), false);
+assert.equal(s22bExcluded.excluded({ netBalls: null, rounds: 10 }), false, '持ち玉差が出せない連チャンは「除外」ではなくカウンターへ落とす段');
+assert.equal(s22bExcluded.excluded({ netBalls: -100, rounds: 0 }), false);
+assert.equal(s22bExcluded.excluded(null), false);
+
+// ①: 店設定のチェックとバッジ、即保存
+const s22bStoreSettings = section('function openStoreSettings', 'function openLabelForm');
+assert.match(s22bStoreSettings, /<input id="editStoreTest" type="checkbox" \$\{store\.isTestStore \? "checked" : ""\}> テスト用の店（集計から除外）/);
+assert.match(s22bStoreSettings, /byId\("editStoreTest"\)\.addEventListener\("change", \(\) => \{\s*\n\s*store\.isTestStore = byId\("editStoreTest"\)\.checked;\s*\n\s*if \(!persistWithQuietToast\(/);
+assert.match(html, /\$\{store\.isTestStore \? ' <span class="badge warn">テスト<\/span>' : ""\}/);
+// ①: 保存された値だけを使い、名前での上書きは移行時（37未満）の初期値決めに限る
+assert.match(normalizeData, /if \(typeof store\.isTestStore === "boolean"\) return store\.isTestStore;/);
+assert.match(normalizeData, /return sourceVersion < 37 && String\(store\.name \|\| ""\)\.trim\(\) === "アムズABCビッグトマト";/);
+// ①: 機種軸の積み上げはテスト店を外す（そのリザルト自身の店は残す）
+assert.match(resultBlock, /&& sessionCountsForAggregate\(item, session\.storeId\)/);
+
+// ①: 移行の実挙動。旧データのアムズだけONで入り、以後は保存値を尊重する
+new vm.Script(`
+  globalThis.testStoreMigration = {
+    legacy: normalizeData({ version: 36, stores: [
+      { id: "a", name: "アムズABCビッグトマト" },
+      { id: "b", name: "DSG高岡" },
+      { id: "c", name: "アムズABCビッグトマト", isTestStore: false }
+    ] }).stores.map((store) => store.isTestStore),
+    current: normalizeData({ version: 37, stores: [{ id: "a", name: "アムズABCビッグトマト" }] }).stores.map((store) => store.isTestStore)
+  };
+`).runInContext(legacyMachineContext);
+assert.equal(JSON.stringify(legacyMachineContext.testStoreMigration.legacy), JSON.stringify([true, false, false]));
+assert.equal(JSON.stringify(legacyMachineContext.testStoreMigration.current), JSON.stringify([false]), '37以降のデータは名前で上書きしない');
+
+// ②①: 集計の挙動。DSGの台325（150R・97.1玉）とアムズ（テスト店）の記録で見る
+const s22bContext = vm.createContext({
+  DEFAULT_NET_BALLS_PER_ROUND: 140,
+  MACHINE_PRESETS: [{ id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }], defaults: { netBallsPerWin: 100 }, defaultNetBallsLabel: '基準値（記事の1R100玉）' }],
+  data: {
+    presetSettings: {},
+    activeStoreId: 'st-dsg',
+    stores: [{ id: 'st-dsg', name: 'DSG高岡', netBallsOffset: 0, isTestStore: false }, { id: 'st-amuse', name: 'アムズ', netBallsOffset: 0, isTestStore: true }],
+    machines: [
+      { id: 'm325', storeId: 'st-dsg', daiNo: '325', presetId: 'agnes-pe' },
+      { id: 'm326', storeId: 'st-dsg', daiNo: '326', presetId: 'agnes-pe' },
+      { id: 'm200', storeId: 'st-amuse', daiNo: '200', presetId: 'agnes-pe' }
+    ],
+    sessions: []
+  },
+  normalizeNumber: s20Context.normalizeNumber,
+  normalizeMachinePresetId(machine) { return machine?.presetId || ''; },
+  normalizeHits(hits) { return Array.isArray(hits) ? hits : []; },
+  totalRoundsForPreset() { return 0; },
+  positiveNumberOrDefault(value, fallback) { return value > 0 ? value : fallback; },
+  chainNetBallsRows(session) { return session.__chains || []; },
+  resolveHitSegmentId(session, hit) { return hit?.segmentId || null; },
+  nowIso() { return '2026-09-08T00:00:00.000Z'; }
+});
+new vm.Script(`
+  function presetById(id) { return MACHINE_PRESETS.find((preset) => preset.id === id) || null; }
+  function activeStore() { return data.stores.find((store) => store.id === data.activeStoreId) || null; }
+  function storeById(storeId) { return data.stores.find((store) => store.id === storeId) || null; }
+  function filteredSessions() {
+    return data.sessions.filter((session) => session.storeId === data.activeStoreId && session.status === "completed");
+  }
+  ${roundCountFromRoundTypeBlock}
+  ${presetSettingsHelpers}
+  ${netBallsTextBlock}
+  globalThis.info = (presetId, machineId) => netBallsPerWinInfo(presetId, data.machines.find((m) => m.id === machineId) || null);
+  globalThis.usedText = netBallsUsedText;
+  globalThis.counts = sessionCountsForAggregate;
+`).runInContext(s22bContext);
+const s22bGood = {
+  id: 's1', storeId: 'st-dsg', machineId: 'm325', status: 'completed',
+  __chains: [{ chainId: 'a', netBalls: 14565, rounds: 150, counterBalls: 0, counterRounds: 0 }],
+  hits: [{ roundTypeId: 'r10', segmentId: 'a' }]
+};
+// ②: 純増0以下の連チャン。カウンターの獲得出玉が入っていても採らない（同じ当選の二重採用を避ける）
+const s22bZero = {
+  id: 's2', storeId: 'st-dsg', machineId: 'm326', status: 'completed',
+  __chains: [{ chainId: 'b', netBalls: 0, rounds: 10, counterBalls: 0, counterRounds: 0 }],
+  hits: [{ roundTypeId: 'r10', segmentId: 'b', actualBalls: 1080 }],
+  sessionActualBalls: 1080
+};
+// 純増0の連チャンしか無い記録は、その台の実測にも全店の平均にもならない
+s22bContext.data.sessions = [s22bZero];
+assert.equal(JSON.stringify(s22bContext.info('agnes-pe', 'm326')), JSON.stringify({ value: 100, source: '基準値（記事の1R100玉）', count: 0 }));
+s22bContext.data.sessions = [s22bGood, s22bZero];
+// 台326は台の実測を持たない扱いになり、全店の平均（台325の150R）へ落ちる
+const s22bMachine326 = s22bContext.info('agnes-pe', 'm326');
+assert.equal(s22bMachine326.scope, 'stores');
+assert.equal(Math.round(s22bMachine326.value * 10) / 10, 97.1);
+assert.equal(s22bMachine326.excludedRounds, 10);
+// 台325は実測のまま。除外した10Rは同じ機種の全店集計側に出る
+const s22bMachine325 = s22bContext.info('agnes-pe', 'm325');
+assert.equal(Math.round(s22bMachine325.value * 10) / 10, 97.1);
+assert.equal(s22bMachine325.excludedRounds, undefined, 'その台に除外した連チャンが無ければ出さない');
+// 新台（実測なし）から見た全店集計：97.1玉のまま、除外10Rを出典に添える
+const s22bNewMachine = { id: 'm999', storeId: 'st-dsg', daiNo: '999', presetId: 'agnes-pe' };
+s22bContext.data.machines.push(s22bNewMachine);
+const s22bPreset = s22bContext.info('agnes-pe', 'm999');
+assert.equal(Math.round(s22bPreset.value * 10) / 10, 97.1);
+assert.equal(s22bPreset.count, 150);
+assert.equal(s22bPreset.excludedRounds, 10);
+assert.equal(s22bContext.usedText(s22bPreset), '97.1玉（実測平均・持ち玉差・150R分（全店・1台、除外10R））');
+// ①: テスト店の記録は全店集計に入らない。ただしその店を見ているときは入る
+s22bContext.data.sessions = [s22bGood, {
+  id: 's3', storeId: 'st-amuse', machineId: 'm200', status: 'completed',
+  __chains: [{ chainId: 'c', netBalls: 4000, rounds: 40, counterBalls: 0, counterRounds: 0 }],
+  hits: [{ roundTypeId: 'r10', segmentId: 'c' }]
+}];
+const s22bWithoutTest = s22bContext.info('agnes-pe', 'm999');
+assert.equal(s22bWithoutTest.machineCount, 1, 'テスト店の台は全店集計に入らない');
+assert.equal(s22bWithoutTest.count, 150);
+s22bContext.data.activeStoreId = 'st-amuse';
+const s22bTestMachine = { id: 'm201', storeId: 'st-amuse', daiNo: '201', presetId: 'agnes-pe' };
+s22bContext.data.machines.push(s22bTestMachine);
+const s22bInsideTest = s22bContext.info('agnes-pe', 'm201');
+assert.equal(s22bInsideTest.machineCount, 2, 'テスト店を見ている間はその店の記録も使う');
+assert.equal(s22bInsideTest.count, 190);
+s22bContext.data.activeStoreId = 'st-dsg';
+// ①: 判定そのもの
+assert.equal(s22bContext.counts({ storeId: 'st-amuse' }, 'st-dsg'), false);
+assert.equal(s22bContext.counts({ storeId: 'st-amuse' }, 'st-amuse'), true);
+assert.equal(s22bContext.counts({ storeId: 'st-dsg' }, 'st-amuse'), true);
+
+// ②: 区間内訳の該当行に警告を出す
+new vm.Script('globalThis.scopeApi = { resultScopeSessions };').runInContext(resultContext);
+const s22bRows = resultContext.resultApi.segmentBreakdownRows({
+  storeId: 'store1',
+  segments: [
+    { id: 'n1', kind: 'normal', startSpin: 0, endSpin: 120, endSource: 'hit', holdSpins: 0, shooting: 'started', __chain: { netBalls: -2950, rounds: 40 } },
+    { id: 'n2', kind: 'normal', startSpin: 0, endSpin: 90, endSource: 'hit', holdSpins: 0, shooting: 'started', __chain: { netBalls: 4000, rounds: 40 } }
+  ]
+}, { consumedBalls: 1000, yutimeLoss: 0 }, resultContext.data.machines[0]);
+assert.equal(s22bRows[0].netExcluded, true);
+assert.equal(s22bRows[1].netExcluded, false);
+assert.match(resultBlock, /if \(row\.netExcluded\) segmentExcludedMarks\.push\(mark\);/);
+assert.match(resultBlock, /は純増が0以下のため集計から除外（入力を確認）/);
+assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \? " ⚠" : ""\}/);
 
 console.log('yutime-v3 tests passed');
