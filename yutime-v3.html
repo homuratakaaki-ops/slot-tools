@@ -2656,8 +2656,99 @@
       return rounds !== null && rounds > 0 ? rounds : 1;
     }
 
-    // S9/§1-2 → S19: 1R実質出玉の採用順位。
-    // パネル手入力 → プリセット手入力 → 実測平均（合計R数ベース）→ 基準値（プリセット既定）。
+    // S22/§1-2: 1R実質出玉の店補正（玉）。全店の実測平均に足し引きする値。既定0で、マイナスも取る。
+    function netBallsOffsetForStore(store) {
+      return normalizeNumber(store?.netBallsOffset) ?? 0;
+    }
+
+    // S22/§1-1: 機種単位の集計は全店の同機種セッションを見る。1R実質出玉はアタッカーのこぼれ具合が主因で、
+    // 釘（店ごと）より台の個体差・機種の性質が効く。店で分けると標本が貯まらないので店をまたいで集め、
+    // 店ごとの差は netBallsOffsetForStore の補正で吸収する。条件は S10・S20 のまま（completed のみ）。
+    function netBallsSessionsForPreset(presetId) {
+      const presetIdByMachineId = new Map(data.machines.map((machine) => [machine.id, normalizeMachinePresetId(machine)]));
+      return data.sessions.filter((session) => session.status === "completed"
+        && presetIdByMachineId.get(session.machineId) === presetId);
+    }
+
+    // S9/§1-2: 実測平均は当選ごとの「今回分」（S8）を出典にする。採用順位は
+    // sessionActualBallsTotal と同じで、当選ごとの記録が無い旧データだけヤメ入力の累計を使う。
+    // S10/§1-1: 分母は当選件数ではなく消化した合計R数。1R当たりの一般的な意味
+    //（獲得出玉の合計 ÷ 合計R数）にそろえ、戦果報告の sessionBallsPerRound と同じ考え方にする。
+    // 合計Rの出所は totalRoundsForPreset と同じ roundCountFromRoundType 1本だけを使う。
+    // S20/§1-2,§1-3: 分子は連チャンごとの純増（持ち玉差・減算込み）。採用は連チャン単位で判定し、
+    // 持ち玉差が出せない連チャンだけ従来どおりカウンターの獲得出玉（S8）へ落とす。
+    // どちらも無い連チャンは分子・分母のどちらにも入れない。
+    function netBallsActualTotals(sessions, presetId) {
+      const hitRoundCount = (hit) => roundCountFromRoundType(roundTypeById(presetId, hit.roundTypeId));
+      let balanceBalls = 0;
+      let balanceRounds = 0;
+      let counterBalls = 0;
+      let counterRounds = 0;
+      // S22/§1-1: 出典の「n台」用。実際に分母へ入った台だけ数える
+      const machineIds = new Set();
+      sessions.forEach((session) => {
+        const balanceChainIds = new Set();
+        chainNetBallsRows(session, presetId).forEach((row) => {
+          if (row.netBalls === null || row.rounds <= 0) return;
+          balanceBalls += row.netBalls;
+          balanceRounds += row.rounds;
+          balanceChainIds.add(row.chainId);
+          machineIds.add(session.machineId);
+        });
+        const sessionHits = normalizeHits(session.hits);
+        // 獲得出玉が未入力の当選は分子にも分母にも入れない（対応する出玉が無いR数で平均が薄まるため）
+        const perHit = sessionHits.filter((hit) => !balanceChainIds.has(resolveHitSegmentId(session, hit))
+          && (normalizeNumber(hit.actualBalls) ?? 0) > 0 && (hitRoundCount(hit) ?? 0) > 0);
+        if (perHit.length) {
+          perHit.forEach((hit) => {
+            counterBalls += normalizeNumber(hit.actualBalls);
+            counterRounds += hitRoundCount(hit);
+            machineIds.add(session.machineId);
+          });
+          return;
+        }
+        // ヤメ入力の累計はセッション単位なので、持ち玉差で数えた連チャンがあるセッションでは使わない
+        if (balanceChainIds.size) return;
+        const explicit = normalizeNumber(session.sessionActualBalls);
+        if (explicit !== null && explicit > 0) {
+          const rounds = totalRoundsForPreset(session, presetId);
+          if (rounds > 0) {
+            counterBalls += explicit;
+            counterRounds += rounds;
+            machineIds.add(session.machineId);
+          }
+        }
+      });
+      return {
+        balanceBalls,
+        balanceRounds,
+        counterBalls,
+        counterRounds,
+        rounds: balanceRounds + counterRounds,
+        machineCount: machineIds.size
+      };
+    }
+
+    // S20/§2-1: 出典は方式が分かる形で出す（持ち玉差／カウンター／混在）。
+    // S22/§1-1,§1-2: 集計範囲（この台／全店）を添え、全店集計のときだけ店の補正を足す。
+    function netBallsActualInfo(totals, scope, offset = 0) {
+      const average = (totals.balanceBalls + totals.counterBalls) / totals.rounds;
+      const info = {
+        value: average,
+        source: "実測平均",
+        count: totals.rounds,
+        countUnit: "rounds",
+        method: totals.balanceRounds > 0 ? (totals.counterRounds > 0 ? "mixed" : "balance") : "counter",
+        balanceRounds: totals.balanceRounds,
+        counterRounds: totals.counterRounds,
+        scope
+      };
+      if (scope !== "stores") return info;
+      return { ...info, value: average + offset, machineCount: totals.machineCount, baseValue: average, offset };
+    }
+
+    // S9/§1-2 → S19 → S22/§1-1: 1R実質出玉の採用順位。
+    // パネル手入力 → プリセット手入力 → その台の実測平均 → 全店の同機種の実測平均（＋店補正）→ 基準値。
     // manualInput は期待値判定パネルのその場の手入力で、プリセット設定の手入力より優先する。
     function netBallsPerWinInfo(presetId, machine = null, manualInput = null) {
       const preset = presetById(presetId);
@@ -2670,66 +2761,16 @@
       if (settings.netBallsPerWinManual === true && manual !== null && manual > 0) {
         return { value: manual, source: "手入力", count: null };
       }
-      const sessions = filteredSessions().filter((session) => {
-        if (machine) return session.machineId === machine.id;
-        const sessionMachine = data.machines.find((item) => item.id === session.machineId);
-        return normalizeMachinePresetId(sessionMachine) === presetId;
-      });
-      // S9/§1-2: 実測平均は当選ごとの「今回分」（S8）を出典にする。採用順位は
-      // sessionActualBallsTotal と同じで、当選ごとの記録が無い旧データだけヤメ入力の累計を使う。
-      // S10/§1-1: 分母は当選件数ではなく消化した合計R数。1R当たりの一般的な意味
-      //（獲得出玉の合計 ÷ 合計R数）にそろえ、戦果報告の sessionBallsPerRound と同じ考え方にする。
-      // 合計Rの出所は totalRoundsForPreset と同じ roundCountFromRoundType 1本だけを使う。
-      const hitRoundCount = (hit) => roundCountFromRoundType(roundTypeById(presetId, hit.roundTypeId));
-      // S20/§1-2,§1-3: 分子は連チャンごとの純増（持ち玉差・減算込み）。採用は連チャン単位で判定し、
-      // 持ち玉差が出せない連チャンだけ従来どおりカウンターの獲得出玉（S8）へ落とす。
-      // どちらも無い連チャンは分子・分母のどちらにも入れない。
-      let balanceBalls = 0;
-      let balanceRounds = 0;
-      let counterBalls = 0;
-      let counterRounds = 0;
-      sessions.forEach((session) => {
-        const balanceChainIds = new Set();
-        chainNetBallsRows(session, presetId).forEach((row) => {
-          if (row.netBalls === null || row.rounds <= 0) return;
-          balanceBalls += row.netBalls;
-          balanceRounds += row.rounds;
-          balanceChainIds.add(row.chainId);
-        });
-        const sessionHits = normalizeHits(session.hits);
-        // 獲得出玉が未入力の当選は分子にも分母にも入れない（対応する出玉が無いR数で平均が薄まるため）
-        const perHit = sessionHits.filter((hit) => !balanceChainIds.has(resolveHitSegmentId(session, hit))
-          && (normalizeNumber(hit.actualBalls) ?? 0) > 0 && (hitRoundCount(hit) ?? 0) > 0);
-        if (perHit.length) {
-          perHit.forEach((hit) => {
-            counterBalls += normalizeNumber(hit.actualBalls);
-            counterRounds += hitRoundCount(hit);
-          });
-          return;
-        }
-        // ヤメ入力の累計はセッション単位なので、持ち玉差で数えた連チャンがあるセッションでは使わない
-        if (balanceChainIds.size) return;
-        const explicit = normalizeNumber(session.sessionActualBalls);
-        if (explicit !== null && explicit > 0) {
-          const rounds = totalRoundsForPreset(session, presetId);
-          if (rounds > 0) {
-            counterBalls += explicit;
-            counterRounds += rounds;
-          }
-        }
-      });
-      const actualRounds = balanceRounds + counterRounds;
-      if (actualRounds > 0) {
-        return {
-          value: (balanceBalls + counterBalls) / actualRounds,
-          source: "実測平均",
-          count: actualRounds,
-          countUnit: "rounds",
-          // S20/§2-1: 出典は方式が分かる形で出す（持ち玉差／カウンター／混在）
-          method: balanceRounds > 0 ? (counterRounds > 0 ? "mixed" : "balance") : "counter",
-          balanceRounds,
-          counterRounds
-        };
+      // S22/§1-1: 台単位はその台のセッションだけ（絞り込みも現行のまま）。実測があればここで確定する。
+      if (machine) {
+        const machineTotals = netBallsActualTotals(filteredSessions().filter((session) => session.machineId === machine.id), presetId);
+        if (machineTotals.rounds > 0) return netBallsActualInfo(machineTotals, "machine");
+      }
+      // S22/§1-1,§1-2: 台に実測が無いときだけ機種単位へ落とす。集計は全店、補正はその台の店（無ければ選択中の店）。
+      const presetTotals = netBallsActualTotals(netBallsSessionsForPreset(presetId), presetId);
+      if (presetTotals.rounds > 0) {
+        const store = (machine ? storeById(machine.storeId) : null) || activeStore();
+        return netBallsActualInfo(presetTotals, "stores", netBallsOffsetForStore(store));
       }
       // S19: 「ラウンド集計」（R種別の公称出玉 ÷ そのR数）の段は廃止した。
       // アグネスPEでは 1080/10・648/6・432/4 がどれも108玉/R なので、当選のR種別を記録しただけで
@@ -2908,14 +2949,25 @@
     // S19: 出典は「手入力」「実測平均・◯R分」「基準値（プリセット既定）」の3種。
     // S10/§1-1: 実測平均のサンプル数は集計に使った合計R数なので、件数と読めない `◯R分` で出す。
     // S20/§2-1: 実測平均は算出方式まで出す。混在した連チャンはR数の内訳で見せる。
+    // S22/§1-1,§1-2: 実測平均は集計範囲も添える。台単位は「この台」、機種単位は「全店・n台」。
+    // 全店の平均に店の補正を掛けたときは補正値も出す（判断の場に前提を置く）。
+    function netBallsScopeText(info) {
+      if (info?.scope === "machine") return "（この台）";
+      if (info?.scope !== "stores") return "";
+      const scope = `全店・${Number(info.machineCount || 0).toLocaleString("ja-JP")}台`;
+      const offset = normalizeNumber(info.offset) ?? 0;
+      if (!offset) return `（${scope}）`;
+      return `（${scope}、この店 ${offset > 0 ? "+" : "−"}${Math.abs(offset).toLocaleString("ja-JP")}玉）`;
+    }
+
     function netBallsSourceText(info) {
       if (!info) return "-";
       if (info.method === "mixed") {
-        return `${info.source}・持ち玉差${Number(info.balanceRounds).toLocaleString("ja-JP")}R＋カウンター${Number(info.counterRounds).toLocaleString("ja-JP")}R`;
+        return `${info.source}・持ち玉差${Number(info.balanceRounds).toLocaleString("ja-JP")}R＋カウンター${Number(info.counterRounds).toLocaleString("ja-JP")}R${netBallsScopeText(info)}`;
       }
       if (!info.count) return `${info.source}`;
       const method = info.method === "balance" ? "・持ち玉差" : info.method === "counter" ? "・カウンター" : "";
-      return `${info.source}${method}・${info.count.toLocaleString("ja-JP")}R分`;
+      return `${info.source}${method}・${info.count.toLocaleString("ja-JP")}R分${netBallsScopeText(info)}`;
     }
 
     function netBallsUsedText(info) {
@@ -3349,6 +3401,8 @@
         isPersonal: Boolean(store.isPersonal),
         lendRate: positiveNumberOrDefault(store.lendRate, DEFAULT_LEND_RATE),
         exchangeBalls: exchangeBallsFromStore(store),
+        // S22/§1-2: 1R実質出玉の店補正。既定0で、マイナスも取る
+        netBallsOffset: normalizeNumber(store.netBallsOffset) ?? 0,
         createdAt: store.createdAt || nowIso()
       }));
       next.layouts = normalizeLayouts(next.layouts);
@@ -4774,6 +4828,8 @@
           isPersonal: byId("storePersonal").checked,
           lendRate: positiveNumberOrDefault(byId("storeLendRate").value, DEFAULT_LEND_RATE),
           exchangeBalls: normalizeExchangeBalls(byId("storeExchangeBalls").value),
+          // S22/§1-2: 1R実質出玉の補正は既定0。必要になったら店設定で足し引きする
+          netBallsOffset: 0,
           createdAt: nowIso()
         };
         data.stores.push(store);
@@ -4796,11 +4852,19 @@
           <div class="field-row"><label for="editStoreLendRate">貸玉レート（円/玉）</label><input id="editStoreLendRate" inputmode="decimal" value="${escapeHtml(store.lendRate)}"></div>
           <div class="field-row"><label for="editStoreExchangeBalls">交換玉数（100円あたり）</label><input id="editStoreExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(store.exchangeBalls))}"></div>
         </div>
+        <div class="field-row"><label for="editStoreNetBallsOffset">1R実質出玉の補正（玉）</label><input id="editStoreNetBallsOffset" inputmode="decimal" value="${escapeHtml(netBallsOffsetForStore(store))}"></div>
+        <p class="hint">この店の台はアタッカーのこぼれが多い、など店ごとの傾向があるときに。全店の実測平均に足し引きします。この店の台自身の実測がある台には掛かりません。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveStoreSettingsBtn">保存</button>
         </div>
       `);
+      // S5/§1・S22/§1-2: 補正は変更した時点で保存する。保存ボタンは待たない
+      byId("editStoreNetBallsOffset").addEventListener("change", () => {
+        store.netBallsOffset = normalizeNumber(byId("editStoreNetBallsOffset").value) ?? 0;
+        if (!persistWithQuietToast("1R実質出玉の補正を保存しました")) return;
+        renderAll();
+      });
       byId("saveStoreSettingsBtn").addEventListener("click", () => {
         const name = byId("editStoreName").value.trim();
         if (!name) return;
