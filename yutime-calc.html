@@ -27,9 +27,11 @@
   .field{display:flex;align-items:center;gap:4px}
   .field-chips{display:flex;align-items:center;gap:6px;margin-top:3px}
   .chips-wrap{flex:1 1 auto;min-width:0}
-  input[type="number"],select{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:16px;padding:6px 8px;outline:none;height:44px;width:100%;min-width:0}
+  input[type="number"],input[type="time"],select{background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:16px;padding:6px 8px;outline:none;height:44px;width:100%;min-width:0}
   input[type="number"]{text-align:right}
-  input[type="number"]:focus,select:focus{border-color:var(--gold)}
+  input[type="time"]{text-align:center;font-family:inherit}
+  input[type="number"]:focus,input[type="time"]:focus,select:focus{border-color:var(--gold)}
+  .times{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:3px}
   .unit{font-size:11px;color:var(--text-muted);white-space:nowrap}
   .chips{display:flex;flex-wrap:wrap;gap:5px}
   .chip{flex:1 1 0;min-width:48px;height:44px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);font-size:12px;font-weight:700;padding:2px 4px;cursor:pointer;font-family:inherit;white-space:nowrap}
@@ -123,25 +125,44 @@
       <div class="chips" id="ballKindChips"></div>
     </div>
     <div class="row" id="mochidamaRow">
-      <label class="label" for="mochidamaBalls">持ち玉（玉）</label>
-      <div class="field" style="max-width:140px;margin-top:3px"><input id="mochidamaBalls" type="number" min="0" step="1" inputmode="numeric" placeholder="0"><span class="unit">玉</span></div>
-      <div class="hint">今ある持ち玉を入力してください。空欄なら現金と同じ扱いで計算します。</div>
+      <span class="label">持ち玉・再プレイ（玉）</span>
+      <div class="pair" style="margin-top:3px">
+        <div>
+          <label class="label" for="mochidamaBalls">持ち玉</label>
+          <div class="field"><input id="mochidamaBalls" type="number" min="0" step="1" inputmode="numeric" placeholder="0"><span class="unit">玉</span></div>
+        </div>
+        <div>
+          <label class="label" for="saipureiBalls">再プレイ</label>
+          <div class="field"><input id="saipureiBalls" type="number" min="0" step="1" inputmode="numeric" placeholder="0"><span class="unit">玉</span></div>
+        </div>
+      </div>
+      <div class="hint">今ある持ち玉と、再プレイで使える玉を入力してください。合計を交換単価の玉として計算します。両方空欄なら現金と同じ扱いです。</div>
     </div>
     <div class="row" id="speedRow">
       <label class="label" for="normalSpeed">通常時の時速</label>
       <div class="field-chips">
-        <div class="field" style="flex:0 0 92px"><input id="normalSpeed" type="number" min="0" step="0.1" inputmode="decimal" placeholder="4.2"><span class="unit">回転/分</span></div>
+        <div class="field" style="flex:0 0 92px"><input id="normalSpeed" type="number" min="0" step="10" inputmode="numeric" placeholder="250"><span class="unit">回転/h</span></div>
         <div class="chips-wrap"><div class="chips" id="speedChips"></div></div>
       </div>
-      <div class="hint">4.2＝記事の前提（250回転/h）／5.9＝導入日の実測（22回転の良台）</div>
+      <div class="hint">250＝記事の前提／350＝導入日の実測（22回転の良台）</div>
     </div>
-    <div class="row" id="minutesRow">
-      <label class="label" for="remainMinutes">残り時間</label>
-      <div class="field-chips">
-        <div class="field" style="flex:0 0 92px"><input id="remainMinutes" type="number" min="0" step="5" inputmode="numeric" placeholder="180"><span class="unit">分</span></div>
-        <div class="chips-wrap"><div class="chips" id="minutesChips"></div></div>
+    <div class="row" id="timeRow">
+      <span class="label">時刻</span>
+      <div class="times">
+        <div>
+          <label class="label" for="nowTime">現在</label>
+          <input id="nowTime" type="time">
+        </div>
+        <div>
+          <label class="label" for="quitTime">ヤメ予定</label>
+          <input id="quitTime" type="time">
+        </div>
+        <div>
+          <label class="label" for="closeTime">閉店</label>
+          <input id="closeTime" type="time">
+        </div>
       </div>
-      <div class="hint">閉店や予定までの、この台に張れる時間</div>
+      <div class="hint" id="remainHint">現在時刻は端末の時計から入れています。手で直せます</div>
     </div>
   </div>
 
@@ -496,14 +517,14 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     const CONTINUOUS_SEED = 20260908;
     // 20,000試行。座れる最短時間（T*）の揺れを±10分以内に収めるための既定
     const CONTINUOUS_TRIALS = 20000;
+    // 通常時の時速は回転/時。250＝記事の前提、350＝9/7導入日の実測（22回転の良台）
     const SPEED_OPTIONS = [
-      { value: 4.2, label: "4.2" },
-      { value: 5.0, label: "5.0" },
-      { value: 5.9, label: "5.9" }
+      { value: 250, label: "250", note: "（記事の前提）" },
+      { value: 300, label: "300", note: "" },
+      { value: 350, label: "350", note: "（導入日の実測）" }
     ];
-    const DEFAULT_SPEED = 4.2;
-    const MINUTES_OPTIONS = [60, 120, 180, 240, 360];
-    const DEFAULT_MINUTES = 180;
+    const DEFAULT_SPEED = 250;
+    const DEFAULT_CLOSE_TIME = "23:45";
     // 「座れる残り時間」を探す刻みと上限
     const BREAKEVEN_STEP_MINUTES = 5;
     const BREAKEVEN_MAX_MINUTES = 360;
@@ -525,10 +546,16 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       exchangeBalls: EXCHANGE_OPTIONS[0].balls,
       ballKind: BALL_KIND_OPTIONS[0].id,
       mochidamaBalls: null,
+      saipureiBalls: null,
       // C2: 打ち切りモード専用の入力
       mode: MODE_OPTIONS[0].id,
+      // 通常時の時速（回転/時）
       normalSpeed: DEFAULT_SPEED,
-      remainMinutes: DEFAULT_MINUTES,
+      // 残り時間は時刻から出す。現在時刻は端末の時計から入れ、手で直したら自動更新を止める
+      nowTime: null,
+      nowManual: false,
+      quitTime: null,
+      closeTime: DEFAULT_CLOSE_TIME,
       // 打ち切りモードの判定・やめるルールの閾値。?hourly= で変えられる。
       // 遊タイム狙いモードの判定は従来どおり HOURLY_THRESHOLD_YEN 固定
       hourlyThreshold: null
@@ -610,10 +637,58 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       return "";
     }
 
-    // 持ち玉で打つときだけ入力欄の玉数を使う。空欄（null）は0＝現金と同じ扱い
+    // 持ち玉で打つときだけ入力欄の玉数を使う。空欄（null）は0＝現金と同じ扱い。
+    // 持ち玉と再プレイはどちらも交換単価の玉なので、エンジンへは合計を渡す（v3と同じ）
     function availableBallsFromState() {
       if (state.ballKind !== "mochidama") return 0;
-      return Math.max(0, Number(state.mochidamaBalls) || 0);
+      return Math.max(0, Number(state.mochidamaBalls) || 0) + Math.max(0, Number(state.saipureiBalls) || 0);
+    }
+
+    // --- 時刻から残り時間を出す ---------------------------------------------------
+    // "HH:MM" → 0時からの分。不正なら null
+    function parseTimeMinutes(text) {
+      if (typeof text !== "string") return null;
+      const matched = /^(\d{1,2}):(\d{2})$/.exec(text.trim());
+      if (!matched) return null;
+      const hours = Number(matched[1]);
+      const minutes = Number(matched[2]);
+      if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+      return hours * 60 + minutes;
+    }
+
+    function formatTimeMinutes(minutes) {
+      if (minutes === null || !Number.isFinite(minutes)) return "";
+      const clamped = ((Math.round(minutes) % 1440) + 1440) % 1440;
+      return `${String(Math.floor(clamped / 60)).padStart(2, "0")}:${String(clamped % 60).padStart(2, "0")}`;
+    }
+
+    function currentClockText() {
+      const now = new Date();
+      return `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+    }
+
+    // 打ち終わる時刻＝ヤメ予定と閉店の早いほう
+    function endTimeInfo() {
+      const close = parseTimeMinutes(state.closeTime);
+      const quit = parseTimeMinutes(state.quitTime);
+      if (quit !== null && (close === null || quit <= close)) return { minutes: quit, label: "ヤメ予定" };
+      if (close !== null) return { minutes: close, label: "閉店" };
+      return null;
+    }
+
+    function remainMinutesFromState() {
+      const now = parseTimeMinutes(state.nowTime);
+      const end = endTimeInfo();
+      if (now === null || end === null) return null;
+      return end.minutes - now;
+    }
+
+    // 「残り 63分（22:45ヤメ予定・現在21:42）」
+    function remainSummaryText() {
+      const remain = remainMinutesFromState();
+      if (remain === null) return "";
+      const end = endTimeInfo();
+      return `残り ${remain}分（${formatTimeMinutes(end.minutes)}${end.label}・現在${formatTimeMinutes(parseTimeMinutes(state.nowTime))}）`;
     }
 
     function calculateFromState() {
@@ -1039,7 +1114,9 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       const base = missingMessage();
       if (base) return base;
       if (state.normalSpeed === null || state.normalSpeed <= 0) return "通常時の時速を入力してください";
-      if (state.remainMinutes === null || state.remainMinutes <= 0) return "残り時間を入力してください";
+      if (parseTimeMinutes(state.nowTime) === null) return "現在時刻を入力してください";
+      if (endTimeInfo() === null) return "閉店時刻かヤメ予定時刻を入力してください";
+      if (remainMinutesFromState() <= 0) return "終了時刻を過ぎています";
       return "";
     }
 
@@ -1052,7 +1129,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         netBallsPerWin: preset.netBallsPerWin(state.payout),
         yenPerBall: 100 / state.exchangeBalls
       };
-      const minutes = state.remainMinutes;
+      const minutes = remainMinutesFromState();
       const checkpoints = breakevenCheckpoints(minutes);
       return {
         trials: CONTINUOUS_TRIALS,
@@ -1075,7 +1152,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         yutimeBallsPerSpin: settings.yutimeBallsPerSpin,
         densapoBallsPerSpin: settings.jitanFastBallsPerSpin,
         holdSpins: settings.holdSpins,
-        spinMinutes: 1 / state.normalSpeed,
+        // 時速は回転/時。1回転あたりの分に直して使う
+        spinMinutes: 60 / state.normalSpeed,
         densapoMinutes: settings.secPerDensapoSpin / 60,
         hitMinutes: settings.secPerHit / 60,
         availableBalls: availableBallsFromState()
@@ -1197,12 +1275,15 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       return `<table class="ct-table"><thead><tr><th>起点</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
     }
 
+    function speedNoteText(spinsPerHour) {
+      const option = SPEED_OPTIONS.find((row) => row.value === Number(spinsPerHour));
+      return option ? option.note : "";
+    }
+
     function continuousBasisText(result) {
       if (!result) return "";
       const preset = currentPreset();
-      const speedNote = Number(result.speed) === 4.2 ? "（記事の前提）" : "";
-      const perHour = Math.round(Number(result.speed) * 60);
-      return `時速${result.speed}回転/分${speedNote}＝${perHour.toLocaleString("ja-JP")}回転/h ／ 残り${result.minutes}分 ／ ${result.trials.toLocaleString("ja-JP")}試行`
+      return `時速${Number(result.speed).toLocaleString("ja-JP")}回転/h${speedNoteText(result.speed)} ／ ${remainSummaryText()} ／ ${result.trials.toLocaleString("ja-JP")}試行`
         + ` ／ 使用回転率 ${state.rotationRate}回転/千円 ／ ${preset.payoutLabel} ${state.payout}`
         + ` ／ 電サポ中は6秒/回転で計算 ／ 想定連チャン ${countText(result.wins)}（初当り込み）`
         + ` ／ 上段の時給は合計期待値÷残り${result.minutes}分（表の時給は1サイクルの期待値÷消化時間）`
@@ -1279,7 +1360,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       byId("basis").innerHTML = basisText(result);
       byId("notice").textContent = missing;
       byId("embedCode").textContent = state.mode === "continuous"
-        ? `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}&mode=continuous"\n        width="100%" height="1400" style="border:0" loading="lazy"></iframe>`
+        ? `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}&mode=continuous"\n        width="100%" height="1480" style="border:0" loading="lazy"></iframe>`
         : `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}"\n        width="100%" height="700" style="border:0" loading="lazy"></iframe>`;
       renderContinuousResult();
     }
@@ -1295,7 +1376,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     function renderModeFields() {
       const continuous = state.mode === "continuous";
       byId("speedRow").style.display = continuous ? "" : "none";
-      byId("minutesRow").style.display = continuous ? "" : "none";
+      byId("timeRow").style.display = continuous ? "" : "none";
       byId("resultPanel").style.display = continuous ? "none" : "";
       byId("continuousPanel").style.display = continuous ? "" : "none";
       byId("speedChips").innerHTML = chipHtml(SPEED_OPTIONS.map((option) => ({
@@ -1303,11 +1384,13 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         label: option.label,
         selected: Number(state.normalSpeed) === option.value
       })));
-      byId("minutesChips").innerHTML = chipHtml(MINUTES_OPTIONS.map((value) => ({
-        value,
-        label: String(value),
-        selected: Number(state.remainMinutes) === value
-      })));
+      const summary = remainSummaryText();
+      const remain = remainMinutesFromState();
+      byId("remainHint").textContent = summary && remain > 0
+        ? summary
+        : remain !== null && remain <= 0
+          ? "終了時刻を過ぎています"
+          : "現在時刻は端末の時計から入れています。手で直せます";
     }
 
     // 入力のたびにモンテカルロを回すと1打鍵ごとに数百ms固まるので、
@@ -1403,10 +1486,19 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       }
     }
 
-    function minutesFromUrl() {
+    function saipureiFromUrl() {
       try {
-        const minutes = numberOrNull(new URLSearchParams(window.location.search).get("minutes"));
-        return minutes !== null && minutes > 0 ? Math.floor(minutes) : null;
+        const balls = numberOrNull(new URLSearchParams(window.location.search).get("saipurei"));
+        return balls !== null && balls > 0 ? Math.floor(balls) : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
+    function timeFromUrl(key) {
+      try {
+        const text = new URLSearchParams(window.location.search).get(key);
+        return parseTimeMinutes(text) === null ? null : text.trim();
       } catch (err) {
         return null;
       }
@@ -1441,22 +1533,35 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     function init() {
       state.presetId = presetIdFromUrl();
       state.payout = currentPreset().payoutDefault;
-      // ?balls= で初期値が渡されたときだけ持ち玉モードで開く
+      // ?balls= / ?saipurei= で初期値が渡されたときだけ持ち玉モードで開く
       const initialBalls = ballsFromUrl();
-      if (initialBalls !== null) {
-        state.mochidamaBalls = initialBalls;
+      const initialSaipurei = saipureiFromUrl();
+      if (initialBalls !== null || initialSaipurei !== null) {
         state.ballKind = "mochidama";
-        byId("mochidamaBalls").value = String(initialBalls);
+        if (initialBalls !== null) {
+          state.mochidamaBalls = initialBalls;
+          byId("mochidamaBalls").value = String(initialBalls);
+        }
+        if (initialSaipurei !== null) {
+          state.saipureiBalls = initialSaipurei;
+          byId("saipureiBalls").value = String(initialSaipurei);
+        }
       }
-      // ?mode=continuous&minutes=120&speed=5.0 で打ち切りモードの初期状態を渡せる
-      const initialMinutes = minutesFromUrl();
-      if (initialMinutes !== null) state.remainMinutes = initialMinutes;
+      // ?mode=continuous&speed=350&close=23:45&quit=22:30 で打ち切りモードの初期状態を渡せる
       const initialSpeed = speedFromUrl();
       if (initialSpeed !== null) state.normalSpeed = initialSpeed;
+      const initialClose = timeFromUrl("close");
+      if (initialClose !== null) state.closeTime = initialClose;
+      const initialQuit = timeFromUrl("quit");
+      if (initialQuit !== null) state.quitTime = initialQuit;
       state.hourlyThreshold = hourlyThresholdFromUrl();
       if (supportsContinuous(currentPreset())) state.mode = modeFromUrl();
+      // 現在時刻は端末の時計から入れる
+      state.nowTime = currentClockText();
       byId("normalSpeed").value = String(state.normalSpeed);
-      byId("remainMinutes").value = String(state.remainMinutes);
+      byId("nowTime").value = state.nowTime;
+      byId("quitTime").value = state.quitTime === null ? "" : state.quitTime;
+      byId("closeTime").value = state.closeTime === null ? "" : state.closeTime;
 
       const select = byId("preset");
       select.innerHTML = PRESETS.map((preset) => `<option value="${preset.id}">${preset.name}</option>`).join("");
@@ -1488,16 +1593,42 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         state.mochidamaBalls = numberOrNull(event.target.value);
         renderResult();
       });
+      byId("saipureiBalls").addEventListener("input", (event) => {
+        state.saipureiBalls = numberOrNull(event.target.value);
+        renderResult();
+      });
       byId("normalSpeed").addEventListener("input", (event) => {
         state.normalSpeed = numberOrNull(event.target.value);
         renderModeFields();
         renderResult();
       });
-      byId("remainMinutes").addEventListener("input", (event) => {
-        state.remainMinutes = numberOrNull(event.target.value);
+      byId("nowTime").addEventListener("input", (event) => {
+        // 手で直したら、以後は端末の時計で上書きしない
+        state.nowManual = true;
+        state.nowTime = event.target.value || null;
         renderModeFields();
         renderResult();
       });
+      byId("quitTime").addEventListener("input", (event) => {
+        state.quitTime = event.target.value || null;
+        renderModeFields();
+        renderResult();
+      });
+      byId("closeTime").addEventListener("input", (event) => {
+        state.closeTime = event.target.value || null;
+        renderModeFields();
+        renderResult();
+      });
+      // 1分ごとに現在時刻を進める。手で上書きされていたら触らない
+      setInterval(() => {
+        if (state.nowManual) return;
+        const text = currentClockText();
+        if (text === state.nowTime) return;
+        state.nowTime = text;
+        byId("nowTime").value = text;
+        renderModeFields();
+        renderResult();
+      }, 60000);
 
       byId("modeChips").addEventListener("click", (event) => {
         const button = event.target.closest(".mode-btn");
@@ -1512,12 +1643,6 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         byId("normalSpeed").value = value;
         renderModeFields();
       });
-      bindChipGroup("minutesChips", (value) => {
-        state.remainMinutes = Number(value);
-        byId("remainMinutes").value = value;
-        renderModeFields();
-      });
-
       bindChipGroup("payoutChips", (value) => {
         state.payout = Number(value);
         byId("payout").value = value;
