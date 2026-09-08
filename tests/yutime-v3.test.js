@@ -2871,7 +2871,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 35;/);
+assert.match(html, /const SCHEMA_VERSION = 36;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3178,7 +3178,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 35;
+  const SCHEMA_VERSION = 36;
   const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
@@ -3404,7 +3404,7 @@ assert.equal(legacyMachineContext.s2ResyncNoUser.segments.length, 1);
 assert.equal(legacyMachineContext.s2ResyncNoUser.segments[0].endSpin, 110);
 assert.equal(legacyMachineContext.s2ResyncNoUser.segments[0].holdSpins, 3);
 assert.match(segmentMigrationBackup, /localStorage\.setItem\(BACKUP_KEY, raw\);/);
-assert.match(html, /if \(needsSegmentMigration\(parsed\)\) backupBeforeSegmentMigration\(raw\);\s*if \(needsStartMochidamaRepair\(parsed\)\) backupBeforeStartMochidamaRepair\(raw\);\s*return normalizeData\(parsed\);/);
+assert.match(html, /if \(needsSegmentMigration\(parsed\)\) backupBeforeSegmentMigration\(raw\);\s*if \(needsStartMochidamaRepair\(parsed\)\) backupBeforeStartMochidamaRepair\(raw\);\s*if \(needsInvestmentPhaseRepair\(parsed\)\) backupBeforeInvestmentPhaseRepair\(raw\);\s*return normalizeData\(parsed\);/);
 assert.match(normalizeData, /normalized\.segments = normalizeSessionSegments\(normalized\);\s*applySegmentIds\(normalized\);/);
 // S1 では保留を引かない（holdSpins は常に0で作る）
 assert.match(segmentBlock, /function blankSegment\(kind, overrides = \{\}\)[\s\S]*?holdSpins: 0,/);
@@ -3597,14 +3597,14 @@ assert.equal(ledgerApi.sessionWorkedHours(null), null);
 
 // 検算：同日3件（実収支 +4,273／+1,228／−3,877、期待値 +1,000／+1,228／+972、実働 30分／2分／60分）
 const threeSessions = [
-  { profitYen: 4273, startEvYen: 1000, workedHours: ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '10:30' }) },
-  { profitYen: 1228, startEvYen: 1228, workedHours: ledgerApi.sessionWorkedHours({ startTime: '11:00', endTime: '11:02' }) },
-  { profitYen: -3877, startEvYen: 972, workedHours: ledgerApi.sessionWorkedHours({ startTime: '12:00', endTime: '13:00' }) }
+  { profitYen: 4273, evYen: 1000, workedHours: ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '10:30' }) },
+  { profitYen: 1228, evYen: 1228, workedHours: ledgerApi.sessionWorkedHours({ startTime: '11:00', endTime: '11:02' }) },
+  { profitYen: -3877, evYen: 972, workedHours: ledgerApi.sessionWorkedHours({ startTime: '12:00', endTime: '13:00' }) }
 ];
 const threeSummary = ledgerApi.ledgerDaySummary(threeSessions);
 assert.equal(threeSummary.count, 3);
 assert.equal(threeSummary.profitYen, 1624);
-assert.equal(threeSummary.startEvYen, 3200);
+assert.equal(threeSummary.evYen, 3200);
 assert.ok(Math.abs(threeSummary.workedHours - 92 / 60) < 1e-9, '実働は30分＋2分＋60分＝92分');
 assert.equal(Math.round(threeSummary.hourlyYen), 1059, '時給は実収支合計 ÷ 実働合計（92分＝1.5333h）');
 const threeHtml = ledgerApi.ledgerDaySummaryHtml(threeSummary);
@@ -3616,20 +3616,20 @@ assert.match(threeHtml, /時給<\/span><strong class="signed-figure-value is-plu
 
 // endTime 欠損のセッションは実働に入らないが、実収支・期待値の合算には入る
 const missingEndTime = ledgerApi.ledgerDaySummary([
-  { profitYen: 4273, startEvYen: 1000, workedHours: ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '10:30' }) },
-  { profitYen: 1228, startEvYen: 1228, workedHours: ledgerApi.sessionWorkedHours({ startTime: '11:00', endTime: null }) },
-  { profitYen: -3877, startEvYen: 972, workedHours: ledgerApi.sessionWorkedHours({ startTime: '12:00', endTime: '13:00' }) }
+  { profitYen: 4273, evYen: 1000, workedHours: ledgerApi.sessionWorkedHours({ startTime: '10:00', endTime: '10:30' }) },
+  { profitYen: 1228, evYen: 1228, workedHours: ledgerApi.sessionWorkedHours({ startTime: '11:00', endTime: null }) },
+  { profitYen: -3877, evYen: 972, workedHours: ledgerApi.sessionWorkedHours({ startTime: '12:00', endTime: '13:00' }) }
 ]);
 assert.equal(missingEndTime.count, 3);
 assert.equal(missingEndTime.profitYen, 1624);
-assert.equal(missingEndTime.startEvYen, 3200);
+assert.equal(missingEndTime.evYen, 3200);
 assert.equal(missingEndTime.workedHours, 1.5);
 assert.equal(Math.round(missingEndTime.hourlyYen), 1083);
 
 // 全件で時刻欠損なら実働も時給も「—」
 const noTimes = ledgerApi.ledgerDaySummary([
-  { profitYen: 4273, startEvYen: 1000, workedHours: null },
-  { profitYen: -3877, startEvYen: 972, workedHours: null }
+  { profitYen: 4273, evYen: 1000, workedHours: null },
+  { profitYen: -3877, evYen: 972, workedHours: null }
 ]);
 assert.equal(noTimes.workedHours, null);
 assert.equal(noTimes.hourlyYen, null);
@@ -3638,32 +3638,32 @@ assert.match(noTimesHtml, /実働<\/span><strong>—<\/strong>/);
 assert.match(noTimesHtml, /時給<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
 
 // 実働0でも時給は「—」。ゼロ除算しない
-const zeroWorked = ledgerApi.ledgerDaySummary([{ profitYen: 500, startEvYen: 100, workedHours: 0 }]);
+const zeroWorked = ledgerApi.ledgerDaySummary([{ profitYen: 500, evYen: 100, workedHours: 0 }]);
 assert.equal(zeroWorked.workedHours, 0);
 assert.equal(zeroWorked.hourlyYen, null);
 assert.match(ledgerApi.ledgerDaySummaryHtml(zeroWorked), /実働<\/span><strong>0\.00h<\/strong>/);
 
 // 実収支が算出できないセッションは合算から外す。全件不能なら「—」で時給も出さない
 const partialProfit = ledgerApi.ledgerDaySummary([
-  { profitYen: null, startEvYen: 1000, workedHours: 1 },
-  { profitYen: -3877, startEvYen: null, workedHours: 1 }
+  { profitYen: null, evYen: 1000, workedHours: 1 },
+  { profitYen: -3877, evYen: null, workedHours: 1 }
 ]);
 assert.equal(partialProfit.count, 2);
 assert.equal(partialProfit.profitYen, -3877);
-assert.equal(partialProfit.startEvYen, 1000);
+assert.equal(partialProfit.evYen, 1000);
 assert.equal(partialProfit.workedHours, 2);
 assert.equal(Math.round(partialProfit.hourlyYen), -1938, "-3,877円 ÷ 2h = -1938.5 → -1,938円");
 assert.match(ledgerApi.ledgerDaySummaryHtml(partialProfit), /実収支<\/span><strong class="signed-figure-value is-minus">-3,877円<\/strong>/);
-const noProfit = ledgerApi.ledgerDaySummary([{ profitYen: null, startEvYen: null, workedHours: 1 }]);
+const noProfit = ledgerApi.ledgerDaySummary([{ profitYen: null, evYen: null, workedHours: 1 }]);
 assert.equal(noProfit.profitYen, null);
-assert.equal(noProfit.startEvYen, null);
+assert.equal(noProfit.evYen, null);
 assert.equal(noProfit.hourlyYen, null);
 const noProfitHtml = ledgerApi.ledgerDaySummaryHtml(noProfit);
 assert.match(noProfitHtml, /実収支<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
 assert.match(noProfitHtml, /期待値<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
 
 // 1件だけの日は正常、0件の日はサマリー自体を出さない
-const single = ledgerApi.ledgerDaySummary([{ profitYen: 1228, startEvYen: 1228, workedHours: 0.5 }]);
+const single = ledgerApi.ledgerDaySummary([{ profitYen: 1228, evYen: 1228, workedHours: 0.5 }]);
 assert.equal(single.count, 1);
 assert.match(ledgerApi.ledgerDaySummaryHtml(single), /<strong>1台<\/strong>/);
 assert.equal(ledgerApi.ledgerDaySummaryHtml(ledgerApi.ledgerDaySummary([])), '');
@@ -3686,7 +3686,7 @@ assert.equal(ledgerApi.signedYenDisplayText(undefined), '—');
 assert.equal(ledgerApi.LEDGER_EMPTY_TEXT, '—');
 
 // renderLedger 側の配線
-assert.match(renderLedger, /\$\{sessionFiguresHtml\(derived\.profitYen, startEvYenById\.get\(session\.id\)\)\}/);
+assert.match(renderLedger, /\$\{sessionFiguresHtml\(derived\.profitYen, evYenById\.get\(session\.id\)\)\}/);
 assert.match(renderLedger, /\+ ledgerDaySummaryHtml\(ledgerDaySummary\(dayEntries\.get\(String\(session\.date \|\| ""\)\)\)\)/);
 assert.match(renderLedger, /workedHours: sessionWorkedHours\(session\)/);
 assert.match(renderLedger, /profitYen: derived\.profitYen,/);
@@ -3714,7 +3714,8 @@ assert.doesNotMatch(resultBlock, /<td>期待値との差<\/td>/);
 assert.match(resultBlock, /const evDiffYen = startEv && derived\.profitYen !== null \? derived\.profitYen - startEv\.evYen : null;/);
 // S12/B-2: 区間ごとの内訳は表。列は 区間／起点／終点／回転数／消費玉／回転率
 assert.match(resultBlock, /<table class="result-table segments">/);
-assert.match(resultBlock, /<thead><tr><th>区間<\/th><th>起点<\/th><th>終点<\/th><th>回転数<\/th><th>消費玉<\/th><th>回転率<\/th><\/tr><\/thead>/);
+// S17/B-3: 期待値の列が増えて7列になる
+assert.match(resultBlock, /<thead><tr><th>区間<\/th><th>起点<\/th><th>終点<\/th><th>回転数<\/th><th>消費玉<\/th><th>回転率<\/th><th>期待値<\/th><\/tr><\/thead>/);
 assert.doesNotMatch(resultBlock, /class="result-seg"/);
 // 保留控除の注記は表の下に1行でまとめる
 assert.match(resultBlock, /segmentHoldNotes\.push\(`\$\{mark\}保留\$\{row\.holdSpins\}`\)/);
@@ -3783,9 +3784,19 @@ const resultContext = vm.createContext({
   }
 });
 new vm.Script(`
+  const EARNED_EV_RATE_MIN = 1;
+  const EARNED_EV_RATE_MAX = 50;
   ${holdCarryBlock}
   ${resultBlock}
-  globalThis.resultApi = { longDateText, sessionResultSummary, resultAggregate, segmentBreakdownRows };
+  // S17/B: 区間ごとの期待値はエンジンを叩くので、この文脈では起点ごとに固定値を返すスタブに差し替える。
+  // 集計の配線（resultAggregate が獲得期待値を足すこと）だけをここで固定する。
+  function calculateMachineExpectation(machine, options) {
+    if (!machine || machine.__noEv) return { result: null };
+    const base = machine.__evByStart ? machine.__evByStart[String(options.currentSpin)] : null;
+    if (base === null || base === undefined) return { result: null };
+    return { result: { evYen: base }, netBallsInfo: { value: 108, source: "実測平均" } };
+  }
+  globalThis.resultApi = { longDateText, sessionResultSummary, resultAggregate, segmentBreakdownRows, earnedExpectationForSession, earnedExpectationYen, earnedExpectationBasisText };
 `).runInContext(resultContext);
 assert.equal(resultContext.resultApi.longDateText('2026-09-02'), '2026年9月2日（水）');
 assert.equal(resultContext.resultApi.longDateText('2026-09-03'), '2026年9月3日（木）');
@@ -3798,10 +3809,14 @@ const diffSummary = resultContext.resultApi.sessionResultSummary({
 });
 assert.equal(diffSummary.rateDiff, 0.5);
 assert.equal(diffSummary.evDiffYen, -8150);
+// S17/B-3: 積み上げの期待値は獲得期待値（Σ区間期待値）。起点0→+1,000円／起点50→+2,000円のスタブで、
+// 1件目は1区間、2件目は2区間（1,000＋2,000＝3,000ではなく、ここでは起点50の1区間だけ）を持たせる
+resultContext.data.machines = [{ id: 'm1', storeId: 'store1', presetId: 'preset1', __evByStart: { 0: 1000, 50: 2000 } }];
+const normalSegment = (startSpin, id) => ({ id, kind: 'normal', startSpin, endSpin: startSpin + 200, endSource: 'hit', holdSpins: 0, shooting: 'started' });
 resultContext.data.sessions = [
-  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: { evYen: 1000 }, startTime: '10:00', endTime: '12:00', __profitYen: -600 },
-  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: { evYen: 2000 }, startTime: '13:00', endTime: '14:30', __profitYen: 3000 },
-  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: null, startTime: '', endTime: '', __profitYen: 500 }
+  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: { evYen: 1000 }, startTime: '10:00', endTime: '12:00', __profitYen: -600, segments: [normalSegment(0, 'a1')] },
+  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: { evYen: 1234 }, startTime: '13:00', endTime: '14:30', __profitYen: 3000, segments: [normalSegment(50, 'b1')] },
+  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: null, startTime: '', endTime: '', __profitYen: 500, segments: [] }
 ];
 const aggregate = resultContext.resultApi.resultAggregate(resultContext.data.sessions);
 assert.equal(aggregate.count, 3);
@@ -4668,7 +4683,7 @@ assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerW
 assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerWinManual, true);
 assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWin, 108);
 assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWinManual, true);
-assert.equal(s11MigrationContext.migrated.version, 35);
+assert.equal(s11MigrationContext.migrated.version, 36);
 // 32以降のデータは二重変換しない
 assert.equal(s11MigrationContext.already32.presetSettings['umi-sp5'].netBallsPerWin, 130);
 assert.equal(s11MigrationContext.already32.presetSettings['agnes-pe'].netBallsPerWin, 108);
@@ -4722,7 +4737,7 @@ assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBal
 assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
 
 // --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
-assert.match(html, /const SCHEMA_VERSION = 35;/);
+assert.match(html, /const SCHEMA_VERSION = 36;/);
 assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
 assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
 assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
@@ -4741,7 +4756,7 @@ new vm.Script(`
     ]
   });
 `).runInContext(s7SchemaContext);
-assert.equal(s7SchemaContext.s7Migrated.version, 35);
+assert.equal(s7SchemaContext.s7Migrated.version, 36);
 // 旧セッションは補完しない（＝従来式のまま）
 assert.equal(s7SchemaContext.s7Migrated.sessions[0].consumedModel, null);
 assert.equal(s7SchemaContext.s7Migrated.sessions[1].consumedModel, "endpoints");
@@ -5236,7 +5251,7 @@ const shootingBlock = section('function markSegmentShootingStarted', 'function h
 const wizardInputBlock = section('function wizardInputHtml', 'function readWizardValue');
 
 // --- §1: データ構造 --------------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 35;/);
+assert.match(html, /const SCHEMA_VERSION = 36;/);
 assert.match(html, /function normalizePlayStyle\(value\) \{\s*return value === "continuous" \? "continuous" : "yutime";/);
 assert.match(html, /function normalizeShooting\(value\) \{\s*return value === "before" \? "before" : "started";/);
 assert.match(normalizeData, /playStyle: normalizePlayStyle\(session\.playStyle\)/);
@@ -5376,5 +5391,155 @@ new vm.Script(`
 assert.equal(runningRateContext.s7cEndedWithoutShooting.normalSpins, 20);
 assert.equal(runningRateContext.s7cEndedWithoutShooting.consumedBalls, 200);
 assert.equal(Number(runningRateContext.s7cEndedWithoutShooting.rate.toFixed(1)), 25.0);
+
+
+// ===========================================================================
+// S17: 投資phaseの修復（第1部）／獲得期待値＝Σ区間期待値（第2部）
+// ===========================================================================
+
+// --- 第1部: 投資phaseの修復 ------------------------------------------------
+assert.match(html, /const SCHEMA_VERSION = 36;/);
+assert.match(html, /const S17_BACKUP_KEY = STORAGE_PREFIX \+ "backup:s17";/);
+assert.match(segmentMigrationBackup, /function needsInvestmentPhaseRepair\(source\) \{\s*return \(normalizeNumber\(source\?\.version\) \?\? 0\) < 36;/);
+assert.match(segmentMigrationBackup, /function backupBeforeInvestmentPhaseRepair\(raw\) \{\s*if \(!raw \|\| localStorage\.getItem\(S17_BACKUP_KEY\)\) return;/);
+assert.match(segmentMigrationBackup, /function repairInvestmentPhases\(session\)/);
+// segmentId が解決できない投資は触らない
+assert.match(segmentMigrationBackup, /const kind = kindById\.get\(item\.segmentId\);\s*if \(!kind\) return;/);
+assert.match(normalizeData, /if \(sourceVersion < 36\) repairedInvestmentPhases \+= repairInvestmentPhases\(normalized\);/);
+assert.match(normalizeData, /console\.info\(`ytv3 S17: 投資phaseを\$\{repairedInvestmentPhases\}件修復しました`\)/);
+
+const s17RepairContext = vm.createContext({ ...legacyMachineContext, console: { info() {}, warn() {} } });
+new vm.Script(`
+  const seg = (id, kind, startSpin, endSpin, endSource) => ({
+    id, kind, source: "user", startSpin, startAt: "10:00", startTrackedBalls: 1000,
+    startBallsSource: "measured", startSource: kind === "normal" && startSpin > 0 ? "jitan" : null,
+    holdCarryHit: null, shooting: "started", lastMeasuredBalls: null, lastMeasuredSpin: null,
+    holdSpins: 0, endSource, endSpin, endAt: null, endRemainBalls: 500, endTrackedBalls: null
+  });
+  const tap = (segmentId, phase, amount) => ({ type: "mochidama", source: "mochidama", amount, time: "10:10", phase, spinAt: 10, segmentId });
+  globalThis.s17Repaired = normalizeData({
+    version: 35,
+    presetSettings: { "umi-sp5": {} },
+    sessions: [{
+      id: "s_repair", storeId: "st_1", machineId: "m_1", status: "completed",
+      startSpin: 0, startMochidama: 2500, currentMochidama: 500, consumedModel: "endpoints",
+      hitSpin: 170, hitCount: 1, hitVia: "yutime", hitRemainBalls: 500,
+      yutimeEnterSpin: 249, yutimeEnterBalls: 1535, yutimeEnterTime: "12:00",
+      endSpin: 200, endTotalBalls: 3000, hits: [], charges: [],
+      investments: [
+        tap("n1", "yutime", 125),
+        tap("y1", "normal", 250),
+        tap("n1", "normal", 125),
+        tap("y1", "yutime", 300),
+        { type: "mochidama", source: "mochidama", amount: 999, time: "10:20", phase: "yutime", spinAt: 20, segmentId: null }
+      ],
+      segments: [seg("n1", "normal", 50, 170, "hit"), seg("y1", "yutime", 249, 324, "hit")]
+    }]
+  }).sessions[0];
+  globalThis.s17AlreadyRepaired = normalizeData({
+    version: 36,
+    presetSettings: { "umi-sp5": {} },
+    sessions: [{
+      id: "s_keep", storeId: "st_1", machineId: "m_1", status: "completed",
+      startSpin: 0, startMochidama: 2500, hits: [], charges: [],
+      investments: [tap("n1", "yutime", 125)],
+      segments: [seg("n1", "normal", 50, 170, "hit")]
+    }]
+  }).sessions[0];
+`).runInContext(s17RepairContext);
+// 区間の種別に合わせて phase が直る。segmentId が無い投資は触らない
+// segmentId が空の投資は既存の applySegmentIds が phase から区間を割り当てるので、修復後も矛盾しない
+assert.deepEqual(
+  JSON.parse(JSON.stringify(s17RepairContext.s17Repaired.investments.map((item) => [item.segmentId, item.phase]))),
+  [["n1", "normal"], ["y1", "yutime"], ["n1", "normal"], ["y1", "yutime"], ["y1", "yutime"]]
+);
+assert.equal(s17RepairContext.s17Repaired.version, undefined, "セッション単体には version を持たせない");
+// schema 36 のデータは再修復しない（矛盾したままでも触らない）
+assert.equal(s17RepairContext.s17AlreadyRepaired.investments[0].phase, "yutime");
+
+// --- 第2部: 獲得期待値 -----------------------------------------------------
+assert.match(html, /const EARNED_EV_RATE_MIN = 1;\s*const EARNED_EV_RATE_MAX = 50;/);
+assert.match(resultBlock, /function earnedExpectationForSession\(session, machine = null, derived = null\)/);
+// B-2: 区間ごとの実測は使わない。セッション全体の実測を全区間に渡す
+assert.match(resultBlock, /manualRate: rate,/);
+assert.match(resultBlock, /previousSpin: index === 0 \? session\.prevDayEndSpin : 0,/);
+assert.match(resultBlock, /if \(segment\.kind !== "normal" \|\| segmentSkipsNormalPlay\(segment\)\) return;/);
+// エンジンは呼ぶだけ。新しい計算式を書かない
+assert.match(resultBlock, /const expectation = calculateMachineExpectation\(targetMachine, \{/);
+const earnedEvBlock = section('function earnedExpectationForSession', 'function earnedExpectationYen');
+assert.doesNotMatch(earnedEvBlock, /YUTIME_EXPECTATION_ENGINE/);
+// B-3: 表示
+assert.match(resultBlock, /evYen: earnedById && segment\.id \? \(earnedById\.has\(segment\.id\) \? earnedById\.get\(segment\.id\) : null\) : null,/);
+assert.match(resultBlock, /const earned = earnedExpectationForSession\(session, machine, derived\);/);
+assert.match(resultBlock, /const segmentRows = segmentBreakdownRows\(session, derived, machine, earned\);/);
+assert.match(resultBlock, /獲得期待値 \$\{escapeHtml\(yenText\(earned\.totalYen\)\)\}/);
+assert.match(openSessionResult, /<div class="result-line">獲得期待値 \$\{escapeHtml\(earned \? yenText\(earned\.totalYen\) : "-"\)\}<\/div>/);
+assert.match(openSessionResult, /期待値は各区間の起点からの獲得期待値の合計/);
+// 履歴・日別・積み上げが獲得期待値ベース
+assert.match(renderLedger, /const evYen = earnedExpectationYen\(session, machine, derived\);/);
+assert.match(renderLedger, /\$\{sessionFiguresHtml\(derived\.profitYen, evYenById\.get\(session\.id\)\)\}/);
+assert.match(resultBlock, /const earnedYen = earnedExpectationYen\(session, machine, derived\);\s*const hours = sessionWorkedHours\(session\);/);
+assert.match(resultBlock, /if \(earnedYen !== null\) evYen = \(evYen \?\? 0\) \+ earnedYen;/);
+// 開始期待値は「打つ前の判断」「想定と実測のズレ」「転記用」に残る
+assert.match(openSessionResult, /開始期待値 \$\{escapeHtml\(yenText\(startEv\.evYen\)\)\}/);
+assert.match(openSessionResult, /<tr><td>開始期待値との差<\/td>/);
+assert.match(transferSummary, /<span>開始期待値<\/span><strong>\$\{transferOptionalYenText\(summary\.startEvYen\)\}<\/strong>/);
+
+const s17EvApi = resultContext.resultApi;
+const s17Machine = { id: "m_ev", storeId: "store1", presetId: "preset1", __evByStart: { 0: 1000, 25: 1500, 50: 2000 } };
+resultContext.data.machines = [s17Machine];
+const s17Segment = (id, overrides) => ({
+  id, kind: "normal", startSpin: 0, endSpin: 200, endSource: "hit", holdSpins: 0,
+  startSource: null, shooting: "started", holdCarryHit: null, ...overrides
+});
+const s17Session = (overrides) => ({
+  machineId: "m_ev", storeId: "store1", startEv: { evYen: 1000, usedRate: 18.0, availableBalls: 2500 },
+  prevDayEndSpin: null, __rate: 20, ...overrides
+});
+// 通常区間だけを足す。遊タイム・残保留当選・打ち出しなしは除外
+const mixed = s17EvApi.earnedExpectationForSession(s17Session({
+  segments: [
+    s17Segment("a"),
+    s17Segment("b", { startSpin: 50, startSource: "jitan" }),
+    { id: "y", kind: "yutime", startSpin: 249, endSpin: 324, endSource: "hit", holdSpins: 0, shooting: "started" },
+    s17Segment("c", { startSpin: 25, startSource: "jitan", endSpin: 28, shooting: "before" }),
+    s17Segment("d", { startSpin: 25, startSource: "jitan", endSpin: 40, endSource: "end", shooting: "before" })
+  ]
+}), s17Machine, { rate: 20 });
+assert.equal(mixed.totalYen, 3000, "起点0(+1,000)と起点50(+2,000)だけを足す");
+assert.deepEqual(JSON.parse(JSON.stringify(mixed.rows.map((row) => row.segmentId))), ["a", "b"]);
+assert.equal(mixed.rateSource, "実測");
+assert.equal(mixed.rate, 20);
+// 実測が出せないときは開始期待値の想定回転率で代用し、出典を「想定」にする
+const assumed = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: null });
+assert.equal(assumed.rateSource, "想定");
+assert.equal(assumed.rate, 18.0);
+// 実測が常識的な範囲（1〜50）の外なら実測として採らない
+const outlier = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: 0.04 });
+assert.equal(outlier.rateSource, "想定");
+const tooFast = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: 60 });
+assert.equal(tooFast.rateSource, "想定");
+// 実測も想定も無ければ獲得期待値は出さない
+assert.equal(s17EvApi.earnedExpectationForSession(s17Session({ startEv: null, segments: [s17Segment("a")] }), s17Machine, { rate: null }), null);
+// 通常区間が1つも残らなければ null
+assert.equal(s17EvApi.earnedExpectationForSession(s17Session({
+  segments: [{ id: "y", kind: "yutime", startSpin: 249, endSpin: 324, endSource: "hit", holdSpins: 0, shooting: "started" }]
+}), s17Machine, { rate: 20 }), null);
+// 合計行の根拠テキスト
+assert.match(s17EvApi.earnedExpectationBasisText(mixed), /回転率20\.0・実測 ／ 1R108玉・実測平均/);
+// 区間内訳の期待値列。合計に入らない区間は null（表示は「—」）
+const s17Rows = s17EvApi.segmentBreakdownRows(s17Session({
+  segments: [
+    s17Segment("a", { consumed: 1000 }),
+    { id: "y", kind: "yutime", startSpin: 249, endSpin: 324, endSource: "hit", holdSpins: 0, shooting: "started" }
+  ]
+}), { consumedBalls: 1000, yutimeLoss: 210 }, s17Machine, mixed);
+assert.equal(s17Rows[0].evYen, 1000);
+assert.equal(s17Rows[1].evYen, null);
+
+// --- エンジンに変更が無いこと ----------------------------------------------
+// yutime-calc との文字列一致テスト（tests/yutime-calc.test.js）が本体。
+// ここでは S17 でエンジンブロックに触っていないことを、呼び出し口の形で固定する。
+assert.match(html, /const result = YUTIME_EXPECTATION_ENGINE\.calculate\(\{ presetId: preset\.id, currentSpin: engineSpin, rotationRate: rateInfo\.rate, availableBalls \}, settingsInfo\.settings\);/);
 
 console.log('yutime-v3 tests passed');

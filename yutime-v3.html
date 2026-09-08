@@ -1947,18 +1947,23 @@
     const BACKUP_KEY = STORAGE_PREFIX + "backup:latest";
     // S15: 開始持ち玉の復元は過去の収支を訂正する不可逆な移行なので、実行前のデータを専用キーへ1度だけ退避する。
     const S15_BACKUP_KEY = STORAGE_PREFIX + "backup:s15";
+    // S17/A-2: 投資phaseの修復も過去の消費玉・回転率を訂正するので、実行前データを専用キーへ1度だけ退避する。
+    const S17_BACKUP_KEY = STORAGE_PREFIX + "backup:s17";
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
     const MAP_BACKUP_KEY = STORAGE_PREFIX + "mapbackup";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 35;
+    const SCHEMA_VERSION = 36;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
     const DEFAULT_NET_BALLS_PER_ROUND = 140;
     const RATE_THRESHOLDS = { good: 17.0, bad: 15.0 };
+    // S17/B-2: 獲得期待値に実測回転率を使ってよい範囲。試算カード（clampTrialRate）と同じ帯にそろえる。
+    const EARNED_EV_RATE_MIN = 1;
+    const EARNED_EV_RATE_MAX = 50;
     const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
     const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
     const CONSUMED_BALLS_SOURCE_LABELS = { tray: "台上差", taps: "タップ合計" };
@@ -3114,6 +3119,7 @@
         }
         if (needsSegmentMigration(parsed)) backupBeforeSegmentMigration(raw);
         if (needsStartMochidamaRepair(parsed)) backupBeforeStartMochidamaRepair(raw);
+        if (needsInvestmentPhaseRepair(parsed)) backupBeforeInvestmentPhaseRepair(raw);
         return normalizeData(parsed);
       } catch (error) {
         console.warn("ytv3 load failed", error);
@@ -3150,6 +3156,39 @@
       } catch (error) {
         console.warn("ytv3 startMochidama repair backup failed", error);
       }
+    }
+
+    // S17/A-2: 遊タイム経由の当選後に打ったタップが phase:"yutime" のまま残っている旧データがある
+    // （S7 rev2/A-1 で直した isYutimeInvestmentPhase のバグの残骸）。区間の紐づけ（segmentId）は
+    // 正しく通常区間を指しているので、phase を区間の種別に合わせ直す。
+    function needsInvestmentPhaseRepair(source) {
+      return (normalizeNumber(source?.version) ?? 0) < 36;
+    }
+
+    function backupBeforeInvestmentPhaseRepair(raw) {
+      if (!raw || localStorage.getItem(S17_BACKUP_KEY)) return;
+      try {
+        localStorage.setItem(S17_BACKUP_KEY, raw);
+      } catch (error) {
+        console.warn("ytv3 investment phase repair backup failed", error);
+      }
+    }
+
+    // segmentId が解決できない投資は触らない（推測で書き換えない）。
+    function repairInvestmentPhases(session) {
+      const kindById = new Map((Array.isArray(session?.segments) ? session.segments : [])
+        .filter((segment) => segment?.id)
+        .map((segment) => [segment.id, segment.kind]));
+      let repaired = 0;
+      (Array.isArray(session?.investments) ? session.investments : []).forEach((item) => {
+        const kind = kindById.get(item.segmentId);
+        if (!kind) return;
+        const phase = kind === "yutime" ? "yutime" : "normal";
+        if (item.phase === phase) return;
+        item.phase = phase;
+        repaired += 1;
+      });
+      return repaired;
     }
 
     function preserveCorruptData(raw) {
@@ -3221,6 +3260,8 @@
         meta: { ...base.meta, ...(source.meta || {}), hourlyThresholdYen: normalizeNumber(source.meta?.hourlyThresholdYen) ?? DEFAULT_HOURLY_THRESHOLD_YEN }
       };
       const sourceVersion = normalizeNumber(source.version) ?? 0;
+      // S17/A-2: 修復件数は検証用にコンソールへ出す
+      let repairedInvestmentPhases = 0;
       next.version = SCHEMA_VERSION;
       // S11: schema 32 で netBallsPerWin の単位を「当選あたり」から「1Rあたり（玉/R）」へ変えた。
       // 31以前に保存された手入力値は当選あたりなので、その機種の平均R数で割って玉/Rに直す。
@@ -3314,9 +3355,12 @@
         normalized.segments = normalizeSessionSegments(normalized);
         applySegmentIds(normalized);
         if (sourceVersion < 35) migrateSegmentShooting(normalized);
+        // S17/A-2: 区間の紐づけが確定したあとで、矛盾している投資phaseを区間の種別に合わせる
+        if (sourceVersion < 36) repairedInvestmentPhases += repairInvestmentPhases(normalized);
         syncSessionHitTotals(normalized, next.machines);
         return normalized;
       });
+      if (repairedInvestmentPhases > 0) console.info(`ytv3 S17: 投資phaseを${repairedInvestmentPhases}件修復しました`);
       if (!next.stores.some((store) => store.id === next.activeStoreId)) next.activeStoreId = next.stores[0]?.id || null;
       next.dailyState = normalizeDailyState(next.dailyState, next.machines);
       return next;
@@ -4520,20 +4564,20 @@
     function ledgerDaySummary(entries) {
       const list = Array.isArray(entries) ? entries : [];
       let profitYen = null;
-      let startEvYen = null;
+      let evYen = null;
       let workedHours = null;
       list.forEach((entry) => {
         const profit = normalizeNumber(entry?.profitYen);
         if (profit !== null) profitYen = (profitYen ?? 0) + profit;
-        const evYen = normalizeNumber(entry?.startEvYen);
-        if (evYen !== null) startEvYen = (startEvYen ?? 0) + evYen;
+        const entryEvYen = normalizeNumber(entry?.evYen);
+        if (entryEvYen !== null) evYen = (evYen ?? 0) + entryEvYen;
         const hours = normalizeNumber(entry?.workedHours);
         if (hours !== null) workedHours = (workedHours ?? 0) + Math.max(0, hours);
       });
       const hourlyYen = profitYen !== null && workedHours !== null && workedHours > 0
         ? profitYen / workedHours
         : null;
-      return { count: list.length, profitYen, startEvYen, workedHours, hourlyYen };
+      return { count: list.length, profitYen, evYen, workedHours, hourlyYen };
     }
 
     function signedYenToneClass(value) {
@@ -4554,10 +4598,10 @@
     }
 
     // 実収支と期待値は必ずラベル付きで並べる。金額だけを単独で大きく出さない
-    function sessionFiguresHtml(profitYen, startEvYen) {
+    function sessionFiguresHtml(profitYen, evYen) {
       return `<div class="session-figures">`
         + signedFigureHtml("実収支", profitYen, "session-figure")
-        + signedFigureHtml("期待値", startEvYen, "session-figure")
+        + signedFigureHtml("期待値", evYen, "session-figure")
         + `</div>`;
     }
 
@@ -4567,7 +4611,7 @@
       return `<div class="ledger-day-summary">`
         + `<span class="ledger-day-summary-item"><strong>${summary.count}台</strong></span>`
         + signedFigureHtml("実収支", summary.profitYen, "ledger-day-summary-item")
-        + signedFigureHtml("期待値", summary.startEvYen, "ledger-day-summary-item")
+        + signedFigureHtml("期待値", summary.evYen, "ledger-day-summary-item")
         + `<span class="ledger-day-summary-item"><span class="signed-figure-label">実働</span><strong>${escapeHtml(workedText)}</strong></span>`
         + signedFigureHtml("時給", summary.hourlyYen, "ledger-day-summary-item")
         + `</div>`;
@@ -4597,20 +4641,20 @@
         return dateCompare || String(b.createdAt).localeCompare(String(a.createdAt));
       });
       const derivedById = new Map();
-      const startEvYenById = new Map();
+      // S17/B-3: 履歴カード・日別サマリーの期待値は獲得期待値（Σ区間期待値）ベース
+      const evYenById = new Map();
       const dayEntries = new Map();
       sortedSessions.forEach((session) => {
         const machine = data.machines.find((item) => item.id === session.machineId);
         const derived = deriveSession(session, machine);
-        const startEv = normalizeStartEv(session.startEv);
-        const startEvYen = startEv ? startEv.evYen : null;
+        const evYen = earnedExpectationYen(session, machine, derived);
         derivedById.set(session.id, derived);
-        startEvYenById.set(session.id, startEvYen);
+        evYenById.set(session.id, evYen);
         const dayKey = String(session.date || "");
         if (!dayEntries.has(dayKey)) dayEntries.set(dayKey, []);
         dayEntries.get(dayKey).push({
           profitYen: derived.profitYen,
-          startEvYen,
+          evYen,
           workedHours: sessionWorkedHours(session)
         });
       });
@@ -4630,7 +4674,7 @@
             <div class="row-card-head">
               <div>
                 <strong class="session-summary-line"><span>${escapeHtml(title)}</span></strong>
-                ${sessionFiguresHtml(derived.profitYen, startEvYenById.get(session.id))}
+                ${sessionFiguresHtml(derived.profitYen, evYenById.get(session.id))}
               </div>
               <span class="badge ${session.status === "completed" ? "good" : "dark"}">${session.status === "completed" ? "確定" : "稼働中"}</span>
             </div>
@@ -8381,12 +8425,82 @@
       };
     }
 
+    // S17/B-1: 獲得期待値＝通常区間ごとの「起点カウンターからの期待値」の合計。
+    // 各通常区間は「その起点から当たるまで打つ」という判断なので、足すと1日の仕事量になる。
+    // 遊タイム区間・残保留当選の区間・打ち出しをしなかった区間は、判断としての打ち出しが無いので含めない。
+    // 計算は既存の calculateMachineExpectation（＝ YUTIME_EXPECTATION_ENGINE.calculate）を呼ぶだけ。
+    function earnedExpectationForSession(session, machine = null, derived = null) {
+      const targetMachine = machine || data.machines.find((item) => item.id === session?.machineId) || null;
+      if (!targetMachine) return null;
+      const stats = derived || deriveSession(session, targetMachine);
+      const startEv = normalizeStartEv(session?.startEv);
+      // S17/B-2: 回転率はセッション全体の実測を全区間に使う。区間ごとの実測は
+      // 少数のタップに引きずられて異常値になるため（例：342.3）。
+      // 実測が出せないセッションだけ、開始期待値の想定回転率で代用して「想定」と出す。
+      // 実測が常識的な範囲（clampTrialRate と同じ 1〜50）から外れるセッションは「出せない」扱いにする。
+      // 例：2回転でヤメた記録（持ち玉11,462個・2回転＝0.04）をそのまま渡すとエンジンが桁違いの値を返す。
+      const measuredRate = normalizeNumber(stats?.rate);
+      const usedMeasured = measuredRate !== null && measuredRate >= EARNED_EV_RATE_MIN && measuredRate <= EARNED_EV_RATE_MAX;
+      const rate = usedMeasured ? measuredRate : normalizeNumber(startEv?.usedRate);
+      if (rate === null || rate <= 0) return null;
+      // 持ち玉・再プレ・現金は開始期待値と同じ扱い（startEv の入力を流用）。区間ごとに変えない。
+      const availableBalls = Math.max(0, normalizeNumber(startEv?.availableBalls) ?? 0);
+      const segments = sessionSegments(session);
+      const rows = [];
+      let totalYen = null;
+      let netBallsInfo = null;
+      segments.forEach((segment, index) => {
+        if (segment.kind !== "normal" || segmentSkipsNormalPlay(segment)) return;
+        const startSpin = normalizeNumber(segment.startSpin);
+        if (startSpin === null) return;
+        const expectation = calculateMachineExpectation(targetMachine, {
+          currentSpin: startSpin,
+          // 宵越しは打ち始め区間だけ。時短抜けの区間はカウンターがリセットされている
+          previousSpin: index === 0 ? session.prevDayEndSpin : 0,
+          manualRate: rate,
+          availableBalls,
+          // 回転率は必ず渡すので履歴累計は引かない（machineStats の全走査を避ける）
+          stats: { rate: null }
+        });
+        if (!expectation.result) return;
+        const evYen = Math.round(expectation.result.evYen);
+        if (!netBallsInfo) netBallsInfo = expectation.netBallsInfo;
+        rows.push({ segmentId: segment.id, index, startSpin, evYen });
+        totalYen = (totalYen ?? 0) + evYen;
+      });
+      if (!rows.length) return null;
+      return {
+        totalYen,
+        rate,
+        rateSource: usedMeasured ? "実測" : "想定",
+        netBallsInfo,
+        rows,
+        byId: new Map(rows.map((row) => [row.segmentId, row.evYen]))
+      };
+    }
+
+    function earnedExpectationYen(session, machine = null, derived = null) {
+      const earned = earnedExpectationForSession(session, machine, derived);
+      return earned ? earned.totalYen : null;
+    }
+
+    // S17/B-3: 合計行の根拠。回転率と1R実質出玉の出典を添える（B94「判断の場に前提を置く」）。
+    function earnedExpectationBasisText(earned) {
+      if (!earned) return "";
+      const netBalls = earned.netBallsInfo;
+      const netText = netBalls && netBalls.value !== null && netBalls.value !== undefined
+        ? `1R${Math.round(netBalls.value).toLocaleString("ja-JP")}玉・${netBalls.source}`
+        : "1R-";
+      return `回転率${earned.rate.toFixed(1)}・${earned.rateSource} ／ ${netText}`;
+    }
+
     // S3b/G4: 区間ごとの内訳。区間が1つだけなら空配列（＝ブロックを出さない）。
     // 通常区間の消費玉は、S2で通常区間が複数のときに使う区間別の式をそのまま使う。
     // 通常区間が1つのセッション（＋遊タイム区間）では、通常区間の消費玉はセッションの値と一致する。
-    function segmentBreakdownRows(session, derived, machine) {
+    function segmentBreakdownRows(session, derived, machine, earned = null) {
       const segments = sessionSegments(session);
       if (segments.length < 2) return [];
+      const earnedById = earned?.byId || null;
       const store = storeById(session.storeId);
       const preset = machine ? presetById(normalizeMachinePresetId(machine)) : null;
       const multiNormal = segments.filter((segment) => segment.kind === "normal").length > 1;
@@ -8417,6 +8531,8 @@
           endSpin: normalizeNumber(segment.endSpin),
           holdSpins,
           holdCarry,
+          // S17/B-3: 期待値は通常区間だけ。遊タイム・残保留当選・打ち出しなしは合計から外れるので null
+          evYen: earnedById && segment.id ? (earnedById.has(segment.id) ? earnedById.get(segment.id) : null) : null,
           spins: spins !== null && spins < 0 ? null : spins,
           consumed: consumed === null || consumed === undefined ? null : Math.round(consumed),
           rate: noShooting ? null : (spins !== null && spins >= 0 && consumed > 0 ? spins / consumed * 250 : null)
@@ -8450,10 +8566,11 @@
       list.forEach((session) => {
         const machine = data.machines.find((item) => item.id === session.machineId) || null;
         const derived = deriveSession(session, machine);
-        const startEv = normalizeStartEv(session.startEv);
+        // S17/B-3: 積み上げの期待値は獲得期待値（Σ区間期待値）ベースにする
+        const earnedYen = earnedExpectationYen(session, machine, derived);
         const hours = sessionWorkedHours(session);
         if (hours !== null) workedHours = (workedHours ?? 0) + Math.max(0, hours);
-        if (startEv) evYen = (evYen ?? 0) + startEv.evYen;
+        if (earnedYen !== null) evYen = (evYen ?? 0) + earnedYen;
         if (derived.profitYen !== null) profitYen = (profitYen ?? 0) + derived.profitYen;
       });
       const hourly = (value) => value !== null && workedHours !== null && workedHours > 0 ? value / workedHours : null;
@@ -8511,7 +8628,8 @@
           </div>
           <p class="hint">1回のブレです。判断の良し悪しは下の通算で見ます。</p>
         </div>` : '<p class="hint">開始時の期待値は記録されていません。</p>';
-      const segmentRows = segmentBreakdownRows(session, derived, machine);
+      const earned = earnedExpectationForSession(session, machine, derived);
+      const segmentRows = segmentBreakdownRows(session, derived, machine, earned);
       const normalMarks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
       let normalRowIndex = 0;
       // S3b/G4 → S12/B-2: 同じ情報を表の列へ割り振るだけ。値の算出方法は変えない。
@@ -8522,8 +8640,10 @@
         const endSpin = row.endSpin === null ? "-" : row.endSpin.toLocaleString("ja-JP");
         const consumed = row.consumed === null ? "-" : row.consumed.toLocaleString("ja-JP");
         const endText = `${escapeHtml(row.endLabel)}${endSpin}`;
+        // S17/B-3: 期待値列。通常区間だけ値を入れ、合計に入らない区間は「—」で出す
+        const evText = row.evYen === null || row.evYen === undefined ? "—" : yenText(row.evYen);
         if (row.kind === "yutime") {
-          return `<tr><td>${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>-</td><td>${consumed}玉</td><td>-</td></tr>`;
+          return `<tr><td>${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>-</td><td>${consumed}玉</td><td>-</td><td>—</td></tr>`;
         }
         const mark = normalMarks[normalRowIndex] || String(normalRowIndex + 1);
         normalRowIndex += 1;
@@ -8531,19 +8651,20 @@
         const rate = row.rate === null ? "-" : row.rate.toFixed(1);
         if (row.holdCarry) segmentHoldCarryMarks.push(mark);
         else if (row.holdSpins > 0) segmentHoldNotes.push(`${mark}保留${row.holdSpins}`);
-        return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${consumed}玉</td><td>${rate}</td></tr>`;
+        return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${consumed}玉</td><td>${rate}</td><td>${escapeHtml(evText)}</td></tr>`;
       }).join("");
       const segmentHtml = segmentRows.length ? `
         <div class="result-block">
           <div class="result-block-title">区間ごとの内訳</div>
           <div class="result-table-wrap">
             <table class="result-table segments">
-              <thead><tr><th>区間</th><th>起点</th><th>終点</th><th>回転数</th><th>消費玉</th><th>回転率</th></tr></thead>
+              <thead><tr><th>区間</th><th>起点</th><th>終点</th><th>回転数</th><th>消費玉</th><th>回転率</th><th>期待値</th></tr></thead>
               <tbody>${segmentBodyHtml}</tbody>
             </table>
           </div>
           ${segmentHoldNotes.length ? `<p class="hint">回転数は残保留の控除後（${escapeHtml(segmentHoldNotes.join("・"))}）</p>` : ""}
           ${segmentHoldCarryMarks.length ? `<p class="hint">${escapeHtml(segmentHoldCarryMarks.join("・"))}は残保留当選（通常時なし）。前の連チャンの続きとして数えます</p>` : ""}
+          ${earned ? `<div class="result-line result-segment-total"><strong>獲得期待値 ${escapeHtml(yenText(earned.totalYen))}</strong><small>${escapeHtml(earnedExpectationBasisText(earned))}</small></div>` : ""}
         </div>` : "";
       const scopes = resultScopeSessions(session);
       const modelAggregate = resultAggregate(scopes.model);
@@ -8559,6 +8680,7 @@
           <div class="result-line">実働 ${escapeHtml(hourText(storeAggregate.workedHours))} ／ 平均回転率 ${escapeHtml(storeRateText)}</div>
           <div class="result-line">期待値合計 ${escapeHtml(yenText(storeAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(storeAggregate.profitYen))}</div>
           <div class="result-line">期待値時給 ${escapeHtml(yenText(storeAggregate.evHourlyYen))} ／ 実収支時給 ${escapeHtml(yenText(storeAggregate.profitHourlyYen))}</div>
+          <p class="hint">期待値は各区間の起点からの獲得期待値の合計</p>
         </div>`;
       const html = `
         <div class="result-head">
@@ -8570,6 +8692,7 @@
           <div class="result-headline">${escapeHtml(yenText(derived.profitYen))}</div>
           <div class="result-line">実測回転率 ${escapeHtml(rateText(derived))} ／ 大当たり ${escapeHtml(numberText(session.hitCount, "-"))}回 ／ 1R平均 ${escapeHtml(transferOptionalRoundAverageText(summary.averageRoundBalls))}</div>
           <div class="result-line">実働 ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))}</div>
+          <div class="result-line">獲得期待値 ${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</div>
         </div>
         ${startEvHtml}
         ${segmentHtml}
