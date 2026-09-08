@@ -1578,6 +1578,46 @@
       margin-top: 12px;
     }
 
+    /* S7c/3-1,3-2,3-3: 打ち方・打ち出し状態の2択。button 既定の min-height 44px を保つ */
+    .style-choice {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-top: 6px;
+    }
+
+    .style-choice button {
+      min-height: 44px;
+      padding: 4px 6px;
+      font-size: 13px;
+      line-height: 1.25;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
+    .style-choice button.selected {
+      border-color: var(--accent);
+      background: var(--soft);
+      color: var(--accent-dark);
+      font-weight: 600;
+    }
+
+    /* S7c/3-3: 「打ち出し開始」は保留消化中だけ出す。固定全画面（スクロールなし）を崩さないよう、
+       行を増やさず既存の操作行に4列で収める */
+    .running-actions.with-shooting {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .running-actions.with-shooting button,
+    .running-panel.fullscreen .running-actions.with-shooting button {
+      min-height: 44px;
+      padding: 2px 4px;
+      font-size: 12px;
+      line-height: 1.2;
+      white-space: normal;
+      overflow-wrap: anywhere;
+    }
+
     .hit-round-layout {
       display: grid;
       grid-template-columns: minmax(0, 1fr) minmax(140px, 0.8fr);
@@ -1913,7 +1953,7 @@
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
-    const SCHEMA_VERSION = 34;
+    const SCHEMA_VERSION = 35;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
@@ -2231,6 +2271,8 @@
       // S7/B-1: 消費玉の算出方式。打ち始めのときだけ "endpoints" を付ける（startSessionBase /
       // startSameMachineContinuation）。既存データは null のままで、これまでの式を使い続ける。
       consumedModel: null,
+      // S7c/1-1: 打ち方の方針。時短抜けで作る区間の初期状態を決める
+      playStyle: "yutime",
       segments: [],
       investments: [],
       charges: [],
@@ -2511,6 +2553,19 @@
     // S7/B-2: 区間の起点が実測入力か、ツールの追跡値か。新式は実測（measured）のときだけ使う。
     function normalizeStartBallsSource(value) {
       return value === "measured" || value === "tracked" ? value : null;
+    }
+
+    // S7c/1-1: 打ち方の方針。"yutime"＝遊タイム狙い（時短抜けで打ち出しを止める）、
+    // "continuous"＝打ち切り（時短抜け後も打ち続ける）。時短抜けで作る区間の初期状態を決めるだけで、
+    // 残保留当選の判定そのものには使わない。
+    function normalizePlayStyle(value) {
+      return value === "continuous" ? "continuous" : "yutime";
+    }
+
+    // S7c/1-2: 区間の打ち出し状態。"before"＝打ち出し前（保留が回っている）、"started"＝打ち出し中。
+    // 打ち始め区間・遊タイム区間は常に "started"。
+    function normalizeShooting(value) {
+      return value === "before" ? "before" : "started";
     }
 
     function investmentSource(item) {
@@ -3231,6 +3286,8 @@
           consumedBallsSource: normalizeConsumedBallsSource(session.consumedBallsSource),
           // S7/B-1: 旧データは consumedModel を持たないので null のまま（＝従来式）。ここで補完しない。
           consumedModel: normalizeConsumedModel(session.consumedModel),
+          // S7c/§4: 旧セッションは既定の「遊タイム狙い」。以後の新しい区間の初期状態にしか効かない
+          playStyle: normalizePlayStyle(session.playStyle),
           hitTrackedBalls: normalizeNumber(session.hitTrackedBalls),
           sessionActualBalls: normalizeNumber(session.sessionActualBalls),
           carriedFromSessionId: session.carriedFromSessionId || null,
@@ -3256,6 +3313,7 @@
         if (sourceVersion < 33) repairStartMochidama(normalized, source.sessions || []);
         normalized.segments = normalizeSessionSegments(normalized);
         applySegmentIds(normalized);
+        if (sourceVersion < 35) migrateSegmentShooting(normalized);
         syncSessionHitTotals(normalized, next.machines);
         return normalized;
       });
@@ -4214,6 +4272,8 @@
       const derived = deriveSession(session, machine);
       const balances = deriveBalances(session);
       const yutimeMode = isYutimeInvestmentPhase(session);
+      // S7c/3-3: 打ち出し前（保留消化中）かどうか
+      const holdSpinPhase = isHoldSpinPhase(session);
       const stateBadge = runningStateBadge(session);
       const otherActiveSessions = activeSessionsForStore(store.id).filter((item) => item.id !== session.id);
       const currentSpin = session.currentSpin ?? session.startSpin;
@@ -4273,7 +4333,8 @@
             `}
             <div class="running-total-row"><span>消費玉数の内訳: 持ち玉${numberText(totals.mochidamaBalls, 0)}玉・再プレ${numberText(totals.saipureiBalls, 0)}玉・現金${numberText(totals.cashYen, 0)}円</span></div>
             ${yutimeMode ? '<p class="phase-note">この間の投資は通常時と分けて記録されます。</p>' : ""}
-            <div class="running-actions">
+            <div class="running-actions${holdSpinPhase ? " with-shooting" : ""}">
+              ${holdSpinPhase ? '<button class="primary" id="startShootingBtn">打ち出し開始</button>' : ""}
               <button id="enterYutimeBtn">遊タイム突入</button>
               <button class="primary" id="hitBtn">大当たり</button>
               <button id="finishBtn">ヤメ</button>
@@ -4429,6 +4490,9 @@
       els.runningArea.querySelectorAll("[data-delete-charge]").forEach((button) => {
         button.addEventListener("click", () => deleteCharge(session, Number(button.dataset.deleteCharge)));
       });
+      // S7c/3-3: 打ち出し開始と、打ち方の方針の切り替え
+      const startShootingButton = byId("startShootingBtn");
+      if (startShootingButton) startShootingButton.addEventListener("click", () => startShootingForSession(session));
       byId("enterYutimeBtn").addEventListener("click", () => openYutimeEnterForm(session.id));
       byId("hitBtn").addEventListener("click", () => openHitWizard(session.id));
       byId("finishBtn").addEventListener("click", () => openEndWizard(session.id));
@@ -6573,6 +6637,18 @@
         { key: "startSaipurei", label: "開始時の再プレイ残り", type: "number", preset: startSaipureiPreset, hint: activeCarryover ? "前の台から引き継いだ値です。未入力だった場合は空欄のままです。" : (startSaipureiPreset !== null ? previousBalanceHint : "") },
         { key: "startCredit", label: "開始時のカード残高", type: "number", preset: startCreditPreset, hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : (startCreditPreset !== null ? previousBalanceHint : "") },
         { key: "startTotalHits", label: "開始時点の累計大当たり回数（実機：データカウンターの本日大当り回数）", type: "number", preset: startTotalHitsPreset, hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
+        // S7c/3-1: 時短抜けで打ち出しを止めるかどうかの方針。以後の時短抜け区間の初期状態になる
+        {
+          key: "playStyle",
+          label: "打ち方",
+          type: "choice",
+          preset: "yutime",
+          options: [
+            { value: "yutime", label: "遊タイム狙い（時短抜けで止める）" },
+            { value: "continuous", label: "打ち切り（続けて打つ）" }
+          ],
+          hint: "時短抜けのあと、打ち出しを止めて保留を待つか、そのまま打ち続けるか。あとから変えられます。"
+        },
         { key: "labels", label: "店イベント", type: "labels", labels, hint: eventMemoHelp() }
       ], session, () => {
         if (session.currentSpin === null || session.currentSpin === undefined) session.currentSpin = session.startSpin;
@@ -6673,7 +6749,7 @@
     // S2/§1-2: 時短抜けで新しい通常時区間を開始する。変更前の区間には触れない。
     // S7/B-3: 時短抜けで入力した「そのときの台の持ち玉」があれば、それを新しい区間の起点にする。
     // 未入力のときはこれまでどおりツールの追跡値を起点にし、実測ではない印（tracked）を付ける。
-    function startNormalSegmentAfterJitan(session, counterSpin, startBalls = null) {
+    function startNormalSegmentAfterJitan(session, counterSpin, startBalls = null, shooting = null) {
       const segments = ensureSessionSegments(session);
       const machine = data.machines.find((item) => item.id === session.machineId);
       const presetId = normalizeMachinePresetId(machine);
@@ -6687,6 +6763,8 @@
         startBallsSource: measuredBalls !== null ? "measured" : "tracked",
         // S7b/B-2: 残保留当選の判定対象になるのは、時短抜けで始まったこの区間だけ
         startSource: "jitan",
+        // S7c/1-2: 初期状態は方針（playStyle）から。時短抜けの画面で選び直せる
+        shooting: shooting === null ? defaultShootingForSession(session) : normalizeShooting(shooting),
         holdSpins: presetHoldSpins(presetId)
       });
       segments.push(segment);
@@ -6866,6 +6944,11 @@
             <label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）</label>
             <input id="jitanExitStartBalls" inputmode="numeric" value="${escapeHtml(jitanExitStartBallsPreset(session) ?? "")}">
             <p class="hint">ここからの回転率を出す起点になります。計数機に入れたときは実際の値に直してください。</p>
+            <label>この後</label>
+            <div class="style-choice">
+              ${["before", "started"].map((value) => `<button type="button" class="jitanShootingChoice${value === defaultShootingForSession(session) ? " selected" : ""}" data-shooting="${value}" aria-pressed="${value === defaultShootingForSession(session) ? "true" : "false"}">${value === "before" ? "打ち出しを止める（保留を待つ）" : "打ち出しを続ける"}</button>`).join("")}
+            </div>
+            <p class="hint">打ち方の方針から選んであります。止めた場合は、打ち出したときに「打ち出し開始」を押してください。</p>
             <div class="grid two">
               <input id="jitanExitSpin" inputmode="numeric" placeholder="直接入力（回転数）">
               <button id="applyJitanExitBtn">この回転数で開始</button>
@@ -6894,12 +6977,23 @@
           openHitResetPrompt(session);
         });
       });
+      // S7c/3-2: 「この後」の選択。時短抜けを確定するまではここで切り替えるだけ
+      els.modalBody.querySelectorAll(".jitanShootingChoice").forEach((button) => {
+        button.addEventListener("click", () => {
+          els.modalBody.querySelectorAll(".jitanShootingChoice").forEach((other) => {
+            other.classList.toggle("selected", other === button);
+            other.setAttribute("aria-pressed", other === button ? "true" : "false");
+          });
+        });
+      });
+      const selectedShooting = () => els.modalBody.querySelector(".jitanShootingChoice.selected")?.dataset.shooting ?? null;
       els.modalBody.querySelectorAll("[data-hit-reset]").forEach((button) => {
         button.addEventListener("click", () => {
           // S7/B-3: 閉じると入力欄が消えるので、必ず読んでから閉じる。
           const startBalls = normalizeNumber(byId("jitanExitStartBalls")?.value);
+          const shooting = selectedShooting();
           closeModal();
-          applyJitanExit(session, Number(button.dataset.hitReset), startBalls);
+          applyJitanExit(session, Number(button.dataset.hitReset), startBalls, shooting);
         });
       });
       byId("applyJitanExitBtn").addEventListener("click", () => {
@@ -6909,9 +7003,48 @@
           return;
         }
         const startBalls = normalizeNumber(byId("jitanExitStartBalls")?.value);
+        const shooting = selectedShooting();
         closeModal();
-        applyJitanExit(session, value, startBalls);
+        applyJitanExit(session, value, startBalls, shooting);
       });
+    }
+
+    // S7c/1-3: 一度 "started" になったら、その区間では戻さない（戻すなら大当たり履歴の手動切り替え）。
+    function markSegmentShootingStarted(session, segmentId) {
+      const segment = (Array.isArray(session?.segments) ? session.segments : []).find((item) => item.id === segmentId);
+      if (!segment || segment.shooting !== "before") return false;
+      segment.shooting = "started";
+      return true;
+    }
+
+    // S7c/3-3: 「打ち出し開始」ボタン。開いている区間を打ち出し中にする。
+    function startShootingForSession(session) {
+      const segment = openSegmentOf(session);
+      if (!segment || segment.shooting !== "before") return false;
+      segment.shooting = "started";
+      session.updatedAt = nowIso();
+      if (!persistWithToast("打ち出し開始を記録しました")) {
+        segment.shooting = "before";
+        return false;
+      }
+      renderAll();
+      return true;
+    }
+
+    // S7c/3-4: 表示用。区間を作らずに、いま打っている区間を返す。
+    function currentOpenSegment(session) {
+      const segments = sessionSegments(session);
+      for (let index = segments.length - 1; index >= 0; index -= 1) {
+        const segment = segments[index];
+        if (segment.endSpin === null || segment.endSpin === undefined) return segment;
+      }
+      return null;
+    }
+
+    // S7c/3-3: 打ち出し前（保留消化中）かどうか。状態バッジと「打ち出し開始」ボタンの出し分けに使う。
+    function isHoldSpinPhase(session) {
+      const segment = currentOpenSegment(session);
+      return Boolean(segment) && segment.kind === "normal" && segment.startSource === "jitan" && segment.shooting === "before";
     }
 
     // S7b/B-4: 直前に閉じた区間が残保留当選なら、その場で明示する。
@@ -6919,8 +7052,16 @@
     function holdCarryNoticeHtml(session) {
       const segments = sessionSegments(session);
       const last = segments[segments.length - 1];
-      if (!last || !segmentIsHoldCarryHit(last)) return "";
-      return '<p class="hint warn">残保留当選（通常時なし）として、前の連チャンの続きに記録します。扱いは「大当たり履歴」で切り替えられます。</p>';
+      if (!last) return "";
+      const lines = [];
+      if (segmentIsHoldCarryHit(last)) {
+        lines.push("残保留当選（通常時なし）として、前の連チャンの続きに記録します。");
+      }
+      // S7c/2-1: 判定は変えず、押し忘れ・入力ミスの気づきだけを添える
+      const warning = segmentShootingWarning(last, session);
+      if (warning) lines.push(warning);
+      if (!lines.length) return "";
+      return `<p class="hint warn">${escapeHtml(lines.join(" "))}扱いは「大当たり履歴」で切り替えられます。</p>`;
     }
 
     // S7/B-3: 時短抜けの起点になる持ち玉の初期値。
@@ -6934,9 +7075,15 @@
 
     // S2/§1-2: 新しい通常時区間を追加してから現在回転数を合わせる（順序を入れ替えないこと）。
     // setCurrentSpinWithUndo が persist して区間を保存するため。
-    function applyJitanExit(session, counterSpin, startBalls = null) {
+    // S7c/1-1: 方針から決まる、時短抜け区間の初期状態。
+    // 遊タイム狙いは打ち出しを止めて保留を待つので "before"、打ち切りは続けて打つので "started"。
+    function defaultShootingForSession(session) {
+      return normalizePlayStyle(session?.playStyle) === "continuous" ? "started" : "before";
+    }
+
+    function applyJitanExit(session, counterSpin, startBalls = null, shooting = null) {
       const measuredBalls = normalizeNumber(startBalls);
-      startNormalSegmentAfterJitan(session, counterSpin, measuredBalls);
+      startNormalSegmentAfterJitan(session, counterSpin, measuredBalls, shooting);
       setCurrentSpinWithUndo(session, counterSpin);
       // S7/B-3: 入力した起点の持ち玉は現在の持ち玉にも入れる。直接代入せず既存経路を通す。
       if (measuredBalls !== null) updateMochidamaBalanceWithUndo(session, measuredBalls);
@@ -7465,6 +7612,15 @@
             byId("nextStepBtn").click();
           });
         }
+        // S7c/3-1: 2択はタップで選択状態を切り替えるだけ。確定は「次へ」に任せる
+        els.modalBody.querySelectorAll(".wizardChoice").forEach((button) => {
+          button.addEventListener("click", () => {
+            els.modalBody.querySelectorAll(".wizardChoice").forEach((other) => {
+              other.classList.toggle("selected", other === button);
+              other.setAttribute("aria-pressed", other === button ? "true" : "false");
+            });
+          });
+        });
         byId("skipStepBtn").addEventListener("click", () => {
           draft[step.key] = step.type === "labels" ? [] : null;
           if (options.afterStep) options.afterStep(step, draft, index);
@@ -7504,6 +7660,13 @@
       if (step.type === "textarea") {
         return `<textarea id="wizardValue">${escapeHtml(value || "")}</textarea>${step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : ""}`;
       }
+      // S7c/3-1: 2択の選択肢。タップ領域は button 既定の44px以上を保つ。
+      if (step.type === "choice") {
+        const selected = value ?? step.preset ?? step.options?.[0]?.value ?? null;
+        return `${step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : ""}<div class="style-choice">${(step.options || []).map((option) => `
+          <button type="button" class="wizardChoice${option.value === selected ? " selected" : ""}" data-choice="${escapeHtml(option.value)}" aria-pressed="${option.value === selected ? "true" : "false"}">${escapeHtml(option.label)}</button>
+        `).join("")}</div>`;
+      }
       if (step.type === "labels") {
         const chosen = new Set(Array.isArray(value) ? value : []);
         return `${step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : ""}<div class="label-checks">${(step.labels || []).map((label) => `
@@ -7517,6 +7680,10 @@
     }
 
     function readWizardValue(step) {
+      if (step.type === "choice") {
+        const selected = document.querySelector(".wizardChoice.selected");
+        return selected ? selected.dataset.choice : (step.preset ?? null);
+      }
       if (step.type === "labels") return [...document.querySelectorAll(".wizardLabel:checked")].map((input) => input.value);
       const input = byId("wizardValue");
       if (!input) return null;
@@ -7528,8 +7695,10 @@
     // B94: いまツールがどの状態として扱っているかを1語で出す
     // S4/D-1: S2で時短抜けを入力できるようになり、当選後の宙ぶらりんな状態がほぼ無くなった。
     // 状態は「通常時」「遊タイム中」の2つだけにする。
+    // S7c/3-4: 時短抜けで打ち出しを止めている間は「保留消化中」を加える（打ち出し開始で通常時に戻る）。
     function runningStateBadge(session) {
       if (isYutimeInvestmentPhase(session)) return { label: "遊タイム中", className: "warn" };
+      if (isHoldSpinPhase(session)) return { label: "保留消化中", className: "warn" };
       return { label: "通常時", className: "" };
     }
 
@@ -8233,8 +8402,10 @@
         const holdSpins = Math.max(0, Number(segment.holdSpins || 0));
         // S7b/B-3: 残保留当選の区間は通常時なし。回転数0・消費玉0で出し、回転率は出さない。
         const holdCarry = isNormal && segmentIsHoldCarryHit(segment);
+        // S7c/§5-8: 保留消化だけで終わった区間（当選せずヤメ）も回転数0・消費玉0で出す
+        const noShooting = isNormal && segmentSkipsNormalPlay(segment);
         const spins = isNormal ? segmentPlayedSpins(segment, session, preset) : null;
-        const consumed = holdCarry ? 0 : (isNormal
+        const consumed = noShooting ? 0 : (isNormal
           ? (multiNormal ? segmentTapConsumedBalls(segment, session, store) : derived.consumedBalls)
           : derived.yutimeLoss);
         return {
@@ -8248,7 +8419,7 @@
           holdCarry,
           spins: spins !== null && spins < 0 ? null : spins,
           consumed: consumed === null || consumed === undefined ? null : Math.round(consumed),
-          rate: holdCarry ? null : (spins !== null && spins >= 0 && consumed > 0 ? spins / consumed * 250 : null)
+          rate: noShooting ? null : (spins !== null && spins >= 0 && consumed > 0 ? spins / consumed * 250 : null)
         };
       });
     }
@@ -8675,6 +8846,8 @@
       }
       const item = { type: source, source, amount, time, phase: currentInvestmentPhase(session), spinAt: session.currentSpin ?? session.startSpin, segmentId: currentSegmentId(session) };
       session.investments.push(item);
+      // S7c/1-3: 投資タップが入った区間は打ち出しが始まっている（「打ち出し開始」の押し忘れの救済）
+      markSegmentShootingStarted(session, item.segmentId);
       session.updatedAt = nowIso();
       const balls = Math.round(investmentToBalls(item, storeById(session.storeId)));
       if (!persist()) {
@@ -8949,6 +9122,7 @@
           ${fieldHtml("zanhoryuBalls", "残保留増減", session.zanhoryuBalls)}
           ${fieldHtml("settlementRecoverYen", "回収金額", session.settlementRecoverYen)}
         </div>
+        ${playStyleEditorHtml(session)}
         ${segmentHoldSpinsEditorHtml(session)}
         ${consumedBallsSourceEditorHtml(session)}
         ${investmentTotalEditorHtml(session)}
@@ -8976,6 +9150,15 @@
         session.status = "completed";
         byId("saveSessionEditBtn").click();
       });
+      // S7c/3-1: 打ち方の2択。確定は「保存」に任せる
+      els.modalBody.querySelectorAll(".playStyleChoice").forEach((button) => {
+        button.addEventListener("click", () => {
+          els.modalBody.querySelectorAll(".playStyleChoice").forEach((other) => {
+            other.classList.toggle("selected", other === button);
+            other.setAttribute("aria-pressed", other === button ? "true" : "false");
+          });
+        });
+      });
       byId("saveSessionEditBtn").addEventListener("click", () => {
         ["date", "startTime", "endTime", "yutimeEnterTime"].forEach((key) => {
           const value = byId("edit_" + key).value.trim();
@@ -9000,6 +9183,9 @@
         });
         applyInvestmentTotalAdjustments(session);
         session.hitVia = byId("editHitVia").value || null;
+        // S7c/3-1: 打ち方の方針。以後の新しい区間の初期状態にだけ効く
+        const playStyleChoice = els.modalBody.querySelector(".playStyleChoice.selected");
+        if (playStyleChoice) session.playStyle = normalizePlayStyle(playStyleChoice.dataset.playStyle);
         const consumedBallsSourceSelect = byId("editConsumedBallsSource");
         if (consumedBallsSourceSelect) session.consumedBallsSource = normalizeConsumedBallsSource(byId("editConsumedBallsSource").value);
         session.labels = [...document.querySelectorAll(".editLabel:checked")].map((input) => input.value);
@@ -9009,6 +9195,27 @@
         closeModal();
         renderAll();
       });
+    }
+
+    // S7c/3-1: 打ち方の方針の変更。稼働中パネルの「記録の修正・削除」から開く。
+    // 稼働中パネル本体には常時表示の操作を足さない（320pxで固定全画面がスクロールに変わるため）。
+    function playStyleEditorHtml(session) {
+      const selected = normalizePlayStyle(session.playStyle);
+      const options = [
+        { value: "yutime", label: "遊タイム狙い（時短抜けで止める）" },
+        { value: "continuous", label: "打ち切り（続けて打つ）" }
+      ];
+      return `
+        <div class="field-row">
+          <label>打ち方</label>
+          <div>
+            <div class="style-choice">
+              ${options.map((option) => `<button type="button" class="playStyleChoice${option.value === selected ? " selected" : ""}" data-play-style="${option.value}" aria-pressed="${option.value === selected ? "true" : "false"}">${escapeHtml(option.label)}</button>`).join("")}
+            </div>
+            <p class="hint">時短抜けで作る区間の初期状態が変わります。すでに始まっている区間はそのままです。</p>
+          </div>
+        </div>
+      `;
     }
 
     // S2/§2-1: 区間ごとの無料保留（0〜9）。残保留が5個だった等の例外に対応する。
@@ -9177,6 +9384,8 @@
         startBallsSource: null,
         // S7b/B-2: 区間の始まり方。"jitan" は時短抜けで始まった区間（残保留当選の判定対象）
         startSource: null,
+        // S7c/1-2: 打ち出し状態。時短抜けの区間だけ "before" で始まりうる
+        shooting: "started",
         // S7b/B-3: 残保留当選かどうかの手動指定。null は自動判定
         holdCarryHit: null,
         // S7b/A-2: 途中測定点。開いている区間の持ち玉を実測値に修正したときの値と、そのときの回転数
@@ -9201,6 +9410,7 @@
         startTrackedBalls: normalizeNumber(segment?.startTrackedBalls),
         startBallsSource: normalizeStartBallsSource(segment?.startBallsSource),
         startSource: segment?.startSource === "jitan" ? "jitan" : null,
+        shooting: normalizeShooting(segment?.shooting),
         holdCarryHit: segment?.holdCarryHit === true ? true : (segment?.holdCarryHit === false ? false : null),
         lastMeasuredBalls: normalizeNumber(segment?.lastMeasuredBalls),
         lastMeasuredSpin: normalizeNumber(segment?.lastMeasuredSpin),
@@ -9254,6 +9464,7 @@
             holdSpins: prior ? Number(prior.holdSpins || 0) : segment.holdSpins,
             // S7b: 組み直しで消してはいけない区間の状態（途中測定点・残保留当選の手動指定・始まり方）
             startSource: prior?.startSource === "jitan" ? "jitan" : segment.startSource,
+            shooting: prior ? normalizeShooting(prior.shooting) : segment.shooting,
             holdCarryHit: prior && prior.holdCarryHit !== undefined ? prior.holdCarryHit : segment.holdCarryHit,
             lastMeasuredBalls: prior ? normalizeNumber(prior.lastMeasuredBalls) : segment.lastMeasuredBalls,
             lastMeasuredSpin: prior ? normalizeNumber(prior.lastMeasuredSpin) : segment.lastMeasuredSpin
@@ -9397,10 +9608,19 @@
       return normalizeNumber(session?.endSpin);
     }
 
-    // S7b/B-2: 時短抜け直後の残保留（既定5個）で当たった区間。実態は通常時0回転なので、
-    // カウンターの差だけで自動判定する（入力欄は増やさない）。境界は「≦」。
-    // 判定対象は時短抜けで始まった区間だけ。打ち始め区間・遊タイム区間は対象外。
+    // S7c/§2: 残保留で当たったかどうかは回転数ではなく「打ち出しがあったか」で決まる。
+    // 遊タイム狙いは時短抜けで打ち出しを止めて保留が回るのを待つ。打ち切りは時短抜け後も打ち続ける
+    // （保留5個以上で短縮変動が効くため）ので、数回転後に当たっても新しい当たりになる。
+    // 判定対象は時短抜けで始まった区間だけ。打ち始め区間・遊タイム区間は常に "started" なので対象外。
     function detectHoldCarryHit(segment) {
+      if (segment?.kind !== "normal" || segment?.startSource !== "jitan") return false;
+      if (segment?.endSource !== "hit") return false;
+      return segment?.shooting === "before";
+    }
+
+    // S7c/§4: S7bの回転数ベースの判定。移行（既存区間の shooting 補完）でだけ使う。
+    // 現行の判定には使わない。ここを消すと既存データの判定結果が保てない。
+    function legacyHoldCarryHit(segment) {
       if (segment?.kind !== "normal" || segment?.startSource !== "jitan") return false;
       if (segment?.endSource !== "hit") return false;
       const start = normalizeNumber(segment?.startSpin);
@@ -9408,6 +9628,40 @@
       if (start === null || end === null) return false;
       const played = end - start;
       return played >= 0 && played <= Math.max(0, Number(segment?.holdSpins || 0));
+    }
+
+    // S7c/§4: schema 35 への移行。S7bの自動判定が true だった区間だけ "before" にすることで、
+    // 既存データの残保留当選の判定結果を変えない。手動指定（holdCarryHit）はそのまま優先される。
+    function migrateSegmentShooting(session) {
+      (Array.isArray(session?.segments) ? session.segments : []).forEach((segment) => {
+        segment.shooting = legacyHoldCarryHit(segment) ? "before" : "started";
+      });
+      return session;
+    }
+
+    // S7c/§2・§5-8: 打ち出していない区間には通常時が無い。回転率・消費玉の集計から外す。
+    // 当選で閉じた区間は残保留当選の判定（手動指定を含む）に従い、ヤメで閉じた区間・
+    // まだ開いている区間は打ち出し状態そのままで判断する（保留消化だけの区間も0にする）。
+    function segmentSkipsNormalPlay(segment) {
+      if (segment?.endSource === "hit") return segmentIsHoldCarryHit(segment);
+      return segment?.kind === "normal" && segment?.startSource === "jitan" && segment?.shooting === "before";
+    }
+
+    // S7c/2-1: 回転数はここでだけ使う。判定は変えず、押し忘れ・入力ミスの気づきにする。
+    function segmentShootingWarning(segment, session) {
+      if (segment?.kind !== "normal" || segment?.startSource !== "jitan" || segment?.endSource !== "hit") return "";
+      const start = normalizeNumber(segment?.startSpin);
+      const end = normalizeNumber(segment?.endSpin);
+      if (start === null || end === null) return "";
+      const played = end - start;
+      const holdSpins = Math.max(0, Number(segment?.holdSpins || 0));
+      if (segment.shooting === "before" && played > holdSpins + 3) {
+        return `保留だけで${played}回転は多いです。「打ち出し開始」を押し忘れていませんか。`;
+      }
+      if (segment.shooting === "started" && played <= holdSpins && segmentNormalInvestments(session, segment?.id).length === 0) {
+        return "打ち出し前の当選ではありませんか。";
+      }
+      return "";
     }
 
     // S7b/B-4: 自動判定は holdCarryHit が null のときだけ。true / false は手動指定（大当たり履歴）。
@@ -9418,8 +9672,8 @@
     }
 
     function segmentPlayedSpins(segment, session, preset = null) {
-      // S7b/B-3: 残保留当選の区間は通常時なし。回転率の集計から外す。
-      if (segmentIsHoldCarryHit(segment)) return 0;
+      // S7b/B-3・S7c/§2: 打ち出していない区間は通常時なし。回転率の集計から外す。
+      if (segmentSkipsNormalPlay(segment)) return 0;
       const start = normalizeNumber(segment?.startSpin);
       const end = segmentEndSpinForRate(segment, session, preset);
       if (start === null || end === null) return null;
@@ -9466,8 +9720,8 @@
 
     function segmentConsumedBalls(segment, context) {
       const { session, store, tapMode, hasHit, inputBalls, candidates, legacyEndBalls, multiNormal } = context;
-      // S7b/B-3: 残保留当選の区間は通常時なし。消費玉0で回転率の集計から外す。
-      if (segmentIsHoldCarryHit(segment)) return 0;
+      // S7b/B-3・S7c/§2: 打ち出していない区間は通常時なし。消費玉0で回転率の集計から外す。
+      if (segmentSkipsNormalPlay(segment)) return 0;
       const endpointBalls = segmentEndpointConsumedBalls(segment, session, store);
       if (endpointBalls !== null) return endpointBalls;
       if (multiNormal) return segmentTapConsumedBalls(segment, session, store);
@@ -9541,7 +9795,7 @@
       // 1つでもタップ合計に頼っていれば「目安」。残保留当選の区間は通常時なしなので数に入れない。
       const consumedBallsMeasured = usesEndpointConsumedModel(session)
         && normalSegments.length > 0
-        && normalSegments.every((segment) => segmentIsHoldCarryHit(segment) || segmentEndpointConsumedBalls(segment, session, store) !== null);
+        && normalSegments.every((segment) => segmentSkipsNormalPlay(segment) || segmentEndpointConsumedBalls(segment, session, store) !== null);
       // S7b/B-3: 残保留当選の区間に投資が残っているときは入力ミスの可能性があるので警告する。
       const holdCarryWithTaps = normalSegments.some((segment) => segmentIsHoldCarryHit(segment)
         && segmentNormalInvestments(session, segment?.id).length > 0);

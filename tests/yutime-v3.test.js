@@ -436,7 +436,7 @@ assert.doesNotMatch(hitResetPrompt, /id="saveHitMochidamaBtn"/);
 assert.doesNotMatch(hitResetPrompt, /持ち玉を更新<\/button>/);
 assert.match(hitResetPrompt, /hitMochidamaInput\.addEventListener\("change", \(\) => \{\s*if \(!saveHitMochidamaInput\(session\)\) return;/);
 assert.match(hitResetPrompt, /id="openHitHistoryBtn"/);
-assert.match(hitResetPrompt, /closeModal\(\);\s*applyJitanExit\(session, Number\(button\.dataset\.hitReset\), startBalls\);/);
+assert.match(hitResetPrompt, /closeModal\(\);\s*applyJitanExit\(session, Number\(button\.dataset\.hitReset\), startBalls, shooting\);/);
 assert.match(hitResetPrompt, /data-hit-reset="\$\{option\.counterSpin\}"/);
 assert.match(hitResetPrompt, /時短\$\{option\.jitanSpins\} → カウンター\$\{option\.counterSpin\}/);
 assert.match(hitResetPrompt, /id="jitanExitSpin"/);
@@ -2871,7 +2871,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 34;/);
+assert.match(html, /const SCHEMA_VERSION = 35;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3178,7 +3178,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
-  const SCHEMA_VERSION = 34;
+  const SCHEMA_VERSION = 35;
   const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
@@ -4668,7 +4668,7 @@ assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerW
 assert.equal(s11MigrationContext.migrated.presetSettings['umi-sp5'].netBallsPerWinManual, true);
 assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWin, 108);
 assert.equal(s11MigrationContext.migrated.presetSettings['agnes-pe'].netBallsPerWinManual, true);
-assert.equal(s11MigrationContext.migrated.version, 34);
+assert.equal(s11MigrationContext.migrated.version, 35);
 // 32以降のデータは二重変換しない
 assert.equal(s11MigrationContext.already32.presetSettings['umi-sp5'].netBallsPerWin, 130);
 assert.equal(s11MigrationContext.already32.presetSettings['agnes-pe'].netBallsPerWin, 108);
@@ -4722,7 +4722,7 @@ assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBal
 assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
 
 // --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
-assert.match(html, /const SCHEMA_VERSION = 34;/);
+assert.match(html, /const SCHEMA_VERSION = 35;/);
 assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
 assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
 assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
@@ -4741,7 +4741,7 @@ new vm.Script(`
     ]
   });
 `).runInContext(s7SchemaContext);
-assert.equal(s7SchemaContext.s7Migrated.version, 34);
+assert.equal(s7SchemaContext.s7Migrated.version, 35);
 // 旧セッションは補完しない（＝従来式のまま）
 assert.equal(s7SchemaContext.s7Migrated.sessions[0].consumedModel, null);
 assert.equal(s7SchemaContext.s7Migrated.sessions[1].consumedModel, "endpoints");
@@ -4750,11 +4750,11 @@ assert.equal(s7SchemaContext.s7Migrated.sessions[2].consumedModel, null);
 // --- B-3: 時短抜けの入力に「そのときの台の持ち玉」を置く ---------------------
 assert.match(hitResetPrompt, /<label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）<\/label>/);
 assert.match(hitResetPrompt, /id="jitanExitStartBalls" inputmode="numeric" value="\$\{escapeHtml\(jitanExitStartBallsPreset\(session\) \?\? ""\)\}"/);
-assert.match(hitResetPrompt, /const startBalls = normalizeNumber\(byId\("jitanExitStartBalls"\)\?\.value\);\s*closeModal\(\);/);
-assert.match(hitResetPrompt, /applyJitanExit\(session, value, startBalls\);/);
+assert.match(hitResetPrompt, /const startBalls = normalizeNumber\(byId\("jitanExitStartBalls"\)\?\.value\);\s*const shooting = selectedShooting\(\);\s*closeModal\(\);/);
+assert.match(hitResetPrompt, /applyJitanExit\(session, value, startBalls, shooting\);/);
 assert.match(hitResetPrompt, /function jitanExitStartBallsPreset\(session\) \{[\s\S]*?const chainBalls = chainActualBallsBefore\(session\);\s*return Math\.round\(current \+ \(chainBalls > 0 \? chainBalls : 0\)\);/);
 assert.match(hitResetPrompt, /if \(measuredBalls !== null\) updateMochidamaBalanceWithUndo\(session, measuredBalls\);/);
-assert.match(hitResetPrompt, /startNormalSegmentAfterJitan\(session, counterSpin, measuredBalls\);/);
+assert.match(hitResetPrompt, /startNormalSegmentAfterJitan\(session, counterSpin, measuredBalls, shooting\);/);
 const startNormalSegmentBlock = section('function startNormalSegmentAfterJitan', 'function closeSegmentOnHit');
 assert.match(startNormalSegmentBlock, /startTrackedBalls: measuredBalls !== null \? measuredBalls : deriveBalances\(session\)\.mochidama,/);
 assert.match(startNormalSegmentBlock, /startBallsSource: measuredBalls !== null \? "measured" : "tracked",/);
@@ -4955,7 +4955,7 @@ assert.match(holdCarryBlock, /if \(segment\?\.kind !== "normal" \|\| segment\?\.
 assert.match(holdCarryBlock, /if \(segment\?\.endSource !== "hit"\) return false;/);
 assert.match(holdCarryBlock, /return played >= 0 && played <= Math\.max\(0, Number\(segment\?\.holdSpins \|\| 0\)\);/);
 assert.match(holdCarryBlock, /function segmentIsHoldCarryHit\(segment\) \{\s*if \(segment\?\.holdCarryHit === true\) return true;\s*if \(segment\?\.holdCarryHit === false\) return false;\s*return detectHoldCarryHit\(segment\);/);
-assert.match(segmentBlock, /if \(segmentIsHoldCarryHit\(segment\)\) return 0;/);
+assert.match(segmentBlock, /if \(segmentSkipsNormalPlay\(segment\)\) return 0;/);
 assert.match(startNormalSegmentBlock, /startSource: "jitan",/);
 // 保存する segmentId は打っていた区間のまま。寄せるのは参照するときだけ
 assert.match(hitHistoryBlock, /function resolveHitSegmentId\(session, hit\) \{\s*return resolveSegmentChainId\(session, storedHitSegmentId\(session, hit\)\);/);
@@ -4981,37 +4981,113 @@ new vm.Script(`
     const number = Number(value);
     return Number.isFinite(number) ? number : null;
   }
+  function segmentNormalInvestments(session, segmentId) {
+    if (!segmentId) return [];
+    return (Array.isArray(session?.investments) ? session.investments : [])
+      .filter((item) => item.phase !== "yutime" && item.segmentId === segmentId);
+  }
   ${holdCarryBlock}
-  const jitan = (overrides) => ({ kind: "normal", startSource: "jitan", endSource: "hit", holdSpins: 5, ...overrides });
-  globalThis.s7bHoldCarry = {
-    // C-4: 時短抜け25 → 当選28（hold5）
-    c4: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28 })),
-    // C-5: 時短抜け25 → 当選31（hold5）
-    c5: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 31 })),
-    // C-6: 時短抜け50 → 当選54、hold4。境界は「≦」
-    c6: segmentIsHoldCarryHit(jitan({ startSpin: 50, endSpin: 54, holdSpins: 4 })),
-    c6Over: segmentIsHoldCarryHit(jitan({ startSpin: 50, endSpin: 55, holdSpins: 4 })),
-    // C-7: 打ち始め区間（時短抜け由来でない）は対象外
-    c7: segmentIsHoldCarryHit({ kind: "normal", startSource: null, endSource: "hit", startSpin: 0, endSpin: 3, holdSpins: 5 }),
-    // 遊タイム区間・まだ閉じていない区間・ヤメで閉じた区間は対象外
-    yutime: segmentIsHoldCarryHit({ kind: "yutime", startSource: "jitan", endSource: "hit", startSpin: 900, endSpin: 902, holdSpins: 5 }),
-    open: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: null, endSource: null })),
-    ended: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28, endSource: "end" })),
-    // 手動指定は自動判定より優先する
-    manualOff: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28, holdCarryHit: false })),
-    manualOn: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 31, holdCarryHit: true }))
+  // S7c: 打ち出し状態で判定する。既定は "started"（打ち出し中）
+  const jitan = (overrides) => ({ kind: "normal", startSource: "jitan", endSource: "hit", holdSpins: 5, shooting: "started", ...overrides });
+  globalThis.s7cHoldCarry = {
+    // §5-1: 遊タイム狙い・何もせず・起点25→28 → 残保留当選
+    c1: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28, shooting: "before" })),
+    // §5-2: 保留だけで8回転（判定は変わらず残保留当選。警告だけ出る）
+    c2: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 33, shooting: "before" })),
+    // §5-3: 打ち出し開始を押した → 通常当選（回転数は同じ3回転でも判定が変わる）
+    c3: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28, shooting: "started" })),
+    // §5-4: タップ1回で started になっている → 通常当選
+    c4: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 27, shooting: "started" })),
+    // §5-5: 打ち切りの初期状態は started → 通常当選
+    c5: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28, shooting: "started" })),
+    // §5-6: 打ち切りでも時短抜け画面で「止める」を選べば残保留当選
+    c6: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28, shooting: "before" })),
+    // §5-7: 打ち始め区間（時短抜け由来でない）は対象外
+    c7: segmentIsHoldCarryHit({ kind: "normal", startSource: null, endSource: "hit", startSpin: 0, endSpin: 3, holdSpins: 5, shooting: "before" }),
+    // 遊タイム区間・まだ閉じていない区間・ヤメで閉じた区間は残保留当選にしない
+    yutime: segmentIsHoldCarryHit({ kind: "yutime", startSource: "jitan", endSource: "hit", startSpin: 900, endSpin: 902, holdSpins: 5, shooting: "before" }),
+    open: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: null, endSource: null, shooting: "before" })),
+    ended: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28, endSource: "end", shooting: "before" })),
+    // 手動指定は自動判定より優先する（S7bのまま）
+    manualOff: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 28, shooting: "before", holdCarryHit: false })),
+    manualOn: segmentIsHoldCarryHit(jitan({ startSpin: 25, endSpin: 31, shooting: "started", holdCarryHit: true }))
   };
+  // §5-8: 打ち出さずヤメた区間も通常時なし（回転数0・消費玉0）
+  globalThis.s7cSkips = {
+    beforeHit: segmentSkipsNormalPlay(jitan({ startSpin: 25, endSpin: 28, shooting: "before" })),
+    beforeEnd: segmentSkipsNormalPlay(jitan({ startSpin: 25, endSpin: 30, endSource: "end", shooting: "before" })),
+    beforeOpen: segmentSkipsNormalPlay(jitan({ startSpin: 25, endSpin: null, endSource: null, shooting: "before" })),
+    startedEnd: segmentSkipsNormalPlay(jitan({ startSpin: 25, endSpin: 30, endSource: "end", shooting: "started" })),
+    firstSegment: segmentSkipsNormalPlay({ kind: "normal", startSource: null, endSource: "end", startSpin: 0, endSpin: 300, holdSpins: 0, shooting: "started" })
+  };
+  // §2-1: 警告。判定は変えない
+  globalThis.s7cWarnings = {
+    // 保留だけで8回転（holdSpins 5 + 3 = 8 は境界なので出ない）
+    beforeBoundary: segmentShootingWarning(jitan({ id: "s1", startSpin: 25, endSpin: 33, shooting: "before" }), {}),
+    // 9回転なら出る
+    beforeTooMany: segmentShootingWarning(jitan({ id: "s1", startSpin: 25, endSpin: 34, shooting: "before" }), {}),
+    // started で保留内・投資なし
+    startedNoTaps: segmentShootingWarning(jitan({ id: "s1", startSpin: 25, endSpin: 28, shooting: "started" }), {}),
+    // started で保留内でも投資があれば出さない
+    startedWithTaps: segmentShootingWarning(jitan({ id: "s1", startSpin: 25, endSpin: 28, shooting: "started" }), { investments: [{ segmentId: "s1", phase: "normal", amount: 125 }] }),
+    // 打ち始め区間は対象外
+    firstSegment: segmentShootingWarning({ kind: "normal", startSource: null, endSource: "hit", startSpin: 0, endSpin: 3, holdSpins: 5, shooting: "before" }, {})
+  };
+  // §4: 移行に使うS7bの回転数ベースの判定。ここが変わると既存データの判定結果が保てない
+  const legacy = (overrides) => ({ kind: "normal", startSource: "jitan", endSource: "hit", holdSpins: 5, ...overrides });
+  globalThis.s7cLegacy = {
+    inside: legacyHoldCarryHit(legacy({ startSpin: 25, endSpin: 28 })),
+    outside: legacyHoldCarryHit(legacy({ startSpin: 25, endSpin: 31 })),
+    boundary: legacyHoldCarryHit(legacy({ startSpin: 50, endSpin: 54, holdSpins: 4 })),
+    boundaryOver: legacyHoldCarryHit(legacy({ startSpin: 50, endSpin: 55, holdSpins: 4 })),
+    firstSegment: legacyHoldCarryHit({ kind: "normal", startSource: null, endSource: "hit", startSpin: 0, endSpin: 3, holdSpins: 5 })
+  };
+  // 移行後の shooting はS7bの判定結果をそのまま写す
+  const migrated = {
+    segments: [
+      legacy({ id: "m1", startSpin: 25, endSpin: 28 }),
+      legacy({ id: "m2", startSpin: 25, endSpin: 31 }),
+      { id: "m3", kind: "normal", startSource: null, endSource: "end", startSpin: 0, endSpin: 300, holdSpins: 0 }
+    ]
+  };
+  migrateSegmentShooting(migrated);
+  globalThis.s7cMigrated = migrated.segments.map((segment) => segment.shooting);
+  globalThis.s7cMigratedDetect = migrated.segments.map((segment) => segmentIsHoldCarryHit(segment));
 `).runInContext(s7bHoldCarryContext);
-assert.equal(s7bHoldCarryContext.s7bHoldCarry.c4, true);
-assert.equal(s7bHoldCarryContext.s7bHoldCarry.c5, false);
-assert.equal(s7bHoldCarryContext.s7bHoldCarry.c6, true);
-assert.equal(s7bHoldCarryContext.s7bHoldCarry.c6Over, false);
-assert.equal(s7bHoldCarryContext.s7bHoldCarry.c7, false);
-assert.equal(s7bHoldCarryContext.s7bHoldCarry.yutime, false);
-assert.equal(s7bHoldCarryContext.s7bHoldCarry.open, false);
-assert.equal(s7bHoldCarryContext.s7bHoldCarry.ended, false);
-assert.equal(s7bHoldCarryContext.s7bHoldCarry.manualOff, false);
-assert.equal(s7bHoldCarryContext.s7bHoldCarry.manualOn, true);
+// §5の検算8件。判定の引き金は回転数ではなく打ち出し状態
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.c1, true);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.c2, true);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.c3, false);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.c4, false);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.c5, false);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.c6, true);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.c7, false);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.yutime, false);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.open, false);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.ended, false);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.manualOff, false);
+assert.equal(s7bHoldCarryContext.s7cHoldCarry.manualOn, true);
+// §5-8: 打ち出していない区間は当選の有無に関わらず通常時なし
+assert.equal(s7bHoldCarryContext.s7cSkips.beforeHit, true);
+assert.equal(s7bHoldCarryContext.s7cSkips.beforeEnd, true);
+assert.equal(s7bHoldCarryContext.s7cSkips.beforeOpen, true);
+assert.equal(s7bHoldCarryContext.s7cSkips.startedEnd, false);
+assert.equal(s7bHoldCarryContext.s7cSkips.firstSegment, false);
+// §2-1: 警告2種
+assert.equal(s7bHoldCarryContext.s7cWarnings.beforeBoundary, "");
+assert.match(s7bHoldCarryContext.s7cWarnings.beforeTooMany, /保留だけで9回転は多いです。「打ち出し開始」を押し忘れていませんか。/);
+assert.match(s7bHoldCarryContext.s7cWarnings.startedNoTaps, /打ち出し前の当選ではありませんか。/);
+assert.equal(s7bHoldCarryContext.s7cWarnings.startedWithTaps, "");
+assert.equal(s7bHoldCarryContext.s7cWarnings.firstSegment, "");
+// §4: 移行のルールはS7bの回転数ベースの判定そのまま
+assert.equal(s7bHoldCarryContext.s7cLegacy.inside, true);
+assert.equal(s7bHoldCarryContext.s7cLegacy.outside, false);
+assert.equal(s7bHoldCarryContext.s7cLegacy.boundary, true);
+assert.equal(s7bHoldCarryContext.s7cLegacy.boundaryOver, false);
+assert.equal(s7bHoldCarryContext.s7cLegacy.firstSegment, false);
+assert.deepEqual(JSON.parse(JSON.stringify(s7bHoldCarryContext.s7cMigrated)), ["before", "started", "started"]);
+// 移行後にS7cの判定を通しても、S7bと同じ結果になる（既存データの判定結果が変わらない）
+assert.deepEqual(JSON.parse(JSON.stringify(s7bHoldCarryContext.s7cMigratedDetect)), [true, false, false]);
 
 // --- C: 検算（deriveSession） ----------------------------------------------
 new vm.Script(`
@@ -5067,7 +5143,7 @@ new vm.Script(`
         lastMeasuredBalls: null, lastMeasuredSpin: null,
         endSource: "hit", endSpin: 20, endAt: null, endRemainBalls: 2300, endTrackedBalls: null },
       { id: "seg_b", kind: "normal", source: "user", startSpin: 25, startAt: "10:40", holdSpins: 5,
-        startTrackedBalls: 3700, startBallsSource: "measured", startSource: "jitan", holdCarryHit: null,
+        startTrackedBalls: 3700, startBallsSource: "measured", startSource: "jitan", holdCarryHit: null, shooting: "before",
         lastMeasuredBalls: null, lastMeasuredSpin: null,
         endSource: "hit", endSpin: 28, endAt: null, endRemainBalls: 1800, endTrackedBalls: null }
     ]
@@ -5126,7 +5202,7 @@ new vm.Script(`
   ${section('function currentChainHits', 'function hitRoundSummaryHtml')}
   const segments = [
     { id: "seg_a", kind: "normal", startSource: null, endSource: "hit", startSpin: 0, endSpin: 20, holdSpins: 0 },
-    { id: "seg_b", kind: "normal", startSource: "jitan", endSource: "hit", startSpin: 25, endSpin: 28, holdSpins: 5 }
+    { id: "seg_b", kind: "normal", startSource: "jitan", endSource: "hit", startSpin: 25, endSpin: 28, holdSpins: 5, shooting: "before" }
   ];
   const hits = [
     { roundTypeId: "r10", hitSpin: 20, actualBalls: 1400, at: "2026-09-08T10:00:00", segmentId: "seg_a" },
@@ -5149,5 +5225,156 @@ assert.deepEqual(JSON.parse(JSON.stringify(s7bChainContext.s7bChain.storedIds)),
 // 手動で通常当選に戻すと当たりは区間②へ戻り、「今回の連チャン」は1回になる
 assert.deepEqual(JSON.parse(JSON.stringify(s7bChainContext.s7bChain.normalIds)), ["seg_a", "seg_b"]);
 assert.equal(s7bChainContext.s7bChain.normalChain, 1);
+
+
+// ===========================================================================
+// S7c: 残保留当選の判定を「打ち出し状態」方式へ変更
+// ===========================================================================
+
+const playStyleEditorBlock = section('function playStyleEditorHtml', 'function segmentHoldSpinsEditorHtml');
+const shootingBlock = section('function markSegmentShootingStarted', 'function holdCarryNoticeHtml');
+const wizardInputBlock = section('function wizardInputHtml', 'function readWizardValue');
+
+// --- §1: データ構造 --------------------------------------------------------
+assert.match(html, /const SCHEMA_VERSION = 35;/);
+assert.match(html, /function normalizePlayStyle\(value\) \{\s*return value === "continuous" \? "continuous" : "yutime";/);
+assert.match(html, /function normalizeShooting\(value\) \{\s*return value === "before" \? "before" : "started";/);
+assert.match(normalizeData, /playStyle: normalizePlayStyle\(session\.playStyle\)/);
+assert.match(segmentBlock, /shooting: "started",/);
+assert.match(segmentBlock, /shooting: normalizeShooting\(segment\?\.shooting\),/);
+// 区間の組み直しで打ち出し状態を落とさない
+assert.match(segmentBlock, /shooting: prior \? normalizeShooting\(prior\.shooting\) : segment\.shooting,/);
+
+// --- §2: 判定の引き金の差し替え --------------------------------------------
+assert.match(holdCarryBlock, /function detectHoldCarryHit\(segment\) \{[\s\S]*?return segment\?\.shooting === "before";\s*\}/);
+// 回転数の条件は判定から消えていること（migration 用の legacyHoldCarryHit にだけ残る）
+const detectBody = holdCarryBlock.slice(holdCarryBlock.indexOf("function detectHoldCarryHit"), holdCarryBlock.indexOf("function legacyHoldCarryHit"));
+assert.doesNotMatch(detectBody, /holdSpins/);
+assert.match(holdCarryBlock, /function legacyHoldCarryHit\(segment\)[\s\S]*?return played >= 0 && played <= Math\.max\(0, Number\(segment\?\.holdSpins \|\| 0\)\);/);
+assert.match(holdCarryBlock, /function segmentSkipsNormalPlay\(segment\)/);
+assert.match(holdCarryBlock, /if \(segment\?\.endSource === "hit"\) return segmentIsHoldCarryHit\(segment\);/);
+assert.match(deriveSession, /segmentSkipsNormalPlay\(segment\) \|\| segmentEndpointConsumedBalls\(segment, session, store\) !== null/);
+
+// --- §4: 移行 --------------------------------------------------------------
+assert.match(holdCarryBlock, /function migrateSegmentShooting\(session\)[\s\S]*?segment\.shooting = legacyHoldCarryHit\(segment\) \? "before" : "started";/);
+assert.match(normalizeData, /if \(sourceVersion < 35\) migrateSegmentShooting\(normalized\);/);
+
+const s7cMigrationContext = vm.createContext({ ...legacyMachineContext });
+new vm.Script(`
+  const jitanSegment = (id, endSpin, holdSpins) => ({
+    id, kind: "normal", source: "user", startSpin: 25, startAt: "10:40",
+    startTrackedBalls: 3700, startBallsSource: "measured", startSource: "jitan",
+    holdCarryHit: null, lastMeasuredBalls: null, lastMeasuredSpin: null,
+    holdSpins, endSource: "hit", endSpin, endAt: null, endRemainBalls: 1800, endTrackedBalls: null
+  });
+  globalThis.s7cMigration = normalizeData({
+    version: 34,
+    presetSettings: { "umi-sp5": {} },
+    sessions: [{
+      id: "s_mig", storeId: "st_1", machineId: "m_1", status: "completed",
+      startSpin: 0, startMochidama: 2500, currentMochidama: 1800, consumedModel: "endpoints",
+      hitSpin: 28, hitCount: 2, hitVia: "normal", hitRemainBalls: 1800, endSpin: 68, endTotalBalls: 4000,
+      hits: [], investments: [], charges: [],
+      segments: [
+        { id: "a", kind: "normal", source: "migrated", startSpin: 0, startAt: "10:00", startTrackedBalls: 2500,
+          startBallsSource: "measured", startSource: null, holdCarryHit: null, lastMeasuredBalls: null,
+          lastMeasuredSpin: null, holdSpins: 0, endSource: "hit", endSpin: 20, endAt: null, endRemainBalls: 2300, endTrackedBalls: null },
+        jitanSegment("b", 28, 5),
+        jitanSegment("c", 31, 5),
+        jitanSegment("d", 29, 4)
+      ]
+    }]
+  }).sessions[0];
+`).runInContext(s7cMigrationContext);
+const migratedSegments = s7cMigrationContext.s7cMigration.segments;
+// 打ち始め区間は started。時短抜け区間は S7b の回転数判定（<= holdSpins）が true のものだけ before
+// b: 28-25=3 <= 5 → before ／ c: 31-25=6 > 5 → started ／ d: 29-25=4 <= 4（境界）→ before
+assert.deepEqual(JSON.parse(JSON.stringify(migratedSegments.map((segment) => segment.shooting))), ["started", "before", "started", "before"]);
+assert.equal(s7cMigrationContext.s7cMigration.playStyle, "yutime");
+// version 35 のデータは二重移行しない（shooting をそのまま残す）
+new vm.Script(`
+  globalThis.s7cNoRemigrate = normalizeData({
+    version: 35,
+    presetSettings: { "umi-sp5": {} },
+    sessions: [{
+      id: "s_keep", storeId: "st_1", machineId: "m_1", status: "active", playStyle: "continuous",
+      startSpin: 0, startMochidama: 2500, hits: [], investments: [], charges: [],
+      segments: [{ id: "z", kind: "normal", source: "user", startSpin: 25, startTrackedBalls: 3700,
+        startBallsSource: "measured", startSource: "jitan", holdCarryHit: null, shooting: "before",
+        lastMeasuredBalls: null, lastMeasuredSpin: null, holdSpins: 5,
+        endSource: "hit", endSpin: 40, endAt: null, endRemainBalls: 1800, endTrackedBalls: null }]
+    }]
+  }).sessions[0];
+`).runInContext(s7cMigrationContext);
+// 40 - 25 = 15 > 5 なので回転数ベースなら started になるが、移行は走らないので before のまま
+assert.equal(s7cMigrationContext.s7cNoRemigrate.segments[0].shooting, "before");
+assert.equal(s7cMigrationContext.s7cNoRemigrate.playStyle, "continuous");
+
+// --- §1-3: "before" → "started" の切り替え ---------------------------------
+assert.match(shootingBlock, /function markSegmentShootingStarted\(session, segmentId\)[\s\S]*?if \(!segment \|\| segment\.shooting !== "before"\) return false;\s*segment\.shooting = "started";/);
+assert.match(addInvestment, /markSegmentShootingStarted\(session, item\.segmentId\);/);
+assert.match(shootingBlock, /function startShootingForSession\(session\)[\s\S]*?segment\.shooting = "started";/);
+assert.match(startNormalSegmentBlock, /shooting: shooting === null \? defaultShootingForSession\(session\) : normalizeShooting\(shooting\),/);
+assert.match(hitResetPrompt, /function defaultShootingForSession\(session\) \{\s*return normalizePlayStyle\(session\?\.playStyle\) === "continuous" \? "started" : "before";/);
+
+// --- §3: UI ----------------------------------------------------------------
+// 3-1: 打ち始めウィザードの方針選択
+assert.match(startSessionFlow, /key: "playStyle",\s*label: "打ち方",\s*type: "choice",/);
+assert.match(startSessionFlow, /\{ value: "yutime", label: "遊タイム狙い（時短抜けで止める）" \}/);
+assert.match(startSessionFlow, /\{ value: "continuous", label: "打ち切り（続けて打つ）" \}/);
+assert.match(wizardInputBlock, /if \(step\.type === "choice"\)/);
+assert.match(wizardInputBlock, /class="wizardChoice\$\{option\.value === selected \? " selected" : ""\}"/);
+// 3-1: セッション中の変更は「記録の修正・削除」から。稼働中パネルには常時表示の操作を足さない
+assert.match(playStyleEditorBlock, /class="playStyleChoice/);
+assert.match(openSessionEditor, /\$\{playStyleEditorHtml\(session\)\}/);
+assert.match(openSessionEditor, /if \(playStyleChoice\) session\.playStyle = normalizePlayStyle\(playStyleChoice\.dataset\.playStyle\);/);
+// 3-2: 時短抜けの「この後」
+assert.match(hitResetPrompt, /<label>この後<\/label>/);
+assert.match(hitResetPrompt, /class="jitanShootingChoice/);
+assert.match(hitResetPrompt, /打ち出しを止める（保留を待つ）/);
+assert.match(hitResetPrompt, /打ち出しを続ける/);
+assert.match(hitResetPrompt, /const selectedShooting = \(\) => els\.modalBody\.querySelector\("\.jitanShootingChoice\.selected"\)\?\.dataset\.shooting \?\? null;/);
+// 3-3: 打ち出し開始ボタンは保留消化中だけ。行を増やさず既存の操作行に収める
+assert.match(renderRunning, /const holdSpinPhase = isHoldSpinPhase\(session\);/);
+assert.match(renderRunning, /<div class="running-actions\$\{holdSpinPhase \? " with-shooting" : ""\}">/);
+assert.match(renderRunning, /\$\{holdSpinPhase \? '<button class="primary" id="startShootingBtn">打ち出し開始<\/button>' : ""\}/);
+assert.match(renderRunning, /if \(startShootingButton\) startShootingButton\.addEventListener\("click", \(\) => startShootingForSession\(session\)\);/);
+// 44px以上（UI規約 / §6）
+assert.match(html, /\.style-choice button \{\s*min-height: 44px;/);
+assert.match(html, /\.running-actions\.with-shooting button,\s*\.running-panel\.fullscreen \.running-actions\.with-shooting button \{\s*min-height: 44px;/);
+// 3-4: 状態バッジ
+assert.match(html, /if \(isHoldSpinPhase\(session\)\) return \{ label: "保留消化中", className: "warn" \};/);
+assert.match(shootingBlock, /function isHoldSpinPhase\(session\)[\s\S]*?segment\.startSource === "jitan" && segment\.shooting === "before"/);
+// S7bの表示・手動切り替えはそのまま使う（作り直していないこと）
+assert.match(hitHistoryBlock, /\$\{holdCarrySectionHtml\(session\)\}/);
+assert.match(hitHistoryBlock, /function toggleSegmentHoldCarry\(session, segmentId\)/);
+assert.match(resultBlock, /endLabel: holdCarry \? "残保留当選" : endLabel,/);
+assert.match(resultBlock, /const noShooting = isNormal && segmentSkipsNormalPlay\(segment\);/);
+
+// --- §5-8: 打ち出さずヤメた区間は回転数0・消費玉0 ---------------------------
+new vm.Script(`
+  globalThis.s7cEndedWithoutShooting = deriveSession({
+    storeId: "s", status: "completed", consumedModel: "endpoints",
+    startSpin: 0, currentSpin: 30, startMochidama: 2500,
+    hitSpin: 20, hitCount: 1, hitVia: "normal", hitRemainBalls: 2300, hitTrackedBalls: null,
+    endTotalBalls: 3600, endSpin: 30, zanhoryuBalls: 0, yutimeEnterBalls: null,
+    hits: [{ roundTypeId: "r10", hitSpin: 20, actualBalls: 1400, at: "2026-09-08T10:00:00", segmentId: "seg_a" }],
+    investments: [{ source: "mochidama", amount: 200, phase: "normal", spinAt: 10, time: "10:00", segmentId: "seg_a" }],
+    segments: [
+      { id: "seg_a", kind: "normal", source: "migrated", startSpin: 0, startAt: "10:00", holdSpins: 0,
+        startTrackedBalls: 2500, startBallsSource: "measured", startSource: null, holdCarryHit: null, shooting: "started",
+        lastMeasuredBalls: null, lastMeasuredSpin: null,
+        endSource: "hit", endSpin: 20, endAt: null, endRemainBalls: 2300, endTrackedBalls: null },
+      { id: "seg_b", kind: "normal", source: "user", startSpin: 25, startAt: "10:40", holdSpins: 5,
+        startTrackedBalls: 3700, startBallsSource: "measured", startSource: "jitan", holdCarryHit: null, shooting: "before",
+        lastMeasuredBalls: null, lastMeasuredSpin: null,
+        endSource: "end", endSpin: 30, endAt: null, endRemainBalls: 3600, endTrackedBalls: null }
+    ]
+  });
+`).runInContext(runningRateContext);
+// 区間①20回転/200玉だけが残り、保留消化だけの区間②は0回転・0玉
+assert.equal(runningRateContext.s7cEndedWithoutShooting.normalSpins, 20);
+assert.equal(runningRateContext.s7cEndedWithoutShooting.consumedBalls, 200);
+assert.equal(Number(runningRateContext.s7cEndedWithoutShooting.rate.toFixed(1)), 25.0);
 
 console.log('yutime-v3 tests passed');
