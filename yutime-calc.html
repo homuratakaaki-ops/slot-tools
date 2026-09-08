@@ -495,6 +495,9 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     const BREAKEVEN_MAX_MINUTES = 360;
     // 貸玉単価。1000円で250玉
     const CASH_YEN_PER_BALL = 1000 / 250;
+    // 20,000試行のモンテカルロは数百ms掛かるので、入力が止まってから走らせる。
+    // 遊タイム狙いモードは解析式なので即時のまま
+    const CONTINUOUS_DEBOUNCE_MS = 150;
 
     const byId = (id) => document.getElementById(id);
 
@@ -986,6 +989,13 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       };
     }
 
+    // 計算しなくても決まる分（未対応機種・入力不足）。無ければ空文字
+    function continuousBlockMessage() {
+      const preset = currentPreset();
+      if (!supportsContinuous(preset)) return `打ち切りモードは${preset.name}に未対応です`;
+      return continuousMissingMessage();
+    }
+
     function continuousMissingMessage() {
       const base = missingMessage();
       if (base) return base;
@@ -1045,12 +1055,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     }
 
     function continuousFromState() {
-      const preset = currentPreset();
-      if (!supportsContinuous(preset)) {
-        return { result: null, missing: `打ち切りモードは${preset.name}に未対応です` };
-      }
-      const missing = continuousMissingMessage();
-      if (missing) return { result: null, missing };
+      const blocked = continuousBlockMessage();
+      if (blocked) return { result: null, missing: blocked };
       const cfg = continuousConfigFromState();
       // 先に「その起点から座れる最短の残り時間」を出す。時短抜けごとの3値と、いまのカウンター
       const restartBreakeven = cfg.jitanTable.map((row) => {
@@ -1215,10 +1221,39 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       })));
     }
 
+    // 入力のたびにモンテカルロを回すと1打鍵ごとに数百ms固まるので、
+    // 打ち切りモードの計算だけ「入力が止まってから1回」に寄せる。
+    let continuousTimer = null;
+
+    function cancelContinuousRecalc() {
+      if (continuousTimer === null) return;
+      clearTimeout(continuousTimer);
+      continuousTimer = null;
+    }
+
     function renderContinuousResult() {
       renderModeChips();
-      if (state.mode !== "continuous") return;
-      const { result, missing } = continuousFromState();
+      if (state.mode !== "continuous") {
+        cancelContinuousRecalc();
+        return;
+      }
+      // 未対応機種と入力不足は計算しなくても決まるので即時に出す
+      const blocked = continuousBlockMessage();
+      if (blocked) {
+        cancelContinuousRecalc();
+        paintContinuousResult(null, blocked);
+        return;
+      }
+      byId("ctNotice").textContent = "計算中…";
+      cancelContinuousRecalc();
+      continuousTimer = setTimeout(() => {
+        continuousTimer = null;
+        const { result, missing } = continuousFromState();
+        paintContinuousResult(result, missing);
+      }, CONTINUOUS_DEBOUNCE_MS);
+    }
+
+    function paintContinuousResult(result, missing) {
       const panel = byId("continuousPanel");
       const tone = !result ? "" : result.evYen >= 0 ? "good" : "bad";
       panel.className = `result ${tone}`.trim();

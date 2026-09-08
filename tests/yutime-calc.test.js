@@ -44,7 +44,7 @@ vm.runInContext([
   presetBlock,
   logicBlock,
   urlBlock,
-  'globalThis.api = { state, PRESETS, MODE_OPTIONS, SPEED_OPTIONS, MINUTES_OPTIONS, DEFAULT_SPEED, DEFAULT_MINUTES, CONTINUOUS_TRIALS, CONTINUOUS_SEED, BREAKEVEN_STEP_MINUTES, BREAKEVEN_MAX_MINUTES, YUTIME_EXPECTATION_ENGINE, currentPreset, counterOffset, engineSpinFromCounter, remainingSpins, numberOrNull, yenText, hourText, evJudgment, basisText, missingMessage, availableBallsFromState, calculateFromState, presetIdFromUrl, ballsFromUrl, modeFromUrl, minutesFromUrl, speedFromUrl, supportsContinuous, breakevenCheckpoints, simulateContinuous, continuousConfigFromState, continuousFromState, continuousMissingMessage, countText, exitsText, seatMinutesText, restartBreakevenText, currentBreakevenText, continuousBasisText, cycleBreakevenMinutes };'
+  'globalThis.api = { state, PRESETS, MODE_OPTIONS, SPEED_OPTIONS, MINUTES_OPTIONS, DEFAULT_SPEED, DEFAULT_MINUTES, CONTINUOUS_TRIALS, CONTINUOUS_SEED, CONTINUOUS_DEBOUNCE_MS, BREAKEVEN_STEP_MINUTES, BREAKEVEN_MAX_MINUTES, YUTIME_EXPECTATION_ENGINE, currentPreset, counterOffset, engineSpinFromCounter, remainingSpins, numberOrNull, yenText, hourText, evJudgment, basisText, missingMessage, availableBallsFromState, calculateFromState, presetIdFromUrl, ballsFromUrl, modeFromUrl, minutesFromUrl, speedFromUrl, supportsContinuous, breakevenCheckpoints, simulateContinuous, continuousConfigFromState, continuousFromState, continuousMissingMessage, continuousBlockMessage, countText, exitsText, seatMinutesText, restartBreakevenText, currentBreakevenText, continuousBasisText, cycleBreakevenMinutes };'
 ].join('\n'), context);
 const api = context.api;
 
@@ -615,5 +615,54 @@ assert.match(calcHtml, /byId\("resultPanel"\)\.style\.display = continuous \? "n
 assert.match(calcHtml, /if \(!supportsContinuous\(currentPreset\(\)\)\) state\.mode = MODE_OPTIONS\[0\]\.id;/, '未対応機種へ切り替えたら遊タイム狙いへ戻すこと');
 // 実表示の全高は 320px幅で最大1,065px（埋め込み用コードは iframe 内では隠れる）
 assert.match(calcHtml, /width="100%" height="1080" style="border:0" loading="lazy"/, '打ち切りモードの埋め込みは高さを広げること');
+
+// --- 14. 打ち切りモードの再計算をデバウンスする ------------------------------
+// 20,000試行のモンテカルロは実ブラウザで数百ms掛かるので、1打鍵ごとに走らせると入力が固まる。
+// 打ち切りモードの計算だけ「入力が止まってから1回」に寄せる。遊タイム狙いは解析式なので即時のまま。
+
+assert.equal(api.CONTINUOUS_DEBOUNCE_MS, 150, '入力停止から150ms後に再計算する');
+
+// 計算しなくても決まる分（未対応機種・入力不足）は待たずに出す
+{
+  Object.assign(api.state, continuousState({ presetId: 'umi-sp5' }));
+  assert.equal(api.continuousBlockMessage(), '打ち切りモードはP大海物語5スペシャルに未対応です');
+  Object.assign(api.state, continuousState({ currentSpin: null }));
+  assert.equal(api.continuousBlockMessage(), '現在回転数を入力してください');
+  Object.assign(api.state, continuousState({ remainMinutes: null }));
+  assert.equal(api.continuousBlockMessage(), '残り時間を入力してください');
+  Object.assign(api.state, continuousState({ normalSpeed: null }));
+  assert.equal(api.continuousBlockMessage(), '通常時の時速を入力してください');
+  Object.assign(api.state, continuousState({}));
+  assert.equal(api.continuousBlockMessage(), '', '入力が揃えば空文字');
+  // 文言の出どころは1箇所（continuousFromState も同じ関数を通す）
+  assert.match(logicBlock, /const blocked = continuousBlockMessage\(\);\n\s+if \(blocked\) return \{ result: null, missing: blocked \};/, '未対応・不足の文言は continuousBlockMessage に集約すること');
+  assert.equal(
+    (calcHtml.match(/打ち切りモードは\$\{preset\.name\}に未対応です/g) || []).length,
+    1,
+    '未対応機種の文言はファイル内に1箇所だけ'
+  );
+}
+
+// 遅延させるのは重いモンテカルロだけで、不足メッセージは同期で描くこと
+assert.match(calcHtml, /const blocked = continuousBlockMessage\(\);\n\s+if \(blocked\) \{\n\s+cancelContinuousRecalc\(\);\n\s+paintContinuousResult\(null, blocked\);\n\s+return;\n\s+\}/, '未対応・不足は setTimeout を挟まず即時に描くこと');
+assert.match(calcHtml, /byId\("ctNotice"\)\.textContent = "計算中…";\n\s+cancelContinuousRecalc\(\);\n\s+continuousTimer = setTimeout\(\(\) => \{/, '計算待ちの間は「計算中…」を出すこと');
+assert.match(calcHtml, /\}, CONTINUOUS_DEBOUNCE_MS\);/, '再計算は CONTINUOUS_DEBOUNCE_MS で遅らせること');
+assert.match(calcHtml, /function cancelContinuousRecalc\(\) \{\n\s+if \(continuousTimer === null\) return;\n\s+clearTimeout\(continuousTimer\);/, '保留中の再計算を取り消せること');
+assert.match(calcHtml, /if \(state\.mode !== "continuous"\) \{\n\s+cancelContinuousRecalc\(\);\n\s+return;\n\s+\}/, '遊タイム狙いへ戻したら保留中の計算を捨てること');
+
+// 遊タイム狙いモードの描画は同期のまま（setTimeout を通さない）
+{
+  const renderYutime = sectionOf(calcHtml, 'yutime-calc.html', 'function renderResult() {', 'function renderModeChips');
+  assert.match(renderYutime, /evNode\.textContent = result \? yenText\(result\.evYen\) : "—";/, '遊タイム狙いは renderResult 内で直接描くこと');
+  assert.doesNotMatch(renderYutime, /setTimeout|requestAnimationFrame/, '遊タイム狙いモードの反映を遅らせないこと');
+  assert.match(renderYutime, /renderContinuousResult\(\);/, '打ち切りモードの描画は renderResult から呼ぶこと');
+}
+// モンテカルロを呼ぶのはデバウンスされた1箇所だけ
+assert.equal(
+  (calcHtml.match(/(?<!function )continuousFromState\(\)/g) || []).length,
+  1,
+  'ページ側から continuousFromState を呼ぶのは遅延実行の1箇所だけ'
+);
+assert.match(calcHtml, /const \{ result, missing \} = continuousFromState\(\);\n\s+paintContinuousResult\(result, missing\);/, '計算結果の描画は paintContinuousResult に通すこと');
 
 console.log('yutime-calc: OK');
