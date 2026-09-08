@@ -55,6 +55,18 @@
   .ct-note{font-size:10px;color:var(--text-dim);margin-left:4px}
   .ct-breakeven{margin-top:6px;border-top:1px solid var(--border);padding-top:6px;font-size:12px;color:var(--text-muted)}
   .ct-breakeven b{font-size:15px;font-weight:700;color:var(--gold-light)}
+  .ct-table-title{margin-top:8px;border-top:1px solid var(--border);padding-top:6px;font-size:11px;color:var(--gold)}
+  .ct-table-wrap{margin-top:4px;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .ct-table{border-collapse:collapse;font-size:11px;white-space:nowrap}
+  .ct-table th,.ct-table td{border:1px solid var(--border);padding:3px 5px;text-align:right;vertical-align:top}
+  .ct-table thead th{background:var(--surface2);color:var(--text-muted);font-weight:400;text-align:center}
+  .ct-table tbody th{background:var(--surface2);color:var(--text);font-weight:700;text-align:left}
+  .ct-table td b{display:block;font-size:12px;font-weight:700}
+  .ct-table td b.good{color:var(--green)}
+  .ct-table td b.warn{color:var(--gold-light)}
+  .ct-table td b.bad{color:var(--red)}
+  .ct-sub{display:block;font-size:10px;color:var(--text-muted);font-weight:400}
+  .ct-table-note{display:block;margin:4px 0 0;line-height:1.5;white-space:normal}
   details.basis-box{margin-top:3px}
   details.basis-box>summary{font-size:10px;color:var(--gold);cursor:pointer;list-style:none}
   details.basis-box>summary::-webkit-details-marker{display:none}
@@ -156,9 +168,11 @@
       <div>想定当たり <b id="ctHits">—</b>（初当り） ／ 遊タイム到達 <b id="ctYutime">—</b></div>
       <div>時短抜け <b id="ctExits">—</b></div>
       <div>時間切れの損失見込み <b id="ctCutoff">—</b><span class="ct-note">（打ちかけの投資が回収できない分）</span></div>
-      <div>今から座れる残り時間 <b id="ctCurrentBreakeven">—</b><span class="ct-note">（現在カウンターから1サイクル）</span></div>
     </div>
-    <div class="ct-breakeven">時短抜けから座れる残り時間：<b id="ctRestartBreakeven">—</b></div>
+    <div class="ct-breakeven"><span id="ctSeatLabel">座れる残り時間：</span><b id="ctSeat">—</b></div>
+    <div class="ct-table-title">起点ごとの1サイクル（残り時間別）</div>
+    <div class="ct-table-wrap" id="ctTable"></div>
+    <div class="ct-note ct-table-note">判定：時給がしきい値以上なら打てる／期待値がプラスでしきい値未満なら微妙／期待値がマイナスなら打てない。時給は1サイクルの期待値÷消化時間。残り時間で打ち切られた場合の打ちかけの投資も含む</div>
     <div class="notice" id="ctNotice"></div>
     <details class="basis-box"><summary>計算の内訳</summary><div class="basis" id="ctBasis"></div></details>
   </div>
@@ -490,9 +504,11 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     const DEFAULT_SPEED = 4.2;
     const MINUTES_OPTIONS = [60, 120, 180, 240, 360];
     const DEFAULT_MINUTES = 180;
-    // 「プラスになる最短の残り時間」を探す刻みと上限
+    // 「座れる残り時間」を探す刻みと上限
     const BREAKEVEN_STEP_MINUTES = 5;
     const BREAKEVEN_MAX_MINUTES = 360;
+    // 1サイクル表の残り時間（閉店リスク込み。時間切れなら打ちかけの投資は損失）
+    const TABLE_MINUTES = [30, 45, 60, 90, 120, 180];
     // 貸玉単価。1000円で250玉
     const CASH_YEN_PER_BALL = 1000 / 250;
     // 20,000試行のモンテカルロは数百ms掛かるので、入力が止まってから走らせる。
@@ -512,8 +528,16 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       // C2: 打ち切りモード専用の入力
       mode: MODE_OPTIONS[0].id,
       normalSpeed: DEFAULT_SPEED,
-      remainMinutes: DEFAULT_MINUTES
+      remainMinutes: DEFAULT_MINUTES,
+      // 打ち切りモードの判定・やめるルールの閾値。?hourly= で変えられる。
+      // 遊タイム狙いモードの判定は従来どおり HOURLY_THRESHOLD_YEN 固定
+      hourlyThreshold: null
     };
+
+    function hourlyThresholdFromState() {
+      const value = Number(state.hourlyThreshold);
+      return Number.isFinite(value) && value > 0 ? value : HOURLY_THRESHOLD_YEN;
+    }
 
     function currentPreset() {
       return PRESETS.find((preset) => preset.id === state.presetId) || PRESETS[0];
@@ -555,12 +579,13 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       return `${Number(value).toFixed(2)}h`;
     }
 
-    function evJudgment(result) {
+    // 打ち切りモードの1サイクル判定も同じ基準（B93）を使う。閾値だけ差し替えられるようにする
+    function evJudgment(result, thresholdYen = HOURLY_THRESHOLD_YEN) {
       if (!result) return { className: "", label: "—" };
       const hourly = Number(result.hourlyYen);
       const hasHourly = Number(result.totalHours) > 0 && Number.isFinite(hourly);
       // 打てる＝時給がしきい値以上。時給が出せないときは期待値の符号だけで判定する
-      if (hasHourly && hourly >= HOURLY_THRESHOLD_YEN) return { className: "good", label: "打てる" };
+      if (hasHourly && hourly >= thresholdYen) return { className: "good", label: "打てる" };
       if (Number(result.evYen) > 0) return { className: "warn", label: "微妙" };
       return { className: "bad", label: "打てない" };
     }
@@ -647,9 +672,9 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
     // 1回転ずつ乱数を引くと数秒かかるので、区間ごとに「何回転目で当たるか」を
     // 幾何分布の逆関数で1回引き、時間と玉代はまとめて進める（結果の分布は1回転ずつと同じ）。
     //
-    // やめるルール（C2-2）: 時短抜けの時点で残り時間が「その起点から1サイクル打って
-    // 期待値が0以上になる最短時間 T*」を下回っていたら、そこで打ち止める。実戦で座り直さない判断。
-    // T* は残り時間 T に依存しないので、試行はやめずに最後まで回し、
+    // やめるルール（C2-3）: 時短抜けの時点で「残り時間で1サイクル打ったときの時給」が
+    // 閾値（既定 時給2,400円）を下回っていたら、そこで打ち止める。実戦で座り直さない判断。
+    // 起点ごとの時給表は先に作ってあり残り時間 T に依存しないので、試行はやめずに最後まで回し、
     // サイクルの区切りを記録しておいて、チェックポイントごとに「どこでやめたか」を後から当てる。
     function simulateContinuous(cfg) {
       const trials = Math.max(1, Math.floor(cfg.trials));
@@ -670,14 +695,10 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         jitanCum[k] = shareAcc;
         jitanSpinsOf[k] = jitanTable[k].spins;
       }
-      // 時短抜けの種類ごとの T*。未指定なら「やめない」（0分＝どんな残り時間でも座り直す）
-      const stopRule = new Array(jitanCount).fill(0);
-      if (Array.isArray(cfg.stopRuleMinutes)) {
-        for (let k = 0; k < jitanCount; k += 1) {
-          const value = cfg.stopRuleMinutes[k];
-          stopRule[k] = value === null || value === undefined ? Infinity : value;
-        }
-      }
+      // 時短抜けの種類ごとの「残り時間 → 1サイクルの時給」表（5分刻み）。未指定ならやめない
+      const stopGrid = cfg.stopRuleHourly ? cfg.stopRuleHourly.grid : null;
+      const stopThreshold = cfg.stopRuleHourly ? cfg.stopRuleHourly.threshold : 0;
+      const stopGridLast = stopGrid ? stopGrid[0].length - 1 : 0;
 
       const tenjo = cfg.tenjo;
       const counterOffsetSpins = cfg.counterOffset;
@@ -709,6 +730,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       // やめるルール込み（Stopped）と、比較用のルール無し（Raw）を同時に集計する
       const profitSums = new Array(cpCount).fill(0);
       const rawProfitSums = new Array(cpCount).fill(0);
+      // 時給の分母。1サイクルの判定（B93）は「期待値 ÷ 消化時間」で見るので実打時間を持つ
+      const playMinutesSums = new Array(cpCount).fill(0);
       const exitSums = new Array(jitanCount).fill(0);
       const exits = new Array(jitanCount).fill(0);
       const snapExits = new Array(jitanCount).fill(0);
@@ -726,7 +749,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
 
       // サイクルの区切り（＝次に座り直すかを決める地点）の記録
       const boundaryTime = [];
-      const boundaryStopRule = [];
+      const boundaryExitIndex = [];
       const boundaryProfit = [];
       const boundaryFirstHits = [];
       const boundaryWins = [];
@@ -813,7 +836,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         cycleWins = 0;
         firstCycle = true;
         boundaryTime.length = 0;
-        boundaryStopRule.length = 0;
+        boundaryExitIndex.length = 0;
         boundaryProfit.length = 0;
         boundaryFirstHits.length = 0;
         boundaryWins.length = 0;
@@ -915,7 +938,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
           // 次サイクルの起点＝時短回数＋ST回数（データカウンター基準）。
           // ここが「座り直すかどうか」を決める地点なので、時刻と収支を控えておく
           boundaryTime.push(t);
-          boundaryStopRule.push(stopRule[lastExitIndex]);
+          boundaryExitIndex.push(lastExitIndex);
           boundaryProfit.push(profit);
           boundaryFirstHits.push(firstHits);
           boundaryWins.push(wins);
@@ -927,17 +950,27 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         while (ci < cpCount) record();
 
         // チェックポイントごとに「やめるルールで、どのサイクル区切りで打ち止めたか」を当てる。
-        // 残り時間（T − 区切りの時刻）が T* を下回る最初の区切りでやめる
+        // 残り時間（T − 区切りの時刻）での1サイクル時給が閾値未満になる最初の区切りでやめる
         const boundaryCount = boundaryTime.length;
+        const trialEnd = t;
         for (let k = 0; k < cpCount; k += 1) {
           const limit = cps[k];
           rawProfitSums[k] += trialProfit[k];
           let stopIndex = -1;
-          for (let i = 0; i < boundaryCount; i += 1) {
-            const at = boundaryTime[i];
-            if (at > limit + eps) break;
-            if (limit - at < boundaryStopRule[i] - eps) { stopIndex = i; break; }
+          if (stopGrid) {
+            for (let i = 0; i < boundaryCount; i += 1) {
+              const at = boundaryTime[i];
+              if (at > limit + eps) break;
+              // 残り時間は5分刻みの表に丸めて引く。5分未満なら1サイクルぶんの時給が出ないのでヤメ
+              const gridIndex = Math.floor((limit - at + eps) / BREAKEVEN_STEP_MINUTES) - 1;
+              if (gridIndex < 0) { stopIndex = i; break; }
+              const row = stopGrid[boundaryExitIndex[i]];
+              if (row[gridIndex < stopGridLast ? gridIndex : stopGridLast] < stopThreshold) { stopIndex = i; break; }
+            }
           }
+          playMinutesSums[k] += stopIndex < 0
+            ? (trialEnd < limit ? trialEnd : limit)
+            : boundaryTime[stopIndex];
           if (stopIndex < 0) {
             profitSums[k] += trialProfit[k];
             if (k === mainIndex) {
@@ -961,7 +994,13 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         }
       }
 
-      const curve = cps.map((minutes, index) => ({ minutes, evYen: profitSums[index] / trials }));
+      // curve の時給は「期待値 ÷ 実際に打った時間」（B93と同じ見方）。
+      // パネル上段の時給は仕様どおり「合計期待値 ÷ 入力の残り時間」で別に出す
+      const curve = cps.map((minutes, index) => {
+        const evYen = profitSums[index] / trials;
+        const playHours = playMinutesSums[index] / trials / 60;
+        return { minutes, evYen, playHours, hourlyYen: playHours > 0 ? evYen / playHours : 0 };
+      });
       const rawCurve = cps.map((minutes, index) => ({ minutes, evYen: rawProfitSums[index] / trials }));
       const main = curve[mainIndex];
       const hours = cfg.minutes / 60;
@@ -1043,34 +1082,69 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       };
     }
 
-    // 単サイクルの損益分岐 T*(c)。起点 c から残り T 分で1サイクルだけ打ち、
-    // 時間切れなら打ちかけの投資を損失として、期待値が0以上になる最小の T（5分刻み）。
-    // 座れないなら null。
-    function cycleBreakevenMinutes(cfg, startCounter) {
-      const single = simulateContinuous({ ...cfg, startCounter, cycleLimit: 1, stopRuleMinutes: null });
-      const row = single.curve.find((entry) => entry.minutes % BREAKEVEN_STEP_MINUTES === 0
-        && entry.minutes <= BREAKEVEN_MAX_MINUTES
-        && entry.evYen >= 0);
-      return row ? row.minutes : null;
+    // 5分刻みの探索点（5〜360分）だけを取り出した「残り時間 → 1サイクルの時給」表。
+    // やめるルールはこの表を残り時間で引くだけで判定できる
+    function hourlyGridFrom(curve) {
+      const byMinutes = new Map(curve.map((entry) => [entry.minutes, entry]));
+      const grid = [];
+      for (let minutes = BREAKEVEN_STEP_MINUTES; minutes <= BREAKEVEN_MAX_MINUTES; minutes += BREAKEVEN_STEP_MINUTES) {
+        const row = byMinutes.get(minutes);
+        grid.push(row ? row.hourlyYen : 0);
+      }
+      return grid;
+    }
+
+    // 座れる残り時間＝1サイクルの時給が閾値以上になる最小の残り時間（5分刻み）。無ければ null
+    function seatMinutesFrom(curve, thresholdYen) {
+      const byMinutes = new Map(curve.map((entry) => [entry.minutes, entry]));
+      for (let minutes = BREAKEVEN_STEP_MINUTES; minutes <= BREAKEVEN_MAX_MINUTES; minutes += BREAKEVEN_STEP_MINUTES) {
+        const row = byMinutes.get(minutes);
+        if (row && row.hourlyYen >= thresholdYen) return minutes;
+      }
+      return null;
+    }
+
+    // 起点ごとに「残り T 分で1サイクルだけ打つ」を回し、表の行と時給表を作る
+    function cycleOutlook(cfg, start, thresholdYen) {
+      const single = simulateContinuous({ ...cfg, startCounter: start.counter, cycleLimit: 1, stopRuleHourly: null });
+      const byMinutes = new Map(single.curve.map((entry) => [entry.minutes, entry]));
+      const cells = TABLE_MINUTES.map((minutes) => {
+        const row = byMinutes.get(minutes);
+        const cell = row
+          ? { minutes, evYen: row.evYen, hourlyYen: row.hourlyYen, playHours: row.playHours }
+          : { minutes, evYen: null, hourlyYen: null, playHours: null };
+        cell.judgment = row ? evJudgment({ totalHours: row.playHours, hourlyYen: row.hourlyYen, evYen: row.evYen }, thresholdYen) : { className: "", label: "—" };
+        return cell;
+      });
+      return {
+        ...start,
+        cells,
+        hourlyGrid: hourlyGridFrom(single.curve),
+        seatMinutes: seatMinutesFrom(single.curve, thresholdYen)
+      };
+    }
+
+    function continuousStarts(cfg) {
+      // 表の並びは「今から」→ 時短回数の小さい順
+      const restarts = cfg.jitanTable
+        .map((row) => ({ key: `jitan${row.spins}`, label: `${row.spins}抜け`, spins: row.spins, counter: cfg.stSpins + row.spins }))
+        .sort((a, b) => a.spins - b.spins);
+      return [{ key: "current", label: "今から", spins: null, counter: cfg.startCounter }, ...restarts];
     }
 
     function continuousFromState() {
       const blocked = continuousBlockMessage();
       if (blocked) return { result: null, missing: blocked };
       const cfg = continuousConfigFromState();
-      // 先に「その起点から座れる最短の残り時間」を出す。時短抜けごとの3値と、いまのカウンター
-      const restartBreakeven = cfg.jitanTable.map((row) => {
-        const counter = cfg.stSpins + row.spins;
-        return { spins: row.spins, counter, minutes: cycleBreakevenMinutes(cfg, counter) };
+      const thresholdYen = hourlyThresholdFromState();
+      // 先に起点ごとの1サイクル表を作る。やめるルールはこの時給表を引く
+      const outlooks = continuousStarts(cfg).map((start) => cycleOutlook(cfg, start, thresholdYen));
+      const grid = cfg.jitanTable.map((row) => {
+        const found = outlooks.find((outlook) => outlook.spins === row.spins);
+        return found.hourlyGrid;
       });
-      const currentBreakeven = {
-        counter: cfg.startCounter,
-        minutes: cycleBreakevenMinutes(cfg, cfg.startCounter)
-      };
-      // 時短抜けで残り時間が T* を下回ったらヤメる。座れないなら Infinity＝必ずヤメる
-      const stopRuleMinutes = restartBreakeven.map((row) => (row.minutes === null ? Infinity : row.minutes));
-      const result = simulateContinuous({ ...cfg, stopRuleMinutes });
-      return { result: { ...result, restartBreakeven, currentBreakeven }, missing: "" };
+      const result = simulateContinuous({ ...cfg, stopRuleHourly: { grid, threshold: thresholdYen } });
+      return { result: { ...result, outlooks, hourlyThreshold: thresholdYen }, missing: "" };
     }
 
     function countText(value) {
@@ -1089,24 +1163,38 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         .join(" ／ ");
     }
 
-    // 座れる最短の残り時間。これを下回るなら座り直さない
-    function seatMinutesText(minutes) {
-      if (minutes === null || minutes === undefined) return `残り${BREAKEVEN_MAX_MINUTES / 60}時間でも座れません`;
-      return `${minutes}分〜`;
+    function unreachableText(thresholdYen) {
+      return `この条件では打てる水準（時給${Math.round(thresholdYen).toLocaleString("ja-JP")}円）に届きません`;
     }
 
-    function restartBreakevenText(result) {
-      if (!result || !result.restartBreakeven) return "—";
-      return result.restartBreakeven
-        .slice()
-        .sort((a, b) => a.spins - b.spins)
-        .map((row) => `${row.spins}抜け ${seatMinutesText(row.minutes)}`)
+    // 座れる残り時間。全ての起点で届かないときは、その1文だけを出す
+    function seatSummaryText(result) {
+      if (!result || !result.outlooks) return "—";
+      if (result.outlooks.every((outlook) => outlook.seatMinutes === null)) return unreachableText(result.hourlyThreshold);
+      return result.outlooks
+        .map((outlook) => `${outlook.label} ${outlook.seatMinutes === null ? "届きません" : `${outlook.seatMinutes}分〜`}`)
         .join(" ／ ");
     }
 
-    function currentBreakevenText(result) {
-      if (!result || !result.currentBreakeven) return "—";
-      return seatMinutesText(result.currentBreakeven.minutes);
+    function seatSummaryLabel(result) {
+      const thresholdYen = result ? result.hourlyThreshold : hourlyThresholdFromState();
+      return `座れる残り時間（時給${Math.round(thresholdYen).toLocaleString("ja-JP")}円以上）：`;
+    }
+
+    // 起点 × 残り時間の1サイクル表。セルは 判定 / 時給 / 期待値
+    function cycleTableHtml(result) {
+      if (!result || !result.outlooks) return "";
+      const head = TABLE_MINUTES.map((minutes) => `<th>${minutes}分</th>`).join("");
+      const body = result.outlooks.map((outlook) => {
+        const counter = `<span class="ct-sub">c${outlook.counter}</span>`;
+        const cells = outlook.cells.map((cell) => {
+          if (cell.evYen === null) return "<td>—</td>";
+          const tone = cell.judgment.className === "good" ? "good" : cell.judgment.className === "bad" ? "bad" : "warn";
+          return `<td><b class="${tone}">${cell.judgment.label}</b><span class="ct-sub">時給 ${yenText(cell.hourlyYen)}</span><span class="ct-sub">${yenText(cell.evYen)}</span></td>`;
+        }).join("");
+        return `<tr><th>${outlook.label}${counter}</th>${cells}</tr>`;
+      }).join("");
+      return `<table class="ct-table"><thead><tr><th>起点</th>${head}</tr></thead><tbody>${body}</tbody></table>`;
     }
 
     function continuousBasisText(result) {
@@ -1117,7 +1205,8 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       return `時速${result.speed}回転/分${speedNote}＝${perHour.toLocaleString("ja-JP")}回転/h ／ 残り${result.minutes}分 ／ ${result.trials.toLocaleString("ja-JP")}試行`
         + ` ／ 使用回転率 ${state.rotationRate}回転/千円 ／ ${preset.payoutLabel} ${state.payout}`
         + ` ／ 電サポ中は6秒/回転で計算 ／ 想定連チャン ${countText(result.wins)}（初当り込み）`
-        + ` ／ 時短抜けで残り時間が座れる最短を下回ったらヤメる前提（この条件では${(result.stopRuleShare * 100).toFixed(0)}%の試行でヤメ）`;
+        + ` ／ 上段の時給は合計期待値÷残り${result.minutes}分（表の時給は1サイクルの期待値÷消化時間）`
+        + ` ／ 時短抜けで残り時間の1サイクル時給が${Math.round(result.hourlyThreshold).toLocaleString("ja-JP")}円未満ならヤメる前提（この条件では${(result.stopRuleShare * 100).toFixed(0)}%の試行でヤメ）`;
     }
 
     function chipHtml(options) {
@@ -1190,7 +1279,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       byId("basis").innerHTML = basisText(result);
       byId("notice").textContent = missing;
       byId("embedCode").textContent = state.mode === "continuous"
-        ? `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}&mode=continuous"\n        width="100%" height="1080" style="border:0" loading="lazy"></iframe>`
+        ? `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}&mode=continuous"\n        width="100%" height="1400" style="border:0" loading="lazy"></iframe>`
         : `<iframe src="https://slot-tools.jp/yutime-calc.html?m=${preset.id}"\n        width="100%" height="700" style="border:0" loading="lazy"></iframe>`;
       renderContinuousResult();
     }
@@ -1269,8 +1358,9 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       const cutoffNode = byId("ctCutoff");
       cutoffNode.textContent = result ? yenText(result.cutoffYen) : "—";
       cutoffNode.className = result && result.cutoffYen < 0 ? "bad" : "";
-      byId("ctCurrentBreakeven").textContent = currentBreakevenText(result);
-      byId("ctRestartBreakeven").textContent = restartBreakevenText(result);
+      byId("ctSeatLabel").textContent = seatSummaryLabel(result);
+      byId("ctSeat").textContent = seatSummaryText(result);
+      byId("ctTable").innerHTML = cycleTableHtml(result);
       byId("ctNotice").textContent = missing;
       byId("ctBasis").innerHTML = continuousBasisText(result);
     }
@@ -1331,6 +1421,15 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       }
     }
 
+    function hourlyThresholdFromUrl() {
+      try {
+        const value = numberOrNull(new URLSearchParams(window.location.search).get("hourly"));
+        return value !== null && value > 0 ? value : null;
+      } catch (err) {
+        return null;
+      }
+    }
+
     function inIframe() {
       try {
         return window.self !== window.top;
@@ -1354,6 +1453,7 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
       if (initialMinutes !== null) state.remainMinutes = initialMinutes;
       const initialSpeed = speedFromUrl();
       if (initialSpeed !== null) state.normalSpeed = initialSpeed;
+      state.hourlyThreshold = hourlyThresholdFromUrl();
       if (supportsContinuous(currentPreset())) state.mode = modeFromUrl();
       byId("normalSpeed").value = String(state.normalSpeed);
       byId("remainMinutes").value = String(state.remainMinutes);
