@@ -1314,6 +1314,9 @@ for (const key of ['mochidamaBalls', 'cashBalls', 'normalCostYen']) {
   assert.ok(Math.abs(actual - expected) <= tolerance, `${key}: analytic=${expected}, simulated=${actual}, tolerance=${tolerance}`);
 }
 const payoutPriorityContext = vm.createContext({
+  // S20/§1-3: このコンテキストはカウンター経路の検証用。持ち玉差の連チャンは別コンテキストで見る
+  chainNetBallsRows() { return []; },
+  resolveHitSegmentId(session, hit) { return hit?.segmentId || null; },
   DEFAULT_NET_BALLS_PER_ROUND: 140,
   MACHINE_PRESETS: [{ id: 'umi-sp5', defaults: { netBallsPerWin: 140, jitanNormalBallsPerSpin: 0, jitanFastBallsPerSpin: 0, yutimeBallsPerSpin: -0.3 }, roundTypes: [{ id: 'r4', label: '4R', balls: 560 }, { id: 'r10', label: '10R', balls: 1400 }] }],
   data: { presetSettings: {}, machines: [{ id: 'm1', presetId: 'umi-sp5' }], sessions: [] },
@@ -1350,17 +1353,17 @@ new vm.Script(`
 `).runInContext(payoutPriorityContext);
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWin: 1500, netBallsPerWinManual: true }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }] }])), JSON.stringify({ value: 1500, source: '手入力', count: null }));
 // S10/§1-1: 実測平均は 獲得出玉の合計 ÷ 合計R数（1,980玉 ÷ 14R）。当選件数では割らない
-assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }] }])), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4', actualBalls: 600 }] }])), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 14 }));
 // S19: R種別だけ記録して獲得出玉が無い当選は実測にならない。公称に寄せず基準値へ落とす
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 140, source: '理論値', count: 0 }));
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [])), JSON.stringify({ value: 140, source: '理論値', count: 0 }));
 // B90: 当選ごとの記録が無い旧データは「ヤメ入力の累計 ÷ そのセッションの合計R数」（2,400玉 ÷ 14R）
-assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 2400 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
+assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 2400 / 14, source: '実測平均', count: 14, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 14 }));
 // 累計値のあるセッションと、当選ごとだけのセッションが混在しても合算平均になる（3,400玉 ÷ 24R）
 assert.equal(JSON.stringify(payoutPriorityContext.info({ netBallsPerWinManual: false }, [
   { machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] },
   { machineId: 'm1', hits: [{ roundTypeId: 'r10', actualBalls: 1000 }] }
-])), JSON.stringify({ value: 3400 / 24, source: '実測平均', count: 24, countUnit: 'rounds' }));
+])), JSON.stringify({ value: 3400 / 24, source: '実測平均', count: 24, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 24 }));
 const availableBallsContext = vm.createContext({
   normalizeNumber(value) {
     if (value === '' || value === null || value === undefined) return null;
@@ -3714,8 +3717,8 @@ assert.doesNotMatch(resultBlock, /<td>期待値との差<\/td>/);
 assert.match(resultBlock, /const evDiffYen = startEv && derived\.profitYen !== null \? derived\.profitYen - startEv\.evYen : null;/);
 // S12/B-2: 区間ごとの内訳は表。列は 区間／起点／終点／回転数／消費玉／回転率
 assert.match(resultBlock, /<table class="result-table segments">/);
-// S17/B-3: 期待値の列が増えて7列になる
-assert.match(resultBlock, /<thead><tr><th>区間<\/th><th>起点<\/th><th>終点<\/th><th>回転数<\/th><th>消費玉<\/th><th>回転率<\/th><th>期待値<\/th><\/tr><\/thead>/);
+// S17/B-3: 期待値の列が増えて7列になる → S20/§2-3: 純増／1R が加わって8列
+assert.match(resultBlock, /<thead><tr><th>区間<\/th><th>起点<\/th><th>終点<\/th><th>回転数<\/th><th>消費玉<\/th><th>回転率<\/th><th>純増／1R<\/th><th>期待値<\/th><\/tr><\/thead>/);
 assert.doesNotMatch(resultBlock, /class="result-seg"/);
 // 保留控除の注記は表の下に1行でまとめる
 assert.match(resultBlock, /segmentHoldNotes\.push\(`\$\{mark\}保留\$\{row\.holdSpins\}`\)/);
@@ -3793,6 +3796,11 @@ new vm.Script(`
     return machine && machine.__stats ? machine.__stats : { rate: null, spins: 0 };
   }
   ${holdCarryBlock}
+  // S20/§2-3: 連チャンの純増はこの文脈ではスタブ。区間に __chain を付けたものだけ連チャンの起点にする
+  function chainNetBallsRows(session) {
+    return (session.segments || []).filter((segment) => segment.__chain)
+      .map((segment) => ({ chainId: segment.id, netBalls: segment.__chain.netBalls, rounds: segment.__chain.rounds, counterBalls: 0, counterRounds: 0 }));
+  }
   ${resultBlock}
   // S17/B: 区間ごとの期待値はエンジンを叩くので、この文脈では起点ごとに固定値を返すスタブに差し替える。
   // 集計の配線（resultAggregate が獲得期待値を足すこと）だけをここで固定する。
@@ -4441,9 +4449,18 @@ assert.equal(netBallsTextContext.sourceText({ source: '手入力', count: null }
 assert.equal(netBallsTextContext.sourceText({ source: '理論値', count: 0 }), '理論値');
 assert.equal(netBallsTextContext.usedText({ value: 100, source: '実測平均', count: 8, countUnit: 'rounds' }), '100玉（実測平均・8R分）');
 assert.equal(netBallsTextContext.usedText({ value: 587.5, source: '理論値', count: 0 }), '587.5玉（理論値）');
+// S20/§2-1: 実測平均は算出方式まで出す。手入力・基準値の表記は変えない
+assert.equal(netBallsTextContext.sourceText({ source: '実測平均', count: 150, countUnit: 'rounds', method: 'balance', balanceRounds: 150, counterRounds: 0 }), '実測平均・持ち玉差・150R分');
+assert.equal(netBallsTextContext.sourceText({ source: '実測平均', count: 14, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 14 }), '実測平均・カウンター・14R分');
+assert.equal(netBallsTextContext.sourceText({ source: '実測平均', count: 60, countUnit: 'rounds', method: 'mixed', balanceRounds: 40, counterRounds: 20 }), '実測平均・持ち玉差40R＋カウンター20R');
+assert.equal(netBallsTextContext.usedText({ value: 97.1, source: '実測平均', count: 150, countUnit: 'rounds', method: 'balance', balanceRounds: 150, counterRounds: 0 }), '97.1玉（実測平均・持ち玉差・150R分）');
+assert.equal(netBallsTextContext.usedText({ value: 105, source: '手入力', count: null }), '105玉（手入力）');
 
 // S9/§1-2: 採用順位。パネルの手入力 → プリセットの手入力 → 実測平均 → 基準値（プリセット既定）
 const s9PayoutContext = vm.createContext({
+  // S20/§1-3: このコンテキストはカウンター経路の検証用。持ち玉差の連チャンは別コンテキストで見る
+  chainNetBallsRows() { return []; },
+  resolveHitSegmentId(session, hit) { return hit?.segmentId || null; },
   MACHINE_PRESETS: [{ id: 'umi-sp5', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r4', label: '4R', balls: 880 }], defaults: { netBallsPerWin: 140 } }],
   DEFAULT_NET_BALLS_PER_ROUND: 140,
   data: { presetSettings: {}, sessions: [], machines: [{ id: 'm1', presetId: 'umi-sp5' }] },
@@ -4488,12 +4505,12 @@ const s9Hits2 = [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r4',
 // パネルの手入力はプリセットの手入力より優先する
 assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWin: 1500, netBallsPerWinManual: true }, [{ machineId: 'm1', hits: s9Hits2 }], '105')), JSON.stringify({ value: 105, source: '手入力', count: null }));
 // 空欄・0・非数値は手入力とみなさず自動決定へ落ちる（S10で分母は合計R数＝14R）
-assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '')), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
-assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '0')), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '')), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 14 }));
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: s9Hits2 }], '0')), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 14 }));
 assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', hits: [] }], null)), JSON.stringify({ value: 140, source: '理論値', count: 0 }));
 // S9/§1-2: 実測平均は当選ごとの「今回分」（S8）が出典。ヤメ入力の累計は当選ごとが無いときだけ
-assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2800, hits: s9Hits2 }])), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
-assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 2400 / 14, source: '実測平均', count: 14, countUnit: 'rounds' }));
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2800, hits: s9Hits2 }])), JSON.stringify({ value: 1980 / 14, source: '実測平均', count: 14, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 14 }));
+assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{ machineId: 'm1', sessionActualBalls: 2400, hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r4' }] }])), JSON.stringify({ value: 2400 / 14, source: '実測平均', count: 14, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 14 }));
 // S9/§2 + S10/§1-1: 連チャンをまたぐセッションは 今回分の合計 ÷ 合計R数（5,400玉 ÷ 16R = 337.5玉）
 assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }, [{
   machineId: 'm1',
@@ -4503,7 +4520,7 @@ assert.equal(JSON.stringify(s9PayoutContext.info({ netBallsPerWinManual: false }
     { roundTypeId: 'r4', segmentId: 'chain2', actualBalls: 1380 },
     { roundTypeId: 'r4', segmentId: 'chain2', actualBalls: 1220 }
   ]
-}])), JSON.stringify({ value: 337.5, source: '実測平均', count: 16, countUnit: 'rounds' }));
+}])), JSON.stringify({ value: 337.5, source: '実測平均', count: 16, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 16 }));
 
 // S9/§1-4: expectationSettings が使用値と出典をまとめて返す
 const s9SettingsContext = vm.createContext({
@@ -4545,16 +4562,24 @@ assert.equal(s9SettingsContext.settingsFor('105').netBallsSource, '使用1R実�
 assert.equal(s9SettingsContext.settingsFor('105').settings.netBallsPerWin, 105);
 s9SettingsContext.__auto = { value: 100, source: '実測平均', count: 8, countUnit: 'rounds' };
 assert.equal(s9SettingsContext.settingsFor(null).netBallsSource, '使用1R実質出玉 100玉（実測平均・8R分）');
+// S20/§2-1: 期待値判定の根拠行にも算出方式が出る
+s9SettingsContext.__auto = { value: 97.1, source: '実測平均', count: 150, countUnit: 'rounds', method: 'balance', balanceRounds: 150, counterRounds: 0 };
+assert.equal(s9SettingsContext.settingsFor(null).netBallsSource, '使用1R実質出玉 97.1玉（実測平均・持ち玉差・150R分）');
 // 時短・遊タイムの内訳は payoutSource に残す（根拠行の後半）
 assert.match(s9SettingsContext.settingsFor(null).payoutSource, /^ST・時短 0玉\/回転、遊タイム -0\.8玉\/回転$/);
 
 // --- S10: 1R実質出玉の実測平均を合計R数ベースに統一 --------------------------
 // S10/§1-1: 合計Rの出所は totalRoundsForPreset と同じ roundCountFromRoundType 1本だけ
 assert.match(presetSettingsHelpers, /const hitRoundCount = \(hit\) => roundCountFromRoundType\(roundTypeById\(presetId, hit\.roundTypeId\)\);/);
-assert.match(presetSettingsHelpers, /return \{ value: actualTotal \/ actualRounds, source: "実測平均", count: actualRounds, countUnit: "rounds" \};/);
+// S20/§1-2: 分子は「持ち玉差 ＋ カウンター」。分母は合計R数のまま
+assert.match(presetSettingsHelpers, /const actualRounds = balanceRounds \+ counterRounds;/);
+assert.match(presetSettingsHelpers, /value: \(balanceBalls \+ counterBalls\) \/ actualRounds,\s*\n\s*source: "実測平均",\s*\n\s*count: actualRounds,\s*\n\s*countUnit: "rounds",/);
 assert.doesNotMatch(presetSettingsHelpers, /source: "実測平均", count: actualCount/);
 
 const s10Context = vm.createContext({
+  // S20/§1-3: このコンテキストはカウンター経路の検証用。持ち玉差の連チャンは別コンテキストで見る
+  chainNetBallsRows() { return []; },
+  resolveHitSegmentId(session, hit) { return hit?.segmentId || null; },
   // アグネスPE相当（1R=108玉のR種別）。roundCountFromRoundType はラベルからR数を読む
   MACHINE_PRESETS: [{ id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r6', label: '6R', balls: 648 }, { id: 'r4', label: '4R', balls: 432 }], defaults: { netBallsPerWin: 108 } }],
   DEFAULT_NET_BALLS_PER_ROUND: 140,
@@ -4602,7 +4627,7 @@ new vm.Script(`
 `).runInContext(s10Context);
 
 // §2-1: 6R・540玉 → 540 ÷ 6 = 90玉
-assert.equal(JSON.stringify(s10Context.average([{ roundTypeId: 'r6', actualBalls: 540 }])), JSON.stringify({ value: 90, source: '実測平均', count: 6, countUnit: 'rounds' }));
+assert.equal(JSON.stringify(s10Context.average([{ roundTypeId: 'r6', actualBalls: 540 }])), JSON.stringify({ value: 90, source: '実測平均', count: 6, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 6 }));
 // §2-2: 10R・1,300玉 ＋ 4R・420玉 → 1,720 ÷ 14 ≒ 123玉
 const s10Case2 = s10Context.average([{ roundTypeId: 'r10', actualBalls: 1300 }, { roundTypeId: 'r4', actualBalls: 420 }]);
 assert.equal(s10Case2.value, 1720 / 14);
@@ -4610,11 +4635,11 @@ assert.equal(Math.round(s10Case2.value), 123);
 assert.equal(s10Case2.count, 14);
 assert.equal(s10Case2.countUnit, 'rounds');
 // §2-3: 出玉未入力の10Rは分子・分母とも除外 → 420 ÷ 4 = 105玉
-assert.equal(JSON.stringify(s10Context.average([{ roundTypeId: 'r10' }, { roundTypeId: 'r4', actualBalls: 420 }])), JSON.stringify({ value: 105, source: '実測平均', count: 4, countUnit: 'rounds' }));
+assert.equal(JSON.stringify(s10Context.average([{ roundTypeId: 'r10' }, { roundTypeId: 'r4', actualBalls: 420 }])), JSON.stringify({ value: 105, source: '実測平均', count: 4, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 4 }));
 // §2-4: 当選1回・10R・1,300玉 → 従来は1,300玉（当選件数=1で割っていた）。正しくは130玉
-assert.equal(JSON.stringify(s10Context.average([{ roundTypeId: 'r10', actualBalls: 1300 }])), JSON.stringify({ value: 130, source: '実測平均', count: 10, countUnit: 'rounds' }));
-// 表示は「◯R分」。当選件数と読み違えないこと
-assert.equal(s10Context.usedText(s10Case2), '122.9玉（実測平均・14R分）');
+assert.equal(JSON.stringify(s10Context.average([{ roundTypeId: 'r10', actualBalls: 1300 }])), JSON.stringify({ value: 130, source: '実測平均', count: 10, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 10 }));
+// 表示は「◯R分」。当選件数と読み違えないこと（S20/§2-1 で算出方式が前に付く）
+assert.equal(s10Context.usedText(s10Case2), '122.9玉（実測平均・カウンター・14R分）');
 
 // S10/§1-3: 戦果報告の「1R当たり」と、そのセッションだけを集計したS9実測平均が一致する
 const s10SameSession = [
@@ -5747,7 +5772,7 @@ assert.doesNotMatch(netBallsTextBlock, /`n=\$\{info\.count\}`/);
 // 採用順位は「パネル手入力 → プリセット手入力 → 実測平均 → 基準値」の4段
 assert.match(presetSettingsHelpers, /if \(panelManual !== null && panelManual > 0\) \{\s*return \{ value: panelManual, source: "手入力", count: null \};/);
 assert.match(presetSettingsHelpers, /if \(settings\.netBallsPerWinManual === true && manual !== null && manual > 0\) \{\s*return \{ value: manual, source: "手入力", count: null \};/);
-assert.match(presetSettingsHelpers, /if \(actualRounds > 0\) \{\s*return \{ value: actualTotal \/ actualRounds, source: "実測平均", count: actualRounds, countUnit: "rounds" \};/);
+assert.match(presetSettingsHelpers, /if \(actualRounds > 0\) \{\s*return \{\s*value: \(balanceBalls \+ counterBalls\) \/ actualRounds,/);
 assert.match(presetSettingsHelpers, /return \{ value: preset\?\.defaults\?\.netBallsPerWin \|\| DEFAULT_NET_BALLS_PER_ROUND, source: netBallsDefaultLabel\(presetId\), count: 0 \};/);
 // 画面の説明文も3段にそろえる
 assert.doesNotMatch(html, /実測平均・ラウンド集計・理論値の順/);
@@ -5769,6 +5794,9 @@ const s19Context = vm.createContext({
   normalizeHits(hits) { return Array.isArray(hits) ? hits : []; },
   totalRoundsForPreset() { return 0; },
   positiveNumberOrDefault(value, fallback) { return value > 0 ? value : fallback; },
+  // S20/§1-3: この文脈は採用順位の検証用。持ち玉差の連チャンは別コンテキストで見る
+  chainNetBallsRows() { return []; },
+  resolveHitSegmentId(session, hit) { return hit?.segmentId || null; },
   nowIso() { return '2026-09-08T00:00:00.000Z'; }
 });
 new vm.Script(`
@@ -5792,7 +5820,7 @@ assert.equal(
 // 獲得出玉ありのセッションは実測平均のまま（1,020玉 ÷ 10R）
 assert.equal(
   JSON.stringify(s19Context.info('agnes-pe', 'm1', [{ machineId: 'm1', hits: [{ roundTypeId: 'r6', actualBalls: 600 }, { roundTypeId: 'r4', actualBalls: 420 }] }])),
-  JSON.stringify({ value: 102, source: '実測平均', count: 10, countUnit: 'rounds' })
+  JSON.stringify({ value: 102, source: '実測平均', count: 10, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 10 })
 );
 // umi-sp5 も同じ。R種別だけの当選は基準値へ落とす
 assert.equal(
@@ -5801,7 +5829,265 @@ assert.equal(
 );
 assert.equal(
   JSON.stringify(s19Context.info('umi-sp5', 'm2', [{ machineId: 'm2', hits: [{ roundTypeId: 'r10', actualBalls: 1300 }] }])),
-  JSON.stringify({ value: 130, source: '実測平均', count: 10, countUnit: 'rounds' })
+  JSON.stringify({ value: 130, source: '実測平均', count: 10, countUnit: 'rounds', method: 'counter', balanceRounds: 0, counterRounds: 10 })
 );
+
+// --- S20: 1R実質出玉（減算込み）を持ち玉差から算出する ------------------------
+
+const chainNetBlock = section('function jitanAddedBalls', 'function segmentConsumedBalls');
+const s20Context = vm.createContext({
+  normalizeNumber(value) {
+    if (value === '' || value === null || value === undefined) return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  storeById() { return { id: 'store1', lendRate: 4, exchangeBalls: 28 }; },
+  sessionSegments(session) { return session.segments || []; },
+  normalizeHits(hits) { return Array.isArray(hits) ? hits : []; },
+  normalizeMachinePresetId(machine) { return machine?.presetId || ''; },
+  roundTypeById(presetId, id) {
+    return { r4: { id: 'r4', rounds: 4 }, r6: { id: 'r6', rounds: 6 }, r10: { id: 'r10', rounds: 10 } }[id] || null;
+  },
+  roundCountFromRoundType(roundType) { return roundType ? roundType.rounds : null; },
+  // 残保留当選は S7b の手動指定だけを見るスタブ（自動判定は holdCarryBlock 側で検証済み）
+  segmentIsHoldCarryHit(segment) { return segment?.holdCarryHit === true; },
+  resolveHitSegmentId(session, hit) {
+    const segments = session.segments || [];
+    let index = segments.findIndex((segment) => segment.id === hit.segmentId);
+    if (index < 0) return hit.segmentId || null;
+    while (index > 0 && segments[index].holdCarryHit === true) index -= 1;
+    return segments[index].id;
+  },
+  investmentSource(item) { return item?.source || item?.type || 'cash'; },
+  // 再プレイ・持ち玉は玉数そのまま、現金は 500円=125玉
+  investmentToBalls(item) {
+    return (item.source || item.type) === 'cash' ? Number(item.amount) / 4 : Number(item.amount);
+  },
+  segmentAddedBalls(session, segmentId) {
+    return (session.investments || [])
+      .filter((item) => item.segmentId === segmentId && (item.source || item.type) !== 'mochidama')
+      .reduce((sum, item) => sum + s20Context.investmentToBalls(item), 0);
+  },
+  sessionActualBallsTotal(session) {
+    const total = (session.hits || []).reduce((sum, hit) => sum + (Number(hit.actualBalls) || 0), 0);
+    return total > 0 ? total : null;
+  },
+  totalRoundsForSession(session) {
+    return (session.hits || []).reduce((sum, hit) => sum + (s20Context.roundTypeById('', hit.roundTypeId)?.rounds || 0), 0);
+  }
+});
+new vm.Script(`
+  ${chainNetBlock}
+  globalThis.s20Api = { chainNetBallsRows, sessionNetBallsSummary, jitanAddedBalls, chainAddedBalls };
+`).runInContext(s20Context);
+
+const s20Machine = { id: 'm1', presetId: 'agnes-pe' };
+// §1-1: 純増＝次の通常区間の起点持ち玉 − 当選時の持ち玉
+const s20Basic = {
+  storeId: 'store1',
+  endTotalBalls: 4000,
+  segments: [
+    { id: 'a', kind: 'normal', endSource: 'hit', startTrackedBalls: 2000, endRemainBalls: 101 },
+    { id: 'b', kind: 'normal', endSource: 'hit', startTrackedBalls: 2424, endRemainBalls: 837 },
+    { id: 'c', kind: 'normal', endSource: 'end', startTrackedBalls: 2191, endRemainBalls: null }
+  ],
+  hits: [
+    { roundTypeId: 'r6', segmentId: 'a' }, { roundTypeId: 'r6', segmentId: 'a' },
+    { roundTypeId: 'r6', segmentId: 'a' }, { roundTypeId: 'r6', segmentId: 'a' },
+    { roundTypeId: 'r4', segmentId: 'b' }, { roundTypeId: 'r6', segmentId: 'b' }, { roundTypeId: 'r4', segmentId: 'b' }
+  ],
+  investments: []
+};
+const s20BasicRows = s20Context.s20Api.chainNetBallsRows(s20Basic, 'agnes-pe');
+assert.equal(s20BasicRows.length, 2);
+assert.equal(JSON.stringify(s20BasicRows.map((row) => row.netBalls)), JSON.stringify([2323, 1354]));
+assert.equal(JSON.stringify(s20BasicRows.map((row) => row.rounds)), JSON.stringify([24, 14]));
+// ヤメで終わる区間は連チャンの起点にしない（当選していないので純増を出さない）
+assert.equal(s20BasicRows.some((row) => row.chainId === 'c'), false);
+
+// §1-1: 最後の連チャンで次の区間が無いときはヤメ入力の終了玉を次の起点にする
+const s20Trailing = {
+  storeId: 'store1',
+  endTotalBalls: 3000,
+  segments: [{ id: 'a', kind: 'normal', endSource: 'hit', startTrackedBalls: 2000, endRemainBalls: 1500 }],
+  hits: [{ roundTypeId: 'r10', segmentId: 'a' }],
+  investments: []
+};
+assert.equal(s20Context.s20Api.chainNetBallsRows(s20Trailing, 'agnes-pe')[0].netBalls, 1500);
+
+// §1-1: 時短中に外から足した玉（duringJitan）は純増から差し引く。持ち玉タップは差し引かない
+const s20Invested = {
+  storeId: 'store1',
+  endTotalBalls: 4000,
+  segments: [
+    { id: 'a', kind: 'normal', endSource: 'hit', startTrackedBalls: 2000, endRemainBalls: 100 },
+    { id: 'b', kind: 'normal', endSource: 'end', startTrackedBalls: 1600, endRemainBalls: null }
+  ],
+  hits: [{ roundTypeId: 'r10', segmentId: 'a' }],
+  investments: [
+    { source: 'saipurei', amount: 125, segmentId: 'a' },
+    { source: 'saipurei', amount: 125, segmentId: 'a', duringJitan: true },
+    { source: 'mochidama', amount: 125, segmentId: 'a', duringJitan: true },
+    { source: 'cash', amount: 500, segmentId: 'a', duringJitan: true }
+  ]
+};
+// 1,600 − 100 − （再プレ125 ＋ 現金125） = 1,250。通常時の再プレ125と持ち玉125は引かない
+assert.equal(s20Context.s20Api.chainNetBallsRows(s20Invested, 'agnes-pe')[0].netBalls, 1250);
+
+// §1-1: 残保留当選は前の連チャンの続き。純増の窓もその区間をまたいで次の通常区間まで延ばす
+const s20HoldCarry = {
+  storeId: 'store1',
+  endTotalBalls: 5000,
+  segments: [
+    { id: 'a', kind: 'normal', endSource: 'hit', startTrackedBalls: 2000, endRemainBalls: 200 },
+    { id: 'b', kind: 'normal', endSource: 'hit', startTrackedBalls: 1500, endRemainBalls: 1500, holdCarryHit: true },
+    { id: 'c', kind: 'normal', endSource: 'end', startTrackedBalls: 3000, endRemainBalls: null }
+  ],
+  hits: [{ roundTypeId: 'r10', segmentId: 'a' }, { roundTypeId: 'r6', segmentId: 'b' }],
+  investments: []
+};
+const s20HoldRows = s20Context.s20Api.chainNetBallsRows(s20HoldCarry, 'agnes-pe');
+assert.equal(s20HoldRows.length, 1);
+assert.equal(s20HoldRows[0].chainId, 'a');
+assert.equal(s20HoldRows[0].netBalls, 2800);
+assert.equal(s20HoldRows[0].rounds, 16);
+
+// §1-3: 持ち玉差が出せない連チャンはカウンターの獲得出玉へ落ちる
+const s20Fallback = {
+  storeId: 'store1',
+  endTotalBalls: null,
+  segments: [{ id: 'a', kind: 'normal', endSource: 'hit', startTrackedBalls: 2000, endRemainBalls: null }],
+  hits: [{ roundTypeId: 'r10', segmentId: 'a', actualBalls: 1300 }],
+  investments: []
+};
+const s20FallbackRow = s20Context.s20Api.chainNetBallsRows(s20Fallback, 'agnes-pe')[0];
+assert.equal(s20FallbackRow.netBalls, null);
+assert.equal(s20FallbackRow.counterBalls, 1300);
+assert.equal(s20FallbackRow.counterRounds, 10);
+
+// §2-2: セッションの1R実質出玉（減算込み）／払い出し／時短中の減り
+const s20SummarySession = {
+  storeId: 'store1',
+  endTotalBalls: 4000,
+  segments: [
+    { id: 'a', kind: 'normal', endSource: 'hit', startTrackedBalls: 2000, endRemainBalls: 100 },
+    { id: 'b', kind: 'normal', endSource: 'end', startTrackedBalls: 1080, endRemainBalls: null }
+  ],
+  hits: [{ roundTypeId: 'r10', segmentId: 'a', actualBalls: 1085 }],
+  investments: []
+};
+const s20Summary = s20Context.s20Api.sessionNetBallsSummary(s20SummarySession, s20Machine);
+assert.equal(s20Summary.netBalls, 980);
+assert.equal(s20Summary.netRounds, 10);
+assert.equal(s20Summary.netPerRound, 98);
+assert.equal(s20Summary.payoutBalls, 1085);
+assert.equal(s20Summary.payoutPerRound, 108.5);
+// 時短中の減り＝払い出し − 純増
+assert.equal(s20Summary.jitanLossBalls, 105);
+// 払い出しが無いセッションは減りを出さない（純増だけ出す）
+const s20NoCounter = s20Context.s20Api.sessionNetBallsSummary(s20Basic, s20Machine);
+assert.equal(s20NoCounter.netBalls, 3677);
+assert.equal(s20NoCounter.payoutPerRound, null);
+assert.equal(s20NoCounter.jitanLossBalls, null);
+
+// §2-2: 表示は「—」。0玉と読み違えないこと
+const s20TextContext = vm.createContext({ normalizeNumber: s20Context.normalizeNumber });
+new vm.Script(`
+  ${netBallsTextBlock}
+  globalThis.netDash = netBallsOrDashText;
+  globalThis.ballsDash = ballsOrDashText;
+  globalThis.netCell = segmentNetCellText;
+`).runInContext(s20TextContext);
+assert.equal(s20TextContext.netDash(97.0666), '97.1玉');
+assert.equal(s20TextContext.netDash(null), '—');
+assert.equal(s20TextContext.ballsDash(105), '105玉');
+assert.equal(s20TextContext.ballsDash(null), '—');
+// §2-3: 純増と1Rは1列にまとめる
+assert.equal(s20TextContext.netCell({ netBalls: 2323, netPerRound: 2323 / 24 }), '+2,323／96.8');
+assert.equal(s20TextContext.netCell({ netBalls: -120, netPerRound: -12 }), '-120／-12.0');
+assert.equal(s20TextContext.netCell({ netBalls: null, netPerRound: null }), '—');
+
+// §2-2: リザルトの「今回の結果」に3つ並べる
+assert.match(resultBlock, /const netSummary = sessionNetBallsSummary\(session, machine\);/);
+assert.match(resultBlock, /1R実質出玉 \$\{escapeHtml\(netBallsOrDashText\(netSummary\.netPerRound\)\)\}（減算込み）/);
+assert.match(resultBlock, /払い出し \$\{escapeHtml\(netBallsOrDashText\(netSummary\.payoutPerRound\)\)\}/);
+assert.match(resultBlock, /時短中の減り \$\{escapeHtml\(ballsOrDashText\(netSummary\.jitanLossBalls\)\)\}/);
+// §7: エンジンは触らない（yutime-calc との一致テストは tests/yutime-calc.test.js が担保）
+assert.doesNotMatch(yutimeExpectationEngine, /chainNetBallsRows|duringJitan/);
+
+// §2-3: 区間内訳の行に純増・1Rが入る
+const s20RowsSession = {
+  storeId: 'store1',
+  segments: [
+    { id: 'a', kind: 'normal', startSpin: 0, endSpin: 96, endSource: 'hit', holdSpins: 0, consumed: 1149, shooting: 'started', __chain: { netBalls: 2323, rounds: 24 } },
+    { id: 'b', kind: 'normal', startSpin: 50, endSpin: 202, endSource: 'end', holdSpins: 5, consumed: 800, shooting: 'started' }
+  ]
+};
+const s20SegmentRows = resultContext.resultApi.segmentBreakdownRows(s20RowsSession, { consumedBalls: 1149, yutimeLoss: 0 }, resultContext.data.machines[0]);
+assert.equal(s20SegmentRows[0].netBalls, 2323);
+assert.equal(Math.round(s20SegmentRows[0].netPerRound * 10) / 10, 96.8);
+assert.equal(s20SegmentRows[1].netBalls, null);
+assert.equal(s20SegmentRows[1].netPerRound, null);
+
+// §1-1: 時短中の投資の印は addInvestment が付ける。旧データ（印なし）には足さない
+assert.match(addInvestment, /if \(!openSegmentOf\(session\)\) item\.duringJitan = true;/);
+assert.match(normalizeData, /\.\.\.\(item\.duringJitan === true \? \{ duringJitan: true \} : \{\}\)/);
+
+// §1-3・§2-1: netBallsPerWinInfo の採用を連チャン単位で判定する（持ち玉差／カウンター／混在）
+const s20InfoContext = vm.createContext({
+  DEFAULT_NET_BALLS_PER_ROUND: 140,
+  MACHINE_PRESETS: [{ id: 'agnes-pe', roundTypes: [{ id: 'r6', label: '6R', balls: 648 }, { id: 'r10', label: '10R', balls: 1080 }], defaults: { netBallsPerWin: 100 }, defaultNetBallsLabel: '基準値（記事の1R100玉）' }],
+  data: { presetSettings: {}, sessions: [], machines: [{ id: 'm1', presetId: 'agnes-pe' }] },
+  normalizeNumber: s20Context.normalizeNumber,
+  normalizeMachinePresetId(machine) { return machine?.presetId || ''; },
+  normalizeHits(hits) { return Array.isArray(hits) ? hits : []; },
+  totalRoundsForPreset() { return 0; },
+  positiveNumberOrDefault(value, fallback) { return value > 0 ? value : fallback; },
+  // セッションに __chains を持たせて連チャンを直接与える
+  chainNetBallsRows(session) { return session.__chains || []; },
+  resolveHitSegmentId(session, hit) { return hit?.segmentId || null; },
+  nowIso() { return '2026-09-08T00:00:00.000Z'; }
+});
+new vm.Script(`
+  function presetById(id) { return MACHINE_PRESETS.find((preset) => preset.id === id) || null; }
+  function filteredSessions() { return data.sessions; }
+  ${roundCountFromRoundTypeBlock}
+  ${presetSettingsHelpers}
+  ${netBallsTextBlock}
+  globalThis.info = (sessions) => {
+    data.sessions = sessions;
+    return netBallsPerWinInfo('agnes-pe', data.machines[0]);
+  };
+  globalThis.usedText = netBallsUsedText;
+`).runInContext(s20InfoContext);
+const s20BalanceOnly = s20InfoContext.info([{
+  machineId: 'm1',
+  __chains: [{ chainId: 'a', netBalls: 14565, rounds: 150, counterBalls: 0, counterRounds: 0 }],
+  hits: [{ roundTypeId: 'r10', segmentId: 'a' }]
+}]);
+assert.equal(Math.round(s20BalanceOnly.value * 10) / 10, 97.1);
+assert.equal(s20BalanceOnly.method, 'balance');
+assert.equal(s20InfoContext.usedText(s20BalanceOnly), '97.1玉（実測平均・持ち玉差・150R分）');
+// 持ち玉差が出せない連チャンだけカウンターへ落ちる。両方あると混在表記になる
+const s20Mixed = s20InfoContext.info([{
+  machineId: 'm1',
+  __chains: [
+    { chainId: 'a', netBalls: 4000, rounds: 40, counterBalls: 0, counterRounds: 0 },
+    { chainId: 'b', netBalls: null, rounds: 20, counterBalls: 2200, counterRounds: 20 }
+  ],
+  hits: [{ roundTypeId: 'r10', segmentId: 'a', actualBalls: 1000 }, { roundTypeId: 'r10', segmentId: 'b', actualBalls: 1100 }, { roundTypeId: 'r10', segmentId: 'b', actualBalls: 1100 }]
+}]);
+// 持ち玉差の連チャン（a）の当たりはカウンター側へ二重計上しない: (4,000 + 2,200) ÷ 60R
+assert.equal(s20Mixed.value, 6200 / 60);
+assert.equal(s20Mixed.count, 60);
+assert.equal(s20Mixed.method, 'mixed');
+assert.equal(s20InfoContext.usedText(s20Mixed), '103.3玉（実測平均・持ち玉差40R＋カウンター20R）');
+// どちらも無い連チャンは集計から外れ、基準値へ落ちる
+const s20None = s20InfoContext.info([{
+  machineId: 'm1',
+  __chains: [{ chainId: 'a', netBalls: null, rounds: 10, counterBalls: 0, counterRounds: 0 }],
+  hits: [{ roundTypeId: 'r10', segmentId: 'a' }]
+}]);
+assert.equal(JSON.stringify(s20None), JSON.stringify({ value: 100, source: '基準値（記事の1R100玉）', count: 0 }));
 
 console.log('yutime-v3 tests passed');

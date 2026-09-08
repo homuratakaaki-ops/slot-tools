@@ -1765,7 +1765,8 @@
     .result-table th:first-child,
     .result-table td:first-child { text-align: left; white-space: normal; }
 
-    /* S12/B-2: 区間の内訳は6列。320px で潰れないよう文字と余白を詰め、終点だけ折り返す */
+    /* S12/B-2 → S20/§2-3: 区間の内訳は8列。320px で潰れないよう文字と余白を詰め、終点だけ折り返す
+       （純増と1R実質出玉は1列にまとめ、それでも溢れる分は .result-table-wrap の横スクロールで見る） */
     .result-table.segments { font-size: 11px; }
 
     .result-table.segments th,
@@ -2680,30 +2681,55 @@
       //（獲得出玉の合計 ÷ 合計R数）にそろえ、戦果報告の sessionBallsPerRound と同じ考え方にする。
       // 合計Rの出所は totalRoundsForPreset と同じ roundCountFromRoundType 1本だけを使う。
       const hitRoundCount = (hit) => roundCountFromRoundType(roundTypeById(presetId, hit.roundTypeId));
-      let actualTotal = 0;
-      let actualRounds = 0;
+      // S20/§1-2,§1-3: 分子は連チャンごとの純増（持ち玉差・減算込み）。採用は連チャン単位で判定し、
+      // 持ち玉差が出せない連チャンだけ従来どおりカウンターの獲得出玉（S8）へ落とす。
+      // どちらも無い連チャンは分子・分母のどちらにも入れない。
+      let balanceBalls = 0;
+      let balanceRounds = 0;
+      let counterBalls = 0;
+      let counterRounds = 0;
       sessions.forEach((session) => {
+        const balanceChainIds = new Set();
+        chainNetBallsRows(session, presetId).forEach((row) => {
+          if (row.netBalls === null || row.rounds <= 0) return;
+          balanceBalls += row.netBalls;
+          balanceRounds += row.rounds;
+          balanceChainIds.add(row.chainId);
+        });
         const sessionHits = normalizeHits(session.hits);
         // 獲得出玉が未入力の当選は分子にも分母にも入れない（対応する出玉が無いR数で平均が薄まるため）
-        const perHit = sessionHits.filter((hit) => (normalizeNumber(hit.actualBalls) ?? 0) > 0 && (hitRoundCount(hit) ?? 0) > 0);
+        const perHit = sessionHits.filter((hit) => !balanceChainIds.has(resolveHitSegmentId(session, hit))
+          && (normalizeNumber(hit.actualBalls) ?? 0) > 0 && (hitRoundCount(hit) ?? 0) > 0);
         if (perHit.length) {
           perHit.forEach((hit) => {
-            actualTotal += normalizeNumber(hit.actualBalls);
-            actualRounds += hitRoundCount(hit);
+            counterBalls += normalizeNumber(hit.actualBalls);
+            counterRounds += hitRoundCount(hit);
           });
           return;
         }
+        // ヤメ入力の累計はセッション単位なので、持ち玉差で数えた連チャンがあるセッションでは使わない
+        if (balanceChainIds.size) return;
         const explicit = normalizeNumber(session.sessionActualBalls);
         if (explicit !== null && explicit > 0) {
           const rounds = totalRoundsForPreset(session, presetId);
           if (rounds > 0) {
-            actualTotal += explicit;
-            actualRounds += rounds;
+            counterBalls += explicit;
+            counterRounds += rounds;
           }
         }
       });
+      const actualRounds = balanceRounds + counterRounds;
       if (actualRounds > 0) {
-        return { value: actualTotal / actualRounds, source: "実測平均", count: actualRounds, countUnit: "rounds" };
+        return {
+          value: (balanceBalls + counterBalls) / actualRounds,
+          source: "実測平均",
+          count: actualRounds,
+          countUnit: "rounds",
+          // S20/§2-1: 出典は方式が分かる形で出す（持ち玉差／カウンター／混在）
+          method: balanceRounds > 0 ? (counterRounds > 0 ? "mixed" : "balance") : "counter",
+          balanceRounds,
+          counterRounds
+        };
       }
       // S19: 「ラウンド集計」（R種別の公称出玉 ÷ そのR数）の段は廃止した。
       // アグネスPEでは 1080/10・648/6・432/4 がどれも108玉/R なので、当選のR種別を記録しただけで
@@ -2881,14 +2907,37 @@
 
     // S19: 出典は「手入力」「実測平均・◯R分」「基準値（プリセット既定）」の3種。
     // S10/§1-1: 実測平均のサンプル数は集計に使った合計R数なので、件数と読めない `◯R分` で出す。
+    // S20/§2-1: 実測平均は算出方式まで出す。混在した連チャンはR数の内訳で見せる。
     function netBallsSourceText(info) {
       if (!info) return "-";
+      if (info.method === "mixed") {
+        return `${info.source}・持ち玉差${Number(info.balanceRounds).toLocaleString("ja-JP")}R＋カウンター${Number(info.counterRounds).toLocaleString("ja-JP")}R`;
+      }
       if (!info.count) return `${info.source}`;
-      return `${info.source}・${info.count.toLocaleString("ja-JP")}R分`;
+      const method = info.method === "balance" ? "・持ち玉差" : info.method === "counter" ? "・カウンター" : "";
+      return `${info.source}${method}・${info.count.toLocaleString("ja-JP")}R分`;
     }
 
     function netBallsUsedText(info) {
       return `${netBallsText(info?.value)}（${netBallsSourceText(info)}）`;
+    }
+
+    // S20/§2-2: 未算出は「—」で出す。玉数が0のときと読み違えないため "-" と分ける。
+    function netBallsOrDashText(value) {
+      return normalizeNumber(value) === null ? "—" : netBallsText(value);
+    }
+
+    function ballsOrDashText(value) {
+      const number = normalizeNumber(value);
+      return number === null ? "—" : `${Math.round(number).toLocaleString("ja-JP")}玉`;
+    }
+
+    // S20/§2-3: 区間内訳の「純増／1R」列。当選で終わる区間だけ値を持つ。
+    function segmentNetCellText(row) {
+      if (row?.netBalls === null || row?.netBalls === undefined) return "—";
+      const sign = row.netBalls >= 0 ? "+" : "";
+      const perRound = normalizeNumber(row.netPerRound);
+      return `${sign}${row.netBalls.toLocaleString("ja-JP")}${perRound === null ? "" : `／${(Math.round(perRound * 10) / 10).toFixed(1)}`}`;
     }
 
     function expectationSettings(store, machine, manualNetBallsPerWin = null) {
@@ -3348,7 +3397,9 @@
           phase: item.phase === "yutime" ? "yutime" : "normal",
           spinAt: normalizeNumber(item.spinAt),
           adjustment: item.adjustment === true,
-          segmentId: item.segmentId || null
+          segmentId: item.segmentId || null,
+          // S20/§1-1: 時短中に足した玉の印。付いていない投資には足さない（JSON量を増やさない）
+          ...(item.duringJitan === true ? { duringJitan: true } : {})
         })).filter((item) => item.amount !== null) : [],
         charges: Array.isArray(session.charges) ? session.charges.map((item) => ({
           amount: normalizeNumber(item.amount),
@@ -8538,6 +8589,8 @@
       const store = storeById(session.storeId);
       const preset = machine ? presetById(normalizeMachinePresetId(machine)) : null;
       const multiNormal = segments.filter((segment) => segment.kind === "normal").length > 1;
+      // S20/§2-3: 当選で終わる区間の行に、その連チャンの純増と1R実質出玉を添える
+      const chainById = new Map(chainNetBallsRows(session, normalizeMachinePresetId(machine)).map((row) => [row.chainId, row]));
       let normalIndex = 0;
       return segments.map((segment, index) => {
         const isNormal = segment.kind === "normal";
@@ -8556,6 +8609,8 @@
         const consumed = noShooting ? 0 : (isNormal
           ? (multiNormal ? segmentTapConsumedBalls(segment, session, store) : derived.consumedBalls)
           : derived.yutimeLoss);
+        const chain = segment.id ? chainById.get(segment.id) || null : null;
+        const chainNetBalls = chain && chain.netBalls !== null ? chain.netBalls : null;
         return {
           index: index + 1,
           kind: segment.kind,
@@ -8569,7 +8624,10 @@
           evYen: earnedById && segment.id ? (earnedById.has(segment.id) ? earnedById.get(segment.id) : null) : null,
           spins: spins !== null && spins < 0 ? null : spins,
           consumed: consumed === null || consumed === undefined ? null : Math.round(consumed),
-          rate: noShooting ? null : (spins !== null && spins >= 0 && consumed > 0 ? spins / consumed * 250 : null)
+          rate: noShooting ? null : (spins !== null && spins >= 0 && consumed > 0 ? spins / consumed * 250 : null),
+          // S20/§2-3: 純増は連チャン単位。残保留当選の区間は前の連チャンに寄せるので自分の行には出さない
+          netBalls: chainNetBalls === null ? null : Math.round(chainNetBalls),
+          netPerRound: chainNetBalls !== null && chain.rounds > 0 ? chainNetBalls / chain.rounds : null
         };
       });
     }
@@ -8663,6 +8721,8 @@
           <p class="hint">1回のブレです。判断の良し悪しは下の通算で見ます。</p>
         </div>` : '<p class="hint">開始時の期待値は記録されていません。</p>';
       const earned = earnedExpectationForSession(session, machine, derived);
+      // S20/§2-2: 期待値計算に使う「1R実質出玉（減算込み）」を、払い出しと時短中の減りと並べて出す
+      const netSummary = sessionNetBallsSummary(session, machine);
       const segmentRows = segmentBreakdownRows(session, derived, machine, earned);
       const normalMarks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
       let normalRowIndex = 0;
@@ -8676,8 +8736,10 @@
         const endText = `${escapeHtml(row.endLabel)}${endSpin}`;
         // S17/B-3: 期待値列。通常区間だけ値を入れ、合計に入らない区間は「—」で出す
         const evText = row.evYen === null || row.evYen === undefined ? "—" : yenText(row.evYen);
+        // S20/§2-3: 純増と1R実質出玉は1列にまとめる（320px で列が潰れないように）
+        const netText = segmentNetCellText(row);
         if (row.kind === "yutime") {
-          return `<tr><td>${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>-</td><td>${consumed}玉</td><td>-</td><td>—</td></tr>`;
+          return `<tr><td>${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>-</td><td>${consumed}玉</td><td>-</td><td>${escapeHtml(netText)}</td><td>—</td></tr>`;
         }
         const mark = normalMarks[normalRowIndex] || String(normalRowIndex + 1);
         normalRowIndex += 1;
@@ -8685,14 +8747,14 @@
         const rate = row.rate === null ? "-" : row.rate.toFixed(1);
         if (row.holdCarry) segmentHoldCarryMarks.push(mark);
         else if (row.holdSpins > 0) segmentHoldNotes.push(`${mark}保留${row.holdSpins}`);
-        return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${consumed}玉</td><td>${rate}</td><td>${escapeHtml(evText)}</td></tr>`;
+        return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${consumed}玉</td><td>${rate}</td><td>${escapeHtml(netText)}</td><td>${escapeHtml(evText)}</td></tr>`;
       }).join("");
       const segmentHtml = segmentRows.length ? `
         <div class="result-block">
           <div class="result-block-title">区間ごとの内訳</div>
           <div class="result-table-wrap">
             <table class="result-table segments">
-              <thead><tr><th>区間</th><th>起点</th><th>終点</th><th>回転数</th><th>消費玉</th><th>回転率</th><th>期待値</th></tr></thead>
+              <thead><tr><th>区間</th><th>起点</th><th>終点</th><th>回転数</th><th>消費玉</th><th>回転率</th><th>純増／1R</th><th>期待値</th></tr></thead>
               <tbody>${segmentBodyHtml}</tbody>
             </table>
           </div>
@@ -8725,6 +8787,7 @@
           <div class="result-block-title">今回の結果</div>
           <div class="result-headline">${escapeHtml(yenText(derived.profitYen))}</div>
           <div class="result-line">実測回転率 ${escapeHtml(rateText(derived))} ／ 大当たり ${escapeHtml(numberText(session.hitCount, "-"))}回 ／ 1R平均 ${escapeHtml(transferOptionalRoundAverageText(summary.averageRoundBalls))}</div>
+          <div class="result-line">1R実質出玉 ${escapeHtml(netBallsOrDashText(netSummary.netPerRound))}（減算込み）／ 払い出し ${escapeHtml(netBallsOrDashText(netSummary.payoutPerRound))} ／ 時短中の減り ${escapeHtml(ballsOrDashText(netSummary.jitanLossBalls))}</div>
           <div class="result-line">実働 ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))}</div>
           <div class="result-line">獲得期待値 ${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</div>
         </div>
@@ -9002,6 +9065,9 @@
         return;
       }
       const item = { type: source, source, amount, time, phase: currentInvestmentPhase(session), spinAt: session.currentSpin ?? session.startSpin, segmentId: currentSegmentId(session) };
+      // S20/§1-1: 当選から時短抜けまでは開いている区間が無い。この間に足した玉は連チャンの純増から差し引く。
+      // 印が無い旧データは0として扱う（推測で差し引かない）。
+      if (!openSegmentOf(session)) item.duringJitan = true;
       session.investments.push(item);
       // S7c/1-3: 投資タップが入った区間は打ち出しが始まっている（「打ち出し開始」の押し忘れの救済）
       markSegmentShootingStarted(session, item.segmentId);
@@ -9890,6 +9956,92 @@
       return (Array.isArray(session?.investments) ? session.investments : [])
         .filter((item) => item.segmentId === segmentId && investmentSource(item) !== "mochidama")
         .reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+    }
+
+    // S20/§1-1: 時短中に外から足した玉。当選で区間が閉じてから時短抜けで次の区間が開くまでの間は
+    // 開いている区間が無い。その間に記録した投資だけ addInvestment が duringJitan で印を付ける。
+    // 持ち玉タップは当選時の持ち玉にすでに含まれているので足さない（segmentAddedBalls と同じ）。
+    function jitanAddedBalls(session, segmentId, store) {
+      if (!segmentId) return 0;
+      return (Array.isArray(session?.investments) ? session.investments : [])
+        .filter((item) => item.segmentId === segmentId && item.duringJitan === true && investmentSource(item) !== "mochidama")
+        .reduce((sum, item) => sum + investmentToBalls(item, store), 0);
+    }
+
+    // S20/§1-1: 当選から次の通常区間の起点までに外から足した玉。
+    // 当選で閉じた区間は時短中に記録した分だけ、間に挟まる残保留当選の区間（通常時なし）は
+    // その区間の投資をそのまま数える。
+    function chainAddedBalls(session, segments, fromIndex, toIndex, store) {
+      let total = jitanAddedBalls(session, segments[fromIndex]?.id, store);
+      for (let index = fromIndex + 1; index < toIndex; index += 1) {
+        total += segmentAddedBalls(session, segments[index]?.id, store);
+      }
+      return total;
+    }
+
+    // S20/§1-1: 連チャンごとの純増（減算込み）。
+    // 純増＝次の通常区間の起点持ち玉 − 当選時の持ち玉 − 時短中に外から足した玉。
+    // 連チャンの起点は「当選で閉じた区間」。残保留当選の区間は前の連チャンの続き（S7b の寄せ先）なので
+    // 起点にせず、純増の窓もその区間をまたいで次の通常区間まで延ばす。
+    // 最後の連チャンで次の区間が無いときは、ヤメ入力の終了玉を次の起点として使う。
+    // カウンターの獲得出玉（S8）も同じ切り方で持ち、持ち玉差が出せない連チャンのフォールバックにする。
+    function chainNetBallsRows(session, presetId) {
+      const segments = sessionSegments(session);
+      const store = storeById(session?.storeId);
+      const hits = normalizeHits(session?.hits);
+      const roundsOf = (hit) => roundCountFromRoundType(roundTypeById(presetId, hit.roundTypeId)) ?? 0;
+      const rows = [];
+      segments.forEach((segment, index) => {
+        if (!segment?.id || segment.endSource !== "hit" || segmentIsHoldCarryHit(segment)) return;
+        let next = index + 1;
+        while (next < segments.length && segmentIsHoldCarryHit(segments[next])) next += 1;
+        const nextStartBalls = next < segments.length
+          ? normalizeNumber(segments[next].startTrackedBalls)
+          : normalizeNumber(session?.endTotalBalls);
+        const endRemainBalls = normalizeNumber(segment.endRemainBalls);
+        const chainHits = hits.filter((hit) => resolveHitSegmentId(session, hit) === segment.id);
+        const counterHits = chainHits.filter((hit) => (normalizeNumber(hit.actualBalls) ?? 0) > 0 && roundsOf(hit) > 0);
+        rows.push({
+          chainId: segment.id,
+          index,
+          rounds: chainHits.reduce((sum, hit) => sum + roundsOf(hit), 0),
+          netBalls: nextStartBalls !== null && endRemainBalls !== null
+            ? nextStartBalls - endRemainBalls - chainAddedBalls(session, segments, index, next, store)
+            : null,
+          counterBalls: counterHits.reduce((sum, hit) => sum + normalizeNumber(hit.actualBalls), 0),
+          counterRounds: counterHits.reduce((sum, hit) => sum + roundsOf(hit), 0)
+        });
+      });
+      return rows;
+    }
+
+    // S20/§2-2: セッション単位の1R実質出玉（減算込み）・払い出し・時短中の減り。
+    // 1R実質出玉は持ち玉差で出せた連チャンだけを集計する（「減算込み」と言い切れる範囲に限る）。
+    // 時短中の減りは、その連チャンの払い出しが全R分そろっているときだけ出す。
+    function sessionNetBallsSummary(session, machine) {
+      const rows = chainNetBallsRows(session, normalizeMachinePresetId(machine));
+      let netBalls = null;
+      let netRounds = 0;
+      let pairedCounterBalls = 0;
+      let allPaired = true;
+      rows.forEach((row) => {
+        if (row.netBalls === null || row.rounds <= 0) return;
+        netBalls = (netBalls ?? 0) + row.netBalls;
+        netRounds += row.rounds;
+        if (row.counterBalls > 0 && row.counterRounds === row.rounds) pairedCounterBalls += row.counterBalls;
+        else allPaired = false;
+      });
+      const payoutBalls = sessionActualBallsTotal(session);
+      const payoutRounds = totalRoundsForSession(session, machine);
+      return {
+        rows,
+        netBalls,
+        netRounds,
+        netPerRound: netBalls !== null && netRounds > 0 ? netBalls / netRounds : null,
+        payoutBalls,
+        payoutPerRound: payoutBalls !== null && payoutRounds > 0 ? payoutBalls / payoutRounds : null,
+        jitanLossBalls: netBalls !== null && allPaired ? pairedCounterBalls - netBalls : null
+      };
     }
 
     function segmentConsumedBalls(segment, context) {
