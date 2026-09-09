@@ -27,12 +27,14 @@
     ['kirin','キリン柄トロフィー','設定5以上確定演出',5,'キ'],
     ['rainbow','虹トロフィー','設定6確定演出',6,'虹']
   ];
+  // [id, UI表示名, テンプレ表記]（テンプレ表記の半角スペースは ▶︎ 位置を揃えるための原文どおりの詰め物）
   const ZONES=[
-    ['z100','100g'],
-    ['z250','250g'],
-    ['z400','400g'],
-    ['z600','600g'],
-    ['z750','750g']
+    ['z0','0g','0g    '],
+    ['z100','100g','100g'],
+    ['z250','250g','250g'],
+    ['z400','400g','400g'],
+    ['z600','600g','600g'],
+    ['z750','750g','750g']
   ];
   const BONUS_ART=[
     ['appear','一枚絵出現','示唆調査中',0,'絵']
@@ -40,7 +42,7 @@
   // [id, UI表示名, サブラベル, rank, カード略号, テンプレ表記]
   // テンプレ表記の全角スペースは、なな様テンプレの ▶︎ 位置を揃えるための原文どおりの詰め物。
   const AT_END=[
-    ['def','デフォルト（2パターン）','デフォルト',0,'デ','デフォ(2ﾊﾟﾀｰﾝ)'],
+    ['def','デフォルト（2パターン）','示唆調査中',0,'デ','デフォ(2ﾊﾟﾀｰﾝ)'],
     ['takina','たきな私服','示唆調査中',0,'た','たきな私服　　'],
     ['chisato','千束私服','示唆調査中',0,'千','千束私服　　　'],
     ['dress','ドレスコード','示唆調査中',0,'ド','ドレスコード　'],
@@ -49,6 +51,9 @@
     ['hawaii','ハワイ','示唆調査中',0,'ハ','ハワイ🌺　　　']
   ];
   // [id, UI表示名, テンプレ表記]
+  // 分母(cd)＝変換した回数 / 分子(cn)＝そこからCZに当選した回数。
+  // 旧4行構成のキー（Xd＝レア役成立数・Xc＝変換した回数・Xw＝からの当選）は
+  // normalizeState で cd/cn へ引き継ぐ。旧キーは state に残すが集計・表示には使わない。
   const CONV=[
     ['weak','弱役変換','弱役変換　'],
     ['strong','強役変換','強役変換　']
@@ -72,13 +77,14 @@
     gamesMyslo:0,
     gamesStart:0,
     gamesNow:0,
-    counts:{cz:0,at:0,direct:0,child:0},
+    counts:{stamp:0,cz:0,at:0,direct:0,child:0},
     prologue:{ep1:0,ep2:0,ep3:0,ep4:0},
     rush:{ep1:0,ep2:0,ep3:0,ep4:0},
     wep:{ep1:0,ep2:0,ep3:0,ep4:0},
     trophy:Object.fromEntries(TROPHY.map(v=>[v[0],0])),
     rates:Object.fromEntries(ZONES.flatMap(z=>[[z[0]+'r',0],[z[0]+'w',0]])),
-    conv:Object.fromEntries(CONV.flatMap(c=>[[c[0]+'d',0],[c[0]+'c',0],[c[0]+'w',0]])),
+    conv:Object.fromEntries(CONV.flatMap(c=>[[c[0]+'cd',0],[c[0]+'cn',0]])),
+    top:{d:0,n:0},
     art:Object.fromEntries(BONUS_ART.map(v=>[v[0],0])),
     atEnd:Object.fromEntries(AT_END.map(v=>[v[0],0])),
     img:null,
@@ -140,25 +146,37 @@
       </div>
     </div>`;
   }
-  function convDenom(S,id){return n(S.conv,id+'d');}
-  function convHit(S,id){return n(S.conv,id+'c');}
-  function convWin(S,id){return n(S.conv,id+'w');}
+  function convDenom(S,id){return n(S.conv,id+'cd');}
+  function convHit(S,id){return n(S.conv,id+'cn');}
   function convText(S,id){return `${convHit(S,id)}/${convDenom(S,id)}`;}
-  function convRow(ctx,id,name){
-    const S=ctx.S;
-    // 減算モードで「しなかった」を押すと分母だけが減り、変換した回数を下回りうる。
-    // n<=d を壊さないよう、減らせる「しなかった」が残っていない場合はボタンを無効化する。
-    const canMinus=convDenom(S,id)>convHit(S,id);
-    const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="conv.${id}d"`;
-    return `<div class="crow cycle-row conv-row">
-      <div class="ct"><b>${name}</b></div>
-      <div class="num">${convHit(S,id)}</div>
-      <div class="pct">${convText(S,id)}</div>
+  function topDenom(S){return n(S.top,'d');}
+  function topHit(S){return n(S.top,'n');}
+  function topText(S){return `${topHit(S)}/${topDenom(S)}`;}
+  // n/d 行の共通描画。§9-87: 減算モードで外れ側を押すと分母だけが減って n>d になりうるため、
+  // 減らせる外れが残っていない場合はボタンを無効化して n<=d を操作中も常に保つ。
+  function ndRow(ctx,opt){
+    const canMinus=opt.d>opt.n;
+    const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="${opt.dPath}"`;
+    return `<div class="crow cycle-row ${opt.cls||''}">
+      <div class="ct"><b>${opt.name}</b>${opt.sub?`<small class="mn">${opt.sub}</small>`:''}</div>
+      <div class="num">${opt.n}</div>
+      <div class="pct">${opt.n}/${opt.d}</div>
       <div class="cycle-actions">
-        <button type="button" class="cycle-btn win" data-bump-many="conv.${id}d,conv.${id}c" data-label="${name} 変換した" aria-label="${name} 変換した">変換した</button>
-        <button type="button" class="cycle-btn" ${missAttrs} data-label="${name} しなかった" aria-label="${name} しなかった">しなかった</button>
+        <button type="button" class="cycle-btn win" data-bump-many="${opt.dPath},${opt.nPath}" data-label="${opt.name} ${opt.winLabel}" aria-label="${opt.name} ${opt.winLabel}">${opt.winLabel}</button>
+        <button type="button" class="cycle-btn" ${missAttrs} data-label="${opt.name} ${opt.missLabel}" aria-label="${opt.name} ${opt.missLabel}">${opt.missLabel}</button>
       </div>
     </div>`;
+  }
+  function convRow(ctx,id,name){
+    const S=ctx.S;
+    return ndRow(ctx,{name,cls:'conv-row',dPath:`conv.${id}cd`,nPath:`conv.${id}cn`,
+      d:convDenom(S,id),n:convHit(S,id),winLabel:'当選',missLabel:'非当選'});
+  }
+  function topRow(ctx){
+    const S=ctx.S;
+    return ndRow(ctx,{name:'最強特化ゾーン',sub:'突入率に設定差があると推測（数値は解析待ち）',
+      cls:'conv-row top-row',dPath:'top.d',nPath:'top.n',
+      d:topDenom(S),n:topHit(S),winLabel:'突入',missLabel:'非突入'});
   }
   function rankText(rank){return rank===6?'6確定':rank+'以上';}
   function allCert(S){
@@ -220,22 +238,21 @@
     <div class="hint">各ゾーン到達時に記録。当選したら当選側を押してください。減算モードでは「当選」が到達と当選の両方を、「ハズレ」が到達だけを1つ戻します。戻せるハズレが残っていない場合、そのボタンは押せません。</div>
   </section>
   <section class="sec">
-    <div class="sec-h">変換<span class="sub">弱 ${convHit(S,'weak')}/${convDenom(S,'weak')}・強 ${convHit(S,'strong')}/${convDenom(S,'strong')}</span></div>
+    <div class="sec-h">変換からのCZ当選<span class="sub">弱 ${convText(S,'weak')}・強 ${convText(S,'strong')}</span></div>
     <style>
       .conv-row .pct{min-width:56px}
       .conv-row .cycle-btn{min-width:62px}
     </style>
     <div class="cgrid">
       ${convRow(ctx,'weak','弱役変換')}
-      ${ctx.crow('conv.weakw','弱役変換からの当選','変換後に当選した回数',0)}
       ${convRow(ctx,'strong','強役変換')}
-      ${ctx.crow('conv.strongw','強役変換からの当選','変換後に当選した回数',0)}
     </div>
-    <div class="hint">レア役成立時の変換有無と、変換からの当選を記録します。減算モードでは「変換した」が分母と変換回数の両方を、「しなかった」が分母だけを1つ戻します。戻せる「しなかった」が残っていない場合、そのボタンは押せません。</div>
+    <div class="hint">変換が発生するたびに、そこからCZに当選したかを記録します。分母が変換した回数、分子がCZ当選回数です。減算モードでは「当選」が分母と当選の両方を、「非当選」が分母だけを1つ戻します。戻せる「非当選」が残っていない場合、そのボタンは押せません。</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り<span class="sub">通常 ${g||0}G</span></div>
     <div class="cgrid">
+      ${ctx.crow('counts.stamp','スタンプカードからCZ','12マス貯めて当選した回数（設定差は解析未掲載・記録のみ）',0)}
       ${ctx.crow('counts.cz','CZ(オポジット)',`設1:1/198.7⇔設6:1/169.4${rateSuffix(g,n(S.counts,'cz'))}`,0)}
       ${ctx.crow('counts.at','AT初当り',`設1:1/328.8⇔設6:1/256.7${rateSuffix(g,n(S.counts,'at'))}`,1)}
       ${ctx.crow('counts.direct','AT直撃','設1:1/22429.5⇔設6:1/6263.7（他設定は調査中・出現率が低いため1/x表示なし）',1)}
@@ -262,6 +279,25 @@
     <div class="hint">W中のエピソードボーナスで発生したエピソードを記録します。EP3・EP4の示唆内容は解析待ちです。</div>
   </section>
   <section class="sec">
+    <div class="sec-h">上位AT突入時の最強特化ゾーン<span class="sub">${topText(S)}</span></div>
+    <style>
+      .cycle-row .num{min-width:38px}
+      .cycle-row .ct{flex:1;min-width:0}
+      .cycle-row .ct b,.cycle-row .ct small{display:block}
+      .cycle-row .ct small{font-size:9.5px;color:var(--muted);line-height:1.3}
+      .cycle-row .pct{min-width:92px;text-align:right}
+      .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
+      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
+      .cycle-btn.win{color:#ffc94d}
+      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+      .cycle-btn[disabled]{opacity:.4}
+      .top-row .pct{min-width:56px}
+      .top-row .cycle-btn{min-width:62px}
+    </style>
+    <div class="cgrid">${topRow(ctx)}</div>
+    <div class="hint">上位ATに突入するたびに、レジェンダリーリコリス（Legendary Lycoris）へ突入したかを記録します。分母が上位AT突入回数、分子がレジェンダリーリコリス突入回数です。突入率に設定差があると推測されていますが数値は解析待ちのため、現時点では記録のみとして扱ってください。</div>
+  </section>
+  <section class="sec">
     <div class="sec-h">サミートロフィー<span class="sub">計${sum(S.trophy)}回</span></div>
     <div class="cgrid">${TROPHY.map(c=>ctx.crow('trophy.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
   </section>
@@ -272,7 +308,7 @@
   <section class="sec">
     <div class="sec-h">AT終了画面<span class="sub">計${sum(S.atEnd)}回</span></div>
     <div class="cgrid">${AT_END.map(c=>ctx.crow('atEnd.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.atEnd)))).join('')}</div>
-    <div class="hint">現在はデフォルト画面のみ記録できます。AT終了画面は複数パターンの存在が判明していますが、各パターンの示唆内容が解析待ちのため、判明後に行を追加します。詳細はちょんぼりすた様の解析ページをご覧ください。</div>
+    <div class="hint">出現したAT終了画面を記録します。7種の名称は判明していますが、各パターンの示唆内容は出典でも全種「調査中」のため、確定演出としては扱わず記録のみとしています。判明後に示唆内容を追加します。詳細はちょんぼりすた様の解析ページをご覧ください。</div>
   </section>`;
   }
 
@@ -281,19 +317,22 @@
   // 例外はサミートロフィーのみで、出現時だけ見出しごと追記する。
   function tplText(ctx){
     const S=ctx.S,g=denom(S);
-    const L=['設定判別メモ｜スマスロ リコリス・リコイル',`通常 ${g||0}G`,'_______','','■規定ゲーム数'];
-    ZONES.forEach(z=>L.push(`${z[1]}▶︎ ${rateWin(S,z[0])}/${rateReach(S,z[0])}`));
-    L.push('','■変換');
-    CONV.forEach(c=>{
-      L.push(`${c[2]}▶︎ ${convHit(S,c[0])}/${convDenom(S,c[0])}`);
-      L.push(`からの当選▶︎ ${countLine(convWin(S,c[0]))}`);
-    });
+    const L=['設定判別メモ｜スマスロ リコリス・リコイル',`通常 ${g||0}G`,'_______','',
+      `■ｽﾀﾝﾌﾟｶｰﾄﾞからCZ▶︎ ${countLine(n(S.counts,'stamp'))}`,
+      '',
+      '■規定ゲーム数'];
+    ZONES.forEach(z=>L.push(`${z[2]}▶︎ ${rateWin(S,z[0])}/${rateReach(S,z[0])}`));
+    L.push('','■変換からのCZ当選');
+    CONV.forEach(c=>L.push(`${c[2]}▶︎ ${convHit(S,c[0])}/${convDenom(S,c[0])}`));
     L.push('',
       `■CZ(ｵﾎﾟｼﾞｯﾄ)▶︎ ${countLine(n(S.counts,'cz'))}`,
       `■幼少期CZ(ﾌｧｰｽﾄ)▶︎ ${countLine(n(S.counts,'child'))}`,
       '↪︎(1/3965〜1/2084)',
       '',
       `■AT直撃(1/22429〜1/6263)▶︎ ${countLine(n(S.counts,'direct'))}`,
+      '',
+      `■上位突入時 最強特化ｿﾞｰﾝ▶︎ ${topText(S)}`,
+      '↪︎ﾚｼﾞｪﾝﾀﾞﾘｰﾘｺﾘｽ',
       '',
       '■エピソード');
     EP_GROUPS.forEach((grp,i)=>{
@@ -320,15 +359,17 @@
     const S=ctx.S;
     return [
       {title:'初当り',items:[
+        detailItem('スタンプカードからCZ',n(S.counts,'stamp'),0),
         detailItem('CZ当選',n(S.counts,'cz'),0),
         detailItem('AT初当り',n(S.counts,'at'),1),
         detailItem('AT直撃',n(S.counts,'direct'),1),
         detailItem('幼少期CZ突入',n(S.counts,'child'),1)
       ]},
-      {title:'変換',items:CONV.flatMap(c=>[
-        {label:c[1],value:convHit(S,c[0]),hot:false,text:`${c[1]} ${convHit(S,c[0])}/${convDenom(S,c[0])}`,show:convDenom(S,c[0])>0},
-        detailItem(`${c[1]}からの当選`,convWin(S,c[0]),0)
-      ])},
+      {title:'変換からのCZ当選',items:CONV.map(c=>
+        ({label:c[1],value:convHit(S,c[0]),hot:false,text:`${c[1]} ${convText(S,c[0])}`,show:convDenom(S,c[0])>0}))},
+      {title:'上位AT突入時の最強特化ゾーン',items:[
+        {label:'レジェンダリーリコリス',value:topHit(S),hot:false,text:`レジェンダリーリコリス ${topText(S)}`,show:topDenom(S)>0}
+      ]},
       {title:'プロローグエピソード',items:detailItems(PROLOGUE,S.prologue),percent:true},
       {title:'RUSH中エピソードボーナス',items:detailItems(RUSH_EP,S.rush),percent:true},
       {title:'W中エピソードボーナス',items:detailItems(W_EP,S.wep),percent:true},
@@ -343,7 +384,7 @@
     nanaCollab:true,
     storageKey:'ricorico-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','prologue','rush','wep','trophy','rates','conv','art','atEnd'],
+    mergeKeys:['counts','prologue','rush','wep','trophy','rates','conv','top','art','atEnd'],
     sourceUrl:'https://chonborista.com/slot/sammy-slot/261631/',
     actions:{
       // 入力ソースの切替。カウンタではないので減算モードでも同じ動作をする（値は消さない）。
@@ -367,7 +408,17 @@
       ZONES.forEach(z=>{if(out.rates[z[0]+'w']>out.rates[z[0]+'r'])out.rates[z[0]+'r']=out.rates[z[0]+'w'];});
       out.conv=Object.assign({},DEF.conv,out.conv||{});
       Object.keys(out.conv).forEach(k=>{out.conv[k]=Math.max(0,Number(out.conv[k])||0);});
-      CONV.forEach(c=>{if(out.conv[c[0]+'c']>out.conv[c[0]+'d'])out.conv[c[0]+'d']=out.conv[c[0]+'c'];});
+      // 旧4行構成（Xd＝レア役成立数／Xc＝変換した回数／Xw＝からの当選）からの引き継ぎ。
+      // 新キーが保存データに無い場合だけ移す（cd/cn を書いた後の再読み込みで二重移行しない）。
+      const srcConv=(src||{}).conv||{};
+      CONV.forEach(c=>{
+        if(srcConv[c[0]+'cd']===undefined)out.conv[c[0]+'cd']=Math.max(0,Number(srcConv[c[0]+'c'])||0);
+        if(srcConv[c[0]+'cn']===undefined)out.conv[c[0]+'cn']=Math.max(0,Number(srcConv[c[0]+'w'])||0);
+      });
+      CONV.forEach(c=>{if(out.conv[c[0]+'cn']>out.conv[c[0]+'cd'])out.conv[c[0]+'cd']=out.conv[c[0]+'cn'];});
+      out.top=Object.assign({},DEF.top,out.top||{});
+      Object.keys(out.top).forEach(k=>{out.top[k]=Math.max(0,Number(out.top[k])||0);});
+      if(out.top.n>out.top.d)out.top.d=out.top.n;
       return out;
     },
     share:{title:'スマスロ リコリス・リコイル 設定判別メモ',hashtags:'#リコリコ #設定判別'},
