@@ -269,7 +269,7 @@ const MACHINES={
       {label:"機械仕掛けの神",kind:"cz",grid:[["hitEnd","memo"]],czEnd:{groups:[],successToAt:"上位AT",failNote:"失敗後の挙動はメモに"}},
       {label:"AT直撃",kind:"at",enter:"AT"},
       {label:"AT",kind:"at",hidden:true,
-        atStart:{groups:[{key:"stage",label:"開始ステージ",options:["勝","鳴海"]}]},
+        atStart:{groups:[{key:"stage",label:"開始ステージ",options:["勝","鳴海"]}],skipTriggers:["引き戻し"]},
         atEnd:{groups:[
           {key:"screen",label:"1枚絵",options:["エレオノール","最古の四人","ルシール＆アンジェリーナ","歯車","鳴海＆勝","エレオノール（笑顔）"]},
           {key:"voice",label:"ボイス",options:[
@@ -320,6 +320,8 @@ const MACHINES={
           {l:"ピエロ：楽しみな時間",h:"次回 幕間以上",set:{reward:"幕間以上"}},
           {l:"ピエロ：次の運命盤は",h:"次回 AT以上",set:{reward:"AT以上"}},
           {l:"ピエロ：邪悪な気配",h:"次回 AT＋上位",set:{reward:"AT＋上位"}},
+          {l:"ピエロ：複数の種類",h:"示唆不明"},
+          {l:"ピエロ：動く兆し",h:"示唆不明"},
           {l:"エレオノール：フランスの",h:"通常C濃厚",set:{mode:"通常C濃厚"}},
           {l:"エレオノール：幼い頃",h:"通常C濃厚",set:{mode:"通常C濃厚"}},
           {l:"アンジェリーナ：主さんは",h:"通常D濃厚",set:{mode:"通常D濃厚"}},
@@ -333,8 +335,8 @@ const MACHINES={
       {key:"stage",label:"開始ステージ",options:["フウ屋敷","仲町サーカス"]}
     ],successToAt:"AT"},
     atExtras:[
-      {label:"開始ステージ",title:"AT開始ステージ",groups:[{key:"stage",label:"開始ステージ",options:["勝","鳴海"],required:true}]},
       {label:"激情ジャッジ",title:"激情ジャッジ",groups:[{key:"chara",label:"1回目の最初のキャラ",options:["ミンシア","リーゼロッテ","ヴィルマ","ジョージ"],required:true},{key:"result",label:"結果",options:["成功","失敗"]}]},
+      {label:"開始ステージ修正",type:"fixAtStart",title:"AT開始ステージを直す",groups:[{key:"stage",label:"開始ステージ",options:["勝","鳴海"],required:true}]},
       {label:"枚数表示",title:"獲得枚数表示",groups:[{key:"n",label:"表示された枚数",options:["222","246","456","666"],required:true}]},
       {label:"EDランプ",title:"ED中 レア役のランプ",groups:[{key:"lamp",label:"色",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","高設定UP"],["赤","設定2以上UP"],["紫","設定4以上"],["虹","設定6"]],required:true}]}
     ],
@@ -673,7 +675,8 @@ function startHit(h,trig,opts){
   // G数は当選時に触らない。終了時に「今のG数」を入れて合わせる（SF6と同じ）
   c._steps=[];
   const st=hitProp(target,"atStart");
-  if(target.kind==="at"&&st&&st.groups&&st.groups.length){
+  const skipStart=st&&st.skipTriggers&&trig&&st.skipTriggers.includes(trig);
+  if(target.kind==="at"&&st&&st.groups&&st.groups.length&&!skipStart){
     groupSheet(target.label+" 開始",st.groups,sel=>{if(sel.stage)c.stage=sel.stage;push("atStart",target.label+"開始　"+selText(st.groups,sel),{sel});closeSheet();if(target.inline)hitEnd()});
   }else{save();render();closeSheet();if(target.inline)hitEnd();else toast(target.label+" 開始")}
 }
@@ -893,6 +896,18 @@ function openMelonLeft(after){
 }
 function openExtra(x){
   if(x.type==="melonLeft"){openMelonLeft();return}
+  if(x.type==="fixAtStart"){
+    const c=S.cur;
+    // 今のAT開始以降で最初の atStart を探す
+    let idx=-1;for(let i=c.events.length-1;i>=0;i--){const ev=c.events[i];if(ev.type==="atStart")idx=i;if(ev.type==="hitStart"&&(ev.hit==="AT"||ev.hit==="上位AT"))break}
+    const cur=idx>=0?c.events[idx]:null;
+    groupSheet(x.title,x.groups,sel=>{
+      mark();
+      if(cur){cur.sel=Object.assign({},cur.sel||{},sel);cur.text=(c.hit?c.hit.label:"AT")+"開始　"+selText(x.groups,sel)+"（修正）";cur.edited=true;c.stage=sel.stage||c.stage;save();render();closeSheet();toast("開始ステージを直しました")}
+      else{c.stage=sel.stage||c.stage;push("atStart",(c.hit?c.hit.label:"AT")+"開始　"+selText(x.groups,sel),{sel});closeSheet()}
+    },{goLabel:cur?"この内容に直す":"記録する",before:(b)=>{if(cur)b.append(mk("div","hint","今の記録：「"+cur.text+"」"))}});
+    return;
+  }
   if(x.type==="num"){
     askNum(x.title||x.label,0,v=>{push("extra",(x.logAs||x.label)+" "+v+(x.unit||""),{extra:x.label,n:v});toast((x.logAs||x.label)+" "+v+(x.unit||""))});
     return;
@@ -1007,7 +1022,6 @@ function toChecker(s){
       if(ev.extra==="激情ジャッジ"&&sel.chara&&!judged){inc(o.ed,K2_MAP.ed,sel.chara);judged=true}
       if(ev.extra==="枚数表示"&&sel.n)inc(o.over,K2_MAP.over,sel.n);
       if(ev.extra==="EDランプ"&&sel.lamp)inc(o.coins,K2_MAP.coins,sel.lamp);
-      if(ev.extra==="開始ステージ"&&sel.stage)inc(o.stages,K2_MAP.stages,sel.stage);
     }
   });
   return o;
