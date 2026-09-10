@@ -25,8 +25,10 @@ textarea{min-height:80px;resize:vertical}
 .hd{display:flex;align-items:center;gap:8px;padding:4px 2px 8px;border-bottom:1px solid var(--line)}
 .hd .t{flex:1;font-size:15px;font-weight:700;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hd .x{width:44px;height:38px;font-size:18px;color:var(--dim)}
-.badges{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px 2px 2px;min-height:20px}
-.badges .stg{margin-left:auto;font-size:12px;color:var(--dim);font-family:var(--mono)}
+.badges{display:flex;flex-wrap:nowrap;gap:6px;align-items:center;padding:10px 2px 2px;min-height:20px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.badges::-webkit-scrollbar{display:none}
+.badges .badge{flex:none;white-space:nowrap}
+.badges .stg{flex:none;font-size:12px;color:var(--dim);font-family:var(--mono);padding:0 4px}
 .badge{font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--dim)}
 .badge.on{background:rgba(217,164,65,.16);border-color:var(--accent);color:var(--accent)}
 .badge.hit{background:rgba(224,87,74,.16);border-color:var(--hot);color:var(--hot)}
@@ -545,8 +547,8 @@ function renderBadges(){
   if(c.hit){const h=mk("div","badge hit",c.hit.label+" 終了");h.addEventListener("click",hitEnd);b.append(h)}
   if(c.melonLeft!=null){const ml=mk("div","badge",(c.melonLeft>0?"🍉残り"+c.melonLeft+(c.melonApprox?"以下":""):"🍉規定到達"));ml.style.color="var(--lcd)";ml.addEventListener("click",()=>openMelonLeft());b.append(ml)}
   if(c.rewardHint){const rh=mk("div","badge","次回 "+c.rewardHint);rh.style.color="var(--pur)";b.append(rh)}
-  activeModeHints().forEach(h=>{const mh=mk("div","badge",h.text+(h.span>1?"（〜"+(h.era+h.span-1-(c.modeEra||0)+1)+"回）":""));mh.style.color="var(--ok)";mh.title="区間"+h.era+"から"+h.span+"回";b.append(mh)});
   if(c.stage&&d.stages)b.append(mk("div","stg",c.stage));
+  activeModeHints().forEach(h=>{const mh=mk("div","badge",h.text+(h.span>1?"（〜"+(h.era+h.span-1-(c.modeEra||0)+1)+"回）":""));mh.style.color="var(--ok)";mh.title="区間"+h.era+"から"+h.span+"回";b.append(mh)});
 }
 function renderCounters(){
   const c=S.cur,d=DEF();
