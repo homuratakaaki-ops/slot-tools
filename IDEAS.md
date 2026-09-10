@@ -547,6 +547,34 @@ CZ終了シートは「失敗」「成功」の2ボタンだけを出す。
 
 未確認（U01〜U12）は自動処理の根拠にしない。詳細は karakuri2-spec-v01.md §12 と mapping.md §1-10。
 
+### 機種2：ハイビリターン30（rec46〜rec49）
+
+仕様書は docs/hibireturn-spec-v02.md。からくり2と違い、仕様書→ヒアリング（13問）→実装 の順で作った。
+実戦前に通し操作8本が通っている。修正は器のバグ2件のみで、流れの見落としは出ていない。
+
+器に足した汎用の仕組み：
+- `lcdG:false` … 液晶Gを使わない機種。カウンター・入力欄・ログ表記から液晶を消す
+- `zenchou.enterOnHitEnd` … ボーナス終了で自動で段階（32G中など）に入る
+- `zenchou.autoEnterIfG / autoEndAtG` … 打ち始めの実G、消化中の実Gで段階に自動で出入り
+- `zenchou.endLabel / onEnd` … 段階終了時のラベルと処理（カウンター増減、タグ消去）
+- `onHitInStage` … 段階中の当選で起きること（タグ、カウンター）。exceptTriggers（天国抜け扱い）、noTagTriggers（1G連）
+- `set:{tag, until}` … タグのバッジ。until は nextHit／stageEnd／hitEnd
+- `hitExtraGroups` … 当選シートで追加で聞くこと（告知・揃い）。group / option の showWhen で種別に応じて出し分け
+- `afterAtWithTag` … タグがあれば終了先を変える。viaNormal:true で「終了→通常時→即当選」（1G連）
+- `askGOnEnd:false` … 終了時にG数を聞かない（G数が決まっている機種）
+- `rare:<key>` … レア役の直押しボタン。`toggle:<key>` … ON/OFFのボタン
+- `counter3.reset:"never"` … AT終了でも聞かず変えない
+
+器の一般ルールに昇格したもの：
+- 選択肢が1グループで必須なら、選んだ瞬間に記録する（「記録する」を出さない）。
+  からくり2の枚数表示・EDランプ・セリフ・運命盤の報酬、汎用の当選もこれに従う
+- レア役のボタン名は絵文字＋短い文字（🍒チェリー、🍉スイカ、🔔共通ベル）
+- あるか無いかの記録はON/OFFトグル。1回押し＝ON、もう一度＝OFF
+
+教訓：
+- 列挙値を増やしたら、その値で分岐している箇所を全部 grep する（counter3.reset に "never" を足したとき、"at" 以外を汎用扱いする分岐に入って落ちた）
+- 状態を撮る mark() は startHit / leaveAt の冒頭だけ。呼び出し側では撮らない
+
 ### 機種定義を作る順序（教訓）
 
 項目の一覧より先に「状態の遷移」を描く。
