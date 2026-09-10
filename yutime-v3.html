@@ -1968,6 +1968,8 @@
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
     const STICKY_PREF_KEY = STORAGE_PREFIX + "running:sticky";
     const SOURCE_PREF_KEY = STORAGE_PREFIX + "running:source";
+    // S24/§B-6: 打ち始めで選んだ打ち方。次に打ち始めるときの初期選択に使う（セッションの方針は各記録が持つ）。
+    const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     const SCHEMA_VERSION = 38;
     const DEFAULT_LEND_RATE = 4;
@@ -2385,6 +2387,11 @@
     let mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
     let expandedIslandIndexes = new Set();
     let modalCancel = null;
+    // S24/§B-2: 大当たり登録の画面内の状態（この後の選択・手で直した起点の持ち玉）。
+    // R種別を押すたびに画面を開き直すので、開き直しで消えないようここに残す。保存はしない。
+    let hitResetDraft = null;
+    // S24/§B-6: 打ち始めの「打ち方」の初期選択。前回打ち始めたときの選択を覚えておく。
+    let startPlayStyle = normalizePlayStyle(localStorage.getItem(PLAY_STYLE_PREF_KEY) || "yutime");
     // S5/§0: 閉じる前に確認が必要なモーダルはここに関門を置く。false を返すと閉じない。
     let modalGuard = null;
 
@@ -4721,7 +4728,7 @@
               </div>
               <div>
                 <span>回転率</span>
-                <strong>${liveRate !== null ? liveRate.toFixed(1) : "-"} /250玉${liveRate !== null ? escapeHtml(consumedBallsSourceNote(session, derived)) : ""}</strong>
+                <strong>${liveRate !== null ? liveRate.toFixed(1) : "—"} /250玉${liveRate !== null ? escapeHtml(consumedBallsSourceNote(session, derived)) : ""}</strong>
                 ${yutimeMode ? `<small>遊タイム突入 ${numberText(session.yutimeEnterBalls, "-")}玉</small>` : ""}
               </div>
             </div>
@@ -6701,6 +6708,13 @@
       const netBallsInfo = netBallsPerWinInfo(presetId, machine);
       const closing = validClosingInfo(machine.id);
       const closingStateNote = todayPrevInvalid(machine.id) ? `<small>朝チェックで前日分を無効にしています</small>` : "";
+      // S24/§B-5: 台移動の引き継ぎ中は、打ち始めの残高欄を引き継いだ値で初期化する。
+      // 空のままだと「この台を打つ」で開始残高が未入力（持ち玉0扱い）になり、区間の起点が壊れる。
+      const carryoverPreset = carryover && carryover.storeId === data.activeStoreId ? carryover : null;
+      const carryoverValue = (value) => {
+        const number = normalizeNumber(value);
+        return number !== null && number > 0 ? number : "";
+      };
       const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
       const statsFilterNote = statsFilterActive ? `<p class="hint">絞り込み中（該当${filteredStatsSessions.length}セッション）${filteredStatsSessions.length ? "" : " / 該当するサンプルがありません"}</p>` : "";
       const averagePayoutNote = baseStats.estimatedCount ? "（概算含む）" : "";
@@ -6723,16 +6737,18 @@
           <div class="expectation-title" id="machineEvTitle"><span>期待値判定</span><small>未判定</small></div>
           <div class="expectation-inputs">
             <div class="field-row"><label for="evStartTotalHits">開始時点の累計大当たり回数</label><input id="evStartTotalHits" inputmode="numeric" value=""></div>
-            <div class="field-row ev-ramclear-row"><label for="evPrevDisabled">ラムクリア</label><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> あり</label></div>
+            <div class="field-row ev-ramclear-row"><label for="evPrevDisabled">ラムクリア</label><div><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> あり</label><p class="hint" id="machineEvRamHint" hidden></p></div></div>
             <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数（実機：前日の最終回転数。閉店チェックがあれば自動）</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
             <div class="field-row"><label for="evCurrentSpin">現在回転数（実機：データカウンターの回転数）</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${baseStats.rate ? baseStats.rate.toFixed(1) : "履歴なし"}"></div>
             <div class="field-row"><label for="evManualNetBalls">1R実質出玉（手入力）</label><input id="evManualNetBalls" inputmode="decimal" placeholder="${escapeHtml(netBallsUsedText(netBallsInfo))}"></div>
             <div class="field-row expectation-spacer"></div>
-            <div class="field-row"><label for="evMochidamaBalls">持ち玉（玉）</label><input id="evMochidamaBalls" inputmode="numeric" value="" placeholder="0"></div>
-            <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="" placeholder="0"></div>
-            <div class="field-row"><label for="evStartCredit">開始時のカード残高</label><input id="evStartCredit" inputmode="numeric" value=""></div>
+            <div class="field-row"><label for="evMochidamaBalls">持ち玉（玉）</label><input id="evMochidamaBalls" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.mochidama) : "")}" placeholder="0"></div>
+            <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.saipurei) : "")}" placeholder="0"></div>
+            <div class="field-row"><label for="evStartCredit">開始時のカード残高</label><input id="evStartCredit" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.credit) : "")}"></div>
           </div>
+          ${carryoverPreset ? `<p class="hint">台${escapeHtml(carryoverPreset.sourceDaiNo || "不明")}から引き継いだ残高を初期値にしています。台の表示と違う場合は修正してください。</p>` : ""}
+          ${startPlayStyleChoiceHtml()}
           <p class="hint" id="machineEvContext"></p>
           <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"}</p>
           <div class="metric-grid" id="machineEvMetrics"></div>
@@ -6790,10 +6806,14 @@
       });
       if (showExpectationBlock) {
         renderMachineExpectation(machine.id);
-        ["evCurrentSpin", "evPrevSpin", "evManualRate", "evManualNetBalls", "evMochidamaBalls", "evSaipureiBalls", "evStartTotalHits"].forEach((id) => {
+        // S24/§B-5: カード残高（現金）の欄だけ入力イベントが繋がっていなかった。判定値は変わらないが、
+        // 他の欄と同じように再判定を通し、入力が拾われていることを画面で確かめられるようにする。
+        ["evCurrentSpin", "evPrevSpin", "evManualRate", "evManualNetBalls", "evMochidamaBalls", "evSaipureiBalls", "evStartCredit", "evStartTotalHits"].forEach((id) => {
           byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
         });
         byId("evPrevDisabled").addEventListener("change", () => renderMachineExpectation(machine.id));
+        // S24/§B-6: 打ち始めの打ち方の2択
+        bindStartPlayStyleChoice(els.modalBody);
       }
       byId("startSessionBtn").addEventListener("click", () => {
         if (machineFormExpanded) readMachineDetailForm(machine);
@@ -6862,6 +6882,15 @@
       const previousDisabled = previousState.disabled;
       const prevInput = byId("evPrevSpin");
       if (prevInput) prevInput.disabled = previousDisabled;
+      // S24/§B-4: 前日ヤメが自動で無効になる条件（当日すでに当選済み）では、ラムクリアも判定に効かない。
+      // 入力できるまま残すと「使われる値」と勘違いするので、チェック自体を無効化して理由を1行で出す。
+      const ramInput = byId("evPrevDisabled");
+      if (ramInput) ramInput.disabled = previousState.autoDisabled;
+      const ramHint = byId("machineEvRamHint");
+      if (ramHint) {
+        ramHint.textContent = previousState.autoDisabled ? "当日すでに当選しているため、ラムクリアの有無は判定に使いません。" : "";
+        ramHint.hidden = !previousState.autoDisabled;
+      }
       const prevHint = byId("machineEvPrevHint");
       if (prevHint) {
         const prevValue = normalizeNumber(prevInput?.value);
@@ -6906,6 +6935,42 @@
       if (basis) basis.textContent = expectationBasisText(expectation.result, expectation.spinsPerHourInfo?.source);
     }
 
+    // S24/§B-6: 打ち始めの「打ち方」。ここで選んだ値がセッションの playStyle になり、
+    // 時短抜けで作る区間の初期状態（打ち出しを止める／続ける）を決める。
+    // 打ち始めウィザードを通らない導線しか無いため、選ぶ場所がここにしか無い。
+    function startPlayStyleChoiceHtml() {
+      const options = [
+        { value: "yutime", label: "遊タイム狙い（時短抜けで止める）" },
+        { value: "continuous", label: "打ち切り（続けて打つ）" }
+      ];
+      return `
+        <div class="field-row">
+          <label>打ち方</label>
+          <div>
+            <div class="style-choice">
+              ${options.map((option) => `<button type="button" class="startPlayStyleChoice${option.value === startPlayStyle ? " selected" : ""}" data-play-style="${option.value}" aria-pressed="${option.value === startPlayStyle ? "true" : "false"}">${escapeHtml(option.label)}</button>`).join("")}
+            </div>
+            <p class="hint">時短抜けで作る区間の初期状態が変わります。前回の選択を初期値にしています。あとから「記録の修正・削除」で変えられます。</p>
+          </div>
+        </div>
+      `;
+    }
+
+    // S24/§B-6: 選んだ時点で次回の初期値として覚える（保存ボタンを置かない既存の即反映と同じ扱い）。
+    function bindStartPlayStyleChoice(root) {
+      root.querySelectorAll(".startPlayStyleChoice").forEach((button) => {
+        button.addEventListener("click", () => {
+          startPlayStyle = normalizePlayStyle(button.dataset.playStyle);
+          localStorage.setItem(PLAY_STYLE_PREF_KEY, startPlayStyle);
+          root.querySelectorAll(".startPlayStyleChoice").forEach((other) => {
+            const selected = other === button;
+            other.classList.toggle("selected", selected);
+            other.setAttribute("aria-pressed", selected ? "true" : "false");
+          });
+        });
+      });
+    }
+
     function expectationPreviousSpinState() {
       const startTotalHits = normalizeNumber(byId("evStartTotalHits")?.value);
       const autoDisabled = startTotalHits !== null && startTotalHits >= 1;
@@ -6928,7 +6993,9 @@
         mochidamaInput: availableBalls.mochidama,
         saipureiInput: availableBalls.saipurei,
         startTotalHits: normalizeNumber(byId("evStartTotalHits")?.value),
-        startCredit: normalizeNumber(byId("evStartCredit")?.value)
+        startCredit: normalizeNumber(byId("evStartCredit")?.value),
+        // S24/§B-6: 打ち始めで選んだ打ち方。そのままセッションの方針になる
+        playStyle: startPlayStyle
       };
     }
 
@@ -7057,6 +7124,8 @@
       session.startSaipurei = normalizeNumber(presets.saipureiInput);
       session.startCredit = normalizeNumber(presets.startCredit);
       session.startTotalHits = normalizeNumber(presets.startTotalHits);
+      // S24/§B-6: 打ち始めで選んだ打ち方をセッションの方針にする。以後の時短抜け区間の初期状態になる。
+      if (presets.playStyle !== undefined) session.playStyle = normalizePlayStyle(presets.playStyle);
       const machine = data.machines.find((item) => item.id === machineId);
       session.startEv = calculateStartEvSnapshot(session, machine, presets);
       data.sessions.push(session);
@@ -7102,7 +7171,8 @@
           key: "playStyle",
           label: "打ち方",
           type: "choice",
-          preset: "yutime",
+          // S24/§B-6: 前回打ち始めたときの選択を初期値にする（判定パネルの2択と同じ値）
+          preset: startPlayStyle,
           options: [
             { value: "yutime", label: "遊タイム狙い（時短抜けで止める）" },
             { value: "continuous", label: "打ち切り（続けて打つ）" }
@@ -7369,11 +7439,17 @@
 
     function openHitResetPrompt(session) {
       const machine = data.machines.find((item) => item.id === session.machineId);
-      const balances = deriveBalances(session);
       const presetId = normalizeMachinePresetId(machine);
       const jitanOptions = jitanExitOptions(presetId);
       const roundTypes = presetById(presetId)?.roundTypes || [];
       const hitCounterSpin = hitCounterSpinForRecord(session);
+      // S24/§B-2: R種別のタップごとにこの画面を開き直すので、画面内の選択・入力は下書きに残す。
+      const draft = hitResetDraftFor(session);
+      const startBallsPreset = jitanExitStartBallsPreset(session, presetId, machine);
+      const startBallsValue = draft.startBallsTouched ? draft.startBalls : startBallsPreset.value;
+      const startBallsEstimate = draft.startBallsTouched ? null : startBallsPreset.estimate;
+      const shootingSelected = draft.shooting ?? defaultShootingForSession(session);
+      const undoableHit = lastHitRecordIndex(session) >= 0;
       openModal("大当たり登録", "R数と獲得出玉を記録し、時短が終わったらカウンターの表示に合わせてください。選ばずに閉じると、現在回転数はそのままです。", `
         ${machineContextLine(session)}
         ${holdCarryNoticeHtml(session)}
@@ -7383,6 +7459,7 @@
             <div>
               <div class="quick-invest">
                 ${roundTypes.map((type) => `<button data-hit-round="${escapeHtml(type.id)}">${escapeHtml(type.label)} +1</button>`).join("") || '<span class="hint">このプリセットにはラウンド種別がありません。</span>'}
+                <button class="small" id="undoHitRoundBtn"${undoableHit ? "" : " disabled"}>取り消し</button>
               </div>
               <p class="hint">当選カウンター <strong>${numberText(hitCounterSpin, "-")}</strong>（当選ウィザードで記録した値です。変えるときは「大当たり履歴」から）</p>
               <label for="hitRecordActualBalls">この連チャンの累計出玉</label>
@@ -7393,26 +7470,18 @@
           </div>
         </div>
         <div class="field-row">
-          <label for="hitMochidamaValue">持ち玉</label>
-          <div>
-            <span class="hint">現在 <strong id="hitMochidamaCurrent">${balanceText(balances.mochidama, "玉")}</strong> → </span>
-            <input id="hitMochidamaValue" inputmode="numeric" placeholder="消化後の値">
-            <span class="hint"> 玉（任意）</span>
-            <p class="hint">台の玉数表示に合わせて入力してください。入力した時点で反映されます。</p>
-          </div>
-        </div>
-        <div class="field-row">
           <label>時短が終わりました（実機：データカウンターの表示）</label>
           <div>
             <div class="quick-invest">
               ${jitanOptions.map((option) => `<button data-hit-reset="${option.counterSpin}">時短${option.jitanSpins} → カウンター${option.counterSpin}</button>`).join("") || '<span class="hint">この機種には時短のプリセットがありません。直接入力してください。</span>'}
             </div>
             <label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）</label>
-            <input id="jitanExitStartBalls" inputmode="numeric" value="${escapeHtml(jitanExitStartBallsPreset(session) ?? "")}">
-            <p class="hint">ここからの回転率を出す起点になります。計数機に入れたときは実際の値に直してください。</p>
+            <input id="jitanExitStartBalls" inputmode="numeric" value="${escapeHtml(startBallsValue ?? "")}">
+            <p class="hint">ここからの回転率を出す起点になります。計数機に入れたときは実際の値に直してください。持ち玉はこの欄だけで記録します。</p>
+            ${startBallsEstimate ? `<p class="hint">見積もり（${escapeHtml(startBallsEstimate.rounds.toLocaleString("ja-JP"))}R×${escapeHtml(startBallsEstimate.perRound.toLocaleString("ja-JP"))}玉）。台の表示に合わせて直してください</p>` : ""}
             <label>この後</label>
             <div class="style-choice">
-              ${["before", "started"].map((value) => `<button type="button" class="jitanShootingChoice${value === defaultShootingForSession(session) ? " selected" : ""}" data-shooting="${value}" aria-pressed="${value === defaultShootingForSession(session) ? "true" : "false"}">${value === "before" ? "打ち出しを止める（保留を待つ）" : "打ち出しを続ける"}</button>`).join("")}
+              ${["before", "started"].map((value) => `<button type="button" class="jitanShootingChoice${value === shootingSelected ? " selected" : ""}" data-shooting="${value}" aria-pressed="${value === shootingSelected ? "true" : "false"}">${value === "before" ? "打ち出しを止める（保留を待つ）" : "打ち出しを続ける"}</button>`).join("")}
             </div>
             <p class="hint">打ち方の方針から選んであります。止めた場合は、打ち出したときに「打ち出し開始」を押してください。</p>
             <div class="grid two">
@@ -7427,12 +7496,11 @@
           <button id="openHitHistoryBtn">大当たり履歴</button>
         </div>
       `);
-      // C-6: 確定ボタンを置かず、入力した時点（フォーカスが外れた時点）で反映する。
-      const hitMochidamaInput = byId("hitMochidamaValue");
-      if (hitMochidamaInput) hitMochidamaInput.addEventListener("change", () => {
-        if (!saveHitMochidamaInput(session)) return;
-        const currentText = byId("hitMochidamaCurrent");
-        if (currentText) currentText.textContent = balanceText(deriveBalances(session).mochidama, "玉");
+      // S24/§A-2-2: 手で直した起点の持ち玉は、R種別のタップで開き直しても消さない。
+      const startBallsInput = byId("jitanExitStartBalls");
+      if (startBallsInput) startBallsInput.addEventListener("input", () => {
+        draft.startBalls = normalizeNumber(startBallsInput.value);
+        draft.startBallsTouched = true;
       });
       byId("openHitHistoryBtn").addEventListener("click", () => {
         openHitHistory(session, { back: () => openHitResetPrompt(session) });
@@ -7443,6 +7511,12 @@
           openHitResetPrompt(session);
         });
       });
+      // S24/§B-1: 直前に押したR種別の取り消し。押せるのは直前の1件があるときだけ。
+      const undoHitRoundButton = byId("undoHitRoundBtn");
+      if (undoHitRoundButton) undoHitRoundButton.addEventListener("click", () => {
+        if (!undoLastHitRecord(session)) return;
+        openHitResetPrompt(session);
+      });
       // S7c/3-2: 「この後」の選択。時短抜けを確定するまではここで切り替えるだけ
       els.modalBody.querySelectorAll(".jitanShootingChoice").forEach((button) => {
         button.addEventListener("click", () => {
@@ -7450,6 +7524,8 @@
             other.classList.toggle("selected", other === button);
             other.setAttribute("aria-pressed", other === button ? "true" : "false");
           });
+          // S24/§B-2: 選び直した状態は画面を開き直しても保つ（セッションの方針は変えない）
+          draft.shooting = button.dataset.shooting ?? null;
         });
       });
       const selectedShooting = () => els.modalBody.querySelector(".jitanShootingChoice.selected")?.dataset.shooting ?? null;
@@ -7457,6 +7533,7 @@
         button.addEventListener("click", () => {
           // S7/B-3: 閉じると入力欄が消えるので、必ず読んでから閉じる。
           const startBalls = normalizeNumber(byId("jitanExitStartBalls")?.value);
+          if (!confirmJitanExitStartBalls(session, startBalls)) return;
           const shooting = selectedShooting();
           closeModal();
           applyJitanExit(session, Number(button.dataset.hitReset), startBalls, shooting);
@@ -7469,10 +7546,20 @@
           return;
         }
         const startBalls = normalizeNumber(byId("jitanExitStartBalls")?.value);
+        if (!confirmJitanExitStartBalls(session, startBalls)) return;
         const shooting = selectedShooting();
         closeModal();
         applyJitanExit(session, value, startBalls, shooting);
       });
+    }
+
+    // S24/§A-2-3: 当たったのに起点の持ち玉が増えていないときの確認。確定は止めない（計数機へ入れた場合もあるため）。
+    function confirmJitanExitStartBalls(session, startBalls) {
+      const value = normalizeNumber(startBalls);
+      if (value === null) return true;
+      const remain = chainStartRemainBalls(session);
+      if (remain === null || value > remain) return true;
+      return confirm("当たったのに持ち玉が増えていません。台の表示を確認してください。\nこの値で確定しますか？");
     }
 
     // S7c/1-3: 一度 "started" になったら、その区間では戻さない（戻すなら大当たり履歴の手動切り替え）。
@@ -7530,13 +7617,38 @@
       return `<p class="hint warn">${escapeHtml(lines.join(" "))}扱いは「大当たり履歴」で切り替えられます。</p>`;
     }
 
-    // S7/B-3: 時短抜けの起点になる持ち玉の初期値。
-    // 現在の持ち玉＋この連チャンの獲得出玉合計。獲得出玉が無ければ現在の持ち玉のまま（空欄にしない）。
-    function jitanExitStartBallsPreset(session) {
+    // S24/§A-2-2: 見積もりの土台になる「直前の当選時の残り持ち玉」。
+    // 連チャンの起点（残保留当選の区間は前の連チャンに寄せる）の区間が持つ当選時の残り玉を使う。
+    // 区間に無い旧データはセッションの hitRemainBalls へ落とす。
+    function chainStartRemainBalls(session) {
+      const chainId = chainSegmentIdForHit(session);
+      const chainSegment = chainId ? sessionSegments(session).find((segment) => segment.id === chainId) : null;
+      return normalizeNumber(chainSegment?.endRemainBalls) ?? normalizeNumber(session?.hitRemainBalls);
+    }
+
+    // S24/§A-2-2: この連チャンで記録済みのR数。見積もりの分子になる。
+    function currentChainRounds(session, presetId) {
+      return roundBreakdown(currentChainHits(session), presetId).totalRounds;
+    }
+
+    // S24/§A-2-2: 時短抜けの起点になる持ち玉の初期値。優先順は
+    //   1. 直前の当選時の残り持ち玉 ＋ その連チャンの獲得出玉（入力済みなら実測）
+    //   2. 直前の当選時の残り持ち玉 ＋ その連チャンのR数 × 1R実質出玉（実測平均→基準値）
+    //   3. currentMochidama（ツールの追跡値）
+    // 0は初期値にしない（当たった以上、出玉ぶんは必ず増えているため）。どれも埋められないときは空欄にする。
+    function jitanExitStartBallsPreset(session, presetId = null, machine = null) {
       const current = deriveBalances(session).mochidama;
-      if (current === null) return null;
+      const base = chainStartRemainBalls(session) ?? current;
       const chainBalls = chainActualBallsBefore(session);
-      return Math.round(current + (chainBalls > 0 ? chainBalls : 0));
+      if (base !== null && chainBalls > 0) return { value: Math.round(base + chainBalls), estimate: null };
+      const rounds = currentChainRounds(session, presetId);
+      // 注記（◯R×◯玉）がそのまま検算できるよう、1R実質出玉は丸めてから掛ける
+      const perRound = normalizeNumber(netBallsPerWinInfo(presetId, machine)?.value);
+      const roundedPerRound = perRound === null ? null : Math.round(perRound);
+      if (base !== null && rounds > 0 && roundedPerRound !== null && roundedPerRound > 0) {
+        return { value: Math.round(base + rounds * roundedPerRound), estimate: { rounds, perRound: roundedPerRound } };
+      }
+      return { value: current !== null && current > 0 ? Math.round(current) : null, estimate: null };
     }
 
     // S2/§1-2: 新しい通常時区間を追加してから現在回転数を合わせる（順序を入れ替えないこと）。
@@ -7651,19 +7763,43 @@
       }
     }
 
-    function saveHitMochidamaInput(session, options = {}) {
-      const input = byId("hitMochidamaValue");
-      if (!input) return false;
-      const raw = input.value.trim();
-      if (!raw) return false;
-      const value = normalizeNumber(raw);
-      if (value === null) {
-        if (!options.silentEmpty) showToast("持ち玉を数値で入力してください", "error");
+    // S24/§A-2-1: 大当たり登録の持ち玉の入力欄は「そのときの台の持ち玉」の1つだけにした。
+    // その値は applyJitanExit で区間の起点（startTrackedBalls）と currentMochidama の両方へ入る。
+
+    // S24/§B-1: 直前に押したR種別。いま登録している区間のものだけを取り消せる。
+    function lastHitRecordIndex(session) {
+      const hits = Array.isArray(session?.hits) ? session.hits : [];
+      const index = hits.length - 1;
+      if (index < 0) return -1;
+      const chainId = chainSegmentIdForHit(session);
+      return chainId === null || resolveHitSegmentId(session, hits[index]) === chainId ? index : -1;
+    }
+
+    function undoLastHitRecord(session) {
+      const index = lastHitRecordIndex(session);
+      if (index < 0) {
+        showToast("取り消せるR種別がありません", "error");
         return false;
       }
-      updateMochidamaBalanceWithUndo(session, value);
-      input.value = "";
+      session.hits.splice(index, 1);
+      applyHitTotals(session);
+      session.updatedAt = nowIso();
+      if (!persistWithToast("直前のR種別を取り消しました")) return false;
+      renderAll();
       return true;
+    }
+
+    // S24/§B-2: 大当たり登録の画面内の下書き。連チャンが変わったら（時短抜けで次の区間が開いたら）作り直す。
+    function hitResetDraftKey(session) {
+      return `${session?.id || ""}:${chainSegmentIdForHit(session) || ""}`;
+    }
+
+    function hitResetDraftFor(session) {
+      const key = hitResetDraftKey(session);
+      if (!hitResetDraft || hitResetDraft.key !== key) {
+        hitResetDraft = { key, shooting: null, startBalls: null, startBallsTouched: false };
+      }
+      return hitResetDraft;
     }
 
     // S4/B-1: 区間の見出し。リザルトの「区間ごとの内訳」と同じ数え方にそろえる。
@@ -8339,11 +8475,13 @@
       return spins !== null && spins !== undefined && spins >= 0 ? spins : null;
     }
 
+    // S24/§B-3: サンプルが無いうちは値を出さない。打ち出し回転数か消費玉が0なら null（表示は「—」）。
+    // 0.0 という数値を出すと、実測が無いだけの区間が「回りが悪い台」に見えるため。
     function runningPanelRate(session, derived = null) {
       const stats = runningSessionDerived(session, derived);
       const inputBalls = runningNormalInputBalls(session, stats);
       const spins = runningNormalSpinCount(session, stats);
-      return inputBalls > 0 && spins !== null && spins >= 0 ? spins / inputBalls * 250 : null;
+      return inputBalls > 0 && spins !== null && spins > 0 ? spins / inputBalls * 250 : null;
     }
 
     function runningYutimeRemaining(session, machine) {
@@ -9173,7 +9311,7 @@
           </div>
           ${segmentHoldNotes.length ? `<p class="hint">回転数は残保留の控除後（${escapeHtml(segmentHoldNotes.join("・"))}）</p>` : ""}
           ${segmentHoldCarryMarks.length ? `<p class="hint">${escapeHtml(segmentHoldCarryMarks.join("・"))}は残保留当選（通常時なし）。前の連チャンの続きとして数えます</p>` : ""}
-          ${segmentExcludedMarks.length ? `<p class="hint">⚠ ${escapeHtml(segmentExcludedMarks.join("・"))}は純増が0以下のため集計から除外（入力を確認）</p>` : ""}
+          ${segmentExcludedMarks.length ? `<p class="hint">⚠ ${escapeHtml(segmentExcludedMarks.join("・"))}は純増が0以下のため集計から除外（入力を確認）。起点の持ち玉が正しくない可能性があります。下の 記録の修正 で「起点の持ち玉（時短抜け）」を直せます</p>` : ""}
           ${earned ? `<div class="result-line result-segment-total"><strong>獲得期待値 ${escapeHtml(yenText(earned.totalYen))}</strong><small>${escapeHtml(earnedExpectationBasisText(earned))}</small></div>` : ""}
         </div>` : "";
       const scopes = resultScopeSessions(session);
@@ -9823,6 +9961,13 @@
             const value = normalizeNumber(input.value);
             segment.holdSpins = value === null ? 0 : Math.min(9, Math.max(0, Math.round(value)));
           }
+          // S24/§A-2-4: 時短抜け区間の起点の持ち玉。空欄は「未入力」に戻す（推測で埋め直さない）
+          const startBallsInput = byId(`edit_segment_start_balls_${index}`);
+          if (startBallsInput) {
+            const value = normalizeNumber(startBallsInput.value);
+            segment.startTrackedBalls = value;
+            segment.startBallsSource = value !== null ? "measured" : null;
+          }
           // S23/§1: 区間の開始時刻。空欄は「時刻なし」として消せる（推測で埋め直さない）
           const startAtInput = byId(`edit_segment_start_at_${index}`);
           if (startAtInput) segment.startAt = isoFromDateAndTime(session.date, startAtInput.value);
@@ -9876,9 +10021,14 @@
         const startAtHtml = index > 0 && segment.kind === "normal"
           ? `<div class="field-row"><label for="edit_segment_start_at_${index}">区間${index + 1} ${kindLabel}の開始時刻（時短抜け）</label><input id="edit_segment_start_at_${index}" type="time" step="1" value="${escapeHtml(localTimeText(segment.startAt, true))}"></div>`
           : "";
-        return `<div class="field-row"><label for="edit_segment_hold_${index}">区間${index + 1} ${kindLabel}（${escapeHtml(range)}）の無料保留</label><input id="edit_segment_hold_${index}" type="text" inputmode="numeric" value="${escapeHtml(segment.holdSpins ?? 0)}"></div>${startAtHtml}`;
+        // S24/§A-2-4: 時短抜け区間の起点の持ち玉。純増が0以下になった区間をここから直せるようにする。
+        // 打ち始め区間・遊タイム区間の起点は上の「開始時の持ち玉」「遊タイム突入玉」が正本なので出さない。
+        const startBallsHtml = index > 0 && segment.kind === "normal"
+          ? `<div class="field-row"><label for="edit_segment_start_balls_${index}">区間${index + 1} ${kindLabel}の起点の持ち玉（時短抜け）</label><input id="edit_segment_start_balls_${index}" type="text" inputmode="numeric" value="${escapeHtml(segment.startTrackedBalls ?? "")}"></div>`
+          : "";
+        return `<div class="field-row"><label for="edit_segment_hold_${index}">区間${index + 1} ${kindLabel}（${escapeHtml(range)}）の無料保留</label><input id="edit_segment_hold_${index}" type="text" inputmode="numeric" value="${escapeHtml(segment.holdSpins ?? 0)}"></div>${startBallsHtml}${startAtHtml}`;
       }).join("");
-      return `<div class="grid two">${rows}</div><p class="hint">区間の先頭で回した無料保留の数です。0〜9で指定でき、変更すると回転率を計算し直します。時短抜けの開始時刻は通常時の時速と当たり消化時間の起点です（自動記録。ずれている場合だけ直してください）。</p>`;
+      return `<div class="grid two">${rows}</div><p class="hint">区間の先頭で回した無料保留の数です。0〜9で指定でき、変更すると回転率を計算し直します。起点の持ち玉は時短抜けの時点で台に表示されていた玉数で、その連チャンの純増と、そこからの回転率の起点になります。時短抜けの開始時刻は通常時の時速と当たり消化時間の起点です（自動記録。ずれている場合だけ直してください）。</p>`;
     }
 
     function consumedBallsSourceEditorHtml(session) {

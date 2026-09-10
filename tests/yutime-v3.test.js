@@ -22,6 +22,13 @@ const hitRoundSummaryHtml = section('function hitRoundSummaryHtml', 'function op
 const sessionActualBallsTotalBlock = section('function cumulativeActualBallsBefore', 'function hitCounterSpinForRecord') + section('function sessionActualBallsTotal', 'function actualBallsFromCumulativeInput');
 const hitHistoryBlock = section('function segmentHistoryLabels', 'function openEndWizard');
 const hitResetPrompt = section('function openHitResetPrompt', 'function openEndWizard');
+// S24/§B-6: 打ち始めの打ち方の2択
+const startPlayStyleBlock = section('function startPlayStyleChoiceHtml', 'function expectationPreviousSpinState');
+// S24: 大当たり登録まわりで新しく分けた関数
+const confirmJitanExitStartBallsBlock = section('function confirmJitanExitStartBalls', 'function markSegmentShootingStarted');
+const jitanExitStartBallsPresetBlock = section('function chainStartRemainBalls', 'function defaultShootingForSession');
+const undoHitRecordBlock = section('function lastHitRecordIndex', 'function hitResetDraftKey');
+const hitResetDraftBlock = section('function hitResetDraftKey', 'function segmentHistoryLabels');
 const openEndWizardBlock = section('function openEndWizard', 'function presetHitCountFromCounters');
 const runEndWizardBlock = section('function runEndWizard', 'function runWizard');
 const updateMochidamaBalance = section('function updateMochidamaBalanceWithUndo', 'function investmentTotals');
@@ -439,18 +446,52 @@ assert.match(hitResetPrompt, /hitRoundSummaryHtml\(session, presetId\)/);
 assert.match(hitResetPrompt, /class="hit-round-layout"/);
 assert.match(hitResetPrompt, /appendHitRecord\(session, button\.dataset\.hitRound\);/);
 assert.ok(hitResetPrompt.includes('data-close'), 'reset chip close button should remain unchanged');
-assert.match(hitResetPrompt, /id="hitMochidamaValue"/);
+// S24/§A-2-1: 大当たり登録の持ち玉の入力欄は「そのときの台の持ち玉」の1つだけ。
+// 同じ瞬間の同じ数字を2回聞かない（上の「持ち玉（消化後の値）」は削除した）。
+assert.doesNotMatch(hitResetPrompt, /id="hitMochidamaValue"/);
+assert.doesNotMatch(html, /hitMochidamaValue/);
+assert.doesNotMatch(html, /hitMochidamaCurrent/);
+assert.doesNotMatch(html, /saveHitMochidamaInput/);
 assert.doesNotMatch(hitResetPrompt, /id="saveHitMochidamaBtn"/);
 assert.doesNotMatch(hitResetPrompt, /持ち玉を更新<\/button>/);
-assert.match(hitResetPrompt, /hitMochidamaInput\.addEventListener\("change", \(\) => \{\s*if \(!saveHitMochidamaInput\(session\)\) return;/);
+assert.doesNotMatch(hitResetPrompt, /placeholder="消化後の値"/);
+assert.equal((hitResetPrompt.match(/そのときの台の持ち玉（実機：台の持ち玉表示）/g) || []).length, 1, '持ち玉を聞く欄は1つだけ');
+assert.match(hitResetPrompt, /id="jitanExitStartBalls"/);
 assert.match(hitResetPrompt, /id="openHitHistoryBtn"/);
 assert.match(hitResetPrompt, /closeModal\(\);\s*applyJitanExit\(session, Number\(button\.dataset\.hitReset\), startBalls, shooting\);/);
 assert.match(hitResetPrompt, /data-hit-reset="\$\{option\.counterSpin\}"/);
 assert.match(hitResetPrompt, /時短\$\{option\.jitanSpins\} → カウンター\$\{option\.counterSpin\}/);
 assert.match(hitResetPrompt, /id="jitanExitSpin"/);
 assert.match(hitResetPrompt, /id="applyJitanExitBtn"/);
-assert.doesNotMatch(hitResetPrompt, /saveHitMochidamaInput\(session, \{ silentEmpty: true \}\)/);
-assert.match(hitResetPrompt, /if \(!raw\) return false;/);
+// S24/§A-2-2: 起点の持ち玉の初期値は 実測 → 見積もり → 追跡値 の順。0は初期値にしない。
+assert.match(hitResetPrompt, /const startBallsPreset = jitanExitStartBallsPreset\(session, presetId, machine\);/);
+assert.match(hitResetPrompt, /value="\$\{escapeHtml\(startBallsValue \?\? ""\)\}"/);
+assert.match(hitResetPrompt, /見積もり（\$\{escapeHtml\(startBallsEstimate\.rounds\.toLocaleString\("ja-JP"\)\)\}R×\$\{escapeHtml\(startBallsEstimate\.perRound\.toLocaleString\("ja-JP"\)\)\}玉）。台の表示に合わせて直してください/);
+assert.match(jitanExitStartBallsPresetBlock, /const base = chainStartRemainBalls\(session\) \?\? current;/);
+assert.match(jitanExitStartBallsPresetBlock, /if \(base !== null && chainBalls > 0\) return \{ value: Math\.round\(base \+ chainBalls\), estimate: null \};/);
+assert.match(jitanExitStartBallsPresetBlock, /const perRound = normalizeNumber\(netBallsPerWinInfo\(presetId, machine\)\?\.value\);/);
+// 注記（◯R×◯玉）と初期値が一致するよう、1R実質出玉は丸めてから掛ける
+assert.match(jitanExitStartBallsPresetBlock, /const roundedPerRound = perRound === null \? null : Math\.round\(perRound\);/);
+assert.match(jitanExitStartBallsPresetBlock, /return \{ value: current !== null && current > 0 \? Math\.round\(current\) : null, estimate: null \};/);
+// S24/§A-2-3: 増えていない値の確認。確定は止めない。
+assert.match(hitResetPrompt, /if \(!confirmJitanExitStartBalls\(session, startBalls\)\) return;/);
+assert.match(confirmJitanExitStartBallsBlock, /return confirm\("当たったのに持ち玉が増えていません。台の表示を確認してください。/);
+assert.match(confirmJitanExitStartBallsBlock, /if \(remain === null \|\| value > remain\) return true;/);
+// S24/§B-1: 直前に押したR種別の取り消し（投資タップの取り消しと同じ形）
+assert.match(hitResetPrompt, /<button class="small" id="undoHitRoundBtn"\$\{undoableHit \? "" : " disabled"\}>取り消し<\/button>/);
+assert.match(hitResetPrompt, /const undoableHit = lastHitRecordIndex\(session\) >= 0;/);
+assert.match(hitResetPrompt, /if \(!undoLastHitRecord\(session\)\) return;/);
+assert.match(undoHitRecordBlock, /const chainId = chainSegmentIdForHit\(session\);/);
+assert.match(undoHitRecordBlock, /session\.hits\.splice\(index, 1\);/);
+assert.match(undoHitRecordBlock, /persistWithToast\("直前のR種別を取り消しました"\)/);
+// S24/§B-2: 「この後」の選択と手で直した起点の持ち玉は、R種別のタップで開き直しても消えない。
+// 初期選択はセッションの playStyle 由来のまま、選び直してもセッションの方針は変えない。
+assert.match(hitResetPrompt, /const draft = hitResetDraftFor\(session\);/);
+assert.match(hitResetPrompt, /const shootingSelected = draft\.shooting \?\? defaultShootingForSession\(session\);/);
+assert.match(hitResetPrompt, /draft\.shooting = button\.dataset\.shooting \?\? null;/);
+assert.match(hitResetPrompt, /draft\.startBallsTouched = true;/);
+assert.doesNotMatch(hitResetPrompt, /session\.playStyle =/);
+assert.match(hitResetDraftBlock, /return `\$\{session\?\.id \|\| ""\}:\$\{chainSegmentIdForHit\(session\) \|\| ""\}`;/);
 assert.match(hitRoundSummaryHtml, /const hits = normalizeHits\(session\?\.hits\);/);
 assert.match(roundBreakdownBlock, /const roundTypes = presetById\(presetId\)\?\.roundTypes \|\| \[\];/);
 assert.match(roundBreakdownBlock, /const count = counts\.get\(type\.id\) \|\| 0;/);
@@ -1883,7 +1924,9 @@ assert.match(runningRateHelpers, /const spins = runningSessionDerived\(session, 
 assert.match(runningSpinCount, /return runningNormalSpinCount\(session, derived\);/);
 assert.match(runningPanelRate, /const inputBalls = runningNormalInputBalls\(session, stats\);/);
 assert.match(runningPanelRate, /const spins = runningNormalSpinCount\(session, stats\);/);
-assert.match(runningPanelRate, /return inputBalls > 0 && spins !== null && spins >= 0 \? spins \/ inputBalls \* 250 : null;/);
+// S24/§B-3: 打ち出し回転数か消費玉が0のときは値を出さない（0.0（目安）を出さない）
+assert.match(runningPanelRate, /return inputBalls > 0 && spins !== null && spins > 0 \? spins \/ inputBalls \* 250 : null;/);
+assert.match(renderRunning, /\$\{liveRate !== null \? liveRate\.toFixed\(1\) : "—"\} \/250玉/);
 assert.match(runningPanelInputBallsBlock, /function runningNormalInputBalls\(session, derived = null\) \{/);
 assert.match(runningPanelInputBallsBlock, /const segmentBalls = runningSessionDerived\(session, derived\)\.consumedBalls;/);
 assert.match(runningPanelInputBallsBlock, /const investedBalls = normalRateInvestments\(session\)\.reduce/);
@@ -2435,7 +2478,11 @@ assert.match(openMachineDetail, /開始時点の累計大当たり回数/);
 assert.match(openMachineDetail, /id="evStartCredit"/);
 assert.match(openMachineDetail, /開始時のカード残高/);
 assert.match(openMachineDetail, /id="evPrevDisabled"/);
-assert.match(openMachineDetail, /label for="evPrevDisabled">ラムクリア<\/label><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> あり/);
+assert.match(openMachineDetail, /label for="evPrevDisabled">ラムクリア<\/label><div><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> あり<\/label><p class="hint" id="machineEvRamHint" hidden><\/p><\/div>/);
+// S24/§B-4: 前日ヤメが自動で無効になる条件（当日当選済み）ではラムクリアも入力できない。理由を1行で出す
+assert.match(renderMachineExpectation, /if \(ramInput\) ramInput\.disabled = previousState\.autoDisabled;/);
+assert.match(renderMachineExpectation, /ramHint\.textContent = previousState\.autoDisabled \? "当日すでに当選しているため、ラムクリアの有無は判定に使いません。" : "";/);
+assert.match(renderMachineExpectation, /ramHint\.hidden = !previousState\.autoDisabled;/);
 assert.doesNotMatch(openMachineDetail, /<label for="evPrevDisabled">宵越し<\/label>|<input id="evPrevDisabled" type="checkbox"> ラムクリア/);
 assert.doesNotMatch(openMachineDetail, /宵越し無効（当日当選済み／ラムクリア）|<label class="check-row"><input id="evPrevDisabled"/);
 assert.ok(openMachineDetail.indexOf('id="evStartTotalHits"') < openMachineDetail.indexOf('id="evPrevDisabled"'));
@@ -2505,6 +2552,8 @@ const machineExpectationContext = vm.createContext({
     return Number.isFinite(n) ? n : null;
   },
   expectationInvestmentText() { return '遊タイムまで必要 約300玉（持ち玉から100玉・現金で約800円）'; },
+  // S24/§B-6: 打ち始めで選んだ打ち方（判定パネルの2択）
+  startPlayStyle: 'yutime',
   exchangeBallsText(value) { return String(value); },
   yenText(value) { return `${value}円`; },
   percentText(value) { return `${value}%`; },
@@ -4841,17 +4890,19 @@ assert.equal(s7SchemaContext.s7Migrated.sessions[2].consumedModel, null);
 
 // --- B-3: 時短抜けの入力に「そのときの台の持ち玉」を置く ---------------------
 assert.match(hitResetPrompt, /<label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）<\/label>/);
-assert.match(hitResetPrompt, /id="jitanExitStartBalls" inputmode="numeric" value="\$\{escapeHtml\(jitanExitStartBallsPreset\(session\) \?\? ""\)\}"/);
-assert.match(hitResetPrompt, /const startBalls = normalizeNumber\(byId\("jitanExitStartBalls"\)\?\.value\);\s*const shooting = selectedShooting\(\);\s*closeModal\(\);/);
+// S24/§A-2-1: 起点の持ち玉はこの1欄だけ。初期値は S24/§A-2-2 の優先順で入れる
+assert.match(hitResetPrompt, /id="jitanExitStartBalls" inputmode="numeric" value="\$\{escapeHtml\(startBallsValue \?\? ""\)\}"/);
+assert.match(hitResetPrompt, /const startBalls = normalizeNumber\(byId\("jitanExitStartBalls"\)\?\.value\);\s*if \(!confirmJitanExitStartBalls\(session, startBalls\)\) return;\s*const shooting = selectedShooting\(\);\s*closeModal\(\);/);
 assert.match(hitResetPrompt, /applyJitanExit\(session, value, startBalls, shooting\);/);
-assert.match(hitResetPrompt, /function jitanExitStartBallsPreset\(session\) \{[\s\S]*?const chainBalls = chainActualBallsBefore\(session\);\s*return Math\.round\(current \+ \(chainBalls > 0 \? chainBalls : 0\)\);/);
 assert.match(hitResetPrompt, /if \(measuredBalls !== null\) updateMochidamaBalanceWithUndo\(session, measuredBalls\);/);
 assert.match(hitResetPrompt, /startNormalSegmentAfterJitan\(session, counterSpin, measuredBalls, shooting\);/);
 const startNormalSegmentBlock = section('function startNormalSegmentAfterJitan', 'function closeSegmentOnHit');
 assert.match(startNormalSegmentBlock, /startTrackedBalls: measuredBalls !== null \? measuredBalls : deriveBalances\(session\)\.mochidama,/);
 assert.match(startNormalSegmentBlock, /startBallsSource: measuredBalls !== null \? "measured" : "tracked",/);
 
-const s7JitanPresetContext = vm.createContext({});
+// S24/§A-2-2: 初期値は ①当選時の残り玉＋実測の獲得出玉 → ②当選時の残り玉＋R数×1R実質出玉 → ③追跡値。
+// 0は初期値にしない（前の当選時の残り玉が0でも、出玉ぶんは必ず増えているため）
+const s24JitanPresetContext = vm.createContext({});
 new vm.Script(`
   function normalizeNumber(value) {
     if (value === "" || value === null || value === undefined) return null;
@@ -4860,17 +4911,30 @@ new vm.Script(`
   }
   function deriveBalances(session) { return { mochidama: session.__mochidama }; }
   function chainActualBallsBefore(session) { return session.__chainBalls; }
-  ${section('function jitanExitStartBallsPreset', 'function applyJitanExit')}
-  globalThis.s7JitanPreset = {
-    both: jitanExitStartBallsPreset({ __mochidama: 120, __chainBalls: 1500 }),
-    noChain: jitanExitStartBallsPreset({ __mochidama: 120, __chainBalls: 0 }),
-    noMochidama: jitanExitStartBallsPreset({ __mochidama: null, __chainBalls: 1500 })
+  function chainSegmentIdForHit(session) { return "seg_chain"; }
+  function sessionSegments(session) { return [{ id: "seg_chain", endRemainBalls: session.__remain }]; }
+  function currentChainHits(session) { return session.__hits || []; }
+  function roundBreakdown(hits) { return { totalRounds: hits.reduce((sum, hit) => sum + hit.rounds, 0) }; }
+  function netBallsPerWinInfo(presetId, machine) { return { value: machine ? machine.__perRound : null }; }
+  ${section('function chainStartRemainBalls', 'function defaultShootingForSession')}
+  globalThis.s24JitanPreset = {
+    measured: jitanExitStartBallsPreset({ __mochidama: 0, __remain: 9, __chainBalls: 1500, __hits: [] }, "agnes-pe", null),
+    estimate: jitanExitStartBallsPreset({ __mochidama: 0, __remain: 9, __chainBalls: 0, __hits: [{ rounds: 10 }, { rounds: 2 }] }, "agnes-pe", { __perRound: 100 }),
+    estimateActual: jitanExitStartBallsPreset({ __mochidama: 0, __remain: 9, __chainBalls: 0, __hits: [{ rounds: 10 }, { rounds: 2 }] }, "agnes-pe", { __perRound: 96.85 }),
+    tracked: jitanExitStartBallsPreset({ __mochidama: 800, __remain: null, __chainBalls: 0, __hits: [] }, "agnes-pe", null),
+    zero: jitanExitStartBallsPreset({ __mochidama: 0, __remain: null, __chainBalls: 0, __hits: [] }, "agnes-pe", null),
+    remainWithoutPayout: jitanExitStartBallsPreset({ __mochidama: 0, __remain: 9, __chainBalls: 0, __hits: [] }, "agnes-pe", null)
   };
-`).runInContext(s7JitanPresetContext);
-// 初期値は 現在の持ち玉 ＋ この連チャンの獲得出玉合計。獲得出玉が無ければ現在の持ち玉のまま
-assert.equal(s7JitanPresetContext.s7JitanPreset.both, 1620);
-assert.equal(s7JitanPresetContext.s7JitanPreset.noChain, 120);
-assert.equal(s7JitanPresetContext.s7JitanPreset.noMochidama, null);
+`).runInContext(s24JitanPresetContext);
+const s24Preset = (key) => JSON.stringify(s24JitanPresetContext.s24JitanPreset[key]);
+assert.equal(s24Preset("measured"), JSON.stringify({ value: 1509, estimate: null }));
+// §3 検算2: 前の当選時の残り9玉・連チャン12R・1R100玉 → 1,209玉（実測平均があればその値で）
+assert.equal(s24Preset("estimate"), JSON.stringify({ value: 1209, estimate: { rounds: 12, perRound: 100 } }));
+assert.equal(s24Preset("estimateActual"), JSON.stringify({ value: 1173, estimate: { rounds: 12, perRound: 97 } }));
+assert.equal(s24Preset("tracked"), JSON.stringify({ value: 800, estimate: null }));
+// §3 検算4: 0で初期表示されない（空欄にする）
+assert.equal(s24Preset("zero"), JSON.stringify({ value: null, estimate: null }));
+assert.equal(s24Preset("remainWithoutPayout"), JSON.stringify({ value: null, estimate: null }));
 
 // --- B-4: ヤメで終わる区間の終点は終了玉。旧式のセッションには入れない -------
 const closeTrailingBlock = section('function closeTrailingSegmentOnEnd', 'function currentSegmentId');
@@ -5423,6 +5487,18 @@ assert.match(wizardInputBlock, /class="wizardChoice\$\{option\.value === selecte
 assert.match(playStyleEditorBlock, /class="playStyleChoice/);
 assert.match(openSessionEditor, /\$\{playStyleEditorHtml\(session\)\}/);
 assert.match(openSessionEditor, /if \(playStyleChoice\) session\.playStyle = normalizePlayStyle\(playStyleChoice\.dataset\.playStyle\);/);
+// S24/§B-6: 打ち始めでも打ち方を選べる。選択は次に打ち始めるときの初期値として覚える
+assert.match(openMachineDetail, /\$\{startPlayStyleChoiceHtml\(\)\}/);
+assert.match(openMachineDetail, /bindStartPlayStyleChoice\(els\.modalBody\);/);
+assert.match(startPlayStyleBlock, /class="startPlayStyleChoice/);
+assert.match(startPlayStyleBlock, /遊タイム狙い（時短抜けで止める）/);
+assert.match(startPlayStyleBlock, /打ち切り（続けて打つ）/);
+assert.match(startPlayStyleBlock, /startPlayStyle = normalizePlayStyle\(button\.dataset\.playStyle\);/);
+assert.match(startPlayStyleBlock, /localStorage\.setItem\(PLAY_STYLE_PREF_KEY, startPlayStyle\);/);
+assert.match(html, /const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX \+ "start:playStyle";/);
+assert.match(html, /let startPlayStyle = normalizePlayStyle\(localStorage\.getItem\(PLAY_STYLE_PREF_KEY\) \|\| "yutime"\);/);
+assert.match(expectationPanelPresetsBlock, /playStyle: startPlayStyle/);
+assert.match(startSessionFlow, /if \(presets\.playStyle !== undefined\) session\.playStyle = normalizePlayStyle\(presets\.playStyle\);/);
 // 3-2: 時短抜けの「この後」
 assert.match(hitResetPrompt, /<label>この後<\/label>/);
 assert.match(hitResetPrompt, /class="jitanShootingChoice/);
