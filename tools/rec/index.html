@@ -254,7 +254,8 @@ const MACHINES={
       {key:"lastCz",label:"前回のCZ終了画面",type:"select",options:["不明","鳴海","勝","しろがね","祈るフランシーヌ","フランシーヌ人形","笑顔のフランシーヌ","アンジェリーナ","リーゼ","敵4人","手","ギイ＆オリンピア","ピエロ","真夜中のサーカス","フェイスレス"]}
     ],
     counter3:{label:"CZスルー",reset:"at",incOnCzFail:["機械仕掛けの女神"]},
-    modeEra:{advanceOn:["機械仕掛けの女神","AT","上位AT"],skipTriggers:["劇場ジャッジ 失敗"]},
+    lcdRestart:1,   // 当選を抜けて通常時に戻るとき、液晶Gは1から（第三停止で1G表示）
+    modeEra:{advanceOn:["機械仕掛けの女神","劇場ジャッジ","AT","上位AT"],skipTriggers:["劇場ジャッジ 失敗"]},
     rares:[
       {key:"melon",label:"🍉",hint:"運命盤・CZ/AT終了で0",resetOnHitEnd:true,cutLog:true},
       {key:"cherryS",label:"強🍒",track:true,trigger:"強チェリー",trackHit:["機械仕掛けの女神"]},
@@ -734,11 +735,13 @@ function startHit(h,trig,opts){
   }else{save();render();closeSheet();if(target.inline)hitEnd();else toast(target.label+" 開始")}
 }
 // 終了シート共通：今のG数の入力欄
-function gInputs(b,keep){
-  const c=S.cur,F={};
+function gInputs(b,keep,toNormal){
+  const c=S.cur,F={},d=DEF();
   const w=mk("div","setup");w.style.padding="0";const t=mk("div","two");
   const a=mk("div"),d2=mk("div");
-  F.realG=numInput(keep?c.realG:0);F.lcdG=numInput(keep?c.lcdG:0);
+  const lcd0=(toNormal&&d.lcdRestart!=null)?d.lcdRestart:0;   // 通常時に戻るときは機種の起点（からくり2は1）
+  // keepG で引き継ぐ場合も、通常時に戻るなら起点を下回らない（AT終了直後の0を引き継いだ幕間チャンス対策）
+  F.realG=numInput(keep?c.realG:0);F.lcdG=numInput(keep?Math.max(c.lcdG||0,lcd0):lcd0);
   a.append(mk("div","lbl","今の実G"),F.realG);d2.append(mk("div","lbl","今の液晶G"),F.lcdG);
   t.append(a,d2);w.append(t);b.append(w);
   b.append(mk("div","hint",keep?"G数はそのまま続きます。ずれていれば直してください。":"終了後は0から数え直します。すでに回していれば今の数字を入れてください。"));
@@ -804,7 +807,7 @@ function czEndSheet(){
         closeSheet();save();render();
       },{goLabel:ce.failTo?"失敗を記録して "+ce.failTo+" へ":"失敗を記録",after:(bb)=>{
         bb.append(mk("div","lbl",ce.failNote||"メモ"));const ta=mk("textarea");ta.style.minHeight="56px";ta.addEventListener("input",()=>memo=ta.value);bb.append(ta);
-        if(!ce.failTo)GF=gInputs(bb,!!h.keepG);
+        if(!ce.failTo)GF=gInputs(bb,!!h.keepG,true);
         if(keep)bb.append(mk("div","hint","通常時が続くので、運命盤の回数・🍉・🍉残りはそのまま持ち越します。"));
       }});
     });
@@ -883,7 +886,7 @@ function atEndSheet(){
       b.append(w);
     });
     b.append(mk("div","lbl","メモ"));const ta=mk("textarea");ta.style.minHeight="56px";ta.addEventListener("input",()=>memo=ta.value);b.append(ta);
-    const GF=gInputs(b,false);
+    const GF=gInputs(b,false,!after);
     if(ask){
       b.append(mk("div","lbl",d.counter3.label+"をリセットしますか（今 "+c.c3+"）"));
       const rw=optRow([{l:"0に戻す",v:true},{l:"そのまま",v:false}],(it,btn,w)=>{reset=it.v;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));btn.classList.add("on")},"q2");b.append(rw);
