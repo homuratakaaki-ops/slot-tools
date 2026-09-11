@@ -73,6 +73,11 @@
       color: var(--ink);
     }
 
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
     input:disabled, textarea:disabled, select:disabled {
       background: #eef2f6;
       color: var(--muted);
@@ -7465,8 +7470,8 @@
       // S24/§B-2: R種別のタップごとにこの画面を開き直すので、画面内の選択・入力は下書きに残す。
       const draft = hitResetDraftFor(session);
       const startBallsPreset = jitanExitStartBallsPreset(session, presetId, machine);
-      const startBallsValue = draft.startBallsTouched ? draft.startBalls : startBallsPreset.value;
-      const startBallsEstimate = draft.startBallsTouched ? null : startBallsPreset.estimate;
+      const startBallsValue = draft.startBallsTouched ? draft.startBalls : null;
+      const startBallsEstimate = startBallsPreset.estimate;
       const shootingSelected = draft.shooting ?? defaultShootingForSession(session);
       const undoableHit = lastHitRecordIndex(session) >= 0;
       openModal("大当たり登録", "R数と獲得出玉を記録し、時短が終わったらカウンターの表示に合わせてください。選ばずに閉じると、現在回転数はそのままです。", `
@@ -7491,13 +7496,14 @@
         <div class="field-row">
           <label>時短が終わりました（実機：データカウンターの表示）</label>
           <div>
-            <div class="quick-invest">
-              ${jitanOptions.map((option) => `<button data-hit-reset="${option.counterSpin}">時短${option.jitanSpins} → カウンター${option.counterSpin}</button>`).join("") || '<span class="hint">この機種には時短のプリセットがありません。直接入力してください。</span>'}
-            </div>
             <label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）</label>
             <input id="jitanExitStartBalls" inputmode="numeric" value="${escapeHtml(startBallsValue ?? "")}">
+            <p class="hint" id="jitanExitStartBallsRequired">台の持ち玉を入力すると、時短抜けを確定できます</p>
             <p class="hint">ここからの回転率を出す起点になります。計数機に入れたときは実際の値に直してください。持ち玉はこの欄だけで記録します。</p>
-            ${startBallsEstimate ? `<p class="hint">見積もり（${escapeHtml(startBallsEstimate.rounds.toLocaleString("ja-JP"))}R×${escapeHtml(startBallsEstimate.perRound.toLocaleString("ja-JP"))}玉）。台の表示に合わせて直してください</p>` : ""}
+            ${startBallsEstimate ? `<p class="hint">参考：前回${escapeHtml(startBallsEstimate.base.toLocaleString("ja-JP"))}玉＋${startBallsEstimate.kind === "actual" ? `累計出玉${escapeHtml(startBallsEstimate.chainBalls.toLocaleString("ja-JP"))}玉` : `${escapeHtml(startBallsEstimate.rounds.toLocaleString("ja-JP"))}R×${escapeHtml(startBallsEstimate.perRound.toLocaleString("ja-JP"))}玉`}＝約${escapeHtml(startBallsPreset.value.toLocaleString("ja-JP"))}玉。台の表示を入力してください</p>` : ""}
+            <div class="quick-invest">
+              ${jitanOptions.map((option) => `<button data-hit-reset="${option.counterSpin}" disabled>時短${option.jitanSpins} → カウンター${option.counterSpin}</button>`).join("") || '<span class="hint">この機種には時短のプリセットがありません。直接入力してください。</span>'}
+            </div>
             <label>この後</label>
             <div class="style-choice">
               ${["before", "started"].map((value) => `<button type="button" class="jitanShootingChoice${value === shootingSelected ? " selected" : ""}" data-shooting="${value}" aria-pressed="${value === shootingSelected ? "true" : "false"}">${value === "before" ? "打ち出しを止める（保留を待つ）" : "打ち出しを続ける"}</button>`).join("")}
@@ -7505,7 +7511,7 @@
             <p class="hint">打ち方の方針から選んであります。止めた場合は、打ち出したときに「打ち出し開始」を押してください。</p>
             <div class="grid two">
               <input id="jitanExitSpin" inputmode="numeric" placeholder="直接入力（回転数）">
-              <button id="applyJitanExitBtn">この回転数で開始</button>
+              <button id="applyJitanExitBtn" disabled>この回転数で開始</button>
             </div>
             <p class="hint">選ばずに閉じると、現在回転数はそのままです。</p>
           </div>
@@ -7518,9 +7524,18 @@
       modalCancel = () => { pendingHitAt = null; }; // S25/§3: R未入力で閉じても次の連チャンへ持ち越さない。
       // S24/§A-2-2: 手で直した起点の持ち玉は、R種別のタップで開き直しても消さない。
       const startBallsInput = byId("jitanExitStartBalls");
+      const updateStartBallsRequired = () => {
+        const disabled = normalizeNumber(startBallsInput?.value) === null;
+        els.modalBody.querySelectorAll("[data-hit-reset], #applyJitanExitBtn").forEach((button) => {
+          button.disabled = disabled;
+        });
+        byId("jitanExitStartBallsRequired").hidden = !disabled;
+      };
+      updateStartBallsRequired();
       if (startBallsInput) startBallsInput.addEventListener("input", () => {
         draft.startBalls = normalizeNumber(startBallsInput.value);
         draft.startBallsTouched = true;
+        updateStartBallsRequired();
       });
       byId("openHitHistoryBtn").addEventListener("click", () => {
         openHitHistory(session, { back: () => openHitResetPrompt(session) });
@@ -7660,13 +7675,13 @@
       const current = deriveBalances(session).mochidama;
       const base = chainStartRemainBalls(session) ?? current;
       const chainBalls = chainActualBallsBefore(session);
-      if (base !== null && chainBalls > 0) return { value: Math.round(base + chainBalls), estimate: null };
+      if (base !== null && chainBalls > 0) return { value: Math.round(base + chainBalls), estimate: { kind: "actual", base, chainBalls } };
       const rounds = currentChainRounds(session, presetId);
       // 注記（◯R×◯玉）がそのまま検算できるよう、1R実質出玉は丸めてから掛ける
       const perRound = normalizeNumber(netBallsPerWinInfo(presetId, machine)?.value);
       const roundedPerRound = perRound === null ? null : Math.round(perRound);
       if (base !== null && rounds > 0 && roundedPerRound !== null && roundedPerRound > 0) {
-        return { value: Math.round(base + rounds * roundedPerRound), estimate: { rounds, perRound: roundedPerRound } };
+        return { value: Math.round(base + rounds * roundedPerRound), estimate: { kind: "rounds", base, rounds, perRound: roundedPerRound } };
       }
       return { value: current !== null && current > 0 ? Math.round(current) : null, estimate: null };
     }

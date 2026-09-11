@@ -465,16 +465,33 @@ assert.match(hitResetPrompt, /data-hit-reset="\$\{option\.counterSpin\}"/);
 assert.match(hitResetPrompt, /時短\$\{option\.jitanSpins\} → カウンター\$\{option\.counterSpin\}/);
 assert.match(hitResetPrompt, /id="jitanExitSpin"/);
 assert.match(hitResetPrompt, /id="applyJitanExitBtn"/);
-// S24/§A-2-2: 起点の持ち玉の初期値は 実測 → 見積もり → 追跡値 の順。0は初期値にしない。
+// S27: 起点の持ち玉は手入力の下書きだけ。参考値は欄に入れず、内訳とともに表示する。
 assert.match(hitResetPrompt, /const startBallsPreset = jitanExitStartBallsPreset\(session, presetId, machine\);/);
 assert.match(hitResetPrompt, /value="\$\{escapeHtml\(startBallsValue \?\? ""\)\}"/);
-assert.match(hitResetPrompt, /見積もり（\$\{escapeHtml\(startBallsEstimate\.rounds\.toLocaleString\("ja-JP"\)\)\}R×\$\{escapeHtml\(startBallsEstimate\.perRound\.toLocaleString\("ja-JP"\)\)\}玉）。台の表示に合わせて直してください/);
+assert.match(hitResetPrompt, /参考：前回\$\{escapeHtml\(startBallsEstimate\.base\.toLocaleString\("ja-JP"\)\)\}玉＋/);
+assert.match(hitResetPrompt, /startBallsEstimate.kind === "actual" \? \x60累計出玉\$\{escapeHtml\(startBallsEstimate.chainBalls.toLocaleString\("ja-JP"\)\)\}玉\x60 : \x60\$\{escapeHtml\(startBallsEstimate.rounds.toLocaleString\("ja-JP"\)\)\}R×\$\{escapeHtml\(startBallsEstimate.perRound.toLocaleString\("ja-JP"\)\)\}玉\x60/);
+assert.match(hitResetPrompt, /＝約\$\{escapeHtml\(startBallsPreset.value.toLocaleString\("ja-JP"\)\)\}玉。台の表示を入力してください/);
 assert.match(jitanExitStartBallsPresetBlock, /const base = chainStartRemainBalls\(session\) \?\? current;/);
-assert.match(jitanExitStartBallsPresetBlock, /if \(base !== null && chainBalls > 0\) return \{ value: Math\.round\(base \+ chainBalls\), estimate: null \};/);
+assert.match(jitanExitStartBallsPresetBlock, /if \(base !== null && chainBalls > 0\) return \{ value: Math\.round\(base \+ chainBalls\), estimate: \{ kind: "actual", base, chainBalls \} \};/);
 assert.match(jitanExitStartBallsPresetBlock, /const perRound = normalizeNumber\(netBallsPerWinInfo\(presetId, machine\)\?\.value\);/);
 // 注記（◯R×◯玉）と初期値が一致するよう、1R実質出玉は丸めてから掛ける
 assert.match(jitanExitStartBallsPresetBlock, /const roundedPerRound = perRound === null \? null : Math\.round\(perRound\);/);
 assert.match(jitanExitStartBallsPresetBlock, /return \{ value: current !== null && current > 0 \? Math\.round\(current\) : null, estimate: null \};/);
+assert.match(jitanExitStartBallsPresetBlock, /return \{ value: Math\.round\(base \+ rounds \* roundedPerRound\), estimate: \{ kind: "rounds", base, rounds, perRound: roundedPerRound \} \};/);
+assert.match(hitResetPrompt, /const startBallsValue = draft.startBallsTouched \? draft.startBalls : null;/);
+assert.match(hitResetPrompt, /const startBallsEstimate = startBallsPreset.estimate;/);
+assert.doesNotMatch(hitResetPrompt, /startBallsValue\s*=.*startBallsPreset.value|startBallsInput.value\s*=.*startBallsPreset.value|参考値を入れる/);
+assert.match(hitResetPrompt, /data-hit-reset="\$\{option.counterSpin\}" disabled/);
+assert.match(hitResetPrompt, /id="applyJitanExitBtn" disabled/);
+assert.match(hitResetPrompt, /<input id="jitanExitStartBalls"[^>]+>\s*<p class="hint" id="jitanExitStartBallsRequired">台の持ち玉を入力すると、時短抜けを確定できます<\/p>/);
+assert.match(hitResetPrompt, /const disabled = normalizeNumber\(startBallsInput\?\.value\) === null;/);
+assert.match(hitResetPrompt, /querySelectorAll\("\[data-hit-reset\], #applyJitanExitBtn"\).forEach\(\(button\) => \{\s*button.disabled = disabled;/);
+assert.match(hitResetPrompt, /byId\("jitanExitStartBallsRequired"\).hidden = !disabled;/);
+assert.match(hitResetPrompt, /updateStartBallsRequired\(\);\s*if \(startBallsInput\) startBallsInput.addEventListener\("input", \(\) => \{\s*draft.startBalls = normalizeNumber\(startBallsInput.value\);\s*draft.startBallsTouched = true;\s*updateStartBallsRequired\(\);/);
+assert.doesNotMatch(hitResetPrompt, /startBallsInput.addEventListener\("(?:change|blur)"/);
+assert.ok(hitResetPrompt.indexOf('id="jitanExitStartBalls"') < hitResetPrompt.indexOf('data-hit-reset="'));
+assert.ok(hitResetPrompt.indexOf('data-hit-reset="') < hitResetPrompt.indexOf('class="style-choice"'));
+assert.ok(hitResetPrompt.indexOf('class="style-choice"') < hitResetPrompt.indexOf('id="jitanExitSpin"'));
 // S24/§A-2-3: 増えていない値の確認。確定は止めない。
 assert.match(hitResetPrompt, /if \(!confirmJitanExitStartBalls\(session, startBalls\)\) return;/);
 assert.match(confirmJitanExitStartBallsBlock, /return confirm\("当たったのに持ち玉が増えていません。台の表示を確認してください。/);
@@ -4975,10 +4992,10 @@ new vm.Script(`
   };
 `).runInContext(s24JitanPresetContext);
 const s24Preset = (key) => JSON.stringify(s24JitanPresetContext.s24JitanPreset[key]);
-assert.equal(s24Preset("measured"), JSON.stringify({ value: 1509, estimate: null }));
+assert.equal(s24Preset("measured"), JSON.stringify({ value: 1509, estimate: { kind: "actual", base: 9, chainBalls: 1500 } }));
 // §3 検算2: 前の当選時の残り9玉・連チャン12R・1R100玉 → 1,209玉（実測平均があればその値で）
-assert.equal(s24Preset("estimate"), JSON.stringify({ value: 1209, estimate: { rounds: 12, perRound: 100 } }));
-assert.equal(s24Preset("estimateActual"), JSON.stringify({ value: 1173, estimate: { rounds: 12, perRound: 97 } }));
+assert.equal(s24Preset("estimate"), JSON.stringify({ value: 1209, estimate: { kind: "rounds", base: 9, rounds: 12, perRound: 100 } }));
+assert.equal(s24Preset("estimateActual"), JSON.stringify({ value: 1173, estimate: { kind: "rounds", base: 9, rounds: 12, perRound: 97 } }));
 assert.equal(s24Preset("tracked"), JSON.stringify({ value: 800, estimate: null }));
 // §3 検算4: 0で初期表示されない（空欄にする）
 assert.equal(s24Preset("zero"), JSON.stringify({ value: null, estimate: null }));
@@ -6918,3 +6935,10 @@ assert.match(html, /\.result-flow-basis \{ display: block; color: var\(--muted\)
 assert.match(html, /\.result-timeline li \{[^}]*max-width: 100%; overflow-x: auto; \}/);
 assert.doesNotMatch(section('function resultInputWarnings', 'function resultTimelineHtml'), /const marks = rule.key/);
 console.log('yutime-v3 tests passed');
+
+// S27: disabled の視覚的手掛かりは、不透明度とカーソルだけに限定する。
+const disabledButtonRules = [...html.matchAll(/button:disabled\s*\{([^}]+)\}/g)];
+assert.equal(disabledButtonRules.length, 1);
+const disabledButtonRule = disabledButtonRules[0][1];
+assert.deepEqual(disabledButtonRule.trim().split(';').map(item => item.trim()).filter(Boolean), ['opacity: 0.5', 'cursor: not-allowed']);
+assert.doesNotMatch(disabledButtonRule, /background|color|border|radius|height|width|padding|margin|font|line-height|transform/);
