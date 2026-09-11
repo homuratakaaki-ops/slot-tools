@@ -9365,8 +9365,6 @@
           <div class="result-line">開始カウンター ${escapeHtml(startEv.effectiveSpin)} ／ 遊タイムまで残り ${escapeHtml(summary.remainingSpins ?? "-")}回転</div>
           <p class="hint">1回のブレです。判断の良し悪しは下の通算で見ます。</p>
         </div>` : '<p class="hint">開始時の期待値は記録されていません。</p>';
-      // S20/§2-2: 期待値計算に使う「1R実質出玉（減算込み）」を、払い出しと時短中の減りと並べて出す
-      const netSummary = sessionNetBallsSummary(session, machine);
       const segmentRows = segmentBreakdownRows(session, derived, machine, earned);
       const normalMarks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
       let normalRowIndex = 0;
@@ -9455,10 +9453,7 @@
             <div class="result-card"><span>獲得期待値</span><strong>${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</strong><small>${escapeHtml(earnedExpectationBasisText(earned))}</small></div>
             <div class="result-card"><span>実測回転率</span><strong>${escapeHtml(derived.rateUnavailableReason ? "-" : actualRateText)}<span style="font-size:10px"> 回/千円</span></strong><small>${escapeHtml(derived.rateUnavailableReason || (derived.isEstimatedRate ? "概算" : derived.rate === null ? "" : "実測"))}</small></div>
           </div>
-          <div class="result-line">大当たり ${escapeHtml(numberText(session.hitCount, "-"))}回 ／ 1R平均 ${escapeHtml(transferOptionalRoundAverageText(summary.averageRoundBalls))}</div>
-          <div class="result-line">1R実質出玉 ${escapeHtml(netBallsOrDashText(netSummary.netPerRound))}（減算込み）／ 払い出し ${escapeHtml(netBallsOrDashText(netSummary.payoutPerRound))} ／ 時短中の減り ${escapeHtml(ballsOrDashText(netSummary.jitanLossBalls))}</div>
-          <div class="result-line">実働 ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))}</div>
-          <div class="result-line">通常時の時速 ${escapeHtml(spinsPerMinuteText(summary.normalSpeed.perMinute))}${summary.normalSpeed.perMinute === null ? "" : `（通常時 ${escapeHtml(minuteSecondJaText(summary.normalSpeed.minutes * 60000))}・${summary.normalSpeed.spins.toLocaleString("ja-JP")}回転）`}</div>
+          <div class="result-line">実働 ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))} ／ 通常時の時速 ${escapeHtml(spinsPerMinuteText(summary.normalSpeed.perMinute))}${summary.normalSpeed.perMinute === null ? "" : `（通常時 ${escapeHtml(minuteSecondJaText(summary.normalSpeed.minutes * 60000))}・${summary.normalSpeed.spins.toLocaleString("ja-JP")}回転）`}</div>
         </div>
         ${startEvHtml}
         ${warnings.length ? `<div class="result-block result-input-warnings"><div class="result-block-title">入力確認</div>${warnings.map((warning) => `<div class="result-line" data-warning-target="${warning.target}">${escapeHtml(warning.text)}</div>`).join("")}<button id="resultInputEditBtn">修正する</button></div>` : ""}

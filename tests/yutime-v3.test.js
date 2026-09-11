@@ -6177,11 +6177,11 @@ assert.equal(s20TextContext.netCell({ netBalls: 2323, netPerRound: 2323 / 24 }),
 assert.equal(s20TextContext.netCell({ netBalls: -120, netPerRound: -12 }), '-120／-12.0');
 assert.equal(s20TextContext.netCell({ netBalls: null, netPerRound: null }), '—');
 
-// §2-2: リザルトの「今回の結果」に3つ並べる
-assert.match(resultBlock, /const netSummary = sessionNetBallsSummary\(session, machine\);/);
-assert.match(resultBlock, /1R実質出玉 \$\{escapeHtml\(netBallsOrDashText\(netSummary\.netPerRound\)\)\}（減算込み）/);
-assert.match(resultBlock, /払い出し \$\{escapeHtml\(netBallsOrDashText\(netSummary\.payoutPerRound\)\)\}/);
-assert.match(resultBlock, /時短中の減り \$\{escapeHtml\(ballsOrDashText\(netSummary\.jitanLossBalls\)\)\}/);
+// S26b: 出玉関連の3項目は結果のテキスト行から外し、導出関数は残す
+assert.doesNotMatch(resultBlock, /const netSummary = sessionNetBallsSummary\(session, machine\);/);
+assert.doesNotMatch(resultBlock, /<div class="result-line">[^\n]*1R実質出玉/);
+assert.doesNotMatch(resultBlock, /<div class="result-line">[^\n]*払い出し/);
+assert.doesNotMatch(resultBlock, /<div class="result-line">[^\n]*時短中の減り/);
 // §7: エンジンは触らない（yutime-calc との一致テストは tests/yutime-calc.test.js が担保）
 assert.doesNotMatch(yutimeExpectationEngine, /chainNetBallsRows|duringJitan/);
 
@@ -6803,7 +6803,7 @@ assert.match(html, /通常時\$\{spinsPerHour\.toLocaleString\("ja-JP"\)\}回転
 assert.match(html, /expectationBasisText\(expectation\.result, expectation\.spinsPerHourInfo\?\.source\)/);
 
 // --- §3-1/§3-3: 表示 --------------------------------------------------------
-assert.match(resultBlock, /通常時の時速 \$\{escapeHtml\(spinsPerMinuteText\(summary\.normalSpeed\.perMinute\)\)\}/);
+assert.match(resultBlock, /<div class="result-line">実働 \$\{escapeHtml\(hourText\(summary\.workedHours\)\)\} ／ 時給 \$\{escapeHtml\(yenText\(summary\.hourlyYen\)\)\} ／ 通常時の時速 \$\{escapeHtml\(spinsPerMinuteText\(summary\.normalSpeed\.perMinute\)\)\}/);
 assert.match(resultBlock, /当たり消化 \$\{escapeHtml\(minuteSecondJaText\(row\.chainClearMs\)\)\}/);
 assert.match(resultBlock, /durationMs: segmentDurationMs\(session, segment\)/);
 assert.match(resultBlock, /平均時速 \$\{escapeHtml\(speedWithRateText\(modelAggregate\.speedPerMinute, modelAggregate\.rate\)\)\}/);
@@ -6880,7 +6880,8 @@ assert.match(s26Timeline([
 // S26再検収: 重複を削除しても理由・出典は落とさない。
 assert.match(resultBlock, /const RESULT_INPUT_WARNINGS = \[/);
 assert.doesNotMatch(openSessionResult, /<div class="result-line">実測回転率|<div class="result-line">想定回転率/);
-assert.match(openSessionResult, /<div class="result-line">大当たり \$\{escapeHtml\(numberText\(session.hitCount, "-"\)\)\}回 ／ 1R平均/);
+assert.doesNotMatch(openSessionResult, /<div class="result-line">[^\n]*大当たり/);
+assert.doesNotMatch(openSessionResult, /<div class="result-line">[^\n]*1R平均/);
 assert.match(openSessionResult, /escapeHtml\(derived.rateUnavailableReason \|\| \(derived.isEstimatedRate/);
 assert.match(openSessionResult, /escapeHtml\(derived.rateUnavailableReason \? "-" : actualRateText\)/);
 assert.doesNotMatch(section('function resultInputWarnings', 'function resultTimelineHtml'), /入力確認が必要です|join\("・"\)/);
