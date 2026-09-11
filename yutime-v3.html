@@ -144,6 +144,50 @@
       font-size: 12px;
     }
 
+    /* S30/§2-2: 版表示。.brand p（0,1,1）に勝つ必要があるので .brand を前置する */
+    .brand .app-version {
+      margin: 3px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    /* S30/§3-3: 旧版警告の帯。topbar の1行目を占め、版表示より上に出る */
+    .version-warning {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px 12px;
+      align-items: center;
+      padding: 10px 12px;
+      border: 1px solid var(--warn);
+      border-radius: 8px;
+      background: #fff7ed;
+    }
+
+    .version-warning p {
+      margin: 0;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .version-warning-actions {
+      display: flex;
+      gap: 8px;
+    }
+
+    /* S30追補/§4: ブロックだけを解く逃げ道。目立たせないが、タップ域は44pxを保つ */
+    .version-warning-ack {
+      grid-column: 1 / -1;
+      justify-self: start;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: none;
+      color: var(--muted);
+      font-size: 12px;
+      text-decoration: underline;
+    }
+
     .article-link {
       margin: 4px 0 0;
       font-size: 12px;
@@ -1873,6 +1917,7 @@
     @media (max-width: 720px) {
       .app { padding: 10px; }
       .topbar { grid-template-columns: 1fr; }
+      .version-warning { grid-template-columns: 1fr; }
       .tabs { grid-template-columns: repeat(2, 1fr); }
       .two, .three { grid-template-columns: 1fr; }
       .field-row { grid-template-columns: 1fr; gap: 5px; }
@@ -1898,8 +1943,17 @@
 <body>
   <main class="app">
     <header class="topbar">
+      <div class="version-warning hidden" id="versionWarning" role="alert">
+        <p id="versionWarningText"></p>
+        <div class="version-warning-actions">
+          <button class="primary small" id="versionWarningReloadBtn">再読み込み</button>
+          <button class="small" id="versionWarningCloseBtn">閉じる</button>
+        </div>
+        <button class="version-warning-ack" id="versionAckBtn">承知のうえで使う</button>
+      </div>
       <div class="brand">
         <h1>遊タイム実戦ツール v3 <span class="beta-badge">β版</span></h1>
+        <p class="app-version" id="appVersion"></p>
         <p>店を選び、台を探し、実戦の時系列で追記する記録履歴</p>
         <p class="beta-note">β版として公開中。実機検証を継続しており、数値・表示は更新されることがあります。</p>
         <p class="article-link"><a href="/agnespe-yutime.html">📄 アグネスPE 遊タイム期待値の記事を読む</a></p>
@@ -2014,6 +2068,12 @@
     // S24/§B-6: 打ち始めで選んだ打ち方。次に打ち始めるときの初期選択に使う（セッションの方針は各記録が持つ）。
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
+    // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
+    const APP_VERSION_SEQ = 30;
+    const APP_VERSION_DATE = "2026-09-11";
+    // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
+    // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
+    const LAST_VERSION_KEY = STORAGE_PREFIX + "app:lastVersionSeq";
     const SCHEMA_VERSION = 38;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
@@ -2403,6 +2463,12 @@
       }
     });
 
+    // S30追補/§2: 版の判定は「データの読み込み・schema移行・保存」より前に行う。
+    // 旧版が新しいデータを読むと、人が操作しなくても移行と書き戻しで古い形に直される恐れがあるため。
+    const staleVersionSeq = detectStaleAppVersion();
+    // 旧版と判定しているあいだは true。読み込み・移行・保存を行わず、記録に関わる操作も止める。
+    let appVersionBlocked = staleVersionSeq !== null;
+
     let bootToastMessage = "";
     let data = loadData();
     let carryover = loadCarryover();
@@ -2466,16 +2532,95 @@
     byId("openStoreFormBtn").addEventListener("click", openStoreForm);
     byId("saveMapBtn").addEventListener("click", saveCurrentMap);
     byId("exportBtn").addEventListener("click", exportJson);
+    byId("versionWarningReloadBtn").addEventListener("click", () => {
+      // S30/§3-4: 同じキャッシュが返らないよう、毎回違うクエリを付けて読み直す。
+      location.href = location.pathname + "?v=" + Date.now();
+    });
+    byId("versionWarningCloseBtn").addEventListener("click", () => {
+      // 表示だけを消す。保存値は変えないので、再読み込みすればまた出る。
+      byId("versionWarning").classList.add("hidden");
+    });
+    byId("versionAckBtn").addEventListener("click", releaseVersionBlock);
     byId("closeModalBtn").addEventListener("click", closeModal);
     els.modalBackdrop.addEventListener("click", (event) => {
       if (event.target === els.modalBackdrop) closeModal();
     });
 
-    renderAll();
+    renderAppVersion();
+    if (appVersionBlocked) {
+      // S30追補/§2: 描画もしない。空のデータを描くと「記録が消えた」ように見えるため。
+      showVersionWarning(staleVersionSeq);
+      applyVersionBlock();
+    } else {
+      renderAll();
+    }
     if (bootToastMessage) showToast(bootToastMessage);
 
     function byId(id) {
       return document.getElementById(id);
+    }
+
+    // S30/§2-2: 版の表示。文字列はべた書きせず定数から組み立てる。
+    function renderAppVersion() {
+      const el = byId("appVersion");
+      if (el) el.textContent = "S" + APP_VERSION_SEQ + " / " + APP_VERSION_DATE;
+    }
+
+    // S30/§3-2: 保存値が現在より大きいときだけ旧版とみなし、そのときは保存値を上書きしない
+    //（閉じても再読み込みすればまた出る）。なし・小さいときは現在の版で保存し、null を返す。
+    // 戻り値は保存値（旧版のとき）か null。読み込みより前に呼ぶので data を参照しない。
+    function detectStaleAppVersion() {
+      let stored = null;
+      try {
+        stored = normalizeNumber(localStorage.getItem(LAST_VERSION_KEY));
+      } catch (error) {
+        console.warn("ytv3 version key read failed", error);
+        return null;
+      }
+      if (stored !== null && stored > APP_VERSION_SEQ) return stored;
+      if (stored === APP_VERSION_SEQ) return null;
+      try {
+        localStorage.setItem(LAST_VERSION_KEY, String(APP_VERSION_SEQ));
+      } catch (error) {
+        console.warn("ytv3 version key write failed", error);
+      }
+      return null;
+    }
+
+    // S30追補/§1-6: 警告中は記録に関わる操作をすべて止める。操作できるのは警告の帯の中だけ。
+    // 見た目は S27 の button:disabled にそのまま乗せ、新しい装飾を足さない。
+    // DOM上の入力値は初期化しないので、入力途中の内容は壊れない。
+    function applyVersionBlock() {
+      document.querySelectorAll("button, input, textarea, select").forEach((el) => {
+        if (el.closest("#versionWarning")) return;
+        el.disabled = true;
+        el.dataset.versionBlocked = "1";
+      });
+    }
+
+    // S30追補/§4: ブロックだけを解く。警告の帯は残し、解除状態は保存しない
+    //（再読み込みすれば staleVersionSeq の判定からやり直しになる）。
+    function releaseVersionBlock() {
+      if (!appVersionBlocked) return;
+      appVersionBlocked = false;
+      document.querySelectorAll("[data-version-blocked]").forEach((el) => {
+        el.disabled = false;
+        delete el.dataset.versionBlocked;
+      });
+      byId("versionAckBtn").classList.add("hidden");
+      // ここで初めて読み込みと移行が走る（§2）。
+      data = loadData();
+      carryover = loadCarryover();
+      renderAll();
+      if (bootToastMessage) showToast(bootToastMessage);
+    }
+
+    function showVersionWarning(storedSeq) {
+      const box = byId("versionWarning");
+      const text = byId("versionWarningText");
+      if (!box || !text) return;
+      text.innerHTML = `この端末で最後に開いた版は <strong>S${storedSeq}</strong> です。いま開いているのは <strong>S${APP_VERSION_SEQ}</strong> です。<br>古い版が表示されている可能性があります。再読み込みしてください。`;
+      box.classList.remove("hidden");
     }
 
     function nowIso() {
@@ -3509,6 +3654,9 @@
 
     function loadData() {
       const base = defaultData();
+      // S30追補/§2: 旧版とみなしているあいだは読み込みも schema 移行も行わない。
+      // 古い版が新しいデータを読むと、人が操作しなくても書き戻しで古い形に直される恐れがあるため。
+      if (appVersionBlocked) return base;
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return base;
       try {
@@ -3602,6 +3750,8 @@
     }
 
     function loadCarryover() {
+      // S30追補/§2: 期限切れの引き継ぎを消す（removeItem）経路があるので、ブロック中は読まない。
+      if (appVersionBlocked) return null;
       try {
         const parsed = JSON.parse(localStorage.getItem(CARRYOVER_KEY) || "null");
         if (!parsed || typeof parsed !== "object") return null;
@@ -3814,6 +3964,8 @@
     }
 
     function persist() {
+      // S30追補/§2: 旧版とみなしているあいだは書き戻さない（UIのブロックを抜けた場合の受け皿）。
+      if (appVersionBlocked) return false;
       data.sessions.forEach(resyncSessionSegments);
       data.meta.updatedAt = nowIso();
       data.meta.sampleSessionChars = measureSampleSessionChars();
@@ -4047,6 +4199,8 @@
     }
 
     function saveIslandFilters() {
+      // S30追補/§2: 描画の副作用で書き込む経路なので、ブロック中は止める。
+      if (appVersionBlocked) return;
       try {
         localStorage.setItem(ISLAND_FILTER_KEY, JSON.stringify(islandFilterByStore));
       } catch (error) {
