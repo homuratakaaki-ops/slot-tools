@@ -170,6 +170,12 @@
       line-height: 1.5;
     }
 
+    /* S31: 見出しは太字1行。.version-warning p（0,1,1）に勝つため .version-warning を前置する */
+    .version-warning .version-warning-title {
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+
     .version-warning-actions {
       display: flex;
       gap: 8px;
@@ -1944,10 +1950,12 @@
   <main class="app">
     <header class="topbar">
       <div class="version-warning hidden" id="versionWarning" role="alert">
-        <p id="versionWarningText"></p>
+        <div>
+          <p class="version-warning-title">新しい版に更新してください</p>
+          <p>保存データを守るため、操作を一時停止しています。記録は削除していません。</p>
+        </div>
         <div class="version-warning-actions">
           <button class="primary small" id="versionWarningReloadBtn">再読み込み</button>
-          <button class="small" id="versionWarningCloseBtn">閉じる</button>
         </div>
         <button class="version-warning-ack" id="versionAckBtn">承知のうえで使う</button>
       </div>
@@ -2069,7 +2077,7 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 30;
+    const APP_VERSION_SEQ = 31;
     const APP_VERSION_DATE = "2026-09-11";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
@@ -2536,10 +2544,6 @@
       // S30/§3-4: 同じキャッシュが返らないよう、毎回違うクエリを付けて読み直す。
       location.href = location.pathname + "?v=" + Date.now();
     });
-    byId("versionWarningCloseBtn").addEventListener("click", () => {
-      // 表示だけを消す。保存値は変えないので、再読み込みすればまた出る。
-      byId("versionWarning").classList.add("hidden");
-    });
     byId("versionAckBtn").addEventListener("click", releaseVersionBlock);
     byId("closeModalBtn").addEventListener("click", closeModal);
     els.modalBackdrop.addEventListener("click", (event) => {
@@ -2549,7 +2553,7 @@
     renderAppVersion();
     if (appVersionBlocked) {
       // S30追補/§2: 描画もしない。空のデータを描くと「記録が消えた」ように見えるため。
-      showVersionWarning(staleVersionSeq);
+      showVersionWarning();
       applyVersionBlock();
     } else {
       renderAll();
@@ -2615,12 +2619,11 @@
       if (bootToastMessage) showToast(bootToastMessage);
     }
 
-    function showVersionWarning(storedSeq) {
+    // S31: 文面はマークアップ側に固定で持ち、版の番号は入れない
+    //（タイトル直下の版表示が常に出ているため）。帯は消せない（「閉じる」は廃止）。
+    function showVersionWarning() {
       const box = byId("versionWarning");
-      const text = byId("versionWarningText");
-      if (!box || !text) return;
-      text.innerHTML = `この端末で最後に開いた版は <strong>S${storedSeq}</strong> です。いま開いているのは <strong>S${APP_VERSION_SEQ}</strong> です。<br>古い版が表示されている可能性があります。再読み込みしてください。`;
-      box.classList.remove("hidden");
+      if (box) box.classList.remove("hidden");
     }
 
     function nowIso() {
