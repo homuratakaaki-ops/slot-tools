@@ -84,6 +84,10 @@
     iconChoice:null
   };
 
+  // 強チャンス目B 全設定値（出典: ちょんぼりすた様「共通ベル・強チャンス目Bの出現率」2026/9/11確認）
+  // 設1:1/1057.0 設2:1/993.0 設3:1/936.2 設4:1/885.6 設5:1/840.2 設6:1/799.2
+  // 設6はこれまで実戦値(1/769)だったが、全設定判明により正式な解析値へ差し替えた。
+
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function rate(g,n){return n&&g?'1/'+(g/n).toFixed(1):'-';}
   function rateCount(g,n){return n&&g?rate(g,n)+'（'+n+'回）':(n||0)+'回';}
@@ -112,7 +116,7 @@
       ${ctx.crow('cz.end','確定CZ','THE END状態スタート・設1:1/20178⇔設6:1/7077',1)}
       ${ctx.crow('cz.duel','曠野の決闘','CZ失敗時フリーズ・設1:1/128⇔設6:1/64',1)}
       ${ctx.crow('cz.bell','共通ベル（斜め揃い）',`実戦値 設5:1/47.6・設6:1/45.4 / 現在 ${rate(g,ctx.S.cz.bell)}`,0)}
-      ${ctx.crow('cz.chanceB','強チャンス目B',`設1:1/1057⇔設6実戦値:1/769 / 現在 ${rate(g,ctx.S.cz.chanceB)}`,0)}
+      ${ctx.crow('cz.chanceB','強チャンス目B',`設1:1/1057.0⇔設6:1/799.2 / 現在 ${rate(g,ctx.S.cz.chanceB)}`,0)}
     </div>
     <div class="hint">CZを経由せずAT直撃した回数。AT天井到達と引き戻しによる当選は除きます。AT直撃はGGOモード詩乃の滞在中にのみ発生するとされています。設定1で約1/18000、設定6で約1/3400と5倍以上の差がありますが、1日ではほとんど発生しないため、引けた場合の材料として使ってください。</div>
   </section>`;
