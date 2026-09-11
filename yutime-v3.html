@@ -7723,7 +7723,8 @@
       startNormalSegmentAfterJitan(session, counterSpin, measuredBalls, shooting);
       setCurrentSpinWithUndo(session, counterSpin);
       // S7/B-3: 入力した起点の持ち玉は現在の持ち玉にも入れる。直接代入せず既存経路を通す。
-      if (measuredBalls !== null) updateMochidamaBalanceWithUndo(session, measuredBalls);
+      // S29: 新区間の起点なので、途中測定点としては記録しない。
+      if (measuredBalls !== null) updateMochidamaBalanceWithUndo(session, measuredBalls, { recordMeasurement: false });
       const switched = switchInvestmentSourceToMochidama(session);
       showToast(`現在回転数を${counterSpin}にリセットしました${measuredBalls !== null ? `／持ち玉を${measuredBalls.toLocaleString("ja-JP")}玉にしました` : ""}${switched ? "／投資元を持ち玉に切り替えました" : ""}`);
     }
@@ -8971,15 +8972,15 @@
 
     // S15: 稼働中の持ち玉修正は currentMochidama だけを動かす。
     // 打ち始めの持ち玉（startMochidama）を上書きすると、実収支・貯玉引出・履歴表示の土台が壊れる。
-    function updateMochidamaBalanceWithUndo(session, value) {
+    function updateMochidamaBalanceWithUndo(session, value, { recordMeasurement = true } = {}) {
       const previous = mochidamaBaseValue(session);
-      const previousMeasurement = segmentMeasurementSnapshot(session);
+      const previousMeasurement = recordMeasurement ? segmentMeasurementSnapshot(session) : null;
       session.currentMochidama = balanceStartValueForCurrent(session, "startMochidama", value);
-      recordSegmentMeasurement(session, value);
+      if (recordMeasurement) recordSegmentMeasurement(session, value);
       session.updatedAt = nowIso();
       if (!persist()) {
         session.currentMochidama = previous;
-        restoreSegmentMeasurement(session, previousMeasurement);
+        if (recordMeasurement) restoreSegmentMeasurement(session, previousMeasurement);
         showToast("保存に失敗しました。容量を確認してください。", "error");
         return false;
       }
@@ -8988,7 +8989,7 @@
         undo: () => {
           session.currentMochidama = previous;
           // S7b/A-2: 持ち玉の取り消しでは途中測定点も元に戻す
-          restoreSegmentMeasurement(session, previousMeasurement);
+          if (recordMeasurement) restoreSegmentMeasurement(session, previousMeasurement);
           session.updatedAt = nowIso();
           persist();
           renderAll();
@@ -10802,9 +10803,22 @@
       if (segment?.startBallsSource !== "measured") return null;
       if (!segment?.id) return null;
       const start = normalizeNumber(segment?.startTrackedBalls);
-      const end = segmentMeasuredEndBalls(segment);
+      const end = segmentEndBallsInfo(segment, session).balls;
       if (start === null || end === null) return null;
       return start + segmentAddedBalls(session, segment.id, store) - end;
+    }
+
+    // S29: 終点の値と実測かどうかを同じ経路で解決する。
+    function segmentEndBallsInfo(segment, session) {
+      const measured = segmentMeasuredEndBalls(segment);
+      if (normalizeNumber(segment?.endRemainBalls) !== null
+        || (segment?.endSpin !== null && segment?.endSpin !== undefined)) {
+        return { balls: measured, measured: measured !== null };
+      }
+      // S29: 開いている区間は追跡値を仮終点にし、測定点と一致する間だけ実測とする。
+      const tracked = deriveBalances(session).mochidama;
+      if (tracked === null) return { balls: measured, measured: measured !== null };
+      return { balls: tracked, measured: measured !== null && tracked === measured };
     }
 
     // S7b/A-2: 終点（当選時の残り持ち玉・ヤメの終了玉）が確定していればそれを使う。終点が優先。
@@ -11005,7 +11019,8 @@
       // 1つでもタップ合計に頼っていれば「目安」。残保留当選の区間は通常時なしなので数に入れない。
       const consumedBallsMeasured = usesEndpointConsumedModel(session)
         && normalSegments.length > 0
-        && normalSegments.every((segment) => segmentSkipsNormalPlay(segment) || segmentEndpointConsumedBalls(segment, session, store) !== null);
+        && normalSegments.every((segment) => segmentSkipsNormalPlay(segment) || (segmentEndpointConsumedBalls(segment, session, store) !== null
+          && segmentEndBallsInfo(segment, session).measured));
       // S7b/B-3: 残保留当選の区間に投資が残っているときは入力ミスの可能性があるので警告する。
       const holdCarryWithTaps = normalSegments.some((segment) => segmentIsHoldCarryHit(segment)
         && segmentNormalInvestments(session, segment?.id).length > 0);

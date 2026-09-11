@@ -2048,6 +2048,7 @@ new vm.Script(`
   function usesTapInvestmentMode() { return true; }
   ${holdCarryBlock}
   ${consumedModelBlock}
+  ${section('function mochidamaBaseValue', 'function balanceStartValueForCurrent')}
   ${tapModeConsumedBlock}
   ${runningPanelInputBallsBlock}
   ${runningRateHelpers}
@@ -4959,7 +4960,7 @@ assert.match(hitResetPrompt, /<label for="jitanExitStartBalls">そのときの�
 assert.match(hitResetPrompt, /id="jitanExitStartBalls" inputmode="numeric" value="\$\{escapeHtml\(startBallsValue \?\? ""\)\}"/);
 assert.match(hitResetPrompt, /const startBalls = normalizeNumber\(byId\("jitanExitStartBalls"\)\?\.value\);\s*if \(!confirmJitanExitStartBalls\(session, startBalls\)\) return;\s*const shooting = selectedShooting\(\);\s*closeModal\(\);/);
 assert.match(hitResetPrompt, /applyJitanExit\(session, value, startBalls, shooting\);/);
-assert.match(hitResetPrompt, /if \(measuredBalls !== null\) updateMochidamaBalanceWithUndo\(session, measuredBalls\);/);
+assert.match(hitResetPrompt, /if \(measuredBalls !== null\) updateMochidamaBalanceWithUndo\(session, measuredBalls, \{ recordMeasurement: false \}\);/);
 assert.match(hitResetPrompt, /startNormalSegmentAfterJitan\(session, counterSpin, measuredBalls, shooting\);/);
 const startNormalSegmentBlock = section('function startNormalSegmentAfterJitan', 'function closeSegmentOnHit');
 assert.match(startNormalSegmentBlock, /startTrackedBalls: measuredBalls !== null \? measuredBalls : deriveBalances\(session\)\.mochidama,/);
@@ -5138,7 +5139,7 @@ const openSessionResult = section('function openSessionResult', 'function transf
 // --- A: 途中測定点 ----------------------------------------------------------
 assert.match(segmentBlock, /lastMeasuredBalls: null,\s*lastMeasuredSpin: null,/);
 assert.match(segmentBlock, /lastMeasuredBalls: normalizeNumber\(segment\?\.lastMeasuredBalls\),/);
-assert.match(tapModeConsumedBlock, /const end = segmentMeasuredEndBalls\(segment\);/);
+assert.match(tapModeConsumedBlock, /const end = segmentEndBallsInfo\(segment, session\).balls;/);
 assert.match(tapModeConsumedBlock, /function segmentMeasuredEndBalls\(segment\)/);
 // 終点が入っている区間・すでに閉じた区間では途中測定点を使わない（終点優先）
 assert.match(tapModeConsumedBlock, /if \(end !== null\) return end;\s*if \(segment\?\.endSpin !== null && segment\?\.endSpin !== undefined\) return null;\s*return normalizeNumber\(segment\?\.lastMeasuredBalls\);/);
@@ -5146,7 +5147,7 @@ assert.match(tapModeConsumedBlock, /if \(end !== null\) return end;\s*if \(segme
 assert.match(segmentBlock, /lastMeasuredBalls: prior \? normalizeNumber\(prior\.lastMeasuredBalls\) : segment\.lastMeasuredBalls,/);
 assert.match(segmentBlock, /startSource: prior\?\.startSource === "jitan" \? "jitan" : segment\.startSource,/);
 // 持ち玉の修正経路（稼働中パネルの「修正」と updateMochidamaBalanceWithUndo）が測定点を書く
-assert.match(updateMochidamaBalance, /const previousMeasurement = segmentMeasurementSnapshot\(session\);/);
+assert.match(updateMochidamaBalance, /const previousMeasurement = recordMeasurement \? segmentMeasurementSnapshot\(session\) : null;/);
 assert.match(updateMochidamaBalance, /recordSegmentMeasurement\(session, value\);/);
 assert.match(updateMochidamaBalance, /undo: \(\) => \{[\s\S]*?restoreSegmentMeasurement\(session, previousMeasurement\);/);
 assert.match(updateMochidamaBalance, /function recordSegmentMeasurement\(session, balls\) \{\s*if \(!usesEndpointConsumedModel\(session\)\) return null;/);
@@ -5331,7 +5332,7 @@ new vm.Script(`
   };
   // C-1: 起点1,620／追加なし／持ち玉を1,120に修正／現在75・起点50・hold5 → 20回転/500玉＝10.0（実測）
   globalThis.s7bC1 = deriveSession({
-    ...s7bBase,
+    ...s7bBase, currentMochidama: 1120,
     investments: [],
     segments: [s7bSegment({ lastMeasuredBalls: 1120, lastMeasuredSpin: 75 })]
   });
@@ -5477,7 +5478,7 @@ assert.doesNotMatch(detectBody, /holdSpins/);
 assert.match(holdCarryBlock, /function legacyHoldCarryHit\(segment\)[\s\S]*?return played >= 0 && played <= Math\.max\(0, Number\(segment\?\.holdSpins \|\| 0\)\);/);
 assert.match(holdCarryBlock, /function segmentSkipsNormalPlay\(segment\)/);
 assert.match(holdCarryBlock, /if \(segment\?\.endSource === "hit"\) return segmentIsHoldCarryHit\(segment\);/);
-assert.match(deriveSession, /segmentSkipsNormalPlay\(segment\) \|\| segmentEndpointConsumedBalls\(segment, session, store\) !== null/);
+assert.match(deriveSession, /segmentSkipsNormalPlay\(segment\) \|\| \(segmentEndpointConsumedBalls\(segment, session, store\) !== null/);
 
 // --- §4: 移行 --------------------------------------------------------------
 assert.match(holdCarryBlock, /function migrateSegmentShooting\(session\)[\s\S]*?segment\.shooting = legacyHoldCarryHit\(segment\) \? "before" : "started";/);
@@ -7141,5 +7142,59 @@ assert.equal(s28Title(), '区間不明の連チャン');
 assert.match(s28Body(), /#1　−　1回目/);
 assert.match(s28Body(), /#2　6R　2回目/);
 assert.doesNotMatch(s28Body(), /data-toggle-holdcarry|hit-chain-judgment/);
+
+// S29: 開区間の仮終点と実測判定。各関数内に範囲を絞って固定する。
+const s29Endpoint = section('function segmentEndpointConsumedBalls', 'function segmentEndBallsInfo');
+const s29EndInfo = section('function segmentEndBallsInfo', 'function segmentMeasuredEndBalls');
+const s29Jitan = section('function applyJitanExit', 'function switchInvestmentSourceToMochidama');
+const s29Balance = section('function updateMochidamaBalanceWithUndo', 'function recordSegmentMeasurement');
+assert.match(s29Endpoint, /const end = segmentEndBallsInfo\(segment, session\)\.balls;/);
+assert.match(s29EndInfo, /normalizeNumber\(segment\?\.endRemainBalls\) !== null\s*\|\| \(segment\?\.endSpin !== null && segment\?\.endSpin !== undefined\)/);
+assert.match(s29EndInfo, /const tracked = deriveBalances\(session\)\.mochidama;/);
+assert.match(s29EndInfo, /if \(tracked === null\) return \{ balls: measured, measured: measured !== null \};/);
+assert.match(s29EndInfo, /return \{ balls: tracked, measured: measured !== null && tracked === measured \};/);
+assert.match(deriveSession, /segmentEndpointConsumedBalls\(segment, session, store\) !== null\s*&& segmentEndBallsInfo\(segment, session\)\.measured/);
+assert.match(s29Jitan, /updateMochidamaBalanceWithUndo\(session, measuredBalls, \{ recordMeasurement: false \}\);/);
+assert.doesNotMatch(s29Jitan, /recordSegmentMeasurement\(/);
+assert.match(s29Balance, /\{ recordMeasurement = true \} = \{\}/);
+assert.match(s29Balance, /const previousMeasurement = recordMeasurement \? segmentMeasurementSnapshot\(session\) : null;/);
+assert.match(s29Balance, /if \(recordMeasurement\) recordSegmentMeasurement\(session, value\);/);
+assert.equal((s29Balance.match(/if \(recordMeasurement\) restoreSegmentMeasurement\(session, previousMeasurement\);/g) || []).length, 2);
+assert.match(openBalanceEditForm, /if \(key === "startMochidama"\) recordSegmentMeasurement\(session, value\);/);
+
+// 追跡値・実測値・閉区間・欠損の境界と、測定後タップで目安へ戻ること。
+new vm.Script(`
+  const s29Session = {
+    ...s7bBase, startMochidama: 950, currentMochidama: 950, currentSpin: 80,
+    investments: [], segments: [s7bSegment({ startTrackedBalls: 950 })]
+  };
+  globalThis.s29Results = [];
+  const s29Read = () => {
+    const d = deriveSession(s29Session);
+    s29Results.push([d.consumedBalls, d.consumedBallsMeasured]);
+  };
+  s29Read();
+  s29Session.investments = Array.from({ length: 3 }, () => ({ source: "mochidama", amount: 125, segmentId: "seg_1" }));
+  s29Read();
+  s29Session.currentMochidama = 550 + 375;
+  s29Session.segments[0].lastMeasuredBalls = 550;
+  s29Read();
+  s29Session.investments.push({ source: "mochidama", amount: 125, segmentId: "seg_1" });
+  s29Read();
+  s29Session.investments.pop();
+  s29Read();
+  s29Session.segments[0].endSpin = 80;
+  s29Session.segments[0].endRemainBalls = 500;
+  s29Read();
+  globalThis.s29MissingEnd = segmentEndBallsInfo({ endSpin: 80, endRemainBalls: null, lastMeasuredBalls: 550 }, s29Session);
+  globalThis.s29NoTracked = segmentEndBallsInfo({ endSpin: null, lastMeasuredBalls: 550 }, { startMochidama: null, currentMochidama: null, investments: [] });
+  globalThis.s29NoEndpoint = segmentEndBallsInfo({ endSpin: null, lastMeasuredBalls: null }, { startMochidama: null, currentMochidama: null, investments: [] });
+  globalThis.s29Zero = segmentEndBallsInfo({ endSpin: null, lastMeasuredBalls: 0 }, { currentMochidama: 0, investments: [] });
+`).runInContext(runningRateContext);
+assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Results)), [[0, false], [375, false], [400, true], [525, false], [400, true], [450, true]]);
+assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29MissingEnd)), { balls: null, measured: false });
+assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29NoTracked)), { balls: 550, measured: true });
+assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29NoEndpoint)), { balls: null, measured: false });
+assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls: 0, measured: true });
 
 console.log('yutime-v3 tests passed');
