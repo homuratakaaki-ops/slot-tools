@@ -95,6 +95,33 @@
     iconChoice:null
   };
 
+  // ---- 数値入力欄の共通挙動 ----
+  // フォーカスで既存値を全選択し、そのまま上書き入力できるようにする（0を消す手間をなくす）。
+  // ・focus はバブルしないので capture で拾う。行は再描画のたびに作り直されるため、
+  //   個別バインドではなく document への委譲にする。
+  // ・フォーカス直後の mouseup（モバイルの合成 mouseup 含む）は既定でキャレットを置き、
+  //   選択を解除してしまうので、その1回だけ抑止する。2回目以降のタップでは通常どおり
+  //   キャレットを動かせる。
+  // ・iOS では focus の直後に選択が畳まれることがあるため、同一タスクの直後にもう一度掛け直す。
+  if(typeof document!=='undefined'){
+    const isNumInput=t=>!!(t&&t.tagName==='INPUT'&&t.type==='number'&&t.closest&&t.closest('#main'));
+    const selectAll=t=>{try{t.select();}catch(e){}};
+    document.addEventListener('focus',ev=>{
+      const t=ev.target;
+      if(!isNumInput(t))return;
+      t.dataset.selOnFocus='1';
+      selectAll(t);
+      setTimeout(()=>{if(document.activeElement===t&&t.dataset.selOnFocus)selectAll(t);},0);
+    },true);
+    document.addEventListener('mouseup',ev=>{
+      const t=ev.target;
+      if(!isNumInput(t)||!t.dataset.selOnFocus)return;
+      delete t.dataset.selOnFocus;
+      ev.preventDefault();
+      selectAll(t);
+    },true);
+  }
+
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function n(obj,key){return Number((obj||{})[key])||0;}
   function num(v){return Math.max(0,Number(v)||0);}
@@ -124,6 +151,17 @@
   }
   // 総ゲーム数の差分が通常ゲーム数の差分を下回る（＝それ以外が負値になる）場合の注意。
   function otherWarn(S){return hasTotal(S)&&rawOtherDenom(S)<0;}
+  // 共通ベル合計の分母＝総ゲーム数の差分（通常＋それ以外）。総ゲーム数が未入力なら0。
+  // 総差分が通常差分を下回る矛盾入力のときも、誤った分母で1/xを出さないよう0にする。
+  function totalDenom(S){
+    if(!hasTotal(S)||otherWarn(S))return 0;
+    const v=num(S.gamesMysloTotal)-num(S.gamesMysloTotalStart);
+    return v>0?v:0;
+  }
+  // 共通ベルの回数。合計はタップで持たず、常に通常時＋それ以外から作る（§9-84）。
+  function bellNormal(S){return n(S.counts,'bell');}
+  function bellOther(S){return n(S.counts,'bellOther');}
+  function bellTotal(S){return bellNormal(S)+bellOther(S);}
   // カードのメタ行はエンジンが S.games を直接読むため、描画前に必ず同期させる。
   function syncGames(S){if(S)S.games=denom(S);return S?S.games:0;}
   function rate(g,c){return (g>0&&c>0)?'1/'+(g/c).toFixed(1):'';}
@@ -259,9 +297,37 @@
     </div>
   </section>`;
   }
+  // 共通ベル。3行目の「合計」はタップ不可の表示専用行で、1・2行目から自動合算する。
+  // data-c を持たせないことでエンジンの行タップ／＋ボタンの対象から外れる。
+  function bellSumRow(ctx){
+    const S=ctx.S;
+    return `<div class="crow sumrow">
+      <div class="lbl"><div class="nm">合計</div><div class="mn hot">設1:1/95.8⇔設6:1/79.1${rateSuffix(totalDenom(S),bellTotal(S))}</div></div>
+      <div class="num">${bellTotal(S)}</div>
+      <div class="autotag" aria-hidden="true">自動</div>
+    </div>`;
+  }
+  function bellSection(ctx){
+    const S=ctx.S;
+    return `<section class="sec">
+    <div class="sec-h">共通ベル<span class="sub">合計 ${bellTotal(S)}回</span></div>
+    <style>
+      .sumrow{background:var(--panel2)}
+      .sumrow .num{color:var(--gold);text-shadow:0 0 8px rgba(255,201,77,.35)}
+      .autotag{flex:none;width:34px;height:34px;border-radius:9px;border:1px dashed var(--line);color:var(--muted);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center}
+    </style>
+    <div class="cgrid">
+      ${ctx.crow('counts.bell','共通ベル(通常時)',`通常時のカウント${rateSuffix(denom(S),bellNormal(S))}`,0)}
+      ${ctx.crow('counts.bellOther','共通ベル(CZ・RUSH・ボーナス中)',`ボーナス中等のカウント${rateSuffix(otherDenom(S),bellOther(S))}`,0)}
+      ${bellSumRow(ctx)}
+    </div>
+    <div class="hint">共通ベルの出現率は遊技状態を問わず共通のため、通常時とそれ以外を合算した『合計』が最も精度の高い判別材料になります。通常時のみ数える場合は1行目をご覧ください。通常時は右下がり15枚ベルとして出現します。設定1〜3は同値(1/95.8)で、設定4以上で優遇されます。</div>
+  </section>`;
+  }
   function pageHatsu(ctx){
     const S=ctx.S,g=denom(S);
     return `${gameSection(ctx)}
+  ${bellSection(ctx)}
   <section class="sec">
     <div class="sec-h">規定ゲーム数（当選G数帯）<span class="sub">到達 ${ZONES.reduce((a,z)=>a+rateReach(S,z[0]),0)}回</span></div>
     <style>
@@ -300,14 +366,6 @@
       ${ctx.crow('counts.child','幼少期CZ(ファースト)','設1:1/3965.0⇔設6:1/2084.8（他設定は調査中・出現率が低いため1/x表示なし）',1)}
     </div>
     <div class="hint">AT直撃と幼少期CZは出現率が低いため、引けた場合の判別材料として扱ってください。出現率が低く1日では分母が足りないため、この2項目は1/x表示を行いません。</div>
-  </section>
-  <section class="sec">
-    <div class="sec-h">共通ベル<span class="sub">通常 ${n(S.counts,'bell')}回・それ以外 ${n(S.counts,'bellOther')}回</span></div>
-    <div class="cgrid">
-      ${ctx.crow('counts.bell','共通ベル(通常時)',`設1:1/95.8⇔設6:1/79.1${rateSuffix(g,n(S.counts,'bell'))}`,1)}
-      ${ctx.crow('counts.bellOther','共通ベル(CZ・RUSH・ボーナス中)',`理論値は未公表${rateSuffix(otherDenom(S),n(S.counts,'bellOther'))}`,0)}
-    </div>
-    <div class="hint">通常時は右下がり15枚ベルとして出現します。設定1〜3は同値(1/95.8)で、設定4以上で優遇されます。CZ・RUSH・ボーナス中のベルは別の行で記録します(理論値が未公表のため、実測値の記録用です)。</div>
   </section>`;
   }
   function pageSuggest(ctx){
@@ -400,8 +458,9 @@
     }
     // 共通ベルはなな様書式の末尾に置く。全角スペースは ▶︎ 位置を「それ以外」に揃えるための詰め物。
     L.push('','■共通ベル',
-      `通常時　▶︎ ${bellLine(g,n(S.counts,'bell'))}`,
-      `それ以外▶︎ ${bellLine(og,n(S.counts,'bellOther'))}`);
+      `通常時　▶︎ ${bellLine(g,bellNormal(S))}`,
+      `それ以外▶︎ ${bellLine(og,bellOther(S))}`,
+      `合計　　▶︎ ${bellLine(totalDenom(S),bellTotal(S))}`);
     L.push('','by slot-tools.jp');
     const credit=ctx.nanaCreditText('text');
     if(credit)L.push(credit);
@@ -419,10 +478,12 @@
         detailItem('幼少期CZ突入',n(S.counts,'child'),1)
       ]},
       {title:'共通ベル',items:[
-        {label:'通常時',value:n(S.counts,'bell'),hot:true,
-         text:`通常時 ${bellLine(g,n(S.counts,'bell'))}`,show:n(S.counts,'bell')>0},
-        {label:'それ以外',value:n(S.counts,'bellOther'),hot:false,
-         text:`それ以外 ${bellLine(og,n(S.counts,'bellOther'))}`,show:n(S.counts,'bellOther')>0}
+        {label:'合計',value:bellTotal(S),hot:true,
+         text:`合計 ${bellLine(totalDenom(S),bellTotal(S))}`,show:bellTotal(S)>0},
+        {label:'通常時',value:bellNormal(S),hot:false,
+         text:`通常時 ${bellLine(g,bellNormal(S))}`,show:bellNormal(S)>0},
+        {label:'それ以外',value:bellOther(S),hot:false,
+         text:`それ以外 ${bellLine(og,bellOther(S))}`,show:bellOther(S)>0}
       ]},
       {title:'変換からのCZ当選',items:CONV.map(c=>
         ({label:c[1],value:convHit(S,c[0]),hot:false,text:`${c[1]} ${convText(S,c[0])}`,show:convDenom(S,c[0])>0}))},
