@@ -3822,8 +3822,9 @@ assert.doesNotMatch(ledgerSummaryBlock, /session\.[A-Za-z]+ =|persist\(|localSto
 for (const word of ['上振れ', '下振れ', 'ほぼ想定どおり', 'サンプル不足', 'やや悪化', '良化', '悪化', 'rateToneClass']) {
   assert.doesNotMatch(resultBlock, new RegExp(word), `リザルトに判定表現を置かない: ${word}`);
 }
-// S12/B-1: ラベルだけを変える。差の算出（実収支 − 開始期待値）は不変
-assert.match(resultBlock, /<td>開始期待値との差<\/td>/);
+// S26: 表示の差は獲得期待値 − 開始期待値。旧summaryの差は互換維持
+assert.match(resultBlock, /<tr><td>獲得期待値<\/td><td>\$\{escapeHtml\(yenText\(startEv\.evYen\)\)\}<\/td><td>→<\/td><td>\$\{escapeHtml\(earned \? yenText\(earned\.totalYen\) : "-"\)\}<\/td><td>\$\{escapeHtml\(yenText\(earnedEvDiffYen\)\)\}<\/td><\/tr>/);
+assert.match(resultBlock, /const earnedEvDiffYen = startEv && earned \? earned.totalYen - startEv.evYen : null;/);
 assert.doesNotMatch(resultBlock, /<td>期待値との差<\/td>/);
 assert.match(resultBlock, /const evDiffYen = startEv && derived\.profitYen !== null \? derived\.profitYen - startEv\.evYen : null;/);
 // S12/B-2: 区間ごとの内訳は表。列は 区間／起点／終点／回転数／消費玉／回転率
@@ -5676,7 +5677,7 @@ assert.match(resultBlock, /evYen: earnedById && segment\.id \? \(earnedById\.has
 assert.match(resultBlock, /const earned = earnedExpectationForSession\(session, machine, derived\);/);
 assert.match(resultBlock, /const segmentRows = segmentBreakdownRows\(session, derived, machine, earned\);/);
 assert.match(resultBlock, /獲得期待値 \$\{escapeHtml\(yenText\(earned\.totalYen\)\)\}/);
-assert.match(openSessionResult, /<div class="result-line">獲得期待値 \$\{escapeHtml\(earned \? yenText\(earned\.totalYen\) : "-"\)\}<\/div>/);
+assert.match(openSessionResult, /<div class="result-card"><span>獲得期待値<\/span><strong>\$\{escapeHtml\(earned \? yenText\(earned\.totalYen\) : "-"\)\}<\/strong><small>\$\{escapeHtml\(earnedExpectationBasisText\(earned\)\)\}<\/small><\/div>/);
 assert.match(openSessionResult, /期待値は各区間の起点からの獲得期待値の合計/);
 // 履歴・日別・積み上げが獲得期待値ベース
 assert.match(renderLedger, /const evYen = earnedExpectationYen\(session, machine, derived\);/);
@@ -5684,8 +5685,8 @@ assert.match(renderLedger, /\$\{sessionFiguresHtml\(derived\.profitYen, evYenByI
 assert.match(resultBlock, /const earnedYen = earnedExpectationYen\(session, machine, derived\);\s*const hours = sessionWorkedHours\(session\);/);
 assert.match(resultBlock, /if \(earnedYen !== null\) evYen = \(evYen \?\? 0\) \+ earnedYen;/);
 // 開始期待値は「打つ前の判断」「想定と実測のズレ」「転記用」に残る
-assert.match(openSessionResult, /開始期待値 \$\{escapeHtml\(yenText\(startEv\.evYen\)\)\}/);
-assert.match(openSessionResult, /<tr><td>開始期待値との差<\/td>/);
+assert.match(openSessionResult, /<tr><td>回転率<\/td><td>\$\{escapeHtml\(startEv.usedRate.toFixed\(1\)\)\}（\$\{escapeHtml\(startEv.rateSource \|\| "-"\)\}）<\/td>/);
+assert.match(openSessionResult, /<tr><td>獲得期待値<\/td><td>\$\{escapeHtml\(yenText\(startEv\.evYen\)\)\}/);
 assert.match(transferSummary, /<span>開始期待値<\/span><strong>\$\{transferOptionalYenText\(summary\.startEvYen\)\}<\/strong>/);
 
 const s17EvApi = resultContext.resultApi;
@@ -6535,7 +6536,8 @@ const s22bRows = resultContext.resultApi.segmentBreakdownRows({
 assert.equal(s22bRows[0].netExcluded, true);
 assert.equal(s22bRows[1].netExcluded, false);
 assert.match(resultBlock, /if \(row\.netExcluded\) segmentExcludedMarks\.push\(mark\);/);
-assert.match(resultBlock, /は純増が0以下のため集計から除外（入力を確認）/);
+assert.match(resultBlock, /key: "excluded", item: "純増が0以下", impact: "通算の集計から除外しています", missingValue: true, target: "resultInputEditBtn"/);
+assert.match(resultBlock, /marks: excludedMarks, text:/);
 assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \? " ⚠" : ""\}/);
 
 // ===========================================================================
@@ -6823,4 +6825,95 @@ assert.equal(s23Rows[0].durationMs, 60 * 60 * 1000);
 assert.equal(s23Rows[0].chainClearMs, 8 * 60 * 1000);
 assert.equal(s23Rows[3].chainClearMs, null);
 
+
+// S26: 入力確認の対応表と、既定で閉じた3つの展開部を固定する。
+assert.match(resultBlock, /function resultInputWarnings\(session, summary, segmentRows, segmentExcludedMarks\) \{\s*const rateWarning = resultRateWarningImpact\(summary.derived\);/);
+assert.match(openSessionResult, /const warnings = resultInputWarnings\(session, summary, segmentRows, segmentExcludedMarks\);/);
+assert.match(openSessionResult, /warnings.length \? .*class="result-block result-input-warnings"/);
+for (const id of ['resultSegmentsDetails', 'resultAggregateDetails', 'resultTransferDetails']) {
+  assert.match(openSessionResult, new RegExp('<details class="result-disclosure" id="' + id + '"><summary>'));
+}
+const resultStatusBadges = openSessionResult.slice(openSessionResult.indexOf('const statusBadges ='), openSessionResult.indexOf('const diffRateText ='));
+assert.doesNotMatch(resultStatusBadges, /未入力あり|入力済み/);
+assert.match(resultStatusBadges, /概算/);
+assert.match(resultStatusBadges, /同台続行/);
+assert.match(openSessionResult, /if \(inputEditButton\) inputEditButton.addEventListener\("click", \(\) => \{\s*closeModal\(\);\s*openSessionEditor\(session.id\);/);
+assert.match(resultBlock, /if \(row.holdCarry\) return;/);
+assert.match(openSessionResult, /const segmentHtml = segmentRows.length \? /);
+
+const s26Context = vm.createContext({
+  missingFields: session => session.missing || [],
+  escapeHtml: value => String(value),
+  minuteSecondJaText: value => String(value / 1000) + '秒'
+});
+vm.runInContext(section('function resultRateWarningImpact', 'function openSessionResult') + ';this.api = { resultInputWarnings, resultTimelineHtml };', s26Context);
+const s26Warnings = s26Context.api.resultInputWarnings;
+const s26Timeline = s26Context.api.resultTimelineHtml;
+assert.equal(s26Warnings({}, { averageRoundBalls: 100, derived: { rate: 20, isEstimatedRate: false } }, [], []).length, 0);
+const s26Missing = s26Warnings({ missing: ['startMochidama', 'endTime'] }, { averageRoundBalls: null, derived: { rate: null } }, [{}], ['①', '②']);
+assert.equal(s26Missing.length, 4);
+assert.deepEqual(Array.from(s26Missing, warning => warning.key), ['startMochidama', 'endTime', 'round', 'excluded']);
+assert.equal(s26Missing[0].text, '起点の持ち玉が未入力の区間があります → 回転率を計算していません');
+assert.equal(s26Missing[3].text, '区間①②：純増が0以下 → 通算の集計から除外しています');
+assert.ok(s26Missing.every(warning => warning.target === 'resultInputEditBtn'));
+const s26Flow = s26Timeline([
+  { kind: 'normal', startLabel: '時短抜け', startSpin: 25, endLabel: '遊タイム突入', spins: 194, durationMs: 1000, rate: 18.5 },
+  { kind: 'yutime', startLabel: '遊タイム', endLabel: '当選', spins: null, durationMs: 2000, rate: null },
+  { kind: 'normal', holdCarry: true, startLabel: '時短抜け', startSpin: 25, endLabel: '残保留当選', spins: 0, durationMs: null, rate: null }
+], [{ marks: ['①'] }]);
+assert.match(s26Flow, /⚠ ① 時短抜け25 → 194回転で遊タイム突入 → 当選/);
+assert.equal((s26Flow.match(/<li>/g) || []).length, 1);
+assert.doesNotMatch(s26Flow, /残保留当選|null|undefined/);
+assert.match(s26Flow, /遊タイム：2秒/);
+
+const s26YutimeWarning = s26Warnings({}, { averageRoundBalls: 100, derived: { rate: 20, isEstimatedRate: false } }, [
+  { kind: 'normal' }, { kind: 'yutime', netExcluded: true }
+], ['遊タイム']);
+assert.equal(s26YutimeWarning[0].text, '区間①：純増が0以下 → 通算の集計から除外しています');
+assert.match(s26Timeline([
+  { kind: 'normal', startLabel: '打ち始め', endLabel: '遊タイム突入', spins: 194, durationMs: null, rate: null },
+  { kind: 'yutime', endLabel: '当選', durationMs: null, rate: null }
+], s26YutimeWarning), /⚠ ① 打ち始め → 194回転で遊タイム突入 → 当選/);
+
+
+
+// S26再検収: 重複を削除しても理由・出典は落とさない。
+assert.match(resultBlock, /const RESULT_INPUT_WARNINGS = \[/);
+assert.doesNotMatch(openSessionResult, /<div class="result-line">実測回転率|<div class="result-line">想定回転率/);
+assert.match(openSessionResult, /<div class="result-line">大当たり \$\{escapeHtml\(numberText\(session.hitCount, "-"\)\)\}回 ／ 1R平均/);
+assert.match(openSessionResult, /escapeHtml\(derived.rateUnavailableReason \|\| \(derived.isEstimatedRate/);
+assert.match(openSessionResult, /escapeHtml\(derived.rateUnavailableReason \? "-" : actualRateText\)/);
+assert.doesNotMatch(section('function resultInputWarnings', 'function resultTimelineHtml'), /入力確認が必要です|join\("・"\)/);
+assert.match(html, /\.result-aggregate-summary > span \{ display: inline-block; white-space: nowrap; \}/);
+assert.match(openSessionResult, /class="result-aggregate-summary"><span>この店・この機種/);
+assert.match(openSessionResult, /class="result-aggregate-summary"><span>全体/);
+assert.match(openSessionResult, /<span>｜ 期待値合計 \$\{escapeHtml\(yenText\(storeAggregate.evYen\)\)\}<\/span>/);
+assert.match(openSessionResult, /<span>｜ 実収支合計 \$\{escapeHtml\(yenText\(modelAggregate.profitYen\)\)\}<\/span>/);
+const s26Alternative = s26Warnings({ hitCount: 6, missing: ['endTotalHits', 'startMochidama'] }, { averageRoundBalls: null, derived: { rate: 29.2, isEstimatedRate: false } }, [{}], ['①', '②']);
+assert.deepEqual(Array.from(s26Alternative, x => x.key), ['round', 'excluded', 'startMochidama', 'endTotalHits']);
+assert.equal(s26Alternative[2].impact, '回転率は入力済みの区間・投資記録から計算しています');
+assert.equal(s26Alternative[3].impact, '記録済みの大当たり回数を表示しています（累計差では計算していません）');
+const s26Estimated = s26Warnings({ missing: ['hitRemainBalls'] }, { averageRoundBalls: 100, derived: { rate: 20, isEstimatedRate: true } }, [], []);
+assert.equal(s26Estimated[0].impact, '回転率は概算として表示しています');
+const s26HiddenRate = s26Warnings({ missing: ['startMochidama'] }, { averageRoundBalls: 100, derived: { rate: 20, rateUnavailableReason: '持ち玉未入力' } }, [], []);
+assert.equal(s26HiddenRate[0].impact, '回転率を表示していません（持ち玉未入力）');
+assert.equal(s26HiddenRate[0].missingValue, true);
+const s26AllKeys = ['startSpin', 'startTime', 'startMochidama', 'startSaipurei', 'startCredit', 'startTotalHits', 'hitSpin', 'hitRemainBalls', 'hitVia', 'endTotalHits', 'hitCount', 'endTotalBalls', 'endSpin', 'endTime'];
+const s26AllWarnings = s26Warnings({ missing: s26AllKeys }, { averageRoundBalls: null, derived: { rate: null } }, [], []);
+assert.equal(s26AllWarnings.length, s26AllKeys.length + 1);
+assert.ok(s26AllKeys.every(key => s26AllWarnings.filter(x => x.key === key).length === 1));
+assert.ok(s26AllWarnings.every(x => /(?:います|いません)(?:（[^）]*）)?$/.test(x.impact)));
+
+
+// S26最終確認: 持ち玉欠損では区間を推測せず、除外だけが番号と警告を持つ。
+assert.equal(s26Missing[0].marks.length, 0);
+assert.doesNotMatch(s26Missing[0].text, /区間①/);
+const s26OnlyBalance = s26Warnings({ missing: ['startMochidama'] }, { averageRoundBalls: 100, derived: { rate: 20 } }, [{}], []);
+const s26NormalRows = [{ kind: 'normal', startLabel: '打ち始め', endLabel: '当選', spins: 100, durationMs: null, rate: 20 }];
+assert.doesNotMatch(s26Timeline(s26NormalRows, s26OnlyBalance), /⚠/);
+assert.match(s26Timeline(s26NormalRows, s26Warnings({ missing: ['startMochidama'] }, { averageRoundBalls: 100, derived: { rate: 20 } }, [{}], ['①'])), /⚠ ①/);
+assert.match(html, /\.result-flow-main \{ white-space: nowrap; \}/);
+assert.match(html, /\.result-flow-basis \{ display: block; color: var\(--muted\); white-space: normal; overflow-wrap: anywhere; \}/);
+assert.match(html, /\.result-timeline li \{[^}]*max-width: 100%; overflow-x: auto; \}/);
+assert.doesNotMatch(section('function resultInputWarnings', 'function resultTimelineHtml'), /const marks = rule.key/);
 console.log('yutime-v3 tests passed');

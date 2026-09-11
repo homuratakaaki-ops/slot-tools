@@ -1751,6 +1751,20 @@
       word-break: break-word;
     }
 
+    .result-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+    .result-card { min-width: 0; padding: 8px 4px; border: 1px solid var(--line); border-radius: 8px; }
+    .result-card > span, .result-card small { display: block; font-size: 12px; }
+    .result-card strong { display: block; font-size: 16px; white-space: nowrap; }
+    .result-card small { margin-top: 4px; color: var(--muted); overflow-wrap: anywhere; }
+    .result-timeline { margin: 0; padding: 0; list-style: none; }
+    .result-timeline li { border-left: 2px solid var(--line); padding: 6px 0 6px 6px; font-size: 12px; min-width: 0; max-width: 100%; overflow-x: auto; }
+    .result-flow-main { white-space: nowrap; }
+    .result-flow-basis { display: block; color: var(--muted); white-space: normal; overflow-wrap: anywhere; }
+    .result-disclosure > summary { cursor: pointer; min-height: 44px; padding: 12px 0; font-size: 13px; }
+    .result-input-warnings { border: 1px solid var(--line); padding: 10px; border-radius: 8px; }
+    .result-aggregate-summary { font-size: 12px; line-height: 1.6; }
+    .result-aggregate-summary > span { display: inline-block; white-space: nowrap; }
+    #resultAggregateDetails > summary { text-align: right; }
     .result-table-wrap { overflow-x: auto; }
 
     .result-table {
@@ -9235,6 +9249,83 @@
       };
     }
 
+    function resultRateWarningImpact(derived) {
+      if (derived.rateUnavailableReason) return { impact: "回転率を表示していません（" + derived.rateUnavailableReason + "）", missingValue: true };
+      if (derived.rate === null || derived.rate === undefined) return { impact: "回転率を計算していません", missingValue: true };
+      if (derived.isEstimatedRate) return { impact: "回転率は概算として表示しています", missingValue: false };
+      return { impact: "回転率は入力済みの区間・投資記録から計算しています", missingValue: false };
+    }
+
+    function resultInputWarnings(session, summary, segmentRows, segmentExcludedMarks) {
+      const rateWarning = resultRateWarningImpact(summary.derived);
+      const hitCountMissing = session.hitCount === null || session.hitCount === undefined || session.hitCount === "";
+      const RESULT_INPUT_WARNINGS = [
+        { key: "startSpin", item: "開始カウンター", impact: "転記用の消化回転数を計算していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "startTime", item: "開始時刻", impact: "実働・時給を計算していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "startMochidama", item: "起点の持ち玉", notice: "起点の持ち玉が未入力の区間があります", impact: rateWarning.impact, missingValue: rateWarning.missingValue, target: "resultInputEditBtn" },
+        { key: "startSaipurei", item: "開始再プレイ", impact: "再プレイ残高を計算していません（投資合計には影響しません）", missingValue: true, target: "resultInputEditBtn" },
+        { key: "startCredit", item: "開始カード残高", impact: "カード残高を計算していません（投資合計には影響しません）", missingValue: true, target: "resultInputEditBtn" },
+        { key: "startTotalHits", item: "開始総当たり回数", impact: hitCountMissing ? "大当たり回数を表示していません" : "記録済みの大当たり回数を表示しています（累計差では計算していません）", missingValue: hitCountMissing, target: "resultInputEditBtn" },
+        { key: "hitSpin", item: "当選カウンター", impact: rateWarning.impact, missingValue: rateWarning.missingValue, target: "resultInputEditBtn" },
+        { key: "hitRemainBalls", item: "当選時の持ち玉", impact: rateWarning.impact, missingValue: rateWarning.missingValue, target: "resultInputEditBtn" },
+        { key: "hitVia", item: "当選経路", impact: rateWarning.impact, missingValue: rateWarning.missingValue, target: "resultInputEditBtn" },
+        { key: "endTotalHits", item: "終了総当たり回数", impact: hitCountMissing ? "大当たり回数を表示していません" : "記録済みの大当たり回数を表示しています（累計差では計算していません）", missingValue: hitCountMissing, target: "resultInputEditBtn" },
+        { key: "hitCount", item: "大当たり回数", impact: "大当たり回数を表示していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "endTotalBalls", item: "終了玉数", impact: "実収支を計算していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "endSpin", item: "終了カウンター", impact: "転記用の残り回転数・消化回転数を計算していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "endTime", item: "終了時刻", impact: "実働・時給を計算していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "round", item: "1R出玉", impact: "実測出玉による1R平均を計算していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "excluded", item: "純増が0以下", impact: "通算の集計から除外しています", missingValue: true, target: "resultInputEditBtn" }
+      ];
+      const missing = missingFields(session);
+      const normalMarks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
+      const yutimeExcludedMarks = [];
+      let normalIndex = 0;
+      segmentRows.forEach((row) => {
+        if (row.kind === "normal") normalIndex += 1;
+        if (row.kind === "yutime" && row.netExcluded && normalIndex > 0) {
+          yutimeExcludedMarks.push(normalMarks[normalIndex - 1] || String(normalIndex));
+        }
+      });
+      const excludedMarks = [...new Set(segmentExcludedMarks.flatMap((mark) =>
+        mark === "遊タイム" && yutimeExcludedMarks.length ? yutimeExcludedMarks : [mark]))];
+      return RESULT_INPUT_WARNINGS.flatMap((rule) => {
+        if (rule.key === "excluded") return excludedMarks.length
+          ? [{ ...rule, marks: excludedMarks, text: `区間${excludedMarks.join("")}：${rule.item} → ${rule.impact}` }] : [];
+        if (rule.key === "round") return summary.averageRoundBalls === null
+          ? [{ ...rule, marks: [], text: `${rule.item}が未入力 → ${rule.impact}` }] : [];
+        if (!missing.includes(rule.key)) return [];
+        return [{ ...rule, marks: [], text: `${rule.notice || rule.item + "が未入力"} → ${rule.impact}` }];
+      }).sort((a, b) => Number(b.missingValue) - Number(a.missingValue));
+    }
+
+    function resultTimelineHtml(segmentRows, warnings) {
+      const marks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
+      const warned = new Set(warnings.flatMap((warning) => warning.marks));
+      let normalIndex = 0;
+      const lines = [];
+      segmentRows.forEach((row) => {
+        const basis = [];
+        if (row.durationMs !== null) basis.push(minuteSecondJaText(row.durationMs));
+        if (row.rate !== null) basis.push(`回転率${row.rate.toFixed(1)}`);
+        const end = row.endLabel === "ヤメ" ? "やめ" : row.endLabel;
+        if (row.kind === "yutime") {
+          if (lines.length) {
+            lines[lines.length - 1].main += ` → ${end}`;
+            if (basis.length) lines[lines.length - 1].basis.push(`遊タイム：${basis.join("・")}`);
+            if (warned.has("遊タイム")) lines[lines.length - 1].warning = true;
+          }
+          return;
+        }
+        const mark = marks[normalIndex] || String(normalIndex + 1);
+        normalIndex += 1;
+        if (row.holdCarry) return;
+        const start = row.startLabel + (row.startLabel === "時短抜け" && row.startSpin !== null ? row.startSpin.toLocaleString("ja-JP") : "");
+        lines.push({ mark, warning: warned.has(mark), main: `${start} → ${row.spins === null ? "" : row.spins.toLocaleString("ja-JP") + "回転で"}${end}`, basis });
+      });
+      return '<ol class="result-timeline">' + lines.map((line) => `<li><span class="result-flow-main">${line.warning ? "⚠ " : ""}${line.mark} ${escapeHtml(line.main)}</span>${line.basis.length ? `<span class="result-flow-basis">（${escapeHtml(line.basis.join("・"))}）</span>` : ""}</li>`).join("") + '</ol>';
+    }
+
     function openSessionResult(sessionId) {
       const session = findSession(sessionId);
       if (!session) return;
@@ -9252,32 +9343,28 @@
         machine?.modelName || "機種未設定"
       ].filter(Boolean);
       const statusBadges = [
-        missingFields(session).length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>',
         derived.isEstimatedRate || derived.isEstimatedPayout ? '<span class="badge warn">概算</span>' : "",
         sourceMachine ? `<span class="badge">${sameMachineCarryover ? "⇐ 同台続行" : `⇐ 台${escapeHtml(sourceMachine.daiNo)}から続き`}</span>` : ""
       ].join("");
       const diffRateText = summary.rateDiff === null ? "-" : `${summary.rateDiff >= 0 ? "+" : ""}${summary.rateDiff.toFixed(1)}`;
       const actualRateText = derived.rate === null || derived.rate === undefined ? "-" : derived.rate.toFixed(1);
+      const earned = earnedExpectationForSession(session, machine, derived);
+      const earnedEvDiffYen = startEv && earned ? earned.totalYen - startEv.evYen : null;
       const startEvHtml = startEv ? `
         <div class="result-block">
-          <div class="result-block-title">打つ前の判断（記録）</div>
-          <div class="result-line">開始カウンター ${escapeHtml(startEv.effectiveSpin)} ／ 遊タイムまで残り ${escapeHtml(summary.remainingSpins ?? "-")}回転</div>
-          <div class="result-line">想定回転率 ${escapeHtml(startEv.usedRate.toFixed(1))}（${escapeHtml(startEv.rateSource || "-")}）／ 開始期待値 ${escapeHtml(yenText(startEv.evYen))}</div>
-        </div>
-        <div class="result-block">
-          <div class="result-block-title">想定と実測のズレ</div>
+          <div class="result-block-title">打つ前との比較</div>
           <div class="result-table-wrap">
             <table class="result-table">
-              <thead><tr><th>項目</th><th>想定</th><th>実測</th><th>差</th></tr></thead>
+              <thead><tr><th>項目</th><th>想定</th><th></th><th>実測</th><th>差</th></tr></thead>
               <tbody>
-                <tr><td>回転率</td><td>${escapeHtml(startEv.usedRate.toFixed(1))}</td><td>${escapeHtml(actualRateText)}</td><td>${escapeHtml(diffRateText)}</td></tr>
-                <tr><td>開始期待値との差</td><td>${escapeHtml(yenText(startEv.evYen))}</td><td>${escapeHtml(yenText(derived.profitYen))}</td><td>${escapeHtml(yenText(summary.evDiffYen))}</td></tr>
+                <tr><td>回転率</td><td>${escapeHtml(startEv.usedRate.toFixed(1))}（${escapeHtml(startEv.rateSource || "-")}）</td><td>→</td><td>${escapeHtml(actualRateText)}</td><td>${escapeHtml(diffRateText)}</td></tr>
+                <tr><td>獲得期待値</td><td>${escapeHtml(yenText(startEv.evYen))}</td><td>→</td><td>${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</td><td>${escapeHtml(yenText(earnedEvDiffYen))}</td></tr>
               </tbody>
             </table>
           </div>
+          <div class="result-line">開始カウンター ${escapeHtml(startEv.effectiveSpin)} ／ 遊タイムまで残り ${escapeHtml(summary.remainingSpins ?? "-")}回転</div>
           <p class="hint">1回のブレです。判断の良し悪しは下の通算で見ます。</p>
         </div>` : '<p class="hint">開始時の期待値は記録されていません。</p>';
-      const earned = earnedExpectationForSession(session, machine, derived);
       // S20/§2-2: 期待値計算に使う「1R実質出玉（減算込み）」を、払い出しと時短中の減りと並べて出す
       const netSummary = sessionNetBallsSummary(session, machine);
       const segmentRows = segmentBreakdownRows(session, derived, machine, earned);
@@ -9316,9 +9403,12 @@
         if (row.netExcluded) segmentExcludedMarks.push(mark);
         return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${escapeHtml(durationText)}</td><td>${consumed}玉</td><td>${rate}</td><td>${escapeHtml(netText)}</td><td>${escapeHtml(evText)}</td></tr>${clearRow}`;
       }).join("");
+      const warnings = resultInputWarnings(session, summary, segmentRows, segmentExcludedMarks);
       const segmentHtml = segmentRows.length ? `
         <div class="result-block">
-          <div class="result-block-title">区間ごとの内訳</div>
+          <div class="result-block-title">実戦の流れ</div>
+          ${resultTimelineHtml(segmentRows, warnings)}
+          <details class="result-disclosure" id="resultSegmentsDetails"><summary>詳しい区間データを見る</summary>
           <div class="result-table-wrap">
             <table class="result-table segments">
               <thead><tr><th>区間</th><th>起点</th><th>終点</th><th>回転数</th><th>所要</th><th>消費玉</th><th>回転率</th><th>純増／1R</th><th>期待値</th></tr></thead>
@@ -9327,8 +9417,8 @@
           </div>
           ${segmentHoldNotes.length ? `<p class="hint">回転数は残保留の控除後（${escapeHtml(segmentHoldNotes.join("・"))}）</p>` : ""}
           ${segmentHoldCarryMarks.length ? `<p class="hint">${escapeHtml(segmentHoldCarryMarks.join("・"))}は残保留当選（通常時なし）。前の連チャンの続きとして数えます</p>` : ""}
-          ${segmentExcludedMarks.length ? `<p class="hint">⚠ ${escapeHtml(segmentExcludedMarks.join("・"))}は純増が0以下のため集計から除外（入力を確認）。起点の持ち玉が正しくない可能性があります。下の 記録の修正 で「起点の持ち玉（時短抜け）」を直せます</p>` : ""}
           ${earned ? `<div class="result-line result-segment-total"><strong>獲得期待値 ${escapeHtml(yenText(earned.totalYen))}</strong><small>${escapeHtml(earnedExpectationBasisText(earned))}</small></div>` : ""}
+          </details>
         </div>` : "";
       const scopes = resultScopeSessions(session);
       const modelAggregate = resultAggregate(scopes.model);
@@ -9337,16 +9427,21 @@
       const aggregateHtml = `
         <div class="result-block">
           <div class="result-block-title">これまでの積み上げ</div>
-          <div class="result-line">この機種の積み上げ（${modelAggregate.count}台）</div>
+          <div class="result-aggregate-summary"><span>この店・この機種 ${storeAggregate.count}台</span> <span>｜ 平均回転率 ${escapeHtml(storeRateText)}</span> <span>｜ 期待値合計 ${escapeHtml(yenText(storeAggregate.evYen))}</span> <span>｜ 実収支合計 ${escapeHtml(yenText(storeAggregate.profitYen))}</span></div>
+          ${storeAggregate.count !== modelAggregate.count ? `<div class="result-aggregate-summary"><span>全体 ${modelAggregate.count}台</span> <span>｜ 平均回転率 ${escapeHtml(modelAggregate.rate === null ? "-" : modelAggregate.rate.toFixed(1))}</span> <span>｜ 期待値合計 ${escapeHtml(yenText(modelAggregate.evYen))}</span> <span>｜ 実収支合計 ${escapeHtml(yenText(modelAggregate.profitYen))}</span></div>` : ""}
+          <details class="result-disclosure" id="resultAggregateDetails"><summary>詳しく見る</summary>
+          ${storeAggregate.count !== modelAggregate.count ? `<div class="result-line">この機種の積み上げ（${modelAggregate.count}台）</div>
           <div class="result-line">実働 ${escapeHtml(hourText(modelAggregate.workedHours))} ／ 期待値合計 ${escapeHtml(yenText(modelAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(modelAggregate.profitYen))} ／ 差 ${escapeHtml(yenText(modelAggregate.diffYen))}</div>
           <div class="result-line">期待値時給 ${escapeHtml(yenText(modelAggregate.evHourlyYen))} ／ 実収支時給 ${escapeHtml(yenText(modelAggregate.profitHourlyYen))}</div>
-          <div class="result-line">平均時速 ${escapeHtml(speedWithRateText(modelAggregate.speedPerMinute, modelAggregate.rate))}</div>
+          <div class="result-line">平均時速 ${escapeHtml(speedWithRateText(modelAggregate.speedPerMinute, modelAggregate.rate))}</div>` : ""}
           <div class="result-line" style="margin-top:8px">この店 × この機種（${storeAggregate.count}台）</div>
           <div class="result-line">実働 ${escapeHtml(hourText(storeAggregate.workedHours))} ／ 平均回転率 ${escapeHtml(storeRateText)}</div>
           <div class="result-line">平均時速 ${escapeHtml(speedWithRateText(storeAggregate.speedPerMinute, storeAggregate.rate))}</div>
           <div class="result-line">期待値合計 ${escapeHtml(yenText(storeAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(storeAggregate.profitYen))}</div>
+          ${storeAggregate.count === modelAggregate.count ? `<div class="result-line">差 ${escapeHtml(yenText(storeAggregate.diffYen))}</div>` : ""}
           <div class="result-line">期待値時給 ${escapeHtml(yenText(storeAggregate.evHourlyYen))} ／ 実収支時給 ${escapeHtml(yenText(storeAggregate.profitHourlyYen))}</div>
           <p class="hint">期待値は各区間の起点からの獲得期待値の合計</p>
+          </details>
         </div>`;
       const html = `
         <div class="result-head">
@@ -9355,18 +9450,26 @@
         </div>
         <div class="result-block">
           <div class="result-block-title">今回の結果</div>
-          <div class="result-headline">${escapeHtml(yenText(derived.profitYen))}</div>
-          <div class="result-line">実測回転率 ${escapeHtml(rateText(derived))} ／ 大当たり ${escapeHtml(numberText(session.hitCount, "-"))}回 ／ 1R平均 ${escapeHtml(transferOptionalRoundAverageText(summary.averageRoundBalls))}</div>
+          <div class="result-cards">
+            <div class="result-card"><span>実収支</span><strong>${escapeHtml(yenText(derived.profitYen))}</strong></div>
+            <div class="result-card"><span>獲得期待値</span><strong>${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</strong><small>${escapeHtml(earnedExpectationBasisText(earned))}</small></div>
+            <div class="result-card"><span>実測回転率</span><strong>${escapeHtml(derived.rateUnavailableReason ? "-" : actualRateText)}<span style="font-size:10px"> 回/千円</span></strong><small>${escapeHtml(derived.rateUnavailableReason || (derived.isEstimatedRate ? "概算" : derived.rate === null ? "" : "実測"))}</small></div>
+          </div>
+          <div class="result-line">大当たり ${escapeHtml(numberText(session.hitCount, "-"))}回 ／ 1R平均 ${escapeHtml(transferOptionalRoundAverageText(summary.averageRoundBalls))}</div>
           <div class="result-line">1R実質出玉 ${escapeHtml(netBallsOrDashText(netSummary.netPerRound))}（減算込み）／ 払い出し ${escapeHtml(netBallsOrDashText(netSummary.payoutPerRound))} ／ 時短中の減り ${escapeHtml(ballsOrDashText(netSummary.jitanLossBalls))}</div>
           <div class="result-line">実働 ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))}</div>
           <div class="result-line">通常時の時速 ${escapeHtml(spinsPerMinuteText(summary.normalSpeed.perMinute))}${summary.normalSpeed.perMinute === null ? "" : `（通常時 ${escapeHtml(minuteSecondJaText(summary.normalSpeed.minutes * 60000))}・${summary.normalSpeed.spins.toLocaleString("ja-JP")}回転）`}</div>
-          <div class="result-line">獲得期待値 ${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</div>
         </div>
         ${startEvHtml}
+        ${warnings.length ? `<div class="result-block result-input-warnings"><div class="result-block-title">入力確認</div>${warnings.map((warning) => `<div class="result-line" data-warning-target="${warning.target}">${escapeHtml(warning.text)}</div>`).join("")}<button id="resultInputEditBtn">修正する</button></div>` : ""}
         ${segmentHtml}
         ${aggregateHtml}
         <div class="result-block">
-          ${transferSummaryHtml(session)}
+          <div class="result-block-title">転記用データ</div>
+          <button class="small" data-copy-transfer="${escapeHtml(session.id)}">転記用をコピー</button>
+          <details class="result-disclosure" id="resultTransferDetails"><summary>詳細を表示</summary>
+          ${transferSummaryHtml(session).replace(/<button class="small" data-copy-transfer="[^"]*">転記用をコピー<\/button>/, "")}
+          </details>
         </div>
         <div class="modal-actions">
           <button class="ghost" data-close>実戦一覧に戻る</button>
@@ -9382,6 +9485,11 @@
       });
       els.modalBody.querySelectorAll("[data-copy-transfer]").forEach((button) => {
         button.addEventListener("click", () => copyTransferSummary(button.dataset.copyTransfer));
+      });
+      const inputEditButton = byId("resultInputEditBtn");
+      if (inputEditButton) inputEditButton.addEventListener("click", () => {
+        closeModal();
+        openSessionEditor(session.id);
       });
       byId("resultEditBtn").addEventListener("click", () => {
         closeModal();
