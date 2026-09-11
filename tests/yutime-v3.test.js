@@ -3247,7 +3247,7 @@ assert.ok(!html.includes('当り後（時短消化中）'));
 assert.ok(!html.includes('リセット前'));
 assert.ok(!html.includes('spin-note'));
 assert.ok(html.includes('id="machineEvContext"'));
-assert.equal(html.split('${machineContextLine(session)}').length - 1, 11);
+assert.equal(html.split('${machineContextLine(session)}').length - 1, 12); // S28: 連チャン詳細にも台の文脈を表示
 assert.equal((html.match(/（実機：/g) || []).length, 15);
 assert.ok(!html.includes('遊タイム中の投資として記録されます'));
 // B91: 残保留込みモデル
@@ -4145,7 +4145,7 @@ assert.match(resultBlock, /openHitHistory\(session, \{ back: \(\) => openSession
 assert.match(hitResetPrompt, /openHitHistory\(session, \{ back: \(\) => openHitResetPrompt\(session\) \}\)/);
 assert.match(hitHistoryBlock, /openModal\("大当たり履歴"/);
 assert.match(hitHistoryBlock, /data-edit-hit="\$\{row\.index\}"/);
-assert.match(hitHistoryBlock, /data-delete-hit="\$\{row\.index\}"/);
+assert.match(hitHistoryBlock, /class="danger" id="deleteHitEditBtn">この当たりを削除/);
 // 削除は二段確認
 assert.match(hitHistoryBlock, /if \(!confirm\("この当選を削除しますか？"\)\) return;\s*if \(!confirm\("元に戻せません。削除を確定しますか？"\)\) return;/);
 // 修正できるのは R種別・当選カウンター・累計獲得出玉の3項目
@@ -5186,7 +5186,7 @@ assert.match(hitResetPrompt, /function hitRecordSegmentId\(session\) \{[\s\S]*?r
 assert.match(hitResetPrompt, /\$\{holdCarryNoticeHtml\(session\)\}/);
 assert.match(hitResetPrompt, /残保留当選（通常時なし）として、前の連チャンの続きに記録します。/);
 // B-4: 手動での切り替え
-assert.match(hitHistoryBlock, /\$\{holdCarrySectionHtml\(session\)\}/);
+assert.match(hitHistoryBlock, /function openHitChainDetail[\s\S]*?const segment = hitChainJudgmentSegment\(session, segmentId\)/);
 assert.match(hitHistoryBlock, /data-toggle-holdcarry="\$\{escapeHtml\(segment\.id\)\}"/);
 assert.match(hitHistoryBlock, /function toggleSegmentHoldCarry\(session, segmentId\) \{[\s\S]*?segment\.holdCarryHit = !segmentIsHoldCarryHit\(segment\);/);
 // S17b/2: 手動切り替えの一覧は startSource だけでなく、時短抜けカウンター一致でも拾う
@@ -5581,8 +5581,8 @@ assert.match(html, /\.running-actions\.with-shooting button,\s*\.running-panel\.
 // 3-4: 状態バッジ
 assert.match(html, /if \(isHoldSpinPhase\(session\)\) return \{ label: "保留消化中", className: "warn" \};/);
 assert.match(shootingBlock, /function isHoldSpinPhase\(session\)[\s\S]*?segment\.startSource === "jitan" && segment\.shooting === "before"/);
-// S7bの表示・手動切り替えはそのまま使う（作り直していないこと）
-assert.match(hitHistoryBlock, /\$\{holdCarrySectionHtml\(session\)\}/);
+// S28: 表示は詳細へ移動。S7bの手動切り替え処理は維持する
+assert.match(hitHistoryBlock, /function openHitChainDetail[\s\S]*?const segment = hitChainJudgmentSegment\(session, segmentId\)/);
 assert.match(hitHistoryBlock, /function toggleSegmentHoldCarry\(session, segmentId\)/);
 assert.match(resultBlock, /endLabel: holdCarry \? "残保留当選" : endLabel,/);
 assert.match(resultBlock, /const noShooting = isNormal && segmentSkipsNormalPlay\(segment\);/);
@@ -6587,6 +6587,9 @@ const s25EditContext = vm.createContext({
   normalizeNumber: appendHitRecordContext.normalizeNumber,
   chainActualBallsBefore: () => 0,
   chainSegmentIdForHit: () => 'seg_s25',
+  hitHistoryGroups: () => [{ id: 'seg_s25', label: '区間①', rows: [{ index: 0 }] }],
+  hitHistoryLabel: (group) => group.label,
+  openHitChainDetail() {},
   machineContextLine: () => '',
   escapeHtml: (value) => String(value ?? ''),
   // 時刻変換はUTC固定。テスト対象は変換関数ではなく、未変更時に再代入しない保存経路。
@@ -6934,7 +6937,7 @@ assert.match(html, /\.result-flow-main \{ white-space: nowrap; \}/);
 assert.match(html, /\.result-flow-basis \{ display: block; color: var\(--muted\); white-space: normal; overflow-wrap: anywhere; \}/);
 assert.match(html, /\.result-timeline li \{[^}]*max-width: 100%; overflow-x: auto; \}/);
 assert.doesNotMatch(section('function resultInputWarnings', 'function resultTimelineHtml'), /const marks = rule.key/);
-console.log('yutime-v3 tests passed');
+
 
 // S27: disabled の視覚的手掛かりは、不透明度とカーソルだけに限定する。
 const disabledButtonRules = [...html.matchAll(/button:disabled\s*\{([^}]+)\}/g)];
@@ -6942,3 +6945,201 @@ assert.equal(disabledButtonRules.length, 1);
 const disabledButtonRule = disabledButtonRules[0][1];
 assert.deepEqual(disabledButtonRule.trim().split(';').map(item => item.trim()).filter(Boolean), ['opacity: 0.5', 'cursor: not-allowed']);
 assert.doesNotMatch(disabledButtonRule, /background|color|border|radius|height|width|padding|margin|font|line-height|transform/);
+
+// --- S28: 連チャン一覧 → 詳細 → 修正 ---------------------------------------
+const s28ListBlock = section('function openHitHistory', 'function openHitChainDetail');
+const s28DetailBlock = section('function openHitChainDetail', '// S7b/B-4:');
+const s28JudgmentBlock = section('function hitChainJudgmentSegment', 'function hitHistoryJudgment');
+assert.match(s28JudgmentBlock, /item\.kind === "normal"/);
+assert.match(s28JudgmentBlock, /holdCarrySegments\(session\)\.find\(\(item\) => item\.segment\.id === segmentId && item\.segment !== firstNormal\)/);
+assert.match(s28ListBlock, /hitChainJudgmentSegment\(session, group\.id\)/);
+assert.match(s28DetailBlock, /hitChainJudgmentSegment\(session, segmentId\)/);
+assert.doesNotMatch(s28ListBlock + s28DetailBlock, /firstNormal|holdCarrySegments\(session\)/);
+assert.match(s28ListBlock, /今回の稼働の連チャン一覧です。新しいものが上。/);
+assert.match(s28ListBlock, /連チャン \$\{groups\.filter[\s\S]*?当たり合計 \$\{rows\.length\}回/);
+assert.match(s28ListBlock, /missing \? ` ／ R種別なし \$\{missing\}件` : ""/);
+assert.match(s28ListBlock, /data-hit-detail=/);
+assert.doesNotMatch(s28ListBlock, /data-edit-hit|data-delete-hit|data-toggle-holdcarry|holdCarrySectionHtml|セッション/);
+assert.match(s28DetailBlock, /打ち出し開始を押す前に当選/);
+assert.match(s28DetailBlock, /打ち出し中に当選/);
+assert.match(s28DetailBlock, /時短抜け\$\{numberText\(start, "−"\)\} → 当選\$\{numberText\(end, "−"\)\}・\$\{numberText\(played, "−"\)\}回転/);
+assert.match(s28DetailBlock, /を通常時なし（回転数0・消費玉0）として扱い、この当たりを/);
+assert.match(s28DetailBlock, /の続きに数えます。よろしいですか/);
+assert.match(s28DetailBlock, /を通常時として数え直します。よろしいですか/);
+assert.match(s28DetailBlock, /if \(!confirm\(message\)\) return;\s*if \(!toggleSegmentHoldCarry/);
+assert.equal((s28DetailBlock.match(/confirm\(/g) || []).length, 1);
+assert.doesNotMatch(s28DetailBlock, /data-delete-hit|deleteHitEditBtn|セッション|時短抜けから残保留の数以内/);
+assert.match(openHitEditFormBlock, /#\$\{index \+ 1\} ／ \$\{group \? hitHistoryLabel\(group\) : "区間不明"\} ／ \$\{order\}回目/);
+assert.match(openHitEditFormBlock, /class="danger" id="deleteHitEditBtn">この当たりを削除/);
+assert.match(openHitEditFormBlock, /cancelHitEditBtn[\s\S]*?openHitChainDetail\(session, segmentId, options\)/);
+assert.doesNotMatch(openHitEditFormBlock, /data-toggle-holdcarry|hit-chain-judgment/);
+
+// 実IIFEのloadData → normalizeDataを通す。外すのは起動時のDOM配線のみ。
+function s28Boot(fixture) {
+  const nodes = new Map();
+  const storage = new Map([['ytv3:data', JSON.stringify(fixture)]]);
+  const confirms = [];
+  const answers = [];
+  function element(id) {
+    if (!nodes.has(id)) nodes.set(id, new Proxy({
+      id, innerHTML: '', textContent: '', value: '', dataset: {}, style: {}, handlers: {},
+      classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+      addEventListener(event, handler) { this.handlers[event] = handler; },
+      querySelectorAll(selector) {
+        const attr = selector.match(/^\[([^\]]+)\]$/)?.[1];
+        if (!attr) return [];
+        const buttons = [...this.innerHTML.matchAll(new RegExp('<button[^>]*' + attr + '="([^"]*)"[^>]*>', 'g'))];
+        return buttons.map((match, index) => {
+          const button = element(`${id}:${attr}:${index}`);
+          button.dataset[attr.slice(5).replace(/-([a-z])/g, (_, char) => char.toUpperCase())] = match[1];
+          return button;
+        });
+      },
+      querySelector() { return null; }, setAttribute() {}, removeAttribute() {}, focus() {},
+      getBoundingClientRect() { return { top: 0, bottom: 0 }; }
+    }, { get(target, key) { return target[key]; } }));
+    return nodes.get(id);
+  }
+  const context = vm.createContext({
+    console, Map, Set, Date, URL, Blob,
+    document: {
+      getElementById: element, querySelectorAll: () => [], querySelector: () => null,
+      body: element('body'), documentElement: element('html')
+    },
+    window: { addEventListener() {}, scrollTo() {}, innerWidth: 390, innerHeight: 844 },
+    localStorage: {
+      getItem: (key) => storage.get(key) ?? null,
+      setItem: (key, value) => storage.set(key, value), removeItem: (key) => storage.delete(key)
+    },
+    crypto: require('node:crypto').webcrypto,
+    setTimeout: () => 0, clearTimeout() {}, requestAnimationFrame: () => 0,
+    confirm(message) { confirms.push(message); return answers.length ? answers.shift() : true; },
+    alert() {}, navigator: {}, location: {}
+  });
+  const script = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
+    .find((match) => match[1].includes('netBallsPerWinInfo'))[1];
+  const start = script.indexOf('    document.querySelectorAll(".tab")');
+  const endMarker = '    if (bootToastMessage) showToast(bootToastMessage);';
+  const end = script.indexOf(endMarker, start);
+  assert.ok(start >= 0 && end > start);
+  const expose = `globalThis.__api = { get data(){return data;}, hitHistoryGroups, hitHistoryRows,
+    openHitHistory, openHitChainDetail, openHitEditForm, holdCarrySegments };`;
+  new vm.Script(script.slice(0, start) + expose + script.slice(end + endMarker.length)).runInContext(context);
+  return { api: context.__api, element, confirms, answers };
+}
+const s28App = s28Boot({
+  version: 38, stores: [{ id: 'store_s28', name: 'テスト店' }],
+  machines: [{ id: 'machine_s28', storeId: 'store_s28', daiNo: '1', presetId: 'agnes-pe' }],
+  sessions: [{
+    id: 'session_s28', storeId: 'store_s28', machineId: 'machine_s28', date: '2026-09-09',
+    status: 'completed', startSpin: 0, hitSpin: 151, endSpin: 151, hitCount: 4,
+    segments: [
+      { id: 'seg_1', kind: 'normal', startSpin: 0, endSpin: 24, endSource: 'hit', shooting: 'started' },
+      { id: 'seg_2', kind: 'normal', source: 'user', startSpin: 50, endSpin: 55, endSource: 'hit', startSource: 'jitan', shooting: 'before', holdSpins: 5 },
+      { id: 'seg_3', kind: 'normal', source: 'user', startSpin: 50, endSpin: 151, endSource: 'hit', startSource: 'jitan', shooting: 'started', holdSpins: 5 }
+    ],
+    hits: [
+      { segmentId: 'seg_1', roundTypeId: 'r6', hitSpin: 24, actualBalls: null },
+      { segmentId: 'seg_2', roundTypeId: 'r4', hitSpin: 55, actualBalls: 500 },
+      { segmentId: 'seg_3', roundTypeId: 'r6', hitSpin: 151, actualBalls: null },
+      { segmentId: 'seg_3', roundTypeId: 'r4', hitSpin: 151, actualBalls: 1500 }
+    ]
+  }]
+});
+const s28Session = s28App.api.data.sessions[0];
+s28App.api.data.activeStoreId = s28Session.storeId;
+const s28Body = () => s28App.element('modalBody').innerHTML;
+const s28Title = () => s28App.element('modalTitle').textContent;
+const s28Click = (id) => s28App.element(id).handlers.click();
+const s28Toggle = () => s28App.element('modalBody').querySelectorAll('[data-toggle-holdcarry]')[0].handlers.click();
+const s28Json = (value) => JSON.parse(JSON.stringify(value));
+assert.equal(s28App.api.data.version, 38);
+assert.deepEqual(s28Json(s28App.api.hitHistoryGroups(s28Session).map((g) => [g.id, g.rows.length])), [['seg_3', 2], ['seg_2', 1], ['seg_1', 1]]);
+// 表示グループだけを分け、残保留の累計計算は引き続き元の連チャンを参照する。
+assert.equal(s28App.api.hitHistoryRows(s28Session)[1].segmentId, 'seg_1');
+let s28BackCount = 0;
+const s28Options = { back: () => { s28BackCount += 1; } };
+s28App.api.openHitHistory(s28Session, s28Options);
+assert.match(s28Body(), /連チャン 3件 ／ 当たり合計 4回/);
+assert.doesNotMatch(s28Body(), /R種別なし/);
+assert.match(s28Body(), /2連（6R・4R）/);
+assert.match(s28Body(), /残保留当選 → 区間①の続き/);
+s28App.api.openHitChainDetail(s28Session, 'seg_2', s28Options);
+assert.match(s28Body(), /残保留当選（自動判定）/);
+assert.match(s28Body(), /打ち出し開始を押す前に当選（時短抜け50 → 当選55・5回転）/);
+s28Toggle();
+assert.equal(s28App.confirms.length, 1);
+assert.equal(s28App.confirms[0], '区間②を通常時として数え直します。よろしいですか');
+assert.equal(s28Session.segments[1].holdCarryHit, false);
+assert.equal(s28Title(), '区間②の連チャン');
+s28Toggle();
+assert.equal(s28App.confirms.length, 2);
+assert.equal(s28App.confirms[1], '区間②を通常時なし（回転数0・消費玉0）として扱い、この当たりを区間①の続きに数えます。よろしいですか');
+assert.equal(s28Session.segments[1].holdCarryHit, true);
+s28App.answers.push(false);
+s28Toggle();
+assert.equal(s28Session.segments[1].holdCarryHit, true);
+// 先頭区間に古いjitan印が残っていても、打ち始めは切り替え対象外。
+s28Session.segments[0].startSource = 'jitan';
+s28App.api.openHitHistory(s28Session);
+const s28ListCards = () => s28Body().split('<div class="row-card hit-chain-row">').slice(1);
+assert.doesNotMatch(s28ListCards().at(-1), /<small>|通常当選|残保留当選/);
+assert.match(s28ListCards().at(-1), /data-hit-detail=/);
+s28App.api.openHitChainDetail(s28Session, 'seg_1');
+assert.doesNotMatch(s28Body(), /data-toggle-holdcarry|hit-chain-judgment/);
+s28Session.segments[2].kind = 'yutime';
+s28App.api.openHitHistory(s28Session);
+assert.match(s28ListCards()[0], /遊タイム/);
+assert.doesNotMatch(s28ListCards()[0], /<small>|通常当選|残保留当選/);
+assert.match(s28ListCards()[0], /data-hit-detail=/);
+s28App.api.openHitChainDetail(s28Session, 'seg_3');
+assert.doesNotMatch(s28Body(), /data-toggle-holdcarry|hit-chain-judgment/);
+s28Session.segments[2].kind = 'normal';
+s28App.api.openHitChainDetail(s28Session, 'seg_3', s28Options);
+assert.match(s28Body(), /打ち出し中に当選（時短抜け50 → 当選151・101回転）/);
+assert.match(s28Body(), /累計出玉 −/);
+assert.match(s28Body(), /累計出玉 1,500玉/);
+s28App.api.openHitEditForm(s28Session, 2, s28Options);
+assert.equal(s28App.element('modalHint').textContent, '#3 ／ 区間③ ／ 1回目');
+s28Click('cancelHitEditBtn');
+assert.equal(s28Title(), '区間③の連チャン');
+s28App.api.openHitEditForm(s28Session, 2, s28Options);
+s28App.answers.push(true, false);
+s28Click('deleteHitEditBtn');
+assert.equal(s28Session.hitCount, 4);
+const s28BeforeDelete = s28App.confirms.length;
+s28Click('deleteHitEditBtn');
+assert.deepEqual(s28App.confirms.slice(s28BeforeDelete), ['この当選を削除しますか？', '元に戻せません。削除を確定しますか？']);
+assert.equal(s28Title(), '区間③の連チャン');
+assert.equal(s28Session.hitCount, 3);
+s28App.api.openHitEditForm(s28Session, 2, s28Options);
+s28Click('deleteHitEditBtn');
+assert.equal(s28Title(), '大当たり履歴');
+assert.equal(s28Session.hitCount, 2);
+s28Click('hitHistoryBackBtn');
+assert.equal(s28BackCount, 1);
+s28Session.hits.push({ segmentId: 'missing', hitSpin: 999, roundTypeId: '', actualBalls: null });
+s28Session.hitCount = 3;
+// 実在しないIDは従来どおり当選カウンターで既存区間へ補正する。
+assert.deepEqual(s28Json(s28App.api.hitHistoryGroups(s28Session).map((g) => [g.id, g.rows.length])), [['seg_3', 1], ['seg_2', 1], ['seg_1', 1]]);
+assert.equal(s28Session.hits.at(-1).segmentId, 'missing'); // 表示時の補正で保存値は変えない。
+// 区間不明は区間が1つもないセッションで検証する。
+const s28OrphanSession = { ...s28Session, segments: [], hits: [
+  { segmentId: 'missing', hitSpin: 999, roundTypeId: '', actualBalls: null },
+  { hitSpin: 1000, roundTypeId: 'r6', actualBalls: 500 }
+], hitCount: 2 };
+s28App.api.openHitHistory(s28OrphanSession);
+assert.match(s28Body(), /連チャン 0件 ／ 当たり合計 2回 ／ R種別なし 1件/);
+const s28OrphanGroups = s28App.api.hitHistoryGroups(s28OrphanSession);
+assert.equal(s28OrphanGroups.at(-1).label, '区間不明');
+assert.deepEqual(s28Json(s28OrphanGroups.map((g) => [g.id, g.rows.length])), [[null, 2]]);
+assert.equal(s28ListCards().length, 1);
+assert.match(s28Body(), /区間不明 2件/);
+assert.doesNotMatch(s28ListCards()[0], /<small>|通常当選|残保留当選/);
+s28App.api.openHitChainDetail(s28OrphanSession, null);
+assert.equal(s28Title(), '区間不明の連チャン');
+assert.match(s28Body(), /#1　−　1回目/);
+assert.match(s28Body(), /#2　6R　2回目/);
+assert.doesNotMatch(s28Body(), /data-toggle-holdcarry|hit-chain-judgment/);
+
+console.log('yutime-v3 tests passed');

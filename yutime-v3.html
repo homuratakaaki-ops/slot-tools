@@ -1319,6 +1319,30 @@
       min-height: 44px;
     }
 
+    .hit-chain-heading {
+      display: flex;
+      gap: 6px;
+      white-space: nowrap;
+      font-size: 13px;
+    }
+
+    .hit-chain-heading > :first-child, .hit-chain-heading > :last-child { flex-shrink: 0; }
+    .hit-chain-heading > span:nth-child(2) { min-width: 0; white-space: normal; overflow-wrap: anywhere; }
+
+    .hit-chain-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-top: 6px;
+    }
+
+    .hit-chain-footer small { overflow-wrap: anywhere; }
+    .hit-chain-footer button { flex-shrink: 0; min-height: 44px; margin-left: auto; }
+    .hit-history-summary { font-size: 13px; }
+    .hit-chain-judgment { margin-bottom: 12px; }
+    #deleteHitEditBtn { width: 100%; margin-top: 14px; }
+
     .transfer-summary button[data-copy-transfer] {
       min-height: 44px;
     }
@@ -7636,7 +7660,7 @@
     }
 
     // S7b/B-4: 直前に閉じた区間が残保留当選なら、その場で明示する。
-    // 扱いの切り替えは大当たり履歴（holdCarrySectionHtml）から行う。
+    // 扱いの切り替えは連チャン詳細（openHitChainDetail）から行う。
     function holdCarryNoticeHtml(session) {
       const segments = sessionSegments(session);
       const last = segments[segments.length - 1];
@@ -7920,10 +7944,11 @@
 
     // S4/B-1: 新しい区間が上。区間に紐づかない当選は末尾にまとめる。
     function hitHistoryGroups(session) {
-      const rows = hitHistoryRows(session);
+      // S28: 表示は記録先の区間で分ける。累計出玉と集計の連チャン解決は変えない。
+      const rows = hitHistoryRows(session).map((row) => ({ ...row, segmentId: storedHitSegmentId(session, row.hit) }));
       const labels = segmentHistoryLabels(session);
-      const groups = labels.map((entry) => ({ id: entry.id, label: entry.label, rows: rows.filter((row) => row.segmentId === entry.id) }));
-      const orphans = rows.filter((row) => !labels.some((entry) => entry.id === row.segmentId));
+      const groups = labels.filter((entry) => entry.id).map((entry) => ({ id: entry.id, label: entry.label, rows: rows.filter((row) => row.segmentId === entry.id) }));
+      const orphans = rows.filter((row) => !labels.some((entry) => entry.id && entry.id === row.segmentId));
       const ordered = groups.filter((group) => group.rows.length).reverse();
       if (orphans.length) ordered.push({ id: null, label: "区間不明", rows: orphans });
       return ordered;
@@ -7950,61 +7975,130 @@
       return true;
     }
 
+    // S28: 区間の識別子はリザルトと共通。起点の説明は詳細の根拠行で示す。
+    function hitHistoryLabel(group) {
+      return group.label.split("（")[0];
+    }
+
+    function hitHistoryRoundText(row, presetId) {
+      const rounds = roundCountFromRoundType(roundTypeById(presetId, row.hit?.roundTypeId));
+      return rounds !== null ? `${rounds.toLocaleString("ja-JP")}R` : "−";
+    }
+
+    function hitChainJudgmentSegment(session, segmentId) {
+      if (segmentId === null) return null;
+      const firstNormal = sessionSegments(session).find((item) => item.kind === "normal");
+      return holdCarrySegments(session).find((item) => item.segment.id === segmentId && item.segment !== firstNormal)?.segment ?? null;
+    }
+
+    function hitHistoryJudgment(session, segment, detail = false) {
+      if (!segment) return "";
+      const active = segmentIsHoldCarryHit(segment);
+      const manual = segment.holdCarryHit === true || segment.holdCarryHit === false;
+      const status = `${active ? "残保留当選" : "通常当選"}${manual ? "（手動）" : detail ? "（自動判定）" : ""}`;
+      if (!active || detail) return status;
+      const targetId = resolveSegmentChainId(session, segment.id);
+      const target = segmentHistoryLabels(session).find((entry) => entry.id === targetId);
+      return `${status} → ${target ? hitHistoryLabel(target) : "区間不明"}の続き`;
+    }
+
     function openHitHistory(session, options = {}) {
       const machine = data.machines.find((item) => item.id === session.machineId);
       const presetId = normalizeMachinePresetId(machine);
       const back = typeof options.back === "function" ? options.back : null;
       const groups = hitHistoryGroups(session);
-      const body = groups.length ? groups.map((group) => `
-        <div class="hit-history-group">
-          <div class="hit-history-group-title">${escapeHtml(group.label)}</div>
-          ${group.rows.slice().reverse().map((row) => {
-            const rounds = roundCountFromRoundType(roundTypeById(presetId, row.hit?.roundTypeId));
-            const cumulativeText = row.cumulativeBalls === null ? "-" : `${Math.round(row.cumulativeBalls).toLocaleString("ja-JP")}玉`;
-            return `
-              <div class="row-card">
-                <div class="row-card-head">
-                  <div>
-                    <strong>#${row.number} ${rounds !== null ? `${rounds.toLocaleString("ja-JP")}R` : "R種別なし"}</strong>
-                    <br><small>当選カウンター ${numberText(normalizeNumber(row.hit?.hitSpin), "-")} / この連チャンの累計出玉 ${escapeHtml(cumulativeText)}</small>
-                  </div>
-                  <div class="hit-history-actions">
-                    <button class="small" data-edit-hit="${row.index}">修正</button>
-                    <button class="small danger" data-delete-hit="${row.index}">削除</button>
-                  </div>
-                </div>
-              </div>`;
-          }).join("")}
-        </div>`).join("") : '<p class="hint">まだ当選は記録されていません。</p>';
-      openModal("大当たり履歴", "このセッションの当選です。新しいものが上。", `
+      const rows = groups.flatMap((group) => group.rows);
+      const missing = rows.filter((row) => !row.hit?.roundTypeId).length;
+      const summary = `連チャン ${groups.filter((group) => group.id !== null).length}件 ／ 当たり合計 ${rows.length}回${missing ? ` ／ R種別なし ${missing}件` : ""}`;
+      const body = groups.length ? groups.map((group, groupIndex) => {
+        const segment = hitChainJudgmentSegment(session, group.id);
+        const judgment = hitHistoryJudgment(session, segment);
+        const rounds = group.rows.map((row) => hitHistoryRoundText(row, presetId)).join("・");
+        return `
+          <div class="row-card hit-chain-row">
+            <div class="hit-chain-heading">${group.id === null ? `区間不明 ${group.rows.length}件` : `<strong>${escapeHtml(hitHistoryLabel(group))}</strong><span>${group.rows.length}連（${escapeHtml(rounds)}）</span><span>当選${numberText(normalizeNumber(group.rows[0].hit?.hitSpin), "−")}</span>`}</div>
+            <div class="hit-chain-footer">
+              ${judgment ? `<small>${escapeHtml(judgment)}</small>` : ""}
+              <button class="small" data-hit-detail="${groupIndex}">詳細</button>
+            </div>
+          </div>`;
+      }).join("") : '<p class="hint">まだ当選は記録されていません。</p>';
+      openModal("大当たり履歴", "今回の稼働の連チャン一覧です。新しいものが上。", `
         ${machineContextLine(session)}
+        <p class="hit-history-summary">${escapeHtml(summary)}</p>
         <div class="list">${body}</div>
-        ${holdCarrySectionHtml(session)}
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           ${back ? '<button id="hitHistoryBackBtn">戻る</button>' : ""}
         </div>
       `);
+      els.modalBody.querySelectorAll("[data-hit-detail]").forEach((button) => {
+        button.addEventListener("click", () => openHitChainDetail(session, groups[Number(button.dataset.hitDetail)].id, options));
+      });
+      const backButton = byId("hitHistoryBackBtn");
+      if (backButton) backButton.addEventListener("click", () => back());
+    }
+
+    function openHitChainDetail(session, segmentId, options = {}) {
+      const group = hitHistoryGroups(session).find((entry) => entry.id === segmentId);
+      if (!group) return openHitHistory(session, options);
+      const label = hitHistoryLabel(group);
+      const machine = data.machines.find((item) => item.id === session.machineId);
+      const presetId = normalizeMachinePresetId(machine);
+      const rounds = group.rows.map((row) => hitHistoryRoundText(row, presetId)).join("・");
+      const segment = hitChainJudgmentSegment(session, segmentId);
+      let judgment = "";
+      if (segment) {
+        const start = normalizeNumber(segment.startSpin);
+        const end = normalizeNumber(segment.endSpin);
+        const played = start !== null && end !== null ? end - start : null;
+        const shooting = segment.shooting === "before" ? "打ち出し開始を押す前に当選" : segment.shooting === "started" ? "打ち出し中に当選" : "打ち出し状態の記録なし";
+        const reason = `${shooting}（時短抜け${numberText(start, "−")} → 当選${numberText(end, "−")}・${numberText(played, "−")}回転）`;
+        judgment = `
+          <div class="hit-chain-judgment">
+            <div>${escapeHtml(hitHistoryJudgment(session, segment, true))}</div>
+            <p class="hint">${escapeHtml(reason)}</p>
+            <button data-toggle-holdcarry="${escapeHtml(segment.id)}">${segmentIsHoldCarryHit(segment) ? "通常当選にする" : "残保留当選にする"}</button>
+          </div>`;
+      }
+      openModal(`${label}の連チャン`, `当選${numberText(normalizeNumber(group.rows[0].hit?.hitSpin), "−")} ／ ${group.rows.length}連 ／ ${rounds}`, `
+        ${machineContextLine(session)}
+        ${judgment}
+        <div class="list">
+          ${group.rows.map((row, order) => {
+            const cumulativeText = row.cumulativeBalls === null ? "−" : `${Math.round(row.cumulativeBalls).toLocaleString("ja-JP")}玉`;
+            return `<div class="row-card">
+              <div class="row-card-head">
+                <div><strong>#${row.number}　${escapeHtml(hitHistoryRoundText(row, presetId))}　${order + 1}回目</strong>
+                  <br><small>当選カウンター${numberText(normalizeNumber(row.hit?.hitSpin), "−")}<br>累計出玉 ${escapeHtml(cumulativeText)}</small></div>
+                <div class="hit-history-actions"><button class="small" data-edit-hit="${row.index}">修正</button></div>
+              </div>
+            </div>`;
+          }).join("")}
+        </div>
+        <div class="modal-actions">
+          <button id="hitChainBackBtn">一覧に戻る</button>
+          <button class="ghost" data-close>閉じる</button>
+        </div>
+      `);
       els.modalBody.querySelectorAll("[data-toggle-holdcarry]").forEach((button) => {
         button.addEventListener("click", () => {
+          const segments = sessionSegments(session);
+          const previous = segments[segments.findIndex((item) => item.id === segmentId) - 1];
+          const targetId = resolveSegmentChainId(session, previous?.id);
+          const target = segmentHistoryLabels(session).find((item) => item.id === targetId);
+          const message = segmentIsHoldCarryHit(segment)
+            ? `${label}を通常時として数え直します。よろしいですか`
+            : `${label}を通常時なし（回転数0・消費玉0）として扱い、この当たりを${target ? hitHistoryLabel(target) : "区間不明"}の続きに数えます。よろしいですか`;
+          if (!confirm(message)) return;
           if (!toggleSegmentHoldCarry(session, button.dataset.toggleHoldcarry)) return;
-          openHitHistory(session, options);
+          openHitChainDetail(session, segmentId, options);
         });
       });
       els.modalBody.querySelectorAll("[data-edit-hit]").forEach((button) => {
         button.addEventListener("click", () => openHitEditForm(session, Number(button.dataset.editHit), options));
       });
-      els.modalBody.querySelectorAll("[data-delete-hit]").forEach((button) => {
-        button.addEventListener("click", () => {
-          const index = Number(button.dataset.deleteHit);
-          if (!confirm("この当選を削除しますか？")) return;
-          if (!confirm("元に戻せません。削除を確定しますか？")) return;
-          if (!removeHitRecord(session, index)) return;
-          openHitHistory(session, options);
-        });
-      });
-      const backButton = byId("hitHistoryBackBtn");
-      if (backButton) backButton.addEventListener("click", () => back());
+      byId("hitChainBackBtn").addEventListener("click", () => openHitHistory(session, options));
     }
 
     // S7b/B-4: 残保留当選の扱いを手で切り替える場所。判定は区間ごとなので、当選1件ごとではなく
@@ -8030,36 +8124,6 @@
       return segments[index - 1]?.endSource === "hit";
     }
 
-    function holdCarrySectionHtml(session) {
-      const entries = holdCarrySegments(session);
-      if (!entries.length) return "";
-      const rows = entries.map((entry) => {
-        const segment = entry.segment;
-        const active = segmentIsHoldCarryHit(segment);
-        const manual = segment.holdCarryHit === true || segment.holdCarryHit === false;
-        const played = normalizeNumber(segment.endSpin) !== null && normalizeNumber(segment.startSpin) !== null
-          ? normalizeNumber(segment.endSpin) - normalizeNumber(segment.startSpin)
-          : null;
-        return `
-          <div class="row-card">
-            <div class="row-card-head">
-              <div>
-                <strong>${escapeHtml(entry.label)}</strong>
-                <br><small>${numberText(segment.startSpin, "-")}→${numberText(segment.endSpin, "-")}（${numberText(played, "-")}回転／保留${Math.max(0, Number(segment.holdSpins || 0))}）／${active ? "残保留当選（通常時なし）" : "通常当選"}${manual ? "（手動）" : "（自動判定）"}</small>
-              </div>
-              <button class="small" data-toggle-holdcarry="${escapeHtml(segment.id)}">${active ? "通常当選にする" : "残保留当選にする"}</button>
-            </div>
-          </div>`;
-      }).join("");
-      return `
-        <div class="hit-history-group">
-          <div class="hit-history-group-title">残保留当選の扱い</div>
-          ${rows}
-          <p class="hint">時短抜けから残保留の数以内で当たった区間は、通常時なし（回転数0・消費玉0）として前の連チャンの続きに数えます。</p>
-        </div>
-      `;
-    }
-
     function toggleSegmentHoldCarry(session, segmentId) {
       const segment = sessionSegments(session).find((item) => item.id === segmentId);
       if (!segment) return false;
@@ -8080,7 +8144,10 @@
       const roundTypes = presetById(presetId)?.roundTypes || [];
       const hasActualBalls = normalizeNumber(hit.actualBalls) !== null;
       const cumulativeBalls = chainActualBallsBefore(session, index + 1, chainSegmentIdForHit(session, index));
-      openModal("当選の修正", `#${index + 1} の記録を直します。`, `
+      const group = hitHistoryGroups(session).find((entry) => entry.rows.some((row) => row.index === index));
+      const segmentId = group?.id ?? null;
+      const order = group ? group.rows.findIndex((row) => row.index === index) + 1 : 1;
+      openModal("当選の修正", `#${index + 1} ／ ${group ? hitHistoryLabel(group) : "区間不明"} ／ ${order}回目`, `
         ${machineContextLine(session)}
         <div class="field-row">
           <label for="editHitRoundType">R種別</label>
@@ -8112,8 +8179,15 @@
           <button id="cancelHitEditBtn">戻る</button>
           <button class="primary" id="saveHitEditBtn">保存</button>
         </div>
+        <button class="danger" id="deleteHitEditBtn">この当たりを削除</button>
       `);
-      byId("cancelHitEditBtn").addEventListener("click", () => openHitHistory(session, options));
+      byId("cancelHitEditBtn").addEventListener("click", () => openHitChainDetail(session, segmentId, options));
+      byId("deleteHitEditBtn").addEventListener("click", () => {
+        if (!confirm("この当選を削除しますか？")) return;
+        if (!confirm("元に戻せません。削除を確定しますか？")) return;
+        if (!removeHitRecord(session, index)) return;
+        openHitChainDetail(session, segmentId, options);
+      });
       byId("saveHitEditBtn").addEventListener("click", () => {
         const target = Array.isArray(session.hits) ? session.hits[index] : null;
         if (!target) return;
