@@ -8,7 +8,7 @@
     const atEnd=S.atcz.atEnd||0;
     const over2=(S.atcz.set2||0)+(S.atcz.set3||0)+(S.atcz.set4||0);
     return [
-      {title:'初当り・小役',items:[detailItem('CZ当選',S.cz.cz,0),detailItem('AT当選',S.atCount,0),{label:'AT直撃',value:S.cz.atDirect,hot:false,text:S.cz.atDirect>0?'AT直撃 '+rateCount(S.games,S.cz.atDirect):'',show:S.cz.atDirect>0},detailItem('確定CZ',S.cz.end,1),detailItem('曠野の決闘',S.cz.duel,1),{label:'共通ベル',value:S.cz.bell,hot:false,text:S.cz.bell>0?'共通ベル 1/'+((S.games||0)/S.cz.bell).toFixed(1):'',show:S.cz.bell>0},{label:'強チャンス目B',value:S.cz.chanceB,hot:false,text:S.cz.chanceB>0?'強チャンス目B 1/'+((S.games||0)/S.cz.chanceB).toFixed(1):'',show:S.cz.chanceB>0}]},
+      {title:'初当り・小役',items:[detailItem('CZ当選',S.cz.cz,0),detailItem('AT当選',S.atCount,0),{label:'AT直撃',value:S.cz.atDirect,hot:false,text:S.cz.atDirect>0?'AT直撃 '+rateCount(S.games,S.cz.atDirect):'',show:S.cz.atDirect>0},detailItem('確定CZ',S.cz.end,1),detailItem('曠野の決闘',S.cz.duel,1),{label:'共通ベル',value:appRate(S,'bellRate')>0?1:0,hot:false,text:'共通ベル '+appRateText(S,'bellRate'),show:appRate(S,'bellRate')>0},{label:'強チャンス目B',value:appRate(S,'chanceBRate')>0?1:0,hot:false,text:'強チャンス目B '+appRateText(S,'chanceBRate'),show:appRate(S,'chanceBRate')>0}]},
       {title:'CZ失敗後',items:[detailItem('CZ失敗',S.atcz.fail,0),detailRatio('CZ失敗後のアイテム獲得',S.atcz.item,S.atcz.fail,1),detailItem('SC1・2戦目デスガン',S.atcz.deathgun,1)]},
       {title:'AT終了後・継続セット',items:[detailItem('AT終了',atEnd,0)].concat(SETS.map(c=>Object.assign(detailItem(c[1],S.atcz[c[0]],c[3]),{denominator:atEnd})),[detailRatio('AT後50G以内の引き戻し',S.atcz.return50,atEnd,1),detailRatio('2セット以上継続',over2,atEnd,0)])},
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens),percent:true},
@@ -71,7 +71,9 @@
   const DEF={
     games:0,
     zones:{},
-    cz:{cz:0,atDirect:0,end:0,duel:0,bell:0,chanceB:0},
+    // bell / chanceB は旧方式（タップ回数）のキー。保存値は残すが表示・カード・テンプレでは使わない。
+    // bellRate / chanceBRate がダイトモ入力（確率の分母）。0＝未入力。
+    cz:{cz:0,atDirect:0,end:0,duel:0,bell:0,chanceB:0,bellRate:0,chanceBRate:0},
     atcz:{fail:0,item:0,deathgun:0,atEnd:0,set1:0,set2:0,set3:0,set4:0,return50:0},
     choku:0,
     atCount:0,
@@ -88,6 +90,19 @@
   // 設1:1/1057.0 設2:1/993.0 設3:1/936.2 設4:1/885.6 設5:1/840.2 設6:1/799.2
   // 設6はこれまで実戦値(1/769)だったが、全設定判明により正式な解析値へ差し替えた。
 
+  function escAttr(v){return String(v===0||v===undefined||v===null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+
+  // ---- ダイトモ入力（共通ベル・強チャンス目B）----
+  // 小役はAT中も成立するため通常回転数を分母にすると一致しない。
+  // ダイトモ（大都技研の公式アプリ）が集計した確率の分母をそのまま入力して使う。
+  // 保持値は入力直後だけ文字列（エンジンの data-state-path が生値を入れるため）。
+  // 読み出しはこの2関数に集約する（§9-84）。0＝未入力。
+  function appRate(S,key){
+    const v=Number(String(((S||{}).cz||{})[key]??'').trim());
+    return Number.isFinite(v)&&v>0?v:0;
+  }
+  function appRateText(S,key){const d=appRate(S,key);return d>0?'1/'+d.toFixed(1):'';}
+
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function rate(g,n){return n&&g?'1/'+(g/n).toFixed(1):'-';}
   function rateCount(g,n){return n&&g?rate(g,n)+'（'+n+'回）':(n||0)+'回';}
@@ -98,6 +113,17 @@
     return `${prefix} ${out.length?out.join('・'):'−'}`;
   }
 
+  // ダイトモの確率を入力する行。タップカウントではないので data-c も ＋ボタンも持たせない。
+  // 分母だけを入力させ（例: 47.6）、表示は「/ 入力 1/47.6」。未入力なら出さない。
+  function rateRow(S,path,name,sub){
+    const key=path.split('.')[1];
+    const txt=appRateText(S,key);
+    return `<div class="crow raterow">
+      <div class="lbl"><div class="nm">${name}</div><div class="mn">${sub}${txt?` / 入力 ${txt}`:''}</div></div>
+      <span class="unit">1/</span>
+      <input type="number" inputmode="decimal" step="0.1" min="0" data-state-path="${path}" value="${escAttr((S.cz||{})[key])}" placeholder="47.6" aria-label="${name}の確率（分母）">
+    </div>`;
+  }
   function pageHatsu(ctx){
     const g=ctx.S.games;
     return `
@@ -115,10 +141,15 @@
       ${ctx.crow('cz.atDirect','AT直撃',`設1:1/18091.8⇔設6:1/3415.7${g&&ctx.S.cz.atDirect?` / 現在 ${rate(g,ctx.S.cz.atDirect)}`:''}`,0)}
       ${ctx.crow('cz.end','確定CZ','THE END状態スタート・設1:1/20178⇔設6:1/7077',1)}
       ${ctx.crow('cz.duel','曠野の決闘','CZ失敗時フリーズ・設1:1/128⇔設6:1/64',1)}
-      ${ctx.crow('cz.bell','共通ベル（斜め揃い）',`実戦値 設5:1/47.6・設6:1/45.4 / 現在 ${rate(g,ctx.S.cz.bell)}`,0)}
-      ${ctx.crow('cz.chanceB','強チャンス目B',`設1:1/1057.0⇔設6:1/799.2 / 現在 ${rate(g,ctx.S.cz.chanceB)}`,0)}
+      ${rateRow(ctx.S,'cz.bellRate','共通ベル（斜め揃い）','実戦値 設5:1/47.6・設6:1/45.4')}
+      ${rateRow(ctx.S,'cz.chanceBRate','強チャンス目B','設1:1/1057.0⇔設6:1/799.2')}
     </div>
+    <style>
+      .raterow input{flex:none;width:96px;font-family:var(--seg);font-size:18px;text-align:right;color:var(--gold);background:#0d0a12;border:1px solid var(--line);border-radius:8px;padding:7px 8px;min-height:38px}
+      .raterow .unit{flex:none;font-size:11px;font-weight:700;color:var(--muted);margin-left:2px}
+    </style>
     <div class="hint">CZを経由せずAT直撃した回数。AT天井到達と引き戻しによる当選は除きます。AT直撃はGGOモード詩乃の滞在中にのみ発生するとされています。設定1で約1/18000、設定6で約1/3400と5倍以上の差がありますが、1日ではほとんど発生しないため、引けた場合の材料として使ってください。</div>
+    <div class="hint">共通ベルと強チャンス目Bは、ダイトモ（大都技研の公式アプリ）の遊技履歴に表示される確率の数値をそのまま入力してください。小役はAT中も成立するため、アプリが集計した確率をそのまま使うのが正確です。</div>
   </section>`;
   }
   function pageYuugu(ctx){
@@ -177,7 +208,10 @@
     t+='\n■AT開始時のステージ\n';
     const stN=sum(S.stage);
     START_STAGE.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.stage[c[0]],stN)}\n`;});
-    t+=`\n■優遇項目\nAT直撃▶︎ ${rateCount(S.games,S.cz.atDirect)}\n確定CZ▶︎ ${S.cz.end}回\n曠野の決闘▶︎ ${S.cz.duel}回\nCZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}\nSC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回\nAT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}\n共通ベル▶︎ ${rate(S.games,S.cz.bell)}（${S.cz.bell}回）\n強チャンス目B▶︎ ${rate(S.games,S.cz.chanceB)}（${S.cz.chanceB}回）\n`;
+    t+=`\n■優遇項目\nAT直撃▶︎ ${rateCount(S.games,S.cz.atDirect)}\n確定CZ▶︎ ${S.cz.end}回\n曠野の決闘▶︎ ${S.cz.duel}回\nCZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}\nSC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回\nAT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}\n`;
+    // ダイトモ入力の2項目は未入力なら行ごと省略する
+    if(appRate(S,'bellRate')>0)t+=`共通ベル▶︎ ${appRateText(S,'bellRate')}\n`;
+    if(appRate(S,'chanceBRate')>0)t+=`強チャンス目B▶︎ ${appRateText(S,'chanceBRate')}\n`;
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
@@ -202,8 +236,8 @@
     if(fail>0)yuugu.push(`CZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}`);
     if(S.atcz.deathgun>0)yuugu.push(`SC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回`);
     if(atEnd>0)yuugu.push(`AT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}`);
-    if(S.cz.bell>0)yuugu.push(`共通ベル▶︎ ${rate(S.games,S.cz.bell)}（${S.cz.bell}回）`);
-    if(S.cz.chanceB>0)yuugu.push(`強チャンス目B▶︎ ${rate(S.games,S.cz.chanceB)}（${S.cz.chanceB}回）`);
+    if(appRate(S,'bellRate')>0)yuugu.push(`共通ベル▶︎ ${appRateText(S,'bellRate')}`);
+    if(appRate(S,'chanceBRate')>0)yuugu.push(`強チャンス目B▶︎ ${appRateText(S,'chanceBRate')}`);
     t+=sec('優遇項目',yuugu);
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
@@ -215,6 +249,17 @@
     defaults:DEF,
     mergeKeys:['zones','cz','atcz','screens','ed','icons','coins','stage'],
     sourceUrl:'https://chonborista.com/slot/daito-slot/256112/',
+    normalizeState:(out)=>{
+      out.cz=Object.assign({},DEF.cz,out.cz||{});
+      // ダイトモ入力は確率の分母。空欄・非数・0以下は 0（＝未入力）に倒す。
+      ['bellRate','chanceBRate'].forEach(k=>{
+        const v=Number(String(out.cz[k]??'').trim());
+        out.cz[k]=Number.isFinite(v)&&v>0?v:0;
+      });
+      // 旧方式の回数は state に残すだけ（表示・カード・テンプレからは除外済み）。
+      ['cz','atDirect','end','duel','bell','chanceB'].forEach(k=>{out.cz[k]=Math.max(0,Number(out.cz[k])||0);});
+      return out;
+    },
     share:{
       title:'L SAO2 設定判別メモ',
       hashtags:'#SAO2 #設定判別'
@@ -288,7 +333,7 @@
               {text:`SC1・2戦デスガン ×${S.atcz.deathgun}`,value:S.atcz.deathgun},
               {text:`引き戻し ${ratio(S.atcz.return50,atEnd)}`,value:S.atcz.return50,active:atEnd>0&&S.atcz.return50>0},
               {text:shown('終了画面',[['幼',S.screens.childhood],['祭',S.screens.festival],['木',S.screens.sunlight]]),value:S.screens.childhood+S.screens.festival+S.screens.sunlight},
-              {text:`共通ベル ${rate(S.games,S.cz.bell)}`,value:S.cz.bell}
+              {text:`共通ベル ${appRateText(S,'bellRate')||'—'}`,value:appRate(S,'bellRate')>0?1:0}
             ]}
           ]
         };
