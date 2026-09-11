@@ -95,33 +95,6 @@
     iconChoice:null
   };
 
-  // ---- 数値入力欄の共通挙動 ----
-  // フォーカスで既存値を全選択し、そのまま上書き入力できるようにする（0を消す手間をなくす）。
-  // ・focus はバブルしないので capture で拾う。行は再描画のたびに作り直されるため、
-  //   個別バインドではなく document への委譲にする。
-  // ・フォーカス直後の mouseup（モバイルの合成 mouseup 含む）は既定でキャレットを置き、
-  //   選択を解除してしまうので、その1回だけ抑止する。2回目以降のタップでは通常どおり
-  //   キャレットを動かせる。
-  // ・iOS では focus の直後に選択が畳まれることがあるため、同一タスクの直後にもう一度掛け直す。
-  if(typeof document!=='undefined'){
-    const isNumInput=t=>!!(t&&t.tagName==='INPUT'&&t.type==='number'&&t.closest&&t.closest('#main'));
-    const selectAll=t=>{try{t.select();}catch(e){}};
-    document.addEventListener('focus',ev=>{
-      const t=ev.target;
-      if(!isNumInput(t))return;
-      t.dataset.selOnFocus='1';
-      selectAll(t);
-      setTimeout(()=>{if(document.activeElement===t&&t.dataset.selOnFocus)selectAll(t);},0);
-    },true);
-    document.addEventListener('mouseup',ev=>{
-      const t=ev.target;
-      if(!isNumInput(t)||!t.dataset.selOnFocus)return;
-      delete t.dataset.selOnFocus;
-      ev.preventDefault();
-      selectAll(t);
-    },true);
-  }
-
   function sum(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
   function n(obj,key){return Number((obj||{})[key])||0;}
   function num(v){return Math.max(0,Number(v)||0);}

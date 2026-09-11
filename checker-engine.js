@@ -869,7 +869,41 @@
         b.classList.toggle('on',mode<0);
       }
     }
+    // ---- 数値入力欄の共通挙動（全機種共通）----
+    // フォーカスで既存値を全選択し、そのまま上書き入力できるようにする（0を消す手間をなくす）。
+    // ・focus はバブルしないので capture で拾う。行は再描画のたびに作り直されるため、
+    //   個別バインドではなく document への委譲にする。
+    // ・フォーカス直後の mouseup（モバイルの合成 mouseup 含む）は既定でキャレットを置き、
+    //   選択を解除してしまうので、その1回だけ抑止する。2回目以降のタップでは通常どおり
+    //   キャレットを動かせる。
+    // ・iOS では focus の直後に選択が畳まれることがあるため、同一タスクの直後にもう一度掛け直す。
+    let selectAllBound=false;
+    function isNumInput(t){
+      if(!t||t.tagName!=='INPUT')return false;
+      if(t.type!=='number'&&(!t.getAttribute||t.getAttribute('inputmode')!=='numeric'))return false;
+      return !!(t.closest&&t.closest('#main'));
+    }
+    function selectAllText(t){try{t.select();}catch(e){}}
+    function bindSelectAllOnFocus(){
+      if(selectAllBound)return;
+      selectAllBound=true;
+      document.addEventListener('focus',ev=>{
+        const t=ev.target;
+        if(!isNumInput(t))return;
+        t.dataset.selOnFocus='1';
+        selectAllText(t);
+        setTimeout(()=>{if(document.activeElement===t&&t.dataset.selOnFocus)selectAllText(t);},0);
+      },true);
+      document.addEventListener('mouseup',ev=>{
+        const t=ev.target;
+        if(!isNumInput(t)||!t.dataset.selOnFocus)return;
+        delete t.dataset.selOnFocus;
+        ev.preventDefault();
+        selectAllText(t);
+      },true);
+    }
     function mount(){
+      bindSelectAllOnFocus();
       const modeBtn=document.getElementById('modeBtn');
       if(modeBtn)modeBtn.onclick=()=>{
         setMode(mode*-1);
