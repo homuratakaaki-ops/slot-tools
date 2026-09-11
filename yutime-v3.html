@@ -2390,6 +2390,7 @@
     // S24/§B-2: 大当たり登録の画面内の状態（この後の選択・手で直した起点の持ち玉）。
     // R種別を押すたびに画面を開き直すので、開き直しで消えないようここに残す。保存はしない。
     let hitResetDraft = null;
+    let pendingHitAt = null; // S25/§1: タップ時刻はセッションを添えて初回R登録まで保持する。
     // S24/§B-6: 打ち始めの「打ち方」の初期選択。前回打ち始めたときの選択を覚えておく。
     let startPlayStyle = normalizePlayStyle(localStorage.getItem(PLAY_STYLE_PREF_KEY) || "yutime");
     // S5/§0: 閉じる前に確認が必要なモーダルはここに関門を置く。false を返すと閉じない。
@@ -7200,6 +7201,7 @@
     function openHitWizard(sessionId) {
       const session = findSession(sessionId);
       if (!session) return;
+      pendingHitAt = { sessionId: session.id, at: nowIso() };
       const currentBalances = deriveBalances(session);
       const mochidamaPreset = currentBalances.mochidama;
       const hitRemainHint = () => mochidamaPreset !== null
@@ -7224,6 +7226,8 @@
           <button class="primary" id="saveHitWizardBtn">完了</button>
         </div>
       `);
+      // S25/§3: 閉じる・×・背景クリックは同じ取消経路で保持時刻を捨てる。
+      modalCancel = () => { pendingHitAt = null; };
       byId("saveHitWizardBtn").addEventListener("click", () => {
         session.hitSpin = normalizeNumber(byId("hitWizardSpin")?.value);
         session.hitRemainBalls = normalizeNumber(byId("hitWizardRemainBalls")?.value);
@@ -7232,6 +7236,7 @@
         closeSegmentOnHit(session);
         session.updatedAt = nowIso();
         if (!persistWithToast("当選を記録しました")) return;
+        modalCancel = null; // S25/§3: 完了後の画面遷移ではタップ時刻を捨てない。
         renderAll();
         openHitResetPrompt(session);
       });
@@ -7311,8 +7316,8 @@
       target.endRemainBalls = normalizeNumber(session.hitRemainBalls);
       target.endTrackedBalls = normalizeNumber(session.hitTrackedBalls);
       target.endSource = "hit";
-      // S23/§1: 当選ウィザードを完了した瞬間。R種別の登録（hits[].at）より前なのでここで取る
-      target.endAt = nowIso();
+      // S25/§4: R未入力でも終点を失わないよう、同じタップ時刻を暫定保存する。
+      target.endAt = segmentHitAt(session, target.id) || (pendingHitAt?.sessionId === session.id ? pendingHitAt.at : null);
       return target;
     }
 
@@ -7496,6 +7501,7 @@
           <button id="openHitHistoryBtn">大当たり履歴</button>
         </div>
       `);
+      modalCancel = () => { pendingHitAt = null; }; // S25/§3: R未入力で閉じても次の連チャンへ持ち越さない。
       // S24/§A-2-2: 手で直した起点の持ち玉は、R種別のタップで開き直しても消さない。
       const startBallsInput = byId("jitanExitStartBalls");
       if (startBallsInput) startBallsInput.addEventListener("input", () => {
@@ -7748,13 +7754,18 @@
     function appendHitRecord(session, roundTypeId) {
       if (!Array.isArray(session.hits)) session.hits = [];
       const actualBallsResult = actualBallsFromCumulativeInput(session, byId("hitRecordActualBalls")?.value);
-      session.hits.push({
+      const hit = {
         roundTypeId,
         hitSpin: hitCounterSpinForRecord(session),
         actualBalls: actualBallsResult.actualBalls,
         segmentId: hitRecordSegmentId(session),
-        at: nowIso()
-      });
+        at: pendingHitAt?.sessionId === session.id ? pendingHitAt.at : nowIso()
+      };
+      session.hits.push(hit);
+      pendingHitAt = null; // S25/§2: 初回だけ消費し、連チャン2件目以降はRタップ時刻を使う。
+      const segment = sessionSegments(session).find((item) => item.id === hit.segmentId);
+      // S25/§4: R登録後の終点は当選記録を唯一の出典にする。
+      if (segment?.endSource === "hit") segment.endAt = segmentHitAt(session, segment.id);
       syncSessionHitTotals(session);
       session.updatedAt = nowIso();
       const saved = persistWithToast("当選を1件追加しました");
@@ -7781,7 +7792,11 @@
         showToast("取り消せるR種別がありません", "error");
         return false;
       }
+      const hit = session.hits[index];
+      const segmentId = storedHitSegmentId(session, hit);
       session.hits.splice(index, 1);
+      // S25/§6: 区間の初回を取り消したら、再登録でも終点がずれないよう元の当選時刻を戻す。
+      if (segmentHitAt(session, segmentId) === null) pendingHitAt = { sessionId: session.id, at: hit.at };
       applyHitTotals(session);
       session.updatedAt = nowIso();
       if (!persistWithToast("直前のR種別を取り消しました")) return false;
@@ -8080,7 +8095,8 @@
         // S23/§1: 当選時刻の修正。セッションの日付で日を補う。空欄・不正値は元の値のまま残す。
         // その当選で閉じた区間の終端が同じ時刻を指していたときは、区間側も一緒に直す。
         const editedHitAt = isoFromDateAndTime(session.date, byId("editHitAt").value);
-        if (editedHitAt) {
+        // S25/§5: 時刻欄を変えていない修正では、元の秒未満もそのまま保持する。
+        if (editedHitAt && byId("editHitAt").value !== localTimeText(target.at, true)) {
           const previousAt = target.at;
           target.at = editedHitAt;
           const closed = sessionSegments(session).find((segment) => segment.id === storedHitSegmentId(session, target));

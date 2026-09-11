@@ -203,6 +203,8 @@ const hitWizardContext = vm.createContext({
   }
 });
 new vm.Script(`
+  let pendingHitAt = null;
+  Object.defineProperty(globalThis, "pendingHitAt", { get: () => pendingHitAt, set: (value) => { pendingHitAt = value; } });
   ${hitWizard}
   openHitWizard('s_hit_wizard');
   globalThis.openedTitle = globalThis.__modalTitle;
@@ -630,10 +632,12 @@ const appendHitRecordContext = vm.createContext({
   }
 });
 new vm.Script(`
+  let pendingHitAt = null;
+  Object.defineProperty(globalThis, "pendingHitAt", { get: () => pendingHitAt, set: (value) => { pendingHitAt = value; } });
   ${normalizeHitsBlock}
   ${holdCarryBlock}
   ${hitResetPrompt}
-  globalThis.session = { hits: [], hitSpin: 75, segments: [{ id: 'seg1' }] };
+  globalThis.session = { id: 's_append', hits: [], hitSpin: 75, segments: [{ id: 'seg1' }] };
   globalThis.add = (value) => {
     __inputs.hitRecordActualBalls = value;
     appendHitRecord(session, 'r10');
@@ -644,11 +648,16 @@ new vm.Script(`
     session.segments.push({ id });
   };
 `).runInContext(appendHitRecordContext);
+// S25/§2: 初回だけ保持したタップ時刻を消費し、2件目はRタップ時刻になる。
+appendHitRecordContext.pendingHitAt = { sessionId: 's_append', at: '2026-08-21T23:58:55.123Z' };
 assert.equal(appendHitRecordContext.add('1380'), 1380);
+assert.equal(appendHitRecordContext.session.hits.at(-1).at, '2026-08-21T23:58:55.123Z');
+assert.equal(appendHitRecordContext.pendingHitAt, null);
 // S4/C-2: 当選カウンターは当選ウィザードの記録値。S4/B-1: 当選は区間に紐づける
 assert.equal(appendHitRecordContext.session.hits.at(-1).hitSpin, 75);
 assert.equal(appendHitRecordContext.session.hits.at(-1).segmentId, 'seg1');
 assert.equal(appendHitRecordContext.add('2800'), 1420);
+assert.equal(appendHitRecordContext.session.hits.at(-1).at, '2026-08-22T00:00:00.000Z');
 assert.equal(appendHitRecordContext.add('4000'), 1200);
 assert.equal(appendHitRecordContext.session.hits.reduce((sum, hit) => sum + (hit.actualBalls || 0), 0), 4000);
 // 同じ連チャン内で下回る入力は従来どおり警告・今回分0
@@ -658,6 +667,42 @@ assert.deepEqual(appendHitRecordContext.__toasts.at(-1), {
   message: '入力値が前回までの累計を下回っています。カウンターの累計を入力してください',
   type: 'error'
 });
+
+// S25/§6: 初回Rの取消・再登録でも、当選時刻と区間終点を元のタップ時刻に保つ。
+new vm.Script(`
+  ${section('function segmentHitAt', 'function chainClearMsById')}
+  function isIsoTimestamp(value) { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
+  function renderAll() {}
+  globalThis.session = { id: 's_undo', hits: [], hitSpin: 75,
+    segments: [{ id: 'seg_undo', endSource: 'hit', endAt: '2026-09-11T00:10:00.123Z' }] };
+  globalThis.undo = () => undoLastHitRecord(session);
+`).runInContext(appendHitRecordContext);
+const s25TapAt = '2026-09-11T00:10:00.123Z';
+appendHitRecordContext.nowIso = () => '2026-09-11T00:11:05.000Z';
+appendHitRecordContext.pendingHitAt = { sessionId: 's_undo', at: s25TapAt };
+appendHitRecordContext.add('1380');
+assert.equal(appendHitRecordContext.session.hits[0].at, s25TapAt);
+assert.equal(appendHitRecordContext.pendingHitAt, null);
+assert.equal(appendHitRecordContext.session.segments[0].endAt, s25TapAt);
+assert.equal(appendHitRecordContext.undo(), true);
+assert.equal(appendHitRecordContext.session.hits.length, 0);
+assert.equal(appendHitRecordContext.pendingHitAt.sessionId, 's_undo');
+assert.equal(appendHitRecordContext.pendingHitAt.at, s25TapAt);
+assert.equal(appendHitRecordContext.session.segments[0].endAt, s25TapAt);
+appendHitRecordContext.nowIso = () => '2026-09-11T00:11:35.000Z';
+appendHitRecordContext.add('1380');
+assert.equal(appendHitRecordContext.session.hits[0].at, s25TapAt);
+assert.equal(appendHitRecordContext.pendingHitAt, null);
+assert.equal(appendHitRecordContext.session.segments[0].endAt, s25TapAt);
+appendHitRecordContext.nowIso = () => '2026-09-11T00:12:00.000Z';
+appendHitRecordContext.add('2800');
+assert.equal(appendHitRecordContext.session.hits[1].at, '2026-09-11T00:12:00.000Z');
+assert.equal(appendHitRecordContext.session.segments[0].endAt, s25TapAt);
+assert.equal(appendHitRecordContext.undo(), true);
+assert.equal(appendHitRecordContext.session.hits.length, 1);
+assert.equal(appendHitRecordContext.pendingHitAt, null);
+assert.equal(appendHitRecordContext.session.hits[0].at, s25TapAt);
+assert.equal(appendHitRecordContext.session.segments[0].endAt, s25TapAt);
 
 // S8/§2: 連チャンが変われば累計は0から積み直す。前の連チャンの合計とは比べない
 const chainInputContext = vm.createContext({
@@ -688,10 +733,12 @@ const chainInputContext = vm.createContext({
   }
 });
 new vm.Script(`
+  let pendingHitAt = null;
+  Object.defineProperty(globalThis, "pendingHitAt", { get: () => pendingHitAt, set: (value) => { pendingHitAt = value; } });
   ${normalizeHitsBlock}
   ${holdCarryBlock}
   ${hitResetPrompt}
-  globalThis.session = { hits: [], hitSpin: 75, segments: [{ id: 'chain1' }] };
+  globalThis.session = { id: 's_chain', hits: [], hitSpin: 75, segments: [{ id: 'chain1' }] };
   globalThis.add = (value, roundTypeId) => {
     __inputs.hitRecordActualBalls = value;
     appendHitRecord(session, roundTypeId);
@@ -6497,8 +6544,10 @@ assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \
 
 // --- §1: 時刻はボタンを押した瞬間を自動で取る。手入力欄は増やさない ----------
 assert.match(html, /const SCHEMA_VERSION = 38;/);
-// 当選ウィザード完了・時短抜け・遊タイム突入・ヤメで区間の端点がISOで埋まる
-assert.match(html, /target\.endSource = "hit";\s*\n\s*\/\/[^\n]*\n\s*target\.endAt = nowIso\(\);/);
+// S25/§4: 当選の端点はhitsを優先し、R未入力時だけ保持したタップ時刻から埋める。
+const closeSegmentOnHitBlock = section('function closeSegmentOnHit', 'function startYutimeSegment');
+assert.match(closeSegmentOnHitBlock, /target\.endAt = segmentHitAt\(session, target\.id\) \|\| \(pendingHitAt\?\.sessionId === session\.id \? pendingHitAt\.at : null\);/);
+assert.doesNotMatch(closeSegmentOnHitBlock, /nowIso\(/);
 assert.match(html, /\/\/ S23\/§1: 時短抜けを選んだ瞬間。当たりの消化時間の終端になるので秒まで残す\n\s*startAt: nowIso\(\),/);
 assert.match(html, /function startYutimeSegment\(session, enterAt = nowIso\(\)\)/);
 assert.match(html, /open\.endAt = enterAt;/);
@@ -6509,6 +6558,57 @@ const openHitEditFormBlock = section('function openHitEditForm', 'function openE
 assert.match(openHitEditFormBlock, /<label for="editHitAt">当選時刻（HH:MM:SS）<\/label>/);
 assert.match(openHitEditFormBlock, /<input id="editHitAt" type="time" step="1"/);
 assert.match(openHitEditFormBlock, /const editedHitAt = isoFromDateAndTime\(session\.date, byId\("editHitAt"\)\.value\);/);
+// S25/§5: 保存ハンドラで回転数・Rだけを直しても、元のatをミリ秒まで保持する。
+const s25EditContext = vm.createContext({
+  data: { machines: [{ id: 'm_s25' }] },
+  __nodes: {},
+  __handlers: {},
+  normalizeMachinePresetId: () => 'agnes-pe',
+  presetById: () => ({ roundTypes: [{ id: 'r10', label: '10R' }, { id: 'r6', label: '6R' }] }),
+  normalizeNumber: appendHitRecordContext.normalizeNumber,
+  chainActualBallsBefore: () => 0,
+  chainSegmentIdForHit: () => 'seg_s25',
+  machineContextLine: () => '',
+  escapeHtml: (value) => String(value ?? ''),
+  // 時刻変換はUTC固定。テスト対象は変換関数ではなく、未変更時に再代入しない保存経路。
+  localTimeText: (value) => value.slice(11, 19),
+  isoFromDateAndTime: (date, time) => new Date(`${date}T${time}Z`).toISOString(),
+  openModal() {},
+  byId(id) {
+    return s25EditContext.__nodes[id] ||= {
+      value: '',
+      addEventListener(event, handler) { s25EditContext.__handlers[`${id}:${event}`] = handler; }
+    };
+  },
+  actualBallsFromCumulativeInput: () => ({ actualBalls: null }),
+  sessionSegments: (session) => session.segments,
+  storedHitSegmentId: (session, hit) => hit.segmentId,
+  applyHitTotals() {},
+  nowIso: () => '2026-09-11T00:20:00.000Z',
+  persistWithToast: () => true,
+  renderAll() {},
+  openHitHistory() {}
+});
+new vm.Script(openHitEditFormBlock).runInContext(s25EditContext);
+const s25EditSession = {
+  machineId: 'm_s25', date: '2026-09-11',
+  hits: [{ roundTypeId: 'r10', hitSpin: 159, actualBalls: null, segmentId: 'seg_s25', at: '2026-09-11T00:10:00.123Z' }],
+  segments: [{ id: 'seg_s25', endSource: 'hit', endAt: '2026-09-11T00:10:00.123Z' }]
+};
+s25EditContext.openHitEditForm(s25EditSession, 0);
+s25EditContext.byId('editHitRoundType').value = 'r6';
+s25EditContext.byId('editHitSpin').value = '160';
+s25EditContext.byId('editHitAt').value = '00:10:00';
+s25EditContext.__handlers['saveHitEditBtn:click']();
+assert.equal(s25EditSession.hits[0].hitSpin, 160);
+assert.equal(s25EditSession.hits[0].roundTypeId, 'r6');
+assert.equal(s25EditSession.hits[0].at, '2026-09-11T00:10:00.123Z');
+assert.equal(s25EditSession.segments[0].endAt, '2026-09-11T00:10:00.123Z');
+// 明示的に時刻を直した場合は、当選と対応する区間終点の両方を更新できる。
+s25EditContext.byId('editHitAt').value = '00:09:59';
+s25EditContext.__handlers['saveHitEditBtn:click']();
+assert.equal(s25EditSession.hits[0].at, '2026-09-11T00:09:59.000Z');
+assert.equal(s25EditSession.segments[0].endAt, '2026-09-11T00:09:59.000Z');
 assert.match(segmentHoldEditor, /<input id="edit_segment_start_at_\$\{index\}" type="time" step="1"/);
 // 打ち始め区間・遊タイム区間の時刻は既存の HH:MM 欄が正本なので、区間側には欄を出さない
 assert.match(segmentHoldEditor, /index > 0 && segment\.kind === "normal"/);
