@@ -56,9 +56,19 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 }
 @supports not (height: 100dvh) { .shell { height: 100vh; } }
 
-.head { display: flex; align-items: baseline; gap: 10px; flex: none; }
+.head { display: flex; align-items: flex-start; gap: 10px; flex: none; }
+.head > a { padding-top: 2px; }
 .head a { font-size: 12px; text-decoration: none; color: var(--muted); white-space: nowrap; }
-.head h1 { font-size: 15px; margin: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.head h1 { font-size: 15px; margin: 0; font-weight: 700; min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.head .tool-name { font-size: 10px; font-weight: 400; color: var(--muted); line-height: 1.2; }
+.head .machine-name {
+  display: block; width: 100%; text-align: left;
+  background: none; border: none; border-radius: 0 6px 6px 0;
+  padding: 3px 8px; margin: 0; cursor: pointer;
+  font-family: inherit; font-size: 15px; font-weight: 700; line-height: 1.25;
+  color: var(--ink); white-space: normal; word-break: break-all;
+}
+.head .machine-name::after { content: " ▾"; font-size: 11px; color: var(--muted); }
 .head .head-guide { margin-left: auto; flex: none; }
 .machine-name {
   background: none; border: none; padding: 0; font: inherit; font-weight: 700;
@@ -177,6 +187,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .invest-row { display: grid; grid-template-columns: 1.15fr 1.15fr 1fr 1.1fr; gap: 6px; margin-bottom: 6px; }
 .calc-note { font-size: 10.5px; color: var(--muted); }
 .kp-step { font-size: 11px; color: var(--lamp); font-weight: 700; }
+.kp-step .kp-machine { color: var(--ink); }
 #cardCanvas { width: 100%; height: auto; border-radius: 12px; display: block; background: #000; margin-bottom: 8px; }
 .mylog-form { display: grid; gap: 8px; margin-bottom: 8px; }
 .mylog-form label { display: grid; gap: 3px; font-size: 11.5px; color: var(--muted); }
@@ -222,6 +233,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
   background: var(--card2); color: var(--ink); cursor: pointer;
 }
 .dep-grid button:active { filter: brightness(1.25); }
+.dep-grid button .in-use { font-size: 12px; color: var(--muted); font-weight: 400; }
 .invest-line .sum {
   flex: 1 1 100%; text-align: left; font-variant-numeric: tabular-nums;
   white-space: normal; overflow: visible; line-height: 1.5; margin-top: 2px;
@@ -360,7 +372,7 @@ select.rate {
 <div class="shell">
   <div class="head">
     <a href="./">← TOP</a>
-    <h1>実戦記録・設定推測 <span class="machine-name" id="machineName">読み込み中…</span></h1>
+    <h1><span class="tool-name">実戦記録・設定推測</span><button type="button" class="machine-name" id="machineName">読み込み中…</button></h1>
     <a class="head-guide" href="juggler-guide.html">使い方</a>
   </div>
 
@@ -391,7 +403,7 @@ select.rate {
 
     <div class="panel">
       <div class="now-line">
-        <div class="lbl">現在のデータG<small>データカウンターの総回転数</small></div>
+        <div class="lbl">現在のデータ<small>データカウンターの総回転数</small></div>
         <button type="button" class="numfield" id="f_cu_g" data-field="cu_g">0</button>
       </div>
     </div>
@@ -426,7 +438,7 @@ select.rate {
   <!-- ========== タブ2: 設定推測(閲覧・スクロール可) ========== -->
   <div id="paneEstimate" hidden>
     <section class="card" aria-labelledby="h-result">
-      <h2 id="h-result">判別結果<small>いまのデータから推定した設定ごとの確率</small></h2>
+      <h2 id="h-result">判別結果<small id="resultMachine">いまのデータから推定した設定ごとの確率</small></h2>
       <p class="result-empty neutral" id="resultEmpty">「現在のデータG」を入力すると、結果が表示されます。</p>
       <div id="resultBars" hidden></div>
       <div class="summary" id="summary" hidden>
@@ -665,16 +677,18 @@ select.rate {
 <script type="module">
 import { estimate } from "./js/estimator.js?v=20260827-2";
 
+// accent は実機パネルを連想させる色（背景の淡い着色と左のライン）
+// mark は機種名のうち色を付ける部分、markColor はその文字色
 const MACHINES = {
-  my_juggler_v: { path: "data/machines/my_juggler_v.json", name: "SマイジャグラーV" },
-  im_juggler_ex_6: { path: "data/machines/im_juggler_ex_6.json", name: "SアイムジャグラーEX" },
-  gogo_juggler_3: { path: "data/machines/gogo_juggler_3.json", name: "Sゴーゴージャグラー3" },
-  funky_juggler_2: { path: "data/machines/funky_juggler_2.json", name: "Sファンキージャグラー2" },
-  happy_juggler_v3: { path: "data/machines/happy_juggler_v3.json", name: "SハッピージャグラーVⅢ" },
-  neo_im_juggler_ex: { path: "data/machines/neo_im_juggler_ex.json", name: "SネオアイムジャグラーEX" },
-  ultra_miracle_juggler: { path: "data/machines/ultra_miracle_juggler.json", name: "Sウルトラミラクルジャグラー" },
-  juggler_girls_ss: { path: "data/machines/juggler_girls_ss.json", name: "SジャグラーガールズSS" },
-  mr_juggler: { path: "data/machines/mr_juggler.json", name: "Sミスタージャグラー" },
+  my_juggler_v: { path: "data/machines/my_juggler_v.json", name: "SマイジャグラーV", accent: "#FF5C8A", mark: "マイ", markColor: "#FF5C8A" },
+  im_juggler_ex_6: { path: "data/machines/im_juggler_ex_6.json", name: "SアイムジャグラーEX", accent: "#E5483C", mark: "アイム", markColor: "#FFD34E" },
+  gogo_juggler_3: { path: "data/machines/gogo_juggler_3.json", name: "Sゴーゴージャグラー3", accent: "#FF4FA3", mark: "ゴーゴー", markColor: "#FF4FA3" },
+  funky_juggler_2: { path: "data/machines/funky_juggler_2.json", name: "Sファンキージャグラー2", accent: "#9B7CFF", mark: "ファンキー", markColor: "#9B7CFF" },
+  happy_juggler_v3: { path: "data/machines/happy_juggler_v3.json", name: "SハッピージャグラーVⅢ", accent: "#54D67A", mark: "ハッピー", markColor: "#54D67A" },
+  neo_im_juggler_ex: { path: "data/machines/neo_im_juggler_ex.json", name: "SネオアイムジャグラーEX", accent: "#E5483C", mark: "ネオ", markColor: "#55D878" },
+  ultra_miracle_juggler: { path: "data/machines/ultra_miracle_juggler.json", name: "Sウルトラミラクルジャグラー", accent: "#C06CFF", mark: "ウルトラミラクル", markColor: "#C06CFF" },
+  juggler_girls_ss: { path: "data/machines/juggler_girls_ss.json", name: "SジャグラーガールズSS", accent: "#54D67A", mark: "ガールズSS", markColor: "#FF65A3" },
+  mr_juggler: { path: "data/machines/mr_juggler.json", name: "Sミスタージャグラー", accent: "#F1C84B", mark: "ミスター", markColor: "#F1C84B" },
 };
 const params = new URLSearchParams(location.search);
 const machineId = MACHINES[params.get("machine")] ? params.get("machine") : "my_juggler_v";
@@ -723,7 +737,8 @@ async function init() {
     $("machineName").textContent = "機種データの読み込みに失敗しました";
     return;
   }
-  $("machineName").textContent = machine.machine.name + " ▾";
+  applyMachineAccent();
+  $("resultMachine").innerHTML = `${machineNameHtml(MACHINES[machineId])} の解析値で計算しています`;
   document.title = `実戦記録・設定推測 ${machine.machine.name}｜スロット稼働ノート`;
   UI_BTNS = (machine.ui && machine.ui.count_buttons) || [];
   COUNT_IDS = [
@@ -815,8 +830,13 @@ function openKeypad(field, label, chained) {
   const i = KP_CHAIN.indexOf(field);
   const hasNext = i >= 0 && i < KP_CHAIN.length - 1;
   $("kpOk").textContent = hasNext ? "次へ" : "決定";
-  $("kpStep").textContent = i >= 0 ? `打ち始めの入力 ${i + 1}／${KP_CHAIN.length}` : "";
-  $("kpStep").hidden = i < 0;
+  if (i >= 0) {
+    $("kpStep").innerHTML = `打ち始めの入力 ${i + 1}／${KP_CHAIN.length}　<span class="kp-machine">${machineNameHtml(MACHINES[machineId])}</span>`;
+    $("kpStep").hidden = false;
+  } else {
+    $("kpStep").textContent = "";
+    $("kpStep").hidden = true;
+  }
   renderKeypad();
   $("keypadOverlay").classList.add("open");
 }
@@ -1062,10 +1082,17 @@ function bind() {
   for (const [id, mdef] of Object.entries(MACHINES)) {
     const b = document.createElement("button");
     b.type = "button";
-    b.textContent = mdef.name + (id === machineId ? "　✓ 使用中" : "");
+    b.innerHTML = machineNameHtml(mdef) + (id === machineId ? '<span class="in-use">　✓ 使用中</span>' : "");
+    if (mdef.accent) {
+      b.style.background = `${mdef.accent}1f`;
+      b.style.borderLeft = `4px solid ${mdef.accent}`;
+    }
     b.addEventListener("click", () => {
-      if (id !== machineId) location.href = location.pathname + "?machine=" + id;
-      else $("machineOverlay").classList.remove("open");
+      if (id === machineId) { $("machineOverlay").classList.remove("open"); return; }
+      const hasData = state.nowG > 0 || state.start.g > 0 ||
+        COUNT_IDS.some((cid) => (state.counts[cid] || 0) > 0) || state.invest.yen > 0;
+      if (hasData && !confirm(`${MACHINES[machineId].name} の記録が残っています。\n${MACHINES[id].name} に切り替えますか？\n\n（いまの記録は消えません。元の機種に戻せば残っています）`)) return;
+      location.href = location.pathname + "?machine=" + id;
     });
     list.appendChild(b);
   }
@@ -1304,6 +1331,27 @@ function bonusGroupIds() {
     }
   }
   return { big, reg };
+}
+
+function machineNameHtml(def) {
+  const name = def.name || "";
+  const mark = def.mark;
+  if (!mark || !name.includes(mark)) return escapeHtml(name);
+  const i = name.indexOf(mark);
+  return escapeHtml(name.slice(0, i))
+    + `<span style="color:${def.markColor || def.accent}">${escapeHtml(mark)}</span>`
+    + escapeHtml(name.slice(i + mark.length));
+}
+
+function applyMachineAccent() {
+  const def = MACHINES[machineId];
+  if (!def) return;
+  const el = $("machineName");
+  el.innerHTML = machineNameHtml(def);
+  if (def.accent) {
+    el.style.background = `${def.accent}1f`;
+    el.style.borderLeft = `3px solid ${def.accent}`;
+  }
 }
 
 function hasElement(id) {
