@@ -367,7 +367,10 @@
   <section class="sec" style="margin-top:14px">
     <div class="sec-h">テキスト出力（テンプレ形式）</div>
     <textarea id="tpl" readonly></textarea>
-    <div class="btnrow one" style="margin-top:8px"><button class="act plain" id="cpBtn">テキストをコピー</button></div>
+    <div class="btnrow" style="margin-top:8px">
+      <button class="act plain" id="cpBtn">テキストをコピー</button>
+      <button class="act plain" id="cpPlainBtn">収支帳用にコピー</button>
+    </div>
   </section>`;
     }
     function context(){
@@ -858,8 +861,45 @@
         try{await navigatorRef.clipboard.writeText(tplText());toast('コピーしました');}
         catch(e){document.getElementById('tpl').select();document.execCommand('copy');toast('コピーしました');}
       };
+      const cpPlainBtn=document.getElementById('cpPlainBtn');
+      if(cpPlainBtn)cpPlainBtn.onclick=async()=>{
+        const text=plainTplText();
+        try{await navigatorRef.clipboard.writeText(text);toast('収支帳用にコピーしました');}
+        catch(e){
+          // clipboard API が使えない端末向け。#tpl の中身は変換前なので選択できない。
+          // 一時的な textarea に変換後の文字列を入れて選択する。
+          const ta=document.createElement('textarea');
+          ta.value=text;
+          ta.setAttribute('readonly','');
+          ta.style.cssText='position:fixed;top:-1000px;left:0;opacity:0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+          toast('収支帳用にコピーしました');
+        }
+      };
     }
     function tplText(){return config.template(context());}
+
+    // 収支帳など、絵文字を受け付けない記録先へ貼るためのプレーン版。
+    // 落とすのは異体字セレクタと絵文字だけで、半角カナ・全角スペース・
+    // 記号（▶ ⚠ ↪ ↔ 等）はそのまま残す。
+    //
+    // 判定に \p{Extended_Pictographic} を使うと ▶(U+25B6) や ⚠(U+26A0) まで
+    // 消えてしまうため、既定で絵文字表示になる文字（Emoji_Presentation）と、
+    // 異体字セレクタ U+FE0F で絵文字表示を明示された文字（❤️ 等）に限る。
+    // U+FE0E はテキスト表示の指定なので、セレクタだけ落として本体を残す（▶︎→▶）。
+    const EMOJI_PRESENTED=/\p{Extended_Pictographic}\uFE0F/gu;
+    const EMOJI_DEFAULT=/[\p{Emoji_Presentation}\p{Emoji_Modifier}\u200D\u20E3]/gu;
+    const VARIATION_SELECTORS=/[\uFE0E\uFE0F]/g;
+    function plainText(s){
+      return String(s)
+        .replace(EMOJI_PRESENTED,'')
+        .replace(EMOJI_DEFAULT,'')
+        .replace(VARIATION_SELECTORS,'');
+    }
+    function plainTplText(){return plainText(tplText());}
     function setMode(nextMode){
       mode=nextMode;
       if(document.body)document.body.classList.toggle('minus',mode<0);
@@ -929,7 +969,8 @@
     function testSetMode(next){setMode(next);}
 
     return {
-      mount,normalizeState,shareText,tplText,drawCard,drawDetailCard,renderAll,bump,undo,reset,
+      mount,normalizeState,shareText,tplText,plainText,plainTplText,
+      drawCard,drawDetailCard,renderAll,bump,undo,reset,
       getState:testState,setState:testSetState,setMode:testSetMode,
       effectiveIconChoice,defaultIconChoice,nanaCreditText,
       _context:context,_detailRows:()=>detailRows(detailSections()),
