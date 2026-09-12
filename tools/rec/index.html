@@ -423,7 +423,7 @@ const MACHINES={
       }
     ],
     atExtras:[
-      {label:"フェザーランプ",title:"フェザーランプ（消化中・次回モード示唆）",groups:[{key:"color",label:"色",required:true,options:[{l:"白"},{l:"青"},{l:"黄"},{l:"緑"},{l:"赤"},{l:"紫"},{l:"虹",h:"次回天国濃厚（初当り時は対象外）",set:{tag:"次回天国濃厚",until:"nextHit"}}]}]},
+      {label:"フェザーランプ",title:"フェザーランプ（消化中・次回モード示唆）",once:true,groups:[{key:"color",label:"色",required:true,options:[{l:"白"},{l:"青"},{l:"黄"},{l:"緑"},{l:"赤"},{l:"紫"},{l:"虹",h:"次回天国濃厚（初当り時は対象外）",set:{tag:"次回天国濃厚",until:"nextHit",ifTag:"天国"}}]}]},
       {label:"1G連告知",title:"1G連告知の契機",groups:[{key:"by",label:"契機",required:true,options:[{l:"🍒チェリー",set:{tag:"1G連",until:"hitEnd"}},{l:"🍉スイカ",set:{tag:"1G連",until:"hitEnd"}},{l:"🔁リプ2連",set:{tag:"1G連",until:"hitEnd"}},{l:"不明",set:{tag:"1G連",until:"hitEnd"}}]}]}
     ],
     toggles:{hidden:{label:"隠しハイビスカス",tag:"超ハイビ",until:"stageEnd",log:"隠しハイビスカス 点灯"}},
@@ -544,6 +544,7 @@ function optRow(items,onPick,cls){
 function groupSheet(title,groups,onDone,opts){
   opts=opts||{};
   const sel={};
+  if(opts.initial)Object.assign(sel,opts.initial);
   // 選択肢が1グループだけで必須なら、選んだ瞬間に記録する（「記録する」を押させない）
   const instant=opts.instant!==false&&groups.length===1&&groups[0].required&&!opts.after&&!opts.before;
   const wraps=[];   // showWhen の再評価用
@@ -562,6 +563,7 @@ function groupSheet(title,groups,onDone,opts){
         const label=Array.isArray(o)?o[0]:(o&&o.l!=null?o.l:o), hint=Array.isArray(o)?o[1]:(o&&o.h!=null?o.h:null), setv=(o&&o.set)||null;
         const btn=mk("button",g.options.length>6?"q4":(g.options.length<=2?"q2":""),label);
         if(hint)btn.append(mk("small","",hint));
+        if(sel[g.key]===label){btn.classList.add("on");if(setv)sel["_set_"+g.key]=setv}
         if(o&&o.showWhen)wraps.push({showWhen:o.showWhen,els:[btn],key:null});
         btn.addEventListener("click",()=>{
           if(sel[g.key]===label){delete sel[g.key];delete sel["_set_"+g.key];btn.classList.remove("on");reeval();return}
@@ -680,7 +682,9 @@ function makeGridButton(spec){
   if(spec.startsWith("par:")){const p=d.parallel.find(x=>x.key===spec.slice(4));if(!p)return null;const on=!!c.parallel[p.key];
     if(c.pendingReward&&p.pending)return mkb("報酬待ち","par on",firePending);
     return mkb(on?p.label+" 結果":p.label,"par"+(on?" on":""),()=>on?parallelEnd(p):parallelStart(p))}
-  if(spec.startsWith("atx:")){const x=(d.atExtras||[])[+spec.slice(4)];if(!x)return null;return mkb(x.label,"",()=>openExtra(x))}
+  if(spec.startsWith("atx:")){const x=(d.atExtras||[])[+spec.slice(4)];if(!x)return null;
+    if(x.once&&c.hit){const cur=findExtraInHit(x.label);if(cur){const v=x.groups.map(g=>cur.sel&&cur.sel[g.key]).filter(Boolean).join("・");return mkb(x.label+(v?" "+v:""),"on",()=>openExtra(x))}}
+    return mkb(x.label,"",()=>openExtra(x))}
   if(spec.startsWith("phase:")){const hd=curHitDef();const k=spec.slice(6);const p=hd&&hd.phases&&hd.phases[k];if(!p)return null;const on=c.hit.phase===k;return mkb(on?p.label+"中":p.label,"par"+(on?" on":""),()=>{if(on)return;mark();c.hit.phase=k;push("phase",p.label+" 突入",{phase:k});toast(p.label)})}
   if(spec==="ticket"){const t=hitProp(curHitDef(),"ticket");if(!t)return null;return mkb(t.label+(c.ticket?" あり":""),c.ticket?"par on":"",()=>{mark();c.ticket=!c.ticket;push("ticket",t.label+(c.ticket?" 獲得（手動）":" 取消（手動）"));toast(t.label+(c.ticket?" あり":" なし"))})}
   if(spec.startsWith("sub:")){const label=spec.slice(4);const t=hitDef(label);if(!t||!c.hit)return null;return mkb(label,"hot",()=>{
@@ -928,6 +932,7 @@ function applyHints(sel){
   if(!sel)return "";
   Object.keys(sel).filter(k=>k.startsWith("_set_")).forEach(k=>{
     const v=sel[k];if(!v)return;
+    if(v.ifTag&&!(c.tags&&c.tags[v.ifTag])){msg.push("（"+v.ifTag+"中ではないので示唆なし）");return}   // 条件付きの示唆
     if(v.melonLeft!=null){c.melonLeft=v.melonLeft;c.melonApprox=!!v.approx;msg.push("🍉残り"+v.melonLeft+(v.approx?"以下":""))}
     if(v.reward){c.rewardHint=v.reward;msg.push("次回 "+v.reward)}
     if(v.mode){c.modeHints=c.modeHints||[];c.modeHints.push({text:v.mode,era:c.modeEra||0,span:v.span||1,at:nowISO()});msg.push(v.mode+(v.span>1?"（"+v.span+"回）":""))}
@@ -1184,8 +1189,32 @@ function openMelonLeft(after){
     b.append(mk("div","hint","🍉を引くごとに1つ減ります。運命盤で消えます。"));
   });
 }
+// 今の当選中に記録した extra（label 一致）の最初の1件
+function findExtraInHit(label){
+  const c=S.cur;let found=null;
+  for(let i=c.events.length-1;i>=0;i--){const ev=c.events[i];if(ev.type==="extra"&&ev.extra===label)found=ev;if(ev.type==="hitStart")break}
+  return found;
+}
 function openExtra(x){
   if(x.type==="melonLeft"){openMelonLeft();return}
+  if(x.once&&S.cur.hit){
+    const cur=findExtraInHit(x.label);
+    if(cur){
+      const init={};x.groups.forEach(g=>{if(cur.sel&&cur.sel[g.key])init[g.key]=cur.sel[g.key]});
+      groupSheet(x.title||x.label,x.groups,sel=>{
+        const t=selText(x.groups,sel);if(!t){toast("何も選ばれていません");return}
+        const same=x.groups.every(g=>(sel[g.key]||null)===(cur.sel&&cur.sel[g.key]||null));
+        if(same){closeSheet();toast("同じ内容です");return}
+        mark();
+        // 前の示唆を外してから新しい示唆を付ける
+        Object.keys(cur.sel||{}).filter(k=>k.startsWith("_set_")).forEach(k=>{const v=cur.sel[k];if(v&&v.tag&&S.cur.tags)delete S.cur.tags[v.tag]});
+        const hint=applyHints(sel);
+        cur.sel=Object.assign({},sel);cur.text=x.label+"："+t+(hint?"　→ "+hint:"")+"（修正）";cur.edited=true;
+        save();render();closeSheet();toast(x.label+"を直しました");
+      },{initial:init,goLabel:"この内容に直す",before:(b)=>{b.append(mk("div","hint","この当選中は1回だけ記録します。今の記録：「"+cur.text+"」"))}});
+      return;
+    }
+  }
   if(x.type==="fixAtStart"){
     const c=S.cur;
     // 今のAT開始以降で最初の atStart を探す
