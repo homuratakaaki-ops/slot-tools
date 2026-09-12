@@ -423,7 +423,7 @@ const MACHINES={
       }
     ],
     atExtras:[
-      {label:"フェザーランプ",title:"フェザーランプ（消化中・次回モード示唆）",once:true,groups:[{key:"color",label:"色",required:true,options:[{l:"白"},{l:"青"},{l:"黄"},{l:"緑"},{l:"赤"},{l:"紫"},{l:"虹",h:"次回天国濃厚（初当り時は対象外）",set:{tag:"次回天国濃厚",until:"nextHit",ifTag:"天国"}}]}]},
+      {label:"フェザーランプ",short:"フェザー",title:"フェザーランプ（消化中・次回モード示唆）",once:true,groups:[{key:"color",label:"色",required:true,options:[{l:"白"},{l:"青"},{l:"黄"},{l:"緑"},{l:"赤"},{l:"紫"},{l:"虹",h:"次回天国濃厚（初当り時は対象外）",set:{tag:"次回天国濃厚",until:"nextHit",ifTag:"天国"}}]}]},
       {label:"1G連告知",title:"1G連告知の契機",groups:[{key:"by",label:"契機",required:true,options:[{l:"🍒チェリー",set:{tag:"1G連",until:"hitEnd"}},{l:"🍉スイカ",set:{tag:"1G連",until:"hitEnd"}},{l:"🔁リプ2連",set:{tag:"1G連",until:"hitEnd"}},{l:"不明",set:{tag:"1G連",until:"hitEnd"}}]}]}
     ],
     toggles:{hidden:{label:"隠しハイビスカス",tag:"超ハイビ",until:"stageEnd",log:"隠しハイビスカス 点灯"}},
@@ -546,7 +546,7 @@ function groupSheet(title,groups,onDone,opts){
   const sel={};
   if(opts.initial)Object.assign(sel,opts.initial);
   // 選択肢が1グループだけで必須なら、選んだ瞬間に記録する（「記録する」を押させない）
-  const instant=opts.instant!==false&&groups.length===1&&groups[0].required&&!opts.after&&!opts.before;
+  const instant=opts.instant===true||(opts.instant!==false&&groups.length===1&&groups[0].required&&!opts.after&&!opts.before);
   const wraps=[];   // showWhen の再評価用
   const reeval=()=>{wraps.forEach(x=>{const sw=x.showWhen;if(!sw)return;const ok=sw.in.includes(sel[sw.key]);x.els.forEach(e=>e.classList.toggle("hide",!ok));if(!ok&&x.key){delete sel[x.key];delete sel["_set_"+x.key]}})};
   sheet(title,b=>{
@@ -566,6 +566,7 @@ function groupSheet(title,groups,onDone,opts){
         if(sel[g.key]===label){btn.classList.add("on");if(setv)sel["_set_"+g.key]=setv}
         if(o&&o.showWhen)wraps.push({showWhen:o.showWhen,els:[btn],key:null});
         btn.addEventListener("click",()=>{
+          if(sel[g.key]===label&&instant){onDone(sel);return}
           if(sel[g.key]===label){delete sel[g.key];delete sel["_set_"+g.key];btn.classList.remove("on");reeval();return}
           sel[g.key]=label;if(setv)sel["_set_"+g.key]=setv;else delete sel["_set_"+g.key];
           w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));
@@ -683,7 +684,7 @@ function makeGridButton(spec){
     if(c.pendingReward&&p.pending)return mkb("報酬待ち","par on",firePending);
     return mkb(on?p.label+" 結果":p.label,"par"+(on?" on":""),()=>on?parallelEnd(p):parallelStart(p))}
   if(spec.startsWith("atx:")){const x=(d.atExtras||[])[+spec.slice(4)];if(!x)return null;
-    if(x.once&&c.hit){const cur=findExtraInHit(x.label);if(cur){const v=x.groups.map(g=>cur.sel&&cur.sel[g.key]).filter(Boolean).join("・");return mkb(x.label+(v?" "+v:""),"on",()=>openExtra(x))}}
+    if(x.once&&c.hit){const cur=findExtraInHit(x.label);if(cur){const v=x.groups.map(g=>cur.sel&&cur.sel[g.key]).filter(Boolean).join("・");return mkb((x.short||x.label)+(v?" "+v:""),"on",()=>openExtra(x))}}
     return mkb(x.label,"",()=>openExtra(x))}
   if(spec.startsWith("phase:")){const hd=curHitDef();const k=spec.slice(6);const p=hd&&hd.phases&&hd.phases[k];if(!p)return null;const on=c.hit.phase===k;return mkb(on?p.label+"中":p.label,"par"+(on?" on":""),()=>{if(on)return;mark();c.hit.phase=k;push("phase",p.label+" 突入",{phase:k});toast(p.label)})}
   if(spec==="ticket"){const t=hitProp(curHitDef(),"ticket");if(!t)return null;return mkb(t.label+(c.ticket?" あり":""),c.ticket?"par on":"",()=>{mark();c.ticket=!c.ticket;push("ticket",t.label+(c.ticket?" 獲得（手動）":" 取消（手動）"));toast(t.label+(c.ticket?" あり":" なし"))})}
@@ -1211,7 +1212,7 @@ function openExtra(x){
         const hint=applyHints(sel);
         cur.sel=Object.assign({},sel);cur.text=x.label+"："+t+(hint?"　→ "+hint:"")+"（修正）";cur.edited=true;
         save();render();closeSheet();toast(x.label+"を直しました");
-      },{initial:init,goLabel:"この内容に直す",before:(b)=>{b.append(mk("div","hint","この当選中は1回だけ記録します。今の記録：「"+cur.text+"」"))}});
+      },{initial:init,instant:x.groups.length===1&&!!x.groups[0].required,goLabel:"この内容に直す",before:(b)=>{b.append(mk("div","hint","この当選中は1回だけ記録します。今の記録：「"+cur.text+"」"))}});
       return;
     }
   }
