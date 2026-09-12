@@ -893,11 +893,18 @@
     const EMOJI_PRESENTED=/\p{Extended_Pictographic}\uFE0F/gu;
     const EMOJI_DEFAULT=/[\p{Emoji_Presentation}\p{Emoji_Modifier}\u200D\u20E3]/gu;
     const VARIATION_SELECTORS=/[\uFE0E\uFE0F]/g;
+    // 絵文字を落としたあとに残る記号のうち、登録先で化けるものを置き換える。
+    // U+25B6(▶) … 実機確認で登録先が &#9654; に変換して化けた。U+2192(→) は正常表示。
+    // U+301C(波ダッシュ) / U+FF5E(全角チルダ) … 登録先の注意書きに登録不可とあるため予防的に半角へ。
+    const ARROW=/\u25B6/g;
+    const WAVE=/[\u301C\uFF5E]/g;
     function plainText(s){
       return String(s)
         .replace(EMOJI_PRESENTED,'')
         .replace(EMOJI_DEFAULT,'')
-        .replace(VARIATION_SELECTORS,'');
+        .replace(VARIATION_SELECTORS,'')
+        .replace(ARROW,'\u2192')
+        .replace(WAVE,'~');
     }
     function plainTplText(){return plainText(tplText());}
     function setMode(nextMode){
