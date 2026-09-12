@@ -41,14 +41,16 @@
   ];
   // [id, UI表示名, サブラベル, rank, カード略号, テンプレ表記]
   // テンプレ表記の全角スペースは、なな様テンプレの ▶︎ 位置を揃えるための原文どおりの詰め物。
+  // 私服の「矛盾で設定4以上確定」は、RUSH中のキャラを記録していないため
+  // 確定演出としては集計できない。rank は 0 に置き、注記をサブラベルに持たせる。
   const AT_END=[
-    ['def','デフォルト（2パターン）','示唆調査中',0,'デ','デフォ(2ﾊﾟﾀｰﾝ)'],
-    ['takina','たきな私服','示唆調査中',0,'た','たきな私服　　'],
-    ['chisato','千束私服','示唆調査中',0,'千','千束私服　　　'],
-    ['dress','ドレスコード','示唆調査中',0,'ド','ドレスコード　'],
-    ['kitaoshiage','北押上の風景','示唆調査中',0,'北','北押上の風景　'],
-    ['robota','ロボ太','示唆調査中',0,'ロ','ロボ太　　　　'],
-    ['hawaii','ハワイ','示唆調査中',0,'ハ','ハワイ🌺　　　']
+    ['def','デフォルト（2パターン）','デフォルト',0,'デ','デフォ(2ﾊﾟﾀｰﾝ)'],
+    ['takina','たきな私服','高設定示唆(弱)・RUSH中のキャラと矛盾で設定4以上確定',0,'た','たきな私服　　'],
+    ['chisato','千束私服','高設定示唆(弱)・RUSH中のキャラと矛盾で設定4以上確定',0,'千','千束私服　　　'],
+    ['dress','ドレスコード','高設定示唆(強)',0,'ド','ドレスコード　'],
+    ['kitaoshiage','北押上の風景','設定2以上確定演出',2,'北','北押上の風景　'],
+    ['robota','ロボ太','設定4以上確定演出',4,'ロ','ロボ太　　　　'],
+    ['hawaii','ハワイ','設定6確定演出',6,'ハ','ハワイ🌺　　　']
   ];
   // [id, UI表示名, テンプレ表記]
   // 分母(cd)＝変換した回数 / 分子(cn)＝そこからCZに当選した回数。
@@ -212,7 +214,12 @@
   }
   function rankText(rank){return rank===6?'6確定':rank+'以上';}
   function allCert(S){
-    return TROPHY.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.trophy,c[0]),rank:c[3],order:10+c[3]}));
+    return [
+      ...TROPHY.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.trophy,c[0]),rank:c[3],order:10+c[3]})),
+      // AT終了画面の確定パターン（北押上=2以上 / ロボ太=4以上 / ハワイ=6）。
+      // 同じ rank で並んだ場合はトロフィーを優先させるため order を後ろに置く。
+      ...AT_END.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.atEnd,c[0]),rank:c[3],order:20+c[3]}))
+    ];
   }
   function certCount(S){return allCert(S).reduce((a,b)=>a+b.value,0);}
   function certTier(S,rank){return allCert(S).filter(v=>v.rank===rank).reduce((a,b)=>a+b.value,0);}
@@ -387,8 +394,8 @@
   </section>
   <section class="sec">
     <div class="sec-h">AT終了画面<span class="sub">計${sum(S.atEnd)}回</span></div>
-    <div class="cgrid">${AT_END.map(c=>ctx.crow('atEnd.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.atEnd)))).join('')}</div>
-    <div class="hint">出現したAT終了画面を記録します。7種の名称は判明していますが、各パターンの示唆内容は出典でも全種「調査中」のため、確定演出としては扱わず記録のみとしています。判明後に示唆内容を追加します。詳細はちょんぼりすた様の解析ページをご覧ください。</div>
+    <div class="cgrid">${AT_END.map(c=>ctx.crow('atEnd.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,sum(S.atEnd)))).join('')}</div>
+    <div class="hint">私服画面は、RUSH中のキャラ(たきな/千束)と異なるキャラの私服が出た場合に設定4以上確定です。上位ST終了後の私服はいずれも高設定示唆(弱)です。</div>
   </section>`;
   }
 
@@ -422,7 +429,8 @@
       L.push(`${grp[2]}▶︎ ${countLine(n(st,'ep3'))}`);
       L.push(`${grp[3]}▶︎ ${countLine(n(st,'ep4'))}`);
     });
-    L.push('',`■ボーナス中一枚絵▶︎ ${countLine(sum(S.art))}`,'','■終了画面');
+    // 終了画面の見出し注記は なな様v2 原文どおり（示唆が判明したため復活させた）
+    L.push('',`■ボーナス中一枚絵▶︎ ${countLine(sum(S.art))}`,'','■終了画面(私服はﾗｯｼｭとｷｬﾗ矛盾で456)');
     AT_END.forEach(c=>L.push(`${c[5]}▶︎ ${countLine(n(S.atEnd,c[0]))}`));
     if(sum(S.trophy)>0){
       L.push('','■サミートロフィー');
