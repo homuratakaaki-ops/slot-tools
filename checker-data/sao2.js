@@ -3,13 +3,14 @@
   function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
   function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]));}
   function detailRatio(label,n,d,hot){return {label,value:Number(n)||0,hot:!!hot,text:label+' '+(d>0?(n+'/'+d+' '+(100*n/d).toFixed(0)+'%'):'—'),show:d>0};}
+  function detailRatioRate(label,n,d,hot){return {label,value:Number(n)||0,hot:!!hot,text:label+' '+ratioRate(n,d),show:d>0};}
   function detail(ctx){
     const S=ctx.S;
     const atEnd=S.atcz.atEnd||0;
     const over2=(S.atcz.set2||0)+(S.atcz.set3||0)+(S.atcz.set4||0);
     return [
-      {title:'初当り・小役',items:[detailItem('CZ当選',S.cz.cz,0),detailItem('AT当選',S.atCount,0),{label:'AT直撃',value:S.cz.atDirect,hot:false,text:S.cz.atDirect>0?'AT直撃 '+rateCount(S.games,S.cz.atDirect):'',show:S.cz.atDirect>0},detailItem('確定CZ',S.cz.end,1),detailItem('曠野の決闘',S.cz.duel,1),{label:'共通ベル',value:appRate(S,'bellRate')>0?1:0,hot:false,text:'共通ベル '+appRateText(S,'bellRate'),show:appRate(S,'bellRate')>0},{label:'強チャンス目B',value:appRate(S,'chanceBRate')>0?1:0,hot:false,text:'強チャンス目B '+appRateText(S,'chanceBRate'),show:appRate(S,'chanceBRate')>0}]},
-      {title:'CZ失敗後',items:[detailItem('CZ失敗',S.atcz.fail,0),detailRatio('CZ失敗後のアイテム獲得',S.atcz.item,S.atcz.fail,1),detailItem('SC1・2戦目デスガン',S.atcz.deathgun,1)]},
+      {title:'初当り・小役',items:[detailItem('CZ当選',S.cz.cz,0),detailItem('AT当選',S.atCount,0),{label:'AT直撃',value:S.cz.atDirect,hot:false,text:S.cz.atDirect>0?'AT直撃 '+rateCount(S.games,S.cz.atDirect):'',show:S.cz.atDirect>0},detailItem('確定CZ',S.cz.end,1),{label:'共通ベル',value:appRate(S,'bellRate')>0?1:0,hot:false,text:'共通ベル '+appRateText(S,'bellRate'),show:appRate(S,'bellRate')>0},{label:'強チャンス目B',value:appRate(S,'chanceBRate')>0?1:0,hot:false,text:'強チャンス目B '+appRateText(S,'chanceBRate'),show:appRate(S,'chanceBRate')>0}]},
+      {title:'CZ失敗後',items:[detailItem('CZ失敗',S.atcz.fail,0),detailRatio('CZ失敗後のアイテム獲得',S.atcz.item,S.atcz.fail,1),detailRatioRate('曠野の決闘',S.cz.duel,S.atcz.fail,1),detailItem('SC1・2戦目デスガン',S.atcz.deathgun,1)]},
       {title:'AT終了後・継続セット',items:[detailItem('AT終了',atEnd,0)].concat(SETS.map(c=>Object.assign(detailItem(c[1],S.atcz[c[0]],c[3]),{denominator:atEnd})),[detailRatio('AT後50G以内の引き戻し',S.atcz.return50,atEnd,1),detailRatio('2セット以上継続',over2,atEnd,0)])},
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens),percent:true},
       {title:'コパンダトロフィー',items:detailItems(TROPHIES,S.coins)},
@@ -107,6 +108,11 @@
   function rate(g,n){return n&&g?'1/'+(g/n).toFixed(1):'-';}
   function rateCount(g,n){return n&&g?rate(g,n)+'（'+n+'回）':(n||0)+'回';}
   function ratio(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:'-';}
+  // 曠野の決闘のような低頻度の事象は％より 1/x のほうが解析値（1/128〜1/64）と見比べやすい。
+  // 曠野の決闘＝CZ失敗時のフリーズ。分母はCZ失敗回数（設1:1/128⇔設6:1/64、設2〜5は調査中）。
+  // 出典: ちょんぼりすた様 https://chonborista.com/slot/daito-slot/256112/ ／
+  //       パチセブン様 https://pachiseven.jp/articles/detail/26072（2026/9/12確認）
+  function ratioRate(n,d){return d>0?(n>0?`${n}/${d} 1/${(d/n).toFixed(1)}`:`${n}/${d}`):'-';}
   function pctText(n,d){return d>0?`${n}回 (${(100*n/d).toFixed(0)}%)`:`${n}回 (-)`;}
   function shown(prefix,items){
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
@@ -140,7 +146,6 @@
       ${ctx.crow('atCount','AT当選',`設1:1/386.2⇔設6:1/269.6${g&&ctx.S.atCount?` / 現在 ${rate(g,ctx.S.atCount)}`:''}`,0)}
       ${ctx.crow('cz.atDirect','AT直撃',`設1:1/18091.8⇔設6:1/3415.7${g&&ctx.S.cz.atDirect?` / 現在 ${rate(g,ctx.S.cz.atDirect)}`:''}`,0)}
       ${ctx.crow('cz.end','確定CZ','THE END状態スタート・設1:1/20178⇔設6:1/7077',1)}
-      ${ctx.crow('cz.duel','曠野の決闘','CZ失敗時フリーズ・設1:1/128⇔設6:1/64',1)}
       ${rateRow(ctx.S,'cz.bellRate','共通ベル（斜め揃い）','実戦値 設5:1/47.6・設6:1/45.4')}
       ${rateRow(ctx.S,'cz.chanceBRate','強チャンス目B','設1:1/1057.0⇔設6:1/799.2')}
     </div>
@@ -149,6 +154,7 @@
       .raterow .unit{flex:none;font-size:11px;font-weight:700;color:var(--muted);margin-left:2px}
     </style>
     <div class="hint">CZを経由せずAT直撃した回数。AT天井到達と引き戻しによる当選は除きます。AT直撃はGGOモード詩乃の滞在中にのみ発生するとされています。設定1で約1/18000、設定6で約1/3400と5倍以上の差がありますが、1日ではほとんど発生しないため、引けた場合の材料として使ってください。</div>
+    <div class="hint">確定CZはCZ突入時に「THE ENDモード」の帯が表示されるので見分けられます。出現率が低いため1/x表示は行わず、引けた場合の判別材料として扱ってください。</div>
     <div class="hint">共通ベルと強チャンス目Bは、ダイトモ（大都技研の公式アプリ）の遊技履歴に表示される確率の数値をそのまま入力してください。小役はAT中も成立するため、アプリが集計した確率をそのまま使うのが正確です。</div>
   </section>`;
   }
@@ -160,6 +166,7 @@
     <div class="cgrid">
       ${ctx.crow('atcz.fail','CZ失敗','アイテム獲得率の分母',0)}
       ${ctx.crow('atcz.item','CZ失敗後のアイテム獲得','獲得率 設1:20.3%⇔設5:25.0%⇔設6:30.1%',1,n=>ratio(n,fail))}
+      ${ctx.crow('cz.duel','曠野の決闘','CZ失敗時のフリーズ・設1:1/128⇔設6:1/64（2〜5は調査中）',1,n=>ratioRate(n,fail))}
       ${ctx.crow('atcz.deathgun','SC1・2戦目デス・ガン','設定5で選択率優遇（GGO死銃モード時は1戦目確定なので除外）',1)}
     </div>
   </section>
@@ -208,7 +215,7 @@
     t+='\n■AT開始時のステージ\n';
     const stN=sum(S.stage);
     START_STAGE.forEach(c=>{t+=`${c[1]}▶︎ ${pctText(S.stage[c[0]],stN)}\n`;});
-    t+=`\n■優遇項目\nAT直撃▶︎ ${rateCount(S.games,S.cz.atDirect)}\n確定CZ▶︎ ${S.cz.end}回\n曠野の決闘▶︎ ${S.cz.duel}回\nCZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}\nSC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回\nAT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}\n`;
+    t+=`\n■優遇項目\nAT直撃▶︎ ${rateCount(S.games,S.cz.atDirect)}\n確定CZ▶︎ ${S.cz.end}回\nCZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}\n曠野の決闘▶︎ ${ratioRate(S.cz.duel,fail)}\nSC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回\nAT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}\n`;
     // ダイトモ入力の2項目は未入力なら行ごと省略する
     if(appRate(S,'bellRate')>0)t+=`共通ベル▶︎ ${appRateText(S,'bellRate')}\n`;
     if(appRate(S,'chanceBRate')>0)t+=`強チャンス目B▶︎ ${appRateText(S,'chanceBRate')}\n`;
@@ -232,8 +239,8 @@
     const yuugu=[];
     if(S.cz.atDirect>0)yuugu.push(`AT直撃▶︎ ${rateCount(S.games,S.cz.atDirect)}`);
     if(S.cz.end>0)yuugu.push(`確定CZ▶︎ ${S.cz.end}回`);
-    if(S.cz.duel>0)yuugu.push(`曠野の決闘▶︎ ${S.cz.duel}回`);
     if(fail>0)yuugu.push(`CZ失敗→アイテム▶︎ ${ratio(S.atcz.item,fail)}`);
+    if(fail>0)yuugu.push(`曠野の決闘▶︎ ${ratioRate(S.cz.duel,fail)}`);
     if(S.atcz.deathgun>0)yuugu.push(`SC1・2戦目デスガン▶︎ ${S.atcz.deathgun}回`);
     if(atEnd>0)yuugu.push(`AT引き戻し▶︎ ${ratio(S.atcz.return50,atEnd)}`);
     if(appRate(S,'bellRate')>0)yuugu.push(`共通ベル▶︎ ${appRateText(S,'bellRate')}`);
