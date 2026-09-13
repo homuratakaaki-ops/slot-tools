@@ -3932,6 +3932,10 @@ new vm.Script(`
       .map((segment) => ({ chainId: segment.id, netBalls: segment.__chain.netBalls, rounds: segment.__chain.rounds, counterBalls: 0, counterRounds: 0 }));
   }
   ${chainExcludedBlock}
+  // S32/§2: 持ち玉差の1R実質出玉はこの文脈ではスタブ。セッションに __netPerRound を付けたものだけ値を返す
+  function sessionNetBallsSummary(session) {
+    return { netPerRound: session && session.__netPerRound !== undefined ? session.__netPerRound : null };
+  }
   // S23/§2: 所要・通常時の時速・当たり消化。当選の区間紐づけはこの文脈では保存済みIDだけを見る
   ${timeHelpers}
   function storedHitSegmentId(session, hit) { return hit?.segmentId || null; }
@@ -6196,7 +6200,8 @@ assert.equal(s20TextContext.netCell({ netBalls: -120, netPerRound: -12 }), '-120
 assert.equal(s20TextContext.netCell({ netBalls: null, netPerRound: null }), '—');
 
 // S26b: 出玉関連の3項目は結果のテキスト行から外し、導出関数は残す
-assert.doesNotMatch(resultBlock, /const netSummary = sessionNetBallsSummary\(session, machine\);/);
+// S32/§2: サマリーが netPerRound を持つようになったので、表示側（openSessionResult）に限って見る
+assert.doesNotMatch(openSessionResult, /netSummary/);
 assert.doesNotMatch(resultBlock, /<div class="result-line">[^\n]*1R実質出玉/);
 assert.doesNotMatch(resultBlock, /<div class="result-line">[^\n]*払い出し/);
 assert.doesNotMatch(resultBlock, /<div class="result-line">[^\n]*時短中の減り/);
@@ -7196,5 +7201,67 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29MissingEnd)), {
 assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29NoTracked)), { balls: 550, measured: true });
 assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29NoEndpoint)), { balls: null, measured: false });
 assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls: 0, measured: true });
+
+// ===========================================================================
+// S32: 遊タイム突入前の通常区間の終点／1R出玉の入力確認の文言
+// ===========================================================================
+
+// 版
+assert.match(html, /const APP_VERSION_SEQ = 32;/);
+assert.match(html, /const APP_VERSION_DATE = "2026-09-13";/);
+
+// §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
+// 書く場所は endSource = "yutime" を書いている3か所すべて。
+const s32YutimeEnds = [...html.matchAll(/(\w+)\.endSource = "yutime";\n(\s*)\/\/ S32:[^\n]*\n\s*if \(usesEndpointConsumedModel\(session\)\) \1\.endRemainBalls = normalizeNumber\(session\??\.yutimeEnterBalls\);/g)];
+assert.equal(s32YutimeEnds.length, 3);
+assert.deepEqual(Array.from(s32YutimeEnds, (m) => m[1]), ['open', 'before', 'normal']);
+// endTrackedBalls は入れない（突入時の追跡値は保存していない）
+assert.doesNotMatch(html, /endSource = "yutime";[\s\S]{0,400}?endTrackedBalls = normalizeNumber\(session\??\.yutimeEnterBalls\)/);
+
+const s32Context = vm.createContext({ normalizeNumber: (value) => (value === null || value === undefined || value === '' || Number.isNaN(Number(value)) ? null : Number(value)) });
+new vm.Script(`
+  ${section('function normalizeConsumedModel', 'function normalizeStartBallsSource')}
+  function segmentAddedBalls() { return 0; }
+  function deriveBalances() { return { mochidama: null }; }
+  ${section('function segmentEndpointConsumedBalls', 'function segmentYutimeLoss')}
+  // 遊タイム突入で閉じた通常区間（終点は突入時玉数）
+  const segment = (endRemainBalls) => ({
+    id: "n1", kind: "normal", startTrackedBalls: 2501, startBallsSource: "measured",
+    endSource: "yutime", endSpin: 249, endRemainBalls
+  });
+  const session = (model) => ({ consumedModel: model, yutimeEnterBalls: 651 });
+  // 終点が入れば起点 − 終点。入らない旧データは null（従来式へフォールバック）
+  globalThis.s32New = segmentEndpointConsumedBalls(segment(651), session("endpoints"));
+  globalThis.s32NoEnd = segmentEndpointConsumedBalls(segment(null), session("endpoints"));
+  globalThis.s32Legacy = segmentEndpointConsumedBalls(segment(651), session(null));
+`).runInContext(s32Context);
+assert.equal(s32Context.s32New, 1850);
+assert.equal(s32Context.s32NoEnd, null);
+assert.equal(s32Context.s32Legacy, null);
+
+// §2: 1R出玉の入力確認。持ち玉差の1R実質出玉はサマリー経由で渡す（呼び出し口は S26 のまま）
+assert.match(resultBlock, /netPerRound: sessionNetBallsSummary\(session, machine\)\.netPerRound/);
+assert.match(resultBlock, /function resultInputWarnings\(session, summary, segmentRows, segmentExcludedMarks\) \{/);
+
+// 獲得出玉（データカウンター）が無くても持ち玉差があれば、事実どおりの文言で下に落とす
+const s32WithNet = s26Warnings({}, { averageRoundBalls: null, netPerRound: 95.2, derived: { rate: 20, isEstimatedRate: false } }, [], []);
+assert.equal(s32WithNet.length, 1);
+assert.equal(s32WithNet[0].key, 'round');
+assert.equal(s32WithNet[0].missingValue, false);
+assert.equal(s32WithNet[0].text, '獲得出玉（データカウンター）が未入力 → 1R平均はデータカウンター基準では出せません。期待値の1R出玉は持ち玉差（1R実質出玉 95玉）で計算しています');
+// 四捨五入。0玉・マイナスも「無い」扱いにはしない
+assert.match(s26Warnings({}, { averageRoundBalls: null, netPerRound: 88.5, derived: { rate: 20 } }, [], [])[0].text, /1R実質出玉 89玉/);
+assert.match(s26Warnings({}, { averageRoundBalls: null, netPerRound: 0, derived: { rate: 20 } }, [], [])[0].text, /1R実質出玉 0玉/);
+assert.match(s26Warnings({}, { averageRoundBalls: null, netPerRound: -3.3, derived: { rate: 20 } }, [], [])[0].text, /1R実質出玉 -3玉/);
+// どちらも無ければ従来どおり「計算していません」で、未入力として上に出す
+const s32NoNet = s26Warnings({}, { averageRoundBalls: null, netPerRound: null, derived: { rate: 20 } }, [], []);
+assert.equal(s32NoNet[0].missingValue, true);
+assert.equal(s32NoNet[0].text, '1R出玉が未入力 → 実測出玉による1R平均を計算していません');
+assert.equal(s26Warnings({}, { averageRoundBalls: null, derived: { rate: 20 } }, [], [])[0].text, s32NoNet[0].text);
+// 獲得出玉が入っていれば、持ち玉差があってもこの行は出さない
+assert.equal(s26Warnings({}, { averageRoundBalls: 100, netPerRound: 95.2, derived: { rate: 20 } }, [], []).length, 0);
+// 未入力の行より下に並ぶ
+const s32Order = s26Warnings({ missing: ['endTime'] }, { averageRoundBalls: null, netPerRound: 95.2, derived: { rate: 20 } }, [], []);
+assert.deepEqual(Array.from(s32Order, (warning) => warning.key), ['endTime', 'round']);
 
 console.log('yutime-v3 tests passed');

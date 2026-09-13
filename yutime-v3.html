@@ -2077,8 +2077,8 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 31;
-    const APP_VERSION_DATE = "2026-09-11";
+    const APP_VERSION_SEQ = 32;
+    const APP_VERSION_DATE = "2026-09-13";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
     const LAST_VERSION_KEY = STORAGE_PREFIX + "app:lastVersionSeq";
@@ -7532,6 +7532,8 @@
         open.endSpin = enterSpin;
         open.endAt = enterAt;
         open.endSource = "yutime";
+        // S32: 新式だけ、遊タイム突入で終わる区間の終点に突入時玉数を入れる（S7/B-4 のヤメ終点と同じ扱い）
+        if (usesEndpointConsumedModel(session)) open.endRemainBalls = normalizeNumber(session.yutimeEnterBalls);
       }
       const segment = blankSegment("yutime", {
         id: cryptoId("seg"),
@@ -9296,7 +9298,9 @@
       return {
         machine, derived, transfer, startEv, presetId, workedHours, hourlyYen, rateDiff, evDiffYen, normalSpeed,
         remainingSpins: startEv ? remainingSpinsFromCounterSpin(startEv.effectiveSpin, presetId) : null,
-        averageRoundBalls: transfer.averageRoundBalls
+        averageRoundBalls: transfer.averageRoundBalls,
+        // S32/§2: 入力確認の文言を事実に合わせるため、持ち玉差の1R実質出玉を入力確認へ渡す
+        netPerRound: sessionNetBallsSummary(session, machine).netPerRound
       };
     }
 
@@ -9539,8 +9543,20 @@
       return RESULT_INPUT_WARNINGS.flatMap((rule) => {
         if (rule.key === "excluded") return excludedMarks.length
           ? [{ ...rule, marks: excludedMarks, text: `区間${excludedMarks.join("")}：${rule.item} → ${rule.impact}` }] : [];
-        if (rule.key === "round") return summary.averageRoundBalls === null
-          ? [{ ...rule, marks: [], text: `${rule.item}が未入力 → ${rule.impact}` }] : [];
+        if (rule.key === "round") {
+          if (summary.averageRoundBalls !== null) return [];
+          // S32/§2: 獲得出玉（データカウンター）が無くても、持ち玉差の1R実質出玉が出ていれば
+          // 期待値はその値で計算している。「計算していません」は事実に反するので、
+          // 未入力なのはどれで、何で計算したのかを書く（S26/④）。
+          const netPerRound = summary.netPerRound === null || summary.netPerRound === undefined ? null : summary.netPerRound;
+          const round = netPerRound === null ? rule : {
+            ...rule,
+            item: "獲得出玉（データカウンター）",
+            impact: `1R平均はデータカウンター基準では出せません。期待値の1R出玉は持ち玉差（1R実質出玉 ${Math.round(netPerRound)}玉）で計算しています`,
+            missingValue: false
+          };
+          return [{ ...round, marks: [], text: `${round.item}が未入力 → ${round.impact}` }];
+        }
         if (!missing.includes(rule.key)) return [];
         return [{ ...rule, marks: [], text: `${rule.notice || rule.item + "が未入力"} → ${rule.impact}` }];
       }).sort((a, b) => Number(b.missingValue) - Number(a.missingValue));
@@ -10700,6 +10716,8 @@
           before.endSpin = enterSpin;
           before.endAt = segments[yutimeIndex].startAt;
           before.endSource = "yutime";
+          // S32: 新式だけ、遊タイム突入で終わる区間の終点に突入時玉数を入れる（S7/B-4 のヤメ終点と同じ扱い）
+          if (usesEndpointConsumedModel(session)) before.endRemainBalls = normalizeNumber(session?.yutimeEnterBalls);
         }
       }
       const hitSegment = lastSegmentByEndSource(segments, "hit");
@@ -10743,6 +10761,8 @@
       if (yutimeEnterSpin !== null) {
         normal.endSpin = yutimeEnterSpin;
         normal.endSource = "yutime";
+        // S32: 新式だけ、遊タイム突入で終わる区間の終点に突入時玉数を入れる（S7/B-4 のヤメ終点と同じ扱い）
+        if (usesEndpointConsumedModel(session)) normal.endRemainBalls = normalizeNumber(session?.yutimeEnterBalls);
         normal.endAt = isoFromDateAndTime(session?.date, session?.yutimeEnterTime);
         const yutime = blankSegment("yutime", {
           startSpin: yutimeEnterSpin,
