@@ -74,7 +74,7 @@ textarea{min-height:80px;resize:vertical}
 .log .tx{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .log .more{width:100%;border:none;border-radius:0;padding:13px;min-height:44px;font-size:12px;color:var(--dim);background:var(--panel2)}
 .log .fbar{position:sticky;top:0;z-index:2;display:flex;gap:4px;padding:6px;background:var(--panel2);border-bottom:1px solid var(--line)}
-.log .fbar button{flex:1;min-height:36px;padding:6px 2px;font-size:11px;border-radius:8px}
+.log .fbar button{flex:1;min-height:44px;padding:6px 2px;font-size:11px;border-radius:8px}
 .log .fbar button.on{background:var(--accent);border-color:var(--accent);color:#1a1200;font-weight:700}
 .log .fbar button.close{flex:0 0 auto;padding:6px 10px;color:var(--hot)}
 .log .empty{padding:16px;text-align:center;color:var(--dim);font-size:13px}
@@ -159,7 +159,7 @@ textarea{min-height:80px;resize:vertical}
       <div id="stLcdWrap"><div class="lbl">開始 液晶G</div><input id="stLcdG" class="num" inputmode="numeric" placeholder="0"></div>
     </div>
     <div id="stFields"></div>
-    <div class="lbl" style="margin-top:12px">台の総回転数（開始時・データ画面の値）<span class="hint" style="font-weight:400;opacity:.8;margin-left:6px">任意</span></div>
+    <div class="lbl" style="margin-top:12px">台の総回転数（開始時・データ画面の値）<span class="hint" id="stTotalHint" style="font-weight:400;opacity:.8;margin-left:6px">任意</span></div>
     <input id="stTotal" class="num" inputmode="numeric" placeholder="0">
     <div class="lbl" style="margin-top:12px">想定期待値（円）</div>
     <input id="stExp" class="num" inputmode="numeric" placeholder="2000">
@@ -1371,7 +1371,8 @@ el("bUtil").addEventListener("click",()=>{
     b.append(mk("div","lbl","直す"));
     const e1=mk("button","sub","打ち始めの情報を直す");e1.addEventListener("click",()=>{closeSheet();editInfo(S.cur,()=>{render();el("hdTitle").textContent=S.cur.machine+" ／ "+hm(S.cur.startAt)+"〜"})});b.append(e1);
     const e2=mk("button","sub","お金の履歴を直す");e2.addEventListener("click",()=>{closeSheet();editMoney(S.cur,render)});b.append(e2);
-    if((DEF()).checker){b.append(mk("div","lbl","設定判別"));const ck=mk("button","sub","今の記録をチェッカーへ送る");ck.style.color="var(--accent)";ck.addEventListener("click",()=>{closeSheet();sendToChecker(S.cur)});b.append(ck)}
+    b.append(mk("div","lbl","設定判別"));const hs=mk("button","sub","設定示唆のまとめを見る");hs.addEventListener("click",()=>{closeSheet();showHintSummary(S.cur)});b.append(hs);
+    if((DEF()).checker){const ck=mk("button","sub","今の記録をチェッカーへ送る");ck.style.color="var(--accent)";ck.addEventListener("click",()=>{closeSheet();sendToChecker(S.cur)});b.append(ck)}
     b.append(mk("div","lbl","記録を見る・書き出す"));const nt=mk("button","sub","ノートを開く");nt.addEventListener("click",()=>{closeSheet();showNote()});b.append(nt);
     b.append(mk("div","lbl","この台の記録を捨てる"));const dp=mk("button","sub","破棄する");dp.addEventListener("click",()=>{if(!confirm("この台の記録を捨てますか？"))return;S.cur=null;save();closeSheet();showSetup()});b.append(dp);
   });
@@ -1388,6 +1389,49 @@ function finish(){
     function calc(){const em=int(i1.value);if(em===null){prev.textContent="持ちメダルを入れると収支が出ます。";return}const st=m.startMedal,rp=replayed(m),cash=invested(m);const bought=Math.round(cash/1000*S.cur.lend);prev.textContent="差枚 "+sgn(em-st-bought-rp)+"枚 ／ 収支 "+sgn(Math.round((em-st-rp)*(1000/S.cur.lend)-cash))+"円"}
     i1.addEventListener("input",calc);calc();b.append(prev);
     const go=mk("button","go","終了する");go.addEventListener("click",()=>{const em=int(i1.value);if(em===null){toast("終了時の持ちメダルを入れてください");return}m.endMedal=em;m.endReplay=0;S.cur.totalEnd=int(i3.value);S.cur.endNote=ta.value.trim()||"ヤメ";S.cur.endAt=nowISO();S.sessions.push(S.cur);S.cur=null;save();closeSheet();showNote()});b.append(go);
+  });
+}
+
+/* ---------- 設定示唆のまとめ（記録中いつでも見られる） ---------- */
+function summarizeHints(sess){
+  const md=MACHINES[sess.machineId]||MACHINES.generic;
+  const out={};const add=(cat,label)=>{if(!label)return;out[cat]=out[cat]||{};out[cat][label]=(out[cat][label]||0)+1};
+  const atLabels=(md.hits||[]).filter(h=>h.kind==="at").map(h=>h.label);
+  sess.events.forEach(ev=>{
+    const sel=ev.sel||{};
+    if(ev.type==="hitStart"){add("当選",ev.via||ev.hit);if(ev.trig)add("当選の契機",ev.trig);if(ev.where)add("告知された場所",ev.where)}
+    if(ev.type==="hitEnd"){
+      const isAt=atLabels.includes(ev.hit);
+      if(sel.screen)add(isAt?"AT終了画面":"CZ終了画面",sel.screen);
+      if(sel.voice)add("終了ボイス",sel.voice);
+      if(sel.feather)add("フェザーランプ（終了時）",sel.feather);
+      if(sel.hidden&&sel.hidden!=="なし")add("隠しハイビスカス",sel.hidden);
+      if(sel.wipe)add("ワイプ演出",sel.wipe);
+      if(ev.result)add(ev.hit+" 結果",ev.result);
+    }
+    if(ev.type==="revive"){if(sel.screen)add("AT終了画面",sel.screen);if(sel.voice)add("終了ボイス",sel.voice)}
+    if(ev.type==="atStart"&&sel.stage)add("AT開始ステージ",sel.stage);
+    if(ev.type==="extra"&&ev.extra){Object.keys(sel).filter(k=>!k.startsWith("_")).forEach(k=>add(ev.extra,sel[k]))}
+    if(ev.type==="parStart"&&ev.reward)add("運命盤の報酬",ev.reward+(ev.melonAt!=null?"（🍉"+ev.melonAt+"回目）":""));
+    if(ev.type==="rareCut")add("🍉 打ち切り",ev.n+"回で");
+    if(ev.type==="toggle"&&/ON|点灯/.test(ev.text))add("トグル",ev.text);
+  });
+  if(sess.modeHints&&sess.modeHints.length)sess.modeHints.forEach(h=>add("モード示唆",h.text+"（区間"+h.era+(h.span>1?"〜"+(h.era+h.span-1):"")+"）"));
+  (md.rares||[]).forEach(r=>{const v=sess.rare&&sess.rare[r.key];if(!v||r.count===false)return;if(r.strong){out["レア役"]=out["レア役"]||{};out["レア役"]["弱"+r.label]=v.w||0;out["レア役"]["強"+r.label]=v.s||0}else{out["レア役"]=out["レア役"]||{};out["レア役"][r.label]=(v.n||0)+(r.track?"（当"+(v.hit||0)+"）":"")}});
+  return out;
+}
+function showHintSummary(sess){
+  const o=summarizeHints(sess);
+  sheet("設定示唆のまとめ",b=>{
+    const cats=Object.keys(o);
+    if(!cats.length){b.append(mk("div","hint","まだ示唆の記録がありません"));return}
+    cats.forEach(cat=>{
+      b.append(mk("div","lbl",cat));
+      const t=mk("div","note");
+      t.textContent=Object.keys(o[cat]).map(k=>k+"：" + o[cat][k]).join("　／　");
+      b.append(t);
+    });
+    b.append(mk("div","hint","チェッカーに送る内容はこの一部です。全部の内訳を残したい場合は「振り返りノート用」で書き出してください。"));
   });
 }
 
@@ -1657,6 +1701,7 @@ function renderNote(){
     if(p){const pl=mk("span","pl",sgn(p.yen));pl.style.color=p.yen>=0?"var(--ok)":"var(--hot)";sm.append(pl)}
     const bd=mk("div","body");bd.append(mk("div","note",sessionText(s)));
     if(s.endAt){const one=mk("button","wide","この台をノート用に保存");one.addEventListener("click",()=>dlJson(toEnvelope(s),"kadonote-"+hm(s.startAt).replace(":","")+".json"));bd.append(one)}
+    const hs=mk("button","wide","設定示唆のまとめ");hs.addEventListener("click",()=>showHintSummary(s));bd.append(hs);
     const ed1=mk("button","wide dim","打ち始め・終了の情報を直す");ed1.addEventListener("click",()=>editInfo(s,renderNote));bd.append(ed1);
     const ed2=mk("button","wide dim","お金の履歴を直す");ed2.addEventListener("click",()=>editMoney(s,renderNote));bd.append(ed2);
     const ed3=mk("button","wide dim","記録の行を直す");ed3.addEventListener("click",()=>editLogs(s));bd.append(ed3);
@@ -1691,6 +1736,7 @@ let setupVals={};
 function renderSetupFields(){
   const d=MACHINES[pickedMachine||"generic"],w=el("stFields");w.innerHTML="";setupVals={};
   el("stLcdWrap").classList.toggle("hide",d.lcdG===false);
+  el("stTotalHint").textContent=d.checker?"チェッカーに送るなら開始時も必要（AT込みの累計）":"任意";
   d.setup.forEach(f=>{
     const lbl=mk("div","lbl",f.label);lbl.style.marginTop="12px";
     if(f.optional)lbl.append(mk("span","hint","任意"));
