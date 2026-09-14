@@ -25,7 +25,8 @@ textarea{min-height:80px;resize:vertical}
 .hd{display:flex;align-items:center;gap:8px;padding:4px 2px 8px;border-bottom:1px solid var(--line)}
 .hd .t{flex:1;font-size:15px;font-weight:700;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hd .x{width:44px;height:38px;font-size:18px;color:var(--dim)}
-.badges{display:flex;flex-wrap:nowrap;gap:6px;align-items:center;padding:10px 2px 2px;min-height:20px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.badges{display:flex;flex-wrap:nowrap;gap:6px;align-items:center;padding:8px 2px 4px;min-height:20px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+.grid .r5{margin-top:8px}
 .badges::-webkit-scrollbar{display:none}
 .badges .badge{flex:none;white-space:nowrap}
 .badges .stg{flex:none;font-size:12px;color:var(--dim);font-family:var(--mono);padding:0 4px}
@@ -187,11 +188,11 @@ textarea{min-height:80px;resize:vertical}
       <div class="mpill">差枚<b id="mDiff">−</b></div>
     </div>
     <div class="r3"><button class="danger" id="bMinus">−1000</button><button id="bDeposit">入金</button><button id="bReplay">再プレイ</button></div>
-    <div class="r5"><button data-step="1">+1</button><button data-step="3">+3</button><button data-step="5">+5</button><button data-step="10">+10</button><button class="undo" id="bStepUndo">元に戻す</button></div>
     <div class="badges" id="badges"></div>
     <div class="grid">
       <div id="gridRows"></div>
       <div class="rc" id="rareCounts"></div>
+    <div class="r5"><button data-step="1">+1</button><button data-step="3">+3</button><button data-step="5">+5</button><button data-step="10">+10</button><button class="undo" id="bStepUndo">元に戻す</button></div>
     </div>
     <div class="log" id="log"></div>
     <button class="wide dim" id="bUndo">直前を取り消す</button>
@@ -369,8 +370,10 @@ const MACHINES={
       {label:"枚数表示",title:"獲得枚数表示",groups:[{key:"n",label:"表示された枚数",options:["222","246","456","666"],required:true}]},
       {label:"EDランプ",title:"ED中 レア役のランプ",groups:[{key:"lamp",label:"色",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","高設定UP"],["赤","設定2以上UP"],["紫","設定4以上"],["虹","設定6"]],required:true}]}
     ],
+    rareCounts:false,
+    rareBadges:["melon"],
     grids:{
-      normal:[["lcdAdd","rare","hit"],["zenchou","stage","par:unmeiban"],["extra:0","extra:1","memo"]],
+      normal:[["lcdAdd","extra:0","hit"],["zenchou","stage","par:unmeiban"],["rare","extra:1","memo"]],
       cz:[["hitEnd","memo"]],
       at:[["hitEnd","memo"]]
     }
@@ -439,7 +442,7 @@ const MACHINES={
       {type:"select",label:"トップランプ",title:"トップランプ（高確示唆）",groups:[{key:"flash",label:"フラッシュ",required:true,options:[["1回","高確A"],["3回","高確B以上"]]}]}
     ],
     stages:null,
-    zenchou:{stages:["32G中"],stageIndex:-1,outGroups:[],endLabel:"32G抜け",enterOnHitEnd:true,autoEnterIfG:32,autoEndAtG:32,onEnd:{c3:"+1",clearTags:["天国","超ハイビ"]}},
+    zenchou:{stages:["32G中"],stageIndex:0,outGroups:[],endLabel:"32G抜け",enterOnHitEnd:true,autoEnterIfG:32,autoEndAtG:32,onEnd:{c3:"+1",clearTags:["天国","超ハイビ"]}},
     onHitInStage:{tag:"天国",until:"stageEnd",c3:0,exceptTriggers:["32G目の小役"],exceptC3:"+1",noTagTriggers:["1G連"]},
     parallel:[],
     czEndStd:{groups:[]},
@@ -638,9 +641,11 @@ function render(){renderBadges();renderCounters();renderMoney();renderGrid();ren
 function renderBadges(){
   const c=S.cur,d=DEF(),b=el("badges");b.innerHTML="";
   const inZen=c.mode==="normal"&&zenIdx()>=0;
-  const first=mk("div","badge on",c.mode==="normal"?(inZen?zenStages()[zenIdx()]:"通常時"):(c.hit?c.hit.label+"中":c.mode.toUpperCase()+"中"));
-  if(inZen)first.addEventListener("click",openZenchou);
+  const inMain=inZen&&zenIsStage();
+  const first=mk("div","badge on",c.mode==="normal"?(inMain?zenStages()[zenIdx()]:"通常時"):(c.hit?c.hit.label+"中":c.mode.toUpperCase()+"中"));
+  if(inMain)first.addEventListener("click",openZenchou);
   b.append(first);
+  if(inZen&&!inMain){const z=mk("div","badge zen",zenStages()[zenIdx()]);z.addEventListener("click",openZenchou);b.append(z)}
   if(zenIdx()>=0&&c.mode!=="normal"){const z=mk("div","badge zen",zenStages()[zenIdx()]);z.addEventListener("click",openZenchou);b.append(z)}
   d.parallel.forEach(p=>{ if(c.parallel[p.key]){const x=mk("div","badge par",p.label+"中");x.addEventListener("click",()=>parallelEnd(p));b.append(x)} });
   if(c.pendingReward){const pr=mk("div","badge par","報酬待ち："+c.pendingReward.reward);pr.style.background="rgba(180,140,224,.3)";pr.addEventListener("click",firePending);b.append(pr)}
@@ -649,9 +654,10 @@ function renderBadges(){
   Object.keys(c.tags||{}).forEach(k=>{const tg=mk("div","badge",k);tg.style.color="var(--accent)";tg.style.borderColor="var(--accent2)";tg.addEventListener("click",()=>{if(confirm("タグ「"+k+"」を消しますか？")){mark();delete c.tags[k];push("tagClear","タグ解除："+k)}});b.append(tg)});
   if(c.returnHit){const rt=mk("div","badge",c.returnHit.label+"に戻る");rt.style.color="var(--dim)";b.append(rt)}
   if(c.hit){const h=mk("div","badge hit",c.hit.label+" 終了");h.addEventListener("click",hitEnd);b.append(h)}
+  (d.rareBadges||[]).forEach(k=>{const r=d.rares.find(x=>x.key===k);const v=c.rare[k];if(!r||!v)return;const rb=mk("div","badge",r.label+" "+(v.n||0));rb.style.color="var(--lcd)";rb.addEventListener("click",()=>editRareCount(r));b.append(rb)});
   if(c.melonLeft!=null){const ml=mk("div","badge",(c.melonLeft>0?"🍉残り"+c.melonLeft+(c.melonApprox?"以下":""):"🍉規定到達"));ml.style.color="var(--lcd)";ml.addEventListener("click",()=>openMelonLeft());b.append(ml)}
   if(c.rewardHint){const rh=mk("div","badge","次回 "+c.rewardHint);rh.style.color="var(--pur)";b.append(rh)}
-  if(c.stage&&d.stages)b.append(mk("div","stg",c.stage));
+  if(c.stage&&d.stages&&!(inMain&&c.stage===zenStages()[zenIdx()]))b.append(mk("div","stg",c.stage));
   activeModeHints().forEach(h=>{const mh=mk("div","badge",h.text+(h.span>1?"（〜"+(h.era+h.span-1-(c.modeEra||0)+1)+"回）":""));mh.style.color="var(--ok)";mh.title="区間"+h.era+"から"+h.span+"回";b.append(mh)});
 }
 function renderCounters(){
@@ -724,6 +730,7 @@ function editRareCount(r){
 }
 function renderRare(){
   const c=S.cur,d=DEF(),w=el("rareCounts");w.innerHTML="";
+  w.classList.toggle("hide",d.rareCounts===false&&c.mode!=="at");
   const rvDef=c.mode==="at"?hitProp(curHitDef(),"revive"):null;
   if(rvDef){
     const x=mk("div","rcv");x.append(mk("span","",rvDef.label),mk("b","",String(c.revive||0)));
@@ -1399,7 +1406,9 @@ function summarizeHints(sess){
   const atLabels=(md.hits||[]).filter(h=>h.kind==="at").map(h=>h.label);
   sess.events.forEach(ev=>{
     const sel=ev.sel||{};
-    if(ev.type==="hitStart"){add("当選",ev.via||ev.hit);if(ev.trig)add("当選の契機",ev.trig);if(ev.where)add("告知された場所",ev.where)}
+    if(ev.type==="hitStart"){
+      const auto=ev.trig&&/後$|失敗$|^引き戻し$|^1G連$|中$/.test(ev.trig);   // 自動遷移（AT後・○○失敗・引き戻し・1G連・AT中）
+      add(auto?"自動で入った当選":"当選",ev.via||ev.hit);if(ev.trig)add(auto?"自動遷移の契機":"当選の契機",ev.trig);if(ev.where)add("告知された場所",ev.where)}
     if(ev.type==="hitEnd"){
       const isAt=atLabels.includes(ev.hit);
       if(sel.screen)add(isAt?"AT終了画面":"CZ終了画面",sel.screen);
@@ -1417,7 +1426,9 @@ function summarizeHints(sess){
     if(ev.type==="toggle"&&/ON|点灯/.test(ev.text))add("トグル",ev.text);
   });
   if(sess.modeHints&&sess.modeHints.length)sess.modeHints.forEach(h=>add("モード示唆",h.text+"（区間"+h.era+(h.span>1?"〜"+(h.era+h.span-1):"")+"）"));
-  (md.rares||[]).forEach(r=>{const v=sess.rare&&sess.rare[r.key];if(!v||r.count===false)return;if(r.strong){out["レア役"]=out["レア役"]||{};out["レア役"]["弱"+r.label]=v.w||0;out["レア役"]["強"+r.label]=v.s||0}else{out["レア役"]=out["レア役"]||{};out["レア役"][r.label]=(v.n||0)+(r.track?"（当"+(v.hit||0)+"）":"")}});
+  (md.rares||[]).forEach(r=>{const v=sess.rare&&sess.rare[r.key];if(!v||r.count===false)return;
+    const tot=r.strong?((v.w||0)+(v.s||0)):((v.n||0)+(v.hit||0));if(!tot)return;   // 0だけの項目は出さない
+    if(r.strong){out["レア役"]=out["レア役"]||{};out["レア役"]["弱"+r.label]=v.w||0;out["レア役"]["強"+r.label]=v.s||0}else{out["レア役"]=out["レア役"]||{};out["レア役"][r.label]=(v.n||0)+(r.track?"（当"+(v.hit||0)+"）":"")}});
   return out;
 }
 function showHintSummary(sess){
@@ -1611,7 +1622,7 @@ function editMoney(sess,after){
 }
 // 過去の台のログを一覧で直す
 function editLogs(sess){
-  sheet(sess.machine+" の記録を直す",b=>{
+  sheet(sess.machine+" の記録の修正・削除",b=>{
     if(!sess.events.length){b.append(mk("div","hint","記録がありません"));return}
     const list=mk("div","log");
     sess.events.forEach(ev=>{
@@ -1704,7 +1715,7 @@ function renderNote(){
     const hs=mk("button","wide","設定示唆のまとめ");hs.addEventListener("click",()=>showHintSummary(s));bd.append(hs);
     const ed1=mk("button","wide dim","打ち始め・終了の情報を直す");ed1.addEventListener("click",()=>editInfo(s,renderNote));bd.append(ed1);
     const ed2=mk("button","wide dim","お金の履歴を直す");ed2.addEventListener("click",()=>editMoney(s,renderNote));bd.append(ed2);
-    const ed3=mk("button","wide dim","記録の行を直す");ed3.addEventListener("click",()=>editLogs(s));bd.append(ed3);
+    const ed3=mk("button","wide dim","記録の修正・削除");ed3.addEventListener("click",()=>editLogs(s));bd.append(ed3);
     if(s.endAt&&(MACHINES[s.machineId]||{}).checker){const ck=mk("button","wide","設定判別チェッカーへ送る");ck.style.color="var(--accent)";ck.addEventListener("click",()=>sendToChecker(s));bd.append(ck)}
     const del=mk("button","wide dim","この記録を削除");del.addEventListener("click",()=>{if(!confirm("削除しますか？"))return;S.sessions=S.sessions.filter(x=>x.id!==s.id);save();renderNote()});bd.append(del);
     d.append(sm,bd);w.append(d);
