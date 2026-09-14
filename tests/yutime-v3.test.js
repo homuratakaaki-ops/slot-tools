@@ -259,7 +259,10 @@ assert.match(runEndWizardBlock, /id="saveEndFormBtn">保存<\/button>/);
 assert.match(runEndWizardBlock, /function completeEndSession\(session, hasHit\) \{/);
 assert.match(runEndWizardBlock, /\} else \{\s*syncSessionHitTotals\(session\);\s*\}/);
 assert.match(runEndWizardBlock, /if \(!hasHit\) \{\s*session\.hitCount = 0;\s*session\.totalRounds = 0;\s*\}/);
-assert.match(runEndWizardBlock, /（実機：計数機に流す玉数）そのまま入力してください。/);
+assert.match(runEndWizardBlock, /label: "時短抜け後の合計玉数（実機：計数機に流す玉数）"/);
+assert.match(runEndWizardBlock, /label: "終了時玉数（実機：計数機に流す玉数）"/);
+assert.match(runEndWizardBlock, /\+ "そのまま入力してください。";/);
+assert.doesNotMatch(runEndWizardBlock, /endTotalBallsHint = [^;]*（実機：/);
 const endWizardContext = vm.createContext({
   __modalHtml: '',
   __handlers: {},
@@ -533,9 +536,9 @@ assert.match(hitRoundSummaryHtml, /const totalRounds = totalRoundsForPreset\(ses
 assert.doesNotMatch(hitRoundSummaryHtml, /function sessionBallsPerRound[\s\S]*?roundBreakdown\(/);
 assert.match(hitRoundSummaryHtml, /return actualPayout !== null && actualPayout > 0 && totalRounds > 0 \? actualPayout \/ totalRounds : null;/);
 assert.match(hitRoundSummaryHtml, /1R当たり \$\{ballsPerRoundText\(ballsPerRound\)\}/);
-// S4/C-4: 今回の連チャンとこのセッションを分ける
+// S4/C-4: 今回の連チャンと今回の稼働を分ける（S34で表記を「今回の稼働」に変更）
 assert.match(hitRoundSummaryHtml, /breakdownLine\("今回の連チャン", chainBreakdown\)/);
-assert.match(hitRoundSummaryHtml, /breakdownLine\("このセッション", sessionBreakdown, "今回"\)/);
+assert.match(hitRoundSummaryHtml, /breakdownLine\("今回の稼働", sessionBreakdown, "今回"\)/);
 // S4/C-7: 開始時の累計大当たりは出さない
 assert.doesNotMatch(hitRoundSummaryHtml, /累計大当たり/);
 assert.doesNotMatch(hitRoundSummaryHtml, /startTotalHits/);
@@ -599,13 +602,13 @@ new vm.Script(`
 `).runInContext(hitRoundSummaryContext);
 // S4/C-4: 引いていないR種別は出さない。連チャンとセッションを分ける
 assert.match(hitRoundSummaryContext.singleSummary, /今回の連チャン 10R×3（3回・30R）/);
-assert.match(hitRoundSummaryContext.singleSummary, /このセッション 10R×3（今回3回・30R）/);
+assert.match(hitRoundSummaryContext.singleSummary, /今回の稼働 10R×3（今回3回・30R）/);
 assert.match(hitRoundSummaryContext.singleSummary, /今回の当選 10R ／ 合計 30R/);
-assert.match(hitRoundSummaryContext.multiSummary, /このセッション 4R×2 ／ 6R×1 ／ 10R×1（今回4回・24R）/);
+assert.match(hitRoundSummaryContext.multiSummary, /今回の稼働 4R×2 ／ 6R×1 ／ 10R×1（今回4回・24R）/);
 assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /4R×/);
 assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /6R×/);
 assert.match(hitRoundSummaryContext.chainSummary, /今回の連チャン 6R×1 ／ 10R×2（3回・26R）/);
-assert.match(hitRoundSummaryContext.chainSummary, /このセッション 4R×2 ／ 6R×1 ／ 10R×2（今回5回・34R）/);
+assert.match(hitRoundSummaryContext.chainSummary, /今回の稼働 4R×2 ／ 6R×1 ／ 10R×2（今回5回・34R）/);
 // S4/C-5: 実測が無ければ理論値で代用せず「—」
 assert.match(hitRoundSummaryContext.singleSummary, /1R当たり —/);
 assert.match(hitRoundSummaryContext.singleSummary, /実測獲得出玉 今回 —/);
@@ -3092,7 +3095,7 @@ assert.match(machineStatsFilters, /heso: new Set\(\)/);
 assert.match(machineStatsFilters, /filter\.labels\.size > 0/);
 assert.match(machineStatsFilters, /filter\.heso\.size > 0/);
 assert.match(machineStatsFilters, /dailyHesoRating\(machine\.id, session\.date\)/);
-assert.match(machineStatsFilters, /該当\$\{filteredSessions\.length\}セッション/);
+assert.match(machineStatsFilters, /該当\$\{filteredSessions\.length\}件/);
 assert.match(machineStatsFilters, /id="clearMachineStatsFilterBtn"/);
 assert.doesNotMatch(machineStatsFilters, /localStorage/);
 assert.match(bindMachineStatsFilterBlock, /machineStatsFilterState\.dateMode = input\.value \|\| "all";/);
@@ -3249,7 +3252,11 @@ assert.ok(!html.includes('リセット前'));
 assert.ok(!html.includes('spin-note'));
 assert.ok(html.includes('id="machineEvContext"'));
 assert.equal(html.split('${machineContextLine(session)}').length - 1, 12); // S28: 連チャン詳細にも台の文脈を表示
-assert.equal((html.match(/（実機：/g) || []).length, 15);
+// S34/§2-1: ヤメ入力の照合先はヒント文からラベルへ移した（hasHit の2分岐に1つずつ入るので 15 → 16）。
+// スイッチの説明にある「（実機：◯◯）」は見本、CSS・コードのコメント2件は画面に出ないので数えない。
+const jikkiLines = html.split("\n").filter((line) => !line.trim().startsWith("//")
+  && !line.includes("分類B（実機：◯◯）") && !line.includes("実機と照合するための表示"));
+assert.equal((jikkiLines.join("\n").match(/（実機：/g) || []).length, 16);
 assert.ok(!html.includes('遊タイム中の投資として記録されます'));
 // B91: 残保留込みモデル
 assert.ok(design.includes('B91 残保留込みの引き戻し計算'));
@@ -3659,7 +3666,7 @@ assert.match(machineHistoryContext.historyHtml, /ワープ良化/);
 assert.match(machineHistoryContext.historyHtml, /08\/05 の履歴/);
 assert.match(machineHistoryContext.historyHtml, /メモだけの日/);
 assert.doesNotMatch(machineHistoryContext.historyHtml, /日付不明メモ|未記入|未記録<\/small><br>\s*<small>台メモ/);
-assert.match(machineHistoryContext.historyHtml, /セッションなし/);
+assert.match(machineHistoryContext.historyHtml, /記録なし/);
 assert.match(machineSummary, /id="toggleMachineFormBtn"/);
 assert.match(machineDetailForm, /id="machinePreset"/);
 assert.match(machineDetailForm, /id="machineModel"/);
@@ -6834,8 +6841,100 @@ assert.equal(s23Settings.settingsFor(null, 16.3).settings.spinsPerHour, 200);
 s23Settings.data.presetSettings['agnes-pe'] = {};
 s23Settings.__storeSpeed = {};
 // 根拠行に出典を添える
-assert.match(html, /通常時\$\{spinsPerHour\.toLocaleString\("ja-JP"\)\}回転\/h\$\{spinsPerHourSource \? `（\$\{spinsPerHourSource\}）` : "想定"\}/);
+// S34/§4: 出典のあとに前提を添える（既定なら「回転率16の台を休まず打った目安」、実測なら「・中断込み」）
+assert.match(html, /通常時\$\{spinsPerHour\.toLocaleString\("ja-JP"\)\}回転\/h\$\{spinsPerHourNote \? `（\$\{spinsPerHourNote\}）` : "想定"\}/);
 assert.match(html, /expectationBasisText\(expectation\.result, expectation\.spinsPerHourInfo\?\.source\)/);
+
+// --- S34/§1: 画面に出る「セッション」は「今回の稼働」系の日本語に置き換える ---------
+// 識別子・コメント・schema の sessions と、開発用表示の storageNote は対象外。
+const s34VisibleSession = html.split("\n").filter((line) => {
+  if (!line.includes("セッション")) return false;
+  const trimmed = line.trim();
+  if (trimmed.startsWith("//") || trimmed.startsWith("*") || trimmed.startsWith("/*")) return false;
+  if (line.includes("els.storageNote.textContent")) return false;
+  return line.split("//")[0].includes("セッション");
+});
+assert.equal(s34VisibleSession.length, 0, "画面に出る「セッション」は残っていないこと:\n" + s34VisibleSession.join("\n"));
+assert.match(html, /稼働中の記録はありません。マップから台を選んで開始してください。/);
+assert.match(html, /記録はまだありません。/);
+assert.match(html, /店ごとにマップ、台、イベントメモ、記録を分離します。/);
+assert.match(html, /今回の稼働のメモではなく、この台そのものに追記するメモです。/);
+assert.match(html, /過去の記録を確認して開始します。/);
+assert.match(html, /<small>過去の記録なし<\/small>/);
+assert.match(html, /<span>今回の稼働の回転率<\/span>/);
+// schema・保存キー・識別子は変えない
+assert.match(html, /sessions: \[\]/);
+assert.match(html, /STORAGE_KEY = STORAGE_PREFIX \+ "data"/);
+
+// --- S34/§2: 説明（分類A）だけをスイッチで隠す ---------------------------------
+// 分類B（実機：◯◯）・分類C（警告・状態・入力確認・判定基準）は hint クラスのまま残す。
+assert.match(html, /\.hints-off \.hint-help \{\s*display: none;\s*\}/);
+assert.match(html, /const SHOW_HINTS_KEY = STORAGE_PREFIX \+ "app:showHints";/);
+assert.match(html, /<input id="showHintsToggle" type="checkbox" checked> 説明を表示する/);
+assert.match(html, /実機と照合するための表示（実機：◯◯）と、警告・判定基準はOFFでも残ります。/);
+assert.match(html, /return localStorage\.getItem\(SHOW_HINTS_KEY\) !== "0";/);
+assert.match(html, /document\.body\.classList\.toggle\("hints-off", !enabled\);/);
+assert.match(html, /localStorage\.setItem\(SHOW_HINTS_KEY, enabled \? "1" : "0"\);/);
+assert.match(html, /applyShowHints\(showHintsEnabled\(\)\);/);
+// 旧版ブロック中はスイッチも disabled（applyVersionBlock が input をまとめて止める）
+assert.match(html, /document\.querySelectorAll\("button, input, textarea, select"\)/);
+// 書き出しは data だけ。スイッチのキーは JSON にも schema 移行にも入らない
+assert.match(html, /const raw = JSON\.stringify\(data, null, 2\);/);
+assert.doesNotMatch(section("function normalizeData", "function repairStartMochidama"), /showHints/);
+// S33時点の hint は84箇所。うち分類Aが29、分類B・Cが55。S34 で §3・§4 の説明を2つ足して A は31、
+// スイッチの注意書き（常に表示）を1つ足して B・C は56。
+const s34HintTotal = (html.match(/class="hint( warn)?( hint-help)?"/g) || []).length;
+const s34HintHelp = (html.match(/class="hint hint-help"/g) || []).length;
+assert.equal(s34HintHelp, 31, "分類A（説明）の数＝S33の29＋S34で足した2");
+assert.equal(s34HintTotal - s34HintHelp, 56, "分類B・C（常に表示）の数＝S33の55＋スイッチの注意書き1");
+// 警告（hint warn）には1つも付けない
+assert.equal((html.match(/class="hint warn hint-help"/g) || []).length, 0);
+// 判定基準の根拠行・入力確認・旧境界の注記は分類Aにしない
+assert.match(html, /<p class="hint" id="machineEvBasis"><\/p>/);
+assert.doesNotMatch(html, /result-input-warnings[^]{0,200}hint-help/);
+assert.match(resultBlock, /\$\{summary\.speedBoundaryLegacy \? "（旧境界・参考）" : ""\}/);
+
+// --- S34/§3: 機械割は打ち切り判断の数字だと分かるようにする --------------------
+assert.match(html, /<span>スロ換算機械割<\/span><strong>\$\{escapeHtml\(percentText\(expectation\.result\.slotRate\)\)\}<\/strong><small>打ち切り判断の目安<\/small>/);
+assert.match(html, /<p class="hint hint-help">スロ換算機械割は、時短抜け後も打ち続ける「打ち切り」の判断に使う数字です。105%が時給約2,400円に相当します。/);
+
+// --- S34/§4: 時速・時給の前提 --------------------------------------------------
+assert.match(html, /回転）・中断込み<\/small>/);
+assert.match(html, /<p class="hint hint-help">時速と時給は、休憩などの中断を含めた実際の時間で出しています。休憩が多いと低く出ます。<\/p>/);
+// 文言に 290 を直書きせず DEFAULT_SPINS_PER_HOUR から出す
+assert.match(html, /既定：回転率\$\{DEFAULT_SPINS_PER_HOUR_BASE_RATE\}の台を休まず打った目安/);
+// S33の裁定（回転率16の台 → 16×15+50＝290）。片方だけ動かすと前提の説明がずれるので突き合わせる
+assert.match(html, /const DEFAULT_SPINS_PER_HOUR_BASE_RATE = 16;/);
+assert.equal(16 * 15 + 50, 290, "既定時速と前提の回転率は S33 の関係を保つこと");
+// 直書きの「16」がコード側に無いこと（コメントは説明なので除く）
+const s34NoteCode = html.split("\n").filter((line) => !line.trim().startsWith("//")).join("\n");
+assert.doesNotMatch(s34NoteCode, /回転率16の台を休まず打った目安/);
+// 根拠行の前提の出し分け
+const s34NoteContext = vm.createContext({
+  DEFAULT_SPINS_PER_HOUR: 290,
+  DEFAULT_SPINS_PER_HOUR_BASE_RATE: 16,
+  data: { meta: {} },
+  DEFAULT_HOURLY_THRESHOLD_YEN: 2400,
+  normalizeNumber(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const n = Number(value);
+    return Number.isFinite(n) ? n : null;
+  },
+  yenText: (value) => `${value}円`,
+  hourText: (value) => `${value}h`
+});
+new vm.Script(`
+  ${section('function expectationBasisText', 'function expectationInvestmentText')}
+  ${section('function hourlyThresholdYen', 'function expectationYenPerBall')}
+  globalThis.basis = (source) => expectationBasisText({ normalCostYen: 4000, evYen: 500, spinsPerHour: 290, totalHours: 0.5, normalHours: 0.3, hitHours: 0.1, densapoHours: 0.1 }, source);
+`).runInContext(s34NoteContext);
+assert.match(s34NoteContext.basis('既定'), /通常時290回転\/h（既定：回転率16の台を休まず打った目安）$/);
+assert.match(s34NoteContext.basis('実測・台'), /通常時290回転\/h（実測・台・中断込み）$/);
+assert.match(s34NoteContext.basis('実測・店'), /通常時290回転\/h（実測・店・中断込み）$/);
+assert.match(s34NoteContext.basis('手入力'), /通常時290回転\/h（手入力）$/);
+assert.match(s34NoteContext.basis(null), /通常時290回転\/h想定$/);
+// 判定基準の一文は前提の追記でも消えない
+assert.match(s34NoteContext.basis('既定'), /^判定基準：時給2,400円以上で打てる ／ /);
 
 // --- S33/§1-2: 想定時速の既定は290回転/h。店の実測は回転率が近い台に限る ----
 assert.match(html, /const DEFAULT_SPINS_PER_HOUR = 290;/);
@@ -7288,7 +7387,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 33;/);
+assert.match(html, /const APP_VERSION_SEQ = 34;/);
 assert.match(html, /const APP_VERSION_DATE = "2026-09-14";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。

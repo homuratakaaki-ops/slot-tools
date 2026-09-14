@@ -319,6 +319,19 @@
       line-height: 1.5;
     }
 
+    /* S34/§2-2: 「説明を表示する」OFF のとき、分類Aの説明だけを隠す。
+       分類B（実機：◯◯）と分類C（警告・状態・入力確認・判定基準）は hint のままなので残る。 */
+    .hints-off .hint-help {
+      display: none;
+    }
+
+    .hint-switch-row {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin: 8px 0 0;
+    }
+
     .warn {
       color: var(--warn);
       font-weight: 700;
@@ -1982,6 +1995,10 @@
           <div>
             <h2>店選択</h2>
             <p>v3専用データです。v2とはlocalStorageキーを共有しません。</p>
+            <div class="hint-switch-row">
+              <label class="check-chip"><input id="showHintsToggle" type="checkbox" checked> 説明を表示する</label>
+              <span class="hint">実機と照合するための表示（実機：◯◯）と、警告・判定基準はOFFでも残ります。</span>
+            </div>
           </div>
           <button class="primary small" id="openStoreFormBtn">店を追加</button>
         </div>
@@ -2077,11 +2094,14 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 33;
+    const APP_VERSION_SEQ = 34;
     const APP_VERSION_DATE = "2026-09-14";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
     const LAST_VERSION_KEY = STORAGE_PREFIX + "app:lastVersionSeq";
+    // S34/§2-2: 説明（分類A）を出すかどうか。実戦データとは別キーで、書き出し（exportJson は data だけを
+    // 出す）にも schema 移行にも含めない（LAST_VERSION_KEY と同じ扱い）。切り替えたときだけ保存する。
+    const SHOW_HINTS_KEY = STORAGE_PREFIX + "app:showHints";
     const SCHEMA_VERSION = 39;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
@@ -2104,6 +2124,9 @@
     // S33/§1-2: 通常時の想定時速の既定（回転/h）。回転率16の台の実測相当（夢爽裁定）。
     // 16×15+50＝290 で、手元の実測（台320・回転率16.3で293回転/h）とも合う。
     const DEFAULT_SPINS_PER_HOUR = 290;
+    // S34/§4: 既定時速がどの台を前提にしているか。S33の裁定の「回転率16の台」で、
+    // DEFAULT_SPINS_PER_HOUR（16 × 15 + 50 ＝ 290）の 16 にあたる。片方だけ動かさない。
+    const DEFAULT_SPINS_PER_HOUR_BASE_RATE = 16;
     // S33/§1-2: 店の実測を採ってよい回転率の帯（±この値）。時速は回転率が低い台ほど遅いので、
     // 回転率が離れた台の実測をそのまま持ってくると外れる（2026/9/10 の実戦で判明）。
     const SPEED_RATE_BAND = 2.0;
@@ -2554,12 +2577,23 @@
       location.href = location.pathname + "?v=" + Date.now();
     });
     byId("versionAckBtn").addEventListener("click", releaseVersionBlock);
+    // S34/§2-2: 説明の表示スイッチ。切り替えた瞬間だけ保存し、body のクラスで一括して隠す。
+    byId("showHintsToggle").addEventListener("change", (event) => {
+      const enabled = event.target.checked === true;
+      try {
+        localStorage.setItem(SHOW_HINTS_KEY, enabled ? "1" : "0");
+      } catch (error) {
+        console.warn("ytv3 showHints save failed", error);
+      }
+      applyShowHints(enabled);
+    });
     byId("closeModalBtn").addEventListener("click", closeModal);
     els.modalBackdrop.addEventListener("click", (event) => {
       if (event.target === els.modalBackdrop) closeModal();
     });
 
     renderAppVersion();
+    applyShowHints(showHintsEnabled());
     if (appVersionBlocked) {
       // S30追補/§2: 描画もしない。空のデータを描くと「記録が消えた」ように見えるため。
       showVersionWarning();
@@ -2577,6 +2611,22 @@
     function renderAppVersion() {
       const el = byId("appVersion");
       if (el) el.textContent = "S" + APP_VERSION_SEQ + " / " + APP_VERSION_DATE;
+    }
+
+    // S34/§2-2: 保存値が "0" のときだけOFF。未保存・読めないときはON（初期はON）。
+    function showHintsEnabled() {
+      try {
+        return localStorage.getItem(SHOW_HINTS_KEY) !== "0";
+      } catch (error) {
+        return true;
+      }
+    }
+
+    // S34/§2-2: 描画ごとに個別に判定せず、body のクラス1つで切り替える（CSS の .hints-off .hint-help）。
+    function applyShowHints(enabled) {
+      document.body.classList.toggle("hints-off", !enabled);
+      const toggle = byId("showHintsToggle");
+      if (toggle) toggle.checked = enabled;
     }
 
     // S30/§3-2: 保存値が現在より大きいときだけ旧版とみなし、そのときは保存値を上書きしない
@@ -3579,11 +3629,16 @@
       const machineRate = investYen > 0 ? 100 + evYen / investYen * 100 : null;
       const spinsPerHour = Math.round(Number(result.spinsPerHour) || 0);
       const threshold = Math.round(hourlyThresholdYen());
+      // S34/§4: 想定時速の前提を出典の後ろに添える。既定は「回転率16の台を休まず打った目安」、
+      // 実測は休憩などの中断を含む実時間から出しているので「・中断込み」を足す。手入力はそのまま。
+      const spinsPerHourNote = spinsPerHourSource === "既定"
+        ? `既定：回転率${DEFAULT_SPINS_PER_HOUR_BASE_RATE}の台を休まず打った目安`
+        : (spinsPerHourSource === "実測・台" || spinsPerHourSource === "実測・店" ? `${spinsPerHourSource}・中断込み` : spinsPerHourSource);
       return `判定基準：時給${threshold.toLocaleString("ja-JP")}円以上で打てる ／ `
         + `投資 約${investYen.toLocaleString("ja-JP")}円に対し期待値 ${yenText(evYen)}`
         + `（機械割 ${machineRate === null ? "-" : `${machineRate.toFixed(1)}%`} ＝ 期待値÷投資額+100%）`
         + ` ／ 消化時間 ${hourText(result.totalHours)}（通常${hourText(result.normalHours)}＋当選${hourText(result.hitHours)}＋電サポ${hourText(result.densapoHours)}）`
-        + ` ／ 通常時${spinsPerHour.toLocaleString("ja-JP")}回転/h${spinsPerHourSource ? `（${spinsPerHourSource}）` : "想定"}`;
+        + ` ／ 通常時${spinsPerHour.toLocaleString("ja-JP")}回転/h${spinsPerHourNote ? `（${spinsPerHourNote}）` : "想定"}`;
     }
 
     function expectationInvestmentText(mochidamaBalls, cashBalls, spinsToTenjo, rotationRate) {
@@ -4575,7 +4630,7 @@
               <button class="small baseline-chip" id="quickAssumedRateBtn">平均回転率 <strong>${assumedRate !== null && assumedRate !== undefined ? Number(assumedRate).toFixed(1) : "未設定"}</strong>（${assumedRate !== null && assumedRate !== undefined ? "変更" : "設定"}）</button>
               ${baselineChipsHtml(baselinePresetIds)}
             </div>
-            <p class="hint" style="margin:6px 0 0">このコーナーの基準値です。台ごとの実測・手入力がない台は、この値で期待値を計算します。</p>
+            <p class="hint hint-help" style="margin:6px 0 0">このコーナーの基準値です。台ごとの実測・手入力がない台は、この値で期待値を計算します。</p>
           </div>
         ` : ""}
         <div class="filter-block">
@@ -4723,10 +4778,10 @@
         <div class="field-row"><label for="quickJitanFastBallsPerSpin">${isStCertain ? "ST・時短" : "時短200"}（玉/回転）</label><input id="quickJitanFastBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin"))}"></div>
         <div class="field-row"><label for="quickYutimeBallsPerSpin">遊タイム（玉/回転）</label><input id="quickYutimeBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetYutimeBallsPerSpin(presetId))}"></div>
         <div class="field-row"><label for="quickHoldSpins">時短抜け後の残保留（回転）</label><input id="quickHoldSpins" inputmode="numeric" value="${escapeHtml(presetHoldSpins(presetId))}"></div>
-        <p class="hint">時短が終わったあと玉代ゼロで回る保留の数。通常4〜5。0で考慮しない。</p>
+        <p class="hint hint-help">時短が終わったあと玉代ゼロで回る保留の数。通常4〜5。0で考慮しない。</p>
         <div class="field-row"><label for="quickHourlyThreshold">「打てる」判定の時給ライン（円）</label><input id="quickHourlyThreshold" inputmode="numeric" value="${escapeHtml(Math.round(hourlyThresholdYen()))}"></div>
         <p class="hint">打てる判定の時給ライン。スロ機械割105%相当＝約2,400円が目安。全機種・全店共通の値です。</p>
-        <p class="hint">1R実質出玉は「大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）÷ 消化した合計R数」です。空欄または0以下なら手入力上書きを解除し、実測平均・基準値の順で自動採用します。${supportHint}</p>
+        <p class="hint hint-help">1R実質出玉は「大当り開始から電サポ終了までの純増玉数（電サポ中の減りを含む）÷ 消化した合計R数」です。空欄または0以下なら手入力上書きを解除し、実測平均・基準値の順で自動採用します。${supportHint}</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveQuickNetBallsBtn">保存</button>
@@ -4911,7 +4966,7 @@
       const session = activeSession();
       if (!session) {
         setRunningFullscreenLock(false);
-        els.runningArea.innerHTML = '<div class="section"><h2>稼働中</h2><p>現在進行中のセッションはありません。マップから台を選んで開始してください。</p></div>';
+        els.runningArea.innerHTML = '<div class="section"><h2>稼働中</h2><p>稼働中の記録はありません。マップから台を選んで開始してください。</p></div>';
         return;
       }
       const machine = data.machines.find((item) => item.id === session.machineId);
@@ -5257,7 +5312,7 @@
         <div class="metric"><span>累計参考回転率</span><strong>${allStats.rate ? allStats.rate.toFixed(1) : "-"}</strong></div>
       `;
       if (!sessions.length) {
-        els.sessionList.innerHTML = '<div class="row-card">セッションはまだありません。</div>';
+        els.sessionList.innerHTML = '<div class="row-card">記録はまだありません。</div>';
         return;
       }
       const sortedSessions = sessions.slice().sort((a, b) => {
@@ -5327,14 +5382,14 @@
     }
 
     function openStoreForm() {
-      openModal("店を追加", "店ごとにマップ、台、イベントメモ、セッションを分離します。", `
+      openModal("店を追加", "店ごとにマップ、台、イベントメモ、記録を分離します。", `
         <div class="field-row"><label for="storeName">店名</label><input id="storeName" placeholder="例: ミレスト東口店"></div>
         <label class="check-chip"><input id="storePersonal" type="checkbox"> パーソナルシステムあり</label>
         <div class="grid two">
           <div class="field-row"><label for="storeLendRate">貸玉レート（円/玉）</label><input id="storeLendRate" inputmode="decimal" value="4"></div>
           <div class="field-row"><label for="storeExchangeBalls">交換玉数（100円あたり）</label><input id="storeExchangeBalls" inputmode="decimal" value="25"></div>
         </div>
-        <p class="hint">貸玉4円・等価なら交換玉数は25のままで構いません。28玉交換なら28を入力します。</p>
+        <p class="hint hint-help">貸玉4円・等価なら交換玉数は25のままで構いません。28玉交換なら28を入力します。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="createStoreBtn">追加</button>
@@ -5372,13 +5427,13 @@
         <div class="field-row"><label for="editStoreName">店名</label><input id="editStoreName" value="${escapeHtml(store.name)}"></div>
         <label class="check-chip"><input id="editStorePersonal" type="checkbox" ${store.isPersonal ? "checked" : ""}> パーソナルシステムあり</label>
         <label class="check-chip"><input id="editStoreTest" type="checkbox" ${store.isTestStore ? "checked" : ""}> テスト用の店（集計から除外）</label>
-        <p class="hint">動作確認用の店です。全店の1R実質出玉の平均と、リザルトの「これまでの積み上げ」から外します。この店を選んでいる間は、この店の記録は従来どおり表示します。</p>
+        <p class="hint hint-help">動作確認用の店です。全店の1R実質出玉の平均と、リザルトの「これまでの積み上げ」から外します。この店を選んでいる間は、この店の記録は従来どおり表示します。</p>
         <div class="grid two">
           <div class="field-row"><label for="editStoreLendRate">貸玉レート（円/玉）</label><input id="editStoreLendRate" inputmode="decimal" value="${escapeHtml(store.lendRate)}"></div>
           <div class="field-row"><label for="editStoreExchangeBalls">交換玉数（100円あたり）</label><input id="editStoreExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(store.exchangeBalls))}"></div>
         </div>
         <div class="field-row"><label for="editStoreNetBallsOffset">1R実質出玉の補正（玉）</label><input id="editStoreNetBallsOffset" inputmode="decimal" value="${escapeHtml(netBallsOffsetForStore(store))}"></div>
-        <p class="hint">この店の台はアタッカーのこぼれが多い、など店ごとの傾向があるときに。全店の実測平均に足し引きします。この店の台自身の実測がある台には掛かりません。</p>
+        <p class="hint hint-help">この店の台はアタッカーのこぼれが多い、など店ごとの傾向があるときに。全店の実測平均に足し引きします。この店の台自身の実測がある台には掛かりません。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveStoreSettingsBtn">保存</button>
@@ -6187,7 +6242,7 @@
         </div>
         ${ended ? `<p class="hint warn">この列は終わりです。</p><div class="modal-actions"><button class="primary" data-close>マップへ戻る</button></div>` : closingInputFlow.direction === null ? `
           <div class="closing-direction">
-            <p class="hint">数字を入れて方向をタップ＝保存して移動 / 空のまま＝スキップ</p>
+            <p class="hint hint-help">数字を入れて方向をタップ＝保存して移動 / 空のまま＝スキップ</p>
             <div class="grid two">
               <button id="chooseClosingBackwardBtn" ${leftDai ? "" : "disabled"}>← ${escapeHtml(leftDai || "端") }へ</button>
               <button id="chooseClosingForwardBtn" ${rightDai ? "" : "disabled"}>${escapeHtml(rightDai || "端")}へ →</button>
@@ -6428,7 +6483,7 @@
           </div>
           ${morningCheckFlow.direction === null ? `
             <div class="closing-direction">
-              <p class="hint">チェックして方向をタップ＝保存して移動 / 未チェック＝スキップ</p>
+              <p class="hint hint-help">チェックして方向をタップ＝保存して移動 / 未チェック＝スキップ</p>
               <div class="grid two">
                 <button id="chooseMorningBackwardBtn" ${leftDai ? "" : "disabled"}>← ${escapeHtml(leftDai || "端") }へ</button>
                 <button id="chooseMorningForwardBtn" ${rightDai ? "" : "disabled"}>${escapeHtml(rightDai || "端")}へ →</button>
@@ -6633,7 +6688,7 @@
     function openMachineMemoEditor(machineId) {
       const machine = data.machines.find((item) => item.id === machineId);
       if (!machine) return;
-      openModal("台メモ（釘・癖など）", "セッションのメモではなく、この台そのものに追記するメモです。過去メモは編集・削除しません。", `
+      openModal("台メモ（釘・癖など）", "今回の稼働のメモではなく、この台そのものに追記するメモです。過去メモは編集・削除しません。", `
         ${machineMemoSectionHtml(machine, "quickMemoEntryText", "addQuickMemoEntryBtn")}
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
@@ -6717,7 +6772,7 @@
           `;
         }).join("") : `
           <div class="row-card">
-            <strong>セッションなし</strong><br>
+            <strong>記録なし</strong><br>
             <small>ヘソ評価 ${escapeHtml(hesoText)} / 回転数 - / 回転率 -</small><br>
             ${memoHtml}
           </div>
@@ -6778,7 +6833,7 @@
           </select></div>
           <div class="field-row"><label for="machineModel">機種名</label><input id="machineModel" value="${escapeHtml(machine.modelName || "")}" placeholder="任意"></div>
           <div class="field-row"><label for="roundBalls">1R玉数</label><input id="roundBalls" inputmode="numeric" value="${escapeHtml(machine.roundBalls ?? "")}" placeholder="例: 140"></div>
-          <p class="hint">1ラウンドあたりの獲得玉数。例: 大海物語スペシャル5 なら 140</p>
+          <p class="hint hint-help">1ラウンドあたりの獲得玉数。例: 大海物語スペシャル5 なら 140</p>
           <p class="hint warn" id="presetSupportNote"></p>
         </div>
       `;
@@ -6882,7 +6937,7 @@
       `;
       return `
         <details class="row-card machine-stats-filter" id="machineStatsFilter" ${options.open ? "open" : ""}>
-          <summary>絞り込み${active ? `（該当${filteredSessions.length}セッション）` : ""}</summary>
+          <summary>絞り込み${active ? `（該当${filteredSessions.length}件）` : ""}</summary>
           <div class="filter-block">
             <small>日にち</small>
             <div class="label-checks">
@@ -6943,13 +6998,13 @@
         return number !== null && number > 0 ? number : "";
       };
       const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
-      const statsFilterNote = statsFilterActive ? `<p class="hint">絞り込み中（該当${filteredStatsSessions.length}セッション）${filteredStatsSessions.length ? "" : " / 該当するサンプルがありません"}</p>` : "";
+      const statsFilterNote = statsFilterActive ? `<p class="hint">絞り込み中（該当${filteredStatsSessions.length}件）${filteredStatsSessions.length ? "" : " / 該当するサンプルがありません"}</p>` : "";
       const averagePayoutNote = baseStats.estimatedCount ? "（概算含む）" : "";
-      openModal(`台番 ${daiNo}`, "過去セッション概要を確認して開始します。", `
+      openModal(`台番 ${daiNo}`, "過去の記録を確認して開始します。", `
         ${machineMemoSectionHtml(machine)}
         ${nailRatingSectionHtml(machine)}
         <div class="metric-grid">
-          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}${stats.speedPerMinute === null ? "" : `<small>参考時速 ${escapeHtml(spinsPerMinuteText(stats.speedPerMinute))}（${Math.round(stats.speedMinutes).toLocaleString("ja-JP")}分・${Math.round(stats.speedSpins).toLocaleString("ja-JP")}回転）</small>`}</div>
+          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}${stats.speedPerMinute === null ? "" : `<small>参考時速 ${escapeHtml(spinsPerMinuteText(stats.speedPerMinute))}（${Math.round(stats.speedMinutes).toLocaleString("ja-JP")}分・${Math.round(stats.speedSpins).toLocaleString("ja-JP")}回転）・中断込み</small>`}</div>
           ${showExpectationBlock ? `<div class="metric"><span>参考1R出玉</span><strong>${escapeHtml(netBallsText(netBallsInfo.value))}</strong><small>${escapeHtml(netBallsSourceText(netBallsInfo))}</small></div>` : ""}
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
@@ -6981,6 +7036,7 @@
           <div class="metric-grid" id="machineEvMetrics"></div>
           <p class="hint" id="machineEvDetail"></p>
           <p class="hint" id="machineEvBasis"></p>
+          <p class="hint hint-help">スロ換算機械割は、時短抜け後も打ち続ける「打ち切り」の判断に使う数字です。105%が時給約2,400円に相当します。遊タイム狙いの打つ／打たないは、判定と時給で見ます。</p>
         </div>` : ""}
         ${machineModelSummaryHtml(machine)}
         ${machineFormExpanded ? machineDetailFormHtml(machine) : ""}
@@ -6988,7 +7044,7 @@
           ${sessions.slice(-5).reverse().map((session) => {
             const derived = deriveSession(session, machine);
             return `<div class="row-card"><strong>${escapeHtml(session.date)}</strong><br><small>${session.status === "completed" ? "確定" : "稼働中"} / 回転率 ${rateText(derived)}${derived.isEstimatedRate || derived.isEstimatedPayout ? " / 概算" : ""}</small></div>`;
-          }).join("") || '<div class="row-card"><small>過去セッションなし</small></div>'}
+          }).join("") || '<div class="row-card"><small>過去の記録なし</small></div>'}
         </div>
         <div class="machine-history-panel" id="machineHistoryPanel" hidden>
           ${machineHistoryHtml(machine)}
@@ -7152,7 +7208,7 @@
         <div class="metric"><span>残り回転数</span><strong>${expectation.result.spinsToTenjo.toLocaleString("ja-JP")}</strong></div>
         <div class="metric"><span>期待値</span><strong>${escapeHtml(yenText(expectation.result.evYen))}</strong></div>
         <div class="metric"><span>時給</span><strong>${escapeHtml(yenText(expectation.result.hourlyYen))}</strong></div>
-        <div class="metric"><span>スロ換算機械割</span><strong>${escapeHtml(percentText(expectation.result.slotRate))}</strong></div>
+        <div class="metric"><span>スロ換算機械割</span><strong>${escapeHtml(percentText(expectation.result.slotRate))}</strong><small>打ち切り判断の目安</small></div>
         <div class="metric"><span>拘束時間</span><strong>${escapeHtml(hourText(expectation.result.totalHours))}</strong></div>
       `;
       const near = expectation.result.spinsToTenjo < 100 && expectation.result.spinsToTenjo > 0;
@@ -7177,7 +7233,7 @@
             <div class="style-choice">
               ${options.map((option) => `<button type="button" class="startPlayStyleChoice${option.value === startPlayStyle ? " selected" : ""}" data-play-style="${option.value}" aria-pressed="${option.value === startPlayStyle ? "true" : "false"}">${escapeHtml(option.label)}</button>`).join("")}
             </div>
-            <p class="hint">時短抜けで作る区間の初期状態が変わります。前回の選択を初期値にしています。あとから「記録の修正・削除」で変えられます。</p>
+            <p class="hint hint-help">時短抜けで作る区間の初期状態が変わります。前回の選択を初期値にしています。あとから「記録の修正・削除」で変えられます。</p>
           </div>
         </div>
       `;
@@ -7444,7 +7500,7 @@
           <label for="hitWizardRemainBalls">残り持ち玉（実機：台の持ち玉表示）</label>
           <div>
             <input id="hitWizardRemainBalls" inputmode="numeric" value="${escapeHtml(mochidamaPreset ?? "")}">
-            <p class="hint">${hitRemainHint()}${activeStore()?.isPersonal ? "" : " 非パーソナル店では空欄のままで構いません。"}</p>
+            <p class="hint hint-help">${hitRemainHint()}${activeStore()?.isPersonal ? "" : " 非パーソナル店では空欄のままで構いません。"}</p>
           </div>
         </div>
         <div class="modal-actions">
@@ -7650,7 +7706,7 @@
             <small>1R当たり ${ballsPerRoundText(ballsPerRound)}</small>
           </div>
           ${breakdownLine("今回の連チャン", chainBreakdown)}
-          ${breakdownLine("このセッション", sessionBreakdown, "今回")}
+          ${breakdownLine("今回の稼働", sessionBreakdown, "今回")}
           <hr>
           <p class="hint">実測獲得出玉 今回 ${actualPayout > 0 ? `${Math.round(Math.max(0, latestActualBalls ?? 0)).toLocaleString("ja-JP")}玉／累計 ${Math.round(actualPayout).toLocaleString("ja-JP")}玉` : "—"}</p>
         </div>
@@ -7697,7 +7753,7 @@
               <p class="hint">当選カウンター <strong>${numberText(hitCounterSpin, "-")}</strong>（当選ウィザードで記録した値です。変えるときは「大当たり履歴」から）</p>
               <label for="hitRecordActualBalls">この連チャンの累計出玉</label>
               <input id="hitRecordActualBalls" inputmode="numeric" placeholder="この連チャンの累計出玉（実機：データカウンター）任意">
-              <p class="hint">いま表示されている、この連チャンの累計出玉を入力してください。時短が終わると0に戻ります。前回の入力との差が、今回の当たりの出玉になります。</p>
+              <p class="hint hint-help">いま表示されている、この連チャンの累計出玉を入力してください。時短が終わると0に戻ります。前回の入力との差が、今回の当たりの出玉になります。</p>
             </div>
             ${hitRoundSummaryHtml(session, presetId)}
           </div>
@@ -7708,7 +7764,7 @@
             <label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）</label>
             <input id="jitanExitStartBalls" inputmode="numeric" value="${escapeHtml(startBallsValue ?? "")}">
             <p class="hint" id="jitanExitStartBallsRequired">台の持ち玉を入力すると、時短抜けを確定できます</p>
-            <p class="hint">ここからの回転率を出す起点になります。計数機に入れたときは実際の値に直してください。持ち玉はこの欄だけで記録します。</p>
+            <p class="hint hint-help">ここからの回転率を出す起点になります。計数機に入れたときは実際の値に直してください。持ち玉はこの欄だけで記録します。</p>
             ${startBallsEstimate ? `<p class="hint">参考：前回${escapeHtml(startBallsEstimate.base.toLocaleString("ja-JP"))}玉＋${startBallsEstimate.kind === "actual" ? `累計出玉${escapeHtml(startBallsEstimate.chainBalls.toLocaleString("ja-JP"))}玉` : `${escapeHtml(startBallsEstimate.rounds.toLocaleString("ja-JP"))}R×${escapeHtml(startBallsEstimate.perRound.toLocaleString("ja-JP"))}玉`}＝約${escapeHtml(startBallsPreset.value.toLocaleString("ja-JP"))}玉。台の表示を入力してください</p>` : ""}
             <div class="quick-invest">
               ${jitanOptions.map((option) => `<button data-hit-reset="${option.counterSpin}" disabled>時短${option.jitanSpins} → カウンター${option.counterSpin}</button>`).join("") || '<span class="hint">この機種には時短のプリセットがありません。直接入力してください。</span>'}
@@ -7717,12 +7773,12 @@
             <div class="style-choice">
               ${["before", "started"].map((value) => `<button type="button" class="jitanShootingChoice${value === shootingSelected ? " selected" : ""}" data-shooting="${value}" aria-pressed="${value === shootingSelected ? "true" : "false"}">${value === "before" ? "打ち出しを止める（保留を待つ）" : "打ち出しを続ける"}</button>`).join("")}
             </div>
-            <p class="hint">打ち方の方針から選んであります。止めた場合は、打ち出したときに「打ち出し開始」を押してください。</p>
+            <p class="hint hint-help">打ち方の方針から選んであります。止めた場合は、打ち出したときに「打ち出し開始」を押してください。</p>
             <div class="grid two">
               <input id="jitanExitSpin" inputmode="numeric" placeholder="直接入力（回転数）">
               <button id="applyJitanExitBtn" disabled>この回転数で開始</button>
             </div>
-            <p class="hint">選ばずに閉じると、現在回転数はそのままです。</p>
+            <p class="hint hint-help">選ばずに閉じると、現在回転数はそのままです。</p>
           </div>
         </div>
         <div class="modal-actions">
@@ -8350,14 +8406,14 @@
           <label for="editHitAt">当選時刻（HH:MM:SS）</label>
           <div>
             <input id="editHitAt" type="time" step="1" value="${escapeHtml(localTimeText(hit.at, true))}">
-            <p class="hint">当選ボタンを押した瞬間を自動記録しています。ずれている場合だけ直してください。</p>
+            <p class="hint hint-help">当選ボタンを押した瞬間を自動記録しています。ずれている場合だけ直してください。</p>
           </div>
         </div>
         <div class="field-row">
           <label for="editHitActualBalls">この連チャンの累計出玉（実機：データカウンター）</label>
           <div>
             <input id="editHitActualBalls" inputmode="numeric" value="${escapeHtml(hasActualBalls ? Math.round(cumulativeBalls) : "")}">
-            <p class="hint">この連チャンで、この当選までの累計です。同じ連チャン内のここまでの合計を引いた分が、今回の獲得出玉として記録し直されます。</p>
+            <p class="hint hint-help">この連チャンで、この当選までの累計です。同じ連チャン内のここまでの合計を引いた分が、今回の獲得出玉として記録し直されます。</p>
           </div>
         </div>
         <div class="modal-actions">
@@ -8443,7 +8499,8 @@
     function runEndWizard(session, hasHit) {
       const currentBalances = deriveBalances(session);
       const endTotalBallsPreset = currentBalances.mochidama;
-      const endTotalBallsHint = (endTotalBallsPreset !== null ? "稼働中の持ち玉残を初期値にしています。 " : "") + "（実機：計数機に流す玉数）そのまま入力してください。";
+      // S34/§2-1: 照合先（実機：計数機に流す玉数）はラベル側へ移し、ヒントには説明だけを残す。
+      const endTotalBallsHint = (endTotalBallsPreset !== null ? "稼働中の持ち玉残を初期値にしています。 " : "") + "そのまま入力してください。";
       const endSpinPreset = !hasHit && session.hitSpin === null && Number(session.hitCount || 0) === 0 ? session.currentSpin : null;
       const endSpinHint = endSpinPreset !== null ? "稼働中カウンタの現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "";
       const zanhoryuPreset = zanhoryuPresetFromHit(session, hasHit);
@@ -8455,13 +8512,13 @@
       // S8/§1-3: 実機はセッション累計の獲得出玉を表示しないため、ヤメ入力に累計獲得出玉は置かない。
       // 実測出玉合計は当選ごとの記録（sessionActualBallsTotal）だけで確定する。
       const steps = hasHit ? [
-        { key: "endTotalBalls", label: "時短抜け後の合計玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
+        { key: "endTotalBalls", label: "時短抜け後の合計玉数（実機：計数機に流す玉数）", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
         { key: "endSpin", label: "ヤメ回転数（実機：ヤメ時のデータカウンター）", type: "number" },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number", preset: zanhoryuPreset, hint: zanhoryuHint },
         { key: "memo", label: "メモ", type: "textarea" },
         ...hitRecordSteps
       ] : [
-        { key: "endTotalBalls", label: "終了時玉数", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
+        { key: "endTotalBalls", label: "終了時玉数（実機：計数機に流す玉数）", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
         { key: "endSpin", label: "ヤメ回転数（実機：ヤメ時のデータカウンター）", type: "number", preset: endSpinPreset, hint: endSpinHint },
         { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
         { key: "memo", label: "メモ", type: "textarea" }
@@ -8491,7 +8548,7 @@
 
     function endFormFieldHtml(step, session) {
       const value = session[step.key] ?? step.preset ?? "";
-      const hint = step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : "";
+      const hint = step.hint ? `<p class="hint hint-help">${escapeHtml(step.hint)}</p>` : "";
       if (step.type === "textarea") {
         return `<div class="field-row"><label for="end_${step.key}">${escapeHtml(step.label)}</label><div><textarea id="end_${step.key}">${escapeHtml(value || "")}</textarea>${hint}</div></div>`;
       }
@@ -8597,25 +8654,25 @@
 
     function wizardInputHtml(step, value) {
       if (step.type === "textarea") {
-        return `<textarea id="wizardValue">${escapeHtml(value || "")}</textarea>${step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : ""}`;
+        return `<textarea id="wizardValue">${escapeHtml(value || "")}</textarea>${step.hint ? `<p class="hint hint-help">${escapeHtml(step.hint)}</p>` : ""}`;
       }
       // S7c/3-1: 2択の選択肢。タップ領域は button 既定の44px以上を保つ。
       if (step.type === "choice") {
         const selected = value ?? step.preset ?? step.options?.[0]?.value ?? null;
-        return `${step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : ""}<div class="style-choice">${(step.options || []).map((option) => `
+        return `${step.hint ? `<p class="hint hint-help">${escapeHtml(step.hint)}</p>` : ""}<div class="style-choice">${(step.options || []).map((option) => `
           <button type="button" class="wizardChoice${option.value === selected ? " selected" : ""}" data-choice="${escapeHtml(option.value)}" aria-pressed="${option.value === selected ? "true" : "false"}">${escapeHtml(option.label)}</button>
         `).join("")}</div>`;
       }
       if (step.type === "labels") {
         const chosen = new Set(Array.isArray(value) ? value : []);
-        return `${step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : ""}<div class="label-checks">${(step.labels || []).map((label) => `
+        return `${step.hint ? `<p class="hint hint-help">${escapeHtml(step.hint)}</p>` : ""}<div class="label-checks">${(step.labels || []).map((label) => `
           <label class="check-chip"><input class="wizardLabel" type="checkbox" value="${escapeHtml(label)}" ${chosen.has(label) ? "checked" : ""}> ${escapeHtml(label)}</label>
         `).join("") || '<span class="hint">イベントメモ未登録です。</span>'}</div>`;
       }
       const inputType = step.type === "time" ? "time" : "text";
       const inputMode = step.type === "number" ? ' inputmode="numeric"' : "";
       const displayValue = value ?? step.preset ?? "";
-      return `<input id="wizardValue" type="${inputType}"${inputMode} value="${escapeHtml(displayValue)}">${step.hint ? `<p class="hint">${escapeHtml(step.hint)}</p>` : ""}`;
+      return `<input id="wizardValue" type="${inputType}"${inputMode} value="${escapeHtml(displayValue)}">${step.hint ? `<p class="hint hint-help">${escapeHtml(step.hint)}</p>` : ""}`;
     }
 
     function readWizardValue(step) {
@@ -9259,7 +9316,7 @@
             ${investmentTotalFieldHtml("saipurei", "再プレ引き出し", totals.saipureiBalls, "玉")}
             ${investmentTotalFieldHtml("cash", "現金", totals.cashYen, "円")}
           </div>
-          <p class="hint">修正は差分だけを調整レコードとして追加します。タップ履歴は書き換えません。遊タイム中の投資修正は対象外です。</p>
+          <p class="hint hint-help">修正は差分だけを調整レコードとして追加します。タップ履歴は書き換えません。遊タイム中の投資修正は対象外です。</p>
         </div>
       `;
     }
@@ -9654,7 +9711,7 @@
             </table>
           </div>
           <div class="result-line">開始カウンター ${escapeHtml(startEv.effectiveSpin)} ／ 遊タイムまで残り ${escapeHtml(summary.remainingSpins ?? "-")}回転</div>
-          <p class="hint">1回のブレです。判断の良し悪しは下の通算で見ます。</p>
+          <p class="hint hint-help">1回のブレです。判断の良し悪しは下の通算で見ます。</p>
         </div>` : '<p class="hint">開始時の期待値は記録されていません。</p>';
       const segmentRows = segmentBreakdownRows(session, derived, machine, earned);
       const normalMarks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
@@ -9729,7 +9786,7 @@
           <div class="result-line">期待値合計 ${escapeHtml(yenText(storeAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(storeAggregate.profitYen))}</div>
           ${storeAggregate.count === modelAggregate.count ? `<div class="result-line">差 ${escapeHtml(yenText(storeAggregate.diffYen))}</div>` : ""}
           <div class="result-line">期待値時給 ${escapeHtml(yenText(storeAggregate.evHourlyYen))} ／ 実収支時給 ${escapeHtml(yenText(storeAggregate.profitHourlyYen))}</div>
-          <p class="hint">期待値は各区間の起点からの獲得期待値の合計</p>
+          <p class="hint hint-help">期待値は各区間の起点からの獲得期待値の合計</p>
           </details>
         </div>`;
       const html = `
@@ -9745,6 +9802,7 @@
             <div class="result-card"><span>実測回転率</span><strong>${escapeHtml(derived.rateUnavailableReason ? "-" : actualRateText)}<span style="font-size:10px"> 回/千円</span></strong><small>${escapeHtml(derived.rateUnavailableReason || (derived.isEstimatedRate ? "概算" : derived.rate === null ? "" : "実測"))}</small></div>
           </div>
           <div class="result-line">実働 ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))} ／ 通常時の時速 ${escapeHtml(spinsPerMinuteText(summary.normalSpeed.perMinute))}${summary.normalSpeed.perMinute === null ? "" : `（通常時 ${escapeHtml(minuteSecondJaText(summary.normalSpeed.minutes * 60000))}・${summary.normalSpeed.spins.toLocaleString("ja-JP")}回転）`}${summary.speedBoundaryLegacy ? "（旧境界・参考）" : ""}</div>
+          <p class="hint hint-help">時速と時給は、休憩などの中断を含めた実際の時間で出しています。休憩が多いと低く出ます。</p>
         </div>
         ${startEvHtml}
         ${warnings.length ? `<div class="result-block result-input-warnings"><div class="result-block-title">入力確認</div>${warnings.map((warning) => `<div class="result-line" data-warning-target="${warning.target}">${escapeHtml(warning.text)}</div>`).join("")}<button id="resultInputEditBtn">修正する</button></div>` : ""}
@@ -10242,7 +10300,7 @@
         <div class="metric-grid">
           <div class="metric"><span>通常回転数</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
           <div class="metric"><span>通常消費玉</span><strong>${numberText(derived.consumedBalls, "-")}</strong></div>
-          <div class="metric"><span>セッション回転率</span><strong>${rateText(derived)}</strong></div>
+          <div class="metric"><span>今回の稼働の回転率</span><strong>${rateText(derived)}</strong></div>
           <div class="metric"><span>大当たり回数</span><strong>${numberText(session.hitCount, "-")}</strong></div>
           ${derived.estimatedRemainBalls !== null ? `<div class="metric"><span>当選時残り玉</span><strong>${numberText(derived.estimatedRemainBalls, "-")}（概算）</strong></div>` : ""}
           <div class="metric"><span>獲得出玉</span><strong>${payoutText(derived)}</strong></div>
@@ -10317,7 +10375,7 @@
         ${consumedBallsSourceEditorHtml(session)}
         ${investmentTotalEditorHtml(session)}
         <div class="field-row"><label for="editHitVia">当選経路</label><select id="editHitVia"><option value="">未入力</option><option value="normal">通常</option><option value="yutime">遊タイム</option></select></div>
-        <div class="field-row"><label>イベントメモ</label><div><p class="hint">${eventMemoHelp()}</p><div class="label-checks">${labels.map((label) => `<label class="check-chip"><input class="editLabel" type="checkbox" value="${escapeHtml(label)}" ${session.labels.includes(label) ? "checked" : ""}> ${escapeHtml(label)}</label>`).join("") || '<span class="hint">イベントメモ未登録</span>'}</div></div></div>
+        <div class="field-row"><label>イベントメモ</label><div><p class="hint hint-help">${eventMemoHelp()}</p><div class="label-checks">${labels.map((label) => `<label class="check-chip"><input class="editLabel" type="checkbox" value="${escapeHtml(label)}" ${session.labels.includes(label) ? "checked" : ""}> ${escapeHtml(label)}</label>`).join("") || '<span class="hint">イベントメモ未登録</span>'}</div></div></div>
         <div class="field-row"><label for="editMemo">メモ</label><textarea id="editMemo">${escapeHtml(session.memo || "")}</textarea></div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
@@ -10413,7 +10471,7 @@
             <div class="style-choice">
               ${options.map((option) => `<button type="button" class="playStyleChoice${option.value === selected ? " selected" : ""}" data-play-style="${option.value}" aria-pressed="${option.value === selected ? "true" : "false"}">${escapeHtml(option.label)}</button>`).join("")}
             </div>
-            <p class="hint">時短抜けで作る区間の初期状態が変わります。すでに始まっている区間はそのままです。</p>
+            <p class="hint hint-help">時短抜けで作る区間の初期状態が変わります。すでに始まっている区間はそのままです。</p>
           </div>
         </div>
       `;
@@ -10438,7 +10496,7 @@
           : "";
         return `<div class="field-row"><label for="edit_segment_hold_${index}">区間${index + 1} ${kindLabel}（${escapeHtml(range)}）の無料保留</label><input id="edit_segment_hold_${index}" type="text" inputmode="numeric" value="${escapeHtml(segment.holdSpins ?? 0)}"></div>${startBallsHtml}${startAtHtml}`;
       }).join("");
-      return `<div class="grid two">${rows}</div><p class="hint">区間の先頭で回した無料保留の数です。0〜9で指定でき、変更すると回転率を計算し直します。起点の持ち玉は時短抜けの時点で台に表示されていた玉数で、その連チャンの純増と、そこからの回転率の起点になります。時短抜けの開始時刻は通常時の時速と当たり消化時間の起点です（自動記録。ずれている場合だけ直してください）。</p>`;
+      return `<div class="grid two">${rows}</div><p class="hint hint-help">区間の先頭で回した無料保留の数です。0〜9で指定でき、変更すると回転率を計算し直します。起点の持ち玉は時短抜けの時点で台に表示されていた玉数で、その連チャンの純増と、そこからの回転率の起点になります。時短抜けの開始時刻は通常時の時速と当たり消化時間の起点です（自動記録。ずれている場合だけ直してください）。</p>`;
     }
 
     function consumedBallsSourceEditorHtml(session) {
@@ -10455,7 +10513,7 @@
               <option value="tray"${selected === "tray" ? " selected" : ""}>台上差</option>
               <option value="taps"${selected === "taps" ? " selected" : ""}>タップ合計</option>
             </select>
-            <p class="hint">台上差とタップ合計が大きく食い違う場合に、後から採用値を変更できます。</p>
+            <p class="hint hint-help">台上差とタップ合計が大きく食い違う場合に、後から採用値を変更できます。</p>
           </div>
         </div>
       `;
