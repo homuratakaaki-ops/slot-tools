@@ -539,8 +539,27 @@ function fixSession(c){
 }
 
 /* ---------- シート ---------- */
-function sheet(title,build){el("shTitle").textContent=title;const b=el("shBody");b.innerHTML="";build(b);el("sheet").classList.add("open")}
-function closeSheet(){el("sheet").classList.remove("open")}
+function sheet(title,build){el("shTitle").textContent=title;const b=el("shBody");b.innerHTML="";build(b);el("sheet").classList.add("open");positionSheet()}
+function closeSheet(){el("sheet").classList.remove("open");const p=el("sheet").querySelector(".pane");if(p)p.style.transform=""}
+// シートの位置：最初の選択肢群の中心を、グリッド最下段（レア役の行）の高さに合わせる
+function positionSheet(){
+  const sh=el("sheet"),pane=sh.querySelector(".pane");if(!pane)return;
+  pane.style.transform="";
+  const body=el("shBody");body.scrollTop=0;
+  requestAnimationFrame(()=>{
+    const rows=document.querySelectorAll("#gridRows .grow");
+    const last=rows.length?rows[rows.length-1]:null;
+    const targetY=last?(last.getBoundingClientRect().top+last.getBoundingClientRect().bottom)/2:window.innerHeight*0.5;
+    const opts=body.querySelector(".opts");
+    if(!opts)return;
+    const r=opts.getBoundingClientRect(),pr=pane.getBoundingClientRect();
+    let shift=targetY-(r.top+r.bottom)/2;
+    const minTop=8,maxBottom=window.innerHeight-8;
+    if(pr.top+shift<minTop)shift=minTop-pr.top;
+    if(pr.bottom+shift>maxBottom)shift=maxBottom-pr.bottom;
+    pane.style.transform="translateY("+Math.round(shift)+"px)";
+  });
+}
 el("shClose").addEventListener("click",closeSheet);
 el("sheet").addEventListener("click",e=>{if(e.target.id==="sheet")closeSheet()});
 function optRow(items,onPick,cls){
