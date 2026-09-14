@@ -36,6 +36,8 @@ const updateMochidamaBalance = section('function updateMochidamaBalanceWithUndo'
 const s15BalanceBlock = section('function mochidamaBaseValue', 'function usesPersonalBalanceFormula');
 const s15RepairBlock = section('function repairStartMochidama', 'function persist');
 const transferSummary = section('function transferSummaryForSession', 'function balanceForSource');
+// S36: 廃止した値が transferSummaryForSession 本体に残っていないことを見るための狭い切り出し
+const transferSummaryFn = section('function transferSummaryForSession', 'function roundCountFromRoundType');
 const resultBlock = section('function longDateText', 'function transferSummaryForSession');
 const balanceStartValueForCurrent = section('function balanceStartValueForCurrent', 'function currentBalanceForStartKey');
 const currentBalanceForStartKey = section('function currentBalanceForStartKey', 'function updateMochidamaBalanceWithUndo');
@@ -909,27 +911,27 @@ assert.doesNotMatch(personalFormulaBlock, /usesTapInvestmentMode/);
 assert.doesNotMatch(investmentTotalsBlock, /usesTapInvestmentMode/);
 assert.match(investmentTotalsBlock, /const investedPlayerBalls = playerInvestedBalls\(session, totals, store\);/);
 assert.match(transferSummary, /depositBalls: finalMochidamaForCarryover\(session\) \?\? 0/);
-assert.match(transferSummary, /const summaryPresetId = startEv\?\.presetId \|\| normalizeMachinePresetId\(machine\);/);
-assert.match(transferSummary, /startExpectedSpins = startEv \? remainingSpinsFromCounterSpin\(startEv\.effectiveSpin, summaryPresetId\) : null;/);
-assert.match(transferSummary, /remainingSpins = endEffectiveSpin !== null \? remainingSpinsFromCounterSpin\(endEffectiveSpin, summaryPresetId\) : null;/);
-assert.match(transferSummary, /const consumedBalls = derived\.consumedBalls !== null && derived\.consumedBalls !== undefined \? Math\.round\(derived\.consumedBalls\) : null;/);
-assert.match(transferSummary, /const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin \? endSpin - startSpin : null;/);
+// S36/§1-4: 旧転記用だけが使っていた値（想定回転数・残り回転数・消費玉数・消化回転数・開始期待値）は
+// 構造的に外した。消化回転数は当選後に負になって「-」になり、残り回転数はヤメ時点で
+// リザルト（打ち始め時点）と食い違っていた。新しい転記用は sessionResultSummary から取る。
+assert.doesNotMatch(transferSummaryFn, /startExpectedSpins|remainingSpins|playedSpins|startEvYen/);
+assert.doesNotMatch(transferSummaryFn, /consumedBalls: /);
 // S4/C-5: 1R平均の分子は実測の獲得出玉だけ。推計値（derived.hitBalls）では代用しない
 assert.match(transferSummary, /const totalHitBalls = sessionActualBallsTotal\(session\);/);
 assert.doesNotMatch(transferSummary, /derived\.hitBalls/);
 assert.match(transferSummary, /const totalRounds = totalRoundsForSession\(session, machine\);/);
 assert.match(transferSummary, /const averageRoundBalls = totalHitBalls !== null && totalRounds > 0 \? totalHitBalls \/ totalRounds : null;/);
-assert.match(transferSummary, /function transferYenText\(value\) \{\s*return `\$\{Math\.round\(Number\(value \|\| 0\)\)\.toLocaleString\("ja-JP"\)\}円`;/);
-assert.match(transferSummary, /function transferBallText\(value\) \{\s*return Math\.round\(Number\(value \|\| 0\)\)\.toLocaleString\("ja-JP"\);/);
-assert.match(transferSummary, /投資\$\{transferYenText\(summary\.investYen\)\}\/回収\$\{transferYenText\(summary\.recoverYen\)\}\/引出\$\{transferBallText\(summary\.withdrawBalls\)\}個\/預入\$\{transferBallText\(summary\.depositBalls\)\}個/);
-assert.match(transferSummary, /開始期待値\$\{transferOptionalYenText\(summary\.startEvYen\)\}\/想定回転数\$\{transferOptionalSpinText\(summary\.startExpectedSpins\)\}\/残り回転数\$\{transferOptionalSpinText\(summary\.remainingSpins\)\}/);
-assert.match(transferSummary, /<span>開始期待値<\/span><strong>\$\{transferOptionalYenText\(summary\.startEvYen\)\}<\/strong>/);
-assert.match(transferSummary, /<span>1R平均<\/span><strong>\$\{transferOptionalRoundAverageText\(summary\.averageRoundBalls\)\}<\/strong>/);
-assert.match(transferSummary, /navigator\.clipboard\?\.writeText/);
-assert.doesNotMatch(renderLedger, /session\.status === "completed" \? transferSummaryHtml\(session\) : ""/);
+assert.match(html, /function transferYenText\(value\) \{\s*return `\$\{Math\.round\(Number\(value \|\| 0\)\)\.toLocaleString\("ja-JP"\)\}円`;/);
+assert.match(html, /function transferBallText\(value\) \{\s*return Math\.round\(Number\(value \|\| 0\)\)\.toLocaleString\("ja-JP"\);/);
+// S36/§2: 1行の転記文とグリッドは廃止。プレビューと2つのコピーボタンに置き換えた
+assert.doesNotMatch(html, /transferSummaryText|transferSummaryHtml|copyTransferSummary|transferOptional/);
+assert.match(html, /id="transferCopyXBtn">X用にコピー<\/button>/);
+assert.match(html, /id="transferCopyLedgerBtn">収支帳用にコピー<\/button>/);
+assert.match(html, /navigator\.clipboard\?\.writeText/);
+assert.doesNotMatch(renderLedger, /transferBlockHtml\(session\)/);
 assert.doesNotMatch(renderLedger, /data-copy-transfer/);
-assert.match(resultBlock, /transferSummaryHtml\(session\)/);
-assert.match(resultBlock, /copyTransferSummary\(button\.dataset\.copyTransfer\)/);
+assert.match(resultBlock, /transferBlockHtml\(session\)/);
+assert.match(resultBlock, /bindTransferBlock\(els\.modalBody, session\);/);
 assert.match(openSessionEditor, /fieldHtml\("settlementRecoverYen", "回収金額", session\.settlementRecoverYen\)/);
 assert.match(openSessionEditor, /"zanhoryuBalls", "settlementRecoverYen"/);
 assert.match(openSessionEditor, /consumedBallsSourceEditorHtml\(session\)/);
@@ -1520,6 +1522,18 @@ assert.equal(investmentAmountContext.amount({ balances: { mochidama: 0 } }, 'moc
 assert.equal(investmentAmountContext.amount({ balances: { cash: 300 } }, 'cash', 500), 300);
 assert.equal(investmentAmountContext.button('mochidama', 64), '-64玉');
 assert.equal(investmentAmountContext.button('cash', 300), '-300円');
+
+// S36: 旧「1行の転記文」は廃止したが、投資・回収・引出・預入・1R平均・実収支の検算は残す。
+// 同じ値を同じ書式で組み、これまでの期待値文字列をそのまま使い続ける。
+function legacyTransferText(context) {
+  const summary = vm.runInContext('transferSummaryForSession(__session)', context);
+  const yen = (v) => `${Math.round(Number(v || 0)).toLocaleString('ja-JP')}円`;
+  const ball = (v) => Math.round(Number(v || 0)).toLocaleString('ja-JP');
+  const optRound = (v) => (v === null || v === undefined ? '-' : `${Number(v.toFixed(1)).toLocaleString('ja-JP')}玉/R`);
+  const optYen = (v) => (v === null || v === undefined ? '-' : yen(v));
+  return `投資${yen(summary.investYen)}/回収${yen(summary.recoverYen)}/引出${ball(summary.withdrawBalls)}個/預入${ball(summary.depositBalls)}個
+1R平均${optRound(summary.averageRoundBalls)}/実収支${optYen(summary.profitYen)}`;
+}
 const transferContext = vm.createContext({
   __copied: '',
   __session: null,
@@ -1778,14 +1792,14 @@ const transferFixture = {
 };
 transferContext.__session = transferFixture;
 assert.equal(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
-  '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円'
+  legacyTransferText(transferContext),
+  '投資1,000円/回収0円/引出375個/預入4,750個\n1R平均141.4玉/R/実収支2,500円'
 );
 // S8/§1-2: 当選ごとの今回分の合計が本線。旧データの sessionActualBalls があっても上書きされない（1,980玉 ÷ 14R）
 const b90SessionTotal = { ...transferFixture, id: 's_b90_total', sessionActualBalls: 2800 };
 transferContext.__session = b90SessionTotal;
 assert.match(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  legacyTransferText(transferContext),
   /1R平均141\.4玉\/R/
 );
 // 当選ごとが未入力の旧データは、ヤメの累計をフォールバックとして使う
@@ -1797,19 +1811,20 @@ const b90NoPerHit = {
 };
 transferContext.__session = b90NoPerHit;
 assert.match(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  legacyTransferText(transferContext),
   /1R平均200玉\/R/
 );
 // 空欄なら従来どおり当選ごとの合計（1,980玉 ÷ 14R）
 const b90Empty = { ...transferFixture, id: 's_b90_empty', sessionActualBalls: null };
 transferContext.__session = b90Empty;
 assert.match(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  legacyTransferText(transferContext),
   /1R平均141\.4玉\/R/
 );
 transferContext.__session = transferFixture;
-vm.runInContext("copyTransferSummary('s_transfer')", transferContext);
-assert.equal(transferContext.__copied, '投資1,000円/回収0円/引出375個/預入4,750個\n開始期待値1,339円/想定回転数425回転/残り回転数330回転/消費玉数625玉/消化回転数95回転/1R平均141.4玉/R/実収支2,500円');
+// S36/§2: コピーは copyText に一本化した（X用・収支帳用の2ボタン）。copyTransferSummary は廃止
+vm.runInContext("copyText('sample'); copyText('ledger', '収支帳用にコピーしました');", transferContext);
+assert.equal(transferContext.__copied, 'ledger');
 transferContext.__store = { isPersonal: true };
 transferContext.__session = {
   id: 's_transfer_tap',
@@ -1829,7 +1844,7 @@ transferContext.__session = {
   investments: [{ source: 'mochidama', amount: 250 }]
 };
 assert.match(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  legacyTransferText(transferContext),
   /^投資0円\/回収0円\/引出2,500個\/預入1,487個/
 );
 transferContext.__session = {
@@ -1850,8 +1865,8 @@ transferContext.__session = {
   investments: [{ source: 'mochidama', amount: 125 }]
 };
 assert.match(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
-  /消費玉数175玉/
+  legacyTransferText(transferContext),
+  /引出1,487個\/預入1,312個\n1R平均140玉\/R\/実収支-625円/
 );
 transferContext.__store = { isPersonal: false };
 transferContext.__session = {
@@ -1876,7 +1891,7 @@ transferContext.__session = {
 };
 // S12/A-1: 非パーソナル店では開始持ち玉（2,500）ではなくタップ投資合計（1,000）を引出に出す
 assert.match(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  legacyTransferText(transferContext),
   /^投資1,500円\/回収0円\/引出1,000個/
 );
 // S12/A-2 検算: 非パーソナル店・125玉×19回＝2,375個。開始持ち玉4,625個はこの店では使わない
@@ -1898,7 +1913,7 @@ transferContext.__session = {
   investments: Array.from({ length: 19 }, () => ({ source: 'mochidama', amount: 125 }))
 };
 assert.match(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  legacyTransferText(transferContext),
   /^投資0円\/回収0円\/引出2,375個/
 );
 // S12/A-2 検算: パーソナル店は従来どおり 開始持ち玉2,500 ＋ 再プレイ500 ＝ 3,000個
@@ -1921,7 +1936,7 @@ transferContext.__session = {
   investments: [{ source: 'saipurei', amount: 500 }]
 };
 assert.match(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  legacyTransferText(transferContext),
   /^投資0円\/回収0円\/引出3,000個/
 );
 // S12-2 検算: パーソナル店（DSG高岡）に実在する investments 空のセッション。
@@ -1945,7 +1960,7 @@ for (const startMochidama of [26637, 11462]) {
     investments: []
   };
   assert.match(
-    vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+    legacyTransferText(transferContext),
     new RegExp('^投資0円/回収0円/引出' + startMochidama.toLocaleString('en-US') + '個')
   );
 }
@@ -1959,8 +1974,8 @@ transferContext.__session = {
   investments: []
 };
 assert.equal(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
-  '投資0円/回収0円/引出0個/預入0個\n開始期待値-/想定回転数-/残り回転数-/消費玉数-/消化回転数-/1R平均-/実収支-'
+  legacyTransferText(transferContext),
+  '投資0円/回収0円/引出0個/預入0個\n1R平均-/実収支-'
 );
 transferContext.__session = {
   id: 's_transfer_estimated',
@@ -1974,7 +1989,7 @@ transferContext.__session = {
   investments: []
 };
 assert.match(
-  vm.runInContext('transferSummaryText(transferSummaryForSession(__session))', transferContext),
+  legacyTransferText(transferContext),
   /1R平均-/
 );
 assert.match(openBalanceEditForm, /const currentBalance = currentBalanceForStartKey\(session, key\);/);
@@ -4211,7 +4226,7 @@ assert.match(hitHistoryBlock, /function applyHitTotals\(session\)[\s\S]*?session
 assert.match(hitHistoryBlock, /removeHitRecord\(session, index\)/);
 
 // §G: 転記用コピーはタップ下限44px
-assert.match(html, /\.transfer-summary button\[data-copy-transfer\] \{\s*min-height: 44px;/);
+assert.match(html, /\.transfer-actions button \{\s*min-height: 44px;/);
 
 // B-1: 区間ごとのグルーピングと累計獲得出玉の積み上げ
 const hitHistoryContext = vm.createContext({
@@ -5756,7 +5771,7 @@ assert.match(resultBlock, /if \(earnedYen !== null\) evYen = \(evYen \?\? 0\) \+
 // 開始期待値は「打つ前の判断」「想定と実測のズレ」「転記用」に残る
 assert.match(openSessionResult, /<tr><td>回転率<\/td><td>\$\{escapeHtml\(startEv.usedRate.toFixed\(1\)\)\}（\$\{escapeHtml\(startEv.rateSource \|\| "-"\)\}）<\/td>/);
 assert.match(openSessionResult, /<tr><td>獲得期待値<\/td><td>\$\{escapeHtml\(yenText\(startEv\.evYen\)\)\}/);
-assert.match(transferSummary, /<span>開始期待値<\/span><strong>\$\{transferOptionalYenText\(summary\.startEvYen\)\}<\/strong>/);
+assert.match(html, /開始期待値 \$\{startEv \? yenText\(startEv\.evYen\) : "-"\}/);
 
 const s17EvApi = resultContext.resultApi;
 const s17Machine = { id: "m_ev", storeId: "store1", presetId: "preset1", __evByStart: { 0: 1000, 25: 1500, 50: 2000 } };
@@ -6605,7 +6620,9 @@ const s22bRows = resultContext.resultApi.segmentBreakdownRows({
 }, { consumedBalls: 1000, yutimeLoss: 0 }, resultContext.data.machines[0]);
 assert.equal(s22bRows[0].netExcluded, true);
 assert.equal(s22bRows[1].netExcluded, false);
-assert.match(resultBlock, /if \(row\.netExcluded\) segmentExcludedMarks\.push\(mark\);/);
+// S36/§1-2: 除外マークの算出は関数へ出し、リザルトの表と転記用で同じ並びを使う
+assert.match(html, /function segmentBreakdownExcludedMarks\(segmentRows\) \{/);
+assert.match(resultBlock, /const segmentExcludedMarks = segmentBreakdownExcludedMarks\(segmentRows\);/);
 assert.match(resultBlock, /key: "excluded", item: "純増が0以下", impact: "通算の集計から除外しています", missingValue: true, target: "resultInputEditBtn"/);
 assert.match(resultBlock, /marks: excludedMarks, text:/);
 assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \? " ⚠" : ""\}/);
@@ -6882,6 +6899,116 @@ s23Settings.__storeSpeed = {};
 assert.match(html, /通常時\$\{spinsPerHour\.toLocaleString\("ja-JP"\)\}回転\/h\$\{spinsPerHourNote \? `（\$\{spinsPerHourNote\}）` : "想定"\}/);
 assert.match(html, /expectationBasisText\(expectation\.result, expectation\.spinsPerHourInfo\?\.source\)/);
 
+// --- S36/§3: Xの数え方に合わせた近似 ------------------------------------------
+const s36XContext = vm.createContext({
+  X_TEXT_LIMIT: 280,
+  X_URL_WEIGHT: 23,
+  TRANSFER_SIGNATURE_URL: 'slot-tools.jp'
+});
+new vm.Script(`
+  ${section('function xWeightedLength', 'function transferBlockHtml')}
+  globalThis.xLen = xWeightedLength;
+`).runInContext(s36XContext);
+const xLen = s36XContext.xLen;
+assert.equal(xLen('abc'), 3, '半角は1');
+assert.equal(xLen('あ'), 2, '全角は2');
+assert.equal(xLen('■'), 2);
+assert.equal(xLen('｜'), 2);
+assert.equal(xLen('→'), 2);
+assert.equal(xLen('\n'), 1, '改行は1');
+assert.equal(xLen('slot-tools.jp'), 23, 'URLは長さに関係なく23');
+assert.equal(xLen('by slot-tools.jp'), 3 + 23, 'by ＋URL');
+assert.equal(xLen('—'), 1, 'U+2014 は1');
+assert.equal(xLen('′'), 1, 'U+2032 は1');
+assert.equal(xLen('😀'), 2, 'サロゲートペアは1コードポイントとして2');
+assert.equal(xLen(''), 0);
+assert.equal(xLen(null), 0);
+
+// --- S36/§1-3: 収支帳用の置換（checker-engine.js の plainText と同じ規則） ------
+const s36LedgerContext = vm.createContext({});
+new vm.Script(`
+  ${section('function transferLedgerText', 'function xWeightedLength')}
+  globalThis.ledger = transferLedgerText;
+`).runInContext(s36LedgerContext);
+const toLedger = s36LedgerContext.ledger;
+assert.equal(toLedger('①区間②③⑩⑳'), '1区間231020', '①〜⑳は半角数字');
+assert.equal(toLedger('▶開始 ↪続き'), '→開始 →続き', '▶↪は→');
+assert.equal(toLedger('18〜20 18～20'), '18~20 18~20', '波ダッシュ・全角チルダは~');
+assert.equal(toLedger('勝ち🎉'), '勝ち', '絵文字は落とす');
+assert.equal(toLedger('印⚠️あり'), '印あり', '異体字セレクタつきの絵文字も落とす');
+// ■・｜・→・--- は残す（収支帳での表示が未確認のため置換しない）
+assert.equal(toLedger('■収支｜台 → やめ\n---'), '■収支｜台 → やめ\n---');
+// checker-engine.js と同じ規則であることを、規則そのもので突き合わせる
+const checkerEngine = fs.readFileSync(path.join(root, 'checker-engine.js'), 'utf8');
+const s36LedgerBlock = section('function transferLedgerText', 'function xWeightedLength');
+for (const rule of ['\\u25B6\\u21AA', '\\u301C\\uFF5E', '\\u2460-\\u2473', '\\uFE0E\\uFE0F']) {
+  assert.ok(checkerEngine.includes(rule), `checker-engine.js に ${rule} の規則があること`);
+  assert.ok(s36LedgerBlock.includes(rule), `yutime-v3.html に ${rule} の規則があること`);
+}
+
+// --- S36/§1-1・§1-2: 転記用の文面 --------------------------------------------
+const s36TextBlock = section('function transferSectionLines', 'function transferBlockHtml');
+// 値はすべて sessionResultSummary から取る。転記用のために別計算しない
+assert.match(s36TextBlock, /const summary = sessionResultSummary\(session\);/);
+assert.match(s36TextBlock, /const \{ machine, derived, transfer, startEv \} = summary;/);
+assert.match(s36TextBlock, /`遊タイムまで残り \$\{transferSpinText\(summary\.remainingSpins\)\}`/);
+assert.match(s36TextBlock, /`開始カウンター \$\{startEv \? transferSpinText\(startEv\.effectiveSpin\) : "-"\}`/);
+assert.match(s36TextBlock, /`想定回転率 \$\{startEv \? transferRateText\(startEv\.usedRate\) : "-"\}`/);
+assert.match(s36TextBlock, /earnedExpectationForSession\(session, machine, derived\)/);
+// 旧転記用の「消化回転数」「残り回転数（ヤメ時点）」は復活させない
+assert.doesNotMatch(s36TextBlock, /消化回転数|playedSpins|endEffectiveSpin/);
+// 実戦の流れは主行だけ（①②の番号と括弧内の副行は出さない）
+assert.match(s36TextBlock, /resultTimelineLines\(segmentRows, warnings\)\.map\(\(line\) => line\.main\)/);
+// 共通部分と並び
+const s36Head = section('function transferTextForSession', 'function transferLedgerText');
+assert.match(s36Head, /`遊タイム実戦メモ｜\$\{machine\?\.modelName \|\| "機種未設定"\}`/);
+assert.match(s36Head, /transferDateText\(session\.date\)/);
+assert.match(s36Head, /lines\.push\("", section\.heading, \.\.\.transferSectionLines\(session, section\.key\)\);/);
+assert.match(s36Head, /lines\.push\("", `by \$\{TRANSFER_SIGNATURE_URL\}`\);/);
+// §5 店名・台番号は出さない
+assert.doesNotMatch(s36Head + s36TextBlock, /store\?\.name|daiNo/);
+// 出す順は固定
+assert.match(html, /\{ key: "profit", label: "収支", heading: "■収支" \},\s*\{ key: "plan", label: "打つ前の想定", heading: "■打つ前の想定" \},\s*\{ key: "result", label: "実戦結果", heading: "■実戦結果" \},\s*\{ key: "flow", label: "実戦の流れ", heading: "■実戦の流れ" \}/);
+
+// --- S36/§2: 画面 --------------------------------------------------------------
+assert.match(html, /const TRANSFER_SECTIONS_KEY = STORAGE_PREFIX \+ "app:transferSections";/);
+assert.match(html, /class="transferSection" value="\$\{section\.key\}"/);
+assert.match(html, /<textarea class="transfer-preview" id="transferPreview" readonly rows="12">/);
+assert.match(html, /id="transferCount">\$\{escapeHtml\(transferCountText\(text\)\)\}/);
+// 上限を超えてもコピーは止めない
+assert.match(html, /count\.classList\.toggle\("warn", xWeightedLength\(text\) > X_TEXT_LIMIT\);/);
+assert.doesNotMatch(section('function bindTransferBlock', 'function copyText'), /disabled/);
+// チェックを変えたら保存して即座に作り直す
+assert.match(html, /input\.addEventListener\("change", \(\) => \{\s*saveTransferSections\(currentSections\(\)\);\s*refresh\(\);/);
+assert.match(html, /copyText\(transferLedgerText\(refresh\(\)\), "収支帳用にコピーしました"\);/);
+// 保存が読めないとき・未保存のときは全項目ON
+const s36SectionsContext = vm.createContext({
+  TRANSFER_SECTIONS: [{ key: 'profit' }, { key: 'plan' }, { key: 'result' }, { key: 'flow' }],
+  TRANSFER_SECTIONS_KEY: 'ytv3:app:transferSections',
+  console,
+  __store: new Map(),
+  localStorage: {
+    getItem: (key) => (s36SectionsContext.__store.has(key) ? s36SectionsContext.__store.get(key) : null),
+    setItem: (key, value) => s36SectionsContext.__store.set(key, value)
+  }
+});
+new vm.Script(`
+  ${section('function loadTransferSections', 'function transferDateText')}
+  globalThis.load = loadTransferSections;
+  globalThis.save = saveTransferSections;
+`).runInContext(s36SectionsContext);
+assert.deepEqual(s36SectionsContext.load(), ['profit', 'plan', 'result', 'flow'], '未保存なら全項目ON');
+s36SectionsContext.save(['profit', 'result']);
+assert.equal(s36SectionsContext.__store.get('ytv3:app:transferSections'), '["profit","result"]');
+assert.deepEqual(s36SectionsContext.load(), ['profit', 'result'], '保存した選択で開く');
+s36SectionsContext.__store.set('ytv3:app:transferSections', 'こわれた値');
+assert.deepEqual(s36SectionsContext.load(), ['profit', 'plan', 'result', 'flow'], '読めなければ全項目ON');
+s36SectionsContext.__store.set('ytv3:app:transferSections', '[]');
+assert.deepEqual(s36SectionsContext.load(), [], '全部OFFも保てる');
+// 書き出しJSONには含めない
+assert.match(html, /const raw = JSON\.stringify\(data, null, 2\);/);
+assert.doesNotMatch(section('function normalizeData', 'function repairStartMochidama'), /transferSections/);
+
 // --- S35/§2: 台移動の引き継ぎを自動で組み立て、手動の引き継ぎ待機を廃止する ----
 // §2-2 手動の仕組みが画面にもコードにも残っていないこと
 assert.doesNotMatch(html, /この持ち玉で次の台へ/);
@@ -6901,7 +7028,7 @@ assert.match(html, /const keyList = \[STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, S
 assert.doesNotMatch(html, /引き継ぎchars/);
 // 新しい localStorage キーは増やさない
 const s35StorageKeys = [...html.matchAll(/STORAGE_PREFIX \+ \"([^\"]+)\"/g)].map((m) => m[1]).sort();
-assert.deepEqual(s35StorageKeys, ["app:lastVersionSeq", "app:showHints", "backup:latest", "backup:s15", "backup:s17", "carryover", "corrupt:", "data", "islandFilter", "mapbackup", "premigrate", "running:source", "running:sticky", "start:playStyle"], "localStorage のキーは増やさない（carryover は消すためだけに残す）");
+assert.deepEqual(s35StorageKeys, ["app:lastVersionSeq", "app:showHints", "app:transferSections", "backup:latest", "backup:s15", "backup:s17", "carryover", "corrupt:", "data", "islandFilter", "mapbackup", "premigrate", "running:source", "running:sticky", "start:playStyle"], "localStorage のキーは S36 の app:transferSections だけ増える（carryover は消すためだけに残す）");
 
 // §2-1 自動引き継ぎの組み立て
 const s35Context = vm.createContext({
@@ -7005,11 +7132,11 @@ assert.match(html, /document\.querySelectorAll\("button, input, textarea, select
 assert.match(html, /const raw = JSON\.stringify\(data, null, 2\);/);
 assert.doesNotMatch(section("function normalizeData", "function repairStartMochidama"), /showHints/);
 // S33時点の hint は84箇所。うち分類Aが29、分類B・Cが55。S34 で §3・§4 の説明を2つ足して A は31、
-// スイッチの注意書き（常に表示）を1つ足して B・C は56。
+// スイッチの注意書き（常に表示）を1つ足して B・C は56。S36 で転記用の文字数行を1つ足して57。
 const s34HintTotal = (html.match(/class="hint( warn)?( hint-help)?"/g) || []).length;
 const s34HintHelp = (html.match(/class="hint hint-help"/g) || []).length;
 assert.equal(s34HintHelp, 31, "分類A（説明）の数＝S33の29＋S34で足した2");
-assert.equal(s34HintTotal - s34HintHelp, 56, "分類B・C（常に表示）の数＝S33の55＋スイッチの注意書き1");
+assert.equal(s34HintTotal - s34HintHelp, 57, "分類B・C（常に表示）の数＝S34の56＋S36の転記用の文字数行1");
 // 警告（hint warn）には1つも付けない
 assert.equal((html.match(/class="hint warn hint-help"/g) || []).length, 0);
 // 判定基準の根拠行・入力確認・旧境界の注記は分類Aにしない
@@ -7159,7 +7286,8 @@ assert.equal(s23Rows[3].chainClearMs, null);
 assert.match(resultBlock, /function resultInputWarnings\(session, summary, segmentRows, segmentExcludedMarks\) \{\s*const rateWarning = resultRateWarningImpact\(summary.derived\);/);
 assert.match(openSessionResult, /const warnings = resultInputWarnings\(session, summary, segmentRows, segmentExcludedMarks\);/);
 assert.match(openSessionResult, /warnings.length \? .*class="result-block result-input-warnings"/);
-for (const id of ['resultSegmentsDetails', 'resultAggregateDetails', 'resultTransferDetails']) {
+// S36/§2: 転記用は展開部をやめ、項目のチェック・プレビュー・コピーを直接置く
+for (const id of ['resultSegmentsDetails', 'resultAggregateDetails']) {
   assert.match(openSessionResult, new RegExp('<details class="result-disclosure" id="' + id + '"><summary>'));
 }
 const resultStatusBadges = openSessionResult.slice(openSessionResult.indexOf('const statusBadges ='), openSessionResult.indexOf('const diffRateText ='));
@@ -7213,7 +7341,8 @@ assert.doesNotMatch(openSessionResult, /<div class="result-line">[^\n]*大当た
 assert.doesNotMatch(openSessionResult, /<div class="result-line">[^\n]*1R平均/);
 assert.match(openSessionResult, /escapeHtml\(derived.rateUnavailableReason \|\| \(derived.isEstimatedRate/);
 assert.match(openSessionResult, /escapeHtml\(derived.rateUnavailableReason \? "-" : actualRateText\)/);
-assert.doesNotMatch(section('function resultInputWarnings', 'function resultTimelineHtml'), /入力確認が必要です|join\("・"\)/);
+// S36/§1-2: resultTimelineHtml の手前に resultTimelineLines が入ったので、区切りをそちらに合わせる
+assert.doesNotMatch(section('function resultInputWarnings', 'function resultTimelineLines'), /入力確認が必要です|join\(\"・\"\)/);
 assert.match(html, /\.result-aggregate-summary > span \{ display: inline-block; white-space: nowrap; \}/);
 assert.match(openSessionResult, /class="result-aggregate-summary"><span>この店・この機種/);
 assert.match(openSessionResult, /class="result-aggregate-summary"><span>全体/);
@@ -7510,7 +7639,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 35;/);
+assert.match(html, /const APP_VERSION_SEQ = 36;/);
 assert.match(html, /const APP_VERSION_DATE = "2026-09-14";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。

@@ -1406,7 +1406,7 @@
     .hit-chain-judgment { margin-bottom: 12px; }
     #deleteHitEditBtn { width: 100%; margin-top: 14px; }
 
-    .transfer-summary button[data-copy-transfer] {
+    .transfer-actions button {
       min-height: 44px;
     }
 
@@ -1749,51 +1749,30 @@
       font-size: 12px;
     }
 
-    .transfer-summary {
-      margin-top: 10px;
-      padding: 10px;
-      border: 1px solid #d8b653;
-      border-radius: 8px;
-      background: #fff8dc;
-    }
-
-    .transfer-summary-title {
-      font-size: 12px;
-      font-weight: 900;
-      color: var(--accent-dark);
-      margin-bottom: 7px;
-    }
-
-    .transfer-summary-grid {
+    .transfer-block {
       display: grid;
-      grid-template-columns: repeat(2, 1fr);
-      gap: 7px;
+      gap: 8px;
     }
 
-    .transfer-summary-cell {
-      border: 1px solid #ead9a2;
-      border-radius: 6px;
-      background: #fff;
-      padding: 7px;
+    .transfer-sections {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
     }
 
-    .transfer-summary-cell span {
-      display: block;
-      color: var(--muted);
-      font-size: 11px;
+    .transfer-preview {
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
+      resize: vertical;
+      font-size: 13px;
+      line-height: 1.5;
     }
 
-    .transfer-summary-cell strong {
-      display: block;
-      margin-top: 2px;
-      font-size: 15px;
-    }
-
-    .transfer-summary-line {
-      margin-top: 8px;
-      color: var(--muted);
-      font-size: 12px;
-      word-break: break-word;
+    .transfer-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
     }
 
     .session-row { cursor: pointer; }
@@ -2076,7 +2055,7 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 35;
+    const APP_VERSION_SEQ = 36;
     const APP_VERSION_DATE = "2026-09-14";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
@@ -2084,6 +2063,20 @@
     // S34/§2-2: 説明（分類A）を出すかどうか。実戦データとは別キーで、書き出し（exportJson は data だけを
     // 出す）にも schema 移行にも含めない（LAST_VERSION_KEY と同じ扱い）。切り替えたときだけ保存する。
     const SHOW_HINTS_KEY = STORAGE_PREFIX + "app:showHints";
+    // S36/§2: 転記用に出す項目の選択。実戦データとは別枠で、書き出しJSON・schema移行に含めない
+    //（SHOW_HINTS_KEY と同じ扱い）。切り替えたときだけ保存する。
+    const TRANSFER_SECTIONS_KEY = STORAGE_PREFIX + "app:transferSections";
+    // S36/§1-1: 出す順は固定。未選択の項目は見出しごと出さない
+    const TRANSFER_SECTIONS = [
+      { key: "profit", label: "収支", heading: "■収支" },
+      { key: "plan", label: "打つ前の想定", heading: "■打つ前の想定" },
+      { key: "result", label: "実戦結果", heading: "■実戦結果" },
+      { key: "flow", label: "実戦の流れ", heading: "■実戦の流れ" }
+    ];
+    // S36/§3: Xの数え方に合わせた近似。上限280、URLは本文の長さに関係なく23で数える。
+    const X_TEXT_LIMIT = 280;
+    const X_URL_WEIGHT = 23;
+    const TRANSFER_SIGNATURE_URL = "slot-tools.jp";
     const SCHEMA_VERSION = 39;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
@@ -9495,11 +9488,28 @@
       return { impact: "回転率は入力済みの区間・投資記録から計算しています", missingValue: false };
     }
 
+    // S36/§1-2: 純増0以下で実測平均から外した区間の印。リザルトの表と転記用で同じ並びを使う。
+    function segmentBreakdownExcludedMarks(segmentRows) {
+      const normalMarks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
+      const marks = [];
+      let normalIndex = 0;
+      segmentRows.forEach((row) => {
+        if (row.kind === "yutime") {
+          if (row.netExcluded) marks.push("遊タイム");
+          return;
+        }
+        const mark = normalMarks[normalIndex] || String(normalIndex + 1);
+        normalIndex += 1;
+        if (row.netExcluded) marks.push(mark);
+      });
+      return marks;
+    }
+
     function resultInputWarnings(session, summary, segmentRows, segmentExcludedMarks) {
       const rateWarning = resultRateWarningImpact(summary.derived);
       const hitCountMissing = session.hitCount === null || session.hitCount === undefined || session.hitCount === "";
       const RESULT_INPUT_WARNINGS = [
-        { key: "startSpin", item: "開始カウンター", impact: "転記用の消化回転数を計算していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "startSpin", item: "開始カウンター", impact: "実戦の流れの起点を表示していません", missingValue: true, target: "resultInputEditBtn" },
         { key: "startTime", item: "開始時刻", impact: "実働・時給を計算していません", missingValue: true, target: "resultInputEditBtn" },
         { key: "startMochidama", item: "起点の持ち玉", notice: "起点の持ち玉が未入力の区間があります", impact: rateWarning.impact, missingValue: rateWarning.missingValue, target: "resultInputEditBtn" },
         { key: "startSaipurei", item: "開始再プレイ", impact: "再プレイ残高を計算していません（投資合計には影響しません）", missingValue: true, target: "resultInputEditBtn" },
@@ -9511,7 +9521,7 @@
         { key: "endTotalHits", item: "終了総当たり回数", impact: hitCountMissing ? "大当たり回数を表示していません" : "記録済みの大当たり回数を表示しています（累計差では計算していません）", missingValue: hitCountMissing, target: "resultInputEditBtn" },
         { key: "hitCount", item: "大当たり回数", impact: "大当たり回数を表示していません", missingValue: true, target: "resultInputEditBtn" },
         { key: "endTotalBalls", item: "終了玉数", impact: "実収支を計算していません", missingValue: true, target: "resultInputEditBtn" },
-        { key: "endSpin", item: "終了カウンター", impact: "転記用の残り回転数・消化回転数を計算していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "endSpin", item: "終了カウンター", impact: "実戦の流れの終点を表示していません", missingValue: true, target: "resultInputEditBtn" },
         { key: "endTime", item: "終了時刻", impact: "実働・時給を計算していません", missingValue: true, target: "resultInputEditBtn" },
         { key: "round", item: "1R出玉", impact: "実測出玉による1R平均を計算していません", missingValue: true, target: "resultInputEditBtn" },
         { key: "excluded", item: "純増が0以下", impact: "通算の集計から除外しています", missingValue: true, target: "resultInputEditBtn" }
@@ -9550,7 +9560,9 @@
       }).sort((a, b) => Number(b.missingValue) - Number(a.missingValue));
     }
 
-    function resultTimelineHtml(segmentRows, warnings) {
+    // S36/§1-2: 「実戦の流れ」の行データ。HTML（リザルト）と文字（転記用）で同じ配列を使う。
+    // main は主行、basis は括弧内の副行。転記用は main だけを使う。
+    function resultTimelineLines(segmentRows, warnings) {
       const marks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
       const warned = new Set(warnings.flatMap((warning) => warning.marks));
       let normalIndex = 0;
@@ -9574,6 +9586,11 @@
         const start = row.startLabel + (row.startLabel === "時短抜け" && row.startSpin !== null ? row.startSpin.toLocaleString("ja-JP") : "");
         lines.push({ mark, warning: warned.has(mark), main: `${start} → ${row.spins === null ? "" : row.spins.toLocaleString("ja-JP") + "回転で"}${end}`, basis });
       });
+      return lines;
+    }
+
+    function resultTimelineHtml(segmentRows, warnings) {
+      const lines = resultTimelineLines(segmentRows, warnings);
       return '<ol class="result-timeline">' + lines.map((line) => `<li><span class="result-flow-main">${line.warning ? "⚠ " : ""}${line.mark} ${escapeHtml(line.main)}</span>${line.basis.length ? `<span class="result-flow-basis">（${escapeHtml(line.basis.join("・"))}）</span>` : ""}</li>`).join("") + '</ol>';
     }
 
@@ -9622,8 +9639,8 @@
       // S3b/G4 → S12/B-2: 同じ情報を表の列へ割り振るだけ。値の算出方法は変えない。
       const segmentHoldNotes = [];
       const segmentHoldCarryMarks = [];
-      // S22b: 純増0以下で実測平均から外した連チャンの行
-      const segmentExcludedMarks = [];
+      // S22b: 純増0以下で実測平均から外した連チャンの行（S36: 算出は関数に出した）
+      const segmentExcludedMarks = segmentBreakdownExcludedMarks(segmentRows);
       const segmentBodyHtml = segmentRows.map((row) => {
         const startSpin = row.startSpin === null ? "-" : row.startSpin.toLocaleString("ja-JP");
         const endSpin = row.endSpin === null ? "-" : row.endSpin.toLocaleString("ja-JP");
@@ -9640,7 +9657,6 @@
           ? ""
           : `<tr class="segment-clear-row"><td colspan="9">当たり消化 ${escapeHtml(minuteSecondJaText(row.chainClearMs))}</td></tr>`;
         if (row.kind === "yutime") {
-          if (row.netExcluded) segmentExcludedMarks.push("遊タイム");
           return `<tr><td>${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>-</td><td>${escapeHtml(durationText)}</td><td>${consumed}玉</td><td>-</td><td>${escapeHtml(netText)}</td><td>—</td></tr>${clearRow}`;
         }
         const mark = normalMarks[normalRowIndex] || String(normalRowIndex + 1);
@@ -9649,7 +9665,6 @@
         const rate = row.rate === null ? "-" : row.rate.toFixed(1);
         if (row.holdCarry) segmentHoldCarryMarks.push(mark);
         else if (row.holdSpins > 0) segmentHoldNotes.push(`${mark}保留${row.holdSpins}`);
-        if (row.netExcluded) segmentExcludedMarks.push(mark);
         return `<tr><td>${mark} ${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>${spins}</td><td>${escapeHtml(durationText)}</td><td>${consumed}玉</td><td>${rate}</td><td>${escapeHtml(netText)}</td><td>${escapeHtml(evText)}</td></tr>${clearRow}`;
       }).join("");
       const warnings = resultInputWarnings(session, summary, segmentRows, segmentExcludedMarks);
@@ -9712,11 +9727,8 @@
         ${segmentHtml}
         ${aggregateHtml}
         <div class="result-block">
-          <div class="result-block-title">転記用データ</div>
-          <button class="small" data-copy-transfer="${escapeHtml(session.id)}">転記用をコピー</button>
-          <details class="result-disclosure" id="resultTransferDetails"><summary>詳細を表示</summary>
-          ${transferSummaryHtml(session).replace(/<button class="small" data-copy-transfer="[^"]*">転記用をコピー<\/button>/, "")}
-          </details>
+          <div class="result-block-title">転記用</div>
+          ${transferBlockHtml(session)}
         </div>
         <div class="modal-actions">
           <button class="ghost" data-close>実戦一覧に戻る</button>
@@ -9730,9 +9742,7 @@
       if (resultHitHistoryButton) resultHitHistoryButton.addEventListener("click", () => {
         openHitHistory(session, { back: () => openSessionResult(session.id) });
       });
-      els.modalBody.querySelectorAll("[data-copy-transfer]").forEach((button) => {
-        button.addEventListener("click", () => copyTransferSummary(button.dataset.copyTransfer));
-      });
+      bindTransferBlock(els.modalBody, session);
       const inputEditButton = byId("resultInputEditBtn");
       if (inputEditButton) inputEditButton.addEventListener("click", () => {
         closeModal();
@@ -9758,17 +9768,6 @@
       const store = storeById(session.storeId);
       const machine = data.machines.find((item) => item.id === session.machineId);
       const derived = deriveSession(session, machine);
-      const startEv = normalizeStartEv(session.startEv);
-      const summaryPresetId = startEv?.presetId || normalizeMachinePresetId(machine);
-      const startExpectedSpins = startEv ? remainingSpinsFromCounterSpin(startEv.effectiveSpin, summaryPresetId) : null;
-      const hitCount = normalizeNumber(session.hitCount) ?? 0;
-      const prevDayEndSpin = normalizeNumber(session.prevDayEndSpin) ?? 0;
-      const endSpin = normalizeNumber(session.endSpin);
-      const endEffectiveSpin = endSpin !== null ? endSpin + (hitCount > 0 ? 0 : prevDayEndSpin) : null;
-      const remainingSpins = endEffectiveSpin !== null ? remainingSpinsFromCounterSpin(endEffectiveSpin, summaryPresetId) : null;
-      const startSpin = normalizeNumber(session.startSpin);
-      const playedSpins = startSpin !== null && endSpin !== null && endSpin >= startSpin ? endSpin - startSpin : null;
-      const consumedBalls = derived.consumedBalls !== null && derived.consumedBalls !== undefined ? Math.round(derived.consumedBalls) : null;
       // S4/C-5: 1R平均は実測の獲得出玉だけで出す。玉数の増減からの推計では代用しない。
       // 分子・分母とも戦果報告の「1R当たり」と同じ取得元にそろえる。
       const totalHitBalls = sessionActualBallsTotal(session);
@@ -9781,11 +9780,6 @@
         // 非パーソナル店で常にパーソナル式（開始持ち玉＋再プレ）を返していたバグの修正。実収支・差玉の式は変えない。
         withdrawBalls: playerInvestedBalls(session, totals, store),
         depositBalls: finalMochidamaForCarryover(session) ?? 0,
-        startEvYen: startEv ? startEv.evYen : null,
-        startExpectedSpins,
-        remainingSpins,
-        consumedBalls,
-        playedSpins,
         averageRoundBalls,
         profitYen: derived.profitYen
       };
@@ -9822,78 +9816,222 @@
       return Math.round(Number(value || 0)).toLocaleString("ja-JP");
     }
 
-    function transferOptionalYenText(value) {
-      const number = normalizeNumber(value);
-      return number === null ? "-" : transferYenText(number);
+    // S36/§2: 転記用に出す項目。保存が読めないときと未保存のときは全項目ON（初期値）。
+    function loadTransferSections() {
+      const keys = TRANSFER_SECTIONS.map((section) => section.key);
+      try {
+        const raw = localStorage.getItem(TRANSFER_SECTIONS_KEY);
+        if (raw === null) return keys;
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) return keys;
+        return keys.filter((key) => parsed.includes(key));
+      } catch (error) {
+        return keys;
+      }
     }
 
-    function transferOptionalSpinText(value) {
+    function saveTransferSections(keys) {
+      try {
+        localStorage.setItem(TRANSFER_SECTIONS_KEY, JSON.stringify(keys));
+      } catch (error) {
+        console.warn("ytv3 transferSections save failed", error);
+      }
+    }
+
+    // S36/§1-1: 転記用の日付は YYYY/M/D。見出しの longDateText とは別書式。
+    function transferDateText(dateValue) {
+      const parts = String(dateValue || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      return parts ? `${Number(parts[1])}/${Number(parts[2])}/${Number(parts[3])}` : String(dateValue || "-");
+    }
+
+    function transferSpinText(value) {
       const number = normalizeNumber(value);
       return number === null ? "-" : `${Math.round(number).toLocaleString("ja-JP")}回転`;
     }
 
-    function transferOptionalBallText(value) {
+    function transferRateText(value) {
       const number = normalizeNumber(value);
-      return number === null ? "-" : `${Math.round(number).toLocaleString("ja-JP")}玉`;
+      return number === null ? "-" : `${number.toFixed(1)}回/千円`;
     }
 
-    function transferOptionalRoundAverageText(value) {
+    // S36/§1-1: 実稼働時間は「1.02時間」。桁は hourText と同じ小数2桁にそろえる。
+    function transferHourText(value) {
       const number = normalizeNumber(value);
-      return number === null ? "-" : `${Number(number.toFixed(1)).toLocaleString("ja-JP")}玉/R`;
+      return number === null ? "-" : `${number.toFixed(2)}時間`;
     }
 
-    function transferSummaryText(summary) {
-      return `投資${transferYenText(summary.investYen)}/回収${transferYenText(summary.recoverYen)}/引出${transferBallText(summary.withdrawBalls)}個/預入${transferBallText(summary.depositBalls)}個
-開始期待値${transferOptionalYenText(summary.startEvYen)}/想定回転数${transferOptionalSpinText(summary.startExpectedSpins)}/残り回転数${transferOptionalSpinText(summary.remainingSpins)}/消費玉数${transferOptionalBallText(summary.consumedBalls)}/消化回転数${transferOptionalSpinText(summary.playedSpins)}/1R平均${transferOptionalRoundAverageText(summary.averageRoundBalls)}/実収支${transferOptionalYenText(summary.profitYen)}`;
+    // S36/§1-2: 出す値はすべて sessionResultSummary から取る。転記用のために別計算しない。
+    function transferSectionLines(session, sectionKey) {
+      const summary = sessionResultSummary(session);
+      const { machine, derived, transfer, startEv } = summary;
+      if (sectionKey === "profit") {
+        return [
+          `実収支 ${yenText(derived.profitYen)}`,
+          `現金投資 ${transferYenText(transfer.investYen)} / 現金回収 ${transferYenText(transfer.recoverYen)}`,
+          `貯玉引出 ${transferBallText(transfer.withdrawBalls)}玉 / 預入 ${transferBallText(transfer.depositBalls)}玉`
+        ];
+      }
+      if (sectionKey === "plan") {
+        return [
+          `開始カウンター ${startEv ? transferSpinText(startEv.effectiveSpin) : "-"}`,
+          `遊タイムまで残り ${transferSpinText(summary.remainingSpins)}`,
+          `想定回転率 ${startEv ? transferRateText(startEv.usedRate) : "-"}`,
+          `開始期待値 ${startEv ? yenText(startEv.evYen) : "-"}`
+        ];
+      }
+      if (sectionKey === "result") {
+        const earned = earnedExpectationForSession(session, machine, derived);
+        // リザルトの実測回転率と同じ扱い。概算のときは同じ注記を添える
+        const rateText = derived.rateUnavailableReason ? "-" : transferRateText(derived.rate);
+        const speed = summary.normalSpeed;
+        const speedText = speed.spins > 0
+          ? `${speed.spins.toLocaleString("ja-JP")}回転 / ${minuteSecondJaText(speed.minutes * 60000)}${summary.speedBoundaryLegacy ? "（旧境界・参考）" : ""}`
+          : "-";
+        return [
+          `実測回転率 ${rateText}${derived.isEstimatedRate ? "（概算）" : ""}`,
+          `獲得期待値 ${earned ? yenText(earned.totalYen) : "-"}`,
+          `実稼働時間 ${transferHourText(summary.workedHours)}`,
+          `通常時 ${speedText}`
+        ];
+      }
+      if (sectionKey === "flow") {
+        const earned = earnedExpectationForSession(session, machine, derived);
+        const segmentRows = segmentBreakdownRows(session, derived, machine, earned);
+        const segmentExcludedMarks = segmentBreakdownExcludedMarks(segmentRows);
+        const warnings = resultInputWarnings(session, summary, segmentRows, segmentExcludedMarks);
+        // ①②の番号と括弧内の副行は出さず、主行だけを1行ずつ出す
+        return resultTimelineLines(segmentRows, warnings).map((line) => line.main);
+      }
+      return [];
     }
 
-    function transferSummaryHtml(session) {
-      const summary = transferSummaryForSession(session);
+    function transferTextForSession(session, sectionKeys) {
+      const machine = data.machines.find((item) => item.id === session.machineId) || null;
+      const selected = TRANSFER_SECTIONS.filter((section) => sectionKeys.includes(section.key));
+      const lines = [
+        `遊タイム実戦メモ｜${machine?.modelName || "機種未設定"}`,
+        transferDateText(session.date),
+        "",
+        "---"
+      ];
+      selected.forEach((section) => {
+        lines.push("", section.heading, ...transferSectionLines(session, section.key));
+      });
+      lines.push("", `by ${TRANSFER_SIGNATURE_URL}`);
+      return lines.join("\n");
+    }
+
+    // S36/§1-3: 収支帳用の置換。checker-engine.js の plainText() と同じ規則を持つ（読み込みはしない）。
+    // 絵文字と異体字セレクタを落とし、▶↪→「→」、波ダッシュ・全角チルダ→「~」、①〜⑳→半角数字。
+    // ■・｜・--- は置換しない（収支帳での表示が未確認のため、化けたら次の版で対応する）。
+    function transferLedgerText(text) {
+      return String(text)
+        .replace(/\p{Extended_Pictographic}\uFE0F/gu, "")
+        .replace(/[\p{Emoji_Presentation}\p{Emoji_Modifier}\u200D\u20E3]/gu, "")
+        .replace(/[\uFE0E\uFE0F]/g, "")
+        .replace(/[\u25B6\u21AA]/g, "\u2192")
+        .replace(/[\u301C\uFF5E]/g, "~")
+        .replace(/[\u2460-\u2473]/g, (ch) => String(ch.codePointAt(0) - 0x2460 + 1));
+    }
+
+    // S36/§3: Xの数え方に合わせた近似。コードポイント単位で数え、下の範囲だけ1、ほかは2。
+    // 改行は1。URL（slot-tools.jp）は本文の長さに関係なく X_URL_WEIGHT で数える。
+    function xWeightedLength(text) {
+      const source = String(text ?? "");
+      let total = 0;
+      let index = 0;
+      while (index < source.length) {
+        if (source.startsWith(TRANSFER_SIGNATURE_URL, index)) {
+          total += X_URL_WEIGHT;
+          index += TRANSFER_SIGNATURE_URL.length;
+          continue;
+        }
+        const code = source.codePointAt(index);
+        const size = code > 0xFFFF ? 2 : 1;
+        total += xCodePointWeight(code);
+        index += size;
+      }
+      return total;
+    }
+
+    function xCodePointWeight(code) {
+      if (code <= 0x10FF) return 1;
+      if (code >= 0x2000 && code <= 0x200D) return 1;
+      if (code >= 0x2010 && code <= 0x201F) return 1;
+      if (code >= 0x2032 && code <= 0x2037) return 1;
+      return 2;
+    }
+
+    // S36/§2: 転記用ブロック。項目の選択・プレビュー・X換算の文字数・2つのコピーボタン。
+    // 操作部なので常時表示（hint-help は付けない）。
+    function transferBlockHtml(session) {
+      const selected = loadTransferSections();
+      const text = transferTextForSession(session, selected);
       return `
-        <div class="transfer-summary">
-          <div class="transfer-summary-title">転記用</div>
-          <div class="transfer-summary-grid">
-            <div class="transfer-summary-cell"><span>投資金額</span><strong>${transferYenText(summary.investYen)}</strong></div>
-            <div class="transfer-summary-cell"><span>回収金額</span><strong>${transferYenText(summary.recoverYen)}</strong></div>
-            <div class="transfer-summary-cell"><span>貯玉引出</span><strong>${transferBallText(summary.withdrawBalls)}個</strong></div>
-            <div class="transfer-summary-cell"><span>貯玉預入</span><strong>${transferBallText(summary.depositBalls)}個</strong></div>
+        <div class="transfer-block" data-transfer-session="${escapeHtml(session.id)}">
+          <div class="transfer-sections">
+            ${TRANSFER_SECTIONS.map((section) => `<label class="check-chip"><input type="checkbox" class="transferSection" value="${section.key}"${selected.includes(section.key) ? " checked" : ""}> ${escapeHtml(section.label)}</label>`).join("")}
           </div>
-          <div class="transfer-summary-line">${escapeHtml(transferSummaryText(summary))}</div>
-          <button class="small" data-copy-transfer="${escapeHtml(session.id)}">転記用をコピー</button>
-          <div class="transfer-summary-grid">
-            <div class="transfer-summary-cell"><span>開始期待値</span><strong>${transferOptionalYenText(summary.startEvYen)}</strong></div>
-            <div class="transfer-summary-cell"><span>想定回転数</span><strong>${transferOptionalSpinText(summary.startExpectedSpins)}</strong></div>
-            <div class="transfer-summary-cell"><span>残り回転数</span><strong>${transferOptionalSpinText(summary.remainingSpins)}</strong></div>
-            <div class="transfer-summary-cell"><span>消費玉数</span><strong>${transferOptionalBallText(summary.consumedBalls)}</strong></div>
-            <div class="transfer-summary-cell"><span>消化回転数</span><strong>${transferOptionalSpinText(summary.playedSpins)}</strong></div>
-            <div class="transfer-summary-cell"><span>1R平均</span><strong>${transferOptionalRoundAverageText(summary.averageRoundBalls)}</strong></div>
-            <div class="transfer-summary-cell"><span>実収支</span><strong>${transferOptionalYenText(summary.profitYen)}</strong></div>
+          <textarea class="transfer-preview" id="transferPreview" readonly rows="12">${escapeHtml(text)}</textarea>
+          <p class="hint" id="transferCount">${escapeHtml(transferCountText(text))}</p>
+          <div class="transfer-actions">
+            <button class="small" id="transferCopyXBtn">X用にコピー</button>
+            <button class="small" id="transferCopyLedgerBtn">収支帳用にコピー</button>
           </div>
         </div>`;
     }
 
-    function copyText(text) {
-      if (navigator.clipboard?.writeText) {
-        navigator.clipboard.writeText(text).then(() => showToast("コピーしました")).catch(() => fallbackCopyText(text));
-        return;
-      }
-      fallbackCopyText(text);
+    function transferCountText(text) {
+      const length = xWeightedLength(text);
+      const over = length - X_TEXT_LIMIT;
+      return `X換算 ${length.toLocaleString("ja-JP")}/${X_TEXT_LIMIT}${over > 0 ? `（＋${over.toLocaleString("ja-JP")} 超過）` : ""}`;
     }
 
-    function fallbackCopyText(text) {
+    function bindTransferBlock(scope, session) {
+      const block = scope.querySelector(`[data-transfer-session="${session.id}"]`);
+      if (!block) return;
+      const preview = block.querySelector("#transferPreview");
+      const count = block.querySelector("#transferCount");
+      const currentSections = () => [...block.querySelectorAll(".transferSection")]
+        .filter((input) => input.checked).map((input) => input.value);
+      const refresh = () => {
+        const keys = currentSections();
+        const text = transferTextForSession(session, keys);
+        preview.value = text;
+        count.textContent = transferCountText(text);
+        // 上限を超えてもコピーは止めない。見た目だけ警告にする
+        count.classList.toggle("warn", xWeightedLength(text) > X_TEXT_LIMIT);
+        return text;
+      };
+      block.querySelectorAll(".transferSection").forEach((input) => {
+        input.addEventListener("change", () => {
+          saveTransferSections(currentSections());
+          refresh();
+        });
+      });
+      block.querySelector("#transferCopyXBtn").addEventListener("click", () => copyText(refresh()));
+      block.querySelector("#transferCopyLedgerBtn").addEventListener("click", () => {
+        copyText(transferLedgerText(refresh()), "収支帳用にコピーしました");
+      });
+      refresh();
+    }
+
+    function copyText(text, message = "コピーしました") {
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(() => showToast(message)).catch(() => fallbackCopyText(text, message));
+        return;
+      }
+      fallbackCopyText(text, message);
+    }
+
+    function fallbackCopyText(text, message = "コピーしました") {
       const textarea = document.createElement("textarea");
       textarea.value = text;
       document.body.appendChild(textarea);
       textarea.select();
       document.execCommand("copy");
       textarea.remove();
-      showToast("コピーしました");
-    }
-
-    function copyTransferSummary(sessionId) {
-      const session = findSession(sessionId);
-      if (!session) return;
-      copyText(transferSummaryText(transferSummaryForSession(session)));
+      showToast(message);
     }
 
     function balanceForSource(session, source) {
