@@ -81,12 +81,16 @@ textarea{min-height:80px;resize:vertical}
 .log .empty{padding:16px;text-align:center;color:var(--dim);font-size:13px}
 .wide{width:100%;padding:12px;margin-top:6px;font-weight:600}
 .wide.dim{color:var(--dim)}
-.sheet{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.62);display:none;align-items:flex-end}
+.sheet{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.62);display:none;align-items:flex-end;padding-bottom:18vh;padding-bottom:18dvh}
 .sheet.open{display:flex}
-.sheet .pane{width:100%;max-width:520px;margin:0 auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;max-height:88vh;max-height:88dvh;display:flex;flex-direction:column}
+.sheet .pane{width:100%;max-width:520px;margin:0 auto;background:var(--panel);border-top-left-radius:16px;border-top-right-radius:16px;max-height:78vh;max-height:78dvh;border-bottom-left-radius:16px;border-bottom-right-radius:16px;display:flex;flex-direction:column}
 .sheet .sh{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
 .sheet .sh .st{flex:1;font-weight:700}
 .sheet .sb{padding:12px 14px 24px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.opts button.tone-p{background:rgba(180,140,224,.18);border-color:rgba(180,140,224,.55)}
+.opts button.tone-c{background:rgba(110,170,240,.18);border-color:rgba(110,170,240,.55)}
+.opts button.tone-d{background:rgba(240,110,110,.18);border-color:rgba(240,110,110,.55)}
+.opts button.on.tone-p,.opts button.on.tone-c,.opts button.on.tone-d{background:var(--accent);border-color:var(--accent)}
 .sheet .sh{position:sticky;top:0;background:var(--panel);z-index:1}
 .sheet .sb .lbl{font-size:12px;color:var(--dim);margin:12px 0 6px}
 .sheet .sb .lbl:first-child{margin-top:0}
@@ -334,18 +338,18 @@ const MACHINES={
       {type:"melonLeft",label:"🍉残り",title:"🍉残り回数の表示"},
       {type:"select",label:"セリフ",title:"セリフ示唆",
         groups:[{key:"serif",label:"セリフ",required:true,options:[
-          {l:"ピエロ：あと一歩",h:"🍉残り1",set:{melonLeft:1}},
-          {l:"ピエロ：楽しみな時間",h:"次回 幕間以上",set:{reward:"幕間以上"}},
-          {l:"ピエロ：次の運命盤は",h:"次回 AT以上",set:{reward:"AT以上"}},
-          {l:"ピエロ：邪悪な気配",h:"次回 AT＋上位",set:{reward:"AT＋上位"}},
-          {l:"ピエロ：複数の種類",h:"示唆不明"},
-          {l:"ピエロ：動く兆し",h:"示唆不明"},
-          {l:"ピエロ：完成するといいこと",h:"示唆不明"},
-          {l:"ピエロ：小役で完成",h:"示唆不明"},
-          {l:"エレオノール：フランスの",h:"通常C濃厚",set:{mode:"通常C濃厚",span:1}},
-          {l:"エレオノール：幼い頃",h:"通常C濃厚",set:{mode:"通常C濃厚",span:1}},
-          {l:"アンジェリーナ：主さんは",h:"通常D濃厚",set:{mode:"通常D濃厚",span:1}},
-          {l:"フランシーヌ：いつかまた",h:"通常D濃厚",set:{mode:"通常D濃厚",span:1}}
+          {l:"ピエロ：あと一歩",h:"🍉残り1",set:{melonLeft:1},tone:"p"},
+          {l:"ピエロ：楽しみな時間",h:"次回 幕間以上",set:{reward:"幕間以上"},tone:"p"},
+          {l:"ピエロ：次の運命盤は",h:"次回 AT以上",set:{reward:"AT以上"},tone:"p"},
+          {l:"ピエロ：邪悪な気配",h:"次回 AT＋上位",set:{reward:"AT＋上位"},tone:"p"},
+          {l:"ピエロ：複数の種類",h:"示唆不明",tone:"p"},
+          {l:"ピエロ：動く兆し",h:"示唆不明",tone:"p"},
+          {l:"ピエロ：完成するといいこと",h:"示唆不明",tone:"p"},
+          {l:"ピエロ：小役で完成",h:"示唆不明",tone:"p"},
+          {l:"エレオノール：フランスの",h:"通常C濃厚",set:{mode:"通常C濃厚",span:1},tone:"c"},
+          {l:"エレオノール：幼い頃",h:"通常C濃厚",set:{mode:"通常C濃厚",span:1},tone:"c"},
+          {l:"アンジェリーナ：主さんは",h:"通常D濃厚",set:{mode:"通常D濃厚",span:1},tone:"d"},
+          {l:"フランシーヌ：いつかまた",h:"通常D濃厚",set:{mode:"通常D濃厚",span:1},tone:"d"}
         ]}]}
     ],
     // CZ失敗時の標準セット（幕間チャンス・運命の一劇・女神・劇場ジャッジ共通）
@@ -573,6 +577,7 @@ function groupSheet(title,groups,onDone,opts){
       g.options.forEach(o=>{
         const label=Array.isArray(o)?o[0]:(o&&o.l!=null?o.l:o), hint=Array.isArray(o)?o[1]:(o&&o.h!=null?o.h:null), setv=(o&&o.set)||null;
         const btn=mk("button",g.options.length>6?"q4":(g.options.length<=2?"q2":""),label);
+        if(o&&o.tone)btn.classList.add("tone-"+o.tone);
         if(hint)btn.append(mk("small","",hint));
         if(sel[g.key]===label){btn.classList.add("on");if(setv)sel["_set_"+g.key]=setv}
         if(o&&o.showWhen)wraps.push({showWhen:o.showWhen,els:[btn],key:null});
