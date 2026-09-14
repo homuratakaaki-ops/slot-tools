@@ -2999,7 +2999,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 38;/);
+assert.match(html, /const SCHEMA_VERSION = 39;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3308,6 +3308,8 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify
 const legacyMachineContext = vm.createContext({});
 new vm.Script(`
   const SCHEMA_VERSION = 37;
+  // S33/§2-1: 旧境界の印を付ける境目の日付
+  const LEGACY_SPEED_BOUNDARY_DATE = "2026-09-11";
   const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
@@ -4691,7 +4693,7 @@ const s9SettingsContext = vm.createContext({
   expectationYenPerBall() {
     return 4;
   },
-  // S23/§3-2: 想定時速の解決。この文脈では実測が無い状態（＝既定250/h）を既定値にする
+  // S23/§3-2: 想定時速の解決。この文脈では実測が無い状態（＝既定290/h・S33）を既定値にする
   positiveNumberOrDefault(value, fallback) {
     const n = s9SettingsContext.normalizeNumber(value);
     return n !== null && n > 0 ? n : fallback;
@@ -4714,7 +4716,8 @@ new vm.Script(`
   ${netBallsTextBlock}
   ${section('const SPEED_MIN_SPINS', 'const speedStatsCache')}
   ${expectationSettingsBlock}
-  globalThis.settingsFor = (manual) => expectationSettings({}, { presetId: "agnes-pe" }, manual);
+  // S33/§1-2: 店の実測を回転率で絞るため、判定に使う回転率が第4引数で入る
+  globalThis.settingsFor = (manual, rate = null) => expectationSettings({}, { presetId: "agnes-pe" }, manual, rate);
 `).runInContext(s9SettingsContext);
 assert.equal(s9SettingsContext.settingsFor(null).netBallsSource, '使用1R実質出玉 108玉（理論値）');
 assert.equal(s9SettingsContext.settingsFor(null).settings.netBallsPerWin, 108);
@@ -4933,7 +4936,7 @@ assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBal
 assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
 
 // --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
-assert.match(html, /const SCHEMA_VERSION = 38;/);
+assert.match(html, /const SCHEMA_VERSION = 39;/);
 assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
 assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
 assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
@@ -5465,7 +5468,7 @@ const shootingBlock = section('function markSegmentShootingStarted', 'function h
 const wizardInputBlock = section('function wizardInputHtml', 'function readWizardValue');
 
 // --- §1: データ構造 --------------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 38;/);
+assert.match(html, /const SCHEMA_VERSION = 39;/);
 assert.match(html, /function normalizePlayStyle\(value\) \{\s*return value === "continuous" \? "continuous" : "yutime";/);
 assert.match(html, /function normalizeShooting\(value\) \{\s*return value === "before" \? "before" : "started";/);
 assert.match(normalizeData, /playStyle: normalizePlayStyle\(session\.playStyle\)/);
@@ -5624,7 +5627,7 @@ assert.equal(Number(runningRateContext.s7cEndedWithoutShooting.rate.toFixed(1)),
 // ===========================================================================
 
 // --- 第1部: 投資phaseの修復 ------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 38;/);
+assert.match(html, /const SCHEMA_VERSION = 39;/);
 assert.match(html, /const S17_BACKUP_KEY = STORAGE_PREFIX \+ "backup:s17";/);
 assert.match(segmentMigrationBackup, /function needsInvestmentPhaseRepair\(source\) \{\s*return \(normalizeNumber\(source\?\.version\) \?\? 0\) < 36;/);
 assert.match(segmentMigrationBackup, /function backupBeforeInvestmentPhaseRepair\(raw\) \{\s*if \(!raw \|\| localStorage\.getItem\(S17_BACKUP_KEY\)\) return;/);
@@ -6568,7 +6571,7 @@ assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \
 // ===========================================================================
 
 // --- §1: 時刻はボタンを押した瞬間を自動で取る。手入力欄は増やさない ----------
-assert.match(html, /const SCHEMA_VERSION = 38;/);
+assert.match(html, /const SCHEMA_VERSION = 39;/);
 // S25/§4: 当選の端点はhitsを優先し、R未入力時だけ保持したタップ時刻から埋める。
 const closeSegmentOnHitBlock = section('function closeSegmentOnHit', 'function startYutimeSegment');
 assert.match(closeSegmentOnHitBlock, /target\.endAt = segmentHitAt\(session, target\.id\) \|\| \(pendingHitAt\?\.sessionId === session\.id \? pendingHitAt\.at : null\);/);
@@ -6665,7 +6668,7 @@ new vm.Script(`
   ${yenHourTextBlock}
   globalThis.s23 = {
     isoFromDateAndTime, segmentIsoAt, localTimeText, segmentAtFromSessionTime, isIsoTimestamp,
-    segmentDurationMs, segmentSpinsPerMinute, sessionNormalSpeed, segmentHitAt, chainClearMsById,
+    segmentDurationMs, segmentSpinsPerMinute, sessionNormalSpeed, sessionNormalSpeedRaw, segmentHitAt, chainClearMsById,
     minuteSecondText, minuteSecondJaText, spinsPerMinuteText, speedWithRateText
   };
 `).runInContext(s23Context);
@@ -6785,12 +6788,13 @@ assert.equal(s23.segmentHitAt({ hits: [
 assert.equal(s23.segmentHitAt({ hits: [] }, 'x'), null);
 assert.equal(s23.segmentHitAt({ hits: [{ segmentId: 'x', at: '12:04' }] }, 'x'), null, 'ISO以外は当選時刻として採らない');
 
-// --- §3-2: 想定時速の優先順位（手入力 → 台の実測 → 店の実測 → 既定250/h）----
+// --- §3-2: 想定時速の優先順位（手入力 → 台の実測 → 店の実測 → 既定）----
+// S33/§1-2: 既定は 290回転/h（回転率16の台の実測相当）
 const s23Settings = s9SettingsContext;
 s23Settings.__machineSpeed = {};
 s23Settings.__storeSpeed = {};
 s23Settings.speedStatsCache.clear();
-assert.equal(s23Settings.settingsFor(null).settings.spinsPerHour, 250);
+assert.equal(s23Settings.settingsFor(null).settings.spinsPerHour, 290);
 s23Settings.speedStatsCache.clear();
 assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '既定');
 // 母数が薄い実測・外れ値は採らない
@@ -6809,24 +6813,101 @@ s23Settings.speedStatsCache.clear();
 assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '実測・台');
 s23Settings.speedStatsCache.clear();
 assert.equal(Math.round(s23Settings.settingsFor(null).settings.spinsPerHour), 354);
-// 台に実測が無ければ店の実測へ落ちる
+// 台に実測が無ければ店の実測へ落ちる。S33/§1-2: 回転率が渡っているときだけ
 s23Settings.__machineSpeed = {};
 s23Settings.__storeSpeed = { speedPerMinute: 5, speedSpins: 500, speedMinutes: 100 };
 s23Settings.speedStatsCache.clear();
-assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '実測・店');
+assert.equal(s23Settings.settingsFor(null, 16.3).spinsPerHourInfo.source, '実測・店');
 s23Settings.speedStatsCache.clear();
-assert.equal(s23Settings.settingsFor(null).settings.spinsPerHour, 300);
+assert.equal(s23Settings.settingsFor(null, 16.3).settings.spinsPerHour, 300);
+// S33/§1-2: 回転率が無い（回転率なし）ときは店の実測を使わず既定へ落ちる
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '既定');
+s23Settings.speedStatsCache.clear();
+assert.equal(s23Settings.settingsFor(null).settings.spinsPerHour, 290);
 // 手入力（プリセット設定）が最優先
 s23Settings.data.presetSettings['agnes-pe'] = { spinsPerHour: 200 };
 s23Settings.speedStatsCache.clear();
-assert.equal(s23Settings.settingsFor(null).spinsPerHourInfo.source, '手入力');
+assert.equal(s23Settings.settingsFor(null, 16.3).spinsPerHourInfo.source, '手入力');
 s23Settings.speedStatsCache.clear();
-assert.equal(s23Settings.settingsFor(null).settings.spinsPerHour, 200);
+assert.equal(s23Settings.settingsFor(null, 16.3).settings.spinsPerHour, 200);
 s23Settings.data.presetSettings['agnes-pe'] = {};
 s23Settings.__storeSpeed = {};
 // 根拠行に出典を添える
 assert.match(html, /通常時\$\{spinsPerHour\.toLocaleString\("ja-JP"\)\}回転\/h\$\{spinsPerHourSource \? `（\$\{spinsPerHourSource\}）` : "想定"\}/);
 assert.match(html, /expectationBasisText\(expectation\.result, expectation\.spinsPerHourInfo\?\.source\)/);
+
+// --- S33/§1-2: 想定時速の既定は290回転/h。店の実測は回転率が近い台に限る ----
+assert.match(html, /const DEFAULT_SPINS_PER_HOUR = 290;/);
+assert.match(html, /const SPEED_RATE_BAND = 2\.0;/);
+// 期待値エンジンのプリセット既定（250）は yutime-calc.html とバイト一致の不変条件があるので触らない。
+// 既定の 290 はページ側（spinsPerHourInfo）で決める。
+assert.match(html, /const fallback = DEFAULT_SPINS_PER_HOUR;/);
+assert.equal((html.match(/spinsPerHour: 250,/g) || []).length, 2, 'エンジンのプリセット既定は 250 のまま');
+// 判定に使う回転率をそのまま渡す（expectationRate の結果）
+assert.match(html, /const settingsInfo = expectationSettings\(store, machine, options\.manualNetBallsPerWin, rateInfo\.rate\);/);
+assert.match(html, /const spinsPerHour = spinsPerHourInfo\(presetId, machine, rate\);/);
+const s33StoreSpeedBlock = section('function speedStatsCacheKey', 'function machineSpeedStats');
+// キャッシュキーに回転率の帯を入れる（同じ描画でも台ごとに rate が違うため）
+assert.match(s33StoreSpeedBlock, /cachedSpeedStats\(`store:\$\{presetId\}:\$\{Math\.round\(target \* 10\)\}`/);
+const s33StoreSpeedContext = vm.createContext({
+  normalizeNumber: netBallsTextContext.normalizeNumber,
+  normalizeMachinePresetId(machine) { return machine?.presetId || ''; },
+  data: {
+    activeStoreId: 'st1',
+    meta: {},
+    machines: [
+      { id: 'm_low', presetId: 'agnes-pe' },
+      { id: 'm_high', presetId: 'agnes-pe' },
+      { id: 'm_out', presetId: 'agnes-pe' },
+      { id: 'm_est', presetId: 'agnes-pe' },
+      { id: 'm_norate', presetId: 'agnes-pe' },
+      { id: 'm_other', presetId: 'umi-sp5' }
+    ]
+  },
+  selectedLabelFilters: new Set(),
+  speedStatsCache: new Map(),
+  filteredSessions() { return s33StoreSpeedContext.__sessions; },
+  deriveSession(session) { return { rate: session.__rate, isEstimatedRate: session.__estimated === true }; },
+  aggregateStats(sessions) { return { __ids: sessions.map((session) => session.id) }; },
+  emptyStats() { return { __ids: [] }; },
+  __sessions: [
+    { id: 's_low', machineId: 'm_low', __rate: 14.3 },
+    { id: 's_high', machineId: 'm_high', __rate: 18.3 },
+    { id: 's_out', machineId: 'm_out', __rate: 14.2 },
+    { id: 's_est', machineId: 'm_est', __rate: 16.3, __estimated: true },
+    { id: 's_norate', machineId: 'm_norate', __rate: null },
+    { id: 's_other', machineId: 'm_other', __rate: 16.3 }
+  ]
+});
+new vm.Script(`
+  ${section('const SPEED_MIN_SPINS', 'const speedStatsCache')}
+  ${s33StoreSpeedBlock}
+  globalThis.storeSpeedIds = (rate) => storeSpeedStats({ presetId: "agnes-pe" }, rate).__ids;
+`).runInContext(s33StoreSpeedContext);
+// 回転率16.3 の台なら 14.3〜18.3 の記録だけを採る。概算・他機種・回転率なしは入れない
+assert.deepEqual(s33StoreSpeedContext.storeSpeedIds(16.3), ['s_low', 's_high']);
+s33StoreSpeedContext.speedStatsCache.clear();
+assert.deepEqual(s33StoreSpeedContext.storeSpeedIds(20), ['s_high'], '帯がずれれば母集団も変わる');
+s33StoreSpeedContext.speedStatsCache.clear();
+assert.deepEqual(s33StoreSpeedContext.storeSpeedIds(null), [], '回転率が無ければ店の実測は使わない');
+
+// --- S33/§2: 旧境界（S25より前）の記録は時速の実測からだけ外す --------------
+assert.match(html, /const LEGACY_SPEED_BOUNDARY_DATE = "2026-09-11";/);
+assert.match(normalizeData, /if \(sourceVersion < 39 && String\(session\.date \|\| ""\) < LEGACY_SPEED_BOUNDARY_DATE\) normalized\.speedBoundary = "legacy";/);
+const s33LegacySession = { ...s23SpeedSession, speedBoundary: 'legacy' };
+// 台・店の参考時速と日別・積み上げの平均時速からは、分子・分母の両方が外れる
+assert.equal(s23.sessionNormalSpeed(s33LegacySession).spins, 0);
+assert.equal(s23.sessionNormalSpeed(s33LegacySession).minutes, 0);
+assert.equal(s23.sessionNormalSpeed(s33LegacySession).perMinute, null);
+// 印が無い記録はこれまでどおり
+assert.equal(s23.sessionNormalSpeed(s23SpeedSession).spins, 1052);
+// その記録自身のリザルトは Raw を直接呼ぶので値は今までどおり出る
+assert.equal(s23.sessionNormalSpeedRaw(s33LegacySession).spins, 1052);
+assert.equal(s23.spinsPerMinuteText(s23.sessionNormalSpeedRaw(s33LegacySession).perMinute), '5.9回転/分');
+assert.match(html, /const normalSpeed = sessionNormalSpeedRaw\(session, presetById\(presetId\)\);/);
+assert.match(html, /const speedBoundaryLegacy = session\?\.speedBoundary === "legacy";/);
+assert.match(resultBlock, /\$\{summary\.speedBoundaryLegacy \? "（旧境界・参考）" : ""\}<\/div>/);
 
 // --- §3-1/§3-3: 表示 --------------------------------------------------------
 assert.match(resultBlock, /<div class="result-line">実働 \$\{escapeHtml\(hourText\(summary\.workedHours\)\)\} ／ 時給 \$\{escapeHtml\(yenText\(summary\.hourlyYen\)\)\} ／ 通常時の時速 \$\{escapeHtml\(spinsPerMinuteText\(summary\.normalSpeed\.perMinute\)\)\}/);
@@ -7059,7 +7140,7 @@ const s28Title = () => s28App.element('modalTitle').textContent;
 const s28Click = (id) => s28App.element(id).handlers.click();
 const s28Toggle = () => s28App.element('modalBody').querySelectorAll('[data-toggle-holdcarry]')[0].handlers.click();
 const s28Json = (value) => JSON.parse(JSON.stringify(value));
-assert.equal(s28App.api.data.version, 38);
+assert.equal(s28App.api.data.version, 39);
 assert.deepEqual(s28Json(s28App.api.hitHistoryGroups(s28Session).map((g) => [g.id, g.rows.length])), [['seg_3', 2], ['seg_2', 1], ['seg_1', 1]]);
 // 表示グループだけを分け、残保留の累計計算は引き続き元の連チャンを参照する。
 assert.equal(s28App.api.hitHistoryRows(s28Session)[1].segmentId, 'seg_1');
@@ -7207,8 +7288,8 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 32;/);
-assert.match(html, /const APP_VERSION_DATE = "2026-09-13";/);
+assert.match(html, /const APP_VERSION_SEQ = 33;/);
+assert.match(html, /const APP_VERSION_DATE = "2026-09-14";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
 // 書く場所は endSource = "yutime" を書いている3か所すべて。
