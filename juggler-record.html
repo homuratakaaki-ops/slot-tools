@@ -32,6 +32,14 @@
   --warn-ink: #e6c06a;
   --warn-bg: #2c2617;
   --focus: #6ea2ff;
+  /* 機種色の外周枠。太さと濃さはこの2つだけで全機種に反映される */
+  --machine-frame-width: 6px;
+  --machine-frame-alpha: 1;
+  /* 現在の機種色(applyMachineColors が流し込む) */
+  --machine-frame: transparent;
+  --machine-band: transparent;
+  --machine-band-ink: var(--ink);
+  --machine-band-shadow: none;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -51,8 +59,20 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .shell {
   height: 100dvh;
   max-width: 640px; margin: 0 auto;
-  padding: 6px 10px calc(8px + env(safe-area-inset-bottom));
+  /* 既存の余白が枠より厚いうちは現状のまま。枠を太くした時だけ枠のぶんを確保する */
+  padding-top: max(6px, var(--machine-frame-width));
+  padding-right: max(10px, calc(var(--machine-frame-width) + env(safe-area-inset-right)));
+  padding-bottom: calc(max(8px, var(--machine-frame-width)) + env(safe-area-inset-bottom));
+  padding-left: max(10px, calc(var(--machine-frame-width) + env(safe-area-inset-left)));
   display: flex; flex-direction: column; gap: 7px;
+}
+/* 機種色の外周枠。常時表示・スクロール追従・タップは透過する */
+.machine-frame {
+  position: fixed; inset: 0;
+  border: var(--machine-frame-width) solid var(--machine-frame);
+  opacity: var(--machine-frame-alpha);
+  pointer-events: none;
+  z-index: 40;
 }
 @supports not (height: 100dvh) { .shell { height: 100vh; } }
 
@@ -63,12 +83,13 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .head .tool-name { font-size: 10px; font-weight: 400; color: var(--muted); line-height: 1.2; }
 .head .machine-name {
   display: block; width: 100%; text-align: left;
-  background: none; border: none; border-radius: 0 6px 6px 0;
+  background: var(--machine-band); border: none; border-radius: 6px;
   padding: 3px 8px; margin: 0; cursor: pointer;
   font-family: inherit; font-size: 15px; font-weight: 700; line-height: 1.25;
-  color: var(--ink); white-space: normal; word-break: break-all;
+  color: var(--machine-band-ink); text-shadow: var(--machine-band-shadow);
+  white-space: normal; word-break: break-all;
 }
-.head .machine-name::after { content: " ▾"; font-size: 11px; color: var(--muted); }
+.head .machine-name::after { content: " ▾"; font-size: 11px; color: inherit; }
 .head .head-guide { margin-left: auto; flex: none; }
 
 .status { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; flex: none; }
@@ -365,6 +386,7 @@ select.rate {
 </script>
 </head>
 <body>
+<div class="machine-frame" aria-hidden="true"></div>
 <div class="shell">
   <div class="head">
     <a href="./">← TOP</a>
@@ -673,18 +695,22 @@ select.rate {
 <script type="module">
 import { estimate } from "./js/estimator.js?v=20260827-2";
 
-// accent は実機パネルを連想させる色（背景の淡い着色と左のライン）
+// accent は機種色の主色。外周枠と機種選択シートの着色に使う
+// band はヘッダ下段の帯の背景色。accent の輝度を落とし、載る文字がすべて
+//   コントラスト比 4.5:1 以上になる範囲で最も明るい点を採ってある
 // mark は機種名のうち色を付ける部分、markColor はその文字色
+// bandMark / bandOutline は帯の中だけの上書き（markColor が accent と同色で
+//   帯に載せると沈む機種のための逃げ道。現状はハッピーのみ）
 const MACHINES = {
-  my_juggler_v: { path: "data/machines/my_juggler_v.json", name: "SマイジャグラーV", accent: "#FF5C8A", mark: "マイ", markColor: "#FF5C8A" },
-  im_juggler_ex_6: { path: "data/machines/im_juggler_ex_6.json", name: "SアイムジャグラーEX", accent: "#E5483C", mark: "アイム", markColor: "#FFD34E" },
-  gogo_juggler_3: { path: "data/machines/gogo_juggler_3.json", name: "Sゴーゴージャグラー3", accent: "#FF4FA3", mark: "ゴーゴー", markColor: "#FF4FA3" },
-  funky_juggler_2: { path: "data/machines/funky_juggler_2.json", name: "Sファンキージャグラー2", accent: "#9B7CFF", mark: "ファンキー", markColor: "#9B7CFF" },
-  happy_juggler_v3: { path: "data/machines/happy_juggler_v3.json", name: "SハッピージャグラーVⅢ", accent: "#54D67A", mark: "ハッピー", markColor: "#54D67A" },
-  neo_im_juggler_ex: { path: "data/machines/neo_im_juggler_ex.json", name: "SネオアイムジャグラーEX", accent: "#E5483C", mark: "ネオ", markColor: "#55D878" },
-  ultra_miracle_juggler: { path: "data/machines/ultra_miracle_juggler.json", name: "Sウルトラミラクルジャグラー", accent: "#C06CFF", mark: "ウルトラミラクル", markColor: "#C06CFF" },
-  juggler_girls_ss: { path: "data/machines/juggler_girls_ss.json", name: "SジャグラーガールズSS", accent: "#54D67A", mark: "ガールズSS", markColor: "#FF65A3" },
-  mr_juggler: { path: "data/machines/mr_juggler.json", name: "Sミスタージャグラー", accent: "#F1C84B", mark: "ミスター", markColor: "#F1C84B" },
+  my_juggler_v: { path: "data/machines/my_juggler_v.json", name: "SマイジャグラーV", accent: "#FF5C8A", band: "#521D2C", mark: "マイ", markColor: "#FF5C8A" },
+  im_juggler_ex_6: { path: "data/machines/im_juggler_ex_6.json", name: "SアイムジャグラーEX", accent: "#E5483C", band: "#A8352C", mark: "アイム", markColor: "#FFD34E" },
+  gogo_juggler_3: { path: "data/machines/gogo_juggler_3.json", name: "Sゴーゴージャグラー3", accent: "#FF4FA3", band: "#4F1833", mark: "ゴーゴー", markColor: "#FF4FA3" },
+  funky_juggler_2: { path: "data/machines/funky_juggler_2.json", name: "Sファンキージャグラー2", accent: "#9B7CFF", band: "#2D244B", mark: "ファンキー", markColor: "#9B7CFF" },
+  happy_juggler_v3: { path: "data/machines/happy_juggler_v3.json", name: "SハッピージャグラーVⅢ", accent: "#54D67A", band: "#2E7643", mark: "ハッピー", markColor: "#54D67A", bandMark: "#E9E9E6", bandOutline: "#4A2370" },
+  neo_im_juggler_ex: { path: "data/machines/neo_im_juggler_ex.json", name: "SネオアイムジャグラーEX", accent: "#FF6600", band: "#853500", mark: "ネオ", markColor: "#55D878" },
+  ultra_miracle_juggler: { path: "data/machines/ultra_miracle_juggler.json", name: "Sウルトラミラクルジャグラー", accent: "#C06CFF", band: "#3A204D", mark: "ウルトラミラクル", markColor: "#C06CFF" },
+  juggler_girls_ss: { path: "data/machines/juggler_girls_ss.json", name: "SジャグラーガールズSS", accent: "#3AD4B5", band: "#1A6052", mark: "ガールズSS", markColor: "#F1C84B" },
+  mr_juggler: { path: "data/machines/mr_juggler.json", name: "Sミスタージャグラー", accent: "#F1C84B", band: "#655420", mark: "ミスター", markColor: "#F1C84B" },
 };
 const params = new URLSearchParams(location.search);
 const machineId = MACHINES[params.get("machine")] ? params.get("machine") : "my_juggler_v";
@@ -733,7 +759,7 @@ async function init() {
     $("machineName").textContent = "機種データの読み込みに失敗しました";
     return;
   }
-  applyMachineAccent();
+  applyMachineColors();
   $("resultMachine").innerHTML = `${machineNameHtml(MACHINES[machineId])} の解析値で計算しています`;
   document.title = `実戦記録・設定推測 ${machine.machine.name}｜スロット稼働ノート`;
   UI_BTNS = (machine.ui && machine.ui.count_buttons) || [];
@@ -1079,10 +1105,7 @@ function bind() {
     const b = document.createElement("button");
     b.type = "button";
     b.innerHTML = machineNameHtml(mdef) + (id === machineId ? '<span class="in-use">　✓ 使用中</span>' : "");
-    if (mdef.accent) {
-      b.style.background = `${mdef.accent}1f`;
-      b.style.borderLeft = `4px solid ${mdef.accent}`;
-    }
+    paintMachineTint(b, mdef, 4);
     b.addEventListener("click", () => {
       if (id === machineId) { $("machineOverlay").classList.remove("open"); return; }
       const hasData = state.nowG > 0 || state.start.g > 0 ||
@@ -1329,25 +1352,39 @@ function bonusGroupIds() {
   return { big, reg };
 }
 
-function machineNameHtml(def) {
+// 機種名の mark 部分だけ色を付ける。band:true のときは帯用の色を優先する
+function machineNameHtml(def, opts) {
   const name = def.name || "";
   const mark = def.mark;
   if (!mark || !name.includes(mark)) return escapeHtml(name);
+  const color = (opts && opts.band && def.bandMark) || def.markColor || def.accent;
   const i = name.indexOf(mark);
   return escapeHtml(name.slice(0, i))
-    + `<span style="color:${def.markColor || def.accent}">${escapeHtml(mark)}</span>`
+    + `<span style="color:${color}">${escapeHtml(mark)}</span>`
     + escapeHtml(name.slice(i + mark.length));
 }
 
-function applyMachineAccent() {
+// 機種色を当てる処理はこの2つに集約する。他の場所で accent を直接塗らないこと
+function paintMachineTint(el, def, lineWidth) {
+  if (!def || !def.accent) return;
+  el.style.background = `${def.accent}1f`;
+  el.style.borderLeft = `${lineWidth}px solid ${def.accent}`;
+}
+
+function applyMachineColors() {
   const def = MACHINES[machineId];
   if (!def) return;
-  const el = $("machineName");
-  el.innerHTML = machineNameHtml(def);
-  if (def.accent) {
-    el.style.background = `${def.accent}1f`;
-    el.style.borderLeft = `3px solid ${def.accent}`;
-  }
+  const root = document.documentElement.style;
+  root.setProperty("--machine-frame", def.accent || "transparent");
+  root.setProperty("--machine-band", def.band || "transparent");
+  root.setProperty("--machine-band-ink", def.bandMark || "var(--ink)");
+  root.setProperty("--machine-band-shadow", def.bandOutline ? outlineShadow(def.bandOutline) : "none");
+  $("machineName").innerHTML = machineNameHtml(def, { band: true });
+}
+
+// 白文字の輪郭を締めるための縁取り(4方向1px)
+function outlineShadow(color) {
+  return `-1px -1px 0 ${color}, 1px -1px 0 ${color}, -1px 1px 0 ${color}, 1px 1px 0 ${color}`;
 }
 
 function hasElement(id) {
