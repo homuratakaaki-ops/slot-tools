@@ -1749,23 +1749,6 @@
       font-size: 12px;
     }
 
-    .carryover-banner {
-      margin-bottom: 12px;
-      padding: 12px;
-      border: 1px solid #e3b341;
-      border-radius: 8px;
-      background: #fff8dc;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-      align-items: center;
-    }
-
-    .carryover-banner strong {
-      display: block;
-      margin-bottom: 2px;
-    }
-
     .transfer-summary {
       margin-top: 10px;
       padding: 10px;
@@ -1947,7 +1930,6 @@
       .map-side { grid-template-columns: 1fr; }
       .modal-actions { grid-template-columns: 1fr; }
       .hit-round-layout { grid-template-columns: 1fr; }
-      .carryover-banner { grid-template-columns: 1fr; }
     }
   </style>
 <!-- Google tag (gtag.js) -->
@@ -2030,7 +2012,6 @@
           </div>
         </div>
         <div id="labelFilters" class="filter-panel"></div>
-        <div id="carryoverBanner"></div>
         <div class="map-wrap">
           <div id="machineMap" class="map-grid"></div>
         </div>
@@ -2085,6 +2066,7 @@
     const S15_BACKUP_KEY = STORAGE_PREFIX + "backup:s15";
     // S17/A-2: 投資phaseの修復も過去の消費玉・回転率を訂正するので、実行前データを専用キーへ1度だけ退避する。
     const S17_BACKUP_KEY = STORAGE_PREFIX + "backup:s17";
+    // S35/§2-2: 旧版の引き継ぎ待機キー。読み書きはせず、残っていれば起動時に1度だけ消す。
     const CARRYOVER_KEY = STORAGE_PREFIX + "carryover";
     const MAP_BACKUP_KEY = STORAGE_PREFIX + "mapbackup";
     const CORRUPT_PREFIX = STORAGE_PREFIX + "corrupt:";
@@ -2094,7 +2076,7 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 34;
+    const APP_VERSION_SEQ = 35;
     const APP_VERSION_DATE = "2026-09-14";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
@@ -2511,7 +2493,7 @@
 
     let bootToastMessage = "";
     let data = loadData();
-    let carryover = loadCarryover();
+    removeLegacyCarryover();
     let currentView = "storesView";
     let selectedLabelFilters = new Set();
     let machineStatsFilterState = defaultMachineStatsFilterState();
@@ -2550,7 +2532,6 @@
       storeList: byId("storeList"),
       islandBuilder: byId("islandBuilder"),
       mapStatus: byId("mapStatus"),
-      carryoverBanner: byId("carryoverBanner"),
       machineMap: byId("machineMap"),
       labelFilters: byId("labelFilters"),
       runningArea: byId("runningArea"),
@@ -2673,7 +2654,7 @@
       byId("versionAckBtn").classList.add("hidden");
       // ここで初めて読み込みと移行が走る（§2）。
       data = loadData();
-      carryover = loadCarryover();
+      removeLegacyCarryover();
       renderAll();
       if (bootToastMessage) showToast(bootToastMessage);
     }
@@ -3830,49 +3811,15 @@
       }
     }
 
-    function loadCarryover() {
-      // S30追補/§2: 期限切れの引き継ぎを消す（removeItem）経路があるので、ブロック中は読まない。
-      if (appVersionBlocked) return null;
+    // S35/§2-2: 手動の引き継ぎ待機（ytv3:carryover）は廃止した。引き継ぎは
+    // autoCarryoverForStore が「本日・同じ店の最後のヤメ入力」から毎回組み立てる。
+    // 旧版で残ったキーは起動時に1度だけ消す（読み書きはしない）。
+    function removeLegacyCarryover() {
+      if (appVersionBlocked) return;
       try {
-        const parsed = JSON.parse(localStorage.getItem(CARRYOVER_KEY) || "null");
-        if (!parsed || typeof parsed !== "object") return null;
-        if (!parsed.storeId || !parsed.sourceSessionId || !parsed.date) return null;
-        if (parsed.date !== today()) {
-          localStorage.removeItem(CARRYOVER_KEY);
-          return null;
-        }
-        return {
-          storeId: parsed.storeId,
-          sourceSessionId: parsed.sourceSessionId,
-          sourceMachineId: parsed.sourceMachineId || null,
-          sourceDaiNo: parsed.sourceDaiNo || "",
-          date: parsed.date,
-          mochidama: normalizeNumber(parsed.mochidama),
-          credit: normalizeNumber(parsed.credit),
-          saipurei: normalizeNumber(parsed.saipurei),
-          createdAt: parsed.createdAt || nowIso()
-        };
+        if (localStorage.getItem(CARRYOVER_KEY) !== null) localStorage.removeItem(CARRYOVER_KEY);
       } catch (error) {
-        console.warn("ytv3 carryover load failed", error);
-        return null;
-      }
-    }
-
-    function saveCarryover(nextCarryover) {
-      carryover = nextCarryover;
-      if (!carryover) {
-        localStorage.removeItem(CARRYOVER_KEY);
-        renderAll();
-        return true;
-      }
-      try {
-        localStorage.setItem(CARRYOVER_KEY, JSON.stringify(carryover));
-        renderAll();
-        return true;
-      } catch (error) {
-        console.warn("ytv3 carryover save failed", error);
-        showToast("引き継ぎの保存に失敗しました。容量を確認してください。", "error");
-        return false;
+        console.warn("ytv3 legacy carryover cleanup failed", error);
       }
     }
 
@@ -4168,21 +4115,6 @@
       return JSON.stringify(sample).length;
     }
 
-    function measureCarryoverChars() {
-      const sample = carryover || {
-        storeId: "st_sample",
-        sourceSessionId: "s_sample",
-        sourceMachineId: "m_sample",
-        sourceDaiNo: "101",
-        date: today(),
-        mochidama: 2000,
-        credit: 0,
-        saipurei: 250,
-        createdAt: nowIso()
-      };
-      return JSON.stringify(sample).length;
-    }
-
     function measureDailyStateChars() {
       const sample = Object.keys(data.dailyState || {}).length ? data.dailyState : {
         m_sample: {
@@ -4377,7 +4309,6 @@
       renderStores();
       renderMapEditor();
       renderLabelFilters();
-      renderCarryoverBanner();
       renderMachineMap();
       renderRunning();
       renderLedger();
@@ -4723,26 +4654,6 @@
       }
       const eventDetails = byId("eventFilterDetails");
       if (eventDetails) eventDetails.addEventListener("toggle", () => { eventFilterExpanded = eventDetails.open; });
-    }
-
-    function renderCarryoverBanner() {
-      if (!carryover || carryover.storeId !== data.activeStoreId) {
-        els.carryoverBanner.innerHTML = "";
-        return;
-      }
-      els.carryoverBanner.innerHTML = `
-        <div class="carryover-banner">
-          <div>
-            <strong>引き継ぎ中: 持ち玉${numberText(carryover.mochidama, "未入力")}玉 / カード残${numberText(carryover.credit, "未入力")}円 / 再プレ残${numberText(carryover.saipurei, "未入力")}玉</strong>
-            <small>台${escapeHtml(carryover.sourceDaiNo || "不明")}から続き。次に選んだ台の打ち始めへプリセットします。</small>
-          </div>
-          <button class="small" id="discardCarryoverBtn">引き継ぎを破棄</button>
-        </div>
-      `;
-      byId("discardCarryoverBtn").addEventListener("click", () => {
-        saveCarryover(null);
-        showToast("引き継ぎを破棄しました");
-      });
     }
 
     function openAssumedRateQuickForm(storeId) {
@@ -5376,9 +5287,9 @@
     }
 
     function renderStorageNote() {
-      const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, S15_BACKUP_KEY, CARRYOVER_KEY, MAP_BACKUP_KEY].join(" / ");
+      const keyList = [STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, S15_BACKUP_KEY, MAP_BACKUP_KEY].join(" / ");
       const corruptNote = hasCorruptData() ? "。破損退避データあり" : "";
-      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。dailyState chars: ${measureDailyStateChars()}。引き継ぎchars: ${measureCarryoverChars()}。マップ退避chars: ${measureMapBackupChars()}。v2キーは読み書きしません${corruptNote}。`;
+      els.storageNote.textContent = `保存キー: ${keyList}。現在保存chars: ${data.meta.lastSaveChars || 0}。フロアマップchars: ${data.meta.mapLayoutChars || measureActiveMapLayoutChars()}。台データ1件chars: ${data.meta.sampleMachineChars || measureSampleMachineChars()}。セッション1件chars: ${data.meta.sampleSessionChars || measureSampleSessionChars()}。dailyState chars: ${measureDailyStateChars()}。マップ退避chars: ${measureMapBackupChars()}。v2キーは読み書きしません${corruptNote}。`;
     }
 
     function openStoreForm() {
@@ -6992,7 +6903,8 @@
       const closingStateNote = todayPrevInvalid(machine.id) ? `<small>朝チェックで前日分を無効にしています</small>` : "";
       // S24/§B-5: 台移動の引き継ぎ中は、打ち始めの残高欄を引き継いだ値で初期化する。
       // 空のままだと「この台を打つ」で開始残高が未入力（持ち玉0扱い）になり、区間の起点が壊れる。
-      const carryoverPreset = carryover && carryover.storeId === data.activeStoreId ? carryover : null;
+      // S35/§2-1: 引き継ぎ待機は廃止。本日・同じ店の最後のヤメ入力から毎回組み立てる。
+      const carryoverPreset = autoCarryoverForStore(data.activeStoreId);
       const carryoverValue = (value) => {
         const number = normalizeNumber(value);
         return number !== null && number > 0 ? number : "";
@@ -7029,7 +6941,7 @@
             <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.saipurei) : "")}" placeholder="0"></div>
             <div class="field-row"><label for="evStartCredit">開始時のカード残高</label><input id="evStartCredit" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.credit) : "")}"></div>
           </div>
-          ${carryoverPreset ? `<p class="hint">台${escapeHtml(carryoverPreset.sourceDaiNo || "不明")}から引き継いだ残高を初期値にしています。台の表示と違う場合は修正してください。</p>` : ""}
+          ${carryoverPreset ? `<p class="hint">${escapeHtml(carryoverNoticeText(carryoverPreset))}</p>` : ""}
           ${startPlayStyleChoiceHtml()}
           <p class="hint" id="machineEvContext"></p>
           <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"}</p>
@@ -7383,7 +7295,8 @@
       const prevDayDisabled = presetsDisablePrevDay(presets);
       const hasPrevDayPreset = Object.prototype.hasOwnProperty.call(presets, "prevDayEndSpin") || prevDayDisabled;
       session.prevDayEndSpin = prevDayDisabled ? null : (hasPrevDayPreset ? manualPrevDayEndSpin : (validClosingInfo(machineId)?.spin ?? null));
-      const activeCarryover = carryover && carryover.storeId === store.id ? carryover : null;
+      // S35/§2-1: 引き継ぎは保存された待機ではなく、本日・同じ店の最後のヤメ入力から組み立てる
+      const activeCarryover = autoCarryoverForStore(store.id);
       if (activeCarryover) {
         session.carriedFromSessionId = activeCarryover.sourceSessionId;
         session.startMochidama = activeCarryover.mochidama;
@@ -7397,7 +7310,7 @@
     function beginStartSession(machineId, presets = {}) {
       const base = startSessionBase(machineId, presets);
       if (!base) return;
-      const { session, activeCarryover } = base;
+      const { session } = base;
       session.startSpin = normalizeNumber(presets.startSpin);
       session.currentSpin = session.startSpin;
       session.startTime = currentTime();
@@ -7415,10 +7328,6 @@
       activeSessionId = session.id;
       const toast = presetsDisablePrevDay(presets) ? "稼働を開始しました。宵越し無効で記録しています。取り消しは記録の修正・削除から行えます。" : "稼働を開始しました。取り消しは記録の修正・削除から行えます。";
       if (!persistWithToast(toast)) return;
-      if (activeCarryover) {
-        carryover = null;
-        localStorage.removeItem(CARRYOVER_KEY);
-      }
       showView("runView");
     }
 
@@ -7426,15 +7335,13 @@
       const base = startSessionBase(machineId, presets);
       if (!base) return;
       const { session, store, activeCarryover, manualPrevDayEndSpin } = base;
-      const latestStoreSession = !activeCarryover ? latestCompletedSessionForStoreToday(store.id) : null;
-      const latestStoreBalances = latestStoreSession ? deriveBalances(latestStoreSession) : null;
       const latestMachineSession = latestCompletedSessionForMachineToday(machineId);
       const startSpinPreset = normalizeNumber(presets.startSpin);
       const prevDayEndSpinWasManual = manualPrevDayEndSpin !== null;
-      const startSaipureiPreset = !activeCarryover && latestStoreBalances?.saipurei != null ? latestStoreBalances.saipurei : null;
-      const startCreditPreset = !activeCarryover && latestStoreBalances?.credit != null ? latestStoreBalances.credit : null;
+      // S35/§2-1: 再プレイ残り・カード残高の初期値も自動引き継ぎに吸収する（別経路を持たない）
+      const startSaipureiPreset = activeCarryover && activeCarryover.saipurei != null ? activeCarryover.saipurei : null;
+      const startCreditPreset = activeCarryover && activeCarryover.credit != null ? activeCarryover.credit : null;
       const startTotalHitsPreset = latestMachineSession?.endTotalHits ?? null;
-      const previousBalanceHint = "本日の前の台の終了時点の残高を初期値にしています。台の表示と違う場合は修正してください。";
       const labels = storeLabels(store.id);
       runWizard("打ち始めウィザード", [
         {
@@ -7445,9 +7352,9 @@
           hint: `${dateWithAutoLabels(session.date)}で記録します。` + (presetsDisablePrevDay(presets) ? " 期待値判定で宵越し無効を選択しています。" : (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。")) + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
-        { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: activeCarryover ? "前の台から引き継いだ値です。必要なら修正できます。持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" : "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
-        { key: "startSaipurei", label: "開始時の再プレイ残り", type: "number", preset: startSaipureiPreset, hint: activeCarryover ? "前の台から引き継いだ値です。未入力だった場合は空欄のままです。" : (startSaipureiPreset !== null ? previousBalanceHint : "") },
-        { key: "startCredit", label: "開始時のカード残高", type: "number", preset: startCreditPreset, hint: activeCarryover ? "前の台から引き継いだ値です。換金・休憩を挟んだ場合は修正してください。" : (startCreditPreset !== null ? previousBalanceHint : "") },
+        { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: (activeCarryover ? carryoverNoticeText(activeCarryover) + " " : "") + "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
+        { key: "startSaipurei", label: "開始時の再プレイ残り", type: "number", preset: startSaipureiPreset, hint: activeCarryover ? carryoverNoticeText(activeCarryover) : "" },
+        { key: "startCredit", label: "開始時のカード残高", type: "number", preset: startCreditPreset, hint: activeCarryover ? carryoverNoticeText(activeCarryover) : "" },
         { key: "startTotalHits", label: "開始時点の累計大当たり回数（実機：データカウンターの本日大当り回数）", type: "number", preset: startTotalHitsPreset, hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
         // S7c/3-1: 時短抜けで打ち出しを止めるかどうかの方針。以後の時短抜け区間の初期状態になる
         {
@@ -7472,10 +7379,6 @@
         data.sessions.push(session);
         activeSessionId = session.id;
         if (!persistWithToast("稼働を開始しました")) return;
-        if (activeCarryover) {
-          carryover = null;
-          localStorage.removeItem(CARRYOVER_KEY);
-        }
         showView("runView");
       });
     }
@@ -10010,6 +9913,25 @@
       return Number(session.endTotalBalls || 0) + Number(session.zanhoryuBalls || 0);
     }
 
+    // S35/§2-1: 台移動の引き継ぎ。本日・同じ店の最後のヤメ入力から毎回組み立てる。
+    // 終了玉（endTotalBalls）が入っていない記録は持ち玉が決まらないので引き継ぎ元にしない。
+    // 保存はしない（状態を持たないので、記録を直せば次に開いたときの初期値も直る）。
+    function autoCarryoverForStore(storeId) {
+      if (!storeId) return null;
+      const session = latestCompletedSessionForStoreToday(storeId);
+      if (!session || finalMochidamaForCarryover(session) === null) return null;
+      return createCarryoverFromSession(session);
+    }
+
+    // S35/§2-3: 引き継ぎの初期値に添える1行。どの台のいつのヤメから採ったかを出す。
+    // 初期値の出どころの説明なので常時表示（hint-help は付けない）。
+    function carryoverNoticeText(info) {
+      if (!info) return "";
+      const dai = String(info.sourceDaiNo || "").trim();
+      const time = String(info.endTime || "").trim();
+      return `台${dai || "不明"}（本日${time ? ` ${time}` : ""} ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。`;
+    }
+
     function createCarryoverFromSession(session) {
       const machine = data.machines.find((item) => item.id === session.machineId);
       const balances = deriveBalances(session);
@@ -10019,19 +9941,13 @@
         sourceMachineId: session.machineId,
         sourceDaiNo: machine?.daiNo || "",
         date: session.date,
+        // S35/§2-3: 「本日 ◯◯:◯◯ ヤメ」の表示に使う。計算には使わない
+        endTime: session.endTime || "",
         mochidama: finalMochidamaForCarryover(session),
         credit: balances.credit,
         saipurei: balances.saipurei,
         createdAt: nowIso()
       };
-    }
-
-    function startCarryover(session) {
-      const nextCarryover = createCarryoverFromSession(session);
-      if (!saveCarryover(nextCarryover)) return;
-      closeModal();
-      showView("mapView");
-      showToast("持ち玉を引き継ぎ待機にしました");
     }
 
     function openSameMachineContinuePrompt(session) {
@@ -10315,7 +10231,6 @@
         <div class="status-line">${missingFields(session).length ? '<span class="badge warn">未入力あり</span>' : '<span class="badge good">入力済み</span>'}</div>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
-          <button id="summaryCarryoverBtn">この持ち玉で次の台へ</button>
           <button id="summarySameMachineBtn">同じ台で続行</button>
           <button id="summaryResultBtn">リザルトを見る</button>
           <button class="primary" id="summaryLedgerBtn">履歴で見る</button>
@@ -10325,7 +10240,6 @@
         renderAll();
         openRateSummary(session);
       });
-      byId("summaryCarryoverBtn").addEventListener("click", () => startCarryover(session));
       byId("summarySameMachineBtn").addEventListener("click", () => openSameMachineContinuePrompt(session));
       byId("summaryResultBtn").addEventListener("click", () => {
         closeModal();

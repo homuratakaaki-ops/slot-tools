@@ -126,7 +126,7 @@ const jitanExitBlock = section('function jitanExitOptions', 'function hitRoundSu
 const segmentHoldEditor = section('function segmentHoldSpinsEditorHtml', 'function consumedBallsSourceEditorHtml');
 const selectedYutimePresetIdsBlock = section('function selectedYutimePresetIds', 'function islandDisplayName');
 const baselineChipsBlock = section('function baselineBallText', 'function renderLabelFilters');
-const renderLabelFiltersBlock = section('function renderLabelFilters', 'function renderCarryoverBanner');
+const renderLabelFiltersBlock = section('function renderLabelFilters', 'function openAssumedRateQuickForm');
 
 assert.doesNotMatch(hitWizard, /runWizard\(/);
 assert.match(hitWizard, /openModal\("当選ウィザード"/);
@@ -2688,9 +2688,9 @@ assert.equal(machineExpectationContext.disabledPresets.prevDayDisabled, true);
 const startSessionContext = vm.createContext({
   data: { sessions: [], machines: [{ id: 'm1' }] },
   activeSessionId: null,
-  carryover: null,
-  localStorage: { removeItem(key) { startSessionContext.removed = key; } },
-  CARRYOVER_KEY: 'carry',
+  // S35/§2-1: 引き継ぎは autoCarryoverForStore が毎回組み立てる（待機の保存は持たない）
+  __carryover: null,
+  autoCarryoverForStore() { return startSessionContext.__carryover; },
   __toasts: [],
   __view: null,
   activeStore() { return { id: 'store' }; },
@@ -2737,10 +2737,20 @@ const startSessionContext = vm.createContext({
   latestCompletedSessionForStoreToday() { return null; },
   latestCompletedSessionForMachineToday() { return null; },
   activeSortKey() { return ''; },
-  runWizard() {},
+  runWizard(title, steps) { startSessionContext.__wizardSteps = steps; },
   storeLabels() { return []; },
   dateWithAutoLabels(date) { return date; },
-  eventMemoHelp() { return ''; }
+  eventMemoHelp() { return ''; },
+  // S35/§2-3: 初期値に添える1行。実体と同じ文面を使う
+  carryoverNoticeText(info) {
+    if (!info) return '';
+    const dai = String(info.sourceDaiNo || '').trim();
+    const time = String(info.endTime || '').trim();
+    return `台${dai || '不明'}（本日${time ? ` ${time}` : ''} ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。`;
+  },
+  today() { return '2026-08-22'; },
+  startPlayStyle: 'yutime',
+  presetYutimeBallsPerSpin() { return 0; }
 });
 new vm.Script(`
   ${startSessionFlow}
@@ -2777,6 +2787,33 @@ assert.equal(startSessionContext.blankStarted.startMochidama, null);
 assert.equal(startSessionContext.blankStarted.startSaipurei, null);
 assert.equal(startSessionContext.blankStarted.startCredit, null);
 assert.equal(startSessionContext.blankStarted.startTotalHits, null);
+
+// S35/§2-1: 自動引き継ぎがあるとき、打ち始めもウィザードの初期値も引き継ぎから来る
+startSessionContext.__carryover = {
+  storeId: 'store', sourceSessionId: 's_prev', sourceMachineId: 'm_prev', sourceDaiNo: '320',
+  date: '2026-08-22', endTime: '14:05', mochidama: 2426, credit: 1000, saipurei: 250
+};
+new vm.Script(`
+  openStartWizard('m1', {});
+  globalThis.wizardSession = data.sessions[data.sessions.length - 1];
+`).runInContext(startSessionContext);
+const s35Steps = Object.fromEntries((startSessionContext.__wizardSteps || []).map((step) => [step.key, step]));
+assert.equal(s35Steps.startSaipurei.preset, 250, 'ウィザードの再プレイ残りは引き継ぎから');
+assert.equal(s35Steps.startCredit.preset, 1000, 'ウィザードのカード残高は引き継ぎから');
+assert.match(s35Steps.startMochidama.hint, /^台320（本日 14:05 ヤメ）の終了玉を初期値にしています。/);
+assert.match(s35Steps.startMochidama.hint, /持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。$/);
+assert.equal(s35Steps.startSaipurei.hint, '台320（本日 14:05 ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。');
+assert.equal(s35Steps.startCredit.hint, s35Steps.startSaipurei.hint);
+// 持ち玉と紐づけは startSessionBase が入れる
+// 引き継ぎが無ければ初期値も文面も出ない
+startSessionContext.__carryover = null;
+new vm.Script("openStartWizard('m1', {});").runInContext(startSessionContext);
+const s35NoSteps = Object.fromEntries((startSessionContext.__wizardSteps || []).map((step) => [step.key, step]));
+assert.equal(s35NoSteps.startSaipurei.preset, null);
+assert.equal(s35NoSteps.startCredit.preset, null);
+assert.equal(s35NoSteps.startSaipurei.hint, '');
+assert.equal(s35NoSteps.startCredit.hint, '');
+assert.match(s35NoSteps.startMochidama.hint, /^持ち玉なしで現金スタートなら 0 を入力してください。/);
 const startEvDetailContext = vm.createContext({
   YUTIME_EXPECTATION_ENGINE: expectationContext.engine,
   tenjoForPresetId(presetId) {
@@ -6845,6 +6882,92 @@ s23Settings.__storeSpeed = {};
 assert.match(html, /通常時\$\{spinsPerHour\.toLocaleString\("ja-JP"\)\}回転\/h\$\{spinsPerHourNote \? `（\$\{spinsPerHourNote\}）` : "想定"\}/);
 assert.match(html, /expectationBasisText\(expectation\.result, expectation\.spinsPerHourInfo\?\.source\)/);
 
+// --- S35/§2: 台移動の引き継ぎを自動で組み立て、手動の引き継ぎ待機を廃止する ----
+// §2-2 手動の仕組みが画面にもコードにも残っていないこと
+assert.doesNotMatch(html, /この持ち玉で次の台へ/);
+assert.doesNotMatch(html, /summaryCarryoverBtn/);
+assert.doesNotMatch(html, /function startCarryover/);
+assert.doesNotMatch(html, /function saveCarryover/);
+assert.doesNotMatch(html, /function renderCarryoverBanner/);
+assert.doesNotMatch(html, /引き継ぎを破棄/);
+assert.doesNotMatch(html, /carryoverBanner/);
+assert.doesNotMatch(html, /carryover-banner/);
+assert.doesNotMatch(html, /function measureCarryoverChars/);
+// 旧キーは読み書きせず、起動時に1度だけ消す。保存キーの一覧からも外す
+assert.match(html, /function removeLegacyCarryover\(\) \{/);
+assert.match(html, /if \(localStorage\.getItem\(CARRYOVER_KEY\) !== null\) localStorage\.removeItem\(CARRYOVER_KEY\);/);
+assert.doesNotMatch(html, /localStorage\.setItem\(CARRYOVER_KEY/);
+assert.match(html, /const keyList = \[STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, S15_BACKUP_KEY, MAP_BACKUP_KEY\]/);
+assert.doesNotMatch(html, /引き継ぎchars/);
+// 新しい localStorage キーは増やさない
+const s35StorageKeys = [...html.matchAll(/STORAGE_PREFIX \+ \"([^\"]+)\"/g)].map((m) => m[1]).sort();
+assert.deepEqual(s35StorageKeys, ["app:lastVersionSeq", "app:showHints", "backup:latest", "backup:s15", "backup:s17", "carryover", "corrupt:", "data", "islandFilter", "mapbackup", "premigrate", "running:source", "running:sticky", "start:playStyle"], "localStorage のキーは増やさない（carryover は消すためだけに残す）");
+
+// §2-1 自動引き継ぎの組み立て
+const s35Context = vm.createContext({
+  data: { machines: [{ id: 'm_prev', daiNo: '320' }, { id: 'm_next', daiNo: '321' }] },
+  deriveBalances(session) { return { credit: session.__credit ?? null, saipurei: session.__saipurei ?? null }; },
+  nowIso() { return '2026-09-14T00:00:00.000Z'; },
+  __latest: null,
+  latestCompletedSessionForStoreToday(storeId) {
+    const session = s35Context.__latest;
+    return session && session.storeId === storeId ? session : null;
+  }
+});
+new vm.Script(`
+  ${section('function finalMochidamaForCarryover', 'function openSameMachineContinuePrompt')}
+  globalThis.auto = autoCarryoverForStore;
+  globalThis.notice = carryoverNoticeText;
+`).runInContext(s35Context);
+const s35Session = {
+  id: 's_prev', storeId: 'st1', machineId: 'm_prev', date: '2026-09-14',
+  endTotalBalls: 2400, zanhoryuBalls: 26, endTime: '14:05', __credit: 1000, __saipurei: 250
+};
+s35Context.__latest = s35Session;
+const s35Auto = s35Context.auto('st1');
+assert.equal(s35Auto.sourceSessionId, 's_prev');
+assert.equal(s35Auto.sourceDaiNo, '320');
+assert.equal(s35Auto.mochidama, 2426, '終了玉＋残保留玉');
+assert.equal(s35Auto.credit, 1000);
+assert.equal(s35Auto.saipurei, 250);
+assert.equal(s35Auto.endTime, '14:05');
+// §3 別の店には出さない
+assert.equal(s35Context.auto('st2'), null, '別の店には引き継がない');
+assert.equal(s35Context.auto(null), null);
+// ヤメ入力の終了玉が無ければ引き継ぎ元にしない（別の日・稼働中は latestCompletedSessionForStoreToday 側で落ちる）
+s35Context.__latest = { ...s35Session, endTotalBalls: null };
+assert.equal(s35Context.auto('st1'), null, '終了玉が無い記録は引き継ぎ元にしない');
+s35Context.__latest = null;
+assert.equal(s35Context.auto('st1'), null, '本日の完了記録が無ければ null');
+// 本日・同じ店の「最後の」完了記録だけを見る（日付・状態の絞り込みは既存関数のまま）
+assert.match(html, /function latestCompletedSessionForStoreToday\(storeId\) \{[\s\S]{0,240}?session\.date === today\(\) && session\.status === "completed"/);
+
+// §2-3 初期値に添える1行
+s35Context.__latest = s35Session;
+assert.equal(s35Context.notice(s35Context.auto('st1')),
+  '台320（本日 14:05 ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。');
+assert.equal(s35Context.notice({ sourceDaiNo: '', endTime: '' }), '台不明（本日 ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。');
+assert.equal(s35Context.notice(null), '');
+// 分類C（常時表示）。hint-help は付けない
+assert.match(html, /\$\{carryoverPreset \? `<p class="hint">\$\{escapeHtml\(carryoverNoticeText\(carryoverPreset\)\)\}<\/p>` : ""\}/);
+assert.doesNotMatch(html, /carryoverNoticeText[^\n]*hint-help/);
+
+// §2-1 判定パネル・打ち始め・ウィザードの3経路とも自動引き継ぎを見る
+assert.match(html, /const carryoverPreset = autoCarryoverForStore\(data\.activeStoreId\);/);
+assert.match(html, /const activeCarryover = autoCarryoverForStore\(store\.id\);/);
+assert.match(startSessionFlow, /const startSaipureiPreset = activeCarryover && activeCarryover\.saipurei != null \? activeCarryover\.saipurei : null;/);
+assert.match(startSessionFlow, /const startCreditPreset = activeCarryover && activeCarryover\.credit != null \? activeCarryover\.credit : null;/);
+assert.doesNotMatch(startSessionFlow, /latestStoreBalances/);
+assert.match(startSessionFlow, /hint: activeCarryover \? carryoverNoticeText\(activeCarryover\) : ""/);
+// §2-4 打ち始めたあとに引き継ぎを消す処理は無い（状態を持たないため）
+assert.doesNotMatch(startSessionFlow, /carryover = null;/);
+// §2-4 carriedFromSessionId は自動引き継ぎでも付く。バッジの扱いは変えない
+assert.match(startSessionFlow, /session\.carriedFromSessionId = activeCarryover\.sourceSessionId;/);
+assert.match(html, /⇐ 台\$\{escapeHtml\(sourceMachine\.daiNo\)\}から続き/);
+// §3 同台続行は触らない
+assert.match(html, /function startSameMachineContinuation\(sourceSession, startSpin\)/);
+assert.match(html, /next\.startMochidama = finalMochidamaForCarryover\(sourceSession\);/);
+
 // --- S34/§1: 画面に出る「セッション」は「今回の稼働」系の日本語に置き換える ---------
 // 識別子・コメント・schema の sessions と、開発用表示の storageNote は対象外。
 const s34VisibleSession = html.split("\n").filter((line) => {
@@ -7387,7 +7510,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 34;/);
+assert.match(html, /const APP_VERSION_SEQ = 35;/);
 assert.match(html, /const APP_VERSION_DATE = "2026-09-14";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
