@@ -69,6 +69,17 @@
   .tips{margin:6px 0 0 1.3em;padding:0;color:var(--text-muted);font-size:12px;line-height:1.7}
   .tips li{margin-bottom:4px}
   .bulk textarea{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;padding:10px;width:100%;font-family:inherit;line-height:1.6;font-variant-numeric:tabular-nums}
+  .seat-band{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+  .seat-band #seatFilter{flex:1 1 auto;min-width:0;min-height:44px;padding:8px 10px;
+    font-size:12px;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .seat-sort{flex:0 0 auto;display:flex;gap:6px}
+  .seat-sort button{min-height:44px;padding:8px 10px;font-size:12px;white-space:nowrap}
+  .seat-sort button[aria-pressed="true"]{background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;color:#0d0d0f;font-weight:700}
+  #seatMore button{width:100%;margin-top:6px}
+  #seatMoreNote{margin-top:8px}
+  #seatBody tr.out{opacity:.5}
+  #seatBody .out-badge{display:inline-block;margin-left:6px;padding:0 5px;border-radius:4px;
+    border:1px solid var(--border);font-size:9.5px;color:var(--text-dim);vertical-align:2px}
   .ov{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);
     display:flex;align-items:flex-end;justify-content:center;padding:10px}
   .ov-box{width:100%;max-width:560px;max-height:88dvh;display:flex;flex-direction:column;gap:8px;
@@ -191,7 +202,7 @@
 
   <section class="card">
     <h2>集計の条件</h2>
-    <label class="opt"><input type="checkbox" id="optExclude" checked>回転数の少ない台を除く（1,000G未満）</label>
+    <label class="opt"><input type="checkbox" id="optExclude" checked>回転数の少ない台データを除く（1,000G未満）</label>
     <label class="opt"><input type="checkbox" id="optWeight" checked>回転数で重みを付ける</label>
     <p class="note">除外も重み付けも、比べるすべての日に同じ条件で適用されます。少ない回転数の台は判別が定まらず、平均を基準値(3.5)へ引き寄せるためです。</p>
   </section>
@@ -214,8 +225,20 @@
 
   <section class="card">
     <h2>台番号別の傾向</h2>
+    <div class="seat-band" id="seatBand" hidden>
+      <button type="button" id="seatFilter" title="上の機種の選択欄へ移動します"></button>
+      <div class="seat-sort" role="group" aria-label="並び替え">
+        <button type="button" id="sortSetting" data-sort="setting" aria-pressed="true">設定順</button>
+        <button type="button" id="sortSeat" data-sort="seat" aria-pressed="false">台番号順</button>
+      </div>
+    </div>
     <div id="bySeat"></div>
-    <p class="note">同じ台番号のデータをまとめたものです。件数が少ないうちは参考程度に見てください。行をタップすると、その台の記録を日付順で見られます。</p>
+    <div id="seatMore" hidden>
+      <p class="note" id="seatMoreNote"></p>
+      <button type="button" id="seatMoreBtn">さらに表示</button>
+    </div>
+    <p class="note">同じ台番号のデータを日ごとにまとめたものです。日数は集計に使った日の数で、非稼働の日と、上の「集計の条件」で外れた日は数えていません。日数が少ないうちは参考程度に見てください。行をタップすると、その台の記録を日付順で見られます。</p>
+    <p class="note">設定4以上は、その台が設定4以上である推定確率の平均です。高設定だった日の割合ではありません。</p>
   </section>
 
   <section class="card">
@@ -358,19 +381,24 @@ async function summarize(units) {
   }
   if (!wSum) return null;
   return {
-    n: use.length, avgSetting: expSum / wSum, highRate: hiSum / wSum,
+    // n は集計に使ったレコード数、days は同じ日付を1日と数えた日数
+    n: use.length, days: new Set(use.map((u) => u.date)).size,
+    avgSetting: expSum / wSum, highRate: hiSum / wSum,
     games, big, reg, avgGames: games / use.length,
     total: big + reg > 0 ? games / (big + reg) : null,
   };
 }
-function fmtSum(s, label, isToday) {
+// unit は件数列の単位。"台"（既定）は台数、"日" は同じ日付を1日と数えた日数を出す
+function fmtSum(s, label, isToday, unit) {
   if (!s) return `<tr${isToday ? ' class="today"' : ""}><td>${esc(label)}</td><td colspan="4">データなし</td></tr>`;
   const d = s.avgSetting - 3.5, h = s.highRate - 0.5;
+  const u = unit === "日" ? "日" : "台";
+  const count = u === "日" ? s.days : s.n;
   return `<tr${isToday ? ' class="today"' : ""}>
     <td>${esc(label)}</td>
     <td class="${d >= 0 ? "plus" : "minus"}">${s.avgSetting.toFixed(2)}</td>
     <td class="${h >= 0 ? "plus" : "minus"}">${(100 * s.highRate).toFixed(0)}%</td>
-    <td>${s.n}台</td>
+    <td>${count}${u}</td>
     <td>${Math.round(s.avgGames).toLocaleString()}G</td>
   </tr>`;
 }
@@ -420,31 +448,71 @@ async function renderByDate() {
   $("byDate").innerHTML = `<table><thead><tr><th>日付</th><th>平均設定</th><th>設定4以上</th><th>台数</th><th>平均G</th></tr></thead><tbody>${out.join("")}</tbody></table>`;
 }
 
+const SEAT_LIMIT = 40;
+const SEAT_SORT_KEY = "myhorepo:seat-sort";
+let seatShowAll = false;
+// 並び順だけ端末に覚える。機種の絞り込みは覚えない（絞ったまま忘れて開くと
+// 「記録が消えた」と読み違えるため）
+let seatSort = "setting";
+
+function loadSeatSort() {
+  try { return localStorage.getItem(SEAT_SORT_KEY) === "seat" ? "seat" : "setting"; } catch (e) { return "setting"; }
+}
+async function setSeatSort(mode) {
+  seatSort = mode === "seat" ? "seat" : "setting";
+  try { localStorage.setItem(SEAT_SORT_KEY, seatSort); } catch (e) {}
+  $("sortSetting").setAttribute("aria-pressed", String(seatSort === "setting"));
+  $("sortSeat").setAttribute("aria-pressed", String(seatSort === "seat"));
+  seatShowAll = false;
+  await renderBySeat();
+}
+
+function renderSeatBand() {
+  const mid = $("cMachine").value;
+  $("seatFilter").textContent = (mid && MACHINES[mid] ? `${MACHINES[mid].name} のみ` : "全機種") + " ›";
+}
+
+function hideSeatMore() { $("seatMore").hidden = true; $("seatMoreNote").textContent = ""; }
+
 async function renderBySeat() {
   const shop = $("cShop").value, mid = $("cMachine").value;
-  const base = ALL.filter((u) => (!shop || u.shop === shop) && (!mid || u.machineId === mid) && u.seat);
+  renderSeatBand();
+  // 店を選ぶまで出さない。別の店の同じ台番号が1行に合算されてしまうため
+  if (!shop) {
+    $("seatBand").hidden = true;
+    hideSeatMore();
+    $("bySeat").innerHTML = `<p class="empty">店名を選ぶと表示されます。</p>`;
+    return;
+  }
+  $("seatBand").hidden = false;
+  const base = ALL.filter((u) => u.shop === shop && (!mid || u.machineId === mid) && u.seat);
   const map = new Map();
   for (const u of base) { if (!map.has(u.seat)) map.set(u.seat, []); map.get(u.seat).push(u); }
-  if (!map.size) { $("bySeat").innerHTML = `<p class="empty">台番号の記録がありません。</p>`; return; }
+  if (!map.size) { hideSeatMore(); $("bySeat").innerHTML = `<p class="empty">台番号の記録がありません。</p>`; return; }
   const rows = [];
   for (const [seat, units] of map) {
     const s = await summarize(units);
     if (s) rows.push({ seat, s });
   }
-  rows.sort((a, b) => b.s.avgSetting - a.s.avgSetting);
-  const shown = rows.slice(0, 40);
-  $("bySeat").innerHTML = `<table><thead><tr><th>台番号</th><th>平均設定</th><th>設定4以上</th><th>件数</th><th>平均G</th></tr></thead><tbody>` +
-    shown.map((r) => fmtSum(r.s, `${r.seat}番`, false)).join("") + `</tbody></table>`;
+  if (seatSort === "seat") rows.sort((a, b) => String(a.seat).localeCompare(String(b.seat), "ja", { numeric: true }));
+  else rows.sort((a, b) => b.s.avgSetting - a.s.avgSetting);
+  // 打ち切りは黙ってやらない。切れたときだけ件数と「さらに表示」を出す
+  const shown = seatShowAll ? rows : rows.slice(0, SEAT_LIMIT);
+  const hidden = rows.length - shown.length;
+  if (hidden > 0) {
+    $("seatMoreNote").textContent = `ほか${hidden}台は表示していません`;
+    $("seatMore").hidden = false;
+  } else {
+    hideSeatMore();
+  }
+  $("bySeat").innerHTML = `<table><thead><tr><th>台番号</th><th>平均設定</th><th>設定4以上</th><th>日数</th><th>平均G</th></tr></thead><tbody>` +
+    shown.map((r) => fmtSum(r.s, `${r.seat}番`, false, "日")).join("") + `</tbody></table>`;
   // 行から台の履歴を開く。店が選ばれていないときはその台の最新の店で開く
   $("bySeat").querySelectorAll("tbody tr").forEach((tr, i) => {
     const seat = shown[i] && shown[i].seat;
     if (seat == null) return;
     tr.classList.add("tap");
-    tr.addEventListener("click", () => {
-      const s2 = shop || (ALL.filter((u) => String(u.seat) === String(seat))
-        .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || {}).shop;
-      if (s2) openSeatHistory(s2, seat);
-    });
+    tr.addEventListener("click", () => openSeatHistory(shop, seat));
   });
 }
 
@@ -465,6 +533,9 @@ function openSeatHistory(shop, seat) {
   const mixed = new Set(list.map((u) => u.machineId)).size > 1;
   $("seatTitle").textContent = `${shop}　${seat}番　${machineNameOf(list[0])}`;
   const rate = (g, c) => (g > 0 && c > 0 ? `1/${(g / c).toFixed(1)}` : "−");
+  // 集計に入る日かどうかは「集計の条件」と同じ判定で決める
+  const excl = $("optExclude").checked;
+  const counted = (u) => u.status !== "broken" && u.games > 0 && (!excl || u.games >= 1000);
   // 年は境目でだけ出す。基準は今年
   let prevYear = String(new Date().getFullYear());
   const body = list.map((u) => {
@@ -472,14 +543,16 @@ function openSeatHistory(shop, seat) {
     const dateTxt = (p[0] !== prevYear ? `${Number(p[0])}/` : "") + `${Number(p[1])}/${Number(p[2])}`;
     prevYear = p[0];
     const mch = mixed ? `<span class="mch">${esc(machineNameOf(u))}</span>` : "";
-    const head = `<td>${esc(dateTxt)}${mch}</td>`;
+    const out = counted(u) ? "" : `<span class="out-badge">対象外</span>`;
+    const trOpen = counted(u) ? "<tr>" : '<tr class="out">';
+    const head = `<td>${esc(dateTxt)}${out}${mch}</td>`;
     if (u.status === "broken" || !(u.games > 0)) {
-      return `<tr>${head}<td class="dim" colspan="${withDiff ? 6 : 5}">非稼働</td></tr>`;
+      return `${trOpen}${head}<td class="dim" colspan="${withDiff ? 6 : 5}">非稼働</td></tr>`;
     }
     const diffCell = withDiff
       ? `<td class="${u.diff == null ? "" : u.diff >= 0 ? "plus" : "minus"}">${u.diff == null ? "−" : (u.diff >= 0 ? "+" : "") + u.diff.toLocaleString()}</td>`
       : "";
-    return `<tr>${head}<td>${u.games.toLocaleString()}</td><td>${u.big}</td><td>${u.reg}</td>` +
+    return `${trOpen}${head}<td>${u.games.toLocaleString()}</td><td>${u.big}</td><td>${u.reg}</td>` +
       `<td>${rate(u.games, u.big + u.reg)}</td><td>${rate(u.games, u.reg)}</td>${diffCell}</tr>`;
   }).join("");
   $("seatBody").innerHTML =
@@ -898,6 +971,9 @@ async function init() {
   $("iDate").value = localDateStamp();
   $("cDate").value = localDateStamp();
   setBulkMode(loadBulkMode());
+  seatSort = loadSeatSort();
+  $("sortSetting").setAttribute("aria-pressed", String(seatSort === "setting"));
+  $("sortSeat").setAttribute("aria-pressed", String(seatSort === "seat"));
   try { db = await openDb(); } catch (e) {
     $("addHint").textContent = "この端末では記録を保存できません（プライベートモードなどの可能性があります）。";
     return;
@@ -939,8 +1015,20 @@ async function init() {
   $("bDateMinus").addEventListener("click", () => stepDate(-1));
   $("bDatePlus").addEventListener("click", () => stepDate(1));
   for (const id of ["cShop", "cMachine", "cDate", "optExclude", "optWeight"]) {
-    $(id).addEventListener("change", async () => { await renderCompare(); await renderByDate(); await renderBySeat(); });
+    $(id).addEventListener("change", async () => {
+      seatShowAll = false;
+      await renderCompare(); await renderByDate(); await renderBySeat();
+    });
   }
+  // 帯：いま効いている絞り込みを見せ、タップで大元の機種セレクトへ運ぶ
+  $("seatFilter").addEventListener("click", () => {
+    $("cMachine").scrollIntoView({ block: "center" });
+    $("cMachine").focus();
+  });
+  for (const id of ["sortSetting", "sortSeat"]) {
+    $(id).addEventListener("click", () => setSeatSort($(id).dataset.sort));
+  }
+  $("seatMoreBtn").addEventListener("click", async () => { seatShowAll = true; await renderBySeat(); });
   $("seatClose").addEventListener("click", closeSeatHistory);
   $("seatOverlay").addEventListener("click", (e) => { if (e.target === $("seatOverlay")) closeSeatHistory(); });
   $("exportBtn").addEventListener("click", doExport);
