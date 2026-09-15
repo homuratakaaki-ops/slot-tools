@@ -217,7 +217,10 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 /* ===== 資金パネル(最下部に留まる・たためる) ===== */
 #moneyPanel { position: sticky; bottom: 0; z-index: 5; flex: none; }
 /* たたむ切り替え。パネル上端の横幅いっぱいの細い帯。
-   最頻タップの −1000円 は下段左なので、誤タップしにくいよう上端に離して置く */
+   タップ領域は高さ18px・−1000円 との離隔3pxで、CLAUDE.md の44px下限を下回る。
+   押しても非破壊で、再タップすれば戻る補助操作のため例外として扱う。
+   2026/9/15 に AQUOS Sense9 実機で誤タップなしを確認済み。
+   実戦で誤タップが出たら広げる */
 .money-toggle {
   display: flex; align-items: center; justify-content: center; gap: 7px;
   width: 100%; min-height: 18px; padding: 0; margin: -5px 0 3px;
@@ -684,7 +687,7 @@ select.rate {
   <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="clearTitle">
     <p class="kp-label" id="clearTitle">クリアする範囲を選んでください</p>
     <div class="dep-grid" style="grid-template-columns: 1fr;">
-      <button type="button" id="clearCounts">カウントのみクリア（台データ・投資は残す）</button>
+      <button type="button" id="clearCounts">カウントを0にして数え直す（投資・レートは残す）</button>
       <button type="button" id="clearAll" style="color: var(--lamp); border-color: #5a2a26;">すべてクリア（新しい台）</button>
     </div>
     <p class="prior-note">どちらも直後なら「元に戻す」で復元できます。</p>
@@ -735,6 +738,8 @@ select.rate {
 
 <script type="module">
 import { estimate } from "./js/estimator.js?v=20260827-2";
+// 収支（差枚・円）の計算は js/money.js に集約してある。このファイルの中で計算し直さないこと
+import { computeMoney, moneyFromRecord } from "./js/money.js?v=20260915";
 
 // accent は機種色の主色。外周枠と機種選択シートの着色に使う
 // band はヘッダ下段の帯の背景色。accent の輝度を落とし、載る文字がすべて
@@ -1201,12 +1206,25 @@ function bind() {
   $("clearClose").addEventListener("click", () => $("clearOverlay").classList.remove("open"));
   $("clearOverlay").addEventListener("click", (e) => { if (e.target === $("clearOverlay")) $("clearOverlay").classList.remove("open"); });
   $("clearCounts").addEventListener("click", () => {
-    pushLog({ k: "clear_counts", counts: { ...state.counts } });
+    if (!confirm("カウントを0に戻し、ここから数え直します。打ち始めデータは現在の値に更新されます")) return;
+    // 数え直し＝計算区間の起点を今の地点へ動かすこと。カウンタだけ0にすると
+    // 小役の分母（ownG = nowG − start.g）がクリア前から通算のままになる
+    const grp = bonusGroupIds();
+    const nbc = (id) => state.counts[id] || 0;
+    const ownBig = grp.big.reduce((a, id) => a + nbc(id), 0) + nbc("unk_big");
+    const ownReg = grp.reg.reduce((a, id) => a + nbc(id), 0) + nbc("unk_reg");
+    pushLog({ k: "clear_counts", counts: { ...state.counts }, start: { ...state.start } });
+    state.start = {
+      // nowG が start.g を下回っている（誤入力の警告が出ている）間は起点を戻さない
+      g: Math.max(state.start.g, state.nowG),
+      big: state.start.big + ownBig,
+      reg: state.start.reg + ownReg,
+    };
     for (const id of COUNT_IDS) state.counts[id] = 0;
     persist();
     renderAll();
     $("clearOverlay").classList.remove("open");
-    $("lastOp").textContent = "カウントをクリアしました（元に戻すで復元できます）";
+    $("lastOp").textContent = `${state.start.g.toLocaleString()}Gから数え直します（元に戻すで復元できます）`;
   });
   $("clearAll").addEventListener("click", () => {
     if (!confirm("台データ・カウント・投資をすべてクリアします。直後なら「元に戻す」で復元できます。よろしいですか？")) return;
@@ -1255,6 +1273,8 @@ function undo() {
   if (op.k === "count" && state.counts[op.id] > 0) state.counts[op.id]--;
   if (op.k === "clear_counts") {
     state.counts = { ...defaultState().counts, ...(op.counts || {}) };
+    // op.start が無いのは数え直し対応前に記録したログ。その場合はカウンタだけ戻す
+    if (op.start) state.start = { ...defaultState().start, ...op.start };
   }
   if (op.k === "clear_all") {
     const keepLog = state.log;
@@ -1275,7 +1295,7 @@ function undo() {
 
 function undoLabel(op) {
   if (op.k === "count") return COUNT_LABELS[op.id];
-  if (op.k === "clear_counts") return "カウントクリア";
+  if (op.k === "clear_counts") return "数え直し（復元）";
   if (op.k === "clear_all") return "すべてクリア（復元）";
   if (op.k === "invest") return `投資 ${op.yen.toLocaleString()}円`;
   if (op.k === "deposit") return `入金 ${op.yen.toLocaleString()}円`;
@@ -1625,11 +1645,12 @@ function renderCounts() {
 
 function renderInvest() {
   const inv = state.invest;
-  const rate = inv.rate > 0 ? inv.rate : 50;
-  const mai = inv.exchangeMai > 0 ? inv.exchangeMai : 50;
-  const medals = Math.round((inv.yen / 1000) * rate);
+  const m = currentMoney();
+  const rate = m.rate;
+  const mai = m.mai;
+  const medals = m.investMedals;
   $("f_rate").innerHTML = `<span class="ib-l">貸出</span><span class="ib-v">${rate}枚</span>`;
-  $("f_exchangeMai").innerHTML = `<span class="ib-l">${mai === 50 ? "等価" : "交換"}</span><span class="ib-v">${mai}枚</span>`;
+  $("f_exchangeMai").innerHTML = `<span class="ib-l">${m.isEquiv ? "等価" : "交換"}</span><span class="ib-v">${mai}枚</span>`;
   $("s_invest").textContent = `¥${inv.yen.toLocaleString()}`;
   if (inv.card == null) {
     $("depositBtn").textContent = "入金";
@@ -1640,16 +1661,23 @@ function renderInvest() {
   }
   $("f_card").hidden = true;
   $("f_invest").textContent = `投資 ¥${inv.yen.toLocaleString()}`;
-  const startHold = inv.startHold || 0;
+  const startHold = m.startHold;
   let sum = `（${medals.toLocaleString()}枚）`;
-  if (inv.hold > 0 || startHold > 0) {
-    const diff = inv.hold - startHold - medals;
-    const cash = Math.round((diff * 1000) / mai);
+  if (m.hasMoney) {
+    const diff = m.diff;
+    const cash = m.cash;
     const cls = diff >= 0 ? "plus" : "minus";
-    sum += `　差枚 <b class="${cls}">${diff >= 0 ? "+" : ""}${diff.toLocaleString()}</b>（<b class="${cls}">${cash >= 0 ? "+" : "-"}¥${Math.abs(cash).toLocaleString()}</b>）`;
-    sum += `<br><span class="calc-note">${inv.hold.toLocaleString()} − 開始${startHold.toLocaleString()} − 投資${medals.toLocaleString()}枚 ／ ${mai === 50 ? "等価" : mai + "枚交換"}</span>`;
+    const cashCls = cash >= 0 ? "plus" : "minus";
+    sum += `　差枚 <b class="${cls}">${diff >= 0 ? "+" : ""}${diff.toLocaleString()}</b>（<b class="${cashCls}">${cash >= 0 ? "+" : "-"}¥${Math.abs(cash).toLocaleString()}</b>）`;
+    sum += `<br><span class="calc-note">${inv.hold.toLocaleString()} − 開始${startHold.toLocaleString()} − 投資${medals.toLocaleString()}枚 ／ ${m.isEquiv ? "等価" : mai + "枚交換"}</span>`;
   }
   $("investSum").innerHTML = sum;
+}
+
+/* 画面と保存で同じ入力から同じ収支を出すための入口。式は js/money.js にしかない */
+function currentMoney() {
+  const inv = state.invest;
+  return computeMoney({ yen: inv.yen, hold: inv.hold, startHold: inv.startHold, rate: inv.rate, mai: inv.exchangeMai });
 }
 
 function fmtRate(count, games) {
@@ -1994,16 +2022,13 @@ function toInt(v) {
 
 function buildMylogEntry() {
   const inv = state.invest;
-  const rate = inv.rate > 0 ? inv.rate : 50;
-  const mai = inv.exchangeMai > 0 ? inv.exchangeMai : 50;
-  const medals = Math.round((inv.yen / 1000) * rate);
-  const startHold = inv.startHold || 0;
+  const m = currentMoney();
+  const startHold = m.startHold;
   const ownG = Math.max(0, state.nowG - state.start.g);
   const grp = bonusGroupIds();
   const nbc = (id) => state.counts[id] || 0;
   const ownBig = grp.big.reduce((a, id) => a + nbc(id), 0) + nbc("unk_big");
   const ownReg = grp.reg.reduce((a, id) => a + nbc(id), 0) + nbc("unk_reg");
-  const diff = inv.hold > 0 || startHold > 0 ? inv.hold - startHold - medals : null;
   const d = new Date();
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -2025,7 +2050,8 @@ function buildMylogEntry() {
     estimate: lastResult
       ? { posterior: lastResult.posterior.slice(), totalGames: lastResult.totalGames, reliability: reliabilityText(lastResult.totalGames) }
       : null,
-    money: { yen: inv.yen, hold: inv.hold, startHold, rate, exchangeMai: mai, investMedals: medals, diff, cash: diff == null ? null : Math.round((diff * 1000) / mai) },
+    // diff / cash は書き出し形式の互換のために持たせる。読む側は入力値から毎回計算し直す
+    money: { yen: inv.yen, hold: inv.hold, startHold, rate: m.rate, exchangeMai: m.mai, investMedals: m.investMedals, diff: m.diff, cash: m.cash },
     memo: $("mlMemo").value.trim(),
   };
 }
@@ -2037,8 +2063,10 @@ function mylogItemHtml(r) {
         return `推測 設定${i + 1} ${(100 * r.estimate.posterior[i]).toFixed(0)}%`;
       })()
     : "推測なし";
-  const money = r.money && r.money.diff != null
-    ? `${r.money.diff >= 0 ? "+" : ""}${r.money.diff.toLocaleString()}枚（${r.money.cash >= 0 ? "+" : "-"}¥${Math.abs(r.money.cash).toLocaleString()}）`
+  // 保存済みの diff / cash ではなく、保存されている入力値から毎回計算する
+  const mm = moneyFromRecord(r);
+  const money = mm.diff != null
+    ? `${mm.diff >= 0 ? "+" : ""}${mm.diff.toLocaleString()}枚（${mm.cash >= 0 ? "+" : "-"}¥${Math.abs(mm.cash).toLocaleString()}）`
     : "収支なし";
   const bigreg = `BIG ${r.end && r.end.big != null ? r.end.big : "–"} / REG ${r.end && r.end.reg != null ? r.end.reg : "–"}`;
   const tot = r.end && r.end.totalDiff != null ? ` ／ 台差枚 約${r.end.totalDiff >= 0 ? "+" : ""}${r.end.totalDiff.toLocaleString()}` : "";

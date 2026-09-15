@@ -195,7 +195,10 @@
   </nav>
 </footer>
 
-<script>
+<script type="module">
+// 収支（差枚・円）の計算は js/money.js に集約してある。このファイルの中で計算し直さないこと
+import { moneyFromRecord, computeMoney } from "./js/money.js?v=20260915";
+
 (function () {
   "use strict";
   const MYLOG_KEY = "juggler-mylog:v1";
@@ -243,11 +246,13 @@
       const ownReg = num(r.end && r.end.reg) - num(r.start && r.start.reg);
       big += Math.max(0, ownBig);
       reg += Math.max(0, ownReg);
-      if (r.money && r.money.diff != null) {
-        diff += r.money.diff;
-        cash += num(r.money.cash);
+      // 保存済みの diff / cash ではなく、保存されている入力値から毎回計算する
+      const m = moneyFromRecord(r);
+      if (m.diff != null) {
+        diff += m.diff;
+        cash += num(m.cash);
         moneyN++;
-        if (r.money.diff >= 0) win++;
+        if (m.diff >= 0) win++;
       }
     }
     return { n: list.length, games, big, reg, diff, cash, moneyN, win };
@@ -309,8 +314,9 @@
       ? (() => { const i = r.estimate.posterior.indexOf(Math.max(...r.estimate.posterior));
                  return `推測 設定${i + 1} ${(100 * r.estimate.posterior[i]).toFixed(0)}%`; })()
       : "推測なし";
-    const money = r.money && r.money.diff != null
-      ? `<span class="${cls(r.money.diff)}">${signed(r.money.diff)}枚（${yen(num(r.money.cash))}）</span>`
+    const m = moneyFromRecord(r);
+    const money = m.diff != null
+      ? `<span class="${cls(m.diff)}">${signed(m.diff)}枚（<span class="${cls(m.cash)}">${yen(num(m.cash))}</span>）</span>`
       : "収支なし";
     const td = r.end && r.end.totalDiff != null
       ? ` ／ 台差枚 約${signed(r.end.totalDiff)}` : "";
@@ -408,8 +414,7 @@
     const yenV = Math.max(0, toIntOr($("eYen").value, 0));
     const startHold = Math.max(0, toIntOr($("eStartHold").value, 0));
     const hold = Math.max(0, toIntOr($("eHold").value, 0));
-    const medals = Math.round((yenV / 1000) * rate);
-    const diff = hold > 0 || startHold > 0 ? hold - startHold - medals : null;
+    const m = computeMoney({ yen: yenV, hold, startHold, rate, mai });
     const startG = Math.max(0, toIntOr($("eStartG").value, 0));
     const endG = Math.max(0, toIntOr($("eEndG").value, 0));
     list[i] = {
@@ -421,7 +426,8 @@
       start: { ...(r.start || {}), g: startG, big: Math.max(0, toIntOr($("eStartBig").value, 0)), reg: Math.max(0, toIntOr($("eStartReg").value, 0)), hold: startHold },
       end: { ...(r.end || {}), g: endG, big: Math.max(0, toIntOr($("eEndBig").value, 0)), reg: Math.max(0, toIntOr($("eEndReg").value, 0)), totalDiff: toInt($("eTotalDiff").value) },
       own: { ...(r.own || {}), games: Math.max(0, endG - startG) },
-      money: { ...(r.money || {}), yen: yenV, hold, startHold, rate, exchangeMai: mai, investMedals: medals, diff, cash: diff == null ? null : Math.round((diff * 1000) / mai) },
+      // diff / cash は書き出し形式の互換のために持たせる。読む側は入力値から毎回計算し直す
+      money: { ...(r.money || {}), yen: yenV, hold, startHold, rate, exchangeMai: mai, investMedals: m.investMedals, diff: m.diff, cash: m.cash },
       memo: $("eMemo").value.trim(),
       editedAt: new Date().toISOString(),
     };
