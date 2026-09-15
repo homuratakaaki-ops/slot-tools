@@ -739,7 +739,7 @@ select.rate {
 <script type="module">
 import { estimate } from "./js/estimator.js?v=20260827-2";
 // 収支（差枚・円）の計算は js/money.js に集約してある。このファイルの中で計算し直さないこと
-import { computeMoney, moneyFromRecord } from "./js/money.js?v=20260915";
+import { computeMoney, moneyFromRecord } from "./js/money.js?v=20260915-2";
 
 // accent は機種色の主色。外周枠と機種選択シートの着色に使う
 // band はヘッダ下段の帯の背景色。accent の輝度を落とし、載る文字がすべて
@@ -785,6 +785,10 @@ function defaultState() {
   return {
     v: 1,
     start: { g: 0, big: 0, reg: 0 },
+    // 数え直し地点。クリアしていなければ null（＝打ち始めと同じ扱い）。
+    // 打ち始め(start)は動かさず、小役の分母と判別の区間だけをここから数える。
+    // big / reg はクリア時点までに自分が数えたボーナスで、2回目以降も累積する
+    restart: null,
     nowG: 0,
     counts: Object.fromEntries(COUNT_IDS.map((id) => [id, 0])),
     invest: { yen: 0, rate: 50, hold: 0, startHold: 0, exchangeMai: 50, card: null },
@@ -852,8 +856,34 @@ function restore() {
       if (!(state.invest.rate > 0)) state.invest.rate = 50;
       if (!(state.invest.exchangeMai > 0)) state.invest.exchangeMai = 50;
       if (!Array.isArray(state.log)) state.log = [];
+      normalizeRestart();
     }
   } catch (e) {}
+}
+
+/* ---------- 数え直し地点 ---------- */
+// クリアしていないときは打ち始めと同じ地点を返す。呼ぶ側はこれ1つだけを見る
+function restartPoint() {
+  const st = state.start;
+  const r = state.restart;
+  if (!r) return { g: st.g, big: 0, reg: 0, cleared: false };
+  return { g: Math.max(r.g, st.g), big: r.big || 0, reg: r.reg || 0, cleared: true };
+}
+// 保存データの取りこぼしと、打ち始めを追い越した地点をならす
+function normalizeRestart() {
+  const r = state.restart;
+  if (!r || typeof r !== "object") { state.restart = null; return; }
+  const g = Number(r.g), big = Number(r.big), reg = Number(r.reg);
+  if (!Number.isFinite(g)) { state.restart = null; return; }
+  state.restart = {
+    g: Math.max(g, state.start.g),
+    big: Number.isFinite(big) ? Math.max(0, big) : 0,
+    reg: Number.isFinite(reg) ? Math.max(0, reg) : 0,
+  };
+  // 打ち始めと同じ地点で、繰り越すボーナスも無いなら数え直しは無かったことにする
+  if (state.restart.g <= state.start.g && state.restart.big === 0 && state.restart.reg === 0) {
+    state.restart = null;
+  }
 }
 
 /* ---------- 数値フィールドへの反映 ---------- */
@@ -879,6 +909,10 @@ function fieldSet(field, v) {
     state.start.g = v;
     // 打ち始めを入れた時点では現在G＝打ち始めG。以降に進んだ値は上書きしない
     if (state.nowG < v) state.nowG = v;
+    // 打ち始めが数え直し地点を追い越したら、数え直しは無かったことにする
+    // （その地点より前に自分が数えたぶん、という前提が成り立たなくなるため）
+    if (state.restart && v >= state.restart.g) state.restart = null;
+    else normalizeRestart();
   }
   else if (field === "hold") state.invest.hold = v;
   else if (field === "startHold") state.invest.startHold = v;
@@ -1206,25 +1240,28 @@ function bind() {
   $("clearClose").addEventListener("click", () => $("clearOverlay").classList.remove("open"));
   $("clearOverlay").addEventListener("click", (e) => { if (e.target === $("clearOverlay")) $("clearOverlay").classList.remove("open"); });
   $("clearCounts").addEventListener("click", () => {
-    if (!confirm("カウントを0に戻し、ここから数え直します。打ち始めデータは現在の値に更新されます")) return;
-    // 数え直し＝計算区間の起点を今の地点へ動かすこと。カウンタだけ0にすると
-    // 小役の分母（ownG = nowG − start.g）がクリア前から通算のままになる
+    if (!confirm("カウントを0に戻し、小役はここから数え直します。打ち始めデータと実戦全体の記録はそのまま残ります")) return;
+    // 小役の分母（nowG − 数え直し地点）だけを今の地点へ移す。打ち始め(start)は動かさない。
+    // 数えたボーナスは restart に繰り越すので、実戦全体の記録としては残る
     const grp = bonusGroupIds();
     const nbc = (id) => state.counts[id] || 0;
     const ownBig = grp.big.reduce((a, id) => a + nbc(id), 0) + nbc("unk_big");
     const ownReg = grp.reg.reduce((a, id) => a + nbc(id), 0) + nbc("unk_reg");
-    pushLog({ k: "clear_counts", counts: { ...state.counts }, start: { ...state.start } });
-    state.start = {
-      // nowG が start.g を下回っている（誤入力の警告が出ている）間は起点を戻さない
-      g: Math.max(state.start.g, state.nowG),
-      big: state.start.big + ownBig,
-      reg: state.start.reg + ownReg,
+    const prev = state.restart ? { ...state.restart } : null;
+    pushLog({ k: "clear_counts", counts: { ...state.counts }, restart: prev, hadRestart: true });
+    const base = prev || { g: state.start.g, big: 0, reg: 0 };
+    state.restart = {
+      // nowG が打ち始めを下回っている（誤入力の警告が出ている）間は地点を戻さない
+      g: Math.max(base.g, state.nowG),
+      big: base.big + ownBig,
+      reg: base.reg + ownReg,
     };
+    normalizeRestart();
     for (const id of COUNT_IDS) state.counts[id] = 0;
     persist();
     renderAll();
     $("clearOverlay").classList.remove("open");
-    $("lastOp").textContent = `${state.start.g.toLocaleString()}Gから数え直します（元に戻すで復元できます）`;
+    $("lastOp").textContent = `${restartPoint().g.toLocaleString()}Gから小役を数え直します（元に戻すで復元できます）`;
   });
   $("clearAll").addEventListener("click", () => {
     if (!confirm("台データ・カウント・投資をすべてクリアします。直後なら「元に戻す」で復元できます。よろしいですか？")) return;
@@ -1273,8 +1310,11 @@ function undo() {
   if (op.k === "count" && state.counts[op.id] > 0) state.counts[op.id]--;
   if (op.k === "clear_counts") {
     state.counts = { ...defaultState().counts, ...(op.counts || {}) };
-    // op.start が無いのは数え直し対応前に記録したログ。その場合はカウンタだけ戻す
-    if (op.start) state.start = { ...defaultState().start, ...op.start };
+    // hadRestart が付いているのが数え直し地点を別に持つようになってからのログ。
+    // op.start は打ち始めを付け替えていた版のログで、そちらは start を戻す
+    if (op.hadRestart) state.restart = op.restart ? { ...op.restart } : null;
+    else if (op.start) state.start = { ...defaultState().start, ...op.start };
+    normalizeRestart();
   }
   if (op.k === "clear_all") {
     const keepLog = state.log;
@@ -1317,22 +1357,30 @@ function buildObservation(uiWarnings) {
   if (nowG < st.g) {
     return { error: `現在のデータ（${nowG.toLocaleString()}）が打ち始めの総回転数（${st.g.toLocaleString()}）より小さくなっています。カウントタブの「現在のデータ」か「打ち始めの総回転数」のどちらかが誤入力です。` };
   }
-  const ownG = nowG - st.g;
+  const rs = restartPoint();
+  const ownG = nowG - st.g;      // 実戦全体（表示・記録に使う）
+  const segG = nowG - rs.g;      // 数え直し後（小役の分母・最後の区間）
   const c = state.counts;
   const nb = (id) => c[id] || 0;
   const grp = bonusGroupIds();
   const sumIds = (ids) => ids.reduce((a, id) => a + nb(id), 0);
   const ownBig = sumIds(grp.big) + nb("unk_big");
   const ownReg = sumIds(grp.reg) + nb("unk_reg");
-  if (ownG > 0 && ownBig > ownG) {
-    return { error: `自分のボーナス数（BIG ${ownBig}回）が消化G数（${ownG.toLocaleString()}G）を超えています。入力を確認してください。` };
+  const allBig = rs.big + ownBig;   // 数え直し前に数えたぶんを含む実戦全体
+  const allReg = rs.reg + ownReg;
+  if (ownG > 0 && allBig > ownG) {
+    return { error: `自分のボーナス数（BIG ${allBig}回）が消化G数（${ownG.toLocaleString()}G）を超えています。入力を確認してください。` };
   }
 
   const segments = [];
   if (st.g > 0) {
     segments.push({ games: st.g, counts: { big_total: st.big, reg_total: st.reg } });
   }
-  if (ownG > 0) {
+  // 自分のクリア前。ボーナスだけ分かっていて小役は数え直しているため合算で渡す
+  if (rs.cleared && rs.g - st.g > 0) {
+    segments.push({ games: rs.g - st.g, counts: { big_total: rs.big, reg_total: rs.reg } });
+  }
+  if (segG > 0) {
     const counts = {};
     if (state.useGrape && nb("grape") > 0) counts.grape = nb("grape");
     if (!state.useBreakdown) {
@@ -1369,10 +1417,10 @@ function buildObservation(uiWarnings) {
         counts.cherry_reg = nb("cherry_reg");
       }
     }
-    if (Object.keys(counts).length > 0) segments.push({ games: ownG, counts });
+    if (Object.keys(counts).length > 0) segments.push({ games: segG, counts });
   }
   if (segments.length === 0) return null;
-  return { segments, totalGames: nowG, ownG, ownBig, ownReg };
+  return { segments, totalGames: nowG, ownG, segG, ownBig: allBig, ownReg: allReg };
 }
 
 function openSubSheet(def) {
@@ -1489,10 +1537,15 @@ function renderAll() {
   $("snapSummary").hidden = !collapsed;
   if (collapsed) {
     const sh = state.invest.startHold || 0;
-    $("snapSummary").innerHTML = unset
+    const rs = restartPoint();
+    // 打ち始めは動かさない。数え直したことがある場合だけ、その地点を小さく添える
+    const restartNote = rs.cleared && rs.g > state.start.g
+      ? `<br><span class="calc-note">小役は <b>${rs.g.toLocaleString()}G</b> から数え直し</span>`
+      : "";
+    $("snapSummary").innerHTML = (unset
       ? `<span class="warn">打ち始めデータ未入力</span> ／ タップして入力（朝一リセット台は0のままでOK）`
       : `打ち始め <b>${state.start.g.toLocaleString()}G</b>／BIG <b>${state.start.big}</b>／REG <b>${state.start.reg}</b>` +
-        (sh > 0 ? `／持ち <b>${sh.toLocaleString()}</b>` : "") + `（タップで修正）`;
+        (sh > 0 ? `／持ち <b>${sh.toLocaleString()}</b>` : "") + `（タップで修正）`) + restartNote;
   }
   syncFields();
   renderCounts();
@@ -1690,12 +1743,14 @@ function renderEstimate() {
   const obs = buildObservation(uiWarnings);
 
   const c = state.counts;
-  const ownG = Math.max(0, state.nowG - state.start.g);
+  const rs = restartPoint();
+  const ownG = Math.max(0, state.nowG - state.start.g);   // 実戦全体
+  const segG = Math.max(0, state.nowG - rs.g);            // 数え直し後（小役の分母）
   const nb = (id) => c[id] || 0;
   const grp = bonusGroupIds();
   const sumIds = (ids) => ids.reduce((a, id) => a + nb(id), 0);
-  const ownBig = sumIds(grp.big) + nb("unk_big");
-  const ownReg = sumIds(grp.reg) + nb("unk_reg");
+  const ownBig = rs.big + sumIds(grp.big) + nb("unk_big");
+  const ownReg = rs.reg + sumIds(grp.reg) + nb("unk_reg");
   const totBig = state.start.big + ownBig;
   const totReg = state.start.reg + ownReg;
   $("s_own").textContent = ownG.toLocaleString();
@@ -1707,7 +1762,7 @@ function renderEstimate() {
   for (const b of rateTargets) {
     const cell = $(`r_${b.id}`);
     if (!cell) continue;
-    let text = fmtRate(c[b.id] || 0, ownG);
+    let text = fmtRate(c[b.id] || 0, segG);
     if (b.id === "grape" && !state.useGrape) text += "（不使用）";
     cell.textContent = text;
   }
@@ -1728,6 +1783,7 @@ function renderEstimate() {
     posterior: out.posterior,
     totalGames: obs.totalGames,
     ownG,
+    grapeG: segG,   // 小役の分母は数え直し後。カードと共有文でもこちらを使う
     totBig,
     totReg,
     grape: nb("grape"),
@@ -1841,7 +1897,7 @@ function cardStats() {
     ["REG", `${R.totReg}回`],
     ["合算", rate(R.totBig + R.totReg, R.totalGames)],
   ];
-  rows.push(["ぶどう", R.useGrape && R.grape > 0 ? rate(R.grape, R.ownG) : "–"]);
+  rows.push(["ぶどう", R.useGrape && R.grape > 0 ? rate(R.grape, R.grapeG) : "–"]);
   return rows;
 }
 
@@ -1971,7 +2027,7 @@ function cardShareText() {
     `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}  ${R.totalGames.toLocaleString()}G`,
     `BIG ${R.totBig} / REG ${R.totReg}（合算 ${rate(R.totBig + R.totReg, R.totalGames)}）`,
   ];
-  if (R.useGrape && R.grape > 0) lines.push(`ぶどう ${rate(R.grape, R.ownG)}`);
+  if (R.useGrape && R.grape > 0) lines.push(`ぶどう ${rate(R.grape, R.grapeG)}`);
   lines.push(
     machine.machine.settings.map((s, i) => `設定${s} ${(100 * R.posterior[i]).toFixed(1)}%`).join(" / ")
   );
@@ -2025,10 +2081,12 @@ function buildMylogEntry() {
   const m = currentMoney();
   const startHold = m.startHold;
   const ownG = Math.max(0, state.nowG - state.start.g);
+  const rs = restartPoint();
   const grp = bonusGroupIds();
   const nbc = (id) => state.counts[id] || 0;
-  const ownBig = grp.big.reduce((a, id) => a + nbc(id), 0) + nbc("unk_big");
-  const ownReg = grp.reg.reduce((a, id) => a + nbc(id), 0) + nbc("unk_reg");
+  // 数え直し前に数えたぶんを足して実戦全体にする（記録は数え直しで欠けさせない）
+  const ownBig = rs.big + grp.big.reduce((a, id) => a + nbc(id), 0) + nbc("unk_big");
+  const ownReg = rs.reg + grp.reg.reduce((a, id) => a + nbc(id), 0) + nbc("unk_reg");
   const d = new Date();
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,

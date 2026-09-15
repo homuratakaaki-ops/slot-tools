@@ -108,7 +108,7 @@
       <div class="sum-box"><span>REG確率</span><b id="sReg">–</b></div>
     </div>
     <p class="note" id="sTotal"></p>
-    <p class="note">差枚と収支は、持ち枚数を入力した記録だけを集計します。勝率は差枚がマイナスにならなかった記録の割合です。時給は1時間を800回転として、収支を回した時間で割ったものです。回転数が少ないうちは大きく振れます。</p>
+    <p class="note">差枚と収支は、持ち枚数を入力した記録だけを集計します。勝率は円収支がプラスだった記録の割合で、±0円は勝ちに数えず母数には含めます。時給は1時間を800回転として、収支を回した時間で割ったものです。回転数が少ないうちは大きく振れます。</p>
   </section>
 
   <section class="card">
@@ -197,7 +197,7 @@
 
 <script type="module">
 // 収支（差枚・円）の計算は js/money.js に集約してある。このファイルの中で計算し直さないこと
-import { moneyFromRecord, computeMoney } from "./js/money.js?v=20260915";
+import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=20260915-2";
 
 (function () {
   "use strict";
@@ -239,7 +239,7 @@ import { moneyFromRecord, computeMoney } from "./js/money.js?v=20260915";
   }
 
   function totals(list) {
-    let games = 0, big = 0, reg = 0, diff = 0, cash = 0, moneyN = 0, win = 0;
+    let games = 0, big = 0, reg = 0, diff = 0, cash = 0, moneyN = 0, win = 0, lose = 0, draw = 0;
     for (const r of list) {
       games += num(r.own && r.own.games);
       const ownBig = num(r.end && r.end.big) - num(r.start && r.start.big);
@@ -248,14 +248,18 @@ import { moneyFromRecord, computeMoney } from "./js/money.js?v=20260915";
       reg += Math.max(0, ownReg);
       // 保存済みの diff / cash ではなく、保存されている入力値から毎回計算する
       const m = moneyFromRecord(r);
-      if (m.diff != null) {
-        diff += m.diff;
+      // 勝ち負けは円で決める（差枚で判定すると非等価の負けが勝ちになる）
+      const res = resultOf(m);
+      if (res) {
+        diff += num(m.diff);
         cash += num(m.cash);
         moneyN++;
-        if (m.diff >= 0) win++;
+        if (res === "win") win++;
+        else if (res === "lose") lose++;
+        else draw++;
       }
     }
-    return { n: list.length, games, big, reg, diff, cash, moneyN, win };
+    return { n: list.length, games, big, reg, diff, cash, moneyN, win, lose, draw };
   }
 
   function renderSummary(list) {
@@ -267,7 +271,9 @@ import { moneyFromRecord, computeMoney } from "./js/money.js?v=20260915";
       $("sDiff").className = cls(t.diff);
       $("sCash").textContent = yen(t.cash);
       $("sCash").className = cls(t.cash);
-      $("sWin").textContent = `${Math.round((100 * t.win) / t.moneyN)}%（${t.win}/${t.moneyN}）`;
+      // 母数は勝ち＋負け＋引き分け。±0円は勝ちに含めず母数には入れる
+      const drawNote = t.draw ? `・引分${t.draw}` : "";
+      $("sWin").textContent = `${Math.round((100 * t.win) / t.moneyN)}%（${t.win}/${t.moneyN}${drawNote}）`;
       $("sWin").className = "";
     } else {
       for (const id of ["sDiff", "sCash", "sWin"]) { $(id).textContent = "–"; $(id).className = ""; }

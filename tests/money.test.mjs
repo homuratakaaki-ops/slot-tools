@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { computeMoney, moneyFromRecord } from "../js/money.js";
+import { computeMoney, moneyFromRecord, resultOf } from "../js/money.js";
 
 /* 指示書（2026/9/15）の期待値表をそのまま固定する。
    (yen, hold, startHold, rate, mai) → diff / cash */
@@ -72,6 +72,55 @@ assert.equal(computeMoney({ yen: 0, hold: 0, startHold: 0, rate: 47, mai: 47 }).
   assert.equal(m.hasMoney, false);
   assert.equal(m.diff, null);
   assert.equal(m.cash, null);
+}
+
+/* --- resultOf: 勝ち負けは円で決める --- */
+const R = (yen, hold, startHold, rate, mai) => resultOf(computeMoney({ yen, hold, startHold, rate, mai }));
+assert.equal(R(1000, 100, 0, 50, 50), "win", "+1,000円は勝ち");
+assert.equal(R(1000, 0, 0, 50, 50), "lose", "投資1,000円・0枚で終了は負け");
+assert.equal(R(1000, 46, 0, 46, 50), "lose", "差枚±0枚でも円が−80円なら負け");
+assert.equal(R(1000, 50, 0, 50, 50), "draw", "±0円は引き分け");
+assert.equal(R(0, 0, 0, 50, 50), null, "未入力は判定なし");
+// 差枚で判定していた頃は「差枚±0枚」が勝ち扱いだった
+assert.equal(computeMoney({ yen: 1000, hold: 46, startHold: 0, rate: 46, mai: 50 }).diff, 0);
+
+// 記録から: 円で判定する。旧記録は保存済みの値で判定する
+assert.equal(resultOf(moneyFromRecord({ money: { yen: 1000, hold: 46, startHold: 0, rate: 46, exchangeMai: 50, diff: 0, cash: 0 } })), "lose", "保存値ではなく入力値から出した円で判定する");
+assert.equal(resultOf(moneyFromRecord({ money: { yen: 1000, hold: 100, diff: 50, cash: 1000 } })), "win", "legacy は保存済みの cash で判定");
+assert.equal(resultOf(moneyFromRecord({ money: { yen: 1000, hold: 100, diff: 50, cash: -80 } })), "lose", "legacy も cash が優先");
+assert.equal(resultOf(moneyFromRecord({})), null, "収支なしの記録は判定なし");
+// cash を持たない記録だけ差枚で判定する
+assert.equal(resultOf({ diff: 50, cash: null }), "win");
+assert.equal(resultOf({ diff: -50, cash: null }), "lose");
+assert.equal(resultOf({ diff: 0, cash: null }), "draw");
+assert.equal(resultOf({ diff: null, cash: null }), null);
+assert.equal(resultOf(null), null);
+
+/* --- 指示書の勝率3ケース --- */
+function rate3(records) {
+  let win = 0, lose = 0, draw = 0;
+  for (const m of records) {
+    const res = resultOf(m);
+    if (res === "win") win++;
+    else if (res === "lose") lose++;
+    else if (res === "draw") draw++;
+  }
+  const n = win + lose + draw;
+  return { win, lose, draw, n, pct: n ? Math.round((100 * win) / n) : null };
+}
+{
+  // −1,000円 と −80円（差枚0枚）
+  const t = rate3([computeMoney({ yen: 1000, hold: 0, startHold: 0, rate: 50, mai: 50 }), computeMoney({ yen: 1000, hold: 46, startHold: 0, rate: 46, mai: 50 })]);
+  assert.equal(`${t.win}/${t.lose}/${t.draw}/${t.pct}`, "0/2/0/0");
+}
+{
+  // +1,000円・±0円・−80円
+  const t = rate3([
+    computeMoney({ yen: 1000, hold: 100, startHold: 0, rate: 50, mai: 50 }),
+    computeMoney({ yen: 1000, hold: 50, startHold: 0, rate: 50, mai: 50 }),
+    computeMoney({ yen: 1000, hold: 46, startHold: 0, rate: 46, mai: 50 }),
+  ]);
+  assert.equal(`${t.win}/${t.lose}/${t.draw}/${t.pct}`, "1/1/1/33");
 }
 
 console.log("money tests passed");
