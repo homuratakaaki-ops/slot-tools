@@ -258,13 +258,38 @@
       save();
       renderAll();
     }
+    // ---- 取消の復元範囲 ----
+    // 取消は「その操作が変えたキー」だけを戻す。数値入力欄（data-number-key /
+    // data-state-path）や入力ソースの選択は取消スタックに積まれないため、
+    // 状態全体をスナップショットで戻すと、操作より後に入力した値まで巻き戻っていた。
+    // 操作のあとに書き換えられたキーは現在値のまま残し、触られていないキーだけ戻す。
+    function changedKeys(beforeJson,afterState){
+      const before=JSON.parse(beforeJson);
+      const after=afterState||{};
+      const seen={},out=[];
+      Object.keys(before).concat(Object.keys(after)).forEach(key=>{
+        if(seen[key])return;
+        seen[key]=1;
+        const b=JSON.stringify(before[key]),a=JSON.stringify(after[key]);
+        if(b!==a)out.push({key,before:b,after:a});
+      });
+      return out;
+    }
+    function restoreChanges(changes){
+      (changes||[]).forEach(c=>{
+        // 操作のあとに書き換えられたキーは触らない（入力欄の現在値を守る）
+        if(JSON.stringify(S[c.key])!==c.after)return;
+        if(c.before===undefined)delete S[c.key];
+        else S[c.key]=JSON.parse(c.before);
+      });
+    }
     function customAction(name,dataset,label){
       if(!config.actions||typeof config.actions[name]!=='function')return;
-      const snap=JSON.stringify(S);
+      const before=JSON.stringify(S);
       const result=config.actions[name](context(),dataset||{});
       if(result===false)return;
       const msg=typeof result==='string'?result:(label||name);
-      hist.push({custom:true,snap,label:msg});
+      hist.push({custom:true,changes:changedKeys(before,S),label:msg});
       if(hist.length>50)hist.shift();
       feed(`<b>実行</b> ${msg}`);
       toast(msg);
@@ -275,7 +300,7 @@
       const a=hist.pop();
       if(!a){feed('取り消せる操作がありません');return;}
       if(a.reset){
-        try{S=JSON.parse(a.snap);}
+        try{restoreChanges(a.changes);}
         catch(e){feed('復元に失敗しました');return;}
         feed('<b>復元</b> リセット前の状態に戻しました');
         save();renderAll();return;
@@ -286,7 +311,7 @@
         save();renderAll();return;
       }
       if(a.custom){
-        try{S=normalizeState(JSON.parse(a.snap));}
+        try{restoreChanges(a.changes);S=normalizeState(S);}
         catch(e){feed('復元に失敗しました');return;}
         feed(`<b>取消</b> ${a.label}`);
         save();renderAll();return;
@@ -313,13 +338,14 @@
         clearTimeout(resetArm);resetArm=null;
         const snap=JSON.stringify(S);
         try{localStorage.setItem(config.storageKey+'-bak',snap);}catch(e){}
-        hist.push({reset:true,snap});
-        if(hist.length>50)hist.shift();
         const img=S.img,iconChoice=S.iconChoice;
         S=clone(DEF);
         clearJump();
         S.img=img;
         S.iconChoice=iconChoice==='upload'&&img?'upload':(iconChoice==='nana'&&NANA_COLLAB?'nana':(iconChoice==='default'?'default':defaultIconChoice()));
+        // 差分は S を書き換えたあとに取る（取消は変わったキーだけを戻す）
+        hist.push({reset:true,changes:changedKeys(snap,S)});
+        if(hist.length>50)hist.shift();
         if(b)b.textContent='リセット';
         feed('<b>リセット完了</b> 「↩ 取消」で直前の状態に戻せます');
         save();renderAll();return;
