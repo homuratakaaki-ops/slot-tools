@@ -49,6 +49,18 @@
   .modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
   .modes button{min-height:44px;font-size:12.5px;white-space:nowrap}
   .modes button[aria-pressed="true"]{background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;color:#0d0d0f;font-weight:700}
+  .link-row{display:grid;gap:6px;margin:6px 0 8px}
+  .link-top{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+  .link-top button,.link-top select{min-height:44px;font-size:12.5px}
+  .link-top button{text-align:left;padding:8px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .link-top button.empty{color:var(--text-dim)}
+  .link-num{display:grid;grid-template-columns:62px 1fr 62px;gap:6px;align-items:end}
+  .link-num label{text-align:center}
+  .link-num .step{min-height:44px;font-size:15px;font-weight:700;padding:0}
+  .link-num input{min-height:44px;text-align:center;font-variant-numeric:tabular-nums}
+  .link-date{display:flex;align-items:center;justify-content:center;min-height:44px;
+    border:1px solid var(--border);border-radius:8px;background:var(--surface2);
+    color:var(--text);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
   #bulkSkipped{margin-top:10px;background:var(--bg)}
   #bulkSkippedList{max-height:34dvh}
   @supports not (height:1dvh){#bulkSkippedList{max-height:34vh}}
@@ -114,6 +126,23 @@
       <label class="opt" style="min-height:44px" id="bulkSeatRow"><input type="checkbox" id="bulkSeat">各行の先頭に台番号を書く（飛び番があるとき）</label>
       <label class="opt" style="min-height:44px" id="bulkDiffRow" hidden><input type="checkbox" id="bulkDiff">差枚あり（行の5つ目を差枚として読む）</label>
       <p class="note" id="bulkFormat"></p>
+      <!-- 連動欄。上の入力欄を映しているだけで、値はここに持たない -->
+      <div class="link-row" id="bulkLink">
+        <div class="link-top">
+          <button type="button" id="bShop" title="上の店名欄へ移動します">店名</button>
+          <select id="bMachine" aria-label="機種"></select>
+        </div>
+        <div class="link-num" id="bSeatBox">
+          <button type="button" class="step" id="bSeatMinus" aria-label="台番号を1つ戻す">−1</button>
+          <label>台番号<input type="text" id="bSeat" inputmode="numeric" autocomplete="off"></label>
+          <button type="button" class="step" id="bSeatPlus" aria-label="台番号を1つ進める">＋1</button>
+        </div>
+        <div class="link-num" id="bDateBox" hidden>
+          <button type="button" class="step" id="bDateMinus" aria-label="日付を1日戻す">−1</button>
+          <label>日付<span class="link-date" id="bDate"></span></label>
+          <button type="button" class="step" id="bDatePlus" aria-label="日付を1日進める">＋1</button>
+        </div>
+      </div>
       <textarea id="bulkText" rows="6" placeholder="7609 28 21&#10;7235 33 18&#10;8403 35 20"></textarea>
       <div class="btns">
         <button type="button" id="bulkClear">消す</button>
@@ -416,6 +445,7 @@ async function refresh() {
   ALL = await dbAll();
   fillShopSelects();
   renderTodayList();
+  syncBulkLink();
   await renderCompare();
   await renderByDate();
   await renderBySeat();
@@ -529,6 +559,7 @@ function setBulkMode(mode) {
   $("bulkFormat").textContent = bulkFormatText();
   $("bulkHint").textContent = "";
   hideSkipped();
+  syncBulkLink();
 }
 
 function bulkFormatText() {
@@ -540,6 +571,47 @@ function bulkFormatText() {
   return $("bulkSeat").checked
     ? "書き方：台番号 G数 BIG REG（差枚）　例）846 7609 28 21"
     : "書き方：G数 BIG REG（差枚）　例）7609 28 21";
+}
+
+/* ---------- 連動欄 ---------- */
+// 連動欄は上の入力欄（iShop / iMachine / iSeat / iDate）を映すだけで、値を別に持たない。
+// 下で触ったときは必ず上へ書き戻してから映し直すので、上下が食い違うことはない。
+const WD_JP = ["日", "月", "火", "水", "木", "金", "土"];
+
+function dateLabel(v) {
+  const p = String(v).split("-").map(Number);
+  if (p.length !== 3 || p.some((n) => !Number.isFinite(n))) return "日付を入れる";
+  return `${p[0]}/${p[1]}/${p[2]}（${WD_JP[new Date(p[0], p[1] - 1, p[2]).getDay()]}）`;
+}
+
+function syncBulkLink() {
+  const seatMode = bulkMode === "seat";
+  $("bSeatBox").hidden = !seatMode;
+  $("bDateBox").hidden = seatMode;
+  const shop = $("iShop").value.trim();
+  $("bShop").textContent = shop || "店名を入れる";
+  $("bShop").classList.toggle("empty", !shop);
+  // 機種の選択肢は上と同じものを使う（増減しても勝手にずれない）
+  if ($("bMachine").innerHTML !== $("iMachine").innerHTML) $("bMachine").innerHTML = $("iMachine").innerHTML;
+  $("bMachine").value = $("iMachine").value;
+  if ($("bSeat").value !== $("iSeat").value) $("bSeat").value = $("iSeat").value;
+  $("bDate").textContent = dateLabel($("iDate").value);
+}
+
+function stepSeat(d) {
+  const n = toInt($("iSeat").value);
+  if (n == null) return;   // 空のときは何もしない
+  $("iSeat").value = String(Math.max(0, n + d));
+  syncBulkLink();
+}
+
+function stepDate(d) {
+  const p = String($("iDate").value).split("-").map(Number);
+  if (p.length !== 3 || p.some((n) => !Number.isFinite(n))) return;
+  // 日を足し引きして Date に任せる。月末・月初・年またぎはこれで正しくなる
+  $("iDate").value = localDateStamp(new Date(p[0], p[1] - 1, p[2] + d));
+  $("iDate").dispatchEvent(new Event("change"));
+  syncBulkLink();
 }
 
 function hideSkipped() {
@@ -599,7 +671,8 @@ async function bulkAddUnits() {
   if (!withSeat) $("iSeat").value = String(seat);
   $("bulkText").value = "";
   const zero = rows.filter((r) => !(r.games > 0)).length;
-  $("bulkHint").textContent = `${n}台を登録しました。${zero ? `うち${zero}台は0Gのため故障・非稼働として扱います。` : ""}${withSeat ? "" : `次の台番号は ${$("iSeat").value} です。`}`;
+  const md = `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
+  $("bulkHint").textContent = `${md}：${n}台を登録しました。${zero ? `うち${zero}台は0Gのため故障・非稼働として扱います。` : ""}${withSeat ? "" : `次の台番号は ${$("iSeat").value} です。`}`;
   await refresh();
 }
 
@@ -639,10 +712,14 @@ async function bulkAddByDate() {
 
   // 1件も登録できなかったときは書き直せるように貼り付けた内容を残す
   if (n > 0) $("bulkText").value = "";
-  $("bulkHint").textContent = skipped.length
+  // 表示は＋1する前の台番号（＝いま登録した台）
+  $("bulkHint").textContent = `${seat}番台：` + (skipped.length
     ? `${n}件登録しました／当日分${nToday}件・重複${nDup}件・読めなかった行${errors.length}件を除外しました`
-    : `${n}件登録しました`;
+    : `${n}件登録しました`);
   showSkipped(skipped);
+  // 1件でも登録できたら次の台へ進める（0件のときは動かさない）
+  const seatNum = toInt(seat);
+  if (n > 0 && seatNum != null) $("iSeat").value = String(seatNum + 1);
   await refresh();
 }
 
@@ -707,6 +784,25 @@ async function init() {
     $(id).addEventListener("click", () => setBulkMode($(id).dataset.mode));
   }
   for (const id of ["iDate", "iShop", "iMachine"]) $(id).addEventListener("change", renderTodayList);
+  // 連動欄：上を触ったら映し直す／下を触ったら上へ書き戻してから映し直す
+  for (const id of ["iDate", "iShop", "iMachine", "iSeat"]) {
+    for (const ev of ["input", "change"]) $(id).addEventListener(ev, syncBulkLink);
+  }
+  $("bSeat").addEventListener("input", () => { $("iSeat").value = $("bSeat").value; });
+  $("bSeat").addEventListener("change", () => { $("iSeat").value = $("bSeat").value; syncBulkLink(); });
+  $("bMachine").addEventListener("change", () => {
+    $("iMachine").value = $("bMachine").value;
+    $("iMachine").dispatchEvent(new Event("change"));
+    syncBulkLink();
+  });
+  $("bShop").addEventListener("click", () => {
+    $("iShop").scrollIntoView({ block: "center" });
+    $("iShop").focus();
+  });
+  $("bSeatMinus").addEventListener("click", () => stepSeat(-1));
+  $("bSeatPlus").addEventListener("click", () => stepSeat(1));
+  $("bDateMinus").addEventListener("click", () => stepDate(-1));
+  $("bDatePlus").addEventListener("click", () => stepDate(1));
   for (const id of ["cShop", "cMachine", "cDate", "optExclude", "optWeight"]) {
     $(id).addEventListener("change", async () => { await renderCompare(); await renderByDate(); await renderBySeat(); });
   }
