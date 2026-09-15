@@ -114,8 +114,10 @@
   // 総ゲーム数は任意入力。現在が未入力(0)の間は「それ以外」を一切出さない。
   function hasTotal(S){return gameSrcOf(S)==='myslo'&&num(S.gamesMysloTotal)>0;}
   function rawOtherDenom(S){return (num(S.gamesMysloTotal)-num(S.gamesMysloTotalStart))-rawDenom(S);}
+  // 通常側の差分が負のとき（denomWarn）は、それを引いて作る「それ以外」も信用できない。
+  // 通常側と同じく0扱いにして 1/x を出さない。
   function otherDenom(S){
-    if(!hasTotal(S))return 0;
+    if(!hasTotal(S)||denomWarn(S))return 0;
     const v=rawOtherDenom(S);
     return v>0?v:0;
   }
@@ -265,7 +267,7 @@
     <div class="gsrc" data-gsrc="myslo"${src==='myslo'?'':' hidden'}>
       ${gamePair('通常ゲーム数','','gamesMysloStart','gamesMyslo',S)}
       ${gamePair('総ゲーム数','任意','gamesMysloTotalStart','gamesMysloTotal',S)}
-      ${src==='myslo'&&denomWarn(S)?'<div class="hint warn">通常ゲーム数の現在が開始を下回っています。通常時の分母は0として扱い、確率表示は行いません。入力を確認してください。</div>':''}
+      ${src==='myslo'&&denomWarn(S)?`<div class="hint warn">通常ゲーム数の現在が開始を下回っています。通常時${hasTotal(S)&&!otherWarn(S)?'とそれ以外':''}の分母は0として扱い、確率表示は行いません。入力を確認してください。</div>`:''}
       ${otherWarn(S)?'<div class="hint warn">総ゲーム数の差分が通常ゲーム数の差分を下回っています。それ以外の分母は0として扱い、確率表示は行いません。入力を確認してください。</div>':''}
       <div class="hint">マイスロの『通常ゲーム数』と『総ゲーム数』を入力します。途中から打ち始めた場合や、途中から数え始めた場合は、その時点の数値を開始欄に入れてください。差分があなたのカウント区間になります。総ゲーム数は任意で、入力するとCZ・RUSH・ボーナス中の共通ベルも確率表示できます。</div>
     </div>
@@ -416,6 +418,7 @@
       `■幼少期CZ(ﾌｧｰｽﾄ)▶︎ ${countLine(n(S.counts,'child'))}`,
       '↪︎(1/3965〜1/2084)',
       '',
+      `■AT初当り▶︎ ${countLine(n(S.counts,'at'))}`,
       `■AT直撃(1/22429〜1/6263)▶︎ ${countLine(n(S.counts,'direct'))}`,
       '',
       `■上位突入時 最強特化ｿﾞｰﾝ▶︎ ${topText(S)}`,
