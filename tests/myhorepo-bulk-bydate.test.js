@@ -38,10 +38,11 @@ function one(line, withDiff) {
   );
 }
 {
-  // 差枚なしのときは5つ目を読まない
-  const { row } = one('9/13 3995 18 10 +820', false);
-  assert.equal(row.diff, null);
-  assert.equal(row.games, 3995);
+  // 差枚なしで5列目がある行は「読めなかった行（列が多い）」。
+  // 2026/9/16 の指示書で、余分な列を黙って捨てない方針に変えた
+  const r = parseBulkByDate('9/13 3995 18 10 +820', false, TODAY);
+  assert.equal(r.rows.length, 0);
+  assert.equal(r.errors[0].why, '列が多い');
 }
 {
   const { row } = one('9/13 3995 18 10 +820', true);
@@ -120,6 +121,117 @@ assert.equal(parseBulkDate('9/14/2026', TODAY), null, '年を最後に書いた�
   assert.equal(r.errors.length, 1);
   assert.equal(r.errors[0].text, '9/11 abc 0 0', '読めなかった行は元の文字列を保つ');
   assert.equal(r.rows.map((x) => x.date).join(','), '2026-09-14,2026-09-12');
+}
+
+/* --- 桁区切りのカンマと列過多（2026/9/16） --- */
+{
+  const { row, errors } = one('9/13 3,995 18 10', false);
+  assert.equal(errors, 0);
+  assert.deepEqual(
+    { games: row.games, big: row.big, reg: row.reg },
+    { games: 3995, big: 18, reg: 10 },
+    '桁区切りのカンマは1つの数として読む'
+  );
+}
+{
+  const { row } = one('9/13 3,995 18 10 -1,200', true);
+  assert.equal(row.games, 3995);
+  assert.equal(row.diff, -1200, 'マイナスの桁区切り');
+}
+{
+  const { row } = one('9/13 3,995 18 10 +1,000', true);
+  assert.equal(row.diff, 1000, 'プラスの桁区切り');
+}
+{
+  // 全角カンマ・全角数字
+  const { row, errors } = one('9/13 ３，９９５ １８ １０', false);
+  assert.equal(errors, 0);
+  assert.equal(row.games, 3995, '全角カンマも桁区切りとして読む');
+}
+{
+  const { row } = one('9/13 1,234,567 18 10', false);
+  assert.equal(row.games, 1234567, 'カンマが複数あっても結合する');
+}
+{
+  // 結合した結果が7桁を超える値は従来どおり数として受けない
+  const r = parseBulkByDate('9/13 12,345,678 18 10', false, TODAY);
+  assert.equal(r.rows.length, 0);
+  assert.equal(r.errors[0].why, '数字として読めない');
+}
+{
+  // 3桁でないカンマは桁区切りにならない。区切り扱いのまま残って列数が合わなくなる
+  const r = parseBulkByDate('9/13 3,99 18 10', false, TODAY);
+  assert.equal(r.rows.length, 0);
+  assert.equal(r.errors[0].why, '列が多い', '3,99 は読めなかった行');
+}
+{
+  const r = parseBulkByDate('9/13 3,,995 18 10', false, TODAY);
+  assert.equal(r.rows.length, 0, '3,,995 も読めなかった行');
+}
+{
+  const r = parseBulkByDate('9/13 , 18 10', false, TODAY);
+  assert.equal(r.rows.length, 0, 'カンマ単独も読めなかった行');
+  assert.equal(r.errors[0].why, '列が足りない');
+}
+{
+  const r = parseBulkByDate('9/13 3995 18 10 5', false, TODAY);
+  assert.equal(r.rows.length, 0);
+  assert.equal(r.errors[0].why, '列が多い', '差枚なしで5列は読めなかった行');
+}
+{
+  const r = parseBulkByDate('9/13 3995 18 10 800 5', true, TODAY);
+  assert.equal(r.rows.length, 0);
+  assert.equal(r.errors[0].why, '列が多い', '差枚ありで6列は読めなかった行');
+}
+{
+  // 回帰：従来どおりの行はそのまま通る
+  const { row, errors } = one('9/13 3995 18 10', false);
+  assert.equal(errors, 0);
+  assert.equal(row.games, 3995);
+}
+{
+  // 読めない理由が付く
+  const r = parseBulkByDate('9/13 abc 18 10', false, TODAY);
+  assert.equal(r.errors[0].why, '数字として読めない');
+  const r2 = parseBulkByDate('13/45 3995 18 10', false, TODAY);
+  assert.equal(r2.errors[0].why, '日付として読めない');
+}
+
+/* --- 1日×複数台（parseBulk） --- */
+const dayBlock = section('function parseBulk(text, withSeat)', 'async function bulkAddUnits');
+const ctx2 = vm.createContext({});
+new vm.Script(
+  section('function normalizeBulkLine', '// 9/14') +
+  dayBlock +
+  '\nglobalThis.parseBulk = parseBulk;\n'
+).runInContext(ctx2);
+const { parseBulk } = ctx2;
+{
+  const r = parseBulk('3,995 18 10', false);
+  assert.equal(r.errors.length, 0);
+  assert.equal(r.rows[0].games, 3995, '1日×複数台でも桁区切りを読む');
+  assert.equal(r.rows[0].big, 18);
+}
+{
+  const r = parseBulk('7609 28 21 820 5', false);
+  assert.equal(r.rows.length, 0);
+  assert.match(r.errors[0], /項目が多すぎます/, '列が多い行は登録しない');
+}
+{
+  const r = parseBulk('846 7,609 28 21', true);
+  assert.equal(r.errors.length, 0);
+  assert.equal(r.rows[0].seat, 846);
+  assert.equal(r.rows[0].games, 7609, '行頭に台番号がある形でも桁区切りを読む');
+}
+{
+  const r = parseBulk('7609 28 12abc', false);
+  assert.equal(r.rows.length, 0, '12abc は数として読まない');
+}
+{
+  // 回帰：カンマ区切りの貼り付けは従来どおり通る（桁区切りにならないカンマは区切り）
+  const r = parseBulk('7609,28,21', false);
+  assert.equal(r.errors.length, 0);
+  assert.deepEqual([r.rows[0].games, r.rows[0].big, r.rows[0].reg], [7609, 28, 21]);
 }
 
 console.log('myhorepo bulk(1台×複数日) tests passed');
