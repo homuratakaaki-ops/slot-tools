@@ -10,6 +10,8 @@
 <style>
   :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66;--plus:#6ad39a;--minus:#ff7a6e}
   *{box-sizing:border-box;margin:0;padding:0}
+  /* .opt{display:flex} 等が UA の [hidden]{display:none} に勝ってしまうため明示する */
+  [hidden]{display:none !important}
   body{background:var(--bg);color:var(--text);font-family:'Hiragino Kaku Gothic ProN','Noto Sans JP',sans-serif;font-size:15px;line-height:1.7;min-height:100vh}
   header{background:linear-gradient(135deg,#1a1008 0%,#0d0d0f 60%);border-bottom:1px solid var(--gold);padding:14px 20px 16px;text-align:center}
   .top-link{display:inline-flex;align-items:center;justify-content:center;gap:4px;color:var(--gold);font-size:12px;font-weight:700;text-decoration:none;margin:0 4px 8px;padding:8px 12px;min-height:44px;border:1px solid rgba(201,168,76,.35);border-radius:6px}
@@ -44,6 +46,13 @@
   .opt input[type=checkbox]{width:22px;height:22px;flex:none}
   .bulk{border:1px solid var(--border);border-radius:8px;padding:10px;margin-top:10px;background:var(--surface2)}
   .bulk summary{font-size:13px;font-weight:700;color:var(--gold-light);cursor:pointer;min-height:32px;padding:4px 0}
+  .modes{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}
+  .modes button{min-height:44px;font-size:12.5px;white-space:nowrap}
+  .modes button[aria-pressed="true"]{background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;color:#0d0d0f;font-weight:700}
+  #bulkSkipped{margin-top:10px;background:var(--bg)}
+  #bulkSkippedList{max-height:34dvh}
+  @supports not (height:1dvh){#bulkSkippedList{max-height:34vh}}
+  #bulkSkippedList .row .why{color:var(--text-dim);flex:none}
   .tips{margin:6px 0 0 1.3em;padding:0;color:var(--text-muted);font-size:12px;line-height:1.7}
   .tips li{margin-bottom:4px}
   .bulk textarea{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;padding:10px;width:100%;font-family:inherit;line-height:1.6;font-variant-numeric:tabular-nums}
@@ -96,8 +105,14 @@
 
     <details class="bulk" id="bulkBox">
       <summary>まとめて入力する</summary>
-      <p class="note" style="margin-top:6px">1行に1台分を、スペース区切りで打ちます。台番号は上の「台番号」から自動で1つずつ進みます。G数が0の行は故障・非稼働として記録し、集計から除きます。</p>
-      <label class="opt" style="min-height:44px"><input type="checkbox" id="bulkSeat">各行の先頭に台番号を書く（飛び番があるとき）</label>
+      <div class="modes" role="group" aria-label="入力モード">
+        <button type="button" id="modeDay" data-mode="day" aria-pressed="true">1日×複数台</button>
+        <button type="button" id="modeSeat" data-mode="seat" aria-pressed="false">1台×複数日</button>
+      </div>
+      <p class="note" style="margin-top:6px" id="bulkLead"></p>
+      <p class="note" id="bulkWarn" hidden>※同じ台番号でも、日をさかのぼると別の機種だった場合があります。貼る前に機種をご確認ください。</p>
+      <label class="opt" style="min-height:44px" id="bulkSeatRow"><input type="checkbox" id="bulkSeat">各行の先頭に台番号を書く（飛び番があるとき）</label>
+      <label class="opt" style="min-height:44px" id="bulkDiffRow" hidden><input type="checkbox" id="bulkDiff">差枚あり（行の5つ目を差枚として読む）</label>
       <p class="note" id="bulkFormat"></p>
       <textarea id="bulkText" rows="6" placeholder="7609 28 21&#10;7235 33 18&#10;8403 35 20"></textarea>
       <div class="btns">
@@ -105,6 +120,10 @@
         <button type="button" class="primary" id="bulkAdd">まとめて追加</button>
       </div>
       <p class="note" id="bulkHint"></p>
+      <details class="bulk" id="bulkSkipped" hidden>
+        <summary>除外した行を見る</summary>
+        <div class="rowlist" id="bulkSkippedList"></div>
+      </details>
     </details>
 
     <details class="bulk">
@@ -431,10 +450,110 @@ async function addUnit() {
   $("iGames").focus();
 }
 
+/* ---------- まとめて入力：行の解釈（1台×複数日） ---------- */
+// 表計算やスマホから貼られた全角をそのまま読めるようにする
+function normalizeBulkLine(s) {
+  return String(s)
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/／/g, "/")
+    .replace(/[−－‐–—]/g, "-")
+    .replace(/＋/g, "+")
+    .replace(/[　 ]/g, " ");
+}
+
+// 9/14・9-14・09/14・2026/9/14 を YYYY-MM-DD にする。
+// 年が無い行は当年で読み、今日より未来になるときだけ前年とみなす（年またぎ対策）
+function parseBulkDate(token, today) {
+  const p = String(token).split(/[/-]/);
+  if (p.length !== 2 && p.length !== 3) return null;
+  if (p.some((v) => !/^\d{1,4}$/.test(v))) return null;
+  const n = p.map(Number);
+  const stamp = (y, m, d) => {
+    if (m < 1 || m > 12 || d < 1 || d > 31) return null;
+    const dt = new Date(y, m - 1, d);
+    if (dt.getFullYear() !== y || dt.getMonth() !== m - 1 || dt.getDate() !== d) return null;
+    return `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  };
+  if (n.length === 3) return stamp(n[0] < 100 ? n[0] + 2000 : n[0], n[1], n[2]);
+  const y = Number(String(today).slice(0, 4));
+  const cur = stamp(y, n[0], n[1]);
+  if (cur && cur <= today) return cur;
+  return stamp(y - 1, n[0], n[1]);
+}
+
+// 1行＝1日。「日付 G数 BIG REG（差枚）」。読めない行は errors に落として他の行は通す
+function parseBulkByDate(text, withDiff, today) {
+  const rows = [], errors = [];
+  String(text).split(/\r?\n/).forEach((raw) => {
+    const src = raw.trim();
+    if (!src) return;
+    const parts = normalizeBulkLine(src).trim().split(/[\s,、]+/);
+    const num = (v) => (/^\d{1,7}$/.test(v) ? Number(v) : null);
+    if (parts.length < 4) { errors.push({ text: src }); return; }
+    const date = parseBulkDate(parts[0], today);
+    const games = num(parts[1]), big = num(parts[2]), reg = num(parts[3]);
+    if (!date || games == null || big == null || reg == null) { errors.push({ text: src }); return; }
+    let diff = null;
+    // 「差枚あり」のときだけ5つ目を読む。無い行はその行だけ未入力として通す
+    if (withDiff && parts.length >= 5) {
+      if (!/^[+-]?\d{1,7}$/.test(parts[4])) { errors.push({ text: src }); return; }
+      diff = Number(parts[4]);
+    }
+    rows.push({ text: src, date, games, big, reg, diff });
+  });
+  return { rows, errors };
+}
+
+/* ---------- まとめて入力：モード ---------- */
+const BULK_MODE_KEY = "myhorepo:bulk-mode";
+let bulkMode = "day";
+
+function loadBulkMode() {
+  try { return localStorage.getItem(BULK_MODE_KEY) === "seat" ? "seat" : "day"; } catch (e) { return "day"; }
+}
+function setBulkMode(mode) {
+  bulkMode = mode === "seat" ? "seat" : "day";
+  try { localStorage.setItem(BULK_MODE_KEY, bulkMode); } catch (e) {}
+  const seatMode = bulkMode === "seat";
+  $("modeDay").setAttribute("aria-pressed", String(!seatMode));
+  $("modeSeat").setAttribute("aria-pressed", String(seatMode));
+  $("bulkSeatRow").hidden = seatMode;
+  $("bulkDiffRow").hidden = !seatMode;
+  $("bulkWarn").hidden = !seatMode;
+  $("bulkLead").textContent = seatMode
+    ? "1行に1日分を「日付 G数 BIG REG」の順にスペース区切りで書きます。台番号は上の「台番号」で固定されます。当日分と登録済みの日は自動で除きます。"
+    : "1行に1台分を、スペース区切りで打ちます。台番号は上の「台番号」から自動で1つずつ進みます。G数が0の行は故障・非稼働として記録し、集計から除きます。";
+  $("bulkText").placeholder = seatMode
+    ? "9/14 624 0 2\n9/13 3995 18 10\n9/12 4195 14 19"
+    : "7609 28 21\n7235 33 18\n8403 35 20";
+  $("bulkFormat").textContent = bulkFormatText();
+  $("bulkHint").textContent = "";
+  hideSkipped();
+}
+
 function bulkFormatText() {
+  if (bulkMode === "seat") {
+    return $("bulkDiff").checked
+      ? "書き方：日付 G数 BIG REG（差枚）　例）9/14 624 0 2 +820"
+      : "書き方：日付 G数 BIG REG　例）9/14 624 0 2";
+  }
   return $("bulkSeat").checked
     ? "書き方：台番号 G数 BIG REG（差枚）　例）846 7609 28 21"
     : "書き方：G数 BIG REG（差枚）　例）7609 28 21";
+}
+
+function hideSkipped() {
+  $("bulkSkipped").hidden = true;
+  $("bulkSkipped").open = false;
+  $("bulkSkippedList").innerHTML = "";
+}
+
+function showSkipped(skipped) {
+  if (!skipped.length) { hideSkipped(); return; }
+  $("bulkSkippedList").innerHTML = skipped
+    .map((s) => `<div class="row"><span>${esc(s.text)}</span><span class="why">── ${esc(s.reason)}</span></div>`)
+    .join("");
+  $("bulkSkipped").hidden = false;
 }
 
 function parseBulk(text, withSeat) {
@@ -484,6 +603,49 @@ async function bulkAddUnits() {
   await refresh();
 }
 
+// 1台×複数日。台番号は固定、イベント名は日ごとに違うため付けない
+async function bulkAddByDate() {
+  const shop = $("iShop").value.trim(), mid = $("iMachine").value;
+  const seat = $("iSeat").value.trim();
+  hideSkipped();
+  if (!shop) { $("bulkHint").textContent = "店名を入れてください。"; return; }
+  if (!seat) { $("bulkHint").textContent = "台番号を入れてください（この台番号で固定されます）。"; return; }
+  const today = localDateStamp();
+  const { rows, errors } = parseBulkByDate($("bulkText").value, $("bulkDiff").checked, today);
+  if (!rows.length && !errors.length) { $("bulkHint").textContent = "入力がありません。"; return; }
+
+  // 登録済みの判定は 店・台番号・日付。同じ台番号でも過去は別機種のことがあるため機種は見ない
+  const registered = new Set(
+    ALL.filter((u) => u.shop === shop && String(u.seat) === String(seat)).map((u) => u.date)
+  );
+  const seen = new Set();
+  const skipped = [];
+  let n = 0, nToday = 0, nDup = 0;
+  for (const r of rows) {
+    if (r.date === today) { skipped.push({ text: r.text, reason: "当日分" }); nToday++; continue; }
+    if (seen.has(r.date)) { skipped.push({ text: r.text, reason: "重複" }); nDup++; continue; }
+    if (registered.has(r.date)) { skipped.push({ text: r.text, reason: "登録済み" }); nDup++; continue; }
+    seen.add(r.date);
+    await dbPut({
+      id: `${r.date}|${shop}|${mid}|${seat}`,
+      date: r.date, shop, event: "", machineId: mid, machineName: MACHINES[mid].name,
+      seat: String(seat), games: r.games, big: r.big, reg: r.reg,
+      diff: r.diff, status: r.games > 0 ? "" : "broken",
+      savedAt: new Date().toISOString(),
+    });
+    n++;
+  }
+  for (const e of errors) skipped.push({ text: e.text, reason: "読めなかった行" });
+
+  // 1件も登録できなかったときは書き直せるように貼り付けた内容を残す
+  if (n > 0) $("bulkText").value = "";
+  $("bulkHint").textContent = skipped.length
+    ? `${n}件登録しました／当日分${nToday}件・重複${nDup}件・読めなかった行${errors.length}件を除外しました`
+    : `${n}件登録しました`;
+  showSkipped(skipped);
+  await refresh();
+}
+
 async function importFromMylog() {
   let list = [];
   try {
@@ -528,6 +690,7 @@ async function init() {
   fillMachineSelects();
   $("iDate").value = localDateStamp();
   $("cDate").value = localDateStamp();
+  setBulkMode(loadBulkMode());
   try { db = await openDb(); } catch (e) {
     $("addHint").textContent = "この端末では記録を保存できません（プライベートモードなどの可能性があります）。";
     return;
@@ -536,10 +699,13 @@ async function init() {
 
   $("addBtn").addEventListener("click", addUnit);
   $("fromMylogBtn").addEventListener("click", importFromMylog);
-  $("bulkAdd").addEventListener("click", bulkAddUnits);
-  $("bulkClear").addEventListener("click", () => { $("bulkText").value = ""; $("bulkHint").textContent = ""; });
+  $("bulkAdd").addEventListener("click", () => (bulkMode === "seat" ? bulkAddByDate() : bulkAddUnits()));
+  $("bulkClear").addEventListener("click", () => { $("bulkText").value = ""; $("bulkHint").textContent = ""; hideSkipped(); });
   $("bulkSeat").addEventListener("change", () => { $("bulkFormat").textContent = bulkFormatText(); });
-  $("bulkFormat").textContent = bulkFormatText();
+  $("bulkDiff").addEventListener("change", () => { $("bulkFormat").textContent = bulkFormatText(); });
+  for (const id of ["modeDay", "modeSeat"]) {
+    $(id).addEventListener("click", () => setBulkMode($(id).dataset.mode));
+  }
   for (const id of ["iDate", "iShop", "iMachine"]) $(id).addEventListener("change", renderTodayList);
   for (const id of ["cShop", "cMachine", "cDate", "optExclude", "optWeight"]) {
     $(id).addEventListener("change", async () => { await renderCompare(); await renderByDate(); await renderBySeat(); });
