@@ -115,8 +115,16 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .tab-ic { font-size: 12px; margin-right: 6px; }
 .tabs button[aria-selected="false"] .tab-ic { opacity: .55; }
 
-/* ===== カウントタブ(固定・内部スクロールなし) ===== */
-#paneCount { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 7px; }
+/* ===== カウントタブ ===== */
+/* 画面が低いとき(Chromeのアドレスバーあり等)だけスクロールする。
+   資金パネルは sticky で最下部に留まり、流れの中に自分の高さを残すので
+   その上の行が潜らない。スクロールバーは幅を奪ってボタン寸法を変えるため隠す */
+#paneCount {
+  flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 7px;
+  overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+#paneCount::-webkit-scrollbar { display: none; }
 .panel {
   background: var(--card); border: 1px solid var(--line); border-radius: 11px;
   padding: 8px 9px; flex: none;
@@ -163,7 +171,9 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 }
 
 /* カウントボタン(可変高で画面を埋める) */
-.count-wrap { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 7px; }
+/* 縮ませない。縮むと sub-actions がはみ出して資金パネルの下に潜るため、
+   入りきらない分は #paneCount のスクロールで見せる */
+.count-wrap { flex: none; min-height: 0; display: flex; flex-direction: column; gap: 7px; }
 .count-grid {
   height: clamp(180px, 30dvh, 280px);
   display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 7px;
@@ -203,6 +213,35 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 /* 投資(1パネルに集約) */
 .invest-row { display: grid; grid-template-columns: 1.15fr 1.15fr 1fr 1.1fr; gap: 6px; margin-bottom: 6px; }
 .calc-note { font-size: 10.5px; color: var(--muted); }
+
+/* ===== 資金パネル(最下部に留まる・たためる) ===== */
+#moneyPanel { position: sticky; bottom: 0; z-index: 5; flex: none; }
+/* たたむ切り替え。パネル上端の横幅いっぱいの細い帯。
+   最頻タップの −1000円 は下段左なので、誤タップしにくいよう上端に離して置く */
+.money-toggle {
+  display: flex; align-items: center; justify-content: center; gap: 7px;
+  width: 100%; min-height: 18px; padding: 0; margin: -5px 0 3px;
+  background: none; border: none; cursor: pointer;
+  color: var(--muted); font-size: 10px; line-height: 1;
+}
+.money-toggle::before {
+  content: ""; width: 30px; height: 3px; border-radius: 2px;
+  background: var(--line); flex: none;
+}
+.money-toggle:active { filter: brightness(1.4); }
+
+#moneyPanel.collapsed { display: flex; flex-wrap: wrap; align-items: center; gap: 0 10px; }
+#moneyPanel.collapsed .money-toggle { flex: 1 0 100%; }
+#moneyPanel.collapsed .invest-row { display: block; margin-bottom: 0; }
+#moneyPanel.collapsed .invest-row .invest-sub { display: none; }
+#moneyPanel.collapsed .invest-line { flex: 1 1 0; min-width: 0; }
+#moneyPanel.collapsed .invest-line .chip { display: none; }
+#moneyPanel.collapsed .invest-line .sum {
+  flex: 1 1 auto; margin-top: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#moneyPanel.collapsed .invest-line .sum br,
+#moneyPanel.collapsed .invest-line .sum .calc-note { display: none; }
 .kp-step { font-size: 11px; color: var(--lamp); font-weight: 700; }
 .kp-step .kp-machine { color: var(--ink); }
 #cardCanvas { width: 100%; height: auto; border-radius: 12px; display: block; background: #000; margin-bottom: 8px; }
@@ -437,7 +476,9 @@ select.rate {
       <p class="count-hint" id="lastOp">タップで+1／長押しで数値をまとめて入力</p>
     </div>
 
-    <div class="panel">
+    <div class="panel" id="moneyPanel">
+      <button type="button" class="money-toggle" id="moneyToggle" aria-expanded="true"
+              aria-label="資金パネルをたたむ"><span id="moneyToggleIc" aria-hidden="true">▾</span></button>
       <div class="invest-row">
         <button type="button" class="invest-main" id="invSpend">−1000円</button>
         <button type="button" class="invest-sub" id="depositBtn">入金</button>
@@ -715,6 +756,8 @@ const MACHINES = {
 const params = new URLSearchParams(location.search);
 const machineId = MACHINES[params.get("machine")] ? params.get("machine") : "my_juggler_v";
 const STORAGE_KEY = `juggler-record:${machineId}`;
+// 資金パネルの開閉は機種によらず共通の1つの値で持つ（機種を切り替えても保たれる）
+const MONEY_KEY = "juggler-record:money-collapsed";
 const $ = (id) => document.getElementById(id);
 
 const UNK_IDS = ["unk_big", "unk_reg"];
@@ -923,6 +966,12 @@ function bind() {
   $("depClose").addEventListener("click", () => $("depositOverlay").classList.remove("open"));
   $("depositOverlay").addEventListener("click", (e) => { if (e.target === $("depositOverlay")) $("depositOverlay").classList.remove("open"); });
   $("undoBtn").addEventListener("click", undo);
+  setMoneyCollapsed(loadMoneyCollapsed());
+  $("moneyToggle").addEventListener("click", () => {
+    const next = !$("moneyPanel").classList.contains("collapsed");
+    setMoneyCollapsed(next);
+    try { localStorage.setItem(MONEY_KEY, next ? "1" : "0"); } catch (e) {}
+  });
   $("machineName").addEventListener("click", () => $("machineOverlay").classList.add("open"));
   $("mcClose").addEventListener("click", () => $("machineOverlay").classList.remove("open"));
   $("subClose").addEventListener("click", () => $("subOverlay").classList.remove("open"));
@@ -1385,6 +1434,18 @@ function applyMachineColors() {
 // 白文字の輪郭を締めるための縁取り(4方向1px)
 function outlineShadow(color) {
   return `-1px -1px 0 ${color}, 1px -1px 0 ${color}, -1px 1px 0 ${color}, 1px 1px 0 ${color}`;
+}
+
+/* ---------- 資金パネルの開閉 ---------- */
+function loadMoneyCollapsed() {
+  try { return localStorage.getItem(MONEY_KEY) === "1"; } catch (e) { return false; }
+}
+
+function setMoneyCollapsed(collapsed) {
+  $("moneyPanel").classList.toggle("collapsed", collapsed);
+  $("moneyToggleIc").textContent = collapsed ? "▴" : "▾";
+  $("moneyToggle").setAttribute("aria-expanded", String(!collapsed));
+  $("moneyToggle").setAttribute("aria-label", collapsed ? "資金パネルを開く" : "資金パネルをたたむ");
 }
 
 function hasElement(id) {
