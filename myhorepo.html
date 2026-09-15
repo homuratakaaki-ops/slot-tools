@@ -54,6 +54,7 @@
   .link-top button,.link-top select{min-height:44px;font-size:12.5px}
   .link-top button{text-align:left;padding:8px 10px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .link-top button.empty{color:var(--text-dim)}
+  .link-note{grid-column:2;margin-top:0;font-size:11px;line-height:1.35;word-break:break-all}
   .link-num{display:grid;grid-template-columns:62px 1fr 62px;gap:6px;align-items:end}
   .link-num label{text-align:center}
   .link-num .step{min-height:44px;font-size:15px;font-weight:700;padding:0}
@@ -68,6 +69,21 @@
   .tips{margin:6px 0 0 1.3em;padding:0;color:var(--text-muted);font-size:12px;line-height:1.7}
   .tips li{margin-bottom:4px}
   .bulk textarea{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;padding:10px;width:100%;font-family:inherit;line-height:1.6;font-variant-numeric:tabular-nums}
+  .ov{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);
+    display:flex;align-items:flex-end;justify-content:center;padding:10px}
+  .ov-box{width:100%;max-width:560px;max-height:88dvh;display:flex;flex-direction:column;gap:8px;
+    background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:12px}
+  @supports not (height:1dvh){.ov-box{max-height:88vh}}
+  .ov-h{font-size:13.5px;font-weight:700;color:var(--gold-light);line-height:1.5}
+  .ov-body{overflow-y:auto;-webkit-overflow-scrolling:touch;min-height:0}
+  .ov-box>button{min-height:48px;flex:none}
+  #seatBody table{font-size:12px}
+  #seatBody th,#seatBody td{padding:7px 3px}
+  #seatBody .mch{display:block;font-size:10px;color:var(--text-muted)}
+  #seatBody .dim{color:var(--text-dim);text-align:center}
+  tr.tap{cursor:pointer}
+  tr.tap td:first-child{text-decoration:underline;text-decoration-color:var(--text-dim);text-underline-offset:3px}
+  .row .seat-open{flex:1;text-align:left;cursor:pointer}
   footer{text-align:center;padding:30px 16px;color:var(--text-dim);font-size:12px}
   footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
   footer a{color:var(--text-muted);text-decoration:none}
@@ -100,6 +116,7 @@
       <label>イベント名（任意）<input type="text" id="iEvent" list="eventList" autocomplete="off" placeholder="例：7のつく日"><datalist id="eventList"></datalist></label>
       <label>機種<select id="iMachine"></select></label>
     </div>
+    <p class="note" id="lastMachineNote" hidden></p>
     <p class="note" style="margin-bottom:4px">下の4つを入れて「追加」を押すと1台分が登録され、台番号が自動で1つ進みます。</p>
     <div class="g4">
       <label>台番号<input type="text" id="iSeat" inputmode="numeric" autocomplete="off"></label>
@@ -131,6 +148,7 @@
         <div class="link-top">
           <button type="button" id="bShop" title="上の店名欄へ移動します">店名</button>
           <select id="bMachine" aria-label="機種"></select>
+          <p class="note link-note" id="bLastMachineNote" hidden></p>
         </div>
         <div class="link-num" id="bSeatBox">
           <button type="button" class="step" id="bSeatMinus" aria-label="台番号を1つ戻す">−1</button>
@@ -197,7 +215,7 @@
   <section class="card">
     <h2>台番号別の傾向</h2>
     <div id="bySeat"></div>
-    <p class="note">同じ台番号のデータをまとめたものです。件数が少ないうちは参考程度に見てください。</p>
+    <p class="note">同じ台番号のデータをまとめたものです。件数が少ないうちは参考程度に見てください。行をタップすると、その台の記録を日付順で見られます。</p>
   </section>
 
   <section class="card">
@@ -211,6 +229,15 @@
     <p class="note" id="hint"></p>
   </section>
 </main>
+
+<!-- 台の履歴 -->
+<div class="ov" id="seatOverlay" hidden>
+  <div class="ov-box" role="dialog" aria-modal="true" aria-labelledby="seatTitle">
+    <p class="ov-h" id="seatTitle"></p>
+    <div class="ov-body" id="seatBody"></div>
+    <button type="button" class="primary" id="seatClose">閉じる</button>
+  </div>
+</div>
 
 <footer>
   <p>&copy; 2026 slot-tools.jp</p>
@@ -405,8 +432,102 @@ async function renderBySeat() {
     if (s) rows.push({ seat, s });
   }
   rows.sort((a, b) => b.s.avgSetting - a.s.avgSetting);
+  const shown = rows.slice(0, 40);
   $("bySeat").innerHTML = `<table><thead><tr><th>台番号</th><th>平均設定</th><th>設定4以上</th><th>件数</th><th>平均G</th></tr></thead><tbody>` +
-    rows.slice(0, 40).map((r) => fmtSum(r.s, `${r.seat}番`, false)).join("") + `</tbody></table>`;
+    shown.map((r) => fmtSum(r.s, `${r.seat}番`, false)).join("") + `</tbody></table>`;
+  // 行から台の履歴を開く。店が選ばれていないときはその台の最新の店で開く
+  $("bySeat").querySelectorAll("tbody tr").forEach((tr, i) => {
+    const seat = shown[i] && shown[i].seat;
+    if (seat == null) return;
+    tr.classList.add("tap");
+    tr.addEventListener("click", () => {
+      const s2 = shop || (ALL.filter((u) => String(u.seat) === String(seat))
+        .sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || {}).shop;
+      if (s2) openSeatHistory(s2, seat);
+    });
+  });
+}
+
+/* ---------- 台の履歴 ---------- */
+const machineNameOf = (u) => (MACHINES[u.machineId] ? MACHINES[u.machineId].name : u.machineName || "");
+
+function seatHistory(shop, seat) {
+  // 店が違えば別の台。日付の新しい順に並べる
+  return ALL.filter((u) => u.shop === shop && String(u.seat) === String(seat))
+    .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
+}
+
+function openSeatHistory(shop, seat) {
+  const list = seatHistory(shop, seat);
+  if (!list.length) return;
+  const withDiff = list.some((u) => u.diff != null);
+  // 同じ台番号でも日によって機種が違うことがある（入替）。その場合だけ行に機種名を添える
+  const mixed = new Set(list.map((u) => u.machineId)).size > 1;
+  $("seatTitle").textContent = `${shop}　${seat}番　${machineNameOf(list[0])}`;
+  const rate = (g, c) => (g > 0 && c > 0 ? `1/${(g / c).toFixed(1)}` : "−");
+  // 年は境目でだけ出す。基準は今年
+  let prevYear = String(new Date().getFullYear());
+  const body = list.map((u) => {
+    const p = String(u.date).split("-");
+    const dateTxt = (p[0] !== prevYear ? `${Number(p[0])}/` : "") + `${Number(p[1])}/${Number(p[2])}`;
+    prevYear = p[0];
+    const mch = mixed ? `<span class="mch">${esc(machineNameOf(u))}</span>` : "";
+    const head = `<td>${esc(dateTxt)}${mch}</td>`;
+    if (u.status === "broken" || !(u.games > 0)) {
+      return `<tr>${head}<td class="dim" colspan="${withDiff ? 6 : 5}">非稼働</td></tr>`;
+    }
+    const diffCell = withDiff
+      ? `<td class="${u.diff == null ? "" : u.diff >= 0 ? "plus" : "minus"}">${u.diff == null ? "−" : (u.diff >= 0 ? "+" : "") + u.diff.toLocaleString()}</td>`
+      : "";
+    return `<tr>${head}<td>${u.games.toLocaleString()}</td><td>${u.big}</td><td>${u.reg}</td>` +
+      `<td>${rate(u.games, u.big + u.reg)}</td><td>${rate(u.games, u.reg)}</td>${diffCell}</tr>`;
+  }).join("");
+  $("seatBody").innerHTML =
+    `<table><thead><tr><th>日付</th><th>G数</th><th>BIG</th><th>REG</th><th>合算</th><th>REG確率</th>` +
+    `${withDiff ? "<th>差枚</th>" : ""}</tr></thead><tbody>${body}</tbody></table>`;
+  $("seatOverlay").hidden = false;
+}
+
+function closeSeatHistory() { $("seatOverlay").hidden = true; }
+
+/* ---------- 台番号から機種を補完 ---------- */
+// ユーザーが手で機種を選んだか。台番号・店名を変えるまで自動補完で上書きしない
+let machinePicked = false;
+
+function lastMachineFor(shop, seat) {
+  const list = seatHistory(shop, seat);
+  // 直近の稼働日の機種＝いまその台に入っている機種
+  return list.length && MACHINES[list[0].machineId] ? list[0].machineId : null;
+}
+
+// 上の機種欄と連動欄の2か所に同じ文言を出す。出す・消すの条件は1か所で決める
+function showLastMachineNote(name) {
+  const text = name ? `前回登録：${name}` : "";
+  for (const id of ["lastMachineNote", "bLastMachineNote"]) {
+    $(id).textContent = text;
+    $(id).hidden = !name;
+  }
+}
+
+function autoPickMachine() {
+  const shop = $("iShop").value.trim(), seat = $("iSeat").value.trim();
+  if (machinePicked) { showLastMachineNote(""); return; }
+  if (!shop || !seat) { showLastMachineNote(""); return; }
+  const mid = lastMachineFor(shop, seat);
+  if (!mid) { showLastMachineNote(""); return; }   // 記録がなければ今の選択を保つ
+  if ($("iMachine").value !== mid) {
+    // change は飛ばさない（飛ばすと手で選んだ扱いになってしまう）
+    $("iMachine").value = mid;
+    renderTodayList();
+    syncBulkLink();
+  }
+  showLastMachineNote(MACHINES[mid].name);
+}
+
+// 台番号・店名が変わったら、手で選んだ機種の固定を解いて補完し直す
+function seatOrShopChanged() {
+  machinePicked = false;
+  autoPickMachine();
 }
 
 /* ---------- 入力 ---------- */
@@ -431,8 +552,11 @@ function renderTodayList() {
   const list = ALL.filter((u) => u.date === date && u.shop === shop && u.machineId === mid)
     .sort((a, b) => String(a.seat).localeCompare(String(b.seat), "ja", { numeric: true }));
   $("todayList").innerHTML = list.length
-    ? list.map((u) => `<div class="row"><span>${esc(u.seat)}番　${u.status === "broken" ? '<span class="broken">故障・非稼働</span>' : `${u.games.toLocaleString()}G　BIG${u.big}／REG${u.reg}${u.diff != null ? "　" + (u.diff >= 0 ? "+" : "") + u.diff.toLocaleString() : ""}`}</span><button type="button" data-del="${esc(u.id)}">削除</button></div>`).join("")
+    ? list.map((u) => `<div class="row"><span class="seat-open" data-seat="${esc(u.seat)}">${esc(u.seat)}番　${u.status === "broken" ? '<span class="broken">故障・非稼働</span>' : `${u.games.toLocaleString()}G　BIG${u.big}／REG${u.reg}${u.diff != null ? "　" + (u.diff >= 0 ? "+" : "") + u.diff.toLocaleString() : ""}`}</span><button type="button" data-del="${esc(u.id)}">削除</button></div>`).join("")
     : `<p class="empty">この日・この機種の登録はまだありません。</p>`;
+  $("todayList").querySelectorAll("[data-seat]").forEach((el) => {
+    el.addEventListener("click", () => openSeatHistory(shop, el.dataset.seat));
+  });
   $("todayList").querySelectorAll("[data-del]").forEach((b) => {
     b.addEventListener("click", async () => {
       await dbDel(b.dataset.del);
@@ -477,6 +601,7 @@ async function addUnit() {
   $("iBroken").checked = false;
   $("addHint").textContent = `${seat}番${broken ? "（故障・非稼働）" : ""}を登録しました。次の台番号は ${$("iSeat").value || "（手入力）"} です。`;
   await refresh();
+  seatOrShopChanged();
   $("iGames").focus();
 }
 
@@ -603,6 +728,7 @@ function stepSeat(d) {
   if (n == null) return;   // 空のときは何もしない
   $("iSeat").value = String(Math.max(0, n + d));
   syncBulkLink();
+  seatOrShopChanged();
 }
 
 function stepDate(d) {
@@ -674,6 +800,7 @@ async function bulkAddUnits() {
   const md = `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
   $("bulkHint").textContent = `${md}：${n}台を登録しました。${zero ? `うち${zero}台は0Gのため故障・非稼働として扱います。` : ""}${withSeat ? "" : `次の台番号は ${$("iSeat").value} です。`}`;
   await refresh();
+  seatOrShopChanged();
 }
 
 // 1台×複数日。台番号は固定、イベント名は日ごとに違うため付けない
@@ -719,8 +846,11 @@ async function bulkAddByDate() {
   showSkipped(skipped);
   // 1件でも登録できたら次の台へ進める（0件のときは動かさない）
   const seatNum = toInt(seat);
-  if (n > 0 && seatNum != null) $("iSeat").value = String(seatNum + 1);
+  const advanced = n > 0 && seatNum != null;
+  if (advanced) $("iSeat").value = String(seatNum + 1);
   await refresh();
+  // 進んだ先の台に記録があれば、その機種へ切り替える
+  if (advanced) seatOrShopChanged();
 }
 
 async function importFromMylog() {
@@ -788,8 +918,13 @@ async function init() {
   for (const id of ["iDate", "iShop", "iMachine", "iSeat"]) {
     for (const ev of ["input", "change"]) $(id).addEventListener(ev, syncBulkLink);
   }
-  $("bSeat").addEventListener("input", () => { $("iSeat").value = $("bSeat").value; });
-  $("bSeat").addEventListener("change", () => { $("iSeat").value = $("bSeat").value; syncBulkLink(); });
+  for (const id of ["iSeat", "iShop"]) {
+    for (const ev of ["input", "change"]) $(id).addEventListener(ev, seatOrShopChanged);
+  }
+  // 手で選んだ機種は、台番号・店名を変えるまで自動補完で上書きしない
+  $("iMachine").addEventListener("change", () => { machinePicked = true; showLastMachineNote(""); });
+  $("bSeat").addEventListener("input", () => { $("iSeat").value = $("bSeat").value; seatOrShopChanged(); });
+  $("bSeat").addEventListener("change", () => { $("iSeat").value = $("bSeat").value; syncBulkLink(); seatOrShopChanged(); });
   $("bMachine").addEventListener("change", () => {
     $("iMachine").value = $("bMachine").value;
     $("iMachine").dispatchEvent(new Event("change"));
@@ -806,6 +941,8 @@ async function init() {
   for (const id of ["cShop", "cMachine", "cDate", "optExclude", "optWeight"]) {
     $(id).addEventListener("change", async () => { await renderCompare(); await renderByDate(); await renderBySeat(); });
   }
+  $("seatClose").addEventListener("click", closeSeatHistory);
+  $("seatOverlay").addEventListener("click", (e) => { if (e.target === $("seatOverlay")) closeSeatHistory(); });
   $("exportBtn").addEventListener("click", doExport);
   $("importBtn").addEventListener("click", () => $("importFile").click());
   $("importFile").addEventListener("change", (e) => {
