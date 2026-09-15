@@ -107,3 +107,22 @@ export function moneyFromRecord(record) {
 export function isLegacyMoneyRecord(record) {
   return moneyFromRecord(record).legacy;
 }
+
+/**
+ * 勝ち負けを返す。**判定は円で行う。**
+ *
+ * 差枚（枚）で判定すると、非等価で「差枚±0枚・円はマイナス」になる負けが
+ * 勝ち扱いになる（貸出46枚・交換50枚で1,000円借りて46枚で終えた回＝−80円）。
+ *
+ * @param {object} money computeMoney / moneyFromRecord の戻り値
+ * @returns {("win"|"lose"|"draw"|null)} 収支が出せない記録は null
+ */
+export function resultOf(money) {
+  const m = money || {};
+  const cash = Number(m.cash);
+  if (m.cash != null && Number.isFinite(cash)) return cash > 0 ? "win" : cash < 0 ? "lose" : "draw";
+  // 円が出せない古い記録だけ、保存されている差枚で判定する
+  const diff = Number(m.diff);
+  if (m.diff != null && Number.isFinite(diff)) return diff > 0 ? "win" : diff < 0 ? "lose" : "draw";
+  return null;
+}
