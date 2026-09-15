@@ -65,7 +65,8 @@
   #bulkSkipped{margin-top:10px;background:var(--bg)}
   #bulkSkippedList{max-height:34dvh}
   @supports not (height:1dvh){#bulkSkippedList{max-height:34vh}}
-  #bulkSkippedList .row .why{color:var(--text-dim);flex:none}
+  #bulkSkippedList .row{flex-direction:column;align-items:stretch;gap:2px}
+  #bulkSkippedList .row .why{color:var(--text-dim);align-self:flex-end}
   .tips{margin:6px 0 0 1.3em;padding:0;color:var(--text-muted);font-size:12px;line-height:1.7}
   .tips li{margin-bottom:4px}
   .bulk textarea{background:var(--bg);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;padding:10px;width:100%;font-family:inherit;line-height:1.6;font-variant-numeric:tabular-nums}
@@ -364,9 +365,25 @@ function weekday(dateStr) {
 function isWeekend(dateStr) { const w = weekday(dateStr); return w === 0 || w === 6; }
 
 /* ---------- 集計 ---------- */
+// 同じ店・台番号・日付が複数あるとき（機種違いで登録された等）は、
+// 最後に保存した1件（savedAt が最新）だけを集計に使う。台の履歴では全件を出す
+function dedupeByDay(units) {
+  const best = new Map();
+  for (const u of units) {
+    const k = `${u.shop}|${u.seat}|${u.date}`;
+    const cur = best.get(k);
+    // savedAt が同じときは id の大きい方（機種名の順）を採り、毎回同じ結果にする
+    if (!cur || String(u.savedAt || "") > String(cur.savedAt || "") ||
+        (String(u.savedAt || "") === String(cur.savedAt || "") && String(u.id || "") > String(cur.id || ""))) {
+      best.set(k, u);
+    }
+  }
+  return [...best.values()];
+}
+
 async function summarize(units) {
   const excl = $("optExclude").checked, wt = $("optWeight").checked;
-  const use = units.filter((u) => u.status !== "broken" && u.games > 0 && (!excl || u.games >= 1000));
+  const use = dedupeByDay(units).filter((u) => u.status !== "broken" && u.games > 0 && (!excl || u.games >= 1000));
   if (!use.length) return null;
   let wSum = 0, expSum = 0, hiSum = 0, games = 0, big = 0, reg = 0;
   for (const u of use) {
@@ -536,6 +553,12 @@ function openSeatHistory(shop, seat) {
   // 集計に入る日かどうかは「集計の条件」と同じ判定で決める
   const excl = $("optExclude").checked;
   const counted = (u) => u.status !== "broken" && u.games > 0 && (!excl || u.games >= 1000);
+  // 上の機種セレクトで絞り込み中は、別機種の行にその印を付ける（履歴は全機種を出す）
+  const filterMid = $("cMachine").value;
+  // 同じ日が複数ある行と、そのうち集計に使われる1件
+  const perDate = new Map();
+  for (const u of list) perDate.set(u.date, (perDate.get(u.date) || 0) + 1);
+  const usedIds = new Set(dedupeByDay(list).map((u) => u.id));
   // 年は境目でだけ出す。基準は今年
   let prevYear = String(new Date().getFullYear());
   const body = list.map((u) => {
@@ -543,9 +566,16 @@ function openSeatHistory(shop, seat) {
     const dateTxt = (p[0] !== prevYear ? `${Number(p[0])}/` : "") + `${Number(p[1])}/${Number(p[2])}`;
     prevYear = p[0];
     const mch = mixed ? `<span class="mch">${esc(machineNameOf(u))}</span>` : "";
-    const out = counted(u) ? "" : `<span class="out-badge">対象外</span>`;
-    const trOpen = counted(u) ? "<tr>" : '<tr class="out">';
-    const head = `<td>${esc(dateTxt)}${out}${mch}</td>`;
+    // 印は「対象外」を優先し、集計に入る行だけ「絞り込み外」を出す（ラベルは1つ）
+    const offFilter = filterMid && u.machineId !== filterMid;
+    const dup = (perDate.get(u.date) || 0) > 1;
+    const unused = dup && !usedIds.has(u.id);
+    const badge = !counted(u) ? "対象外" : offFilter ? "絞り込み外" : "";
+    const badges = (badge ? `<span class="out-badge">${badge}</span>` : "") +
+      (dup ? `<span class="out-badge">重複</span>` : "");
+    const dim = !counted(u) || offFilter || unused;
+    const trOpen = dim ? '<tr class="out">' : "<tr>";
+    const head = `<td>${esc(dateTxt)}${badges}${mch}</td>`;
     if (u.status === "broken" || !(u.games > 0)) {
       return `${trOpen}${head}<td class="dim" colspan="${withDiff ? 6 : 5}">非稼働</td></tr>`;
     }
@@ -681,12 +711,25 @@ async function addUnit() {
 /* ---------- まとめて入力：行の解釈（1台×複数日） ---------- */
 // 表計算やスマホから貼られた全角をそのまま読めるようにする
 function normalizeBulkLine(s) {
-  return String(s)
-    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
-    .replace(/／/g, "/")
-    .replace(/[−－‐–—]/g, "-")
-    .replace(/＋/g, "+")
-    .replace(/[　 ]/g, " ");
+  return joinThousandCommas(
+    String(s)
+      .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+      .replace(/／/g, "/")
+      .replace(/[−－‐–—]/g, "-")
+      .replace(/＋/g, "+")
+      .replace(/，/g, ",")
+      .replace(/[\u3000 ]/g, " ")
+  );
+}
+
+// 桁区切りのカンマ（3,995 / 12,345 / -1,200）だけを取り除いて1つの数にする。
+// 当てるのは「数字,数字3桁」の形だけ。3,99 のような形はここで結合されないので
+// 区切り文字のまま残り、列数が合わなくなって「読めなかった行」に落ちる
+function joinThousandCommas(s) {
+  let out = String(s), prev;
+  const RE = new RegExp(String.raw`(\d),(\d{3})(?!\d)`, 'g');
+  do { prev = out; out = out.replace(RE, '$1$2'); } while (out !== prev);
+  return out;
 }
 
 // 9/14・9-14・09/14・2026/9/14 を YYYY-MM-DD にする。
@@ -712,19 +755,24 @@ function parseBulkDate(token, today) {
 // 1行＝1日。「日付 G数 BIG REG（差枚）」。読めない行は errors に落として他の行は通す
 function parseBulkByDate(text, withDiff, today) {
   const rows = [], errors = [];
+  const max = withDiff ? 5 : 4;   // 差枚なし4列・差枚あり5列。これを超える行は受けない
   String(text).split(/\r?\n/).forEach((raw) => {
     const src = raw.trim();
     if (!src) return;
+    const bad = (why) => errors.push({ text: src, why });
     const parts = normalizeBulkLine(src).trim().split(/[\s,、]+/);
     const num = (v) => (/^\d{1,7}$/.test(v) ? Number(v) : null);
-    if (parts.length < 4) { errors.push({ text: src }); return; }
+    if (parts.length < 4) { bad("列が足りない"); return; }
+    // 余分な列を黙って捨てない。桁区切り以外のカンマが混ざった行もここで落ちる
+    if (parts.length > max) { bad("列が多い"); return; }
     const date = parseBulkDate(parts[0], today);
+    if (!date) { bad("日付として読めない"); return; }
     const games = num(parts[1]), big = num(parts[2]), reg = num(parts[3]);
-    if (!date || games == null || big == null || reg == null) { errors.push({ text: src }); return; }
+    if (games == null || big == null || reg == null) { bad("数字として読めない"); return; }
     let diff = null;
     // 「差枚あり」のときだけ5つ目を読む。無い行はその行だけ未入力として通す
-    if (withDiff && parts.length >= 5) {
-      if (!/^[+-]?\d{1,7}$/.test(parts[4])) { errors.push({ text: src }); return; }
+    if (withDiff && parts.length === 5) {
+      if (!/^[+-]?\d{1,7}$/.test(parts[4])) { bad("数字として読めない"); return; }
       diff = Number(parts[4]);
     }
     rows.push({ text: src, date, games, big, reg, diff });
@@ -833,11 +881,18 @@ function parseBulk(text, withSeat) {
   lines.forEach((raw, i) => {
     const line = raw.trim();
     if (!line) return;
-    const nums = line.split(/[\s,、\t]+/).map((v) => toInt(v));
-    if (nums.some((v) => v == null)) { errors.push(`${i + 1}行目: 数字以外が入っています`); return; }
+    // 桁区切りのカンマは1つの数として読む（normalizeBulkLine）。
+    // それ以外のカンマは区切りのまま残るので、列数が合わずに下で弾かれる
+    const toks = normalizeBulkLine(line).trim().split(/[\s,、\t]+/);
     const need = withSeat ? 4 : 3;
-    if (nums.length < need) { errors.push(`${i + 1}行目: 項目が足りません`); return; }
-    if (nums.length > need + 1) { errors.push(`${i + 1}行目: 項目が多すぎます`); return; }
+    if (toks.length < need) { errors.push(`${i + 1}行目: 項目が足りません`); return; }
+    if (toks.length > need + 1) { errors.push(`${i + 1}行目: 項目が多すぎます`); return; }
+    // 最後の1つだけ符号を許す（差枚）。12abc のような混在は数として読まない
+    const nums = toks.map((v, k) => {
+      const ok = k === need && k === toks.length - 1 ? /^[+-]?\d{1,7}$/.test(v) : /^\d{1,7}$/.test(v);
+      return ok ? Number(v) : null;
+    });
+    if (nums.some((v) => v == null)) { errors.push(`${i + 1}行目: 数字以外が入っています`); return; }
     const seat = withSeat ? nums[0] : null;
     const rest = withSeat ? nums.slice(1) : nums;
     rows.push({ seat, games: rest[0], big: rest[1], reg: rest[2], diff: rest.length > 3 ? rest[3] : null });
@@ -908,7 +963,7 @@ async function bulkAddByDate() {
     });
     n++;
   }
-  for (const e of errors) skipped.push({ text: e.text, reason: "読めなかった行" });
+  for (const e of errors) skipped.push({ text: e.text, reason: "読めなかった行" + (e.why ? `（${e.why}）` : "") });
 
   // 1件も登録できなかったときは書き直せるように貼り付けた内容を残す
   if (n > 0) $("bulkText").value = "";
