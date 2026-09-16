@@ -79,6 +79,8 @@ textarea{min-height:80px;resize:vertical}
 .log .fbar button.on{background:var(--accent);border-color:var(--accent);color:#1a1200;font-weight:700}
 .log .fbar button.close{flex:0 0 auto;padding:6px 10px;color:var(--hot)}
 .log .empty{padding:16px;text-align:center;color:var(--dim);font-size:13px}
+.r2{display:flex;gap:6px;margin-top:6px}
+.r2 button{flex:1;min-height:46px;padding:12px 4px;font-weight:700;font-size:14px}
 .wide{width:100%;padding:12px;margin-top:6px;font-weight:600}
 .wide.dim{color:var(--dim)}
 .sheet{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.62);display:none;align-items:flex-end;padding-bottom:25vh;padding-bottom:25dvh}
@@ -204,8 +206,7 @@ textarea{min-height:80px;resize:vertical}
     </div>
     <div class="log" id="log"></div>
     <button class="wide dim" id="bUndo">直前を取り消す</button>
-    <button class="wide" id="bHint">設定判別</button>
-    <button class="wide" id="bUtil">投資・回収・出力</button>
+    <div class="r2"><button id="bHint">設定判別</button><button id="bUtil">投資・回収・出力</button></div>
   </section>
 
   <section id="scNote" class="hide">
