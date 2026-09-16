@@ -204,6 +204,7 @@ textarea{min-height:80px;resize:vertical}
     </div>
     <div class="log" id="log"></div>
     <button class="wide dim" id="bUndo">直前を取り消す</button>
+    <button class="wide" id="bHint">設定判別</button>
     <button class="wide" id="bUtil">投資・回収・出力</button>
   </section>
 
@@ -1437,6 +1438,18 @@ el("bReplay").addEventListener("click",()=>{
 function askCredit(){askNum("今の持ち玉（枚）",S.cur.money.credit||0,v=>{S.cur.money.credit=v;push("money","残数 "+v+"枚")})}
 
 /* ---------- ユーティリティ・終了 ---------- */
+el("bHint").addEventListener("click",()=>{
+  const d=DEF();
+  sheet("設定判別",b=>{
+    const hs=mk("button","go","設定示唆のまとめを見る");hs.addEventListener("click",()=>{closeSheet();showHintSummary(S.cur)});b.append(hs);
+    if(d.checker){
+      const co=mk("button","sub",d.checker.name+" を開く");co.addEventListener("click",()=>{window.open(d.checker.url,"_blank")});b.append(co);
+      const ck=mk("button","sub","今の記録をチェッカーへ送る");ck.style.color="var(--accent)";ck.addEventListener("click",()=>{closeSheet();sendToChecker(S.cur)});b.append(ck);
+    }else{
+      b.append(mk("div","hint","この機種は設定判別チェッカーと繋がっていません。まとめは見られます。"));
+    }
+  });
+});
 el("bUtil").addEventListener("click",()=>{
   sheet("投資・回収・出力",b=>{
     b.append(mk("div","lbl","この台を終わる"));const fin=mk("button","go","やめる（終了して記録する）");fin.addEventListener("click",()=>{closeSheet();finish()});b.append(fin);
@@ -1448,9 +1461,6 @@ el("bUtil").addEventListener("click",()=>{
     const e1=mk("button","sub","打ち始めの情報を直す");e1.addEventListener("click",()=>{closeSheet();editInfo(S.cur,()=>{render();el("hdTitle").textContent=S.cur.machine+" ／ "+hm(S.cur.startAt)+"〜"})});b.append(e1);
     const e2=mk("button","sub","お金の履歴を直す");e2.addEventListener("click",()=>{closeSheet();editMoney(S.cur,render)});b.append(e2);
     if((DEF()).yuuri){b.append(mk("div","lbl","有利区間"));const yb=mk("button","sub","有利区間切れ（引き継ぎ情報を消す）");yb.style.color="var(--hot)";yb.addEventListener("click",()=>{if(!confirm("次回報酬・報酬待ち・🍉残り・モード示唆・運命盤の回数を消します。よろしいですか？"))return;closeSheet();yuuriReset("手動")});b.append(yb)}
-    b.append(mk("div","lbl","設定判別"));const hs=mk("button","sub","設定示唆のまとめを見る");hs.addEventListener("click",()=>{closeSheet();showHintSummary(S.cur)});b.append(hs);
-    if((DEF()).checker){const co=mk("button","sub","設定判別チェッカーを開く");co.addEventListener("click",()=>{window.open((DEF()).checker.url,"_blank")});b.append(co);
-    const ck=mk("button","sub","今の記録をチェッカーへ送る");ck.style.color="var(--accent)";ck.addEventListener("click",()=>{closeSheet();sendToChecker(S.cur)});b.append(ck)}
     b.append(mk("div","lbl","記録を見る・書き出す"));const nt=mk("button","sub","ノートを開く");nt.addEventListener("click",()=>{closeSheet();showNote()});b.append(nt);
     b.append(mk("div","lbl","この台の記録を捨てる"));const dp=mk("button","sub","破棄する");dp.addEventListener("click",()=>{if(!confirm("この台の記録を捨てますか？"))return;S.cur=null;save();closeSheet();showSetup()});b.append(dp);
   });
