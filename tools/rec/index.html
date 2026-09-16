@@ -129,6 +129,7 @@ textarea{min-height:80px;resize:vertical}
 .recent button{padding:7px 11px;font-size:13px;color:var(--dim)}
 .recent button.on{color:#1A1509;background:var(--accent);border-color:var(--accent)}
 .err{color:var(--hot);font-size:12px;margin-top:8px}
+.note.fold{max-height:220px;overflow:hidden;-webkit-mask-image:linear-gradient(#000 70%,transparent);mask-image:linear-gradient(#000 70%,transparent)}
 .note{white-space:pre-wrap;font-family:var(--mono);font-size:12px;line-height:1.6}
 .sess{border:1px solid var(--line);border-radius:10px;margin:8px 0;overflow:hidden}
 .sess>summary{padding:11px 12px;background:var(--panel);cursor:pointer;list-style:none;display:flex;gap:8px;align-items:baseline}
@@ -272,7 +273,8 @@ const MACHINES={
     // 有利区間切れ：引き継ぎ前提の情報を消す。終了シートに確認を出す当選と、消すもの
     yuuri:{askOnEnd:["運命の一劇","上位AT"],clear:["rewardHint","pendingReward","melonLeft","modeHints","tags","parCount"]},
     rares:[
-      {key:"melon",label:"🍉",hint:"運命盤・CZ/AT終了で0",resetOnHitEnd:true,cutLog:true},
+      {key:"melon",label:"🍉",hint:"運命盤・CZ/AT終了で0",resetOnHitEnd:true,cutLog:true,
+        ask:{key:"aori",label:"運命盤の煽り",options:[{l:"なし"},{l:"あり",h:"残り回数の示唆？"}]}},
       {key:"cherryS",label:"強🍒",track:true,trigger:"強チェリー",trackHit:["機械仕掛けの女神"]},
       {key:"cherryW",label:"弱🍒",count:false},
       {key:"chance",label:"チャンス目",count:false},
@@ -290,7 +292,7 @@ const MACHINES={
       {label:"機械仕掛けの神",kind:"cz",keepG:true,grid:[["hitEnd","memo"]],czEnd:{groups:[],successToAt:"上位AT",failTo:"AT",failNote:"機械仕掛けの神 失敗は通常ATへ（AT中からなら元のATに戻る）"}},
       {label:"AT直撃",kind:"at",enter:"AT"},
       {label:"AT",kind:"at",hidden:true,
-        atStart:{groups:[{key:"stage",label:"開始ステージ",options:["勝","鳴海"]}],skipTriggers:["引き戻し"]},
+        atStart:{groups:[{key:"stage",label:"開始ステージ",options:[{l:"勝",h:"偶数UP"},{l:"鳴海",h:"奇数UP"},{l:"引き継ぎ",h:"前回のステージ。集計に入れない"}]}],skipTriggers:["引き戻し"]},
         atEnd:{note:"BETを押す前に、終了画面（1枚絵）とボイスを確認してください",groups:[
           {key:"screen",label:"1枚絵",options:["エレオノール","最古の四人","ルシール＆アンジェリーナ","歯車","鳴海＆勝","エレオノール（笑顔）"]},
           {key:"voice",label:"ボイス",options:[
@@ -324,7 +326,7 @@ const MACHINES={
       }
     ],
     stages:{
-      options:[["フウ屋敷／仲町サーカス","デフォルト"],["才賀善治屋敷 夕方","高確示唆"],["訪れし者","本前兆期待"]]
+      options:[["フウ屋敷","デフォルト"],["仲町サーカス","デフォルト"],["才賀善治屋敷 夕方","高確示唆"],["訪れし者","本前兆期待"]]
     },
     zenchou:{stages:["前兆煽り","前兆","前兆ステージ","訪れし者"],stageIndex:[2,3],cutStages:[0],outGroups:[
       {key:"x",label:"最終幕（任意）",options:["白","青","緑","赤","最終幕"]},
@@ -368,14 +370,19 @@ const MACHINES={
         {l:"笑顔のフランシーヌ",h:"3回以内に通常D",set:{mode:"3回以内に通常D有り",span:3}},
         {l:"アンジェリーナ",h:"5回以内に通常D",set:{mode:"5回以内に通常D有り",span:5}},
         {l:"リーゼ",h:"3回全て通常B以上",set:{mode:"3回以内全て通常B以上",span:3}},
-        {l:"敵4人",h:"要確認"},{l:"手",h:"要確認"},{l:"ギイ＆オリンピア",h:"要確認"},{l:"ピエロ",h:"要確認"},{l:"真夜中のサーカス",h:"要確認"},{l:"フェイスレス",h:"要確認"}
+        {l:"敵4人",h:"5回中2回以上 天国",set:{mode:"5回中2回以上 天国濃厚",span:5}},
+        {l:"手",h:"3回以内に天国",set:{mode:"3回以内に天国有り濃厚",span:3}},
+        {l:"ギイ＆オリンピア",h:"天国濃厚",set:{mode:"天国濃厚",span:1}},
+        {l:"ピエロ",h:"通常C or 天国",set:{mode:"通常C or 天国濃厚",span:1}},
+        {l:"真夜中のサーカス",h:"2回以内に天国",set:{mode:"2回以内に天国有り濃厚",span:2}},
+        {l:"フェイスレス",h:"5回中3回以上 天国",set:{mode:"5回中3回以上 天国濃厚",span:5}}
       ]},
       {key:"wipe",label:"ワイプ演出",options:["なし","スポットライトのみ","＋あるるかんシルエット","＋あるるかんアップ"]},
       {key:"stage",label:"開始ステージ",options:["フウ屋敷","仲町サーカス"]}
     ],successToAt:"AT"},
     atExtras:[
       {label:"激情ジャッジ",title:"激情ジャッジ",groups:[{key:"chara",label:"1回目の最初のキャラ",options:["ミンシア","リーゼロッテ","ヴィルマ","ジョージ"],required:true},{key:"result",label:"結果",options:["成功","失敗"]}]},
-      {label:"開始ステージ修正",type:"fixAtStart",title:"AT開始ステージを直す",groups:[{key:"stage",label:"開始ステージ",options:["勝","鳴海"],required:true}]},
+      {label:"開始ステージ修正",type:"fixAtStart",title:"AT開始ステージを直す",groups:[{key:"stage",label:"開始ステージ",required:true,options:[{l:"勝"},{l:"鳴海"},{l:"引き継ぎ",h:"集計に入れない"}]}]},
       {label:"枚数表示",title:"獲得枚数表示",groups:[{key:"n",label:"表示された枚数",options:["222","246","456","666"],required:true}]},
       {label:"EDランプ",title:"ED中 レア役のランプ",groups:[{key:"lamp",label:"色",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","高設定UP"],["赤","設定2以上UP"],["紫","設定4以上"],["虹","設定6"]],required:true}]}
     ],
@@ -844,7 +851,7 @@ function openRare(){
       sw.querySelector("button").classList.add("on");b.append(sw);
     }
     b.append(mk("div","lbl","引いた役"));
-    b.append(optRow(d.rares.map(r=>({l:r.label,r})),it=>{recordRare(it.r,strong);closeSheet()},"q4"));
+    b.append(optRow(d.rares.map(r=>({l:r.label,r})),it=>{closeSheet();recordRare(it.r,strong)},"q4"));
     b.append(mk("div","lbl","回数を直す（押し忘れ・押しすぎ）"));
     const rw=mk("div","opts");
     d.rares.forEach(r=>{
@@ -857,11 +864,19 @@ function openRare(){
     b.append(mk("div","hint","上のカウンターの数字を直接タップしても直せます。"));
   });
 }
-function recordRare(r,strong){
+function recordRare(r,strong,extra){
   const c=S.cur;
+  // 追加で聞くことがあるレア役（からくり2の🍉→運命盤の煽り）
+  if(r.ask&&extra===undefined){
+    sheet(r.label+"　"+r.ask.label,b=>{
+      b.append(optRow(r.ask.options,it=>{closeSheet();recordRare(r,strong,typeof it==="string"?it:it.l)}));
+    });
+    return;
+  }
   {
     {
       mark();const cell=c.rare[r.key];let lab=r.label,cnt="";
+      if(extra)lab+="（"+r.ask.label+"："+extra+"）";
       if(r.strong){const slot=strong?"s":"w";cell[slot]=(cell[slot]||0)+1;rareView=slot;lab=(strong?"強":"")+r.label;cnt="（"+cell[slot]+"回目）";push("rare",lab+cnt,{rareKey:r.key,slot})}
       else if(r.count===false){push("rare",lab,{rareKey:r.key,nocount:true})}
       else if(r.key==="melon"&&c.melonPhase&&c.melonPhase!=="normal"){
@@ -1434,7 +1449,8 @@ el("bUtil").addEventListener("click",()=>{
     const e2=mk("button","sub","お金の履歴を直す");e2.addEventListener("click",()=>{closeSheet();editMoney(S.cur,render)});b.append(e2);
     if((DEF()).yuuri){b.append(mk("div","lbl","有利区間"));const yb=mk("button","sub","有利区間切れ（引き継ぎ情報を消す）");yb.style.color="var(--hot)";yb.addEventListener("click",()=>{if(!confirm("次回報酬・報酬待ち・🍉残り・モード示唆・運命盤の回数を消します。よろしいですか？"))return;closeSheet();yuuriReset("手動")});b.append(yb)}
     b.append(mk("div","lbl","設定判別"));const hs=mk("button","sub","設定示唆のまとめを見る");hs.addEventListener("click",()=>{closeSheet();showHintSummary(S.cur)});b.append(hs);
-    if((DEF()).checker){const ck=mk("button","sub","今の記録をチェッカーへ送る");ck.style.color="var(--accent)";ck.addEventListener("click",()=>{closeSheet();sendToChecker(S.cur)});b.append(ck)}
+    if((DEF()).checker){const co=mk("button","sub","設定判別チェッカーを開く");co.addEventListener("click",()=>{window.open((DEF()).checker.url,"_blank")});b.append(co);
+    const ck=mk("button","sub","今の記録をチェッカーへ送る");ck.style.color="var(--accent)";ck.addEventListener("click",()=>{closeSheet();sendToChecker(S.cur)});b.append(ck)}
     b.append(mk("div","lbl","記録を見る・書き出す"));const nt=mk("button","sub","ノートを開く");nt.addEventListener("click",()=>{closeSheet();showNote()});b.append(nt);
     b.append(mk("div","lbl","この台の記録を捨てる"));const dp=mk("button","sub","破棄する");dp.addEventListener("click",()=>{if(!confirm("この台の記録を捨てますか？"))return;S.cur=null;save();closeSheet();showSetup()});b.append(dp);
   });
@@ -1535,7 +1551,7 @@ function toChecker(s){
       if(ev.hit==="AT"||ev.hit==="上位AT")inAt=false;
     }
     if(ev.type==="revive"){if(sel.screen)inc(o.screens,K2_MAP.screens,sel.screen);if(sel.voice)inc(o.atcz,K2_MAP.atcz,sel.voice)}
-    if(ev.type==="atStart"&&sel.stage)inc(o.stages,K2_MAP.stages,sel.stage);
+    if(ev.type==="atStart"&&sel.stage&&sel.stage!=="引き継ぎ")inc(o.stages,K2_MAP.stages,sel.stage);
     if(ev.type==="parStart"&&sel.reward)inc(o.zones,K2_MAP.zones,sel.reward);
     if(ev.type==="extra"){
       if(ev.extra==="激情ジャッジ"&&sel.chara&&!judged){inc(o.ed,K2_MAP.ed,sel.chara);judged=true}
@@ -1765,13 +1781,16 @@ function renderNote(){
     if(k!==cur){cur=k;const t=agg(S.sessions.filter(x=>dayKey(x)===k));const h=mk("div","dayhd");h.append(mk("div","d",k.slice(5)+"("+wd(s.startAt)+")"),mk("div","c",t.total+"台"));const v=mk("div","v",sgn(t.act)+"円");v.style.color=t.act>=0?"var(--ok)":"var(--hot)";h.append(v);w.append(h)}
     const p=profit(s),d=mk("details","sess"),sm=mk("summary");sm.append(mk("span","sm",hm(s.startAt)),mk("span","sn",s.machine));
     if(p){const pl=mk("span","pl",sgn(p.yen));pl.style.color=p.yen>=0?"var(--ok)":"var(--hot)";sm.append(pl)}
-    const bd=mk("div","body");bd.append(mk("div","note",sessionText(s)));
-    if(s.endAt){const one=mk("button","wide","この台をノート用に保存");one.addEventListener("click",()=>dlJson(toEnvelope(s),"kadonote-"+hm(s.startAt).replace(":","")+".json"));bd.append(one)}
-    const hs=mk("button","wide","設定示唆のまとめ");hs.addEventListener("click",()=>showHintSummary(s));bd.append(hs);
-    const ed1=mk("button","wide dim","打ち始め・終了の情報を直す");ed1.addEventListener("click",()=>editInfo(s,renderNote));bd.append(ed1);
-    const ed2=mk("button","wide dim","お金の履歴を直す");ed2.addEventListener("click",()=>editMoney(s,renderNote));bd.append(ed2);
-    const ed3=mk("button","wide dim","記録の修正・削除");ed3.addEventListener("click",()=>editLogs(s));bd.append(ed3);
-    if(s.endAt&&(MACHINES[s.machineId]||{}).checker){const ck=mk("button","wide","設定判別チェッカーへ送る");ck.style.color="var(--accent)";ck.addEventListener("click",()=>sendToChecker(s));bd.append(ck)}
+    const bd=mk("div","body");
+    const ops=mk("div","ops");bd.append(ops);
+    const txt=mk("div","note",sessionText(s));txt.classList.add("fold");bd.append(txt);
+    const tg=mk("button","wide dim","記録を全部見る");tg.addEventListener("click",()=>{const on=txt.classList.toggle("fold");tg.textContent=on?"記録を全部見る":"記録をたたむ"});bd.append(tg);
+    if(s.endAt){const one=mk("button","wide","この台をノート用に保存");one.addEventListener("click",()=>dlJson(toEnvelope(s),"kadonote-"+hm(s.startAt).replace(":","")+".json"));ops.append(one)}
+    const hs=mk("button","wide","設定示唆のまとめ");hs.addEventListener("click",()=>showHintSummary(s));ops.append(hs);
+    const ed1=mk("button","wide dim","打ち始め・終了の情報を直す");ed1.addEventListener("click",()=>editInfo(s,renderNote));ops.append(ed1);
+    const ed2=mk("button","wide dim","お金の履歴を直す");ed2.addEventListener("click",()=>editMoney(s,renderNote));ops.append(ed2);
+    const ed3=mk("button","wide dim","記録の修正・削除");ed3.addEventListener("click",()=>editLogs(s));ops.append(ed3);
+    if(s.endAt&&(MACHINES[s.machineId]||{}).checker){const ck=mk("button","wide","設定判別チェッカーへ送る");ck.style.color="var(--accent)";ck.addEventListener("click",()=>sendToChecker(s));ops.append(ck)}
     const del=mk("button","wide dim","この記録を削除");del.addEventListener("click",()=>{if(!confirm("削除しますか？"))return;S.sessions=S.sessions.filter(x=>x.id!==s.id);save();renderNote()});bd.append(del);
     d.append(sm,bd);w.append(d);
   });
@@ -1819,7 +1838,8 @@ function showSetup(){
   el("hdTitle").textContent="実戦記録";el("stLend").value=S.settings.lend;
   const w=el("stMachines");w.innerHTML="";pickedMachine=null;
   Object.keys(MACHINES).filter(k=>k!=="generic").forEach(k=>{const b=mk("button","",MACHINES[k].name);b.addEventListener("click",()=>{pickedMachine=k;el("stMachine").value=MACHINES[k].name;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSetupFields()});w.append(b)});
-  const seen=[];S.sessions.slice().reverse().forEach(s=>{if(s.machineId==="generic"&&!seen.includes(s.machine))seen.push(s.machine)});
+  const names=Object.keys(MACHINES).filter(k=>k!=="generic").map(k=>MACHINES[k].name);
+  const seen=[];S.sessions.slice().reverse().forEach(s=>{if(s.machineId==="generic"&&!seen.includes(s.machine)&&!names.includes(s.machine))seen.push(s.machine)});
   seen.slice(0,4).forEach(m=>{const b=mk("button","",m);b.addEventListener("click",()=>{pickedMachine=null;el("stMachine").value=m;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSetupFields()});w.append(b)});
   renderSetupFields();
 }
@@ -1834,6 +1854,10 @@ el("stStart").addEventListener("click",()=>{
   const m=el("stMachine").value.trim(),lend=int(el("stLend").value),e=el("stErr");
   if(!m){e.textContent="機種名を入れてください";e.classList.remove("hide");return}
   if(!lend||lend<=0){e.textContent="レートを入れてください";e.classList.remove("hide");return}
+  if(!pickedMachine){
+    const hit=Object.keys(MACHINES).find(k=>k!=="generic"&&MACHINES[k].name===m);
+    if(hit&&confirm("「"+m+"」には専用の記録画面があります。そちらで始めますか？")){pickedMachine=hit;renderSetupFields();e.textContent="専用の項目が出ました。内容を確認して、もう一度「打ち始める」を押してください。";e.classList.remove("hide");return}
+  }
   e.classList.add("hide");S.settings.lend=lend;
   const machineId=pickedMachine||"generic",d=MACHINES[machineId];
   const rare={};d.rares.forEach(r=>{rare[r.key]=r.strong?{w:0,s:0}:{n:0,hit:0,nMission:0,nPending:0}});
