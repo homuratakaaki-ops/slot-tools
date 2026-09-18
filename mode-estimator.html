@@ -534,6 +534,9 @@ function renderReplayCountOutput(replayFlash, outputArea){
     aMode: replayFlash.aMode
   });
   const badge = badgeForNotA(result.pNotA);
+  const endColor = document.getElementById("repflashEndColor").value;
+  const endTiming = document.getElementById("repflashEndTiming").value;
+  const endRecord = endColor && endTiming ? `${endColor}（${endTiming}）` : endColor || endTiming;
   outputArea.innerHTML = `
     <div class="result-box">
       <p class="note">対象リプレイ ${replays}回／リプフラ ${flashes}回</p>
@@ -549,6 +552,7 @@ function renderReplayCountOutput(replayFlash, outputArea){
         : "本表示は対象リプレイ回数とリプフラ回数のみからの確率推定であり、実際のモード・結果を保証するものではありません"}</p>
       <h3>モード別の事後確率</h3>
       ${renderModeRows(Object.entries(result.posterior).map(([mode, percent]) => ({ mode, percent })))}
+      ${endRecord ? `<div class="note">${escapeHtml(`記録：${endRecord}`)}</div>` : ""}
     </div>
   `;
 }
@@ -611,6 +615,7 @@ function renderReplayFlashOutput(){
 function bindReplayFlashInputs(scope){
   scope.querySelectorAll("input").forEach(input => input.addEventListener("input", renderReplayFlashOutput));
   scope.querySelectorAll('input[type="radio"],input[type="checkbox"]').forEach(input => input.addEventListener("change", renderReplayFlashOutput));
+  scope.querySelectorAll("select").forEach(select => select.addEventListener("change", renderReplayFlashOutput));
 }
 function addReplayFlashWinRow(values = {}){
   const list = document.getElementById("repflashWinList");
@@ -737,6 +742,29 @@ function renderReplayFlashSection(){
             <li>リプフラも同じ範囲で出たものだけを数える</li>
           </ul>
         </div>
+        <div class="field-grid">
+          <div>
+            <label class="field-label" for="repflashEndColor">終了時のリール色</label>
+            <select class="number-input" id="repflashEndColor">
+              <option value="">未入力</option>
+              <option value="赤">赤</option>
+              <option value="緑">緑</option>
+              <option value="青">青</option>
+              <option value="変化なし">変化なし</option>
+              <option value="虹">虹</option>
+            </select>
+          </div>
+          <div>
+            <label class="field-label" for="repflashEndTiming">出たタイミング</label>
+            <select class="number-input" id="repflashEndTiming">
+              <option value="">未入力</option>
+              <option value="飛翔抜け直前（0回目）">飛翔抜け直前（0回目）</option>
+              <option value="飛翔抜け後1回当てた後">飛翔抜け後1回当てた後</option>
+              <option value="リセット後1回目">リセット後1回目</option>
+            </select>
+          </div>
+        </div>
+        <div class="note">色とタイミングは記録用です。期待度の数字には反映されません。</div>
       </div>
     </div>
     <div id="repflashResultArea"></div>
