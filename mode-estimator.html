@@ -41,6 +41,8 @@
   .start-row .number-input{min-height:40px}
   .interval-list{display:grid;gap:8px;margin:6px 0}
   .interval-header,.interval-line{display:grid;grid-template-columns:1fr 72px 40px 40px;gap:6px;align-items:center}
+  .repflash-rep-line{grid-template-columns:1fr 1fr 1fr 40px 40px}
+  .interval-row.current .interval-line.repflash-rep-line{grid-template-columns:1fr 1fr 1fr 40px 40px}
   .interval-header{color:var(--text-muted);font-size:11px;font-weight:700;padding:0 4px}
   .interval-row{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:6px;padding:7px}
   .interval-row.current .interval-line{grid-template-columns:1fr 72px 40px 40px}
@@ -484,15 +486,6 @@ function applyReplayFlashInputMode(){
   });
   renderReplayFlashOutput();
 }
-function replayCountInputValue(id){
-  const element = document.getElementById(id);
-  const raw = String(element?.value ?? "").trim();
-  if(raw === ""){
-    return 0;
-  }
-  const value = Number(raw);
-  return Number.isInteger(value) && value >= 0 ? value : NaN;
-}
 function renderReplayFlashCriteriaTable(){
   return `
     <table class="criteria-table">
@@ -505,10 +498,41 @@ function renderReplayFlashCriteriaTable(){
     </table>
   `;
 }
+function replayCountObservedTotals(){
+  let replays = 0;
+  let flashes = 0;
+  let invalid = false;
+  let overCount = false;
+  const readValue = input => {
+    const value = Number(String(input.value).trim());
+    if(input.validity.badInput || !Number.isInteger(value) || value < 0){
+      invalid = true;
+    }
+    return value;
+  };
+  document.querySelectorAll(".repflash-rep-row").forEach(row => {
+    readValue(row.querySelector(".repflash-rep-games"));
+    const rowReplays = readValue(row.querySelector(".repflash-rep-replays"));
+    const rowFlashes = readValue(row.querySelector(".repflash-rep-flashes"));
+    if(row.querySelector(".repflash-rep-include").checked){
+      replays += rowReplays;
+      flashes += rowFlashes;
+      if(rowFlashes > rowReplays) overCount = true;
+    }
+  });
+  const currentGames = readValue(document.getElementById("repflashRepCurrentGames"));
+  const currentReplays = readValue(document.getElementById("repflashRepCurrentReplays"));
+  const currentFlashes = readValue(document.getElementById("repflashRepCurrentFlashes"));
+  if(document.getElementById("repflashRepCurrentInclude").checked){
+    replays += currentReplays;
+    flashes += currentFlashes;
+    if(currentFlashes > currentReplays) overCount = true;
+  }
+  return { replays, flashes, currentGames, invalid, overCount };
+}
 function renderReplayCountOutput(replayFlash, outputArea){
-  const replays = replayCountInputValue("repflashReplayTotal");
-  const flashes = replayCountInputValue("repflashReplayFlashes");
-  if(!Number.isInteger(replays) || !Number.isInteger(flashes)){
+  const { replays, flashes, currentGames, invalid, overCount } = replayCountObservedTotals();
+  if(invalid){
     outputArea.innerHTML = `
       <div class="result-box">
         <p class="effective-value warn" data-label="入力">対象リプレイ回数・リプフラ回数は0以上の整数で入力してください</p>
@@ -516,7 +540,7 @@ function renderReplayCountOutput(replayFlash, outputArea){
     `;
     return;
   }
-  if(flashes > replays){
+  if(overCount){
     outputArea.innerHTML = `
       <div class="result-box">
         <p class="effective-value warn" data-label="入力">リプフラ回数はリプレイ回数以下にしてください</p>
@@ -524,7 +548,15 @@ function renderReplayCountOutput(replayFlash, outputArea){
     `;
     return;
   }
-  const prior = window.RepflashBayes.normalizePrior(replayFlash.priors[replayFlashOriginId(replayFlash)]);
+  const originPrior = replayFlash.priors[replayFlashOriginId(replayFlash)];
+  const exclusions = [
+    ...(currentGames > 200 ? replayFlash.over200Excludes || [] : []),
+    ...(currentGames > 500 ? replayFlash.over500Excludes || [] : [])
+  ];
+  const excludedModes = exclusions.filter(mode => originPrior[mode] > 0);
+  const prior = exclusions.length
+    ? window.RepflashBayes.applyExclusions(originPrior, exclusions)
+    : window.RepflashBayes.normalizePrior(originPrior);
   const result = window.RepflashBayes.estimateByReplays({
     rates: replayFlash.rates,
     replayCycle: replayFlash.replayCycle,
@@ -539,7 +571,8 @@ function renderReplayCountOutput(replayFlash, outputArea){
   const endRecord = endColor && endTiming ? `${endColor}（${endTiming}）` : endColor || endTiming;
   outputArea.innerHTML = `
     <div class="result-box">
-      <p class="note">対象リプレイ ${replays}回／リプフラ ${flashes}回</p>
+      <p class="note">対象リプレイ ${replays}回／リプフラ ${flashes}回 ＝ ${flashes > 0 ? `1/${(replays / flashes).toFixed(1)}回` : "出現なし"}<br>参考：通常A 1/${(replayFlash.rates[replayFlash.aMode] / replayFlash.replayCycle).toFixed(1)}回 ／ チャンス以上 1/${(replayFlash.rates["チャンス"] / replayFlash.replayCycle).toFixed(1)}回</p>
+      ${excludedModes.length ? `<p class="note">現在${currentGames}G：${escapeHtml(excludedModes.join("・"))}を除外</p>` : ""}
       <h2>通常B以上期待度</h2>
       <div class="not-a-meter">
         <div class="not-a-value">${result.pNotA.toFixed(1)}%</div>
@@ -645,6 +678,32 @@ function addReplayFlashWinRow(values = {}){
   updateReplayFlashWinRowTitles();
   renderReplayFlashOutput();
 }
+function addReplayCountRow(values = {}){
+  const list = document.getElementById("repflashRepList");
+  if(!list){
+    return;
+  }
+  const row = document.createElement("div");
+  row.className = "interval-row repflash-rep-row";
+  row.innerHTML = `
+    <div class="interval-line repflash-rep-line">
+      <input class="number-input repflash-rep-games" type="number" inputmode="numeric" min="0" step="1" value="${escapeHtml(values.games ?? "")}" aria-label="当選G数">
+      <input class="number-input repflash-rep-replays" type="number" inputmode="numeric" min="0" step="1" value="${escapeHtml(values.replays ?? 0)}" aria-label="対象リプレイ回数">
+      <input class="number-input repflash-rep-flashes" type="number" inputmode="numeric" min="0" step="1" value="${escapeHtml(values.flashes ?? 0)}" aria-label="リプフラ回数">
+      <label class="include-check">
+        <input class="repflash-rep-include" type="checkbox" checked aria-label="計算に含める">
+      </label>
+      <button class="delete-button" type="button" aria-label="区間を削除">×</button>
+    </div>
+  `;
+  row.querySelector(".delete-button").addEventListener("click", () => {
+    row.remove();
+    renderReplayFlashOutput();
+  });
+  list.appendChild(row);
+  bindReplayFlashInputs(row);
+  renderReplayFlashOutput();
+}
 function updateReplayFlashWinRowTitles(){
   document.querySelectorAll(".repflash-win-row .effective-value").forEach((caption, index) => {
     caption.dataset.label = `区間${index + 1}`;
@@ -724,14 +783,25 @@ function renderReplayFlashSection(){
         </div>
       </div>
       <div id="repflashReplayInputs" hidden>
-        <div class="field-grid">
-          <div>
-            <label class="field-label" for="repflashReplayTotal">対象リプレイ回数</label>
-            <input class="number-input" id="repflashReplayTotal" type="number" inputmode="numeric" min="0" step="1" value="0">
-          </div>
-          <div>
-            <label class="field-label" for="repflashReplayFlashes">リプフラ回数</label>
-            <input class="number-input" id="repflashReplayFlashes" type="number" inputmode="numeric" min="0" step="1" value="0">
+        <h3>区間リスト</h3>
+        <div class="interval-header repflash-rep-line" aria-hidden="true">
+          <span>当選G数</span><span>リプレイ</span><span>リプフラ</span><span>含む</span><span></span>
+        </div>
+        <div class="interval-list" id="repflashRepList"></div>
+        <button class="add-button" id="repflashRepAddRow" type="button">＋区間を追加</button>
+        <h3>現在の区間</h3>
+        <div class="interval-header repflash-rep-line" aria-hidden="true">
+          <span>現在G数</span><span>リプレイ</span><span>リプフラ</span><span>含む</span><span></span>
+        </div>
+        <div class="interval-row current">
+          <div class="interval-line repflash-rep-line">
+            <input class="number-input" id="repflashRepCurrentGames" type="number" inputmode="numeric" min="0" step="1" aria-label="現在の液晶G数">
+            <input class="number-input" id="repflashRepCurrentReplays" type="number" inputmode="numeric" min="0" step="1" value="0" aria-label="対象リプレイ回数">
+            <input class="number-input" id="repflashRepCurrentFlashes" type="number" inputmode="numeric" min="0" step="1" value="0" aria-label="リプフラ回数">
+            <label class="include-check">
+              <input id="repflashRepCurrentInclude" type="checkbox" checked aria-label="計算に含める">
+            </label>
+            <div class="delete-spacer" aria-hidden="true"></div>
           </div>
         </div>
         <div class="note">
@@ -778,6 +848,8 @@ function renderReplayFlashSection(){
     </div>
     <div class="notice" id="repflashReplayNotice" hidden>
       <ul>
+        <li>合算は「全区間で同じモードにいた」と仮定した控えめな値です。途中でモードが上がっていた場合、実際はこれより高くなります</li>
+        <li>天井による除外は、現在の区間のG数だけで判定します。過去の区間のG数は記録用です</li>
         <li>リプレイ回数が少ないうちは、事前分布がほぼそのまま出ます。目安は50回以上</li>
         <li>チャンス・通常B・飛翔準備Aはリプフラ率が同じため区別できません。表示は通常A以外の合計です</li>
         <li>当選G数・当選契機によるモード推論（200G以内当選ならチャンス寄り等）は一切組み込んでいない。対象リプレイ回数とリプフラ回数のみの単純計算</li>
@@ -787,6 +859,7 @@ function renderReplayFlashSection(){
   const firstSection = document.querySelector("main .section");
   firstSection.before(section);
   document.getElementById("repflashAddRow").addEventListener("click", addReplayFlashWinRow);
+  document.getElementById("repflashRepAddRow").addEventListener("click", () => addReplayCountRow());
   document.getElementById("repflashImportButton")?.addEventListener("click", importReplayFlashFromNeraiRecord);
   section.querySelectorAll('input[name="repflashInputMode"]').forEach(input => {
     input.addEventListener("change", applyReplayFlashInputMode);

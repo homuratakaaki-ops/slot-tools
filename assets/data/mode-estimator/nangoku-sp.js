@@ -53,6 +53,7 @@ window.MODE_ESTIMATOR_MACHINE_DATA = {
     },
     originLabels: { reset: "設定変更後", hisyou: "飛翔モード終了後", superHisyou: "超飛翔モード終了後" },
     over200Excludes: ["チャンス", "飛翔準備B", "超飛翔準備"],
+    over500Excludes: ["飛翔準備A"],
     aMode: "通常A"
   },
   cases: {
