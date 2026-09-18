@@ -69,9 +69,66 @@
     return { posterior, pNotA };
   }
 
+  // 1リプレイあたりのリプフラ発生率。
+  // 解析値は「1/xxx G」で公表されているため、リプレイ確率（1/replayCycle）で割って
+  // 「1リプレイあたり」に直す。p = replayCycle / rate
+  function replayFlashRate(rate, replayCycle){
+    const rateValue = Number(rate);
+    const cycleValue = Number(replayCycle);
+    if(!Number.isFinite(rateValue) || rateValue <= 0) return 0;
+    if(!Number.isFinite(cycleValue) || cycleValue <= 0) return 0;
+    const p = cycleValue / rateValue;
+    return p > 0 && p < 1 ? p : 0;
+  }
+
+  function estimateByReplays({ rates, replayCycle, prior, replays, flashes, aMode = DEFAULT_A_MODE }){
+    const normalizedPrior = normalizePrior(prior);
+    const replayValue = Number(replays);
+    const flashValue = Number(flashes);
+    if(!Number.isInteger(replayValue) || replayValue < 0){
+      throw new Error("replays must be a non-negative integer");
+    }
+    if(!Number.isInteger(flashValue) || flashValue < 0){
+      throw new Error("flashes must be a non-negative integer");
+    }
+    if(flashValue > replayValue){
+      throw new Error("flashes must not exceed replays");
+    }
+
+    const modes = Object.keys(normalizedPrior);
+    // 二項分布の尤度。C(n,k) は全モード共通のため省略する
+    const logWeights = modes.map(mode => {
+      const priorValue = normalizedPrior[mode];
+      const p = replayFlashRate((rates || {})[mode], replayCycle);
+      if(priorValue <= 0 || p <= 0){
+        return [mode, Number.NEGATIVE_INFINITY];
+      }
+      const logLikelihood = flashValue * Math.log(p) + (replayValue - flashValue) * Math.log(1 - p);
+      return [mode, Math.log(priorValue / 100) + logLikelihood];
+    });
+
+    const maxLog = Math.max(...logWeights.map(([, value]) => value));
+    if(!Number.isFinite(maxLog)){
+      const posterior = Object.fromEntries(modes.map(mode => [mode, 0]));
+      return { posterior, pNotA: 0 };
+    }
+
+    const weights = logWeights.map(([mode, value]) => [mode, Math.exp(value - maxLog)]);
+    const totalWeight = weights.reduce((sum, [, value]) => sum + value, 0);
+    const posterior = Object.fromEntries(weights.map(([mode, value]) => [
+      mode,
+      totalWeight > 0 ? value / totalWeight * 100 : 0
+    ]));
+
+    const pNotA = 100 - (posterior[aMode] || 0);
+    return { posterior, pNotA };
+  }
+
   window.RepflashBayes = {
     normalizePrior,
     applyExclusions,
-    estimate
+    estimate,
+    replayFlashRate,
+    estimateByReplays
   };
 })();
