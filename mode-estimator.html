@@ -23,6 +23,9 @@
   .section{margin-top:20px}
   .section-label{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--gold);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
   .section-lead{font-size:13px;color:var(--text-muted);margin:-4px 0 10px 10px}
+  .tabbar{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:16px}
+  .tab-button{min-height:48px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text-muted);font-size:14px;font-weight:700;cursor:pointer;padding:6px 4px}
+  .tab-button.active{border-color:var(--gold);color:var(--gold-light);background:rgba(201,168,76,.12)}
   .mode-tool-intro{border-top:1px solid rgba(201,168,76,.32);margin-top:28px;padding-top:18px}
   .card,.result-box,.notice,details{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-bottom:10px}
   .axis{padding:12px 0;border-bottom:1px solid var(--border)}
@@ -38,27 +41,27 @@
   .check-option{margin-top:10px}
   .start-row{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center;margin-top:10px}
   .start-row .field-label{margin:0}
-  .start-row .number-input{min-height:40px}
+  .start-row .number-input{min-height:44px}
   .interval-list{display:grid;gap:8px;margin:6px 0}
-  .interval-header,.interval-line{display:grid;grid-template-columns:1fr 72px 40px 40px;gap:6px;align-items:center}
-  .repflash-rep-line{grid-template-columns:1fr 1fr 1fr 40px 40px}
-  .interval-row.current .interval-line.repflash-rep-line{grid-template-columns:1fr 1fr 1fr 40px 40px}
+  .interval-header,.interval-line{display:grid;grid-template-columns:1fr 72px 44px 44px;gap:6px;align-items:center}
+  .repflash-rep-line{grid-template-columns:1fr 1fr 1fr 44px 44px}
+  .interval-row.current .interval-line.repflash-rep-line{grid-template-columns:1fr 1fr 1fr 44px 44px}
   .interval-header{color:var(--text-muted);font-size:11px;font-weight:700;padding:0 4px}
   .interval-row{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:6px;padding:7px}
-  .interval-row.current .interval-line{grid-template-columns:1fr 72px 40px 40px}
+  .interval-row.current .interval-line{grid-template-columns:1fr 72px 44px 44px}
   .interval-row-title{color:var(--gold-light);font-size:12px;font-weight:700}
-  .interval-line .number-input{min-width:0;min-height:40px;font-size:15px;padding:7px 8px}
-  .include-check{display:grid;place-items:center;min-width:40px;min-height:40px}
+  .interval-line .number-input{min-width:0;min-height:44px;font-size:15px;padding:7px 8px}
+  .include-check{display:grid;place-items:center;min-width:44px;min-height:44px}
   .include-check input{width:20px;height:20px;margin:0}
   .effective-value{font-size:11px;color:var(--text-muted);line-height:1.35;margin-top:4px}
   .effective-value::before{content:attr(data-label) "・"}
   .effective-value.warn{color:var(--red);font-weight:700}
   .add-button,.delete-button{border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-weight:700;cursor:pointer}
-  .add-button{width:100%;min-height:42px;margin-top:6px}
+  .add-button{width:100%;min-height:44px;margin-top:6px}
   .count-pad{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
   .count-button{min-height:48px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;padding:6px 4px}
-  .delete-button{min-width:40px;height:40px;color:var(--text-muted);font-size:18px;line-height:1}
-  .delete-spacer{width:40px;height:40px}
+  .delete-button{min-width:44px;height:44px;color:var(--text-muted);font-size:18px;line-height:1}
+  .delete-spacer{width:44px;height:44px}
   .badge{display:inline-flex;align-items:center;border-radius:999px;font-size:12px;font-weight:700;padding:5px 10px;margin-bottom:10px;border:1px solid currentColor}
   .badge.strong{color:var(--green);background:rgba(95,196,135,.1)}.badge.lean-b{color:var(--blue);background:rgba(117,167,232,.1)}.badge.middle{color:var(--yellow);background:rgba(224,191,99,.1)}.badge.weak{color:var(--red);background:rgba(224,112,112,.1)}
   .current-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}
@@ -78,6 +81,7 @@
   .not-a-meter{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;margin-bottom:12px}
   .not-a-meter .bar-track{height:16px;grid-column:1 / -1}
   .not-a-value{color:var(--gold-light);font-size:22px;font-weight:800;line-height:1}
+  .label-sub{font-size:11px;color:var(--text-muted);margin:-6px 0 8px}
   .criteria-table{font-size:12px;margin:4px 0 10px}
   .criteria-table th,.criteria-table td{padding:6px;border-bottom-color:rgba(46,46,56,.75)}
   .bar-min,.bar-range{height:100%;position:absolute;top:0;border-radius:999px}
@@ -127,6 +131,13 @@
 </header>
 
 <main class="container">
+  <div id="loadingNotice" class="note">計算データを読み込み中…</div>
+  <nav class="tabbar">
+    <button class="tab-button active" id="tabBtnRepflash" type="button" aria-pressed="true">リプフラ判定</button>
+    <button class="tab-button" id="tabBtnModes" type="button" aria-pressed="false">状況別モード推測</button>
+  </nav>
+  <div id="tabRepflash"></div>
+  <div id="tabModes" hidden>
   <section class="section mode-tool-intro">
     <div class="section-label">状況別モード推測</div>
     <p class="section-lead">起点・初当たりG数・ボーナス結果から滞在モードの割合を推測します</p>
@@ -150,6 +161,7 @@
     </details>
     <p class="source" id="sourceArea"></p>
   </section>
+  </div>
 </main>
 
 
@@ -188,10 +200,12 @@ function loadMachine(){
   };
   script.onerror = () => {
     document.getElementById("resultArea").innerHTML = "<p>機種データを読み込めませんでした。</p>";
+    document.getElementById("loadingNotice").textContent = "計算データを読み込めませんでした";
   };
   document.head.appendChild(script);
 }
 function renderPage(){
+  document.getElementById("loadingNotice").hidden = true;
   document.getElementById("machineLead").textContent = `${machine.name}の起点、初当たりG数、ボーナス結果から推定します。`;
   renderInputs();
   renderDisclaimers();
@@ -574,9 +588,8 @@ function renderReplayCountOutput(replayFlash){
   const endRecord = endColor && endTiming ? `${endColor}（${endTiming}）` : endColor || endTiming;
   outputArea.innerHTML = `
     <div class="result-box">
-      <p class="note">対象リプレイ ${replays}回／リプフラ ${flashes}回 ＝ ${flashes > 0 ? `1/${(replays / flashes).toFixed(1)}回` : "出現なし"}<br>参考：通常A 1/${(replayFlash.rates[replayFlash.aMode] / replayFlash.replayCycle).toFixed(1)}回 ／ チャンス以上 1/${(replayFlash.rates["チャンス"] / replayFlash.replayCycle).toFixed(1)}回</p>
-      ${excludedModes.length ? `<p class="note">現在${currentGames}G：${escapeHtml(excludedModes.join("・"))}を除外</p>` : ""}
-      <h2>通常B以上期待度</h2>
+      <h2>通常A否定期待度</h2>
+      <div class="label-sub">＝通常A以外の合計</div>
       ${replays === 0 ? `
       <div class="badge middle">未判定</div>
       <p class="note">リプレイを数えると期待度が出ます（起点の振り分けのみ：通常A以外 ${result.pNotA.toFixed(1)}%）</p>
@@ -586,6 +599,10 @@ function renderReplayCountOutput(replayFlash){
         <div class="badge ${escapeHtml(badge.level)}">${escapeHtml(badge.label)}</div>
         <div class="bar-track"><div class="bar" style="width:${clampPercent(result.pNotA)}%"></div></div>
       </div>
+      `}
+      <p class="note">対象リプレイ ${replays}回／リプフラ ${flashes}回 ＝ ${flashes > 0 ? `1/${(replays / flashes).toFixed(1)}回` : "出現なし"}<br>参考：通常A 1/${(replayFlash.rates[replayFlash.aMode] / replayFlash.replayCycle).toFixed(1)}回 ／ チャンス・通常B・飛翔準備A：1/${(replayFlash.rates["チャンス"] / replayFlash.replayCycle).toFixed(1)}回</p>
+      ${excludedModes.length ? `<p class="note">現在${currentGames}G：${escapeHtml(excludedModes.join("・"))}を除外</p>` : ""}
+      ${replays === 0 ? "" : `
       <p class="note">本表示は対象リプレイ回数とリプフラ回数のみからの確率推定であり、実際のモード・結果を保証するものではありません</p>
       `}
       <h3>${replays === 0 ? "起点の振り分け" : "モード別の事後確率"}</h3>
@@ -632,7 +649,8 @@ function renderReplayFlashOutput(){
   outputArea.innerHTML = `
     <div class="result-box">
       <p class="note">実効観測 ${totals.games}G／リプフラ${totals.count}回</p>
-      <h2>A否定度 P(通常B以上)</h2>
+      <h2>通常A否定期待度</h2>
+      <div class="label-sub">＝通常A以外の合計</div>
       <div class="not-a-meter">
         <div class="not-a-value">${result.pNotA.toFixed(1)}%</div>
         <div class="badge ${escapeHtml(badge.level)}">${escapeHtml(badge.label)}</div>
@@ -744,8 +762,6 @@ function renderReplayFlashSection(){
   section.className = "section";
   section.id = "repflashSection";
   section.innerHTML = `
-    <div class="section-label">リプフラ判定（A否定）</div>
-    <p class="section-lead">モードA（通常A）をどれだけ否定できているかを数値で示します</p>
     <div class="card" id="repflashInputArea">
       <div class="axis">
         <div class="axis-title">起点</div>
@@ -832,6 +848,9 @@ function renderReplayFlashSection(){
         </div>
         <div class="interval-list" id="repflashRepList"></div>
         <button class="add-button" id="repflashRepAddRow" type="button">＋区間を追加</button>
+        <details>
+          <summary>任意：終了時の色も記録する</summary>
+          <div class="details-body">
         <div class="field-grid">
           <div>
             <label class="field-label" for="repflashEndColor">終了時のリール色</label>
@@ -855,13 +874,21 @@ function renderReplayFlashSection(){
           </div>
         </div>
         <div class="note">色とタイミングは記録用です。期待度の数字には反映されません。</div>
+          </div>
+        </details>
         <div class="note">
           <strong>対象リプレイの数え方</strong>
+          <ul>
+            <li>液晶42G以降だけ数える</li>
+            <li>さざなみ前兆後の8Gは除外</li>
+          </ul>
+          <details><summary>詳しく見る</summary><div class="details-body">
           <ul>
             <li>液晶42G以降のリプレイだけを数える（1〜41Gはバタフライ＋ときめきゾーン中で抽選対象外）</li>
             <li>さざなみ前兆中（発生Gの直後8G：G+1〜G+8）のリプレイは数えない</li>
             <li>リプフラも同じ範囲で出たものだけを数える</li>
           </ul>
+          </div></details>
         </div>
         <div id="repflashRepCriteria"></div>
       </div>
@@ -885,9 +912,9 @@ function renderReplayFlashSection(){
       </ul>
     </div>
   `;
-  const firstSection = document.querySelector("main .section");
-  firstSection.before(section);
-  document.getElementById("repflashRepCriteria").innerHTML = renderReplayFlashCriteriaTable();
+  document.getElementById("tabRepflash").appendChild(section);
+  document.getElementById("repflashRepCriteria").innerHTML =
+    `<details><summary>判定基準を見る</summary><div class="details-body">${renderReplayFlashCriteriaTable()}</div></details>`;
   document.getElementById("repflashCountReplay").addEventListener("click", () => updateReplayCount("replay"));
   document.getElementById("repflashCountFlash").addEventListener("click", () => updateReplayCount("flash"));
   document.getElementById("repflashCountUndo").addEventListener("click", () => updateReplayCount("undo"));
@@ -988,6 +1015,17 @@ function renderReference(){
 function renderSource(){
   document.getElementById("sourceArea").innerHTML = `出典：<a href="${escapeHtml(machine.sourceUrl)}" target="_blank" rel="noopener">${escapeHtml(machine.sourceName)}</a> / データ確認日：${escapeHtml(machine.lastUpdated)}`;
 }
+["Repflash", "Modes"].forEach(tab => {
+  document.getElementById(`tabBtn${tab}`).addEventListener("click", () => {
+    ["Repflash", "Modes"].forEach(name => {
+      const active = name === tab;
+      document.getElementById(`tab${name}`).hidden = !active;
+      const button = document.getElementById(`tabBtn${name}`);
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+  });
+});
 loadMachine();
 </script>
 
