@@ -1743,6 +1743,153 @@
       font-weight: 700;
     }
 
+    /* S38/§1-1: ラウンド登録ボタン。横一列・同じ幅で、指で狙える大きさにする */
+    .hit-round-buttons {
+      display: grid;
+      grid-auto-flow: column;
+      grid-auto-columns: 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .hit-round-buttons button {
+      min-height: 72px;
+      padding: 4px;
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    /* S38/§1-2,1-4: 確認エリア。主役は登録ボタンではなく、大きく読める記録結果 */
+    .hit-confirm {
+      margin-top: 12px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f8fafc;
+    }
+
+    .hit-confirm h4 {
+      margin: 0 0 8px;
+      font-size: 13px;
+    }
+
+    .hit-confirm-total {
+      margin: 0 0 10px;
+      font-size: 16px;
+      line-height: 1.2;
+    }
+
+    .hit-confirm-total strong {
+      font-size: 30px;
+      font-weight: 700;
+    }
+
+    .hit-chain-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+    }
+
+    .hit-chain-card {
+      padding: 8px 4px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      text-align: center;
+    }
+
+    .hit-chain-card.latest {
+      border-color: var(--accent);
+      border-width: 2px;
+      background: var(--soft);
+    }
+
+    .hit-chain-order {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .hit-chain-latest {
+      margin-left: 4px;
+      padding: 0 4px;
+      border-radius: 4px;
+      background: var(--accent);
+      color: #fff;
+      font-size: 11px;
+    }
+
+    .hit-chain-card strong {
+      display: block;
+      margin-top: 2px;
+      font-size: 30px;
+      font-weight: 700;
+      line-height: 1.1;
+    }
+
+    .hit-confirm-breakdown {
+      margin: 10px 0 0;
+      font-size: 14px;
+    }
+
+    .hit-confirm-empty {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    /* S38/§1-3: 記録直後の確認と取り消しは1行にまとめる。ボタンは既定の min-height 44px を保つ */
+    .hit-confirm-action {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+
+    .hit-confirm-recorded {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .hit-confirm-action button {
+      min-height: 44px;
+    }
+
+    .hit-compare-line {
+      margin: 0;
+      font-size: 15px;
+    }
+
+    .hit-compare-line strong {
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .hit-compare-note {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    /* S38/§1-5: 補助入力の折りたたみ。既定は閉じる */
+    .hit-extra {
+      margin-top: 12px;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .hit-extra > summary {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
     .phase-note {
       margin-top: 8px;
       color: var(--muted);
@@ -2065,7 +2212,7 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 37;
+    const APP_VERSION_SEQ = 38;
     const APP_VERSION_DATE = "2026-09-20";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
@@ -7632,6 +7779,21 @@
       return pool[pool.length - 1].id;
     }
 
+    // S38/§1-1: 登録ボタンと内訳は R数の小さい順で出す（プリセットの配列は降順のため）。
+    // R数が取れない種別は元の並びのまま末尾へ回す。プリセットのデータは書き換えない。
+    function orderedRoundTypes(presetId) {
+      const roundTypes = presetById(presetId)?.roundTypes || [];
+      return roundTypes
+        .map((type, index) => ({ type, index, rounds: roundCountFromRoundType(type) }))
+        .sort((a, b) => {
+          if (a.rounds === null && b.rounds === null) return a.index - b.index;
+          if (a.rounds === null) return 1;
+          if (b.rounds === null) return -1;
+          return a.rounds - b.rounds || a.index - b.index;
+        })
+        .map((item) => item.type);
+    }
+
     // S4/C-4: R種別ごとの内訳と合計R。引いていない種別は行にしない。
     function roundBreakdown(hits, presetId) {
       const roundTypes = presetById(presetId)?.roundTypes || [];
@@ -7649,7 +7811,8 @@
         totalRounds += rounds * count;
         return `${type.label}×${count.toLocaleString("ja-JP")}`;
       }).filter(Boolean);
-      return { rows, totalRounds, hitCount: (Array.isArray(hits) ? hits : []).length };
+      // S38/§1-2: 0回の種別も出す内訳のために、既に数えている counts をそのまま渡す（集計は変えない）。
+      return { rows, totalRounds, counts, hitCount: (Array.isArray(hits) ? hits : []).length };
     }
 
     // S4/C-4: 今回の連チャン＝最新の当選と同じ区間に紐づく当たり群。区間モデルで機械的に切り出す。
@@ -7660,8 +7823,54 @@
       return hits.filter((hit) => resolveHitSegmentId(session, hit) === chainSegmentId);
     }
 
+    // S38/§1-2,1-3,1-4: 大当たり登録の確認エリア。R種別のタップと取り消しでここだけ差し替えるので、
+    // 画面を開き直さずに済む（入力途中の値・折りたたみの開閉・スクロール位置が保たれる）。
+    // 集計は currentChainHits と roundBreakdown をそのまま使い、新しい数え方は作らない。
+    // lastActionText は直前の操作の結果（「6Rを記録しました」「6Rを取り消しました」）。無いときは null。
+    function hitRecordConfirmHtml(session, presetId, lastActionText = null) {
+      const hits = normalizeHits(session?.hits);
+      const chainHits = currentChainHits(session, hits);
+      const chain = roundBreakdown(chainHits, presetId);
+      const types = orderedRoundTypes(presetId);
+      const cards = chainHits.map((hit, index) => {
+        const label = roundTypeById(presetId, hit?.roundTypeId)?.label || "-";
+        const latest = index === chainHits.length - 1;
+        return `<div class="hit-chain-card${latest ? " latest" : ""}">
+          <span class="hit-chain-order">${(index + 1).toLocaleString("ja-JP")}回目${latest ? '<span class="hit-chain-latest">最新</span>' : ""}</span>
+          <strong>${escapeHtml(label)}</strong>
+        </div>`;
+      }).join("");
+      const breakdown = types.map((type) => `${escapeHtml(type.label)}：${(chain.counts.get(type.id) || 0).toLocaleString("ja-JP")}回`).join(" ／ ");
+      // S38/§1-4: 「今回」は連チャンではなく稼働全体の当たり回数。実機と自動で突き合わせはしない。
+      const startTotalHits = normalizeNumber(session?.startTotalHits);
+      const sessionHitCount = hits.length;
+      const compare = startTotalHits === null
+        ? '<p class="hit-compare-note">開始時の回数が未入力のため見比べられません。記録の修正で入れられます。</p>'
+        : `<p class="hit-compare-line">開始時 ${startTotalHits.toLocaleString("ja-JP")} ＋ 今回 ${sessionHitCount.toLocaleString("ja-JP")} ＝ <strong>${(startTotalHits + sessionHitCount).toLocaleString("ja-JP")}回</strong></p>
+           <p class="hit-compare-note">（今回＝この稼働の合計）</p>`;
+      return `
+        <div class="hit-confirm">
+          <h4>この連チャンの記録</h4>
+          ${chainHits.length
+            ? `<p class="hit-confirm-total"><strong>${chain.hitCount.toLocaleString("ja-JP")}回</strong>／合計<strong>${chain.totalRounds.toLocaleString("ja-JP")}R</strong></p>
+               <div class="hit-chain-cards">${cards}</div>
+               <p class="hit-confirm-breakdown">${breakdown}</p>`
+            : '<p class="hit-confirm-empty">まだ記録がありません</p>'}
+        </div>
+        <div class="hit-confirm-action">
+          <span class="hit-confirm-recorded">${lastActionText ? escapeHtml(lastActionText) : ""}</span>
+          <button class="small" id="undoHitRoundBtn"${lastHitRecordIndex(session) >= 0 ? "" : " disabled"}>直前を取り消す</button>
+        </div>
+        <div class="hit-confirm hit-compare">
+          <h4>データカウンターの当日大当たり回数と見比べる</h4>
+          ${compare}
+        </div>
+      `;
+    }
+
     // S4/C-4,C-5,C-7: 連チャンとセッション合計を分けて出す。出玉は実測の1R当たり玉数だけを見せ、
     // 実測が無いときは理論値（R数×公称）で代用しない。
+    // S38/§1-2: 大当たり登録の確認エリアは hitRecordConfirmHtml へ移したので、ここは現在どこからも呼ばない。
     function hitRoundSummaryHtml(session, presetId) {
       const hits = normalizeHits(session?.hits);
       const sessionBreakdown = roundBreakdown(hits, presetId);
@@ -7704,57 +7913,49 @@
       const machine = data.machines.find((item) => item.id === session.machineId);
       const presetId = normalizeMachinePresetId(machine);
       const jitanOptions = jitanExitOptions(presetId);
-      const roundTypes = presetById(presetId)?.roundTypes || [];
       const hitCounterSpin = hitCounterSpinForRecord(session);
-      // S24/§B-2: R種別のタップごとにこの画面を開き直すので、画面内の選択・入力は下書きに残す。
+      // S24/§B-2 → S38/§1-3: R種別のタップでは開き直さなくなったが、画面を閉じて開き直したときのために
+      // 画面内の選択・入力は下書きに残す。
       const draft = hitResetDraftFor(session);
       const startBallsPreset = jitanExitStartBallsPreset(session, presetId, machine);
       const startBallsValue = draft.startBallsTouched ? draft.startBalls : null;
       const startBallsEstimate = startBallsPreset.estimate;
       const shootingSelected = draft.shooting ?? defaultShootingForSession(session);
-      const undoableHit = lastHitRecordIndex(session) >= 0;
       openModal("大当たり登録", "R数と獲得出玉を記録し、時短が終わったらカウンターの表示に合わせてください。選ばずに閉じると、現在回転数はそのままです。", `
         ${machineContextLine(session)}
         ${holdCarryNoticeHtml(session)}
-        <div class="field-row">
-          <label>当選ごとのラウンド記録</label>
-          <div class="hit-round-layout">
-            <div>
-              <div class="quick-invest">
-                ${roundTypes.map((type) => `<button data-hit-round="${escapeHtml(type.id)}">${escapeHtml(type.label)} +1</button>`).join("") || '<span class="hint">このプリセットにはラウンド種別がありません。</span>'}
-                <button class="small" id="undoHitRoundBtn"${undoableHit ? "" : " disabled"}>取り消し</button>
-              </div>
-              <p class="hint">当選カウンター <strong>${numberText(hitCounterSpin, "-")}</strong>（当選ウィザードで記録した値です。変えるときは「大当たり履歴」から）</p>
-              <label for="hitRecordActualBalls">この連チャンの累計出玉</label>
-              <input id="hitRecordActualBalls" inputmode="numeric" placeholder="この連チャンの累計出玉（実機：データカウンター）任意">
-              <p class="hint hint-help">いま表示されている、この連チャンの累計出玉を入力してください。時短が終わると0に戻ります。前回の入力との差が、今回の当たりの出玉になります。</p>
-            </div>
-            ${hitRoundSummaryHtml(session, presetId)}
-          </div>
+        <p class="hint">当選カウンター <strong>${numberText(hitCounterSpin, "-")}</strong>（当選ウィザードで記録した値です。変えるときは「大当たり履歴」から）</p>
+        <div class="hit-round-buttons">
+          ${orderedRoundTypes(presetId).map((type) => `<button data-hit-round="${escapeHtml(type.id)}">${escapeHtml(type.label)}</button>`).join("") || '<span class="hint">このプリセットにはラウンド種別がありません。</span>'}
         </div>
-        <div class="field-row">
-          <label>時短が終わりました（実機：データカウンターの表示）</label>
-          <div>
-            <label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）</label>
-            <input id="jitanExitStartBalls" inputmode="numeric" value="${escapeHtml(startBallsValue ?? "")}">
-            <p class="hint" id="jitanExitStartBallsRequired">台の持ち玉を入力すると、時短抜けを確定できます</p>
-            <p class="hint hint-help">ここからの回転率を出す起点になります。計数機に入れたときは実際の値に直してください。持ち玉はこの欄だけで記録します。</p>
-            ${startBallsEstimate ? `<p class="hint">参考：前回${escapeHtml(startBallsEstimate.base.toLocaleString("ja-JP"))}玉＋${startBallsEstimate.kind === "actual" ? `累計出玉${escapeHtml(startBallsEstimate.chainBalls.toLocaleString("ja-JP"))}玉` : `${escapeHtml(startBallsEstimate.rounds.toLocaleString("ja-JP"))}R×${escapeHtml(startBallsEstimate.perRound.toLocaleString("ja-JP"))}玉`}＝約${escapeHtml(startBallsPreset.value.toLocaleString("ja-JP"))}玉。台の表示を入力してください</p>` : ""}
-            <div class="quick-invest">
-              ${jitanOptions.map((option) => `<button data-hit-reset="${option.counterSpin}" disabled>時短${option.jitanSpins} → カウンター${option.counterSpin}</button>`).join("") || '<span class="hint">この機種には時短のプリセットがありません。直接入力してください。</span>'}
-            </div>
-            <label>この後</label>
-            <div class="style-choice">
-              ${["before", "started"].map((value) => `<button type="button" class="jitanShootingChoice${value === shootingSelected ? " selected" : ""}" data-shooting="${value}" aria-pressed="${value === shootingSelected ? "true" : "false"}">${value === "before" ? "打ち出しを止める（保留を待つ）" : "打ち出しを続ける"}</button>`).join("")}
-            </div>
-            <p class="hint hint-help">打ち方の方針から選んであります。止めた場合は、打ち出したときに「打ち出し開始」を押してください。</p>
-            <div class="grid two">
-              <input id="jitanExitSpin" inputmode="numeric" placeholder="直接入力（回転数）">
-              <button id="applyJitanExitBtn" disabled>この回転数で開始</button>
-            </div>
-            <p class="hint hint-help">選ばずに閉じると、現在回転数はそのままです。</p>
+        <div id="hitRecordConfirm">${hitRecordConfirmHtml(session, presetId)}</div>
+        <details class="hit-extra">
+          <summary>出玉を記録する（任意）</summary>
+          <label for="hitRecordActualBalls">この連チャンの累計出玉</label>
+          <input id="hitRecordActualBalls" inputmode="numeric" placeholder="この連チャンの累計出玉（実機：データカウンター）任意">
+          <p class="hint hint-help">いま表示されている、この連チャンの累計出玉を入力してください。時短が終わると0に戻ります。前回の入力との差が、今回の当たりの出玉になります。</p>
+        </details>
+        <details class="hit-extra">
+          <summary>時短が終わったら</summary>
+          <label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）</label>
+          <input id="jitanExitStartBalls" inputmode="numeric" value="${escapeHtml(startBallsValue ?? "")}">
+          <p class="hint" id="jitanExitStartBallsRequired">台の持ち玉を入力すると、時短抜けを確定できます</p>
+          <p class="hint hint-help">ここからの回転率を出す起点になります。計数機に入れたときは実際の値に直してください。持ち玉はこの欄だけで記録します。</p>
+          ${startBallsEstimate ? `<p class="hint">参考：前回${escapeHtml(startBallsEstimate.base.toLocaleString("ja-JP"))}玉＋${startBallsEstimate.kind === "actual" ? `累計出玉${escapeHtml(startBallsEstimate.chainBalls.toLocaleString("ja-JP"))}玉` : `${escapeHtml(startBallsEstimate.rounds.toLocaleString("ja-JP"))}R×${escapeHtml(startBallsEstimate.perRound.toLocaleString("ja-JP"))}玉`}＝約${escapeHtml(startBallsPreset.value.toLocaleString("ja-JP"))}玉。台の表示を入力してください</p>` : ""}
+          <div class="quick-invest">
+            ${jitanOptions.map((option) => `<button data-hit-reset="${option.counterSpin}" disabled>時短${option.jitanSpins} → カウンター${option.counterSpin}</button>`).join("") || '<span class="hint">この機種には時短のプリセットがありません。直接入力してください。</span>'}
           </div>
-        </div>
+          <label>この後</label>
+          <div class="style-choice">
+            ${["before", "started"].map((value) => `<button type="button" class="jitanShootingChoice${value === shootingSelected ? " selected" : ""}" data-shooting="${value}" aria-pressed="${value === shootingSelected ? "true" : "false"}">${value === "before" ? "打ち出しを止める（保留を待つ）" : "打ち出しを続ける"}</button>`).join("")}
+          </div>
+          <p class="hint hint-help">打ち方の方針から選んであります。止めた場合は、打ち出したときに「打ち出し開始」を押してください。</p>
+          <div class="grid two">
+            <input id="jitanExitSpin" inputmode="numeric" placeholder="直接入力（回転数）">
+            <button id="applyJitanExitBtn" disabled>この回転数で開始</button>
+          </div>
+          <p class="hint hint-help">選ばずに閉じると、現在回転数はそのままです。</p>
+        </details>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button id="openHitHistoryBtn">大当たり履歴</button>
@@ -7779,17 +7980,34 @@
       byId("openHitHistoryBtn").addEventListener("click", () => {
         openHitHistory(session, { back: () => openHitResetPrompt(session) });
       });
+      // S38/§1-3: R種別のタップと取り消しでは画面を開き直さず、確認エリアの DOM だけを差し替える。
+      // 入力途中の値・折りたたみの開閉・スクロール位置を保つため。配線し直しもここで閉じる。
+      const refreshHitConfirm = (lastActionText = null) => {
+        const box = byId("hitRecordConfirm");
+        if (!box) return;
+        box.innerHTML = hitRecordConfirmHtml(session, presetId, lastActionText);
+        bindUndoHitRoundButton();
+      };
+      const roundLabelOf = (roundTypeId) => roundTypeById(presetId, roundTypeId)?.label || null;
+      // S24/§B-1: 直前に押したR種別の取り消し。押せるのは直前の1件があるときだけ。
+      function bindUndoHitRoundButton() {
+        const button = byId("undoHitRoundBtn");
+        if (!button || button.disabled) return;
+        button.addEventListener("click", () => {
+          // S38/§1-3: 取り消す種別は消える前に読む（undoLastHitRecord が hits から取り除くため）。
+          const index = lastHitRecordIndex(session);
+          const removedLabel = index >= 0 ? roundLabelOf(session.hits[index]?.roundTypeId) : null;
+          if (!undoLastHitRecord(session)) return;
+          refreshHitConfirm(removedLabel ? `${removedLabel}を取り消しました` : null);
+        });
+      }
+      bindUndoHitRoundButton();
       els.modalBody.querySelectorAll("[data-hit-round]").forEach((button) => {
         button.addEventListener("click", () => {
           appendHitRecord(session, button.dataset.hitRound);
-          openHitResetPrompt(session);
+          const recordedLabel = roundLabelOf(button.dataset.hitRound);
+          refreshHitConfirm(recordedLabel ? `${recordedLabel}を記録しました` : null);
         });
-      });
-      // S24/§B-1: 直前に押したR種別の取り消し。押せるのは直前の1件があるときだけ。
-      const undoHitRoundButton = byId("undoHitRoundBtn");
-      if (undoHitRoundButton) undoHitRoundButton.addEventListener("click", () => {
-        if (!undoLastHitRecord(session)) return;
-        openHitResetPrompt(session);
       });
       // S7c/3-2: 「この後」の選択。時短抜けを確定するまではここで切り替えるだけ
       els.modalBody.querySelectorAll(".jitanShootingChoice").forEach((button) => {

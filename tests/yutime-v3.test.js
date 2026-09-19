@@ -438,8 +438,8 @@ assert.match(hitResetPrompt, /<label for="hitRecordActualBalls">この連チャ�
 assert.match(hitResetPrompt, /id="hitRecordActualBalls"/);
 assert.match(hitResetPrompt, /placeholder="この連チャンの累計出玉（実機：データカウンター）任意"/);
 assert.match(hitResetPrompt, /いま表示されている、この連チャンの累計出玉を入力してください。時短が終わると0に戻ります。前回の入力との差が、今回の当たりの出玉になります。/);
-assert.match(hitResetPrompt, /hitRoundSummaryHtml\(session, presetId\)/);
-assert.match(hitResetPrompt, /class="hit-round-layout"/);
+assert.match(hitResetPrompt, /hitRecordConfirmHtml\(session, presetId\)/);
+assert.match(hitResetPrompt, /class="hit-round-buttons"/);
 assert.match(hitResetPrompt, /appendHitRecord\(session, button\.dataset\.hitRound\);/);
 assert.ok(hitResetPrompt.includes('data-close'), 'reset chip close button should remain unchanged');
 // S24/§A-2-1: 大当たり登録の持ち玉の入力欄は「そのときの台の持ち玉」の1つだけ。
@@ -491,8 +491,8 @@ assert.match(hitResetPrompt, /if \(!confirmJitanExitStartBalls\(session, startBa
 assert.match(confirmJitanExitStartBallsBlock, /return confirm\("当たったのに持ち玉が増えていません。台の表示を確認してください。/);
 assert.match(confirmJitanExitStartBallsBlock, /if \(remain === null \|\| value > remain\) return true;/);
 // S24/§B-1: 直前に押したR種別の取り消し（投資タップの取り消しと同じ形）
-assert.match(hitResetPrompt, /<button class="small" id="undoHitRoundBtn"\$\{undoableHit \? "" : " disabled"\}>取り消し<\/button>/);
-assert.match(hitResetPrompt, /const undoableHit = lastHitRecordIndex\(session\) >= 0;/);
+assert.match(section('function hitRecordConfirmHtml', 'function hitRoundSummaryHtml'), /<button class="small" id="undoHitRoundBtn"\$\{lastHitRecordIndex\(session\) >= 0 \? "" : " disabled"\}>直前を取り消す<\/button>/);
+assert.match(section('function hitRecordConfirmHtml', 'function hitRoundSummaryHtml'), /lastHitRecordIndex\(session\) >= 0/);
 assert.match(hitResetPrompt, /if \(!undoLastHitRecord\(session\)\) return;/);
 assert.match(undoHitRecordBlock, /const chainId = chainSegmentIdForHit\(session\);/);
 assert.match(undoHitRecordBlock, /session\.hits\.splice\(index, 1\);/);
@@ -3297,7 +3297,8 @@ assert.equal(html.split('${machineContextLine(session)}').length - 1, 12); // S2
 // スイッチの説明にある「（実機：◯◯）」は見本、CSS・コードのコメント2件は画面に出ないので数えない。
 const jikkiLines = html.split("\n").filter((line) => !line.trim().startsWith("//")
   && !line.includes("分類B（実機：◯◯）") && !line.includes("実機と照合するための表示"));
-assert.equal((jikkiLines.join("\n").match(/（実機：/g) || []).length, 16);
+// S38/§G-3: 時短の旧見出しを折りたたみの summary に置き換えたため、照合先の表記は1件減る。
+assert.equal((jikkiLines.join("\n").match(/（実機：/g) || []).length, 15);
 assert.ok(!html.includes('遊タイム中の投資として記録されます'));
 // B91: 残保留込みモデル
 assert.ok(design.includes('B91 残保留込みの引き戻し計算'));
@@ -7636,7 +7637,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 37;/);
+assert.match(html, /const APP_VERSION_SEQ = 38;/);
 assert.match(html, /const APP_VERSION_DATE = "2026-09-20";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
@@ -7723,3 +7724,66 @@ const s37ConflictWarning = section('<div class="version-warning hidden" id="conf
 assert.match(s37ConflictWarning, /id="conflictWarning"/);
 assert.match(s37ConflictWarning, /id="conflictReloadBtn"/);
 assert.doesNotMatch(s37ConflictWarning, /承知のうえで使う/);
+
+// S38/§G-4-1: R数の小さい順に並べ、プリセットの配列は変えない。
+const s38OrderContext = vm.createContext({
+  normalizeNumber: (value) => value == null || value === '' ? null : Number(value),
+  types: [{ id: 'r10', label: '10R' }, { id: 'r6', label: '6R' }, { id: 'r4', label: '4R' }]
+});
+new vm.Script([
+  'function presetById() { return { roundTypes: types }; }',
+  section('function roundCountFromRoundType', 'function totalRoundsForPreset'),
+  section('function orderedRoundTypes', 'function roundBreakdown'),
+  'globalThis.ordered = orderedRoundTypes("agnes").map((type) => type.label);'
+].join('\n')).runInContext(s38OrderContext);
+assert.deepEqual(Array.from(s38OrderContext.ordered), ['4R', '6R', '10R']);
+assert.deepEqual(s38OrderContext.types.map((type) => type.label), ['10R', '6R', '4R']);
+
+// S38/§G-4-2: counts を返すだけで、既存の集計と0件の除外は変えない。
+const s38Breakdown = section('function roundBreakdown', 'function currentChainHits');
+assert.match(s38Breakdown, /if \(!count\) return "";/);
+assert.match(s38Breakdown, /totalRounds \+= rounds \* count;/);
+assert.match(s38Breakdown, /return \{ rows, totalRounds, counts, hitCount: \(Array.isArray\(hits\) \? hits : \[\]\).length \};/);
+new vm.Script([
+  s38Breakdown,
+  'globalThis.breakdown = roundBreakdown([{ roundTypeId: "r4" }, { roundTypeId: "r4" }, { roundTypeId: "r10" }], "agnes");'
+].join('\n')).runInContext(s38OrderContext);
+assert.deepEqual(Array.from(s38OrderContext.breakdown.rows), ['10R×1', '4R×2']);
+assert.equal(s38OrderContext.breakdown.totalRounds, 18);
+assert.equal(s38OrderContext.breakdown.hitCount, 3);
+assert.deepEqual(Array.from(s38OrderContext.breakdown.counts, ([key, value]) => [key, value]), [['r4', 2], ['r10', 1]]);
+
+// S38/§G-4-3: 確認エリアは既存の連チャン抽出と集計を使う。
+const s38Confirm = section('function hitRecordConfirmHtml', 'function hitRoundSummaryHtml');
+assert.match(s38Confirm, /const chainHits = currentChainHits\(session, hits\);/);
+assert.match(s38Confirm, /const chain = roundBreakdown\(chainHits, presetId\);/);
+assert.match(s38Confirm, /chain.counts.get\(type.id\)/);
+assert.doesNotMatch(s38Confirm, /\.reduce\(|new Map\(|totalRounds\s*\+=|counts\.set\(/);
+
+// S38/§G-4-4: 登録と取り消しは確認エリアだけを更新し、画面を開き直さない。
+const s38RoundHandler = hitResetPrompt.slice(hitResetPrompt.indexOf('els.modalBody.querySelectorAll("[data-hit-round]")'), hitResetPrompt.indexOf('// S7c/3-2:'));
+const s38UndoHandler = hitResetPrompt.slice(hitResetPrompt.indexOf('function bindUndoHitRoundButton()'), hitResetPrompt.indexOf('els.modalBody.querySelectorAll("[data-hit-round]")'));
+assert.match(s38RoundHandler, /appendHitRecord\(session, button.dataset.hitRound\);\s*const recordedLabel = roundLabelOf\(button.dataset.hitRound\);\s*refreshHitConfirm\(/);
+assert.match(s38UndoHandler, /undoLastHitRecord\(session\)/);
+assert.match(s38UndoHandler, /refreshHitConfirm\(removedLabel \?/);
+assert.doesNotMatch(s38RoundHandler + s38UndoHandler, /openHitResetPrompt\(/);
+
+// S38/§1-3: 記録と取り消しは同じ場所・同じ見た目で結果を出す。取り消す種別は消える前に読む。
+assert.match(s38RoundHandler, /`\$\{recordedLabel\}を記録しました`/);
+assert.match(s38UndoHandler, /const index = lastHitRecordIndex\(session\);\s*const removedLabel = index >= 0 \? roundLabelOf\(session\.hits\[index\]\?\.roundTypeId\) : null;\s*if \(!undoLastHitRecord\(session\)\) return;/);
+assert.match(s38UndoHandler, /`\$\{removedLabel\}を取り消しました`/);
+// 文言は確認エリアの同じ1か所（.hit-confirm-recorded）から出る
+assert.match(s38Confirm, /<span class="hit-confirm-recorded">\$\{lastActionText \? escapeHtml\(lastActionText\) : ""\}<\/span>/);
+assert.equal((s38Confirm.match(/hit-confirm-recorded/g) || []).length, 1);
+
+// S38/§G-4-5: 補助入力は2つの折りたたみに収め、初期状態は閉じる。
+const s38Details = [...hitResetPrompt.matchAll(/<details\b([^>]*)>([\s\S]*?)<\/details>/g)];
+assert.equal(s38Details.length, 2);
+for (const detail of s38Details) {
+  assert.equal(detail[1].trim(), 'class="hit-extra"');
+  assert.doesNotMatch(detail[1], /\bopen\b/);
+}
+assert.match(s38Details[0][2], /<summary>出玉を記録する（任意）<\/summary>/);
+assert.match(s38Details[0][2], /id="hitRecordActualBalls"/);
+assert.match(s38Details[1][2], /<summary>時短が終わったら<\/summary>/);
+assert.match(s38Details[1][2], /id="jitanExitStartBalls"/);
