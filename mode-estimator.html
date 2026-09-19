@@ -55,6 +55,8 @@
   .effective-value.warn{color:var(--red);font-weight:700}
   .add-button,.delete-button{border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-weight:700;cursor:pointer}
   .add-button{width:100%;min-height:42px;margin-top:6px}
+  .count-pad{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-top:8px}
+  .count-button{min-height:48px;border:1px solid var(--border);border-radius:6px;background:var(--surface2);color:var(--text);font-size:14px;font-weight:700;cursor:pointer;padding:6px 4px}
   .delete-button{min-width:40px;height:40px;color:var(--text-muted);font-size:18px;line-height:1}
   .delete-spacer{width:40px;height:40px}
   .badge{display:inline-flex;align-items:center;border-radius:999px;font-size:12px;font-weight:700;padding:5px 10px;margin-bottom:10px;border:1px solid currentColor}
@@ -530,7 +532,8 @@ function replayCountObservedTotals(){
   }
   return { replays, flashes, currentGames, invalid, overCount };
 }
-function renderReplayCountOutput(replayFlash, outputArea){
+function renderReplayCountOutput(replayFlash){
+  const outputArea = document.getElementById("repflashRepResultArea");
   const { replays, flashes, currentGames, invalid, overCount } = replayCountObservedTotals();
   if(invalid){
     outputArea.innerHTML = `
@@ -574,16 +577,18 @@ function renderReplayCountOutput(replayFlash, outputArea){
       <p class="note">対象リプレイ ${replays}回／リプフラ ${flashes}回 ＝ ${flashes > 0 ? `1/${(replays / flashes).toFixed(1)}回` : "出現なし"}<br>参考：通常A 1/${(replayFlash.rates[replayFlash.aMode] / replayFlash.replayCycle).toFixed(1)}回 ／ チャンス以上 1/${(replayFlash.rates["チャンス"] / replayFlash.replayCycle).toFixed(1)}回</p>
       ${excludedModes.length ? `<p class="note">現在${currentGames}G：${escapeHtml(excludedModes.join("・"))}を除外</p>` : ""}
       <h2>通常B以上期待度</h2>
+      ${replays === 0 ? `
+      <div class="badge middle">未判定</div>
+      <p class="note">リプレイを数えると期待度が出ます（起点の振り分けのみ：通常A以外 ${result.pNotA.toFixed(1)}%）</p>
+      ` : `
       <div class="not-a-meter">
         <div class="not-a-value">${result.pNotA.toFixed(1)}%</div>
         <div class="badge ${escapeHtml(badge.level)}">${escapeHtml(badge.label)}</div>
         <div class="bar-track"><div class="bar" style="width:${clampPercent(result.pNotA)}%"></div></div>
       </div>
-      ${renderReplayFlashCriteriaTable()}
-      <p class="note">${replays === 0
-        ? "観測が0回のため、起点の事前分布をそのまま表示しています"
-        : "本表示は対象リプレイ回数とリプフラ回数のみからの確率推定であり、実際のモード・結果を保証するものではありません"}</p>
-      <h3>モード別の事後確率</h3>
+      <p class="note">本表示は対象リプレイ回数とリプフラ回数のみからの確率推定であり、実際のモード・結果を保証するものではありません</p>
+      `}
+      <h3>${replays === 0 ? "起点の振り分け" : "モード別の事後確率"}</h3>
       ${renderModeRows(Object.entries(result.posterior).map(([mode, percent]) => ({ mode, percent })))}
       ${endRecord ? `<div class="note">${escapeHtml(`記録：${endRecord}`)}</div>` : ""}
     </div>
@@ -599,9 +604,11 @@ function renderReplayFlashOutput(){
     return;
   }
   if(replayFlashInputMode() === "replays"){
-    renderReplayCountOutput(replayFlash, outputArea);
+    outputArea.innerHTML = "";
+    renderReplayCountOutput(replayFlash);
     return;
   }
+  document.getElementById("repflashRepResultArea").innerHTML = "";
   const totals = replayFlashObservedTotals();
   const prior = replayFlashPrior(replayFlash);
   if(totals.games <= 0){
@@ -709,7 +716,22 @@ function updateReplayFlashWinRowTitles(){
     caption.dataset.label = `区間${index + 1}`;
   });
 }
+const replayCountHistory = [];
+function updateReplayCount(action){
+  if(action === "undo" && replayCountHistory.length === 0) return;
+  const replays = document.getElementById("repflashRepCurrentReplays");
+  const flashes = document.getElementById("repflashRepCurrentFlashes");
+  const change = action === "undo" ? replayCountHistory.pop() : action;
+  const delta = action === "undo" ? -1 : 1;
+  replays.value = Math.max(0, Number(replays.value || 0) + delta);
+  if(change === "flash"){
+    flashes.value = Math.max(0, Number(flashes.value || 0) + delta);
+  }
+  if(action !== "undo") replayCountHistory.push(action);
+  renderReplayFlashOutput();
+}
 function renderReplayFlashSection(){
+  replayCountHistory.length = 0;
   const existing = document.getElementById("repflashSection");
   if(existing){
     existing.remove();
@@ -783,12 +805,6 @@ function renderReplayFlashSection(){
         </div>
       </div>
       <div id="repflashReplayInputs" hidden>
-        <h3>区間リスト</h3>
-        <div class="interval-header repflash-rep-line" aria-hidden="true">
-          <span>当選G数</span><span>リプレイ</span><span>リプフラ</span><span>含む</span><span></span>
-        </div>
-        <div class="interval-list" id="repflashRepList"></div>
-        <button class="add-button" id="repflashRepAddRow" type="button">＋区間を追加</button>
         <h3>現在の区間</h3>
         <div class="interval-header repflash-rep-line" aria-hidden="true">
           <span>現在G数</span><span>リプレイ</span><span>リプフラ</span><span>含む</span><span></span>
@@ -804,14 +820,18 @@ function renderReplayFlashSection(){
             <div class="delete-spacer" aria-hidden="true"></div>
           </div>
         </div>
-        <div class="note">
-          <strong>対象リプレイの数え方</strong>
-          <ul>
-            <li>液晶42G以降のリプレイだけを数える（1〜41Gはバタフライ＋ときめきゾーン中で抽選対象外）</li>
-            <li>さざなみ前兆中（発生Gの直後8G：G+1〜G+8）のリプレイは数えない</li>
-            <li>リプフラも同じ範囲で出たものだけを数える</li>
-          </ul>
+        <div class="count-pad">
+          <button class="count-button" id="repflashCountReplay" type="button">リプレイ＋1</button>
+          <button class="count-button" id="repflashCountFlash" type="button">リプフラ＋1</button>
+          <button class="count-button" id="repflashCountUndo" type="button">1つ戻す</button>
         </div>
+        <div id="repflashRepResultArea"></div>
+        <h3>過去の区間</h3>
+        <div class="interval-header repflash-rep-line" aria-hidden="true">
+          <span>当選G数</span><span>リプレイ</span><span>リプフラ</span><span>含む</span><span></span>
+        </div>
+        <div class="interval-list" id="repflashRepList"></div>
+        <button class="add-button" id="repflashRepAddRow" type="button">＋区間を追加</button>
         <div class="field-grid">
           <div>
             <label class="field-label" for="repflashEndColor">終了時のリール色</label>
@@ -835,6 +855,15 @@ function renderReplayFlashSection(){
           </div>
         </div>
         <div class="note">色とタイミングは記録用です。期待度の数字には反映されません。</div>
+        <div class="note">
+          <strong>対象リプレイの数え方</strong>
+          <ul>
+            <li>液晶42G以降のリプレイだけを数える（1〜41Gはバタフライ＋ときめきゾーン中で抽選対象外）</li>
+            <li>さざなみ前兆中（発生Gの直後8G：G+1〜G+8）のリプレイは数えない</li>
+            <li>リプフラも同じ範囲で出たものだけを数える</li>
+          </ul>
+        </div>
+        <div id="repflashRepCriteria"></div>
       </div>
     </div>
     <div id="repflashResultArea"></div>
@@ -858,6 +887,13 @@ function renderReplayFlashSection(){
   `;
   const firstSection = document.querySelector("main .section");
   firstSection.before(section);
+  document.getElementById("repflashRepCriteria").innerHTML = renderReplayFlashCriteriaTable();
+  document.getElementById("repflashCountReplay").addEventListener("click", () => updateReplayCount("replay"));
+  document.getElementById("repflashCountFlash").addEventListener("click", () => updateReplayCount("flash"));
+  document.getElementById("repflashCountUndo").addEventListener("click", () => updateReplayCount("undo"));
+  ["repflashRepCurrentReplays", "repflashRepCurrentFlashes"].forEach(id => {
+    document.getElementById(id).addEventListener("input", () => { replayCountHistory.length = 0; });
+  });
   document.getElementById("repflashAddRow").addEventListener("click", addReplayFlashWinRow);
   document.getElementById("repflashRepAddRow").addEventListener("click", () => addReplayCountRow());
   document.getElementById("repflashImportButton")?.addEventListener("click", importReplayFlashFromNeraiRecord);
