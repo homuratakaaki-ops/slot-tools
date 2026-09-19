@@ -1933,6 +1933,16 @@
         </div>
         <button class="version-warning-ack" id="versionAckBtn">承知のうえで使う</button>
       </div>
+      <!-- S37/§3: 別タブが先に保存したときの帯。S31 と同じ見た目で、「承知のうえで使う」は置かない -->
+      <div class="version-warning hidden" id="conflictWarning" role="alert">
+        <div>
+          <p class="version-warning-title">別のタブで記録が更新されています</p>
+          <p>このタブの変更は保存していません。再読み込みしてください。</p>
+        </div>
+        <div class="version-warning-actions">
+          <button class="primary small" id="conflictReloadBtn">再読み込み</button>
+        </div>
+      </div>
       <div class="brand">
         <h1>遊タイム実戦ツール v3 <span class="beta-badge">β版</span></h1>
         <p class="app-version" id="appVersion"></p>
@@ -2055,8 +2065,8 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 36;
-    const APP_VERSION_DATE = "2026-09-14";
+    const APP_VERSION_SEQ = 37;
+    const APP_VERSION_DATE = "2026-09-20";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
     const LAST_VERSION_KEY = STORAGE_PREFIX + "app:lastVersionSeq";
@@ -2077,7 +2087,7 @@
     const X_TEXT_LIMIT = 280;
     const X_URL_WEIGHT = 23;
     const TRANSFER_SIGNATURE_URL = "slot-tools.jp";
-    const SCHEMA_VERSION = 39;
+    const SCHEMA_VERSION = 40;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
@@ -2483,6 +2493,11 @@
     const staleVersionSeq = detectStaleAppVersion();
     // 旧版と判定しているあいだは true。読み込み・移行・保存を行わず、記録に関わる操作も止める。
     let appVersionBlocked = staleVersionSeq !== null;
+    // S37/§3: 読み込んだ時点の meta.updatedAt。保存の直前に端末の値と突き合わせ、
+    // 違えば別のタブが先に保存したとみなす。書き出しJSON・schema移行には含めない。
+    let loadedUpdatedAt = null;
+    // 別タブの更新を検知しているあいだは true。保存を止め、帯の外の操作を止める。
+    let conflictBlocked = false;
 
     let bootToastMessage = "";
     let data = loadData();
@@ -2551,6 +2566,17 @@
       location.href = location.pathname + "?v=" + Date.now();
     });
     byId("versionAckBtn").addEventListener("click", releaseVersionBlock);
+    byId("conflictReloadBtn").addEventListener("click", () => {
+      location.href = location.pathname + "?v=" + Date.now();
+    });
+    // S37/§3: 別タブの保存をその場で受ける（このタブが保存を試みるまで待たない）。
+    // 旧版警告（S31）が出ているときはそちらを優先して何もしない。
+    window.addEventListener("storage", (event) => {
+      if (event.key !== STORAGE_KEY) return;
+      if (appVersionBlocked) return;
+      if (storedUpdatedAt() === loadedUpdatedAt) return;
+      showConflictWarning();
+    });
     // S34/§2-2: 説明の表示スイッチ。切り替えた瞬間だけ保存し、body のクラスで一括して隠す。
     byId("showHintsToggle").addEventListener("change", (event) => {
       const enabled = event.target.checked === true;
@@ -2628,8 +2654,13 @@
     // 見た目は S27 の button:disabled にそのまま乗せ、新しい装飾を足さない。
     // DOM上の入力値は初期化しないので、入力途中の内容は壊れない。
     function applyVersionBlock() {
+      applyOperationBlock("#versionWarning");
+    }
+
+    // S37/§3: 旧版警告と別タブの帯で同じブロックを使う。操作できるのは指定した帯の中だけ。
+    function applyOperationBlock(warningSelector) {
       document.querySelectorAll("button, input, textarea, select").forEach((el) => {
-        if (el.closest("#versionWarning")) return;
+        if (el.closest(warningSelector)) return;
         el.disabled = true;
         el.dataset.versionBlocked = "1";
       });
@@ -2659,12 +2690,23 @@
       if (box) box.classList.remove("hidden");
     }
 
+    // S37/§3: 別タブが先に保存したときの帯。旧版警告（S31）と同じ見た目・同じブロックで、
+    // 「承知のうえで使う」は置かない（別タブのほうが新しいので、このタブで続ける理由が無い）。
+    function showConflictWarning() {
+      if (conflictBlocked) return;
+      conflictBlocked = true;
+      const box = byId("conflictWarning");
+      if (box) box.classList.remove("hidden");
+      applyOperationBlock("#conflictWarning");
+    }
+
     function nowIso() {
       return new Date().toISOString();
     }
 
+    // S37/§2: 端末のローカル日付で返す。toISOString はUTCなので、JSTでは朝9時前に前日が返っていた。
     function today() {
-      return new Date().toISOString().slice(0, 10);
+      return localDateString(new Date());
     }
 
     function localDateString(date = new Date()) {
@@ -2681,11 +2723,12 @@
       return localDateString(next);
     }
 
+    // S37/§2: 日付文字列を受ける入口。日の足し算と文字列化は offsetLocalDate に任せる
+    //（以前はここで toISOString を使っていたため、JSTでは1日ずれていた）。
     function offsetDate(dateValue, days) {
       const parts = String(dateValue || today()).match(/^(\d{4})-(\d{2})-(\d{2})$/);
       const base = parts ? new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3])) : new Date();
-      base.setDate(base.getDate() + days);
-      return base.toISOString().slice(0, 10);
+      return offsetLocalDate(base, days);
     }
 
     function currentTime(date = new Date()) {
@@ -3666,7 +3709,7 @@
     function persistWithToast(successMessage) {
       const ok = persist();
       if (ok) showToast(successMessage);
-      else showToast("保存に失敗しました。容量を確認してください。", "error");
+      else if (!conflictBlocked) showToast("保存に失敗しました。容量を確認してください。", "error");
       return ok;
     }
 
@@ -3675,7 +3718,7 @@
       const ok = persist();
       if (!ok) {
         clearTimeout(persistWithQuietToast.timer);
-        showToast("保存に失敗しました。容量を確認してください。", "error");
+        if (!conflictBlocked) showToast("保存に失敗しました。容量を確認してください。", "error");
         return false;
       }
       clearTimeout(persistWithQuietToast.timer);
@@ -3723,6 +3766,8 @@
         if (needsSegmentMigration(parsed)) backupBeforeSegmentMigration(raw);
         if (needsStartMochidamaRepair(parsed)) backupBeforeStartMochidamaRepair(raw);
         if (needsInvestmentPhaseRepair(parsed)) backupBeforeInvestmentPhaseRepair(raw);
+        // S37/§3: 突き合わせの基準は保存されている生JSONの値（正規化後ではない）。
+        loadedUpdatedAt = parsed?.meta?.updatedAt ?? null;
         return normalizeData(parsed);
       } catch (error) {
         console.warn("ytv3 load failed", error);
@@ -3946,6 +3991,16 @@
         // S33/§2-1: schema 39。S25（2026-09-11）より前の記録は大当たり時刻が当選ウィザードの
         // 完了時刻（旧境界）なので、時速の実測からだけ外す印を付ける。該当しない記録にはキーを書かない。
         if (sourceVersion < 39 && String(session.date || "") < LEGACY_SPEED_BOUNDARY_DATE) normalized.speedBoundary = "legacy";
+        // S37/§1-2: schema 40。「残保留増減」は玉数の欄だが、実際に入っていたのは残保留の回転数
+        //（時短抜け後の通常区間の回転数と一致する）。玉として終了玉に足すと実収支と引き継ぎがずれるため、
+        // 旧値は zanhoryuSpins へ名前を変えて残し（記録としてだけ持ち、計算には使わない）、玉数は0にする。
+        if (sourceVersion < 40) {
+          const legacyZanhoryuBalls = normalizeNumber(session.zanhoryuBalls);
+          if (legacyZanhoryuBalls !== null && legacyZanhoryuBalls !== 0) {
+            normalized.zanhoryuSpins = legacyZanhoryuBalls;
+            normalized.zanhoryuBalls = 0;
+          }
+        }
         // S17/A-2: 区間の紐づけが確定したあとで、矛盾している投資phaseを区間の種別に合わせる
         if (sourceVersion < 36) repairedInvestmentPhases += repairInvestmentPhases(normalized);
         syncSessionHitTotals(normalized, next.machines);
@@ -3987,9 +4042,28 @@
       return endTotalBalls + (normalizeNumber(origin?.zanhoryuBalls) ?? 0);
     }
 
+    // S37/§3: 端末に保存されている記録の meta.updatedAt。読めないときは null を返す。
+    function storedUpdatedAt() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        const parsed = JSON.parse(raw);
+        return parsed?.meta?.updatedAt ?? null;
+      } catch (error) {
+        console.warn("ytv3 stored updatedAt read failed", error);
+        return null;
+      }
+    }
+
     function persist() {
       // S30追補/§2: 旧版とみなしているあいだは書き戻さない（UIのブロックを抜けた場合の受け皿）。
       if (appVersionBlocked) return false;
+      // S37/§3: 別のタブが先に保存していたら、このタブの内容で上書きしない。
+      if (conflictBlocked) return false;
+      if (storedUpdatedAt() !== loadedUpdatedAt) {
+        showConflictWarning();
+        return false;
+      }
       data.sessions.forEach(resyncSessionSegments);
       data.meta.updatedAt = nowIso();
       data.meta.sampleSessionChars = measureSampleSessionChars();
@@ -4009,6 +4083,8 @@
         const before = localStorage.getItem(STORAGE_KEY);
         if (before) localStorage.setItem(BACKUP_KEY, before);
         localStorage.setItem(STORAGE_KEY, finalRaw);
+        // S37/§3: 保存できたので、次の突き合わせの基準を今書いた値にそろえる。
+        loadedUpdatedAt = data.meta.updatedAt;
         return true;
       } catch (error) {
         console.warn("ytv3 persist failed", error);
@@ -4306,6 +4382,8 @@
       renderRunning();
       renderLedger();
       renderStorageNote();
+      // S37/§3: 描画でボタンが作り直されるので、帯を出しているあいだは毎回ブロックを掛け直す。
+      if (conflictBlocked) applyOperationBlock("#conflictWarning");
     }
 
     function setRunningFullscreenLock(enabled) {
@@ -8383,15 +8461,6 @@
       session.hitCount = diff;
     }
 
-    function zanhoryuPresetFromHit(session, hasHit) {
-      if (!hasHit) return null;
-      const currentSpin = normalizeNumber(session.currentSpin);
-      const hitSpin = normalizeNumber(session.hitSpin);
-      if (currentSpin === null || hitSpin === null) return null;
-      const diff = currentSpin - hitSpin;
-      return diff >= 0 ? diff : null;
-    }
-
     function runEndWizard(session, hasHit) {
       const currentBalances = deriveBalances(session);
       const endTotalBallsPreset = currentBalances.mochidama;
@@ -8399,8 +8468,6 @@
       const endTotalBallsHint = (endTotalBallsPreset !== null ? "稼働中の持ち玉残を初期値にしています。 " : "") + "そのまま入力してください。";
       const endSpinPreset = !hasHit && session.hitSpin === null && Number(session.hitCount || 0) === 0 ? session.currentSpin : null;
       const endSpinHint = endSpinPreset !== null ? "稼働中カウンタの現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "";
-      const zanhoryuPreset = zanhoryuPresetFromHit(session, hasHit);
-      const zanhoryuHint = zanhoryuPreset !== null ? "時短抜け後に消化した回転数から推定した値です。打ち込んだ場合は実際の残保留に修正してください。" : "";
       const hitRecordSteps = Array.isArray(session.hits) && session.hits.length ? [] : [
         { key: "hitCount", label: "大当たり回数", type: "number" },
         { key: "totalRounds", label: "合計R数", type: "number", hint: "実測の獲得出玉と合わせて1R当たりの玉数を計算します。" }
@@ -8410,13 +8477,11 @@
       const steps = hasHit ? [
         { key: "endTotalBalls", label: "時短抜け後の合計玉数（実機：計数機に流す玉数）", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
         { key: "endSpin", label: "ヤメ回転数（実機：ヤメ時のデータカウンター）", type: "number" },
-        { key: "zanhoryuBalls", label: "残保留増減", type: "number", preset: zanhoryuPreset, hint: zanhoryuHint },
         { key: "memo", label: "メモ", type: "textarea" },
         ...hitRecordSteps
       ] : [
         { key: "endTotalBalls", label: "終了時玉数（実機：計数機に流す玉数）", type: "number", preset: endTotalBallsPreset, hint: endTotalBallsHint },
         { key: "endSpin", label: "ヤメ回転数（実機：ヤメ時のデータカウンター）", type: "number", preset: endSpinPreset, hint: endSpinHint },
-        { key: "zanhoryuBalls", label: "残保留増減", type: "number" },
         { key: "memo", label: "メモ", type: "textarea" }
       ];
       openEndForm(session, hasHit, steps);
@@ -8462,6 +8527,9 @@
 
     function completeEndSession(session, hasHit) {
       session.status = "completed";
+      // S37/§1-2: ヤメ入力から「残保留増減」の欄を外したので、新しい記録は玉数0で確定させる
+      //（記録の修正で入れた値は上書きしない）。
+      session.zanhoryuBalls = normalizeNumber(session.zanhoryuBalls) ?? 0;
       if (!hasHit) {
         session.hitCount = 0;
         session.totalRounds = 0;
@@ -10419,7 +10487,7 @@
           ${fieldHtml("endTotalBalls", "終了合計玉", session.endTotalBalls)}
           ${fieldHtml("endSpin", "ヤメ回転数", session.endSpin)}
           ${fieldHtml("endTime", "終了時刻", session.endTime, "time")}
-          ${fieldHtml("zanhoryuBalls", "残保留増減", session.zanhoryuBalls)}
+          ${fieldHtml("zanhoryuBalls", "残保留での増減玉（終了玉に含めていない場合だけ。通常は0）", session.zanhoryuBalls)}
           ${fieldHtml("settlementRecoverYen", "回収金額", session.settlementRecoverYen)}
         </div>
         ${playStyleEditorHtml(session)}

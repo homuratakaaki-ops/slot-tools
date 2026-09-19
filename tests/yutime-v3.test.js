@@ -352,14 +352,6 @@ new vm.Script([
       .filter((value) => value !== null && value > 0)
       .reduce((sum, value) => sum + value, 0);
   }`,
-  `function zanhoryuPresetFromHit(session, hasHit) {
-    if (!hasHit) return null;
-    const currentSpin = normalizeNumber(session.currentSpin);
-    const hitSpin = normalizeNumber(session.hitSpin);
-    if (currentSpin === null || hitSpin === null) return null;
-    const diff = currentSpin - hitSpin;
-    return diff >= 0 ? diff : null;
-  }`,
   runEndWizardBlock,
   `
   const sessionWithHits = { id: 's_hit', storeId: 'store', currentSpin: 777, hitSpin: 420, hitCount: null, totalRounds: null, sessionActualBalls: 2800, hits: [{ roundTypeId: 'r10' }] };
@@ -367,7 +359,6 @@ new vm.Script([
   globalThis.withHitsHtml = globalThis.__modalHtml;
   globalThis.__nodes.end_endTotalBalls = { value: '1200' };
   globalThis.__nodes.end_endSpin = { value: '160' };
-  globalThis.__nodes.end_zanhoryuBalls = { value: '' };
   globalThis.__nodes.end_memo = { value: 'closed' };
   globalThis.__handlers['saveEndFormBtn:click']();
   globalThis.savedHitSession = sessionWithHits;
@@ -392,7 +383,6 @@ new vm.Script([
   globalThis.noHitHtml = globalThis.__modalHtml;
   globalThis.__nodes.end_endTotalBalls = { value: '' };
   globalThis.__nodes.end_endSpin = { value: '' };
-  globalThis.__nodes.end_zanhoryuBalls = { value: '' };
   globalThis.__nodes.end_memo = { value: '' };
   globalThis.__handlers['saveEndFormBtn:click']();
   globalThis.savedNoHitSession = noHitSession;
@@ -408,8 +398,7 @@ new vm.Script([
 assert.doesNotMatch(endWizardContext.withHitsHtml, /endTotalHits|大当たり回数|合計R数/);
 assert.match(endWizardContext.withHitsHtml, /end_endTotalBalls/);
 assert.match(endWizardContext.withHitsHtml, /end_endSpin/);
-assert.match(endWizardContext.withHitsHtml, /id="end_zanhoryuBalls"[^>]*value="357"/);
-assert.match(endWizardContext.withHitsHtml, /時短抜け後に消化した回転数から推定した値です。打ち込んだ場合は実際の残保留に修正してください。/);
+assert.doesNotMatch(endWizardContext.withHitsHtml, /end_zanhoryuBalls|残保留/);
 assert.match(endWizardContext.withHitsHtml, /end_memo/);
 // S8/§1-3: 実機がセッション累計を表示しないので、ヤメ入力に累計獲得出玉は置かない
 assert.doesNotMatch(endWizardContext.withHitsHtml, /end_sessionActualBalls|累計獲得出玉/);
@@ -422,7 +411,7 @@ assert.equal(endWizardContext.savedHitSession.hitCount, 1);
 assert.equal(endWizardContext.savedHitSession.totalRounds, 10);
 assert.equal(endWizardContext.savedHitSession.endTotalBalls, 1200);
 assert.equal(endWizardContext.savedHitSession.endSpin, 160);
-assert.equal(endWizardContext.savedHitSession.zanhoryuBalls, null);
+assert.equal(endWizardContext.savedHitSession.zanhoryuBalls, 0);
 assert.equal(endWizardContext.savedHitSession.memo, 'closed');
 assert.equal(endWizardContext.savedHitSummarySession, endWizardContext.savedHitSession);
 assert.match(endWizardContext.withoutHitsHtml, /end_hitCount/);
@@ -3054,7 +3043,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 39;/);
+assert.match(html, /const SCHEMA_VERSION = 40;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3597,7 +3586,15 @@ assert.equal(legacyMachineContext.s2ResyncNoUser.segments.length, 1);
 assert.equal(legacyMachineContext.s2ResyncNoUser.segments[0].endSpin, 110);
 assert.equal(legacyMachineContext.s2ResyncNoUser.segments[0].holdSpins, 3);
 assert.match(segmentMigrationBackup, /localStorage\.setItem\(BACKUP_KEY, raw\);/);
-assert.match(html, /if \(needsSegmentMigration\(parsed\)\) backupBeforeSegmentMigration\(raw\);\s*if \(needsStartMochidamaRepair\(parsed\)\) backupBeforeStartMochidamaRepair\(raw\);\s*if \(needsInvestmentPhaseRepair\(parsed\)\) backupBeforeInvestmentPhaseRepair\(raw\);\s*return normalizeData\(parsed\);/);
+// 順序の目印はコード行だけにする（あいだのコメント行は読み飛ばす）。
+const loadDataGap = String.raw`(?:\s*//[^\n]*)*\s*`;
+assert.match(html, new RegExp([
+  String.raw`if \(needsSegmentMigration\(parsed\)\) backupBeforeSegmentMigration\(raw\);`,
+  String.raw`if \(needsStartMochidamaRepair\(parsed\)\) backupBeforeStartMochidamaRepair\(raw\);`,
+  String.raw`if \(needsInvestmentPhaseRepair\(parsed\)\) backupBeforeInvestmentPhaseRepair\(raw\);`,
+  String.raw`loadedUpdatedAt = parsed\?\.meta\?\.updatedAt \?\? null;`,
+  String.raw`return normalizeData\(parsed\);`
+].join(loadDataGap)));
 assert.match(normalizeData, /normalized\.segments = normalizeSessionSegments\(normalized\);\s*applySegmentIds\(normalized\);/);
 // S1 では保留を引かない（holdSpins は常に0で作る）
 assert.match(segmentBlock, /function blankSegment\(kind, overrides = \{\}\)[\s\S]*?holdSpins: 0,/);
@@ -4995,7 +4992,7 @@ assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBal
 assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
 
 // --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
-assert.match(html, /const SCHEMA_VERSION = 39;/);
+assert.match(html, /const SCHEMA_VERSION = 40;/);
 assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
 assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
 assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
@@ -5527,7 +5524,7 @@ const shootingBlock = section('function markSegmentShootingStarted', 'function h
 const wizardInputBlock = section('function wizardInputHtml', 'function readWizardValue');
 
 // --- §1: データ構造 --------------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 39;/);
+assert.match(html, /const SCHEMA_VERSION = 40;/);
 assert.match(html, /function normalizePlayStyle\(value\) \{\s*return value === "continuous" \? "continuous" : "yutime";/);
 assert.match(html, /function normalizeShooting\(value\) \{\s*return value === "before" \? "before" : "started";/);
 assert.match(normalizeData, /playStyle: normalizePlayStyle\(session\.playStyle\)/);
@@ -5686,7 +5683,7 @@ assert.equal(Number(runningRateContext.s7cEndedWithoutShooting.rate.toFixed(1)),
 // ===========================================================================
 
 // --- 第1部: 投資phaseの修復 ------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 39;/);
+assert.match(html, /const SCHEMA_VERSION = 40;/);
 assert.match(html, /const S17_BACKUP_KEY = STORAGE_PREFIX \+ "backup:s17";/);
 assert.match(segmentMigrationBackup, /function needsInvestmentPhaseRepair\(source\) \{\s*return \(normalizeNumber\(source\?\.version\) \?\? 0\) < 36;/);
 assert.match(segmentMigrationBackup, /function backupBeforeInvestmentPhaseRepair\(raw\) \{\s*if \(!raw \|\| localStorage\.getItem\(S17_BACKUP_KEY\)\) return;/);
@@ -6632,7 +6629,7 @@ assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \
 // ===========================================================================
 
 // --- §1: 時刻はボタンを押した瞬間を自動で取る。手入力欄は増やさない ----------
-assert.match(html, /const SCHEMA_VERSION = 39;/);
+assert.match(html, /const SCHEMA_VERSION = 40;/);
 // S25/§4: 当選の端点はhitsを優先し、R未入力時だけ保持したタップ時刻から埋める。
 const closeSegmentOnHitBlock = section('function closeSegmentOnHit', 'function startYutimeSegment');
 assert.match(closeSegmentOnHitBlock, /target\.endAt = segmentHitAt\(session, target\.id\) \|\| \(pendingHitAt\?\.sessionId === session\.id \? pendingHitAt\.at : null\);/);
@@ -7491,7 +7488,7 @@ const s28Title = () => s28App.element('modalTitle').textContent;
 const s28Click = (id) => s28App.element(id).handlers.click();
 const s28Toggle = () => s28App.element('modalBody').querySelectorAll('[data-toggle-holdcarry]')[0].handlers.click();
 const s28Json = (value) => JSON.parse(JSON.stringify(value));
-assert.equal(s28App.api.data.version, 39);
+assert.equal(s28App.api.data.version, 40);
 assert.deepEqual(s28Json(s28App.api.hitHistoryGroups(s28Session).map((g) => [g.id, g.rows.length])), [['seg_3', 2], ['seg_2', 1], ['seg_1', 1]]);
 // 表示グループだけを分け、残保留の累計計算は引き続き元の連チャンを参照する。
 assert.equal(s28App.api.hitHistoryRows(s28Session)[1].segmentId, 'seg_1');
@@ -7639,8 +7636,8 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 36;/);
-assert.match(html, /const APP_VERSION_DATE = "2026-09-14";/);
+assert.match(html, /const APP_VERSION_SEQ = 37;/);
+assert.match(html, /const APP_VERSION_DATE = "2026-09-20";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
 // 書く場所は endSource = "yutime" を書いている3か所すべて。
@@ -7697,3 +7694,32 @@ const s32Order = s26Warnings({ missing: ['endTime'] }, { averageRoundBalls: null
 assert.deepEqual(Array.from(s32Order, (warning) => warning.key), ['endTime', 'round']);
 
 console.log('yutime-v3 tests passed');
+
+// S37/§2: 日付の足し算はローカル日付で行い、UTC文字列化を使わない。
+const s37OffsetDate = section('function offsetDate', 'function currentTime');
+const s37Today = section('function today', 'function localDateString');
+assert.doesNotMatch(s37OffsetDate, /toISOString/);
+assert.doesNotMatch(s37Today, /toISOString/);
+const s37DateContext = vm.createContext({});
+new vm.Script([
+  s37Today,
+  section('function localDateString', '    // S37/§2: 日付文字列を受ける入口。'),
+  s37OffsetDate,
+  'globalThis.previousDate = offsetDate("2026-09-16", -1);'
+].join('\n')).runInContext(s37DateContext);
+assert.equal(s37DateContext.previousDate, '2026-09-15');
+
+// S37/§1-2: 旧値は回転数として保全し、玉数は0にする。
+const s37Migration = section('function normalizeData', 'function repairStartMochidama');
+assert.match(html, /if \(sourceVersion < 40\)/);
+assert.match(s37Migration, /normalized\.zanhoryuSpins = legacyZanhoryuBalls;/);
+assert.match(s37Migration, /normalized\.zanhoryuBalls = 0;/);
+
+// S37/§3: 別タブの更新で保存を止め、再読み込みだけを案内する。
+const s37PersistHead = section('function persist()', 'data.sessions.forEach(resyncSessionSegments);');
+assert.match(s37PersistHead, /if \(conflictBlocked\) return false;/);
+assert.match(s37PersistHead, /storedUpdatedAt\(\) !== loadedUpdatedAt/);
+const s37ConflictWarning = section('<div class="version-warning hidden" id="conflictWarning"', '</button>\n        </div>\n      </div>');
+assert.match(s37ConflictWarning, /id="conflictWarning"/);
+assert.match(s37ConflictWarning, /id="conflictReloadBtn"/);
+assert.doesNotMatch(s37ConflictWarning, /承知のうえで使う/);
