@@ -2188,7 +2188,7 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 39;
+    const APP_VERSION_SEQ = 40;
     const APP_VERSION_DATE = "2026-09-20";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
@@ -2210,7 +2210,7 @@
     const X_TEXT_LIMIT = 280;
     const X_URL_WEIGHT = 23;
     const TRANSFER_SIGNATURE_URL = "slot-tools.jp";
-    const SCHEMA_VERSION = 40;
+    const SCHEMA_VERSION = 41;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
@@ -2582,6 +2582,8 @@
       endTotalBalls: null,
       endSpin: null,
       endTime: null,
+      // S40/§1: 打ち始めの時点の店条件。以後この記録の計算はこれを使い、店設定の変更に引きずられない。
+      storeTerms: null,
       zanhoryuBalls: null,
       settlementRecoverYen: null,
       memo: "",
@@ -4051,6 +4053,7 @@
       const sourceVersion = normalizeNumber(source.version) ?? 0;
       // S17/A-2: 修復件数は検証用にコンソールへ出す
       let repairedInvestmentPhases = 0;
+      let migratedStoreTermsWithoutStore = 0;
       next.version = SCHEMA_VERSION;
       // S11: schema 32 で netBallsPerWin の単位を「当選あたり」から「1Rあたり（玉/R）」へ変えた。
       // 31以前に保存された手入力値は当選あたりなので、その機種の平均R数で割って玉/Rに直す。
@@ -4174,12 +4177,21 @@
             normalized.zanhoryuBalls = 0;
           }
         }
+        // S40/§1: schema 41。記録に打ち始めの店条件を持たせる。過去の店条件は残っていないので、
+        // 移行では現在の店設定を写す（＝移行時点で数字は1つも動かない）。以後の店設定の変更は
+        // 新しい記録にだけ効く。店が見つからない記録は既定（非パーソナル・4円・25玉）。
+        if (!normalized.storeTerms || typeof normalized.storeTerms !== "object") {
+          const termsStore = next.stores.find((store) => store.id === normalized.storeId) || null;
+          if (!termsStore) migratedStoreTermsWithoutStore += 1;
+          normalized.storeTerms = storeTermsFromStore(termsStore);
+        }
         // S17/A-2: 区間の紐づけが確定したあとで、矛盾している投資phaseを区間の種別に合わせる
         if (sourceVersion < 36) repairedInvestmentPhases += repairInvestmentPhases(normalized);
         syncSessionHitTotals(normalized, next.machines);
         return normalized;
       });
       if (repairedInvestmentPhases > 0) console.info(`ytv3 S17: 投資phaseを${repairedInvestmentPhases}件修復しました`);
+      if (migratedStoreTermsWithoutStore > 0) console.info(`ytv3 S40: 店が見つからない記録${migratedStoreTermsWithoutStore}件に既定の店条件を写しました`);
       if (!next.stores.some((store) => store.id === next.activeStoreId)) next.activeStoreId = next.stores[0]?.id || null;
       next.dailyState = normalizeDailyState(next.dailyState, next.machines);
       return next;
@@ -4427,6 +4439,45 @@
       return data.stores.find((store) => store.id === storeId) || null;
     }
 
+    // S40/§1: 記録が持つ店条件。実収支・玉単価・貸玉レートはこれを通して読む。
+    // 店そのものを差し替えるのではなく、3項目だけを上書きした「店の形」を返す。
+    // こうすると netBallsOffset や name を読む既存の呼び出しがそのまま動く。
+    // storeTerms が無い旧データは現在の店設定にフォールバックする（移行までの安全網）。
+    function storeTermsForSession(session) {
+      const store = storeById(session?.storeId);
+      const terms = session?.storeTerms;
+      if (!terms || typeof terms !== "object") return store;
+      return {
+        ...(store || {}),
+        isPersonal: Boolean(terms.isPersonal),
+        lendRate: positiveNumberOrDefault(terms.lendRate, DEFAULT_LEND_RATE),
+        exchangeBalls: normalizeExchangeBalls(terms.exchangeBalls)
+      };
+    }
+
+    // S40/§1: 打ち始めに店条件を写す。店が無いときは既定（非パーソナル・4円・25玉）。
+    function storeTermsFromStore(store) {
+      return {
+        isPersonal: Boolean(store?.isPersonal),
+        lendRate: positiveNumberOrDefault(store?.lendRate, DEFAULT_LEND_RATE),
+        exchangeBalls: store ? exchangeBallsFromStore(store) : DEFAULT_EXCHANGE_BALLS
+      };
+    }
+
+    // S40/§2-5: 店の数値入力の範囲。黙って既定値に戻さず、何がおかしいかを出す。
+    const STORE_LEND_RATE_MIN = 0.5;
+    const STORE_LEND_RATE_MAX = 4;
+    const STORE_EXCHANGE_BALLS_MIN = 20;
+    const STORE_EXCHANGE_BALLS_MAX = 50;
+
+    function storeTermsInputError(lendRate, exchangeBalls) {
+      if (lendRate === null) return "貸玉レートを数値で入力してください";
+      if (lendRate < STORE_LEND_RATE_MIN || lendRate > STORE_LEND_RATE_MAX) return `貸玉レートは${STORE_LEND_RATE_MIN}〜${STORE_LEND_RATE_MAX}円で入力してください`;
+      if (exchangeBalls === null) return "交換玉数を数値で入力してください";
+      if (exchangeBalls < STORE_EXCHANGE_BALLS_MIN || exchangeBalls > STORE_EXCHANGE_BALLS_MAX) return `交換玉数は${STORE_EXCHANGE_BALLS_MIN}〜${STORE_EXCHANGE_BALLS_MAX}で入力してください`;
+      return "";
+    }
+
     function lendRateForStore(store) {
       return positiveNumberOrDefault(store?.lendRate, DEFAULT_LEND_RATE);
     }
@@ -4588,10 +4639,14 @@
       `).join("");
       els.storeList.querySelectorAll("[data-store-id]").forEach((button) => {
         button.addEventListener("click", () => {
-          data.activeStoreId = button.dataset.storeId;
-          selectedLabelFilters = new Set();
-          persist();
-          showView("mapView");
+          const nextStoreId = button.dataset.storeId;
+          // S40/§2-1: 編集中のマップを黙って捨てない。
+          confirmDiscardMapDraft(data.activeStoreId, () => {
+            data.activeStoreId = nextStoreId;
+            selectedLabelFilters = new Set();
+            persist();
+            showView("mapView");
+          });
         });
       });
       els.storeList.querySelectorAll("[data-edit-store]").forEach((button) => {
@@ -4657,35 +4712,44 @@
     }
 
     function requestCloseMapEditor(storeId) {
-      if (!mapEditorHasUnsavedChanges(storeId)) {
-        closeMapEditor(storeId);
-        return;
-      }
-      openMapEditorDiscardConfirm(storeId);
+      confirmDiscardMapDraft(storeId, () => closeMapEditor(storeId));
     }
 
-    function openMapEditorDiscardConfirm(storeId) {
-      openModal("保存していない変更があります", "フロアマップの編集内容がまだ保存されていません。破棄しますか？", `
+    // S40/§2-1: 未保存の編集を捨てる前に必ず3択を出す。onProceed は「保存」「破棄」のあとに進む処理。
+    function confirmDiscardMapDraft(storeId, onProceed) {
+      if (!mapEditorHasUnsavedChanges(storeId)) {
+        onProceed();
+        return;
+      }
+      openMapEditorDiscardConfirm(storeId, onProceed);
+    }
+
+    function openMapEditorDiscardConfirm(storeId, onProceed) {
+      openModal("保存していない変更があります", "フロアマップの編集内容がまだ保存されていません。どうしますか？", `
         <div class="grid">
-          <button class="primary" id="mapSaveCloseBtn">保存して閉じる</button>
-          <button id="mapDiscardCloseBtn">破棄して閉じる</button>
+          <button class="primary" id="mapSaveCloseBtn">保存して続ける</button>
+          <button id="mapDiscardCloseBtn">破棄して続ける</button>
           <button class="ghost" id="mapCancelCloseBtn">キャンセル</button>
         </div>
       `);
       byId("mapSaveCloseBtn").addEventListener("click", () => {
         saveCurrentMap();
-        closeModal();
+        // S40/§2-2: エラーで保存できなかったときは、元の画面に留まる。
         if (mapEditorHasUnsavedChanges(storeId)) return;
-        closeMapEditor(storeId);
+        closeModal();
+        onProceed();
       });
       byId("mapDiscardCloseBtn").addEventListener("click", () => {
         const map = activeMap(storeId);
         mapDraft = { storeId, mapId: map.id, islands: cloneIslands(map.islands || []), allowEmptySave: false };
         expandedIslandIndexes = new Set();
         closeModal();
-        closeMapEditor(storeId);
+        onProceed();
       });
-      byId("mapCancelCloseBtn").addEventListener("click", closeModal);
+      byId("mapCancelCloseBtn").addEventListener("click", () => {
+        closeModal();
+        renderAll();
+      });
     }
 
     function mapManagementHtml(store) {
@@ -4721,9 +4785,62 @@
       return [...counts.entries()].filter(([, count]) => count > 1).map(([daiNo]) => daiNo);
     }
 
+    // S40/§2-4: 保存しようとしている台番のうち、同じ店の他のマップにあるもの。
+    function daiNosOnOtherMaps(storeId, currentMapId, daiNos) {
+      const wanted = new Set((daiNos || []).map(String));
+      const found = [];
+      // S40/§2-4: storeLayout の再正規化で保存中のマップ参照を切らない。
+      const layout = data.layouts[storeId] || storeLayout(storeId);
+      layout.maps.forEach((map) => {
+        if (map.id === currentMapId) return;
+        parseIslandLayout(map).daiNos.forEach((daiNo) => {
+          if (wanted.has(String(daiNo))) found.push({ daiNo: String(daiNo), map, mapName: map.name });
+        });
+      });
+      return found;
+    }
+
+    // S40/§2-4: 台番をマップから外す。範囲の端なら範囲を縮め、途中なら excluded に足す。
+    function removeDaiNoFromMap(map, daiNo) {
+      const target = String(daiNo);
+      (map.islands || []).forEach((island) => {
+        ["left", "right"].forEach((sideName) => {
+          const side = island[sideName];
+          if (!side) return;
+          if (!expandIslandSide(side).includes(target)) return;
+          const from = normalizeNumber(side.from);
+          const to = normalizeNumber(side.to);
+          const value = Number(target);
+          const step = from <= to ? 1 : -1;
+          if (from === value && from !== to) side.from = from + step;
+          else if (to === value && from !== to) side.to = to - step;
+          else {
+            if (!Array.isArray(island.excluded)) island.excluded = [];
+            if (!island.excluded.map(String).includes(target)) island.excluded.push(target);
+          }
+          clearEmptyIslandSide(island, sideName);
+        });
+      });
+      map.updatedAt = nowIso();
+    }
+
+    // S40/§2-4: 台番を外した結果その列に1台も残らなくなったら、範囲と除外の痕跡を消す。
+    // 残したままだと（例 from:104・to:104 と excluded:["104"]）、あとでその島を触ったときに
+    // 外したはずの台番が復活しうる。
+    function clearEmptyIslandSide(island, sideName) {
+      const side = island[sideName];
+      if (!side) return;
+      const expanded = expandIslandSide(side).map(String);
+      const excluded = new Set((island.excluded || []).map(String));
+      if (expanded.some((daiNo) => !excluded.has(daiNo))) return;
+      island.excluded = (island.excluded || []).map(String).filter((daiNo) => !expanded.includes(daiNo));
+      side.from = null;
+      side.to = null;
+    }
+
     function bindMapManagement(storeId) {
       const addButton = byId("addFloorMapBtn");
-      if (addButton) addButton.addEventListener("click", () => openAddFloorMapForm(storeId));
+      if (addButton) addButton.addEventListener("click", () => confirmDiscardMapDraft(storeId, () => openAddFloorMapForm(storeId)));
       const renameButton = byId("renameFloorMapBtn");
       if (renameButton) renameButton.addEventListener("click", () => openRenameFloorMapForm(storeId));
       const deleteButton = byId("deleteFloorMapBtn");
@@ -4838,11 +4955,14 @@
         </div>
       `;
       byId("activeIslandFilterSelect").addEventListener("change", (event) => {
-        setSelectedIslandFilter(store.id, event.target.value);
-        mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
-        expandedIslandIndexes = new Set();
-        if (!persistWithToast("保存しました")) return;
-        renderAll();
+        const nextFilter = event.target.value;
+        confirmDiscardMapDraft(store.id, () => {
+          setSelectedIslandFilter(store.id, nextFilter);
+          mapDraft = { storeId: null, mapId: null, islands: [], allowEmptySave: false };
+          expandedIslandIndexes = new Set();
+          if (!persistWithToast("保存しました")) return;
+          renderAll();
+        });
       });
       const labelFormButton = byId("openLabelFormBtn");
       if (labelFormButton) labelFormButton.addEventListener("click", openLabelForm);
@@ -5554,15 +5674,25 @@
       `);
       byId("createStoreBtn").addEventListener("click", () => {
         const name = byId("storeName").value.trim();
-        if (!name) return;
+        if (!name) {
+          showToast("店名を入力してください", "error");
+          return;
+        }
+        const lendRate = normalizeNumber(byId("storeLendRate").value);
+        const exchangeBalls = normalizeNumber(byId("storeExchangeBalls").value);
+        const inputError = storeTermsInputError(lendRate, exchangeBalls);
+        if (inputError) {
+          showToast(inputError, "error");
+          return;
+        }
         const store = {
           id: cryptoId("st"),
           name,
           isPersonal: byId("storePersonal").checked,
           // S22b/①: テスト店の指定は店設定で行う。新規は実戦の店として作る
           isTestStore: false,
-          lendRate: positiveNumberOrDefault(byId("storeLendRate").value, DEFAULT_LEND_RATE),
-          exchangeBalls: normalizeExchangeBalls(byId("storeExchangeBalls").value),
+          lendRate,
+          exchangeBalls,
           // S22/§1-2: 1R実質出玉の補正は既定0。必要になったら店設定で足し引きする
           netBallsOffset: 0,
           createdAt: nowIso()
@@ -5589,6 +5719,7 @@
           <div class="field-row"><label for="editStoreLendRate">貸玉レート（円/玉）</label><input id="editStoreLendRate" inputmode="decimal" value="${escapeHtml(store.lendRate)}"></div>
           <div class="field-row"><label for="editStoreExchangeBalls">交換玉数（100円あたり）</label><input id="editStoreExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(store.exchangeBalls))}"></div>
         </div>
+        <p class="hint">変更は次の実戦から反映されます。過去の記録は「記録の修正」の店条件で直します。</p>
         <div class="field-row"><label for="editStoreNetBallsOffset">1R実質出玉の補正（玉）</label><input id="editStoreNetBallsOffset" inputmode="decimal" value="${escapeHtml(netBallsOffsetForStore(store))}"></div>
         <p class="hint hint-help">この店の台はアタッカーのこぼれが多い、など店ごとの傾向があるときに。全店の実測平均に足し引きします。この店の台自身の実測がある台には掛かりません。</p>
         <div class="modal-actions">
@@ -5610,11 +5741,21 @@
       });
       byId("saveStoreSettingsBtn").addEventListener("click", () => {
         const name = byId("editStoreName").value.trim();
-        if (!name) return;
+        if (!name) {
+          showToast("店名を入力してください", "error");
+          return;
+        }
+        const lendRate = normalizeNumber(byId("editStoreLendRate").value);
+        const exchangeBalls = normalizeNumber(byId("editStoreExchangeBalls").value);
+        const inputError = storeTermsInputError(lendRate, exchangeBalls);
+        if (inputError) {
+          showToast(inputError, "error");
+          return;
+        }
         store.name = name;
         store.isPersonal = byId("editStorePersonal").checked;
-        store.lendRate = positiveNumberOrDefault(byId("editStoreLendRate").value, DEFAULT_LEND_RATE);
-        store.exchangeBalls = normalizeExchangeBalls(byId("editStoreExchangeBalls").value);
+        store.lendRate = lendRate;
+        store.exchangeBalls = exchangeBalls;
         if (!persistWithToast("保存しました")) return;
         closeModal();
         renderAll();
@@ -5660,6 +5801,14 @@
         return;
       }
       const parsed = parseIslandLayout({ islands });
+      // S40/§2-2: エラーがあるマップは保存しない。errors に積んで通す従来の扱いはやめる。
+      if (parsed.errors.length) {
+        const head = parsed.errors.slice(0, 3).join(" ／ ");
+        const rest = parsed.errors.length > 3 ? `　ほか${parsed.errors.length - 3}件` : "";
+        showToast(`保存できません：${head}${rest}`, "error");
+        renderMapEditor();
+        return;
+      }
       const previousParsed = parseIslandLayout({ islands: previousIslands });
       const previousDaiNos = new Set(previousParsed.daiNos.map(String));
       const nextDaiNos = new Set(parsed.daiNos.map(String));
@@ -5673,10 +5822,20 @@
           return;
         }
       }
+      // S40/§2-4: 同じ店の他のマップに登録済みの台番は、確認のうえこのマップへ移す（元からは外す）。
+      const conflicts = daiNosOnOtherMaps(store.id, map.id, parsed.daiNos);
+      if (conflicts.length) {
+        const daiNoText = conflicts.map((item) => item.daiNo).join("・");
+        const mapNames = [...new Set(conflicts.map((item) => item.mapName))].join("・");
+        if (!confirm(`台${daiNoText} は「${mapNames}」マップにあります。このマップへ移しますか？（元のマップからは外れます）`)) {
+          renderMapEditor();
+          return;
+        }
+        conflicts.forEach((item) => removeDaiNoFromMap(item.map, item.daiNo));
+      }
       saveMapBackup(store.id, map);
       map.islands = cloneIslands(islands);
       map.updatedAt = nowIso();
-      map.errors = parsed.errors;
       layout.activeMapId = map.id;
       mapDraft = { storeId: store.id, mapId: map.id, islands: cloneIslands(islands), allowEmptySave: false };
       syncMachinesFromMap(store.id, parsed);
@@ -6177,7 +6336,7 @@
           if (seen.has(daiNo)) errors.push(`島${index + 1}: 台番${daiNo}が重複しています`);
           seen.add(daiNo);
         });
-        return { sides: [left, right], allSides: [allLeft, allRight], island, index: island.displayIndex ?? index };
+        return { sides: [left, right], allSides: [allLeft, allRight], island, index };
       }).filter((row) => row.allSides[0].length || row.allSides[1].length);
       return { rows, errors, daiNos: [...seen] };
     }
@@ -6275,7 +6434,8 @@
           if (!preset) return;
           const previousPresetId = sideName === "left" ? previousIslands[islandIndex]?.leftPresetId || "" : previousIslands[islandIndex]?.rightPresetId || "";
           const presetChanged = previousPresetId !== presetId;
-          const daiNos = parsed.rows[islandIndex]?.sides?.[sideIndex] || [];
+          // S40/§2-3: parseIslandLayout は空島を除いた配列を返すので、添字ではなく元の index で引く。
+          const daiNos = parsed.rows.find((row) => row.index === islandIndex)?.sides?.[sideIndex] || [];
           const machines = daiNos.map((daiNo) => data.machines.find((machine) => machine.storeId === storeId && machine.daiNo === String(daiNo))).filter(Boolean);
           const alreadySet = machines.filter((machine) => {
             const currentPresetId = normalizeMachinePresetId(machine);
@@ -7550,6 +7710,8 @@
       session.machineId = machineId;
       // S7/B-1: 新式（起点・終点の実測差）は打ち始めたセッションだけに付ける。
       session.consumedModel = "endpoints";
+      // S40/§1: この時点の店条件を記録へ写す。以後の店設定の変更はこの記録に効かない。
+      session.storeTerms = storeTermsFromStore(store);
       const manualPrevDayEndSpin = normalizeNumber(presets.prevDayEndSpin);
       const prevDayDisabled = presetsDisablePrevDay(presets);
       const hasPrevDayPreset = Object.prototype.hasOwnProperty.call(presets, "prevDayEndSpin") || prevDayDisabled;
@@ -9293,7 +9455,7 @@
     function runningNormalInputBalls(session, derived = null) {
       const segmentBalls = runningSessionDerived(session, derived).consumedBalls;
       if (segmentBalls !== null && segmentBalls !== undefined && segmentBalls > 0) return Math.round(segmentBalls);
-      const store = storeById(session.storeId);
+      const store = storeTermsForSession(session);
       const investedBalls = normalRateInvestments(session).reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       const tapMode = usesTapInvestmentMode(session);
       const hasHit = Number(session?.hitCount || 0) > 0;
@@ -9308,7 +9470,7 @@
     function investmentSnapshot(session, investmentIndex) {
       const item = session.investments[investmentIndex];
       if (!item || item.adjustment) return null;
-      const store = storeById(session.storeId);
+      const store = storeTermsForSession(session);
       const investedBalls = session.investments.slice(0, investmentIndex + 1).reduce((sum, investment) => {
         return investment.adjustment ? sum : sum + investmentToBalls(investment, store);
       }, 0);
@@ -9505,13 +9667,13 @@
 
     // S12/A-1: プレイヤーが自分の玉から出した投資合計（現金は含めない）。
     // パーソナル店は開始持ち玉＋再プレ、非パーソナル店はB81由来の投資合計（持ち玉投入＋再プレ）。
-    function playerInvestedBalls(session, totals = investmentTotals(session), store = storeById(session?.storeId)) {
+    function playerInvestedBalls(session, totals = investmentTotals(session), store = storeTermsForSession(session)) {
       return usesPersonalBalanceFormula(store)
         ? Number(session.startMochidama || 0) + Number(totals.saipureiBalls || 0)
         : Number(totals.mochidamaBalls || 0) + Number(totals.saipureiBalls || 0);
     }
 
-    function profitYenForSession(session, totals = investmentTotals(session), store = storeById(session.storeId)) {
+    function profitYenForSession(session, totals = investmentTotals(session), store = storeTermsForSession(session)) {
       const endTotalBalls = normalizeNumber(session.endTotalBalls);
       if (endTotalBalls === null) return null;
       const exchangeRate = exchangeRateForStore(store);
@@ -9696,7 +9858,7 @@
       const segments = sessionSegments(session);
       if (segments.length < 2) return [];
       const earnedById = earned?.byId || null;
-      const store = storeById(session.storeId);
+      const store = storeTermsForSession(session);
       const preset = machine ? presetById(normalizeMachinePresetId(machine)) : null;
       const multiNormal = segments.filter((segment) => segment.kind === "normal").length > 1;
       // S20/§2-3: 当選で終わる区間の行に、その連チャンの純増と1R実質出玉を添える
@@ -10086,7 +10248,7 @@
 
     function transferSummaryForSession(session) {
       const totals = investmentTotals(session);
-      const store = storeById(session.storeId);
+      const store = storeTermsForSession(session);
       const machine = data.machines.find((item) => item.id === session.machineId);
       const derived = deriveSession(session, machine);
       // S4/C-5: 1R平均は実測の獲得出玉だけで出す。玉数の増減からの推計では代用しない。
@@ -10433,6 +10595,8 @@
       next.machineId = sourceSession.machineId;
       // S7/B-1: 同じ台で続行も打ち始め。新式で計算する。
       next.consumedModel = "endpoints";
+      // S40/§1: 同じ台で続行も打ち始め。その時点の店条件を写す。
+      next.storeTerms = storeTermsFromStore(storeById(next.storeId));
       next.date = today();
       next.labels = Array.isArray(sourceSession.labels) ? [...sourceSession.labels] : [];
       next.carriedFromSessionId = sourceSession.id;
@@ -10475,7 +10639,7 @@
       // S7c/1-3: 投資タップが入った区間は打ち出しが始まっている（「打ち出し開始」の押し忘れの救済）
       markSegmentShootingStarted(session, item.segmentId);
       session.updatedAt = nowIso();
-      const balls = Math.round(investmentToBalls(item, storeById(session.storeId)));
+      const balls = Math.round(investmentToBalls(item, storeTermsForSession(session)));
       if (!persist()) {
         showToast("保存に失敗しました。容量を確認してください。", "error");
         return;
@@ -10757,6 +10921,15 @@
           ${fieldHtml("zanhoryuBalls", "残保留での増減玉（終了玉に含めていない場合だけ。通常は0）", session.zanhoryuBalls)}
           ${fieldHtml("settlementRecoverYen", "回収金額", session.settlementRecoverYen)}
         </div>
+        <div class="section compact">
+          <h3>この記録の店条件</h3>
+          <p class="hint hint-help">打ち始めた時点の店の条件です。実収支と玉単価はこの値で計算します。ここを直すと、この記録だけが変わります。</p>
+          <label class="check-chip"><input id="edit_storeTermsPersonal" type="checkbox" ${storeTermsForSession(session)?.isPersonal ? "checked" : ""}> パーソナルシステムあり</label>
+          <div class="grid two">
+            <div class="field-row"><label for="edit_storeTermsLendRate">貸玉レート（円/玉）</label><input id="edit_storeTermsLendRate" inputmode="decimal" value="${escapeHtml(lendRateForStore(storeTermsForSession(session)))}"></div>
+            <div class="field-row"><label for="edit_storeTermsExchangeBalls">交換玉数（100円あたり）</label><input id="edit_storeTermsExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(exchangeBallsForStore(storeTermsForSession(session))))}"></div>
+          </div>
+        </div>
         ${playStyleEditorHtml(session)}
         ${segmentHoldSpinsEditorHtml(session)}
         ${consumedBallsSourceEditorHtml(session)}
@@ -10837,6 +11010,21 @@
         const consumedBallsSourceSelect = byId("editConsumedBallsSource");
         if (consumedBallsSourceSelect) session.consumedBallsSource = normalizeConsumedBallsSource(byId("editConsumedBallsSource").value);
         session.labels = [...document.querySelectorAll(".editLabel:checked")].map((input) => input.value);
+        // S40/§1: この記録の店条件。範囲外の入力は §2-5 と同じ基準で弾く。
+        const editedLendRate = normalizeNumber(byId("edit_storeTermsLendRate")?.value);
+        const editedExchangeBalls = normalizeNumber(byId("edit_storeTermsExchangeBalls")?.value);
+        const termsError = storeTermsInputError(editedLendRate, editedExchangeBalls);
+        if (termsError) {
+          showToast(termsError, "error");
+          Object.keys(session).forEach((key) => { delete session[key]; });
+          Object.assign(session, beforeEdit);
+          return;
+        }
+        session.storeTerms = {
+          isPersonal: byId("edit_storeTermsPersonal")?.checked === true,
+          lendRate: editedLendRate,
+          exchangeBalls: editedExchangeBalls
+        };
         session.memo = byId("editMemo").value.trim();
         // S39/§3: 逆行した通常区間があるまま保存しない。入力し直せるようモーダルは閉じない。
         if (blockedByReversedSegments(session)) {
@@ -10989,18 +11177,18 @@
       return normalizeNumber(session?.hitRemainBalls);
     }
 
-    function tapModeNormalBaselineBalls(session, store = storeById(session?.storeId)) {
+    function tapModeNormalBaselineBalls(session, store = storeTermsForSession(session)) {
       const normalExtraBalls = normalRateInvestments(session)
         .filter((item) => investmentSource(item) !== "mochidama")
         .reduce((sum, item) => sum + investmentToBalls(item, store), 0);
       return Number(session?.startMochidama || 0) + normalExtraBalls;
     }
 
-    function tapModeNormalConsumptionFallback(session, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
+    function tapModeNormalConsumptionFallback(session, hasHit = Number(session?.hitCount || 0) > 0, store = storeTermsForSession(session)) {
       return tapModeNormalConsumedCandidates(session, null, hasHit, store).fallback;
     }
 
-    function tapModeNormalConsumedCandidates(session, normalInputBalls = null, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId)) {
+    function tapModeNormalConsumedCandidates(session, normalInputBalls = null, hasHit = Number(session?.hitCount || 0) > 0, store = storeTermsForSession(session)) {
       const taps = normalizeNumber(normalInputBalls);
       const hitTrackedBalls = normalizeNumber(session?.hitTrackedBalls);
       if (usesTapInvestmentMode(session) && hitTrackedBalls !== null && normalizeNumber(session?.yutimeEnterBalls) === null) {
@@ -11026,7 +11214,7 @@
       };
     }
 
-    function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0, store = storeById(session?.storeId), candidates = null) {
+    function tapModeNormalConsumedBalls(session, normalInputBalls, hasHit = Number(session?.hitCount || 0) > 0, store = storeTermsForSession(session), candidates = null) {
       const values = candidates || tapModeNormalConsumedCandidates(session, normalInputBalls, hasHit, store);
       if (values.corrected !== null && values.corrected !== undefined) return values.corrected;
       const selected = normalizeConsumedBallsSource(session?.consumedBallsSource);
@@ -11579,7 +11767,7 @@
     // カウンターの獲得出玉（S8）も同じ切り方で持ち、持ち玉差が出せない連チャンのフォールバックにする。
     function chainNetBallsRows(session, presetId) {
       const segments = sessionSegments(session);
-      const store = storeById(session?.storeId);
+      const store = storeTermsForSession(session);
       const hits = normalizeHits(session?.hits);
       const roundsOf = (hit) => roundCountFromRoundType(roundTypeById(presetId, hit.roundTypeId)) ?? 0;
       const rows = [];
@@ -11673,7 +11861,7 @@
     }
 
     function deriveSession(session, machine = null) {
-      const store = storeById(session.storeId);
+      const store = storeTermsForSession(session);
       const segments = sessionSegments(session);
       const normalSegments = segments.filter((segment) => segment.kind === "normal");
       const multiNormal = normalSegments.length > 1;

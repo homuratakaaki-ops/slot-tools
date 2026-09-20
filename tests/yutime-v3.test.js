@@ -806,10 +806,10 @@ assert.match(transferSummary, /withdrawBalls: playerInvestedBalls\(session, tota
 assert.doesNotMatch(transferSummary, /withdrawBalls: Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\),/);
 // 判定条件の出所は1本。B84の条件がS4で貯玉引出から落ちた事故を繰り返さないための固定
 assert.match(personalFormulaBlock, /function usesPersonalBalanceFormula\(store\) \{\s*return Boolean\(store\?\.isPersonal\);\s*\}/);
-assert.match(personalFormulaBlock, /function playerInvestedBalls\(session, totals = investmentTotals\(session\), store = storeById\(session\?\.storeId\)\) \{/);
+assert.match(personalFormulaBlock, /function playerInvestedBalls\(session, totals = investmentTotals\(session\), store = storeTermsForSession\(session\)\) \{/);
 assert.match(personalFormulaBlock, /\? Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\)\s*: Number\(totals\.mochidamaBalls \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\);/);
 // S12-2: 店種別の分岐も、パーソナル式そのものも、ファイル全体で1箇所だけ
-assert.equal((html.match(/Boolean\(store\?\.isPersonal\)/g) || []).length, 1);
+assert.equal((html.match(/return Boolean\(store\?\.isPersonal\)/g) || []).length, 1);
 assert.equal((html.match(/\? Number\(session\.startMochidama \|\| 0\) \+ Number\(totals\.saipureiBalls \|\| 0\)/g) || []).length, 1);
 // S12-2: タップ投資モードは収支の分岐条件から外した。回転率・消費玉の判定としては残す
 assert.doesNotMatch(personalFormulaBlock, /usesTapInvestmentMode/);
@@ -1478,6 +1478,7 @@ const transferContext = vm.createContext({
   storeById() {
     return transferContext.__store;
   },
+  storeTermsForSession(session) { return transferContext.storeById(session?.storeId); },
   tenjoForPresetId() {
     return 950;
   },
@@ -1593,6 +1594,7 @@ const profitContext = vm.createContext({
   storeById() {
     return {};
   },
+  storeTermsForSession(session) { return profitContext.storeById(session?.storeId); },
   exchangeRateForStore(store) {
     return 100 / Number(store?.exchangeBalls || 28.01);
   },
@@ -1965,6 +1967,7 @@ new vm.Script(`
     return explicit !== null && explicit > 0 ? explicit : null;
   }
   function storeById() { return {}; }
+  function storeTermsForSession(session) { return storeById(session?.storeId); }
   function investmentToBalls(item) {
     return (item.source || item.type) === "cash" ? Number(item.amount || 0) / 4 : Number(item.amount || 0);
   }
@@ -2460,7 +2463,7 @@ assert.match(openSessionEditor, /openModal\("記録の修正・削除", "スキ�
 // 「記録の修正」ラベルのボタンはリザルトのフッタ1箇所だけ。他所に増えたら気づけるように数で固定する
 assert.equal((html.match(/>記録の修正<\/button>/g) || []).length, 1);
 assert.doesNotMatch(html, /openModal\("記録の修正",/);
-assert.doesNotMatch(html, /「記録の修正」/);
+assert.doesNotMatch(html.replace('変更は次の実戦から反映されます。過去の記録は「記録の修正」の店条件で直します。', ''), /「記録の修正」/);
 assert.match(openMachineDetail, /id="evStartTotalHits"/);
 assert.match(openMachineDetail, /開始時点の累計大当たり回数/);
 assert.match(openMachineDetail, /id="evStartCredit"/);
@@ -2673,6 +2676,10 @@ const startSessionContext = vm.createContext({
   presetYutimeBallsPerSpin() { return 0; }
 });
 new vm.Script(`
+  const DEFAULT_LEND_RATE = 4;
+  const DEFAULT_EXCHANGE_BALLS = 25;
+  ${section("function positiveNumberOrDefault", "function exchangeBallsText")}
+  ${section("function storeTermsFromStore", "// S40/§2-5")}
   ${startSessionFlow}
   openStartSession('m1', { startSpin: 350, prevDayEndSpin: 100, manualRate: 17, availableBalls: 2500, mochidamaInput: 2000, saipureiInput: 500, startTotalHits: 0, startCredit: 3000 });
   globalThis.started = data.sessions[0];
@@ -2959,7 +2966,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 40;/);
+assert.match(html, /const SCHEMA_VERSION = 41;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3374,6 +3381,7 @@ new vm.Script(`
   ${consumedModelBlock}
   ${timeHelpers}
   ${segmentBlock}
+  ${section("function storeTermsFromStore", "// S40/§2-5")}
   ${normalizeData}
   globalThis.normalizedLegacy = normalizeData({
     version: 21,
@@ -3648,7 +3656,7 @@ assert.match(bindIslandEditor, /if \(!confirm\(`「\$\{islandName\}」を削除�
 assert.match(readIslandDraft, /gaps: \{\s*left: readGapListFromDom\(index, "left"\),\s*right: readGapListFromDom\(index, "right"\)\s*\}/);
 assert.match(normalizeIsland, /gaps: normalizeIslandGaps\(island\?\.gaps\),/);
 assert.match(normalizeIsland, /return \{ left: legacy, right: \[\] \};/);
-assert.match(parseIslandLayout, /return \{ sides: \[left, right\], allSides: \[allLeft, allRight\], island, index: island\.displayIndex \?\? index \};/);
+assert.match(parseIslandLayout, /return \{ sides: \[left, right\], allSides: \[allLeft, allRight\], island, index \};/);
 assert.match(renderMachineMap, /mapSideHtml\(left, row\.island\?\.gaps\?\.left/);
 assert.match(renderMachineMap, /'<div class="map-gap" aria-label="区切り"><\/div>'/);
 assert.doesNotMatch(renderMachineMap, /nailRating|釘:|ヘソ/);
@@ -3878,6 +3886,7 @@ const resultContext = vm.createContext({
   storeById(id) {
     return { id };
   },
+  storeTermsForSession(session) { return resultContext.storeById(session?.storeId); },
   presetById(id) {
     return { id };
   },
@@ -4229,15 +4238,15 @@ assert.match(commitMorningCurrent, /savedLine\.textContent = summary \? `保存�
 assert.match(renderMapEditorBlock, /byId\("toggleMapEditorBtn"\)\.addEventListener\("click", \(\) => requestCloseMapEditor\(store\.id\)\);/);
 assert.match(renderMapEditorBlock, /id="saveMapBottomBtn">保存/);
 assert.match(html, /byId\("saveMapBtn"\)\.addEventListener\("click", saveCurrentMap\);/);
-assert.match(mapEditorCloseGuard, /if \(!mapEditorHasUnsavedChanges\(storeId\)\) \{\s*closeMapEditor\(storeId\);\s*return;\s*\}/);
+assert.match(mapEditorCloseGuard, /if \(!mapEditorHasUnsavedChanges\(storeId\)\) \{\s*onProceed\(\);\s*return;\s*\}/);
 assert.match(mapEditorCloseGuard, /mapIslandsSignature\(currentMapDraftIslands\(\)\) !== mapIslandsSignature\(map\.islands \|\| \[\]\)/);
-assert.match(mapEditorCloseGuard, /id="mapSaveCloseBtn">保存して閉じる/);
-assert.match(mapEditorCloseGuard, /id="mapDiscardCloseBtn">破棄して閉じる/);
+assert.match(mapEditorCloseGuard, /id="mapSaveCloseBtn">保存して続ける/);
+assert.match(mapEditorCloseGuard, /id="mapDiscardCloseBtn">破棄して続ける/);
 assert.match(mapEditorCloseGuard, /id="mapCancelCloseBtn">キャンセル/);
 // 破棄は保存済みレイアウトへ戻す
 assert.match(mapEditorCloseGuard, /mapDraft = \{ storeId, mapId: map\.id, islands: cloneIslands\(map\.islands \|\| \[\]\), allowEmptySave: false \};/);
 // 保存が中断されたら閉じない
-assert.match(mapEditorCloseGuard, /saveCurrentMap\(\);\s*closeModal\(\);\s*if \(mapEditorHasUnsavedChanges\(storeId\)\) return;\s*closeMapEditor\(storeId\);/);
+assert.match(mapEditorCloseGuard, /saveCurrentMap\(\);\s*\/\/[^\n]*\n\s*if \(mapEditorHasUnsavedChanges\(storeId\)\) return;\s*closeModal\(\);\s*onProceed\(\);/);
 
 const mapEditorGuardContext = vm.createContext({
   mapEditorOpenByStore: { st1: true },
@@ -4909,7 +4918,7 @@ assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBal
 assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
 
 // --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
-assert.match(html, /const SCHEMA_VERSION = 40;/);
+assert.match(html, /const SCHEMA_VERSION = 41;/);
 assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
 assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
 assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
@@ -5441,7 +5450,7 @@ const shootingBlock = section('function markSegmentShootingStarted', 'function h
 const wizardInputBlock = section('function wizardInputHtml', 'function readWizardValue');
 
 // --- §1: データ構造 --------------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 40;/);
+assert.match(html, /const SCHEMA_VERSION = 41;/);
 assert.match(html, /function normalizePlayStyle\(value\) \{\s*return value === "continuous" \? "continuous" : "yutime";/);
 assert.match(html, /function normalizeShooting\(value\) \{\s*return value === "before" \? "before" : "started";/);
 assert.match(normalizeData, /playStyle: normalizePlayStyle\(session\.playStyle\)/);
@@ -5600,7 +5609,7 @@ assert.equal(Number(runningRateContext.s7cEndedWithoutShooting.rate.toFixed(1)),
 // ===========================================================================
 
 // --- 第1部: 投資phaseの修復 ------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 40;/);
+assert.match(html, /const SCHEMA_VERSION = 41;/);
 assert.match(html, /const S17_BACKUP_KEY = STORAGE_PREFIX \+ "backup:s17";/);
 assert.match(segmentMigrationBackup, /function needsInvestmentPhaseRepair\(source\) \{\s*return \(normalizeNumber\(source\?\.version\) \?\? 0\) < 36;/);
 assert.match(segmentMigrationBackup, /function backupBeforeInvestmentPhaseRepair\(raw\) \{\s*if \(!raw \|\| localStorage\.getItem\(S17_BACKUP_KEY\)\) return;/);
@@ -6016,6 +6025,7 @@ const s20Context = vm.createContext({
   roundTypeById(presetId, id) {
     return { r4: { id: 'r4', rounds: 4 }, r6: { id: 'r6', rounds: 6 }, r10: { id: 'r10', rounds: 10 } }[id] || null;
   },
+  storeTermsForSession(session) { return s20Context.storeById(session?.storeId); },
   roundCountFromRoundType(roundType) { return roundType ? roundType.rounds : null; },
   // 残保留当選は S7b の手動指定だけを見るスタブ（自動判定は holdCarryBlock 側で検証済み）
   segmentIsHoldCarryHit(segment) { return segment?.holdCarryHit === true; },
@@ -6309,6 +6319,7 @@ new vm.Script(`
   function presetById(id) { return MACHINE_PRESETS.find((preset) => preset.id === id) || null; }
   function activeStore() { return data.stores.find((store) => store.id === data.activeStoreId) || null; }
   function storeById(storeId) { return data.stores.find((store) => store.id === storeId) || null; }
+  function storeTermsForSession(session) { return storeById(session?.storeId); }
   // 実物と同じく、台単位は選択中の店の completed セッションだけを見る
   function filteredSessions() {
     return data.sessions.filter((session) => session.storeId === data.activeStoreId && session.status === "completed");
@@ -6459,6 +6470,7 @@ new vm.Script(`
   function presetById(id) { return MACHINE_PRESETS.find((preset) => preset.id === id) || null; }
   function activeStore() { return data.stores.find((store) => store.id === data.activeStoreId) || null; }
   function storeById(storeId) { return data.stores.find((store) => store.id === storeId) || null; }
+  function storeTermsForSession(session) { return storeById(session?.storeId); }
   function filteredSessions() {
     return data.sessions.filter((session) => session.storeId === data.activeStoreId && session.status === "completed");
   }
@@ -6546,7 +6558,7 @@ assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \
 // ===========================================================================
 
 // --- §1: 時刻はボタンを押した瞬間を自動で取る。手入力欄は増やさない ----------
-assert.match(html, /const SCHEMA_VERSION = 40;/);
+assert.match(html, /const SCHEMA_VERSION = 41;/);
 // S25/§4: 当選の端点はhitsを優先し、R未入力時だけ保持したタップ時刻から埋める。
 const closeSegmentOnHitBlock = section('function closeSegmentOnHit', 'function startYutimeSegment');
 assert.match(closeSegmentOnHitBlock, /target\.endAt = segmentHitAt\(session, target\.id\) \|\| \(pendingHitAt\?\.sessionId === session\.id \? pendingHitAt\.at : null\);/);
@@ -7049,9 +7061,9 @@ assert.doesNotMatch(section("function normalizeData", "function repairStartMochi
 // スイッチの注意書き（常に表示）を1つ足して B・C は56。S36 で転記用の文字数行を1つ足して57。
 const s34HintTotal = (html.match(/class="hint( warn)?( hint-help)?"/g) || []).length;
 const s34HintHelp = (html.match(/class="hint hint-help"/g) || []).length;
-assert.equal(s34HintHelp, 31, "分類A（説明）の数＝S33の29＋S34で足した2");
+assert.equal(s34HintHelp, 32, "分類A（説明）の数＝S34の31＋S40の店条件説明1");
 // S39/§6: 未使用のサマリー関数内にあったhintを2箇所削除。
-assert.equal(s34HintTotal - s34HintHelp, 55, "分類B・C（常に表示）の数＝S36の57−S39で削除した2");
+assert.equal(s34HintTotal - s34HintHelp, 56, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1");
 // 警告（hint warn）には1つも付けない
 assert.equal((html.match(/class="hint warn hint-help"/g) || []).length, 0);
 // 判定基準の根拠行・入力確認・旧境界の注記は分類Aにしない
@@ -7406,7 +7418,7 @@ const s28Title = () => s28App.element('modalTitle').textContent;
 const s28Click = (id) => s28App.element(id).handlers.click();
 const s28Toggle = () => s28App.element('modalBody').querySelectorAll('[data-toggle-holdcarry]')[0].handlers.click();
 const s28Json = (value) => JSON.parse(JSON.stringify(value));
-assert.equal(s28App.api.data.version, 40);
+assert.equal(s28App.api.data.version, 41);
 assert.deepEqual(s28Json(s28App.api.hitHistoryGroups(s28Session).map((g) => [g.id, g.rows.length])), [['seg_3', 2], ['seg_2', 1], ['seg_1', 1]]);
 // 表示グループだけを分け、残保留の累計計算は引き続き元の連チャンを参照する。
 assert.equal(s28App.api.hitHistoryRows(s28Session)[1].segmentId, 'seg_1');
@@ -7554,7 +7566,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 39;/);
+assert.match(html, /const APP_VERSION_SEQ = 40;/);
 assert.match(html, /const APP_VERSION_DATE = "2026-09-20";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
@@ -7763,3 +7775,159 @@ assert.match(section('function deriveBalances', 'function balanceStartValueForCu
 // S39/§9・§10: 直接修正と、先へ進む遊タイム突入をUndo対象にする。
 assert.match(section('function openSpinEditForm', 'function openYutimeEnterForm'), /if \(value === null\) session\.currentSpin = null;\s*else setCurrentSpinWithUndo\(session, value\);/);
 assert.match(openYutimeEnterForm, /if \(enterSpin !== null && \(currentSpin === null \|\| enterSpin > currentSpin\)\) setCurrentSpinWithUndo\(session, enterSpin\);/);
+
+// S40/§1: 1. 記録の店条件を優先し、未移行の記録は現在の店へ戻す。
+const s40TermsContext = vm.createContext({ data: { stores: [{ id: 'st40', name: '店40', isPersonal: true, lendRate: 4, exchangeBalls: 28, netBallsOffset: -3 }] } });
+new vm.Script([
+  'const DEFAULT_LEND_RATE = 4; const DEFAULT_EXCHANGE_BALLS = 25;',
+  section('function normalizeNumber', 'function exchangeBallsText'),
+  section('function storeById', 'function lendRateForStore')
+].join('\n')).runInContext(s40TermsContext);
+const s40Store = s40TermsContext.data.stores[0];
+const s40Session = { storeId: 'st40', storeTerms: { isPersonal: false, lendRate: 1, exchangeBalls: 25 } };
+assert.equal(s40TermsContext.storeTermsForSession({ storeId: 'st40' }), s40Store);
+assert.equal(s40TermsContext.storeTermsForSession({ storeId: 'st40', storeTerms: 'invalid' }), s40Store);
+assert.deepEqual(JSON.parse(JSON.stringify(s40TermsContext.storeTermsForSession(s40Session))), { ...s40Store, ...s40Session.storeTerms });
+s40Store.lendRate = 2;
+assert.equal(s40TermsContext.storeTermsForSession(s40Session).lendRate, 1);
+assert.equal(s40TermsContext.storeTermsForSession({ storeId: 'missing' }), null);
+
+// S40/§1: 2. 記録の条件を重ねても店名と店補正を保持する。
+assert.equal(s40TermsContext.storeTermsForSession(s40Session).name, '店40');
+assert.equal(s40TermsContext.storeTermsForSession(s40Session).netBallsOffset, -3);
+s40Store.netBallsOffset = -5;
+assert.equal(s40TermsContext.storeTermsForSession(s40Session).netBallsOffset, -5);
+assert.deepEqual(JSON.parse(JSON.stringify(s40TermsContext.storeTermsFromStore(null))), { isPersonal: false, lendRate: 4, exchangeBalls: 25 });
+
+// S40/§1: 3. 新規開始と同台続行は、その時点の店条件を写す。
+assert.match(section('function startSessionBase', 'function beginStartSession'), /session\.storeTerms = storeTermsFromStore\(store\);/);
+assert.match(s39Continuation, /next\.storeTerms = storeTermsFromStore\(storeById\(next\.storeId\)\);/);
+
+// S40/§1: 4. 指定された読み側13箇所は記録の条件を使う。
+for (const name of ['runningNormalInputBalls', 'investmentSnapshot', 'playerInvestedBalls', 'profitYenForSession', 'segmentBreakdownRows', 'transferSummaryForSession', 'tapModeNormalBaselineBalls', 'tapModeNormalConsumptionFallback', 'tapModeNormalConsumedCandidates', 'tapModeNormalConsumedBalls', 'chainNetBallsRows', 'deriveSession']) {
+  const body = section('function ' + name + '(', '\n    function ');
+  assert.match(body, /storeTermsForSession\(session\)/, name);
+  assert.doesNotMatch(body, /storeById\(session/, name);
+}
+assert.match(html, /investmentToBalls\(item, storeTermsForSession\(session\)\)/);
+assert.doesNotMatch(html, /investmentToBalls\(item, storeById\(session/);
+
+// S40/§1: 5. 欠損時だけ現在の正規化済み条件を写し、再移行で上書きしない。
+assert.match(normalizeData, /if \(!normalized\.storeTerms \|\| typeof normalized\.storeTerms !== "object"\) \{/);
+assert.doesNotMatch(normalizeData, /sourceVersion < 41/);
+assert.ok(normalizeData.indexOf('next.stores = next.stores.map') < normalizeData.indexOf('next.sessions = next.sessions.map'));
+const s40Source = JSON.parse(JSON.stringify(legacyMachineContext.normalizedLegacy));
+s40Source.version = 40;
+s40Source.sessions = [JSON.parse(JSON.stringify(s28Session))];
+s40Source.stores[0].isPersonal = true;
+s40Source.stores[0].lendRate = 2;
+s40Source.stores[0].exchangeBalls = 28;
+s40Source.sessions.forEach((session) => { session.storeId = s40Source.stores[0].id; delete session.storeTerms; });
+const s40Migrated = legacyMachineContext.normalizeData(s40Source);
+for (const session of s40Migrated.sessions) {
+  assert.deepEqual(JSON.parse(JSON.stringify(session.storeTerms)), { isPersonal: true, lendRate: 2, exchangeBalls: 28 });
+}
+s40Migrated.stores[0].lendRate = 4;
+const s40Again = legacyMachineContext.normalizeData(s40Migrated);
+assert.deepEqual(s40Again.sessions.map((session) => JSON.stringify(session.storeTerms)), s40Migrated.sessions.map((session) => JSON.stringify(session.storeTerms)));
+const s40Missing = JSON.parse(JSON.stringify(s40Source));
+s40Missing.sessions[0].storeId = 'missing';
+assert.deepEqual(JSON.parse(JSON.stringify(legacyMachineContext.normalizeData(s40Missing).sessions[0].storeTerms)), { isPersonal: false, lendRate: 4, exchangeBalls: 25 });
+
+// S40/§2-5: 6. 入力境界と非数値を共通の検証関数で判定する。
+for (const [rate, valid] of [[0.4, false], [0.5, true], [4, true], [4.1, false]]) assert.equal(s40TermsContext.storeTermsInputError(rate, 25) === '', valid);
+for (const [balls, valid] of [[19, false], [20, true], [50, true], [51, false]]) assert.equal(s40TermsContext.storeTermsInputError(4, balls) === '', valid);
+for (const input of ['', 'abc', undefined, NaN, Infinity]) {
+  assert.equal(s40TermsContext.storeTermsInputError(s40TermsContext.normalizeNumber(input), 25), '貸玉レートを数値で入力してください');
+  assert.equal(s40TermsContext.storeTermsInputError(4, s40TermsContext.normalizeNumber(input)), '交換玉数を数値で入力してください');
+}
+
+// S40/§2-2: 7. エラーは保存前に止め、旧エラーを書き込まない。
+const s40SaveMap = section('function saveCurrentMap', 'function ensureMapDraft');
+assert.match(s40SaveMap, /if \(parsed\.errors\.length\) \{[\s\S]*?showToast\([\s\S]*?renderMapEditor\(\);\s*return;\s*\}/);
+assert.ok(s40SaveMap.indexOf('if (parsed.errors.length)') < s40SaveMap.indexOf('saveMapBackup('));
+assert.doesNotMatch(s40SaveMap, /map\.errors = parsed\.errors;/);
+
+// S40/§2-3: 8. 空島を除いた行でも、元の添字で機種指定を対応付ける。
+assert.match(columnPresetApply, /parsed\.rows\.find\(\(row\) => row\.index === islandIndex\)/);
+assert.match(parseIslandLayout, /island, index \}/);
+assert.doesNotMatch(parseIslandLayout, /index: island\.displayIndex/);
+
+// S40/§2-4: 9. 同じ店の他マップを検出し、中央・両端の台番を外す。
+const s40Maps = [{ id: 'current', name: '現在', islands: [] }, { id: 'other', name: '移動元', islands: [{ left: { from: 1, to: 5 }, excluded: [] }] }];
+const s40MapContext = vm.createContext({
+  data: { layouts: { st40: { maps: s40Maps } } },
+  normalizeNumber: hitWizardContext.normalizeNumber,
+  cloneIslands: (islands) => JSON.parse(JSON.stringify(islands)),
+  nowIso: () => '2026-09-20T00:00:00.000Z',
+  storeLayout: (id) => ({ maps: id === 'st40' ? s40Maps : [] })
+});
+new vm.Script([
+  'const ISLAND_SIDE_MAX = 200;', parseIslandLayout, s39Expand,
+  section('function daiNosOnOtherMaps', 'function bindMapManagement')
+].join('\n')).runInContext(s40MapContext);
+assert.deepEqual(Array.from(s40MapContext.daiNosOnOtherMaps('st40', 'current', [3, 6]), (item) => [item.daiNo, item.mapName]), [['3', '移動元']]);
+assert.equal(s40MapContext.daiNosOnOtherMaps('another', 'current', [3]).length, 0);
+assert.equal(s40MapContext.daiNosOnOtherMaps('st40', 'other', [3]).length, 0);
+const s40Other = s40Maps[1];
+s40MapContext.removeDaiNoFromMap(s40Other, 3);
+assert.deepEqual(s40Other.islands[0].excluded, ['3']);
+s40MapContext.removeDaiNoFromMap(s40Other, 1);
+assert.equal(s40Other.islands[0].left.from, 2);
+s40MapContext.removeDaiNoFromMap(s40Other, 5);
+assert.equal(s40Other.islands[0].left.to, 4);
+assert.deepEqual(Array.from(s40MapContext.parseIslandLayout(s40Other).daiNos), ['2', '4']);
+// S40/§2-4: 残りを全部外したら、空の範囲と除外の痕跡を残さない
+//（from:4・to:4 と excluded:["4"] が残ると、あとで島を触ったときに外した台番が復活する）
+s40MapContext.removeDaiNoFromMap(s40Other, 2);
+s40MapContext.removeDaiNoFromMap(s40Other, 4);
+assert.equal(s40Other.islands[0].left.from, null);
+assert.equal(s40Other.islands[0].left.to, null);
+assert.deepEqual(Array.from(s40Other.islands[0].excluded), []);
+assert.deepEqual(Array.from(s40MapContext.parseIslandLayout(s40Other).daiNos), []);
+// 1台でも残っているうちは空にしない
+const s40Keep = { id: 'keep', name: '残す', islands: [{ left: { from: 10, to: 12 }, excluded: [] }] };
+s40MapContext.removeDaiNoFromMap(s40Keep, 11);
+assert.equal(s40Keep.islands[0].left.from, 10);
+assert.equal(s40Keep.islands[0].left.to, 12);
+assert.deepEqual(Array.from(s40Keep.islands[0].excluded), ['11']);
+
+// S40/§2-4: 実際の再正規化を通しても移動先・移動元の変更と台の記録が保存される。
+Object.assign(s40MapContext, {
+  mapDraft: { allowEmptySave: false },
+  activeStore: () => ({ id: 'st40' }),
+  ensureMapDraft() {},
+  readIslandDraftFromDom: () => [{ left: { from: 3, to: 3 }, excluded: [] }],
+  machinesWithSessions: () => [],
+  saveMapBackup() {}, applyColumnPresetsToMachines() {}, renderAll() {}, renderMapEditor() {},
+  confirm: () => false,
+  showToast: (message) => { throw new Error(message); },
+  persistWithToast: () => { s40MapContext.__saved = JSON.stringify(s40MapContext.data); return true; }
+});
+s40MapContext.data.layouts.st40 = { activeMapId: 'current', maps: [{ id: 'current', name: '現在', islands: [] }, { id: 'other', name: '元', islands: [{ left: { from: 1, to: 5 }, excluded: [] }] }] };
+s40MapContext.data.machines = [{ id: 'm3', storeId: 'st40', daiNo: '3' }];
+s40MapContext.data.sessions = [{ id: 's3', machineId: 'm3' }];
+new vm.Script([
+  section('function storeLayout', 'function loadIslandFilters'),
+  section('function activeMap(', 'function activeMapName'),
+  section('function normalizeStoreLayout', 'function cloneIslands'),
+  section('function syncMachinesFromMap', 'function applyColumnPresetsToMachines'),
+  s40SaveMap
+].join('\n')).runInContext(s40MapContext);
+s40MapContext.saveCurrentMap();
+assert.equal(s40MapContext.__saved, undefined);
+assert.deepEqual(Array.from(s40MapContext.parseIslandLayout(s40MapContext.data.layouts.st40.maps[1]).daiNos), ['1', '2', '3', '4', '5']);
+s40MapContext.confirm = () => true;
+s40MapContext.saveCurrentMap();
+const s40SavedMap = JSON.parse(s40MapContext.__saved);
+assert.deepEqual(Array.from(s40MapContext.parseIslandLayout(s40SavedMap.layouts.st40.maps[0]).daiNos), ['3']);
+assert.deepEqual(Array.from(s40MapContext.parseIslandLayout(s40SavedMap.layouts.st40.maps[1]).daiNos), ['1', '2', '4', '5']);
+assert.deepEqual(s40SavedMap.machines, [{ id: 'm3', storeId: 'st40', daiNo: '3' }]);
+assert.deepEqual(s40SavedMap.sessions, [{ id: 's3', machineId: 'm3' }]);
+
+// S40/§2-1: 10. 閉じる・店切替・マップ選択・追加を共通確認へ通す。
+assert.match(section('function requestCloseMapEditor', 'function confirmDiscardMapDraft'), /confirmDiscardMapDraft\(storeId, \(\) => closeMapEditor\(storeId\)\)/);
+assert.match(section('function renderStores', 'function renderMapEditor'), /confirmDiscardMapDraft\(data\.activeStoreId, \(\) => \{\s*data\.activeStoreId = nextStoreId;/);
+assert.match(renderLabelFiltersBlock, /byId\("activeIslandFilterSelect"\)\.addEventListener\("change",[\s\S]*?confirmDiscardMapDraft\(store\.id, \(\) => \{\s*setSelectedIslandFilter\(store\.id, nextFilter\);/);
+assert.match(section('function bindMapManagement', 'function renderLabelFilters'), /addButton\.addEventListener\("click", \(\) => confirmDiscardMapDraft\(storeId, \(\) => openAddFloorMapForm\(storeId\)\)\)/);
+assert.match(mapEditorCloseGuard, /byId\("mapCancelCloseBtn"\)\.addEventListener\("click", \(\) => \{\s*closeModal\(\);\s*renderAll\(\);/);
