@@ -17,8 +17,7 @@ function section(startMarker, endMarker) {
 
 const hitWizard = section('function openHitWizard', 'function hitResetOptions');
 const runWizard = section('function runWizard', 'function wizardInputHtml');
-const roundBreakdownBlock = section('function roundBreakdown', 'function hitRoundSummaryHtml');
-const hitRoundSummaryHtml = section('function hitRoundSummaryHtml', 'function openHitResetPrompt');
+const roundBreakdownBlock = section('function roundBreakdown', 'function sessionBallsPerRound');
 const sessionActualBallsTotalBlock = section('function cumulativeActualBallsBefore', 'function hitCounterSpinForRecord') + section('function sessionActualBallsTotal', 'function actualBallsFromCumulativeInput');
 const hitHistoryBlock = section('function segmentHistoryLabels', 'function openEndWizard');
 const hitResetPrompt = section('function openHitResetPrompt', 'function openEndWizard');
@@ -124,7 +123,7 @@ const consumedModelBlock = section('function normalizeConsumedModel', 'function 
 const holdCarryBlock = section('function detectHoldCarryHit', 'function segmentPlayedSpins');
 const consumedBallsChoiceHtmlBlock = section('function consumedBallsChoiceHtml', 'function setConsumedBallsSource');
 const consumedBallsSourceEditorHtmlBlock = section('function consumedBallsSourceEditorHtml', 'function fieldHtml');
-const jitanExitBlock = section('function jitanExitOptions', 'function hitRoundSummaryHtml');
+const jitanExitBlock = section('function jitanExitOptions', 'function sessionBallsPerRound');
 const segmentHoldEditor = section('function segmentHoldSpinsEditorHtml', 'function consumedBallsSourceEditorHtml');
 const selectedYutimePresetIdsBlock = section('function selectedYutimePresetIds', 'function islandDisplayName');
 const baselineChipsBlock = section('function baselineBallText', 'function renderLabelFilters');
@@ -142,6 +141,8 @@ assert.match(hitWizard, /session\.hitTrackedBalls = mochidamaPreset;/);
 assert.match(hitWizard, /closeSegmentOnHit\(session\);/);
 assert.match(hitWizard, /openHitResetPrompt\(session\);/);
 const hitWizardContext = vm.createContext({
+  // S39/§3: この単体テストでは逆行検査を依存先として分離する。
+  blockedByReversedSegments() { return false; },
   __session: {
     id: 's_hit_wizard',
     currentSpin: 420,
@@ -266,6 +267,8 @@ assert.match(runEndWizardBlock, /label: "終了時玉数（実機：計数機に
 assert.match(runEndWizardBlock, /\+ "そのまま入力してください。";/);
 assert.doesNotMatch(runEndWizardBlock, /endTotalBallsHint = [^;]*（実機：/);
 const endWizardContext = vm.createContext({
+  // S39/§3: この単体テストでは逆行検査を依存先として分離する。
+  blockedByReversedSegments() { return false; },
   __modalHtml: '',
   __handlers: {},
   __nodes: {},
@@ -491,8 +494,8 @@ assert.match(hitResetPrompt, /if \(!confirmJitanExitStartBalls\(session, startBa
 assert.match(confirmJitanExitStartBallsBlock, /return confirm\("当たったのに持ち玉が増えていません。台の表示を確認してください。/);
 assert.match(confirmJitanExitStartBallsBlock, /if \(remain === null \|\| value > remain\) return true;/);
 // S24/§B-1: 直前に押したR種別の取り消し（投資タップの取り消しと同じ形）
-assert.match(section('function hitRecordConfirmHtml', 'function hitRoundSummaryHtml'), /<button class="small" id="undoHitRoundBtn"\$\{lastHitRecordIndex\(session\) >= 0 \? "" : " disabled"\}>直前を取り消す<\/button>/);
-assert.match(section('function hitRecordConfirmHtml', 'function hitRoundSummaryHtml'), /lastHitRecordIndex\(session\) >= 0/);
+assert.match(section('function hitRecordConfirmHtml', 'function sessionBallsPerRound'), /<button class="small" id="undoHitRoundBtn"\$\{lastHitRecordIndex\(session\) >= 0 \? "" : " disabled"\}>直前を取り消す<\/button>/);
+assert.match(section('function hitRecordConfirmHtml', 'function sessionBallsPerRound'), /lastHitRecordIndex\(session\) >= 0/);
 assert.match(hitResetPrompt, /if \(!undoLastHitRecord\(session\)\) return;/);
 assert.match(undoHitRecordBlock, /const chainId = chainSegmentIdForHit\(session\);/);
 assert.match(undoHitRecordBlock, /session\.hits\.splice\(index, 1\);/);
@@ -505,110 +508,23 @@ assert.match(hitResetPrompt, /draft\.shooting = button\.dataset\.shooting \?\? n
 assert.match(hitResetPrompt, /draft\.startBallsTouched = true;/);
 assert.doesNotMatch(hitResetPrompt, /session\.playStyle =/);
 assert.match(hitResetDraftBlock, /return `\$\{session\?\.id \|\| ""\}:\$\{chainSegmentIdForHit\(session\) \|\| ""\}`;/);
-assert.match(hitRoundSummaryHtml, /const hits = normalizeHits\(session\?\.hits\);/);
 assert.match(roundBreakdownBlock, /const roundTypes = presetById\(presetId\)\?\.roundTypes \|\| \[\];/);
 assert.match(roundBreakdownBlock, /const count = counts\.get\(type\.id\) \|\| 0;/);
 assert.match(roundBreakdownBlock, /if \(!count\) return "";/);
 assert.match(roundBreakdownBlock, /roundCountFromRoundType\(type\)/);
 // S4/C-4: 連チャンは最新の当選と同じ区間に紐づく当たり群
 assert.match(roundBreakdownBlock, /const chainSegmentId = resolveHitSegmentId\(session, hits\[hits\.length - 1\]\);/);
-assert.match(hitRoundSummaryHtml, /class="hit-round-result"/);
 // S4/C-5: R数ベース出玉を出さず、実測の 1R当たり玉数だけを見せる
-assert.doesNotMatch(hitRoundSummaryHtml, /R数ベース出玉/);
-assert.doesNotMatch(hitRoundSummaryHtml, /hitRoundBasedPayout/);
-assert.match(hitRoundSummaryHtml, /const ballsPerRound = sessionBallsPerRound\(session, presetId\);/);
 // 当選ごとの実測合計は cumulativeActualBallsBeforeHit の1本だけ（同じ計算を2つ持たない）
-assert.match(hitRoundSummaryHtml, /const actualPayout = cumulativeActualBallsBeforeHit\(session\);/);
 assert.doesNotMatch(html, /actualHitBallsTotal/);
 // 分子は戦果報告の「獲得出玉」と同じ sessionActualBallsTotal に一本化する
-assert.match(hitRoundSummaryHtml, /const actualPayout = sessionActualBallsTotal\(session\);/);
 // 分母はリザルトの1R平均と同じ totalRoundsForPreset に一本化する
-assert.match(hitRoundSummaryHtml, /const totalRounds = totalRoundsForPreset\(session, presetId\);/);
-assert.doesNotMatch(hitRoundSummaryHtml, /function sessionBallsPerRound[\s\S]*?roundBreakdown\(/);
-assert.match(hitRoundSummaryHtml, /return actualPayout !== null && actualPayout > 0 && totalRounds > 0 \? actualPayout \/ totalRounds : null;/);
-assert.match(hitRoundSummaryHtml, /1R当たり \$\{ballsPerRoundText\(ballsPerRound\)\}/);
 // S4/C-4: 今回の連チャンと今回の稼働を分ける（S34で表記を「今回の稼働」に変更）
-assert.match(hitRoundSummaryHtml, /breakdownLine\("今回の連チャン", chainBreakdown\)/);
-assert.match(hitRoundSummaryHtml, /breakdownLine\("今回の稼働", sessionBreakdown, "今回"\)/);
 // S4/C-7: 開始時の累計大当たりは出さない
-assert.doesNotMatch(hitRoundSummaryHtml, /累計大当たり/);
-assert.doesNotMatch(hitRoundSummaryHtml, /startTotalHits/);
 assert.match(hitResetPrompt, /function cumulativeActualBallsBeforeHit\(session\)/);
 assert.match(hitResetPrompt, /function actualBallsFromCumulativeInput\(session, cumulativeInput, index = Infinity\)/);
 assert.match(hitResetPrompt, /if \(cumulativeBalls < previousTotal\) return \{ actualBalls: 0, warning: true \};/);
 assert.match(hitResetPrompt, /入力値が前回までの累計を下回っています。カウンターの累計を入力してください/);
-const hitRoundSummaryContext = vm.createContext({
-  normalizeNumber(value) {
-    if (value === '' || value === null || value === undefined) return null;
-    const n = Number(value);
-    return Number.isFinite(n) ? n : null;
-  },
-  presetById(id) {
-    return {
-      single: { roundTypes: [{ id: 'r10', label: '10R', balls: 1400 }] },
-      multi: { roundTypes: [{ id: 'r4', label: '4R', balls: 560 }, { id: 'r6', label: '6R', balls: 840 }, { id: 'r10', label: '10R', balls: 1400 }] }
-    }[id] || null;
-  },
-  roundTypeById(presetId, roundTypeId) {
-    return hitRoundSummaryContext.presetById(presetId)?.roundTypes.find((type) => type.id === roundTypeId) || null;
-  },
-  // 区間の解決はここでは検証対象外。記録済みの segmentId をそのまま返す
-  resolveHitSegmentId(session, hit) {
-    return hit?.segmentId ?? null;
-  },
-  escapeHtml(value) {
-    return String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
-  },
-  nowIso() {
-    return '2026-08-22T00:00:00.000Z';
-  }
-});
-new vm.Script(`
-  ${normalizeHitsBlock}
-  ${roundCountFromRoundTypeBlock}
-  ${roundBreakdownBlock}
-  ${sessionActualBallsTotalBlock}
-  ${hitRoundSummaryHtml}
-  globalThis.singleSummary = hitRoundSummaryHtml({
-    startTotalHits: 3,
-    hits: [{ roundTypeId: 'r10' }, { roundTypeId: 'r10' }, { roundTypeId: 'r10' }]
-  }, 'single');
-  globalThis.multiSummary = hitRoundSummaryHtml({
-    startTotalHits: 3,
-    hits: [{ roundTypeId: 'r4' }, { roundTypeId: 'r4' }, { roundTypeId: 'r6' }, { roundTypeId: 'r10' }]
-  }, 'multi');
-  globalThis.chainSummary = hitRoundSummaryHtml({
-    hits: [
-      { roundTypeId: 'r4', segmentId: 'seg1' },
-      { roundTypeId: 'r4', segmentId: 'seg1' },
-      { roundTypeId: 'r6', segmentId: 'seg2' },
-      { roundTypeId: 'r10', segmentId: 'seg2' },
-      { roundTypeId: 'r10', segmentId: 'seg2' }
-    ]
-  }, 'multi');
-  globalThis.actualSummary = hitRoundSummaryHtml({
-    startTotalHits: 0,
-    hits: [{ roundTypeId: 'r10', actualBalls: 1380 }, { roundTypeId: 'r10', actualBalls: 1420 }]
-  }, 'single');
-`).runInContext(hitRoundSummaryContext);
-// S4/C-4: 引いていないR種別は出さない。連チャンとセッションを分ける
-assert.match(hitRoundSummaryContext.singleSummary, /今回の連チャン 10R×3（3回・30R）/);
-assert.match(hitRoundSummaryContext.singleSummary, /今回の稼働 10R×3（今回3回・30R）/);
-assert.match(hitRoundSummaryContext.singleSummary, /今回の当選 10R ／ 合計 30R/);
-assert.match(hitRoundSummaryContext.multiSummary, /今回の稼働 4R×2 ／ 6R×1 ／ 10R×1（今回4回・24R）/);
-assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /4R×/);
-assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /6R×/);
-assert.match(hitRoundSummaryContext.chainSummary, /今回の連チャン 6R×1 ／ 10R×2（3回・26R）/);
-assert.match(hitRoundSummaryContext.chainSummary, /今回の稼働 4R×2 ／ 6R×1 ／ 10R×2（今回5回・34R）/);
-// S4/C-5: 実測が無ければ理論値で代用せず「—」
-assert.match(hitRoundSummaryContext.singleSummary, /1R当たり —/);
-assert.match(hitRoundSummaryContext.singleSummary, /実測獲得出玉 今回 —/);
-assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /R数ベース出玉/);
-assert.match(hitRoundSummaryContext.actualSummary, /1R当たり 140玉/);
-assert.match(hitRoundSummaryContext.actualSummary, /実測獲得出玉 今回 1,420玉／累計 2,800玉/);
-// S4/C-7: 開始時の累計大当たりは出さない
-assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /累計大当たり/);
-assert.doesNotMatch(hitRoundSummaryContext.singleSummary, /開始時/);
 const appendHitRecordContext = vm.createContext({
   __inputs: {},
   __toasts: [],
@@ -5488,7 +5404,7 @@ new vm.Script(`
   ${holdCarryBlock}
   ${normalizeHitsBlock}
   ${section('function resolveHitSegmentId', 'function hitHistoryRows')}
-  ${section('function currentChainHits', 'function hitRoundSummaryHtml')}
+  ${section('function currentChainHits', 'function sessionBallsPerRound')}
   const segments = [
     { id: "seg_a", kind: "normal", startSource: null, endSource: "hit", startSpin: 0, endSpin: 20, holdSpins: 0 },
     { id: "seg_b", kind: "normal", startSource: "jitan", endSource: "hit", startSpin: 25, endSpin: 28, holdSpins: 5, shooting: "before" }
@@ -7134,7 +7050,8 @@ assert.doesNotMatch(section("function normalizeData", "function repairStartMochi
 const s34HintTotal = (html.match(/class="hint( warn)?( hint-help)?"/g) || []).length;
 const s34HintHelp = (html.match(/class="hint hint-help"/g) || []).length;
 assert.equal(s34HintHelp, 31, "分類A（説明）の数＝S33の29＋S34で足した2");
-assert.equal(s34HintTotal - s34HintHelp, 57, "分類B・C（常に表示）の数＝S34の56＋S36の転記用の文字数行1");
+// S39/§6: 未使用のサマリー関数内にあったhintを2箇所削除。
+assert.equal(s34HintTotal - s34HintHelp, 55, "分類B・C（常に表示）の数＝S36の57−S39で削除した2");
 // 警告（hint warn）には1つも付けない
 assert.equal((html.match(/class="hint warn hint-help"/g) || []).length, 0);
 // 判定基準の根拠行・入力確認・旧境界の注記は分類Aにしない
@@ -7637,7 +7554,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 38;/);
+assert.match(html, /const APP_VERSION_SEQ = 39;/);
 assert.match(html, /const APP_VERSION_DATE = "2026-09-20";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
@@ -7754,7 +7671,7 @@ assert.equal(s38OrderContext.breakdown.hitCount, 3);
 assert.deepEqual(Array.from(s38OrderContext.breakdown.counts, ([key, value]) => [key, value]), [['r4', 2], ['r10', 1]]);
 
 // S38/§G-4-3: 確認エリアは既存の連チャン抽出と集計を使う。
-const s38Confirm = section('function hitRecordConfirmHtml', 'function hitRoundSummaryHtml');
+const s38Confirm = section('function hitRecordConfirmHtml', 'function sessionBallsPerRound');
 assert.match(s38Confirm, /const chainHits = currentChainHits\(session, hits\);/);
 assert.match(s38Confirm, /const chain = roundBreakdown\(chainHits, presetId\);/);
 assert.match(s38Confirm, /chain.counts.get\(type.id\)/);
@@ -7787,3 +7704,62 @@ assert.match(s38Details[0][2], /<summary>出玉を記録する（任意）<\/sum
 assert.match(s38Details[0][2], /id="hitRecordActualBalls"/);
 assert.match(s38Details[1][2], /<summary>時短が終わったら<\/summary>/);
 assert.match(s38Details[1][2], /id="jitanExitStartBalls"/);
+
+// S39/§1: 読み込み失敗後の上書きを防ぎ、移行前退避は専用関数へ渡す。
+const s39Load = section('function loadData', 'function needsSegmentMigration');
+const s39Persist = section('function persist()', 'function normalizeDailyState');
+assert.match(s39Load, /catch \(error\) \{[\s\S]*?preserveCorruptData\(raw\);[\s\S]*?loadFailed = true;/);
+assert.match(s39Persist, /if \(conflictBlocked\) return false;\s*\/\/[^\n]*\n\s*if \(loadFailed\) return false;/);
+assert.match(s39Load, /backupBeforeMigrate\(parsed, raw\);/);
+assert.doesNotMatch(s39Load, /localStorage\.setItem\(PREMIGRATE_KEY/);
+
+// S39/§1: 移行前退避の失敗は読み込みを止めない。
+const s39Backup = section('function backupBeforeMigrate', 'function backupBeforeSegmentMigration');
+assert.match(s39Backup, /try \{\s*if \(localStorage\.getItem\(PREMIGRATE_KEY\)\) return;\s*localStorage\.setItem\(PREMIGRATE_KEY, raw\);\s*\} catch \(error\) \{/);
+
+// S39/§2: 同台続行の開始期待値へ持ち玉と再プレイを渡す。
+const s39Continuation = section('function startSameMachineContinuation', 'function openSpinEditForm');
+assert.match(s39Continuation, /next\.startEv = calculateStartEvSnapshot\(next,[\s\S]*?mochidamaInput: next\.startMochidama,\s*saipureiInput: next\.startSaipurei/);
+
+// S39/§3: 逆行は通常区間だけを対象にし、検査は複製へ行う。
+const s39Reversed = section('function reversedNormalSegments', 'function applySegmentTimes');
+assert.match(s39Reversed, /row\.segment\?\.kind === "normal" && row\.start !== null && row\.end !== null && row\.end < row\.start/);
+assert.match(s39Reversed, /const probe = JSON\.parse\(JSON\.stringify\(session\)\);\s*resyncSessionSegments\(probe\);\s*if \(closeTrailing\) closeTrailingSegmentOnEnd\(probe\);\s*const reversed = reversedNormalSegments\(probe\);/);
+// S39/§3: ヤメ入力の時点では区間がまだ開いているので、複製の側で閉じてから見る。
+// 閉じるのは「組み直しのあと」。先に閉じると組み直しで開き直り、ヤメ回転数の逆行を見逃す。
+assert.match(s39Reversed, /function blockedByReversedSegments\(session, \{ closeTrailing = false \} = \{\}\)/);
+assert.match(runEndWizardBlock + hitResetPrompt + section('function openEndForm', 'function completeEndSession'),
+  /if \(blockedByReversedSegments\(session, \{ closeTrailing: true \}\)\) \{/);
+// ヤメ入力以外の経路は区間が既に閉じているので closeTrailing を使わない
+for (const block of [section('byId("saveHitWizardBtn")', 'renderAll();'), section('byId("saveSessionEditBtn")', 'playStyleEditorHtml')]) {
+  assert.match(block, /blockedByReversedSegments\(session\)/);
+  assert.doesNotMatch(block, /closeTrailing/);
+}
+
+// S39/§3: 回転率を出せない理由は逆行を優先する。
+assert.match(deriveSession, /const rateUnavailableReason = hasReversedSegment\s*\? "区間の回転数が逆行しています（記録の修正で直してください）"\s*: \(!tapMode && !hasStartMochidama \? "持ち玉未入力" : ""\);/);
+
+// S39/§4: 小数・上限超過は展開せず、200件と降順は許容する。
+const s39Expand = section('function expandIslandSide', 'function parseTextMapLayout');
+assert.match(s39Expand, /if \(!Number\.isInteger\(from\) \|\| !Number\.isInteger\(to\)\) return \[\];/);
+assert.match(s39Expand, /if \(Math\.abs\(to - from\) \+ 1 > ISLAND_SIDE_MAX\) return \[\];/);
+const s39IslandContext = vm.createContext({ normalizeNumber: hitWizardContext.normalizeNumber });
+new vm.Script(html.match(/const ISLAND_SIDE_MAX = 200;/)[0] + '\n' + s39Expand).runInContext(s39IslandContext);
+assert.deepEqual(Array.from(s39IslandContext.expandIslandSide({ from: 1.5, to: 3.5 })), []);
+assert.deepEqual(Array.from(s39IslandContext.expandIslandSide({ from: 1, to: 100001 })), []);
+assert.equal(s39IslandContext.expandIslandSide({ from: 1, to: 200 }).length, 200);
+assert.deepEqual(Array.from(s39IslandContext.expandIslandSide({ from: 1, to: 201 })), []);
+assert.deepEqual(Array.from(s39IslandContext.expandIslandSide({ from: 3, to: 1 })), ['3', '2', '1']);
+assert.ok(html.indexOf('const ISLAND_SIDE_MAX = 200;') < html.indexOf('let data = loadData();'));
+
+// S39/§5: 再読み込みの2ボタンだけに44pxのタップ域を付ける。
+assert.match(html, /class="primary small warning-reload" id="versionWarningReloadBtn"/);
+assert.match(html, /class="primary small warning-reload" id="conflictReloadBtn"/);
+assert.match(html, /\.warning-reload \{\s*min-height: 44px;\s*\}/);
+
+// S39/§8: 開始残高なしでも入金済みならカード残高を出す。
+assert.match(section('function deriveBalances', 'function balanceStartValueForCurrent'), /credit: session\.startCredit === null && chargeTotal === 0 \? null : Number\(session\.startCredit \|\| 0\) \+ chargeTotal - cashTotal,/);
+
+// S39/§9・§10: 直接修正と、先へ進む遊タイム突入をUndo対象にする。
+assert.match(section('function openSpinEditForm', 'function openYutimeEnterForm'), /if \(value === null\) session\.currentSpin = null;\s*else setCurrentSpinWithUndo\(session, value\);/);
+assert.match(openYutimeEnterForm, /if \(enterSpin !== null && \(currentSpin === null \|\| enterSpin > currentSpin\)\) setCurrentSpinWithUndo\(session, enterSpin\);/);

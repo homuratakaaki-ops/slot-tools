@@ -180,6 +180,10 @@
       display: flex;
       gap: 8px;
     }
+    /* S39/§5: 帯の「再読み込み」はタップ域44pxを保つ（UI規約の下限）。他の small には効かせない */
+    button.warning-reload {
+      min-height: 44px;
+    }
 
     /* S30追補/§4: ブロックだけを解く逃げ道。目立たせないが、タップ域は44pxを保つ */
     .version-warning-ack {
@@ -1716,33 +1720,6 @@
       overflow-wrap: anywhere;
     }
 
-    .hit-round-layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(140px, 0.8fr);
-      gap: 10px;
-      align-items: start;
-    }
-
-    .hit-round-result {
-      padding: 12px;
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      background: #f8fafc;
-    }
-
-    .hit-round-result strong {
-      display: block;
-      font-size: 18px;
-      line-height: 1.35;
-    }
-
-    .hit-round-result small {
-      display: block;
-      margin-top: 4px;
-      color: var(--muted);
-      font-weight: 700;
-    }
-
     /* S38/§1-1: ラウンド登録ボタン。横一列・同じ幅で、指で狙える大きさにする */
     .hit-round-buttons {
       display: grid;
@@ -2055,7 +2032,6 @@
       .map-row { grid-template-columns: minmax(118px, 1fr) 28px minmax(118px, 1fr); gap: 10px; }
       .map-side { grid-template-columns: 1fr; }
       .modal-actions { grid-template-columns: 1fr; }
-      .hit-round-layout { grid-template-columns: 1fr; }
     }
   </style>
 <!-- Google tag (gtag.js) -->
@@ -2076,7 +2052,7 @@
           <p>保存データを守るため、操作を一時停止しています。記録は削除していません。</p>
         </div>
         <div class="version-warning-actions">
-          <button class="primary small" id="versionWarningReloadBtn">再読み込み</button>
+          <button class="primary small warning-reload" id="versionWarningReloadBtn">再読み込み</button>
         </div>
         <button class="version-warning-ack" id="versionAckBtn">承知のうえで使う</button>
       </div>
@@ -2084,10 +2060,10 @@
       <div class="version-warning hidden" id="conflictWarning" role="alert">
         <div>
           <p class="version-warning-title">別のタブで記録が更新されています</p>
-          <p>このタブの変更は保存していません。再読み込みしてください。</p>
+          <p class="version-warning-body">このタブの変更は保存していません。再読み込みしてください。</p>
         </div>
         <div class="version-warning-actions">
-          <button class="primary small" id="conflictReloadBtn">再読み込み</button>
+          <button class="primary small warning-reload" id="conflictReloadBtn">再読み込み</button>
         </div>
       </div>
       <div class="brand">
@@ -2212,7 +2188,7 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 38;
+    const APP_VERSION_SEQ = 39;
     const APP_VERSION_DATE = "2026-09-20";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
@@ -2645,8 +2621,12 @@
     let loadedUpdatedAt = null;
     // 別タブの更新を検知しているあいだは true。保存を止め、帯の外の操作を止める。
     let conflictBlocked = false;
+    // S39/§1: 保存データを読めなかったときは true。空のデータで起動して本物を上書きするのを防ぐ。
+    let loadFailed = false;
 
     let bootToastMessage = "";
+    // S39/§4: 1列の台数の上限。実在の島より十分大きく、描画が壊れない範囲で切る。
+    const ISLAND_SIDE_MAX = 200;
     let data = loadData();
     removeLegacyCarryover();
     let currentView = "storesView";
@@ -2747,6 +2727,13 @@
       applyVersionBlock();
     } else {
       renderAll();
+      // S39/§1: 読み込みに失敗していたら、操作を止めて上書きを防ぐ。
+      if (loadFailed) {
+        showBlockingWarning(
+          "保存データを読み込めませんでした",
+          "上書きを防ぐため操作を止めています。記録は端末に残っています（ytv3:corrupt に退避）。再読み込みしても直らない場合は、書き出し済みのJSONを確認してください。"
+        );
+      }
     }
     if (bootToastMessage) showToast(bootToastMessage);
 
@@ -2827,6 +2814,13 @@
       data = loadData();
       removeLegacyCarryover();
       renderAll();
+      // S39/§1: 読み込みに失敗していたら、操作を止めて上書きを防ぐ。
+      if (loadFailed) {
+        showBlockingWarning(
+          "保存データを読み込めませんでした",
+          "上書きを防ぐため操作を止めています。記録は端末に残っています（ytv3:corrupt に退避）。再読み込みしても直らない場合は、書き出し済みのJSONを確認してください。"
+        );
+      }
       if (bootToastMessage) showToast(bootToastMessage);
     }
 
@@ -2842,8 +2836,22 @@
     function showConflictWarning() {
       if (conflictBlocked) return;
       conflictBlocked = true;
+      showBlockingWarning();
+    }
+
+    // S39/§1: 帯そのものを出す部分。文面だけ差し替えて、読み込み失敗にも同じ帯を使う。
+    function showBlockingWarning(title = null, body = null) {
       const box = byId("conflictWarning");
-      if (box) box.classList.remove("hidden");
+      if (!box) return;
+      if (title) {
+        const titleEl = box.querySelector(".version-warning-title");
+        if (titleEl) titleEl.textContent = title;
+      }
+      if (body) {
+        const bodyEl = box.querySelector(".version-warning-body");
+        if (bodyEl) bodyEl.textContent = body;
+      }
+      box.classList.remove("hidden");
       applyOperationBlock("#conflictWarning");
     }
 
@@ -3906,10 +3914,15 @@
       if (!raw) return base;
       try {
         const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== "object") return base;
-        if (parsed.version !== SCHEMA_VERSION && !localStorage.getItem(PREMIGRATE_KEY)) {
-          localStorage.setItem(PREMIGRATE_KEY, raw);
+        // S39/§1: 形が違うものも「読めなかった」として扱う（空データで上書きしない）。
+        if (!parsed || typeof parsed !== "object") {
+          preserveCorruptData(raw);
+          loadFailed = true;
+          return base;
         }
+        // S39/§1: 退避に失敗しても読み込みは続ける。ここで例外を投げると外側の catch に落ちて
+        // 空のデータで起動し、次の保存で本物を上書きしてしまう（他の退避と同じ形にそろえる）。
+        backupBeforeMigrate(parsed, raw);
         if (needsSegmentMigration(parsed)) backupBeforeSegmentMigration(raw);
         if (needsStartMochidamaRepair(parsed)) backupBeforeStartMochidamaRepair(raw);
         if (needsInvestmentPhaseRepair(parsed)) backupBeforeInvestmentPhaseRepair(raw);
@@ -3919,6 +3932,8 @@
       } catch (error) {
         console.warn("ytv3 load failed", error);
         preserveCorruptData(raw);
+        // S39/§1: 読めなかったことを覚えておき、以後の保存を止める（空データでの上書きを防ぐ）。
+        loadFailed = true;
         return base;
       }
     }
@@ -3927,6 +3942,17 @@
     function needsSegmentMigration(source) {
       const sessions = Array.isArray(source?.sessions) ? source.sessions : [];
       return sessions.some((session) => !Array.isArray(session?.segments) || !session.segments.length);
+    }
+
+    // S39/§1: schema 移行前の退避。容量不足などで失敗しても読み込みは止めない。
+    function backupBeforeMigrate(parsed, raw) {
+      if (!raw || parsed?.version === SCHEMA_VERSION) return;
+      try {
+        if (localStorage.getItem(PREMIGRATE_KEY)) return;
+        localStorage.setItem(PREMIGRATE_KEY, raw);
+      } catch (error) {
+        console.warn("ytv3 premigrate backup failed", error);
+      }
     }
 
     function backupBeforeSegmentMigration(raw) {
@@ -4207,6 +4233,8 @@
       if (appVersionBlocked) return false;
       // S37/§3: 別のタブが先に保存していたら、このタブの内容で上書きしない。
       if (conflictBlocked) return false;
+      // S39/§1: 保存データを読めなかったときは、空のデータで本物を上書きしない。
+      if (loadFailed) return false;
       if (storedUpdatedAt() !== loadedUpdatedAt) {
         showConflictWarning();
         return false;
@@ -6134,6 +6162,16 @@
         const allRight = island.right ? expandIslandSide(island.right) : [];
         const left = allLeft.filter((daiNo) => !excluded.has(String(daiNo)));
         const right = allRight.filter((daiNo) => !excluded.has(String(daiNo)));
+        // S39/§4: 台番は整数だけ。1列の台数にも上限を置く（保存させない）。
+        const sideErrors = new Set();
+        [island.left, island.right].filter(Boolean).forEach((side) => {
+          const from = normalizeNumber(side?.from);
+          const to = normalizeNumber(side?.to);
+          if (from === null || to === null) return;
+          if (!Number.isInteger(from) || !Number.isInteger(to)) sideErrors.add(`島${index + 1}: 台番は整数で入力してください`);
+          else if (Math.abs(to - from) + 1 > ISLAND_SIDE_MAX) sideErrors.add(`島${index + 1}: 1列の台数は${ISLAND_SIDE_MAX}までです`);
+        });
+        errors.push(...sideErrors);
         if (!allLeft.length) errors.push(`島${index + 1}: 左列の台番を入力してください`);
         [...left, ...right].forEach((daiNo) => {
           if (seen.has(daiNo)) errors.push(`島${index + 1}: 台番${daiNo}が重複しています`);
@@ -6148,6 +6186,9 @@
       const from = normalizeNumber(side?.from);
       const to = normalizeNumber(side?.to);
       if (from === null || to === null) return [];
+      // S39/§4: 小数や極端な件数は展開しない（検証と二重の守り。描画側の暴走を防ぐ）。
+      if (!Number.isInteger(from) || !Number.isInteger(to)) return [];
+      if (Math.abs(to - from) + 1 > ISLAND_SIDE_MAX) return [];
       const step = from <= to ? 1 : -1;
       const values = [];
       for (let n = from; step > 0 ? n <= to : n >= to; n += step) values.push(String(n));
@@ -7632,11 +7673,21 @@
       // S25/§3: 閉じる・×・背景クリックは同じ取消経路で保持時刻を捨てる。
       modalCancel = () => { pendingHitAt = null; };
       byId("saveHitWizardBtn").addEventListener("click", () => {
+        const beforeHit = JSON.parse(JSON.stringify(session));
         session.hitSpin = normalizeNumber(byId("hitWizardSpin")?.value);
         session.hitRemainBalls = normalizeNumber(byId("hitWizardRemainBalls")?.value);
         session.hitTrackedBalls = mochidamaPreset;
         if (!session.hitVia) session.hitVia = session.yutimeEnterBalls !== null ? "yutime" : "normal";
         closeSegmentOnHit(session);
+        // S39/§3: 当選回転数が区間の開始より小さいときは確定させない。
+        if (blockedByReversedSegments(session)) {
+          session.hitSpin = beforeHit.hitSpin;
+          session.hitRemainBalls = beforeHit.hitRemainBalls;
+          session.hitTrackedBalls = beforeHit.hitTrackedBalls;
+          session.hitVia = beforeHit.hitVia;
+          session.segments = beforeHit.segments;
+          return;
+        }
         session.updatedAt = nowIso();
         if (!persistWithToast("当選を記録しました")) return;
         modalCancel = null; // S25/§3: 完了後の画面遷移ではタップ時刻を捨てない。
@@ -7864,34 +7915,6 @@
         <div class="hit-confirm hit-compare">
           <h4>データカウンターの当日大当たり回数と見比べる</h4>
           ${compare}
-        </div>
-      `;
-    }
-
-    // S4/C-4,C-5,C-7: 連チャンとセッション合計を分けて出す。出玉は実測の1R当たり玉数だけを見せ、
-    // 実測が無いときは理論値（R数×公称）で代用しない。
-    // S38/§1-2: 大当たり登録の確認エリアは hitRecordConfirmHtml へ移したので、ここは現在どこからも呼ばない。
-    function hitRoundSummaryHtml(session, presetId) {
-      const hits = normalizeHits(session?.hits);
-      const sessionBreakdown = roundBreakdown(hits, presetId);
-      const chainBreakdown = roundBreakdown(currentChainHits(session, hits), presetId);
-      const totalRounds = sessionBreakdown.totalRounds;
-      const latestHit = hits.at(-1);
-      const latestRounds = roundCountFromRoundType(roundTypeById(presetId, latestHit?.roundTypeId));
-      const latestActualBalls = normalizeNumber(latestHit?.actualBalls);
-      const actualPayout = cumulativeActualBallsBeforeHit(session);
-      const ballsPerRound = sessionBallsPerRound(session, presetId);
-      const breakdownLine = (label, breakdown, countLabel = "") => `<p class="hint">${label} ${breakdown.rows.length ? breakdown.rows.join(" ／ ") : "-"}（${countLabel}${breakdown.hitCount.toLocaleString("ja-JP")}回・${breakdown.totalRounds.toLocaleString("ja-JP")}R）</p>`;
-      return `
-        <div class="hit-round-summary">
-          <div class="hit-round-result">
-            <strong>今回の当選 ${latestRounds !== null ? `${latestRounds.toLocaleString("ja-JP")}R` : "-"} ／ 合計 ${totalRounds.toLocaleString("ja-JP")}R</strong>
-            <small>1R当たり ${ballsPerRoundText(ballsPerRound)}</small>
-          </div>
-          ${breakdownLine("今回の連チャン", chainBreakdown)}
-          ${breakdownLine("今回の稼働", sessionBreakdown, "今回")}
-          <hr>
-          <p class="hint">実測獲得出玉 今回 ${actualPayout > 0 ? `${Math.round(Math.max(0, latestActualBalls ?? 0)).toLocaleString("ja-JP")}玉／累計 ${Math.round(actualPayout).toLocaleString("ja-JP")}玉` : "—"}</p>
         </div>
       `;
     }
@@ -8152,6 +8175,8 @@
     }
 
     function applyJitanExit(session, counterSpin, startBalls = null, shooting = null) {
+      // S39/§3: 他の確定経路と同じ検査を通す（この経路は区間を開くだけなので通常は素通りする）。
+      if (blockedByReversedSegments(session)) return;
       const measuredBalls = normalizeNumber(startBalls);
       startNormalSegmentAfterJitan(session, counterSpin, measuredBalls, shooting);
       setCurrentSpinWithUndo(session, counterSpin);
@@ -8717,9 +8742,15 @@
         </div>
       `);
       byId("saveEndFormBtn").addEventListener("click", () => {
+        const beforeEnd = JSON.parse(JSON.stringify(session));
         steps.forEach((step) => {
           session[step.key] = readEndFormValue(step);
         });
+        // S39/§3: ヤメ回転数が時短抜けの回転数より小さいときは確定させない。
+        if (blockedByReversedSegments(session, { closeTrailing: true })) {
+          steps.forEach((step) => { session[step.key] = beforeEnd[step.key]; });
+          return;
+        }
         completeEndSession(session, hasHit);
       });
       modalCancel = () => renderAll();
@@ -9369,7 +9400,9 @@
       const chargeTotal = (session.charges || []).reduce((sum, item) => sum + Number(item.amount || 0), 0);
       return {
         mochidama: mochidamaBaseValue(session) === null ? null : Number(mochidamaBaseValue(session) || 0) - mochidamaTotal,
-        credit: session.startCredit === null ? null : Number(session.startCredit || 0) + chargeTotal - cashTotal,
+        // S39/§8: 入金があればカード残は出す（開始時0円扱い）。開始時の残高を入れずに入金した
+        // ときに「未入力」のままで貸玉が拒否されるのを直す。入金も開始残高も無いときだけ null。
+        credit: session.startCredit === null && chargeTotal === 0 ? null : Number(session.startCredit || 0) + chargeTotal - cashTotal,
         saipurei: session.startSaipurei === null ? null : Number(session.startSaipurei || 0) - replayTotal
       };
     }
@@ -9709,6 +9742,8 @@
           netPerRound: chainNetBalls !== null && chain.rounds > 0 ? chainNetBalls / chain.rounds : null,
           // S22b: 純増0以下で実測平均から外した連チャンの行に警告を出す
           netExcluded: chainExcludedFromNetBalls(chain),
+          // S39/§3: 逆行は表示用の印だけにし、区間の計算は変えない。
+          reversed: isNormal && normalizeNumber(segment.startSpin) !== null && normalizeNumber(segment.endSpin) !== null && Number(segment.endSpin) < Number(segment.startSpin),
           // S23/§3-1: 所要（区間の endAt − startAt）と、その区間で始まった連チャンの当たり消化時間
           durationMs: segmentDurationMs(session, segment),
           chainClearMs: segment.id && chainClearById.has(segment.id) ? chainClearById.get(segment.id) : null
@@ -9931,7 +9966,7 @@
         const startSpin = row.startSpin === null ? "-" : row.startSpin.toLocaleString("ja-JP");
         const endSpin = row.endSpin === null ? "-" : row.endSpin.toLocaleString("ja-JP");
         const consumed = row.consumed === null ? "-" : row.consumed.toLocaleString("ja-JP");
-        const endText = `${escapeHtml(row.endLabel)}${endSpin}`;
+        const endText = `${escapeHtml(row.endLabel)}${endSpin}${row.reversed ? " ⚠逆行" : ""}`;
         // S17/B-3: 期待値列。通常区間だけ値を入れ、合計に入らない区間は「—」で出す
         const evText = row.evYen === null || row.evYen === undefined ? "—" : yenText(row.evYen);
         // S20/§2-3: 純増と1R実質出玉は1列にまとめる（320px で列が潰れないように）
@@ -10410,7 +10445,12 @@
       next.startSaipurei = balances.saipurei;
       next.startCredit = balances.credit;
       next.startTotalHits = sourceSession.endTotalHits ?? null;
-      next.startEv = calculateStartEvSnapshot(next, data.machines.find((item) => item.id === next.machineId));
+      // S39/§2: 引き継いだ持ち玉・再プレイを開始期待値へ渡す（通常の打ち始めと同じ形）。
+      // 渡さないと availableBalls が0で計算され、期待値が実際より低く出る。
+      next.startEv = calculateStartEvSnapshot(next, data.machines.find((item) => item.id === next.machineId), {
+        mochidamaInput: next.startMochidama,
+        saipureiInput: next.startSaipurei
+      });
       data.sessions.push(next);
       activeSessionId = next.id;
       if (!persistWithToast("同じ台で続行を開始しました")) return;
@@ -10593,7 +10633,11 @@
         </div>
       `);
       byId("saveCurrentSpinBtn").addEventListener("click", () => {
-        session.currentSpin = normalizeNumber(byId("currentSpinValue").value);
+        const value = normalizeNumber(byId("currentSpinValue").value);
+        // S39/§9: 直接修正も取り消しスタックに載せる。直接代入だと、修正前のタップぶんが
+        // 「元に戻す」で引かれて別の値になっていた（110→＋5→直接150→元に戻すで145）。
+        if (value === null) session.currentSpin = null;
+        else setCurrentSpinWithUndo(session, value);
         session.updatedAt = nowIso();
         if (!persistWithToast("現在回転数を修正しました")) return;
         closeModal();
@@ -10622,6 +10666,11 @@
         session.yutimeEnterTime = currentTime(enterAtDate);
         session.hitVia = "yutime";
         startYutimeSegment(session, enterAtDate.toISOString());
+        // S39/§10: 突入回転数のほうが進んでいれば現在回転数を合わせる。合わせないと、
+        // 通常区間は突入回転数で閉じるのに、その後の投資タップが古い回転数で記録される。
+        const enterSpin = normalizeNumber(session.yutimeEnterSpin);
+        const currentSpin = normalizeNumber(session.currentSpin);
+        if (enterSpin !== null && (currentSpin === null || enterSpin > currentSpin)) setCurrentSpinWithUndo(session, enterSpin);
         session.updatedAt = nowIso();
         if (!persistWithToast("遊タイム突入玉を記録しました")) return;
         closeModal();
@@ -10746,6 +10795,8 @@
         });
       });
       byId("saveSessionEditBtn").addEventListener("click", () => {
+        // S39/§3: 弾いたときに画面上の記録が書き換わったままにならないよう、元の値を控える。
+        const beforeEdit = JSON.parse(JSON.stringify(session));
         ["date", "startTime", "endTime", "yutimeEnterTime"].forEach((key) => {
           const value = byId("edit_" + key).value.trim();
           session[key] = value || null;
@@ -10787,6 +10838,12 @@
         if (consumedBallsSourceSelect) session.consumedBallsSource = normalizeConsumedBallsSource(byId("editConsumedBallsSource").value);
         session.labels = [...document.querySelectorAll(".editLabel:checked")].map((input) => input.value);
         session.memo = byId("editMemo").value.trim();
+        // S39/§3: 逆行した通常区間があるまま保存しない。入力し直せるようモーダルは閉じない。
+        if (blockedByReversedSegments(session)) {
+          Object.keys(session).forEach((key) => { delete session[key]; });
+          Object.assign(session, beforeEdit);
+          return;
+        }
         session.updatedAt = nowIso();
         if (!persistWithToast("編集を保存しました")) return;
         closeModal();
@@ -11085,6 +11142,33 @@
       applySegmentIds(session);
       applySegmentTimes(session);
       return session;
+    }
+
+    // S39/§3: 終了回転数が開始回転数より小さい通常区間。記録の形からは作れてしまうが、
+    // 回転率も期待値も意味を持たないので、入力の確定時に弾き、既存記録では回転率を出さない。
+    function reversedNormalSegments(session) {
+      const labels = segmentHistoryLabels(session);
+      return sessionSegments(session).map((segment, index) => {
+        const start = normalizeNumber(segment?.startSpin);
+        const end = normalizeNumber(segment?.endSpin);
+        return { segment, start, end, label: labels[index]?.label || `区間${index + 1}` };
+      }).filter((row) => row.segment?.kind === "normal" && row.start !== null && row.end !== null && row.end < row.start);
+    }
+
+    // S39/§3: 保存の直前に呼ぶ。区間を組み直したうえで逆行を見るので、複製に対して判定する
+    //（判定のために本物の区間を書き換えない）。逆行があれば文言を出して true を返す。
+    // closeTrailing はヤメ入力用。その時点では区間がまだ開いていて（閉じるのは completeEndSession）、
+    // ヤメ回転数が区間の終点に載らないので、複製の側で先に閉じてから見る。
+    // 閉じるのは組み直しの「あと」。先に閉じると、組み直しで区間が開き直って見逃す。
+    function blockedByReversedSegments(session, { closeTrailing = false } = {}) {
+      const probe = JSON.parse(JSON.stringify(session));
+      resyncSessionSegments(probe);
+      if (closeTrailing) closeTrailingSegmentOnEnd(probe);
+      const reversed = reversedNormalSegments(probe);
+      if (!reversed.length) return false;
+      const row = reversed[0];
+      showToast(`${row.label}の終了回転数 ${row.end.toLocaleString("ja-JP")} が開始回転数 ${row.start.toLocaleString("ja-JP")} より小さくなっています。回転数を見直してください。`, "error");
+      return true;
     }
 
     // S23/§1・§5: 区間の時刻をISOに揃える唯一の場所。
@@ -11648,7 +11732,15 @@
         ? consumedBalls
         : (tapMode ? consumedBalls : (hasStartMochidama ? (normalEndBalls !== null ? consumedBalls : fallbackConsumed) : null));
       const rate = normalSpins !== null && rateBase > 0 ? normalSpins / rateBase * 250 : null;
-      const rateUnavailableReason = !tapMode && !hasStartMochidama ? "持ち玉未入力" : "";
+      // S39/§3: 逆行した通常区間がある記録は、回転率に意味が無いので数字を出さない。
+      const hasReversedSegment = normalSegments.some((segment) => {
+        const start = normalizeNumber(segment?.startSpin);
+        const end = normalizeNumber(segment?.endSpin);
+        return start !== null && end !== null && end < start;
+      });
+      const rateUnavailableReason = hasReversedSegment
+        ? "区間の回転数が逆行しています（記録の修正で直してください）"
+        : (!tapMode && !hasStartMochidama ? "持ち玉未入力" : "");
       const pointBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : (estimatedRemainBalls !== null ? estimatedRemainBalls : totalInputBalls);
       const rawHitBalls = session.endTotalBalls !== null && hasHit && pointBalls !== null ? session.endTotalBalls - pointBalls : null;
       const hitBalls = session.hitRemainBalls === null && estimatedPayout !== null ? estimatedPayout : rawHitBalls;
