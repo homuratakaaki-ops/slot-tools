@@ -2188,7 +2188,7 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 40;
+    const APP_VERSION_SEQ = 41;
     const APP_VERSION_DATE = "2026-09-20";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
@@ -2210,7 +2210,7 @@
     const X_TEXT_LIMIT = 280;
     const X_URL_WEIGHT = 23;
     const TRANSFER_SIGNATURE_URL = "slot-tools.jp";
-    const SCHEMA_VERSION = 41;
+    const SCHEMA_VERSION = 42;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
@@ -2222,6 +2222,13 @@
     // S17b/3: 実測・参考を「使ってよい」とみなす最小の通常回転数。これ未満は母数が薄すぎる
     //（例：2回転でヤメた記録の 0.04、10回転で当たった記録の 10.0）。
     const EARNED_EV_MIN_SPINS = 100;
+    // S41/§2-1（夢爽裁定・案B）: 実測を採る下限。これ未満の標本は当たり外れの影響が大きすぎるので、
+    // 実測を使わず 参考→想定 へ戻し、出典に「実測◯回転は少数のため不採用」と理由を書く。
+    // 回転数と消費玉の両方を見るのは、回転数だけだと玉が少ない記録で回転率が跳ねるため。
+    const EARNED_EV_MEASURED_MIN_SPINS = 30;
+    const EARNED_EV_MEASURED_MIN_BALLS = 500;
+    // S41/§1-4: 保存した評価と最新条件の差を知らせる下限（円）。これ未満は出さない。
+    const EARNED_EV_LATEST_DIFF_YEN = 10;
     const DEFAULT_HOURLY_THRESHOLD_YEN = 2400;
     // S23/§3-2: 参考時速を「実測」として採る条件。回転率（EARNED_EV_MIN_SPINS）と同じ考え方で、
     // 母数が薄い記録と、計測ミス（押し忘れ・日またぎ）で出る外れ値を実測から外す。
@@ -2584,6 +2591,8 @@
       endTime: null,
       // S40/§1: 打ち始めの時点の店条件。以後この記録の計算はこれを使い、店設定の変更に引きずられない。
       storeTerms: null,
+      // S41/§1: ヤメ確定の時点で計算した評価。以後の実戦追加・設定変更で過去の数字を動かさない。
+      endEv: null,
       zanhoryuBalls: null,
       settlementRecoverYen: null,
       memo: "",
@@ -2728,6 +2737,11 @@
       showVersionWarning();
       applyVersionBlock();
     } else {
+      // S41/§1-5: schema 42。完了済みで評価が無い記録に、読み込んだ時点の条件で評価を書く。
+      // normalizeData の中では data がまだ無い（deriveSession が data を読む）ので読み込み後に行う。
+      // 置き場所は描画の直前。これより前だと selectedLabelFilters などの宣言に届かない。
+      // 書き込み自体は次の保存で反映される（他の移行と同じ扱い）。
+      backfillEndEv();
       renderAll();
       // S39/§1: 読み込みに失敗していたら、操作を止めて上書きを防ぐ。
       if (loadFailed) {
@@ -2815,6 +2829,7 @@
       // ここで初めて読み込みと移行が走る（§2）。
       data = loadData();
       removeLegacyCarryover();
+      backfillEndEv();
       renderAll();
       // S39/§1: 読み込みに失敗していたら、操作を止めて上書きを防ぐ。
       if (loadFailed) {
@@ -3093,7 +3108,10 @@
         saipureiInput: Math.max(0, normalizeNumber(value.saipureiInput) ?? 0),
         mochidamaBalls: Math.max(0, normalizeNumber(value.mochidamaBalls) ?? 0),
         cashBalls: Math.max(0, normalizeNumber(value.cashBalls) ?? 0),
-        normalCostYen: normalizeNumber(value.normalCostYen)
+        normalCostYen: normalizeNumber(value.normalCostYen),
+        // S41/§3: 旧記録には無い。当時の値は再現できないので移行では埋めない。
+        netBallsPerRound: normalizeNumber(value.netBallsPerRound),
+        netSource: typeof value.netSource === "string" ? value.netSource : ""
       };
     }
 
@@ -3727,7 +3745,9 @@
     }
 
     function calculateMachineExpectation(machine, options = {}) {
-      const store = storeById(machine?.storeId);
+      // S41/§4: 記録の評価は打ち始めの店条件で計算する（options.store）。
+      // 省略時は現在の店設定＝打ち始め前の判定はこれまでどおり。
+      const store = options.store || storeById(machine?.storeId);
       const preset = presetById(normalizeMachinePresetId(machine));
       if (!store || !preset?.evSupported) return { result: null, reason: "期待値対応プリセットではありません" };
       const stats = options.stats || machineStats(machine.id);
@@ -3784,7 +3804,10 @@
         saipureiInput: availableParts.saipurei,
         mochidamaBalls: Math.round(expectation.result.mochidamaBalls),
         cashBalls: Math.round(expectation.result.cashBalls),
-        normalCostYen: Math.round(expectation.result.normalCostYen)
+        normalCostYen: Math.round(expectation.result.normalCostYen),
+        // S41/§3: 期待値の変化理由を追えるよう、開始時の1R実質出玉と出典も残す。
+        netBallsPerRound: expectation.netBallsInfo && expectation.netBallsInfo.value !== null && expectation.netBallsInfo.value !== undefined ? expectation.netBallsInfo.value : null,
+        netSource: expectation.netBallsInfo?.source || ""
       };
     }
 
@@ -4240,6 +4263,28 @@
       }
     }
 
+    // S41/§1-2: 終了時の評価が無い、または記録より古いときだけ作り直す。
+    function refreshEndEvIfStale(session) {
+      if (!session?.endTime) return;
+      const computedAt = session.endEv?.computedAt;
+      if (computedAt && session.updatedAt && computedAt >= session.updatedAt) return;
+      session.endEv = buildEndEv(session);
+    }
+
+    // S41/§1-5: 読み込み時に1度だけ。updatedAt は進めない（記録を直したわけではない）。
+    function backfillEndEv() {
+      if (appVersionBlocked || loadFailed) return;
+      let filled = 0;
+      data.sessions.forEach((session) => {
+        if (!session?.endTime || session.endEv) return;
+        const built = buildEndEv(session);
+        if (!built) return;
+        session.endEv = built;
+        filled += 1;
+      });
+      if (filled > 0) console.info(`ytv3 S41: 完了済み${filled}件に終了時の評価を書きました`);
+    }
+
     function persist() {
       // S30追補/§2: 旧版とみなしているあいだは書き戻さない（UIのブロックを抜けた場合の受け皿）。
       if (appVersionBlocked) return false;
@@ -4252,6 +4297,10 @@
         return false;
       }
       data.sessions.forEach(resyncSessionSegments);
+      // S41/§1-2: 記録を直した保存だけ、終了時の評価を計算し直す。
+      // 記録を変える保存は必ず updatedAt を進めるので、それより古い評価だけを作り直せばよい
+      //（保存経路ごとに書き足すと足し忘れる）。稼働中（endTime なし）には書かない。
+      data.sessions.forEach(refreshEndEvIfStale);
       data.meta.updatedAt = nowIso();
       data.meta.sampleSessionChars = measureSampleSessionChars();
       data.meta.sampleMachineChars = measureSampleMachineChars();
@@ -9792,6 +9841,7 @@
         const startSpin = normalizeNumber(segment.startSpin);
         if (startSpin === null) return;
         const expectation = calculateMachineExpectation(targetMachine, {
+          store: storeTermsForSession(session),
           currentSpin: startSpin,
           // 宵越しは打ち始め区間だけ。時短抜けの区間はカウンターがリセットされている
           previousSpin: index === 0 ? session.prevDayEndSpin : 0,
@@ -9811,34 +9861,120 @@
         totalYen,
         rate,
         rateSource: rateInfo.source,
+        rateSpins: rateInfo.spins ?? null,
         netBallsInfo,
         rows,
         byId: new Map(rows.map((row) => [row.segmentId, row.evYen]))
       };
     }
 
-    // S17b/3: 獲得期待値に使う回転率は3段。①セッションの実測（母数が十分で常識的な範囲）
-    // → ②その台の参考回転率（machineStats。同じ条件で判定）→ ③開始期待値の想定回転率。
-    // 出典はそのまま合計行に出す（B94「判断の場に前提を置く」）。
-    function earnedExpectationRate(session, machine, derived, startEv) {
-      const measured = normalizeNumber(derived?.rate);
-      if (usableEarnedEvRate(measured, normalizeNumber(derived?.normalSpins))) return { rate: measured, source: "実測" };
-      const reference = machine ? machineStats(machine.id) : null;
-      const referenceRate = normalizeNumber(reference?.rate);
-      if (usableEarnedEvRate(referenceRate, normalizeNumber(reference?.spins))) return { rate: referenceRate, source: "参考" };
-      const assumed = normalizeNumber(startEv?.usedRate);
-      if (assumed !== null && assumed > 0) return { rate: assumed, source: "想定" };
-      return null;
+    // S41/§1-1: ヤメ確定の時点の評価を記録に写す形。計算そのものは
+    // earnedExpectationForSession をそのまま使い、ここでは結果を固定して保存する形に変えるだけ。
+    // formula は計算式の名前。S42 で式が変わっても、旧い記録は旧い式の結果のまま残す。
+    function buildEndEv(session, machine = null, derived = null) {
+      const earned = earnedExpectationForSession(session, machine, derived);
+      if (!earned) return null;
+      const netBalls = earned.netBallsInfo;
+      return {
+        version: APP_VERSION_SEQ,
+        computedAt: nowIso(),
+        formula: "S17",
+        totalYen: earned.totalYen,
+        rate: earned.rate,
+        rateSource: earned.rateSource,
+        rateSpins: earned.rateSpins ?? null,
+        netBallsPerRound: netBalls && netBalls.value !== null && netBalls.value !== undefined ? netBalls.value : null,
+        netSource: netBalls?.source || "",
+        availableBalls: Math.max(0, normalizeNumber(normalizeStartEv(session?.startEv)?.availableBalls) ?? 0),
+        storeTerms: storeTermsFromStore(storeTermsForSession(session)),
+        rows: earned.rows.map((row) => ({ segmentId: row.segmentId, index: row.index, startSpin: row.startSpin, evYen: row.evYen }))
+      };
     }
 
-    function usableEarnedEvRate(rate, spins) {
-      if (rate === null || rate < EARNED_EV_RATE_MIN || rate > EARNED_EV_RATE_MAX) return false;
-      return spins !== null && spins >= EARNED_EV_MIN_SPINS;
+    // S41/§1-3: 保存した評価を、表示・集計が使う形へ戻す（earnedExpectationForSession と同じ形）。
+    function earnedFromEndEv(endEv) {
+      if (!endEv || typeof endEv !== "object") return null;
+      const totalYen = normalizeNumber(endEv.totalYen);
+      const rate = normalizeNumber(endEv.rate);
+      if (totalYen === null || rate === null) return null;
+      const rows = Array.isArray(endEv.rows) ? endEv.rows : [];
+      const netValue = normalizeNumber(endEv.netBallsPerRound);
+      return {
+        totalYen,
+        rate,
+        rateSource: endEv.rateSource || "",
+        rateSpins: normalizeNumber(endEv.rateSpins),
+        netBallsInfo: netValue === null ? null : { value: netValue, source: endEv.netSource || "" },
+        rows,
+        byId: new Map(rows.map((row) => [row.segmentId, row.evYen])),
+        saved: true
+      };
+    }
+
+    // S41/§1-3: 表示・集計はここだけを通す。保存された評価があればそれを、無ければ都度計算。
+    // earnedExpectationForSession を直接呼んでよいのは buildEndEv と稼働中の表示だけ。
+    function earnedForDisplay(session, machine = null, derived = null) {
+      const saved = earnedFromEndEv(session?.endEv);
+      if (saved) return saved;
+      const live = earnedExpectationForSession(session, machine, derived);
+      if (!live) return null;
+      // 完了済みなのに保存が無い＝旧データ。出典に「保存前の計算」を添える
+      return { ...live, saved: false, unsaved: Boolean(session?.endTime) };
     }
 
     function earnedExpectationYen(session, machine = null, derived = null) {
-      const earned = earnedExpectationForSession(session, machine, derived);
+      const earned = earnedForDisplay(session, machine, derived);
       return earned ? earned.totalYen : null;
+    }
+
+    // S17b/3 → S41/§2: 獲得期待値に使う回転率は3段。①この実戦の実測 → ②その台の参考回転率
+    // → ③開始期待値の想定。S41から、実測は回転数が少なくても使い「実測・参考」と明示する
+    //（母数が薄いことを隠して想定に戻すと、実際に打った結果と食い違うため。夢爽裁定 2026/9/20）。
+    // 出典はそのまま合計行に出す（B94「判断の場に前提を置く」）。
+    function earnedExpectationRate(session, machine, derived, startEv) {
+      const measured = normalizeNumber(derived?.rate);
+      const measuredSpins = normalizeNumber(derived?.normalSpins);
+      const measuredBalls = normalizeNumber(derived?.consumedBalls);
+      if (usableMeasuredEarnedEvRate(derived, measured, measuredSpins, measuredBalls)) {
+        return measuredSpins >= EARNED_EV_MIN_SPINS
+          ? { rate: measured, source: "実測", spins: measuredSpins }
+          : { rate: measured, source: "実測・参考", spins: measuredSpins };
+      }
+      const reason = earnedExpectationRateMissReason(derived, measured, measuredSpins, measuredBalls);
+      const reference = machine ? machineStats(machine.id) : null;
+      const referenceRate = normalizeNumber(reference?.rate);
+      const referenceSpins = normalizeNumber(reference?.spins);
+      // S33: 参考回転率の採用条件（100回転）は変えない
+      if (usableEarnedEvRate(referenceRate) && referenceSpins !== null && referenceSpins >= EARNED_EV_MIN_SPINS) {
+        return { rate: referenceRate, source: `参考（実測なし：${reason}）`, spins: null };
+      }
+      const assumed = normalizeNumber(startEv?.usedRate);
+      if (assumed !== null && assumed > 0) return { rate: assumed, source: `想定（実測なし：${reason}）`, spins: null };
+      return null;
+    }
+
+    // S41/§2-1: この実戦の実測を採ってよいか。回転率の値・回転数・消費玉の3つを見る。
+    function usableMeasuredEarnedEvRate(derived, rate, spins, balls) {
+      if (derived?.rateUnavailableReason || derived?.isEstimatedRate) return false;
+      if (!usableEarnedEvRate(rate)) return false;
+      if (spins === null || spins < EARNED_EV_MEASURED_MIN_SPINS) return false;
+      return balls !== null && balls >= EARNED_EV_MEASURED_MIN_BALLS;
+    }
+
+    // S41/§2: 実測を使えなかった理由。出典に添えて「実測」と読めないようにする。
+    function earnedExpectationRateMissReason(derived, measured, measuredSpins, measuredBalls) {
+      if (derived?.rateUnavailableReason) return derived.rateUnavailableReason;
+      if (derived?.isEstimatedRate) return "概算";
+      if (measuredSpins === null || measuredSpins < 1) return "通常回転なし";
+      if (measured === null) return "回転率なし";
+      if (!usableEarnedEvRate(measured)) return "範囲外";
+      // S41/§2-1: 回転数・消費玉のどちらかが足りない。実測があることは隠さず、不採用の理由を書く
+      return `実測${Math.round(measuredSpins).toLocaleString("ja-JP")}回転は少数のため不採用`;
+    }
+
+    // S41/§2: 回転率の値が常識的な範囲かどうかだけを見る。回転数の条件は呼び出し側で分ける。
+    function usableEarnedEvRate(rate) {
+      return rate !== null && rate >= EARNED_EV_RATE_MIN && rate <= EARNED_EV_RATE_MAX;
     }
 
     // S17/B-3: 合計行の根拠。回転率と1R実質出玉の出典を添える（B94「判断の場に前提を置く」）。
@@ -9848,7 +9984,13 @@
       const netText = netBalls && netBalls.value !== null && netBalls.value !== undefined
         ? `1R${Math.round(netBalls.value).toLocaleString("ja-JP")}玉・${netBalls.source}`
         : "1R-";
-      return `回転率${earned.rate.toFixed(1)}・${earned.rateSource} ／ ${netText}`;
+      // S41/§2: 母数が薄い実測は回転数を添えて「参考値」と分かるようにする
+      const spinsText = earned.rateSource === "実測・参考" && earned.rateSpins !== null && earned.rateSpins !== undefined
+        ? `（${Math.round(earned.rateSpins).toLocaleString("ja-JP")}回転）`
+        : "";
+      // S41/§1-3: 保存前の計算（完了済みなのに endEv が無い旧データ）はその旨を添える
+      const savedText = earned.unsaved ? " ／ 保存前の計算" : "";
+      return `回転率${earned.rate.toFixed(1)}・${earned.rateSource}${spinsText} ／ ${netText}${savedText}`;
     }
 
     // S3b/G4: 区間ごとの内訳。区間が1つだけなら空配列（＝ブロックを出さない）。
@@ -10099,7 +10241,14 @@
       ].join("");
       const diffRateText = summary.rateDiff === null ? "-" : `${summary.rateDiff >= 0 ? "+" : ""}${summary.rateDiff.toFixed(1)}`;
       const actualRateText = derived.rate === null || derived.rate === undefined ? "-" : derived.rate.toFixed(1);
-      const earned = earnedExpectationForSession(session, machine, derived);
+      const earned = earnedForDisplay(session, machine, derived);
+      // S41/§1-4: 保存した評価と今の条件の差。10円以上のときだけ出す（保存はしない）。
+      const latestEarned = earned?.saved ? earnedExpectationForSession(session, machine, derived) : null;
+      const latestDiffYen = latestEarned && earned ? latestEarned.totalYen - earned.totalYen : null;
+      const latestNoteHtml = latestDiffYen !== null && Math.abs(latestDiffYen) >= EARNED_EV_LATEST_DIFF_YEN
+        // 「再計算すると◯円」は再計算後の合計。差は括弧の中に添える（差だけだと合計と読み違える）
+        ? `<p class="hint hint-help">最新条件で再計算すると ${escapeHtml(yenText(latestEarned.totalYen))}（今より${escapeHtml(yenText(latestDiffYen))}。回転率${escapeHtml(latestEarned.rate.toFixed(1))}・1R${escapeHtml(latestEarned.netBallsInfo?.value !== null && latestEarned.netBallsInfo?.value !== undefined ? Math.round(latestEarned.netBallsInfo.value).toLocaleString("ja-JP") : "-")}玉）。記録の修正で保存し直せます。</p>`
+        : "";
       const earnedEvDiffYen = startEv && earned ? earned.totalYen - startEv.evYen : null;
       const startEvHtml = startEv ? `
         <div class="result-block">
@@ -10108,7 +10257,7 @@
             <table class="result-table">
               <thead><tr><th>項目</th><th>想定</th><th></th><th>実測</th><th>差</th></tr></thead>
               <tbody>
-                <tr><td>回転率</td><td>${escapeHtml(startEv.usedRate.toFixed(1))}（${escapeHtml(startEv.rateSource || "-")}）</td><td>→</td><td>${escapeHtml(actualRateText)}</td><td>${escapeHtml(diffRateText)}</td></tr>
+                <tr><td>回転率</td><td>${escapeHtml(startEv.usedRate.toFixed(1))}（${escapeHtml(startEv.rateSource || "-")}）${startEv.netBallsPerRound !== null && startEv.netBallsPerRound !== undefined ? `<br><small>1R${escapeHtml(Math.round(startEv.netBallsPerRound).toLocaleString("ja-JP"))}玉</small>` : ""}</td><td>→</td><td>${escapeHtml(actualRateText)}${earned?.rateSource === "実測・参考" ? `<br><small>${escapeHtml(earned.rateSpins)}回転・参考値</small>` : earned?.rateSource?.startsWith("想定") ? "<br><small>想定（実測なし）</small>" : ""}</td><td>${escapeHtml(diffRateText)}</td></tr>
                 <tr><td>獲得期待値</td><td>${escapeHtml(yenText(startEv.evYen))}</td><td>→</td><td>${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</td><td>${escapeHtml(yenText(earnedEvDiffYen))}</td></tr>
               </tbody>
             </table>
@@ -10200,6 +10349,7 @@
           <div class="result-cards">
             <div class="result-card"><span>実収支</span><strong>${escapeHtml(yenText(derived.profitYen))}</strong></div>
             <div class="result-card"><span>獲得期待値</span><strong>${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</strong><small>${escapeHtml(earnedExpectationBasisText(earned))}</small></div>
+            ${latestNoteHtml}
             <div class="result-card"><span>実測回転率</span><strong>${escapeHtml(derived.rateUnavailableReason ? "-" : actualRateText)}<span style="font-size:10px"> 回/千円</span></strong><small>${escapeHtml(derived.rateUnavailableReason || (derived.isEstimatedRate ? "概算" : derived.rate === null ? "" : "実測"))}</small></div>
           </div>
           <div class="result-line">実働 ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))} ／ 通常時の時速 ${escapeHtml(spinsPerMinuteText(summary.normalSpeed.perMinute))}${summary.normalSpeed.perMinute === null ? "" : `（通常時 ${escapeHtml(minuteSecondJaText(summary.normalSpeed.minutes * 60000))}・${summary.normalSpeed.spins.toLocaleString("ja-JP")}回転）`}${summary.speedBoundaryLegacy ? "（旧境界・参考）" : ""}</div>
@@ -10363,7 +10513,7 @@
         ];
       }
       if (sectionKey === "result") {
-        const earned = earnedExpectationForSession(session, machine, derived);
+        const earned = earnedForDisplay(session, machine, derived);
         // リザルトの実測回転率と同じ扱い。概算のときは同じ注記を添える
         const rateText = derived.rateUnavailableReason ? "-" : transferRateText(derived.rate);
         const speed = summary.normalSpeed;
@@ -10378,7 +10528,7 @@
         ];
       }
       if (sectionKey === "flow") {
-        const earned = earnedExpectationForSession(session, machine, derived);
+        const earned = earnedForDisplay(session, machine, derived);
         const segmentRows = segmentBreakdownRows(session, derived, machine, earned);
         const segmentExcludedMarks = segmentBreakdownExcludedMarks(segmentRows);
         const warnings = resultInputWarnings(session, summary, segmentRows, segmentExcludedMarks);
