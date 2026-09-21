@@ -161,8 +161,9 @@ for (const [payout, rows] of Object.entries(ARTICLE_TABLES)) {
 
 assert.equal(api.PRESETS[0].id, 'agnes-pe');
 assert.equal(api.PRESETS[0].payoutLabel, '1R実質出玉（電サポ中の減り込み）');
-assert.equal(api.PRESETS[0].payoutDefault, 100);
-assert.equal(JSON.stringify(Array.from(api.PRESETS[0].payoutChips)), '[105,100,90]');
+// S42（夢爽裁定 2026/9/21）: 既定は95玉/R。画面の既定値はエンジンのプリセットから引く
+assert.equal(api.PRESETS[0].payoutDefault, 95);
+assert.equal(JSON.stringify(Array.from(api.PRESETS[0].payoutChips)), '[105,95,90]');
 // S11: エンジンが玉/R を受けるようになったので、1R実質出玉の入力は変換せずそのまま渡す
 assert.equal(api.PRESETS[0].netBallsPerWin(100), 100, 'agnes-pe は入力値（玉/R）をそのまま使う');
 assert.equal(api.PRESETS[0].netBallsPerWin(105), 105);
@@ -174,9 +175,9 @@ assert.equal(JSON.stringify(Array.from(api.PRESETS[1].payoutChips)), '[]');
 assert.equal(api.PRESETS[1].netBallsPerWin(1400), 140, 'umi-sp5 は当選あたりの入力を平均R数で割る');
 assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].spec.averageRoundsPerWin, 10);
 assert.ok(Math.abs(api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].spec.averageRoundsPerWin - 587.5 / 108) < 1e-12);
-// S18: アグネスPEの既定は記事v5と同じ実戦基準の100玉/R。公称払い出し（648÷6＝108）ではない。
+// S18 → S42（夢爽裁定 2026/9/21）: アグネスPEの既定は実戦基準の95玉/R。公称払い出し（648÷6＝108）ではない。
 // averageRoundsPerWin は当選あたりの平均R数（R構成の重み）なので 587.5/108 のまま動かさない。
-assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.netBallsPerWin, 100);
+assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.netBallsPerWin, 95);
 assert.equal(api.PRESETS[0].payoutDefault, api.YUTIME_EXPECTATION_ENGINE.presets['agnes-pe'].defaults.netBallsPerWin, 'calc の既定値とエンジンの既定値がそろっていること');
 assert.equal(api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].defaults.netBallsPerWin * api.YUTIME_EXPECTATION_ENGINE.presets['umi-sp5'].spec.averageRoundsPerWin, 1400);
 assert.match(calcHtml, /byId\("payoutLabel"\)\.textContent = preset\.payoutLabel;/, '機種切替でラベルが差し替わること');

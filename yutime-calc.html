@@ -272,9 +272,9 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         },
         defaults: {
           // S11: netBallsPerWin は「1Rあたりの実質出玉（玉/R）」。当選あたりの玉数ではない。
-          // S18: 既定は記事v5と同じ実戦基準の100玉/R。公称払い出し（648÷6＝108）ではない。
+          // S18 → S42（夢爽裁定 2026/9/21）: 既定は実戦基準の95玉/R。公称払い出し（648÷6＝108）ではない。
           // averageRoundsPerWin は当選あたりの平均R数（R構成の重み）なので 587.5/108 のまま。
-          netBallsPerWin: 100,
+          netBallsPerWin: 95,
           jitanNormalBallsPerSpin: -0.8,
           jitanFastBallsPerSpin: 0,
           yutimeBallsPerSpin: -0.8,
@@ -490,8 +490,10 @@ const YUTIME_EXPECTATION_ENGINE = (() => {
         payoutLabel: "1R実質出玉（電サポ中の減り込み）",
         payoutHint: "電サポ中の減りを含めた1Rあたりの実質出玉",
         payoutStep: "1",
-        payoutDefault: 100,
-        payoutChips: [105, 100, 90],
+        // S42（夢爽裁定 2026/9/21）: 既定はエンジンのプリセットから引く。直書きすると
+        // エンジン側を変えたときに画面の既定値だけ取り残される（100→95 のときに実際に起きた）。
+        payoutDefault: YUTIME_EXPECTATION_ENGINE.presets["agnes-pe"].defaults.netBallsPerWin,
+        payoutChips: [105, 95, 90],
         // S11: エンジンが受け取る netBallsPerWin は玉/R。入力欄も1R実質出玉なので変換しない
         netBallsPerWin: (value) => value
       },

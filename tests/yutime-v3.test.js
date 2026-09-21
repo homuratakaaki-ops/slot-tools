@@ -926,7 +926,7 @@ for (const machinePreset of machinePresetContext.presets) {
   assert.equal(machinePreset.defaults, enginePreset.defaults, `${machinePreset.id} の defaults はエンジンの実体をそのまま参照すること`);
 }
 assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').roundTypes.length, 3, 'UI側の roundTypes は MACHINE_PRESETS に残ること');
-assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').defaults.netBallsPerWin, 100, 'S18: agnes-pe の既定値は記事v5と同じ実戦基準の100玉/R。エンジン側の値で解決されること');
+assert.equal(machinePresetContext.presets.find((preset) => preset.id === 'agnes-pe').defaults.netBallsPerWin, 95, 'S18 → S42: agnes-pe の既定値は実戦基準の95玉/R。エンジン側の値で解決されること');
 new vm.Script(`
   function normalizeNumber(value) {
     if (value === "" || value === null || value === undefined) return null;
@@ -2966,7 +2966,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 42;/);
+assert.match(html, /const SCHEMA_VERSION = 43;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -2975,7 +2975,7 @@ assert.match(html, /id: "agnes-pe"/);
 assert.match(html, /name: "PA大海物語Withアグネス・ラムPE"/);
 assert.match(html, /modelType: "st-certain"/);
 // B98: agnes-pe の既定値は MACHINE_PRESETS ではなく期待値エンジンのプリセットに置く
-assert.match(yutimeExpectationEngine, /netBallsPerWin: 100,\s+jitanNormalBallsPerSpin: -0\.8,\s+jitanFastBallsPerSpin: 0,\s+yutimeBallsPerSpin: -0\.8,/);
+assert.match(yutimeExpectationEngine, /netBallsPerWin: 95,\s+jitanNormalBallsPerSpin: -0\.8,\s+jitanFastBallsPerSpin: 0,\s+yutimeBallsPerSpin: -0\.8,/);
 // S11: 玉/R × 平均R数 が旧 netBallsPerWin と一致することを式で固定する
 assert.match(yutimeExpectationEngine, /averageRoundsPerWin: 587\.5 \/ 108/);
 assert.match(yutimeExpectationEngine, /averageRoundsPerWin: 10/);
@@ -3725,7 +3725,7 @@ assert.equal(Math.round(threeSummary.hourlyYen), 1059, '時給は実収支合計
 const threeHtml = ledgerApi.ledgerDaySummaryHtml(threeSummary);
 assert.match(threeHtml, /<strong>3台<\/strong>/);
 assert.match(threeHtml, /実収支<\/span><strong class="signed-figure-value is-plus">\+1,624円<\/strong>/);
-assert.match(threeHtml, /期待値<\/span><strong class="signed-figure-value is-plus">\+3,200円<\/strong>/);
+assert.match(threeHtml, /実戦後評価<\/span><strong class="signed-figure-value is-plus">\+3,200円<\/strong>/);
 assert.match(threeHtml, /実働<\/span><strong>1\.53h<\/strong>/);
 assert.match(threeHtml, /時給<\/span><strong class="signed-figure-value is-plus">\+1,059円<\/strong>/);
 
@@ -3775,7 +3775,7 @@ assert.equal(noProfit.evYen, null);
 assert.equal(noProfit.hourlyYen, null);
 const noProfitHtml = ledgerApi.ledgerDaySummaryHtml(noProfit);
 assert.match(noProfitHtml, /実収支<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
-assert.match(noProfitHtml, /期待値<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
+assert.match(noProfitHtml, /実戦後評価<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
 
 // 1件だけの日は正常、0件の日はサマリー自体を出さない
 const single = ledgerApi.ledgerDaySummary([{ profitYen: 1228, evYen: 1228, workedHours: 0.5 }]);
@@ -3789,12 +3789,12 @@ assert.equal(ledgerApi.ledgerDaySummaryHtml(null), '');
 const figuresHtml = ledgerApi.sessionFiguresHtml(-3877, 1228);
 assert.match(figuresHtml, /<div class="session-figures">/);
 assert.match(figuresHtml, /<span class="signed-figure-label">実収支<\/span><strong class="signed-figure-value is-minus">-3,877円<\/strong>/);
-assert.match(figuresHtml, /<span class="signed-figure-label">期待値<\/span><strong class="signed-figure-value is-plus">\+1,228円<\/strong>/);
-assert.ok(figuresHtml.indexOf('実収支') < figuresHtml.indexOf('期待値'), '左が実収支、右が期待値');
+assert.match(figuresHtml, /<span class="signed-figure-label">実戦後評価<\/span><strong class="signed-figure-value is-plus">\+1,228円<\/strong>/);
+assert.ok(figuresHtml.indexOf('実収支') < figuresHtml.indexOf('実戦後評価'), '左が実収支、右が実戦後評価');
 const figuresMissing = ledgerApi.sessionFiguresHtml(null, 1228);
 assert.match(figuresMissing, /<span class="signed-figure-label">実収支<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
-assert.match(figuresMissing, /期待値<\/span><strong class="signed-figure-value is-plus">\+1,228円<\/strong>/);
-assert.match(ledgerApi.sessionFiguresHtml(null, null), /期待値<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
+assert.match(figuresMissing, /実戦後評価<\/span><strong class="signed-figure-value is-plus">\+1,228円<\/strong>/);
+assert.match(ledgerApi.sessionFiguresHtml(null, null), /実戦後評価<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
 assert.equal(ledgerApi.signedYenToneClass(0), 'is-zero');
 assert.equal(ledgerApi.signedYenDisplayText(0), '+0円');
 assert.equal(ledgerApi.signedYenDisplayText(undefined), '—');
@@ -3824,7 +3824,7 @@ for (const word of ['上振れ', '下振れ', 'ほぼ想定どおり', 'サン�
   assert.doesNotMatch(resultBlock, new RegExp(word), `リザルトに判定表現を置かない: ${word}`);
 }
 // S26: 表示の差は獲得期待値 − 開始期待値。旧summaryの差は互換維持
-assert.match(resultBlock, /<tr><td>獲得期待値<\/td><td>\$\{escapeHtml\(yenText\(startEv\.evYen\)\)\}<\/td><td>→<\/td><td>\$\{escapeHtml\(earned \? yenText\(earned\.totalYen\) : "-"\)\}<\/td><td>\$\{escapeHtml\(yenText\(earnedEvDiffYen\)\)\}<\/td><\/tr>/);
+assert.match(resultBlock, /<tr><td>実戦後評価<\/td><td>\$\{escapeHtml\(yenText\(startEv\.evYen\)\)\}<\/td><td>→<\/td><td>\$\{escapeHtml\(earned \? yenText\(earned\.totalYen\) : "-"\)\}<\/td><td>\$\{escapeHtml\(yenText\(earnedEvDiffYen\)\)\}<\/td><\/tr>/);
 assert.match(resultBlock, /const earnedEvDiffYen = startEv && earned \? earned.totalYen - startEv.evYen : null;/);
 assert.doesNotMatch(resultBlock, /<td>期待値との差<\/td>/);
 assert.match(resultBlock, /const evDiffYen = startEv && derived\.profitYen !== null \? derived\.profitYen - startEv\.evYen : null;/);
@@ -3905,8 +3905,12 @@ new vm.Script(`
   const EARNED_EV_RATE_MAX = 50;
   const EARNED_EV_MIN_SPINS = 100;
   // S41/§2-1: 実測を採る下限（夢爽裁定・案B）
-  const EARNED_EV_MEASURED_MIN_SPINS = 30;
-  const EARNED_EV_MEASURED_MIN_BALLS = 500;
+  function rateWeightK() { return 100; }
+  const NET_REF_MAX_ROUNDS = 50;
+  const NET_REF_BASE_ROUNDS = 30;
+  const DEFAULT_NET_BALLS_PER_ROUND = 140;
+  const SPEED_MIN_SPINS = 100;
+  const SPEED_MIN_MINUTES = 20;
   // S17b/3: 参考回転率は台ごとの集計。この文脈では機種オブジェクトに持たせたスタブを返す
   function machineStats(machineId) {
     const machine = data.machines.find((item) => item.id === machineId);
@@ -3956,8 +3960,8 @@ assert.equal(diffSummary.evDiffYen, -8150);
 resultContext.data.machines = [{ id: 'm1', storeId: 'store1', presetId: 'preset1', __evByStart: { 0: 1000, 50: 2000 } }];
 const normalSegment = (startSpin, id) => ({ id, kind: 'normal', startSpin, endSpin: startSpin + 200, endSource: 'hit', holdSpins: 0, shooting: 'started' });
 resultContext.data.sessions = [
-  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: { evYen: 1000 }, startTime: '10:00', endTime: '12:00', __profitYen: -600, segments: [normalSegment(0, 'a1')] },
-  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: { evYen: 1234 }, startTime: '13:00', endTime: '14:30', __profitYen: 3000, segments: [normalSegment(50, 'b1')] },
+  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: { evYen: 1000, usedRate: 18 }, startTime: '10:00', endTime: '12:00', __profitYen: -600, segments: [normalSegment(0, 'a1')] },
+  { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: { evYen: 1234, usedRate: 18 }, startTime: '13:00', endTime: '14:30', __profitYen: 3000, segments: [normalSegment(50, 'b1')] },
   { status: 'completed', machineId: 'm1', storeId: 'store1', startEv: null, startTime: '', endTime: '', __profitYen: 500, segments: [] }
 ];
 const aggregate = resultContext.resultApi.resultAggregate(resultContext.data.sessions);
@@ -4821,9 +4825,9 @@ new vm.Script(`
     return E.calculate({ presetId, currentSpin: Math.max(0, counterSpin - offset), rotationRate: rate, availableBalls }, settings);
   };
 `).runInContext(s11Engine);
-// S18: アグネスPEの既定は記事v5と同じ実戦基準の100玉/R。公称払い出し（648÷6＝108）ではない。
+// S18 → S42（夢爽裁定 2026/9/21）: アグネスPEの既定は実戦基準の95玉/R。公称払い出し（648÷6＝108）ではない。
 // averageRoundsPerWin は当選あたりの平均R数（R構成の重み）なので 587.5/108 のまま動かさない。
-assert.equal(s11Engine.E.presets['agnes-pe'].defaults.netBallsPerWin, 100);
+assert.equal(s11Engine.E.presets['agnes-pe'].defaults.netBallsPerWin, 95);
 assert.ok(Math.abs(s11Engine.E.presets['agnes-pe'].spec.averageRoundsPerWin - 587.5 / 108) < 1e-12);
 // 玉/R × 平均R数 が旧 netBallsPerWin と完全に一致する（代表点が動かない根拠）
 assert.equal(s11Engine.E.presets['umi-sp5'].defaults.netBallsPerWin * s11Engine.E.presets['umi-sp5'].spec.averageRoundsPerWin, 1400);
@@ -4922,7 +4926,7 @@ assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBal
 assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
 
 // --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
-assert.match(html, /const SCHEMA_VERSION = 42;/);
+assert.match(html, /const SCHEMA_VERSION = 43;/);
 assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
 assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
 assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
@@ -5454,7 +5458,7 @@ const shootingBlock = section('function markSegmentShootingStarted', 'function h
 const wizardInputBlock = section('function wizardInputHtml', 'function readWizardValue');
 
 // --- §1: データ構造 --------------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 42;/);
+assert.match(html, /const SCHEMA_VERSION = 43;/);
 assert.match(html, /function normalizePlayStyle\(value\) \{\s*return value === "continuous" \? "continuous" : "yutime";/);
 assert.match(html, /function normalizeShooting\(value\) \{\s*return value === "before" \? "before" : "started";/);
 assert.match(normalizeData, /playStyle: normalizePlayStyle\(session\.playStyle\)/);
@@ -5613,7 +5617,7 @@ assert.equal(Number(runningRateContext.s7cEndedWithoutShooting.rate.toFixed(1)),
 // ===========================================================================
 
 // --- 第1部: 投資phaseの修復 ------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 42;/);
+assert.match(html, /const SCHEMA_VERSION = 43;/);
 assert.match(html, /const S17_BACKUP_KEY = STORAGE_PREFIX \+ "backup:s17";/);
 assert.match(segmentMigrationBackup, /function needsInvestmentPhaseRepair\(source\) \{\s*return \(normalizeNumber\(source\?\.version\) \?\? 0\) < 36;/);
 assert.match(segmentMigrationBackup, /function backupBeforeInvestmentPhaseRepair\(raw\) \{\s*if \(!raw \|\| localStorage\.getItem\(S17_BACKUP_KEY\)\) return;/);
@@ -5674,9 +5678,9 @@ assert.equal(s17RepairContext.s17AlreadyRepaired.investments[0].phase, "yutime")
 
 // --- 第2部: 獲得期待値 -----------------------------------------------------
 assert.match(html, /const EARNED_EV_RATE_MIN = 1;\s*const EARNED_EV_RATE_MAX = 50;/);
-assert.match(resultBlock, /function earnedExpectationForSession\(session, machine = null, derived = null\)/);
+assert.match(resultBlock, /function earnedExpectationForSession\(session, machine = null, derived = null, weightK = rateWeightK\(\)\)/);
 // B-2: 区間ごとの実測は使わない。セッション全体の実測を全区間に渡す
-assert.match(resultBlock, /manualRate: rate,/);
+assert.match(resultBlock, /manualRate: rateInfo\.rate,/);
 assert.match(resultBlock, /previousSpin: index === 0 \? session\.prevDayEndSpin : 0,/);
 assert.match(resultBlock, /if \(segment\.kind !== "normal" \|\| segmentSkipsNormalPlay\(segment\)\) return;/);
 // エンジンは呼ぶだけ。新しい計算式を書かない
@@ -5687,9 +5691,9 @@ assert.doesNotMatch(earnedEvBlock, /YUTIME_EXPECTATION_ENGINE/);
 assert.match(resultBlock, /evYen: earnedById && segment\.id \? \(earnedById\.has\(segment\.id\) \? earnedById\.get\(segment\.id\) : null\) : null,/);
 assert.match(resultBlock, /const earned = earnedForDisplay\(session, machine, derived\);/);
 assert.match(resultBlock, /const segmentRows = segmentBreakdownRows\(session, derived, machine, earned\);/);
-assert.match(resultBlock, /獲得期待値 \$\{escapeHtml\(yenText\(earned\.totalYen\)\)\}/);
-assert.match(openSessionResult, /<div class="result-card"><span>獲得期待値<\/span><strong>\$\{escapeHtml\(earned \? yenText\(earned\.totalYen\) : "-"\)\}<\/strong><small>\$\{escapeHtml\(earnedExpectationBasisText\(earned\)\)\}<\/small><\/div>/);
-assert.match(openSessionResult, /期待値は各区間の起点からの獲得期待値の合計/);
+assert.match(resultBlock, /実戦後評価 \$\{escapeHtml\(yenText\(earned\.totalYen\)\)\}/);
+assert.match(openSessionResult, /<div class="result-card"><span>実戦後評価<\/span><strong>\$\{escapeHtml\(earned \? yenText\(earned\.totalYen\) : "-"\)\}<\/strong><small>\$\{escapeHtml\(earnedExpectationBasisText\(earned\)\)\}<\/small><\/div>/);
+assert.match(openSessionResult, /実戦後評価は各区間の起点からの期待値の合計/);
 // 履歴・日別・積み上げが獲得期待値ベース
 assert.match(renderLedger, /const evYen = earnedExpectationYen\(session, machine, derived\);/);
 assert.match(renderLedger, /\$\{sessionFiguresHtml\(derived\.profitYen, evYenById\.get\(session\.id\)\)\}/);
@@ -5697,7 +5701,7 @@ assert.match(resultBlock, /const earnedYen = earnedExpectationYen\(session, mach
 assert.match(resultBlock, /if \(earnedYen !== null\) evYen = \(evYen \?\? 0\) \+ earnedYen;/);
 // 開始期待値は「打つ前の判断」「想定と実測のズレ」「転記用」に残る
 assert.match(openSessionResult, /<tr><td>回転率<\/td><td>\$\{escapeHtml\(startEv.usedRate.toFixed\(1\)\)\}（\$\{escapeHtml\(startEv.rateSource \|\| "-"\)\}）\$\{startEv.netBallsPerRound !== null && startEv.netBallsPerRound !== undefined/);
-assert.match(openSessionResult, /<tr><td>獲得期待値<\/td><td>\$\{escapeHtml\(yenText\(startEv\.evYen\)\)\}/);
+assert.match(openSessionResult, /<tr><td>実戦後評価<\/td><td>\$\{escapeHtml\(yenText\(startEv\.evYen\)\)\}/);
 assert.match(html, /開始期待値 \$\{startEv \? yenText\(startEv\.evYen\) : "-"\}/);
 
 const s17EvApi = resultContext.resultApi;
@@ -5723,18 +5727,18 @@ const mixed = s17EvApi.earnedExpectationForSession(s17Session({
 }), s17Machine, { rate: 20, normalSpins: 200, consumedBalls: 2500 });
 assert.equal(mixed.totalYen, 3000, "起点0(+1,000)と起点50(+2,000)だけを足す");
 assert.deepEqual(JSON.parse(JSON.stringify(mixed.rows.map((row) => row.segmentId))), ["a", "b"]);
-assert.equal(mixed.rateSource, "実測");
-assert.equal(mixed.rate, 20);
+assert.equal(mixed.rateRefSource, "既定");
+assert.equal(mixed.rate, (200 * 20 + 100 * 18) / 300);
 // 実測が出せないときは開始期待値の想定回転率で代用し、出典を「想定」にする
 // S41/§2-1: 回転率そのものが無い場合は「回転率なし」。範囲外（0.04 や 60）とは理由を分ける
 const assumed = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: null, normalSpins: 200, consumedBalls: 2500 });
-assert.equal(assumed.rateSource, "想定（実測なし：回転率なし）");
+assert.equal(assumed.rateRefSource, "既定");
 assert.equal(assumed.rate, 18.0);
 // 実測が常識的な範囲（1〜50）の外なら実測として採らない
 const outlier = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: 0.04, normalSpins: 200, consumedBalls: 2500 });
-assert.equal(outlier.rateSource, "想定（実測なし：範囲外）");
+assert.equal(outlier.rateRefSource, "既定");
 const tooFast = s17EvApi.earnedExpectationForSession(s17Session({ segments: [s17Segment("a")] }), s17Machine, { rate: 60, normalSpins: 200, consumedBalls: 2500 });
-assert.equal(tooFast.rateSource, "想定（実測なし：範囲外）");
+assert.equal(tooFast.rateRefSource, "既定");
 // 実測も想定も無ければ獲得期待値は出さない
 assert.equal(s17EvApi.earnedExpectationForSession(s17Session({ startEv: null, segments: [s17Segment("a")] }), s17Machine, { rate: null, normalSpins: 200, consumedBalls: 2500 }), null);
 // 通常区間が1つも残らなければ null
@@ -5742,7 +5746,7 @@ assert.equal(s17EvApi.earnedExpectationForSession(s17Session({
   segments: [{ id: "y", kind: "yutime", startSpin: 249, endSpin: 324, endSource: "hit", holdSpins: 0, shooting: "started" }]
 }), s17Machine, { rate: 20, normalSpins: 200, consumedBalls: 2500 }), null);
 // 合計行の根拠テキスト
-assert.match(s17EvApi.earnedExpectationBasisText(mixed), /回転率20\.0・実測 ／ 1R108玉・実測平均/);
+assert.match(s17EvApi.earnedExpectationBasisText(mixed), /回転率19\.3（実測20\.0・200回転 ＋ 参考18\.0・既定）／1R140玉（実測なし ＋ 参考140・基準30R）/);
 // 区間内訳の期待値列。合計に入らない区間は null（表示は「—」）
 const s17Rows = s17EvApi.segmentBreakdownRows(s17Session({
   segments: [
@@ -5855,61 +5859,14 @@ new vm.Script(`
 `).runInContext(s17bHistoryContext);
 assert.deepEqual(JSON.parse(JSON.stringify(s17bHistoryContext.s17bList)), ["s1", "s2", "s4", "s5", "s8"]);
 
-// --- 3: 回転率の出典3段 ----------------------------------------------------
-assert.match(html, /const EARNED_EV_MIN_SPINS = 100;/);
-assert.match(resultBlock, /function earnedExpectationRate\(session, machine, derived, startEv\)/);
-// S41/§2-1: 実測を採る条件は usableMeasuredEarnedEvRate に集約（回転率・回転数・消費玉の3つ）
-assert.match(resultBlock, /if \(usableMeasuredEarnedEvRate\(derived, measured, measuredSpins, measuredBalls\)\)/);
-assert.match(resultBlock, /if \(spins === null \|\| spins < EARNED_EV_MEASURED_MIN_SPINS\) return false;/);
-assert.match(resultBlock, /return balls !== null && balls >= EARNED_EV_MEASURED_MIN_BALLS;/);
-assert.match(html, /const EARNED_EV_MEASURED_MIN_SPINS = 30;/);
-assert.match(html, /const EARNED_EV_MEASURED_MIN_BALLS = 500;/);
-assert.match(resultBlock, /const reference = machine \? machineStats\(machine\.id\) : null;/);
-assert.match(resultBlock, /usableEarnedEvRate\(referenceRate\) && referenceSpins !== null && referenceSpins >= EARNED_EV_MIN_SPINS/);
-assert.match(resultBlock, /if \(assumed !== null && assumed > 0\) return \{ rate: assumed, source: `想定（実測なし：\$\{reason\}）`, spins: null \};/);
 assert.match(resultBlock, /function usableEarnedEvRate\(rate\) \{\s*return rate !== null && rate >= EARNED_EV_RATE_MIN && rate <= EARNED_EV_RATE_MAX;/);
 
-const s17bMachine = { id: "m_s17b", storeId: "store1", presetId: "preset1", __evByStart: { 0: 1000 } };
-const s17bSession = (overrides) => ({
-  machineId: "m_s17b", storeId: "store1", startEv: { evYen: 1000, usedRate: 18.0, availableBalls: 2500 },
-  prevDayEndSpin: null,
-  segments: [{ id: "a", kind: "normal", startSpin: 0, endSpin: 200, endSource: "hit", holdSpins: 0, startSource: null, shooting: "started", holdCarryHit: null }],
-  ...overrides
-});
-const rateSourceOf = (derived, stats) => {
-  resultContext.data.machines = [{ ...s17bMachine, __stats: stats }];
-  const earned = resultContext.resultApi.earnedExpectationForSession(s17bSession(), resultContext.data.machines[0], derived);
-  return earned ? [earned.rateSource, earned.rate] : null;
-};
-// ①実測: 母数100回転以上かつ 1〜50
-assert.deepEqual(rateSourceOf({ rate: 20, normalSpins: 200, consumedBalls: 2500 }, { rate: 17, spins: 500 }), ["実測", 20]);
-// S41/§2-1（案B）: 30回転・500玉に満たない実測は採らず、理由を出典に残す
-//（台360・8/26は10回転で当たったので実測を使わない）
-assert.deepEqual(rateSourceOf({ rate: 10, normalSpins: 10, consumedBalls: 250 }, { rate: 17, spins: 500 }), ["参考（実測なし：実測10回転は少数のため不採用）", 17]);
-// 30回転・500玉を満たせば少数でも実測を参考値として使う
-assert.deepEqual(rateSourceOf({ rate: 15, normalSpins: 30, consumedBalls: 500 }, { rate: 17, spins: 500 }), ["実測・参考", 15]);
-// 実測が範囲外でも参考へ落ちる
-assert.deepEqual(rateSourceOf({ rate: 0.04, normalSpins: 200, consumedBalls: 2500 }, { rate: 17, spins: 500 }), ["参考（実測なし：範囲外）", 17]);
-// 参考も母数不足なら想定へ（台290・8/5は自分の1件しか無く2回転）
-assert.deepEqual(rateSourceOf({ rate: 0.04, normalSpins: 2 }, { rate: 0.04, spins: 2 }), ["想定（実測なし：範囲外）", 18]);
-// 想定も無ければ獲得期待値を出さない
-resultContext.data.machines = [{ ...s17bMachine, __stats: { rate: 0.04, spins: 2 } }];
-assert.equal(
-  resultContext.resultApi.earnedExpectationForSession(s17bSession({ startEv: null }), resultContext.data.machines[0], { rate: 0.04, normalSpins: 2 }),
-  null
-);
-// 出典は合計行にそのまま出る
-resultContext.data.machines = [{ ...s17bMachine, __stats: { rate: 17, spins: 500 } }];
-const s17bReference = resultContext.resultApi.earnedExpectationForSession(s17bSession(), resultContext.data.machines[0], { rate: 15, normalSpins: 30, consumedBalls: 500 });
-assert.match(resultContext.resultApi.earnedExpectationBasisText(s17bReference), /回転率15\.0・実測・参考（30回転） ／ 1R108玉・実測平均/);
-
-
 // ===========================================================================
-// S18: アグネスPEの1R実質出玉の既定値を記事v5の実戦基準（100玉/R）にそろえる
+// S18 → S42: アグネスPEの1R実質出玉の既定値を実戦基準（95玉/R）にそろえる
 // ===========================================================================
 
-// エンジンの既定値。公称払い出し（648÷6＝108）ではなく記事v5の基準値
-assert.match(yutimeExpectationEngine, /netBallsPerWin: 100,/);
+// エンジンの既定値。公称払い出し（648÷6＝108）ではなく実戦から置いた基準値
+assert.match(yutimeExpectationEngine, /netBallsPerWin: 95,/);
 assert.doesNotMatch(yutimeExpectationEngine, /netBallsPerWin: 108,/);
 // averageRoundsPerWin は当選あたりの平均R数（R構成の重み）なので動かさない
 assert.match(yutimeExpectationEngine, /averageRoundsPerWin: 587\.5 \/ 108/);
@@ -5917,7 +5874,7 @@ assert.match(yutimeExpectationEngine, /averageRoundsPerWin: 587\.5 \/ 108/);
 assert.match(yutimeExpectationEngine, /netBallsPerWin: DEFAULT_NET_BALLS_PER_ROUND,/);
 
 // 既定値の出典ラベルは機種側（MACHINE_PRESETS）に持たせる
-assert.match(html, /defaultNetBallsLabel: "基準値（記事の1R100玉）"/);
+assert.match(html, /defaultNetBallsLabel: "基準値（実戦基準95玉）"/);
 assert.match(html, /function netBallsDefaultLabel\(presetId\) \{\s*return presetById\(presetId\)\?\.defaultNetBallsLabel \|\| "理論値";/);
 assert.match(html, /return \{ value: preset\?\.defaults\?\.netBallsPerWin \|\| DEFAULT_NET_BALLS_PER_ROUND, source: netBallsDefaultLabel\(presetId\), count: 0 \};/);
 // 大海5SPの1,400玉/当選＝140玉/Rは夢爽が実戦基準で置いた値。ラベルは触らない
@@ -5926,7 +5883,7 @@ assert.doesNotMatch(html, /umi-sp5[^\n]*defaultNetBallsLabel/);
 const s18LabelContext = vm.createContext({
   MACHINE_PRESETS: [
     { id: 'umi-sp5', defaults: { netBallsPerWin: 140 } },
-    { id: 'agnes-pe', defaults: { netBallsPerWin: 100 }, defaultNetBallsLabel: '基準値（記事の1R100玉）' }
+    { id: 'agnes-pe', defaults: { netBallsPerWin: 95 }, defaultNetBallsLabel: '基準値（実戦基準95玉）' }
   ]
 });
 new vm.Script(`
@@ -5934,16 +5891,18 @@ new vm.Script(`
   ${section('function netBallsDefaultLabel', 'function presetHoldSpins')}
   globalThis.labels = { agnes: netBallsDefaultLabel('agnes-pe'), umi: netBallsDefaultLabel('umi-sp5'), unknown: netBallsDefaultLabel('none') };
 `).runInContext(s18LabelContext);
-assert.equal(s18LabelContext.labels.agnes, '基準値（記事の1R100玉）');
+assert.equal(s18LabelContext.labels.agnes, '基準値（実戦基準95玉）');
 assert.equal(s18LabelContext.labels.umi, '理論値');
 assert.equal(s18LabelContext.labels.unknown, '理論値');
 
-// 受け入れ基準: カウンター150・回転率17・等価・現金・手入力なし・実測なし → +1,590円。
-// エンジンの既定値をそのまま渡して、既定パスが記事の代表点と一致することを固定する。
+// 受け入れ基準: カウンター150・回転率17・等価・現金・手入力なし・実測なし。
+// エンジンの既定値をそのまま渡して、既定パスが代表点と一致することを固定する。
+// S42（夢爽裁定 2026/9/21）: 既定を100→95玉/R にしたので代表点も +1,590 → +1,319 円になる
+//（記事v5の代表点は100玉/R のときの値。式は変えていない）。
 assert.equal(
   Math.round(s11Engine.ev('agnes-pe', 150, 17, s11Engine.E.presets['agnes-pe'].defaults.netBallsPerWin, 25, 0).evYen),
-  1590,
-  'S18: 既定の1R実質出玉で代表点（+1,590円）になること'
+  1319,
+  'S18 → S42: 既定の1R実質出玉（95玉/R）で代表点（+1,319円）になること'
 );
 // umi-sp5 の既定は不変
 assert.equal(s11Engine.E.presets['umi-sp5'].defaults.netBallsPerWin, 140);
@@ -5971,7 +5930,7 @@ assert.match(html, /実測平均・基準値の順で自動採用します/);
 const s19Context = vm.createContext({
   DEFAULT_NET_BALLS_PER_ROUND: 140,
   MACHINE_PRESETS: [
-    { id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r6', label: '6R', balls: 648 }, { id: 'r4', label: '4R', balls: 432 }], defaults: { netBallsPerWin: 100 }, defaultNetBallsLabel: '基準値（記事の1R100玉）' },
+    { id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r6', label: '6R', balls: 648 }, { id: 'r4', label: '4R', balls: 432 }], defaults: { netBallsPerWin: 95 }, defaultNetBallsLabel: '基準値（実戦基準95玉）' },
     { id: 'umi-sp5', roundTypes: [{ id: 'r10', label: '10R', balls: 1400 }, { id: 'r4', label: '4R', balls: 560 }], defaults: { netBallsPerWin: 140 } }
   ],
   data: { presetSettings: {}, sessions: [], machines: [{ id: 'm1', presetId: 'agnes-pe' }, { id: 'm2', presetId: 'umi-sp5' }] },
@@ -6001,11 +5960,11 @@ new vm.Script(`
   };
 `).runInContext(s19Context);
 
-// アグネスPE・当たりあり・獲得出玉なし → 既定100玉「基準値（記事の1R100玉）」
+// アグネスPE・当たりあり・獲得出玉なし → 既定95玉「基準値（実戦基準95玉）」
 // 従来は 1080/10・648/6・432/4 がどれも108玉/R なので、常に公称108が採用されていた
 assert.equal(
   JSON.stringify(s19Context.info('agnes-pe', 'm1', [{ machineId: 'm1', hits: [{ roundTypeId: 'r6' }, { roundTypeId: 'r4' }, { roundTypeId: 'r10' }] }])),
-  JSON.stringify({ value: 100, source: '基準値（記事の1R100玉）', count: 0 })
+  JSON.stringify({ value: 95, source: '基準値（実戦基準95玉）', count: 0 })
 );
 // 獲得出玉ありのセッションは実測平均のまま（1,020玉 ÷ 10R）
 assert.equal(
@@ -6228,7 +6187,7 @@ assert.match(normalizeData, /\.\.\.\(item\.duringJitan === true \? \{ duringJita
 // §1-3・§2-1: netBallsPerWinInfo の採用を連チャン単位で判定する（持ち玉差／カウンター／混在）
 const s20InfoContext = vm.createContext({
   DEFAULT_NET_BALLS_PER_ROUND: 140,
-  MACHINE_PRESETS: [{ id: 'agnes-pe', roundTypes: [{ id: 'r6', label: '6R', balls: 648 }, { id: 'r10', label: '10R', balls: 1080 }], defaults: { netBallsPerWin: 100 }, defaultNetBallsLabel: '基準値（記事の1R100玉）' }],
+  MACHINE_PRESETS: [{ id: 'agnes-pe', roundTypes: [{ id: 'r6', label: '6R', balls: 648 }, { id: 'r10', label: '10R', balls: 1080 }], defaults: { netBallsPerWin: 95 }, defaultNetBallsLabel: '基準値（実戦基準95玉）' }],
   data: { presetSettings: {}, sessions: [], machines: [{ id: 'm1', presetId: 'agnes-pe' }] },
   normalizeNumber: s20Context.normalizeNumber,
   normalizeMachinePresetId(machine) { return machine?.presetId || ''; },
@@ -6280,7 +6239,7 @@ const s20None = s20InfoContext.info([{
   __chains: [{ chainId: 'a', netBalls: null, rounds: 10, counterBalls: 0, counterRounds: 0 }],
   hits: [{ roundTypeId: 'r10', segmentId: 'a' }]
 }]);
-assert.equal(JSON.stringify(s20None), JSON.stringify({ value: 100, source: '基準値（記事の1R100玉）', count: 0 }));
+assert.equal(JSON.stringify(s20None), JSON.stringify({ value: 95, source: '基準値（実戦基準95玉）', count: 0 }));
 
 // ===========================================================================
 // S22: 1R実質出玉の実測平均を機種単位（全店）で集計し、店ごとの差は補正で吸収する
@@ -6305,7 +6264,7 @@ assert.doesNotMatch(s22StoreSettings, /store\.netBallsOffset = normalizeNumber\(
 const s22Context = vm.createContext({
   DEFAULT_NET_BALLS_PER_ROUND: 140,
   MACHINE_PRESETS: [
-    { id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r6', label: '6R', balls: 648 }], defaults: { netBallsPerWin: 100 }, defaultNetBallsLabel: '基準値（記事の1R100玉）' },
+    { id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }, { id: 'r6', label: '6R', balls: 648 }], defaults: { netBallsPerWin: 95 }, defaultNetBallsLabel: '基準値（実戦基準95玉）' },
     { id: 'umi-sp5', roundTypes: [{ id: 'r10', label: '10R', balls: 1400 }], defaults: { netBallsPerWin: 140 } }
   ],
   data: {
@@ -6458,7 +6417,7 @@ assert.equal(JSON.stringify(legacyMachineContext.testStoreMigration.current), JS
 // ②①: 集計の挙動。DSGの台325（150R・97.1玉）とアムズ（テスト店）の記録で見る
 const s22bContext = vm.createContext({
   DEFAULT_NET_BALLS_PER_ROUND: 140,
-  MACHINE_PRESETS: [{ id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }], defaults: { netBallsPerWin: 100 }, defaultNetBallsLabel: '基準値（記事の1R100玉）' }],
+  MACHINE_PRESETS: [{ id: 'agnes-pe', roundTypes: [{ id: 'r10', label: '10R', balls: 1080 }], defaults: { netBallsPerWin: 95 }, defaultNetBallsLabel: '基準値（実戦基準95玉）' }],
   data: {
     presetSettings: {},
     activeStoreId: 'st-dsg',
@@ -6508,7 +6467,7 @@ const s22bZero = {
 };
 // 純増0の連チャンしか無い記録は、その台の実測にも全店の平均にもならない
 s22bContext.data.sessions = [s22bZero];
-assert.equal(JSON.stringify(s22bContext.info('agnes-pe', 'm326')), JSON.stringify({ value: 100, source: '基準値（記事の1R100玉）', count: 0 }));
+assert.equal(JSON.stringify(s22bContext.info('agnes-pe', 'm326')), JSON.stringify({ value: 95, source: '基準値（実戦基準95玉）', count: 0 }));
 s22bContext.data.sessions = [s22bGood, s22bZero];
 // 台326は台の実測を持たない扱いになり、全店の平均（台325の150R）へ落ちる
 const s22bMachine326 = s22bContext.info('agnes-pe', 'm326');
@@ -6571,7 +6530,7 @@ assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \
 // ===========================================================================
 
 // --- §1: 時刻はボタンを押した瞬間を自動で取る。手入力欄は増やさない ----------
-assert.match(html, /const SCHEMA_VERSION = 42;/);
+assert.match(html, /const SCHEMA_VERSION = 43;/);
 // S25/§4: 当選の端点はhitsを優先し、R未入力時だけ保持したタップ時刻から埋める。
 const closeSegmentOnHitBlock = section('function closeSegmentOnHit', 'function startYutimeSegment');
 assert.match(closeSegmentOnHitBlock, /target\.endAt = segmentHitAt\(session, target\.id\) \|\| \(pendingHitAt\?\.sessionId === session\.id \? pendingHitAt\.at : null\);/);
@@ -6967,7 +6926,7 @@ assert.match(html, /const keyList = \[STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, S
 assert.doesNotMatch(html, /引き継ぎchars/);
 // 新しい localStorage キーは増やさない
 const s35StorageKeys = [...html.matchAll(/STORAGE_PREFIX \+ \"([^\"]+)\"/g)].map((m) => m[1]).sort();
-assert.deepEqual(s35StorageKeys, ["app:lastVersionSeq", "app:showHints", "app:transferSections", "backup:latest", "backup:s15", "backup:s17", "carryover", "corrupt:", "data", "islandFilter", "mapbackup", "premigrate", "running:source", "running:sticky", "start:playStyle"], "localStorage のキーは S36 の app:transferSections だけ増える（carryover は消すためだけに残す）");
+assert.deepEqual(s35StorageKeys, ["app:lastVersionSeq", "app:rateWeightK", "app:showHints", "app:transferSections", "backup:latest", "backup:s15", "backup:s17", "carryover", "corrupt:", "data", "islandFilter", "mapbackup", "premigrate", "running:source", "running:sticky", "start:playStyle"], "localStorage のキーは S42 の app:rateWeightK を追加する（carryover は消すためだけに残す）");
 
 // §2-1 自動引き継ぎの組み立て
 const s35Context = vm.createContext({
@@ -7076,7 +7035,7 @@ const s34HintTotal = (html.match(/class="hint( warn)?( hint-help)?"/g) || []).le
 const s34HintHelp = (html.match(/class="hint hint-help"/g) || []).length;
 assert.equal(s34HintHelp, 33, "分類A（説明）の数＝S34の31＋S40の店条件説明1＋S41の最新条件比較1");
 // S39/§6: 未使用のサマリー関数内にあったhintを2箇所削除。
-assert.equal(s34HintTotal - s34HintHelp, 56, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1");
+assert.equal(s34HintTotal - s34HintHelp, 57, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1＋S42のK入力説明1");
 // 警告（hint warn）には1つも付けない
 assert.equal((html.match(/class="hint warn hint-help"/g) || []).length, 0);
 // 判定基準の根拠行・入力確認・旧境界の注記は分類Aにしない
@@ -7286,7 +7245,7 @@ assert.doesNotMatch(section('function resultInputWarnings', 'function resultTime
 assert.match(html, /\.result-aggregate-summary > span \{ display: inline-block; white-space: nowrap; \}/);
 assert.match(openSessionResult, /class="result-aggregate-summary"><span>この店・この機種/);
 assert.match(openSessionResult, /class="result-aggregate-summary"><span>全体/);
-assert.match(openSessionResult, /<span>｜ 期待値合計 \$\{escapeHtml\(yenText\(storeAggregate.evYen\)\)\}<\/span>/);
+assert.match(openSessionResult, /<span>｜ 実戦後評価の合計 \$\{escapeHtml\(yenText\(storeAggregate.evYen\)\)\}<\/span>/);
 assert.match(openSessionResult, /<span>｜ 実収支合計 \$\{escapeHtml\(yenText\(modelAggregate.profitYen\)\)\}<\/span>/);
 const s26Alternative = s26Warnings({ hitCount: 6, missing: ['endTotalHits', 'startMochidama'] }, { averageRoundBalls: null, derived: { rate: 29.2, isEstimatedRate: false } }, [{}], ['①', '②']);
 assert.deepEqual(Array.from(s26Alternative, x => x.key), ['round', 'excluded', 'startMochidama', 'endTotalHits']);
@@ -7431,7 +7390,7 @@ const s28Title = () => s28App.element('modalTitle').textContent;
 const s28Click = (id) => s28App.element(id).handlers.click();
 const s28Toggle = () => s28App.element('modalBody').querySelectorAll('[data-toggle-holdcarry]')[0].handlers.click();
 const s28Json = (value) => JSON.parse(JSON.stringify(value));
-assert.equal(s28App.api.data.version, 42);
+assert.equal(s28App.api.data.version, 43);
 assert.deepEqual(s28Json(s28App.api.hitHistoryGroups(s28Session).map((g) => [g.id, g.rows.length])), [['seg_3', 2], ['seg_2', 1], ['seg_1', 1]]);
 // 表示グループだけを分け、残保留の累計計算は引き続き元の連チャンを参照する。
 assert.equal(s28App.api.hitHistoryRows(s28Session)[1].segmentId, 'seg_1');
@@ -7579,7 +7538,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 41;/);
+assert.match(html, /const APP_VERSION_SEQ = 42;/);
 assert.match(html, /const APP_VERSION_DATE = "2026-09-20";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
@@ -7950,56 +7909,30 @@ const s41Context = vm.createContext({
   normalizeNumber: (value) => value === null || value === undefined || value === '' || !Number.isFinite(Number(value)) ? null : Number(value),
   EARNED_EV_RATE_MIN: 1, EARNED_EV_RATE_MAX: 50, EARNED_EV_MIN_SPINS: 100,
   // S41/§2-1: 実測を採る下限（本体の定数と同じ値をここでも固定する）
-  EARNED_EV_MEASURED_MIN_SPINS: 30, EARNED_EV_MEASURED_MIN_BALLS: 500,
   machineStats: () => ({ rate: null, spins: 0 })
 });
-new vm.Script(section('function earnedExpectationRate', '// S17/B-3:') + section('function earnedExpectationBasisText', '// S3b/')).runInContext(s41Context);
+new vm.Script(section('function usableEarnedEvRate', '// S42/§6:') + section('function earnedExpectationBasisText', '// S3b/')).runInContext(s41Context);
 for (const [rate, valid] of [[null, false], [0.99, false], [1, true], [50, true], [50.01, false]]) {
   assert.equal(s41Context.usableEarnedEvRate(rate), valid);
 }
 
-// S41/§2-1（案B）: 2. 30回転・500玉を境に、実測 → 実測・参考 → 不採用 を区別する。
-const s41Rate = (derived, machine = null) => JSON.parse(JSON.stringify(s41Context.earnedExpectationRate({}, machine, derived, { usedRate: 18 })));
-for (const spins of [30, 52, 99, 100, 101]) {
-  assert.deepEqual(s41Rate({ rate: 20, normalSpins: spins, consumedBalls: 2500 }), { rate: 20, source: spins >= 100 ? '実測' : '実測・参考', spins });
-}
-// 下限そのもの（30回転・500玉ちょうど）は採る
-assert.deepEqual(s41Rate({ rate: 15, normalSpins: 30, consumedBalls: 500 }), { rate: 15, source: '実測・参考', spins: 30 });
-// 回転数か消費玉のどちらかが足りなければ採らない。理由を出典に書く
-assert.equal(s41Rate({ rate: 15, normalSpins: 29, consumedBalls: 500 }).source, '想定（実測なし：実測29回転は少数のため不採用）');
-assert.equal(s41Rate({ rate: 15, normalSpins: 30, consumedBalls: 499 }).source, '想定（実測なし：実測30回転は少数のため不採用）');
-assert.equal(s41Rate({ rate: 15, normalSpins: 30, consumedBalls: null }).source, '想定（実測なし：実測30回転は少数のため不採用）');
-assert.equal(s41Rate({ rate: 20, normalSpins: 0, consumedBalls: 0 }).rate, 18);
-assert.deepEqual(s41Rate({ rate: 20, normalSpins: 0, consumedBalls: 0 }), { rate: 18, source: '想定（実測なし：通常回転なし）', spins: null });
-// 回転率そのものが出せないときは「回転率なし」（範囲外と区別する）
-assert.equal(s41Rate({ rate: null, normalSpins: 50, consumedBalls: 600 }).source, '想定（実測なし：回転率なし）');
-assert.equal(s41Context.EARNED_EV_MEASURED_MIN_SPINS ?? 30, 30);
-
-// S41/§2: 3. 算出不可・概算は実測にせず、理由を残す。
-assert.equal(s41Rate({ rate: 20, normalSpins: 200, rateUnavailableReason: '終点未入力' }).source, '想定（実測なし：終点未入力）');
-assert.equal(s41Rate({ rate: 20, normalSpins: 200, isEstimatedRate: true }).source, '想定（実測なし：概算）');
-s41Context.machineStats = () => ({ rate: 17, spins: 100 });
-assert.equal(s41Rate({ rate: 20, normalSpins: 200, isEstimatedRate: true }, { id: 'm' }).source, '参考（実測なし：概算）');
-s41Context.machineStats = () => ({ rate: 17, spins: 99 });
-assert.equal(s41Rate({ rate: null, normalSpins: 0 }, { id: 'm' }).source, '想定（実測なし：通常回転なし）');
-
-// S41/§2: 4. 少数実測の母数と旧データの未保存を表示する。
-assert.equal(s41Context.earnedExpectationBasisText({ rate: 20, rateSource: '実測・参考', rateSpins: 52, unsaved: true }), '回転率20.0・実測・参考（52回転） ／ 1R- ／ 保存前の計算');
+// S42/§6: 保存前の計算には実測・参考の内訳と未保存の注記を付ける。
+assert.equal(s41Context.earnedExpectationBasisText({ rate: 20, rateThis: 20, rateThisSpins: 52, rateRef: 20, rateRefSource: "既定", unsaved: true }), "回転率20.0（実測20.0・52回転 ＋ 参考20.0・既定）／1R- ／ 保存前の計算");
 
 // S41/§1: 5. 式・アプリ版と区間評価の保存形を固定する。
 const s41Build = section('function buildEndEv', 'function earnedFromEndEv');
 assert.match(s41Build, /version: APP_VERSION_SEQ,/);
-assert.match(s41Build, /formula: "S17",/);
-assert.ok(s41Build.includes('rows: earned.rows.map((row) => ({ segmentId: row.segmentId, index: row.index, startSpin: row.startSpin, evYen: row.evYen }))'));
+assert.match(s41Build, /formula: "S42",/);
+assert.ok(s41Build.includes('rows: earned.rows.map((row) => ({ segmentId: row.segmentId, index: row.index, startSpin: row.startSpin, availableBalls: row.availableBalls, fundsSource: row.fundsSource, evYen: row.evYen }))'));
 
 // S41/§1: 6. 保存した区間評価から byId を復元する。
-new vm.Script(section('function earnedFromEndEv', 'function earnedExpectationRate')).runInContext(s41Context);
-const s41Saved = { totalYen: 1234, rate: 20, rateSource: '実測・参考', rateSpins: 52, netBallsPerRound: 100, netSource: '実測', rows: [{ segmentId: 'a', index: 0, startSpin: 10, evYen: 1234 }] };
+new vm.Script(section('function earnedFromEndEv', 'function postRate(')).runInContext(s41Context);
+const s41Saved = { totalYen: 1234, ratePost: 20, rateThis: 21, rateThisSpins: 52, rateRef: 19.48, rateRefSource: '台', rateWeightK: 100, netPost: 100, netThis: 101, netThisRounds: 10, netRef: 99, netRefRounds: 10, netRefSource: '店', rows: [{ segmentId: 'a', index: 0, startSpin: 10, evYen: 1234 }] };
 const s41Restored = s41Context.earnedFromEndEv(s41Saved);
 assert.equal(s41Restored.byId.get('a'), 1234);
 assert.equal(s41Restored.saved, true);
-assert.equal(s41Restored.rateSpins, 52);
-assert.equal(s41Restored.netBallsInfo.value, 100);
+assert.equal(s41Restored.rateThisSpins, 52);
+assert.equal(s41Restored.net, 100);
 assert.equal(s41Context.earnedFromEndEv({ totalYen: null, rate: 20 }), null);
 
 // S41/§1: 7. 保存値を優先し、未保存の完了記録だけに注記を付ける。
@@ -8021,9 +7954,9 @@ const s41UpdatedAt = '2026-09-20T11:00:00.000Z';
 for (const [session, calls] of [
   [{ updatedAt: s41UpdatedAt }, 0],
   [{ endTime: '18:00', updatedAt: s41UpdatedAt }, 1],
-  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { computedAt: '2026-09-20T10:00:00.000Z' } }, 1],
-  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { computedAt: s41UpdatedAt } }, 0],
-  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { computedAt: '2026-09-20T12:00:00.000Z' } }, 0]
+  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { formula: "S42", computedAt: '2026-09-20T10:00:00.000Z' } }, 1],
+  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { formula: "S42", computedAt: s41UpdatedAt } }, 0],
+  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { formula: "S42", computedAt: '2026-09-20T12:00:00.000Z' } }, 0]
 ]) {
   const before = s41BuildCalls;
   s41Context.refreshEndEvIfStale(session);
@@ -8039,4 +7972,184 @@ assert.doesNotMatch(section('function completeEndSession', 'function runWizard')
 
 // S41/§4: 10. 記録の店条件を計算へ渡し、現在の店設定より優先する。
 assert.match(section('function calculateMachineExpectation', 'function calculateStartEvSnapshot'), /const store = options\.store \|\| storeById\(machine\?\.storeId\);/);
-assert.match(section('function earnedExpectationForSession', 'function buildEndEv'), /calculateMachineExpectation\(targetMachine, \{\s*store: storeTermsForSession\(session\),/);
+assert.match(section('function earnedExpectationForSession', 'function buildEndEv'), /store: storeTermsForSession\(session\),/);
+
+// S42/§1: 実測と参考の合成、保存形式、区間資金を実関数で検証する。
+const s42Context = vm.createContext({
+  normalizeNumber: s41Context.normalizeNumber,
+  data: { machines: [], sessions: [], presetSettings: {} },
+  normalizeMachinePresetId: (machine) => machine?.presetId || 'p',
+  presetById: () => ({ defaults: { netBallsPerWin: 95 } }),
+  deriveSession: (session) => session.stats || {},
+  sessionNormalSpeed: (session) => ({ minutes: session.minutes ?? 20 }),
+  sessionNetBallsSummary: (session) => session.netSummary || {},
+  // S42追補: 参考値の並び替えに使う（本体と同じ「日付＋時刻 → ISO」の解決）
+  isoFromDateAndTime: (date, time) => (date && time ? `${date}T${time}:00` : null),
+  normalizeHits: (hits) => (Array.isArray(hits) ? hits : []),
+  sessionSegments: (session) => session.segments || [],
+  investmentSource: (item) => item.source,
+  normalizeStartEv: (value) => value || null,
+  segmentSkipsNormalPlay: (segment) => segment.shooting === 'before',
+  storeTermsForSession: (session) => session.storeTerms || {},
+  storeTermsFromStore: (store) => ({ ...store }),
+  calculateMachineExpectation: (machine, options) => {
+    s42Calls.push(options);
+    return { result: { evYen: options.currentSpin + options.availableBalls + options.manualNetBallsPerWin } };
+  },
+  nowIso: () => '2026-09-20T12:00:00.000Z',
+  APP_VERSION_SEQ: 42,
+  localStorage: { getItem: () => null },
+  RATE_WEIGHT_K_KEY: 'app:rateWeightK',
+  RATE_WEIGHT_K_DEFAULT: 100, RATE_WEIGHT_K_MIN: 10, RATE_WEIGHT_K_MAX: 500,
+  EARNED_EV_RATE_MIN: 1, EARNED_EV_RATE_MAX: 50,
+  NET_REF_MAX_ROUNDS: 50, NET_REF_BASE_ROUNDS: 30, DEFAULT_NET_BALLS_PER_ROUND: 140,
+  SPEED_MIN_SPINS: 100, SPEED_MIN_MINUTES: 20
+});
+const s42Calls = [];
+new vm.Script(section('function rateWeightK()', 'function applyShowHints')
+  + section('function earnedExpectationForSession', '// S3b/G4:')).runInContext(s42Context);
+const s42Machine = { id: 'm', storeId: 'store', presetId: 'p' };
+s42Context.data.machines = [s42Machine, { id: 'other', storeId: 'store', presetId: 'p' }, { id: 'different', storeId: 'store', presetId: 'q' }];
+const s42Session = { id: 'current', machineId: 'm', startEv: { usedRate: 17.6, availableBalls: 1234 } };
+const s42Rate = (spins, rate, k) => s42Context.postRate(s42Session, s42Machine, { normalSpins: spins, rate }, s42Session.startEv, k);
+
+// S42/§1: 1. 158回転・16.3・参考17.6・K100。
+assert.equal(s42Rate(158, 16.3, 100).rate.toFixed(2), '16.80');
+// S42/§1: 2. 10回転の少数実測も重みに応じて採用する。
+assert.equal(s42Rate(10, 10, 100).rate.toFixed(2), '16.91');
+// S42/§1: 3. K20は実測の比重が大きくなる。
+assert.equal(s42Rate(158, 16.3, 20).rate.toFixed(2), '16.45');
+// S42/§1: 4. 概算・逆行・範囲外・通常0回転・欠損は参考だけになる。
+for (const derived of [
+  { rate: 20, normalSpins: 158, isEstimatedRate: true },
+  { rate: 20, normalSpins: 158, rateUnavailableReason: '逆行' },
+  { rate: 0.99, normalSpins: 158 }, { rate: 50.01, normalSpins: 158 },
+  { rate: 20, normalSpins: 0 }, { rate: null, normalSpins: 158 }
+]) {
+  const actual = s42Context.postRate(s42Session, s42Machine, derived, s42Session.startEv, 100);
+  assert.equal(actual.rate, 17.6);
+  assert.equal(actual.rateThis, null);
+  assert.equal(actual.rateThisSpins, 0);
+}
+// S42/§1-2: 参考値が1つも取れないとき（台にも店にも実測が無く startEv も無い古い記録）は、
+// この実戦の実測だけで評価する。実測があるのに参考値が無いだけで評価ごと捨てない
+//（S41 では machineStats へ落ちて値が出ていたので、捨てると後退になる）。
+{
+  const noRef = s42Context.postRate({ ...s42Session, startEv: null }, s42Machine, { rate: 16.3, normalSpins: 158 }, null, 100);
+  assert.equal(noRef.rate, 16.3);
+  assert.equal(noRef.rateThis, 16.3);
+  assert.equal(noRef.rateRef, null);
+  assert.equal(noRef.rateRefSource, 'なし');
+  // 実測も参考も無ければ評価は出さない（従来どおり）
+  assert.equal(s42Context.postRate({ ...s42Session, startEv: null }, s42Machine, { rate: null, normalSpins: 0 }, null, 100), null);
+}
+// S42/§2: 5. 実測38Rと基準30Rを合成する。
+// S42追補（夢爽裁定 2026/9/21）: 基準が100→95玉/R になったので 97.0 → 94.8 になる
+//（式は変えていない。(38×94.6 + 30×95) ÷ 68 = 94.78）。
+const s42Net = s42Context.postNetBalls({ ...s42Session, netSummary: { netPerRound: 94.6, netRounds: 38 } }, s42Machine);
+assert.equal(s42Net.net.toFixed(1), '94.8');
+assert.equal(s42Net.netThisRounds, 38);
+assert.equal(s42Net.netRefRounds, 30);
+// S42/§2: 6. 実戦が終わった順（終了時刻）で40R+20Rを採用し、3件目には触れない。
+// S42追補（夢爽裁定 2026/9/21）: 並びは date+endTime。updatedAt は「最後に保存した時刻」なので
+// 使わない（後日その記録を直すと最新になり、実戦としては古いのに先頭へ来る。実データの
+// 9/9 台326 12:49 が 台322 18:28 より先に入っていた）。
+const s42Old = { date: '2026-09-18', endTime: '23:00', get netSummary() { throw new Error('50R以降は参照しない'); } };
+const s42Recent = s42Context.recentNetRounds([
+  s42Old,
+  { date: '2026-09-19', endTime: '10:00', updatedAt: '2026-09-30T00:00:00.000Z', netSummary: { netPerRound: 90, netRounds: 20 } },
+  { date: '2026-09-19', endTime: '11:00', updatedAt: '2026-09-19T02:00:00.000Z', netSummary: { netPerRound: 105, netRounds: 40 } }
+], 'p');
+assert.equal(s42Recent.rounds, 60);
+assert.equal(s42Recent.net, 100);
+// 終了時刻が無ければ当選時刻で並べる
+const s42ByHit = s42Context.recentNetRounds([
+  { date: '2026-09-19', hits: [{ at: '2026-09-19T01:00:00.000Z' }], netSummary: { netPerRound: 80, netRounds: 60 } },
+  { date: '2026-09-19', hits: [{ at: '2026-09-19T09:00:00.000Z' }], netSummary: { netPerRound: 120, netRounds: 60 } }
+], 'p');
+assert.equal(s42ByHit.net, 120, '当選時刻の新しい方から採る');
+// S42/§1-2: 7. 自分と未完了・別機種を除外し、台→店→既定/基準の順で参照する。
+const s42Past = (id, machineId, rate, net, overrides = {}) => ({
+  id, machineId, storeId: 'store', endTime: '12:00', date: '2026-09-19', minutes: 20,
+  stats: { normalSpins: 100, consumedBalls: 25000 / rate },
+  netSummary: { netPerRound: net, netRounds: 20 }, ...overrides
+});
+const s42Ignored = [
+  s42Past('current', 'm', 40, 200), s42Past('running', 'm', 40, 200, { endTime: null }),
+  s42Past('different', 'different', 40, 200)
+];
+const s42StorePast = s42Past('storePast', 'other', 18, 110);
+s42Context.data.sessions = [...s42Ignored, s42StorePast, s42Past('machinePast', 'm', 16, 90)];
+// 回転率の参考は「台 → 店 → 既定」で、最初に見つかったものを使う（S42/§1-2 のまま）。
+// 1R実質出玉の参考は S42追補（夢爽裁定 2026/9/21）で「台の直近50R → 足りない分を店で50Rまで
+// → そのうえで基準を常に加える」に変わったので、出典は実態の組み合わせになる。
+for (const [source, rate, netSource, netParts] of [
+  ['台', 16, '台+店', [[20, 90], [20, 110]]],
+  ['店', 18, '店', [[20, 110]]],
+  ['既定', 17.6, '基準', []]
+]) {
+  const rateInfo = s42Context.postRate(s42Session, s42Machine, {}, s42Session.startEv);
+  const netInfo = s42Context.postNetBalls(s42Session, s42Machine);
+  assert.equal(rateInfo.rateRefSource, source);
+  assert.equal(rateInfo.rateRef, rate);
+  assert.equal(netInfo.netRefSource, netSource);
+  // 基準（95玉・30R）は常に加わる
+  const balls = netParts.reduce((sum, [r, n]) => sum + r * n, 0) + 30 * 95;
+  const rounds = netParts.reduce((sum, [r]) => sum + r, 0) + 30;
+  assert.equal(netInfo.netRef.toFixed(3), (balls / rounds).toFixed(3));
+  assert.equal(netInfo.netRefRounds, rounds);
+  s42Context.data.sessions = source === '台' ? [...s42Ignored, s42StorePast] : s42Ignored;
+}
+s42Context.data.sessions = [];
+for (const overrides of [
+  { stats: { normalSpins: 99, consumedBalls: 1250 } },
+  { stats: { normalSpins: 100, consumedBalls: 1250, isEstimatedRate: true } },
+  { stats: { normalSpins: 100, consumedBalls: 1250, rateUnavailableReason: '逆行' } }
+]) assert.equal(s42Context.weightedRateOfSessions([s42Past('invalid', 'm', 20, 100, overrides)]), null);
+// S42/§1-2: S33 の「20分以上」は時速の条件なので、回転率の参考値には掛けない。
+// 掛けると旧境界（speedBoundary: "legacy"）の記録が sessionNormalSpeed で0分になり、
+// 「時速の推定からのみ除外」と定めた記録まで回転率の集計から消える（実データは40件中39件が該当）。
+assert.equal(s42Context.weightedRateOfSessions([s42Past('short', 'm', 20, 100, { minutes: 19 })]), 20);
+assert.equal(s42Context.weightedRateOfSessions([s42Past('a', 'm', 20, 100), s42Past('b', 'm', 10, 100)]), 200 / 3750 * 250);
+// S42/§3: 8. 区間開始持ち玉と、その区間より前だけを差し引いた再プレイ。
+const s42FundsSession = {
+  ...s42Session, startSaipurei: 1000,
+  segments: [{ id: 'a', kind: 'normal', startSpin: 10, startTrackedBalls: 200 }, { id: 'b', kind: 'normal', startSpin: 20, startTrackedBalls: 500 }],
+  investments: [{ segmentId: 'a', source: 'saipurei', amount: 300 }, { segmentId: 'b', source: 'saipurei', amount: 200 }, { segmentId: 'unknown', source: 'saipurei', amount: 100 }, { segmentId: 'a', source: 'cash', amount: 5000 }]
+};
+assert.equal(s42Context.segmentFunds(s42FundsSession, s42FundsSession.segments[0], s42Session.startEv).balls, 1100);
+assert.equal(s42Context.segmentFunds(s42FundsSession, s42FundsSession.segments[1], s42Session.startEv).balls, 1100);
+assert.equal(s42Context.segmentFunds(s42FundsSession, s42FundsSession.segments[1], s42Session.startEv).source, 'segment');
+assert.deepEqual(JSON.parse(JSON.stringify(s42Context.segmentFunds(s42FundsSession, { id: 'old' }, s42Session.startEv))), { balls: 1234, source: 'startEv' });
+// S42/§4: 9. 保存形と復元形、各区間への資金・1R実質出玉の経路を固定する。
+const s42StartBefore = JSON.stringify(s42FundsSession.startEv);
+const s42Built = s42Context.buildEndEv(s42FundsSession, s42Machine, { rate: 16.3, normalSpins: 158 });
+assert.equal(s42Built.formula, 'S42');
+assert.equal(s42Built.version, 42);
+for (const key of ['rateWeightK', 'rateThis', 'rateThisSpins', 'rateRef', 'rateRefSource', 'ratePost', 'netThis', 'netThisRounds', 'netRef', 'netRefRounds', 'netRefSource', 'netPost']) assert.ok(Object.hasOwn(s42Built, key), key);
+assert.equal(s42Built.ratePost.toFixed(2), '16.80');
+// S42追補: この実戦に持ち玉差が無いので参考値そのもの。基準は95玉/R（夢爽裁定 2026/9/21）
+assert.equal(s42Built.netPost, 95);
+assert.equal(s42Built.rows.length, 2);
+assert.equal(s42Built.rows[1].availableBalls, 1100);
+assert.equal(s42Built.rows[1].fundsSource, 'segment');
+assert.equal(s42Calls[1].manualNetBallsPerWin, 95);
+assert.equal(s42Calls[1].manualRate, s42Built.ratePost);
+assert.equal(s42Calls[1].availableBalls, 1100);
+assert.equal(JSON.stringify(s42FundsSession.startEv), s42StartBefore);
+const s42Restored = s42Context.earnedFromEndEv(s42Built);
+assert.equal(s42Restored.rate, s42Built.ratePost);
+assert.equal(s42Restored.net, s42Built.netPost);
+assert.equal(s42Restored.rateWeightK, 100);
+assert.equal(s42Restored.byId.get('b'), s42Built.rows[1].evYen);
+assert.equal(s42Restored.saved, true);
+// S42/§5: 10. 旧式の保存評価は時刻に関係なく移行対象となる。
+assert.match(section('function backfillEndEv', 'function persist'), /if \(formula === "S42"\) return;/);
+assert.match(section('function backfillEndEv', 'function persist'), /const built = buildEndEv\(session\);[\s\S]*session\.endEv = built;/);
+assert.match(section('function refreshEndEvIfStale', 'function backfillEndEv'), /session\.endEv\?\.formula === "S42" && computedAt && session\.updatedAt && computedAt >= session\.updatedAt/);
+assert.match(section('function refreshEndEvIfStale', 'function backfillEndEv'), /session\.endEv = buildEndEv\(session\);/);
+// S42/§1-1: I-4. 保存値の境界・非整数・未保存は提示コードどおり補正する。
+for (const [stored, expected] of [['9', 10], ['10', 10], ['500', 500], ['501', 500], ['10.5', 100], [null, 100]]) {
+  s42Context.localStorage.getItem = () => stored;
+  assert.equal(s42Context.rateWeightK(), expected);
+}
