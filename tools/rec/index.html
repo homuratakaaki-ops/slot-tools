@@ -158,7 +158,7 @@ textarea{min-height:80px;resize:vertical}
   <div class="hd"><div class="t" id="hdTitle">実戦記録</div><button class="x" id="hdMenu">≡</button></div>
   <div id="storeWarn" class="warn hide">保存できません。閉じる前に必ず書き出してください。<button id="storeExport" style="margin-left:8px;padding:6px 10px">今すぐ書き出す</button></div>
   <div id="staleWarn" class="warn hide">別のタブでこの記録が更新されています。このタブの操作は保存されません。<button id="staleReload" style="margin-left:8px;padding:6px 10px">再読み込み</button><button id="staleExport" style="margin-left:6px;padding:6px 10px">このタブの内容を書き出す</button></div>
-  <div id="brokenWarn" class="warn hide">保存データが読めませんでした。元のデータは「slot-tools-rec-broken」に退避してあります。このままでは何も保存されません。<button id="brokenExport" style="margin-left:8px;padding:6px 10px">退避データを書き出す</button><button id="brokenReset" style="margin-left:6px;padding:6px 10px">空の状態で始める</button></div>
+  <div id="brokenWarn" class="warn hide"><span id="brokenMsg">保存データが読めませんでした。このままでは何も保存されません。</span><br>直し方：①「元データを書き出す」でファイルに残す → ②「空の状態で始める」→ ③ 正常だったときのバックアップ（JSON）を「取り込む」。壊れた元データをそのまま取り込んでも直りません。<br><button id="brokenExport" style="margin-left:0;padding:6px 10px">元データを書き出す</button><button id="brokenReset" style="margin-left:6px;padding:6px 10px">空の状態で始める</button></div>
 
   <section id="scSetup" class="setup hide">
     <div class="lbl">機種</div>
@@ -515,11 +515,19 @@ function DEF(){return MACHINES[S.cur&&S.cur.machineId]||MACHINES.generic}
 
 /* ---------- 保存 ---------- */
 const KEY_BROKEN=KEY+"-broken";
-let loadBroken=null;      // 読めなかった保存データ（退避済み）。これがある間は自動保存しない
+let loadBroken=null,loadBrokenSaved=false;      // 読めなかった保存データ（退避済み）。これがある間は自動保存しない
 let saveGen=0;            // 保存の世代番号（複数タブの競合検出）
 // 保存データの形が最低限そろっているか
 function validState(d){return d&&typeof d==="object"&&Array.isArray(d.sessions)&&(d.cur==null||typeof d.cur==="object")}
-function validSession(c){return c&&typeof c==="object"&&typeof c.id==="string"&&typeof c.startAt==="string"&&typeof c.machine==="string"&&Array.isArray(c.events)&&(c.money==null||typeof c.money==="object")}
+function validSession(c){
+  if(!(c&&typeof c==="object"&&typeof c.id==="string"&&typeof c.startAt==="string"&&typeof c.machine==="string"&&Array.isArray(c.events)))return false;
+  if(isNaN(new Date(c.startAt).getTime()))return false;
+  if(!c.events.every(ev=>ev&&typeof ev==="object"&&typeof ev.at==="string"&&typeof ev.type==="string"&&typeof ev.text==="string"))return false;
+  if(c.money!=null){if(typeof c.money!=="object")return false;for(const k of ["cash","deposits","spends","replays"]){if(c.money[k]!=null&&!Array.isArray(c.money[k]))return false}}
+  if(c.rare!=null&&typeof c.rare!=="object")return false;
+  if(c.follow!=null&&!Array.isArray(c.follow))return false;
+  return true;
+}
 function load(){
   let r=null;
   try{r=localStorage.getItem(KEY)}catch(e){}
@@ -528,8 +536,8 @@ function load(){
   try{d=JSON.parse(r)}catch(e){d=null}
   if(!validState(d)||!d.sessions.every(validSession)||(d.cur&&!validSession(d.cur))){
     // 壊れている：元のまま退避して、このタブでは保存しない
-    try{if(!localStorage.getItem(KEY_BROKEN))localStorage.setItem(KEY_BROKEN,r)}catch(e){}
-    loadBroken=r;return;
+    let saved=false;try{if(!localStorage.getItem(KEY_BROKEN))localStorage.setItem(KEY_BROKEN,r);saved=localStorage.getItem(KEY_BROKEN)===r||!!localStorage.getItem(KEY_BROKEN)}catch(e){}
+    loadBroken=r;loadBrokenSaved=saved;return;
   }
   S=d;if(!S.settings)S.settings={};if(!S.settings.lend)S.settings.lend=DEF_LEND;
   saveGen=typeof S.gen==="number"?S.gen:0;
@@ -540,18 +548,32 @@ function save(opts){
   if(!boot){
     // 複数タブ：自分が読んだ世代より進んでいたら止める（操作による保存だけ世代を上げる）
     try{const r=localStorage.getItem(KEY);if(r){const g=(JSON.parse(r)||{}).gen;if(typeof g==="number"&&g>saveGen){staleTab();return}}}catch(e){}
-    saveGen++;
   }
-  S.gen=saveGen;
-  try{localStorage.setItem(KEY,JSON.stringify(S));if(!saveOK){saveOK=true;el("storeWarn").classList.add("hide")}}catch(e){saveOK=false;el("storeWarn").classList.remove("hide")}
+  const next=boot?saveGen:saveGen+1;
+  S.gen=next;
+  try{localStorage.setItem(KEY,JSON.stringify(S));saveGen=next;if(!saveOK){saveOK=true;el("storeWarn").classList.add("hide")}}
+  catch(e){S.gen=saveGen;saveOK=false;el("storeWarn").classList.remove("hide")}   // 失敗したら世代を進めない
 }
 // 別のタブが先に進んでいる：このタブは保存しない
 let staleShown=false;
 function staleTab(){
   if(staleShown)return;staleShown=true;
   const w=el("staleWarn");w.classList.remove("hide");
-  document.querySelectorAll("#scMain button, #scNote button, #scSetup button").forEach(b=>{if(b.id!=="staleReload"&&b.id!=="staleExport")b.disabled=true});
+  closeSheet();el("kp").classList.remove("open");
+  freezeButtons();
 }
+function freezeButtons(){
+  if(!staleShown)return;
+  document.querySelectorAll("#scMain button, #scNote button, #scSetup button, #sheet button, #kp button").forEach(b=>{if(b.id!=="staleReload"&&b.id!=="staleExport"&&b.id!=="shClose"&&b.id!=="kpX")b.disabled=true});
+}
+// 凍結中は、警告バーと「閉じる」以外のクリックを根元で止める（再描画で戻ったボタンも効かない）
+document.addEventListener("click",e=>{
+  if(!staleShown)return;
+  const t=e.target.closest("button, a, input, textarea, .badge, .rcv, .lg, .cnt");
+  if(!t)return;
+  if(t.closest("#staleWarn")||t.id==="shClose"||t.id==="kpX")return;
+  e.preventDefault();e.stopPropagation();toast("別のタブで更新されたため、このタブでは操作できません");
+},true);
 function fixSession(c){
   if(!c)return;
   if(!c.money||typeof c.money!=="object")c.money={cash:[],deposits:[],spends:[],replays:[],startMedal:0,startReplay:0,credit:null,endMedal:null,endReplay:0};
@@ -712,6 +734,7 @@ function snapshot(c){const o={};SNAP_KEYS.forEach(k=>{o[k]=JSON.parse(JSON.strin
 // 取り消しは op 単位で戻す（1操作が複数行を作っても、まとめて戻る）
 let _op=null;        // {id, snap, used}
 function push(type,text,extra){
+  if(staleShown)return;
   const c=S.cur;
   const ev={id:uid(),at:nowISO(),type,text,realG:c.realG,lcdG:DEF().lcdG?c.lcdG:null,c3:c.c3,mode:c.mode};
   if(extra)Object.assign(ev,extra);
@@ -723,7 +746,7 @@ function push(type,text,extra){
   c.events.push(ev); save(); render();
 }
 // 状態を変える操作の直前に呼ぶ。この後の push（同期処理内、または次の push まで）が同じ操作になる
-function mark(){_op={id:uid(),snap:snapshot(S.cur),used:false,closed:false};queueMicrotask(()=>{if(_op)_op.closed=true})}
+function mark(){if(staleShown)return;_op={id:uid(),snap:snapshot(S.cur),used:false,closed:false};queueMicrotask(()=>{if(_op)_op.closed=true})}
 // mark したが push しない経路で呼ぶ（次の push に古いスナップショットを付けない）
 function unmark(){_op=null}
 // ログ行の表示文：曖昧なら「？」、補足があれば括弧で
@@ -732,7 +755,8 @@ function gsText(ev,def){const d=def||DEF();const r=ev.realG,l=d.lcdG?ev.lcdG:nul
 function gsHtml(ev,def){const d=def||DEF();const r=ev.realG,l=d.lcdG?ev.lcdG:null;if(r==null&&l==null)return"";if(r==null)return'<span class="lc">'+l+'</span>';if(l==null||l===r)return String(r);return r+'<span class="sl">/</span><span class="lc">'+l+'</span>'}
 
 /* ---------- 描画 ---------- */
-function render(){renderBadges();renderCounters();renderMoney();renderGrid();renderRare();renderLog()}
+function render(){
+  if(staleShown)queueMicrotask(freezeButtons);renderBadges();renderCounters();renderMoney();renderGrid();renderRare();renderLog()}
 function renderBadges(){
   const c=S.cur,d=DEF(),b=el("badges");b.innerHTML="";
   const inZen=c.mode==="normal"&&zenIdx()>=0;
@@ -1932,7 +1956,7 @@ function renderNote(){
   });
 }
 function outSheet(title,text,hint){sheet(title,b=>{const ta=mk("textarea");ta.value=text;ta.readOnly=true;ta.style.minHeight="220px";ta.style.fontFamily="var(--mono)";ta.style.fontSize="12px";b.append(ta);const cp=mk("button","go","コピー");cp.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(text);toast("コピーしました")}catch(e){ta.readOnly=false;ta.select();ta.setSelectionRange(0,999999);ta.readOnly=true;toast("全選択しました")}});b.append(cp);if(hint)b.append(mk("div","hint",hint))})}
-function dlJson(obj,name){const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);toast("保存しました")}
+function dlJson(obj,name){const blob=new Blob([JSON.stringify(obj,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);toast("書き出しを開始しました")}
 el("nExpText").addEventListener("click",()=>{const t=agg(S.sessions),L=[];if(t.total){L.push("【集計】"+t.total+"台 ／ 実収支 "+sgn(t.act)+"円"+(t.nExp?" ／ 想定 "+sgn(t.exp)+"円（"+t.nExp+"台）／ 差 "+sgn(t.gap)+"円":""));L.push("")}let cur=null;S.sessions.concat(S.cur?[S.cur]:[]).forEach(s=>{const k=dayKey(s);if(k!==cur){cur=k;const d=agg(S.sessions.filter(x=>dayKey(x)===k));L.push("──── "+k+"("+wd(s.startAt)+") "+d.total+"台 ／ "+sgn(d.act)+"円"+(d.nExp?" ／ 想定 "+sgn(d.exp)+"円":"")+" ────");L.push("")}L.push(sessionText(s));L.push("")});outSheet("テキスト",L.join("\n").trim()||"（記録なし）")});
 el("nExpJson").addEventListener("click",()=>outSheet("JSON",JSON.stringify({sessions:S.sessions,cur:S.cur||null,exportedAt:nowISO()},null,2)));
 el("nDl").addEventListener("click",()=>dlJson({sessions:S.sessions,cur:S.cur||null,exportedAt:nowISO()},"jissen-"+ymd(nowISO()).replace(/\//g,"")+".json"));
@@ -1951,11 +1975,11 @@ el("nExpNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.e
 el("nDlNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.endAt);if(!done.length){toast("終わった台がありません");return}dlJson(done.map(toEnvelope),"kadonote-"+ymd(nowISO()).replace(/\//g,"")+".json")});
 el("nImpOpen").addEventListener("click",()=>{sheet("JSONを取り込む",b=>{const ta=mk("textarea");ta.placeholder="書き出したJSONを貼る";ta.style.minHeight="160px";b.append(ta);const fi=mk("input");fi.type="file";fi.accept=".json,application/json";fi.className="hide";const fb=mk("button","sub","ファイルを選ぶ");fb.addEventListener("click",()=>fi.click());fi.addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{ta.value=r.result;doImport(ta.value)};r.readAsText(f)});const go=mk("button","go","取り込む");go.addEventListener("click",()=>doImport(ta.value));b.append(go,fb,fi);b.append(mk("div","hint","同じ記録は二重に入りません。今ある記録も消えません。"))})});
 function doImport(txt){let d;try{d=JSON.parse(txt)}catch(e){toast("JSONとして読めません");return}let arr=Array.isArray(d)?d:(d&&Array.isArray(d.sessions)?d.sessions.slice():null);if(!arr){toast("記録が見つかりません");return}
-if(d&&!Array.isArray(d)&&d.cur&&validSession(d.cur)&&!d.cur.endAt){if(confirm("この書き出しには稼働中の台が入っています。終了済みとして取り込みますか？")){const c=JSON.parse(JSON.stringify(d.cur));c.endAt=c.endAt||nowISO();c.endNote="書き出しから復元（未終了）";arr.push(c)}}const have=new Set(S.sessions.map(s=>s.id));const ok=[],bad=[];
-arr.forEach(s=>{if(!validSession(s)){bad.push(s);return}if(have.has(s.id))return;ok.push(s)});
+if(d&&!Array.isArray(d)&&d.cur&&validSession(d.cur)&&!d.cur.endAt&&!(S.cur&&S.cur.id===d.cur.id)&&!S.sessions.some(x=>x.id===d.cur.id)){if(confirm("この書き出しには稼働中の台が入っています。終了済みとして取り込みますか？（記録を再開する復元ではありません。終了時の持ちメダルは未確定なので、収支は「打ち始め・終了の情報を直す」で入れてください）")){const c=JSON.parse(JSON.stringify(d.cur));c.endAt=c.endAt||nowISO();c.endNote="書き出しから復元（未終了）";arr.push(c)}}const have=new Set(S.sessions.map(s=>s.id));if(S.cur&&S.cur.id)have.add(S.cur.id);const ok=[],bad=[];let dup=0;
+arr.forEach(s=>{if(!validSession(s)){bad.push(s);return}if(have.has(s.id)){dup++;return}have.add(s.id);ok.push(s)});
 if(bad.length){toast(bad.length+"件が記録の形になっていないため取り込みません（何も変えていません）");if(!ok.length)return}
 ok.forEach(s=>{fixSession(s);S.sessions.push(s);have.add(s.id)});
-S.sessions.sort((a,b)=>new Date(a.startAt)-new Date(b.startAt));save();renderNote();closeSheet();toast(ok.length+"件を取り込みました"+(bad.length?"（"+bad.length+"件は形が不正で除外）":""))}
+S.sessions.sort((a,b)=>new Date(a.startAt)-new Date(b.startAt));save();showNote();closeSheet();toast(ok.length+"件を取り込みました"+(dup?"（"+dup+"件は同じ記録があるため除外）":"")+(bad.length?"（"+bad.length+"件は形が不正で除外）":""))}
 
 /* ---------- 画面切替 ---------- */
 let setupVals={};
@@ -2028,6 +2052,7 @@ el("stStart").addEventListener("click",()=>{
 load();
 if(loadBroken){
   el("brokenWarn").classList.remove("hide");
+  el("brokenMsg").textContent="保存データが読めませんでした。"+(loadBrokenSaved?"元のデータはブラウザ内に退避してあります。":"元のデータの退避もできませんでした（容量不足の可能性）。必ず「元データを書き出す」を押してください。")+"このままでは何も保存されません。";
   el("brokenExport").addEventListener("click",()=>{const blob=new Blob([loadBroken],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="slot-tools-rec-broken.json";document.body.append(a);a.click();a.remove()});
   el("brokenReset").addEventListener("click",()=>{if(!confirm("退避したデータはそのまま残ります。空の状態で始めますか？"))return;loadBroken=null;S={sessions:[],cur:null,settings:{lend:DEF_LEND}};save();location.reload()});
   showSetup();
@@ -2040,7 +2065,7 @@ el("staleReload").addEventListener("click",()=>location.reload());
 el("staleExport").addEventListener("click",()=>dlJson({sessions:S.sessions,cur:S.cur,note:"このタブの内容（別タブと競合したため保存されていない分）"},"jissen-thistab-"+ymd(nowISO()).replace(/\//g,"")+".json"));
 el("storeExport").addEventListener("click",()=>dlJson({sessions:S.sessions,cur:S.cur},"jissen-backup-"+ymd(nowISO()).replace(/\//g,"")+".json"));
 // 他のタブが保存したら、このタブは古い
-window.addEventListener("storage",e=>{if(e.key!==KEY||!e.newValue)return;try{const g=(JSON.parse(e.newValue)||{}).gen;if(typeof g==="number"&&g>saveGen)staleTab()}catch(x){}});
+window.addEventListener("storage",e=>{if(e.key!==KEY||!e.newValue)return;try{const g=(JSON.parse(e.newValue)||{}).gen;if(typeof g==="number"&&(g>saveGen||(!saveOK&&g>=saveGen)))staleTab()}catch(x){}});
 })();
 </script>
 </body>
