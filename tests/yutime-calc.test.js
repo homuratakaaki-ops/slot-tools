@@ -19,9 +19,16 @@ function sectionOf(source, label, startMarker, endMarker) {
 // yutime-calc.html は yutime-v3.html の期待値エンジンをインラインで持つ。
 // 片方だけ更新されたらここで落ちる。
 
-const calcEngine = sectionOf(calcHtml, 'yutime-calc.html', 'const YUTIME_EXPECTATION_ENGINE', 'window.YutimeExpectationEngine');
-const v3Engine = sectionOf(v3Html, 'yutime-v3.html', 'const YUTIME_EXPECTATION_ENGINE', 'window.YutimeExpectationEngine');
+// S43/§3: 比較は宣言行の先頭インデントを除いた位置から取る。sectionOf は startMarker
+// （"const YUTIME_EXPECTATION_ENGINE"）の位置から切り出すので、2つのファイルで宣言行の
+// インデントが違っても（v3 は4スペース、calc は0）比較に影響しない。中身の各行は同じ。
+const ENGINE_START = 'const YUTIME_EXPECTATION_ENGINE';
+const ENGINE_END = 'window.YutimeExpectationEngine';
+const calcEngine = sectionOf(calcHtml, 'yutime-calc.html', ENGINE_START, ENGINE_END);
+const v3Engine = sectionOf(v3Html, 'yutime-v3.html', ENGINE_START, ENGINE_END);
 assert.equal(calcEngine, v3Engine, 'yutime-calc.html と yutime-v3.html の期待値エンジンは完全一致していること');
+// 切り出しの起点にインデントが含まれていないこと（含まれると宣言行の差だけで落ちるようになる）
+assert.ok(calcEngine.startsWith(ENGINE_START) && v3Engine.startsWith(ENGINE_START), '切り出しは宣言行の先頭インデントを含まないこと');
 
 // エンジンが外側から受け取る唯一の定数も同じ行であること
 // S11: 定数は「1Rあたりの実質出玉（玉/R）」。当選あたりの玉数ではない

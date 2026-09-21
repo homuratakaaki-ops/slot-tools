@@ -2966,7 +2966,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 43;/);
+assert.match(html, /const SCHEMA_VERSION = 44;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3911,6 +3911,11 @@ new vm.Script(`
   const DEFAULT_NET_BALLS_PER_ROUND = 140;
   const SPEED_MIN_SPINS = 100;
   const SPEED_MIN_MINUTES = 20;
+  // S43/§1: 参考の締切（netReferenceOrderKey）が使う。本体と同じ解決をスタブで置く
+  // S43追補: 参考の最後の拠り所（島の想定回転率）。この文脈では未設定として null を返す
+  function activeMapAssumedRate() { return null; }
+  function isoFromDateAndTime(date, time) { return date && time ? date + 'T' + time + ':00' : null; }
+  function normalizeHits(hits) { return Array.isArray(hits) ? hits : []; }
   // S17b/3: 参考回転率は台ごとの集計。この文脈では機種オブジェクトに持たせたスタブを返す
   function machineStats(machineId) {
     const machine = data.machines.find((item) => item.id === machineId);
@@ -4926,7 +4931,7 @@ assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBal
 assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
 
 // --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
-assert.match(html, /const SCHEMA_VERSION = 43;/);
+assert.match(html, /const SCHEMA_VERSION = 44;/);
 assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
 assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
 assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
@@ -5458,7 +5463,7 @@ const shootingBlock = section('function markSegmentShootingStarted', 'function h
 const wizardInputBlock = section('function wizardInputHtml', 'function readWizardValue');
 
 // --- §1: データ構造 --------------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 43;/);
+assert.match(html, /const SCHEMA_VERSION = 44;/);
 assert.match(html, /function normalizePlayStyle\(value\) \{\s*return value === "continuous" \? "continuous" : "yutime";/);
 assert.match(html, /function normalizeShooting\(value\) \{\s*return value === "before" \? "before" : "started";/);
 assert.match(normalizeData, /playStyle: normalizePlayStyle\(session\.playStyle\)/);
@@ -5617,7 +5622,7 @@ assert.equal(Number(runningRateContext.s7cEndedWithoutShooting.rate.toFixed(1)),
 // ===========================================================================
 
 // --- 第1部: 投資phaseの修復 ------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 43;/);
+assert.match(html, /const SCHEMA_VERSION = 44;/);
 assert.match(html, /const S17_BACKUP_KEY = STORAGE_PREFIX \+ "backup:s17";/);
 assert.match(segmentMigrationBackup, /function needsInvestmentPhaseRepair\(source\) \{\s*return \(normalizeNumber\(source\?\.version\) \?\? 0\) < 36;/);
 assert.match(segmentMigrationBackup, /function backupBeforeInvestmentPhaseRepair\(raw\) \{\s*if \(!raw \|\| localStorage\.getItem\(S17_BACKUP_KEY\)\) return;/);
@@ -6530,7 +6535,7 @@ assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \
 // ===========================================================================
 
 // --- §1: 時刻はボタンを押した瞬間を自動で取る。手入力欄は増やさない ----------
-assert.match(html, /const SCHEMA_VERSION = 43;/);
+assert.match(html, /const SCHEMA_VERSION = 44;/);
 // S25/§4: 当選の端点はhitsを優先し、R未入力時だけ保持したタップ時刻から埋める。
 const closeSegmentOnHitBlock = section('function closeSegmentOnHit', 'function startYutimeSegment');
 assert.match(closeSegmentOnHitBlock, /target\.endAt = segmentHitAt\(session, target\.id\) \|\| \(pendingHitAt\?\.sessionId === session\.id \? pendingHitAt\.at : null\);/);
@@ -7390,7 +7395,7 @@ const s28Title = () => s28App.element('modalTitle').textContent;
 const s28Click = (id) => s28App.element(id).handlers.click();
 const s28Toggle = () => s28App.element('modalBody').querySelectorAll('[data-toggle-holdcarry]')[0].handlers.click();
 const s28Json = (value) => JSON.parse(JSON.stringify(value));
-assert.equal(s28App.api.data.version, 43);
+assert.equal(s28App.api.data.version, 44);
 assert.deepEqual(s28Json(s28App.api.hitHistoryGroups(s28Session).map((g) => [g.id, g.rows.length])), [['seg_3', 2], ['seg_2', 1], ['seg_1', 1]]);
 // 表示グループだけを分け、残保留の累計計算は引き続き元の連チャンを参照する。
 assert.equal(s28App.api.hitHistoryRows(s28Session)[1].segmentId, 'seg_1');
@@ -7538,7 +7543,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 42;/);
+assert.match(html, /const APP_VERSION_SEQ = 43;/);
 assert.match(html, /const APP_VERSION_DATE = "2026-09-20";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
@@ -7954,9 +7959,11 @@ const s41UpdatedAt = '2026-09-20T11:00:00.000Z';
 for (const [session, calls] of [
   [{ updatedAt: s41UpdatedAt }, 0],
   [{ endTime: '18:00', updatedAt: s41UpdatedAt }, 1],
-  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { formula: "S42", computedAt: '2026-09-20T10:00:00.000Z' } }, 1],
-  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { formula: "S42", computedAt: s41UpdatedAt } }, 0],
-  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { formula: "S42", computedAt: '2026-09-20T12:00:00.000Z' } }, 0]
+  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { formula: "S42", referenceAsOf: s41UpdatedAt, computedAt: '2026-09-20T10:00:00.000Z' } }, 1],
+  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { formula: "S42", referenceAsOf: s41UpdatedAt, computedAt: s41UpdatedAt } }, 0],
+  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { formula: "S42", referenceAsOf: s41UpdatedAt, computedAt: '2026-09-20T12:00:00.000Z' } }, 0],
+  // S43/§2: 参考の締切が無い評価（S42 で固定された分）は、記録を直していなくても作り直す
+  [{ endTime: '18:00', updatedAt: s41UpdatedAt, endEv: { formula: "S42", computedAt: '2026-09-20T12:00:00.000Z' } }, 1]
 ]) {
   const before = s41BuildCalls;
   s41Context.refreshEndEvIfStale(session);
@@ -7985,6 +7992,8 @@ const s42Context = vm.createContext({
   sessionNetBallsSummary: (session) => session.netSummary || {},
   // S42追補: 参考値の並び替えに使う（本体と同じ「日付＋時刻 → ISO」の解決）
   isoFromDateAndTime: (date, time) => (date && time ? `${date}T${time}:00` : null),
+  // S43追補: 参考の最後の拠り所（島の想定回転率）。既定では未設定
+  activeMapAssumedRate: () => null,
   normalizeHits: (hits) => (Array.isArray(hits) ? hits : []),
   sessionSegments: (session) => session.segments || [],
   investmentSource: (item) => item.source,
@@ -8031,17 +8040,21 @@ for (const derived of [
   assert.equal(actual.rateThis, null);
   assert.equal(actual.rateThisSpins, 0);
 }
-// S42/§1-2: 参考値が1つも取れないとき（台にも店にも実測が無く startEv も無い古い記録）は、
-// この実戦の実測だけで評価する。実測があるのに参考値が無いだけで評価ごと捨てない
-//（S41 では machineStats へ落ちて値が出ていたので、捨てると後退になる）。
+// S43追補（夢爽裁定 2026/9/21）: 参考は必ず持つ。台→店→startEv.usedRate→島の想定回転率 の順で、
+// どれも無ければ評価を出さない。実測だけで評価すると、母数が薄い記録ほど重みづけが効かず
+// 生の実測がそのまま出てしまう（13回転の台292 が −4,595円 になっていた）。
 {
-  const noRef = s42Context.postRate({ ...s42Session, startEv: null }, s42Machine, { rate: 16.3, normalSpins: 158 }, null, 100);
-  assert.equal(noRef.rate, 16.3);
-  assert.equal(noRef.rateThis, 16.3);
-  assert.equal(noRef.rateRef, null);
-  assert.equal(noRef.rateRefSource, 'なし');
-  // 実測も参考も無ければ評価は出さない（従来どおり）
+  // startEv が無くても島の想定回転率があれば、それを参考にして合成する
+  s42Context.activeMapAssumedRate = () => 17;
+  const fromMap = s42Context.postRate({ ...s42Session, startEv: null }, s42Machine, { rate: 13, normalSpins: 13 }, null, 100);
+  assert.equal(fromMap.rateRefSource, '島');
+  assert.equal(fromMap.rateRef, 17);
+  assert.equal(fromMap.rate.toFixed(4), ((13 * 13 + 100 * 17) / 113).toFixed(4));
+  // 島の想定も無ければ、実測があっても評価を出さない（「なし」経路は廃止）
+  s42Context.activeMapAssumedRate = () => null;
+  assert.equal(s42Context.postRate({ ...s42Session, startEv: null }, s42Machine, { rate: 16.3, normalSpins: 158 }, null, 100), null);
   assert.equal(s42Context.postRate({ ...s42Session, startEv: null }, s42Machine, { rate: null, normalSpins: 0 }, null, 100), null);
+  assert.doesNotMatch(section('function postRate', 'function postNetBalls'), /rateRefSource: "なし"/);
 }
 // S42/§2: 5. 実測38Rと基準30Rを合成する。
 // S42追補（夢爽裁定 2026/9/21）: 基準が100→95玉/R になったので 97.0 → 94.8 になる
@@ -8143,11 +8156,32 @@ assert.equal(s42Restored.net, s42Built.netPost);
 assert.equal(s42Restored.rateWeightK, 100);
 assert.equal(s42Restored.byId.get('b'), s42Built.rows[1].evYen);
 assert.equal(s42Restored.saved, true);
-// S42/§5: 10. 旧式の保存評価は時刻に関係なく移行対象となる。
-assert.match(section('function backfillEndEv', 'function persist'), /if \(formula === "S42"\) return;/);
+// S42/§5 → S43/§2: 10. 旧式の保存評価と、参考の締切が無い評価は時刻に関係なく移行対象となる。
+assert.match(section('function backfillEndEv', 'function persist'), /if \(session\.endEv\?\.formula === "S42" && session\.endEv\.referenceAsOf\) return;/);
 assert.match(section('function backfillEndEv', 'function persist'), /const built = buildEndEv\(session\);[\s\S]*session\.endEv = built;/);
-assert.match(section('function refreshEndEvIfStale', 'function backfillEndEv'), /session\.endEv\?\.formula === "S42" && computedAt && session\.updatedAt && computedAt >= session\.updatedAt/);
+assert.match(section('function refreshEndEvIfStale', 'function backfillEndEv'), /session\.endEv\?\.formula === "S42" && session\.endEv\.referenceAsOf && computedAt && session\.updatedAt && computedAt >= session\.updatedAt/);
 assert.match(section('function refreshEndEvIfStale', 'function backfillEndEv'), /session\.endEv = buildEndEv\(session\);/);
+
+// S43/§1: 参考はその記録より前に終わった記録だけ。未来の記録が混ざると、過去の評価が
+// 後日の実戦で動いてしまう（9/13 の台320 の参考に 9/19 の記録が入っていた）。
+{
+  const s43Sessions = [
+    { id: 'past', machineId: 'm', storeId: 'store', endTime: '19:56', date: '2026-09-09', netSummary: { netPerRound: 91.2, netRounds: 38 }, stats: { normalSpins: 200, consumedBalls: 2500 } },
+    { id: 'same', machineId: 'm', storeId: 'store', endTime: '10:45', date: '2026-09-13', netSummary: { netPerRound: 50, netRounds: 40 }, stats: { normalSpins: 200, consumedBalls: 2500 } },
+    { id: 'future', machineId: 'm', storeId: 'store', endTime: '20:00', date: '2026-09-19', netSummary: { netPerRound: 200, netRounds: 34 }, stats: { normalSpins: 200, consumedBalls: 2500 } }
+  ];
+  s42Context.data.sessions = s43Sessions;
+  const target = { id: 'target', machineId: 'm', storeId: 'store', endTime: '10:45', date: '2026-09-13' };
+  const ids = s42Context.pastSessionsForRate(target, s42Machine, 'machine').map((item) => item.id);
+  assert.deepEqual(Array.from(ids), ['past'], '未来（9/19）と同着（同じ終了時刻）は参考に入らない');
+  // 締切を明示的に渡せること（回転率と1R実質出玉で同じ時点を使うため）
+  assert.deepEqual(Array.from(s42Context.pastSessionsForRate(target, s42Machine, 'machine', '2026-09-20T00:00:00').map((i) => i.id)).sort(), ['future', 'past', 'same']);
+  // 締切は endTime → 当選時刻 → 日付 の順で決まる
+  assert.equal(s42Context.netReferenceOrderKey({ date: '2026-09-13', endTime: '10:45' }), '2026-09-13T10:45:00');
+  assert.equal(s42Context.netReferenceOrderKey({ date: '2026-09-13', hits: [{ at: '2026-09-13T01:00:00.000Z' }] }), '2026-09-13T01:00:00.000Z');
+  assert.equal(s42Context.netReferenceOrderKey({ date: '2026-09-13' }), '2026-09-13');
+  s42Context.data.sessions = [];
+}
 // S42/§1-1: I-4. 保存値の境界・非整数・未保存は提示コードどおり補正する。
 for (const [stored, expected] of [['9', 10], ['10', 10], ['500', 500], ['501', 500], ['10.5', 100], [null, 100]]) {
   s42Context.localStorage.getItem = () => stored;

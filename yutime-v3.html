@@ -2191,7 +2191,7 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 42;
+    const APP_VERSION_SEQ = 43;
     const APP_VERSION_DATE = "2026-09-20";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
@@ -2216,7 +2216,7 @@
     const X_TEXT_LIMIT = 280;
     const X_URL_WEIGHT = 23;
     const TRANSFER_SIGNATURE_URL = "slot-tools.jp";
-    const SCHEMA_VERSION = 43;
+    const SCHEMA_VERSION = 44;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
@@ -4313,8 +4313,8 @@
     function refreshEndEvIfStale(session) {
       if (!session?.endTime) return;
       const computedAt = session.endEv?.computedAt;
-      // S42/§5: 式が古い評価は、記録を直していなくても作り直す
-      if (session.endEv?.formula === "S42" && computedAt && session.updatedAt && computedAt >= session.updatedAt) return;
+      // S42/§5 → S43/§2: 式が古い評価・参考の締切が無い評価は、記録を直していなくても作り直す
+      if (session.endEv?.formula === "S42" && session.endEv.referenceAsOf && computedAt && session.updatedAt && computedAt >= session.updatedAt) return;
       session.endEv = buildEndEv(session);
     }
 
@@ -4327,8 +4327,9 @@
       let recalculated = 0;
       data.sessions.forEach((session) => {
         if (!session?.endTime) return;
-        const formula = session.endEv?.formula;
-        if (formula === "S42") return;
+        // S43/§2: schema 44。式は S42 のままだが、参考の締切（referenceAsOf）が無い評価は
+        // 未来の記録が混ざったまま固定されているので、もう一度だけ計算し直す。
+        if (session.endEv?.formula === "S42" && session.endEv.referenceAsOf) return;
         const built = buildEndEv(session);
         if (!built) return;
         if (session.endEv) recalculated += 1;
@@ -4336,7 +4337,7 @@
         session.endEv = built;
       });
       if (filled > 0) console.info(`ytv3 S41: 完了済み${filled}件に終了時の評価を書きました`);
-      if (recalculated > 0) console.info(`ytv3 S42: ${recalculated}件の評価をS42の式で計算し直しました`);
+      if (recalculated > 0) console.info(`ytv3 S43: ${recalculated}件の評価を参考の締切つきで計算し直しました`);
     }
 
     function persist() {
@@ -9877,9 +9878,11 @@
       if (!targetMachine) return null;
       const stats = derived || deriveSession(session, targetMachine);
       const startEv = normalizeStartEv(session?.startEv);
-      const rateInfo = postRate(session, targetMachine, stats, startEv, weightK);
+      // S43/§1: 参考の締切。回転率と1R実質出玉で同じ時点を使う（片方だけ未来を見ない）。
+      const referenceAsOf = netReferenceOrderKey(session);
+      const rateInfo = postRate(session, targetMachine, stats, startEv, weightK, referenceAsOf);
       if (!rateInfo) return null;
-      const netInfo = postNetBalls(session, targetMachine);
+      const netInfo = postNetBalls(session, targetMachine, referenceAsOf);
       const segments = sessionSegments(session);
       const rows = [];
       let totalYen = null;
@@ -9919,6 +9922,7 @@
         netRef: netInfo ? netInfo.netRef : null,
         netRefRounds: netInfo ? netInfo.netRefRounds : 0,
         netRefSource: netInfo ? netInfo.netRefSource : "",
+        referenceAsOf,
         rows,
         byId: new Map(rows.map((row) => [row.segmentId, row.evYen]))
       };
@@ -9947,6 +9951,8 @@
         netRefRounds: earned.netRefRounds,
         netRefSource: earned.netRefSource,
         netPost: earned.net,
+        // S43/§1: 参考をどの時点で締め切ったか。後から検算できるように残す。
+        referenceAsOf: earned.referenceAsOf || null,
         storeTerms: storeTermsFromStore(storeTermsForSession(session)),
         rows: earned.rows.map((row) => ({ segmentId: row.segmentId, index: row.index, startSpin: row.startSpin, availableBalls: row.availableBalls, fundsSource: row.fundsSource, evYen: row.evYen }))
       };
@@ -9973,6 +9979,7 @@
         netRef: normalizeNumber(endEv.netRef),
         netRefRounds: normalizeNumber(endEv.netRefRounds) ?? 0,
         netRefSource: endEv.netRefSource || "",
+        referenceAsOf: endEv.referenceAsOf || null,
         rows,
         byId: new Map(rows.map((row) => [row.segmentId, row.evYen])),
         saved: true
@@ -9999,20 +10006,17 @@
     //   rate_post = (spins_this × rate_this + K × rate_ref) ÷ (spins_this + K)
     // 実測が使えないとき（算出不可・概算・範囲外・通常回転0）は spins_this = 0 として参考値だけになる。
     // S41 の「30回転・500玉未満は不採用」の枝は、この重みづけに置き換わったので無い。
-    function postRate(session, machine, derived, startEv, weightK = rateWeightK()) {
+    function postRate(session, machine, derived, startEv, weightK = rateWeightK(), asOf = netReferenceOrderKey(session)) {
       const measured = normalizeNumber(derived?.rate);
       const measuredSpins = normalizeNumber(derived?.normalSpins);
       const usable = !derived?.rateUnavailableReason && !derived?.isEstimatedRate
         && usableEarnedEvRate(measured) && measuredSpins !== null && measuredSpins > 0;
       const rateThis = usable ? measured : null;
       const spinsThis = usable ? measuredSpins : 0;
-      const ref = postRateReference(session, machine, startEv);
-      // S42/§1-2: 参考値が1つも取れないとき（台にも店にも実測が無く、startEv も無い古い記録）は、
-      // この実戦の実測だけで評価する。実測があるのに参考値が無いだけで評価ごと捨てない。
-      if (!ref) {
-        if (rateThis === null) return null;
-        return { rate: rateThis, rateThis, rateThisSpins: spinsThis, rateRef: null, rateRefSource: "なし", rateWeightK: weightK };
-      }
+      const ref = postRateReference(session, machine, startEv, asOf);
+      // S43追補（夢爽裁定 2026/9/21）: 参考は必ず持つ。実測だけで評価すると、母数が薄い記録ほど
+      // 重みづけが効かず生の実測がそのまま出てしまう（S42 の「なし」経路は廃止）。
+      if (!ref) return null;
       const rate = (spinsThis * (rateThis ?? 0) + weightK * ref.rate) / (spinsThis + weightK);
       return {
         rate,
@@ -10027,12 +10031,12 @@
     // S42/§2: 実戦後評価の1R実質出玉。この実戦の持ち玉差と参考値を、R数で重みづけして合成する。
     //   net_post = (R_this × net_this + R_ref × net_ref) ÷ (R_this + R_ref)
     // 固定の重みではなく「実際に存在する過去のR数」を重みに使う（上限 NET_REF_MAX_ROUNDS）。
-    function postNetBalls(session, machine) {
+    function postNetBalls(session, machine, asOf = netReferenceOrderKey(session)) {
       const presetId = normalizeMachinePresetId(machine);
       const summary = sessionNetBallsSummary(session, machine);
       const netThis = normalizeNumber(summary?.netPerRound);
       const roundsThis = netThis === null ? 0 : Math.max(0, normalizeNumber(summary?.netRounds) ?? 0);
-      const ref = postNetReference(session, machine, presetId);
+      const ref = postNetReference(session, machine, presetId, asOf);
       const total = roundsThis + ref.rounds;
       if (total <= 0) return null;
       return {
@@ -10076,22 +10080,30 @@
     // S42/§1-2: 参考回転率。①同じ台の過去実測 → ②同じ店の同機種 → ③打ち始めの想定。
     // ①②は S33 の実測条件（100回転以上・20分以上）を満たす記録だけを回転数で加重平均する。
     // この実戦自身は含めない（自分を参考値にすると重みづけの意味が無くなる）。
-    function postRateReference(session, machine, startEv) {
-      const machineRate = weightedRateOfSessions(pastSessionsForRate(session, machine, "machine"));
+    function postRateReference(session, machine, startEv, asOf = netReferenceOrderKey(session)) {
+      const machineRate = weightedRateOfSessions(pastSessionsForRate(session, machine, "machine", asOf));
       if (machineRate !== null) return { rate: machineRate, source: "台" };
-      const storeRate = weightedRateOfSessions(pastSessionsForRate(session, machine, "store"));
+      const storeRate = weightedRateOfSessions(pastSessionsForRate(session, machine, "store", asOf));
       if (storeRate !== null) return { rate: storeRate, source: "店" };
       const assumed = normalizeNumber(startEv?.usedRate);
       if (assumed !== null && assumed > 0) return { rate: assumed, source: "既定" };
+      // S43追補（夢爽裁定 2026/9/21）: 打ち始めの想定も無い古い記録は、期待値判定が未入力のときに
+      // 使うのと同じ「島の想定回転率」を最後の拠り所にする（実測だけで評価しないため）。
+      const mapAssumed = normalizeNumber(activeMapAssumedRate(storeTermsForSession(session)?.id || machine?.storeId));
+      if (mapAssumed !== null && mapAssumed > 0) return { rate: mapAssumed, source: "島" };
       return null;
     }
 
     // S42/§1-2: 参考値に使える過去の記録。scope は "machine"（同じ台）か "store"（同じ店・同機種）。
-    function pastSessionsForRate(session, machine, scope) {
+    // S43/§1: 参考はその記録より「前に終わった」記録だけから集める。締切を入れないと、
+    // 後日の実戦が過去の評価の参考に混ざる（9/13 の台320 の参考に 9/19 の記録が入っていた）。
+    // 同じ終了時刻は含めない（同着はどちらが先か決められないので参考にしない）。
+    function pastSessionsForRate(session, machine, scope, asOf = netReferenceOrderKey(session)) {
       if (!machine) return [];
       const presetId = normalizeMachinePresetId(machine);
       return data.sessions.filter((item) => {
         if (!item || item.id === session?.id || !item.endTime) return false;
+        if (asOf && netReferenceOrderKey(item) >= asOf) return false;
         if (scope === "machine") return item.machineId === machine.id;
         if (item.storeId !== machine.storeId) return false;
         const itemMachine = data.machines.find((entry) => entry.id === item.machineId) || null;
@@ -10128,13 +10140,13 @@
     // そのうえで基準（プリセットの既定）を NET_REF_BASE_ROUNDS の重みで**常に**加える。
     // 実測が薄いときに基準へ寄り、厚くなるほど実測が効く。出典は実態を組み合わせて残す
     //（"台" / "店" / "台+店" / "基準"。実測が1Rも無いときだけ "基準" 単独）。
-    function postNetReference(session, machine, presetId) {
-      const fromMachine = recentNetRounds(pastSessionsForRate(session, machine, "machine"), presetId, NET_REF_MAX_ROUNDS);
+    function postNetReference(session, machine, presetId, asOf = netReferenceOrderKey(session)) {
+      const fromMachine = recentNetRounds(pastSessionsForRate(session, machine, "machine", asOf), presetId, NET_REF_MAX_ROUNDS);
       const machineRounds = fromMachine ? fromMachine.rounds : 0;
       const remain = Math.max(0, NET_REF_MAX_ROUNDS - machineRounds);
       // 店で埋めるとき、台の側で既に数えた記録は除く（同じ記録を二重に重みづけしない）。
       const usedIds = new Set((fromMachine?.used || []).map((item) => item.id));
-      const storePast = pastSessionsForRate(session, machine, "store").filter((item) => !usedIds.has(item.id));
+      const storePast = pastSessionsForRate(session, machine, "store", asOf).filter((item) => !usedIds.has(item.id));
       const fromStore = remain > 0 ? recentNetRounds(storePast, presetId, remain) : null;
       const base = presetById(presetId)?.defaults?.netBallsPerWin || DEFAULT_NET_BALLS_PER_ROUND;
       const parts = [];
