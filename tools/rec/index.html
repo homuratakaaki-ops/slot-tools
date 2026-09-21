@@ -836,7 +836,12 @@ function renderLog(){
 document.querySelectorAll("[data-cnt]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.cnt;const name={realG:"実G",lcdG:"液晶G",c3:DEF().counter3.label}[k];askNum(name,S.cur[k],v=>{if(k==="realG"||k==="lcdG")S.cur._steps.push({k,prev:S.cur[k]});S.cur[k]=Math.max(0,v);save();render();checkAutoStage()})}));
 document.querySelectorAll("[data-step]").forEach(b=>b.addEventListener("click",()=>{const n=+b.dataset.step;S.cur.realG+=n;if(DEF().lcdG)S.cur.lcdG+=n;S.cur._steps.push(n);save();renderCounters();checkAutoStage()}));
 el("bStepUndo").addEventListener("click",()=>{const st=S.cur._steps;if(!st.length){toast("戻せる操作がありません");return}let n=st.pop();
-  if(n&&typeof n==="object"&&n.autoOp){const e=S.cur.events;if(e.length&&e[e.length-1].op===n.autoOp)undoLastOp(true);n=st.pop();if(n==null){save();render();return}}
+  if(n&&typeof n==="object"&&n.autoOp){
+    const e=S.cur.events;
+    if(e.length&&e[e.length-1].op===n.autoOp){undoLastOp(true)}
+    else{st.push(n);toast((DEF().zenchou&&DEF().zenchou.endLabel||"段階終了")+"の後に別の記録があるので、G数だけは戻せません。「直前を取り消す」で順に戻してください");return}
+    n=st.pop();if(n==null){save();render();return}
+  }
   if(n&&typeof n==="object"){S.cur[n.k]=n.prev;save();render();return}S.cur.realG=Math.max(0,S.cur.realG-n);if(DEF().lcdG)S.cur.lcdG=Math.max(0,S.cur.lcdG-n);save();renderCounters()});
 
 /* ---------- 液晶上乗せ ---------- */
@@ -986,8 +991,16 @@ function medalInput(b){
   F.medal=numInput("");F.medal.placeholder=m.credit!=null?"前回 "+m.credit+"枚":"枚数";b.append(F.medal);
   return F;
 }
+// 終了シートの入力を確定前にまとめて検証する。問題があればメッセージを返す（null なら通過）
+function validateEndInputs(GF,MF){
+  if(GF){const r=int(GF.realG.value),l=int(GF.lcdG.value);
+    if(badNum(r)||badNum(l))return "G数は整数で入れてください";
+    if((r!=null&&r<0)||(l!=null&&l<0))return "G数は0以上です"}
+  if(MF&&MF.medal){const v=int(MF.medal.value);if(badNum(v))return "持ちメダルは整数で入れてください";if(v!=null&&v<0)return "持ちメダルは0以上です"}
+  return null;
+}
 function applyMedal(F){
-  if(!F||!F.medal)return null;const v=int(F.medal.value);if(v==null)return null;
+  if(!F||!F.medal)return null;const v=int(F.medal.value);if(v==null||badNum(v)||v<0)return null;
   const c=S.cur,m=c.money;const prev=m.credit;m.credit=Math.max(0,v);
   const bought=Math.round(invested(m)/1000*c.lend);const diff=m.credit-m.startMedal-bought-replayed(m);
   return {medal:m.credit,diff,prev:prev==null?null:prev};
@@ -1046,6 +1059,7 @@ function czEndSheet(){
         save();render();return;
       }
       groupSheet(h.label+" 失敗",groups,sel=>{
+        {const err=validateEndInputs(GF,MF);if(err){toast(err);return}}
         mark();
         let txt=h.label+" 失敗";const rest=selText(groups,sel);if(rest)txt+="　"+rest;if(memo)txt+="："+memo;
         if(d.counter3.incOnCzFail&&d.counter3.incOnCzFail.includes(h.label)){c.c3++;txt+="　"+d.counter3.label+" "+c.c3}
@@ -1191,6 +1205,7 @@ function atEndSheet(){
     }
     const txt=()=>{let t=selText(groups,sel);if(memo)t+=(t?"　":"")+memo;return t};
     const doEnd=(nextAfter)=>{
+      {const err=validateEndInputs(GF,MF);if(err){toast(err);return}}
       if(ask&&reset===null){toast(d.counter3.label+"の扱いを選んでください");return}
       if(ask&&!nextAfter){ // 汎用（周期を聞いた場合）：選んだ結果に従う。それ以外は leaveAt に統一
         mark();
@@ -1269,8 +1284,9 @@ function checkAutoStage(){
   if(z.autoEndAtG!=null&&zenIdx()===0&&c.realG>z.autoEndAtG){
     mark();c.zenchou=false;
     const extra=applyStageEnd();
+    const opId=_op.id;
     push("zenchouEnd",(z.endLabel||zenStages()[0]+" 終了")+"（"+c.realG+"G）"+extra);toast(z.endLabel||"段階終了");
-    c._steps.push({autoOp:_op&&_op.id});   // 「元に戻す」で先にこの自動終了を戻す
+    c._steps.push({autoOp:opId});save();   // 「元に戻す」で先にこの自動終了を戻す（保存まで行う）
   }
 }
 function zenchouLabel(){const d=DEF(),cur=zenIdx();if(cur>=0&&d.zenchou&&d.zenchou.endLabel)return d.zenchou.endLabel;return cur<0?zenStages()[0]:zenStages()[cur]}
@@ -1519,7 +1535,7 @@ function finish(){
     i1.addEventListener("input",calc);calc();b.append(prev);
     const go=mk("button","go","終了する");go.addEventListener("click",()=>{const em=int(i1.value);if(em===null||badNum(em)){toast("終了時の持ちメダルを整数で入れてください");return}
       if(em<0){toast("持ちメダルは0以上です");return}
-      {const te=int(i3.value);if(badNum(te)){toast("総回転数は整数で入れてください");return}if(te!=null&&S.cur.totalStart!=null&&te<S.cur.totalStart){toast("終了時の総回転数が開始時より小さくなっています");return}}m.endMedal=em;m.endReplay=0;S.cur.totalEnd=int(i3.value);S.cur.endNote=ta.value.trim()||"ヤメ";S.cur.endAt=nowISO();S.sessions.push(S.cur);S.cur=null;save();closeSheet();showNote()});b.append(go);
+      {const te=int(i3.value);if(badNum(te)){toast("総回転数は整数で入れてください");return}if(te!=null&&te<0){toast("総回転数は0以上です");return}if(te!=null&&S.cur.totalStart!=null&&te<S.cur.totalStart){toast("終了時の総回転数が開始時より小さくなっています");return}}m.endMedal=em;m.endReplay=0;S.cur.totalEnd=int(i3.value);S.cur.endNote=ta.value.trim()||"ヤメ";S.cur.endAt=nowISO();S.sessions.push(S.cur);S.cur=null;save();closeSheet();showNote()});b.append(go);
   });
 }
 
@@ -1671,7 +1687,7 @@ function openFollow(){
     b.append(mk("div","lbl","追加する期待値（円）"));const nm=numInput("");b.append(nm);
     if(c.follow.length){b.append(mk("div","lbl","これまでのフォロー"));const l=mk("div","log");c.follow.forEach((f,i)=>{const li=mk("div","lg");li.append(mk("div","tm",hm(f.at)),mk("div","tx",sgn(f.amount)+"円　"+(f.note||"")));const x=mk("button","x","×");x.style.border="none";x.style.background="none";x.style.color="var(--dim)";x.addEventListener("click",()=>{const fo=c.follow[i];c.follow.splice(i,1);if(fo&&fo.tk){const ev=c.events.find(e=>e.tk===fo.tk);if(ev&&!ev.text.includes("（取消済）"))ev.text+="（取消済）"}save();openFollow()});li.append(x);l.append(li)});b.append(l)}
     const go=mk("button","go","追加する");
-    go.addEventListener("click",()=>{const v=int(nm.value);if(v==null){toast("金額を入れてください");return}const f={at:nowISO(),amount:v,note:ta.value.trim(),tk:uid()};c.follow.push(f);push("follow","フォロー "+sgn(v)+"円"+(f.note?"："+f.note:"")+"　想定合計 "+sgn(expectedTotal(c))+"円",{tk:f.tk});closeSheet()});
+    go.addEventListener("click",()=>{const v=int(nm.value);if(v==null||badNum(v)){toast("金額は整数で入れてください");return}const f={at:nowISO(),amount:v,note:ta.value.trim(),tk:uid()};c.follow.push(f);push("follow","フォロー "+sgn(v)+"円"+(f.note?"："+f.note:"")+"　想定合計 "+sgn(expectedTotal(c))+"円",{tk:f.tk});closeSheet()});
     b.append(go);
   });
 }
@@ -1702,6 +1718,7 @@ function editInfo(sess,after){
       const lend=int(F.lend.value);if(badNum(lend)||!lend||lend<=0){toast("レートは整数で入れてください");return}
       {const vals=[F.startRealG,F.startLcdG,F.startMedal,F.totalStart].concat(sess.endAt?[F.endMedal,F.totalEnd]:[]).map(x=>int(x.value));
        if(vals.some(v=>badNum(v)||(v!=null&&v<0))){toast("数字は整数で、0以上にしてください");return}
+       if(badNum(int(F.expected.value))){toast("想定期待値は整数で入れてください（マイナス可）");return}
        const ts=int(F.totalStart.value),te=sess.endAt?int(F.totalEnd.value):null;if(ts!=null&&te!=null&&te<ts){toast("終了時の総回転数が開始時より小さくなっています");return}}
       sess.machine=mach;sess.lend=lend;
       sess.startRealG=int(F.startRealG.value)||0;sess.startLcdG=int(F.startLcdG.value)||0;
@@ -1799,13 +1816,18 @@ function editEventIn(sess,id,after){
         b.append(rw)}
     }
     const go=mk("button","go","直す");go.addEventListener("click",()=>{
-      ev.text=ta.value;ev.edited=true;
-      const tv=it_.value.trim();
+      // 先に全部検証。どれか失敗したら何も変えない
+      const tv=it_.value.trim();let newAt=null;
       if(tv!==hm(ev.at)){const m=/^(\d{1,2}):(\d{2})$/.exec(tv);
         if(!m||+m[1]>23||+m[2]>59){toast("時刻は 00:00〜23:59 で入れてください");return}
-        const d0=new Date(ev.at);d0.setHours(+m[1],+m[2]);ev.at=d0.toISOString();sess.events.sort((a,b)=>new Date(a.at)-new Date(b.at))}
-      const r=int(ir.value);if(badNum(r)){toast("実Gは整数で入れてください");return}if(r!=null)ev.realG=Math.max(0,r);
-      if(md.lcdG){const l=int(il.value);if(badNum(l)){toast("液晶Gは整数で入れてください");return}if(l!=null)ev.lcdG=Math.max(0,l)}
+        const d0=new Date(ev.at);d0.setHours(+m[1],+m[2]);newAt=d0.toISOString()}
+      const r=int(ir.value);if(badNum(r)||(r!=null&&r<0)){toast("実Gは0以上の整数で入れてください");return}
+      let l=null;if(md.lcdG){l=int(il.value);if(badNum(l)||(l!=null&&l<0)){toast("液晶Gは0以上の整数で入れてください");return}}
+      // ここから反映
+      ev.text=ta.value;ev.edited=true;
+      if(newAt){ev.at=newAt;sess.events.sort((a,b)=>new Date(a.at)-new Date(b.at))}
+      if(r!=null)ev.realG=r;
+      if(md.lcdG&&l!=null)ev.lcdG=l;
       const gs1=gsText(ev,md);if(gs0&&gs1&&gs0!==gs1&&ev.text.includes(gs0+"G"))ev.text=ev.text.replace(gs0+"G",gs1+"G");
       ev.uncertain=unc||undefined;ev.note=nt.value.trim()||undefined;
       if(newReward&&newReward!==ev.reward){
