@@ -7,12 +7,12 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@400;500;700;800&display=swap" rel="stylesheet">
 <title>ジャグラー実戦記録・設定推測｜スロット稼働ノート</title>
-<meta name="description" content="ホールで使うジャグラーの実戦記録ツール。ぶどう・ボーナス内訳をタップでカウントし、投資を記録しながら、設定の事後確率をベイズ推定でリアルタイムに確認できます。入力は端末内にのみ保存します。">
+<meta name="description" content="ホールで使うジャグラーの実戦記録ツール。ぶどう・ボーナス内訳をタップでカウントし、投資を記録しながら、各設定である可能性をリアルタイムに確認できます。入力は端末内にのみ保存します。">
 <link rel="canonical" href="https://slot-tools.jp/juggler-record.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="スロット稼働ノート">
 <meta property="og:title" content="ジャグラー実戦記録・設定推測｜スロット稼働ノート">
-<meta property="og:description" content="ぶどう・ボーナス内訳をタップでカウントし、投資を記録しながら、設定の事後確率をベイズ推定でリアルタイムに確認できます。">
+<meta property="og:description" content="ぶどう・ボーナス内訳をタップでカウントし、投資を記録しながら、各設定である可能性をリアルタイムに確認できます。">
 <meta property="og:url" content="https://slot-tools.jp/juggler-record.html">
 <style>
 :root {
@@ -508,7 +508,7 @@ select.rate {
         <div class="pill">設定5以上<b id="p5up">–</b></div>
         <div class="pill">設定6<b id="p6">–</b></div>
       </div>
-      <p class="tick-legend" id="tickLegend"><span class="tick-sample"></span> は事前分布を使わない場合（均等）の値です。</p>
+      <p class="tick-legend" id="tickLegend"><span class="tick-sample"></span> は設定配分の想定を使わない場合（均等）の値です。</p>
       <ul class="warnings" id="warnings"></ul>
       <p class="reliability" id="reliability"></p>
     </section>
@@ -566,14 +566,14 @@ select.rate {
     </section>
 
     <section class="card" aria-labelledby="h-prior">
-      <h2 id="h-prior">事前分布（任意）<small>店の設定配分の想定を反映する</small></h2>
+      <h2 id="h-prior">設定配分の想定（任意）<small>店の傾向を推測に反映する</small></h2>
       <label class="prior-toggle">
         <input type="checkbox" id="usePrior">
         店の設定配分の想定を反映する
       </label>
       <div class="prior-grid" id="priorGrid" hidden></div>
       <p class="prior-note" id="priorNote" hidden>
-        重みは比率です。オンにすると、バー上に均等時の値が<span class="tick-sample"></span>で表示され、事前分布の影響を確認できます。
+        重みは比率です。オンにすると、バー上に均等時の値が<span class="tick-sample"></span>で表示され、想定の影響を確認できます。
       </p>
     </section>
 
@@ -582,7 +582,7 @@ select.rate {
     <section class="card notes" aria-labelledby="h-notes">
       <h2 id="h-notes">前提と限界<small>読み違えないための注意点</small></h2>
       <ul>
-        <li>各要素を二項分布で独立と近似したベイズ推定です。結果は確率であり、設定の断定はできません。</li>
+        <li>各要素を独立と近似して計算した推測です。結果は確率であり、設定の断定はできません。</li>
         <li>隣接する設定（特に2〜5）は確率差が小さく、数千G程度では判別しきれないのが正常です。</li>
         <li>打ち始め前の台データはBIG・REGのみを判別に使います。ぶどう・内訳は自分がカウントした区間のデータとして計算します。</li>
         <li>成立役を確認できなかったボーナスは「不明BIG/REG」へ。不明分がある種別は内訳ではなく合算で計算します。</li>
@@ -737,7 +737,7 @@ select.rate {
 </div>
 
 <script type="module">
-import { estimate } from "./js/estimator.js?v=20260827-2";
+import { estimate } from "./js/estimator.js?v=20260922";
 // 収支（差枚・円）の計算は js/money.js に集約してある。このファイルの中で計算し直さないこと
 import { computeMoney, moneyFromRecord } from "./js/money.js?v=20260915-2";
 

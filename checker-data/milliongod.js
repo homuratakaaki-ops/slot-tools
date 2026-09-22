@@ -319,7 +319,8 @@
       <div class="hint">手元の数値を入力してください。設定1・2は公開されている数値をあらかじめ入れてあります。入力値は端末内に保存され、カード・テンプレートには出力しません。</div>
       ${invalidBlue}
     </section>
-    <section class="sec"><div class="sec-h">ベイズ設定推定</div>${body}</section>`;
+    <section class="sec"><div class="sec-h">設定推測</div>
+      <div class="hint">記録した内容から、各設定である可能性を%で表示します。</div>${body}</section>`;
   }
   function pageReference(){
     return pageStyle()+`<div class="jump-grid">${REF_SECTIONS.map((s,i)=>`<a href="#ref${i+1}">${s[0]}</a>`).join('')}</div>`+

@@ -233,7 +233,7 @@
       .bayes-bar b{display:block;height:10px;border-radius:999px;background:linear-gradient(90deg,#ff3d8f,#ffc94d);min-width:2px}
       .bayes-bar em{font-style:normal;text-align:right;color:#f2eef5}
     </style>
-    <div class="sec-h">5枚役確率（設定推定用）</div>
+    <div class="sec-h">5枚役確率（設定推測用）</div>
     <div class="bayes-rate-grid">
       ${BAYES_SETTINGS.map(setting=>`<div><label>設定${setting}</label><input type="number" inputmode="decimal" step="0.1" min="1.1" data-state-path="bayes.${BAYES_RATE_KEYS[setting]}" data-rate-input="1" value="${escAttr((S.bayes||{})[BAYES_RATE_KEYS[setting]])}" placeholder="xx"></div>`).join('')}
     </div>

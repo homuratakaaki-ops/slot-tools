@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>設定判別ツール（ジャグラー）｜スロット稼働ノート</title>
-<meta name="description" content="データカウンターの値と自分の実戦カウント（ぶどう・ボーナス内訳）から、各設定の事後確率をベイズ推定で計算します。打ち始めデータに対応し、入力は端末内にのみ保存します。">
+<meta name="description" content="データカウンターの値と自分の実戦カウント（ぶどう・ボーナス内訳）から、各設定である可能性を計算します。打ち始めデータに対応し、入力は端末内にのみ保存します。">
 <link rel="canonical" href="https://slot-tools.jp/settei-estimator.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="スロット稼働ノート">
 <meta property="og:title" content="設定判別ツール（ジャグラー）｜スロット稼働ノート">
-<meta property="og:description" content="データカウンターの値と自分の実戦カウント（ぶどう・ボーナス内訳）から、各設定の事後確率をベイズ推定で計算します。打ち始めデータに対応し、入力は端末内にのみ保存します。">
+<meta property="og:description" content="データカウンターの値と自分の実戦カウント（ぶどう・ボーナス内訳）から、各設定である可能性を計算します。打ち始めデータに対応し、入力は端末内にのみ保存します。">
 <meta property="og:url" content="https://slot-tools.jp/settei-estimator.html">
 <style>
 :root {
@@ -181,7 +181,7 @@ footer nav a { margin-right: 10px; }
 <main>
   <a class="top-link" href="./">← TOP</a>
   <h1>設定判別ツール <span class="machine-name" id="machineName">読み込み中…</span></h1>
-  <p class="lede">データカウンターの値と自分の実戦カウントから、各設定の事後確率をベイズ推定で計算します。入力は端末内にのみ保存されます。</p>
+  <p class="lede">データカウンターの値と自分の実戦カウントから、各設定である可能性を計算します。入力は端末内にのみ保存されます。</p>
 
   <section class="card" aria-labelledby="h-snap">
     <h2 id="h-snap">台データ（データカウンターの累計値）</h2>
@@ -214,7 +214,7 @@ footer nav a { margin-right: 10px; }
   </section>
 
   <section class="card" aria-labelledby="h-prior">
-    <h2 id="h-prior">事前分布（任意）</h2>
+    <h2 id="h-prior">設定配分の想定（任意）</h2>
     <label class="prior-toggle">
       <input type="checkbox" id="usePrior">
       店の設定配分の想定を反映する
@@ -222,7 +222,7 @@ footer nav a { margin-right: 10px; }
     <div class="prior-grid" id="priorGrid" hidden></div>
     <p class="prior-note" id="priorNote" hidden>
       重みは比率です（例: 設定6を「3」にすると設定1の「1」の3倍入りやすい想定）。
-      オンにすると、結果のバー上に均等時の値が<span class="tick-sample"></span>で表示され、事前分布の影響を確認できます。
+      オンにすると、結果のバー上に均等時の値が<span class="tick-sample"></span>で表示され、想定の影響を確認できます。
     </p>
   </section>
 
@@ -236,7 +236,7 @@ footer nav a { margin-right: 10px; }
       <div class="pill">設定6<b id="p6">–</b></div>
     </div>
     <p class="tick-legend" id="tickLegend">
-      <span class="tick-sample"></span> は事前分布を使わない場合（均等）の値です。
+      <span class="tick-sample"></span> は設定配分の想定を使わない場合（均等）の値です。
     </p>
     <ul class="warnings" id="warnings"></ul>
     <p class="reliability" id="reliability"></p>
@@ -245,7 +245,7 @@ footer nav a { margin-right: 10px; }
   <section class="card notes" aria-labelledby="h-notes">
     <h2 id="h-notes">前提と限界</h2>
     <ul>
-      <li>各要素を二項分布で独立と近似したベイズ推定です。結果は確率であり、設定の断定はできません。</li>
+      <li>各要素を独立と近似して計算した推測です。結果は確率であり、設定の断定はできません。</li>
       <li>隣接する設定（特に2〜5）は確率差が小さく、数千G程度では判別しきれないのが正常です。</li>
       <li>打ち始め前の台データはBIG・REGのみを判別に使います。ぶどう・内訳は自分が数えた区間（打ち始めから現在まで）のデータとして計算します。</li>
       <li>ぶどう・ボーナス内訳の確率値は、メーカー公表値ではなく公式アプリ等からの算出値です。</li>
@@ -262,7 +262,7 @@ footer nav a { margin-right: 10px; }
 </footer>
 
 <script type="module">
-import { estimate } from "./js/estimator.js?v=20260827-2";
+import { estimate } from "./js/estimator.js?v=20260922";
 
 const MACHINES = {
   my_juggler_v: "data/machines/my_juggler_v.json",
