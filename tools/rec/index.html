@@ -519,13 +519,33 @@ let loadBroken=null,loadBrokenSaved=false;      // 読めなかった保存デ�
 let saveGen=0;            // 保存の世代番号（複数タブの競合検出）
 // 保存データの形が最低限そろっているか
 function validState(d){return d&&typeof d==="object"&&Array.isArray(d.sessions)&&(d.cur==null||typeof d.cur==="object")}
+// 数値の欄：無ければよい、あれば有限の数
+const numOrNull=v=>v==null||(typeof v==="number"&&Number.isFinite(v));
+const dateOk=v=>typeof v==="string"&&!isNaN(new Date(v).getTime());
+// 起動時の判定：構造が壊れていなければ読む（型の乱れは fixSession が補正）。既存データを誤って退避しないため緩め
+function validSessionShape(c){
+  if(!(c&&typeof c==="object"&&typeof c.id==="string"&&typeof c.machine==="string"&&Array.isArray(c.events)))return false;
+  if(!dateOk(c.startAt))return false;
+  if(!c.events.every(ev=>ev&&typeof ev==="object"&&dateOk(ev.at)))return false;
+  if(c.money!=null){if(typeof c.money!=="object")return false;for(const k of ["cash","deposits","spends","replays"]){const arr=c.money[k];if(arr!=null&&(!Array.isArray(arr)||!arr.every(x=>x&&typeof x==="object")))return false}}
+  return true;
+}
+// 取り込み時の判定：中身の型まで厳しく（外から来るデータは信用しない）
 function validSession(c){
-  if(!(c&&typeof c==="object"&&typeof c.id==="string"&&typeof c.startAt==="string"&&typeof c.machine==="string"&&Array.isArray(c.events)))return false;
-  if(isNaN(new Date(c.startAt).getTime()))return false;
-  if(!c.events.every(ev=>ev&&typeof ev==="object"&&typeof ev.at==="string"&&typeof ev.type==="string"&&typeof ev.text==="string"))return false;
-  if(c.money!=null){if(typeof c.money!=="object")return false;for(const k of ["cash","deposits","spends","replays"]){if(c.money[k]!=null&&!Array.isArray(c.money[k]))return false}}
-  if(c.rare!=null&&typeof c.rare!=="object")return false;
-  if(c.follow!=null&&!Array.isArray(c.follow))return false;
+  if(!validSessionShape(c))return false;
+  if(c.endAt!=null&&!dateOk(c.endAt))return false;
+  if(!c.events.every(ev=>ev&&typeof ev==="object"&&dateOk(ev.at)&&typeof ev.type==="string"&&typeof ev.text==="string"&&numOrNull(ev.realG)&&numOrNull(ev.lcdG)&&numOrNull(ev.c3)))return false;
+  if(c.money!=null){
+    const m=c.money;if(typeof m!=="object")return false;
+    for(const k of ["cash","deposits","spends","replays"]){
+      const arr=m[k];if(arr==null)continue;if(!Array.isArray(arr))return false;
+      if(!arr.every(x=>x&&typeof x==="object"&&dateOk(x.at)&&typeof x.amount==="number"&&Number.isFinite(x.amount)))return false;
+    }
+    if(!numOrNull(m.startMedal)||!numOrNull(m.endMedal)||!numOrNull(m.credit)||!numOrNull(m.startReplay)||!numOrNull(m.endReplay))return false;
+  }
+  if(c.rare!=null){if(typeof c.rare!=="object")return false;if(!Object.values(c.rare).every(v=>v&&typeof v==="object"&&Object.values(v).every(numOrNull)))return false}
+  if(c.follow!=null){if(!Array.isArray(c.follow))return false;if(!c.follow.every(x=>x&&typeof x==="object"&&typeof x.amount==="number"&&Number.isFinite(x.amount)))return false}
+  if(!numOrNull(c.realG)||!numOrNull(c.lcdG)||!numOrNull(c.c3)||!numOrNull(c.expected)||!numOrNull(c.totalStart)||!numOrNull(c.totalEnd)||!numOrNull(c.lend))return false;
   return true;
 }
 function load(){
@@ -534,7 +554,7 @@ function load(){
   if(!r)return;
   let d=null;
   try{d=JSON.parse(r)}catch(e){d=null}
-  if(!validState(d)||!d.sessions.every(validSession)||(d.cur&&!validSession(d.cur))){
+  if(!validState(d)||!d.sessions.every(validSessionShape)||(d.cur&&!validSessionShape(d.cur))){
     // 壊れている：元のまま退避して、このタブでは保存しない
     let saved=false;try{if(!localStorage.getItem(KEY_BROKEN))localStorage.setItem(KEY_BROKEN,r);saved=localStorage.getItem(KEY_BROKEN)===r||!!localStorage.getItem(KEY_BROKEN)}catch(e){}
     loadBroken=r;loadBrokenSaved=saved;return;
@@ -576,6 +596,11 @@ document.addEventListener("click",e=>{
 },true);
 function fixSession(c){
   if(!c)return;
+  ["realG","lcdG","c3"].forEach(k=>{if(c[k]!=null&&!(typeof c[k]==="number"&&Number.isFinite(c[k]))){const n=Number(c[k]);c[k]=Number.isFinite(n)?n:0}});
+  (c.events||[]).forEach(ev=>{["realG","lcdG","c3"].forEach(k=>{if(ev[k]!=null&&!(typeof ev[k]==="number"&&Number.isFinite(ev[k]))){const n=Number(ev[k]);ev[k]=Number.isFinite(n)?n:null}});if(typeof ev.text!=="string")ev.text=String(ev.text==null?"":ev.text);if(typeof ev.type!=="string")ev.type="memo"});
+  if(c.money&&typeof c.money==="object"){["cash","deposits","spends","replays"].forEach(k=>{if(Array.isArray(c.money[k]))c.money[k]=c.money[k].filter(x=>x&&typeof x==="object").map(x=>{const n=Number(x.amount);return Object.assign({},x,{amount:Number.isFinite(n)?n:0})})});
+    ["startMedal","endMedal","credit","startReplay","endReplay"].forEach(k=>{if(c.money[k]!=null&&!(typeof c.money[k]==="number"&&Number.isFinite(c.money[k]))){const n=Number(c.money[k]);c.money[k]=Number.isFinite(n)?n:(k==="credit"||k==="endMedal"?null:0)}})}
+  if(Array.isArray(c.follow))c.follow=c.follow.filter(x=>x&&typeof x==="object").map(x=>{const n=Number(x.amount);return Object.assign({},x,{amount:Number.isFinite(n)?n:0})});
   if(!c.money||typeof c.money!=="object")c.money={cash:[],deposits:[],spends:[],replays:[],startMedal:0,startReplay:0,credit:null,endMedal:null,endReplay:0};
   if(!Array.isArray(c.events))c.events=[];
   if(!Array.isArray(c.follow))c.follow=[];
