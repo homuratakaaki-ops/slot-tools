@@ -87,11 +87,12 @@ function detail(ctx){
   <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
-      ${ctx.crow('cz.rg','CZ 超電磁砲チャンス','CZ合算 設1:1/235.6⇔設6:1/207.2',0,n=>ctx.pct(n,czN))}
-      ${ctx.crow('cz.ac','CZ 一方通行チャンス','上位CZ（約80%）割合に設定差の可能性',1,n=>ctx.pct(n,czN))}
+      ${ctx.crow('cz.rg','CZ 超電磁砲チャンス','設1:1/258.5⇔設6:1/227.9',0,n=>ctx.pct(n,czN))}
+      ${ctx.crow('cz.ac','CZ 一方通行チャンス','設1:1/2668.5⇔設6:1/2273.0',1,n=>ctx.pct(n,czN))}
       ${ctx.crow('atCount','AT当選','設1:1/398.8⇔設6:1/338.4',0)}
       ${ctx.crow('choku','AT直撃','設1:1/7926.8⇔設6:1/3736.2',1)}
     </div>
+    <div class="hint">CZ合算は設1:1/235.6⇔設6:1/207.2。％は通常時CZの内訳（超電磁砲／一方通行）の割合です。</div>
   </section>
   <section class="sec">
     <div class="sec-h">AT中CZ 振り分け</div>
