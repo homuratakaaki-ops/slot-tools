@@ -35,6 +35,18 @@
     ['sanzu','三途河(金)','設定5以上確定演出',5],
     ['sen','1000ちゃん','設定6確定演出',6]
   ];
+  // エンディング中の示唆（出典: ちょんぼりすた様、2026/9/22 再取得）。
+  // ED中のレア役入賞後のPUSHで殺生石役物が発光し、1回につき1状態が選ばれる。
+  const ED_LAMP=[
+    ['none','点灯なし','デフォルト',0],
+    ['blue','青','奇数設定示唆',0],
+    ['yellow','黄','偶数設定示唆',0],
+    ['green','緑','奇数かつ高設定示唆',0],
+    ['red','赤','偶数かつ高設定示唆',0],
+    ['purple','紫','設定4以上確定演出',4],
+    ['sanzuColor','三途河カラー','設定5以上確定演出',5],
+    ['colorful','カラフル','設定6確定演出',6]
+  ];
   const OVER=[
     ['o222','222枚突破','設定2以上濃厚',2],
     ['o444','444枚突破','設定4以上濃厚',4],
@@ -86,6 +98,16 @@
       ['ART終了時 設定6','高確 14.4% ／ 超高確 29.9%'],
       ['補足','有利区間開始時（朝一）とART終了時の移行率。遊技中に滞在状態を判定できないため、カウント対象外の参考情報です。']
     ]],
+    ['ボーナス当選契機（WINランプ）',[
+      ['白','単独'],
+      ['青','リーチ目リプレイ'],
+      ['赤・低速点滅','弱チェリー'],
+      ['赤・高速点滅','強チェリー'],
+      ['緑','スイカ'],
+      ['紫・低速点滅','弱チャンス目'],
+      ['紫・高速点滅','強チャンス目'],
+      ['補足','ボーナスを揃えた際のWINランプの色で当選契機が分かります。設定示唆ではありませんが、初当りタブの「特定ボーナス」を記録するときの判別材料になります。']
+    ]],
     ['通常時の連続演出',[
       ['仲直り作戦','期待度 低'],
       ['VS天井嘗','↓'],
@@ -134,6 +156,7 @@
     bbScreens:Object.fromEntries(BB_SCREENS.map(v=>[v[0],0])),
     artScreens:Object.fromEntries(ART_SCREENS.map(v=>[v[0],0])),
     rbChars:Object.fromEntries(RB_CHARS.map(v=>[v[0],0])),
+    edLamp:Object.fromEntries(ED_LAMP.map(v=>[v[0],0])),
     over:Object.fromEntries(OVER.map(v=>[v[0],0])),
     img:null,
     iconChoice:null
@@ -166,6 +189,7 @@
       ...BB_SCREENS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.bbScreens,c[0]),rank:c[3]})),
       ...ART_SCREENS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.artScreens,c[0]),rank:c[3]})),
       ...RB_CHARS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.rbChars,c[0]),rank:c[3]})),
+      ...ED_LAMP.filter(c=>c[3]).map(c=>({label:'ED殺生石ランプ '+c[1],value:n(S.edLamp,c[0]),rank:c[3]})),
       ...SPECIAL_BONUS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.specialBonus,c[0]),rank:c[3]})),
       ...OVER.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.over,c[0]),rank:c[3]}))
     ];
@@ -185,6 +209,9 @@
       {label:'ART終了画面 黄泉と冥',count:n(S.artScreens,'yomiMei'),exclude:[1,2,3]},
       {label:'RBキャラ 三途河(金)',count:n(S.rbChars,'sanzu'),exclude:[1,2,3,4]},
       {label:'RBキャラ 1000ちゃん',count:n(S.rbChars,'sen'),exclude:[1,2,3,4,5]},
+      {label:'ED殺生石ランプ 紫',count:n(S.edLamp,'purple'),exclude:[1,2,3]},
+      {label:'ED殺生石ランプ 三途河カラー',count:n(S.edLamp,'sanzuColor'),exclude:[1,2,3,4]},
+      {label:'ED殺生石ランプ カラフル',count:n(S.edLamp,'colorful'),exclude:[1,2,3,4,5]},
       {label:'特定ボーナス 強チェリー＋RB',count:n(S.specialBonus,'strongCherryRb'),exclude:[1,2,3]},
       {label:'獲得枚数 222枚突破',count:n(S.over,'o222'),exclude:[1]},
       {label:'獲得枚数 444枚突破',count:n(S.over,'o444'),exclude:[1,2,3]},
@@ -273,7 +300,7 @@
     </section>
     <section class="sec"><div class="sec-h">特定ボーナス<span class="sub">計${sum(S.specialBonus)}回</span></div>
       <div class="cgrid">${SPECIAL_BONUS.map(c=>ctx.crow('specialBonus.'+c[0],c[1],c[2],c[3])).join('')}</div>
-      <div class="hint">ボーナス当選契機はボーナス成立時のWINランプの色で判別できます。強チェリー＋RBは設定4以上確定演出として推定に使います。奇数優遇・偶数優遇の2行は振り分けの数値が公表されていないため、記録のみで推定には使いません。</div>
+      <div class="hint">ボーナス当選契機はボーナス成立時のWINランプの色で判別できます（色と契機の対応は参照タブに一覧があります）。強チェリー＋RBは設定4以上確定演出として推定に使います。奇数優遇・偶数優遇の2行は振り分けの数値が公表されていないため、記録のみで推定には使いません。</div>
     </section>`;
   }
   function pageSuggest(ctx){
@@ -291,6 +318,10 @@
     </section>
     <section class="sec"><div class="sec-h">獲得枚数表示<span class="sub">計${sum(S.over)}回</span></div>
       <div class="cgrid">${OVER.map(c=>ctx.crow('over.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,sum(S.over)))).join('')}</div>
+    </section>
+    <section class="sec"><div class="sec-h">エンディング中の殺生石ランプ<span class="sub">計${sum(S.edLamp)}回</span></div>
+      <div class="cgrid">${ED_LAMP.map(c=>ctx.crow('edLamp.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,sum(S.edLamp)))).join('')}</div>
+      <div class="hint">エンディング中のレア役入賞後にPUSHで殺生石役物が発光します。1回のPUSHで必ずどれか1つになるため、「点灯なし」も毎回記録すると割合が正しくなります。</div>
     </section>`;
   }
   function pageBayes(ctx){
@@ -338,6 +369,7 @@
     t+=section('ART終了画面',sum(S.artScreens)>0?ART_SCREENS.filter(c=>n(S.artScreens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.artScreens,c[0]),sum(S.artScreens))}`):[]);
     t+=section('RB中のキャラ紹介',sum(S.rbChars)>0?RB_CHARS.filter(c=>n(S.rbChars,c[0])>0).map(c=>`${c[1]}▶${n(S.rbChars,c[0])}回`):[]);
     t+=section('獲得枚数表示',sum(S.over)>0?OVER.filter(c=>n(S.over,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.over,c[0]),sum(S.over))}`):[]);
+    t+=section('ED中の殺生石ランプ',sum(S.edLamp)>0?ED_LAMP.filter(c=>n(S.edLamp,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.edLamp,c[0]),sum(S.edLamp))}`):[]);
     t+=section('特定ボーナス',sum(S.specialBonus)>0?SPECIAL_BONUS.filter(c=>n(S.specialBonus,c[0])>0).map(c=>`${c[1]}▶${n(S.specialBonus,c[0])}回`):[]);
     t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
     return t;
@@ -359,6 +391,7 @@
       {title:'ART終了画面',items:detailItems(ART_SCREENS,S.artScreens),percent:true},
       {title:'RB中のキャラ紹介',items:detailItems(RB_CHARS,S.rbChars)},
       {title:'獲得枚数表示',items:detailItems(OVER,S.over),percent:true},
+      {title:'ED中の殺生石ランプ',items:detailItems(ED_LAMP,S.edLamp),percent:true},
       {title:'特定ボーナス',items:SPECIAL_BONUS.map(c=>detailItem(c[1],n(S.specialBonus,c[0]),c[3]))}
     ];
   }
@@ -367,7 +400,7 @@
     nanaCollab:false,
     storageKey:'garei-zero-re-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','rates','specialBonus','bbScreens','artScreens','rbChars','over'],
+    mergeKeys:['counts','rates','specialBonus','bbScreens','artScreens','rbChars','edLamp','over'],
     sourceUrl:'https://chonborista.com/slot/oizumi-slot/259743/',
     normalizeState:out=>{
       out.startGames=Math.max(0,Number(out.startGames)||0);
@@ -378,6 +411,7 @@
       out.bbScreens=Object.assign({},DEF.bbScreens,out.bbScreens||{});
       out.artScreens=Object.assign({},DEF.artScreens,out.artScreens||{});
       out.rbChars=Object.assign({},DEF.rbChars,out.rbChars||{});
+      out.edLamp=Object.assign({},DEF.edLamp,out.edLamp||{});
       out.over=Object.assign({},DEF.over,out.over||{});
       Object.keys(out.counts||{}).forEach(k=>{out.counts[k]=Math.max(0,Number(out.counts[k])||0);});
       ['weakCz','strongCz'].forEach(id=>{
@@ -385,7 +419,7 @@
         out.rates[id+'w']=Math.max(0,Number(out.rates[id+'w'])||0);
         if(out.rates[id+'w']>out.rates[id+'r'])out.rates[id+'r']=out.rates[id+'w'];
       });
-      ['specialBonus','bbScreens','artScreens','rbChars','over'].forEach(group=>{
+      ['specialBonus','bbScreens','artScreens','rbChars','edLamp','over'].forEach(group=>{
         Object.keys(out[group]||{}).forEach(k=>{out[group][k]=Math.max(0,Number(out[group][k])||0);});
       });
       return out;
