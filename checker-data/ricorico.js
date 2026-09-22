@@ -91,6 +91,12 @@
     rates:Object.fromEntries(ZONES.flatMap(z=>[[z[0]+'r',0],[z[0]+'w',0]])),
     conv:Object.fromEntries(CONV.flatMap(c=>[[c[0]+'cd',0],[c[0]+'cn',0]])),
     top:{d:0,n:0},
+    // 150G到達時の変換高確移行（d＝150G到達回数／n＝移行した回数）。
+    // 出典: サミー公式「開発ボイス」2026/9/22
+    // https://www.develop-voice.sammy.co.jp/article/ps_lyco_reco/442.html
+    // 設定1・2・3:50.0% 設定4:54.7% 設定5:58.6% 設定6:62.5%
+    // ※150G以外のゲーム数での変換高確移行には設定差が無いと公式が明言している。
+    g150:{d:0,n:0},
     art:Object.fromEntries(BONUS_ART.map(v=>[v[0],0])),
     atEnd:Object.fromEntries(AT_END.map(v=>[v[0],0])),
     img:null,
@@ -188,6 +194,9 @@
   function topDenom(S){return n(S.top,'d');}
   function topHit(S){return n(S.top,'n');}
   function topText(S){return `${topHit(S)}/${topDenom(S)}`;}
+  function g150Denom(S){return n(S.g150,'d');}
+  function g150Hit(S){return n(S.g150,'n');}
+  function g150Text(S){return `${g150Hit(S)}/${g150Denom(S)}`;}
   // n/d 行の共通描画。§9-87: 減算モードで外れ側を押すと分母だけが減って n>d になりうるため、
   // 減らせる外れが残っていない場合はボタンを無効化して n<=d を操作中も常に保つ。
   function ndRow(ctx,opt){
@@ -327,6 +336,19 @@
     <div class="hint">各ゾーン到達時に記録。当選したら当選側を押してください。減算モードでは「当選」が到達と当選の両方を、「ハズレ」が到達だけを1つ戻します。戻せるハズレが残っていない場合、そのボタンは押せません。</div>
   </section>
   <section class="sec">
+    <div class="sec-h">150G到達時の変換高確<span class="sub">${g150Text(S)}</span></div>
+    <style>
+      .g150-row .pct{min-width:56px}
+      .g150-row .cycle-btn{min-width:62px}
+    </style>
+    <div class="cgrid">
+      ${ndRow(ctx,{name:'150G 変換高確移行',sub:'設1〜3:50.0%⇔設6:62.5%（設4:54.7%／設5:58.6%）',
+        cls:'conv-row g150-row',dPath:'g150.d',nPath:'g150.n',
+        d:g150Denom(S),n:g150Hit(S),winLabel:'移行',missLabel:'非移行'})}
+    </div>
+    <div class="hint">150G到達後、152〜153G付近で高確の帯が出れば変換高確へ移行しています。帯が出なければ非移行として記録してください。150G以外での変換高確移行には設定差がないため、150G到達時のみ記録します。</div>
+  </section>
+  <section class="sec">
     <div class="sec-h">変換からのCZ当選<span class="sub">弱 ${convText(S,'weak')}・強 ${convText(S,'strong')}</span></div>
     <style>
       .conv-row .pct{min-width:56px}
@@ -411,6 +433,7 @@
       '',
       '■規定ゲーム数'];
     ZONES.forEach(z=>L.push(`${z[2]}▶︎ ${rateWin(S,z[0])}/${rateReach(S,z[0])}`));
+    L.push('',`■150G変換高確▶︎ ${g150Text(S)}`);
     L.push('','■変換からのCZ当選');
     CONV.forEach(c=>L.push(`${c[2]}▶︎ ${convHit(S,c[0])}/${convDenom(S,c[0])}`));
     L.push('',
@@ -471,6 +494,9 @@
       ]},
       {title:'変換からのCZ当選',items:CONV.map(c=>
         ({label:c[1],value:convHit(S,c[0]),hot:false,text:`${c[1]} ${convText(S,c[0])}`,show:convDenom(S,c[0])>0}))},
+      {title:'150G到達時の変換高確',items:[
+        {label:'150G 変換高確移行',value:g150Hit(S),hot:true,text:`150G 変換高確移行 ${g150Text(S)}`,show:g150Denom(S)>0}
+      ]},
       {title:'上位AT突入時の最強特化ゾーン',items:[
         {label:'レジェンダリーリコリス',value:topHit(S),hot:false,text:`レジェンダリーリコリス ${topText(S)}`,show:topDenom(S)>0}
       ]},
@@ -488,7 +514,7 @@
     nanaCollab:true,
     storageKey:'ricorico-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','prologue','rush','wep','trophy','rates','conv','top','art','atEnd'],
+    mergeKeys:['counts','prologue','rush','wep','trophy','rates','conv','top','g150','art','atEnd'],
     sourceUrl:'https://chonborista.com/slot/sammy-slot/261631/',
     actions:{
       // 入力ソースの切替。カウンタではないので減算モードでも同じ動作をする（値は消さない）。
@@ -525,6 +551,9 @@
       out.top=Object.assign({},DEF.top,out.top||{});
       Object.keys(out.top).forEach(k=>{out.top[k]=Math.max(0,Number(out.top[k])||0);});
       if(out.top.n>out.top.d)out.top.d=out.top.n;
+      out.g150=Object.assign({},DEF.g150,out.g150||{});
+      Object.keys(out.g150).forEach(k=>{out.g150[k]=Math.max(0,Number(out.g150[k])||0);});
+      if(out.g150.n>out.g150.d)out.g150.d=out.g150.n;
       return out;
     },
     share:{title:'スマスロ リコリス・リコイル 設定判別メモ',hashtags:'#リコリコ #設定判別'},
