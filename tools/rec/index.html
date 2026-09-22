@@ -90,6 +90,8 @@ textarea{min-height:80px;resize:vertical}
 .sheet .sh .st{flex:1;font-weight:700}
 .sheet .sb{padding:12px 14px 16px;overflow-y:auto;-webkit-overflow-scrolling:touch}
 .sheet .sf{flex:none;padding:8px 14px 14px;border-top:1px solid var(--line);background:var(--panel);display:none}
+.sheet .more-hint{position:sticky;bottom:0;margin:8px -14px -16px;padding:8px 14px 10px;text-align:center;font-size:12px;color:var(--dim);background:linear-gradient(transparent,var(--panel) 45%);pointer-events:none}
+.sheet .more-hint.hide{display:none}
 .sheet .sf:not(:empty){display:block}
 .sheet .sf button{margin-top:6px}
 .opts button.tone-p{background:rgba(180,140,224,.18);border-color:rgba(180,140,224,.55)}
@@ -642,7 +644,17 @@ function fixSession(c){
 }
 
 /* ---------- シート ---------- */
-function sheet(title,build){el("shTitle").textContent=title;const b=el("shBody");b.innerHTML="";el("shFoot").innerHTML="";build(b);el("sheet").classList.add("open");positionSheet()}
+function sheet(title,build){el("shTitle").textContent=title;const b=el("shBody");b.innerHTML="";el("shFoot").innerHTML="";build(b);
+  const mh=mk("div","more-hint hide","↓ 下にも項目があります");b.append(mh);
+  el("sheet").classList.add("open");positionSheet();
+  requestAnimationFrame(()=>requestAnimationFrame(updateMoreHint));}
+// 本文がまだ下に続いていれば案内を出す。一番下に着いたら消す
+function updateMoreHint(){
+  const b=el("shBody"),mh=b.querySelector(".more-hint");if(!mh)return;
+  const more=b.scrollHeight-b.clientHeight-b.scrollTop>24;
+  mh.classList.toggle("hide",!more);
+}
+el("shBody").addEventListener("scroll",updateMoreHint,{passive:true});
 function closeSheet(){el("sheet").classList.remove("open");const p=el("sheet").querySelector(".pane");if(p)p.style.transform="";if(_op&&_op.snap&&!_op.used)_op=null}   // 使われなかったスナップショットは捨てる
 // シートの位置：最初の選択肢群の中心を、グリッド最下段（レア役の行）の高さに合わせる
 let _posRaf=null;
@@ -923,7 +935,11 @@ function renderLog(){
 }
 
 /* ---------- カウンター ---------- */
-document.querySelectorAll("[data-cnt]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.cnt;const name={realG:"実G",lcdG:"液晶G",c3:DEF().counter3.label}[k];askNum(name,S.cur[k],v=>{if(k==="realG"||k==="lcdG")S.cur._steps.push({k,prev:S.cur[k]});S.cur[k]=Math.max(0,v);save();render();checkAutoStage()})}));
+document.querySelectorAll("[data-cnt]").forEach(b=>b.addEventListener("click",()=>{const k=b.dataset.cnt;const name={realG:"実G",lcdG:"液晶G",c3:DEF().counter3.label}[k];askNum(name,S.cur[k],v=>{
+  v=Math.max(0,v);
+  if(k==="realG"&&DEF().lcdG){editRealWithLcd(v);return}
+  if(k==="realG"||k==="lcdG")S.cur._steps.push({k,prev:S.cur[k]});
+  S.cur[k]=v;save();render();checkAutoStage()})}));
 document.querySelectorAll("[data-step]").forEach(b=>b.addEventListener("click",()=>{const n=+b.dataset.step;S.cur.realG+=n;if(DEF().lcdG)S.cur.lcdG+=n;S.cur._steps.push(n);save();renderCounters();checkAutoStage()}));
 el("bStepUndo").addEventListener("click",()=>{const st=S.cur._steps;if(!st.length){toast("戻せる操作がありません");return}let n=st.pop();
   if(n&&typeof n==="object"&&n.autoOp){
@@ -932,6 +948,7 @@ el("bStepUndo").addEventListener("click",()=>{const st=S.cur._steps;if(!st.lengt
     else{st.push(n);toast((DEF().zenchou&&DEF().zenchou.endLabel||"段階終了")+"の後に別の記録があるので、G数だけは戻せません。「直前を取り消す」で順に戻してください");return}
     n=st.pop();if(n==null){save();render();return}
   }
+  if(n&&typeof n==="object"&&n.multi){n.multi.forEach(x=>{S.cur[x.k]=x.prev});save();render();return}
   if(n&&typeof n==="object"){S.cur[n.k]=n.prev;save();render();return}S.cur.realG=Math.max(0,S.cur.realG-n);if(DEF().lcdG)S.cur.lcdG=Math.max(0,S.cur.lcdG-n);save();renderCounters()});
 
 /* ---------- 液晶上乗せ ---------- */
@@ -1369,6 +1386,27 @@ function openZenchou(){
   });
 }
 // G数で段階を自動で出入りする（ボーナス後32Gなど）
+// 実Gを直すとき、液晶Gも一緒に直す（差を保つが基本）
+function editRealWithLcd(v){
+  const c=S.cur,r0=c.realG,l0=c.lcdG||0,diff=l0-r0;
+  const keep=Math.max(0,v+diff);
+  sheet("実Gを "+r0+" → "+v+" に直します",b=>{
+    b.append(mk("div","hint","液晶Gも一緒に直します。今の液晶Gは "+l0+"（実Gとの差 "+sgn(diff)+"）。"));
+    const w=mk("div","opts");
+    const opt=(lab,sub,lcd)=>{const btn=mk("button","",lab);btn.append(mk("small","",sub));btn.addEventListener("click",()=>{
+      mark();
+      c._steps.push({multi:[{k:"realG",prev:r0},{k:"lcdG",prev:l0}]});
+      c.realG=v;c.lcdG=lcd;
+      push("gFix","G数を直した：実"+r0+"/液晶"+l0+" → 実"+v+"/液晶"+lcd);
+      closeSheet();checkAutoStage();
+    });w.append(btn);return btn};
+    opt("差を保つ","実"+v+"／液晶"+keep,keep).classList.add("on");
+    opt("実Gと同じにする","実"+v+"／液晶"+v,v);
+    opt("液晶は変えない","実"+v+"／液晶"+l0,l0);
+    b.append(w);
+    b.append(mk("div","hint","上乗せ分（差）がある機種は「差を保つ」。両方0から数え直す場面（CZ失敗直後など）は「実Gと同じにする」。"));
+  });
+}
 function checkAutoStage(){
   const d=DEF(),c=S.cur,z=d.zenchou;if(!z||!c)return;
   if(z.autoEndAtG!=null&&zenIdx()===0&&c.realG>z.autoEndAtG){
