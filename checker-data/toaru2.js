@@ -38,10 +38,33 @@ function detail(ctx){
     ['s3','打ち止め＆一方通行','高設定 期待度UP（弱）',0],
     ['s4','番外個体＆一方通行','高設定 期待度UP（中）',0],
     ['s5','アリサ＆シャットアウラ','設定2・4・6 濃厚',1],
-    ['s6','初春＆美琴','設定4以上 濃厚',1],
+    ['s6','初春＆美琴（ステージ衣装）','設定4以上 濃厚',1],
     ['s7','当麻ハーレム','設定6 濃厚',1],
     ['s8','その他（残りG示唆等）','アイテム/スクール/グループ等',0]
   ];
+  const BAYES_SETTINGS=[1,2,3,4,5,6];
+  // AT終了画面の振り分け（出典: ちょんぼりすた様「終了画面の振り分け」2026/9/22 再取得）。
+  //        当麻・IDX 美琴・黒子 一方・打止 一方・番外 アリサ  衣装   ハーレム  合計
+  // 設定1   45.8%    37.4%     15.4%    1.3%     −      −      −      99.9%
+  // 設定2   32.1%    39.2%     16.4%    2.3%    10.0%   −      −     100.0%
+  // 設定3   43.6%    35.7%     17.4%    3.4%     −      −      −     100.1%
+  // 設定4   26.7%    32.7%     20.2%    8.0%    10.0%  2.4%    −     100.0%
+  // 設定5   37.1%    30.3%     21.2%    9.0%     −     2.4%    −     100.0%
+  // 設定6   23.8%    29.1%     22.2%   10.0%    10.0%  2.4%   2.4%    99.9%
+  // 各行の合計が約100%になることから、この7つが「設定示唆を持つ終了画面」の
+  // 完全な振り分けであり、残りG示唆系（アイテム／スクール／グループ／カエル顔の医者）は
+  // この振り分けに含まれない。よって s8「その他」は多項分布の試行から除外する。
+  // 振り分け表の「ステージ衣装」列は、示唆一覧の「初春・美琴（設定4以上濃厚）」と同じ枠
+  // （どちらも設定4以上のみに存在し、示唆内容も一致する）。s6 をこの列に対応させる。
+  const SCREEN_BAYES_KEYS=['s1','s2','s3','s4','s5','s6','s7'];
+  const SCREEN_PROBS={
+    1:{s1:.458,s2:.374,s3:.154,s4:.013,s5:0,   s6:0,   s7:0},
+    2:{s1:.321,s2:.392,s3:.164,s4:.023,s5:.100,s6:0,   s7:0},
+    3:{s1:.436,s2:.357,s3:.174,s4:.034,s5:0,   s6:0,   s7:0},
+    4:{s1:.267,s2:.327,s3:.202,s4:.080,s5:.100,s6:.024,s7:0},
+    5:{s1:.371,s2:.303,s3:.212,s4:.090,s5:0,   s6:.024,s7:0},
+    6:{s1:.238,s2:.291,s3:.222,s4:.100,s5:.100,s6:.024,s7:.024}
+  };
   const ED=[
     ['e1','頑張ったね','奇数設定 期待度UP',0],
     ['e2','調子良いね','偶数設定 期待度UP',0],
@@ -112,6 +135,94 @@ function detail(ctx){
     </div>
     <div class="hint">⚠ 神の右席の割合はAT獲得枚数・上乗遊技回数でも変化するため参考値です。</div>
   </section>`;
+  }
+  function num(v){return Math.max(0,Number(v)||0);}
+  function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
+  // 確定演出（片側を完全に潰す示唆）。分母・ラベルの出典はこの1関数にまとめる（§9-84）。
+  function bayesExclusions(S){
+    return [
+      {label:'AT終了画面 アリサ＆シャットアウラ',count:num(S.screens.s5),exclude:[1,3,5]},
+      {label:'AT終了画面 初春＆美琴',count:num(S.screens.s6),exclude:[1,2,3]},
+      {label:'AT終了画面 当麻ハーレム',count:num(S.screens.s7),exclude:[1,2,3,4,5]},
+      {label:'藤丸コイン 銅',count:num(S.coins.cu),exclude:[1]},
+      {label:'藤丸コイン 銀',count:num(S.coins.ag),exclude:[1,2]},
+      {label:'藤丸コイン 金',count:num(S.coins.au),exclude:[1,2,3]},
+      {label:'藤丸コイン デンジャー柄',count:num(S.coins.dg),exclude:[1,2,3,4]},
+      {label:'藤丸コイン 虹',count:num(S.coins.rb),exclude:[1,2,3,4,5]},
+      {label:'獲得枚数 174枚OVER',count:num(S.over.o174),exclude:[1]},
+      {label:'獲得枚数 246枚OVER',count:num(S.over.o246),exclude:[1,3,5]},
+      {label:'獲得枚数 456枚・1456枚OVER',count:num(S.over.o456),exclude:[1,2,3]},
+      {label:'獲得枚数 220枚・666枚ほかOVER',count:num(S.over.o666),exclude:[1,2,3,4,5]},
+      {label:'ED やったあ！',count:num(S.ed.e5),exclude:[1]},
+      {label:'ED すごい！すごい！',count:num(S.ed.e6),exclude:[1,2]},
+      {label:'ED とっても美味しい！',count:num(S.ed.e7),exclude:[1,2,3]},
+      {label:'ED すっごくうれしい！',count:num(S.ed.e8),exclude:[1,2,3,4]},
+      {label:'ED おめでとう！',count:num(S.ed.e9),exclude:[1,2,3,4,5]}
+    ];
+  }
+  function certCount(S){return bayesExclusions(S).reduce((a,r)=>a+(Number(r.count)||0),0);}
+  // 多項分布の試行数。s8（残りG示唆等）は振り分けに含まれないため数えない。
+  function screenBayesTotal(S){return SCREEN_BAYES_KEYS.reduce((a,k)=>a+num(S.screens[k]),0);}
+  function bayesSpec(S){
+    const counts={};
+    SCREEN_BAYES_KEYS.forEach(k=>{counts[k]=num(S.screens[k]);});
+    return {
+      settings:BAYES_SETTINGS,
+      binomial:[],
+      multinomial:[{label:'AT終了画面',counts,probs:SCREEN_PROBS}],
+      exclusions:bayesExclusions(S)
+    };
+  }
+  function bayesResult(S){
+    if(!window.CheckerBayes)return {empty:true};
+    return window.CheckerBayes.estimate(bayesSpec(S));
+  }
+  function bayesPct(v){return window.CheckerBayes?window.CheckerBayes.percent(v):'--';}
+  function bayesExcludedSettings(result){
+    const set=new Set();
+    (result.reasons||[]).forEach(r=>(r.exclude||[]).forEach(s=>set.add(Number(s))));
+    return Array.from(set).sort((a,b)=>a-b);
+  }
+  function bayesUnder4(S){
+    const r=bayesResult(S);
+    if(!r.posterior)return 0;
+    return BAYES_SETTINGS.filter(s=>Number(s)<=3).reduce((a,s)=>a+(r.posterior[s]||0),0);
+  }
+  function bayesExcludeSummary(S){
+    const r=bayesResult(S);
+    if(r.contradiction)return row('除外 矛盾',1,true,'#ff5c5c');
+    const excluded=bayesExcludedSettings(r);
+    return row(excluded.length?'除外 設'+excluded.join(','):'除外 −',excluded.length,excluded.length>0);
+  }
+  function bayesStyle(){
+    return `<style>
+      .bayes-main{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#171220;border:1px solid #2c2340;border-radius:10px;padding:10px 12px;margin:8px 0}.bayes-main b{color:#ffc94d;font-size:18px}.bayes-main span{color:#9a90a8;font-size:13px}
+      .bayes-bar{display:grid;grid-template-columns:44px 1fr 48px;gap:8px;align-items:center;margin:6px 0;font-size:12px;color:#9a90a8}.bayes-bar b{display:block;height:10px;border-radius:999px;background:linear-gradient(90deg,#ff3d8f,#ffc94d);min-width:2px}.bayes-bar em{font-style:normal;text-align:right;color:#f2eef5}
+    </style>`;
+  }
+  function pageBayes(ctx){
+    const S=ctx.S,r=bayesResult(S);
+    let body='';
+    if(r.contradiction){
+      body='<div class="hint hot">⚠記録に矛盾があります（示唆の見間違いの可能性）。</div>';
+    }else if(r.empty){
+      body='<div class="hint">記録が増えると推定できます。</div>';
+    }else{
+      const excluded=bayesExcludedSettings(r);
+      const bars=BAYES_SETTINGS.map(setting=>{
+        const p=(r.posterior||{})[setting]||0;
+        return `<div class="bayes-bar"><span>設定${setting}</span><b style="width:${Math.max(2,p*100)}%"></b><em>${bayesPct(p)}</em></div>`;
+      }).join('');
+      const reasons=(r.reasons||[]).map(x=>`${x.label}×${x.count}`).join('、');
+      body=`<div class="bayes-main"><b>設定4以上 ${bayesPct(r.high)}</b><span>設定3以下 ${bayesPct(bayesUnder4(S))}</span></div>
+      <div class="bayes-bars">${bars}</div>
+      <div class="hint">証拠：AT終了画面（示唆あり）${screenBayesTotal(S)}回 ／ 確定演出 計${certCount(S)}回</div>
+      <div class="hint">除外根拠：${reasons||'なし'}${excluded.length?'（除外済み：設定'+excluded.join('・')+'）':''}</div>
+      <div class="hint">推定は入力されたカウントに基づく参考値です。サンプルが少ないほど信頼度は下がります。</div>`;
+    }
+    return bayesStyle()+`<section class="sec"><div class="sec-h">ベイズ設定推定</div>${body}
+    <div class="hint">AT終了画面の振り分けと確定演出から推定します。CZ・AT確率は通常ゲーム数が取れないため推定に使いません。終了画面は毎回記録してください（残り◯G系の画面はカウント対象外）。</div>
+    </section>`;
   }
   function pageShisa(ctx){
     const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
@@ -190,6 +301,7 @@ function detail(ctx){
       ()=>pageZones(ctx),
       ()=>pageHatsu(ctx),
       ()=>pageShisa(ctx),
+      ()=>pageBayes(ctx),
       pageCard
     ],
     template:tplText,
@@ -214,15 +326,16 @@ function detail(ctx){
         items:ZONES.map(z=>({label:String(z),value:ctx.S.zones[z]}))
       }),
       bottom:ctx=>{
-        const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
+        const S=ctx.S;
+        const scN=Object.values(S.screens).reduce((a,b)=>a+b,0);
         return {
           title:`AT終了画面（計${scN}回）`,
           startY:762,
-          rowGap:48,
+          rowGap:43,
           fontSize:25,
           columns:[
-            {x:70,items:SCREENS.slice(0,4).map(v=>({label:v[1],value:ctx.S.screens[v[0]]}))},
-            {x:560,items:SCREENS.slice(4).map(v=>({label:v[1],value:ctx.S.screens[v[0]]}))}
+            {x:70,items:SCREENS.slice(0,4).map(v=>({label:v[1],value:S.screens[v[0]]}))},
+            {x:560,items:SCREENS.slice(4).map(v=>({label:v[1],value:S.screens[v[0]]})).concat([bayesExcludeSummary(S)])}
           ]
         };
       }

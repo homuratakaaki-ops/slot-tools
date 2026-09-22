@@ -65,7 +65,7 @@ body.minus .crow:active{border-color:#7a3040}
 .feed b{color:var(--cyan);font-weight:700}
 /* ===== tabs ===== */
 nav{
-  flex:none;display:grid;grid-template-columns:repeat(4,1fr);
+  flex:none;display:grid;grid-template-columns:repeat(5,1fr);
   border-top:1px solid var(--line);background:#120d1a;
   padding-bottom:env(safe-area-inset-bottom);
 }
@@ -201,13 +201,15 @@ textarea#tpl{
   <button data-p="0" class="on">ゾーン</button>
   <button data-p="1">初当り</button>
   <button data-p="2">示唆</button>
-  <button data-p="3">カード</button>
+  <button data-p="3">設定</button>
+  <button data-p="4">カード</button>
 </nav>
 
 <div class="toast" id="toast"></div>
 
 <script src="checker-engine.js?v=20260915"></script>
-<script src="checker-data/toaru2.js?v=20260922-2"></script>
+<script src="checker-bayes.js?v=20260827-2"></script>
+<script src="checker-data/toaru2.js?v=20260922-3"></script>
 <script>CheckerEngine.mount(CheckerConfigs.toaru2);</script>
 </body>
 </html>
