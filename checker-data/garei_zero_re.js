@@ -25,6 +25,15 @@
     ['yomiMei','黄泉と冥','設定4以上濃厚',4],
     ['kaguraYomi2','神楽と黄泉②','エンディング後に出現',0]
   ];
+  const RB_CHARS=[
+    ['male','男性キャラ(青)','奇数設定 期待度UP',0],
+    ['female','女性キャラ(赤)','偶数設定 期待度UP',0],
+    ['yomi','黄泉悪霊化(紫)','高設定 期待度UP（弱）',0],
+    ['mei','冥(紫)','高設定 期待度UP（強）',0],
+    ['yomiMeiSame','黄泉悪霊化＋冥（同一REG）','設定4以上確定演出',4],
+    ['sanzu','三途河(金)','設定5以上確定演出',5],
+    ['sen','1000ちゃん','設定6確定演出',6]
+  ];
   const OVER=[
     ['o222','222枚突破','設定2以上濃厚',2],
     ['o444','444枚突破','設定4以上濃厚',4],
@@ -33,9 +42,9 @@
     ['o0123','0123枚突破','設定6濃厚',6]
   ];
   const SPECIAL_BONUS=[
-    ['watermelonOdd','スイカ＋赤BB／スイカ＋青頭RB','奇数設定優遇'],
-    ['watermelonEven','スイカ＋青BB／スイカ＋赤頭RB','偶数設定優遇'],
-    ['strongCherryRb','強チェリー＋RB','高設定の大チャンス']
+    ['watermelonOdd','スイカ＋赤BB／スイカ＋青頭RB','奇数設定優遇',0],
+    ['watermelonEven','スイカ＋青BB／スイカ＋赤頭RB','偶数設定優遇',0],
+    ['strongCherryRb','強チェリー＋RB','設定4以上確定演出',4]
   ];
   const REF_SECTIONS=[
     ['天井・狙い目',[
@@ -60,6 +69,21 @@
       ['公園','高確 or 前兆を示唆'],
       ['幼少期','超高確濃厚'],
       ['補足','高確移行はチャンス目＜チェリー＜スイカの順に期待。100G消化毎にも移行抽選あり。RB終了後は高確濃厚。レア役の高確とゲーム数の高確が重なると超高確。']
+    ]],
+    ['通常時の高確移行率',[
+      ['朝一 設定1','高確 25.0% ／ 超高確 0.4%'],
+      ['朝一 設定2','高確 26.6% ／ 超高確 0.4%'],
+      ['朝一 設定3','高確 28.1% ／ 超高確 0.8%'],
+      ['朝一 設定4','高確 29.7% ／ 超高確 0.8%'],
+      ['朝一 設定5','高確 31.3% ／ 超高確 1.2%'],
+      ['朝一 設定6','高確 32.8% ／ 超高確 1.6%'],
+      ['ART終了時 設定1','高確 13.0% ／ 超高確 24.0%'],
+      ['ART終了時 設定2','高確 13.2% ／ 超高確 25.4%'],
+      ['ART終了時 設定3','高確 13.4% ／ 超高確 26.6%'],
+      ['ART終了時 設定4','高確 13.7% ／ 超高確 27.7%'],
+      ['ART終了時 設定5','高確 14.0% ／ 超高確 28.9%'],
+      ['ART終了時 設定6','高確 14.4% ／ 超高確 29.9%'],
+      ['補足','有利区間開始時（朝一）とART終了時の移行率。遊技中に滞在状態を判定できないため、カウント対象外の参考情報です。']
     ]],
     ['通常時の連続演出',[
       ['仲直り作戦','期待度 低'],
@@ -108,6 +132,7 @@
     specialBonus:Object.fromEntries(SPECIAL_BONUS.map(v=>[v[0],0])),
     bbScreens:Object.fromEntries(BB_SCREENS.map(v=>[v[0],0])),
     artScreens:Object.fromEntries(ART_SCREENS.map(v=>[v[0],0])),
+    rbChars:Object.fromEntries(RB_CHARS.map(v=>[v[0],0])),
     over:Object.fromEntries(OVER.map(v=>[v[0],0])),
     img:null,
     iconChoice:null
@@ -139,6 +164,8 @@
     return [
       ...BB_SCREENS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.bbScreens,c[0]),rank:c[3]})),
       ...ART_SCREENS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.artScreens,c[0]),rank:c[3]})),
+      ...RB_CHARS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.rbChars,c[0]),rank:c[3]})),
+      ...SPECIAL_BONUS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.specialBonus,c[0]),rank:c[3]})),
       ...OVER.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.over,c[0]),rank:c[3]}))
     ];
   }
@@ -155,6 +182,10 @@
       {label:'BB終了画面 水着',count:n(S.bbScreens,'swim'),exclude:[1,2,3,4,5]},
       {label:'ART終了画面 神楽と黄泉①',count:n(S.artScreens,'kaguraYomi1'),exclude:[1]},
       {label:'ART終了画面 黄泉と冥',count:n(S.artScreens,'yomiMei'),exclude:[1,2,3]},
+      {label:'RBキャラ 黄泉悪霊化＋冥（同一REG）',count:n(S.rbChars,'yomiMeiSame'),exclude:[1,2,3]},
+      {label:'RBキャラ 三途河(金)',count:n(S.rbChars,'sanzu'),exclude:[1,2,3,4]},
+      {label:'RBキャラ 1000ちゃん',count:n(S.rbChars,'sen'),exclude:[1,2,3,4,5]},
+      {label:'特定ボーナス 強チェリー＋RB',count:n(S.specialBonus,'strongCherryRb'),exclude:[1,2,3]},
       {label:'獲得枚数 222枚突破',count:n(S.over,'o222'),exclude:[1]},
       {label:'獲得枚数 444枚突破',count:n(S.over,'o444'),exclude:[1,2,3]},
       {label:'獲得枚数 456枚突破',count:n(S.over,'o456'),exclude:[1,2,3]},
@@ -237,9 +268,9 @@
       </div>
       <div class="hint">スイカは左リール上段にスイカまたは⑪番のBARが停止した際、中リールに赤7目安でスイカを狙って成立を確認します。左上段にBARが停止した場合は取りこぼしに注意してください。弱チェリーは左リール角チェリー停止かつ右リール中段ベル停止。強チェリーは左リール角チェリー停止かつ右リール中段ベル以外停止です。CZ当選率は通常滞在時のみ記録します。</div>
     </section>
-    <section class="sec"><div class="sec-h">特定ボーナス（記録のみ）<span class="sub">計${sum(S.specialBonus)}回</span></div>
-      <div class="cgrid">${SPECIAL_BONUS.map(c=>ctx.crow('specialBonus.'+c[0],c[1],c[2],0)).join('')}</div>
-      <div class="hint">ボーナス当選契機はボーナス成立時のWINランプの色で判別できます。振り分けの数値が公表されていないため、記録のみで推定には使いません。</div>
+    <section class="sec"><div class="sec-h">特定ボーナス<span class="sub">計${sum(S.specialBonus)}回</span></div>
+      <div class="cgrid">${SPECIAL_BONUS.map(c=>ctx.crow('specialBonus.'+c[0],c[1],c[2],c[3])).join('')}</div>
+      <div class="hint">ボーナス当選契機はボーナス成立時のWINランプの色で判別できます。強チェリー＋RBは設定4以上確定演出として推定に使います。奇数優遇・偶数優遇の2行は振り分けの数値が公表されていないため、記録のみで推定には使いません。</div>
     </section>`;
   }
   function pageSuggest(ctx){
@@ -251,9 +282,12 @@
       <div class="cgrid">${ART_SCREENS.map(c=>ctx.crow('artScreens.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,sum(S.artScreens)))).join('')}</div>
       <div class="hint">神楽と黄泉②は設定示唆ではなく、エンディング到達後に出現する画面です。</div>
     </section>
+    <section class="sec"><div class="sec-h">RB中のキャラ紹介<span class="sub">計${sum(S.rbChars)}回</span></div>
+      <div class="cgrid">${RB_CHARS.map(c=>ctx.crow('rbChars.'+c[0],c[1],c[2],c[3])).join('')}</div>
+      <div class="hint">1回のREGで複数のキャラが紹介されるため、出現したキャラをそれぞれ記録します。黄泉悪霊化（紫）と冥（紫）が同一REG内で揃った場合は、個別の2行に加えて「黄泉悪霊化＋冥（同一REG）」も押してください。1回1キャラの振り分けではないため割合は表示しません。</div>
+    </section>
     <section class="sec"><div class="sec-h">獲得枚数表示<span class="sub">計${sum(S.over)}回</span></div>
       <div class="cgrid">${OVER.map(c=>ctx.crow('over.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,sum(S.over)))).join('')}</div>
-      <div class="hint">RB中のキャラ紹介は示唆内容が未確定のため収録していません。</div>
     </section>`;
   }
   function pageBayes(ctx){
@@ -297,6 +331,7 @@
     ]);
     t+=section('BB終了画面',sum(S.bbScreens)>0?BB_SCREENS.filter(c=>n(S.bbScreens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.bbScreens,c[0]),sum(S.bbScreens))}`):[]);
     t+=section('ART終了画面',sum(S.artScreens)>0?ART_SCREENS.filter(c=>n(S.artScreens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.artScreens,c[0]),sum(S.artScreens))}`):[]);
+    t+=section('RB中のキャラ紹介',sum(S.rbChars)>0?RB_CHARS.filter(c=>n(S.rbChars,c[0])>0).map(c=>`${c[1]}▶${n(S.rbChars,c[0])}回`):[]);
     t+=section('獲得枚数表示',sum(S.over)>0?OVER.filter(c=>n(S.over,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.over,c[0]),sum(S.over))}`):[]);
     t+=section('特定ボーナス',sum(S.specialBonus)>0?SPECIAL_BONUS.filter(c=>n(S.specialBonus,c[0])>0).map(c=>`${c[1]}▶${n(S.specialBonus,c[0])}回`):[]);
     t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
@@ -315,8 +350,9 @@
       ]},
       {title:'BB終了画面',items:detailItems(BB_SCREENS,S.bbScreens),percent:true},
       {title:'ART終了画面',items:detailItems(ART_SCREENS,S.artScreens),percent:true},
+      {title:'RB中のキャラ紹介',items:detailItems(RB_CHARS,S.rbChars)},
       {title:'獲得枚数表示',items:detailItems(OVER,S.over),percent:true},
-      {title:'特定ボーナス',items:SPECIAL_BONUS.map(c=>detailItem(c[1],n(S.specialBonus,c[0]),0))}
+      {title:'特定ボーナス',items:SPECIAL_BONUS.map(c=>detailItem(c[1],n(S.specialBonus,c[0]),c[3]))}
     ];
   }
 
@@ -324,7 +360,7 @@
     nanaCollab:false,
     storageKey:'garei-zero-re-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','rates','specialBonus','bbScreens','artScreens','over'],
+    mergeKeys:['counts','rates','specialBonus','bbScreens','artScreens','rbChars','over'],
     sourceUrl:'https://chonborista.com/slot/oizumi-slot/259743/',
     normalizeState:out=>{
       out.startGames=Math.max(0,Number(out.startGames)||0);
@@ -334,6 +370,7 @@
       out.specialBonus=Object.assign({},DEF.specialBonus,out.specialBonus||{});
       out.bbScreens=Object.assign({},DEF.bbScreens,out.bbScreens||{});
       out.artScreens=Object.assign({},DEF.artScreens,out.artScreens||{});
+      out.rbChars=Object.assign({},DEF.rbChars,out.rbChars||{});
       out.over=Object.assign({},DEF.over,out.over||{});
       Object.keys(out.counts||{}).forEach(k=>{out.counts[k]=Math.max(0,Number(out.counts[k])||0);});
       ['weakCz','strongCz'].forEach(id=>{
@@ -341,7 +378,7 @@
         out.rates[id+'w']=Math.max(0,Number(out.rates[id+'w'])||0);
         if(out.rates[id+'w']>out.rates[id+'r'])out.rates[id+'r']=out.rates[id+'w'];
       });
-      ['specialBonus','bbScreens','artScreens','over'].forEach(group=>{
+      ['specialBonus','bbScreens','artScreens','rbChars','over'].forEach(group=>{
         Object.keys(out[group]||{}).forEach(k=>{out[group][k]=Math.max(0,Number(out[group][k])||0);});
       });
       return out;
