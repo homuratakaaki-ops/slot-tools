@@ -20,7 +20,7 @@
     gamesApp:0,
     gamesStart:0,
     gamesNow:0,
-    counts:{big:0,reg:0},
+    counts:{big:0,reg:0,replayTako:0},
     screens:Object.fromEntries(BB_END.map(v=>[v[0],0])),
     img:null,
     iconChoice:null
@@ -112,6 +112,14 @@
       ${ctx.crow('counts.reg','REG',`設1:1/352.3⇔設6:1/300.6${rateSuffix(g,n(S.counts,'reg'))}`,1)}
     </div>
     <div class="hint">合算は設1:1/168.9⇔設6:1/149.6。本機の設定は1・2・5・6の4段階です。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">リプレイ＋タコゲーム同時成立<span class="sub">計${n(S.counts,'replayTako')}回</span></div>
+    <div class="cgrid">
+      ${ctx.crow('counts.replayTako','リプレイ＋タコゲーム','設1・2:1/728.2／設5:1/366.1／設6:1/242.7',1)}
+    </div>
+    <div class="hint">ボーナスゲーム中に擬似リプレイハズシ手順（中・右をフリー打ちしてリプレイテンパイ→左リール枠上に鉢巻付きの白7をビタ押し）を行い、タコランプが点灯した回数を記録します。設定1・2と設定6で約3倍の差がある判別材料です。</div>
+    <div class="hint">出典の確率の分母（通常時プレイ数か総プレイ数か）が明示されていないため、実測の1/x表示は行いません（AGENTS.md §9-70）。</div>
   </section>`;
   }
 
@@ -130,12 +138,13 @@
   }
 
   function tplText(ctx){
-    const S=ctx.S,g=denom(S),big=n(S.counts,'big'),reg=n(S.counts,'reg');
+    const S=ctx.S,g=denom(S),big=n(S.counts,'big'),reg=n(S.counts,'reg'),rt=n(S.counts,'replayTako');
     let t=`設定判別メモ｜スマスロ タコスロ\n通常 ${g||0}G / BIG${big}回 / REG${reg}回\n_______\n`;
     t+=section('初当り',[
       `BIG▶${countLine(big)}`,
       `REG▶${countLine(reg)}`
     ]);
+    t+=section('リプレイ＋タコゲーム同時成立',rt>0?[`リプレイ＋タコゲーム▶${countLine(rt)}`]:[]);
     t+=section('BB終了画面',sum(S.screens)>0?BB_END.filter(c=>n(S.screens,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.screens,c[0]))}`):[]);
     t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
     return t;
@@ -147,6 +156,9 @@
       {title:'初当り',items:[
         detailItem('BIG',n(S.counts,'big'),1),
         detailItem('REG',n(S.counts,'reg'),1)
+      ]},
+      {title:'リプレイ＋タコゲーム',items:[
+        detailItem('リプレイ＋タコゲーム同時成立',n(S.counts,'replayTako'),1)
       ]},
       {title:'BB終了画面',items:detailItems(BB_END,S.screens),percent:true}
     ];
