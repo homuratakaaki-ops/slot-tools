@@ -344,7 +344,8 @@
       <div class="hint">本機は設定1と設定2で同じ数値の項目が多いため、この2つの区別は難しくなります。</div>
       <div class="hint">推定は入力されたカウントに基づく参考値です。サンプルが少ないほど信頼度は下がります。</div>`;
     }
-    return pageStyle()+`<section class="sec"><div class="sec-h">ベイズ設定推定</div>${body}</section>`;
+    return pageStyle()+`<section class="sec"><div class="sec-h">設定推測</div>
+    <div class="hint">記録した内容から、各設定である可能性を%で表示します。</div>${body}</section>`;
   }
   function pageReference(){
     return pageStyle()+`<div class="jump-grid">${REF_SECTIONS.map((s,i)=>`<a href="#ref${i+1}">${s[0]}</a>`).join('')}</div>`+

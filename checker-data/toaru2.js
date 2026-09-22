@@ -220,7 +220,8 @@ function detail(ctx){
       <div class="hint">除外根拠：${reasons||'なし'}${excluded.length?'（除外済み：設定'+excluded.join('・')+'）':''}</div>
       <div class="hint">推定は入力されたカウントに基づく参考値です。サンプルが少ないほど信頼度は下がります。</div>`;
     }
-    return bayesStyle()+`<section class="sec"><div class="sec-h">ベイズ設定推定</div>${body}
+    return bayesStyle()+`<section class="sec"><div class="sec-h">設定推測</div>
+    <div class="hint">記録した内容から、各設定である可能性を%で表示します。</div>${body}
     <div class="hint">AT終了画面の振り分けと確定演出から推定します。CZ・AT確率は通常ゲーム数が取れないため推定に使いません。終了画面は毎回記録してください（残り◯G系の画面はカウント対象外）。</div>
     </section>`;
   }
