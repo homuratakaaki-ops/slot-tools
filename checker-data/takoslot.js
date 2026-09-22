@@ -14,6 +14,23 @@
     ['real','実機の通常ゲーム数で記録']
   ];
 
+  // 通常時の小役確率（出典: ちょんぼりすた様、2026/9/22 再取得）。本機の設定は1・2・5・6の4段階。
+  // ユニメモで基本カウントされるのは プラム・チェリー合算・スイカ合成 の3つ。
+  //   リプレイ     設1・2・5・6:1/7.3（設定差なし）
+  //   プラム       設1:1/9.8  設2:1/9.7  設5:1/9.4  設6:1/9.0
+  //   チェリー合算 設1:1/22.9 設2:1/21.9 設5:1/21.0 設6:1/20.1
+  //   スイカ合成   設1:1/60.0 設2:1/56.2 設5:1/53.0 設6:1/50.0
+  // 以下はユニメモで特定条件を解放しないとカウントできないため入力欄を設けていない。
+  //   チェリーA 設1・2・5・6:1/184.6（設定差なし）
+  //   チェリーB 設1:1/136.5 設2:1/126.0 設5:1/117.0 設6:1/109.2
+  //   チェリーC 設1:1/32.3  設2:1/30.9  設5:1/29.7  設6:1/28.5
+  //   スイカA   設1:1/66.6  設2:1/62.4  設5:1/58.8  設6:1/55.5
+  //   スイカB   設1:1/601.2 設2:1/565.0 設5:1/541.6 設6:1/504.1
+  const KOYAKU=[
+    ['plum','プラム','設1:1/9.8⇔設6:1/9.0','9.8'],
+    ['cherry','チェリー合算','設1:1/22.9⇔設6:1/20.1','22.9'],
+    ['melon','スイカ合成','設1:1/60.0⇔設6:1/50.0','60.0']
+  ];
   const DEF={
     games:0,
     gameSrc:'unimemo',
@@ -21,6 +38,7 @@
     gamesStart:0,
     gamesNow:0,
     counts:{big:0,reg:0,replayTako:0},
+    app:Object.fromEntries(KOYAKU.map(v=>[v[0],0])),
     screens:Object.fromEntries(BB_END.map(v=>[v[0],0])),
     img:null,
     iconChoice:null
@@ -42,6 +60,21 @@
   function denomWarn(S){return gameSrcOf(S)==='real'&&num(S.gamesNow)>0&&num(S.gamesNow)<num(S.gamesStart);}
   // カードのメタ行はエンジンが S.games を直接読むため、描画前に必ず同期させる。
   function syncGames(S){if(S)S.games=denom(S);return S?S.games:0;}
+  function escAttr(v){return String(v===0||v===undefined||v===null?'':v).replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));}
+  // ---- ユニメモ入力（小役確率）----
+  // 小役はボーナス中も成立するため、通常回転数を分母にした実測とは条件が合わない。
+  // ユニメモが集計した確率の分母をそのまま入力して使う（SAO2 のダイトモ入力と同じ方式）。
+  // 読み出しはこの2関数に集約する（§9-84）。0＝未入力。
+  function appRate(S,key){
+    const v=Number(String(((S||{}).app||{})[key]??'').trim());
+    return Number.isFinite(v)&&v>0?v:0;
+  }
+  function appRateText(S,key){const d=appRate(S,key);return d>0?'1/'+d.toFixed(1):'';}
+  function appFilled(S){return KOYAKU.filter(c=>appRate(S,c[0])>0);}
+  function appSummary(S){
+    const out=appFilled(S).map(c=>c[1]+appRateText(S,c[0]));
+    return out.length?out.join('・'):'−';
+  }
   function rate(g,c){return (g>0&&c>0)?'1/'+(g/c).toFixed(1):'';}
   function rateSuffix(g,c){const r=rate(g,c);return r?` / 現在 ${r}`:'';}
   function countRate(g,c){const r=rate(g,c);return r?`${c}回 ${r}`:`${c}回`;}
@@ -67,6 +100,12 @@
     if((src||{}).gamesApp===undefined&&!out.gamesApp)out.gamesApp=num((src||{}).games);
     out.games=denom(out);
     out.counts=Object.assign({},DEF.counts,out.counts||{});
+    out.app=Object.assign({},DEF.app,out.app||{});
+    // 小役確率は分母の入力値。空欄・非数・0以下は 0（＝未入力）に倒す。
+    Object.keys(out.app).forEach(key=>{
+      const v=Number(String(out.app[key]??'').trim());
+      out.app[key]=Number.isFinite(v)&&v>0?v:0;
+    });
     out.screens=Object.assign({},DEF.screens,out.screens||{});
     Object.keys(out.counts).forEach(key=>{out.counts[key]=Math.max(0,Number(out.counts[key])||0);});
     Object.keys(out.screens).forEach(key=>{out.screens[key]=Math.max(0,Number(out.screens[key])||0);});
@@ -102,6 +141,16 @@
     </div>
   </section>`;
   }
+  // 確率を入力する行。タップカウントではないので data-c も ＋ボタンも持たせない。
+  // 分母だけを入力させ（例: 58.3）、表示は「/ 入力 1/58.3」。未入力なら出さない。
+  function appRateRow(S,c){
+    const txt=appRateText(S,c[0]);
+    return `<div class="crow raterow">
+      <div class="lbl"><div class="nm">${c[1]}</div><div class="mn hot">${c[2]}${txt?` / 入力 ${txt}`:''}</div></div>
+      <span class="unit">1/</span>
+      <input type="number" inputmode="decimal" step="0.1" min="0" data-state-path="app.${c[0]}" value="${escAttr((S.app||{})[c[0]])}" placeholder="${c[3]}" aria-label="${c[1]}の確率（分母）">
+    </div>`;
+  }
   function pageHatsu(ctx){
     const S=ctx.S,g=denom(S);
     return `${gameSection(ctx)}
@@ -112,6 +161,17 @@
       ${ctx.crow('counts.reg','REG',`設1:1/352.3⇔設6:1/300.6${rateSuffix(g,n(S.counts,'reg'))}`,1)}
     </div>
     <div class="hint">合算は設1:1/168.9⇔設6:1/149.6。本機の設定は1・2・5・6の4段階です。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">小役確率（ユニメモ）<span class="sub">入力 ${appFilled(S).length}/3</span></div>
+    <style>
+      .raterow .unit{flex:none;font-size:13px;font-weight:800;color:var(--muted)}
+      .raterow input{width:96px}
+    </style>
+    <div class="cgrid">
+      ${KOYAKU.map(c=>appRateRow(S,c)).join('')}
+    </div>
+    <div class="hint">ユニメモの小役カウントに表示される確率の分母をそのまま入力してください（例: 1/58.3なら58.3）。スイカ合成は設定差が約20%と大きく、判別の主力になります。</div>
   </section>
   <section class="sec">
     <div class="sec-h">リプレイ＋タコゲーム同時成立<span class="sub">計${n(S.counts,'replayTako')}回</span></div>
@@ -129,7 +189,7 @@
     <div class="sec-h">BB終了画面<span class="sub">計${sum(S.screens)}回</span></div>
     <div class="cgrid">${BB_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,sum(S.screens)))).join('')}</div>
     <div class="hint">タコゲームに一度も入賞しなかったBBの終了画面がレアパターンだった場合は、専用の行（設定2以上）で記録してください。通常のレアパターン行と重複カウントは不要です。</div>
-    <div class="hint">ユニメモはこのツールでは通常回転数（分母）を取るためだけに使います。BB終了画面は出るたびにこちらで記録してください。同じ遊技分の分母と示唆が揃い、初当り確率と終了画面を突き合わせて見られます。</div>
+    <div class="hint">ユニメモはこのツールでは通常回転数（分母）と小役確率の入力に使います。BB終了画面は出るたびにこちらで記録してください。同じ遊技分の分母と示唆が揃い、初当り確率と終了画面を突き合わせて見られます。</div>
   </section>
   <section class="sec">
     <div class="sec-h">解析待ちの示唆<span class="sub">未実装</span></div>
@@ -144,6 +204,7 @@
       `BIG▶${countLine(big)}`,
       `REG▶${countLine(reg)}`
     ]);
+    t+=section('小役確率（ユニメモ）',appFilled(S).map(c=>`${c[1]}▶${appRateText(S,c[0])}`));
     t+=section('リプレイ＋タコゲーム同時成立',rt>0?[`リプレイ＋タコゲーム▶${countLine(rt)}`]:[]);
     t+=section('BB終了画面',sum(S.screens)>0?BB_END.filter(c=>n(S.screens,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.screens,c[0]))}`):[]);
     t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
@@ -157,6 +218,10 @@
         detailItem('BIG',n(S.counts,'big'),1),
         detailItem('REG',n(S.counts,'reg'),1)
       ]},
+      {title:'小役確率（ユニメモ）',items:KOYAKU.map(c=>({
+        label:c[1],value:appRate(S,c[0])>0?1:0,hot:true,
+        text:c[1]+' '+appRateText(S,c[0]),show:appRate(S,c[0])>0
+      }))},
       {title:'リプレイ＋タコゲーム',items:[
         detailItem('リプレイ＋タコゲーム同時成立',n(S.counts,'replayTako'),1)
       ]},
@@ -178,7 +243,7 @@
     },
     storageKey:'takoslot-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','screens'],
+    mergeKeys:['counts','app','screens'],
     sourceUrl:'https://chonborista.com/slot/universal-slot/262349/',
     normalizeState:normalizeState,
     share:{title:'スマスロ タコスロ 設定判別メモ',hashtags:'#タコスロ #設定判別'},
@@ -236,7 +301,8 @@
               row(`確定演出 計${certCount(S)}回`,certCount(S),certCount(S)>0,'#ffc94d'),
               row(`通常パターン(夕方) ${n(S.screens,'normal')}回`,n(S.screens,'normal')),
               row(`レアパターン(夜) ${n(S.screens,'rare')}回`,n(S.screens,'rare')),
-              row(`タコ未入賞レア ${n(S.screens,'rareNoTako')}回`,n(S.screens,'rareNoTako'))
+              row(`タコ未入賞レア ${n(S.screens,'rareNoTako')}回`,n(S.screens,'rareNoTako')),
+              row(`小役 ${appSummary(S)}`,appFilled(S).length,appFilled(S).length>0)
             ]}
           ]
         };
