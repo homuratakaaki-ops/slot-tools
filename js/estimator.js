@@ -63,7 +63,7 @@ export function estimate(machine, obs, prior = null) {
     warnings.push("総回転数が1000G未満です。判別精度は参考程度になります。");
   }
   if (usedElements.length === 0) {
-    warnings.push("尤度計算に使える入力がありません。事前分布をそのまま返します。");
+    warnings.push("推測に使える入力がありません。設定配分の想定をそのまま返します。");
     return { posterior: p.slice(), logLikelihoods: logL, usedElements, warnings };
   }
 
@@ -86,7 +86,7 @@ function legacyToSegment(machine, obs, warnings) {
     if ("reg_total" in c && "solo_reg" in c && "cherry_reg" in c) {
       if (c.solo_reg + c.cherry_reg !== c.reg_total) {
         warnings.push(
-          `REG内訳(${c.solo_reg}+${c.cherry_reg})が合計(${c.reg_total})と一致しません。内訳のみを尤度計算に使用します。`
+          `REG内訳(${c.solo_reg}+${c.cherry_reg})が合計(${c.reg_total})と一致しません。内訳のみを推測に使用します。`
         );
       }
     }

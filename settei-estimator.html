@@ -214,7 +214,7 @@ footer nav a { margin-right: 10px; }
   </section>
 
   <section class="card" aria-labelledby="h-prior">
-    <h2 id="h-prior">事前分布（任意）</h2>
+    <h2 id="h-prior">設定配分の想定（任意）</h2>
     <label class="prior-toggle">
       <input type="checkbox" id="usePrior">
       店の設定配分の想定を反映する
@@ -222,7 +222,7 @@ footer nav a { margin-right: 10px; }
     <div class="prior-grid" id="priorGrid" hidden></div>
     <p class="prior-note" id="priorNote" hidden>
       重みは比率です（例: 設定6を「3」にすると設定1の「1」の3倍入りやすい想定）。
-      オンにすると、結果のバー上に均等時の値が<span class="tick-sample"></span>で表示され、事前分布の影響を確認できます。
+      オンにすると、結果のバー上に均等時の値が<span class="tick-sample"></span>で表示され、想定の影響を確認できます。
     </p>
   </section>
 
@@ -236,7 +236,7 @@ footer nav a { margin-right: 10px; }
       <div class="pill">設定6<b id="p6">–</b></div>
     </div>
     <p class="tick-legend" id="tickLegend">
-      <span class="tick-sample"></span> は事前分布を使わない場合（均等）の値です。
+      <span class="tick-sample"></span> は設定配分の想定を使わない場合（均等）の値です。
     </p>
     <ul class="warnings" id="warnings"></ul>
     <p class="reliability" id="reliability"></p>
@@ -262,7 +262,7 @@ footer nav a { margin-right: 10px; }
 </footer>
 
 <script type="module">
-import { estimate } from "./js/estimator.js?v=20260827-2";
+import { estimate } from "./js/estimator.js?v=20260922";
 
 const MACHINES = {
   my_juggler_v: "data/machines/my_juggler_v.json",

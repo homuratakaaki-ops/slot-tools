@@ -605,7 +605,7 @@ function renderReplayCountOutput(replayFlash){
       ${replays === 0 ? "" : `
       <p class="note">本表示は対象リプレイ回数とリプフラ回数のみからの確率推定であり、実際のモード・結果を保証するものではありません</p>
       `}
-      <h3>${replays === 0 ? "起点の振り分け" : "モード別の事後確率"}</h3>
+      <h3>${replays === 0 ? "起点の振り分け" : "各モードである可能性"}</h3>
       ${renderModeRows(Object.entries(result.posterior).map(([mode, percent]) => ({ mode, percent })))}
       ${endRecord ? `<div class="note">${escapeHtml(`記録：${endRecord}`)}</div>` : ""}
     </div>
@@ -632,7 +632,7 @@ function renderReplayFlashOutput(){
     outputArea.innerHTML = `
       <div class="result-box">
         <p class="note">実効観測 ${totals.games}G／リプフラ${totals.count}回</p>
-        <h2>事前分布（観測未入力）</h2>
+        <h2>起点の振り分け（観測未入力）</h2>
         ${renderModeRows(Object.entries(prior).map(([mode, percent]) => ({ mode, percent })))}
       </div>
     `;
@@ -898,7 +898,7 @@ function renderReplayFlashSection(){
       <ul>
         <li>当選G数・当選契機によるモード推論（200G以内当選ならチャンス寄り等）は一切組み込んでいない。リプフラ回数と観測G数のみの単純計算</li>
         <li>2区間目以降と進行中区間は、ボーナス後のバタフライ＋ときめき約41Gを自動控除済み（手計算不要）</li>
-        <li>区間を計算から外す使い方は、リールフラッシュ等の別示唆でその区間のモードが異なると判断した場合を想定。事前分布は起点の初期振り分けのまま</li>
+        <li>区間を計算から外す使い方は、リールフラッシュ等の別示唆でその区間のモードが異なると判断した場合を想定。起点の振り分けは初期のまま</li>
         <li>飛翔・超飛翔終了直後から自分で続行して打つ場合は、開始G数に42を入力する（終了直後の約41Gはリプフラ対象外のため）</li>
       </ul>
     </div>
@@ -906,7 +906,7 @@ function renderReplayFlashSection(){
       <ul>
         <li>合算は「全区間で同じモードにいた」と仮定した控えめな値です。途中でモードが上がっていた場合、実際はこれより高くなります</li>
         <li>天井による除外は、現在の区間のG数だけで判定します。過去の区間のG数は記録用です</li>
-        <li>リプレイ回数が少ないうちは、事前分布がほぼそのまま出ます。目安は50回以上</li>
+        <li>リプレイ回数が少ないうちは、起点の振り分けがほぼそのまま出ます。目安は50回以上</li>
         <li>チャンス・通常B・飛翔準備Aはリプフラ率が同じため区別できません。表示は通常A以外の合計です</li>
         <li>当選G数・当選契機によるモード推論（200G以内当選ならチャンス寄り等）は一切組み込んでいない。対象リプレイ回数とリプフラ回数のみの単純計算</li>
       </ul>
