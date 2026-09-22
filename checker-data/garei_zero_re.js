@@ -7,7 +7,8 @@
     watermelon:{1:81.9,2:79.9,3:77.8,4:75.6,5:73.8,6:72.1},
     weakCherry:{1:99.0,2:95.3,3:91.0,4:85.1,5:80.5,6:78.2},
     big:{1:385.5,2:385.5,3:378.8,4:372.4,5:368.2,6:364.1},
-    reg:{1:414.8,2:409.6,3:402.1,4:385.5,5:376.6,6:364.1}
+    reg:{1:414.8,2:409.6,3:402.1,4:385.5,5:376.6,6:364.1},
+    cz:{1:287.2,2:277.6,3:255.6,4:230.3,5:212.6,6:197.8}
   };
   const RATE_PROBS={
     weakCz:{1:.082,2:.082,3:.092,4:.103,5:.111,6:.117},
@@ -30,7 +31,7 @@
     ['female','女性キャラ(赤)','偶数設定 期待度UP',0],
     ['yomi','黄泉悪霊化(紫)','高設定 期待度UP（弱）',0],
     ['mei','冥(紫)','高設定 期待度UP（強）',0],
-    ['yomiMeiSame','黄泉悪霊化＋冥（同一REG）','設定4以上確定演出',4],
+    ['yomiMeiSame','黄泉悪霊化＋冥（同一REG）','設定4以上示唆（暫定）',0],
     ['sanzu','三途河(金)','設定5以上確定演出',5],
     ['sen','1000ちゃん','設定6確定演出',6]
   ];
@@ -127,7 +128,7 @@
     startGames:0,
     currentGames:0,
     games:0,
-    counts:{watermelon:0,weakCherry:0,big:0,reg:0},
+    counts:{watermelon:0,weakCherry:0,big:0,reg:0,cz:0,art:0},
     rates:{weakCzr:0,weakCzw:0,strongCzr:0,strongCzw:0},
     specialBonus:Object.fromEntries(SPECIAL_BONUS.map(v=>[v[0],0])),
     bbScreens:Object.fromEntries(BB_SCREENS.map(v=>[v[0],0])),
@@ -182,7 +183,6 @@
       {label:'BB終了画面 水着',count:n(S.bbScreens,'swim'),exclude:[1,2,3,4,5]},
       {label:'ART終了画面 神楽と黄泉①',count:n(S.artScreens,'kaguraYomi1'),exclude:[1]},
       {label:'ART終了画面 黄泉と冥',count:n(S.artScreens,'yomiMei'),exclude:[1,2,3]},
-      {label:'RBキャラ 黄泉悪霊化＋冥（同一REG）',count:n(S.rbChars,'yomiMeiSame'),exclude:[1,2,3]},
       {label:'RBキャラ 三途河(金)',count:n(S.rbChars,'sanzu'),exclude:[1,2,3,4]},
       {label:'RBキャラ 1000ちゃん',count:n(S.rbChars,'sen'),exclude:[1,2,3,4,5]},
       {label:'特定ボーナス 強チェリー＋RB',count:n(S.specialBonus,'strongCherryRb'),exclude:[1,2,3]},
@@ -200,6 +200,7 @@
       binomial.push({label:'弱チェリー',hit:n(S.counts,'weakCherry'),total:g,probs:denomProbs('weakCherry')});
       binomial.push({label:'BIG',hit:n(S.counts,'big'),total:g,probs:denomProbs('big')});
       binomial.push({label:'REG',hit:n(S.counts,'reg'),total:g,probs:denomProbs('reg')});
+      binomial.push({label:'CZ突入',hit:n(S.counts,'cz'),total:g,probs:denomProbs('cz')});
     }
     if(rateReach(S,'weakCz')>0)binomial.push({label:'弱チェリーCZ当選',hit:rateWin(S,'weakCz'),total:rateReach(S,'weakCz'),probs:RATE_PROBS.weakCz});
     if(rateReach(S,'strongCz')>0)binomial.push({label:'強チェリーCZ当選',hit:rateWin(S,'strongCz'),total:rateReach(S,'strongCz'),probs:RATE_PROBS.strongCz});
@@ -262,11 +263,13 @@
         ${ctx.crow('counts.watermelon','スイカ','設1:1/81.9⇔設6:1/72.1',1,v=>oneIn(v,g))}
         ${ctx.crow('counts.weakCherry','弱チェリー','設1:1/99.0⇔設6:1/78.2',1,v=>oneIn(v,g))}
         ${rateRow(ctx,'weakCz','弱チェリーからのCZ当選','設1・2:8.2%⇔設6:11.7%')}
-        ${rateRow(ctx,'strongCz','強チェリーからのCZ当選','設1・2:25.3%⇔設6:35.9%')}
+        ${rateRow(ctx,'strongCz','強チェリーからのCZ当選','強チェリー出現 設1:1/481.9⇔設6:1/455.1／CZ当選 設1・2:25.3%⇔設6:35.9%')}
         ${ctx.crow('counts.big','BIG','設1:1/385.5⇔設6:1/364.1',1,v=>oneIn(v,g))}
         ${ctx.crow('counts.reg','REG','設1:1/414.8⇔設6:1/364.1',1,v=>oneIn(v,g))}
+        ${ctx.crow('counts.cz','CZ突入（超自然災害モード）','設1:1/287.2⇔設6:1/197.8',1,v=>oneIn(v,g))}
+        ${ctx.crow('counts.art','ART当選（喰霊チャンス）','設1:1/468.6⇔設6:1/279.8',1,v=>oneIn(v,g))}
       </div>
-      <div class="hint">スイカは左リール上段にスイカまたは⑪番のBARが停止した際、中リールに赤7目安でスイカを狙って成立を確認します。左上段にBARが停止した場合は取りこぼしに注意してください。弱チェリーは左リール角チェリー停止かつ右リール中段ベル停止。強チェリーは左リール角チェリー停止かつ右リール中段ベル以外停止です。CZ当選率は通常滞在時のみ記録します。</div>
+      <div class="hint">スイカは左リール上段にスイカまたは⑪番のBARが停止した際、中リールに赤7目安でスイカを狙って成立を確認します。左上段にBARが停止した場合は取りこぼしに注意してください。弱チェリーは左リール角チェリー停止かつ右リール中段ベル停止。強チェリーは左リール角チェリー停止かつ右リール中段ベル以外停止です。CZ当選率は通常滞在時のみ記録します。CZ突入とART当選は契機を問わず、発生したすべての回数を記録してください。ART当選はCZ・ボーナスの結果に連動するため、表示のみで設定推定には使いません。</div>
     </section>
     <section class="sec"><div class="sec-h">特定ボーナス<span class="sub">計${sum(S.specialBonus)}回</span></div>
       <div class="cgrid">${SPECIAL_BONUS.map(c=>ctx.crow('specialBonus.'+c[0],c[1],c[2],c[3])).join('')}</div>
@@ -284,7 +287,7 @@
     </section>
     <section class="sec"><div class="sec-h">RB中のキャラ紹介<span class="sub">計${sum(S.rbChars)}回</span></div>
       <div class="cgrid">${RB_CHARS.map(c=>ctx.crow('rbChars.'+c[0],c[1],c[2],c[3])).join('')}</div>
-      <div class="hint">1回のREGで複数のキャラが紹介されるため、出現したキャラをそれぞれ記録します。黄泉悪霊化（紫）と冥（紫）が同一REG内で揃った場合は、個別の2行に加えて「黄泉悪霊化＋冥（同一REG）」も押してください。1回1キャラの振り分けではないため割合は表示しません。</div>
+      <div class="hint">1回のREGで複数のキャラが紹介されるため、出現したキャラをそれぞれ記録します。黄泉悪霊化（紫）と冥（紫）が同一REG内で揃った場合は、個別の2行に加えて「黄泉悪霊化＋冥（同一REG）」も押してください。この組み合わせは出典が「設定4以上濃厚!?」の暫定表記のため、記録のみで設定推定には使いません。1回1キャラの振り分けではないため割合は表示しません。</div>
     </section>
     <section class="sec"><div class="sec-h">獲得枚数表示<span class="sub">計${sum(S.over)}回</span></div>
       <div class="cgrid">${OVER.map(c=>ctx.crow('over.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,sum(S.over)))).join('')}</div>
@@ -327,7 +330,9 @@
       `弱チェリーCZ▶${rateText(S,'weakCz')}`,
       `強チェリーCZ▶${rateText(S,'strongCz')}`,
       `BIG▶${n(S.counts,'big')}回（${oneIn(n(S.counts,'big'),g)}）`,
-      `REG▶${n(S.counts,'reg')}回（${oneIn(n(S.counts,'reg'),g)}）`
+      `REG▶${n(S.counts,'reg')}回（${oneIn(n(S.counts,'reg'),g)}）`,
+      `CZ突入▶${n(S.counts,'cz')}回（${oneIn(n(S.counts,'cz'),g)}）`,
+      `ART当選▶${n(S.counts,'art')}回（${oneIn(n(S.counts,'art'),g)}）`
     ]);
     t+=section('BB終了画面',sum(S.bbScreens)>0?BB_SCREENS.filter(c=>n(S.bbScreens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.bbScreens,c[0]),sum(S.bbScreens))}`):[]);
     t+=section('ART終了画面',sum(S.artScreens)>0?ART_SCREENS.filter(c=>n(S.artScreens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.artScreens,c[0]),sum(S.artScreens))}`):[]);
@@ -346,7 +351,9 @@
         detailRatio('弱チェリーCZ',rateWin(S,'weakCz'),rateReach(S,'weakCz'),1),
         detailRatio('強チェリーCZ',rateWin(S,'strongCz'),rateReach(S,'strongCz'),1),
         {label:'BIG',value:n(S.counts,'big'),hot:true,text:'BIG '+oneIn(n(S.counts,'big'),g),show:n(S.counts,'big')>0},
-        {label:'REG',value:n(S.counts,'reg'),hot:true,text:'REG '+oneIn(n(S.counts,'reg'),g),show:n(S.counts,'reg')>0}
+        {label:'REG',value:n(S.counts,'reg'),hot:true,text:'REG '+oneIn(n(S.counts,'reg'),g),show:n(S.counts,'reg')>0},
+        {label:'CZ突入',value:n(S.counts,'cz'),hot:true,text:'CZ突入 '+oneIn(n(S.counts,'cz'),g),show:n(S.counts,'cz')>0},
+        {label:'ART当選',value:n(S.counts,'art'),hot:true,text:'ART当選 '+oneIn(n(S.counts,'art'),g),show:n(S.counts,'art')>0}
       ]},
       {title:'BB終了画面',items:detailItems(BB_SCREENS,S.bbScreens),percent:true},
       {title:'ART終了画面',items:detailItems(ART_SCREENS,S.artScreens),percent:true},
