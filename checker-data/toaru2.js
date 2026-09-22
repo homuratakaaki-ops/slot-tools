@@ -13,7 +13,8 @@ function detail(ctx){
       {title:'CZ・AT終了時 アイコン',items:detailItems(ICONS,S.icons),denominator:iconN},
       {title:'藤丸コイン（AT終了画面）',items:detailItems(COINS,S.coins)},
       {title:'AT終了画面',items:detailItems(SCREENS,S.screens),denominator:scN},
-      {title:'ED中 お知らせ演出',items:detailItems(ED,S.ed),denominator:edN}
+      {title:'ED中 お知らせ演出',items:detailItems(ED,S.ed),denominator:edN},
+      {title:'獲得枚数表示',items:detailItems(OVER,S.over)}
     ];
   }
   window.CheckerConfigs=window.CheckerConfigs||{};
@@ -27,6 +28,7 @@ function detail(ctx){
     ed:{e1:0,e2:0,e3:0,e4:0,e5:0,e6:0,e7:0,e8:0,e9:0},
     icons:{blue:0,green:0,red:0,gold:0,none:0},
     coins:{cu:0,ag:0,au:0,dg:0,rb:0},
+    over:{o174:0,o246:0,o456:0,o666:0},
     img:null,
     iconChoice:null
   };
@@ -64,6 +66,14 @@ function detail(ctx){
     ['au','藤丸コイン 金','設定4以上 濃厚',1],
     ['dg','藤丸コイン デンジャー柄','設定5以上 濃厚',1],
     ['rb','藤丸コイン 虹','設定6 濃厚',1]
+  ];
+  // 獲得枚数表示（出典: ちょんぼりすた様、2026/9/22 再取得）。
+  // 示唆内容ごとに出典の表がまとめている4行をそのまま行にする。
+  const OVER=[
+    ['o174','174枚OVER','設定2以上 濃厚',1],
+    ['o246','246枚OVER','設定2・4・6 濃厚',1],
+    ['o456','456枚・1456枚OVER','設定4以上 濃厚',1],
+    ['o666','220枚・666枚・777枚・1666枚・1777枚OVER','設定6 濃厚',1]
   ];
   function pageZones(ctx){
     const total=ZONES.reduce((a,z)=>a+ctx.S.zones[z],0);
@@ -107,6 +117,7 @@ function detail(ctx){
     const scN=Object.values(ctx.S.screens).reduce((a,b)=>a+b,0);
     const edN=Object.values(ctx.S.ed).reduce((a,b)=>a+b,0);
     const iconN=Object.values(ctx.S.icons).reduce((a,b)=>a+b,0);
+    const ovN=Object.values(ctx.S.over).reduce((a,b)=>a+b,0);
     return `
   <section class="sec"><div class="sec-h">CZ・AT終了時 アイコン</div>
     <div class="cgrid">${ICONS.map(c=>ctx.crow('icons.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,iconN))).join('')}</div></section>
@@ -115,7 +126,10 @@ function detail(ctx){
   <section class="sec"><div class="sec-h">藤丸コイン（AT終了画面）</div>
     <div class="cgrid">${COINS.map(c=>ctx.crow('coins.'+c[0],c[1],c[2],c[3])).join('')}</div></section>
   <section class="sec"><div class="sec-h">ED中 お知らせ演出<span class="sub">計${edN}回</span></div>
-    <div class="cgrid">${ED.map(c=>ctx.crow('ed.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,edN))).join('')}</div></section>`;
+    <div class="cgrid">${ED.map(c=>ctx.crow('ed.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,edN))).join('')}</div></section>
+  <section class="sec"><div class="sec-h">獲得枚数表示<span class="sub">計${ovN}回</span></div>
+    <div class="cgrid">${OVER.map(c=>ctx.crow('over.'+c[0],c[1],c[2],c[3])).join('')}</div>
+    <div class="hint">AT終了時の獲得枚数表示が該当のゾロ目・特定数字を超えていたら記録します。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。</div></section>`;
   }
   function tplText(ctx){
     const czN=ctx.S.cz.rg+ctx.S.cz.ac,atczN=ctx.S.atcz.gab+ctx.S.atcz.useki;
@@ -132,6 +146,8 @@ function detail(ctx){
     t+=`\n■エンディング中お知らせ演出\n`;
     const edN=Object.values(ctx.S.ed).reduce((a,b)=>a+b,0);
     ED.forEach(c=>{t+=`${c[1]}▶︎ ${p(ctx.S.ed[c[0]],edN)}\n`;});
+    t+=`\n■獲得枚数表示\n`;
+    OVER.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.over[c[0]]}回\n`;});
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
@@ -155,6 +171,7 @@ function detail(ctx){
     t+=sec('AT終了画面',scN>0?SCREENS.filter(c=>ctx.S.screens[c[0]]>0).map(c=>`${c[1]}▶︎ ${p(ctx.S.screens[c[0]],scN)}`):[]);
     const edN=Object.values(ctx.S.ed).reduce((a,b)=>a+b,0);
     t+=sec('エンディング中お知らせ演出',edN>0?ED.filter(c=>ctx.S.ed[c[0]]>0).map(c=>`${c[1]}▶︎ ${p(ctx.S.ed[c[0]],edN)}`):[]);
+    t+=sec('獲得枚数表示',OVER.filter(c=>ctx.S.over[c[0]]>0).map(c=>`${c[1]}▶︎ ${ctx.S.over[c[0]]}回`));
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
     return t;
   }
@@ -163,6 +180,7 @@ function detail(ctx){
     nanaCollab:true,
     storageKey:'toaru2-checker-v1',
     defaults:DEF,
+    mergeKeys:['zones','cz','atcz','screens','ed','icons','coins','over'],
     sourceUrl:'https://chonborista.com/slot/fuji-slot/260325/',
     share:{
       title:'Lとある魔術の禁書目録2 設定判別メモ',
