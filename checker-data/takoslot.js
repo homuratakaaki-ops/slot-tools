@@ -188,7 +188,7 @@
     return `<section class="sec">
     <div class="sec-h">BB終了画面<span class="sub">計${sum(S.screens)}回</span></div>
     <div class="cgrid">${BB_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,sum(S.screens)))).join('')}</div>
-    <div class="hint">BB終了画面のレアパターンは専用の行に記録。タコゲームに一度も入賞しなかったBBの終了画面がレアパターンだった場合は、専用の行（設定2以上）で記録してください。通常のレアパターン行と重複カウントは不要です。</div>
+    <div class="hint">タコゲーム未入賞時のレア画面は専用の行に記録。タコゲームに一度も入賞しなかったBBの終了画面がレアパターンだった場合は、専用の行（設定2以上）で記録してください。通常のレアパターン行と重複カウントは不要です。</div>
     <div class="hint">ユニメモはこのツールでは通常回転数（分母）と小役確率の入力に使います。BB終了画面は出るたびにこちらで記録してください。同じ遊技分の分母と示唆が揃い、初当り確率と終了画面を突き合わせて見られます。</div>
   </section>
   <section class="sec">
