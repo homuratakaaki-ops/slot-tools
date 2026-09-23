@@ -287,6 +287,11 @@
     <style>
       .cycle-row .ct{flex:1;min-width:0}
       .cycle-row .ct b,.cycle-row .ct small{display:block}
+      /* 文字サイズは明示して固定する（ブラウザ既定に依存させない）。
+         b は現状と同じ16px。small は既定の約13.3px・本文色だったので、
+         他機種のサブと同じ 13px・淡色にそろえる。 */
+      .cycle-row .ct b{font-size:16px}
+      .cycle-row .ct small{font-size:13px;color:var(--muted)}
       .cycle-row .ct small:empty{display:none}
       .cycle-row .pct{min-width:104px;text-align:right;color:#ffc94d;font-size:12px;white-space:nowrap}
       .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
@@ -393,6 +398,9 @@
   }
 
   window.CheckerConfigs.monkey5={
+    // 実戦中のUI（タブごとのスクロール位置・説明の折りたたみ・データリセット・
+    // 44pxのタップ領域・入力欄のラベル）。2026-09-24 に全機種へ展開。
+    uiV2:true,
     nanaCollab:false,
     storageKey:'monkey5-checker-v1',
     defaults:DEF,

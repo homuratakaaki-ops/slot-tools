@@ -422,6 +422,9 @@
   }
 
   window.CheckerConfigs.jashinchan={
+    // 実戦中のUI（タブごとのスクロール位置・説明の折りたたみ・データリセット・
+    // 44pxのタップ領域・入力欄のラベル）。2026-09-24 に全機種へ展開。
+    uiV2:true,
     nanaCollab:false,
     storageKey:'jashinchan-checker-v3',
     defaults:DEF,

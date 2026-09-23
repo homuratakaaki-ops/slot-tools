@@ -123,6 +123,11 @@
       .cycle-row .num{min-width:38px}
       .cycle-row .ct{flex:1;min-width:0}
       .cycle-row .ct b,.cycle-row .ct small{display:block}
+      /* 文字サイズは明示して固定する（ブラウザ既定に依存させない）。
+         b は現状と同じ16px。small は既定の約13.3px・本文色だったので、
+         他機種のサブと同じ 13px・淡色にそろえる。 */
+      .cycle-row .ct b{font-size:16px}
+      .cycle-row .ct small{font-size:13px;color:var(--muted)}
       .cycle-row .pct{min-width:92px;text-align:right}
       .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
       .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
@@ -243,6 +248,9 @@
   }
 
   window.CheckerConfigs.godeater={
+    // 実戦中のUI（タブごとのスクロール位置・説明の折りたたみ・データリセット・
+    // 44pxのタップ領域・入力欄のラベル）。2026-09-24 に全機種へ展開。
+    uiV2:true,
     nanaCollab:true,
     storageKey:'godeater-checker-v1',
     defaults:DEF,
