@@ -2,23 +2,34 @@
   'use strict';
   window.CheckerConfigs=window.CheckerConfigs||{};
 
+  // EP3＝高設定示唆(弱)／EP4＝高設定示唆(強)は3系統とも共通。
+  // 出典: ちょんぼりすた様 https://chonborista.com/slot/sammy-slot/261631/（2026-09-23 取得）
   const PROLOGUE=[
     ['ep1','EP1','Time will tell①／デフォルト',0,'P1'],
     ['ep2','EP2','The more the merrier／デフォルト',0,'P2'],
-    ['ep3','EP3','Repay evil with evil／示唆調査中',0,'P3'],
-    ['ep4','EP4','Time will tell②／示唆調査中',0,'P4']
+    ['ep3','EP3','Repay evil with evil／高設定示唆(弱)',0,'P3'],
+    ['ep4','EP4','Time will tell②／高設定示唆(強)',0,'P4']
   ];
   const RUSH_EP=[
     ['ep1','EP1','Easy does it／デフォルト',0,'R1'],
     ['ep2','EP2','Nothing seek, nothing find／デフォルト',0,'R2'],
-    ['ep3','EP3','Opposites attract／調査中',0,'R3'],
-    ['ep4','EP4','Recoil of Lycoris -side千束＆真島-／調査中',0,'R4']
+    ['ep3','EP3','Opposites attract／高設定示唆(弱)',0,'R3'],
+    ['ep4','EP4','Recoil of Lycoris -side千束＆真島-／高設定示唆(強)',0,'R4']
   ];
   const W_EP=[
     ['ep1','EP1','More haste, less speed／デフォルト',0,'W1'],
     ['ep2','EP2','So far, so good／デフォルト',0,'W2'],
-    ['ep3','EP3','-sideリコリコ-／調査中',0,'W3'],
-    ['ep4','EP4','-sideハワイ-／調査中',0,'W4']
+    ['ep3','EP3','-sideリコリコ-／高設定示唆(弱)',0,'W3'],
+    ['ep4','EP4','-sideハワイ-／高設定示唆(強)',0,'W4']
+  ];
+  // 筐体上部ランプの色。[id, UI表示名, サブラベル, rank, カード略号]
+  // 発光のたびにいずれか1色なので §9-90 の割合表示の対象。
+  // 出典: ちょんぼりすた様（2026-09-23 取得）。青と黄は同じ「デフォルト」（原文は rowspan で1セル）。
+  const LAMP=[
+    ['blue','青','デフォルト',0,'青'],
+    ['yellow','黄','デフォルト',0,'黄'],
+    ['green','緑','高設定示唆(弱)',0,'緑'],
+    ['red','赤','高設定示唆(強)',0,'赤']
   ];
   const TROPHY=[
     ['bronze','銅トロフィー','設定2以上確定演出',2,'銅'],
@@ -39,18 +50,31 @@
   const BONUS_ART=[
     ['appear','一枚絵出現','示唆調査中',0,'絵']
   ];
-  // [id, UI表示名, サブラベル, rank, カード略号, テンプレ表記]
-  // テンプレ表記の全角スペースは、なな様テンプレの ▶︎ 位置を揃えるための原文どおりの詰め物。
-  // 私服の「矛盾で設定4以上確定」は、RUSH中のキャラを記録していないため
-  // 確定演出としては集計できない。rank は 0 に置き、注記をサブラベルに持たせる。
+  // [id, UI表示名, サブラベル, rank, カード略号]
+  // 私服はリコリスラッシュ中のキャラとの一致／矛盾で示唆が変わるため行を分ける。
+  // 矛盾は設定4以上濃厚なので rank 4 を持たせ、確定演出の集計とグラフに乗せる。
+  // 出典: ちょんぼりすた様（2026-09-23 取得）。たきな時の千束私服／千束時のたきな私服が「矛盾」。
   const AT_END=[
-    ['def','デフォルト（2パターン）','デフォルト',0,'デ','デフォ(2ﾊﾟﾀｰﾝ)'],
-    ['takina','たきな私服','高設定示唆(弱)・RUSH中のキャラと矛盾で設定4以上確定',0,'た','たきな私服　　'],
-    ['chisato','千束私服','高設定示唆(弱)・RUSH中のキャラと矛盾で設定4以上確定',0,'千','千束私服　　　'],
-    ['dress','ドレスコード','高設定示唆(強)',0,'ド','ドレスコード　'],
-    ['kitaoshiage','北押上の風景','設定2以上確定演出',2,'北','北押上の風景　'],
-    ['robota','ロボ太','設定4以上確定演出',4,'ロ','ロボ太　　　　'],
-    ['hawaii','ハワイ','設定6確定演出',6,'ハ','ハワイ🌺　　　']
+    ['def','デフォルト（2パターン）','デフォルト',0,'デ'],
+    ['takinaMatch','たきな私服(一致)','高設定示唆(弱)',0,'た一'],
+    ['takinaMiss','たきな私服(矛盾)','設定4以上確定演出',4,'た矛'],
+    ['chisatoMatch','千束私服(一致)','高設定示唆(弱)',0,'千一'],
+    ['chisatoMiss','千束私服(矛盾)','設定4以上確定演出',4,'千矛'],
+    ['dress','ドレスコード','高設定示唆(強)',0,'ド'],
+    ['kitaoshiage','北押上の風景','設定2以上確定演出',2,'北'],
+    ['robota','ロボ太','設定4以上確定演出',4,'ロ'],
+    ['hawaii','ハワイ','設定6確定演出',6,'ハ']
+  ];
+  // テンプレ出力の行（§9-95：なな様の書式は変えない）。[テンプレ表記, 合算するキー]
+  // 私服は一致と矛盾を1行にまとめて出す。全角スペースは ▶︎ 位置を揃えるための原文どおりの詰め物。
+  const AT_END_TPL=[
+    ['デフォ(2ﾊﾟﾀｰﾝ)',['def']],
+    ['たきな私服　　',['takinaMatch','takinaMiss']],
+    ['千束私服　　　',['chisatoMatch','chisatoMiss']],
+    ['ドレスコード　',['dress']],
+    ['北押上の風景　',['kitaoshiage']],
+    ['ロボ太　　　　',['robota']],
+    ['ハワイ🌺　　　',['hawaii']]
   ];
   // [id, UI表示名, テンプレ表記]
   // 分母(cd)＝変換した回数 / 分子(cn)＝そこからCZに当選した回数。
@@ -99,6 +123,7 @@
     g150:{d:0,n:0},
     art:Object.fromEntries(BONUS_ART.map(v=>[v[0],0])),
     atEnd:Object.fromEntries(AT_END.map(v=>[v[0],0])),
+    lamp:Object.fromEntries(LAMP.map(v=>[v[0],0])),
     img:null,
     iconChoice:null
   };
@@ -224,6 +249,9 @@
       d:topDenom(S),n:topHit(S),winLabel:'突入',missLabel:'非突入'});
   }
   function rankText(rank){return rank===6?'6確定':rank+'以上';}
+  // 終了画面の合計。旧キー（takina / chisato）は移行後も state に残す（§9-59）ため、
+  // sum() ではなく現行の行だけを足す。割合表示の分母もこれを使う。
+  function atEndTotal(S){return AT_END.reduce((a,c)=>a+n(S.atEnd,c[0]),0);}
   function allCert(S){
     return [
       ...TROPHY.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.trophy,c[0]),rank:c[3],order:10+c[3]})),
@@ -377,17 +405,17 @@
     return `<section class="sec">
     <div class="sec-h">プロローグエピソード<span class="sub">計${sum(S.prologue)}回</span></div>
     <div class="cgrid">${PROLOGUE.map(c=>ctx.crow('prologue.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.prologue)))).join('')}</div>
-    <div class="hint">プロローグで発生したエピソードを記録します。EP3・EP4の示唆内容は解析待ちです。</div>
+    <div class="hint">プロローグで発生したエピソードを記録します。EP3が高設定示唆(弱)、EP4が高設定示唆(強)です。エピソード名は表示されないため、内容や画像で判断してください。</div>
   </section>
   <section class="sec">
     <div class="sec-h">RUSH中エピソードボーナス<span class="sub">計${sum(S.rush)}回</span></div>
     <div class="cgrid">${RUSH_EP.map(c=>ctx.crow('rush.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.rush)))).join('')}</div>
-    <div class="hint">RUSH中のエピソードボーナスで発生したエピソードを記録します。EP3・EP4の示唆内容は解析待ちです。</div>
+    <div class="hint">RUSH中のエピソードボーナスで発生したエピソードを記録します。EP3が高設定示唆(弱)、EP4が高設定示唆(強)です。エピソード名は液晶左上に表示されます。</div>
   </section>
   <section class="sec">
     <div class="sec-h">W中エピソードボーナス<span class="sub">計${sum(S.wep)}回</span></div>
     <div class="cgrid">${W_EP.map(c=>ctx.crow('wep.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.wep)))).join('')}</div>
-    <div class="hint">W中のエピソードボーナスで発生したエピソードを記録します。EP3・EP4の示唆内容は解析待ちです。</div>
+    <div class="hint">W中のエピソードボーナスで発生したエピソードを記録します。EP3が高設定示唆(弱)、EP4が高設定示唆(強)です。エピソード名は液晶左上に表示されます。</div>
   </section>
   <section class="sec">
     <div class="sec-h">上位AT突入時の最強特化ゾーン<span class="sub">${topText(S)}</span></div>
@@ -417,9 +445,14 @@
     <div class="cgrid">${BONUS_ART.map(c=>ctx.crow('art.'+c[0],c[1],c[2],0)).join('')}</div>
   </section>
   <section class="sec">
-    <div class="sec-h">AT終了画面<span class="sub">計${sum(S.atEnd)}回</span></div>
-    <div class="cgrid">${AT_END.map(c=>ctx.crow('atEnd.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,sum(S.atEnd)))).join('')}</div>
-    <div class="hint">私服画面は、RUSH中のキャラ(たきな/千束)と異なるキャラの私服が出た場合に設定4以上確定です。上位ST終了後の私服はいずれも高設定示唆(弱)です。</div>
+    <div class="sec-h">AT終了画面<span class="sub">計${atEndTotal(S)}回</span></div>
+    <div class="cgrid">${AT_END.map(c=>ctx.crow('atEnd.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,atEndTotal(S)))).join('')}</div>
+    <div class="hint">RUSH中と同じキャラの私服なら一致、違えば矛盾。リコリスラッシュ中のキャラ(たきな/千束)と同じキャラの私服なら一致、違うキャラなら矛盾で記録してください。上位ST(リコリスラッシュW)終了後の私服は、キャラを問わず一致側で記録します(設定4以上の判別には使えないため)。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">筐体上部ランプの色<span class="sub">計${sum(S.lamp)}回</span></div>
+    <div class="cgrid">${LAMP.map(c=>ctx.crow('lamp.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.lamp)))).join('')}</div>
+    <div class="hint">エンディング中のレア役成立時、またはST中に1000pt到達後のボーナス消化中のレア役成立時に、筐体上部のランプが発光して設定を示唆します。</div>
   </section>`;
   }
 
@@ -457,7 +490,8 @@
     });
     // 終了画面の見出し注記は なな様v2 原文どおり（示唆が判明したため復活させた）
     L.push('',`■ボーナス中一枚絵▶︎ ${countLine(sum(S.art))}`,'','■終了画面(私服はﾗｯｼｭとｷｬﾗ矛盾で456)');
-    AT_END.forEach(c=>L.push(`${c[5]}▶︎ ${countLine(n(S.atEnd,c[0]))}`));
+    // 私服は一致＋矛盾の合計を1行で出す（なな様の行構成を変えない・§9-95）
+    AT_END_TPL.forEach(t=>L.push(`${t[0]}▶︎ ${countLine(t[1].reduce((a,k)=>a+n(S.atEnd,k),0))}`));
     if(sum(S.trophy)>0){
       L.push('','■サミートロフィー');
       TROPHY.filter(c=>n(S.trophy,c[0])>0)
@@ -506,7 +540,9 @@
       {title:'サミートロフィー',items:detailItems(TROPHY,S.trophy)},
       {title:'規定ゲーム数',items:ZONES.map(z=>({label:z[1],value:rateWin(S,z[0]),hot:false,text:`${z[1]} ${rateWin(S,z[0])}/${rateReach(S,z[0])}`,show:rateReach(S,z[0])>0}))},
       {title:'ボーナス中一枚絵',items:detailItems(BONUS_ART,S.art)},
-      {title:'AT終了画面',items:detailItems(AT_END,S.atEnd),percent:true}
+      // 詳細カードは一致／矛盾を分けて出す（テンプレは合算・§9-95）
+      {title:'AT終了画面',items:detailItems(AT_END,S.atEnd),percent:true},
+      {title:'筐体上部ランプ',items:detailItems(LAMP,S.lamp),percent:true}
     ];
   }
 
@@ -517,7 +553,7 @@
     uiV2:true,
     storageKey:'ricorico-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','prologue','rush','wep','trophy','rates','conv','top','g150','art','atEnd'],
+    mergeKeys:['counts','prologue','rush','wep','trophy','rates','conv','top','g150','art','atEnd','lamp'],
     sourceUrl:'https://chonborista.com/slot/sammy-slot/261631/',
     actions:{
       // 入力ソースの切替。カウンタではないので減算モードでも同じ動作をする（値は消さない）。
@@ -537,7 +573,14 @@
       // storageKey は v1 のまま（キー追加のみ）。
       if((src||{}).gamesMyslo===undefined&&!out.gamesMyslo)out.gamesMyslo=num((src||{}).games);
       out.games=denom(out);
-      ['counts','prologue','rush','wep','trophy','art','atEnd'].forEach(key=>normalizeCounterObject(out,key));
+      ['counts','prologue','rush','wep','trophy','art','atEnd','lamp'].forEach(key=>normalizeCounterObject(out,key));
+      // 私服の一致／矛盾への分割（2026-09-23）。旧キーは矛盾かどうかを判別できないため、
+      // 確定演出に数えない「一致」側へ寄せる（安全側）。新キーが保存データに無いときだけ移す
+      // ので、移行後の再読み込みで二重に足さない。旧キーは消さずに残す（§9-59）。
+      const srcAtEnd=(src||{}).atEnd||{};
+      [['takina','takinaMatch'],['chisato','chisatoMatch']].forEach(pair=>{
+        if(srcAtEnd[pair[1]]===undefined)out.atEnd[pair[1]]=Math.max(0,Number(srcAtEnd[pair[0]])||0);
+      });
       out.rates=Object.assign({},DEF.rates,out.rates||{});
       Object.keys(out.rates).forEach(k=>{out.rates[k]=Math.max(0,Number(out.rates[k])||0);});
       ZONES.forEach(z=>{if(out.rates[z[0]+'w']>out.rates[z[0]+'r'])out.rates[z[0]+'r']=out.rates[z[0]+'w'];});
@@ -604,8 +647,10 @@
         const S=ctx.S,g=syncGames(S);
         return {
           title:'サマリー',
-          startY:760,
-          rowGap:44,
+          // 右列が6行になったので行間を詰める。最終行 752+5*36=932 で、
+          // フッタ（slot-tools.jp・y=976）に掛からない上限 936 の内側に収める。
+          startY:752,
+          rowGap:36,
           fontSize:23,
           columns:[
             {x:70,items:[
@@ -621,7 +666,8 @@
               row(shown('トロフィー',[['銅',n(S.trophy,'bronze')],['銀',n(S.trophy,'silver')],['金',n(S.trophy,'gold')],['キ',n(S.trophy,'kirin')],['虹',n(S.trophy,'rainbow')]]),sum(S.trophy)),
               row(shown('プロローグ',[['1',n(S.prologue,'ep1')],['2',n(S.prologue,'ep2')],['3',n(S.prologue,'ep3')],['4',n(S.prologue,'ep4')]]),sum(S.prologue)),
               row(shown('RUSH中EP',[['1',n(S.rush,'ep1')],['2',n(S.rush,'ep2')],['3',n(S.rush,'ep3')],['4',n(S.rush,'ep4')]]),sum(S.rush)),
-              row(shown('W中EP',[['1',n(S.wep,'ep1')],['2',n(S.wep,'ep2')],['3',n(S.wep,'ep3')],['4',n(S.wep,'ep4')]]),sum(S.wep))
+              row(shown('W中EP',[['1',n(S.wep,'ep1')],['2',n(S.wep,'ep2')],['3',n(S.wep,'ep3')],['4',n(S.wep,'ep4')]]),sum(S.wep)),
+              row(shown('上部ランプ',LAMP.map(c=>[c[4],n(S.lamp,c[0])])),sum(S.lamp))
             ]}
           ]
         };
