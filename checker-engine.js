@@ -43,6 +43,10 @@
     const FileCtor=env.File||window.File;
     const FileReaderCtor=env.FileReader||window.FileReader;
     const NANA_COLLAB=!!config.nanaCollab;
+    // 実戦中のUI（タブごとのスクロール位置・説明の折りたたみ・データ操作・44pxのタップ領域・
+    // 入力欄のラベル）。機種データの uiV2:true を付けた機種だけに適用する。
+    // フラグを外せば全機種に広げられる（2026-09-23 はリコリコのみ適用の裁定）。
+    const UI_V2=!!config.uiV2;
     const DEF=config.defaults;
     const mergeKeys=config.mergeKeys||['zones','cz','atcz','screens','ed','icons','coins'];
     const historyRules=config.historyRules||[];
@@ -55,6 +59,15 @@
     let cardImg=null;
     let jumpReturnTop=null;
     let detailReady=false;
+    // タブごとのスクロール位置と「↑戻る」の戻り先。ページを開いている間だけ持つ（永続化しない）。
+    // 初めて開くタブは未登録＝先頭表示になる。
+    const tabScroll=Object.create(null);
+    const tabJumpReturn=Object.create(null);
+    // タブ切替の復元先。null のときは現在位置を保つ（カウント時の再描画）。
+    let pendingScrollTop=null;
+    // 再描画をまたいで開閉を保つ。データ操作は1つ、説明は本文から作る安定キーで持つ。
+    let dataOpsOpen=false;
+    const hintOpen=Object.create(null);
 
     function nanaCreditText(kind){
       if(NANA_COLLAB){
@@ -128,6 +141,39 @@
 .jump-nav button{flex:none;font-family:var(--body);min-height:36px;padding:6px 12px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--cyan);font-size:11px;font-weight:800;white-space:nowrap}
 .jump-back{position:fixed;left:12px;bottom:calc(52px + env(safe-area-inset-bottom));z-index:80;min-height:40px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-family:var(--body);font-size:12px;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,.5)}
 .jump-back[hidden]{display:none}
+`;
+      document.head.appendChild(st);
+    }
+    // uiV2 のUI土台。各HTMLの <style> より後に差し込むので、同一詳細度なら後勝ちで効く。
+    // タップ領域は min-* で底上げするため、既に44px以上ある要素（.act=45px、.srcchip=48px 等）は変わらない。
+    // ジャンプナビ・↑上へは ensureJumpStyle の既定値（36px / 40px・下から52px）をここで上書きする。
+    function ensureUiStyle(){
+      if(document.getElementById('checker-ui-style'))return;
+      const st=document.createElement('style');
+      st.id='checker-ui-style';
+      st.textContent=`
+.jump-nav button{min-height:44px}
+.jump-back{min-height:44px;bottom:calc(54px + env(safe-area-inset-bottom))}
+.crow .plus{min-width:44px;min-height:44px}
+.hd-btn{min-height:44px}
+nav button{min-height:44px}
+#main button{min-height:44px}
+#main input{min-height:44px}
+.hint details.hint-fold{margin-top:2px}
+.hint details.hint-fold>summary{display:inline-flex;align-items:center;min-height:44px;color:var(--cyan);font-weight:700;cursor:pointer;list-style:none}
+.hint details.hint-fold>summary::-webkit-details-marker{display:none}
+.hint details.hint-fold>summary::before{content:'▾ ';margin-right:2px}
+.hint details.hint-fold[open]>summary::before{content:'▴ '}
+.hint details.hint-fold>.hint-body{padding-bottom:2px}
+/* 下端の余白は「↑ 上へ」（fixed・下から98pxまで）がリセットに重ならない高さを確保するため */
+.dataops{margin:18px 0 76px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.dataops>summary{display:flex;align-items:center;min-height:44px;padding:0 12px;font-size:12px;font-weight:800;color:var(--muted);cursor:pointer;list-style:none}
+.dataops>summary::-webkit-details-marker{display:none}
+.dataops>summary::before{content:'▾ ';margin-right:4px}
+.dataops[open]>summary::before{content:'▴ '}
+.dataops-body{padding:0 12px 12px}
+.dataops-body .hint{margin-top:0;margin-bottom:8px}
+#resetBtn.dataops-reset{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--danger);background:rgba(255,92,92,.12);color:var(--danger);font-family:var(--body);font-size:13px;font-weight:800}
 `;
       document.head.appendChild(st);
     }
@@ -210,6 +256,132 @@
         nav.appendChild(b);
       });
       main.insertBefore(nav,main.firstChild);
+    }
+
+    // ---- 説明文の折りたたみ ----
+    // 操作に必要な短い先頭文だけを行内に残し、背景・出典・計算の説明を「説明を見る」に畳む。
+    // 先頭から「短い文」が続く範囲を行内に残し、そこから後ろを畳む。閾値は全角の文字数。
+    const HINT_FOLD_MIN=60;    // 全体がこれ未満の説明はそのまま出す
+    const HINT_LEAD_MAX=30;    // 行内に残せる1文の長さ
+    const HINT_LEAD_TOTAL=40;  // 行内に残せる合計
+    const HINT_TAIL_MIN=30;    // 畳む側がこれ未満なら畳まない
+    function hintKey(text){
+      // 再描画をまたいで開閉を保つための安定キー。本文が変わらない限り同じ値になる。
+      let h=0;
+      for(let i=0;i<text.length;i++)h=(h*31+text.charCodeAt(i))|0;
+      return 'h'+(h>>>0).toString(36);
+    }
+    function sentences(text){
+      const out=[];
+      let start=0;
+      for(let i=0;i<text.length;i++){
+        if(text[i]==='。'){out.push(text.slice(start,i+1));start=i+1;}
+      }
+      if(start<text.length)out.push(text.slice(start));
+      return out;
+    }
+    function foldHints(main){
+      main.querySelectorAll('.hint').forEach(el=>{
+        if(el.classList.contains('warn'))return;            // 警告は常に見えるままにする
+        if(el.dataset.fold==='no')return;                   // 機種側で畳まない指定
+        if(el.children.length)return;                       // リンク・強調を含む説明は触らない
+        const raw=el.textContent.trim();
+        if(raw.length<HINT_FOLD_MIN)return;
+        const parts=sentences(raw);
+        let lead='',i=0;
+        for(;i<parts.length;i++){
+          const s=parts[i].trim();
+          if(s.length>HINT_LEAD_MAX)break;
+          if(lead.length+s.length>HINT_LEAD_TOTAL)break;
+          lead+=s;
+        }
+        const tail=parts.slice(i).join('').trim();
+        if(tail.length<HINT_TAIL_MIN)return;
+        const key=hintKey(raw);
+        el.textContent=lead;
+        const d=document.createElement('details');
+        d.className='hint-fold';
+        d.dataset.foldKey=key;
+        if(hintOpen[key])d.open=true;
+        const sm=document.createElement('summary');
+        sm.textContent='説明を見る';
+        const body=document.createElement('div');
+        body.className='hint-body';
+        body.textContent=tail;
+        d.appendChild(sm);
+        d.appendChild(body);
+        el.appendChild(d);
+      });
+    }
+
+    // ---- 数値入力欄のラベル付け ----
+    // 見た目は変えず、label と id を結び付けて読み上げ名を与える。
+    // 名前は「欄グループ（data-field-group）＋小見出し（.gpair-h）＋欄の文字」で組み立てる。
+    function headingText(el){
+      if(!el)return '';
+      const first=el.firstChild;
+      const t=first&&first.nodeType===3?first.textContent:el.textContent;
+      return (t||'').trim();
+    }
+    function labelNumberInputs(main){
+      main.querySelectorAll('.inrow input,.gcell input,input[data-number-key],input[data-state-path]').forEach(inp=>{
+        if(inp.type==='file')return;
+        if(!inp.id){
+          const base=inp.dataset.numberKey||inp.dataset.statePath||'';
+          inp.id=base?'chk-in-'+base.replace(/[^A-Za-z0-9_-]/g,'-'):'chk-in-'+hintKey(inp.outerHTML);
+        }
+        let own='';
+        const wrap=inp.closest('label');
+        if(wrap){
+          own=wrap.textContent.trim();
+          if(!wrap.htmlFor)wrap.htmlFor=inp.id;
+        }else{
+          const prev=inp.previousElementSibling;
+          let lab=prev&&prev.tagName==='LABEL'?prev:null;
+          // 間にボタンが挟まる行（例: 「打ち始めと同じにする」）は直前の兄弟がラベルにならない。
+          // 欄が1つだけの行に限り、その行のラベルを引き当てる。
+          if(!lab){
+            const row=inp.parentElement;
+            if(row&&row.querySelectorAll('input').length===1){
+              const cand=row.querySelector('label');
+              if(cand&&!cand.htmlFor)lab=cand;
+            }
+          }
+          if(lab){
+            own=lab.textContent.trim();
+            if(!lab.htmlFor)lab.htmlFor=inp.id;
+          }
+        }
+        if(inp.getAttribute('aria-label'))return;
+        const group=inp.closest('[data-field-group]');
+        const pair=inp.closest('.gpair');
+        const name=[group?group.dataset.fieldGroup:'',headingText(pair?pair.querySelector('.gpair-h'):null),own]
+          .filter(Boolean).join(' ').trim();
+        if(name)inp.setAttribute('aria-label',name);
+      });
+    }
+
+    // 再描画で作り直す前に、いま開いている折りたたみを控える。
+    // toggle イベントは非同期に飛ぶため、描画直前にDOMから読む方が取りこぼさない。
+    function captureFoldState(main){
+      main.querySelectorAll('details.hint-fold').forEach(d=>{
+        if(d.dataset.foldKey)hintOpen[d.dataset.foldKey]=d.open;
+      });
+      const dops=main.querySelector('#dataOps');
+      if(dops)dataOpsOpen=dops.open;
+    }
+    // ---- データ操作（リセット）----
+    // 実戦中に触れないよう、ヘッダーから外して最初のタブの最下部に畳んで置く。
+    // 2度押しの確認は従来どおり reset() が持つ。再描画をまたいでも飛ばないよう、
+    // 開閉（dataOpsOpen）と確認中の表示（resetArm）をここで復元する。
+    function dataOpsHtml(){
+      return `<details class="dataops" id="dataOps"${dataOpsOpen?' open':''}>
+    <summary>データ操作</summary>
+    <div class="dataops-body">
+      <div class="hint">このページに記録した内容をすべて消します。消したあとでも「↩ 取消」で1回だけ元に戻せます。</div>
+      <button type="button" id="resetBtn" class="dataops-reset">${resetArm?RESET_ARMED_LABEL:RESET_LABEL}</button>
+    </div>
+  </details>`;
     }
     function effectiveIconChoice(){
       if(S.iconChoice==='upload'&&S.img)return 'upload';
@@ -332,6 +504,10 @@
       save();
       renderAll();
     }
+    // リセットは2度押しで確定する。1度目で「実行する？」に変わり、3秒で解除される。
+    // 表示名は置き場所で変える（uiV2＝データ操作の中／従来＝ヘッダー）。
+    const RESET_LABEL=UI_V2?'全データをリセット':'リセット';
+    const RESET_ARMED_LABEL='実行する？';
     function reset(){
       const b=document.getElementById('resetBtn');
       if(resetArm){
@@ -346,13 +522,13 @@
         // 差分は S を書き換えたあとに取る（取消は変わったキーだけを戻す）
         hist.push({reset:true,changes:changedKeys(snap,S)});
         if(hist.length>50)hist.shift();
-        if(b)b.textContent='リセット';
+        if(b)b.textContent=RESET_LABEL;
         feed('<b>リセット完了</b> 「↩ 取消」で直前の状態に戻せます');
         save();renderAll();return;
       }
-      if(b)b.textContent='実行する？';
+      if(b)b.textContent=RESET_ARMED_LABEL;
       feed('もう一度「実行する？」を押すとリセットします（3秒で解除）');
-      resetArm=setTimeout(()=>{resetArm=null;if(b)b.textContent='リセット';feed('リセットを解除しました');},3000);
+      resetArm=setTimeout(()=>{resetArm=null;if(b)b.textContent=RESET_LABEL;feed('リセットを解除しました');},3000);
     }
     function crow(path,name,mean,hot,pctFn){
       const n=get(path);
@@ -415,16 +591,30 @@
     function renderAll(){
       const main=document.getElementById('main');
       if(!main)return;
-      const sc=main.scrollTop;
+      if(UI_V2)captureFoldState(main);
+      // タブ切替のときだけ復元先を指定する。カウント等の再描画では今の位置を保つ。
+      const sc=pendingScrollTop!==null?pendingScrollTop:main.scrollTop;
+      pendingScrollTop=null;
       const pages=config.pages(context(),pageCard);
-      main.innerHTML=pages[cur]()+sourceCredit();
+      // データ操作（リセット）は最初のタブの最下部だけに置く
+      main.innerHTML=pages[cur]()+sourceCredit()+(UI_V2&&cur===0?dataOpsHtml():'');
       buildJumpNav(main);
+      if(UI_V2){
+        foldHints(main);
+        labelNumberInputs(main);
+      }
       main.scrollTop=sc;
       // ジャンプナビの有無に関わらず「↑ 上へ」は使えるようにする
       ensureJumpStyle();
+      if(UI_V2)ensureUiStyle();
       ensureBackBtn();
       bindBackBtnScroll(main);
       updateBackBtn();
+      if(UI_V2){
+        // uiV2 のリセットは main の中に描かれるので、描画のたびに繋ぎ直す
+        const resetBtn=document.getElementById('resetBtn');
+        if(resetBtn)resetBtn.addEventListener('click',ev=>{ev.stopPropagation();reset();});
+      }
       main.querySelectorAll('.crow').forEach(el=>{
         const plus=el.querySelector('.plus');
         if(plus)plus.addEventListener('click',ev=>{ev.stopPropagation();bump(el.dataset.c,el.dataset.l);});
@@ -991,13 +1181,32 @@
       };
       const undoBtn=document.getElementById('undoBtn');
       if(undoBtn)undoBtn.onclick=undo;
+      // 従来UIのリセットはヘッダー。uiV2 では HTML 側にこのボタンが無く、
+      // renderAll が描くデータ操作の中のボタンに繋ぐ
       const resetBtn=document.getElementById('resetBtn');
       if(resetBtn)resetBtn.onclick=reset;
       const nav=document.getElementById('nav');
       if(nav)nav.addEventListener('click',e=>{
         const b=e.target.closest('button');if(!b)return;
-        cur=+b.dataset.p;
-        clearJump();
+        const next=+b.dataset.p;
+        if(!UI_V2){
+          cur=next;
+          clearJump();
+          document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+          renderAll();
+          return;
+        }
+        if(next===cur)return;
+        // 離れるタブの位置と「↑戻る」の戻り先を控え、開くタブのぶんを復元する。
+        // 初めて開くタブは控えが無いので先頭から表示する。
+        const main=document.getElementById('main');
+        if(main)tabScroll[cur]=main.scrollTop;
+        tabJumpReturn[cur]=jumpReturnTop;
+        cur=next;
+        pendingScrollTop=tabScroll[cur]||0;
+        jumpReturnTop=tabJumpReturn[cur]!==undefined?tabJumpReturn[cur]:null;
+        const back=document.getElementById('jumpBack');
+        if(back)back.hidden=true;
         document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
         renderAll();
       });
