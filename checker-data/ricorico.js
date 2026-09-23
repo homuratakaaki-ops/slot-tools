@@ -358,7 +358,8 @@
          この3セクション（規定ゲーム数・150G変換高確・変換からのCZ当選）を同じ寸法にする。
          示唆タブの .cycle-row は12px系のままで、今回は揃えていない。 */
       .cycle-row .ct b{font-size:16px}
-      .cycle-row .ct small{font-size:13px}
+      /* サブは .lbl 配下ではないので .crow .lbl .mn の淡色が当たらない。他の行のサブに合わせる。 */
+      .cycle-row .ct small{font-size:13px;color:var(--muted)}
       .cycle-row .pct{min-width:92px;text-align:right}
       .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
       .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
