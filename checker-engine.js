@@ -286,6 +286,8 @@ nav button{min-height:44px}
         if(el.dataset.fold==='no')return;                   // 機種側で畳まない指定
         if(el.children.length)return;                       // リンク・強調を含む説明は触らない
         const raw=el.textContent.trim();
+        // 「⚠」で始まる注意書きは畳まない（.hint.warn と同じ扱い。uiV2の規則）
+        if(raw.charCodeAt(0)===0x26A0)return;
         if(raw.length<HINT_FOLD_MIN)return;
         const parts=sentences(raw);
         let lead='',i=0;

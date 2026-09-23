@@ -113,6 +113,9 @@ textarea#tpl{width:100%;height:140px;margin-top:10px;background:#0d0a12;color:va
 .credit a{color:var(--cyan);font-weight:700;text-decoration:none}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--pink);color:#fff;font-size:12px;font-weight:700;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99;box-shadow:0 0 18px rgba(255,61,143,.6)}
 .toast.show{opacity:1}
+/* 360px級では2列の行が狭く、ラベルの「100G」のような分割できない並びが枠を超える。
+   タップ領域（.plus 44px）は保ったまま、余白と数値列の下限だけを詰めて吸収する。 */
+@media (max-width:379px){.cgrid.two .crow{padding-left:4px;padding-right:4px;gap:4px}.cgrid.two .crow .num{min-width:22px}.cgrid.two .crow .pct{min-width:32px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 <!-- Google tag (gtag.js) -->
@@ -150,7 +153,7 @@ textarea#tpl{width:100%;height:140px;margin-top:10px;background:#0d0a12;color:va
 
 <div class="toast" id="toast"></div>
 
-<script src="checker-engine.js?v=20260923-2"></script>
+<script src="checker-engine.js?v=20260924"></script>
 <script src="checker-data/yoshimune.js?v=20260924"></script>
 <script>CheckerEngine.mount(CheckerConfigs.yoshimune);</script>
 </body>

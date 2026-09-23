@@ -143,7 +143,7 @@
         <button type="button" class="cycle-btn" data-bump="zones.${c[0]}r" data-label="${c[1]} ハズレ" aria-label="${c[1]} ハズレ">ハズレ</button>
       </div>
     </div>`).join('')}</div>
-    <div class="hint">ゾーン到達（例:100Gを超えて回した）ごとに「当選」または「ハズレ」を1回タップ。当選は到達と当選を同時に記録します。</div>
+    <div class="hint">ゾーン到達ごとに当選かハズレを記録。ゾーン到達（例:100Gを超えて回した）ごとに「当選」または「ハズレ」を1回タップ。当選は到達と当選を同時に記録します。</div>
   </section>
   <section class="sec">
     <div class="sec-h">規定ゲーム数・短縮<span class="sub">到達${shortReach}・当選${shortWin}</span></div>

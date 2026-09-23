@@ -137,7 +137,7 @@
       <div class="inrow"><label>打ち始め時の通常ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesStart" value="${S.gamesStart||''}" placeholder="0"></div>
       <div class="inrow"><label>現在の通常ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesNow" value="${S.gamesNow||''}" placeholder="0"></div>
       ${denomWarn(S)?'<div class="hint warn">現在の通常ゲーム数が打ち始めを下回っています。分母は0として扱い、確率表示は行いません。入力を確認してください。</div>':''}
-      <div class="hint">実機サブ画面の『通常ゲーム数』を、打ち始めた時点と現在の2回確認して入力してください。差分があなたの遊技分になります。朝イチから打っている場合は打ち始め0で構いません。</div>
+      <div class="hint">実機の通常ゲーム数を開始と現在で入れます。実機サブ画面の『通常ゲーム数』を、打ち始めた時点と現在の2回確認して入力してください。差分があなたの遊技分になります。朝イチから打っている場合は打ち始め0で構いません。</div>
     </div>
   </section>`;
   }
@@ -171,7 +171,7 @@
     <div class="cgrid">
       ${KOYAKU.map(c=>appRateRow(S,c)).join('')}
     </div>
-    <div class="hint">ユニメモの小役カウントに表示される確率の分母をそのまま入力してください（例: 1/58.3なら58.3）。スイカ合成は設定差が約20%と大きく、判別の主力になります。</div>
+    <div class="hint">ユニメモの確率の分母をそのまま入れます。ユニメモの小役カウントに表示される確率の分母をそのまま入力してください（例: 1/58.3なら58.3）。スイカ合成は設定差が約20%と大きく、判別の主力になります。</div>
   </section>
   <section class="sec">
     <div class="sec-h">リプレイ＋タコゲーム同時成立<span class="sub">計${n(S.counts,'replayTako')}回</span></div>
@@ -188,7 +188,7 @@
     return `<section class="sec">
     <div class="sec-h">BB終了画面<span class="sub">計${sum(S.screens)}回</span></div>
     <div class="cgrid">${BB_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,sum(S.screens)))).join('')}</div>
-    <div class="hint">タコゲームに一度も入賞しなかったBBの終了画面がレアパターンだった場合は、専用の行（設定2以上）で記録してください。通常のレアパターン行と重複カウントは不要です。</div>
+    <div class="hint">BB終了画面のレアパターンは専用の行に記録。タコゲームに一度も入賞しなかったBBの終了画面がレアパターンだった場合は、専用の行（設定2以上）で記録してください。通常のレアパターン行と重複カウントは不要です。</div>
     <div class="hint">ユニメモはこのツールでは通常回転数（分母）と小役確率の入力に使います。BB終了画面は出るたびにこちらで記録してください。同じ遊技分の分母と示唆が揃い、初当り確率と終了画面を突き合わせて見られます。</div>
   </section>
   <section class="sec">

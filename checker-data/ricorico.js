@@ -312,7 +312,7 @@
       <div class="inrow"><label>打ち始め時の通常総ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesStart" value="${S.gamesStart||''}" placeholder="0"></div>
       <div class="inrow"><label>現在の通常総ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesNow" value="${S.gamesNow||''}" placeholder="0"></div>
       ${src==='real'&&denomWarn(S)?'<div class="hint warn">現在の通常総ゲーム数が打ち始めを下回っています。分母は0として扱い、確率表示は行いません。入力を確認してください。</div>':''}
-      <div class="hint">実機サブ画面の『通常総ゲーム数』を、打ち始めた時点と現在の2回確認して入力してください。差分があなたの遊技分になります。朝イチから打っている場合は打ち始め0で構いません。</div>
+      <div class="hint">実機の通常総ゲーム数を開始と現在で入れます。実機サブ画面の『通常総ゲーム数』を、打ち始めた時点と現在の2回確認して入力してください。差分があなたの遊技分になります。朝イチから打っている場合は打ち始め0で構いません。</div>
     </div>
   </section>`;
   }
