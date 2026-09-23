@@ -376,7 +376,7 @@ nav button{min-height:44px}
     // 開閉（dataOpsOpen）と確認中の表示（resetArm）をここで復元する。
     function dataOpsHtml(){
       return `<details class="dataops" id="dataOps"${dataOpsOpen?' open':''}>
-    <summary>データ操作</summary>
+    <summary>データリセット</summary>
     <div class="dataops-body">
       <div class="hint">このページに記録した内容をすべて消します。消したあとでも「↩ 取消」で1回だけ元に戻せます。</div>
       <button type="button" id="resetBtn" class="dataops-reset">${resetArm?RESET_ARMED_LABEL:RESET_LABEL}</button>
