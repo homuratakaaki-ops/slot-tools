@@ -353,6 +353,12 @@
       .cycle-row .num{min-width:38px}
       .cycle-row .ct{flex:1;min-width:0}
       .cycle-row .ct b,.cycle-row .ct small{display:block}
+      /* 文字サイズは明示して固定する。指定が無いとブラウザ既定（b=16px・small≒13px）に
+         依存し、150G行のように後から指定を足したときに行ごとで食い違う。
+         この3セクション（規定ゲーム数・150G変換高確・変換からのCZ当選）を同じ寸法にする。
+         示唆タブの .cycle-row は12px系のままで、今回は揃えていない。 */
+      .cycle-row .ct b{font-size:16px}
+      .cycle-row .ct small{font-size:13px}
       .cycle-row .pct{min-width:92px;text-align:right}
       .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
       .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
@@ -370,10 +376,6 @@
       .g150-row .num{min-width:30px}
       .g150-row .pct{min-width:44px}
       .g150-row .cycle-btn{min-width:54px;padding:0 6px}
-      /* このタブの .cycle-row 共通指定には文字サイズが無く、b=16px・small≒13px で描かれて
-         ラベルが折り返していた。示唆タブの .cycle-row と同じ寸法に揃える（この行だけ）。 */
-      .g150-row .ct b{font-size:12px;font-weight:700;line-height:1.25}
-      .g150-row .ct small{font-size:9.5px;color:var(--muted);line-height:1.3}
       /* サブ（設1:50.0%⇔設6:62.5%）を390pxで1行に収めるため、この行だけ左右を詰める。
          ボタンは幅が縮んでも高さ44px・幅54px以上を保つ。 */
       .g150-row{padding-left:6px;padding-right:6px}
