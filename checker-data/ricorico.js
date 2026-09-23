@@ -366,15 +366,25 @@
   <section class="sec">
     <div class="sec-h">150G到達時の変換高確<span class="sub">${g150Text(S)}</span></div>
     <style>
-      .g150-row .pct{min-width:56px}
-      .g150-row .cycle-btn{min-width:62px}
+      /* 数値列は下限だけを決める。桁が増えれば内容に合わせて広がる（その分ラベルが詰まる）。 */
+      .g150-row .num{min-width:30px}
+      .g150-row .pct{min-width:44px}
+      .g150-row .cycle-btn{min-width:54px;padding:0 6px}
+      /* このタブの .cycle-row 共通指定には文字サイズが無く、b=16px・small≒13px で描かれて
+         ラベルが折り返していた。示唆タブの .cycle-row と同じ寸法に揃える（この行だけ）。 */
+      .g150-row .ct b{font-size:12px;font-weight:700;line-height:1.25}
+      .g150-row .ct small{font-size:9.5px;color:var(--muted);line-height:1.3}
+      /* サブ（設1:50.0%⇔設6:62.5%）を390pxで1行に収めるため、この行だけ左右を詰める。
+         ボタンは幅が縮んでも高さ44px・幅54px以上を保つ。 */
+      .g150-row{padding-left:6px;padding-right:6px}
+      .g150-row .cycle-actions{margin-left:4px;gap:4px}
     </style>
     <div class="cgrid">
-      ${ndRow(ctx,{name:'150G 変換高確移行',sub:'設1〜3:50.0%⇔設6:62.5%（設4:54.7%／設5:58.6%）',
+      ${ndRow(ctx,{name:'150G変換高確',sub:'設1:50.0%⇔設6:62.5%',
         cls:'conv-row g150-row',dPath:'g150.d',nPath:'g150.n',
         d:g150Denom(S),n:g150Hit(S),winLabel:'移行',missLabel:'非移行'})}
     </div>
-    <div class="hint">150G到達後、152〜153G付近で高確の帯が出れば変換高確へ移行しています。帯が出なければ非移行として記録してください。150G以外での変換高確移行には設定差がないため、150G到達時のみ記録します。</div>
+    <div class="hint">150G到達後、152〜153G付近で高確の帯が出れば変換高確へ移行しています。帯が出なければ非移行として記録してください。150G以外での変換高確移行には設定差がないため、150G到達時のみ記録します。設定1〜3は同値(50.0%)、設定4は54.7%、設定5は58.6%。</div>
   </section>
   <section class="sec">
     <div class="sec-h">変換からのCZ当選<span class="sub">弱 ${convText(S,'weak')}・強 ${convText(S,'strong')}</span></div>
