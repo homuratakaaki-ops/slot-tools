@@ -447,7 +447,7 @@
   <section class="sec">
     <div class="sec-h">AT終了画面<span class="sub">計${atEndTotal(S)}回</span></div>
     <div class="cgrid">${AT_END.map(c=>ctx.crow('atEnd.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,atEndTotal(S)))).join('')}</div>
-    <div class="hint">リコリスラッシュ中のキャラ(たきな/千束)と同じキャラの私服なら一致、違うキャラなら矛盾で記録してください。上位ST(リコリスラッシュW)終了後の私服は、キャラを問わず一致側で記録します(設定4以上の判別には使えないため)。</div>
+    <div class="hint">RUSH中と同じキャラの私服なら一致、違えば矛盾。リコリスラッシュ中のキャラ(たきな/千束)と同じキャラの私服なら一致、違うキャラなら矛盾で記録してください。上位ST(リコリスラッシュW)終了後の私服は、キャラを問わず一致側で記録します(設定4以上の判別には使えないため)。</div>
   </section>
   <section class="sec">
     <div class="sec-h">筐体上部ランプの色<span class="sub">計${sum(S.lamp)}回</span></div>
