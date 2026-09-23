@@ -91,7 +91,7 @@
     return `<section class="sec">
     <div class="sec-h">通常ゲーム数</div>
     <div class="inrow"><label>通常ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
-    <div class="hint">e-slot+（実機メニューの「遊技情報の集計」と連動）の遊技履歴「通常ゲーム数」を入力してください。総ゲーム数ではなく通常ゲーム数を使います（AT中を含まないため確率と直接比較できます）。</div>
+    <div class="hint">e-slot+の通常ゲーム数を入れます。e-slot+（実機メニューの「遊技情報の集計」と連動）の遊技履歴「通常ゲーム数」を入力してください。総ゲーム数ではなく通常ゲーム数を使います（AT中を含まないため確率と直接比較できます）。</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り<span class="sub">分母＝通常 ${g||0}G</span></div>
@@ -99,7 +99,7 @@
       ${ctx.crow('cz.cz','CZ当選',`設1:1/216.7⇔設6:1/189.5${czNow}`,0)}
       ${ctx.crow('cz.bonus','ボーナス初当り',`設1:1/349.3⇔設6:1/247.3${bonusNow}`,1)}
     </div>
-    <div class="hint">CZよりボーナス初当りの方が設定差が大きいため、初当りで見るならボーナス初当り確率を重視してください。それぞれ通常ゲーム数を分母に1/xを表示します。</div>
+    <div class="hint">初当りで見るならボーナス初当りを重視。CZよりボーナス初当りの方が設定差が大きいため、初当りで見るならボーナス初当り確率を重視してください。それぞれ通常ゲーム数を分母に1/xを表示します。</div>
   </section>`;
   }
   function pageEnd(ctx){
@@ -165,6 +165,9 @@
   }
 
   window.CheckerConfigs.tonski={
+    // 実戦中のUI（タブごとのスクロール位置・説明の折りたたみ・データリセット・
+    // 44pxのタップ領域・入力欄のラベル）。2026-09-24 に全機種へ展開。
+    uiV2:true,
     nanaCollab:false,
     storageKey:'tonski-checker-v1',
     defaults:DEF,

@@ -332,7 +332,7 @@
     return `<section class="sec">
     <div class="sec-h">総回転数</div>
     <div class="inrow"><label>本日の総ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${S.games||''}" placeholder="0"></div>
-    <div class="hint">実機では総ゲーム数を確認できないため、ホールのデータカウンター等の数値を参考値として入力してください。確率の算出には使わず、稼働メモとして保存します。</div>
+    <div class="hint">総ゲーム数はデータカウンターの値を入れます。実機では総ゲーム数を確認できないため、ホールのデータカウンター等の数値を参考値として入力してください。確率の算出には使わず、稼働メモとして保存します。</div>
   </section>
   <section class="sec">
     <div class="sec-h">初当り</div>
@@ -422,6 +422,9 @@
   }
 
   window.CheckerConfigs.jashinchan={
+    // 実戦中のUI（タブごとのスクロール位置・説明の折りたたみ・データリセット・
+    // 44pxのタップ領域・入力欄のラベル）。2026-09-24 に全機種へ展開。
+    uiV2:true,
     nanaCollab:false,
     storageKey:'jashinchan-checker-v3',
     defaults:DEF,

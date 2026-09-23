@@ -168,6 +168,9 @@ textarea#tpl{
   z-index:99;box-shadow:0 0 18px rgba(255,61,143,.6);
 }
 .toast.show{opacity:1}
+/* 360px級では2列の行が狭く、ラベルの「100G」のような分割できない並びが枠を超える。
+   タップ領域（.plus 44px）は保ったまま、余白と数値列の下限だけを詰めて吸収する。 */
+@media (max-width:379px){.cgrid.two .crow{padding-left:4px;padding-right:4px;gap:4px}.cgrid.two .crow .num{min-width:22px}.cgrid.two .crow .pct{min-width:32px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 <!-- Google tag (gtag.js) -->
@@ -189,7 +192,6 @@ textarea#tpl{
     <div class="hd-actions">
       <button class="hd-btn mode" id="modeBtn">＋加算</button>
       <button class="hd-btn" id="undoBtn">↩ 取消</button>
-      <button class="hd-btn danger" id="resetBtn">リセット</button>
     </div>
   </div>
   <div class="feed" id="feed">タップでカウント。最後の操作はここに表示されます</div>
@@ -207,9 +209,9 @@ textarea#tpl{
 
 <div class="toast" id="toast"></div>
 
-<script src="checker-engine.js?v=20260923-2"></script>
+<script src="checker-engine.js?v=20260924"></script>
 <script src="checker-bayes.js?v=20260827-2"></script>
-<script src="checker-data/toaru2.js?v=20260922-4"></script>
+<script src="checker-data/toaru2.js?v=20260924"></script>
 <script>CheckerEngine.mount(CheckerConfigs.toaru2);</script>
 </body>
 </html>

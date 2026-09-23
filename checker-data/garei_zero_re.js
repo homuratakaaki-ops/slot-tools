@@ -257,7 +257,10 @@
 
   function pageStyle(){
     return `<style>
-      .cycle-row .ct,.count-row .ct{flex:1;min-width:0}.cycle-row .ct b,.cycle-row .ct small,.count-row .ct b,.count-row .ct small{display:block}.cycle-row .ct small,.count-row .ct small{font-size:9.5px;color:var(--muted);line-height:1.35}
+      .cycle-row .ct,.count-row .ct{flex:1;min-width:0}
+      /* 文字サイズは明示して固定する（ブラウザ既定に依存させない）。
+         現状と同じ16pxを明示するだけで、見た目は変わらない。 */
+      .cycle-row .ct b,.count-row .ct b{font-size:16px}.cycle-row .ct b,.cycle-row .ct small,.count-row .ct b,.count-row .ct small{display:block}.cycle-row .ct small,.count-row .ct small{font-size:9.5px;color:var(--muted);line-height:1.35}
       .cycle-row .pct,.count-row .pct{min-width:78px;text-align:right;color:var(--cyan);font-family:var(--seg);font-size:11px;white-space:nowrap}
       .cycle-actions{display:flex;gap:6px;margin-left:4px;flex:none}.cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}.cycle-btn.win{color:var(--gold)}.minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
       .jump-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:10px}.jump-grid a{display:flex;align-items:center;justify-content:center;min-height:36px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--cyan);font-size:11px;font-weight:800;text-decoration:none;text-align:center;padding:6px}
@@ -398,6 +401,9 @@
   }
 
   window.CheckerConfigs.garei_zero_re={
+    // 実戦中のUI（タブごとのスクロール位置・説明の折りたたみ・データリセット・
+    // 44pxのタップ領域・入力欄のラベル）。2026-09-24 に全機種へ展開。
+    uiV2:true,
     nanaCollab:false,
     storageKey:'garei-zero-re-checker-v1',
     defaults:DEF,

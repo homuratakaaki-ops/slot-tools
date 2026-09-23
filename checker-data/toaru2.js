@@ -289,6 +289,9 @@ function detail(ctx){
   }
 
   window.CheckerConfigs.toaru2={
+    // 実戦中のUI（タブごとのスクロール位置・説明の折りたたみ・データリセット・
+    // 44pxのタップ領域・入力欄のラベル）。2026-09-24 に全機種へ展開。
+    uiV2:true,
     nanaCollab:true,
     storageKey:'toaru2-checker-v1',
     defaults:DEF,
