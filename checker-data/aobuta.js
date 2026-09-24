@@ -207,7 +207,7 @@
     return `<section class="sec">
     <div class="sec-h">ST（青ブタJUDGE）終了画面<span class="sub">計${total}回</span></div>
     <div class="cgrid">${SCREENS.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,n=>ctx.pct(n,total))).join('')}</div>
-    <div class="hint">確定演出系の画面にはスタンプ（吉/良/優/極）が併記されます。偶数・奇数示唆と高設定示唆は上下関係を持たないため、確定演出とは別枠で集計します。</div>
+    <div class="hint">偶奇・高設定示唆は確定演出と別枠です。確定演出系の画面にはスタンプ（吉/良/優/極）が併記されます。偶数・奇数示唆と高設定示唆は上下関係を持たないため、確定演出とは別枠で集計します。</div>
   </section>`;
   }
 

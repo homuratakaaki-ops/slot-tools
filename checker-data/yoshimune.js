@@ -163,12 +163,12 @@
         </div>
       </div>`).join('')}
     </div>
-    <div class="hint">当選周期の分布と、到達あたりの当選率からCZモードを推測（天国=1／B・C=4天井／A=6天井）。周期到達からのAT直撃は通常C濃厚。6周期後は次回最大4周期に短縮（CZ失敗時のみ有効・AT当選時は無効）。周期ごとに「当選」または「ハズレ」を1回タップします。</div>
+    <div class="hint">周期ごとに当選かハズレを押します。当選周期の分布と、到達あたりの当選率からCZモードを推測（天国=1／B・C=4天井／A=6天井）。周期到達からのAT直撃は通常C濃厚。6周期後は次回最大4周期に短縮（CZ失敗時のみ有効・AT当選時は無効）。周期ごとに「当選」または「ハズレ」を1回タップします。</div>
   </section>
   <section class="sec">
     <div class="sec-h">規定pt帯<span class="sub">計${ptN}回</span></div>
     <div class="cgrid two">${POINTS.map(c=>ctx.crow('pts.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,ptN))).join('')}</div>
-    <div class="hint">夜回りモード推測用（A=百の位偶数がチャンス／B=奇数／C=300pt以下／D=200pt以下）。規定ptは高設定ほど優遇の可能性。600pt台はA・Bの天井。</div>
+    <div class="hint">規定ptから夜回りモードを推測します。夜回りモード推測用（A=百の位偶数がチャンス／B=奇数／C=300pt以下／D=200pt以下）。規定ptは高設定ほど優遇の可能性。600pt台はA・Bの天井。</div>
   </section>
   <section class="sec">
     <div class="sec-h">ポイント特化ゾーン</div>
@@ -195,7 +195,7 @@
     const visionN=sum(ctx.S.vision), menuN=sum(ctx.S.menu), screenN=sum(ctx.S.screens), voiceN=sum(ctx.S.ed);
     return `<section class="sec"><div class="sec-h">御白洲ビジョン<span class="sub">計${visionN}回</span></div>
     <div class="cgrid">${VISIONS.map(c=>ctx.crow('vision.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,visionN))).join('')}</div>
-    <div class="hint">AT・CZ・特化ゾーン終了時などPUSHボタンが光ったタイミングで出現。おみくじ（末吉〜大吉）はモード示唆でここではカウント対象外。</div></section>
+    <div class="hint">おみくじはここでは数えません。AT・CZ・特化ゾーン終了時などPUSHボタンが光ったタイミングで出現。おみくじ（末吉〜大吉）はモード示唆でここではカウント対象外。</div></section>
   <section class="sec"><div class="sec-h">メニュー画面のキャラ<span class="sub">計${menuN}回</span></div>
     <div class="cgrid">${MENUS.map(c=>ctx.crow('menu.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,menuN))).join('')}</div>
     <div class="hint">示唆内容は現時点で予想段階の情報を含みます。周期ごとに変化する場合があるのでこまめに確認。</div></section>

@@ -276,7 +276,7 @@
         ${ctx.crow('counts.mysteryGg','謎GG','記録のみ・判別非関与。レア役・小役履歴・天井以外のGG当選。',0,v=>oneIn(v,freeGames(S)))}
       </div>
       <div class="hint">GG初当りは偶数設定が軽く奇数設定が重い傾向です。設定1→6で単調に軽くなるわけではないため、両端だけでなく6設定すべての数値を並べています。設定1と設定6で約1.8倍の差があります。</div>
-      <div class="hint">青7×3連とZ-ZONEは、当選=d+1,n+1／ハズレ=d+1。行タップでは加算されません。白7（ガイアベル）は青7としても扱います。G-ZONE中やガイアステージ中のZ-ZONE昇格は別抽選なので数えません。</div>
+      <div class="hint">この2行は当選・ハズレで押し分けます。青7×3連とZ-ZONEは、当選=d+1,n+1／ハズレ=d+1。行タップでは加算されません。白7（ガイアベル）は青7としても扱います。G-ZONE中やガイアステージ中のZ-ZONE昇格は別抽選なので数えません。</div>
     </section>`;
   }
   function pageSuggest(ctx){
@@ -331,7 +331,7 @@
       REF_SECTIONS.map((sec,i)=>`<section class="sec" id="ref${i+1}"><div class="sec-h">${sec[0]}</div>
       <table class="ref-table"><tbody>${sec[1].map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table>
       ${sec[0]==='裏ボタンLED'?'<div class="hint">ユニメモでカスタムをONにしておく必要があります。Z-GAME中は白のみ点灯します。</div>':''}
-      ${sec[0]==='ガイア・G-ZONE・出目'?'<div class="hint">上段青7や下段黄7(3枚)で対応フラッシュが出ればGG前兆濃厚。ガイアモードはGG当選でもクリアされません（有利区間リセット時を除く）。</div>':''}
+      ${sec[0]==='ガイア・G-ZONE・出目'?'<div class="hint">フラッシュとガイアモードの見方です。上段青7や下段黄7(3枚)で対応フラッシュが出ればGG前兆濃厚。ガイアモードはGG当選でもクリアされません（有利区間リセット時を除く）。</div>':''}
     </section>`).join('');
   }
   function tplText(ctx){

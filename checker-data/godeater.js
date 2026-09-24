@@ -156,7 +156,7 @@
         <button type="button" class="cycle-btn" data-bump="triggers.${c[0]}r" data-label="${c[1]} ハズレ" aria-label="${c[1]} ハズレ">ハズレ</button>
       </div>
     </div>`).join('')}</div>
-    <div class="hint">設定変更後・漆黒の捕喰者後は天井600G+α、ST駆け抜け等でも短縮あり（契機で当選しやすいゾーンが変わるため、詳細は出典参照）。⚠逆鱗ハンニバル敗北後は100G+α確定のため、その当選はここに入れず記録対象外とします。</div>
+    <div class="hint">敗北後の100G+αは記録しません。設定変更後・漆黒の捕喰者後は天井600G+α、ST駆け抜け等でも短縮あり（契機で当選しやすいゾーンが変わるため、詳細は出典参照）。⚠逆鱗ハンニバル敗北後は100G+α確定のため、その当選はここに入れず記録対象外とします。</div>
   </section>
   <section class="sec">
     <div class="sec-h">その他の契機<span class="sub">AT計${atTotal(S)}回</span></div>
@@ -174,7 +174,7 @@
       </div>
     </div>
   </div>
-  <div class="hint">ED後の有利区間移行時に神堕or漆黒を振り分け（設定差あり!?）。⚠神チェリー・フリーズ経由の神堕は全設定共通のためサンプル外（記録しない）</div>
+  <div class="hint">神チェリー・フリーズ経由は記録しません。ED後の有利区間移行時に神堕or漆黒を振り分け（設定差あり!?）。⚠神チェリー・フリーズ経由の神堕は全設定共通のためサンプル外（記録しない）</div>
 </section>`;
   }
   function pageCz(ctx){

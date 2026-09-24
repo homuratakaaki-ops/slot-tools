@@ -169,7 +169,7 @@
     return `
   <section class="sec"><div class="sec-h">アイテムくじ<span class="sub">計${itemN}回</span></div>
     <div class="cgrid">${ITEMS.map(c=>ctx.crow('icons.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,itemN))).join('')}</div>
-    <div class="hint">朝イチ1〜5回目と5の倍数回は特殊示唆が出やすい（出現時に赤く光る）。小吉は朝イチn回目＝設定n＆6で出やすい法則あり（出典参照）。</div></section>
+    <div class="hint">朝イチの出現回数に法則があります。朝イチ1〜5回目と5の倍数回は特殊示唆が出やすい（出現時に赤く光る）。小吉は朝イチn回目＝設定n＆6で出やすい法則あり（出典参照）。</div></section>
   <section class="sec"><div class="sec-h">技術介入ボイス<span class="sub">計${voiceN}回</span></div>
     <div class="cgrid">${VOICES.map(c=>ctx.crow('atcz.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,voiceN))).join('')}</div>
     <div class="hint">マイスロでも自動カウント可。景之の強弱はLED発光では判別不可。</div></section>

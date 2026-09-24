@@ -155,7 +155,7 @@
     return `
   <section class="sec"><div class="sec-h">CZ終了画面イラスト<span class="sub">計${czIllN}回</span></div>
     <div class="cgrid">${CZ_ILLUST.map(c=>ctx.crow('icons.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,czIllN))).join('')}</div>
-    <div class="hint">女神・幕間（AT後含む）・運命の一劇の失敗時にPUSHで出現。数回先を対象にした示唆が多く、記憶では追えないためタップ記録が有効。</div></section>
+    <div class="hint">失敗時のPUSHで出る示唆です。女神・幕間（AT後含む）・運命の一劇の失敗時にPUSHで出現。数回先を対象にした示唆が多く、記憶では追えないためタップ記録が有効。</div></section>
   <section class="sec"><div class="sec-h">AT終了画面<span class="sub">計${scN}回</span></div>
     <div class="cgrid">${AT_SCREENS.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,scN))).join('')}</div>
     <div class="hint">⚠ 終了画面はホール側がカスタム可能。出現傾向はホールのカスタム込みで判断。後乗せSHOW TIMEや幕間引き戻し時は複数回確認できサンプル増のチャンス。</div></section>
