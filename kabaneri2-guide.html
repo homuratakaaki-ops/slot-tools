@@ -4,12 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>スマスロ カバネリ海門決戦 設定判別カウンターの使い方｜スロット稼働ノート</title>
-<meta name="description" content="スマスロ 甲鉄城のカバネリ 海門決戦 設定判別カウンターの使い方。周期当選、アイテムくじ、技術介入ボイス、終了画面、トロフィーの記録方法と注意点を説明します。">
+<meta name="description" content="スマスロ 甲鉄城のカバネリ 海門決戦 設定判別カウンターの使い方。周期当選、下段ベル、アイテムくじ、技術介入ボイス、終了画面、トロフィーの記録方法と注意点を説明します。">
 <link rel="canonical" href="https://slot-tools.jp/kabaneri2-guide.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="スロット稼働ノート">
 <meta property="og:title" content="スマスロ カバネリ海門決戦 設定判別カウンターの使い方｜スロット稼働ノート">
-<meta property="og:description" content="周期当選、アイテムくじ、技術介入ボイス、終了画面、トロフィーをタップで累計する専用カウンターです。">
+<meta property="og:description" content="周期当選、下段ベル、アイテムくじ、技術介入ボイス、終了画面、トロフィーをタップで累計する専用カウンターです。">
 <meta property="og:url" content="https://slot-tools.jp/kabaneri2-guide.html">
 <style>
   :root{--bg:#0d0d0f;--surface:#1a1a1f;--surface2:#24242b;--border:#2e2e38;--gold:#c9a84c;--gold-light:#e8c96a;--text:#e8e4d9;--text-muted:#9a98a3;--text-dim:#5c5a66}
@@ -80,7 +80,7 @@
       <thead><tr><th>タブ</th><th>主な入力内容</th></tr></thead>
       <tbody>
         <tr><td>周期</td><td>①〜⑥周期の到達数とボーナス当選数。③④周期は到達に対する当選率として確認します。</td></tr>
-        <tr><td>初当り</td><td>通常回転数、ボーナス初当り、ST当選を入力します。</td></tr>
+        <tr><td>初当り</td><td>通常回転数、下段ベル、ボーナス初当り、ST当選を入力します。</td></tr>
         <tr><td>示唆</td><td>アイテムくじ、技術介入ボイス、キャラ紹介、ST終了画面、サミートロフィー、連打枚数、獲得枚数表示を記録します。</td></tr>
         <tr><td>カード</td><td>共有カード画像とテンプレ形式テキストを生成します。なな様テンプレ互換の共有用メモとして使えます。</td></tr>
       </tbody>
@@ -88,6 +88,14 @@
     <p>旧版で保存済みの周期当選数は「当選」に引き継ぎ、「到達」は0で補完されます。必要に応じて到達数を追加入力するか、リセットして使い直してください。</p>
   </section>
 
+  <section class="section">
+    <h2>下段ベルの記録</h2>
+    <p>下段ベルは高設定ほど出現率が優遇されています。設定1が1/121.1、設定2が1/114.4、設定3が1/112.8、設定4が1/106.2、設定5が1/104.2、設定6が1/99.1です。初当りタブで成立するたびに記録してください。</p>
+    <div class="card">
+      <h3>1/x表示は行いません</h3>
+      <p>出典の確率がどの区間（通常時だけか、ST中も含むか）を分母にしているかが明示されていないためです。下段ベルはST中にも成立するため、初当りタブの通常回転数を分母にしても解析値と条件が揃いません。条件が確認できしだい有効化します。それまでは回数だけを記録してください。</p>
+    </div>
+  </section>
   <section class="section">
     <h2>マイスロとの併用</h2>
     <p>初当りタブの通常回転数は、マイスロの通常回転数を入力してください。ボーナス中・ST中を含めた総ゲーム数を使うと確率分母が膨らみ、実践値が実態より重く見えます。</p>

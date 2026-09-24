@@ -7,7 +7,7 @@
     const S=ctx.S;
     return [
       {title:'周期到達／当選',items:CYCLES.map(c=>detailRatio(c[1],S.zones[c[0]+'w']||0,S.zones[c[0]+'r']||0,c[3]))},
-      {title:'初当り',items:[detailItem('ボーナス初当り',S.cz.rg,0),detailItem('ST当選',S.atCount,0)]},
+      {title:'初当り',items:[detailItem('ボーナス初当り',S.cz.rg,0),detailItem('ST当選',S.atCount,0),detailItem('下段ベル',S.bell,0)]},
       {title:'アイテムくじ',items:detailItems(ITEMS,S.icons),percent:true},
       {title:'技術介入ボイス',items:detailItems(VOICES,S.atcz),percent:true},
       {title:'キャラ紹介',items:detailItems(CHARS,S.ed),percent:true},
@@ -82,6 +82,7 @@
     atcz:Object.fromEntries(VOICES.map(v=>[v[0],0])),
     choku:0,
     atCount:0,
+    bell:0,
     screens:Object.fromEntries(SCREENS.map(s=>[s[0],0])),
     ed:Object.fromEntries(CHARS.map(c=>[c[0],0])),
     icons:Object.fromEntries(ITEMS.map(i=>[i[0],0])),
@@ -148,6 +149,14 @@
     <div class="hint">マイスロの通常回転数を入力（ボーナス・ST中は含めない）</div>
   </section>
   <section class="sec">
+    <div class="sec-h">下段ベル<span class="sub">計${ctx.S.bell||0}回</span></div>
+    <div class="cgrid">
+      ${ctx.crow('bell','下段ベル','設1:1/121.1⇔設6:1/99.1',1)}
+    </div>
+    <div class="hint">下段ベルが成立するたびに記録します。高設定ほど出現率が優遇されていて、設定1の1/121.1に対し設定6は1/99.1です。設定2は1/114.4、設定3は1/112.8、設定4は1/106.2、設定5は1/104.2です。</div>
+    <div class="hint">実測の1/x表示は行いません。出典の確率がどの区間（通常時だけか、ST中も含むか）を分母にしているか明示されていないためです（AGENTS.md §9-70）。下段ベルはST中にも成立するため、上の通常回転数を分母にしても解析値と条件が揃いません。回数だけを記録してください。</div>
+  </section>
+  <section class="sec">
     <div class="sec-h">初当り</div>
     <div class="cgrid">
       ${ctx.crow('cz.rg','ボーナス初当り','設1:1/254.2⇔設6:1/195.1',0)}
@@ -191,6 +200,7 @@
     CHARS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.ed[c[0]],charN)}\n`;});
     t+=`\n■ST終了画面\n`;
     SCREENS.forEach(c=>{t+=`${c[1]}▶︎ ${pctLine(ctx.S.screens[c[0]],screenN)}\n`;});
+    t+=`\n■下段ベル\n下段ベル▶︎ ${ctx.S.bell||0}回\n`;
     t+=`\n■サミートロフィー\n銅▶︎ ${ctx.S.coins.cu}回　銀▶︎ ${ctx.S.coins.ag}回　金▶︎ ${ctx.S.coins.au}回\nキリン柄▶︎ ${ctx.S.coins.dg}回　虹▶︎ ${ctx.S.coins.rb}回\n\n■連打枚数・獲得枚数\n`;
     ATTACK.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.attack[c[0]]}回\n`;});
     OVER.forEach(c=>{t+=`${c[1]}▶︎ ${ctx.S.over[c[0]]}回\n`;});
@@ -208,6 +218,7 @@
     t+=sec('ボイス',voiceN>0?VOICES.filter(c=>ctx.S.atcz[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.atcz[c[0]],voiceN)}`):[]);
     t+=sec('キャラ紹介',charN>0?CHARS.filter(c=>ctx.S.ed[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.ed[c[0]],charN)}`):[]);
     t+=sec('ST終了画面',screenN>0?SCREENS.filter(c=>ctx.S.screens[c[0]]>0).map(c=>`${c[1]}▶︎ ${pctLine(ctx.S.screens[c[0]],screenN)}`):[]);
+    t+=sec('下段ベル',(ctx.S.bell||0)>0?[`下段ベル▶︎ ${ctx.S.bell}回`]:[]);
     t+=sec('サミートロフィー',TROPHIES.filter(c=>ctx.S.coins[c[0]]>0).map(c=>`${c[1]}▶︎ ${ctx.S.coins[c[0]]}回`));
     t+=sec('連打枚数・獲得枚数',ATTACK.filter(c=>ctx.S.attack[c[0]]>0).map(c=>`${c[1]}▶︎ ${ctx.S.attack[c[0]]}回`).concat(OVER.filter(c=>ctx.S.over[c[0]]>0).map(c=>`${c[1]}▶︎ ${ctx.S.over[c[0]]}回`)));
     t+=`\nby slot-tools.jp\n${ctx.nanaCreditText('text')?ctx.nanaCreditText('text')+'\n':''}解析出典:ちょんぼりすた様`;
@@ -297,8 +308,10 @@
         const attackOver=sum(S.attack)+sum(S.over);
         return {
           title:'サマリー',
-          startY:760,
-          rowGap:44,
+          // 右列が6行になったので行間を詰める。最終行 752+5*36=932 で、
+          // フッタ（slot-tools.jp・y=976）に掛からない上限936の内側に収める。
+          startY:752,
+          rowGap:36,
           fontSize:24,
           columns:[
             {x:70,items:[
@@ -313,7 +326,8 @@
               {text:shown('景之',[['弱',S.atcz.kage1],['中',S.atcz.kage2],['強',S.atcz.kage3]]),value:S.atcz.kage1+S.atcz.kage2+S.atcz.kage3},
               {text:shown('終了画面',[['鉄',S.screens.geta],['集',S.screens.group],['水',S.screens.swim]]),value:S.screens.geta+S.screens.group+S.screens.swim},
               {text:shown('吉',[['小',S.icons.shokichi],['中',S.icons.chukichi],['大',S.icons.daikichi]]),value:S.icons.shokichi+S.icons.chukichi+S.icons.daikichi},
-              {text:`連打/枚数 ×${attackOver}`,value:attackOver}
+              {text:`連打/枚数 ×${attackOver}`,value:attackOver},
+              {text:`下段ベル ${S.bell||0}回`,value:S.bell||0}
             ]}
           ]
         };
