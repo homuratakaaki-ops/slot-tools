@@ -380,7 +380,7 @@
     <div class="cgrid">${SEALS.map(c=>ctx.crow('coins.'+c[0],c[1],c[2],c[3]>0)).join('')}</div></section>
     <section class="sec"><div class="sec-h">CZ前半アイテム<span class="sub">計${czItemTotal(ctx.S)}回</span></div>
     <div class="cgrid">${CZ_ITEMS.map(c=>ctx.crow('icons.'+c[0],c[1],c[2],0)).join('')}</div>
-    <div class="hint">CZ前半15G中、純ハズレ成立時に背景モニターのアイテムが対象キャラにHITした場合に記録します。3種とも設定1否定です。落雷は高設定ほど出現しやすい傾向がありますが数値は未公表のため、回数の記録に留めます。</div></section>
+    <div class="hint">アイテムがHITしたら記録します。CZ前半15G中、純ハズレ成立時に背景モニターのアイテムが対象キャラにHITした場合に記録します。3種とも設定1否定です。落雷は高設定ほど出現しやすい傾向がありますが数値は未公表のため、回数の記録に留めます。</div></section>
     <section class="sec"><div class="sec-h">参照</div>
     <div class="hint">キャラ分類、内部モード示唆、ステチェン系の参照情報です。カウンター・カード出力の対象外です。</div></section>
     ${pageReference()}`;

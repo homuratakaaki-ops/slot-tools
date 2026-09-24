@@ -241,7 +241,7 @@ function detail(ctx){
     <div class="cgrid">${ED.map(c=>ctx.crow('ed.'+c[0],c[1],c[2],c[3],n=>ctx.pct(n,edN))).join('')}</div></section>
   <section class="sec"><div class="sec-h">獲得枚数表示<span class="sub">計${ovN}回</span></div>
     <div class="cgrid">${OVER.map(c=>ctx.crow('over.'+c[0],c[1],c[2],c[3])).join('')}</div>
-    <div class="hint">AT終了時の獲得枚数表示が該当のゾロ目・特定数字を超えていたら記録します。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。</div></section>`;
+    <div class="hint">AT終了時の枚数表示を見ます。AT終了時の獲得枚数表示が該当のゾロ目・特定数字を超えていたら記録します。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。</div></section>`;
   }
   function tplText(ctx){
     const czN=ctx.S.cz.rg+ctx.S.cz.ac,atczN=ctx.S.atcz.gab+ctx.S.atcz.useki;

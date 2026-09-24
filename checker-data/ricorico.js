@@ -340,7 +340,7 @@
       ${ctx.crow('counts.bellOther','共通ベル(CZ・RUSH・ボーナス中)',`ボーナス中等のカウント${rateSuffix(otherDenom(S),bellOther(S))}`,0)}
       ${bellSumRow(ctx)}
     </div>
-    <div class="hint">共通ベルの出現率は遊技状態を問わず共通のため、通常時とそれ以外を合算した『合計』が最も精度の高い判別材料になります。通常時のみ数える場合は1行目をご覧ください。通常時は右下がり15枚ベルとして出現します。設定1〜3は同値(1/95.8)で、設定4以上で優遇されます。</div>
+    <div class="hint">判別は『合計』の行が最も精度が高いです。共通ベルの出現率は遊技状態を問わず共通のため、通常時とそれ以外を合算した『合計』が最も精度の高い判別材料になります。通常時のみ数える場合は1行目をご覧ください。通常時は右下がり15枚ベルとして出現します。設定1〜3は同値(1/95.8)で、設定4以上で優遇されます。</div>
   </section>`;
   }
   function pageHatsu(ctx){
@@ -387,7 +387,7 @@
         cls:'conv-row g150-row',dPath:'g150.d',nPath:'g150.n',
         d:g150Denom(S),n:g150Hit(S),winLabel:'移行',missLabel:'非移行'})}
     </div>
-    <div class="hint">150G到達後、152〜153G付近で高確の帯が出れば変換高確へ移行しています。帯が出なければ非移行として記録してください。150G以外での変換高確移行には設定差がないため、150G到達時のみ記録します。設定1〜3は同値(50.0%)、設定4は54.7%、設定5は58.6%。</div>
+    <div class="hint">150G到達時だけ記録します。150G到達後、152〜153G付近で高確の帯が出れば変換高確へ移行しています。帯が出なければ非移行として記録してください。150G以外での変換高確移行には設定差がないため、150G到達時のみ記録します。設定1〜3は同値(50.0%)、設定4は54.7%、設定5は58.6%。</div>
   </section>
   <section class="sec">
     <div class="sec-h">変換からのCZ当選<span class="sub">弱 ${convText(S,'weak')}・強 ${convText(S,'strong')}</span></div>
@@ -410,7 +410,7 @@
       ${ctx.crow('counts.direct','AT直撃','設1:1/22429.5⇔設6:1/6263.7（他設定は調査中・出現率が低いため1/x表示なし）',1)}
       ${ctx.crow('counts.child','幼少期CZ(ファースト)','設1:1/3965.0⇔設6:1/2084.8（他設定は調査中・出現率が低いため1/x表示なし）',1)}
     </div>
-    <div class="hint">AT直撃と幼少期CZは出現率が低いため、引けた場合の判別材料として扱ってください。出現率が低く1日では分母が足りないため、この2項目は1/x表示を行いません。</div>
+    <div class="hint">この2項目は1/x表示を行いません。AT直撃と幼少期CZは出現率が低いため、引けた場合の判別材料として扱ってください。出現率が低く1日では分母が足りないため、この2項目は1/x表示を行いません。</div>
   </section>`;
   }
   function pageSuggest(ctx){
@@ -423,7 +423,7 @@
   <section class="sec">
     <div class="sec-h">RUSH中エピソードボーナス<span class="sub">計${sum(S.rush)}回</span></div>
     <div class="cgrid">${RUSH_EP.map(c=>ctx.crow('rush.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.rush)))).join('')}</div>
-    <div class="hint">RUSH中のエピソードボーナスで発生したエピソードを記録します。EP3が高設定示唆(弱)、EP4が高設定示唆(強)です。エピソード名は液晶左上に表示されます。</div>
+    <div class="hint">EP名は液晶左上に出ます。RUSH中のエピソードボーナスで発生したエピソードを記録します。EP3が高設定示唆(弱)、EP4が高設定示唆(強)です。エピソード名は液晶左上に表示されます。</div>
   </section>
   <section class="sec">
     <div class="sec-h">W中エピソードボーナス<span class="sub">計${sum(S.wep)}回</span></div>
@@ -447,7 +447,7 @@
       .top-row .cycle-btn{min-width:62px}
     </style>
     <div class="cgrid">${topRow(ctx)}</div>
-    <div class="hint">上位ATに突入するたびに、レジェンダリーリコリス（Legendary Lycoris）へ突入したかを記録します。分母が上位AT突入回数、分子がレジェンダリーリコリス突入回数です。突入率に設定差があると推測されていますが数値は解析待ちのため、現時点では記録のみとして扱ってください。</div>
+    <div class="hint">上位AT突入ごとの分母/分子です。上位ATに突入するたびに、レジェンダリーリコリス（Legendary Lycoris）へ突入したかを記録します。分母が上位AT突入回数、分子がレジェンダリーリコリス突入回数です。突入率に設定差があると推測されていますが数値は解析待ちのため、現時点では記録のみとして扱ってください。</div>
   </section>
   <section class="sec">
     <div class="sec-h">サミートロフィー<span class="sub">計${sum(S.trophy)}回</span></div>
@@ -465,7 +465,7 @@
   <section class="sec">
     <div class="sec-h">筐体上部ランプの色<span class="sub">計${sum(S.lamp)}回</span></div>
     <div class="cgrid">${LAMP.map(c=>ctx.crow('lamp.'+c[0],c[1],c[2],0,n=>ctx.pct(n,sum(S.lamp)))).join('')}</div>
-    <div class="hint">エンディング中のレア役成立時、またはST中に1000pt到達後のボーナス消化中のレア役成立時に、筐体上部のランプが発光して設定を示唆します。</div>
+    <div class="hint">発光したら色を記録します。エンディング中のレア役成立時、またはST中に1000pt到達後のボーナス消化中のレア役成立時に、筐体上部のランプが発光して設定を示唆します。</div>
   </section>`;
   }
 
