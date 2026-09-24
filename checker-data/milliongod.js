@@ -271,10 +271,11 @@
       <div class="cgrid">
         ${ctx.crow('counts.nav15','押し順ナビあり15枚役','通常時に押し順ナビが出て15枚を獲得した回数。',1,()=>nav15OneIn(S))}
         ${rateRow(ctx,'blue3','青7×3連からのGG当選','小役履歴に青7が3つ並んだ回数と、そこからGGに当選した回数。')}
-        ${ctx.crow('counts.ggFirst','GG初当り','設1:1/532.8⇔設6:1/294.8',1,v=>oneIn(v,freeGames(S)))}
+        ${ctx.crow('counts.ggFirst','GG初当り','設1:1/532.8 設2:1/420.4 設3:1/495.9 設4:1/338.4 設5:1/455.4 設6:1/294.8',1,v=>oneIn(v,freeGames(S)))}
         ${rateRow(ctx,'zzone','Z-ZONE昇格','通常時からGGに当選した回数と、Z-ZONEへ移行した回数。')}
         ${ctx.crow('counts.mysteryGg','謎GG','記録のみ・判別非関与。レア役・小役履歴・天井以外のGG当選。',0,v=>oneIn(v,freeGames(S)))}
       </div>
+      <div class="hint">GG初当りは偶数設定が軽く奇数設定が重い傾向です。設定1→6で単調に軽くなるわけではないため、両端だけでなく6設定すべての数値を並べています。設定1と設定6で約1.8倍の差があります。</div>
       <div class="hint">青7×3連とZ-ZONEは、当選=d+1,n+1／ハズレ=d+1。行タップでは加算されません。白7（ガイアベル）は青7としても扱います。G-ZONE中やガイアステージ中のZ-ZONE昇格は別抽選なので数えません。</div>
     </section>`;
   }
