@@ -129,6 +129,14 @@
       .cycle-row .ct b{font-size:16px}
       .cycle-row .ct small{font-size:13px;color:var(--muted)}
       .cycle-row .pct{min-width:92px;text-align:right}
+      /* 360px幅では行の最小幅が親を13.2px超える（当選/ハズレの2ボタン114px＋数値列が固定のため）。
+         .crow はグリッド項目で min-width:auto なので min-content より縮まず、そのまま右へはみ出す。
+         数値列の下限だけを詰めて最小幅を24px減らす（とある2・真打吉宗と同じ詰め方）。
+         380px以上には効かないので、390px・412pxの見た目は変わらない。 */
+      @media (max-width:379px){
+        .cycle-row .num{min-width:30px}
+        .cycle-row .pct{min-width:76px}
+      }
       .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
       .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
       .cycle-btn.win{color:#ffc94d}
