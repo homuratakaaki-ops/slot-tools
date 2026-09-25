@@ -166,6 +166,10 @@ textarea{min-height:80px;resize:vertical}
     <div class="lbl">機種</div>
     <div class="recent" id="stMachines"></div>
     <input id="stMachine" placeholder="一覧にない機種は名前を入力（汎用で記録）" autocomplete="off" style="margin-top:8px">
+    <div class="two" style="margin-top:8px">
+      <div><div class="lbl">店名<span class="hint" style="font-weight:400;opacity:.8;margin-left:6px">任意</span></div><input id="stShop" placeholder="前回の店名が入ります" autocomplete="off"></div>
+      <div><div class="lbl">台番号<span class="hint" style="font-weight:400;opacity:.8;margin-left:6px">任意</span></div><input id="stDai" inputmode="numeric" placeholder="例：1107" autocomplete="off"></div>
+    </div>
     <div class="lbl">レート（1000円で何枚）</div>
     <div class="opts"><button class="q4" data-lend="46">46</button><button class="q4" data-lend="47">47</button><button class="q4" data-lend="50">50</button><button class="q4" data-lend="52">52</button></div>
     <input id="stLend" class="num" inputmode="numeric" style="margin-top:6px" placeholder="52">
@@ -1643,7 +1647,7 @@ el("bUtil").addEventListener("click",()=>{
     const fo=mk("button","sub","フォローで追加");fo.style.color="var(--accent)";fo.addEventListener("click",()=>{closeSheet();openFollow()});b.append(fo);
     b.append(mk("div","lbl","持ち玉"));const cr=mk("button","sub","残数調整（今の持ち玉を入れて差枚を出す）");cr.addEventListener("click",()=>{closeSheet();askCredit()});b.append(cr);
     b.append(mk("div","lbl","直す"));
-    const e1=mk("button","sub","打ち始めの情報を直す");e1.addEventListener("click",()=>{closeSheet();editInfo(S.cur,()=>{render();el("hdTitle").textContent=S.cur.machine+" ／ "+hm(S.cur.startAt)+"〜"})});b.append(e1);
+    const e1=mk("button","sub","打ち始めの情報を直す");e1.addEventListener("click",()=>{closeSheet();editInfo(S.cur,()=>{render();el("hdTitle").textContent=sessTitle(S.cur)})});b.append(e1);
     const e2=mk("button","sub","お金の履歴を直す");e2.addEventListener("click",()=>{closeSheet();editMoney(S.cur,render)});b.append(e2);
     if((DEF()).yuuri){b.append(mk("div","lbl","有利区間"));const yb=mk("button","sub","有利区間切れ（引き継ぎ情報を消す）");yb.style.color="var(--hot)";yb.addEventListener("click",()=>{if(!confirm("次回報酬・報酬待ち・🍉残り・モード示唆・運命盤の回数を消します。よろしいですか？"))return;closeSheet();yuuriReset("手動")});b.append(yb)}
     b.append(mk("div","lbl","記録を見る・書き出す"));const nt=mk("button","sub","ノートを開く");nt.addEventListener("click",()=>{closeSheet();showNote()});b.append(nt);
@@ -1828,8 +1832,10 @@ function editInfo(sess,after){
     const F={};
     const row=(label,el)=>{b.append(mk("div","lbl",label));b.append(el);return el};
     F.machine=row("機種名",mk("input"));F.machine.value=sess.machine||"";
+    F.shop=mk("input");F.shop.value=sess.shop||"";F.dai=mk("input");F.dai.setAttribute("inputmode","numeric");F.dai.value=sess.dai||"";
     F.lend=row("レート（1000円で何枚）",numInput(sess.lend));
     const two=(l1,e1,l2,e2)=>{const w=mk("div","setup");w.style.padding="0";const t=mk("div","two");const a=mk("div"),c=mk("div");a.append(mk("div","lbl",l1),e1);c.append(mk("div","lbl",l2),e2);t.append(a,c);b.append(t)};
+    two("店名",F.shop,"台番号",F.dai);
     F.startRealG=numInput(sess.startRealG);F.startLcdG=numInput(sess.startLcdG);two("開始 実G",F.startRealG,"開始 液晶G",F.startLcdG);
     F.startMedal=row("持ちメダル（開始）",numInput(m.startMedal));
     F.totalStart=numInput(sess.totalStart);F.expected=numInput(sess.expected);two("台の総回転数（開始）",F.totalStart,"想定期待値（円）",F.expected);
@@ -1848,7 +1854,7 @@ function editInfo(sess,after){
        if(vals.some(v=>badNum(v)||(v!=null&&v<0))){toast("数字は整数で、0以上にしてください");return}
        if(badNum(int(F.expected.value))){toast("想定期待値は整数で入れてください（マイナス可）");return}
        const ts=int(F.totalStart.value),te=sess.endAt?int(F.totalEnd.value):null;if(ts!=null&&te!=null&&te<ts){toast("終了時の総回転数が開始時より小さくなっています");return}}
-      sess.machine=mach;sess.lend=lend;
+      sess.shop=F.shop.value.trim()||null;sess.dai=F.dai.value.trim()||null;sess.machine=mach;sess.lend=lend;
       sess.startRealG=int(F.startRealG.value)||0;sess.startLcdG=int(F.startLcdG.value)||0;
       m.startMedal=int(F.startMedal.value)||0;
       sess.totalStart=int(F.totalStart.value);sess.expected=int(F.expected.value);
@@ -1979,7 +1985,7 @@ function dayKey(s){return ymd(s.startAt)}
 function today(){return ymd(nowISO())}
 function sessionText(s){
   const d=MACHINES[s.machineId]||MACHINES.generic,L=[];
-  L.push("■ "+s.machine);L.push(ymd(s.startAt)+"("+wd(s.startAt)+") "+hm(s.startAt)+(s.endAt?"〜"+hm(s.endAt):"〜"));
+  L.push("■ "+s.machine+((s.shop||s.dai)?"　"+[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" "):""));L.push(ymd(s.startAt)+"("+wd(s.startAt)+") "+hm(s.startAt)+(s.endAt?"〜"+hm(s.endAt):"〜"));
   const h=[d.lcdG?"開始 実"+s.startRealG+"G／液晶"+s.startLcdG+"G":"開始 "+s.startRealG+"G"];if(s.money.startMedal)h.push("持 "+s.money.startMedal+"枚");L.push(h.join(" ／ "));
   if(s.expected!=null)L.push("想定期待値 "+sgn(s.expected)+"円"+((s.follow&&s.follow.length)?"　＋フォロー "+s.follow.map(f=>sgn(f.amount)+(f.note?"（"+f.note+"）":"")).join(" ")+"　合計 "+sgn(expectedTotal(s))+"円":""));if(s.startNote)L.push(s.startNote);
   L.push("────────");
@@ -2002,7 +2008,7 @@ function renderNote(){
   arr.forEach(s=>{
     const k=dayKey(s);
     if(k!==cur){cur=k;const t=agg(S.sessions.filter(x=>dayKey(x)===k));const h=mk("div","dayhd");h.append(mk("div","d",k.slice(5)+"("+wd(s.startAt)+")"),mk("div","c",t.total+"台"));const v=mk("div","v",sgn(t.act)+"円");v.style.color=t.act>=0?"var(--ok)":"var(--hot)";h.append(v);w.append(h)}
-    const p=profit(s),d=mk("details","sess"),sm=mk("summary");sm.append(mk("span","sm",hm(s.startAt)),mk("span","sn",s.machine));
+    const p=profit(s),d=mk("details","sess"),sm=mk("summary");sm.append(mk("span","sm",hm(s.startAt)),mk("span","sn",s.machine+((s.shop||s.dai)?"　"+[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" "):"")));
     if(p){const pl=mk("span","pl",sgn(p.yen));pl.style.color=p.yen>=0?"var(--ok)":"var(--hot)";sm.append(pl)}
     const bd=mk("div","body");
     const ops=mk("div","ops");bd.append(ops);
@@ -2031,8 +2037,8 @@ function toEnvelope(s){
   if(s.startNote)logs.push({t:new Date(s.startAt).getTime(),type:"memo",text:"打ち始め "+gsText({realG:s.startRealG,lcdG:s.startLcdG},md)+"G　"+s.startNote});
   s.events.forEach(ev=>{const g=gsText(ev,md);logs.push({t:new Date(ev.at).getTime(),type:"memo",text:(g?g+"G　":"")+evTxt(ev)})});
   if(s.endAt)logs.push({t:new Date(s.endAt).getTime(),type:"memo",text:gsText({realG:s.realG,lcdG:s.lcdG},md)+"G　"+(s.endNote||"ヤメ")});
-  const memo=[s.machine];if(s.expected!=null)memo.push("想定期待値 "+sgn(expectedTotal(s))+"円");if(p)memo.push("差枚 "+sgn(p.medalDiff)+"枚");memo.push("開始持 "+(m.startMedal||0)+"枚／再プレイ "+replayed(m)+"枚／終了持 "+(m.endMedal||0)+"枚（回収は純増枚数）");
-  return{schema:"slot-session",schemaVer:2,sessionId:s.id||uuidV4(),machineId:s.machine,payloadVer:"rec-3",startedAt:isoOffset(new Date(s.startAt)),endedAt:isoOffset(new Date(s.endAt||s.startAt)),invest:invested(m),payout:(m.endMedal||0)-(m.startMedal||0)-replayed(m),storeId:null,storeName:null,unitNo:null,lendRate:s.lend,exchangeRate:s.lend,memo:memo.join(" ／ "),estimated:false,payload:{machine:s.machine,machineDef:s.machineId,startRealG:s.startRealG,startLcdG:s.startLcdG,endRealG:s.realG,endLcdG:s.lcdG,startMedal:m.startMedal,replays:replayed(m),endMedal:m.endMedal,expected:s.expected??null,follow:s.follow||[],expectedTotal:expectedTotal(s),rare:s.rare||null,c3:s.c3,revive:s.revive||0,pendingReward:s.pendingReward||null,modeHints:s.modeHints||[],modeEra:s.modeEra||0,logs}};
+  const memo=[s.machine+((s.shop||s.dai)?"　"+[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" "):"")];if(s.expected!=null)memo.push("想定期待値 "+sgn(expectedTotal(s))+"円");if(p)memo.push("差枚 "+sgn(p.medalDiff)+"枚");memo.push("開始持 "+(m.startMedal||0)+"枚／再プレイ "+replayed(m)+"枚／終了持 "+(m.endMedal||0)+"枚（回収は純増枚数）");
+  return{schema:"slot-session",schemaVer:2,sessionId:s.id||uuidV4(),machineId:s.machine,payloadVer:"rec-3",startedAt:isoOffset(new Date(s.startAt)),endedAt:isoOffset(new Date(s.endAt||s.startAt)),invest:invested(m),payout:(m.endMedal||0)-(m.startMedal||0)-replayed(m),storeId:null,storeName:s.shop||null,unitNo:s.dai||null,lendRate:s.lend,exchangeRate:s.lend,memo:memo.join(" ／ "),estimated:false,payload:{machine:s.machine,machineDef:s.machineId,startRealG:s.startRealG,startLcdG:s.startLcdG,endRealG:s.realG,endLcdG:s.lcdG,startMedal:m.startMedal,replays:replayed(m),endMedal:m.endMedal,expected:s.expected??null,follow:s.follow||[],expectedTotal:expectedTotal(s),rare:s.rare||null,c3:s.c3,revive:s.revive||0,pendingReward:s.pendingReward||null,modeHints:s.modeHints||[],modeEra:s.modeEra||0,logs}};
 }
 el("nExpNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.endAt);if(!done.length){toast("終わった台がありません");return}outSheet("振り返りノート用",JSON.stringify(done.map(toEnvelope),null,2),"kado-note の「JSON取り込み」でファイルを選んでください。")});
 el("nDlNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.endAt);if(!done.length){toast("終わった台がありません");return}dlJson(done.map(toEnvelope),"kadonote-"+ymd(nowISO()).replace(/\//g,"")+".json")});
@@ -2063,7 +2069,7 @@ function renderSetupFields(){
 }
 function showSetup(){
   el("scSetup").classList.remove("hide");el("scMain").classList.add("hide");el("scNote").classList.add("hide");
-  el("hdTitle").textContent="実戦記録";el("stLend").value=S.settings.lend;
+  el("hdTitle").textContent="実戦記録";el("stLend").value=S.settings.lend;el("stShop").value=S.settings.lastShop||"";
   const w=el("stMachines");w.innerHTML="";pickedMachine=null;
   Object.keys(MACHINES).filter(k=>k!=="generic").forEach(k=>{const b=mk("button","",MACHINES[k].name);b.addEventListener("click",()=>{pickedMachine=k;el("stMachine").value=MACHINES[k].name;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSetupFields()});w.append(b)});
   const names=Object.keys(MACHINES).filter(k=>k!=="generic").map(k=>MACHINES[k].name);
@@ -2072,7 +2078,9 @@ function showSetup(){
   renderSetupFields();
 }
 el("stMachine").addEventListener("input",()=>{if(pickedMachine){pickedMachine=null;el("stMachines").querySelectorAll("button").forEach(x=>x.classList.remove("on"));renderSetupFields()}});
-function showMain(){el("scSetup").classList.add("hide");el("scMain").classList.remove("hide");el("scNote").classList.add("hide");el("hdTitle").textContent=S.cur.machine+" ／ "+hm(S.cur.startAt)+"〜";render()}
+// 台の見出し：機種 ／ 店名 台番号 ／ 開始時刻〜
+function sessTitle(s){const w=[s.machine];const sd=[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" ");if(sd)w.push(sd);w.push(hm(s.startAt)+"〜");return w.join(" ／ ")}
+function showMain(){el("scSetup").classList.add("hide");el("scMain").classList.remove("hide");el("scNote").classList.add("hide");el("hdTitle").textContent=sessTitle(S.cur);render()}
 function showNote(){el("scSetup").classList.add("hide");el("scMain").classList.add("hide");el("scNote").classList.remove("hide");el("hdTitle").textContent="ノート（"+S.sessions.length+"件）";renderNote()}
 el("hdMenu").addEventListener("click",()=>{sheet("メニュー",b=>{if(S.cur){const a=mk("button","sub","記録に戻る");a.addEventListener("click",()=>{closeSheet();showMain()});b.append(a)}const n=mk("button","sub","ノートを開く");n.addEventListener("click",()=>{closeSheet();showNote()});b.append(n);if(!S.cur){const s=mk("button","sub","新しく打ち始める");s.addEventListener("click",()=>{closeSheet();showSetup()});b.append(s)}})});
 
@@ -2103,11 +2111,13 @@ el("stStart").addEventListener("click",()=>{
   S.cur={id:uid(),machineId,machine:m,startAt:nowISO(),lend,setup,
     startRealG:int(el("stRealG").value)||0,startLcdG:int(el("stLcdG").value)||0,
     realG:int(el("stRealG").value)||0,lcdG:int(el("stLcdG").value)||0,c3,
+    shop:el("stShop").value.trim()||null,dai:el("stDai").value.trim()||null,
     startNote:noteParts.join("　"),expected:int(el("stExp").value),totalStart:int(el("stTotal").value),totalEnd:null,
     rare,zenchou:zen0,hit:null,mode:"normal",parallel:{},stage:null,revive:0,melonLeft:null,melonApprox:false,rewardHint:null,modeHint:null,ticket:false,judgeWins:0,returnHit:null,pendingReward:null,melonPhase:"normal",modeEra:0,modeHints:[],tags:{},follow:[],events:[],_steps:[],
     money:{cash:[],deposits:[],spends:[],replays:(int(el("stReplay0").value)>0?[{at:nowISO(),amount:int(el("stReplay0").value),atStart:true}]:[]),startMedal:int(el("stMedal").value)||0,startReplay:0,credit:null,endMedal:null,endReplay:0},
     endAt:null,endNote:""};
-  ["stMachine","stRealG","stLcdG","stMedal","stReplay0","stNote","stExp","stTotal"].forEach(i=>el(i).value="");
+  ["stMachine","stRealG","stLcdG","stMedal","stReplay0","stNote","stExp","stTotal","stDai"].forEach(i=>el(i).value="");
+  if(S.cur&&S.cur.shop){S.settings.lastShop=S.cur.shop}
   save();showMain();
 });
 
