@@ -953,6 +953,50 @@ rec89 では実Gの直接修正に3択が挟まったため、「電卓の決定
 - 1枚絵・ボイス ＝ 復活時に見たものも数える
 - ラベル→チェッカーのキーの対応は K2_MAP。checker-data 側の定義と全件突合済み
 
+## tools/rec-kanokari：彼女、お借りします 専用の記録ツール（別箱）
+
+rec89 をコピーして作った別箱。KEY="slot-tools-rec-kanokari"。本線 tools/rec は触らない。
+定義が実戦2〜3回で固まったら本線に統合する（期限付きの二重管理）。
+仕様書：kanokari-spec-v02.md、器の拡張仕様：rec-kanokari-engine-v01.md、定義：kanokari-def-v08.js（正本はシオン）。
+
+### 工程（からくり・ハイビとの違い）
+
+動画観察（ネネ、チェックリスト）→ 流れの下書き＋ヒアリング★25 → 仕様書 v0.1 → ミコトの器レビュー（4点）→ v0.2
+→ 実戦データ6台で補正（1G目/2G目の役・2択当て・保証1個・救済用の失敗回数）→ 器の拡張（順序1〜6）と定義（v0.1→v0.8）
+→ 通し操作10本 → limited 公開 → ネネの流れデバッグ（6件）→ 実機テスト1回目（7点）。
+からくりは実装が先で15回直した。かのかりは仕様が先で、実装中の直しはレビューと実戦データからの補正だけ。
+
+### 器に足した仕組み（11点＋後から3点）
+
+- `stocks`（ストック2本：レンCHANCE／1G恋）。獲得は終了時にまとめ、消費は結果入力から。当選時に開始時の値を保存
+- `stockPhase`（1GレンCHANCE のまとめ入力）。「n個目で成功／全部失敗」＋ALL変換＋成功セットの1G目/2G目の役
+- `counter3.incOnTriggers`（攻略人数を契機で加算）。初当り・引き戻し・DREAM後は増えない
+- `stockFail`（失敗の連続回数）。救済抽選（2〜5回）の判定用。引き戻し当選と初当りで0
+- `gauge`（ハートメーター）。レア役の ask で個数、MAX で変換高確タグ。前兆中・引き戻し中は `waitIfZen` で待機
+- `zenchou.sheet`（引き戻し記録・追記型・複数選択）。段階終了や当選で流す
+- `atExtras[].type:"slots"`（REG のキャラ紹介5枠、デフォルト入り）
+- `extras[].byState`（場面で選択肢が変わるアイキャッチ）
+- `zenchou.remindAtG`（66G で促す。自動終了しない）／`enterOnHitEnd:{unlessStocks,stage}`（入口条件と段階指定）
+- `yuuriReset` に c3・stocks・gauge ／ `yuuri.levels`（有利切れ／濃厚）
+- `phases[].onEnter:{yuuri,ask}`（ENDING 突入で有利切れ＋LAST枚数）／`hits[].onStart:{stockInc,onlyTriggers}`（保証1個）
+- 後から：`stages.order`（バッジタップで次のステージ）、`stages.options[].tone/enterZen`（色と前兆段階への自動遷移）、`zenchou.backTo`（連続演出失敗→前兆ステージへ戻る）、段階の終了が1つだけならシートを出さない
+
+### 定義と器の往復で出た教訓
+
+- CZ成功の契機の語は hitTriggers と揃える（onStart.onlyTriggers がその語で判定する）
+- atExtras は当選ごとに持つ（makeGridButton は hitProp で引く）。機種直下のみ見ていた順序1の判断は誤り
+- 自動遷移（afterAt）は startHit(keepOp) で同じ op に。DREAM後→BONUS、ENDING→DREAM TIME、ハイビの1G連→BIG（本線にも当てた）
+- CZ成功→当選で G数を先に0にしない（当選G数が消える）
+- enterZen はステージ表示を段階名で上書きするので、ステージ選択から段階に入るときは選んだステージを入れ直す
+- 「変換高確」はボタンで開始せず、メーターMAX で自動。ボタンを1つ減らせた
+- 打ち始めは3項目に絞る。引き戻し中・ユメカノ・ストックは打ち始めてからバッジで直す
+- 本線との突き合わせ（同じ操作列で画面・ログ・状態・イベント列を比較）は毎回。本線に無いタップ動作が箱側だけ増えた事故を1回捕まえた
+
+### ネネの流れデバッグ（9/25・6件）で仕様として確定したもの
+
+- Q01：ななかりDREAM の攻略人数は1G恋成功の時点で+1、DREAM後の BONUS では増えない（合計+1）
+- Q02：ALL変換は残りストックだけを1G恋に。成功した1個は消費済み
+
 ---
 
 # 1.7 モード推測ツール（mode-estimator.html）
