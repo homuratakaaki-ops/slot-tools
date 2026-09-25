@@ -1047,7 +1047,7 @@ function openHit(){
   },{goLabel:"当選を記録"});
 }
 function startHit(h,trig,opts){
-  const d=DEF(),c=S.cur;opts=opts||{};mark();
+  const d=DEF(),c=S.cur;opts=opts||{};if(!opts.keepOp)mark();
   if(opts.returnFrom&&c.hit)c.returnHit=JSON.parse(JSON.stringify(c.hit));   // AT中からのCZ：戻り先を保存（mark の後）
   if(opts.consumePending){c.pendingReward=null;c.melonPhase="normal"}          // 報酬待ちからの当選：待ちを消費（mark の後）
   const target=h.enter?hitDef(h.enter):h;   // AT直撃 → AT の定義で開始
@@ -1272,9 +1272,9 @@ function leaveAt(after,extraTxt,sel,GF,MF){
     // いったん通常時に戻ってから即当選（1G連など）。段階に入り、G数を進めてから当選
     if(d.zenchou&&d.zenchou.enterOnHitEnd){c.zenchou=0;push("zenchou",zenStages()[0]+" 開始")}
     if(after.realG!=null){c.realG=after.realG;if(d.lcdG)c.lcdG=after.realG}
-    const nxt=hitDef(after.hit);if(nxt){startHit(nxt,after.trig);return}
+    const nxt=hitDef(after.hit);if(nxt){startHit(nxt,after.trig,{keepOp:true});return}
   }
-  if(after){const nxt=hitDef(after.hit);if(nxt){startHit(nxt,after.trig);return}}
+  if(after){const nxt=hitDef(after.hit);if(nxt){startHit(nxt,after.trig,{keepOp:true});return}}
   if(d.zenchou&&d.zenchou.enterOnHitEnd){c.zenchou=0;push("zenchou",zenStages()[0]+" 開始")}
   save();render();
 }
