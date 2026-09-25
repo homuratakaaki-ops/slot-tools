@@ -97,6 +97,9 @@ textarea{min-height:80px;resize:vertical}
 .opts button.tone-p{background:rgba(180,140,224,.18);border-color:rgba(180,140,224,.55)}
 .opts button.tone-c{background:rgba(110,170,240,.18);border-color:rgba(110,170,240,.55)}
 .opts button.tone-d{background:rgba(240,110,110,.18);border-color:rgba(240,110,110,.55)}
+.stg.tone-p{background:rgba(180,140,224,.18);border-color:rgba(180,140,224,.55)}
+.stg.tone-c{background:rgba(110,170,240,.18);border-color:rgba(110,170,240,.55)}
+.stg.tone-d{background:rgba(240,110,110,.18);border-color:rgba(240,110,110,.55)}
 .opts button.on.tone-p,.opts button.on.tone-c,.opts button.on.tone-d{background:var(--accent);border-color:var(--accent)}
 .sheet .sh{position:sticky;top:0;background:var(--panel);z-index:1}
 .sheet .sb .lbl{font-size:12px;color:var(--dim);margin:12px 0 6px}
@@ -287,6 +290,7 @@ kanokari:{
 
   // ---------- カウンター・ストック・メーター ----------
   counter3:{label:"攻略人数",reset:"never",incOnTriggers:["攻略成功","1G恋成功"]},   // §3
+  rareCounts:false,   // レア役の合計は数えない（枠を出さない）
   stocks:[{key:"ren",label:"レンCHANCE",short:"レン"},{key:"koi",label:"1G恋",short:"1G恋"}],   // §1
   gauge:{label:"❤",max:5,maxLabel:"MAX"},   // §4
   // 1GレンCHANCE の失敗連続回数（バッジ「レン失敗 n」）。救済抽選（2〜5回で振り分け）の判定に使う
@@ -300,8 +304,8 @@ kanokari:{
 
   // ---------- レア役 ----------
   rares:[
-    {key:"weak",label:"弱チャンス目",ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max"}},{l:"変わらず"}]}},
-    {key:"chance",label:"チャンス目",ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max"}},{l:"変わらず"}]}},
+    {key:"weak",label:"弱チャンス目",ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max",tag:"変換高確",until:"manual",waitIfZen:"MAX待機"}},{l:"変わらず"}]}},
+    {key:"chance",label:"チャンス目",ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max",tag:"変換高確",until:"manual",waitIfZen:"MAX待機"}},{l:"変わらず"}]}},
     {key:"strong",label:"強チャンス目",hint:"前兆期待"},
     {key:"gachi",label:"ガチ恋目",hint:"直撃期待"},
     {key:"saikyo",label:"最強目",hint:"BONUS濃厚"},
@@ -398,8 +402,11 @@ kanokari:{
 
   // ---------- 通常時の extras ----------
   extras:[
-    {type:"select",label:"小役変換",title:"小役変換（変換高確中）",groups:[{key:"conv",label:"変換先",required:true,options:[{l:"変換なし"},{l:"強チャンス目",set:{clearTags:["変換高確","変換超高確"]}},{l:"ガチ恋目",set:{clearTags:["変換高確","変換超高確"]}},{l:"最強目",set:{clearTags:["変換高確","変換超高確"]}},{l:"その他・不明"}]}]},
-    {type:"select",label:"変換高確",title:"変換高確",groups:[{key:"koukaku",label:"状態",required:true,options:[{l:"高確開始",set:{tag:"変換高確",until:"manual",gauge:0}},{l:"超高確開始",set:{tag:"変換超高確",until:"manual",gauge:0}},{l:"次回超高確!?",set:{tag:"次回超高確",until:"manual"}},{l:"高確終了",set:{clearTags:["変換高確","変換超高確"]}}]}]},
+    {type:"select",label:"小役変換",title:"小役変換（変換高確中）",groups:[
+      {key:"from",label:"変換元",required:true,options:["弱チャンス目","チャンス目","強チャンス目"]},
+      {key:"to",label:"変換先",required:true,options:[{l:"強チャンス目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0}},{l:"ガチ恋目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0}},{l:"最強目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0}},{l:"変換なし"}]},
+      {key:"kk",label:"高確の状態（任意）",options:[{l:"超高確だった",set:{tag:"変換超高確",until:"manual"}},{l:"高確終了（10G抜け）",set:{clearTags:["変換高確","変換超高確"],gauge:0}},{l:"次回超高確!?",set:{tag:"次回超高確",until:"manual",clearTags:["変換高確","変換超高確"],gauge:0}}]}
+    ]},
     {type:"select",label:"アイキャッチ",byState:{   // §7
       normal:{title:"アイキャッチ（通常時）",groups:[{key:"eye",label:"種類",required:true,options:["白","青・4人","ピンク・2人","劇画調・和也背景"]}]},
       zen:{title:"アイキャッチ（ゲーム数前兆）",groups:[{key:"eye",label:"種類",required:true,options:["千鶴","麻美＋瑠夏","墨＋千鶴","祖母＋祖父＋千鶴"]}]}
@@ -412,7 +419,11 @@ kanokari:{
   ],
 
   // ---------- ステージ ----------
-  stages:{options:[["部屋と彼女","通常"],["大学と彼女","通常"],["街と彼女","通常"],["海と彼女","前兆"],["和也の部屋","前兆（デート予約）"],["夜と彼女","前兆"],["ヒミツ恋ゴコロ","前兆（直撃期待）"],["ヒロインステージ","ポイント高確20G"]]},
+  stages:{
+    order:["部屋と彼女","大学と彼女","街と彼女"],   // バッジをタップすると次のステージへ（順番のもの以外はシートを開く）
+    options:[["部屋と彼女","通常"],["大学と彼女","通常"],["街と彼女","通常"],
+             {l:"海と彼女",h:"前兆",tone:"p"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p"},{l:"夜と彼女",h:"前兆",tone:"p"},{l:"ヒミツ恋ゴコロ",h:"前兆（直撃期待）",tone:"d"},
+             {l:"ヒロインステージ",h:"ポイント高確20G",tone:"c"}]},
 
   // ---------- 前兆・引き戻し ----------
   zenchou:{stages:["前兆煽り","前兆ステージ","連続演出","引き戻し中"],stageIndex:[1,2,3],cutStages:[0],
@@ -422,6 +433,7 @@ kanokari:{
       {key:"cu",label:"CU",options:["あり","なし"]},
       {key:"stage",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女"]}
     ],forStages:[2],
+    backTo:{2:1},   // 連続演出の終了時に「前兆ステージへ戻る」を出す（失敗しても前兆ステージが続くことがある）
     sheet:{label:"引き戻し記録",forStage:3,groups:[   // §5
       {key:"eye",label:"アイキャッチ",options:["白","ピンク（赤）","黒"]},
       {key:"stage0",label:"開始ステージ",options:["部屋と彼女","大学と彼女","街と彼女","専用（ユメカノ後）"]},
@@ -441,9 +453,9 @@ kanokari:{
 
   // ---------- グリッド ----------
   grids:{
-    normal:[["extra:0","extra:1","hit"],["zenchou","stage","extra:2"],["rare","extra:3","memo"]],   // 小役変換／変換高確／当選、前兆／ステージ／アイキャッチ、レア役／セリフ／メモ
-    zen:[["stage","zenchou","hit"],["extra:2","rare","memo"]],          // 前兆中（引き戻し以外）
-    hikimodoshi:[["zenSheet","hit"],["rare","extra:3","memo"]],           // 引き戻し中
+    normal:[["rare","extra:0","hit"],["zenchou","stage","extra:1"],["rare:weak","extra:2","memo"]],   // レア役／小役変換／当選、前兆／ステージ／アイキャッチ、弱チャンス目／セリフ／メモ
+    zen:[["stage","zenchou","hit"],["extra:1","rare","memo"]],          // 前兆中（引き戻し以外）
+    hikimodoshi:[["zenSheet","hit"],["rare","extra:2","memo"]],           // 引き戻し中
     stock:[["stockResult","memo"]],
     cz:[["hitEnd","memo"]],
     at:[["hitEnd","memo"]]
@@ -971,7 +983,7 @@ el("kpOk").addEventListener("click",()=>{const v=int(kpVal);el("kp").classList.r
 function askNum(title,init,cb){el("kpTitle").textContent=title;kpVal=(init==null||init===0)?"":String(init);el("kpDisp").textContent=kpVal||"0";kpCb=cb;el("kp").classList.add("open")}
 
 /* ---------- 記録 ---------- */
-const SNAP_KEYS=["hit","mode","stage","prevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare","ticket","judgeWins","returnHit","pendingReward","melonPhase","modeEra","modeHints","tags","stocks","stockPhase","gauge","zenNote","renFail"];
+const SNAP_KEYS=["hit","mode","stage","prevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare","ticket","judgeWins","returnHit","pendingReward","melonPhase","modeEra","modeHints","tags","stocks","stockPhase","gauge","zenNote","renFail","tagWait"];
 function snapshot(c){const o={};SNAP_KEYS.forEach(k=>{o[k]=JSON.parse(JSON.stringify(c[k]===undefined?null:c[k]))});return o}
 // 1操作＝1つの op。mark() で開き、その操作中の push は同じ op に属する。
 // 取り消しは op 単位で戻す（1操作が複数行を作っても、まとめて戻る）
@@ -1023,7 +1035,15 @@ function renderBadges(){
   (d.rareBadges||[]).forEach(k=>{const r=d.rares.find(x=>x.key===k);const v=c.rare[k];if(!r||!v)return;const rb=mk("div","badge",r.label+" "+(v.n||0));rb.style.color="var(--lcd)";rb.addEventListener("click",()=>editRareCount(r));b.append(rb)});
   if(c.melonLeft!=null){const ml=mk("div","badge",(c.melonLeft>0?"🍉残り"+c.melonLeft+(c.melonApprox?"以下":""):"🍉規定到達"));ml.style.color="var(--lcd)";ml.addEventListener("click",()=>openMelonLeft());b.append(ml)}
   if(c.rewardHint){const rh=mk("div","badge","次回 "+c.rewardHint);rh.style.color="var(--pur)";b.append(rh)}
-  if(c.stage&&d.stages&&!(inMain&&c.stage===zenStages()[zenIdx()]))b.append(mk("div","stg",c.stage));
+  if(c.stage&&d.stages&&!(inMain&&c.stage===zenStages()[zenIdx()])){
+    const x=mk("div","stg",c.stage),o=d.stages.options.find(o=>!Array.isArray(o)&&o.l===c.stage);
+    if(o&&o.tone)x.classList.add("tone-"+o.tone);
+    if(d.stages.order)x.addEventListener("click",()=>{
+      const order=d.stages.order,i=order?order.indexOf(c.stage):-1;
+      if(i<0){openStage();return}
+      mark();c.stage=order[(i+1)%order.length];push("stage","ステージ："+c.stage);
+    });b.append(x);
+  }
   activeModeHints().forEach(h=>{const mh=mk("div","badge",h.text+(h.span>1?"（〜"+(h.era+h.span-1-(c.modeEra||0)+1)+"回）":""));mh.style.color="var(--ok)";mh.title="区間"+h.era+"から"+h.span+"回";b.append(mh)});
 }
 function renderCounters(){
@@ -1225,16 +1245,16 @@ function recordRare(r,strong,extra,set){
   }
   {
     {
-      mark();const cell=c.rare[r.key];let lab=r.label,cnt="";const gaugeTxt=set?setGauge(set.gauge):"";
+      mark();const cell=c.rare[r.key];let lab=r.label,cnt="";const hintTxt=set?applyHints({_set_:set}):"";
       if(extra)lab+="（"+r.ask.label+"："+extra+"）";
-      if(r.strong){const slot=strong?"s":"w";cell[slot]=(cell[slot]||0)+1;rareView=slot;lab=(strong?"強":"")+r.label;cnt="（"+cell[slot]+"回目）";push("rare",lab+cnt+(gaugeTxt?"　"+gaugeTxt:""),{rareKey:r.key,slot})}
-      else if(r.count===false){push("rare",lab+(gaugeTxt?"　"+gaugeTxt:""),{rareKey:r.key,nocount:true})}
+      if(r.strong){const slot=strong?"s":"w";cell[slot]=(cell[slot]||0)+1;rareView=slot;lab=(strong?"強":"")+r.label;cnt="（"+cell[slot]+"回目）";push("rare",lab+cnt+(hintTxt?"　"+hintTxt:""),{rareKey:r.key,slot})}
+      else if(r.count===false){push("rare",lab+(hintTxt?"　"+hintTxt:""),{rareKey:r.key,nocount:true})}
       else if(r.key==="melon"&&c.melonPhase&&c.melonPhase!=="normal"){
         const k=c.melonPhase==="mission"?"nMission":"nPending";cell[k]=(cell[k]||0)+1;
         const tag=c.melonPhase==="mission"?"ミッション中":"報酬待ち中";
-        push("rare",lab+"（"+tag+" "+cell[k]+"回目）"+(gaugeTxt?"　"+gaugeTxt:""),{rareKey:r.key,phase:c.melonPhase});
+        push("rare",lab+"（"+tag+" "+cell[k]+"回目）"+(hintTxt?"　"+hintTxt:""),{rareKey:r.key,phase:c.melonPhase});
       }
-      else{cell.n=(cell.n||0)+1;cnt="（"+cell.n+"回目）";if(r.key==="melon"&&c.melonLeft!=null&&c.melonLeft>0)c.melonLeft--;push("rare",lab+cnt+(r.key==="melon"&&c.melonLeft!=null?"　残り"+c.melonLeft:"")+(gaugeTxt?"　"+gaugeTxt:""),{rareKey:r.key,phase:"normal"})}
+      else{cell.n=(cell.n||0)+1;cnt="（"+cell.n+"回目）";if(r.key==="melon"&&c.melonLeft!=null&&c.melonLeft>0)c.melonLeft--;push("rare",lab+cnt+(r.key==="melon"&&c.melonLeft!=null?"　残り"+c.melonLeft:"")+(hintTxt?"　"+hintTxt:""),{rareKey:r.key,phase:"normal"})}
       checkAutoStage();
     }
   }
@@ -1331,7 +1351,7 @@ function startHit(h,trig,opts){
   if(d.stocks)c.hit.stocksAtStart={...c.stocks};
   c.mode=target.kind;
   push("hitStart",h.label+" 当選　"+gsText(c)+"G"+(trig?"（"+trig+"）":"")+(wasZen?"　"+wasZen+"から":"")+(opts.where?"　告知："+opts.where:"")+(opts.consumePending?"　報酬待ちから":"")+(opts.extraTxt||"")+stageTxt+(d.stocks?"（開始時 "+d.stocks.map(s=>s.short+c.hit.stocksAtStart[s.key]).join("／")+"）":"")+startTxt,{...(d.stocks?{stocksAtStart:{...c.hit.stocksAtStart}}:{}),hit:target.label,via:h.label,trig,where:opts.where||null,zenFrom:wasZen,fromPending:!!opts.consumePending,hitSel:opts.hitSel||null});
-  if(wasZen)flushZenNote("当たり "+c.realG+"G");
+  if(wasZen){flushTagWait();flushZenNote("当たり "+c.realG+"G")}
   if(opts.hitSel)applyHints(opts.hitSel);
   // G数は当選時に触らない。終了時に「今のG数」を入れて合わせる（SF6と同じ）
   c._steps=[];
@@ -1490,7 +1510,11 @@ function applyHints(sel){
     if(v.melonLeft!=null){c.melonLeft=v.melonLeft;c.melonApprox=!!v.approx;msg.push("🍉残り"+v.melonLeft+(v.approx?"以下":""))}
     if(v.reward){c.rewardHint=v.reward;msg.push("次回 "+v.reward)}
     if(v.mode){c.modeHints=c.modeHints||[];c.modeHints.push({text:v.mode,era:c.modeEra||0,span:v.span||1,at:nowISO()});msg.push(v.mode+(v.span>1?"（"+v.span+"回）":""))}
-    if(v.tag){c.tags=c.tags||{};c.tags[v.tag]=v.until||"hitEnd";msg.push(v.tag)}
+    if(v.tag){
+      c.tags=c.tags||{};const wait=v.waitIfZen&&zenIdx()>=0,tag=wait?v.waitIfZen:v.tag;
+      c.tags[tag]=v.until||"hitEnd";msg.push(tag);
+      if(wait)c.tagWait={from:v.waitIfZen,to:v.tag,until:v.until||"hitEnd"};
+    }
     if(v.clearTags)v.clearTags.forEach(t=>{if(c.tags&&c.tags[t]){delete c.tags[t];msg.push(t+" 終了")}});
     const gaugeTxt=setGauge(v.gauge);if(gaugeTxt)msg.push(gaugeTxt);
   });
@@ -1724,6 +1748,11 @@ function openZenSheet(){
     mark();c.zenNote=JSON.parse(JSON.stringify(sel));push("zenNote",sh.label+"："+selText(sh.groups,sel));toast("保存しました");
   },{initial:c.zenNote||{},goLabel:"保存"});
 }
+function flushTagWait(){
+  const c=S.cur,w=c.tagWait;if(!w||!c.tags||!c.tags[w.from])return;
+  delete c.tags[w.from];c.tags[w.to]=w.until;c.tagWait=null;
+  push("tag",w.from+" → "+w.to);
+}
 function flushZenNote(result){
   const c=S.cur,sh=DEF().zenchou&&DEF().zenchou.sheet;if(!sh||!c.zenNote)return;
   const text=selText(sh.groups,c.zenNote);c.zenNote=null;
@@ -1738,23 +1767,29 @@ function zenchouCut(){
   const lab=zenEndLabel()||((cur>=0?st[cur]:"前兆")+" 発展せず");
   mark();c.zenchou=false;
   const extra=applyStageEnd();
-  push("zenchouEnd",lab+extra);flushZenNote("外れ");toast(lab);
+  push("zenchouEnd",lab+extra);flushTagWait();flushZenNote("外れ");toast(lab);
 }
 // 前兆ステージ失敗（最終幕・ワイプ・戻ったステージ）
 function zenchouEnd(){
   const d=DEF(),c=S.cur;
   const groups=d.zenchou.outGroups||[];
-  const name=zenStages()[zenIdx()]||"前兆ステージ",e=d.zenchou.enterOnHitEnd;
+  const k=zenIdx(),name=zenStages()[k]||"前兆ステージ",e=d.zenchou.enterOnHitEnd,back=d.zenchou.backTo&&d.zenchou.backTo[k];
   const lab=(typeof e==="object"&&e&&e.stage!=null&&zenEndLabel())||name+" 失敗";
   const done=sel=>{
     mark();const wasStage=zenIsStage();
     c.zenchou=false;
     if(sel.stage)c.stage=sel.stage;else if(wasStage)c.stage=c.prevStage||null;
     const extra=applyStageEnd();
-    push("zenchouEnd",lab+(selText(groups,sel)?"　"+selText(groups,sel):"")+extra,{sel});flushZenNote("外れ");closeSheet();
+    push("zenchouEnd",lab+(selText(groups,sel)?"　"+selText(groups,sel):"")+extra,{sel});flushTagWait();flushZenNote("外れ");closeSheet();
   };
-  if(d.zenchou.forStages&&!d.zenchou.forStages.includes(zenIdx())){done({});return}
-  groupSheet(lab,groups,done,{goLabel:"記録する"});
+  if(back==null&&d.zenchou.forStages&&!d.zenchou.forStages.includes(k)){done({});return}
+  groupSheet(lab,groups,done,{goLabel:"記録する",...(back!=null?{after:(b,sel)=>{
+    const btn=mk("button","sub",zenStages()[back]+"へ戻る");
+    btn.addEventListener("click",()=>{
+      mark();c.zenchou=back;
+      push("zenchouEnd",name+" 失敗 → "+zenStages()[back]+"へ"+(selText(groups,sel)?"　"+selText(groups,sel):""),{sel});closeSheet();
+    });b.append(btn);
+  }}:{})});
 }
 
 /* ---------- ステージ ---------- */
