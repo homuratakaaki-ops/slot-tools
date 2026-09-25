@@ -399,10 +399,10 @@ kanokari:{
 
   // ---------- 通常時の extras ----------
   extras:[
-    {type:"select",label:"小役変換・示唆",title:"小役変換・示唆（変換高確中）",groups:[
-      {key:"from",label:"変換元",required:true,options:["弱チャンス目","チャンス目","強チャンス目"]},
-      {key:"to",label:"変換先",required:true,options:[{l:"強チャンス目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0}},{l:"ガチ恋目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0}},{l:"最強目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0}},{l:"変換なし"}]},
-      {key:"kk",label:"高確の状態（任意）",options:[{l:"超高確だった"},{l:"高確終了（10G抜け）",set:{clearTags:["変換高確","変換超高確"],gauge:0}},{l:"次回超高確!?",set:{tag:"次回超高確",until:"manual",clearTags:["変換高確","変換超高確"],gauge:0}}]}
+    {type:"select",label:"小役変換・示唆",title:"小役変換・示唆（変換高確中）",anyOne:true,groups:[   // どれか1つでも選べば記録して閉じる
+      {key:"from",label:"変換元",options:["弱チャンス目","チャンス目","強チャンス目"]},
+      {key:"to",label:"変換先（変換したら前兆へ）",options:[{l:"強チャンス目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0,enterZen:0}},{l:"ガチ恋目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0,enterZen:0}},{l:"最強目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0,enterZen:0}},{l:"変換なし"}]},
+      {key:"kk",label:"高確の状態",options:[{l:"超高確だった"},{l:"次回超高確!?",set:{tag:"次回超高確",until:"manual",clearTags:["変換高確","変換超高確"],gauge:0}}]}
     ]},
     {type:"select",label:"アイキャッチ",byState:{   // §7
       normal:{title:"アイキャッチ（通常時）",groups:[{key:"eye",label:"種類",required:true,options:["白","青・4人","ピンク・2人","劇画調・和也背景"]}]},
@@ -963,6 +963,8 @@ function groupSheet(title,groups,onDone,opts){
         const empty=nums.find(g=>g.required&&sel[g.key]==null);if(empty){toast(empty.label+"を入れてください");return}
         const miss=groups.find(g=>Array.isArray(g.options)&&g.required&&!sel[g.key]&&!(g.showWhen&&!g.showWhen.in.includes(sel[g.showWhen.key])));
         if(miss){toast(miss.label+"を選んでください");return}
+        // v0.12/器: anyOne＝全グループが任意のシート。どれか1つでも選ばれていれば閉じる
+        if(opts.anyOne&&!groups.some(g=>{const v=sel[g.key];return Array.isArray(v)?v.length>0:(v!=null&&v!=="")})){toast("どれか1つは選んでください");return}
         onDone(sel);
       });
       el("shFoot").append(go);   // 下に固定して常に見える
@@ -1559,6 +1561,9 @@ function applyHints(sel){
     }
     if(v.clearTags)v.clearTags.forEach(t=>{if(c.tags&&c.tags[t]){delete c.tags[t];msg.push(t+" 終了")}});
     const gaugeTxt=setGauge(v.gauge);if(gaugeTxt)msg.push(gaugeTxt);
+    // v0.12/器: 示唆の適用で段階に入る（小役変換で前兆へ）。すでに段階中なら何もしない。
+    // 段階名のログは enterZen が出すので msg には足さない。keepOp で同じ操作にまとめる（取り消しは1回）
+    if(v.enterZen!=null&&zenIdx()<0)enterZen(v.enterZen,{keepOp:true});
   });
   return msg.join("、");
 }
@@ -2003,7 +2008,7 @@ function openExtra(x){
     }
     push("extra",x.label+"："+t+extraTxt+(hint?"　→ "+hint:""),{sel,extra:x.label});closeSheet();
     if(extraTxt.includes("獲得"))toast(tk.label+"を獲得");
-  });
+  },{anyOne:!!x.anyOne});
 }
 
 /* ---------- メモ・編集 ---------- */
