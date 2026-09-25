@@ -278,14 +278,9 @@ kanokari:{
 
   // ---------- 打ち始め ----------
   setup:[
-    {key:"stage0",label:"前回の当選",type:"select",options:["不明","かのかりBONUS後","REG後"],optional:true},
-    {key:"reset",label:"設定変更",type:"select",options:["不明","設定変更済み"],optional:true},
-    {key:"hiki",label:"引き戻し中（紫発光・帯）",type:"select",options:["いいえ","はい"],optional:true,applyStage:{"はい":3}},
-    {key:"yume",label:"ユメカノモード中",type:"select",options:["いいえ","はい"],optional:true,applyTag:{"はい":"ユメカノ"}},
-    {key:"c3",label:"攻略人数",type:"num",optional:true},
-    {key:"gauge",label:"ハートメーター（0〜5、MAXは6）",type:"num",optional:true},
-    {key:"stock_ren",label:"レンCHANCE ストック",type:"num",optional:true},
-    {key:"stock_koi",label:"1G恋 ストック",type:"num",optional:true}
+    {key:"stage0",label:"前回の当選",type:"select",options:["朝イチ","かのかりBONUS後","REG後"],optional:true},   // 分からなければ入力しない
+    {key:"c3",label:"前回の攻略人数",type:"num",optional:true},
+    {key:"gauge",label:"ハートメーター（0〜5、MAXは6）",type:"num",optional:true}
   ],
 
   // ---------- カウンター・ストック・メーター ----------
@@ -1087,7 +1082,13 @@ function makeGridButton(spec){
   if(spec==="hit")return mkb("当選","hot",()=>openHit());
   if(spec==="stockResult")return d.stocks?mkb("結果を入れる","hot",openStockResult):null;
   if(spec==="hitEnd")return mkb((c.hit?c.hit.label:"")+" 終了","hot",hitEnd);
-  if(spec==="zenchou")return mkb(zenchouLabel(),zenIdx()>=0?"on":"",openZenchou);
+  if(spec==="zenchou")return mkb(zenchouLabel(),zenIdx()>=0?"on":"",()=>{
+    const d=DEF(),st=zenStages(),cur=zenIdx(),items=[];
+    for(let i=cur+1;i<st.length;i++)items.push(i);
+    const canCut=!(d.zenchou&&d.zenchou.cutStages)||d.zenchou.cutStages.includes(cur)||zenIsStage();
+    if(cur>=0&&items.length===0&&canCut)return zenIsStage()?zenchouEnd():zenchouCut();
+    openZenchou();
+  });
   if(spec==="zenSheet"){
     const sh=d.zenchou&&d.zenchou.sheet;if(!sh||(sh.forStage!=null&&zenIdx()!==sh.forStage))return null;
     const text=c.zenNote?selText(sh.groups,c.zenNote):"";
