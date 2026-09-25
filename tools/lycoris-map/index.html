@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="robots" content="noindex">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#10152b">
+  <title>前兆MAP ポイントチェッカー｜試作</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif;color:#edf3ff;background:#10152b}
+    *{box-sizing:border-box}body{margin:0}button{font:inherit;cursor:pointer}main{max-width:620px;margin:auto;padding:20px 16px 48px}
+    .eyebrow{color:#7ddbd8;font-size:.77rem;letter-spacing:.12em;font-weight:800}h1{font-size:clamp(1.55rem,6vw,2.15rem);line-height:1.25;margin:8px 0}p{line-height:1.55}.lead{color:#bcc9e1;font-size:.94rem;margin:0 0 20px}
+    .panel{background:#1b2440;border:1px solid #354468;border-radius:22px;padding:18px;box-shadow:0 16px 32px #080d1b66}
+    .map-title{font-weight:800;font-size:.86rem;letter-spacing:.08em;margin-bottom:16px;color:#cbd9f3}.map{position:relative;display:flex;flex-direction:column;gap:27px;padding:12px 0 20px}.row{display:grid;gap:5px;position:relative;z-index:1}.row.five{grid-template-columns:repeat(5,1fr)}.row.six{grid-template-columns:repeat(6,1fr)}.row::before{content:"";position:absolute;z-index:-1;left:6%;right:6%;top:50%;height:4px;border-radius:10px;background:#f16b73;box-shadow:0 0 12px #f16b7388}.map::before,.map::after{content:"";position:absolute;width:4px;height:34px;background:#f16b73;box-shadow:0 0 10px #f16b7388;right:9%;top:57px}.map::after{top:168px;right:auto;left:9%}
+    .cell{appearance:none;border:2px solid #6d7c9e;border-radius:50%;width:100%;max-width:65px;aspect-ratio:1;margin:auto;display:grid;place-items:center;background:radial-gradient(circle at 35% 28%,#d4dce8,#8290a9 65%,#5e708b);box-shadow:0 5px 0 #0b1124,0 0 0 3px #ffffff19;color:#14203b;font-size:1.45rem;font-weight:900;touch-action:manipulation;transition:transform .12s,filter .12s}.cell:active{transform:scale(.93)}.cell:focus-visible,.small:focus-visible,.action:focus-visible{outline:3px solid white;outline-offset:4px}.cell[data-color="b"]{background:radial-gradient(circle at 32% 25%,#8febff,#2187ed 55%,#194db0);border-color:#61c8ff;color:white;box-shadow:0 5px 0 #0b1124,0 0 15px #349eff7a}.cell[data-color="g"]{background:radial-gradient(circle at 32% 25%,#b9ffc0,#35b663 55%,#11754b);border-color:#84f3a2;color:white;box-shadow:0 5px 0 #0b1124,0 0 15px #50db7c7a}.cell[data-color="r"]{background:radial-gradient(circle at 32% 25%,#ffd2b5,#f36562 55%,#bd2d56);border-color:#ffb3a2;color:white;box-shadow:0 5px 0 #0b1124,0 0 15px #ff748b7a}.cell.fixed{background:#322453;color:#fce6ff;border-color:#a86eea;box-shadow:0 5px 0 #0b1124}.cell.event{background:#745622;border-color:#f5d653;color:#fff0ac}.cell.fixed{font-size:1.4rem;cursor:default}.cell small{font-size:.62rem;line-height:1.15;text-align:center}.legend{font-size:.78rem;color:#c1cee5;text-align:center;margin:12px 0 0}.legend strong{color:white}.controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:15px}.small{border:1px solid #526080;background:#273350;border-radius:10px;color:white;padding:9px 12px;font-size:.84rem}
+    .result{margin:16px 0;padding:18px;border-radius:20px;background:linear-gradient(125deg,#153d60,#1f305e);border:1px solid #4779a9}.result-head{font-size:.79rem;color:#a7d8f8;font-weight:800}.score{font-size:3.3rem;font-weight:950;line-height:1.15;letter-spacing:-.05em}.score span{font-size:1.25rem;letter-spacing:0}.rate{font-size:1.32rem;font-weight:800;margin:3px 0}.note{margin:8px 0 0;color:#d7e4f7;font-size:.85rem}.hint{border-left:3px solid #fbd76c;padding-left:10px;margin-top:12px;font-size:.89rem;color:#fff0ba}
+    .action{width:100%;border:0;background:#ecf5ff;color:#172a4b;font-weight:900;border-radius:14px;padding:15px;margin-top:14px}.subaction{background:#253553;color:#e8f4ff;border:1px solid #59799b;margin-top:9px}.source{font-size:.76rem;color:#9aaaca;margin:22px 4px}.source a{color:#9bddf8}.sr{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+    .eyebrow{font-size:.65rem}h1{font-size:1.4rem;margin:5px 0}.lead{font-size:.77rem;margin:0 0 10px}
+    main{padding:10px 12px 32px}.panel{padding:10px 13px;border-radius:16px}.map-title{margin-bottom:5px;font-size:.75rem}
+    .map{gap:12px;padding:5px 0 8px}.map::before{top:49px;height:22px}.map::after{top:119px;height:22px}
+    .cell{max-width:55px;font-size:1.1rem}.cell small{font-size:.53rem}.legend{margin:7px 0 0;font-size:.7rem}.legend strong{font-size:.77rem}
+    .controls{margin-top:8px}.small{font-size:.72rem;padding:6px 9px}
+    .cell.active{outline:3px solid #ffe27b;outline-offset:3px}
+    .dock{position:sticky;bottom:0;z-index:3;display:grid;grid-template-columns:minmax(0,1fr);gap:9px;padding:9px 0 max(9px,env(safe-area-inset-bottom));background:#10152bf2;backdrop-filter:blur(12px)}
+    .palette{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}.palette button{border:1px solid #5a6580;border-radius:12px;min-height:60px;font-weight:850;font-size:.9rem;background:#29344e;color:white;touch-action:manipulation}.palette button[data-color="w"]{background:#e8ecf4;color:#1d2942}.palette button[data-color="b"]{background:#1764bd}.palette button[data-color="g"]{background:#22854d}.palette button[data-color="r"]{background:#bd4557}
+    .result{margin:0;padding:10px;border-radius:14px;min-width:0}.result-head{font-size:.67rem}.score{font-size:1.9rem}.score span{font-size:.85rem}.rate{font-size:1rem;margin:2px 0}.note{font-size:.66rem;margin:4px 0 0}.hint{font-size:.68rem;margin-top:5px;padding-left:5px}
+    .step{color:#d9e5ff;font-size:.72rem;margin:4px 0 0}.share-section{margin-top:18px}.share-section h2{font-size:1.08rem;margin:0 0 9px}.outcome{display:flex;gap:8px}.outcome label{flex:1;text-align:center;background:#263653;border:1px solid #556c93;border-radius:10px;padding:11px 4px;font-size:.84rem}.outcome label:has(input:checked){background:#214c63;border-color:#8bdff3;color:#fff}.outcome input{accent-color:#68d9ef}.share-note{font-size:.76rem;color:#b4c6df;margin:10px 0}.action{margin-top:9px}
+    .event-choice{border:1px solid #71623f;background:#302b28;border-radius:10px;margin-top:8px;padding:9px}.event-choice strong{font-size:.78rem;color:#ffe29d}.event-buttons{display:flex;gap:7px;margin-top:7px}.event-buttons button{flex:1;background:#34445d;color:white;border:1px solid #7186aa;border-radius:9px;padding:10px 5px;font-size:.8rem;font-weight:800}.event-buttons button[aria-pressed="true"]{background:#73532a;border-color:#ffe093}
+    .cell.ignored{opacity:.22;filter:grayscale(1)}.map:has(.ignored) .row:last-child{opacity:.6}.law{font-size:.73rem;line-height:1.4;color:#ffe29d;margin:5px 0 0}.initial-choice{font-size:.73rem;color:#d4e4f8;display:flex;gap:5px;align-items:center;margin-top:8px}.initial-choice input{accent-color:#ffd46b}
+    .palette button:disabled{opacity:.4;cursor:default}
+    .cell.extra[hidden]{display:none}.cell.goal{cursor:pointer}.event-buttons{flex-wrap:wrap}.event-buttons button{flex:1 1 30%}.map[data-ten="true"] .row[data-row="0"]{grid-template-columns:repeat(6,minmax(0,1fr))}.map[data-ten="true"] .row[data-row="0"] .cell{min-width:0}.map[data-ten="true"] .row[data-row="0"]{gap:3px}
+    @media(max-width:380px){.map{gap:11px}.map::before{top:45px}.map::after{top:108px}.cell{font-size:1rem}.panel{padding:9px}.row{gap:3px}.palette button{min-height:56px}}
+  </style>
+  <style>
+    .palette{grid-template-columns:repeat(4,1fr)}.palette button{min-height:56px}
+    .cell{min-width:48px;min-height:48px}.map[data-ten="true"] .row[data-row="0"] .cell{min-width:48px}
+    .undo{width:100%;min-height:44px}.undo:disabled{opacity:.4;cursor:default}
+    .result{grid-row:1}.rate.ended{font-size:.8rem}.action[hidden]{display:none}
+    a.action{display:block;text-align:center;text-decoration:none}
+    .map{gap:8px;padding:4px 0}.cell{max-width:48px}
+    .map::before{top:43px;height:20px}.map::after{top:99px;height:20px}
+    .event-choice{padding:7px}.event-buttons button{padding:8px 4px}
+    .result{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:12px}
+    .result-head,.hint{grid-column:1/-1}.score{grid-row:2/4;align-self:center}
+    .rate,.note{grid-column:2}.rate.ended{line-height:1.4}
+    .lead{white-space:nowrap}
+  </style>
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-QCKV9H0DT1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-QCKV9H0DT1');
+</script>
+</head>
+<body><main>
+  <div class="eyebrow">PLAY TOOL · PROTOTYPE</div>
+  <h1>前兆MAP ポイントチェッカー</h1>
+  <p class="lead">色ボタンで順に入力。マスをタップで修正。</p>
+  <section class="panel" aria-label="前兆MAP">
+    <div class="map-title">MAPの色を入力</div>
+    <div class="map" id="map">
+      <div class="row five" data-row="0"></div>
+      <div class="row six" data-row="1"></div>
+      <div class="row five" data-row="2"></div>
+    </div>
+    <p class="legend"><strong>黄色枠が次の入力位置</strong> ／ マスをタップで 白→青→緑→赤<br>分岐は通常9マス目・初期10マス時は10マス目。最後の「！」はタップで種類を変更（PT対象外）</p>
+    <div class="event-choice">
+      <strong id="event-title">9マス目でどうなった？</strong>
+      <div class="event-buttons"><button type="button" id="end" aria-pressed="false">発展して終了</button><button type="button" id="continue" aria-pressed="false">発展せず続行</button><button type="button" id="return" aria-pressed="false">発展→戻って続行</button></div>
+    </div>
+    <label class="initial-choice"><input type="checkbox" id="ten"> 初期配置が10マスだった（通常は9マス）</label>
+    <p class="law" id="laws" hidden></p>
+    <div class="controls"><button type="button" class="small" id="sample">入力例を試す（5PT）</button><button type="button" class="small" id="reset">すべて白に戻す</button></div>
+  </section>
+  <div class="dock">
+    <div><div class="palette" aria-label="現在のマスに色を入れて次へ">
+      <button type="button" data-pick="w" data-color="w">⚪ 白</button><button type="button" data-pick="b" data-color="b">🔵 青</button>
+      <button type="button" data-pick="g" data-color="g">🟢 緑</button><button type="button" data-pick="r" data-color="r">🔴 赤</button>
+    </div><p class="step" id="step">次：上段 左から1番目</p></div>
+    <section class="result" aria-live="polite" aria-atomic="true">
+      <div class="result-head">合計 / 当選期待度</div><div class="score"><output id="points">0</output><span> PT</span></div>
+      <div class="rate" id="rate">−（公表値なし）</div>
+      <p class="note" id="counts">青0・緑0・赤0</p><div class="hint" id="hint" hidden></div>
+    </section>
+    <button type="button" class="small undo" id="undo" disabled>↩ 1つ戻る</button>
+  </div>
+  <section class="share-section">
+    <h2>結果を共有</h2>
+    <div class="outcome" role="group" aria-label="実際の結果">
+      <label><input type="radio" name="outcome" value="未選択" checked> 未選択</label>
+      <label><input type="radio" name="outcome" value="当選"> 当選</label>
+      <label><input type="radio" name="outcome" value="ハズレ"> ハズレ</label>
+    </div>
+    <button class="action" type="button" id="share">マップ画像を作って共有</button>
+    <button class="action subaction" type="button" id="save">画像を保存</button>
+    <button class="action subaction" type="button" id="copy">結果の文章をコピー</button>
+    <a class="action subaction" id="x-post" target="_blank" rel="noopener noreferrer" hidden>Xで文章を投稿</a>
+    <p class="share-note" id="share-status">スマホの共有先でXを選ぶと画像を添付できます。対応しない環境では画像を保存し、Xに手動で添付してください。</p>
+  </section>
+  <p class="source">ポイント表・追加示唆はSammy Develop Voiceの提示画像、初期配置の法則は<a href="https://chonborista.com/slot/sammy-slot/261631/" target="_blank" rel="noopener noreferrer">ちょんぼりすた</a>を参考にしています。分岐の「続」はツール上の略記です。発展終了時は後続を合計から外し、期待度は表示しません（公表値は完走時の合計PT基準）。発展後に戻ったこと自体の加算率は公開されていないため、発展せず続行との数値差は設けていません。最後の「！／!!!／？／V」やシルエット等の個別示唆はPTに加えません。初期10マスの追加位置は画面上段右端での仮配置です。</p>
+</main>
+<script>
+// 初期10マス時の追加マス（添字14・上段右端）は実機で追加位置を未確認の仮配置。
+// 確定したら layouts と route() のみ変更すれば画面・共有画像の両方が追従する。
+(() => {
+  'use strict';
+  const values={w:0,b:1,g:2,r:3};
+  const labels={w:'白・未入力',b:'青・1PT',g:'緑・2PT',r:'赤・3PT'};
+  const sequence=['w','b','g','r'];
+  const expectations={
+    percent:{2:'約9.2%',3:'約12.4%',4:'約16.8%',5:'約22.3%',6:'約50.6%',7:'約72.2%',8:'約92.4%',9:'約98.2%'},
+    certain:'本前兆が濃厚',unpublished:'−（公表値なし）',outside:'−（公表表の範囲外）',
+    hints:[
+      {points:[10],absent:'g',text:'緑なし → ラッシュ直撃濃厚'},
+      {points:[11],absent:'r',text:'赤なし → 幼少期CZ以上濃厚'},
+      {points:[11],absent:'b',text:'青なし → ラッシュ直撃濃厚'},
+      {points:[12,13],absent:'r',text:'赤なし → ラッシュ直撃濃厚'}
+    ],
+    laws:[
+      {key:'initialBlue',min:4,text:'初期の青4以上：大チャンス'},
+      {key:'initialSize',min:10,text:'初期配置10マス：ラッシュ直撃濃厚!?'},
+      {key:'green',min:3,text:'緑3以上：幼少期CZ期待度アップ'}
+    ]
+  };
+  const layouts=[
+    [{kind:'x',index:0},{kind:'x',index:1},{kind:'x',index:2},{kind:'x',index:3},{kind:'x',index:4},{kind:'x',index:14,extra:true}],
+    [{kind:'x',index:5},{kind:'x',index:6},{kind:'event',index:null},{kind:'x',index:7},{kind:'x',index:8},{kind:'x',index:9}],
+    [{kind:'x',index:10},{kind:'x',index:11},{kind:'x',index:12},{kind:'x',index:13},{kind:'goal',index:null}]
+  ];
+  const cells=[];
+  let eventCell,goalCell;
+  // 上段は左→右、中段は右→左、下段は左→右。
+  const routeSlots=(includeExtra)=>layouts.flatMap((row,i)=>(i%2?[...row].reverse():row).filter(slot=>includeExtra||!slot.extra));
+  const normalRoute=routeSlots(false).filter(slot=>slot.kind==='x').map(slot=>slot.index);
+  const route=()=>ten?routeSlots(true).filter(slot=>slot.kind==='x').map(slot=>slot.index):normalRoute;
+  const gate=()=>{const slots=routeSlots(ten);return slots.slice(0,slots.findIndex(slot=>slot.kind==='event')).filter(slot=>slot.kind==='x').length};
+  const routeNames=Object.fromEntries(layouts.flatMap((row,r)=>row.filter(slot=>slot.kind==='x').map(slot=>[slot.index,['上段','中段','下段'][r]+' 左から'+(row.indexOf(slot)+1)+'番目'])));
+  const history=[];
+  function remember(){history.push({colors:state(),eventStatus,ten,finalMark,cursor});if(history.length>30)history.shift()}
+  const isContinuing=()=>eventStatus==='continue'||eventStatus==='return';
+  const eventLabel=()=>eventStatus==='end'?'発展して終了':eventStatus==='return'?'発展後に戻って続行':eventStatus==='continue'?'発展せず続行':'未選択';
+  let cursor=0;
+  const query=new URLSearchParams(location.search),encoded=query.get('m');
+  let initial=/^[wbgr]{14,15}$/.test(encoded||'')?encoded:null;
+  if(!initial){try{const saved=localStorage.getItem('zencho-map-v1');if(/^[wbgr]{14,15}$/.test(saved||''))initial=saved}catch{}}
+  let eventStatus=['end','continue','return'].includes(query.get('e'))?query.get('e'):null;
+  if(!eventStatus){try{eventStatus=localStorage.getItem('zencho-map-event-v1')}catch{}}
+  let ten=query.has('ten');
+  if(!query.has('ten')){try{ten=localStorage.getItem('zencho-map-ten-v1')==='1'}catch{}}
+  if(!['end','continue','return'].includes(eventStatus))eventStatus=initial&&route().slice(gate()).some(i=>initial[i]&&initial[i]!=='w')?'continue':'pending';
+  let finalMark=query.get('f');
+  if(!finalMark){try{finalMark=localStorage.getItem('zencho-map-final-v1')}catch{}}
+  if(!['!','!!!','?','V'].includes(finalMark))finalMark='!';
+  document.getElementById('ten').checked=ten;
+  for(let row=0;row<layouts.length;row++){
+    const host=document.querySelector(`[data-row="${row}"]`);
+    layouts[row].forEach(({kind,index,extra})=>{
+      if(kind!=='x'){
+        const fixed=document.createElement('div');fixed.className='cell fixed'+(kind==='event'?' event':'');
+        fixed.setAttribute('aria-label',kind==='event'?'分岐（集計対象外）':'最後のマス（集計対象外）');
+        fixed.textContent=kind==='event'?'?':finalMark;
+        if(kind==='event')eventCell=fixed;
+        if(kind==='goal'){
+          goalCell=fixed;fixed.classList.add('goal');fixed.setAttribute('role','button');fixed.setAttribute('tabindex','0');
+          const advance=()=>{remember();const marks=['!','!!!','?','V'];finalMark=marks[(marks.indexOf(finalMark)+1)%marks.length];render()};
+          fixed.addEventListener('click',advance);
+          fixed.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();advance()}});
+        }
+        host.append(fixed);return;
+      }
+      const button=document.createElement('button');button.type='button';button.className='cell'+(extra?' extra':'');
+      button.dataset.color=initial?.[index]||'w';button.dataset.index=String(index);
+      button.addEventListener('click',()=>{
+        if(!route().includes(index))return;
+        const position=route().indexOf(index);
+        if(eventStatus==='pending'&&position>=gate()){
+          document.getElementById('step').textContent=(gate()+1)+'マス目の分岐を先に選んでください';return;
+        }
+        remember();
+        button.dataset.color=sequence[(sequence.indexOf(button.dataset.color)+1)%4];
+        cursor=Math.min(position+1,route().length-1);render();
+      });
+      cells[index]=button;host.append(button);
+    });
+  }
+  function state(){return cells.map(cell=>cell.dataset.color).join('')}
+  function summary(){
+    const colors=state(),count={b:0,g:0,r:0};
+    const active=isContinuing()?route():route().slice(0,gate());
+    for(const i of active){const c=colors[i];if(c!=='w')count[c]++}
+    const points=count.b+2*count.g+3*count.r;
+    const rate=points>=10&&points<=13?expectations.certain:expectations.percent[points]||(points<2?expectations.unpublished:expectations.outside);
+    const hints=eventStatus==='end'?[]:expectations.hints.filter(rule=>rule.points.includes(points)&&count[rule.absent]===0).map(rule=>rule.text);
+    // 初期青4以上の判定範囲＝分岐より前の色マス（通常8個・初期10マス時9個）
+    const initialBlue=route().slice(0,gate()).filter(i=>colors[i]==='b').length;
+    const lawCounts={initialBlue,initialSize:ten?10:9,green:count.g};
+    const laws=expectations.laws.filter(rule=>lawCounts[rule.key]>=rule.min).map(rule=>rule.text);
+    return {points,rate,hint:hints.join('／'),count,colors,laws,active};
+  }
+  function render(){
+    const s=summary();
+    cells.forEach((cell,i)=>{
+      cell.hidden=!route().includes(i);
+      const color=cell.dataset.color,ignored=eventStatus==='end'&&!s.active.includes(i);
+      cell.disabled=ignored;cell.classList.toggle('ignored',ignored);
+      cell.setAttribute('aria-label',`${i+1}番目のマス、${ignored?'終了後・集計対象外':labels[color]}`);
+      cell.textContent=ignored?'':color==='w'?'':String(values[color]);
+    });
+    document.getElementById('points').textContent=String(s.points);
+    document.getElementById('rate').textContent=eventStatus==='end'?'終了：期待度は表示しません（公表値は完走時の合計PT基準）':s.rate;
+    document.getElementById('rate').classList.toggle('ended',eventStatus==='end');
+    document.getElementById('undo').disabled=!history.length;
+    document.getElementById('ten').checked=ten;
+    layouts.forEach((row,i)=>{document.querySelector('[data-row="'+i+'"]').style.gridTemplateColumns='repeat('+row.filter(slot=>!slot.extra||ten).length+',minmax(0,1fr))'});
+    const xPost=document.getElementById('x-post');if(!xPost.hidden)xPost.href='https://twitter.com/intent/tweet?text='+encodeURIComponent(resultText());
+    document.getElementById('counts').textContent=`青${s.count.b}・緑${s.count.g}・赤${s.count.r}`;
+    const hint=document.getElementById('hint');hint.hidden=!s.hint;hint.textContent=s.hint?'追加示唆：'+s.hint:'';
+    const laws=document.getElementById('laws');laws.hidden=!s.laws.length;laws.textContent=s.laws.join(' ／ ');
+    const ordinal=ten?10:9;
+    document.getElementById('map').dataset.ten=String(ten);
+    document.getElementById('event-title').textContent=`${ordinal}マス目でどうなった？`;
+    eventCell.textContent=eventStatus==='end'||eventStatus==='return'?'!':eventStatus==='continue'?'続':'?';
+    eventCell.setAttribute('aria-label',`${ordinal}マス目：${eventLabel()}（集計対象外）`);
+    goalCell.textContent=finalMark;
+    goalCell.setAttribute('aria-label',`最後のマス：${finalMark}。タップで変更、集計対象外`);
+    for(const id of ['end','continue','return'])document.getElementById(id).setAttribute('aria-pressed',String(eventStatus===id));
+    cells.forEach(cell=>cell.classList.toggle('active',eventStatus!=='end'&&Number(cell.dataset.index)===route()[cursor]&&!(eventStatus==='pending'&&cursor>=gate())));
+    document.querySelectorAll('[data-pick]').forEach(button=>button.disabled=eventStatus==='end'||eventStatus==='pending'&&cursor>=gate());
+    const next=route()[cursor],position=routeNames[next];
+    document.getElementById('step').textContent=eventStatus==='end'?`${ordinal}マス目で発展終了・後続は集計しません`:eventStatus==='pending'&&cursor>=gate()?`${ordinal}マス目：発展の経過を選択`:cursor===route().length-1&&cells[next].dataset.color!=='w'?'入力完了・マスをタップして修正可':`次：${position}`;
+    try{localStorage.setItem('zencho-map-v1',s.colors);localStorage.setItem('zencho-map-event-v1',eventStatus);localStorage.setItem('zencho-map-ten-v1',ten?'1':'0');localStorage.setItem('zencho-map-final-v1',finalMark)}catch{}
+  }
+  function outcome(){return document.querySelector('input[name="outcome"]:checked').value}
+  document.querySelectorAll('input[name="outcome"]').forEach(input=>input.addEventListener('change',()=>{
+    const link=document.getElementById('x-post');if(!link.hidden)link.href='https://twitter.com/intent/tweet?text='+encodeURIComponent(resultText());
+  }));
+  function resultText(){
+    const s=summary();let result=`前兆MAP：${s.points}PT（青${s.count.b}・緑${s.count.g}・赤${s.count.r}）\n${eventStatus==='end'?'終了：期待度は表示しません':'当選期待度：'+s.rate}\n${ten?10:9}マス目：${eventLabel()}\n最後のマス：${finalMark}\n実際の結果：${outcome()}`;
+    if(s.hint)result+='\n'+s.hint;
+    if(s.laws.length)result+='\n'+s.laws.join('／');
+    if(location.protocol==='https:'||location.protocol==='http:'){
+      const link=new URL(location.href);link.searchParams.set('m',s.colors);link.searchParams.set('e',eventStatus);link.searchParams.set('f',finalMark);if(ten)link.searchParams.set('ten','1');else link.searchParams.delete('ten');link.hash='';result+='\n'+link.toString();
+    }
+    return result+'\n※Sammy Develop Voice掲載の数値を参考';
+  }
+  document.querySelectorAll('[data-pick]').forEach(button=>button.addEventListener('click',()=>{
+    if(eventStatus==='end'||eventStatus==='pending'&&cursor>=gate())return;
+    remember();cells[route()[cursor]].dataset.color=button.dataset.pick;cursor=Math.min(cursor+1,route().length-1);render();
+  }));
+  document.getElementById('end').addEventListener('click',()=>{remember();eventStatus='end';cursor=gate();render()});
+  for(const id of ['continue','return'])document.getElementById(id).addEventListener('click',()=>{remember();eventStatus=id;cursor=gate();render()});
+  document.getElementById('ten').addEventListener('change',e=>{remember();ten=e.target.checked;cursor=Math.min(cursor,route().length-1);render()});
+  document.getElementById('sample').addEventListener('click',()=>{history.length=0;const sample='wbwbb'+'wwwwb'+'wwwb';cells.forEach((c,i)=>c.dataset.color=sample[i]||'w');eventStatus='continue';ten=false;document.getElementById('ten').checked=false;finalMark='!!!';cursor=0;render()});
+  document.getElementById('reset').addEventListener('click',()=>{history.length=0;document.querySelector('input[name="outcome"][value="未選択"]').checked=true;cells.forEach(c=>c.dataset.color='w');eventStatus='pending';ten=false;finalMark='!';document.getElementById('ten').checked=false;cursor=0;render()});
+  document.getElementById('undo').addEventListener('click',()=>{
+    const previous=history.pop();if(!previous)return;
+    cells.forEach((cell,i)=>cell.dataset.color=previous.colors[i]);
+    ({eventStatus,ten,finalMark,cursor}=previous);render();
+  });
+  async function makeImage(){
+    await Promise.all([28,30,32,36,42,52,54,62,94].map(size=>document.fonts.load('bold '+size+'px "Noto Sans JP", sans-serif')));
+    const s=summary(),canvas=document.createElement('canvas');canvas.width=1080;canvas.height=1300;
+    const ctx=canvas.getContext('2d');ctx.fillStyle='#10152b';ctx.fillRect(0,0,1080,1300);
+    ctx.fillStyle='#79dedb';ctx.font='bold 36px "Noto Sans JP", sans-serif';ctx.fillText('前兆MAP POINT CHECKER',70,95);
+    ctx.fillStyle='#fff';ctx.font='bold 62px "Noto Sans JP", sans-serif';ctx.fillText('前兆MAP',70,180);
+    const rows=layouts.map((row,r)=>{
+      const visible=row.filter(slot=>!slot.extra||ten),left=visible.length===5?140:100;
+      return visible.map((slot,i)=>({...slot,x:left+i*(1080-2*left)/(visible.length-1),y:310+r*195,special:slot.kind==='event'?eventCell.textContent:slot.kind==='goal'?finalMark:null}));
+    });
+    const spots=rows.flat(),lines=rows.map(row=>[row[0],row[row.length-1]]);
+    for(let i=1;i<rows.length;i++){const previous=rows[i-1],current=rows[i];lines.push(i%2?[previous[previous.length-1],current[current.length-1]]:[previous[0],current[0]])}
+    ctx.lineWidth=12;ctx.strokeStyle='#ba465e';lines.forEach(([from,to])=>{ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke()});
+    for(const spot of spots){
+      const ignored=spot.index!==null&&!s.active.includes(spot.index),c=spot.index===null?null:cells[spot.index].dataset.color;
+      ctx.beginPath();ctx.arc(spot.x,spot.y,60,0,Math.PI*2);
+      ctx.fillStyle=ignored?'#303747':spot.kind==='event'?'#bb9629':spot.special?'#733e9d':({w:'#b5c3d4',b:'#2384e9',g:'#2ca768',r:'#db5267'}[c]);ctx.fill();
+      ctx.lineWidth=6;ctx.strokeStyle='#edf6ff';ctx.stroke();
+      if(!ignored&&(spot.special||c!=='w')){ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle='#fff';ctx.font=spot.special==='!!!'?'bold 42px "Noto Sans JP", sans-serif':'bold 52px "Noto Sans JP", sans-serif';ctx.fillText(spot.special||String(values[c]),spot.x,spot.y+2)}
+    }
+    ctx.textAlign='left';ctx.textBaseline='alphabetic';ctx.fillStyle='#fff';ctx.font='bold 94px "Noto Sans JP", sans-serif';ctx.fillText(s.points+' PT',70,920);
+    ctx.font='bold 54px "Noto Sans JP", sans-serif';ctx.fillText(eventStatus==='end'?'終了：期待度は表示しません':'当選期待度 '+s.rate,70,1002,940);
+    ctx.font='bold 32px "Noto Sans JP", sans-serif';ctx.fillText((ten?'10':'9')+'マス目：'+eventLabel()+' ／ 実際：'+outcome(),70,1075);
+    if(s.hint){ctx.font='bold 30px "Noto Sans JP", sans-serif';ctx.fillStyle='#ffe28c';ctx.fillText(s.hint,70,1133,940)}
+    if(s.laws.length){ctx.font='bold 28px "Noto Sans JP", sans-serif';ctx.fillStyle='#ffe28c';ctx.fillText(s.laws.join(' ／ '),70,1180,940)}
+    ctx.font='bold 28px "Noto Sans JP", sans-serif';ctx.fillStyle='#b4c6df';ctx.fillText('Sammy Develop Voice 掲載数値を参考',70,1220);
+    ctx.fillText('slot-tools.jp',70,1270);
+    return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('画像を作れませんでした')),'image/png'));
+  }
+  function download(blob){const url=URL.createObjectURL(blob),anchor=document.createElement('a');anchor.href=url;anchor.download='zencho-map-result.png';anchor.click();setTimeout(()=>URL.revokeObjectURL(url),60000)}
+  function status(message){document.getElementById('share-status').textContent=message}
+  document.getElementById('share').addEventListener('click',async()=>{
+    try{
+      try{await navigator.clipboard.writeText(resultText())}catch{}
+      const blob=await makeImage(),file=new File([blob],'zencho-map-result.png',{type:'image/png'});
+      if(navigator.canShare?.({files:[file]})&&navigator.share){
+        await navigator.share({files:[file],text:resultText()});
+        status('共有先でXを選べます。本文が入っていなければ貼り付けてください（コピー済み）。');
+      }else{download(blob);status('画像を保存しました。「Xで文章を投稿」から投稿し、保存した画像を添付してください。');const link=document.getElementById('x-post');link.href='https://twitter.com/intent/tweet?text='+encodeURIComponent(resultText());link.hidden=false}
+    }catch(e){if(e.name!=='AbortError')status('共有できませんでした。「画像を保存」を試してください。')}
+  });
+  document.getElementById('save').addEventListener('click',async()=>{try{download(await makeImage());status('画像を保存しました。')}catch{status('画像を作れませんでした。')}});
+  document.getElementById('copy').addEventListener('click',async()=>{const button=document.getElementById('copy');try{await navigator.clipboard.writeText(resultText());button.textContent='コピーしました';setTimeout(()=>button.textContent='結果の文章をコピー',2000)}catch{button.textContent='コピーできませんでした';setTimeout(()=>button.textContent='結果の文章をコピー',2500)}});
+  render();
+})();
+</script></body></html>
