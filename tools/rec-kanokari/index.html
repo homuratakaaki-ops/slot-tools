@@ -286,6 +286,7 @@ kanokari:{
   // ---------- カウンター・ストック・メーター ----------
   counter3:{label:"攻略人数",reset:"never",incOnTriggers:["攻略成功","1G恋成功"]},   // §3
   rareCounts:false,   // レア役の合計は数えない（枠を出さない）
+  rareSheetGauge:true,   // レア役シートの下部は「回数を直す」ではなく「メーターの状態（0〜5・MAX）」
   stocks:[{key:"ren",label:"レンCHANCE",short:"レン"},{key:"koi",label:"1G恋",short:"1G恋"}],   // §1
   stockGainNote:"保証分（初当りのレン1・DREAM TIMEの1G恋1）は開始時に入っています。ここには追加で獲得した分だけ。合計は右に出ます",
   gauge:{label:"❤",max:5,maxLabel:"MAX"},   // §4
@@ -398,7 +399,7 @@ kanokari:{
 
   // ---------- 通常時の extras ----------
   extras:[
-    {type:"select",label:"小役変換",title:"小役変換（変換高確中）",groups:[
+    {type:"select",label:"小役変換・示唆",title:"小役変換・示唆（変換高確中）",groups:[
       {key:"from",label:"変換元",required:true,options:["弱チャンス目","チャンス目","強チャンス目"]},
       {key:"to",label:"変換先",required:true,options:[{l:"強チャンス目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0}},{l:"ガチ恋目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0}},{l:"最強目",set:{clearTags:["変換高確","変換超高確","MAX待機"],gauge:0}},{l:"変換なし"}]},
       {key:"kk",label:"高確の状態（任意）",options:[{l:"超高確だった"},{l:"高確終了（10G抜け）",set:{clearTags:["変換高確","変換超高確"],gauge:0}},{l:"次回超高確!?",set:{tag:"次回超高確",until:"manual",clearTags:["変換高確","変換超高確"],gauge:0}}]}
@@ -422,7 +423,7 @@ kanokari:{
              {l:"ヒロインステージ",h:"ポイント高確20G",tone:"c"}]},
 
   // ---------- 前兆・引き戻し ----------
-  zenchou:{stages:["前兆煽り","前兆ステージ","連続演出","引き戻し中"],stageIndex:[1,2,3],cutStages:[0],
+  zenchou:{stages:["前兆","前兆ステージ","連続演出","引き戻し中"],stageIndex:[1,2,3],cutStages:[0],
     // 引き戻し中は enterOnHitEnd で入る。前兆3段は手動
     enterOnHitEnd:{unlessStocks:true,stage:3},endLabel:"引き戻し終了",remindAtG:66,   // §8 §9
     outGroups:[   // 連続演出の失敗時（forStages:[2]）。実機の順：失敗→アイキャッチ→ステージ
@@ -450,7 +451,7 @@ kanokari:{
 
   // ---------- グリッド ----------
   grids:{
-    normal:[["rare","extra:0","hit"],["zenchou","stage","extra:1"],["rare:weak","extra:2","memo"]],   // レア役／小役変換／当選、前兆／ステージ／アイキャッチ、弱チャンス目／セリフ／メモ
+    normal:[["rare","extra:0","hit"],["zenchou","stage","extra:1"],["rare:weak","extra:2","memo"]],   // レア役／小役変換・示唆／当選、前兆／ステージ／アイキャッチ、弱チャンス目／セリフ／メモ
     zen:[["stage","zenchou","hit"],["extra:1","rare","memo"]],          // 前兆中（引き戻し以外）
     hikimodoshi:[["zenSheet","zenchou","hit"],["rare","extra:2","memo"]],   // 引き戻し中（zenchou＝引き戻し終了）
     stock:[["stockResult","memo"]],
@@ -1234,17 +1235,46 @@ function openRare(){
     }
     b.append(mk("div","lbl","引いた役"));
     b.append(optRow(d.rares.map(r=>({l:r.label,r})),it=>{closeSheet();recordRare(it.r,strong)},"q4"));
-    b.append(mk("div","lbl","回数を直す（押し忘れ・押しすぎ）"));
-    const rw=mk("div","opts");
-    d.rares.forEach(r=>{
-      if(r.count===false)return;
-      const cell=c.rare[r.key];
-      const lab=r.strong?(r.label+" 弱"+(cell.w||0)+"／強"+(cell.s||0)):(r.label+" "+(cell.n||0)+(r.track?"／当"+(cell.hit||0):""));
-      const btn=mk("button","q4",lab);btn.addEventListener("click",()=>{closeSheet();editRareCount(r)});rw.append(btn);
-    });
-    b.append(rw);
-    b.append(mk("div","hint","上のカウンターの数字を直接タップしても直せます。"));
+    if(d.rareSheetGauge&&d.gauge){
+      // v0.11: 回数を数えない機種（rareCounts:false）では、下部をメーターの入力に充てる
+      b.append(mk("div","lbl","メーターの状態"));
+      b.append(optRow(rareSheetGaugeOptions(),it=>{closeSheet();recordGaugeState(it)},"q4"));
+    }else{
+      b.append(mk("div","lbl","回数を直す（押し忘れ・押しすぎ）"));
+      const rw=mk("div","opts");
+      d.rares.forEach(r=>{
+        if(r.count===false)return;
+        const cell=c.rare[r.key];
+        const lab=r.strong?(r.label+" 弱"+(cell.w||0)+"／強"+(cell.s||0)):(r.label+" "+(cell.n||0)+(r.track?"／当"+(cell.hit||0):""));
+        const btn=mk("button","q4",lab);btn.addEventListener("click",()=>{closeSheet();editRareCount(r)});rw.append(btn);
+      });
+      b.append(rw);
+      b.append(mk("div","hint","上のカウンターの数字を直接タップしても直せます。"));
+    }
   });
+}
+// v0.11/器: レア役シートの下部を「メーターの状態」にする（定義の rareSheetGauge）。
+// 選択肢は 0〜d.gauge.max と MAX。MAX の設定（変換高確タグ・前兆中は MAX待機で待つ）は
+// レア役の ask の MAX と同じものを使う。器に機種固有の値を書かないため定義から引く。
+function rareSheetGaugeOptions(){
+  const d=DEF();if(!d.gauge)return [];
+  let maxSet=null;
+  (d.rares||[]).forEach(r=>{
+    if(maxSet||!r.ask||r.ask.key!=="gauge")return;
+    const o=(r.ask.options||[]).find(x=>x&&x.l===d.gauge.maxLabel);
+    if(o&&o.set)maxSet=o.set;
+  });
+  const items=[];
+  for(let i=0;i<=d.gauge.max;i++)items.push({l:String(i),set:{gauge:i}});
+  items.push({l:d.gauge.maxLabel,set:maxSet||{gauge:"max"}});
+  return items;
+}
+// v0.11/器: 「メーターの状態」を選んだら、その場で記録する（即記録）。
+// 適用はレア役の ask と同じ applyHints 経由なので、MAX のタグ付けも同じ処理になる。
+function recordGaugeState(it){
+  mark();
+  const txt=applyHints({_set_:it.set});
+  push("gauge","メーター "+(txt||it.l));
 }
 function recordRare(r,strong,extra,set){
   const c=S.cur;
