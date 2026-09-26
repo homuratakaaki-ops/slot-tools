@@ -24,6 +24,10 @@
   select,input[type=month]{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px;padding:9px 8px;min-height:44px;width:100%;font-family:inherit}
   .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
   .btns.one{grid-template-columns:1fr}
+  .btns[hidden]{display:none}
+  .chips { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 8px; }
+  .chip-btn { min-height: 44px; font-size: 13px; }
+  .chip-btn[aria-pressed="true"] { border-color: var(--gold); background: #2a2317; color: var(--gold-light); font-weight: 700; }
   button{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:13px;min-height:44px;padding:8px;cursor:pointer;font-family:inherit}
   button.primary{background:linear-gradient(135deg,#8b6914,#c9a84c);border:none;color:#0d0d0f;font-weight:700}
   .sum-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -35,12 +39,20 @@
   th:first-child,td:first-child{text-align:left;white-space:normal}
   th{color:var(--text-muted);font-weight:500;font-size:11.5px}
   .plus{color:var(--plus)}.minus{color:var(--minus)}
-  .rec{background:var(--surface2);border:1px solid var(--border);border-radius:9px;padding:10px;margin-bottom:8px;font-size:12.5px}
-  .rec .rh{display:flex;justify-content:space-between;gap:8px;font-weight:700;color:var(--text)}
-  .rec .rb{color:var(--text-muted);margin-top:4px;line-height:1.65;font-variant-numeric:tabular-nums}
-  .rec .racts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
-  .rec .rdel,.rec .redit{background:var(--surface);border:1px solid var(--border);border-radius:8px;font-size:12px;min-height:44px;padding:8px;cursor:pointer}
-  .rec .rdel{color:var(--text-muted)}
+  .rec {
+    display: flex; align-items: center; gap: 8px; width: 100%;
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 9px;
+    padding: 10px 12px; margin-bottom: 8px; min-height: 48px;
+    font-size: 12.5px; color: var(--text-muted); font-family: inherit; text-align: left;
+    font-variant-numeric: tabular-nums; cursor: pointer;
+  }
+  .rec:active { filter: brightness(1.25); }
+  .rec .r-date { flex: none; color: var(--text); font-weight: 700; }
+  /* 長い店名・機種名は末尾を省略する。日付・台番号・円は省略しない */
+  .rec .r-shop { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .rec .r-machine { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+  .rec .r-seat { flex: none; }
+  .rec .r-cash { flex: none; margin-left: auto; color: var(--text); font-weight: 700; }
   .empty{color:var(--text-muted);font-size:12.5px;padding:8px 2px}
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:flex;align-items:flex-end;justify-content:center;z-index:50;padding:12px}
   .overlay[hidden]{display:none}
@@ -52,7 +64,6 @@
   .eform textarea{min-height:56px;resize:vertical}
   .eform .sub{font-size:11.5px;color:var(--gold-light);margin-top:4px}
   .e3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px}
-  .rec .redit{color:var(--gold)}
   footer{text-align:center;padding:30px 16px;color:var(--text-dim);font-size:12px}
   footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}
   footer a{color:var(--text-muted);text-decoration:none}
@@ -77,7 +88,24 @@
 
 <main class="container">
   <section class="card">
+    <h2>要約</h2>
+    <div class="sum-grid">
+      <div class="sum-box"><span>収支合計</span><b id="sCash">–</b></div>
+      <div class="sum-box"><span>記録台数</span><b id="sCount">0</b></div>
+    </div>
+    <div class="sum-grid" style="margin-top:8px">
+      <div class="sum-box" style="grid-column:1 / -1"><span>勝率</span><b id="sWin">–</b></div>
+    </div>
+    <p class="note" id="sUnknown"></p>
+  </section>
+
+  <section class="card">
     <h2>絞り込み</h2>
+    <div class="chips" role="group" aria-label="期間">
+      <button type="button" class="chip-btn" id="pThis" aria-pressed="false">今月</button>
+      <button type="button" class="chip-btn" id="pPrev" aria-pressed="false">先月</button>
+      <button type="button" class="chip-btn" id="pAll" aria-pressed="true">全期間</button>
+    </div>
     <div class="filters">
       <label>機種
         <select id="fMachine"><option value="">すべて</option></select>
@@ -85,10 +113,10 @@
       <label>店舗
         <select id="fShop"><option value="">すべて</option></select>
       </label>
-      <label>期間（開始）
+      <label>期間を指定（開始）
         <input type="month" id="fFrom">
       </label>
-      <label>期間（終了）
+      <label>期間を指定（終了）
         <input type="month" id="fTo">
       </label>
     </div>
@@ -96,20 +124,24 @@
   </section>
 
   <section class="card">
+    <h2>記録一覧</h2>
+    <div id="list"></div>
+    <div class="btns one" id="moreWrap" hidden>
+      <button type="button" id="moreBtn"></button>
+    </div>
+  </section>
+
+  <section class="card">
     <h2>集計</h2>
     <div class="sum-grid">
-      <div class="sum-box"><span>記録数</span><b id="sCount">0</b></div>
       <div class="sum-box"><span>総回転数（自分）</span><b id="sGames">0</b></div>
       <div class="sum-box"><span>差枚合計</span><b id="sDiff">–</b></div>
-      <div class="sum-box"><span>収支合計</span><b id="sCash">–</b></div>
-      <div class="sum-box"><span>勝率</span><b id="sWin">–</b></div>
       <div class="sum-box"><span>時給（800回転/時）</span><b id="sHour">–</b></div>
       <div class="sum-box"><span>BIG確率</span><b id="sBig">–</b></div>
       <div class="sum-box"><span>REG確率</span><b id="sReg">–</b></div>
       <div class="sum-box"><span>ぶどう確率</span><b id="sGrape">–</b></div>
     </div>
     <p class="note" id="sTotal"></p>
-    <p class="note" id="sUnknown"></p>
     <p class="note">差枚と収支は、持ち枚数を入力した記録だけを集計します。勝率は円収支がプラスだった記録の割合で、±0円は勝ちに数えず母数には含めます。時給は1時間を800回転として、収支を回した時間で割ったものです。回転数が少ないうちは大きく振れます。ぶどう確率は、ぶどうを数えた記録だけを集計します（分母は数え直しをした地点からの回転数です）。</p>
   </section>
 
@@ -129,11 +161,6 @@
   </section>
 
   <section class="card">
-    <h2>記録一覧</h2>
-    <div id="list"></div>
-  </section>
-
-  <section class="card">
     <h2>データの管理</h2>
     <p class="note" style="margin-top:0">記録はこの端末の中だけに保存されています。ブラウザのデータを消したり機種変更をすると失われるため、ときどき書き出して保管してください。</p>
     <div class="btns">
@@ -148,6 +175,7 @@
 <div class="overlay" id="editOverlay" hidden>
   <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="editTitle">
     <h2 id="editTitle">記録の編集</h2>
+    <p class="note" id="eDetail" style="margin-top:0"></p>
     <div class="eform">
       <label>日付<input type="date" id="eDate"></label>
       <label>店名<input type="text" id="eShop" autocomplete="off"></label>
@@ -183,6 +211,9 @@
     <div class="btns">
       <button type="button" id="eCancel">キャンセル</button>
       <button type="button" class="primary" id="eSave">保存する</button>
+    </div>
+    <div class="btns one" style="margin-top:8px">
+      <button type="button" id="eDelete" style="color:var(--minus)">この記録を削除</button>
     </div>
   </div>
 </div>
@@ -282,7 +313,7 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
 
   function renderSummary(list) {
     const t = totals(list);
-    $("sCount").textContent = `${t.n}件`;
+    $("sCount").textContent = `${t.n}台`;
     $("sGames").textContent = `${t.games.toLocaleString()}G`;
     if (t.moneyN) {
       $("sDiff").textContent = signed(t.diff);
@@ -290,8 +321,7 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
       $("sCash").textContent = t.cashN ? yen(t.cash) : "–";
       $("sCash").className = t.cashN ? cls(t.cash) : "";
       // 母数は勝ち＋負け＋引き分け。±0円は勝ちに含めず母数には入れる
-      const drawNote = t.draw ? `・引分${t.draw}` : "";
-      $("sWin").textContent = `${Math.round((100 * t.win) / t.moneyN)}%（${t.win}/${t.moneyN}${drawNote}）`;
+      $("sWin").textContent = `${Math.round((100 * t.win) / t.moneyN)}%（勝${t.win}・負${t.lose}・分${t.draw}）`;
       $("sWin").className = "";
     } else {
       for (const id of ["sDiff", "sCash", "sWin"]) { $(id).textContent = "–"; $(id).className = ""; }
@@ -344,44 +374,46 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
   }
 
   function recordHtml(r) {
-    const est = r.estimate && Array.isArray(r.estimate.posterior)
-      ? (() => { const i = r.estimate.posterior.indexOf(Math.max(...r.estimate.posterior));
-                 return `推測 設定${i + 1} ${(100 * r.estimate.posterior[i]).toFixed(0)}%`; })()
-      : "推測なし";
     const m = moneyFromRecord(r);
-    const money = m.diff != null
-      ? `<span class="${cls(m.diff)}">${signed(m.diff)}枚（${m.cash != null ? `<span class="${cls(m.cash)}">${yen(m.cash)}</span>` : "円不明"}）</span>`
-      : "収支なし";
-    const grp = grapeCount(r) > 0 ? ` ／ ぶどう ${rate(grapeCount(r), grapeGames(r))}` : "";
-    const td = r.end && r.end.totalDiff != null
-      ? ` ／ 台差枚 約${signed(r.end.totalDiff)}` : "";
-    return `<div class="rec">
-      <div class="rh"><span>${esc(r.machineName)}</span><span>${esc(r.date)}</span></div>
-      <div class="rb">${esc(r.shop || "店名なし")}${r.seat ? " " + esc(r.seat) + "番" : ""}${r.event ? " ／ " + esc(r.event) : ""}<br>
-        台 ${num(r.end && r.end.g).toLocaleString()}G ／ BIG ${num(r.end && r.end.big)} / REG ${num(r.end && r.end.reg)}${td}<br>
-        自分 ${num(r.own && r.own.games).toLocaleString()}G ／ ${est}${grp}<br>
-        ${money}${r.memo ? "<br>" + esc(r.memo) : ""}</div>
-      <div class="racts">
-        <button type="button" class="redit" data-edit="${esc(r.id)}">編集</button>
-        <button type="button" class="rdel" data-del="${esc(r.id)}">削除</button>
-      </div>
-    </div>`;
+    const cash = m.cash != null ? `<span class="${cls(m.cash)}">${yen(m.cash)}</span>` : "–";
+    const md = String(r.date || "").slice(5).replace("-", "/");
+    return `<button type="button" class="rec" data-edit="${esc(r.id)}">
+      <span class="r-date">${esc(md)}</span>
+      <span class="r-shop">${esc(r.shop || "店名なし")}</span>
+      <span class="r-machine">${esc(r.machineName || "")}</span>
+      <span class="r-seat">${r.seat ? esc(r.seat) + "番" : ""}</span>
+      <span class="r-cash">${cash}</span>
+    </button>`;
   }
 
+  let visibleCount = 50;
+  let filterKey = "";
+
   function renderList(list) {
-    $("list").innerHTML = list.length
-      ? list.map(recordHtml).join("")
-      : `<p class="empty">記録がありません。実戦記録ツールの「マイログに保存して次へ」から記録できます。</p>`;
+    const sorted = [...list].sort((a, b) =>
+      String(b.date || "").localeCompare(String(a.date || "")) ||
+      String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
+    $("list").innerHTML = sorted.length
+      ? sorted.slice(0, visibleCount).map(recordHtml).join("")
+      : `<p class="empty">記録がありません。実戦記録ツールの「この台を終了して記録」から保存できます。</p>`;
+    $("moreWrap").hidden = sorted.length <= visibleCount;
+    $("moreBtn").textContent = `のこり${Math.max(0, sorted.length - visibleCount)}件を表示（全${sorted.length}件）`;
     $("list").querySelectorAll("[data-edit]").forEach((b) => {
       b.addEventListener("click", () => openEdit(b.dataset.edit));
     });
-    $("list").querySelectorAll("[data-del]").forEach((b) => {
-      b.addEventListener("click", () => {
-        if (!confirm("この記録を削除します。よろしいですか？")) return;
-        save(load().filter((r) => r.id !== b.dataset.del));
-        renderAll();
-      });
-    });
+  }
+
+  function ymOf(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
+  function thisMonth() { return ymOf(new Date()); }
+  function prevMonth() { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return ymOf(d); }
+  // チップを押すと月セレクトにその月が入る。任意の期間は月セレクトで指定できる
+  function setPeriod(from, to) { $("fFrom").value = from; $("fTo").value = to; renderAll(); }
+  function syncChips() {
+    const f = $("fFrom").value, t = $("fTo").value;
+    const on = (id, v) => $(id).setAttribute("aria-pressed", String(v));
+    on("pThis", f === thisMonth() && t === thisMonth());
+    on("pPrev", f === prevMonth() && t === prevMonth());
+    on("pAll", !f && !t);
   }
 
   function fillFilters() {
@@ -399,6 +431,9 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
 
   function renderAll() {
     fillFilters();
+    const nextFilterKey = JSON.stringify(["fMachine", "fShop", "fFrom", "fTo"].map((id) => $(id).value));
+    if (nextFilterKey !== filterKey) { visibleCount = 50; filterKey = nextFilterKey; }
+    syncChips();
     const list = filtered();
     renderSummary(list);
     groupTable(list, (r) => r.machineId, (k, rs) => rs[0].machineName || k, "byMachine");
@@ -417,6 +452,23 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
     editingId = id;
     const m = r.money || {};
     const st = r.start || {}, en = r.end || {};
+    // 一覧を1行にしたぶん、詳細はここで見せる（編集できない項目もここに出す）
+    const mm = moneyFromRecord(r);
+    const gG = grapeGames(r), gC = grapeCount(r);
+    $("eDetail").innerHTML = [
+      `${esc(r.machineName || "")} ／ ${esc(r.date || "")}`,
+      `${esc(r.shop || "店名なし")}${r.seat ? " " + esc(r.seat) + "番" : ""}${r.event ? " ／ " + esc(r.event) : ""}`,
+      `台 ${num(en.g).toLocaleString()}G ／ BIG ${num(en.big)} / REG ${num(en.reg)}` +
+        (en.totalDiff != null ? ` ／ 台差枚 約${signed(en.totalDiff)}` : ""),
+      `自分 ${num((r.own || {}).games).toLocaleString()}G` + (gC > 0 ? ` ／ ぶどう ${rate(gC, gG)}` : "") +
+        ` ／ ${r.estimate && Array.isArray(r.estimate.posterior)
+          ? (() => { const i = r.estimate.posterior.indexOf(Math.max(...r.estimate.posterior));
+                     return `推測 設定${i + 1} ${(100 * r.estimate.posterior[i]).toFixed(0)}%`; })()
+          : "推測なし"}`,
+      mm.diff != null
+        ? `${signed(mm.diff)}枚（${mm.cash != null ? yen(mm.cash) : "円不明"}）`
+        : "収支なし",
+    ].join("<br>");
     $("eDate").value = r.date || "";
     $("eShop").value = r.shop || "";
     $("eSeat").value = r.seat || "";
@@ -481,6 +533,20 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
   $("fClear").addEventListener("click", () => {
     for (const id of ["fMachine", "fShop", "fFrom", "fTo"]) $(id).value = "";
     renderAll();
+  });
+
+  $("pThis").addEventListener("click", () => setPeriod(thisMonth(), thisMonth()));
+  $("pPrev").addEventListener("click", () => setPeriod(prevMonth(), prevMonth()));
+  $("pAll").addEventListener("click", () => setPeriod("", ""));
+  $("moreBtn").addEventListener("click", () => { visibleCount += 50; renderAll(); });
+
+  $("eDelete").addEventListener("click", () => {
+    if (!confirm("この記録を削除します。よろしいですか？")) return;
+    const id = editingId;
+    save(load().filter((r) => r.id !== id));
+    closeEdit();
+    renderAll();
+    $("hint").textContent = "記録を削除しました。";
   });
 
   $("eCancel").addEventListener("click", closeEdit);
