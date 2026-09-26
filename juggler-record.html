@@ -258,9 +258,14 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .kp-step .kp-machine { color: var(--ink); }
 #cardCanvas { width: 100%; height: auto; border-radius: 12px; display: block; background: #000; margin-bottom: 8px; }
 /* 終了・記録シート */
-/* 小さい画面でも終了シートの全項目へ到達できるようにする */
-#mylogOverlay .keypad { max-height: 100dvh; overflow-y: auto; }
-@supports not (height: 1dvh) { #mylogOverlay .keypad { max-height: 100vh; } }
+/* 本文だけをスクロールさせ、操作ボタンはシート下端に固定する（tools/rec の shFoot と同じ形）。
+   シート全体をスクロールさせると「保存して次の台へ」が画面の外へ出てしまう */
+#mylogOverlay .keypad { display: flex; flex-direction: column; max-height: 92dvh; }
+@supports not (height: 1dvh) { #mylogOverlay .keypad { max-height: 92vh; } }
+#mylogOverlay .kp-label { flex: none; }
+/* min-height:0 が無いと flex 子要素が縮まずスクロールしない */
+#mylogOverlay .end-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#mylogOverlay .kp-actions { flex: none; margin-top: 0; padding-top: 10px; border-top: 1px solid var(--line); }
 .end-head { font-size: 12.5px; color: var(--ink); margin: 0 0 8px; line-height: 1.5; }
 .end-blocked { font-size: 12.5px; color: var(--lamp); margin: 0 0 8px; line-height: 1.5; }
 .end-money { display: grid; gap: 6px; margin-bottom: 10px; }
@@ -632,6 +637,7 @@ select.rate {
 <div class="keypad-overlay" id="mylogOverlay">
   <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="mylogTitle">
     <p class="kp-label" id="mylogTitle">この台を終了して記録</p>
+    <div class="end-body">
     <p class="end-head" id="endHead"></p>
     <p class="end-blocked" id="endBlocked" hidden></p>
     <div class="end-money">
@@ -671,6 +677,7 @@ select.rate {
       </label>
     </div>
     <p class="prior-note">保存するとカウントはクリアされます。直後なら「元に戻す」で復元できます。</p>
+    </div>
     <div class="kp-actions">
       <button type="button" class="kp-cancel" id="mlCancel">戻る</button>
       <button type="button" class="kp-ok" id="mlSave">保存して次の台へ</button>
@@ -2194,6 +2201,7 @@ function buildMylogEntry() {
   const d = new Date();
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    // マイログ独自の識別子。同じ台の記録を二重に作らないための照合キーで、共通エンベロープ（docs/session-schema-v2-design.md）の sessionId とは別物
     sessionId: state.sessionId,
     savedAt: d.toISOString(),
     date: ($("mlDate").value || localDateStamp(d)),
