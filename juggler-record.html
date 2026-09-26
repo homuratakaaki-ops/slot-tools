@@ -336,7 +336,7 @@ select.rate {
 }
 
 /* ===== 推測タブ(閲覧画面: 内部スクロール可) ===== */
-#paneEstimate { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 8px; }
+#paneEstimate, #paneRecords { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex; flex-direction: column; gap: 8px; }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: 11px; padding: 11px; flex: none; }
 .card h2 {
   font-size: 14px; font-weight: 700; color: var(--ink);
@@ -358,6 +358,16 @@ select.rate {
   border: 1px solid var(--line); background: var(--card2); color: var(--muted); cursor: pointer;
 }
 .use-btn[aria-pressed="true"] { border-color: #3c5a36; background: #22301f; color: var(--grape); }
+/* 記録を見るタブの大きな入口。説明を1行添える */
+.rec-link {
+  display: grid; align-content: center; gap: 2px;
+  min-height: 64px; padding: 12px 14px; margin-bottom: 8px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--card2);
+  color: var(--ink); text-decoration: none;
+}
+.rec-link:active { filter: brightness(1.25); }
+.rec-link .rec-link-t { font-size: 15px; font-weight: 700; }
+.rec-link .rec-link-d { font-size: 12px; color: var(--muted); }
 #useGrapeBtn[aria-pressed="true"]::after, #useBreakdownBtn[aria-pressed="true"]::after { content: " 使用中"; font-size: 10.5px; }
 #useGrapeBtn[aria-pressed="false"]::after, #useBreakdownBtn[aria-pressed="false"]::after { content: " 不使用"; font-size: 10.5px; }
 #visToggles .use-btn[aria-pressed="true"]::after { content: " 表示"; font-size: 10.5px; }
@@ -475,6 +485,7 @@ select.rate {
   <div class="tabs" role="tablist">
     <button type="button" id="tabCount" role="tab" aria-selected="true"><span class="tab-ic">✚</span>カウント</button>
     <button type="button" id="tabEstimate" role="tab" aria-selected="false"><span class="tab-ic">📊</span>設定推測</button>
+    <button type="button" id="tabRecords" role="tab" aria-selected="false"><span class="tab-ic">📁</span>記録を見る</button>
   </div>
 
   <!-- ========== タブ1: カウント(固定全画面・スクロールなし) ========== -->
@@ -571,25 +582,6 @@ select.rate {
       <input type="file" id="iconFile" accept="image/*" hidden>
     </section>
 
-    <section class="card" aria-labelledby="h-mylog">
-      <h2 id="h-mylog">マイログ<small>打った台を記録して振り返る</small></h2>
-      <p class="prior-note">打った台を記録して、自分だけの実戦データを蓄積・振り返りできます。記録は端末内に保存され、外部には送信されません。</p>
-      <button type="button" class="use-btn" id="mylogSaveBtn" style="width:100%;min-height:48px;">この台を終了して記録</button>
-      <div class="use-toggles" style="grid-template-columns: 1fr 1fr; margin-top: 8px;">
-        <button type="button" class="use-btn" id="mylogViewBtn">マイログを見る</button>
-        <button type="button" class="use-btn" id="mylogExportBtn">書き出し</button>
-      </div>
-      <div class="use-toggles" style="grid-template-columns: 1fr 1fr; margin-top: 8px;">
-        <button type="button" class="use-btn" id="mylogImportBtn">読み込み</button>
-        <a class="use-btn" href="mylog.html" style="display:flex;align-items:center;justify-content:center;text-decoration:none;">一覧・集計を開く</a>
-      </div>
-      <div class="use-toggles" style="grid-template-columns: 1fr; margin-top: 8px;">
-        <a class="use-btn" href="myhorepo.html" style="display:flex;align-items:center;justify-content:center;text-decoration:none;">マイホレポ（店の傾向）を開く</a>
-      </div>
-      <input type="file" id="mylogFile" accept="application/json,.json" hidden>
-      <p class="prior-note" id="mylogHint" hidden></p>
-    </section>
-
     <section class="card" id="visSection" aria-labelledby="h-vis">
       <h2 id="h-vis">表示するカウントボタン<small>使わない項目を隠せます</small></h2>
       <div class="use-toggles" id="visToggles"></div>
@@ -630,6 +622,24 @@ select.rate {
     <p class="foot">
       <a href="about.html">運営者情報</a><a href="privacy.html">プライバシーポリシー</a><a href="disclaimer.html">免責事項</a><a href="contact.html">お問い合わせ</a><br>© 2026 slot-tools.jp
     </p>
+  </div>
+
+  <!-- ========== タブ3: 記録を見る ========== -->
+  <div id="paneRecords" hidden>
+    <section class="card" aria-labelledby="h-records">
+      <h2 id="h-records">記録を見る<small>過去の実戦と店のデータ</small></h2>
+      <a class="rec-link" href="mylog.html">
+        <span class="rec-link-t">マイログを開く</span>
+        <span class="rec-link-d">自分の実戦と収支を振り返る</span>
+      </a>
+      <a class="rec-link" href="myhorepo.html">
+        <span class="rec-link-t">マイホレポを開く</span>
+        <span class="rec-link-d">店の過去データと傾向を見る</span>
+      </a>
+      <button type="button" class="use-btn" id="mylogViewBtn" style="width:100%;min-height:48px;margin-top:10px;">この端末の最近の記録</button>
+      <p class="prior-note">打ちながら前回の同じ台を見るための簡易一覧です。「この機種のみ」「この店のみ」で絞り込めます。</p>
+      <p class="prior-note" id="mylogHint" hidden></p>
+    </section>
   </div>
 </div>
 
@@ -1045,6 +1055,7 @@ function kpCommit() {
 function bind() {
   $("tabCount").addEventListener("click", () => setTab("count"));
   $("tabEstimate").addEventListener("click", () => setTab("estimate"));
+  $("tabRecords").addEventListener("click", () => setTab("records"));
 
   // 数値フィールド(電卓を開く)
   document.querySelectorAll("[data-field]").forEach((btn) => {
@@ -1075,7 +1086,6 @@ function bind() {
   $("mcClose").addEventListener("click", () => $("machineOverlay").classList.remove("open"));
   $("subClose").addEventListener("click", () => $("subOverlay").classList.remove("open"));
   $("endBtn").addEventListener("click", openEndSheet);
-  $("mylogSaveBtn").addEventListener("click", openEndSheet);
   $("mlCancel").addEventListener("click", () => $("mylogOverlay").classList.remove("open"));
   $("mylogOverlay").addEventListener("click", (e) => { if (e.target === $("mylogOverlay")) $("mylogOverlay").classList.remove("open"); });
   $("mlSave").addEventListener("click", saveMylogAndReset);
@@ -1091,54 +1101,6 @@ function bind() {
       renderMylogList();
     });
   }
-  $("mylogExportBtn").addEventListener("click", () => {
-    const list = mylogLoad();
-    if (!list.length) {
-      $("mylogHint").hidden = false;
-      $("mylogHint").textContent = "書き出す記録がありません。";
-      return;
-    }
-    const blob = new Blob([JSON.stringify({ format: "juggler-mylog", version: 1, exportedAt: new Date().toISOString(), records: list }, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `mylog-${localDateStamp()}.json`;
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
-    $("mylogHint").hidden = false;
-    $("mylogHint").textContent = `${list.length}件を書き出しました。`;
-  });
-  $("mylogImportBtn").addEventListener("click", () => $("mylogFile").click());
-  $("mylogFile").addEventListener("change", (e) => {
-    const f = e.target.files && e.target.files[0];
-    e.target.value = "";
-    if (!f) return;
-    const fr = new FileReader();
-    fr.onload = () => {
-      let incoming = [];
-      try {
-        const data = JSON.parse(fr.result);
-        incoming = Array.isArray(data) ? data : data.records;
-        if (!Array.isArray(incoming)) throw new Error("形式が違います");
-      } catch (err) {
-        $("mylogHint").hidden = false;
-        $("mylogHint").textContent = "読み込めませんでした。マイログの書き出しファイルを選んでください。";
-        return;
-      }
-      const cur = mylogLoad();
-      const seen = new Set(cur.map((r) => r.id));
-      const added = incoming.filter((r) => r && r.id && !seen.has(r.id));
-      const merged = [...cur, ...added].sort((a, b) => String(b.savedAt || "").localeCompare(String(a.savedAt || "")));
-      if (!mylogSave(merged)) {
-        $("mylogHint").hidden = false;
-        $("mylogHint").textContent = "保存できませんでした。端末の空き容量を確認してください。";
-        return;
-      }
-      $("mylogHint").hidden = false;
-      $("mylogHint").textContent = `${added.length}件を追加しました（重複${incoming.length - added.length}件は取り込みませんでした）。`;
-    };
-    fr.readAsText(f);
-  });
   $("cardBtn").addEventListener("click", async () => {
     $("cardHint").hidden = true;
     // canvasのfont指定ではWebフォントの取得が起動しないため、明示的に読み込む
@@ -1370,8 +1332,10 @@ function undoLabel(op) {
 function setTab(t) {
   $("tabCount").setAttribute("aria-selected", String(t === "count"));
   $("tabEstimate").setAttribute("aria-selected", String(t === "estimate"));
+  $("tabRecords").setAttribute("aria-selected", String(t === "records"));
   $("paneCount").hidden = t !== "count";
   $("paneEstimate").hidden = t !== "estimate";
+  $("paneRecords").hidden = t !== "records";
 }
 
 /* ---------- 観測の組み立て ---------- */
@@ -2101,6 +2065,16 @@ function cardShareText() {
 }
 
 const MYLOG_KEY = "juggler-mylog:v1";
+// 店名をページ間で引き継ぐ共通キー（mylog / myhorepo と共有する）
+const LAST_SHOP_KEY = "slot-tools:last-shop";
+function loadLastShop() {
+  try { return localStorage.getItem(LAST_SHOP_KEY) || ""; } catch (e) { return ""; }
+}
+function saveLastShop(shop) {
+  const s = String(shop || "").trim();
+  if (!s) return;   // 空では上書きしない
+  try { localStorage.setItem(LAST_SHOP_KEY, s); } catch (e) {}
+}
 
 function mylogLoad() {
   try {
@@ -2139,20 +2113,21 @@ function toInt(v) {
   return Number.isFinite(n) ? n : null;
 }
 
-// #endBtn と設定推測タブのボタンの両方から呼ぶ。開くだけで保存もクリアもしない
+// #endBtn から呼ぶ。開くだけで保存もクリアもしない
 function openEndSheet() {
   $("mlDate").value = localDateStamp();
   $("mlTotalDiff").value = "";
   $("mlMemo").value = "";
   $("mlSeat").value = "";
   mylogSuggest();
+  // 店名は画面に残っている値を優先し、空のときだけ他ページからの引き継ぎを使う
+  if (!$("mlShop").value.trim()) $("mlShop").value = loadLastShop();
   $("mylogHint").hidden = true;
   renderEndSheet();
   $("mylogOverlay").classList.add("open");
 }
 
-// 保存の経路はこの1つだけ。資金欄の終了ボタンも設定推測タブのボタンも、
-// 同じシートを開いてここへ来る
+// 保存の経路はこの1つだけ。終了シートの保存ボタンから呼ぶ
 function saveMylogAndReset() {
   const entry = buildMylogEntry();
   const list = mylogLoad();
@@ -2170,6 +2145,7 @@ function saveMylogAndReset() {
     $("mylogHint").textContent = "保存できませんでした。端末の空き容量を確認するか、書き出してから古い記録を削除してください。";
     return;
   }
+  saveLastShop(entry.shop);
   // 保存後はクリア(直後なら元に戻すで復元できる)
   const prev = JSON.parse(JSON.stringify({ ...state, log: [] }));
   const fresh = defaultState();
