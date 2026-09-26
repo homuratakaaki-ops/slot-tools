@@ -98,7 +98,7 @@
     <a class="action subaction" id="x-post" target="_blank" rel="noopener noreferrer" hidden>Xで文章を投稿</a>
     <p class="share-note" id="share-status">スマホの共有先でXを選ぶと画像を添付できます。対応しない環境では画像を保存し、Xに手動で添付してください。</p>
   </section>
-  <p class="source">ポイント表・追加示唆はSammy Develop Voiceの提示画像、初期配置の法則は<a href="https://chonborista.com/slot/sammy-slot/261631/" target="_blank" rel="noopener noreferrer">ちょんぼりすた</a>を参考にしています。分岐の「続」はツール上の略記です。発展終了時は後続を合計から外し、期待度は表示しません（公表値は完走時の合計PT基準）。発展後に戻ったこと自体の加算率は公開されていないため、発展せず続行との数値差は設けていません。最後の「！／!!!／？／V」やシルエット等の個別示唆はPTに加えません。初期10マスの追加位置は画面上段右端での仮配置です。</p>
+  <p class="source">ポイント表・追加示唆はサミー開発ボイスの提示画像、初期配置の法則は<a href="https://chonborista.com/slot/sammy-slot/261631/" target="_blank" rel="noopener noreferrer">ちょんぼりすた</a>を参考にしています。分岐の「続」はツール上の略記です。発展終了時は後続を合計から外し、期待度は表示しません（公表値は完走時の合計PT基準）。発展後に戻ったこと自体の加算率は公開されていないため、発展せず続行との数値差は設けていません。最後の「！／!!!／？／V」やシルエット等の個別示唆はPTに加えません。初期10マスの追加位置は画面上段右端での仮配置です。</p>
 </main>
 <script>
 // 初期10マス時の追加マス（添字14・上段右端）は実機で追加位置を未確認の仮配置。
@@ -242,7 +242,7 @@
     if(location.protocol==='https:'||location.protocol==='http:'){
       const link=new URL(location.href);link.searchParams.set('m',s.colors);link.searchParams.set('e',eventStatus);link.searchParams.set('f',finalMark);if(ten)link.searchParams.set('ten','1');else link.searchParams.delete('ten');link.hash='';result+='\n'+link.toString();
     }
-    return result+'\n※Sammy Develop Voice掲載の数値を参考';
+    return result+'\n※サミー開発ボイス掲載の数値を参考';
   }
   document.querySelectorAll('[data-pick]').forEach(button=>button.addEventListener('click',()=>{
     if(eventStatus==='end'||eventStatus==='pending'&&cursor>=gate())return;
@@ -283,7 +283,7 @@
     ctx.font='bold 32px "Noto Sans JP", sans-serif';ctx.fillText((ten?'10':'9')+'マス目：'+eventLabel()+' ／ 実際：'+outcome(),70,1075);
     if(s.hint){ctx.font='bold 30px "Noto Sans JP", sans-serif';ctx.fillStyle='#ffe28c';ctx.fillText(s.hint,70,1133,940)}
     if(s.laws.length){ctx.font='bold 28px "Noto Sans JP", sans-serif';ctx.fillStyle='#ffe28c';ctx.fillText(s.laws.join(' ／ '),70,1180,940)}
-    ctx.font='bold 28px "Noto Sans JP", sans-serif';ctx.fillStyle='#b4c6df';ctx.fillText('Sammy Develop Voice 掲載数値を参考',70,1220);
+    ctx.font='bold 28px "Noto Sans JP", sans-serif';ctx.fillStyle='#b4c6df';ctx.fillText('サミー開発ボイス 掲載数値を参考',70,1220);
     ctx.fillText('slot-tools.jp',70,1270);
     return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('画像を作れませんでした')),'image/png'));
   }
