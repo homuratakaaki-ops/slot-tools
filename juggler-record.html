@@ -211,7 +211,15 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 }
 
 /* 投資(1パネルに集約) */
-.invest-row { display: grid; grid-template-columns: 1.15fr 1.15fr 1fr 1.1fr; gap: 6px; margin-bottom: 6px; }
+.invest-row { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 6px; margin-bottom: 6px; }
+/* 下段: 持ち枚数と「この台を終了して記録」。終了ボタンを広くとる */
+.invest-row2 { display: grid; grid-template-columns: 4fr 6fr; gap: 6px; margin-bottom: 6px; }
+.end-btn {
+  border-radius: 10px; border: none; min-height: 48px; padding: 8px 4px; cursor: pointer;
+  background: linear-gradient(135deg, #8b6914, #c9a84c); color: #0d0d0f;
+  font-size: 13.5px; font-weight: 700; white-space: nowrap; font-family: inherit;
+}
+.end-btn:active { filter: brightness(1.1); }
 .calc-note { font-size: 10.5px; color: var(--muted); }
 
 /* ===== 資金パネル(最下部に留まる・たためる) ===== */
@@ -237,6 +245,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 #moneyPanel.collapsed .money-toggle { flex: 1 0 100%; }
 #moneyPanel.collapsed .invest-row { display: block; margin-bottom: 0; }
 #moneyPanel.collapsed .invest-row .invest-sub { display: none; }
+#moneyPanel.collapsed .invest-row2 { display: none; }
 #moneyPanel.collapsed .invest-line { flex: 1 1 0; min-width: 0; }
 #moneyPanel.collapsed .invest-line .chip { display: none; }
 #moneyPanel.collapsed .invest-line .sum {
@@ -248,6 +257,22 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .kp-step { font-size: 11px; color: var(--lamp); font-weight: 700; }
 .kp-step .kp-machine { color: var(--ink); }
 #cardCanvas { width: 100%; height: auto; border-radius: 12px; display: block; background: #000; margin-bottom: 8px; }
+/* 終了・記録シート */
+/* 小さい画面でも終了シートの全項目へ到達できるようにする */
+#mylogOverlay .keypad { max-height: 100dvh; overflow-y: auto; }
+@supports not (height: 1dvh) { #mylogOverlay .keypad { max-height: 100vh; } }
+.end-head { font-size: 12.5px; color: var(--ink); margin: 0 0 8px; line-height: 1.5; }
+.end-blocked { font-size: 12.5px; color: var(--lamp); margin: 0 0 8px; line-height: 1.5; }
+.end-money { display: grid; gap: 6px; margin-bottom: 10px; }
+.end-money .end-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.end-money .end-chip { width: 100%; text-align: center; }
+.end-sum { font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; margin: 2px 0 0; }
+.end-sum b.plus { color: var(--grape); }
+.end-sum b.minus { color: var(--lamp); }
+/* 収支が出せないときは計算根拠が空になる。段ごと消して穴を作らない */
+#endCalc { margin: 0; }
+#endCalc:empty { display: none; }
+.end-undecided { font-size: 12.5px; color: var(--lamp); font-weight: 700; margin: 0; }
 .mylog-form { display: grid; gap: 8px; margin-bottom: 8px; }
 .mylog-form label { display: grid; gap: 3px; font-size: 11.5px; color: var(--muted); }
 .mylog-form input, .mylog-form textarea {
@@ -277,7 +302,7 @@ input:focus, button:focus-visible, select:focus-visible { outline: 2px solid var
 .invest-sub .ib-l { font-size: 10px; color: var(--muted); line-height: 1.1; }
 .invest-sub .ib-v { font-size: 13px; font-variant-numeric: tabular-nums; line-height: 1.15; }
 .invest-line { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: var(--muted); flex-wrap: wrap; }
-.invest-line .chip {
+.invest-line .chip, .invest-row2 .chip, .end-money .chip {
   border: 1px solid var(--line); background: var(--card2); color: var(--ink);
   border-radius: 10px; padding: 11px 12px; min-height: 48px; font-size: 13px; cursor: pointer;
   font-variant-numeric: tabular-nums; white-space: nowrap;
@@ -485,13 +510,14 @@ select.rate {
       <div class="invest-row">
         <button type="button" class="invest-main" id="invSpend">−1000円</button>
         <button type="button" class="invest-sub" id="depositBtn">入金</button>
-        <button type="button" class="invest-sub" id="f_rate" data-field="rate"></button>
-        <button type="button" class="invest-sub" id="f_exchangeMai" data-field="exchangeMai"></button>
+        <button type="button" class="invest-sub" id="f_invest" data-field="invest">投資 ¥0</button>
+      </div>
+      <div class="invest-row2">
+        <button type="button" class="chip" id="f_hold" data-field="hold">持ち枚数 0</button>
+        <button type="button" class="end-btn" id="endBtn">この台を終了して記録</button>
       </div>
       <div class="invest-line">
-        <button type="button" class="chip" id="f_hold" data-field="hold">持ち枚数 0</button>
         <button type="button" class="chip" id="f_card" data-field="card" hidden>カード ¥0</button>
-        <button type="button" class="chip" id="f_invest" data-field="invest">投資 ¥0</button>
         <span class="sum" id="investSum"></span>
       </div>
     </div>
@@ -543,7 +569,7 @@ select.rate {
     <section class="card" aria-labelledby="h-mylog">
       <h2 id="h-mylog">マイログ<small>打った台を記録して振り返る</small></h2>
       <p class="prior-note">打った台を記録して、自分だけの実戦データを蓄積・振り返りできます。記録は端末内に保存され、外部には送信されません。</p>
-      <button type="button" class="use-btn" id="mylogSaveBtn" style="width:100%;min-height:48px;">マイログに保存して次へ</button>
+      <button type="button" class="use-btn" id="mylogSaveBtn" style="width:100%;min-height:48px;">この台を終了して記録</button>
       <div class="use-toggles" style="grid-template-columns: 1fr 1fr; margin-top: 8px;">
         <button type="button" class="use-btn" id="mylogViewBtn">マイログを見る</button>
         <button type="button" class="use-btn" id="mylogExportBtn">書き出し</button>
@@ -605,7 +631,23 @@ select.rate {
 <!-- ===== クリアモーダル ===== -->
 <div class="keypad-overlay" id="mylogOverlay">
   <div class="keypad" role="dialog" aria-modal="true" aria-labelledby="mylogTitle">
-    <p class="kp-label" id="mylogTitle">マイログに保存</p>
+    <p class="kp-label" id="mylogTitle">この台を終了して記録</p>
+    <p class="end-head" id="endHead"></p>
+    <p class="end-blocked" id="endBlocked" hidden></p>
+    <div class="end-money">
+      <button type="button" class="chip end-chip" id="e_hold" data-field="hold">終了持ち枚数 0</button>
+      <div class="end-2">
+        <button type="button" class="chip end-chip" id="e_startHold" data-field="startHold">開始持ち 0</button>
+        <button type="button" class="chip end-chip" id="e_invest" data-field="invest">投資 ¥0</button>
+      </div>
+      <div class="end-2">
+        <button type="button" class="invest-sub" id="f_rate" data-field="rate"></button>
+        <button type="button" class="invest-sub" id="f_exchangeMai" data-field="exchangeMai"></button>
+      </div>
+      <p class="end-sum" id="endSum"></p>
+      <p class="calc-note" id="endCalc"></p>
+      <p class="end-undecided" id="endUndecided" hidden>収支は未確定（投資・持ち枚数が未入力）</p>
+    </div>
     <div class="mylog-form">
       <label>日付
         <input type="date" id="mlDate">
@@ -630,8 +672,8 @@ select.rate {
     </div>
     <p class="prior-note">保存するとカウントはクリアされます。直後なら「元に戻す」で復元できます。</p>
     <div class="kp-actions">
-      <button type="button" class="kp-cancel" id="mlCancel">キャンセル</button>
-      <button type="button" class="kp-ok" id="mlSave">保存する</button>
+      <button type="button" class="kp-cancel" id="mlCancel">戻る</button>
+      <button type="button" class="kp-ok" id="mlSave">保存して次の台へ</button>
     </div>
   </div>
 </div>
@@ -781,9 +823,17 @@ let snapEditOpen = false;
 let UI_BTNS = [];
 let lastResult = null;
 
+// 同じ台の記録を二重に作らないための識別子。エンベロープ仕様（docs/session-schema-v2-design.md §1.5）
+// に合わせて UUID v4 で発行し、一度発行したら保存・復元をまたいで変えない
+function newSessionId() {
+  try { if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID(); } catch (e) {}
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 function defaultState() {
   return {
     v: 1,
+    sessionId: newSessionId(),
     start: { g: 0, big: 0, reg: 0 },
     // 数え直し地点。クリアしていなければ null（＝打ち始めと同じ扱い）。
     // 打ち始め(start)は動かさず、小役の分母と判別の区間だけをここから数える。
@@ -856,6 +906,9 @@ function restore() {
       if (!(state.invest.rate > 0)) state.invest.rate = 50;
       if (!(state.invest.exchangeMai > 0)) state.invest.exchangeMai = 50;
       if (!Array.isArray(state.log)) state.log = [];
+      // 旧 state には sessionId が無い。defaultState() が発行したぶんをここで書き戻す。
+      // 書き戻さないと、何も操作しないまま開き直すたびに別のIDになる
+      if (!d.sessionId) persist();
       normalizeRestart();
     }
   } catch (e) {}
@@ -1014,46 +1067,11 @@ function bind() {
   $("machineName").addEventListener("click", () => $("machineOverlay").classList.add("open"));
   $("mcClose").addEventListener("click", () => $("machineOverlay").classList.remove("open"));
   $("subClose").addEventListener("click", () => $("subOverlay").classList.remove("open"));
-  $("mylogSaveBtn").addEventListener("click", () => {
-    if (state.nowG <= 0) {
-      $("mylogHint").hidden = false;
-      $("mylogHint").textContent = "「現在のデータ」を入れてから保存してください。";
-      return;
-    }
-    $("mylogHint").hidden = true;
-    $("mlDate").value = localDateStamp();
-    $("mlTotalDiff").value = "";
-    $("mlMemo").value = "";
-    $("mlSeat").value = "";
-    mylogSuggest();
-    $("mylogOverlay").classList.add("open");
-  });
+  $("endBtn").addEventListener("click", openEndSheet);
+  $("mylogSaveBtn").addEventListener("click", openEndSheet);
   $("mlCancel").addEventListener("click", () => $("mylogOverlay").classList.remove("open"));
   $("mylogOverlay").addEventListener("click", (e) => { if (e.target === $("mylogOverlay")) $("mylogOverlay").classList.remove("open"); });
-  $("mlSave").addEventListener("click", () => {
-    const entry = buildMylogEntry();
-    const list = mylogLoad();
-    list.unshift(entry);
-    if (list.length > 500) list.length = 500;
-    if (!mylogSave(list)) {
-      $("mylogHint").hidden = false;
-      $("mylogHint").textContent = "保存できませんでした。端末の空き容量を確認するか、書き出してから古い記録を削除してください。";
-      return;
-    }
-    // 保存後はクリア(直後なら元に戻すで復元できる)
-    const prev = JSON.parse(JSON.stringify({ ...state, log: [] }));
-    const fresh = defaultState();
-    fresh.invest.rate = state.invest.rate;
-    fresh.invest.exchangeMai = state.invest.exchangeMai;
-    fresh.log = [...state.log, { k: "clear_all", prev }];
-    state = fresh;
-    persist();
-    renderAll();
-    $("mylogOverlay").classList.remove("open");
-    $("mylogHint").hidden = false;
-    $("mylogHint").textContent = "マイログに保存しました。カウントはクリアされています（直後なら「元に戻す」で復元できます）。";
-    $("lastOp").textContent = "マイログに保存してクリアしました（元に戻すで復元できます）";
-  });
+  $("mlSave").addEventListener("click", saveMylogAndReset);
   $("mylogViewBtn").addEventListener("click", () => {
     renderMylogList();
     $("mylogListOverlay").classList.add("open");
@@ -1551,6 +1569,7 @@ function renderAll() {
   renderCounts();
   renderInvest();
   renderEstimate();
+  renderEndSheet();
 }
 
 function syncFields() {
@@ -1696,6 +1715,45 @@ function renderCounts() {
   }
 }
 
+// 計算根拠の1行。資金欄では出さず、終了シートだけで出す
+function moneyCalcNote(m) {
+  return `${m.hold.toLocaleString()} − 開始${m.startHold.toLocaleString()} − 投資${m.investMedals.toLocaleString()}枚 ／ ${m.isEquiv ? "等価" : m.mai + "枚交換"}`;
+}
+
+function renderEndSheet() {
+  if (!machine) return;
+  const m = currentMoney();
+  const inv = state.invest;
+  const rs = restartPoint();
+  const grp = bonusGroupIds();
+  const nbc = (id) => state.counts[id] || 0;
+  const ownG = Math.max(0, state.nowG - state.start.g);
+  const totBig = state.start.big + rs.big + grp.big.reduce((a, id) => a + nbc(id), 0) + nbc("unk_big");
+  const totReg = state.start.reg + rs.reg + grp.reg.reduce((a, id) => a + nbc(id), 0) + nbc("unk_reg");
+  $("endHead").textContent =
+    `${machine.machine.name} ／ 自分 ${ownG.toLocaleString()}G（台 ${state.nowG.toLocaleString()}G）／ BIG ${totBig} / REG ${totReg}`;
+  // 全部飲まれて0枚で終えたことと、まだ入れていないことを取り違えないようにする
+  const zeroSpent = inv.hold === 0 && m.hasMoney;
+  $("e_hold").textContent = `終了持ち枚数 ${zeroSpent ? "0枚（全飲まれ）" : inv.hold.toLocaleString()}`;
+  $("e_startHold").textContent = `開始持ち ${(inv.startHold || 0).toLocaleString()}`;
+  $("e_invest").textContent = `投資 ¥${inv.yen.toLocaleString()}`;
+  if (m.hasMoney) {
+    $("endSum").innerHTML =
+      `差枚 <b class="${m.diff >= 0 ? "plus" : "minus"}">${m.diff >= 0 ? "+" : ""}${m.diff.toLocaleString()}</b>` +
+      `（<b class="${m.cash >= 0 ? "plus" : "minus"}">${m.cash >= 0 ? "+" : "-"}¥${Math.abs(m.cash).toLocaleString()}</b>）`;
+    $("endCalc").textContent = moneyCalcNote(m);
+  } else {
+    $("endSum").textContent = "差枚 –";
+    $("endCalc").textContent = "";
+  }
+  $("endUndecided").hidden = m.hasMoney;
+  // 「現在のデータ」が無いと台の記録にならないので保存させない
+  const blocked = state.nowG <= 0;
+  $("endBlocked").hidden = !blocked;
+  $("endBlocked").textContent = blocked ? "「現在のデータ」を入れてから保存してください。" : "";
+  $("mlSave").disabled = blocked;
+}
+
 function renderInvest() {
   const inv = state.invest;
   const m = currentMoney();
@@ -1714,7 +1772,6 @@ function renderInvest() {
   }
   $("f_card").hidden = true;
   $("f_invest").textContent = `投資 ¥${inv.yen.toLocaleString()}`;
-  const startHold = m.startHold;
   let sum = `（${medals.toLocaleString()}枚）`;
   if (m.hasMoney) {
     const diff = m.diff;
@@ -1722,7 +1779,6 @@ function renderInvest() {
     const cls = diff >= 0 ? "plus" : "minus";
     const cashCls = cash >= 0 ? "plus" : "minus";
     sum += `　差枚 <b class="${cls}">${diff >= 0 ? "+" : ""}${diff.toLocaleString()}</b>（<b class="${cashCls}">${cash >= 0 ? "+" : "-"}¥${Math.abs(cash).toLocaleString()}</b>）`;
-    sum += `<br><span class="calc-note">${inv.hold.toLocaleString()} − 開始${startHold.toLocaleString()} − 投資${medals.toLocaleString()}枚 ／ ${m.isEquiv ? "等価" : mai + "枚交換"}</span>`;
   }
   $("investSum").innerHTML = sum;
 }
@@ -2076,6 +2132,52 @@ function toInt(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+// #endBtn と設定推測タブのボタンの両方から呼ぶ。開くだけで保存もクリアもしない
+function openEndSheet() {
+  $("mlDate").value = localDateStamp();
+  $("mlTotalDiff").value = "";
+  $("mlMemo").value = "";
+  $("mlSeat").value = "";
+  mylogSuggest();
+  $("mylogHint").hidden = true;
+  renderEndSheet();
+  $("mylogOverlay").classList.add("open");
+}
+
+// 保存の経路はこの1つだけ。資金欄の終了ボタンも設定推測タブのボタンも、
+// 同じシートを開いてここへ来る
+function saveMylogAndReset() {
+  const entry = buildMylogEntry();
+  const list = mylogLoad();
+  // 同じ台（同じ sessionId）を2回保存したら、増やさずその記録を書き換える
+  const i = entry.sessionId ? list.findIndex((r) => r && r.sessionId === entry.sessionId) : -1;
+  if (i >= 0) {
+    entry.id = list[i].id;   // 書き出し・取り込みの重複判定に使う id は変えない
+    list[i] = entry;
+  } else {
+    list.unshift(entry);
+    if (list.length > 500) list.length = 500;
+  }
+  if (!mylogSave(list)) {
+    $("mylogHint").hidden = false;
+    $("mylogHint").textContent = "保存できませんでした。端末の空き容量を確認するか、書き出してから古い記録を削除してください。";
+    return;
+  }
+  // 保存後はクリア(直後なら元に戻すで復元できる)
+  const prev = JSON.parse(JSON.stringify({ ...state, log: [] }));
+  const fresh = defaultState();
+  fresh.invest.rate = state.invest.rate;
+  fresh.invest.exchangeMai = state.invest.exchangeMai;
+  fresh.log = [...state.log, { k: "clear_all", prev }];
+  state = fresh;
+  persist();
+  renderAll();
+  $("mylogOverlay").classList.remove("open");
+  $("mylogHint").hidden = false;
+  $("mylogHint").textContent = "マイログに保存しました。カウントはクリアされています（直後なら「元に戻す」で復元できます）。";
+  $("lastOp").textContent = "マイログに保存してクリアしました（元に戻すで復元できます）";
+}
+
 function buildMylogEntry() {
   const inv = state.invest;
   const m = currentMoney();
@@ -2092,6 +2194,7 @@ function buildMylogEntry() {
   const d = new Date();
   return {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    sessionId: state.sessionId,
     savedAt: d.toISOString(),
     date: ($("mlDate").value || localDateStamp(d)),
     shop: $("mlShop").value.trim(),
