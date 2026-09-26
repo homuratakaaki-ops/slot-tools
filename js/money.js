@@ -69,6 +69,7 @@ export function computeMoney(input) {
  *
  * 入力値（rate / exchangeMai）を持たない古い記録だけは計算できないため、
  * 保存済みの diff / cash をそのまま使う（legacy:true で見分けられる）。
+ * 円が出せない（cash が無い）記録は差枚だけを残し、円は null のまま返す。表示側は「不明」と出す。
  *
  * @param {object} record マイログの記録
  * @returns {object} computeMoney の戻り値に legacy:boolean を足したもの
@@ -79,13 +80,13 @@ export function moneyFromRecord(record) {
   if (!hasRates) {
     const savedDiff = m && m.diff != null && Number.isFinite(Number(m.diff)) ? Number(m.diff) : null;
     const savedCash = m && m.cash != null && Number.isFinite(Number(m.cash)) ? Number(m.cash) : null;
-    // 片方だけ欠けた記録は収支なしに倒す（読む側が null 判定を1回で済ませられるように）
-    const ok = savedDiff != null && savedCash != null;
-    const diff = ok ? savedDiff : null;
-    const cash = ok ? savedCash : null;
+    // 円が出せない記録でも差枚は捨てない。勝敗は差枚で判定できる（resultOf 参照）。
+    // cash は null のままにして、表示側で「不明」と出す。0円や引き分けに倒さない
+    const diff = savedDiff;
+    const cash = savedCash;
     return {
       legacy: true,
-      hasMoney: diff != null,
+      hasMoney: diff != null || cash != null,
       yen: n0(m && m.yen),
       hold: n0(m && m.hold),
       startHold: n0(m && m.startHold),

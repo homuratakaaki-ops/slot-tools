@@ -106,9 +106,11 @@
       <div class="sum-box"><span>時給（800回転/時）</span><b id="sHour">–</b></div>
       <div class="sum-box"><span>BIG確率</span><b id="sBig">–</b></div>
       <div class="sum-box"><span>REG確率</span><b id="sReg">–</b></div>
+      <div class="sum-box"><span>ぶどう確率</span><b id="sGrape">–</b></div>
     </div>
     <p class="note" id="sTotal"></p>
-    <p class="note">差枚と収支は、持ち枚数を入力した記録だけを集計します。勝率は円収支がプラスだった記録の割合で、±0円は勝ちに数えず母数には含めます。時給は1時間を800回転として、収支を回した時間で割ったものです。回転数が少ないうちは大きく振れます。</p>
+    <p class="note" id="sUnknown"></p>
+    <p class="note">差枚と収支は、持ち枚数を入力した記録だけを集計します。勝率は円収支がプラスだった記録の割合で、±0円は勝ちに数えず母数には含めます。時給は1時間を800回転として、収支を回した時間で割ったものです。回転数が少ないうちは大きく振れます。ぶどう確率は、ぶどうを数えた記録だけを集計します（分母は数え直しをした地点からの回転数です）。</p>
   </section>
 
   <section class="card">
@@ -224,6 +226,17 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
   function cls(v) { return v >= 0 ? "plus" : "minus"; }
   function month(r) { return String(r.date || "").slice(0, 7); }
   function rate(c, g) { return c > 0 && g > 0 ? `1/${(g / c).toFixed(1)}` : "–"; }
+  // 小役の分母。数え直し後の消化G（grapeG）を持つ記録はそれを使う。
+  // 持たない古い記録は、記録時の意味を変えないため実戦全体の消化Gのままにする
+  function grapeGames(r) {
+    const o = (r && r.own) || {};
+    const g = Number(o.grapeG);
+    return Number.isFinite(g) && g > 0 ? g : num(o.games);
+  }
+  function grapeCount(r) {
+    const c = (r && r.own && r.own.counts) || {};
+    return num(Number(c.grape));
+  }
 
   function filtered() {
     const m = $("fMachine").value, s = $("fShop").value;
@@ -239,27 +252,32 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
   }
 
   function totals(list) {
-    let games = 0, big = 0, reg = 0, diff = 0, cash = 0, moneyN = 0, win = 0, lose = 0, draw = 0;
+    let games = 0, big = 0, reg = 0, diff = 0, cash = 0, moneyN = 0, win = 0, lose = 0, draw = 0, grape = 0, grapeG = 0, cashN = 0, cashUnknown = 0, cashUnknownGames = 0;
     for (const r of list) {
       games += num(r.own && r.own.games);
       const ownBig = num(r.end && r.end.big) - num(r.start && r.start.big);
       const ownReg = num(r.end && r.end.reg) - num(r.start && r.start.reg);
       big += Math.max(0, ownBig);
       reg += Math.max(0, ownReg);
+      // ぶどうを数えた記録だけを集計する（数えていない記録のG数を分母に入れない）
+      const gc = grapeCount(r);
+      if (gc > 0) { grape += gc; grapeG += grapeGames(r); }
       // 保存済みの diff / cash ではなく、保存されている入力値から毎回計算する
       const m = moneyFromRecord(r);
       // 勝ち負けは円で決める（差枚で判定すると非等価の負けが勝ちになる）
       const res = resultOf(m);
       if (res) {
         diff += num(m.diff);
-        cash += num(m.cash);
         moneyN++;
+        // 円が出せない記録は円の合計・時給に入れない（引き分けにも倒さない）
+        if (m.cash != null) { cash += num(m.cash); cashN++; }
+        else { cashUnknown++; cashUnknownGames += num(r.own && r.own.games); }
         if (res === "win") win++;
         else if (res === "lose") lose++;
         else draw++;
       }
     }
-    return { n: list.length, games, big, reg, diff, cash, moneyN, win, lose, draw };
+    return { n: list.length, games, big, reg, diff, cash, moneyN, win, lose, draw, grape, grapeG, cashN, cashUnknown, cashUnknownGames };
   }
 
   function renderSummary(list) {
@@ -269,8 +287,8 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
     if (t.moneyN) {
       $("sDiff").textContent = signed(t.diff);
       $("sDiff").className = cls(t.diff);
-      $("sCash").textContent = yen(t.cash);
-      $("sCash").className = cls(t.cash);
+      $("sCash").textContent = t.cashN ? yen(t.cash) : "–";
+      $("sCash").className = t.cashN ? cls(t.cash) : "";
       // 母数は勝ち＋負け＋引き分け。±0円は勝ちに含めず母数には入れる
       const drawNote = t.draw ? `・引分${t.draw}` : "";
       $("sWin").textContent = `${Math.round((100 * t.win) / t.moneyN)}%（${t.win}/${t.moneyN}${drawNote}）`;
@@ -280,11 +298,17 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
     }
     $("sBig").textContent = rate(t.big, t.games);
     $("sReg").textContent = rate(t.reg, t.games);
+    $("sGrape").textContent = rate(t.grape, t.grapeG);
+    $("sUnknown").textContent = t.cashUnknown
+      ? `円が出せない古い記録${t.cashUnknown}件は、収支合計と時給に入れていません（差枚と勝敗には入れています）。`
+      : "";
     $("sTotal").textContent = t.big + t.reg > 0
       ? `合算 ${rate(t.big + t.reg, t.games)}（BIG ${t.big}回 / REG ${t.reg}回）`
       : "";
-    if (t.moneyN && t.games > 0) {
-      const hours = t.games / 800;
+    // 分母は円の合計に入れた記録のG数。円不明の記録のG数を混ぜると時給が薄まる
+    const cashGames = t.games - t.cashUnknownGames;
+    if (t.cashN && cashGames > 0) {
+      const hours = cashGames / 800;
       const perHour = Math.round(t.cash / hours);
       $("sHour").textContent = yen(perHour);
       $("sHour").className = cls(perHour);
@@ -303,14 +327,18 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
     }
     if (!map.size) { $(target).innerHTML = `<p class="empty">記録がありません。</p>`; return; }
     const rows = [...map.entries()].map(([k, rs]) => ({ k, label: labelFn(k, rs), t: totals(rs) }));
-    rows.sort((a, b) => (b.t.moneyN ? b.t.cash : -Infinity) - (a.t.moneyN ? a.t.cash : -Infinity));
+    // 円の大きい順。円が出せない行は最後にまとめる
+    const sortKey = (t) => (t.cashN ? t.cash : -Infinity);
+    rows.sort((a, b) => {
+      const ka = sortKey(a.t), kb = sortKey(b.t);
+      return ka === kb ? 0 : kb - ka;
+    });
     $(target).innerHTML =
       `<table><thead><tr><th>${target === "byMonth" ? "月" : target === "byShop" ? "店舗" : "機種"}</th><th>件数</th><th>G数</th><th>差枚</th><th>収支</th></tr></thead><tbody>` +
       rows.map((r) =>
         `<tr><td>${esc(r.label)}</td><td>${r.t.n}</td><td>${r.t.games.toLocaleString()}</td>` +
-        (r.t.moneyN
-          ? `<td class="${cls(r.t.diff)}">${signed(r.t.diff)}</td><td class="${cls(r.t.cash)}">${yen(r.t.cash)}</td>`
-          : `<td>–</td><td>–</td>`) +
+        (r.t.moneyN ? `<td class="${cls(r.t.diff)}">${signed(r.t.diff)}</td>` : `<td>–</td>`) +
+        (r.t.cashN ? `<td class="${cls(r.t.cash)}">${yen(r.t.cash)}</td>` : `<td>–</td>`) +
         `</tr>`).join("") +
       `</tbody></table>`;
   }
@@ -322,15 +350,16 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
       : "推測なし";
     const m = moneyFromRecord(r);
     const money = m.diff != null
-      ? `<span class="${cls(m.diff)}">${signed(m.diff)}枚（<span class="${cls(m.cash)}">${yen(num(m.cash))}</span>）</span>`
+      ? `<span class="${cls(m.diff)}">${signed(m.diff)}枚（${m.cash != null ? `<span class="${cls(m.cash)}">${yen(m.cash)}</span>` : "円不明"}）</span>`
       : "収支なし";
+    const grp = grapeCount(r) > 0 ? ` ／ ぶどう ${rate(grapeCount(r), grapeGames(r))}` : "";
     const td = r.end && r.end.totalDiff != null
       ? ` ／ 台差枚 約${signed(r.end.totalDiff)}` : "";
     return `<div class="rec">
       <div class="rh"><span>${esc(r.machineName)}</span><span>${esc(r.date)}</span></div>
       <div class="rb">${esc(r.shop || "店名なし")}${r.seat ? " " + esc(r.seat) + "番" : ""}${r.event ? " ／ " + esc(r.event) : ""}<br>
         台 ${num(r.end && r.end.g).toLocaleString()}G ／ BIG ${num(r.end && r.end.big)} / REG ${num(r.end && r.end.reg)}${td}<br>
-        自分 ${num(r.own && r.own.games).toLocaleString()}G ／ ${est}<br>
+        自分 ${num(r.own && r.own.games).toLocaleString()}G ／ ${est}${grp}<br>
         ${money}${r.memo ? "<br>" + esc(r.memo) : ""}</div>
       <div class="racts">
         <button type="button" class="redit" data-edit="${esc(r.id)}">編集</button>
