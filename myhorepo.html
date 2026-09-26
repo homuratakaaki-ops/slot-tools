@@ -1001,6 +1001,54 @@ async function bulkAddByDate() {
   if (advanced) seatOrShopChanged();
 }
 
+/* ---------- マイログからの取り込み ---------- */
+// マイログ側の「記録日時」。保存日時を持たない古い記録は記録の日付で代用する
+function mylogSavedAt(r) {
+  const s = r && r.savedAt != null ? String(r.savedAt) : "";
+  return s || (r && r.date != null ? String(r.date) : "");
+}
+
+// 文字列比較で新旧を決められるようにそろえる（日付だけの値はその日の0時として扱う）
+function savedAtKey(v) {
+  const s = String(v == null ? "" : v);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00:00.000Z` : s;
+}
+
+function isNewerSavedAt(a, b) { return savedAtKey(a) > savedAtKey(b); }
+
+// 取り込む1件ずつを決める。既存より古い記録では上書きしない。
+// usable: マイログの記録（店名・台番号・台データがそろっているもの）
+// existing: 既存記録の Map（id → 記録）
+// importedAt: 取り込んだ時刻（ISO文字列）
+// nameOf: machineId から機種名を引く関数
+function pickMylogImports(usable, existing, importedAt, nameOf) {
+  // 同じ店・台番号・日付（＝同じid）が取り込み元に複数あれば、記録日時が新しい1件だけ残す
+  const cand = new Map();
+  for (const r of usable) {
+    const rec = {
+      id: `${r.date}|${r.shop}|${r.machineId}|${r.seat}`,
+      date: r.date, shop: r.shop, event: r.event || "", machineId: r.machineId,
+      machineName: r.machineName || nameOf(r.machineId),
+      seat: String(r.seat), games: r.end.g, big: r.end.big || 0, reg: r.end.reg || 0,
+      diff: r.end.totalDiff == null ? null : r.end.totalDiff,
+      // 新旧の判定に使うのはマイログ側の記録日時。取り込んだ時刻は別に持つ
+      savedAt: mylogSavedAt(r), importedAt, fromMylog: true,
+    };
+    const cur = cand.get(rec.id);
+    if (!cur || isNewerSavedAt(rec.savedAt, cur.savedAt)) cand.set(rec.id, rec);
+  }
+  const skippedDup = usable.length - cand.size;
+  const records = [];
+  let skippedOlder = 0;
+  for (const rec of cand.values()) {
+    const cur = existing.get(rec.id);
+    // 既存の方が新しい（または同時刻）なら上書きしない
+    if (cur && !isNewerSavedAt(rec.savedAt, cur.savedAt)) { skippedOlder++; continue; }
+    records.push(rec);
+  }
+  return { records, skippedOlder, skippedDup };
+}
+
 async function importFromMylog() {
   let list = [];
   try {
@@ -1010,20 +1058,16 @@ async function importFromMylog() {
   } catch (e) { list = []; }
   const usable = list.filter((r) => r && r.shop && r.seat && r.end && r.end.g > 0 && MACHINES[r.machineId]);
   if (!usable.length) { $("addHint").textContent = "取り込めるマイログの記録がありません（店名・台番号・台データが必要です）。"; return; }
-  let added = 0;
-  for (const r of usable) {
-    const rec = {
-      id: `${r.date}|${r.shop}|${r.machineId}|${r.seat}`,
-      date: r.date, shop: r.shop, event: r.event || "", machineId: r.machineId,
-      machineName: r.machineName || MACHINES[r.machineId].name,
-      seat: String(r.seat), games: r.end.g, big: r.end.big || 0, reg: r.end.reg || 0,
-      diff: r.end.totalDiff == null ? null : r.end.totalDiff,
-      savedAt: new Date().toISOString(), fromMylog: true,
-    };
-    await dbPut(rec);
-    added++;
-  }
-  $("addHint").textContent = `マイログから${added}件を取り込みました（同じ日・店・機種・台番号は上書きされます）。`;
+  const existing = new Map((await dbAll()).map((u) => [u.id, u]));
+  const importedAt = new Date().toISOString();
+  const { records, skippedOlder, skippedDup } =
+    pickMylogImports(usable, existing, importedAt, (id) => MACHINES[id].name);
+  for (const rec of records) await dbPut(rec);
+  const skipped = [];
+  if (skippedOlder) skipped.push(`${skippedOlder}件は既存の方が新しいため飛ばしました`);
+  if (skippedDup) skipped.push(`取り込み元の重複${skippedDup}件を除外しました`);
+  $("addHint").textContent = `マイログから${records.length}件を取り込みました`
+    + (skipped.length ? `／${skipped.join("・")}` : "。");
   await refresh();
 }
 

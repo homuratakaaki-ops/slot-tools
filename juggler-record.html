@@ -2082,6 +2082,8 @@ function buildMylogEntry() {
   const startHold = m.startHold;
   const ownG = Math.max(0, state.nowG - state.start.g);
   const rs = restartPoint();
+  // 小役の分母は数え直し後の消化G（数え直していなければ実戦全体と同じ）
+  const grapeG = Math.max(0, state.nowG - rs.g);
   const grp = bonusGroupIds();
   const nbc = (id) => state.counts[id] || 0;
   // 数え直し前に数えたぶんを足して実戦全体にする（記録は数え直しで欠けさせない）
@@ -2104,7 +2106,7 @@ function buildMylogEntry() {
       reg: state.start.reg + ownReg,
       totalDiff: toInt($("mlTotalDiff").value),
     },
-    own: { games: ownG, counts: { ...state.counts } },
+    own: { games: ownG, grapeG, counts: { ...state.counts } },
     estimate: lastResult
       ? { posterior: lastResult.posterior.slice(), totalGames: lastResult.totalGames, reliability: reliabilityText(lastResult.totalGames) }
       : null,
@@ -2124,7 +2126,7 @@ function mylogItemHtml(r) {
   // 保存済みの diff / cash ではなく、保存されている入力値から毎回計算する
   const mm = moneyFromRecord(r);
   const money = mm.diff != null
-    ? `${mm.diff >= 0 ? "+" : ""}${mm.diff.toLocaleString()}枚（${mm.cash >= 0 ? "+" : "-"}¥${Math.abs(mm.cash).toLocaleString()}）`
+    ? `${mm.diff >= 0 ? "+" : ""}${mm.diff.toLocaleString()}枚（${mm.cash != null ? `${mm.cash >= 0 ? "+" : "-"}¥${Math.abs(mm.cash).toLocaleString()}` : "円不明"}）`
     : "収支なし";
   const bigreg = `BIG ${r.end && r.end.big != null ? r.end.big : "–"} / REG ${r.end && r.end.reg != null ? r.end.reg : "–"}`;
   const tot = r.end && r.end.totalDiff != null ? ` ／ 台差枚 約${r.end.totalDiff >= 0 ? "+" : ""}${r.end.totalDiff.toLocaleString()}` : "";

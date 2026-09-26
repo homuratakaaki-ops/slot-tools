@@ -123,4 +123,40 @@ function rate3(records) {
   assert.equal(`${t.win}/${t.lose}/${t.draw}/${t.pct}`, "1/1/1/33");
 }
 
+/* --- 円が出せない旧記録は差枚を残し、勝敗を差枚で判定する（2026/9/16 指示書） --- */
+{
+  // 差枚だけが残っている記録。円は不明のまま（0円に倒さない）
+  const m = moneyFromRecord({ money: { diff: 50, cash: null } });
+  assert.equal(m.legacy, true);
+  assert.equal(m.hasMoney, true);
+  assert.equal(m.diff, 50);
+  assert.equal(m.cash, null);
+  assert.equal(resultOf(m), "win", "円が無くても差枚で勝ち");
+}
+assert.equal(resultOf(moneyFromRecord({ money: { diff: 0, cash: null } })), "draw");
+assert.equal(resultOf(moneyFromRecord({ money: { diff: -50, cash: null } })), "lose");
+{
+  // 円だけが残っている記録は円で判定する
+  const m = moneyFromRecord({ money: { cash: 1000 } });
+  assert.equal(m.diff, null);
+  assert.equal(m.cash, 1000);
+  assert.equal(resultOf(m), "win");
+}
+{
+  // 集計の扱い：円不明は円の合計に入れず、勝敗の母数には入れる
+  const rows = [
+    moneyFromRecord({ money: { yen: 1000, hold: 100, startHold: 0, rate: 50, exchangeMai: 50 } }), // +1,000円
+    moneyFromRecord({ money: { diff: 50, cash: null } }),                                          // 円不明・勝ち
+  ];
+  let cash = 0, cashN = 0, unknown = 0, moneyN = 0, win = 0;
+  for (const m of rows) {
+    const res = resultOf(m);
+    if (!res) continue;
+    moneyN++;
+    if (res === "win") win++;
+    if (m.cash != null) { cash += m.cash; cashN++; } else unknown++;
+  }
+  assert.equal(`${cash}/${cashN}/${unknown}/${moneyN}/${win}`, "1000/1/1/2/2");
+}
+
 console.log("money tests passed");
