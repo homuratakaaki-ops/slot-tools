@@ -40,17 +40,17 @@
   th{color:var(--text-muted);font-weight:500;font-size:11.5px}
   .plus{color:var(--plus)}.minus{color:var(--minus)}
   .rec {
-    display: flex; align-items: center; gap: 8px; width: 100%;
+    display: flex; align-items: center; gap: 6px; width: 100%;
     background: var(--surface2); border: 1px solid var(--border); border-radius: 9px;
-    padding: 10px 12px; margin-bottom: 8px; min-height: 48px;
+    padding: 10px 10px; margin-bottom: 8px; min-height: 48px;
     font-size: 12.5px; color: var(--text-muted); font-family: inherit; text-align: left;
     font-variant-numeric: tabular-nums; cursor: pointer;
   }
   .rec:active { filter: brightness(1.25); }
   .rec .r-date { flex: none; color: var(--text); font-weight: 700; }
-  /* 長い店名・機種名は末尾を省略する。日付・台番号・円は省略しない */
+  /* 機種は略称なので省略しない。詰まったときに削るのは店名だけ */
   .rec .r-shop { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rec .r-machine { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+  .rec .r-machine { flex: none; color: var(--text-dim); }
   .rec .r-seat { flex: none; }
   .rec .r-cash { flex: none; margin-left: auto; color: var(--text); font-weight: 700; }
   .empty{color:var(--text-muted);font-size:12.5px;padding:8px 2px}
@@ -231,6 +231,7 @@
 <script type="module">
 // 収支（差枚・円）の計算は js/money.js に集約してある。このファイルの中で計算し直さないこと
 import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=20260915-2";
+import { machineShort } from "./js/machines.js?v=20260926";
 
 (function () {
   "use strict";
@@ -376,11 +377,11 @@ import { moneyFromRecord, computeMoney, resultOf } from "./js/money.js?v=2026091
   function recordHtml(r) {
     const m = moneyFromRecord(r);
     const cash = m.cash != null ? `<span class="${cls(m.cash)}">${yen(m.cash)}</span>` : "–";
-    const md = String(r.date || "").slice(5).replace("-", "/");
+    const md = String(r.date || "").slice(5).replace("-", "/").replace(/^0/, "").replace("/0", "/");
     return `<button type="button" class="rec" data-edit="${esc(r.id)}">
       <span class="r-date">${esc(md)}</span>
       <span class="r-shop">${esc(r.shop || "店名なし")}</span>
-      <span class="r-machine">${esc(r.machineName || "")}</span>
+      <span class="r-machine">${esc(machineShort(r.machineId, r.machineName))}</span>
       <span class="r-seat">${r.seat ? esc(r.seat) + "番" : ""}</span>
       <span class="r-cash">${cash}</span>
     </button>`;
