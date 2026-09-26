@@ -2191,8 +2191,8 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 43;
-    const APP_VERSION_DATE = "2026-09-20";
+    const APP_VERSION_SEQ = 44;
+    const APP_VERSION_DATE = "2026-09-26";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
     const LAST_VERSION_KEY = STORAGE_PREFIX + "app:lastVersionSeq";
@@ -4166,6 +4166,12 @@
         exchangeBalls: exchangeBallsFromStore(store),
         // S22/§1-2: 1R実質出玉の店補正。既定0で、マイナスも取る
         netBallsOffset: normalizeNumber(store.netBallsOffset) ?? 0,
+        // S44/§1: 店ごとの貯玉残高。履歴は持たず、残高と最後に更新した時刻だけを持つ。
+        // 未設定は null（自動更新も打ち始めの初期値も動かない）。
+        chodamaBalance: normalizeNumber(store.chodamaBalance),
+        chodamaAsOf: isIsoTimestamp(store.chodamaAsOf) ? store.chodamaAsOf : null,
+        // S44/§1: 1日の再プレイ上限（玉）。null＝上限なし。
+        replayLimit: normalizeNumber(store.replayLimit),
         createdAt: store.createdAt || nowIso()
       }));
       next.layouts = normalizeLayouts(next.layouts);
@@ -4582,6 +4588,39 @@
       return "";
     }
 
+    // S44/§1: 貯玉残高・再プレイ上限の入力検査。空欄は null（未設定）として通す。
+    function chodamaInputError(chodamaBalance, replayLimit, rawBalance, rawLimit) {
+      if (String(rawBalance ?? "").trim() !== "" && chodamaBalance === null) return "貯玉残高を数値で入力してください";
+      if (chodamaBalance !== null && chodamaBalance < 0) return "貯玉残高は0以上で入力してください";
+      if (String(rawLimit ?? "").trim() !== "" && replayLimit === null) return "再プレイ上限を数値で入力してください";
+      if (replayLimit !== null && replayLimit < 0) return "再プレイ上限は0以上で入力してください";
+      return "";
+    }
+
+    // S44/§1: 貯玉残高の更新時刻の表示。M/D H:MM。
+    function chodamaAsOfText(value) {
+      if (!isIsoTimestamp(value)) return "";
+      const date = new Date(value);
+      return `${shortDate(localDateString(date))} ${currentTime(date)}`;
+    }
+
+    // S44/§3: 打ち始めの再プレイ残りの初期値に充てる貯玉。パーソナル店で残高が
+    // 設定されているときだけ。上限があれば min(上限, 残高)。
+    function chodamaReplayPreset(store) {
+      if (!store || !usesPersonalBalanceFormula(store)) return null;
+      const balance = normalizeNumber(store.chodamaBalance);
+      if (balance === null) return null;
+      const limit = normalizeNumber(store.replayLimit);
+      return { balance, limit, value: limit === null ? balance : Math.min(limit, balance) };
+    }
+
+    // S44/§3: 初期値の出どころの説明なので常時表示（hint-help は付けない）。
+    function chodamaReplayNoticeText(info) {
+      if (!info) return "";
+      const limitText = info.limit === null ? "" : `（再プレイ上限${transferBallText(info.limit)}玉）`;
+      return `貯玉${transferBallText(info.balance)}玉${limitText}から初期値にしています。違えば直してください。`;
+    }
+
     function lendRateForStore(store) {
       return positiveNumberOrDefault(store?.lendRate, DEFAULT_LEND_RATE);
     }
@@ -4736,6 +4775,7 @@
             <button class="store-card ${store.id === data.activeStoreId ? "primary" : ""}" data-store-id="${escapeHtml(store.id)}">
               <strong>${escapeHtml(store.name)}${store.isTestStore ? ' <span class="badge warn">テスト</span>' : ""}</strong>
               <span>${store.isPersonal ? "パーソナルあり" : "非パーソナル / 概算入力"} / 貸玉${escapeHtml(store.lendRate)}円 / ${escapeHtml(exchangeBallsText(store.exchangeBalls))}玉交換</span>
+              ${store.chodamaBalance === null || store.chodamaBalance === undefined ? "" : `<span>貯玉 ${escapeHtml(transferBallText(store.chodamaBalance))}玉${store.chodamaAsOf ? `（${escapeHtml(chodamaAsOfText(store.chodamaAsOf))} 更新）` : ""}</span>`}
             </button>
             <button class="small" data-edit-store="${escapeHtml(store.id)}">店設定</button>
           </div>
@@ -5799,6 +5839,9 @@
           exchangeBalls,
           // S22/§1-2: 1R実質出玉の補正は既定0。必要になったら店設定で足し引きする
           netBallsOffset: 0,
+          chodamaBalance: null,
+          chodamaAsOf: null,
+          replayLimit: null,
           createdAt: nowIso()
         };
         data.stores.push(store);
@@ -5824,6 +5867,12 @@
           <div class="field-row"><label for="editStoreExchangeBalls">交換玉数（100円あたり）</label><input id="editStoreExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(store.exchangeBalls))}"></div>
         </div>
         <p class="hint">変更は次の実戦から反映されます。過去の記録は「記録の修正」の店条件で直します。</p>
+        <div class="grid two">
+          ${store.isPersonal ? `<div class="field-row"><label for="editStoreChodama">貯玉残高（玉）</label><input id="editStoreChodama" inputmode="numeric" value="${escapeHtml(store.chodamaBalance ?? "")}" placeholder="未設定"></div>` : ""}
+          <div class="field-row"><label for="editStoreReplayLimit">再プレイ上限（玉／日）</label><input id="editStoreReplayLimit" inputmode="numeric" value="${escapeHtml(store.replayLimit ?? "")}" placeholder="上限なし"></div>
+        </div>
+        ${store.isPersonal ? `<p class="hint">${store.chodamaAsOf ? `貯玉残高の更新: ${escapeHtml(chodamaAsOfText(store.chodamaAsOf))}` : "貯玉残高は未設定です。"}</p>` : ""}
+        ${store.isPersonal ? `<p class="hint hint-help">ヤメ確定のたびに「終了玉 − 使った再プレイ − 開始持ち玉」ぶんを足し引きします。履歴は持たないので、ずれたらここで直してください。</p>` : ""}
         <div class="field-row"><label for="editStoreNetBallsOffset">1R実質出玉の補正（玉）</label><input id="editStoreNetBallsOffset" inputmode="decimal" value="${escapeHtml(netBallsOffsetForStore(store))}"></div>
         <p class="hint hint-help">この店の台はアタッカーのこぼれが多い、など店ごとの傾向があるときに。全店の実測平均に足し引きします。この店の台自身の実測がある台には掛かりません。</p>
         <div class="modal-actions">
@@ -5856,10 +5905,25 @@
           showToast(inputError, "error");
           return;
         }
+        const rawChodama = byId("editStoreChodama")?.value ?? "";
+        const rawReplayLimit = byId("editStoreReplayLimit")?.value ?? "";
+        const chodamaBalance = String(rawChodama).trim() === "" ? null : normalizeNumber(rawChodama);
+        const replayLimit = String(rawReplayLimit).trim() === "" ? null : normalizeNumber(rawReplayLimit);
+        const chodamaError = chodamaInputError(chodamaBalance, replayLimit, rawChodama, rawReplayLimit);
+        if (chodamaError) {
+          showToast(chodamaError, "error");
+          return;
+        }
         store.name = name;
         store.isPersonal = byId("editStorePersonal").checked;
         store.lendRate = lendRate;
         store.exchangeBalls = exchangeBalls;
+        // S44/§1: 貯玉残高は手で直せる。値が変わったときだけ更新時刻を書き直す。
+        if (byId("editStoreChodama") && chodamaBalance !== normalizeNumber(store.chodamaBalance)) {
+          store.chodamaBalance = chodamaBalance;
+          store.chodamaAsOf = chodamaBalance === null ? null : nowIso();
+        }
+        store.replayLimit = replayLimit;
         if (!persistWithToast("保存しました")) return;
         closeModal();
         renderAll();
@@ -7428,6 +7492,8 @@
       // 空のままだと「この台を打つ」で開始残高が未入力（持ち玉0扱い）になり、区間の起点が壊れる。
       // S35/§2-1: 引き継ぎ待機は廃止。本日・同じ店の最後のヤメ入力から毎回組み立てる。
       const carryoverPreset = autoCarryoverForStore(data.activeStoreId);
+      // S44/§3: 引き継ぎが無いときだけ、パーソナル店の貯玉残高から再プレイの初期値を充てる。
+      const chodamaPreset = carryoverPreset ? null : chodamaReplayPreset(activeStore());
       const carryoverValue = (value) => {
         const number = normalizeNumber(value);
         return number !== null && number > 0 ? number : "";
@@ -7461,10 +7527,10 @@
             <div class="field-row"><label for="evManualNetBalls">1R実質出玉（手入力）</label><input id="evManualNetBalls" inputmode="decimal" placeholder="${escapeHtml(netBallsUsedText(netBallsInfo))}"></div>
             <div class="field-row expectation-spacer"></div>
             <div class="field-row"><label for="evMochidamaBalls">持ち玉（玉）</label><input id="evMochidamaBalls" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.mochidama) : "")}" placeholder="0"></div>
-            <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.saipurei) : "")}" placeholder="0"></div>
+            <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.saipurei) : (chodamaPreset ? chodamaPreset.value : ""))}" placeholder="0"></div>
             <div class="field-row"><label for="evStartCredit">開始時のカード残高</label><input id="evStartCredit" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.credit) : "")}"></div>
           </div>
-          ${carryoverPreset ? `<p class="hint">${escapeHtml(carryoverNoticeText(carryoverPreset))}</p>` : ""}
+          ${carryoverPreset ? `<p class="hint">${escapeHtml(carryoverNoticeText(carryoverPreset))}</p>` : (chodamaPreset ? `<p class="hint">${escapeHtml(chodamaReplayNoticeText(chodamaPreset))}</p>` : "")}
           ${startPlayStyleChoiceHtml()}
           <p class="hint" id="machineEvContext"></p>
           <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"}</p>
@@ -7864,7 +7930,9 @@
       const startSpinPreset = normalizeNumber(presets.startSpin);
       const prevDayEndSpinWasManual = manualPrevDayEndSpin !== null;
       // S35/§2-1: 再プレイ残り・カード残高の初期値も自動引き継ぎに吸収する（別経路を持たない）
-      const startSaipureiPreset = activeCarryover && activeCarryover.saipurei != null ? activeCarryover.saipurei : null;
+      // S44/§3: 引き継ぎが無いときだけ、パーソナル店の貯玉残高から初期値を充てる。
+      const chodamaPreset = activeCarryover ? null : chodamaReplayPreset(store);
+      const startSaipureiPreset = activeCarryover && activeCarryover.saipurei != null ? activeCarryover.saipurei : (chodamaPreset ? chodamaPreset.value : null);
       const startCreditPreset = activeCarryover && activeCarryover.credit != null ? activeCarryover.credit : null;
       const startTotalHitsPreset = latestMachineSession?.endTotalHits ?? null;
       const labels = storeLabels(store.id);
@@ -7878,7 +7946,7 @@
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
         { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: (activeCarryover ? carryoverNoticeText(activeCarryover) + " " : "") + "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
-        { key: "startSaipurei", label: "開始時の再プレイ残り", type: "number", preset: startSaipureiPreset, hint: activeCarryover ? carryoverNoticeText(activeCarryover) : "" },
+        { key: "startSaipurei", label: "開始時の再プレイ残り", type: "number", preset: startSaipureiPreset, hint: activeCarryover ? carryoverNoticeText(activeCarryover) : chodamaReplayNoticeText(chodamaPreset) },
         { key: "startCredit", label: "開始時のカード残高", type: "number", preset: startCreditPreset, hint: activeCarryover ? carryoverNoticeText(activeCarryover) : "" },
         { key: "startTotalHits", label: "開始時点の累計大当たり回数（実機：データカウンターの本日大当り回数）", type: "number", preset: startTotalHitsPreset, hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
         // S7c/3-1: 時短抜けで打ち出しを止めるかどうかの方針。以後の時短抜け区間の初期状態になる
@@ -9056,6 +9124,9 @@
       session.endTime = session.endTime || currentTime(endAtDate);
       closeTrailingSegmentOnEnd(session, endAtDate.toISOString());
       session.updatedAt = nowIso();
+      // S44/§2: パーソナル店の貯玉残高をヤメ確定で動かす。履歴は持たないので、
+      // あとから記録を直しても残高は遡らない（ずれたら店設定で手直しする）。
+      applyChodamaOnSessionEnd(session);
       if (activeSessionId === session.id) activeSessionId = activeSessionsForStore(session.storeId).find((item) => item.id !== session.id)?.id || null;
       if (!persistWithToast("記録を保存しました")) return;
       modalCancel = null;
@@ -10641,6 +10712,18 @@
         averageRoundBalls,
         profitYen: derived.profitYen
       };
+    }
+
+    // S44/§2: 貯玉残高 = 残高 − 貯玉引出（開始持ち玉＋使った再プレイ）＋ 預入（終了玉）。
+    // 残高が未設定（null）の店では何もしない。設定してから動き始める。
+    function applyChodamaOnSessionEnd(session) {
+      const store = storeById(session?.storeId);
+      if (!store || !usesPersonalBalanceFormula(store)) return;
+      const balance = normalizeNumber(store.chodamaBalance);
+      if (balance === null) return;
+      const transfer = transferSummaryForSession(session);
+      store.chodamaBalance = Math.round(balance - Number(transfer.withdrawBalls || 0) + Number(transfer.depositBalls || 0));
+      store.chodamaAsOf = nowIso();
     }
 
     function roundCountFromRoundType(roundType) {

@@ -355,6 +355,8 @@ new vm.Script([
       .filter((value) => value !== null && value > 0)
       .reduce((sum, value) => sum + value, 0);
   }`,
+  section('function applyChodamaOnSessionEnd', 'function roundCountFromRoundType'),
+  'function storeById() { return null; }',
   runEndWizardBlock,
   `
   const sessionWithHits = { id: 's_hit', storeId: 'store', currentSpin: 777, hitSpin: 420, hitCount: null, totalRounds: null, sessionActualBalls: 2800, hits: [{ roundTypeId: 'r10' }] };
@@ -2680,6 +2682,8 @@ new vm.Script(`
   const DEFAULT_EXCHANGE_BALLS = 25;
   ${section("function positiveNumberOrDefault", "function exchangeBallsText")}
   ${section("function storeTermsFromStore", "// S40/§2-5")}
+  ${section("function chodamaInputError", "function lendRateForStore")}
+  ${section("function usesPersonalBalanceFormula", "function playerInvestedBalls")}
   ${startSessionFlow}
   openStartSession('m1', { startSpin: 350, prevDayEndSpin: 100, manualRate: 17, availableBalls: 2500, mochidamaInput: 2000, saipureiInput: 500, startTotalHits: 0, startCredit: 3000 });
   globalThis.started = data.sessions[0];
@@ -6257,7 +6261,7 @@ assert.match(presetSettingsHelpers, /session\.status === "completed"/);
 assert.equal((html.match(/netBallsSessionsForPreset\(/g) || []).length, 2);
 // §1-2: 店設定に補正欄がある。既定0で、マイナスも取る
 assert.match(normalizeData, /netBallsOffset: normalizeNumber\(store\.netBallsOffset\) \?\? 0,/);
-assert.match(html, /netBallsOffset: 0,\s*\n\s*createdAt: nowIso\(\)/);
+assert.match(html, /netBallsOffset: 0,\s*\n\s*chodamaBalance: null,\s*\n\s*chodamaAsOf: null,\s*\n\s*replayLimit: null,\s*\n\s*createdAt: nowIso\(\)/);
 const s22StoreSettings = section('function openStoreSettings', 'function openLabelForm');
 assert.match(s22StoreSettings, /<label for="editStoreNetBallsOffset">1R実質出玉の補正（玉）<\/label>/);
 assert.match(s22StoreSettings, /value="\$\{escapeHtml\(netBallsOffsetForStore\(store\)\)\}"/);
@@ -6979,13 +6983,13 @@ assert.equal(s35Context.notice(s35Context.auto('st1')),
 assert.equal(s35Context.notice({ sourceDaiNo: '', endTime: '' }), '台不明（本日 ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。');
 assert.equal(s35Context.notice(null), '');
 // 分類C（常時表示）。hint-help は付けない
-assert.match(html, /\$\{carryoverPreset \? `<p class="hint">\$\{escapeHtml\(carryoverNoticeText\(carryoverPreset\)\)\}<\/p>` : ""\}/);
+assert.ok(html.includes("${carryoverPreset ? `<p class=\"hint\">${escapeHtml(carryoverNoticeText(carryoverPreset))}</p>` : (chodamaPreset ? `<p class=\"hint\">${escapeHtml(chodamaReplayNoticeText(chodamaPreset))}</p>` : \"\")}"));
 assert.doesNotMatch(html, /carryoverNoticeText[^\n]*hint-help/);
 
 // §2-1 判定パネル・打ち始め・ウィザードの3経路とも自動引き継ぎを見る
 assert.match(html, /const carryoverPreset = autoCarryoverForStore\(data\.activeStoreId\);/);
 assert.match(html, /const activeCarryover = autoCarryoverForStore\(store\.id\);/);
-assert.match(startSessionFlow, /const startSaipureiPreset = activeCarryover && activeCarryover\.saipurei != null \? activeCarryover\.saipurei : null;/);
+assert.ok(startSessionFlow.includes("const startSaipureiPreset = activeCarryover && activeCarryover.saipurei != null ? activeCarryover.saipurei : (chodamaPreset ? chodamaPreset.value : null);"));
 assert.match(startSessionFlow, /const startCreditPreset = activeCarryover && activeCarryover\.credit != null \? activeCarryover\.credit : null;/);
 assert.doesNotMatch(startSessionFlow, /latestStoreBalances/);
 assert.match(startSessionFlow, /hint: activeCarryover \? carryoverNoticeText\(activeCarryover\) : ""/);
@@ -7038,9 +7042,9 @@ assert.doesNotMatch(section("function normalizeData", "function repairStartMochi
 // スイッチの注意書き（常に表示）を1つ足して B・C は56。S36 で転記用の文字数行を1つ足して57。
 const s34HintTotal = (html.match(/class="hint( warn)?( hint-help)?"/g) || []).length;
 const s34HintHelp = (html.match(/class="hint hint-help"/g) || []).length;
-assert.equal(s34HintHelp, 33, "分類A（説明）の数＝S34の31＋S40の店条件説明1＋S41の最新条件比較1");
+assert.equal(s34HintHelp, 34, "分類A（説明）の数＝S34の31＋S40の店条件説明1＋S41の最新条件比較1＋S44の貯玉説明1");
 // S39/§6: 未使用のサマリー関数内にあったhintを2箇所削除。
-assert.equal(s34HintTotal - s34HintHelp, 57, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1＋S42のK入力説明1");
+assert.equal(s34HintTotal - s34HintHelp, 59, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1＋S42のK入力説明1＋S44の更新時刻・初期値説明2");
 // 警告（hint warn）には1つも付けない
 assert.equal((html.match(/class="hint warn hint-help"/g) || []).length, 0);
 // 判定基準の根拠行・入力確認・旧境界の注記は分類Aにしない
@@ -7543,8 +7547,8 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 43;/);
-assert.match(html, /const APP_VERSION_DATE = "2026-09-20";/);
+assert.match(html, /const APP_VERSION_SEQ = 44;/);
+assert.match(html, /const APP_VERSION_DATE = "2026-09-26";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
 // 書く場所は endSource = "yutime" を書いている3か所すべて。
@@ -8186,4 +8190,57 @@ assert.match(section('function refreshEndEvIfStale', 'function backfillEndEv'), 
 for (const [stored, expected] of [['9', 10], ['10', 10], ['500', 500], ['501', 500], ['10.5', 100], [null, 100]]) {
   s42Context.localStorage.getItem = () => stored;
   assert.equal(s42Context.rateWeightK(), expected);
+}
+
+// S44: 貯玉の初期値・入力検査・ヤメ確定時だけの更新・旧形式の互換性。
+{
+  const context = vm.createContext({ Date, Math, Number, String });
+  vm.runInContext(section('function normalizeNumber', 'function positiveNumberOrDefault')
+    + section('function usesPersonalBalanceFormula', 'function playerInvestedBalls')
+    + timeHelpers
+    + section('function shortDate', 'function loadData')
+    + section('function transferBallText', 'function loadTransferSections')
+    + section('function chodamaInputError', 'function lendRateForStore')
+    + section('function applyChodamaOnSessionEnd', 'function roundCountFromRoundType'), context);
+  for (const [store, expected] of [
+    [null, null], [{ isPersonal: false, chodamaBalance: 3000 }, null],
+    [{ isPersonal: true, chodamaBalance: null }, null],
+    [{ isPersonal: true, chodamaBalance: 3000, replayLimit: null }, 3000],
+    [{ isPersonal: true, chodamaBalance: 3000, replayLimit: 2500 }, 2500],
+    [{ isPersonal: true, chodamaBalance: 1200, replayLimit: 2500 }, 1200],
+    [{ isPersonal: true, chodamaBalance: 0, replayLimit: 2500 }, 0],
+    [{ isPersonal: true, chodamaBalance: 3000, replayLimit: 0 }, 0]
+  ]) assert.equal(context.chodamaReplayPreset(store)?.value ?? null, expected);
+  assert.equal(context.chodamaReplayNoticeText({ balance: 3000, limit: 2500 }), '貯玉3,000玉（再プレイ上限2,500玉）から初期値にしています。違えば直してください。');
+  assert.equal(context.chodamaReplayNoticeText({ balance: 3000, limit: null }), '貯玉3,000玉から初期値にしています。違えば直してください。');
+  assert.equal(context.chodamaReplayNoticeText(null), '');
+  for (const value of [null, undefined, '', 'invalid']) assert.equal(context.chodamaAsOfText(value), '');
+  for (const args of [[null, null, '', ''], [0, 0, '0', '0'], [3000, 2500, '3000', '2500']]) assert.equal(context.chodamaInputError(...args), '');
+  for (const args of [[null, null, 'abc', ''], [-1, null, '-1', ''], [null, null, '', 'abc'], [null, -1, '', '-1']]) assert.notEqual(context.chodamaInputError(...args), '');
+  const store = { isPersonal: true, chodamaBalance: 3000, chodamaAsOf: null };
+  context.storeById = () => store;
+  context.nowIso = () => '2026-09-25T01:23:00.000Z';
+  context.transferSummaryForSession = (session) => session;
+  context.applyChodamaOnSessionEnd({ withdrawBalls: 2500, depositBalls: 3658 });
+  assert.equal(store.chodamaBalance, 4158);
+  assert.equal(store.chodamaAsOf, '2026-09-25T01:23:00.000Z');
+  context.applyChodamaOnSessionEnd({ withdrawBalls: 3658, depositBalls: 3000 });
+  assert.equal(store.chodamaBalance, 3500);
+  for (const override of [{ isPersonal: true, chodamaBalance: null }, { isPersonal: false, chodamaBalance: 3000 }]) {
+    Object.assign(store, override, { chodamaAsOf: null });
+    const before = JSON.stringify(store);
+    context.applyChodamaOnSessionEnd({ withdrawBalls: 2500, depositBalls: 3658 });
+    assert.equal(JSON.stringify(store), before);
+  }
+  assert.match(section('function completeEndSession', 'function runWizard'), /applyChodamaOnSessionEnd\(session\);/);
+  assert.doesNotMatch(openSessionEditor, /applyChodamaOnSessionEnd/);
+  assert.equal((html.match(/applyChodamaOnSessionEnd\(session\);/g) || []).length, 1);
+  const old = legacyMachineContext.normalizeData({ version: 44, stores: [{ id: 's44', name: '旧店' }] }).stores[0];
+  for (const key of ['chodamaBalance', 'chodamaAsOf', 'replayLimit']) assert.equal(old[key], null, key);
+  const restored = legacyMachineContext.normalizeData({ version: 44, stores: [{ ...old, chodamaBalance: '3000', chodamaAsOf: '2026-09-25T01:23:00.000Z', replayLimit: '2500' }] }).stores[0];
+  assert.equal(restored.chodamaBalance, 3000);
+  assert.equal(restored.replayLimit, 2500);
+  assert.equal(restored.chodamaAsOf, '2026-09-25T01:23:00.000Z');
+  assert.match(startSessionFlow, /const chodamaPreset = activeCarryover \? null : chodamaReplayPreset\(store\);/);
+  assert.match(openMachineDetail, /const chodamaPreset = carryoverPreset \? null : chodamaReplayPreset\(activeStore\(\)\);/);
 }
