@@ -319,7 +319,12 @@ kanokari:{
   ],
   lcdAdd:null,
   hitTriggers:["レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆","引き戻し成功"],
-  kindsForTriggers:{"攻略成功":["at"],"1G恋成功":["at"],"レンカノ成功":["at"],"妄想DT成功":["at"]},   // これらの契機では CZ を出さない
+  labelsForTriggers:{   // 契機ごとに選べる種別（ラベル指定）。無ければ全部
+    "攻略成功":["かのかりBONUS","エピソードBONUS","スペシャルエピソードBONUS","ななかりDREAM"],
+    "1G恋成功":["かのかりBONUS","エピソードBONUS","スペシャルエピソードBONUS","ななかりDREAM"],
+    "レンカノ成功":["かのかりBONUS","REG","ななかりDREAM"],
+    "妄想DT成功":["かのかりBONUS","REG","ななかりDREAM"]
+  },
 
   // ---------- 当選時の追加質問 ----------
   hitExtraGroups:[   // 攻略キャラは契機が攻略成功／1G恋成功のときだけ
@@ -366,7 +371,7 @@ kanokari:{
       revive:null},
     {label:"REG",kind:"at",tone:"d",askGOnEnd:false,
       atExtras:[
-        {type:"slotsSeq",label:"次のキャラ",n:5,default:["和也","麻美・白","瑠夏・白","墨・白","千鶴・白"],   // 押すと「n人目」の選択肢。デフォルトどおりなら1タップ
+        {type:"slotsSeq",label:"次のキャラ",logAs:"キャラ紹介",n:5,default:["和也","麻美・白","瑠夏・白","墨・白","千鶴・白"],   // 押すと「n人目」の選択肢。デフォルトどおりなら1タップ
          options:[{l:"和也"},{l:"肺魚"},{l:"麻美・白"},{l:"麻美・ピンク",tone:"p"},{l:"麻美・赤",tone:"d"},{l:"瑠夏・白"},{l:"瑠夏・ピンク",tone:"p"},{l:"瑠夏・赤",tone:"d"},{l:"墨・白"},{l:"墨・ピンク",tone:"p"},{l:"墨・赤",tone:"d"},{l:"千鶴・白"},{l:"千鶴・ピンク",tone:"p"},{l:"千鶴・赤",tone:"d"},{l:"その他"}]},
         {type:"stockInc",label:"1G恋獲得",key:"koi"}
       ],
@@ -403,7 +408,7 @@ kanokari:{
       askGOnEnd:false,
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","memo","hitEnd"]],
       revive:null},
-    {label:"DREAM TIME",kind:"at",stockGain:true,tone:"g",
+    {label:"DREAM TIME",kind:"at",stockGain:true,tone:"g",askGOnEnd:false,
       onStart:{stockInc:{koi:1}},   // 開始時に1G恋を1個獲得（解析）
       atExtras:[{label:"S級（ブラックアウト）",type:"toggle",tag:"S級DREAMTIME"}],
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","memo","hitEnd"]],
@@ -429,6 +434,7 @@ kanokari:{
   ],
 
   // ---------- ステージ ----------
+  badgeOrder:["stage","gauge","stocks","tags"],   // バッジの並び：通常時 → ステージ → ❤ → ストック → その他
   stages:{
     badgeFirst:true,   // ステージ表示は「通常時」の右隣に
     order:["部屋と彼女","大学と彼女","街と彼女"],   // バッジをタップすると次のステージへ（順番のもの以外はシートを開く）
@@ -1045,11 +1051,24 @@ function renderBadges(){
     });b.append(x);
   }
   };
-  b.append(first);
-  if(d.stages&&d.stages.badgeFirst)appendStage();
-  if(inZen&&inHikimodoshi()&&d.zenchou.remindAtG!=null&&c.zenReminded)b.append(mk("div","badge",d.zenchou.remindAtG+"G超"));
-  if(d.stocks)d.stocks.forEach(s=>{const x=mk("div","badge",s.short+" "+c.stocks[s.key]);x.addEventListener("click",()=>askNum(s.label+" ストック修正",c.stocks[s.key],v=>{if(!Number.isInteger(v)||v<0){toast("ストックは0以上の整数で入れてください");return}mark();c.stocks[s.key]=v;push("stockFix",s.label+" ストック修正："+v,{stockKey:s.key,n:v})}));b.append(x)});
+  const appendGauge=()=>{
   if(d.gauge){const x=mk("div","badge",d.gauge.label+(c.gauge>d.gauge.max?d.gauge.maxLabel:c.gauge));if(c.gauge>d.gauge.max){x.style.color="var(--accent)";x.style.borderColor="var(--accent2)"}x.addEventListener("click",()=>askNum("ハートメーター修正（0〜"+(d.gauge.max+1)+"）",c.gauge,v=>{if(!Number.isInteger(v)||v<0||v>d.gauge.max+1){toast("メーターは0〜"+(d.gauge.max+1)+"の整数で入れてください");return}mark();c.gauge=v;push("gaugeFix","メーター修正："+d.gauge.label+(v>d.gauge.max?d.gauge.maxLabel:v))}));b.append(x)}
+  };
+  const appendStocks=()=>{
+  if(d.stocks)d.stocks.forEach(s=>{const x=mk("div","badge",s.short+" "+c.stocks[s.key]);x.addEventListener("click",()=>askNum(s.label+" ストック修正",c.stocks[s.key],v=>{if(!Number.isInteger(v)||v<0){toast("ストックは0以上の整数で入れてください");return}mark();c.stocks[s.key]=v;push("stockFix",s.label+" ストック修正："+v,{stockKey:s.key,n:v})}));b.append(x)});
+  };
+  const appendTags=()=>{
+  Object.keys(c.tags||{}).forEach(k=>{const tg=mk("div","badge",k);tg.style.color="var(--accent)";tg.style.borderColor="var(--accent2)";tg.addEventListener("click",()=>{if(confirm("タグ「"+k+"」を消しますか？")){mark();delete c.tags[k];push("tagClear","タグ解除："+k)}});b.append(tg)});
+  };
+  b.append(first);
+  const order=d.badgeOrder;
+  const emit={stage:appendStage,gauge:appendGauge,stocks:appendStocks,tags:appendTags};
+  const done={};
+  if(order)order.forEach(k=>{if(emit[k]&&!done[k]){emit[k]();done[k]=true}});
+  if(!order&&d.stages&&d.stages.badgeFirst)appendStage();
+  if(inZen&&inHikimodoshi()&&d.zenchou.remindAtG!=null&&c.zenReminded)b.append(mk("div","badge",d.zenchou.remindAtG+"G超"));
+  if(!done.stocks)appendStocks();
+  if(!done.gauge)appendGauge();
   if(d.stockFail&&c.renFail>0){const x=mk("div","badge",d.stockFail.label+" "+c.renFail);x.addEventListener("click",()=>askNum(d.stockFail.label+" 修正",c.renFail,v=>{if(!Number.isInteger(v)||v<0){toast("失敗回数は0以上の整数で入れてください");return}mark();c.renFail=v;push("renFailFix",d.stockFail.label+" 修正："+v)}));b.append(x)}
   if(inZen&&!inMain){const z=mk("div","badge zen",zenStages()[zenIdx()]);z.addEventListener("click",openZenchou);b.append(z)}
   if(!c.stockPhase&&zenIdx()>=0&&c.mode!=="normal"){const z=mk("div","badge zen",zenStages()[zenIdx()]);z.addEventListener("click",openZenchou);b.append(z)}
@@ -1057,7 +1076,7 @@ function renderBadges(){
   if(c.pendingReward){const pr=mk("div","badge par","報酬待ち："+c.pendingReward.reward);pr.style.background="rgba(180,140,224,.3)";pr.addEventListener("click",firePending);b.append(pr)}
   if(c.hit&&c.hit.phase){const hd=curHitDef();const p=hd&&hd.phases&&hd.phases[c.hit.phase];if(p)b.append(mk("div","badge par",p.label+"中"))}
   if(c.ticket){const tk=mk("div","badge par","一劇権利");b.append(tk)}
-  Object.keys(c.tags||{}).forEach(k=>{const tg=mk("div","badge",k);tg.style.color="var(--accent)";tg.style.borderColor="var(--accent2)";tg.addEventListener("click",()=>{if(confirm("タグ「"+k+"」を消しますか？")){mark();delete c.tags[k];push("tagClear","タグ解除："+k)}});b.append(tg)});
+  if(!done.tags)appendTags();
   // F08: メニューだけにあるトグル（ユメカノ）は、OFF のときも薄いバッジを出す。
   // タップで ON。ON のときは上のタグのバッジが出るので（タップで OFF）、ここでは出さない。
   (d.extras||[]).forEach(x=>{
@@ -1072,7 +1091,7 @@ function renderBadges(){
   (d.rareBadges||[]).forEach(k=>{const r=d.rares.find(x=>x.key===k);const v=c.rare[k];if(!r||!v)return;const rb=mk("div","badge",r.label+" "+(v.n||0));rb.style.color="var(--lcd)";rb.addEventListener("click",()=>editRareCount(r));b.append(rb)});
   if(c.melonLeft!=null){const ml=mk("div","badge",(c.melonLeft>0?"🍉残り"+c.melonLeft+(c.melonApprox?"以下":""):"🍉規定到達"));ml.style.color="var(--lcd)";ml.addEventListener("click",()=>openMelonLeft());b.append(ml)}
   if(c.rewardHint){const rh=mk("div","badge","次回 "+c.rewardHint);rh.style.color="var(--pur)";b.append(rh)}
-  if(!(d.stages&&d.stages.badgeFirst))appendStage();
+  if(!done.stage&&(order||!(d.stages&&d.stages.badgeFirst)))appendStage();
   activeModeHints().forEach(h=>{const mh=mk("div","badge",h.text+(h.span>1?"（〜"+(h.era+h.span-1-(c.modeEra||0)+1)+"回）":""));mh.style.color="var(--ok)";mh.title="区間"+h.era+"から"+h.span+"回";b.append(mh)});
 }
 function renderCounters(){
@@ -1375,7 +1394,7 @@ function openStockResult(){
       btn.addEventListener("click",()=>{
         const usedKoi=Math.min(n,koi),usedRen=n-usedKoi,convert=all?ren-usedRen:0;
         const trig=n<=koi?"1G恋成功":"攻略成功";
-        openHit({trig,...(d.kindsForTriggers&&d.kindsForTriggers[trig]?{kinds:d.kindsForTriggers[trig]}:{}),keepOp:true,before:()=>{
+        openHit({trig,keepOp:true,before:()=>{
           mark();c.stocks.koi-=usedKoi;c.stocks.ren-=usedRen;
           if(all){c.stocks.koi+=c.stocks.ren;c.stocks.ren=0}
           c.stockPhase=false;
@@ -1403,8 +1422,9 @@ function openStockResult(){
 function openHit(fixed){
   const d=DEF(),c=S.cur;
   if(c.hit&&!fixed){hitEnd();return}
-  const kinds=(fixed&&fixed.kinds)||(fixed&&fixed.trig&&d.kindsForTriggers&&d.kindsForTriggers[fixed.trig]);
-  const groups=[{key:"type",label:"種別",options:d.hits.filter(h=>!h.hidden&&(!kinds||kinds.includes(h.kind))).map(h=>d.kindsForTriggers&&!(fixed&&fixed.trig)?{l:h.label,showWhen:{key:"trig",notIn:Object.keys(d.kindsForTriggers).filter(trig=>!d.kindsForTriggers[trig].includes(h.kind))}}:h.label),required:true}];
+  const kinds=fixed&&fixed.kinds;
+  const labels=fixed&&(fixed.labels||(fixed.trig&&d.labelsForTriggers&&d.labelsForTriggers[fixed.trig]));
+  const groups=[{key:"type",label:"種別",options:d.hits.filter(h=>!h.hidden&&(!kinds||kinds.includes(h.kind))&&(!labels||labels.includes(h.label))).map(h=>d.labelsForTriggers&&!(fixed&&fixed.trig)?{l:h.label,showWhen:{key:"trig",notIn:Object.keys(d.labelsForTriggers).filter(t=>!d.labelsForTriggers[t].includes(h.label))}}:h.label),required:true}];
   if(d.hitTriggers&&!(fixed&&fixed.trig))groups.push({key:"trig",label:"契機",options:d.hitTriggers});
   if(d.hitWhere)groups.push({key:"where",label:"告知された場所",options:d.hitWhere});
   (d.hitExtraGroups||[]).forEach(g=>groups.push(g));
