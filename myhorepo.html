@@ -20,6 +20,8 @@
   .container{max-width:560px;margin:0 auto;padding:16px 14px 40px}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:14px}
   h2{font-size:15px;color:var(--gold-light);margin-bottom:10px;padding-left:8px;border-left:2px solid var(--gold)}
+  .input-summary { cursor: pointer; font-size: 15px; font-weight: 700; color: var(--gold-light); min-height: 44px; display: flex; align-items: center; }
+  #inputDetails[open] .input-summary { margin-bottom: 8px; }
   p.note{color:var(--text-muted);font-size:12px;margin-top:8px}
   label{display:grid;gap:3px;font-size:11.5px;color:var(--text-muted)}
   input,select{background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;padding:9px 10px;min-height:44px;width:100%;font-family:inherit}
@@ -118,8 +120,59 @@
 </header>
 
 <main class="container">
+  <section class="card" id="emptyGuide" hidden>
+    <p class="note" style="margin-top:0">この店のデータがまだありません。店を選ぶか、下の［台データを入力する］から登録してください。</p>
+    <div class="btns one"><button type="button" class="primary" id="toInputBtn">台データを入力する</button></div>
+  </section>
+
   <section class="card">
-    <h2>データを入れる</h2>
+    <h2>店・機種を選ぶ</h2>
+    <div class="g2">
+      <label>店名<select id="cShop"></select></label>
+      <label>機種<select id="cMachine"></select></label>
+    </div>
+    <label style="margin-top:8px">基準にする日<input type="date" id="cDate"></label>
+  </section>
+
+  <section class="card">
+    <h2>集計の条件</h2>
+    <label class="opt"><input type="checkbox" id="optExclude" checked>回転数の少ない台データを除く（1,000G未満）</label>
+    <label class="opt"><input type="checkbox" id="optWeight" checked>回転数で重みを付ける</label>
+    <p class="note">除外も重み付けも、比べるすべての日に同じ条件で適用されます。少ない回転数の台は判別が定まらず、平均を基準値(3.5)へ引き寄せるためです。</p>
+  </section>
+
+  <section class="card" id="secCompare">
+    <h2>選択した日と『いつも』の比較</h2>
+    <div id="compare"></div>
+    <p class="note">推定 平均設定は判別結果を台ごとに平均したものです。データが少ないと基準の3.5に近づくため、絶対値より「いつもと比べてどうか」で読んでください。</p>
+  </section>
+
+  <section class="card" id="secByDate">
+    <h2>日別の一覧</h2>
+    <div id="byDate"></div>
+  </section>
+
+  <section class="card" id="secBySeat">
+    <h2>台番号別の傾向</h2>
+    <div class="seat-band" id="seatBand" hidden>
+      <button type="button" id="seatFilter" title="上の機種の選択欄へ移動します"></button>
+      <div class="seat-sort" role="group" aria-label="並び替え">
+        <button type="button" id="sortSetting" data-sort="setting" aria-pressed="true">設定順</button>
+        <button type="button" id="sortSeat" data-sort="seat" aria-pressed="false">台番号順</button>
+      </div>
+    </div>
+    <div id="bySeat"></div>
+    <div id="seatMore" hidden>
+      <p class="note" id="seatMoreNote"></p>
+      <button type="button" id="seatMoreBtn">さらに表示</button>
+    </div>
+    <p class="note">同じ台番号のデータを日ごとにまとめたものです。日数は集計に使った日の数で、非稼働の日と、上の「集計の条件」で外れた日は数えていません。日数が少ないうちは参考程度に見てください。行をタップすると、その台の記録を日付順で見られます。</p>
+    <p class="note">設定4以上は、その台が設定4以上である推定確率の平均です。高設定だった日の割合ではありません。</p>
+  </section>
+
+  <section class="card" id="inputSection">
+    <details id="inputDetails">
+      <summary class="input-summary">台データを入力する</summary>
     <div class="g2">
       <label>日付<input type="date" id="iDate"></label>
       <label>店名<input type="text" id="iShop" list="shopList" autocomplete="off" placeholder="例：〇〇店"><datalist id="shopList"></datalist></label>
@@ -199,47 +252,7 @@
     </details>
 
     <div class="rowlist" id="todayList"></div>
-  </section>
-
-  <section class="card">
-    <h2>集計の条件</h2>
-    <label class="opt"><input type="checkbox" id="optExclude" checked>回転数の少ない台データを除く（1,000G未満）</label>
-    <label class="opt"><input type="checkbox" id="optWeight" checked>回転数で重みを付ける</label>
-    <p class="note">除外も重み付けも、比べるすべての日に同じ条件で適用されます。少ない回転数の台は判別が定まらず、平均を基準値(3.5)へ引き寄せるためです。</p>
-  </section>
-
-  <section class="card">
-    <h2>店全体の比較</h2>
-    <div class="g2">
-      <label>店名<select id="cShop"></select></label>
-      <label>機種<select id="cMachine"></select></label>
-    </div>
-    <label style="margin-top:8px">基準にする日<input type="date" id="cDate"></label>
-    <div id="compare"></div>
-    <p class="note">平均設定は判別結果を台ごとに平均したものです。データが少ないと基準の3.5に近づくため、絶対値より「いつもと比べてどうか」で読んでください。</p>
-  </section>
-
-  <section class="card">
-    <h2>日別の一覧</h2>
-    <div id="byDate"></div>
-  </section>
-
-  <section class="card">
-    <h2>台番号別の傾向</h2>
-    <div class="seat-band" id="seatBand" hidden>
-      <button type="button" id="seatFilter" title="上の機種の選択欄へ移動します"></button>
-      <div class="seat-sort" role="group" aria-label="並び替え">
-        <button type="button" id="sortSetting" data-sort="setting" aria-pressed="true">設定順</button>
-        <button type="button" id="sortSeat" data-sort="seat" aria-pressed="false">台番号順</button>
-      </div>
-    </div>
-    <div id="bySeat"></div>
-    <div id="seatMore" hidden>
-      <p class="note" id="seatMoreNote"></p>
-      <button type="button" id="seatMoreBtn">さらに表示</button>
-    </div>
-    <p class="note">同じ台番号のデータを日ごとにまとめたものです。日数は集計に使った日の数で、非稼働の日と、上の「集計の条件」で外れた日は数えていません。日数が少ないうちは参考程度に見てください。行をタップすると、その台の記録を日付順で見られます。</p>
-    <p class="note">設定4以上は、その台が設定4以上である推定確率の平均です。高設定だった日の割合ではありません。</p>
+    </details>
   </section>
 
   <section class="card">
@@ -289,6 +302,16 @@ const MACHINES = {
 };
 const MYLOG_KEY = "juggler-mylog:v1";
 const DB_NAME = "juggler-myhorepo", DB_VER = 1, STORE = "units";
+// 店名をページ間で引き継ぐ共通キー（juggler-record / mylog と共有する）
+const LAST_SHOP_KEY = "slot-tools:last-shop";
+function loadLastShop() {
+  try { return localStorage.getItem(LAST_SHOP_KEY) || ""; } catch (e) { return ""; }
+}
+function saveLastShop(shop) {
+  const s = String(shop || "").trim();
+  if (!s) return;   // 空では上書きしない
+  try { localStorage.setItem(LAST_SHOP_KEY, s); } catch (e) {}
+}
 const $ = (id) => document.getElementById(id);
 
 /* ---------- IndexedDB ---------- */
@@ -449,8 +472,8 @@ async function renderCompare() {
   }
   const out = [];
   for (const [label, units, isToday] of rows) out.push(fmtSum(await summarize(units), label, isToday));
-  box.innerHTML = `<table><thead><tr><th>対象</th><th>平均設定</th><th>設定4以上</th><th>台数</th><th>平均G</th></tr></thead><tbody>${out.join("")}</tbody></table>
-    <p class="note" style="margin-top:6px">基準は 平均設定 3.5 / 設定4以上 50%。緑がそれより上、赤が下です。</p>`;
+  box.innerHTML = `<table><thead><tr><th>対象</th><th>推定 平均設定</th><th>設定4以上（推定）</th><th>台数</th><th>平均G</th></tr></thead><tbody>${out.join("")}</tbody></table>
+    <p class="note" style="margin-top:6px">基準は 推定 平均設定 3.5 / 設定4以上の推定確率 50%。緑がそれより上、赤が下です。</p>`;
 }
 
 /* ---------- 日別・台番号別 ---------- */
@@ -468,7 +491,7 @@ async function renderByDate() {
     const w = weekday(d);
     out.push(fmtSum(s, `${d}（${WD[w]}）${ev ? " " + ev : ""}`, false));
   }
-  $("byDate").innerHTML = `<table><thead><tr><th>日付</th><th>平均設定</th><th>設定4以上</th><th>台数</th><th>平均G</th></tr></thead><tbody>${out.join("")}</tbody></table>`;
+  $("byDate").innerHTML = `<table><thead><tr><th>日付</th><th>推定 平均設定</th><th>設定4以上（推定）</th><th>台数</th><th>平均G</th></tr></thead><tbody>${out.join("")}</tbody></table>`;
 }
 
 const SEAT_LIMIT = 40;
@@ -528,7 +551,7 @@ async function renderBySeat() {
   } else {
     hideSeatMore();
   }
-  $("bySeat").innerHTML = `<table><thead><tr><th>台番号</th><th>平均設定</th><th>設定4以上</th><th>日数</th><th>平均G</th></tr></thead><tbody>` +
+  $("bySeat").innerHTML = `<table><thead><tr><th>台番号</th><th>推定 平均設定</th><th>設定4以上（推定）</th><th>日数</th><th>平均G</th></tr></thead><tbody>` +
     shown.map((r) => fmtSum(r.s, `${r.seat}番`, false, "日")).join("") + `</tbody></table>`;
   // 行から台の履歴を開く。店が選ばれていないときはその台の最新の店で開く
   $("bySeat").querySelectorAll("tbody tr").forEach((tr, i) => {
@@ -652,7 +675,8 @@ function fillShopSelects() {
   const events = [...new Set(ALL.map((u) => u.event).filter(Boolean))];
   $("shopList").innerHTML = shops.map((s) => `<option value="${esc(s)}"></option>`).join("");
   $("eventList").innerHTML = events.map((s) => `<option value="${esc(s)}"></option>`).join("");
-  const keep = $("cShop").value || shops[0] || "";
+  const last = loadLastShop();
+  const keep = $("cShop").value || (shops.includes(last) ? last : "") || shops[0] || "";
   $("cShop").innerHTML = `<option value="">選択</option>` + shops.map((s) => `<option value="${esc(s)}">${esc(s)}</option>`).join("");
   $("cShop").value = keep;
 }
@@ -674,6 +698,14 @@ function renderTodayList() {
   });
 }
 
+function renderEmptyGuide() {
+  const shop = $("cShop").value;
+  // 記録が1件も無いか、選んだ店にデータが無いときは、比較・一覧・傾向を出さない
+  const empty = !ALL.length || !shop || !ALL.some((u) => u.shop === shop);
+  $("emptyGuide").hidden = !empty;
+  for (const id of ["secCompare", "secByDate", "secBySeat"]) $(id).hidden = empty;
+}
+
 async function refresh() {
   ALL = await dbAll();
   // 絞り込みより先に、全記録に対して重複の採否を決める
@@ -684,6 +716,7 @@ async function refresh() {
   await renderCompare();
   await renderByDate();
   await renderBySeat();
+  renderEmptyGuide();
 }
 
 async function addUnit() {
@@ -711,6 +744,7 @@ async function addUnit() {
   for (const id of ["iGames", "iBig", "iReg", "iDiff"]) $(id).value = "";
   $("iBroken").checked = false;
   $("addHint").textContent = `${seat}番${broken ? "（故障・非稼働）" : ""}を登録しました。次の台番号は ${$("iSeat").value || "（手入力）"} です。`;
+  saveLastShop(shop);
   await refresh();
   seatOrShopChanged();
   $("iGames").focus();
@@ -947,6 +981,7 @@ async function bulkAddUnits() {
   const zero = rows.filter((r) => !(r.games > 0)).length;
   const md = `${Number(date.slice(5, 7))}/${Number(date.slice(8, 10))}`;
   $("bulkHint").textContent = `${md}：${n}台を登録しました。${zero ? `うち${zero}台は0Gのため故障・非稼働として扱います。` : ""}${withSeat ? "" : `次の台番号は ${$("iSeat").value} です。`}`;
+  saveLastShop(shop);
   await refresh();
   seatOrShopChanged();
 }
@@ -991,6 +1026,7 @@ async function bulkAddByDate() {
   $("bulkHint").textContent = `${seat}番台：` + (skipped.length
     ? `${n}件登録しました／当日分${nToday}件・重複${nDup}件・読めなかった行${errors.length}件を除外しました`
     : `${n}件登録しました`);
+  if (n > 0) saveLastShop(shop);
   showSkipped(skipped);
   // 1件でも登録できたら次の台へ進める（0件のときは動かさない）
   const seatNum = toInt(seat);
@@ -1098,7 +1134,17 @@ async function init() {
     return;
   }
   await refresh();
+  // 他ページから来た店名にデータが無いときは、入力欄の初期値にだけ使う
+  const last = loadLastShop();
+  if (last && !ALL.some((u) => u.shop === last) && !$("iShop").value) {
+    $("iShop").value = last;
+    renderTodayList();
+  }
 
+  $("toInputBtn").addEventListener("click", () => {
+    $("inputDetails").open = true;
+    $("inputSection").scrollIntoView();
+  });
   $("addBtn").addEventListener("click", addUnit);
   $("fromMylogBtn").addEventListener("click", importFromMylog);
   $("bulkAdd").addEventListener("click", () => (bulkMode === "seat" ? bulkAddByDate() : bulkAddUnits()));
@@ -1135,8 +1181,10 @@ async function init() {
   $("bDatePlus").addEventListener("click", () => stepDate(1));
   for (const id of ["cShop", "cMachine", "cDate", "optExclude", "optWeight"]) {
     $(id).addEventListener("change", async () => {
+      if (id === "cShop") saveLastShop($("cShop").value);
       seatShowAll = false;
       await renderCompare(); await renderByDate(); await renderBySeat();
+      renderEmptyGuide();
     });
   }
   // 帯：いま効いている絞り込みを見せ、タップで大元の機種セレクトへ運ぶ
