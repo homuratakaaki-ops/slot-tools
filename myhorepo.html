@@ -670,6 +670,30 @@ function fillMachineSelects() {
   $("cMachine").innerHTML = `<option value="">すべて</option>` + opts;
   $("cMachine").value = keep;
 }
+// 店が変わったときだけ基準日を置き直すための覚え（前回どの店で置いたか）
+let dateShop = null;
+
+/** その店でデータがある最新の日付。無ければ空文字 */
+function latestDateOf(shop) {
+  if (!shop) return "";
+  let best = "";
+  for (const u of ALL) {
+    if (u.shop !== shop) continue;
+    const d = String(u.date || "");
+    if (d > best) best = d;
+  }
+  return best;
+}
+
+// 店を選んだとき・切り替えたときは、その店でデータがある最新の日を基準日にする。
+// 同じ店のままなら触らない（手で変えた日付を残すため）
+function syncBaseDate() {
+  const shop = $("cShop").value;
+  if (shop === dateShop) return;
+  dateShop = shop;
+  $("cDate").value = latestDateOf(shop) || localDateStamp();
+}
+
 function fillShopSelects() {
   const shops = [...new Set(ALL.map((u) => u.shop).filter(Boolean))];
   const events = [...new Set(ALL.map((u) => u.event).filter(Boolean))];
@@ -711,6 +735,7 @@ async function refresh() {
   // 絞り込みより先に、全記録に対して重複の採否を決める
   ADOPTED = adoptedIds(ALL);
   fillShopSelects();
+  syncBaseDate();
   renderTodayList();
   syncBulkLink();
   await renderCompare();
@@ -1145,6 +1170,16 @@ async function init() {
     $("inputDetails").open = true;
     $("inputSection").scrollIntoView();
   });
+  // 入力を開いたとき、店名が空なら上で選んでいる店を初期値にする。
+  // 手で入れた店名があれば触らない
+  $("inputDetails").addEventListener("toggle", () => {
+    if (!$("inputDetails").open) return;
+    const shop = $("cShop").value;
+    if (!shop || $("iShop").value.trim()) return;
+    $("iShop").value = shop;
+    renderTodayList();
+    syncBulkLink();
+  });
   $("addBtn").addEventListener("click", addUnit);
   $("fromMylogBtn").addEventListener("click", importFromMylog);
   $("bulkAdd").addEventListener("click", () => (bulkMode === "seat" ? bulkAddByDate() : bulkAddUnits()));
@@ -1181,7 +1216,10 @@ async function init() {
   $("bDatePlus").addEventListener("click", () => stepDate(1));
   for (const id of ["cShop", "cMachine", "cDate", "optExclude", "optWeight"]) {
     $(id).addEventListener("change", async () => {
-      if (id === "cShop") saveLastShop($("cShop").value);
+      if (id === "cShop") {
+        saveLastShop($("cShop").value);
+        syncBaseDate();
+      }
       seatShowAll = false;
       await renderCompare(); await renderByDate(); await renderBySeat();
       renderEmptyGuide();
