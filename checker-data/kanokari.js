@@ -4,6 +4,7 @@
 
   // 設定示唆の行定義。[id, UI表示名, サブラベル, rank, カード略号]
   // rank>0 は確定演出（集計・グラフ・カードのサマリーに乗る）。rank0 は示唆のみ。
+  // ED_VOICE だけ6列目に「詳細カード用の略記」を持つ（画面の行は出典どおりのまま）。
   // 出典: ちょんぼりすた様 https://chonborista.com/slot/sankyo-slot/263079/（2026-09-25 再取得）
   // 設定別の出現率はいずれも未公表のため、記録・共有に徹して数値推測には使わない。
 
@@ -56,6 +57,30 @@
     ['o666','666枚OVER','設定6確定演出',6,'666'],
     ['o394','394枚OVER','設定6確定演出',6,'394']
   ];
+  // エンディング中のボイス。エンディング中のレア役でPUSHボタンを押すと必ずいずれか1種が出る
+  // ＝§9-90 の割合表示の対象。
+  // 出典: SANKYO公式「開発こぼれ話」エンディング（2026-09-26 公表）
+  // https://www.secret-story.sankyo-fever.jp/article/szf_56
+  // セリフの表記と並びは公式記事のまま（一字も変えない。”恋人” の引用符も記事どおり U+201D）。
+  // 公式は「設定示唆のボイス」であることだけを明かし、どのボイスが何を示すかは非公表。
+  // 記事内の3つの段落区切り・太字は段階を示すとは書かれていないため、rank も示唆内容も付けない。
+  // カード略号は定義のみ（サマリー右列は6行で上限に達しているため載せていない）。
+  // 6列目は詳細カード用の略記。詳細カードの行は幅420px・最小18px・省略記号なしで描かれ、
+  // 全角23.3字を超えると右列（x=560）に掛かるため、長いセリフだけ「…」で短縮する。
+  // 画面（示唆タブ）とテンプレ出力は2列目の出典どおりの表記を使い、短縮しない。
+  const ED_VOICE=[
+    ['v01','麻美「アガる～↑」','示唆内容は非公表',0,'麻1','麻美「アガる～↑」'],
+    ['v02','瑠夏「彼女入りまーす」','示唆内容は非公表',0,'瑠1','瑠夏「彼女入りまーす」'],
+    ['v03','墨「ふん、ふん、！！」','示唆内容は非公表',0,'墨1','墨「ふん、ふん、！！」'],
+    ['v04','水原「今は”恋人”。遠慮しない」','示唆内容は非公表',0,'水1','水原「今は”恋人”…」'],
+    ['v05','麻美「あれ～？嫉妬させちゃった？」','示唆内容は非公表',0,'麻2','麻美「あれ～？嫉妬させちゃった？」'],
+    ['v06','瑠夏「私が一番…好きだもん…っ」','示唆内容は非公表',0,'瑠2','瑠夏「私が一番…」'],
+    ['v07','墨「私…っいるか…っ」','示唆内容は非公表',0,'墨2','墨「私…っいるか…っ」'],
+    ['v08','麻美「もう恋なんてしないって決めてるんだから！」','示唆内容は非公表',0,'麻3','麻美「もう恋なんて…」'],
+    ['v09','瑠夏「なんだか少し、お酒の味…」','示唆内容は非公表',0,'瑠3','瑠夏「お酒の味…」'],
+    ['v10','墨「今日は私がお饗しする番…」','示唆内容は非公表',0,'墨3','墨「私がお饗しする番…」'],
+    ['v11','水原「私……どんなカオ…してたかな……」','示唆内容は非公表(公式が『特に注目』と記載)',0,'水2','水原「どんなカオ…」']
+  ];
 
   const DEF={
     games:0,
@@ -65,6 +90,7 @@
     scen:Object.fromEntries(SCENARIO.concat(SCENARIO_X).map(v=>[v[0],0])),
     cm:Object.fromEntries(CM.map(v=>[v[0],0])),
     over:Object.fromEntries(OVER.map(v=>[v[0],0])),
+    voice:Object.fromEntries(ED_VOICE.map(v=>[v[0],0])),
     img:null,
     iconChoice:null
   };
@@ -75,6 +101,8 @@
   function section(title,lines){const out=lines.filter(Boolean);return out.length?`\n■${title}\n${out.join('\n')}\n`:'';}
   function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
   function detailItems(arr,state){return arr.map(c=>detailItem(c[1],n(state,c[0]),c[3]>0));}
+  // 詳細カードだけ6列目の略記を使う（無い行は2列目のまま）。§9-85 の省略をデータ側で行う形。
+  function detailItemsShort(arr,state){return arr.map(c=>detailItem(c[5]||c[1],n(state,c[0]),c[3]>0));}
   function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
   function shown(prefix,items){
     const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
@@ -109,12 +137,13 @@
   // 示唆として記録した総回数（デフォルト行も含む）。
   function hintTotal(S){
     return total(END_SCREEN,S.screens)+total(REG_CHARA,S.chara)
-      +total(SCENARIO.concat(SCENARIO_X),S.scen)+total(CM,S.cm)+total(OVER,S.over);
+      +total(SCENARIO.concat(SCENARIO_X),S.scen)+total(CM,S.cm)+total(OVER,S.over)
+      +total(ED_VOICE,S.voice);
   }
 
   function normalizeState(out){
     out.games=Math.max(0,Number(out.games)||0);
-    ['counts','screens','chara','scen','cm','over'].forEach(key=>{
+    ['counts','screens','chara','scen','cm','over','voice'].forEach(key=>{
       out[key]=Object.assign({},DEF[key],out[key]||{});
       Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
     });
@@ -140,6 +169,7 @@
   function pageShisa(ctx){
     const S=ctx.S;
     const scN=total(END_SCREEN,S.screens),chN=total(REG_CHARA,S.chara),scenN=total(SCENARIO,S.scen);
+    const voN=total(ED_VOICE,S.voice);
     return `<section class="sec">
     <div class="sec-h">終了画面<span class="sub">計${scN}回</span></div>
     <div class="cgrid">${END_SCREEN.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,v=>ctx.pct(v,scN))).join('')}</div>
@@ -167,7 +197,12 @@
     <div class="hint">表示された枚数の行を記録します。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。394枚はSANKYOの語呂合わせです。</div>
   </section>
   <section class="sec">
-    <div class="hint">設定別の出現率は公表されていません。そのため本ツールは記録と共有に徹し、示唆から設定を数値で推測することはしません。エンディング中のレア役でPUSHボタンを押すと設定示唆のボイスが発生しますが、示唆内容が調査中のため行を設けていません。</div>
+    <div class="sec-h">エンディング中のボイス<span class="sub">計${voN}回</span></div>
+    <div class="cgrid">${ED_VOICE.map(c=>ctx.crow('voice.'+c[0],c[1],c[2],c[3]>0,v=>ctx.pct(v,voN))).join('')}</div>
+    <div class="hint">レア役時のPUSHで出たボイスを記録。エンディング中にレア役が成立したときPUSHボタンを押すと、上の11種のいずれかが発生します。設定示唆のボイスであることは公式が公表していますが、どのボイスが何を示すかは公表されていません。セリフと並びは公式発表の表記どおりです。</div>
+  </section>
+  <section class="sec">
+    <div class="hint">設定別の出現率は公表されていません。そのため本ツールは記録と共有に徹し、示唆から設定を数値で推測することはしません。</div>
   </section>`;
   }
 
@@ -198,6 +233,7 @@
       tplLines(SCENARIO,S.scen,total(SCENARIO,S.scen)).concat(tplLines(SCENARIO_X,S.scen,0)));
     t+=tplSection('センチメートル',CM,S.cm,0);
     t+=tplSection('獲得枚数表示',OVER,S.over,0);
+    t+=tplSection('エンディング中のボイス',ED_VOICE,S.voice,total(ED_VOICE,S.voice));
     t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
     return t;
   }
@@ -214,7 +250,9 @@
       {title:'1GレンCHANCE 攻略キャラ',items:detailItems(SCENARIO,S.scen),denominator:total(SCENARIO,S.scen)},
       {title:'シナリオの連続',items:detailItems(SCENARIO_X,S.scen)},
       {title:'センチメートル',items:detailItems(CM,S.cm)},
-      {title:'獲得枚数表示',items:detailItems(OVER,S.over)}
+      {title:'獲得枚数表示',items:detailItems(OVER,S.over)},
+      // ボイスは行幅の都合で6列目の略記を使う（画面の行は出典どおりのまま）。
+      {title:'エンディング中のボイス',items:detailItemsShort(ED_VOICE,S.voice),denominator:total(ED_VOICE,S.voice)}
     ];
   }
 
@@ -225,7 +263,7 @@
     nanaCollab:false,
     storageKey:'kanokari-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','screens','chara','scen','cm','over'],
+    mergeKeys:['counts','screens','chara','scen','cm','over','voice'],
     sourceUrl:'https://chonborista.com/slot/sankyo-slot/263079/',
     normalizeState:normalizeState,
     share:{title:'Lパチスロ 彼女、お借りします 設定判別メモ',hashtags:'#かのかり #設定判別'},
