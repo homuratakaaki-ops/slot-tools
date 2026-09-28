@@ -988,6 +988,8 @@ function groupSheet(title,groups,onDone,opts){
       if(g.autoValue!=null){const note=mk("div","hint","攻略キャラ："+g.autoValue+"（自動）");b.append(note);if(g.showWhen)wraps.push({showWhen:g.showWhen,els:[note],key:g.key,autoValue:g.autoValue});else sel[g.key]=g.autoValue;return}
       if(g.type==="num"){
         const lbl=mk("div","lbl",g.label),i=numInput("");if(sel[g.key]!=null)i.value=sel[g.key];
+        i.readOnly=true;i.setAttribute("inputmode","none");
+        i.addEventListener("click",()=>askNum(g.label,int(i.value),v=>{i.value=v;i.dispatchEvent(new Event("input"))}));
         if(!g.required)lbl.append(mk("span","hint","任意"));
         i.addEventListener("input",()=>{const v=int(i.value);if(v==null)delete sel[g.key];else sel[g.key]=v;reeval()});
         if(g.showWhen)wraps.push({showWhen:g.showWhen,els:[lbl,i],key:g.key,input:i});
