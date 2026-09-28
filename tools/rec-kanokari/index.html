@@ -916,7 +916,7 @@ function fixSession(c){
 }
 
 /* ---------- シート ---------- */
-function sheet(title,build,opts){el("sheet").classList.toggle("input-full",!!(opts&&opts.fullScreen));const action=el("shEdit");if(action)action.remove();el("shTitle").textContent=title;const b=el("shBody");b.innerHTML="";el("shFoot").innerHTML="";build(b);
+function sheet(title,build){const action=el("shEdit");if(action)action.remove();el("shTitle").textContent=title;const b=el("shBody");b.innerHTML="";el("shFoot").innerHTML="";build(b);
   const mh=mk("div","more-hint hide","↓ 下にも項目があります");b.append(mh);
   el("sheet").classList.add("open");positionSheet();
   requestAnimationFrame(()=>requestAnimationFrame(updateMoreHint));}
@@ -935,7 +935,6 @@ function positionSheet(){
   pane.style.transform="";
   const body=el("shBody");body.scrollTop=0;
   if(_posRaf)cancelAnimationFrame(_posRaf);   // 前のシートの分が後から走らないように
-  if(sh.classList.contains("input-full"))return;
   _posRaf=requestAnimationFrame(()=>{
     _posRaf=null;pane.style.transform="";
     const rows=document.querySelectorAll("#gridRows .grow");
@@ -982,7 +981,6 @@ function groupSheet(title,groups,onDone,opts){
     if(ok&&x.autoValue!=null)sel[x.key]=x.autoValue;
   })};
   sheet(title,b=>{
-    b.classList.toggle("extra-input",!!opts.completeInstant);
     if(opts.before)opts.before(b,sel);
     const hideable=[];
     groups.forEach(g=>{
@@ -990,7 +988,6 @@ function groupSheet(title,groups,onDone,opts){
       if(g.autoValue!=null){const note=mk("div","hint","攻略キャラ："+g.autoValue+"（自動）");b.append(note);if(g.showWhen)wraps.push({showWhen:g.showWhen,els:[note],key:g.key,autoValue:g.autoValue});else sel[g.key]=g.autoValue;return}
       if(g.type==="num"){
         const lbl=mk("div","lbl",g.label),i=numInput("");if(sel[g.key]!=null)i.value=sel[g.key];
-        if(opts.fullScreen){i.readOnly=true;i.setAttribute("inputmode","none");i.addEventListener("click",()=>askNum(g.label,int(i.value),v=>{i.value=v;i.dispatchEvent(new Event("input"))}))}
         if(!g.required)lbl.append(mk("span","hint","任意"));
         i.addEventListener("input",()=>{const v=int(i.value);if(v==null)delete sel[g.key];else sel[g.key]=v;reeval()});
         if(g.showWhen)wraps.push({showWhen:g.showWhen,els:[lbl,i],key:g.key,input:i});
@@ -1052,7 +1049,7 @@ function groupSheet(title,groups,onDone,opts){
       });
       el("shFoot").append(go);   // 下に固定して常に見える
     }
-  },opts);
+  });
 }
 function selText(groups,sel){return groups.map(g=>g.type==="num"?(sel[g.key]!=null?g.label+" "+sel[g.key]:null):Array.isArray(sel[g.key])?sel[g.key].join("・"):sel[g.key]).filter(Boolean).join("、")}
 
@@ -1508,7 +1505,7 @@ function openStockSet(){
     if(success){openHit(c.pendingHit);return}
     if(c.stocks.ren+c.stocks.koi>0)openStockSet();
     else{c.stockPhase=false;enterAfterHit();closeSheet()}
-  },{goLabel:"セットを記録",fullScreen:true});
+  },{goLabel:"セットを記録"});
 }
 function hitAutoValue(g,c){
   const rule=g.askWhenC3Mod;if(!rule||!g.scenario||c.c3%rule.mod===rule.eq)return null;
@@ -1536,7 +1533,7 @@ function openHit(fixed){
     const ex=selText((d.hitExtraGroups||[]).filter(g=>!auto.includes(g.key)),sel)+auto.map(k=>"　攻略キャラ："+sel[k]+"（自動）").join("");
     if(fixed&&fixed.before)fixed.before();
     startHit(hitDef(sel.type),(fixed&&fixed.trig)||sel.trig||null,{where:sel.where||null,hitSel:sel,extraTxt:ex?"　"+ex:"",keepOp:!!(fixed&&fixed.keepOp)});
-  },{goLabel:"当選を記録",initial:fixed&&fixed.trig?{trig:fixed.trig}:null,fullScreen:!!(c.pendingHit)});
+  },{goLabel:"当選を記録",initial:fixed&&fixed.trig?{trig:fixed.trig}:null});
 }
 function startHit(h,trig,opts){
   const d=DEF(),c=S.cur;opts=opts||{};if(!opts.keepOp)mark();
@@ -1791,7 +1788,7 @@ function yuuriReset(reason,keepOp){
     F.medal.readOnly=true;F.medal.setAttribute("inputmode","none");F.medal.addEventListener("click",()=>askNum("今の持ちメダル（枚）",int(F.medal.value),v=>{F.medal.value=v}));
     go.addEventListener("click",()=>{const error=validateEndInputs(null,F);if(error){toast(error);return}const m=applyMedal(F);if(m)push("medal","持ちメダル "+yen(m.medal)+"枚（差枚 "+sgn(m.diff)+"）",{medal:m.medal,diff:m.diff,prevCredit:m.prev,op});closeSheet()});
     skip.addEventListener("click",closeSheet);el("shFoot").append(go,skip);
-  },{fullScreen:true}))}
+  }))}
   toast("有利区間切れ：引き継ぎ情報を消しました");
 }
 // 当選を抜けた時の共通処理：運命盤の回数を数え直す、🍉残りを消す（モード示唆は区間で期限切れ）
@@ -2249,7 +2246,7 @@ function openExtra(x){
     }
     push("extra",x.label+"："+t+extraTxt+(hint?"　→ "+hint:""),{sel,extra:x.label});closeSheet();
     if(extraTxt.includes("獲得"))toast(tk.label+"を獲得");
-  },{anyOne:!!x.anyOne,...(x.completeInstant?{instant:true,completeInstant:true,fullScreen:true}:{})});
+  },{anyOne:!!x.anyOne,...(x.completeInstant?{instant:true,completeInstant:true}:{})});
 }
 
 /* ---------- メモ・編集 ---------- */
@@ -2868,20 +2865,5 @@ el("storeExport").addEventListener("click",()=>dlJson({sessions:S.sessions,cur:S
 window.addEventListener("storage",e=>{if(e.key!==KEY||!e.newValue)return;try{const g=(JSON.parse(e.newValue)||{}).gen;if(typeof g==="number"&&(g>saveGen||(!saveOK&&g>=saveGen)))staleTab()}catch(x){}});
 })();
 </script>
-<style>
-.sheet.input-full{padding:0;align-items:stretch}
-.sheet.input-full .pane{height:100dvh;max-height:100dvh;border-radius:0}
-.sheet.input-full .sb{flex:1;min-height:0;overflow:hidden;padding:8px 12px}
-.sheet.input-full .sh{padding:6px 12px}
-.sheet.input-full .sb .lbl{margin:6px 0 4px}
-.sheet.input-full input{min-height:44px}
-.sheet.input-full .opts button{min-height:44px;padding:5px 2px;flex-basis:calc(33.33% - 4px);font-size:12px}
-.sheet.input-full .opts button.q2{flex-basis:calc(50% - 3px)}
-.sheet.input-full .opts button.q4{flex-basis:calc(25% - 5px)}
-.sheet.input-full .extra-input .opts button.q4{flex-basis:calc(33.33% - 4px)}
-.sheet.input-full .sf{padding:6px 12px 12px}
-.sheet.input-full .sf button{min-height:44px;margin-top:4px;padding:8px}
-.sheet.input-full .more-hint{display:none}
-</style>
 </body>
 </html>
