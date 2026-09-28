@@ -152,6 +152,14 @@ textarea{min-height:80px;resize:vertical}
 .sumrow .c{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none;width:34px}
 .sumrow .v{font-family:var(--mono);font-size:15px;font-weight:700;flex:1;text-align:right}
 .sumrow .e{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none}
+#nSum .mrow{display:flex;gap:8px;align-items:center;margin-top:0;padding:8px 10px;border-bottom:1px solid var(--line);min-height:44px;cursor:pointer}
+#nSum .mrow:last-child{border-bottom:none}
+#nSum .mrow.on{background:var(--panel2)}
+#nSum .mrow .k{font-size:12px;font-weight:700;flex:none;width:76px}
+#nSum .mrow.on .k{color:var(--accent)}
+#nSum .mrow .c{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none;width:34px}
+#nSum .mrow .v{font-family:var(--mono);font-size:15px;font-weight:700;flex:1;text-align:right}
+#nSum .mrow .e{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none}
 .warn{background:#3A2A16;color:#F0D9A8;font-size:12px;padding:8px 12px;text-align:center;border-radius:8px;margin-top:8px}
 </style>
 </head>
@@ -2074,7 +2082,7 @@ function condEditSheet(store,cond,after){
     b.append(mk("div","lbl","表示名"));
     const lab=mk("input");lab.value=cond?cond.label:"";b.append(lab);
     const pv=mk("div","hint","");b.append(pv);
-    function unitLbl(){const u=kind==="pachinko"?"玉":"枚";lendLbl.textContent="1,000円で何"+u+"貸出";exLbl.textContent="1,000円で何"+u+"交換"}
+    function unitLbl(){const u=kind==="pachinko"?"玉":"枚";lendLbl.textContent="1,000円で何"+u+"貸出";lend.placeholder=kind==="pachinko"?"1,000円で何玉（4円なら250）":"1,000円で何枚（20円なら50）";exLbl.textContent="1,000円で何"+u+"交換"}
     function syncLabel(){const l=dec(lend.value);if(autoLabel&&l!=null&&!Number.isNaN(l)&&l>0)lab.value=condLabel(kind,l)}
     function prev(){const p=dec(ex.value);const u=kind==="pachinko"?"玉":"枚";const e2=(p!=null&&!Number.isNaN(p)&&p>0)?exchOf(p):null;pv.textContent=e2==null?"交換を入れると1"+u+"あたりの円が出ます。":("1"+u+"あたり "+e2.toFixed(2)+"円"+(dec(lend.value)===p?"（等価）":""))}
     lend.addEventListener("input",()=>{syncLabel();prev()});
@@ -2088,7 +2096,15 @@ function condEditSheet(store,cond,after){
       if(p==null||!Number.isFinite(p)||p<=0){toast("交換は0より大きい数で入れてください");return}
       const o=cond||{id:uid()};
       o.kind=kind;o.lend=l;o.exchPer1000=p;o.exch=exchOf(p);o.label=lab.value.trim()||condLabel(kind,l);
-      if(isNew)store.conds.push(o);
+      if(isNew){
+        store.conds.push(o);
+        const nm=(store.name||"").trim();
+        const targets=nm&&Array.isArray(S.entries)?S.entries.filter(e=>e.cond==null&&e.kind===o.kind&&(e.storeName||"")===nm):[];
+        if(targets.length&&confirm("条件なしの収支が"+targets.length+"件あります。この条件を適用しますか？")){
+          targets.forEach(e=>{e.cond=JSON.parse(JSON.stringify(o));e.updatedAt=nowISO()});
+          save();toast(targets.length+"件に条件を適用しました");
+        }
+      }
       closeSheet();if(after)after();
     });
     b.append(go);
@@ -2098,10 +2114,11 @@ function condEditSheet(store,cond,after){
 function entrySheet(entry,after,draft){
   const d=draft||entry||{date:isoDate(new Date()),kind:S.settings.lastEntryKind||"slot",storeId:S.settings.lastStoreId||null};
   const kind=d.kind,st=S.stores.find(x=>x.id===d.storeId)||null;
+  const isPachi=kind==="pachinko";
   const conds=st?st.conds.filter(c=>c.kind===kind):[];
   const condId=draft?draft.condId:(entry?entry.cond&&entry.cond.id:undefined);
   const c=st?(condId===null?null:conds.find(x=>x.id===condId)||(entry&&entry.storeId===st.id&&entry.cond&&entry.cond.id===condId&&entry.cond.kind===kind?entry.cond:null)||(condId===undefined?conds[0]:null)):null;
-  let linkedSessionId=d.linkedSessionId||null;
+  let linkedSessionId=isPachi?null:d.linkedSessionId||null;
   sheet(entry?"収支を直す":"収支を登録",b=>{
     b.append(mk("div","lbl","実戦日"));
     const dt=mk("input");dt.type="date";dt.value=d.date;b.append(dt);
@@ -2126,20 +2143,20 @@ function entrySheet(entry,after,draft){
     b.append(mk("div","lbl","引出（貯玉からおろした・"+unit+"）"));const withdraw=numInput(d.withdraw);b.append(withdraw);
     b.append(mk("div","lbl","預入（貯玉に戻した・"+unit+"）"));const deposit=numInput(d.deposit);b.append(deposit);
     b.append(mk("div","lbl","メモ"));const memo=mk("input");memo.value=d.memo||"";b.append(memo);
-    b.append(mk("div","lbl","実戦記録との紐づけ"));const links=mk("div");b.append(links);
+    const links=mk("div");if(!isPachi)b.append(mk("div","lbl","同じ台の実戦記録はありますか？（二重に数えないためのチェック）"),links);
     function renderLinks(){
       links.innerHTML="";
       const candidates=S.sessions.filter(s=>sessDate(s)===dt.value&&!S.entries.some(e=>e!==entry&&e.linkedSessionId===s.id));
       if(!candidates.some(s=>s.id===linkedSessionId))linkedSessionId=null;
       if(!candidates.length)links.append(mk("div","hint","同じ日の実戦記録がありません"));
       const row=mk("div","opts");
-      [...candidates,null].forEach(s=>{const btn=mk("button","q4",s?hm(s.startAt)+" "+s.machine+(s.shop?" "+s.shop:""):"紐づけない");if(s?s.id===linkedSessionId:!linkedSessionId)btn.classList.add("on");btn.addEventListener("click",()=>{const d2=readDraft();d2.linkedSessionId=s?s.id:null;entrySheet(entry,after,d2)});row.append(btn)});links.append(row);
+      [...candidates,null].forEach(s=>{const btn=mk("button","q4",s?hm(s.startAt)+" "+s.machine+(s.shop?" "+s.shop:""):"同じものはない");if(s?s.id===linkedSessionId:!linkedSessionId)btn.classList.add("on");btn.addEventListener("click",()=>{const d2=readDraft();d2.linkedSessionId=s?s.id:null;entrySheet(entry,after,d2)});row.append(btn)});links.append(row);
     }
     const pv=mk("div","hint");b.append(pv);
     function readDraft(){return {date:dt.value,kind,machine:machine.value,storeId:st?st.id:null,condId:c?c.id:null,cashIn:cashIn.value,cashOut:cashOut.value,withdraw:withdraw.value,deposit:deposit.value,memo:memo.value,linkedSessionId}}
     function prev(){const e={kind,cond:c,cashIn:int(cashIn.value),cashOut:int(cashOut.value),withdraw:int(withdraw.value),deposit:int(deposit.value)};const sy=entryStockYen(e);pv.textContent="現金収支 "+sgn(entryCash(e))+"円 ／ 貯玉 "+sgn(entryStock(e))+unit+(sy==null?" ／ 条件なしのため円換算しません":"（"+sgn(sy)+"円）")+" ／ 合計 "+sgn(entryYen(e))+"円"}
     [cashIn,cashOut,withdraw,deposit,machine,memo].forEach(i=>i.addEventListener("input",prev));
-    dt.addEventListener("input",()=>{renderLinks();prev()});renderLinks();prev();
+    dt.addEventListener("input",()=>{if(!isPachi)renderLinks();prev()});if(!isPachi)renderLinks();prev();
     const go=mk("button","go",entry?"この内容で直す":"登録する");
     go.addEventListener("click",()=>{
       const v=readDraft();if(!v.machine.trim()){toast("機種名を入れてください");return}
@@ -2153,7 +2170,7 @@ function entrySheet(entry,after,draft){
       e.linkedSessionId=v.linkedSessionId;e.updatedAt=nowISO();
       if(!entry){
         const cand=S.sessions.filter(s=>sessDate(s)===e.date&&!linkedEntryOf(s.id)&&s.machine===e.machine&&(e.storeName?(s.shop||"")===e.storeName:true));
-        if(!e.linkedSessionId&&cand.length===1&&confirm("同じ日に「"+cand[0].machine+"（"+hm(cand[0].startAt)+"〜）」の実戦記録があります。この実戦記録と同じ台ですか？\n（はい＝紐づけて二重計上を防ぐ）"))e.linkedSessionId=cand[0].id;
+        if(!isPachi&&!e.linkedSessionId&&cand.length===1&&confirm("同じ日に「"+cand[0].machine+"（"+hm(cand[0].startAt)+"〜）」の実戦記録があります。この実戦記録と同じ台ですか？\n（はい＝紐づけて二重計上を防ぐ）"))e.linkedSessionId=cand[0].id;
         S.entries.push(e);
       }
       S.settings.lastEntryKind=e.kind;if(e.storeId)S.settings.lastStoreId=e.storeId;
@@ -2246,12 +2263,16 @@ function dayKey(s){return ymd(s.startAt)}
 function dayKeyE(e){return e.date.replace(/-/g,"/")}                                   // entry の日 → 「2026/09/28」
 function dayWd(k){const p=k.split("/");return wd(new Date(+p[0],+p[1]-1,+p[2]))}       // 「2026/09/28」→ 曜日
 // 日ごとに実戦記録と簡易収支をまとめる。新しい日が先頭。日の中は 実戦記録（新しい順）→ 簡易収支（登録順）
-function noteDays(withCur){
+let noteMonth=null,noteMachine=null; // 表示条件のみ。保存・出力には使わない
+function sessIn(s){return (!noteMonth||dayKey(s).slice(0,7)===noteMonth)&&(!noteMachine||s.machine===noteMachine)}
+function entIn(e){return (!noteMonth||dayKeyE(e).slice(0,7)===noteMonth)&&(!noteMachine||e.machine===noteMachine)}
+function monthLabel(k){const p=k.split("/");return p[0]+"年"+Number(p[1])+"月"}
+function noteDays(withCur,filtered=false){
   const by={},days=[];
   const grp=k=>{if(!by[k]){by[k]={k,sess:[],ents:[]};days.push(by[k])}return by[k]};
-  S.sessions.forEach(s=>grp(dayKey(s)).sess.push(s));
-  if(withCur&&S.cur)grp(dayKey(S.cur)).sess.push(S.cur);
-  S.entries.forEach(e=>grp(dayKeyE(e)).ents.push(e));
+  S.sessions.forEach(s=>{if(!filtered||sessIn(s))grp(dayKey(s)).sess.push(s)});
+  if(withCur&&S.cur&&(!filtered||sessIn(S.cur)))grp(dayKey(S.cur)).sess.push(S.cur);
+  S.entries.forEach(e=>{if(!filtered||entIn(e))grp(dayKeyE(e)).ents.push(e)});
   days.sort((a,b)=>a.k<b.k?1:(a.k>b.k?-1:0));
   return days;
 }
@@ -2285,7 +2306,29 @@ function entryText(e){
 function sumRow(label,t){const r=mk("div","sumrow");r.append(mk("div","k",label),mk("div","c",t.total+"台"));const v=mk("div","v",sgn(t.act)+"円");v.style.color=t.act>=0?"var(--ok)":"var(--hot)";r.append(v,mk("div","e",t.nExp?"想定期待値 "+sgn(t.exp):"想定期待値 −"));return r}
 // 集計の下に足す小さい1行（想定との差・条件なしの貯玉）
 function subRow(text){const h=mk("div","sumrow");h.append(mk("div","k",""));const g=mk("div","v",text);g.style.fontSize="12px";g.style.color="var(--dim)";h.append(g);return h}
-function renderSummary(){const w=el("nSum");w.innerHTML="";if(!S.sessions.length&&!S.entries.length)return;const box=mk("div","log");box.style.marginTop="12px";const td=S.sessions.filter(s=>dayKey(s)===today()),te=S.entries.filter(e=>dayKeyE(e)===today());if(td.length||te.length){const t0=agg(td,te);box.append(sumRow("今日",t0));const s0=stockText(t0);if(s0)box.append(subRow("今日の"+s0))}const t=agg(S.sessions,S.entries);box.append(sumRow("全体",t));const s1=stockText(t);if(s1)box.append(subRow("全体の"+s1));if(t.nExp)box.append(subRow((t.gap>=0?"想定期待値より +":"想定期待値より ")+yen(t.gap)+"円"));w.append(box)}
+function renderSummary(){
+  const w=el("nSum");w.innerHTML="";if(!S.sessions.length&&!S.entries.length&&!noteMonth&&!noteMachine)return;
+  const box=mk("div","log");box.style.marginTop="12px";
+  const filters=[noteMonth?monthLabel(noteMonth):null,noteMachine].filter(Boolean);
+  if(filters.length)box.append(subRow("絞り込み中（"+filters.join("・")+"）"));
+  const sessions=S.sessions.filter(sessIn),entries=S.entries.filter(entIn);
+  const td=sessions.filter(s=>dayKey(s)===today()),te=entries.filter(e=>dayKeyE(e)===today());
+  if(td.length||te.length){const t0=agg(td,te);box.append(sumRow("今日",t0));const s0=stockText(t0);if(s0)box.append(subRow("今日の"+s0))}
+  const t=agg(sessions,entries);box.append(sumRow("全体",t));const s1=stockText(t);if(s1)box.append(subRow("全体の"+s1));if(t.nExp)box.append(subRow((t.gap>=0?"想定期待値より +":"想定期待値より ")+yen(t.gap)+"円"));w.append(box);
+  const monthly=mk("div","log");monthly.style.marginTop="12px";
+  const head=mk("div","opts");head.style.cssText="display:flex;flex-wrap:wrap;gap:6px;align-items:center";head.append(mk("div","lbl","月別"));
+  const counts=new Map();
+  [...S.sessions,...S.entries].forEach(x=>{if(typeof x.machine==="string"&&x.machine.trim())counts.set(x.machine,(counts.get(x.machine)||0)+1)});
+  const names=[...counts.keys()].sort((a,b)=>counts.get(b)-counts.get(a)||a.localeCompare(b,"ja"));
+  [null,...names].forEach(name=>{const b=mk("button","q4",name===null?"全部":name);if(noteMachine===name)b.classList.add("on");b.addEventListener("click",()=>{noteMachine=name;renderNote()});head.append(b)});
+  monthly.append(head);
+  const months=new Map();
+  const grp=k=>{if(!months.has(k))months.set(k,{sess:[],ents:[]});return months.get(k)};
+  S.sessions.forEach(s=>{if(!noteMachine||s.machine===noteMachine)grp(dayKey(s).slice(0,7)).sess.push(s)});
+  S.entries.forEach(e=>{if(!noteMachine||e.machine===noteMachine)grp(dayKeyE(e).slice(0,7)).ents.push(e)});
+  [...months.keys()].sort().reverse().forEach(k=>{const g=months.get(k),r=sumRow(monthLabel(k),agg(g.sess,g.ents));r.className="mrow";if(noteMonth===k)r.classList.add("on");r.addEventListener("click",()=>{noteMonth=noteMonth===k?null:k;renderNote()});monthly.append(r)});
+  w.append(monthly);
+}
 // 日別一覧に出す簡易収支の1行（タップで編集）
 function entryRow(e){
   const r=mk("div","sess");
@@ -2294,7 +2337,7 @@ function entryRow(e){
   hd.append(bg);
   const name=e.machine+(e.storeName?"　"+e.storeName:"");
   hd.append(mk("span","sn",name));
-  if(e.linkedSessionId)hd.append(mk("span","sm","実戦記録あり"));
+  if(e.linkedSessionId)hd.append(mk("span","sm","詳しい記録あり"));
   const y=entryYen(e);const pl=mk("span","pl",sgn(y));pl.style.color=y>=0?"var(--ok)":"var(--hot)";hd.append(pl);
   hd.addEventListener("click",()=>entrySheet(e,renderNote));
   r.append(hd);
@@ -2306,8 +2349,8 @@ function entryRow(e){
   return r;
 }
 function renderNote(){
-  renderSummary();const w=el("nList");w.innerHTML="";const days=noteDays(false);
-  if(!days.length){w.innerHTML='<div class="log"><div class="empty">まだ記録がありません</div></div>';return}
+  renderSummary();const w=el("nList");w.innerHTML="";const days=noteDays(false,true);
+  if(!days.length){const box=mk("div","log");box.append(mk("div","empty",noteMonth||noteMachine?"この絞り込みでは記録がありません":"まだ記録がありません"));w.append(box);return}
   days.forEach(g=>{
     const t=agg(g.sess,g.ents);
     const h=mk("div","dayhd");h.append(mk("div","d",g.k.slice(5)+"("+dayWd(g.k)+")"),mk("div","c",t.total+"台"));
@@ -2364,7 +2407,7 @@ el("nDlNote").addEventListener("click",()=>{const done=S.sessions.filter(s=>s.en
 el("nEntryAdd").addEventListener("click",()=>entrySheet(null,renderNote));
 el("nStores").addEventListener("click",()=>storeListSheet(renderNote));
 el("nImpOpen").addEventListener("click",()=>{sheet("JSONを取り込む",b=>{const ta=mk("textarea");ta.placeholder="書き出したJSONを貼る";ta.style.minHeight="160px";b.append(ta);const fi=mk("input");fi.type="file";fi.accept=".json,application/json";fi.className="hide";const fb=mk("button","sub","ファイルを選ぶ");fb.addEventListener("click",()=>fi.click());fi.addEventListener("change",e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{ta.value=r.result;doImport(ta.value)};r.readAsText(f)});const go=mk("button","go","取り込む");go.addEventListener("click",()=>doImport(ta.value));b.append(go,fb,fi);b.append(mk("div","hint","同じ記録は二重に入りません。今ある記録も消えません。"))})});
-function doImport(txt){let d;try{d=JSON.parse(txt)}catch(e){toast("JSONとして読めません");return}let arr=Array.isArray(d)?d:(d&&Array.isArray(d.sessions)?d.sessions.slice():null);if(!arr){toast("記録が見つかりません");return}
+function doImport(txt){let d;try{d=JSON.parse(txt)}catch(e){toast("JSONとして読めません");return}const hasSess=Array.isArray(d)||!!(d&&Array.isArray(d.sessions)),hasEntries=!!(d&&typeof d==="object"&&Array.isArray(d.entries)),hasStores=!!(d&&typeof d==="object"&&Array.isArray(d.stores));let arr=Array.isArray(d)?d:(hasSess?d.sessions.slice():[]);if(!hasSess&&!hasEntries&&!hasStores){toast("記録が見つかりません");return}
 if(d&&!Array.isArray(d)&&d.cur&&validSession(d.cur)&&!d.cur.endAt&&!(S.cur&&S.cur.id===d.cur.id)&&!S.sessions.some(x=>x.id===d.cur.id)){if(confirm("この書き出しには稼働中の台が入っています。終了済みとして取り込みますか？（記録を再開する復元ではありません。終了時の持ちメダルは未確定なので、収支は「打ち始め・終了の情報を直す」で入れてください）")){const c=JSON.parse(JSON.stringify(d.cur));c.endAt=c.endAt||nowISO();c.endNote="書き出しから復元（未終了）";arr.push(c)}}const have=new Set(S.sessions.map(s=>s.id));if(S.cur&&S.cur.id)have.add(S.cur.id);const ok=[],bad=[];let dup=0;
 arr.forEach(s=>{if(!validSession(s)){bad.push(s);return}if(have.has(s.id)){dup++;return}have.add(s.id);ok.push(s)});
 if(bad.length){toast(bad.length+"件が記録の形になっていないため取り込みません（何も変えていません）");if(!ok.length)return}
@@ -2383,7 +2426,7 @@ if(d&&!Array.isArray(d)){
   if(stOk||enOk){fixStores();fixEntries()}
 }
 ok.forEach(s=>{fixSession(s);S.sessions.push(s);have.add(s.id)});
-S.sessions.sort((a,b)=>new Date(a.startAt)-new Date(b.startAt));save();showNote();closeSheet();toast(ok.length+"件を取り込みました"+(dup?"（"+dup+"件は同じ記録があるため除外）":"")+(bad.length?"（"+bad.length+"件は形が不正で除外）":"")+((stOk||enOk)?"／店舗"+stOk+"件・簡易収支"+enOk+"件":"")+((stBad||enBad)?"（店舗"+stBad+"件・簡易収支"+enBad+"件は形が不正で除外）":""))}
+S.sessions.sort((a,b)=>new Date(a.startAt)-new Date(b.startAt));save();showNote();closeSheet();toast([hasSess?"実戦記録 "+ok.length+"件":null,hasEntries?"収支 "+enOk+"件":null,hasStores?"店舗 "+stOk+"件":null].filter(x=>x!==null).join("／")+"を取り込みました"+(dup?"（"+dup+"件は同じ記録があるため除外）":"")+(bad.length?"（"+bad.length+"件は形が不正で除外）":"")+((stBad||enBad)?"（店舗"+stBad+"件・簡易収支"+enBad+"件は形が不正で除外）":""))}
 
 /* ---------- 画面切替 ---------- */
 let setupVals={};
