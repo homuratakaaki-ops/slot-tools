@@ -841,7 +841,15 @@ function save(opts){
   }
   const next=boot?saveGen:saveGen+1;
   S.gen=next;
-  try{localStorage.setItem(KEY,JSON.stringify(S));saveGen=next;if(!saveOK){saveOK=true;el("storeWarn").classList.add("hide")}}
+  try{
+    try{localStorage.setItem(KEY,JSON.stringify(S))}
+    catch(e){
+      if(!(e&&(e.name==="QuotaExceededError"||e.name==="NS_ERROR_DOM_QUOTA_REACHED"||e.code===22||e.code===1014)))throw e;
+      S.sessions.forEach(stripSnaps);
+      localStorage.setItem(KEY,JSON.stringify(S));
+    }
+    saveGen=next;if(!saveOK){saveOK=true;el("storeWarn").classList.add("hide")}
+  }
   catch(e){S.gen=saveGen;saveOK=false;el("storeWarn").classList.remove("hide")}   // 失敗したら世代を進めない
 }
 // 別のタブが先に進んでいる：このタブは保存しない
@@ -1067,6 +1075,18 @@ function askNum(title,init,cb){el("kpTitle").textContent=title;kpVal=(init==null
 /* ---------- 記録 ---------- */
 const SNAP_KEYS=["hit","mode","stage","prevStage","zenPrevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare","ticket","judgeWins","returnHit","pendingReward","melonPhase","modeEra","modeHints","tags","stocks","stockPhase","gauge","zenNote","renFail","tagWait","pendingHit"];
 function snapshot(c){const o={};SNAP_KEYS.forEach(k=>{o[k]=JSON.parse(JSON.stringify(c[k]===undefined?null:c[k]))});return o}
+// 終了した台では「直前を取り消す」を使わないので、events[].snap を最小形に縮めて容量を空ける
+function stripSnaps(sess){
+  if(!sess||!Array.isArray(sess.events))return false;
+  let hit=false;
+  sess.events.forEach(ev=>{
+    if(!ev||!ev.snap)return;
+    const ks=Object.keys(ev.snap);if(ks.length===0||(ks.length===1&&ks[0]==="c3"))return;   // すでに縮めてある
+    ev.snap=Number.isFinite(ev.snap.c3)?{c3:ev.snap.c3}:{};
+    hit=true;
+  });
+  return hit;
+}
 // 1操作＝1つの op。mark() で開き、その操作中の push は同じ op に属する。
 // 取り消しは op 単位で戻す（1操作が複数行を作っても、まとめて戻る）
 let _op=null;        // {id, snap, used}
@@ -2343,7 +2363,7 @@ function finish(){
     i1.addEventListener("input",calc);calc();b.append(prev);
     const go=mk("button","go","終了する");go.addEventListener("click",()=>{const em=int(i1.value);if(em===null||badNum(em)){toast("終了時の持ちメダルを整数で入れてください");return}
       if(em<0){toast("持ちメダルは0以上です");return}
-      {const te=int(i3.value);if(badNum(te)){toast("総回転数は整数で入れてください");return}if(te!=null&&te<0){toast("総回転数は0以上です");return}if(te!=null&&S.cur.totalStart!=null&&te<S.cur.totalStart){toast("終了時の総回転数が開始時より小さくなっています");return}}m.endMedal=em;m.endReplay=0;S.cur.totalEnd=int(i3.value);S.cur.endNote=ta.value.trim()||"ヤメ";S.cur.endAt=nowISO();S.sessions.push(S.cur);S.cur=null;save();closeSheet();showNote()});b.append(go);
+      {const te=int(i3.value);if(badNum(te)){toast("総回転数は整数で入れてください");return}if(te!=null&&te<0){toast("総回転数は0以上です");return}if(te!=null&&S.cur.totalStart!=null&&te<S.cur.totalStart){toast("終了時の総回転数が開始時より小さくなっています");return}}m.endMedal=em;m.endReplay=0;S.cur.totalEnd=int(i3.value);S.cur.endNote=ta.value.trim()||"ヤメ";S.cur.endAt=nowISO();stripSnaps(S.cur);S.sessions.push(S.cur);S.cur=null;save();closeSheet();showNote()});b.append(go);
   });
 }
 
@@ -2858,6 +2878,7 @@ if(loadBroken){
   document.querySelectorAll("#scSetup button").forEach(b=>b.disabled=true);
 }else{
   S.sessions.forEach(fixSession);
+  S.sessions.forEach(s=>{if(s&&s.endAt)stripSnaps(s)});
   if(S.cur){fixSession(S.cur);save({boot:true});showMain()}else{save({boot:true});showSetup()}
 }
 el("staleReload").addEventListener("click",()=>location.reload());
