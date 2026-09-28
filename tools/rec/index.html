@@ -160,6 +160,10 @@ textarea{min-height:80px;resize:vertical}
 #nSum .mrow .c{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none;width:34px}
 #nSum .mrow .v{font-family:var(--mono);font-size:15px;font-weight:700;flex:1;text-align:right}
 #nSum .mrow .e{font-family:var(--mono);font-size:11px;color:var(--dim);flex:none}
+#nSum .machs{display:flex;flex-wrap:nowrap;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;padding:6px 10px}
+#nSum .machs::-webkit-scrollbar{display:none}
+#nSum .machs button{flex:0 0 auto;white-space:nowrap;min-height:44px;padding:8px 12px;font-size:13px;font-weight:700}
+#nSum .machs button.on{background:var(--accent);border-color:var(--accent);color:#1a1200}
 .warn{background:#3A2A16;color:#F0D9A8;font-size:12px;padding:8px 12px;text-align:center;border-radius:8px;margin-top:8px}
 </style>
 </head>
@@ -2263,9 +2267,10 @@ function dayKey(s){return ymd(s.startAt)}
 function dayKeyE(e){return e.date.replace(/-/g,"/")}                                   // entry の日 → 「2026/09/28」
 function dayWd(k){const p=k.split("/");return wd(new Date(+p[0],+p[1]-1,+p[2]))}       // 「2026/09/28」→ 曜日
 // 日ごとに実戦記録と簡易収支をまとめる。新しい日が先頭。日の中は 実戦記録（新しい順）→ 簡易収支（登録順）
-let noteMonth=null,noteMachine=null; // 表示条件のみ。保存・出力には使わない
+let noteMonth=null,noteMachine=null,noteMachineQ=""; // 表示条件のみ。保存・出力には使わない
 function sessIn(s){return (!noteMonth||dayKey(s).slice(0,7)===noteMonth)&&(!noteMachine||s.machine===noteMachine)}
-function entIn(e){return (!noteMonth||dayKeyE(e).slice(0,7)===noteMonth)&&(!noteMachine||e.machine===noteMachine)}
+function entMachine(e){const s=e.linkedSessionId?S.sessions.find(x=>x.id===e.linkedSessionId):null;return s?s.machine:e.machine}
+function entIn(e){return (!noteMonth||dayKeyE(e).slice(0,7)===noteMonth)&&(!noteMachine||entMachine(e)===noteMachine)}
 function monthLabel(k){const p=k.split("/");return p[0]+"年"+Number(p[1])+"月"}
 function noteDays(withCur,filtered=false){
   const by={},days=[];
@@ -2316,16 +2321,19 @@ function renderSummary(){
   if(td.length||te.length){const t0=agg(td,te);box.append(sumRow("今日",t0));const s0=stockText(t0);if(s0)box.append(subRow("今日の"+s0))}
   const t=agg(sessions,entries);box.append(sumRow("全体",t));const s1=stockText(t);if(s1)box.append(subRow("全体の"+s1));if(t.nExp)box.append(subRow((t.gap>=0?"想定期待値より +":"想定期待値より ")+yen(t.gap)+"円"));w.append(box);
   const monthly=mk("div","log");monthly.style.marginTop="12px";
-  const head=mk("div","opts");head.style.cssText="display:flex;flex-wrap:wrap;gap:6px;align-items:center";head.append(mk("div","lbl","月別"));
+  const head=mk("div");head.style.cssText="display:flex;gap:6px;align-items:center";head.append(mk("div","lbl","月別"));
+  const search=mk("input");search.placeholder="機種名で検索";search.style.cssText="flex:1;min-width:0;min-height:44px";search.value=noteMachineQ;head.append(search);
   const counts=new Map();
-  [...S.sessions,...S.entries].forEach(x=>{if(typeof x.machine==="string"&&x.machine.trim())counts.set(x.machine,(counts.get(x.machine)||0)+1)});
+  [...S.sessions.map(s=>s.machine),...S.entries.map(entMachine)].forEach(name=>{if(typeof name==="string"&&name.trim())counts.set(name,(counts.get(name)||0)+1)});
   const names=[...counts.keys()].sort((a,b)=>counts.get(b)-counts.get(a)||a.localeCompare(b,"ja"));
-  [null,...names].forEach(name=>{const b=mk("button","q4",name===null?"全部":name);if(noteMachine===name)b.classList.add("on");b.addEventListener("click",()=>{noteMachine=name;renderNote()});head.append(b)});
-  monthly.append(head);
+  const machs=mk("div","machs");
+  const renderMachines=()=>{const q=noteMachineQ.trim().toLowerCase();machs.innerHTML="";[null,...names].forEach(name=>{if(name!==null&&name!==noteMachine&&!name.toLowerCase().includes(q))return;const b=mk("button","",name===null?"全部":name);if(noteMachine===name)b.classList.add("on");b.addEventListener("click",()=>{noteMachine=name;renderNote()});machs.append(b)})};
+  search.addEventListener("input",()=>{noteMachineQ=search.value;renderMachines()});renderMachines();
+  monthly.append(head,machs);
   const months=new Map();
   const grp=k=>{if(!months.has(k))months.set(k,{sess:[],ents:[]});return months.get(k)};
   S.sessions.forEach(s=>{if(!noteMachine||s.machine===noteMachine)grp(dayKey(s).slice(0,7)).sess.push(s)});
-  S.entries.forEach(e=>{if(!noteMachine||e.machine===noteMachine)grp(dayKeyE(e).slice(0,7)).ents.push(e)});
+  S.entries.forEach(e=>{if(!noteMachine||entMachine(e)===noteMachine)grp(dayKeyE(e).slice(0,7)).ents.push(e)});
   [...months.keys()].sort().reverse().forEach(k=>{const g=months.get(k),r=sumRow(monthLabel(k),agg(g.sess,g.ents));r.className="mrow";if(noteMonth===k)r.classList.add("on");r.addEventListener("click",()=>{noteMonth=noteMonth===k?null:k;renderNote()});monthly.append(r)});
   w.append(monthly);
 }
