@@ -1269,6 +1269,15 @@
       min-height: 42px;
     }
 
+    /* S45/§3: 確定ボタンは行全体を使い、狭い画面でも文言を折り返す。 */
+    .prev-day-confirm {
+      grid-column: 1 / -1;
+      min-height: 44px;
+      white-space: normal;
+      min-width: 0;
+      width: 100%;
+    }
+
     .history-toggle {
       width: 100%;
       justify-content: space-between;
@@ -1352,6 +1361,11 @@
       width: 100%;
       min-width: 0;
       border-radius: 8px;
+    }
+
+    /* S45/§2: 判定パネルの3択だけ、タップ領域の高さ44pxを確保する。 */
+    .ev-ramclear-row .ram-choice-row button {
+      min-height: 44px;
     }
 
     .expectation-spacer {
@@ -2191,8 +2205,8 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 44;
-    const APP_VERSION_DATE = "2026-09-26";
+    const APP_VERSION_SEQ = 45;
+    const APP_VERSION_DATE = "2026-09-29";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
     const LAST_VERSION_KEY = STORAGE_PREFIX + "app:lastVersionSeq";
@@ -2216,7 +2230,7 @@
     const X_TEXT_LIMIT = 280;
     const X_URL_WEIGHT = 23;
     const TRANSFER_SIGNATURE_URL = "slot-tools.jp";
-    const SCHEMA_VERSION = 44;
+    const SCHEMA_VERSION = 45;
     const DEFAULT_LEND_RATE = 4;
     const DEFAULT_EXCHANGE_BALLS = 25;
     // S11: 1Rあたりの実質出玉（玉/R）の既定値。当選あたりの玉数ではない。
@@ -2284,6 +2298,10 @@
       // 公称払い出し（648÷6＝108）ではなく実戦から置いた基準なので「理論値」と呼ばない。
       { id: "agnes-pe", name: "PA大海物語Withアグネス・ラムPE", roundBalls: 108, standardRounds: 6, standardPayout: 648, roundTypes: [{ id: "r10", label: "10R", balls: 1080 }, { id: "r6", label: "6R", balls: 648 }, { id: "r4", label: "4R", balls: 432 }], evSupported: true, hasYutime: true, defaultNetBallsLabel: "基準値（実戦基準95玉）" }
     ];
+    // S45/§1: 朝チェックとは値を分け、不明を独立したセッション状態として残す。
+    const PREV_DAY_RETAINED = "retained";
+    const PREV_DAY_CLEARED = "cleared";
+    const PREV_DAY_UNKNOWN = "unknown";
     const RAM_CLEAR_VALUE = "cleared";
     const RAM_NOT_CLEARED_VALUE = "not_cleared";
     const RAM_UNKNOWN_VALUE = "unknown";
@@ -2578,6 +2596,9 @@
       startTotalHits: null,
       currentSpin: null,
       prevDayEndSpin: null,
+      // S45/§1: 候補は不明・ラムクリアでも保持し、計算用の実効値と分ける。
+      prevDayStatus: null,
+      prevDaySpinCandidate: null,
       startEv: null,
       consumedBallsSource: null,
       // S7/B-1: 消費玉の算出方式。打ち始めのときだけ "endpoints" を付ける（startSessionBase /
@@ -2683,6 +2704,8 @@
     let hitResetDraft = null;
     let pendingHitAt = null; // S25/§1: タップ時刻はセッションを添えて初回R登録まで保持する。
     // S24/§B-6: 打ち始めの「打ち方」の初期選択。前回打ち始めたときの選択を覚えておく。
+    // S45/§2: 判定パネルの3択は打ち方と同じくモジュール内で保持する。
+    let evPrevDayStatus = PREV_DAY_RETAINED;
     let startPlayStyle = normalizePlayStyle(localStorage.getItem(PLAY_STYLE_PREF_KEY) || "yutime");
     // S5/§0: 閉じる前に確認が必要なモーダルはここに関門を置く。false を返すと閉じない。
     let modalGuard = null;
@@ -3094,6 +3117,21 @@
       return value === RAM_CLEAR_VALUE || value === RAM_NOT_CLEARED_VALUE || value === RAM_UNKNOWN_VALUE ? value : null;
     }
 
+    // S45/§1: 状態と候補から実効値を決める入口を一本化する。
+    function normalizePrevDayStatus(value) {
+      return value === PREV_DAY_RETAINED || value === PREV_DAY_CLEARED || value === PREV_DAY_UNKNOWN ? value : null;
+    }
+
+    function prevDayStatusFromRamClear(ramClear) {
+      return ramClear === RAM_CLEAR_VALUE ? PREV_DAY_CLEARED : ramClear === RAM_NOT_CLEARED_VALUE ? PREV_DAY_RETAINED : ramClear === RAM_UNKNOWN_VALUE ? PREV_DAY_UNKNOWN : null;
+    }
+
+    function applyPrevDayStatus(session, status, candidate) {
+      session.prevDayStatus = normalizePrevDayStatus(status) ?? PREV_DAY_RETAINED;
+      session.prevDaySpinCandidate = normalizeNumber(candidate);
+      session.prevDayEndSpin = session.prevDayStatus === PREV_DAY_RETAINED ? session.prevDaySpinCandidate : null;
+    }
+
     function normalizeRatingValue(value) {
       const number = normalizeNumber(value);
       return Number.isInteger(number) && number >= 1 && number <= 5 ? number : null;
@@ -3146,6 +3184,12 @@
       return {
         evYen,
         usedRate,
+        // S45/§2: 旧記録には空の状態キーを追加せず、両側の金額は不明の記録だけに残す。
+        ...(normalizePrevDayStatus(value.prevDayStatus) ? { prevDayStatus: normalizePrevDayStatus(value.prevDayStatus) } : {}),
+        ...(value.prevDayStatus === PREV_DAY_UNKNOWN ? {
+          evYenRetained: normalizeNumber(value.evYenRetained),
+          evYenCleared: normalizeNumber(value.evYenCleared)
+        } : {}),
         rateSource: value.rateSource || "",
         presetId: typeof value.presetId === "string" ? value.presetId : "",
         effectiveSpin,
@@ -3255,6 +3299,22 @@
       const tenjo = normalizeNumber(tenjoForPresetId(presetId));
       if (engineSpin === null || tenjo === null) return null;
       return Math.max(0, tenjo - engineSpin);
+    }
+
+    // S45/§3: カウンター基準の突入回転数。未対応の機種では確定を促さない。
+    function yutimeEnterCounterSpin(presetId) {
+      const spec = YUTIME_EXPECTATION_ENGINE.presets[presetId]?.spec;
+      const tenjo = normalizeNumber(spec?.tenjo);
+      const offset = normalizeNumber(spec?.counterOffset);
+      return tenjo === null || offset === null ? null : tenjo + offset;
+    }
+
+    // S45/§4: カウンターのずれを見込み、内部天井以上の突入はラムクリアと判定する。
+    function prevDayStatusFromEnterSpin(currentSpin, presetId) {
+      const enter = yutimeEnterCounterSpin(presetId);
+      const spin = normalizeNumber(currentSpin);
+      if (enter === null || spin === null) return null;
+      return spin >= enter - counterOffsetForPresetId(presetId) ? PREV_DAY_CLEARED : PREV_DAY_RETAINED;
     }
 
     function presetNetBallsPerWin(presetId) {
@@ -3839,7 +3899,22 @@
         availableBalls
       });
       if (!expectation.result) return null;
+      // S45/§2: 本体は実効値で固定し、不明のときだけ据え置き側の判断材料も保存する。
+      const status = normalizePrevDayStatus(session.prevDayStatus);
+      const retained = status === PREV_DAY_UNKNOWN ? calculateMachineExpectation(machine, {
+        currentSpin: startSpin,
+        previousSpin: session.prevDaySpinCandidate,
+        manualRate: presets.manualRate,
+        manualNetBallsPerWin: presets.manualNetBallsPerWin,
+        availableBalls
+      }) : null;
       return {
+        // S45/§2: 状態が無い場合は意味のない空キーを保存しない。
+        ...(status ? { prevDayStatus: status } : {}),
+        ...(status === PREV_DAY_UNKNOWN ? {
+          evYenRetained: retained?.result ? Math.round(retained.result.evYen) : null,
+          evYenCleared: Math.round(expectation.result.evYen)
+        } : {}),
         evYen: Math.round(expectation.result.evYen),
         usedRate: Number(expectation.result.rotationRate.toFixed(2)),
         rateSource: expectation.rateSource,
@@ -4198,6 +4273,9 @@
         const normalized = {
           ...blankSession(),
           ...session,
+          // S45/§1: 移行では実効値を一切書き換えず、状態と候補だけ補完する。
+          prevDayStatus: normalizePrevDayStatus(session.prevDayStatus) ?? (normalizeNumber(session.prevDayEndSpin) !== null ? PREV_DAY_RETAINED : PREV_DAY_CLEARED),
+          prevDaySpinCandidate: Object.prototype.hasOwnProperty.call(session, "prevDaySpinCandidate") ? normalizeNumber(session.prevDaySpinCandidate) : normalizeNumber(session.prevDayEndSpin),
           startTotalHits: normalizeNumber(session.startTotalHits),
           endTotalHits: normalizeNumber(session.endTotalHits),
           currentSpin: normalizeNumber(session.currentSpin) ?? normalizeNumber(session.startSpin),
@@ -5437,7 +5515,8 @@
             </div>
             <p class="running-normal-summary">通常時合計 ${totalSpins !== null && normalInputBalls !== null ? `${numberText(totalSpins, 0)}回転 / ${numberText(normalInputBalls, 0)}玉` : "-"}</p>
             ${consumedBallsChoiceHtml(session, derived)}
-            ${yutimeRemaining ? `<p class="live-ev-line${yutimeRemaining.near ? " warn" : ""}">${escapeHtml(yutimeRemaining.text)}</p>` : ""}
+            ${yutimeRemaining ? `<p class="live-ev-line${yutimeRemaining.near ? " warn" : ""}">${escapeHtml(yutimeRemaining.text)}${yutimeRemaining.retainedReached ? "<br>据え置きなら突入済み。入っていなければラムクリアです" : ""}</p>` : ""}
+            ${yutimeRemaining?.askCleared ? '<div class="running-actions"><button id="confirmPrevDayClearedBtn" class="prev-day-confirm">遊タイムに入りませんでした → ラムクリアで確定しますか？</button></div>' : ""}
             ${selectedSource === "mochidama" ? `
               <div class="balance-row">
                 <span class="balance-label">持ち玉</span><button class="editable-value balance-value" data-edit-balance="startMochidama"><strong>${balanceText(balances.mochidama, "玉")}</strong><small>修正</small></button>
@@ -5538,6 +5617,13 @@
       `;
       if (machine) bindNailRatingChips(machine, els.runningArea);
       bindConsumedBallsChoice(els.runningArea, session);
+      // S45/§4: 未突入の確認は任意。開始判断と通常区間の回転数は書き換えない。
+      byId("confirmPrevDayClearedBtn")?.addEventListener("click", () => {
+        applyPrevDayStatus(session, PREV_DAY_CLEARED, session.prevDaySpinCandidate);
+        session.updatedAt = nowIso();
+        if (!persistWithToast("前日はラムクリアで確定しました。")) return;
+        renderAll();
+      });
       byId("editActiveBtn").addEventListener("click", () => openSessionEditor(session.id));
       els.runningArea.querySelectorAll("[data-spin-add]").forEach((button) => {
         button.addEventListener("click", () => addCurrentSpin(session, Number(button.dataset.spinAdd)));
@@ -5783,6 +5869,7 @@
                 ${sessionFiguresHtml(derived.profitYen, evYenById.get(session.id))}
               </div>
               <span class="badge ${session.status === "completed" ? "good" : "dark"}">${session.status === "completed" ? "確定" : "稼働中"}</span>
+              ${session.prevDayStatus === PREV_DAY_UNKNOWN ? '<span class="badge dark">?</span>' : ""}
             </div>
           </div>`;
       }).join("");
@@ -7487,6 +7574,8 @@
       // S9/§1-3: 参考1R出玉は参考回転率と同じ台単位の集計。手入力欄の初期表示にも使う
       const netBallsInfo = netBallsPerWinInfo(presetId, machine);
       const closing = validClosingInfo(machine.id);
+      // S45/§2: 朝チェックの不明を据え置きに化けさせず、未登録だけ据え置きにする。
+      evPrevDayStatus = prevDayStatusFromRamClear(todayRamClear(machine.id)) ?? PREV_DAY_RETAINED;
       const closingStateNote = todayPrevInvalid(machine.id) ? `<small>朝チェックで前日分を無効にしています</small>` : "";
       // S24/§B-5: 台移動の引き継ぎ中は、打ち始めの残高欄を引き継いだ値で初期化する。
       // 空のままだと「この台を打つ」で開始残高が未入力（持ち玉0扱い）になり、区間の起点が壊れる。
@@ -7520,7 +7609,11 @@
           <div class="expectation-title" id="machineEvTitle"><span>期待値判定</span><small>未判定</small></div>
           <div class="expectation-inputs">
             <div class="field-row"><label for="evStartTotalHits">開始時点の累計大当たり回数</label><input id="evStartTotalHits" inputmode="numeric" value=""></div>
-            <div class="field-row ev-ramclear-row"><label for="evPrevDisabled">ラムクリア</label><div><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> あり</label><p class="hint" id="machineEvRamHint" hidden></p></div></div>
+            <div class="field-row ev-ramclear-row"><label>前日の回転</label><div><div class="ram-choice-row">
+              <button id="evPrevDayRetained" class="small" data-ev-prev-day="retained" aria-pressed="${evPrevDayStatus === PREV_DAY_RETAINED}">据え置き</button>
+              <button id="evPrevDayCleared" class="small" data-ev-prev-day="cleared" aria-pressed="${evPrevDayStatus === PREV_DAY_CLEARED}">ラムクリア</button>
+              <button id="evPrevDayUnknown" class="small" data-ev-prev-day="unknown" aria-pressed="${evPrevDayStatus === PREV_DAY_UNKNOWN}">不明</button>
+            </div><p class="hint" id="machineEvRamHint" hidden></p></div></div>
             <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数（実機：前日の最終回転数。閉店チェックがあれば自動）</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
             <div class="field-row"><label for="evCurrentSpin">現在回転数（実機：データカウンターの回転数）</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
             <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${baseStats.rate ? baseStats.rate.toFixed(1) : "履歴なし"}"></div>
@@ -7535,6 +7628,7 @@
           <p class="hint" id="machineEvContext"></p>
           <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"}</p>
           <div class="metric-grid" id="machineEvMetrics"></div>
+          <p class="hint" id="machineEvPrevDaySplit"></p>
           <p class="hint" id="machineEvDetail"></p>
           <p class="hint" id="machineEvBasis"></p>
           <p class="hint hint-help">スロ換算機械割は、時短抜け後も打ち続ける「打ち切り」の判断に使う数字です。105%が時給約2,400円に相当します。遊タイム狙いの打つ／打たないは、判定と時給で見ます。</p>
@@ -7595,7 +7689,16 @@
         ["evCurrentSpin", "evPrevSpin", "evManualRate", "evManualNetBalls", "evMochidamaBalls", "evSaipureiBalls", "evStartCredit", "evStartTotalHits"].forEach((id) => {
           byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
         });
-        byId("evPrevDisabled").addEventListener("change", () => renderMachineExpectation(machine.id));
+        // S45/§2: 再タップでも解除せず、選択したボタン自身で状態を示す。
+        ["evPrevDayRetained", "evPrevDayCleared", "evPrevDayUnknown"].forEach((id) => {
+          byId(id).addEventListener("click", () => {
+            evPrevDayStatus = normalizePrevDayStatus(byId(id).dataset.evPrevDay) ?? PREV_DAY_RETAINED;
+            ["evPrevDayRetained", "evPrevDayCleared", "evPrevDayUnknown"].forEach((otherId) => {
+              byId(otherId).setAttribute("aria-pressed", otherId === id ? "true" : "false");
+            });
+            renderMachineExpectation(machine.id);
+          });
+        });
         // S24/§B-6: 打ち始めの打ち方の2択
         bindStartPlayStyleChoice(els.modalBody);
       }
@@ -7665,11 +7768,18 @@
       const previousState = expectationPreviousSpinState();
       const previousDisabled = previousState.disabled;
       const prevInput = byId("evPrevSpin");
-      if (prevInput) prevInput.disabled = previousDisabled;
+      // S45/§2: 不明でも候補の入力は許可する。判定への使用可否とは分ける。
+      if (previousState.status === PREV_DAY_UNKNOWN) {
+        if (prevInput) prevInput.disabled = false;
+      } else {
+        if (prevInput) prevInput.disabled = previousDisabled;
+      }
       // S24/§B-4: 前日ヤメが自動で無効になる条件（当日すでに当選済み）では、ラムクリアも判定に効かない。
       // 入力できるまま残すと「使われる値」と勘違いするので、チェック自体を無効化して理由を1行で出す。
-      const ramInput = byId("evPrevDisabled");
-      if (ramInput) ramInput.disabled = previousState.autoDisabled;
+      ["evPrevDayRetained", "evPrevDayCleared", "evPrevDayUnknown"].forEach((id) => {
+        const ramInput = byId(id);
+        if (ramInput) ramInput.disabled = previousState.autoDisabled;
+      });
       const ramHint = byId("machineEvRamHint");
       if (ramHint) {
         ramHint.textContent = previousState.autoDisabled ? "当日すでに当選しているため、ラムクリアの有無は判定に使いません。" : "";
@@ -7680,6 +7790,8 @@
         const prevValue = normalizeNumber(prevInput?.value);
         prevHint.textContent = previousState.autoDisabled
           ? "当日当選済みのため前日ヤメ回転数は使いません。0回転として計算しています。"
+          : previousState.status === PREV_DAY_UNKNOWN
+            ? "不明のため前日ヤメ回転数は候補として控え、判定はラムクリア側（0回転）で行っています。"
           : (previousState.ramClearDisabled
             ? "ラムクリアありのため前日ヤメ回転数は使いません。0回転として計算しています。"
             : (prevValue !== null ? `前日ヤメ${prevValue.toLocaleString("ja-JP")}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"));
@@ -7692,6 +7804,9 @@
         availableBalls: availableBallsFromParts(byId("evMochidamaBalls")?.value, byId("evSaipureiBalls")?.value).total,
         stats
       });
+      // S45/§2: 未判定や状態変更の際に、前の比較表示を残さない。
+      const split = byId("machineEvPrevDaySplit");
+      if (split) split.textContent = "";
       title.className = "expectation-title";
       if (!expectation.result) {
         title.querySelector("small").textContent = "未判定";
@@ -7703,6 +7818,17 @@
       }
       const judgment = evJudgment(expectation.result);
       title.classList.add(judgment.className);
+      if (split && previousState.status === PREV_DAY_UNKNOWN && previousState.candidate !== null && previousState.candidate !== 0) {
+        const retained = calculateMachineExpectation(machine, {
+          currentSpin: byId("evCurrentSpin")?.value,
+          previousSpin: previousState.candidate,
+          manualRate: byId("evManualRate")?.value,
+          manualNetBallsPerWin: byId("evManualNetBalls")?.value,
+          availableBalls: availableBallsFromParts(byId("evMochidamaBalls")?.value, byId("evSaipureiBalls")?.value).total,
+          stats
+        });
+        if (retained.result) split.innerHTML = `据え置きなら 残り${remainingSpinsFromCounterSpin(expectation.currentSpin + previousState.candidate, expectation.presetId)}回転・期待値 ${escapeHtml(yenText(retained.result.evYen))}<br>ラムクリアなら 残り${remainingSpinsFromCounterSpin(expectation.currentSpin, expectation.presetId)}回転・期待値 ${escapeHtml(yenText(expectation.result.evYen))}<br>不明のためラムクリア側で判定しています。`;
+      }
       title.querySelector("small").textContent = judgment.label;
       metrics.innerHTML = `
         <div class="metric"><span>判定</span><strong>${escapeHtml(judgment.label)}</strong></div>
@@ -7758,18 +7884,25 @@
     function expectationPreviousSpinState() {
       const startTotalHits = normalizeNumber(byId("evStartTotalHits")?.value);
       const autoDisabled = startTotalHits !== null && startTotalHits >= 1;
-      const ramClearDisabled = Boolean(byId("evPrevDisabled")?.checked);
-      return { autoDisabled, ramClearDisabled, disabled: autoDisabled || ramClearDisabled };
+      // S45/§2: 不明の候補は保持し、計算に渡す回転数だけ0にする。
+      const status = autoDisabled ? PREV_DAY_CLEARED : normalizePrevDayStatus(evPrevDayStatus) ?? PREV_DAY_RETAINED;
+      const candidate = autoDisabled ? null : normalizeNumber(byId("evPrevSpin")?.value);
+      const ramClearDisabled = status === PREV_DAY_CLEARED;
+      return { autoDisabled, status, candidate, previousSpin: status === PREV_DAY_RETAINED ? candidate ?? 0 : 0, ramClearDisabled, disabled: status !== PREV_DAY_RETAINED };
     }
 
     function expectationPanelPresets() {
       const mochidamaInput = normalizeNumber(byId("evMochidamaBalls")?.value);
       const saipureiInput = normalizeNumber(byId("evSaipureiBalls")?.value);
       const availableBalls = availableBallsFromParts(mochidamaInput, saipureiInput);
-      const yoiDisabled = expectationPreviousSpinState().disabled;
+      const previousState = expectationPreviousSpinState();
+      const yoiDisabled = previousState.disabled;
       return {
         startSpin: normalizeNumber(byId("evCurrentSpin")?.value),
-        prevDayEndSpin: yoiDisabled ? null : normalizeNumber(byId("evPrevSpin")?.value),
+        // S45/§2: 開始時にも候補と実効値を別々に渡す。
+        prevDayStatus: previousState.status,
+        prevDaySpinCandidate: previousState.candidate,
+        prevDayEndSpin: yoiDisabled ? null : previousState.candidate,
         prevDayDisabled: yoiDisabled,
         manualRate: normalizeNumber(byId("evManualRate")?.value),
         manualNetBallsPerWin: normalizeNumber(byId("evManualNetBalls")?.value),
@@ -7885,7 +8018,12 @@
       const manualPrevDayEndSpin = normalizeNumber(presets.prevDayEndSpin);
       const prevDayDisabled = presetsDisablePrevDay(presets);
       const hasPrevDayPreset = Object.prototype.hasOwnProperty.call(presets, "prevDayEndSpin") || prevDayDisabled;
-      session.prevDayEndSpin = prevDayDisabled ? null : (hasPrevDayPreset ? manualPrevDayEndSpin : (validClosingInfo(machineId)?.spin ?? null));
+      // S45/§2: パネル経由は3値を使用し、旧導線の候補選択・実効値は維持する。
+      const status = normalizePrevDayStatus(presets.prevDayStatus);
+      const candidate = status
+        ? (presets.prevDaySpinCandidate ?? presets.prevDayEndSpin ?? null)
+        : (hasPrevDayPreset ? manualPrevDayEndSpin : (validClosingInfo(machineId)?.spin ?? null));
+      applyPrevDayStatus(session, status ?? (prevDayDisabled ? PREV_DAY_CLEARED : PREV_DAY_RETAINED), candidate);
       // S35/§2-1: 引き継ぎは保存された待機ではなく、本日・同じ店の最後のヤメ入力から組み立てる
       const activeCarryover = autoCarryoverForStore(store.id);
       if (activeCarryover) {
@@ -7942,7 +8080,8 @@
           label: "現在回転数（実機：データカウンターの回転数）",
           type: "number",
           preset: startSpinPreset,
-          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (presetsDisablePrevDay(presets) ? " 期待値判定で宵越し無効を選択しています。" : (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。")) + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
+          // S45/§2: 不明の候補は計算への加算とは区別して案内する。
+          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayStatus === PREV_DAY_UNKNOWN ? ` 前日${session.prevDaySpinCandidate ?? "未入力の"}回転を候補として控えています（不明：据え置き／ラムクリアの両方で見ています）。` : presetsDisablePrevDay(presets) ? " 期待値判定で宵越し無効を選択しています。" : (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。")) + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
         { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: (activeCarryover ? carryoverNoticeText(activeCarryover) + " " : "") + "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
@@ -9067,6 +9206,7 @@
     function openEndForm(session, hasHit, steps) {
       openModal("ヤメ入力", "必要な項目だけ入力して保存します。空欄はスキップ扱いです。", `
         ${machineContextLine(session)}
+        ${session.prevDayStatus === PREV_DAY_UNKNOWN ? '<p class="hint">前日：不明のまま（ラムクリア側で評価）</p>' : ""}
         <div class="end-form">
           ${steps.map((step) => endFormFieldHtml(step, session)).join("")}
         </div>
@@ -9402,6 +9542,20 @@
       if (!preset?.evSupported || !preset.spec?.tenjo) return null;
       const current = normalizeNumber(session.currentSpin ?? session.startSpin);
       if (current === null) return null;
+      // S45/§3: 正の候補がある不明記録だけ、両方の到達点を併記する。
+      const candidate = normalizeNumber(session.prevDaySpinCandidate);
+      if (session.prevDayStatus === PREV_DAY_UNKNOWN && candidate > 0) {
+        const retainedRemaining = remainingSpinsFromCounterSpin(current + candidate, preset.id);
+        const clearedRemaining = remainingSpinsFromCounterSpin(current, preset.id);
+        const enter = yutimeEnterCounterSpin(preset.id);
+        return {
+          unknown: true, retainedRemaining, clearedRemaining,
+          retainedReached: retainedRemaining <= 0,
+          askCleared: enter !== null && current >= enter - candidate + 10,
+          remaining: clearedRemaining, near: retainedRemaining < 100,
+          text: `残り ${retainedRemaining.toLocaleString("ja-JP")}（据え置き）／${clearedRemaining.toLocaleString("ja-JP")}（ラムクリア）`
+        };
+      }
       const previous = runningPreviousSpin(session);
       const effective = current + previous;
       const remaining = remainingSpinsFromCounterSpin(effective, preset.id);
@@ -9766,7 +9920,7 @@
 
     // S15: 稼働中の持ち玉修正は currentMochidama だけを動かす。
     // 打ち始めの持ち玉（startMochidama）を上書きすると、実収支・貯玉引出・履歴表示の土台が壊れる。
-    function updateMochidamaBalanceWithUndo(session, value, { recordMeasurement = true } = {}) {
+    function updateMochidamaBalanceWithUndo(session, value, { recordMeasurement = true, notice = "" } = {}) {
       const previous = mochidamaBaseValue(session);
       const previousMeasurement = recordMeasurement ? segmentMeasurementSnapshot(session) : null;
       session.currentMochidama = balanceStartValueForCurrent(session, "startMochidama", value);
@@ -9779,7 +9933,8 @@
         return false;
       }
       renderAll();
-      showToast("持ち玉を更新しました", "success", {
+      // S45/§4: 確定通知を同じトーストへ添え、持ち玉の取り消しを残す。
+      showToast("持ち玉を更新しました" + notice, "success", {
         undo: () => {
           session.currentMochidama = previous;
           // S7b/A-2: 持ち玉の取り消しでは途中測定点も元に戻す
@@ -9932,9 +10087,18 @@
       // S33/§2-2: その記録自身の表示なので、旧境界でも値は出す（末尾に「（旧境界・参考）」を添える）
       const normalSpeed = sessionNormalSpeedRaw(session, presetById(presetId));
       const speedBoundaryLegacy = session?.speedBoundary === "legacy";
+      // S45/§5: 開始判断は保持し、比較用の到達点だけ確定後の実効値から取る。
+      const effectiveSpin = normalizeNumber(session.startSpin) !== null
+        ? normalizeNumber(session.startSpin) + (normalizeNumber(session.prevDayEndSpin) ?? 0)
+        : (startEv ? normalizeNumber(startEv.effectiveSpin) : null);
+      const prevDayNote = startEv?.prevDayStatus !== PREV_DAY_UNKNOWN ? ""
+        : session.prevDayStatus === PREV_DAY_RETAINED ? "（前日：不明→据え置きで確定）"
+        : session.prevDayStatus === PREV_DAY_CLEARED ? "（前日：不明→ラムクリアで確定）"
+        : "（前日：不明のまま・ラムクリア側で評価）";
       return {
         machine, derived, transfer, startEv, presetId, workedHours, hourlyYen, rateDiff, evDiffYen, normalSpeed, speedBoundaryLegacy,
-        remainingSpins: startEv ? remainingSpinsFromCounterSpin(startEv.effectiveSpin, presetId) : null,
+        effectiveSpin, prevDayNote,
+        remainingSpins: effectiveSpin !== null ? remainingSpinsFromCounterSpin(effectiveSpin, presetId) : null,
         averageRoundBalls: transfer.averageRoundBalls,
         // S32/§2: 入力確認の文言を事実に合わせるため、持ち玉差の1R実質出玉を入力確認へ渡す
         netPerRound: sessionNetBallsSummary(session, machine).netPerRound
@@ -10009,6 +10173,8 @@
         version: APP_VERSION_SEQ,
         computedAt: nowIso(),
         formula: "S42",
+        // S45/§4: 評価時点の状態だけ追記し、既存の計算式は維持する。
+        prevDayStatus: normalizePrevDayStatus(session?.prevDayStatus) || null,
         totalYen: earned.totalYen,
         rateWeightK: earned.rateWeightK,
         rateThis: earned.rateThis,
@@ -10558,7 +10724,7 @@
               </tbody>
             </table>
           </div>
-          <div class="result-line">開始カウンター ${escapeHtml(startEv.effectiveSpin)} ／ 遊タイムまで残り ${escapeHtml(summary.remainingSpins ?? "-")}回転</div>
+          <div class="result-line">開始カウンター ${escapeHtml(summary.effectiveSpin)} ／ 遊タイムまで残り ${escapeHtml(summary.remainingSpins ?? "-")}回転${escapeHtml(summary.prevDayNote)}</div>
           <p class="hint hint-help">1回のブレです。判断の良し悪しは下の通算で見ます。</p>
         </div>` : '<p class="hint">開始時の期待値は記録されていません。</p>';
       const segmentRows = segmentBreakdownRows(session, derived, machine, earned);
@@ -10814,7 +10980,7 @@
       }
       if (sectionKey === "plan") {
         return [
-          `開始カウンター ${startEv ? transferSpinText(startEv.effectiveSpin) : "-"}`,
+          `開始カウンター ${startEv ? transferSpinText(summary.effectiveSpin) : "-"}`,
           `遊タイムまで残り ${transferSpinText(summary.remainingSpins)}`,
           `想定回転率 ${startEv ? transferRateText(startEv.usedRate) : "-"}`,
           `開始期待値 ${startEv ? yenText(startEv.evYen) : "-"}`
@@ -11058,6 +11224,8 @@
       next.date = today();
       next.labels = Array.isArray(sourceSession.labels) ? [...sourceSession.labels] : [];
       next.carriedFromSessionId = sourceSession.id;
+      // S45/§2: 当選後の同じ台の続行には前日回転を加算しない。
+      applyPrevDayStatus(next, PREV_DAY_CLEARED, null);
       next.startSpin = startSpin;
       next.currentSpin = startSpin;
       next.startTime = currentTime();
@@ -11294,11 +11462,24 @@
         const currentSpin = normalizeNumber(session.currentSpin);
         if (enterSpin !== null && (currentSpin === null || enterSpin > currentSpin)) setCurrentSpinWithUndo(session, enterSpin);
         session.updatedAt = nowIso();
-        if (!persistWithToast("遊タイム突入玉を記録しました")) return;
+        // S45/§4: 突入回転数を同期した後の現在値で確定し、トーストは1回にまとめる。
+        let message = "遊タイム突入玉を記録しました";
+        let notice = "";
+        if (session.prevDayStatus === PREV_DAY_UNKNOWN && normalizeNumber(session.prevDaySpinCandidate) !== null) {
+          const machine = data.machines.find((item) => item.id === session.machineId);
+          const status = prevDayStatusFromEnterSpin(session.currentSpin, normalizeMachinePresetId(machine));
+          if (status) {
+            applyPrevDayStatus(session, status, session.prevDaySpinCandidate);
+            notice = status === PREV_DAY_RETAINED ? `。前日は据え置きで確定（前日${session.prevDaySpinCandidate}回転）` : "。前日はラムクリアで確定";
+            message += notice;
+          }
+        }
+        if (!persistWithToast(message)) return;
         closeModal();
         renderAll();
         // S7/A-2: 突入時玉数は実測値なので、現在の持ち玉にも反映する。直接代入せず既存経路を通す。
-        if (enterBalls !== null) updateMochidamaBalanceWithUndo(session, enterBalls);
+        // S45/§4: 玉数入力時は最後の持ち玉トーストへ確定文を引き継ぐ。
+        if (enterBalls !== null) updateMochidamaBalanceWithUndo(session, enterBalls, { notice });
       });
     }
 
@@ -11349,6 +11530,13 @@
       });
     }
 
+    // S45/§4: 打ち方と同じ3択構造で前日の状態を訂正する。
+    function prevDayStatusEditorHtml(session) {
+      const selected = normalizePrevDayStatus(session.prevDayStatus) ?? PREV_DAY_RETAINED;
+      const options = [[PREV_DAY_RETAINED, "据え置き"], [PREV_DAY_CLEARED, "ラムクリア"], [PREV_DAY_UNKNOWN, "不明"]];
+      return `<div class="field-row"><label>前日の回転</label><div class="style-choice">${options.map(([value, label]) => `<button type="button" class="prevDayStatusChoice${value === selected ? " selected" : ""}" data-prev-day-status="${value}" aria-pressed="${value === selected}">${label}</button>`).join("")}</div></div>`;
+    }
+
     function openSessionEditor(sessionId) {
       const session = findSession(sessionId);
       if (!session) return;
@@ -11364,7 +11552,7 @@
           ${fieldHtml("startSaipurei", "開始時の再プレイ残り", session.startSaipurei)}
           ${fieldHtml("startCredit", "開始時のカード残高", session.startCredit)}
           ${fieldHtml("startTotalHits", "開始時点の累計大当たり回数", session.startTotalHits)}
-          ${fieldHtml("prevDayEndSpin", "閉店チェック由来の前日回転", session.prevDayEndSpin)}
+          ${fieldHtml("prevDaySpinCandidate", "前日回転の候補（閉店チェックまたは手入力）", session.prevDaySpinCandidate)}
           ${fieldHtml("hitSpin", "当選回転数", session.hitSpin)}
           ${fieldHtml("hitRemainBalls", "当選時残り玉", session.hitRemainBalls)}
           ${fieldHtml("yutimeEnterBalls", "遊タイム突入玉", session.yutimeEnterBalls)}
@@ -11388,6 +11576,7 @@
             <div class="field-row"><label for="edit_storeTermsExchangeBalls">交換玉数（100円あたり）</label><input id="edit_storeTermsExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(exchangeBallsForStore(storeTermsForSession(session))))}"></div>
           </div>
         </div>
+        ${prevDayStatusEditorHtml(session)}
         ${playStyleEditorHtml(session)}
         ${segmentHoldSpinsEditorHtml(session)}
         ${consumedBallsSourceEditorHtml(session)}
@@ -11402,6 +11591,15 @@
           <button class="primary" id="saveSessionEditBtn">保存</button>
         </div>
       `);
+      // S45/§4: 選択だけでは保存せず、既存の編集保存で状態と候補を一緒に確定する。
+      els.modalBody.querySelectorAll(".prevDayStatusChoice").forEach((button) => {
+        button.addEventListener("click", () => {
+          els.modalBody.querySelectorAll(".prevDayStatusChoice").forEach((other) => {
+            other.classList.toggle("selected", other === button);
+            other.setAttribute("aria-pressed", other === button ? "true" : "false");
+          });
+        });
+      });
       byId("editHitVia").value = session.hitVia || "";
       byId("deleteSessionBtn").addEventListener("click", () => {
         if (!confirm("削除しますか？")) return;
@@ -11436,9 +11634,11 @@
         // 稼働中の残高修正で currentMochidama に積んだ補正は保持する（開始値の訂正だけを反映する）。
         const previousStartMochidama = normalizeNumber(session.startMochidama);
         const previousCurrentMochidama = mochidamaBaseValue(session);
-        ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "startTotalHits", "prevDayEndSpin", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "yutimeEnterSpin", "endTotalHits", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls", "settlementRecoverYen"].forEach((key) => {
+        ["startSpin", "currentSpin", "startMochidama", "startSaipurei", "startCredit", "startTotalHits", "prevDaySpinCandidate", "hitSpin", "hitRemainBalls", "yutimeEnterBalls", "yutimeEnterSpin", "endTotalHits", "hitCount", "totalRounds", "endTotalBalls", "endSpin", "zanhoryuBalls", "settlementRecoverYen"].forEach((key) => {
           session[key] = normalizeNumber(byId("edit_" + key).value);
         });
+        // S45/§4: 実効値は状態から導出する。開始時の判断であるstartEvは保持する。
+        applyPrevDayStatus(session, els.modalBody.querySelector(".prevDayStatusChoice.selected")?.dataset.prevDayStatus, session.prevDaySpinCandidate);
         session.currentMochidama = shiftedCurrentMochidama(previousStartMochidama, previousCurrentMochidama, normalizeNumber(session.startMochidama));
         if (Array.isArray(session.hits) && session.hits.length) syncSessionHitTotals(session);
         else presetHitCountFromCounters(session);

@@ -15,6 +15,10 @@ function section(startMarker, endMarker) {
   return html.slice(start, end);
 }
 
+// S45/§1: 切り出した既存関数が参照する状態定義をVMへ注入する。期待値は変えない。
+const s45StateHelpers = section('const PREV_DAY_RETAINED', 'const RAM_CLEAR_VALUE')
+  + section('function normalizePrevDayStatus', 'function normalizeRatingValue');
+
 const hitWizard = section('function openHitWizard', 'function hitResetOptions');
 const runWizard = section('function runWizard', 'function wizardInputHtml');
 const roundBreakdownBlock = section('function roundBreakdown', 'function sessionBallsPerRound');
@@ -346,6 +350,7 @@ const endWizardContext = vm.createContext({
     endWizardContext.__closedTrailingSession = session;
   }
 });
+vm.runInContext(s45StateHelpers, endWizardContext);
 new vm.Script([
   'let modalCancel = null;',
   'Object.defineProperty(globalThis, "modalCancel", { get: () => modalCancel, set: (value) => { modalCancel = value; } });',
@@ -895,6 +900,7 @@ const counterContext = vm.createContext({
     return expectationContext.engine.presets[presetId] || null;
   }
 });
+vm.runInContext(s45StateHelpers, counterContext);
 new vm.Script(`
   ${tenjoAndCounterHelpers}
   globalThis.counterApi = { counterOffsetForPresetId, engineSpinFromCounterSpin, remainingSpinsFromCounterSpin };
@@ -2454,7 +2460,7 @@ assert.match(renderMachineExpectation, /前日\$\{expectation\.previousSpin\}\+�
 assert.match(renderMachineExpectation, /const previousState = expectationPreviousSpinState\(\);/);
 assert.match(renderMachineExpectation, /if \(prevInput\) prevInput\.disabled = previousDisabled;/);
 assert.match(renderMachineExpectation, /autoDisabled = startTotalHits !== null && startTotalHits >= 1/);
-assert.match(renderMachineExpectation, /ramClearDisabled = Boolean\(byId\("evPrevDisabled"\)\?\.checked\)/);
+assert.match(renderMachineExpectation, /normalizePrevDayStatus\(evPrevDayStatus\) \?\? PREV_DAY_RETAINED/);
 assert.match(renderMachineExpectation, /previousSpin: previousDisabled \? 0 : byId\("evPrevSpin"\)\?\.value,/);
 assert.match(renderMachineExpectation, /expectationInvestmentText\(expectation\.result\.mochidamaBalls, expectation\.result\.cashBalls, expectation\.result\.spinsToTenjo, expectation\.result\.rotationRate\)/);
 assert.doesNotMatch(renderMachineExpectation, /実効\$\{expectation\.effectiveSpin\}/);
@@ -2470,16 +2476,16 @@ assert.match(openMachineDetail, /id="evStartTotalHits"/);
 assert.match(openMachineDetail, /開始時点の累計大当たり回数/);
 assert.match(openMachineDetail, /id="evStartCredit"/);
 assert.match(openMachineDetail, /開始時のカード残高/);
-assert.match(openMachineDetail, /id="evPrevDisabled"/);
-assert.match(openMachineDetail, /label for="evPrevDisabled">ラムクリア<\/label><div><label class="check-chip"><input id="evPrevDisabled" type="checkbox"> あり<\/label><p class="hint" id="machineEvRamHint" hidden><\/p><\/div>/);
+assert.match(openMachineDetail, /id="evPrevDayRetained" class="small" data-ev-prev-day="retained" aria-pressed=/);
+assert.match(openMachineDetail, /class="field-row ev-ramclear-row"><label>前日の回転<\/label>[\s\S]*id="evPrevDayCleared" class="small" data-ev-prev-day="cleared" aria-pressed=[\s\S]*id="evPrevDayUnknown" class="small" data-ev-prev-day="unknown" aria-pressed=/);
 // S24/§B-4: 前日ヤメが自動で無効になる条件（当日当選済み）ではラムクリアも入力できない。理由を1行で出す
-assert.match(renderMachineExpectation, /if \(ramInput\) ramInput\.disabled = previousState\.autoDisabled;/);
+assert.match(renderMachineExpectation, /\["evPrevDayRetained", "evPrevDayCleared", "evPrevDayUnknown"\]\.forEach[\s\S]*const ramInput = byId\(id\);[\s\S]*if \(ramInput\) ramInput\.disabled = previousState\.autoDisabled;/);
 assert.match(renderMachineExpectation, /ramHint\.textContent = previousState\.autoDisabled \? "当日すでに当選しているため、ラムクリアの有無は判定に使いません。" : "";/);
 assert.match(renderMachineExpectation, /ramHint\.hidden = !previousState\.autoDisabled;/);
 assert.doesNotMatch(openMachineDetail, /<label for="evPrevDisabled">宵越し<\/label>|<input id="evPrevDisabled" type="checkbox"> ラムクリア/);
 assert.doesNotMatch(openMachineDetail, /宵越し無効（当日当選済み／ラムクリア）|<label class="check-row"><input id="evPrevDisabled"/);
-assert.ok(openMachineDetail.indexOf('id="evStartTotalHits"') < openMachineDetail.indexOf('id="evPrevDisabled"'));
-assert.ok(openMachineDetail.indexOf('id="evPrevDisabled"') < openMachineDetail.indexOf('id="evPrevSpin"'));
+assert.ok(openMachineDetail.indexOf('id="evStartTotalHits"') < openMachineDetail.indexOf('id="evPrevDayRetained"'));
+assert.ok(openMachineDetail.indexOf('id="evPrevDayRetained"') < openMachineDetail.indexOf('id="evPrevSpin"'));
 assert.ok(openMachineDetail.indexOf('id="evPrevSpin"') < openMachineDetail.indexOf('id="evCurrentSpin"'));
 assert.ok(openMachineDetail.indexOf('id="evCurrentSpin"') < openMachineDetail.indexOf('id="evManualRate"'));
 assert.ok(openMachineDetail.indexOf('id="evManualRate"') < openMachineDetail.indexOf('id="evMochidamaBalls"'));
@@ -2501,7 +2507,11 @@ const machineExpectationContext = vm.createContext({
     machineEvPrevHint: { textContent: '' },
     evCurrentSpin: { value: '350' },
     evPrevSpin: { value: '100', disabled: false },
-    evPrevDisabled: { checked: false },
+    evPrevDayRetained: { disabled: false },
+    evPrevDayCleared: { disabled: false },
+    evPrevDayUnknown: { disabled: false },
+    machineEvRamHint: { textContent: '', hidden: true },
+    machineEvPrevDaySplit: { textContent: '' },
     evManualRate: { value: '17' },
     evMochidamaBalls: { value: '2000' },
     evSaipureiBalls: { value: '500' },
@@ -2547,12 +2557,14 @@ const machineExpectationContext = vm.createContext({
   expectationInvestmentText() { return '遊タイムまで必要 約300玉（持ち玉から100玉・現金で約800円）'; },
   // S24/§B-6: 打ち始めで選んだ打ち方（判定パネルの2択）
   startPlayStyle: 'yutime',
+  evPrevDayStatus: 'retained',
   exchangeBallsText(value) { return String(value); },
   yenText(value) { return `${value}円`; },
   percentText(value) { return `${value}%`; },
   hourText(value) { return `${value}h`; },
   escapeHtml(value) { return String(value ?? ''); }
 });
+vm.runInContext(s45StateHelpers, machineExpectationContext);
 new vm.Script(`
   ${renderMachineExpectation}
   renderMachineExpectation('m1');
@@ -2566,17 +2578,17 @@ new vm.Script(`
   globalThis.autoDisabledState = globalThis.__nodes.evPrevSpin.disabled;
   globalThis.autoHint = globalThis.__nodes.machineEvPrevHint.textContent;
   globalThis.autoPresets = expectationPanelPresets();
-  globalThis.__nodes.evPrevDisabled.checked = true;
+  globalThis.evPrevDayStatus = 'cleared';
   renderMachineExpectation('m1');
   globalThis.bothDisabledPreviousSpin = globalThis.__calls.at(-1).previousSpin;
   globalThis.bothDisabledPresets = expectationPanelPresets();
-  globalThis.__nodes.evPrevDisabled.checked = false;
+  globalThis.evPrevDayStatus = 'retained';
   globalThis.__nodes.evStartTotalHits.value = '0';
   renderMachineExpectation('m1');
   globalThis.zeroPreviousSpin = globalThis.__calls.at(-1).previousSpin;
   globalThis.zeroDisabledState = globalThis.__nodes.evPrevSpin.disabled;
   globalThis.zeroPresets = expectationPanelPresets();
-  globalThis.__nodes.evPrevDisabled.checked = true;
+  globalThis.evPrevDayStatus = 'cleared';
   renderMachineExpectation('m1');
   globalThis.disabledPreviousSpin = globalThis.__calls.at(-1).previousSpin;
   globalThis.disabledInputValue = globalThis.__nodes.evPrevSpin.value;
@@ -2677,6 +2689,7 @@ const startSessionContext = vm.createContext({
   startPlayStyle: 'yutime',
   presetYutimeBallsPerSpin() { return 0; }
 });
+vm.runInContext(s45StateHelpers, startSessionContext);
 new vm.Script(`
   const DEFAULT_LEND_RATE = 4;
   const DEFAULT_EXCHANGE_BALLS = 25;
@@ -2759,6 +2772,7 @@ const startEvDetailContext = vm.createContext({
     return `${value >= 0 ? '+' : ''}${Math.round(value).toLocaleString('ja-JP')}円`;
   }
 });
+vm.runInContext(s45StateHelpers, startEvDetailContext);
 new vm.Script(`
   ${counterSpinHelpers}
   ${normalizeStartEvBlock}
@@ -2970,7 +2984,7 @@ assert.match(investmentAmountForSourceBlock, /return balance !== null && balance
 assert.match(investmentAmountForSourceBlock, /function investmentButtonText\(source, amount\) \{/);
 assert.match(addInvestment, /const unavailableMessage = sourceUnavailableMessage\(session, source, amount\);\s*if \(unavailableMessage\) \{\s*showToast\(unavailableMessage, "error"\);\s*return;\s*\}\s*const item = \{ type: source, source, amount/);
 assert.match(renderRunning, /const requestedAmount = investmentUnitForSource\(runningSource\);\s*addInvestment\(session, runningSource, investmentAmountForSource\(session, runningSource, requestedAmount\)\);/);
-assert.match(html, /const SCHEMA_VERSION = 44;/);
+assert.match(html, /const SCHEMA_VERSION = 45;/);
 assert.match(html, /jitanNormalBallsPerSpin: 0,/);
 assert.match(html, /jitanFastBallsPerSpin: 0,/);
 assert.match(html, /yutimeBallsPerSpin: -0\.3,/);
@@ -3282,6 +3296,7 @@ assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[1]), JSON.stringify
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[2]), JSON.stringify({ yori: null, michi: null, nekase: null, through: null, warp: null }));
 assert.equal(JSON.stringify(nailNormalizeContext.nailRatings[3]), JSON.stringify({ yori: null, michi: null, nekase: 5, through: 4, warp: 2 }));
 const legacyMachineContext = vm.createContext({});
+vm.runInContext(s45StateHelpers, legacyMachineContext);
 new vm.Script(`
   const SCHEMA_VERSION = 37;
   // S33/§2-1: 旧境界の印を付ける境目の日付
@@ -3904,6 +3919,7 @@ const resultContext = vm.createContext({
     return 950 - Number(spin || 0);
   }
 });
+vm.runInContext(s45StateHelpers, resultContext);
 new vm.Script(`
   const EARNED_EV_RATE_MIN = 1;
   const EARNED_EV_RATE_MAX = 50;
@@ -4931,11 +4947,11 @@ assert.equal(s7PhaseContext.s7Phase.legacyNoYutimeSegment, true);
 assert.equal(s7PhaseContext.s7Phase.legacyNoSegmentsNoEnter, false);
 
 // --- A-2: 遊タイム突入の持ち玉入力を現在の持ち玉へ反映する --------------------
-assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBalanceWithUndo\(session, enterBalls\);/);
+assert.match(openYutimeEnterForm, /if \(enterBalls !== null\) updateMochidamaBalanceWithUndo\(session, enterBalls, \{ notice \}\);/);
 assert.doesNotMatch(openYutimeEnterForm, /session\.currentMochidama =/);
 
 // --- B-1: consumedModel は打ち始めたセッションだけに付ける -------------------
-assert.match(html, /const SCHEMA_VERSION = 44;/);
+assert.match(html, /const SCHEMA_VERSION = 45;/);
 assert.match(html, /function normalizeConsumedModel\(value\) \{\s*return value === "endpoints" \? "endpoints" : null;/);
 assert.match(html, /function usesEndpointConsumedModel\(session\) \{\s*return normalizeConsumedModel\(session\?\.consumedModel\) === "endpoints";/);
 assert.match(normalizeData, /consumedModel: normalizeConsumedModel\(session\.consumedModel\)/);
@@ -5467,7 +5483,7 @@ const shootingBlock = section('function markSegmentShootingStarted', 'function h
 const wizardInputBlock = section('function wizardInputHtml', 'function readWizardValue');
 
 // --- §1: データ構造 --------------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 44;/);
+assert.match(html, /const SCHEMA_VERSION = 45;/);
 assert.match(html, /function normalizePlayStyle\(value\) \{\s*return value === "continuous" \? "continuous" : "yutime";/);
 assert.match(html, /function normalizeShooting\(value\) \{\s*return value === "before" \? "before" : "started";/);
 assert.match(normalizeData, /playStyle: normalizePlayStyle\(session\.playStyle\)/);
@@ -5626,7 +5642,7 @@ assert.equal(Number(runningRateContext.s7cEndedWithoutShooting.rate.toFixed(1)),
 // ===========================================================================
 
 // --- 第1部: 投資phaseの修復 ------------------------------------------------
-assert.match(html, /const SCHEMA_VERSION = 44;/);
+assert.match(html, /const SCHEMA_VERSION = 45;/);
 assert.match(html, /const S17_BACKUP_KEY = STORAGE_PREFIX \+ "backup:s17";/);
 assert.match(segmentMigrationBackup, /function needsInvestmentPhaseRepair\(source\) \{\s*return \(normalizeNumber\(source\?\.version\) \?\? 0\) < 36;/);
 assert.match(segmentMigrationBackup, /function backupBeforeInvestmentPhaseRepair\(raw\) \{\s*if \(!raw \|\| localStorage\.getItem\(S17_BACKUP_KEY\)\) return;/);
@@ -6539,7 +6555,7 @@ assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \
 // ===========================================================================
 
 // --- §1: 時刻はボタンを押した瞬間を自動で取る。手入力欄は増やさない ----------
-assert.match(html, /const SCHEMA_VERSION = 44;/);
+assert.match(html, /const SCHEMA_VERSION = 45;/);
 // S25/§4: 当選の端点はhitsを優先し、R未入力時だけ保持したタップ時刻から埋める。
 const closeSegmentOnHitBlock = section('function closeSegmentOnHit', 'function startYutimeSegment');
 assert.match(closeSegmentOnHitBlock, /target\.endAt = segmentHitAt\(session, target\.id\) \|\| \(pendingHitAt\?\.sessionId === session\.id \? pendingHitAt\.at : null\);/);
@@ -6859,7 +6875,7 @@ const s36TextBlock = section('function transferSectionLines', 'function transfer
 assert.match(s36TextBlock, /const summary = sessionResultSummary\(session\);/);
 assert.match(s36TextBlock, /const \{ machine, derived, transfer, startEv \} = summary;/);
 assert.match(s36TextBlock, /`遊タイムまで残り \$\{transferSpinText\(summary\.remainingSpins\)\}`/);
-assert.match(s36TextBlock, /`開始カウンター \$\{startEv \? transferSpinText\(startEv\.effectiveSpin\) : "-"\}`/);
+assert.match(s36TextBlock, /`開始カウンター \$\{startEv \? transferSpinText\(summary\.effectiveSpin\) : "-"\}`/);
 assert.match(s36TextBlock, /`想定回転率 \$\{startEv \? transferRateText\(startEv\.usedRate\) : "-"\}`/);
 assert.match(s36TextBlock, /earnedForDisplay\(session, machine, derived\)/);
 // 旧転記用の「消化回転数」「残り回転数（ヤメ時点）」は復活させない
@@ -7044,7 +7060,7 @@ const s34HintTotal = (html.match(/class="hint( warn)?( hint-help)?"/g) || []).le
 const s34HintHelp = (html.match(/class="hint hint-help"/g) || []).length;
 assert.equal(s34HintHelp, 34, "分類A（説明）の数＝S34の31＋S40の店条件説明1＋S41の最新条件比較1＋S44の貯玉説明1");
 // S39/§6: 未使用のサマリー関数内にあったhintを2箇所削除。
-assert.equal(s34HintTotal - s34HintHelp, 59, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1＋S42のK入力説明1＋S44の更新時刻・初期値説明2");
+assert.equal(s34HintTotal - s34HintHelp, 61, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1＋S42のK入力説明1＋S44の更新時刻・初期値説明2＋S45の両側比較・ヤメ時注意2");
 // 警告（hint warn）には1つも付けない
 assert.equal((html.match(/class="hint warn hint-help"/g) || []).length, 0);
 // 判定基準の根拠行・入力確認・旧境界の注記は分類Aにしない
@@ -7399,7 +7415,7 @@ const s28Title = () => s28App.element('modalTitle').textContent;
 const s28Click = (id) => s28App.element(id).handlers.click();
 const s28Toggle = () => s28App.element('modalBody').querySelectorAll('[data-toggle-holdcarry]')[0].handlers.click();
 const s28Json = (value) => JSON.parse(JSON.stringify(value));
-assert.equal(s28App.api.data.version, 44);
+assert.equal(s28App.api.data.version, 45);
 assert.deepEqual(s28Json(s28App.api.hitHistoryGroups(s28Session).map((g) => [g.id, g.rows.length])), [['seg_3', 2], ['seg_2', 1], ['seg_1', 1]]);
 // 表示グループだけを分け、残保留の累計計算は引き続き元の連チャンを参照する。
 assert.equal(s28App.api.hitHistoryRows(s28Session)[1].segmentId, 'seg_1');
@@ -7501,7 +7517,7 @@ assert.match(s29EndInfo, /return \{ balls: tracked, measured: measured !== null 
 assert.match(deriveSession, /segmentEndpointConsumedBalls\(segment, session, store\) !== null\s*&& segmentEndBallsInfo\(segment, session\)\.measured/);
 assert.match(s29Jitan, /updateMochidamaBalanceWithUndo\(session, measuredBalls, \{ recordMeasurement: false \}\);/);
 assert.doesNotMatch(s29Jitan, /recordSegmentMeasurement\(/);
-assert.match(s29Balance, /\{ recordMeasurement = true \} = \{\}/);
+assert.match(s29Balance, /\{ recordMeasurement = true, notice = "" \} = \{\}/);
 assert.match(s29Balance, /const previousMeasurement = recordMeasurement \? segmentMeasurementSnapshot\(session\) : null;/);
 assert.match(s29Balance, /if \(recordMeasurement\) recordSegmentMeasurement\(session, value\);/);
 assert.equal((s29Balance.match(/if \(recordMeasurement\) restoreSegmentMeasurement\(session, previousMeasurement\);/g) || []).length, 2);
@@ -7547,8 +7563,8 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 44;/);
-assert.match(html, /const APP_VERSION_DATE = "2026-09-26";/);
+assert.match(html, /const APP_VERSION_SEQ = 45;/);
+assert.match(html, /const APP_VERSION_DATE = "2026-09-29";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
 // 書く場所は endSource = "yutime" を書いている3か所すべて。
@@ -7920,6 +7936,7 @@ const s41Context = vm.createContext({
   // S41/§2-1: 実測を採る下限（本体の定数と同じ値をここでも固定する）
   machineStats: () => ({ rate: null, spins: 0 })
 });
+vm.runInContext(s45StateHelpers, s41Context);
 new vm.Script(section('function usableEarnedEvRate', '// S42/§6:') + section('function earnedExpectationBasisText', '// S3b/')).runInContext(s41Context);
 for (const [rate, valid] of [[null, false], [0.99, false], [1, true], [50, true], [50.01, false]]) {
   assert.equal(s41Context.usableEarnedEvRate(rate), valid);
@@ -8019,6 +8036,7 @@ const s42Context = vm.createContext({
   SPEED_MIN_SPINS: 100, SPEED_MIN_MINUTES: 20
 });
 const s42Calls = [];
+vm.runInContext(s45StateHelpers, s42Context);
 new vm.Script(section('function rateWeightK()', 'function applyShowHints')
   + section('function earnedExpectationForSession', '// S3b/G4:')).runInContext(s42Context);
 const s42Machine = { id: 'm', storeId: 'store', presetId: 'p' };
@@ -8243,4 +8261,237 @@ for (const [stored, expected] of [['9', 10], ['10', 10], ['500', 500], ['501', 5
   assert.equal(restored.chodamaAsOf, '2026-09-25T01:23:00.000Z');
   assert.match(startSessionFlow, /const chodamaPreset = activeCarryover \? null : chodamaReplayPreset\(store\);/);
   assert.match(openMachineDetail, /const chodamaPreset = carryoverPreset \? null : chodamaReplayPreset\(activeStore\(\)\);/);
+}
+
+
+// S45: 前日の状態・移行・二値表示・確定後の評価。既存の計算回帰は上の期待値を維持する。
+{
+  assert.match(html, /const APP_VERSION_SEQ = 45;/);
+  assert.match(html, /const APP_VERSION_DATE = "2026-09-29";/);
+  assert.match(html, /const SCHEMA_VERSION = 45;/);
+  const context = vm.createContext({
+    ...legacyMachineContext,
+    // S45/§1: const宣言はcontextの列挙に含まれないため、移行の依存定数も明示注入する。
+    ...vm.runInContext('({ DEFAULT_HOURLY_THRESHOLD_YEN, DEFAULT_NET_BALLS_PER_ROUND, DEFAULT_LEND_RATE, DEFAULT_EXCHANGE_BALLS, LEGACY_SPEED_BOUNDARY_DATE, MACHINE_PRESETS })', legacyMachineContext),
+    SCHEMA_VERSION: 45,
+    RAM_CLEAR_VALUE: 'cleared', RAM_NOT_CLEARED_VALUE: 'not_cleared', RAM_UNKNOWN_VALUE: 'unknown',
+    YUTIME_EXPECTATION_ENGINE: expectationContext.engine,
+    normalizeNumber: expectationContext.normalizeNumber,
+    // S45/§2: 対応可否を含むUIプリセットを使う（エンジン単体にはevSupportedが無い）。
+    presetById: (id) => machinePresetContext.presets.find((preset) => preset.id === id) || null,
+    normalizeMachinePresetId: (machine) => machine?.presetId || '',
+    storeById: () => ({ id: 's45', exchangeBalls: 28 }),
+    machineStats: () => ({}),
+    expectationRate: (_, manualRate) => ({ rate: Number(manualRate || 18), source: '手入力' }),
+    expectationSettings: (_, machine, manualNet) => ({
+      settings: { ...expectationContext.engine.presets[machine.presetId].defaults, netBallsPerWin: Number(manualNet || 108), yenPerBall: 100 / 28 },
+      netBallsInfo: { value: Number(manualNet || 108), source: '手入力' }
+    }),
+    exchangeBallsFromStore: () => 28,
+    isYutimeInvestmentPhase: (session) => session.hitVia === 'yutime',
+    deriveSession: () => ({ rate: 18, profitYen: 1000 }),
+    transferSummaryForSession: () => ({}),
+    sessionWorkedHours: () => 1,
+    sessionNormalSpeedRaw: () => ({}),
+    sessionNetBallsSummary: () => ({}),
+    data: { machines: [{ id: 'm332', daiNo: '332', presetId: 'agnes-pe', storeId: 's45' }] }
+  });
+  vm.runInContext(s45StateHelpers + normalizeData
+    + tenjoAndCounterHelpers
+    + section('function availableBallsFromParts', 'function remainingSpinTextFromEffectiveSpin')
+    + section('function normalizeStartEv', 'function normalizeConsumedBallsSource')
+    + section('function runningYutimeRemaining', 'function runningPanelInputBalls')
+    + section('function sessionResultSummary', 'function earnedExpectationForSession'), context);
+  const plain = (value) => JSON.parse(JSON.stringify(value));
+  const legacy = { version: 44, sessions: [
+    { id: 'retained', date: '2026-09-28', startSpin: 89, currentSpin: 89, prevDayEndSpin: 77 },
+    { id: 'cleared', date: '2026-09-28', startSpin: 89, currentSpin: 89, prevDayEndSpin: null }
+  ] };
+  const once = plain(context.normalizeData(legacy));
+  assert.equal(once.version, 45);
+  assert.deepEqual(once.sessions.map((s) => [s.prevDayStatus, s.prevDaySpinCandidate, s.prevDayEndSpin]), [['retained', 77, 77], ['cleared', null, null]]);
+  assert.deepEqual(plain(context.normalizeData(once)), once, 'schema45の移行は冪等');
+  for (const candidate of [null, 0, 77, '77']) {
+    for (const status of ['retained', 'cleared', 'unknown']) {
+      const session = {};
+      context.applyPrevDayStatus(session, status, candidate);
+      assert.equal(session.prevDayStatus, status);
+      assert.equal(session.prevDaySpinCandidate, candidate === null ? null : Number(candidate));
+      assert.equal(session.prevDayEndSpin, status === 'retained' && candidate !== null ? Number(candidate) : null);
+      const restored = context.normalizeData({ version: 45, sessions: [session] }).sessions[0];
+      assert.equal(restored.prevDayStatus, status);
+      assert.equal(restored.prevDaySpinCandidate, session.prevDaySpinCandidate);
+      assert.equal(restored.prevDayEndSpin, session.prevDayEndSpin);
+    }
+  }
+  for (const [value, expected] of [['retained', 'retained'], ['cleared', 'cleared'], ['unknown', 'unknown'], ['not_cleared', null], ['', null], [null, null], [undefined, null]]) assert.equal(context.normalizePrevDayStatus(value), expected);
+  for (const [value, expected] of [['not_cleared', 'retained'], ['cleared', 'cleared'], ['unknown', 'unknown'], ['retained', null], ['', null], [null, null]]) assert.equal(context.prevDayStatusFromRamClear(value), expected);
+  assert.equal(context.yutimeEnterCounterSpin('agnes-pe'), 249);
+  assert.equal(context.yutimeEnterCounterSpin('invalid'), null);
+  for (const [spin, expected] of [[172, 'retained'], [249, 'cleared'], [239, 'cleared'], [238, 'retained'], [null, null]]) assert.equal(context.prevDayStatusFromEnterSpin(spin, 'agnes-pe'), expected);
+  const machine = context.data.machines[0];
+  const session = { machineId: machine.id, startSpin: 89, currentSpin: 89, hitSpin: null, hitCount: 0 };
+  context.applyPrevDayStatus(session, 'unknown', 77);
+  const presets = { manualRate: 18, manualNetBallsPerWin: 108, availableBalls: 1000 };
+  session.startEv = plain(context.calculateStartEvSnapshot(session, machine, presets));
+  const snapshot = JSON.stringify(session.startEv);
+  assert.equal(session.startEv.prevDayStatus, 'unknown');
+  assert.equal(session.startEv.effectiveSpin, 89);
+  assert.equal(session.startEv.evYenCleared, session.startEv.evYen);
+  assert.equal(session.startEv.evYenRetained, Math.round(context.calculateMachineExpectation(machine, { currentSpin: 89, previousSpin: 77, ...presets }).result.evYen));
+  assert.ok(Number.isInteger(session.startEv.evYenRetained));
+  assert.deepEqual(plain(context.normalizeStartEv(session.startEv)), session.startEv);
+  // S45/§2: 旧startEvには状態キーを増やさず、従来のキーと数値をそのまま維持する。
+  const legacyStartEv = {
+    evYen: 1678, usedRate: 17, rateSource: '手入力', presetId: 'agnes-pe', effectiveSpin: 166,
+    availableBalls: 1000, mochidamaInput: 1000, saipureiInput: 0, mochidamaBalls: 900,
+    cashBalls: 100, normalCostYen: 3614, netBallsPerRound: 108, netSource: '手入力'
+  };
+  const normalizedLegacyStartEv = plain(context.normalizeStartEv(legacyStartEv));
+  assert.equal(Object.hasOwn(normalizedLegacyStartEv, 'prevDayStatus'), false);
+  assert.deepEqual(normalizedLegacyStartEv, legacyStartEv);
+  for (const prevDayStatus of [null, '', 'invalid']) {
+    assert.deepEqual(plain(context.normalizeStartEv({ ...legacyStartEv, prevDayStatus })), legacyStartEv);
+  }
+  const snapshotWithoutStatus = context.calculateStartEvSnapshot({ startSpin: 89, prevDayEndSpin: null }, machine, presets);
+  assert.equal(Object.hasOwn(snapshotWithoutStatus, 'prevDayStatus'), false);
+  for (const status of ['retained', 'cleared']) {
+    const resolved = { ...session };
+    context.applyPrevDayStatus(resolved, status, 77);
+    const ev = context.calculateStartEvSnapshot(resolved, machine, presets);
+    assert.equal(ev.prevDayStatus, status);
+    assert.equal(ev.effectiveSpin, status === 'retained' ? 166 : 89);
+    assert.equal(Object.hasOwn(ev, 'evYenRetained'), false);
+    assert.equal(Object.hasOwn(ev, 'evYenCleared'), false);
+    assert.equal(Object.hasOwn(context.normalizeStartEv(ev), 'evYenRetained'), false);
+  }
+  const remaining = context.runningYutimeRemaining(session, machine);
+  assert.equal(remaining.unknown, true);
+  assert.equal(remaining.retainedRemaining, 83);
+  assert.equal(remaining.clearedRemaining, 160);
+  for (const [currentSpin, reached, ask] of [[89, false, false], [172, true, false], [181, true, false], [182, true, true]]) {
+    const value = context.runningYutimeRemaining({ ...session, currentSpin }, machine);
+    assert.equal(value.retainedReached, reached);
+    assert.equal(value.askCleared, ask);
+  }
+  for (const candidate of [null, 0]) assert.equal(context.runningYutimeRemaining({ ...session, prevDaySpinCandidate: candidate }, machine).unknown, undefined);
+  for (const [status, note, effectiveSpin, remainingSpins] of [
+    ['unknown', '（前日：不明のまま・ラムクリア側で評価）', 89, 160],
+    ['retained', '（前日：不明→据え置きで確定）', 166, 83],
+    ['cleared', '（前日：不明→ラムクリアで確定）', 89, 160]
+  ]) {
+    context.applyPrevDayStatus(session, status, 77);
+    const summary = context.sessionResultSummary(session);
+    assert.equal(summary.prevDayNote, note);
+    assert.equal(summary.effectiveSpin, effectiveSpin);
+    assert.equal(summary.remainingSpins, remainingSpins);
+    assert.equal(JSON.stringify(session.startEv), snapshot, '確定しても開始判断を保持');
+  }
+  for (const prevDayStatus of ['', 'retained', 'cleared']) {
+    assert.equal(context.sessionResultSummary({ ...session, startEv: { ...session.startEv, prevDayStatus } }).prevDayNote, '');
+  }
+  assert.match(openSessionEditor, /fieldHtml\("prevDaySpinCandidate", "前日回転の候補（閉店チェックまたは手入力）"/);
+  assert.doesNotMatch(openSessionEditor, /edit_prevDayEndSpin|fieldHtml\("prevDayEndSpin"/);
+  assert.match(openSessionEditor, /applyPrevDayStatus\(session, els\.modalBody\.querySelector\("\.prevDayStatusChoice\.selected"\)\?\.dataset\.prevDayStatus, session\.prevDaySpinCandidate\)/);
+  assert.match(renderLedger, /session\.prevDayStatus === PREV_DAY_UNKNOWN \? '<span class="badge dark">\?<\/span>' : ""/);
+  assert.match(openYutimeEnterForm, /setCurrentSpinWithUndo\(session, enterSpin\);[\s\S]*prevDayStatusFromEnterSpin\(session\.currentSpin, normalizeMachinePresetId\(machine\)\)/);
+  assert.doesNotMatch(openYutimeEnterForm + openSessionEditor + renderRunning, /calculateStartEvSnapshot|session\.startEv\s*=/);
+  assert.match(renderRunning, /id="confirmPrevDayClearedBtn" class="prev-day-confirm"/);
+  assert.match(section('<style>', '</style>'), /\.prev-day-confirm\s*\{[^}]*min-height: 44px;/);
+  assert.match(section('function buildEndEv', 'function earnedFromEndEv'), /prevDayStatus: normalizePrevDayStatus\(session\?\.prevDayStatus\) \|\| null/);
+  // S45/§2: 候補入力は不明でも有効、当日当選済みでは候補も判定から除外する。
+  machineExpectationContext.evPrevDayStatus = 'unknown';
+  machineExpectationContext.__nodes.evStartTotalHits.value = '0';
+  machineExpectationContext.__nodes.evPrevSpin.value = '0';
+  machineExpectationContext.renderMachineExpectation('m1');
+  assert.equal(machineExpectationContext.__nodes.evPrevSpin.disabled, false);
+  assert.equal(machineExpectationContext.expectationPanelPresets().prevDayEndSpin, null);
+  assert.equal(machineExpectationContext.expectationPanelPresets().prevDayStatus, 'unknown');
+  assert.equal(machineExpectationContext.expectationPanelPresets().prevDaySpinCandidate, 0);
+  machineExpectationContext.__nodes.evStartTotalHits.value = '1';
+  const disabledState = machineExpectationContext.expectationPreviousSpinState();
+  assert.equal(disabledState.status, 'cleared');
+  assert.equal(disabledState.candidate, null);
+  machineExpectationContext.renderMachineExpectation('m1');
+  for (const id of ['evPrevDayRetained', 'evPrevDayCleared', 'evPrevDayUnknown']) assert.equal(machineExpectationContext.__nodes[id].disabled, true);
+  assert.equal(machineExpectationContext.__nodes.machineEvRamHint.hidden, false);
+}
+
+// S45/§2・§5: 空にした候補は補完せず、開始回転欠損時は保存済みの開始判断を表示する。
+{
+  const closingInfo = startSessionContext.validClosingInfo;
+  startSessionContext.validClosingInfo = () => ({ spin: 77 });
+  const base = startSessionContext.startSessionBase('m1', { prevDayStatus: 'retained', prevDaySpinCandidate: null, prevDayEndSpin: null });
+  assert.equal(base.session.prevDayEndSpin, null);
+  assert.equal(base.session.prevDaySpinCandidate, null);
+  startSessionContext.validClosingInfo = closingInfo;
+  const summary = resultContext.resultApi.sessionResultSummary({ machineId: 'm1', startSpin: null, startEv: { usedRate: 18, evYen: 1000, effectiveSpin: 166, presetId: 'preset1' } });
+  assert.equal(summary.effectiveSpin, 166);
+}
+
+
+// S45/§2・§4: 判定3択の高さと、持ち玉Undoを残した確定通知を固定する。
+{
+  assert.match(section('<style>', '</style>'), /\.ev-ramclear-row \.ram-choice-row button\s*\{\s*min-height: 44px;/);
+  const toasts = [];
+  const context = vm.createContext({
+    mochidamaBaseValue: (session) => session.currentMochidama,
+    balanceStartValueForCurrent: (_, __, value) => value,
+    nowIso: () => '2026-09-29T00:00:00.000Z',
+    persist: () => true,
+    renderAll: () => {},
+    showToast: (message, kind, options) => toasts.push({ message, kind, options })
+  });
+  vm.runInContext(updateMochidamaBalance, context);
+  context.segmentMeasurementSnapshot = (session) => session.measurement;
+  context.recordSegmentMeasurement = (session, value) => { session.measurement = value; };
+  context.restoreSegmentMeasurement = (session, value) => { session.measurement = value; };
+  for (const notice of ['', '。前日は据え置きで確定（前日77回転）', '。前日はラムクリアで確定']) {
+    const session = { currentMochidama: 100, measurement: 100 };
+    if (notice) context.updateMochidamaBalanceWithUndo(session, 200, { notice });
+    else context.updateMochidamaBalanceWithUndo(session, 200);
+    const toast = toasts.at(-1);
+    assert.equal(toast.message, '持ち玉を更新しました' + notice);
+    assert.equal(toast.kind, 'success');
+    assert.equal(typeof toast.options.undo, 'function');
+    assert.equal(session.currentMochidama, 200);
+    toast.options.undo();
+    assert.equal(session.currentMochidama, 100);
+    assert.equal(session.measurement, 100);
+  }
+  assert.match(openYutimeEnterForm, /notice = status === PREV_DAY_RETAINED/);
+  assert.match(openYutimeEnterForm, /updateMochidamaBalanceWithUndo\(session, enterBalls, \{ notice \}\)/);
+  // S45/§4: 保存ハンドラを通し、玉数なしでは突入通知、玉数ありではUndo付き通知が最後に残る。
+  vm.runInContext(s45StateHelpers + openYutimeEnterForm, context);
+  let active;
+  let save;
+  let balls;
+  Object.assign(context, {
+    normalizeNumber: expectationContext.normalizeNumber,
+    findSession: () => active,
+    machineContextLine: () => '',
+    escapeHtml: (value) => String(value),
+    openModal: () => {}, closeModal: () => {},
+    byId: (id) => id === 'saveYutimeBtn' ? { addEventListener: (_, callback) => { save = callback; } }
+      : { value: id === 'yutimeBalls' ? balls : active.currentSpin },
+    currentTime: () => '10:00',
+    startYutimeSegment: () => {},
+    setCurrentSpinWithUndo: (session, spin) => { session.currentSpin = spin; },
+    data: { machines: [{ id: 'm332', presetId: 'agnes-pe' }] },
+    normalizeMachinePresetId: (machine) => machine.presetId,
+    prevDayStatusFromEnterSpin: counterContext.prevDayStatusFromEnterSpin,
+    persistWithToast: (message) => { toasts.push({ message }); return true; }
+  });
+  for (const spin of [172, 249]) {
+    for (const input of ['', '200']) {
+      active = { machineId: 'm332', currentSpin: spin, currentMochidama: 100, measurement: 100, prevDayStatus: 'unknown', prevDaySpinCandidate: 77 };
+      balls = input;
+      context.openYutimeEnterForm('s45');
+      save();
+      const notice = spin === 172 ? '。前日は据え置きで確定（前日77回転）' : '。前日はラムクリアで確定';
+      assert.equal(active.prevDayStatus, spin === 172 ? 'retained' : 'cleared');
+      assert.equal(toasts.at(-1).message, (input ? '持ち玉を更新しました' : '遊タイム突入玉を記録しました') + notice);
+      if (input) assert.equal(typeof toasts.at(-1).options.undo, 'function');
+    }
+  }
 }
