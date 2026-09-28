@@ -1095,6 +1095,7 @@ function push(type,text,extra){
   const c=S.cur;
   const ev={id:uid(),at:nowISO(),type,text,realG:c.realG,lcdG:DEF().lcdG?c.lcdG:null,c3:c.c3,mode:c.mode};
   if(extra)Object.assign(ev,extra);
+  if(ev.op){c.events.push(ev);save();render();return}   // 直前の操作に相乗りする（askAfter のシート）。snap は付けない
   if(!_op||(_op.closed&&_op.used)||(_op.closed&&!_op.snap)){_op={id:uid(),snap:null,used:false,closed:false}}
   else if(_op.closed&&_op.snap&&!_op.used){_op.closed=false}   // mark→シート→push：snap をまだ使っていなければ同じ操作
   if(!_op.closed)queueMicrotask(()=>{if(_op)_op.closed=true});
@@ -1128,7 +1129,9 @@ function renderBadges(){
       const order=d.stages.order,i=order?order.indexOf(c.stage):-1;
       if(i<0){openStage();return}
       mark();c.stage=order[(i+1)%order.length];push("stage","ステージ："+c.stage);
-      const opt=d.stages.options.find(o=>o&&o.l===c.stage),ax=opt&&opt.askAfter&&(d.extras||[]).find(e=>e.label===opt.askAfter);if(ax)openExtra(ax);
+      const opt=d.stages.options.find(o=>o&&o.l===c.stage),ax=opt&&opt.askAfter&&(d.extras||[]).find(e=>e.label===opt.askAfter);
+      const opId=c.events.length?c.events[c.events.length-1].op:null;   // ステージ選択の op に相乗りさせる
+      if(ax)openExtra(ax,{op:opId});
     });b.append(x);
   }
   };
@@ -2099,8 +2102,9 @@ function openStage(){
       save();render();
     }
     const ax=opt&&opt.askAfter&&(d.extras||[]).find(e=>e&&e.label===opt.askAfter);
+    const opId=c.events.length?c.events[c.events.length-1].op:null;   // ステージ選択の op に相乗りさせる
     closeSheet();
-    if(ax)openExtra(ax);
+    if(ax)openExtra(ax,{op:opId});
   });
 }
 
@@ -2175,7 +2179,7 @@ function findExtraInHit(label){
   for(let i=c.events.length-1;i>=0;i--){const ev=c.events[i];if(ev.type==="extra"&&ev.extra===label)found=ev;if(ev.type==="hitStart")break}
   return found;
 }
-function openExtra(x){
+function openExtra(x,opts){ opts=opts||{};
   if(x.type==="toggle"){toggleExtra(x);return}
   if(x.byState){const v=(zenIdx()>=0&&!inHikimodoshi()?x.byState.zen:x.byState.normal)||x.byState.normal;if(!v)return;x=Object.assign({},x,v,{label:x.label})}
   if(x.type==="stockInc"){const d=DEF(),c=S.cur,s=d.stocks&&d.stocks.find(s=>s.key===x.key);if(!s)return;mark();c.stocks[x.key]++;push("stock",x.label+"　→ "+s.short+c.stocks[x.key],{stockKey:x.key,n:1});return}
@@ -2259,14 +2263,14 @@ function openExtra(x){
   }
   groupSheet(x.title||x.label,x.groups,sel=>{
     const t=selText(x.groups,sel);if(!t){toast("何も選ばれていません");return}
-    mark();const hint=applyHints(sel);
+    if(!opts.op)mark();const hint=applyHints(sel);
     let extraTxt="";
     const tk=hitProp(curHitDef(),"ticket");
     if(tk&&tk.autoBy&&tk.autoBy.extra===x.label&&sel.result===tk.autoBy.result){
       S.cur.judgeWins=(S.cur.judgeWins||0)+1;extraTxt="　成功"+S.cur.judgeWins+"回目";
       if(S.cur.judgeWins===tk.autoBy.count&&!S.cur.ticket){S.cur.ticket=true;extraTxt+="　→ "+tk.label+"獲得";}
     }
-    push("extra",x.label+"："+t+extraTxt+(hint?"　→ "+hint:""),{sel,extra:x.label});closeSheet();
+    push("extra",x.label+"："+t+extraTxt+(hint?"　→ "+hint:""),{sel,extra:x.label,op:opts.op});closeSheet();
     if(extraTxt.includes("獲得"))toast(tk.label+"を獲得");
   },{anyOne:!!x.anyOne,...(x.completeInstant?{instant:true,completeInstant:true}:{})});
 }
@@ -2417,7 +2421,7 @@ function summarizeHints(sess){
       sess.events.forEach(ev=>{
         if(ev.type==="yuuri"||(ev.c3===0&&ev.trig!=="引き戻し成功")){flush();previous=null}
         if(ev.type!=="hitStart")return;
-        if(ev.trig==="引き戻し成功"){flush();firstOnly=true;put("引き戻し当選：示唆なし（初回扱い）");return}
+        if(ev.trig==="引き戻し成功"){flush();previous=null;firstOnly=true;put("引き戻し当選：示唆なし（初回扱い）");return}
         if(!(md.counter3.incOnTriggers||[]).includes(ev.trig))return;
         if(chars.length===4||(ev.c3!=null&&ev.c3%4===1&&chars.length)){flush();firstOnly=true}
         chars.push(ev.hitSel&&ev.hitSel.chara||"不明");
