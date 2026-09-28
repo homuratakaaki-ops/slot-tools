@@ -263,7 +263,7 @@ const MACHINES={
       {key:"other",label:"その他",strong:true}
     ],
     lcdAdd:{steps:[10,20,30,50,100],chars:null},
-    hits:[{label:"BIG",kind:"at",inline:true},{label:"REG",kind:"at",inline:true},{label:"CZ",kind:"cz"},{label:"AT",kind:"at"}],
+    hits:[{label:"BIG",kind:"at",inline:true},{label:"REG",kind:"at",inline:true},{label:"CZ",kind:"cz",keepG:true},{label:"AT",kind:"at"}],
     hitTriggers:null,
     stages:null,
     zenchou:{stages:["前兆","前兆ステージ"],stageIndex:1,outGroups:[],stageLabel:"前兆ステージ"},
@@ -995,13 +995,13 @@ function groupSheet(title,groups,onDone,opts){
 function selText(groups,sel){return groups.map(g=>g.type==="num"?(sel[g.key]!=null?g.label+" "+sel[g.key]:null):Array.isArray(sel[g.key])?sel[g.key].join("・"):sel[g.key]).filter(Boolean).join("、")}
 
 /* ---------- テンキー ---------- */
-let kpCb=null,kpVal="";
-(function(){const k=el("kpKeys");["7","8","9","4","5","6","1","2","3","00","0","-"].forEach(n=>{const b=mk("button","",n);b.addEventListener("click",()=>{if(n==="-"){kpVal=kpVal.startsWith("-")?kpVal.slice(1):"-"+kpVal}else{kpVal=(kpVal==="0"?"":kpVal)+n}el("kpDisp").textContent=kpVal||"0"});k.append(b)})})();
-el("kpClear").addEventListener("click",()=>{kpVal="";el("kpDisp").textContent="0"});
-el("kpBack").addEventListener("click",()=>{kpVal=kpVal.slice(0,-1);el("kpDisp").textContent=kpVal||"0"});
+let kpCb=null,kpVal="",kpFresh=false;   // kpFresh：初期値を表示中。最初のキーで置き換える
+(function(){const k=el("kpKeys");["7","8","9","4","5","6","1","2","3","00","0","-"].forEach(n=>{const b=mk("button","",n);b.addEventListener("click",()=>{if(kpFresh){kpVal="";kpFresh=false}if(n==="-"){kpVal=kpVal.startsWith("-")?kpVal.slice(1):"-"+kpVal}else{kpVal=(kpVal==="0"?"":kpVal)+n}el("kpDisp").textContent=kpVal||"0"});k.append(b)})})();
+el("kpClear").addEventListener("click",()=>{kpVal="";kpFresh=false;el("kpDisp").textContent="0"});
+el("kpBack").addEventListener("click",()=>{kpFresh=false;kpVal=kpVal.slice(0,-1);el("kpDisp").textContent=kpVal||"0"});
 el("kpX").addEventListener("click",()=>el("kp").classList.remove("open"));
 el("kpOk").addEventListener("click",()=>{const v=int(kpVal);el("kp").classList.remove("open");if(kpCb)kpCb(v===null?0:v)});
-function askNum(title,init,cb){el("kpTitle").textContent=title;kpVal=(init==null||init===0)?"":String(init);el("kpDisp").textContent=kpVal||"0";kpCb=cb;el("kp").classList.add("open")}
+function askNum(title,init,cb){el("kpTitle").textContent=title;kpVal=(init==null||init===0)?"":String(init);kpFresh=!!kpVal;el("kpDisp").textContent=kpVal||"0";kpCb=cb;el("kp").classList.add("open")}
 
 /* ---------- 記録 ---------- */
 const SNAP_KEYS=["hit","mode","stage","prevStage","zenPrevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare","ticket","judgeWins","returnHit","pendingReward","melonPhase","modeEra","modeHints","tags","stocks","stockPhase","gauge","zenNote","renFail","tagWait"];
