@@ -39,6 +39,33 @@
     ['firework','花火柄','設定5以上濃厚',5],
     ['rainbow','虹','設定6濃厚',6]
   ];
+  // パターン別の紹介メンバー（出典の表どおり。1〜5人目の登場順）。
+  // 半角カナは画面の他の行にそろえて全角で持つ（ﾌｪﾘｼｱ→フェリシア・ｷｭｩべえ→キュゥべえ）。
+  // ⑧は出典が4人目を2列結合で「杏子」としているため4人。
+  const CHAR_MEMBERS=[
+    ['①','いろは→やちよ→鶴乃→フェリシア→さな'],
+    ['②','ももこ→レナ→かえで→みたま→黒江'],
+    ['③','灯花→ねむ→天音姉妹→みふゆ→アリナ'],
+    ['④','まどか→さやか→マミ→杏子→ほむら'],
+    ['⑤','①〜④の逆順'],
+    ['⑥','ももこ→やちよ→鶴乃→みふゆ→みたま'],
+    ['⑦','いろは→うい→灯花→ねむ→アリナ'],
+    ['⑧','まどか→さやか→マミ→杏子'],
+    ['⑨','①〜⑦のいずれかで、5人目が小さいキュゥべえ']
+  ];
+  // BIG終了画面（出典: ちょんぼりすた様 終了画面の専用記事 magireco/235633、2026-09-30 取得）。
+  // 本文から名称が読み取れるのはこの5つ。示唆の内容はいずれも公表されておらず、
+  // 出典に載っているのは管理人の予想のみなので rank は付けない（記録専用）。
+  // ユニバプレートを確定扱いにしたのはユニバーサル標準仕様だからで、
+  // 機種固有の終了画面には同じ理屈が使えない。
+  // AT終了画面は出典が「上記の3パターン」と書くだけで名称が画像の中にしかないため、行を作らない。
+  const BIG_SCREENS=[
+    ['default','デフォルト','キャラなし（選択した楽曲で変化）',0],
+    ['mizugi','水着（みかづき荘バケーション）','示唆内容は非公表',0],
+    ['keyvis2nd','2ndシーズンキービジュアル','示唆内容は非公表',0],
+    ['keyvis1st','1stシーズンキービジュアル','示唆内容は非公表',0],
+    ['kyubey','小さいキュゥべえ','示唆内容は非公表',0]
+  ];
   const CHARS=[
     ['p1to4','①〜④','デフォルト',0],
     ['p5','⑤（①〜④の逆順）','高設定期待度UP（弱）',0],
@@ -79,7 +106,8 @@
   ];
   const GROUPS=[
     ['plates','ユニバプレート',PLATES,false,'AT終了画面でサブ液晶に出た色を記録します。ホールが任意で表示する店長カスタムもあるため、出たときだけ記録してください。'],
-    ['chars','キャラ紹介',CHARS,true,'ストーリーコンプリート後などに出るキャラ紹介です。ストーリーコンプリート後、またはエンブリオ・イブ覚醒中のSTORY当選時に出現するキャラ紹介シナリオで設定を示唆します。パターンが分からなかった回は記録しないでください。'],
+    ['bigScreens','BIG終了画面',BIG_SCREENS,true,'BIGの終了画面を毎回記録します。キャラが描かれていない画面はデフォルトで、選択した楽曲によって複数のパターンがあります。キャラが描かれた4種は設定示唆パターンですが、示唆の内容が公表されていないため、記録だけを残して設定推測には使いません。AT終了画面にも示唆パターンがありますが、出典に名称の記載がないため行を用意していません。'],
+    ['chars','キャラ紹介',CHARS,true,'紹介メンバーの並びでパターンを判別。ストーリーコンプリート後、またはエンブリオ・イブ覚醒中のSTORY当選時に出現するキャラ紹介シナリオで設定を示唆します。パターンが分からなかった回は記録しないでください。\n'+CHAR_MEMBERS.map(c=>c[0]+' '+c[1]).join('\n')],
     ['edCards','エンディング中のカード',ED_CARDS,true,'エンディング中のレア役成立時にサブ液晶へ出ます。出たカードをそのまま記録してください。'],
     ['story','ストーリーの順番',STORY,true,'AT中のストーリー紹介順を記録します。1話または3話スタートは奇数示唆系、2話または4話スタートは偶数示唆系、5話スタートは否定系で、降順が崩れた部分の設定を否定します（5→1なら1否定、5→4→2なら2否定）。全て降順なら設定5以上濃厚です。'],
     ['episodes','エピソード選択',EPISODES,true,'黒江チャレンジ経由の回は記録しません。黒江チャレンジ経由・ドッペルモード（いろは）・フリーズ（うい）のエピソードは記録しないでください。黒江の選択率に特大の設定差があり、設定1・2では0.1%でしか選ばれません。']
@@ -89,14 +117,13 @@
     ['greenR','greenW','発展（緑）','報酬レベル3']
   ];
   const REFERENCE=[
-    ['BIG終了画面','設定示唆パターンが存在することは判明。内容が未判明のためカウンターは置いていません'],
-    ['AT終了画面','設定示唆パターンあり。ユニバプレートはこの画面のサブ液晶に出ます'],
+    ['BIG終了画面','示唆タブで画面ごとに記録できます。示唆の内容が公表されていないため設定推測には使いません'],
+    ['AT終了画面','設定示唆パターンあり。ユニバプレートはこの画面のサブ液晶に出ます。3パターンの名称が出典に記載されていないため、画面ごとの行は用意していません'],
     ['魔法少女モード選択率','高設定ほどいろは以外から始まりやすいが、遊技中にモードを確定できないため対象外'],
-    ['高確移行率','AT後・BB後の移行率に設定差があるが、遊技中に滞在状態を判定できないため対象外'],
-    ['今後の追加予定','規定ptゾーンの当選率（実戦値）を、証拠として追加できる構造にしています']
+    ['高確移行率','AT後・BB後の移行率に設定差があるが、遊技中に滞在状態を判定できないため対象外']
   ];
   const GAME_SRC=[['unimemo','ユニメモで記録'],['real','実機の通常ゲーム数で記録']];
-  const MERGE_KEYS=['counts','rates','plates','chars','edCards','story','episodes','mitama'];
+  const MERGE_KEYS=['counts','rates','plates','bigScreens','chars','edCards','story','episodes','mitama'];
   const DEF={
     games:0,gameSrc:'unimemo',gamesApp:0,gamesStart:0,gamesNow:0,
     counts:{at:0,bonus:0,weakCherry:0},
@@ -206,7 +233,7 @@
     </section>
     <section class="sec"><div class="sec-h">スイカからのCZ当選</div>
       <div class="cgrid">${rateRow(ctx,'rates','suikaCzr','suikaCzw','スイカからのCZ当選','設1:20.3%⇔設6:33.6%')}</div>
-      <div class="hint">魔法少女モード『さな』のスイカは記録しません。魔法少女モード『さな』と分かった時のスイカは記録しないでください（CZ当選率が優遇されるため）。マギアチャレンジ・黒江チャレンジのどちらに入った場合も『当選』として記録してください。出典はこの2つを合わせてCZ当選率としています。</div>
+      <div class="hint">スイカが成立したら当選・ハズレを記録。マギアチャレンジ・黒江チャレンジのどちらに入った場合も『当選』として記録してください。出典はこの2つを合わせてCZ当選率としています。魔法少女モード『さな』中はスイカのCZ当選率が上がるため、実測はやや高めに出ます。</div>
     </section>`;
   }
   function pageSuggest(ctx){
@@ -287,6 +314,10 @@
       .cycle-row .ct b,.count-row .ct b{font-size:16px}.cycle-row .ct b,.cycle-row .ct small,.count-row .ct b,.count-row .ct small{display:block}.cycle-row .ct small,.count-row .ct small{font-size:13px;color:var(--muted);line-height:1.35}
       .cycle-row .pct,.count-row .pct{min-width:78px;text-align:right;color:var(--cyan);font-family:var(--seg);font-size:11px;white-space:nowrap}
       .cycle-actions{display:flex;gap:6px;margin-left:4px;flex:none}.cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}.cycle-btn.win{color:var(--gold)}.minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+      /* 畳んだ説明の中で改行を活かす（キャラ紹介のパターン別メンバーを1行1パターンで出すため）。
+         エンジンは畳む側を textContent で入れるので、改行はこの指定がないと詰まってしまう。
+         改行を含まない説明の見え方は変わらない。 */
+      .hint-body{white-space:pre-line}
       .ref-table{width:100%;border-collapse:collapse;font-size:11px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}.ref-table td{border-bottom:1px solid var(--line);padding:8px 10px;vertical-align:top}.ref-table tr:last-child td{border-bottom:0}.ref-table td:first-child{width:42%;color:var(--txt);font-weight:700}.ref-table td:last-child{color:var(--muted);line-height:1.45}
       .bayes-main{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#171220;border:1px solid #2c2340;border-radius:10px;padding:10px 12px;margin:8px 0}.bayes-main b{color:#ffc94d;font-size:18px}.bayes-main span{color:#9a90a8;font-size:13px}
       .bayes-bar{display:grid;grid-template-columns:44px 1fr 48px;gap:8px;align-items:center;margin:6px 0;font-size:12px;color:#9a90a8}.bayes-bar b{display:block;height:10px;border-radius:999px;background:linear-gradient(90deg,#ff3d8f,#ffc94d);min-width:2px}.bayes-bar em{font-style:normal;text-align:right;color:#f2eef5}
