@@ -107,7 +107,7 @@
     gamesMysloTotalStart:0,
     gamesStart:0,
     gamesNow:0,
-    counts:{stamp:0,cz:0,at:0,direct:0,child:0,bell:0,bellOther:0},
+    counts:{stamp:0,cz:0,at:0,direct:0,child:0,bell:0,bellOther:0,mysteryV:0},
     prologue:{ep1:0,ep2:0,ep3:0,ep4:0},
     rush:{ep1:0,ep2:0,ep3:0,ep4:0},
     wep:{ep1:0,ep2:0,ep3:0,ep4:0},
@@ -409,8 +409,10 @@
       ${ctx.crow('counts.at','AT初当り',`設1:1/328.8⇔設6:1/256.7${rateSuffix(g,n(S.counts,'at'))}`,1)}
       ${ctx.crow('counts.direct','AT直撃','設1:1/22429.5⇔設6:1/6263.7（他設定は調査中・出現率が低いため1/x表示なし）',1)}
       ${ctx.crow('counts.child','幼少期CZ(ファースト)','設1:1/3965.0⇔設6:1/2084.8（他設定は調査中・出現率が低いため1/x表示なし）',1)}
+      ${ctx.crow('counts.mysteryV','謎Vストック','高設定ほど優遇(数値は非公表)',0)}
     </div>
     <div class="hint">この2項目は1/x表示を行いません。AT直撃と幼少期CZは出現率が低いため、引けた場合の判別材料として扱ってください。出現率が低く1日では分母が足りないため、この2項目は1/x表示を行いません。</div>
+    <div class="hint">全才能LV2かつG数HOLDなら獲得。ラッシュ直撃・850G天井・アフターエピソード経由以外のラッシュ突入時が対象です。獲得確率は高設定ほど優遇されていますが、設定別の数値は公表されていないため記録のみで、テンプレ出力（なな様書式）には含めません。</div>
   </section>`;
   }
   function pageSuggest(ctx){
@@ -529,7 +531,8 @@
         detailItem('CZ当選',n(S.counts,'cz'),0),
         detailItem('AT初当り',n(S.counts,'at'),1),
         detailItem('AT直撃',n(S.counts,'direct'),1),
-        detailItem('幼少期CZ突入',n(S.counts,'child'),1)
+        detailItem('幼少期CZ突入',n(S.counts,'child'),1),
+        detailItem('謎Vストック',n(S.counts,'mysteryV'),0)
       ]},
       {title:'共通ベル',items:[
         {label:'合計',value:bellTotal(S),hot:true,
@@ -672,7 +675,9 @@
               row(`CZ当選 ${countRate(g,n(S.counts,'cz'))}`,n(S.counts,'cz')),
               row(`AT直撃 ${n(S.counts,'direct')}回 / 幼少期CZ ${n(S.counts,'child')}回`,
                   n(S.counts,'direct')+n(S.counts,'child')),
-              row(`通常回転 ${g}G`,g)
+              row(`通常回転 ${g}G`,g),
+              // 左列は5行だったので、右列の6行に合わせて1行足しても最終行のYは変わらない。
+              row(`謎Vストック ${n(S.counts,'mysteryV')}回`,n(S.counts,'mysteryV'))
             ]},
             {x:560,items:[
               row(`確定演出 計${certCount(S)}回`,certCount(S),certCount(S)>0,'#ffc94d'),
