@@ -142,8 +142,12 @@
     ['魔法少女モード選択率','高設定ほどいろは以外から始まりやすいが、遊技中にモードを確定できないため対象外'],
     ['高確移行率','AT後・BB後の移行率に設定差があるが、遊技中に滞在状態を判定できないため対象外']
   ];
+  // 規定ptゾーンの到達／当選（記録のみ）。
+  // ゾーンごとの当選率は理論値・実戦値のどちらも公表されていないため、サブラベルは空にし、
+  // 設定推測にも使わない。数値が使えるようになったらサブを足すだけで済む形にしてある。
+  const ZONES=['100','200','300','400','500','600','700','800'];
   const GAME_SRC=[['unimemo','ユニメモで記録'],['real','実機の通常ゲーム数で記録']];
-  const MERGE_KEYS=['counts','rates','plates','bigScreens','atScreens','chars','edCards','story','episodes','mitama'];
+  const MERGE_KEYS=['counts','rates','zones','plates','bigScreens','atScreens','chars','edCards','story','episodes','mitama'];
   const DEF={
     // gamesApp＝ユニメモの通常プレイ数（AT・ボーナス初当りの分母）
     // gamesAppTotal＝ユニメモの総プレイ数（弱チェリーの分母。ユニメモの小役欄と同じ分母）
@@ -151,11 +155,14 @@
     games:0,gameSrc:'unimemo',gamesApp:0,gamesAppTotal:0,cherryApp:0,gamesStart:0,gamesNow:0,
     counts:{at:0,bonus:0,weakCherry:0},
     rates:{suikaCzr:0,suikaCzw:0},
+    zones:Object.fromEntries(ZONES.flatMap(z=>[['p'+z+'r',0],['p'+z+'w',0]])),
     ...Object.fromEntries(GROUPS.map(g=>[g[0],Object.fromEntries(g[2].map(c=>[c[0],0]))])),
     mitama:{blueR:0,blueW:0,greenR:0,greenW:0},img:null,iconChoice:null
   };
   function n(obj,key){return Number((obj||{})[key])||0;}
   function num(v){const x=Number(v);return Number.isFinite(x)?Math.max(0,Math.floor(x)):0;}
+  function zoneReach(S){return ZONES.reduce((a,z)=>a+n(S.zones,'p'+z+'r'),0);}
+  function zoneWin(S){return ZONES.reduce((a,z)=>a+n(S.zones,'p'+z+'w'),0);}
   function groupTotal(S,key){return GROUPS.find(g=>g[0]===key)[2].reduce((a,c)=>a+n(S[key],c[0]),0);}
   function gameSrcOf(S){return (S&&S.gameSrc)==='real'?'real':'unimemo';}
   function rawDenom(S){return gameSrcOf(S)==='real'?num(S.gamesNow)-num(S.gamesStart):num(S.gamesApp);}
@@ -231,7 +238,9 @@
       out[key]=Object.assign({},DEF[key],out[key]||{});
       Object.keys(out[key]).forEach(k=>{out[key][k]=num(out[key][k]);});
     });
-    [['rates','suikaCzr','suikaCzw'],...MITAMA.map(c=>['mitama',c[0],c[1]])].forEach(([group,d,w])=>{
+    [['rates','suikaCzr','suikaCzw'],
+     ...ZONES.map(z=>['zones','p'+z+'r','p'+z+'w']),
+     ...MITAMA.map(c=>['mitama',c[0],c[1]])].forEach(([group,d,w])=>{
       if(out[group][w]>out[group][d])out[group][d]=out[group][w];
     });
     syncGames(out);
@@ -241,7 +250,7 @@
     const a=n(ctx.S[group],w),b=n(ctx.S[group],d);
     const missAttrs=ctx.mode<0&&b<=a?'disabled aria-disabled="true"':`data-bump="${group}.${d}"`;
     return `<div class="crow cycle-row">
-      <div class="ct"><b>${name}</b><small>${sub}</small></div>
+      <div class="ct"><b>${name}</b>${sub?`<small>${sub}</small>`:''}</div>
       <div class="pct">${ratio(a,b)}</div>
       <div class="cycle-actions">
         <button type="button" class="cycle-btn win" data-bump-many="${group}.${d},${group}.${w}" data-label="${name} 当選" aria-label="${name} 当選">当選</button>
@@ -268,6 +277,10 @@
     <section class="sec"><div class="sec-h">スイカからのCZ当選</div>
       <div class="cgrid">${rateRow(ctx,'rates','suikaCzr','suikaCzw','スイカからのCZ当選','設1:20.3%⇔設6:33.6%')}</div>
       <div class="hint">スイカが成立したら当選・ハズレを記録。マギアチャレンジ・黒江チャレンジのどちらに入った場合も『当選』として記録してください。出典はこの2つを合わせてCZ当選率としています。魔法少女モード『さな』中はスイカのCZ当選率が上がるため、実測はやや高めに出ます。</div>
+    </section>
+    <section class="sec"><div class="sec-h">規定ptゾーン<span class="sub">${ratio(zoneWin(S),zoneReach(S))}</span></div>
+      <div class="cgrid">${ZONES.map(z=>rateRow(ctx,'zones','p'+z+'r','p'+z+'w',z+'pt','')).join('')}</div>
+      <div class="hint">各ゾーンに到達したら当選かハズレを記録。「当選」は到達と当選の両方を、「ハズレ」は到達だけを1つ加算します。ゾーンごとの当選率は理論値も実戦値も公表されていないため、設定推測には使わず記録だけを残します。</div>
     </section>`;
   }
   function pageSuggest(ctx){
@@ -293,6 +306,8 @@
       `弱チェリー▶${cherryHit(S)}回${rate(cherryDenom(S),cherryHit(S))?'（'+rate(cherryDenom(S),cherryHit(S))+'）':''}`,
       `スイカCZ▶${ratio(n(S.rates,'suikaCzw'),n(S.rates,'suikaCzr'))}`
     ]);
+    t+=section('規定ptゾーン',ZONES.filter(z=>n(S.zones,'p'+z+'r')>0)
+      .map(z=>`${z}pt▶${ratio(n(S.zones,'p'+z+'w'),n(S.zones,'p'+z+'r'))}`));
     GROUPS.forEach(([key,title,arr,percent])=>{
       const total=groupTotal(S,key);
       t+=section(title,arr.filter(c=>n(S[key],c[0])>0).map(c=>`${c[1]}▶${n(S[key],c[0])}回${percent&&total>0?' ('+(100*n(S[key],c[0])/total).toFixed(0)+'%)':''}`));
@@ -309,6 +324,7 @@
         {label:'弱チェリー',value:cherryHit(S),hot:true,text:'弱チェリー '+countRate(cherryDenom(S),cherryHit(S)),show:cherryHit(S)>0},
         detailRatio(S,'rates','suikaCzr','suikaCzw','スイカCZ')
       ]},
+      {title:'規定ptゾーン',items:ZONES.map(z=>detailRatio(S,'zones','p'+z+'r','p'+z+'w',z+'pt'))},
       ...GROUPS.map(([key,title,arr,percent])=>({title,percent,denominator:percent?groupTotal(S,key):0,items:arr.map(c=>({label:c[0]==='deny1High'?'設定1否定かつ高設定':c[1],value:n(S[key],c[0]),hot:c[3]>0}))})),
       {title:'みたまボーナス「発展」',items:MITAMA.map(c=>detailRatio(S,'mitama',c[0],c[1],c[2]))}
     ];
@@ -415,11 +431,14 @@
       ]}),
       bottom:ctx=>{
         const S=ctx.S,g=syncGames(S);
-        return {title:'サマリー',startY:760,rowGap:44,fontSize:22,columns:[
+        // 左列が6行になったので行間を詰める。最終行 752+5*36=932 で、
+        // フッタ（slot-tools.jp・y=976）に掛からない上限 936 の内側に収める。
+        return {title:'サマリー',startY:752,rowGap:36,fontSize:22,columns:[
           {x:70,items:[row(bestCert(S),certCount(S),certCount(S)>0,'#ffc94d'),row(`通常回転 ${g}G`,g),
             row('AT初当り '+countRate(g,n(S.counts,'at')),n(S.counts,'at')),
             row('ボーナス '+countRate(g,n(S.counts,'bonus')),n(S.counts,'bonus')),
-            row('弱チェリー '+countRate(cherryDenom(S),cherryHit(S)),cherryHit(S))]},
+            row('弱チェリー '+countRate(cherryDenom(S),cherryHit(S)),cherryHit(S)),
+            row('規定ptゾーン '+ratio(zoneWin(S),zoneReach(S)),zoneReach(S))]},
           {x:560,items:[row(`確定演出 計${certCount(S)}回`,certCount(S),certCount(S)>0,'#ffc94d'),
             row('スイカCZ '+ratio(n(S.rates,'suikaCzw'),n(S.rates,'suikaCzr')),n(S.rates,'suikaCzr')),
             row(shown(S,'plates','プレート'),groupTotal(S,'plates')),
