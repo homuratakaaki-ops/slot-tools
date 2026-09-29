@@ -137,8 +137,8 @@
     </style>
     <div class="srcchips" role="group" aria-label="通常回転数の入力ソース">${chips}</div>
     <div class="gsrc" data-gsrc="unimemo"${src==='unimemo'?'':' hidden'}>
-      <div class="inrow"><label>ユニメモの通常時プレイ数</label><input type="number" inputmode="numeric" data-number-key="gamesApp" value="${S.gamesApp||''}" placeholder="0"></div>
-      <div class="hint">公式アプリ『ユニメモ』の通常時プレイ数を入力してください。着席時にログインしていれば、自分の遊技分だけが集計されるのでそのまま使えます。総プレイ数ではなく通常時プレイ数を使用します。</div>
+      <div class="inrow"><label>ユニメモの通常プレイ数</label><input type="number" inputmode="numeric" data-number-key="gamesApp" value="${S.gamesApp||''}" placeholder="0"></div>
+      <div class="hint">公式アプリ『ユニメモ』の通常プレイ数を入力してください。着席時にログインしていれば、自分の遊技分だけが集計されるのでそのまま使えます。総プレイ数ではなく通常プレイ数を使用します。</div>
     </div>
     <div class="gsrc" data-gsrc="real"${src==='real'?'':' hidden'}>
       <div class="inrow"><label>打ち始め時の通常ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesStart" value="${S.gamesStart||''}" placeholder="0"></div>
@@ -187,7 +187,7 @@
       ${ctx.crow('counts.replayTako','リプレイ＋タコゲーム','設1・2:1/728.2／設5:1/366.1／設6:1/242.7',1)}
     </div>
     <div class="hint">擬似リプレイハズシ手順が必要です。ボーナスゲーム中に擬似リプレイハズシ手順（中・右をフリー打ちしてリプレイテンパイ→左リール枠上に鉢巻付きの白7をビタ押し）を行い、タコランプが点灯した回数を記録します。設定1・2と設定6で約3倍の差がある判別材料です。</div>
-    <div class="hint">回数だけを記録してください。出典の確率の分母（通常時プレイ数か総プレイ数か）が明示されていないため、実測の1/x表示は行いません（AGENTS.md §9-70）。</div>
+    <div class="hint">回数だけを記録してください。出典の確率の分母（通常プレイ数か総プレイ数か）が明示されていないため、実測の1/x表示は行いません（AGENTS.md §9-70）。</div>
   </section>`;
   }
 
