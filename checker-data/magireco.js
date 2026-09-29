@@ -145,7 +145,10 @@
   const GAME_SRC=[['unimemo','ユニメモで記録'],['real','実機の通常ゲーム数で記録']];
   const MERGE_KEYS=['counts','rates','plates','bigScreens','atScreens','chars','edCards','story','episodes','mitama'];
   const DEF={
-    games:0,gameSrc:'unimemo',gamesApp:0,gamesStart:0,gamesNow:0,
+    // gamesApp＝ユニメモの通常プレイ数（AT・ボーナス初当りの分母）
+    // gamesAppTotal＝ユニメモの総プレイ数（弱チェリーの分母。ユニメモの小役欄と同じ分母）
+    // cherryApp＝ユニメモの弱チェリー回数。実機モードでは counts.weakCherry のタップ回数を使う
+    games:0,gameSrc:'unimemo',gamesApp:0,gamesAppTotal:0,cherryApp:0,gamesStart:0,gamesNow:0,
     counts:{at:0,bonus:0,weakCherry:0},
     rates:{suikaCzr:0,suikaCzw:0},
     ...Object.fromEntries(GROUPS.map(g=>[g[0],Object.fromEntries(g[2].map(c=>[c[0],0]))])),
@@ -160,6 +163,11 @@
   // 打ち始めより現在が小さいときだけ注意を出す。現在が未入力(0)の間は入力途中とみなす。
   function denomWarn(S){return gameSrcOf(S)==='real'&&num(S.gamesNow)>0&&num(S.gamesNow)<num(S.gamesStart);}
   function syncGames(S){if(S)S.games=denom(S);return S?S.games:0;}
+  // 弱チェリーだけ分母と回数の出どころがモードで変わる（§9-84。ここだけを正本にする）。
+  // ユニメモ：小役欄と同じ「総プレイ数」を分母にし、回数もユニメモの値を使う。
+  // 実機：通常ゲーム数の差分を分母にし、通常時にタップした回数を使う。
+  function cherryDenom(S){return gameSrcOf(S)==='real'?denom(S):num(S.gamesAppTotal);}
+  function cherryHit(S){return gameSrcOf(S)==='real'?n(S.counts,'weakCherry'):num(S.cherryApp);}
   function rate(g,c){return g>0&&c>0?'1/'+(g/c).toFixed(1):'';}
   function rateSuffix(g,c){const r=rate(g,c);return r?` / 現在 ${r}`:'';}
   function countRate(g,c){const r=rate(g,c);return r?`${c}回 ${r}`:`${c}回`;}
@@ -195,10 +203,10 @@
   }
   function bayesSpec(S){
     const g=denom(S),binomial=[];
-    if(g>0){
-      binomial.push({label:'AT初当り',hit:n(S.counts,'at'),total:g,probs:denomProbs('at')});
-      binomial.push({label:'弱チェリー',hit:n(S.counts,'weakCherry'),total:g,probs:denomProbs('weakCherry')});
-    }
+    if(g>0)binomial.push({label:'AT初当り',hit:n(S.counts,'at'),total:g,probs:denomProbs('at')});
+    // 弱チェリーは分母が別（ユニメモ＝総プレイ数／実機＝通常ゲーム数）
+    const cd=cherryDenom(S);
+    if(cd>0)binomial.push({label:'弱チェリー',hit:cherryHit(S),total:cd,probs:denomProbs('weakCherry')});
     if(n(S.rates,'suikaCzr')>0)binomial.push({label:'スイカからのCZ当選',hit:n(S.rates,'suikaCzw'),total:n(S.rates,'suikaCzr'),probs:CZ_SOURCE.combined});
     return {settings:SETTINGS,binomial,multinomial:[{label:'エピソード選択',counts:Object.fromEntries(EPISODES.map(c=>[c[0],n(S.episodes,c[0])])),probs:EPISODE_PROBS}],exclusions:bayesExclusions(S)};
   }
@@ -218,7 +226,7 @@
   }
   function normalizeState(out){
     out.gameSrc=gameSrcOf(out);
-    ['gamesApp','gamesStart','gamesNow'].forEach(k=>{out[k]=num(out[k]);});
+    ['gamesApp','gamesAppTotal','cherryApp','gamesStart','gamesNow'].forEach(k=>{out[k]=num(out[k]);});
     MERGE_KEYS.forEach(key=>{
       out[key]=Object.assign({},DEF[key],out[key]||{});
       Object.keys(out[key]).forEach(k=>{out[key][k]=num(out[key][k]);});
@@ -250,9 +258,12 @@
       </div>
       <div class="hint">ボーナス初当りは記録のみです。AT初当りと連動して動くため、二重に効かせないよう設定推測には使いません。表示と記録だけに使います。</div>
     </section>
-    <section class="sec"><div class="sec-h">弱チェリー</div>
-      <div class="cgrid">${ctx.crow('counts.weakCherry','弱チェリー',`設1:1/60.0⇔設6:1/50.0${rateSuffix(g,n(S.counts,'weakCherry'))}`,1)}</div>
-      <div class="hint">通常時の弱チェリーだけ数えます。左リール角チェリー停止時の弱チェリーを通常時のみ記録してください。設定推測の主力になります。</div>
+    <section class="sec"><div class="sec-h">弱チェリー<span class="sub">設1:1/60.0⇔設6:1/50.0${rateSuffix(cherryDenom(S),cherryHit(S))}</span></div>
+      ${gameSrcOf(S)==='unimemo'
+        ? `<div class="inrow"><label>ユニメモの弱チェリー回数</label><input type="number" inputmode="numeric" data-number-key="cherryApp" value="${S.cherryApp||''}" placeholder="0"></div>
+      <div class="hint">ユニメモの弱チェリー回数をそのまま入力。ユニメモの小役欄と同じ「総プレイ数」を分母にするので、表示される1/xはユニメモの数値と一致します。実機モードに切り替えると、通常時にタップで数える方式（分母は通常ゲーム数）に変わります。設定推測の主力になります。</div>`
+        : `<div class="cgrid">${ctx.crow('counts.weakCherry','弱チェリー',`設1:1/60.0⇔設6:1/50.0${rateSuffix(cherryDenom(S),cherryHit(S))}`,1)}</div>
+      <div class="hint">通常時の弱チェリーだけ数えます。左リール角チェリー停止時の弱チェリーを通常時のみ記録してください。分母は通常ゲーム数です。ユニメモモードに切り替えると、ユニメモの弱チェリー回数を入力する方式（分母は総プレイ数）に変わります。設定推測の主力になります。</div>`}
     </section>
     <section class="sec"><div class="sec-h">スイカからのCZ当選</div>
       <div class="cgrid">${rateRow(ctx,'rates','suikaCzr','suikaCzw','スイカからのCZ当選','設1:20.3%⇔設6:33.6%')}</div>
@@ -278,7 +289,8 @@
     const S=ctx.S,g=denom(S);
     let t=`設定判別メモ｜スマスロ マギアレコード\n通常回転 ${g}G / 確定演出${certCount(S)}回\n_______\n`;
     t+=section('初当り',[
-      ...[['at','AT初当り'],['bonus','ボーナス初当り'],['weakCherry','弱チェリー']].map(([key,label])=>`${label}▶${n(S.counts,key)}回${rate(g,n(S.counts,key))?'（'+rate(g,n(S.counts,key))+'）':''}`),
+      ...[['at','AT初当り'],['bonus','ボーナス初当り']].map(([key,label])=>`${label}▶${n(S.counts,key)}回${rate(g,n(S.counts,key))?'（'+rate(g,n(S.counts,key))+'）':''}`),
+      `弱チェリー▶${cherryHit(S)}回${rate(cherryDenom(S),cherryHit(S))?'（'+rate(cherryDenom(S),cherryHit(S))+'）':''}`,
       `スイカCZ▶${ratio(n(S.rates,'suikaCzw'),n(S.rates,'suikaCzr'))}`
     ]);
     GROUPS.forEach(([key,title,arr,percent])=>{
@@ -293,7 +305,8 @@
     const S=ctx.S,g=denom(S);
     return [
       {title:'初当り',items:[
-        ...[['at','AT初当り'],['bonus','ボーナス初当り'],['weakCherry','弱チェリー']].map(([key,label])=>({label,value:n(S.counts,key),hot:key!=='bonus',text:label+' '+countRate(g,n(S.counts,key)),show:n(S.counts,key)>0})),
+        ...[['at','AT初当り'],['bonus','ボーナス初当り']].map(([key,label])=>({label,value:n(S.counts,key),hot:key!=='bonus',text:label+' '+countRate(g,n(S.counts,key)),show:n(S.counts,key)>0})),
+        {label:'弱チェリー',value:cherryHit(S),hot:true,text:'弱チェリー '+countRate(cherryDenom(S),cherryHit(S)),show:cherryHit(S)>0},
         detailRatio(S,'rates','suikaCzr','suikaCzw','スイカCZ')
       ]},
       ...GROUPS.map(([key,title,arr,percent])=>({title,percent,denominator:percent?groupTotal(S,key):0,items:arr.map(c=>({label:c[0]==='deny1High'?'設定1否定かつ高設定':c[1],value:n(S[key],c[0]),hot:c[3]>0}))})),
@@ -318,8 +331,9 @@
     </style>
     <div class="srcchips" role="group" aria-label="通常回転数の入力ソース">${chips}</div>
     <div class="gsrc" data-gsrc="unimemo"${src==='unimemo'?'':' hidden'}>
-      <div class="inrow"><label>ユニメモの通常プレイ数</label><input type="number" inputmode="numeric" data-number-key="gamesApp" value="${S.gamesApp||''}" placeholder="0"></div>
-      <div class="hint">ユニメモの通常プレイ数を入力します。公式アプリ『ユニメモ』の通常プレイ数を入力してください。着席時にログインしていれば、自分の遊技分だけが集計されるのでそのまま使えます。総プレイ数ではなく通常プレイ数を使用します。</div>
+      <div class="inrow"><label>総プレイ数</label><input type="number" inputmode="numeric" data-number-key="gamesAppTotal" value="${S.gamesAppTotal||''}" placeholder="0"></div>
+      <div class="inrow" style="margin-top:6px"><label>通常プレイ数</label><input type="number" inputmode="numeric" data-number-key="gamesApp" value="${S.gamesApp||''}" placeholder="0"></div>
+      <div class="hint">ユニメモの総プレイ数と通常プレイ数を入力。弱チェリーは総プレイ数、AT・ボーナス初当りは通常プレイ数で計算します（AT初当りの解析値は通常時あたりのため）。どちらも公式アプリ『ユニメモ』の基本情報の表記どおりです。着席時にログインしていれば、自分の遊技分だけが集計されるのでそのまま使えます。</div>
     </div>
     <div class="gsrc" data-gsrc="real"${src==='real'?'':' hidden'}>
       <div class="inrow"><label>打ち始め時の通常ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesStart" value="${S.gamesStart||''}" placeholder="0"></div>
@@ -390,13 +404,14 @@
       downloadName:'magireco_check.png',detailDownloadName:'magireco_check_detail.png',detail,
       blocks:ctx=>{
         const S=ctx.S,g=syncGames(S);
-        return [['通常回転',g+'G'],...[['at','AT初当り'],['weakCherry','弱チェリー']].map(([key,label])=>{
+        const cc=cherryHit(S),cr=rate(cherryDenom(S),cc);
+        return [['通常回転',g+'G'],...[['at','AT初当り']].map(([key,label])=>{
           const c=n(S.counts,key),r=rate(g,c);return [r?`${label} ${c}回`:label,r||c+'回'];
-        }),['確定演出','計'+certCount(S)+'回']];
+        }),[cr?`弱チェリー ${cc}回`:'弱チェリー',cr||cc+'回'],['確定演出','計'+certCount(S)+'回']];
       },
       chart:ctx=>({title:'カウント分布',x:130,step:200,width:80,items:[
         {label:'AT',value:n(ctx.S.counts,'at')},{label:'ボーナス',value:n(ctx.S.counts,'bonus')},
-        {label:'弱チェ',value:n(ctx.S.counts,'weakCherry')},{label:'CZ当選',value:n(ctx.S.rates,'suikaCzw')}
+        {label:'弱チェ',value:cherryHit(ctx.S)},{label:'CZ当選',value:n(ctx.S.rates,'suikaCzw')}
       ]}),
       bottom:ctx=>{
         const S=ctx.S,g=syncGames(S);
@@ -404,7 +419,7 @@
           {x:70,items:[row(bestCert(S),certCount(S),certCount(S)>0,'#ffc94d'),row(`通常回転 ${g}G`,g),
             row('AT初当り '+countRate(g,n(S.counts,'at')),n(S.counts,'at')),
             row('ボーナス '+countRate(g,n(S.counts,'bonus')),n(S.counts,'bonus')),
-            row('弱チェリー '+countRate(g,n(S.counts,'weakCherry')),n(S.counts,'weakCherry'))]},
+            row('弱チェリー '+countRate(cherryDenom(S),cherryHit(S)),cherryHit(S))]},
           {x:560,items:[row(`確定演出 計${certCount(S)}回`,certCount(S),certCount(S)>0,'#ffc94d'),
             row('スイカCZ '+ratio(n(S.rates,'suikaCzw'),n(S.rates,'suikaCzr')),n(S.rates,'suikaCzr')),
             row(shown(S,'plates','プレート'),groupTotal(S,'plates')),
