@@ -268,8 +268,8 @@
     </style>
     <div class="srcchips" role="group" aria-label="通常回転数の入力ソース">${chips}</div>
     <div class="gsrc" data-gsrc="unimemo"${src==='unimemo'?'':' hidden'}>
-      <div class="inrow"><label>ユニメモの通常時プレイ数</label><input type="number" inputmode="numeric" data-number-key="gamesApp" value="${S.gamesApp||''}" placeholder="0"></div>
-      <div class="hint">ユニメモの通常時プレイ数を入力します。公式アプリ『ユニメモ』の通常時プレイ数を入力してください。着席時にログインしていれば、自分の遊技分だけが集計されるのでそのまま使えます。総プレイ数ではなく通常時プレイ数を使用します。</div>
+      <div class="inrow"><label>ユニメモの通常プレイ数</label><input type="number" inputmode="numeric" data-number-key="gamesApp" value="${S.gamesApp||''}" placeholder="0"></div>
+      <div class="hint">ユニメモの通常プレイ数を入力します。公式アプリ『ユニメモ』の通常プレイ数を入力してください。着席時にログインしていれば、自分の遊技分だけが集計されるのでそのまま使えます。総プレイ数ではなく通常プレイ数を使用します。</div>
     </div>
     <div class="gsrc" data-gsrc="real"${src==='real'?'':' hidden'}>
       <div class="inrow"><label>打ち始め時の通常ゲーム数</label><input type="number" inputmode="numeric" data-number-key="gamesStart" value="${S.gamesStart||''}" placeholder="0"></div>
