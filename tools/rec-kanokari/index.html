@@ -338,7 +338,7 @@ kanokari:{
 
   // ---------- 当選時の追加質問 ----------
   hitExtraGroups:[   // 攻略キャラは契機が攻略成功／1G恋成功のときだけ
-    {key:"chara",label:"攻略キャラ（1・5・9人目だけ聞く。残りはシナリオから自動）",showWhen:{key:"trig",in:["攻略成功","1G恋成功"]},askWhenC3Mod:{mod:4,eq:0},options:["麻美","瑠夏","墨","千鶴","不明"],
+    {key:"chara",label:"攻略キャラ（1・5・9人目だけ聞く。残りはシナリオから自動）",hintTag:"設定示唆",showWhen:{key:"trig",in:["攻略成功","1G恋成功"]},askWhenC3Mod:{mod:4,eq:0},options:["麻美","瑠夏","墨","千鶴","不明"],
      scenario:{"麻美":["麻美","瑠夏","墨","千鶴"],"瑠夏":["瑠夏","墨","千鶴","麻美"],"墨":["墨","千鶴","麻美","瑠夏"],"千鶴":["千鶴","麻美","瑠夏","墨"]}},
     {key:"dreamG",label:"初期G数",type:"num",showWhen:{key:"type",in:["ななかりDREAM"]}}
   ],
@@ -370,14 +370,14 @@ kanokari:{
       onStart:{stockInc:{ren:1},onlyTriggers:["レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},   // 初当りの保証1個（引き戻し・連チャン・DREAM後は無し）
       atStart:null,
       atExtras:[
-        {label:"背景",once:true,short:"背景",groups:[{key:"bg",label:"チャンス告知の背景（水族館＜クリスマス＜ゼロ距離）",required:true,options:[{l:"水族館",h:"低"},{l:"クリスマスデート",h:"中"},{l:"ゼロ距離",h:"高モード期待"}]}]},
+        {label:"背景",once:true,short:"背景",groups:[{key:"bg",label:"チャンス告知の背景（水族館＜クリスマス＜ゼロ距離）",hintTag:"モード示唆",required:true,options:[{l:"水族館",h:"低"},{l:"クリスマスデート",h:"中"},{l:"ゼロ距離",h:"高モード期待"}]}]},
         {label:"下パネル消灯",type:"toggle",tag:"裏かのかり"},
         {label:"2択当て",title:"2択当て",groups:[{key:"r",label:"結果",required:true,options:["○","×"]}]}
       ],
       phases:{ending:{label:"ENDING",grid:[["phx:0","memo"],["hitEnd"]],onEnter:{yuuri:true,ask:{key:"last",label:"開始時のLAST枚数（任意）",type:"num"}},afterAt:{hit:"DREAM TIME",trig:"ENDING後"},noRevive:true,
         extras:[{label:"ボイス",title:"ENDING ボイス（レア役でPUSH）",groups:[
           {key:"role",label:"レア役",required:true,options:["弱チャンス目","チャンス目","強チャンス目","不明"]},
-          {key:"voice",label:"ボイス（公式11種）",required:true,options:[
+          {key:"voice",label:"ボイス（公式11種）",hintTag:"設定示唆",required:true,options:[
             {l:"麻美：アガる〜↑"},{l:"麻美：あれ〜？嫉妬させちゃった？",tone:"p"},{l:"麻美：もう恋なんてしないって決めてるんだから！",tone:"d"},
             {l:"瑠夏：彼女入りまーす"},{l:"瑠夏：私が一番…好きだもん…っ",tone:"p"},{l:"瑠夏：なんだか少し、お酒の味…",tone:"d"},
             {l:"墨：ふん、ふん、！！"},{l:"墨：私…っいるか…っ",tone:"p"},{l:"墨：今日は私がお饗しする番…",tone:"d"},
@@ -386,13 +386,13 @@ kanokari:{
         ]}]}},   // §11 ＋ D4
       atEnd:{groups:[
         {key:"medal",label:"獲得枚数表示",options:["なし","246","456","666","394"]},
-        {key:"screen",label:"終了画面の枠",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
+        {key:"screen",label:"終了画面の枠",hintTag:"設定示唆",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
       ]},
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","atx:1","atx:2"],["phase:ending","memo","hitEnd"]],
       revive:null},
     {label:"REG",kind:"at",tone:"d",askGOnEnd:false,
       atExtras:[
-        {type:"slotsSeq",label:"次のキャラ",logAs:"キャラ紹介",n:5,default:["和也","麻美・白","瑠夏・白","墨・白","千鶴・白"],   // 押すと「n人目」の選択肢。デフォルトどおりなら1タップ
+        {type:"slotsSeq",label:"次のキャラ",logAs:"キャラ紹介",hintTag:"設定示唆",n:5,default:["和也","麻美・白","瑠夏・白","墨・白","千鶴・白"],   // 押すと「n人目」の選択肢。デフォルトどおりなら1タップ
          options:[{l:"和也"},{l:"肺魚"},{l:"麻美・白"},{l:"麻美・ピンク",tone:"p"},{l:"麻美・赤",tone:"d"},{l:"瑠夏・白"},{l:"瑠夏・ピンク",tone:"p"},{l:"瑠夏・赤",tone:"d"},{l:"墨・白"},{l:"墨・ピンク",tone:"p"},{l:"墨・赤",tone:"d"},{l:"千鶴・白"},{l:"千鶴・ピンク",tone:"p"},{l:"千鶴・赤",tone:"d"},{l:"その他"}]},
         {type:"stockInc",label:"1G恋獲得",key:"koi"}
       ],
@@ -401,24 +401,24 @@ kanokari:{
       revive:null},
     {label:"エピソードBONUS",kind:"at",stockGain:true,tone:"p",askGOnEnd:false,
       atExtras:[
-        {label:"上部の色",once:true,short:"色",groups:[{key:"color",label:"上部の色",required:true,options:["白","青","黄","緑","赤","虹"]}]},
+        {label:"上部の色",once:true,short:"色",groups:[{key:"color",label:"上部の色",hintTag:"設定示唆",required:true,options:["白","青","黄","緑","赤","虹"]}]},
         {label:"開始時から虹",type:"toggle",tag:"開始時虹"}
       ],
       atEnd:{groups:[
-        {key:"roulette",label:"ルーレットの色",options:["白","青","黄","緑","赤","虹"]},
-        {key:"screen",label:"終了画面の枠",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
+        {key:"roulette",label:"ルーレットの色",hintTag:"設定示唆",options:["白","青","黄","緑","赤","虹"]},
+        {key:"screen",label:"終了画面の枠",hintTag:"設定示唆",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
       ]},
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","atx:1","memo"],["hitEnd"]],
       revive:null},
     {label:"スペシャルエピソードBONUS",kind:"at",stockGain:true,tone:"p",askGOnEnd:false,
       onStart:{tag:"ユメカノ",until:"manual"},   // 突入＝ユメカノ獲得確定
       atExtras:[
-        {label:"上部の色",once:true,short:"色",groups:[{key:"color",label:"上部の色",required:true,options:["白","青","黄","緑","赤","虹"]}]},
+        {label:"上部の色",once:true,short:"色",groups:[{key:"color",label:"上部の色",hintTag:"設定示唆",required:true,options:["白","青","黄","緑","赤","虹"]}]},
         {label:"開始時から虹",type:"toggle",tag:"開始時虹"}
       ],
       atEnd:{groups:[
-        {key:"roulette",label:"ルーレットの色",options:["白","青","黄","緑","赤","虹"]},
-        {key:"screen",label:"終了画面の枠",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
+        {key:"roulette",label:"ルーレットの色",hintTag:"設定示唆",options:["白","青","黄","緑","赤","虹"]},
+        {key:"screen",label:"終了画面の枠",hintTag:"設定示唆",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
       ]},
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","atx:1","memo"],["hitEnd"]],
       revive:null},
@@ -518,11 +518,11 @@ kanokari:{
   // ---------- まとめ（E3）：summarizeHints に足す機種固有の項目 ----------
   summary:{
     items:[
-      {label:"終了画面の枠",from:"atEnd.screen"},
-      {label:"REG キャラ紹介（シナリオ判定）",from:"slots",judge:"regScenario"},
-      {label:"攻略キャラの並び（シナリオ判定・引き戻しで区切る）",from:"chara",judge:"charaScenario"},
-      {label:"チャンス告知の背景",from:"extra:背景"},
-      {label:"EP 上部の色／ルーレット",from:"extra:上部の色,atEnd.roulette"},
+      {label:"終了画面の枠",hintTag:"設定示唆",from:"atEnd.screen"},
+      {label:"REG キャラ紹介（シナリオ判定）",hintTag:"設定示唆",from:"slots",judge:"regScenario"},
+      {label:"攻略キャラの並び（シナリオ判定・引き戻しで区切る）",hintTag:"設定示唆",from:"chara",judge:"charaScenario"},
+      {label:"チャンス告知の背景",hintTag:"モード示唆",from:"extra:背景"},
+      {label:"EP 上部の色／ルーレット",hintTag:"設定示唆",from:"extra:上部の色,atEnd.roulette"},
       {label:"初当り（G数と種別）",from:"firstHits"},
       {label:"攻略人数の最大",from:"c3max"}
     ]
@@ -985,30 +985,33 @@ function initTagSettings(){
   if(!Array.isArray(S.settings.tagList))S.settings.tagList=DEF_TAGS.slice();
   if(!S.settings.tagAuto)S.settings.tagAuto={hint:"設定示唆",mode:"モード示唆"};
 }
-const tagSheetDefs=new WeakMap(),tagEvents=new WeakMap(),modeTagSelections=new WeakSet();
+const tagSheetDefs=new WeakMap(),tagEvents=new WeakMap(),modeTagSelections=new WeakSet(),tagHintSelections=new WeakMap();
 function hintTagValue(v){return typeof v==="string"?[v]:Array.isArray(v)?v.filter(t=>typeof t==="string"):undefined}
 function selectHintTag(sel,g,o){
+  if(!tagHintSelections.has(sel))tagHintSelections.set(sel,new Map());
+  tagHintSelections.get(sel).set(g.key,/設定|偶数|奇数/.test((Array.isArray(o)?o[1]:o&&o.h)||""));
   const optionTags=hintTagValue(o&&o.hintTag),tags=optionTags??hintTagValue(g.hintTag);
   if(tags!==undefined)sel["_tag_"+g.key]={rank:optionTags!==undefined?2:1,tags};else delete sel["_tag_"+g.key];
 }
 // 未指定は undefined。明示した空配列は既定の自動タグを抑止する。
 function tagsFromSel(sel,sheetDef){
-  sel=sel||{};let tags=[],specified=false,rank=0;
-  Object.keys(sel).filter(k=>!k.startsWith("_")).forEach(k=>{
-    const meta=sel["_tag_"+k],v=hintTagValue(meta&&meta.tags)??hintTagValue(meta),level=meta&&meta.rank||1;
-    if(v!==undefined&&level>=rank){if(level>rank)tags=[];rank=level;specified=true;tags.push(...v)}
+  sel=sel||{};const tags=[],sheetTags=hintTagValue(sheetDef&&sheetDef.hintTag);let specified=false;
+  const keys=Object.keys(sel).filter(k=>!k.startsWith("_"));
+  keys.forEach(k=>{
+    const meta=sel["_tag_"+k],v=hintTagValue(meta&&meta.tags)??hintTagValue(meta)??sheetTags;
+    if(v!==undefined){specified=true;tags.push(...v)}
   });
-  if(!specified){const v=hintTagValue(sheetDef&&sheetDef.hintTag);if(v!==undefined){specified=true;tags.push(...v)}}
+  if(!keys.length&&sheetTags!==undefined){specified=true;tags.push(...sheetTags)}
   return specified?[...new Set(tags)].filter(t=>S.settings.tagList.includes(t)):undefined;
 }
 function autoTagsForEv(ev,md,ctx,sheetDef){
   if(ev.type==="tagFix"||ev.type==="memo")return [];
   const sel=ev.sel||ev.hitSel,explicit=tagsFromSel(sel,sheetDef||(sel&&tagSheetDefs.get(sel)));
   if(explicit!==undefined)return explicit;
-  const tags=[];
-  if(hintsFromEv(ev,md,ctx).length)tags.push(S.settings.tagAuto.hint);
-  if(sel&&modeTagSelections.has(sel))tags.push(S.settings.tagAuto.mode);
-  return [...new Set(tags)].filter(t=>t!=null&&S.settings.tagList.includes(t));
+  const hints=sel&&tagHintSelections.get(sel);
+  const tag=sel&&modeTagSelections.has(sel)?S.settings.tagAuto.mode:
+    hints&&Object.keys(sel).some(k=>!k.startsWith("_")&&hints.get(k))?S.settings.tagAuto.hint:null;
+  return tag!=null&&S.settings.tagList.includes(tag)?[tag]:[];
 }
 function allTagEvents(){return [...S.sessions,...(S.cur?[S.cur]:[])].flatMap(sess=>sess.events)}
 function addTagName(raw){
@@ -1060,9 +1063,11 @@ function groupSheet(title,groups,onDone,opts){
   // 選択肢が1グループだけで必須なら、選んだ瞬間に記録する（「記録する」を押させない）
   const instant=!groups.some(g=>g.multi)&&(opts.instant===true||(opts.instant!==false&&groups.length===1&&groups[0].type!=="num"&&groups[0].required&&!opts.after&&!opts.before));
   const refreshTags=()=>groups.forEach(g=>{
+    if(!tagHintSelections.has(sel))tagHintSelections.set(sel,new Map());
+    tagHintSelections.get(sel).delete(g.key);
     if(sel[g.key]==null){delete sel["_tag_"+g.key];return}
     const values=Array.isArray(sel[g.key])?sel[g.key]:[sel[g.key]],choices=[];
-    values.forEach(value=>{const o=(g.options||[]).find(o=>(Array.isArray(o)?o[0]:(o&&o.l!=null?o.l:o))===value),pick={};selectHintTag(pick,g,o);if(pick["_tag_"+g.key])choices.push(pick["_tag_"+g.key])});
+    values.forEach(value=>{const o=(g.options||[]).find(o=>(Array.isArray(o)?o[0]:(o&&o.l!=null?o.l:o))===value),pick={};selectHintTag(pick,g,o);if(tagHintSelections.get(pick).get(g.key))tagHintSelections.get(sel).set(g.key,true);if(pick["_tag_"+g.key])choices.push(pick["_tag_"+g.key])});
     const rank=Math.max(0,...choices.map(x=>x.rank));
     if(rank)sel["_tag_"+g.key]={rank,tags:[...new Set(choices.filter(x=>x.rank===rank).flatMap(x=>x.tags))]};else delete sel["_tag_"+g.key];
   });
@@ -1301,7 +1306,7 @@ function renderGrid(){
   if(c.mode==="normal"&&c.pendingHit){const b=mk("button","hot","当選を入れる");b.style.minHeight="44px";b.addEventListener("click",()=>openHit(c.pendingHit));w.lastElementChild.append(b)}
 }
 function canOpenExtra(x){return !!x&&(["stockInc","slots","slotsSeq","count","melonLeft","fixAtStart","num","select","toggle"].includes(x.type)||(!x.type&&Array.isArray(x.groups)))}
-function toggleExtra(t){const c=S.cur,on=!!(c.tags&&c.tags[t.tag]);mark();c.tags=c.tags||{};if(on){delete c.tags[t.tag];push("toggle",t.label+" OFF")}else{c.tags[t.tag]=t.until||"hitEnd";push("toggle",t.log||(t.label+" ON"))}}
+function toggleExtra(t){const c=S.cur,on=!!(c.tags&&c.tags[t.tag]);mark();c.tags=c.tags||{};if(on){delete c.tags[t.tag];push("toggle",t.label+" OFF")}else{c.tags[t.tag]=t.until||"hitEnd";push("toggle",t.log||(t.label+" ON"),null,t)}}
 function makeToggleButton(t){const on=!!(S.cur.tags&&S.cur.tags[t.tag]),b=mk("button",on?"par on":"",t.label+(on?" ON":""));b.addEventListener("click",()=>{toggleExtra(t);const active=!!S.cur.tags[t.tag];b.textContent=t.label+(active?" ON":"");b.className=active?"par on":""});return b}
 function makeGridButton(spec){
   const c=S.cur,d=DEF();
@@ -2559,14 +2564,16 @@ function showHintSummary(sess){
     if(!cats.length){b.append(mk("div","hint","まだ示唆の記録がありません"));return}
     const md=MACHINES[sess.machineId]||MACHINES.generic,byCat=new Map(cats.map(cat=>[cat,new Set()]));
     sess.events.forEach(ev=>{
-      const tags=Array.isArray(ev.tags)?ev.tags:(hintsFromEv(ev,md,sess).length?[S.settings.tagAuto.hint]:[]);
+      // タグが無い行は見出しを持たない（「その他」に落ちる）。
+      // rec96 では旧規則（まとめに載るなら設定示唆）で補っていたが、rec97 でその規則自体を廃止した
+      const tags=Array.isArray(ev.tags)?ev.tags:[];
       hintsFromEv(ev,md,sess).forEach(([cat])=>{const dest=byCat.get(cat);if(dest)tags.forEach(t=>{if(t!=null&&S.settings.tagList.includes(t))dest.add(t)})});
     });
     if(sess.modeHints&&sess.modeHints.length&&byCat.has("モード示唆")&&S.settings.tagList.includes(S.settings.tagAuto.mode))byCat.get("モード示唆").add(S.settings.tagAuto.mode);
     if(byCat.has("レア役")&&S.settings.tagList.includes(S.settings.tagAuto.hint))byCat.get("レア役").add(S.settings.tagAuto.hint);
     (md.summary&&md.summary.items||[]).forEach(item=>{
       const dest=byCat.get(item.label);if(!dest)return;
-      const tags=hintTagValue(item.hintTag)??[S.settings.tagAuto.hint];
+      const tags=hintTagValue(item.hintTag)??[];
       tags.forEach(t=>{if(t!=null&&S.settings.tagList.includes(t))dest.add(t)});
     });
     const order=[...S.settings.tagList.filter(t=>t!=="その他"),"その他"];

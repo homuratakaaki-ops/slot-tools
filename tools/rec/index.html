@@ -359,7 +359,7 @@ const MACHINES={
     },
     zenchou:{stages:["前兆煽り","前兆","前兆ステージ","訪れし者"],stageIndex:[2,3],cutStages:[0],outGroups:[
       {key:"x",label:"最終幕（任意）",options:["白","青","緑","赤","最終幕"]},
-      {key:"wipe",label:"ワイプ演出（任意）",options:["なし","スポットライトのみ","＋あるるかんシルエット","＋あるるかんアップ"]},
+      {key:"wipe",hintTag:"設定示唆",label:"ワイプ演出（任意）",options:["なし","スポットライトのみ","＋あるるかんシルエット","＋あるるかんアップ"]},
       {key:"stage",label:"戻ったステージ（任意）",options:["フウ屋敷","仲町サーカス","才賀善治屋敷 夕方"]}
     ]},
     parallel:[{
@@ -390,7 +390,7 @@ const MACHINES={
     ],
     // CZ失敗時の標準セット（幕間チャンス・運命の一劇・女神・劇場ジャッジ共通）
     czEndStd:{groups:[
-      {key:"screen",label:"CZ終了画面（要PUSH）",options:[
+      {key:"screen",label:"CZ終了画面（要PUSH）",hintTag:"モード示唆",options:[
         {l:"鳴海",h:"デフォルト"},
         {l:"勝",h:"通常B期待度UP",set:{mode:"通常B期待度UP",span:1}},
         {l:"しろがね",h:"通常C期待度UP",set:{mode:"通常C期待度UP",span:1}},
@@ -406,7 +406,7 @@ const MACHINES={
         {l:"真夜中のサーカス",h:"2回以内に天国",set:{mode:"2回以内に天国有り濃厚",span:2}},
         {l:"フェイスレス",h:"5回中3回以上 天国",set:{mode:"5回中3回以上 天国濃厚",span:5}}
       ]},
-      {key:"wipe",label:"ワイプ演出",options:["なし","スポットライトのみ","＋あるるかんシルエット","＋あるるかんアップ"]},
+      {key:"wipe",hintTag:"設定示唆",label:"ワイプ演出",options:["なし","スポットライトのみ","＋あるるかんシルエット","＋あるるかんアップ"]},
       {key:"stage",label:"開始ステージ",options:["フウ屋敷","仲町サーカス"]}
     ],successToAt:"AT"},
     atExtras:[
@@ -461,7 +461,7 @@ const MACHINES={
     hits:[
       {label:"BIG",kind:"at",atStart:null,
         atEnd:{note:"BETを押す前に、フェザーランプの色と隠しハイビスカスを確認してください",groups:[
-          {key:"feather",label:"フェザーランプ（終了時）",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","奇数＋高設定UP"],["赤","偶数＋高設定UP"],["紫","設定4以上"],["虹","設定6"]]}
+          {key:"feather",label:"フェザーランプ（終了時）",hintTag:"設定示唆",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","奇数＋高設定UP"],["赤","偶数＋高設定UP"],["紫","設定4以上"],["虹","設定6"]]}
         ]},
         afterAtWithTag:{tag:"1G連",hit:"BIG",trig:"1G連",viaNormal:true,realG:1},
         askGOnEnd:false,
@@ -470,7 +470,7 @@ const MACHINES={
       },
       {label:"REG",kind:"at",atStart:null,
         atEnd:{note:"BETを押す前に、フェザーランプの色と隠しハイビスカスを確認してください",groups:[
-          {key:"feather",label:"フェザーランプ（終了時）",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","奇数＋高設定UP"],["赤","偶数＋高設定UP"],["紫","設定4以上"],["虹","設定6"]]}
+          {key:"feather",label:"フェザーランプ（終了時）",hintTag:"設定示唆",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","奇数＋高設定UP"],["赤","偶数＋高設定UP"],["紫","設定4以上"],["虹","設定6"]]}
         ]},
         afterAtWithTag:{tag:"1G連",hit:"BIG",trig:"1G連",viaNormal:true,realG:1},
         askGOnEnd:false,
@@ -482,7 +482,7 @@ const MACHINES={
       {label:"フェザーランプ",short:"フェザー",title:"フェザーランプ（消化中・次回モード示唆）",once:true,groups:[{key:"color",label:"色",required:true,options:[{l:"白"},{l:"青"},{l:"黄"},{l:"緑"},{l:"赤"},{l:"紫"},{l:"虹",h:"次回天国濃厚（初当り時は対象外）",set:{tag:"次回天国濃厚",until:"nextHit",ifTag:"天国"}}]}]},
       {label:"1G連告知",title:"1G連告知の契機",groups:[{key:"by",label:"契機",required:true,options:[{l:"🍒チェリー",set:{tag:"1G連",until:"hitEnd"}},{l:"🍉スイカ",set:{tag:"1G連",until:"hitEnd"}},{l:"🔁リプ2連",set:{tag:"1G連",until:"hitEnd"}},{l:"不明",set:{tag:"1G連",until:"hitEnd"}}]}]}
     ],
-    toggles:{hidden:{label:"隠しハイビスカス",tag:"超ハイビ",until:"stageEnd",log:"隠しハイビスカス 点灯"}},
+    toggles:{hidden:{label:"隠しハイビスカス",hintTag:"設定示唆",tag:"超ハイビ",until:"stageEnd",log:"隠しハイビスカス 点灯"}},
     extras:[
       {type:"select",label:"トップランプ",title:"トップランプ（高確示唆）",groups:[{key:"flash",label:"フラッシュ",required:true,options:[["1回","高確A"],["3回","高確B以上"]]}]}
     ],
@@ -800,30 +800,33 @@ function initTagSettings(){
   if(!Array.isArray(S.settings.tagList))S.settings.tagList=DEF_TAGS.slice();
   if(!S.settings.tagAuto)S.settings.tagAuto={hint:"設定示唆",mode:"モード示唆"};
 }
-const tagSheetDefs=new WeakMap(),tagEvents=new WeakMap(),modeTagSelections=new WeakSet();
+const tagSheetDefs=new WeakMap(),tagEvents=new WeakMap(),modeTagSelections=new WeakSet(),tagHintSelections=new WeakMap();
 function hintTagValue(v){return typeof v==="string"?[v]:Array.isArray(v)?v.filter(t=>typeof t==="string"):undefined}
 function selectHintTag(sel,g,o){
+  if(!tagHintSelections.has(sel))tagHintSelections.set(sel,new Map());
+  tagHintSelections.get(sel).set(g.key,/設定|偶数|奇数/.test((Array.isArray(o)?o[1]:o&&o.h)||""));
   const optionTags=hintTagValue(o&&o.hintTag),tags=optionTags??hintTagValue(g.hintTag);
   if(tags!==undefined)sel["_tag_"+g.key]={rank:optionTags!==undefined?2:1,tags};else delete sel["_tag_"+g.key];
 }
 // 未指定は undefined。明示した空配列は既定の自動タグを抑止する。
 function tagsFromSel(sel,sheetDef){
-  sel=sel||{};let tags=[],specified=false,rank=0;
-  Object.keys(sel).filter(k=>!k.startsWith("_")).forEach(k=>{
-    const meta=sel["_tag_"+k],v=hintTagValue(meta&&meta.tags)??hintTagValue(meta),level=meta&&meta.rank||1;
-    if(v!==undefined&&level>=rank){if(level>rank)tags=[];rank=level;specified=true;tags.push(...v)}
+  sel=sel||{};const tags=[],sheetTags=hintTagValue(sheetDef&&sheetDef.hintTag);let specified=false;
+  const keys=Object.keys(sel).filter(k=>!k.startsWith("_"));
+  keys.forEach(k=>{
+    const meta=sel["_tag_"+k],v=hintTagValue(meta&&meta.tags)??hintTagValue(meta)??sheetTags;
+    if(v!==undefined){specified=true;tags.push(...v)}
   });
-  if(!specified){const v=hintTagValue(sheetDef&&sheetDef.hintTag);if(v!==undefined){specified=true;tags.push(...v)}}
+  if(!keys.length&&sheetTags!==undefined){specified=true;tags.push(...sheetTags)}
   return specified?[...new Set(tags)].filter(t=>S.settings.tagList.includes(t)):undefined;
 }
 function autoTagsForEv(ev,md,ctx,sheetDef){
   if(ev.type==="tagFix"||ev.type==="memo")return [];
   const sel=ev.sel||ev.hitSel,explicit=tagsFromSel(sel,sheetDef||(sel&&tagSheetDefs.get(sel)));
   if(explicit!==undefined)return explicit;
-  const tags=[];
-  if(hintsFromEv(ev,md,ctx).length)tags.push(S.settings.tagAuto.hint);
-  if(sel&&modeTagSelections.has(sel))tags.push(S.settings.tagAuto.mode);
-  return [...new Set(tags)].filter(t=>t!=null&&S.settings.tagList.includes(t));
+  const hints=sel&&tagHintSelections.get(sel);
+  const tag=sel&&modeTagSelections.has(sel)?S.settings.tagAuto.mode:
+    hints&&Object.keys(sel).some(k=>!k.startsWith("_")&&hints.get(k))?S.settings.tagAuto.hint:null;
+  return tag!=null&&S.settings.tagList.includes(tag)?[tag]:[];
 }
 function allTagEvents(){return [...S.sessions,...(S.cur?[S.cur]:[])].flatMap(sess=>sess.events)}
 function addTagName(raw){
@@ -1039,7 +1042,7 @@ function makeGridButton(spec){
   if(spec==="lcdAdd")return d.lcdAdd?mkb(d.lcdAdd.label||"液晶上乗せ","pri",openLcdAdd):null;
   if(spec==="rare")return mkb("レア役","pri",openRare);
   if(spec.startsWith("rare:")){const r=d.rares.find(x=>x.key===spec.slice(5));if(!r)return null;const v=c.rare[r.key]||{};return mkb(r.label+(r.count===false?"":" "+(v.n||0)),"pri",()=>recordRare(r,false))}
-  if(spec.startsWith("toggle:")){const t=d.toggles&&d.toggles[spec.slice(7)];if(!t)return null;const on=!!(c.tags&&c.tags[t.tag]);return mkb(t.label+(on?" ON":""),on?"par on":"",()=>{mark();c.tags=c.tags||{};if(on){delete c.tags[t.tag];push("toggle",t.label+" OFF")}else{c.tags[t.tag]=t.until||"hitEnd";push("toggle",t.log||(t.label+" ON"))}})}
+  if(spec.startsWith("toggle:")){const t=d.toggles&&d.toggles[spec.slice(7)];if(!t)return null;const on=!!(c.tags&&c.tags[t.tag]);return mkb(t.label+(on?" ON":""),on?"par on":"",()=>{mark();c.tags=c.tags||{};if(on){delete c.tags[t.tag];push("toggle",t.label+" OFF")}else{c.tags[t.tag]=t.until||"hitEnd";push("toggle",t.log||(t.label+" ON"),null,t)}})}
   if(spec==="hit")return mkb("当選","hot",openHit);
   if(spec==="hitEnd")return mkb((c.hit?c.hit.label:"")+" 終了","hot",hitEnd);
   if(spec==="zenchou")return mkb(zenchouLabel(),zenIdx()>=0?"on":"",openZenchou);
@@ -1906,7 +1909,9 @@ function showHintSummary(sess){
     if(!cats.length){b.append(mk("div","hint","まだ示唆の記録がありません"));return}
     const md=MACHINES[sess.machineId]||MACHINES.generic,byCat=new Map(cats.map(cat=>[cat,new Set()]));
     sess.events.forEach(ev=>{
-      const tags=Array.isArray(ev.tags)?ev.tags:(hintsFromEv(ev,md,sess).length?[S.settings.tagAuto.hint]:[]);
+      // タグが無い行は見出しを持たない（「その他」に落ちる）。
+      // rec96 では旧規則（まとめに載るなら設定示唆）で補っていたが、rec97 でその規則自体を廃止した
+      const tags=Array.isArray(ev.tags)?ev.tags:[];
       hintsFromEv(ev,md,sess).forEach(([cat])=>{const dest=byCat.get(cat);if(dest)tags.forEach(t=>{if(t!=null&&S.settings.tagList.includes(t))dest.add(t)})});
     });
     if(sess.modeHints&&sess.modeHints.length&&byCat.has("モード示唆")&&S.settings.tagList.includes(S.settings.tagAuto.mode))byCat.get("モード示唆").add(S.settings.tagAuto.mode);
