@@ -610,7 +610,7 @@ kanokari:{
     },
     zenchou:{stages:["前兆煽り","前兆","前兆ステージ","訪れし者"],stageIndex:[2,3],cutStages:[0],outGroups:[
       {key:"x",label:"最終幕（任意）",options:["白","青","緑","赤","最終幕"]},
-      {key:"wipe",label:"ワイプ演出（任意）",options:["なし","スポットライトのみ","＋あるるかんシルエット","＋あるるかんアップ"]},
+      {key:"wipe",hintTag:"設定示唆",label:"ワイプ演出（任意）",options:["なし","スポットライトのみ","＋あるるかんシルエット","＋あるるかんアップ"]},
       {key:"stage",label:"戻ったステージ（任意）",options:["フウ屋敷","仲町サーカス","才賀善治屋敷 夕方"]}
     ]},
     parallel:[{
@@ -641,7 +641,7 @@ kanokari:{
     ],
     // CZ失敗時の標準セット（幕間チャンス・運命の一劇・女神・劇場ジャッジ共通）
     czEndStd:{groups:[
-      {key:"screen",label:"CZ終了画面（要PUSH）",options:[
+      {key:"screen",label:"CZ終了画面（要PUSH）",hintTag:"モード示唆",options:[
         {l:"鳴海",h:"デフォルト"},
         {l:"勝",h:"通常B期待度UP",set:{mode:"通常B期待度UP",span:1}},
         {l:"しろがね",h:"通常C期待度UP",set:{mode:"通常C期待度UP",span:1}},
@@ -657,7 +657,7 @@ kanokari:{
         {l:"真夜中のサーカス",h:"2回以内に天国",set:{mode:"2回以内に天国有り濃厚",span:2}},
         {l:"フェイスレス",h:"5回中3回以上 天国",set:{mode:"5回中3回以上 天国濃厚",span:5}}
       ]},
-      {key:"wipe",label:"ワイプ演出",options:["なし","スポットライトのみ","＋あるるかんシルエット","＋あるるかんアップ"]},
+      {key:"wipe",hintTag:"設定示唆",label:"ワイプ演出",options:["なし","スポットライトのみ","＋あるるかんシルエット","＋あるるかんアップ"]},
       {key:"stage",label:"開始ステージ",options:["フウ屋敷","仲町サーカス"]}
     ],successToAt:"AT"},
     atExtras:[
@@ -712,7 +712,7 @@ kanokari:{
     hits:[
       {label:"BIG",kind:"at",atStart:null,
         atEnd:{note:"BETを押す前に、フェザーランプの色と隠しハイビスカスを確認してください",groups:[
-          {key:"feather",label:"フェザーランプ（終了時）",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","奇数＋高設定UP"],["赤","偶数＋高設定UP"],["紫","設定4以上"],["虹","設定6"]]}
+          {key:"feather",label:"フェザーランプ（終了時）",hintTag:"設定示唆",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","奇数＋高設定UP"],["赤","偶数＋高設定UP"],["紫","設定4以上"],["虹","設定6"]]}
         ]},
         afterAtWithTag:{tag:"1G連",hit:"BIG",trig:"1G連",viaNormal:true,realG:1},
         askGOnEnd:false,
@@ -721,7 +721,7 @@ kanokari:{
       },
       {label:"REG",kind:"at",atStart:null,
         atEnd:{note:"BETを押す前に、フェザーランプの色と隠しハイビスカスを確認してください",groups:[
-          {key:"feather",label:"フェザーランプ（終了時）",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","奇数＋高設定UP"],["赤","偶数＋高設定UP"],["紫","設定4以上"],["虹","設定6"]]}
+          {key:"feather",label:"フェザーランプ（終了時）",hintTag:"設定示唆",options:[["白","デフォルト"],["青","奇数UP"],["黄","偶数UP"],["緑","奇数＋高設定UP"],["赤","偶数＋高設定UP"],["紫","設定4以上"],["虹","設定6"]]}
         ]},
         afterAtWithTag:{tag:"1G連",hit:"BIG",trig:"1G連",viaNormal:true,realG:1},
         askGOnEnd:false,
@@ -730,10 +730,10 @@ kanokari:{
       }
     ],
     atExtras:[
-      {label:"フェザーランプ",short:"フェザー",title:"フェザーランプ（消化中・次回モード示唆）",once:true,groups:[{key:"color",label:"色",required:true,options:[{l:"白"},{l:"青"},{l:"黄"},{l:"緑"},{l:"赤"},{l:"紫"},{l:"虹",h:"次回天国濃厚（初当り時は対象外）",set:{tag:"次回天国濃厚",until:"nextHit",ifTag:"天国"}}]}]},
+      {label:"フェザーランプ",short:"フェザー",title:"フェザーランプ（消化中・次回モード示唆）",once:true,groups:[{key:"color",label:"色",hintTag:"モード示唆",required:true,options:[{l:"白"},{l:"青"},{l:"黄"},{l:"緑"},{l:"赤"},{l:"紫"},{l:"虹",h:"次回天国濃厚（初当り時は対象外）",set:{tag:"次回天国濃厚",until:"nextHit",ifTag:"天国"}}]}]},
       {label:"1G連告知",title:"1G連告知の契機",groups:[{key:"by",label:"契機",required:true,options:[{l:"🍒チェリー",set:{tag:"1G連",until:"hitEnd"}},{l:"🍉スイカ",set:{tag:"1G連",until:"hitEnd"}},{l:"🔁リプ2連",set:{tag:"1G連",until:"hitEnd"}},{l:"不明",set:{tag:"1G連",until:"hitEnd"}}]}]}
     ],
-    toggles:{hidden:{label:"隠しハイビスカス",tag:"超ハイビ",until:"stageEnd",log:"隠しハイビスカス 点灯"}},
+    toggles:{hidden:{label:"隠しハイビスカス",hintTag:"設定示唆",tag:"超ハイビ",until:"stageEnd",log:"隠しハイビスカス 点灯"}},
     extras:[
       {type:"select",label:"トップランプ",title:"トップランプ（高確示唆）",groups:[{key:"flash",label:"フラッシュ",required:true,options:[["1回","高確A"],["3回","高確B以上"]]}]}
     ],

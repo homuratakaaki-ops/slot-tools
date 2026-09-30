@@ -479,7 +479,7 @@ const MACHINES={
       }
     ],
     atExtras:[
-      {label:"フェザーランプ",short:"フェザー",title:"フェザーランプ（消化中・次回モード示唆）",once:true,groups:[{key:"color",label:"色",required:true,options:[{l:"白"},{l:"青"},{l:"黄"},{l:"緑"},{l:"赤"},{l:"紫"},{l:"虹",h:"次回天国濃厚（初当り時は対象外）",set:{tag:"次回天国濃厚",until:"nextHit",ifTag:"天国"}}]}]},
+      {label:"フェザーランプ",short:"フェザー",title:"フェザーランプ（消化中・次回モード示唆）",once:true,groups:[{key:"color",label:"色",hintTag:"モード示唆",required:true,options:[{l:"白"},{l:"青"},{l:"黄"},{l:"緑"},{l:"赤"},{l:"紫"},{l:"虹",h:"次回天国濃厚（初当り時は対象外）",set:{tag:"次回天国濃厚",until:"nextHit",ifTag:"天国"}}]}]},
       {label:"1G連告知",title:"1G連告知の契機",groups:[{key:"by",label:"契機",required:true,options:[{l:"🍒チェリー",set:{tag:"1G連",until:"hitEnd"}},{l:"🍉スイカ",set:{tag:"1G連",until:"hitEnd"}},{l:"🔁リプ2連",set:{tag:"1G連",until:"hitEnd"}},{l:"不明",set:{tag:"1G連",until:"hitEnd"}}]}]}
     ],
     toggles:{hidden:{label:"隠しハイビスカス",hintTag:"設定示唆",tag:"超ハイビ",until:"stageEnd",log:"隠しハイビスカス 点灯"}},
