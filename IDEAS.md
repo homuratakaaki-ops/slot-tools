@@ -1234,6 +1234,89 @@ EDランプ 6/7択。からくりの通常時セリフ 4/12択は `set.mode` で
 PASS に数え、読めないものは `ERROR` として別に数えて ID を並べ、FAIL か ERROR があれば exit 1 にした。
 **これ以降の基準値は「FAIL 0 かつ ERROR 0」で読む。** 経緯は `NOTES-tsumugi.md` に書いた。
 
+## tools/nisshi 稼働日誌（第1段）
+
+全部の記録を1か所に貯めて振り返る新しいページ。正本の仕様書：nisshi-spec-v03.md（確定版・シオン）。
+指示書は第1段（§8 の1段目）だけ。実装はミコト、検証はツムギ。**限定公開（noindex・導線なし）。**
+
+- 保存は **IndexedDB**（`slot-tools-nisshi` 版1）。ストアは plays / days / stores / tagDefs / imports / meta。
+  起動時に `navigator.storage.persist()` を依頼し、結果を設定画面に出す。
+  複数タブは BroadcastChannel で「更新した」を伝えるだけ（rec のような凍結はしない）
+- 1台＝1件の `play`。`id` は `source + ":" + sourceId`。取り込み直しは**合流**で、
+  元データ側（money・events など）を差し替え、ノート側（`aim` / `tags` / `diary` / `marks` / `mergedFrom`）は残す
+- 取り込み口：rec 本線（`slot-tools-rec`）・かのかり箱（`slot-tools-rec-kanokari`）・
+  マイログ（`juggler-mylog:v1`・**素の配列**で保存されている）・遊タイム（**`ytv3:data`**）・ファイル
+- 二重計上の自動対応：rec の session と `linkedSessionId` の entry／本線とかのかり箱の同じ id／
+  **シオンが 9/28 に簡易収支へ入れた遊タイム・マイログの entries と、直接取り込んだ台**
+- 第2段のもの（日記・狙い方タグ・note用コピー・「気になる」・収支の登録・店舗設定）は
+  **画面に出していない**（「準備中」も出さない）
+
+### 計算式は元ツールの関数をそのまま移植した
+
+- **遊タイム**：`yutime-v3.html` の `investmentSource` / `investmentTotals` /
+  `usesPersonalBalanceFormula` / `playerInvestedBalls` / `profitYenForSession` /
+  `storeTermsForSession` / `exchangeRateForStore` を移植。
+  当該関数には「この関数だけに置く。条件式を個別に書き直さない。B84で確定した条件が
+  S4の修正で貯玉引出から落ちる事故が2度起きている」というコメントがあるため、言い換えずに移した
+- **rec**：`invested()` / `replayed()` / `profit()` を移植し、`raw.recProfit` に持つ。
+  rec の台は交換条件が分からないので `cond` は null で、`yen` に `recProfit` を使う
+- 節目の判定は **`ev.type`（hitStart・hitEnd・money）と `ev.tags` だけ**。文章から推定しない。
+  rec96〜98 の行タグ（`ev.tags`）がそのまま効く。`snap` は捨てる
+
+### 指示書の記述と実データが食い違っていた点（実データを正とした）
+
+| 指示書 | 実データ |
+|---|---|
+| 遊タイムの機種名は `machines[].name` | **`modelName`**（台番は `daiNo`） |
+| 引出＝再プレイ＋開始持ち玉 | **パーソナル店だけその式。**非パーソナル店は `mochidama投入＋再プレイ` |
+| 投資は `cash` と `saipurei` | **3種**（`cash`＝円／`saipurei`＝玉／**`mochidama`**＝玉）。`source \|\| type` で振り分ける |
+| （記載なし） | 預入に **`zanhoryuBalls`** を加える |
+| memo は「マイログから取り込み」 | **「マイジャグログから取り込み」**（`source:"juggler-mylog"` も併用して判定） |
+| 遊タイムの除外は16件 | **13件。** 51−35＝16 だが「completed かつ `endTotalBalls` あり」で3件落ちるため対象は48件 |
+
+**`cond.exch` を小数2桁で保存する**ため、遊タイム本体の計算（`100/exchangeBalls` を丸めない）と
+**48台で17件・合計 −6円** ずれる。シオンの変換（−20,553円）に一致するのは指示書の式なので
+そちらを採り、`raw.yutimeProfit` に本体式の値も持たせた。
+
+### ファイルから取り込むときの出どころ（2026/10/1 夢爽の裁定）
+
+**本線の書き出しは `entries`・`stores` を持ち、かのかり箱の書き出しはどちらも持たない**
+（`{sessions, cur, tagList, exportedAt}` だけ）ため、かのかり箱のファイルは出どころを決められない。
+夢爽の裁定は**「選ばせる」**。識別子（`storageKey` または `entries`）が無いときだけ
+確認画面にラジオ（既定＝rec 本線）を出し、選び直すと件数を出し直す。
+`entries`・`stores` の有無で自動判別する案は**採らない**（古い本線の書き出しを誤分類するため）。
+
+### 検証（実データ。夢爽が 10/1 に書き出しを3つ置いてくれた）
+
+| 項目 | 実測 |
+|---|---|
+| 遊タイム（completed かつ `endTotalBalls` あり） | 48台・**＋73,624円** |
+| うちシオンの 9/28 変換35件と一致（日付＋開始玉＋終了玉） | **35/35・−20,553円** |
+| シオンが除外していた分 | 13台・＋94,177円 |
+| マイログ | 11台・**＋73,016円**（`seat` は 8/11。空同士の照合も通る） |
+| 二重計上 | ledger 46件すべて `mergedFrom` へ。この2つの出どころの play は **59台・＋146,640円** |
+| 2回目の取り込み | 新規0・更新0・変化なし62 |
+| 書き出し→空の状態へ復元 | 62台・＋162,771円・合流46件すべて一致 |
+| IndexedDB 使用量 | 約 590KB（62台・実データ） |
+
+ツムギの独立スイート `nisshi1-verify.cjs` 34件・`nisshi1-file.cjs` 13件・期待値算出 `nisshi1-expect.cjs`
+（いずれも `~/Downloads/rec87-evidence/rec87-recheck/`・リポジトリには入れない）。
+390×844 と 375×667 の5画面で横はみ出し0・44px未満の操作要素0。
+rec 系への影響なし（監査 173件 FAIL 0 ERROR 0／かのかり通し 139件 FAIL 0／突き合わせ 63点 差分0）。
+
+**rec 本線・かのかり箱の `sessions` の実データは手元に無く、合成で検証した。**
+**非パーソナル店の `mochidama` 分岐も実データでは通らない**（実データの店はパーソナルかテスト店だけ）。
+
+**検証スクリプトの読み違いを1件やった（教訓）：** `imports` ストアは `keyPath:'id'` 順で返るので
+`hist[hist.length-1]` は**挿入順の最後ではない**。2回目の取り込みの件数を1回目のものと読み違えて
+「実装の競合」と報告してしまい、ミコトの反論（`previewBatch` は IndexedDB を読み直している）が正しかった。
+**`at` で並べ替えて読むこと。**
+
+### 第1段で作っていないもの（第2段以降）
+
+日記・狙い方タグ・自由タグ・note用コピー・「気になる」・収支の登録画面・店舗設定の編集・
+rec からの自動送信・「同じ台の候補」の確認画面。**画面にも出していない。**
+
 ## tools/rec-kanokari：彼女、お借りします 専用の記録ツール（別箱）
 
 rec89 をコピーして作った別箱。KEY="slot-tools-rec-kanokari"。本線 tools/rec は触らない。
