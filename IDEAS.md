@@ -1321,7 +1321,7 @@ rec からの自動送信・「同じ台の候補」の確認画面。**画面�
 
 rec89 をコピーして作った別箱。KEY="slot-tools-rec-kanokari"。本線 tools/rec は触らない。
 定義が実戦2〜3回で固まったら本線に統合する（期限付きの二重管理）。
-仕様書：docs/specs/kanokari-spec-v02.md、器の拡張仕様：docs/specs/rec-kanokari-engine-v01.md、定義：kanokari-def-v12.js（正本はシオン）。
+仕様書：docs/specs/kanokari-spec-v02.md、器の拡張仕様：docs/specs/rec-kanokari-engine-v01.md、定義：docs/specs/kanokari-def-v16.js（定義の正本。v0.2 の仕様書以降の変更は定義と本書にある）。
 コミット名義は実装した担当に合わせる（2026-09-18 夢爽の裁定）。この箱の最初の7本（a8db5e9〜1da84f7）は本文に「実装：ミコト（codex）」と書きながら Shion 名義で出ているが、シオンがこの原則を知らずに指示書へそう書いたためで、書き換えない。507051e 以降はミコトが実装したぶんを Mikoto 名義で出す。
 
 ### 工程（からくり・ハイビとの違い）
