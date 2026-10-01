@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>稼働日誌</title>
+<style>
+:root{color-scheme:dark;--bg:#0f0e0c;--panel:#191713;--panel2:#221f19;--line:#332e25;--ink:#f2ece1;--dim:#b0a597;--accent:#d9a441;--positive:#69c08a;--negative:#e98076}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,"Hiragino Sans","Yu Gothic UI",sans-serif;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.shell{max-width:640px;margin:auto;padding:12px 10px 32px}header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);gap:8px}h1{font-size:20px;color:var(--accent)}h2{font-size:19px;margin:20px 0 10px}h3{font-size:16px}button,input,select{font:inherit;color:inherit;max-width:100%;min-width:0}button{min-height:44px;min-width:44px;padding:9px 12px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;cursor:pointer}button:hover{border-color:var(--accent)}button:disabled{opacity:.5;cursor:default}button[aria-pressed=true],.active{border-color:var(--accent);color:var(--accent)}:focus-visible{outline:2px solid var(--accent);outline-offset:2px}input,select{width:100%;min-height:44px;padding:8px;background:var(--panel2);border:1px solid var(--line);border-radius:7px}input[type=checkbox],input[type=radio]{width:44px;height:44px;flex:none;accent-color:var(--accent)}label{display:block;margin:8px 0}.check{display:flex;align-items:center;gap:8px;min-height:44px}.card,.panel{display:block;width:100%;padding:14px;margin:10px 0;background:var(--panel);border:1px solid var(--line);border-radius:10px;text-align:left}.card strong{display:block}.row{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.row>*{min-width:0}.row>button{min-width:44px;flex-shrink:0}.spread{justify-content:space-between}.muted,small{color:var(--dim);font-size:13px}.amount{font-size:25px;font-weight:700}.positive{color:var(--positive)}.negative{color:var(--negative)}nav{display:flex;gap:8px;margin-top:24px}nav button{flex:1}.back{margin-top:12px}#notice{padding:12px;border:1px solid var(--accent);border-radius:8px;margin:12px 0}#notice:empty{display:none}dl{display:grid;grid-template-columns:minmax(90px,1fr) minmax(0,2fr);gap:8px}dt{color:var(--dim)}dd{margin:0;white-space:pre-wrap}.calendar{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px}.calendar button{min-width:44px;padding:5px 1px;min-height:68px;border-radius:5px}.calendar small{display:block;font-size:12px}.calendar .weekday{text-align:center;color:var(--dim);font-size:13px}.calendar .today{outline:1px solid var(--accent)}.log{border-bottom:1px solid var(--line);padding:12px 0}.log p{margin:4px 0;white-space:pre-wrap}.tag{display:inline-block;font-size:13px;color:var(--accent);margin-right:8px}.chips{display:flex;flex-wrap:wrap;gap:6px}.filters{display:grid;grid-template-columns:1fr 1fr;gap:8px}.filters label{margin:0}.filters .full{grid-column:1/-1}.table-wrap{max-width:100%;overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:8px 4px;border-bottom:1px solid var(--line);text-align:right}th:first-child,td:first-child{text-align:left}td button{width:100%;text-align:left;font-size:14px}svg{display:block;width:100%;height:auto}.empty{color:var(--dim);padding:16px 0}.file{display:block;width:100%;margin:8px 0}dialog{color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:16px;width:calc(100% - 20px);max-width:540px;max-height:85dvh;overflow:auto}dialog::backdrop{background:#000b}.preview-row{padding:10px 0;border-bottom:1px solid var(--line)}.preview-row strong{display:block}#preview-actions{position:sticky;bottom:-16px;padding:12px 0;background:var(--bg)}[hidden]{display:none!important}
+</style>
+</head>
+<body><div class="shell"><header><h1>稼働日誌</h1><small>UI nisshi1</small></header><div id="notice" role="status"></div><main id="app"><p>記録を読み込んでいます…</p></main></div>
+<dialog id="preview" aria-labelledby="preview-title"><h2 id="preview-title">取り込み前の確認</h2><div id="rec-source-choice" hidden></div><div id="preview-body"></div><div class="row" id="preview-actions"><button id="import-confirm">取り込む</button><button id="import-cancel">やめる</button></div></dialog>
+<input id="file-import" type="file" accept=".json,application/json" hidden><input id="file-restore" type="file" accept=".json,application/json" hidden>
+<script>
+'use strict';
+// 第1段: source adapters → reconciliation → one IndexedDB transaction → read-only views.
+const DB_NAME='slot-tools-nisshi', DB_VERSION=1;
+const STORE_KEYS={plays:'id',days:'date',stores:'id',tagDefs:'id',imports:'id',meta:'key'};
+const SOURCE_LABELS={rec:'rec（実戦記録）',ledger:'rec（簡易収支）','rec-kanokari':'かのかり',mylog:'マイログ',yutime:'遊タイム',kadonote:'kado-note'};
+const PROTECTED=['aim','tags','diary','marks','mergedFrom'];
+const $=id=>document.getElementById(id), clone=v=>structuredClone(v);
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=v=>v===null||v===undefined||v===''?null:(Number.isFinite(Number(v))?Number(v):null);
+const zero=v=>num(v)??0, unique=a=>[...new Set(a)], now=()=>new Date().toISOString();
+const localDate=value=>{const d=new Date(value);if(!Number.isFinite(+d))throw Error('日付が読み取れない記録があります');return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`};
+const dateKey=v=>{const s=String(v??'').replaceAll('/','-');if(!/^\d{4}-\d{2}-\d{2}$/.test(s)||localDate(s+'T12:00:00')!==s)throw Error('日付が読み取れない記録があります');return s};
+const signed=n=>(n>0?'+':'')+Number(n).toLocaleString('ja-JP');
+const yen=n=>n==null?'—':signed(n)+'円';
+const tone=n=>n>0?'positive':n<0?'negative':'';
+const hm=v=>{if(!v)return '—';const d=new Date(v);return Number.isFinite(+d)?d.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'}):'—'};
+function stable(v){if(Array.isArray(v))return '['+v.map(stable).join(',')+']';if(v&&typeof v==='object')return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}';return JSON.stringify(v)}
+function cleanEvents(events){return Array.isArray(events)?events.map(ev=>{const e=clone(ev);delete e.snap;return e}):null}
+function cleanRaw(raw){const r=clone(raw);if(r.events)r.events=cleanEvents(r.events);return r}
+function calculatedYen(p){if(p.cond)return Math.round(p.units*p.cond.exch)+p.money.cashOut-p.money.cashIn;if(p.source==='rec'||p.source==='rec-kanokari')return num(p.raw.recProfit);return null}
+function play(source,id,fields){
+  if(id==null||String(id)==='')throw Error('IDのない記録は取り込めません');
+  const p={id:source+':'+id,source,sourceId:String(id),date:null,startAt:null,endAt:null,kind:'slot',machine:'機種不明',shop:'',dai:null,money:{cashIn:0,cashOut:0,withdraw:0,deposit:0,unit:'枚'},cond:null,yen:null,units:0,expected:null,events:null,raw:{},aim:null,tags:[],diary:'',marks:[],mergedFrom:[],importedAt:null,updatedAt:null,...fields};
+  p.date=dateKey(p.date);p.units=p.money.deposit-p.money.withdraw;p.yen=calculatedYen(p);return p;
+}
+// tools/rec/index.html: sum / expectedTotal / invested / replayed / profit と同じ式。
+const sum=a=>(a||[]).reduce((x,y)=>x+y.amount,0);
+function expectedTotal(s){return (s.expected||0)+(s.follow||[]).reduce((a,f)=>a+(f.amount||0),0)}
+function invested(m){return Array.isArray(m.spends)?sum(m.spends):sum(m.cash||[])}
+function replayed(m){return sum(m.replays||[])}
+function profit(s){const m=s.money;if(m.endMedal==null)return null;const st=m.startMedal||0,en=m.endMedal||0,rp=replayed(m),cash=invested(m),bought=Math.round(cash/1000*s.lend);return{cash,bought,replay:rp,lend:s.lend,medalDiff:en-st-bought-rp,yen:Math.round((en-st-rp)*(1000/s.lend)-cash)}}
+function recPlay(session,source){
+  const s=cleanRaw(session),m=s.money;if(!m)throw Error('recの収支データがありません');
+  // rec の fixMoney と同じ旧形式移行。時刻は元データから取り、再取り込みを安定させる。
+  if(!Array.isArray(m.replays)){m.replays=[];if(m.startReplay>0)m.replays.push({at:s.startAt,amount:m.startReplay,migrated:true});if(m.endReplay>0&&m.endMedal!=null)m.endMedal+=m.endReplay;m.startReplay=0;m.endReplay=0}
+  return play(source,s.id,{date:localDate(s.startAt),startAt:s.startAt,endAt:s.endAt,machine:s.machine||'機種不明',shop:s.shop||'',dai:s.dai??null,money:{cashIn:invested(m),cashOut:0,withdraw:zero(m.startMedal)+replayed(m),deposit:zero(m.endMedal),unit:'枚'},expected:s.expected!=null||s.follow?.length?expectedTotal(s):null,events:cleanEvents(s.events),raw:{...s,recProfit:profit(s)?.yen??null}});
+}
+function ledgerPlay(e){const m=e.money||e;return play('ledger',e.id,{date:e.date,kind:e.kind||'slot',machine:e.machine||'機種不明',shop:e.storeName||e.shop||'',dai:e.dai??null,cond:validCond(e.cond),money:{cashIn:zero(m.cashIn),cashOut:zero(m.cashOut),withdraw:zero(m.withdraw),deposit:zero(m.deposit),unit:e.kind==='pachinko'?'玉':'枚'},expected:num(e.expected),raw:cleanRaw(e)})}
+function validCond(c){if(!c)return null;if(!(num(c.exch)>0))throw Error('換算条件の交換単価が不正です');return clone(c)}
+function mylogPlay(r){const m=r.money||{};return play('mylog',r.id,{date:r.date,machine:r.machineName||'機種不明',shop:r.shop||'',dai:r.seat??null,money:{cashIn:zero(m.yen),cashOut:0,withdraw:zero(m.startHold),deposit:zero(m.hold),unit:'枚'},cond:zero(m.rate)>0&&zero(m.exchangeMai)>0?{kind:'slot',label:'',lend:Number(m.rate),exchPer1000:Number(m.exchangeMai),exch:Math.round(1000/Number(m.exchangeMai)*100)/100}:null,raw:clone(r)})}
+// yutime-v3.html 正本の依存関数を含む移植。店舗取得だけを引数で受ける。
+const DEFAULT_LEND_RATE=4,DEFAULT_EXCHANGE_BALLS=25;
+function normalizeNumber(value){if(value===''||value===null||value===undefined)return null;const n=Number(value);return Number.isFinite(n)?n:null}
+function positiveNumberOrDefault(value,fallback){const n=normalizeNumber(value);return n!==null&&n>0?n:fallback}
+function normalizeExchangeBalls(value){const n=normalizeNumber(value);return n!==null&&n>=20&&n<=50?Number(n.toFixed(2)):DEFAULT_EXCHANGE_BALLS}
+function exchangeBallsFromStore(store){if(store?.exchangeBalls!==undefined)return normalizeExchangeBalls(store.exchangeBalls);const oldRate=normalizeNumber(store?.exchangeRate);if(oldRate!==null&&oldRate>=2&&oldRate<=5)return normalizeExchangeBalls(100/oldRate);if(oldRate!==null&&oldRate>=20&&oldRate<=50)return normalizeExchangeBalls(oldRate);return DEFAULT_EXCHANGE_BALLS}
+function normalizeInvestmentSource(value){return value==='mochidama'||value==='saipurei'?value:'cash'}
+function investmentSource(item){return normalizeInvestmentSource(item?.source||item?.type)}
+function investmentTotals(session){return(session.investments||[]).reduce((totals,item)=>{const source=investmentSource(item);if(source==='cash')totals.cashYen+=Number(item.amount||0);if(source==='saipurei')totals.saipureiBalls+=Number(item.amount||0);if(source==='mochidama')totals.mochidamaBalls+=Number(item.amount||0);return totals},{cashYen:0,saipureiBalls:0,mochidamaBalls:0})}
+function storeTermsForSession(session,stores){const store=stores.find(s=>s.id===session?.storeId);const terms=session?.storeTerms;if(!terms||typeof terms!=='object')return store;return {...(store||{}),isPersonal:Boolean(terms.isPersonal),lendRate:positiveNumberOrDefault(terms.lendRate,DEFAULT_LEND_RATE),exchangeBalls:normalizeExchangeBalls(terms.exchangeBalls)}}
+function usesPersonalBalanceFormula(store){return Boolean(store?.isPersonal)}
+function playerInvestedBalls(session,totals,store){return usesPersonalBalanceFormula(store)?Number(session.startMochidama||0)+Number(totals.saipureiBalls||0):Number(totals.mochidamaBalls||0)+Number(totals.saipureiBalls||0)}
+function exchangeRateForStore(store){return 100/exchangeBallsFromStore(store)}
+function profitYenForSession(session,totals,store){const endTotalBalls=normalizeNumber(session.endTotalBalls);if(endTotalBalls===null)return null;const exchangeRate=exchangeRateForStore(store);const recoverBalls=endTotalBalls+Number(session.zanhoryuBalls||0);const investedPlayerBalls=playerInvestedBalls(session,totals,store);const cashYen=Number(totals.cashYen||0);return Math.round((recoverBalls-investedPlayerBalls)*exchangeRate-cashYen)}
+function yutimePlay(s,data){
+  const store=storeTermsForSession(s,data.stores||[]),machine=(data.machines||[]).find(m=>m.id===s.machineId)||{},t=investmentTotals(s);
+  const presets={'umi-sp5':'PA大海物語5 スペシャル','agnes-pe':'PA大海物語Withアグネス・ラム Premium Ed'};
+  const time=v=>v?`${s.date}T${v}`:null;
+  return play('yutime',s.id,{date:s.date,startAt:time(s.startTime),endAt:time(s.endTime),kind:'pachinko',machine:machine.modelName||presets[machine.presetId]||'パチンコ（機種不明）',shop:store?.name||'',dai:machine.daiNo??null,money:{cashIn:t.cashYen,cashOut:zero(s.settlementRecoverYen),withdraw:playerInvestedBalls(s,t,store),deposit:Number(s.endTotalBalls)+zero(s.zanhoryuBalls),unit:'玉'},cond:store?{kind:'pachinko',label:'',lend:1000/positiveNumberOrDefault(store.lendRate,DEFAULT_LEND_RATE),exchPer1000:exchangeBallsFromStore(store)*10,exch:Math.round(exchangeRateForStore(store)*100)/100}:null,expected:num(s.startEv?.evYen),raw:{...clone(s),machine:clone(machine),resolvedStore:store?clone(store):null,yutimeProfit:profitYenForSession(s,t,store)}});
+}
+function envelopePlay(e){
+  const p=e.payload||{};
+  if(String(e.payloadVer||'').startsWith('rec-')){
+    const s={id:e.sessionId,startAt:e.startedAt,endAt:e.endedAt,machine:p.machine||e.machineId,shop:e.storeName,dai:e.unitNo,lend:e.lendRate,expected:p.expected,follow:p.follow||[],money:{spends:[{amount:zero(e.invest)}],startMedal:zero(p.startMedal),endMedal:p.endMedal??(zero(e.payout)+zero(p.startMedal)+zero(p.replays??p.startReplay)),replays:[{amount:zero(p.replays??p.startReplay)}]},events:(p.logs||[]).map(l=>({...l,at:l.at??new Date(l.t).toISOString()}))};
+    const result=recPlay(s,'rec');result.raw.envelope=clone(e);return result;
+  }
+  // slot-session envelope: invest は円、payout は枚。元ログの type を保持する。
+  const exch=positiveNumberOrDefault(e.exchangeRate,0);
+  return play('kadonote',e.sessionId,{date:localDate(e.startedAt),startAt:e.startedAt,endAt:e.endedAt,machine:e.machineLabel||p.machine||e.machineId,shop:e.storeName||'',dai:e.unitNo??null,money:{cashIn:zero(e.invest),cashOut:0,withdraw:0,deposit:zero(e.payout),unit:'枚'},cond:exch?{kind:'slot',label:'',lend:num(e.lendRate),exchPer1000:exch,exch:1000/exch}:null,expected:num(p.expectedTotal??p.expected),events:cleanEvents(p.logs),raw:clone(e)});
+}
+function emptyBatch(){return {plays:[],stores:[],labels:[],sources:[],restore:null}}
+function appendRec(batch,data,source,includeSessions=true,includeEntries=true){if(includeSessions)batch.plays.push(...(data.sessions||[]).filter(s=>s.endAt).map(s=>recPlay(s,source)));if(includeEntries)batch.plays.push(...(data.entries||[]).map(ledgerPlay));batch.stores.push(...(data.stores||[]));}
+function fileBatch(data,name,recSource=null){
+  const b=emptyBatch();b.labels=[name];
+  if(data?.format==='slot-tools-nisshi')throw Error('日誌の書き出しは「復元」から選んでください');
+  if(data?.format==='juggler-mylog'||Array.isArray(data?.records))b.plays=data.records.map(mylogPlay);
+  else if(Array.isArray(data?.machines)&&Array.isArray(data?.sessions))b.plays=data.sessions.filter(s=>s.status==='completed'&&num(s.endTotalBalls)!==null).map(s=>yutimePlay(s,data));
+  else if(data?.schema==='slot-session')b.plays=[envelopePlay(data)];
+  else if(Array.isArray(data)&&data.every(e=>e.schema==='slot-session'))b.plays=data.map(envelopePlay);
+  else if(Array.isArray(data?.sessions)||Array.isArray(data?.entries)){
+    const source=recSource||(data.storageKey==='slot-tools-rec-kanokari'?'rec-kanokari':data.storageKey==='slot-tools-rec'||Array.isArray(data.entries)?'rec':null);
+    if(!source){const error=Error('このファイルにはrec本線・かのかり箱の識別子がありません。出どころの指定が必要です。');error.needsRecSource=true;throw error}
+    if(!['rec','rec-kanokari'].includes(source))throw Error('出どころが不正です');
+    appendRec(b,data,source);
+  }
+  else throw Error('対応していないJSON形式です');
+  b.sources=unique(b.plays.map(p=>p.source));b.plays.forEach(validatePlay);return b;
+}
+function browserBatch(selected){
+  const b=emptyBatch(),read=key=>{const text=localStorage.getItem(key);return text?JSON.parse(text):null};
+  if(selected.includes('rec')||selected.includes('ledger')){const d=read('slot-tools-rec');if(d)appendRec(b,d,'rec',selected.includes('rec'),selected.includes('ledger'))}
+  if(selected.includes('rec-kanokari')){const d=read('slot-tools-rec-kanokari');if(d)appendRec(b,d,'rec-kanokari')}
+  if(selected.includes('mylog')){const d=read('juggler-mylog:v1');if(d)b.plays.push(...(Array.isArray(d)?d:d.records||[]).map(mylogPlay))}
+  if(selected.includes('yutime')){const d=read('ytv3:data');if(d)b.plays.push(...(d.sessions||[]).filter(s=>s.status==='completed'&&num(s.endTotalBalls)!==null).map(s=>yutimePlay(s,d)))}
+  b.sources=selected;b.labels=selected.map(s=>SOURCE_LABELS[s]);b.plays.forEach(validatePlay);return b;
+}
+function validatePlay(p){
+  if(!p||typeof p.id!=='string'||!p.id||p.id!==p.source+':'+p.sourceId)throw Error('台のIDが不正です');
+  dateKey(p.date);if(!['slot','pachinko'].includes(p.kind))throw Error('種別が不正です');
+  if(!p.money||!['枚','玉'].includes(p.money.unit)||!['cashIn','cashOut','withdraw','deposit'].every(k=>typeof p.money[k]==='number'&&Number.isFinite(p.money[k])))throw Error('収支の値が不正です');
+  if(!Number.isFinite(p.units)||(p.yen!==null&&!Number.isFinite(p.yen))||(p.expected!==null&&!Number.isFinite(p.expected)))throw Error('集計値が不正です');
+  if(!p.raw||typeof p.raw!=='object'||!Array.isArray(p.mergedFrom)||!Array.isArray(p.tags)||!Array.isArray(p.marks)||!(p.events===null||Array.isArray(p.events)))throw Error('台の保存形式が不正です');
+  validCond(p.cond);
+}
+function restoreBatch(data,name){
+  if(data?.format!=='slot-tools-nisshi'||data.version!==1)throw Error('稼働日誌 version 1 の書き出しを選んでください');
+  for(const [store,key] of Object.entries(STORE_KEYS)){if(store==='meta'&&!data.meta)continue;if(!Array.isArray(data[store]))throw Error(store+' がありません');const ids=new Set();for(const row of data[store]){if(!row||typeof row[key]!=='string'||!row[key]||ids.has(row[key]))throw Error(store+' のキーが不正または重複しています');ids.add(row[key])}}
+  data.plays.forEach(validatePlay);return {plays:clone(data.plays),stores:clone(data.stores),labels:['復元: '+name],sources:unique(data.plays.map(p=>p.source)),restore:clone(data)};
+}
+// 合流元も raw に保持し、取り込み順序に依存せず再照合する。利用者の追記は常に残す。
+function preserve(incoming,old){if(!old)return clone(incoming);const p={...clone(old),...clone(incoming)};for(const k of PROTECTED)p[k]=clone(old[k]);p.mergedFrom=unique([...old.mergedFrom,...incoming.mergedFrom]).sort();p.importedAt=old.importedAt;p.updatedAt=old.updatedAt;return p}
+function comparable(p){const c=clone(p);delete c.importedAt;delete c.updatedAt;return stable(c)}
+function sourceTime(p){return Date.parse(p.raw.updatedAt||p.raw.editedAt||p.raw.savedAt||p.raw.endAt||p.raw.createdAt||'')||0}
+function ledgerOrigin(p){const r=p.raw;if(r.source==='yutime-v3'||String(r.memo||'').includes('遊タイムツールから取り込み'))return 'yutime';if(r.source==='juggler-mylog'||/(?:マイジャグログ|マイログ)から取り込み/.test(String(r.memo||'')))return 'mylog';return null}
+function matchesConverted(e,p){if(ledgerOrigin(e)!==p.source||e.date!==p.date||e.money.deposit!==p.money.deposit)return false;if(p.source==='yutime')return e.money.withdraw===p.money.withdraw;const seat=String(e.raw.memo||'').match(/台番\s*[:：]?\s*(\d+)/)?.[1];return String(p.dai??'')===String(seat??'')}
+function reconcile(oldPlays,batch){
+  const old=new Map(oldPlays.map(p=>[p.id,p])),pool=new Map(),touched=new Set(batch.plays.map(p=>p.id));
+  for(const p of oldPlays){pool.set(p.id,clone(p));for(const e of p.raw.nisshiMergedEntries||[])if(!pool.has(e.id))pool.set(e.id,clone(e));const peer=p.raw.nisshiRecPeer;if(peer&&!pool.has(peer.id))pool.set(peer.id,clone(peer))}
+  for(const p of batch.plays)pool.set(p.id,preserve(p,pool.get(p.id)));
+  for(const p of batch.plays){for(const e of [...(p.raw.nisshiMergedEntries||[]),...(p.raw.nisshiRecPeer?[p.raw.nisshiRecPeer]:[])])if(!touched.has(e.id))pool.set(e.id,preserve(e,pool.get(e.id)))}
+  // 過去の合流結果を計算元にしない。元の収支に戻してから今回の紐付けを適用する。
+  for(const p of pool.values()){
+    if((p.source==='rec'||p.source==='rec-kanokari')&&p.raw.money){const base=recPlay(p.raw,p.source);for(const key of ['money','cond','yen','units'])p[key]=clone(base[key])}
+    delete p.raw.nisshiMergedEntries;
+  }
+  const merged=[];
+  function mergeInto(target,other,finance=false){
+    target.mergedFrom=unique([...target.mergedFrom,other.id,...other.mergedFrom]).filter(id=>id!==target.id).sort();
+    // 先に存在した台に付いた第2段以降の追記も失わない。
+    for(const k of ['tags','marks'])target[k]=unique([...target[k],...other[k]]);
+    if(!target.aim&&other.aim)target.aim=clone(other.aim);if(!target.diary&&other.diary)target.diary=other.diary;
+    if(other.source==='ledger'){const entries=target.raw.nisshiMergedEntries||[];target.raw.nisshiMergedEntries=[...entries.filter(e=>e.id!==other.id),clone(other)].sort((a,b)=>a.id.localeCompare(b.id));}
+    if(other.source==='rec-kanokari'){const peer=clone(other);delete peer.raw.nisshiRecPeer;target.raw.nisshiRecPeer=peer}
+    if(finance){for(const k of ['money','cond','yen','units'])target[k]=clone(other[k])}
+    pool.delete(other.id);merged.push({id:other.id,into:target.id,source:other.source});if(touched.has(other.id))touched.add(target.id);
+  }
+  // 同じ sessionId: 本線IDを代表に固定し、元データは updatedAt の新しい方を採用。
+  for(const p of [...pool.values()].filter(p=>p.source==='rec-kanokari')){
+    const r=pool.get('rec:'+p.sourceId);if(!r)continue;
+    let target=r;if(sourceTime(p)>sourceTime(r)){target=preserve({...clone(p),id:r.id,source:'rec'},r);pool.set(r.id,target)}
+    mergeInto(target,p);
+  }
+  const sessions=[...pool.values()].filter(p=>p.source==='rec'||p.source==='rec-kanokari');
+  const claimed=new Set();
+  for(const e of [...pool.values()].filter(p=>p.source==='ledger').sort((a,b)=>a.id.localeCompare(b.id))){
+    const linked=e.raw.linkedSessionId&&sessions.find(p=>p.sourceId===e.raw.linkedSessionId);
+    if(linked){mergeInto(linked,e,true);continue}
+    const origin=ledgerOrigin(e);if(!origin)continue;
+    // 既存の結び付きを優先し、同一条件の複数台は1対1で対応させる。
+    const candidates=[...pool.values()].filter(p=>p.source===origin&&!claimed.has(p.id));
+    const direct=candidates.find(p=>p.mergedFrom.includes(e.id))||candidates.find(p=>matchesConverted(e,p));
+    if(direct){claimed.add(direct.id);mergeInto(direct,e)}
+  }
+  const all=[...pool.values()].sort((a,b)=>a.id.localeCompare(b.id)),writes=[],counts={};
+  for(const s of unique([...(batch.sources||[]),...batch.plays.map(p=>p.source),...all.filter(p=>touched.has(p.id)).map(p=>p.source)]))counts[s]={new:0,updated:0,unchanged:0,merged:0};
+  for(const p of all){const previous=old.get(p.id);const changed=!previous||comparable(previous)!==comparable(p);if(changed)writes.push(p);if(touched.has(p.id)){counts[p.source]??={new:0,updated:0,unchanged:0,merged:0};counts[p.source][!previous?'new':changed?'updated':'unchanged']++}}
+  for(const m of merged)if(touched.has(m.id)){counts[m.source]??={new:0,updated:0,unchanged:0,merged:0};counts[m.source].merged++}
+  const deletes=oldPlays.filter(p=>!pool.has(p.id)).map(p=>p.id);
+  let candidates=0;for(let i=0;i<all.length;i++)for(let j=i+1;j<all.length;j++){const a=all[i],b=all[j];if(a.source!==b.source&&a.date===b.date&&a.shop===b.shop&&a.machine===b.machine)candidates++}
+  const affected=all.filter(p=>touched.has(p.id));return {all,writes,deletes,counts,candidates,affected,merged};
+}
+let db,plays=[],imports=[],page={name:'home'},pending=null,busy=false,previewVersion=0,persistence='確認中',storageInfo=null,channel=null;
+function notice(message){$('notice').textContent=message}
+function saveFailure(error){if($('preview').open)$('preview').close();notice('保存できませんでした。設定から書き出して記録を保管してください。'+(error?.message?' '+error.message:''))}
+function openDatabase(){return new Promise((resolve,reject)=>{const req=indexedDB.open(DB_NAME,DB_VERSION);req.onupgradeneeded=()=>{const d=req.result;for(const [name,keyPath] of Object.entries(STORE_KEYS)){const s=d.createObjectStore(name,{keyPath});if(name==='plays')for(const k of ['date','machine','shop','source'])s.createIndex(k,k);if(name==='imports')s.createIndex('at','at')}};req.onsuccess=()=>{req.result.onversionchange=()=>{req.result.close();notice('保存形式が更新されました。ページを再読み込みしてください')};resolve(req.result)};req.onerror=()=>reject(req.error);req.onblocked=()=>notice('別のタブを閉じてから再読み込みしてください')})}
+function readStores(names){return new Promise((resolve,reject)=>{const tx=db.transaction(names,'readonly'),out={};for(const name of names){const req=tx.objectStore(name).getAll();req.onsuccess=()=>out[name]=req.result}tx.oncomplete=()=>resolve(out);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error||Error('読み込みが中断されました'))})}
+async function refresh(){const data=await readStores(['plays','imports']);plays=data.plays;imports=data.imports;render()}
+function planSignature(plan){return stable({all:plan.all.map(comparable),deletes:plan.deletes,counts:plan.counts})}
+function renderPreviewCounts(plan,batch){
+  const summary=totals(plan.affected);
+  $('preview-body').innerHTML=Object.entries(plan.counts).map(([s,c])=>`<div class="preview-row"><strong>${esc(SOURCE_LABELS[s]||s)}</strong>新規 ${c.new} ／ 更新 ${c.updated} ／ 変化なし ${c.unchanged}<br><small>まとめる元記録 ${c.merged}件</small></div>`).join('')+`<p>同じ台の候補 ${plan.candidates}組（あとで確認できます）</p><p>${esc(unconverted(summary))}</p><p>取り込み後：${plan.all.length}台 ／ ${yen(totals(plan.all).yen)}</p>`;
+  if(!batch.plays.length&&!batch.restore)$('preview-body').innerHTML+='<p>対象の終了済み記録はありません。</p>';
+}
+async function previewBatch(batch,recFile=null,keepChoice=false){
+  const version=++previewVersion;
+  $('import-confirm').disabled=true;
+  try{
+    const data=await readStores(['plays']);
+    if(version!==previewVersion)return;
+    const plan=reconcile(data.plays,batch);
+    pending={batch,plan,signature:planSignature(plan),recFile};
+    if(!keepChoice){
+      const choice=$('rec-source-choice');choice.hidden=!recFile;
+      choice.innerHTML=recFile?`<p>${esc(recFile.name)}</p><p id="rec-source-prompt">このファイルの出どころを選んでください</p><div role="radiogroup" aria-labelledby="rec-source-prompt"><label class="check"><input type="radio" name="rec-source" value="rec" checked>rec（本線）</label><label class="check"><input type="radio" name="rec-source" value="rec-kanokari">かのかり箱</label></div>`:'';
+    }
+    renderPreviewCounts(plan,batch);
+    if(!$('preview').open)$('preview').showModal();
+  }catch(error){
+    if(version===previewVersion){pending=null;$('preview').close();throw error}
+  }finally{if(version===previewVersion)$('import-confirm').disabled=false}
+}
+function commitPending(){
+  if(!pending||busy||$('import-confirm').disabled)return;
+  try{if(pending.recFile){const {data,name,source}=pending.recFile;pending.batch=fileBatch(data,name,source)}}catch(error){notice('取り込めませんでした。'+error.message);return}
+  busy=true;$('import-confirm').disabled=true;
+  document.querySelectorAll('[name="rec-source"]').forEach(r=>r.disabled=true);
+  const pendingCopy=pending;
+  // 確認から保存の間の他タブ更新は同じ readwrite transaction 内で検出する。
+  return new Promise((resolve,reject)=>{
+    const tx=db.transaction(Object.keys(STORE_KEYS),'readwrite');let changed=false,resultPlan;
+    const req=tx.objectStore('plays').getAll();req.onsuccess=()=>{try{
+      const plan=reconcile(req.result,pendingCopy.batch);resultPlan=plan;if(planSignature(plan)!==pendingCopy.signature){changed=true;tx.abort();return}
+      const at=now();for(const p of plan.writes)tx.objectStore('plays').put({...p,importedAt:p.importedAt||at,updatedAt:at});for(const id of plan.deletes)tx.objectStore('plays').delete(id);
+      const store=tx.objectStore('stores'),storeIds=new Set();for(const s of pendingCopy.batch.stores){if(!s||typeof s.id!=='string'||!s.id)throw Error('店舗IDが不正です');if(storeIds.has(s.id))continue;storeIds.add(s.id);const get=store.get(s.id);get.onsuccess=()=>{if(!get.result)store.put(s)}}
+      const restored=pendingCopy.batch.restore;if(restored)for(const name of ['days','tagDefs','imports','meta'])for(const row of restored[name]||[]){if(name==='meta'&&row.key==='revision')continue;const os=tx.objectStore(name),key=row[STORE_KEYS[name]],get=os.get(key);get.onsuccess=()=>os.put({...get.result,...row})}
+      tx.objectStore('imports').put({id:crypto.randomUUID(),at,from:pendingCopy.batch.labels,counts:plan.counts,merged:plan.merged,candidates:plan.candidates,unconverted:totals(plan.affected).unknownCount});
+      tx.objectStore('meta').put({key:'revision',value:at});
+    }catch(error){tx.abort();reject(error)}};
+    tx.oncomplete=()=>resolve(resultPlan);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(changed?Error('ほかのタブで記録が更新されました。件数を確認し直してください'):tx.error||Error('保存を中断しました'));
+  }).then(async plan=>{pending=null;$('preview').close();channel?.postMessage({type:'updated'});await refresh();notice(`取り込みました。${plan.all.length}台の記録があります。`);updateStorage()}).catch(saveFailure).finally(()=>{busy=false;$('import-confirm').disabled=false;document.querySelectorAll('[name="rec-source"]').forEach(r=>r.disabled=false)});
+}
+async function exportAll(){try{const data=await readStores(Object.keys(STORE_KEYS)),blob=new Blob([JSON.stringify({format:'slot-tools-nisshi',version:1,exportedAt:now(),...data},null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download='nisshi-'+localDate(new Date())+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(error){notice('書き出せませんでした。'+error.message)}}
+async function updateStorage(){try{storageInfo=navigator.storage?.estimate?await navigator.storage.estimate():null;if(page.name==='settings')render()}catch{storageInfo=null}}
+function totals(list){const result={yen:0,knownCount:0,unknownCount:0,unknown:{枚:0,玉:0},unknownUnits:{枚:0,玉:0},expected:0,expectedCount:0,count:list.length};for(const p of list){if(p.yen==null){result.unknownCount++;result.unknown[p.money.unit]+=p.units;result.unknownUnits[p.money.unit]++}else{result.yen+=p.yen;result.knownCount++}if(p.expected!=null){result.expected+=p.expected;result.expectedCount++}}return result}
+function unconverted(t){return t.unknownCount?`未換算 ${t.unknownCount}件（${Object.entries(t.unknown).filter(([u])=>t.unknownUnits[u]).map(([u,n])=>signed(n)+u).join('・')}）`:''}
+function summary(list){const t=totals(list);return `<div class="panel"><div class="amount ${tone(t.yen)}">${t.knownCount?yen(t.yen):list.length?'—':yen(0)}</div><div>${t.count}台 ／ 想定期待値 ${t.expectedCount?yen(t.expected):'—'}</div>${t.unknownCount?`<div class="muted">${esc(unconverted(t))}</div>`:''}</div>`}
+function cards(list){return list.length?[...list].sort((a,b)=>(b.startAt||b.date).localeCompare(a.startAt||a.date)).map(p=>`<button class="card" data-play="${esc(p.id)}"><small>${esc(p.date)}　${hm(p.startAt)}〜${hm(p.endAt)}</small><strong>${esc(p.machine)}</strong><span>${esc(p.shop||'店の記録なし')}</span><div class="${tone(p.yen??p.units)}">${p.yen==null?signed(p.units)+p.money.unit+'（未換算）':yen(p.yen)}</div></button>`).join(''):'<p class="empty">記録がありません。</p>'}
+function nav(){return '<nav aria-label="画面"><button data-page="history">履歴</button><button data-page="analysis">分析</button><button data-page="settings">設定</button></nav>'}
+function back(){return '<button class="back" data-back>戻る</button>'}
+const historyStack=[];
+function go(next){historyStack.push(clone(page));page=next;render();window.scrollTo(0,0)}
+function homeView(){const today=localDate(new Date()),latest=plays.map(p=>p.date).sort().at(-1),date=plays.some(p=>p.date===today)?today:latest||today,month=today.slice(0,7),days=Array.from({length:7},(_,i)=>{const d=new Date(today+'T12:00:00');d.setDate(d.getDate()-i);return localDate(d)});return `<h2>${date===today?'今日':esc(date)}</h2>${summary(plays.filter(p=>p.date===date))}${cards(plays.filter(p=>p.date===date))}<h2>今月（${esc(month)}）</h2>${summary(plays.filter(p=>p.date.startsWith(month)))}<h2>最近7日の日別合計</h2>${days.length?days.map(d=>`<button class="card" data-day="${d}">${d}<div class="${tone(totals(plays.filter(p=>p.date===d)).yen)}">${dayAmount(d)||'記録なし'}</div></button>`).join(''):'<p class="empty">記録がありません。設定から取り込めます。</p>'}${nav()}`}
+function dayAmount(date){const t=totals(plays.filter(p=>p.date===date));return (t.knownCount?yen(t.yen):t.count?'—':'')+(t.unknownCount?'<small>未換算 '+t.unknownCount+'件</small>':'')}
+function historyView(){const month=page.month||localDate(new Date()).slice(0,7),[year,m]=month.split('-').map(Number),start=new Date(year,m-1,1).getDay(),end=new Date(year,m,0).getDate();return `${back()}<div class="row spread"><button data-month="-1" aria-label="前月">‹</button><h2>${month}</h2><button data-month="1" aria-label="次月">›</button></div><div class="calendar">${'日月火水木金土'.split('').map(d=>`<span class="weekday">${d}</span>`).join('')}${'<span></span>'.repeat(start)}${Array.from({length:end},(_,i)=>{const date=month+'-'+String(i+1).padStart(2,'0'),t=totals(plays.filter(p=>p.date===date));return `<button data-day="${date}" class="${date===localDate(new Date())?'today':''}" aria-label="${date} ${esc(t.count?(t.knownCount?yen(t.yen):'未換算'):'記録なし')}">${i+1}<small class="${tone(t.yen)}">${t.knownCount?signed(t.yen):t.count?'—':''}</small>${t.unknownCount?'<small>未換算</small>':''}</button>`}).join('')}</div><small>収支の単位：円</small>`}
+function detailView(){const p=plays.find(p=>p.id===page.id);if(!p)return back()+'<p>記録が見つかりません。</p>';const m=p.money,condition=p.cond?`${p.cond.label||''} 貸出1,000円あたり ${p.cond.lend??'—'}${m.unit} ／ 交換1,000円あたり ${p.cond.exchPer1000??'—'}${m.unit}（1${m.unit}=${p.cond.exch}円）`:p.raw.recProfit!=null?`貸出1,000円あたり ${p.raw.lend??'—'}枚 ／ 交換条件なし（recの収支を使用）`:'条件なし（未換算）';const fields=[['機種',p.machine],['店',p.shop||'—'],['台番',p.dai??'—'],['日付',p.date],['時刻',hm(p.startAt)+'〜'+hm(p.endAt)],['出どころ',SOURCE_LABELS[p.source]||p.source],['現金投資',yen(m.cashIn)],['現金回収',yen(m.cashOut)],['引出',signed(m.withdraw)+m.unit],['預入',signed(m.deposit)+m.unit],['収支',p.yen==null?signed(p.units)+m.unit+'（未換算）':yen(p.yen)],['換算条件',condition],['想定期待値',yen(p.expected)],['差',p.yen!=null&&p.expected!=null?yen(p.yen-p.expected):'—']];let html=back()+`<h2>台の詳細</h2><dl>${fields.map(([k,v])=>`<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>`;
+  if(p.events?.length){const tags=unique(p.events.flatMap(e=>Array.isArray(e.tags)?e.tags:[])),all=!!page.all,filter=page.tag||'',events=p.events.filter(e=>(all||['hitStart','hitEnd','money'].includes(e.type)||e.tags?.length)&&(!filter||e.tags?.includes(filter)));html+=`<h2>${all?'全ログ':'節目'}</h2><div class="chips"><button data-tag="" aria-pressed="${!filter}">全部</button>${tags.map(t=>`<button data-tag="${esc(t)}" aria-pressed="${filter===t}">${esc(t)}</button>`).join('')}</div>${events.map(e=>`<div class="log"><small>${hm(e.at??e.t)}　${e.realG!=null?'実G '+esc(e.realG):''} ${e.lcdG!=null?'液晶G '+esc(e.lcdG):''}</small><p>${esc(e.text||'')}${e.note?'（'+esc(e.note)+'）':''}</p><div>${(e.tags||[]).map(t=>`<span class="tag">${esc(t)}</span>`).join('')}</div></div>`).join('')||'<p class="empty">該当するログがありません。</p>'}<button data-logs>${all?'節目に戻る':'全ログを開く'}</button>`}return html;
+}
+function analysisList(){const f=page.filters||{};return plays.filter(p=>(!f.month||p.date.startsWith(f.month))&&(!f.kind||p.kind===f.kind)&&(!f.machine||p.machine===f.machine)&&(!f.shop||p.shop===f.shop))}
+function option(v,label,current){return `<option value="${esc(v)}"${v===current?' selected':''}>${esc(label)}</option>`}
+function grouped(list,key){const map=new Map();for(const p of list){const k=key(p);if(!map.has(k))map.set(k,[]);map.get(k).push(p)}return [...map].sort(([a],[b])=>a.localeCompare(b))}
+function chart(list,line){
+  const known=list.filter(p=>p.yen!=null);if(!known.length)return '<p class="empty">換算済みの記録がありません。</p>';
+  let acc=0;const points=grouped(known,p=>line?p.date:p.date.slice(0,7)).map(([label,rows])=>{const value=totals(rows).yen;return {label,value:line?(acc+=value):value}}),min=Math.min(0,...points.map(p=>p.value)),max=Math.max(0,...points.map(p=>p.value)),range=max-min||1,W=560,H=240,left=72,right=16,top=22,bottom=45,width=W-left-right,height=H-top-bottom,y=v=>top+(max-v)/range*height,x=i=>left+(i+.5)*width/points.length,baseline=y(0);
+  const labels=unique([0,points.length-1,Math.floor(points.length/2)]);
+  let content=`<line x1="${left}" x2="${W-right}" y1="${baseline}" y2="${baseline}" stroke="#948a7c"/><text x="4" y="16" fill="#b0a597" font-size="13">円</text>`;
+  for(const value of unique([min,max,0]))content+=`<text x="${left-5}" y="${y(value)+4}" text-anchor="end" fill="#b0a597" font-size="13">${signed(value)}</text>`;
+  if(line)content+=`<polyline points="${points.map((p,i)=>x(i)+','+y(p.value)).join(' ')}" fill="none" stroke="#d9a441" stroke-width="2"/>`;
+  points.forEach((p,i)=>{content+=line?`<circle cx="${x(i)}" cy="${y(p.value)}" r="3" fill="#d9a441"><title>${esc(p.label)} ${yen(p.value)}</title></circle>`:`<rect x="${x(i)-width/points.length*.35}" y="${Math.min(y(p.value),baseline)}" width="${width/points.length*.7}" height="${Math.max(1,Math.abs(y(p.value)-baseline))}" fill="${p.value>=0?'#69c08a':'#e98076'}"><title>${esc(p.label)} ${yen(p.value)}</title></rect>`;if(labels.includes(i))content+=`<text x="${x(i)}" y="${H-16}" text-anchor="${i===0?'start':i===points.length-1?'end':'middle'}" fill="#b0a597" font-size="13">${esc(p.label)}</text>`});
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${line?'期間内の累積収支':'月別収支'}。未換算は含みません">${content}</svg><p class="muted">${line?'累積は選択期間の初日を起点に計算。':'月別の収支。'}未換算は含みません。</p>`;
+}
+function analysisTable(list,key,title){const groups=grouped(list,p=>p[key]);return `<h2>${title}</h2><div class="table-wrap"><table><thead><tr><th>${title.replace('別','')}</th><th>台数</th><th>合計円</th><th>1台平均</th><th>想定期待値</th></tr></thead><tbody>${groups.map(([name,rows])=>{const t=totals(rows);return `<tr><td><button data-group="${key}" data-value="${esc(name)}">${esc(name||'未記録')}</button></td><td>${t.count}</td><td>${t.knownCount?signed(t.yen):'—'}${t.unknownCount?'<br>未換算 '+t.unknownCount+'件':''}</td><td>${t.knownCount?signed(Math.round(t.yen/t.knownCount)):'—'}</td><td>${t.expectedCount?signed(t.expected):'—'}</td></tr>`}).join('')}</tbody></table></div>`}
+function analysisView(){const f=page.filters||{},list=analysisList(),machines=unique(plays.map(p=>p.machine)).sort(),shops=unique(plays.map(p=>p.shop)).sort();return back()+`<h2>分析</h2><div class="filters"><label>期間（月）<select data-filter="month">${option('','全期間',f.month)}${unique(plays.map(p=>p.date.slice(0,7))).sort().reverse().map(m=>option(m,m,f.month)).join('')}</select></label><label>種別<select data-filter="kind">${option('','全部',f.kind)}${option('slot','スロット',f.kind)}${option('pachinko','パチンコ',f.kind)}</select></label><label class="full">機種を検索<input id="machine-search" type="search" value="${esc(page.query||'')}" placeholder="機種名"></label><label class="full">機種<select id="machine-filter" data-filter="machine">${option('','全部',f.machine)}${machines.filter(m=>m.includes(page.query||'')||m===f.machine).map(m=>option(m,m,f.machine)).join('')}</select></label><label class="full">店<select data-filter="shop">${option('','全部',f.shop)}${shops.filter(Boolean).map(s=>option(s,s,f.shop)).join('')}</select></label></div>${summary(list)}<div class="row"><button data-chart="bar" aria-pressed="${page.chart!=='line'}">月別の棒</button><button data-chart="line" aria-pressed="${page.chart==='line'}">累積の折れ線</button></div>${chart(list,page.chart==='line')}<p class="muted">合計・1台平均は換算済みの台が対象。1台平均＝合計円 ÷ 換算済み台数。想定期待値は記録のある台のみ合計。</p>${analysisTable(list,'machine','機種別')}${analysisTable(list,'shop','店別')}`}
+function settingsView(){const bytes=n=>Number(n).toLocaleString('ja-JP')+' bytes';return back()+`<h2>設定</h2><section class="panel"><h3>このブラウザの記録を取り込む</h3>${['rec','ledger','rec-kanokari','mylog','yutime'].map(s=>`<label class="check"><input type="checkbox" name="source" value="${s}" checked>${SOURCE_LABELS[s]}</label>`).join('')}<button id="browser-import">件数を確認</button></section><button class="file" id="choose-import">ファイルから取り込む</button><button class="file" id="export">書き出し</button><button class="file" id="choose-restore">復元</button><section class="panel"><h3>保存容量</h3><p>${storageInfo?bytes(storageInfo.usage||0)+' / '+bytes(storageInfo.quota||0):'取得できません'}</p><p class="muted">容量はこのサイト全体の使用量です。</p><p>永続化：${esc(persistence)}</p></section><h2>取り込みの履歴</h2>${[...imports].sort((a,b)=>b.at.localeCompare(a.at)).map(i=>`<div class="panel"><small>${esc(new Date(i.at).toLocaleString('ja-JP'))}</small><div>${esc((Array.isArray(i.from)?i.from:[i.from||'']).join('・'))}</div>${Object.entries(i.counts||{}).map(([s,c])=>`<div class="muted">${esc(SOURCE_LABELS[s]||s)}：新規 ${zero(c.new)} ／ 更新 ${zero(c.updated)} ／ 変化なし ${zero(c.unchanged)} ／ まとめた元記録 ${zero(c.merged)}</div>`).join('')}</div>`).join('')||'<p class="empty">まだ取り込んでいません。</p>'}`}
+function render(){
+  let html='';switch(page.name){case 'home':html=homeView();break;case 'history':html=historyView();break;case 'day':{const list=plays.filter(p=>p.date===page.date);html=back()+`<h2>${esc(page.date)}</h2>`+summary(list)+cards(list);break}case 'detail':html=detailView();break;case 'analysis':html=analysisView();break;case 'group':{const list=plays.filter(p=>page.ids.includes(p.id));html=back()+`<h2>${esc(page.title||'未記録')}</h2>`+summary(list)+cards(list);break}case 'settings':html=settingsView();break}
+  $('app').innerHTML=html;
+}
+$('app').addEventListener('click',async event=>{const b=event.target.closest('button');if(!b)return;try{
+  if(b.hasAttribute('data-back')){page=historyStack.pop()||{name:'home'};render();window.scrollTo(0,0)}
+  else if(b.dataset.page){go({name:b.dataset.page});if(page.name==='settings')updateStorage()}
+  else if(b.dataset.play)go({name:'detail',id:b.dataset.play});else if(b.dataset.day)go({name:'day',date:b.dataset.day});
+  else if(b.dataset.month){const date=new Date((page.month||localDate(new Date()).slice(0,7))+'-01T12:00:00');date.setMonth(date.getMonth()+Number(b.dataset.month));page.month=localDate(date).slice(0,7);render()}
+  else if(b.hasAttribute('data-tag')){page.tag=b.dataset.tag;render()}
+  else if(b.hasAttribute('data-logs')){page.all=!page.all;render()}
+  else if(b.dataset.chart){page.chart=b.dataset.chart;render()}
+  else if(b.dataset.group)go({name:'group',title:b.dataset.value,ids:analysisList().filter(p=>p[b.dataset.group]===b.dataset.value).map(p=>p.id)});
+  else if(b.id==='browser-import'){const selected=[...document.querySelectorAll('input[name=source]:checked')].map(e=>e.value);if(!selected.length){notice('取り込む出どころを選んでください');return}await previewBatch(browserBatch(selected))}
+  else if(b.id==='choose-import')$('file-import').click();else if(b.id==='choose-restore')$('file-restore').click();else if(b.id==='export')await exportAll();
+}catch(error){notice('取り込めませんでした。'+error.message)}});
+$('app').addEventListener('change',event=>{const key=event.target.dataset.filter;if(key){page.filters={...page.filters,[key]:event.target.value};render()}});
+$('app').addEventListener('input',event=>{if(event.target.id==='machine-search'){page.query=event.target.value;const selected=page.filters?.machine;$('machine-filter').innerHTML=option('','全部',selected)+unique(plays.map(p=>p.machine)).sort().filter(m=>m.includes(page.query)||m===selected).map(m=>option(m,m,selected)).join('')}});
+for(const mode of ['import','restore'])$('file-'+mode).addEventListener('change',async event=>{const file=event.target.files[0];event.target.value='';if(!file)return;try{const data=JSON.parse((await file.text()).replace(/^\uFEFF/,''));if(mode==='restore')await previewBatch(restoreBatch(data,file.name));else{try{await previewBatch(fileBatch(data,file.name))}catch(error){if(!error.needsRecSource)throw error;await previewBatch(fileBatch(data,file.name,'rec'),{data,name:file.name,source:'rec'})}}}catch(error){notice('取り込めませんでした。'+error.message)}});
+$('rec-source-choice').addEventListener('change',async event=>{
+  if(event.target.name!=='rec-source'||!pending?.recFile||busy)return;
+  const recFile={...pending.recFile,source:event.target.value};
+  try{await previewBatch(fileBatch(recFile.data,recFile.name,recFile.source),recFile,true)}catch(error){notice('取り込めませんでした。'+error.message)}
+});
+$('import-confirm').addEventListener('click',commitPending);
+$('import-cancel').addEventListener('click',()=>{if(!busy){previewVersion++;pending=null;$('preview').close()}});
+$('preview').addEventListener('cancel',event=>{if(busy)event.preventDefault();else{previewVersion++;pending=null}});
+async function init(){try{db=await openDatabase();if('BroadcastChannel' in window){channel=new BroadcastChannel(DB_NAME);channel.onmessage=event=>{if(event.data?.type==='updated')refresh().catch(e=>notice('記録を読み直せませんでした。'+e.message))}}await refresh();try{persistence=navigator.storage?.persist?(await navigator.storage.persist()?'許可されています':'許可されていません'):'このブラウザでは確認できません'}catch{persistence='確認できません'}await updateStorage()}catch(error){saveFailure(error);$('app').innerHTML='<p>記録を開けませんでした。再読み込みしてください。</p>'}}
+init();
+</script></body></html>
