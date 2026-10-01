@@ -12,6 +12,7 @@
 | ファイル | 中身 |
 |---|---|
 | `nisshi-spec-v03.md` | 稼働日誌（tools/nisshi/）の仕様書 v0.3（確定）。**稼働日誌の正本** |
+| `nisshi-phase1-instructions.md` | 稼働日誌 第1段の実装指示書（IndexedDB・取り込み・二重計上の防止・各画面・書き出しと復元） |
 | `nisshi-phase2-instructions.md` | 稼働日誌 第2段の実装指示書（開始日・名前のまとめ・日記・狙い方・note用コピーほか） |
 | `kanokari-spec-v02.md` | Lパチスロ 彼女、お借りします の機種定義 仕様 v0.2 |
 | `kanokari-def-v16.js` | 彼女、お借りします の機種定義 v0.16。**定義の正本** |
@@ -22,11 +23,9 @@
 
 ### 稼働日誌
 
-**`nisshi-spec-v03.md` が正本。** `nisshi-phase2-instructions.md` は実装指示書で、
-正本の §8 の段ごとに切り出したもの。仕様の判断は正本を見る。
-
-第1段の実装指示書（`nisshi-phase1-instructions.md`）は**まだここに置かれていない**。
-置いたらこの表に1行足す。
+**`nisshi-spec-v03.md` が正本。** `nisshi-phase1-instructions.md` と
+`nisshi-phase2-instructions.md` は実装指示書で、正本の §8 の段ごとに切り出したもの。
+仕様の判断は正本を見る。
 
 ### 彼女、お借りします（かのかり箱）
 
