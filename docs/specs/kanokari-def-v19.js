@@ -1,11 +1,12 @@
 // ============================================================
-// MACHINES.kanokari v0.18（第4弾：33Gのアイキャッチを引き戻し系に、画面に版数表示）
+// MACHINES.kanokari v0.19（第5弾：ENDING突入の入力（LAST＋クレジット）と有利区間切れ見込み、ENDING終了の実際との差、終了ボタンの表示）
+// 第4弾：33Gのアイキャッチを引き戻し系に、画面に版数表示
 // 第3弾：レンCHANCE開始キャラの入力位置、1GレンCHANCEの成否、CZ成功のステージ、ボーナス背景の表示、引き戻し終了のステージ、DREAM後のG数と種別、保証ストックの二重計上の修正、和也の部屋のアイキャッチ（シオン検収の修正を反映）
 // 既存の3機種の定義形式に合わせる。順序4〜6で器に足す仕組みは engine-v01 の §番号を注記
 // ============================================================
 kanokari:{
   name:"彼女、お借りします",
-  defVer:"0.18",   // 画面のヘッダに出す定義の版。docs/specs/kanokari-def-v18.js の1行目と必ず合わせる
+  defVer:"0.19",   // 画面のヘッダに出す定義の版。docs/specs/kanokari-def-v19.js の1行目と必ず合わせる
   lcdG:true,
   lcdRestart:0,
   clearStageOnHit:true,
@@ -108,7 +109,11 @@ kanokari:{
         {label:"下パネル消灯",type:"toggle",tag:"裏かのかり"},
         {label:"2択当て",title:"2択当て",groups:[{key:"r",label:"結果",required:true,options:["○","×"]}]}
       ],
-      phases:{ending:{label:"ENDING",grid:[["phx:0","memo"],["hitEnd"]],onEnter:{yuuri:true,ask:{key:"last",label:"開始時のLAST枚数（任意）",type:"num"}},afterAt:{hit:"DREAM TIME",trig:"ENDING後"},noRevive:true,
+      phases:{ending:{label:"ENDING",grid:[["phx:0","memo"],["hitEnd"]],onEnter:{yuuri:true,
+          askSheet:{title:"ENDING 突入",fields:[
+            {key:"last",label:"LAST枚数",logAs:"LAST"},
+            {key:"credit",label:"突入時のクレジット数（持ちメダル）",medal:true}
+          ],estimate:{label:"有利区間切れ見込み",unit:"クレジット",sum:["credit","last"]}}},afterAt:{hit:"DREAM TIME",trig:"ENDING後"},noRevive:true,
         extras:[{label:"ボイス",title:"ENDING ボイス（レア役でPUSH）",groups:[
           {key:"role",label:"レア役",required:true,options:["弱チャンス目","チャンス目","強チャンス目","不明"]},
           {key:"voice",label:"ボイス（公式11種）",hintTag:"設定示唆",required:true,options:[

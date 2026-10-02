@@ -15,7 +15,7 @@
 | `nisshi-phase1-instructions.md` | 稼働日誌 第1段の実装指示書（IndexedDB・取り込み・二重計上の防止・各画面・書き出しと復元） |
 | `nisshi-phase2-instructions.md` | 稼働日誌 第2段の実装指示書（開始日・名前のまとめ・日記・狙い方・note用コピーほか） |
 | `kanokari-spec-v02.md` | Lパチスロ 彼女、お借りします の機種定義 仕様 v0.2 |
-| `kanokari-def-v18.js` | 彼女、お借りします の機種定義 v0.18。**定義の正本** |
+| `kanokari-def-v19.js` | 彼女、お借りします の機種定義 v0.19。**定義の正本** |
 | `rec-kanokari-engine-v01.md` | tools/rec-kanokari の器（エンジン）の拡張仕様 v0.1 |
 | `rec-ledger-spec-v01.md` | tools/rec 簡易収支帳 第1段の実装仕様（rec91） |
 
@@ -29,11 +29,11 @@
 
 ### 彼女、お借りします（かのかり箱）
 
-**`kanokari-def-v18.js` が定義の正本。**
-`kanokari-spec-v02.md` は **v0.2 時点**の仕様で、**それ以降の変更は定義（v18）と `IDEAS.md` にある**。
+**`kanokari-def-v19.js` が定義の正本。**
+`kanokari-spec-v02.md` は **v0.2 時点**の仕様で、**それ以降の変更は定義（v19）と `IDEAS.md` にある**。
 仕様書だけを読んで実装しないこと。
 
-`kanokari-def-v18.js` は `MACHINES` に差し込む**断片**（`kanokari:{…}` から始まる）で、
+`kanokari-def-v19.js` は `MACHINES` に差し込む**断片**（`kanokari:{…}` から始まる）で、
 単体では実行できない（`node --check` は通らない）。読み物・貼り付け元として置いている。
 
 ### 簡易収支帳
