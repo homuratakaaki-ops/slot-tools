@@ -251,7 +251,7 @@ textarea{min-height:80px;resize:vertical}
 "use strict";
 const KEY="slot-tools-rec-kanokari";
 const DEF_LEND=46;
-const ENGINE_VER="0.14";   // 器（共通処理）の版。画面のヘッダに出す
+const ENGINE_VER="0.15";   // 器（共通処理）の版。画面のヘッダに出す
 
 /* =====================================================================
    機種定義
@@ -287,7 +287,7 @@ const MACHINES={
   },
 kanokari:{
   name:"彼女、お借りします",
-  defVer:"0.18",   // 画面のヘッダに出す定義の版。docs/specs/kanokari-def-v18.js の1行目と必ず合わせる
+  defVer:"0.19",   // 画面のヘッダに出す定義の版。docs/specs/kanokari-def-v19.js の1行目と必ず合わせる
   lcdG:true,
   lcdRestart:0,
   clearStageOnHit:true,
@@ -390,7 +390,11 @@ kanokari:{
         {label:"下パネル消灯",type:"toggle",tag:"裏かのかり"},
         {label:"2択当て",title:"2択当て",groups:[{key:"r",label:"結果",required:true,options:["○","×"]}]}
       ],
-      phases:{ending:{label:"ENDING",grid:[["phx:0","memo"],["hitEnd"]],onEnter:{yuuri:true,ask:{key:"last",label:"開始時のLAST枚数（任意）",type:"num"}},afterAt:{hit:"DREAM TIME",trig:"ENDING後"},noRevive:true,
+      phases:{ending:{label:"ENDING",grid:[["phx:0","memo"],["hitEnd"]],onEnter:{yuuri:true,
+          askSheet:{title:"ENDING 突入",fields:[
+            {key:"last",label:"LAST枚数",logAs:"LAST"},
+            {key:"credit",label:"突入時のクレジット数（持ちメダル）",medal:true}
+          ],estimate:{label:"有利区間切れ見込み",unit:"クレジット",sum:["credit","last"]}}},afterAt:{hit:"DREAM TIME",trig:"ENDING後"},noRevive:true,
         extras:[{label:"ボイス",title:"ENDING ボイス（レア役でPUSH）",groups:[
           {key:"role",label:"レア役",required:true,options:["弱チャンス目","チャンス目","強チャンス目","不明"]},
           {key:"voice",label:"ボイス（公式11種）",hintTag:"設定示唆",required:true,options:[
@@ -1311,7 +1315,7 @@ function renderMoney(){
   const bal=balance(m);el("mBal").textContent=yen(bal)+"円";el("mBal").style.color=bal<0?"var(--hot)":"";
   el("mRep").textContent=yen(replayed(m))+"枚";
   if(m.credit==null)el("mDiff").textContent="−";
-  else{const bought=Math.round(invested(m)/1000*c.lend);el("mDiff").textContent=sgn(m.credit-m.startMedal-bought-replayed(m))+"枚"}
+  else{el("mDiff").textContent=sgn(medalDiff(m.credit))+"枚"}
 }
 function renderGrid(){
   const c=S.cur,d=DEF();
@@ -1341,7 +1345,7 @@ function makeGridButton(spec){
   if(spec.startsWith("toggle:")){const t=d.toggles&&d.toggles[spec.slice(7)];return t?makeToggleButton(t):null}
   if(spec==="hit")return mkb(d.hitLabel||"当選","hot",()=>openHit());
   if(spec==="stockResult")return d.stocks?mkb("結果を入れる","hot",openStockResult):null;
-  if(spec==="hitEnd")return mkb((c.hit?c.hit.label:"")+" 終了","hot",hitEnd);
+  if(spec==="hitEnd"){const h=curHitDef(),p=c.hit&&h&&h.phases&&h.phases[c.hit.phase];return mkb(p?p.label+"終了":(c.hit?c.hit.label:"")+" 終了","hot",hitEnd)}
   if(spec==="zenchou")return mkb(zenchouLabel(),zenIdx()>=0?"on":"",()=>{
     const d=DEF(),st=zenStages(),cur=zenIdx(),items=[];
     for(let i=cur+1;i<st.length;i++)items.push(i);
@@ -1372,7 +1376,15 @@ function makeGridButton(spec){
   if(spec.startsWith("phx:")){const h=curHitDef(),p=c.hit&&h&&h.phases&&h.phases[c.hit.phase],x=p&&p.extras&&p.extras[+spec.slice(4)];return canOpenExtra(x)?mkb(x.label,"",()=>openExtra({...x,completeInstant:true})):null}
   if(spec.startsWith("phase:")){const hd=curHitDef();const k=spec.slice(6);const p=hd&&hd.phases&&hd.phases[k];if(!p)return null;const on=c.hit.phase===k;return mkb(on?p.label+"中":p.label,"par"+(on?" on":""),()=>{if(on)return;const enter=p.onEnter,ask=enter&&enter.ask;
     const done=v=>{if(ask&&(!Number.isInteger(v)||v<0)){toast("0以上の整数で入れてください");return}mark();c.hit.phase=k;if(ask)c.hit[ask.key]=v;push("phase",p.label+" 突入"+(ask?"　"+ask.key.toUpperCase()+" "+v+"枚":""),{phase:k});if(enter&&enter.yuuri)yuuriReset("ENDING突入",true);toast(p.label)};
-    if(ask)askNum(ask.label,c.hit[ask.key],done);else done();})}
+    if(enter&&enter.askSheet){const sh=enter.askSheet;sheet(sh.title,b=>{
+      const PF=phaseInputs(b,sh.fields),go=mk("button","go",p.label+"突入を記録");
+      go.addEventListener("click",()=>{const err=validatePhaseInputs(PF);if(err){toast(err);return}
+        mark();c.hit.phase=k;applyPhaseValues(PF);
+        push("phase",p.label+" 突入"+phaseInputText(sh,c.hit),{phase:k});
+        if(enter.yuuri)yuuriReset("ENDING突入",true,sh.fields.some(f=>f.medal));
+        recordPhaseInputs(sh,PF,c.hit);closeSheet();toast(p.label);
+      });el("shFoot").append(go);
+    })}else if(ask)askNum(ask.label,c.hit[ask.key],done);else done();})}
   if(spec==="ticket"){const t=hitProp(curHitDef(),"ticket");if(!t)return null;return mkb(t.label+(c.ticket?" あり":""),c.ticket?"par on":"",()=>{mark();c.ticket=!c.ticket;push("ticket",t.label+(c.ticket?" 獲得（手動）":" 取消（手動）"));toast(t.label+(c.ticket?" あり":" なし"))})}
   if(spec.startsWith("sub:")){const label=spec.slice(4);const t=hitDef(label);if(!t||!c.hit)return null;return mkb(label,"hot",()=>{
     if(!confirm(c.hit.label+" 中に "+label+" へ入りますか？（失敗なら元に戻ります）"))return;
@@ -1779,10 +1791,41 @@ function validateEndInputs(GF,MF,SF){
   if(SF&&DEF().stocks){for(const s of DEF().stocks){const v=int(SF[s.key].value);if(badNum(v))return "ストック獲得数は整数で入れてください";if(v!=null&&v<0)return "ストック獲得数は0以上です"}}
   return null;
 }
+function phaseInputs(b,fields){
+  const F={};fields.forEach(f=>{
+    const i=numInput("");i.readOnly=true;i.setAttribute("inputmode","none");
+    i.addEventListener("click",()=>askNum(f.label,int(i.value),v=>{i.value=v}));
+    b.append(mk("div","lbl",f.label),i);F[f.key]=i;
+  });return F;
+}
+function validatePhaseInputs(F){
+  for(const i of Object.values(F||{})){const v=int(i.value);if(v!=null&&(!Number.isInteger(v)||v<0))return "0以上の整数で入れてください"}return null;
+}
+function applyPhaseValues(F){for(const [key,i] of Object.entries(F||{})){const v=int(i.value);if(v!=null)S.cur.hit[key]=v}}
+function phaseInputText(sh,h){return sh.fields.filter(f=>f.logAs&&h[f.key]!=null).map(f=>"　"+f.logAs+" "+h[f.key]+"枚").join("")}
+function phaseEstimate(sh,h){
+  const e=sh&&sh.estimate;if(!e||!e.sum.every(key=>Number.isInteger(h[key])&&h[key]>=0))return null;
+  return e.sum.reduce((n,key)=>n+h[key],0);
+}
+function recordPhaseInputs(sh,F,h){
+  sh.fields.forEach(f=>{if(f.medal&&F[f.key]){const md=applyMedal({medal:F[f.key]});if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prev})}});
+  const estimate=phaseEstimate(sh,h);
+  if(estimate!=null&&Object.values(F).some(i=>int(i.value)!=null)){const diff=medalDiff(estimate);push("endingEstimate",sh.estimate.label+"　"+sh.estimate.unit+" "+yen(estimate)+"枚（差枚 "+sgn(diff)+"）",{estimate,diff,last:h.last,credit:h.credit})}
+}
+function completePhaseInputs(ph,F,h){
+  if(!ph||!F)return;const sh=ph.onEnter.askSheet;applyPhaseValues(F);
+  if(sh.fields.some(f=>f.logAs&&F[f.key]&&int(F[f.key].value)!=null))push("phase",ph.label+" 突入"+phaseInputText(sh,h),{phase:h.phase});
+  recordPhaseInputs(sh,F,h);
+}
+function recordPhaseActual(ph,h,md){
+  const estimate=phaseEstimate(ph&&ph.onEnter&&ph.onEnter.askSheet,h);
+  if(md&&estimate!=null){const actual=md.medal,gap=actual-estimate;push("endingActual",ph.label+"終了　実際 "+yen(actual)+"枚／見込み比 "+sgn(gap),{actual,estimate,gap})}
+}
+function medalDiff(n){const c=S.cur,m=c.money;const bought=Math.round(invested(m)/1000*c.lend);return n-m.startMedal-bought-replayed(m)}
 function applyMedal(F){
   if(!F||!F.medal)return null;const v=int(F.medal.value);if(v==null||badNum(v)||v<0)return null;
   const c=S.cur,m=c.money;const prev=m.credit;m.credit=Math.max(0,v);
-  const bought=Math.round(invested(m)/1000*c.lend);const diff=m.credit-m.startMedal-bought-replayed(m);
+  const diff=medalDiff(m.credit);
   return {medal:m.credit,diff,prev:prev==null?null:prev};
 }
 function applyG(F){const c=S.cur;let r=int(F.realG.value),l=int(F.lcdG.value);if(badNum(r))r=null;if(badNum(l))l=null;c.realG=r==null?0:Math.max(0,r);c.lcdG=l==null?0:Math.max(0,l);c._steps=[]}
@@ -1926,7 +1969,7 @@ function applyHints(sel){
 // 今の区間に有効なモード示唆
 function activeModeHints(){const c=S.cur;const era=c.modeEra||0;return (c.modeHints||[]).filter(h=>era<=h.era+(h.span||1)-1)}
 // 有利区間切れ：引き継ぎ前提の情報を消す（ユーザーが押す）
-function yuuriReset(reason,keepOp){
+function yuuriReset(reason,keepOp,skipMedal){
   const d=DEF(),c=S.cur,y=d.yuuri;if(!y)return;
   if(!keepOp)mark();
   (y.clear||[]).forEach(k=>{
@@ -1942,7 +1985,7 @@ function yuuriReset(reason,keepOp){
     else if(k==="stocks"&&d.stocks){c.stocks={};d.stocks.forEach(s=>c.stocks[s.key]=0)}
   });
   push("yuuri","有利区間切れ"+(reason==="濃厚"?"（濃厚）":"")+"（引き継ぎ情報を消去）"+(reason&&reason!=="濃厚"?"　"+reason:""));
-  if(y.askMedal){const op=c.events[c.events.length-1].op;queueMicrotask(()=>sheet("有利切れ時の持ちメダル",b=>{
+  if(y.askMedal&&!skipMedal){const op=c.events[c.events.length-1].op;queueMicrotask(()=>sheet("有利切れ時の持ちメダル",b=>{
     const F=medalInput(b),go=mk("button","go","持ちメダルを記録"),skip=mk("button","sub","入れずに進む");
     F.medal.readOnly=true;F.medal.setAttribute("inputmode","none");F.medal.addEventListener("click",()=>askNum("今の持ちメダル（枚）",int(F.medal.value),v=>{F.medal.value=v}));
     go.addEventListener("click",()=>{const error=validateEndInputs(null,F);if(error){toast(error);return}const m=applyMedal(F);if(m)push("medal","持ちメダル "+yen(m.medal)+"枚（差枚 "+sgn(m.diff)+"）",{medal:m.medal,diff:m.diff,prevCredit:m.prev,op});closeSheet()});
@@ -1984,8 +2027,9 @@ function enterAfterHit(){
   c.zenchou=si;if(d.zenchou.remindAtG!=null)c.zenReminded=false;push("zenchou",zenStages()[si]+" 開始");
 }
 // AT を抜けて次へ（afterAt）または通常時へ
-function leaveAt(after,extraTxt,sel,GF,MF,SF){
-  const d=DEF(),c=S.cur,h=c.hit;mark();
+function leaveAt(after,extraTxt,sel,GF,MF,SF,PF){
+  const d=DEF(),c=S.cur,h=c.hit,def=curHitDef(),ph=h&&def&&def.phases&&def.phases[h.phase];mark();
+  completePhaseInputs(ph,PF,h);
   if(!GF&&h){const lr=(d.lcdRestart!=null&&!after)?d.lcdRestart:0;GF={realG:{value:"0"},lcdG:{value:String(lr)}}}   // G数を聞かない機種：既定で進める
   const reset=d.counter3.reset==="at";
   let t=h.label+" 終了";if(extraTxt)t+="　"+extraTxt;
@@ -1995,7 +2039,7 @@ function leaveAt(after,extraTxt,sel,GF,MF,SF){
   c.hit=null;c.mode="normal";
   push("hitEnd",t,{hit:h.label,sel:sel||null});
   if(GF)applyG(GF);else{c.realG=0;c.lcdG=0;c._steps=[]}
-  {const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prev})}
+  {const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prev});recordPhaseActual(ph,h,md)}
   afterHitEnd(h.label);
   if(d.stocks&&SF){const gains=[];d.stocks.forEach(s=>{const n=int(SF[s.key].value)||0;if(n>0){c.stocks[s.key]+=n;gains.push(s.short+"+"+n)}});if(gains.length)push("stock","ストック獲得："+gains.join("・")+"　→ "+d.stocks.map(s=>s.short+c.stocks[s.key]).join("／"))}
   if(sel)applyHints(sel);
@@ -2024,6 +2068,9 @@ function atEndSheet(){
   const askY=d.yuuri&&d.yuuri.askOnEnd&&d.yuuri.askOnEnd.includes(h.label);
   const sel={};tagSheetDefs.set(sel,ae);
   sheet(h.label+(ph?"（"+ph.label+"）":"")+" 終了",b=>{
+    const sh=ph&&ph.onEnter&&ph.onEnter.askSheet,missing=sh?sh.fields.filter(f=>h[f.key]==null):[];
+    if(missing.length)b.append(mk("div","lbl",ph.label+"突入時の入力（未入力分）"));
+    const PF=missing.length?phaseInputs(b,missing):null;
     if(ae.note)b.append(mk("div","hint",ae.note));
     groups.forEach(g=>{
       const lbl=mk("div","lbl",g.label);if(!g.required)lbl.append(mk("span","hint","任意"));b.append(lbl);
@@ -2059,19 +2106,19 @@ function atEndSheet(){
     }
     const txt=()=>{let t=selText(groups,sel);if(memo)t+=(t?"　":"")+memo;return t};
     const doEnd=(nextAfter)=>{
-      {const err=validateEndInputs(GF,MF,SF);if(err){toast(err);return}}
+      {const err=validateEndInputs(GF,MF,SF)||validatePhaseInputs(PF);if(err){toast(err);return}}
       if(ask&&reset===null){toast(d.counter3.label+"の扱いを選んでください");return}
       if(ask&&!nextAfter){ // 汎用（周期を聞いた場合）：選んだ結果に従う。それ以外は leaveAt に統一
-        mark();
+        mark();completePhaseInputs(ph,PF,h);
         let t=h.label+" 終了";const r=txt();if(r)t+="　"+r;
         if(reset){c.c3=0;t+="　"+d.counter3.label+"リセット"}
         c.hit=null;c.mode="normal";push("hitEnd",t,{hit:h.label,sel});if(GF)applyG(GF);else{c.realG=0;c.lcdG=0;c._steps=[]}
-        {const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prev})}
+        {const md=applyMedal(MF);if(md)push("medal","持ちメダル "+yen(md.medal)+"枚（差枚 "+sgn(md.diff)+"）",{medal:md.medal,diff:md.diff,prevCredit:md.prev});recordPhaseActual(ph,h,md)}
         afterHitEnd(h.label);applyHints(sel);
         if(!nextAfter)enterAfterHit();
         save();render();closeSheet();return;
       }
-      leaveAt(nextAfter,txt(),sel,GF,MF,SF);
+      leaveAt(nextAfter,txt(),sel,GF,MF,SF,PF);
       if(yuuri)yuuriReset(h.label+" 終了後");
     };
     const F=el("shFoot");
