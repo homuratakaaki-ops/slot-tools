@@ -1,11 +1,12 @@
 // ============================================================
-// MACHINES.kanokari  v0.17（第3弾：レンCHANCE開始キャラの入力位置、1GレンCHANCEの成否、CZ成功のステージ、ボーナス背景の表示、引き戻し終了のステージ、DREAM後のG数と種別、保証ストックの二重計上の修正、和也の部屋のアイキャッチ）
+// MACHINES.kanokari  v0.17（第3弾：レンCHANCE開始キャラの入力位置、1GレンCHANCEの成否、CZ成功のステージ、ボーナス背景の表示、引き戻し終了のステージ、DREAM後のG数と種別、保証ストックの二重計上の修正、和也の部屋のアイキャッチ）（シオン検収の修正を反映）
 // 既存の3機種の定義形式に合わせる。順序4〜6で器に足す仕組みは engine-v01 の §番号を注記
 // ============================================================
 kanokari:{
   name:"彼女、お借りします",
   lcdG:true,
   lcdRestart:0,
+  clearStageOnHit:true,
 
   // ---------- 打ち始め ----------
   setup:[
@@ -22,12 +23,13 @@ kanokari:{
   rareCountInHit:true,   // 当選中のレア役は当選ごとに0から数え、ログに「（ボーナス中2回目）」
   rareSheetOnePage:true,   // レア役シートは1画面：種類を選ぶ→同じ画面でメーター（ask）を選ぶ→即記録。当選中は ask を出さない
   stocks:[{key:"ren",label:"レンCHANCE",short:"レン"},{key:"koi",label:"1G恋",short:"1G恋"}],   // §1
-  stockGainNote:"ボーナス終了時に表示されているストック数をそのまま入れてください（保証分も含みます）。合計は右に出ます",
+  // 終了シートの注記。保証が入った回は stockGainNoteOnStart（hits 側に置く）が優先される
+  stockGainNote:"このボーナスで増えたストック数を入れてください。前から持っている分は右の合計に入っています",
   gauge:{label:"❤",max:5,maxLabel:"MAX",hideInHit:true},   // §4。当選中はバッジを出さない
   // 1GレンCHANCE の失敗連続回数（バッジ「レン失敗 n」）。救済抽選（2〜5回で振り分け）の判定に使う
   // 失敗で+1、成功で0。引き戻し当選と次回初当りで0（持ち越さない）
   stockGPerSet:2,stockSuccessOffset:1,   // 1セット2G。全部失敗→実G＝消費数×2、成功→当選G＝消費数×2＋1（告知の1G）。液晶は0
-  stockResultMode:"perSet",   // セットごとに入力：1G目の役 → 2G目の役 → 必要なときだけ成否。1G恋は1G目の役だけ。失敗なら次のセット、尽きたら引き戻しへ
+  stockResultMode:"perSet",   // セットごとに入力：1G目の役 → 2G目の役 → 必要なときだけ成否。1G恋も1G目・2G目の役を聞き、自動成功。失敗なら次のセット、尽きたら引き戻しへ
   stockFail:{label:"レン失敗",resetOnTriggers:["引き戻し成功","レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},
   // 1GレンCHANCE の各セットで成立役を聞き、定義のルールで成否を決める
   stockResultGroups:[   // perSet：各セットで順に聞く
@@ -40,7 +42,7 @@ kanokari:{
   stockResultRule:{
     resultKey:"r2",
     autoSuccess:{key:"g2",values:["リプ・ベル","弱チャンス目","チャンス目","強チャンス目"]},
-    koi:{autoSuccess:true,groups:["g1"]}
+    koi:{autoSuccess:true,groups:["g1","g2"]}
   },
   // 1GレンCHANCE 開始時に1回だけ聞く（当選シートの chara を自動で埋める）
   stockPhaseAsk:{key:"renChara",title:"レンCHANCE開始キャラ",label:"レンCHANCE開始キャラ",hintTag:"設定示唆",
@@ -96,6 +98,8 @@ kanokari:{
 
     // ボーナス
     {label:"かのかりBONUS",kind:"at",stockGain:true,tone:"d",askGOnEnd:false,
+      onStart:{stockInc:{ren:1},onlyTriggers:["レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},   // 初当りの保証1個（引き戻し・連チャン・DREAM後は無し）
+      stockGainNoteOnStart:"初当りの保証レン1個は開始時に入れてあります。ここには保証を除いて増えた分だけを入れてください（終了時の表示が3個なら 2）。合計は右に出ます",
       atStart:null,
       atExtras:[
         {label:"背景",once:true,short:"背景",valueOnly:true,groups:[{key:"bg",label:"チャンス告知の背景（水族館＜クリスマス＜ゼロ距離）",hintTag:"モード示唆",required:true,options:[{l:"水族館",h:"低"},{l:"クリスマスデート",h:"中"},{l:"ゼロ距離",h:"高モード期待"}]}]},
@@ -162,6 +166,9 @@ kanokari:{
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","memo","hitEnd"]],
       revive:null},
     {label:"DREAM TIME",kind:"at",stockGain:true,tone:"g",askGOnEnd:false,
+      // 保証の1G恋は先入れしない。終了時の表示に保証分が含まれており、先入れすると二重に数えるため
+      //（10/2 09:50 で最後の1GレンCHANCEが2セット＝実4G と記録され、実際は1セット＝実2G だった）
+      stockGainNote:"DREAM TIME は保証分を先に入れていません。終了時に表示されているストック数（1G恋の保証1個を含む）をそのまま入れてください。合計は右に出ます",
       atExtras:[{label:"S級（ブラックアウト）",type:"toggle",tag:"S級DREAMTIME"}],
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","memo","hitEnd"]],
       revive:null}
@@ -216,7 +223,7 @@ kanokari:{
         {key:"ren33",label:"演出",options:["なし","恋心","カレー","笑顔","秘密","その他"]},
         {key:"cu33",label:"CU",options:["あり","なし"]},
         {key:"eye33",label:"失敗後のアイキャッチ",options:["白","青・4人","ピンク・2人","劇画調・和也背景","なし"]},
-        {key:"stage33",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}]},
+        {key:"stage33",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女"]}]},
       {title:"③ 66G前後",groups:[
         {key:"ren66",label:"演出",options:["なし","恋心","カレー","笑顔","秘密","その他"]},
         {key:"cu66",label:"CU",options:["あり","なし"]},
