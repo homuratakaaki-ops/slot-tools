@@ -1814,7 +1814,8 @@ function recordPhaseInputs(sh,F,h){
 }
 function completePhaseInputs(ph,F,h){
   if(!ph||!F)return;const sh=ph.onEnter.askSheet;applyPhaseValues(F);
-  if(sh.fields.some(f=>f.logAs&&F[f.key]&&int(F[f.key].value)!=null))push("phase",ph.label+" 突入"+phaseInputText(sh,h),{phase:h.phase});
+  // 終了時の後追い入力。突入の行と同じ文面にすると「突入」が2回出るので、後から入れたと分かる文言にする
+  if(sh.fields.some(f=>f.logAs&&F[f.key]&&int(F[f.key].value)!=null))push("phaseFill",ph.label+" 突入時の入力"+phaseInputText(sh,h),{phase:h.phase});
   recordPhaseInputs(sh,F,h);
 }
 function recordPhaseActual(ph,h,md){
