@@ -1353,7 +1353,7 @@ function makeGridButton(spec){
     if(x.type==="count"){const n=(c.hit&&c.hit.counts&&c.hit.counts[x.label])||0;return mkb((x.short||x.label)+(n?" "+n:""),n?"on":"",()=>openExtra(x))}
     if(x.once&&c.hit){
       const cur=findExtraInHit(x.label);
-      if(cur){const v=x.groups.map(g=>cur.sel&&cur.sel[g.key]).filter(Boolean).join("・");return mkb(x.valueOnly?v:(x.short||x.label)+(v?" "+v:""),"on",()=>openExtra(x))}
+      if(cur&&!(x.valueOnly&&!x.groups.some(g=>cur.sel&&cur.sel[g.key]))){const v=x.groups.map(g=>cur.sel&&cur.sel[g.key]).filter(Boolean).join("・");return mkb(x.valueOnly?v:(x.short||x.label)+(v?" "+v:""),"on",()=>openExtra(x))}
       if(x.valueOnly){const b=mkb((x.short||x.label)+" 未選択","",()=>openExtra(x));b.style.borderStyle="dashed";b.style.opacity=".65";return b}
     }
     return mkb(x.label,x.type==="slots"&&c.hit&&c.hit.slots?"on":"",()=>openExtra(x))}
