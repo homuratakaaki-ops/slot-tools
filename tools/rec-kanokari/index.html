@@ -24,7 +24,8 @@ textarea{min-height:80px;resize:vertical}
 .shell{max-width:520px;margin:0 auto;padding:8px 10px 20px}
 .hd{display:flex;align-items:center;gap:8px;padding:4px 2px 8px;border-bottom:1px solid var(--line)}
 .hd .t{flex:1;font-size:15px;font-weight:700;color:var(--accent);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hd .x{width:44px;height:38px;font-size:18px;color:var(--dim)}
+.hd .x{flex:none;width:44px;height:44px;font-size:18px;color:var(--dim)}
+.hd .ver{flex:none;font-family:var(--mono);font-size:10px;color:var(--dim);white-space:nowrap;letter-spacing:-.02em}
 .badges{display:flex;flex-wrap:nowrap;gap:6px;align-items:center;padding:8px 2px 4px;min-height:20px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .grid .r5{margin-top:8px}
 .badges::-webkit-scrollbar{display:none}
@@ -172,7 +173,7 @@ textarea{min-height:80px;resize:vertical}
 </head>
 <body>
 <div class="shell">
-  <div class="hd"><div class="t" id="hdTitle">実戦記録 かのかり</div><button class="x" id="hdMenu">≡</button></div>
+  <div class="hd"><div class="t" id="hdTitle">実戦記録 かのかり</div><div class="ver" id="hdVer"></div><button class="x" id="hdMenu">≡</button></div>
   <div id="storeWarn" class="warn hide">保存できません。閉じる前に必ず書き出してください。<button id="storeExport" style="margin-left:8px;padding:6px 10px">今すぐ書き出す</button></div>
   <div id="staleWarn" class="warn hide">別のタブでこの記録が更新されています。このタブの操作は保存されません。<button id="staleReload" style="margin-left:8px;padding:6px 10px">再読み込み</button><button id="staleExport" style="margin-left:6px;padding:6px 10px">このタブの内容を書き出す</button></div>
   <div id="brokenWarn" class="warn hide"><span id="brokenMsg">保存データが読めませんでした。このままでは何も保存されません。</span><br>直し方：①「元データを書き出す」でファイルに残す → ②「空の状態で始める」→ ③ 正常だったときのバックアップ（JSON）を「取り込む」。壊れた元データをそのまま取り込んでも直りません。<br><button id="brokenExport" style="margin-left:0;padding:6px 10px">元データを書き出す</button><button id="brokenReset" style="margin-left:6px;padding:6px 10px">空の状態で始める</button></div>
@@ -250,6 +251,7 @@ textarea{min-height:80px;resize:vertical}
 "use strict";
 const KEY="slot-tools-rec-kanokari";
 const DEF_LEND=46;
+const ENGINE_VER="0.14";   // 器（共通処理）の版。画面のヘッダに出す
 
 /* =====================================================================
    機種定義
@@ -285,6 +287,7 @@ const MACHINES={
   },
 kanokari:{
   name:"彼女、お借りします",
+  defVer:"0.18",   // 画面のヘッダに出す定義の版。docs/specs/kanokari-def-v18.js の1行目と必ず合わせる
   lcdG:true,
   lcdRestart:0,
   clearStageOnHit:true,
@@ -505,7 +508,7 @@ kanokari:{
       {title:"② 33G前後",groups:[
         {key:"ren33",label:"演出",options:["なし","恋心","カレー","笑顔","秘密","その他"]},
         {key:"cu33",label:"CU",options:["あり","なし"]},
-        {key:"eye33",label:"失敗後のアイキャッチ",options:["白","青・4人","ピンク・2人","劇画調・和也背景","なし"]},
+        {key:"eye33",label:"33Gのアイキャッチ（引き戻し期待度）",options:["白","ピンク（赤）","黒","なし"]},
         {key:"stage33",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女"]}]},
       {title:"③ 66G前後",groups:[
         {key:"ren66",label:"演出",options:["なし","恋心","カレー","笑顔","秘密","その他"]},
@@ -2966,8 +2969,17 @@ ok.forEach(s=>{fixSession(s);S.sessions.push(s);have.add(s.id);s.events.forEach(
 S.sessions.sort((a,b)=>new Date(a.startAt)-new Date(b.startAt));save();showNote();closeSheet();toast(ok.length+"件を取り込みました"+(dup?"（"+dup+"件は同じ記録があるため除外）":"")+(bad.length?"（"+bad.length+"件は形が不正で除外）":""))}
 
 /* ---------- 画面切替 ---------- */
+// ヘッダの版数。定義の版は機種定義から、器の版は ENGINE_VER から取る（直書きしない）
+function renderVer(){
+  const md=MACHINES[pickedMachine]||DEF();
+  const parts=[];
+  if(md&&md.defVer)parts.push("定義 v"+md.defVer);
+  parts.push("器 v"+ENGINE_VER);
+  el("hdVer").textContent=parts.join("／");
+}
 let setupVals={};
 function renderSetupFields(){
+  renderVer();
   const d=MACHINES[pickedMachine||"generic"],w=el("stFields");w.innerHTML="";setupVals={};
   el("stLcdWrap").classList.toggle("hide",d.lcdG===false);
   el("stTotalHint").textContent=d.checker?"チェッカーに送るなら開始時も必要（AT込みの累計）":"任意";
@@ -2990,13 +3002,13 @@ function showSetup(){
   const names=Object.keys(MACHINES).filter(k=>k!=="generic").map(k=>MACHINES[k].name);
   const seen=[];S.sessions.slice().reverse().forEach(s=>{if(s.machineId==="generic"&&!seen.includes(s.machine)&&!names.includes(s.machine))seen.push(s.machine)});
   seen.slice(0,4).forEach(m=>{const b=mk("button","",m);b.addEventListener("click",()=>{pickedMachine=null;el("stMachine").value=m;w.querySelectorAll("button").forEach(x=>x.classList.remove("on"));b.classList.add("on");renderSetupFields()});w.append(b)});
-  renderSetupFields();
+  renderSetupFields();renderVer();
 }
 el("stMachine").addEventListener("input",()=>{if(pickedMachine){pickedMachine=null;el("stMachines").querySelectorAll("button").forEach(x=>x.classList.remove("on"));renderSetupFields()}});
 // 台の見出し：機種 ／ 店名 台番号 ／ 開始時刻〜
 function sessTitle(s){const w=[s.machine];const sd=[s.shop,s.dai?s.dai+"番":null].filter(Boolean).join(" ");if(sd)w.push(sd);w.push(hm(s.startAt)+"〜");return w.join(" ／ ")}
-function showMain(){el("scSetup").classList.add("hide");el("scMain").classList.remove("hide");el("scNote").classList.add("hide");el("hdTitle").textContent=sessTitle(S.cur);render()}
-function showNote(){el("scSetup").classList.add("hide");el("scMain").classList.add("hide");el("scNote").classList.remove("hide");el("hdTitle").textContent="ノート（"+S.sessions.length+"件）";renderNote()}
+function showMain(){el("scSetup").classList.add("hide");el("scMain").classList.remove("hide");el("scNote").classList.add("hide");el("hdTitle").textContent=sessTitle(S.cur);renderVer();render()}
+function showNote(){el("scSetup").classList.add("hide");el("scMain").classList.add("hide");el("scNote").classList.remove("hide");el("hdTitle").textContent="ノート（"+S.sessions.length+"件）";renderVer();renderNote()}
 el("hdMenu").addEventListener("click",()=>{sheet("メニュー",b=>{const tags=mk("button","sub","タグの管理");tags.addEventListener("click",manageTags);b.append(tags);if(S.cur){const a=mk("button","sub","記録に戻る");a.addEventListener("click",()=>{closeSheet();showMain()});b.append(a)}const n=mk("button","sub","ノートを開く");n.addEventListener("click",()=>{closeSheet();showNote()});b.append(n);if(!S.cur){const s=mk("button","sub","新しく打ち始める");s.addEventListener("click",()=>{closeSheet();showSetup()});b.append(s)}})});
 
 /* ---------- 開始 ---------- */
