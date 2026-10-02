@@ -1,5 +1,5 @@
 // ============================================================
-// MACHINES.kanokari  v0.16（実機テスト4回目＋第2弾：セットごとの1GレンCHANCE、強チャンス目→前兆、ステージ→アイキャッチ、変換なし→高確終了、引き戻し記録3段、ENDINGボイス、攻略キャラ自動、参照・まとめ）
+// MACHINES.kanokari  v0.17（第3弾：レンCHANCE開始キャラの入力位置、1GレンCHANCEの成否、CZ成功のステージ、ボーナス背景の表示、引き戻し終了のステージ、DREAM後のG数と種別、保証ストックの二重計上の修正、和也の部屋のアイキャッチ）
 // 既存の3機種の定義形式に合わせる。順序4〜6で器に足す仕組みは engine-v01 の §番号を注記
 // ============================================================
 kanokari:{
@@ -22,20 +22,30 @@ kanokari:{
   rareCountInHit:true,   // 当選中のレア役は当選ごとに0から数え、ログに「（ボーナス中2回目）」
   rareSheetOnePage:true,   // レア役シートは1画面：種類を選ぶ→同じ画面でメーター（ask）を選ぶ→即記録。当選中は ask を出さない
   stocks:[{key:"ren",label:"レンCHANCE",short:"レン"},{key:"koi",label:"1G恋",short:"1G恋"}],   // §1
-  stockGainNote:"保証分（初当りのレン1・DREAM TIMEの1G恋1）は開始時に入っています。ここには追加で獲得した分だけ。合計は右に出ます",
+  stockGainNote:"ボーナス終了時に表示されているストック数をそのまま入れてください（保証分も含みます）。合計は右に出ます",
   gauge:{label:"❤",max:5,maxLabel:"MAX",hideInHit:true},   // §4。当選中はバッジを出さない
   // 1GレンCHANCE の失敗連続回数（バッジ「レン失敗 n」）。救済抽選（2〜5回で振り分け）の判定に使う
   // 失敗で+1、成功で0。引き戻し当選と次回初当りで0（持ち越さない）
   stockGPerSet:2,stockSuccessOffset:1,   // 1セット2G。全部失敗→実G＝消費数×2、成功→当選G＝消費数×2＋1（告知の1G）。液晶は0
-  stockResultMode:"perSet",   // セットごとに入力：1G目の役 →（成功なら終了）→ 2G目の役 → 成功／失敗。失敗なら次のセット。ストックが尽きたら引き戻しへ
+  stockResultMode:"perSet",   // セットごとに入力：1G目の役 → 2G目の役 → 必要なときだけ成否。1G恋は1G目の役だけ。失敗なら次のセット、尽きたら引き戻しへ
   stockFail:{label:"レン失敗",resetOnTriggers:["引き戻し成功","レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},
-  // 1GレンCHANCE の結果シートで、成功したセットの成立役を聞く（1G目／2G目）。失敗セットは聞かない
+  // 1GレンCHANCE の各セットで成立役を聞き、定義のルールで成否を決める
   stockResultGroups:[   // perSet：各セットで順に聞く
     {key:"g1",label:"1G目の役",options:["ハズレ","ハズレ（CU）","リプ・ベル","弱チャンス目","チャンス目","強チャンス目","不明"]},
-    {key:"r1",label:"1G目",options:["成功","失敗"]},
-    {key:"g2",label:"2G目の役",showWhen:{key:"r1",in:["失敗"]},options:["ハズレ","ハズレ（CU）","リプ・ベル","弱チャンス目","チャンス目","強チャンス目","不明"]},
-    {key:"r2",label:"2G目",showWhen:{key:"r1",in:["失敗"]},options:["成功","失敗"]}
+    {key:"g2",label:"2G目の役",options:["ハズレ","ハズレ（CU）","リプ・ベル","弱チャンス目","チャンス目","強チャンス目","不明"]},
+    {key:"r2",label:"2G目の結果",showWhen:{key:"g2",in:["ハズレ","ハズレ（CU）","不明"]},options:["成功","失敗"]}
   ],
+
+  // セットの成否は表示ラベルから推測せず、このルールで決める
+  stockResultRule:{
+    resultKey:"r2",
+    autoSuccess:{key:"g2",values:["リプ・ベル","弱チャンス目","チャンス目","強チャンス目"]},
+    koi:{autoSuccess:true,groups:["g1"]}
+  },
+  // 1GレンCHANCE 開始時に1回だけ聞く（当選シートの chara を自動で埋める）
+  stockPhaseAsk:{key:"renChara",title:"レンCHANCE開始キャラ",label:"レンCHANCE開始キャラ",hintTag:"設定示唆",
+    askWhenC3Mod:{mod:4,eq:0},   // 次が1・5・9人目のときだけ聞く
+    options:["麻美","瑠夏","墨","千鶴","不明"]},
 
   // ---------- レア役 ----------
   rares:[
@@ -57,7 +67,7 @@ kanokari:{
 
   // ---------- 当選時の追加質問 ----------
   hitExtraGroups:[   // 攻略キャラは契機が攻略成功／1G恋成功のときだけ
-    {key:"chara",label:"攻略キャラ（1・5・9人目だけ聞く。残りはシナリオから自動）",showWhen:{key:"trig",in:["攻略成功","1G恋成功"]},askWhenC3Mod:{mod:4,eq:0},options:["麻美","瑠夏","墨","千鶴","不明"],
+    {key:"chara",fromStockAsk:"renChara",label:"攻略キャラ（1・5・9人目だけ聞く。残りはシナリオから自動）",hintTag:"設定示唆",showWhen:{key:"trig",in:["攻略成功","1G恋成功"]},askWhenC3Mod:{mod:4,eq:0},options:["麻美","瑠夏","墨","千鶴","不明"],
      scenario:{"麻美":["麻美","瑠夏","墨","千鶴"],"瑠夏":["瑠夏","墨","千鶴","麻美"],"墨":["墨","千鶴","麻美","瑠夏"],"千鶴":["千鶴","麻美","瑠夏","墨"]}},
     {key:"dreamG",label:"初期G数",type:"num",showWhen:{key:"type",in:["ななかりDREAM"]}}
   ],
@@ -74,7 +84,7 @@ kanokari:{
       grid:[["atx:0","atx:1","memo"],["hitEnd"]],
       czEnd:{groups:[{key:"lastRole",label:"最終ゲームの成立役",options:["小役","チャンス目系","ハズレ","不明"],hideIfExtra:{label:"到達色",value:"虹"}},
                      {key:"color2",label:"到達色（未入力なら）",options:["白","青","黄","緑","赤","虹"],showIfExtraMissing:"到達色"},
-                     {key:"stage",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}],successToAt:true,successAsk:true}},
+                     {key:"stage",label:"戻ったステージ",failOnly:true,options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}],successToAt:true,successAsk:true}},
     {label:"妄想DTチャレンジ",kind:"cz",keepG:true,
       atExtras:[
         {label:"ヒロイン",once:true,groups:[{key:"heroine",label:"ヒロイン",required:true,options:["麻美","瑠夏","墨","千鶴"]}]},
@@ -82,21 +92,20 @@ kanokari:{
       ],
       tone:"c",
       grid:[["atx:0","atx:1","memo"],["hitEnd"]],
-      czEnd:{groups:[{key:"push",label:"PUSH",options:["成功","失敗","なし"]},{key:"stage",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}],successToAt:true,successAsk:true}},
+      czEnd:{groups:[{key:"push",label:"PUSH",options:["成功","失敗","なし"]},{key:"stage",label:"戻ったステージ",failOnly:true,options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}],successToAt:true,successAsk:true}},
 
     // ボーナス
     {label:"かのかりBONUS",kind:"at",stockGain:true,tone:"d",askGOnEnd:false,
-      onStart:{stockInc:{ren:1},onlyTriggers:["レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},   // 初当りの保証1個（引き戻し・連チャン・DREAM後は無し）
       atStart:null,
       atExtras:[
-        {label:"背景",once:true,short:"背景",groups:[{key:"bg",label:"チャンス告知の背景（水族館＜クリスマス＜ゼロ距離）",required:true,options:[{l:"水族館",h:"低"},{l:"クリスマスデート",h:"中"},{l:"ゼロ距離",h:"高モード期待"}]}]},
+        {label:"背景",once:true,short:"背景",valueOnly:true,groups:[{key:"bg",label:"チャンス告知の背景（水族館＜クリスマス＜ゼロ距離）",hintTag:"モード示唆",required:true,options:[{l:"水族館",h:"低"},{l:"クリスマスデート",h:"中"},{l:"ゼロ距離",h:"高モード期待"}]}]},
         {label:"下パネル消灯",type:"toggle",tag:"裏かのかり"},
         {label:"2択当て",title:"2択当て",groups:[{key:"r",label:"結果",required:true,options:["○","×"]}]}
       ],
       phases:{ending:{label:"ENDING",grid:[["phx:0","memo"],["hitEnd"]],onEnter:{yuuri:true,ask:{key:"last",label:"開始時のLAST枚数（任意）",type:"num"}},afterAt:{hit:"DREAM TIME",trig:"ENDING後"},noRevive:true,
         extras:[{label:"ボイス",title:"ENDING ボイス（レア役でPUSH）",groups:[
           {key:"role",label:"レア役",required:true,options:["弱チャンス目","チャンス目","強チャンス目","不明"]},
-          {key:"voice",label:"ボイス（公式11種）",required:true,options:[
+          {key:"voice",label:"ボイス（公式11種）",hintTag:"設定示唆",required:true,options:[
             {l:"麻美：アガる〜↑"},{l:"麻美：あれ〜？嫉妬させちゃった？",tone:"p"},{l:"麻美：もう恋なんてしないって決めてるんだから！",tone:"d"},
             {l:"瑠夏：彼女入りまーす"},{l:"瑠夏：私が一番…好きだもん…っ",tone:"p"},{l:"瑠夏：なんだか少し、お酒の味…",tone:"d"},
             {l:"墨：ふん、ふん、！！"},{l:"墨：私…っいるか…っ",tone:"p"},{l:"墨：今日は私がお饗しする番…",tone:"d"},
@@ -105,13 +114,13 @@ kanokari:{
         ]}]}},   // §11 ＋ D4
       atEnd:{groups:[
         {key:"medal",label:"獲得枚数表示",options:["なし","246","456","666","394"]},
-        {key:"screen",label:"終了画面の枠",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
+        {key:"screen",label:"終了画面の枠",hintTag:"設定示唆",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
       ]},
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","atx:1","atx:2"],["phase:ending","memo","hitEnd"]],
       revive:null},
     {label:"REG",kind:"at",tone:"d",askGOnEnd:false,
       atExtras:[
-        {type:"slotsSeq",label:"次のキャラ",logAs:"キャラ紹介",n:5,default:["和也","麻美・白","瑠夏・白","墨・白","千鶴・白"],   // 押すと「n人目」の選択肢。デフォルトどおりなら1タップ
+        {type:"slotsSeq",label:"次のキャラ",logAs:"キャラ紹介",hintTag:"設定示唆",n:5,default:["和也","麻美・白","瑠夏・白","墨・白","千鶴・白"],   // 押すと「n人目」の選択肢。デフォルトどおりなら1タップ
          options:[{l:"和也"},{l:"肺魚"},{l:"麻美・白"},{l:"麻美・ピンク",tone:"p"},{l:"麻美・赤",tone:"d"},{l:"瑠夏・白"},{l:"瑠夏・ピンク",tone:"p"},{l:"瑠夏・赤",tone:"d"},{l:"墨・白"},{l:"墨・ピンク",tone:"p"},{l:"墨・赤",tone:"d"},{l:"千鶴・白"},{l:"千鶴・ピンク",tone:"p"},{l:"千鶴・赤",tone:"d"},{l:"その他"}]},
         {type:"stockInc",label:"1G恋獲得",key:"koi"}
       ],
@@ -120,36 +129,39 @@ kanokari:{
       revive:null},
     {label:"エピソードBONUS",kind:"at",stockGain:true,tone:"p",askGOnEnd:false,
       atExtras:[
-        {label:"上部の色",once:true,short:"色",groups:[{key:"color",label:"上部の色",required:true,options:["白","青","黄","緑","赤","虹"]}]},
+        {label:"上部の色",once:true,short:"色",groups:[{key:"color",label:"上部の色",hintTag:"設定示唆",required:true,options:["白","青","黄","緑","赤","虹"]}]},
         {label:"開始時から虹",type:"toggle",tag:"開始時虹"}
       ],
       atEnd:{groups:[
-        {key:"roulette",label:"ルーレットの色",options:["白","青","黄","緑","赤","虹"]},
-        {key:"screen",label:"終了画面の枠",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
+        {key:"roulette",label:"ルーレットの色",hintTag:"設定示唆",options:["白","青","黄","緑","赤","虹"]},
+        {key:"screen",label:"終了画面の枠",hintTag:"設定示唆",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
       ]},
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","atx:1","memo"],["hitEnd"]],
       revive:null},
     {label:"スペシャルエピソードBONUS",kind:"at",stockGain:true,tone:"p",askGOnEnd:false,
       onStart:{tag:"ユメカノ",until:"manual"},   // 突入＝ユメカノ獲得確定
       atExtras:[
-        {label:"上部の色",once:true,short:"色",groups:[{key:"color",label:"上部の色",required:true,options:["白","青","黄","緑","赤","虹"]}]},
+        {label:"上部の色",once:true,short:"色",groups:[{key:"color",label:"上部の色",hintTag:"設定示唆",required:true,options:["白","青","黄","緑","赤","虹"]}]},
         {label:"開始時から虹",type:"toggle",tag:"開始時虹"}
       ],
       atEnd:{groups:[
-        {key:"roulette",label:"ルーレットの色",options:["白","青","黄","緑","赤","虹"]},
-        {key:"screen",label:"終了画面の枠",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
+        {key:"roulette",label:"ルーレットの色",hintTag:"設定示唆",options:["白","青","黄","緑","赤","虹"]},
+        {key:"screen",label:"終了画面の枠",hintTag:"設定示唆",options:[["なし","デフォルト"],["白枠BBQ","設定示唆"],["白枠浜辺","設定示唆"],["赤","設定示唆"],["紫","設定示唆"],["銀","高設定示唆"],["金","高設定示唆"]]}
       ]},
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","atx:1","memo"],["hitEnd"]],
       revive:null},
     {label:"ななかりDREAM",kind:"at",stockGain:true,tone:"g",
       atExtras:[{label:"S級（ブラックアウト）",type:"toggle",tag:"S級DREAM"}],
       atEnd:{groups:[{key:"plus100",label:"終了時の＋100G",options:["なし","あり"]}]},
-      afterAt:{hit:"かのかりBONUS",trig:"DREAM後"},
+      afterAt:{hit:"かのかりBONUS",trig:"DREAM後",realG:1},
+      afterAtOptions:[
+        {label:"エピソードBONUSへ（DREAM後）",hit:"エピソードBONUS",trig:"DREAM後",realG:1},
+        {label:"スペシャルエピソードBONUSへ（DREAM後）",hit:"スペシャルエピソードBONUS",trig:"DREAM後",realG:1}
+      ],
       askGOnEnd:false,
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","memo","hitEnd"]],
       revive:null},
     {label:"DREAM TIME",kind:"at",stockGain:true,tone:"g",askGOnEnd:false,
-      onStart:{stockInc:{koi:1}},   // 開始時に1G恋を1個獲得（解析）
       atExtras:[{label:"S級（ブラックアウト）",type:"toggle",tag:"S級DREAMTIME"}],
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","memo","hitEnd"]],
       revive:null}
@@ -180,7 +192,7 @@ kanokari:{
   stages:{
     order:["部屋と彼女","大学と彼女","街と彼女"],   // バッジをタップすると次のステージへ（順番のもの以外はシートを開く）
     options:[{l:"部屋と彼女",h:"通常",askAfter:"アイキャッチ"},{l:"大学と彼女",h:"通常",askAfter:"アイキャッチ"},{l:"街と彼女",h:"通常",askAfter:"アイキャッチ"},
-             {l:"海と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"夜と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"ヒミツ恋ゴコロ",h:"前兆",tone:"d",enterZen:1,askAfter:"アイキャッチ"},
+             {l:"海と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p",enterZen:1},{l:"夜と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"ヒミツ恋ゴコロ",h:"前兆",tone:"d",enterZen:1,askAfter:"アイキャッチ"},
              {l:"ヒロインステージ",h:"ポイント高確20G",tone:"c",askAfter:"アイキャッチ"}]},
 
   // ---------- 前兆・引き戻し ----------
@@ -193,7 +205,7 @@ kanokari:{
       {key:"stage",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女"]}
     ],forStages:[2],
     backTo:{2:1},   // 連続演出の終了時に「前兆ステージへ戻る」を出す（失敗しても前兆ステージが続くことがある）
-    onEndByStage:{3:{clearTags:["ユメカノ"],c3:0}},   // 引き戻し終了：ユメカノOFF、攻略人数0
+    onEndByStage:{3:{clearTags:["ユメカノ"],c3:0,keepStage:true}},   // 引き戻し終了：ユメカノOFF、攻略人数0
     sheet:{label:"引き戻し記録",forStage:3,logOnSave:false,autoFill:{stage0:{ifTag:"ユメカノ",value:"専用（ユメカノ後）"}},sections:[   // 3段。保存時はログなし（終了時に当否付きで流す）
       {title:"① レンCHANCE抜け直後",groups:[
         {key:"eye",label:"アイキャッチ",options:["白","ピンク（赤）","黒"]},
@@ -209,11 +221,11 @@ kanokari:{
         {key:"ren66",label:"演出",options:["なし","恋心","カレー","笑顔","秘密","その他"]},
         {key:"cu66",label:"CU",options:["あり","なし"]},
         {key:"eye66",label:"失敗後のアイキャッチ",options:["白","青・4人","ピンク・2人","劇画調・和也背景","なし"]},
-        {key:"stage66",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}]}
+        {key:"stage66",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女"]}]}
     ]}},
 
   // ---------- 有利区間 ----------
-  yuuri:{askOnEnd:[],clear:["c3","stocks","gauge","tags","modeHints"],levels:["有利切れ","有利切れ濃厚"],askMedal:true},   // §10 ＋ D5：切れ時に持ちメダルを聞き、差枚をログに
+  yuuri:{askOnEnd:[],clear:["c3","stocks","gauge","tags","modeHints","renChara"],levels:["有利切れ","有利切れ濃厚"],askMedal:true},   // §10 ＋ D5：切れ時に持ちメダルを聞き、差枚をログに
 
   parallel:[],
   czEndStd:{groups:[]},
@@ -237,11 +249,11 @@ kanokari:{
   // ---------- まとめ（E3）：summarizeHints に足す機種固有の項目 ----------
   summary:{
     items:[
-      {label:"終了画面の枠",from:"atEnd.screen"},
-      {label:"REG キャラ紹介（シナリオ判定）",from:"slots",judge:"regScenario"},
-      {label:"攻略キャラの並び（シナリオ判定・引き戻しで区切る）",from:"chara",judge:"charaScenario"},
-      {label:"チャンス告知の背景",from:"extra:背景"},
-      {label:"EP 上部の色／ルーレット",from:"extra:上部の色,atEnd.roulette"},
+      {label:"終了画面の枠",hintTag:"設定示唆",from:"atEnd.screen"},
+      {label:"REG キャラ紹介（シナリオ判定）",hintTag:"設定示唆",from:"slots",judge:"regScenario"},
+      {label:"攻略キャラの並び（シナリオ判定・引き戻しで区切る）",hintTag:"設定示唆",from:"chara",judge:"charaScenario"},
+      {label:"チャンス告知の背景",hintTag:"モード示唆",from:"extra:背景"},
+      {label:"EP 上部の色／ルーレット",hintTag:"設定示唆",from:"extra:上部の色,atEnd.roulette"},
       {label:"初当り（G数と種別）",from:"firstHits"},
       {label:"攻略人数の最大",from:"c3max"}
     ]

@@ -303,20 +303,30 @@ kanokari:{
   rareCountInHit:true,   // 当選中のレア役は当選ごとに0から数え、ログに「（ボーナス中2回目）」
   rareSheetOnePage:true,   // レア役シートは1画面：種類を選ぶ→同じ画面でメーター（ask）を選ぶ→即記録。当選中は ask を出さない
   stocks:[{key:"ren",label:"レンCHANCE",short:"レン"},{key:"koi",label:"1G恋",short:"1G恋"}],   // §1
-  stockGainNote:"保証分（初当りのレン1・DREAM TIMEの1G恋1）は開始時に入っています。ここには追加で獲得した分だけ。合計は右に出ます",
+  stockGainNote:"ボーナス終了時に表示されているストック数をそのまま入れてください（保証分も含みます）。合計は右に出ます",
   gauge:{label:"❤",max:5,maxLabel:"MAX",hideInHit:true},   // §4。当選中はバッジを出さない
   // 1GレンCHANCE の失敗連続回数（バッジ「レン失敗 n」）。救済抽選（2〜5回で振り分け）の判定に使う
   // 失敗で+1、成功で0。引き戻し当選と次回初当りで0（持ち越さない）
   stockGPerSet:2,stockSuccessOffset:1,   // 1セット2G。全部失敗→実G＝消費数×2、成功→当選G＝消費数×2＋1（告知の1G）。液晶は0
-  stockResultMode:"perSet",   // セットごとに入力：1G目の役 →（成功なら終了）→ 2G目の役 → 成功／失敗。失敗なら次のセット。ストックが尽きたら引き戻しへ
+  stockResultMode:"perSet",   // セットごとに入力：1G目の役 → 2G目の役 → 必要なときだけ成否。1G恋は1G目の役だけ。失敗なら次のセット、尽きたら引き戻しへ
   stockFail:{label:"レン失敗",resetOnTriggers:["引き戻し成功","レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},
-  // 1GレンCHANCE の結果シートで、成功したセットの成立役を聞く（1G目／2G目）。失敗セットは聞かない
+  // 1GレンCHANCE の各セットで成立役を聞き、定義のルールで成否を決める
   stockResultGroups:[   // perSet：各セットで順に聞く
     {key:"g1",label:"1G目の役",options:["ハズレ","ハズレ（CU）","リプ・ベル","弱チャンス目","チャンス目","強チャンス目","不明"]},
-    {key:"r1",label:"1G目",options:["成功","失敗"]},
-    {key:"g2",label:"2G目の役",showWhen:{key:"r1",in:["失敗"]},options:["ハズレ","ハズレ（CU）","リプ・ベル","弱チャンス目","チャンス目","強チャンス目","不明"]},
-    {key:"r2",label:"2G目",showWhen:{key:"r1",in:["失敗"]},options:["成功","失敗"]}
+    {key:"g2",label:"2G目の役",options:["ハズレ","ハズレ（CU）","リプ・ベル","弱チャンス目","チャンス目","強チャンス目","不明"]},
+    {key:"r2",label:"2G目の結果",showWhen:{key:"g2",in:["ハズレ","ハズレ（CU）","不明"]},options:["成功","失敗"]}
   ],
+
+  // セットの成否は表示ラベルから推測せず、このルールで決める
+  stockResultRule:{
+    resultKey:"r2",
+    autoSuccess:{key:"g2",values:["リプ・ベル","弱チャンス目","チャンス目","強チャンス目"]},
+    koi:{autoSuccess:true,groups:["g1"]}
+  },
+  // 1GレンCHANCE 開始時に1回だけ聞く（当選シートの chara を自動で埋める）
+  stockPhaseAsk:{key:"renChara",title:"レンCHANCE開始キャラ",label:"レンCHANCE開始キャラ",hintTag:"設定示唆",
+    askWhenC3Mod:{mod:4,eq:0},   // 次が1・5・9人目のときだけ聞く
+    options:["麻美","瑠夏","墨","千鶴","不明"]},
 
   // ---------- レア役 ----------
   rares:[
@@ -338,7 +348,7 @@ kanokari:{
 
   // ---------- 当選時の追加質問 ----------
   hitExtraGroups:[   // 攻略キャラは契機が攻略成功／1G恋成功のときだけ
-    {key:"chara",label:"攻略キャラ（1・5・9人目だけ聞く。残りはシナリオから自動）",hintTag:"設定示唆",showWhen:{key:"trig",in:["攻略成功","1G恋成功"]},askWhenC3Mod:{mod:4,eq:0},options:["麻美","瑠夏","墨","千鶴","不明"],
+    {key:"chara",fromStockAsk:"renChara",label:"攻略キャラ（1・5・9人目だけ聞く。残りはシナリオから自動）",hintTag:"設定示唆",showWhen:{key:"trig",in:["攻略成功","1G恋成功"]},askWhenC3Mod:{mod:4,eq:0},options:["麻美","瑠夏","墨","千鶴","不明"],
      scenario:{"麻美":["麻美","瑠夏","墨","千鶴"],"瑠夏":["瑠夏","墨","千鶴","麻美"],"墨":["墨","千鶴","麻美","瑠夏"],"千鶴":["千鶴","麻美","瑠夏","墨"]}},
     {key:"dreamG",label:"初期G数",type:"num",showWhen:{key:"type",in:["ななかりDREAM"]}}
   ],
@@ -355,7 +365,7 @@ kanokari:{
       grid:[["atx:0","atx:1","memo"],["hitEnd"]],
       czEnd:{groups:[{key:"lastRole",label:"最終ゲームの成立役",options:["小役","チャンス目系","ハズレ","不明"],hideIfExtra:{label:"到達色",value:"虹"}},
                      {key:"color2",label:"到達色（未入力なら）",options:["白","青","黄","緑","赤","虹"],showIfExtraMissing:"到達色"},
-                     {key:"stage",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}],successToAt:true,successAsk:true}},
+                     {key:"stage",label:"戻ったステージ",failOnly:true,options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}],successToAt:true,successAsk:true}},
     {label:"妄想DTチャレンジ",kind:"cz",keepG:true,
       atExtras:[
         {label:"ヒロイン",once:true,groups:[{key:"heroine",label:"ヒロイン",required:true,options:["麻美","瑠夏","墨","千鶴"]}]},
@@ -363,14 +373,13 @@ kanokari:{
       ],
       tone:"c",
       grid:[["atx:0","atx:1","memo"],["hitEnd"]],
-      czEnd:{groups:[{key:"push",label:"PUSH",options:["成功","失敗","なし"]},{key:"stage",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}],successToAt:true,successAsk:true}},
+      czEnd:{groups:[{key:"push",label:"PUSH",options:["成功","失敗","なし"]},{key:"stage",label:"戻ったステージ",failOnly:true,options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}],successToAt:true,successAsk:true}},
 
     // ボーナス
     {label:"かのかりBONUS",kind:"at",stockGain:true,tone:"d",askGOnEnd:false,
-      onStart:{stockInc:{ren:1},onlyTriggers:["レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},   // 初当りの保証1個（引き戻し・連チャン・DREAM後は無し）
       atStart:null,
       atExtras:[
-        {label:"背景",once:true,short:"背景",groups:[{key:"bg",label:"チャンス告知の背景（水族館＜クリスマス＜ゼロ距離）",hintTag:"モード示唆",required:true,options:[{l:"水族館",h:"低"},{l:"クリスマスデート",h:"中"},{l:"ゼロ距離",h:"高モード期待"}]}]},
+        {label:"背景",once:true,short:"背景",valueOnly:true,groups:[{key:"bg",label:"チャンス告知の背景（水族館＜クリスマス＜ゼロ距離）",hintTag:"モード示唆",required:true,options:[{l:"水族館",h:"低"},{l:"クリスマスデート",h:"中"},{l:"ゼロ距離",h:"高モード期待"}]}]},
         {label:"下パネル消灯",type:"toggle",tag:"裏かのかり"},
         {label:"2択当て",title:"2択当て",groups:[{key:"r",label:"結果",required:true,options:["○","×"]}]}
       ],
@@ -425,12 +434,15 @@ kanokari:{
     {label:"ななかりDREAM",kind:"at",stockGain:true,tone:"g",
       atExtras:[{label:"S級（ブラックアウト）",type:"toggle",tag:"S級DREAM"}],
       atEnd:{groups:[{key:"plus100",label:"終了時の＋100G",options:["なし","あり"]}]},
-      afterAt:{hit:"かのかりBONUS",trig:"DREAM後"},
+      afterAt:{hit:"かのかりBONUS",trig:"DREAM後",realG:1},
+      afterAtOptions:[
+        {label:"エピソードBONUSへ（DREAM後）",hit:"エピソードBONUS",trig:"DREAM後",realG:1},
+        {label:"スペシャルエピソードBONUSへ（DREAM後）",hit:"スペシャルエピソードBONUS",trig:"DREAM後",realG:1}
+      ],
       askGOnEnd:false,
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","memo","hitEnd"]],
       revive:null},
     {label:"DREAM TIME",kind:"at",stockGain:true,tone:"g",askGOnEnd:false,
-      onStart:{stockInc:{koi:1}},   // 開始時に1G恋を1個獲得（解析）
       atExtras:[{label:"S級（ブラックアウト）",type:"toggle",tag:"S級DREAMTIME"}],
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","memo","hitEnd"]],
       revive:null}
@@ -461,7 +473,7 @@ kanokari:{
   stages:{
     order:["部屋と彼女","大学と彼女","街と彼女"],   // バッジをタップすると次のステージへ（順番のもの以外はシートを開く）
     options:[{l:"部屋と彼女",h:"通常",askAfter:"アイキャッチ"},{l:"大学と彼女",h:"通常",askAfter:"アイキャッチ"},{l:"街と彼女",h:"通常",askAfter:"アイキャッチ"},
-             {l:"海と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"夜と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"ヒミツ恋ゴコロ",h:"前兆",tone:"d",enterZen:1,askAfter:"アイキャッチ"},
+             {l:"海と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p",enterZen:1},{l:"夜と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"ヒミツ恋ゴコロ",h:"前兆",tone:"d",enterZen:1,askAfter:"アイキャッチ"},
              {l:"ヒロインステージ",h:"ポイント高確20G",tone:"c",askAfter:"アイキャッチ"}]},
 
   // ---------- 前兆・引き戻し ----------
@@ -474,7 +486,7 @@ kanokari:{
       {key:"stage",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女"]}
     ],forStages:[2],
     backTo:{2:1},   // 連続演出の終了時に「前兆ステージへ戻る」を出す（失敗しても前兆ステージが続くことがある）
-    onEndByStage:{3:{clearTags:["ユメカノ"],c3:0}},   // 引き戻し終了：ユメカノOFF、攻略人数0
+    onEndByStage:{3:{clearTags:["ユメカノ"],c3:0,keepStage:true}},   // 引き戻し終了：ユメカノOFF、攻略人数0
     sheet:{label:"引き戻し記録",forStage:3,logOnSave:false,autoFill:{stage0:{ifTag:"ユメカノ",value:"専用（ユメカノ後）"}},sections:[   // 3段。保存時はログなし（終了時に当否付きで流す）
       {title:"① レンCHANCE抜け直後",groups:[
         {key:"eye",label:"アイキャッチ",options:["白","ピンク（赤）","黒"]},
@@ -490,11 +502,11 @@ kanokari:{
         {key:"ren66",label:"演出",options:["なし","恋心","カレー","笑顔","秘密","その他"]},
         {key:"cu66",label:"CU",options:["あり","なし"]},
         {key:"eye66",label:"失敗後のアイキャッチ",options:["白","青・4人","ピンク・2人","劇画調・和也背景","なし"]},
-        {key:"stage66",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女","ヒロインステージ"]}]}
+        {key:"stage66",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女"]}]}
     ]}},
 
   // ---------- 有利区間 ----------
-  yuuri:{askOnEnd:[],clear:["c3","stocks","gauge","tags","modeHints"],levels:["有利切れ","有利切れ濃厚"],askMedal:true},   // §10 ＋ D5：切れ時に持ちメダルを聞き、差枚をログに
+  yuuri:{askOnEnd:[],clear:["c3","stocks","gauge","tags","modeHints","renChara"],levels:["有利切れ","有利切れ濃厚"],askMedal:true},   // §10 ＋ D5：切れ時に持ちメダルを聞き、差枚をログに
 
   parallel:[],
   czEndStd:{groups:[]},
@@ -1165,7 +1177,7 @@ el("kpOk").addEventListener("click",()=>{const v=int(kpVal);el("kp").classList.r
 function askNum(title,init,cb){el("kpTitle").textContent=title;kpVal=(init==null||init===0)?"":String(init);kpFresh=!!kpVal;el("kpDisp").textContent=kpVal||"0";kpCb=cb;el("kp").classList.add("open")}
 
 /* ---------- 記録 ---------- */
-const SNAP_KEYS=["hit","mode","stage","prevStage","zenPrevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare","ticket","judgeWins","returnHit","pendingReward","melonPhase","modeEra","modeHints","tags","stocks","stockPhase","gauge","zenNote","renFail","tagWait","pendingHit"];
+const SNAP_KEYS=["hit","mode","stage","prevStage","zenPrevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare","ticket","judgeWins","returnHit","pendingReward","melonPhase","modeEra","modeHints","tags","stocks","stockPhase","gauge","zenNote","renFail","tagWait","pendingHit","renChara"];
 function snapshot(c){const o={};SNAP_KEYS.forEach(k=>{o[k]=JSON.parse(JSON.stringify(c[k]===undefined?null:c[k]))});return o}
 // 終了した台では「直前を取り消す」を使わないので、events[].snap を最小形に縮めて容量を空ける
 function stripSnaps(sess){
@@ -1339,7 +1351,11 @@ function makeGridButton(spec){
   if(spec.startsWith("atx:")){const x=(hitProp(curHitDef(),"atExtras")||[])[+spec.slice(4)];if(!canOpenExtra(x))return null;if(x.type==="toggle")return makeToggleButton(x);
     if(x.type==="slotsSeq"){const n=(c.hit&&c.hit.slots||[]).length;return mkb(n<x.n?x.label+"（"+(n+1)+"人目）":(x.short||x.label)+" 完了",n>0?"on":"",()=>openExtra(x))}
     if(x.type==="count"){const n=(c.hit&&c.hit.counts&&c.hit.counts[x.label])||0;return mkb((x.short||x.label)+(n?" "+n:""),n?"on":"",()=>openExtra(x))}
-    if(x.once&&c.hit){const cur=findExtraInHit(x.label);if(cur){const v=x.groups.map(g=>cur.sel&&cur.sel[g.key]).filter(Boolean).join("・");return mkb((x.short||x.label)+(v?" "+v:""),"on",()=>openExtra(x))}}
+    if(x.once&&c.hit){
+      const cur=findExtraInHit(x.label);
+      if(cur){const v=x.groups.map(g=>cur.sel&&cur.sel[g.key]).filter(Boolean).join("・");return mkb(x.valueOnly?v:(x.short||x.label)+(v?" "+v:""),"on",()=>openExtra(x))}
+      if(x.valueOnly){const b=mkb((x.short||x.label)+" 未選択","",()=>openExtra(x));b.style.borderStyle="dashed";b.style.opacity=".65";return b}
+    }
     return mkb(x.label,x.type==="slots"&&c.hit&&c.hit.slots?"on":"",()=>openExtra(x))}
   if(spec.startsWith("phx:")){const h=curHitDef(),p=c.hit&&h&&h.phases&&h.phases[c.hit.phase],x=p&&p.extras&&p.extras[+spec.slice(4)];return canOpenExtra(x)?mkb(x.label,"",()=>openExtra({...x,completeInstant:true})):null}
   if(spec.startsWith("phase:")){const hd=curHitDef();const k=spec.slice(6);const p=hd&&hd.phases&&hd.phases[k];if(!p)return null;const on=c.hit.phase===k;return mkb(on?p.label+"中":p.label,"par"+(on?" on":""),()=>{if(on)return;const enter=p.onEnter,ask=enter&&enter.ask;
@@ -1615,21 +1631,23 @@ function openStockResult(){
 function openStockSet(){
   const d=DEF(),c=S.cur,n=(c.stockPhase.used||0)+1;
   if((c.stocks.ren||0)+(c.stocks.koi||0)<=0){toast("ストックがありません");return}
-  const groups=(d.stockResultGroups||[]).map(g=>({...g,required:true}));
+  const key=c.stocks.koi>0?"koi":"ren",rule=d.stockResultRule;
+  const koiSuccess=key==="koi"&&rule&&rule.koi&&rule.koi.autoSuccess;
+  const groups=(d.stockResultGroups||[]).filter(g=>!koiSuccess||rule.koi.groups.includes(g.key)).map(g=>({...g,required:true}));
   groupSheet("セット "+n+"（残り レン"+c.stocks.ren+"／1G恋"+c.stocks.koi+"）",groups,sel=>{
-    const success=sel.r1==="成功"||sel.r2==="成功",key=c.stocks.koi>0?"koi":"ren";
+    const success=koiSuccess?true:rule?(sel[rule.resultKey]!=null?sel[rule.resultKey]==="成功":rule.autoSuccess.values.includes(sel[rule.autoSuccess.key])):sel.r1==="成功"||sel.r2==="成功";
     const record=()=>{
       mark();c.stocks[key]--;c.stockPhase=success?false:{used:n};
       if(d.stockFail)c.renFail=success?0:(c.renFail||0)+1;
       c.realG=n*d.stockGPerSet+(success?(d.stockSuccessOffset||0):0);c.lcdG=0;c._steps=[];
       if(success)c.pendingHit={trig:key==="koi"?"1G恋成功":"攻略成功"};
-      push("stockResult","1GレンCHANCE セット"+n+"："+sel.g1+(sel.r1==="失敗"?"→"+sel.g2:"")+" "+(success?"成功":"失敗"),{sel,setNumber:n});
+      push("stockResult","1GレンCHANCE セット"+n+(key==="koi"?"（1G恋）":"")+"："+sel.g1+(sel.g2!=null?"→"+sel.g2:"")+" "+(success?"成功":"失敗"),{sel,setNumber:n});
     };
     record();
     if(success){openHit(c.pendingHit);return}
     if(c.stocks.ren+c.stocks.koi>0)openStockSet();
     else{c.stockPhase=false;enterAfterHit();closeSheet()}
-  },{goLabel:"セットを記録"});
+  },{goLabel:"セットを記録",instant:false});
 }
 function hitAutoValue(g,c){
   const rule=g.askWhenC3Mod;if(!rule||!g.scenario||c.c3%rule.mod===rule.eq)return null;
@@ -1650,17 +1668,18 @@ function openHit(fixed){
   const groups=[{key:"type",label:"種別",options:d.hits.filter(h=>!h.hidden&&(!kinds||kinds.includes(h.kind))&&(!labels||labels.includes(h.label))).map(h=>d.labelsForTriggers&&!(fixed&&fixed.trig)?{l:h.label,showWhen:{key:"trig",notIn:Object.keys(d.labelsForTriggers).filter(t=>!d.labelsForTriggers[t].includes(h.label))}}:h.label),required:true}];
   if(d.hitTriggers&&!(fixed&&fixed.trig))groups.push({key:"trig",label:"契機",options:d.hitTriggers});
   if(d.hitWhere)groups.push({key:"where",label:"告知された場所",options:d.hitWhere});
-  (d.hitExtraGroups||[]).forEach(g=>{const v=hitAutoValue(g,c);groups.push(v!=null?{...g,autoValue:v}:g)});
+  (d.hitExtraGroups||[]).forEach(g=>{let v=hitAutoValue(g,c);if(v==null&&g.fromStockAsk&&c[g.fromStockAsk]!=null)v=c[g.fromStockAsk];groups.push(v!=null?{...g,autoValue:v}:g)});
   groupSheet(((fixed&&fixed.title)||"当選")+(fixed&&fixed.trig?"（契機："+fixed.trig+"）":""),groups,sel=>{
     const auto=groups.filter(g=>g.autoValue!=null&&sel[g.key]!=null).map(g=>g.key);
     if(auto.length)sel._auto=auto;
     const ex=selText((d.hitExtraGroups||[]).filter(g=>!auto.includes(g.key)),sel)+auto.map(k=>"　攻略キャラ："+sel[k]+"（自動）").join("");
     if(fixed&&fixed.before)fixed.before();
-    startHit(hitDef(sel.type),(fixed&&fixed.trig)||sel.trig||null,{where:sel.where||null,hitSel:sel,extraTxt:ex?"　"+ex:"",keepOp:!!(fixed&&fixed.keepOp)});
+    startHit(hitDef(sel.type),(fixed&&fixed.trig)||sel.trig||null,{where:sel.where||null,hitSel:sel,extraTxt:ex?"　"+ex:"",keepOp:!!(fixed&&fixed.keepOp),stockAskKeys:groups.filter(g=>g.fromStockAsk&&g.autoValue!=null&&sel[g.key]===c[g.fromStockAsk]&&hitAutoValue(g,c)==null).map(g=>g.fromStockAsk)});
   },{goLabel:"当選を記録",initial:fixed&&fixed.trig?{trig:fixed.trig}:null});
 }
 function startHit(h,trig,opts){
   const d=DEF(),c=S.cur;opts=opts||{};if(!opts.keepOp)mark();
+  (opts.stockAskKeys||[]).forEach(key=>{c[key]=null});
   if(c.pendingHit&&c.pendingHit.trig===trig)c.pendingHit=null;
   if(opts.returnFrom&&c.hit)c.returnHit=JSON.parse(JSON.stringify(c.hit));   // AT中からのCZ：戻り先を保存（mark の後）
   if(opts.consumePending){c.pendingReward=null;c.melonPhase="normal"}          // 報酬待ちからの当選：待ちを消費（mark の後）
@@ -1762,8 +1781,9 @@ function hitEnd(){
   atEndSheet();
 }
 // A6/器: 当選中に記録した atExtras の内容で、終了シートの質問を出し分ける
-function czEndGroupsOf(ce){
+function czEndGroupsOf(ce,result){
   return (ce.groups||[]).filter(g=>{
+    if(g.failOnly&&result==="成功")return false;
     if(g.hideIfExtra){
       const ev=findExtraInHit(g.hideIfExtra.label);
       const vals=ev&&ev.sel?Object.keys(ev.sel).filter(k=>!k.startsWith("_set_")).map(k=>ev.sel[k]):[];
@@ -1786,7 +1806,7 @@ function czEndSheet(){
       if(ce.successToAt===true&&ce.successAsk){
         const st=(d.hitTriggers||[]).find(x=>/成功$/.test(x)&&h.label.indexOf(x.slice(0,-2))===0);
         const trig=st||(h.label+" 成功");
-        const groups=czEndGroupsOf(ce),next=sel=>openHit({trig,kinds:["at"],keepOp:true,before:()=>{
+        const groups=czEndGroupsOf(ce,"成功"),next=sel=>openHit({trig,kinds:["at"],keepOp:true,before:()=>{
           mark();c.returnHit=null;c.hit=null;c.mode="normal";
           if(sel.stage)c.stage=sel.stage;
           const t=selText(groups,sel);push("hitEnd",h.label+" 成功"+(t?"　"+t:""),{hit:h.label,sel:Object.assign({},sel,{result:"成功"}),result:"成功"},ce);
@@ -1904,6 +1924,7 @@ function yuuriReset(reason,keepOp){
     else if(k==="tags")c.tags={};
     else if(k==="parCount")c.parCount={};
     else if(k==="c3")c.c3=0;
+    else if(k==="renChara")c.renChara=null;
     else if(k==="gauge"&&d.gauge)c.gauge=0;
     else if(k==="stocks"&&d.stocks){c.stocks={};d.stocks.forEach(s=>c.stocks[s.key]=0)}
   });
@@ -1937,7 +1958,15 @@ function afterHitEnd(endedLabel,keep){
 function enterAfterHit(){
   const d=DEF(),c=S.cur,e=d.zenchou&&d.zenchou.enterOnHitEnd;if(!e)return;
   if(typeof e==="object"&&e.unlessStocks&&d.stocks&&d.stocks.reduce((a,s)=>a+(c.stocks[s.key]||0),0)>0){
-    c.stockPhase=true;push("stockPhase","1GレンCHANCE 開始（"+d.stocks.map(s=>s.short+c.stocks[s.key]).join("／")+"）");return}
+    c.stockPhase=true;push("stockPhase","1GレンCHANCE 開始（"+d.stocks.map(s=>s.short+c.stocks[s.key]).join("／")+"）");
+    const ask=d.stockPhaseAsk,rule=ask&&ask.askWhenC3Mod;
+    if(ask&&(!rule||c.c3%rule.mod===rule.eq)&&c[ask.key]==null)queueMicrotask(()=>{
+      if(S.cur!==c||!c.stockPhase||c.hit||c[ask.key]!=null||(rule&&c.c3%rule.mod!==rule.eq))return;
+      groupSheet(ask.title,[{...ask,required:true}],sel=>{
+        mark();c[ask.key]=sel[ask.key];push(ask.key,ask.label+"："+sel[ask.key],{sel});closeSheet();
+      },{instant:true,sheetDef:ask});
+    });
+    return}
   const si=(typeof e==="object"&&e.stage!=null)?e.stage:0;
   c.zenchou=si;if(d.zenchou.remindAtG!=null)c.zenReminded=false;push("zenchou",zenStages()[si]+" 開始");
 }
@@ -1964,7 +1993,7 @@ function leaveAt(after,extraTxt,sel,GF,MF,SF){
     if(after.realG!=null){c.realG=after.realG;if(d.lcdG)c.lcdG=after.realG}
     const nxt=hitDef(after.hit);if(nxt){startHit(nxt,after.trig,{keepOp:true});return}
   }
-  if(after){const nxt=hitDef(after.hit);if(nxt){startHit(nxt,after.trig,{keepOp:true});return}}
+  if(after){if(after.realG!=null){c.realG=after.realG;if(d.lcdG)c.lcdG=after.realG}const nxt=hitDef(after.hit);if(nxt){startHit(nxt,after.trig,{keepOp:true});return}}
   enterAfterHit();
   save();render();
 }
@@ -2040,7 +2069,7 @@ function atEndSheet(){
     }
     (hitProp(def,"afterAtOptions")||[]).forEach(o=>{
       const ob=mk("button","sub",o.label);ob.style.color="var(--hot)";
-      ob.addEventListener("click",()=>doEnd({hit:o.hit,trig:o.trig}));F.append(ob);
+      ob.addEventListener("click",()=>doEnd({hit:o.hit,trig:o.trig,realG:o.realG}));F.append(ob);
     });
     if(revive){
       const rv=mk("button","sub",revive.label+"した（"+h.label+"継続）");rv.style.color="var(--ok)";
@@ -2060,7 +2089,7 @@ function applyStageEnd(k){
   Object.keys(c.tags||{}).forEach(k=>{if(c.tags[k]==="stageEnd")delete c.tags[k]});
   if(oe){
     if(oe.c3==="+1"){c.c3++;txt+="　"+d.counter3.label+" "+c.c3}
-    else if(typeof oe.c3==="number"){c.c3=oe.c3;txt+="　"+d.counter3.label+" "+c.c3}
+    else if(typeof oe.c3==="number"){c.c3=oe.c3;if(oe.c3===0&&d.stockPhaseAsk)c[d.stockPhaseAsk.key]=null;txt+="　"+d.counter3.label+" "+c.c3}
     (oe.clearTags||[]).forEach(k=>{if(c.tags)delete c.tags[k]});
   }
   return txt;
@@ -2173,7 +2202,7 @@ function zenchouEnd(){
   const done=sel=>{tagSheetDefs.set(sel,d.zenchou);
     mark();const wasStage=zenIsStage();
     c.zenchou=false;
-    if(sel.stage)c.stage=sel.stage;else if(wasStage)c.stage=c.prevStage||null;
+    if(sel.stage)c.stage=sel.stage;else if(wasStage&&!(d.zenchou.onEndByStage&&d.zenchou.onEndByStage[k]&&d.zenchou.onEndByStage[k].keepStage))c.stage=c.prevStage||null;
     const extra=applyStageEnd(k);
     push("zenchouEnd",lab+(selText(groups,sel)?"　"+selText(groups,sel):"")+extra,{sel});flushTagWait();flushZenNote("外れ");closeSheet();
   };
