@@ -413,6 +413,7 @@ kanokari:{
       grid:[["rare:weak","rare:chance","rare:strong"],["atx:0","atx:1","memo"],["hitEnd"]],
       revive:null},
     {label:"エピソードBONUS",kind:"at",stockGain:true,tone:"p",askGOnEnd:false,
+      stockGainNote:"当選時の保証1個も含めて、このボーナスで増えたストック数を入れてください",
       atExtras:[
         {label:"上部の色",once:true,short:"色",groups:[{key:"color",label:"上部の色",hintTag:"設定示唆",required:true,options:["白","青","黄","緑","赤","虹"]}]},
         {label:"開始時から虹",type:"toggle",tag:"開始時虹"}
@@ -425,6 +426,7 @@ kanokari:{
       revive:null},
     {label:"スペシャルエピソードBONUS",kind:"at",stockGain:true,tone:"p",askGOnEnd:false,
       onStart:{tag:"ユメカノ",until:"manual"},   // 突入＝ユメカノ獲得確定
+      stockGainNote:"当選時の保証1個も含めて、このボーナスで増えたストック数を入れてください",
       atExtras:[
         {label:"上部の色",once:true,short:"色",groups:[{key:"color",label:"上部の色",hintTag:"設定示唆",required:true,options:["白","青","黄","緑","赤","虹"]}]},
         {label:"開始時から虹",type:"toggle",tag:"開始時虹"}
