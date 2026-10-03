@@ -201,6 +201,7 @@ kanokari:{
     }},
     {type:"select",label:"セリフ",title:"セリフ演出",groups:[
       {key:"who",label:"キャラ",required:true,options:["千鶴","和也","和","小百合","黒セリフ","その他"]},
+      {key:"role",label:"成立役",logParen:true,options:["ハズレ","リプレイ","ベル","弱チャンス目","チャンス目","強チャンス目","ガチ恋目","最強目","不明"]},   // ログは末尾に「（成立役：…）」で付ける
       {key:"cm",label:"センチメートル",options:["44cm","55cm","66cm"]}
     ]},
     {type:"toggle",label:"ユメカノ",tag:"ユメカノ",until:"manual",log:"ユメカノモード ON",menu:true},

@@ -482,6 +482,7 @@ kanokari:{
     }},
     {type:"select",label:"セリフ",title:"セリフ演出",groups:[
       {key:"who",label:"キャラ",required:true,options:["千鶴","和也","和","小百合","黒セリフ","その他"]},
+      {key:"role",label:"成立役",logParen:true,options:["ハズレ","リプレイ","ベル","弱チャンス目","チャンス目","強チャンス目","ガチ恋目","最強目","不明"]},   // ログは末尾に「（成立役：…）」で付ける
       {key:"cm",label:"センチメートル",options:["44cm","55cm","66cm"]}
     ]},
     {type:"toggle",label:"ユメカノ",tag:"ユメカノ",until:"manual",log:"ユメカノモード ON",menu:true},
@@ -2483,7 +2484,11 @@ function openExtra(x,opts){ opts=opts||{};
     return;
   }
   groupSheet(x.title||x.label,x.groups,sel=>{tagSheetDefs.set(sel,x);
-    const t=selText(x.groups,sel);if(!t){toast("何も選ばれていません");return}
+    // logParen の項目はログの末尾に「（項目名：値）」で付ける（例：セリフ：和（成立役：リプレイ））
+    const paren=(x.groups||[]).filter(g=>g.logParen&&sel[g.key]!=null);
+    const t=selText((x.groups||[]).filter(g=>!g.logParen),sel);
+    const ptxt=paren.map(g=>"（"+g.label+"："+sel[g.key]+"）").join("");
+    if(!t&&!ptxt){toast("何も選ばれていません");return}
     if(!opts.op)mark();const hint=applyHints(sel);
     let extraTxt="";
     const tk=hitProp(curHitDef(),"ticket");
@@ -2491,7 +2496,7 @@ function openExtra(x,opts){ opts=opts||{};
       S.cur.judgeWins=(S.cur.judgeWins||0)+1;extraTxt="　成功"+S.cur.judgeWins+"回目";
       if(S.cur.judgeWins===tk.autoBy.count&&!S.cur.ticket){S.cur.ticket=true;extraTxt+="　→ "+tk.label+"獲得";}
     }
-    push("extra",x.label+"："+t+extraTxt+(hint?"　→ "+hint:""),{sel,extra:x.label,op:opts.op});closeSheet();
+    push("extra",x.label+"："+t+ptxt+extraTxt+(hint?"　→ "+hint:""),{sel,extra:x.label,op:opts.op});closeSheet();
     if(extraTxt.includes("獲得"))toast(tk.label+"を獲得");
   },{anyOne:!!x.anyOne,...(x.completeInstant?{instant:true,completeInstant:true}:{})});
 }
