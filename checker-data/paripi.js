@@ -6,6 +6,36 @@
   const SOURCE="https://chonborista.com/slot/yamasa-slot/263531/";
   const TAGS="#パリピ孔明 #設定判別";
   const COUNTS=[["cz","CZ","設1:1/213.6⇔設6:1/171.7"],["bonus","ボーナス初当り","設1:1/309.9⇔設6:1/228.8"]];
+  const ST_END=[
+    ['kanban','看板','デフォルト・ちょんぼりすた画像①',0,'看','def'],
+    ['blue','青背景','デフォルト・ちょんぼりすた画像②',0,'青','def'],
+    ['yellow','黄背景','デフォルト・ちょんぼりすた画像③',0,'黄','def'],
+    ['even1','偶数設定期待度UP・弱','ちょんぼりすた画像④',0,'偶弱','up'],
+    ['even2','偶数設定期待度UP・強','ちょんぼりすた画像⑤',0,'偶強','up'],
+    ['high1','高設定期待度UP・弱','ちょんぼりすた画像⑥',0,'高弱','up'],
+    ['high2','高設定期待度UP・強','ちょんぼりすた画像⑦',0,'高強','up'],
+    ['s2','設定2以上濃厚','ちょんぼりすた画像⑧',2,'2','cert'],
+    ['s3','設定3以上濃厚','ちょんぼりすた画像⑨',3,'3','cert'],
+    ['s4','設定4以上濃厚','ちょんぼりすた画像⑩',4,'4','cert'],
+    ['s5','設定5以上濃厚','ちょんぼりすた画像⑪',5,'5','cert'],
+    ['s6','設定6濃厚','ちょんぼりすた画像⑫',6,'6','cert']
+  ];
+  const ST_HINT='ST終了時の画面を記録します。画面の見分け方はガイドからちょんぼりすたの画像で確認できます。';
+
+  const stGroup=g=>ST_END.filter(c=>c[5]===g);
+  function stTotal(S){return ST_END.reduce((a,c)=>a+n(S.stEnd,c[0]),0);}
+  function certItems(S){return ST_END.filter(c=>c[3]>0).map((c,i)=>({label:c[1],rank:c[3],value:n(S.stEnd,c[0]),order:i}));}
+  function certCount(S){return certItems(S).reduce((a,c)=>a+c.value,0);}
+  function bestCert(S){
+    const hit=certItems(S).filter(c=>c.value>0).sort((a,b)=>(b.rank-a.rank)||(a.order-b.order))[0];
+    return hit?`確定 ${hit.label} ×${hit.value}`:'確定演出 なし';
+  }
+  function codes(arr,state){return arr.map(c=>[c[4],n(state,c[0])]);}
+  function shown(prefix,items){
+    const out=items.filter(item=>item[1]>0).map(item=>`${item[0]}×${item[1]}`);
+    return `${prefix} ${out.length?out.join('・'):'—'}`;
+  }
+
   const INITIAL_HINT="CZとボーナスの初当りを記録します。CZは設定1:1/213.6／2:1/207.3／3:1/199.2／4:1/188.8／5:1/179.4／6:1/171.7。ボーナス初当りは設定1:1/309.9／2:1/299.6／3:1/280.0／4:1/262.0／5:1/243.9／6:1/228.8。";
 
   function n(obj,key){return Number((obj||{})[key])||0;}
@@ -27,31 +57,52 @@
     <div class="hint">${INITIAL_HINT}</div>
   </section>`;}
 
-  const DEF={games:0,counts:Object.fromEntries(COUNTS.map(c=>[c[0],0])),img:null,iconChoice:null};
+  const DEF={games:0,counts:Object.fromEntries(COUNTS.map(c=>[c[0],0])),stEnd:Object.fromEntries(ST_END.map(c=>[c[0],0])),img:null,iconChoice:null};
   function normalizeState(out){
     out.games=Math.max(0,Number(out.games)||0);
     out.counts=Object.assign({},DEF.counts,out.counts||{});
     Object.keys(out.counts).forEach(k=>{out.counts[k]=Math.max(0,Number(out.counts[k])||0);});
+    out.stEnd=Object.assign({},DEF.stEnd,out.stEnd||{});
+    Object.keys(out.stEnd).forEach(k=>{out.stEnd[k]=Math.max(0,Number(out.stEnd[k])||0);});
     return out;
   }
   function pageInput(ctx){return gameSection(ctx.S)+initialSection(ctx);}
+  function pageShisa(ctx){const S=ctx.S;return `<section class="sec">
+    <div class="sec-h">ST終了画面<span class="sub">計${stTotal(S)}回</span></div>
+    <div class="cgrid">${ST_END.map(c=>ctx.crow('stEnd.'+c[0],c[1],c[2],c[3]>0,v=>ctx.pct(v,stTotal(S)))).join('')}</div>
+    <div class="hint">${ST_HINT}</div>
+  </section>`;}
   function tplText(ctx){const S=ctx.S,g=S.games;
-    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / ${COUNTS.map(c=>c[1]+n(S.counts,c[0])+'回').join(' / ')}\n_______\n\n■初当り\n${COUNTS.map(c=>c[1]+'▶'+countRate(g,n(S.counts,c[0]))).join('\n')}\n\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
+    const st=stTotal(S);
+    const stLines=ST_END.filter(c=>n(S.stEnd,c[0])>0)
+      .map(c=>`${c[1]}▶${n(S.stEnd,c[0])}回(${Math.round(100*n(S.stEnd,c[0])/st)}%)`).join('\n');
+    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / ${COUNTS.map(c=>c[1]+n(S.counts,c[0])+'回').join(' / ')}\n_______\n\n■初当り\n${COUNTS.map(c=>c[1]+'▶'+countRate(g,n(S.counts,c[0]))).join('\n')}${st>0?'\n\n■ST終了画面\n'+stLines:''}\n\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
   }
   window.CheckerConfigs[ID]={
-    uiV2:true,nanaCollab:false,storageKey:ID+'-checker-v1',defaults:DEF,mergeKeys:['counts'],sourceUrl:SOURCE,
+    uiV2:true,nanaCollab:false,storageKey:ID+'-checker-v1',defaults:DEF,mergeKeys:['counts','stEnd'],sourceUrl:SOURCE,
     normalizeState,
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
-    pages:(ctx,pageCard)=>[()=>pageInput(ctx),pageCard],template:tplText,compactTemplate:tplText,
+    pages:(ctx,pageCard)=>[()=>pageInput(ctx),()=>pageShisa(ctx),pageCard],template:tplText,compactTemplate:tplText,
     card:{title:TITLE,titleFitMax:680,gameLabel:'通常',footerTags:TAGS,
       downloadName:ID+'_check.png',detailDownloadName:ID+'_check_detail.png',
-      detail:ctx=>[initialDetail(ctx.S)],
+      detail:ctx=>[initialDetail(ctx.S),
+        {title:'ST終了画面',items:ST_END.map(c=>({label:c[1],value:n(ctx.S.stEnd,c[0]),hot:c[3]>0})),percent:true,denominator:stTotal(ctx.S)}
+      ],
       blocks:ctx=>[...COUNTS.map(c=>initialBlock(ctx.S,c)),['通常ゲーム数',(ctx.S.games||0)+'G']],
       chart:ctx=>({title:'初当り',x:130,step:200,width:80,items:COUNTS.map(c=>({label:c[1],value:n(ctx.S.counts,c[0])}))}),
-      bottom:ctx=>({title:'サマリー',startY:760,rowGap:44,fontSize:23,columns:[{x:70,items:[
-        ...COUNTS.map(c=>row(c[1]+' '+countRate(ctx.S.games,n(ctx.S.counts,c[0])),n(ctx.S.counts,c[0]))),
-        row('通常回転 '+(ctx.S.games||0)+'G',ctx.S.games||0)
-      ]}]})
+      bottom:ctx=>{const S=ctx.S;return {title:'サマリー',startY:752,rowGap:36,fontSize:23,columns:[
+        {x:70,items:[
+          row(bestCert(S),certCount(S),undefined,'#ffc94d'),
+          ...COUNTS.map(c=>row(c[1]+' '+countRate(S.games,n(S.counts,c[0])),n(S.counts,c[0]))),
+          row('通常回転 '+(S.games||0)+'G',S.games||0),
+          row('ST終了画面 計'+stTotal(S)+'回',stTotal(S))
+        ]},
+        {x:560,items:[
+          row(shown('画面',codes(stGroup('def'),S.stEnd)),stGroup('def').reduce((a,c)=>a+n(S.stEnd,c[0]),0)),
+          row(shown('期待度',codes(stGroup('up'),S.stEnd)),stGroup('up').reduce((a,c)=>a+n(S.stEnd,c[0]),0)),
+          row(shown('濃厚',codes(stGroup('cert'),S.stEnd)),certCount(S))
+        ]}
+      ]};}
     }
   };
 
