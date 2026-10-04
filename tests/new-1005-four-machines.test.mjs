@@ -90,7 +90,7 @@ test('HTML contract: original CSS apart from specified nav count, public links a
     // 設定判別カウンターにはUIバージョン文字列を出さない（AGENTS 作業規約4）。
     assert.doesNotMatch(html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)[0],/\bUI\s/,id);
     assert.ok(html.includes('checker-engine.js?v=20260924'));
-    assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'+({mhsunbreak:'-3',juuou:'-2',tenten:'-3',paripi:''}[id])+'"'));
+    assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'+({mhsunbreak:'-4',juuou:'-2',tenten:'-3',paripi:''}[id])+'"'));
     assert.ok(!html.includes('\r')&&!js.includes('\r'));
     assert.equal(configs[id].template,configs[id].compactTemplate);
     if(id==='juuou')assert.ok(!html.includes('設定3')&&!js.includes('設定3'));
