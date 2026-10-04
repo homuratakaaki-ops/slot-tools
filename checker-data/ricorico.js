@@ -248,7 +248,7 @@
       cls:'conv-row top-row',dPath:'top.d',nPath:'top.n',
       d:topDenom(S),n:topHit(S),winLabel:'突入',missLabel:'非突入'});
   }
-  function rankText(rank){return rank===6?'6確定':rank+'以上';}
+  function rankText(rank){return rank===6?'6濃厚':rank+'以上';}
   // 終了画面の合計。旧キー（takina / chisato）は移行後も state に残す（§9-59）ため、
   // sum() ではなく現行の行だけを足す。割合表示の分母もこれを使う。
   function atEndTotal(S){return AT_END.reduce((a,c)=>a+n(S.atEnd,c[0]),0);}

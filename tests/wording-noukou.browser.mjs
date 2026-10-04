@@ -16,7 +16,7 @@ const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-wording-profile-'));
 const baseline=process.env.WORDING_BASELINE==='1';
 const realFonts=process.env.WORDING_REAL_FONTS==='1';
 const baselineSources=new Map();
-if(baseline)for(const id of ['kanokari','mhsunbreak','tonski','jashinchan','mogumogu','ricorico','magireco','garei_zero_re','mieruko','aobuta','takoslot'])baselineSources.set('/checker-data/'+id+'.js',execFileSync('git',['-c','safe.directory='+root.replaceAll('\\','/'),'show','3c3f807:checker-data/'+id+'.js'],{encoding:'utf8'}));
+if(baseline)for(const id of ['kanokari','mhsunbreak','tonski','jashinchan','mogumogu','ricorico','magireco','garei_zero_re','mieruko','aobuta','takoslot'])baselineSources.set('/checker-data/'+id+'.js',execFileSync('git',['-c','safe.directory='+root.replaceAll('\\','/'),'show','4c22d56:checker-data/'+id+'.js'],{encoding:'utf8'}));
 const results=[];
 const errors=[];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -115,6 +115,14 @@ try{
 
   for(const id of ['kanokari','mhsunbreak','tonski','jashinchan','mogumogu','ricorico','magireco','garei_zero_re','mieruko','aobuta','takoslot']){
     await clear(id);
+    if(id==='tonski'&&!baseline){
+      await tab(1);
+      for(const [key,text] of [['set2','設定2以上濃厚'],['set4','設定4以上濃厚'],['set6','設定6濃厚']]){
+        const labels=await frame(`const row=d.querySelector('[data-c="screens.${key}"]');return [row.querySelector('.nm').textContent,row.querySelector('.mn').textContent];`);
+        assert.deepEqual(labels,[text,text]);
+      }
+      pass('tonski three duplicated labels retained as explicitly instructed in V02-2');
+    }
     // Seed an exhaustive saved-data fixture, then render it through the real reload and card button.
     const inputCount=await frame(`const S=JSON.parse(JSON.stringify(w.CheckerConfigs[${JSON.stringify(id)}].defaults));let count=0;
       const fill=o=>{for(const [key,value] of Object.entries(o)){if(typeof value==='number'){o[key]=1;count++;}else if(value&&typeof value==='object'&&!Array.isArray(value))fill(value);}};

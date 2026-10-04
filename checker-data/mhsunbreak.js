@@ -141,7 +141,7 @@
   function tierText(sub){
     const m=String(sub||'').match(/設定([0-9・]+(?:以上)?)濃厚/);
     if(!m)return '';
-    return m[1]==='6'?'6確定':m[1];
+    return m[1]==='6'?'6濃厚':m[1];
   }
   function allCert(S){return GROUPS.flatMap((g,i)=>g[2].map((c,j)=>({label:c[1],sub:c[2],rank:c[3],oneL:c[5],value:n(S[g[0]],c[0]),order:i*100+j})).filter(c=>c.rank>0));}
   function certCount(S){return allCert(S).reduce((a,c)=>a+c.value,0);}

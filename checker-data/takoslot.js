@@ -90,7 +90,7 @@
   function detailItem(label,value,hot){return {label,value:Number(value)||0,hot:!!hot};}
   function detailItems(arr,state){return arr.map(c=>detailItem(c[1],state[c[0]],c[3]>0));}
   function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
-  function rankText(rank){return rank===6?'6確定':rank+'以上';}
+  function rankText(rank){return rank===6?'6濃厚':rank+'以上';}
   function allCert(S){
     return BB_END.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.screens,c[0]),rank:c[3],order:10+c[3]}));
   }

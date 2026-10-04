@@ -8,9 +8,9 @@
     ['even','偶数設定示唆','偶数設定期待度UP',0,'偶'],
     ['highWeak','高設定示唆・弱','高設定期待度UP（弱）',0,'弱'],
     ['highStrong','高設定示唆・強','高設定期待度UP（強）',0,'強'],
-    ['set2','設定2以上濃厚','設定2以上が確定',2,'2+'],
-    ['set4','設定4以上濃厚','設定4以上が確定',4,'4+'],
-    ['set6','設定6濃厚','設定6が確定',6,'6']
+    ['set2','設定2以上濃厚','設定2以上濃厚',2,'2+'],
+    ['set4','設定4以上濃厚','設定4以上濃厚',4,'4+'],
+    ['set6','設定6濃厚','設定6濃厚',6,'6']
   ];
   const TROPHIES=[
     ['bronze','銅','設定2以上濃厚',2,'銅'],
@@ -62,7 +62,7 @@
     return `${prefix} ${out.length?out.join('・'):'−'}`;
   }
   function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
-  function rankText(rank){return rank===6?'6確定':rank+'以上';}
+  function rankText(rank){return rank===6?'6濃厚':rank+'以上';}
   function allCert(S){
     return [
       ...BONUS_END.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.screens,c[0]),rank:c[3],order:10+c[3]})),
@@ -120,7 +120,7 @@
   <section class="sec">
     <div class="sec-h">スイCZ失敗時の残り体数<span class="sub">計${remainN}回</span></div>
     <div class="cgrid">${REMAIN.map(c=>ctx.crow('atcz.'+c[0],c[1],c[2],1)).join('')}</div>
-    <div class="hint">スイチャンス失敗時に表示される残り体数です。残り1体はデフォルトのため記録不要。2体以上は表示数の設定以上が確定します。</div>
+    <div class="hint">スイチャンス失敗時に表示される残り体数です。残り1体はデフォルトのため記録不要。2体以上は表示数の設定以上が濃厚です。</div>
   </section>`;
   }
   function pageEd(ctx){
