@@ -33,7 +33,7 @@
   ];
   const GROUPS=[
     ['screens','ボーナス終了画面',BONUS_END,'ボーナスが終わるたびに出た画面を記録します。木陰の2人がデフォルトです。'],
-    ['over','獲得枚数表示',OVER,'AT終了時の獲得枚数表示が該当の数値を超えていたら記録します。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。']
+    ['over','獲得枚数表示',OVER,'出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。']
   ];
   const zero=arr=>Object.fromEntries(arr.map(c=>[c[0],0]));
   const MERGE_KEYS=['counts','cz','g150','pt','screens','over'];

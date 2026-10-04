@@ -41,19 +41,28 @@ for(const [group,title] of [['atEnd','AT終了画面'],['trophy','エンタト�
   current.card.detail(ctx(clone(current.defaults))).find(s=>s.title===title).items.forEach((item,i)=>{if(item.hot)keys.push([group,Object.keys(current.defaults[group])[i]]);});
 }
 assert.equal(keys.length,18);
-for(const key of ['blocks','bottom','chart','detail'])assert.equal(current.card[key].toString(),old.card[key].toString());
+for(const key of ['blocks','chart','detail'])assert.equal(current.card[key].toString(),old.card[key].toString());
 const S=clone(current.defaults);S.hits=[300,600];S.cycle.c1=2;S.czType.breakzone=3;
 ids.forEach(id=>{S.bzT1[id]=4;S.bzT2[id]=5;S.questN1[id]=4;S.questN2[id]=2;});
 const previous=clone(S);delete previous.bzT1;delete previous.bzT2;delete previous.questN1;delete previous.questN2;
 for(let mask=0;mask<2**keys.length;mask++){
   keys.forEach(([g,k],i)=>{S[g][k]=previous[g][k]=(mask>>i)&1;});
-  for(const key of ['blocks','bottom','chart','detail'])assert.equal(JSON.stringify(current.card[key](ctx(S))),JSON.stringify(old.card[key](ctx(previous))),key+' mask '+mask);
+  for(const key of ['blocks','chart','detail'])assert.equal(JSON.stringify(current.card[key](ctx(S))),JSON.stringify(old.card[key](ctx(previous))),key+' mask '+mask);
+  const expectedBottom=clone(old.card.bottom(ctx(previous)));
+  const deniedTotal=S.atEnd.fioreneRondine+S.atEnd.jayArloGaleas;
+  if(deniedTotal===0){
+    const rows=expectedBottom.columns.flatMap(column=>column.items).filter(row=>row.text.startsWith('否定系'));
+    assert.equal(rows.length,1);
+    rows[0].text='否定系 —';
+  }
+  assert.equal(JSON.stringify(current.card.bottom(ctx(S))),JSON.stringify(expectedBottom),'bottom mask '+mask);
 }
-console.log('PASS card blocks/bottom/chart/detail: all 262144 combinations of 18 certainty items byte-identical vs 3be5e98, with nonzero BZ data');
+console.log('PASS card blocks/bottom/chart/detail: all 262144 combinations of 18 certainty items byte-identical vs 3be5e98 except bottom zero-denial text, with nonzero BZ data');
 for(const id of ['ricorico','toaru2']){
   const a=load(id,before('checker-data/'+id+'.js')),b=load(id,read('checker-data/'+id+'.js'));
   for(const mode of ['zero','mixed','all']){const S=clone(b.defaults);let i=0;if(mode!=='zero')for(const v of Object.values(S))if(v&&typeof v==='object'&&!Array.isArray(v))for(const k of Object.keys(v))if(typeof v[k]==='number')v[k]=mode==='all'?1:i++%3;bytes(a.template(ctx(clone(S))),b.template(ctx(clone(S))));}
 }
 console.log('PASS ricorico/toaru2 templates: six exact outputs vs 3be5e98');
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&f!=='mhsunbreak.js').map(f=>'checker-data/'+f)])bytes(read(file),before(file));
+// tenten.js and takoslot.js were changed by the current wording correction.
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','tenten.js','takoslot.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),before(file));
 console.log('PASS both common files and all other machine definitions byte-identical vs 3be5e98');
