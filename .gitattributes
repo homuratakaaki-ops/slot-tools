@@ -5,4 +5,5 @@
 *.md text eol=lf
 *.json text eol=lf
 *.xml text eol=lf
+docs/specs/*.txt text eol=lf
 tests/fixtures/mhsunbreak-*-template.txt text eol=lf

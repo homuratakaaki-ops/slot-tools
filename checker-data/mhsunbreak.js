@@ -103,14 +103,18 @@
     ['stamp','エンディング中スタンプ',STAMP,'エンディング中のレア役成立時に出たスタンプの色を記録します。']
   ];
   const QUEST=[['blue','クエスト青'],['yellow','クエスト黄'],['raizex','ライゼクス'],['serregios','セルレギオス'],['oromidro','オロミドロ亜種'],['teo','テオ・テスカトル'],['at','SUNBREAK RUSH']];
+  // BZのグループ: [回数キー, 成功キー, 見出し]
+  const BZ_GROUPS=[['bzT1','questN1','1回目'],['bzT2','questN2','2回目以降']];
   function questD(S,id){return n(S.bzT1,id)+n(S.bzT2,id);}
-  function questHit(S,id){return n(S.questN,id);}
+  // テンプレ・合算表示はグループをまたいだ合計を使う（出力はv02から不変）
+  function questHit(S,id){return n(S.questN1,id)+n(S.questN2,id);}
   const zero=arr=>Object.fromEntries(arr.map(c=>[c[0],0]));
-  const DEF={games:0,hits:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null,bzT1:zero(QUEST),bzT2:zero(QUEST),questN:zero(QUEST)};
-  const MERGE_KEYS=['counts','bz','cycle','czType',...GROUPS.map(g=>g[0]),'bzT1','bzT2','questN'];
+  const DEF={games:0,hits:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null,bzT1:zero(QUEST),bzT2:zero(QUEST),questN1:zero(QUEST),questN2:zero(QUEST)};
+  const MERGE_KEYS=['counts','bz','cycle','czType',...GROUPS.map(g=>g[0]),'bzT1','bzT2','questN1','questN2'];
   function total(arr,state){return arr.reduce((a,c)=>a+n(state,c[0]),0);}
   function czTotal(S){return total(CZ_TYPE,S.czType);}
-  function normalizeState(out){
+  function normalizeState(out,src=out){
+    const legacyQuest=src&&src.questN&&typeof src.questN==='object'&&!src.questN1&&!src.questN2;
     out.games=Math.max(0,Number(out.games)||0);
     out.hits=Array.isArray(out.hits)?out.hits.map(v=>Math.max(0,parseInt(v,10)||0)).filter(v=>v>0):[];
     MERGE_KEYS.forEach(key=>{
@@ -118,7 +122,20 @@
       Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
     });
     BZ.forEach(c=>{out.bz[c[0]+'N']=Math.min(out.bz[c[0]+'N'],out.bz[c[0]+'D']);});
-    QUEST.forEach(([id])=>{out.questN[id]=Math.min(questHit(out,id),questD(out,id));});
+    // 旧セーブ（questN＝合算）からの移行。合算の総数は保存する（テンプレ出力を変えないため）。
+    if(legacyQuest){
+      QUEST.forEach(([id])=>{
+        const total=Math.min(Math.max(0,Number(src.questN[id])||0),questD(out,id));
+        // 1回目に入るだけ入れ、あふれた分だけを2回目以降に回す。
+        out.questN1[id]=Math.min(total,n(out.bzT1,id));
+        out.questN2[id]=total-out.questN1[id];
+      });
+    }
+    delete out.questN;
+    // n≦d をグループごとに保つ（§9-87）
+    BZ_GROUPS.forEach(([dKey,nKey])=>{
+      QUEST.forEach(([id])=>{out[nKey][id]=Math.min(n(out[nKey],id),n(out[dKey],id));});
+    });
     return out;
   }
   function pageInput(ctx){const S=ctx.S;return hitSection(S)+`
@@ -153,20 +170,25 @@
   function pageBZ(ctx){const S=ctx.S;return `<style>${ND_STYLE}
     .quest-row .lbl .nm{font-size:16px;overflow-wrap:anywhere}
     .quest-row .lbl .pct{text-align:left;margin-top:4px}
-  </style>`+[['bzT1','1回目'],['bzT2','2回目以降']].map(([key,title])=>`<section class="sec">
+  </style>`+BZ_GROUPS.map(([dKey,nKey,title])=>`<section class="sec">
     <div class="sec-h">${title}</div>
     <div class="cgrid">${QUEST.map(([id,name])=>{
-      const label=title+' '+name,hit=questHit(S,id),d=questD(S,id);
+      const label=title+' '+name;
+      const hit=n(S[nKey],id),d=n(S[dKey],id);
       const disabled=ctx.mode<0&&d<=hit?' disabled aria-disabled="true"':'';
       return `<div class="crow quest-row">
         <div class="lbl"><div class="nm">${name}</div><div class="pct">${ctx.pct(hit,d)}</div></div>
         <div class="cycle-actions">
-          <button type="button" class="cycle-btn win" data-bump-many="${key}.${id},questN.${id}" data-label="${label} 成功" aria-label="${label} 成功">${id==='at'?'＋':'成功'}</button>
-          ${id==='at'?'':`<button type="button" class="cycle-btn" data-bump-many="${key}.${id}" data-label="${label} 失敗" aria-label="${label} 失敗"${disabled}>失敗</button>`}
+          <button type="button" class="cycle-btn win" data-bump-many="${dKey}.${id},${nKey}.${id}" data-label="${label} 成功" aria-label="${label} 成功">${id==='at'?'＋':'成功'}</button>
+          ${id==='at'?'':`<button type="button" class="cycle-btn" data-bump-many="${dKey}.${id}" data-label="${label} 失敗" aria-label="${label} 失敗"${disabled}>失敗</button>`}
         </div>
       </div>`;
     }).join('')}</div>
-  </section>`).join('')+`<div class="hint">ブレイクゾーン終了時に、どのアイコンからクエストへ発展したかを記録します。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。クエストの結果まで見てから［成功］［失敗］を押してください。記録のみで、設定差は判明していません。</div><div class="hint">訂正は減算モードで同じボタンを押します</div>`;}
+  </section>`).join('')+`<div class="hint">ブレイクゾーン終了時に、どのアイコンからクエストへ発展したかを記録します。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。クエストの結果まで見てから［成功］［失敗］を押してください。記録のみで、設定差は判明していません。</div><div class="hint">訂正は減算モードで同じボタンを押します</div>`+`<section class="sec">
+    <div class="sec-h">クエスト成功率（合算）</div>
+    <div class="cgrid">${QUEST.map(([id,name])=>`<div class="crow quest-row"><div class="lbl"><div class="nm">${name}</div></div><div class="pct">${ctx.pct(questHit(S,id),questD(S,id))}</div></div>`).join('')}</div>
+    <div class="hint">テンプレに出る成功率です（1回目＋2回目以降）</div>
+  </section>`;}
   // サブラベルだけを段位表記の出典にする。強さの判定には数値rankを使う。
   function tierText(sub){
     const m=String(sub||'').match(/設定([0-9・]+(?:以上)?)濃厚/);

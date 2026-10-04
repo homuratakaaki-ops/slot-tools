@@ -86,11 +86,11 @@ test('HTML contract: original CSS apart from specified nav count, public links a
     assert.equal(style(html),id==='mhsunbreak'?base.replace('repeat(3,1fr);border-top','repeat(4,1fr);border-top'):id==='tenten'?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
     assert.ok(!html.includes('checker-bayes.js'));assert.equal(html.includes('href="'+id+'-guide.html">使い方</a>'),['mhsunbreak','tenten'].includes(id));
     assert.equal(html.includes('<meta name="robots" content="noindex">'),['juuou','paripi'].includes(id));
-    assert.ok(html.includes(id==='mhsunbreak'?'<small>SETTING CHECKER ・ slot-tools.jp ・ UI BZ v02</small>':'<small>SETTING CHECKER ・ slot-tools.jp</small>'));
-    if(id==='mhsunbreak')assert.equal((html.match(/UI 2026/g)||[]).length,0);
-    assert.ok(!html.includes('UI v1'));
+    assert.ok(html.includes('<small>SETTING CHECKER ・ slot-tools.jp</small>'));
+    // 設定判別カウンターにはUIバージョン文字列を出さない（AGENTS 作業規約4）。
+    assert.doesNotMatch(html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)[0],/\bUI\s/,id);
     assert.ok(html.includes('checker-engine.js?v=20260924'));
-    assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'+({mhsunbreak:'-3',juuou:'-2',tenten:'-3',paripi:''}[id])+'"'));
+    assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'+({mhsunbreak:'-4',juuou:'-2',tenten:'-3',paripi:''}[id])+'"'));
     assert.ok(!html.includes('\r')&&!js.includes('\r'));
     assert.equal(configs[id].template,configs[id].compactTemplate);
     if(id==='juuou')assert.ok(!html.includes('設定3')&&!js.includes('設定3'));
@@ -123,7 +123,8 @@ test('MH template bytes match the golden files in zero, mixed and fully populate
         for(const key of Object.keys(value))if(typeof value[key]==='number')value[key]=mode==='all'?1:index++%3;
       }
       for(const key of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[key+'D']=Math.max(S.bz[key+'D'],S.bz[key+'N']);
-      for(const id of Object.keys(S.questN))S.questN[id]=Math.min(S.questN[id],S.bzT1[id]+S.bzT2[id]);
+      // 合算の成功数は従来の questN と同じ値に保ち、1回目に入るだけ入れて残りを2回目以降に回す。
+      for(const id of Object.keys(S.questN1)){const t=Math.min(S.questN1[id],S.bzT1[id]+S.bzT2[id]);S.questN1[id]=Math.min(t,S.bzT1[id]);S.questN2[id]=t-S.questN1[id];}
     }
     const actual=Buffer.from(c.template(context(c,S)));
     assert.deepEqual(actual,Buffer.from(read('tests/fixtures/mhsunbreak-'+mode+'-template.txt')),mode);
