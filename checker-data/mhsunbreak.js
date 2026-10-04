@@ -1,0 +1,198 @@
+(function(){
+  'use strict';
+  window.CheckerConfigs=window.CheckerConfigs||{};
+  const ID="mhsunbreak";
+  const TITLE="スマスロ モンスターハンターライズ：サンブレイク";
+  const SOURCE="https://chonborista.com/slot/enta-slot/264514/";
+  const TAGS="#モンハンサンブレイク #設定判別";
+  const COUNTS=[["at","AT初当り","設1:1/349.9⇔設6:1/242.3"]];
+  const INITIAL_HINT="ATの初当りを記録します。設定1:1/349.9／2:1/337.0／3:1/319.8／4:1/283.6／5:1/264.0／6:1/242.3。";
+
+  function n(obj,key){return Number((obj||{})[key])||0;}
+  function rate(g,c){return (g>0&&c>0)?'1/'+(g/c).toFixed(1):'';}
+  function rateSuffix(g,c){const r=rate(g,c);return r?` / 現在 ${r}`:'';}
+  function countRate(g,c){const r=rate(g,c);return r?`${c}回 ${r}`:`${c}回`;}
+  function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
+  function initialBlock(S,c){const v=n(S.counts,c[0]),r=rate(S.games,v);return r?[c[1]+' '+v+'回',r]:[c[1],v+'回'];}
+  function initialDetail(S){return {title:'初当り',items:COUNTS.map(c=>({label:c[1],value:n(S.counts,c[0]),text:c[1]+' '+countRate(S.games,n(S.counts,c[0])),show:n(S.counts,c[0])>0,hot:false}))};}
+  function gameSection(S){const g=S.games;return `<section class="sec">
+  <div class="sec-h">通常ゲーム数</div>
+  <div class="inrow"><label>通常ゲーム数</label>
+    <input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
+  <div class="hint">連動アプリ等で確認した通常時のゲーム数。メニューの総ゲーム数はAT中を含むため入れない</div>
+</section>`;}
+  function initialSection(ctx){const S=ctx.S;return `<section class="sec">
+    <div class="sec-h">初当り</div>
+    <div class="cgrid">${COUNTS.map(c=>ctx.crow('counts.'+c[0],c[1],c[2]+rateSuffix(S.games,n(S.counts,c[0])),false)).join('')}</div>
+    <div class="hint">${INITIAL_HINT}</div>
+  </section>`;}
+
+  const AT_END=[
+    ["jay","ジェイ","奇数設定期待度UP",0,"ジ",0],
+    ["arlo","アルロー","奇数設定期待度UP",0,"ア",0],
+    ["galeas","ガレアス","奇数設定期待度UP",0,"ガ",0],
+    ["rondine","ロンディーネ","偶数設定期待度UP",0,"ロ",0],
+    ["luchika","ルーチカ","偶数設定期待度UP",0,"ル",0],
+    ["fioreneAirou","フィオレーネ＆アイルー","高設定期待度UP(弱)",0,"フ弱",0],
+    ["chicheAirouGaruku","チッチェ＆アイルー＆ガルク","高設定期待度UP(強)",0,"チ強",0],
+    ["fioreneRondine","フィオレーネ＆ロンディーネ","設定2否定",0,"2否",0],
+    ["jayArloGaleas","ジェイ＆アルロー＆ガレアス","設定3否定",0,"3否",0],
+    ["hinoeMinoto","ヒノエ＆ミノト","設定2以上確定演出",2,"ヒ2",1],
+    ["zenin","全員集合","設定5以上確定演出",5,"全5",1],
+    ["entalion","エンタライオン","設定6確定演出",6,"獅6",1]
+  ];
+
+  const TROPHY=[
+    ["bronze","銅","設定2以上確定演出",2,"銅",1],
+    ["silver","銀","設定3以上確定演出",3,"銀",1],
+    ["gold","金","設定4以上確定演出",4,"金",1],
+    ["momiji","紅葉柄","設定5以上確定演出",5,"紅",1],
+    ["rainbow","虹","設定6確定演出",6,"虹",1]
+  ];
+
+  const OVER=[
+    ["o222","222枚 OVER","設定2以上確定演出",2,"222",1],
+    ["o246","246枚 OVER","設定2・4・6確定演出",2,"246",0],
+    ["o456","456枚 OVER","設定4以上確定演出",4,"456",1],
+    ["o555","555枚 OVER","設定5以上確定演出",5,"555",1],
+    ["o666","666枚 OVER","設定6確定演出",6,"666",1]
+  ];
+
+  const STAMP=[
+    ["blue","青","奇数設定期待度UP",0,"青",0],
+    ["yellow","黄","偶数設定期待度UP",0,"黄",0],
+    ["green","緑","高設定期待度UP(弱)",0,"緑",0],
+    ["red","赤","高設定期待度UP(強)",0,"赤",0],
+    ["bronze","銅","設定2以上確定演出",2,"銅",1],
+    ["silver","銀","設定3以上確定演出",3,"銀",1],
+    ["gold","金","設定4以上確定演出",4,"金",1],
+    ["momiji","紅葉柄","設定5以上確定演出",5,"紅",1],
+    ["rainbow","虹","設定6確定演出",6,"虹",1]
+  ];
+  const TEMPLATE="モンハンライズサンブレイク\n\n■レア役からのBZ当選率\n弱レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎ 0/0\n強レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎CZ濃厚\n\n■規定リプレイ周期\n①周期▶︎ 0回　②周期▶︎ 0回\n③周期▶︎ 0回　④周期▶︎ 0回\n⑤周期▶︎ 0回\n\nブレイクゾーン▶︎ 0回\nアイルー福引　▶︎ 0回\n\n■ 猛焔一閃直撃\n↪︎BZ突入時に告知される\n\n■AT終了画面\n女(偶数)▶︎ \nﾛﾝﾃﾞｨｰﾈ ▶︎ \nﾙｰﾁｶ       ▶︎ \n\n男(奇数)▶︎ \nｼﾞｪｲ       ▶︎ \nｱﾙﾛｰ       ▶︎ \nｶﾞﾚｱｽ     ▶︎ \n\n高設定弱▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ｱｲﾙｰ\n高設定強▶︎ \n↪︎ﾁｯﾁｪ&ｱｲﾙｰ&ｶﾞﾙｸ\n2否定　▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ﾛﾝﾃﾞｨｰﾈ\n3否定　▶︎ \n↪︎男3人\n2以上　▶︎ \n↪︎ﾋﾉｴ&ﾐﾉﾄ\n5以上　▶︎ \n6確　　▶︎ \n\n■エンディング中スタンプ\n🔵奇  0回・🟡 偶 0回\n🟢弱  0回・🔴 強 0回\n銅 0回・銀 0回・金 0回\n🍁 0回・🌈 0回";
+  function ndRow(ctx,opt){
+    const canMinus=opt.d>opt.n;
+    const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="${opt.dPath}"`;
+    return `<div class="crow cycle-row ${opt.cls||''}">
+      <div class="ct"><b>${opt.name}</b>${opt.sub?`<small class="mn">${opt.sub}</small>`:''}</div>
+      <div class="num">${opt.n}</div>
+      <div class="pct">${opt.n}/${opt.d}</div>
+      <div class="cycle-actions">
+        <button type="button" class="cycle-btn win" data-bump-many="${opt.dPath},${opt.nPath}" data-label="${opt.name} ${opt.winLabel}" aria-label="${opt.name} ${opt.winLabel}">${opt.winLabel}</button>
+        <button type="button" class="cycle-btn" ${missAttrs} data-label="${opt.name} ${opt.missLabel}" aria-label="${opt.name} ${opt.missLabel}">${opt.missLabel}</button>
+      </div>
+    </div>`;
+  }
+  const ND_STYLE="      .cycle-row .num{min-width:38px}\n      .cycle-row .ct{flex:1;min-width:0}\n      .cycle-row .ct b,.cycle-row .ct small{display:block}\n      .cycle-row .ct b{font-size:16px}\n      .cycle-row .ct small{font-size:13px;color:var(--muted)}\n      .cycle-row .pct{min-width:92px;text-align:right}\n      .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}\n      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}\n      .cycle-btn.win{color:#ffc94d}\n      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}\n      .cycle-btn[disabled]{opacity:.4}\n";
+
+  const BZ=[['weakNormal','弱レア 通常'],['weakHigh','弱レア 高確'],['weakSuper','弱レア 超高確'],['strongNormal','強レア 通常'],['strongHigh','強レア 高確']];
+  const CYCLE=[['c1','①周期'],['c2','②周期'],['c3','③周期'],['c4','④周期'],['c5','⑤周期']];
+  const CZ_TYPE=[['breakzone','ブレイクゾーン'],['airou','アイルー福引']];
+  const GROUPS=[
+    ['atEnd','AT終了画面',AT_END,'AT終了画面が出たら該当の行を記録します。デフォルト画面は解析に示唆の記載がないため項目を置いていません。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。'],
+    ['trophy','エンタトロフィー',TROPHY,'AT終了画面で出現します。出た色の行を記録します。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。'],
+    ['over','獲得枚数表示',OVER,'AT中の獲得枚数表示が該当の数値を超えていたら記録します。246枚 OVERは設定1・3・5を否定する飛び値の示唆なので、カードの最強濃厚示唆には出しません。'],
+    ['stamp','エンディング中スタンプ',STAMP,'エンディング中のレア役成立時に出たスタンプの色を記録します。']
+  ];
+  const zero=arr=>Object.fromEntries(arr.map(c=>[c[0],0]));
+  const DEF={games:0,counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null};
+  const MERGE_KEYS=['counts','bz','cycle','czType',...GROUPS.map(g=>g[0])];
+  function total(arr,state){return arr.reduce((a,c)=>a+n(state,c[0]),0);}
+  function czTotal(S){return total(CZ_TYPE,S.czType);}
+  function normalizeState(out){
+    out.games=Math.max(0,Number(out.games)||0);
+    MERGE_KEYS.forEach(key=>{
+      out[key]=Object.assign({},DEF[key],out[key]||{});
+      Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
+    });
+    BZ.forEach(c=>{out.bz[c[0]+'N']=Math.min(out.bz[c[0]+'N'],out.bz[c[0]+'D']);});
+    return out;
+  }
+  function pageInput(ctx){const S=ctx.S;return gameSection(S)+initialSection(ctx)+`
+  <section class="sec">
+    <div class="sec-h">レア役からのBZ当選</div>
+    <style>${ND_STYLE}</style>
+    <div class="cgrid">${BZ.map(c=>ndRow(ctx,{name:c[1],dPath:'bz.'+c[0]+'D',nPath:'bz.'+c[0]+'N',d:n(S.bz,c[0]+'D'),n:n(S.bz,c[0]+'N'),winLabel:'当選',missLabel:'ハズレ'})).join('')}
+      <div class="crow"><div class="lbl"><div class="nm">強レア 超高確</div></div><div class="pct">CZ濃厚</div></div>
+    </div>
+    <div class="hint">滞在ステージで状態を判断（砂原＝高確示唆、溶岩洞＝超高確示唆）。記録のみで設定差はありません。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">規定リプレイ周期</div>
+    <div class="cgrid">${CYCLE.map(c=>ctx.crow('cycle.'+c[0],c[1],'',false)).join('')}</div>
+    <div class="hint">CZに当選した周期を記録します。記録のみで設定差はありません。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">CZ種別</div>
+    <div class="cgrid">${CZ_TYPE.map(c=>ctx.crow('czType.'+c[0],c[1],'',false,v=>ctx.pct(v,czTotal(S)))).join('')}</div>
+    <div class="hint">当選したCZの種別を記録します。記録のみで設定差はありません。</div>
+  </section>`;}
+  function pageShisa(ctx){return GROUPS.map(([key,title,arr,hint])=>`<section class="sec">
+    <div class="sec-h">${title}<span class="sub">計${total(arr,ctx.S[key])}回</span></div>
+    <div class="cgrid">${arr.map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
+    <div class="hint">${hint}</div>
+  </section>`).join('');}
+  // サブラベルだけを段位表記の出典にする。強さの判定には数値rankを使う。
+  function tierText(sub){
+    const m=String(sub||'').match(/設定([0-9・]+(?:以上)?)確定演出/);
+    if(!m)return '';
+    return m[1]==='6'?'6確定':m[1];
+  }
+  function allCert(S){return GROUPS.flatMap((g,i)=>g[2].map((c,j)=>({label:c[1],sub:c[2],rank:c[3],oneL:c[5],value:n(S[g[0]],c[0]),order:i*100+j})).filter(c=>c.rank>0));}
+  function certCount(S){return allCert(S).reduce((a,c)=>a+c.value,0);}
+  function certTier(S,rank){return allCert(S).filter(c=>c.rank===rank).reduce((a,c)=>a+c.value,0);}
+  function hintTotal(S){return GROUPS.reduce((a,g)=>a+total(g[2],S[g[0]]),0);}
+  function deniedTotal(S){return n(S.atEnd,'fioreneRondine')+n(S.atEnd,'jayArloGaleas');}
+  function bestCert(S){
+    const hit=allCert(S).filter(c=>c.oneL===1&&c.value>0).sort((a,b)=>(b.rank-a.rank)||(a.order-b.order))[0];
+    return hit?`確定 ${hit.label}(${tierText(hit.sub)}) ×${hit.value}`:'確定演出 なし';
+  }
+  function shown(title,arr,state){const hits=arr.filter(c=>n(state,c[0])>0).map(c=>(c[4]||c[1])+'×'+n(state,c[0]));return title+' '+(hits.length?hits.join('・'):'—');}
+  function tplText(ctx){const S=ctx.S,g=S.games,e=S.atEnd;
+    // 正本の空白・異体字セレクタ・改行を保持し、35箇所の値だけ置換する。
+    const values=[
+      ...BZ.map(c=>n(S.bz,c[0]+'N')+'/'+n(S.bz,c[0]+'D')),
+      ...CYCLE.map(c=>n(S.cycle,c[0])+'回'),
+      ...CZ_TYPE.map(c=>n(S.czType,c[0])+'回'),
+      n(e,'rondine')+n(e,'luchika'),n(e,'rondine'),n(e,'luchika'),
+      n(e,'jay')+n(e,'arlo')+n(e,'galeas'),n(e,'jay'),n(e,'arlo'),n(e,'galeas'),
+      n(e,'fioreneAirou'),n(e,'chicheAirouGaruku'),n(e,'fioreneRondine'),n(e,'jayArloGaleas'),n(e,'hinoeMinoto'),n(e,'zenin'),n(e,'entalion'),
+      ...STAMP.map(c=>n(S.stamp,c[0])+'回')
+    ];
+    let i=0;
+    const text=TEMPLATE.replace(/0\/0|0回|(?<=▶︎ )(?=\r?\n)/g,()=>{const v=values[i++];return typeof v==='number'?v+'回':v;});
+    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / AT${countRate(g,n(S.counts,'at'))}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+  }
+  function detailItems(arr,state){return arr.map(c=>({label:c[1],value:n(state,c[0]),hot:c[3]>0}));}
+  function detail(ctx){const S=ctx.S;return [
+    initialDetail(S),
+    {title:'レア役からのBZ当選',items:BZ.map(c=>({label:c[1],value:n(S.bz,c[0]+'N'),text:c[1]+' '+n(S.bz,c[0]+'N')+'/'+n(S.bz,c[0]+'D'),show:n(S.bz,c[0]+'D')>0,hot:false}))},
+    {title:'規定リプレイ周期',items:detailItems(CYCLE,S.cycle)},
+    {title:'CZ種別',items:detailItems(CZ_TYPE,S.czType),percent:true,denominator:czTotal(S)},
+    ...GROUPS.map(g=>({title:g[1],items:detailItems(g[2],S[g[0]])}))
+  ];}
+  window.CheckerConfigs.mhsunbreak={
+    uiV2:true,nanaCollab:true,storageKey:'mhsunbreak-checker-v1',defaults:DEF,mergeKeys:MERGE_KEYS,sourceUrl:SOURCE,normalizeState,
+    share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
+    pages:(ctx,pageCard)=>[()=>pageInput(ctx),()=>pageShisa(ctx),pageCard],template:tplText,compactTemplate:tplText,
+    card:{title:TITLE,titleFitMax:680,gameLabel:'通常',footerTags:TAGS,downloadName:'mhsunbreak_check.png',detailDownloadName:'mhsunbreak_check_detail.png',detail,
+      blocks:ctx=>[initialBlock(ctx.S,COUNTS[0]),['通常ゲーム数',(ctx.S.games||0)+'G'],['示唆の記録','計'+hintTotal(ctx.S)+'回'],['確定演出','計'+certCount(ctx.S)+'回']],
+      chart:ctx=>({title:'示唆分布',x:150,step:160,width:80,items:[2,3,4,5,6].map(r=>({label:r===6?'6':r+'+',value:certTier(ctx.S,r)}))}),
+      bottom:ctx=>{const S=ctx.S;return {title:'サマリー',startY:752,rowGap:36,fontSize:23,columns:[
+        {x:70,items:[
+          row(bestCert(S),certCount(S),undefined,'#ffc94d'),
+          row('AT初当り '+countRate(S.games,n(S.counts,'at')),n(S.counts,'at')),
+          row('通常回転 '+(S.games||0)+'G',S.games),
+          row(shown('周期',CYCLE,S.cycle),total(CYCLE,S.cycle)),
+          row(shown('CZ',[['breakzone','BZ'],['airou','アイルー']],S.czType),czTotal(S))
+        ]},
+        {x:560,items:[
+          row('確定演出 計'+certCount(S)+'回',certCount(S),undefined,'#ffc94d'),
+          ...GROUPS.map(g=>row(shown(g[1],g[2],S[g[0]]),total(g[2],S[g[0]]))),
+          row('否定系 計'+deniedTotal(S)+'回',deniedTotal(S))
+        ]}
+      ]};}
+    }
+  };
+
+})();

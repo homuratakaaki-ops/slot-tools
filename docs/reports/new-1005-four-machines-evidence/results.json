@@ -1,0 +1,448 @@
+{
+  "results": [
+    {
+      "name": "juuou blank-games measured-rate absent (input/card/detail/template)",
+      "status": "PASS"
+    },
+    {
+      "name": "juuou card/detail pixels and both copy buttons",
+      "status": "PASS"
+    },
+    {
+      "name": "juuou games input updates rate",
+      "status": "PASS"
+    },
+    {
+      "name": "juuou double-reset and undo restore",
+      "status": "PASS"
+    },
+    {
+      "name": "juuou per-tab scroll retention with explicit event",
+      "status": "PASS"
+    },
+    {
+      "name": "juuou-360-tab0 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 360,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "juuou-360-tab1 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 360,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "juuou-390-tab0 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 390,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "juuou-390-tab1 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 390,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "juuou absent-setting text excluded",
+      "status": "PASS"
+    },
+    {
+      "name": "juuou zero console/unhandled errors",
+      "status": "PASS"
+    },
+    {
+      "name": "paripi blank-games measured-rate absent (input/card/detail/template)",
+      "status": "PASS"
+    },
+    {
+      "name": "paripi card/detail pixels and both copy buttons",
+      "status": "PASS"
+    },
+    {
+      "name": "paripi games input updates rate",
+      "status": "PASS"
+    },
+    {
+      "name": "paripi double-reset and undo restore",
+      "status": "PASS"
+    },
+    {
+      "name": "paripi per-tab scroll retention with explicit event",
+      "status": "PASS"
+    },
+    {
+      "name": "paripi-360-tab0 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 360,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "paripi-360-tab1 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 360,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "paripi-390-tab0 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 390,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "paripi-390-tab1 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 390,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "paripi zero console/unhandled errors",
+      "status": "PASS"
+    },
+    {
+      "name": "tenten blank-games measured-rate absent (input/card/detail/template)",
+      "status": "PASS"
+    },
+    {
+      "name": "tenten card/detail pixels and both copy buttons",
+      "status": "PASS"
+    },
+    {
+      "name": "tenten games input updates rate",
+      "status": "PASS"
+    },
+    {
+      "name": "tenten double-reset and undo restore",
+      "status": "PASS"
+    },
+    {
+      "name": "tenten per-tab scroll retention with explicit event",
+      "status": "PASS"
+    },
+    {
+      "name": "tenten-360-tab0 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 360,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "tenten-360-tab1 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 360,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "tenten-390-tab0 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 390,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "tenten-390-tab1 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 390,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "tenten zero console/unhandled errors",
+      "status": "PASS"
+    },
+    {
+      "name": "mhsunbreak blank-games measured-rate absent (input/card/detail/template)",
+      "status": "PASS"
+    },
+    {
+      "name": "mhsunbreak card/detail pixels and both copy buttons",
+      "status": "PASS"
+    },
+    {
+      "name": "mhsunbreak games input updates rate",
+      "status": "PASS"
+    },
+    {
+      "name": "mhsunbreak double-reset and undo restore",
+      "status": "PASS"
+    },
+    {
+      "name": "mhsunbreak per-tab scroll retention with explicit event",
+      "status": "PASS"
+    },
+    {
+      "name": "mhsunbreak-360-tab0 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 360,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": [
+          {
+            "text": "弱レア 通常",
+            "width": 25,
+            "height": 120,
+            "font": "16px"
+          },
+          {
+            "text": "弱レア 高確",
+            "width": 25,
+            "height": 120,
+            "font": "16px"
+          },
+          {
+            "text": "弱レア 超高確",
+            "width": 25,
+            "height": 144,
+            "font": "16px"
+          },
+          {
+            "text": "強レア 通常",
+            "width": 25,
+            "height": 120,
+            "font": "16px"
+          },
+          {
+            "text": "強レア 高確",
+            "width": 25,
+            "height": 120,
+            "font": "16px"
+          }
+        ]
+      }
+    },
+    {
+      "name": "mhsunbreak-360-tab1 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 360,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "mhsunbreak-360-tab2 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 360,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "mhsunbreak-390-tab0 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 390,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": [
+          {
+            "text": "弱レア 通常",
+            "width": 55,
+            "height": 48,
+            "font": "16px"
+          },
+          {
+            "text": "弱レア 高確",
+            "width": 55,
+            "height": 48,
+            "font": "16px"
+          },
+          {
+            "text": "弱レア 超高確",
+            "width": 55,
+            "height": 48,
+            "font": "16px"
+          },
+          {
+            "text": "強レア 通常",
+            "width": 55,
+            "height": 48,
+            "font": "16px"
+          },
+          {
+            "text": "強レア 高確",
+            "width": 55,
+            "height": 48,
+            "font": "16px"
+          }
+        ]
+      }
+    },
+    {
+      "name": "mhsunbreak-390-tab1 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 390,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "mhsunbreak-390-tab2 viewport",
+      "status": "PASS",
+      "detail": {
+        "width": 390,
+        "minButtonHeight": 44,
+        "overflow": 0,
+        "ndLabels": []
+      }
+    },
+    {
+      "name": "mhsunbreak zero console/unhandled errors",
+      "status": "PASS"
+    },
+    {
+      "name": "MH 31 exact hint labels/sublabels and 3 tabs",
+      "status": "PASS"
+    },
+    {
+      "name": "MH zero-template bytes (14 filled lines) and plain-copy substitutions",
+      "status": "PASS"
+    },
+    {
+      "name": "MH all 31 hints: single-input template delta, oneL exclusion/inclusion, rank counts",
+      "status": "PASS"
+    },
+    {
+      "name": "MH five n/d rows: wins/misses, minus disabled at n=d, undo and template values",
+      "status": "PASS"
+    },
+    {
+      "name": "MH cycle/CZ single-input template deltas",
+      "status": "PASS"
+    },
+    {
+      "name": "MH CZ denominator matches screen/detail",
+      "status": "PASS"
+    },
+    {
+      "name": "all browser console errors = 0",
+      "status": "PASS"
+    },
+    {
+      "name": "mhsunbreak-360-tab0 n/d label readability",
+      "status": "FAIL",
+      "detail": [
+        {
+          "text": "弱レア 通常",
+          "width": 25,
+          "height": 120,
+          "font": "16px"
+        },
+        {
+          "text": "弱レア 高確",
+          "width": 25,
+          "height": 120,
+          "font": "16px"
+        },
+        {
+          "text": "弱レア 超高確",
+          "width": 25,
+          "height": 144,
+          "font": "16px"
+        },
+        {
+          "text": "強レア 通常",
+          "width": 25,
+          "height": 120,
+          "font": "16px"
+        },
+        {
+          "text": "強レア 高確",
+          "width": 25,
+          "height": 120,
+          "font": "16px"
+        }
+      ]
+    },
+    {
+      "name": "mhsunbreak-390-tab0 n/d label readability",
+      "status": "FAIL",
+      "detail": [
+        {
+          "text": "弱レア 通常",
+          "width": 55,
+          "height": 48,
+          "font": "16px"
+        },
+        {
+          "text": "弱レア 高確",
+          "width": 55,
+          "height": 48,
+          "font": "16px"
+        },
+        {
+          "text": "弱レア 超高確",
+          "width": 55,
+          "height": 48,
+          "font": "16px"
+        },
+        {
+          "text": "強レア 通常",
+          "width": 55,
+          "height": 48,
+          "font": "16px"
+        },
+        {
+          "text": "強レア 高確",
+          "width": 55,
+          "height": 48,
+          "font": "16px"
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "externalResources": "Ads, analytics and Google Fonts requests fulfilled empty for offline test"
+}
