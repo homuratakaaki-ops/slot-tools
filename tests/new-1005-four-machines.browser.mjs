@@ -409,7 +409,7 @@ try{
     const memoHint='この並びは、下の［成功］［失敗］を押すと配列メモに保存されます';
     const hasMemoHint=()=>frame(`return [...d.querySelectorAll('.hint')].some(e=>e.textContent===${JSON.stringify(memoHint)});`);
     assert.equal(await hasMemoHint(),false);
-    assert.deepEqual(await frame(`return [...d.querySelectorAll('#main .sec-h')].map(e=>e.firstChild.textContent);`),['配列メモ','① 初期アイコンを入れる','② 結果を押す（配列メモに保存されます）','クエスト成功率（合算）']);
+    assert.deepEqual(await frame(`return [...d.querySelectorAll('#main .sec-h')].map(e=>e.firstChild.textContent);`),['配列メモ','① 初期アイコンを入れる','② 結果を押す','クエスト成功率（合算）']);
     for(let i=0;i<4;i++){
       await click('[data-action="bzIconAdd"][data-icon="qBlue"]');
       assert.equal(await hasMemoHint(),true);

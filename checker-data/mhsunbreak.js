@@ -91,7 +91,7 @@
       </div>
     </div>`;
   }
-  const ND_STYLE="      .cycle-row .num{min-width:38px}\n      .cycle-row .ct{flex:1;min-width:0}\n      .cycle-row .ct b,.cycle-row .ct small{display:block}\n      .cycle-row .ct b{font-size:16px}\n      .cycle-row .ct small{font-size:13px;color:var(--muted)}\n      .cycle-row .pct{min-width:92px;text-align:right}\n      .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}\n      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}\n      .cycle-btn.win{color:#ffc94d}\n      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}\n      .cycle-btn[disabled]{opacity:.4}\n";
+  const ND_STYLE="      .cycle-row .num{min-width:38px}\n      .cycle-row .ct{flex:1;min-width:0}\n      .cycle-row .ct b,.cycle-row .ct small{display:block}\n      .cycle-row .ct b{font-size:16px}\n      .cycle-row .ct small{font-size:13px;color:var(--muted)}\n      .cycle-row .pct{min-width:92px;text-align:right}\n      .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}\n      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}\n      .cycle-btn.win{color:#ffc94d}\n      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}\n      .cycle-btn[disabled]{opacity:.4}\n      details.hit-more>summary{display:flex;align-items:center;min-height:44px;cursor:pointer;list-style:none}\n      details.hit-more>summary::-webkit-details-marker{display:none}\n      details.hit-more>summary::before{content:'▾ ';margin-right:4px}\n      details.hit-more[open]>summary::before{content:'▴ '}\n      .jump-nav button{padding:6px 10px}\n";
 
   const BZ=[['weakNormal','弱レア 通常'],['weakHigh','弱レア 高確'],['weakSuper','弱レア 超高確'],['strongNormal','強レア 通常'],['strongHigh','強レア 高確']];
   const CYCLE=[['c1','①周期'],['c2','②周期'],['c3','③周期'],['c4','④周期'],['c5','⑤周期']];
@@ -251,7 +251,7 @@
     .bz-memo-new{animation:bz-memo-new 2s ease-out 1}
     @keyframes bz-memo-new{from{background-color:rgba(255,201,77,.18)}to{background-color:transparent}}
   </style>`+iconHistory(S)+iconInput(S)+`<section class="sec">
-    <div class="sec-h">② 結果を押す（配列メモに保存されます）</div>`+BZ_GROUPS.map(([dKey,nKey,title])=>`
+    <div class="sec-h">② 結果を押す</div>`+BZ_GROUPS.map(([dKey,nKey,title])=>`
     <div class="bz-sub">${title}</div>
     <div class="cgrid">${QUEST.map(([id,name])=>{
       const label=title+' '+name;
@@ -265,7 +265,7 @@
         </div>
       </div>`;
     }).join('')}</div>
-  `).join('')+`<div class="hint">ブレイクゾーン終了時に、どのアイコンからクエストへ発展したかを記録します。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。クエストの結果まで見てから［成功］［失敗］を押してください。設定差は公表されていません。記録してサンプルを集める項目です。</div><div class="hint">訂正は減算モードで同じボタンを押します</div></section>`+`<section class="sec">
+  `).join('')+`<div class="hint">結果を押すと配列メモに保存されます。</div><div class="hint">ブレイクゾーン終了時に、どのアイコンからクエストへ発展したかを記録します。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。クエストの結果まで見てから［成功］［失敗］を押してください。設定差は公表されていません。記録してサンプルを集める項目です。</div><div class="hint">訂正は減算モードで同じボタンを押します</div></section>`+`<section class="sec">
     <div class="sec-h">クエスト成功率（合算）</div>
     <div class="cgrid">${QUEST.map(([id,name])=>`<div class="crow quest-row"><div class="lbl"><div class="nm">${name}</div></div><div class="pct">${ctx.pct(questHit(S,id),questD(S,id))}</div></div>`).join('')}</div>
     <div class="hint">テンプレに出る成功率です（1回目＋2回目以降）</div>

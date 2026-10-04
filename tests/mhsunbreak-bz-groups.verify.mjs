@@ -19,7 +19,7 @@ const sectionByTitle=(S,title)=>{
   return hit;
 };
 const blue=S=>{
-  const results=sectionByTitle(S,'② 結果を押す（配列メモに保存されます）');
+  const results=sectionByTitle(S,'② 結果を押す');
   const blocks=[...results.matchAll(/<div class="bz-sub">([^<]*)<\/div>([\s\S]*?)(?=<div class="bz-sub">|$)/g)];
   return [...['1回目','2回目以降'].map(title=>blocks.find(m=>m[1]===title)[2]),sectionByTitle(S,'クエスト成功率（合算）')].map(block=>block.match(/class="pct">([^<]*)/)[1]);
 };
