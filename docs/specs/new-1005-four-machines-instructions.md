@@ -644,6 +644,8 @@ GitHub Pages の公開リポジトリにバイナリを積むのは指示外な�
 
 カード画像は検証で生成・画素確認したうえで**コミットしない**運用にする。
 
+> 注記（v03・2026-10-04）: `docs/reports/` はこの後 PR #7 で丸ごと削除した。golden fixture は `tests/fixtures/mhsunbreak-zero-template.txt` へ移した。本節の `docs/reports/…` の記述は当時のパスで、現在は存在しない。
+
 ## V02-5【申し送りのみ・修正不要】
 
 - 詳細カードの「ほか12項目」省略は共通engineの40行上限によるもの。
@@ -659,3 +661,85 @@ GitHub Pages の公開リポジトリにバイナリを積むのは指示外な�
 5. `git diff --check` と LF の再確認
 6. 修正は**追加コミット**（v01をamendしない）。名義は `Mikoto <codex@slot-tools.local>`。
    push して PR #7 を更新する。**main へのマージはしない**
+
+---
+
+# 追補 v03（2026-10-04 夢爽裁定・docs/reports/ の削除）
+
+## V03-0 参照確認の結果（ツムギ実施済み・再調査は不要）
+
+`git grep` で `docs/reports` / `reports/` / `reports` を検索した結果、git管理下の参照は4ファイル。
+
+| ファイル | 行 | 参照の性質 |
+|---|---|---|
+| `tests/new-1005-four-machines.test.mjs` | 81 | **読込（golden fixture）**。`mhsunbreak-zero-template.txt` を `assert.equal` の期待値に使用 |
+| `IDEAS.md` | 1765 | 文中の参照（行末の「検証報告: docs/reports/…」） |
+| `docs/specs/new-1005-four-machines-instructions.md` | 633, 643 | v02追補の本文 |
+| `docs/reports/new-1005-four-machines-v01.md` | 15,16,140,143,264,267 | 自己参照（ファイルごと消える） |
+
+**どちらのテストも `docs/reports/` を出力先にしていない。**
+`tests/new-1005-four-machines.browser.mjs` の出力先は `fs.mkdtemp` 系の一時フォルダ
+（`%TEMP%\slot-1005-results-*`）だけで、リポジトリ内には書かない。
+`tests/new-1005-four-machines.test.mjs` は読むだけで何も書かない。
+したがって「出力先を git管理外へ移す」作業は不要。
+
+## V03-1【必須】golden fixture を tests/fixtures/ へ移す
+
+1. `git mv docs/reports/new-1005-four-machines-evidence/mhsunbreak-zero-template.txt tests/fixtures/mhsunbreak-zero-template.txt`
+2. `tests/new-1005-four-machines.test.mjs` の81行目のパスだけを書き換える。
+
+   ```js
+   // 変更前
+   read('docs/reports/new-1005-four-machines-evidence/mhsunbreak-zero-template.txt')
+   // 変更後
+   read('tests/fixtures/mhsunbreak-zero-template.txt')
+   ```
+
+**assert の内容・比較するバイト列・テストの合否判定は一切変えない。**
+テスト名も変えない。ファイルの中身（1400バイト）も変えない。
+`tests/fixtures/` は 2026/6 以降使っている既存の fixture 置き場（既に3本あり）。
+
+## V03-2【必須】docs/reports/ を丸ごと削除
+
+`git rm -r docs/reports/`
+
+`new-1005-four-machines-v01.md` / `results.json` /
+`mhsunbreak-360-input.png` / `mhsunbreak-390-input.png` が対象。
+ディレクトリを空にして残さない。
+
+## V03-3【必須】IDEAS.md の1行を直す
+
+1765行目（`# 完了済み` の直下）の末尾「`検証報告: docs/reports/new-1005-four-machines-v01.md`」が
+リンク切れになる。**この1行だけを**次に差し替える（他の行には触らない。
+IDEAS.md は複数チャットが触るため、全文差し替え・既存行の整形は禁止）。
+
+```
+- [~] 2026-10-04 10/5導入4機種チェッカー（獣王・モンハンサンブレイク・パリピ孔明・転生王女）を個別指示書 docs/specs/new-1005-four-machines-instructions.md で実装（v01=08695fd・v02=3dc6f73、PR #7・limited・導線なし）。共通engineと掲載導線は未変更。モンハンはなな様テンプレ機種（nanaCollab:true）で、通常テンプレは正本 docs/specs/mhsunbreak-nana-template-v01.txt とバイト一致（AT終了画面14行は慣例どおり0回で埋める・夢爽裁定）。golden は tests/fixtures/mhsunbreak-zero-template.txt。獣王は設定1・2・4・5・6の5段階。レビュー差し戻し4件（n/d行の狭幅崩れ・ヘッダーのUI版数・テンプレ置換の後読み・証跡画像のコミット）はv02で是正。検証報告の docs/reports/ はv03で削除（検証はテストで再現する）。残件は示唆ボタン数が31で指示元の36と5つ差、詳細カードの40行上限による省略、夢爽の実機検収。
+```
+
+## V03-4【必須】v02追補に注記を1行足す
+
+本書の「## V02-4【必須・リポジトリ衛生】大きい証跡画像をコミットから外す」の節の**末尾**に、
+次の1行だけを足す。633・643行の本文は**履歴として残す**（当時の判断経緯が読めるようにする）。
+
+```
+> 注記（v03・2026-10-04）: `docs/reports/` はこの後 PR #7 で丸ごと削除した。golden fixture は `tests/fixtures/mhsunbreak-zero-template.txt` へ移した。本節の `docs/reports/…` の記述は当時のパスで、現在は存在しない。
+```
+
+## V03-5 検証
+
+1. `node test/verify.mjs` → 「サニティチェック: 全設定OK / 区間分割: 全設定OK」
+2. `node --test` → 件数とPASS/FAILを報告（**16件PASS・FAIL 0** が期待値。件数が減っていないこと）
+3. `node tests/new-1005-four-machines.browser.mjs` → **FAIL 0**。件数を報告
+4. **削除後も4機種の画面とテンプレ出力が変わらないこと**を示す:
+   - 4機種の `pages()` が生成するHTMLと、`template()` の出力バイト列を
+     **削除前（`e2e1ad0`）と突き合わせて完全一致**であることを確認し、結果を報告する
+     （`git show e2e1ad0:checker-data/<id>.js` を vm で読み込んで比較すれば足りる）
+5. `git grep -n "docs/reports"` が **0件**（本書の注記に書いた1行を除く）
+6. `git diff --check` と LF の再確認
+
+## V03-6 コミット・push
+
+- 追加コミット1本（v01・v02をamendしない）。名義は `Mikoto <codex@slot-tools.local>`
+- `feat/new-1005-four-machines` へ push して PR #7 を更新する
+- **main へのマージはしない**
