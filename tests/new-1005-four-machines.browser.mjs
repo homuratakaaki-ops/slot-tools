@@ -50,7 +50,7 @@ const state=()=>frame('return JSON.parse(w.localStorage.getItem(w.__key));');
 const click=selector=>frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
 async function tab(index){await click(`#nav [data-p="${index}"]`);await pause(60);}
 async function load(id,width=390,height=740){
-  await evaluate(`{const f=document.getElementById('frame');f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/'+id+'-checker.html')};}`);
+  await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/'+id+'-checker.html')};})`);
   for(let i=0;i<100;i++){
     if(await frame(`return d.querySelector('#gIn')&&w.CheckerConfigs?.[${JSON.stringify(id)}]?true:false;`).catch(()=>false))break;
     await pause(40);
@@ -72,7 +72,7 @@ async function copy(plain=false){await click(plain?'#cpPlainBtn':'#cpBtn');retur
 async function reset(){await frame(`d.getElementById('dataOps').open=true;`);await click('#resetBtn');await click('#resetBtn');}
 function pass(name,detail){results.push({name,status:'PASS',detail});console.log('PASS '+name);}
 async function measure(name){
-  const r=await frame(`const width=w.innerWidth;const nodes=[...d.querySelectorAll('header *,#main *,nav *')].filter(e=>e.getClientRects().length&&w.getComputedStyle(e).visibility!=='hidden');return {width,overflow:nodes.filter(e=>{const r=e.getBoundingClientRect();return r.left<-.5||r.right>width+.5;}).map(e=>({tag:e.tagName,cls:e.className,text:e.textContent.slice(0,60),rect:e.getBoundingClientRect().toJSON()})),buttons:nodes.filter(e=>e.matches('button,.plus')).map(e=>({text:e.textContent,height:e.getBoundingClientRect().height,minHeight:w.getComputedStyle(e).minHeight})),ndLabels:[...d.querySelectorAll('.cycle-row .ct')].map(e=>({text:e.textContent,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,font:w.getComputedStyle(e.firstElementChild).fontSize}))};`);
+  const r=await frame(`const width=w.innerWidth;const nodes=[...d.querySelectorAll('header *,#main *,nav *')].filter(e=>e.getClientRects().length&&w.getComputedStyle(e).visibility!=='hidden');return {width,overflow:nodes.filter(e=>{const r=e.getBoundingClientRect();return r.left<-.5||r.right>width+.5;}).map(e=>({tag:e.tagName,cls:e.className,text:e.textContent.slice(0,60),rect:e.getBoundingClientRect().toJSON()})),buttons:nodes.filter(e=>e.matches('button,.plus')).map(e=>({text:e.textContent,height:e.getBoundingClientRect().height,minHeight:w.getComputedStyle(e).minHeight})),ndLabels:[...d.querySelectorAll('.bz-row .ct')].map(e=>{const range=d.createRange();range.selectNodeContents(e.firstElementChild);return {text:e.textContent,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,rowHeight:e.closest('.bz-row').getBoundingClientRect().height,lineCount:range.getClientRects().length,font:w.getComputedStyle(e.firstElementChild).fontSize};})};`);
   fs.writeFileSync(path.join(artifacts,name+'-layout.json'),JSON.stringify(r,null,2));
   // Jump navigation intentionally scrolls horizontally. Its clipped children do
   // not overflow the page viewport; test the scroll container itself instead.
@@ -84,7 +84,11 @@ async function measure(name){
   assert.deepEqual(visibleOverflow,[],name+' horizontal overflow');
   assert.ok(r.buttons.every(b=>b.height>=44),name+' button below 44px: '+JSON.stringify(r.buttons.filter(b=>b.height<44)));
   pass(name+' viewport',{width:r.width,minButtonHeight:Math.min(...r.buttons.map(b=>b.height)),overflow:0,ndLabels:r.ndLabels});
-  if(r.ndLabels.some(l=>l.width<64))visualFindings.push({name:name+' n/d label readability',status:'FAIL',detail:r.ndLabels});
+  if(r.ndLabels.length){
+    assert.deepEqual(r.ndLabels.map(l=>l.text),['通常','高確','超高確','通常','高確']);
+    if(r.ndLabels.some(l=>l.lineCount!==1))visualFindings.push({name:name+' n/d single-line labels',status:'FAIL',detail:r.ndLabels});
+    else pass(name+' n/d single-line labels',r.ndLabels);
+  }
 }
 try{
   browser=spawn(chrome,['--headless=new','--disable-gpu','--no-sandbox','--no-first-run','--no-default-browser-check','--disable-extensions','--remote-debugging-port=0','--user-data-dir='+profile,'--window-size=1200,1000','about:blank'],{windowsHide:true,stdio:['ignore','ignore','pipe']});
@@ -155,11 +159,16 @@ try{
     pass(id+' per-tab scroll retention with explicit event');
     for(const width of [360,390]){
       await load(id,width,530);
+      if(id==='mhsunbreak'){
+        await frame("const s=JSON.parse(w.localStorage.getItem(w.__key));for(const key of Object.keys(s.bz))s.bz[key]=99;w.localStorage.setItem(w.__key,JSON.stringify(s));");
+        await load(id,width,530);
+        assert.ok(Object.values((await state()).bz).every(v=>v===99),'saved BZ keys survive reload');
+      }
       for(let p=0;p<=cardTab;p++){
         await tab(p);await measure(id+'-'+width+'-tab'+p);
         if(p===0){
-          if(id==='mhsunbreak')await frame(`d.querySelector('.cycle-row').scrollIntoView({block:'start'});`);
-          const shot=await send('Page.captureScreenshot',{format:'png'});fs.writeFileSync(path.join(artifacts,id+'-'+width+'-input.png'),Buffer.from(shot.data,'base64'));
+          if(id==='mhsunbreak')await frame(`d.querySelector('.bz-sub').scrollIntoView({block:'start'});`);
+          const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});fs.writeFileSync(path.join(artifacts,id+'-'+width+'-input.png'),Buffer.from(shot.data,'base64'));
         }
       }
     }
@@ -178,7 +187,12 @@ try{
     const chunk=spec.slice(spec.indexOf(start)).split(/\n#### |\n### /)[0];
     return {key,rows:chunk.split(/\r?\n/).filter(l=>/^\| `\w+` \|/.test(l)).map(l=>l.split('|').slice(1,-1).map(x=>x.trim().replace(/[`*]/g,'')))};
   });
-  await clear('mhsunbreak');await tab(1);
+  await clear('mhsunbreak');
+  const bzUi=await frame(`const rows=[...d.querySelectorAll('.bz-row')];const sec=rows[0].closest('section');return {titles:[...sec.querySelectorAll('.bz-sub')].map(e=>e.textContent),hints:sec.querySelectorAll('.hint').length,rows:rows.map(e=>[...e.querySelectorAll('button')].map(b=>[b.dataset.label,b.getAttribute('aria-label')]))};`);
+  assert.deepEqual(bzUi.titles,['弱レア','強レア']);assert.equal(bzUi.hints,1);
+  assert.deepEqual(bzUi.rows,['弱レア 通常','弱レア 高確','弱レア 超高確','強レア 通常','強レア 高確'].map(name=>['当選','ハズレ'].map(action=>[name+' '+action,name+' '+action])));
+  pass('MH BZ subheadings, single hint and full operation labels');
+  await tab(1);
   const labels=await frame(`return [...d.querySelectorAll('.crow[data-c]')].map(e=>[e.dataset.c,e.querySelector('.nm').textContent,e.querySelector('.mn').textContent]);`);
   assert.deepEqual(labels,groups.flatMap(g=>g.rows.map(r=>[g.key+'.'+r[0],r[1],r[2]])));
   assert.equal(labels.length,31);assert.equal(await frame('return d.querySelectorAll("#nav button").length;'),3);
@@ -220,7 +234,9 @@ try{
   for(const key of bz){
     await tab(0);
     const selector=`[data-bump-many="bz.${key}D,bz.${key}N"]`;
+    const fullName={'weakNormal':'弱レア 通常','weakHigh':'弱レア 高確','weakSuper':'弱レア 超高確','strongNormal':'強レア 通常','strongHigh':'強レア 高確'}[key];
     await click(selector);assert.equal((await state()).bz[key+'D'],1);assert.equal((await state()).bz[key+'N'],1);
+    assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(fullName+' 当選'));
     await tab(2);
     const winTemplate=await copy();
     const ratioMatch=[...zero.matchAll(/0\/0/g)][bz.indexOf(key)];
@@ -229,7 +245,9 @@ try{
     await click('#modeBtn');
     assert.equal(await frame(`return d.querySelector(${JSON.stringify(selector)}).parentElement.querySelector('button:last-child').disabled;`),true);
     await click(selector);assert.equal((await state()).bz[key+'D'],0);assert.equal((await state()).bz[key+'N'],0);
-    await click('#undoBtn');await click('#modeBtn');await click('#undoBtn');
+    await click('#undoBtn');
+    assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(fullName+' 当選'));
+    await click('#modeBtn');await click('#undoBtn');
     await click(`[data-bump="bz.${key}D"]`);
     await tab(2);assert.equal(await copy(),zero.slice(0,ratioMatch.index)+'0/1'+zero.slice(ratioMatch.index+3));
     await tab(0);await click('#modeBtn');await click(`[data-bump="bz.${key}D"]`);
@@ -258,7 +276,7 @@ try{
   await tab(2);saveCanvas('mhsunbreak-all-card',await canvas('cardCanvas'));await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
   assert.deepEqual(errors,[]);pass('all browser console errors = 0');
   results.push(...visualFindings);
-  if(visualFindings.length){console.error('FAIL n/d label readability; prescribed CSS retained. See layout measurements and screenshots.');process.exitCode=1;}
+  if(visualFindings.length){console.error('FAIL n/d label wrapping. See layout measurements and screenshots.');process.exitCode=1;}
 }catch(e){results.push({name:'browser acceptance',status:'FAIL',detail:e.stack,cause:String(e.cause||'')});console.error(e.stack,e.cause||'');process.exitCode=1;}
 finally{
   fs.writeFileSync(path.join(artifacts,'results.json'),JSON.stringify({results,errors,externalResources:'Ads, analytics and Google Fonts requests fulfilled empty for offline test'},null,2));

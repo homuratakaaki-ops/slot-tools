@@ -74,7 +74,7 @@
     const canMinus=opt.d>opt.n;
     const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="${opt.dPath}"`;
     return `<div class="crow cycle-row ${opt.cls||''}">
-      <div class="ct"><b>${opt.name}</b>${opt.sub?`<small class="mn">${opt.sub}</small>`:''}</div>
+      <div class="ct"><b>${opt.displayName||opt.name}</b>${opt.sub?`<small class="mn">${opt.sub}</small>`:''}</div>
       <div class="num">${opt.n}</div>
       <div class="pct">${opt.n}/${opt.d}</div>
       <div class="cycle-actions">
@@ -111,10 +111,15 @@
   function pageInput(ctx){const S=ctx.S;return gameSection(S)+initialSection(ctx)+`
   <section class="sec">
     <div class="sec-h">レア役からのBZ当選</div>
-    <style>${ND_STYLE}</style>
-    <div class="cgrid">${BZ.map(c=>ndRow(ctx,{name:c[1],dPath:'bz.'+c[0]+'D',nPath:'bz.'+c[0]+'N',d:n(S.bz,c[0]+'D'),n:n(S.bz,c[0]+'N'),winLabel:'当選',missLabel:'ハズレ'})).join('')}
-      <div class="crow"><div class="lbl"><div class="nm">強レア 超高確</div></div><div class="pct">CZ濃厚</div></div>
-    </div>
+    <style>${ND_STYLE}
+      .bz-row .pct{min-width:48px;text-align:right}
+      .bz-sub{font-size:11px;font-weight:800;color:var(--txt);letter-spacing:.06em;margin-bottom:6px}
+    </style>
+    ${[['弱レア',BZ.slice(0,3)],['強レア',BZ.slice(3)]].map(([title,rows])=>`
+    <div class="bz-sub">${title}</div>
+    <div class="cgrid">${rows.map(c=>ndRow(ctx,{cls:'bz-row',name:c[1],displayName:c[1].split(' ')[1],dPath:'bz.'+c[0]+'D',nPath:'bz.'+c[0]+'N',d:n(S.bz,c[0]+'D'),n:n(S.bz,c[0]+'N'),winLabel:'当選',missLabel:'ハズレ'})).join('')}
+      ${title==='強レア'?'<div class="crow"><div class="lbl"><div class="nm">超高確</div></div><div class="pct">CZ濃厚</div></div>':''}
+    </div>`).join('')}
     <div class="hint">滞在ステージで状態を判断（砂原＝高確示唆、溶岩洞＝超高確示唆）。記録のみで設定差はありません。</div>
   </section>
   <section class="sec">
@@ -160,7 +165,11 @@
       ...STAMP.map(c=>n(S.stamp,c[0])+'回')
     ];
     let i=0;
-    const text=TEMPLATE.replace(/0\/0|0回|(?<=▶︎ )(?=\r?\n)/g,()=>{const v=values[i++];return typeof v==='number'?v+'回':v;});
+    const text=TEMPLATE.replace(/0\/0|0回|▶︎ (?=\r?\n)/g,m=>{
+      const v=values[i++];
+      const s=typeof v==='number'?v+'回':v;
+      return m.startsWith('▶')?m+s:s;
+    });
     return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / AT${countRate(g,n(S.counts,'at'))}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
   }
   function detailItems(arr,state){return arr.map(c=>({label:c[1],value:n(state,c[0]),hot:c[3]>0}));}

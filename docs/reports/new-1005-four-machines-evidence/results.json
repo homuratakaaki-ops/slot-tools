@@ -225,37 +225,93 @@
         "overflow": 0,
         "ndLabels": [
           {
-            "text": "弱レア 通常",
-            "width": 25,
-            "height": 120,
+            "text": "通常",
+            "width": 69,
+            "height": 24,
+            "rowHeight": 62,
+            "lineCount": 1,
             "font": "16px"
           },
           {
-            "text": "弱レア 高確",
-            "width": 25,
-            "height": 120,
+            "text": "高確",
+            "width": 69,
+            "height": 24,
+            "rowHeight": 62,
+            "lineCount": 1,
             "font": "16px"
           },
           {
-            "text": "弱レア 超高確",
-            "width": 25,
-            "height": 144,
+            "text": "超高確",
+            "width": 69,
+            "height": 24,
+            "rowHeight": 62,
+            "lineCount": 1,
             "font": "16px"
           },
           {
-            "text": "強レア 通常",
-            "width": 25,
-            "height": 120,
+            "text": "通常",
+            "width": 69,
+            "height": 24,
+            "rowHeight": 62,
+            "lineCount": 1,
             "font": "16px"
           },
           {
-            "text": "強レア 高確",
-            "width": 25,
-            "height": 120,
+            "text": "高確",
+            "width": 69,
+            "height": 24,
+            "rowHeight": 62,
+            "lineCount": 1,
             "font": "16px"
           }
         ]
       }
+    },
+    {
+      "name": "mhsunbreak-360-tab0 n/d single-line labels",
+      "status": "PASS",
+      "detail": [
+        {
+          "text": "通常",
+          "width": 69,
+          "height": 24,
+          "rowHeight": 62,
+          "lineCount": 1,
+          "font": "16px"
+        },
+        {
+          "text": "高確",
+          "width": 69,
+          "height": 24,
+          "rowHeight": 62,
+          "lineCount": 1,
+          "font": "16px"
+        },
+        {
+          "text": "超高確",
+          "width": 69,
+          "height": 24,
+          "rowHeight": 62,
+          "lineCount": 1,
+          "font": "16px"
+        },
+        {
+          "text": "通常",
+          "width": 69,
+          "height": 24,
+          "rowHeight": 62,
+          "lineCount": 1,
+          "font": "16px"
+        },
+        {
+          "text": "高確",
+          "width": 69,
+          "height": 24,
+          "rowHeight": 62,
+          "lineCount": 1,
+          "font": "16px"
+        }
+      ]
     },
     {
       "name": "mhsunbreak-360-tab1 viewport",
@@ -286,37 +342,93 @@
         "overflow": 0,
         "ndLabels": [
           {
-            "text": "弱レア 通常",
-            "width": 55,
-            "height": 48,
+            "text": "通常",
+            "width": 99,
+            "height": 24,
+            "rowHeight": 62,
+            "lineCount": 1,
             "font": "16px"
           },
           {
-            "text": "弱レア 高確",
-            "width": 55,
-            "height": 48,
+            "text": "高確",
+            "width": 99,
+            "height": 24,
+            "rowHeight": 62,
+            "lineCount": 1,
             "font": "16px"
           },
           {
-            "text": "弱レア 超高確",
-            "width": 55,
-            "height": 48,
+            "text": "超高確",
+            "width": 99,
+            "height": 24,
+            "rowHeight": 62,
+            "lineCount": 1,
             "font": "16px"
           },
           {
-            "text": "強レア 通常",
-            "width": 55,
-            "height": 48,
+            "text": "通常",
+            "width": 99,
+            "height": 24,
+            "rowHeight": 62,
+            "lineCount": 1,
             "font": "16px"
           },
           {
-            "text": "強レア 高確",
-            "width": 55,
-            "height": 48,
+            "text": "高確",
+            "width": 99,
+            "height": 24,
+            "rowHeight": 62,
+            "lineCount": 1,
             "font": "16px"
           }
         ]
       }
+    },
+    {
+      "name": "mhsunbreak-390-tab0 n/d single-line labels",
+      "status": "PASS",
+      "detail": [
+        {
+          "text": "通常",
+          "width": 99,
+          "height": 24,
+          "rowHeight": 62,
+          "lineCount": 1,
+          "font": "16px"
+        },
+        {
+          "text": "高確",
+          "width": 99,
+          "height": 24,
+          "rowHeight": 62,
+          "lineCount": 1,
+          "font": "16px"
+        },
+        {
+          "text": "超高確",
+          "width": 99,
+          "height": 24,
+          "rowHeight": 62,
+          "lineCount": 1,
+          "font": "16px"
+        },
+        {
+          "text": "通常",
+          "width": 99,
+          "height": 24,
+          "rowHeight": 62,
+          "lineCount": 1,
+          "font": "16px"
+        },
+        {
+          "text": "高確",
+          "width": 99,
+          "height": 24,
+          "rowHeight": 62,
+          "lineCount": 1,
+          "font": "16px"
+        }
+      ]
     },
     {
       "name": "mhsunbreak-390-tab1 viewport",
@@ -340,6 +452,10 @@
     },
     {
       "name": "mhsunbreak zero console/unhandled errors",
+      "status": "PASS"
+    },
+    {
+      "name": "MH BZ subheadings, single hint and full operation labels",
       "status": "PASS"
     },
     {
@@ -369,78 +485,6 @@
     {
       "name": "all browser console errors = 0",
       "status": "PASS"
-    },
-    {
-      "name": "mhsunbreak-360-tab0 n/d label readability",
-      "status": "FAIL",
-      "detail": [
-        {
-          "text": "弱レア 通常",
-          "width": 25,
-          "height": 120,
-          "font": "16px"
-        },
-        {
-          "text": "弱レア 高確",
-          "width": 25,
-          "height": 120,
-          "font": "16px"
-        },
-        {
-          "text": "弱レア 超高確",
-          "width": 25,
-          "height": 144,
-          "font": "16px"
-        },
-        {
-          "text": "強レア 通常",
-          "width": 25,
-          "height": 120,
-          "font": "16px"
-        },
-        {
-          "text": "強レア 高確",
-          "width": 25,
-          "height": 120,
-          "font": "16px"
-        }
-      ]
-    },
-    {
-      "name": "mhsunbreak-390-tab0 n/d label readability",
-      "status": "FAIL",
-      "detail": [
-        {
-          "text": "弱レア 通常",
-          "width": 55,
-          "height": 48,
-          "font": "16px"
-        },
-        {
-          "text": "弱レア 高確",
-          "width": 55,
-          "height": 48,
-          "font": "16px"
-        },
-        {
-          "text": "弱レア 超高確",
-          "width": 55,
-          "height": 48,
-          "font": "16px"
-        },
-        {
-          "text": "強レア 通常",
-          "width": 55,
-          "height": 48,
-          "font": "16px"
-        },
-        {
-          "text": "強レア 高確",
-          "width": 55,
-          "height": 48,
-          "font": "16px"
-        }
-      ]
     }
   ],
   "errors": [],

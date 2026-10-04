@@ -59,6 +59,8 @@ test('HTML contract: original CSS apart from specified nav count, limited scope 
     const html=read(id+'-checker.html'),js=read('checker-data/'+id+'.js');
     assert.equal(style(html),id==='mhsunbreak'?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
     assert.ok(!html.includes('checker-bayes.js'));assert.ok(!html.includes('使い方'));
+    assert.ok(html.includes('<small>SETTING CHECKER ・ slot-tools.jp</small>'));
+    assert.ok(!html.includes('UI v1'));
     assert.ok(html.includes('checker-engine.js?v=20260924'));
     assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'));
     assert.ok(!html.includes('\r')&&!js.includes('\r'));
@@ -72,4 +74,9 @@ test('MH template preserves original bytes except the 14 blank values and wrappe
   const body=original.replace(/▶︎ (?=\n)/g,'▶︎ 0回');
   assert.equal(c.template(context(c)),'設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+body+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様');
   assert.equal((original.match(/▶︎ (?=\n)/g)||[]).length,14);
+});
+
+test('v02 template keeps the v01 golden bytes without regex lookbehind',()=>{
+  assert.ok(!/\(\?<([=!])/.test(read('checker-data/mhsunbreak.js')));
+  assert.equal(configs.mhsunbreak.template(context(configs.mhsunbreak)),read('docs/reports/new-1005-four-machines-evidence/mhsunbreak-zero-template.txt'));
 });
