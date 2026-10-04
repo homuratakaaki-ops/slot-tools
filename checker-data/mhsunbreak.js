@@ -91,7 +91,7 @@
       </div>
     </div>`;
   }
-  const ND_STYLE="      .cycle-row .num{min-width:38px}\n      .cycle-row .ct{flex:1;min-width:0}\n      .cycle-row .ct b,.cycle-row .ct small{display:block}\n      .cycle-row .ct b{font-size:16px}\n      .cycle-row .ct small{font-size:13px;color:var(--muted)}\n      .cycle-row .pct{min-width:92px;text-align:right}\n      .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}\n      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}\n      .cycle-btn.win{color:#ffc94d}\n      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}\n      .cycle-btn[disabled]{opacity:.4}\n";
+  const ND_STYLE="      .cycle-row .num{min-width:38px}\n      .cycle-row .ct{flex:1;min-width:0}\n      .cycle-row .ct b,.cycle-row .ct small{display:block}\n      .cycle-row .ct b{font-size:16px}\n      .cycle-row .ct small{font-size:13px;color:var(--muted)}\n      .cycle-row .pct{min-width:92px;text-align:right}\n      .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}\n      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}\n      .cycle-btn.win{color:#ffc94d}\n      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}\n      .cycle-btn[disabled]{opacity:.4}\n      details.hit-more>summary{display:flex;align-items:center;min-height:44px;cursor:pointer;list-style:none}\n      details.hit-more>summary::-webkit-details-marker{display:none}\n      details.hit-more>summary::before{content:'▾ ';margin-right:4px}\n      details.hit-more[open]>summary::before{content:'▴ '}\n      .jump-nav button{padding:6px 10px}\n";
 
   const BZ=[['weakNormal','弱レア 通常'],['weakHigh','弱レア 高確'],['weakSuper','弱レア 超高確'],['strongNormal','強レア 通常'],['strongHigh','強レア 高確']];
   const CYCLE=[['c1','①周期'],['c2','②周期'],['c3','③周期'],['c4','④周期'],['c5','⑤周期']];
@@ -123,10 +123,12 @@
     return (Array.isArray(list)?list:[]).filter(isIconLogRow).map(row=>({...row,icons:cleanIcons(row.icons)})).slice(-200);
   }
   function iconChip(key){return `<span class="bz-icon bz-icon-${key}">${ICON_NAMES[key]}</span>`;}
+  let iconMemoJustSaved=false;
   function iconInput(S){
     const pending=S.iconPending;
-    return `<section class="sec"><div class="sec-h">初期アイコン配列（メモ）</div>
+    return `<section class="sec"><div class="sec-h">① 初期アイコンを入れる</div>
       <div class="bz-icon-slots">${Array.from({length:10},(_,i)=>`<div class="bz-icon-slot${i===pending.length?' current':''}" aria-label="${i+1}番目${i===pending.length?' 入力位置':''}">${pending[i]?iconChip(pending[i]):''}</div>`).join('')}</div>
+      ${pending.length?'<div class="hint">この並びは、下の［成功］［失敗］を押すと配列メモに保存されます</div>':''}
       <div class="bz-icon-picks">${ICONS.map(([key,label])=>`<button type="button" class="bz-icon-button" data-action="bzIconAdd" data-icon="${key}" data-label="${label}">${iconChip(key)}</button>`).join('')}</div>
       <div class="bz-icon-tools"><button type="button" class="bz-icon-button" data-action="bzIconBack"${pending.length?'':' disabled'}>1つ戻す</button><button type="button" class="bz-icon-button" data-action="bzIconClear"${pending.length?'':' disabled'}>クリア</button></div>
       <div class="hint">ブレイクゾーン開始時の並びを左から順に押します。途中まででも保存できます。</div>
@@ -134,10 +136,11 @@
     </section>`;
   }
   function iconHistory(S){
-    const rows=S.iconLog.map((row,index)=>`<div class="bz-icon-log-row"><div class="bz-icon-log-body"><div class="bz-icon-line">${row.icons.map(iconChip).join('')}</div><div>${row.group==='bzT1'?'1回目':'2回目以降'}／${QUEST_NAMES[row.quest]}／${row.result==='win'?'成功':'失敗'}</div></div><button type="button" class="bz-icon-button" data-action="bzIconDel" data-index="${index}">削除</button></div>`).reverse();
+    const rows=S.iconLog.map((row,index)=>`<div class="crow bz-icon-log-row${iconMemoJustSaved&&index===S.iconLog.length-1?' bz-memo-new':''}"><div class="lbl bz-icon-log-body"><div class="bz-icon-line">${row.icons.map(iconChip).join('')}</div><div>${row.group==='bzT1'?'1回目':'2回目以降'}／${QUEST_NAMES[row.quest]}／${row.result==='win'?'成功':'失敗'}</div></div><button type="button" class="cycle-btn" data-action="bzIconDel" data-index="${index}">削除</button></div>`).reverse();
+    if(rows.length)iconMemoJustSaved=false;
     return `<section class="sec"><div class="sec-h">配列メモ<span class="sub">計${rows.length}件</span></div>
-      ${rows.length?rows.slice(0,3).join(''):'<div class="hint">まだありません</div>'}
-      ${rows.length>3?`<div class="hint"><details><summary>残り${rows.length-3}件を見る</summary>${rows.slice(3).join('')}</details></div>`:''}
+      <div class="cgrid">${rows.length?rows.slice(0,3).join(''):'<div class="hint">まだありません</div>'}</div>
+      ${rows.length>3?`<details class="hit-more"><summary>すべて表示（残り${rows.length-3}件）</summary><div class="cgrid">${rows.slice(3).join('')}</div></details>`:''}
     </section>`;
   }
   function bzQuestAction(ctx,ds){
@@ -153,6 +156,9 @@
       if(S.iconPending.length){
         S.iconLog=normalizeIconLog([...S.iconLog,{icons:[...S.iconPending],group:dKey,quest:id,result:ds.r}]);
         S.iconPending=[];
+        iconMemoJustSaved=true;
+        const saved=S.iconLog[S.iconLog.length-1];
+        return `配列メモに登録：${saved.icons.map(k=>TEMPLATE_ICONS[k]).join('')}→${TEMPLATE_QUEST[saved.quest]}${saved.quest==='at'||saved.result==='win'?'○':'×'}`;
       }
     }
     return `${title} ${QUEST_NAMES[id]} ${ds.r==='win'?'成功':'失敗'}${ctx.mode<0?'を減算':''}`;
@@ -224,6 +230,7 @@
     <div class="hint">${hint}</div>
   </section>`).join('');}
   function pageBZ(ctx){const S=ctx.S;return `<style>${ND_STYLE}
+    .bz-sub{font-size:11px;font-weight:800;color:var(--txt);letter-spacing:.06em;margin-bottom:6px}
     .quest-row .lbl .nm{font-size:16px;overflow-wrap:anywhere}
     .quest-row .lbl .pct{text-align:left;margin-top:4px}
     .bz-icon-slots{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-bottom:8px}
@@ -239,10 +246,13 @@
     .bz-icon-rai{color:#a9e6ad}.bz-icon-sel{color:#cbb4ff}.bz-icon-oro{color:#ffb77f}.bz-icon-teo{color:#ff9fbd}
     .bz-icon-gold{color:#e8ca70}.bz-icon-unknown{color:#b5bac4}
     .bz-icon-rush,.bz-icon-blaze{color:#fff;background:linear-gradient(110deg,#85333e,#675000,#246b3e,#275985,#643d89)}
-    .bz-icon-log-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px}
+    .bz-icon-log-row{font-size:13px}
     .bz-icon-log-body{flex:1;min-width:0}
-  </style>`+iconInput(S)+BZ_GROUPS.map(([dKey,nKey,title])=>`<section class="sec">
-    <div class="sec-h">${title}</div>
+    .bz-memo-new{animation:bz-memo-new 2s ease-out 1}
+    @keyframes bz-memo-new{from{background-color:rgba(255,201,77,.18)}to{background-color:transparent}}
+  </style>`+iconHistory(S)+iconInput(S)+`<section class="sec">
+    <div class="sec-h">② 結果を押す</div>`+BZ_GROUPS.map(([dKey,nKey,title])=>`
+    <div class="bz-sub">${title}</div>
     <div class="cgrid">${QUEST.map(([id,name])=>{
       const label=title+' '+name;
       const hit=n(S[nKey],id),d=n(S[dKey],id);
@@ -255,11 +265,11 @@
         </div>
       </div>`;
     }).join('')}</div>
-  </section>`).join('')+`<div class="hint">ブレイクゾーン終了時に、どのアイコンからクエストへ発展したかを記録します。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。クエストの結果まで見てから［成功］［失敗］を押してください。設定差は公表されていません。記録してサンプルを集める項目です。</div><div class="hint">訂正は減算モードで同じボタンを押します</div>`+`<section class="sec">
+  `).join('')+`<div class="hint">結果を押すと配列メモに保存されます。</div><div class="hint">ブレイクゾーン終了時に、どのアイコンからクエストへ発展したかを記録します。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。クエストの結果まで見てから［成功］［失敗］を押してください。設定差は公表されていません。記録してサンプルを集める項目です。</div><div class="hint">訂正は減算モードで同じボタンを押します</div></section>`+`<section class="sec">
     <div class="sec-h">クエスト成功率（合算）</div>
     <div class="cgrid">${QUEST.map(([id,name])=>`<div class="crow quest-row"><div class="lbl"><div class="nm">${name}</div></div><div class="pct">${ctx.pct(questHit(S,id),questD(S,id))}</div></div>`).join('')}</div>
     <div class="hint">テンプレに出る成功率です（1回目＋2回目以降）</div>
-  </section>`+iconHistory(S);}
+  </section>`;}
   // サブラベルだけを段位表記の出典にする。強さの判定には数値rankを使う。
   function tierText(sub){
     const m=String(sub||'').match(/設定([0-9・]+(?:以上)?)濃厚/);

@@ -400,6 +400,49 @@ try{
   pass('MH all-31 summary: 5+5 rows, Y896, fitted visible bounds and pixels',{rows:summary,minFont,overflow:overflow.length,leftOverhang,lastY:Math.max(...summary.map(t=>t.y))});
   saveCanvas('mhsunbreak-all-card',allCard);await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
   // v03: production icon/result/copy/delete/undo handlers and exact memo bytes.
+  // BZ memo UX: actual clicks, one-render highlight, folding and hit-list parity.
+  for(const width of [360,390]){
+    await clear('mhsunbreak',width);
+    for(const value of [100,200,300,400])await games(value);
+    const hitSummary=await frame(`const e=d.querySelector('.hit-more summary');return {height:e.getBoundingClientRect().height,font:w.getComputedStyle(e).fontSize,padding:w.getComputedStyle(e).padding};`);
+    await tab(2);
+    const memoHint='この並びは、下の［成功］［失敗］を押すと配列メモに保存されます';
+    const hasMemoHint=()=>frame(`return [...d.querySelectorAll('.hint')].some(e=>e.textContent===${JSON.stringify(memoHint)});`);
+    assert.equal(await hasMemoHint(),false);
+    assert.deepEqual(await frame(`return [...d.querySelectorAll('#main .sec-h')].map(e=>e.firstChild.textContent);`),['配列メモ','① 初期アイコンを入れる','② 結果を押す','クエスト成功率（合算）']);
+    for(let i=0;i<4;i++){
+      await click('[data-action="bzIconAdd"][data-icon="qBlue"]');
+      assert.equal(await hasMemoHint(),true);
+      await click('[data-action="bzQuest"][data-d="bzT1"][data-q="blue"][data-r="win"]');
+      assert.equal(await hasMemoHint(),false);
+      assert.ok((await frame('return d.getElementById("feed").textContent;')).includes('配列メモに登録：青→青ｽﾀｰﾄ○'));
+      const highlight=await frame(`const e=d.querySelector('.bz-memo-new');return {count:d.querySelectorAll('.bz-memo-new').length,index:e.querySelector('button').dataset.index,first:e===d.querySelector('.bz-icon-log-row'),duration:w.getComputedStyle(e).animationDuration};`);
+      assert.deepEqual(highlight,{count:1,index:String(i),first:true,duration:'2s'});
+    }
+    assert.equal(await frame(`return d.querySelector('.hit-more summary').textContent;`),'すべて表示（残り1件）');
+    const memoSummary=await frame(`const e=d.querySelector('.hit-more summary');return {height:e.getBoundingClientRect().height,font:w.getComputedStyle(e).fontSize,padding:w.getComputedStyle(e).padding};`);
+    assert.deepEqual(memoSummary,hitSummary);
+    assert.equal(await frame(`return d.querySelector('.hit-more').previousElementSibling.children.length;`),3);
+    assert.equal(await frame(`return [...d.querySelectorAll('.bz-icon-log-row')].every(e=>e.matches('.crow')&&e.parentElement.matches('.cgrid')&&e.querySelector('button.cycle-btn[data-action="bzIconDel"]'));`),true);
+    await click('.hit-more summary');
+    assert.equal(await frame(`return d.querySelector('.hit-more').open;`),true);
+    await measure('mhsunbreak-bz-memo-expanded-'+width);
+    await pause(2100);
+    assert.equal(await frame(`return w.getComputedStyle(d.querySelector('.bz-memo-new')).backgroundColor;`),await frame(`return w.getComputedStyle(d.querySelectorAll('.bz-icon-log-row')[1]).backgroundColor;`));
+    const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});
+    fs.writeFileSync(path.join(artifacts,'mhsunbreak-bz-memo-'+width+'.png'),Buffer.from(shot.data,'base64'));
+    await tab(0);await tab(2);
+    assert.equal(await frame(`return d.querySelector('.bz-memo-new')===null;`),true);
+    await click('[data-action="bzQuest"][data-d="bzT1"][data-q="blue"][data-r="miss"]');
+    assert.ok(!(await frame('return d.getElementById("feed").textContent;')).includes('配列メモに登録：'));
+    await click('[data-action="bzIconAdd"][data-icon="qYellow"]');await click('#modeBtn');
+    await click('[data-action="bzQuest"][data-d="bzT1"][data-q="blue"][data-r="miss"]');
+    assert.equal((await state()).iconLog.length,4);assert.deepEqual((await state()).iconPending,['qYellow']);
+    assert.ok((await frame('return d.getElementById("feed").textContent;')).includes('失敗を減算'));
+    await load('mhsunbreak',width,530);await tab(2);
+    assert.equal(await frame(`return d.querySelector('.bz-memo-new')===null;`),true);
+    pass('MH BZ memo UX '+width,{hitSummary,memoSummary});
+  }
   await clear('mhsunbreak',360);await tab(2);
   assert.equal(await frame('return d.querySelectorAll("[data-action= bzIconCopy]").length;'),0);
   const memoRows=[

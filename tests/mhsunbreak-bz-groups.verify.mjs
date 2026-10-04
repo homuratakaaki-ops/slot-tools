@@ -18,7 +18,11 @@ const sectionByTitle=(S,title)=>{
   if(!hit)throw new Error('section not found: '+title);
   return hit;
 };
-const blue=S=>['1回目','2回目以降','クエスト成功率（合算）'].map(title=>sectionByTitle(S,title).match(/class="pct">([^<]*)/)[1]);
+const blue=S=>{
+  const results=sectionByTitle(S,'② 結果を押す');
+  const blocks=[...results.matchAll(/<div class="bz-sub">([^<]*)<\/div>([\s\S]*?)(?=<div class="bz-sub">|$)/g)];
+  return [...['1回目','2回目以降'].map(title=>blocks.find(m=>m[1]===title)[2]),sectionByTitle(S,'クエスト成功率（合算）')].map(block=>block.match(/class="pct">([^<]*)/)[1]);
+};
 // Exercise the paths declared by the generated button; production clicks are
 // covered separately by new-1005-four-machines.browser.mjs.
 function tap(S,key,id,success){
@@ -102,6 +106,23 @@ test('all 28 checker headers omit UI version labels',()=>{
     const headers=[...read(file).matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>/g)];
     assert.ok(headers.length,file);
     for(const [,header] of headers)assert.doesNotMatch(header,/\bUI\s/,file);
+  }
+});
+test('f48130f template bytes and card JSON remain identical',()=>{
+  const old=load(execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,''),'show','f48130f:checker-data/mhsunbreak.js'],{encoding:'utf8',cwd:root}));
+  const card=(c,S)=>Object.fromEntries(Object.entries(c.card).map(([k,v])=>[k,typeof v==='function'?v(ctx(S)):v]));
+  for(const filled of [false,true]){
+    const S=clone(config.defaults);
+    if(filled){
+      S.hits=[100,200,300,400];
+      for(const key of config.mergeKeys||[])if(S[key]&&typeof S[key]==='object')Object.keys(S[key]).forEach((id,i)=>{S[key][id]=i+2;});
+      ids.forEach((quest,i)=>{
+        S.bzT1[quest]=i+2;S.bzT2[quest]=i+3;S.questN1[quest]=1;S.questN2[quest]=2;
+        S.iconLog.push({icons:['qBlue','qYellow','rai','sel','oro','teo','rush','gold','blaze','unknown'],group:i%2?'bzT2':'bzT1',quest,result:i%2?'miss':'win'});
+      });
+    }
+    for(const key of ['template','compactTemplate'])assert.deepEqual(Buffer.from(config[key](ctx(clone(S)))),Buffer.from(old[key](ctx(clone(S)))));
+    assert.equal(JSON.stringify(card(config,clone(S))),JSON.stringify(card(old,clone(S))));
   }
 });
 console.log(`PASS mhsunbreak BZ groups: ${count} checks`);
