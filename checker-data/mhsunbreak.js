@@ -105,7 +105,7 @@
   const QUEST=[['blue','クエスト青'],['yellow','クエスト黄'],['raizex','ライゼクス'],['serregios','セルレギオス'],['oromidro','オロミドロ亜種'],['teo','テオ・テスカトル'],['at','SUNBREAK RUSH']];
   const ICONS=[['qBlue','Q青'],['qYellow','Q黄'],['rai','ライ'],['sel','セル'],['oro','オロ'],['teo','テオ'],['rush','RUSH'],['gold','＋G'],['blaze','猛焔'],['unknown','？']];
   // テンプレ表記は画面のチップ・発展先ラベルから独立させる。
-  const TEMPLATE_ICONS={qBlue:'🔵',qYellow:'🟡',rai:'ﾗ',sel:'ｾ',oro:'ｵ',teo:'ﾃ',rush:'🌈',gold:'＋',blaze:'炎',unknown:'？'};
+  const TEMPLATE_ICONS={qBlue:'青',qYellow:'黄',rai:'ﾗ',sel:'ｾ',oro:'ｵ',teo:'ﾃ',rush:'虹',gold:'＋',blaze:'炎',unknown:'？'};
   const TEMPLATE_QUEST={blue:'青ｽﾀｰﾄ',yellow:'黄ｽﾀｰﾄ',raizex:'ﾗｲｾﾞｸｽ',serregios:'ｾﾙﾚｷﾞｵｽ',oromidro:'ｵﾛﾐﾄﾞﾛ亜種',teo:'ﾃｵﾃｽｶﾄﾙ',at:'AT'};
   function iconLogLines(S){
     return (S.iconLog||[]).map(row=>

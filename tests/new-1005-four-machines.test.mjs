@@ -140,7 +140,7 @@ test('MH v03 memo maps every icon/quest, preserves order and does not truncate o
   for(let i=0;i<205;i++){
     const quest=Object.keys(quests)[i%7],result=i%2?'miss':'win',group=i%2?'bzT2':'bzT1';
     S.iconLog.push({icons,quest,result,group});
-    expected.push((i%2?'2回目〜':'1回目')+' 🔵🟡ﾗｾｵﾃ🌈＋炎？→'+quests[quest]+(quest==='at'||result==='win'?'○':'×'));
+    expected.push((i%2?'2回目〜':'1回目')+' 青黄ﾗｾｵﾃ虹＋炎？→'+quests[quest]+(quest==='at'||result==='win'?'○':'×'));
   }
   const output=c.template(context(c,S));
   assert.deepEqual(Buffer.from(output.split('■BZ配列メモ\n')[1].split('\n\n■レア役')[0]),Buffer.from(expected.join('\n')));

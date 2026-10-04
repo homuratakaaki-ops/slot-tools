@@ -406,7 +406,7 @@ try{
     {icons:['qBlue','qBlue','rai','rai','sel','sel','oro','oro','teo','rush'],group:'bzT1',quest:'raizex',result:'win'},
     {icons:['qYellow','rai','rai','sel'],group:'bzT2',quest:'yellow',result:'miss'}
   ];
-  const expectedMemo='1回目 🔵🔵ﾗﾗｾｾｵｵﾃ🌈→ﾗｲｾﾞｸｽ○\n2回目〜 🟡ﾗﾗｾ→黄ｽﾀｰﾄ×';
+  const expectedMemo='1回目 青青ﾗﾗｾｾｵｵﾃ虹→ﾗｲｾﾞｸｽ○\n2回目〜 黄ﾗﾗｾ→黄ｽﾀｰﾄ×';
   const memoBody=text=>text.split('■BZ配列メモ\n')[1].split('\n\n■レア役')[0];
   for(const row of memoRows){
     for(const icon of row.icons)await click(`[data-action="bzIconAdd"][data-icon="${icon}"]`);
@@ -419,7 +419,7 @@ try{
   await tab(3);
   assert.deepEqual(Buffer.from(memoBody(await copy())),Buffer.from(expectedMemo));
   const plainMemo=memoBody(await copy(true));
-  assert.equal(plainMemo,'1回目 ﾗﾗｾｾｵｵﾃ→ﾗｲｾﾞｸｽ○\n2回目~ ﾗﾗｾ→黄ｽﾀｰﾄ×');
+  assert.equal(plainMemo,'1回目 青青ﾗﾗｾｾｵｵﾃ虹→ﾗｲｾﾞｸｽ○\n2回目~ 黄ﾗﾗｾ→黄ｽﾀｰﾄ×');
   pass('MH v03 exact two memo lines and plain output',plainMemo);
   await click('#undoBtn');
   assert.equal(memoBody(await copy()),expectedMemo.split('\n')[0]);
@@ -430,7 +430,7 @@ try{
   for(const icon of ['qBlue','qYellow','rush','rai','sel','oro','teo','gold','blaze','unknown'])await click(`[data-action="bzIconAdd"][data-icon="${icon}"]`);
   await click('[data-action="bzQuest"][data-d="bzT2"][data-q="at"][data-r="win"]');await tab(3);
   const allPlain=memoBody(await copy(true)).split('\n').at(-1);
-  assert.equal(allPlain,'2回目~ ﾗｾｵﾃ＋炎？→AT○');
+  assert.equal(allPlain,'2回目~ 青黄虹ﾗｾｵﾃ＋炎？→AT○');
   pass('MH v03 undo/delete restore template and all plain symbols',allPlain);
   assert.deepEqual(await frame('return w.__errors;'),[]);
   await clear('mhsunbreak');
