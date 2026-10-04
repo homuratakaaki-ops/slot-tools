@@ -26,10 +26,10 @@ for(const id of ids){
   assert.ok(!/濃厚示唆|最強|6確定|設定[○0-9０-９・]*(?:以上)?確定演出|ベイズ|事後確率/.test(guide));
 }
 const map=read('sitemap.xml');assert.equal((baseline('sitemap.xml').match(/<url>/g)||[]).length,70);assert.equal((map.match(/<url>/g)||[]).length,78);
-for(const id of ids)for(const kind of ['checker','guide'])assert.ok(map.includes(`<loc>https://slot-tools.jp/${id}-${kind}.html</loc>\n    <lastmod>2026-10-05</lastmod>`));
+for(const id of ids)for(const kind of ['checker','guide'])assert.ok(map.includes(`<loc>https://slot-tools.jp/${id}-${kind}.html</loc>\n    <lastmod>2026-10-04</lastmod>`));
 const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
 assert.equal((news.match(/<p>/g)||[]).length,8);
-assert.deepEqual([...news.matchAll(/<p>10\/5｜<a href="([^"]+)/g)].map(m=>m[1]),ids.map(id=>id+'-checker.html'));
+assert.deepEqual([...news.matchAll(/<p>10\/4｜<a href="([^"]+)/g)].map(m=>m[1]),ids.map(id=>id+'-checker.html'));
 const arch=read('docs/ARCHITECTURE.md');assert.equal((arch.match(/27機種/g)||[]).length,2);assert.ok(!arch.includes('23機種'));
 assert.deepEqual(arch.split('\n').filter(l=>l.includes('21機種')),baseline('docs/ARCHITECTURE.md').split('\n').filter(l=>l.includes('21機種')));
 console.log('PASS public routes 4, reciprocal links 4, sitemap 70->78, NEW 8, architecture 2; guides style/meta/wording 4');
