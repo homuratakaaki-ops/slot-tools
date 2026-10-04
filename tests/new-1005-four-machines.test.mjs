@@ -72,8 +72,9 @@ test('HTML contract: original CSS apart from specified nav count, public links a
   const base=style(read('mogumogu-checker.html'));
   for(const id of Object.keys(configs)){
     const html=read(id+'-checker.html'),js=read('checker-data/'+id+'.js');
-    assert.equal(style(html),id==='mhsunbreak'?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
-    assert.ok(!html.includes('checker-bayes.js'));assert.ok(html.includes('href="'+id+'-guide.html">使い方</a>'));
+    assert.equal(style(html),['mhsunbreak','tenten'].includes(id)?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
+    assert.ok(!html.includes('checker-bayes.js'));assert.equal(html.includes('href="'+id+'-guide.html">使い方</a>'),['mhsunbreak','tenten'].includes(id));
+    assert.equal(html.includes('<meta name="robots" content="noindex">'),['juuou','paripi'].includes(id));
     assert.ok(html.includes('<small>SETTING CHECKER ・ slot-tools.jp</small>'));
     assert.ok(!html.includes('UI v1'));
     assert.ok(html.includes('checker-engine.js?v=20260924'));

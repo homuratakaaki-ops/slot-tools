@@ -5,15 +5,15 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 const root=new URL('../',import.meta.url);
 const read=p=>fs.readFileSync(new URL(p,root),'utf8');
-const baseline=p=>execFileSync('git',['-c','safe.directory='+decodeURIComponent(root.pathname).replace(/^\//,''),'show',(process.env.RELEASE_BASE||'579c8af')+':'+p],{encoding:'utf8'});
+const baseline=p=>execFileSync('git',['-c','safe.directory='+decodeURIComponent(root.pathname).replace(/^\//,''),'show',(process.env.RELEASE_BASE||'abbe054')+':'+p],{encoding:'utf8'});
 const config=(id,source)=>{const x={window:{}};vm.runInNewContext(source,x);return x.window.CheckerConfigs[id];};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const ctx=S=>({S,nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 const bytes=(a,b)=>assert.deepEqual(Buffer.from(a),Buffer.from(b));
-const ids=['mhsunbreak','juuou','paripi','tenten'];
+const ids=['mhsunbreak','tenten'];
 const style=s=>s.match(/<style>([\s\S]*?)<\/style>/)[1];
 const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
-assert.deepEqual([...list.matchAll(/class="checker-main" href="([^"]+)/g)].slice(0,4).map(m=>m[1]),ids.map(id=>id+'-checker.html'));
+assert.deepEqual([...list.matchAll(/class="checker-main" href="([^"]+)/g)].slice(0,2).map(m=>m[1]),ids.map(id=>id+'-checker.html'));
 for(const id of ids){
   const guide=read(id+'-guide.html'),html=read(id+'-checker.html');
   assert.equal(style(guide),style(read('tonski-guide.html')));
@@ -25,14 +25,25 @@ for(const id of ids){
   assert.ok(guide.match(/<title>(.*?)<\/title>/)[1].startsWith(guide.match(/<h1>(.*?)<\/h1>/)[1]));
   assert.ok(!/濃厚示唆|最強|6確定|設定[○0-9０-９・]*(?:以上)?確定演出|ベイズ|事後確率/.test(guide));
 }
-const map=read('sitemap.xml');assert.equal((baseline('sitemap.xml').match(/<url>/g)||[]).length,70);assert.equal((map.match(/<url>/g)||[]).length,78);
+const map=read('sitemap.xml');assert.equal((baseline('sitemap.xml').match(/<url>/g)||[]).length,78);assert.equal((map.match(/<url>/g)||[]).length,74);
+for(const id of ['juuou','paripi']){
+  for(const file of ['checkers.html','sitemap.xml','index.html'])assert.ok(!read(file).includes(id),file+' excludes '+id);
+  assert.ok(!fs.existsSync(new URL(id+'-guide.html',root)));
+  const html=read(id+'-checker.html');assert.ok(html.includes('<meta name="robots" content="noindex">'));
+  assert.ok(!html.includes('>使い方</a>'));
+}
+console.log('PASS held machines 2: noindex, no guide files/links, absent from public routes');
 for(const id of ids)for(const kind of ['checker','guide'])assert.ok(map.includes(`<loc>https://slot-tools.jp/${id}-${kind}.html</loc>\n    <lastmod>2026-10-04</lastmod>`));
 const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
 assert.equal((news.match(/<p>/g)||[]).length,8);
+assert.deepEqual([...news.matchAll(/<p>(.*?)<\/p>/g)].slice(-2).map(m=>m[1]),[
+  '9/25｜<a href="mogumogu-checker.html">モグモグ風林火山 AT終了画面・くまトロフィーの設定示唆を追加</a>',
+  '9/25｜<a href="kabaneri2-checker.html">カバネリ海門決戦 下段ベルの設定差を追加</a>'
+]);
 assert.deepEqual([...news.matchAll(/<p>10\/4｜<a href="([^"]+)/g)].map(m=>m[1]),ids.map(id=>id+'-checker.html'));
-const arch=read('docs/ARCHITECTURE.md');assert.equal((arch.match(/27機種/g)||[]).length,2);assert.ok(!arch.includes('23機種'));
+const arch=read('docs/ARCHITECTURE.md');assert.equal((arch.match(/25機種/g)||[]).length,2);assert.ok(!arch.includes('23機種'));
 assert.deepEqual(arch.split('\n').filter(l=>l.includes('21機種')),baseline('docs/ARCHITECTURE.md').split('\n').filter(l=>l.includes('21機種')));
-console.log('PASS public routes 4, reciprocal links 4, sitemap 70->78, NEW 8, architecture 2; guides style/meta/wording 4');
+console.log('PASS public routes 2, reciprocal links 2, sitemap 78->74, NEW 8, architecture 2; guides style/meta/wording 2');
 for(const id of ['ricorico','toaru2','mhsunbreak']){
   const a=config(id,baseline('checker-data/'+id+'.js')),b=config(id,read('checker-data/'+id+'.js'));
   for(const mode of ['zero','mixed','all']){
@@ -64,5 +75,5 @@ for(const [src,expected] of [[{games:1234,counts:{sc:4}},1234],[{games:1234,game
   assert.deepEqual(j.normalizeState(clone(out),clone(out)),out);
 }
 console.log('PASS legacy and explicit-zero/new-key migrations 3, each idempotent');
-for(const file of ['checker-engine.js','checker-bayes.js','checker-data/mhsunbreak.js','checker-data/paripi.js','checker-data/tenten.js','tests/fixtures/mhsunbreak-zero-template.txt'])bytes(read(file),baseline(file));
+for(const file of ['checker-engine.js','checker-bayes.js','checker-data/mhsunbreak.js','checker-data/paripi.js','checker-data/juuou.js','tests/fixtures/mhsunbreak-zero-template.txt'])bytes(read(file),baseline(file));
 console.log('PASS protected common files, 3 machine inputs, zero golden unchanged');

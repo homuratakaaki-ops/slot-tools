@@ -126,7 +126,7 @@ try{
   `});
   await send('Page.navigate',{url:origin+'/harness'});await pause(100);
   for(const id of ['juuou','paripi','tenten','mhsunbreak']){
-    const cardTab=id==='mhsunbreak'?2:1;
+    const cardTab=['mhsunbreak','tenten'].includes(id)?2:1;
     await clear(id);
     assert.equal(await frame(`return d.querySelector('#gIn,[data-number-key="gamesMyslo"]').closest('section').querySelector('details')===null;`),id!=='juuou');
     const countKey=id==='juuou'?'sc':id==='paripi'?'cz':'at';
@@ -292,8 +292,85 @@ try{
   assert.ok(allCard.bright>1000&&allCard.opaque===allCard.width*allCard.height);
   pass('MH all-31 summary: 5+5 rows, Y896, fitted visible bounds and pixels',{rows:summary,minFont,overflow:overflow.length,leftOverhang,lastY:Math.max(...summary.map(t=>t.y))});
   saveCanvas('mhsunbreak-all-card',allCard);await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
+  // v02: held pages stay usable, but have neither public navigation nor guide links.
+  for(const id of ['juuou','paripi']){
+    assert.equal((await fetch(origin+'/'+id+'-checker.html')).status,200);
+    await load(id);
+    assert.equal(await frame(`return d.querySelector('meta[name="robots"]').content;`),'noindex');
+    assert.deepEqual(await frame(`return [...d.querySelectorAll('.hd-link')].map(e=>e.textContent);`),['← 機種選択']);
+    pass(id+' held page HTTP200/noindex/no guide link');
+  }
+  await clear('tenten');
+  await evaluate(`localStorage.setItem('tenten-checker-v1',JSON.stringify({games:1000,counts:{at:3}}));`);
+  await load('tenten');
+  assert.equal(await frame(`return d.querySelector('[data-c="counts.at"] .num').textContent;`),'3');
+  await tab(2);assert.ok((await copy()).includes('AT初当り▶3回 1/333.3'));assert.deepEqual(await frame('return w.__errors;'),[]);
+  pass('tenten legacy 1000G/AT3 survives real reload');
+  await clear('tenten');
+  const pairRows=[['cz.lv1d','cz.lv1n','EP LV1','成功','失敗'],['cz.lv2d','cz.lv2n','EP LV2','成功','失敗'],['cz.lv3d','cz.lv3n','EP LV3','成功','失敗'],['g150.d','g150.n','150GまでのCZ以上当選','当選','ハズレ'],['pt.d','pt.n','ポイントMAX時の報酬','当選','ハズレ']];
+  for(const [den,num,label,win,miss] of pairRows){
+    await tab(0);const sel=`[data-bump-many="${den},${num}"]`;
+    const get=(s,p)=>p.split('.').reduce((v,k)=>v[k],s);
+    await click(sel);let s=await state();assert.equal(get(s,den),1);assert.equal(get(s,num),1);
+    assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(label+' '+win));
+    await tab(2);assert.ok((await copy()).includes('1/1 100%'));await click('#detailBtn');assert.ok((await canvas('detailCanvas')).text.some(t=>t.text.includes('1/1 100%')));
+    await tab(0);await click('#modeBtn');
+    assert.equal(await frame(`return d.querySelector(${JSON.stringify(sel)}).parentElement.lastElementChild.disabled;`),true);
+    await frame(`d.querySelector(${JSON.stringify(sel)}).parentElement.lastElementChild.click();`);
+    s=await state();assert.equal(get(s,den),1);assert.equal(get(s,num),1);
+    await click(sel);s=await state();assert.equal(get(s,den),0);assert.equal(get(s,num),0);
+    await click('#undoBtn');s=await state();assert.equal(get(s,den),1);assert.equal(get(s,num),1);
+    await click('#modeBtn');await click('#undoBtn');
+    await click(`[data-bump="${den}"]`);s=await state();assert.equal(get(s,den),1);assert.equal(get(s,num),0);
+    assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(label+' '+miss));
+    await click('#modeBtn');await click(`[data-bump="${den}"]`);s=await state();assert.equal(get(s,den),0);assert.equal(get(s,num),0);
+    await click('#modeBtn');
+    pass('tenten '+label+' win/miss/minus/disabled/undo/detail');
+  }
+  await clear('tenten');await bump('cz.lv4');
+  assert.deepEqual(await frame(`return [...d.querySelectorAll('.sumrow')].map(e=>[e.querySelector('.nm').textContent,e.querySelector('.num').textContent,e.hasAttribute('data-c')]);`),[['CZ','1',false],['成功期待度','1/1 100%',false]]);
+  const beforeAuto=await state();await click('.sumrow');assert.deepEqual(await state(),beforeAuto);
+  await tab(2);assert.ok((await copy()).includes('CZ▶1回'));assert.ok((await copy()).includes('EP LV4▶1回'));assert.ok((await copy()).includes('成功期待度▶1/1 100%'));
+  pass('tenten LV4 counted as aggregate success; CZ is read-only');
+  await tab(0);await click('[data-bump="cz.lv1d"]');await tab(2);
+  assert.ok((await copy()).includes('成功期待度▶1/2 50%'));assert.ok((await copy()).includes('CZ▶2回'));
+  await click('#detailBtn');assert.ok((await canvas('detailCanvas')).text.some(t=>t.text==='成功期待度 1/2 50%'));
+  pass('tenten mixed CZ totals share the UI/card/detail/template denominator');
+  await clear('tenten');await tab(1);await bump('screens.kokage');await bump('screens.tilty');await bump('screens.tilty');await bump('over.o1010');
+  assert.deepEqual(await frame(`return [...d.querySelectorAll('[data-c^="screens."] .pct')].slice(0,2).map(e=>e.textContent);`),['1/3 33%','2/3 67%']);
+  assert.equal(await frame(`return [...d.querySelectorAll('[data-c^="over."] .pct')].some(e=>e.textContent.includes('%'));`),false);
+  await tab(2);await click('#detailBtn');const pctCard=await canvas('detailCanvas');
+  assert.ok(pctCard.text.some(t=>t.text==='木陰の2人 ×1 (33%)'));assert.ok(pctCard.text.some(t=>t.text==='ティルティ ×2 (67%)'));assert.ok(pctCard.text.some(t=>t.text==='1010枚 OVER ×1'));
+  pass('tenten screen percentages agree on input/detail; OVER has none');
+  // Every certainty combination uses real production clicks (Gray code: one row changes per step).
+  const certRows=[['screens.ka','可スタンプ',2],['screens.kichi','吉スタンプ',3],['screens.ryo','良スタンプ',4],['screens.yu','優スタンプ',5],['screens.goku','極スタンプ',6],['over.o222','222枚 OVER',2],['over.o333','333枚 OVER',3],['over.o456','456枚 OVER',4],['over.o1010','1010枚 OVER',5],['over.o666','666枚 OVER',6]];
+  await clear('tenten');await frame('w.__gray=0;');
+  for(let start=0;start<1024;start+=32){
+    const output=await frame(`const defs=${JSON.stringify(certRows)};const rows=[];
+      for(let i=${start};i<${start+32};i++){
+        const gray=i^(i>>1),change=gray^w.__gray;
+        if(change){const bit=Math.log2(change),minus=!(gray&change);d.querySelector('#nav [data-p="1"]').click();if(minus)d.getElementById('modeBtn').click();d.querySelector('[data-c="'+defs[bit][0]+'"] .plus').click();if(minus)d.getElementById('modeBtn').click();}
+        d.querySelector('#nav [data-p="2"]').click();
+        const cv=d.getElementById('cardCanvas'),pixels=cv.getContext('2d').getImageData(70,730,490,30).data;
+        let bright=0;for(let k=0;k<pixels.length;k+=4)if(pixels[k]+pixels[k+1]+pixels[k+2]>180)bright++;
+        rows.push({mask:gray,text:w.__texts.cardCanvas.find(t=>t.x===70&&t.y===752)?.text,bright});w.__gray=gray;
+      }return rows;`);
+    for(const r of output){const hits=certRows.filter((x,i)=>r.mask&(1<<i));const best=hits.reduce((a,b)=>!a||b[2]>a[2]?b:a,null);assert.equal(r.text,best?`確定 ${best[1]}(${best[2]===6?'6濃厚':best[2]+'以上'}) ×1`:'確定演出 なし','mask '+r.mask);assert.ok(r.bright>10);}
+  }
+  pass('tenten all 1024 certainty combinations via clicks, numeric rank and canvas pixels');
+  await clear('tenten');await tab(1);
+  for(const key of ['screens.kokage','screens.tilty','screens.ushiro','screens.nekoro',...certRows.map(r=>r[0])])await bump(key);
+  await tab(0);await games(1000);await bump('counts.at');await bump('cz.lv4');
+  for(const [den,num] of pairRows)await click(`[data-bump-many="${den},${num}"]`);
+  await tab(2);const tc=await canvas('cardCanvas');const ts=tc.text.filter(t=>[70,560].includes(t.x)&&t.y>=752&&t.y<=936);
+  assert.equal(ts.length,10);assert.deepEqual(ts.filter(t=>t.x===70).map(t=>t.y),[752,788,824,860,896]);assert.deepEqual(ts.filter(t=>t.x===560).map(t=>t.y),[752,788,824,860,896]);
+  assert.ok(Math.max(...ts.map(t=>t.y))<=936);assert.ok(ts.every(t=>Number(t.font.match(/([\d.]+)px/)[1])>=16));assert.ok(ts.every(t=>t.right<=(t.x===70?560:1010)));assert.ok(tc.bright>1000);
+  saveCanvas('tenten-all-card',tc);await click('#detailBtn');const td=await canvas('detailCanvas');saveCanvas('tenten-all-detail',td);assert.ok(td.bright>1000);
+  for(const name of ['木陰の2人','ティルティ','2人の後ろ姿','寝転ぶ2人',...certRows.map(r=>r[1])])assert.ok(td.text.some(t=>t.text.startsWith(name+' ×')),name);
+  pass('tenten all-input summary 5+5 / Y896 / min16px / no overflow / full detail / pixels',{rows:ts,ellipsis:ts.filter(t=>t.text.includes('…')).length});
+  for(const width of [360,390]){await load('tenten',width,530);for(let p=0;p<3;p++){await tab(p);await measure('tenten-populated-'+width+'-tab'+p);}}
   // Public guides: follow real links in both directions at actual viewport widths.
-  for(const width of [360,390])for(const id of ['mhsunbreak','juuou','paripi','tenten']){
+  for(const width of [360,390])for(const id of ['mhsunbreak','tenten']){
     await load(id,width,530);
     await click(`.hd-link[href="${id}-guide.html"]`);
     for(let i=0;i<100;i++){if(await frame(`return w.location.pathname===${JSON.stringify('/'+id+'-guide.html')}&&!!d.querySelector('main');`).catch(()=>false))break;await pause(30);}
