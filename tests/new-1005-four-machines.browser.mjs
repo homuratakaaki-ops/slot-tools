@@ -310,7 +310,7 @@ try{
   pass('MH 31 exact hint labels/sublabels and 4 tabs');
   await tab(3);
   const zero=await copy();
-  const original=fs.readFileSync(path.join(root,'docs/specs/mhsunbreak-nana-template-v02.txt'),'utf8');
+  const original=fs.readFileSync(path.join(root,'docs/specs/mhsunbreak-nana-template-v03.txt'),'utf8');
   const expected='設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+original.split('■').map(section=>section.replace(/▶︎ (?=\r?\n)/g,'▶︎ '+(section.startsWith('クエスト成功率')?'0/0':'0回'))).join('■')+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様';
   assert.equal(zero,expected);assert.equal((original.match(/▶︎ (?=\r?\n)/g)||[]).length,34);
   fs.writeFileSync(path.join(artifacts,'mhsunbreak-zero-template.txt'),zero);
@@ -399,11 +399,46 @@ try{
   assert.ok(allCard.bright>1000&&allCard.opaque===allCard.width*allCard.height);
   pass('MH all-31 summary: 5+5 rows, Y896, fitted visible bounds and pixels',{rows:summary,minFont,overflow:overflow.length,leftOverhang,lastY:Math.max(...summary.map(t=>t.y))});
   saveCanvas('mhsunbreak-all-card',allCard);await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
+  // v03: production icon/result/copy/delete/undo handlers and exact memo bytes.
+  await clear('mhsunbreak',360);await tab(2);
+  assert.equal(await frame('return d.querySelectorAll("[data-action= bzIconCopy]").length;'),0);
+  const memoRows=[
+    {icons:['qBlue','qBlue','rai','rai','sel','sel','oro','oro','teo','rush'],group:'bzT1',quest:'raizex',result:'win'},
+    {icons:['qYellow','rai','rai','sel'],group:'bzT2',quest:'yellow',result:'miss'}
+  ];
+  const expectedMemo='1回目 青青ﾗﾗｾｾｵｵﾃ虹→ﾗｲｾﾞｸｽ○\n2回目〜 黄ﾗﾗｾ→黄ｽﾀｰﾄ×';
+  const memoBody=text=>text.split('■BZ配列メモ\n')[1].split('\n\n■レア役')[0];
+  for(const row of memoRows){
+    for(const icon of row.icons)await click(`[data-action="bzIconAdd"][data-icon="${icon}"]`);
+    await click(`[data-action="bzQuest"][data-d="${row.group}"][data-q="${row.quest}"][data-r="${row.result}"]`);
+  }
+  assert.equal(await frame('return d.querySelectorAll(".bz-icon-log-row").length;'),2);
+  await measure('mhsunbreak-v03-icons-360');
+  const memoShot=await send('Page.captureScreenshot',{format:'png'});
+  fs.writeFileSync(path.join(artifacts,'mhsunbreak-v03-icons.png'),Buffer.from(memoShot.data,'base64'));
+  await tab(3);
+  assert.deepEqual(Buffer.from(memoBody(await copy())),Buffer.from(expectedMemo));
+  const plainMemo=memoBody(await copy(true));
+  assert.equal(plainMemo,'1回目 青青ﾗﾗｾｾｵｵﾃ虹→ﾗｲｾﾞｸｽ○\n2回目~ 黄ﾗﾗｾ→黄ｽﾀｰﾄ×');
+  pass('MH v03 exact two memo lines and plain output',plainMemo);
+  await click('#undoBtn');
+  assert.equal(memoBody(await copy()),expectedMemo.split('\n')[0]);
+  await tab(2);await click('[data-action="bzIconDel"][data-index="0"]');await tab(3);
+  assert.ok((await copy()).includes('■BZ配列メモ\n\n■レア役'));
+  await click('#undoBtn');assert.equal(memoBody(await copy()),expectedMemo.split('\n')[0]);
+  await tab(2);await click('[data-action="bzIconClear"]');
+  for(const icon of ['qBlue','qYellow','rush','rai','sel','oro','teo','gold','blaze','unknown'])await click(`[data-action="bzIconAdd"][data-icon="${icon}"]`);
+  await click('[data-action="bzQuest"][data-d="bzT2"][data-q="at"][data-r="win"]');await tab(3);
+  const allPlain=memoBody(await copy(true)).split('\n').at(-1);
+  assert.equal(allPlain,'2回目~ 青黄虹ﾗｾｵﾃ＋炎？→AT○');
+  pass('MH v03 undo/delete restore template and all plain symbols',allPlain);
+  assert.deepEqual(await frame('return w.__errors;'),[]);
+  await clear('mhsunbreak');
   // MH template v02: actual BZ buttons and persisted state.
   await clear('mhsunbreak');await tab(2);
   const questIds=['blue','yellow','raizex','serregios','oromidro','teo','at'];
   const nKeyOf=key=>key==='bzT1'?'questN1':'questN2';
-  const questClick=(key,id,success)=>click(`[data-bump-many="${key}.${id}${success?','+nKeyOf(key)+'.'+id:''}"]`);
+  const questClick=(key,id,success)=>click(`[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="${success?'win':'miss'}"]`);
   assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),21);
   assert.equal(await frame('return d.querySelectorAll(".quest-row button").length;'),26);
   for(const key of ['bzT1','bzT2'])for(const id of questIds){
@@ -411,13 +446,13 @@ try{
     let s=await state();assert.equal(s[key][id],1);assert.equal(s[nKeyOf(key)][id],1);
     assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(key==='bzT1'?'1回目':'2回目以降'));
     await click('#modeBtn');
-    if(id!=='at')assert.equal(await frame(`const b=d.querySelector('[data-bump-many="${key}.${id}"]');return b.disabled&&b.getAttribute('aria-disabled')==='true';`),true);
+    if(id!=='at')assert.equal(await frame(`const b=d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="miss"]');return b.disabled&&b.getAttribute('aria-disabled')==='true';`),true);
     await questClick(key,id,true);s=await state();assert.equal(s[key][id],0);assert.equal(s[nKeyOf(key)][id],0);
     await click('#undoBtn');s=await state();assert.equal(s[key][id],1);assert.equal(s[nKeyOf(key)][id],1);
     await click('#modeBtn');await click('#undoBtn');
     if(id!=='at'){
       await questClick(key,id,false);await click('#modeBtn');
-      assert.equal(await frame(`return d.querySelector('[data-bump-many="${key}.${id}"]').disabled;`),false);
+      assert.equal(await frame(`return d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="miss"]').disabled;`),false);
       await questClick(key,id,false);assert.equal((await state())[key][id],0);
       await click('#undoBtn');await click('#modeBtn');await click('#undoBtn');
     }

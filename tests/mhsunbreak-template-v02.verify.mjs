@@ -1,3 +1,4 @@
+// v02 は歴史的正本、現在の出力は v03。
 // Release comparison for the explicitly authorized MH v02 change.
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -17,7 +18,11 @@ assert.equal(createHash('sha256').update(original).digest('hex'),'235abdc9ac7fc0
 assert.equal(Buffer.byteLength(original),1881);
 assert.equal((original.match(/▶︎ (?=\n)/g)||[]).length,34);
 assert.equal((original.match(/0\/0|0回|▶︎ (?=\n)/g)||[]).length,56);
-const filled=original.split('■').map(s=>s.replace(/▶︎ (?=\n)/g,'▶︎ '+(s.startsWith('クエスト成功率')?'0/0':'0回'))).join('■');
+const v03=read('docs/specs/mhsunbreak-nana-template-v03.txt');
+assert.equal(Buffer.byteLength(v03),1900);
+assert.ok(!v03.includes('\r'));
+bytes(v03,original.replace('■レア役からのBZ当選率','■BZ配列メモ\n\n■レア役からのBZ当選率'));
+const filled=v03.split('■').map(s=>s.replace(/▶︎ (?=\n)/g,'▶︎ '+(s.startsWith('クエスト成功率')?'0/0':'0回'))).join('■');
 const current=load('mhsunbreak',read('checker-data/mhsunbreak.js')),old=load('mhsunbreak',before('checker-data/mhsunbreak.js'));
 const output=current.template(ctx(clone(current.defaults)));
 bytes(output.split('_______\n\n')[1].split('\n\nby slot-tools.jp')[0],filled);
