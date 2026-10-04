@@ -6,6 +6,7 @@ import {execFileSync} from 'node:child_process';
 const root=new URL('../',import.meta.url);
 const read=p=>fs.readFileSync(new URL(p,root),'utf8');
 const baseline=p=>execFileSync('git',['-c','safe.directory='+decodeURIComponent(root.pathname).replace(/^\//,''),'show',(process.env.RELEASE_BASE||'abbe054')+':'+p],{encoding:'utf8'});
+const hitBaseline=p=>execFileSync('git',['-c','safe.directory='+decodeURIComponent(root.pathname).replace(/^\//,''),'show','74f8e03:'+p],{encoding:'utf8'});
 const config=(id,source)=>{const x={window:{}};vm.runInNewContext(source,x);return x.window.CheckerConfigs[id];};
 const clone=x=>JSON.parse(JSON.stringify(x));
 const ctx=S=>({S,nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
@@ -45,7 +46,7 @@ const arch=read('docs/ARCHITECTURE.md');assert.equal((arch.match(/25機種/g)||[
 assert.deepEqual(arch.split('\n').filter(l=>l.includes('21機種')),baseline('docs/ARCHITECTURE.md').split('\n').filter(l=>l.includes('21機種')));
 console.log('PASS public routes 2, reciprocal links 2, sitemap 78->74, NEW 8, architecture 2; guides style/meta/wording 2');
 for(const id of ['ricorico','toaru2','mhsunbreak']){
-  const a=config(id,baseline('checker-data/'+id+'.js')),b=config(id,read('checker-data/'+id+'.js'));
+  const a=config(id,hitBaseline('checker-data/'+id+'.js')),b=config(id,read('checker-data/'+id+'.js'));
   for(const mode of ['zero','mixed','all']){
     const S=clone(b.defaults);let index=0;
     if(mode!=='zero'){
@@ -53,11 +54,18 @@ for(const id of ['ricorico','toaru2','mhsunbreak']){
       for(const v of Object.values(S))if(v&&typeof v==='object'&&!Array.isArray(v))for(const k of Object.keys(v))if(typeof v[k]==='number')v[k]=mode==='all'?1:index++%3;
       if(S.bz)for(const k of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[k+'D']=Math.max(S.bz[k+'D'],S.bz[k+'N']);
     }
-    const old=a.template(ctx(clone(S))),now=b.template(ctx(clone(S)));bytes(old,now);
+    const old=a.template(ctx(clone(S))),now=b.template(ctx(clone(S)));
+    if(id==='mhsunbreak'&&mode!=='zero'){
+      // Only the authorized tool header may change; compare every other byte.
+      const oldLines=old.split('\n'),newLines=now.split('\n');
+      assert.equal(newLines[1],'通常 0G / AT0回');
+      assert.deepEqual(newLines.flatMap((line,i)=>line===oldLines[i]?[]:[i]),[1]);
+      newLines[1]=oldLines[1];bytes(old,newLines.join('\n'));
+    }else bytes(old,now);
     if(id==='mhsunbreak')bytes(now,read('tests/fixtures/mhsunbreak-'+mode+'-template.txt'));
   }
 }
-console.log('PASS nana templates 3 machines x 3 states = 9 byte comparisons; MH golden 3');
+console.log('PASS nana templates vs 74f8e03: 7 exact outputs, 2 MH header-only deltas; all 9 bodies byte-identical; MH golden 3');
 const a=config('tonski',baseline('checker-data/tonski.js')),b=config('tonski',read('checker-data/tonski.js'));
 const keys=[...['set2','set4','set6'].map(k=>['screens',k]),...Object.keys(b.defaults.coins).map(k=>['coins',k]),...Object.keys(b.defaults.atcz).map(k=>['atcz',k]),...['goldWin','rainbowWin'].map(k=>['ed',k])];
 assert.equal(keys.length,15);
@@ -75,5 +83,5 @@ for(const [src,expected] of [[{games:1234,counts:{sc:4}},1234],[{games:1234,game
   assert.deepEqual(j.normalizeState(clone(out),clone(out)),out);
 }
 console.log('PASS legacy and explicit-zero/new-key migrations 3, each idempotent');
-for(const file of ['checker-engine.js','checker-bayes.js','checker-data/mhsunbreak.js','checker-data/paripi.js','checker-data/juuou.js','tests/fixtures/mhsunbreak-zero-template.txt'])bytes(read(file),baseline(file));
-console.log('PASS protected common files, 3 machine inputs, zero golden unchanged');
+for(const file of ['checker-engine.js','checker-bayes.js','tests/fixtures/mhsunbreak-zero-template.txt',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&f!=='mhsunbreak.js').map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
+console.log('PASS both common files, every other machine data file, zero golden unchanged vs 74f8e03');

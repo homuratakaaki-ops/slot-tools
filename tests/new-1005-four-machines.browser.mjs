@@ -52,7 +52,7 @@ async function tab(index){await click(`#nav [data-p="${index}"]`);await pause(60
 async function load(id,width=390,height=740){
   await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/'+id+'-checker.html')};})`);
   for(let i=0;i<100;i++){
-    if(await frame(`return d.querySelector('#gIn,[data-number-key="gamesMyslo"]')&&w.CheckerConfigs?.[${JSON.stringify(id)}]?true:false;`).catch(()=>false))break;
+    if(await frame(`return d.querySelector('#hitIn,#gIn,[data-number-key="gamesMyslo"]')&&w.CheckerConfigs?.[${JSON.stringify(id)}]?true:false;`).catch(()=>false))break;
     await pause(40);
   }
   await frame(`w.__key=${JSON.stringify(id+'-checker-v1')};`);
@@ -62,7 +62,7 @@ async function clear(id,width=390){
   await evaluate(`localStorage.removeItem(${JSON.stringify(id+'-checker-v1')});`);
   await load(id,width);
 }
-async function games(value){await frame(`const el=d.querySelector('#gIn,[data-number-key="gamesMyslo"]');el.value=${JSON.stringify(String(value))};el.dispatchEvent(new w.Event('input',{bubbles:true}));el.dispatchEvent(new w.Event('change',{bubbles:true}));`);}
+async function games(value){await frame(`const el=d.querySelector('#hitIn,#gIn,[data-number-key="gamesMyslo"]');el.value=${JSON.stringify(String(value))};el.dispatchEvent(new w.Event('input',{bubbles:true}));el.dispatchEvent(new w.Event('change',{bubbles:true}));if(el.id==='hitIn')d.querySelector('[data-action="addHit"]').click();`);}
 async function bump(key){await click(`[data-c="${key}"] .plus`);}
 async function canvas(id){
   return frame(`const cv=d.getElementById(${JSON.stringify(id)});const x=cv.getContext('2d');const a=x.getImageData(0,0,cv.width,cv.height).data;let opaque=0,bright=0;for(let i=0;i<a.length;i+=4){if(a[i+3])opaque++;if(a[i]+a[i+1]+a[i+2]>180)bright++;}return {width:cv.width,height:cv.height,opaque,bright,text:w.__texts[cv.id]||[],data:cv.toDataURL()};`);
@@ -72,7 +72,7 @@ async function copy(plain=false){await click(plain?'#cpPlainBtn':'#cpBtn');retur
 async function reset(){await frame(`d.getElementById('dataOps').open=true;`);await click('#resetBtn');await click('#resetBtn');}
 function pass(name,detail){results.push({name,status:'PASS',detail});console.log('PASS '+name);}
 async function measure(name){
-  const r=await frame(`const width=w.innerWidth;const nodes=[...d.querySelectorAll('header *,#main *,nav *')].filter(e=>e.getClientRects().length&&w.getComputedStyle(e).visibility!=='hidden');return {width,overflow:nodes.filter(e=>{const r=e.getBoundingClientRect();return r.left<-.5||r.right>width+.5;}).map(e=>({tag:e.tagName,cls:e.className,text:e.textContent.slice(0,60),rect:e.getBoundingClientRect().toJSON()})),buttons:nodes.filter(e=>e.matches('button,.plus')).map(e=>({text:e.textContent,height:e.getBoundingClientRect().height,minHeight:w.getComputedStyle(e).minHeight})),ndLabels:[...d.querySelectorAll('.bz-row .ct')].map(e=>{const range=d.createRange();range.selectNodeContents(e.firstElementChild);return {text:e.textContent,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,rowHeight:e.closest('.bz-row').getBoundingClientRect().height,lineCount:range.getClientRects().length,font:w.getComputedStyle(e.firstElementChild).fontSize};})};`);
+  const r=await frame(`const width=w.innerWidth;const nodes=[...d.querySelectorAll('header *,#main *,nav *')].filter(e=>e.checkVisibility()&&w.getComputedStyle(e).visibility!=='hidden');return {width,overflow:nodes.filter(e=>{const r=e.getBoundingClientRect();return r.left<-.5||r.right>width+.5;}).map(e=>({tag:e.tagName,cls:e.className,text:e.textContent.slice(0,60),rect:e.getBoundingClientRect().toJSON()})),buttons:nodes.filter(e=>e.matches('button,.plus')).map(e=>({text:e.textContent,height:e.getBoundingClientRect().height,minHeight:w.getComputedStyle(e).minHeight})),ndLabels:[...d.querySelectorAll('.bz-row .ct')].map(e=>{const range=d.createRange();range.selectNodeContents(e.firstElementChild);return {text:e.textContent,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,rowHeight:e.closest('.bz-row').getBoundingClientRect().height,lineCount:range.getClientRects().length,font:w.getComputedStyle(e.firstElementChild).fontSize};})};`);
   fs.writeFileSync(path.join(artifacts,name+'-layout.json'),JSON.stringify(r,null,2));
   // Jump navigation intentionally scrolls horizontally. Its clipped children do
   // not overflow the page viewport; test the scroll container itself instead.
@@ -128,11 +128,17 @@ try{
   for(const id of ['juuou','paripi','tenten','mhsunbreak']){
     const cardTab=['mhsunbreak','tenten'].includes(id)?2:1;
     await clear(id);
-    assert.equal(await frame(`return d.querySelector('#gIn,[data-number-key="gamesMyslo"]').closest('section').querySelector('details')===null;`),id!=='juuou');
+    assert.equal(await frame(`return d.querySelector('#hitIn,#gIn,[data-number-key="gamesMyslo"]').closest('section').querySelector('details')===null;`),!['juuou','mhsunbreak'].includes(id));
     const countKey=id==='juuou'?'sc':id==='paripi'?'cz':'at';
-    await bump('counts.'+countKey);
-    assert.equal((await state()).counts[countKey],1);
-    assert.equal(await frame(`return d.querySelector('[data-c="counts.${countKey}"]').textContent.includes('現在');`),false);
+    if(id==='mhsunbreak'){
+      assert.equal(await frame(`return d.querySelector('.sumrow .num').textContent;`),'0');
+      assert.equal(await frame(`return d.querySelector('[data-c="counts.at"]');`),null);
+      await bump('cycle.c1'); // Keep detail output nonempty while hit count remains zero.
+    }else{
+      await bump('counts.'+countKey);
+      assert.equal((await state()).counts[countKey],1);
+    }
+    assert.equal(await frame(`return d.querySelector(${JSON.stringify(id==='mhsunbreak'?'.sumrow':'[data-c="counts.'+countKey+'"]')}).textContent.includes('現在');`),false);
     await tab(cardTab);await pause(120);
     let c=await canvas('cardCanvas');assert.ok(c.bright>1000&&c.opaque===c.width*c.height);
     assert.ok(!c.text.some(t=>/1\/\d/.test(t.text)));
@@ -146,11 +152,12 @@ try{
     const plain=await copy(true);assert.ok(plain.includes('→'));assert.ok(!/[▶↪\uFE0E\uFE0F]/u.test(plain));
     await click('#detailBtn');c=await canvas('detailCanvas');assert.ok(c.bright>1000);assert.ok(c.text.some(t=>t.text.includes('1/1000.0')));saveCanvas(id+'-detail',c);
     pass(id+' card/detail pixels and both copy buttons');
-    await tab(0);assert.ok(await frame(`return d.querySelector('[data-c="counts.${countKey}"]').textContent.includes('現在 1/1000.0');`));
+    await tab(0);assert.ok(await frame(`return d.querySelector(${JSON.stringify(id==='mhsunbreak'?'.sumrow':'[data-c="counts.'+countKey+'"]')}).textContent.includes('現在 1/1000.0');`));
     pass(id+' games input updates rate');
     const before=await state();
     // games is a derived display cache for the pair; save occurs before pages syncs it.
     if(id==='juuou')before.games=Math.max(0,before.gamesMyslo-before.gamesMysloStart);
+    if(id==='mhsunbreak')before.games=before.hits.reduce((a,b)=>a+b,0);
     await reset();assert.equal((await state()).counts[countKey],0);await click('#undoBtn');assert.deepEqual(await state(),before);
     pass(id+' double-reset and undo restore');
     for(let p=0;p<=cardTab;p++){
@@ -183,6 +190,85 @@ try{
     }
     assert.deepEqual(await frame('return w.__errors;'),[]);
     pass(id+' zero console/unhandled errors');
+  }
+  // Hit-game acceptance: production input, add/delete, undo, reload and card/copy handlers.
+  await clear('mhsunbreak');
+  await bump('cycle.c1'); // Detail cards intentionally do not render for a wholly empty state.
+  const hitRows=()=>frame(`return [...d.querySelectorAll('.hit-row')].map(e=>({text:e.querySelector('.nm').textContent,index:Number(e.querySelector('button').dataset.i),visible:e.checkVisibility()}));`);
+  async function hitOutputs(count,sum,rate){
+    await tab(0);
+    assert.equal(await frame(`return d.querySelector('.sumrow .num').textContent;`),String(count));
+    assert.ok(await frame(`return d.querySelector('.sec-h').textContent.includes(${JSON.stringify('合計 '+sum+'G')});`));
+    const row=await frame(`return d.querySelector('.sumrow').textContent;`);
+    assert.equal(row.includes('現在 1/'),!!rate);if(rate)assert.ok(row.includes(rate));
+    await tab(2);const output=await copy();
+    assert.equal(output.split('\n')[1],`通常 ${sum}G / AT${count}回${rate?' '+rate:''}`);
+    for(const canvasId of ['cardCanvas','detailCanvas']){
+      if(canvasId==='detailCanvas')await click('#detailBtn');
+      const c=await canvas(canvasId);assert.ok(c.bright>1000&&c.opaque===c.width*c.height);
+      assert.equal(c.text.some(t=>/1\/\d/.test(t.text)),!!rate);
+      if(rate)assert.ok(c.text.some(t=>t.text.includes(rate)));
+      assert.ok(c.text.some(t=>t.text.includes(sum+'G')),canvasId+' total games');
+      if(count)assert.ok(c.text.some(t=>t.text.includes('AT初当り')&&t.text.includes(count+'回')),canvasId+' count');
+      saveCanvas('mhsunbreak-hits-'+count+'-'+sum+'-'+canvasId,c);
+    }
+    await tab(0);
+  }
+  await hitOutputs(0,0,'');
+  for(const value of [300,600,900])await games(value);
+  await hitOutputs(3,1800,'1/600.0');
+  assert.deepEqual((await hitRows()).map(r=>[r.text,r.index]),[['900G',2],['600G',1],['300G',0]]);
+  assert.ok((await frame(`return d.getElementById('feed').textContent;`)).includes('AT当選 900G を追加'));
+  pass('MH hits 300/600/900: screen/card/detail/template = 3,1800G,1/600.0; newest first');
+  await click('[data-action="delHit"][data-i="1"]');await hitOutputs(2,1200,'1/600.0');
+  await click('#undoBtn');assert.deepEqual((await state()).hits,[300,600,900]);
+  await click('#undoBtn');assert.deepEqual((await state()).hits,[300,600]);
+  await hitOutputs(2,900,'1/450.0');
+  pass('MH delete middle real index recalculates; delete undo restores; add undo removes');
+  await tab(1);await bump('atEnd.jay');await click('#undoBtn');await tab(0);
+  assert.deepEqual((await state()).hits,[300,600]);
+  await click('#modeBtn');await games(900);assert.deepEqual((await state()).hits,[300,600,900]);
+  await click('[data-action="delHit"][data-i="1"]');assert.deepEqual((await state()).hits,[300,900]);
+  await click('#undoBtn');assert.deepEqual((await state()).hits,[300,600,900]);await click('#modeBtn');
+  pass('MH unrelated undo preserves hits; minus mode add/delete/undo unchanged');
+  const beforeInvalid=await state(),feedBefore=await frame(`return d.getElementById('feed').textContent;`);
+  for(const value of ['0','','oops']){await games(value);assert.deepEqual(await state(),beforeInvalid);assert.equal(await frame(`return d.getElementById('feed').textContent;`),feedBefore);}
+  await click('#undoBtn');assert.deepEqual((await state()).hits,[300,600]);
+  pass('MH zero/empty/non-number: 3 no-ops, no history entry');
+  await clear('mhsunbreak');for(let i=1;i<=12;i++)await games(i*100);
+  const rows=await hitRows();assert.deepEqual(rows.map(r=>r.index),Array.from({length:12},(_,i)=>11-i));
+  assert.equal(rows.filter(r=>r.visible).length,10);
+  assert.equal(await frame(`return d.querySelector('.hit-more summary').textContent;`),'ほか 2件を見る');
+  await hitOutputs(12,7800,'1/650.0');
+  await click('.hit-more summary');assert.equal((await hitRows()).filter(r=>r.visible).length,12);
+  await click('[data-action="delHit"][data-i="0"]');assert.deepEqual((await state()).hits,Array.from({length:11},(_,i)=>(i+2)*100));
+  assert.equal(await frame(`return d.querySelector('.hit-more').open;`),false);
+  await hitOutputs(11,7700,'1/700.0');await click('#undoBtn');
+  await load('mhsunbreak');assert.equal((await state()).hits.length,12);await hitOutputs(12,7800,'1/650.0');
+  pass('MH 12 entries: latest 10, folded 2, full aggregation, folded deletion/undo and reload');
+  for(const width of [360,390]){
+    await load('mhsunbreak',width,530);await measure('mhsunbreak-hits-'+width);
+    await click('.hit-more summary');await measure('mhsunbreak-hits-expanded-'+width);
+    await frame(`d.getElementById('main').scrollTop=0;`);
+    const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});
+    fs.writeFileSync(path.join(artifacts,'mhsunbreak-hits-'+width+'.png'),Buffer.from(shot.data,'base64'));
+  }
+  await evaluate(`localStorage.setItem('mhsunbreak-checker-v1',JSON.stringify({games:3000,counts:{at:9},atEnd:{jay:1}}));`);
+  await load('mhsunbreak');await hitOutputs(0,0,'');await tab(1);
+  assert.equal(await frame(`return d.querySelector('[data-c="atEnd.jay"] .num').textContent;`),'1');
+  await bump('atEnd.jay');await click('#undoBtn');
+  const legacy=await state();assert.equal(legacy.counts.at,9);assert.equal(legacy.atEnd.jay,1);assert.deepEqual(legacy.hits,[]);assert.deepEqual(await frame('return w.__errors;'),[]);
+  pass('MH legacy games3000/AT9/jay1: displayed AT0, no measured rate, jay1 and counts.at9 retained, zero errors',legacy);
+  for(const page of ['checkers','index']){
+    await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.src=${JSON.stringify(origin+'/'+page+'.html')};})`);
+    if(page==='checkers'){
+      assert.equal(await frame(`return d.querySelector('h1').textContent;`),'設定判別カウンター');
+      for(const value of await frame(`return [d.title,d.querySelector('[property="og:title"]').content];`))assert.equal(value,'設定判別カウンター｜機種を選ぶ｜スロット稼働ノート');
+      assert.equal(await frame(`return d.querySelector('p.lead');`),null);
+      assert.equal(await frame(`return d.querySelector('header p').textContent;`),'設定推測ツールと機種別カウンターを、目的に合わせて選ぶための一覧です。');
+      assert.ok((await frame(`return d.querySelector('p.note').textContent;`)).includes('設定判別ツール'));
+    }else assert.ok((await frame(`return [...d.querySelectorAll('a[href="checkers.html"]')].map(e=>e.textContent);`)).includes('設定判別カウンター一覧'));
+    pass(page+' requested wording via real DOM');
   }
   // Independent expectations come from the issuer's tables and immutable template.
   const spec=fs.readFileSync(path.join(root,'docs/specs/new-1005-four-machines-instructions.md'),'utf8');
@@ -275,7 +361,7 @@ try{
   pass('MH CZ denominator matches screen/detail');
   await clear('mhsunbreak');await tab(1);
   for(const g of groups)for(const r of g.rows)await bump(g.key+'.'+r[0]);
-  await tab(0);await games(1000);await bump('counts.at');
+  await tab(0);await games(1000);
   for(const key of bz)await click(`[data-bump-many="bz.${key}D,bz.${key}N"]`);
   for(const key of ['cycle.c1','cycle.c2','cycle.c3','cycle.c4','cycle.c5','czType.breakzone','czType.airou'])await bump(key);
   await tab(2);

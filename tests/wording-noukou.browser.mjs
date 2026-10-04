@@ -56,7 +56,7 @@ async function tab(index){await click(`#nav [data-p="${index}"]`);await pause(60
 async function load(id,width=390,height=740){
   await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/'+id.replaceAll('_','-')+'-checker.html')};})`);
   for(let i=0;i<100;i++){
-    if(await frame(`return d.querySelector('#gIn')&&w.CheckerConfigs?.[${JSON.stringify(id)}]?true:false;`).catch(()=>false))break;
+    if(await frame(`return d.querySelector('#hitIn,#gIn')&&w.CheckerConfigs?.[${JSON.stringify(id)}]?true:false;`).catch(()=>false))break;
     await pause(40);
   }
   await frame(`w.__key=w.CheckerConfigs[${JSON.stringify(id)}].storageKey;`);

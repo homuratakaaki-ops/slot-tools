@@ -6,26 +6,34 @@
   const SOURCE="https://chonborista.com/slot/enta-slot/264514/";
   const TAGS="#モンハンサンブレイク #設定判別";
   const COUNTS=[["at","AT初当り","設1:1/349.9⇔設6:1/242.3"]];
-  const INITIAL_HINT="ATの初当りを記録します。設定1:1/349.9／2:1/337.0／3:1/319.8／4:1/283.6／5:1/264.0／6:1/242.3。";
 
   function n(obj,key){return Number((obj||{})[key])||0;}
   function rate(g,c){return (g>0&&c>0)?'1/'+(g/c).toFixed(1):'';}
   function rateSuffix(g,c){const r=rate(g,c);return r?` / 現在 ${r}`:'';}
   function countRate(g,c){const r=rate(g,c);return r?`${c}回 ${r}`:`${c}回`;}
   function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
-  function initialBlock(S,c){const v=n(S.counts,c[0]),r=rate(S.games,v);return r?[c[1]+' '+v+'回',r]:[c[1],v+'回'];}
-  function initialDetail(S){return {title:'初当り',items:COUNTS.map(c=>({label:c[1],value:n(S.counts,c[0]),text:c[1]+' '+countRate(S.games,n(S.counts,c[0])),show:n(S.counts,c[0])>0,hot:false}))};}
-  function gameSection(S){const g=S.games;return `<section class="sec">
-  <div class="sec-h">通常ゲーム数</div>
-  <div class="inrow"><label>通常ゲーム数</label>
-    <input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
-  <div class="hint">連動アプリ等で確認した通常時のゲーム数。メニューの総ゲーム数はAT中を含むため入れない</div>
-</section>`;}
-  function initialSection(ctx){const S=ctx.S;return `<section class="sec">
-    <div class="sec-h">初当り</div>
-    <div class="cgrid">${COUNTS.map(c=>ctx.crow('counts.'+c[0],c[1],c[2]+rateSuffix(S.games,n(S.counts,c[0])),false)).join('')}</div>
-    <div class="hint">${INITIAL_HINT}</div>
-  </section>`;}
+  // エンタライズ機種は連動アプリがなく、メニューは総ゲーム数のみ。
+  // 通常時のゲーム数を取れないため、AT当選ごとのハマりゲーム数を合計する（§9-70）。
+  function hitList(S){return Array.isArray(S.hits)?S.hits:[];}
+  function hitCount(S){return hitList(S).length;}
+  function hitSum(S){return hitList(S).reduce((a,b)=>a+(Number(b)||0),0);}
+  function syncGames(S){if(S)S.games=hitSum(S);return S?S.games:0;}
+  function initialBlock(S,c){const v=hitCount(S),r=rate(hitSum(S),v);return r?[c[1]+' '+v+'回',r]:[c[1],v+'回'];}
+  function initialDetail(S){return {title:'初当り',items:[{label:'AT初当り',value:hitCount(S),text:'AT初当り '+countRate(hitSum(S),hitCount(S)),show:hitCount(S)>0,hot:false}]};}
+  function hitSection(S){
+    const rows=hitList(S).map((v,i)=>`<div class="crow hit-row"><div class="lbl"><div class="nm">${v}G</div></div><button type="button" class="cycle-btn" data-action="delHit" data-i="${i}">削除</button></div>`).reverse();
+    return `<section class="sec">
+    <div class="sec-h">AT当選ゲーム数<span class="sub">合計 ${hitSum(S)}G</span></div>
+    <div class="inrow"><input type="number" inputmode="numeric" id="hitIn" placeholder="0" aria-label="AT当選ゲーム数"><button type="button" class="cycle-btn" data-action="addHit" data-label="AT当選ゲーム数を追加">追加</button></div>
+    <div class="cgrid">${rows.slice(0,10).join('')}</div>
+    ${rows.length>10?`<details class="hit-more"><summary>ほか ${rows.length-10}件を見る</summary><div class="cgrid">${rows.slice(10).join('')}</div></details>`:''}
+    <div class="crow sumrow">
+      <div class="lbl"><div class="nm">AT初当り</div><div class="mn">設1:1/349.9⇔設6:1/242.3${rateSuffix(hitSum(S),hitCount(S))}</div></div>
+      <div class="num">${hitCount(S)}</div><div class="autotag" aria-hidden="true">自動</div>
+    </div>
+    <div class="hint">AT当選時に、データカウンターの当選ゲーム数（通常時のハマりゲーム数）を入力します。途中から打ち始めた場合も、表示どおりの数値を入れてください。訂正は一覧の「削除」で行います。</div>
+  </section>`;
+  }
 
   const AT_END=[
     ["jay","ジェイ","奇数設定期待度UP",0,"ジ",0],
@@ -95,12 +103,13 @@
     ['stamp','エンディング中スタンプ',STAMP,'エンディング中のレア役成立時に出たスタンプの色を記録します。']
   ];
   const zero=arr=>Object.fromEntries(arr.map(c=>[c[0],0]));
-  const DEF={games:0,counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null};
+  const DEF={games:0,hits:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null};
   const MERGE_KEYS=['counts','bz','cycle','czType',...GROUPS.map(g=>g[0])];
   function total(arr,state){return arr.reduce((a,c)=>a+n(state,c[0]),0);}
   function czTotal(S){return total(CZ_TYPE,S.czType);}
   function normalizeState(out){
     out.games=Math.max(0,Number(out.games)||0);
+    out.hits=Array.isArray(out.hits)?out.hits.map(v=>Math.max(0,parseInt(v,10)||0)).filter(v=>v>0):[];
     MERGE_KEYS.forEach(key=>{
       out[key]=Object.assign({},DEF[key],out[key]||{});
       Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
@@ -108,7 +117,7 @@
     BZ.forEach(c=>{out.bz[c[0]+'N']=Math.min(out.bz[c[0]+'N'],out.bz[c[0]+'D']);});
     return out;
   }
-  function pageInput(ctx){const S=ctx.S;return gameSection(S)+initialSection(ctx)+`
+  function pageInput(ctx){const S=ctx.S;return hitSection(S)+`
   <section class="sec">
     <div class="sec-h">レア役からのBZ当選</div>
     <style>${ND_STYLE}
@@ -153,7 +162,7 @@
     return hit?`確定 ${hit.label}(${tierText(hit.sub)}) ×${hit.value}`:'確定演出 なし';
   }
   function shown(title,arr,state){const hits=arr.filter(c=>n(state,c[0])>0).map(c=>(c[4]||c[1])+'×'+n(state,c[0]));return title+' '+(hits.length?hits.join('・'):'—');}
-  function tplText(ctx){const S=ctx.S,g=S.games,e=S.atEnd;
+  function tplText(ctx){const S=ctx.S,g=hitSum(S),e=S.atEnd;
     // 正本の空白・異体字セレクタ・改行を保持し、35箇所の値だけ置換する。
     const values=[
       ...BZ.map(c=>n(S.bz,c[0]+'N')+'/'+n(S.bz,c[0]+'D')),
@@ -170,7 +179,7 @@
       const s=typeof v==='number'?v+'回':v;
       return m.startsWith('▶')?m+s:s;
     });
-    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / AT${countRate(g,n(S.counts,'at'))}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / AT${countRate(g,hitCount(S))}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
   }
   function detailItems(arr,state){return arr.map(c=>({label:c[1],value:n(state,c[0]),hot:c[3]>0}));}
   function detail(ctx){const S=ctx.S;return [
@@ -183,15 +192,33 @@
   window.CheckerConfigs.mhsunbreak={
     uiV2:true,nanaCollab:true,storageKey:'mhsunbreak-checker-v1',defaults:DEF,mergeKeys:MERGE_KEYS,sourceUrl:SOURCE,normalizeState,
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
-    pages:(ctx,pageCard)=>[()=>pageInput(ctx),()=>pageShisa(ctx),pageCard],template:tplText,compactTemplate:tplText,
+    actions:{
+      // 素の入力欄を直接読む。減算モードでも追加・削除の意味は変えない。
+      addHit:(ctx)=>{
+        const el=document.getElementById('hitIn');
+        const v=Math.max(0,parseInt(el&&el.value,10)||0);
+        if(!v)return false;
+        ctx.S.hits=hitList(ctx.S).concat(v);
+        if(el)el.value='';
+        return `AT当選 ${v}G を追加`;
+      },
+      delHit:(ctx,ds)=>{
+        const i=parseInt(ds.i,10),list=hitList(ctx.S);
+        if(!(i>=0&&i<list.length))return false;
+        const v=list[i];
+        ctx.S.hits=list.slice(0,i).concat(list.slice(i+1));
+        return `AT当選 ${v}G を削除`;
+      }
+    },
+    pages:(ctx,pageCard)=>{syncGames(ctx.S);return [()=>pageInput(ctx),()=>pageShisa(ctx),pageCard];},template:tplText,compactTemplate:tplText,
     card:{title:TITLE,titleFitMax:680,gameLabel:'通常',footerTags:TAGS,downloadName:'mhsunbreak_check.png',detailDownloadName:'mhsunbreak_check_detail.png',detail,
-      blocks:ctx=>[initialBlock(ctx.S,COUNTS[0]),['通常ゲーム数',(ctx.S.games||0)+'G'],['示唆の記録','計'+hintTotal(ctx.S)+'回'],['確定演出','計'+certCount(ctx.S)+'回']],
+      blocks:ctx=>[initialBlock(ctx.S,COUNTS[0]),['通常ゲーム数',hitSum(ctx.S)+'G'],['示唆の記録','計'+hintTotal(ctx.S)+'回'],['確定演出','計'+certCount(ctx.S)+'回']],
       chart:ctx=>({title:'示唆分布',x:150,step:160,width:80,items:[2,3,4,5,6].map(r=>({label:r===6?'6':r+'+',value:certTier(ctx.S,r)}))}),
       bottom:ctx=>{const S=ctx.S;return {title:'サマリー',startY:752,rowGap:36,fontSize:23,columns:[
         {x:70,items:[
           row(bestCert(S),certCount(S),undefined,'#ffc94d'),
-          row('AT初当り '+countRate(S.games,n(S.counts,'at')),n(S.counts,'at')),
-          row('通常回転 '+(S.games||0)+'G',S.games),
+          row('AT初当り '+countRate(hitSum(S),hitCount(S)),hitCount(S)),
+          row('通常回転 '+hitSum(S)+'G',hitSum(S)),
           row(shown('周期',CYCLE,S.cycle),total(CYCLE,S.cycle)),
           row(shown('CZ',[['breakzone','BZ'],['airou','アイルー']],S.czType),czTotal(S))
         ]},
