@@ -402,17 +402,18 @@ try{
   // MH template v02: actual BZ buttons and persisted state.
   await clear('mhsunbreak');await tab(2);
   const questIds=['blue','yellow','raizex','serregios','oromidro','teo','at'];
-  const questClick=(key,id,success)=>click(`[data-bump-many="${key}.${id}${success?',questN.'+id:''}"]`);
-  assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),14);
+  const nKeyOf=key=>key==='bzT1'?'questN1':'questN2';
+  const questClick=(key,id,success)=>click(`[data-bump-many="${key}.${id}${success?','+nKeyOf(key)+'.'+id:''}"]`);
+  assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),21);
   assert.equal(await frame('return d.querySelectorAll(".quest-row button").length;'),26);
   for(const key of ['bzT1','bzT2'])for(const id of questIds){
     await questClick(key,id,true);
-    let s=await state();assert.equal(s[key][id],1);assert.equal(s.questN[id],1);
+    let s=await state();assert.equal(s[key][id],1);assert.equal(s[nKeyOf(key)][id],1);
     assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(key==='bzT1'?'1回目':'2回目以降'));
     await click('#modeBtn');
     if(id!=='at')assert.equal(await frame(`const b=d.querySelector('[data-bump-many="${key}.${id}"]');return b.disabled&&b.getAttribute('aria-disabled')==='true';`),true);
-    await questClick(key,id,true);s=await state();assert.equal(s[key][id],0);assert.equal(s.questN[id],0);
-    await click('#undoBtn');s=await state();assert.equal(s[key][id],1);assert.equal(s.questN[id],1);
+    await questClick(key,id,true);s=await state();assert.equal(s[key][id],0);assert.equal(s[nKeyOf(key)][id],0);
+    await click('#undoBtn');s=await state();assert.equal(s[key][id],1);assert.equal(s[nKeyOf(key)][id],1);
     await click('#modeBtn');await click('#undoBtn');
     if(id!=='at'){
       await questClick(key,id,false);await click('#modeBtn');
@@ -428,12 +429,12 @@ try{
   const changes=bzTemplate.split('\n').flatMap((line,i)=>line===zeroLines[i]?[]:[{line:i+1,before:zeroLines[i],after:line}]);
   assert.equal(changes.length,4);assert.deepEqual(changes.map(x=>x.after.trim().split('▶︎ ')[1]),['2回','1回','1/2','1/1']);
   pass('MH v02 exactly four requested template lines',changes);
-  await click('#undoBtn');let undone=await state();assert.equal(undone.bzT2.at,0);assert.equal(undone.questN.at,0);assert.equal(undone.bzT1.blue,2);assert.equal(undone.questN.blue,1);
+  await click('#undoBtn');let undone=await state();assert.equal(undone.bzT2.at,0);assert.equal(undone.questN2.at,0);assert.equal(undone.bzT1.blue,2);assert.equal(undone.questN1.blue,1);
   await tab(2);await questClick('bzT2','at',true);await tab(0);await reset();
-  for(const key of ['bzT1','bzT2','questN'])assert.ok(Object.values((await state())[key]).every(v=>v===0));
-  await click('#undoBtn');for(const key of ['bzT1','bzT2','questN'])assert.deepEqual((await state())[key],bzState[key]);
-  await load('mhsunbreak');for(const key of ['bzT1','bzT2','questN'])assert.deepEqual((await state())[key],bzState[key]);
-  pass('MH v02 reset/undo and persisted reload preserve all three new groups');
+  for(const key of ['bzT1','bzT2','questN1','questN2'])assert.ok(Object.values((await state())[key]).every(v=>v===0));
+  await click('#undoBtn');for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await state())[key],bzState[key]);
+  await load('mhsunbreak');for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await state())[key],bzState[key]);
+  pass('MH v02 reset/undo and persisted reload preserve all four BZ groups');
   for(const width of [360,390]){
     await load('mhsunbreak',width,530);await tab(2);await measure('mhsunbreak-bz-v02-'+width);
     const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});

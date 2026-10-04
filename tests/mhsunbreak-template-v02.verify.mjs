@@ -25,15 +25,15 @@ const legacy=s=>s.slice(s.indexOf('■レア役からのBZ当選率'));
 bytes(legacy(output),legacy(before('tests/fixtures/mhsunbreak-zero-template.txt')));
 bytes(read('docs/specs/mhsunbreak-nana-template-v01.txt'),before('docs/specs/mhsunbreak-nana-template-v01.txt'));
 console.log('PASS original SHA256/1881 bytes, 34 blanks, 56 slots; normalized zero body diff empty; legacy zero tail diff empty');
-const ids=Object.keys(current.defaults.questN);
+const ids=Object.keys(current.defaults.questN1);
 for(const id of ids){
-  const S=clone(current.defaults);S.bzT1[id]=2;S.bzT2[id]=3;S.questN[id]=9;S.questN.future=17;
-  const out=current.normalizeState(S);assert.equal(out.questN[id],5);assert.equal(out.questN.future,17);
+  const S=clone(current.defaults);S.bzT1[id]=2;S.bzT2[id]=3;S.questN1[id]=9;S.questN2[id]=9;S.questN1.future=17;
+  const out=current.normalizeState(S);assert.equal(out.questN1[id],2);assert.equal(out.questN2[id],3);assert.equal(out.questN1.future,17);
   assert.deepEqual(clone(current.normalizeState(clone(out))),clone(out));
 }
 const legacyState=clone(old.defaults);legacyState.atEnd.jay=3;
 const migrated=current.normalizeState(legacyState);assert.equal(migrated.atEnd.jay,3);
-for(const key of ['bzT1','bzT2','questN'])assert.ok(Object.values(migrated[key]).every(v=>v===0));
+for(const key of ['bzT1','bzT2','questN1','questN2'])assert.ok(Object.values(migrated[key]).every(v=>v===0));
 console.log('PASS normalization: seven clamps/idempotence/unknown keys and one old-save migration');
 const keys=[];
 // Build keys from the stable detail order, independent of label text.
@@ -43,8 +43,8 @@ for(const [group,title] of [['atEnd','AT終了画面'],['trophy','エンタト�
 assert.equal(keys.length,18);
 for(const key of ['blocks','bottom','chart','detail'])assert.equal(current.card[key].toString(),old.card[key].toString());
 const S=clone(current.defaults);S.hits=[300,600];S.cycle.c1=2;S.czType.breakzone=3;
-ids.forEach(id=>{S.bzT1[id]=4;S.bzT2[id]=5;S.questN[id]=6;});
-const previous=clone(S);delete previous.bzT1;delete previous.bzT2;delete previous.questN;
+ids.forEach(id=>{S.bzT1[id]=4;S.bzT2[id]=5;S.questN1[id]=4;S.questN2[id]=2;});
+const previous=clone(S);delete previous.bzT1;delete previous.bzT2;delete previous.questN1;delete previous.questN2;
 for(let mask=0;mask<2**keys.length;mask++){
   keys.forEach(([g,k],i)=>{S[g][k]=previous[g][k]=(mask>>i)&1;});
   for(const key of ['blocks','bottom','chart','detail'])assert.equal(JSON.stringify(current.card[key](ctx(S))),JSON.stringify(old.card[key](ctx(previous))),key+' mask '+mask);
