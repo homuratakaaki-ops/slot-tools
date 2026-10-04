@@ -215,11 +215,24 @@ try{
     await tab(0);
   }
   await hitOutputs(0,0,'');
+  assert.equal((await hitRows()).length,0);
+  assert.equal(await frame(`return d.querySelectorAll('.hit-more').length;`),0);
+  pass('MH 0 entries: no rows/details/rate');
   for(const value of [300,600,900])await games(value);
   await hitOutputs(3,1800,'1/600.0');
+  assert.equal((await hitRows()).filter(r=>r.visible).length,3);
+  assert.equal(await frame(`return d.querySelectorAll('.hit-more').length;`),0);
   assert.deepEqual((await hitRows()).map(r=>[r.text,r.index]),[['900G',2],['600G',1],['300G',0]]);
   assert.ok((await frame(`return d.getElementById('feed').textContent;`)).includes('AT当選 900G を追加'));
   pass('MH hits 300/600/900: screen/card/detail/template = 3,1800G,1/600.0; newest first');
+  await games(1200);await hitOutputs(4,3000,'1/750.0');
+  assert.deepEqual((await hitRows()).filter(r=>r.visible).map(r=>r.text),['1200G','900G','600G']);
+  assert.equal(await frame(`return d.querySelector('.hit-more summary').textContent;`),'すべて表示（残り1件）');
+  await click('.hit-more summary');assert.equal((await hitRows()).filter(r=>r.visible).length,4);
+  assert.equal((await hitRows()).at(-1).text,'300G');
+  await click('.hit-more summary');assert.equal((await hitRows()).filter(r=>r.visible).length,3);
+  await click('#undoBtn');assert.deepEqual((await state()).hits,[300,600,900]);
+  pass('MH 4 entries: latest 3, folded 1, 3000G,1/750.0, open/close');
   await click('[data-action="delHit"][data-i="1"]');await hitOutputs(2,1200,'1/600.0');
   await click('#undoBtn');assert.deepEqual((await state()).hits,[300,600,900]);
   await click('#undoBtn');assert.deepEqual((await state()).hits,[300,600]);
@@ -235,17 +248,19 @@ try{
   for(const value of ['0','','oops']){await games(value);assert.deepEqual(await state(),beforeInvalid);assert.equal(await frame(`return d.getElementById('feed').textContent;`),feedBefore);}
   await click('#undoBtn');assert.deepEqual((await state()).hits,[300,600]);
   pass('MH zero/empty/non-number: 3 no-ops, no history entry');
-  await clear('mhsunbreak');for(let i=1;i<=12;i++)await games(i*100);
-  const rows=await hitRows();assert.deepEqual(rows.map(r=>r.index),Array.from({length:12},(_,i)=>11-i));
-  assert.equal(rows.filter(r=>r.visible).length,10);
-  assert.equal(await frame(`return d.querySelector('.hit-more summary').textContent;`),'ほか 2件を見る');
-  await hitOutputs(12,7800,'1/650.0');
-  await click('.hit-more summary');assert.equal((await hitRows()).filter(r=>r.visible).length,12);
-  await click('[data-action="delHit"][data-i="0"]');assert.deepEqual((await state()).hits,Array.from({length:11},(_,i)=>(i+2)*100));
+  await clear('mhsunbreak');for(let i=1;i<=15;i++)await games(i*100);
+  const rows=await hitRows();assert.deepEqual(rows.map(r=>r.index),Array.from({length:15},(_,i)=>14-i));
+  assert.equal(rows.filter(r=>r.visible).length,3);
+  assert.equal(await frame(`return d.querySelector('.hit-more summary').textContent;`),'すべて表示（残り12件）');
+  await hitOutputs(15,12000,'1/800.0');
+  await click('.hit-more summary');assert.equal((await hitRows()).filter(r=>r.visible).length,15);
+  await click('[data-action="delHit"][data-i="4"]');assert.deepEqual((await state()).hits,Array.from({length:15},(_,i)=>(i+1)*100).filter(v=>v!==500));
   assert.equal(await frame(`return d.querySelector('.hit-more').open;`),false);
-  await hitOutputs(11,7700,'1/700.0');await click('#undoBtn');
-  await load('mhsunbreak');assert.equal((await state()).hits.length,12);await hitOutputs(12,7800,'1/650.0');
-  pass('MH 12 entries: latest 10, folded 2, full aggregation, folded deletion/undo and reload');
+  await hitOutputs(14,11500,'1/821.4');await click('#undoBtn');
+  assert.deepEqual((await state()).hits,Array.from({length:15},(_,i)=>(i+1)*100));
+  assert.deepEqual((await hitRows()).map(r=>r.index),Array.from({length:15},(_,i)=>14-i));
+  await load('mhsunbreak');assert.equal((await state()).hits.length,15);await hitOutputs(15,12000,'1/800.0');
+  pass('MH 15 entries: latest 3, folded 12, full aggregation, folded 500G deletion/undo and reload');
   for(const width of [360,390]){
     await load('mhsunbreak',width,530);await measure('mhsunbreak-hits-'+width);
     await click('.hit-more summary');await measure('mhsunbreak-hits-expanded-'+width);
