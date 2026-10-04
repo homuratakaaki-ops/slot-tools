@@ -52,7 +52,7 @@ async function tab(index){await click(`#nav [data-p="${index}"]`);await pause(60
 async function load(id,width=390,height=740){
   await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/'+id+'-checker.html')};})`);
   for(let i=0;i<100;i++){
-    if(await frame(`return d.querySelector('#gIn')&&w.CheckerConfigs?.[${JSON.stringify(id)}]?true:false;`).catch(()=>false))break;
+    if(await frame(`return d.querySelector('#gIn,[data-number-key="gamesMyslo"]')&&w.CheckerConfigs?.[${JSON.stringify(id)}]?true:false;`).catch(()=>false))break;
     await pause(40);
   }
   await frame(`w.__key=${JSON.stringify(id+'-checker-v1')};`);
@@ -62,7 +62,7 @@ async function clear(id,width=390){
   await evaluate(`localStorage.removeItem(${JSON.stringify(id+'-checker-v1')});`);
   await load(id,width);
 }
-async function games(value){await frame(`const el=d.getElementById('gIn');el.value=${JSON.stringify(String(value))};el.dispatchEvent(new w.Event('input',{bubbles:true}));el.dispatchEvent(new w.Event('change',{bubbles:true}));`);}
+async function games(value){await frame(`const el=d.querySelector('#gIn,[data-number-key="gamesMyslo"]');el.value=${JSON.stringify(String(value))};el.dispatchEvent(new w.Event('input',{bubbles:true}));el.dispatchEvent(new w.Event('change',{bubbles:true}));`);}
 async function bump(key){await click(`[data-c="${key}"] .plus`);}
 async function canvas(id){
   return frame(`const cv=d.getElementById(${JSON.stringify(id)});const x=cv.getContext('2d');const a=x.getImageData(0,0,cv.width,cv.height).data;let opaque=0,bright=0;for(let i=0;i<a.length;i+=4){if(a[i+3])opaque++;if(a[i]+a[i+1]+a[i+2]>180)bright++;}return {width:cv.width,height:cv.height,opaque,bright,text:w.__texts[cv.id]||[],data:cv.toDataURL()};`);
@@ -128,7 +128,7 @@ try{
   for(const id of ['juuou','paripi','tenten','mhsunbreak']){
     const cardTab=id==='mhsunbreak'?2:1;
     await clear(id);
-    assert.equal(await frame(`return d.querySelector('#gIn').closest('section').querySelector('details')===null;`),true);
+    assert.equal(await frame(`return d.querySelector('#gIn,[data-number-key="gamesMyslo"]').closest('section').querySelector('details')===null;`),id!=='juuou');
     const countKey=id==='juuou'?'sc':id==='paripi'?'cz':'at';
     await bump('counts.'+countKey);
     assert.equal((await state()).counts[countKey],1);
@@ -148,7 +148,10 @@ try{
     pass(id+' card/detail pixels and both copy buttons');
     await tab(0);assert.ok(await frame(`return d.querySelector('[data-c="counts.${countKey}"]').textContent.includes('現在 1/1000.0');`));
     pass(id+' games input updates rate');
-    const before=await state();await reset();assert.equal((await state()).counts[countKey],0);await click('#undoBtn');assert.deepEqual(await state(),before);
+    const before=await state();
+    // games is a derived display cache for the pair; save occurs before pages syncs it.
+    if(id==='juuou')before.games=Math.max(0,before.gamesMyslo-before.gamesMysloStart);
+    await reset();assert.equal((await state()).counts[countKey],0);await click('#undoBtn');assert.deepEqual(await state(),before);
     pass(id+' double-reset and undo restore');
     for(let p=0;p<=cardTab;p++){
       await tab(p);
@@ -289,6 +292,41 @@ try{
   assert.ok(allCard.bright>1000&&allCard.opaque===allCard.width*allCard.height);
   pass('MH all-31 summary: 5+5 rows, Y896, fitted visible bounds and pixels',{rows:summary,minFont,overflow:overflow.length,leftOverhang,lastY:Math.max(...summary.map(t=>t.y))});
   saveCanvas('mhsunbreak-all-card',allCard);await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
+  // Public guides: follow real links in both directions at actual viewport widths.
+  for(const width of [360,390])for(const id of ['mhsunbreak','juuou','paripi','tenten']){
+    await load(id,width,530);
+    await click(`.hd-link[href="${id}-guide.html"]`);
+    for(let i=0;i<100;i++){if(await frame(`return w.location.pathname===${JSON.stringify('/'+id+'-guide.html')}&&!!d.querySelector('main');`).catch(()=>false))break;await pause(30);}
+    const layout=await frame(`return {width:w.innerWidth,scrollWidth:d.documentElement.scrollWidth,overflow:[...d.querySelectorAll('header *,main *,footer *')].filter(e=>e.getClientRects().length).filter(e=>{const r=e.getBoundingClientRect();return r.left<-.5||r.right>w.innerWidth+.5;}).map(e=>e.outerHTML),title:d.title,canonical:d.querySelector('[rel="canonical"]').href,og:d.querySelector('[property="og:url"]').content};`);
+    assert.equal(layout.width,width);assert.ok(layout.scrollWidth<=width);assert.deepEqual(layout.overflow,[]);
+    assert.equal(layout.canonical,'https://slot-tools.jp/'+id+'-guide.html');assert.equal(layout.og,layout.canonical);
+    const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});fs.writeFileSync(path.join(artifacts,id+'-'+width+'-guide.png'),Buffer.from(shot.data,'base64'));
+    await click(`header a[href="${id}-checker.html"]`);
+    for(let i=0;i<100;i++){if(await frame(`return w.location.pathname===${JSON.stringify('/'+id+'-checker.html')}&&!!d.querySelector('#nav [data-p]');`).catch(()=>false))break;await pause(30);}
+    assert.equal(await frame('return w.location.pathname;'),'/'+id+'-checker.html');
+    pass(id+' guide round-trip '+width,layout);
+  }
+  await clear('juuou');
+  await evaluate(`localStorage.setItem('juuou-checker-v1',JSON.stringify({games:1234,counts:{sc:4}}));`);
+  await load('juuou');
+  const migrated=await frame(`return {start:d.querySelector('[data-number-key="gamesMysloStart"]').value,now:d.querySelector('[data-number-key="gamesMyslo"]').value,sc:d.querySelector('[data-c="counts.sc"] .num').textContent,errors:w.__errors};`);
+  assert.equal(migrated.now,'1234');assert.equal(Number(migrated.start),0);assert.equal(Number(migrated.sc),4);assert.deepEqual(migrated.errors,[]);
+  await tab(1);let migratedCard=await canvas('cardCanvas');assert.ok(migratedCard.text.some(t=>t.text.includes('1/308.5')));assert.ok((await copy()).includes('通常 1234G'));
+  await tab(0);await games(1234);await load('juuou');
+  assert.equal((await state()).gamesMyslo,1234);assert.equal((await state()).counts.sc,4);
+  await tab(1);assert.ok((await copy()).includes('通常 1234G'));assert.ok((await copy()).includes('1/308.5'));
+  pass('juuou legacy 1234G/SC4 migration and saved reload',migrated);
+  await tab(0);
+  await frame(`const e=d.querySelector('[data-number-key="gamesMysloStart"]');e.value='1500';e.dispatchEvent(new w.Event('change',{bubbles:true}));`);
+  assert.ok(await frame(`return d.querySelector('.hint.warn').textContent.includes('現在が開始を下回っています');`));
+  assert.ok(!await frame(`return d.querySelector('[data-c="counts.sc"]').textContent.includes('現在 1/');`));
+  await tab(1);assert.ok(!/1\/\d/.test(await copy()));assert.ok(!(await canvas('cardCanvas')).text.some(t=>/1\/\d/.test(t.text)));
+  await click('#detailBtn');assert.ok(!(await canvas('detailCanvas')).text.some(t=>/1\/\d/.test(t.text)));
+  pass('juuou reversed pair warns and hides measured rates on all outputs');
+  await tab(0);
+  await frame(`const e=d.querySelector('[data-number-key="gamesMysloStart"]');e.value='1000';e.dispatchEvent(new w.Event('change',{bubbles:true}));`);
+  await tab(1);assert.ok((await copy()).includes('通常 234G'));assert.ok((await copy()).includes('1/58.5'));
+  pass('juuou nonzero start uses the difference on card/template');
   assert.deepEqual(errors,[]);pass('all browser console errors = 0');
   results.push(...visualFindings);
   if(visualFindings.length){console.error('FAIL n/d label wrapping. See layout measurements and screenshots.');process.exitCode=1;}

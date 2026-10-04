@@ -118,10 +118,10 @@ try{
     if(id==='tonski'&&!baseline){
       await tab(1);
       for(const [key,text] of [['set2','設定2以上濃厚'],['set4','設定4以上濃厚'],['set6','設定6濃厚']]){
-        const labels=await frame(`const row=d.querySelector('[data-c="screens.${key}"]');return [row.querySelector('.nm').textContent,row.querySelector('.mn').textContent];`);
-        assert.deepEqual(labels,[text,text]);
+        const labels=await frame(`const row=d.querySelector('[data-c="screens.${key}"]');return [row.querySelector('.nm').textContent,row.querySelector('.mn')?.textContent||''];`);
+        assert.deepEqual(labels,[text,'']);
       }
-      pass('tonski three duplicated labels retained as explicitly instructed in V02-2');
+      pass('tonski three duplicated sublabels removed; item labels retained');
     }
     // Seed an exhaustive saved-data fixture, then render it through the real reload and card button.
     const inputCount=await frame(`const S=JSON.parse(JSON.stringify(w.CheckerConfigs[${JSON.stringify(id)}].defaults));let count=0;

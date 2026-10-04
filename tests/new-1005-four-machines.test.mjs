@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {execFileSync} from 'node:child_process';
 
 const read=name=>fs.readFileSync(new URL('../'+name,import.meta.url),'utf8');
 const configs={};
@@ -22,6 +21,12 @@ test('normalization keeps unknown data and clamps invalid n/d on reload',()=>{
     assert.equal(out.games,0);assert.deepEqual(out.future,{keep:'yes'});assert.equal(out.counts.futureCount,9);
     if(id==='mhsunbreak')for(const key of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])assert.equal(out.bz[key+'N'],2);
   }
+  const c=configs.juuou;
+  for(const [src,expected] of [[{games:1234,counts:{sc:4}},1234],[{games:1234,gamesMyslo:0,counts:{sc:4}},0],[{games:1234,gamesMyslo:300,gamesMysloStart:100,counts:{sc:4}},200]]){
+    const out=c.normalizeState({...clone(c.defaults),...src},src);
+    assert.equal(out.games,expected);assert.equal(out.counts.sc,4);
+    assert.deepEqual(c.normalizeState(clone(out),clone(out)),out);
+  }
 });
 
 test('rates use normal games only, with no division for missing games or zero hits',()=>{
@@ -30,12 +35,21 @@ test('rates use normal games only, with no division for missing games or zero hi
     ctx.S.counts[key]=2;
     for(const g of [0,1000]){
       ctx.S.games=g;
+      if(c===configs.juuou)ctx.S.gamesMyslo=g;
       const outputs=[c.template(ctx),JSON.stringify(c.card.blocks(ctx)),JSON.stringify(c.card.bottom(ctx)),JSON.stringify(c.card.detail(ctx))];
       for(const output of outputs)assert.equal(output.includes('1/500.0'),g===1000);
       for(const output of outputs)assert.ok(!output.includes('Infinity')&&!output.includes('NaN'));
     }
     ctx.S.counts[key]=0;
     for(const output of [c.template(ctx),JSON.stringify(c.card.blocks(ctx)),JSON.stringify(c.card.bottom(ctx))])assert.ok(!/1\/\d/.test(output));
+  }
+  const c=configs.juuou,ctx=context(c);ctx.S.counts.sc=4;ctx.S.games=9999;
+  for(const [start,now,expected] of [[1000,1234,'1/58.5'],[1500,1234,null],[1000,1000,null]]){
+    ctx.S.gamesMysloStart=start;ctx.S.gamesMyslo=now;
+    for(const output of [c.template(ctx),JSON.stringify(c.card.blocks(ctx)),JSON.stringify(c.card.bottom(ctx)),JSON.stringify(c.card.detail(ctx))]){
+      assert.equal(/1\/\d/.test(output),expected!==null);
+      if(expected)assert.ok(output.includes(expected));
+    }
   }
 });
 
@@ -53,13 +67,13 @@ test('oneL, rank buckets and stable ties are independent of labels and count tot
   assert.deepEqual(clone(c.card.chart(ctx).items.map(x=>x.value)),[1,0,0,2,2]);
 });
 
-test('HTML contract: original CSS apart from specified nav count, limited scope and LF',()=>{
+test('HTML contract: original CSS apart from specified nav count, public links and LF',()=>{
   const style=s=>s.match(/<style>([\s\S]*?)<\/style>/)[1];
   const base=style(read('mogumogu-checker.html'));
   for(const id of Object.keys(configs)){
     const html=read(id+'-checker.html'),js=read('checker-data/'+id+'.js');
     assert.equal(style(html),id==='mhsunbreak'?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
-    assert.ok(!html.includes('checker-bayes.js'));assert.ok(!html.includes('使い方'));
+    assert.ok(!html.includes('checker-bayes.js'));assert.ok(html.includes('href="'+id+'-guide.html">使い方</a>'));
     assert.ok(html.includes('<small>SETTING CHECKER ・ slot-tools.jp</small>'));
     assert.ok(!html.includes('UI v1'));
     assert.ok(html.includes('checker-engine.js?v=20260924'));
@@ -82,10 +96,8 @@ test('v02 template keeps the v01 golden bytes without regex lookbehind',()=>{
   assert.equal(configs.mhsunbreak.template(context(configs.mhsunbreak)),read('tests/fixtures/mhsunbreak-zero-template.txt'));
 });
 
-test('MH template bytes match 7914219 in zero, mixed and fully populated states',()=>{
-  const sandbox={window:{}};
-  vm.runInNewContext(execFileSync('git',['show','7914219:checker-data/mhsunbreak.js'],{encoding:'utf8'}),sandbox);
-  const before=sandbox.window.CheckerConfigs.mhsunbreak,c=configs.mhsunbreak;
+test('MH template bytes match the golden files in zero, mixed and fully populated states',()=>{
+  const c=configs.mhsunbreak;
   const fixture=Buffer.from(read('tests/fixtures/mhsunbreak-zero-template.txt'));
   assert.equal(fixture.length,1400);
   assert.deepEqual(Buffer.from(c.template(context(c))),fixture);
@@ -99,7 +111,7 @@ test('MH template bytes match 7914219 in zero, mixed and fully populated states'
       for(const key of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[key+'D']=Math.max(S.bz[key+'D'],S.bz[key+'N']);
     }
     const actual=Buffer.from(c.template(context(c,S)));
-    assert.deepEqual(actual,Buffer.from(before.template(context(before,S))),mode);
+    assert.deepEqual(actual,Buffer.from(read('tests/fixtures/mhsunbreak-'+mode+'-template.txt')),mode);
     console.log('MH template bytes '+mode+': '+actual.length+' PASS');
   }
 });
