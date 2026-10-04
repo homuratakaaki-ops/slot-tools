@@ -26,7 +26,17 @@ for(const id of ids){
   assert.ok(guide.match(/<title>(.*?)<\/title>/)[1].startsWith(guide.match(/<h1>(.*?)<\/h1>/)[1]));
   assert.ok(!/濃厚示唆|最強|6確定|設定[○0-9０-９・]*(?:以上)?確定演出|ベイズ|事後確率/.test(guide));
 }
-const map=read('sitemap.xml');assert.equal((baseline('sitemap.xml').match(/<url>/g)||[]).length,78);assert.equal((map.match(/<url>/g)||[]).length,74);
+const map=read('sitemap.xml');
+const locs=s=>[...s.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m=>m[1]);
+const baseLocs=locs(baseline('sitemap.xml')),nowLocs=locs(map);
+assert.equal(baseLocs.length,78);
+// 取り下げた2機種の経路だけが消えていること。以後のページ追加は許容する（§9-92 の運用と両立させる）。
+assert.deepEqual(baseLocs.filter(u=>!nowLocs.includes(u)).sort(),[
+  'https://slot-tools.jp/juuou-checker.html',
+  'https://slot-tools.jp/juuou-guide.html',
+  'https://slot-tools.jp/paripi-checker.html',
+  'https://slot-tools.jp/paripi-guide.html'
+].sort());
 for(const id of ['juuou','paripi']){
   for(const file of ['checkers.html','sitemap.xml','index.html'])assert.ok(!read(file).includes(id),file+' excludes '+id);
   assert.ok(!fs.existsSync(new URL(id+'-guide.html',root)));
@@ -37,14 +47,12 @@ console.log('PASS held machines 2: noindex, no guide files/links, absent from pu
 for(const id of ids)for(const kind of ['checker','guide'])assert.ok(map.includes(`<loc>https://slot-tools.jp/${id}-${kind}.html</loc>\n    <lastmod>2026-10-04</lastmod>`));
 const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
 assert.equal((news.match(/<p>/g)||[]).length,8);
-assert.deepEqual([...news.matchAll(/<p>(.*?)<\/p>/g)].slice(-2).map(m=>m[1]),[
-  '9/25｜<a href="mogumogu-checker.html">モグモグ風林火山 AT終了画面・くまトロフィーの設定示唆を追加</a>',
-  '9/25｜<a href="kabaneri2-checker.html">カバネリ海門決戦 下段ベルの設定差を追加</a>'
-]);
-assert.deepEqual([...news.matchAll(/<p>10\/4｜<a href="([^"]+)/g)].map(m=>m[1]),ids.map(id=>id+'-checker.html'));
+// §9-92 で NEW欄は公開のたびに増えるため、10/4 の行を機種2本に固定しない。
+const oct4=[...news.matchAll(/<p>10\/4｜<a href="([^"]+)/g)].map(m=>m[1]);
+assert.deepEqual(oct4.filter(u=>ids.some(id=>u===id+'-checker.html')),ids.map(id=>id+'-checker.html'));
 const arch=read('docs/ARCHITECTURE.md');assert.equal((arch.match(/25機種/g)||[]).length,2);assert.ok(!arch.includes('23機種'));
 assert.deepEqual(arch.split('\n').filter(l=>l.includes('21機種')),baseline('docs/ARCHITECTURE.md').split('\n').filter(l=>l.includes('21機種')));
-console.log('PASS public routes 2, reciprocal links 2, sitemap 78->74, NEW 8, architecture 2; guides style/meta/wording 2');
+console.log('PASS public routes 2, reciprocal links 2, sitemap 取り下げ4経路, NEW 8, architecture 2; guides style/meta/wording 2');
 for(const id of ['ricorico','toaru2','mhsunbreak']){
   const a=config(id,hitBaseline('checker-data/'+id+'.js')),b=config(id,read('checker-data/'+id+'.js'));
   for(const mode of ['zero','mixed','all']){
