@@ -77,7 +77,7 @@
     ["momiji","紅葉柄","設定5以上濃厚",5,"紅",1],
     ["rainbow","虹","設定6濃厚",6,"虹",1]
   ];
-  const TEMPLATE="モンハンライズサンブレイク\n\n■レア役からのBZ当選率\n弱レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎ 0/0\n強レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎CZ濃厚\n\n■規定リプレイ周期\n①周期▶︎ 0回　②周期▶︎ 0回\n③周期▶︎ 0回　④周期▶︎ 0回\n⑤周期▶︎ 0回\n\nブレイクゾーン▶︎ 0回\nアイルー福引　▶︎ 0回\n\n■ 猛焔一閃直撃\n↪︎BZ突入時に告知される\n\n■AT終了画面\n女(偶数)▶︎ \nﾛﾝﾃﾞｨｰﾈ ▶︎ \nﾙｰﾁｶ       ▶︎ \n\n男(奇数)▶︎ \nｼﾞｪｲ       ▶︎ \nｱﾙﾛｰ       ▶︎ \nｶﾞﾚｱｽ     ▶︎ \n\n高設定弱▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ｱｲﾙｰ\n高設定強▶︎ \n↪︎ﾁｯﾁｪ&ｱｲﾙｰ&ｶﾞﾙｸ\n2否定　▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ﾛﾝﾃﾞｨｰﾈ\n3否定　▶︎ \n↪︎男3人\n2以上　▶︎ \n↪︎ﾋﾉｴ&ﾐﾉﾄ\n5以上　▶︎ \n6確　　▶︎ \n\n■エンディング中スタンプ\n🔵奇  0回・🟡 偶 0回\n🟢弱  0回・🔴 強 0回\n銅 0回・銀 0回・金 0回\n🍁 0回・🌈 0回";
+  const TEMPLATE="モンハンライズサンブレイク\n\n■BZテーブル1回目\n青ｽﾀｰﾄ        ▶︎ \n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■BZテーブル2回目以降\n青ｽﾀｰﾄ        ▶︎ \n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■クエスト成功率\n青ｽﾀｰﾄ        ▶︎ 0/0\n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■レア役からのBZ当選率\n弱レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎ 0/0\n強レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎CZ濃厚\n\n■規定リプレイ周期\n①周期▶︎ 0回　②周期▶︎ 0回\n③周期▶︎ 0回　④周期▶︎ 0回\n⑤周期▶︎ 0回\n\nブレイクゾーン▶︎ 0回\nアイルー福引　▶︎ 0回\n\n■ 猛焔一閃直撃\n↪︎BZ突入時に告知される\n\n■AT終了画面\n女(偶数)▶︎ \nﾛﾝﾃﾞｨｰﾈ ▶︎ \nﾙｰﾁｶ       ▶︎ \n\n男(奇数)▶︎ \nｼﾞｪｲ       ▶︎ \nｱﾙﾛｰ       ▶︎ \nｶﾞﾚｱｽ     ▶︎ \n\n高設定弱▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ｱｲﾙｰ\n高設定強▶︎ \n↪︎ﾁｯﾁｪ&ｱｲﾙｰ&ｶﾞﾙｸ\n2否定　▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ﾛﾝﾃﾞｨｰﾈ\n3否定　▶︎ \n↪︎男3人\n2以上　▶︎ \n↪︎ﾋﾉｴ&ﾐﾉﾄ\n5以上　▶︎ \n6確　　▶︎ \n\n■エンディング中スタンプ\n🔵奇  0回・🟡 偶 0回\n🟢弱  0回・🔴 強 0回\n銅 0回・銀 0回・金 0回\n🍁 0回・🌈 0回";
   function ndRow(ctx,opt){
     const canMinus=opt.d>opt.n;
     const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="${opt.dPath}"`;
@@ -102,9 +102,12 @@
     ['over','獲得枚数表示',OVER,'AT中の獲得枚数表示が該当の数値を超えていたら記録します。246枚 OVERは設定1・3・5を否定する飛び値の示唆なので、カードの確定演出の欄には出しません。'],
     ['stamp','エンディング中スタンプ',STAMP,'エンディング中のレア役成立時に出たスタンプの色を記録します。']
   ];
+  const QUEST=[['blue','クエスト青'],['yellow','クエスト黄'],['raizex','ライゼクス'],['serregios','セルレギオス'],['oromidro','オロミドロ亜種'],['teo','テオ・テスカトル'],['at','SUNBREAK RUSH']];
+  function questD(S,id){return n(S.bzT1,id)+n(S.bzT2,id);}
+  function questHit(S,id){return n(S.questN,id);}
   const zero=arr=>Object.fromEntries(arr.map(c=>[c[0],0]));
-  const DEF={games:0,hits:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null};
-  const MERGE_KEYS=['counts','bz','cycle','czType',...GROUPS.map(g=>g[0])];
+  const DEF={games:0,hits:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null,bzT1:zero(QUEST),bzT2:zero(QUEST),questN:zero(QUEST)};
+  const MERGE_KEYS=['counts','bz','cycle','czType',...GROUPS.map(g=>g[0]),'bzT1','bzT2','questN'];
   function total(arr,state){return arr.reduce((a,c)=>a+n(state,c[0]),0);}
   function czTotal(S){return total(CZ_TYPE,S.czType);}
   function normalizeState(out){
@@ -115,6 +118,7 @@
       Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
     });
     BZ.forEach(c=>{out.bz[c[0]+'N']=Math.min(out.bz[c[0]+'N'],out.bz[c[0]+'D']);});
+    QUEST.forEach(([id])=>{out.questN[id]=Math.min(questHit(out,id),questD(out,id));});
     return out;
   }
   function pageInput(ctx){const S=ctx.S;return hitSection(S)+`
@@ -146,6 +150,23 @@
     <div class="cgrid">${arr.map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
     <div class="hint">${hint}</div>
   </section>`).join('');}
+  function pageBZ(ctx){const S=ctx.S;return `<style>${ND_STYLE}
+    .quest-row .lbl .nm{font-size:16px;overflow-wrap:anywhere}
+    .quest-row .lbl .pct{text-align:left;margin-top:4px}
+  </style>`+[['bzT1','1回目'],['bzT2','2回目以降']].map(([key,title])=>`<section class="sec">
+    <div class="sec-h">${title}</div>
+    <div class="cgrid">${QUEST.map(([id,name])=>{
+      const label=title+' '+name,hit=questHit(S,id),d=questD(S,id);
+      const disabled=ctx.mode<0&&d<=hit?' disabled aria-disabled="true"':'';
+      return `<div class="crow quest-row">
+        <div class="lbl"><div class="nm">${name}</div><div class="pct">${ctx.pct(hit,d)}</div></div>
+        <div class="cycle-actions">
+          <button type="button" class="cycle-btn win" data-bump-many="${key}.${id},questN.${id}" data-label="${label} 成功" aria-label="${label} 成功">${id==='at'?'＋':'成功'}</button>
+          ${id==='at'?'':`<button type="button" class="cycle-btn" data-bump-many="${key}.${id}" data-label="${label} 失敗" aria-label="${label} 失敗"${disabled}>失敗</button>`}
+        </div>
+      </div>`;
+    }).join('')}</div>
+  </section>`).join('')+`<div class="hint">ブレイクゾーン終了時に、どのアイコンからクエストへ発展したかを記録します。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。クエストの結果まで見てから［成功］［失敗］を押してください。記録のみで、設定差は判明していません。</div><div class="hint">訂正は減算モードで同じボタンを押します</div>`;}
   // サブラベルだけを段位表記の出典にする。強さの判定には数値rankを使う。
   function tierText(sub){
     const m=String(sub||'').match(/設定([0-9・]+(?:以上)?)濃厚/);
@@ -163,8 +184,11 @@
   }
   function shown(title,arr,state){const hits=arr.filter(c=>n(state,c[0])>0).map(c=>(c[4]||c[1])+'×'+n(state,c[0]));return title+' '+(hits.length?hits.join('・'):'—');}
   function tplText(ctx){const S=ctx.S,g=hitSum(S),e=S.atEnd;
-    // 正本の空白・異体字セレクタ・改行を保持し、35箇所の値だけ置換する。
+    // 正本の空白・異体字セレクタ・改行を保持し、56箇所の値だけ置換する。
     const values=[
+      ...QUEST.map(c=>n(S.bzT1,c[0])+'回'),
+      ...QUEST.map(c=>n(S.bzT2,c[0])+'回'),
+      ...QUEST.map(c=>questHit(S,c[0])+'/'+questD(S,c[0])),
       ...BZ.map(c=>n(S.bz,c[0]+'N')+'/'+n(S.bz,c[0]+'D')),
       ...CYCLE.map(c=>n(S.cycle,c[0])+'回'),
       ...CZ_TYPE.map(c=>n(S.czType,c[0])+'回'),
@@ -210,7 +234,7 @@
         return `AT当選 ${v}G を削除`;
       }
     },
-    pages:(ctx,pageCard)=>{syncGames(ctx.S);return [()=>pageInput(ctx),()=>pageShisa(ctx),pageCard];},template:tplText,compactTemplate:tplText,
+    pages:(ctx,pageCard)=>{syncGames(ctx.S);return [()=>pageInput(ctx),()=>pageShisa(ctx),()=>pageBZ(ctx),pageCard];},template:tplText,compactTemplate:tplText,
     card:{title:TITLE,titleFitMax:680,gameLabel:'通常',footerTags:TAGS,downloadName:'mhsunbreak_check.png',detailDownloadName:'mhsunbreak_check_detail.png',detail,
       blocks:ctx=>[initialBlock(ctx.S,COUNTS[0]),['通常ゲーム数',hitSum(ctx.S)+'G'],['示唆の記録','計'+hintTotal(ctx.S)+'回'],['確定演出','計'+certCount(ctx.S)+'回']],
       chart:ctx=>({title:'示唆分布',x:150,step:160,width:80,items:[2,3,4,5,6].map(r=>({label:r===6?'6':r+'+',value:certTier(ctx.S,r)}))}),

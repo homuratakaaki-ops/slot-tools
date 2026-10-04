@@ -126,7 +126,7 @@ try{
   `});
   await send('Page.navigate',{url:origin+'/harness'});await pause(100);
   for(const id of ['juuou','paripi','tenten','mhsunbreak']){
-    const cardTab=['mhsunbreak','tenten'].includes(id)?2:1;
+    const cardTab=id==='mhsunbreak'?3:id==='tenten'?2:1;
     await clear(id);
     assert.equal(await frame(`return d.querySelector('#hitIn,#gIn,[data-number-key="gamesMyslo"]').closest('section').querySelector('details')===null;`),!['juuou','mhsunbreak'].includes(id));
     const countKey=id==='juuou'?'sc':id==='paripi'?'cz':'at';
@@ -201,7 +201,7 @@ try{
     assert.ok(await frame(`return d.querySelector('.sec-h').textContent.includes(${JSON.stringify('合計 '+sum+'G')});`));
     const row=await frame(`return d.querySelector('.sumrow').textContent;`);
     assert.equal(row.includes('現在 1/'),!!rate);if(rate)assert.ok(row.includes(rate));
-    await tab(2);const output=await copy();
+    await tab(3);const output=await copy();
     assert.equal(output.split('\n')[1],`通常 ${sum}G / AT${count}回${rate?' '+rate:''}`);
     for(const canvasId of ['cardCanvas','detailCanvas']){
       if(canvasId==='detailCanvas')await click('#detailBtn');
@@ -306,16 +306,16 @@ try{
   const labels=await frame(`return [...d.querySelectorAll('.crow[data-c]')].map(e=>[e.dataset.c,e.querySelector('.nm').textContent,e.querySelector('.mn').textContent]);`);
   // Keep the historical instruction sheet intact; apply the approved wording rule to expectations only.
   assert.deepEqual(labels,groups.flatMap(g=>g.rows.map(r=>[g.key+'.'+r[0],r[1],r[2].replace(/設定([0-9０-９・]*(?:以上)?)確定演出/g,'設定$1濃厚')])));
-  assert.equal(labels.length,31);assert.equal(await frame('return d.querySelectorAll("#nav button").length;'),3);
-  pass('MH 31 exact hint labels/sublabels and 3 tabs');
-  await tab(2);
+  assert.equal(labels.length,31);assert.equal(await frame('return d.querySelectorAll("#nav button").length;'),4);
+  pass('MH 31 exact hint labels/sublabels and 4 tabs');
+  await tab(3);
   const zero=await copy();
-  const original=fs.readFileSync(path.join(root,'docs/specs/mhsunbreak-nana-template-v01.txt'),'utf8');
-  const expected='設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+original.replace(/▶︎ (?=\r?\n)/g,'▶︎ 0回')+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様';
-  assert.equal(zero,expected);assert.equal((original.match(/▶︎ (?=\r?\n)/g)||[]).length,14);
+  const original=fs.readFileSync(path.join(root,'docs/specs/mhsunbreak-nana-template-v02.txt'),'utf8');
+  const expected='設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+original.split('■').map(section=>section.replace(/▶︎ (?=\r?\n)/g,'▶︎ '+(section.startsWith('クエスト成功率')?'0/0':'0回'))).join('■')+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様';
+  assert.equal(zero,expected);assert.equal((original.match(/▶︎ (?=\r?\n)/g)||[]).length,34);
   fs.writeFileSync(path.join(artifacts,'mhsunbreak-zero-template.txt'),zero);
   const plain=await copy(true);assert.ok(plain.includes('1周期→ 0回'));assert.ok(plain.includes('→BZ突入時に告知される'));assert.ok(!/[▶↪①-⑤\uFE0E\uFE0F]|\p{Emoji_Presentation}/u.test(plain));
-  pass('MH zero-template bytes (14 filled lines) and plain-copy substitutions');
+  pass('MH zero-template bytes (34 filled lines) and plain-copy substitutions');
   const screenTargets={
     jay:['男(奇数)▶︎ ','ｼﾞｪｲ       ▶︎ '],arlo:['男(奇数)▶︎ ','ｱﾙﾛｰ       ▶︎ '],galeas:['男(奇数)▶︎ ','ｶﾞﾚｱｽ     ▶︎ '],
     rondine:['女(偶数)▶︎ ','ﾛﾝﾃﾞｨｰﾈ ▶︎ '],luchika:['女(偶数)▶︎ ','ﾙｰﾁｶ       ▶︎ '],
@@ -325,7 +325,7 @@ try{
   const stampTargets={blue:'🔵奇  ',yellow:'🟡 偶 ',green:'🟢弱  ',red:'🔴 強 ',bronze:'銅 ',silver:'銀 ',gold:'金 ',momiji:'🍁 ',rainbow:'🌈 '};
   // Every input goes through a production click, then its output is compared and undone.
   for(const g of groups)for(const r of g.rows){
-    await tab(1);await bump(g.key+'.'+r[0]);await tab(2);
+    await tab(1);await bump(g.key+'.'+r[0]);await tab(3);
     const output=await copy();const changed=output.split('\n').flatMap((l,i)=>l===zero.split('\n')[i]?[]:[i]);
     const expectedChanges=g.key==='trophy'||g.key==='over'?0:g.key==='atEnd'&&['jay','arlo','galeas','rondine','luchika'].includes(r[0])?2:1;
     assert.equal(changed.length,expectedChanges,g.key+'.'+r[0]+' template delta');
@@ -349,9 +349,9 @@ try{
     const fullName={'weakNormal':'弱レア 通常','weakHigh':'弱レア 高確','weakSuper':'弱レア 超高確','strongNormal':'強レア 通常','strongHigh':'強レア 高確'}[key];
     await click(selector);assert.equal((await state()).bz[key+'D'],1);assert.equal((await state()).bz[key+'N'],1);
     assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(fullName+' 当選'));
-    await tab(2);
+    await tab(3);
     const winTemplate=await copy();
-    const ratioMatch=[...zero.matchAll(/0\/0/g)][bz.indexOf(key)];
+    const ratioMatch=[...zero.matchAll(/0\/0/g)][7+bz.indexOf(key)];
     assert.equal(winTemplate,zero.slice(0,ratioMatch.index)+'1/1'+zero.slice(ratioMatch.index+3));
     await tab(0);
     await click('#modeBtn');
@@ -361,14 +361,14 @@ try{
     assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(fullName+' 当選'));
     await click('#modeBtn');await click('#undoBtn');
     await click(`[data-bump="bz.${key}D"]`);
-    await tab(2);assert.equal(await copy(),zero.slice(0,ratioMatch.index)+'0/1'+zero.slice(ratioMatch.index+3));
+    await tab(3);assert.equal(await copy(),zero.slice(0,ratioMatch.index)+'0/1'+zero.slice(ratioMatch.index+3));
     await tab(0);await click('#modeBtn');await click(`[data-bump="bz.${key}D"]`);
     assert.equal((await state()).bz[key+'D'],0);await click('#undoBtn');await click('#modeBtn');
     await click('#undoBtn');
   }
   pass('MH five n/d rows: wins/misses, minus disabled at n=d, undo and template values');
   for(const key of ['cycle.c1','cycle.c2','cycle.c3','cycle.c4','cycle.c5','czType.breakzone','czType.airou']){
-    await tab(0);await bump(key);await tab(2);
+    await tab(0);await bump(key);await tab(3);
     assert.equal((await copy()).split('\n').filter((l,i)=>l!==zero.split('\n')[i]).length,1,key);
     const prefix=key.startsWith('cycle.')?['①','②','③','④','⑤'][Number(key.at(-1))-1]+'周期▶︎ ':key==='czType.breakzone'?'ブレイクゾーン▶︎ ':'アイルー福引　▶︎ ';
     assert.equal(await copy(),zero.replace(prefix+'0回',prefix+'1回'));
@@ -377,7 +377,7 @@ try{
   pass('MH cycle/CZ single-input template deltas');
   await tab(0);await bump('czType.breakzone');await bump('czType.airou');await bump('czType.airou');
   const percents=await frame(`return [...d.querySelectorAll('[data-c^="czType."] .pct')].map(e=>e.textContent);`);
-  assert.deepEqual(percents,['1/3 33%','2/3 67%']);await tab(2);await click('#detailBtn');
+  assert.deepEqual(percents,['1/3 33%','2/3 67%']);await tab(3);await click('#detailBtn');
   const detail=await canvas('detailCanvas');assert.ok(detail.text.some(t=>t.text.includes('ブレイクゾーン ×1 (33%)')));assert.ok(detail.text.some(t=>t.text.includes('アイルー福引 ×2 (67%)')));
   pass('MH CZ denominator matches screen/detail');
   await clear('mhsunbreak');await tab(1);
@@ -385,7 +385,7 @@ try{
   await tab(0);await games(1000);
   for(const key of bz)await click(`[data-bump-many="bz.${key}D,bz.${key}N"]`);
   for(const key of ['cycle.c1','cycle.c2','cycle.c3','cycle.c4','cycle.c5','czType.breakzone','czType.airou'])await bump(key);
-  await tab(2);
+  await tab(3);
   const allCard=await canvas('cardCanvas');
   const summary=allCard.text.filter(t=>[70,560].includes(t.x)&&t.y>=752&&t.y<=936);
   assert.equal(summary.length,10);
@@ -399,7 +399,54 @@ try{
   assert.ok(allCard.bright>1000&&allCard.opaque===allCard.width*allCard.height);
   pass('MH all-31 summary: 5+5 rows, Y896, fitted visible bounds and pixels',{rows:summary,minFont,overflow:overflow.length,leftOverhang,lastY:Math.max(...summary.map(t=>t.y))});
   saveCanvas('mhsunbreak-all-card',allCard);await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
-  // v02: held pages stay usable, but have neither public navigation nor guide links.
+  // MH template v02: actual BZ buttons and persisted state.
+  await clear('mhsunbreak');await tab(2);
+  const questIds=['blue','yellow','raizex','serregios','oromidro','teo','at'];
+  const questClick=(key,id,success)=>click(`[data-bump-many="${key}.${id}${success?',questN.'+id:''}"]`);
+  assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),14);
+  assert.equal(await frame('return d.querySelectorAll(".quest-row button").length;'),26);
+  for(const key of ['bzT1','bzT2'])for(const id of questIds){
+    await questClick(key,id,true);
+    let s=await state();assert.equal(s[key][id],1);assert.equal(s.questN[id],1);
+    assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(key==='bzT1'?'1回目':'2回目以降'));
+    await click('#modeBtn');
+    if(id!=='at')assert.equal(await frame(`const b=d.querySelector('[data-bump-many="${key}.${id}"]');return b.disabled&&b.getAttribute('aria-disabled')==='true';`),true);
+    await questClick(key,id,true);s=await state();assert.equal(s[key][id],0);assert.equal(s.questN[id],0);
+    await click('#undoBtn');s=await state();assert.equal(s[key][id],1);assert.equal(s.questN[id],1);
+    await click('#modeBtn');await click('#undoBtn');
+    if(id!=='at'){
+      await questClick(key,id,false);await click('#modeBtn');
+      assert.equal(await frame(`return d.querySelector('[data-bump-many="${key}.${id}"]').disabled;`),false);
+      await questClick(key,id,false);assert.equal((await state())[key][id],0);
+      await click('#undoBtn');await click('#modeBtn');await click('#undoBtn');
+    }
+  }
+  pass('MH v02 all 26 buttons: feed, atomic undo, minus guard and successful decrement');
+  await questClick('bzT1','blue',true);await questClick('bzT1','blue',false);await questClick('bzT2','at',true);
+  const bzState=await state();await tab(3);
+  const bzTemplate=await copy(),zeroLines=zero.split('\n');
+  const changes=bzTemplate.split('\n').flatMap((line,i)=>line===zeroLines[i]?[]:[{line:i+1,before:zeroLines[i],after:line}]);
+  assert.equal(changes.length,4);assert.deepEqual(changes.map(x=>x.after.trim().split('▶︎ ')[1]),['2回','1回','1/2','1/1']);
+  pass('MH v02 exactly four requested template lines',changes);
+  await click('#undoBtn');let undone=await state();assert.equal(undone.bzT2.at,0);assert.equal(undone.questN.at,0);assert.equal(undone.bzT1.blue,2);assert.equal(undone.questN.blue,1);
+  await tab(2);await questClick('bzT2','at',true);await tab(0);await reset();
+  for(const key of ['bzT1','bzT2','questN'])assert.ok(Object.values((await state())[key]).every(v=>v===0));
+  await click('#undoBtn');for(const key of ['bzT1','bzT2','questN'])assert.deepEqual((await state())[key],bzState[key]);
+  await load('mhsunbreak');for(const key of ['bzT1','bzT2','questN'])assert.deepEqual((await state())[key],bzState[key]);
+  pass('MH v02 reset/undo and persisted reload preserve all three new groups');
+  for(const width of [360,390]){
+    await load('mhsunbreak',width,530);await tab(2);await measure('mhsunbreak-bz-v02-'+width);
+    const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});
+    fs.writeFileSync(path.join(artifacts,'mhsunbreak-bz-v02-'+width+'.png'),Buffer.from(shot.data,'base64'));
+  }
+  await evaluate(`localStorage.setItem('mhsunbreak-checker-v1',JSON.stringify({hits:[300],cycle:{c1:2},atEnd:{jay:1}}));`);
+  await load('mhsunbreak');await tab(2);
+  assert.equal(await frame('return d.querySelectorAll(".quest-row .pct")[0].textContent;'),'0/0 —');
+  await questClick('bzT1','yellow',true);
+  const legacyBZ=await state();assert.equal(legacyBZ.cycle.c1,2);assert.equal(legacyBZ.atEnd.jay,1);assert.deepEqual(legacyBZ.hits,[300]);
+  assert.deepEqual(await frame('return w.__errors;'),[]);
+  pass('MH v02 old save without new keys loads and preserves existing counts');
+  // Held pages stay usable, but have neither public navigation nor guide links.
   for(const id of ['juuou','paripi']){
     assert.equal((await fetch(origin+'/'+id+'-checker.html')).status,200);
     await load(id);
