@@ -281,8 +281,14 @@ try{
       for(const value of await frame(`return [d.title,d.querySelector('[property="og:title"]').content];`))assert.equal(value,'設定判別カウンター｜機種を選ぶ｜スロット稼働ノート');
       assert.equal(await frame(`return d.querySelector('p.lead');`),null);
       assert.equal(await frame(`return d.querySelector('header p').textContent;`),'設定推測ツールと機種別カウンターを、目的に合わせて選ぶための一覧です。');
-      assert.ok((await frame(`return d.querySelector('p.note').textContent;`)).includes('設定判別ツール'));
-    }else assert.ok((await frame(`return [...d.querySelectorAll('a[href="checkers.html"]')].map(e=>e.textContent);`)).includes('設定判別カウンター一覧'));
+      assert.equal(await frame(`return d.querySelectorAll('p.note').length;`),0);
+      assert.equal(await frame(`return d.querySelectorAll('a[href="juggler-record.html"],a[href="juggler-guide.html"]').length;`),0);
+    }else{
+      assert.ok((await frame(`return [...d.querySelectorAll('a[href="checkers.html"]')].map(e=>e.textContent);`)).includes('設定判別カウンター一覧'));
+      assert.equal(await frame(`return d.querySelector('a[href="checkers.html"]').closest('.tool-card').querySelector('h2').textContent;`),'設定判別カウンター（機種を選ぶ）');
+      assert.equal(await frame(`return d.querySelector('a[href="juggler-record.html"]').closest('.tool-card').querySelector('h2').textContent;`),'ジャグラー実戦記録・設定推測');
+      assert.equal(await frame(`return d.querySelectorAll('a[href="juggler-guide.html"]').length;`),1);
+    }
     pass(page+' requested wording via real DOM');
   }
   // Independent expectations come from the issuer's tables and immutable template.
