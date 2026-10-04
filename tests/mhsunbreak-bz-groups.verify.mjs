@@ -12,16 +12,23 @@ const clone=x=>JSON.parse(JSON.stringify(x));
 const ids=Object.keys(config.defaults.questN1);
 const ctx=(S,mode=1)=>({S,mode,pct:(n,d)=>n+'/'+d+' '+(d?Math.round(n/d*100)+'%':'—'),nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 const html=(S,mode=1)=>config.pages(ctx(S,mode),()=> '')[2]();
-const sections=S=>[...html(S).matchAll(/<section class="sec">([\s\S]*?)<\/section>/g)].map(m=>m[1]);
-const blue=S=>sections(S).map(s=>s.match(/class="pct">([^<]*)/)[1]);
+const sectionByTitle=(S,title)=>{
+  const secs=[...html(S).matchAll(/<section class="sec">([\s\S]*?)<\/section>/g)].map(m=>m[1]);
+  const hit=secs.find(s=>{const m=s.match(/class="sec-h">([^<]*)/);return m&&m[1].trim()===title;});
+  if(!hit)throw new Error('section not found: '+title);
+  return hit;
+};
+const blue=S=>['1回目','2回目以降','クエスト成功率（合算）'].map(title=>sectionByTitle(S,title).match(/class="pct">([^<]*)/)[1]);
 // Exercise the paths declared by the generated button; production clicks are
 // covered separately by new-1005-four-machines.browser.mjs.
 function tap(S,key,id,success){
   const nKey=key==='bzT1'?'questN1':'questN2';
   const paths=key+'.'+id+(success?','+nKey+'.'+id:'');
-  const button=[...html(S).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]).find(b=>b.includes('data-bump-many="'+paths+'"'));
+  const button=[...html(S).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]).find(b=>b.includes('data-action="bzQuest"')&&b.includes('data-d="'+key+'"')&&b.includes('data-q="'+id+'"')&&b.includes('data-r="'+(success?'win':'miss')+'"'));
   assert.ok(button,paths);
-  for(const p of button.match(/data-bump-many="([^"]+)"/)[1].split(',')){const [g,k]=p.split('.');S[g][k]++;}
+  const d=button.match(/data-d="([^"]+)"/)[1],q=button.match(/data-q="([^"]+)"/)[1];
+  S[d][q]++;
+  if(button.includes('data-r="win"'))S[d==='bzT1'?'questN1':'questN2'][q]++;
 }
 let count=0;
 function test(name,fn){fn();count++;console.log('PASS '+name);}
@@ -32,7 +39,7 @@ test('group independence and read-only seven-row aggregate',()=>{
   assert.deepEqual(blue(S),['1/2 50%','0/0 —','1/2 50%']);
   tap(S,'bzT2','blue',true);
   assert.deepEqual(blue(S),['1/2 50%','1/1 100%','2/3 67%']);
-  const aggregate=sections(S)[2];
+  const aggregate=sectionByTitle(S,'クエスト成功率（合算）');
   assert.equal((aggregate.match(/class="crow quest-row"/g)||[]).length,7);
   assert.doesNotMatch(aggregate,/<button\b|data-(?:c|bump|bump-many)=/);
   assert.ok(aggregate.includes('テンプレに出る成功率です（1回目＋2回目以降）'));
@@ -53,7 +60,7 @@ test('per-group clamp and minus failure guard',()=>{
   for(const id of ids){assert.equal(S.questN1[id],2);assert.equal(S.questN2[id],3);}
   S.bzT2.blue=4;
   const buttons=[...html(S,-1).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]);
-  const failure=key=>buttons.find(b=>b.includes('data-bump-many="'+key+'.blue"'));
+  const failure=key=>buttons.find(b=>b.includes('data-d="'+key+'"')&&b.includes('data-q="blue"')&&b.includes('data-r="miss"'));
   assert.match(failure('bzT1'),/ disabled aria-disabled="true"/);
   assert.doesNotMatch(failure('bzT2'),/disabled/);
 });
@@ -77,7 +84,7 @@ test('legacy migration retains totals, removes old key and is idempotent',()=>{
   const S=clone(config.defaults);S.bzT1.blue=2;S.questN1.blue=1;S.questN={blue:9};
   config.normalizeState(S);assert.equal(S.questN1.blue,1);assert.ok(!Object.hasOwn(S,'questN'));
 });
-test('template buffers unchanged against 006e842 for zero and all quest rows',()=>{
+test('template buffers add only the v03 memo heading against 006e842 for zero and all quest rows',()=>{
   const old=load(execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,''),'show','006e842:checker-data/mhsunbreak.js'],{encoding:'utf8',cwd:root}));
   for(const filled of [false,true]){
     const S=clone(config.defaults),previous=clone(old.defaults);
@@ -85,7 +92,7 @@ test('template buffers unchanged against 006e842 for zero and all quest rows',()
       S.bzT1[id]=previous.bzT1[id]=i+2;S.bzT2[id]=previous.bzT2[id]=i+3;
       S.questN1[id]=i+1;S.questN2[id]=2;previous.questN[id]=i+3;
     });
-    assert.deepEqual(Buffer.from(config.template(ctx(S))),Buffer.from(old.template(ctx(previous))));
+    assert.deepEqual(Buffer.from(config.template(ctx(S))),Buffer.from(old.template(ctx(previous)).replace('■レア役からのBZ当選率','■BZ配列メモ\n\n■レア役からのBZ当選率')));
   }
 });
 test('all 28 checker headers omit UI version labels',()=>{

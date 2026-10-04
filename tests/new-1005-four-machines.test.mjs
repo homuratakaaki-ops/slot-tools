@@ -90,7 +90,7 @@ test('HTML contract: original CSS apart from specified nav count, public links a
     // 設定判別カウンターにはUIバージョン文字列を出さない（AGENTS 作業規約4）。
     assert.doesNotMatch(html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)[0],/\bUI\s/,id);
     assert.ok(html.includes('checker-engine.js?v=20260924'));
-    assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'+({mhsunbreak:'-5',juuou:'-2',tenten:'-4',paripi:''}[id])+'"'));
+    assert.ok(html.includes('checker-data/'+id+'.js?v='+({mhsunbreak:'20261005',juuou:'20261004-2',tenten:'20261004-4',paripi:'20261004'}[id])+'"'));
     assert.ok(!html.includes('\r')&&!js.includes('\r'));
     assert.equal(configs[id].template,configs[id].compactTemplate);
     if(id==='juuou')assert.ok(!html.includes('設定3')&&!js.includes('設定3'));
@@ -98,14 +98,14 @@ test('HTML contract: original CSS apart from specified nav count, public links a
 });
 
 test('MH template preserves original bytes except the 34 blank values and wrapper',()=>{
-  const c=configs.mhsunbreak,original=read('docs/specs/mhsunbreak-nana-template-v02.txt');
+  const c=configs.mhsunbreak,original=read('docs/specs/mhsunbreak-nana-template-v03.txt');
   let section='';
   const body=original.split('\n').map(line=>{if(line.startsWith('■'))section=line;return line.replace(/▶︎ $/,'▶︎ '+(section==='■クエスト成功率'?'0/0':'0回'));}).join('\n');
   assert.equal(c.template(context(c)),'設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+body+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様');
   assert.equal((original.match(/▶︎ (?=\n)/g)||[]).length,34);
 });
 
-test('v02 template keeps the v02 golden bytes without regex lookbehind',()=>{
+test('v03 template keeps the v03 golden bytes without regex lookbehind',()=>{
   assert.ok(!/\(\?<([=!])/.test(read('checker-data/mhsunbreak.js')));
   assert.equal(configs.mhsunbreak.template(context(configs.mhsunbreak)),read('tests/fixtures/mhsunbreak-zero-template.txt'));
 });
@@ -113,7 +113,7 @@ test('v02 template keeps the v02 golden bytes without regex lookbehind',()=>{
 test('MH template bytes match the golden files in zero, mixed and fully populated states',()=>{
   const c=configs.mhsunbreak;
   const fixture=Buffer.from(read('tests/fixtures/mhsunbreak-zero-template.txt'));
-  assert.equal(fixture.length,2230);
+  assert.equal(fixture.length,2230+Buffer.byteLength('■BZ配列メモ\n\n'));
   assert.deepEqual(Buffer.from(c.template(context(c))),fixture);
   for(const mode of ['zero','mixed','all']){
     const S=clone(c.defaults);let index=0;
@@ -130,4 +130,20 @@ test('MH template bytes match the golden files in zero, mixed and fully populate
     assert.deepEqual(actual,Buffer.from(read('tests/fixtures/mhsunbreak-'+mode+'-template.txt')),mode);
     console.log('MH template bytes '+mode+': '+actual.length+' PASS');
   }
+});
+
+test('MH v03 memo maps every icon/quest, preserves order and does not truncate output',()=>{
+  const c=configs.mhsunbreak,S=clone(c.defaults);
+  const icons=['qBlue','qYellow','rai','sel','oro','teo','rush','gold','blaze','unknown'];
+  const quests={blue:'青ｽﾀｰﾄ',yellow:'黄ｽﾀｰﾄ',raizex:'ﾗｲｾﾞｸｽ',serregios:'ｾﾙﾚｷﾞｵｽ',oromidro:'ｵﾛﾐﾄﾞﾛ亜種',teo:'ﾃｵﾃｽｶﾄﾙ',at:'AT'};
+  const expected=[];
+  for(let i=0;i<205;i++){
+    const quest=Object.keys(quests)[i%7],result=i%2?'miss':'win',group=i%2?'bzT2':'bzT1';
+    S.iconLog.push({icons,quest,result,group});
+    expected.push((i%2?'2回目〜':'1回目')+' 🔵🟡ﾗｾｵﾃ🌈＋炎？→'+quests[quest]+(quest==='at'||result==='win'?'○':'×'));
+  }
+  const output=c.template(context(c,S));
+  assert.deepEqual(Buffer.from(output.split('■BZ配列メモ\n')[1].split('\n\n■レア役')[0]),Buffer.from(expected.join('\n')));
+  assert.deepEqual(Buffer.from(output.replace(expected.join('\n')+'\n','')),Buffer.from(read('tests/fixtures/mhsunbreak-zero-template.txt')));
+  assert.ok(!Object.hasOwn(c.actions,'bzIconCopy'));
 });
