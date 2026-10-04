@@ -4,28 +4,6 @@
 
   // 出典: https://chonborista.com/slot/universal-slot/228995/
   // 取得日: 2026-09-29 / 信頼区分: official（解析サイト掲載値）。
-  const SETTINGS=[1,2,3,4,5,6];
-  const DENOMS={
-    bonus:{1:240.6,2:236.1,3:222.8,4:208.5,5:195.1,6:184.3},
-    at:{1:654.6,2:633.4,3:571.8,4:516.6,5:456.5,6:416.7},
-    weakCherry:{1:60.0,2:57.7,3:55.5,4:53.5,5:51.7,6:50.0}
-  };
-  // 出典本文は、さな滞在時の48.4%＋1.6%を「スイカの50%でCZ」と説明。
-  // そのため、さな以外もマギア＋黒江の合算をCZ当選率として採用する。
-  const CZ_SOURCE={
-    magia:{1:.199,2:.223,3:.246,4:.273,5:.301,6:.328},
-    kuroe:{1:.004,2:.004,3:.004,4:.008,5:.008,6:.008},
-    combined:{1:.203,2:.227,3:.250,4:.281,5:.309,6:.336}
-  };
-  // rowspan展開済み。公表値の丸めによる行合計のずれも補正せず、そのまま使う。
-  const EPISODE_PROBS={
-    1:{yachiyo:.281,tsuruno:.281,sana:.219,felicia:.219,kuroe:.001},
-    2:{yachiyo:.327,tsuruno:.234,sana:.219,felicia:.219,kuroe:.001},
-    3:{yachiyo:.234,tsuruno:.313,sana:.219,felicia:.219,kuroe:.016},
-    4:{yachiyo:.281,tsuruno:.156,sana:.313,felicia:.234,kuroe:.016},
-    5:{yachiyo:.172,tsuruno:.219,sana:.234,felicia:.313,kuroe:.063},
-    6:{yachiyo:.234,tsuruno:.141,sana:.313,felicia:.250,kuroe:.063}
-  };
   // 参考記録のみ。見た目と内部の報酬レベルは完全一致しないため推測には渡さない。
   const MITAMA_PROBS={
     blue:{1:.008,2:.012,3:.023,4:.047,5:.063,6:.078},
@@ -125,8 +103,8 @@
   ];
   const GROUPS=[
     ['plates','ユニバプレート',PLATES,false,'AT終了画面でサブ液晶に出た色を記録します。ホールが任意で表示する店長カスタムもあるため、出たときだけ記録してください。'],
-    ['bigScreens','BIG終了画面',BIG_SCREENS,true,'BIGの終了画面を毎回記録します。キャラ単体など下記以外の画面はすべてデフォルトです。水着みかづき荘・キービジュアル2種・小さいキュゥべえは確定演出なので設定推測にも使います。設定3・5・6示唆と設定2・4・6示唆、高設定示唆の弱・強は、振り分けの数値が公表されていないため記録のみです。'],
-    ['atScreens','AT終了画面',AT_SCREENS,true,'ATが終わった時の画面を記録。キャラなしの画面は背景が数種類ありますが、どれもデフォルトです。「まどか＆いろは」は設定6濃厚なので設定推測にも使います。設定3・5・6示唆と設定2・4・6示唆の2つは、振り分けの数値が公表されていないため記録のみです。'],
+    ['bigScreens','BIG終了画面',BIG_SCREENS,true,'BIGの終了画面を毎回記録します。キャラ単体など下記以外の画面はすべてデフォルトです。水着みかづき荘・キービジュアル2種・小さいキュゥべえはカードの確定演出として数えます。設定3・5・6示唆と設定2・4・6示唆、高設定示唆の弱・強は、振り分けの数値が公表されていないため記録のみです。'],
+    ['atScreens','AT終了画面',AT_SCREENS,true,'ATが終わった時の画面を記録。キャラなしの画面は背景が数種類ありますが、どれもデフォルトです。「まどか＆いろは」は設定6濃厚で、カードの確定演出として数えます。設定3・5・6示唆と設定2・4・6示唆の2つは、振り分けの数値が公表されていないため記録のみです。'],
     ['chars','キャラ紹介',CHARS,true,'紹介メンバーの並びでパターンを判別。ストーリーコンプリート後、またはエンブリオ・イブ覚醒中のSTORY当選時に出現するキャラ紹介シナリオで設定を示唆します。パターンが分からなかった回は記録しないでください。\n'+CHAR_MEMBERS.map(c=>c[0]+' '+c[1]).join('\n')],
     ['edCards','エンディング中のカード',ED_CARDS,true,'エンディング中のレア役成立時にサブ液晶へ出ます。出たカードをそのまま記録してください。'],
     ['story','ストーリーの順番',STORY,true,'AT中のストーリー紹介順を記録します。1話または3話スタートは奇数示唆系、2話または4話スタートは偶数示唆系、5話スタートは否定系で、降順が崩れた部分の設定を否定します（5→1なら1否定、5→4→2なら2否定）。全て降順なら設定5以上濃厚です。'],
@@ -137,14 +115,14 @@
     ['greenR','greenW','発展（緑）','報酬レベル3']
   ];
   const REFERENCE=[
-    ['BIG終了画面','示唆タブで画面ごとに記録できます。確定演出の4種は設定推測にも使い、示唆系4種は振り分けが非公表のため記録のみです'],
+    ['BIG終了画面','示唆タブで画面ごとに記録できます。確定演出の4種はカードの確定演出として数え、示唆系4種は振り分けが非公表のため記録のみです'],
     ['AT終了画面','示唆タブで画面ごとに記録できます。ユニバプレートはこの画面のサブ液晶に出ます'],
     ['魔法少女モード選択率','高設定ほどいろは以外から始まりやすいが、遊技中にモードを確定できないため対象外'],
     ['高確移行率','AT後・BB後の移行率に設定差があるが、遊技中に滞在状態を判定できないため対象外']
   ];
   // 規定ptゾーンの到達／当選（記録のみ）。
   // ゾーンごとの当選率は理論値・実戦値のどちらも公表されていないため、サブラベルは空にし、
-  // 設定推測にも使わない。数値が使えるようになったらサブを足すだけで済む形にしてある。
+  // 確定演出としても数えない。数値が使えるようになったらサブを足すだけで済む形にしてある。
   const ZONES=['100','200','300','400','500','600','700','800'];
   const GAME_SRC=[['unimemo','ユニメモで記録'],['real','実機の通常ゲーム数で記録']];
   const MERGE_KEYS=['counts','rates','zones','plates','bigScreens','atScreens','chars','edCards','story','episodes','mitama'];
@@ -181,55 +159,31 @@
   function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:`${a}/0 —`;}
   function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
   function section(title,lines){return lines.length?`\n■${title}\n${lines.join('\n')}\n`:'';}
-  function denomProbs(key){return Object.fromEntries(SETTINGS.map(s=>[s,1/DENOMS[key][s]]));}
-  function bayesExclusions(S){
+  function certList(S){
     return [
-      ...PLATES.map(c=>({label:'ユニバプレート '+c[1],count:n(S.plates,c[0]),exclude:SETTINGS.filter(s=>s<c[3])})),
+      ...PLATES.map(c=>({label:'ユニバプレート '+c[1],count:n(S.plates,c[0])})),
       // BIG終了画面の確定演出。rank から除外する設定を作るのでラベルと同じ1箇所で完結する。
-      ...BIG_SCREENS.filter(c=>c[3]>0).map(c=>({label:'BIG終了画面 '+c[1],count:n(S.bigScreens,c[0]),exclude:SETTINGS.filter(s=>s<c[3])})),
-      {label:'AT終了画面 まどか＆いろは',count:n(S.atScreens,'madokaIroha'),exclude:[1,2,3,4,5]},
-      {label:'キャラ紹介 ⑨小さいキュゥべえ',count:n(S.chars,'p9'),exclude:[1,2,3,4]},
-      {label:'EDカード 石中魚の魔女',count:n(S.edCards,'sekichuugyo'),exclude:[2]},
-      {label:'EDカード 立ち耳の魔女',count:n(S.edCards,'tachimimi'),exclude:[3]},
-      {label:'EDカード 振子の魔女',count:n(S.edCards,'furiko'),exclude:[4]},
-      {label:'EDカード 委員長の魔女',count:n(S.edCards,'iinchou'),exclude:[1]},
-      {label:'EDカード ヨダカの魔女',count:n(S.edCards,'yodaka'),exclude:[4]},
-      {label:'EDカード 舞台装置の魔女',count:n(S.edCards,'butaisouchi'),exclude:[1,2,3]},
-      {label:'ストーリー 設定1否定',count:n(S.story,'deny1'),exclude:[1]},
-      {label:'ストーリー 設定2否定',count:n(S.story,'deny2'),exclude:[2]},
-      {label:'ストーリー 設定3否定',count:n(S.story,'deny3'),exclude:[3]},
-      {label:'ストーリー 設定1否定かつ高設定',count:n(S.story,'deny1High'),exclude:[1]},
-      {label:'ストーリー 全て降順',count:n(S.story,'descAll'),exclude:[1,2,3,4]}
+      ...BIG_SCREENS.filter(c=>c[3]>0).map(c=>({label:'BIG終了画面 '+c[1],count:n(S.bigScreens,c[0])})),
+      {label:'AT終了画面 まどか＆いろは',count:n(S.atScreens,'madokaIroha')},
+      {label:'キャラ紹介 ⑨小さいキュゥべえ',count:n(S.chars,'p9')},
+      {label:'EDカード 石中魚の魔女',count:n(S.edCards,'sekichuugyo')},
+      {label:'EDカード 立ち耳の魔女',count:n(S.edCards,'tachimimi')},
+      {label:'EDカード 振子の魔女',count:n(S.edCards,'furiko')},
+      {label:'EDカード 委員長の魔女',count:n(S.edCards,'iinchou')},
+      {label:'EDカード ヨダカの魔女',count:n(S.edCards,'yodaka')},
+      {label:'EDカード 舞台装置の魔女',count:n(S.edCards,'butaisouchi')},
+      {label:'ストーリー 設定1否定',count:n(S.story,'deny1')},
+      {label:'ストーリー 設定2否定',count:n(S.story,'deny2')},
+      {label:'ストーリー 設定3否定',count:n(S.story,'deny3')},
+      {label:'ストーリー 設定1否定かつ高設定',count:n(S.story,'deny1High')},
+      {label:'ストーリー 全て降順',count:n(S.story,'descAll')}
     ];
   }
-  function certCount(S){return bayesExclusions(S).reduce((a,c)=>a+c.count,0);}
+  function certCount(S){return certList(S).reduce((a,c)=>a+c.count,0);}
   function bestCert(S){
     const hit=GROUPS.flatMap(g=>g[2].filter(c=>c[3]>0).map(c=>({label:c[1],rank:c[3],value:n(S[g[0]],c[0])})))
       .filter(c=>c.value>0).sort((a,b)=>b.rank-a.rank)[0];
     return hit?`確定演出 ${hit.label}(${hit.rank===6?'6濃厚':hit.rank+'以上'}) ×${hit.value}`:'確定演出 なし';
-  }
-  function bayesSpec(S){
-    const g=denom(S),binomial=[];
-    if(g>0)binomial.push({label:'AT初当り',hit:n(S.counts,'at'),total:g,probs:denomProbs('at')});
-    // 弱チェリーは分母が別（ユニメモ＝総プレイ数／実機＝通常ゲーム数）
-    const cd=cherryDenom(S);
-    if(cd>0)binomial.push({label:'弱チェリー',hit:cherryHit(S),total:cd,probs:denomProbs('weakCherry')});
-    if(n(S.rates,'suikaCzr')>0)binomial.push({label:'スイカからのCZ当選',hit:n(S.rates,'suikaCzw'),total:n(S.rates,'suikaCzr'),probs:CZ_SOURCE.combined});
-    return {settings:SETTINGS,binomial,multinomial:[{label:'エピソード選択',counts:Object.fromEntries(EPISODES.map(c=>[c[0],n(S.episodes,c[0])])),probs:EPISODE_PROBS}],exclusions:bayesExclusions(S)};
-  }
-  function bayesResult(S){return window.CheckerBayes?window.CheckerBayes.estimate(bayesSpec(S)):{empty:true};}
-  function bayesPct(v){return window.CheckerBayes?window.CheckerBayes.percent(v):'--';}
-  function bayesExcludedSettings(result){
-    const set=new Set();
-    (result.reasons||[]).forEach(r=>(r.exclude||[]).forEach(s=>set.add(Number(s))));
-    return Array.from(set).sort((a,b)=>a-b);
-  }
-  function bayesUnder4(S){const r=bayesResult(S);return r.posterior?SETTINGS.filter(s=>s<=3).reduce((a,s)=>a+(r.posterior[s]||0),0):0;}
-  function bayesExcludeSummary(S){
-    const r=bayesResult(S);
-    if(r.contradiction)return row('除外 矛盾',1,true,'#ff5c5c');
-    const excluded=bayesExcludedSettings(r);
-    return row(excluded.length?'除外 設'+excluded.join(','):'除外 −',excluded.length,excluded.length>0);
   }
   function normalizeState(out){
     out.gameSrc=gameSrcOf(out);
@@ -265,14 +219,14 @@
         ${ctx.crow('counts.at','AT初当り',`設1:1/654.6⇔設6:1/416.7${rateSuffix(g,n(S.counts,'at'))}`,1)}
         ${ctx.crow('counts.bonus','ボーナス初当り',`設1:1/240.6⇔設6:1/184.3${rateSuffix(g,n(S.counts,'bonus'))}`,0)}
       </div>
-      <div class="hint">ボーナス初当りは記録のみです。AT初当りと連動して動くため、二重に効かせないよう設定推測には使いません。表示と記録だけに使います。</div>
+      <div class="hint">ボーナス初当りは記録のみです。AT初当りと連動して動くため、表示と記録だけに使います。</div>
     </section>
     <section class="sec"><div class="sec-h">弱チェリー<span class="sub">設1:1/60.0⇔設6:1/50.0${rateSuffix(cherryDenom(S),cherryHit(S))}</span></div>
       ${gameSrcOf(S)==='unimemo'
         ? `<div class="inrow"><label>ユニメモの弱チェリー回数</label><input type="number" inputmode="numeric" data-number-key="cherryApp" value="${S.cherryApp||''}" placeholder="0"></div>
-      <div class="hint">ユニメモの弱チェリー回数をそのまま入力。ユニメモの小役欄と同じ「総プレイ数」を分母にするので、表示される1/xはユニメモの数値と一致します。実機モードに切り替えると、通常時にタップで数える方式（分母は通常ゲーム数）に変わります。設定推測の主力になります。</div>`
+      <div class="hint">ユニメモの弱チェリー回数をそのまま入力。ユニメモの小役欄と同じ「総プレイ数」を分母にするので、表示される1/xはユニメモの数値と一致します。実機モードに切り替えると、通常時にタップで数える方式（分母は通常ゲーム数）に変わります。</div>`
         : `<div class="cgrid">${ctx.crow('counts.weakCherry','弱チェリー',`設1:1/60.0⇔設6:1/50.0${rateSuffix(cherryDenom(S),cherryHit(S))}`,1)}</div>
-      <div class="hint">通常時の弱チェリーだけ数えます。左リール角チェリー停止時の弱チェリーを通常時のみ記録してください。分母は通常ゲーム数です。ユニメモモードに切り替えると、ユニメモの弱チェリー回数を入力する方式（分母は総プレイ数）に変わります。設定推測の主力になります。</div>`}
+      <div class="hint">通常時の弱チェリーだけ数えます。左リール角チェリー停止時の弱チェリーを通常時のみ記録してください。分母は通常ゲーム数です。ユニメモモードに切り替えると、ユニメモの弱チェリー回数を入力する方式（分母は総プレイ数）に変わります。</div>`}
     </section>
     <section class="sec"><div class="sec-h">スイカからのCZ当選</div>
       <div class="cgrid">${rateRow(ctx,'rates','suikaCzr','suikaCzw','スイカからのCZ当選','設1:20.3%⇔設6:33.6%')}</div>
@@ -280,7 +234,7 @@
     </section>
     <section class="sec"><div class="sec-h">規定ptゾーン<span class="sub">${ratio(zoneWin(S),zoneReach(S))}</span></div>
       <div class="cgrid">${ZONES.map(z=>rateRow(ctx,'zones','p'+z+'r','p'+z+'w',z+'pt','')).join('')}</div>
-      <div class="hint">各ゾーンに到達したら当選かハズレを記録。「当選」は到達と当選の両方を、「ハズレ」は到達だけを1つ加算します。ゾーンごとの当選率は理論値も実戦値も公表されていないため、設定推測には使わず記録だけを残します。</div>
+      <div class="hint">各ゾーンに到達したら当選かハズレを記録。「当選」は到達と当選の両方を、「ハズレ」は到達だけを1つ加算します。ゾーンごとの当選率は理論値も実戦値も公表されていないため、記録だけを残します。</div>
     </section>`;
   }
   function pageSuggest(ctx){
@@ -294,7 +248,7 @@
         const p=MITAMA_PROBS[c[0]==='blueR'?'blue':'green'];
         return rateRow(ctx,'mitama',c[0],c[1],c[2],`${c[3]} 設1:${(p[1]*100).toFixed(1)}%⇔設6:${(p[6]*100).toFixed(1)}%（参考）`);
       }).join('')}</div>
-      <div class="hint">見た目と内部が一致しないため参考記録です。見た目と内部の報酬レベルは完全には一致しないため、設定推測には使わず記録だけを残します。主に発展青が報酬レベル2、発展緑が報酬レベル3に対応します。調整屋選択時のAT当選率に設定差はありません。</div>
+      <div class="hint">見た目と内部が一致しないため参考記録です。見た目と内部の報酬レベルは完全には一致しないため、記録だけを残します。主に発展青が報酬レベル2、発展緑が報酬レベル3に対応します。調整屋選択時のAT当選率に設定差はありません。</div>
     </section>
     <section class="sec"><div class="sec-h">参照</div><table class="ref-table"><tbody>${REFERENCE.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join('')}</tbody></table></section>`;
   }
@@ -372,33 +326,7 @@
          改行を含まない説明の見え方は変わらない。 */
       .hint-body{white-space:pre-line}
       .ref-table{width:100%;border-collapse:collapse;font-size:11px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}.ref-table td{border-bottom:1px solid var(--line);padding:8px 10px;vertical-align:top}.ref-table tr:last-child td{border-bottom:0}.ref-table td:first-child{width:42%;color:var(--txt);font-weight:700}.ref-table td:last-child{color:var(--muted);line-height:1.45}
-      .bayes-main{display:flex;align-items:center;justify-content:space-between;gap:10px;background:#171220;border:1px solid #2c2340;border-radius:10px;padding:10px 12px;margin:8px 0}.bayes-main b{color:#ffc94d;font-size:18px}.bayes-main span{color:#9a90a8;font-size:13px}
-      .bayes-bar{display:grid;grid-template-columns:44px 1fr 48px;gap:8px;align-items:center;margin:6px 0;font-size:12px;color:#9a90a8}.bayes-bar b{display:block;height:10px;border-radius:999px;background:linear-gradient(90deg,#ff3d8f,#ffc94d);min-width:2px}.bayes-bar em{font-style:normal;text-align:right;color:#f2eef5}
     </style>`;
-  }
-
-  function pageBayes(ctx){
-    const S=ctx.S,r=bayesResult(S);
-    let body='';
-    if(r.contradiction){
-      body='<div class="hint hot">⚠記録に矛盾があります（示唆の見間違いの可能性）。</div>';
-    }else if(r.empty){
-      body='<div class="hint">記録が増えると推定できます。</div>';
-    }else{
-      const excluded=bayesExcludedSettings(r);
-      const bars=SETTINGS.map(setting=>{
-        const p=(r.posterior||{})[setting]||0;
-        return `<div class="bayes-bar"><span>設定${setting}</span><b style="width:${Math.max(2,p*100)}%"></b><em>${bayesPct(p)}</em></div>`;
-      }).join('');
-      const reasons=(r.reasons||[]).map(x=>`${x.label}×${x.count}`).join('、');
-      body=`<div class="bayes-main"><b>設定4以上 ${bayesPct(r.high)}</b><span>設定3以下 ${bayesPct(bayesUnder4(S))}</span></div>
-      <div class="bayes-bars">${bars}</div>
-      <div class="hint">除外根拠：${reasons||'なし'}${excluded.length?'（除外済み：設定'+excluded.join('・')+'）':''}</div>
-      <div class="hint">ボーナス初当りとみたまボーナスは推測に使いません。AT初当りと連動する項目、見た目と内部が一致しない項目のため、記録だけにとどめています。</div>
-      <div class="hint">推定は入力されたカウントに基づく参考値です。サンプルが少ないほど信頼度は下がります。</div>`;
-    }
-    return pageStyle()+`<section class="sec"><div class="sec-h">設定推測</div>
-    <div class="hint">記録した内容から、各設定である可能性を%で表示します。</div>${body}</section>`;
   }
 
   window.CheckerConfigs.magireco={
@@ -413,7 +341,7 @@
       return '通常回転数：'+GAME_SRC.find(x=>x[0]===v)[1];
     }},
     share:{title:'スマスロ マギアレコード 設定判別メモ',hashtags:'#マギレコ #設定判別'},
-    pages:(ctx,pageCard)=>{syncGames(ctx.S);return [()=>pageCounts(ctx),()=>pageSuggest(ctx),()=>pageBayes(ctx),pageCard];},
+    pages:(ctx,pageCard)=>{syncGames(ctx.S);return [()=>pageCounts(ctx),()=>pageSuggest(ctx),pageCard];},
     template:tplText,compactTemplate:tplText,
     card:{
       title:'スマスロ マギアレコード',titleFitMax:680,gameLabel:'通常',footerTags:'#マギレコ #設定判別',
@@ -431,10 +359,10 @@
       ]}),
       bottom:ctx=>{
         const S=ctx.S,g=syncGames(S);
-        // 左列が6行になったので行間を詰める。最終行 752+5*36=932 で、
+        // 左右5行。最終行 752+4*36=896 で、
         // フッタ（slot-tools.jp・y=976）に掛からない上限 936 の内側に収める。
         return {title:'サマリー',startY:752,rowGap:36,fontSize:22,columns:[
-          {x:70,items:[row(bestCert(S),certCount(S),certCount(S)>0,'#ffc94d'),row(`通常回転 ${g}G`,g),
+          {x:70,items:[row(bestCert(S),certCount(S),certCount(S)>0,'#ffc94d'),
             row('AT初当り '+countRate(g,n(S.counts,'at')),n(S.counts,'at')),
             row('ボーナス '+countRate(g,n(S.counts,'bonus')),n(S.counts,'bonus')),
             row('弱チェリー '+countRate(cherryDenom(S),cherryHit(S)),cherryHit(S)),
@@ -442,7 +370,7 @@
           {x:560,items:[row(`確定演出 計${certCount(S)}回`,certCount(S),certCount(S)>0,'#ffc94d'),
             row('スイカCZ '+ratio(n(S.rates,'suikaCzw'),n(S.rates,'suikaCzr')),n(S.rates,'suikaCzr')),
             row(shown(S,'plates','プレート'),groupTotal(S,'plates')),
-            row(shown(S,'episodes','エピソード'),groupTotal(S,'episodes')),bayesExcludeSummary(S)]}
+            row(shown(S,'episodes','エピソード'),groupTotal(S,'episodes')),row(`通常回転 ${g}G`,g)]}
         ]};
       }
     }
