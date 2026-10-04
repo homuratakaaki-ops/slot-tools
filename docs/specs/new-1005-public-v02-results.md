@@ -61,3 +61,16 @@
 - 未確定事項なし。追加コミット・pushでPR #10へ反映し、mainへのマージは行わない。
 - sitemapは2026-10-04、NEWは10/4を維持。マージしない。
 - WISHLIST更新案: §8の完了記録は「モンハンサンブレイク・転生王女の2機種公開」に変更し、獣王・パリピ孔明は公開保留として区別する。実機検収・マージ完了後に反映する。
+
+## 追加検証: EP LV1〜3の中間設定補完（2026-10-04）
+
+ツムギの追加指示に従い、CZヒントとガイドに各6設定・計18値を掲載。既存のサブラベルは維持した。ガイドは他項目と同様に設定1〜6を行に並べ、EP LV1〜3を列にした。JS参照クエリは20261004-3へ更新。
+
+- 数値: 両ファイルで18値・設定順が一致。既存の端点6値から中間12値を補完し、確率検証の総数は36値から48値へ。PASS。
+- `node test/verify.mjs`: サニティ6設定・区間分割6設定ともPASS。
+- `node --test`: 22件PASS、FAIL 0、skip 0。既存の数値照合テストを拡張。
+- `node tests/new-1005-four-machines.browser.mjs`: 82件PASS、FAIL 0。360/390pxの入力タブでCZヒントを実クリックで展開して測定し、はみ出し0。ガイドも両幅で表示崩れ・はみ出し0。
+- `node tests/new-1005-public.verify.mjs`: 6群すべてPASS。
+- `git diff --check`・LF: PASS。
+- 変更6ファイル: checker-data/tenten.js、tenten-checker.html、tenten-guide.html、tests/tenten-v02.test.mjs、tests/new-1005-four-machines.browser.mjs、本記録。
+- 追加の未確定事項なし。WISHLIST更新案: §8の公開完了記録に「EP LV1〜3の6設定値を補完」を含める。

@@ -14,7 +14,7 @@ for(const name of ['BONUS_END','OVER']){
   expected[name]=vm.runInNewContext(source+'\n'+name);
 }
 const certs=[...expected.BONUS_END.map(x=>['screens',...x]),...expected.OVER.map(x=>['over',...x])].filter(x=>x[4]>0);
-test('tenten issued facts: 36 probability values and 14 hint definitions',()=>{
+test('tenten issued facts: 48 probability values and 14 hint definitions',()=>{
   const rows=[];const ctx={S:state(),mode:1,crow:(...args)=>{rows.push(args);return '';},pct:()=>''};
   const pages=c.pages(ctx,()=> '');const html=pages[0]();pages[1]();
   const guide=read('tenten-guide.html');
@@ -36,17 +36,21 @@ test('tenten issued facts: 36 probability values and 14 hint definitions',()=>{
     }
   }
   for(const [i,v] of ['320.0','314.7','294.2','276.9','260.0','246.4'].entries())assert.ok(guide.includes('<td>設定'+(i+1)+'</td><td>1/'+v+'</td><td>1/'+['171.5','168.3','154.9','147.0','140.4','136.0'][i]+'</td>'));
-  for(const [lv,lo,hi] of [[1,'15.2','31.5'],[2,'49.4','56.8'],[3,'70.9','75.9']]){
+  const levelRates=[['15.2','16.0','18.3','22.2','27.0','31.5'],['49.4','49.9','51.4','53.2','54.6','56.8'],['70.9','71.3','72.3','73.8','75.1','75.9']];
+  for(const [index,values] of levelRates.entries()){
+    const lv=index+1,lo=values[0],hi=values[5];
     assert.ok(html.includes(`EP LV${lv}</b><small class="mn">設1:${lo}%⇔設6:${hi}%`));
-    assert.ok(guide.includes(`<td>EP LV${lv}</td><td>${lo}%</td><td>${hi}%</td>`));count+=2;
+    const sentence=`EP LV${lv}${lv===1?'の成功率は':'は'}`+values.map((v,i)=>(i===0?'設定1':i+1)+':'+v+'%').join('／')+'。';
+    assert.ok(html.includes(sentence));assert.ok(html.indexOf(sentence)<html.indexOf('設定別の成功期待度は'));count+=6;
   }
-  assert.equal(count,36);
+  for(let i=0;i<6;i++)assert.ok(guide.includes('<tr><td>設定'+(i+1)+'</td>'+levelRates.map(v=>'<td>'+v[i]+'%</td>').join('')+'</tr>'));
+  assert.equal(count,48);
   for(const [key,arr] of [['screens',expected.BONUS_END],['over',expected.OVER]])for(const [id,name,sub,rank] of arr){
     assert.deepEqual(rows.find(r=>r[0]===key+'.'+id).slice(0,4),[key+'.'+id,name,sub,rank>0]);
     assert.ok(guide.includes(`<td>${name}</td><td>${sub}</td>`));
   }
   assert.equal(rows.filter(r=>/^(screens|over)\./.test(r[0])).length,14);
-  console.log('Issued values: 36 probabilities + 14 hint rows PASS');
+  console.log('Issued values: 48 probabilities (18 EP LV values) + 14 hint rows PASS');
 });
 test('tenten legacy load, unknown keys and all five n/d clamps remain stable',()=>{
   const old={games:1000,counts:{at:3,future:7},future:{keep:true}};

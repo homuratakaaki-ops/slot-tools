@@ -368,7 +368,7 @@ try{
   saveCanvas('tenten-all-card',tc);await click('#detailBtn');const td=await canvas('detailCanvas');saveCanvas('tenten-all-detail',td);assert.ok(td.bright>1000);
   for(const name of ['木陰の2人','ティルティ','2人の後ろ姿','寝転ぶ2人',...certRows.map(r=>r[1])])assert.ok(td.text.some(t=>t.text.startsWith(name+' ×')),name);
   pass('tenten all-input summary 5+5 / Y896 / min16px / no overflow / full detail / pixels',{rows:ts,ellipsis:ts.filter(t=>t.text.includes('…')).length});
-  for(const width of [360,390]){await load('tenten',width,530);for(let p=0;p<3;p++){await tab(p);await measure('tenten-populated-'+width+'-tab'+p);}}
+  for(const width of [360,390]){await load('tenten',width,530);for(let p=0;p<3;p++){await tab(p);if(p===0){await frame(`const sec=d.querySelector('[data-bump-many="cz.lv1d,cz.lv1n"]').closest('section');sec.querySelector('details summary').click();if(!sec.querySelector('details').open)throw new Error('CZ hint did not expand');`);}await measure('tenten-populated-'+width+'-tab'+p);}}
   // Public guides: follow real links in both directions at actual viewport widths.
   for(const width of [360,390])for(const id of ['mhsunbreak','tenten']){
     await load(id,width,530);
