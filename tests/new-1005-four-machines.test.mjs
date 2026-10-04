@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
+import {execFileSync} from 'node:child_process';
 
 const read=name=>fs.readFileSync(new URL('../'+name,import.meta.url),'utf8');
 const configs={};
@@ -44,7 +45,7 @@ test('oneL, rank buckets and stable ties are independent of labels and count tot
   assert.equal(c.card.bottom(ctx).columns[0].items[0].text,'確定演出 なし');
   assert.equal(c.card.blocks(ctx)[3][1],'計1回');
   assert.equal(c.card.chart(ctx).items[0].value,1);
-  assert.equal(c.card.bottom(ctx).columns[1].items[5].text,'否定系 計2回');
+  assert.equal(c.card.bottom(ctx).columns[1].items[4].text,'否定系 計2回');
   ctx.S.atEnd.zenin=2;ctx.S.trophy.rainbow=1;
   assert.match(c.card.bottom(ctx).columns[0].items[0].text,/虹\(6確定\)/);
   ctx.S.atEnd.entalion=1;
@@ -79,4 +80,26 @@ test('MH template preserves original bytes except the 14 blank values and wrappe
 test('v02 template keeps the v01 golden bytes without regex lookbehind',()=>{
   assert.ok(!/\(\?<([=!])/.test(read('checker-data/mhsunbreak.js')));
   assert.equal(configs.mhsunbreak.template(context(configs.mhsunbreak)),read('tests/fixtures/mhsunbreak-zero-template.txt'));
+});
+
+test('MH template bytes match 7914219 in zero, mixed and fully populated states',()=>{
+  const sandbox={window:{}};
+  vm.runInNewContext(execFileSync('git',['show','7914219:checker-data/mhsunbreak.js'],{encoding:'utf8'}),sandbox);
+  const before=sandbox.window.CheckerConfigs.mhsunbreak,c=configs.mhsunbreak;
+  const fixture=Buffer.from(read('tests/fixtures/mhsunbreak-zero-template.txt'));
+  assert.equal(fixture.length,1400);
+  assert.deepEqual(Buffer.from(c.template(context(c))),fixture);
+  for(const mode of ['zero','mixed','all']){
+    const S=clone(c.defaults);let index=0;
+    if(mode!=='zero'){
+      S.games=1000;
+      for(const value of Object.values(S))if(value&&typeof value==='object'&&!Array.isArray(value)){
+        for(const key of Object.keys(value))if(typeof value[key]==='number')value[key]=mode==='all'?1:index++%3;
+      }
+      for(const key of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[key+'D']=Math.max(S.bz[key+'D'],S.bz[key+'N']);
+    }
+    const actual=Buffer.from(c.template(context(c,S)));
+    assert.deepEqual(actual,Buffer.from(before.template(context(before,S))),mode);
+    console.log('MH template bytes '+mode+': '+actual.length+' PASS');
+  }
 });
