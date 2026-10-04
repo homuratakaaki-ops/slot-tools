@@ -52,20 +52,22 @@ for(const id of ['ricorico','toaru2','mhsunbreak']){
     if(mode!=='zero'){
       S.games=1000;
       for(const v of Object.values(S))if(v&&typeof v==='object'&&!Array.isArray(v))for(const k of Object.keys(v))if(typeof v[k]==='number')v[k]=mode==='all'?1:index++%3;
+      if(id==='mhsunbreak')for(const key of Object.keys(S.questN))S.questN[key]=Math.min(S.questN[key],S.bzT1[key]+S.bzT2[key]);
       if(S.bz)for(const k of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[k+'D']=Math.max(S.bz[k+'D'],S.bz[k+'N']);
     }
     const old=a.template(ctx(clone(S))),now=b.template(ctx(clone(S)));
+    const legacyNow=id==='mhsunbreak'?now.replace(/■BZテーブル1回目[\s\S]*?(?=■レア役からのBZ当選率)/,''):now;
     if(id==='mhsunbreak'&&mode!=='zero'){
       // Only the authorized tool header may change; compare every other byte.
-      const oldLines=old.split('\n'),newLines=now.split('\n');
+      const oldLines=old.split('\n'),newLines=legacyNow.split('\n');
       assert.equal(newLines[1],'通常 0G / AT0回');
       assert.deepEqual(newLines.flatMap((line,i)=>line===oldLines[i]?[]:[i]),[1]);
       newLines[1]=oldLines[1];bytes(old,newLines.join('\n'));
-    }else bytes(old,now);
+    }else bytes(old,legacyNow);
     if(id==='mhsunbreak')bytes(now,read('tests/fixtures/mhsunbreak-'+mode+'-template.txt'));
   }
 }
-console.log('PASS nana templates vs 74f8e03: 7 exact outputs, 2 MH header-only deltas; all 9 bodies byte-identical; MH golden 3');
+console.log('PASS nana templates vs 74f8e03: 7 exact outputs, 2 MH header-only deltas; all 9 legacy bodies byte-identical; MH golden 3');
 const a=config('tonski',baseline('checker-data/tonski.js')),b=config('tonski',read('checker-data/tonski.js'));
 const keys=[...['set2','set4','set6'].map(k=>['screens',k]),...Object.keys(b.defaults.coins).map(k=>['coins',k]),...Object.keys(b.defaults.atcz).map(k=>['atcz',k]),...['goldWin','rainbowWin'].map(k=>['ed',k])];
 assert.equal(keys.length,15);
@@ -84,5 +86,5 @@ for(const [src,expected] of [[{games:1234,counts:{sc:4}},1234],[{games:1234,game
 }
 console.log('PASS legacy and explicit-zero/new-key migrations 3, each idempotent');
 // magireco.js is intentionally changed by the approved estimate-tab removal; its dedicated audit compares preserved outputs.
-for(const file of ['checker-engine.js','checker-bayes.js','tests/fixtures/mhsunbreak-zero-template.txt',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
-console.log('PASS both common files, every other machine data file, zero golden unchanged vs 74f8e03');
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
+console.log('PASS both common files, every other machine data file, unchanged vs 74f8e03; MH golden validated above');

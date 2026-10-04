@@ -83,28 +83,29 @@ test('HTML contract: original CSS apart from specified nav count, public links a
   const base=style(read('mogumogu-checker.html'));
   for(const id of Object.keys(configs)){
     const html=read(id+'-checker.html'),js=read('checker-data/'+id+'.js');
-    assert.equal(style(html),['mhsunbreak','tenten'].includes(id)?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
+    assert.equal(style(html),id==='mhsunbreak'?base.replace('repeat(3,1fr);border-top','repeat(4,1fr);border-top'):id==='tenten'?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
     assert.ok(!html.includes('checker-bayes.js'));assert.equal(html.includes('href="'+id+'-guide.html">使い方</a>'),['mhsunbreak','tenten'].includes(id));
     assert.equal(html.includes('<meta name="robots" content="noindex">'),['juuou','paripi'].includes(id));
-    assert.ok(html.includes('<small>SETTING CHECKER ・ slot-tools.jp</small>'));
+    assert.ok(html.includes(id==='mhsunbreak'?'<small>SETTING CHECKER ・ slot-tools.jp ・ UI BZ v02</small>':'<small>SETTING CHECKER ・ slot-tools.jp</small>'));
     if(id==='mhsunbreak')assert.equal((html.match(/UI 2026/g)||[]).length,0);
     assert.ok(!html.includes('UI v1'));
     assert.ok(html.includes('checker-engine.js?v=20260924'));
-    assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'+({mhsunbreak:'-2',juuou:'-2',tenten:'-3',paripi:''}[id])+'"'));
+    assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'+({mhsunbreak:'-3',juuou:'-2',tenten:'-3',paripi:''}[id])+'"'));
     assert.ok(!html.includes('\r')&&!js.includes('\r'));
     assert.equal(configs[id].template,configs[id].compactTemplate);
     if(id==='juuou')assert.ok(!html.includes('設定3')&&!js.includes('設定3'));
   }
 });
 
-test('MH template preserves original bytes except the 14 blank values and wrapper',()=>{
-  const c=configs.mhsunbreak,original=read('docs/specs/mhsunbreak-nana-template-v01.txt');
-  const body=original.replace(/▶︎ (?=\n)/g,'▶︎ 0回');
+test('MH template preserves original bytes except the 34 blank values and wrapper',()=>{
+  const c=configs.mhsunbreak,original=read('docs/specs/mhsunbreak-nana-template-v02.txt');
+  let section='';
+  const body=original.split('\n').map(line=>{if(line.startsWith('■'))section=line;return line.replace(/▶︎ $/,'▶︎ '+(section==='■クエスト成功率'?'0/0':'0回'));}).join('\n');
   assert.equal(c.template(context(c)),'設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+body+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様');
-  assert.equal((original.match(/▶︎ (?=\n)/g)||[]).length,14);
+  assert.equal((original.match(/▶︎ (?=\n)/g)||[]).length,34);
 });
 
-test('v02 template keeps the v01 golden bytes without regex lookbehind',()=>{
+test('v02 template keeps the v02 golden bytes without regex lookbehind',()=>{
   assert.ok(!/\(\?<([=!])/.test(read('checker-data/mhsunbreak.js')));
   assert.equal(configs.mhsunbreak.template(context(configs.mhsunbreak)),read('tests/fixtures/mhsunbreak-zero-template.txt'));
 });
@@ -112,7 +113,7 @@ test('v02 template keeps the v01 golden bytes without regex lookbehind',()=>{
 test('MH template bytes match the golden files in zero, mixed and fully populated states',()=>{
   const c=configs.mhsunbreak;
   const fixture=Buffer.from(read('tests/fixtures/mhsunbreak-zero-template.txt'));
-  assert.equal(fixture.length,1400);
+  assert.equal(fixture.length,2230);
   assert.deepEqual(Buffer.from(c.template(context(c))),fixture);
   for(const mode of ['zero','mixed','all']){
     const S=clone(c.defaults);let index=0;
@@ -122,6 +123,7 @@ test('MH template bytes match the golden files in zero, mixed and fully populate
         for(const key of Object.keys(value))if(typeof value[key]==='number')value[key]=mode==='all'?1:index++%3;
       }
       for(const key of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[key+'D']=Math.max(S.bz[key+'D'],S.bz[key+'N']);
+      for(const id of Object.keys(S.questN))S.questN[id]=Math.min(S.questN[id],S.bzT1[id]+S.bzT2[id]);
     }
     const actual=Buffer.from(c.template(context(c,S)));
     assert.deepEqual(actual,Buffer.from(read('tests/fixtures/mhsunbreak-'+mode+'-template.txt')),mode);

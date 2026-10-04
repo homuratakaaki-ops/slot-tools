@@ -43,10 +43,11 @@ assert.ok(!/bayesSpec|bayesResult|bayesPct|bayesExcludedSettings|bayesUnder4|bay
 assert.ok(sources.includes('const MITAMA_PROBS='));
 assert.ok(!read('magireco-checker.html').includes('checker-bayes.js'));
 const tracked=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,''),'ls-files','*-checker.html','checker-data/*.js','checker-engine.js','checker-bayes.js'],{cwd:root,encoding:'utf8'}).trim().split('\n');
-for(const file of tracked.filter(f=>!['magireco-checker.html','checker-data/magireco.js'].includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);
+// MH v02 has its own exhaustive 3be5e98 comparison in mhsunbreak-template-v02.verify.mjs.
+for(const file of tracked.filter(f=>!['magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js'].includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);
 const news=s=>s.split('<div class="section-label">NEW</div>')[1].split('</section>')[0].match(/<p>.*?<\/p>/g);
 const a=news(baseline('index.html')),b=news(read('index.html'));assert.equal(b.length,8);assert.equal(b.filter((x,i)=>x!==a[i]).length,1);
-console.log(JSON.stringify({status:'PASS',unrelatedFilesByteEqual:tracked.length-2,newsRows:8,newsRowsChanged:1}));
+console.log(JSON.stringify({status:'PASS',unrelatedFilesByteEqual:tracked.length-4,newsRows:8,newsRowsChanged:1}));
 // Only these three Magireco files describe the removed tab; unrelated uses of this word elsewhere are out of scope.
 for(const file of ['checker-data/magireco.js','magireco-checker.html','magireco-guide.html'])assert.ok(!read(file).includes('推測'),file);
 // Other machines still estimate settings: inspect only Magireco's NEW entry and preserve the site-wide explanation.
