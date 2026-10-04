@@ -95,5 +95,6 @@ for(const [src,expected] of [[{games:1234,counts:{sc:4}},1234],[{games:1234,game
 }
 console.log('PASS legacy and explicit-zero/new-key migrations 3, each idempotent');
 // magireco.js is intentionally changed by the approved estimate-tab removal; its dedicated audit compares preserved outputs.
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
+// tenten.js and takoslot.js were changed by the current wording correction.
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
 console.log('PASS both common files, every other machine data file, unchanged vs 74f8e03; MH golden validated above');

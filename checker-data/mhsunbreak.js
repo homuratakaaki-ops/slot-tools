@@ -99,7 +99,7 @@
   const GROUPS=[
     ['atEnd','AT終了画面',AT_END,'AT終了画面が出たら該当の行を記録します。デフォルト画面は解析に示唆の記載がないため項目を置いていません。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。'],
     ['trophy','エンタトロフィー',TROPHY,'AT終了画面で出現します。出た色の行を記録します。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。'],
-    ['over','獲得枚数表示',OVER,'AT中の獲得枚数表示が該当の数値を超えていたら記録します。246枚 OVERは設定1・3・5を否定する飛び値の示唆なので、カードの確定演出の欄には出しません。'],
+    ['over','獲得枚数表示',OVER,'246枚 OVERは設定1・3・5を否定する飛び値の示唆なので、カードの確定演出の欄には出しません。'],
     ['stamp','エンディング中スタンプ',STAMP,'エンディング中のレア役成立時に出たスタンプの色を記録します。']
   ];
   const QUEST=[['blue','クエスト青'],['yellow','クエスト黄'],['raizex','ライゼクス'],['serregios','セルレギオス'],['oromidro','オロミドロ亜種'],['teo','テオ・テスカトル'],['at','SUNBREAK RUSH']];
@@ -150,17 +150,17 @@
     <div class="cgrid">${rows.map(c=>ndRow(ctx,{cls:'bz-row',name:c[1],displayName:c[1].split(' ')[1],dPath:'bz.'+c[0]+'D',nPath:'bz.'+c[0]+'N',d:n(S.bz,c[0]+'D'),n:n(S.bz,c[0]+'N'),winLabel:'当選',missLabel:'ハズレ'})).join('')}
       ${title==='強レア'?'<div class="crow"><div class="lbl"><div class="nm">超高確</div></div><div class="pct">CZ濃厚</div></div>':''}
     </div>`).join('')}
-    <div class="hint">滞在ステージで状態を判断（砂原＝高確示唆、溶岩洞＝超高確示唆）。記録のみで設定差はありません。</div>
+    <div class="hint">滞在ステージで状態を判断（砂原＝高確示唆、溶岩洞＝超高確示唆）。設定差は公表されていません。記録してサンプルを集める項目です。</div>
   </section>
   <section class="sec">
     <div class="sec-h">規定リプレイ周期</div>
     <div class="cgrid">${CYCLE.map(c=>ctx.crow('cycle.'+c[0],c[1],'',false)).join('')}</div>
-    <div class="hint">CZに当選した周期を記録します。記録のみで設定差はありません。</div>
+    <div class="hint">CZに当選した周期を記録します。設定差は公表されていません。記録してサンプルを集める項目です。</div>
   </section>
   <section class="sec">
     <div class="sec-h">CZ種別</div>
     <div class="cgrid">${CZ_TYPE.map(c=>ctx.crow('czType.'+c[0],c[1],'',false,v=>ctx.pct(v,czTotal(S)))).join('')}</div>
-    <div class="hint">当選したCZの種別を記録します。記録のみで設定差はありません。</div>
+    <div class="hint">当選したCZの種別を記録します。設定差は公表されていません。記録してサンプルを集める項目です。</div>
   </section>`;}
   function pageShisa(ctx){return GROUPS.map(([key,title,arr,hint])=>`<section class="sec">
     <div class="sec-h">${title}<span class="sub">計${total(arr,ctx.S[key])}回</span></div>
@@ -184,7 +184,7 @@
         </div>
       </div>`;
     }).join('')}</div>
-  </section>`).join('')+`<div class="hint">ブレイクゾーン終了時に、どのアイコンからクエストへ発展したかを記録します。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。クエストの結果まで見てから［成功］［失敗］を押してください。記録のみで、設定差は判明していません。</div><div class="hint">訂正は減算モードで同じボタンを押します</div>`+`<section class="sec">
+  </section>`).join('')+`<div class="hint">ブレイクゾーン終了時に、どのアイコンからクエストへ発展したかを記録します。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。クエストの結果まで見てから［成功］［失敗］を押してください。設定差は公表されていません。記録してサンプルを集める項目です。</div><div class="hint">訂正は減算モードで同じボタンを押します</div>`+`<section class="sec">
     <div class="sec-h">クエスト成功率（合算）</div>
     <div class="cgrid">${QUEST.map(([id,name])=>`<div class="crow quest-row"><div class="lbl"><div class="nm">${name}</div></div><div class="pct">${ctx.pct(questHit(S,id),questD(S,id))}</div></div>`).join('')}</div>
     <div class="hint">テンプレに出る成功率です（1回目＋2回目以降）</div>
@@ -270,7 +270,7 @@
         ]},
         {x:560,items:[
           ...GROUPS.map(g=>row(shown(g[1],g[2],S[g[0]]),total(g[2],S[g[0]]))),
-          row('否定系 計'+deniedTotal(S)+'回',deniedTotal(S))
+          row(deniedTotal(S)>0?'否定系 計'+deniedTotal(S)+'回':'否定系 —',deniedTotal(S))
         ]}
       ]};}
     }
