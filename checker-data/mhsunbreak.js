@@ -25,8 +25,8 @@
     return `<section class="sec">
     <div class="sec-h">AT当選ゲーム数<span class="sub">合計 ${hitSum(S)}G</span></div>
     <div class="inrow"><input type="number" inputmode="numeric" id="hitIn" placeholder="0" aria-label="AT当選ゲーム数"><button type="button" class="cycle-btn" data-action="addHit" data-label="AT当選ゲーム数を追加">追加</button></div>
-    <div class="cgrid">${rows.slice(0,10).join('')}</div>
-    ${rows.length>10?`<details class="hit-more"><summary>ほか ${rows.length-10}件を見る</summary><div class="cgrid">${rows.slice(10).join('')}</div></details>`:''}
+    <div class="cgrid">${rows.slice(0,3).join('')}</div>
+    ${rows.length>3?`<details class="hit-more"><summary>すべて表示（残り${rows.length-3}件）</summary><div class="cgrid">${rows.slice(3).join('')}</div></details>`:''}
     <div class="crow sumrow">
       <div class="lbl"><div class="nm">AT初当り</div><div class="mn">設1:1/349.9⇔設6:1/242.3${rateSuffix(hitSum(S),hitCount(S))}</div></div>
       <div class="num">${hitCount(S)}</div><div class="autotag" aria-hidden="true">自動</div>

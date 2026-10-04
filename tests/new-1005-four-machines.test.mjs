@@ -86,7 +86,8 @@ test('HTML contract: original CSS apart from specified nav count, public links a
     assert.equal(style(html),['mhsunbreak','tenten'].includes(id)?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
     assert.ok(!html.includes('checker-bayes.js'));assert.equal(html.includes('href="'+id+'-guide.html">使い方</a>'),['mhsunbreak','tenten'].includes(id));
     assert.equal(html.includes('<meta name="robots" content="noindex">'),['juuou','paripi'].includes(id));
-    assert.ok(html.includes('<small>SETTING CHECKER ・ slot-tools.jp'+(id==='mhsunbreak'?' ・ UI 20261004-2':'')+'</small>'));
+    assert.ok(html.includes('<small>SETTING CHECKER ・ slot-tools.jp</small>'));
+    if(id==='mhsunbreak')assert.equal((html.match(/UI 2026/g)||[]).length,0);
     assert.ok(!html.includes('UI v1'));
     assert.ok(html.includes('checker-engine.js?v=20260924'));
     assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'+({mhsunbreak:'-2',juuou:'-2',tenten:'-3',paripi:''}[id])+'"'));
