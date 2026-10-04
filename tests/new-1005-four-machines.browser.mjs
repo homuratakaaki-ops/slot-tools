@@ -122,7 +122,7 @@ try{
     Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.__clipboard=text;}}});
     const ft=CanvasRenderingContext2D.prototype.fillText,fr=CanvasRenderingContext2D.prototype.fillRect;
     CanvasRenderingContext2D.prototype.fillRect=function(x,y,w,h){if(w>=1000&&h>=1000)window.__texts[this.canvas.id]=[];return fr.apply(this,arguments);};
-    CanvasRenderingContext2D.prototype.fillText=function(text,x,y){(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y});return ft.apply(this,arguments);};
+    CanvasRenderingContext2D.prototype.fillText=function(text,x,y){const m=this.measureText(text);(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y,font:this.font,width:m.width,left:x-m.actualBoundingBoxLeft,right:x+m.actualBoundingBoxRight});return ft.apply(this,arguments);};
   `});
   await send('Page.navigate',{url:origin+'/harness'});await pause(100);
   for(const id of ['juuou','paripi','tenten','mhsunbreak']){
@@ -225,8 +225,9 @@ try{
     const card=await canvas('cardCanvas');const first=card.text.find(t=>t.x===70&&t.y===752)?.text;
     if(Number(r[5])!==1)assert.equal(first,'確定演出 なし',g.key+'.'+r[0]+' excluded from best');
     else assert.ok(first?.includes(r[1]),g.key+'.'+r[0]+' selected in best');
-    const cert=card.text.find(t=>t.x===560&&t.y===752)?.text;
-    assert.equal(cert,'確定演出 計'+(Number(r[3])>0?1:0)+'回');
+    assert.equal(card.text.find(t=>t.x===814&&t.y===312)?.text,'確定演出');
+    const cert=card.text.find(t=>t.x===814&&t.y===368)?.text;
+    assert.equal(cert,'計'+(Number(r[3])>0?1:0)+'回');
     await click('#undoBtn');
   }
   pass('MH all 31 hints: single-input template delta, oneL exclusion/inclusion, rank counts');
@@ -273,7 +274,20 @@ try{
   await tab(0);await games(1000);await bump('counts.at');
   for(const key of bz)await click(`[data-bump-many="bz.${key}D,bz.${key}N"]`);
   for(const key of ['cycle.c1','cycle.c2','cycle.c3','cycle.c4','cycle.c5','czType.breakzone','czType.airou'])await bump(key);
-  await tab(2);saveCanvas('mhsunbreak-all-card',await canvas('cardCanvas'));await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
+  await tab(2);
+  const allCard=await canvas('cardCanvas');
+  const summary=allCard.text.filter(t=>[70,560].includes(t.x)&&t.y>=752&&t.y<=936);
+  assert.equal(summary.length,10);
+  for(const x of [70,560])assert.deepEqual(summary.filter(t=>t.x===x).map(t=>t.y),[752,788,824,860,896]);
+  const minFont=Math.min(...summary.map(t=>Number(t.font.match(/([\d.]+)px/)[1])));
+  // Bold glyphs may extend left of their text origin without clipping or overlap.
+  const leftOverhang=Math.max(...summary.map(t=>Math.max(0,t.x-t.left)));
+  const overflow=summary.filter(t=>t.left<0||t.right>(t.x===70?560:1010));
+  for(const right of summary.filter(t=>t.x===560))assert.ok(summary.find(t=>t.x===70&&t.y===right.y).right<=right.left);
+  assert.ok(minFont>=16);assert.deepEqual(overflow,[]);
+  assert.ok(allCard.bright>1000&&allCard.opaque===allCard.width*allCard.height);
+  pass('MH all-31 summary: 5+5 rows, Y896, fitted visible bounds and pixels',{rows:summary,minFont,overflow:overflow.length,leftOverhang,lastY:Math.max(...summary.map(t=>t.y))});
+  saveCanvas('mhsunbreak-all-card',allCard);await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
   assert.deepEqual(errors,[]);pass('all browser console errors = 0');
   results.push(...visualFindings);
   if(visualFindings.length){console.error('FAIL n/d label wrapping. See layout measurements and screenshots.');process.exitCode=1;}
