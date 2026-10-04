@@ -12,10 +12,10 @@
     ['nodoka','豊浜のどか','奇数設定示唆',0,'の','odd','🟡豊浜のどか(奇数)'],
     ['rio','双葉理央','高設定示唆（弱）',0,'理','weak','🏮双葉理央(弱)'],
     ['mai','桜島麻衣','高設定示唆（強）',0,'麻','strong','🍳桜島麻衣(強)'],
-    ['kaede','かえで(吉)','設定3以上確定演出',3,'吉',null,'吉'],
-    ['shoko','翔子(良)','設定4以上確定演出',4,'良',null,'良'],
-    ['maiBunny','麻衣バニー(優)','設定5以上確定演出',5,'優',null,'優'],
-    ['all','全員集合(極)','設定6確定演出',6,'極',null,'極']
+    ['kaede','かえで(吉)','設定3以上濃厚',3,'吉',null,'吉'],
+    ['shoko','翔子(良)','設定4以上濃厚',4,'良',null,'良'],
+    ['maiBunny','麻衣バニー(優)','設定5以上濃厚',5,'優',null,'優'],
+    ['all','全員集合(極)','設定6濃厚',6,'極',null,'極']
   ];
 
   // 規定ポイント [id, 表示名, サブラベル]
@@ -85,7 +85,7 @@
     return `${prefix} ${out.length?out.join('・'):'−'}`;
   }
   function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
-  function rankText(rank){return rank===6?'6確定':rank+'以上';}
+  function rankText(rank){return rank===6?'6濃厚':rank+'以上';}
   function allCert(S){
     return SCREENS.filter(c=>c[3]>0).map(c=>({label:c[1],value:n(S.screens,c[0]),rank:c[3],order:10+c[3]}));
   }

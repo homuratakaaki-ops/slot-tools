@@ -194,7 +194,8 @@ try{
   pass('MH BZ subheadings, single hint and full operation labels');
   await tab(1);
   const labels=await frame(`return [...d.querySelectorAll('.crow[data-c]')].map(e=>[e.dataset.c,e.querySelector('.nm').textContent,e.querySelector('.mn').textContent]);`);
-  assert.deepEqual(labels,groups.flatMap(g=>g.rows.map(r=>[g.key+'.'+r[0],r[1],r[2]])));
+  // Keep the historical instruction sheet intact; apply the approved wording rule to expectations only.
+  assert.deepEqual(labels,groups.flatMap(g=>g.rows.map(r=>[g.key+'.'+r[0],r[1],r[2].replace(/設定([0-9０-９・]*(?:以上)?)確定演出/g,'設定$1濃厚')])));
   assert.equal(labels.length,31);assert.equal(await frame('return d.querySelectorAll("#nav button").length;'),3);
   pass('MH 31 exact hint labels/sublabels and 3 tabs');
   await tab(2);

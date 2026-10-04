@@ -10,17 +10,17 @@
     ['poporon','ぽぽろん','偶数設定期待度UP（強）',0,'ぽ'],
     ['yurineA','ゆりねA','高設定期待度UP（弱）',0,'ゆA'],
     ['yurineB','ゆりねB','高設定期待度UP（強）',0,'ゆB'],
-    ['evil','悪だくみ','設定2以上確定演出',2,'悪'],
-    ['swim','水着','設定4以上確定演出',4,'水'],
-    ['pajama','パジャマ','設定5以上確定演出',5,'パ'],
-    ['all','全員集合','設定6確定演出',6,'全']
+    ['evil','悪だくみ','設定2以上濃厚',2,'悪'],
+    ['swim','水着','設定4以上濃厚',4,'水'],
+    ['pajama','パジャマ','設定5以上濃厚',5,'パ'],
+    ['all','全員集合','設定6濃厚',6,'全']
   ];
   const KUJILUCKY=[
-    ['bronze','銅','設定2以上確定演出',2],
-    ['silver','銀','設定3以上確定演出',3],
-    ['gold','金','設定4以上確定演出',4],
-    ['kumanomi','クマノミ柄','設定5以上確定演出',5],
-    ['rainbow','虹','設定6確定演出',6]
+    ['bronze','銅','設定2以上濃厚',2],
+    ['silver','銀','設定3以上濃厚',3],
+    ['gold','金','設定4以上濃厚',4],
+    ['kumanomi','クマノミ柄','設定5以上濃厚',5],
+    ['rainbow','虹','設定6濃厚',6]
   ];
   const CHARS=[
     ['def','デフォルト','邪神ちゃん・ゆりね・氷ちゃん・遊佐',0],
@@ -34,8 +34,8 @@
     ['commander','コマンダー','設定3否定',0],
     ['esp','エスプ','設定1・2否定',0],
     ['genius','ジーニアス','設定1・3否定',0],
-    ['perfect','パーフェクト','設定4以上確定演出',4],
-    ['devilYurine','悪魔コス ゆりね','設定6確定演出',6]
+    ['perfect','パーフェクト','設定4以上濃厚',4],
+    ['devilYurine','悪魔コス ゆりね','設定6濃厚',6]
   ];
   const CHARACTER_GROUPS=[
     ['デフォルト',[
@@ -80,8 +80,8 @@
   const COMBOS=[
     ['combo2','高設定キャラ2回','同一小悪魔ボーナス内。設定2以上期待度UP',0],
     ['combo3','高設定キャラ3回','同一小悪魔ボーナス内。設定3以上期待度UP',0],
-    ['combo4','高設定キャラ4回','同一小悪魔ボーナス内。設定4以上確定演出',4],
-    ['comboEA','エキュート＆アトレ両方出現','設定2以上確定演出',2]
+    ['combo4','高設定キャラ4回','同一小悪魔ボーナス内。設定4以上濃厚',4],
+    ['comboEA','エキュート＆アトレ両方出現','設定2以上濃厚',2]
   ];
   const SEALS=[
     ['mei','橘芽依','奇数設定期待度UP',0],
@@ -89,8 +89,8 @@
     ['kyonRan','キョンキョン＆ランラン','奇数設定期待度UP（強）',0],
     ['pinoPoporon','ぴの＆ぽぽろん','偶数設定期待度UP（強）',0],
     ['persephone2','ペルセポネ2世','高設定期待度UP',0],
-    ['lierPersephone1','リエール＆ペルセポネ1世','設定4以上確定演出',4],
-    ['ecuteAtre','エキュート＆アトレ','設定6確定演出',6]
+    ['lierPersephone1','リエール＆ペルセポネ1世','設定4以上濃厚',4],
+    ['ecuteAtre','エキュート＆アトレ','設定6濃厚',6]
   ];
   const CZ_ITEMS=[
     ['czTawashi','タワシ→ミノス','HITで設定1否定',0],
@@ -156,7 +156,7 @@
     return `${prefix} ${out.length?out.join('・'):'-'}`;
   }
   function row(text,value,active,color){return {text,value:Number(value)||0,active:active!==undefined?active:(Number(value)||0)>0,color};}
-  function rankText(rank){return rank===6?'6確定':rank+'以上';}
+  function rankText(rank){return rank===6?'6濃厚':rank+'以上';}
   function allCert(S){
     return [
       ...AT_SCREENS.filter(c=>c[3]>0).map(c=>({label:c[1]+'画面',value:n(S.screens,c[0]),rank:c[3],order:10+c[3]})),

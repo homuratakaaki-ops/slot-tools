@@ -47,9 +47,9 @@ test('oneL, rank buckets and stable ties are independent of labels and count tot
   assert.equal(c.card.chart(ctx).items[0].value,1);
   assert.equal(c.card.bottom(ctx).columns[1].items[4].text,'否定系 計2回');
   ctx.S.atEnd.zenin=2;ctx.S.trophy.rainbow=1;
-  assert.match(c.card.bottom(ctx).columns[0].items[0].text,/虹\(6確定\)/);
+  assert.match(c.card.bottom(ctx).columns[0].items[0].text,/虹\(6濃厚\)/);
   ctx.S.atEnd.entalion=1;
-  assert.match(c.card.bottom(ctx).columns[0].items[0].text,/エンタライオン\(6確定\)/);
+  assert.match(c.card.bottom(ctx).columns[0].items[0].text,/エンタライオン\(6濃厚\)/);
   assert.deepEqual(clone(c.card.chart(ctx).items.map(x=>x.value)),[1,0,0,2,2]);
 });
 
