@@ -27,6 +27,15 @@ test('normalization keeps unknown data and clamps invalid n/d on reload',()=>{
     assert.equal(out.games,expected);assert.equal(out.counts.sc,4);
     assert.deepEqual(c.normalizeState(clone(out),clone(out)),out);
   }
+  const mh=configs.mhsunbreak;
+  for(const [hits,want] of [[null,[]],[{},[]],[[0,-3,'',null,'oops',300,'600',9.9,'12x'],[300,600,9,12]]]){
+    const out=mh.normalizeState({...clone(mh.defaults),games:3000,counts:{at:9},hits,atEnd:{jay:1}});
+    assert.deepEqual(clone(out.hits),want);assert.equal(out.counts.at,9);assert.equal(out.atEnd.jay,1);
+  }
+  const out=mh.normalizeState({...clone(mh.defaults),hits:Array(1234).fill(300)});
+  assert.equal(out.hits.length,1234);
+  const mhCtx=context(mh,out);mh.pages(mhCtx,()=> '');assert.equal(out.games,370200);
+  assert.ok(mh.template(mhCtx).includes('AT1234回 1/300.0'));
 });
 
 test('rates use normal games only, with no division for missing games or zero hits',()=>{
@@ -35,12 +44,14 @@ test('rates use normal games only, with no division for missing games or zero hi
     ctx.S.counts[key]=2;
     for(const g of [0,1000]){
       ctx.S.games=g;
+      if(c===configs.mhsunbreak)ctx.S.hits=g?[300,700]:[];
       if(c===configs.juuou)ctx.S.gamesMyslo=g;
       const outputs=[c.template(ctx),JSON.stringify(c.card.blocks(ctx)),JSON.stringify(c.card.bottom(ctx)),JSON.stringify(c.card.detail(ctx))];
       for(const output of outputs)assert.equal(output.includes('1/500.0'),g===1000);
       for(const output of outputs)assert.ok(!output.includes('Infinity')&&!output.includes('NaN'));
     }
     ctx.S.counts[key]=0;
+    if(c===configs.mhsunbreak)ctx.S.hits=[];
     for(const output of [c.template(ctx),JSON.stringify(c.card.blocks(ctx)),JSON.stringify(c.card.bottom(ctx))])assert.ok(!/1\/\d/.test(output));
   }
   const c=configs.juuou,ctx=context(c);ctx.S.counts.sc=4;ctx.S.games=9999;
@@ -75,10 +86,10 @@ test('HTML contract: original CSS apart from specified nav count, public links a
     assert.equal(style(html),['mhsunbreak','tenten'].includes(id)?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
     assert.ok(!html.includes('checker-bayes.js'));assert.equal(html.includes('href="'+id+'-guide.html">使い方</a>'),['mhsunbreak','tenten'].includes(id));
     assert.equal(html.includes('<meta name="robots" content="noindex">'),['juuou','paripi'].includes(id));
-    assert.ok(html.includes('<small>SETTING CHECKER ・ slot-tools.jp</small>'));
+    assert.ok(html.includes('<small>SETTING CHECKER ・ slot-tools.jp'+(id==='mhsunbreak'?' ・ UI 20261004-2':'')+'</small>'));
     assert.ok(!html.includes('UI v1'));
     assert.ok(html.includes('checker-engine.js?v=20260924'));
-    assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'));
+    assert.ok(html.includes('checker-data/'+id+'.js?v=20261004'+({mhsunbreak:'-2',juuou:'-2',tenten:'-3',paripi:''}[id])+'"'));
     assert.ok(!html.includes('\r')&&!js.includes('\r'));
     assert.equal(configs[id].template,configs[id].compactTemplate);
     if(id==='juuou')assert.ok(!html.includes('設定3')&&!js.includes('設定3'));
