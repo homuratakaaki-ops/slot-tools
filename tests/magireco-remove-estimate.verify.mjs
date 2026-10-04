@@ -47,7 +47,8 @@ for(const file of tracked.filter(f=>!['magireco-checker.html','checker-data/magi
 const news=s=>s.split('<div class="section-label">NEW</div>')[1].split('</section>')[0].match(/<p>.*?<\/p>/g);
 const a=news(baseline('index.html')),b=news(read('index.html'));assert.equal(b.length,8);assert.equal(b.filter((x,i)=>x!==a[i]).length,1);
 console.log(JSON.stringify({status:'PASS',unrelatedFilesByteEqual:tracked.length-2,newsRows:8,newsRowsChanged:1}));
-for(const file of ['checker-data/magireco.js','magireco-checker.html','magireco-guide.html'])assert.ok(!read(file).includes('設定推測'),file);
+// Only these three Magireco files describe the removed tab; unrelated uses of this word elsewhere are out of scope.
+for(const file of ['checker-data/magireco.js','magireco-checker.html','magireco-guide.html'])assert.ok(!read(file).includes('推測'),file);
 // Other machines still estimate settings: inspect only Magireco's NEW entry and preserve the site-wide explanation.
 const entry=b.filter(line=>line.includes('magireco-checker.html'));
 assert.deepEqual(entry,['<p>9/30｜<a href="magireco-checker.html">マギアレコード 設定判別カウンターを公開</a></p>']);
