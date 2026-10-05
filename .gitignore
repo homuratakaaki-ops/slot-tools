@@ -1,0 +1,33 @@
+# このリポジトリは GitHub Pages でそのまま配信される。
+# 追加するパターンは「公開物に混ざると困る生成物」に限ること。
+# 追加したら必ず次を実行し、何も出力されないこと（＝追跡中のファイルに掛かっていない）を確認する。
+#
+#   git ls-files -z | git check-ignore --stdin -z --no-index -v
+#
+
+# --- 検証・テストの出力 ---
+# ブラウザ検証の既定の出力先は os.tmpdir() だが、CHECKER_ARTIFACTS で
+# リポジトリ内に向けて走らせるとここに溜まる（2026/10/5 に 2.8MB 混入しかけた）。
+artifacts/
+# tests/*.browser.mjs が mkdtemp で作る結果・プロファイル（出力先を変えた場合の受け皿）
+slot-*-results-*/
+slot-*-profile-*/
+
+# --- 依存パッケージ ---
+node_modules/
+
+# --- OS が作る一時ファイル ---
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# --- エディタ・IDE ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
