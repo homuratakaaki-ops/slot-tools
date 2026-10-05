@@ -83,14 +83,14 @@ test('HTML contract: original CSS apart from specified nav count, public links a
   const base=style(read('mogumogu-checker.html'));
   for(const id of Object.keys(configs)){
     const html=read(id+'-checker.html'),js=read('checker-data/'+id+'.js');
-    assert.equal(style(html),id==='mhsunbreak'?base.replace('repeat(3,1fr);border-top','repeat(4,1fr);border-top'):id==='tenten'?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
-    assert.ok(!html.includes('checker-bayes.js'));assert.equal(html.includes('href="'+id+'-guide.html">使い方</a>'),['mhsunbreak','tenten'].includes(id));
-    assert.equal(html.includes('<meta name="robots" content="noindex">'),['juuou','paripi'].includes(id));
+    assert.equal(style(html),id==='mhsunbreak'?base.replace('repeat(3,1fr);border-top','repeat(4,1fr);border-top'):['tenten','paripi'].includes(id)?base:base.replace('grid-template-columns:repeat(3,1fr);border-top','grid-template-columns:repeat(2,1fr);border-top'));
+    assert.ok(!html.includes('checker-bayes.js'));assert.equal(html.includes('href="'+id+'-guide.html">使い方</a>'),['mhsunbreak','tenten','paripi'].includes(id));
+    assert.equal(html.includes('<meta name="robots" content="noindex">'),['juuou'].includes(id));
     assert.ok(html.includes('<small>SETTING CHECKER ・ slot-tools.jp</small>'));
     // 設定判別カウンターにはUIバージョン文字列を出さない（AGENTS 作業規約4）。
     assert.doesNotMatch(html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)[0],/\bUI\s/,id);
     assert.ok(html.includes('checker-engine.js?v=20260924'));
-    assert.ok(html.includes('checker-data/'+id+'.js?v='+({mhsunbreak:'20261005-3',juuou:'20261004-2',tenten:'20261004-4',paripi:'20261004'}[id])+'"'));
+    assert.ok(html.includes('checker-data/'+id+'.js?v='+({mhsunbreak:'20261005-3',juuou:'20261004-2',tenten:'20261004-4',paripi:'20261005-2'}[id])+'"'));
     assert.ok(!html.includes('\r')&&!js.includes('\r'));
     assert.equal(configs[id].template,configs[id].compactTemplate);
     if(id==='juuou')assert.ok(!html.includes('設定3')&&!js.includes('設定3'));

@@ -126,7 +126,7 @@ try{
   `});
   await send('Page.navigate',{url:origin+'/harness'});await pause(100);
   for(const id of ['juuou','paripi','tenten','mhsunbreak']){
-    const cardTab=id==='mhsunbreak'?3:id==='tenten'?2:1;
+    const cardTab=id==='mhsunbreak'?3:['tenten','paripi'].includes(id)?2:1;
     await clear(id);
     assert.equal(await frame(`return d.querySelector('#hitIn,#gIn,[data-number-key="gamesMyslo"]').closest('section').querySelector('details')===null;`),!['juuou','mhsunbreak'].includes(id));
     const countKey=id==='juuou'?'sc':id==='paripi'?'cz':'at';
@@ -526,7 +526,7 @@ try{
   assert.deepEqual(await frame('return w.__errors;'),[]);
   pass('MH v02 old save without new keys loads and preserves existing counts');
   // Held pages stay usable, but have neither public navigation nor guide links.
-  for(const id of ['juuou','paripi']){
+  for(const id of ['juuou']){
     assert.equal((await fetch(origin+'/'+id+'-checker.html')).status,200);
     await load(id);
     assert.equal(await frame(`return d.querySelector('meta[name="robots"]').content;`),'noindex');

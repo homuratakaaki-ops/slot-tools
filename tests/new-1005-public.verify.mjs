@@ -14,7 +14,7 @@ const bytes=(a,b)=>assert.deepEqual(Buffer.from(a),Buffer.from(b));
 const ids=['mhsunbreak','tenten'];
 const style=s=>s.match(/<style>([\s\S]*?)<\/style>/)[1];
 const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
-assert.deepEqual([...list.matchAll(/class="checker-main" href="([^"]+)/g)].slice(0,2).map(m=>m[1]),ids.map(id=>id+'-checker.html'));
+assert.deepEqual([...list.matchAll(/class="checker-main" href="([^"]+)/g)].slice(1,3).map(m=>m[1]),ids.map(id=>id+'-checker.html'));
 for(const id of ids){
   const guide=read(id+'-guide.html'),html=read(id+'-checker.html');
   assert.equal(style(guide),style(read('tonski-guide.html')));
@@ -30,29 +30,27 @@ const map=read('sitemap.xml');
 const locs=s=>[...s.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m=>m[1]);
 const baseLocs=locs(baseline('sitemap.xml')),nowLocs=locs(map);
 assert.equal(baseLocs.length,78);
-// 取り下げた2機種の経路だけが消えていること。以後のページ追加は許容する（§9-92 の運用と両立させる）。
+// 取り下げた1機種の経路だけが消えていること。以後のページ追加は許容する（§9-92 の運用と両立させる）。
 assert.deepEqual(baseLocs.filter(u=>!nowLocs.includes(u)).sort(),[
   'https://slot-tools.jp/juuou-checker.html',
-  'https://slot-tools.jp/juuou-guide.html',
-  'https://slot-tools.jp/paripi-checker.html',
-  'https://slot-tools.jp/paripi-guide.html'
+  'https://slot-tools.jp/juuou-guide.html'
 ].sort());
-for(const id of ['juuou','paripi']){
+for(const id of ['juuou']){
   for(const file of ['checkers.html','sitemap.xml','index.html'])assert.ok(!read(file).includes(id),file+' excludes '+id);
   assert.ok(!fs.existsSync(new URL(id+'-guide.html',root)));
   const html=read(id+'-checker.html');assert.ok(html.includes('<meta name="robots" content="noindex">'));
   assert.ok(!html.includes('>使い方</a>'));
 }
-console.log('PASS held machines 2: noindex, no guide files/links, absent from public routes');
+console.log('PASS held machines 1: noindex, no guide files/links, absent from public routes');
 for(const id of ids)for(const kind of ['checker','guide'])assert.ok(map.includes(`<loc>https://slot-tools.jp/${id}-${kind}.html</loc>\n    <lastmod>2026-10-04</lastmod>`));
 const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
 assert.equal((news.match(/<p>/g)||[]).length,8);
 // §9-92 で NEW欄は公開のたびに増えるため、10/4 の行を機種2本に固定しない。
 const oct4=[...news.matchAll(/<p>10\/4｜<a href="([^"]+)/g)].map(m=>m[1]);
 assert.deepEqual(oct4.filter(u=>ids.some(id=>u===id+'-checker.html')),ids.map(id=>id+'-checker.html'));
-const arch=read('docs/ARCHITECTURE.md');assert.equal((arch.match(/25機種/g)||[]).length,2);assert.ok(!arch.includes('23機種'));
+const arch=read('docs/ARCHITECTURE.md');assert.equal((arch.match(/26機種/g)||[]).length,2);assert.ok(!arch.includes('23機種'));
 assert.deepEqual(arch.split('\n').filter(l=>l.includes('21機種')),baseline('docs/ARCHITECTURE.md').split('\n').filter(l=>l.includes('21機種')));
-console.log('PASS public routes 2, reciprocal links 2, sitemap 取り下げ4経路, NEW 8, architecture 2; guides style/meta/wording 2');
+console.log('PASS public routes 2, reciprocal links 2, sitemap 取り下げ2経路, NEW 8, architecture 2; guides style/meta/wording 2');
 for(const id of ['ricorico','toaru2','mhsunbreak']){
   const a=config(id,hitBaseline('checker-data/'+id+'.js')),b=config(id,read('checker-data/'+id+'.js'));
   for(const mode of ['zero','mixed','all']){
@@ -95,6 +93,7 @@ for(const [src,expected] of [[{games:1234,counts:{sc:4}},1234],[{games:1234,game
 }
 console.log('PASS legacy and explicit-zero/new-key migrations 3, each idempotent');
 // magireco.js is intentionally changed by the approved estimate-tab removal; its dedicated audit compares preserved outputs.
+// paripi.js: 夢爽裁可の ST終了画面追加のため除外。
 // tenten.js and takoslot.js were changed by the current wording correction.
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
 console.log('PASS both common files, every other machine data file, unchanged vs 74f8e03; MH golden validated above');
