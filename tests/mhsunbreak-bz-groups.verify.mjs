@@ -99,12 +99,15 @@ test('template buffers add only the v03 memo heading against 006e842 for zero an
     assert.deepEqual(Buffer.from(config.template(ctx(S))),Buffer.from(old.template(ctx(previous)).replace('■レア役からのBZ当選率','■BZ配列メモ\n\n■レア役からのBZ当選率')));
   }
 });
-test('all 28 checker headers omit UI version labels',()=>{
+test('all 28 checker headers omit UI version labels and use the ・ separator',()=>{
   const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html'));
   assert.equal(files.length,28);
   for(const file of files){
     const headers=[...read(file).matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>/g)];
     assert.ok(headers.length,file);
+    const headerText=headers.map(([,header])=>header).join('');
+    assert.equal(headerText.split('<small>SETTING CHECKER ・ slot-tools.jp</small>').length-1,1,file);
+    assert.equal(headerText.split('SETTING CHECKER — slot-tools.jp').length-1,0,file);
     for(const [,header] of headers)assert.doesNotMatch(header,/\bUI\s/,file);
   }
 });

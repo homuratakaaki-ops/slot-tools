@@ -94,7 +94,8 @@ for(const g of [0,1000])for(const v of [0,1,99]){
 }
 for(const key of ['blocks','chart'])assert.equal(c.card[key].toString(),old.card[key].toString());
 for(const name of ['gameSection','initialSection','pageInput'])assert.equal(source.match(new RegExp('  function '+name+'\\([^]*?(?=\\n  (?:function|const))'))[0],baseline('checker-data/paripi.js').match(new RegExp('  function '+name+'\\([^]*?(?=\\n  (?:function|const))'))[0]);
-for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&f!=='paripi.js').map(f=>'checker-data/'+f)])assert.equal(read(p),baseline(p),p+' unchanged');
+// toaru2.js は獲得枚数表示の誤った説明文を削除したため除外。
+for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&!['paripi.js','toaru2.js'].includes(f)).map(f=>'checker-data/'+f)])assert.equal(read(p),baseline(p),p+' unchanged');
 for(const p of ['checker-data/paripi.js','paripi-checker.html','paripi-guide.html','checkers.html','sitemap.xml','index.html','docs/ARCHITECTURE.md','tests/paripi-st-end.verify.mjs','tests/new-1005-four-machines.test.mjs','tests/new-1005-public.verify.mjs','tests/new-1005-four-machines.browser.mjs'])assert.ok(!read(p).includes('\r'),p+' LF');
 console.log('PASS input HTML / blocks / chart bytes vs c914173; common files and all other machine data unchanged; LF');
 

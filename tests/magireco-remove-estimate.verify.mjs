@@ -47,13 +47,18 @@ const tracked=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,'
 // tenten は断定表現・獲得枚数表示の修正で変更済み。
 // takoslot-checker.html and checker-data/takoslot.js were changed by the current wording correction.
 // paripi-checker.html と checker-data/paripi.js は夢爽裁可の ST終了画面追加で変更済み。
-for(const file of tracked.filter(f=>!['magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js','tenten-checker.html','checker-data/tenten.js','takoslot-checker.html','checker-data/takoslot.js','paripi-checker.html','checker-data/paripi.js'].includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);
+// toaru2の説明文・参照クエリと9機種のヘッダー区切り記号を修正したため除外。
+const changed=['magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js','tenten-checker.html','checker-data/tenten.js','takoslot-checker.html','checker-data/takoslot.js','paripi-checker.html','checker-data/paripi.js',
+  'checker-data/toaru2.js','toaru2-checker.html',
+  'enen2-checker.html','kabaneri2-checker.html','karakuri2-checker.html','otome5-checker.html',
+  'sao2-checker.html','taktop-checker.html','yajikita-checker.html','yoshimune-checker.html'];
+for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);
 const news=s=>s.split('<div class="section-label">NEW</div>')[1].split('</section>')[0].match(/<p>.*?<\/p>/g);
 const b=news(read('index.html'));
 // §9-92 で NEW欄は公開のたびに更新され行がずれるため、基準との行単位の差分は固定しない。
 // マギレコの行が1本だけ・想定の文面であることは下の entry 検査で担保する。
 assert.equal(b.length,8);
-console.log(JSON.stringify({status:'PASS',unrelatedFilesByteEqual:tracked.length-10,newsRows:8}));
+console.log(JSON.stringify({status:'PASS',unrelatedFilesByteEqual:tracked.length-changed.length,newsRows:8}));
 // Only these three Magireco files describe the removed tab; unrelated uses of this word elsewhere are out of scope.
 for(const file of ['checker-data/magireco.js','magireco-checker.html','magireco-guide.html'])assert.ok(!read(file).includes('推測'),file);
 // Other machines still estimate settings: inspect only Magireco's NEW entry and preserve the site-wide explanation.
