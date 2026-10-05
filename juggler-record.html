@@ -807,15 +807,15 @@ import { computeMoney, moneyFromRecord } from "./js/money.js?v=20260915-2";
 // bandMark / bandOutline は帯の中だけの上書き（markColor が accent と同色で
 //   帯に載せると沈む機種のための逃げ道。現状はハッピーのみ）
 const MACHINES = {
-  my_juggler_v: { path: "data/machines/my_juggler_v.json", name: "SマイジャグラーV", accent: "#FF5C8A", band: "#521D2C", mark: "マイ", markColor: "#FF5C8A" },
-  im_juggler_ex_6: { path: "data/machines/im_juggler_ex_6.json", name: "SアイムジャグラーEX", accent: "#E5483C", band: "#A8352C", mark: "アイム", markColor: "#FFD34E" },
-  gogo_juggler_3: { path: "data/machines/gogo_juggler_3.json", name: "Sゴーゴージャグラー3", accent: "#FF4FA3", band: "#4F1833", mark: "ゴーゴー", markColor: "#FF4FA3" },
-  funky_juggler_2: { path: "data/machines/funky_juggler_2.json", name: "Sファンキージャグラー2", accent: "#9B7CFF", band: "#2D244B", mark: "ファンキー", markColor: "#9B7CFF" },
-  happy_juggler_v3: { path: "data/machines/happy_juggler_v3.json", name: "SハッピージャグラーVⅢ", accent: "#54D67A", band: "#2E7643", mark: "ハッピー", markColor: "#54D67A", bandMark: "#E9E9E6", bandOutline: "#4A2370" },
-  neo_im_juggler_ex: { path: "data/machines/neo_im_juggler_ex.json", name: "SネオアイムジャグラーEX", accent: "#FF6600", band: "#853500", mark: "ネオ", markColor: "#55D878" },
-  ultra_miracle_juggler: { path: "data/machines/ultra_miracle_juggler.json", name: "Sウルトラミラクルジャグラー", accent: "#C06CFF", band: "#3A204D", mark: "ウルトラミラクル", markColor: "#C06CFF" },
-  juggler_girls_ss: { path: "data/machines/juggler_girls_ss.json", name: "SジャグラーガールズSS", accent: "#3AD4B5", band: "#1A6052", mark: "ガールズSS", markColor: "#F1C84B" },
-  mr_juggler: { path: "data/machines/mr_juggler.json", name: "Sミスタージャグラー", accent: "#F1C84B", band: "#655420", mark: "ミスター", markColor: "#F1C84B" },
+  neo_im_juggler_ex: { path: "data/machines/neo_im_juggler_ex.json", name: "ネオアイムジャグラーEX", accent: "#FF6600", band: "#853500", mark: "ネオ", markColor: "#55D878" },
+  ultra_miracle_juggler: { path: "data/machines/ultra_miracle_juggler.json", name: "ウルトラミラクルジャグラー", accent: "#C06CFF", band: "#3A204D", mark: "ウルトラミラクル", markColor: "#C06CFF" },
+  mr_juggler: { path: "data/machines/mr_juggler.json", name: "ミスタージャグラー", accent: "#F1C84B", band: "#655420", mark: "ミスター", markColor: "#F1C84B" },
+  juggler_girls_ss: { path: "data/machines/juggler_girls_ss.json", name: "ジャグラーガールズSS", accent: "#3AD4B5", band: "#1A6052", mark: "ガールズSS", markColor: "#F1C84B" },
+  gogo_juggler_3: { path: "data/machines/gogo_juggler_3.json", name: "ゴーゴージャグラー3", accent: "#FF4FA3", band: "#4F1833", mark: "ゴーゴー", markColor: "#FF4FA3" },
+  happy_juggler_v3: { path: "data/machines/happy_juggler_v3.json", name: "ハッピージャグラーVⅢ", accent: "#54D67A", band: "#2E7643", mark: "ハッピー", markColor: "#54D67A", bandMark: "#E9E9E6", bandOutline: "#4A2370" },
+  my_juggler_v: { path: "data/machines/my_juggler_v.json", name: "マイジャグラーV", accent: "#FF5C8A", band: "#521D2C", mark: "マイ", markColor: "#FF5C8A" },
+  funky_juggler_2: { path: "data/machines/funky_juggler_2.json", name: "ファンキージャグラー2", accent: "#9B7CFF", band: "#2D244B", mark: "ファンキー", markColor: "#9B7CFF" },
+  im_juggler_ex_6: { path: "data/machines/im_juggler_ex_6.json", name: "アイムジャグラーEX", accent: "#E5483C", band: "#A8352C", mark: "アイム", markColor: "#FFD34E" },
 };
 const params = new URLSearchParams(location.search);
 const machineId = MACHINES[params.get("machine")] ? params.get("machine") : "my_juggler_v";
@@ -880,7 +880,7 @@ async function init() {
   }
   applyMachineColors();
   $("resultMachine").innerHTML = `${machineNameHtml(MACHINES[machineId])} の解析値で計算しています`;
-  document.title = `実戦記録・設定推測 ${machine.machine.name}｜スロット稼働ノート`;
+  document.title = `実戦記録・設定推測 ${dispName(machine.machine.name)}｜スロット稼働ノート`;
   UI_BTNS = (machine.ui && machine.ui.count_buttons) || [];
   COUNT_IDS = [
     ...UI_BTNS.flatMap((b) => [b.id, ...(b.sub_counts || []).map((s) => s.id)]),
@@ -1458,6 +1458,12 @@ function bonusGroupIds() {
   return { big, reg };
 }
 
+// data/machines/*.json の machine.name は先頭に「S」が付いている（他ツールと共用のため変えない）。
+// このツールの画面・コピー文では頭の「S」を外して出す
+function dispName(name) {
+  return String(name || "").replace(/^S/, "");
+}
+
 // 機種名の mark 部分だけ色を付ける。band:true のときは帯用の色を優先する
 function machineNameHtml(def, opts) {
   const name = def.name || "";
@@ -1702,7 +1708,7 @@ function renderEndSheet() {
   const totBig = state.start.big + rs.big + grp.big.reduce((a, id) => a + nbc(id), 0) + nbc("unk_big");
   const totReg = state.start.reg + rs.reg + grp.reg.reduce((a, id) => a + nbc(id), 0) + nbc("unk_reg");
   $("endHead").textContent =
-    `${machine.machine.name} ／ 自分 ${ownG.toLocaleString()}G（台 ${state.nowG.toLocaleString()}G）／ BIG ${totBig} / REG ${totReg}`;
+    `${dispName(machine.machine.name)} ／ 自分 ${ownG.toLocaleString()}G（台 ${state.nowG.toLocaleString()}G）／ BIG ${totBig} / REG ${totReg}`;
   // 全部飲まれて0枚で終えたことと、まだ入れていないことを取り違えないようにする
   const zeroSpent = inv.hold === 0 && m.hasMoney;
   $("e_hold").textContent = `終了持ち枚数 ${zeroSpent ? "0枚（全飲まれ）" : inv.hold.toLocaleString()}`;
@@ -1954,7 +1960,7 @@ function drawResultCard() {
   x.fillStyle = CARD.accent;
   x.font = "700 30px 'M PLUS 1p', sans-serif";
   x.fillText("SETTING CHECK RESULT", 70, 110);
-  fitText(x, machine.machine.name, 70, 172, 560, 52, CARD.ink, 800);
+  fitText(x, dispName(machine.machine.name), 70, 172, 560, 52, CARD.ink, 800);
   const d = new Date();
   const meta = `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}  ${R.totalGames.toLocaleString()}G`;
   x.fillStyle = CARD.muted;
@@ -2039,7 +2045,7 @@ function drawResultCard() {
   x.fillText("slot-tools.jp", 70, H - 104);
   x.fillStyle = CARD.muted;
   x.font = "500 22px 'M PLUS 1p', sans-serif";
-  x.fillText(`#${machine.machine.name.replace(/^S/, "")} #設定判別`, 300, H - 104);
+  x.fillText(`#${dispName(machine.machine.name)} #設定判別`, 300, H - 104);
   x.font = "500 21px 'M PLUS 1p', sans-serif";
   x.fillText("解析出典：ちょんぼりすた様ほか", 70, H - 62);
 }
@@ -2050,7 +2056,7 @@ function cardShareText() {
   const d = new Date();
   const rate = (c, g) => (c > 0 && g > 0 ? `1/${(g / c).toFixed(1)}` : "–");
   const lines = [
-    `${machine.machine.name} 設定判別メモ`,
+    `${dispName(machine.machine.name)} 設定判別メモ`,
     `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}  ${R.totalGames.toLocaleString()}G`,
     `BIG ${R.totBig} / REG ${R.totReg}（合算 ${rate(R.totBig + R.totReg, R.totalGames)}）`,
   ];
@@ -2059,7 +2065,7 @@ function cardShareText() {
     machine.machine.settings.map((s, i) => `設定${s} ${(100 * R.posterior[i]).toFixed(1)}%`).join(" / ")
   );
   lines.push(reliabilityText(R.totalGames));
-  lines.push(`#${machine.machine.name.replace(/^S/, "")} #設定判別`);
+  lines.push(`#${dispName(machine.machine.name)} #設定判別`);
   lines.push("slot-tools.jp");
   return lines.join("\n");
 }
@@ -2218,7 +2224,7 @@ function mylogItemHtml(r) {
   const bigreg = `BIG ${r.end && r.end.big != null ? r.end.big : "–"} / REG ${r.end && r.end.reg != null ? r.end.reg : "–"}`;
   const tot = r.end && r.end.totalDiff != null ? ` ／ 台差枚 約${r.end.totalDiff >= 0 ? "+" : ""}${r.end.totalDiff.toLocaleString()}` : "";
   return `<div class="mylog-item" data-id="${r.id}">
-    <div class="ml-h"><span>${escapeHtml(r.machineName || "")}</span><span>${escapeHtml(r.date || "")}</span></div>
+    <div class="ml-h"><span>${escapeHtml(dispName(r.machineName))}</span><span>${escapeHtml(r.date || "")}</span></div>
     <div class="ml-b">${escapeHtml(r.shop || "店名なし")}${r.seat ? " " + escapeHtml(r.seat) + "番" : ""}${r.event ? " ／ " + escapeHtml(r.event) : ""}<br>
       台 ${(r.end && r.end.g != null ? r.end.g : 0).toLocaleString()}G ／ ${bigreg}${tot}<br>
       自分 ${(r.own && r.own.games != null ? r.own.games : 0).toLocaleString()}G ／ ${est}<br>
