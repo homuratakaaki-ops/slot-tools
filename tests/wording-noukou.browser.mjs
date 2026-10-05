@@ -133,17 +133,23 @@ try{
     // Re-enter through the production card tab after fonts have loaded.
     await tab(0);await tab(Number(cardTab));await pause(150);
     const c=await canvas('cardCanvas');saveCanvas(id+'-all-card',c);
-    const rows=c.text.filter(t=>[70,560].includes(t.x)&&t.y>720&&t.y<976);
+    // §9-85: 16pxまで縮小した後の省略は想定どおりの挙動。省略された項目は詳細カードで全件確認できる。
+    const BOTTOM_COLUMN_WIDTH={70:490,560:450};
+    const rows=c.text.filter(t=>t.y>720&&t.y<976);
     const ellipsis=rows.filter(t=>t.text.includes('…'));
+    const fontSize=t=>Number(t.font.match(/([\d.]+)px/)?.[1]);
+    const overflow=rows.filter(t=>!Object.hasOwn(BOTTOM_COLUMN_WIDTH,t.x)||!(t.width<=BOTTOM_COLUMN_WIDTH[t.x]));
+    const oversized=ellipsis.filter(t=>fontSize(t)!==16);
     const lastY=Math.max(...rows.map(t=>t.y));
+    assert.ok(rows.length>0,id+' rendered summary rows');
     const longest=rows.reduce((a,b)=>a.width>b.width?a:b);
     const fontStatus=await frame(`return [...d.fonts].filter(f=>['M PLUS 1p','DotGothic16'].includes(f.family.replaceAll('"',''))).map(f=>({family:f.family,weight:f.weight,status:f.status}));`);
     const fontsLoaded=fontStatus.some(f=>f.family.includes('M PLUS 1p')&&f.weight==='800'&&f.status==='loaded');
     if(realFonts)assert.ok(fontsLoaded,id+' real Web font required: '+JSON.stringify(fontStatus));
     assert.ok(c.bright>1000&&c.opaque===c.width*c.height,id+' canvas pixels');
-    assert.ok(rows.length>0,id+' rendered summary rows');
-    const entry={name:id+' all-input summary',status:ellipsis.length===0&&lastY<=936?'PASS':'FAIL',inputCount,lastY,longest,ellipsis,rows,fontsLoaded,fontStatus,pixels:{opaque:c.opaque,bright:c.bright}};
-    results.push(entry);console.log(entry.status+' '+id+' inputs='+inputCount+' lastY='+lastY+' ellipsis='+ellipsis.length);
+    const entry={name:id+' all-input summary',status:overflow.length===0&&oversized.length===0&&lastY<=936?'PASS':'FAIL',inputCount,lastY,longest,ellipsis,overflow,oversized,rows,fontsLoaded,fontStatus,pixels:{opaque:c.opaque,bright:c.bright}};
+    results.push(entry);console.log(entry.status+' '+id+' inputs='+inputCount+' lastY='+lastY+' ellipsis='+ellipsis.length+' overflow='+overflow.length);
+    for(const t of ellipsis)console.log('ELLIPSIS '+id+' x='+t.x+' '+fontSize(t)+'px w='+t.width.toFixed(1)+' '+t.text);
     if(entry.status==='FAIL')process.exitCode=1;
     await click('#detailBtn');const detail=await canvas('detailCanvas');saveCanvas(id+'-all-detail',detail);
     assert.ok(detail.bright>1000,id+' detail pixels');
