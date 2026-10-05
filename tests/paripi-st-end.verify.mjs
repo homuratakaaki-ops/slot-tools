@@ -24,7 +24,7 @@ const context=(S,rows=[])=>({S,pct:(n,d)=>`${n}/${d}`,crow:(key,label,sub,hot,pc
 const guide=read('paripi-guide.html'),rows=[],html=c.pages(context(state(),rows),()=> '')[1]();
 assert.equal(rows.length,12);
 for(const [i,[key,label,hint,rank,image]] of defs.entries()){
-  const sub=(rank===0&&i<3?'デフォルト・':'')+'ちょんぼりすた画像'+image;
+  const sub=(rank===0&&i<3?'デフォルト・':'')+'画像'+image;
   assert.deepEqual(rows[i],{key:'stEnd.'+key,label,sub,hot:rank>0,ratio:'0/0'});
   assert.equal(html.split(`<button>${label}</button>`).length-1,1);
   assert.equal(html.split('画像'+image).length-1,1);
@@ -32,6 +32,8 @@ for(const [i,[key,label,hint,rank,image]] of defs.entries()){
 }
 assert.equal(c.pages(context(state()),()=> '').length,3);
 assert.equal(html.split('class="hint"').length-1,1);
+assert.equal(html.split('画像番号はちょんぼりすたの掲載順です。').length-1,1);
+for(const row of rows)assert.doesNotMatch(row.sub,/ちょんぼりすた/);
 console.log('PASS source match: all 12 labels, hints and image numbers; 5 hot / 7 neutral');
 const rawDefs=vm.runInNewContext(source.match(/const ST_END=\[[\s\S]*?\];/)[0]+'ST_END');
 assert.deepEqual(clone(rawDefs.map(r=>r[3])),defs.map(r=>r[3]));
@@ -65,7 +67,7 @@ assert.deepEqual(clone(c.normalizeState(clone(invalid))),clone(invalid));assert.
 console.log('PASS percentages share known-key total; zero games; template omission/header; legacy/unknown/negative/idempotent state');
 const checker=read('paripi-checker.html'),style=s=>s.match(/<style>([\s\S]*?)<\/style>/)[1];
 assert.doesNotMatch(checker,/noindex/);assert.ok(checker.includes('href="paripi-guide.html">使い方</a>'));
-assert.ok(checker.includes('checker-data/paripi.js?v=20261005'));assert.ok(checker.includes('checker-engine.js?v=20260924'));
+assert.ok(checker.includes('checker-data/paripi.js?v=20261005-2"'));assert.ok(checker.includes('checker-engine.js?v=20260924'));
 assert.equal(style(checker),style(read('mogumogu-checker.html')));
 const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
 assert.equal(list.match(/class="checker-main" href="([^"]+)/)[1],'paripi-checker.html');
@@ -138,6 +140,25 @@ if(process.argv.includes('--browser')){
   for(const width of [360,390]){
     await load('paripi',width,530);
     for(let p=0;p<3;p++){await tab(p);await measure('paripi-'+width+'-tab'+p);const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});fs.writeFileSync(path.join(artifacts,'paripi-'+width+'-tab'+p+'.png'),Buffer.from(shot.data,'base64'));}
+    await tab(1);
+    const labels=await frame('return {width:w.innerWidth,labels:[...d.querySelectorAll(".crow .lbl .nm,.crow .lbl .mn")].map(e=>{const range=d.createRange();range.selectNodeContents(e);return {kind:e.classList.contains("mn")?"mn":"nm",text:e.textContent,lineCount:range.getClientRects().length};})};');
+    fs.writeFileSync(path.join(artifacts,'paripi-'+width+'-st-labels.json'),JSON.stringify(labels,null,2));
+    assert.equal(labels.width,width);
+    for(const kind of ['mn','nm']){
+      const items=labels.labels.filter(e=>e.kind===kind);
+      assert.equal(items.length,12,kind+' label count at '+width);
+      for(const item of items)assert.equal(item.lineCount,1,width+' '+kind+' '+item.text);
+    }
+    for(const item of labels.labels.filter(e=>e.kind==='mn'))assert.doesNotMatch(item.text,/ちょんぼりすた/);
+    pass('paripi all 12 sublabels and button labels single-line '+width,labels);
+    const hint=await frame('const hints=d.querySelectorAll("#main .hint"),h=hints[0],fold=h.querySelector("details.hint-fold");return {count:hints.length,lead:[...h.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join(""),tail:fold.querySelector(".hint-body").textContent,summary:fold.querySelector("summary").textContent,open:fold.open};');
+    assert.deepEqual(hint,{count:1,lead:'ST終了時の画面を記録します。',tail:'画面の見分け方はガイドからちょんぼりすたの画像で確認できます。画像番号はちょんぼりすたの掲載順です。',summary:'説明を見る',open:false});
+    assert.equal(hint.lead.length,15);assert.equal(hint.tail.length,50);
+    assert.equal(hint.tail.split('画像番号はちょんぼりすたの掲載順です。').length-1,1);
+    await click('#main .hint summary');
+    assert.equal(await frame('return d.querySelector("#main .hint .hint-body").checkVisibility();'),true);
+    await click('#main .hint summary');
+    pass('paripi hint lead 15 / folded 50 / expand and collapse '+width,hint);
     assert.deepEqual(await frame('return w.__errors;'),[]);
     await click('.hd-link[href="paripi-guide.html"]');
     for(let i=0;i<100;i++){if(await frame('return w.location.pathname==="/paripi-guide.html"&&!!d.querySelector("main");').catch(()=>false))break;await pause(30);}
