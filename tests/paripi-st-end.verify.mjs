@@ -20,8 +20,8 @@ const defs=[
   ['s2','設定2以上濃厚','設定2以上濃厚',2,'⑧'],['s3','設定3以上濃厚','設定3以上濃厚',3,'⑨'],
   ['s4','設定4以上濃厚','設定4以上濃厚',4,'⑩'],['s5','設定5以上濃厚','設定5以上濃厚',5,'⑪'],['s6','設定6濃厚','設定6濃厚',6,'⑫']
 ];
-const context=(S,rows=[])=>({S,pct:(n,d)=>`${n}/${d}`,crow:(key,label,sub,hot,pct)=>{rows.push({key,label,sub,hot,ratio:pct?.(S[key.split('.')[0]][key.split('.')[1]])});return `<button>${label}</button><small>${sub}</small>`;}});
-const guide=read('paripi-guide.html'),rows=[],html=c.pages(context(state(),rows),()=> '')[1]();
+const context=(S,rows=[])=>({S,nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr',pct:(n,d)=>`${n}/${d}`,crow:(key,label,sub,hot,pct)=>{rows.push({key,label,sub,hot,ratio:pct?.(S[key.split('.')[0]][key.split('.')[1]])});return `<button>${label}</button><small>${sub}</small>`;}});
+const guide=read('paripi-guide.html'),rows=[],html=c.pages(context(state(),rows),()=> '')[2]();
 assert.equal(rows.length,12);
 for(const [i,[key,label,hint,rank,image]] of defs.entries()){
   const sub=(rank===0&&i<3?'デフォルト・':'')+'画像'+image;
@@ -30,7 +30,7 @@ for(const [i,[key,label,hint,rank,image]] of defs.entries()){
   assert.equal(html.split('画像'+image).length-1,1);
   assert.ok(guide.includes(`<td>${label}</td><td>${hint}</td><td>画像${image}</td>`));
 }
-assert.equal(c.pages(context(state()),()=> '').length,3);
+assert.equal(c.pages(context(state()),()=> '').length,4);
 assert.equal(html.split('class="hint"').length-1,1);
 assert.equal(html.split('画像番号はちょんぼりすたの掲載順です。').length-1,1);
 for(const row of rows)assert.doesNotMatch(row.sub,/ちょんぼりすた/);
@@ -51,24 +51,24 @@ for(let mask=0;mask<4096;mask++){
 }
 console.log('PASS 4096 combinations: numeric rank, first line, 5+3 rows / lastY 896; misleading-label mutation');
 const S=state();S.stEnd.kanban=1;S.stEnd.s4=2;S.stEnd.future=100;S.counts.cz=2;
-const pctRows=[];c.pages(context(S,pctRows),()=> '')[1]();
+const pctRows=[];c.pages(context(S,pctRows),()=> '')[2]();
 assert.ok(pctRows.every(r=>r.ratio.endsWith('/3')));
 const detail=c.card.detail({S})[1];assert.equal(detail.denominator,3);assert.equal(detail.percent,true);assert.equal(detail.items.length,12);
 assert.equal(detail.items.reduce((a,r)=>a+r.value,0),3);
-assert.ok(c.template({S}).includes('看板▶1回(33%)'));assert.ok(c.template({S}).includes('設定4以上濃厚▶2回(67%)'));
-assert.ok(!c.template({S}).includes('青背景▶'));assert.ok(!c.template({S:state()}).includes('■ST終了画面'));
-assert.equal(c.template({S}).split('\n')[1],old.template({S}).split('\n')[1]);
-for(const output of [c.template({S}),JSON.stringify(c.card.blocks({S})),JSON.stringify(c.card.chart({S})),JSON.stringify(c.card.bottom({S})),JSON.stringify(c.card.detail({S}))])assert.doesNotMatch(output,/1\/|NaN|Infinity/);
+assert.ok(c.template(context(S)).includes('ﾃﾞﾌｫ①   ▶︎ 1回'));assert.ok(c.template(context(S)).includes('4以上　▶︎ 2回'));
+assert.ok(c.template(context(S)).includes('ﾃﾞﾌｫ②   ▶︎ 0回'));assert.ok(c.template(context(state())).includes('■AT終了画面'));
+assert.equal(c.template(context(S)).split('\n')[1],'通常 0G / CZ2回 / ボーナス0回');
+for(const output of [c.template(context(S)),JSON.stringify(c.card.blocks({S})),JSON.stringify(c.card.chart({S})),JSON.stringify(c.card.bottom({S})),JSON.stringify(c.card.detail({S}))])assert.doesNotMatch(output,/1\/|NaN|Infinity/);
 const legacy=c.normalizeState({games:1000,counts:{cz:3,bonus:2},future:{keep:true}});
 assert.deepEqual(clone(legacy.stEnd),clone(c.defaults.stEnd));assert.equal(legacy.counts.cz,3);assert.equal(legacy.games,1000);assert.equal(legacy.future.keep,true);
 const invalid=c.normalizeState({games:-1,counts:{cz:-2,future:8},stEnd:{kanban:-3,s4:'2',future:9},future:{keep:true}});
 assert.equal(invalid.games,0);assert.equal(invalid.counts.cz,0);assert.equal(invalid.counts.future,8);assert.equal(invalid.stEnd.kanban,0);assert.equal(invalid.stEnd.s4,2);assert.equal(invalid.stEnd.future,9);assert.equal(invalid.future.keep,true);
-assert.deepEqual(clone(c.normalizeState(clone(invalid))),clone(invalid));assert.deepEqual(clone(c.mergeKeys),['counts','stEnd']);
+assert.deepEqual(clone(c.normalizeState(clone(invalid))),clone(invalid));assert.deepEqual(clone(c.mergeKeys),['counts','stEnd','stechen','shiki','rare','czType']);
 console.log('PASS percentages share known-key total; zero games; template omission/header; legacy/unknown/negative/idempotent state');
 const checker=read('paripi-checker.html'),style=s=>s.match(/<style>([\s\S]*?)<\/style>/)[1];
 assert.doesNotMatch(checker,/noindex/);assert.ok(checker.includes('href="paripi-guide.html">使い方</a>'));
-assert.ok(checker.includes('checker-data/paripi.js?v=20261005-2"'));assert.ok(checker.includes('checker-engine.js?v=20260924'));
-assert.equal(style(checker),style(read('mogumogu-checker.html')));
+assert.ok(checker.includes('checker-data/paripi.js?v=20261006"'));assert.ok(checker.includes('checker-engine.js?v=20260924'));
+assert.equal(style(checker),style(read('mhsunbreak-checker.html')));
 const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
 assert.equal(list.match(/class="checker-main" href="([^"]+)/)[1],'paripi-checker.html');
 assert.ok(list.includes('href="paripi-guide.html">使い方</a>'));
@@ -89,11 +89,17 @@ for(const [i,cz] of ['213.6','207.3','199.2','188.8','179.4','171.7'].entries())
 console.log('PASS public routes, NEW 8, version, reciprocal links, guide CSS/meta/facts/wording/template shell');
 for(const g of [0,1000])for(const v of [0,1,99]){
   const S=state();S.games=g;S.counts.cz=v;S.counts.bonus=v+1;
-  assert.equal(c.pages(context(S),()=> '')[0](),old.pages(context(S),()=> '')[0]());
+  const inputRows=[],input=c.pages(context(S,inputRows),()=> '')[0]();
+  assert.deepEqual(inputRows.map(r=>r.key),['czType.sanka','czType.eiko','czType.sekihei','counts.bonus']);
+  assert.deepEqual(inputRows.map(r=>r.label),['三歌の礼','英子の試練','石兵八陣','ボーナス初当り']);
+  assert.equal(input.includes('種類不明'),v>0);
+  if(v>0)assert.ok(input.includes('種類不明 '+v+'回'));
   for(const key of ['blocks','chart'])assert.equal(JSON.stringify(c.card[key]({S})),JSON.stringify(old.card[key]({S})));
 }
-for(const key of ['blocks','chart'])assert.equal(c.card[key].toString(),old.card[key].toString());
-for(const name of ['gameSection','initialSection','pageInput'])assert.equal(source.match(new RegExp('  function '+name+'\\([^]*?(?=\\n  (?:function|const))'))[0],baseline('checker-data/paripi.js').match(new RegExp('  function '+name+'\\([^]*?(?=\\n  (?:function|const))'))[0]);
+const mixed=state();mixed.games=2000;mixed.counts.cz=4;mixed.czType={sanka:1,eiko:2,sekihei:3};
+assert.deepEqual(clone(c.card.blocks({S:mixed})),[['CZ 10回','1/200.0'],['ボーナス初当り','0回'],['通常ゲーム数','2000G']]);
+assert.deepEqual(clone(c.card.chart({S:mixed}).items),[{label:'CZ',value:10},{label:'ボーナス初当り',value:0}]);
+for(const name of ['gameSection'])assert.equal(source.match(new RegExp('  function '+name+'\\([^]*?(?=\\n  (?:function|const))'))[0],baseline('checker-data/paripi.js').match(new RegExp('  function '+name+'\\([^]*?(?=\\n  (?:function|const))'))[0]);
 // toaru2.js は獲得枚数表示の誤った説明文を削除したため除外。
 for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&!['paripi.js','toaru2.js'].includes(f)).map(f=>'checker-data/'+f)])assert.equal(read(p),baseline(p),p+' unchanged');
 for(const p of ['checker-data/paripi.js','paripi-checker.html','paripi-guide.html','checkers.html','sitemap.xml','index.html','docs/ARCHITECTURE.md','tests/paripi-st-end.verify.mjs','tests/new-1005-four-machines.test.mjs','tests/new-1005-public.verify.mjs','tests/new-1005-four-machines.browser.mjs'])assert.ok(!read(p).includes('\r'),p+' LF');
@@ -106,7 +112,7 @@ if(process.argv.includes('--browser')){
   const suffix=harness.slice(harness.indexOf('}catch(e){results.push'));
   const steps=String.raw`
   const defs=__DEFS__;
-  await clear('paripi');await tab(1);
+  await clear('paripi');await tab(2);
   for(const [key,label] of defs){
     await bump('stEnd.'+key);assert.equal((await state()).stEnd[key],1);
     assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(label));
@@ -114,34 +120,34 @@ if(process.argv.includes('--browser')){
     await bump('stEnd.'+key);await click('#modeBtn');await bump('stEnd.'+key);
     assert.equal((await state()).stEnd[key],0);await click('#modeBtn');
   }
-  await bump('stEnd.kanban');await tab(0);await games(1234);await bump('counts.cz');await click('#undoBtn');
+  await bump('stEnd.kanban');await tab(0);await games(1234);await bump('czType.sanka');await click('#undoBtn');
   assert.equal((await state()).stEnd.kanban,1);assert.equal((await state()).games,1234);
-  await load('paripi');assert.equal((await state()).stEnd.kanban,1);await tab(1);
+  await load('paripi');assert.equal((await state()).stEnd.kanban,1);await tab(2);
   pass('paripi 12 inputs: feed / Undo / minus / independent input / saved reload');
   await clear('paripi');await frame('w.__gray=0;');
   for(let start=0;start<4096;start+=32){
-    const output=await frame('const defs='+JSON.stringify(defs)+';const rows=[];for(let i='+start+';i<'+(start+32)+';i++){const gray=i^(i>>1),change=gray^w.__gray;if(change){const bit=Math.log2(change),minus=!(gray&change);d.querySelector("#nav [data-p=\\\"1\\\"]").click();if(minus)d.getElementById("modeBtn").click();d.querySelector("[data-c=\\\"stEnd."+defs[bit][0]+"\\\"] .plus").click();if(minus)d.getElementById("modeBtn").click();}d.querySelector("#nav [data-p=\\\"2\\\"]").click();const cv=d.getElementById("cardCanvas"),a=cv.getContext("2d").getImageData(70,730,490,30).data;let bright=0;for(let k=0;k<a.length;k+=4)if(a[k]+a[k+1]+a[k+2]>180)bright++;rows.push({mask:gray,text:w.__texts.cardCanvas.find(t=>t.x===70&&t.y===752)?.text,bright});w.__gray=gray;}return rows;');
+    const output=await frame('const defs='+JSON.stringify(defs)+';const rows=[];for(let i='+start+';i<'+(start+32)+';i++){const gray=i^(i>>1),change=gray^w.__gray;if(change){const bit=Math.log2(change),minus=!(gray&change);d.querySelector("#nav [data-p=\\\"2\\\"]").click();if(minus)d.getElementById("modeBtn").click();d.querySelector("[data-c=\\\"stEnd."+defs[bit][0]+"\\\"] .plus").click();if(minus)d.getElementById("modeBtn").click();}d.querySelector("#nav [data-p=\\\"3\\\"]").click();const cv=d.getElementById("cardCanvas"),a=cv.getContext("2d").getImageData(70,730,490,30).data;let bright=0;for(let k=0;k<a.length;k+=4)if(a[k]+a[k+1]+a[k+2]>180)bright++;rows.push({mask:gray,text:w.__texts.cardCanvas.find(t=>t.x===70&&t.y===752)?.text,bright});w.__gray=gray;}return rows;');
     for(const r of output){const best=defs.filter((d,i)=>d[3]>0&&(r.mask&(1<<i))).at(-1);assert.equal(r.text,best?'確定 '+best[1]+' ×1':'確定演出 なし');assert.ok(r.bright>10);}
     if(start%512===0)console.log('PASS paripi browser combinations through '+(start+32));
   }
   pass('paripi 4096 combinations: production clicks, canvas first line and pixels');
-  await clear('paripi');await tab(1);for(const [key] of defs)await bump('stEnd.'+key);
-  await tab(0);await bump('counts.cz');await bump('counts.bonus');await tab(2);
+  await clear('paripi');await tab(2);for(const [key] of defs)await bump('stEnd.'+key);
+  await tab(0);await bump('czType.sanka');await bump('counts.bonus');await tab(3);
   const card=await canvas('cardCanvas'),summary=card.text.filter(t=>[70,560].includes(t.x)&&t.y>=752&&t.y<=936);
   assert.equal(summary.length,8);assert.deepEqual(summary.filter(t=>t.x===70).map(t=>t.y),[752,788,824,860,896]);assert.deepEqual(summary.filter(t=>t.x===560).map(t=>t.y),[752,788,824]);
   assert.ok(summary.every(t=>t.right<=(t.x===70?560:1010)));assert.ok(card.bright>1000);saveCanvas('paripi-all-card',card);
   assert.ok(!card.text.some(t=>/1\/|NaN|Infinity/.test(t.text)));await click('#detailBtn');const detail=await canvas('detailCanvas');
   for(const [,label] of defs)assert.ok(detail.text.some(t=>t.text===label+' ×1 (8%)'),label);assert.ok(detail.bright>1000);saveCanvas('paripi-all-detail',detail);
-  const tpl=await copy();for(const [,label] of defs)assert.ok(tpl.includes(label+'▶1回(8%)'));
+  const tpl=await copy();for(const label of ['ﾃﾞﾌｫ①   ','ﾃﾞﾌｫ②   ','ﾃﾞﾌｫ③   ','偶数弱　','偶数強　','高設定弱','高設定強','2以上　','3以上　','4以上　','5以上　','6濃厚　'])assert.ok(tpl.includes(label+'▶︎ 1回'));
   assert.ok(!/1\/|NaN|Infinity/.test(tpl));pass('paripi full summary 8 / lastY896 / full detail percentages / template / pixels',summary);
-  await tab(1);await bump('stEnd.kanban');await bump('stEnd.kanban');
+  await tab(2);await bump('stEnd.kanban');await bump('stEnd.kanban');
   assert.equal(await frame('return d.querySelector("[data-c=\\\"stEnd.kanban\\\"] .pct").textContent;'),'3/14 21%');
-  await tab(2);await click('#detailBtn');assert.ok((await canvas('detailCanvas')).text.some(t=>t.text==='看板 ×3 (21%)'));assert.ok((await copy()).includes('看板▶3回(21%)'));
+  await tab(3);await click('#detailBtn');assert.ok((await canvas('detailCanvas')).text.some(t=>t.text==='看板 ×3 (21%)'));assert.ok((await copy()).includes('ﾃﾞﾌｫ①   ▶︎ 3回'));
   pass('paripi unequal counts share denominator 14 on input/detail/template');
   for(const width of [360,390]){
     await load('paripi',width,530);
-    for(let p=0;p<3;p++){await tab(p);await measure('paripi-'+width+'-tab'+p);const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});fs.writeFileSync(path.join(artifacts,'paripi-'+width+'-tab'+p+'.png'),Buffer.from(shot.data,'base64'));}
-    await tab(1);
+    for(let p=0;p<4;p++){await tab(p);await measure('paripi-'+width+'-tab'+p);const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});fs.writeFileSync(path.join(artifacts,'paripi-'+width+'-tab'+p+'.png'),Buffer.from(shot.data,'base64'));}
+    await tab(2);
     const labels=await frame('return {width:w.innerWidth,labels:[...d.querySelectorAll(".crow .lbl .nm,.crow .lbl .mn")].map(e=>{const range=d.createRange();range.selectNodeContents(e);return {kind:e.classList.contains("mn")?"mn":"nm",text:e.textContent,lineCount:range.getClientRects().length};})};');
     fs.writeFileSync(path.join(artifacts,'paripi-'+width+'-st-labels.json'),JSON.stringify(labels,null,2));
     assert.equal(labels.width,width);
@@ -167,9 +173,9 @@ if(process.argv.includes('--browser')){
     assert.equal(layout.width,width);assert.ok(layout.scrollWidth<=width);assert.equal(layout.rows,12);pass('paripi guide layout '+width,layout);
     const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});fs.writeFileSync(path.join(artifacts,'paripi-'+width+'-guide.png'),Buffer.from(shot.data,'base64'));
     await click('header a[href="paripi-checker.html"]');for(let i=0;i<100;i++){if(await frame('return w.location.pathname==="/paripi-checker.html"&&!!d.querySelector("#nav");').catch(()=>false))break;await pause(30);}
-    assert.equal(await frame('return d.querySelectorAll("#nav button").length;'),3);pass('paripi guide reciprocal navigation '+width);
+    assert.equal(await frame('return d.querySelectorAll("#nav button").length;'),4);pass('paripi guide reciprocal navigation '+width);
   }
-  await clear('paripi');await evaluate('localStorage.setItem("paripi-checker-v1",JSON.stringify({games:1000,counts:{cz:3,bonus:2},future:{keep:true}}));');await load('paripi');await tab(1);
+  await clear('paripi');await evaluate('localStorage.setItem("paripi-checker-v1",JSON.stringify({games:1000,counts:{cz:3,bonus:2},future:{keep:true}}));');await load('paripi');await tab(2);
   assert.equal(await frame('return d.querySelectorAll("[data-c^=\\\"stEnd.\\\"]").length;'),12);await bump('stEnd.s4');const legacy=await state();assert.equal(legacy.counts.cz,3);assert.equal(legacy.games,1000);assert.equal(legacy.future.keep,true);
   assert.deepEqual(await frame('return w.__errors;'),[]);assert.deepEqual(errors,[]);pass('paripi legacy actual reload and zero unhandled errors');
   await evaluate('new Promise(resolve=>{const f=document.getElementById("frame");f.onload=()=>resolve(true);f.src="/index.html";})');
