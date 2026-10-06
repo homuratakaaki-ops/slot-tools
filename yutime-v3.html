@@ -224,15 +224,24 @@
 
     .tabs {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 6px;
       margin: 6px 0 14px;
     }
 
     .tab {
-      min-height: 42px;
+      min-height: 44px;
       border-radius: 8px;
       background: #fff;
+    }
+
+    [data-ev-draft-panel] button, #evStartMap, #evStartMapList button,
+    #evStartDifference button, #evStartBack, #evStartRecord { min-height: 44px; min-width: 44px; }
+    [data-ev-draft-panel] .field-row > *, [data-ev-draft-panel] select { min-width: 0; max-width: 100%; }
+    [data-ev-draft-panel] .expectation-inputs { grid-template-columns: minmax(0, 1fr); }
+    [data-ev-draft-panel] .ram-choice-row button { white-space: normal; }
+    [data-ev-draft-panel] button[aria-pressed="true"], #evStartDifference button[aria-pressed="true"] {
+      border-color: var(--ink); background: var(--ink); color: #fff;
     }
 
     .tab.active {
@@ -2037,7 +2046,8 @@
       .app { padding: 10px; }
       .topbar { grid-template-columns: 1fr; }
       .version-warning { grid-template-columns: 1fr; }
-      .tabs { grid-template-columns: repeat(2, 1fr); }
+      .tabs { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+      .tab { padding-left: 2px; padding-right: 2px; }
       .two, .three { grid-template-columns: 1fr; }
       .field-row { grid-template-columns: 1fr; gap: 5px; }
       .expectation-spacer { display: none; }
@@ -2092,11 +2102,13 @@
 
     <nav class="tabs" aria-label="画面切替">
       <button class="tab active" data-view="storesView">店</button>
+      <button class="tab" data-view="evView">期待値</button>
       <button class="tab" data-view="mapView">マップ</button>
       <button class="tab" data-view="runView">稼働中</button>
       <button class="tab" data-view="ledgerView">履歴</button>
     </nav>
 
+    <section class="view" id="evView"></section>
     <section class="view active" id="storesView">
       <div class="section">
         <div class="section-head">
@@ -2205,8 +2217,8 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 45;
-    const APP_VERSION_DATE = "2026-09-29";
+    const APP_VERSION_SEQ = 46;
+    const APP_VERSION_DATE = "2026-10-06";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
     const LAST_VERSION_KEY = STORAGE_PREFIX + "app:lastVersionSeq";
@@ -2219,6 +2231,7 @@
     // S36/§2: 転記用に出す項目の選択。実戦データとは別枠で、書き出しJSON・schema移行に含めない
     //（SHOW_HINTS_KEY と同じ扱い）。切り替えたときだけ保存する。
     const TRANSFER_SECTIONS_KEY = STORAGE_PREFIX + "app:transferSections";
+    const EV_DRAFT_KEY = STORAGE_PREFIX + "app:evDraft:";
     // S36/§1-1: 出す順は固定。未選択の項目は見出しごと出さない
     const TRANSFER_SECTIONS = [
       { key: "profit", label: "収支", heading: "■収支" },
@@ -3182,6 +3195,7 @@
       const effectiveSpin = normalizeNumber(value.effectiveSpin);
       if (evYen === null || usedRate === null || effectiveSpin === null) return null;
       return {
+        ...(value.decisionInputs && typeof value.decisionInputs === "object" ? { decisionInputs: { ...value.decisionInputs } } : {}),
         evYen,
         usedRate,
         // S45/§2: 旧記録には空の状態キーを追加せず、両側の金額は不明の記録だけに残す。
@@ -3655,6 +3669,13 @@
       return `${Number(value).toFixed(1)}%`;
     }
 
+    // S46: 保存値・計算関数の戻り値は変えず、表示直前だけ言い換える。
+    function displayEvSource(source) {
+      return ({ "既定": "初期設定値", "履歴累計": "この台の過去の記録", "ソース不明": "取得元不明",
+        "実測・台": "この台の記録", "実測・店": "この店の同機種の記録", "台": "この台の記録",
+        "店": "この店の同機種の記録", "島": "島の想定" })[source] || source || "取得元不明";
+    }
+
     function evJudgment(result) {
       if (!result) return { className: "", label: "未判定" };
       const threshold = hourlyThresholdYen();
@@ -3705,11 +3726,11 @@
     function netBallsSourceText(info) {
       if (!info) return "-";
       if (info.method === "mixed") {
-        return `${info.source}・持ち玉差${Number(info.balanceRounds).toLocaleString("ja-JP")}R＋カウンター${Number(info.counterRounds).toLocaleString("ja-JP")}R${netBallsScopeText(info)}`;
+        return `${displayEvSource(info.source)}・持ち玉差${Number(info.balanceRounds).toLocaleString("ja-JP")}R＋カウンター${Number(info.counterRounds).toLocaleString("ja-JP")}R${netBallsScopeText(info)}`;
       }
-      if (!info.count) return `${info.source}`;
+      if (!info.count) return `${displayEvSource(info.source)}`;
       const method = info.method === "balance" ? "・持ち玉差" : info.method === "counter" ? "・カウンター" : "";
-      return `${info.source}${method}・${info.count.toLocaleString("ja-JP")}R分${netBallsScopeText(info)}`;
+      return `${displayEvSource(info.source)}${method}・${info.count.toLocaleString("ja-JP")}R分${netBallsScopeText(info)}`;
     }
 
     function netBallsUsedText(info) {
@@ -3950,10 +3971,10 @@
       // S34/§4: 想定時速の前提を出典の後ろに添える。既定は「回転率16の台を休まず打った目安」、
       // 実測は休憩などの中断を含む実時間から出しているので「・中断込み」を足す。手入力はそのまま。
       const spinsPerHourNote = spinsPerHourSource === "既定"
-        ? `既定：回転率${DEFAULT_SPINS_PER_HOUR_BASE_RATE}の台を休まず打った目安`
-        : (spinsPerHourSource === "実測・台" || spinsPerHourSource === "実測・店" ? `${spinsPerHourSource}・中断込み` : spinsPerHourSource);
+        ? `${displayEvSource("既定")}：回転率${DEFAULT_SPINS_PER_HOUR_BASE_RATE}の台を休まず打った目安`
+        : (spinsPerHourSource === "実測・台" || spinsPerHourSource === "実測・店" ? `${displayEvSource(spinsPerHourSource)}・中断込み` : (spinsPerHourSource ? displayEvSource(spinsPerHourSource) : null));
       return `判定基準：時給${threshold.toLocaleString("ja-JP")}円以上で打てる ／ `
-        + `投資 約${investYen.toLocaleString("ja-JP")}円に対し期待値 ${yenText(evYen)}`
+        + `使う玉の金額換算：約${investYen.toLocaleString("ja-JP")}円・期待値 ${yenText(evYen)}`
         + `（機械割 ${machineRate === null ? "-" : `${machineRate.toFixed(1)}%`} ＝ 期待値÷投資額+100%）`
         + ` ／ 消化時間 ${hourText(result.totalHours)}（通常${hourText(result.normalHours)}＋当選${hourText(result.hitHours)}＋電サポ${hourText(result.densapoHours)}）`
         + ` ／ 通常時${spinsPerHour.toLocaleString("ja-JP")}回転/h${spinsPerHourNote ? `（${spinsPerHourNote}）` : "想定"}`;
@@ -3983,7 +4004,7 @@
       const balanceText = hasInvestmentBreakdown
         ? ` / 入力 持ち玉${Math.round(normalized.mochidamaInput || 0).toLocaleString("ja-JP")}玉・再プレ${Math.round(normalized.saipureiInput || 0).toLocaleString("ja-JP")}玉`
         : "";
-      return `${Number(normalized.usedRate).toFixed(1)} /250玉 / ${normalized.rateSource || "ソース不明"} / ${remainingSpinTextFromEffectiveSpin(normalized.effectiveSpin, normalized.presetId)}${balanceText}`;
+      return `${Number(normalized.usedRate).toFixed(1)} /250玉 / ${displayEvSource(normalized.rateSource || "ソース不明")} / ${remainingSpinTextFromEffectiveSpin(normalized.effectiveSpin, normalized.presetId)}${balanceText}`;
     }
 
     function startEvDetailText(startEv) {
@@ -4822,6 +4843,7 @@
       // S23/§3-2: 参考時速の集計キャッシュは1描画ぶんだけ。保存前の書き換えを持ち越さない
       speedStatsCache.clear();
       renderStorePill();
+      if (currentView === "evView") renderEvView();
       renderStores();
       renderMapEditor();
       renderLabelFilters();
@@ -5352,7 +5374,7 @@
     }
 
     function todayPrevInvalid(machineId) {
-      return dailyStateFor(machineId, today())?.prevInvalid === true;
+      return dailyStateFor(machineId, today())?.prevInvalid === true || todayRamClear(machineId) === RAM_CLEAR_VALUE;
     }
 
     function closingInfoForDate(machineId, dateValue = offsetDate(today(), -1)) {
@@ -7043,7 +7065,6 @@
       const machine = findMachineByDai(daiNo);
       const previous = machine ? closingInfoForDate(machine.id, offsetDate(today(), -1)) : null;
       const todayState = machine ? dailyStateFor(machine.id, today()) || {} : {};
-      const prevInvalid = todayState.prevInvalid === true;
       const ramClear = normalizeRamClear(todayState.ramClear);
       const atStart = morningCheckFlow.index <= 0;
       const atEnd = morningCheckFlow.index >= morningCheckFlow.sequence.length - 1;
@@ -7056,7 +7077,6 @@
         <p class="hint" id="morningSavedSummary">${savedSummary ? `保存済み: ${escapeHtml(savedSummary)}` : "未登録"}</p>
         ${ended ? `<p class="hint warn">この列は終わりです。</p><div class="modal-actions"><button class="primary" data-close>マップへ戻る</button></div>` : `
           <div class="list">
-            <label class="check-chip"><input id="morningPrevInvalid" type="checkbox" ${prevInvalid ? "checked" : ""}> 前日分を無効にする（当日すでに大当たり or リセット）</label>
             <div>
               <p class="hint">ラムクリ確認</p>
               <div class="ram-choice-row">
@@ -7102,27 +7122,14 @@
     }
 
     function bindMorningCheckModal() {
-      const invalidInput = byId("morningPrevInvalid");
       els.modalBody.querySelectorAll("[data-morning-ram]").forEach((button) => {
         button.addEventListener("click", () => {
           const wasPressed = button.getAttribute("aria-pressed") === "true";
           els.modalBody.querySelectorAll("[data-morning-ram]").forEach((item) => item.setAttribute("aria-pressed", "false"));
-          if (invalidInput?.dataset.ramAutoInvalid === "1") {
-            invalidInput.checked = false;
-            delete invalidInput.dataset.ramAutoInvalid;
-          }
-          if (!wasPressed) {
-            button.setAttribute("aria-pressed", "true");
-            if (button.dataset.morningRam === RAM_CLEAR_VALUE && invalidInput && !invalidInput.checked) {
-              invalidInput.checked = true;
-              invalidInput.dataset.ramAutoInvalid = "1";
-            }
-          }
+          if (!wasPressed) button.setAttribute("aria-pressed", "true");
           commitMorningCurrent();
         });
       });
-      // S5/§2: チェックした時点で保存する。×で閉じても入力は残る。
-      if (invalidInput) invalidInput.addEventListener("change", commitMorningCurrent);
       const saveButton = byId("saveMorningNextBtn");
       if (saveButton) saveButton.addEventListener("click", saveMorningAndAdvance);
       const closeButton = byId("closeMorningBtn");
@@ -7145,10 +7152,7 @@
       const machine = findMachineByDai(daiNo);
       if (!machine) return false;
       const ramClear = currentMorningRamClearSelection();
-      const prevInvalid = Boolean(byId("morningPrevInvalid")?.checked) || ramClear === RAM_CLEAR_VALUE;
       const state = ensureDailyState(machine.id, today());
-      if (prevInvalid) state.prevInvalid = true;
-      else delete state.prevInvalid;
       if (ramClear) state.ramClear = ramClear;
       else delete state.ramClear;
       cleanupEmptyDailyState(machine.id, today());
@@ -7181,7 +7185,7 @@
       morningCheckFlow.direction = direction;
       morningCheckFlow.awaitingDirection = false;
       morningCheckFlow.ended = false;
-      const hasCheckedState = Boolean(byId("morningPrevInvalid")?.checked || currentMorningRamClearSelection());
+      const hasCheckedState = Boolean(currentMorningRamClearSelection());
       if (hasCheckedState) saveMorningAndAdvance();
       else advanceMorningFlow(false);
     }
@@ -7559,6 +7563,310 @@
       `;
     }
 
+    // S46: 実戦データには触れない、店ごとの判定下書き。
+    function evDraftPresetIds(storeId) {
+      return [...new Set(data.machines.filter((m) => m.storeId === storeId)
+        .map(normalizeMachinePresetId).filter((id) => presetById(id)?.evSupported))];
+    }
+
+    function loadEvDraft(storeId = data.activeStoreId) {
+      const ids = evDraftPresetIds(storeId);
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem(EV_DRAFT_KEY + storeId) || "{}"); } catch (_) { /* 壊れた下書きは実戦データへ影響させない */ }
+      const carry = autoCarryoverForStore(storeId);
+      const replay = chodamaReplayPreset(storeById(storeId));
+      const draft = {
+        presetId: ids.length === 1 ? ids[0] : "", daiNo: "", manualRate: "", rateMode: "manual",
+        currentSpin: "", prevDayStatus: PREV_DAY_UNKNOWN, prevDaySpinCandidate: "",
+        mochidama: carry?.mochidama ?? "", saipurei: carry?.saipurei ?? replay?.value ?? "",
+        heso: "", rateFromMachine: false, netFromMachine: false, closingFromMachine: true,
+        ...(saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {})
+      };
+      if (!ids.includes(draft.presetId)) draft.presetId = ids.length === 1 ? ids[0] : "";
+      if (draft.closingFromMachine && draft.daiNo) {
+        const machine = data.machines.find((m) => m.storeId === storeId && m.daiNo === draft.daiNo);
+        const closing = machine ? validClosingInfo(machine.id) : null;
+        draft.prevDayStatus = closing ? PREV_DAY_RETAINED : PREV_DAY_UNKNOWN;
+        draft.prevDaySpinCandidate = closing?.spin ?? "";
+      }
+      return draft;
+    }
+
+    function saveEvDraft(draft) {
+      try { localStorage.setItem(EV_DRAFT_KEY + data.activeStoreId, JSON.stringify(draft)); return true; }
+      catch (_) { showToast("判定の下書きを保存できませんでした。", "error"); return false; }
+    }
+
+    function evDraftMachine(draft) {
+      return data.machines.find((m) => m.storeId === data.activeStoreId && m.daiNo === String(draft.daiNo)) || null;
+    }
+
+    function evDraftReferences(draft) {
+      const machine = evDraftMachine(draft);
+      if (!machine || normalizeMachinePresetId(machine) !== draft.presetId) return { machine };
+      const stats = machineStats(machine.id);
+      const sessions = filteredSessions().filter((s) => s.machineId === machine.id);
+      const net = netBallsPerWinInfo(draft.presetId, machine);
+      return { machine, stats, count: sessions.length, net: net.scope === "machine" ? net : null, closing: validClosingInfo(machine.id) };
+    }
+
+    function selectEvDraftMachine(draft, daiNo) {
+      draft.daiNo = String(daiNo).trim();
+      draft.rateFromMachine = false;
+      draft.netFromMachine = false;
+      draft.closingFromMachine = true;
+      draft.prevDayStatus = PREV_DAY_UNKNOWN;
+      draft.prevDaySpinCandidate = "";
+      const machine = evDraftMachine(draft);
+      if (machine) draft.presetId = normalizeMachinePresetId(machine);
+      const closing = machine ? validClosingInfo(machine.id) : null;
+      if (closing) {
+        draft.prevDayStatus = PREV_DAY_RETAINED;
+        draft.prevDaySpinCandidate = closing.spin;
+      }
+    }
+
+    function evDraftConditions(draft) {
+      const refs = evDraftReferences(draft);
+      const machine = refs.machine || { id: "", storeId: data.activeStoreId, presetId: draft.presetId };
+      const storeStats = aggregateStats(filteredSessions().filter((s) => {
+        const m = data.machines.find((item) => item.id === s.machineId);
+        return normalizeMachinePresetId(m) === draft.presetId;
+      }));
+      const rateFromMachine = draft.rateFromMachine === true && Boolean(refs.stats?.rate);
+      const netFromMachine = draft.netFromMachine === true && Boolean(refs.net);
+      const rate = rateFromMachine ? refs.stats.rate : draft.rateMode === "store" ? storeStats.rate
+        : draft.rateMode === "island" ? activeMapAssumedRate(data.activeStoreId) : normalizeNumber(draft.manualRate);
+      const rateSource = rateFromMachine ? "この台の記録" : draft.rateMode === "store" ? "この店の同機種の記録"
+        : draft.rateMode === "island" ? "島の想定" : "手入力";
+      const netBallsPerWin = netFromMachine ? refs.net.value : presetNetBallsPerWin(draft.presetId);
+      const prevDayStatus = normalizePrevDayStatus(draft.prevDayStatus) ?? PREV_DAY_UNKNOWN;
+      const candidate = normalizeNumber(draft.prevDaySpinCandidate);
+      const inputs = { currentSpin: draft.currentSpin, previousSpin: prevDayStatus === PREV_DAY_RETAINED ? candidate : 0,
+        manualRate: rate, manualNetBallsPerWin: netBallsPerWin,
+        availableBalls: availableBallsFromParts(draft.mochidama, draft.saipurei).total, stats: { rate: null } };
+      // 空の回転数・回転率を暗黙の0や台実測で埋めない。
+      const ready = normalizeNumber(draft.currentSpin) !== null && rate > 0 && Boolean(presetById(draft.presetId)?.evSupported);
+      const expectation = ready ? calculateMachineExpectation(machine, inputs) : { result: null };
+      const retained = ready && prevDayStatus === PREV_DAY_UNKNOWN
+        ? calculateMachineExpectation(machine, { ...inputs, previousSpin: candidate ?? 0 }) : null;
+      return { machine, refs, rate, rateSource, rateFromMachine, netBallsPerWin,
+        netSource: netFromMachine ? "この台の記録" : "プリセット", netFromMachine,
+        prevDayStatus, prevDaySpinCandidate: candidate,
+        closingFromMachine: Boolean(draft.closingFromMachine && refs.closing), expectation, retained };
+    }
+
+    function evDecisionInputs(draft, condition = evDraftConditions(draft)) {
+      const { rate, rateSource, rateFromMachine, netBallsPerWin, netSource, netFromMachine,
+        prevDayStatus, prevDaySpinCandidate, closingFromMachine } = condition;
+      return { daiNo: draft.daiNo || null, rate, rateSource, rateFromMachine, netBallsPerWin, netSource,
+        netFromMachine, prevDayStatus, prevDaySpinCandidate, closingFromMachine,
+        evYen: condition.expectation.result ? Math.round(condition.expectation.result.evYen) : null,
+        ...(prevDayStatus === PREV_DAY_UNKNOWN ? {
+          evYenRetained: condition.retained?.result ? Math.round(condition.retained.result.evYen) : null,
+          evYenCleared: condition.expectation.result ? Math.round(condition.expectation.result.evYen) : null
+        } : {}) };
+    }
+
+    function evJudgmentMeaning(label) {
+      return { "打てる": "目標時給以上", "微妙": "期待値はプラス・目標時給に届かない見込み、または時間を見積もれない",
+        "打てない": "期待値0以下" }[label] || "";
+    }
+
+    function evDraftPanelHtml(draft, fromDetail = false) {
+      const field = (id, label, value, mode = "numeric") => `<div class="field-row"><label for="${id}">${label}</label><input id="${id}" inputmode="${mode}" value="${escapeHtml(value ?? "")}"></div>`;
+      return `<div class="expectation-box" data-ev-draft-panel>
+        <div class="expectation-title"><span>期待値を見る</span><small>${escapeHtml(activeStore()?.name || "")}</small></div>
+        <div class="expectation-inputs">
+          <div class="field-row"><label for="evDraftPreset">機種コーナー</label><select id="evDraftPreset" ${fromDetail ? "disabled" : ""}>
+            <option value="">機種を選択</option>${evDraftPresetIds(data.activeStoreId).map((id) => `<option value="${escapeHtml(id)}" ${id === draft.presetId ? "selected" : ""}>${escapeHtml(presetById(id).name)}</option>`).join("")}</select></div>
+          ${field("evDraftDai", "台番号（分かっていれば）", draft.daiNo)}
+        </div>
+        <div id="evDraftReferences"></div>
+        <div class="expectation-inputs">
+          <div class="field-row"><label for="evDraftRateMode">回転率の出典</label><select id="evDraftRateMode">
+            ${[["manual", "手入力"], ["store", "この店の同機種の記録"], ["island", "島の想定"]].map(([id, text]) => `<option value="${id}" ${draft.rateMode === id ? "selected" : ""}>${text}</option>`).join("")}</select></div>
+          ${field("evDraftRate", "回転率の想定", draft.manualRate, "decimal")}
+          <p class="hint" id="evDraftRateSource"></p><p class="hint" id="evDraftNet"></p>
+          ${field("evDraftMochidama", "持ち玉（玉）", draft.mochidama)}
+          ${field("evDraftReplay", "今日あと何玉再プレイできるか（玉）", draft.saipurei)}
+          <p class="hint">貯玉残高と再プレイ上限を反映した、これから使える量</p>
+          ${field("evDraftSpin", "表示回転数（現在のカウンター）", draft.currentSpin)}
+          <div class="field-row"><label>前日の回転数を引き継いでいるか</label><div class="ram-choice-row">
+            ${[["retained", "据え置き", "前日の回転数が残っている"], ["cleared", "ラムクリア", "前日の回転数がリセットされた"], ["unknown", "不明", ""]].map(([id, text, hint]) => `<button data-draft-prev="${id}" aria-pressed="${draft.prevDayStatus === id}">${text}${hint ? `<br><small>${hint}</small>` : ""}</button>`).join("")}</div></div>
+          ${field("evDraftPrevSpin", "前日の回転数（閉店時）", draft.prevDaySpinCandidate)}
+          <div class="field-row"><label for="evDraftHeso">ヘソ評価（任意）</label><select id="evDraftHeso"><option value="">未入力</option>${[1, 2, 3, 4, 5].map((n) => `<option value="${n}" ${String(draft.heso) === String(n) ? "selected" : ""}>${n}</option>`).join("")}</select></div>
+        </div>
+        <div id="evDraftResult"></div>
+        <p class="hint hint-help">スロ換算機械割は、時短抜け後も打ち続ける「打ち切り」の判断に使う数字です。105%が時給約2,400円に相当します。遊タイム狙いの打つ／打たないは、判定と時給で見ます。</p>
+        <div class="modal-actions"><button class="primary" id="evDraftDecide">${fromDetail ? "この台を打つ" : "この条件で打つ"}</button><button id="evDraftNext">次の候補</button></div>
+      </div>`;
+    }
+
+    function renderEvView() {
+      const root = byId("evView");
+      if (!root) return;
+      if (!activeStore()) { root.innerHTML = '<p class="hint">店を選択してください。</p>'; return; }
+      const draft = loadEvDraft();
+      root.innerHTML = evDraftPanelHtml(draft);
+      bindEvDraftPanel(root, draft);
+    }
+
+    function bindEvDraftPanel(root, draft, fromDetail = false) {
+      const el = (id) => root.querySelector("#" + id);
+      const update = () => {
+        saveEvDraft(draft);
+        const c = evDraftConditions(draft);
+        const refs = c.refs;
+        const choice = (key, text, selected) => `<div class="row-card">${escapeHtml(text)}<div class="ram-choice-row">${[true, false].map((use) => `<button data-draft-use="${key}" data-use="${use}" aria-pressed="${selected === use}">${use ? "使う" : "使わない"}</button>`).join("")}</div></div>`;
+        el("evDraftReferences").innerHTML = (refs.stats?.rate ? choice("rateFromMachine", `この台の参考回転率：${refs.stats.rate.toFixed(1)}（${refs.stats.spins.toLocaleString("ja-JP")}回転分・${refs.count}件）`, draft.rateFromMachine) : "")
+          + (refs.net ? choice("netFromMachine", `この台の1Rあたりの増加玉：${refs.net.value.toFixed(1)}（${refs.net.count}R）`, draft.netFromMachine) : "")
+          + (refs.closing ? choice("closingFromMachine", `閉店チェック：前日${refs.closing.spin}回転`, draft.closingFromMachine) : "")
+          + (draft.daiNo && !refs.machine ? `<p class="hint">この店に台${escapeHtml(draft.daiNo)}の記録はありません。②で登録できます</p>` : "");
+        el("evDraftRate").value = c.rateFromMachine || draft.rateMode !== "manual" ? c.rate?.toFixed(1) ?? "" : draft.manualRate;
+        el("evDraftRate").readOnly = c.rateFromMachine || draft.rateMode !== "manual";
+        const rateMode = el("evDraftRateMode");
+        rateMode.querySelector('option[value="machine"]')?.remove();
+        if (c.rateFromMachine) rateMode.add(new Option("この台の記録", "machine"));
+        rateMode.value = c.rateFromMachine ? "machine" : draft.rateMode;
+        el("evDraftRateSource").textContent = "出典：" + c.rateSource;
+        el("evDraftNet").textContent = `1Rあたりの増加玉：${c.netBallsPerWin.toFixed(1)}（${c.netSource}）`;
+        el("evDraftPrevSpin").value = draft.prevDaySpinCandidate;
+        root.querySelectorAll("[data-draft-prev]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.draftPrev === draft.prevDayStatus)));
+        const r = c.expectation.result;
+        const j = evJudgment(r);
+        el("evDraftDecide").disabled = !r;
+        el("evDraftResult").innerHTML = r ? `<div class="metric-grid"><div class="metric"><span>判定</span><strong>${j.label}</strong><small>${evJudgmentMeaning(j.label)}</small></div><div class="metric"><span>残り回転数</span><strong>${r.spinsToTenjo.toLocaleString("ja-JP")}</strong></div><div class="metric"><span>期待値</span><strong>${yenText(r.evYen)}</strong></div><div class="metric"><span>時給</span><strong>${yenText(r.hourlyYen)}</strong></div><div class="metric"><span>スロ換算機械割</span><strong>${percentText(r.slotRate)}</strong><small>打ち切り判断の目安</small></div><div class="metric"><span>拘束時間</span><strong>${hourText(r.totalHours)}</strong></div></div>
+          ${draft.prevDayStatus === PREV_DAY_UNKNOWN ? `<p class="hint">据え置きなら 期待値 ${yenText(c.retained?.result?.evYen)}<br>ラムクリアなら 期待値 ${yenText(r.evYen)}<br>前日の回転数を引き継ぐ場合と、リセットされた場合の両方を表示します。判定は、前日の回転数を加えない条件で行います。</p>` : ""}<p class="hint">${escapeHtml(expectationBasisText(r, c.expectation.spinsPerHourInfo?.source))}</p>` : '<p class="hint">機種・回転率の想定・表示回転数を入力してください。</p>';
+        root.querySelectorAll("[data-draft-use]").forEach((button) => button.addEventListener("click", () => {
+          const key = button.dataset.draftUse;
+          draft[key] = button.dataset.use === "true";
+          if (key === "closingFromMachine") {
+            draft.prevDayStatus = draft[key] ? PREV_DAY_RETAINED : PREV_DAY_UNKNOWN;
+            draft.prevDaySpinCandidate = draft[key] ? refs.closing.spin : "";
+          }
+          update();
+        }));
+      };
+      const bindings = { evDraftRate: "manualRate", evDraftMochidama: "mochidama", evDraftReplay: "saipurei", evDraftSpin: "currentSpin", evDraftPrevSpin: "prevDaySpinCandidate", evDraftHeso: "heso" };
+      Object.entries(bindings).forEach(([id, key]) => el(id).addEventListener("input", () => {
+        draft[key] = el(id).value;
+        if (key === "prevDaySpinCandidate") draft.closingFromMachine = false;
+        update();
+      }));
+      el("evDraftDai").readOnly = fromDetail;
+      el("evDraftDai").addEventListener("change", () => {
+        selectEvDraftMachine(draft, el("evDraftDai").value);
+        el("evDraftPreset").value = draft.presetId;
+        update();
+      });
+      el("evDraftPreset").addEventListener("change", () => {
+        selectEvDraftMachine(draft, ""); draft.presetId = el("evDraftPreset").value; el("evDraftDai").value = ""; update();
+      });
+      el("evDraftRateMode").addEventListener("change", () => { draft.rateMode = el("evDraftRateMode").value; draft.rateFromMachine = false; update(); });
+      root.querySelectorAll("[data-draft-prev]").forEach((b) => b.addEventListener("click", () => { draft.prevDayStatus = b.dataset.draftPrev; draft.closingFromMachine = false; update(); }));
+      el("evDraftNext").addEventListener("click", () => {
+        selectEvDraftMachine(draft, ""); draft.currentSpin = ""; draft.heso = "";
+        saveEvDraft(draft);
+        if (fromDetail) { closeModal(); showView("evView"); } else renderEvView();
+      });
+      el("evDraftDecide").addEventListener("click", () => openEvStart(draft, fromDetail));
+      update();
+    }
+
+    function openEvStart(draft, fromDetail = false) {
+      const decision = evDecisionInputs(draft);
+      if (decision.evYen === null) return;
+      const carry = autoCarryoverForStore(data.activeStoreId);
+      const state = { daiNo: draft.daiNo, useRecords: false };
+      openModal("台番号と開始情報", "記録を開始するまで実戦データは保存しません。", `
+        <div class="field-row"><label for="evStartDai">台番号</label><input id="evStartDai" inputmode="numeric" value="${escapeHtml(state.daiNo)}" ${draft.daiNo ? "readonly" : ""}></div>
+        ${draft.daiNo ? "" : '<button id="evStartMap">マップから選ぶ</button><div id="evStartMapList" hidden></div>'}
+        <p class="hint" id="evStartMachineNote"></p><div id="evStartDifference"></div>
+        <div class="field-row"><label for="evStartCredit">カードに残っている現金（円）</label><input id="evStartCredit" inputmode="numeric" value="${escapeHtml(carry?.credit ?? "")}"></div>
+        <div class="field-row"><label for="evStartTotalHits">台の本日の大当たり回数（打つ前）</label><input id="evStartTotalHits" inputmode="numeric"></div>
+        <p class="hint">データカウンターの本日大当たり回数を入力</p>
+        <div class="field-row"><label for="evStartPlayStyle">打ち方</label><select id="evStartPlayStyle"><option value="yutime">遊タイム狙い</option><option value="continuous">打ち切り</option></select></div>
+        <div class="field-row"><label for="evStartMemo">台メモ（任意）</label><textarea id="evStartMemo"></textarea></div>
+        <div class="modal-actions"><button id="evStartBack">戻る</button><button class="primary" id="evStartRecord">記録を開始</button></div>`);
+      const actualDraft = () => {
+        const next = { ...draft, daiNo: state.daiNo };
+        if (!draft.daiNo && state.useRecords) {
+          const refs = evDraftReferences(next);
+          next.rateFromMachine = Boolean(refs.stats?.rate);
+          next.netFromMachine = Boolean(refs.net);
+          if (refs.closing) { next.closingFromMachine = true; next.prevDayStatus = PREV_DAY_RETAINED; next.prevDaySpinCandidate = refs.closing.spin; }
+        }
+        return next;
+      };
+      const update = () => {
+        state.daiNo = byId("evStartDai").value.trim();
+        const machine = evDraftMachine({ ...draft, daiNo: state.daiNo });
+        const mismatch = machine && normalizeMachinePresetId(machine) !== draft.presetId;
+        byId("evStartMachineNote").textContent = mismatch ? "判定した機種と異なります。戻って機種を確認してください。" : state.daiNo && !machine ? "この店に新しく登録します" : "";
+        byId("evStartRecord").disabled = !/^\d+$/.test(state.daiNo) || Boolean(mismatch);
+        const refs = evDraftReferences({ ...draft, daiNo: state.daiNo });
+        if (!draft.daiNo && !mismatch && (refs.stats?.rate || refs.net || refs.closing)) {
+          const useDraft = { ...draft, daiNo: state.daiNo, rateFromMachine: Boolean(refs.stats?.rate), netFromMachine: Boolean(refs.net) };
+          if (refs.closing) Object.assign(useDraft, { prevDayStatus: PREV_DAY_RETAINED, prevDaySpinCandidate: refs.closing.spin, closingFromMachine: true });
+          const after = evDecisionInputs(useDraft);
+          const differences = [`回転率 ${decision.rate.toFixed(1)}→${after.rate.toFixed(1)}`, `期待値 ${yenText(decision.evYen)}→${yenText(after.evYen)}`];
+          if (refs.net) differences.push(`1R ${decision.netBallsPerWin.toFixed(1)}→${after.netBallsPerWin.toFixed(1)}玉`);
+          if (refs.closing) differences.push(`前日の回転数 ${decision.prevDaySpinCandidate ?? 0}→${after.prevDaySpinCandidate}（据え置き）`);
+          byId("evStartDifference").innerHTML = `<p class="hint">この台の記録で計算すると ${escapeHtml(differences.join("・"))}</p><div class="ram-choice-row"><button data-start-records="true" aria-pressed="${state.useRecords}">この台の記録を使う</button><button data-start-records="false" aria-pressed="${!state.useRecords}">判定の条件のまま</button></div>`;
+          els.modalBody.querySelectorAll("[data-start-records]").forEach((b) => b.addEventListener("click", () => {
+            state.useRecords = b.dataset.startRecords === "true";
+            els.modalBody.querySelectorAll("[data-start-records]").forEach((other) => other.setAttribute("aria-pressed", String(other === b)));
+          }));
+        } else byId("evStartDifference").innerHTML = "";
+      };
+      byId("evStartDai").addEventListener("input", () => { state.useRecords = false; update(); });
+      byId("evStartMap")?.addEventListener("click", () => {
+        const list = byId("evStartMapList");
+        list.hidden = !list.hidden;
+        if (list.hidden) return;
+        const layout = data.layouts[data.activeStoreId];
+        const dais = [...new Set((layout?.maps || []).flatMap((map) => parseIslandLayout(map).daiNos))];
+        list.innerHTML = dais.map((dai) => `<button data-start-dai="${escapeHtml(dai)}">${escapeHtml(dai)}</button>`).join("") || '<p class="hint">マップに台がありません。</p>';
+        list.querySelectorAll("[data-start-dai]").forEach((b) => b.addEventListener("click", () => { byId("evStartDai").value = b.dataset.startDai; state.useRecords = false; list.hidden = true; update(); }));
+      });
+      byId("evStartBack").addEventListener("click", () => {
+        closeModal();
+        if (fromDetail) openMachineDetail(draft.daiNo); else showView("evView");
+      });
+      byId("evStartRecord").addEventListener("click", () => {
+        update();
+        if (byId("evStartRecord").disabled) return;
+        const actual = actualDraft();
+        const c = evDraftConditions(actual);
+        const hits = normalizeNumber(byId("evStartTotalHits").value);
+        const presets = { startSpin: normalizeNumber(actual.currentSpin), prevDayStatus: hits >= 1 ? PREV_DAY_CLEARED : c.prevDayStatus,
+          prevDaySpinCandidate: hits >= 1 ? null : c.prevDaySpinCandidate,
+          prevDayEndSpin: hits >= 1 || c.prevDayStatus !== PREV_DAY_RETAINED ? null : c.prevDaySpinCandidate,
+          prevDayDisabled: hits >= 1 || c.prevDayStatus !== PREV_DAY_RETAINED,
+          manualRate: c.rate, manualNetBallsPerWin: c.netBallsPerWin,
+          mochidamaInput: normalizeNumber(actual.mochidama), saipureiInput: normalizeNumber(actual.saipurei),
+          startCredit: normalizeNumber(byId("evStartCredit").value), startTotalHits: hits,
+          playStyle: byId("evStartPlayStyle").value, decisionInputs: decision, rateSource: c.rateSource, netSource: c.netSource };
+        const memo = byId("evStartMemo").value.trim();
+        const commit = () => {
+          let machine = evDraftMachine(actual);
+          if (!machine) {
+            machine = { id: cryptoId("m"), storeId: data.activeStoreId, daiNo: state.daiNo, memo: "", nailRating: normalizeNailRating(null) };
+            applyPresetToMachine(machine, presetById(actual.presetId));
+            data.machines.push(machine);
+          }
+          if (memo) { machine.memoEntries = normalizeMemoEntries(machine.memoEntries); machine.memoEntries.push({ id: cryptoId("memo"), date: today(), text: memo, createdAt: nowIso() }); }
+          if (normalizeRatingValue(draft.heso) !== null) ensureDailyState(machine.id, today()).hesoRating = normalizeRatingValue(draft.heso);
+          closeModal();
+          beginStartSession(machine.id, presets);
+        };
+        const active = activeSessionsForStore(data.activeStoreId)[0];
+        if (active) openActiveStartGuard(c.machine.id, active, presets, commit); else commit();
+      });
+      update();
+    }
+
     function openMachineDetail(daiNo, machineFormExpanded = false, options = {}) {
       const machine = findMachineByDai(daiNo);
       if (!machine) return;
@@ -7570,23 +7878,12 @@
       const stats = aggregateStats(filteredStatsSessions);
       const statsFilterActive = machineStatsFilterActive();
       const presetId = normalizeMachinePresetId(machine);
-      const showExpectationBlock = machineHasYutime(machine);
-      // S9/§1-3: 参考1R出玉は参考回転率と同じ台単位の集計。手入力欄の初期表示にも使う
+      const showExpectationBlock = machineHasYutime(machine) && Boolean(presetById(presetId)?.evSupported);
       const netBallsInfo = netBallsPerWinInfo(presetId, machine);
       const closing = validClosingInfo(machine.id);
-      // S45/§2: 朝チェックの不明を据え置きに化けさせず、未登録だけ据え置きにする。
-      evPrevDayStatus = prevDayStatusFromRamClear(todayRamClear(machine.id)) ?? PREV_DAY_RETAINED;
       const closingStateNote = todayPrevInvalid(machine.id) ? `<small>朝チェックで前日分を無効にしています</small>` : "";
-      // S24/§B-5: 台移動の引き継ぎ中は、打ち始めの残高欄を引き継いだ値で初期化する。
-      // 空のままだと「この台を打つ」で開始残高が未入力（持ち玉0扱い）になり、区間の起点が壊れる。
-      // S35/§2-1: 引き継ぎ待機は廃止。本日・同じ店の最後のヤメ入力から毎回組み立てる。
-      const carryoverPreset = autoCarryoverForStore(data.activeStoreId);
-      // S44/§3: 引き継ぎが無いときだけ、パーソナル店の貯玉残高から再プレイの初期値を充てる。
-      const chodamaPreset = carryoverPreset ? null : chodamaReplayPreset(activeStore());
-      const carryoverValue = (value) => {
-        const number = normalizeNumber(value);
-        return number !== null && number > 0 ? number : "";
-      };
+      const draft = loadEvDraft();
+      if (draft.daiNo !== machine.daiNo || draft.presetId !== presetId) selectEvDraftMachine(draft, machine.daiNo);
       const filteredNote = selectedLabelFilters.size ? `<p class="hint warn">現在の統計は絞り込み後の記録だけで計算しています。</p>` : "";
       const statsFilterNote = statsFilterActive ? `<p class="hint">絞り込み中（該当${filteredStatsSessions.length}件）${filteredStatsSessions.length ? "" : " / 該当するサンプルがありません"}</p>` : "";
       const averagePayoutNote = baseStats.estimatedCount ? "（概算含む）" : "";
@@ -7605,34 +7902,7 @@
         ${statsFilterNote}
         ${machineStatsFilterHtml(machine, baseStatsSessions, filteredStatsSessions, { open: options.statsFilterOpen })}
         ${filteredNote}
-        ${showExpectationBlock ? `<div class="expectation-box">
-          <div class="expectation-title" id="machineEvTitle"><span>期待値判定</span><small>未判定</small></div>
-          <div class="expectation-inputs">
-            <div class="field-row"><label for="evStartTotalHits">開始時点の累計大当たり回数</label><input id="evStartTotalHits" inputmode="numeric" value=""></div>
-            <div class="field-row ev-ramclear-row"><label>前日の回転</label><div><div class="ram-choice-row">
-              <button id="evPrevDayRetained" class="small" data-ev-prev-day="retained" aria-pressed="${evPrevDayStatus === PREV_DAY_RETAINED}">据え置き</button>
-              <button id="evPrevDayCleared" class="small" data-ev-prev-day="cleared" aria-pressed="${evPrevDayStatus === PREV_DAY_CLEARED}">ラムクリア</button>
-              <button id="evPrevDayUnknown" class="small" data-ev-prev-day="unknown" aria-pressed="${evPrevDayStatus === PREV_DAY_UNKNOWN}">不明</button>
-            </div><p class="hint" id="machineEvRamHint" hidden></p></div></div>
-            <div class="field-row"><label for="evPrevSpin">前日ヤメ回転数（実機：前日の最終回転数。閉店チェックがあれば自動）</label><input id="evPrevSpin" inputmode="numeric" value="${escapeHtml(closing?.spin ?? "")}"></div>
-            <div class="field-row"><label for="evCurrentSpin">現在回転数（実機：データカウンターの回転数）</label><input id="evCurrentSpin" inputmode="numeric" value=""></div>
-            <div class="field-row"><label for="evManualRate">回転率（手入力）</label><input id="evManualRate" inputmode="decimal" placeholder="${baseStats.rate ? baseStats.rate.toFixed(1) : "履歴なし"}"></div>
-            <div class="field-row"><label for="evManualNetBalls">1R実質出玉（手入力）</label><input id="evManualNetBalls" inputmode="decimal" placeholder="${escapeHtml(netBallsUsedText(netBallsInfo))}"></div>
-            <div class="field-row expectation-spacer"></div>
-            <div class="field-row"><label for="evMochidamaBalls">持ち玉（玉）</label><input id="evMochidamaBalls" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.mochidama) : "")}" placeholder="0"></div>
-            <div class="field-row"><label for="evSaipureiBalls">再プレイ（玉）</label><input id="evSaipureiBalls" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.saipurei) : (chodamaPreset ? chodamaPreset.value : ""))}" placeholder="0"></div>
-            <div class="field-row"><label for="evStartCredit">開始時のカード残高</label><input id="evStartCredit" inputmode="numeric" value="${escapeHtml(carryoverPreset ? carryoverValue(carryoverPreset.credit) : "")}"></div>
-          </div>
-          ${carryoverPreset ? `<p class="hint">${escapeHtml(carryoverNoticeText(carryoverPreset))}</p>` : (chodamaPreset ? `<p class="hint">${escapeHtml(chodamaReplayNoticeText(chodamaPreset))}</p>` : "")}
-          ${startPlayStyleChoiceHtml()}
-          <p class="hint" id="machineEvContext"></p>
-          <p class="hint" id="machineEvPrevHint">${closing ? `閉店チェック${escapeHtml(closing.spin)}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"}</p>
-          <div class="metric-grid" id="machineEvMetrics"></div>
-          <p class="hint" id="machineEvPrevDaySplit"></p>
-          <p class="hint" id="machineEvDetail"></p>
-          <p class="hint" id="machineEvBasis"></p>
-          <p class="hint hint-help">スロ換算機械割は、時短抜け後も打ち続ける「打ち切り」の判断に使う数字です。105%が時給約2,400円に相当します。遊タイム狙いの打つ／打たないは、判定と時給で見ます。</p>
-        </div>` : ""}
+        ${showExpectationBlock ? evDraftPanelHtml(draft, true) : ""}
         ${machineModelSummaryHtml(machine)}
         ${machineFormExpanded ? machineDetailFormHtml(machine) : ""}
         <div class="list">
@@ -7647,7 +7917,7 @@
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="ghost" id="toggleMachineHistoryBtn">履歴</button>
-          <button class="primary" id="startSessionBtn">この台を打つ</button>
+          ${showExpectationBlock ? "" : '<button class="primary" id="startSessionBtn">この台を打つ</button>'}
         </div>
       `);
       const toggleMachineFormBtn = byId("toggleMachineFormBtn");
@@ -7682,36 +7952,10 @@
         panel.hidden = hidden;
         button.textContent = hidden ? "履歴" : "履歴を閉じる";
       });
-      if (showExpectationBlock) {
-        renderMachineExpectation(machine.id);
-        // S24/§B-5: カード残高（現金）の欄だけ入力イベントが繋がっていなかった。判定値は変わらないが、
-        // 他の欄と同じように再判定を通し、入力が拾われていることを画面で確かめられるようにする。
-        ["evCurrentSpin", "evPrevSpin", "evManualRate", "evManualNetBalls", "evMochidamaBalls", "evSaipureiBalls", "evStartCredit", "evStartTotalHits"].forEach((id) => {
-          byId(id).addEventListener("input", () => renderMachineExpectation(machine.id));
-        });
-        // S45/§2: 再タップでも解除せず、選択したボタン自身で状態を示す。
-        ["evPrevDayRetained", "evPrevDayCleared", "evPrevDayUnknown"].forEach((id) => {
-          byId(id).addEventListener("click", () => {
-            evPrevDayStatus = normalizePrevDayStatus(byId(id).dataset.evPrevDay) ?? PREV_DAY_RETAINED;
-            ["evPrevDayRetained", "evPrevDayCleared", "evPrevDayUnknown"].forEach((otherId) => {
-              byId(otherId).setAttribute("aria-pressed", otherId === id ? "true" : "false");
-            });
-            renderMachineExpectation(machine.id);
-          });
-        });
-        // S24/§B-6: 打ち始めの打ち方の2択
-        bindStartPlayStyleChoice(els.modalBody);
-      }
-      byId("startSessionBtn").addEventListener("click", () => {
-        if (machineFormExpanded) readMachineDetailForm(machine);
-        else readMachineMemoForm(machine);
-        const presets = expectationPanelPresets();
-        if (!persist()) {
-          showToast("保存に失敗しました。容量を確認してください。", "error");
-          return;
-        }
+      if (showExpectationBlock) bindEvDraftPanel(els.modalBody, draft, true);
+      byId("startSessionBtn")?.addEventListener("click", () => {
         closeModal();
-        openStartSession(machine.id, presets);
+        openStartWizard(machine.id);
       });
     }
 
@@ -7791,7 +8035,7 @@
         prevHint.textContent = previousState.autoDisabled
           ? "当日当選済みのため前日ヤメ回転数は使いません。0回転として計算しています。"
           : previousState.status === PREV_DAY_UNKNOWN
-            ? "不明のため前日ヤメ回転数は候補として控え、判定はラムクリア側（0回転）で行っています。"
+            ? "前日の回転数を引き継ぐ場合と、リセットされた場合の両方を表示します。判定は、前日の回転数を加えない条件で行います。"
           : (previousState.ramClearDisabled
             ? "ラムクリアありのため前日ヤメ回転数は使いません。0回転として計算しています。"
             : (prevValue !== null ? `前日ヤメ${prevValue.toLocaleString("ja-JP")}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"));
@@ -7947,6 +8191,11 @@
     }
 
     function openStartWizard(machineId, presets = {}) {
+      const target = data.machines.find((m) => m.id === machineId);
+      if (target && presetById(normalizeMachinePresetId(target))?.evSupported && !presets.decisionInputs) {
+        openMachineDetail(target.daiNo);
+        return;
+      }
       const store = activeStore();
       const currentActive = activeSessionsForStore(store?.id)[0] || null;
       if (currentActive) {
@@ -7957,6 +8206,11 @@
     }
 
     function openStartSession(machineId, presets = {}) {
+      const target = data.machines.find((m) => m.id === machineId);
+      if (target && presetById(normalizeMachinePresetId(target))?.evSupported && !presets.decisionInputs) {
+        openMachineDetail(target.daiNo);
+        return;
+      }
       const store = activeStore();
       const currentActive = activeSessionsForStore(store?.id)[0] || null;
       if (currentActive) {
@@ -8053,6 +8307,11 @@
       if (presets.playStyle !== undefined) session.playStyle = normalizePlayStyle(presets.playStyle);
       const machine = data.machines.find((item) => item.id === machineId);
       session.startEv = calculateStartEvSnapshot(session, machine, presets);
+      if (session.startEv && presets.decisionInputs) {
+        session.startEv.decisionInputs = { ...presets.decisionInputs };
+        session.startEv.rateSource = presets.rateSource;
+        session.startEv.netSource = presets.netSource;
+      }
       data.sessions.push(session);
       activeSessionId = session.id;
       const toast = presetsDisablePrevDay(presets) ? "稼働を開始しました。宵越し無効で記録しています。取り消しは記録の修正・削除から行えます。" : "稼働を開始しました。取り消しは記録の修正・削除から行えます。";
@@ -8083,11 +8342,11 @@
           // S45/§2: 不明の候補は計算への加算とは区別して案内する。
           hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayStatus === PREV_DAY_UNKNOWN ? ` 前日${session.prevDaySpinCandidate ?? "未入力の"}回転を候補として控えています（不明：据え置き／ラムクリアの両方で見ています）。` : presetsDisablePrevDay(presets) ? " 期待値判定で宵越し無効を選択しています。" : (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。")) + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
         },
-        { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在時刻をプリセットしています。" },
+        { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在の時刻を入力しています。必要なら変更してください。" },
         { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: (activeCarryover ? carryoverNoticeText(activeCarryover) + " " : "") + "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
-        { key: "startSaipurei", label: "開始時の再プレイ残り", type: "number", preset: startSaipureiPreset, hint: activeCarryover ? carryoverNoticeText(activeCarryover) : chodamaReplayNoticeText(chodamaPreset) },
-        { key: "startCredit", label: "開始時のカード残高", type: "number", preset: startCreditPreset, hint: activeCarryover ? carryoverNoticeText(activeCarryover) : "" },
-        { key: "startTotalHits", label: "開始時点の累計大当たり回数（実機：データカウンターの本日大当り回数）", type: "number", preset: startTotalHitsPreset, hint: "台のデータカウンタに表示されている本日の大当たり回数。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
+        { key: "startSaipurei", label: "今日あと何玉再プレイできるか（玉）", type: "number", preset: startSaipureiPreset, supplementalHint: "貯玉残高と再プレイ上限を反映した、これから使える量", hint: activeCarryover ? carryoverNoticeText(activeCarryover) : chodamaReplayNoticeText(chodamaPreset) },
+        { key: "startCredit", label: "カードに残っている現金（円）", type: "number", preset: startCreditPreset, hint: activeCarryover ? carryoverNoticeText(activeCarryover) : "" },
+        { key: "startTotalHits", label: "台の本日の大当たり回数（打つ前）", type: "number", preset: startTotalHitsPreset, hint: "データカウンターの本日大当たり回数を入力。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
         // S7c/3-1: 時短抜けで打ち出しを止めるかどうかの方針。以後の時短抜け区間の初期状態になる
         {
           key: "playStyle",
@@ -9362,7 +9621,7 @@
       const inputType = step.type === "time" ? "time" : "text";
       const inputMode = step.type === "number" ? ' inputmode="numeric"' : "";
       const displayValue = value ?? step.preset ?? "";
-      return `<input id="wizardValue" type="${inputType}"${inputMode} value="${escapeHtml(displayValue)}">${step.hint ? `<p class="hint hint-help">${escapeHtml(step.hint)}</p>` : ""}`;
+      return `<input id="wizardValue" type="${inputType}"${inputMode} value="${escapeHtml(displayValue)}">${step.supplementalHint ? `<p class="hint">${escapeHtml(step.supplementalHint)}</p>` : ""}${step.hint ? `<p class="hint hint-help">${escapeHtml(step.hint)}</p>` : ""}`;
     }
 
     function readWizardValue(step) {
@@ -10070,6 +10329,19 @@
     }
 
     // S3b: リザルトのブロック1〜3。値はすべて既存の算出をそのまま使う（新しい計算をしない）。
+    function decisionDifferenceText(startEv) {
+      const d = startEv?.decisionInputs;
+      if (!d) return "";
+      const changes = [];
+      if (Number(d.rate).toFixed(2) !== Number(startEv.usedRate).toFixed(2) || d.rateSource !== startEv.rateSource)
+        changes.push(`判定時：回転率${Number(d.rate).toFixed(1)}（${d.rateSource}）→ 開始時：${Number(startEv.usedRate).toFixed(1)}（${startEv.rateSource}）`);
+      if (d.netBallsPerWin !== startEv.netBallsPerRound || d.netSource !== startEv.netSource)
+        changes.push(`判定時：1R${Number(d.netBallsPerWin).toFixed(1)}（${d.netSource}）→ 開始時：${Number(startEv.netBallsPerRound).toFixed(1)}（${startEv.netSource}）`);
+      if (d.prevDayStatus !== startEv.prevDayStatus || d.evYen !== startEv.evYen)
+        changes.push(`判定時：期待値${yenText(d.evYen)}→ 開始時：${yenText(startEv.evYen)}`);
+      return changes.join(" ／ ");
+    }
+
     function sessionResultSummary(session) {
       const machine = data.machines.find((item) => item.id === session.machineId) || null;
       const derived = deriveSession(session, machine);
@@ -10439,10 +10711,10 @@
     // S42/§6: 実戦後評価の根拠。実測と参考の内訳をそのまま出す（B94「判断の場に前提を置く」）。
     function earnedExpectationBasisText(earned) {
       if (!earned) return "";
-      const rateText = `回転率${earned.rate.toFixed(1)}（${postPartText(earned.rateThis, earned.rateThisSpins, "回転")} ＋ 参考${earned.rateRef === null || earned.rateRef === undefined ? "-" : earned.rateRef.toFixed(1)}・${earned.rateRefSource || "-"}）`;
+      const rateText = `回転率${earned.rate.toFixed(1)}（${postPartText(earned.rateThis, earned.rateThisSpins, "回転")} ＋ 参考${earned.rateRef === null || earned.rateRef === undefined ? "-" : earned.rateRef.toFixed(1)}・${displayEvSource(earned.rateRefSource || "-")}）`;
       const netText = earned.net === null || earned.net === undefined
         ? "1R-"
-        : `1R${Math.round(earned.net).toLocaleString("ja-JP")}玉（${postPartText(earned.netThis, earned.netThisRounds, "R")} ＋ 参考${earned.netRef === null || earned.netRef === undefined ? "-" : Math.round(earned.netRef).toLocaleString("ja-JP")}・${earned.netRefSource || "-"}${earned.netRefRounds ? `${Math.round(earned.netRefRounds).toLocaleString("ja-JP")}R` : ""}）`;
+        : `1R${Math.round(earned.net).toLocaleString("ja-JP")}玉（${postPartText(earned.netThis, earned.netThisRounds, "R")} ＋ 参考${earned.netRef === null || earned.netRef === undefined ? "-" : Math.round(earned.netRef).toLocaleString("ja-JP")}・${displayEvSource(earned.netRefSource || "-")}${earned.netRefRounds ? `${Math.round(earned.netRefRounds).toLocaleString("ja-JP")}R` : ""}）`;
       // S41/§1-3: 保存前の計算（完了済みなのに endEv が無い旧データ）はその旨を添える
       const savedText = earned.unsaved ? " ／ 保存前の計算" : "";
       return `${rateText}／${netText}${savedText}`;
@@ -10719,7 +10991,7 @@
             <table class="result-table">
               <thead><tr><th>項目</th><th>開始時の想定</th><th></th><th>実戦後評価</th><th>差</th></tr></thead>
               <tbody>
-                <tr><td>回転率</td><td>${escapeHtml(startEv.usedRate.toFixed(1))}（${escapeHtml(startEv.rateSource || "-")}）${startEv.netBallsPerRound !== null && startEv.netBallsPerRound !== undefined ? `<br><small>1R${escapeHtml(Math.round(startEv.netBallsPerRound).toLocaleString("ja-JP"))}玉</small>` : ""}</td><td>→</td><td>${escapeHtml(actualRateText)}${earned ? `<br><small>${escapeHtml(earnedExpectationBasisText(earned))}</small>` : ""}</td><td>${escapeHtml(diffRateText)}</td></tr>
+                <tr><td>回転率</td><td>${escapeHtml(startEv.usedRate.toFixed(1))}（${escapeHtml(displayEvSource(startEv.rateSource || "-"))}）${startEv.netBallsPerRound !== null && startEv.netBallsPerRound !== undefined ? `<br><small>1R${escapeHtml(Math.round(startEv.netBallsPerRound).toLocaleString("ja-JP"))}玉</small>` : ""}${decisionDifferenceText(startEv) ? `<br><small>${escapeHtml(decisionDifferenceText(startEv))}</small>` : ""}</td><td>→</td><td>${escapeHtml(actualRateText)}${earned ? `<br><small>${escapeHtml(earnedExpectationBasisText(earned))}</small>` : ""}</td><td>${escapeHtml(diffRateText)}</td></tr>
                 <tr><td>実戦後評価</td><td>${escapeHtml(yenText(startEv.evYen))}</td><td>→</td><td>${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</td><td>${escapeHtml(yenText(earnedEvDiffYen))}</td></tr>
               </tbody>
             </table>
@@ -11549,9 +11821,11 @@
           ${fieldHtml("startSpin", "開始回転数", session.startSpin)}
           ${fieldHtml("currentSpin", "現在回転数", session.currentSpin)}
           ${fieldHtml("startMochidama", "開始時の持ち玉", session.startMochidama)}
-          ${fieldHtml("startSaipurei", "開始時の再プレイ残り", session.startSaipurei)}
-          ${fieldHtml("startCredit", "開始時のカード残高", session.startCredit)}
-          ${fieldHtml("startTotalHits", "開始時点の累計大当たり回数", session.startTotalHits)}
+          ${fieldHtml("startSaipurei", "今日あと何玉再プレイできるか（玉）", session.startSaipurei)}
+          <p class="hint">貯玉残高と再プレイ上限を反映した、これから使える量</p>
+          ${fieldHtml("startCredit", "カードに残っている現金（円）", session.startCredit)}
+          ${fieldHtml("startTotalHits", "台の本日の大当たり回数（打つ前）", session.startTotalHits)}
+          <p class="hint">データカウンターの本日大当たり回数を入力</p>
           ${fieldHtml("prevDaySpinCandidate", "前日回転の候補（閉店チェックまたは手入力）", session.prevDaySpinCandidate)}
           ${fieldHtml("hitSpin", "当選回転数", session.hitSpin)}
           ${fieldHtml("hitRemainBalls", "当選時残り玉", session.hitRemainBalls)}
@@ -11712,7 +11986,7 @@
             <div class="style-choice">
               ${options.map((option) => `<button type="button" class="playStyleChoice${option.value === selected ? " selected" : ""}" data-play-style="${option.value}" aria-pressed="${option.value === selected ? "true" : "false"}">${escapeHtml(option.label)}</button>`).join("")}
             </div>
-            <p class="hint hint-help">時短抜けで作る区間の初期状態が変わります。すでに始まっている区間はそのままです。</p>
+            <p class="hint hint-help">時短が終わったあと、打ち出しを止めるか続けるかの初期選択に使います。すでに始まっている区間はそのままです。</p>
           </div>
         </div>
       `;

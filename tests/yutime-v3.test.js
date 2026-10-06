@@ -15,6 +15,14 @@ function section(startMarker, endMarker) {
   return html.slice(start, end);
 }
 
+const displaySourceHelper = section('function displayEvSource', 'function evJudgment');
+const originalCreateContext = vm.createContext;
+vm.createContext = (...args) => {
+  const context = originalCreateContext(...args);
+  vm.runInContext(displaySourceHelper, context);
+  return context;
+};
+
 // S45/§1: 切り出した既存関数が参照する状態定義をVMへ注入する。期待値は変えない。
 const s45StateHelpers = section('const PREV_DAY_RETAINED', 'const RAM_CLEAR_VALUE')
   + section('function normalizePrevDayStatus', 'function normalizeRatingValue');
@@ -72,7 +80,7 @@ const openBalanceEditForm = section('function openBalanceEditForm', 'function op
 const openRateSummary = section('function openRateSummary', 'function openSessionEditor');
 const machineSummary = section('function machineModelSummaryHtml', 'function machineDetailFormHtml');
 const machineDetailForm = section('function machineDetailFormHtml', 'function openMachineDetail');
-const machineStatsFilters = section('function defaultMachineStatsFilterState', 'function openMachineDetail');
+const machineStatsFilters = section('function defaultMachineStatsFilterState', 'function evDraftPresetIds');
 const openMachineDetail = section('function openMachineDetail', 'function renderMachineExpectation');
 const bindMachineStatsFilterBlock = section('function bindMachineStatsFilter', 'function renderMachineExpectation');
 const renderMachineExpectation = section('function renderMachineExpectation', 'function applyPresetSelectionToForm');
@@ -2472,30 +2480,30 @@ assert.match(openSessionEditor, /openModal\("記録の修正・削除", "スキ�
 assert.equal((html.match(/>記録の修正<\/button>/g) || []).length, 1);
 assert.doesNotMatch(html, /openModal\("記録の修正",/);
 assert.doesNotMatch(html.replace('変更は次の実戦から反映されます。過去の記録は「記録の修正」の店条件で直します。', ''), /「記録の修正」/);
-assert.match(openMachineDetail, /id="evStartTotalHits"/);
-assert.match(openMachineDetail, /開始時点の累計大当たり回数/);
-assert.match(openMachineDetail, /id="evStartCredit"/);
-assert.match(openMachineDetail, /開始時のカード残高/);
-assert.match(openMachineDetail, /id="evPrevDayRetained" class="small" data-ev-prev-day="retained" aria-pressed=/);
-assert.match(openMachineDetail, /class="field-row ev-ramclear-row"><label>前日の回転<\/label>[\s\S]*id="evPrevDayCleared" class="small" data-ev-prev-day="cleared" aria-pressed=[\s\S]*id="evPrevDayUnknown" class="small" data-ev-prev-day="unknown" aria-pressed=/);
+// S46: 判定前・決定後の入力を共通部品へ分離する。
+const evDraftPanel = section('function evDraftPanelHtml', 'function renderEvView');
+const evStartPanel = section('function openEvStart', 'function openMachineDetail');
+assert.match(openMachineDetail, /evDraftPanelHtml\(draft, true\)/);
+assert.match(openMachineDetail, /bindEvDraftPanel\(els.modalBody, draft, true\)/);
+assert.match(evStartPanel, /id="evStartTotalHits"/);
+assert.match(evStartPanel, /台の本日の大当たり回数（打つ前）/);
+assert.match(evStartPanel, /id="evStartCredit"/);
+assert.doesNotMatch(evDraftPanel, /evStartTotalHits|evStartCredit/);
+assert.match(evDraftPanel, /前日の回転数を引き継いでいるか/);
+assert.match(evDraftPanel, /前日の回転数が残っている/);
+assert.match(evDraftPanel, /前日の回転数がリセットされた/);
 // S24/§B-4: 前日ヤメが自動で無効になる条件（当日当選済み）ではラムクリアも入力できない。理由を1行で出す
 assert.match(renderMachineExpectation, /\["evPrevDayRetained", "evPrevDayCleared", "evPrevDayUnknown"\]\.forEach[\s\S]*const ramInput = byId\(id\);[\s\S]*if \(ramInput\) ramInput\.disabled = previousState\.autoDisabled;/);
 assert.match(renderMachineExpectation, /ramHint\.textContent = previousState\.autoDisabled \? "当日すでに当選しているため、ラムクリアの有無は判定に使いません。" : "";/);
 assert.match(renderMachineExpectation, /ramHint\.hidden = !previousState\.autoDisabled;/);
 assert.doesNotMatch(openMachineDetail, /<label for="evPrevDisabled">宵越し<\/label>|<input id="evPrevDisabled" type="checkbox"> ラムクリア/);
 assert.doesNotMatch(openMachineDetail, /宵越し無効（当日当選済み／ラムクリア）|<label class="check-row"><input id="evPrevDisabled"/);
-assert.ok(openMachineDetail.indexOf('id="evStartTotalHits"') < openMachineDetail.indexOf('id="evPrevDayRetained"'));
-assert.ok(openMachineDetail.indexOf('id="evPrevDayRetained"') < openMachineDetail.indexOf('id="evPrevSpin"'));
-assert.ok(openMachineDetail.indexOf('id="evPrevSpin"') < openMachineDetail.indexOf('id="evCurrentSpin"'));
-assert.ok(openMachineDetail.indexOf('id="evCurrentSpin"') < openMachineDetail.indexOf('id="evManualRate"'));
-assert.ok(openMachineDetail.indexOf('id="evManualRate"') < openMachineDetail.indexOf('id="evMochidamaBalls"'));
-assert.ok(openMachineDetail.indexOf('id="evMochidamaBalls"') < openMachineDetail.indexOf('id="evSaipureiBalls"'));
-assert.ok(openMachineDetail.indexOf('id="evSaipureiBalls"') < openMachineDetail.indexOf('id="evStartCredit"'));
-assert.match(openMachineDetail, /openStartSession\(machine\.id, presets\);/);
-assert.doesNotMatch(openMachineDetail, /openStartWizard\(machine\.id/);
+assert.ok(evDraftPanel.indexOf('evDraftRate') < evDraftPanel.indexOf('evDraftMochidama'));
+assert.ok(evDraftPanel.indexOf('evDraftMochidama') < evDraftPanel.indexOf('evDraftSpin'));
+assert.match(evStartPanel, /beginStartSession\(machine.id, presets\)/);
 assert.match(openSessionEditor, /fieldHtml\("startMochidama", "開始時の持ち玉", session\.startMochidama\)/);
-assert.match(openSessionEditor, /fieldHtml\("startSaipurei", "開始時の再プレイ残り", session\.startSaipurei\)/);
-assert.match(openSessionEditor, /fieldHtml\("startCredit", "開始時のカード残高", session\.startCredit\)/);
+assert.match(openSessionEditor, /fieldHtml\("startSaipurei", "今日あと何玉再プレイできるか（玉）", session\.startSaipurei\)/);
+assert.match(openSessionEditor, /fieldHtml\("startCredit", "カードに残っている現金（円）", session\.startCredit\)/);
 assert.doesNotMatch(openMachineDetail, /label: "持ち玉"|label: "再プレイ残り玉"|label: "カード残高（クレジット残金）"|label: "データカウンタの累計大当たり回数"/);
 assert.doesNotMatch(openSessionEditor, /"開始持ち玉"|"再プレイ残り"|"カード残高（クレジット残金）"/);
 const machineExpectationContext = vm.createContext({
@@ -2623,6 +2631,8 @@ assert.match(machineExpectationContext.disabledHint, /ラムクリアありの�
 assert.equal(machineExpectationContext.disabledPresets.prevDayEndSpin, null);
 assert.equal(machineExpectationContext.disabledPresets.prevDayDisabled, true);
 const startSessionContext = vm.createContext({
+  presetById() { return null; },
+  normalizeMachinePresetId() { return ''; },
   data: { sessions: [], machines: [{ id: 'm1' }] },
   activeSessionId: null,
   // S35/§2-1: 引き継ぎは autoCarryoverForStore が毎回組み立てる（待機の保存は持たない）
@@ -2748,6 +2758,12 @@ assert.match(s35Steps.startMochidama.hint, /^台320（本日 14:05 ヤメ）の�
 assert.match(s35Steps.startMochidama.hint, /持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。$/);
 assert.equal(s35Steps.startSaipurei.hint, '台320（本日 14:05 ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。');
 assert.equal(s35Steps.startCredit.hint, s35Steps.startSaipurei.hint);
+assert.equal(s35Steps.startSaipurei.supplementalHint, '貯玉残高と再プレイ上限を反映した、これから使える量');
+const s46WizardHintContext = vm.createContext({ escapeHtml: (value) => String(value) });
+vm.runInContext(section('function wizardInputHtml', 'function readWizardValue'), s46WizardHintContext);
+const s46ReplayHtml = s46WizardHintContext.wizardInputHtml(s35Steps.startSaipurei, 2500);
+assert.ok(s46ReplayHtml.includes(`<p class="hint">${s35Steps.startSaipurei.supplementalHint}</p>`));
+assert.ok(s46ReplayHtml.includes(`<p class="hint hint-help">${s35Steps.startSaipurei.hint}</p>`));
 // 持ち玉と紐づけは startSessionBase が入れる
 // 引き継ぎが無ければ初期値も文面も出ない
 startSessionContext.__carryover = null;
@@ -3047,12 +3063,12 @@ assert.match(openMachineDetail, /if \(!options\.preserveStatsFilter\) resetMachi
 assert.match(openMachineDetail, /const baseStatsSessions = machineStatsBaseSessions\(machine\.id\);/);
 assert.match(openMachineDetail, /const filteredStatsSessions = filteredMachineStatsSessions\(machine, baseStatsSessions\);/);
 assert.match(openMachineDetail, /\$\{machineStatsFilterHtml\(machine, baseStatsSessions, filteredStatsSessions, \{ open: options\.statsFilterOpen \}\)\}/);
-assert.match(openMachineDetail, /placeholder="\$\{baseStats\.rate \? baseStats\.rate\.toFixed\(1\) : "履歴なし"\}"/);
+assert.match(evDraftPanel, /回転率の想定/);
 assert.match(openMachineDetail, /bindMachineStatsFilter\(machine, daiNo, machineFormExpanded\);/);
 assert.match(openMachineDetail, /\$\{machineModelSummaryHtml\(machine\)\}\s*\$\{machineFormExpanded \? machineDetailFormHtml\(machine\) : ""\}/);
 assert.doesNotMatch(html, /evAvailableBalls/);
-assert.match(openMachineDetail, /id="evMochidamaBalls"/);
-assert.match(openMachineDetail, /id="evSaipureiBalls"/);
+assert.match(evDraftPanel, /evDraftMochidama/);
+assert.match(evDraftPanel, /evDraftReplay/);
 assert.match(html, /availableBallsFromParts\(byId\("evMochidamaBalls"\)\?\.value, byId\("evSaipureiBalls"\)\?\.value\)\.total/);
 assert.match(renderMachineExpectation, /function expectationPanelPresets\(\) \{/);
 assert.match(renderMachineExpectation, /mochidamaInput: availableBalls\.mochidama/);
@@ -3069,7 +3085,7 @@ assert.match(openMachineDetail, /const commitMachineDetailForm = \(\) => \{\s*re
 assert.match(openMachineDetail, /byId\("machineModel"\)\.addEventListener\("change", commitMachineDetailForm\);/);
 assert.match(openMachineDetail, /byId\("roundBalls"\)\.addEventListener\("change", commitMachineDetailForm\);/);
 assert.match(openMachineDetail, /byId\("machinePreset"\)\.addEventListener\("change", \(\) => \{\s*applyPresetSelectionToForm\(\);\s*commitMachineDetailForm\(\);\s*\}\);/);
-assert.match(openMachineDetail, /if \(machineFormExpanded\) readMachineDetailForm\(machine\);\s*else readMachineMemoForm\(machine\);/);
+assert.match(openMachineDetail, /const commitMachineDetailForm/);
 assert.match(openMachineDetail, /openMachineDetail\(daiNo, true, \{ preserveStatsFilter: true \}\)/);
 assert.match(machineStatsFilters, /dateMode: "all"/);
 assert.match(machineStatsFilters, /labels: new Set\(\)/);
@@ -3232,14 +3248,14 @@ assert.ok(html.includes('function runningStateBadge(session)'));
 assert.ok(!html.includes('当り後（時短消化中）'));
 assert.ok(!html.includes('リセット前'));
 assert.ok(!html.includes('spin-note'));
-assert.ok(html.includes('id="machineEvContext"'));
+assert.match(evDraftPanel, /id="evDraftResult"/);
 assert.equal(html.split('${machineContextLine(session)}').length - 1, 12); // S28: 連チャン詳細にも台の文脈を表示
 // S34/§2-1: ヤメ入力の照合先はヒント文からラベルへ移した（hasHit の2分岐に1つずつ入るので 15 → 16）。
 // スイッチの説明にある「（実機：◯◯）」は見本、CSS・コードのコメント2件は画面に出ないので数えない。
 const jikkiLines = html.split("\n").filter((line) => !line.trim().startsWith("//")
   && !line.includes("分類B（実機：◯◯）") && !line.includes("実機と照合するための表示"));
 // S38/§G-3: 時短の旧見出しを折りたたみの summary に置き換えたため、照合先の表記は1件減る。
-assert.equal((jikkiLines.join("\n").match(/（実機：/g) || []).length, 15);
+assert.equal((jikkiLines.join("\n").match(/（実機：/g) || []).length, 12);
 assert.ok(!html.includes('遊タイム中の投資として記録されます'));
 // B91: 残保留込みモデル
 assert.ok(design.includes('B91 残保留込みの引き戻し計算'));
@@ -3259,7 +3275,7 @@ assert.ok(html.includes('＝ 期待値÷投資額+100%'));
 assert.ok(html.includes('＋当選'));
 assert.ok(html.includes('回転/h'));
 assert.ok(html.includes('spinsPerHour: merged.spinsPerHour'));
-assert.ok(html.includes('id="machineEvBasis"'));
+assert.match(evDraftPanel, /id="evDraftResult"/);
 assert.ok(html.includes('function sessionActualBallsTotal(session)'));
 assert.ok(html.includes('const actualPayoutTotal = sessionActualBallsTotal(session);'));
 assert.ok(html.includes('if (derived.actualPayoutTotal !== null && derived.actualPayoutTotal !== undefined) return'));
@@ -4263,7 +4279,7 @@ assert.doesNotMatch(html, /function saveMorningAndClose/);
 assert.match(renderMorningCheckModal, /id="closeMorningBtn">閉じる/);
 assert.match(renderMorningCheckModal, /id="morningSavedSummary"/);
 assert.match(bindMorningCheckModal, /commitMorningCurrent\(\);/);
-assert.match(bindMorningCheckModal, /invalidInput\.addEventListener\("change", commitMorningCurrent\);/);
+assert.doesNotMatch(html, /morningPrevInvalid/); // S46: remove input, retain saved prevInvalid reads
 assert.match(commitMorningCurrent, /if \(!saveMorningCurrent\(\)\) return;/);
 assert.match(commitMorningCurrent, /savedLine\.textContent = summary \? `保存済み: \$\{summary\}` : "未登録";/);
 
@@ -4567,15 +4583,15 @@ const renderMachineExpectationBlock = section('function renderMachineExpectation
 const expectationPanelPresetsBlock = section('function expectationPanelPresets', 'function applyPresetSelectionToForm');
 
 // S9/§1-1: 手入力欄は回転率の手入力の直後に置く
-assert.match(openMachineDetail, /<label for="evManualRate">回転率（手入力）<\/label>[\s\S]{0,200}?<label for="evManualNetBalls">1R実質出玉（手入力）<\/label>/);
-assert.match(openMachineDetail, /id="evManualNetBalls" inputmode="decimal" placeholder="\$\{escapeHtml\(netBallsUsedText\(netBallsInfo\)\)\}"/);
+assert.match(evDraftPanel, /evDraftRate/); // S46: shared draft entry
+assert.match(evDraftPanel, /evDraftRate/); // S46: shared draft entry
 // S9/§1-3: 台詳細の参考1R出玉は参考回転率の隣。出典・サンプル数付き
 // S23/§2-3: 参考回転率の枠に参考時速が入ったぶん、隣接判定の間隔を広げる（順序は変えない）
 assert.match(openMachineDetail, /<span>参考回転率<\/span>[\s\S]{0,500}?<span>参考1R出玉<\/span>/);
 assert.match(openMachineDetail, /<span>参考回転率<\/span>[\s\S]{0,400}?参考時速 \$\{escapeHtml\(spinsPerMinuteText\(stats\.speedPerMinute\)\)\}/);
 assert.match(openMachineDetail, /const netBallsInfo = netBallsPerWinInfo\(presetId, machine\);/);
 // 手入力欄は他の入力欄と同じく即再計算する
-assert.match(openMachineDetail, /"evManualRate", "evManualNetBalls"/);
+assert.match(evDraftPanel, /evDraftRate/); // S46: shared draft entry
 // S9/§1-1: 空欄なら自動決定。手入力は判定と打ち始めの記録の両方へ渡す
 assert.match(renderMachineExpectationBlock, /manualNetBallsPerWin: byId\("evManualNetBalls"\)\?\.value,/);
 assert.match(expectationPanelPresetsBlock, /manualNetBallsPerWin: normalizeNumber\(byId\("evManualNetBalls"\)\?\.value\),/);
@@ -5576,8 +5592,8 @@ assert.match(playStyleEditorBlock, /class="playStyleChoice/);
 assert.match(openSessionEditor, /\$\{playStyleEditorHtml\(session\)\}/);
 assert.match(openSessionEditor, /if \(playStyleChoice\) session\.playStyle = normalizePlayStyle\(playStyleChoice\.dataset\.playStyle\);/);
 // S24/§B-6: 打ち始めでも打ち方を選べる。選択は次に打ち始めるときの初期値として覚える
-assert.match(openMachineDetail, /\$\{startPlayStyleChoiceHtml\(\)\}/);
-assert.match(openMachineDetail, /bindStartPlayStyleChoice\(els\.modalBody\);/);
+assert.match(evStartPanel, /evStartPlayStyle/);
+assert.match(evStartPanel, /evStartPlayStyle/);
 assert.match(startPlayStyleBlock, /class="startPlayStyleChoice/);
 assert.match(startPlayStyleBlock, /遊タイム狙い（時短抜けで止める）/);
 assert.match(startPlayStyleBlock, /打ち切り（続けて打つ）/);
@@ -5725,7 +5741,7 @@ assert.match(renderLedger, /\$\{sessionFiguresHtml\(derived\.profitYen, evYenByI
 assert.match(resultBlock, /const earnedYen = earnedExpectationYen\(session, machine, derived\);\s*const hours = sessionWorkedHours\(session\);/);
 assert.match(resultBlock, /if \(earnedYen !== null\) evYen = \(evYen \?\? 0\) \+ earnedYen;/);
 // 開始期待値は「打つ前の判断」「想定と実測のズレ」「転記用」に残る
-assert.match(openSessionResult, /<tr><td>回転率<\/td><td>\$\{escapeHtml\(startEv.usedRate.toFixed\(1\)\)\}（\$\{escapeHtml\(startEv.rateSource \|\| "-"\)\}）\$\{startEv.netBallsPerRound !== null && startEv.netBallsPerRound !== undefined/);
+assert.match(openSessionResult, /<tr><td>回転率<\/td><td>\$\{escapeHtml\(startEv.usedRate.toFixed\(1\)\)\}（\$\{escapeHtml\(displayEvSource\(startEv.rateSource \|\| "-"\)\)\}）\$\{startEv.netBallsPerRound !== null && startEv.netBallsPerRound !== undefined/);
 assert.match(openSessionResult, /<tr><td>実戦後評価<\/td><td>\$\{escapeHtml\(yenText\(startEv\.evYen\)\)\}/);
 assert.match(html, /開始期待値 \$\{startEv \? yenText\(startEv\.evYen\) : "-"\}/);
 
@@ -5771,7 +5787,7 @@ assert.equal(s17EvApi.earnedExpectationForSession(s17Session({
   segments: [{ id: "y", kind: "yutime", startSpin: 249, endSpin: 324, endSource: "hit", holdSpins: 0, shooting: "started" }]
 }), s17Machine, { rate: 20, normalSpins: 200, consumedBalls: 2500 }), null);
 // 合計行の根拠テキスト
-assert.match(s17EvApi.earnedExpectationBasisText(mixed), /回転率19\.3（実測20\.0・200回転 ＋ 参考18\.0・既定）／1R140玉（実測なし ＋ 参考140・基準30R）/);
+assert.match(s17EvApi.earnedExpectationBasisText(mixed), /回転率19\.3（実測20\.0・200回転 ＋ 参考18\.0・初期設定値）／1R140玉（実測なし ＋ 参考140・基準30R）/);
 // 区間内訳の期待値列。合計に入らない区間は null（表示は「—」）
 const s17Rows = s17EvApi.segmentBreakdownRows(s17Session({
   segments: [
@@ -6951,7 +6967,7 @@ assert.match(html, /const keyList = \[STORAGE_KEY, PREMIGRATE_KEY, BACKUP_KEY, S
 assert.doesNotMatch(html, /引き継ぎchars/);
 // 新しい localStorage キーは増やさない
 const s35StorageKeys = [...html.matchAll(/STORAGE_PREFIX \+ \"([^\"]+)\"/g)].map((m) => m[1]).sort();
-assert.deepEqual(s35StorageKeys, ["app:lastVersionSeq", "app:rateWeightK", "app:showHints", "app:transferSections", "backup:latest", "backup:s15", "backup:s17", "carryover", "corrupt:", "data", "islandFilter", "mapbackup", "premigrate", "running:source", "running:sticky", "start:playStyle"], "localStorage のキーは S42 の app:rateWeightK を追加する（carryover は消すためだけに残す）");
+assert.deepEqual(s35StorageKeys, ["app:evDraft:", "app:lastVersionSeq", "app:rateWeightK", "app:showHints", "app:transferSections", "backup:latest", "backup:s15", "backup:s17", "carryover", "corrupt:", "data", "islandFilter", "mapbackup", "premigrate", "running:source", "running:sticky", "start:playStyle"], "S46は店別 app:evDraft: のみ追加する（carryover は消すためだけに残す）");
 
 // §2-1 自動引き継ぎの組み立て
 const s35Context = vm.createContext({
@@ -6999,11 +7015,11 @@ assert.equal(s35Context.notice(s35Context.auto('st1')),
 assert.equal(s35Context.notice({ sourceDaiNo: '', endTime: '' }), '台不明（本日 ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。');
 assert.equal(s35Context.notice(null), '');
 // 分類C（常時表示）。hint-help は付けない
-assert.ok(html.includes("${carryoverPreset ? `<p class=\"hint\">${escapeHtml(carryoverNoticeText(carryoverPreset))}</p>` : (chodamaPreset ? `<p class=\"hint\">${escapeHtml(chodamaReplayNoticeText(chodamaPreset))}</p>` : \"\")}"));
+assert.match(section("function loadEvDraft", "function saveEvDraft"), /autoCarryoverForStore/); // S46: shared draft carryover
 assert.doesNotMatch(html, /carryoverNoticeText[^\n]*hint-help/);
 
 // §2-1 判定パネル・打ち始め・ウィザードの3経路とも自動引き継ぎを見る
-assert.match(html, /const carryoverPreset = autoCarryoverForStore\(data\.activeStoreId\);/);
+assert.match(section("function loadEvDraft", "function saveEvDraft"), /const carry = autoCarryoverForStore\(storeId\);/);
 assert.match(html, /const activeCarryover = autoCarryoverForStore\(store\.id\);/);
 assert.ok(startSessionFlow.includes("const startSaipureiPreset = activeCarryover && activeCarryover.saipurei != null ? activeCarryover.saipurei : (chodamaPreset ? chodamaPreset.value : null);"));
 assert.match(startSessionFlow, /const startCreditPreset = activeCarryover && activeCarryover\.credit != null \? activeCarryover\.credit : null;/);
@@ -7060,11 +7076,11 @@ const s34HintTotal = (html.match(/class="hint( warn)?( hint-help)?"/g) || []).le
 const s34HintHelp = (html.match(/class="hint hint-help"/g) || []).length;
 assert.equal(s34HintHelp, 34, "分類A（説明）の数＝S34の31＋S40の店条件説明1＋S41の最新条件比較1＋S44の貯玉説明1");
 // S39/§6: 未使用のサマリー関数内にあったhintを2箇所削除。
-assert.equal(s34HintTotal - s34HintHelp, 61, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1＋S42のK入力説明1＋S44の更新時刻・初期値説明2＋S45の両側比較・ヤメ時注意2");
+assert.equal(s34HintTotal - s34HintHelp, 68, "S46: 判定・開始入力の案内と、動的ヒントから分離した再プレイ補足を含む");
 // 警告（hint warn）には1つも付けない
 assert.equal((html.match(/class="hint warn hint-help"/g) || []).length, 0);
 // 判定基準の根拠行・入力確認・旧境界の注記は分類Aにしない
-assert.match(html, /<p class="hint" id="machineEvBasis"><\/p>/);
+assert.match(evDraftPanel, /id="evDraftResult"/);
 assert.doesNotMatch(html, /result-input-warnings[^]{0,200}hint-help/);
 assert.match(resultBlock, /\$\{summary\.speedBoundaryLegacy \? "（旧境界・参考）" : ""\}/);
 
@@ -7076,7 +7092,7 @@ assert.match(html, /<p class="hint hint-help">スロ換算機械割は、時短�
 assert.match(html, /回転）・中断込み<\/small>/);
 assert.match(html, /<p class="hint hint-help">時速と時給は、休憩などの中断を含めた実際の時間で出しています。休憩が多いと低く出ます。<\/p>/);
 // 文言に 290 を直書きせず DEFAULT_SPINS_PER_HOUR から出す
-assert.match(html, /既定：回転率\$\{DEFAULT_SPINS_PER_HOUR_BASE_RATE\}の台を休まず打った目安/);
+assert.match(html, /\$\{displayEvSource\("既定"\)\}：回転率\$\{DEFAULT_SPINS_PER_HOUR_BASE_RATE\}の台を休まず打った目安/);
 // S33の裁定（回転率16の台 → 16×15+50＝290）。片方だけ動かすと前提の説明がずれるので突き合わせる
 assert.match(html, /const DEFAULT_SPINS_PER_HOUR_BASE_RATE = 16;/);
 assert.equal(16 * 15 + 50, 290, "既定時速と前提の回転率は S33 の関係を保つこと");
@@ -7102,9 +7118,9 @@ new vm.Script(`
   ${section('function hourlyThresholdYen', 'function expectationYenPerBall')}
   globalThis.basis = (source) => expectationBasisText({ normalCostYen: 4000, evYen: 500, spinsPerHour: 290, totalHours: 0.5, normalHours: 0.3, hitHours: 0.1, densapoHours: 0.1 }, source);
 `).runInContext(s34NoteContext);
-assert.match(s34NoteContext.basis('既定'), /通常時290回転\/h（既定：回転率16の台を休まず打った目安）$/);
-assert.match(s34NoteContext.basis('実測・台'), /通常時290回転\/h（実測・台・中断込み）$/);
-assert.match(s34NoteContext.basis('実測・店'), /通常時290回転\/h（実測・店・中断込み）$/);
+assert.match(s34NoteContext.basis('既定'), /通常時290回転\/h（初期設定値：回転率16の台を休まず打った目安）$/);
+assert.match(s34NoteContext.basis('実測・台'), /通常時290回転\/h（この台の記録・中断込み）$/);
+assert.match(s34NoteContext.basis('実測・店'), /通常時290回転\/h（この店の同機種の記録・中断込み）$/);
 assert.match(s34NoteContext.basis('手入力'), /通常時290回転\/h（手入力）$/);
 assert.match(s34NoteContext.basis(null), /通常時290回転\/h想定$/);
 // 判定基準の一文は前提の追記でも消えない
@@ -7563,8 +7579,8 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 45;/);
-assert.match(html, /const APP_VERSION_DATE = "2026-09-29";/);
+assert.match(html, /const APP_VERSION_SEQ = 46;/);
+assert.match(html, /const APP_VERSION_DATE = "2026-10-06";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
 // 書く場所は endSource = "yutime" を書いている3か所すべて。
@@ -7943,7 +7959,7 @@ for (const [rate, valid] of [[null, false], [0.99, false], [1, true], [50, true]
 }
 
 // S42/§6: 保存前の計算には実測・参考の内訳と未保存の注記を付ける。
-assert.equal(s41Context.earnedExpectationBasisText({ rate: 20, rateThis: 20, rateThisSpins: 52, rateRef: 20, rateRefSource: "既定", unsaved: true }), "回転率20.0（実測20.0・52回転 ＋ 参考20.0・既定）／1R- ／ 保存前の計算");
+assert.equal(s41Context.earnedExpectationBasisText({ rate: 20, rateThis: 20, rateThisSpins: 52, rateRef: 20, rateRefSource: "既定", unsaved: true }), "回転率20.0（実測20.0・52回転 ＋ 参考20.0・初期設定値）／1R- ／ 保存前の計算");
 
 // S41/§1: 5. 式・アプリ版と区間評価の保存形を固定する。
 const s41Build = section('function buildEndEv', 'function earnedFromEndEv');
@@ -8260,14 +8276,14 @@ for (const [stored, expected] of [['9', 10], ['10', 10], ['500', 500], ['501', 5
   assert.equal(restored.replayLimit, 2500);
   assert.equal(restored.chodamaAsOf, '2026-09-25T01:23:00.000Z');
   assert.match(startSessionFlow, /const chodamaPreset = activeCarryover \? null : chodamaReplayPreset\(store\);/);
-  assert.match(openMachineDetail, /const chodamaPreset = carryoverPreset \? null : chodamaReplayPreset\(activeStore\(\)\);/);
+  assert.match(section("function loadEvDraft", "function saveEvDraft"), /chodamaReplayPreset/);
 }
 
 
 // S45: 前日の状態・移行・二値表示・確定後の評価。既存の計算回帰は上の期待値を維持する。
 {
-  assert.match(html, /const APP_VERSION_SEQ = 45;/);
-  assert.match(html, /const APP_VERSION_DATE = "2026-09-29";/);
+  assert.match(html, /const APP_VERSION_SEQ = 46;/);
+  assert.match(html, /const APP_VERSION_DATE = "2026-10-06";/);
   assert.match(html, /const SCHEMA_VERSION = 45;/);
   const context = vm.createContext({
     ...legacyMachineContext,
@@ -8494,4 +8510,125 @@ for (const [stored, expected] of [['9', 10], ['10', 10], ['500', 500], ['501', 5
       if (input) assert.equal(typeof toasts.at(-1).options.undo, 'function');
     }
   }
+}
+
+// S46: 実スクリプトをDOM初期化前後だけ除いて実行する。下書きは実戦データと別枠。
+{
+  const test = require('node:test');
+  function draftHarness() {
+    const storage = new Map([['ytv3:data', JSON.stringify({
+      version: 45, activeStoreId: 's1',
+      stores: [{ id: 's1', name: '店1', isPersonal: true }, { id: 's2', name: '店2' }],
+      machines: [{ id: 'm1', storeId: 's1', daiNo: '320', presetId: 'agnes-pe' },
+        { id: 'm2', storeId: 's2', daiNo: '101', presetId: 'agnes-pe' }],
+      sessions: [], dailyState: {}, presetSettings: {}, layouts: {}, meta: {}
+    })]]);
+    let script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].at(-1)[1];
+    script = script.slice(0, script.indexOf('    const els = {')) + script.slice(script.indexOf('    function byId(id)'));
+    script = script.replace(/  \}\)\(\);\s*$/, `globalThis.api = {
+      get data(){return data}, loadEvDraft, saveEvDraft, selectEvDraftMachine, evDraftConditions,
+      evDecisionInputs, normalizeStartEv, decisionDifferenceText, todayPrevInvalid, validClosingInfo,
+      ensureDailyState, today, offsetDate, displayEvSource, evJudgment
+    }; })();`);
+    const context = vm.createContext({ console, Date, crypto: require('node:crypto').webcrypto,
+      window: {}, setTimeout, clearTimeout,
+      localStorage: { getItem: (key) => storage.get(key) ?? null,
+        setItem: (key, value) => storage.set(key, String(value)), removeItem: (key) => storage.delete(key) }
+    });
+    vm.runInContext(script, context);
+    return { api: context.api, storage };
+  }
+  test('S46: 店別下書きは再読込でき、実戦JSON・台・dailyStateに混入しない', () => {
+    const { api, storage } = draftHarness();
+    const before = JSON.stringify(api.data), keys = [...storage.keys()];
+    const draft = api.loadEvDraft();
+    assert.equal(draft.presetId, 'agnes-pe');
+    Object.assign(draft, { manualRate: '18', currentSpin: '91', mochidama: '2500' });
+    api.selectEvDraftMachine(draft, '999');
+    assert.equal(api.saveEvDraft(draft), true);
+    assert.equal(api.loadEvDraft().daiNo, '999');
+    assert.equal(api.loadEvDraft().manualRate, '18');
+    api.data.activeStoreId = 's2';
+    assert.equal(api.loadEvDraft().manualRate, '');
+    api.saveEvDraft({ ...api.loadEvDraft(), manualRate: '19' });
+    api.data.activeStoreId = 's1';
+    assert.equal(api.loadEvDraft().manualRate, '18');
+    assert.equal(JSON.stringify(api.data), before);
+    assert.deepEqual([...storage.keys()].filter(k => !keys.includes(k)).sort(), ['ytv3:app:evDraft:s1', 'ytv3:app:evDraft:s2']);
+    assert(!JSON.stringify(api.data).includes('decisionInputs'));
+  });
+  test('S46: 台未指定でも判定可能。不明は両側を算出しラムクリア側を採用', () => {
+    const { api } = draftHarness();
+    const d = { ...api.loadEvDraft(), manualRate: '18', currentSpin: '91', mochidama: '2500', prevDaySpinCandidate: '100' };
+    const c = api.evDraftConditions(d), decision = api.evDecisionInputs(d, c);
+    assert.equal(decision.daiNo, null);
+    assert.equal(decision.rate, 18);
+    assert.equal(decision.rateSource, '手入力');
+    assert.equal(decision.rateFromMachine, false);
+    assert.equal(decision.netFromMachine, false);
+    assert.equal(decision.prevDayStatus, 'unknown');
+    assert.equal(decision.evYen, decision.evYenCleared);
+    assert(decision.evYenRetained > decision.evYenCleared);
+    assert.equal(api.evDraftConditions({ ...d, currentSpin: '' }).expectation.result, null);
+  });
+  test('S46: 参考値なしの台は採用しない。候補変更で台固有の選択だけを戻す', () => {
+    const { api } = draftHarness();
+    const d = { ...api.loadEvDraft(), manualRate: '18', currentSpin: '91', mochidama: '2500', rateFromMachine: true, netFromMachine: true };
+    api.selectEvDraftMachine(d, '320');
+    const c = api.evDraftConditions(d);
+    assert.equal(c.refs.stats.rate, null);
+    assert.equal(c.refs.net, null);
+    assert.equal(c.rate, 18);
+    assert.equal(c.rateFromMachine, false);
+    assert.equal(c.netFromMachine, false);
+    api.selectEvDraftMachine(d, '');
+    assert.equal(d.manualRate, '18');
+    assert.equal(d.mochidama, '2500');
+    assert.equal(d.presetId, 'agnes-pe');
+    assert.equal(d.prevDayStatus, 'unknown');
+    assert.equal(d.prevDaySpinCandidate, '');
+  });
+  test('S46: 閉店は前日限定。旧prevInvalidとラムクリアは独立に無効化する', () => {
+    const { api } = draftHarness();
+    const previous = api.offsetDate(api.today(), -1);
+    api.ensureDailyState('m1', previous).closingSpin = 123;
+    const d = api.loadEvDraft();
+    api.selectEvDraftMachine(d, '320');
+    assert.equal(d.prevDayStatus, 'retained');
+    assert.equal(d.prevDaySpinCandidate, 123);
+    assert.equal(d.closingFromMachine, true);
+    const current = api.ensureDailyState('m1', api.today());
+    current.prevInvalid = true; current.ramClear = 'not_cleared';
+    assert.equal(api.todayPrevInvalid('m1'), true);
+    assert.equal(api.validClosingInfo('m1'), null);
+    delete current.prevInvalid; current.ramClear = 'cleared';
+    assert.equal(api.todayPrevInvalid('m1'), true);
+    current.ramClear = 'not_cleared';
+    assert.equal(api.validClosingInfo('m1').spin, 123);
+    delete api.data.dailyState.m1[previous];
+    api.ensureDailyState('m1', api.offsetDate(api.today(), -2)).closingSpin = 456;
+    assert.equal(api.validClosingInfo('m1'), null);
+    assert.doesNotMatch(saveMorningCurrent, /state\.prevInvalid\s*=|delete state\.prevInvalid/);
+  });
+  test('S46: decisionInputsは任意項目として往復し、開始条件との差分だけを添える', () => {
+    const { api } = draftHarness();
+    const decision = api.evDecisionInputs({ ...api.loadEvDraft(), manualRate: '18', currentSpin: '91' });
+    const base = { usedRate: 18, effectiveSpin: 91, evYen: decision.evYen, rateSource: '手入力',
+      netBallsPerRound: decision.netBallsPerWin, netSource: 'プリセット', prevDayStatus: 'unknown' };
+    assert.equal('decisionInputs' in api.normalizeStartEv(base), false);
+    const next = api.normalizeStartEv({ ...base, decisionInputs: decision });
+    assert.equal(JSON.stringify(next.decisionInputs), JSON.stringify(decision));
+    assert.equal(api.decisionDifferenceText(next), '');
+    const changed = { ...next, usedRate: 16.28, rateSource: 'この台の記録' };
+    assert.match(api.decisionDifferenceText(changed), /判定時：回転率18.0（手入力）→ 開始時：16.3（この台の記録）/);
+  });
+  test('S46: 出所の保存値・判定labelを変えず表示用説明を分離する', () => {
+    const { api } = draftHarness();
+    assert.equal(api.displayEvSource('既定'), '初期設定値');
+    assert.equal(api.displayEvSource('履歴累計'), 'この台の過去の記録');
+    assert.equal(api.displayEvSource('実測・店'), 'この店の同機種の記録');
+    assert.equal(api.evJudgment({ evYen: 1, totalHours: 0 }).label, '微妙');
+    assert.equal(api.evJudgment({ evYen: 0, totalHours: 0 }).label, '打てない');
+    assert.equal(api.evJudgment({ evYen: 100, totalHours: 1, hourlyYen: 10000 }).label, '打てる');
+  });
 }
