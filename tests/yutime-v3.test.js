@@ -2756,13 +2756,13 @@ assert.equal(s35Steps.startSaipurei.preset, 250, 'ウィザードの再プレイ
 assert.equal(s35Steps.startCredit.preset, 1000, 'ウィザードのカード残高は引き継ぎから');
 assert.match(s35Steps.startMochidama.hint, /^台320（本日 14:05 ヤメ）の終了玉を初期値にしています。/);
 assert.match(s35Steps.startMochidama.hint, /持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。$/);
-assert.equal(s35Steps.startSaipurei.hint, '台320（本日 14:05 ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。');
-assert.equal(s35Steps.startCredit.hint, s35Steps.startSaipurei.hint);
-assert.equal(s35Steps.startSaipurei.supplementalHint, '貯玉残高と再プレイ上限を反映した、これから使える量');
+assert.equal(s35Steps.startSaipurei.notice, '台320（本日 14:05 ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。');
+assert.equal(s35Steps.startCredit.hint, s35Steps.startSaipurei.notice);
+assert.equal(s35Steps.startSaipurei.hint, '貯玉残高と再プレイ上限を反映した、これから使える量');
 const s46WizardHintContext = vm.createContext({ escapeHtml: (value) => String(value) });
 vm.runInContext(section('function wizardInputHtml', 'function readWizardValue'), s46WizardHintContext);
 const s46ReplayHtml = s46WizardHintContext.wizardInputHtml(s35Steps.startSaipurei, 2500);
-assert.ok(s46ReplayHtml.includes(`<p class="hint">${s35Steps.startSaipurei.supplementalHint}</p>`));
+assert.ok(s46ReplayHtml.includes(`<p class="hint">${s35Steps.startSaipurei.notice}</p>`));
 assert.ok(s46ReplayHtml.includes(`<p class="hint hint-help">${s35Steps.startSaipurei.hint}</p>`));
 // 持ち玉と紐づけは startSessionBase が入れる
 // 引き継ぎが無ければ初期値も文面も出ない
@@ -2771,7 +2771,7 @@ new vm.Script("openStartWizard('m1', {});").runInContext(startSessionContext);
 const s35NoSteps = Object.fromEntries((startSessionContext.__wizardSteps || []).map((step) => [step.key, step]));
 assert.equal(s35NoSteps.startSaipurei.preset, null);
 assert.equal(s35NoSteps.startCredit.preset, null);
-assert.equal(s35NoSteps.startSaipurei.hint, '');
+assert.equal(s35NoSteps.startSaipurei.notice, '');
 assert.equal(s35NoSteps.startCredit.hint, '');
 assert.match(s35NoSteps.startMochidama.hint, /^持ち玉なしで現金スタートなら 0 を入力してください。/);
 const startEvDetailContext = vm.createContext({
@@ -7074,9 +7074,12 @@ assert.doesNotMatch(section("function normalizeData", "function repairStartMochi
 // スイッチの注意書き（常に表示）を1つ足して B・C は56。S36 で転記用の文字数行を1つ足して57。
 const s34HintTotal = (html.match(/class="hint( warn)?( hint-help)?"/g) || []).length;
 const s34HintHelp = (html.match(/class="hint hint-help"/g) || []).length;
-assert.equal(s34HintHelp, 34, "分類A（説明）の数＝S34の31＋S40の店条件説明1＋S41の最新条件比較1＋S44の貯玉説明1");
+assert.equal(s34HintHelp, 36, "分類A（説明）の数＝S34の31＋S40の店条件説明1＋S41の最新条件比較1＋S44の貯玉説明1＋S46の再プレイ補足2（下書き・記録修正。ウィザードは既存hint枠を使用）");
 // S39/§6: 未使用のサマリー関数内にあったhintを2箇所削除。
-assert.equal(s34HintTotal - s34HintHelp, 68, "S46: 判定・開始入力の案内と、動的ヒントから分離した再プレイ補足を含む");
+// S46の追加13: 下書き7（回転率出所・1R出玉・店未選択・未知台・両側比較・判定根拠・未入力）、
+// 開始入力4（台案内・当たり回数・条件差分・マップ空）、ウィザード案内1、記録修正の当たり回数案内1。
+// 削除8: 旧判定パネルのラムクリア案内・初期値案内2分岐・台条件・前日条件・両側比較・詳細・判定根拠。
+assert.equal(s34HintTotal - s34HintHelp, 66, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1＋S42のK入力説明1＋S44の更新時刻・初期値説明2＋S45の両側比較・ヤメ時注意2＋S46の差引5（判定下書き7＋開始入力4＋ウィザード案内1＋記録修正の当たり回数案内1−旧判定パネル8）");
 // 警告（hint warn）には1つも付けない
 assert.equal((html.match(/class="hint warn hint-help"/g) || []).length, 0);
 // 判定基準の根拠行・入力確認・旧境界の注記は分類Aにしない

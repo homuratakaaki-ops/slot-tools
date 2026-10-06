@@ -2831,7 +2831,7 @@
     // S30/§2-2: 版の表示。文字列はべた書きせず定数から組み立てる。
     function renderAppVersion() {
       const el = byId("appVersion");
-      if (el) el.textContent = "S" + APP_VERSION_SEQ + " / " + APP_VERSION_DATE;
+      if (el) el.textContent = "S" + APP_VERSION_SEQ + "a / " + APP_VERSION_DATE;
     }
 
     // S34/§2-2: 保存値が "0" のときだけOFF。未保存・読めないときはON（初期はON）。
@@ -7690,7 +7690,7 @@
           <p class="hint" id="evDraftRateSource"></p><p class="hint" id="evDraftNet"></p>
           ${field("evDraftMochidama", "持ち玉（玉）", draft.mochidama)}
           ${field("evDraftReplay", "今日あと何玉再プレイできるか（玉）", draft.saipurei)}
-          <p class="hint">貯玉残高と再プレイ上限を反映した、これから使える量</p>
+          <p class="hint hint-help">貯玉残高と再プレイ上限を反映した、これから使える量</p>
           ${field("evDraftSpin", "表示回転数（現在のカウンター）", draft.currentSpin)}
           <div class="field-row"><label>前日の回転数を引き継いでいるか</label><div class="ram-choice-row">
             ${[["retained", "据え置き", "前日の回転数が残っている"], ["cleared", "ラムクリア", "前日の回転数がリセットされた"], ["unknown", "不明", ""]].map(([id, text, hint]) => `<button data-draft-prev="${id}" aria-pressed="${draft.prevDayStatus === id}">${text}${hint ? `<br><small>${hint}</small>` : ""}</button>`).join("")}</div></div>
@@ -8344,7 +8344,7 @@
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在の時刻を入力しています。必要なら変更してください。" },
         { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: (activeCarryover ? carryoverNoticeText(activeCarryover) + " " : "") + "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
-        { key: "startSaipurei", label: "今日あと何玉再プレイできるか（玉）", type: "number", preset: startSaipureiPreset, supplementalHint: "貯玉残高と再プレイ上限を反映した、これから使える量", hint: activeCarryover ? carryoverNoticeText(activeCarryover) : chodamaReplayNoticeText(chodamaPreset) },
+        { key: "startSaipurei", label: "今日あと何玉再プレイできるか（玉）", type: "number", preset: startSaipureiPreset, hint: "貯玉残高と再プレイ上限を反映した、これから使える量", notice: activeCarryover ? carryoverNoticeText(activeCarryover) : chodamaReplayNoticeText(chodamaPreset) },
         { key: "startCredit", label: "カードに残っている現金（円）", type: "number", preset: startCreditPreset, hint: activeCarryover ? carryoverNoticeText(activeCarryover) : "" },
         { key: "startTotalHits", label: "台の本日の大当たり回数（打つ前）", type: "number", preset: startTotalHitsPreset, hint: "データカウンターの本日大当たり回数を入力。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
         // S7c/3-1: 時短抜けで打ち出しを止めるかどうかの方針。以後の時短抜け区間の初期状態になる
@@ -9621,7 +9621,7 @@
       const inputType = step.type === "time" ? "time" : "text";
       const inputMode = step.type === "number" ? ' inputmode="numeric"' : "";
       const displayValue = value ?? step.preset ?? "";
-      return `<input id="wizardValue" type="${inputType}"${inputMode} value="${escapeHtml(displayValue)}">${step.supplementalHint ? `<p class="hint">${escapeHtml(step.supplementalHint)}</p>` : ""}${step.hint ? `<p class="hint hint-help">${escapeHtml(step.hint)}</p>` : ""}`;
+      return `<input id="wizardValue" type="${inputType}"${inputMode} value="${escapeHtml(displayValue)}">${step.notice ? `<p class="hint">${escapeHtml(step.notice)}</p>` : ""}${step.hint ? `<p class="hint hint-help">${escapeHtml(step.hint)}</p>` : ""}`;
     }
 
     function readWizardValue(step) {
@@ -11822,7 +11822,7 @@
           ${fieldHtml("currentSpin", "現在回転数", session.currentSpin)}
           ${fieldHtml("startMochidama", "開始時の持ち玉", session.startMochidama)}
           ${fieldHtml("startSaipurei", "今日あと何玉再プレイできるか（玉）", session.startSaipurei)}
-          <p class="hint">貯玉残高と再プレイ上限を反映した、これから使える量</p>
+          <p class="hint hint-help">貯玉残高と再プレイ上限を反映した、これから使える量</p>
           ${fieldHtml("startCredit", "カードに残っている現金（円）", session.startCredit)}
           ${fieldHtml("startTotalHits", "台の本日の大当たり回数（打つ前）", session.startTotalHits)}
           <p class="hint">データカウンターの本日大当たり回数を入力</p>
