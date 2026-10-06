@@ -146,7 +146,7 @@ assert.match(hitWizard, /openModal\("当選ウィザード"/);
 assert.match(hitWizard, /label for="hitWizardSpin">当選回転数/);
 assert.match(hitWizard, /label for="hitWizardRemainBalls">残り持ち玉/);
 assert.match(hitWizard, /今ある持ち玉を入力してください（再プレイ分は含めない）/);
-assert.match(hitWizard, /非パーソナル店では空欄のままで構いません/);
+assert.match(hitWizard, /各台の計数機がない店では空欄のままで構いません/);
 assert.match(hitWizard, /session\.hitSpin = normalizeNumber\(byId\("hitWizardSpin"\)\?\.value\);/);
 assert.match(hitWizard, /session\.hitRemainBalls = normalizeNumber\(byId\("hitWizardRemainBalls"\)\?\.value\);/);
 assert.match(hitWizard, /session\.hitTrackedBalls = mochidamaPreset;/);
@@ -450,7 +450,7 @@ assert.ok(hitResetPrompt.includes('data-hit-round'), 'round type chips should be
 // S4/C-1,C-2,C-3: 画面名は「大当たり登録」。当選カウンターは編集不可の表示にする
 assert.match(hitResetPrompt, /openModal\("大当たり登録"/);
 assert.doesNotMatch(hitResetPrompt, /id="hitRecordSpin"/);
-assert.match(hitResetPrompt, /当選カウンター <strong>\$\{numberText\(hitCounterSpin, "-"\)\}<\/strong>/);
+assert.match(hitResetPrompt, /大当たり時の回転数 <strong>\$\{numberText\(hitCounterSpin, "-"\)\}<\/strong>/);
 // S8/§1-4: 累計の範囲は連チャン。カウンターは時短が終わると0に戻ることを文言で伝える
 assert.match(hitResetPrompt, /<label for="hitRecordActualBalls">この連チャンの累計出玉<\/label>/);
 assert.match(hitResetPrompt, /id="hitRecordActualBalls"/);
@@ -2275,7 +2275,7 @@ assert.equal(runningRateContext.b85Dai357Derived.consumedBalls, 175);
 assert.equal(Number(runningRateContext.b85Dai357Derived.rate.toFixed(1)), 14.3);
 assert.equal(runningRateContext.b85OverRemainDerived.consumedBalls, 125);
 assert.equal(Number(runningRateContext.b85OverRemainDerived.rate.toFixed(1)), 20.0);
-assert.equal(JSON.stringify(runningRateContext.b85OverRemainDerived.warnings), JSON.stringify(["通常消費玉の入力を確認"]));
+assert.equal(JSON.stringify(runningRateContext.b85OverRemainDerived.warnings), JSON.stringify(["使った玉数を計算できません。開始・終了時の持ち玉などを確認してください。"]));
 assert.equal(runningRateContext.b85NoRemainDerived.consumedBalls, 125);
 assert.equal(Number(runningRateContext.b85NoRemainDerived.rate.toFixed(1)), 20.0);
 assert.equal(runningRateContext.b85YutimeEnterDerived.consumedBalls, 250);
@@ -2292,7 +2292,7 @@ assert.equal(Number(runningRateContext.b89Dai104Tray.rate.toFixed(1)), 5.9);
 assert.equal(runningRateContext.b89Dai103.consumedBalls, 1250);
 assert.equal(Number(runningRateContext.b89Dai103.rate.toFixed(1)), 16.0);
 assert.equal(runningRateContext.b89Dai103.consumedBallsCandidates.divergent, false);
-assert.equal(JSON.stringify(runningRateContext.b89Dai103.warnings), JSON.stringify(["通常消費玉の入力を確認"]));
+assert.equal(JSON.stringify(runningRateContext.b89Dai103.warnings), JSON.stringify(["使った玉数を計算できません。開始・終了時の持ち玉などを確認してください。"]));
 assert.equal(runningRateContext.b89SmallDiff.consumedBalls, 1200);
 assert.equal(Number(runningRateContext.b89SmallDiff.rate.toFixed(1)), 25.0);
 assert.equal(runningRateContext.b89SmallDiff.consumedBallsCandidates.divergent, false);
@@ -2326,7 +2326,9 @@ assert.equal(runningRateContext.s2TwoSegmentsDerived.consumedBalls, 1950);
 assert.equal(runningRateContext.s2HoldZero.normalSpins, 195);
 const consumedBallsUiContext = vm.createContext({});
 new vm.Script(`
-  const CONSUMED_BALLS_SOURCE_LABELS = { tray: "台上差", taps: "タップ合計" };
+  const CONSUMED_BALLS_SOURCE_LABELS = { tray: "持ち玉の増減から計算", taps: "玉を追加したボタンの記録から計算" };
+  // S47/§2-9: option の直書きをやめて定数を使うようにしたので、スタブにも escapeHtml が必要
+  function escapeHtml(value) { return String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
   function normalizeNumber(value) {
     if (value === "" || value === null || value === undefined) return null;
     const n = Number(value);
@@ -2351,7 +2353,7 @@ assert.equal(consumedBallsUiContext.newChoice, "");
 assert.match(consumedBallsUiContext.oldChoice, /data-consumed-source="tray"/);
 assert.match(consumedBallsUiContext.oldChoice, /data-consumed-source="taps"/);
 assert.doesNotMatch(consumedBallsUiContext.newEditor, /<select id="editConsumedBallsSource"/);
-assert.match(consumedBallsUiContext.newEditor, /通常消費玉はタップ合計と当選時の持ち玉差分で確定しています。/);
+assert.match(consumedBallsUiContext.newEditor, /通常時に使った玉数は、玉を追加したボタンの記録と当選時の持ち玉差分で確定しています。/);
 assert.match(consumedBallsUiContext.oldEditor, /<select id="editConsumedBallsSource"/);
 assert.ok(design.includes('スマパチ対応: カード玉と台内クレジットの分離管理（封入式）。当面は台に移した分も持ち玉として扱う運用。'));
 assert.match(renderRunning, /<span>\$\{escapeHtml\(option\.label\)\}<\/span><strong>\$\{sourceChipBalanceText\(balance\)\}<\/strong>/);
@@ -2606,13 +2608,13 @@ new vm.Script(`
 `).runInContext(machineExpectationContext);
 assert.equal(machineExpectationContext.firstPreviousSpin, '100');
 assert.equal(machineExpectationContext.firstDisabled, false);
-assert.match(machineExpectationContext.firstHint, /前日ヤメ100回転を使用中/);
+assert.match(machineExpectationContext.firstHint, /前日の回転数（閉店時）100回転を使用中/);
 assert.equal(machineExpectationContext.firstPresets.prevDayEndSpin, 100);
 assert.equal(machineExpectationContext.firstPresets.startTotalHits, null);
 assert.equal(machineExpectationContext.firstPresets.startCredit, 3000);
 assert.equal(machineExpectationContext.autoPreviousSpin, 0);
 assert.equal(machineExpectationContext.autoDisabledState, true);
-assert.match(machineExpectationContext.autoHint, /当日当選済みのため前日ヤメ回転数は使いません/);
+assert.match(machineExpectationContext.autoHint, /当日当選済みのため前日の回転数（閉店時）は使いません/);
 assert.equal(machineExpectationContext.autoPresets.prevDayEndSpin, null);
 assert.equal(machineExpectationContext.autoPresets.prevDayDisabled, true);
 assert.equal(machineExpectationContext.autoPresets.startTotalHits, 1);
@@ -2627,7 +2629,7 @@ assert.equal(machineExpectationContext.zeroPresets.startTotalHits, 0);
 assert.equal(machineExpectationContext.disabledPreviousSpin, 0);
 assert.equal(machineExpectationContext.disabledInputValue, '100');
 assert.equal(machineExpectationContext.disabledInputState, true);
-assert.match(machineExpectationContext.disabledHint, /ラムクリアありのため前日ヤメ回転数は使いません/);
+assert.match(machineExpectationContext.disabledHint, /ラムクリアありのため前日の回転数（閉店時）は使いません/);
 assert.equal(machineExpectationContext.disabledPresets.prevDayEndSpin, null);
 assert.equal(machineExpectationContext.disabledPresets.prevDayDisabled, true);
 const startSessionContext = vm.createContext({
@@ -2757,7 +2759,9 @@ assert.equal(s35Steps.startCredit.preset, 1000, 'ウィザードのカード残�
 assert.match(s35Steps.startMochidama.hint, /^台320（本日 14:05 ヤメ）の終了玉を初期値にしています。/);
 assert.match(s35Steps.startMochidama.hint, /持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。$/);
 assert.equal(s35Steps.startSaipurei.notice, '台320（本日 14:05 ヤメ）の終了玉を初期値にしています。スロットへ寄るなどして違えば直してください。');
-assert.equal(s35Steps.startCredit.hint, s35Steps.startSaipurei.notice);
+assert.equal(s35Steps.startCredit.notice, s35Steps.startSaipurei.notice);
+// S47/§2-11: 引き継ぎ案内は常時表示（notice）。hint-help 側には置かない
+assert.equal(s35Steps.startCredit.hint, undefined);
 assert.equal(s35Steps.startSaipurei.hint, '貯玉残高と再プレイ上限を反映した、これから使える量');
 const s46WizardHintContext = vm.createContext({ escapeHtml: (value) => String(value) });
 vm.runInContext(section('function wizardInputHtml', 'function readWizardValue'), s46WizardHintContext);
@@ -2772,7 +2776,7 @@ const s35NoSteps = Object.fromEntries((startSessionContext.__wizardSteps || []).
 assert.equal(s35NoSteps.startSaipurei.preset, null);
 assert.equal(s35NoSteps.startCredit.preset, null);
 assert.equal(s35NoSteps.startSaipurei.notice, '');
-assert.equal(s35NoSteps.startCredit.hint, '');
+assert.equal(s35NoSteps.startCredit.notice, '');
 assert.match(s35NoSteps.startMochidama.hint, /^持ち玉なしで現金スタートなら 0 を入力してください。/);
 const startEvDetailContext = vm.createContext({
   YUTIME_EXPECTATION_ENGINE: expectationContext.engine,
@@ -3024,10 +3028,11 @@ assert.match(html, /function normalizeHits\(hits\)/);
 assert.match(html, /function syncSessionHitTotals\(session, machines = data\.machines\)/);
 assert.match(html, /function netBallsPerWinInfo\(presetId, machine = null, manualInput = null\)/);
 assert.match(html, /netBallsPerWinManual/);
-// S11: 入力欄の単位は玉/R
-assert.match(html, /1R実質出玉（玉\/R）/);
+// S11 → S47/§2-6: 入力欄の単位は玉/R。ラベルは利用者向けの言い方にする（根拠行の「1R実質出玉」は残す）
+assert.match(html, /1Rあたり実際に増える玉数（玉\/R）/);
 assert.doesNotMatch(html, /純払い出し量/);
-assert.match(html, /時短100（玉\/回転）/);
+assert.match(html, /時短100回中の1回転あたりの玉増減（玉\/回転）/);
+assert.match(html, /玉増減は「マイナス＝減る、0＝増減なし」です。/);
 assert.match(html, /\$\{isStCertain \? "ST・時短" : "時短200"\}（玉\/回転）/);
 assert.match(html, /遊タイム（玉\/回転）/);
 assert.match(html, /仮値-0\.3（駆け抜け約100玉相当）/);
@@ -3701,7 +3706,7 @@ assert.match(renderClosingInputModal, /<p class="modal-dai-title">台 <strong>\$
 assert.match(morningStateSummary, /if \(ramLabel\) parts\.push\(`ラムクリ\$\{ramLabel\}`\);/);
 assert.match(morningStateSummary, /if \(prevInvalid\) parts\.push\("前日無効"\);/);
 assert.match(renderMorningCheckModal, /const savedSummary = morningStateSummary\(todayState\);/);
-assert.match(renderMorningCheckModal, /<p class="modal-dai-title">台 <strong>\$\{escapeHtml\(daiNo\)\}<\/strong> \/ 前日ヤメ/);
+assert.match(renderMorningCheckModal, /<p class="modal-dai-title">台 <strong>\$\{escapeHtml\(daiNo\)\}<\/strong> \/ 前日の回転数（閉店時）/);
 assert.match(renderMorningCheckModal, /\$\{savedSummary \? `保存済み: \$\{escapeHtml\(savedSummary\)\}` : "未登録"\}/);
 assert.match(saveMorningCurrent, /morningCheckFlow\.recent = `保存: \$\{daiNo\}=\$\{morningStateSummary\(state\) \|\| "未登録"\}`;/);
 
@@ -3761,7 +3766,7 @@ const threeHtml = ledgerApi.ledgerDaySummaryHtml(threeSummary);
 assert.match(threeHtml, /<strong>3台<\/strong>/);
 assert.match(threeHtml, /実収支<\/span><strong class="signed-figure-value is-plus">\+1,624円<\/strong>/);
 assert.match(threeHtml, /実戦後評価<\/span><strong class="signed-figure-value is-plus">\+3,200円<\/strong>/);
-assert.match(threeHtml, /実働<\/span><strong>1\.53h<\/strong>/);
+assert.match(threeHtml, /開始〜終了の時間<\/span><strong>1\.53h<\/strong>/);
 assert.match(threeHtml, /時給<\/span><strong class="signed-figure-value is-plus">\+1,059円<\/strong>/);
 
 // endTime 欠損のセッションは実働に入らないが、実収支・期待値の合算には入る
@@ -3784,14 +3789,14 @@ const noTimes = ledgerApi.ledgerDaySummary([
 assert.equal(noTimes.workedHours, null);
 assert.equal(noTimes.hourlyYen, null);
 const noTimesHtml = ledgerApi.ledgerDaySummaryHtml(noTimes);
-assert.match(noTimesHtml, /実働<\/span><strong>—<\/strong>/);
+assert.match(noTimesHtml, /開始〜終了の時間<\/span><strong>—<\/strong>/);
 assert.match(noTimesHtml, /時給<\/span><strong class="signed-figure-value is-empty">—<\/strong>/);
 
 // 実働0でも時給は「—」。ゼロ除算しない
 const zeroWorked = ledgerApi.ledgerDaySummary([{ profitYen: 500, evYen: 100, workedHours: 0 }]);
 assert.equal(zeroWorked.workedHours, 0);
 assert.equal(zeroWorked.hourlyYen, null);
-assert.match(ledgerApi.ledgerDaySummaryHtml(zeroWorked), /実働<\/span><strong>0\.00h<\/strong>/);
+assert.match(ledgerApi.ledgerDaySummaryHtml(zeroWorked), /開始〜終了の時間<\/span><strong>0\.00h<\/strong>/);
 
 // 実収支が算出できないセッションは合算から外す。全件不能なら「—」で時給も出さない
 const partialProfit = ledgerApi.ledgerDaySummary([
@@ -3866,13 +3871,13 @@ assert.match(resultBlock, /const evDiffYen = startEv && derived\.profitYen !== n
 // S12/B-2: 区間ごとの内訳は表。列は 区間／起点／終点／回転数／消費玉／回転率
 assert.match(resultBlock, /<table class="result-table segments">/);
 // S17/B-3: 期待値の列が増えて7列になる → S20/§2-3: 純増／1R が加わって8列 → S23/§3-1: 所要が加わって9列
-assert.match(resultBlock, /<thead><tr><th>区間<\/th><th>起点<\/th><th>終点<\/th><th>回転数<\/th><th>所要<\/th><th>消費玉<\/th><th>回転率<\/th><th>純増／1R<\/th><th>期待値<\/th><\/tr><\/thead>/);
+assert.match(resultBlock, /<thead><tr><th>打った区間<\/th><th>開始回転数<\/th><th>終了時の回転数<\/th><th>回転数<\/th><th>かかった時間<\/th><th>消費玉<\/th><th>回転率<\/th><th>1Rあたりの玉数<\/th><th>期待値<\/th><\/tr><\/thead>/);
 assert.doesNotMatch(resultBlock, /class="result-seg"/);
 // 保留控除の注記は表の下に1行でまとめる
 assert.match(resultBlock, /segmentHoldNotes\.push\(`\$\{mark\}保留\$\{row\.holdSpins\}`\)/);
-assert.match(resultBlock, /回転数は残保留の控除後（\$\{escapeHtml\(segmentHoldNotes\.join\("・"\)\)\}）/);
+assert.match(resultBlock, /回転数は残保留で回った分を除いた値（\$\{escapeHtml\(segmentHoldNotes\.join\("・"\)\)\}）/);
 assert.match(html, /\.result-table\.segments \{ font-size: 11px; \}/);
-assert.match(resultBlock, /1回のブレです。判断の良し悪しは下の通算で見ます。/);
+assert.match(resultBlock, /実戦後に分かった回転率・出玉と、実際に打った区間を反映しています。実収支との差は、複数回の実戦で確認してください。/);
 assert.match(resultBlock, /これまでの積み上げ/);
 assert.doesNotMatch(resultBlock, /通算との比較/);
 
@@ -4290,7 +4295,7 @@ assert.match(html, /byId\("saveMapBtn"\)\.addEventListener\("click", saveCurrent
 assert.match(mapEditorCloseGuard, /if \(!mapEditorHasUnsavedChanges\(storeId\)\) \{\s*onProceed\(\);\s*return;\s*\}/);
 assert.match(mapEditorCloseGuard, /mapIslandsSignature\(currentMapDraftIslands\(\)\) !== mapIslandsSignature\(map\.islands \|\| \[\]\)/);
 assert.match(mapEditorCloseGuard, /id="mapSaveCloseBtn">保存して続ける/);
-assert.match(mapEditorCloseGuard, /id="mapDiscardCloseBtn">破棄して続ける/);
+assert.match(mapEditorCloseGuard, /id="mapDiscardCloseBtn">変更を保存せずに続ける/);
 assert.match(mapEditorCloseGuard, /id="mapCancelCloseBtn">キャンセル/);
 // 破棄は保存済みレイアウトへ戻す
 assert.match(mapEditorCloseGuard, /mapDraft = \{ storeId, mapId: map\.id, islands: cloneIslands\(map\.islands \|\| \[\]\), allowEmptySave: false \};/);
@@ -4588,7 +4593,7 @@ assert.match(evDraftPanel, /evDraftRate/); // S46: shared draft entry
 // S9/§1-3: 台詳細の参考1R出玉は参考回転率の隣。出典・サンプル数付き
 // S23/§2-3: 参考回転率の枠に参考時速が入ったぶん、隣接判定の間隔を広げる（順序は変えない）
 assert.match(openMachineDetail, /<span>参考回転率<\/span>[\s\S]{0,500}?<span>参考1R出玉<\/span>/);
-assert.match(openMachineDetail, /<span>参考回転率<\/span>[\s\S]{0,400}?参考時速 \$\{escapeHtml\(spinsPerMinuteText\(stats\.speedPerMinute\)\)\}/);
+assert.match(openMachineDetail, /<span>参考回転率<\/span>[\s\S]{0,400}?通常時に1時間あたり回せる回転数 \$\{escapeHtml\(spinsPerMinuteText\(stats\.speedPerMinute\)\)\}/);
 assert.match(openMachineDetail, /const netBallsInfo = netBallsPerWinInfo\(presetId, machine\);/);
 // 手入力欄は他の入力欄と同じく即再計算する
 assert.match(evDraftPanel, /evDraftRate/); // S46: shared draft entry
@@ -5146,7 +5151,7 @@ assert.equal(runningRateContext.s7Case2.consumedBalls, 1500);
 assert.equal(runningRateContext.s7Case3.consumedBalls, 1500);
 assert.equal(runningRateContext.s7Case4.consumedBalls, 1500);
 assert.equal(runningRateContext.s7Case5.consumedBalls, null);
-assert.equal(JSON.stringify(runningRateContext.s7Case5.warnings), JSON.stringify(["通常消費玉の入力を確認"]));
+assert.equal(JSON.stringify(runningRateContext.s7Case5.warnings), JSON.stringify(["使った玉数を計算できません。開始・終了時の持ち玉などを確認してください。"]));
 assert.equal(runningRateContext.s7Case6.consumedBalls, 1250);
 assert.equal(runningRateContext.s7Case6.consumedModelApplied, false);
 assert.equal(runningRateContext.s7Case6WithFlag.consumedBalls, 1250);
@@ -5223,7 +5228,7 @@ assert.match(hitHistoryBlock, /while \(index > 0 && segmentIsHoldCarryHit\(segme
 assert.match(hitResetPrompt, /return target \? resolveHitSegmentId\(session, target\) : resolveSegmentChainId\(session, hitRecordSegmentId\(session\)\);/);
 assert.match(hitResetPrompt, /function hitRecordSegmentId\(session\) \{[\s\S]*?return target\?\.id \|\| null;/);
 assert.match(hitResetPrompt, /\$\{holdCarryNoticeHtml\(session\)\}/);
-assert.match(hitResetPrompt, /残保留当選（通常時なし）として、前の連チャンの続きに記録します。/);
+assert.match(hitResetPrompt, /残保留で大当たり（通常時なし）として、前の連チャンの続きに記録します。/);
 // B-4: 手動での切り替え
 assert.match(hitHistoryBlock, /function openHitChainDetail[\s\S]*?const segment = hitChainJudgmentSegment\(session, segmentId\)/);
 assert.match(hitHistoryBlock, /data-toggle-holdcarry="\$\{escapeHtml\(segment\.id\)\}"/);
@@ -5234,8 +5239,8 @@ assert.match(hitHistoryBlock, /const jitanCounters = new Set\(jitanExitOptions\(
 assert.match(hitHistoryBlock, /function startedByJitanExit\(segment, index, segments, jitanCounters\) \{\s*if \(segment\?\.startSource === "jitan"\) return true;\s*if \(index <= 0\) return false;\s*if \(!jitanCounters\.has\(normalizeNumber\(segment\?\.startSpin\)\)\) return false;\s*return segments\[index - 1\]\?\.endSource === "hit";/);
 // B-4: リザルトの区間内訳
 assert.match(resultBlock, /const holdCarry = isNormal && segmentIsHoldCarryHit\(segment\);/);
-assert.match(resultBlock, /endLabel: holdCarry \? "残保留当選" : endLabel,/);
-assert.match(openSessionResult, /は残保留当選（通常時なし）。前の連チャンの続きとして数えます/);
+assert.match(resultBlock, /endLabel: holdCarry \? "残保留で大当たり" : endLabel,/);
+assert.match(openSessionResult, /は残保留で大当たり（通常時なし）。前の連チャンの続きとして数えます/);
 
 const s7bHoldCarryContext = vm.createContext({});
 new vm.Script(`
@@ -5448,7 +5453,7 @@ assert.equal(JSON.stringify(runningRateContext.s7bHoldCarryDerived.warnings), JS
 assert.equal(runningRateContext.s7bHoldCarryOffDerived.normalSpins, 20);
 assert.equal(runningRateContext.s7bHoldCarryOffDerived.consumedBalls, 2100);
 // 残保留当選の区間に投資が残っていたら警告
-assert.equal(JSON.stringify(runningRateContext.s7bHoldCarryTapsDerived.warnings), JSON.stringify(["残保留当選の区間に投資が記録されています"]));
+assert.equal(JSON.stringify(runningRateContext.s7bHoldCarryTapsDerived.warnings), JSON.stringify(["残保留で大当たりの区間に投資が記録されています"]));
 
 // --- 連チャンの紐づけ（S4/C-4・S8と同じ切り出しに乗ること） -----------------
 const s7bChainContext = vm.createContext({});
@@ -5623,7 +5628,7 @@ assert.match(shootingBlock, /function isHoldSpinPhase\(session\)[\s\S]*?segment\
 // S28: 表示は詳細へ移動。S7bの手動切り替え処理は維持する
 assert.match(hitHistoryBlock, /function openHitChainDetail[\s\S]*?const segment = hitChainJudgmentSegment\(session, segmentId\)/);
 assert.match(hitHistoryBlock, /function toggleSegmentHoldCarry\(session, segmentId\)/);
-assert.match(resultBlock, /endLabel: holdCarry \? "残保留当選" : endLabel,/);
+assert.match(resultBlock, /endLabel: holdCarry \? "残保留で大当たり" : endLabel,/);
 assert.match(resultBlock, /const noShooting = isNormal && segmentSkipsNormalPlay\(segment\);/);
 
 // --- §5-8: 打ち出さずヤメた区間は回転数0・消費玉0 ---------------------------
@@ -5734,7 +5739,7 @@ assert.match(resultBlock, /const earned = earnedForDisplay\(session, machine, de
 assert.match(resultBlock, /const segmentRows = segmentBreakdownRows\(session, derived, machine, earned\);/);
 assert.match(resultBlock, /実戦後評価 \$\{escapeHtml\(yenText\(earned\.totalYen\)\)\}/);
 assert.match(openSessionResult, /<div class="result-card"><span>実戦後評価<\/span><strong>\$\{escapeHtml\(earned \? yenText\(earned\.totalYen\) : "-"\)\}<\/strong><small>\$\{escapeHtml\(earnedExpectationBasisText\(earned\)\)\}<\/small><\/div>/);
-assert.match(openSessionResult, /実戦後評価は各区間の起点からの期待値の合計/);
+assert.match(openSessionResult, /実戦後に計算した期待値。今回の実測と過去の参考値から、打ち始め・時短終了後など各開始時点の期待値を求めて合計した額。実際の収支とは異なります。/);
 // 履歴・日別・積み上げが獲得期待値ベース
 assert.match(renderLedger, /const evYen = earnedExpectationYen\(session, machine, derived\);/);
 assert.match(renderLedger, /\$\{sessionFiguresHtml\(derived\.profitYen, evYenById\.get\(session\.id\)\)\}/);
@@ -5787,7 +5792,7 @@ assert.equal(s17EvApi.earnedExpectationForSession(s17Session({
   segments: [{ id: "y", kind: "yutime", startSpin: 249, endSpin: 324, endSource: "hit", holdSpins: 0, shooting: "started" }]
 }), s17Machine, { rate: 20, normalSpins: 200, consumedBalls: 2500 }), null);
 // 合計行の根拠テキスト
-assert.match(s17EvApi.earnedExpectationBasisText(mixed), /回転率19\.3（実測20\.0・200回転 ＋ 参考18\.0・初期設定値）／1R140玉（実測なし ＋ 参考140・基準30R）/);
+assert.match(s17EvApi.earnedExpectationBasisText(mixed), /計算に使用：回転率19\.3／今回の実測：20\.0（200回転分）／過去の参考：18\.0（初期設定値）／計算に使用：1R140玉／今回の実測：なし／過去の参考：140（基準値・30R分）/);
 // 区間内訳の期待値列。合計に入らない区間は null（表示は「—」）
 const s17Rows = s17EvApi.segmentBreakdownRows(s17Session({
   segments: [
@@ -6526,7 +6531,7 @@ const s22bPreset = s22bContext.info('agnes-pe', 'm999');
 assert.equal(Math.round(s22bPreset.value * 10) / 10, 97.1);
 assert.equal(s22bPreset.count, 150);
 assert.equal(s22bPreset.excludedRounds, 10);
-assert.equal(s22bContext.usedText(s22bPreset), '97.1玉（実測平均・持ち玉差・150R分（全店・1台、除外10R））');
+assert.equal(s22bContext.usedText(s22bPreset), '97.1玉（実測平均・持ち玉差・150R分（全店・1台、玉数の増加が0以下の10R分を除く））');
 // ①: テスト店の記録は全店集計に入らない。ただしその店を見ているときは入る
 s22bContext.data.sessions = [s22bGood, {
   id: 's3', storeId: 'st-amuse', machineId: 'm200', status: 'completed',
@@ -6562,7 +6567,7 @@ assert.equal(s22bRows[1].netExcluded, false);
 // S36/§1-2: 除外マークの算出は関数へ出し、リザルトの表と転記用で同じ並びを使う
 assert.match(html, /function segmentBreakdownExcludedMarks\(segmentRows\) \{/);
 assert.match(resultBlock, /const segmentExcludedMarks = segmentBreakdownExcludedMarks\(segmentRows\);/);
-assert.match(resultBlock, /key: "excluded", item: "純増が0以下", impact: "通算の集計から除外しています", missingValue: true, target: "resultInputEditBtn"/);
+assert.match(resultBlock, /key: "excluded", item: "玉数の増加が0以下", impact: "1Rあたりの玉数の平均から除いています", missingValue: true, target: "resultInputEditBtn"/);
 assert.match(resultBlock, /marks: excludedMarks, text:/);
 assert.match(resultBlock, /\$\{segmentNetCellText\(row\)\}\$\{row\.netExcluded \? " ⚠" : ""\}/);
 
@@ -6892,7 +6897,7 @@ assert.match(s36TextBlock, /const summary = sessionResultSummary\(session\);/);
 assert.match(s36TextBlock, /const \{ machine, derived, transfer, startEv \} = summary;/);
 assert.match(s36TextBlock, /`遊タイムまで残り \$\{transferSpinText\(summary\.remainingSpins\)\}`/);
 assert.match(s36TextBlock, /`開始カウンター \$\{startEv \? transferSpinText\(summary\.effectiveSpin\) : "-"\}`/);
-assert.match(s36TextBlock, /`想定回転率 \$\{startEv \? transferRateText\(startEv\.usedRate\) : "-"\}`/);
+assert.match(s36TextBlock, /`想定回転率 \$\{startEv \? transferRateText\(startEv\.usedRate, storeById\(session\.storeId\)\) : "-"\}`/);
 assert.match(s36TextBlock, /earnedForDisplay\(session, machine, derived\)/);
 // 旧転記用の「消化回転数」「残り回転数（ヤメ時点）」は復活させない
 assert.doesNotMatch(s36TextBlock, /消化回転数|playedSpins|endEffectiveSpin/);
@@ -7024,7 +7029,8 @@ assert.match(html, /const activeCarryover = autoCarryoverForStore\(store\.id\);/
 assert.ok(startSessionFlow.includes("const startSaipureiPreset = activeCarryover && activeCarryover.saipurei != null ? activeCarryover.saipurei : (chodamaPreset ? chodamaPreset.value : null);"));
 assert.match(startSessionFlow, /const startCreditPreset = activeCarryover && activeCarryover\.credit != null \? activeCarryover\.credit : null;/);
 assert.doesNotMatch(startSessionFlow, /latestStoreBalances/);
-assert.match(startSessionFlow, /hint: activeCarryover \? carryoverNoticeText\(activeCarryover\) : ""/);
+// S47/§2-11: startCredit の引き継ぎ案内は notice（常時表示）に移した
+assert.match(startSessionFlow, /notice: activeCarryover \? carryoverNoticeText\(activeCarryover\) : ""/);
 // §2-4 打ち始めたあとに引き継ぎを消す処理は無い（状態を持たないため）
 assert.doesNotMatch(startSessionFlow, /carryover = null;/);
 // §2-4 carriedFromSessionId は自動引き継ぎでも付く。バッジの扱いは変えない
@@ -7060,7 +7066,7 @@ assert.match(html, /STORAGE_KEY = STORAGE_PREFIX \+ "data"/);
 assert.match(html, /\.hints-off \.hint-help \{\s*display: none;\s*\}/);
 assert.match(html, /const SHOW_HINTS_KEY = STORAGE_PREFIX \+ "app:showHints";/);
 assert.match(html, /<input id="showHintsToggle" type="checkbox" checked> 説明を表示する/);
-assert.match(html, /実機と照合するための表示（実機：◯◯）と、警告・判定基準はOFFでも残ります。/);
+assert.match(html, /説明を非表示にしても、どの表示を入力するかの案内・注意・判定基準は表示されます。/);
 assert.match(html, /return localStorage\.getItem\(SHOW_HINTS_KEY\) !== "0";/);
 assert.match(html, /document\.body\.classList\.toggle\("hints-off", !enabled\);/);
 assert.match(html, /localStorage\.setItem\(SHOW_HINTS_KEY, enabled \? "1" : "0"\);/);
@@ -7079,13 +7085,13 @@ assert.equal(s34HintHelp, 36, "分類A（説明）の数＝S34の31＋S40の店�
 // S46の追加13: 下書き7（回転率出所・1R出玉・店未選択・未知台・両側比較・判定根拠・未入力）、
 // 開始入力4（台案内・当たり回数・条件差分・マップ空）、ウィザード案内1、記録修正の当たり回数案内1。
 // 削除8: 旧判定パネルのラムクリア案内・初期値案内2分岐・台条件・前日条件・両側比較・詳細・判定根拠。
-assert.equal(s34HintTotal - s34HintHelp, 66, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1＋S42のK入力説明1＋S44の更新時刻・初期値説明2＋S45の両側比較・ヤメ時注意2＋S46の差引5（判定下書き7＋開始入力4＋ウィザード案内1＋記録修正の当たり回数案内1−旧判定パネル8）");
+assert.equal(s34HintTotal - s34HintHelp, 69, "分類B・C（常に表示）の数＝S39の55＋S40の店設定注意1＋S42のK入力説明1＋S44の更新時刻・初期値説明2＋S45の両側比較・ヤメ時注意2＋S46の差引5＋S47の3（想定回転率の補足・書き出しの注記・玉増減の符号）");
 // 警告（hint warn）には1つも付けない
 assert.equal((html.match(/class="hint warn hint-help"/g) || []).length, 0);
 // 判定基準の根拠行・入力確認・旧境界の注記は分類Aにしない
 assert.match(evDraftPanel, /id="evDraftResult"/);
 assert.doesNotMatch(html, /result-input-warnings[^]{0,200}hint-help/);
-assert.match(resultBlock, /\$\{summary\.speedBoundaryLegacy \? "（旧境界・参考）" : ""\}/);
+assert.match(resultBlock, /\$\{summary\.speedBoundaryLegacy \? "（旧版の記録のため参考値）" : ""\}/);
 
 // --- S34/§3: 機械割は打ち切り判断の数字だと分かるようにする --------------------
 assert.match(html, /<span>スロ換算機械割<\/span><strong>\$\{escapeHtml\(percentText\(expectation\.result\.slotRate\)\)\}<\/strong><small>打ち切り判断の目安<\/small>/);
@@ -7199,15 +7205,15 @@ assert.equal(s23.sessionNormalSpeedRaw(s33LegacySession).spins, 1052);
 assert.equal(s23.spinsPerMinuteText(s23.sessionNormalSpeedRaw(s33LegacySession).perMinute), '5.9回転/分');
 assert.match(html, /const normalSpeed = sessionNormalSpeedRaw\(session, presetById\(presetId\)\);/);
 assert.match(html, /const speedBoundaryLegacy = session\?\.speedBoundary === "legacy";/);
-assert.match(resultBlock, /\$\{summary\.speedBoundaryLegacy \? "（旧境界・参考）" : ""\}<\/div>/);
+assert.match(resultBlock, /\$\{summary\.speedBoundaryLegacy \? "（旧版の記録のため参考値）" : ""\}<\/div>/);
 
 // --- §3-1/§3-3: 表示 --------------------------------------------------------
-assert.match(resultBlock, /<div class="result-line">実働 \$\{escapeHtml\(hourText\(summary\.workedHours\)\)\} ／ 時給 \$\{escapeHtml\(yenText\(summary\.hourlyYen\)\)\} ／ 通常時の時速 \$\{escapeHtml\(spinsPerMinuteText\(summary\.normalSpeed\.perMinute\)\)\}/);
-assert.match(resultBlock, /当たり消化 \$\{escapeHtml\(minuteSecondJaText\(row\.chainClearMs\)\)\}/);
+assert.match(resultBlock, /<div class="result-line">開始から終了までの時間（休憩込み） \$\{escapeHtml\(hourText\(summary\.workedHours\)\)\} ／ 時給 \$\{escapeHtml\(yenText\(summary\.hourlyYen\)\)\} ／ 通常時に1時間あたり回せる回転数 \$\{escapeHtml\(spinsPerMinuteText\(summary\.normalSpeed\.perMinute\)\)\}/);
+assert.match(resultBlock, /const noteParts = \[`終了：\$\{row\.endLabel\}`\];/);
 assert.match(resultBlock, /durationMs: segmentDurationMs\(session, segment\)/);
-assert.match(resultBlock, /平均時速 \$\{escapeHtml\(speedWithRateText\(modelAggregate\.speedPerMinute, modelAggregate\.rate\)\)\}/);
-assert.match(resultBlock, /平均時速 \$\{escapeHtml\(speedWithRateText\(storeAggregate\.speedPerMinute, storeAggregate\.rate\)\)\}/);
-assert.match(ledgerSummaryBlock, /平均時速<\/span><strong>\$\{escapeHtml\(speedWithRateText\(summary\.speedPerMinute, summary\.rate\)\)\}/);
+assert.match(resultBlock, /1時間あたりの通常回転数 \$\{escapeHtml\(speedWithRateText\(modelAggregate\.speedPerMinute, modelAggregate\.rate\)\)\}/);
+assert.match(resultBlock, /1時間あたりの通常回転数 \$\{escapeHtml\(speedWithRateText\(storeAggregate\.speedPerMinute, storeAggregate\.rate\)\)\}/);
+assert.match(ledgerSummaryBlock, /1時間の通常回転数<\/span><strong>\$\{escapeHtml\(speedWithRateText\(summary\.speedPerMinute, summary\.rate\)\)\}/);
 // §2-3: 時速は単独では意味が薄いので、必ず回転率と並べる
 assert.equal(s23.speedWithRateText(5.9, 22), '5.9回転/分（回転率22.0）');
 assert.equal(s23.speedWithRateText(5.9, null), '5.9回転/分');
@@ -7254,22 +7260,22 @@ const s26Missing = s26Warnings({ missing: ['startMochidama', 'endTime'] }, { ave
 assert.equal(s26Missing.length, 4);
 assert.deepEqual(Array.from(s26Missing, warning => warning.key), ['startMochidama', 'endTime', 'round', 'excluded']);
 assert.equal(s26Missing[0].text, '起点の持ち玉が未入力の区間があります → 回転率を計算していません');
-assert.equal(s26Missing[3].text, '区間①②：純増が0以下 → 通算の集計から除外しています');
+assert.equal(s26Missing[3].text, '区間①②：玉数の増加が0以下 → 1Rあたりの玉数の平均から除いています');
 assert.ok(s26Missing.every(warning => warning.target === 'resultInputEditBtn'));
 const s26Flow = s26Timeline([
   { kind: 'normal', startLabel: '時短抜け', startSpin: 25, endLabel: '遊タイム突入', spins: 194, durationMs: 1000, rate: 18.5 },
   { kind: 'yutime', startLabel: '遊タイム', endLabel: '当選', spins: null, durationMs: 2000, rate: null },
-  { kind: 'normal', holdCarry: true, startLabel: '時短抜け', startSpin: 25, endLabel: '残保留当選', spins: 0, durationMs: null, rate: null }
+  { kind: 'normal', holdCarry: true, startLabel: '時短抜け', startSpin: 25, endLabel: '残保留で大当たり', spins: 0, durationMs: null, rate: null }
 ], [{ marks: ['①'] }]);
 assert.match(s26Flow, /⚠ ① 時短抜け25 → 194回転で遊タイム突入 → 当選/);
 assert.equal((s26Flow.match(/<li>/g) || []).length, 1);
-assert.doesNotMatch(s26Flow, /残保留当選|null|undefined/);
+assert.doesNotMatch(s26Flow, /残保留で大当たり|null|undefined/);
 assert.match(s26Flow, /遊タイム：2秒/);
 
 const s26YutimeWarning = s26Warnings({}, { averageRoundBalls: 100, derived: { rate: 20, isEstimatedRate: false } }, [
   { kind: 'normal' }, { kind: 'yutime', netExcluded: true }
 ], ['遊タイム']);
-assert.equal(s26YutimeWarning[0].text, '区間①：純増が0以下 → 通算の集計から除外しています');
+assert.equal(s26YutimeWarning[0].text, '区間①：玉数の増加が0以下 → 1Rあたりの玉数の平均から除いています');
 assert.match(s26Timeline([
   { kind: 'normal', startLabel: '打ち始め', endLabel: '遊タイム突入', spins: 194, durationMs: null, rate: null },
   { kind: 'yutime', endLabel: '当選', durationMs: null, rate: null }
@@ -7444,9 +7450,9 @@ s28App.api.openHitHistory(s28Session, s28Options);
 assert.match(s28Body(), /連チャン 3件 ／ 当たり合計 4回/);
 assert.doesNotMatch(s28Body(), /R種別なし/);
 assert.match(s28Body(), /2連（6R・4R）/);
-assert.match(s28Body(), /残保留当選 → 区間①の続き/);
+assert.match(s28Body(), /残保留で大当たり → 区間①の続き/);
 s28App.api.openHitChainDetail(s28Session, 'seg_2', s28Options);
-assert.match(s28Body(), /残保留当選（自動判定）/);
+assert.match(s28Body(), /残保留で大当たり（自動判定）/);
 assert.match(s28Body(), /打ち出し開始を押す前に当選（時短抜け50 → 当選55・5回転）/);
 s28Toggle();
 assert.equal(s28App.confirms.length, 1);
@@ -7464,14 +7470,14 @@ assert.equal(s28Session.segments[1].holdCarryHit, true);
 s28Session.segments[0].startSource = 'jitan';
 s28App.api.openHitHistory(s28Session);
 const s28ListCards = () => s28Body().split('<div class="row-card hit-chain-row">').slice(1);
-assert.doesNotMatch(s28ListCards().at(-1), /<small>|通常当選|残保留当選/);
+assert.doesNotMatch(s28ListCards().at(-1), /<small>|通常の大当たり|残保留で大当たり/);
 assert.match(s28ListCards().at(-1), /data-hit-detail=/);
 s28App.api.openHitChainDetail(s28Session, 'seg_1');
 assert.doesNotMatch(s28Body(), /data-toggle-holdcarry|hit-chain-judgment/);
 s28Session.segments[2].kind = 'yutime';
 s28App.api.openHitHistory(s28Session);
 assert.match(s28ListCards()[0], /遊タイム/);
-assert.doesNotMatch(s28ListCards()[0], /<small>|通常当選|残保留当選/);
+assert.doesNotMatch(s28ListCards()[0], /<small>|通常の大当たり|残保留で大当たり/);
 assert.match(s28ListCards()[0], /data-hit-detail=/);
 s28App.api.openHitChainDetail(s28Session, 'seg_3');
 assert.doesNotMatch(s28Body(), /data-toggle-holdcarry|hit-chain-judgment/);
@@ -7516,7 +7522,7 @@ assert.equal(s28OrphanGroups.at(-1).label, '区間不明');
 assert.deepEqual(s28Json(s28OrphanGroups.map((g) => [g.id, g.rows.length])), [[null, 2]]);
 assert.equal(s28ListCards().length, 1);
 assert.match(s28Body(), /区間不明 2件/);
-assert.doesNotMatch(s28ListCards()[0], /<small>|通常当選|残保留当選/);
+assert.doesNotMatch(s28ListCards()[0], /<small>|通常の大当たり|残保留で大当たり/);
 s28App.api.openHitChainDetail(s28OrphanSession, null);
 assert.equal(s28Title(), '区間不明の連チャン');
 assert.match(s28Body(), /#1　−　1回目/);
@@ -7582,7 +7588,7 @@ assert.deepEqual(JSON.parse(JSON.stringify(runningRateContext.s29Zero)), { balls
 // ===========================================================================
 
 // 版
-assert.match(html, /const APP_VERSION_SEQ = 46;/);
+assert.match(html, /const APP_VERSION_SEQ = 47;/);
 assert.match(html, /const APP_VERSION_DATE = "2026-10-06";/);
 
 // §1: 遊タイム突入で閉じる通常区間の終点に突入時玉数を入れる。新式（endpoints）だけ。
@@ -7765,7 +7771,7 @@ for (const block of [section('byId("saveHitWizardBtn")', 'renderAll();'), sectio
 }
 
 // S39/§3: 回転率を出せない理由は逆行を優先する。
-assert.match(deriveSession, /const rateUnavailableReason = hasReversedSegment\s*\? "区間の回転数が逆行しています（記録の修正で直してください）"\s*: \(!tapMode && !hasStartMochidama \? "持ち玉未入力" : ""\);/);
+assert.match(deriveSession, /const rateUnavailableReason = hasReversedSegment\s*\? "終了時の回転数が開始時より小さくなっています。記録の修正から確認してください。"\s*: \(!tapMode && !hasStartMochidama \? "持ち玉未入力" : ""\);/);
 
 // S39/§4: 小数・上限超過は展開せず、200件と降順は許容する。
 const s39Expand = section('function expandIslandSide', 'function parseTextMapLayout');
@@ -7962,7 +7968,7 @@ for (const [rate, valid] of [[null, false], [0.99, false], [1, true], [50, true]
 }
 
 // S42/§6: 保存前の計算には実測・参考の内訳と未保存の注記を付ける。
-assert.equal(s41Context.earnedExpectationBasisText({ rate: 20, rateThis: 20, rateThisSpins: 52, rateRef: 20, rateRefSource: "既定", unsaved: true }), "回転率20.0（実測20.0・52回転 ＋ 参考20.0・初期設定値）／1R- ／ 保存前の計算");
+assert.equal(s41Context.earnedExpectationBasisText({ rate: 20, rateThis: 20, rateThisSpins: 52, rateRef: 20, rateRefSource: "既定", unsaved: true }), "計算に使用：回転率20.0／今回の実測：20.0（52回転分）／過去の参考：20.0（初期設定値）／計算に使用：1R- ／ この評価はまだ記録に保存されていません");
 
 // S41/§1: 5. 式・アプリ版と区間評価の保存形を固定する。
 const s41Build = section('function buildEndEv', 'function earnedFromEndEv');
@@ -8285,7 +8291,7 @@ for (const [stored, expected] of [['9', 10], ['10', 10], ['500', 500], ['501', 5
 
 // S45: 前日の状態・移行・二値表示・確定後の評価。既存の計算回帰は上の期待値を維持する。
 {
-  assert.match(html, /const APP_VERSION_SEQ = 46;/);
+  assert.match(html, /const APP_VERSION_SEQ = 47;/);
   assert.match(html, /const APP_VERSION_DATE = "2026-10-06";/);
   assert.match(html, /const SCHEMA_VERSION = 45;/);
   const context = vm.createContext({
@@ -8624,6 +8630,44 @@ for (const [stored, expected] of [['9', 10], ['10', 10], ['500', 500], ['501', 5
     assert.equal(api.decisionDifferenceText(next), '');
     const changed = { ...next, usedRate: 16.28, rateSource: 'この台の記録' };
     assert.match(api.decisionDifferenceText(changed), /判定時：回転率18.0（手入力）→ 開始時：16.3（この台の記録）/);
+  });
+  test('S47: 版表示・用語統一・引き継ぎ案内の常時表示', () => {
+    const { api } = draftHarness();
+    // §2-12a 機種の出所ラベルも「島の想定」に揃える（displayEvSource の "島" と同じ語）
+    assert.equal(api.displayEvSource('島'), '島の想定');
+    // §2-12d postNetReference が返す4値すべてを言い換える（戻り値・保存値は変えない）
+    assert.equal(api.displayEvSource('台'), 'この台の記録');
+    assert.equal(api.displayEvSource('店'), 'この店の同機種の記録');
+    assert.equal(api.displayEvSource('台+店'), 'この台とこの店の記録');
+    assert.equal(api.displayEvSource('基準'), '基準値');
+    assert.match(html, /source: parts\.length \? parts\.map\(\(part\) => part\.label\)\.join\("\+"\) : "基準"/);
+    assert.match(html, /\{ name: columnPreset\.name, source: "島の想定", action: "変更" \}/);
+    assert.doesNotMatch(html, /島の設定/);
+    // §2-12b/c 区間の終了理由
+    assert.match(html, /: "打っている途中";/);
+    assert.match(html, /endLabel: holdCarry \? "残保留で大当たり" : endLabel,/);
+    // §2-8a 終点セルは回転数だけ。終了理由は全幅の注記に移す（列は増やさない）
+    assert.match(html, /const endText = `\$\{endSpin\}\$\{row\.reversed \? " ⚠逆行" : ""\}`;/);
+    assert.match(html, /<td colspan="9">\$\{escapeHtml\(noteParts\.join\(" ／ "\)\)\}<\/td>/);
+    // §2-1 診断行は既定で閉じた折りたたみに入れ、説明スイッチとは連動させない
+    assert.match(html, /<details class="footer-note-details"><summary>開発者向け情報<\/summary><p class="footer-note" id="storageNote"><\/p><\/details>/);
+    assert.doesNotMatch(html, /footer-note-details[^]{0,80}hint-help/);
+    // §2-7 回転率の単位は玉数基準。貸玉4円の店だけ千円相当を添える
+    assert.match(html, /return Number\(lendRateForStore\(store\)\) === 4 \? "回転\/250玉（千円相当）" : "回転\/250玉";/);
+  });
+  test('S47: 画面に出る文字列に旧文言が残っていない', () => {
+    // 行頭が // の行（コメント）は対象外。内部名・保存値は変えないので画面行だけを見る。
+    const codeOnly = html.split("\n")
+      .filter((line) => { const t = line.trim(); return !(t.startsWith("//") || t.startsWith("*") || t.startsWith("/*")); })
+      .join("\n");
+    const forbidden = ["回/千円", "残保留当選", "継続中", "島の設定", "前日ヤメ回転数",
+      "戦果報告", "実戦リザルト", "リザルトを見る", "転記用</div>", "確定扱い",
+      "（旧境界・参考）", "直前のマップ定義", "読み取りOK", "破棄して続ける",
+      "機種プリセット</label>", "JSON書き出し", "通常消費玉の入力を確認", "純増が0以下",
+      "v2とはlocalStorageキーを共有しません", "回転率の実測の重み", "このコーナーの平均回転率",
+      "1R実質出玉（玉/R）", "時短100（玉/回転）", "通常消費玉の採用", "無料保留</label>"];
+    const leftovers = forbidden.filter((word) => codeOnly.includes(word));
+    assert.deepEqual(leftovers, [], "画面文言に旧語が残っている: " + leftovers.join(" / "));
   });
   test('S46: 出所の保存値・判定labelを変えず表示用説明を分離する', () => {
     const { api } = draftHarness();

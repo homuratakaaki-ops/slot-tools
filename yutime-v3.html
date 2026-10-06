@@ -1993,8 +1993,10 @@
     .result-table.segments th,
     .result-table.segments td { padding: 4px 5px; }
 
-    .result-table.segments th:nth-child(3),
     .result-table.segments td:nth-child(3) { white-space: normal; }
+    /* S47/§2-8: 見出しが長くなったので見出しだけ折り返さない。
+       横にはみ出す分は従来どおり .result-table-wrap の横スクロールで見る。 */
+    .result-table.segments th { white-space: nowrap; }
 
     /* S23/§3-1: 当たり消化は区間の行に続く注記なので、列を作らず左寄せの1行で出す */
     .result-table.segments .segment-clear-row td {
@@ -2033,6 +2035,21 @@
       border-color: rgba(255,255,255,.7);
       color: #fff;
       background: rgba(255,255,255,.16);
+    }
+
+    .footer-note-details {
+      margin: 16px 0 6px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .footer-note-details > summary {
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    .footer-note-details .footer-note {
+      margin: 6px 0 0;
     }
 
     .footer-note {
@@ -2093,8 +2110,8 @@
       <div class="brand">
         <h1>遊タイム実戦ツール v3 <span class="beta-badge">β版</span></h1>
         <p class="app-version" id="appVersion"></p>
-        <p>店を選び、台を探し、実戦の時系列で追記する記録履歴</p>
-        <p class="beta-note">β版として公開中。実機検証を継続しており、数値・表示は更新されることがあります。</p>
+        <p>打つ前に期待値を確認し、打ち始めから終了まで記録できます。</p>
+        <p class="beta-note">試用版です。実際の台で動作を確認しながら、数値や表示を改善しています。</p>
         <p class="article-link"><a href="/agnespe-yutime.html">📄 アグネスPE 遊タイム期待値の記事を読む</a></p>
       </div>
       <div class="store-pill" id="currentStorePill">店未選択</div>
@@ -2114,14 +2131,14 @@
         <div class="section-head">
           <div>
             <h2>店選択</h2>
-            <p>v3専用データです。v2とはlocalStorageキーを共有しません。</p>
+            <p>旧版の記録は、このページには引き継がれません。記録はこの端末のブラウザに保存されます。別の端末やブラウザには引き継がれません。</p>
             <div class="hint-switch-row">
               <label class="check-chip"><input id="showHintsToggle" type="checkbox" checked> 説明を表示する</label>
-              <span class="hint">実機と照合するための表示（実機：◯◯）と、警告・判定基準はOFFでも残ります。</span>
+              <span class="hint">説明を非表示にしても、どの表示を入力するかの案内・注意・判定基準は表示されます。</span>
             </div>
-              <label class="check-chip" for="rateWeightKInput">回転率の実測の重み K</label>
+              <label class="check-chip" for="rateWeightKInput">参考回転率の重み K（回転数）</label>
               <input id="rateWeightKInput" inputmode="numeric" value="100">
-              <span class="hint">回転（既定100。最近の実測を強く反映したいときは小さく）</span>
+              <span class="hint">実戦後の評価で、参考回転率をどのくらい重く見るか。小さくすると今回の実測、大きくすると参考値を強く反映。通常は100のまま。</span>
           </div>
           <button class="primary small" id="openStoreFormBtn">店を追加</button>
         </div>
@@ -2168,16 +2185,17 @@
         <div class="section-head">
           <div>
             <h2>履歴</h2>
-            <p>未入力ありの記録は、ここから後で補完できます。</p>
+            <p>入力していない項目は、あとから追加できます。</p>
+            <p class="hint">書き出しはバックアップ用です。読み込み機能はありません。</p>
           </div>
-          <button class="small" id="exportBtn">JSON書き出し</button>
+          <button class="small" id="exportBtn">記録をファイルに保存（JSON）</button>
         </div>
         <div class="metric-grid" id="ledgerSummary"></div>
         <div class="list" id="sessionList"></div>
       </div>
     </section>
 
-    <p class="footer-note" id="storageNote"></p>
+    <details class="footer-note-details"><summary>開発者向け情報</summary><p class="footer-note" id="storageNote"></p></details>
   </main>
 
   <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true">
@@ -2217,7 +2235,7 @@
     const PLAY_STYLE_PREF_KEY = STORAGE_PREFIX + "start:playStyle";
     const ISLAND_FILTER_KEY = STORAGE_PREFIX + "islandFilter";
     // S30/§2-1: この版の識別。SEQ は旧版検知の比較に、DATE は表示にだけ使う。
-    const APP_VERSION_SEQ = 46;
+    const APP_VERSION_SEQ = 47;
     const APP_VERSION_DATE = "2026-10-06";
     // S30/§3-1: この端末で最後に開いた版（整数1つ）。実戦データとは別キーで、
     // 書き出し（exportJson は data だけを出す）にも schema 移行にも含めない。
@@ -2296,7 +2314,7 @@
     // そのときだけ実行中の端末のTZを使う。deriveRecordedUtcOffset を参照。
     let recordedUtcOffsetMinutes = null;
     const CONSUMED_BALLS_DIVERGENCE_THRESHOLD = 500;
-    const CONSUMED_BALLS_SOURCE_LABELS = { tray: "台上差", taps: "タップ合計" };
+    const CONSUMED_BALLS_SOURCE_LABELS = { tray: "持ち玉の増減から計算", taps: "玉を追加したボタンの記録から計算" };
     // 履歴の金額枠で値が出せないときの表示。初回 renderAll より前に評価される位置に置く
     const LEDGER_EMPTY_TEXT = "—";
     const AUTO_LABELS = [
@@ -3670,10 +3688,12 @@
     }
 
     // S46: 保存値・計算関数の戻り値は変えず、表示直前だけ言い換える。
+    // S47/§2-12d: postNetReference の "台+店" / "基準" を足した（保存値は不変）。
     function displayEvSource(source) {
       return ({ "既定": "初期設定値", "履歴累計": "この台の過去の記録", "ソース不明": "取得元不明",
         "実測・台": "この台の記録", "実測・店": "この店の同機種の記録", "台": "この台の記録",
-        "店": "この店の同機種の記録", "島": "島の想定" })[source] || source || "取得元不明";
+        "店": "この店の同機種の記録", "島": "島の想定",
+        "台+店": "この台とこの店の記録", "基準": "基準値" })[source] || source || "取得元不明";
     }
 
     function evJudgment(result) {
@@ -3719,7 +3739,7 @@
         if (offset) parts.push(`この店 ${offset > 0 ? "+" : "−"}${Math.abs(offset).toLocaleString("ja-JP")}玉`);
       }
       const excluded = normalizeNumber(info?.excludedRounds) ?? 0;
-      if (excluded > 0) parts.push(`除外${excluded.toLocaleString("ja-JP")}R`);
+      if (excluded > 0) parts.push(`玉数の増加が0以下の${excluded.toLocaleString("ja-JP")}R分を除く`);
       return parts.length ? `（${parts.join("、")}）` : "";
     }
 
@@ -3876,7 +3896,7 @@
       // 省略時は現在の店設定＝打ち始め前の判定はこれまでどおり。
       const store = options.store || storeById(machine?.storeId);
       const preset = presetById(normalizeMachinePresetId(machine));
-      if (!store || !preset?.evSupported) return { result: null, reason: "期待値対応プリセットではありません" };
+      if (!store || !preset?.evSupported) return { result: null, reason: "この機種の期待値計算には対応していません" };
       const stats = options.stats || machineStats(machine.id);
       const rateInfo = expectationRate(stats, options.manualRate, store);
       if (!rateInfo.rate) return { result: null, reason: "回転率データがありません" };
@@ -4720,6 +4740,11 @@
       return `貯玉${transferBallText(info.balance)}玉${limitText}から初期値にしています。違えば直してください。`;
     }
 
+    // S47/§2-7: 回転率の単位は玉数基準で出す。貸玉4円の店だけ千円相当を添える（換算はしない）。
+    function rateUnitText(store) {
+      return Number(lendRateForStore(store)) === 4 ? "回転/250玉（千円相当）" : "回転/250玉";
+    }
+
     function lendRateForStore(store) {
       return positiveNumberOrDefault(store?.lendRate, DEFAULT_LEND_RATE);
     }
@@ -4874,7 +4899,7 @@
           <div class="row-card-head">
             <button class="store-card ${store.id === data.activeStoreId ? "primary" : ""}" data-store-id="${escapeHtml(store.id)}">
               <strong>${escapeHtml(store.name)}${store.isTestStore ? ' <span class="badge warn">テスト</span>' : ""}</strong>
-              <span>${store.isPersonal ? "パーソナルあり" : "非パーソナル / 概算入力"} / 貸玉${escapeHtml(store.lendRate)}円 / ${escapeHtml(exchangeBallsText(store.exchangeBalls))}玉交換</span>
+              <span>${store.isPersonal ? "パーソナルあり" : "各台の計数機がない店 / 玉数は目安で記録"} / 貸玉${escapeHtml(store.lendRate)}円 / ${escapeHtml(exchangeBallsText(store.exchangeBalls))}玉交換</span>
               ${store.chodamaBalance === null || store.chodamaBalance === undefined ? "" : `<span>貯玉 ${escapeHtml(transferBallText(store.chodamaBalance))}玉${store.chodamaAsOf ? `（${escapeHtml(chodamaAsOfText(store.chodamaAsOf))} 更新）` : ""}</span>`}
             </button>
             <button class="small" data-edit-store="${escapeHtml(store.id)}">店設定</button>
@@ -4972,7 +4997,7 @@
       openModal("保存していない変更があります", "フロアマップの編集内容がまだ保存されていません。どうしますか？", `
         <div class="grid">
           <button class="primary" id="mapSaveCloseBtn">保存して続ける</button>
-          <button id="mapDiscardCloseBtn">破棄して続ける</button>
+          <button id="mapDiscardCloseBtn">変更を保存せずに続ける</button>
           <button class="ghost" id="mapCancelCloseBtn">キャンセル</button>
         </div>
       `);
@@ -5006,12 +5031,13 @@
             <div class="map-management-title">
               <strong class="map-name-text">${escapeHtml(map.name)}</strong>
               <small>このマップに表示する島だけを編集します。台と記録はマップから外しても消えません。</small>
+              <small>「前の台配置に戻す」は、このマップを最後に保存する直前の配置に戻します。1回分だけ戻せます。</small>
             </div>
             <div class="status-line map-management-actions">
               <button class="small" id="addFloorMapBtn">マップを追加</button>
               <button class="small" id="renameFloorMapBtn">名前変更</button>
               <button class="small" id="deleteFloorMapBtn" ${layout.maps.length <= 1 && !map.islands.length ? "disabled" : ""}>このマップを削除</button>
-              <button class="small" id="restoreMapBackupBtn" ${backup ? "" : "disabled"}>直前のマップ定義に戻す</button>
+              <button class="small" id="restoreMapBackupBtn" ${backup ? "" : "disabled"}>前の台配置に戻す</button>
             </div>
           </div>
         </div>
@@ -5165,7 +5191,7 @@
               <button class="small" id="toggleMorningCheckBtn">ラムクリアチェック${morningCheckMode ? "ON" : "OFF"}</button>
             </div>
             <div class="baseline-chip-grid">
-              <button class="small baseline-chip" id="quickAssumedRateBtn">平均回転率 <strong>${assumedRate !== null && assumedRate !== undefined ? Number(assumedRate).toFixed(1) : "未設定"}</strong>（${assumedRate !== null && assumedRate !== undefined ? "変更" : "設定"}）</button>
+              <button class="small baseline-chip" id="quickAssumedRateBtn">想定回転率 <strong>${assumedRate !== null && assumedRate !== undefined ? Number(assumedRate).toFixed(1) : "未設定"}</strong>（${assumedRate !== null && assumedRate !== undefined ? "変更" : "設定"}）</button>
               ${baselineChipsHtml(baselinePresetIds)}
             </div>
             <p class="hint hint-help" style="margin:6px 0 0">このコーナーの基準値です。台ごとの実測・手入力がない台は、この値で期待値を計算します。</p>
@@ -5269,8 +5295,9 @@
     function openAssumedRateQuickForm(storeId) {
       const map = activeMap(storeId);
       if (!map) return;
-      openModal("このコーナーの平均回転率", "台ごとの実測・手入力がない台は、この値を基準に期待値を計算します。空欄で未設定に戻します。", `
-        <div class="field-row"><label for="quickAssumedRate">このコーナーの平均回転率</label><input id="quickAssumedRate" inputmode="decimal" value="${escapeHtml(map.assumedRate ?? "")}" placeholder="例: 16.5"></div>
+      openModal("このコーナーの想定回転率", "台ごとの実測・手入力がない台は、この値を基準に期待値を計算します。空欄で未設定に戻します。", `
+        <div class="field-row"><label for="quickAssumedRate">このコーナーの想定回転率</label><input id="quickAssumedRate" inputmode="decimal" value="${escapeHtml(map.assumedRate ?? "")}" placeholder="例: 16.5"></div>
+        <p class="hint">台ごとの実測がない場合に使う目安を入力してください。</p>
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="primary" id="saveQuickAssumedRateBtn">保存</button>
@@ -5294,10 +5321,11 @@
         ? "込み出玉で記録する運用ではST・時短枠は0のまま。遊タイム枠は遊タイム突入から当りまでの玉減りで、止め打ち次第で0〜-0.8程度と人により大きく変わります。0で考慮しません。"
         : "遊タイムは仮値-0.3（駆け抜け約100玉相当）。駆け抜けの実測が貯まったら更新してください。";
       openModal("期待値用の出玉・時短消費", "大当たり出玉は大当り開始から電サポ終了までの純増で入力します。時短中の玉増減は状態別に分けます。", `
-        <div class="field-row"><label for="quickNetBallsPerWin">1R実質出玉（玉/R）</label><input id="quickNetBallsPerWin" inputmode="decimal" value="${escapeHtml(manualNetBallsValue)}" placeholder="空欄で自動"></div>
-        <div class="field-row"><label for="quickJitanNormalBallsPerSpin">時短100（玉/回転）</label><input id="quickJitanNormalBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanNormalBallsPerSpin"))}"></div>
+        <div class="field-row"><label for="quickNetBallsPerWin">1Rあたり実際に増える玉数（玉/R）</label><input id="quickNetBallsPerWin" inputmode="decimal" value="${escapeHtml(manualNetBallsValue)}" placeholder="空欄で自動"></div>
+        <div class="field-row"><label for="quickJitanNormalBallsPerSpin">時短100回中の1回転あたりの玉増減（玉/回転）</label><input id="quickJitanNormalBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanNormalBallsPerSpin"))}"></div>
         <div class="field-row"><label for="quickJitanFastBallsPerSpin">${isStCertain ? "ST・時短" : "時短200"}（玉/回転）</label><input id="quickJitanFastBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetJitanBallsPerSpin(presetId, "jitanFastBallsPerSpin"))}"></div>
         <div class="field-row"><label for="quickYutimeBallsPerSpin">遊タイム（玉/回転）</label><input id="quickYutimeBallsPerSpin" inputmode="decimal" value="${escapeHtml(presetYutimeBallsPerSpin(presetId))}"></div>
+        <p class="hint">玉増減は「マイナス＝減る、0＝増減なし」です。</p>
         <div class="field-row"><label for="quickHoldSpins">時短抜け後の残保留（回転）</label><input id="quickHoldSpins" inputmode="numeric" value="${escapeHtml(presetHoldSpins(presetId))}"></div>
         <p class="hint hint-help">時短が終わったあと玉代ゼロで回る保留の数。通常4〜5。0で考慮しない。</p>
         <div class="field-row"><label for="quickHourlyThreshold">「打てる」判定の時給ライン（円）</label><input id="quickHourlyThreshold" inputmode="numeric" value="${escapeHtml(Math.round(hourlyThresholdYen()))}"></div>
@@ -5464,7 +5492,7 @@
           ${ramClear === RAM_UNKNOWN_VALUE ? '<span class="state-badge">?</span>' : ""}
           ${hasMachineMemo ? '<span class="memo-badge">メ</span>' : ""}
           <span class="dai">${escapeHtml(daiNo)}</span>
-          <span class="rate ${rateClass}">${escapeHtml(rate)}${estimatedMark}<small>回/千円</small></span>
+          <span class="rate ${rateClass}">${escapeHtml(rate)}${estimatedMark}<small>回転/250玉</small></span>
           ${closingCheckMode && targetClosing !== null ? `<span class="prev">✓ ${escapeHtml(targetClosing)}回転</span>` : prevInvalid && rawClosing ? `<span class="prev invalid">宵${escapeHtml(rawClosing.spin)} <small>${escapeHtml(shortDate(rawClosing.date))}</small></span>` : closing ? `<span class="prev">宵${escapeHtml(closing.spin)} <small>${escapeHtml(shortDate(closing.date))}</small></span>` : ""}
         </button>
       `;
@@ -5819,9 +5847,9 @@
         + `<span class="ledger-day-summary-item"><strong>${summary.count}台</strong></span>`
         + signedFigureHtml("実収支", summary.profitYen, "ledger-day-summary-item")
         + signedFigureHtml("実戦後評価", summary.evYen, "ledger-day-summary-item")
-        + `<span class="ledger-day-summary-item"><span class="signed-figure-label">実働</span><strong>${escapeHtml(workedText)}</strong></span>`
+        + `<span class="ledger-day-summary-item"><span class="signed-figure-label">開始〜終了の時間</span><strong>${escapeHtml(workedText)}</strong></span>`
         + signedFigureHtml("時給", summary.hourlyYen, "ledger-day-summary-item")
-        + `<span class="ledger-day-summary-item"><span class="signed-figure-label">平均時速</span><strong>${escapeHtml(speedWithRateText(summary.speedPerMinute, summary.rate))}</strong></span>`
+        + `<span class="ledger-day-summary-item"><span class="signed-figure-label">1時間の通常回転数</span><strong>${escapeHtml(speedWithRateText(summary.speedPerMinute, summary.rate))}</strong></span>`
         + `</div>`;
     }
 
@@ -5914,7 +5942,7 @@
     function openStoreForm() {
       openModal("店を追加", "店ごとにマップ、台、イベントメモ、記録を分離します。", `
         <div class="field-row"><label for="storeName">店名</label><input id="storeName" placeholder="例: ミレスト東口店"></div>
-        <label class="check-chip"><input id="storePersonal" type="checkbox"> パーソナルシステムあり</label>
+        <label class="check-chip"><input id="storePersonal" type="checkbox"> パーソナルシステムあり（各台に玉数表示・計数機がある店）</label>
         <div class="grid two">
           <div class="field-row"><label for="storeLendRate">貸玉レート（円/玉）</label><input id="storeLendRate" inputmode="decimal" value="4"></div>
           <div class="field-row"><label for="storeExchangeBalls">交換玉数（100円あたり）</label><input id="storeExchangeBalls" inputmode="decimal" value="25"></div>
@@ -5968,7 +5996,7 @@
       if (!store) return;
       openModal("店設定", "貸玉4円・等価なら交換玉数は25のままで構いません。28玉交換なら28を入力します。", `
         <div class="field-row"><label for="editStoreName">店名</label><input id="editStoreName" value="${escapeHtml(store.name)}"></div>
-        <label class="check-chip"><input id="editStorePersonal" type="checkbox" ${store.isPersonal ? "checked" : ""}> パーソナルシステムあり</label>
+        <label class="check-chip"><input id="editStorePersonal" type="checkbox" ${store.isPersonal ? "checked" : ""}> パーソナルシステムあり（各台に玉数表示・計数機がある店）</label>
         <label class="check-chip"><input id="editStoreTest" type="checkbox" ${store.isTestStore ? "checked" : ""}> テスト用の店（集計から除外）</label>
         <p class="hint hint-help">動作確認用の店です。全店の1R実質出玉の平均と、リザルトの「これまでの積み上げ」から外します。この店を選んでいる間は、この店の記録は従来どおり表示します。</p>
         <div class="grid two">
@@ -5981,7 +6009,7 @@
           <div class="field-row"><label for="editStoreReplayLimit">再プレイ上限（玉／日）</label><input id="editStoreReplayLimit" inputmode="numeric" value="${escapeHtml(store.replayLimit ?? "")}" placeholder="上限なし"></div>
         </div>
         ${store.isPersonal ? `<p class="hint">${store.chodamaAsOf ? `貯玉残高の更新: ${escapeHtml(chodamaAsOfText(store.chodamaAsOf))}` : "貯玉残高は未設定です。"}</p>` : ""}
-        ${store.isPersonal ? `<p class="hint hint-help">ヤメ確定のたびに「終了玉 − 使った再プレイ − 開始持ち玉」ぶんを足し引きします。履歴は持たないので、ずれたらここで直してください。</p>` : ""}
+        ${store.isPersonal ? `<p class="hint hint-help">実戦終了時に、終了玉数・使った再プレイ・開始持ち玉をもとに貯玉残高を更新します。残高の変更履歴は保存していません。ずれた場合はここで修正してください。</p>` : ""}
         <div class="field-row"><label for="editStoreNetBallsOffset">1R実質出玉の補正（玉）</label><input id="editStoreNetBallsOffset" inputmode="decimal" value="${escapeHtml(netBallsOffsetForStore(store))}"></div>
         <p class="hint hint-help">この店の台はアタッカーのこぼれが多い、など店ごとの傾向があるときに。全店の実測平均に足し引きします。この店の台自身の実測がある台には掛かりません。</p>
         <div class="modal-actions">
@@ -6190,7 +6218,7 @@
         localStorage.setItem(MAP_BACKUP_KEY, JSON.stringify(root));
       } catch (error) {
         console.warn("ytv3 map backup save failed", error);
-        showToast("直前のマップ退避に失敗しました。容量を確認してください。", "error");
+        showToast("台配置の控えを保存できませんでした。端末の空き容量を確認してください。", "error");
       }
     }
 
@@ -6199,10 +6227,10 @@
       const map = activeMap(storeId);
       const backup = mapBackupFor(storeId, map.id);
       if (!backup) {
-        showToast("戻せる直前のマップ定義がありません", "error");
+        showToast("戻せる台配置がありません", "error");
         return;
       }
-      if (!confirm("直前のマップ定義に戻します。台と記録には触りません。よろしいですか？")) return;
+      if (!confirm("最後に保存する直前の台配置に戻します。台と記録には触りません。よろしいですか？")) return;
       map.islands = cloneIslands(backup.map.islands || []);
       map.updatedAt = nowIso();
       layout.activeMapId = map.id;
@@ -6211,7 +6239,7 @@
       syncMachinesFromMap(storeId, parsed);
       mapDraft = { storeId, mapId: map.id, islands: cloneIslands(map.islands), allowEmptySave: false };
       expandedIslandIndexes = new Set();
-      if (!persistWithToast("直前のマップ定義に戻しました")) return;
+      if (!persistWithToast("台配置を戻しました")) return;
       renderAll();
     }
 
@@ -6680,7 +6708,7 @@
         chips.push(...parsed.errors.slice(0, 3).map((error) => `<span class="badge warn">${escapeHtml(error)}</span>`));
         if (parsed.errors.length > 3) chips.push(`<span class="badge warn">ほか${parsed.errors.length - 3}件</span>`);
       } else {
-        chips.push('<span class="badge">読み取りOK</span>');
+        chips.push('<span class="badge">台配置に問題はありません</span>');
       }
       return chips.join("");
     }
@@ -6761,7 +6789,7 @@
       const machinePreset = presetById(normalizeMachinePresetId(machine));
       const hasMachineModelSetting = Boolean(machinePreset || machine?.modelName || machine?.roundBalls !== null || machine?.evSupported);
       if (columnPreset && (!hasMachineModelSetting || machineMatchesPreset(machine, columnPreset))) {
-        return { name: columnPreset.name, source: "島の設定", action: "変更" };
+        return { name: columnPreset.name, source: "島の想定", action: "変更" };
       }
       if (hasMachineModelSetting) {
         return { name: machine.modelName || machinePreset?.name || "個別設定", source: "個別設定", action: "変更" };
@@ -7072,8 +7100,8 @@
       const rightDai = atEnd ? null : morningCheckFlow.sequence[morningCheckFlow.index + 1];
       const ended = morningCheckFlow.ended;
       const savedSummary = morningStateSummary(todayState);
-      openModal(`台 ${daiNo} / 前日ヤメ ${previous ? `${previous.spin}回転` : "-"}`, "朝の状態だけを記録します。前日分を無効にしても閉店チェック値は消しません。", `
-        <p class="modal-dai-title">台 <strong>${escapeHtml(daiNo)}</strong> / 前日ヤメ ${previous ? `${escapeHtml(previous.spin)}回転` : "-"}</p>
+      openModal(`台 ${daiNo} / 前日の回転数（閉店時） ${previous ? `${previous.spin}回転` : "-"}`, "朝の状態だけを記録します。前日分を無効にしても閉店チェック値は消しません。", `
+        <p class="modal-dai-title">台 <strong>${escapeHtml(daiNo)}</strong> / 前日の回転数（閉店時） ${previous ? `${escapeHtml(previous.spin)}回転` : "-"}</p>
         <p class="hint" id="morningSavedSummary">${savedSummary ? `保存済み: ${escapeHtml(savedSummary)}` : "未登録"}</p>
         ${ended ? `<p class="hint warn">この列は終わりです。</p><div class="modal-actions"><button class="primary" data-close>マップへ戻る</button></div>` : `
           <div class="list">
@@ -7416,7 +7444,7 @@
     function machineDetailFormHtml(machine) {
       return `
         <div id="machineDetailForm">
-          <div class="field-row" style="margin-top:12px"><label for="machinePreset">機種プリセット</label><select id="machinePreset">
+          <div class="field-row" style="margin-top:12px"><label for="machinePreset">機種</label><select id="machinePreset">
             ${MACHINE_PRESETS.map((preset) => `<option value="${escapeHtml(preset.id)}">${escapeHtml(preset.name)}</option>`).join("")}
             <option value="">その他（自由入力）</option>
           </select></div>
@@ -7891,10 +7919,10 @@
         ${machineMemoSectionHtml(machine)}
         ${nailRatingSectionHtml(machine)}
         <div class="metric-grid">
-          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}回/千円` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}${stats.speedPerMinute === null ? "" : `<small>参考時速 ${escapeHtml(spinsPerMinuteText(stats.speedPerMinute))}（${Math.round(stats.speedMinutes).toLocaleString("ja-JP")}分・${Math.round(stats.speedSpins).toLocaleString("ja-JP")}回転）・中断込み</small>`}</div>
+          <div class="metric"><span>参考回転率</span><strong>${stats.rate ? `${stats.rate.toFixed(1)}${rateUnitText(activeStore())}` : "-"}</strong>${stats.estimatedCount ? `<small>概算${stats.estimatedCount}件を含む</small>` : ""}${stats.speedPerMinute === null ? "" : `<small>通常時に1時間あたり回せる回転数 ${escapeHtml(spinsPerMinuteText(stats.speedPerMinute))}（${Math.round(stats.speedMinutes).toLocaleString("ja-JP")}分・${Math.round(stats.speedSpins).toLocaleString("ja-JP")}回転）・中断込み</small>`}</div>
           ${showExpectationBlock ? `<div class="metric"><span>参考1R出玉</span><strong>${escapeHtml(netBallsText(netBallsInfo.value))}</strong><small>${escapeHtml(netBallsSourceText(netBallsInfo))}</small></div>` : ""}
           <div class="metric"><span>通常回転サンプル</span><strong>${stats.spins}</strong></div>
-          <div class="metric"><span>通常消費玉</span><strong>${stats.consumed}</strong></div>
+          <div class="metric"><span>通常時に使った玉数</span><strong>${stats.consumed}</strong></div>
           <div class="metric"><span>閉店チェック</span><strong>${closing ? `${escapeHtml(closing.spin)}回転` : "-"}</strong>${closing ? `<small>（${escapeHtml(shortDate(closing.date))}）</small>` : closingStateNote}</div>
           <div class="metric"><span>平均出玉</span><strong>${baseStats.averagePayout !== null ? Math.round(baseStats.averagePayout) : "-"}</strong>${baseStats.averagePayout !== null ? `<small>${averagePayoutNote}</small>` : ""}</div>
           ${baseStats.averageYutimeLoss !== null ? `<div class="metric"><span>遊タイム玉減り</span><strong>${Math.round(baseStats.averageYutimeLoss)}</strong><small>${baseStats.yutimeLossCount}件平均</small></div>` : ""}
@@ -8033,12 +8061,12 @@
       if (prevHint) {
         const prevValue = normalizeNumber(prevInput?.value);
         prevHint.textContent = previousState.autoDisabled
-          ? "当日当選済みのため前日ヤメ回転数は使いません。0回転として計算しています。"
+          ? "当日当選済みのため前日の回転数（閉店時）は使いません。0回転として計算しています。"
           : previousState.status === PREV_DAY_UNKNOWN
             ? "前日の回転数を引き継ぐ場合と、リセットされた場合の両方を表示します。判定は、前日の回転数を加えない条件で行います。"
           : (previousState.ramClearDisabled
-            ? "ラムクリアありのため前日ヤメ回転数は使いません。0回転として計算しています。"
-            : (prevValue !== null ? `前日ヤメ${prevValue.toLocaleString("ja-JP")}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日ヤメ回転数を使いません。` : "前日ヤメ回転数は未入力です。"));
+            ? "ラムクリアありのため前日の回転数（閉店時）は使いません。0回転として計算しています。"
+            : (prevValue !== null ? `前日の回転数（閉店時）${prevValue.toLocaleString("ja-JP")}回転を使用中。開始時点の累計大当たりが1以上、またはラムクリアありの場合は前日の回転数（閉店時）は使いません。` : "前日の回転数（閉店時）は未入力です。"));
       }
       const expectation = calculateMachineExpectation(machine, {
         currentSpin: byId("evCurrentSpin")?.value,
@@ -8172,7 +8200,7 @@
         note.textContent = preset.evSupported ? "期待値算出はこのプリセット選択時のみ対応しています。" : "このプリセットは期待値算出に未対応です。";
       } else {
         modelInput.disabled = false;
-        note.textContent = "期待値算出は対応プリセット選択時のみ利用できます。";
+        note.textContent = "期待値計算に対応した機種を選ぶと計算できます。";
       }
     }
 
@@ -8340,12 +8368,12 @@
           type: "number",
           preset: startSpinPreset,
           // S45/§2: 不明の候補は計算への加算とは区別して案内する。
-          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayStatus === PREV_DAY_UNKNOWN ? ` 前日${session.prevDaySpinCandidate ?? "未入力の"}回転を候補として控えています（不明：据え置き／ラムクリアの両方で見ています）。` : presetsDisablePrevDay(presets) ? " 期待値判定で宵越し無効を選択しています。" : (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日ヤメ" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。")) + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
+          hint: `${dateWithAutoLabels(session.date)}で記録します。` + (session.prevDayStatus === PREV_DAY_UNKNOWN ? ` 前日${session.prevDaySpinCandidate ?? "未入力の"}回転を候補として控えています（不明：据え置き／ラムクリアの両方で見ています）。` : presetsDisablePrevDay(presets) ? " 期待値判定で宵越し無効を選択しています。" : (session.prevDayEndSpin !== null ? ` ${prevDayEndSpinWasManual ? "期待値判定に入力した前日の回転数（閉店時）" : "閉店チェック"}${session.prevDayEndSpin}回転を宵越し候補として控えています。` : " 閉店チェック値は未記録、または朝チェックで前日分を無効にしています。")) + (startSpinPreset !== null ? " 期待値判定に入力した現在回転数を初期値にしています。台の表示と違う場合は修正してください。" : "")
         },
         { key: "startTime", label: "時刻", type: "time", preset: currentTime(), hint: "現在の時刻を入力しています。必要なら変更してください。" },
         { key: "startMochidama", label: "開始時の持ち玉", type: "number", hint: (activeCarryover ? carryoverNoticeText(activeCarryover) + " " : "") + "持ち玉なしで現金スタートなら 0 を入力してください。スキップすると回転率は算出されません。" },
         { key: "startSaipurei", label: "今日あと何玉再プレイできるか（玉）", type: "number", preset: startSaipureiPreset, hint: "貯玉残高と再プレイ上限を反映した、これから使える量", notice: activeCarryover ? carryoverNoticeText(activeCarryover) : chodamaReplayNoticeText(chodamaPreset) },
-        { key: "startCredit", label: "カードに残っている現金（円）", type: "number", preset: startCreditPreset, hint: activeCarryover ? carryoverNoticeText(activeCarryover) : "" },
+        { key: "startCredit", label: "カードに残っている現金（円）", type: "number", preset: startCreditPreset, notice: activeCarryover ? carryoverNoticeText(activeCarryover) : "" },
         { key: "startTotalHits", label: "台の本日の大当たり回数（打つ前）", type: "number", preset: startTotalHitsPreset, hint: "データカウンターの本日大当たり回数を入力。ヤメ時に差し引きで自分の当たり回数を自動計算します。" + (startTotalHitsPreset !== null ? " 同じ台の前回記録のヤメ時点累計を初期値にしています。台の表示と違う場合は修正してください。" : "") },
         // S7c/3-1: 時短抜けで打ち出しを止めるかどうかの方針。以後の時短抜け区間の初期状態になる
         {
@@ -8394,7 +8422,7 @@
           <label for="hitWizardRemainBalls">残り持ち玉（実機：台の持ち玉表示）</label>
           <div>
             <input id="hitWizardRemainBalls" inputmode="numeric" value="${escapeHtml(mochidamaPreset ?? "")}">
-            <p class="hint hint-help">${hitRemainHint()}${activeStore()?.isPersonal ? "" : " 非パーソナル店では空欄のままで構いません。"}</p>
+            <p class="hint hint-help">${hitRemainHint()}${activeStore()?.isPersonal ? "" : " 各台の計数機がない店では空欄のままで構いません。"}</p>
           </div>
         </div>
         <div class="modal-actions">
@@ -8679,7 +8707,7 @@
       openModal("大当たり登録", "R数と獲得出玉を記録し、時短が終わったらカウンターの表示に合わせてください。選ばずに閉じると、現在回転数はそのままです。", `
         ${machineContextLine(session)}
         ${holdCarryNoticeHtml(session)}
-        <p class="hint">当選カウンター <strong>${numberText(hitCounterSpin, "-")}</strong>（当選ウィザードで記録した値です。変えるときは「大当たり履歴」から）</p>
+        <p class="hint">大当たり時の回転数 <strong>${numberText(hitCounterSpin, "-")}</strong>（最初の大当たり入力で記録した値。変えるときは「大当たり履歴」から）</p>
         <div class="hit-round-buttons">
           ${orderedRoundTypes(presetId).map((type) => `<button data-hit-round="${escapeHtml(type.id)}">${escapeHtml(type.label)}</button>`).join("") || '<span class="hint">このプリセットにはラウンド種別がありません。</span>'}
         </div>
@@ -8695,7 +8723,7 @@
           <label for="jitanExitStartBalls">そのときの台の持ち玉（実機：台の持ち玉表示）</label>
           <input id="jitanExitStartBalls" inputmode="numeric" value="${escapeHtml(startBallsValue ?? "")}">
           <p class="hint" id="jitanExitStartBallsRequired">台の持ち玉を入力すると、時短抜けを確定できます</p>
-          <p class="hint hint-help">ここからの回転率を出す起点になります。計数機に入れたときは実際の値に直してください。持ち玉はこの欄だけで記録します。</p>
+          <p class="hint hint-help">ここで入力した玉数を使って、時短終了後に打った分の回転率を計算します。計数機に入れたときは実際の値に直してください。持ち玉はこの欄だけで記録します。</p>
           ${startBallsEstimate ? `<p class="hint">参考：前回${escapeHtml(startBallsEstimate.base.toLocaleString("ja-JP"))}玉＋${startBallsEstimate.kind === "actual" ? `累計出玉${escapeHtml(startBallsEstimate.chainBalls.toLocaleString("ja-JP"))}玉` : `${escapeHtml(startBallsEstimate.rounds.toLocaleString("ja-JP"))}R×${escapeHtml(startBallsEstimate.perRound.toLocaleString("ja-JP"))}玉`}＝約${escapeHtml(startBallsPreset.value.toLocaleString("ja-JP"))}玉。台の表示を入力してください</p>` : ""}
           <div class="quick-invest">
             ${jitanOptions.map((option) => `<button data-hit-reset="${option.counterSpin}" disabled>時短${option.jitanSpins} → カウンター${option.counterSpin}</button>`).join("") || '<span class="hint">この機種には時短のプリセットがありません。直接入力してください。</span>'}
@@ -8855,7 +8883,7 @@
       if (!last) return "";
       const lines = [];
       if (segmentIsHoldCarryHit(last)) {
-        lines.push("残保留当選（通常時なし）として、前の連チャンの続きに記録します。");
+        lines.push("残保留で大当たり（通常時なし）として、前の連チャンの続きに記録します。");
       }
       // S7c/2-1: 判定は変えず、押し忘れ・入力ミスの気づきだけを添える
       const warning = segmentShootingWarning(last, session);
@@ -9186,7 +9214,7 @@
       if (!segment) return "";
       const active = segmentIsHoldCarryHit(segment);
       const manual = segment.holdCarryHit === true || segment.holdCarryHit === false;
-      const status = `${active ? "残保留当選" : "通常当選"}${manual ? "（手動）" : detail ? "（自動判定）" : ""}`;
+      const status = `${active ? "残保留で大当たり" : "通常の大当たり"}${manual ? "（手動）" : detail ? "（自動判定）" : ""}`;
       if (!active || detail) return status;
       const targetId = resolveSegmentChainId(session, segment.id);
       const target = segmentHistoryLabels(session).find((entry) => entry.id === targetId);
@@ -9249,7 +9277,7 @@
           <div class="hit-chain-judgment">
             <div>${escapeHtml(hitHistoryJudgment(session, segment, true))}</div>
             <p class="hint">${escapeHtml(reason)}</p>
-            <button data-toggle-holdcarry="${escapeHtml(segment.id)}">${segmentIsHoldCarryHit(segment) ? "通常当選にする" : "残保留当選にする"}</button>
+            <button data-toggle-holdcarry="${escapeHtml(segment.id)}">${segmentIsHoldCarryHit(segment) ? "通常の大当たりにする" : "残保留で大当たりにする"}</button>
           </div>`;
       }
       openModal(`${label}の連チャン`, `当選${numberText(normalizeNumber(group.rows[0].hit?.hitSpin), "−")} ／ ${group.rows.length}連 ／ ${rounds}`, `
@@ -9320,7 +9348,7 @@
       if (!segment) return false;
       segment.holdCarryHit = !segmentIsHoldCarryHit(segment);
       session.updatedAt = nowIso();
-      if (!persistWithToast(segment.holdCarryHit ? "残保留当選として扱います" : "通常当選として扱います")) return false;
+      if (!persistWithToast(segment.holdCarryHit ? "残保留で大当たりとして扱います" : "通常の大当たりとして扱います")) return false;
       renderAll();
       return true;
     }
@@ -10015,7 +10043,7 @@
         <div class="consumed-choice">
           <p><strong>⚠ 2つの値が食い違っています</strong></p>
           <div class="consumed-choice-options">${buttons}</div>
-          <p class="hint">通常消費玉としてどちらを使いますか。未選択時は台上差を優先します。</p>
+          <p class="hint">通常時に使った玉数をどちらで計算しますか。未選択時は「持ち玉の増減から計算」（追加した玉も考慮します）を優先します。</p>
         </div>
       `;
     }
@@ -10023,7 +10051,7 @@
     function setConsumedBallsSource(session, source, onSaved = renderAll) {
       session.consumedBallsSource = normalizeConsumedBallsSource(source);
       session.updatedAt = nowIso();
-      if (!persistWithToast("通常消費玉の採用値を更新しました")) return;
+      if (!persistWithToast("通常時に使った玉数の計算方法を更新しました")) return;
       onSaved();
     }
 
@@ -10282,7 +10310,7 @@
             ${investmentTotalFieldHtml("saipurei", "再プレ引き出し", totals.saipureiBalls, "玉")}
             ${investmentTotalFieldHtml("cash", "現金", totals.cashYen, "円")}
           </div>
-          <p class="hint hint-help">修正は差分だけを調整レコードとして追加します。タップ履歴は書き換えません。遊タイム中の投資修正は対象外です。</p>
+          <p class="hint hint-help">投資合計を修正できます。元のボタン操作の記録は残ります。遊タイム中の投資はここでは修正できません。</p>
         </div>
       `;
     }
@@ -10711,20 +10739,20 @@
     // S42/§6: 実戦後評価の根拠。実測と参考の内訳をそのまま出す（B94「判断の場に前提を置く」）。
     function earnedExpectationBasisText(earned) {
       if (!earned) return "";
-      const rateText = `回転率${earned.rate.toFixed(1)}（${postPartText(earned.rateThis, earned.rateThisSpins, "回転")} ＋ 参考${earned.rateRef === null || earned.rateRef === undefined ? "-" : earned.rateRef.toFixed(1)}・${displayEvSource(earned.rateRefSource || "-")}）`;
+      const rateText = `計算に使用：回転率${earned.rate.toFixed(1)}／今回の実測：${postPartText(earned.rateThis, earned.rateThisSpins, "回転")}／過去の参考：${earned.rateRef === null || earned.rateRef === undefined ? "-" : earned.rateRef.toFixed(1)}（${displayEvSource(earned.rateRefSource || "-")}）`;
       const netText = earned.net === null || earned.net === undefined
-        ? "1R-"
-        : `1R${Math.round(earned.net).toLocaleString("ja-JP")}玉（${postPartText(earned.netThis, earned.netThisRounds, "R")} ＋ 参考${earned.netRef === null || earned.netRef === undefined ? "-" : Math.round(earned.netRef).toLocaleString("ja-JP")}・${displayEvSource(earned.netRefSource || "-")}${earned.netRefRounds ? `${Math.round(earned.netRefRounds).toLocaleString("ja-JP")}R` : ""}）`;
+        ? "計算に使用：1R-"
+        : `計算に使用：1R${Math.round(earned.net).toLocaleString("ja-JP")}玉／今回の実測：${postPartText(earned.netThis, earned.netThisRounds, "R")}／過去の参考：${earned.netRef === null || earned.netRef === undefined ? "-" : Math.round(earned.netRef).toLocaleString("ja-JP")}（${displayEvSource(earned.netRefSource || "-")}${earned.netRefRounds ? `・${Math.round(earned.netRefRounds).toLocaleString("ja-JP")}R分` : ""}）`;
       // S41/§1-3: 保存前の計算（完了済みなのに endEv が無い旧データ）はその旨を添える
-      const savedText = earned.unsaved ? " ／ 保存前の計算" : "";
+      const savedText = earned.unsaved ? " ／ この評価はまだ記録に保存されていません" : "";
       return `${rateText}／${netText}${savedText}`;
     }
 
-    // S42/§6: 「実測16.3・158回転」の形。実測が無いときは「実測なし」とだけ書く。
+    // S42/§6 → S47/§2-8: 「16.3（158回転分）」の形。実測が無いときは「なし」とだけ書く。
     function postPartText(value, count, unit) {
-      if (value === null || value === undefined) return "実測なし";
-      const valueText = unit === "R" ? value.toFixed(1) : value.toFixed(1);
-      return `実測${valueText}・${Math.round(count || 0).toLocaleString("ja-JP")}${unit}`;
+      if (value === null || value === undefined) return "なし";
+      const valueText = value.toFixed(1);
+      return `${valueText}（${Math.round(count || 0).toLocaleString("ja-JP")}${unit}分）`;
     }
 
     // S3b/G4: 区間ごとの内訳。区間が1つだけなら空配列（＝ブロックを出さない）。
@@ -10749,7 +10777,7 @@
         const endLabel = segment.endSource === "hit" ? "当選"
           : segment.endSource === "yutime" ? "遊タイム突入"
           : segment.endSource === "end" ? "ヤメ"
-          : "継続中";
+          : "打っている途中";
         const holdSpins = Math.max(0, Number(segment.holdSpins || 0));
         // S7b/B-3: 残保留当選の区間は通常時なし。回転数0・消費玉0で出し、回転率は出さない。
         const holdCarry = isNormal && segmentIsHoldCarryHit(segment);
@@ -10766,7 +10794,7 @@
           kind: segment.kind,
           startLabel,
           startSpin: normalizeNumber(segment.startSpin),
-          endLabel: holdCarry ? "残保留当選" : endLabel,
+          endLabel: holdCarry ? "残保留で大当たり" : endLabel,
           endSpin: normalizeNumber(segment.endSpin),
           holdSpins,
           holdCarry,
@@ -10869,7 +10897,7 @@
       const hitCountMissing = session.hitCount === null || session.hitCount === undefined || session.hitCount === "";
       const RESULT_INPUT_WARNINGS = [
         { key: "startSpin", item: "開始カウンター", impact: "実戦の流れの起点を表示していません", missingValue: true, target: "resultInputEditBtn" },
-        { key: "startTime", item: "開始時刻", impact: "実働・時給を計算していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "startTime", item: "開始時刻", impact: "開始から終了までの時間・時給を計算していません", missingValue: true, target: "resultInputEditBtn" },
         { key: "startMochidama", item: "起点の持ち玉", notice: "起点の持ち玉が未入力の区間があります", impact: rateWarning.impact, missingValue: rateWarning.missingValue, target: "resultInputEditBtn" },
         { key: "startSaipurei", item: "開始再プレイ", impact: "再プレイ残高を計算していません（投資合計には影響しません）", missingValue: true, target: "resultInputEditBtn" },
         { key: "startCredit", item: "開始カード残高", impact: "カード残高を計算していません（投資合計には影響しません）", missingValue: true, target: "resultInputEditBtn" },
@@ -10881,9 +10909,9 @@
         { key: "hitCount", item: "大当たり回数", impact: "大当たり回数を表示していません", missingValue: true, target: "resultInputEditBtn" },
         { key: "endTotalBalls", item: "終了玉数", impact: "実収支を計算していません", missingValue: true, target: "resultInputEditBtn" },
         { key: "endSpin", item: "終了カウンター", impact: "実戦の流れの終点を表示していません", missingValue: true, target: "resultInputEditBtn" },
-        { key: "endTime", item: "終了時刻", impact: "実働・時給を計算していません", missingValue: true, target: "resultInputEditBtn" },
+        { key: "endTime", item: "終了時刻", impact: "開始から終了までの時間・時給を計算していません", missingValue: true, target: "resultInputEditBtn" },
         { key: "round", item: "1R出玉", impact: "実測出玉による1R平均を計算していません", missingValue: true, target: "resultInputEditBtn" },
-        { key: "excluded", item: "純増が0以下", impact: "通算の集計から除外しています", missingValue: true, target: "resultInputEditBtn" }
+        { key: "excluded", item: "玉数の増加が0以下", impact: "1Rあたりの玉数の平均から除いています", missingValue: true, target: "resultInputEditBtn" }
       ];
       const missing = missingFields(session);
       const normalMarks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
@@ -10981,7 +11009,7 @@
       const latestDiffYen = latestEarned && earned ? latestEarned.totalYen - earned.totalYen : null;
       const latestNoteHtml = latestDiffYen !== null && Math.abs(latestDiffYen) >= EARNED_EV_LATEST_DIFF_YEN
         // 「再計算すると◯円」は再計算後の合計。差は括弧の中に添える（差だけだと合計と読み違える）
-        ? `<p class="hint hint-help">最新条件で再計算すると ${escapeHtml(yenText(latestEarned.totalYen))}（今より${escapeHtml(yenText(latestDiffYen))}。回転率${escapeHtml(latestEarned.rate.toFixed(1))}・1R${escapeHtml(latestEarned.net !== null && latestEarned.net !== undefined ? Math.round(latestEarned.net).toLocaleString("ja-JP") : "-")}玉）。記録の修正で保存し直せます。</p>`
+        ? `<p class="hint hint-help">現在の設定・参考値で計算し直した場合：${escapeHtml(yenText(latestEarned.totalYen))}（保存済みの評価より${escapeHtml(yenText(latestDiffYen))}。回転率${escapeHtml(latestEarned.rate.toFixed(1))}・1R${escapeHtml(latestEarned.net !== null && latestEarned.net !== undefined ? Math.round(latestEarned.net).toLocaleString("ja-JP") : "-")}玉）。記録の修正で保存し直せます。</p>`
         : "";
       const earnedEvDiffYen = startEv && earned ? earned.totalYen - startEv.evYen : null;
       const startEvHtml = startEv ? `
@@ -10997,7 +11025,7 @@
             </table>
           </div>
           <div class="result-line">開始カウンター ${escapeHtml(summary.effectiveSpin)} ／ 遊タイムまで残り ${escapeHtml(summary.remainingSpins ?? "-")}回転${escapeHtml(summary.prevDayNote)}</div>
-          <p class="hint hint-help">1回のブレです。判断の良し悪しは下の通算で見ます。</p>
+          <p class="hint hint-help">実戦後に分かった回転率・出玉と、実際に打った区間を反映しています。実収支との差は、複数回の実戦で確認してください。</p>
         </div>` : '<p class="hint">開始時の期待値は記録されていません。</p>';
       const segmentRows = segmentBreakdownRows(session, derived, machine, earned);
       const normalMarks = ["①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨"];
@@ -11011,7 +11039,8 @@
         const startSpin = row.startSpin === null ? "-" : row.startSpin.toLocaleString("ja-JP");
         const endSpin = row.endSpin === null ? "-" : row.endSpin.toLocaleString("ja-JP");
         const consumed = row.consumed === null ? "-" : row.consumed.toLocaleString("ja-JP");
-        const endText = `${escapeHtml(row.endLabel)}${endSpin}${row.reversed ? " ⚠逆行" : ""}`;
+        // S47/§2-8a: 終点セルは回転数だけ。終了理由は全幅の注記にまとめる（列は増やさない）。
+        const endText = `${endSpin}${row.reversed ? " ⚠逆行" : ""}`;
         // S17/B-3: 期待値列。通常区間だけ値を入れ、合計に入らない区間は「—」で出す
         const evText = row.evYen === null || row.evYen === undefined ? "—" : yenText(row.evYen);
         // S20/§2-3: 純増と1R実質出玉は1列にまとめる（320px で列が潰れないように）
@@ -11019,9 +11048,10 @@
         const netText = `${segmentNetCellText(row)}${row.netExcluded ? " ⚠" : ""}`;
         // S23/§3-1: 所要は分:秒。当選で終わる区間の下に、その連チャンの当たり消化を1行はさむ
         const durationText = minuteSecondText(row.durationMs);
-        const clearRow = row.chainClearMs === null
-          ? ""
-          : `<tr class="segment-clear-row"><td colspan="9">当たり消化 ${escapeHtml(minuteSecondJaText(row.chainClearMs))}</td></tr>`;
+        // S47/§2-8a: 終了理由と当たり消化は同じ全幅セルに併記し、行数を増やさない。
+        const noteParts = [`終了：${row.endLabel}`];
+        if (row.chainClearMs !== null) noteParts.push(`当たり消化 ${minuteSecondJaText(row.chainClearMs)}`);
+        const clearRow = `<tr class="segment-clear-row"><td colspan="9">${escapeHtml(noteParts.join(" ／ "))}</td></tr>`;
         if (row.kind === "yutime") {
           return `<tr><td>${escapeHtml(row.startLabel)}</td><td>${startSpin}</td><td>${endText}</td><td>-</td><td>${escapeHtml(durationText)}</td><td>${consumed}玉</td><td>-</td><td>${escapeHtml(netText)}</td><td>—</td></tr>${clearRow}`;
         }
@@ -11041,12 +11071,12 @@
           <details class="result-disclosure" id="resultSegmentsDetails"><summary>詳しい区間データを見る</summary>
           <div class="result-table-wrap">
             <table class="result-table segments">
-              <thead><tr><th>区間</th><th>起点</th><th>終点</th><th>回転数</th><th>所要</th><th>消費玉</th><th>回転率</th><th>純増／1R</th><th>期待値</th></tr></thead>
+              <thead><tr><th>打った区間</th><th>開始回転数</th><th>終了時の回転数</th><th>回転数</th><th>かかった時間</th><th>消費玉</th><th>回転率</th><th>1Rあたりの玉数</th><th>期待値</th></tr></thead>
               <tbody>${segmentBodyHtml}</tbody>
             </table>
           </div>
-          ${segmentHoldNotes.length ? `<p class="hint">回転数は残保留の控除後（${escapeHtml(segmentHoldNotes.join("・"))}）</p>` : ""}
-          ${segmentHoldCarryMarks.length ? `<p class="hint">${escapeHtml(segmentHoldCarryMarks.join("・"))}は残保留当選（通常時なし）。前の連チャンの続きとして数えます</p>` : ""}
+          ${segmentHoldNotes.length ? `<p class="hint">回転数は残保留で回った分を除いた値（${escapeHtml(segmentHoldNotes.join("・"))}）</p>` : ""}
+          ${segmentHoldCarryMarks.length ? `<p class="hint">${escapeHtml(segmentHoldCarryMarks.join("・"))}は残保留で大当たり（通常時なし）。前の連チャンの続きとして数えます</p>` : ""}
           ${earned ? `<div class="result-line result-segment-total"><strong>実戦後評価 ${escapeHtml(yenText(earned.totalYen))}</strong><small>${escapeHtml(earnedExpectationBasisText(earned))}</small></div>` : ""}
           </details>
         </div>` : "";
@@ -11061,16 +11091,16 @@
           ${storeAggregate.count !== modelAggregate.count ? `<div class="result-aggregate-summary"><span>全体 ${modelAggregate.count}台</span> <span>｜ 平均回転率 ${escapeHtml(modelAggregate.rate === null ? "-" : modelAggregate.rate.toFixed(1))}</span> <span>｜ 実戦後評価の合計 ${escapeHtml(yenText(modelAggregate.evYen))}</span> <span>｜ 実収支合計 ${escapeHtml(yenText(modelAggregate.profitYen))}</span></div>` : ""}
           <details class="result-disclosure" id="resultAggregateDetails"><summary>詳しく見る</summary>
           ${storeAggregate.count !== modelAggregate.count ? `<div class="result-line">この機種の積み上げ（${modelAggregate.count}台）</div>
-          <div class="result-line">実働 ${escapeHtml(hourText(modelAggregate.workedHours))} ／ 実戦後評価の合計 ${escapeHtml(yenText(modelAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(modelAggregate.profitYen))} ／ 差 ${escapeHtml(yenText(modelAggregate.diffYen))}</div>
+          <div class="result-line">開始から終了までの時間（休憩込み） ${escapeHtml(hourText(modelAggregate.workedHours))} ／ 実戦後評価の合計 ${escapeHtml(yenText(modelAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(modelAggregate.profitYen))} ／ 差 ${escapeHtml(yenText(modelAggregate.diffYen))}</div>
           <div class="result-line">実戦後評価の時給 ${escapeHtml(yenText(modelAggregate.evHourlyYen))} ／ 実収支時給 ${escapeHtml(yenText(modelAggregate.profitHourlyYen))}</div>
-          <div class="result-line">平均時速 ${escapeHtml(speedWithRateText(modelAggregate.speedPerMinute, modelAggregate.rate))}</div>` : ""}
+          <div class="result-line">1時間あたりの通常回転数 ${escapeHtml(speedWithRateText(modelAggregate.speedPerMinute, modelAggregate.rate))}</div>` : ""}
           <div class="result-line" style="margin-top:8px">この店 × この機種（${storeAggregate.count}台）</div>
-          <div class="result-line">実働 ${escapeHtml(hourText(storeAggregate.workedHours))} ／ 平均回転率 ${escapeHtml(storeRateText)}</div>
-          <div class="result-line">平均時速 ${escapeHtml(speedWithRateText(storeAggregate.speedPerMinute, storeAggregate.rate))}</div>
+          <div class="result-line">開始から終了までの時間（休憩込み） ${escapeHtml(hourText(storeAggregate.workedHours))} ／ 平均回転率 ${escapeHtml(storeRateText)}</div>
+          <div class="result-line">1時間あたりの通常回転数 ${escapeHtml(speedWithRateText(storeAggregate.speedPerMinute, storeAggregate.rate))}</div>
           <div class="result-line">実戦後評価の合計 ${escapeHtml(yenText(storeAggregate.evYen))} ／ 実収支合計 ${escapeHtml(yenText(storeAggregate.profitYen))}</div>
           ${storeAggregate.count === modelAggregate.count ? `<div class="result-line">差 ${escapeHtml(yenText(storeAggregate.diffYen))}</div>` : ""}
           <div class="result-line">実戦後評価の時給 ${escapeHtml(yenText(storeAggregate.evHourlyYen))} ／ 実収支時給 ${escapeHtml(yenText(storeAggregate.profitHourlyYen))}</div>
-          <p class="hint hint-help">実戦後評価は各区間の起点からの期待値の合計</p>
+          <p class="hint hint-help">実戦後に計算した期待値。今回の実測と過去の参考値から、打ち始め・時短終了後など各開始時点の期待値を求めて合計した額。実際の収支とは異なります。</p>
           </details>
         </div>`;
       const html = `
@@ -11084,9 +11114,9 @@
             <div class="result-card"><span>実収支</span><strong>${escapeHtml(yenText(derived.profitYen))}</strong></div>
             <div class="result-card"><span>実戦後評価</span><strong>${escapeHtml(earned ? yenText(earned.totalYen) : "-")}</strong><small>${escapeHtml(earnedExpectationBasisText(earned))}</small></div>
             ${latestNoteHtml}
-            <div class="result-card"><span>実測回転率</span><strong>${escapeHtml(derived.rateUnavailableReason ? "-" : actualRateText)}<span style="font-size:10px"> 回/千円</span></strong><small>${escapeHtml(derived.rateUnavailableReason || (derived.isEstimatedRate ? "概算" : derived.rate === null ? "" : "実測"))}</small></div>
+            <div class="result-card"><span>実測回転率</span><strong>${escapeHtml(derived.rateUnavailableReason ? "-" : actualRateText)}<span style="font-size:10px"> 回転/250玉</span></strong><small>${escapeHtml(derived.rateUnavailableReason || (derived.isEstimatedRate ? "概算" : derived.rate === null ? "" : "実測"))}</small></div>
           </div>
-          <div class="result-line">実働 ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))} ／ 通常時の時速 ${escapeHtml(spinsPerMinuteText(summary.normalSpeed.perMinute))}${summary.normalSpeed.perMinute === null ? "" : `（通常時 ${escapeHtml(minuteSecondJaText(summary.normalSpeed.minutes * 60000))}・${summary.normalSpeed.spins.toLocaleString("ja-JP")}回転）`}${summary.speedBoundaryLegacy ? "（旧境界・参考）" : ""}</div>
+          <div class="result-line">開始から終了までの時間（休憩込み） ${escapeHtml(hourText(summary.workedHours))} ／ 時給 ${escapeHtml(yenText(summary.hourlyYen))} ／ 通常時に1時間あたり回せる回転数 ${escapeHtml(spinsPerMinuteText(summary.normalSpeed.perMinute))}${summary.normalSpeed.perMinute === null ? "" : `（通常時 ${escapeHtml(minuteSecondJaText(summary.normalSpeed.minutes * 60000))}・${summary.normalSpeed.spins.toLocaleString("ja-JP")}回転）`}${summary.speedBoundaryLegacy ? "（旧版の記録のため参考値）" : ""}</div>
           <p class="hint hint-help">時速と時給は、休憩などの中断を含めた実際の時間で出しています。休憩が多いと低く出ます。</p>
         </div>
         ${startEvHtml}
@@ -11094,7 +11124,7 @@
         ${segmentHtml}
         ${aggregateHtml}
         <div class="result-block">
-          <div class="result-block-title">転記用</div>
+          <div class="result-block-title">コピー用</div>
           ${transferBlockHtml(session)}
         </div>
         <div class="modal-actions">
@@ -11104,7 +11134,7 @@
           <button class="danger" id="resultDeleteBtn">記録の削除</button>
         </div>
       `;
-      openModal("実戦リザルト", "", html);
+      openModal("実戦結果", "", html);
       const resultHitHistoryButton = byId("resultHitHistoryBtn");
       if (resultHitHistoryButton) resultHitHistoryButton.addEventListener("click", () => {
         openHitHistory(session, { back: () => openSessionResult(session.id) });
@@ -11228,9 +11258,9 @@
       return number === null ? "-" : `${Math.round(number).toLocaleString("ja-JP")}回転`;
     }
 
-    function transferRateText(value) {
+    function transferRateText(value, store = null) {
       const number = normalizeNumber(value);
-      return number === null ? "-" : `${number.toFixed(1)}回/千円`;
+      return number === null ? "-" : `${number.toFixed(1)}${rateUnitText(store)}`;
     }
 
     // S36/§1-1: 実稼働時間は「1.02時間」。桁は hourText と同じ小数2桁にそろえる。
@@ -11254,17 +11284,17 @@
         return [
           `開始カウンター ${startEv ? transferSpinText(summary.effectiveSpin) : "-"}`,
           `遊タイムまで残り ${transferSpinText(summary.remainingSpins)}`,
-          `想定回転率 ${startEv ? transferRateText(startEv.usedRate) : "-"}`,
+          `想定回転率 ${startEv ? transferRateText(startEv.usedRate, storeById(session.storeId)) : "-"}`,
           `開始期待値 ${startEv ? yenText(startEv.evYen) : "-"}`
         ];
       }
       if (sectionKey === "result") {
         const earned = earnedForDisplay(session, machine, derived);
         // リザルトの実測回転率と同じ扱い。概算のときは同じ注記を添える
-        const rateText = derived.rateUnavailableReason ? "-" : transferRateText(derived.rate);
+        const rateText = derived.rateUnavailableReason ? "-" : transferRateText(derived.rate, storeById(session.storeId));
         const speed = summary.normalSpeed;
         const speedText = speed.spins > 0
-          ? `${speed.spins.toLocaleString("ja-JP")}回転 / ${minuteSecondJaText(speed.minutes * 60000)}${summary.speedBoundaryLegacy ? "（旧境界・参考）" : ""}`
+          ? `${speed.spins.toLocaleString("ja-JP")}回転 / ${minuteSecondJaText(speed.minutes * 60000)}${summary.speedBoundaryLegacy ? "（旧版の記録のため参考値）" : ""}`
           : "-";
         return [
           `実測回転率 ${rateText}${derived.isEstimatedRate ? "（概算）" : ""}`,
@@ -11759,11 +11789,11 @@
       const machine = data.machines.find((item) => item.id === session.machineId);
       const derived = deriveSession(session, machine);
       const totals = investmentTotals(session);
-      openModal("戦果報告", "お疲れ様でした。記録は履歴に保存済みです。未入力は「記録の修正・削除」から補完できます。", `
+      openModal("実戦結果", "お疲れ様でした。記録は履歴に保存済みです。未入力は「記録の修正・削除」から補完できます。", `
         ${machineContextLine(session)}
         <div class="metric-grid">
           <div class="metric"><span>通常回転数</span><strong>${numberText(derived.normalSpins, "-")}</strong></div>
-          <div class="metric"><span>通常消費玉</span><strong>${numberText(derived.consumedBalls, "-")}</strong></div>
+          <div class="metric"><span>通常時に使った玉数</span><strong>${numberText(derived.consumedBalls, "-")}</strong></div>
           <div class="metric"><span>今回の稼働の回転率</span><strong>${rateText(derived)}</strong></div>
           <div class="metric"><span>大当たり回数</span><strong>${numberText(session.hitCount, "-")}</strong></div>
           ${derived.estimatedRemainBalls !== null ? `<div class="metric"><span>当選時残り玉</span><strong>${numberText(derived.estimatedRemainBalls, "-")}（概算）</strong></div>` : ""}
@@ -11780,7 +11810,7 @@
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button id="summarySameMachineBtn">同じ台で続行</button>
-          <button id="summaryResultBtn">リザルトを見る</button>
+          <button id="summaryResultBtn">結果を見る</button>
           <button class="primary" id="summaryLedgerBtn">履歴で見る</button>
         </div>
       `);
@@ -11844,7 +11874,7 @@
         <div class="section compact">
           <h3>この記録の店条件</h3>
           <p class="hint hint-help">打ち始めた時点の店の条件です。実収支と玉単価はこの値で計算します。ここを直すと、この記録だけが変わります。</p>
-          <label class="check-chip"><input id="edit_storeTermsPersonal" type="checkbox" ${storeTermsForSession(session)?.isPersonal ? "checked" : ""}> パーソナルシステムあり</label>
+          <label class="check-chip"><input id="edit_storeTermsPersonal" type="checkbox" ${storeTermsForSession(session)?.isPersonal ? "checked" : ""}> パーソナルシステムあり（各台に玉数表示・計数機がある店）</label>
           <div class="grid two">
             <div class="field-row"><label for="edit_storeTermsLendRate">貸玉レート（円/玉）</label><input id="edit_storeTermsLendRate" inputmode="decimal" value="${escapeHtml(lendRateForStore(storeTermsForSession(session)))}"></div>
             <div class="field-row"><label for="edit_storeTermsExchangeBalls">交換玉数（100円あたり）</label><input id="edit_storeTermsExchangeBalls" inputmode="decimal" value="${escapeHtml(exchangeBallsText(exchangeBallsForStore(storeTermsForSession(session))))}"></div>
@@ -11861,7 +11891,7 @@
         <div class="modal-actions">
           <button class="ghost" data-close>閉じる</button>
           <button class="danger" id="deleteSessionBtn">この記録を削除</button>
-          <button id="markCompletedBtn">確定扱い</button>
+          <button id="markCompletedBtn">この実戦を終了済みにする</button>
           <button class="primary" id="saveSessionEditBtn">保存</button>
         </div>
       `);
@@ -11998,7 +12028,7 @@
       if (!segments.length) return "";
       const rows = segments.map((segment, index) => {
         const kindLabel = segment.kind === "yutime" ? "遊タイム" : "通常";
-        const range = `${segment.startSpin ?? "-"}〜${segment.endSpin ?? "継続中"}`;
+        const range = `${segment.startSpin ?? "-"}〜${segment.endSpin ?? "打っている途中"}`;
         // S23/§1: 時短抜けで始まった区間の開始時刻。通常時の時速と当たり消化時間の起点になる。
         // 打ち始め区間・遊タイム区間の時刻は上の「開始時刻」「遊タイム突入時刻」の欄が正本なので出さない。
         const startAtHtml = index > 0 && segment.kind === "normal"
@@ -12009,26 +12039,26 @@
         const startBallsHtml = index > 0 && segment.kind === "normal"
           ? `<div class="field-row"><label for="edit_segment_start_balls_${index}">区間${index + 1} ${kindLabel}の起点の持ち玉（時短抜け）</label><input id="edit_segment_start_balls_${index}" type="text" inputmode="numeric" value="${escapeHtml(segment.startTrackedBalls ?? "")}"></div>`
           : "";
-        return `<div class="field-row"><label for="edit_segment_hold_${index}">区間${index + 1} ${kindLabel}（${escapeHtml(range)}）の無料保留</label><input id="edit_segment_hold_${index}" type="text" inputmode="numeric" value="${escapeHtml(segment.holdSpins ?? 0)}"></div>${startBallsHtml}${startAtHtml}`;
+        return `<div class="field-row"><label for="edit_segment_hold_${index}">区間${index + 1} ${kindLabel}（${escapeHtml(range)}）の、追加で玉を打たずに回った保留の数</label><input id="edit_segment_hold_${index}" type="text" inputmode="numeric" value="${escapeHtml(segment.holdSpins ?? 0)}"></div>${startBallsHtml}${startAtHtml}`;
       }).join("");
-      return `<div class="grid two">${rows}</div><p class="hint hint-help">区間の先頭で回した無料保留の数です。0〜9で指定でき、変更すると回転率を計算し直します。起点の持ち玉は時短抜けの時点で台に表示されていた玉数で、その連チャンの純増と、そこからの回転率の起点になります。時短抜けの開始時刻は通常時の時速と当たり消化時間の起点です（自動記録。ずれている場合だけ直してください）。</p>`;
+      return `<div class="grid two">${rows}</div><p class="hint hint-help">区間の先頭で、追加で玉を打たずに回った保留の数です。0〜9で指定でき、変更すると回転率を計算し直します。起点の持ち玉は時短抜けの時点で台に表示されていた玉数で、その連チャンの純増と、そこからの回転率の起点になります。時短抜けの開始時刻は通常時に1時間あたり回せる回転数と当たり消化時間の起点です（自動記録。ずれている場合だけ直してください）。</p>`;
     }
 
     function consumedBallsSourceEditorHtml(session) {
       if (usesTapInvestmentMode(session) && normalizeNumber(session.hitTrackedBalls) !== null && normalizeNumber(session.yutimeEnterBalls) === null) {
-        return `<p class="hint">通常消費玉はタップ合計と当選時の持ち玉差分で確定しています。</p>`;
+        return `<p class="hint">通常時に使った玉数は、玉を追加したボタンの記録と当選時の持ち玉差分で確定しています。</p>`;
       }
       const selected = normalizeConsumedBallsSource(session.consumedBallsSource);
       return `
         <div class="field-row">
-          <label for="editConsumedBallsSource">通常消費玉の採用</label>
+          <label for="editConsumedBallsSource">通常時に使った玉数の計算方法</label>
           <div>
             <select id="editConsumedBallsSource">
               <option value="">自動判定</option>
-              <option value="tray"${selected === "tray" ? " selected" : ""}>台上差</option>
-              <option value="taps"${selected === "taps" ? " selected" : ""}>タップ合計</option>
+              <option value="tray"${selected === "tray" ? " selected" : ""}>${escapeHtml(CONSUMED_BALLS_SOURCE_LABELS.tray)}</option>
+              <option value="taps"${selected === "taps" ? " selected" : ""}>${escapeHtml(CONSUMED_BALLS_SOURCE_LABELS.taps)}</option>
             </select>
-            <p class="hint hint-help">台上差とタップ合計が大きく食い違う場合に、後から採用値を変更できます。</p>
+            <p class="hint hint-help">2つの計算方法が大きく食い違う場合に、後から選び直せます。</p>
           </div>
         </div>
       `;
@@ -12838,15 +12868,15 @@
       // S7b/B-3: 残保留当選の区間に投資が残っているときは入力ミスの可能性があるので警告する。
       const holdCarryWithTaps = normalSegments.some((segment) => segmentIsHoldCarryHit(segment)
         && segmentNormalInvestments(session, segment?.id).length > 0);
-      if (holdCarryWithTaps) warnings.push("残保留当選の区間に投資が記録されています");
+      if (holdCarryWithTaps) warnings.push("残保留で大当たりの区間に投資が記録されています");
       // 終点が起点より多い区間（入力ミスの可能性）は、合算が正でも消費玉を出さない。
       const negativeEndpointSegment = endpointConsumedApplied && segmentConsumedValues.some((value) => value !== null && value !== undefined && value < 0);
       const rawConsumedBalls = normalSpins !== null ? sumSegmentValues(segmentConsumedValues) : null;
       const invalidConsumedBalls = rawConsumedBalls !== null && (rawConsumedBalls < 0 || negativeEndpointSegment);
       const consumedBalls = invalidConsumedBalls ? null : rawConsumedBalls;
       // B95のフォールバック警告は台上差（旧式）についての警告なので、新式で出せているときは出さない。
-      if (tapMode && normalSpins !== null && tapConsumedCandidates?.fallback && !endpointConsumedApplied) warnings.push("通常消費玉の入力を確認");
-      if (invalidConsumedBalls) warnings.push("通常消費玉の入力を確認");
+      if (tapMode && normalSpins !== null && tapConsumedCandidates?.fallback && !endpointConsumedApplied) warnings.push("使った玉数を計算できません。開始・終了時の持ち玉などを確認してください。");
+      if (invalidConsumedBalls) warnings.push("使った玉数を計算できません。開始・終了時の持ち玉などを確認してください。");
       const fallbackConsumed = normalSpins !== null && normalInputBalls >= 0 ? normalInputBalls : null;
       const rateBase = endpointConsumedApplied
         ? consumedBalls
@@ -12859,7 +12889,7 @@
         return start !== null && end !== null && end < start;
       });
       const rateUnavailableReason = hasReversedSegment
-        ? "区間の回転数が逆行しています（記録の修正で直してください）"
+        ? "終了時の回転数が開始時より小さくなっています。記録の修正から確認してください。"
         : (!tapMode && !hasStartMochidama ? "持ち玉未入力" : "");
       const pointBalls = session.hitRemainBalls !== null ? session.hitRemainBalls : (estimatedRemainBalls !== null ? estimatedRemainBalls : totalInputBalls);
       const rawHitBalls = session.endTotalBalls !== null && hasHit && pointBalls !== null ? session.endTotalBalls - pointBalls : null;
