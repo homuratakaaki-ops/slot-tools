@@ -69,6 +69,23 @@ for(const [g,n,d] of nd){
 console.log('PASS 5: 12 pairs clamp/idempotence/negative/fraction/string/nonfinite (84 checks)');
 assert.ok(!source.includes('(?<=')&&!source.includes('(?<!'));
 console.log('PASS 6: no lookbehind (1 check)');
+// engine の折りたたみ（§9-97）で行内の先頭文が消える説明を作らない。
+// 畳まれる長さの説明は、data-fold="no" か、先頭1文が30字以内であること。
+const hintCtx=S=>({S,nanaCreditText:()=> '',pct:(n,d)=>`${n}/${d}`,mode:1,
+  crow:(key,label,sub)=>`<div class="crow"><div class="lbl"><div class="nm">${label}</div><div class="mn">${sub}</div></div></div>`});
+const hintPages=c.pages(hintCtx(state()),()=> '').slice(0,3).map(fn=>fn()).join('');
+const hints=[...hintPages.matchAll(/<div class="hint"([^>]*)>([^<]*)<\/div>/g)].map(m=>({attrs:m[1],text:m[2].trim()}));
+assert.ok(hints.length>=5,'hint count '+hints.length);
+let folded=0;
+for(const {attrs,text} of hints){
+  if(attrs.includes('data-fold="no"'))continue;
+  if(text.length<60)continue;              // 畳まれない短い説明
+  const first=text.slice(0,text.indexOf('。')+1);
+  assert.ok(first.length>0&&first.length<=30,'先頭文が行内に残らない説明: '+text.slice(0,40));
+  folded++;
+}
+assert.ok(folded>0,'折りたたみ対象の説明が1件もない');
+console.log('PASS 8: '+hints.length+' hints, '+folded+' folded keep a <=30 char inline lead');
 const regression=spawnSync(process.execPath,['tests/paripi-st-end.verify.mjs'],{cwd:root,stdio:'inherit'});
 assert.equal(regression.status,0);
 console.log('PASS 7: ST regression including 4096 combinations');

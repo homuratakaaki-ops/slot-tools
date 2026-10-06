@@ -46,7 +46,8 @@
     ...RARE_STATES.flatMap(([key,label])=>RARE_ROLES.map(([role,name])=>['rare',key+role+'N',key+role+'D',label+' '+name]))
   ];
   const SHIKI_HINT='ゲーム数の下2桁が09を超えた後、最初のステージチェンジだけを数えます。例：115Gでステチェン→109Gの欄、220Gでステチェン→209G以降の欄。そのあとのステチェン（例：160G）は数えません。孔明前世のときはボーナス前兆なので数えません。';
-  const RARE_HINT='英子の部屋＝高確、スカイスクエア＝超高確、それ以外（BBラウンジ・公園・竹下通り）＝通常。孔明前世のときはボーナス前兆なので数えません。';
+  // 先頭に30字以内の要約を置き、畳んだときも行内に1文が残るようにする（§9-97）。
+  const RARE_HINT='状態はステージで見分けます。英子の部屋＝高確、スカイスクエア＝超高確、それ以外（BBラウンジ・公園・竹下通り）＝通常。孔明前世のときはボーナス前兆なので数えません。';
   function czTotal(S){return CZ_TYPE.reduce((a,c)=>a+n(S.czType,c[0]),n(S.counts,'cz'));}
   function initialCount(S,key){return key==='cz'?czTotal(S):n(S.counts,key);}
 
