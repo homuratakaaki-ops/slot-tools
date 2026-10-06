@@ -2831,7 +2831,7 @@
     // S30/§2-2: 版の表示。文字列はべた書きせず定数から組み立てる。
     function renderAppVersion() {
       const el = byId("appVersion");
-      if (el) el.textContent = "S" + APP_VERSION_SEQ + "a / " + APP_VERSION_DATE;
+      if (el) el.textContent = "S" + APP_VERSION_SEQ + " / " + APP_VERSION_DATE;
     }
 
     // S34/§2-2: 保存値が "0" のときだけOFF。未保存・読めないときはON（初期はON）。
