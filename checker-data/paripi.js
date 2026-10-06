@@ -134,7 +134,7 @@
       const v=values[i++];
       return m.startsWith('0')?v:'▶︎ '+v;
     });
-    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / CZ${countRate(g,czTotal(S))} / ボーナス${countRate(g,n(S.counts,'bonus'))}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / CZ${countRate(g,czTotal(S))} / 初当り${countRate(g,n(S.counts,'bonus'))}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
   }
   window.CheckerConfigs[ID]={
     uiV2:true,nanaCollab:true,storageKey:ID+'-checker-v1',defaults:DEF,mergeKeys:['counts','stEnd','stechen','shiki','rare','czType'],sourceUrl:SOURCE,

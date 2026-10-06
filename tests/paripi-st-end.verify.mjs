@@ -57,7 +57,7 @@ const detail=c.card.detail({S})[1];assert.equal(detail.denominator,3);assert.equ
 assert.equal(detail.items.reduce((a,r)=>a+r.value,0),3);
 assert.ok(c.template(context(S)).includes('ﾃﾞﾌｫ①   ▶︎ 1回'));assert.ok(c.template(context(S)).includes('4以上　▶︎ 2回'));
 assert.ok(c.template(context(S)).includes('ﾃﾞﾌｫ②   ▶︎ 0回'));assert.ok(c.template(context(state())).includes('■AT終了画面'));
-assert.equal(c.template(context(S)).split('\n')[1],'通常 0G / CZ2回 / ボーナス0回');
+assert.equal(c.template(context(S)).split('\n')[1],'通常 0G / CZ2回 / 初当り0回');
 for(const output of [c.template(context(S)),JSON.stringify(c.card.blocks({S})),JSON.stringify(c.card.chart({S})),JSON.stringify(c.card.bottom({S})),JSON.stringify(c.card.detail({S}))])assert.doesNotMatch(output,/1\/|NaN|Infinity/);
 const legacy=c.normalizeState({games:1000,counts:{cz:3,bonus:2},future:{keep:true}});
 assert.deepEqual(clone(legacy.stEnd),clone(c.defaults.stEnd));assert.equal(legacy.counts.cz,3);assert.equal(legacy.games,1000);assert.equal(legacy.future.keep,true);

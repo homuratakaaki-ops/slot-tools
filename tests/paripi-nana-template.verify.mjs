@@ -45,7 +45,7 @@ for(const [i,[g,k]] of keys.entries()){
 }
 console.log('PASS 3: 27 isolated slots, exact target line and value (54 checks)');
 const S=state();S.games=2000;S.counts.cz=4;S.czType={sanka:1,eiko:2,sekihei:3};
-assert.equal(c.template(ctx(S)).split('\n')[1],'通常 2000G / CZ10回 1/200.0 / ボーナス0回');
+assert.equal(c.template(ctx(S)).split('\n')[1],'通常 2000G / CZ10回 1/200.0 / 初当り0回');
 assert.ok(c.pages(ctx(S),()=> '')[0]().includes('CZ 計10回 1/200.0'));
 assert.ok(c.pages(ctx(S),()=> '')[0]().includes('種類不明 4回'));
 assert.deepEqual(clone(c.card.blocks({S})[0]),['CZ 10回','1/200.0']);
