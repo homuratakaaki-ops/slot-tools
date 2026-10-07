@@ -1,3 +1,4 @@
+// MACHINES.kanokari v0.21（第7弾：スルー回数の表示、前兆ステージの種類、前兆中のセリフ、青セリフ、メーターの既定選択、66Gの警告を液晶基準に）
 // MACHINES.kanokari v0.20（第6弾：全部失敗後の終了画面、セリフのその他、REG紹介の系列別行、引き戻し中のG数付きセリフ、次ステージの初期選択）
 // MACHINES.kanokari v0.19（第5弾：ENDING突入の入力（LAST＋クレジット）と有利区間切れ見込み、ENDING終了の実際との差、終了ボタンの表示）
 // 第4弾：33Gのアイキャッチを引き戻し系に、画面に版数表示
@@ -6,7 +7,7 @@
 // ============================================================
 kanokari:{
   name:"彼女、お借りします",
-  defVer:"0.20",   // 画面のヘッダに出す定義の版。docs/specs/kanokari-def-v20.js の1行目と必ず合わせる
+  defVer:"0.21",   // 画面のヘッダに出す定義の版。docs/specs/kanokari-def-v21.js の1行目と必ず合わせる
   lcdG:true,
   lcdRestart:0,
   clearStageOnHit:true,
@@ -28,12 +29,18 @@ kanokari:{
   stocks:[{key:"ren",label:"レンCHANCE",short:"レン"},{key:"koi",label:"1G恋",short:"1G恋"}],   // §1
   // 終了シートの注記。保証が入った回は stockGainNoteOnStart（hits 側に置く）が優先される
   stockGainNote:"このボーナスで増えたストック数を入れてください。前から持っている分は右の合計に入っています",
-  gauge:{label:"❤",max:5,maxLabel:"MAX",hideInHit:true},   // §4。当選中はバッジを出さない
-  // 1GレンCHANCE の失敗連続回数（バッジ「レン失敗 n」）。救済抽選（2〜5回で振り分け）の判定に使う
-  // 失敗で+1、成功で0。引き戻し当選と次回初当りで0（持ち越さない）
+  // §4。当選中はバッジを出さない
+  // askDefault：レア役シートのメーターの既定選択。満タン（MAX）で待機中は「変わらず」で即記録（1タップ）、
+  //   朝イチでメーターが分からないうちは「不明」を光らせるだけ（選び直せる・2タップ）
+  // unknownWhen：打ち始めで「朝イチ」を選び、メーターを空欄にしたときだけ「分からない」状態で始める
+  gauge:{label:"❤",max:5,maxLabel:"MAX",hideInHit:true,
+    askDefault:{full:{value:"変わらず",instant:true},unknown:{value:"不明",instant:false}},
+    unknownWhen:{setupKey:"stage0",value:"朝イチ",gaugeBlank:true}},
+  // 1GレンCHANCE のスルー回数（バッジ「スルー n」）。救済抽選（2〜5回で振り分け）の判定に使う
+  // 失敗で+1、成功で0。引き戻しを経由したら0（解析：引き戻し時はスルー回数を引き継がない）。有利区間切れでも0
   stockGPerSet:2,stockSuccessOffset:1,   // 1セット2G。全部失敗→実G＝消費数×2、成功→当選G＝消費数×2＋1（告知の1G）。液晶は0
   stockResultMode:"perSet",   // セットごとに入力：1G目の役 → 2G目の役 → 必要なときだけ成否。1G恋も1G目・2G目の役を聞き、自動成功。失敗なら次のセット、尽きたら引き戻しへ
-  stockFail:{label:"レン失敗",resetOnTriggers:["引き戻し成功","レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},
+  stockFail:{label:"スルー",resetOnTriggers:["引き戻し成功","レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},
   // 全部失敗＝実機で終了画面が出るタイミング。失敗の記録のあとに extras の同名シートを自動で開く（§9-61）
   stockAllFail:{askExtra:"終了画面の枠"},
   // 1GレンCHANCE の各セットで成立役を聞き、定義のルールで成否を決める
@@ -56,8 +63,8 @@ kanokari:{
 
   // ---------- レア役 ----------
   rares:[
-    {key:"weak",label:"弱チャンス目",inSheet:false,ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max",tag:"変換高確",until:"manual",waitIfZen:"MAX待機"}},{l:"変わらず"}]}},
-    {key:"chance",label:"チャンス目",ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max",tag:"変換高確",until:"manual",waitIfZen:"MAX待機"}},{l:"変わらず"}]}},
+    {key:"weak",label:"弱チャンス目",inSheet:false,ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max",tag:"変換高確",until:"manual",waitIfZen:"MAX待機"}},{l:"変わらず"},{l:"不明"}]}},
+    {key:"chance",label:"チャンス目",ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max",tag:"変換高確",until:"manual",waitIfZen:"MAX待機"}},{l:"変わらず"},{l:"不明"}]}},
     {key:"strong",label:"強チャンス目",hint:"前兆へ",set:{enterZen:0}},
     {key:"gachi",label:"ガチ恋目",inSheet:false},   // 変換でしか出ない（小役変換・示唆の変換先で記録）
     {key:"saikyo",label:"最強目",inSheet:false},
@@ -201,6 +208,7 @@ kanokari:{
     }},
     {type:"select",label:"セリフ",title:"セリフ演出",groups:[
       {key:"who",label:"キャラ",required:true,options:["千鶴","和也","和","小百合","黒セリフ","その他"]},
+      {key:"color",label:"色",options:["白","青"]},   // 青セリフの区別。任意（分からなければ入れない）
       {key:"role",label:"成立役",logParen:true,options:["ハズレ","リプレイ","ベル","弱チャンス目","チャンス目","強チャンス目","ガチ恋目","最強目","不明"]},   // ログは末尾に「（成立役：…）」で付ける
       {key:"cm",label:"センチメートル",options:["44cm","55cm","66cm"]}
     ]},
@@ -217,20 +225,24 @@ kanokari:{
     order:["部屋と彼女","大学と彼女","街と彼女"],   // バッジをタップすると次のステージへ（順番のもの以外はシートを開く）
     preselectNext:true,   // 今のステージが order にあるとき、次のステージを初期選択にする（選び直せる）
     options:[{l:"部屋と彼女",h:"通常",askAfter:"アイキャッチ"},{l:"大学と彼女",h:"通常",askAfter:"アイキャッチ"},{l:"街と彼女",h:"通常",askAfter:"アイキャッチ"},
-             {l:"海と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p",enterZen:1},{l:"夜と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"ヒミツ恋ゴコロ",h:"前兆",tone:"d",enterZen:1,askAfter:"アイキャッチ"},
+             {l:"海と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p",enterZen:1},{l:"夜と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"ヒ・ミ・ツ恋心",h:"前兆",tone:"d",enterZen:1,askAfter:"アイキャッチ"},
              {l:"ヒロインステージ",h:"ポイント高確20G",tone:"c",askAfter:"アイキャッチ"}]},
 
   // ---------- 前兆・引き戻し ----------
   zenchou:{stages:["前兆","前兆ステージ","連続演出","引き戻し中"],stageIndex:[1,2,3],cutStages:[0],
     // 引き戻し中は enterOnHitEnd で入る。前兆3段は手動
-    enterOnHitEnd:{unlessStocks:true,stage:3},endLabel:"引き戻し終了",remindAtG:66,   // §8 §9
+    enterOnHitEnd:{unlessStocks:true,stage:3},endLabel:"引き戻し終了",remindAtG:66,remindOn:"lcd",   // §8 §9。66Gは液晶ゲーム数で見る
     outGroups:[   // 連続演出の失敗時（forStages:[2]）。実機の順：失敗→アイキャッチ→ステージ
       {key:"cu",label:"CU",options:["あり","なし"]},
       {key:"eye",label:"アイキャッチ",options:["白","青・4人","ピンク・2人","劇画調・和也背景","なし"]},
       {key:"stage",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女"]}
     ],forStages:[2],
     backTo:{2:1},   // 連続演出の終了時に「前兆ステージへ戻る」を出す（失敗しても前兆ステージが続くことがある）
-    onEndByStage:{3:{clearTags:["ユメカノ"],c3:0,keepStage:true}},   // 引き戻し終了：ユメカノOFF、攻略人数0
+    // 前兆シートから「前兆ステージ」へ入ったときに、どの前兆ステージかを聞く（ステージのシートから入ったときは選び済みなので聞かない）
+    // options は stages.options の前兆ステージ（enterZen:1）と同じ文字列にそろえる。片方だけ直さないこと
+    stageTypeAsk:{forStage:1,title:"前兆ステージの種類",label:"前兆ステージ",key:"ztype",
+      options:["和也の部屋","ヒ・ミ・ツ恋心","夜と彼女","海と彼女"]},
+    onEndByStage:{3:{clearTags:["ユメカノ"],c3:0,keepStage:true,renFail:0}},   // 引き戻し終了：ユメカノOFF、攻略人数0、スルー0
     sheet:{label:"引き戻し記録",forStage:3,logOnSave:false,autoFill:{stage0:{ifTag:"ユメカノ",value:"専用（ユメカノ後）"}},sections:[   // 3段。保存時はログなし（終了時に当否付きで流す）
       {title:"① レンCHANCE抜け直後",groups:[
         {key:"eye",label:"アイキャッチ",options:["白","ピンク（赤）","黒"]},
@@ -249,7 +261,7 @@ kanokari:{
     ]}},
 
   // ---------- 有利区間 ----------
-  yuuri:{askOnEnd:[],clear:["c3","stocks","gauge","tags","modeHints","renChara"],levels:["有利切れ","有利切れ濃厚"],askMedal:true},   // §10 ＋ D5：切れ時に持ちメダルを聞き、差枚をログに
+  yuuri:{askOnEnd:[],clear:["c3","stocks","gauge","tags","modeHints","renChara","renFail"],levels:["有利切れ","有利切れ濃厚"],askMedal:true},   // §10 ＋ D5：切れ時に持ちメダルを聞き、差枚をログに
 
   parallel:[],
   czEndStd:{groups:[]},
@@ -286,7 +298,7 @@ kanokari:{
   // ---------- グリッド ----------
   grids:{
     normal:[["rare","extra:0","hit"],["zenchou","stage","extra:1"],["rare:weak","extra:2","memo"]],   // レア役／小役変換・示唆／当選、前兆／ステージ／アイキャッチ、弱チャンス目／セリフ／メモ
-    zen:[["rare:weak","zenchou","hit"],["rare","extra:1","memo"]],          // 前兆中（引き戻し以外）。ステージはバッジタップで
+    zen:[["rare:weak","zenchou","hit"],["rare","extra:2","memo"]],          // 前兆中（引き戻し以外）。3枠目はセリフ（前兆中はアイキャッチを聞かない）。ステージはバッジタップで
     hikimodoshi:[["zenSheet","zenchou","hit"],["rare:weak","rare","memo"],["extra:2"]],   // 引き戻し中（zenchou＝引き戻し終了）。3行目はセリフ（G数付きで残すため）
     stock:[["stockResult","memo"]],
     cz:[["hitEnd","memo"]],
