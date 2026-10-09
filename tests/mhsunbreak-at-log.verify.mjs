@@ -89,7 +89,7 @@ test('minus changes only aggregates, leaves memo; atEvent buttons and handler di
   assert.notEqual(bz(S,'t1','miss','bzT1',-1),false);equal(S.atLog,log);assert.equal(S.bzT1.t1,0);
   assert.ok(group(S,'bzT1',-1).filter(b=>b.includes('data-r="win"')).every(b=>!b.includes('disabled')));
   assert.ok(buttons(S,-1).filter(b=>b.includes('data-action="atEvent"')).every(b=>b.includes('disabled')));
-  assert.match(html(S,-1),/減算モードはテーブル別の回数だけを戻します/);
+  assert.match(html(S,-1),/減算はテーブル別の回数だけを直します（AT間メモは各行の［削除］か「↩ 取消」で直します）。/);
   assert.equal(action(S,'atEvent',{t:'otherAt'},-1),false);equal(S.atLog,log);
 });
 test('invalid events are no-ops',()=>{
