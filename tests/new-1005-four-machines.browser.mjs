@@ -310,7 +310,7 @@ try{
   pass('MH 31 exact hint labels/sublabels and 4 tabs');
   await tab(3);
   const zero=await copy();
-  const original=fs.readFileSync(path.join(root,'docs/specs/mhsunbreak-nana-template-v03.txt'),'utf8');
+  const original=fs.readFileSync(path.join(root,'docs/specs/mhsunbreak-nana-template-v04.txt'),'utf8');
   const expected='設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+original.split('■').map(section=>section.replace(/▶︎ (?=\r?\n)/g,'▶︎ '+(section.startsWith('クエスト成功率')?'0/0':'0回'))).join('■')+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様';
   assert.equal(zero,expected);assert.equal((original.match(/▶︎ (?=\r?\n)/g)||[]).length,34);
   fs.writeFileSync(path.join(artifacts,'mhsunbreak-zero-template.txt'),zero);
@@ -399,87 +399,22 @@ try{
   assert.ok(allCard.bright>1000&&allCard.opaque===allCard.width*allCard.height);
   pass('MH all-31 summary: 5+5 rows, Y896, fitted visible bounds and pixels',{rows:summary,minFont,overflow:overflow.length,leftOverhang,lastY:Math.max(...summary.map(t=>t.y))});
   saveCanvas('mhsunbreak-all-card',allCard);await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
-  // v03: production icon/result/copy/delete/undo handlers and exact memo bytes.
-  // BZ memo UX: actual clicks, one-render highlight, folding and hit-list parity.
+  // v04: rendered table structure at real viewport widths.
   for(const width of [360,390]){
-    await clear('mhsunbreak',width);
-    for(const value of [100,200,300,400])await games(value);
-    const hitSummary=await frame(`const e=d.querySelector('.hit-more summary');return {height:e.getBoundingClientRect().height,font:w.getComputedStyle(e).fontSize,padding:w.getComputedStyle(e).padding};`);
-    await tab(2);
-    const memoHint='この並びは、下の［成功］［失敗］を押すと配列メモに保存されます';
-    const hasMemoHint=()=>frame(`return [...d.querySelectorAll('.hint')].some(e=>e.textContent===${JSON.stringify(memoHint)});`);
-    assert.equal(await hasMemoHint(),false);
-    assert.deepEqual(await frame(`return [...d.querySelectorAll('#main .sec-h')].map(e=>e.firstChild.textContent);`),['配列メモ','① 初期アイコンを入れる','② 結果を押す','クエスト成功率（合算）']);
-    for(let i=0;i<4;i++){
-      await click('[data-action="bzIconAdd"][data-icon="qBlue"]');
-      assert.equal(await hasMemoHint(),true);
-      await click('[data-action="bzQuest"][data-d="bzT1"][data-q="blue"][data-r="win"]');
-      assert.equal(await hasMemoHint(),false);
-      assert.ok((await frame('return d.getElementById("feed").textContent;')).includes('配列メモに登録：青→青ｽﾀｰﾄ○'));
-      const highlight=await frame(`const e=d.querySelector('.bz-memo-new');return {count:d.querySelectorAll('.bz-memo-new').length,index:e.querySelector('button').dataset.index,first:e===d.querySelector('.bz-icon-log-row'),duration:w.getComputedStyle(e).animationDuration};`);
-      assert.deepEqual(highlight,{count:1,index:String(i),first:true,duration:'2s'});
-    }
-    assert.equal(await frame(`return d.querySelector('.hit-more summary').textContent;`),'すべて表示（残り1件）');
-    const memoSummary=await frame(`const e=d.querySelector('.hit-more summary');return {height:e.getBoundingClientRect().height,font:w.getComputedStyle(e).fontSize,padding:w.getComputedStyle(e).padding};`);
-    assert.deepEqual(memoSummary,hitSummary);
-    assert.equal(await frame(`return d.querySelector('.hit-more').previousElementSibling.children.length;`),3);
-    assert.equal(await frame(`return [...d.querySelectorAll('.bz-icon-log-row')].every(e=>e.matches('.crow')&&e.parentElement.matches('.cgrid')&&e.querySelector('button.cycle-btn[data-action="bzIconDel"]'));`),true);
-    await click('.hit-more summary');
-    assert.equal(await frame(`return d.querySelector('.hit-more').open;`),true);
-    await measure('mhsunbreak-bz-memo-expanded-'+width);
-    await pause(2100);
-    assert.equal(await frame(`return w.getComputedStyle(d.querySelector('.bz-memo-new')).backgroundColor;`),await frame(`return w.getComputedStyle(d.querySelectorAll('.bz-icon-log-row')[1]).backgroundColor;`));
-    const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});
-    fs.writeFileSync(path.join(artifacts,'mhsunbreak-bz-memo-'+width+'.png'),Buffer.from(shot.data,'base64'));
-    await tab(0);await tab(2);
-    assert.equal(await frame(`return d.querySelector('.bz-memo-new')===null;`),true);
-    await click('[data-action="bzQuest"][data-d="bzT1"][data-q="blue"][data-r="miss"]');
-    assert.ok(!(await frame('return d.getElementById("feed").textContent;')).includes('配列メモに登録：'));
-    await click('[data-action="bzIconAdd"][data-icon="qYellow"]');await click('#modeBtn');
-    await click('[data-action="bzQuest"][data-d="bzT1"][data-q="blue"][data-r="miss"]');
-    assert.equal((await state()).iconLog.length,4);assert.deepEqual((await state()).iconPending,['qYellow']);
-    assert.ok((await frame('return d.getElementById("feed").textContent;')).includes('失敗を減算'));
-    await load('mhsunbreak',width,530);await tab(2);
-    assert.equal(await frame(`return d.querySelector('.bz-memo-new')===null;`),true);
-    pass('MH BZ memo UX '+width,{hitSummary,memoSummary});
+    await clear('mhsunbreak',width);await tab(2);
+    assert.deepEqual(await frame("return [...d.querySelectorAll('.sec-h')].map(e=>e.textContent.trim());"),['テーブル別の結果','テーブル別 成功率（合算）']);
+    assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),21);
+    assert.equal(await frame('return d.querySelectorAll(".quest-row button").length;'),26);
+    assert.equal(await frame('return d.querySelectorAll("[data-q=t7][data-r=miss]").length;'),0);
+    assert.deepEqual(await frame('return [...d.querySelectorAll("[data-q=t7]")].map(e=>e.textContent.trim());'),['＋','＋']);
+    const aggregate=await frame('const sec=[...d.querySelectorAll("section")].at(-1);return {rows:sec.querySelectorAll(".quest-row").length,buttons:sec.querySelectorAll("button,[data-bump]").length};');
+    assert.deepEqual(aggregate,{rows:7,buttons:0});
+    await measure('mhsunbreak-bz-tables-'+width);
+    pass('MH table structure '+width,{rows:21,buttons:26,aggregateRows:7});
   }
-  await clear('mhsunbreak',360);await tab(2);
-  assert.equal(await frame('return d.querySelectorAll("[data-action= bzIconCopy]").length;'),0);
-  const memoRows=[
-    {icons:['qBlue','qBlue','rai','rai','sel','sel','oro','oro','teo','rush'],group:'bzT1',quest:'raizex',result:'win'},
-    {icons:['qYellow','rai','rai','sel'],group:'bzT2',quest:'yellow',result:'miss'}
-  ];
-  const expectedMemo='1回目 青青ﾗﾗｾｾｵｵﾃ虹→ﾗｲｾﾞｸｽ○\n2回目〜 黄ﾗﾗｾ→黄ｽﾀｰﾄ×';
-  const memoBody=text=>text.split('■BZ配列メモ\n')[1].split('\n\n■レア役')[0];
-  for(const row of memoRows){
-    for(const icon of row.icons)await click(`[data-action="bzIconAdd"][data-icon="${icon}"]`);
-    await click(`[data-action="bzQuest"][data-d="${row.group}"][data-q="${row.quest}"][data-r="${row.result}"]`);
-  }
-  assert.equal(await frame('return d.querySelectorAll(".bz-icon-log-row").length;'),2);
-  await measure('mhsunbreak-v03-icons-360');
-  const memoShot=await send('Page.captureScreenshot',{format:'png'});
-  fs.writeFileSync(path.join(artifacts,'mhsunbreak-v03-icons.png'),Buffer.from(memoShot.data,'base64'));
-  await tab(3);
-  assert.deepEqual(Buffer.from(memoBody(await copy())),Buffer.from(expectedMemo));
-  const plainMemo=memoBody(await copy(true));
-  assert.equal(plainMemo,'1回目 青青ﾗﾗｾｾｵｵﾃ虹→ﾗｲｾﾞｸｽ○\n2回目~ 黄ﾗﾗｾ→黄ｽﾀｰﾄ×');
-  pass('MH v03 exact two memo lines and plain output',plainMemo);
-  await click('#undoBtn');
-  assert.equal(memoBody(await copy()),expectedMemo.split('\n')[0]);
-  await tab(2);await click('[data-action="bzIconDel"][data-index="0"]');await tab(3);
-  assert.ok((await copy()).includes('■BZ配列メモ\n\n■レア役'));
-  await click('#undoBtn');assert.equal(memoBody(await copy()),expectedMemo.split('\n')[0]);
-  await tab(2);await click('[data-action="bzIconClear"]');
-  for(const icon of ['qBlue','qYellow','rush','rai','sel','oro','teo','gold','blaze','unknown'])await click(`[data-action="bzIconAdd"][data-icon="${icon}"]`);
-  await click('[data-action="bzQuest"][data-d="bzT2"][data-q="at"][data-r="win"]');await tab(3);
-  const allPlain=memoBody(await copy(true)).split('\n').at(-1);
-  assert.equal(allPlain,'2回目~ 青黄虹ﾗｾｵﾃ＋炎？→AT○');
-  pass('MH v03 undo/delete restore template and all plain symbols',allPlain);
-  assert.deepEqual(await frame('return w.__errors;'),[]);
-  await clear('mhsunbreak');
   // MH template v02: actual BZ buttons and persisted state.
   await clear('mhsunbreak');await tab(2);
-  const questIds=['blue','yellow','raizex','serregios','oromidro','teo','at'];
+  const questIds=['t1','t2','t3','t4','t5','t6','t7'];
   const nKeyOf=key=>key==='bzT1'?'questN1':'questN2';
   const questClick=(key,id,success)=>click(`[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="${success?'win':'miss'}"]`);
   assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),21);
@@ -489,11 +424,11 @@ try{
     let s=await state();assert.equal(s[key][id],1);assert.equal(s[nKeyOf(key)][id],1);
     assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(key==='bzT1'?'1回目':'2回目以降'));
     await click('#modeBtn');
-    if(id!=='at')assert.equal(await frame(`const b=d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="miss"]');return b.disabled&&b.getAttribute('aria-disabled')==='true';`),true);
+    if(id!=='t7')assert.equal(await frame(`const b=d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="miss"]');return b.disabled&&b.getAttribute('aria-disabled')==='true';`),true);
     await questClick(key,id,true);s=await state();assert.equal(s[key][id],0);assert.equal(s[nKeyOf(key)][id],0);
     await click('#undoBtn');s=await state();assert.equal(s[key][id],1);assert.equal(s[nKeyOf(key)][id],1);
     await click('#modeBtn');await click('#undoBtn');
-    if(id!=='at'){
+    if(id!=='t7'){
       await questClick(key,id,false);await click('#modeBtn');
       assert.equal(await frame(`return d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="miss"]').disabled;`),false);
       await questClick(key,id,false);assert.equal((await state())[key][id],0);
@@ -501,14 +436,15 @@ try{
     }
   }
   pass('MH v02 all 26 buttons: feed, atomic undo, minus guard and successful decrement');
-  await questClick('bzT1','blue',true);await questClick('bzT1','blue',false);await questClick('bzT2','at',true);
+  await questClick('bzT1','t3',true);await questClick('bzT1','t3',false);await questClick('bzT2','t7',true);
+  assert.equal(await frame('return d.querySelector("[data-d=bzT1][data-q=t3]").closest(".quest-row").querySelector(".pct").textContent;'),'1/2 50%');
   const bzState=await state();await tab(3);
   const bzTemplate=await copy(),zeroLines=zero.split('\n');
   const changes=bzTemplate.split('\n').flatMap((line,i)=>line===zeroLines[i]?[]:[{line:i+1,before:zeroLines[i],after:line}]);
   assert.equal(changes.length,4);assert.deepEqual(changes.map(x=>x.after.trim().split('▶︎ ')[1]),['2回','1回','1/2','1/1']);
   pass('MH v02 exactly four requested template lines',changes);
-  await click('#undoBtn');let undone=await state();assert.equal(undone.bzT2.at,0);assert.equal(undone.questN2.at,0);assert.equal(undone.bzT1.blue,2);assert.equal(undone.questN1.blue,1);
-  await tab(2);await questClick('bzT2','at',true);await tab(0);await reset();
+  await click('#undoBtn');let undone=await state();assert.equal(undone.bzT2.t7,0);assert.equal(undone.questN2.t7,0);assert.equal(undone.bzT1.t3,2);assert.equal(undone.questN1.t3,1);
+  await tab(2);await questClick('bzT2','t7',true);await tab(0);await reset();
   for(const key of ['bzT1','bzT2','questN1','questN2'])assert.ok(Object.values((await state())[key]).every(v=>v===0));
   await click('#undoBtn');for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await state())[key],bzState[key]);
   await load('mhsunbreak');for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await state())[key],bzState[key]);
@@ -521,10 +457,25 @@ try{
   await evaluate(`localStorage.setItem('mhsunbreak-checker-v1',JSON.stringify({hits:[300],cycle:{c1:2},atEnd:{jay:1}}));`);
   await load('mhsunbreak');await tab(2);
   assert.equal(await frame('return d.querySelectorAll(".quest-row .pct")[0].textContent;'),'0/0 —');
-  await questClick('bzT1','yellow',true);
+  await questClick('bzT1','t2',true);
   const legacyBZ=await state();assert.equal(legacyBZ.cycle.c1,2);assert.equal(legacyBZ.atEnd.jay,1);assert.deepEqual(legacyBZ.hits,[300]);
   assert.deepEqual(await frame('return w.__errors;'),[]);
   pass('MH v02 old save without new keys loads and preserves existing counts');
+  const legacyIcons=['qBlue','qYellow','rai','sel','oro','teo','rush','gold','blaze','unknown'];
+  const iconSave={iconPending:['rai'],questN:{blue:99},bzT1:{blue:99},iconLog:legacyIcons.map((icon,i)=>({icons:[icon],group:i%2?'bzT2':'bzT1',result:i%2?'win':'miss',quest:i===4?'at':'blue'}))};
+  await evaluate(`localStorage.setItem('mhsunbreak-checker-v1',${JSON.stringify(JSON.stringify(iconSave))});`);
+  await load('mhsunbreak');await tab(2);
+  assert.deepEqual(await frame('return [...d.querySelectorAll(".quest-row .pct")].slice(14).map(e=>e.textContent);'),['0/1 0%','1/1 100%','0/1 0%','1/1 100%','1/1 100%','1/1 100%','1/1 100%']);
+  // A production click saves the normalized state; the following reload must not migrate again.
+  await questClick('bzT1','t3',true);
+  const migratedIcons=await state();
+  for(const key of ['iconLog','iconPending','questN'])assert.ok(!Object.hasOwn(migratedIcons,key));
+  for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual(Object.keys(migratedIcons[key]),questIds);
+  await load('mhsunbreak');await tab(2);
+  for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await state())[key],migratedIcons[key]);
+  await tab(3);assert.ok(!(await copy()).includes('■BZ配列メモ'));
+  assert.deepEqual(await frame('return w.__errors;'),[]);
+  pass('MH legacy icon save: seven migrated, three indeterminate skipped, saved reload idempotent');
   // Held pages stay usable, but have neither public navigation nor guide links.
   for(const id of ['juuou']){
     assert.equal((await fetch(origin+'/'+id+'-checker.html')).status,200);

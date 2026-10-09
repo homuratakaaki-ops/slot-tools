@@ -77,7 +77,7 @@
     ["momiji","紅葉柄","設定5以上濃厚",5,"紅",1],
     ["rainbow","虹","設定6濃厚",6,"虹",1]
   ];
-  const TEMPLATE="モンハンライズサンブレイク\n\n■BZテーブル1回目\n青ｽﾀｰﾄ        ▶︎ \n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■BZテーブル2回目以降\n青ｽﾀｰﾄ        ▶︎ \n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■クエスト成功率\n青ｽﾀｰﾄ        ▶︎ 0/0\n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■BZ配列メモ\n\n■レア役からのBZ当選率\n弱レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎ 0/0\n強レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎CZ濃厚\n\n■規定リプレイ周期\n①周期▶︎ 0回　②周期▶︎ 0回\n③周期▶︎ 0回　④周期▶︎ 0回\n⑤周期▶︎ 0回\n\nブレイクゾーン▶︎ 0回\nアイルー福引　▶︎ 0回\n\n■ 猛焔一閃直撃\n↪︎BZ突入時に告知される\n\n■AT終了画面\n女(偶数)▶︎ \nﾛﾝﾃﾞｨｰﾈ ▶︎ \nﾙｰﾁｶ       ▶︎ \n\n男(奇数)▶︎ \nｼﾞｪｲ       ▶︎ \nｱﾙﾛｰ       ▶︎ \nｶﾞﾚｱｽ     ▶︎ \n\n高設定弱▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ｱｲﾙｰ\n高設定強▶︎ \n↪︎ﾁｯﾁｪ&ｱｲﾙｰ&ｶﾞﾙｸ\n2否定　▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ﾛﾝﾃﾞｨｰﾈ\n3否定　▶︎ \n↪︎男3人\n2以上　▶︎ \n↪︎ﾋﾉｴ&ﾐﾉﾄ\n5以上　▶︎ \n6確　　▶︎ \n\n■エンディング中スタンプ\n🔵奇  0回・🟡 偶 0回\n🟢弱  0回・🔴 強 0回\n銅 0回・銀 0回・金 0回\n🍁 0回・🌈 0回";
+  const TEMPLATE="モンハンライズサンブレイク\n\n■BZテーブル1回目\n青ｽﾀｰﾄ        ▶︎ \n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■BZテーブル2回目以降\n青ｽﾀｰﾄ        ▶︎ \n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■クエスト成功率\n青ｽﾀｰﾄ        ▶︎ 0/0\n黄ｽﾀｰﾄ        ▶︎ \nﾗｲｾﾞｸｽ        ▶︎ \nｾﾙﾚｷﾞｵｽ      ▶︎ \nｵﾛﾐﾄﾞﾛ亜種▶︎ \nﾃｵﾃｽｶﾄﾙ      ▶︎ \nAT               ▶︎ \n\n■レア役からのBZ当選率\n弱レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎ 0/0\n強レア\n通常▶︎ 0/0 ・高確▶︎ 0/0 ・超高▶︎CZ濃厚\n\n■規定リプレイ周期\n①周期▶︎ 0回　②周期▶︎ 0回\n③周期▶︎ 0回　④周期▶︎ 0回\n⑤周期▶︎ 0回\n\nブレイクゾーン▶︎ 0回\nアイルー福引　▶︎ 0回\n\n■ 猛焔一閃直撃\n↪︎BZ突入時に告知される\n\n■AT終了画面\n女(偶数)▶︎ \nﾛﾝﾃﾞｨｰﾈ ▶︎ \nﾙｰﾁｶ       ▶︎ \n\n男(奇数)▶︎ \nｼﾞｪｲ       ▶︎ \nｱﾙﾛｰ       ▶︎ \nｶﾞﾚｱｽ     ▶︎ \n\n高設定弱▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ｱｲﾙｰ\n高設定強▶︎ \n↪︎ﾁｯﾁｪ&ｱｲﾙｰ&ｶﾞﾙｸ\n2否定　▶︎ \n↪︎ﾌｨｵﾚｰﾈ&ﾛﾝﾃﾞｨｰﾈ\n3否定　▶︎ \n↪︎男3人\n2以上　▶︎ \n↪︎ﾋﾉｴ&ﾐﾉﾄ\n5以上　▶︎ \n6確　　▶︎ \n\n■エンディング中スタンプ\n🔵奇  0回・🟡 偶 0回\n🟢弱  0回・🔴 強 0回\n銅 0回・銀 0回・金 0回\n🍁 0回・🌈 0回";
   function ndRow(ctx,opt){
     const canMinus=opt.d>opt.n;
     const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="${opt.dPath}"`;
@@ -102,50 +102,24 @@
     ['over','獲得枚数表示',OVER,'246枚 OVERは設定1・3・5を否定する飛び値の示唆なので、カードの確定演出の欄には出しません。'],
     ['stamp','エンディング中スタンプ',STAMP,'エンディング中のレア役成立時に出たスタンプの色を記録します。']
   ];
-  const QUEST=[['blue','クエスト青'],['yellow','クエスト黄'],['raizex','ライゼクス'],['serregios','セルレギオス'],['oromidro','オロミドロ亜種'],['teo','テオ・テスカトル'],['at','SUNBREAK RUSH']];
-  const ICONS=[['qBlue','Q青'],['qYellow','Q黄'],['rai','ライ'],['sel','セル'],['oro','オロ'],['teo','テオ'],['rush','RUSH'],['gold','＋G'],['blaze','猛焔'],['unknown','？']];
-  // テンプレ表記は画面のチップ・発展先ラベルから独立させる。
-  const TEMPLATE_ICONS={qBlue:'青',qYellow:'黄',rai:'ﾗ',sel:'ｾ',oro:'ｵ',teo:'ﾃ',rush:'虹',gold:'＋',blaze:'炎',unknown:'？'};
-  const TEMPLATE_QUEST={blue:'青ｽﾀｰﾄ',yellow:'黄ｽﾀｰﾄ',raizex:'ﾗｲｾﾞｸｽ',serregios:'ｾﾙﾚｷﾞｵｽ',oromidro:'ｵﾛﾐﾄﾞﾛ亜種',teo:'ﾃｵﾃｽｶﾄﾙ',at:'AT'};
-  function iconLogLines(S){
-    return (S.iconLog||[]).map(row=>
-      (row.group==='bzT1'?'1回目':'2回目〜')+' '+row.icons.map(k=>TEMPLATE_ICONS[k]).join('')+'→'+TEMPLATE_QUEST[row.quest]+(row.quest==='at'||row.result==='win'?'○':'×'));
-  }
-  const ICON_KEYS=new Set(ICONS.map(c=>c[0]));
-  const ICON_NAMES=Object.fromEntries(ICONS);
-  const QUEST_NAMES=Object.fromEntries(QUEST);
-  const cleanIcons=list=>(Array.isArray(list)?list:[]).filter(k=>ICON_KEYS.has(k)).slice(0,10);
-  function isIconLogRow(row){
-    return !!row&&Array.isArray(row.icons)&&cleanIcons(row.icons).length>0&&
-      ['bzT1','bzT2'].includes(row.group)&&QUEST.some(c=>c[0]===row.quest)&&['win','miss'].includes(row.result);
-  }
-  function normalizeIconLog(list){
-    return (Array.isArray(list)?list:[]).filter(isIconLogRow).map(row=>({...row,icons:cleanIcons(row.icons)})).slice(-200);
-  }
-  function iconChip(key){return `<span class="bz-icon bz-icon-${key}">${ICON_NAMES[key]}</span>`;}
-  let iconMemoJustSaved=false;
-  function iconInput(S){
-    const pending=S.iconPending;
-    return `<section class="sec"><div class="sec-h">① 初期アイコンを入れる</div>
-      <div class="bz-icon-slots">${Array.from({length:10},(_,i)=>`<div class="bz-icon-slot${i===pending.length?' current':''}" aria-label="${i+1}番目${i===pending.length?' 入力位置':''}">${pending[i]?iconChip(pending[i]):''}</div>`).join('')}</div>
-      ${pending.length?'<div class="hint">この並びは、下の［成功］［失敗］を押すと配列メモに保存されます</div>':''}
-      <div class="bz-icon-picks">${ICONS.map(([key,label])=>`<button type="button" class="bz-icon-button" data-action="bzIconAdd" data-icon="${key}" data-label="${label}">${iconChip(key)}</button>`).join('')}</div>
-      <div class="bz-icon-tools"><button type="button" class="bz-icon-button" data-action="bzIconBack"${pending.length?'':' disabled'}>1つ戻す</button><button type="button" class="bz-icon-button" data-action="bzIconClear"${pending.length?'':' disabled'}>クリア</button></div>
-      <div class="hint">ブレイクゾーン開始時の並びを左から順に押します。途中まででも保存できます。</div>
-      <div class="hint">設定差は公表されていません。記録してサンプルを集める項目です。</div>
-    </section>`;
-  }
-  function iconHistory(S){
-    const rows=S.iconLog.map((row,index)=>`<div class="crow bz-icon-log-row${iconMemoJustSaved&&index===S.iconLog.length-1?' bz-memo-new':''}"><div class="lbl bz-icon-log-body"><div class="bz-icon-line">${row.icons.map(iconChip).join('')}</div><div>${row.group==='bzT1'?'1回目':'2回目以降'}／${QUEST_NAMES[row.quest]}／${row.result==='win'?'成功':'失敗'}</div></div><button type="button" class="cycle-btn" data-action="bzIconDel" data-index="${index}">削除</button></div>`).reverse();
-    if(rows.length)iconMemoJustSaved=false;
-    return `<section class="sec"><div class="sec-h">配列メモ<span class="sub">計${rows.length}件</span></div>
-      <div class="cgrid">${rows.length?rows.slice(0,3).join(''):'<div class="hint">まだありません</div>'}</div>
-      ${rows.length>3?`<details class="hit-more"><summary>すべて表示（残り${rows.length-3}件）</summary><div class="cgrid">${rows.slice(3).join('')}</div></details>`:''}
-    </section>`;
-  }
+  // BZのアイコンテーブル。1個目のアイコンでテーブルが決まる（原本 2026/10/9 更新で確認）。
+  // [キー, 表示名, 1個目のアイコン]
+  const TABLES=[
+    ['t1','テーブル1','QUEST青'],
+    ['t2','テーブル2','QUEST黄'],
+    ['t3','テーブル3','ライゼクス'],
+    ['t4','テーブル4','セルレギオス'],
+    ['t5','テーブル5','オロミドロ亜種'],
+    ['t6','テーブル6','テオ・テスカトル'],
+    ['t7','テーブル7','AT']
+  ];
+  const TABLE_NAMES=Object.fromEntries(TABLES.map(c=>[c[0],c[1]+'（'+c[2]+'スタート）']));
+  // 旧データ（10マス配列メモ）の移行。1個目のアイコンでテーブルを判定する（夢爽承認 2026/10/9）。
+  // 旧ログの成功＝クエスト成功＝AT当選なので、新方式の成功と同じ意味。
+  const LEGACY_FIRST_ICON={qBlue:'t1',qYellow:'t2',rai:'t3',sel:'t4',oro:'t5',teo:'t6',rush:'t7'};
   function bzQuestAction(ctx,ds){
     const group=BZ_GROUPS.find(g=>g[0]===ds.d);
-    if(!group||!QUEST.some(c=>c[0]===ds.q)||!['win','miss'].includes(ds.r))return false;
+    if(!group||!TABLES.some(c=>c[0]===ds.q)||!['win','miss'].includes(ds.r))return false;
     const S=ctx.S,[dKey,nKey,title]=group,id=ds.q;
     const keys=ds.r==='win'?[dKey,nKey]:[dKey];
     if(ctx.mode<0){
@@ -153,50 +127,43 @@
       keys.forEach(key=>{S[key][id]--;});
     }else{
       keys.forEach(key=>{S[key][id]=n(S[key],id)+1;});
-      if(S.iconPending.length){
-        S.iconLog=normalizeIconLog([...S.iconLog,{icons:[...S.iconPending],group:dKey,quest:id,result:ds.r}]);
-        S.iconPending=[];
-        iconMemoJustSaved=true;
-        const saved=S.iconLog[S.iconLog.length-1];
-        return `配列メモに登録：${saved.icons.map(k=>TEMPLATE_ICONS[k]).join('')}→${TEMPLATE_QUEST[saved.quest]}${saved.quest==='at'||saved.result==='win'?'○':'×'}`;
-      }
     }
-    return `${title} ${QUEST_NAMES[id]} ${ds.r==='win'?'成功':'失敗'}${ctx.mode<0?'を減算':''}`;
+    return `${title} ${TABLE_NAMES[id]} ${ds.r==='win'?'成功':'失敗'}${ctx.mode<0?'を減算':''}`;
   }
+  // questN1 / questN2 は、そのグループのテーブル別のBZ成功（AT当選）数。
   // BZのグループ: [回数キー, 成功キー, 見出し]
   const BZ_GROUPS=[['bzT1','questN1','1回目'],['bzT2','questN2','2回目以降']];
   function questD(S,id){return n(S.bzT1,id)+n(S.bzT2,id);}
   // テンプレ・合算表示はグループをまたいだ合計を使う（出力はv02から不変）
   function questHit(S,id){return n(S.questN1,id)+n(S.questN2,id);}
   const zero=arr=>Object.fromEntries(arr.map(c=>[c[0],0]));
-  const DEF={games:0,hits:[],iconPending:[],iconLog:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null,bzT1:zero(QUEST),bzT2:zero(QUEST),questN1:zero(QUEST),questN2:zero(QUEST)};
+  const DEF={games:0,hits:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null,bzT1:zero(TABLES),bzT2:zero(TABLES),questN1:zero(TABLES),questN2:zero(TABLES)};
   const MERGE_KEYS=['counts','bz','cycle','czType',...GROUPS.map(g=>g[0]),'bzT1','bzT2','questN1','questN2'];
   function total(arr,state){return arr.reduce((a,c)=>a+n(state,c[0]),0);}
   function czTotal(S){return total(CZ_TYPE,S.czType);}
   function normalizeState(out,src=out){
-    out.iconPending=cleanIcons(out.iconPending);
-    out.iconLog=normalizeIconLog(out.iconLog);
-    const legacyQuest=src&&src.questN&&typeof src.questN==='object'&&!src.questN1&&!src.questN2;
     out.games=Math.max(0,Number(out.games)||0);
     out.hits=Array.isArray(out.hits)?out.hits.map(v=>Math.max(0,parseInt(v,10)||0)).filter(v=>v>0):[];
     MERGE_KEYS.forEach(key=>{
-      out[key]=Object.assign({},DEF[key],out[key]||{});
+      const tableKey=BZ_GROUPS.some(([dKey,nKey])=>key===dKey||key===nKey);
+      out[key]=tableKey?Object.fromEntries(TABLES.map(([id])=>[id,n(out[key],id)])):Object.assign({},DEF[key],out[key]||{});
       Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
     });
     BZ.forEach(c=>{out.bz[c[0]+'N']=Math.min(out.bz[c[0]+'N'],out.bz[c[0]+'D']);});
-    // 旧セーブ（questN＝合算）からの移行。合算の総数は保存する（テンプレ出力を変えないため）。
-    if(legacyQuest){
-      QUEST.forEach(([id])=>{
-        const total=Math.min(Math.max(0,Number(src.questN[id])||0),questD(out,id));
-        // 1回目に入るだけ入れ、あふれた分だけを2回目以降に回す。
-        out.questN1[id]=Math.min(total,n(out.bzT1,id));
-        out.questN2[id]=total-out.questN1[id];
-      });
+    for(const row of Array.isArray(src&&src.iconLog)?src.iconLog:[]){
+      if(!row||!Array.isArray(row.icons)||!BZ_GROUPS.some(g=>g[0]===row.group))continue;
+      const first=row.icons[0];
+      if(!Object.prototype.hasOwnProperty.call(LEGACY_FIRST_ICON,first))continue;
+      const id=LEGACY_FIRST_ICON[first],nKey=row.group==='bzT1'?'questN1':'questN2';
+      out[row.group][id]++;
+      if(id==='t7'||row.result==='win'||row.quest==='at')out[nKey][id]++;
     }
+    delete out.iconLog;
+    delete out.iconPending;
     delete out.questN;
     // n≦d をグループごとに保つ（§9-87）
     BZ_GROUPS.forEach(([dKey,nKey])=>{
-      QUEST.forEach(([id])=>{out[nKey][id]=Math.min(n(out[nKey],id),n(out[dKey],id));});
+      TABLES.forEach(([id])=>{out[nKey][id]=Math.min(n(out[nKey],id),n(out[dKey],id));});
     });
     return out;
   }
@@ -233,41 +200,25 @@
     .bz-sub{font-size:11px;font-weight:800;color:var(--txt);letter-spacing:.06em;margin-bottom:6px}
     .quest-row .lbl .nm{font-size:16px;overflow-wrap:anywhere}
     .quest-row .lbl .pct{text-align:left;margin-top:4px}
-    .bz-icon-slots{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;margin-bottom:8px}
-    .bz-icon-slot{min-height:44px;border:1px solid var(--line);border-radius:8px;display:flex;align-items:center;justify-content:center}
-    .bz-icon-slot.current{outline:2px solid var(--txt);outline-offset:-2px}
-    .bz-icon-picks{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
-    .bz-icon-button{min-height:44px;min-width:44px;padding:6px;border:1px solid var(--line);border-radius:8px;background:var(--panel);color:var(--txt);font:inherit;font-size:16px}
-    .bz-icon-button:disabled{opacity:.4}
-    .bz-icon-tools,.bz-icon-line{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
-    .bz-icon{display:inline-block;font-size:13px;font-weight:800;white-space:nowrap;border:1px solid currentColor;border-radius:5px;padding:3px}
-    .bz-icon-qBlue{color:#83caff}.bz-icon-qYellow{color:#ffe881}
-    /* モンスターの色はUI上の識別用。 */
-    .bz-icon-rai{color:#a9e6ad}.bz-icon-sel{color:#cbb4ff}.bz-icon-oro{color:#ffb77f}.bz-icon-teo{color:#ff9fbd}
-    .bz-icon-gold{color:#e8ca70}.bz-icon-unknown{color:#b5bac4}
-    .bz-icon-rush,.bz-icon-blaze{color:#fff;background:linear-gradient(110deg,#85333e,#675000,#246b3e,#275985,#643d89)}
-    .bz-icon-log-row{font-size:13px}
-    .bz-icon-log-body{flex:1;min-width:0}
-    .bz-memo-new{animation:bz-memo-new 2s ease-out 1}
-    @keyframes bz-memo-new{from{background-color:rgba(255,201,77,.18)}to{background-color:transparent}}
-  </style>`+iconHistory(S)+iconInput(S)+`<section class="sec">
-    <div class="sec-h">② 結果を押す</div>`+BZ_GROUPS.map(([dKey,nKey,title])=>`
+  </style>`+`<section class="sec">
+    <div class="sec-h">テーブル別の結果</div>`+BZ_GROUPS.map(([dKey,nKey,title])=>`
     <div class="bz-sub">${title}</div>
-    <div class="cgrid">${QUEST.map(([id,name])=>{
+    <div class="cgrid">${TABLES.map(([id])=>{
+      const name=TABLE_NAMES[id];
       const label=title+' '+name;
       const hit=n(S[nKey],id),d=n(S[dKey],id);
       const disabled=ctx.mode<0&&d<=hit?' disabled aria-disabled="true"':'';
       return `<div class="crow quest-row">
         <div class="lbl"><div class="nm">${name}</div><div class="pct">${ctx.pct(hit,d)}</div></div>
         <div class="cycle-actions">
-          <button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${dKey}" data-n="${nKey}" data-q="${id}" data-r="win" data-label="${label} 成功" aria-label="${label} 成功">${id==='at'?'＋':'成功'}</button>
-          ${id==='at'?'':`<button type="button" class="cycle-btn" data-action="bzQuest" data-d="${dKey}" data-q="${id}" data-r="miss" data-label="${label} 失敗" aria-label="${label} 失敗"${disabled}>失敗</button>`}
+          <button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${dKey}" data-n="${nKey}" data-q="${id}" data-r="win" data-label="${label} 成功" aria-label="${label} 成功">${id==='t7'?'＋':'成功'}</button>
+          ${id==='t7'?'':`<button type="button" class="cycle-btn" data-action="bzQuest" data-d="${dKey}" data-q="${id}" data-r="miss" data-label="${label} 失敗" aria-label="${label} 失敗"${disabled}>失敗</button>`}
         </div>
       </div>`;
     }).join('')}</div>
-  `).join('')+`<div class="hint">結果を押すと配列メモに保存されます。</div><div class="hint">ブレイクゾーン終了時に、どのアイコンからクエストへ発展したかを記録します。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。クエストの結果まで見てから［成功］［失敗］を押してください。設定差は公表されていません。記録してサンプルを集める項目です。</div><div class="hint">訂正は減算モードで同じボタンを押します</div></section>`+`<section class="sec">
-    <div class="sec-h">クエスト成功率（合算）</div>
-    <div class="cgrid">${QUEST.map(([id,name])=>`<div class="crow quest-row"><div class="lbl"><div class="nm">${name}</div></div><div class="pct">${ctx.pct(questHit(S,id),questD(S,id))}</div></div>`).join('')}</div>
+  `).join('')+`<div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。BZ開始時に、並んだアイコンの1個目を見てテーブルを選びます（1個目でテーブルが決まります）。BZとその後のクエストが終わったら、ATに当選したかで［成功］［失敗］を押してください。テーブル7はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。訂正は減算モードで同じボタンを押します。設定差は公表されていません。記録してサンプルを集める項目です。</div></section>`+`<section class="sec">
+    <div class="sec-h">テーブル別 成功率（合算）</div>
+    <div class="cgrid">${TABLES.map(([id])=>`<div class="crow quest-row"><div class="lbl"><div class="nm">${TABLE_NAMES[id]}</div></div><div class="pct">${ctx.pct(questHit(S,id),questD(S,id))}</div></div>`).join('')}</div>
     <div class="hint">テンプレに出る成功率です（1回目＋2回目以降）</div>
   </section>`;}
   // サブラベルだけを段位表記の出典にする。強さの判定には数値rankを使う。
@@ -289,9 +240,9 @@
   function tplText(ctx){const S=ctx.S,g=hitSum(S),e=S.atEnd;
     // 正本の空白・異体字セレクタ・改行を保持し、56箇所の値だけ置換する。
     const values=[
-      ...QUEST.map(c=>n(S.bzT1,c[0])+'回'),
-      ...QUEST.map(c=>n(S.bzT2,c[0])+'回'),
-      ...QUEST.map(c=>questHit(S,c[0])+'/'+questD(S,c[0])),
+      ...TABLES.map(c=>n(S.bzT1,c[0])+'回'),
+      ...TABLES.map(c=>n(S.bzT2,c[0])+'回'),
+      ...TABLES.map(c=>questHit(S,c[0])+'/'+questD(S,c[0])),
       ...BZ.map(c=>n(S.bz,c[0]+'N')+'/'+n(S.bz,c[0]+'D')),
       ...CYCLE.map(c=>n(S.cycle,c[0])+'回'),
       ...CZ_TYPE.map(c=>n(S.czType,c[0])+'回'),
@@ -306,9 +257,7 @@
       const s=typeof v==='number'?v+'回':v;
       return m.startsWith('▶')?m+s:s;
     });
-    const memo=iconLogLines(S);
-    const body=memo.length?text.replace('■BZ配列メモ\n',()=> '■BZ配列メモ\n'+memo.join('\n')+'\n'):text;
-    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / AT${countRate(g,hitCount(S))}\n_______\n\n${body}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / AT${countRate(g,hitCount(S))}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
   }
   function detailItems(arr,state){return arr.map(c=>({label:c[1],value:n(state,c[0]),hot:c[3]>0}));}
   function detail(ctx){const S=ctx.S;return [
@@ -320,28 +269,9 @@
   ];}
   window.CheckerConfigs.mhsunbreak={
     uiV2:true,nanaCollab:true,storageKey:'mhsunbreak-checker-v1',defaults:DEF,mergeKeys:MERGE_KEYS,sourceUrl:SOURCE,normalizeState,
-    arrayDefaults:[{key:'iconPending',max:10,filter:k=>ICON_KEYS.has(k)},{key:'iconLog',max:200,filter:isIconLogRow}],
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
     actions:{
       bzQuest:bzQuestAction,
-      bzIconAdd:(ctx,ds)=>{
-        if(!ICON_KEYS.has(ds.icon)||ctx.S.iconPending.length>=10)return false;
-        ctx.S.iconPending.push(ds.icon);
-        return `アイコン ${ICON_NAMES[ds.icon]} を追加`;
-      },
-      bzIconBack:ctx=>{
-        if(!ctx.S.iconPending.length)return false;
-        return `アイコン ${ICON_NAMES[ctx.S.iconPending.pop()]} を戻しました`;
-      },
-      bzIconClear:ctx=>{
-        if(!ctx.S.iconPending.length)return false;
-        ctx.S.iconPending=[];return '入力中の配列をクリアしました';
-      },
-      bzIconDel:(ctx,ds)=>{
-        const index=Number(ds.index);
-        if(!Number.isInteger(index)||index<0||index>=ctx.S.iconLog.length)return false;
-        ctx.S.iconLog.splice(index,1);return '配列メモを削除しました';
-      },
       // 素の入力欄を直接読む。減算モードでも追加・削除の意味は変えない。
       addHit:(ctx)=>{
         const el=document.getElementById('hitIn');

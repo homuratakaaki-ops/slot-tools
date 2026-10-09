@@ -1,4 +1,4 @@
-// v02 は歴史的正本、現在の出力は v03。
+// v02 は歴史的正本、現在の出力は v04。
 // Release comparison for the explicitly authorized MH v02 change.
 import fs from 'node:fs';
 import vm from 'node:vm';
@@ -22,7 +22,9 @@ const v03=read('docs/specs/mhsunbreak-nana-template-v03.txt');
 assert.equal(Buffer.byteLength(v03),1900);
 assert.ok(!v03.includes('\r'));
 bytes(v03,original.replace('■レア役からのBZ当選率','■BZ配列メモ\n\n■レア役からのBZ当選率'));
-const filled=v03.split('■').map(s=>s.replace(/▶︎ (?=\n)/g,'▶︎ '+(s.startsWith('クエスト成功率')?'0/0':'0回'))).join('■');
+const v04=read('docs/specs/mhsunbreak-nana-template-v04.txt');
+bytes(v04,original);
+const filled=v04.split('■').map(s=>s.replace(/▶︎ (?=\n)/g,'▶︎ '+(s.startsWith('クエスト成功率')?'0/0':'0回'))).join('■');
 const current=load('mhsunbreak',read('checker-data/mhsunbreak.js')),old=load('mhsunbreak',before('checker-data/mhsunbreak.js'));
 const output=current.template(ctx(clone(current.defaults)));
 bytes(output.split('_______\n\n')[1].split('\n\nby slot-tools.jp')[0],filled);
@@ -33,7 +35,7 @@ console.log('PASS original SHA256/1881 bytes, 34 blanks, 56 slots; normalized ze
 const ids=Object.keys(current.defaults.questN1);
 for(const id of ids){
   const S=clone(current.defaults);S.bzT1[id]=2;S.bzT2[id]=3;S.questN1[id]=9;S.questN2[id]=9;S.questN1.future=17;
-  const out=current.normalizeState(S);assert.equal(out.questN1[id],2);assert.equal(out.questN2[id],3);assert.equal(out.questN1.future,17);
+  const out=current.normalizeState(S);assert.equal(out.questN1[id],2);assert.equal(out.questN2[id],3);assert.ok(!Object.hasOwn(out.questN1,'future'));
   assert.deepEqual(clone(current.normalizeState(clone(out))),clone(out));
 }
 const legacyState=clone(old.defaults);legacyState.atEnd.jay=3;
