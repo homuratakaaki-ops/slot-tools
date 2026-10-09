@@ -112,7 +112,8 @@ test('template buffers equal 006e842 for zero and all table rows',()=>{
   }
 });
 test('all 28 checker headers omit UI version labels and use the ・ separator',()=>{
-  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html'));
+  // mhsunbreak-test-checker.html は PR #30 の実機検収用のテスト版。公開物の数には入れない。
+  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html')&&p!=='mhsunbreak-test-checker.html');
   assert.equal(files.length,28);
   for(const file of files){
     const headers=[...read(file).matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>/g)];
