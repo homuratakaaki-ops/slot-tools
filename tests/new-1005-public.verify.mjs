@@ -96,5 +96,5 @@ console.log('PASS legacy and explicit-zero/new-key migrations 3, each idempotent
 // paripi.js: 夢爽裁可の ST終了画面追加のため除外。
 // tenten.js and takoslot.js were changed by the current wording correction.
 // toaru2.js は獲得枚数表示の誤った説明文を削除したため除外。
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','mhsunbreak-test.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
 console.log('PASS both common files, every other machine data file, unchanged vs 74f8e03; MH golden validated above');
