@@ -126,19 +126,21 @@ try{
   `});
   await send('Page.navigate',{url:origin+'/harness'});await pause(100);
   for(const id of ['juuou','paripi','tenten','mhsunbreak']){
-    const cardTab=id==='mhsunbreak'?3:['tenten','paripi'].includes(id)?2:1;
+    const cardTab=['mhsunbreak','paripi'].includes(id)?3:id==='tenten'?2:1;
     await clear(id);
     assert.equal(await frame(`return d.querySelector('#hitIn,#gIn,[data-number-key="gamesMyslo"]').closest('section').querySelector('details')===null;`),!['juuou','mhsunbreak'].includes(id));
     const countKey=id==='juuou'?'sc':id==='paripi'?'cz':'at';
+    const rateSelector=['mhsunbreak','paripi'].includes(id)?'.sumrow':'[data-c="counts.'+countKey+'"]';
+    const rateText=id==='paripi'?'計1回 1/1000.0':'現在 1/1000.0';
     if(id==='mhsunbreak'){
       assert.equal(await frame(`return d.querySelector('.sumrow .num').textContent;`),'0');
       assert.equal(await frame(`return d.querySelector('[data-c="counts.at"]');`),null);
       await bump('cycle.c1'); // Keep detail output nonempty while hit count remains zero.
     }else{
-      await bump('counts.'+countKey);
-      assert.equal((await state()).counts[countKey],1);
+      await bump(id==='paripi'?'czType.sanka':'counts.'+countKey);
+      assert.equal(id==='paripi'?(await state()).czType.sanka:(await state()).counts[countKey],1);
     }
-    assert.equal(await frame(`return d.querySelector(${JSON.stringify(id==='mhsunbreak'?'.sumrow':'[data-c="counts.'+countKey+'"]')}).textContent.includes('現在');`),false);
+    assert.equal(await frame(`return d.querySelector(${JSON.stringify(rateSelector)}).textContent.includes('現在');`),false);
     await tab(cardTab);await pause(120);
     let c=await canvas('cardCanvas');assert.ok(c.bright>1000&&c.opaque===c.width*c.height);
     assert.ok(!c.text.some(t=>/1\/\d/.test(t.text)));
@@ -152,7 +154,7 @@ try{
     const plain=await copy(true);assert.ok(plain.includes('→'));assert.ok(!/[▶↪\uFE0E\uFE0F]/u.test(plain));
     await click('#detailBtn');c=await canvas('detailCanvas');assert.ok(c.bright>1000);assert.ok(c.text.some(t=>t.text.includes('1/1000.0')));saveCanvas(id+'-detail',c);
     pass(id+' card/detail pixels and both copy buttons');
-    await tab(0);assert.ok(await frame(`return d.querySelector(${JSON.stringify(id==='mhsunbreak'?'.sumrow':'[data-c="counts.'+countKey+'"]')}).textContent.includes('現在 1/1000.0');`));
+    await tab(0);assert.ok(await frame(`return d.querySelector(${JSON.stringify(rateSelector)}).textContent.includes(${JSON.stringify(rateText)});`));
     pass(id+' games input updates rate');
     const before=await state();
     // games is a derived display cache for the pair; save occurs before pages syncs it.
@@ -399,10 +401,90 @@ try{
   assert.ok(allCard.bright>1000&&allCard.opaque===allCard.width*allCard.height);
   pass('MH all-31 summary: 5+5 rows, Y896, fitted visible bounds and pixels',{rows:summary,minFont,overflow:overflow.length,leftOverhang,lastY:Math.max(...summary.map(t=>t.y))});
   saveCanvas('mhsunbreak-all-card',allCard);await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
+  // AT interval acceptance: every operation uses the production button handler.
+  const atCurrent=s=>s.atLog.sessions.at(-1);
+  const emptyAt={start:{known:true,prior:0},events:[],closed:false};
+  const atClick=(t,extra='')=>click(`[data-action="atEvent"][data-t="${t}"]${extra}`);
+  const atQuest=(table='t1',r='miss',d='bzT1')=>click(`[data-action="bzQuest"][data-d="${d}"][data-q="${table}"][data-r="${r}"]`);
+  const atRows=()=>frame(`return [...d.querySelectorAll('.at-row .nm')].filter(e=>!e.closest('details')).map(e=>e.textContent);`);
+  await clear('mhsunbreak');await tab(2);
+  assert.equal(await frame(`return d.querySelectorAll('[data-action="atStart"]').length;`),8);
+  assert.equal(await frame(`return d.querySelector('[data-action="atStart"].on').getAttribute('aria-pressed');`),'true');
+  await atQuest();
+  assert.deepEqual(await atRows(),['BZ1回目 テーブル1（QUEST青）失敗']);
+  assert.equal(await frame(`return d.querySelector('.at-sc').textContent;`),'シナリオH濃厚：3回目のBZでAT濃厚');
+  // §5: after BZ1 the first group is disabled, the later group is enabled.
+  assert.equal(await frame(`return [...d.querySelectorAll('[data-action="bzQuest"][data-d="bzT1"]')].every(e=>e.disabled&&e.getAttribute('aria-disabled')==='true');`),true);
+  assert.equal(await frame(`return [...d.querySelectorAll('[data-action="bzQuest"][data-d="bzT2"]')].every(e=>!e.disabled);`),true);
+  assert.ok((await frame(`return [...d.querySelectorAll('.bz-sub')].map(e=>e.textContent);`)).includes('1回目今は2回目'));
+  assert.equal(await frame(`return d.querySelectorAll('[data-action="atStart"]').length;`),0);
+  await click('#undoBtn');assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await state()).bzT1.t1,0);
+  pass('MH AT log BZ1/H, correct group lock and atomic undo of count plus event');
+  await atClick('fuku','[data-r="miss"]');await atQuest('t2');
+  assert.deepEqual(await atRows(),['福引 失敗','BZ1回目 テーブル2（QUEST黄）失敗']);
+  assert.deepEqual((await state()).czType,{breakzone:0,airou:0});
+  pass('MH AT log fuku miss does not advance BZ numbering or CZ counters');
+  for(const c of ['jay','bahari','jay'])await atClick('eye',`[data-c="${c}"]`);
+  assert.equal(await frame(`return d.querySelector('.at-top').textContent;`),'バハリ（緑）：シナリオE以上濃厚');
+  const beforeDelete=await state();await click('[data-action="atDel"][data-index="3"]');
+  assert.equal(atCurrent(await state()).events.length,4);
+  assert.equal(await frame(`return d.querySelector('.at-top').textContent;`),'ジェイ（白）：シナリオB以上濃厚');
+  assert.deepEqual((await state()).bzT1,beforeDelete.bzT1);
+  await click('#undoBtn');assert.deepEqual(await state(),beforeDelete);
+  pass('MH AT log strongest eye, row deletion and deletion undo');
+  await click('#modeBtn');
+  assert.equal(await frame(`return [...d.querySelectorAll('[data-action="atEvent"]')].every(e=>e.disabled);`),true);
+  await atClick('otherAt');assert.deepEqual(await state(),beforeDelete);
+  await atQuest('t2');assert.equal((await state()).bzT1.t2,0);assert.deepEqual((await state()).atLog,beforeDelete.atLog);
+  await click('#undoBtn');await click('#modeBtn');assert.deepEqual(await state(),beforeDelete);
+  pass('MH AT log minus only changes count and disables event recording');
+  await atClick('fuku','[data-r="win"]');
+  assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await state()).atLog.sessions[0].closed,true);
+  assert.equal(await frame(`return d.querySelector('.hit-more').open;`),false);
+  assert.equal(await frame(`return d.querySelector('.hit-more summary').textContent;`),'過去のAT間（1件）');
+  await click('.hit-more summary');
+  assert.equal(await frame(`return d.querySelector('.at-past .at-top').textContent;`),'バハリ（緑）：シナリオE以上濃厚');
+  assert.equal(await frame(`return d.querySelectorAll('.at-past [data-action="atDel"]').length;`),0);
+  pass('MH AT log fuku win closes interval; folded past retains hints without delete');
+  const beforeReset=await state();await tab(0);await reset();assert.deepEqual((await state()).atLog,{sessions:[emptyAt]});
+  await click('#undoBtn');assert.deepEqual((await state()).atLog,beforeReset.atLog);
+  await load('mhsunbreak');assert.deepEqual((await state()).atLog,beforeReset.atLog);
+  await tab(1);await bump('atEnd.jay');await click('#undoBtn');assert.deepEqual((await state()).atLog,beforeReset.atLog);
+  pass('MH AT log reset/undo, reload persistence and unrelated undo preservation');
+  await tab(2);await atQuest('t7','win');assert.deepEqual(atCurrent(await state()),emptyAt);
+  assert.equal((await state()).atLog.sessions.length,3);await click('#undoBtn');assert.deepEqual((await state()).atLog,beforeReset.atLog);
+  await atClick('otherAt');assert.equal((await state()).atLog.sessions.length,3);assert.deepEqual(atCurrent(await state()),emptyAt);
+  pass('MH AT log table7 plus and other AT both start fresh intervals');
+  await clear('mhsunbreak');await tab(2);await click('[data-action="atStart"][data-prior="2"]');
+  assert.equal(await frame(`return d.querySelector('[data-action="atStart"][data-prior="2"]').getAttribute('aria-pressed');`),'true');
+  assert.equal(await frame(`return [...d.querySelectorAll('[data-d="bzT1"]')].every(e=>e.disabled);`),true);
+  await atQuest('t1','miss','bzT2');assert.deepEqual(await atRows(),['BZ3回目 テーブル1（QUEST青）失敗']);
+  assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
+  await click('#undoBtn');await click('#undoBtn');assert.deepEqual(atCurrent(await state()).start,{known:true,prior:0});
+  await click('[data-action="atStart"][data-known="false"]');
+  assert.equal(await frame(`return [...d.querySelectorAll('[data-action="bzQuest"]')].every(e=>!e.disabled);`),true);
+  await atQuest();assert.deepEqual(await atRows(),['BZ テーブル1（QUEST青）失敗']);
+  assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
+  pass('MH AT log prior2 and unknown start via real selected buttons');
+  for(const width of [360,390]){
+    await clear('mhsunbreak',width);await tab(2);await measure('mhsunbreak-at-start-'+width);
+    // 空のAT間メモは「まだありません」と説明の2本。説明は最後の1本。
+    assert.deepEqual(await frame(`return [...d.querySelectorAll('section')[1].querySelectorAll('.hint')].map(e=>e.textContent.slice(0,7));`),['まだありません','AT間ごとに、']);
+    await atQuest();for(const c of ['jay','bahari','jay'])await atClick('eye',`[data-c="${c}"]`);
+    await atClick('fuku','[data-r="win"]');await atClick('serif','[data-c="s4"]');await click('.hit-more summary');
+    await measure('mhsunbreak-at-log-'+width);
+    const inline=await frame(`const hint=d.querySelector('section .hint');return {text:[...hint.childNodes].filter(e=>e.nodeType===3).map(e=>e.textContent).join('').trim(),details:hint.querySelector('details')?.open};`);
+    assert.equal(inline.text,'BZ開始時のアイコン1個目でテーブルが決まります。');assert.equal(inline.details,false);
+    assert.equal(await frame(`return [...d.querySelectorAll('.at-btn[data-t="eye"],.at-btn[data-t="serif"]')].every(e=>e.getBoundingClientRect().height>=48);`),true);
+    await frame(`d.querySelector('.at-top').scrollIntoView({block:'start'});`);
+    const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:740,scale:1}});
+    fs.writeFileSync(path.join(artifacts,'mhsunbreak-at-log-'+width+'.png'),Buffer.from(shot.data,'base64'));
+    pass('MH AT log '+width+' inline hint, 48px picks and rendered screenshot');
+  }
   // v04: rendered table structure at real viewport widths.
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);
-    assert.deepEqual(await frame("return [...d.querySelectorAll('.sec-h')].map(e=>e.textContent.trim());"),['テーブル別の結果','テーブル別 成功率（合算）']);
+    assert.deepEqual(await frame("return [...d.querySelectorAll('.sec-h')].map(e=>e.firstChild.textContent.trim());"),['テーブル別の結果','AT間メモ','テーブル別 成功率（合算）']);
     assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),21);
     assert.equal(await frame('return d.querySelectorAll(".quest-row button").length;'),26);
     assert.equal(await frame('return d.querySelectorAll("[data-q=t7][data-r=miss]").length;'),0);
@@ -414,6 +496,7 @@ try{
   }
   // MH template v02: actual BZ buttons and persisted state.
   await clear('mhsunbreak');await tab(2);
+  await click('[data-action="atStart"][data-known="false"]');
   const questIds=['t1','t2','t3','t4','t5','t6','t7'];
   const nKeyOf=key=>key==='bzT1'?'questN1':'questN2';
   const questClick=(key,id,success)=>click(`[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="${success?'win':'miss'}"]`);
