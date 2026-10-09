@@ -1,0 +1,79 @@
+name: night-merge
+
+# データ形式が変わる・画面が大きく変わる更新を、閉店後にマージするための仕組み（AGENTS §9-108）。
+# night-merge ラベルの付いた open の PR だけを対象にする。ラベルが無い PR は触らない。
+on:
+  schedule:
+    # 毎日 15:00 UTC ＝ JST 0:00
+    - cron: '0 15 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: night-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    steps:
+      - name: ラベルの付いた PR をマージする
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          LABEL: night-merge
+        run: |
+          set -u
+          numbers=$(gh pr list --state open --label "$LABEL" --json number --jq '.[].number')
+          if [ -z "$numbers" ]; then
+            echo "$LABEL の付いた open の PR はありません"
+            exit 0
+          fi
+          for n in $numbers; do
+            echo "::group::PR #$n"
+            info=$(gh pr view "$n" --json title,isDraft,headRefName,headRepositoryOwner --jq '[.title,(.isDraft|tostring),.headRefName,.headRepositoryOwner.login]|@tsv')
+            title=$(printf '%s' "$info" | cut -f1)
+            draft=$(printf '%s' "$info" | cut -f2)
+            branch=$(printf '%s' "$info" | cut -f3)
+            owner=$(printf '%s' "$info" | cut -f4)
+            if [ "$draft" = "true" ]; then
+              gh pr comment "$n" --body "night-merge: 下書き（draft）のためマージしませんでした。"
+              echo "::warning::PR #$n は draft のため見送り"
+              echo "::endgroup::"
+              continue
+            fi
+            # mergeable は要求してから計算されるため、UNKNOWN の間は少し待つ
+            mergeable=UNKNOWN
+            for _ in 1 2 3 4 5 6; do
+              mergeable=$(gh pr view "$n" --json mergeable --jq .mergeable)
+              [ "$mergeable" = "UNKNOWN" ] || break
+              sleep 10
+            done
+            if [ "$mergeable" != "MERGEABLE" ]; then
+              state=$(gh pr view "$n" --json mergeStateStatus --jq .mergeStateStatus)
+              gh pr comment "$n" --body "night-merge: マージできない状態（mergeable=$mergeable / $state）のため、マージしませんでした。競合などを解消したうえで、あらためて $LABEL ラベルを付けてください。"
+              echo "::warning::PR #$n はマージできない状態（$mergeable / $state）"
+              echo "::endgroup::"
+              continue
+            fi
+            if gh pr merge "$n" --merge; then
+              echo "PR #$n をマージしました: $title"
+              if [ "$owner" = "${GH_REPO%%/*}" ]; then
+                gh api -X DELETE "repos/$GH_REPO/git/refs/heads/$branch" >/dev/null 2>&1 \
+                  && echo "ブランチ $branch を削除しました" \
+                  || echo "::warning::ブランチ $branch の削除に失敗（手で消してください）"
+              else
+                echo "fork のブランチ（$owner）なので削除しません"
+              fi
+              gh pr edit "$n" --remove-label "$LABEL" >/dev/null 2>&1 \
+                && echo "ラベル $LABEL を外しました" \
+                || echo "::warning::ラベル $LABEL を外せませんでした"
+            else
+              gh pr comment "$n" --body "night-merge: マージの実行に失敗しました。Actions のログを確認してください。"
+              echo "::warning::PR #$n のマージに失敗"
+            fi
+            echo "::endgroup::"
+          done
