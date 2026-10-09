@@ -26,10 +26,12 @@ const t3=S=>{
 // Exercise the paths declared by the generated button; production clicks are
 // covered separately by new-1005-four-machines.browser.mjs.
 function tap(S,key,id,success){
+  S.atLog.sessions[0].start={known:false};
   const nKey=key==='bzT1'?'questN1':'questN2';
   const paths=key+'.'+id+(success?','+nKey+'.'+id:'');
   const button=[...html(S).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]).find(b=>b.includes('data-action="bzQuest"')&&b.includes('data-d="'+key+'"')&&b.includes('data-q="'+id+'"')&&b.includes('data-r="'+(success?'win':'miss')+'"'));
   assert.ok(button,paths);
+  assert.doesNotMatch(button,/disabled/);
   const d=button.match(/data-d="([^"]+)"/)[1],q=button.match(/data-q="([^"]+)"/)[1];
   S[d][q]++;
   if(button.includes('data-r="win"'))S[d==='bzT1'?'questN1':'questN2'][q]++;
@@ -48,14 +50,17 @@ test('group independence and read-only seven-row aggregate',()=>{
   assert.doesNotMatch(aggregate,/<button\b|data-(?:c|bump|bump-many)=/);
   assert.ok(aggregate.includes('テンプレに出る成功率です（1回目＋2回目以降）'));
 });
-test('one success changes exactly two state paths',()=>{
-  const S=clone(config.defaults),before=clone(S);tap(S,'bzT1','t3',true);
+test('one success changes exactly five state paths including AT log',()=>{
+  const S=clone(config.defaults);S.atLog.sessions[0].start={known:false};
+  const before=clone(S);config.actions.bzQuest(ctx(S),{d:'bzT1',q:'t3',r:'win'});
   function diff(a,b,p=''){return Object.keys({...a,...b}).flatMap(k=>{
     const path=p?p+'.'+k:k;
     if(JSON.stringify(a[k])===JSON.stringify(b[k]))return [];
     return a[k]&&b[k]&&typeof a[k]==='object'&&typeof b[k]==='object'?diff(a[k],b[k],path):[path];
   });}
-  assert.deepEqual(diff(before,S).sort(),['bzT1.t3','questN1.t3']);
+  const paths=diff(before,S).sort();
+  console.log('Measured success delta paths: '+paths.join(', '));
+  assert.deepEqual(paths,['atLog.sessions.0.closed','atLog.sessions.0.events.0','atLog.sessions.1','bzT1.t3','questN1.t3']);
 });
 test('per-group clamp and minus failure guard',()=>{
   const S=clone(config.defaults);
@@ -107,8 +112,7 @@ test('template buffers equal 006e842 for zero and all table rows',()=>{
   }
 });
 test('all 28 checker headers omit UI version labels and use the ・ separator',()=>{
-  // mhsunbreak-test-checker.html は PR #30 の実機検収用のテスト版。公開物の数には入れない。
-  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html')&&p!=='mhsunbreak-test-checker.html');
+  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html'));
   assert.equal(files.length,28);
   for(const file of files){
     const headers=[...read(file).matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>/g)];
