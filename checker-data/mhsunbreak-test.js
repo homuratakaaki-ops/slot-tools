@@ -125,11 +125,12 @@
     ['chiche','チッチェ','紫','シナリオG以上濃厚']
   ];
   // チッチェのセリフ。次回BZレベルの示唆（出典: 同上）。
+  // [キー, 示唆, セリフの見分けどころ]
   const SERIF=[
-    ['s1','次回BZレベルHI以上期待度UP(弱)'],
-    ['s2','次回BZレベルHI以上期待度UP(強)'],
-    ['s3','次回BZレベルHI以上濃厚'],
-    ['s4','次回BZレベルSP濃厚']
+    ['s1','次回BZレベルHI以上期待度UP(弱)','どちらのクエスト'],
+    ['s2','次回BZレベルHI以上期待度UP(強)','おすすめしたいクエスト'],
+    ['s3','次回BZレベルHI以上濃厚','重要なクエスト'],
+    ['s4','次回BZレベルSP濃厚','珍しい依頼']
   ];
   // 一撃の「ブレイクゾーン当選回数ごと」に準拠し、BZ番号は福引を数えない。
   // true にすると福引も数える（切り替えはこの定数1か所だけで済むようにする）。
@@ -178,7 +179,7 @@
     const start=ds.known==='false'?{known:false}:{known:true,prior};
     if(JSON.stringify(currentAt(ctx.S).start)===JSON.stringify(start))return false;
     currentAt(ctx.S).start=start;
-    return '開始：'+(!start.known?'不明':start.prior?'既にBZ'+start.prior+'回':'朝一・AT後から');
+    return '開始：'+(!start.known?'不明':start.prior?'既にBZ'+start.prior+'回':'リセット後・AT後から');
   }
   function atEventText(session,index){
     const e=session.events[index];
@@ -218,15 +219,15 @@
     const disabled=ctx.mode<0?' disabled aria-disabled="true"':'';
     const startButton=(known,prior,label)=>{const selected=session.start.known===known&&(!known||session.start.prior===prior);return `<button type="button" class="at-btn${selected?' on':''}" data-action="atStart" data-known="${known}"${known?` data-prior="${prior}"`:''} aria-pressed="${selected}">${label}</button>`;};
     return `<section class="sec"><div class="sec-h">AT間メモ<span class="sub">過去 ${past.length}件</span></div>
-      ${canAtStart(S)?`<div class="bz-sub">このAT間の開始</div><div class="at-pick">${startButton(true,0,'朝一・AT後から')}${Array.from({length:AT_PRIOR_MAX},(_,i)=>startButton(true,i+1,'既にBZ'+(i+1)+'回')).join('')}${startButton(false,0,'途中から：不明')}</div>`:atStartLine(session)?`<div class="bz-sub">${atStartLine(session)}</div>`:''}
+      ${canAtStart(S)?`<div class="bz-sub">このAT間の開始</div><div class="at-pick">${startButton(true,0,'リセット後・AT後から')}${Array.from({length:AT_PRIOR_MAX},(_,i)=>startButton(true,i+1,'既にBZ'+(i+1)+'回')).join('')}${startButton(false,0,'途中から：不明')}</div>`:atStartLine(session)?`<div class="bz-sub">${atStartLine(session)}</div>`:''}
       ${atSummary(session)}<div class="cgrid">${atRows(session,true)}</div>
       ${past.length?`<details class="hit-more"><summary>過去のAT間（${past.length}件）</summary>${past.map((s,i)=>`<div class="at-past"><div class="at-past-h">${i+1}つ前のAT間</div>${atStartLine(s)?`<div class="bz-sub">${atStartLine(s)}</div>`:''}${atSummary(s)}<div class="cgrid">${atRows(s,false)}</div></div>`).join('')}</details>`:''}
       <div class="bz-sub">アイキャッチ（ステージチェンジ）</div><div class="at-pick">${EYE.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="eye" data-c="${c[0]}"${disabled}><b>${c[1]}（${c[2]}）</b><small>${c[3]}</small></button>`).join('')}</div>
-      <div class="bz-sub">チッチェのセリフ</div><div class="at-pick">${SERIF.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="serif" data-c="${c[0]}"${disabled}>${c[1]}</button>`).join('')}</div>
+      <div class="bz-sub">チッチェのセリフ</div><div class="at-pick">${SERIF.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="serif" data-c="${c[0]}" aria-label="セリフ 「${c[2]}」 ${c[1]}"${disabled}><b>「${c[2]}」</b><small>${c[1]}</small></button>`).join('')}</div>
       <div class="bz-sub">アイルー福引</div><div class="at-pick">${['win','miss'].map(r=>`<button type="button" class="at-btn" data-action="atEvent" data-t="fuku" data-r="${r}" aria-label="アイルー福引 ${r==='win'?'成功':'失敗'}"${disabled}>${r==='win'?'成功':'失敗'}</button>`).join('')}</div>
       <div class="bz-sub">そのほか</div><div class="at-pick"><button type="button" class="at-btn" data-action="atEvent" data-t="otherAt"${disabled}>BZ以外でAT</button></div>
-      ${ctx.mode<0?'<div class="hint">減算モードはテーブル別の回数だけを戻します。AT間メモは行の［削除］か「↩ 取消」で直します</div>':''}
-      <div class="hint">AT間ごとに、出た順でメモを残します。AT終了から次のAT当選までを1つのAT間として、BZ・アイルー福引・アイキャッチ・チッチェのセリフを押した順に並べます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。アイキャッチはステージチェンジで出て、滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。BZ成功・福引成功・［BZ以外でAT］を押すと、そのAT間を閉じて次のAT間を始めます。行の［削除］はメモの行だけを消します（テーブル別の回数は減算モードで直します）。設定推測には使いません。出典は一撃様です。</div>
+      ${ctx.mode<0?'<div class="hint">減算はテーブル別の回数だけを直します（AT間メモは各行の［削除］か「↩ 取消」で直します）。</div>':''}
+      <div class="hint">AT間ごとに、出た順でメモを残します。AT終了から次のAT当選までを1つのAT間として、BZ・アイルー福引・アイキャッチ・チッチェのセリフを押した順に並べます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。据え置きの朝一は前日のAT間の続きなので、［途中から］を選んでください。アイキャッチはステージチェンジで出て、滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。BZ成功・福引成功・［BZ以外でAT］を押すと、そのAT間を閉じて次のAT間を始めます。減算はテーブル別の回数だけを直します（AT間メモは各行の［削除］か「↩ 取消」で直します）。設定推測には使いません。出典は一撃様です。</div>
     </section>`;
   }
   // 旧データ（10マス配列メモ）の移行。1個目のアイコンでテーブルを判定する（夢爽承認 2026/10/9）。
