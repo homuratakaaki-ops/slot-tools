@@ -244,14 +244,18 @@
       return '';
     }).filter(Boolean).join(' → ');
   }
-  // ■AT間メモ。イベントのあるAT間だけを古い順に2行ずつ。空のときは1バイトも足さない（v04 と一致）。
+  // ■AT間メモ。イベントのあるAT間だけを古い順に。流れがあれば2行、無ければ見出しの1行。
+  // AT間メモが空（またはチェックOFF）のときは1バイトも足さない（v04 と一致）。
   function tplAtLogBlock(S){
     if(!tplAtLogOn())return '';
     const list=(S.atLog&&Array.isArray(S.atLog.sessions)?S.atLog.sessions:[]).filter(s=>s.events.length);
     if(!list.length)return '';
     return '\n\n■AT間メモ\n'+list.map((s,i)=>{
       const eye=strongestEye(s);
-      return 'AT間'+(i+1)+(eye?' '+TPL_EYES[eye[0]]:'')+(scenarioH(s)?' ｼﾅﾘｵH濃厚':'')+'\n'+tplAtFlow(s);
+      const head='AT間'+(i+1)+(eye?' '+TPL_EYES[eye[0]]:'')+(scenarioH(s)?' ｼﾅﾘｵH濃厚':'');
+      // 流れに出すものが無いAT間（アイキャッチだけ・s1/s2だけ）は空行を作らず見出しの1行だけにする
+      const flow=tplAtFlow(s);
+      return flow?head+'\n'+flow:head;
     }).join('\n');
   }
   function atStartLine(session){return !session.start.known?'開始：不明':session.start.prior?'開始：既にBZ'+session.start.prior+'回':'';}
