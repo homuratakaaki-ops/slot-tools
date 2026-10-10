@@ -244,6 +244,150 @@
       return '';
     }).filter(Boolean).join(' → ');
   }
+  // ===== BZシナリオの候補絞り =====
+  // 出典: 一撃様 https://1geki.jp/slot/l_mh_sun/48/ ・ /57/ と
+  // ちょんぼりすた様 https://chonborista.com/slot/enta-slot/264514/ の表。
+  // 2026/10/10 に両者を再照合して一致を確認した（シナリオ×回数のレベル／レベル別のテーブル振り分け）。
+  // シナリオ選択率は設定1の数値しか公表されていないので、候補は「表から確実に言えること」だけで絞る。
+  // [シナリオ, ブレイクゾーン当選回数ごとのBZレベル]。配列に無い回数＝その回数のBZが起きない。
+  const SCENARIOS=[
+    ['A',['MID','LOW','LOW','HI','LOW','LOW','SP']],
+    ['B',['MID','LOW','HI','LOW','LOW','HI','SP']],
+    ['C',['MID','HI','LOW','HI','LOW','HI','SP']],
+    ['D',['MID','LOW','LOW','HI','HI','HI','SP']],
+    ['E',['MID','LOW','HI','HI','HI','HI','SP']],
+    ['F',['MID','HI','HI','HI','HI','HI','SP']],
+    ['G',['HI','HI','HI','HI','HI','HI','SP']],
+    ['H',['LOW','LOW','SP']],
+    ['I',['MID','MID','SP']]
+  ];
+  const SCENARIO_NAMES=SCENARIOS.map(c=>c[0]);
+  const SCENARIO_LEVELS=Object.fromEntries(SCENARIOS);
+  const SCENARIO_MAX=7;   // 解析の表は7回目まで。これより後の回数は絞り込みに使わない
+  // テーブル→そのテーブルが出るBZレベル（レベル別の振り分けを裏返したもの）
+  const TABLE_LEVELS={t1:['LOW'],t2:['LOW','MID'],t3:['LOW','MID','HI'],t4:['MID','HI'],t5:['HI'],t6:['HI'],t7:['HI','SP']};
+  // アイキャッチ＝「このシナリオ以上濃厚」。H・I はアルファベット順の外なので消さない
+  const EYE_MIN={jay:'B',luchika:'C',fiorene:'D',bahari:'E',galeas:'F',chiche:'G'};
+  // チッチェのセリフ＝次のBZのレベル。s1・s2（期待度UP）は絞り込みに使わない
+  const SERIF_LEVELS={s3:['HI','SP'],s4:['SP']};
+  function scenarioCandidates(session){
+    let keep=SCENARIO_NAMES.slice();
+    const known=!!session.start.known;
+    const levelAt=(name,no)=>{const a=SCENARIO_LEVELS[name];return no>=1&&no<=a.length?a[no-1]:null;};
+    const narrow=(no,allowed)=>{
+      if(no>SCENARIO_MAX)return;   // 表の範囲外は何も言えないので絞らない
+      keep=keep.filter(name=>{const lv=levelAt(name,no);return lv!==null&&allowed.indexOf(lv)>=0;});
+    };
+    let count=0;   // ここまでに数えたBZ（COUNT_FUKU_AS_CZ に従う）
+    for(const e of session.events){
+      const no=session.start.prior+count+1;
+      if(e.t==='eye'&&EYE_MIN[e.c]){
+        const min=EYE_MIN[e.c];
+        keep=keep.filter(name=>name>=min||name==='H'||name==='I');
+      }
+      if(known&&e.t==='serif'&&SERIF_LEVELS[e.c])narrow(no,SERIF_LEVELS[e.c]);
+      if(known&&e.t==='bz')narrow(no,TABLE_LEVELS[e.table]||[]);
+      if(countsForNo(e))count++;
+    }
+    return keep;
+  }
+  // カードに描く内容。描画と分けておき、テストはこの形で固定する。
+  function scenarioCardModel(S){
+    const sessions=(S.atLog&&Array.isArray(S.atLog.sessions)?S.atLog.sessions:[]).filter(s=>s.events.length);
+    const rows=sessions.map((s,i)=>({
+      label:'AT間'+(i+1),
+      eye:(()=>{const e=strongestEye(s);return e?{text:TPL_EYES[e[0]],color:e[4]}:null;})(),
+      scenarioH:scenarioH(s),
+      flow:s.events.map((e,index)=>{
+        if(e.t!=='bz')return null;
+        const no=bzNoAt(s,index);
+        return {no:no===null?'?':String(no),mark:TABLES.find(c=>c[0]===e.table)[1],color:TABLE_COLORS[e.table],result:e.r==='win'?'○':'×'};
+      }).filter(Boolean),
+      candidates:scenarioCandidates(s)
+    }));
+    const tables=TABLES.map(c=>({mark:c[1],color:c[4],hit:questHit(S,c[0]),count:questD(S,c[0])}));
+    return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。','候補は解析の表から確実に言えるものだけで絞っています。']};
+  }
+  // 1080×1080 の2枚目のカード。engine の描画には触らず、自分のキャンバスにだけ描く。
+  const SC_BG='#140f1c',SC_TXT='#f2eef5',SC_MUTED='#9a90a8',SC_GOLD='#ffc94d',SC_CYAN='#6fd8ff',SC_NG='#ff9b9b',SC_LINE='#2c2340';
+  const SC_ROWS=8;   // 1枚に載せるAT間の数（新しい方から）
+  function drawScenarioCard(S){
+    const cv=typeof document!=='undefined'&&document.getElementById('scenarioCanvas');
+    if(!cv||!cv.getContext)return false;
+    const x=cv.getContext('2d');
+    const model=scenarioCardModel(S);
+    const font=(size,weight)=>(weight||800)+' '+size+"px 'M PLUS 1p',sans-serif";
+    x.fillStyle=SC_BG;x.fillRect(0,0,1080,1080);
+    x.textBaseline='alphabetic';
+    x.fillStyle=SC_GOLD;x.font=font(46);x.fillText('BZシナリオカード',70,96);
+    x.fillStyle=SC_MUTED;x.font=font(22,500);x.fillText(TITLE,70,138);
+    x.strokeStyle=SC_LINE;x.lineWidth=2;
+    x.beginPath();x.moveTo(70,164);x.lineTo(1010,164);x.stroke();
+    let y=212;
+    const shown=model.rows.slice(-SC_ROWS);
+    const hidden=model.rows.length-shown.length;
+    if(!model.rows.length){
+      x.fillStyle=SC_MUTED;x.font=font(26,700);
+      x.fillText('AT間メモの記録がありません（BZタブで記録してください）',70,y);
+      y+=48;
+    }
+    for(const row of shown){
+      x.fillStyle=SC_TXT;x.font=font(30);
+      let cx=70;
+      x.fillText(row.label,cx,y);cx+=x.measureText(row.label).width+18;
+      if(row.eye){x.fillStyle=row.eye.color;x.font=font(26);x.fillText(row.eye.text,cx,y);cx+=x.measureText(row.eye.text).width+16;}
+      if(row.scenarioH){x.fillStyle=SC_GOLD;x.font=font(26);x.fillText('ｼﾅﾘｵH濃厚',cx,y);}
+      const cand=row.candidates.length?'候補：'+row.candidates.join('・'):'該当なし（記録を確認してください）';
+      x.font=font(26,700);x.fillStyle=row.candidates.length?SC_CYAN:SC_NG;
+      x.fillText(cand,1010-x.measureText(cand).width,y);
+      y+=38;cx=94;
+      x.font=font(26,700);
+      if(!row.flow.length){x.fillStyle=SC_MUTED;x.fillText('BZの記録なし',cx,y);}
+      for(const step of row.flow){
+        const head='BZ'+step.no+' ';
+        x.fillStyle=SC_MUTED;x.fillText(head,cx,y);cx+=x.measureText(head).width;
+        x.fillStyle=step.color;x.fillText(step.mark,cx,y);cx+=x.measureText(step.mark).width;
+        x.fillStyle=SC_TXT;x.fillText(step.result,cx,y);cx+=x.measureText(step.result).width+20;
+        if(cx>920){y+=34;cx=94;}
+      }
+      y+=46;
+    }
+    if(hidden>0){x.fillStyle=SC_MUTED;x.font=font(24,700);x.fillText('ほか '+hidden+'件（古いAT間）',70,y);y+=40;}
+    y=Math.max(y,852);
+    x.strokeStyle=SC_LINE;x.beginPath();x.moveTo(70,y-36);x.lineTo(1010,y-36);x.stroke();
+    x.fillStyle=SC_MUTED;x.font=font(24,700);x.fillText('テーブル別の成功／回数（1回目＋2回目以降）',70,y);
+    y+=44;
+    model.tables.forEach((t,i)=>{
+      const cx=70+i*134;
+      x.fillStyle=t.color;x.font=font(30);x.fillText(t.mark,cx,y);
+      x.fillStyle=SC_TXT;x.font=font(26,700);x.fillText(t.hit+'/'+t.count,cx+36,y);
+    });
+    y+=56;
+    x.fillStyle=SC_MUTED;x.font=font(21,500);
+    for(const line of model.note){x.fillText(line,70,y);y+=30;}
+    x.fillStyle=SC_MUTED;x.font=font(20,500);
+    x.fillText('by slot-tools.jp / 解析出典:一撃様・ちょんぼりすた様',70,1044);
+    return true;
+  }
+  let scenarioReady=false;
+  function scenarioSection(ctx){
+    // HTMLが入ったあとに描く。engine は機種側に描画後のフックを持たないので、
+    // 次のタスクに回して描画する（共通ファイルは変更しない）。
+    if(scenarioReady&&typeof setTimeout==='function')setTimeout(()=>drawScenarioCard(ctx.S),0);
+    return `<style>
+    /* 2枚目のキャンバスも画面幅に収める（共通CSSの #cardCanvas と同じ扱い） */
+    #scenarioCanvas{width:100%;max-width:100%;min-width:0;height:auto;border-radius:10px;display:block;background:#000}
+    .sc-wrap[hidden]{display:none}
+  </style><section class="sec" style="margin-top:14px">
+    <div class="sec-h">BZシナリオカード</div>
+    <div class="btnrow one"><button type="button" class="act plain" data-action="scenarioCard">${scenarioReady?'BZシナリオカードを作り直す':'BZシナリオカードを作る'}</button></div>
+    <div class="cardwrap sc-wrap"${scenarioReady?'':' hidden'} style="margin-top:10px">
+      <canvas id="scenarioCanvas" width="1080" height="1080"></canvas>
+      <div class="btnrow one"><button type="button" class="act gold" data-action="scenarioSave">BZシナリオカードを保存</button></div>
+    </div>
+    <div class="hint">AT間メモから、そのAT間のBZの流れとシナリオの候補を1枚にします。シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。候補は解析の表から確実に言えるものだけで絞っています。記録・集計・テンプレ・ほかのカードは変わりません。</div>
+  </section>`;
+  }
   // ■AT間メモ。イベントのあるAT間だけを古い順に。流れがあれば2行、無ければ見出しの1行。
   // AT間メモが空（またはチェックOFF）のときは1バイトも足さない（v04 と一致）。
   function tplAtLogBlock(S){
@@ -463,10 +607,24 @@
   window.CheckerConfigs.mhsunbreak={
     uiV2:true,nanaCollab:true,storageKey:'mhsunbreak-checker-v1',defaults:DEF,mergeKeys:MERGE_KEYS,sourceUrl:SOURCE,normalizeState,
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
+    // BZシナリオカードの内容（engine は読まない。検証で中身を固定するために出しておく）
+    scenarioModel:scenarioCardModel,
     actions:{
       bzQuest:bzQuestAction,
       // 記録のキーには書かない。テンプレに入れるかだけを別キーに持つ。
       tplAtLog:()=>{const on=!tplAtLogOn();setTplAtLog(on);return 'AT間メモをテンプレに'+(on?'入れます':'入れません');},
+      // BZシナリオカード。状態は作ったかどうかだけで、記録には書かない。
+      scenarioCard:()=>{scenarioReady=true;return 'BZシナリオカードを作りました';},
+      scenarioSave:ctx=>{
+        if(!drawScenarioCard(ctx.S))return false;
+        const d=new Date(),p=v=>String(v).padStart(2,'0');
+        const stamp=d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
+        const a=document.createElement('a');
+        a.download='mhsunbreak_scenario_'+stamp+'.png';
+        a.href=document.getElementById('scenarioCanvas').toDataURL('image/png');
+        a.click();
+        return 'BZシナリオカードを保存しました';
+      },
       atStart:atStartAction,atEvent:atEventAction,atDel:atDelAction,
       // 素の入力欄を直接読む。減算モードでも追加・削除の意味は変えない。
       addHit:(ctx)=>{
@@ -485,7 +643,7 @@
         return `AT当選 ${v}G を削除`;
       }
     },
-    pages:(ctx,pageCard)=>{syncGames(ctx.S);return [()=>pageInput(ctx),()=>pageShisa(ctx),()=>pageBZ(ctx),pageCard];},template:tplText,compactTemplate:tplText,
+    pages:(ctx,pageCard)=>{syncGames(ctx.S);return [()=>pageInput(ctx),()=>pageShisa(ctx),()=>pageBZ(ctx),()=>pageCard()+scenarioSection(ctx)];},template:tplText,compactTemplate:tplText,
     card:{title:TITLE,titleFitMax:680,gameLabel:'通常',footerTags:TAGS,downloadName:'mhsunbreak_check.png',detailDownloadName:'mhsunbreak_check_detail.png',detail,
       blocks:ctx=>[initialBlock(ctx.S,COUNTS[0]),['通常ゲーム数',hitSum(ctx.S)+'G'],['示唆の記録','計'+hintTotal(ctx.S)+'回'],['確定演出','計'+certCount(ctx.S)+'回']],
       chart:ctx=>({title:'示唆分布',x:150,step:160,width:80,items:[2,3,4,5,6].map(r=>({label:r===6?'6':r+'+',value:certTier(ctx.S,r)}))}),

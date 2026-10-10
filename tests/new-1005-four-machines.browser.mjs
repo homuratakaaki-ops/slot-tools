@@ -497,6 +497,35 @@ try{
   assert.equal((await pref()).checked,'true');
   assert.deepEqual(await frame('return w.__errors;'),[]);
   pass('MH template AT log block, both copies, checkbox persistence and untouched record key');
+  // BZシナリオカード（カードタブの2枚目）。engine のカードの後ろに機種側で足している
+  await tab(3);
+  assert.equal(await frame(`return d.querySelectorAll('#cardCanvas,#detailCanvas,#scenarioCanvas').length;`),3);
+  assert.equal(await frame(`return d.querySelector('.sc-wrap').hidden;`),true);
+  const recordBeforeCard=await frame(`return w.localStorage.getItem('mhsunbreak-checker-v1');`);
+  await click('[data-action="scenarioCard"]');
+  await pause(200);
+  assert.equal(await frame(`return d.querySelector('.sc-wrap').hidden;`),false);
+  const sc=await canvas('scenarioCanvas');
+  assert.ok(sc.bright>1000&&sc.opaque===sc.width*sc.height,'シナリオカードが描かれている');
+  const texts=sc.text.map(t=>t.text);
+  assert.ok(texts.includes('BZシナリオカード'));
+  assert.ok(texts.some(t=>t.startsWith('候補：')),JSON.stringify(texts.slice(0,20)));
+  assert.ok(texts.includes('テーブル別の成功／回数（1回目＋2回目以降）'));
+  assert.ok(texts.includes('シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。'));
+  saveCanvas('mhsunbreak-scenario-card',sc);
+  // 作り直しでも記録のキーは変わらない
+  assert.equal(await frame(`return w.localStorage.getItem('mhsunbreak-checker-v1');`),recordBeforeCard);
+  // 既存カードとテンプレは変わらない
+  assert.ok((await canvas('cardCanvas')).bright>1000);
+  assert.deepEqual(await frame('return w.__errors;'),[]);
+  pass('MH BZ scenario card: third canvas, drawn pixels, candidate line and untouched record key',{texts:texts.length});
+  // カードを出した状態で 360/390px の崩れを見る
+  for(const width of [360,390]){
+    await load('mhsunbreak',width,740);
+    await tab(3);await click('[data-action="scenarioCard"]');await pause(200);
+    assert.equal(await frame(`return d.querySelector('.sc-wrap').hidden;`),false);
+    await measure('mhsunbreak-scenario-'+width);
+  }
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);await measure('mhsunbreak-at-start-'+width);
     // 空のAT間メモは「まだありません」と説明の2本。説明は最後の1本。
