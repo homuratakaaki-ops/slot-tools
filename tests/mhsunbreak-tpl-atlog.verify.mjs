@@ -124,6 +124,30 @@ test('イベントのないAT間は出さず、番号はイベントのあるAT�
   bytes(block(config.template(ctx(clone(S)))),'AT間1\nBZ1 ②黄ｽﾀｰﾄ○\nAT間2\nBZ以外AT\nAT間3\n福引○');
 });
 
+test('流れに出すものが無いAT間は見出しの1行だけ（空行を作らない）',()=>{
+  const {config}=load();
+  // アイキャッチだけ
+  const E=clone(config.defaults);
+  config.actions.atEvent(ctx(E),{t:'eye',c:'bahari'});
+  bytes(block(config.template(ctx(clone(E)))),'AT間1 ﾊﾞﾊﾘ(E以上)');
+  // s1・s2 だけ（どちらも流れには出さない）
+  const W=clone(config.defaults);
+  config.actions.atEvent(ctx(W),{t:'serif',c:'s1'});
+  config.actions.atEvent(ctx(W),{t:'serif',c:'s2'});
+  bytes(block(config.template(ctx(clone(W)))),'AT間1');
+  // 流れのあるAT間のあとに、流れが空のAT間が続く場合
+  const M=clone(config.defaults);
+  config.actions.bzQuest(ctx(M),{d:'bzT1',q:'t2',r:'win'});
+  config.actions.atEvent(ctx(M),{t:'eye',c:'jay'});
+  bytes(block(config.template(ctx(clone(M)))),'AT間1\nBZ1 ②黄ｽﾀｰﾄ○\nAT間2 ｼﾞｪｲ(B以上)');
+  // シナリオH濃厚だけの見出し（BZは流れに出るので2行、空行は出ない）
+  for(const S of [E,W,M])assert.doesNotMatch(block(config.template(ctx(clone(S)))),/\n\n/,'空行を作らない');
+  // 保存データ側に「閉じたのに流れが空」のAT間があっても1行
+  const L=clone(config.defaults);
+  L.atLog={sessions:[{start:{known:true,prior:0},events:[{t:'eye',c:'galeas'}],closed:true},{start:{known:true,prior:0},events:[{t:'fuku',r:'miss'}],closed:false}]};
+  config.normalizeState(L);
+  bytes(block(config.template(ctx(clone(L)))),'AT間1 ｶﾞﾚｱｽ(F以上)\nAT間2\n福引×');
+});
 test('チェックの切り替えは別キーだけを書き、記録のキーには触らない',()=>{
   const {config,mem}=load();
   const S=clone(config.defaults);
