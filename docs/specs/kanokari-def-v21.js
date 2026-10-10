@@ -225,7 +225,7 @@ kanokari:{
     order:["部屋と彼女","大学と彼女","街と彼女"],   // バッジをタップすると次のステージへ（順番のもの以外はシートを開く）
     preselectNext:true,   // 今のステージが order にあるとき、次のステージを初期選択にする（選び直せる）
     options:[{l:"部屋と彼女",h:"通常",askAfter:"アイキャッチ"},{l:"大学と彼女",h:"通常",askAfter:"アイキャッチ"},{l:"街と彼女",h:"通常",askAfter:"アイキャッチ"},
-             {l:"海と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p",enterZen:1},{l:"夜と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"ヒ・ミ・ツ恋心",h:"前兆",tone:"d",enterZen:1,askAfter:"アイキャッチ"},
+             {l:"海と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p",enterZen:1},{l:"夜と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"ヒミツ恋心",h:"前兆",tone:"d",enterZen:1,askAfter:"アイキャッチ"},
              {l:"ヒロインステージ",h:"ポイント高確20G",tone:"c",askAfter:"アイキャッチ"}]},
 
   // ---------- 前兆・引き戻し ----------
@@ -241,7 +241,7 @@ kanokari:{
     // 前兆シートから「前兆ステージ」へ入ったときに、どの前兆ステージかを聞く（ステージのシートから入ったときは選び済みなので聞かない）
     // options は stages.options の前兆ステージ（enterZen:1）と同じ文字列にそろえる。片方だけ直さないこと
     stageTypeAsk:{forStage:1,title:"前兆ステージの種類",label:"前兆ステージ",key:"ztype",
-      options:["和也の部屋","ヒ・ミ・ツ恋心","夜と彼女","海と彼女"]},
+      options:["和也の部屋","ヒミツ恋心","夜と彼女","海と彼女"]},
     onEndByStage:{3:{clearTags:["ユメカノ"],c3:0,keepStage:true,renFail:0}},   // 引き戻し終了：ユメカノOFF、攻略人数0、スルー0
     sheet:{label:"引き戻し記録",forStage:3,logOnSave:false,autoFill:{stage0:{ifTag:"ユメカノ",value:"専用（ユメカノ後）"}},sections:[   // 3段。保存時はログなし（終了時に当否付きで流す）
       {title:"① レンCHANCE抜け直後",groups:[
