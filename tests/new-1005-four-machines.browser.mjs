@@ -428,6 +428,14 @@ try{
   assert.equal(await frame(`return d.querySelectorAll('[data-action="atStart"]').length;`),0);
   await click('#undoBtn');assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await state()).bzT1.t1,0);
   pass('MH AT log BZ1/H, correct group lock and atomic undo of count plus event');
+  // 画面だけの操作（選択・開閉）は取消の履歴に積まない
+  await atQuest('t1','miss');
+  await click('[data-action="bzPick"][data-q="t3"]');
+  await click('[data-k=totals]');await click('[data-k=totals]');
+  await click('[data-action="atOpen"][data-index="0"]');
+  await click('#undoBtn');
+  assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await state()).bzT1.t1,0);
+  pass('MH 画面だけの操作は取消に積まれない（1回でBZの記録が戻る）');
   await atClick('fuku','[data-r="miss"]');await atQuest('t2');
   assert.deepEqual(await atRows(),['福引 失敗','BZ1回目 ② 黄スタート 失敗']);
   assert.deepEqual((await state()).czType,{breakzone:0,airou:0});

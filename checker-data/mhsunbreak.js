@@ -415,6 +415,15 @@
   let pickGroup='bzT1';    // 開始が不明のときに選ぶ計上先
   let openEvent=null;      // 「経過」で開いている小カード
   const bzFold={extras:true,totals:false,past:false,prefs:false};   // 折りたたみの開閉（保存しない）
+  // 画面だけの操作（選択・開閉）は取消の履歴に積まない。engine の customAction は false を返すと
+  // 履歴にも保存にも触れないので、描画だけを mount の戻り値（window.__checkerApp）から呼び直す。
+  function rerender(){
+    const app=typeof window!=='undefined'&&window.__checkerApp;
+    if(!app||typeof app.renderAll!=='function')return false;
+    // その場で描き直す（押した結果がすぐ画面に出るように）
+    try{app.renderAll();}catch(e){}
+    return false;
+  }
   function startPicker(ctx){
     const session=currentAt(ctx.S);
     const startButton=(known,prior,label)=>{
@@ -742,28 +751,28 @@
       // 記録のキーには書かない。テンプレに入れるかだけを別キーに持つ。
       tplAtLog:()=>{const on=!tplAtLogOn();setTplAtLog(on);return 'AT間メモをテンプレに'+(on?'入れます':'入れません');},
       // BZシナリオカード。状態は作ったかどうかだけで、記録には書かない。
-      scenarioCard:()=>{scenarioReady=true;return 'BZシナリオカードを作りました';},
+      scenarioCard:()=>{scenarioReady=true;return rerender();},
       // 画面だけの一時状態（保存しない）。取消で戻るものは無い。
       bzPick:(ctx,ds)=>{
         if(!TABLES.some(c=>c[0]===ds.q))return false;
         pickTable=pickTable===ds.q?null:ds.q;
-        return pickTable?TABLE_READS[pickTable]+" を選びました":"テーブルの選択を外しました";
+        return rerender();
       },
       bzGroup:(ctx,ds)=>{
         if(!BZ_GROUPS.some(g=>g[0]===ds.d))return false;
         pickGroup=ds.d;
-        return (ds.d==="bzT1"?"1回目":"2回目以降")+" に計上します";
+        return rerender();
       },
       atOpen:(ctx,ds)=>{
         const index=Number(ds.index);
         if(!Number.isInteger(index)||index<0||index>=currentAt(ctx.S).events.length)return false;
         openEvent=openEvent===index?null:index;
-        return openEvent===null?"閉じました":atEventText(currentAt(ctx.S),index);
+        return rerender();
       },
       bzFold:(ctx,ds)=>{
         if(!Object.prototype.hasOwnProperty.call(bzFold,ds.k))return false;
         bzFold[ds.k]=!bzFold[ds.k];
-        return bzFold[ds.k]?"開きました":"閉じました";
+        return rerender();
       },
       scenarioSave:ctx=>{
         if(!drawScenarioCard(ctx.S))return false;
@@ -773,7 +782,8 @@
         a.download='mhsunbreak_scenario_'+stamp+'.png';
         a.href=document.getElementById('scenarioCanvas').toDataURL('image/png');
         a.click();
-        return 'BZシナリオカードを保存しました';
+        // 画像の保存も記録は変えないので、取消の履歴には積まない
+        return false;
       },
       atStart:atStartAction,atEvent:atEventAction,atDel:atDelAction,
       // 素の入力欄を直接読む。減算モードでも追加・削除の意味は変えない。
