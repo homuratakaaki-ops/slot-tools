@@ -109,9 +109,11 @@ test('legacy and malformed logs normalize idempotently',()=>{
     const S=fresh();S.atLog=log;config.normalizeState(S);const once=clone(S);config.normalizeState(S);equal(S,once);
     assert.equal(current(S).closed,false);assert.ok(S.atLog.sessions.length>=1);
   }
-  const S=fresh();delete S.atLog;config.normalizeState(S);equal(S.atLog,{sessions:[empty]});
+  // atLog.schemaVersion は追加記録 v01 §3.1.2 で足した版数（将来の版が形式を判断するためのもの）
+  const S=fresh();delete S.atLog;config.normalizeState(S);equal(S.atLog,{sessions:[empty],schemaVersion:2});
+  // 知らない項目（extra）は読み捨てずにそのまま残す（追加記録 v01 §3.1.1）
   S.atLog={sessions:[{start:{known:true,prior:9.5},events:[{t:'serif',c:'s1',extra:1}],closed:false}]};config.normalizeState(S);
-  equal(clone(current(S)),{start:{known:true,prior:6},events:[{t:'serif',c:'s1'}],closed:false});
+  equal(clone(current(S)),{start:{known:true,prior:6},events:[{t:'serif',c:'s1',extra:1}],closed:false});
 });
 test('normalization keeps oldest 200 events and newest 50 intervals including open tail',()=>{
   const S=fresh();S.atLog={sessions:Array.from({length:55},(_,i)=>({start:{known:true,prior:i%7},closed:true,events:[{t:'eye',c:'jay'},...Array.from({length:200},()=>({t:'serif',c:'s4'}))]}))};

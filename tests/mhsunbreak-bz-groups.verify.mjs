@@ -110,7 +110,9 @@ test('legacy icon migration counts seven tables, skips three and is idempotent',
   }
   const invalid=clone(config.defaults);
   invalid.iconLog=[{icons:['rai'],group:'invalid',result:'win'},null,{icons:[],group:'bzT1'}];
-  assert.deepEqual(clone(config.normalizeState(invalid)),clone(config.defaults));
+  // defaults には atLog.schemaVersion が無い（追加記録 v01 §3.1.2 で正規化時に足す版数のため）
+  const withSchema=clone(config.defaults);withSchema.atLog.schemaVersion=2;
+  assert.deepEqual(clone(config.normalizeState(invalid)),withSchema);
   console.log('Migration fixture: qBlue/qYellow/rai/sel/oro/teo/rush = 1 each (7); gold/blaze/unknown = skipped (3), table indeterminate');
 });
 test('template buffers equal 006e842 for zero and all table rows',()=>{
@@ -126,8 +128,7 @@ test('template buffers equal 006e842 for zero and all table rows',()=>{
   }
 });
 test('all 28 checker headers omit UI version labels and use the ・ separator',()=>{
-  // mhsunbreak-test-checker.html は検収用のテスト版（§9-108）。公開物の数には入れない。
-  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html')&&p!=='mhsunbreak-test-checker.html');
+  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html'));
   assert.equal(files.length,28);
   for(const file of files){
     const headers=[...read(file).matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>/g)];

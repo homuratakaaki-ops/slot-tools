@@ -476,7 +476,8 @@ try{
   assert.equal(await frame(`return d.querySelector('[data-action="atStart"][data-prior="2"]').getAttribute('aria-pressed');`),'true');
   assert.equal(await calcLine(),'→ 2回目以降に計上（BZ3回目）');
   await atQuest('t1','miss','bzT2');assert.deepEqual(await atRows(),['BZ3回目 ① 青スタート 失敗']);
-  assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
+  // 候補が2つ以上のときは一覧で出す（3回目がLOWのシナリオはA・C・D）
+  assert.equal(await frame(`return d.querySelector('.at-sc').textContent;`),'候補：A・C・D');
   // 取消3回（記録・テーブルの選択・開始の選択。選択は画面だけの状態なので戻すものは無い）
   await click('#undoBtn');await click('#undoBtn');await click('#undoBtn');assert.deepEqual(atCurrent(await state()).start,{known:true,prior:0});
   await click('[data-action="atStart"][data-known="false"]');
@@ -485,7 +486,8 @@ try{
   assert.equal(await calcLine(),null);
   assert.equal(await frame(`return d.querySelector('.now-cell:nth-child(2) b').textContent;`),'番号なし');
   await atQuest();assert.deepEqual(await atRows(),['BZ ① 青スタート 失敗']);
-  assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
+  // 開始が不明のあいだはBZで絞らないので、候補ではなく理由の1行を出す
+  assert.equal(await frame(`return d.querySelector('.at-sc').textContent;`),'BZ番号が不明のため絞り込めません');
   pass('MH AT log prior2 and unknown start via real selected buttons');
   // テンプレの■AT間メモ（本番のボタン操作で作って、通常版・収支帳用の両方を見る）
   await clear('mhsunbreak');
@@ -549,8 +551,8 @@ try{
   }
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);await measure('mhsunbreak-at-start-'+width);
-    // 記録が無いときの「経過」は案内の1本だけ
-    assert.deepEqual(await frame(`return [...d.querySelectorAll('section')[1].querySelectorAll('.hint')].map(e=>e.textContent.slice(0,9));`),['まだありません。下']);
+    // 記録が無いときの「経過」は案内の1本だけ（経過は「現在の状況」の中にある）
+    assert.deepEqual(await frame(`return [...d.querySelector('.now-box').querySelectorAll('.hint')].map(e=>e.textContent.slice(0,9));`),['まだありません。下']);
     await atQuest();for(const c of ['jay','bahari','jay'])await atClick('eye',`[data-c="${c}"]`);
     await atClick('fuku','[data-r="win"]');await atClick('serif','[data-c="s4"]');
     await measure('mhsunbreak-at-log-'+width);
@@ -565,8 +567,10 @@ try{
   // v04: rendered table structure at real viewport widths.
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);
-    assert.deepEqual(await frame("return [...d.querySelectorAll('.sec-h')].map(e=>e.firstChild.textContent.trim());"),['このAT間','経過','BZを記録']);
-    assert.deepEqual(await frame("return [...d.querySelectorAll('details.bz-fold>summary')].map(e=>e.firstChild.textContent.trim());"),['示唆・福引・その他','集計','コピー設定']);
+    // 上は「現在の状況」（読む所）、下は「ここから記録」（入力する所）の2本立て
+    assert.deepEqual(await frame("return [d.querySelector('.now-h').textContent.trim(),d.querySelector('.rec-h').textContent.trim()];"),['現在の状況','ここから記録']);
+    assert.deepEqual(await frame("return [...d.querySelectorAll('.entry-h')].map(e=>e.textContent.trim());"),['このAT間の開始','BZ（ブレイクゾーン）','アイキャッチ（ステージチェンジ）','チッチェのセリフ','アイルー福引','BZ終了時PUSH ランプ','そのほか']);
+    assert.deepEqual(await frame("return [...d.querySelectorAll('details.bz-fold>summary')].map(e=>e.firstChild.textContent.trim());"),['集計','コピー設定']);
     assert.equal(await frame('return d.querySelectorAll(".t-btn").length;'),7);
     assert.equal(await frame('return d.querySelectorAll(".sum-row").length;'),7);
     // 加算モードでは集計に入力ボタンを置かない（入力は「BZを記録」の1組だけ）
@@ -575,6 +579,104 @@ try{
     await measure('mhsunbreak-bz-tables-'+width);
     pass('MH table structure '+width,{rows:21,buttons:26,aggregateRows:7});
   }
+  // 追加記録（結果アイコン pos・サイドランプ lamp・過去への差し込み）の実表示。
+  // 指示書 docs/specs/mhsunbreak-ext-records-v01.md §4・§8-i。
+  const POS_ICONS={t1:'QUEST青',t2:'QUEST黄',t3:'ライゼクス',t4:'セルレギオス',t5:'オロミドロ亜種',t6:'テオ・テスカトル',t7:'AT'};
+  for(const width of [360,390,412]){
+    await clear('mhsunbreak',width);await tab(2);
+    // ⑥ を失敗で記録すると、そのカードの詳細が自動で開く
+    await atQuest('t6','miss');
+    const pos=await frame(`const b=[...d.querySelectorAll('.pos-btn')];return {n:b.length,
+      minHeight:Math.min(...b.map(e=>e.getBoundingClientRect().height)),
+      clipped:b.filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.textContent.trim()),
+      first:b[0].textContent.trim(),last:b[b.length-1].textContent.trim()};`);
+    assert.equal(pos.n,11,'結果アイコンは位置1〜10＋未記録の11ボタン');
+    assert.ok(pos.minHeight>=48,width+'px pos button below 48px: '+pos.minHeight);
+    assert.deepEqual(pos.clipped,[],width+'px 結果アイコンの文字が切れている');
+    assert.equal(pos.first,'1：'+POS_ICONS.t6);
+    assert.equal(pos.last,'未記録');
+    // 位置を押すと保存に入り、経過カードに出る
+    await click('.pos-btn[data-pos="4"]');
+    assert.equal((await state()).atLog.sessions[0].events[0].pos,4);
+    assert.equal(await frame(`return d.querySelector('.ev-pos').textContent.trim();`),'結果：4 ＋G');
+    // 選んだら一覧が閉じて「選択済み」になる。押し直すには［変更］で開く
+    assert.equal(await frame(`return d.querySelectorAll('.pos-btn').length;`),0);
+    assert.equal(await frame(`return d.querySelector('.pos-done .nm').textContent.trim();`),'選択済み：4個目・＋G');
+    await click('[data-action="bzPosOpen"]');
+    await click('.pos-btn[data-pos="4"]');   // もう一度押すと未記録に戻る
+    assert.equal((await state()).atLog.sessions[0].events[0].pos,undefined);
+    await click('#undoBtn');
+    assert.equal((await state()).atLog.sessions[0].events[0].pos,4);
+    // サイドランプ8色
+    const lamp=await frame(`const b=[...d.querySelectorAll('.lamp-pick .at-btn')];return {n:b.length,
+      minHeight:Math.min(...b.map(e=>e.getBoundingClientRect().height)),names:b.map(e=>e.textContent.trim())};`);
+    assert.deepEqual(lamp.names,['白','青','黄','緑','赤','紫','虹','その他']);
+    assert.ok(lamp.minHeight>=48,width+'px lamp button below 48px: '+lamp.minHeight);
+    await click('[data-action="atEvent"][data-t="lamp"][data-c="red"]');
+    assert.deepEqual((await state()).atLog.sessions[0].events[1],{t:'lamp',c:'red'});
+    assert.ok((await frame(`return [...d.querySelectorAll('.ev-card')].map(e=>e.getAttribute('aria-label'));`)).includes('ランプ 赤'));
+    // 差し込み：1件目の前にセリフを入れる。集計は動かない
+    const totalsBefore=JSON.stringify((await state()).bzT1);
+    await click('.ev-card[data-index="0"]');
+    await click('[data-action="atInsert"][data-index="0"]');
+    assert.ok(await frame(`return !!d.querySelector('.insert-bar');`),'差し込み待ちの表示が無い');
+    assert.equal(await frame(`return d.querySelector('.calc').textContent.trim();`),'→ 1回目に計上（BZ1回目）');
+    await click('[data-action="atEvent"][data-t="serif"][data-c="s3"]');
+    assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['serif','bz','lamp']);
+    assert.equal(JSON.stringify((await state()).bzT1),totalsBefore,'差し込みで集計が動いた');
+    await click('#undoBtn');
+    assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['bz','lamp']);
+    await measure('mhsunbreak-ext-records-'+width);
+    pass('MH 追加記録 '+width,{posButtons:pos.n,posMinHeight:pos.minHeight,lampMinHeight:lamp.minHeight});
+  }
+  // AT当選の直後は「直前のAT間」が経過に残り、当選したBZの結果アイコンを押せる
+  await clear('mhsunbreak');await tab(2);
+  await atQuest('t6','miss');await atQuest('t4','win');
+  assert.equal((await state()).atLog.sessions.length,2);
+  assert.ok(await frame(`return d.querySelector('.now-sub').textContent.includes('直前のAT間・AT当選で終了');`));
+  assert.equal(await frame(`return d.querySelectorAll('[data-action="atDel"],[data-action="atInsert"]').length;`),0);
+  await click('.pos-btn[data-pos="7"]');
+  assert.equal((await state()).atLog.sessions[0].events[1].pos,7);
+  await click('[data-action="atEvent"][data-t="eye"][data-c="jay"]');
+  assert.ok(!await frame(`return d.querySelector('.now-sub').textContent.includes('直前のAT間');`));
+  pass('MH AT当選直後の直前AT間と結果アイコン');
+  // 台帳 S01: シナリオH濃厚は候補がちょうど {H} のときだけ出す
+  await clear('mhsunbreak');await tab(2);
+  await atQuest('t1','miss');
+  assert.ok(await frame(`return d.querySelector('#main').textContent.includes('シナリオH濃厚：3回目のBZでAT濃厚');`),'①失敗でH表示が出ない');
+  await atQuest('t5','miss','bzT2');
+  assert.ok(!await frame(`return d.querySelector('#main').textContent.includes('シナリオH濃厚');`),'①→⑤でH表示が残っている');
+  assert.ok(await frame(`return d.querySelector('#main').textContent.includes('該当なし：開始の選び方・記録を確認してください');`),'該当なしの案内が出ない');
+  await tab(3);assert.ok(!(await copy()).includes('ｼﾅﾘｵH濃厚'),'テンプレにH表示が残っている');await tab(2);
+  await click('#undoBtn');   // ⑤を取り消すとHに戻る
+  assert.ok(await frame(`return d.querySelector('#main').textContent.includes('シナリオH濃厚');`),'取消でH表示が戻らない');
+  await click('#undoBtn');   // ①も取り消すとどちらも消える
+  assert.ok(!await frame(`return /シナリオH濃厚|該当なし/.test(d.querySelector('#main').textContent);`),'記録が無いのに表示が残っている');
+  pass('MH S01 H表示は候補がちょうど{H}のときだけ');
+  // 台帳 S02: 差し込み中はAT間を閉じる出来事を受け付けない
+  await clear('mhsunbreak');await tab(2);
+  await atQuest('t6','miss');
+  await click('[data-action="atEvent"][data-t="eye"][data-c="jay"]');
+  const beforeS02=JSON.stringify(await state());
+  await click('.ev-card[data-index="0"]');
+  await click('[data-action="atInsert"][data-index="0"]');
+  for(const [table,r] of [['t3','win'],['t7','win']]){
+    await click(`[data-action="bzPick"][data-q="${table}"]`);
+    await click(`[data-action="bzQuest"][data-q="${table}"][data-r="${r}"]`);
+    assert.equal(JSON.stringify(await state()),beforeS02,table+' の成功が差し込まれた');
+  }
+  for(const selector of ['[data-action="atEvent"][data-t="fuku"][data-r="win"]','[data-action="atEvent"][data-t="otherAt"]']){
+    await click(selector);
+    assert.equal(JSON.stringify(await state()),beforeS02,selector+' が差し込まれた');
+  }
+  assert.ok(await frame(`return d.querySelector('.insert-warn').textContent.includes('AT当選はこのカードの前に差し込めません（通常の記録で入れてください）');`),'断りが出ていない');
+  assert.equal((await state()).atLog.sessions.length,1,'AT間が増えた');
+  // 失敗・示唆は従来どおり差し込める
+  await click('[data-action="atEvent"][data-t="serif"][data-c="s3"]');
+  assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['serif','bz','eye']);
+  assert.ok(!await frame(`return !!d.querySelector('.insert-warn');`),'断りが残っている');
+  await measure('mhsunbreak-insert-reject-390');
+  pass('MH S02 差し込み中はAT当選系を受け付けない');
   // MH template v02: actual BZ buttons and persisted state.
   await clear('mhsunbreak');await tab(2);
   await click('[data-action="atStart"][data-known="false"]');
