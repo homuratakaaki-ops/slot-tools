@@ -16,6 +16,11 @@ const current=S=>S.atLog.sessions.at(-1);
 const buttons=(S,mode=1)=>[...html(S,mode).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]);
 const group=(S,d,mode=1)=>buttons(S,mode).filter(b=>b.includes(`data-d="${d}"`));
 const empty={start:{known:true,prior:0},events:[],closed:false};
+// 今のAT間の記録は「経過」の横並びカード。読み上げ名はログ1行と同じ文字列
+const cards=(S,mode=1)=>[...html(S,mode).matchAll(/class="ev-card[^"]*"[^>]*aria-label="([^"]*)"/g)].map(m=>m[1]);
+const startCell=(S,mode=1)=>{const m=/class="now-cell"><small>開始<\/small><b[^>]*>([^<]*)/.exec(html(S,mode));return m?m[1]:null;};
+const calc=(S,mode=1)=>{const m=/class="mn calc">([^<]*)/.exec(html(S,mode));return m?m[1]:null;};
+const topEye=(S,mode=1)=>{const m=/class="now-cell"><small>アイキャッチ<\/small><b[^>]*>([^<]*)/.exec(html(S,mode));return m?m[1]:null;};
 const equal=(a,b)=>assert.deepEqual(clone(a),clone(b));
 let checks=0;
 function test(name,fn){fn();checks++;console.log('PASS '+name);}
@@ -28,24 +33,25 @@ test('default open AT interval; atLog excluded from numeric merge',()=>{
 test('BZ1 table1 failure counts and shows H; group advances',()=>{
   const S=fresh();assert.notEqual(bz(S),false);assert.equal(S.bzT1.t1,1);assert.equal(S.questN1.t1,0);
   equal(current(S).events,[{t:'bz',table:'t1',r:'miss'}]);
-  assert.match(html(S),/BZ1回目 ① 青スタート 失敗/);
+  assert.deepEqual(cards(S),['BZ1回目 ① 青スタート 失敗']);
   assert.match(html(S),/シナリオH濃厚：3回目のBZでAT濃厚/);
-  assert.ok(group(S,'bzT1').every(b=>b.includes('disabled aria-disabled="true"')));
-  assert.ok(group(S,'bzT2').every(b=>!b.includes('disabled')));
-  assert.match(html(S),/今は2回目/);
+  // 計上先は次のBZ番号から自動で決まる（選択ボタンは出さない）
+  assert.equal(calc(S),'→ 2回目以降に計上（BZ2回目）');
+  assert.doesNotMatch(html(S),/data-action="bzGroup"/);
 });
 test('fuku numbering controlled by the single constant; CZ aggregate untouched',()=>{
   for(const flag of [false,true]){
     const c=load(source.replace('COUNT_FUKU_AS_CZ=false',`COUNT_FUKU_AS_CZ=${flag}`)),S=clone(c.defaults);
     action(S,'atEvent',{t:'fuku',r:'miss'},1,c);
     assert.notEqual(bz(S,'t2','miss',flag?'bzT2':'bzT1',1,c),false);
-    assert.match(html(S,1,c),new RegExp('BZ'+(flag?2:1)+'回目 ② 黄スタート'));
+    assert.ok([...html(S,1,c).matchAll(/class="ev-card[^"]*"[^>]*aria-label="([^"]*)"/g)].map(m=>m[1]).includes('BZ'+(flag?2:1)+'回目 ② 黄スタート 失敗'));
     equal(S.czType,{breakzone:0,airou:0});
   }
 });
 test('strongest eye remains after weaker eye; ordered events and all serif kinds',()=>{
   const S=fresh();for(const c of ['jay','bahari','jay'])event(S,'eye',c);
-  assert.match(html(S),/<div class="at-top" style="--c:#a9e6ad">バハリ（緑）：シナリオE以上濃厚<\/div>/);
+  assert.equal(topEye(S),'バハリ（緑）');
+  assert.match(html(S),/class="now-note" style="color:#a9e6ad">シナリオE以上濃厚</);
   equal(current(S).events.map(e=>e.c),['jay','bahari','jay']);
   for(const c of ['s1','s2','s3','s4'])assert.notEqual(event(S,'serif',c),false);
   assert.equal(current(S).events.length,7);
@@ -53,21 +59,22 @@ test('strongest eye remains after weaker eye; ordered events and all serif kinds
 test('BZ win, t7 plus, fuku win and other AT close and open fresh intervals',()=>{
   for(const record of [S=>bz(S,'t2','win'),S=>bz(S,'t7','win'),S=>event(S,'fuku',null,'win'),S=>event(S,'otherAt')]){
     const S=fresh();record(S);assert.equal(S.atLog.sessions.length,2);assert.equal(S.atLog.sessions[0].closed,true);
-    equal(current(S),empty);assert.match(html(S),/過去のAT間（1件）/);
-    assert.doesNotMatch(html(S).split('<details class="hit-more">')[1].split('</details>')[0],/data-action="atDel"/);
+    equal(current(S),empty);assert.match(html(S),/data-k="past">過去のAT間<span class="sub">1件<\/span>/);
+    // 過去のAT間は読むだけ（削除は今のAT間のカードから）
+    assert.doesNotMatch(html(S).split('data-k="past"')[1].split('</details>')[0],/data-action="atDel"/);
     assert.doesNotMatch(html(S),/data-action="atStart"/);
   }
 });
 test('unknown start allows both groups and suppresses numbers and H',()=>{
   const S=fresh();action(S,'atStart',{known:'false'});
   assert.ok([...group(S,'bzT1'),...group(S,'bzT2')].every(b=>!b.includes('disabled')));
-  bz(S);assert.match(html(S),/BZ ① 青スタート 失敗/);
-  assert.doesNotMatch(html(S),/BZ1回目|シナリオH濃厚|今は\d回目/);assert.match(html(S),/開始：不明/);
+  bz(S);assert.deepEqual(cards(S),['BZ ① 青スタート 失敗']);
+  assert.doesNotMatch(html(S),/BZ1回目|シナリオH濃厚|今は\d回目/);assert.equal(startCell(S),'不明');
 });
 test('prior2 only enables later group; action guard rejects wrong group without mutation',()=>{
   const S=fresh();action(S,'atStart',{known:'true',prior:'2'});
   assert.ok(group(S,'bzT1').every(b=>b.includes('disabled')));assert.ok(group(S,'bzT2').every(b=>!b.includes('disabled')));
-  assert.match(html(S),/今は3回目/);const before=clone(S);assert.equal(bz(S),false);equal(S,before);
+  assert.equal(calc(S),'→ 2回目以降に計上（BZ3回目）');const before=clone(S);assert.equal(bz(S),false);equal(S,before);
   assert.notEqual(bz(S,'t1','miss','bzT2'),false);assert.match(html(S),/BZ3回目/);assert.doesNotMatch(html(S),/シナリオH濃厚/);
 });
 test('start remains editable until first BZ; invalid choices rejected',()=>{
@@ -79,9 +86,9 @@ test('start remains editable until first BZ; invalid choices rejected',()=>{
 });
 test('delete only current memo; recompute numbering, strongest hint and H',()=>{
   const S=fresh();bz(S);bz(S,'t2','miss','bzT2');event(S,'eye','jay');event(S,'eye','bahari');
-  action(S,'atDel',{index:'3'});assert.match(html(S),/<div class="at-top" style="--c:#f2eef5">ジェイ/);
+  action(S,'atDel',{index:'3'});assert.equal(topEye(S),'ジェイ（白）');
   action(S,'atDel',{index:'0'});assert.equal(S.bzT1.t1,1);assert.equal(S.bzT2.t2,1);
-  assert.match(html(S),/BZ1回目 ② 黄スタート/);assert.doesNotMatch(html(S),/シナリオH濃厚/);
+  assert.ok(cards(S).includes('BZ1回目 ② 黄スタート 失敗'));assert.doesNotMatch(html(S),/シナリオH濃厚/);
   for(const index of ['-1','99','1.5','oops','',undefined])assert.equal(action(S,'atDel',{index}),false);
 });
 test('minus changes only aggregates, leaves memo; atEvent buttons and handler disabled',()=>{
@@ -89,7 +96,8 @@ test('minus changes only aggregates, leaves memo; atEvent buttons and handler di
   assert.notEqual(bz(S,'t1','miss','bzT1',-1),false);equal(S.atLog,log);assert.equal(S.bzT1.t1,0);
   assert.ok(group(S,'bzT1',-1).filter(b=>b.includes('data-r="win"')).every(b=>!b.includes('disabled')));
   assert.ok(buttons(S,-1).filter(b=>b.includes('data-action="atEvent"')).every(b=>b.includes('disabled')));
-  assert.match(html(S,-1),/減算はテーブル別の回数だけを直します（AT間メモは各行の［削除］か「↩ 取消」で直します）。/);
+  assert.match(html(S,-1),/減算モードでは記録できません。回数の訂正は下の「集計」の中のボタンで行います。/);
+  assert.match(html(S),/テーブル別の回数は減算モードで直してください（集計の中のボタン）。/);
   assert.equal(action(S,'atEvent',{t:'otherAt'},-1),false);equal(S.atLog,log);
 });
 test('invalid events are no-ops',()=>{
@@ -119,7 +127,7 @@ test('runtime event cap is atomic and runtime interval cap drops oldest',()=>{
 });
 test('past intervals retain start, strongest eye and H',()=>{
   const S=fresh();bz(S);event(S,'eye','bahari');event(S,'otherAt');
-  const past=html(S).split('<details class="hit-more">')[1].split('</details>')[0];
+  const past=html(S).split('data-k="past"')[1].split('</details>')[0];
   assert.match(past,/1つ前のAT間/);assert.match(past,/バハリ（緑）：シナリオE以上濃厚/);assert.match(past,/シナリオH濃厚/);
 });
 test('v04 zero template bytes; AT log only appends the memo block at the tail',()=>{

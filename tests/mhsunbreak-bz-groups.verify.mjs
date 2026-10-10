@@ -18,19 +18,26 @@ const sectionByTitle=(S,title)=>{
   if(!hit)throw new Error('section not found: '+title);
   return hit;
 };
-const t3=S=>{
-  const results=sectionByTitle(S,'テーブル別の結果');
-  const blocks=[...results.matchAll(/<div class="bz-sub">([^<]*)<\/div>([\s\S]*?)(?=<div class="bz-sub">|$)/g)];
-  return [...['1回目','2回目以降'].map(title=>blocks.find(m=>m[1]===title)[2]),sectionByTitle(S,'テーブル別 成功率（合算）')].map(block=>[...block.matchAll(/class="pct">([^<]*)/g)][2][1]);
+// 集計は「集計」の中の1表。③の行から 1回目／2回目以降／合算 を読む
+const sumRow=(S,index)=>{
+  const rows=html(S).split('<div class="sum-row"').slice(1);
+  return [...rows[index].matchAll(/<span[^>]*>([^<]*)<\/span>/g)].map(m=>m[1]).slice(1);
 };
+const t3=S=>sumRow(S,2);
 // Exercise the paths declared by the generated button; production clicks are
 // covered separately by new-1005-four-machines.browser.mjs.
 function tap(S,key,id,success){
   S.atLog.sessions[0].start={known:false};
   const nKey=key==='bzT1'?'questN1':'questN2';
   const paths=key+'.'+id+(success?','+nKey+'.'+id:'');
-  const button=[...html(S).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]).find(b=>b.includes('data-action="bzQuest"')&&b.includes('data-d="'+key+'"')&&b.includes('data-q="'+id+'"')&&b.includes('data-r="'+(success?'win':'miss')+'"'));
+  // 画面の手順どおり：計上先を選ぶ → テーブルを選ぶ → 結果を押す
+  config.actions.bzGroup(ctx(S),{d:key});
+  config.actions.bzPick(ctx(S),{q:id});
+  // bzPick は押すたびに入／切が変わる。切れていたらもう一度押す
+  if(!/data-action="bzQuest"/.test(html(S)))config.actions.bzPick(ctx(S),{q:id});
+  const button=[...html(S).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]).find(b=>b.includes('data-action="bzQuest"')&&b.includes('data-q="'+id+'"')&&b.includes('data-r="'+(success?'win':'miss')+'"'));
   assert.ok(button,paths);
+  assert.ok(button.includes('data-d="'+key+'"'),paths+' の計上先: '+button);
   assert.doesNotMatch(button,/disabled/);
   const d=button.match(/data-d="([^"]+)"/)[1],q=button.match(/data-q="([^"]+)"/)[1];
   S[d][q]++;
@@ -42,13 +49,19 @@ function test(name,fn){fn();count++;console.log('PASS '+name);}
 test('group independence and read-only seven-row aggregate',()=>{
   const S=clone(config.defaults);tap(S,'bzT1','t3',true);tap(S,'bzT1','t3',false);
   assert.deepEqual([S.questN1.t3,S.bzT1.t3,S.questN2.t3,S.bzT2.t3],[1,2,0,0]);
-  assert.deepEqual(t3(S),['1/2 50%','0/0 —','1/2 50%']);
+  assert.deepEqual(t3(S),['1/2','0/0','1/2 50%']);
   tap(S,'bzT2','t3',true);
-  assert.deepEqual(t3(S),['1/2 50%','1/1 100%','2/3 67%']);
-  const aggregate=sectionByTitle(S,'テーブル別 成功率（合算）');
-  assert.equal((aggregate.match(/class="crow quest-row"/g)||[]).length,7);
-  assert.doesNotMatch(aggregate,/<button\b|data-(?:c|bump|bump-many)=/);
-  assert.ok(aggregate.includes('テンプレに出る成功率です（1回目＋2回目以降）'));
+  assert.deepEqual(t3(S),['1/2','1/1','2/3 67%']);
+  const page=html(S);
+  assert.equal((page.match(/class="sum-row"/g)||[]).length,7);
+  // 加算モードでは集計に入力ボタンを置かない（入力は「BZを記録」の1組だけ）
+  assert.equal((page.match(/class="crow quest-row"/g)||[]).length,0);
+  assert.equal((page.match(/data-action="bzQuest"/g)||[]).length,2);
+  assert.ok(page.includes('テンプレに出る成功率は合算（1回目＋2回目以降）です。'));
+  // 減算モードにすると、グループ別の訂正ボタンが集計の中に出る
+  const minus=html(S,-1);
+  assert.equal((minus.match(/class="crow quest-row"/g)||[]).length,14);
+  assert.equal((minus.match(/data-action="bzQuest"/g)||[]).length,26);
 });
 test('one success changes exactly five state paths including AT log',()=>{
   const S=clone(config.defaults);S.atLog.sessions[0].start={known:false};
@@ -68,6 +81,7 @@ test('per-group clamp and minus failure guard',()=>{
   config.normalizeState(S);
   for(const id of ids){assert.equal(S.questN1[id],2);assert.equal(S.questN2[id],3);}
   S.bzT2.t3=4;
+  // 減算モードの訂正ボタンは「集計」の中にある
   const buttons=[...html(S,-1).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]);
   const failure=key=>buttons.find(b=>b.includes('data-d="'+key+'"')&&b.includes('data-q="t3"')&&b.includes('data-r="miss"'));
   assert.match(failure('bzT1'),/ disabled aria-disabled="true"/);
@@ -112,8 +126,7 @@ test('template buffers equal 006e842 for zero and all table rows',()=>{
   }
 });
 test('all 28 checker headers omit UI version labels and use the ・ separator',()=>{
-  // mhsunbreak-test-checker.html は検収用のテスト版（§9-108）。公開物の数には入れない。
-  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html')&&p!=='mhsunbreak-test-checker.html');
+  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html'));
   assert.equal(files.length,28);
   for(const file of files){
     const headers=[...read(file).matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>/g)];
