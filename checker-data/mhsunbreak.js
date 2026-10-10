@@ -206,6 +206,7 @@
     if(ds.index===undefined||ds.index===''||!Number.isInteger(index)||index<0||index>=session.events.length)return false;
     const label=atEventText(session,index);
     session.events.splice(index,1);
+    openEvent=null;
     return label+' を削除';
   }
   // テンプレ（なな様テンプレ・収支帳用）の表記。画面の表記とは別に持つ。
@@ -408,22 +409,129 @@
     return (strongest?`<div class="at-top" style="--c:${strongest[4]}">${strongest[1]}（${strongest[2]}）：${strongest[3]}</div>`:'<div class="at-top none">アイキャッチ なし</div>')+(scenarioH(session)?'<div class="at-sc">シナリオH濃厚：3回目のBZでAT濃厚</div>':'');
   }
   function atRows(session,editable){return session.events.length?session.events.map((e,i)=>`<div class="crow at-row"><div class="lbl"><div class="nm">${atEventText(session,i)}</div></div>${editable?`<button type="button" class="cycle-btn" data-action="atDel" data-index="${i}">削除</button>`:''}</div>`).join(''):'<div class="hint">まだありません</div>';}
-  function atSection(ctx){
-    const S=ctx.S,session=currentAt(S),past=S.atLog.sessions.slice(0,-1).filter(s=>s.closed).reverse();
+  // ===== BZタブの画面（見せ方と入力の導線だけ。保存形式・集計・AT間ログ・テンプレ・カードは変えない）=====
+  // 画面だけの一時状態。保存しない（再読み込みで消える）。
+  let pickTable=null;      // 「BZを記録」で選んでいるテーブル
+  let pickGroup='bzT1';    // 開始が不明のときに選ぶ計上先
+  let openEvent=null;      // 「経過」で開いている小カード
+  const bzFold={extras:true,totals:false,past:false,prefs:false};   // 折りたたみの開閉（保存しない）
+  function startPicker(ctx){
+    const session=currentAt(ctx.S);
+    const startButton=(known,prior,label)=>{
+      const selected=session.start.known===known&&(!known||session.start.prior===prior);
+      return `<button type="button" class="at-btn${selected?' on':''}" data-action="atStart" data-known="${known}"${known?` data-prior="${prior}"`:''} aria-pressed="${selected}">${label}</button>`;
+    };
+    return `<div class="bz-sub">このAT間の開始</div><div class="at-pick">${startButton(true,0,'リセット後・AT後から')}${Array.from({length:AT_PRIOR_MAX},(_,i)=>startButton(true,i+1,'既にBZ'+(i+1)+'回')).join('')}${startButton(false,0,'途中から：不明')}</div>
+      <div class="hint">据え置きの朝一は前日のAT間の続きなので、［途中から］を選んでください。シナリオは設定変更時とAT終了時に選ばれます。</div>`;
+  }
+  // 1. このAT間（常時表示・短く）
+  function nowSection(ctx){
+    const S=ctx.S,session=currentAt(S),no=nextBzNo(session),eye=strongestEye(session);
+    const start=!session.start.known?'不明':session.start.prior?'途中から '+session.start.prior+'回':'リセット後・AT後から';
+    return `<section class="sec"><div class="sec-h">このAT間<span class="sub">記録 ${session.events.length}件</span></div>
+      <div class="now-grid">
+        <div class="now-cell"><small>開始</small><b>${start}</b></div>
+        <div class="now-cell"><small>次のBZ</small><b>${no===null?'番号なし':'BZ'+no+'回目'}</b></div>
+        <div class="now-cell"><small>アイキャッチ</small><b${eye?` style="color:${eye[4]}"`:' class="none"'}>${eye?eye[1]+'（'+eye[2]+'）':'なし'}</b></div>
+      </div>
+      ${eye?`<div class="now-note" style="color:${eye[4]}">${eye[3]}</div>`:''}
+      ${scenarioH(session)?'<div class="at-sc">シナリオH濃厚：3回目のBZでAT濃厚</div>':''}
+      ${canAtStart(S)?startPicker(ctx):''}
+    </section>`;
+  }
+  // 2. 経過（横並び。古い順に左→右）
+  function eventCard(session,index){
+    const e=session.events[index],on=openEvent===index?' on':'';
+    const label=atEventText(session,index);
+    if(e.t==='bz'){
+      const no=bzNoAt(session,index),table=TABLES.find(c=>c[0]===e.table);
+      return `<button type="button" class="ev-card${on}" data-action="atOpen" data-index="${index}" style="--c:${TABLE_COLORS[e.table]}" aria-label="${label}">
+        <b>${no===null?'BZ番号なし':'BZ'+no+'回目'}</b><i>T${table[1]}</i><small>${table[2]}</small><em>${e.r==='win'?'○成功':'×失敗'}</em></button>`;
+    }
+    if(e.t==='fuku')return `<button type="button" class="ev-card${on}" data-action="atOpen" data-index="${index}" aria-label="${label}"><b>福引</b><i>アイルー</i><em>${e.r==='win'?'○成功':'×失敗'}</em></button>`;
+    if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `<button type="button" class="ev-card${on}" data-action="atOpen" data-index="${index}" style="--c:${c[4]}" aria-label="${label}"><b>アイキャッチ</b><i>${c[1]}（${c[2]}）</i><small>${c[3]}</small></button>`;}
+    if(e.t==='serif'){const c=SERIF.find(c=>c[0]===e.c);return `<button type="button" class="ev-card${on}" data-action="atOpen" data-index="${index}" aria-label="${label}"><b>セリフ</b><i>「${c[2]}」</i><small>${c[1]}</small></button>`;}
+    return `<button type="button" class="ev-card${on}" data-action="atOpen" data-index="${index}" aria-label="${label}"><b>BZ以外</b><i>でAT当選</i></button>`;
+  }
+  function historySection(ctx){
+    const S=ctx.S,session=currentAt(S);
+    // 開いたときは最新（右端）が見えるようにする。HTMLが入ったあとに動かす。
+    if(typeof setTimeout==='function')setTimeout(()=>{
+      const el=typeof document!=='undefined'&&document.getElementById('evScroll');
+      if(el)el.scrollLeft=el.scrollWidth;
+    },0);
+    const open=openEvent!==null&&session.events[openEvent];
+    return `<section class="sec"><div class="sec-h">経過<span class="sub">古い順。右が最新</span></div>
+      ${session.events.length?`<div class="ev-scroll" id="evScroll"><div class="ev-track">${session.events.map((e,i)=>eventCard(session,i)).join('')}</div></div>`:'<div class="hint">まだありません。下の「BZを記録」から押してください。</div>'}
+      ${open?`<div class="cgrid"><div class="crow at-row"><div class="lbl"><div class="nm">${atEventText(session,openEvent)}</div></div><button type="button" class="cycle-btn" data-action="atDel" data-index="${openEvent}">削除</button></div></div>`:''}
+      ${session.events.length?'<div class="hint">カードを押すと内容と［削除］が出ます。［削除］はこのAT間のメモの行だけを消します。テーブル別の回数は減算モードで直してください（集計の中のボタン）。</div>':''}
+    </section>`;
+  }
+  // 3. BZを記録（テーブルを選んでから結果を押す）
+  function inputSection(ctx){
+    const S=ctx.S,session=currentAt(S),no=nextBzNo(session),known=!!session.start.known;
+    const group=known?(no===1?'bzT1':'bzT2'):pickGroup;
+    const nKey=group==='bzT1'?'questN1':'questN2';
+    const minus=ctx.mode<0;
+    const picked=pickTable&&TABLES.some(c=>c[0]===pickTable)?pickTable:null;
+    const pickBtn=([id,mark,short])=>`<button type="button" class="t-btn${picked===id?' on':''}" data-action="bzPick" data-q="${id}" style="--c:${TABLE_COLORS[id]}" aria-pressed="${picked===id}" aria-label="テーブル${id.slice(1)} ${short}"${minus?' disabled aria-disabled="true"':''}><b>${mark}</b><small>${short}</small></button>`;
+    const resultBtns=picked?`<button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${group}" data-n="${nKey}" data-q="${picked}" data-r="win" aria-label="${TABLE_READS[picked]} 成功">${picked==='t7'?'＋':'成功'}</button>${picked==='t7'?'':`<button type="button" class="cycle-btn" data-action="bzQuest" data-d="${group}" data-q="${picked}" data-r="miss" aria-label="${TABLE_READS[picked]} 失敗">失敗</button>`}`:'';
+    return `<section class="sec"><div class="sec-h">BZを記録</div>
+      <div class="t-pick">${TABLES.map(pickBtn).join('')}</div>
+      ${minus?'<div class="hint">減算モードでは記録できません。回数の訂正は下の「集計」の中のボタンで行います。</div>':`
+      ${known?`<div class="mn calc">→ ${group==='bzT1'?'1回目':'2回目以降'}に計上（BZ${no}回目）</div>`:`<div class="bz-sub">どちらに計上するか</div><div class="at-pick">${BZ_GROUPS.map(([dKey,,title])=>`<button type="button" class="at-btn${pickGroup===dKey?' on':''}" data-action="bzGroup" data-d="${dKey}" aria-pressed="${pickGroup===dKey}">${title}</button>`).join('')}</div>`}
+      <div class="crow pick-row"><div class="lbl"><div class="nm">${picked?TABLE_NAMES[picked]:'テーブルを選んでください'}</div></div><div class="cycle-actions">${resultBtns}</div></div>`}
+      <div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。並んだアイコンの1個目でテーブルを選び、BZとその後のクエストが終わったら、ATに当選したかで［成功］［失敗］を押してください。テーブル⑦はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（リセット後を含む）最初のブレイクゾーン、2回目以降はそれ以外で、開始が分かっているときは次のBZ番号から自動で決まります。据え置きの朝一は前日のAT間の続きなので、開始では［途中から］を選んでください。設定差は公表されていません。記録してサンプルを集める項目です。</div>
+    </section>`;
+  }
+  // 4. 補助（必要なときだけ開く）
+  function foldSection(key,title,sub,body,forceOpen){
+    const open=forceOpen||bzFold[key];
+    return `<details class="bz-fold"${open?' open':''}><summary data-action="bzFold" data-k="${key}">${title}${sub?`<span class="sub">${sub}</span>`:''}</summary>${body}</details>`;
+  }
+  function extrasSection(ctx){
     const disabled=ctx.mode<0?' disabled aria-disabled="true"':'';
-    const startButton=(known,prior,label)=>{const selected=session.start.known===known&&(!known||session.start.prior===prior);return `<button type="button" class="at-btn${selected?' on':''}" data-action="atStart" data-known="${known}"${known?` data-prior="${prior}"`:''} aria-pressed="${selected}">${label}</button>`;};
-    return `<section class="sec"><div class="sec-h">AT間メモ<span class="sub">過去 ${past.length}件</span></div>
-      ${canAtStart(S)?`<div class="bz-sub">このAT間の開始</div><div class="at-pick">${startButton(true,0,'リセット後・AT後から')}${Array.from({length:AT_PRIOR_MAX},(_,i)=>startButton(true,i+1,'既にBZ'+(i+1)+'回')).join('')}${startButton(false,0,'途中から：不明')}</div>`:atStartLine(session)?`<div class="bz-sub">${atStartLine(session)}</div>`:''}
-      ${atSummary(session)}<div class="cgrid">${atRows(session,true)}</div>
-      ${past.length?`<details class="hit-more"><summary>過去のAT間（${past.length}件）</summary>${past.map((s,i)=>`<div class="at-past"><div class="at-past-h">${i+1}つ前のAT間</div>${atStartLine(s)?`<div class="bz-sub">${atStartLine(s)}</div>`:''}${atSummary(s)}<div class="cgrid">${atRows(s,false)}</div></div>`).join('')}</details>`:''}
-      <div class="bz-sub">アイキャッチ（ステージチェンジ）</div><div class="at-pick">${EYE.map(c=>`<button type="button" class="at-btn eye" data-action="atEvent" data-t="eye" data-c="${c[0]}" style="--c:${c[4]}"${disabled}><b>${c[1]}（${c[2]}）</b><small>${c[3]}</small></button>`).join('')}</div>
+    const body=`<div class="bz-sub">アイキャッチ（ステージチェンジ）</div><div class="at-pick">${EYE.map(c=>`<button type="button" class="at-btn eye" data-action="atEvent" data-t="eye" data-c="${c[0]}" style="--c:${c[4]}"${disabled}><b>${c[1]}（${c[2]}）</b><small>${c[3]}</small></button>`).join('')}</div>
       <div class="bz-sub">チッチェのセリフ</div><div class="at-pick">${SERIF.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="serif" data-c="${c[0]}" aria-label="セリフ 「${c[2]}」 ${c[1]}"${disabled}><b>「${c[2]}」</b><small>${c[1]}</small></button>`).join('')}</div>
       <div class="bz-sub">アイルー福引</div><div class="at-pick">${['win','miss'].map(r=>`<button type="button" class="at-btn" data-action="atEvent" data-t="fuku" data-r="${r}" aria-label="アイルー福引 ${r==='win'?'成功':'失敗'}"${disabled}>${r==='win'?'成功':'失敗'}</button>`).join('')}</div>
       <div class="bz-sub">そのほか</div><div class="at-pick"><button type="button" class="at-btn" data-action="atEvent" data-t="otherAt"${disabled}>BZ以外でAT</button></div>
-      <div class="crow at-pref"><div class="lbl"><div class="nm">AT間メモをテンプレに入れる</div></div><button type="button" class="cycle-btn${tplAtLogOn()?' win':''}" data-action="tplAtLog" role="switch" aria-checked="${tplAtLogOn()}" aria-label="AT間メモをテンプレに入れる">${tplAtLogOn()?'☑ 入れる':'☐ 入れない'}</button></div>
-      ${ctx.mode<0?'<div class="hint">減算はテーブル別の回数だけを直します（AT間メモは各行の［削除］か「↩ 取消」で直します）。</div>':''}
-      <div class="hint">AT間ごとに、出た順でメモを残します。AT終了から次のAT当選までを1つのAT間として、BZ・アイルー福引・アイキャッチ・チッチェのセリフを押した順に並べます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。据え置きの朝一は前日のAT間の続きなので、［途中から］を選んでください。アイキャッチはステージチェンジで出て、滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。BZ成功・福引成功・［BZ以外でAT］を押すと、そのAT間を閉じて次のAT間を始めます。減算はテーブル別の回数だけを直します（AT間メモは各行の［削除］か「↩ 取消」で直します）。テンプレ（収支帳用コピーも）の最後に「■AT間メモ」として出します。入れたくないときは「AT間メモをテンプレに入れる」を押して外してください（この設定は記録とは別に保存します）。設定推測には使いません。出典は一撃様です。</div>
-    </section>`;
+      <div class="hint">アイキャッチはステージチェンジで出て、滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。BZ成功・福引成功・［BZ以外でAT］を押すと、そのAT間を閉じて次のAT間を始めます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。減算モードでは記録できません。設定推測には使いません。出典は一撃様です。</div>`;
+    return foldSection('extras','示唆・福引・その他','',body);
+  }
+  function totalsSection(ctx){
+    const S=ctx.S,minus=ctx.mode<0;
+    const rows=TABLES.map(([id,mark,short])=>`<div class="sum-row" style="--c:${TABLE_COLORS[id]}" aria-label="${TABLE_READS[id]}">
+      <b>${mark}</b><span class="sum-name">${short}</span><span>${n(S.questN1,id)}/${n(S.bzT1,id)}</span><span>${n(S.questN2,id)}/${n(S.bzT2,id)}</span><span class="sum-total">${ctx.pct(questHit(S,id),questD(S,id))}</span>
+    </div>`).join('');
+    const fix=minus?BZ_GROUPS.map(([dKey,nKey,title])=>`
+      <div class="bz-sub">${title}</div>
+      <div class="cgrid">${TABLES.map(([id])=>{
+        const hit=n(S[nKey],id),d=n(S[dKey],id);
+        const label=title+' '+TABLE_READS[id];
+        const disabled=d<=hit?' disabled aria-disabled="true"':'';
+        return `<div class="crow quest-row" style="--c:${TABLE_COLORS[id]}">
+          <div class="lbl"><div class="nm">${TABLE_NAMES[id]}</div><div class="pct">${ctx.pct(hit,d)}</div></div>
+          <div class="cycle-actions">
+            <button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${dKey}" data-n="${nKey}" data-q="${id}" data-r="win" data-label="${label} 成功" aria-label="${label} 成功">${id==='t7'?'＋':'成功'}</button>
+            ${id==='t7'?'':`<button type="button" class="cycle-btn" data-action="bzQuest" data-d="${dKey}" data-q="${id}" data-r="miss" data-label="${label} 失敗" aria-label="${label} 失敗"${disabled}>失敗</button>`}
+          </div>
+        </div>`;
+      }).join('')}</div>`).join(''):'';
+    const body=`<div class="sum-head"><b>T</b><span class="sum-name">テーブル</span><span>1回目</span><span>2回目以降</span><span class="sum-total">合算</span></div>
+      ${rows}
+      ${minus?`<div class="hint">減算モードです。下のボタンで、そのグループの回数と成功数を1つ戻します（AT間メモは変わりません）。</div>${fix}`:'<div class="hint">テンプレに出る成功率は合算（1回目＋2回目以降）です。回数の訂正は減算モードに切り替えると、この中にボタンが出ます。</div>'}`;
+    return foldSection('totals','集計','テーブル別の成功／回数',body,minus);
+  }
+  function pastSection(ctx){
+    const S=ctx.S,past=S.atLog.sessions.slice(0,-1).filter(s=>s.closed).reverse();
+    if(!past.length)return '';
+    const body=past.map((s,i)=>`<div class="at-past"><div class="at-past-h">${i+1}つ前のAT間</div>${atStartLine(s)?`<div class="bz-sub">${atStartLine(s)}</div>`:''}${atSummary(s)}<div class="cgrid">${atRows(s,false)}</div></div>`).join('');
+    return foldSection('past','過去のAT間',past.length+'件',body);
+  }
+  function prefsSection(){
+    const body=`<div class="crow at-pref"><div class="lbl"><div class="nm">AT間メモをテンプレに入れる</div></div><button type="button" class="cycle-btn${tplAtLogOn()?' win':''}" data-action="tplAtLog" role="switch" aria-checked="${tplAtLogOn()}" aria-label="AT間メモをテンプレに入れる">${tplAtLogOn()?'☑ 入れる':'☐ 入れない'}</button></div>
+      <div class="hint">テンプレ（収支帳用コピーも）の最後に「■AT間メモ」として出します。入れたくないときは外してください（この設定は記録とは別に保存します）。</div>`;
+    return foldSection('prefs','コピー設定','',body);
   }
   // 旧データ（10マス配列メモ）の移行。1個目のアイコンでテーブルを判定する（夢爽承認 2026/10/9）。
   // 旧ログの成功＝クエスト成功＝AT当選なので、新方式の成功と同じ意味。
@@ -439,6 +547,7 @@
     }else{
       if(!atGroupAllowed(S,dKey)||!appendAtEvent(S,{t:'bz',table:id,r:ds.r}))return false;
       keys.forEach(key=>{S[key][id]=n(S[key],id)+1;});
+      pickTable=null;   // 記録したら選択を外す（画面だけの状態）
     }
     return `${title} ${TABLE_NAMES[id]} ${ds.r==='win'?'成功':'失敗'}${ctx.mode<0?'を減算':''}`;
   }
@@ -510,7 +619,7 @@
     <div class="cgrid">${arr.map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
     <div class="hint">${hint}</div>
   </section>`).join('');}
-  function pageBZ(ctx){const S=ctx.S;return `<style>${ND_STYLE}
+  function pageBZ(ctx){return `<style>${ND_STYLE}
     .bz-sub{font-size:11px;font-weight:800;color:var(--txt);letter-spacing:.06em;margin-bottom:6px}
     .quest-row .lbl .nm{font-size:16px;overflow-wrap:anywhere}
     .quest-row .lbl .pct{text-align:left;margin-top:4px}
@@ -536,28 +645,47 @@
     .at-pref{margin-top:8px}
     .at-pref .nm{font-size:13px}
     .at-pref .cycle-btn{min-width:96px}
-  </style>`+`<section class="sec">
-    <div class="sec-h">テーブル別の結果</div>`+BZ_GROUPS.map(([dKey,nKey,title])=>`
-    <div class="bz-sub">${title}${ctx.mode>=0&&!atGroupAllowed(S,dKey)?`<small class="mn">今は${nextBzNo(currentAt(S))}回目</small>`:''}</div>
-    <div class="cgrid">${TABLES.map(([id])=>{
-      const name=TABLE_NAMES[id];
-      const label=title+' '+TABLE_READS[id];
-      const hit=n(S[nKey],id),d=n(S[dKey],id);
-      const groupDisabled=ctx.mode>=0&&!atGroupAllowed(S,dKey)?' disabled aria-disabled="true"':'';
-      const disabled=groupDisabled||(ctx.mode<0&&d<=hit?' disabled aria-disabled="true"':'');
-      return `<div class="crow quest-row" style="--c:${TABLE_COLORS[id]}">
-        <div class="lbl"><div class="nm">${name}</div><div class="pct">${ctx.pct(hit,d)}</div></div>
-        <div class="cycle-actions">
-          <button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${dKey}" data-n="${nKey}" data-q="${id}" data-r="win" data-label="${label} 成功" aria-label="${label} 成功"${groupDisabled}>${id==='t7'?'＋':'成功'}</button>
-          ${id==='t7'?'':`<button type="button" class="cycle-btn" data-action="bzQuest" data-d="${dKey}" data-q="${id}" data-r="miss" data-label="${label} 失敗" aria-label="${label} 失敗"${disabled}>失敗</button>`}
-        </div>
-      </div>`;
-    }).join('')}</div>
-  `).join('')+`<div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。並んだアイコンの1個目を見てテーブルを選び、BZとその後のクエストが終わったら、ATに当選したかで［成功］［失敗］を押してください。テーブル7はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。訂正は減算モードで同じボタンを押します。設定差は公表されていません。記録してサンプルを集める項目です。</div></section>`+atSection(ctx)+`<section class="sec">
-    <div class="sec-h">テーブル別 成功率（合算）</div>
-    <div class="cgrid">${TABLES.map(([id])=>`<div class="crow quest-row" style="--c:${TABLE_COLORS[id]}" aria-label="${TABLE_READS[id]}"><div class="lbl"><div class="nm">${TABLE_NAMES[id]}</div></div><div class="pct">${ctx.pct(questHit(S,id),questD(S,id))}</div></div>`).join('')}</div>
-    <div class="hint">テンプレに出る成功率です（1回目＋2回目以降）</div>
-  </section>`;}
+    /* このAT間（常時表示） */
+    .now-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+    .now-cell{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:6px 8px;min-height:52px}
+    .now-cell small{display:block;font-size:10px;color:var(--muted);letter-spacing:.04em}
+    .now-cell b{display:block;font-size:14px;font-weight:800;line-height:1.3;overflow-wrap:anywhere}
+    .now-cell b.none{color:var(--muted)}
+    .now-note{font-size:12px;font-weight:700;margin-top:6px}
+    /* 経過（横並び） */
+    .ev-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
+    .ev-track{display:flex;gap:6px;width:max-content}
+    .ev-card{flex:none;width:96px;min-height:92px;padding:6px;border:1px solid var(--line);border-left:4px solid var(--c,var(--line));border-radius:10px;background:var(--panel);color:var(--txt);font:inherit;text-align:left}
+    .ev-card b{display:block;font-size:14px;font-weight:800;line-height:1.25}
+    .ev-card i{display:block;font-style:normal;font-size:14px;font-weight:800;color:var(--c,var(--txt));line-height:1.25}
+    .ev-card small{display:block;font-size:12px;color:var(--muted);line-height:1.25;overflow-wrap:anywhere}
+    .ev-card em{display:block;font-style:normal;font-size:14px;font-weight:800;margin-top:2px}
+    .ev-card.on{border-color:var(--pink-dim);box-shadow:0 0 0 1px var(--pink-dim) inset}
+    /* BZを記録 */
+    .t-pick{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:8px}
+    .t-btn{min-height:56px;padding:4px;border:1px solid var(--line);border-left:4px solid var(--c,var(--line));border-radius:10px;background:var(--panel);color:var(--txt);font:inherit}
+    .t-btn b{display:block;font-size:20px;font-weight:800;color:var(--c,var(--txt));line-height:1.1}
+    .t-btn small{display:block;font-size:11px;color:var(--muted);line-height:1.2;overflow-wrap:anywhere}
+    .t-btn.on{border-color:var(--pink-dim);background:rgba(255,61,143,.14)}
+    .t-btn:disabled{opacity:.4}
+    .calc{font-size:12px;font-weight:700;color:var(--cyan);margin-bottom:6px}
+    .pick-row .nm{font-size:15px;font-weight:800}
+    /* 集計 */
+    .sum-head,.sum-row{display:grid;grid-template-columns:28px 1fr 62px 62px 96px;gap:4px;align-items:center;padding:6px 8px;border-radius:10px}
+    .sum-head{font-size:10px;color:var(--muted);font-weight:800}
+    .sum-row{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c,var(--line));margin-bottom:4px;font-size:13px;font-weight:700}
+    .sum-row b{font-size:18px;color:var(--c,var(--txt))}
+    .sum-name{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
+    .sum-total{font-family:var(--seg);font-size:12px;color:var(--cyan);text-align:right}
+    .sum-head .sum-total{font-family:var(--body)}
+    details.bz-fold{margin-bottom:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);overflow:hidden}
+    details.bz-fold>summary{display:flex;align-items:center;gap:8px;min-height:48px;padding:0 12px;cursor:pointer;list-style:none;font-size:12px;font-weight:800;color:var(--gold);letter-spacing:.1em}
+    details.bz-fold>summary::-webkit-details-marker{display:none}
+    details.bz-fold>summary::before{content:'▾ ';margin-right:2px}
+    details.bz-fold[open]>summary::before{content:'▴ '}
+    details.bz-fold>summary .sub{font-size:10px;font-weight:500;color:var(--muted);letter-spacing:0}
+    details.bz-fold>*:not(summary){padding:0 12px 12px}
+  </style>`+nowSection(ctx)+historySection(ctx)+inputSection(ctx)+extrasSection(ctx)+totalsSection(ctx)+pastSection(ctx)+prefsSection();}
   // サブラベルだけを段位表記の出典にする。強さの判定には数値rankを使う。
   function tierText(sub){
     const m=String(sub||'').match(/設定([0-9・]+(?:以上)?)濃厚/);
@@ -615,6 +743,28 @@
       tplAtLog:()=>{const on=!tplAtLogOn();setTplAtLog(on);return 'AT間メモをテンプレに'+(on?'入れます':'入れません');},
       // BZシナリオカード。状態は作ったかどうかだけで、記録には書かない。
       scenarioCard:()=>{scenarioReady=true;return 'BZシナリオカードを作りました';},
+      // 画面だけの一時状態（保存しない）。取消で戻るものは無い。
+      bzPick:(ctx,ds)=>{
+        if(!TABLES.some(c=>c[0]===ds.q))return false;
+        pickTable=pickTable===ds.q?null:ds.q;
+        return pickTable?TABLE_READS[pickTable]+" を選びました":"テーブルの選択を外しました";
+      },
+      bzGroup:(ctx,ds)=>{
+        if(!BZ_GROUPS.some(g=>g[0]===ds.d))return false;
+        pickGroup=ds.d;
+        return (ds.d==="bzT1"?"1回目":"2回目以降")+" に計上します";
+      },
+      atOpen:(ctx,ds)=>{
+        const index=Number(ds.index);
+        if(!Number.isInteger(index)||index<0||index>=currentAt(ctx.S).events.length)return false;
+        openEvent=openEvent===index?null:index;
+        return openEvent===null?"閉じました":atEventText(currentAt(ctx.S),index);
+      },
+      bzFold:(ctx,ds)=>{
+        if(!Object.prototype.hasOwnProperty.call(bzFold,ds.k))return false;
+        bzFold[ds.k]=!bzFold[ds.k];
+        return bzFold[ds.k]?"開きました":"閉じました";
+      },
       scenarioSave:ctx=>{
         if(!drawScenarioCard(ctx.S))return false;
         const d=new Date(),p=v=>String(v).padStart(2,'0');

@@ -72,7 +72,7 @@ async function copy(plain=false){await click(plain?'#cpPlainBtn':'#cpBtn');retur
 async function reset(){await frame(`d.getElementById('dataOps').open=true;`);await click('#resetBtn');await click('#resetBtn');}
 function pass(name,detail){results.push({name,status:'PASS',detail});console.log('PASS '+name);}
 async function measure(name){
-  const r=await frame(`const width=w.innerWidth;const nodes=[...d.querySelectorAll('header *,#main *,nav *')].filter(e=>e.checkVisibility()&&w.getComputedStyle(e).visibility!=='hidden');return {width,overflow:nodes.filter(e=>{const r=e.getBoundingClientRect();return r.left<-.5||r.right>width+.5;}).map(e=>({tag:e.tagName,cls:e.className,text:e.textContent.slice(0,60),rect:e.getBoundingClientRect().toJSON()})),buttons:nodes.filter(e=>e.matches('button,.plus')).map(e=>({text:e.textContent,height:e.getBoundingClientRect().height,minHeight:w.getComputedStyle(e).minHeight})),ndLabels:[...d.querySelectorAll('.bz-row .ct')].map(e=>{const range=d.createRange();range.selectNodeContents(e.firstElementChild);return {text:e.textContent,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,rowHeight:e.closest('.bz-row').getBoundingClientRect().height,lineCount:range.getClientRects().length,font:w.getComputedStyle(e.firstElementChild).fontSize};})};`);
+  const r=await frame(`const width=w.innerWidth;const nodes=[...d.querySelectorAll('header *,#main *,nav *')].filter(e=>e.checkVisibility()&&w.getComputedStyle(e).visibility!=='hidden');const inScroller=e=>{for(let p=e.parentElement;p;p=p.parentElement){const ox=w.getComputedStyle(p).overflowX;if(ox==='auto'||ox==='scroll'||ox==='hidden')return true;}return false;};return {width,overflow:nodes.filter(e=>{const r=e.getBoundingClientRect();return (r.left<-.5||r.right>width+.5)&&!inScroller(e);}).map(e=>({tag:e.tagName,cls:e.className,text:e.textContent.slice(0,60),rect:e.getBoundingClientRect().toJSON()})),buttons:nodes.filter(e=>e.matches('button,.plus')).map(e=>({text:e.textContent,height:e.getBoundingClientRect().height,minHeight:w.getComputedStyle(e).minHeight})),ndLabels:[...d.querySelectorAll('.bz-row .ct')].map(e=>{const range=d.createRange();range.selectNodeContents(e.firstElementChild);return {text:e.textContent,width:e.getBoundingClientRect().width,height:e.getBoundingClientRect().height,rowHeight:e.closest('.bz-row').getBoundingClientRect().height,lineCount:range.getClientRects().length,font:w.getComputedStyle(e.firstElementChild).fontSize};})};`);
   fs.writeFileSync(path.join(artifacts,name+'-layout.json'),JSON.stringify(r,null,2));
   // Jump navigation intentionally scrolls horizontally. Its clipped children do
   // not overflow the page viewport; test the scroll container itself instead.
@@ -403,20 +403,28 @@ try{
   saveCanvas('mhsunbreak-all-card',allCard);await click('#detailBtn');saveCanvas('mhsunbreak-all-detail',await canvas('detailCanvas'));
   // AT interval acceptance: every operation uses the production button handler.
   const atCurrent=s=>s.atLog.sessions.at(-1);
+  // 一番強いアイキャッチは「このAT間」の3つ目のセル＋その下の一文に出る
+  const eyeNow=()=>frame(`const b=d.querySelector('.now-cell:nth-child(3) b'),n=d.querySelector('.now-note');return n?b.textContent+'：'+n.textContent:b.textContent;`);
   const emptyAt={start:{known:true,prior:0},events:[],closed:false};
   const atClick=(t,extra='')=>click(`[data-action="atEvent"][data-t="${t}"]${extra}`);
-  const atQuest=(table='t1',r='miss',d='bzT1')=>click(`[data-action="bzQuest"][data-d="${d}"][data-q="${table}"][data-r="${r}"]`);
-  const atRows=()=>frame(`return [...d.querySelectorAll('.at-row .nm')].filter(e=>!e.closest('details')).map(e=>e.textContent);`);
+  const atQuest=async(table='t1',r='miss',d)=>{
+    await click(`[data-action="bzPick"][data-q="${table}"]`);
+    if(d&&await frame(`return !!d.querySelector('[data-action="bzGroup"][data-d="${d}"]');`))await click(`[data-action="bzGroup"][data-d="${d}"]`);
+    await click(`[data-action="bzQuest"][data-q="${table}"][data-r="${r}"]`);
+  };
+  const calcLine=()=>frame(`const e=d.querySelector('.calc');return e?e.textContent:null;`);
+  // 今のAT間の記録は「経過」の横並びカード。読み上げ名はログ1行と同じ文字列
+  const atRows=()=>frame(`return [...d.querySelectorAll('.ev-card')].map(e=>e.getAttribute('aria-label'));`);
   await clear('mhsunbreak');await tab(2);
   assert.equal(await frame(`return d.querySelectorAll('[data-action="atStart"]').length;`),8);
   assert.equal(await frame(`return d.querySelector('[data-action="atStart"].on').getAttribute('aria-pressed');`),'true');
   await atQuest();
   assert.deepEqual(await atRows(),['BZ1回目 ① 青スタート 失敗']);
   assert.equal(await frame(`return d.querySelector('.at-sc').textContent;`),'シナリオH濃厚：3回目のBZでAT濃厚');
-  // §5: after BZ1 the first group is disabled, the later group is enabled.
-  assert.equal(await frame(`return [...d.querySelectorAll('[data-action="bzQuest"][data-d="bzT1"]')].every(e=>e.disabled&&e.getAttribute('aria-disabled')==='true');`),true);
-  assert.equal(await frame(`return [...d.querySelectorAll('[data-action="bzQuest"][data-d="bzT2"]')].every(e=>!e.disabled);`),true);
-  assert.ok((await frame(`return [...d.querySelectorAll('.bz-sub')].map(e=>e.textContent);`)).includes('1回目今は2回目'));
+  // §5: 開始が既知なので、次のBZ番号から計上先が自動で決まる
+  assert.equal(await calcLine(),'→ 2回目以降に計上（BZ2回目）');
+  assert.equal(await frame(`return d.querySelectorAll('[data-action="bzGroup"]').length;`),0);
+  assert.equal(await frame(`return d.querySelector('.now-cell:nth-child(2) b').textContent;`),'BZ2回目');
   assert.equal(await frame(`return d.querySelectorAll('[data-action="atStart"]').length;`),0);
   await click('#undoBtn');assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await state()).bzT1.t1,0);
   pass('MH AT log BZ1/H, correct group lock and atomic undo of count plus event');
@@ -425,10 +433,11 @@ try{
   assert.deepEqual((await state()).czType,{breakzone:0,airou:0});
   pass('MH AT log fuku miss does not advance BZ numbering or CZ counters');
   for(const c of ['jay','bahari','jay'])await atClick('eye',`[data-c="${c}"]`);
-  assert.equal(await frame(`return d.querySelector('.at-top').textContent;`),'バハリ（緑）：シナリオE以上濃厚');
-  const beforeDelete=await state();await click('[data-action="atDel"][data-index="3"]');
+  assert.equal(await eyeNow(),'バハリ（緑）：シナリオE以上濃厚');
+  const beforeDelete=await state();
+  await click('[data-action="atOpen"][data-index="3"]');await click('[data-action="atDel"][data-index="3"]');
   assert.equal(atCurrent(await state()).events.length,4);
-  assert.equal(await frame(`return d.querySelector('.at-top').textContent;`),'ジェイ（白）：シナリオB以上濃厚');
+  assert.equal(await eyeNow(),'ジェイ（白）：シナリオB以上濃厚');
   assert.deepEqual((await state()).bzT1,beforeDelete.bzT1);
   await click('#undoBtn');assert.deepEqual(await state(),beforeDelete);
   pass('MH AT log strongest eye, row deletion and deletion undo');
@@ -440,9 +449,9 @@ try{
   pass('MH AT log minus only changes count and disables event recording');
   await atClick('fuku','[data-r="win"]');
   assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await state()).atLog.sessions[0].closed,true);
-  assert.equal(await frame(`return d.querySelector('.hit-more').open;`),false);
-  assert.equal(await frame(`return d.querySelector('.hit-more summary').textContent;`),'過去のAT間（1件）');
-  await click('.hit-more summary');
+  assert.equal(await frame(`return d.querySelector('details.bz-fold:has([data-k=past])').open;`),false);
+  assert.equal(await frame(`return d.querySelector('[data-k=past]').textContent.replace(/s+/g,' ').trim();`),'過去のAT間1件');
+  await click('[data-k=past]');
   assert.equal(await frame(`return d.querySelector('.at-past .at-top').textContent;`),'バハリ（緑）：シナリオE以上濃厚');
   assert.equal(await frame(`return d.querySelectorAll('.at-past [data-action="atDel"]').length;`),0);
   pass('MH AT log fuku win closes interval; folded past retains hints without delete');
@@ -457,12 +466,16 @@ try{
   pass('MH AT log table7 plus and other AT both start fresh intervals');
   await clear('mhsunbreak');await tab(2);await click('[data-action="atStart"][data-prior="2"]');
   assert.equal(await frame(`return d.querySelector('[data-action="atStart"][data-prior="2"]').getAttribute('aria-pressed');`),'true');
-  assert.equal(await frame(`return [...d.querySelectorAll('[data-d="bzT1"]')].every(e=>e.disabled);`),true);
+  assert.equal(await calcLine(),'→ 2回目以降に計上（BZ3回目）');
   await atQuest('t1','miss','bzT2');assert.deepEqual(await atRows(),['BZ3回目 ① 青スタート 失敗']);
   assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
-  await click('#undoBtn');await click('#undoBtn');assert.deepEqual(atCurrent(await state()).start,{known:true,prior:0});
+  // 取消3回（記録・テーブルの選択・開始の選択。選択は画面だけの状態なので戻すものは無い）
+  await click('#undoBtn');await click('#undoBtn');await click('#undoBtn');assert.deepEqual(atCurrent(await state()).start,{known:true,prior:0});
   await click('[data-action="atStart"][data-known="false"]');
-  assert.equal(await frame(`return [...d.querySelectorAll('[data-action="bzQuest"]')].every(e=>!e.disabled);`),true);
+  // 不明のときは計上先の選択ボタンが出る（自動の行は出ない）
+  assert.equal(await frame(`return d.querySelectorAll('[data-action="bzGroup"]').length;`),2);
+  assert.equal(await calcLine(),null);
+  assert.equal(await frame(`return d.querySelector('.now-cell:nth-child(2) b').textContent;`),'番号なし');
   await atQuest();assert.deepEqual(await atRows(),['BZ ① 青スタート 失敗']);
   assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
   pass('MH AT log prior2 and unknown start via real selected buttons');
@@ -528,15 +541,15 @@ try{
   }
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);await measure('mhsunbreak-at-start-'+width);
-    // 空のAT間メモは「まだありません」と説明の2本。説明は最後の1本。
-    assert.deepEqual(await frame(`return [...d.querySelectorAll('section')[1].querySelectorAll('.hint')].map(e=>e.textContent.slice(0,7));`),['まだありません','AT間ごとに、']);
+    // 記録が無いときの「経過」は案内の1本だけ
+    assert.deepEqual(await frame(`return [...d.querySelectorAll('section')[1].querySelectorAll('.hint')].map(e=>e.textContent.slice(0,9));`),['まだありません。下']);
     await atQuest();for(const c of ['jay','bahari','jay'])await atClick('eye',`[data-c="${c}"]`);
-    await atClick('fuku','[data-r="win"]');await atClick('serif','[data-c="s4"]');await click('.hit-more summary');
+    await atClick('fuku','[data-r="win"]');await atClick('serif','[data-c="s4"]');
     await measure('mhsunbreak-at-log-'+width);
-    const inline=await frame(`const hint=d.querySelector('section .hint');return {text:[...hint.childNodes].filter(e=>e.nodeType===3).map(e=>e.textContent).join('').trim(),details:hint.querySelector('details')?.open};`);
+    const inline=await frame(`const hint=[...d.querySelectorAll('.hint')].find(e=>e.textContent.startsWith('BZ開始時のアイコン1個目'));return {text:[...hint.childNodes].filter(e=>e.nodeType===3).map(e=>e.textContent).join('').trim(),details:hint.querySelector('details')?.open};`);
     assert.equal(inline.text,'BZ開始時のアイコン1個目でテーブルが決まります。');assert.equal(inline.details,false);
     assert.equal(await frame(`return [...d.querySelectorAll('.at-btn[data-t="eye"],.at-btn[data-t="serif"]')].every(e=>e.getBoundingClientRect().height>=48);`),true);
-    await frame(`d.querySelector('.at-top').scrollIntoView({block:'start'});`);
+    await frame(`d.querySelector('.now-grid').scrollIntoView({block:'start'});`);
     const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:740,scale:1}});
     fs.writeFileSync(path.join(artifacts,'mhsunbreak-at-log-'+width+'.png'),Buffer.from(shot.data,'base64'));
     pass('MH AT log '+width+' inline hint, 48px picks and rendered screenshot');
@@ -544,13 +557,13 @@ try{
   // v04: rendered table structure at real viewport widths.
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);
-    assert.deepEqual(await frame("return [...d.querySelectorAll('.sec-h')].map(e=>e.firstChild.textContent.trim());"),['テーブル別の結果','AT間メモ','テーブル別 成功率（合算）']);
-    assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),21);
-    assert.equal(await frame('return d.querySelectorAll(".quest-row button").length;'),26);
-    assert.equal(await frame('return d.querySelectorAll("[data-q=t7][data-r=miss]").length;'),0);
-    assert.deepEqual(await frame('return [...d.querySelectorAll("[data-q=t7]")].map(e=>e.textContent.trim());'),['＋','＋']);
-    const aggregate=await frame('const sec=[...d.querySelectorAll("section")].at(-1);return {rows:sec.querySelectorAll(".quest-row").length,buttons:sec.querySelectorAll("button,[data-bump]").length};');
-    assert.deepEqual(aggregate,{rows:7,buttons:0});
+    assert.deepEqual(await frame("return [...d.querySelectorAll('.sec-h')].map(e=>e.firstChild.textContent.trim());"),['このAT間','経過','BZを記録']);
+    assert.deepEqual(await frame("return [...d.querySelectorAll('details.bz-fold>summary')].map(e=>e.firstChild.textContent.trim());"),['示唆・福引・その他','集計','コピー設定']);
+    assert.equal(await frame('return d.querySelectorAll(".t-btn").length;'),7);
+    assert.equal(await frame('return d.querySelectorAll(".sum-row").length;'),7);
+    // 加算モードでは集計に入力ボタンを置かない（入力は「BZを記録」の1組だけ）
+    assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),0);
+    assert.equal(await frame('return d.querySelectorAll("[data-action=bzQuest]").length;'),0);
     await measure('mhsunbreak-bz-tables-'+width);
     pass('MH table structure '+width,{rows:21,buttons:26,aggregateRows:7});
   }
@@ -560,27 +573,45 @@ try{
   const questIds=['t1','t2','t3','t4','t5','t6','t7'];
   const nKeyOf=key=>key==='bzT1'?'questN1':'questN2';
   const questClick=(key,id,success)=>click(`[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="${success?'win':'miss'}"]`);
-  assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),21);
+  assert.equal(await frame('return d.querySelectorAll(".t-btn").length;'),7);
+  await click('#modeBtn');
+  assert.equal(await frame('return d.querySelectorAll(".quest-row").length;'),14);
   assert.equal(await frame('return d.querySelectorAll(".quest-row button").length;'),26);
+  await click('#modeBtn');
   for(const key of ['bzT1','bzT2'])for(const id of questIds){
-    await questClick(key,id,true);
-    let s=await state();assert.equal(s[key][id],1);assert.equal(s[nKeyOf(key)][id],1);
+    // 加算は「BZを記録」の1組だけ。計上先は開始から自動で決まるので、まっさら（1回目）と
+    // ［既にBZ1回］（2回目以降）で作り分ける
+    await clear('mhsunbreak');await tab(2);
+    if(key==='bzT2')await click('[data-action="atStart"][data-prior="1"]');
+    await atQuest(id,'win');
+    let s=await state();assert.equal(s[key][id],1,key+' '+id);assert.equal(s[nKeyOf(key)][id],1);
     assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(key==='bzT1'?'1回目':'2回目以降'));
-    await click('#modeBtn');
+    await click('#modeBtn');   // 減算モード：訂正は「集計」の中のボタン
     if(id!=='t7')assert.equal(await frame(`const b=d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="miss"]');return b.disabled&&b.getAttribute('aria-disabled')==='true';`),true);
     await questClick(key,id,true);s=await state();assert.equal(s[key][id],0);assert.equal(s[nKeyOf(key)][id],0);
     await click('#undoBtn');s=await state();assert.equal(s[key][id],1);assert.equal(s[nKeyOf(key)][id],1);
-    await click('#modeBtn');await click('#undoBtn');
+    await click('#modeBtn');
     if(id!=='t7'){
-      await questClick(key,id,false);await click('#modeBtn');
+      await clear('mhsunbreak');await tab(2);
+      if(key==='bzT2')await click('[data-action="atStart"][data-prior="1"]');
+      await atQuest(id,'miss');
+      await click('#modeBtn');
       assert.equal(await frame(`return d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="miss"]').disabled;`),false);
       await questClick(key,id,false);assert.equal((await state())[key][id],0);
-      await click('#undoBtn');await click('#modeBtn');await click('#undoBtn');
+      await click('#modeBtn');
     }
   }
-  pass('MH v02 all 26 buttons: feed, atomic undo, minus guard and successful decrement');
-  await questClick('bzT1','t3',true);await questClick('bzT1','t3',false);await questClick('bzT2','t7',true);
-  assert.equal(await frame('return d.querySelector("[data-d=bzT1][data-q=t3]").closest(".quest-row").querySelector(".pct").textContent;'),'1/2 50%');
+  pass('MH BZ record/correct: 14 combinations via the new input and the totals table');
+  // bzT1.t3=2（1勝1敗）・bzT2.t7=1勝 を新しい導線で作る
+  await clear('mhsunbreak');await tab(2);
+  await click('[data-action="atStart"][data-prior="1"]');
+  await atQuest('t7','win');          // 2回目以降 ⑦＋（AT間が切れる）
+  await atQuest('t3','miss');         // 次のAT間の1回目 ③失敗
+  await atClick('otherAt');           // 集計を変えずにAT間を切る
+  await atQuest('t3','win');          // 次のAT間の1回目 ③成功
+  const sumRow=i=>frame(`return [...[...d.querySelectorAll('.sum-row')][${i}].children].map(e=>e.textContent.trim());`);
+  assert.deepEqual(await sumRow(2),['③','ライゼクス','1/2','0/0','1/2 50%']);
+  assert.deepEqual(await sumRow(6),['⑦','AT','0/0','1/1','1/1 100%']);
   const bzState=await state();await tab(3);
   // ■AT間メモ は tests/mhsunbreak-tpl-atlog.verify.mjs が固定するので、ここでは外して比べる
   const stripAtLog=text=>text.replace(/\n\n■AT間メモ\n[\s\S]*(?=\n\nby slot-tools\.jp)/,'');
@@ -588,8 +619,9 @@ try{
   const changes=bzTemplate.split('\n').flatMap((line,i)=>line===zeroLines[i]?[]:[{line:i+1,before:zeroLines[i],after:line}]);
   assert.equal(changes.length,4);assert.deepEqual(changes.map(x=>x.after.trim().split('▶︎ ')[1]),['2回','1回','1/2','1/1']);
   pass('MH v02 exactly four requested template lines',changes);
-  await click('#undoBtn');let undone=await state();assert.equal(undone.bzT2.t7,0);assert.equal(undone.questN2.t7,0);assert.equal(undone.bzT1.t3,2);assert.equal(undone.questN1.t3,1);
-  await tab(2);await questClick('bzT2','t7',true);await tab(0);await reset();
+  // 新しい順番では最後の操作が「③成功」。取消でそれだけが戻る
+  await click('#undoBtn');let undone=await state();assert.equal(undone.bzT1.t3,1);assert.equal(undone.questN1.t3,0);assert.equal(undone.bzT2.t7,1);assert.equal(undone.questN2.t7,1);
+  await tab(2);await atQuest('t3','win');await tab(0);await reset();
   for(const key of ['bzT1','bzT2','questN1','questN2'])assert.ok(Object.values((await state())[key]).every(v=>v===0));
   await click('#undoBtn');for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await state())[key],bzState[key]);
   await load('mhsunbreak');for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await state())[key],bzState[key]);
@@ -601,8 +633,8 @@ try{
   }
   await evaluate(`localStorage.setItem('mhsunbreak-checker-v1',JSON.stringify({hits:[300],cycle:{c1:2},atEnd:{jay:1}}));`);
   await load('mhsunbreak');await tab(2);
-  assert.equal(await frame('return d.querySelectorAll(".quest-row .pct")[0].textContent;'),'0/0 —');
-  await questClick('bzT1','t2',true);
+  assert.deepEqual(await frame("return [...[...d.querySelectorAll('.sum-row')][0].children].map(e=>e.textContent.trim());"),['①','青スタート','0/0','0/0','0/0 —']);
+  await atQuest('t2','win');
   const legacyBZ=await state();assert.equal(legacyBZ.cycle.c1,2);assert.equal(legacyBZ.atEnd.jay,1);assert.deepEqual(legacyBZ.hits,[300]);
   assert.deepEqual(await frame('return w.__errors;'),[]);
   pass('MH v02 old save without new keys loads and preserves existing counts');
@@ -610,9 +642,9 @@ try{
   const iconSave={iconPending:['rai'],questN:{blue:99},bzT1:{blue:99},iconLog:legacyIcons.map((icon,i)=>({icons:[icon],group:i%2?'bzT2':'bzT1',result:i%2?'win':'miss',quest:i===4?'at':'blue'}))};
   await evaluate(`localStorage.setItem('mhsunbreak-checker-v1',${JSON.stringify(JSON.stringify(iconSave))});`);
   await load('mhsunbreak');await tab(2);
-  assert.deepEqual(await frame('return [...d.querySelectorAll(".quest-row .pct")].slice(14).map(e=>e.textContent);'),['0/1 0%','1/1 100%','0/1 0%','1/1 100%','1/1 100%','1/1 100%','1/1 100%']);
+  assert.deepEqual(await frame("return [...d.querySelectorAll('.sum-row')].map(e=>e.lastElementChild.textContent.trim());"),['0/1 0%','1/1 100%','0/1 0%','1/1 100%','1/1 100%','1/1 100%','1/1 100%']);
   // A production click saves the normalized state; the following reload must not migrate again.
-  await questClick('bzT1','t3',true);
+  await atQuest('t3','win');
   const migratedIcons=await state();
   for(const key of ['iconLog','iconPending','questN'])assert.ok(!Object.hasOwn(migratedIcons,key));
   for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual(Object.keys(migratedIcons[key]),questIds);
