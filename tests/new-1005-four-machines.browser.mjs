@@ -569,7 +569,7 @@ try{
     await clear('mhsunbreak',width);await tab(2);
     // 上は「現在の状況」（読む所）、下は「ここから記録」（入力する所）の2本立て
     assert.deepEqual(await frame("return [d.querySelector('.now-h').textContent.trim(),d.querySelector('.rec-h').textContent.trim()];"),['現在の状況','ここから記録']);
-    assert.deepEqual(await frame("return [...d.querySelectorAll('.entry-h')].map(e=>e.textContent.trim());"),['このAT間の開始','BZ（ブレイクゾーン）','アイキャッチ（ステージチェンジ）','チッチェのセリフ','アイルー福引','BZ終了時PUSH ランプ','そのほか']);
+    assert.deepEqual(await frame("return [...d.querySelectorAll('.entry-h')].map(e=>e.textContent.trim());"),['このAT間の開始','BZ（ブレイクゾーン）','BZ終了時PUSH ランプ','アイキャッチ（ステージチェンジ）','チッチェのセリフ','アイルー福引','そのほか']);
     assert.deepEqual(await frame("return [...d.querySelectorAll('details.bz-fold>summary')].map(e=>e.firstChild.textContent.trim());"),['集計','コピー設定']);
     assert.equal(await frame('return d.querySelectorAll(".t-btn").length;'),7);
     assert.equal(await frame('return d.querySelectorAll(".sum-row").length;'),7);

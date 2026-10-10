@@ -153,6 +153,13 @@
   // 経過カード・シナリオカードの狭い場所で使う短い名前
   const ICON_SHORT={[IC_QB]:'青',[IC_QY]:'黄',[IC_RA]:'ライ',[IC_SE]:'セル',
                     [IC_OR]:'オロ',[IC_TE]:'テオ',[IC_AT]:'AT',[IC_G]:'＋G'};
+  // 結果アイコンの色。テーブル①〜⑦の帯色をそのまま使い、色の表は二重に持たない。
+  // ＋G だけはどのテーブルでも共通の出目なので中立色（--muted と同じ灰）にする。
+  // 色は見分けの補助で、番号と名前の文字は必ず残す（§9-85）。
+  const ICON_NEUTRAL='#9a90a8';
+  const ICON_COLORS={[IC_QB]:TABLE_COLORS.t1,[IC_QY]:TABLE_COLORS.t2,[IC_RA]:TABLE_COLORS.t3,[IC_SE]:TABLE_COLORS.t4,
+                     [IC_OR]:TABLE_COLORS.t5,[IC_TE]:TABLE_COLORS.t6,[IC_AT]:TABLE_COLORS.t7,[IC_G]:ICON_NEUTRAL};
+  const iconColor=name=>ICON_COLORS[name]||ICON_NEUTRAL;
   // BZ終了時のPUSHで光るサイドランプ。色だけを記録する。
   // 出典にも色の一覧・色別の示唆は無いため（2026/10/10 時点）、意味は書かない（§9-104）。
   // 色は画面の見分け用で、実機の色そのものを名乗るものではない。
@@ -497,6 +504,44 @@
   // 1080×1080 の2枚目のカード。engine の描画には触らず、自分のキャンバスにだけ描く。
   const SC_BG='#140f1c',SC_TXT='#f2eef5',SC_MUTED='#9a90a8',SC_GOLD='#ffc94d',SC_CYAN='#6fd8ff',SC_NG='#ff9b9b',SC_LINE='#2c2340';
   const SC_ROWS=8;   // 1枚に載せるAT間の数（新しい方から）
+  // 画像カードと同じ「鈴白なな様」のアイコンを、BZシナリオカードにも入れる（夢爽承認 2026/10/10）。
+  // 画像カードのアイコン選択（slot-tools／鈴白なな様／自分の画像）に連動し、なな様を選んでいるときだけ出す。
+  // ★本人からNGが出たらこの1行を false にするだけで、絵もクレジットも出なくなる。
+  const NANA_ON_SCENARIO_CARD=true;
+  const NANA_ICON='assets/nana-icon.jpg';   // engine の画像カードと同じファイル
+  let nanaImg=null,nanaLoading=false;
+  // 画像カードで「鈴白なな様」が選ばれているか。engine の判定をそのまま使う（表を二重に持たない）。
+  function nanaPicked(){
+    if(!NANA_ON_SCENARIO_CARD)return false;
+    const app=typeof window!=='undefined'&&window.__checkerApp;
+    try{return !!app&&typeof app.effectiveIconChoice==='function'&&app.effectiveIconChoice()==='nana';}
+    catch(e){return false;}
+  }
+  // 読めたら1回だけ描き直す。読めない端末では絵なしのまま出す（カードは必ず出る）。
+  function loadNanaIcon(S){
+    if(nanaImg||nanaLoading||typeof Image!=='function')return;
+    nanaLoading=true;
+    const im=new Image();
+    im.onload=()=>{nanaImg=im;try{drawScenarioCard(S);}catch(e){}};
+    im.onerror=()=>{nanaLoading=false;};
+    im.src=NANA_ICON;
+  }
+  // 画像カードと同じ位置関係（右上の丸・桃色の輪・円で切り抜き）。見出しの帯に収まる大きさにする。
+  function drawNanaIcon(x){
+    const cx=952,cy=106,r=54;
+    x.save();
+    x.strokeStyle='#ff3d8f';x.lineWidth=5;x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();
+    x.beginPath();x.arc(cx,cy,r-5,0,7);x.clip();
+    const s=Math.max((r*2-10)/nanaImg.width,(r*2-10)/nanaImg.height);
+    x.drawImage(nanaImg,cx-nanaImg.width*s/2,cy-nanaImg.height*s/2,nanaImg.width*s,nanaImg.height*s);
+    x.restore();
+  }
+  // クレジットの文は engine（画像カード）と同じものを使う。読めないときは出さない。
+  function nanaCredit(){
+    const app=typeof window!=='undefined'&&window.__checkerApp;
+    try{return app&&typeof app.nanaCreditText==='function'?app.nanaCreditText('card')||'':'';}
+    catch(e){return '';}
+  }
   function drawScenarioCard(S){
     const cv=typeof document!=='undefined'&&document.getElementById('scenarioCanvas');
     if(!cv||!cv.getContext)return false;
@@ -507,8 +552,13 @@
     x.textBaseline='alphabetic';
     x.fillStyle=SC_GOLD;x.font=font(46);x.fillText('BZシナリオカード',70,96);
     x.fillStyle=SC_MUTED;x.font=font(22,500);x.fillText(TITLE,70,138);
+    const nana=nanaPicked();
+    if(nana)loadNanaIcon(S);
+    const showNana=nana&&!!nanaImg;
     x.strokeStyle=SC_LINE;x.lineWidth=2;
-    x.beginPath();x.moveTo(70,164);x.lineTo(1010,164);x.stroke();
+    // 絵を出すときは、横線を絵の手前で止める（重ねない）
+    x.beginPath();x.moveTo(70,164);x.lineTo(showNana?880:1010,164);x.stroke();
+    if(showNana)drawNanaIcon(x);
     let y=212;
     const shown=model.rows.slice(-SC_ROWS);
     const hidden=model.rows.length-shown.length;
@@ -565,6 +615,9 @@
     x.fillStyle=SC_MUTED;x.font=font(21,500);
     for(const line of model.note){x.fillText(line,70,y);y+=30;}
     x.fillStyle=SC_MUTED;x.font=font(20,500);
+    // 絵を出しているあいだは、画像カードと同じ形のクレジットを1行足す
+    const credit=nana?nanaCredit():'';
+    if(showNana&&credit)x.fillText(credit,70,1014);
     x.fillText('by slot-tools.jp / 解析出典:一撃様・ちょんぼりすた様',70,1044);
     return true;
   }
@@ -725,17 +778,22 @@
   function posPicker(e,index,minus){
     const icons=TABLE_ICONS[e.table]||[];
     const dis=minus?' disabled aria-disabled="true"':'';
-    if(e.pos&&!posEditOpen)return `<div class="bz-sub">結果アイコン</div><div class="pos-done"><div class="nm">選択済み：${e.pos}個目・${ICON_SHORT[posIcon(e)]}</div><button type="button" class="cycle-btn" data-action="bzPosOpen"${dis}>変更</button></div>`;
-    const btn=(pos,text,label,on)=>`<button type="button" class="pos-btn${on?' on':''}" data-action="bzPos" data-index="${index}" data-pos="${pos}" aria-pressed="${!!on}" aria-label="${label}"${dis}>${text}</button>`;
+    if(e.pos&&!posEditOpen)return `<div class="bz-sub">結果アイコン</div><div class="pos-done"><div class="nm" style="color:${iconColor(posIcon(e))}">選択済み：${e.pos}個目・${ICON_SHORT[posIcon(e)]}</div><button type="button" class="cycle-btn" data-action="bzPosOpen"${dis}>変更</button></div>`;
+    const btn=(pos,text,label,on,color)=>`<button type="button" class="pos-btn${on?' on':''}" data-action="bzPos" data-index="${index}" data-pos="${pos}" aria-pressed="${!!on}" aria-label="${label}"${color?` style="--c:${color}"`:''}${dis}>${text}</button>`;
     return `<div class="bz-sub">結果アイコン</div><div class="pos-pick">${
-      icons.map((name,i)=>btn(i+1,`${i+1}：${name}`,`位置${i+1} ${name}`,e.pos===i+1)).join('')
+      icons.map((name,i)=>btn(i+1,`${i+1}：${name}`,`位置${i+1} ${name}`,e.pos===i+1,iconColor(name))).join('')
     }${btn('','未記録','結果アイコン 未記録',!e.pos)}</div>
       <div class="hint">ブレイクゾーンの結果が、並んだアイコンの何個目で出たかを記録します。押さなくてもかまいません。11個目はどのテーブルでも猛焔一閃なので置いていません。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>`;
   }
   function inputPosPicker(table){
     if(table==='t7')return '<div class="pos-fixed">位置1 AT を自動で記録します</div>';
-    if(!pickPosOpen)return '<div class="pos-done"><div class="nm">選択済み：'+(pickPos===null?'未記録':pickPos+'個目・'+ICON_SHORT[TABLE_ICONS[table][pickPos-1]])+'</div><button type="button" class="cycle-btn" data-action="bzPickPosOpen">変更</button></div>';
-    const btn=(pos,name)=>'<button type="button" class="pos-btn'+(pickPos===pos?' on':'')+'" data-action="bzPickPos" data-pos="'+pos+'" aria-pressed="'+(pickPos===pos)+'" aria-label="'+(pos===''?'結果アイコン 未記録で進む':'位置'+pos+' '+name)+'">'+(pos===''?'未記録で進む':pos+'：'+name)+'</button>';
+    if(!pickPosOpen){
+      const name=pickPos===null?'':TABLE_ICONS[table][pickPos-1];
+      const done=pickPos===null?'未記録':pickPos+'個目・'+ICON_SHORT[name];
+      const tint=pickPos===null?'':' style="color:'+iconColor(name)+'"';
+      return '<div class="pos-done"><div class="nm"'+tint+'>選択済み：'+done+'</div><button type="button" class="cycle-btn" data-action="bzPickPosOpen">変更</button></div>';
+    }
+    const btn=(pos,name)=>'<button type="button" class="pos-btn'+(pickPos===pos?' on':'')+'" data-action="bzPickPos" data-pos="'+pos+'" aria-pressed="'+(pickPos===pos)+'" aria-label="'+(pos===''?'結果アイコン 未記録で進む':'位置'+pos+' '+name)+'"'+(name?' style="--c:'+iconColor(name)+'"':'')+'>'+(pos===''?'未記録で進む':pos+'：'+name)+'</button>';
     return '<div class="pos-pick">'+TABLE_ICONS[table].map((name,i)=>btn(i+1,name)).join('')+btn('','')+'</div>';
   }
   // BZ入口（1 テーブル → 2 結果アイコン → 3 成功/失敗）
@@ -749,7 +807,7 @@
     const picked=pickTable&&TABLES.some(c=>c[0]===pickTable)?pickTable:null;
     const pickBtn=([id,mark,short])=>`<button type="button" class="t-btn${picked===id?' on':''}" data-action="bzPick" data-q="${id}" style="--c:${TABLE_COLORS[id]}" aria-pressed="${picked===id}" aria-label="テーブル${id.slice(1)} ${short}"${minus?' disabled aria-disabled="true"':''}><b>${mark}</b><small>${short}</small></button>`;
     const resultBtns=picked?`<button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${group}" data-n="${nKey}" data-q="${picked}" data-r="win" aria-label="${TABLE_READS[picked]} 成功">${picked==='t7'?'＋':'成功'}</button>${picked==='t7'?'':`<button type="button" class="cycle-btn" data-action="bzQuest" data-d="${group}" data-q="${picked}" data-r="miss" aria-label="${TABLE_READS[picked]} 失敗">失敗</button>`}`:'';
-    return `<div class="entry"><div class="entry-h">BZ（ブレイクゾーン）</div>
+    return `<div class="entry" id="ent-bz"><div class="entry-h">BZ（ブレイクゾーン）</div>
       ${insertBar}
       ${savedNote?`<div class="saved-note">${savedNote}</div>`:''}
       <div class="step-h">1. スタートのテーブル</div>
@@ -766,16 +824,33 @@
     const open=forceOpen||bzFold[key];
     return `<details class="bz-fold"${open?' open':''}><summary data-action="bzFold" data-k="${key}">${title}${sub?`<span class="sub">${sub}</span>`:''}</summary>${body}</details>`;
   }
+  // 入口の並びは実戦の流れに合わせる（§9-69）。BZ → 終了時PUSHのランプ → 示唆 → 福引 → そのほか。
+  // 見出し直下のジャンプ列から各入口へ飛べる（画面だけの操作。保存にも取消にも触れない）。
+  const JUMP=[['bz','BZ'],['lamp','ランプ'],['eye','アイキャッチ'],['serif','セリフ'],['fuku','福引']];
+  const ENTRY_IDS=Object.fromEntries(JUMP.map(c=>[c[0],'ent-'+c[0]]));
+  function jumpRow(){
+    return `<div class="jump-row">${JUMP.map(([k,label])=>
+      `<button type="button" class="jump-btn" data-action="bzJump" data-k="${k}" aria-label="${label}の入口へ移動">${label}</button>`).join('')}</div>`;
+  }
+  function entry(key,title,body,hint){
+    return `<div class="entry"${key?` id="${ENTRY_IDS[key]}"`:''}><div class="entry-h">${title}</div>${body}${hint?`<div class="hint">${hint}</div>`:''}</div>`;
+  }
   function recordSection(ctx){
     const disabled=ctx.mode<0?' disabled aria-disabled="true"':'';
+    const eyeBody=`<div class="at-pick">${EYE.map(c=>`<button type="button" class="at-btn eye" data-action="atEvent" data-t="eye" data-c="${c[0]}" style="--c:${c[4]}"${disabled}><b>${c[1]}（${c[2]}）</b><small>${c[3]}</small></button>`).join('')}</div>`;
+    const serifBody=`<div class="at-pick">${SERIF.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="serif" data-c="${c[0]}" aria-label="セリフ 「${c[2]}」 ${c[1]}"${disabled}><b>「${c[2]}」</b><small>${c[1]}</small></button>`).join('')}</div>`;
+    const fukuBody=`<div class="at-pick">${['win','miss'].map(r=>`<button type="button" class="at-btn" data-action="atEvent" data-t="fuku" data-r="${r}" aria-label="アイルー福引 ${r==='win'?'成功':'失敗'}"${disabled}>${r==='win'?'成功':'失敗'}</button>`).join('')}</div>`;
+    const lampBody=`<div class="at-pick lamp-pick">${LAMPS.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="lamp" data-c="${c[0]}" style="--c:${c[2]}" aria-label="サイドランプ ${c[1]}"${disabled}><b>${c[1]}</b></button>`).join('')}</div>`;
+    const otherBody=`<div class="at-pick one"><button type="button" class="at-btn" data-action="atEvent" data-t="otherAt"${disabled}>BZ以外でAT</button></div>`;
     return `<section class="sec"><div class="rec-h">ここから記録</div>
+      ${jumpRow()}
       ${canAtStart(ctx.S)?`<div class="entry">${startPicker(ctx)}</div>`:''}
       ${inputSection(ctx)}
-      <div class="entry"><div class="entry-h">アイキャッチ（ステージチェンジ）</div><div class="at-pick">${EYE.map(c=>`<button type="button" class="at-btn eye" data-action="atEvent" data-t="eye" data-c="${c[0]}" style="--c:${c[4]}"${disabled}><b>${c[1]}（${c[2]}）</b><small>${c[3]}</small></button>`).join('')}</div><div class="hint">アイキャッチはステージチェンジで出ます。滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。</div></div>
-      <div class="entry"><div class="entry-h">チッチェのセリフ</div><div class="at-pick">${SERIF.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="serif" data-c="${c[0]}" aria-label="セリフ 「${c[2]}」 ${c[1]}"${disabled}><b>「${c[2]}」</b><small>${c[1]}</small></button>`).join('')}</div><div class="hint">ボタンにセリフの見分けどころを併記しています。示唆は次回のBZレベルについてのものです。</div></div>
-      <div class="entry"><div class="entry-h">アイルー福引</div><div class="at-pick">${['win','miss'].map(r=>`<button type="button" class="at-btn" data-action="atEvent" data-t="fuku" data-r="${r}" aria-label="アイルー福引 ${r==='win'?'成功':'失敗'}"${disabled}>${r==='win'?'成功':'失敗'}</button>`).join('')}</div><div class="hint">福引の成功はこのAT間を閉じます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。</div></div>
-      <div class="entry"><div class="entry-h">BZ終了時PUSH ランプ</div><div class="at-pick lamp-pick">${LAMPS.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="lamp" data-c="${c[0]}" style="--c:${c[2]}" aria-label="サイドランプ ${c[1]}"${disabled}><b>${c[1]}</b></button>`).join('')}</div><div class="hint">解析が出るまで色だけ記録します。</div></div>
-      <div class="entry"><div class="entry-h">そのほか</div><div class="at-pick one"><button type="button" class="at-btn" data-action="atEvent" data-t="otherAt"${disabled}>BZ以外でAT</button></div><div class="hint">押すとそのAT間を閉じて次のAT間を始めます。BZの成功・福引の成功も同じようにAT間を閉じます。</div></div>
+      ${entry('lamp','BZ終了時PUSH ランプ',lampBody,'解析が出るまで色だけ記録します。')}
+      ${entry('eye','アイキャッチ（ステージチェンジ）',eyeBody,'アイキャッチはステージチェンジで出ます。滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。')}
+      ${entry('serif','チッチェのセリフ',serifBody,'ボタンにセリフの見分けどころを併記しています。示唆は次回のBZレベルについてのものです。')}
+      ${entry('fuku','アイルー福引',fukuBody,'福引の成功はこのAT間を閉じます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。')}
+      ${entry('','そのほか',otherBody,'押すとそのAT間を閉じて次のAT間を始めます。BZの成功・福引の成功も同じようにAT間を閉じます。')}
       <div class="hint">減算モードではアイキャッチ・セリフ・福引・ランプ・［BZ以外でAT］は記録できません。設定推測には使いません。出典は一撃様です。</div>
     </section>`;
   }
@@ -922,7 +997,14 @@
 /* ここから記録（入力する所） */
 .rec-h{font-size:18px;font-weight:800;color:var(--gold);letter-spacing:.04em;margin:2px 0 10px}
 .entry{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px;margin-bottom:12px}
-.entry-h{font-size:17px;font-weight:800;line-height:1.3;margin-bottom:8px;overflow-wrap:anywhere}
+.entry-h{font-size:17px;font-weight:800;line-height:1.3;margin-bottom:8px;overflow-wrap:anywhere;padding:2px 4px;margin-left:-4px;border-radius:6px;transition:background-color .35s,box-shadow .35s}
+/* ジャンプで飛んだ入口の見出しを一瞬だけ光らせる */
+.entry-h.flash{background:rgba(255,201,77,.22);box-shadow:0 0 0 4px rgba(255,201,77,.22)}
+/* 入口へのジャンプ（1行・折り返し可） */
+.jump-row{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.jump-btn{flex:1 1 auto;min-width:62px;min-height:44px;padding:6px 8px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--cyan);font-family:var(--body);font-size:13px;font-weight:800}
+/* 結果アイコンの帯と文字色（テーブルの帯色。＋G は中立色） */
+@media (prefers-reduced-motion:reduce){.entry-h{transition:none}}
 .step-h{font-size:12px;font-weight:800;color:var(--txt);letter-spacing:.06em;margin:10px 0 6px}
 .pick-sum{font-size:13px;font-weight:800;color:var(--cyan);margin:0 0 6px;overflow-wrap:anywhere}
 .saved-note{font-size:13px;font-weight:800;color:#8fe3b0;margin-bottom:8px;overflow-wrap:anywhere}
@@ -980,8 +1062,8 @@
     .pos-pick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:6px}
     /* engine の #main button{min-height:44px} はID優先で勝つので、同じ強さで48pxにする */
     #main .pos-btn,#main .lamp-pick .at-btn{min-height:48px}
-    .pos-btn{padding:4px 6px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--txt);font:inherit;font-size:11px;font-weight:700;line-height:1.25;overflow-wrap:anywhere}
-    .pos-btn.on{border-color:var(--pink-dim);background:rgba(255,61,143,.14);color:var(--pink)}
+    .pos-btn{padding:4px 6px;border:1px solid var(--line);border-left:4px solid var(--c,var(--line));border-radius:10px;background:var(--panel);color:var(--c,var(--txt));font:inherit;font-size:11px;font-weight:700;line-height:1.25;overflow-wrap:anywhere}
+    .pos-btn.on{border-color:var(--pink-dim);border-left-color:var(--c,var(--pink-dim));background:rgba(255,61,143,.14);color:var(--pink)}
     .pos-btn:disabled{opacity:.4}
     .at-pick.one{grid-template-columns:1fr}
     .at-pick.lamp-pick{grid-template-columns:repeat(4,minmax(0,1fr))}
@@ -1099,6 +1181,22 @@
         if(ctx.mode<0||openEvent===null||!shownEvent(historyView(ctx.S).session.events[openEvent]))return false;
         posEditOpen=true;
         return rerender();
+      },
+      // 入口へのジャンプ。画面を動かすだけで、描き直しも保存も取消の履歴もしない。
+      // 押した入口の見出しを一瞬だけ光らせる（どこへ飛んだかが分かるように）。
+      bzJump:(ctx,ds)=>{
+        savedNote=null;
+        const id=ENTRY_IDS[ds.k];
+        if(!id||typeof document==='undefined')return false;
+        const el=document.getElementById(id);
+        if(!el)return false;
+        if(typeof el.scrollIntoView==='function')el.scrollIntoView({block:'start',behavior:'smooth'});
+        const head=typeof el.querySelector==='function'?el.querySelector('.entry-h'):null;
+        if(head&&head.classList){
+          head.classList.add('flash');
+          if(typeof setTimeout==='function')setTimeout(()=>{try{head.classList.remove('flash');}catch(e){}},900);
+        }
+        return false;
       },
       bzGroup:(ctx,ds)=>{
         savedNote=null;
