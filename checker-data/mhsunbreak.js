@@ -208,13 +208,56 @@
     session.events.splice(index,1);
     return label+' を削除';
   }
+  // テンプレ（なな様テンプレ・収支帳用）の表記。画面の表記とは別に持つ。
+  const TPL_TABLES={t1:'①青ｽﾀｰﾄ',t2:'②黄ｽﾀｰﾄ',t3:'③ﾗｲｾﾞｸｽ',t4:'④ｾﾙﾚｷﾞｵｽ',t5:'⑤ｵﾛﾐﾄﾞﾛ亜種',t6:'⑥ﾃｵﾃｽｶﾄﾙ',t7:'⑦AT'};
+  const TPL_EYES={jay:'ｼﾞｪｲ(B以上)',luchika:'ﾙｰﾁｶ(C以上)',fiorene:'ﾌｨｵﾚｰﾈ(D以上)',bahari:'ﾊﾞﾊﾘ(E以上)',galeas:'ｶﾞﾚｱｽ(F以上)',chiche:'ﾁｯﾁｪ(G以上)'};
+  // s1・s2（期待度UP）はテンプレには載せない。
+  const TPL_SERIFS={s3:'ﾁｯﾁｪHI以上濃厚',s4:'ﾁｯﾁｪSP濃厚'};
+  // テンプレに入れるかの設定。記録のキー（storageKey）には書かない。
+  const PREFS_KEY='mhsunbreak-checker-v1-prefs';
+  function store(){
+    try{return (typeof window!=='undefined'&&window.localStorage)||(typeof localStorage!=='undefined'?localStorage:null);}
+    catch(e){return null;}
+  }
+  function prefs(){
+    const s=store();
+    if(!s)return {};
+    try{const o=JSON.parse(s.getItem(PREFS_KEY));return o&&typeof o==='object'?o:{};}
+    catch(e){return {};}
+  }
+  function tplAtLogOn(){return prefs().tplAtLog!==false;}
+  function setTplAtLog(on){
+    const s=store();
+    if(!s)return;
+    try{s.setItem(PREFS_KEY,JSON.stringify(Object.assign(prefs(),{tplAtLog:!!on})));}catch(e){}
+  }
+  function strongestEye(session){return EYE.filter(c=>session.events.some(e=>e.t==='eye'&&e.c===c[0])).pop();}
+  // https://1geki.jp/slot/l_mh_sun/48/ : テーブル1はLOWのみ、1回目がLOWはHのみ。
+  // H・Iの3回目はSP＝テーブル7濃厚。Iの1回目はMID以上なのでテーブル1にはならない。
+  function scenarioH(session){return !!session.start.known&&session.events.some((e,i)=>e.t==='bz'&&e.table==='t1'&&bzNoAt(session,i)===1);}
+  function tplAtFlow(session){
+    return session.events.map((e,i)=>{
+      if(e.t==='bz'){const no=bzNoAt(session,i);return 'BZ'+(no===null?'?':no)+' '+TPL_TABLES[e.table]+(e.r==='win'?'○':'×');}
+      if(e.t==='fuku')return '福引'+(e.r==='win'?'○':'×');
+      if(e.t==='otherAt')return 'BZ以外AT';
+      if(e.t==='serif')return TPL_SERIFS[e.c]||'';
+      return '';
+    }).filter(Boolean).join(' → ');
+  }
+  // ■AT間メモ。イベントのあるAT間だけを古い順に2行ずつ。空のときは1バイトも足さない（v04 と一致）。
+  function tplAtLogBlock(S){
+    if(!tplAtLogOn())return '';
+    const list=(S.atLog&&Array.isArray(S.atLog.sessions)?S.atLog.sessions:[]).filter(s=>s.events.length);
+    if(!list.length)return '';
+    return '\n\n■AT間メモ\n'+list.map((s,i)=>{
+      const eye=strongestEye(s);
+      return 'AT間'+(i+1)+(eye?' '+TPL_EYES[eye[0]]:'')+(scenarioH(s)?' ｼﾅﾘｵH濃厚':'')+'\n'+tplAtFlow(s);
+    }).join('\n');
+  }
   function atStartLine(session){return !session.start.known?'開始：不明':session.start.prior?'開始：既にBZ'+session.start.prior+'回':'';}
   function atSummary(session){
-    const strongest=EYE.filter(c=>session.events.some(e=>e.t==='eye'&&e.c===c[0])).pop();
-    // https://1geki.jp/slot/l_mh_sun/48/ : テーブル1はLOWのみ、1回目がLOWはHのみ。
-    // H・Iの3回目はSP＝テーブル7濃厚。Iの1回目はMID以上なのでテーブル1にはならない。
-    const scenarioH=session.start.known&&session.events.some((e,i)=>e.t==='bz'&&e.table==='t1'&&bzNoAt(session,i)===1);
-    return (strongest?`<div class="at-top" style="--c:${strongest[4]}">${strongest[1]}（${strongest[2]}）：${strongest[3]}</div>`:'<div class="at-top none">アイキャッチ なし</div>')+(scenarioH?'<div class="at-sc">シナリオH濃厚：3回目のBZでAT濃厚</div>':'');
+    const strongest=strongestEye(session);
+    return (strongest?`<div class="at-top" style="--c:${strongest[4]}">${strongest[1]}（${strongest[2]}）：${strongest[3]}</div>`:'<div class="at-top none">アイキャッチ なし</div>')+(scenarioH(session)?'<div class="at-sc">シナリオH濃厚：3回目のBZでAT濃厚</div>':'');
   }
   function atRows(session,editable){return session.events.length?session.events.map((e,i)=>`<div class="crow at-row"><div class="lbl"><div class="nm">${atEventText(session,i)}</div></div>${editable?`<button type="button" class="cycle-btn" data-action="atDel" data-index="${i}">削除</button>`:''}</div>`).join(''):'<div class="hint">まだありません</div>';}
   function atSection(ctx){
@@ -229,8 +272,9 @@
       <div class="bz-sub">チッチェのセリフ</div><div class="at-pick">${SERIF.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="serif" data-c="${c[0]}" aria-label="セリフ 「${c[2]}」 ${c[1]}"${disabled}><b>「${c[2]}」</b><small>${c[1]}</small></button>`).join('')}</div>
       <div class="bz-sub">アイルー福引</div><div class="at-pick">${['win','miss'].map(r=>`<button type="button" class="at-btn" data-action="atEvent" data-t="fuku" data-r="${r}" aria-label="アイルー福引 ${r==='win'?'成功':'失敗'}"${disabled}>${r==='win'?'成功':'失敗'}</button>`).join('')}</div>
       <div class="bz-sub">そのほか</div><div class="at-pick"><button type="button" class="at-btn" data-action="atEvent" data-t="otherAt"${disabled}>BZ以外でAT</button></div>
+      <div class="crow at-pref"><div class="lbl"><div class="nm">AT間メモをテンプレに入れる</div></div><button type="button" class="cycle-btn${tplAtLogOn()?' win':''}" data-action="tplAtLog" role="switch" aria-checked="${tplAtLogOn()}" aria-label="AT間メモをテンプレに入れる">${tplAtLogOn()?'☑ 入れる':'☐ 入れない'}</button></div>
       ${ctx.mode<0?'<div class="hint">減算はテーブル別の回数だけを直します（AT間メモは各行の［削除］か「↩ 取消」で直します）。</div>':''}
-      <div class="hint">AT間ごとに、出た順でメモを残します。AT終了から次のAT当選までを1つのAT間として、BZ・アイルー福引・アイキャッチ・チッチェのセリフを押した順に並べます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。据え置きの朝一は前日のAT間の続きなので、［途中から］を選んでください。アイキャッチはステージチェンジで出て、滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。BZ成功・福引成功・［BZ以外でAT］を押すと、そのAT間を閉じて次のAT間を始めます。減算はテーブル別の回数だけを直します（AT間メモは各行の［削除］か「↩ 取消」で直します）。設定推測には使いません。出典は一撃様です。</div>
+      <div class="hint">AT間ごとに、出た順でメモを残します。AT終了から次のAT当選までを1つのAT間として、BZ・アイルー福引・アイキャッチ・チッチェのセリフを押した順に並べます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。据え置きの朝一は前日のAT間の続きなので、［途中から］を選んでください。アイキャッチはステージチェンジで出て、滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。BZ成功・福引成功・［BZ以外でAT］を押すと、そのAT間を閉じて次のAT間を始めます。減算はテーブル別の回数だけを直します（AT間メモは各行の［削除］か「↩ 取消」で直します）。テンプレ（収支帳用コピーも）の最後に「■AT間メモ」として出します。入れたくないときは「AT間メモをテンプレに入れる」を押して外してください（この設定は記録とは別に保存します）。設定推測には使いません。出典は一撃様です。</div>
     </section>`;
   }
   // 旧データ（10マス配列メモ）の移行。1個目のアイコンでテーブルを判定する（夢爽承認 2026/10/9）。
@@ -341,6 +385,9 @@
     .at-btn:disabled{opacity:.4}
     .at-past{margin-top:8px}
     .at-past-h{font-size:11px;font-weight:800;color:var(--muted);margin:8px 0 4px}
+    .at-pref{margin-top:8px}
+    .at-pref .nm{font-size:13px}
+    .at-pref .cycle-btn{min-width:96px}
   </style>`+`<section class="sec">
     <div class="sec-h">テーブル別の結果</div>`+BZ_GROUPS.map(([dKey,nKey,title])=>`
     <div class="bz-sub">${title}${ctx.mode>=0&&!atGroupAllowed(S,dKey)?`<small class="mn">今は${nextBzNo(currentAt(S))}回目</small>`:''}</div>
@@ -399,7 +446,7 @@
       const s=typeof v==='number'?v+'回':v;
       return m.startsWith('▶')?m+s:s;
     });
-    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / AT${countRate(g,hitCount(S))}\n_______\n\n${text}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
+    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / AT${countRate(g,hitCount(S))}\n_______\n\n${text}${tplAtLogBlock(S)}\n\nby slot-tools.jp\n${ctx.nanaCreditText('text')}\n解析出典:ちょんぼりすた様`;
   }
   function detailItems(arr,state){return arr.map(c=>({label:c[1],value:n(state,c[0]),hot:c[3]>0}));}
   function detail(ctx){const S=ctx.S;return [
@@ -414,6 +461,8 @@
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
     actions:{
       bzQuest:bzQuestAction,
+      // 記録のキーには書かない。テンプレに入れるかだけを別キーに持つ。
+      tplAtLog:()=>{const on=!tplAtLogOn();setTplAtLog(on);return 'AT間メモをテンプレに'+(on?'入れます':'入れません');},
       atStart:atStartAction,atEvent:atEventAction,atDel:atDelAction,
       // 素の入力欄を直接読む。減算モードでも追加・削除の意味は変えない。
       addHit:(ctx)=>{

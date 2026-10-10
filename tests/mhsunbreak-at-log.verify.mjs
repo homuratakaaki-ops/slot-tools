@@ -122,13 +122,18 @@ test('past intervals retain start, strongest eye and H',()=>{
   const past=html(S).split('<details class="hit-more">')[1].split('</details>')[0];
   assert.match(past,/1つ前のAT間/);assert.match(past,/バハリ（緑）：シナリオE以上濃厚/);assert.match(past,/シナリオH濃厚/);
 });
-test('v04 zero template bytes and both template outputs remain independent of AT log',()=>{
+test('v04 zero template bytes; AT log only appends the memo block at the tail',()=>{
   const S=fresh(),original=read('docs/specs/mhsunbreak-nana-template-v04.txt');
   const expected='設定判別メモ｜スマスロ モンスターハンターライズ：サンブレイク\n通常 0G / AT0回\n_______\n\n'+original.split('■').map(section=>section.replace(/▶︎ (?=\r?\n)/g,'▶︎ '+(section.startsWith('クエスト成功率')?'0/0':'0回'))).join('■')+'\n\nby slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様';
   equal(Buffer.from(config.template(ctx(S))),Buffer.from(expected));
+  // 書式と ON/OFF は tests/mhsunbreak-tpl-atlog.verify.mjs が固定する。
+  // ここでは「■AT間メモ 以外の本文が1バイトも動かない」ことだけを見る。
   for(const name of ['template','compactTemplate']){
-    const before=config[name](ctx(S));event(S,'eye','bahari');event(S,'serif','s4');event(S,'otherAt');
-    equal(Buffer.from(config[name](ctx(S))),Buffer.from(before));
+    const T=fresh();
+    const before=config[name](ctx(T));event(T,'eye','bahari');event(T,'serif','s4');event(T,'otherAt');
+    const after=config[name](ctx(T));
+    equal(Buffer.from(after.replace(/\n\n■AT間メモ\n[\s\S]*(?=\n\nby slot-tools\.jp)/,'')),Buffer.from(before));
+    assert.match(after,/\n\n■AT間メモ\nAT間1 ﾊﾞﾊﾘ\(E以上\)\nﾁｯﾁｪSP濃厚 → BZ以外AT\n\nby slot-tools\.jp/);
   }
 });
 test('all card JSON unaffected by AT log with zero and populated aggregates',()=>{
