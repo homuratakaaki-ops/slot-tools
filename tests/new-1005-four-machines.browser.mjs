@@ -466,6 +466,37 @@ try{
   await atQuest();assert.deepEqual(await atRows(),['BZ ① 青スタート 失敗']);
   assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
   pass('MH AT log prior2 and unknown start via real selected buttons');
+  // テンプレの■AT間メモ（本番のボタン操作で作って、通常版・収支帳用の両方を見る）
+  await clear('mhsunbreak');
+  await frame(`w.localStorage.removeItem('mhsunbreak-checker-v1-prefs');`);
+  await load('mhsunbreak');await tab(2);
+  await atQuest('t3','miss');await atClick('eye','[data-c="bahari"]');await atQuest('t1','win','bzT2');
+  await atClick('fuku','[data-r="miss"]');await atQuest('t5','win');
+  const memoExample='\n\n■AT間メモ\nAT間1 ﾊﾞﾊﾘ(E以上)\nBZ1 ③ﾗｲｾﾞｸｽ× → BZ2 ①青ｽﾀｰﾄ○\nAT間2\n福引× → BZ1 ⑤ｵﾛﾐﾄﾞﾛ亜種○\n\nby slot-tools.jp';
+  await tab(3);
+  assert.ok((await copy()).includes(memoExample),'通常版に■AT間メモ');
+  // 収支帳用は engine の共通処理で丸数字が数字になる（①周期 などと同じ扱い）
+  assert.ok((await copy(true)).includes(memoExample.replace('③','3').replace('①','1').replace('⑤','5')),'収支帳用に■AT間メモ');
+  const recordBefore=await frame(`return w.localStorage.getItem('mhsunbreak-checker-v1');`);
+  await tab(2);
+  const pref=()=>frame(`return {text:d.querySelector('[data-action="tplAtLog"]').textContent,checked:d.querySelector('[data-action="tplAtLog"]').getAttribute('aria-checked'),height:d.querySelector('[data-action="tplAtLog"]').getBoundingClientRect().height};`);
+  assert.deepEqual(await pref(),{text:'☑ 入れる',checked:'true',height:44});
+  await click('[data-action="tplAtLog"]');
+  assert.deepEqual(await pref(),{text:'☐ 入れない',checked:'false',height:44});
+  assert.equal(await frame(`return w.localStorage.getItem('mhsunbreak-checker-v1-prefs');`),'{"tplAtLog":false}');
+  await tab(3);
+  assert.ok(!(await copy()).includes('■AT間メモ'),'OFFなら通常版に出ない');
+  assert.ok(!(await copy(true)).includes('■AT間メモ'),'OFFなら収支帳用にも出ない');
+  assert.equal(await frame(`return w.localStorage.getItem('mhsunbreak-checker-v1');`),recordBefore,'記録のキーが変わらない');
+  await tab(2);await click('[data-action="tplAtLog"]');
+  assert.equal(await frame(`return w.localStorage.getItem('mhsunbreak-checker-v1-prefs');`),'{"tplAtLog":true}');
+  await tab(3);assert.ok((await copy()).includes(memoExample));
+  assert.equal(await frame(`return w.localStorage.getItem('mhsunbreak-checker-v1');`),recordBefore,'記録のキーが変わらない');
+  // リロードしても設定が残る
+  await load('mhsunbreak');await tab(2);
+  assert.equal((await pref()).checked,'true');
+  assert.deepEqual(await frame('return w.__errors;'),[]);
+  pass('MH template AT log block, both copies, checkbox persistence and untouched record key');
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);await measure('mhsunbreak-at-start-'+width);
     // 空のAT間メモは「まだありません」と説明の2本。説明は最後の1本。
@@ -522,7 +553,9 @@ try{
   await questClick('bzT1','t3',true);await questClick('bzT1','t3',false);await questClick('bzT2','t7',true);
   assert.equal(await frame('return d.querySelector("[data-d=bzT1][data-q=t3]").closest(".quest-row").querySelector(".pct").textContent;'),'1/2 50%');
   const bzState=await state();await tab(3);
-  const bzTemplate=await copy(),zeroLines=zero.split('\n');
+  // ■AT間メモ は tests/mhsunbreak-tpl-atlog.verify.mjs が固定するので、ここでは外して比べる
+  const stripAtLog=text=>text.replace(/\n\n■AT間メモ\n[\s\S]*(?=\n\nby slot-tools\.jp)/,'');
+  const bzTemplate=stripAtLog(await copy()),zeroLines=stripAtLog(zero).split('\n');
   const changes=bzTemplate.split('\n').flatMap((line,i)=>line===zeroLines[i]?[]:[{line:i+1,before:zeroLines[i],after:line}]);
   assert.equal(changes.length,4);assert.deepEqual(changes.map(x=>x.after.trim().split('▶︎ ')[1]),['2回','1回','1/2','1/1']);
   pass('MH v02 exactly four requested template lines',changes);
