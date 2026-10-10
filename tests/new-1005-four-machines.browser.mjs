@@ -411,7 +411,7 @@ try{
   assert.equal(await frame(`return d.querySelectorAll('[data-action="atStart"]').length;`),8);
   assert.equal(await frame(`return d.querySelector('[data-action="atStart"].on').getAttribute('aria-pressed');`),'true');
   await atQuest();
-  assert.deepEqual(await atRows(),['BZ1回目 テーブル1（QUEST青）失敗']);
+  assert.deepEqual(await atRows(),['BZ1回目 ① 青スタート 失敗']);
   assert.equal(await frame(`return d.querySelector('.at-sc').textContent;`),'シナリオH濃厚：3回目のBZでAT濃厚');
   // §5: after BZ1 the first group is disabled, the later group is enabled.
   assert.equal(await frame(`return [...d.querySelectorAll('[data-action="bzQuest"][data-d="bzT1"]')].every(e=>e.disabled&&e.getAttribute('aria-disabled')==='true');`),true);
@@ -421,7 +421,7 @@ try{
   await click('#undoBtn');assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await state()).bzT1.t1,0);
   pass('MH AT log BZ1/H, correct group lock and atomic undo of count plus event');
   await atClick('fuku','[data-r="miss"]');await atQuest('t2');
-  assert.deepEqual(await atRows(),['福引 失敗','BZ1回目 テーブル2（QUEST黄）失敗']);
+  assert.deepEqual(await atRows(),['福引 失敗','BZ1回目 ② 黄スタート 失敗']);
   assert.deepEqual((await state()).czType,{breakzone:0,airou:0});
   pass('MH AT log fuku miss does not advance BZ numbering or CZ counters');
   for(const c of ['jay','bahari','jay'])await atClick('eye',`[data-c="${c}"]`);
@@ -458,12 +458,12 @@ try{
   await clear('mhsunbreak');await tab(2);await click('[data-action="atStart"][data-prior="2"]');
   assert.equal(await frame(`return d.querySelector('[data-action="atStart"][data-prior="2"]').getAttribute('aria-pressed');`),'true');
   assert.equal(await frame(`return [...d.querySelectorAll('[data-d="bzT1"]')].every(e=>e.disabled);`),true);
-  await atQuest('t1','miss','bzT2');assert.deepEqual(await atRows(),['BZ3回目 テーブル1（QUEST青）失敗']);
+  await atQuest('t1','miss','bzT2');assert.deepEqual(await atRows(),['BZ3回目 ① 青スタート 失敗']);
   assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
   await click('#undoBtn');await click('#undoBtn');assert.deepEqual(atCurrent(await state()).start,{known:true,prior:0});
   await click('[data-action="atStart"][data-known="false"]');
   assert.equal(await frame(`return [...d.querySelectorAll('[data-action="bzQuest"]')].every(e=>!e.disabled);`),true);
-  await atQuest();assert.deepEqual(await atRows(),['BZ テーブル1（QUEST青）失敗']);
+  await atQuest();assert.deepEqual(await atRows(),['BZ ① 青スタート 失敗']);
   assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
   pass('MH AT log prior2 and unknown start via real selected buttons');
   for(const width of [360,390]){

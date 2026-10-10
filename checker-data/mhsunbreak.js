@@ -103,26 +103,29 @@
     ['stamp','エンディング中スタンプ',STAMP,'エンディング中のレア役成立時に出たスタンプの色を記録します。']
   ];
   // BZのアイコンテーブル。1個目のアイコンでテーブルが決まる（原本 2026/10/9 更新で確認）。
-  // [キー, 表示名, 1個目のアイコン]
+  // [キー, 丸数字, 短い表示名, 1個目のアイコン, 帯と文字の色]
   const TABLES=[
-    ['t1','テーブル1','QUEST青'],
-    ['t2','テーブル2','QUEST黄'],
-    ['t3','テーブル3','ライゼクス'],
-    ['t4','テーブル4','セルレギオス'],
-    ['t5','テーブル5','オロミドロ亜種'],
-    ['t6','テーブル6','テオ・テスカトル'],
-    ['t7','テーブル7','AT']
+    ['t1','①','青スタート','QUEST青','#83caff'],
+    ['t2','②','黄スタート','QUEST黄','#ffe881'],
+    ['t3','③','ライゼクス','ライゼクス','#a9e6ad'],
+    ['t4','④','セルレギオス','セルレギオス','#ffb77f'],
+    ['t5','⑤','オロミドロ亜種','オロミドロ亜種','#ff9b9b'],
+    ['t6','⑥','テオ・テスカトル','テオ・テスカトル','#cbb4ff'],
+    ['t7','⑦','AT','AT','#ffc94d']
   ];
-  const TABLE_NAMES=Object.fromEntries(TABLES.map(c=>[c[0],c[1]+'（'+c[2]+'スタート）']));
+  // 画面は「③ ライゼクス」で1行に収める。読み上げ名には番号を残し、色だけに頼らない。
+  const TABLE_NAMES=Object.fromEntries(TABLES.map(c=>[c[0],c[1]+' '+c[2]]));
+  const TABLE_READS=Object.fromEntries(TABLES.map((c,i)=>[c[0],'テーブル'+(i+1)+' '+c[2]]));
+  const TABLE_COLORS=Object.fromEntries(TABLES.map(c=>[c[0],c[4]]));
   // ステージチェンジ時のアイキャッチ。滞在しているBZシナリオを示唆する
-  // （出典: https://1geki.jp/slot/l_mh_sun/57/）。[キー,名前,色,示唆] は強さ順。
+  // （出典: https://1geki.jp/slot/l_mh_sun/57/）。[キー,名前,色,示唆,帯と文字の色] は強さ順。
   const EYE=[
-    ['jay','ジェイ','白','シナリオB以上濃厚'],
-    ['luchika','ルーチカ','青','シナリオC以上濃厚'],
-    ['fiorene','フィオレーネ','黄','シナリオD以上濃厚'],
-    ['bahari','バハリ','緑','シナリオE以上濃厚'],
-    ['galeas','ガレアス','赤','シナリオF以上濃厚'],
-    ['chiche','チッチェ','紫','シナリオG以上濃厚']
+    ['jay','ジェイ','白','シナリオB以上濃厚','#f2eef5'],
+    ['luchika','ルーチカ','青','シナリオC以上濃厚','#83caff'],
+    ['fiorene','フィオレーネ','黄','シナリオD以上濃厚','#ffe881'],
+    ['bahari','バハリ','緑','シナリオE以上濃厚','#a9e6ad'],
+    ['galeas','ガレアス','赤','シナリオF以上濃厚','#ff9b9b'],
+    ['chiche','チッチェ','紫','シナリオG以上濃厚','#cbb4ff']
   ];
   // チッチェのセリフ。次回BZレベルの示唆（出典: 同上）。
   // [キー, 示唆, セリフの見分けどころ]
@@ -184,8 +187,8 @@
   function atEventText(session,index){
     const e=session.events[index];
     if(e.t==='bz'){
-      const no=bzNoAt(session,index),table=TABLES.find(c=>c[0]===e.table);
-      return `BZ${no===null?'':no+'回目'} ${table[1]}（${table[2]}）${e.r==='win'?'成功':'失敗'}`;
+      const no=bzNoAt(session,index);
+      return `BZ${no===null?'':no+'回目'} ${TABLE_NAMES[e.table]} ${e.r==='win'?'成功':'失敗'}`;
     }
     if(e.t==='fuku')return '福引 '+(e.r==='win'?'成功':'失敗');
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `アイキャッチ ${c[1]}（${c[2]}）${c[3]}`;}
@@ -211,7 +214,7 @@
     // https://1geki.jp/slot/l_mh_sun/48/ : テーブル1はLOWのみ、1回目がLOWはHのみ。
     // H・Iの3回目はSP＝テーブル7濃厚。Iの1回目はMID以上なのでテーブル1にはならない。
     const scenarioH=session.start.known&&session.events.some((e,i)=>e.t==='bz'&&e.table==='t1'&&bzNoAt(session,i)===1);
-    return (strongest?`<div class="at-top">${strongest[1]}（${strongest[2]}）：${strongest[3]}</div>`:'<div class="at-top none">アイキャッチ なし</div>')+(scenarioH?'<div class="at-sc">シナリオH濃厚：3回目のBZでAT濃厚</div>':'');
+    return (strongest?`<div class="at-top" style="--c:${strongest[4]}">${strongest[1]}（${strongest[2]}）：${strongest[3]}</div>`:'<div class="at-top none">アイキャッチ なし</div>')+(scenarioH?'<div class="at-sc">シナリオH濃厚：3回目のBZでAT濃厚</div>':'');
   }
   function atRows(session,editable){return session.events.length?session.events.map((e,i)=>`<div class="crow at-row"><div class="lbl"><div class="nm">${atEventText(session,i)}</div></div>${editable?`<button type="button" class="cycle-btn" data-action="atDel" data-index="${i}">削除</button>`:''}</div>`).join(''):'<div class="hint">まだありません</div>';}
   function atSection(ctx){
@@ -222,7 +225,7 @@
       ${canAtStart(S)?`<div class="bz-sub">このAT間の開始</div><div class="at-pick">${startButton(true,0,'リセット後・AT後から')}${Array.from({length:AT_PRIOR_MAX},(_,i)=>startButton(true,i+1,'既にBZ'+(i+1)+'回')).join('')}${startButton(false,0,'途中から：不明')}</div>`:atStartLine(session)?`<div class="bz-sub">${atStartLine(session)}</div>`:''}
       ${atSummary(session)}<div class="cgrid">${atRows(session,true)}</div>
       ${past.length?`<details class="hit-more"><summary>過去のAT間（${past.length}件）</summary>${past.map((s,i)=>`<div class="at-past"><div class="at-past-h">${i+1}つ前のAT間</div>${atStartLine(s)?`<div class="bz-sub">${atStartLine(s)}</div>`:''}${atSummary(s)}<div class="cgrid">${atRows(s,false)}</div></div>`).join('')}</details>`:''}
-      <div class="bz-sub">アイキャッチ（ステージチェンジ）</div><div class="at-pick">${EYE.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="eye" data-c="${c[0]}"${disabled}><b>${c[1]}（${c[2]}）</b><small>${c[3]}</small></button>`).join('')}</div>
+      <div class="bz-sub">アイキャッチ（ステージチェンジ）</div><div class="at-pick">${EYE.map(c=>`<button type="button" class="at-btn eye" data-action="atEvent" data-t="eye" data-c="${c[0]}" style="--c:${c[4]}"${disabled}><b>${c[1]}（${c[2]}）</b><small>${c[3]}</small></button>`).join('')}</div>
       <div class="bz-sub">チッチェのセリフ</div><div class="at-pick">${SERIF.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="serif" data-c="${c[0]}" aria-label="セリフ 「${c[2]}」 ${c[1]}"${disabled}><b>「${c[2]}」</b><small>${c[1]}</small></button>`).join('')}</div>
       <div class="bz-sub">アイルー福引</div><div class="at-pick">${['win','miss'].map(r=>`<button type="button" class="at-btn" data-action="atEvent" data-t="fuku" data-r="${r}" aria-label="アイルー福引 ${r==='win'?'成功':'失敗'}"${disabled}>${r==='win'?'成功':'失敗'}</button>`).join('')}</div>
       <div class="bz-sub">そのほか</div><div class="at-pick"><button type="button" class="at-btn" data-action="atEvent" data-t="otherAt"${disabled}>BZ以外でAT</button></div>
@@ -319,7 +322,12 @@
     .bz-sub{font-size:11px;font-weight:800;color:var(--txt);letter-spacing:.06em;margin-bottom:6px}
     .quest-row .lbl .nm{font-size:16px;overflow-wrap:anywhere}
     .quest-row .lbl .pct{text-align:left;margin-top:4px}
-    .at-top{font-size:17px;font-weight:800;line-height:1.3;margin:2px 0 6px}
+    /* 色は見分けやすさのため。番号と名前の文字は必ず残す（色だけに頼らない） */
+    .quest-row{border-left-width:4px;border-left-color:var(--c,var(--line))}
+    .quest-row .lbl .nm{color:var(--c,var(--txt))}
+    .at-btn.eye{border-left-width:4px;border-left-color:var(--c,var(--line))}
+    .at-btn.eye b{color:var(--c,var(--txt))}
+    .at-top{font-size:17px;font-weight:800;line-height:1.3;margin:2px 0 6px;color:var(--c,var(--txt))}
     .at-top.none{font-size:13px;font-weight:700;color:var(--muted)}
     .at-sc{font-size:13px;font-weight:800;color:var(--gold);margin:0 0 6px}
     .at-row{font-size:13px}
@@ -338,11 +346,11 @@
     <div class="bz-sub">${title}${ctx.mode>=0&&!atGroupAllowed(S,dKey)?`<small class="mn">今は${nextBzNo(currentAt(S))}回目</small>`:''}</div>
     <div class="cgrid">${TABLES.map(([id])=>{
       const name=TABLE_NAMES[id];
-      const label=title+' '+name;
+      const label=title+' '+TABLE_READS[id];
       const hit=n(S[nKey],id),d=n(S[dKey],id);
       const groupDisabled=ctx.mode>=0&&!atGroupAllowed(S,dKey)?' disabled aria-disabled="true"':'';
       const disabled=groupDisabled||(ctx.mode<0&&d<=hit?' disabled aria-disabled="true"':'');
-      return `<div class="crow quest-row">
+      return `<div class="crow quest-row" style="--c:${TABLE_COLORS[id]}">
         <div class="lbl"><div class="nm">${name}</div><div class="pct">${ctx.pct(hit,d)}</div></div>
         <div class="cycle-actions">
           <button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${dKey}" data-n="${nKey}" data-q="${id}" data-r="win" data-label="${label} 成功" aria-label="${label} 成功"${groupDisabled}>${id==='t7'?'＋':'成功'}</button>
@@ -350,9 +358,9 @@
         </div>
       </div>`;
     }).join('')}</div>
-  `).join('')+`<div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。並んだアイコンの1個目を見てテーブルを選び、BZとその後のクエストが終わったら、ATに当選したかで［成功］［失敗］を押してください。テーブル7はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。訂正は減算モードで同じボタンを押します。設定差は公表されていません。記録してサンプルを集める項目です。</div></section>`+atSection(ctx)+`<section class="sec">
+  `).join('')+`<div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。並んだアイコンの1個目を見てテーブルを選び、BZとその後のクエストが終わったら、ATに当選したかで［成功］［失敗］を押してください。テーブル7はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（朝一を含む）最初のブレイクゾーン、2回目以降はそれ以外です。訂正は減算モードで同じボタンを押します。設定差は公表されていません。記録してサンプルを集める項目です。</div></section>`+atSection(ctx)+`<section class="sec">
     <div class="sec-h">テーブル別 成功率（合算）</div>
-    <div class="cgrid">${TABLES.map(([id])=>`<div class="crow quest-row"><div class="lbl"><div class="nm">${TABLE_NAMES[id]}</div></div><div class="pct">${ctx.pct(questHit(S,id),questD(S,id))}</div></div>`).join('')}</div>
+    <div class="cgrid">${TABLES.map(([id])=>`<div class="crow quest-row" style="--c:${TABLE_COLORS[id]}" aria-label="${TABLE_READS[id]}"><div class="lbl"><div class="nm">${TABLE_NAMES[id]}</div></div><div class="pct">${ctx.pct(questHit(S,id),questD(S,id))}</div></div>`).join('')}</div>
     <div class="hint">テンプレに出る成功率です（1回目＋2回目以降）</div>
   </section>`;}
   // サブラベルだけを段位表記の出典にする。強さの判定には数値rankを使う。

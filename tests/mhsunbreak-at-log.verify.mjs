@@ -28,7 +28,7 @@ test('default open AT interval; atLog excluded from numeric merge',()=>{
 test('BZ1 table1 failure counts and shows H; group advances',()=>{
   const S=fresh();assert.notEqual(bz(S),false);assert.equal(S.bzT1.t1,1);assert.equal(S.questN1.t1,0);
   equal(current(S).events,[{t:'bz',table:'t1',r:'miss'}]);
-  assert.match(html(S),/BZ1回目 テーブル1（QUEST青）失敗/);
+  assert.match(html(S),/BZ1回目 ① 青スタート 失敗/);
   assert.match(html(S),/シナリオH濃厚：3回目のBZでAT濃厚/);
   assert.ok(group(S,'bzT1').every(b=>b.includes('disabled aria-disabled="true"')));
   assert.ok(group(S,'bzT2').every(b=>!b.includes('disabled')));
@@ -39,13 +39,13 @@ test('fuku numbering controlled by the single constant; CZ aggregate untouched',
     const c=load(source.replace('COUNT_FUKU_AS_CZ=false',`COUNT_FUKU_AS_CZ=${flag}`)),S=clone(c.defaults);
     action(S,'atEvent',{t:'fuku',r:'miss'},1,c);
     assert.notEqual(bz(S,'t2','miss',flag?'bzT2':'bzT1',1,c),false);
-    assert.match(html(S,1,c),new RegExp('BZ'+(flag?2:1)+'回目 テーブル2'));
+    assert.match(html(S,1,c),new RegExp('BZ'+(flag?2:1)+'回目 ② 黄スタート'));
     equal(S.czType,{breakzone:0,airou:0});
   }
 });
 test('strongest eye remains after weaker eye; ordered events and all serif kinds',()=>{
   const S=fresh();for(const c of ['jay','bahari','jay'])event(S,'eye',c);
-  assert.match(html(S),/<div class="at-top">バハリ（緑）：シナリオE以上濃厚<\/div>/);
+  assert.match(html(S),/<div class="at-top" style="--c:#a9e6ad">バハリ（緑）：シナリオE以上濃厚<\/div>/);
   equal(current(S).events.map(e=>e.c),['jay','bahari','jay']);
   for(const c of ['s1','s2','s3','s4'])assert.notEqual(event(S,'serif',c),false);
   assert.equal(current(S).events.length,7);
@@ -61,7 +61,7 @@ test('BZ win, t7 plus, fuku win and other AT close and open fresh intervals',()=
 test('unknown start allows both groups and suppresses numbers and H',()=>{
   const S=fresh();action(S,'atStart',{known:'false'});
   assert.ok([...group(S,'bzT1'),...group(S,'bzT2')].every(b=>!b.includes('disabled')));
-  bz(S);assert.match(html(S),/BZ テーブル1（QUEST青）失敗/);
+  bz(S);assert.match(html(S),/BZ ① 青スタート 失敗/);
   assert.doesNotMatch(html(S),/BZ1回目|シナリオH濃厚|今は\d回目/);assert.match(html(S),/開始：不明/);
 });
 test('prior2 only enables later group; action guard rejects wrong group without mutation',()=>{
@@ -79,9 +79,9 @@ test('start remains editable until first BZ; invalid choices rejected',()=>{
 });
 test('delete only current memo; recompute numbering, strongest hint and H',()=>{
   const S=fresh();bz(S);bz(S,'t2','miss','bzT2');event(S,'eye','jay');event(S,'eye','bahari');
-  action(S,'atDel',{index:'3'});assert.match(html(S),/<div class="at-top">ジェイ/);
+  action(S,'atDel',{index:'3'});assert.match(html(S),/<div class="at-top" style="--c:#f2eef5">ジェイ/);
   action(S,'atDel',{index:'0'});assert.equal(S.bzT1.t1,1);assert.equal(S.bzT2.t2,1);
-  assert.match(html(S),/BZ1回目 テーブル2/);assert.doesNotMatch(html(S),/シナリオH濃厚/);
+  assert.match(html(S),/BZ1回目 ② 黄スタート/);assert.doesNotMatch(html(S),/シナリオH濃厚/);
   for(const index of ['-1','99','1.5','oops','',undefined])assert.equal(action(S,'atDel',{index}),false);
 });
 test('minus changes only aggregates, leaves memo; atEvent buttons and handler disabled',()=>{
