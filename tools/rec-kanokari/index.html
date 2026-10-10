@@ -251,7 +251,7 @@ textarea{min-height:80px;resize:vertical}
 "use strict";
 const KEY="slot-tools-rec-kanokari";
 const DEF_LEND=46;
-const ENGINE_VER="0.16";   // 器（共通処理）の版。画面のヘッダに出す
+const ENGINE_VER="0.17";   // 器（共通処理）の版。画面のヘッダに出す
 
 /* =====================================================================
    機種定義
@@ -287,7 +287,7 @@ const MACHINES={
   },
 kanokari:{
   name:"彼女、お借りします",
-  defVer:"0.20",   // 画面のヘッダに出す定義の版。docs/specs/kanokari-def-v20.js の1行目と必ず合わせる
+  defVer:"0.21",   // 画面のヘッダに出す定義の版。docs/specs/kanokari-def-v21.js の1行目と必ず合わせる
   lcdG:true,
   lcdRestart:0,
   clearStageOnHit:true,
@@ -309,12 +309,18 @@ kanokari:{
   stocks:[{key:"ren",label:"レンCHANCE",short:"レン"},{key:"koi",label:"1G恋",short:"1G恋"}],   // §1
   // 終了シートの注記。保証が入った回は stockGainNoteOnStart（hits 側に置く）が優先される
   stockGainNote:"このボーナスで増えたストック数を入れてください。前から持っている分は右の合計に入っています",
-  gauge:{label:"❤",max:5,maxLabel:"MAX",hideInHit:true},   // §4。当選中はバッジを出さない
-  // 1GレンCHANCE の失敗連続回数（バッジ「レン失敗 n」）。救済抽選（2〜5回で振り分け）の判定に使う
-  // 失敗で+1、成功で0。引き戻し当選と次回初当りで0（持ち越さない）
+  // §4。当選中はバッジを出さない
+  // askDefault：レア役シートのメーターの既定選択。満タン（MAX）で待機中は「変わらず」で即記録（1タップ）、
+  //   朝イチでメーターが分からないうちは「不明」を光らせるだけ（選び直せる・2タップ）
+  // unknownWhen：打ち始めで「朝イチ」を選び、メーターを空欄にしたときだけ「分からない」状態で始める
+  gauge:{label:"❤",max:5,maxLabel:"MAX",hideInHit:true,
+    askDefault:{full:{value:"変わらず",instant:true},unknown:{value:"不明",instant:false}},
+    unknownWhen:{setupKey:"stage0",value:"朝イチ",gaugeBlank:true}},
+  // 1GレンCHANCE のスルー回数（バッジ「スルー n」）。救済抽選（2〜5回で振り分け）の判定に使う
+  // 失敗で+1、成功で0。引き戻しを経由したら0（解析：引き戻し時はスルー回数を引き継がない）。有利区間切れでも0
   stockGPerSet:2,stockSuccessOffset:1,   // 1セット2G。全部失敗→実G＝消費数×2、成功→当選G＝消費数×2＋1（告知の1G）。液晶は0
   stockResultMode:"perSet",   // セットごとに入力：1G目の役 → 2G目の役 → 必要なときだけ成否。1G恋も1G目・2G目の役を聞き、自動成功。失敗なら次のセット、尽きたら引き戻しへ
-  stockFail:{label:"レン失敗",resetOnTriggers:["引き戻し成功","レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},
+  stockFail:{label:"スルー",resetOnTriggers:["引き戻し成功","レンカノ成功","妄想DT成功","ガチ恋目","最強目","ロングフリーズ","天井","規定G数前兆"]},
   // 全部失敗＝実機で終了画面が出るタイミング。失敗の記録のあとに extras の同名シートを自動で開く（§9-61）
   stockAllFail:{askExtra:"終了画面の枠"},
   // 1GレンCHANCE の各セットで成立役を聞き、定義のルールで成否を決める
@@ -337,8 +343,8 @@ kanokari:{
 
   // ---------- レア役 ----------
   rares:[
-    {key:"weak",label:"弱チャンス目",inSheet:false,ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max",tag:"変換高確",until:"manual",waitIfZen:"MAX待機"}},{l:"変わらず"}]}},
-    {key:"chance",label:"チャンス目",ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max",tag:"変換高確",until:"manual",waitIfZen:"MAX待機"}},{l:"変わらず"}]}},
+    {key:"weak",label:"弱チャンス目",inSheet:false,ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max",tag:"変換高確",until:"manual",waitIfZen:"MAX待機"}},{l:"変わらず"},{l:"不明"}]}},
+    {key:"chance",label:"チャンス目",ask:{key:"gauge",label:"メーターは何個になったか",options:[{l:"1",set:{gauge:1}},{l:"2",set:{gauge:2}},{l:"3",set:{gauge:3}},{l:"4",set:{gauge:4}},{l:"5",set:{gauge:5}},{l:"MAX",set:{gauge:"max",tag:"変換高確",until:"manual",waitIfZen:"MAX待機"}},{l:"変わらず"},{l:"不明"}]}},
     {key:"strong",label:"強チャンス目",hint:"前兆へ",set:{enterZen:0}},
     {key:"gachi",label:"ガチ恋目",inSheet:false},   // 変換でしか出ない（小役変換・示唆の変換先で記録）
     {key:"saikyo",label:"最強目",inSheet:false},
@@ -482,6 +488,7 @@ kanokari:{
     }},
     {type:"select",label:"セリフ",title:"セリフ演出",groups:[
       {key:"who",label:"キャラ",required:true,options:["千鶴","和也","和","小百合","黒セリフ","その他"]},
+      {key:"color",label:"色",options:["白","青"]},   // 青セリフの区別。任意（分からなければ入れない）
       {key:"role",label:"成立役",logParen:true,options:["ハズレ","リプレイ","ベル","弱チャンス目","チャンス目","強チャンス目","ガチ恋目","最強目","不明"]},   // ログは末尾に「（成立役：…）」で付ける
       {key:"cm",label:"センチメートル",options:["44cm","55cm","66cm"]}
     ]},
@@ -498,20 +505,24 @@ kanokari:{
     order:["部屋と彼女","大学と彼女","街と彼女"],   // バッジをタップすると次のステージへ（順番のもの以外はシートを開く）
     preselectNext:true,   // 今のステージが order にあるとき、次のステージを初期選択にする（選び直せる）
     options:[{l:"部屋と彼女",h:"通常",askAfter:"アイキャッチ"},{l:"大学と彼女",h:"通常",askAfter:"アイキャッチ"},{l:"街と彼女",h:"通常",askAfter:"アイキャッチ"},
-             {l:"海と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p",enterZen:1},{l:"夜と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"ヒミツ恋ゴコロ",h:"前兆",tone:"d",enterZen:1,askAfter:"アイキャッチ"},
+             {l:"海と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"和也の部屋",h:"前兆（デート予約）",tone:"p",enterZen:1},{l:"夜と彼女",h:"前兆",tone:"p",enterZen:1,askAfter:"アイキャッチ"},{l:"ヒ・ミ・ツ恋心",h:"前兆",tone:"d",enterZen:1,askAfter:"アイキャッチ"},
              {l:"ヒロインステージ",h:"ポイント高確20G",tone:"c",askAfter:"アイキャッチ"}]},
 
   // ---------- 前兆・引き戻し ----------
   zenchou:{stages:["前兆","前兆ステージ","連続演出","引き戻し中"],stageIndex:[1,2,3],cutStages:[0],
     // 引き戻し中は enterOnHitEnd で入る。前兆3段は手動
-    enterOnHitEnd:{unlessStocks:true,stage:3},endLabel:"引き戻し終了",remindAtG:66,   // §8 §9
+    enterOnHitEnd:{unlessStocks:true,stage:3},endLabel:"引き戻し終了",remindAtG:66,remindOn:"lcd",   // §8 §9。66Gは液晶ゲーム数で見る
     outGroups:[   // 連続演出の失敗時（forStages:[2]）。実機の順：失敗→アイキャッチ→ステージ
       {key:"cu",label:"CU",options:["あり","なし"]},
       {key:"eye",label:"アイキャッチ",options:["白","青・4人","ピンク・2人","劇画調・和也背景","なし"]},
       {key:"stage",label:"戻ったステージ",options:["部屋と彼女","大学と彼女","街と彼女"]}
     ],forStages:[2],
     backTo:{2:1},   // 連続演出の終了時に「前兆ステージへ戻る」を出す（失敗しても前兆ステージが続くことがある）
-    onEndByStage:{3:{clearTags:["ユメカノ"],c3:0,keepStage:true}},   // 引き戻し終了：ユメカノOFF、攻略人数0
+    // 前兆シートから「前兆ステージ」へ入ったときに、どの前兆ステージかを聞く（ステージのシートから入ったときは選び済みなので聞かない）
+    // options は stages.options の前兆ステージ（enterZen:1）と同じ文字列にそろえる。片方だけ直さないこと
+    stageTypeAsk:{forStage:1,title:"前兆ステージの種類",label:"前兆ステージ",key:"ztype",
+      options:["和也の部屋","ヒ・ミ・ツ恋心","夜と彼女","海と彼女"]},
+    onEndByStage:{3:{clearTags:["ユメカノ"],c3:0,keepStage:true,renFail:0}},   // 引き戻し終了：ユメカノOFF、攻略人数0、スルー0
     sheet:{label:"引き戻し記録",forStage:3,logOnSave:false,autoFill:{stage0:{ifTag:"ユメカノ",value:"専用（ユメカノ後）"}},sections:[   // 3段。保存時はログなし（終了時に当否付きで流す）
       {title:"① レンCHANCE抜け直後",groups:[
         {key:"eye",label:"アイキャッチ",options:["白","ピンク（赤）","黒"]},
@@ -530,7 +541,7 @@ kanokari:{
     ]}},
 
   // ---------- 有利区間 ----------
-  yuuri:{askOnEnd:[],clear:["c3","stocks","gauge","tags","modeHints","renChara"],levels:["有利切れ","有利切れ濃厚"],askMedal:true},   // §10 ＋ D5：切れ時に持ちメダルを聞き、差枚をログに
+  yuuri:{askOnEnd:[],clear:["c3","stocks","gauge","tags","modeHints","renChara","renFail"],levels:["有利切れ","有利切れ濃厚"],askMedal:true},   // §10 ＋ D5：切れ時に持ちメダルを聞き、差枚をログに
 
   parallel:[],
   czEndStd:{groups:[]},
@@ -567,7 +578,7 @@ kanokari:{
   // ---------- グリッド ----------
   grids:{
     normal:[["rare","extra:0","hit"],["zenchou","stage","extra:1"],["rare:weak","extra:2","memo"]],   // レア役／小役変換・示唆／当選、前兆／ステージ／アイキャッチ、弱チャンス目／セリフ／メモ
-    zen:[["rare:weak","zenchou","hit"],["rare","extra:1","memo"]],          // 前兆中（引き戻し以外）。ステージはバッジタップで
+    zen:[["rare:weak","zenchou","hit"],["rare","extra:2","memo"]],          // 前兆中（引き戻し以外）。3枠目はセリフ（前兆中はアイキャッチを聞かない）。ステージはバッジタップで
     hikimodoshi:[["zenSheet","zenchou","hit"],["rare:weak","rare","memo"],["extra:2"]],   // 引き戻し中（zenchou＝引き戻し終了）。3行目はセリフ（G数付きで残すため）
     stock:[["stockResult","memo"]],
     cz:[["hitEnd","memo"]],
@@ -938,6 +949,7 @@ function fixSession(c){
   const d=MACHINES[c.machineId]||MACHINES.generic;
   if(d.stockFail&&(!Number.isInteger(c.renFail)||c.renFail<0))c.renFail=0;
   if(d.gauge&&(!Number.isInteger(c.gauge)||c.gauge<0))c.gauge=0;
+  if(d.gauge&&typeof c.gaugeUnknown!=="boolean")c.gaugeUnknown=false;   // v0.17/器: 旧データ・旧JSONは「分かっている」扱い
   if(d.stocks){if(!c.stocks||typeof c.stocks!=="object"||Array.isArray(c.stocks))c.stocks={};d.stocks.forEach(s=>{const n=Number(c.stocks[s.key]);c.stocks[s.key]=Number.isInteger(n)&&n>=0?n:0})}
   d.rares.forEach(r=>{
     const v=c.rare[r.key];
@@ -1201,7 +1213,7 @@ el("kpOk").addEventListener("click",()=>{const v=int(kpVal);el("kp").classList.r
 function askNum(title,init,cb){el("kpTitle").textContent=title;kpVal=(init==null||init===0)?"":String(init);kpFresh=!!kpVal;el("kpDisp").textContent=kpVal||"0";kpCb=cb;el("kp").classList.add("open")}
 
 /* ---------- 記録 ---------- */
-const SNAP_KEYS=["hit","mode","stage","prevStage","zenPrevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare","ticket","judgeWins","returnHit","pendingReward","melonPhase","modeEra","modeHints","tags","stocks","stockPhase","gauge","zenNote","renFail","tagWait","pendingHit","renChara"];
+const SNAP_KEYS=["hit","mode","stage","prevStage","zenPrevStage","zenchou","realG","lcdG","c3","parallel","parCount","melonLeft","melonApprox","rewardHint","modeHint","revive","rare","ticket","judgeWins","returnHit","pendingReward","melonPhase","modeEra","modeHints","tags","stocks","stockPhase","gauge","zenNote","renFail","tagWait","pendingHit","renChara","gaugeUnknown"];
 function snapshot(c){const o={};SNAP_KEYS.forEach(k=>{o[k]=JSON.parse(JSON.stringify(c[k]===undefined?null:c[k]))});return o}
 // 終了した台では「直前を取り消す」を使わないので、events[].snap を最小形に縮めて容量を空ける
 function stripSnaps(sess){
@@ -1269,7 +1281,7 @@ function renderBadges(){
   };
   const appendGauge=()=>{
   if(d.gauge&&d.gauge.hideInHit&&c.hit)return;   // F10/器: 当選中はメーターのバッジを出さない
-  if(d.gauge){const x=mk("div","badge",d.gauge.label+(c.gauge>d.gauge.max?d.gauge.maxLabel:c.gauge));if(c.gauge>d.gauge.max){x.style.color="var(--accent)";x.style.borderColor="var(--accent2)"}if(d.gauge){const color=c.gauge>d.gauge.max?"var(--hot)":c.gauge>=3?"var(--accent)":"var(--ink)";x.style.color=color;x.style.borderColor=color}x.addEventListener("click",()=>askNum("ハートメーター修正（0〜"+(d.gauge.max+1)+"）",c.gauge,v=>{if(!Number.isInteger(v)||v<0||v>d.gauge.max+1){toast("メーターは0〜"+(d.gauge.max+1)+"の整数で入れてください");return}mark();c.gauge=v;push("gaugeFix","メーター修正："+d.gauge.label+(v>d.gauge.max?d.gauge.maxLabel:v))}));b.append(x)}
+  if(d.gauge){const x=mk("div","badge",d.gauge.label+(c.gauge>d.gauge.max?d.gauge.maxLabel:c.gauge));if(c.gauge>d.gauge.max){x.style.color="var(--accent)";x.style.borderColor="var(--accent2)"}if(d.gauge){const color=c.gauge>d.gauge.max?"var(--hot)":c.gauge>=3?"var(--accent)":"var(--ink)";x.style.color=color;x.style.borderColor=color}x.addEventListener("click",()=>askNum("ハートメーター修正（0〜"+(d.gauge.max+1)+"）",c.gauge,v=>{if(!Number.isInteger(v)||v<0||v>d.gauge.max+1){toast("メーターは0〜"+(d.gauge.max+1)+"の整数で入れてください");return}mark();c.gauge=v;c.gaugeUnknown=false;push("gaugeFix","メーター修正："+d.gauge.label+(v>d.gauge.max?d.gauge.maxLabel:v))}));b.append(x)}
   };
   const appendStocks=()=>{
   if(d.stocks)d.stocks.forEach(s=>{const x=mk("div","badge",s.short+" "+c.stocks[s.key]);x.addEventListener("click",()=>askNum(s.label+" ストック修正",c.stocks[s.key],v=>{if(!Number.isInteger(v)||v<0){toast("ストックは0以上の整数で入れてください");return}mark();c.stocks[s.key]=v;push("stockFix",s.label+" ストック修正："+v,{stockKey:s.key,n:v})}));b.append(x)});
@@ -1286,7 +1298,7 @@ function renderBadges(){
   if(inZen&&inHikimodoshi()&&d.zenchou.remindAtG!=null&&c.zenReminded)b.append(mk("div","badge",d.zenchou.remindAtG+"G超"));
   if(!done.stocks)appendStocks();
   if(!done.gauge)appendGauge();
-  if(d.stockFail&&c.renFail>0){const x=mk("div","badge",d.stockFail.label+" "+c.renFail);x.addEventListener("click",()=>askNum(d.stockFail.label+" 修正",c.renFail,v=>{if(!Number.isInteger(v)||v<0){toast("失敗回数は0以上の整数で入れてください");return}mark();c.renFail=v;push("renFailFix",d.stockFail.label+" 修正："+v)}));b.append(x)}
+  if(d.stockFail&&c.renFail>0){const x=mk("div","badge",d.stockFail.label+" "+c.renFail);x.addEventListener("click",()=>askNum(d.stockFail.label+" 修正",c.renFail,v=>{if(!Number.isInteger(v)||v<0){toast(d.stockFail.label+"の回数は0以上の整数で入れてください");return}mark();c.renFail=v;push("renFailFix",d.stockFail.label+" 修正："+v)}));b.append(x)}
   if(inZen&&!inMain){const z=mk("div","badge zen",zenStages()[zenIdx()]);z.addEventListener("click",openZenchou);b.append(z)}
   if(!c.stockPhase&&zenIdx()>=0&&c.mode!=="normal"){const z=mk("div","badge zen",zenStages()[zenIdx()]);z.addEventListener("click",openZenchou);b.append(z)}
   d.parallel.forEach(p=>{ if(c.parallel[p.key]){const x=mk("div","badge par",p.label+"中");x.addEventListener("click",()=>parallelEnd(p));b.append(x)} });
@@ -1517,10 +1529,16 @@ function openRareOnePage(){
       askWrap.innerHTML="";
       const ask=(!c.hit&&it.r.ask)?it.r.ask:null;     // 当選中は ask を出さない
       if(!ask){closeSheet();recordRare(it.r,false);return}   // ask が無い種類は即記録
+      // v0.17/器: 既定の答えがある場面は、それを光らせる（instant なら押させずに記録して閉じる）
+      const dflt=(ask.key==="gauge")?gaugeAskDefault():null;
+      const idx=dflt?(ask.options||[]).findIndex(o=>((o&&o.l!=null)?o.l:o)===dflt.value):-1;
+      if(idx>=0&&dflt.instant){const o=ask.options[idx];closeSheet();recordRare(it.r,false,(o&&o.l!=null)?o.l:o,o&&o.set);return}
       askWrap.append(mk("div","lbl",ask.label));
-      askWrap.append(optRow(ask.options,o=>{
+      const row=optRow(ask.options,o=>{
         closeSheet();recordRare(it.r,false,(o&&o.l!=null)?o.l:o,o&&o.set);
-      },"q4"));
+      },"q4");
+      if(idx>=0&&row.children[idx])row.children[idx].classList.add("on");   // 既定を光らせるだけ（押して記録・選び直せる）
+      askWrap.append(row);
     },"q4"));
     b.append(askWrap);
   });
@@ -1569,6 +1587,15 @@ function rareSheetGaugeOptions(){
   for(let i=0;i<=d.gauge.max;i++)items.push({l:String(i),set:{gauge:i}});
   items.push({l:d.gauge.maxLabel,set:maxSet||{gauge:"max"}});
   return items;
+}
+// v0.17/器: レア役シートのメーターの既定選択（定義 gauge.askDefault）。
+// 満タンで待機中＝「変わらず」で即記録、メーターが分からないうち＝「不明」を光らせるだけ。
+// どちらでもなければ既定なし（従来どおり選ばせる）
+function gaugeAskDefault(){
+  const d=DEF(),c=S.cur,a=d.gauge&&d.gauge.askDefault;if(!a)return null;
+  if(a.full&&c.gauge>d.gauge.max)return a.full;
+  if(a.unknown&&c.gaugeUnknown)return a.unknown;
+  return null;
 }
 // v0.11/器: 「メーターの状態」を選んだら、その場で記録する（即記録）。
 // 適用はレア役の ask と同じ applyHints 経由なので、MAX のタグ付けも同じ処理になる。
@@ -1641,7 +1668,7 @@ function openStockResult(){
           c.stockPhase=false;
           if(d.stockFail)c.renFail=(c.renFail||0)+n-1;
           const resultTxt=groups.filter(g=>sel[g.key]).map(g=>g.label+"："+sel[g.key]).join("、");
-          push("stockResult","1GレンCHANCE "+n+"個目で成功（1G恋"+usedKoi+"・レン"+usedRen+" 消費）　残り レン"+c.stocks.ren+"／1G恋"+c.stocks.koi+(all?"（ALL変換：レン"+convert+"→1G恋）":"")+(d.stockFail&&c.renFail>0?"（失敗連続 "+c.renFail+" のあと成功）":"")+(resultTxt?"　"+resultTxt:""));
+          push("stockResult","1GレンCHANCE "+n+"個目で成功（1G恋"+usedKoi+"・レン"+usedRen+" 消費）　残り レン"+c.stocks.ren+"／1G恋"+c.stocks.koi+(all?"（ALL変換：レン"+convert+"→1G恋）":"")+(d.stockFail&&c.renFail>0?"（"+d.stockFail.label+c.renFail+" のあと成功）":"")+(resultTxt?"　"+resultTxt:""));
           if(d.stockFail)c.renFail=0;
           if(d.stockGPerSet){c.realG=n*d.stockGPerSet;c.lcdG=0;c._steps=[]}
         }});
@@ -1654,7 +1681,7 @@ function openStockResult(){
     const fail=mk("button","sub","全部失敗");fail.addEventListener("click",()=>{
       mark();c.stocks.koi=0;c.stocks.ren=0;c.stockPhase=false;
       if(d.stockFail)c.renFail=(c.renFail||0)+total;
-      push("stockResult","1GレンCHANCE 全部失敗（1G恋"+koi+"・レン"+ren+" 消費）"+(d.stockFail?"　失敗連続 "+c.renFail:""));
+      push("stockResult","1GレンCHANCE 全部失敗（1G恋"+koi+"・レン"+ren+" 消費）"+(d.stockFail?"　"+d.stockFail.label+" "+c.renFail:""));
       if(d.stockGPerSet){c.realG=total*d.stockGPerSet;c.lcdG=0;c._steps=[]}
       enterAfterHit();closeSheet();askStockAllFail();
     });el("shFoot").append(fail);
@@ -1670,16 +1697,19 @@ function openStockSet(){
     const success=koiSuccess?true:rule?(sel[rule.resultKey]!=null?sel[rule.resultKey]==="成功":rule.autoSuccess.values.includes(sel[rule.autoSuccess.key])):sel.r1==="成功"||sel.r2==="成功";
     const record=()=>{
       mark();c.stocks[key]--;c.stockPhase=success?false:{used:n};
+      const thru=d.stockFail?(c.renFail||0)+1:null;   // v0.17/器: このセットのスルー番号（シートに出した値と同じ）
       if(d.stockFail)c.renFail=success?0:(c.renFail||0)+1;
       c.realG=n*d.stockGPerSet+(success?(d.stockSuccessOffset||0):0);c.lcdG=0;c._steps=[];
       if(success)c.pendingHit={trig:key==="koi"?"1G恋成功":"攻略成功"};
-      push("stockResult","1GレンCHANCE セット"+n+(key==="koi"?"（1G恋）":"")+"："+sel.g1+(sel.g2!=null?"→"+sel.g2:"")+" "+(success?"成功":"失敗"),{sel,setNumber:n});
+      push("stockResult","1GレンCHANCE セット"+n+(key==="koi"?"（1G恋）":"")+"："+sel.g1+(sel.g2!=null?"→"+sel.g2:"")+" "+(success?"成功":"失敗")+(thru!=null?"（"+d.stockFail.label+thru+"）":""),{sel,setNumber:n,thru});
     };
     record();
     if(success){openHit(c.pendingHit);return}
     if(c.stocks.ren+c.stocks.koi>0)openStockSet();
     else{c.stockPhase=false;enterAfterHit();closeSheet();askStockAllFail()}
-  },{goLabel:"セットを記録",instant:false});
+  },{goLabel:"セットを記録",instant:false,
+    // v0.17/器: いま入れようとしているセットが何回目のスルーか（失敗すれば確定、成功ならこの回で抜けた）
+    before:b2=>{if(d.stockFail)b2.append(mk("div","hint",d.stockFail.label+((c.renFail||0)+1)+"回目"))}});
 }
 // 1GレンCHANCE 全部失敗のあと：実機で出る終了画面を自動で聞く。閉じてもそのまま引き戻し中で続けられる
 function askStockAllFail(){
@@ -1737,10 +1767,10 @@ function startHit(h,trig,opts){
     if(!opts.sub){
       const clear=d.hitStartClear,tags=clear.tags||[];
       tags.forEach(tag=>{if(c.tags)delete c.tags[tag]});
-      if(clear.gauge!=null&&d.gauge)c.gauge=clear.gauge;
+      if(clear.gauge!=null&&d.gauge){c.gauge=clear.gauge;c.gaugeUnknown=false}   // v0.17/器: 当選に入ればメーターは確定（朝イチの「分からない」を解除）
       if(c.tagWait&&tags.includes(c.tagWait.from))c.tagWait=null;
     }
-  }else if(d.gauge&&!opts.sub)c.gauge=0;
+  }else if(d.gauge&&!opts.sub){c.gauge=0;c.gaugeUnknown=false}
   if(!opts.sub){if(d.clearStageOnHit)c.stage=null;else if(zenIsStage()&&c.prevStage!==undefined)c.stage=c.prevStage;c.zenchou=false}
   if(target.kind==="at"&&!opts.resume){c.judgeWins=0;c.ticket=false}   // 新しいAT：権利と激情成功数を0に
   Object.keys(c.tags||{}).forEach(k=>{if(c.tags[k]==="nextHit")delete c.tags[k]});
@@ -1957,7 +1987,7 @@ function czEndSheet(){
 }
 // セリフ・ボイスの示唆を運命盤の手がかり／モード示唆として持つ
 // メーターの指定値を状態へ反映し、ログ用の表示を返す
-function setGauge(v){const d=DEF();if(!d.gauge||(typeof v!=="number"&&v!=="max"))return "";const c=S.cur;c.gauge=v==="max"?d.gauge.max+1:v;return d.gauge.label+(c.gauge>d.gauge.max?d.gauge.maxLabel:c.gauge)}
+function setGauge(v){const d=DEF();if(!d.gauge||(typeof v!=="number"&&v!=="max"))return "";const c=S.cur;c.gauge=v==="max"?d.gauge.max+1:v;c.gaugeUnknown=false;return d.gauge.label+(c.gauge>d.gauge.max?d.gauge.maxLabel:c.gauge)}
 function applyHints(sel){
   const c=S.cur;let msg=[];
   if(!sel)return "";
@@ -1996,7 +2026,8 @@ function yuuriReset(reason,keepOp,skipMedal){
     else if(k==="parCount")c.parCount={};
     else if(k==="c3")c.c3=0;
     else if(k==="renChara")c.renChara=null;
-    else if(k==="gauge"&&d.gauge)c.gauge=0;
+    else if(k==="renFail")c.renFail=0;
+    else if(k==="gauge"&&d.gauge){c.gauge=0;c.gaugeUnknown=false}
     else if(k==="stocks"&&d.stocks){c.stocks={};d.stocks.forEach(s=>c.stocks[s.key]=0)}
   });
   push("yuuri","有利区間切れ"+(reason==="濃厚"?"（濃厚）":"")+"（引き継ぎ情報を消去）"+(reason&&reason!=="濃厚"?"　"+reason:""));
@@ -2166,6 +2197,8 @@ function applyStageEnd(k){
   if(oe){
     if(oe.c3==="+1"){c.c3++;txt+="　"+d.counter3.label+" "+c.c3}
     else if(typeof oe.c3==="number"){c.c3=oe.c3;if(oe.c3===0&&d.stockPhaseAsk)c[d.stockPhaseAsk.key]=null;txt+="　"+d.counter3.label+" "+c.c3}
+    // v0.17/器: 段階を抜けたらスルー回数を0に戻す（引き戻しを経由したら引き継がない）。0に戻す前の値をログに残す
+    if(oe.renFail===0&&d.stockFail){if(c.renFail>0)txt+="　"+d.stockFail.label+" "+c.renFail+"→0";c.renFail=0}
     (oe.clearTags||[]).forEach(k=>{if(c.tags)delete c.tags[k]});
   }
   return txt;
@@ -2186,7 +2219,7 @@ function openZenchou(){
     const items=[];
     const sis=zenStageIdxs();
     for(let i=cur+1;i<st.length;i++)items.push({l:st[i]+((i===cur+1||sis.includes(i))?"":"（飛ばして）"),i});
-    if(items.length){b.append(mk("div","lbl","次へ"));b.append(optRow(items,it=>{closeSheet();enterZen(it.i)},items.length>=3?"q4":""))}
+    if(items.length){b.append(mk("div","lbl","次へ"));b.append(optRow(items,it=>{closeSheet();enterZen(it.i);askZenStageType(it.i)},items.length>=3?"q4":""))}
     const canCut=!(d.zenchou&&d.zenchou.cutStages)||d.zenchou.cutStages.includes(cur)||zenIsStage();
     if(cur>=0&&canCut){
       b.append(mk("div","lbl","終わる"));
@@ -2196,6 +2229,19 @@ function openZenchou(){
       end.addEventListener("click",()=>{closeSheet();if(isStage)zenchouEnd();else zenchouCut()});b.append(end);
     }
   });
+}
+// v0.17/器: 前兆ステージに入ったとき、どの前兆ステージかを聞く（定義 zenchou.stageTypeAsk）。
+// 前兆シートから入った場合だけ呼ぶ。ステージのシートから入った場合（openStage）は選び済みなので聞かない。
+// この選択ではアイキャッチ（askAfter）を呼ばない：前兆中はアイキャッチを記録しない（夢爽 10/7 決定）
+function askZenStageType(i){
+  const d=DEF(),c=S.cur,a=d.zenchou&&d.zenchou.stageTypeAsk;
+  if(!a||a.forStage!==i||zenIdx()!==i)return;
+  const opId=c.events.length?c.events[c.events.length-1].op:null;   // 前兆ステージ開始の op に相乗りさせる（取り消しは1回）
+  groupSheet(a.title,[{key:a.key,label:a.label,options:a.options,required:true}],sel=>{
+    c.stage=sel[a.key];
+    push("stage",a.label+"："+sel[a.key],{sel,op:opId});
+    closeSheet();
+  },{instant:true});
 }
 // G数で段階を自動で出入りする（ボーナス後32Gなど）
 // 実Gを直すとき、液晶Gも一緒に直す（差を保つが基本）
@@ -2221,9 +2267,12 @@ function editRealWithLcd(v){
 }
 function checkAutoStage(){
   const d=DEF(),c=S.cur,z=d.zenchou;if(!z||!c)return;
-  if(z.remindAtG!=null&&inHikimodoshi()&&c.realG>=z.remindAtG&&!c.zenReminded){
-    c.zenReminded=true;save();renderBadges();
-    toast(z.remindAtG+"G を超えました。引き戻しが終わっていれば「引き戻し終了」を押してください");
+  if(z.remindAtG!=null&&inHikimodoshi()){
+    const g=(z.remindOn==="lcd"&&d.lcdG)?(c.lcdG||0):c.realG;   // v0.17/器: 定義で remindOn:"lcd" なら液晶ゲーム数で見る
+    if(g>=z.remindAtG&&!c.zenReminded){
+      c.zenReminded=true;save();renderBadges();
+      toast(z.remindAtG+"G を超えました。引き戻しが終わっていれば「引き戻し終了」を押してください");
+    }
   }
   if(z.autoEndAtG!=null&&zenIdx()===0&&c.realG>z.autoEndAtG){
     mark();c.zenchou=false;
@@ -3126,6 +3175,8 @@ el("stStart").addEventListener("click",()=>{
   if(d.stockFail)S.cur.renFail=0;
   if(d.stocks){S.cur.stocks={};d.stocks.forEach(s=>S.cur.stocks[s.key]=(setup["stock_"+s.key]!=null?setup["stock_"+s.key]:setup[s.key])||0)}
   if(d.gauge)S.cur.gauge=setup.gauge||0;
+  // v0.17/器: 打ち始めで「朝イチ」を選び、メーターを空欄にしたときだけ「分からない」状態で始める（レア役の既定が「不明」になる）
+  if(d.gauge&&d.gauge.unknownWhen){const u=d.gauge.unknownWhen;S.cur.gaugeUnknown=setup[u.setupKey]===u.value&&(!u.gaugeBlank||setup.gauge==null)}
   d.setup.forEach(f=>{if(f.applyTag&&setup[f.key]!=null&&f.applyTag[setup[f.key]])S.cur.tags[f.applyTag[setup[f.key]]]="manual"});
   ["stMachine","stRealG","stLcdG","stMedal","stReplay0","stNote","stExp","stTotal","stDai"].forEach(i=>el(i).value="");
   if(S.cur&&S.cur.shop){S.settings.lastShop=S.cur.shop}
