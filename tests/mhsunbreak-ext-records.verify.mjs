@@ -116,19 +116,37 @@ const totals=S=>clone({
 });
 const stripSchema=S=>{const c=clone(S);if(c.atLog)delete c.atLog.schemaVersion;return c;};
 
-test('a. 6通りが改修前（'+BASE+'）と一致（例外は atLog.schemaVersion の1キーだけ）',()=>{
+// シナリオH濃厚の表示だけは、台帳 S01 で改修前の判定を**直している**ので一致しない。
+// ここでは「Hマーカーを外せば1バイトも変わらない」ことと、
+// 「新しいHマーカーは候補集合がちょうど {H} のときだけ付く」ことの2つに分けて固定する。
+const H_MARK=' ｼﾅﾘｵH濃厚';
+const dropH=text=>text.split(H_MARK).join('');
+const dropScenarioH=model=>{const m=clone(model);m.rows.forEach(r=>{delete r.scenarioH;});return m;};
+const onlyH=row=>row.candidates.length===1&&row.candidates[0]==='H';
+let s01Fixed=0;
+
+test('a. 6通りが改修前（'+BASE+'）と一致（例外は atLog.schemaVersion と、台帳 S01 で直したH表示だけ）',()=>{
   for(const [name,data] of Object.entries(DATA)){
     const was=before.normalizeState(clone(data));
     const now=after.normalizeState(clone(data));
     assert.equal(now.atLog.schemaVersion,2,name+': schemaVersion が 2 でない');
     assert.deepEqual(stripSchema(now),stripSchema(was),name+': normalizeState が一致しない');
     assert.deepEqual(totals(now),totals(was),name+': 集計値が一致しない');
-    const tplWas=before.template(ctx(was)),tplNow=after.template(ctx(now));
-    assert.deepEqual(Buffer.from(tplNow),Buffer.from(tplWas),name+': テンプレが一致しない');
-    assert.deepEqual(Buffer.from(plainText(tplNow)),Buffer.from(plainText(tplWas)),name+': 収支帳用が一致しない');
     assert.deepEqual(cardJson(after,now),cardJson(before,was),name+': カードJSONが一致しない');
-    assert.deepEqual(clone(after.scenarioModel(now)),clone(before.scenarioModel(was)),name+': シナリオカードJSONが一致しない');
+    const tplWas=before.template(ctx(was)),tplNow=after.template(ctx(now));
+    assert.deepEqual(Buffer.from(dropH(tplNow)),Buffer.from(dropH(tplWas)),name+': テンプレがH表示以外で一致しない');
+    assert.deepEqual(Buffer.from(plainText(dropH(tplNow))),Buffer.from(plainText(dropH(tplWas))),name+': 収支帳用がH表示以外で一致しない');
+    const modelWas=before.scenarioModel(was),modelNow=after.scenarioModel(now);
+    assert.deepEqual(dropScenarioH(modelNow),dropScenarioH(modelWas),name+': シナリオカードJSONがH表示以外で一致しない');
+    // 新しいH表示は候補集合がちょうど {H} のときだけ。テンプレのマーカー数とも一致する
+    const rows=clone(modelNow.rows);
+    rows.forEach((r,i)=>assert.equal(r.scenarioH,onlyH(r),name+' 行'+(i+1)+': H表示が候補集合と一致しない'));
+    assert.equal(tplNow.split(H_MARK).length-1,rows.filter(onlyH).length,name+': テンプレのHマーカー数が合わない');
+    const fixed=clone(modelWas.rows).filter((r,i)=>r.scenarioH!==rows[i].scenarioH).length;
+    s01Fixed+=fixed;
+    if(fixed)console.log('  '+name+': 改修前のH表示を '+fixed+' 行ぶん直した（S01）');
   }
+  assert.ok(s01Fixed>0,'6通りのどこでも S01 の差が出ていない（基準データが不正解のケースを含んでいない）');
 });
 
 // ===== §8-b 保存→読み直し→保存 がバイト一致（冪等） =====
@@ -378,3 +396,126 @@ test('k. atEvent は dataset の画面都合の属性を保存に混ぜない',(
 });
 
 console.log('PASS mhsunbreak 追加記録: '+checks+' checks');
+
+// ===== 台帳 S01: シナリオH濃厚は「候補がちょうど {H}」のときだけ =====
+// 以前は「開始が分かっていて1回目のBZがテーブル1」という独自判定を別に持っていたため、
+// 候補計算とずれる組合せがあった（①失敗→⑤失敗 は候補が空なのに H濃厚 と出ていた）。
+const IDS=['t1','t2','t3','t4','t5','t6','t7'];
+const sessionOf=(tables,start)=>({atLog:{sessions:[sess(tables.map(t=>bz(t,'miss')),start||{known:true,prior:0},false)]}});
+const rowOf=S=>after.scenarioModel(S).rows[0];
+
+test('S01. ①失敗→⑤失敗 でH表示が出ず、該当なしだけが出る',()=>{
+  const S=after.normalizeState(sessionOf(['t1','t5']));
+  const row=rowOf(S);
+  assert.deepEqual(clone(row.candidates),[],'候補が空になっていない');
+  assert.equal(row.scenarioH,false,'候補が空なのにH濃厚が出ている');
+  const html=page(S);
+  assert.ok(!html.includes('シナリオH濃厚'),'画面にH濃厚が残っている');
+  assert.ok(html.includes('該当なし：開始の選び方・記録を確認してください'),'該当なしの案内が出ていない');
+  assert.ok(!after.template(ctx(S)).includes('ｼﾅﾘｵH濃厚'),'テンプレ見出しにH濃厚が残っている');
+});
+
+test('S01. ①失敗→②失敗 ではH表示が残る',()=>{
+  const S=after.normalizeState(sessionOf(['t1','t2']));
+  const row=rowOf(S);
+  assert.deepEqual(clone(row.candidates),['H']);
+  assert.equal(row.scenarioH,true);
+  assert.ok(page(S).includes('シナリオH濃厚：3回目のBZでAT濃厚'));
+  assert.ok(after.template(ctx(S)).includes('ｼﾅﾘｵH濃厚'));
+});
+
+test('S01. ①失敗→取消でH表示が消える',()=>{
+  const S=after.normalizeState({});
+  assert.ok(act(S,'bzQuest',{d:'bzT1',n:'questN1',q:'t1',r:'miss'}));
+  assert.ok(page(S).includes('シナリオH濃厚'));
+  // 「↩ 取消」は engine が状態を巻き戻して normalizeState をかけ直す
+  S.atLog.sessions[0].events=[];S.bzT1.t1=0;
+  after.normalizeState(S);
+  assert.ok(!page(S).includes('シナリオH濃厚'),'取消後もH濃厚が残っている');
+  assert.ok(!page(S).includes('該当なし'),'記録が無いのに該当なしが出ている');
+});
+
+test('S01. 長さ1〜4の全テーブル列（7+49+343+2401）でH表示＝（候補=={H}）',()=>{
+  let total=0,hTrue=0,empty=0,wasH=0;
+  // 改修前の独自判定（開始が分かっていて1回目のBZがテーブル1）
+  const oldRule=tables=>tables[0]==='t1';
+  const walk=tables=>{
+    const S=after.normalizeState(sessionOf(tables));
+    const row=rowOf(S);
+    const onlyH=row.candidates.length===1&&row.candidates[0]==='H';
+    assert.equal(row.scenarioH,onlyH,tables.join('→')+': H表示が候補集合と一致しない');
+    // 画面・テンプレ・カードモデルが同じ判定を見ていること
+    assert.equal(page(S).includes('シナリオH濃厚'),onlyH,tables.join('→')+': 画面がずれている');
+    assert.equal(after.template(ctx(S)).includes('ｼﾅﾘｵH濃厚'),onlyH,tables.join('→')+': テンプレがずれている');
+    assert.equal(page(S).includes('該当なし：開始の選び方・記録を確認してください'),row.candidates.length===0,tables.join('→')+': 該当なしの出し方がずれている');
+    if(onlyH)assert.ok(oldRule(tables),tables.join('→')+': 改修前の判定が正しいHを取りこぼしていた（偽陰性は0件のはず）');
+    total++;if(onlyH)hTrue++;if(!row.candidates.length)empty++;if(oldRule(tables))wasH++;
+  };
+  let level=[[]];
+  for(let depth=1;depth<=4;depth++){
+    const next=[];
+    for(const base of level)for(const id of IDS)next.push(base.concat(id));
+    next.forEach(walk);
+    level=next;
+  }
+  assert.equal(total,7+49+343+2401);
+  console.log(`  S01 全組合せ ${total}件：H表示 ${hTrue}件／候補なし ${empty}件／改修前の独自判定でH ${wasH}件（誤表示 ${wasH-hTrue}件）`);
+  // 実測で固定する。改修前は偽陽性393件・偽陰性0件だった（正しいHは必ず含んでいた）
+  assert.equal(hTrue,7,'正しいH表示の件数が変わった');
+  assert.equal(empty,1329,'候補が空になる件数が変わった');
+  assert.equal(wasH,400,'改修前の独自判定の件数が変わった');
+});
+
+test('S01. 開始が不明のAT間はH表示を出さない（BZで絞らないため）',()=>{
+  for(const tables of [['t1'],['t1','t2'],['t1','t5']]){
+    const S=after.normalizeState(sessionOf(tables,{known:false}));
+    assert.equal(rowOf(S).scenarioH,false,tables.join('→'));
+    assert.ok(!page(S).includes('シナリオH濃厚'));
+  }
+});
+
+// ===== 台帳 S02: 差し込み中はAT間を閉じる出来事を受け付けない =====
+test('S02. 差し込み中は成功系4種を拒否し、記録・集計・AT間数が変わらない',()=>{
+  // 先に ⑥失敗 を1件入れてあるので、次のBZは2回目＝計上先は bzT2。
+  // 差し込みの拒否は計上先の判定より前に効くので、拒否の確認には bzT1 を渡している。
+  const closers=[
+    ['bzQuest',{d:'bzT1',n:'questN1',q:'t3',r:'win'},'BZ成功',{d:'bzT2',n:'questN2',q:'t3',r:'win'}],
+    ['bzQuest',{d:'bzT1',n:'questN1',q:'t7',r:'win'},'⑦の［＋］',{d:'bzT2',n:'questN2',q:'t7',r:'win'}],
+    ['atEvent',{t:'fuku',r:'win'},'福引成功',{t:'fuku',r:'win'}],
+    ['atEvent',{t:'otherAt'},'BZ以外でAT',{t:'otherAt'}]
+  ];
+  for(const [name,ds,label,okDs] of closers){
+    const S=after.normalizeState({});
+    assert.ok(act(S,'bzQuest',{d:'bzT1',n:'questN1',q:'t6',r:'miss'}));
+    assert.ok(act(S,'atEvent',{t:'eye',c:'jay'}));
+    const before=JSON.stringify(S);
+    assert.equal(act(S,'atInsert',{index:'0'}),false);
+    assert.equal(act(S,name,ds),false,label+': 拒否されていない');
+    assert.equal(JSON.stringify(S),before,label+': 状態が変わった');
+    assert.equal(S.atLog.sessions.length,1,label+': AT間が増えた');
+    assert.ok(page(S).includes('AT当選はこのカードの前に差し込めません（通常の記録で入れてください）'),label+': 断りが出ていない');
+    // ［やめる］で断りも消える
+    assert.equal(act(S,'atInsertCancel'),false);
+    assert.ok(!page(S).includes('差し込めません'),label+': 断りが残っている');
+    // 差し込みを外せば通常どおり記録できる（末尾に積まれ、AT間が閉じて次のAT間が始まる）
+    assert.ok(act(S,name,okDs),label+': 通常の記録まで拒否している');
+    assert.equal(S.atLog.sessions.length,2,label+': AT間が閉じていない');
+    assert.equal(S.atLog.sessions[0].events.length,3,label+': 末尾に積まれていない');
+  }
+});
+
+test('S02. 差し込み中でも失敗・示唆・ランプは従来どおり入る',()=>{
+  for(const [name,ds,t] of [['bzQuest',{d:'bzT1',n:'questN1',q:'t3',r:'miss'},'bz'],
+                            ['atEvent',{t:'serif',c:'s3'},'serif'],
+                            ['atEvent',{t:'fuku',r:'miss'},'fuku'],
+                            ['atEvent',{t:'lamp',c:'red'},'lamp'],
+                            ['atEvent',{t:'eye',c:'jay'},'eye']]){
+    const S=after.normalizeState({});
+    assert.ok(act(S,'bzQuest',{d:'bzT1',n:'questN1',q:'t6',r:'miss'}));
+    assert.equal(act(S,'atInsert',{index:'0'}),false);
+    assert.ok(act(S,name,ds),t+': 差し込めない');
+    assert.equal(S.atLog.sessions[0].events[0].t,t,t+': 先頭に入っていない');
+    assert.equal(S.atLog.sessions.length,1);
+    assert.ok(!page(S).includes('差し込めません'));
+  }
+});

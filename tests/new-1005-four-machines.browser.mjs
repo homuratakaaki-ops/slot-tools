@@ -632,6 +632,43 @@ try{
   await click('[data-action="atEvent"][data-t="eye"][data-c="jay"]');
   assert.ok(!await frame(`return d.querySelectorAll('.sec-h')[1].textContent.includes('直前のAT間');`));
   pass('MH AT当選直後の直前AT間と結果アイコン');
+  // 台帳 S01: シナリオH濃厚は候補がちょうど {H} のときだけ出す
+  await clear('mhsunbreak');await tab(2);
+  await atQuest('t1','miss');
+  assert.ok(await frame(`return d.querySelector('#main').textContent.includes('シナリオH濃厚：3回目のBZでAT濃厚');`),'①失敗でH表示が出ない');
+  await atQuest('t5','miss','bzT2');
+  assert.ok(!await frame(`return d.querySelector('#main').textContent.includes('シナリオH濃厚');`),'①→⑤でH表示が残っている');
+  assert.ok(await frame(`return d.querySelector('#main').textContent.includes('該当なし：開始の選び方・記録を確認してください');`),'該当なしの案内が出ない');
+  await tab(3);assert.ok(!(await copy()).includes('ｼﾅﾘｵH濃厚'),'テンプレにH表示が残っている');await tab(2);
+  await click('#undoBtn');   // ⑤を取り消すとHに戻る
+  assert.ok(await frame(`return d.querySelector('#main').textContent.includes('シナリオH濃厚');`),'取消でH表示が戻らない');
+  await click('#undoBtn');   // ①も取り消すとどちらも消える
+  assert.ok(!await frame(`return /シナリオH濃厚|該当なし/.test(d.querySelector('#main').textContent);`),'記録が無いのに表示が残っている');
+  pass('MH S01 H表示は候補がちょうど{H}のときだけ');
+  // 台帳 S02: 差し込み中はAT間を閉じる出来事を受け付けない
+  await clear('mhsunbreak');await tab(2);
+  await atQuest('t6','miss');
+  await click('[data-action="atEvent"][data-t="eye"][data-c="jay"]');
+  const beforeS02=JSON.stringify(await state());
+  await click('.ev-card[data-index="0"]');
+  await click('[data-action="atInsert"][data-index="0"]');
+  for(const [table,r] of [['t3','win'],['t7','win']]){
+    await click(`[data-action="bzPick"][data-q="${table}"]`);
+    await click(`[data-action="bzQuest"][data-q="${table}"][data-r="${r}"]`);
+    assert.equal(JSON.stringify(await state()),beforeS02,table+' の成功が差し込まれた');
+  }
+  for(const selector of ['[data-action="atEvent"][data-t="fuku"][data-r="win"]','[data-action="atEvent"][data-t="otherAt"]']){
+    await click(selector);
+    assert.equal(JSON.stringify(await state()),beforeS02,selector+' が差し込まれた');
+  }
+  assert.ok(await frame(`return d.querySelector('.insert-warn').textContent.includes('AT当選はこのカードの前に差し込めません（通常の記録で入れてください）');`),'断りが出ていない');
+  assert.equal((await state()).atLog.sessions.length,1,'AT間が増えた');
+  // 失敗・示唆は従来どおり差し込める
+  await click('[data-action="atEvent"][data-t="serif"][data-c="s3"]');
+  assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['serif','bz','eye']);
+  assert.ok(!await frame(`return !!d.querySelector('.insert-warn');`),'断りが残っている');
+  await measure('mhsunbreak-insert-reject-390');
+  pass('MH S02 差し込み中はAT当選系を受け付けない');
   // MH template v02: actual BZ buttons and persisted state.
   await clear('mhsunbreak');await tab(2);
   await click('[data-action="atStart"][data-known="false"]');
