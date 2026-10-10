@@ -260,6 +260,10 @@ test('f. 位置1〜10の表記が出典の標準配列と一致（7×10）／⑦
     // 記録するとその詳細が自動で開く（§3.7）ので、そのまま描いて中身を見る
     const S=after.normalizeState({});
     assert.ok(act(S,'bzQuest',{d:'bzT1',n:'questN1',q:id,r:id==='t7'?'win':'miss'}),id+': 記録できない');
+    if(id==='t7'){
+      assert.ok(page(S).includes('選択済み：1個目・AT'),id+': 自動位置が無い');
+      act(S,'bzPosOpen',{});
+    }
     const html=page(S);
     list.forEach((name,i)=>{
       assert.ok(html.includes(`data-pos="${i+1}" aria-pressed="false" aria-label="位置${i+1} ${name}"`)
@@ -267,7 +271,7 @@ test('f. 位置1〜10の表記が出典の標準配列と一致（7×10）／⑦
         `${id} 位置${i+1} が ${name} になっていない`);
       n++;
     });
-    assert.ok(html.includes('>未記録</button>'),id+': ［未記録］が無い');
+    if(id!=='t7')assert.ok(html.includes('>未記録</button>'),id+': ［未記録］が無い');
   }
   assert.equal(n,70);
   // ⑦ は記録した時点で位置1（配列の1個目が AT）
@@ -367,7 +371,7 @@ test('i. AT当選の直後は「直前のAT間」が経過に残り、結果ア�
   assert.equal(S.atLog.sessions.length,2);
   assert.equal(S.atLog.sessions[1].events.length,0);
   const html=page(S);
-  assert.ok(html.includes('直前のAT間（AT当選で終了）'),'直前のAT間の見出しが無い');
+  assert.ok(html.includes('経過（直前のAT間・AT当選で終了）'),'直前のAT間の見出しが無い');
   assert.ok(html.includes('結果アイコン'),'記録直後に詳細が開いていない');
   assert.ok(!html.includes('data-action="atDel"'),'閉じたAT間に削除が出ている');
   assert.ok(!html.includes('data-action="atInsert"'),'閉じたAT間に差し込みが出ている');
@@ -377,7 +381,7 @@ test('i. AT当選の直後は「直前のAT間」が経過に残り、結果ア�
   assert.ok(page(S).includes('結果：7 AT'),'経過カードに結果が出ていない');
   // 次の記録をすると新しいAT間に切り替わる
   assert.ok(act(S,'atEvent',{t:'eye',c:'jay'}));
-  assert.ok(!page(S).includes('直前のAT間（AT当選で終了）'));
+  assert.ok(!page(S).includes('経過（直前のAT間・AT当選で終了）'));
 });
 
 test('j. 画面だけの操作（カードを押す・差し込み・やめる）は取消の履歴に積まない',()=>{

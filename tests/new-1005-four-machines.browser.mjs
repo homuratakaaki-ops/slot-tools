@@ -476,7 +476,8 @@ try{
   assert.equal(await frame(`return d.querySelector('[data-action="atStart"][data-prior="2"]').getAttribute('aria-pressed');`),'true');
   assert.equal(await calcLine(),'→ 2回目以降に計上（BZ3回目）');
   await atQuest('t1','miss','bzT2');assert.deepEqual(await atRows(),['BZ3回目 ① 青スタート 失敗']);
-  assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
+  // 候補が2つ以上のときは一覧で出す（3回目がLOWのシナリオはA・C・D）
+  assert.equal(await frame(`return d.querySelector('.at-sc').textContent;`),'候補：A・C・D');
   // 取消3回（記録・テーブルの選択・開始の選択。選択は画面だけの状態なので戻すものは無い）
   await click('#undoBtn');await click('#undoBtn');await click('#undoBtn');assert.deepEqual(atCurrent(await state()).start,{known:true,prior:0});
   await click('[data-action="atStart"][data-known="false"]');
@@ -485,7 +486,8 @@ try{
   assert.equal(await calcLine(),null);
   assert.equal(await frame(`return d.querySelector('.now-cell:nth-child(2) b').textContent;`),'番号なし');
   await atQuest();assert.deepEqual(await atRows(),['BZ ① 青スタート 失敗']);
-  assert.equal(await frame(`return d.querySelector('.at-sc');`),null);
+  // 開始が不明のあいだはBZで絞らないので、候補ではなく理由の1行を出す
+  assert.equal(await frame(`return d.querySelector('.at-sc').textContent;`),'BZ番号が不明のため絞り込めません');
   pass('MH AT log prior2 and unknown start via real selected buttons');
   // テンプレの■AT間メモ（本番のボタン操作で作って、通常版・収支帳用の両方を見る）
   await clear('mhsunbreak');
@@ -549,8 +551,8 @@ try{
   }
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);await measure('mhsunbreak-at-start-'+width);
-    // 記録が無いときの「経過」は案内の1本だけ
-    assert.deepEqual(await frame(`return [...d.querySelectorAll('section')[1].querySelectorAll('.hint')].map(e=>e.textContent.slice(0,9));`),['まだありません。下']);
+    // 記録が無いときの「経過」は案内の1本だけ（経過は「現在の状況」の中にある）
+    assert.deepEqual(await frame(`return [...d.querySelector('.now-box').querySelectorAll('.hint')].map(e=>e.textContent.slice(0,9));`),['まだありません。下']);
     await atQuest();for(const c of ['jay','bahari','jay'])await atClick('eye',`[data-c="${c}"]`);
     await atClick('fuku','[data-r="win"]');await atClick('serif','[data-c="s4"]');
     await measure('mhsunbreak-at-log-'+width);
@@ -565,8 +567,10 @@ try{
   // v04: rendered table structure at real viewport widths.
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);
-    assert.deepEqual(await frame("return [...d.querySelectorAll('.sec-h')].map(e=>e.firstChild.textContent.trim());"),['このAT間','経過','BZを記録']);
-    assert.deepEqual(await frame("return [...d.querySelectorAll('details.bz-fold>summary')].map(e=>e.firstChild.textContent.trim());"),['示唆・福引・その他','集計','コピー設定']);
+    // 上は「現在の状況」（読む所）、下は「ここから記録」（入力する所）の2本立て
+    assert.deepEqual(await frame("return [d.querySelector('.now-h').textContent.trim(),d.querySelector('.rec-h').textContent.trim()];"),['現在の状況','ここから記録']);
+    assert.deepEqual(await frame("return [...d.querySelectorAll('.entry-h')].map(e=>e.textContent.trim());"),['このAT間の開始','BZ（ブレイクゾーン）','アイキャッチ（ステージチェンジ）','チッチェのセリフ','アイルー福引','BZ終了時PUSH ランプ','そのほか']);
+    assert.deepEqual(await frame("return [...d.querySelectorAll('details.bz-fold>summary')].map(e=>e.firstChild.textContent.trim());"),['集計','コピー設定']);
     assert.equal(await frame('return d.querySelectorAll(".t-btn").length;'),7);
     assert.equal(await frame('return d.querySelectorAll(".sum-row").length;'),7);
     // 加算モードでは集計に入力ボタンを置かない（入力は「BZを記録」の1組だけ）
@@ -595,6 +599,10 @@ try{
     await click('.pos-btn[data-pos="4"]');
     assert.equal((await state()).atLog.sessions[0].events[0].pos,4);
     assert.equal(await frame(`return d.querySelector('.ev-pos').textContent.trim();`),'結果：4 ＋G');
+    // 選んだら一覧が閉じて「選択済み」になる。押し直すには［変更］で開く
+    assert.equal(await frame(`return d.querySelectorAll('.pos-btn').length;`),0);
+    assert.equal(await frame(`return d.querySelector('.pos-done .nm').textContent.trim();`),'選択済み：4個目・＋G');
+    await click('[data-action="bzPosOpen"]');
     await click('.pos-btn[data-pos="4"]');   // もう一度押すと未記録に戻る
     assert.equal((await state()).atLog.sessions[0].events[0].pos,undefined);
     await click('#undoBtn');
@@ -625,12 +633,12 @@ try{
   await clear('mhsunbreak');await tab(2);
   await atQuest('t6','miss');await atQuest('t4','win');
   assert.equal((await state()).atLog.sessions.length,2);
-  assert.ok(await frame(`return d.querySelectorAll('.sec-h')[1].textContent.includes('直前のAT間（AT当選で終了）');`));
+  assert.ok(await frame(`return d.querySelector('.now-sub').textContent.includes('直前のAT間・AT当選で終了');`));
   assert.equal(await frame(`return d.querySelectorAll('[data-action="atDel"],[data-action="atInsert"]').length;`),0);
   await click('.pos-btn[data-pos="7"]');
   assert.equal((await state()).atLog.sessions[0].events[1].pos,7);
   await click('[data-action="atEvent"][data-t="eye"][data-c="jay"]');
-  assert.ok(!await frame(`return d.querySelectorAll('.sec-h')[1].textContent.includes('直前のAT間');`));
+  assert.ok(!await frame(`return d.querySelector('.now-sub').textContent.includes('直前のAT間');`));
   pass('MH AT当選直後の直前AT間と結果アイコン');
   // 台帳 S01: シナリオH濃厚は候補がちょうど {H} のときだけ出す
   await clear('mhsunbreak');await tab(2);
