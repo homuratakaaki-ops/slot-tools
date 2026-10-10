@@ -117,6 +117,7 @@
   const TABLE_NAMES=Object.fromEntries(TABLES.map(c=>[c[0],c[1]+' '+c[2]]));
   const TABLE_READS=Object.fromEntries(TABLES.map((c,i)=>[c[0],'テーブル'+(i+1)+' '+c[2]]));
   const TABLE_COLORS=Object.fromEntries(TABLES.map(c=>[c[0],c[4]]));
+  const TABLE_MARKS=Object.fromEntries(TABLES.map(c=>[c[0],c[1]]));   // t1→①。テーブル番号だけを並べるとき用
   // ステージチェンジ時のアイキャッチ。滞在しているBZシナリオを示唆する
   // （出典: https://1geki.jp/slot/l_mh_sun/57/）。[キー,名前,色,示唆,帯と文字の色] は強さ順。
   const EYE=[
@@ -406,6 +407,12 @@
   const SCENARIO_MAX=7;   // 解析の表は7回目まで。これより後の回数は絞り込みに使わない
   // テーブル→そのテーブルが出るBZレベル（レベル別の振り分けを裏返したもの）
   const TABLE_LEVELS={t1:['LOW'],t2:['LOW','MID'],t3:['LOW','MID','HI'],t4:['MID','HI'],t5:['HI'],t6:['HI'],t7:['HI','SP']};
+  // シナリオ×回数のBZレベル。表に無い回数（表の「−」）は null
+  const levelAt=(name,no)=>{const a=SCENARIO_LEVELS[name];return a&&no>=1&&no<=a.length?a[no-1]:null;};
+  // レベルの並び（弱い方から）。画面に出す順もこれに合わせる
+  const LEVEL_ORDER=['LOW','MID','HI','SP'];
+  // レベル→そのレベルで選ばれうるテーブル。TABLE_LEVELS を裏返すだけで、表は二重に持たない
+  const LEVEL_TABLES=Object.fromEntries(LEVEL_ORDER.map(lv=>[lv,TABLES.map(c=>c[0]).filter(t=>(TABLE_LEVELS[t]||[]).indexOf(lv)>=0)]));
   // アイキャッチ＝「このシナリオ以上濃厚」。H・I はアルファベット順の外なので消さない
   const EYE_MIN={jay:'B',luchika:'C',fiorene:'D',bahari:'E',galeas:'F',chiche:'G'};
   // チッチェのセリフ＝次のBZのレベル。s1・s2（期待度UP）は絞り込みに使わない
@@ -413,7 +420,6 @@
   function scenarioCandidates(session){
     let keep=SCENARIO_NAMES.slice();
     const known=!!session.start.known;
-    const levelAt=(name,no)=>{const a=SCENARIO_LEVELS[name];return no>=1&&no<=a.length?a[no-1]:null;};
     const narrow=(no,allowed)=>{
       if(no>SCENARIO_MAX)return;   // 表の範囲外は何も言えないので絞らない
       keep=keep.filter(name=>{const lv=levelAt(name,no);return lv!==null&&allowed.indexOf(lv)>=0;});
@@ -431,11 +437,41 @@
     }
     return keep;
   }
+  // ===== 次のBZで選ばれうるレベル／テーブル =====
+  // 候補集合 candidates と次のBZ番号 no だけから作る（表からの導出のみ）。
+  // 確率・順位・「確定」は出さない。「濃厚」は SP＝⑦ のときだけ使う（§9-103）。
+  // null を返す＝1行も出さない：候補が0件のとき／候補の全シナリオで no 回目が表の「−」のとき。
+  function nextBzOf(candidates,no){
+    if(!Array.isArray(candidates)||!candidates.length)return null;
+    if(!Number.isInteger(no)||no<1)return null;
+    if(no>SCENARIO_MAX)return {no,over:true};
+    const levels=LEVEL_ORDER.filter(lv=>candidates.some(name=>levelAt(name,no)===lv));
+    if(!levels.length)return null;
+    const tables=TABLES.map(c=>c[0]).filter(t=>levels.some(lv=>LEVEL_TABLES[lv].indexOf(t)>=0));
+    return {no,levels,tables,spOnly:levels.length===1&&levels[0]==='SP'};
+  }
+  // 画面・カードに出す1行。開始が不明のあいだは番号が決まらないので出さない。
+  function nextBzText(session){
+    if(session.start.known!==true)return '';
+    const m=nextBzOf(scenarioCandidates(session),nextBzNo(session));
+    if(!m)return '';
+    const head='次のBZ（'+m.no+'回目）：';
+    if(m.over)return head+(SCENARIO_MAX+1)+'回目以降は解析表の範囲外です';
+    if(m.spOnly)return head+'SP ＝ '+TABLE_MARKS.t7+'でAT濃厚';
+    return head+'レベル '+m.levels.join('／')+' ・ テーブル '+m.tables.map(t=>TABLE_MARKS[t]).join('');
+  }
+  function nextBzLine(session){
+    const text=nextBzText(session);
+    return text?'<div class="at-next">'+text+'</div>':'';
+  }
   // カードに描く内容。描画と分けておき、テストはこの形で固定する。
   function scenarioCardModel(S){
-    const sessions=(S.atLog&&Array.isArray(S.atLog.sessions)?S.atLog.sessions:[]).filter(s=>s.events.length);
+    const all=S.atLog&&Array.isArray(S.atLog.sessions)?S.atLog.sessions:[];
+    const now=all.length?all[all.length-1]:null;   // 今のAT間（閉じたAT間には次のBZを出さない）
+    const sessions=all.filter(s=>s.events.length);
     const rows=sessions.map((s,i)=>{
     const candidates=scenarioCandidates(s);
+    const nextBz=s===now&&!s.closed?nextBzText(s):'';
     return {
       label:'AT間'+(i+1),
       eye:(()=>{const e=strongestEye(s);return e?{text:TPL_EYES[e[0]],color:e[4]}:null;})(),
@@ -451,7 +487,9 @@
         if(icon){step.pos=e.pos;step.icon=ICON_SHORT[icon];}
         return step;
       }).filter(Boolean),
-      candidates
+      candidates,
+      // 次のBZは今のAT間にだけ。出すものが無いAT間では、改修前とまったく同じ形になるようキーを足さない
+      ...(nextBz?{nextBz}:{})
     };});
     const tables=TABLES.map(c=>({mark:c[1],color:c[4],hit:questHit(S,c[0]),count:questD(S,c[0])}));
     return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。','候補は解析の表から確実に言えるものだけで絞っています。']};
@@ -506,6 +544,10 @@
         if(step.icon){const tail=' '+step.pos+step.icon;x.fillStyle=SC_MUTED;x.fillText(tail,cx,y);cx+=x.measureText(tail).width;}
         cx+=20;
         if(cx>920){y+=34;cx=94;}
+      }
+      if(row.nextBz){
+        y+=34;
+        x.fillStyle=SC_GOLD;x.font=font(24,700);x.fillText(row.nextBz,94,y);
       }
       y+=46;
     }
@@ -650,6 +692,7 @@
       </div>
       ${eye?`<div class="now-note" style="color:${eye[4]}">${eye[3]}</div>`:''}
       ${scenarioLine(session)}
+      ${nextBzLine(session)}
       <div class="now-sub">${view.closed?'経過（直前のAT間・AT当選で終了）':'経過（古い順。右が最新）'}</div>
       ${shown?`<div class="ev-scroll" id="evScroll"><div class="ev-track">${history.events.map((e,i)=>eventCard(history,i)).join('')}</div></div>`:'<div class="hint">まだありません。下の「ここから記録」から押してください。</div>'}
       <div class="now-last${shown?'':' none'}">最新：${shown?atEventText(history,history.events.map((e,i)=>shownEvent(e)?i:-1).filter(i=>i>=0).pop()):'まだありません'}</div>
@@ -888,6 +931,7 @@
 .pos-done .nm{flex:1;min-width:0;font-size:14px;font-weight:800;overflow-wrap:anywhere}
 .at-sc.cand{font-size:13px;font-weight:800;color:var(--cyan);margin:0 0 6px;overflow-wrap:anywhere}
 .at-sc.unknown{font-size:12px;font-weight:700;color:var(--muted);margin:0 0 6px}
+.at-next{font-size:13px;font-weight:800;color:var(--gold);margin:0 0 6px;line-height:1.45;overflow-wrap:anywhere}
 
     .bz-sub{font-size:11px;font-weight:800;color:var(--txt);letter-spacing:.06em;margin-bottom:6px}
     .quest-row .lbl .nm{font-size:16px;overflow-wrap:anywhere}
@@ -1021,7 +1065,7 @@
     uiV2:true,nanaCollab:true,storageKey:STORAGE_KEY,defaults:DEF,mergeKeys:MERGE_KEYS,sourceUrl:SOURCE,normalizeState,
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
     // BZシナリオカードの内容（engine は読まない。検証で中身を固定するために出しておく）
-    scenarioModel:scenarioCardModel,
+    scenarioModel:scenarioCardModel,nextBz:nextBzOf,
     actions:{
       bzQuest:bzQuestAction,
       // 記録のキーには書かない。テンプレに入れるかだけを別キーに持つ。

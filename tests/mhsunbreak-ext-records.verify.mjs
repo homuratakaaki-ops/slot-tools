@@ -119,9 +119,14 @@ const stripSchema=S=>{const c=clone(S);if(c.atLog)delete c.atLog.schemaVersion;r
 // シナリオH濃厚の表示だけは、台帳 S01 で改修前の判定を**直している**ので一致しない。
 // ここでは「Hマーカーを外せば1バイトも変わらない」ことと、
 // 「新しいHマーカーは候補集合がちょうど {H} のときだけ付く」ことの2つに分けて固定する。
+// 次のBZの1行（nextBz）も、今のAT間に意図して足した表示なので同じ扱いにする
+// （出る場所が正しいことは下の「閉じたAT間には出さない」と tests/mhsunbreak-next-bz.verify.mjs で固定する）。
 const H_MARK=' ｼﾅﾘｵH濃厚';
 const dropH=text=>text.split(H_MARK).join('');
-const dropScenarioH=model=>{const m=clone(model);m.rows.forEach(r=>{delete r.scenarioH;});return m;};
+const dropAdded=model=>{const m=clone(model);m.rows.forEach(r=>{delete r.scenarioH;delete r.nextBz;});return m;};
+// 行のうち「今のAT間」はどれか（最後のAT間が閉じておらず記録があるときだけ、その行）
+const nowRow=S=>{const all=S.atLog.sessions,last=all[all.length-1];
+  return !last||last.closed||!last.events.length?-1:all.filter(s=>s.events.length).length-1;};
 const onlyH=row=>row.candidates.length===1&&row.candidates[0]==='H';
 let s01Fixed=0;
 
@@ -137,7 +142,11 @@ test('a. 6通りが改修前（'+BASE+'）と一致（例外は atLog.schemaVers
     assert.deepEqual(Buffer.from(dropH(tplNow)),Buffer.from(dropH(tplWas)),name+': テンプレがH表示以外で一致しない');
     assert.deepEqual(Buffer.from(plainText(dropH(tplNow))),Buffer.from(plainText(dropH(tplWas))),name+': 収支帳用がH表示以外で一致しない');
     const modelWas=before.scenarioModel(was),modelNow=after.scenarioModel(now);
-    assert.deepEqual(dropScenarioH(modelNow),dropScenarioH(modelWas),name+': シナリオカードJSONがH表示以外で一致しない');
+    assert.deepEqual(dropAdded(modelNow),dropAdded(modelWas),name+': シナリオカードJSONがH表示・次のBZ以外で一致しない');
+    // 次のBZは今のAT間にだけ。閉じたAT間・過去のAT間の行には足さない
+    const nowIndex=nowRow(now);
+    modelNow.rows.forEach((r,i)=>assert.ok(i===nowIndex||!Object.prototype.hasOwnProperty.call(r,'nextBz'),
+      name+' 行'+(i+1)+': 今のAT間でない行に次のBZが出ている'));
     // 新しいH表示は候補集合がちょうど {H} のときだけ。テンプレのマーカー数とも一致する
     const rows=clone(modelNow.rows);
     rows.forEach((r,i)=>assert.equal(r.scenarioH,onlyH(r),name+' 行'+(i+1)+': H表示が候補集合と一致しない'));
