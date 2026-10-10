@@ -175,10 +175,13 @@ test('保存データ・集計・カードは 0078fc9 と同じ',()=>{
   const raws=[null,{},{games:3,hits:[300]},
     {bzT1:{blue:2,raizex:1},questN1:{blue:1},questN:{blue:1},iconPending:['qBlue'],iconLog:[{icons:['rai'],group:'bzT1',quest:'raizex',result:'win'}]},
     {bzT1:{t1:2,t3:1},questN1:{t1:9},atLog:{sessions:[{start:{known:false},events:[{t:'bz',table:'t3',r:'miss'}],closed:false}]}}];
+  // 旧版との差は atLog.schemaVersion の1キーだけ（追加記録 v01 §3.1.2。将来の版が形式を判断するためのもの）
+  const stripSchema=S=>{const c=clone(S);if(c.atLog)delete c.atLog.schemaVersion;return c;};
   for(const raw of raws){
     const a=baseline.normalizeState(Object.assign(clone(baseline.defaults),clone(raw)||{}),clone(raw));
     const b=config.normalizeState(Object.assign(clone(config.defaults),clone(raw)||{}),clone(raw));
-    assert.equal(JSON.stringify(b),JSON.stringify(a),'normalizeState: '+JSON.stringify(raw));
+    assert.equal(b.atLog.schemaVersion,2,'schemaVersion: '+JSON.stringify(raw));
+    assert.equal(JSON.stringify(stripSchema(b)),JSON.stringify(stripSchema(a)),'normalizeState: '+JSON.stringify(raw));
   }
   const S=clone(config.defaults);
   S.hits=[300,520];S.cycle.c1=2;S.atEnd.jay=1;S.trophy.gold=1;

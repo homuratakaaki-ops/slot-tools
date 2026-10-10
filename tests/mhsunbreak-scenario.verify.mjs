@@ -141,10 +141,13 @@ test('保存データ・集計・テンプレ・既存カードは b280977 と�
   const raws=[null,{},{bzT1:{t1:2},questN1:{t1:1}},
     {bzT1:{blue:3},questN:{blue:1},iconLog:[{icons:['rai'],group:'bzT1',quest:'raizex',result:'win'}]},
     {atLog:{sessions:[{start:{known:false},events:[bz('t3')],closed:false}]}}];
+  // 旧版との差は atLog.schemaVersion の1キーだけ（追加記録 v01 §3.1.2。将来の版が形式を判断するためのもの）
+  const stripSchema=S=>{const c=clone(S);if(c.atLog)delete c.atLog.schemaVersion;return c;};
   for(const raw of raws){
     const a=baseline.normalizeState(Object.assign(clone(baseline.defaults),clone(raw)||{}),clone(raw));
     const b=config.normalizeState(Object.assign(clone(config.defaults),clone(raw)||{}),clone(raw));
-    assert.equal(JSON.stringify(b),JSON.stringify(a),JSON.stringify(raw));
+    assert.equal(b.atLog.schemaVersion,2,JSON.stringify(raw));
+    assert.equal(JSON.stringify(stripSchema(b)),JSON.stringify(stripSchema(a)),JSON.stringify(raw));
   }
   const S=clone(config.defaults);
   S.hits=[300,520];S.atEnd.jay=1;S.trophy.gold=1;S.cycle.c1=2;

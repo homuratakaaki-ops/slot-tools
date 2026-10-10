@@ -575,6 +575,63 @@ try{
     await measure('mhsunbreak-bz-tables-'+width);
     pass('MH table structure '+width,{rows:21,buttons:26,aggregateRows:7});
   }
+  // 追加記録（結果アイコン pos・サイドランプ lamp・過去への差し込み）の実表示。
+  // 指示書 docs/specs/mhsunbreak-ext-records-v01.md §4・§8-i。
+  const POS_ICONS={t1:'QUEST青',t2:'QUEST黄',t3:'ライゼクス',t4:'セルレギオス',t5:'オロミドロ亜種',t6:'テオ・テスカトル',t7:'AT'};
+  for(const width of [360,390,412]){
+    await clear('mhsunbreak',width);await tab(2);
+    // ⑥ を失敗で記録すると、そのカードの詳細が自動で開く
+    await atQuest('t6','miss');
+    const pos=await frame(`const b=[...d.querySelectorAll('.pos-btn')];return {n:b.length,
+      minHeight:Math.min(...b.map(e=>e.getBoundingClientRect().height)),
+      clipped:b.filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.textContent.trim()),
+      first:b[0].textContent.trim(),last:b[b.length-1].textContent.trim()};`);
+    assert.equal(pos.n,11,'結果アイコンは位置1〜10＋未記録の11ボタン');
+    assert.ok(pos.minHeight>=48,width+'px pos button below 48px: '+pos.minHeight);
+    assert.deepEqual(pos.clipped,[],width+'px 結果アイコンの文字が切れている');
+    assert.equal(pos.first,'1：'+POS_ICONS.t6);
+    assert.equal(pos.last,'未記録');
+    // 位置を押すと保存に入り、経過カードに出る
+    await click('.pos-btn[data-pos="4"]');
+    assert.equal((await state()).atLog.sessions[0].events[0].pos,4);
+    assert.equal(await frame(`return d.querySelector('.ev-pos').textContent.trim();`),'結果：4 ＋G');
+    await click('.pos-btn[data-pos="4"]');   // もう一度押すと未記録に戻る
+    assert.equal((await state()).atLog.sessions[0].events[0].pos,undefined);
+    await click('#undoBtn');
+    assert.equal((await state()).atLog.sessions[0].events[0].pos,4);
+    // サイドランプ8色
+    const lamp=await frame(`const b=[...d.querySelectorAll('.lamp-pick .at-btn')];return {n:b.length,
+      minHeight:Math.min(...b.map(e=>e.getBoundingClientRect().height)),names:b.map(e=>e.textContent.trim())};`);
+    assert.deepEqual(lamp.names,['白','青','黄','緑','赤','紫','虹','その他']);
+    assert.ok(lamp.minHeight>=48,width+'px lamp button below 48px: '+lamp.minHeight);
+    await click('[data-action="atEvent"][data-t="lamp"][data-c="red"]');
+    assert.deepEqual((await state()).atLog.sessions[0].events[1],{t:'lamp',c:'red'});
+    assert.ok((await frame(`return [...d.querySelectorAll('.ev-card')].map(e=>e.getAttribute('aria-label'));`)).includes('ランプ 赤'));
+    // 差し込み：1件目の前にセリフを入れる。集計は動かない
+    const totalsBefore=JSON.stringify((await state()).bzT1);
+    await click('.ev-card[data-index="0"]');
+    await click('[data-action="atInsert"][data-index="0"]');
+    assert.ok(await frame(`return !!d.querySelector('.insert-bar');`),'差し込み待ちの表示が無い');
+    assert.equal(await frame(`return d.querySelector('.calc').textContent.trim();`),'→ 1回目に計上（BZ1回目）');
+    await click('[data-action="atEvent"][data-t="serif"][data-c="s3"]');
+    assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['serif','bz','lamp']);
+    assert.equal(JSON.stringify((await state()).bzT1),totalsBefore,'差し込みで集計が動いた');
+    await click('#undoBtn');
+    assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['bz','lamp']);
+    await measure('mhsunbreak-ext-records-'+width);
+    pass('MH 追加記録 '+width,{posButtons:pos.n,posMinHeight:pos.minHeight,lampMinHeight:lamp.minHeight});
+  }
+  // AT当選の直後は「直前のAT間」が経過に残り、当選したBZの結果アイコンを押せる
+  await clear('mhsunbreak');await tab(2);
+  await atQuest('t6','miss');await atQuest('t4','win');
+  assert.equal((await state()).atLog.sessions.length,2);
+  assert.ok(await frame(`return d.querySelectorAll('.sec-h')[1].textContent.includes('直前のAT間（AT当選で終了）');`));
+  assert.equal(await frame(`return d.querySelectorAll('[data-action="atDel"],[data-action="atInsert"]').length;`),0);
+  await click('.pos-btn[data-pos="7"]');
+  assert.equal((await state()).atLog.sessions[0].events[1].pos,7);
+  await click('[data-action="atEvent"][data-t="eye"][data-c="jay"]');
+  assert.ok(!await frame(`return d.querySelectorAll('.sec-h')[1].textContent.includes('直前のAT間');`));
+  pass('MH AT当選直後の直前AT間と結果アイコン');
   // MH template v02: actual BZ buttons and persisted state.
   await clear('mhsunbreak');await tab(2);
   await click('[data-action="atStart"][data-known="false"]');
