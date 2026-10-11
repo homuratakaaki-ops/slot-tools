@@ -96,8 +96,12 @@ test('b. 夢爽の指定した具体例',()=>{
 });
 
 test('c. 画面の1行の文言',()=>{
-  // 記録なし（候補9つ・n=1）
-  assert.equal(line(one([{t:'fuku',r:'miss'}])),'次のBZ（1回目）：レベル LOW／MID／HI ・ テーブル ①②③④⑤⑥⑦');
+  // 記録なし（候補9つ・n=1）。候補が2つ以上あるのでレベルの代わりにレベル別の参考％を出す
+  // （参考％そのものの固定は tests/mhsunbreak-next-bz-pct.verify.mjs）
+  assert.equal(line(one([{t:'fuku',r:'miss'}])),'次のBZ（1回目）：LOW 1% ／ MID 96% ／ HI 3%（％は設定1の場合） ・ テーブル ①②③④⑤⑥⑦');
+  // ％を出さない条件（ここでは設定1否定）では、従来どおり「レベル …」のまま
+  const denied=one([{t:'fuku',r:'miss'}]);denied.trophy.bronze=1;
+  assert.equal(line(denied),'次のBZ（1回目）：レベル LOW／MID／HI ・ テーブル ①②③④⑤⑥⑦');
   // ① → 候補 H だけ・n=2
   assert.equal(line(one([bz('t1')])),'次のBZ（2回目）：レベル LOW ・ テーブル ①②③');
   // ①① → 候補 H だけ・n=3（SPだけ）
