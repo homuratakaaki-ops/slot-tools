@@ -496,13 +496,16 @@
     if(!(sum>0))return null;   // 0割りの防御。候補が残っていればここには来ない
     return candidates.map((name,i)=>{
       const share=weights[i]/sum*100;
-      return {name,pct:Math.round(share),text:share<0.5?'1%未満':Math.round(share)+'%'};
+      return {name,pct:Math.round(share),text:pctText(share)};
     });
   }
+  // ％の書き方。四捨五入した整数。0.5未満は「1%未満」（候補の％と次のBZのレベル別％で同じ規則を使う）
+  const pctText=share=>share<0.5?'1%未満':Math.round(share)+'%';
   const pctLine=list=>list.map(c=>c.name+' '+c.text).join(' ／ ');
   // 候補行の見出し。％を出しているときだけ「設定1の場合」の断りを入れる（夢爽決定 2026/10/11）。
   // 画面（現在の状況・過去のAT間）とBZシナリオカードで同じ文言を使う（文言を二重に持たない）。
-  const CAND_HEAD='候補：',CAND_HEAD_PCT='候補（％は設定1の場合）：';
+  const PCT_NOTE='（％は設定1の場合）';
+  const CAND_HEAD='候補：',CAND_HEAD_PCT='候補'+PCT_NOTE+'：';
   const candHead=pct=>pct?CAND_HEAD_PCT:CAND_HEAD;
   // 本文。％があればその行、無ければ候補名を・でつないだもの
   const candBody=(candidates,pct)=>pct||candidates.join('・');
@@ -519,18 +522,40 @@
     const tables=TABLES.map(c=>c[0]).filter(t=>levels.some(lv=>LEVEL_TABLES[lv].indexOf(t)>=0));
     return {no,levels,tables,spOnly:levels.length===1&&levels[0]==='SP'};
   }
+  // ===== 次のBZのレベル別の参考％（設定1基準）=====
+  // 候補ごとの参考％（scenarioPct と同じ重み）を、次のBZ番号 no のレベルごとに足すだけ。
+  // 絞り込み（scenarioCandidates）・レベルとテーブルの並べ方（nextBzOf）・重み（scenarioWeight）は変えない。
+  // 出す条件は scenarioPct とまったく同じ（開始不明／候補0件／候補1件／設定1否定ありでは null）。
+  // no が解析表の範囲外（8回目以降）のときは、重みに使える表が無いので null。
+  // no 回目が表の「−」になるシナリオ（H・I）の％は、どのレベルにも足さない。
+  // そのため候補にそれが残っているあいだは、レベルの合計が100%に届かない（丸めと同じ扱い）。
+  function nextBzLevelPct(S,session,no){
+    const list=scenarioPct(S,session);
+    if(!list||!Number.isInteger(no)||no<1||no>SCENARIO_MAX)return null;
+    const weights=list.map(c=>scenarioWeight(c.name,session));
+    const sum=weights.reduce((a,b)=>a+b,0);
+    if(!(sum>0))return null;   // 0割りの防御。候補が残っていればここには来ない
+    const levels=LEVEL_ORDER.map(level=>({level,
+      share:list.reduce((a,c,i)=>a+(levelAt(c.name,no)===level?weights[i]/sum*100:0),0)}))
+      .filter(c=>c.share>0);
+    return levels.length?levels:null;
+  }
+  const levelPctLine=list=>list.map(c=>c.level+' '+pctText(c.share)).join(' ／ ');
   // 画面・カードに出す1行。開始が不明のあいだは番号が決まらないので出さない。
-  function nextBzText(session){
+  // levelPct を渡した行だけ、レベルの並びの代わりにレベル別の参考％を出す（画面のみ。カードには渡さない）。
+  function nextBzText(session,levelPct){
     if(session.start.known!==true)return '';
     const m=nextBzOf(scenarioCandidates(session),nextBzNo(session));
     if(!m)return '';
     const head='次のBZ（'+m.no+'回目）：';
     if(m.over)return head+(SCENARIO_MAX+1)+'回目以降は解析表の範囲外です';
     if(m.spOnly)return head+'SP ＝ '+TABLE_MARKS.t7+'でAT濃厚';
-    return head+'レベル '+m.levels.join('／')+' ・ テーブル '+m.tables.map(t=>TABLE_MARKS[t]).join('');
+    const tables=' ・ テーブル '+m.tables.map(t=>TABLE_MARKS[t]).join('');
+    if(levelPct)return head+levelPctLine(levelPct)+PCT_NOTE+tables;
+    return head+'レベル '+m.levels.join('／')+tables;
   }
-  function nextBzLine(session){
-    const text=nextBzText(session);
+  function nextBzLine(session,S){
+    const text=nextBzText(session,nextBzLevelPct(S,session,nextBzNo(session)));
     return text?'<div class="at-next">'+text+'</div>':'';
   }
   // カードに描く内容。描画と分けておき、テストはこの形で固定する。
@@ -870,7 +895,7 @@
       </div>
       ${eye?`<div class="now-note" style="color:${eye[4]}">${eye[3]}</div>`:''}
       ${scenarioLine(session,S)}
-      ${nextBzLine(session)}
+      ${nextBzLine(session,S)}
       <div class="now-sub">${view.closed?'経過（直前のAT間・AT当選で終了）':'経過（古い順。右が最新）'}</div>
       ${shown?`<div class="ev-scroll" id="evScroll"><div class="ev-track">${history.events.map((e,i)=>eventCard(history,i)).join('')}</div></div>`:'<div class="hint">まだありません。下の「ここから記録」から押してください。</div>'}
       <div class="now-last${shown?'':' none'}">最新：${shown?atEventText(history,history.events.map((e,i)=>shownEvent(e)?i:-1).filter(i=>i>=0).pop()):'まだありません'}</div>
@@ -1272,7 +1297,7 @@
     uiV2:true,nanaCollab:true,storageKey:STORAGE_KEY,defaults:DEF,mergeKeys:MERGE_KEYS,sourceUrl:SOURCE,normalizeState,
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
     // BZシナリオカードの内容（engine は読まない。検証で中身を固定するために出しておく）
-    scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,
+    scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,nextBzPct:nextBzLevelPct,
     actions:{
       bzQuest:bzQuestAction,
       // 記録のキーには書かない。テンプレに入れるかだけを別キーに持つ。
