@@ -128,7 +128,8 @@ test('カードの中身（行・テーブル集計・注記）',()=>{
   assert.deepEqual(m.tables.map(t=>t.mark),['①','②','③','④','⑤','⑥','⑦']);
   assert.deepEqual(m.tables[0],{mark:'①',color:'#83caff',hit:1,count:2});
   assert.deepEqual(m.tables[2],{mark:'③',color:'#a9e6ad',hit:0,count:1});
-  assert.deepEqual(m.note,['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。','候補は解析の表から確実に言えるものだけで絞っています。']);
+  // 3行目は参考％（docs/specs/mhsunbreak-scenario-pct-v01.md）で足した断り
+  assert.deepEqual(m.note,['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。','候補は解析の表から確実に言えるものだけで絞っています。','％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません']);
   // 番号なし（不明）の流れは BZ?
   const U=one([bz('t3','win')],{known:false});
   assert.deepEqual(clone(config.scenarioModel(U).rows[0].flow),[{no:'?',mark:'③',color:'#a9e6ad',result:'○'}]);

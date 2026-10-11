@@ -220,7 +220,8 @@ const totals=S=>clone({bzT1:S.bzT1,bzT2:S.bzT2,questN1:S.questN1,questN2:S.quest
   czType:S.czType,cycle:S.cycle,bz:S.bz,hits:S.hits,games:S.games,counts:S.counts});
 const cardJson=(cfg,S)=>clone({blocks:cfg.card.blocks(ctx(S)),chart:cfg.card.chart(ctx(S)),
   bottom:cfg.card.bottom(ctx(S)),detail:cfg.card.detail(ctx(S))});
-const dropNext=model=>{const m=clone(model);m.rows.forEach(r=>{delete r.nextBz;});return m;};
+// この改修で足した「次のBZ」と、あとで足した参考％（pct・注記3行目）を落としてから比べる
+const dropNext=model=>{const m=clone(model);m.rows.forEach(r=>{delete r.nextBz;delete r.pct;});m.note=m.note.slice(0,2);return m;};
 const sameOutputs=(name,was,now)=>{
   assert.deepEqual(Buffer.from(JSON.stringify(now)),Buffer.from(JSON.stringify(was)),name+': normalizeState のバイト列が一致しない');
   assert.deepEqual(totals(now),totals(was),name+': 集計が一致しない');

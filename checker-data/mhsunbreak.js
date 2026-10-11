@@ -374,13 +374,14 @@
   function scenarioOnlyH(session){const c=scenarioCandidates(session);return c.length===1&&c[0]==='H';}
   // 画面に出す1行（現在の状況・過去のAT間の要約で共通）。開始不明／0件／1つ／複数の4通り。
   // 開始が不明のあいだはBZで絞っていないので、候補の数に関わらずその1行だけを出す。
-  function scenarioLine(session){
+  function scenarioLine(session,S){
     if(session.start.known!==true)return '<div class="at-sc unknown">BZ番号が不明のため絞り込めません</div>';
     const candidates=scenarioCandidates(session);
     if(!candidates.length)return '<div class="at-sc none">'+NO_CANDIDATE_TEXT+'</div>';
     if(scenarioOnlyH(session))return '<div class="at-sc">シナリオH濃厚：3回目のBZでAT濃厚</div>';
     if(candidates.length===1)return '<div class="at-sc">シナリオ'+candidates[0]+'濃厚</div>';
-    return '<div class="at-sc cand">候補：'+candidates.join('・')+'</div>';
+    const pct=scenarioPct(S,session);
+    return '<div class="at-sc cand">候補：'+(pct?pctLine(pct):candidates.join('・'))+'</div>';
   }
   function tplAtFlow(session){
     return session.events.map((e,i)=>{
@@ -396,28 +397,45 @@
   // 出典: 一撃様 https://1geki.jp/slot/l_mh_sun/48/ ・ /57/ と
   // ちょんぼりすた様 https://chonborista.com/slot/enta-slot/264514/ の表。
   // 2026/10/10 に両者を再照合して一致を確認した（シナリオ×回数のレベル／レベル別のテーブル振り分け）。
-  // シナリオ選択率は設定1の数値しか公表されていないので、候補は「表から確実に言えること」だけで絞る。
-  // [シナリオ, ブレイクゾーン当選回数ごとのBZレベル]。配列に無い回数＝その回数のBZが起きない。
+  // 2026/10/11 にシナリオ選択率【設定1】も両者を照合し、一致を確認した
+  // （転記した表の正本は docs/specs/mhsunbreak-scenario-pct-v01.md）。
+  // 選択率は設定1の数値しか公表されていないので、候補の絞り込みは「表から確実に言えること」だけで行い、
+  // 選択率は参考％（設定1基準）にしか使わない。
+  // [シナリオ, ブレイクゾーン当選回数ごとのBZレベル, 選択率【設定1】%]。配列に無い回数＝その回数のBZが起きない。
+  // 選択率を同じ行に置くのは、シナリオ名の取りこぼし・余りが構造上起きないようにするため。
   const SCENARIOS=[
-    ['A',['MID','LOW','LOW','HI','LOW','LOW','SP']],
-    ['B',['MID','LOW','HI','LOW','LOW','HI','SP']],
-    ['C',['MID','HI','LOW','HI','LOW','HI','SP']],
-    ['D',['MID','LOW','LOW','HI','HI','HI','SP']],
-    ['E',['MID','LOW','HI','HI','HI','HI','SP']],
-    ['F',['MID','HI','HI','HI','HI','HI','SP']],
-    ['G',['HI','HI','HI','HI','HI','HI','SP']],
-    ['H',['LOW','LOW','SP']],
-    ['I',['MID','MID','SP']]
+    ['A',['MID','LOW','LOW','HI','LOW','LOW','SP'],32.0],
+    ['B',['MID','LOW','HI','LOW','LOW','HI','SP'],27.3],
+    ['C',['MID','HI','LOW','HI','LOW','HI','SP'],14.1],
+    ['D',['MID','LOW','LOW','HI','HI','HI','SP'],12.5],
+    ['E',['MID','LOW','HI','HI','HI','HI','SP'],6.3],
+    ['F',['MID','HI','HI','HI','HI','HI','SP'],3.1],
+    ['G',['HI','HI','HI','HI','HI','HI','SP'],3.1],
+    ['H',['LOW','LOW','SP'],0.8],
+    ['I',['MID','MID','SP'],0.8]
   ];
   const SCENARIO_NAMES=SCENARIOS.map(c=>c[0]);
+  // Object.fromEntries は各行の [0] と [1] だけを見るので、3列目を足しても名前→レベル配列のまま
   const SCENARIO_LEVELS=Object.fromEntries(SCENARIOS);
-  const SCENARIO_MAX=7;   // 解析の表は7回目まで。これより後の回数は絞り込みに使わない
-  // テーブル→そのテーブルが出るBZレベル（レベル別の振り分けを裏返したもの）
-  const TABLE_LEVELS={t1:['LOW'],t2:['LOW','MID'],t3:['LOW','MID','HI'],t4:['MID','HI'],t5:['HI'],t6:['HI'],t7:['HI','SP']};
-  // シナリオ×回数のBZレベル。表に無い回数（表の「−」）は null
-  const levelAt=(name,no)=>{const a=SCENARIO_LEVELS[name];return a&&no>=1&&no<=a.length?a[no-1]:null;};
+  const SCENARIO_P1=Object.fromEntries(SCENARIOS.map(c=>[c[0],c[2]]));
+  const SCENARIO_MAX=7;   // 解析の表は7回目まで。これより後の回数は絞り込みにも参考％にも使わない
   // レベルの並び（弱い方から）。画面に出す順もこれに合わせる
   const LEVEL_ORDER=['LOW','MID','HI','SP'];
+  // BZレベル別のテーブル振り分け（％）。出典の表と同じ向き（行＝テーブル／列＝レベル）で持つ。
+  // 表の「−」はキーを置かないことで表す。LOW の合計は出典のまま 100.1%（丸めの誤差）。
+  const TABLE_SHARE={
+    t1:{LOW:84.0},
+    t2:{LOW:9.8,MID:50.0},
+    t3:{LOW:6.3,MID:48.4,HI:88.7},
+    t4:{MID:1.6,HI:7.8},
+    t5:{HI:2.7},
+    t6:{HI:0.4},
+    t7:{HI:0.4,SP:100}
+  };
+  // テーブル→そのテーブルが出るBZレベル。振り分け表に数値がある列だけを拾う（表は二重に持たない）
+  const TABLE_LEVELS=Object.fromEntries(TABLES.map(c=>[c[0],LEVEL_ORDER.filter(lv=>(TABLE_SHARE[c[0]]||{})[lv]!==undefined)]));
+  // シナリオ×回数のBZレベル。表に無い回数（表の「−」）は null
+  const levelAt=(name,no)=>{const a=SCENARIO_LEVELS[name];return a&&no>=1&&no<=a.length?a[no-1]:null;};
   // レベル→そのレベルで選ばれうるテーブル。TABLE_LEVELS を裏返すだけで、表は二重に持たない
   const LEVEL_TABLES=Object.fromEntries(LEVEL_ORDER.map(lv=>[lv,TABLES.map(c=>c[0]).filter(t=>(TABLE_LEVELS[t]||[]).indexOf(lv)>=0)]));
   // アイキャッチ＝「このシナリオ以上濃厚」。H・I はアルファベット順の外なので消さない
@@ -444,6 +462,43 @@
     }
     return keep;
   }
+  // ===== 候補ごとの参考％（設定1基準）=====
+  // 重み = 選択率【設定1】 × Π（k回目のBZレベルで、k回目に記録したテーブルが選ばれる率）
+  // ・BZ以外の出来事（福引・アイキャッチ・セリフ・ランプ）は重みに使わない（従来どおり絞り込みにだけ使う）
+  // ・8回目以降のBZは解析表の範囲外なので重みに使わない（SCENARIO_MAX と同じ扱い）
+  // 候補として残っているシナリオでは、どの因子も必ず正（0になる組合せは絞り込みで消えている）。
+  function scenarioWeight(name,session){
+    let w=SCENARIO_P1[name]||0,count=0;
+    for(const e of session.events){
+      const no=session.start.prior+count+1;
+      if(e.t==='bz'&&no<=SCENARIO_MAX){
+        const lv=levelAt(name,no);
+        w*=lv===null?0:(TABLE_SHARE[e.table]||{})[lv]||0;
+      }
+      if(countsForNo(e))count++;
+    }
+    return w;
+  }
+  // 設定1を否定する記録があるか。確定演出・示唆のうち「濃厚の下限設定（rank）」が2以上の項目
+  // （銅・銀・金・紅葉柄・虹／ヒノエ&ミノト・全員集合・エンタライオン／222・456・555・666枚 OVER）と、
+  // 設定2・4・6濃厚の 246枚 OVER（rank 2）が対象。新しい入力項目は作らず、既存の記録から導く。
+  function setting1Denied(S){return allCert(S).some(c=>c.rank>=2&&c.value>0);}
+  // 候補ごとの参考％。出さないときは null（開始不明／候補0件／候補1件／設定1否定あり）。
+  // pct は四捨五入した整数。四捨五入で0になる候補も候補から消さず、text を「1%未満」にする。
+  function scenarioPct(S,session){
+    if(!session||session.start.known!==true)return null;
+    if(setting1Denied(S))return null;
+    const candidates=scenarioCandidates(session);
+    if(candidates.length<2)return null;
+    const weights=candidates.map(name=>scenarioWeight(name,session));
+    const sum=weights.reduce((a,b)=>a+b,0);
+    if(!(sum>0))return null;   // 0割りの防御。候補が残っていればここには来ない
+    return candidates.map((name,i)=>{
+      const share=weights[i]/sum*100;
+      return {name,pct:Math.round(share),text:share<0.5?'1%未満':Math.round(share)+'%'};
+    });
+  }
+  const pctLine=list=>list.map(c=>c.name+' '+c.text).join(' ／ ');
   // ===== 次のBZで選ばれうるレベル／テーブル =====
   // 候補集合 candidates と次のBZ番号 no だけから作る（表からの導出のみ）。
   // 確率・順位・「確定」は出さない。「濃厚」は SP＝⑦ のときだけ使う（§9-103）。
@@ -478,6 +533,7 @@
     const sessions=all.filter(s=>s.events.length);
     const rows=sessions.map((s,i)=>{
     const candidates=scenarioCandidates(s);
+    const pct=scenarioPct(S,s);
     const nextBz=s===now&&!s.closed?nextBzText(s):'';
     return {
       label:'AT間'+(i+1),
@@ -495,11 +551,13 @@
         return step;
       }).filter(Boolean),
       candidates,
+      // 参考％（設定1基準）。出さない条件のAT間ではキーを足さない（足さないデータは改修前と同じ形）
+      ...(pct?{pct:pctLine(pct)}:{}),
       // 次のBZは今のAT間にだけ。出すものが無いAT間では、改修前とまったく同じ形になるようキーを足さない
       ...(nextBz?{nextBz}:{})
     };});
     const tables=TABLES.map(c=>({mark:c[1],color:c[4],hit:questHit(S,c[0]),count:questD(S,c[0])}));
-    return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。','候補は解析の表から確実に言えるものだけで絞っています。']};
+    return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。','候補は解析の表から確実に言えるものだけで絞っています。','％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません']};
   }
   // 1080×1080 の2枚目のカード。engine の描画には触らず、自分のキャンバスにだけ描く。
   const SC_BG='#140f1c',SC_TXT='#f2eef5',SC_MUTED='#9a90a8',SC_GOLD='#ffc94d',SC_CYAN='#6fd8ff',SC_NG='#ff9b9b',SC_LINE='#2c2340';
@@ -573,9 +631,16 @@
       x.fillText(row.label,cx,y);cx+=x.measureText(row.label).width+18;
       if(row.eye){x.fillStyle=row.eye.color;x.font=font(26);x.fillText(row.eye.text,cx,y);cx+=x.measureText(row.eye.text).width+16;}
       if(row.scenarioH){x.fillStyle=SC_GOLD;x.font=font(26);x.fillText('ｼﾅﾘｵH濃厚',cx,y);}
-      const cand=row.candidates.length?'候補：'+row.candidates.join('・'):NO_CANDIDATE_TEXT;
-      // 該当なしの文は長いので、左の見出し・アイキャッチに掛からないよう1段小さくする
-      x.font=font(row.candidates.length?26:22,700);x.fillStyle=row.candidates.length?SC_CYAN:SC_NG;
+      const cand=row.candidates.length?'候補：'+(row.pct||row.candidates.join('・')):NO_CANDIDATE_TEXT;
+      // 該当なしの文は長いので、左の見出し・アイキャッチに掛からないよう1段小さくする。
+      // ％を併記した行はさらに長くなるので、残り幅に入る大きさまで1段ずつ落とす（26→22→19）。
+      const candRoom=1010-cx-10;
+      let candSize=row.candidates.length?19:22;
+      for(const size of (row.candidates.length?[26,22,19]:[22])){
+        x.font=font(size,700);
+        if(x.measureText(cand).width<=candRoom){candSize=size;break;}
+      }
+      x.font=font(candSize,700);x.fillStyle=row.candidates.length?SC_CYAN:SC_NG;
       x.fillText(cand,1010-x.measureText(cand).width,y);
       y+=38;cx=94;
       x.font=font(26,700);
@@ -602,7 +667,9 @@
       y+=46;
     }
     if(hidden>0){x.fillStyle=SC_MUTED;x.font=font(24,700);x.fillText('ほか '+hidden+'件（古いAT間）',70,y);y+=40;}
-    y=Math.max(y,852);
+    // 下部ブロック（テーブル別の成績→注記→クレジット）の定位置。注記3行＋クレジット2行が
+    // 1080px に収まる位置まで上げている（822→テーブル866→注記922/952/982→クレジット1014/1044）。
+    y=Math.max(y,822);
     x.strokeStyle=SC_LINE;x.beginPath();x.moveTo(70,y-36);x.lineTo(1010,y-36);x.stroke();
     x.fillStyle=SC_MUTED;x.font=font(24,700);x.fillText('テーブル別の成功／回数（1回目＋2回目以降）',70,y);
     y+=44;
@@ -659,9 +726,9 @@
     }).join('\n');
   }
   function atStartLine(session){return !session.start.known?'開始：不明':session.start.prior?'開始：既にBZ'+session.start.prior+'回':'';}
-  function atSummary(session){
+  function atSummary(session,S){
     const strongest=strongestEye(session);
-    return (strongest?`<div class="at-top" style="--c:${strongest[4]}">${strongest[1]}（${strongest[2]}）：${strongest[3]}</div>`:'<div class="at-top none">アイキャッチ なし</div>')+scenarioLine(session);
+    return (strongest?`<div class="at-top" style="--c:${strongest[4]}">${strongest[1]}（${strongest[2]}）：${strongest[3]}</div>`:'<div class="at-top none">アイキャッチ なし</div>')+scenarioLine(session,S);
   }
   function atRows(session,editable){return session.events.length?session.events.map((e,i)=>`<div class="crow at-row"><div class="lbl"><div class="nm">${atEventText(session,i)}</div></div>${editable?`<button type="button" class="cycle-btn" data-action="atDel" data-index="${i}">削除</button>`:''}</div>`).join(''):'<div class="hint">まだありません</div>';}
   // ===== BZタブの画面（見せ方と入力の導線だけ。保存形式・集計・AT間ログ・テンプレ・カードは変えない）=====
@@ -744,7 +811,7 @@
         <div class="now-cell"><small>アイキャッチ</small><b${eye?` style="color:${eye[4]}"`:' class="none"'}>${eye?eye[1]+'（'+eye[2]+'）':'なし'}</b></div>
       </div>
       ${eye?`<div class="now-note" style="color:${eye[4]}">${eye[3]}</div>`:''}
-      ${scenarioLine(session)}
+      ${scenarioLine(session,S)}
       ${nextBzLine(session)}
       <div class="now-sub">${view.closed?'経過（直前のAT間・AT当選で終了）':'経過（古い順。右が最新）'}</div>
       ${shown?`<div class="ev-scroll" id="evScroll"><div class="ev-track">${history.events.map((e,i)=>eventCard(history,i)).join('')}</div></div>`:'<div class="hint">まだありません。下の「ここから記録」から押してください。</div>'}
@@ -881,7 +948,7 @@
   function pastSection(ctx){
     const S=ctx.S,past=S.atLog.sessions.slice(0,-1).filter(s=>s.closed).reverse();
     if(!past.length)return '';
-    const body=past.map((s,i)=>`<div class="at-past"><div class="at-past-h">${i+1}つ前のAT間</div>${atStartLine(s)?`<div class="bz-sub">${atStartLine(s)}</div>`:''}${atSummary(s)}<div class="cgrid">${atRows(s,false)}</div></div>`).join('');
+    const body=past.map((s,i)=>`<div class="at-past"><div class="at-past-h">${i+1}つ前のAT間</div>${atStartLine(s)?`<div class="bz-sub">${atStartLine(s)}</div>`:''}${atSummary(s,S)}<div class="cgrid">${atRows(s,false)}</div></div>`).join('');
     return foldSection('past','過去のAT間',past.length+'件',body);
   }
   function prefsSection(){
@@ -1147,7 +1214,7 @@
     uiV2:true,nanaCollab:true,storageKey:STORAGE_KEY,defaults:DEF,mergeKeys:MERGE_KEYS,sourceUrl:SOURCE,normalizeState,
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
     // BZシナリオカードの内容（engine は読まない。検証で中身を固定するために出しておく）
-    scenarioModel:scenarioCardModel,nextBz:nextBzOf,
+    scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,
     actions:{
       bzQuest:bzQuestAction,
       // 記録のキーには書かない。テンプレに入れるかだけを別キーに持つ。
