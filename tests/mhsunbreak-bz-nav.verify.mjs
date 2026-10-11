@@ -173,13 +173,15 @@ const totals=S=>clone({bzT1:S.bzT1,bzT2:S.bzT2,questN1:S.questN1,questN2:S.quest
   czType:S.czType,cycle:S.cycle,bz:S.bz,hits:S.hits,games:S.games,counts:S.counts});
 const cardJson=(cfg,S)=>clone({blocks:cfg.card.blocks(ctx(S)),chart:cfg.card.chart(ctx(S)),
   bottom:cfg.card.bottom(ctx(S)),detail:cfg.card.detail(ctx(S))});
+const dropPct=model=>{const m=clone(model);m.rows.forEach(r=>{delete r.pct;});m.note=m.note.slice(0,2);return m;};
 const sameOutputs=(name,was,now)=>{
   assert.deepEqual(Buffer.from(JSON.stringify(now)),Buffer.from(JSON.stringify(was)),name+': normalizeState のバイト列が一致しない');
   assert.deepEqual(totals(now),totals(was),name+': 集計が一致しない');
   for(const key of ['template','compactTemplate'])
     assert.deepEqual(Buffer.from(config[key](ctx(now))),Buffer.from(before[key](ctx(was))),name+': '+key+' が一致しない');
   assert.deepEqual(cardJson(config,now),cardJson(before,was),name+': カードJSONが一致しない');
-  assert.deepEqual(clone(config.scenarioModel(now)),clone(before.scenarioModel(was)),name+': シナリオカードJSONが一致しない');
+  // 参考％（pct・注記3行目）はこの改修より後に足したもの。比べる前に落とす
+  assert.deepEqual(dropPct(config.scenarioModel(now)),dropPct(before.scenarioModel(was)),name+': シナリオカードJSONが参考％以外で一致しない');
 };
 test('4. 保存データ6通りが改修前（'+BASE+'）と一致',()=>{
   for(const [name,data] of Object.entries(DATA))
@@ -230,7 +232,7 @@ test('5. イラストは1か所の設定で切れる／なな様を選んでい�
   // 保存データ・カードJSONは絵の有無に関わらず同じ（描画だけの違い）
   const S=config.normalizeState({atLog:{sessions:[sess([bz('t1')])]}});
   const T=off.normalizeState({atLog:{sessions:[sess([bz('t1')])]}});
-  assert.deepEqual(clone(off.scenarioModel(T)),clone(config.scenarioModel(S)),'絵の設定でカードの中身が変わっている');
+  assert.deepEqual(clone(off.scenarioModel(T)),clone(config.scenarioModel(S)),'絵の設定でカードの中身が変わっている');   // 参考％も絵の設定では変わらない
   assert.deepEqual(Buffer.from(off.template(ctx(T))),Buffer.from(config.template(ctx(S))),'絵の設定でテンプレが変わっている');
 });
 

@@ -123,7 +123,8 @@ const stripSchema=S=>{const c=clone(S);if(c.atLog)delete c.atLog.schemaVersion;r
 // （出る場所が正しいことは下の「閉じたAT間には出さない」と tests/mhsunbreak-next-bz.verify.mjs で固定する）。
 const H_MARK=' ｼﾅﾘｵH濃厚';
 const dropH=text=>text.split(H_MARK).join('');
-const dropAdded=model=>{const m=clone(model);m.rows.forEach(r=>{delete r.scenarioH;delete r.nextBz;});return m;};
+// H表示・次のBZに加えて、あとで足した参考％（pct・注記3行目）も落としてから比べる
+const dropAdded=model=>{const m=clone(model);m.rows.forEach(r=>{delete r.scenarioH;delete r.nextBz;delete r.pct;});m.note=m.note.slice(0,2);return m;};
 // 行のうち「今のAT間」はどれか（最後のAT間が閉じておらず記録があるときだけ、その行）
 const nowRow=S=>{const all=S.atLog.sessions,last=all[all.length-1];
   return !last||last.closed||!last.events.length?-1:all.filter(s=>s.events.length).length-1;};
