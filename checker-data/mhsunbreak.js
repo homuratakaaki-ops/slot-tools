@@ -381,7 +381,8 @@
     if(scenarioOnlyH(session))return '<div class="at-sc">シナリオH濃厚：3回目のBZでAT濃厚</div>';
     if(candidates.length===1)return '<div class="at-sc">シナリオ'+candidates[0]+'濃厚</div>';
     const pct=scenarioPct(S,session);
-    return '<div class="at-sc cand">候補：'+(pct?pctLine(pct):candidates.join('・'))+'</div>';
+    const line=pct?pctLine(pct):'';
+    return '<div class="at-sc cand">'+candHead(line)+candBody(candidates,line)+'</div>';
   }
   function tplAtFlow(session){
     return session.events.map((e,i)=>{
@@ -499,6 +500,12 @@
     });
   }
   const pctLine=list=>list.map(c=>c.name+' '+c.text).join(' ／ ');
+  // 候補行の見出し。％を出しているときだけ「設定1の場合」の断りを入れる（夢爽決定 2026/10/11）。
+  // 画面（現在の状況・過去のAT間）とBZシナリオカードで同じ文言を使う（文言を二重に持たない）。
+  const CAND_HEAD='候補：',CAND_HEAD_PCT='候補（％は設定1の場合）：';
+  const candHead=pct=>pct?CAND_HEAD_PCT:CAND_HEAD;
+  // 本文。％があればその行、無ければ候補名を・でつないだもの
+  const candBody=(candidates,pct)=>pct||candidates.join('・');
   // ===== 次のBZで選ばれうるレベル／テーブル =====
   // 候補集合 candidates と次のBZ番号 no だけから作る（表からの導出のみ）。
   // 確率・順位・「確定」は出さない。「濃厚」は SP＝⑦ のときだけ使う（§9-103）。
@@ -615,17 +622,49 @@
     put(row.label,cx,y);cx+=x.measureText(row.label).width+18;
     if(row.eye){x.fillStyle=row.eye.color;x.font=font(26);put(row.eye.text,cx,y);cx+=x.measureText(row.eye.text).width+16;}
     if(row.scenarioH){x.fillStyle=SC_GOLD;x.font=font(26);put('ｼﾅﾘｵH濃厚',cx,y);}
-    const cand=row.candidates.length?'候補：'+(row.pct||row.candidates.join('・')):NO_CANDIDATE_TEXT;
+    // 候補は右寄せ。「候補（％は設定1の場合）：」の見出しと本文（％の並び）を分けて置く。
     // 該当なしの文は長いので、左の見出し・アイキャッチに掛からないよう1段小さくする。
-    // ％を併記した行はさらに長くなるので、残り幅に入る大きさまで1段ずつ落とす（26→22→19）。
+    // 1行に収まるときは従来どおり横に並べ、入らないときは見出しだけ1段小さくして本文の
+    // 大きさを保つ。それでも収まらないときは**見出しを候補行に残して本文を次の行へ分ける**
+    // （夢爽決定 2026/10/11）。％の本文は 19px より小さくしない。
     const candRoom=1010-cx-10;
-    let candSize=row.candidates.length?19:22;
-    for(const size of (row.candidates.length?[26,22,19]:[22])){
-      x.font=font(size,700);
-      if(x.measureText(cand).width<=candRoom){candSize=size;break;}
+    const head=row.candidates.length?candHead(row.pct):'';
+    const body=row.candidates.length?candBody(row.candidates,row.pct):NO_CANDIDATE_TEXT;
+    const sizes=row.candidates.length?[26,22,19]:[22];
+    const headStep={26:22,22:19,19:19};
+    const widthAt=(size,text)=>{x.font=font(size,700);return text?x.measureText(text).width:0;};
+    let bodySize=0,headSize=0,wHead=0,wBody=0,split=false;
+    for(const size of sizes){
+      for(const hs of [size,headStep[size]]){
+        const hw=widthAt(hs,head),bw=widthAt(size,body);
+        if(hw+bw<=candRoom){bodySize=size;headSize=hs;wHead=hw;wBody=bw;break;}
+      }
+      if(bodySize)break;
     }
-    x.font=font(candSize,700);x.fillStyle=row.candidates.length?SC_CYAN:SC_NG;
-    put(cand,1010-x.measureText(cand).width,y);
+    if(!bodySize&&!head){
+      // 該当なしの文（見出しが無い）は行を分けず、最小の大きさで置く（従来どおり）
+      bodySize=sizes[sizes.length-1];wBody=widthAt(bodySize,body);
+    }
+    if(!bodySize){
+      // 見出しは候補行に置いたまま、本文だけ次の行に右寄せで下ろす（行の左端 94 まで使える）
+      split=true;
+      headSize=sizes[sizes.length-1];
+      for(const size of sizes){if(widthAt(size,head)<=candRoom){headSize=size;break;}}
+      wHead=widthAt(headSize,head);
+      bodySize=sizes[sizes.length-1];
+      for(const size of sizes){if(widthAt(size,body)<=1010-94){bodySize=size;break;}}
+      wBody=widthAt(bodySize,body);
+    }
+    x.fillStyle=row.candidates.length?SC_CYAN:SC_NG;
+    if(split){
+      x.font=font(headSize,700);put(head,1010-wHead,y);
+      y+=34;
+      x.font=font(bodySize,700);put(body,1010-wBody,y);
+    }else{
+      const candLeft=1010-wHead-wBody;
+      if(head){x.font=font(headSize,700);put(head,candLeft,y);}
+      x.font=font(bodySize,700);put(body,candLeft+wHead,y);
+    }
     y+=38;cx=94;
     x.font=font(26,700);
     if(!row.flow.length){x.fillStyle=SC_MUTED;put('BZの記録なし',cx,y);}

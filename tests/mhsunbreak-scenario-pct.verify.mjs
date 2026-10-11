@@ -252,9 +252,11 @@ test('h. 画面とカードの出し方',()=>{
     '％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません']);
   // 「現在の状況」は今のAT間の％。過去のAT間（折りたたみ）には閉じたAT間の％
   const html=config.pages(ctx(S),()=>'[CARD]')[2]();
-  const lines=[...html.matchAll(/<div class="at-sc cand">候補：([^<]*)<\/div>/g)].map(m=>m[1]);
+  const lines=[...html.matchAll(/<div class="at-sc cand">候補（％は設定1の場合）：([^<]*)<\/div>/g)].map(m=>m[1]);
   assert.deepEqual(lines,[expectedPct(['t3'],0),expectedPct(['t3','t4'],0)],'画面の候補行が合わない');
-  assert.ok(html.includes('候補：'+expectedPct(['t3'],0)),'現在の状況に％が出ていない');
+  assert.ok(html.includes('候補（％は設定1の場合）：'+expectedPct(['t3'],0)),'現在の状況に％が出ていない');
+  // ％を出していない行の見出しは従来どおり「候補：」のまま（断りを付けない）
+  assert.ok(!html.includes('候補（％は設定1の場合）：A・B・'),'％なしの行に断りが付いている');
   // 順位・確定・推奨の言葉は足していない
   for(const word of ['1位','順位','確定','おすすめ','続行','やめ'])assert.ok(!lines.join('').includes(word),word+' を使っている');
 });
