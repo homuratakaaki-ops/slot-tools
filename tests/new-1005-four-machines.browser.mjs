@@ -478,7 +478,7 @@ try{
   await atQuest('t1','miss','bzT2');assert.deepEqual(await atRows(),['BZ3回目 ① 青スタート 失敗']);
   // 候補が2つ以上のときは一覧で出す（3回目がLOWのシナリオはA・C・D）。
   // 参考％（設定1基準）は選択率の比そのまま（32.0 : 14.1 : 12.5 → 55 : 24 : 21）
-  assert.equal(await frame(`return d.querySelector('.at-sc').textContent;`),'候補：A 55% ／ C 24% ／ D 21%');
+  assert.equal(await frame(`return d.querySelector('.at-sc').textContent;`),'候補（％は設定1の場合）：A 55% ／ C 24% ／ D 21%');
   // 取消3回（記録・テーブルの選択・開始の選択。選択は画面だけの状態なので戻すものは無い）
   await click('#undoBtn');await click('#undoBtn');await click('#undoBtn');assert.deepEqual(atCurrent(await state()).start,{known:true,prior:0});
   await click('[data-action="atStart"][data-known="false"]');
@@ -533,7 +533,8 @@ try{
   assert.ok(sc.bright>1000&&sc.opaque===sc.width*sc.height,'シナリオカードが描かれている');
   const texts=sc.text.map(t=>t.text);
   assert.ok(texts.includes('BZシナリオカード'));
-  assert.ok(texts.some(t=>t.startsWith('候補：')),JSON.stringify(texts.slice(0,20)));
+  assert.ok(texts.includes('候補（％は設定1の場合）：'),JSON.stringify(texts.slice(0,20)));
+  assert.ok(texts.some(t=>/^[A-I] [0-9]+%/.test(t)),JSON.stringify(texts.slice(0,20)));
   assert.ok(texts.includes('テーブル別の成功／回数（1回目＋2回目以降）'));
   assert.ok(texts.includes('シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。'));
   assert.ok(texts.includes('％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません'));
