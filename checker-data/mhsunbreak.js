@@ -559,9 +559,12 @@
     const tables=TABLES.map(c=>({mark:c[1],color:c[4],hit:questHit(S,c[0]),count:questD(S,c[0])}));
     return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。','候補は解析の表から確実に言えるものだけで絞っています。','％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません']};
   }
-  // 1080×1080 の2枚目のカード。engine の描画には触らず、自分のキャンバスにだけ描く。
+  // 幅1080の2枚目のカード。engine の描画には触らず、自分のキャンバスにだけ描く。
+  // 高さは「固定部（見出し・テーブル別の成績）＋AT間の行×行数＋注記＋クレジット」で決まる。
+  // AT間は省略しないので、行が増えるとキャンバスが縦に伸びる（下限は従来と同じ1080px）。
   const SC_BG='#140f1c',SC_TXT='#f2eef5',SC_MUTED='#9a90a8',SC_GOLD='#ffc94d',SC_CYAN='#6fd8ff',SC_NG='#ff9b9b',SC_LINE='#2c2340';
-  const SC_ROWS=8;   // 1枚に載せるAT間の数（新しい方から）
+  const SC_MIN_H=1080;      // 高さの下限。行が少ないときは従来とまったく同じ座標になる
+  const SC_TABLES_TOP=822;  // 下部ブロック（テーブル別の成績）の最短位置
   // 画像カードと同じ「鈴白なな様」のアイコンを、BZシナリオカードにも入れる（夢爽承認 2026/10/10）。
   // 画像カードのアイコン選択（slot-tools／鈴白なな様／自分の画像）に連動し、なな様を選んでいるときだけ出す。
   // ★本人からNGが出たらこの1行を false にするだけで、絵もクレジットも出なくなる。
@@ -600,13 +603,77 @@
     try{return app&&typeof app.nanaCreditText==='function'?app.nanaCreditText('card')||'':'';}
     catch(e){return '';}
   }
+  const ROWS_TOP=212;   // 1行目の基準線
+  const SC_EMPTY_TEXT='AT間メモの記録がありません（BZタブで記録してください）';
+  // AT間1行ぶん。draw=false のときは描かずに高さだけ数える（キャンバスの高さを先に決めるため）。
+  // 戻り値は次の行の基準線。測るときと描くときで座標の進み方が変わらないよう、
+  // 文字を置く以外の処理（font・measureText・折り返し）は同じ流れを通す。
+  function scenarioRowBlock(x,font,row,y,draw){
+    const put=(text,px,py)=>{if(draw)x.fillText(text,px,py);};
+    x.fillStyle=SC_TXT;x.font=font(30);
+    let cx=70;
+    put(row.label,cx,y);cx+=x.measureText(row.label).width+18;
+    if(row.eye){x.fillStyle=row.eye.color;x.font=font(26);put(row.eye.text,cx,y);cx+=x.measureText(row.eye.text).width+16;}
+    if(row.scenarioH){x.fillStyle=SC_GOLD;x.font=font(26);put('ｼﾅﾘｵH濃厚',cx,y);}
+    const cand=row.candidates.length?'候補：'+(row.pct||row.candidates.join('・')):NO_CANDIDATE_TEXT;
+    // 該当なしの文は長いので、左の見出し・アイキャッチに掛からないよう1段小さくする。
+    // ％を併記した行はさらに長くなるので、残り幅に入る大きさまで1段ずつ落とす（26→22→19）。
+    const candRoom=1010-cx-10;
+    let candSize=row.candidates.length?19:22;
+    for(const size of (row.candidates.length?[26,22,19]:[22])){
+      x.font=font(size,700);
+      if(x.measureText(cand).width<=candRoom){candSize=size;break;}
+    }
+    x.font=font(candSize,700);x.fillStyle=row.candidates.length?SC_CYAN:SC_NG;
+    put(cand,1010-x.measureText(cand).width,y);
+    y+=38;cx=94;
+    x.font=font(26,700);
+    if(!row.flow.length){x.fillStyle=SC_MUTED;put('BZの記録なし',cx,y);}
+    for(const step of row.flow){
+      if(Object.prototype.hasOwnProperty.call(step,'lamp')){
+        const text='ﾗﾝﾌﾟ '+step.lamp;
+        x.fillStyle=step.color;put(text,cx,y);cx+=x.measureText(text).width+20;
+        if(cx>920){y+=34;cx=94;}
+        continue;
+      }
+      const head='BZ'+step.no+' ';
+      x.fillStyle=SC_MUTED;put(head,cx,y);cx+=x.measureText(head).width;
+      x.fillStyle=step.color;put(step.mark,cx,y);cx+=x.measureText(step.mark).width;
+      x.fillStyle=SC_TXT;put(step.result,cx,y);cx+=x.measureText(step.result).width;
+      if(step.icon){const tail=' '+step.pos+step.icon;x.fillStyle=SC_MUTED;put(tail,cx,y);cx+=x.measureText(tail).width;}
+      cx+=20;
+      if(cx>920){y+=34;cx=94;}
+    }
+    if(row.nextBz){
+      y+=34;
+      x.fillStyle=SC_GOLD;x.font=font(24,700);put(row.nextBz,94,y);
+    }
+    return y+46;
+  }
+  // 下部ブロックの座標。行の下端から相対に積むので、注記3行とクレジット2行が必ず入る。
+  // 行が少ないときは tables が最短位置 822 になり、822→866→注記922/952/982→1014/1044→高さ1080
+  // ＝従来とまったく同じ座標になる（1件のカードの見た目を変えない）。
+  function scenarioBox(rowsEnd,noteLines){
+    const tables=Math.max(rowsEnd,SC_TABLES_TOP);
+    const note=tables+100;                       // 見出し +44 → テーブルの行 +56
+    const nana=note+30*(noteLines-1)+32;
+    const credit=nana+30;
+    return {tables,note,nana,credit,height:Math.max(SC_MIN_H,credit+36)};
+  }
   function drawScenarioCard(S){
     const cv=typeof document!=='undefined'&&document.getElementById('scenarioCanvas');
     if(!cv||!cv.getContext)return false;
     const x=cv.getContext('2d');
     const model=scenarioCardModel(S);
     const font=(size,weight)=>(weight||800)+' '+size+"px 'M PLUS 1p',sans-serif";
-    x.fillStyle=SC_BG;x.fillRect(0,0,1080,1080);
+    // 1) 行の高さを先に測る（描かずに基準線だけ進める）。AT間は省略せず全部載せる
+    const empty=!model.rows.length;
+    let rowsEnd=ROWS_TOP+(empty?48:0);
+    for(const row of model.rows)rowsEnd=scenarioRowBlock(x,font,row,rowsEnd,false);
+    const box=scenarioBox(rowsEnd,model.note.length);
+    // 2) 高さを決めて描く。width・height の代入でキャンバスの状態が消えるので、必ず描く前に行う
+    cv.width=1080;cv.height=box.height;
+    x.fillStyle=SC_BG;x.fillRect(0,0,1080,box.height);
     x.textBaseline='alphabetic';
     x.fillStyle=SC_GOLD;x.font=font(46);x.fillText('BZシナリオカード',70,96);
     x.fillStyle=SC_MUTED;x.font=font(22,500);x.fillText(TITLE,70,138);
@@ -617,75 +684,27 @@
     // 絵を出すときは、横線を絵の手前で止める（重ねない）
     x.beginPath();x.moveTo(70,164);x.lineTo(showNana?880:1010,164);x.stroke();
     if(showNana)drawNanaIcon(x);
-    let y=212;
-    const shown=model.rows.slice(-SC_ROWS);
-    const hidden=model.rows.length-shown.length;
-    if(!model.rows.length){
+    let y=ROWS_TOP;
+    if(empty){
       x.fillStyle=SC_MUTED;x.font=font(26,700);
-      x.fillText('AT間メモの記録がありません（BZタブで記録してください）',70,y);
+      x.fillText(SC_EMPTY_TEXT,70,y);
       y+=48;
     }
-    for(const row of shown){
-      x.fillStyle=SC_TXT;x.font=font(30);
-      let cx=70;
-      x.fillText(row.label,cx,y);cx+=x.measureText(row.label).width+18;
-      if(row.eye){x.fillStyle=row.eye.color;x.font=font(26);x.fillText(row.eye.text,cx,y);cx+=x.measureText(row.eye.text).width+16;}
-      if(row.scenarioH){x.fillStyle=SC_GOLD;x.font=font(26);x.fillText('ｼﾅﾘｵH濃厚',cx,y);}
-      const cand=row.candidates.length?'候補：'+(row.pct||row.candidates.join('・')):NO_CANDIDATE_TEXT;
-      // 該当なしの文は長いので、左の見出し・アイキャッチに掛からないよう1段小さくする。
-      // ％を併記した行はさらに長くなるので、残り幅に入る大きさまで1段ずつ落とす（26→22→19）。
-      const candRoom=1010-cx-10;
-      let candSize=row.candidates.length?19:22;
-      for(const size of (row.candidates.length?[26,22,19]:[22])){
-        x.font=font(size,700);
-        if(x.measureText(cand).width<=candRoom){candSize=size;break;}
-      }
-      x.font=font(candSize,700);x.fillStyle=row.candidates.length?SC_CYAN:SC_NG;
-      x.fillText(cand,1010-x.measureText(cand).width,y);
-      y+=38;cx=94;
-      x.font=font(26,700);
-      if(!row.flow.length){x.fillStyle=SC_MUTED;x.fillText('BZの記録なし',cx,y);}
-      for(const step of row.flow){
-        if(Object.prototype.hasOwnProperty.call(step,'lamp')){
-          const text='ﾗﾝﾌﾟ '+step.lamp;
-          x.fillStyle=step.color;x.fillText(text,cx,y);cx+=x.measureText(text).width+20;
-          if(cx>920){y+=34;cx=94;}
-          continue;
-        }
-        const head='BZ'+step.no+' ';
-        x.fillStyle=SC_MUTED;x.fillText(head,cx,y);cx+=x.measureText(head).width;
-        x.fillStyle=step.color;x.fillText(step.mark,cx,y);cx+=x.measureText(step.mark).width;
-        x.fillStyle=SC_TXT;x.fillText(step.result,cx,y);cx+=x.measureText(step.result).width;
-        if(step.icon){const tail=' '+step.pos+step.icon;x.fillStyle=SC_MUTED;x.fillText(tail,cx,y);cx+=x.measureText(tail).width;}
-        cx+=20;
-        if(cx>920){y+=34;cx=94;}
-      }
-      if(row.nextBz){
-        y+=34;
-        x.fillStyle=SC_GOLD;x.font=font(24,700);x.fillText(row.nextBz,94,y);
-      }
-      y+=46;
-    }
-    if(hidden>0){x.fillStyle=SC_MUTED;x.font=font(24,700);x.fillText('ほか '+hidden+'件（古いAT間）',70,y);y+=40;}
-    // 下部ブロック（テーブル別の成績→注記→クレジット）の定位置。注記3行＋クレジット2行が
-    // 1080px に収まる位置まで上げている（822→テーブル866→注記922/952/982→クレジット1014/1044）。
-    y=Math.max(y,822);
-    x.strokeStyle=SC_LINE;x.beginPath();x.moveTo(70,y-36);x.lineTo(1010,y-36);x.stroke();
-    x.fillStyle=SC_MUTED;x.font=font(24,700);x.fillText('テーブル別の成功／回数（1回目＋2回目以降）',70,y);
-    y+=44;
+    for(const row of model.rows)y=scenarioRowBlock(x,font,row,y,true);
+    x.strokeStyle=SC_LINE;x.beginPath();x.moveTo(70,box.tables-36);x.lineTo(1010,box.tables-36);x.stroke();
+    x.fillStyle=SC_MUTED;x.font=font(24,700);x.fillText('テーブル別の成功／回数（1回目＋2回目以降）',70,box.tables);
     model.tables.forEach((t,i)=>{
       const cx=70+i*134;
-      x.fillStyle=t.color;x.font=font(30);x.fillText(t.mark,cx,y);
-      x.fillStyle=SC_TXT;x.font=font(26,700);x.fillText(t.hit+'/'+t.count,cx+36,y);
+      x.fillStyle=t.color;x.font=font(30);x.fillText(t.mark,cx,box.tables+44);
+      x.fillStyle=SC_TXT;x.font=font(26,700);x.fillText(t.hit+'/'+t.count,cx+36,box.tables+44);
     });
-    y+=56;
     x.fillStyle=SC_MUTED;x.font=font(21,500);
-    for(const line of model.note){x.fillText(line,70,y);y+=30;}
+    model.note.forEach((line,i)=>x.fillText(line,70,box.note+30*i));
     x.fillStyle=SC_MUTED;x.font=font(20,500);
     // 絵を出しているあいだは、画像カードと同じ形のクレジットを1行足す
     const credit=nana?nanaCredit():'';
-    if(showNana&&credit)x.fillText(credit,70,1014);
-    x.fillText('by slot-tools.jp / 解析出典:一撃様・ちょんぼりすた様',70,1044);
+    if(showNana&&credit)x.fillText(credit,70,box.nana);
+    x.fillText('by slot-tools.jp / 解析出典:一撃様・ちょんぼりすた様',70,box.credit);
     return true;
   }
   let scenarioReady=false;
