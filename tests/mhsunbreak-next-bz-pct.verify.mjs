@@ -343,7 +343,8 @@ test('g. 保存データ6通りが改修前（'+BASE+'）と一致（変わる�
     assert.deepEqual(clone(config.scenarioModel(now)),clone(before.scenarioModel(was)),name+': シナリオカードJSONが一致しない');
     // 画面は「次のBZ」の1行以外が1文字も変わらない
     const a=page(before,was),b=page(config,now);
-    assert.equal(stripNext(b),stripNext(a),name+': 画面が次のBZ以外で変わった');
+    const stripMode=h=>h.replace(/<button[^>]*data-action="fukuMode"[^>]*>.*?<\/button>\s*<div class="hint">.*?<\/div>/s,'').replace(/\s*\.fuku-toggle\{[^}]*\}\.fuku-toggle\[aria-checked="true"\]\{[^}]*\}/,'');
+    assert.equal(stripMode(stripNext(b)).replace(/\s+/g,' '),stripMode(stripNext(a)).replace(/\s+/g,' '),name+': 画面が次のBZ・福引切替以外で変わった');
     const wasLine=(a.match(LINE)||[])[1]||'',nowLine=(b.match(LINE)||[])[1]||'';
     if(wasLine!==nowLine){changed++;assert.ok(nowLine.includes('%')&&wasLine.includes('レベル '),name+': 変わり方がレベル→％でない');}
   }

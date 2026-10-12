@@ -39,12 +39,13 @@ test('BZ1 table1 failure counts and shows H; group advances',()=>{
   assert.equal(calc(S),'→ 2回目以降に計上（BZ2回目）');
   assert.doesNotMatch(html(S),/data-action="bzGroup"/);
 });
-test('fuku numbering controlled by the single constant; CZ aggregate untouched',()=>{
+test('lottery prediction checkbox leaves real BZ numbering and aggregates unchanged',()=>{
   for(const flag of [false,true]){
-    const c=load(source.replace('COUNT_FUKU_AS_CZ=false',`COUNT_FUKU_AS_CZ=${flag}`)),S=clone(c.defaults);
+    const c=load(source),S=clone(c.defaults);
+    if(flag)c.actions.fukuMode({S,mode:1});
     action(S,'atEvent',{t:'fuku',r:'miss'},1,c);
-    assert.notEqual(bz(S,'t2','miss',flag?'bzT2':'bzT1',1,c),false);
-    assert.ok([...html(S,1,c).matchAll(/class="ev-card[^"]*"[^>]*aria-label="([^"]*)"/g)].map(m=>m[1]).includes('BZ'+(flag?2:1)+'回目 ② 黄スタート 失敗'));
+    assert.notEqual(bz(S,'t2','miss','bzT1',1,c),false);
+    assert.ok([...html(S,1,c).matchAll(/class="ev-card[^"]*"[^>]*aria-label="([^"]*)"/g)].map(m=>m[1]).includes('BZ1回目 ② 黄スタート 失敗'));
     equal(S.czType,{breakzone:0,airou:0});
   }
 });

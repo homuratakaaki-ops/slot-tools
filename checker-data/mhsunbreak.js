@@ -170,9 +170,21 @@
   ];
   const LAMP_NAMES=Object.fromEntries(LAMPS.map(c=>[c[0],c[1]]));
   const LAMP_COLORS=Object.fromEntries(LAMPS.map(c=>[c[0],c[2]]));
-  // 一撃の「ブレイクゾーン当選回数ごと」に準拠し、BZ番号は福引を数えない。
-  // true にすると福引も数える（切り替えはこの定数1か所だけで済むようにする）。
-  const COUNT_FUKU_AS_CZ=false;
+  // BZ実回数は福引を含めない。シナリオの進行回数だけ利用者が仮説を切り替える。
+  // 初期値は従来どおり除外。設定は記録と別の prefs に保存する。
+  let fukuMode=null;
+  const fukuIncluded=()=>fukuMode===null?prefs().includeFuku===true:fukuMode;
+  const fukuModeText=()=> '予測の前提：福引を'+(fukuIncluded()?'含む（仮説）':'含まない');
+  const scenarioKnown=s=>s.start.known===true&&(!fukuIncluded()||s.start.prior===0);
+  const scenarioCounts=e=>e.t==='bz'||(fukuIncluded()&&e.t==='fuku');
+  const scenarioNextNo=s=>scenarioKnown(s)?s.start.prior+s.events.filter(scenarioCounts).length+1:null;
+  const PARTIAL_FUKU_TEXT='途中開始前の福引回数が不明のため、福引を含む予測はできません';
+  const SP_FUKU_TEXT='福引でSPの回数を通過した場合の挙動は未確認です。次回予測は表示しません';
+  function setFukuIncluded(on){
+    fukuMode=!!on;
+    const s=store();
+    try{if(s)s.setItem(PREFS_KEY,JSON.stringify(Object.assign(prefs(),{includeFuku:fukuMode})));}catch(e){}
+  }
   const AT_SESSION_MAX=50;   // AT間の保存上限。超えたら古い順に捨てる
   const AT_EVENT_MAX=200;    // 1つのAT間に入るイベントの上限（防御。超えたら追加しない）
   const AT_PRIOR_MAX=6;      // ［途中から：既にBZ n回］の n の上限
@@ -226,7 +238,7 @@
     if(prev&&prev.closed&&prev.events.length)return {index:last-1,session:prev,closed:true};
     return {index:last,session:list[last],closed:false};
   }
-  const countsForNo=e=>e.t==='bz'||(COUNT_FUKU_AS_CZ&&e.t==='fuku');
+  const countsForNo=e=>e.t==='bz';
   function bzNoAt(session,index){return session.start.known?session.start.prior+session.events.slice(0,index+1).filter(countsForNo).length:null;}
   function nextBzNo(session){return session.start.known?session.start.prior+session.events.filter(countsForNo).length+1:null;}
   // 次に記録するBZの番号と計上先。差し込み待ちのあいだは差し込み位置で計算する。
@@ -371,14 +383,14 @@
   // 判定を候補計算1か所に寄せ、画面・カード・テンプレのすべてが同じ結果を見るようにする。
   // 候補が1つも残らないときは H を出さず、該当なしの案内だけを出す。
   const NO_CANDIDATE_TEXT='該当なし：開始の選び方・記録を確認してください';
-  function scenarioOnlyH(session){const c=scenarioCandidates(session);return c.length===1&&c[0]==='H';}
+  function scenarioOnlyH(session){if(!scenarioKnown(session))return false;const c=scenarioCandidates(session);return c.length===1&&c[0]==='H';}
   // 画面に出す1行（現在の状況・過去のAT間の要約で共通）。開始不明／0件／1つ／複数の4通り。
   // 開始が不明のあいだはBZで絞っていないので、候補の数に関わらずその1行だけを出す。
   function scenarioLine(session,S){
-    if(session.start.known!==true)return '<div class="at-sc unknown">BZ番号が不明のため絞り込めません</div>';
+    if(!scenarioKnown(session))return '<div class="at-sc unknown">'+(session.start.known?PARTIAL_FUKU_TEXT:'BZ番号が不明のため絞り込めません')+'</div>';
     const candidates=scenarioCandidates(session);
     if(!candidates.length)return '<div class="at-sc none">'+NO_CANDIDATE_TEXT+'</div>';
-    if(scenarioOnlyH(session))return '<div class="at-sc">シナリオH濃厚：3回目のBZでAT濃厚</div>';
+    if(scenarioOnlyH(session))return '<div class="at-sc">'+(fukuIncluded()?'シナリオH濃厚（福引を含む仮説）':'シナリオH濃厚：3回目のBZでAT濃厚')+'</div>';
     if(candidates.length===1)return '<div class="at-sc">シナリオ'+candidates[0]+'濃厚</div>';
     const pct=scenarioPct(S,session);
     const line=pct?pctLine(pct):'';
@@ -445,21 +457,24 @@
   const SERIF_LEVELS={s3:['HI','SP'],s4:['SP']};
   function scenarioCandidates(session){
     let keep=SCENARIO_NAMES.slice();
-    const known=!!session.start.known;
+    const known=scenarioKnown(session);
     const narrow=(no,allowed)=>{
       if(no>SCENARIO_MAX)return;   // 表の範囲外は何も言えないので絞らない
       keep=keep.filter(name=>{const lv=levelAt(name,no);return lv!==null&&allowed.indexOf(lv)>=0;});
     };
-    let count=0;   // ここまでに数えたBZ（COUNT_FUKU_AS_CZ に従う）
-    for(const e of session.events){
+    let count=0;   // 予測の進行回数（実BZ集計とは別）
+    for(const [index,e] of session.events.entries()){
       const no=session.start.prior+count+1;
       if(e.t==='eye'&&EYE_MIN[e.c]){
         const min=EYE_MIN[e.c];
         keep=keep.filter(name=>name>=min||name==='H'||name==='I');
       }
-      if(known&&e.t==='serif'&&SERIF_LEVELS[e.c])narrow(no,SERIF_LEVELS[e.c]);
+      // 次回BZを指すセリフの後に福引が挟まる場合、示唆の引継ぎは未確認なので絞らない。
+      const nextBz=e.t==='serif'?session.events.findIndex((ev,i)=>i>index&&ev.t==='bz'):-1;
+      const serifCrossesFuku=e.t==='serif'&&fukuIncluded()&&session.events.slice(index+1,nextBz<0?undefined:nextBz).some(ev=>ev.t==='fuku');
+      if(known&&e.t==='serif'&&SERIF_LEVELS[e.c]&&!serifCrossesFuku)narrow(no,SERIF_LEVELS[e.c]);
       if(known&&e.t==='bz')narrow(no,TABLE_LEVELS[e.table]||[]);
-      if(countsForNo(e))count++;
+      if(scenarioCounts(e))count++;
     }
     return keep;
   }
@@ -476,7 +491,7 @@
         const lv=levelAt(name,no);
         w*=lv===null?0:(TABLE_SHARE[e.table]||{})[lv]||0;
       }
-      if(countsForNo(e))count++;
+      if(scenarioCounts(e))count++;
     }
     return w;
   }
@@ -486,8 +501,13 @@
   function setting1Denied(S){return allCert(S).some(c=>c.rank>=2&&c.value>0);}
   // 候補ごとの参考％。出さないときは null（開始不明／候補0件／候補1件／設定1否定あり）。
   // pct は四捨五入した整数。四捨五入で0になる候補も候補から消さず、text を「1%未満」にする。
+  function fukuPastSp(session){
+    if(!fukuIncluded()||!scenarioKnown(session)||!session.events.some(e=>e.t==='fuku'))return false;
+    const no=scenarioNextNo(session);
+    return scenarioCandidates(session).some(name=>no<=SCENARIO_MAX&&levelAt(name,no)===null);
+  }
   function scenarioPct(S,session){
-    if(!session||session.start.known!==true)return null;
+    if(!session||!scenarioKnown(session)||fukuPastSp(session))return null;
     if(setting1Denied(S))return null;
     const candidates=scenarioCandidates(session);
     if(candidates.length<2)return null;
@@ -544,10 +564,11 @@
   // 画面・カードに出す1行。開始が不明のあいだは番号が決まらないので出さない。
   // levelPct を渡した行だけ、レベルの並びの代わりにレベル別の参考％を出す（画面のみ。カードには渡さない）。
   function nextBzText(session,levelPct){
-    if(session.start.known!==true)return '';
-    const m=nextBzOf(scenarioCandidates(session),nextBzNo(session));
+    if(!scenarioKnown(session))return '';
+    if(fukuPastSp(session))return SP_FUKU_TEXT;
+    const m=nextBzOf(scenarioCandidates(session),scenarioNextNo(session));
     if(!m)return '';
-    const head='次のBZ（'+m.no+'回目）：';
+    const head=fukuIncluded()?'次のBZ（福引込み'+m.no+'回目）：':'次のBZ（'+m.no+'回目）：';
     if(m.over)return head+(SCENARIO_MAX+1)+'回目以降は解析表の範囲外です';
     if(m.spOnly)return head+'SP ＝ '+TABLE_MARKS.t7+'でAT濃厚';
     const tables=' ・ テーブル '+m.tables.map(t=>TABLE_MARKS[t]).join('');
@@ -555,7 +576,7 @@
     return head+'レベル '+m.levels.join('／')+tables;
   }
   function nextBzLine(session,S){
-    const text=nextBzText(session,nextBzLevelPct(S,session,nextBzNo(session)));
+    const text=nextBzText(session,nextBzLevelPct(S,session,scenarioNextNo(session)));
     return text?'<div class="at-next">'+text+'</div>':'';
   }
   // カードに描く内容。描画と分けておき、テストはこの形で固定する。
@@ -571,7 +592,8 @@
       label:'AT間'+(i+1),
       eye:(()=>{const e=strongestEye(s);return e?{text:TPL_EYES[e[0]],color:e[4]}:null;})(),
       // H濃厚は候補がちょうど {H} のときだけ（台帳 S01）。独自判定は持たない
-      scenarioH:candidates.length===1&&candidates[0]==='H',
+      scenarioH:scenarioKnown(s)&&candidates.length===1&&candidates[0]==='H',
+      ...(!scenarioKnown(s)&&fukuIncluded()?{unknown:PARTIAL_FUKU_TEXT}:{}),
       // BZとランプだけを流れに出す。pos・lamp が1件も無いデータでは、
       // 改修前とまったく同じ形になるよう、あるときだけキーを足す。
       flow:s.events.map((e,index)=>{
@@ -589,7 +611,7 @@
       ...(nextBz?{nextBz}:{})
     };});
     const tables=TABLES.map(c=>({mark:c[1],color:c[4],hit:questHit(S,c[0]),count:questD(S,c[0])}));
-    return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。','候補は解析の表から確実に言えるものだけで絞っています。','％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません']};
+    return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。',fukuIncluded()?'候補は福引を含む仮説と解析表に基づいて絞っています。':'候補は解析の表から確実に言えるものだけで絞っています。','％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません']};
   }
   // 幅1080の2枚目のカード。engine の描画には触らず、自分のキャンバスにだけ描く。
   // 高さは「固定部（見出し・テーブル別の成績）＋AT間の行×行数＋注記＋クレジット」で決まる。
@@ -653,8 +675,8 @@
     // 大きさを保つ。それでも収まらないときは**見出しを候補行に残して本文を次の行へ分ける**
     // （夢爽決定 2026/10/11）。％の本文は 19px より小さくしない。
     const candRoom=1010-cx-10;
-    const head=row.candidates.length?candHead(row.pct):'';
-    const body=row.candidates.length?candBody(row.candidates,row.pct):NO_CANDIDATE_TEXT;
+    const head=!row.unknown&&row.candidates.length?candHead(row.pct):'';
+    const body=row.unknown||(row.candidates.length?candBody(row.candidates,row.pct):NO_CANDIDATE_TEXT);
     const sizes=row.candidates.length?[26,22,19]:[22];
     const headStep={26:22,22:19,19:19};
     const widthAt=(size,text)=>{x.font=font(size,700);return text?x.measureText(text).width:0;};
@@ -729,12 +751,13 @@
     if(!cv||!cv.getContext)return false;
     const x=cv.getContext('2d');
     const model=scenarioCardModel(S);
+    const notes=[fukuModeText()+'。福引の扱いは未確認です。',...model.note];
     const font=(size,weight)=>(weight||800)+' '+size+"px 'M PLUS 1p',sans-serif";
     // 1) 行の高さを先に測る（描かずに基準線だけ進める）。AT間は省略せず全部載せる
     const empty=!model.rows.length;
     let rowsEnd=ROWS_TOP+(empty?48:0);
     for(const row of model.rows)rowsEnd=scenarioRowBlock(x,font,row,rowsEnd,false);
-    const box=scenarioBox(rowsEnd,model.note.length);
+    const box=scenarioBox(rowsEnd,notes.length);
     // 2) 高さを決めて描く。width・height の代入でキャンバスの状態が消えるので、必ず描く前に行う
     cv.width=1080;cv.height=box.height;
     x.fillStyle=SC_BG;x.fillRect(0,0,1080,box.height);
@@ -763,7 +786,7 @@
       x.fillStyle=SC_TXT;x.font=font(26,700);x.fillText(t.hit+'/'+t.count,cx+36,box.tables+44);
     });
     x.fillStyle=SC_MUTED;x.font=font(21,500);
-    model.note.forEach((line,i)=>x.fillText(line,70,box.note+30*i));
+    notes.forEach((line,i)=>x.fillText(line,70,box.note+30*i));
     x.fillStyle=SC_MUTED;x.font=font(20,500);
     // 絵を出しているあいだは、画像カードと同じ形のクレジットを1行足す
     const credit=nana?nanaCredit():'';
@@ -787,7 +810,7 @@
       <canvas id="scenarioCanvas" width="1080" height="1080"></canvas>
       <div class="btnrow one"><button type="button" class="act gold" data-action="scenarioSave">BZシナリオカードを保存</button></div>
     </div>
-    <div class="hint">AT間メモから、そのAT間のBZの流れとシナリオの候補を1枚にします。シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。候補は解析の表から確実に言えるものだけで絞っています。記録・集計・テンプレ・ほかのカードは変わりません。</div>
+    <div class="hint">AT間メモから、そのAT間のBZの流れとシナリオの候補を1枚にします。シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。候補は選択した福引の前提と解析表に基づいて絞っています。記録と集計は変わりません。</div>
   </section>`;
   }
   // ■AT間メモ。イベントのあるAT間だけを古い順に。流れがあれば2行、無ければ見出しの1行。
@@ -799,7 +822,7 @@
     if(!tplAtLogOn())return '';
     const list=(S.atLog&&Array.isArray(S.atLog.sessions)?S.atLog.sessions:[]).filter(s=>s.events.some(tplCountable));
     if(!list.length)return '';
-    return '\n\n■AT間メモ\n'+list.map((s,i)=>{
+    return '\n\n■AT間メモ\n'+(fukuIncluded()?fukuModeText()+'\n':'')+list.map((s,i)=>{
       const eye=strongestEye(s);
       // テンプレ見出しも候補がちょうど {H} のときだけ（台帳 S01）
       const head='AT間'+(i+1)+(eye?' '+TPL_EYES[eye[0]]:'')+(scenarioOnlyH(s)?' ｼﾅﾘｵH濃厚':'');
@@ -894,6 +917,8 @@
         <div class="now-cell"><small>アイキャッチ</small><b${eye?` style="color:${eye[4]}"`:' class="none"'}>${eye?eye[1]+'（'+eye[2]+'）':'なし'}</b></div>
       </div>
       ${eye?`<div class="now-note" style="color:${eye[4]}">${eye[3]}</div>`:''}
+      <button type="button" class="act plain fuku-toggle" data-action="fukuMode" role="checkbox" aria-checked="${fukuIncluded()}" aria-label="福引をシナリオの回数に含める">${fukuIncluded()?'☑':'☐'} 福引をシナリオの回数に含める</button>
+      <div class="hint">${fukuModeText()}。扱いは未確認です。チェックで候補・参考％・次回予測を切り替えます。</div>
       ${scenarioLine(session,S)}
       ${nextBzLine(session,S)}
       <div class="now-sub">${view.closed?'経過（直前のAT間・AT当選で終了）':'経過（古い順。右が最新）'}</div>
@@ -1246,6 +1271,7 @@
     details.bz-fold[open]>summary::before{content:'▴ '}
     details.bz-fold>summary .sub{font-size:10px;font-weight:500;color:var(--muted);letter-spacing:0}
     details.bz-fold>*:not(summary){padding:0 12px 12px}
+  .fuku-toggle{width:100%;min-height:44px;font-size:13px;text-align:left;margin-top:8px}.fuku-toggle[aria-checked="true"]{border-color:var(--cyan);color:var(--cyan)}
   </style>`+nowSection(ctx)+recordSection(ctx)+totalsSection(ctx)+pastSection(ctx)+prefsSection();}
   // サブラベルだけを段位表記の出典にする。強さの判定には数値rankを使う。
   function tierText(sub){
@@ -1299,6 +1325,7 @@
     // BZシナリオカードの内容（engine は読まない。検証で中身を固定するために出しておく）
     scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,nextBzPct:nextBzLevelPct,
     actions:{
+      fukuMode:()=>{savedNote=null;setFukuIncluded(!fukuIncluded());if(scenarioReady)scenarioReady=false;return rerender();},
       bzQuest:bzQuestAction,
       // 記録のキーには書かない。テンプレに入れるかだけを別キーに持つ。
       tplAtLog:()=>{savedNote=null;const on=!tplAtLogOn();setTplAtLog(on);return 'AT間メモをテンプレに'+(on?'入れます':'入れません');},
