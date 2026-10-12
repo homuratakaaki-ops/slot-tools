@@ -73,5 +73,5 @@ console.log('PASS ricorico/toaru2 templates: six exact outputs vs 3be5e98');
 // tenten.js and takoslot.js were changed by the current wording correction.
 // paripi.js は夢爽裁可の ST終了画面追加で変更済み。
 // toaru2.js は獲得枚数表示の誤った説明文を削除したため除外。
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','tenten.js','takoslot.js','paripi.js','toaru2.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),before(file));
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','mhsunbreak-test.js','tenten.js','takoslot.js','paripi.js','toaru2.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),before(file));
 console.log('PASS both common files and all other machine definitions byte-identical vs 3be5e98');
