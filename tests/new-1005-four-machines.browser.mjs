@@ -555,7 +555,8 @@ try{
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);await measure('mhsunbreak-at-start-'+width);
     // 記録が無いときの「経過」は案内の1本だけ（経過は「現在の状況」の中にある）
-    assert.deepEqual(await frame(`return [...d.querySelector('.now-box').querySelectorAll('.hint')].map(e=>e.textContent.slice(0,9));`),['まだありません。下']);
+    // 1本目は PR #47 で足した「予測の前提：福引を含む／含まない」の注記（チェックの説明）
+    assert.deepEqual(await frame(`return [...d.querySelector('.now-box').querySelectorAll('.hint')].map(e=>e.textContent.slice(0,9));`),['予測の前提：福引を','まだありません。下']);
     await atQuest();for(const c of ['jay','bahari','jay'])await atClick('eye',`[data-c="${c}"]`);
     await atClick('fuku','[data-r="win"]');await atClick('serif','[data-c="s4"]');
     await measure('mhsunbreak-at-log-'+width);
