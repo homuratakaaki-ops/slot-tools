@@ -52,6 +52,7 @@ const tracked=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,'
 const changed=['magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js','tenten-checker.html','checker-data/tenten.js','takoslot-checker.html','checker-data/takoslot.js','paripi-checker.html','checker-data/paripi.js',
   'checker-data/toaru2.js','toaru2-checker.html',
   'checker-data/kanokari.js','kanokari-checker.html',
+  'checker-data/ricorico-test.js','ricorico-test-checker.html',
   'enen2-checker.html','kabaneri2-checker.html','karakuri2-checker.html','otome5-checker.html',
   'sao2-checker.html','taktop-checker.html','yajikita-checker.html','yoshimune-checker.html'];
 for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);
