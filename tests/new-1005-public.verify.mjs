@@ -51,6 +51,8 @@ assert.deepEqual(oct4.filter(u=>ids.some(id=>u===id+'-checker.html')),ids.map(id
 const arch=read('docs/ARCHITECTURE.md');assert.equal((arch.match(/26機種/g)||[]).length,2);assert.ok(!arch.includes('23機種'));
 assert.deepEqual(arch.split('\n').filter(l=>l.includes('21機種')),baseline('docs/ARCHITECTURE.md').split('\n').filter(l=>l.includes('21機種')));
 console.log('PASS public routes 2, reciprocal links 2, sitemap 取り下げ2経路, NEW 8, architecture 2; guides style/meta/wording 2');
+// ricorico は 10/14 に「■弱ﾘｺﾘｽ目変換高確」の1行を足した（解析更新）。その1行を除いた全バイトを旧版と比べる。
+const dropWeakLyco=t=>{const m=t.match(/^■弱ﾘｺﾘｽ目変換高確▶︎ [0-9]+\/[0-9]+\n/gm)||[];assert.equal(m.length,1);return t.replace(m[0],'');};
 for(const id of ['ricorico','toaru2','mhsunbreak']){
   const a=config(id,hitBaseline('checker-data/'+id+'.js')),b=config(id,read('checker-data/'+id+'.js'));
   for(const mode of ['zero','mixed','all']){
@@ -63,7 +65,7 @@ for(const id of ['ricorico','toaru2','mhsunbreak']){
       if(S.bz)for(const k of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[k+'D']=Math.max(S.bz[k+'D'],S.bz[k+'N']);
     }
     const old=a.template(ctx(clone(S))),now=b.template(ctx(clone(S)));
-    const legacyNow=id==='mhsunbreak'?now.replace(/■BZテーブル1回目[\s\S]*?(?=■レア役からのBZ当選率)/,''):now;
+    const legacyNow=id==='ricorico'?dropWeakLyco(now):id==='mhsunbreak'?now.replace(/■BZテーブル1回目[\s\S]*?(?=■レア役からのBZ当選率)/,''):now;
     if(id==='mhsunbreak'&&mode!=='zero'){
       // Only the authorized tool header may change; compare every other byte.
       const oldLines=old.split('\n'),newLines=legacyNow.split('\n');
@@ -97,5 +99,6 @@ console.log('PASS legacy and explicit-zero/new-key migrations 3, each idempotent
 // tenten.js and takoslot.js were changed by the current wording correction.
 // toaru2.js は獲得枚数表示の誤った説明文を削除したため除外。
 // kanokari.js は設定推測タブ追加（docs/specs/kanokari-estimate-v01.md）のため除外。
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
+// ricorico.js は 10/14 の解析更新のため除外（テンプレは上で新規1行以外を比較済み）。
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
 console.log('PASS both common files, every other machine data file, unchanged vs 74f8e03; MH golden validated above');
