@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Lパチスロ 彼女、お借りします 設定判別カウンターの使い方｜スロット稼働ノート</title>
-<meta name="description" content="Lパチスロ 彼女、お借りします 設定判別カウンターの使い方です。通常回転数、CZ当選、初当りと、終了画面・RB中のキャラ紹介などの設定示唆をタップで記録し、共有カードとテンプレ形式テキストにまとめられます。">
+<meta name="description" content="Lパチスロ 彼女、お借りします 設定判別カウンターの使い方です。通常回転数、CZ当選、初当りと、終了画面・RB中のキャラ紹介などの設定示唆をタップで記録し、設定別の振り分けから参考割合を確認したり、共有カードとテンプレ形式テキストにまとめたりできます。">
 <link rel="canonical" href="https://slot-tools.jp/kanokari-guide.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="スロット稼働ノート">
@@ -24,7 +24,8 @@
   h3{font-size:14px;color:var(--text);margin:18px 0 8px}p{color:var(--text-muted);font-size:14px;margin-bottom:12px}
   ul,ol{color:var(--text-muted);font-size:14px;margin:0 0 12px 1.4em;padding:0}li{margin-bottom:8px}
   .card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:14px}
-  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:8px}th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:left;vertical-align:top;word-break:break-word}th{color:var(--text-muted)}
+  table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin-top:8px}
+  table.rate th,table.rate td{text-align:right;padding:7px 4px;font-variant-numeric:tabular-nums}table.rate th:first-child,table.rate td:first-child{text-align:left;width:3em}table.rate th{font-size:12px}th,td{border-bottom:1px solid var(--border);padding:9px 6px;text-align:left;vertical-align:top;word-break:break-word}th{color:var(--text-muted)}
   .cta{display:block;background:linear-gradient(135deg,#8b6914,#c9a84c);border-radius:8px;color:#0d0d0f;font-size:16px;font-weight:700;margin:26px 0 8px;padding:14px 16px;text-align:center;text-decoration:none}
   a{color:var(--gold)}footer{text-align:center;padding:36px 16px;color:var(--text-dim);font-size:12px}footer nav{display:flex;justify-content:center;gap:14px;flex-wrap:wrap;margin-top:10px}footer a{color:var(--text-muted);text-decoration:none}
 </style>
@@ -43,14 +44,14 @@
   <a class="top-link" href="/">← TOP</a>
   <a class="top-link" href="kanokari-checker.html" style="margin-left:8px;">ツールを使う →</a>
   <h1>Lパチスロ 彼女、お借りします 設定判別カウンターの使い方</h1>
-  <p>通常回転数、CZ当選、初当りと、判明している設定示唆を回数で整理します。</p>
+  <p>通常回転数、CZ当選、初当りと、判明している設定示唆を回数で整理し、設定別の振り分けが公表された示唆から参考割合を出します。</p>
 </header>
 <main class="container">
   <section class="section">
     <h2>このツールの目的</h2>
     <p>Lパチスロ 彼女、お借りします（かのかり）は、公表されている設定差が初当り系に集中しており、あわせて終了画面やRB中のキャラ紹介など複数の設定示唆が判明しています。本ツールは、通常回転数とCZ当選・初当りの回数、および判明している設定示唆の回数を実戦中にタップで累計し、共有カードとテンプレ形式テキストへまとめるための設定判別カウンターです。</p>
     <p>設定差は、CZ当選が設定1で1/172・設定6で1/149、初当りが設定1で1/269・設定6で1/226です。差は大きくないため、短時間の回数だけで判断せず、他の材料とあわせて見てください。</p>
-    <p>本ツールは記録と集計に徹します。設定推測は搭載しておらず、設定ごとの確率や、最も可能性が高い設定を1つに絞った表示は行いません。</p>
+    <p>2026年10月14日に、終了画面・RB中のキャラ紹介・攻略キャラの初回シナリオ・エンディング中のボイス（強チャンス目時）の設定別の振り分けが公表されました。「設定推測」タブでは、記録した回数からこの4つの振り分けと濃厚・否定の示唆を使って、設定1〜6の参考割合を表示します。最も可能性が高い設定を1つに絞った表示は行いません。</p>
   </section>
   <section class="section">
     <h2>1/x表示は現在行っていません</h2>
@@ -59,15 +60,16 @@
   </section>
   <section class="section">
     <h2>基本操作</h2>
-    <p>画面下部のタブで3つのページを切り替えます。各行をタップすると1回加算されます。誤入力時はヘッダーの「＋加算」を押して減算モードへ切り替えるか、「↩ 取消」で直近の操作を戻します。全消去は「初当り」タブの最下部にある「データリセット」を開き、中の「全データをリセット」を2回押します。実行後もページを再読み込みしていなければ「↩ 取消」で戻せます。長い説明は「説明を見る」を押すと開きます。</p>
+    <p>画面下部のタブで4つのページを切り替えます。各行をタップすると1回加算されます。誤入力時はヘッダーの「＋加算」を押して減算モードへ切り替えるか、「↩ 取消」で直近の操作を戻します。全消去は「初当り」タブの最下部にある「データリセット」を開き、中の「全データをリセット」を2回押します。実行後もページを再読み込みしていなければ「↩ 取消」で戻せます。長い説明は「説明を見る」を押すと開きます。</p>
     <ol>
       <li><strong>初当り</strong>タブでは、通常回転数を入力し、CZ当選と初当りの回数を記録します。</li>
       <li><strong>示唆</strong>タブでは、終了画面、RB中のキャラ紹介、1GレンCHANCEの攻略キャラ、センチメートル、獲得枚数表示、エンディング中のボイスを記録します。</li>
+      <li><strong>設定推測</strong>タブでは、記録した示唆から設定1〜6の参考割合と、採用した項目・除外の理由を確認します。</li>
       <li><strong>カード</strong>タブでは、共有カード画像とテンプレ形式テキストを生成します。</li>
     </ol>
     <div class="card">
-      <h3>示唆は記録だけを行います</h3>
-      <p>設定示唆の設定別の出現率はいずれも公表されていません。そのため本ツールは示唆を記録・共有するにとどめ、示唆から設定を数値で推測することはしません。2026年9月28日の解析更新で、RB中のキャラ紹介の全15パターンとエンディング中のボイス全11種の示唆内容が判明したため、確定演出にあたる行を集計・グラフ・共有カードへ反映しています。</p>
+      <h3>示唆の記録と設定推測</h3>
+      <p>終了画面・RB中のキャラ紹介・攻略キャラの初回シナリオ・エンディング中のボイス（強チャンス目時）は、2026年10月14日に設定別の振り分けが公表されたため、「設定推測」タブの参考割合に使います（下の「設定推測タブの見方」と「設定別の振り分け」を参照）。センチメートルと獲得枚数表示は、出たときにその設定を候補から外すためだけに使います。2026年9月28日の解析更新で、RB中のキャラ紹介の全15パターンとエンディング中のボイス全11種の示唆内容が判明したため、確定演出にあたる行を集計・グラフ・共有カードへ反映しています。</p>
     </div>
   </section>
   <section class="section">
@@ -88,6 +90,167 @@
     <p>RB中のキャラ紹介は全15パターンで、2026年9月28日の解析更新で全種類の示唆内容が判明しました。紹介順のコスプレ・水着・肺魚の位置で見分けます。①〜⑤はコスプレが何人目から始まるか、⑦〜⑪は肺魚が何人目に出るか、⑥と⑫〜⑮は誰が水着かが手がかりです。⑧〜⑪の「設定2否定」〜「設定5否定」は「設定n以上」に読み替えられないため、確定演出としては数えず示唆として記録します。攻略キャラのシナリオは初回のみが対象で、4人を攻略した後に切り替わるシナリオに設定示唆の役割はありません。引き戻し時は初回として扱います。</p>
   </section>
   <section class="section">
+    <h2>設定推測タブの見方</h2>
+    <p>表示する割合は、<strong>入力データからの参考割合（設定1〜6を同じ事前条件で比較）</strong>です。設定1〜6が同じくらいありそうだと仮定したうえで、記録した回数がそれぞれの設定でどれくらい起こりやすいかを比べたもので、店の設定配分（その店に高設定が何台あるか）ではありません。記録が少ないうちは割合が大きく動きます。</p>
+    <p>割合の計算に使うのは次の4つです。</p>
+    <ul>
+      <li><strong>終了画面</strong>：店のカスタム設定で振り分けが変わります。公表されているのはカスタムなしのときの振り分けなので、示唆タブの切替で「店のカスタム：なし」を選んだときだけ使います。「あり」「不明」（既定）のときは割合に使いません。記録ボタンはどの設定でも押せます。</li>
+      <li><strong>RB中のキャラ紹介</strong>：①〜⑮の回数をそのまま使います。</li>
+      <li><strong>攻略キャラの初回シナリオ</strong>：①〜④の回数をそのまま使います。同一シナリオの連続は割合には入れず、出たときに設定1〜4を外します。</li>
+      <li><strong>エンディング中のボイス</strong>：設定別の振り分けが公開されているのは<strong>強チャンス目で当選したときだけ</strong>です。示唆タブの切替を「成立役：強チャンス目」にしてから押した回数だけを使います。切替が「それ以外・不明」（既定）のときの回数と、この機能より前の記録は、どの役だったか分からないので割合には使いません。</li>
+    </ul>
+    <p>赤枠・紫枠・銀枠・金枠、キャラ紹介の⑥〜⑮、センチメートル、獲得枚数表示、同一シナリオの連続、ボイスの設定2以上〜6濃厚は、出たときにその示唆と合わない設定を候補から外します。出なかったことで減点はしません。たとえば246枚OVER（設定2・4・6濃厚）と⑩肺魚が4人目（設定4否定）が両方出ると、残る候補は設定2と6です。どの設定も残らない組み合わせを記録した場合は「入力条件を確認してください」と表示します。</p>
+    <p>示唆同士が互いに独立かどうか（ある示唆が出ると別の示唆も出やすくなる、といった関係が無いか）は確認されていません。合算した割合は独立と仮定した参考値です。「項目別の内訳を見る」を開くと、項目ごとにその項目だけで計算した割合を確認できます。</p>
+    <p>CZ当選・初当りの確率は計算に入れていません。100Gゾーンの記録は今後追加する予定です。</p>
+  </section>
+  <section class="section">
+    <h2>設定別の振り分け</h2>
+    <p>出典の表をそのまま載せています（単位は％、「−」は振り分けなし）。表によっては四捨五入のため合計が100%から0.1〜0.2%ずれる行があり、計算では行ごとに合計100%へ割り戻して使います（「−」は0のまま）。</p>
+    <h3>終了画面（カスタムなし時）</h3>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>枠なし</th><th>白枠BBQ</th><th>白枠浜辺</th><th>赤枠</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>82.5%</td><td>15.0%</td><td>2.5%</td><td>−</td></tr>
+        <tr><td>2</td><td>80.9%</td><td>15.0%</td><td>2.5%</td><td>1.6%</td></tr>
+        <tr><td>3</td><td>75.9%</td><td>17.5%</td><td>5.0%</td><td>1.6%</td></tr>
+        <tr><td>4</td><td>75.2%</td><td>17.5%</td><td>5.0%</td><td>1.6%</td></tr>
+        <tr><td>5</td><td>66.9%</td><td>20.0%</td><td>10.0%</td><td>1.6%</td></tr>
+        <tr><td>6</td><td>66.1%</td><td>20.0%</td><td>10.0%</td><td>1.6%</td></tr>
+      </tbody>
+    </table>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>紫枠</th><th>銀枠</th><th>金枠</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>2</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>3</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>4</td><td>0.8%</td><td>−</td><td>−</td></tr>
+        <tr><td>5</td><td>0.8%</td><td>0.8%</td><td>−</td></tr>
+        <tr><td>6</td><td>0.8%</td><td>0.8%</td><td>0.8%</td></tr>
+      </tbody>
+    </table>
+    <h3>RB中のキャラ紹介</h3>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>①</th><th>②</th><th>③</th><th>④</th><th>⑤</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>43.8%</td><td>15.6%</td><td>12.5%</td><td>12.5%</td><td>3.1%</td></tr>
+        <tr><td>2</td><td>41.4%</td><td>12.5%</td><td>15.6%</td><td>13.3%</td><td>3.1%</td></tr>
+        <tr><td>3</td><td>35.9%</td><td>15.6%</td><td>12.5%</td><td>14.1%</td><td>6.3%</td></tr>
+        <tr><td>4</td><td>34.8%</td><td>12.5%</td><td>15.6%</td><td>14.8%</td><td>6.3%</td></tr>
+        <tr><td>5</td><td>27.7%</td><td>15.6%</td><td>12.5%</td><td>15.6%</td><td>12.5%</td></tr>
+        <tr><td>6</td><td>25.0%</td><td>12.5%</td><td>15.6%</td><td>16.4%</td><td>12.5%</td></tr>
+      </tbody>
+    </table>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>⑥</th><th>⑦</th><th>⑧</th><th>⑨</th><th>⑩</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>−</td><td>−</td><td>3.1%</td><td>3.1%</td><td>3.1%</td></tr>
+        <tr><td>2</td><td>−</td><td>6.3%</td><td>−</td><td>1.6%</td><td>1.6%</td></tr>
+        <tr><td>3</td><td>−</td><td>1.6%</td><td>6.3%</td><td>−</td><td>1.6%</td></tr>
+        <tr><td>4</td><td>−</td><td>1.6%</td><td>1.6%</td><td>6.3%</td><td>−</td></tr>
+        <tr><td>5</td><td>−</td><td>1.6%</td><td>1.6%</td><td>1.6%</td><td>6.3%</td></tr>
+        <tr><td>6</td><td>0.4%</td><td>1.6%</td><td>1.6%</td><td>1.6%</td><td>1.6%</td></tr>
+      </tbody>
+    </table>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>⑪</th><th>⑫</th><th>⑬</th><th>⑭</th><th>⑮</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>3.1%</td><td>−</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>2</td><td>1.6%</td><td>3.1%</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>3</td><td>1.6%</td><td>3.1%</td><td>1.6%</td><td>−</td><td>−</td></tr>
+        <tr><td>4</td><td>1.6%</td><td>3.1%</td><td>1.6%</td><td>0.4%</td><td>−</td></tr>
+        <tr><td>5</td><td>−</td><td>3.1%</td><td>1.6%</td><td>0.2%</td><td>0.2%</td></tr>
+        <tr><td>6</td><td>6.3%</td><td>3.1%</td><td>1.6%</td><td>0.2%</td><td>0.2%</td></tr>
+      </tbody>
+    </table>
+    <h3>1GレンCHANCE 攻略キャラの初回シナリオ</h3>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>①麻美</th><th>②瑠夏</th><th>③墨</th><th>④千鶴</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>22.5%</td><td>27.5%</td><td>22.5%</td><td>27.5%</td></tr>
+        <tr><td>2</td><td>27.5%</td><td>22.5%</td><td>27.5%</td><td>22.5%</td></tr>
+        <tr><td>3</td><td>22.5%</td><td>27.5%</td><td>22.5%</td><td>27.5%</td></tr>
+        <tr><td>4</td><td>27.5%</td><td>22.5%</td><td>27.5%</td><td>22.5%</td></tr>
+        <tr><td>5</td><td>22.5%</td><td>27.5%</td><td>22.5%</td><td>27.5%</td></tr>
+        <tr><td>6</td><td>27.5%</td><td>22.5%</td><td>27.5%</td><td>22.5%</td></tr>
+      </tbody>
+    </table>
+    <h3>エンディング中のボイス（強チャンス目時）</h3>
+    <p>デフォルトの4種（麻美「アガる～↑」・瑠夏「彼女入りまーす」・墨「ふん、ふん、！！」・水原「今は”恋人”。遠慮しない」）は、それぞれがこの割合です。弱チャンス目・チャンス目のときの振り分けは公表されていません。</p>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>デフォルト（各キャラ）</th><th>高設定示唆(弱)</th><th>高設定示唆(中)</th><th>高設定示唆(強)</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>16.4%</td><td>25.0%</td><td>6.3%</td><td>3.1%</td></tr>
+        <tr><td>2</td><td>12.6%</td><td>25.4%</td><td>7.0%</td><td>4.7%</td></tr>
+        <tr><td>3</td><td>11.2%</td><td>26.2%</td><td>8.6%</td><td>7.8%</td></tr>
+        <tr><td>4</td><td>9.1%</td><td>27.0%</td><td>10.2%</td><td>10.9%</td></tr>
+        <tr><td>5</td><td>7.3%</td><td>27.7%</td><td>11.7%</td><td>14.1%</td></tr>
+        <tr><td>6</td><td>5.6%</td><td>28.5%</td><td>13.3%</td><td>17.2%</td></tr>
+      </tbody>
+    </table>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>設定2以上</th><th>設定4以上</th><th>設定5以上</th><th>設定6</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>−</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>2</td><td>12.5%</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>3</td><td>12.5%</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>4</td><td>12.5%</td><td>3.1%</td><td>−</td><td>−</td></tr>
+        <tr><td>5</td><td>12.5%</td><td>3.1%</td><td>1.6%</td><td>−</td></tr>
+        <tr><td>6</td><td>12.5%</td><td>3.1%</td><td>1.6%</td><td>1.6%</td></tr>
+      </tbody>
+    </table>
+    <h3>参考：割合の計算に使っていない表</h3>
+    <p>以下は設定差が公表されている項目ですが、記録の条件（抽選の機会や途中での終了など）が確認できていないため、設定推測タブの計算には使っていません。</p>
+    <p>獲得枚数表示の出現率（出現したときの候補の絞り込みにだけ使います）</p>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>246枚</th><th>456枚</th><th>666枚</th><th>394枚</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>−</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>2</td><td>1.6%</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>3</td><td>−</td><td>−</td><td>−</td><td>−</td></tr>
+        <tr><td>4</td><td>1.6%</td><td>0.8%</td><td>−</td><td>−</td></tr>
+        <tr><td>5</td><td>−</td><td>0.8%</td><td>−</td><td>−</td></tr>
+        <tr><td>6</td><td>1.6%</td><td>0.8%</td><td>0.8%</td><td>0.8%</td></tr>
+      </tbody>
+    </table>
+    <p>引き戻し・ななかりDREAM（非ユメカノモードの引き戻しは全設定共通で24.7%）</p>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>ユメカノ引き戻し</th><th>引き戻し時DREAM（非ユメカノ）</th><th>引き戻し時DREAM（ユメカノ）</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>58.0%</td><td>2.8%</td><td>19.2%</td></tr>
+        <tr><td>2</td><td>58.2%</td><td>3.1%</td><td>20.5%</td></tr>
+        <tr><td>3</td><td>58.3%</td><td>3.6%</td><td>23.6%</td></tr>
+        <tr><td>4</td><td>58.7%</td><td>3.8%</td><td>28.3%</td></tr>
+        <tr><td>5</td><td>60.0%</td><td>4.3%</td><td>31.5%</td></tr>
+        <tr><td>6</td><td>63.8%</td><td>4.6%</td><td>36.4%</td></tr>
+      </tbody>
+    </table>
+    <p>REG連続回数天井（裏かのかりBONUS）</p>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>3回</th><th>4回</th><th>5回</th><th>6回</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>1.6%</td><td>12.5%</td><td>35.9%</td><td>50.0%</td></tr>
+        <tr><td>2</td><td>2.0%</td><td>13.3%</td><td>37.1%</td><td>47.7%</td></tr>
+        <tr><td>3</td><td>2.3%</td><td>14.1%</td><td>38.3%</td><td>45.3%</td></tr>
+        <tr><td>4</td><td>2.7%</td><td>15.6%</td><td>40.2%</td><td>41.4%</td></tr>
+        <tr><td>5</td><td>3.1%</td><td>16.0%</td><td>41.0%</td><td>39.8%</td></tr>
+        <tr><td>6</td><td>3.5%</td><td>16.4%</td><td>41.8%</td><td>38.3%</td></tr>
+      </tbody>
+    </table>
+    <p>BIG後のモード選択率</p>
+    <table class="rate">
+      <thead><tr><th>設定</th><th>モードA</th><th>モードB</th><th>モードC</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>74.6%</td><td>21.5%</td><td>3.9%</td></tr>
+        <tr><td>2</td><td>72.3%</td><td>23.0%</td><td>4.7%</td></tr>
+        <tr><td>3</td><td>68.4%</td><td>26.2%</td><td>5.5%</td></tr>
+        <tr><td>4</td><td>55.1%</td><td>35.5%</td><td>9.4%</td></tr>
+        <tr><td>5</td><td>53.5%</td><td>36.3%</td><td>10.2%</td></tr>
+        <tr><td>6</td><td>51.6%</td><td>37.5%</td><td>10.9%</td></tr>
+      </tbody>
+    </table>
+  </section>
+  <section class="section">
     <h2>カードの見方</h2>
     <p>カードは、通常回転・CZ当選・初当り・確定演出の4ブロック、カウント分布、サマリーで構成しています。サマリーには、記録した確定演出のうち最も強いものと合計回数、示唆の内訳を略号で載せます。「詳細カードも作成」を押すと、各項目の回数と割合を並べた2枚目のカードを作成できます。テンプレ形式テキストは「テキストをコピー」でそのままコピーできます。</p>
   </section>
@@ -98,13 +261,14 @@
       <tbody>
         <tr><td>初当り</td><td>通常回転数、CZ当選、初当り。</td></tr>
         <tr><td>示唆</td><td>終了画面、RB中のキャラ紹介、1GレンCHANCE攻略キャラ、センチメートル、獲得枚数表示、エンディング中のボイス。</td></tr>
+        <tr><td>設定推測</td><td>入力はありません。示唆タブの記録から参考割合を表示します。</td></tr>
         <tr><td>カード</td><td>共有カード画像、詳細カード、テンプレ形式テキスト。</td></tr>
       </tbody>
     </table>
   </section>
   <section class="section">
     <h2>出典と注意事項</h2>
-    <p>示唆内容と解析数値の出典は <a href="https://chonborista.com/slot/sankyo-slot/263079/" target="_blank" rel="noopener">ちょんぼりすた パチスロ解析様</a>（2026年9月28日版）です。エンディング中のボイスのセリフ表記のみ、メーカー公式の <a href="https://www.secret-story.sankyo-fever.jp/article/szf_56" target="_blank" rel="noopener">SANKYO「開発こぼれ話」の記事「エンディング」（2026年9月26日）</a> を出典としています。導入直後のため解析が薄く、解析更新により表記や数値が変わる場合があります。本ツールは設定判別を補助する記録・集計ツールであり、設定や勝敗を保証するものではありません。記録はご利用の端末のブラウザに保存され、別の端末には引き継がれません。ホールのルールを守り、実戦判断は自己責任で行ってください。</p>
+    <p>示唆内容と解析数値の出典は <a href="https://chonborista.com/slot/sankyo-slot/263079/" target="_blank" rel="noopener">ちょんぼりすた パチスロ解析様</a>（2026年9月28日版。設定別の振り分けは2026年10月14日取得）です。エンディング中のボイスのセリフ表記のみ、メーカー公式の <a href="https://www.secret-story.sankyo-fever.jp/article/szf_56" target="_blank" rel="noopener">SANKYO「開発こぼれ話」の記事「エンディング」（2026年9月26日）</a> を出典としています。導入直後のため解析が薄く、解析更新により表記や数値が変わる場合があります。本ツールは設定判別を補助する記録・集計ツールであり、設定や勝敗を保証するものではありません。記録はご利用の端末のブラウザに保存され、別の端末には引き継がれません。ホールのルールを守り、実戦判断は自己責任で行ってください。</p>
   </section>
   <a class="cta" href="kanokari-checker.html">設定判別カウンターを使う</a>
 </main>
