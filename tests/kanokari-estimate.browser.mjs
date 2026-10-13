@@ -1,6 +1,6 @@
 // Run explicitly: node tests/kanokari-estimate.browser.mjs
 // かのかり 設定推測タブ：実クリックで切替・EDボイスの両キー加算と取消・再読込・旧データ・
-// 360/390/412px のはみ出しとタップ領域を確かめる。縦の増減は main の版と並べて測る。
+// 360/390/412px のはみ出しとタップ領域を確かめる。縦の増減は本件の直前の版（23109d6）と並べて測る。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,13 +18,13 @@ const KEY='kanokari-checker-v1';
 const errors=[];const measures=[];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.jpg':'image/jpeg','.png':'image/png','.webp':'image/webp'};
-// /__main/ 以下は main の版をそのまま返す（縦の増減の比較用）
+// /__main/ 以下は本件の直前の main（23109d6）の版をそのまま返す（縦の増減の比較用）
 const server=http.createServer((req,res)=>{
   const url=decodeURIComponent(req.url.split('?')[0]);
   if(url==='/favicon.ico'){res.writeHead(204);return res.end();}
   if(url==='/harness'){res.setHeader('Content-Type','text/html; charset=utf-8');return res.end('<!doctype html><html><body style="margin:0"><iframe id="frame" style="border:0;width:390px;height:740px"></iframe></body></html>');}
   if(url.startsWith('/__main/')){
-    try{const body=execFileSync('git',['show','main:'+url.slice(8)],{cwd:root});res.setHeader('Content-Type',types[path.extname(url)]||'text/plain');return res.end(body);}
+    try{const body=execFileSync('git',['show','23109d6:'+url.slice(8)],{cwd:root});res.setHeader('Content-Type',types[path.extname(url)]||'text/plain');return res.end(body);}
     catch{res.writeHead(404);return res.end();}
   }
   const file=path.resolve(root,'.'+url);
@@ -138,7 +138,7 @@ try{
   await tab(1);
   assert.deepEqual(await frame('return [...d.querySelectorAll(".kk-chip.on")].map(e=>e.textContent);'),['不明','それ以外・不明']);
 
-  // ---- 3. 幅ごとのはみ出しと縦の増減（main と比較） ----
+  // ---- 3. 幅ごとのはみ出しと縦の増減（23109d6 と比較） ----
   const full={games:800,counts:{cz:3,first:2},screens:{none:4,bbq:1,beach:1,red:1,purple:1,silver:1,gold:1},
     chara:Object.fromEntries(Array.from({length:15},(_,i)=>['p'+String(i+1).padStart(2,'0'),1])),
     scen:{s1:1,s2:1,s3:1,s4:1,repeat:1},cm:{cm44:1,cm55:1,cm66:1},over:{o246:1,o456:1,o666:1,o394:1},

@@ -9,7 +9,8 @@ import {execFileSync} from 'node:child_process';
 
 const root=new URL('..',import.meta.url);
 const read=p=>fs.readFileSync(new URL(p,root),'utf8');
-const gitShow=p=>execFileSync('git',['show','main:'+p],{cwd:root,encoding:'utf8'});
+// 比較の基準は本件の直前の main（23109d6）。マージ後に main が新版になっても意味が変わらないよう固定する。
+const gitShow=p=>execFileSync('git',['show','23109d6:'+p],{cwd:root,encoding:'utf8'});
 const clone=x=>JSON.parse(JSON.stringify(x));
 function load(dataSrc){
   const box={window:{}};vm.createContext(box);
