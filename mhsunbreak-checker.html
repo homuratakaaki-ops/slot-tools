@@ -52,6 +52,7 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 2
 .credit{margin-top:4px;padding:12px;border-top:1px dashed var(--line);font-size:10.5px;color:var(--muted);line-height:1.7;text-align:center}.credit a{color:var(--cyan);font-weight:700;text-decoration:none}
 .toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:var(--pink);color:#fff;font-size:12px;font-weight:700;padding:9px 16px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .25s;z-index:99;box-shadow:0 0 18px rgba(255,61,143,.6)}.toast.show{opacity:1}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.pick-row .pick-table-label,.pick-row .pick-result-label{display:inline-block;white-space:nowrap}
 </style>
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-QCKV9H0DT1"></script>
@@ -69,7 +70,7 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 2
 <nav id="nav"><button data-p="0" class="on">入力</button><button data-p="1">示唆</button><button data-p="2">BZ</button><button data-p="3">カード</button></nav>
 <div class="toast" id="toast"></div>
 <script src="checker-engine.js?v=20260924"></script>
-<script src="checker-data/mhsunbreak.js?v=20261012"></script>
+<script src="checker-data/mhsunbreak.js?v=20261013"></script>
 <script>CheckerEngine.mount(CheckerConfigs.mhsunbreak);</script>
 </body>
 </html>

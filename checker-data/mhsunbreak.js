@@ -990,7 +990,7 @@
       ${minus?'<div class="hint">減算モードでは記録できません。回数の訂正は下の「集計」の中のボタンで行います。</div>':`
       ${known?`<div class="mn calc">→ ${group==='bzT1'?'1回目':'2回目以降'}に計上（BZ${no}回目）</div>`:`<div class="bz-sub">どちらに計上するか</div><div class="at-pick">${BZ_GROUPS.map(([dKey,,title])=>`<button type="button" class="at-btn${pickGroup===dKey?' on':''}" data-action="bzGroup" data-d="${dKey}" aria-pressed="${pickGroup===dKey}">${title}</button>`).join('')}</div>`}
       ${picked?`<div class="pick-sum">選んだテーブル：${TABLE_NAMES[picked]}（${no===null?'BZ番号なし':'BZ'+no+'回目'}）</div><div class="step-h">2. 結果アイコン（任意）</div>${inputPosPicker(picked)}<div class="step-h">3. 成功／失敗</div>`:''}
-      <div class="crow pick-row"><div class="lbl"><div class="nm">${picked?TABLE_NAMES[picked]:'テーブルを選んでください'}</div></div><div class="cycle-actions">${resultBtns}</div></div>`}
+      <div class="crow pick-row"><div class="lbl"><div class="nm">${picked?`<span class="pick-table-label">${TABLE_NAMES[picked]}</span>${pickPos!==null?` <span class="pick-result-label" style="color:${iconColor(TABLE_ICONS[picked][pickPos-1])}">・ 結果 ${pickPos}個目 ${ICON_SHORT[TABLE_ICONS[picked][pickPos-1]]}</span>`:''}`:'テーブルを選んでください'}</div></div><div class="cycle-actions">${resultBtns}</div></div>`}
       <div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。1でテーブル、2で結果アイコン（押さなくてもかまいません）、3で［成功］［失敗］の順に押します。BZとその後のクエストが終わってから、ATに当選したかで押してください。テーブル⑦はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（リセット後を含む）最初のブレイクゾーン、2回目以降はそれ以外で、開始が分かっているときは次のBZ番号から自動で決まります。据え置きの朝一は前日のAT間の続きなので、開始では［途中から］を選んでください。設定差は公表されていません。記録してサンプルを集める項目です。結果アイコンは、ブレイクゾーンの結果が並んだアイコンの何個目で出たかの記録です。11個目はどのテーブルでも猛焔一閃なので置いていません。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>
     </div>`;
   }
