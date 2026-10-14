@@ -21,29 +21,36 @@ assert.equal(hash(original),'a36537b082caae195d6cc47446a573c9479ba8c1e5406034124
 assert.ok(!original.includes('\r'));
 assert.equal((original.match(/0\/0/g)||[]).length,12);
 assert.equal((original.match(/▶︎ *(?=\n|$)/g)||[]).length,15);
-assert.equal(vm.runInNewContext(source.match(/const TEMPLATE=.*;/)[0]+'TEMPLATE'),original);
-console.log('PASS 1: original bytes/hash/LF/12 fractions/15 blanks/embedded literal (6 checks)');
-const zero=body(state()),filled=original.replace(/▶︎ *(?=\n|$)/g,'▶︎ 0回');
+// 10/14 にテンプレを v02 にした（v01 の末尾に ■ﾎﾞｰﾅｽ獲得枚数 5行・■ED中の1枚絵 9行を足しただけ）。
+// v01 の正本は残し、v02 が v01 で始まることを固定する。出力の比較は v02 で行う。
+const v02=read('docs/specs/paripi-nana-template-v02.txt');
+assert.ok(v02.startsWith(original));assert.ok(!v02.includes('\r'));
+assert.equal((v02.match(/0\/0/g)||[]).length,12);
+assert.equal((v02.match(/▶︎ *(?=\n|$)/g)||[]).length,15+5+9);
+assert.equal(vm.runInNewContext(source.match(/const TEMPLATE=.*;/)[0]+'TEMPLATE'),v02);
+console.log('PASS 1: v01 bytes/hash/LF/12 fractions/15 blanks; v02 = v01 + 14 blank lines, embedded literal (10 checks)');
+const zero=body(state()),filled=v02.replace(/▶︎ *(?=\n|$)/g,'▶︎ 0回');
 assert.deepEqual(Buffer.from(zero),Buffer.from(filled));
-assert.equal(Buffer.byteLength(zero),850);
-assert.equal(hash(zero),'afe00eea9bccd1a475a0948996aa46e507ca59fcdb6b930af88332448f51fcca');
+assert.ok(zero.startsWith(original.replace(/▶︎ *(?=\n|$)/g,'▶︎ 0回')));
 assert.equal(c.nanaCollab,true);
 assert.ok(c.template(ctx(state())).endsWith('by slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様'));
-console.log('PASS 2: zero body exact bytes/850 bytes/hash/collaboration/credit (5 checks)');
+console.log('PASS 2: zero body exact bytes vs v02 / v01 part unchanged / collaboration/credit (4 checks)');
 // Independent instruction order, never inferred from implementation defaults.
 const nd=[['stechen','n','d'],['shiki','n109','d109'],['shiki','n209','d209'],
   ...['normal','high','super'].flatMap(s=>['Weak','Melon','Chance'].map(r=>['rare',s+r+'N',s+r+'D']))];
 const keys=[...nd.map(([g,n])=>[g,n]),...['sanka','eiko','sekihei'].map(k=>['czType',k]),
-  ...['kanban','blue','yellow','even1','even2','high1','high2','s2','s3','s4','s5','s6'].map(k=>['stEnd',k])];
+  ...['kanban','blue','yellow','even1','even2','high1','high2','s2','s3','s4','s5','s6'].map(k=>['stEnd',k]),
+  ...['o222','o456','o555','o803','o666'].map(k=>['bonusOver',k]),
+  ...['even1','even2','high1','high2','s2','s3','s4','s5','s6'].map(k=>['edPic',k])];
 const lines=zero.split('\n'),slotLines=lines.flatMap((s,i)=>/▶︎ (?:0\/0|0回)/.test(s)?[i]:[]);
-assert.equal(slotLines.length,27);
+assert.equal(slotLines.length,27+5+9);
 for(const [i,[g,k]] of keys.entries()){
   const S=state();S[g][k]=1;
   const out=body(S).split('\n'),changed=out.flatMap((s,j)=>s!==lines[j]?[j]:[]);
   assert.deepEqual(changed,[slotLines[i]],g+'.'+k);
   assert.equal(out[slotLines[i]],lines[slotLines[i]].replace(i<12?'0/0':'0回',i<12?'1/0':'1回'));
 }
-console.log('PASS 3: 27 isolated slots, exact target line and value (54 checks)');
+console.log('PASS 3: 41 isolated slots, exact target line and value (82 checks)');
 const S=state();S.games=2000;S.counts.cz=4;S.czType={sanka:1,eiko:2,sekihei:3};
 assert.equal(c.template(ctx(S)).split('\n')[1],'通常 2000G / CZ10回 1/200.0 / 初当り0回');
 assert.ok(c.pages(ctx(S),()=> '')[0]().includes('CZ 計10回 1/200.0'));
@@ -53,7 +60,7 @@ assert.equal(c.card.chart({S}).items[0].value,10);
 assert.equal(c.card.bottom({S}).columns[0].items[1].text,'CZ 10回 1/200.0');
 assert.equal(c.card.detail({S})[0].items[0].text,'CZ 10回 1/200.0');
 assert.equal(body(S).split('■CZ選択率\n')[1].split('\n\n')[0],'三歌の礼　▶︎ 1回\n英子の試練▶︎ 2回\n石兵八陣　▶︎ 3回');
-const known=clone(S);S.czType.future=800;S.stEnd.future=900;
+const known=clone(S);S.czType.future=800;S.stEnd.future=900;S.bonusOver.future=700;S.edPic.future=600;
 assert.equal(c.template(ctx(S)),c.template(ctx(known)));
 for(const key of ['blocks','chart','bottom','detail'])assert.deepEqual(clone(c.card[key]({S})),clone(c.card[key]({S:known})));
 console.log('PASS 4: CZ total/rate on all six surfaces, known-only template/card (13 checks)');
