@@ -21,17 +21,20 @@ const defs=[
   ['s4','設定4以上濃厚','設定4以上濃厚',4,'⑩'],['s5','設定5以上濃厚','設定5以上濃厚',5,'⑪'],['s6','設定6濃厚','設定6濃厚',6,'⑫']
 ];
 const context=(S,rows=[])=>({S,nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr',pct:(n,d)=>`${n}/${d}`,crow:(key,label,sub,hot,pct)=>{rows.push({key,label,sub,hot,ratio:pct?.(S[key.split('.')[0]][key.split('.')[1]])});return `<button>${label}</button><small>${sub}</small>`;}});
-const guide=read('paripi-guide.html'),rows=[],html=c.pages(context(state(),rows),()=> '')[2]();
-assert.equal(rows.length,12);
+// 10/14 に示唆タブへ「ボーナス獲得枚数」「ED中の1枚絵」を足した（tests/paripi-1014.verify.mjs）。ここでは ST終了画面の12行だけを見る。
+const guide=read('paripi-guide.html'),allRows=[],html=c.pages(context(state(),allRows),()=> '')[2](),rows=allRows.filter(r=>r.key.startsWith('stEnd.'));
+assert.equal(rows.length,12);assert.equal(allRows.length,12+5+9);
+// ED中の1枚絵も「設定2以上濃厚」「画像①」などを使うので、ラベル・画像番号の一意性は ST終了画面のセクション内で見る。
+const stHtml=html.split('<div class="sec-h">ボーナス獲得枚数')[0];assert.notEqual(stHtml,html);
 for(const [i,[key,label,hint,rank,image]] of defs.entries()){
   const sub=(rank===0&&i<3?'デフォルト・':'')+'画像'+image;
   assert.deepEqual(rows[i],{key:'stEnd.'+key,label,sub,hot:rank>0,ratio:'0/0'});
-  assert.equal(html.split(`<button>${label}</button>`).length-1,1);
-  assert.equal(html.split('画像'+image).length-1,1);
+  assert.equal(stHtml.split(`<button>${label}</button>`).length-1,1);
+  assert.equal(stHtml.split('画像'+image).length-1,1);
   assert.ok(guide.includes(`<td>${label}</td><td>${hint}</td><td>画像${image}</td>`));
 }
 assert.equal(c.pages(context(state()),()=> '').length,4);
-assert.equal(html.split('class="hint"').length-1,1);
+assert.equal(html.split('class="hint"').length-1,3);
 assert.equal(html.split('画像番号はちょんぼりすたの掲載順です。').length-1,1);
 for(const row of rows)assert.doesNotMatch(row.sub,/ちょんぼりすた/);
 console.log('PASS source match: all 12 labels, hints and image numbers; 5 hot / 7 neutral');
@@ -52,7 +55,7 @@ for(let mask=0;mask<4096;mask++){
 console.log('PASS 4096 combinations: numeric rank, first line, 5+3 rows / lastY 896; misleading-label mutation');
 const S=state();S.stEnd.kanban=1;S.stEnd.s4=2;S.stEnd.future=100;S.counts.cz=2;
 const pctRows=[];c.pages(context(S,pctRows),()=> '')[2]();
-assert.ok(pctRows.every(r=>r.ratio.endsWith('/3')));
+assert.ok(pctRows.filter(r=>r.key.startsWith('stEnd.')).every(r=>r.ratio.endsWith('/3')));
 const detail=c.card.detail({S})[1];assert.equal(detail.denominator,3);assert.equal(detail.percent,true);assert.equal(detail.items.length,12);
 assert.equal(detail.items.reduce((a,r)=>a+r.value,0),3);
 assert.ok(c.template(context(S)).includes('ﾃﾞﾌｫ①   ▶︎ 1回'));assert.ok(c.template(context(S)).includes('4以上　▶︎ 2回'));
@@ -63,12 +66,15 @@ const legacy=c.normalizeState({games:1000,counts:{cz:3,bonus:2},future:{keep:tru
 assert.deepEqual(clone(legacy.stEnd),clone(c.defaults.stEnd));assert.equal(legacy.counts.cz,3);assert.equal(legacy.games,1000);assert.equal(legacy.future.keep,true);
 const invalid=c.normalizeState({games:-1,counts:{cz:-2,future:8},stEnd:{kanban:-3,s4:'2',future:9},future:{keep:true}});
 assert.equal(invalid.games,0);assert.equal(invalid.counts.cz,0);assert.equal(invalid.counts.future,8);assert.equal(invalid.stEnd.kanban,0);assert.equal(invalid.stEnd.s4,2);assert.equal(invalid.stEnd.future,9);assert.equal(invalid.future.keep,true);
-assert.deepEqual(clone(c.normalizeState(clone(invalid))),clone(invalid));assert.deepEqual(clone(c.mergeKeys),['counts','stEnd','stechen','shiki','rare','czType']);
+assert.deepEqual(clone(c.normalizeState(clone(invalid))),clone(invalid));assert.deepEqual(clone(c.mergeKeys),['counts','stEnd','stechen','shiki','rare','czType','bonusOver','edPic']);
 console.log('PASS percentages share known-key total; zero games; template omission/header; legacy/unknown/negative/idempotent state');
 const checker=read('paripi-checker.html'),style=s=>s.match(/<style>([\s\S]*?)<\/style>/)[1];
 assert.doesNotMatch(checker,/noindex/);assert.ok(checker.includes('href="paripi-guide.html">使い方</a>'));
-assert.ok(checker.includes('checker-data/paripi.js?v=20261006"'));assert.ok(checker.includes('checker-engine.js?v=20260924'));
-assert.equal(style(checker),style(read('mhsunbreak-checker.html')));
+assert.ok(checker.includes('checker-data/paripi.js?v=20261014"'));assert.ok(checker.includes('checker-engine.js?v=20260924'));
+// mhsunbreak は BZ入口の手順3（PR #48）で自機種専用の1行を足した。その1行を除いて共有CSSの一致を見る。
+const mhOnly='.pick-row .pick-table-label,.pick-row .pick-result-label{display:inline-block;white-space:nowrap}\n';
+assert.equal(style(read('mhsunbreak-checker.html')).split(mhOnly).length-1,1);
+assert.equal(style(checker),style(read('mhsunbreak-checker.html')).replace(mhOnly,''));
 const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
 assert.equal(list.match(/class="checker-main" href="([^"]+)/)[1],'paripi-checker.html');
 assert.ok(list.includes('href="paripi-guide.html">使い方</a>'));
@@ -77,7 +83,9 @@ const newsSection=read('index.html').split('<div class="section-label">NEW</div>
 const [beforeNews,news]=newsSection.split('<section class="info-block">');
 assert.doesNotMatch(beforeNews,/<p\b/i,'NEW rows must not precede info-block');
 assert.equal(typeof news,'string','NEW info-block must exist');
-assert.equal((news.match(/<p>/g)||[]).length,8);assert.equal(news.match(/<p>(.*?)<\/p>/)[1],'10/5｜<a href="paripi-checker.html">パリピ孔明 設定判別カウンターを公開</a>');
+// NEW欄は §9-92 で増え続けるので先頭行には依存しない。8行と、パリピの行が「日付｜パリピ孔明 …」の形であることを見る。
+assert.equal((news.match(/<p>/g)||[]).length,8);
+for(const p of [...news.matchAll(/<p>(.*?)<\/p>/g)].map(m=>m[1]).filter(p=>p.includes('paripi-checker.html')))assert.match(p,/^1?[0-9]\/[0-9]{1,2}｜<a href="paripi-checker\.html">パリピ孔明 [^<]+<\/a>$/);
 assert.equal(style(guide),style(read('tonski-guide.html')));
 assert.ok(guide.includes('rel="canonical" href="https://slot-tools.jp/paripi-guide.html"'));assert.ok(guide.includes('property="og:url" content="https://slot-tools.jp/paripi-guide.html"'));assert.ok(guide.includes('property="og:type" content="article"'));
 assert.ok(guide.match(/<title>(.*?)<\/title>/)[1].startsWith(guide.match(/<h1>(.*?)<\/h1>/)[1]));
@@ -102,7 +110,8 @@ assert.deepEqual(clone(c.card.chart({S:mixed}).items),[{label:'CZ',value:10},{la
 for(const name of ['gameSection'])assert.equal(source.match(new RegExp('  function '+name+'\\([^]*?(?=\\n  (?:function|const))'))[0],baseline('checker-data/paripi.js').match(new RegExp('  function '+name+'\\([^]*?(?=\\n  (?:function|const))'))[0]);
 // toaru2.js は獲得枚数表示の誤った説明文を削除したため除外。
 // mhsunbreak.js は 10/9 のBZテーブル方式（夢爽決定）で変更済み。
-for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&!['paripi.js','mhsunbreak.js','toaru2.js'].includes(f)).map(f=>'checker-data/'+f)])assert.equal(read(p),baseline(p),p+' unchanged');
+// kanokari.js（PR #49 設定推測）・ricorico.js（PR #50 解析更新）も変更済み。テスト版（*-test.js）は検収中だけ居る。
+for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&!f.endsWith('-test.js')&&!['paripi.js','mhsunbreak.js','toaru2.js','kanokari.js','ricorico.js'].includes(f)).map(f=>'checker-data/'+f)])assert.equal(read(p),baseline(p),p+' unchanged');
 for(const p of ['checker-data/paripi.js','paripi-checker.html','paripi-guide.html','checkers.html','sitemap.xml','index.html','docs/ARCHITECTURE.md','tests/paripi-st-end.verify.mjs','tests/new-1005-four-machines.test.mjs','tests/new-1005-public.verify.mjs','tests/new-1005-four-machines.browser.mjs'])assert.ok(!read(p).includes('\r'),p+' LF');
 console.log('PASS input HTML / blocks / chart bytes vs c914173; common files and all other machine data unchanged; LF');
 
@@ -149,7 +158,7 @@ if(process.argv.includes('--browser')){
     await load('paripi',width,530);
     for(let p=0;p<4;p++){await tab(p);await measure('paripi-'+width+'-tab'+p);const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});fs.writeFileSync(path.join(artifacts,'paripi-'+width+'-tab'+p+'.png'),Buffer.from(shot.data,'base64'));}
     await tab(2);
-    const labels=await frame('return {width:w.innerWidth,labels:[...d.querySelectorAll(".crow .lbl .nm,.crow .lbl .mn")].map(e=>{const range=d.createRange();range.selectNodeContents(e);return {kind:e.classList.contains("mn")?"mn":"nm",text:e.textContent,lineCount:range.getClientRects().length};})};');
+    const labels=await frame('return {width:w.innerWidth,labels:[...d.querySelectorAll("[data-c^=\\"stEnd.\\"] .lbl .nm,[data-c^=\\"stEnd.\\"] .lbl .mn")].map(e=>{const range=d.createRange();range.selectNodeContents(e);return {kind:e.classList.contains("mn")?"mn":"nm",text:e.textContent,lineCount:range.getClientRects().length};})};');
     fs.writeFileSync(path.join(artifacts,'paripi-'+width+'-st-labels.json'),JSON.stringify(labels,null,2));
     assert.equal(labels.width,width);
     for(const kind of ['mn','nm']){
@@ -160,7 +169,7 @@ if(process.argv.includes('--browser')){
     for(const item of labels.labels.filter(e=>e.kind==='mn'))assert.doesNotMatch(item.text,/ちょんぼりすた/);
     pass('paripi all 12 sublabels and button labels single-line '+width,labels);
     const hint=await frame('const hints=d.querySelectorAll("#main .hint"),h=hints[0],fold=h.querySelector("details.hint-fold");return {count:hints.length,lead:[...h.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join(""),tail:fold.querySelector(".hint-body").textContent,summary:fold.querySelector("summary").textContent,open:fold.open};');
-    assert.deepEqual(hint,{count:1,lead:'ST終了時の画面を記録します。',tail:'画面の見分け方はガイドからちょんぼりすたの画像で確認できます。画像番号はちょんぼりすたの掲載順です。',summary:'説明を見る',open:false});
+    assert.deepEqual(hint,{count:3,lead:'ST終了時の画面を記録します。',tail:'画面の見分け方はガイドからちょんぼりすたの画像で確認できます。画像番号はちょんぼりすたの掲載順です。',summary:'説明を見る',open:false});
     assert.equal(hint.lead.length,15);assert.equal(hint.tail.length,50);
     assert.equal(hint.tail.split('画像番号はちょんぼりすたの掲載順です。').length-1,1);
     await click('#main .hint summary');
@@ -170,7 +179,7 @@ if(process.argv.includes('--browser')){
     assert.deepEqual(await frame('return w.__errors;'),[]);
     await click('.hd-link[href="paripi-guide.html"]');
     for(let i=0;i<100;i++){if(await frame('return w.location.pathname==="/paripi-guide.html"&&!!d.querySelector("main");').catch(()=>false))break;await pause(30);}
-    const layout=await frame('return {width:w.innerWidth,scrollWidth:d.documentElement.scrollWidth,rows:d.querySelectorAll("table")[1].tBodies[0].rows.length,links:[...d.querySelectorAll("header a,footer a")].map(e=>({text:e.textContent,height:e.getBoundingClientRect().height}))};');
+    const layout=await frame('return {width:w.innerWidth,scrollWidth:d.documentElement.scrollWidth,rows:[...d.querySelectorAll("table")].find(t=>t.closest("section").querySelector("h2").textContent==="示唆タブ（ST終了画面）").tBodies[0].rows.length,links:[...d.querySelectorAll("header a,footer a")].map(e=>({text:e.textContent,height:e.getBoundingClientRect().height}))};');
     assert.equal(layout.width,width);assert.ok(layout.scrollWidth<=width);assert.equal(layout.rows,12);pass('paripi guide layout '+width,layout);
     const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});fs.writeFileSync(path.join(artifacts,'paripi-'+width+'-guide.png'),Buffer.from(shot.data,'base64'));
     await click('header a[href="paripi-checker.html"]');for(let i=0;i<100;i++){if(await frame('return w.location.pathname==="/paripi-checker.html"&&!!d.querySelector("#nav");').catch(()=>false))break;await pause(30);}
@@ -180,9 +189,9 @@ if(process.argv.includes('--browser')){
   assert.equal(await frame('return d.querySelectorAll("[data-c^=\\\"stEnd.\\\"]").length;'),12);await bump('stEnd.s4');const legacy=await state();assert.equal(legacy.counts.cz,3);assert.equal(legacy.games,1000);assert.equal(legacy.future.keep,true);
   assert.deepEqual(await frame('return w.__errors;'),[]);assert.deepEqual(errors,[]);pass('paripi legacy actual reload and zero unhandled errors');
   await evaluate('new Promise(resolve=>{const f=document.getElementById("frame");f.onload=()=>resolve(true);f.src="/index.html";})');
-  const newsLayout=await frame('const label=[...d.querySelectorAll(".section-label")].find(e=>e.textContent==="NEW");const section=label.nextElementSibling;return {inside:section.matches("section.info-block"),rows:section.querySelectorAll(":scope > p").length,first:section.querySelector("p a")?.getAttribute("href"),visible:[...section.querySelectorAll(":scope > p")].every(e=>e.getBoundingClientRect().height>0)};');
-  assert.deepEqual(newsLayout,{inside:true,rows:8,first:'paripi-checker.html',visible:true});
-  pass('NEW eight rendered rows inside info-block, paripi first',newsLayout);
+  const newsLayout=await frame('const label=[...d.querySelectorAll(".section-label")].find(e=>e.textContent==="NEW");const section=label.nextElementSibling;return {inside:section.matches("section.info-block"),rows:section.querySelectorAll(":scope > p").length,paripi:section.querySelectorAll(":scope > p a[href=\\"paripi-checker.html\\"]").length>0,visible:[...section.querySelectorAll(":scope > p")].every(e=>e.getBoundingClientRect().height>0)};');
+  assert.deepEqual(newsLayout,{inside:true,rows:8,paripi:true,visible:true});
+  pass('NEW eight rendered rows inside info-block, paripi row present',newsLayout);
 `.replace('__DEFS__',JSON.stringify(defs));
   const run=spawnSync(process.execPath,['--input-type=module'],{input:prefix+steps+suffix,encoding:'utf8',stdio:['pipe','inherit','inherit'],cwd:root});
   assert.equal(run.status,0,run.error?.message||'browser acceptance failed');
