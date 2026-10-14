@@ -65,14 +65,17 @@ for(let mask=0;mask<2**keys.length;mask++){
   assert.equal(JSON.stringify(current.card.bottom(ctx(S))),JSON.stringify(expectedBottom),'bottom mask '+mask);
 }
 console.log('PASS card blocks/bottom/chart/detail: all 262144 combinations of 18 certainty items byte-identical vs 3be5e98 except bottom zero-denial text, with nonzero BZ data');
+// ricorico は 10/14 に「■弱ﾘｺﾘｽ目変換高確」の1行を足した（解析更新）。その1行を除いた全バイトを旧版と比べる。
+const dropWeakLyco=t=>{const m=t.match(/^■弱ﾘｺﾘｽ目変換高確▶︎ [0-9]+\/[0-9]+\n/gm)||[];assert.equal(m.length,1);return t.replace(m[0],'');};
 for(const id of ['ricorico','toaru2']){
   const a=load(id,before('checker-data/'+id+'.js')),b=load(id,read('checker-data/'+id+'.js'));
-  for(const mode of ['zero','mixed','all']){const S=clone(b.defaults);let i=0;if(mode!=='zero')for(const v of Object.values(S))if(v&&typeof v==='object'&&!Array.isArray(v))for(const k of Object.keys(v))if(typeof v[k]==='number')v[k]=mode==='all'?1:i++%3;bytes(a.template(ctx(clone(S))),b.template(ctx(clone(S))));}
+  for(const mode of ['zero','mixed','all']){const S=clone(b.defaults);let i=0;if(mode!=='zero')for(const v of Object.values(S))if(v&&typeof v==='object'&&!Array.isArray(v))for(const k of Object.keys(v))if(typeof v[k]==='number')v[k]=mode==='all'?1:i++%3;const now=b.template(ctx(clone(S)));bytes(a.template(ctx(clone(S))),id==='ricorico'?dropWeakLyco(now):now);}
 }
 console.log('PASS ricorico/toaru2 templates: six exact outputs vs 3be5e98');
 // tenten.js and takoslot.js were changed by the current wording correction.
 // paripi.js は夢爽裁可の ST終了画面追加で変更済み。
 // toaru2.js は獲得枚数表示の誤った説明文を削除したため除外。
 // kanokari.js は設定推測タブ追加（docs/specs/kanokari-estimate-v01.md）のため除外。
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico-test.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),before(file));
+// ricorico.js は 10/14 の解析更新のため除外（テンプレは上で新規1行以外を比較済み）。
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),before(file));
 console.log('PASS both common files and all other machine definitions byte-identical vs 3be5e98');

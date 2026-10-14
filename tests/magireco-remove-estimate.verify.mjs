@@ -49,10 +49,11 @@ const tracked=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,'
 // paripi-checker.html と checker-data/paripi.js は夢爽裁可の ST終了画面追加で変更済み。
 // toaru2の説明文・参照クエリと9機種のヘッダー区切り記号を修正したため除外。
 // kanokari は設定推測タブ追加（docs/specs/kanokari-estimate-v01.md）のため除外。
+// ricorico は 10/14 の解析更新（弱リコリス目の変換高確記録の追加ほか）のため除外。
 const changed=['magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js','tenten-checker.html','checker-data/tenten.js','takoslot-checker.html','checker-data/takoslot.js','paripi-checker.html','checker-data/paripi.js',
   'checker-data/toaru2.js','toaru2-checker.html',
   'checker-data/kanokari.js','kanokari-checker.html',
-  'checker-data/ricorico-test.js','ricorico-test-checker.html',
+  'checker-data/ricorico.js','ricorico-checker.html',
   'enen2-checker.html','kabaneri2-checker.html','karakuri2-checker.html','otome5-checker.html',
   'sao2-checker.html','taktop-checker.html','yajikita-checker.html','yoshimune-checker.html'];
 for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);
@@ -66,8 +67,10 @@ console.log(JSON.stringify({status:'PASS',unrelatedFilesByteEqual:tracked.length
 for(const file of ['checker-data/magireco.js','magireco-checker.html','magireco-guide.html'])assert.ok(!read(file).includes('推測'),file);
 // Other machines still estimate settings: inspect only Magireco's NEW entry and preserve the site-wide explanation.
 const entry=b.filter(line=>line.includes('magireco-checker.html'));
-assert.deepEqual(entry,['<p>9/30｜<a href="magireco-checker.html">マギアレコード 設定判別カウンターを公開</a></p>']);
-assert.ok(!entry[0].includes('設定推測'));
+// 8行上限で最古の行が押し出されるため（§9-92・10/14 に押し出し済み）、残っている間だけ文面を固定する。
+assert.ok(entry.length<=1);
+if(entry.length)assert.deepEqual(entry,['<p>9/30｜<a href="magireco-checker.html">マギアレコード 設定判別カウンターを公開</a></p>']);
+assert.ok(entry.every(line=>!line.includes('設定推測')));
 const explanation=s=>s.split('\n').find(line=>line.includes('設定推測や期待値は判断を補助する目安'));
 assert.ok(explanation(read('index.html')));
 assert.deepEqual(Buffer.from(explanation(read('index.html'))),Buffer.from(explanation(baseline('index.html'))));

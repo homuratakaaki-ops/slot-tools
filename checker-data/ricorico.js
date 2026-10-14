@@ -38,12 +38,14 @@
     ['kirin','キリン柄トロフィー','設定5以上濃厚',5,'キ'],
     ['rainbow','虹トロフィー','設定6濃厚',6,'虹']
   ];
-  // [id, UI表示名, テンプレ表記]（テンプレ表記の半角スペースは ▶︎ 位置を揃えるための原文どおりの詰め物）
+  // [id, UI表示名, テンプレ表記, 設定別目安]（テンプレ表記の半角スペースは ▶︎ 位置を揃えるための原文どおりの詰め物）
+  // 400G到達時のCZ当選率（ちょんぼりすた様 2026-10-14 取得）:
+  // 設定1:10.9% 設定2:11.7% 設定3:14.5% 設定4:16.8% 設定5:19.5% 設定6:25.4%
   const ZONES=[
     ['z0','0g','0g    '],
     ['z100','100g','100g'],
     ['z250','250g','250g'],
-    ['z400','400g','400g'],
+    ['z400','400g','400g','設1:10.9%⇔設6:25.4%'],
     ['z600','600g','600g'],
     ['z750','750g','750g']
   ];
@@ -97,6 +99,9 @@
     ['real','実機の通常総ゲーム数で記録']
   ];
 
+  // AT直撃（ラッシュ直撃）・幼少期CZの全設定値（ちょんぼりすた様 2026-10-14 取得）:
+  // 直撃 1/22429.5・19006.5・15454.1・10809.3・7809.6・6263.7
+  // 幼少期CZ 1/3965.0・3706.6・3107.3・2925.9・2425.8・2084.8
   const DEF={
     games:0,
     gameSrc:'myslo',
@@ -120,7 +125,14 @@
     // https://www.develop-voice.sammy.co.jp/article/ps_lyco_reco/442.html
     // 設定1・2・3:50.0% 設定4:54.7% 設定5:58.6% 設定6:62.5%
     // ※150G以外のゲーム数での変換高確移行には設定差が無いと公式が明言している。
+    //   ただし弱リコリス目成立時の変換高確移行には設定差あり（10/12 ちょんぼりすた）。下の weakLyco で記録する。
+    // ※変換高確移行時の約10%は帯が表示されない（10/13 ちょんぼりすた）。帯で判定するため実測率は参考値。
     g150:{d:0,n:0},
+    // 弱リコリス目成立時の変換高確移行（d＝弱リコリス目成立回数／n＝変換高確へ移行した回数）。
+    // 出典: ちょんぼりすた様 https://chonborista.com/slot/sammy-slot/261631/（2026-10-12 更新・2026-10-14 取得）
+    // 設定1・2:38.3%（原文は rowspan で1セル） 設定3:39.1% 設定4:41.0% 設定5:43.0% 設定6:44.9%
+    // チェリー・スイカ成立時の移行率は約50%（設定差は公表されていない）で、記録しない。
+    weakLyco:{d:0,n:0},
     art:Object.fromEntries(BONUS_ART.map(v=>[v[0],0])),
     atEnd:Object.fromEntries(AT_END.map(v=>[v[0],0])),
     lamp:Object.fromEntries(LAMP.map(v=>[v[0],0])),
@@ -197,20 +209,29 @@
   function rateWin(S,id){return n(S.rates,id+'w');}
   function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:'-';}
   function rateText(S,id){return ratio(rateWin(S,id),rateReach(S,id));}
-  function cycleRow(ctx,id,name){
+  // 「設1:xx%⇔設6:yy%」の目安は .ct の中に置くと 360〜390px で数字の途中で折り返すか行幅を押し広げるため、
+  // 行の下に1行で出す（rowSub）。折り返す場合も「⇔」の前だけにする（各半分を1塊にする）。
+  // 「⇔」を含まないサブは従来どおり .ct の中（ctSub）に出す（示唆タブの最強特化ゾーン等）。
+  function isRange(sub){return !!sub&&String(sub).indexOf('⇔')>=0;}
+  function ctSub(sub){return sub&&!isRange(sub)?`<small class="mn">${sub}</small>`:'';}
+  function rowSub(sub){
+    if(!isRange(sub))return '';
+    return `<small class="mn row-sub">${String(sub).split('⇔').map((p,i)=>`<span class="sub-chunk">${i?'⇔':''}${p}</span>`).join('<wbr>')}</small>`;
+  }
+  function cycleRow(ctx,id,name,sub){
     const S=ctx.S;
     // 減算モードで「ハズレ」を押すと到達だけが減り、当選回数を下回りうる。
     // n<=d を壊さないよう、減らせるハズレが残っていない場合はボタンを無効化する。
     const canMinus=rateReach(S,id)>rateWin(S,id);
     const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="rates.${id}r"`;
-    return `<div class="crow cycle-row">
-      <div class="ct"><b>${name}</b></div>
+    return `<div class="crow cycle-row${isRange(sub)?' has-row-sub':''}">
+      <div class="ct"><b>${name}</b>${ctSub(sub)}</div>
       <div class="num">${rateWin(S,id)}</div>
       <div class="pct">${rateText(S,id)}</div>
       <div class="cycle-actions">
         <button type="button" class="cycle-btn win" data-bump-many="rates.${id}r,rates.${id}w" data-label="${name} 当選" aria-label="${name} 当選">当選</button>
         <button type="button" class="cycle-btn" ${missAttrs} data-label="${name} ハズレ" aria-label="${name} ハズレ">ハズレ</button>
-      </div>
+      </div>${rowSub(sub)}
     </div>`;
   }
   function convDenom(S,id){return n(S.conv,id+'cd');}
@@ -222,19 +243,22 @@
   function g150Denom(S){return n(S.g150,'d');}
   function g150Hit(S){return n(S.g150,'n');}
   function g150Text(S){return `${g150Hit(S)}/${g150Denom(S)}`;}
+  function weakLycoDenom(S){return n(S.weakLyco,'d');}
+  function weakLycoHit(S){return n(S.weakLyco,'n');}
+  function weakLycoText(S){return `${weakLycoHit(S)}/${weakLycoDenom(S)}`;}
   // n/d 行の共通描画。§9-87: 減算モードで外れ側を押すと分母だけが減って n>d になりうるため、
   // 減らせる外れが残っていない場合はボタンを無効化して n<=d を操作中も常に保つ。
   function ndRow(ctx,opt){
     const canMinus=opt.d>opt.n;
     const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="${opt.dPath}"`;
-    return `<div class="crow cycle-row ${opt.cls||''}">
-      <div class="ct"><b>${opt.name}</b>${opt.sub?`<small class="mn">${opt.sub}</small>`:''}</div>
+    return `<div class="crow cycle-row ${opt.cls||''}${isRange(opt.sub)?' has-row-sub':''}">
+      <div class="ct"><b>${opt.name}</b>${ctSub(opt.sub)}</div>
       <div class="num">${opt.n}</div>
       <div class="pct">${opt.n}/${opt.d}</div>
       <div class="cycle-actions">
         <button type="button" class="cycle-btn win" data-bump-many="${opt.dPath},${opt.nPath}" data-label="${opt.name} ${opt.winLabel}" aria-label="${opt.name} ${opt.winLabel}">${opt.winLabel}</button>
         <button type="button" class="cycle-btn" ${missAttrs} data-label="${opt.name} ${opt.missLabel}" aria-label="${opt.name} ${opt.missLabel}">${opt.missLabel}</button>
-      </div>
+      </div>${rowSub(opt.sub)}
     </div>`;
   }
   function convRow(ctx,id,name){
@@ -360,6 +384,11 @@
       .cycle-row .ct b{font-size:16px}
       /* サブは .lbl 配下ではないので .crow .lbl .mn の淡色が当たらない。他の行のサブに合わせる。 */
       .cycle-row .ct small{font-size:13px;color:var(--muted)}
+      /* 目安（⇔あり）は行の下に1行で出す。1段目（名前・数値・ボタン）は目安なしの行と同じ並びのまま。
+         万一折り返す幅でも「設1:xx%」「⇔設6:yy%」を各1塊にして「⇔」の前でだけ折り返す。 */
+      .cycle-row.has-row-sub{flex-wrap:wrap;row-gap:2px}
+      .cycle-row .row-sub{display:block;flex:0 0 100%;font-size:13px;color:var(--muted);line-height:1.3}
+      .cycle-row .row-sub .sub-chunk{white-space:nowrap}
       .cycle-row .pct{min-width:92px;text-align:right}
       .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
       .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
@@ -367,8 +396,9 @@
       .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
       .cycle-btn[disabled]{opacity:.4}
     </style>
-    <div class="cgrid">${ZONES.map(z=>cycleRow(ctx,z[0],z[1])).join('')}</div>
+    <div class="cgrid">${ZONES.map(z=>cycleRow(ctx,z[0],z[1],z[3])).join('')}</div>
     <div class="hint">各ゾーン到達時に記録。当選したら当選側を押してください。減算モードでは「当選」が到達と当選の両方を、「ハズレ」が到達だけを1つ戻します。戻せるハズレが残っていない場合、そのボタンは押せません。</div>
+    <div class="hint">ラッシュ50終了後の短縮天井は判定が難しいため記録対象外です（使い方参照）</div>
   </section>
   <section class="sec">
     <div class="sec-h">150G到達時の変換高確<span class="sub">${g150Text(S)}</span></div>
@@ -377,7 +407,7 @@
       .g150-row .num{min-width:30px}
       .g150-row .pct{min-width:44px}
       .g150-row .cycle-btn{min-width:54px;padding:0 6px}
-      /* サブ（設1:50.0%⇔設6:62.5%）を390pxで1行に収めるため、この行だけ左右を詰める。
+      /* この行だけ左右を詰めてラベル列を広げる（目安は 10/14 から行の下に1行で出す）。
          ボタンは幅が縮んでも高さ44px・幅54px以上を保つ。 */
       .g150-row{padding-left:6px;padding-right:6px}
       .g150-row .cycle-actions{margin-left:4px;gap:4px}
@@ -387,7 +417,16 @@
         cls:'conv-row g150-row',dPath:'g150.d',nPath:'g150.n',
         d:g150Denom(S),n:g150Hit(S),winLabel:'移行',missLabel:'非移行'})}
     </div>
-    <div class="hint">150G到達時だけ記録します。150G到達後、152〜153G付近で高確の帯が出れば変換高確へ移行しています。帯が出なければ非移行として記録してください。150G以外での変換高確移行には設定差がないため、150G到達時のみ記録します。設定1〜3は同値(50.0%)、設定4は54.7%、設定5は58.6%。</div>
+    <div class="hint">150G到達時だけ記録します。150G到達後、152〜153G付近で高確の帯が出れば変換高確へ移行しています。帯が出なければ非移行として記録してください。150G以外での変換高確移行には設定差がないため、150G到達時のみ記録します。設定1〜3は同値(50.0%)、設定4は54.7%、設定5は58.6%。変換高確に移行しても約1割は帯が出ません。帯で判定するため、この実測率は参考値です。</div>
+  </section>
+  <section class="sec">
+    <div class="sec-h">弱リコリス目の変換高確<span class="sub">${weakLycoText(S)}</span></div>
+    <div class="cgrid">
+      ${ndRow(ctx,{name:'弱ﾘｺﾘｽ目変換高確',sub:'設1:38.3%⇔設6:44.9%',
+        cls:'conv-row g150-row',dPath:'weakLyco.d',nPath:'weakLyco.n',
+        d:weakLycoDenom(S),n:weakLycoHit(S),winLabel:'成功',missLabel:'失敗'})}
+    </div>
+    <div class="hint">弱リコリス目成立後、数G以内に帯が出れば移行です。帯が出なくても約1割は移行しているため参考値です。チェリー・スイカ経由（約50%・設定差は公表されていません）は記録しません。</div>
   </section>
   <section class="sec">
     <div class="sec-h">変換からのCZ当選<span class="sub">弱 ${convText(S,'weak')}・強 ${convText(S,'strong')}</span></div>
@@ -407,8 +446,8 @@
       ${ctx.crow('counts.stamp','スタンプカードからCZ','12マス貯めて当選した回数（設定差は解析未掲載・記録のみ）',0)}
       ${ctx.crow('counts.cz','CZ(オポジット)',`設1:1/198.7⇔設6:1/169.4${rateSuffix(g,n(S.counts,'cz'))}`,0)}
       ${ctx.crow('counts.at','AT初当り',`設1:1/328.8⇔設6:1/256.7${rateSuffix(g,n(S.counts,'at'))}`,1)}
-      ${ctx.crow('counts.direct','AT直撃','設1:1/22429.5⇔設6:1/6263.7（他設定は調査中・出現率が低いため1/x表示なし）',1)}
-      ${ctx.crow('counts.child','幼少期CZ(ファースト)','設1:1/3965.0⇔設6:1/2084.8（他設定は調査中・出現率が低いため1/x表示なし）',1)}
+      ${ctx.crow('counts.direct','AT直撃','設1:1/22429.5⇔設6:1/6263.7（出現率が低いため1/x表示なし）',1)}
+      ${ctx.crow('counts.child','幼少期CZ(ファースト)','設1:1/3965.0⇔設6:1/2084.8（出現率が低いため1/x表示なし）',1)}
       ${ctx.crow('counts.mysteryV','謎Vストック','高設定ほど優遇(数値は非公表)',0)}
     </div>
     <div class="hint">この2項目は1/x表示を行いません。AT直撃と幼少期CZは出現率が低いため、引けた場合の判別材料として扱ってください。出現率が低く1日では分母が足りないため、この2項目は1/x表示を行いません。</div>
@@ -482,6 +521,7 @@
       '■規定ゲーム数'];
     ZONES.forEach(z=>L.push(`${z[2]}▶︎ ${rateWin(S,z[0])}/${rateReach(S,z[0])}`));
     L.push('',`■150G変換高確▶︎ ${g150Text(S)}`);
+    L.push(`■弱ﾘｺﾘｽ目変換高確▶︎ ${weakLycoText(S)}`);
     L.push('','■変換からのCZ当選');
     CONV.forEach(c=>L.push(`${c[2]}▶︎ ${convHit(S,c[0])}/${convDenom(S,c[0])}`));
     L.push('',
@@ -547,6 +587,9 @@
       {title:'150G到達時の変換高確',items:[
         {label:'150G 変換高確移行',value:g150Hit(S),hot:true,text:`150G 変換高確移行 ${g150Text(S)}`,show:g150Denom(S)>0}
       ]},
+      {title:'弱リコリス目の変換高確',items:[
+        {label:'弱ﾘｺﾘｽ目 変換高確移行',value:weakLycoHit(S),hot:true,text:`弱ﾘｺﾘｽ目 変換高確移行 ${weakLycoText(S)}`,show:weakLycoDenom(S)>0}
+      ]},
       {title:'上位AT突入時の最強特化ゾーン',items:[
         {label:'レジェンダリーリコリス',value:topHit(S),hot:false,text:`レジェンダリーリコリス ${topText(S)}`,show:topDenom(S)>0}
       ]},
@@ -569,7 +612,7 @@
     uiV2:true,
     storageKey:'ricorico-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','prologue','rush','wep','trophy','rates','conv','top','g150','art','atEnd','lamp'],
+    mergeKeys:['counts','prologue','rush','wep','trophy','rates','conv','top','g150','weakLyco','art','atEnd','lamp'],
     sourceUrl:'https://chonborista.com/slot/sammy-slot/261631/',
     actions:{
       // 入力ソースの切替。カウンタではないので減算モードでも同じ動作をする（値は消さない）。
@@ -616,6 +659,10 @@
       out.g150=Object.assign({},DEF.g150,out.g150||{});
       Object.keys(out.g150).forEach(k=>{out.g150[k]=Math.max(0,Number(out.g150[k])||0);});
       if(out.g150.n>out.g150.d)out.g150.d=out.g150.n;
+      // 弱リコリス目の変換高確（2026-10-14 追加）。旧データに無ければ {d:0,n:0}。
+      out.weakLyco=Object.assign({},DEF.weakLyco,out.weakLyco||{});
+      Object.keys(out.weakLyco).forEach(k=>{out.weakLyco[k]=Math.max(0,Number(out.weakLyco[k])||0);});
+      if(out.weakLyco.n>out.weakLyco.d)out.weakLyco.d=out.weakLyco.n;
       return out;
     },
     share:{title:'スマスロ リコリス・リコイル 設定判別メモ',hashtags:'#リコリコ #設定判別'},

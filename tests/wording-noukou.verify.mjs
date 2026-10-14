@@ -38,9 +38,7 @@ for(const [i,[file,phrase]] of allowed.entries())assert.equal(counts[i],1,`${fil
 // 2件とも出典に設定差なしの明記があるA。行頭が // のコードコメントは検査対象外。
 const allowedNoDiff=[
   ['checker-data/magireco.js','調整屋選択時のAT当選率に設定差はありません'],
-  ['checker-data/ricorico.js','150G以外での変換高確移行には設定差がないため'],
-  // 検収用テスト版（§9-108）。本番と同じ文。テスト版の削除で外す。
-  ['checker-data/ricorico-test.js','150G以外での変換高確移行には設定差がないため']
+  ['checker-data/ricorico.js','150G以外での変換高確移行には設定差がないため']
 ];
 const noDiffCounts=allowedNoDiff.map(()=>0),noDiffViolations=[];
 let noDiffOccurrences=0;
