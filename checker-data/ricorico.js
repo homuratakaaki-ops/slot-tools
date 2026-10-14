@@ -209,20 +209,29 @@
   function rateWin(S,id){return n(S.rates,id+'w');}
   function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:'-';}
   function rateText(S,id){return ratio(rateWin(S,id),rateReach(S,id));}
+  // 「設1:xx%⇔設6:yy%」の目安は .ct の中に置くと 360〜390px で数字の途中で折り返すか行幅を押し広げるため、
+  // 行の下に1行で出す（rowSub）。折り返す場合も「⇔」の前だけにする（各半分を1塊にする）。
+  // 「⇔」を含まないサブは従来どおり .ct の中（ctSub）に出す（示唆タブの最強特化ゾーン等）。
+  function isRange(sub){return !!sub&&String(sub).indexOf('⇔')>=0;}
+  function ctSub(sub){return sub&&!isRange(sub)?`<small class="mn">${sub}</small>`:'';}
+  function rowSub(sub){
+    if(!isRange(sub))return '';
+    return `<small class="mn row-sub">${String(sub).split('⇔').map((p,i)=>`<span class="sub-chunk">${i?'⇔':''}${p}</span>`).join('<wbr>')}</small>`;
+  }
   function cycleRow(ctx,id,name,sub){
     const S=ctx.S;
     // 減算モードで「ハズレ」を押すと到達だけが減り、当選回数を下回りうる。
     // n<=d を壊さないよう、減らせるハズレが残っていない場合はボタンを無効化する。
     const canMinus=rateReach(S,id)>rateWin(S,id);
     const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="rates.${id}r"`;
-    return `<div class="crow cycle-row">
-      <div class="ct"><b>${name}</b>${sub?`<small class="mn">${sub}</small>`:''}</div>
+    return `<div class="crow cycle-row${isRange(sub)?' has-row-sub':''}">
+      <div class="ct"><b>${name}</b>${ctSub(sub)}</div>
       <div class="num">${rateWin(S,id)}</div>
       <div class="pct">${rateText(S,id)}</div>
       <div class="cycle-actions">
         <button type="button" class="cycle-btn win" data-bump-many="rates.${id}r,rates.${id}w" data-label="${name} 当選" aria-label="${name} 当選">当選</button>
         <button type="button" class="cycle-btn" ${missAttrs} data-label="${name} ハズレ" aria-label="${name} ハズレ">ハズレ</button>
-      </div>
+      </div>${rowSub(sub)}
     </div>`;
   }
   function convDenom(S,id){return n(S.conv,id+'cd');}
@@ -242,14 +251,14 @@
   function ndRow(ctx,opt){
     const canMinus=opt.d>opt.n;
     const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="${opt.dPath}"`;
-    return `<div class="crow cycle-row ${opt.cls||''}">
-      <div class="ct"><b>${opt.name}</b>${opt.sub?`<small class="mn">${opt.sub}</small>`:''}</div>
+    return `<div class="crow cycle-row ${opt.cls||''}${isRange(opt.sub)?' has-row-sub':''}">
+      <div class="ct"><b>${opt.name}</b>${ctSub(opt.sub)}</div>
       <div class="num">${opt.n}</div>
       <div class="pct">${opt.n}/${opt.d}</div>
       <div class="cycle-actions">
         <button type="button" class="cycle-btn win" data-bump-many="${opt.dPath},${opt.nPath}" data-label="${opt.name} ${opt.winLabel}" aria-label="${opt.name} ${opt.winLabel}">${opt.winLabel}</button>
         <button type="button" class="cycle-btn" ${missAttrs} data-label="${opt.name} ${opt.missLabel}" aria-label="${opt.name} ${opt.missLabel}">${opt.missLabel}</button>
-      </div>
+      </div>${rowSub(opt.sub)}
     </div>`;
   }
   function convRow(ctx,id,name){
@@ -375,9 +384,11 @@
       .cycle-row .ct b{font-size:16px}
       /* サブは .lbl 配下ではないので .crow .lbl .mn の淡色が当たらない。他の行のサブに合わせる。 */
       .cycle-row .ct small{font-size:13px;color:var(--muted)}
-      /* 400g 行の目安（設1:10.9%⇔設6:25.4%）は区切れる位置が少なく、360px で行の最小幅を押し広げて
-         規定ゲーム数の全行が画面外にはみ出す。どこでも折り返せるようにして行幅を画面内に収める。 */
-      .cycle-row .ct small{overflow-wrap:anywhere}
+      /* 目安（⇔あり）は行の下に1行で出す。1段目（名前・数値・ボタン）は目安なしの行と同じ並びのまま。
+         万一折り返す幅でも「設1:xx%」「⇔設6:yy%」を各1塊にして「⇔」の前でだけ折り返す。 */
+      .cycle-row.has-row-sub{flex-wrap:wrap;row-gap:2px}
+      .cycle-row .row-sub{display:block;flex:0 0 100%;font-size:13px;color:var(--muted);line-height:1.3}
+      .cycle-row .row-sub .sub-chunk{white-space:nowrap}
       .cycle-row .pct{min-width:92px;text-align:right}
       .cycle-actions{display:flex;gap:6px;margin-left:6px;flex:none}
       .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
@@ -396,7 +407,7 @@
       .g150-row .num{min-width:30px}
       .g150-row .pct{min-width:44px}
       .g150-row .cycle-btn{min-width:54px;padding:0 6px}
-      /* サブ（設1:50.0%⇔設6:62.5%）を390pxで1行に収めるため、この行だけ左右を詰める。
+      /* この行だけ左右を詰めてラベル列を広げる（目安は 10/14 から行の下に1行で出す）。
          ボタンは幅が縮んでも高さ44px・幅54px以上を保つ。 */
       .g150-row{padding-left:6px;padding-right:6px}
       .g150-row .cycle-actions{margin-left:4px;gap:4px}

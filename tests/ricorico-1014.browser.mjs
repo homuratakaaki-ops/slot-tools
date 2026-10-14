@@ -133,8 +133,9 @@ try{
   // 400g 行の目安と注記
   await tab(0);
   const main=await frame('return d.getElementById("main").innerText;');
-  assert.match(main,/400g\s*設1:10\.9%⇔設6:25\.4%/);
-  assert.match(main,/設1:38\.3%⇔設6:44\.9%/);
+  // 目安（⇔あり）は行の下に1行（.row-sub）。400g・150G・弱リコリス目の3行
+  assert.deepEqual(await frame('return [...d.querySelectorAll(".cycle-row .row-sub")].map(e=>e.closest(".crow").querySelector(".ct b").textContent+"|"+e.textContent);'),
+    ['400g|設1:10.9%⇔設6:25.4%','150G変換高確|設1:50.0%⇔設6:62.5%','弱ﾘｺﾘｽ目変換高確|設1:38.3%⇔設6:44.9%']);
   assert.ok(!main.includes('他設定は調査中'));
 
   // ---- 3. 幅ごとのはみ出しとタップ領域 ----
@@ -151,7 +152,9 @@ try{
       assert.deepEqual(rows,baseRows,'行の右端が旧版と一致');
       const ov=await overflow();
       const taps=await frame(`return [...d.querySelectorAll('${WEAK_WIN},${WEAK_MISS},[data-bump-many="rates.z400r,rates.z400w"],[data-label="400g ハズレ"]')].map(e=>{const r=e.getBoundingClientRect();return [Math.round(r.width),Math.round(r.height)];});`);
-      const sub=await frame(`return [...d.querySelectorAll('.cycle-row .ct small')].map(e=>[e.textContent,Math.round(e.getBoundingClientRect().height)]);`);
+      const sub=await frame(`return [...d.querySelectorAll('.cycle-row .row-sub')].map(e=>{const r=e.getBoundingClientRect();const lh=parseFloat(getComputedStyle(e).lineHeight);return [e.textContent,Math.round(r.height/lh),Math.round(r.right)<=Math.round(e.closest('.crow').getBoundingClientRect().right)];});`);
+      // 目安は1行（指示の「2行以内」より強い条件）で、行の中に収まる
+      assert.equal(sub.length,3);assert.ok(sub.every(([,lines,inside])=>lines===1&&inside),'目安1行 '+JSON.stringify(sub));
       await frame(`d.querySelector(${JSON.stringify(WEAK_WIN)}).closest(".sec").scrollIntoView({block:"center"});`);await pause(50);
       const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:740,scale:1}});
       fs.writeFileSync(path.join(artifacts,`input-${width}-${label}.png`),Buffer.from(shot.data,'base64'));
