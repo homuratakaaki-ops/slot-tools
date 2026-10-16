@@ -69,6 +69,8 @@ const lik=Object.fromEntries([1,2,3,4,5,6].map(s=>[s,STRONG_CHANCE[s]**3*(1-STRO
 const z=Object.values(lik).reduce((a,v)=>a+v,0);
 for(const s of [1,2,3,4,5,6])assert.ok(Math.abs(b.r.posterior[s]-lik[s]/z)<1e-12,'posterior '+s);
 assert.ok(b.r.posterior[6]>b.r.posterior[1]);ok();
+// 強チェリーCZ：設定4は出典の 31.4%（.315 からの転記修正）
+S=fresh();S.rates.strongCzr=1;b=bayes(S);assert.deepEqual(clone(b.spec.binomial[0].probs),{1:.253,2:.253,3:.281,4:.314,5:.340,6:.359});ok();
 // 到達0なら推定に入らない
 S=fresh();b=bayes(S);assert.ok(!b.spec.binomial.some(x=>x.label==='強チャンス目CZ当選'));ok();
 // 既存の確定演出（BB水着＝6濃厚）と重ねても設定6が残る
