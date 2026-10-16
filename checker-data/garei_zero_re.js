@@ -1,3 +1,5 @@
+// 出典: ちょんぼりすた様 https://chonborista.com/slot/oizumi-slot/259743/
+// 2026/10/09 再取得（ステージチェンジ演出・強チャンス目からのCZ当選率を追加）。
 (function(){
   'use strict';
   window.CheckerConfigs=window.CheckerConfigs||{};
@@ -12,8 +14,17 @@
   };
   const RATE_PROBS={
     weakCz:{1:.082,2:.082,3:.092,4:.103,5:.111,6:.117},
-    strongCz:{1:.253,2:.253,3:.281,4:.315,5:.340,6:.359}
+    strongCz:{1:.253,2:.253,3:.281,4:.314,5:.340,6:.359},
+    // 超自然災害モード当選率（通常滞在時）の強チャンス目。出典 2026/10/09 再取得。
+    strongChance:{1:.102,2:.102,3:.113,4:.127,5:.137,6:.145}
   };
+  // 通常時のステージチェンジ（出典 2026/10/09 再取得）。デフォルトの「ロゴのみ」は記録しない。
+  const STAGE_CHANGE=[
+    ['hakuei','白叡','奇数設定 期待度UP',0],
+    ['ranguren','乱紅蓮','偶数設定 期待度UP',0],
+    ['kaguraYomi','神楽と黄泉','設定2以上濃厚',2],
+    ['kaguraYomiKuda','神楽と黄泉と管狐','設定6濃厚',6]
+  ];
   const BB_SCREENS=[
     ['phone','神楽と黄泉と携帯電話','デフォルト',0],
     ['childhood','幼少期','設定2以上濃厚',2],
@@ -151,8 +162,9 @@
     currentGames:0,
     games:0,
     counts:{watermelon:0,weakCherry:0,big:0,reg:0,cz:0,art:0},
-    rates:{weakCzr:0,weakCzw:0,strongCzr:0,strongCzw:0},
+    rates:{weakCzr:0,weakCzw:0,strongCzr:0,strongCzw:0,strongChancer:0,strongChancew:0},
     specialBonus:Object.fromEntries(SPECIAL_BONUS.map(v=>[v[0],0])),
+    stageChange:Object.fromEntries(STAGE_CHANGE.map(v=>[v[0],0])),
     bbScreens:Object.fromEntries(BB_SCREENS.map(v=>[v[0],0])),
     artScreens:Object.fromEntries(ART_SCREENS.map(v=>[v[0],0])),
     rbChars:Object.fromEntries(RB_CHARS.map(v=>[v[0],0])),
@@ -191,7 +203,9 @@
       ...RB_CHARS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.rbChars,c[0]),rank:c[3]})),
       ...ED_LAMP.filter(c=>c[3]).map(c=>({label:'ED殺生石ランプ '+c[1],value:n(S.edLamp,c[0]),rank:c[3]})),
       ...SPECIAL_BONUS.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.specialBonus,c[0]),rank:c[3]})),
-      ...OVER.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.over,c[0]),rank:c[3]}))
+      ...OVER.filter(c=>c[3]).map(c=>({label:c[1],value:n(S.over,c[0]),rank:c[3]})),
+      // 同じ設定の確定演出が並んだときに既存項目の表示を変えないよう末尾に置く。
+      ...STAGE_CHANGE.filter(c=>c[3]).map(c=>({label:'ステージチェンジ '+c[1],value:n(S.stageChange,c[0]),rank:c[3]}))
     ];
   }
   function strongCount(S){return allStrong(S).reduce((a,b)=>a+b.value,0);}
@@ -217,7 +231,9 @@
       {label:'獲得枚数 444枚突破',count:n(S.over,'o444'),exclude:[1,2,3]},
       {label:'獲得枚数 456枚突破',count:n(S.over,'o456'),exclude:[1,2,3]},
       {label:'獲得枚数 666枚突破',count:n(S.over,'o666'),exclude:[1,2,3,4,5]},
-      {label:'獲得枚数 0123枚突破',count:n(S.over,'o0123'),exclude:[1,2,3,4,5]}
+      {label:'獲得枚数 0123枚突破',count:n(S.over,'o0123'),exclude:[1,2,3,4,5]},
+      {label:'ステージチェンジ 神楽と黄泉',count:n(S.stageChange,'kaguraYomi'),exclude:[1]},
+      {label:'ステージチェンジ 神楽と黄泉と管狐',count:n(S.stageChange,'kaguraYomiKuda'),exclude:[1,2,3,4,5]}
     ];
   }
   function bayesSpec(S){
@@ -231,6 +247,7 @@
     }
     if(rateReach(S,'weakCz')>0)binomial.push({label:'弱チェリーCZ当選',hit:rateWin(S,'weakCz'),total:rateReach(S,'weakCz'),probs:RATE_PROBS.weakCz});
     if(rateReach(S,'strongCz')>0)binomial.push({label:'強チェリーCZ当選',hit:rateWin(S,'strongCz'),total:rateReach(S,'strongCz'),probs:RATE_PROBS.strongCz});
+    if(rateReach(S,'strongChance')>0)binomial.push({label:'強チャンス目CZ当選',hit:rateWin(S,'strongChance'),total:rateReach(S,'strongChance'),probs:RATE_PROBS.strongChance});
     return {settings:SETTINGS,binomial,multinomial:[],exclusions:bayesExclusions(S)};
   }
   function bayesResult(S){
@@ -294,12 +311,13 @@
         ${ctx.crow('counts.weakCherry','弱チェリー','設1:1/99.0⇔設6:1/78.2',1,v=>oneIn(v,g))}
         ${rateRow(ctx,'weakCz','弱チェリーからのCZ当選','設1・2:8.2%⇔設6:11.7%')}
         ${rateRow(ctx,'strongCz','強チェリーからのCZ当選','強チェリー出現 設1:1/481.9⇔設6:1/455.1／CZ当選 設1・2:25.3%⇔設6:35.9%')}
+        ${rateRow(ctx,'strongChance','強チャンス目からのCZ当選','設1・2:10.2%⇔設6:14.5%')}
         ${ctx.crow('counts.big','BIG','設1:1/385.5⇔設6:1/364.1',1,v=>oneIn(v,g))}
         ${ctx.crow('counts.reg','REG','設1:1/414.8⇔設6:1/364.1',1,v=>oneIn(v,g))}
         ${ctx.crow('counts.cz','CZ突入（超自然災害モード）','設1:1/287.2⇔設6:1/197.8',1,v=>oneIn(v,g))}
         ${ctx.crow('counts.art','ART当選（喰霊チャンス）','設1:1/468.6⇔設6:1/279.8',1,v=>oneIn(v,g))}
       </div>
-      <div class="hint">小役の見分け方は次のとおりです。スイカは左リール上段にスイカまたは⑪番のBARが停止した際、中リールに赤7目安でスイカを狙って成立を確認します。左上段にBARが停止した場合は取りこぼしに注意してください。弱チェリーは左リール角チェリー停止かつ右リール中段ベル停止。強チェリーは左リール角チェリー停止かつ右リール中段ベル以外停止です。CZ当選率は通常滞在時のみ記録します。CZ突入とART当選は契機を問わず、発生したすべての回数を記録してください。ART当選はCZ・ボーナスの結果に連動するため、表示のみで設定推定には使いません。</div>
+      <div class="hint">小役の見分け方は次のとおりです。スイカは左リール上段にスイカまたは⑪番のBARが停止した際、中リールに赤7目安でスイカを狙って成立を確認します。左上段にBARが停止した場合は取りこぼしに注意してください。弱チェリーは左リール角チェリー停止かつ右リール中段ベル停止。強チェリーは左リール角チェリー停止かつ右リール中段ベル以外停止です。CZ当選率は通常滞在時のみ記録します。強チャンス目からのCZ当選も通常滞在時のみ記録します。強チャンス目は、スイカを狙ってスイカが揃わなかったときです。CZ突入とART当選は契機を問わず、発生したすべての回数を記録してください。ART当選はCZ・ボーナスの結果に連動するため、表示のみで設定推定には使いません。</div>
     </section>
     <section class="sec"><div class="sec-h">特定ボーナス<span class="sub">計${sum(S.specialBonus)}回</span></div>
       <div class="cgrid">${SPECIAL_BONUS.map(c=>ctx.crow('specialBonus.'+c[0],c[1],c[2],c[3])).join('')}</div>
@@ -308,7 +326,11 @@
   }
   function pageSuggest(ctx){
     const S=ctx.S;
-    return pageStyle()+`<section class="sec"><div class="sec-h">BB終了画面<span class="sub">計${sum(S.bbScreens)}回</span></div>
+    return pageStyle()+`<section class="sec"><div class="sec-h">ステージチェンジ演出<span class="sub">計${sum(S.stageChange)}回</span></div>
+      <div class="cgrid">${STAGE_CHANGE.map(c=>ctx.crow('stageChange.'+c[0],c[1],c[2],c[3])).join('')}</div>
+      <div class="hint">通常時のステージチェンジで上記4パターンが出たときだけ記録します。レア役成立時の炎背景も示唆内容は同じです。白叡・乱紅蓮は振り分けの数値が公表されていないため、記録のみで推定には使いません。</div>
+    </section>
+    <section class="sec"><div class="sec-h">BB終了画面<span class="sub">計${sum(S.bbScreens)}回</span></div>
       <div class="cgrid">${BB_SCREENS.map(c=>ctx.crow('bbScreens.'+c[0],c[1],c[2],c[3],v=>ctx.pct(v,sum(S.bbScreens)))).join('')}</div>
     </section>
     <section class="sec"><div class="sec-h">ART終了画面<span class="sub">計${sum(S.artScreens)}回</span></div>
@@ -364,11 +386,13 @@
       `弱チェリー▶${n(S.counts,'weakCherry')}回（${oneIn(n(S.counts,'weakCherry'),g)}）`,
       `弱チェリーCZ▶${rateText(S,'weakCz')}`,
       `強チェリーCZ▶${rateText(S,'strongCz')}`,
+      `強チャンス目CZ▶${rateText(S,'strongChance')}`,
       `BIG▶${n(S.counts,'big')}回（${oneIn(n(S.counts,'big'),g)}）`,
       `REG▶${n(S.counts,'reg')}回（${oneIn(n(S.counts,'reg'),g)}）`,
       `CZ突入▶${n(S.counts,'cz')}回（${oneIn(n(S.counts,'cz'),g)}）`,
       `ART当選▶${n(S.counts,'art')}回（${oneIn(n(S.counts,'art'),g)}）`
     ]);
+    t+=section('ステージチェンジ演出',STAGE_CHANGE.filter(c=>n(S.stageChange,c[0])>0).map(c=>`${c[1]}▶${n(S.stageChange,c[0])}回`));
     t+=section('BB終了画面',sum(S.bbScreens)>0?BB_SCREENS.filter(c=>n(S.bbScreens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.bbScreens,c[0]),sum(S.bbScreens))}`):[]);
     t+=section('ART終了画面',sum(S.artScreens)>0?ART_SCREENS.filter(c=>n(S.artScreens,c[0])>0).map(c=>`${c[1]}▶${pctLine(n(S.artScreens,c[0]),sum(S.artScreens))}`):[]);
     t+=section('RB中のキャラ紹介',sum(S.rbChars)>0?RB_CHARS.filter(c=>n(S.rbChars,c[0])>0).map(c=>`${c[1]}▶${n(S.rbChars,c[0])}回`):[]);
@@ -386,11 +410,13 @@
         {label:'弱チェリー',value:n(S.counts,'weakCherry'),hot:true,text:'弱チェリー '+oneIn(n(S.counts,'weakCherry'),g),show:n(S.counts,'weakCherry')>0},
         detailRatio('弱チェリーCZ',rateWin(S,'weakCz'),rateReach(S,'weakCz'),1),
         detailRatio('強チェリーCZ',rateWin(S,'strongCz'),rateReach(S,'strongCz'),1),
+        detailRatio('強チャンス目CZ',rateWin(S,'strongChance'),rateReach(S,'strongChance'),1),
         {label:'BIG',value:n(S.counts,'big'),hot:true,text:'BIG '+oneIn(n(S.counts,'big'),g),show:n(S.counts,'big')>0},
         {label:'REG',value:n(S.counts,'reg'),hot:true,text:'REG '+oneIn(n(S.counts,'reg'),g),show:n(S.counts,'reg')>0},
         {label:'CZ突入',value:n(S.counts,'cz'),hot:true,text:'CZ突入 '+oneIn(n(S.counts,'cz'),g),show:n(S.counts,'cz')>0},
         {label:'ART当選',value:n(S.counts,'art'),hot:true,text:'ART当選 '+oneIn(n(S.counts,'art'),g),show:n(S.counts,'art')>0}
       ]},
+      {title:'ステージチェンジ演出',items:detailItems(STAGE_CHANGE,S.stageChange)},
       {title:'BB終了画面',items:detailItems(BB_SCREENS,S.bbScreens),percent:true},
       {title:'ART終了画面',items:detailItems(ART_SCREENS,S.artScreens),percent:true},
       {title:'RB中のキャラ紹介',items:detailItems(RB_CHARS,S.rbChars)},
@@ -407,7 +433,7 @@
     nanaCollab:false,
     storageKey:'garei-zero-re-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','rates','specialBonus','bbScreens','artScreens','rbChars','edLamp','over'],
+    mergeKeys:['counts','rates','specialBonus','stageChange','bbScreens','artScreens','rbChars','edLamp','over'],
     sourceUrl:'https://chonborista.com/slot/oizumi-slot/259743/',
     normalizeState:out=>{
       out.startGames=Math.max(0,Number(out.startGames)||0);
@@ -415,18 +441,20 @@
       out.counts=Object.assign({},DEF.counts,out.counts||{});
       out.rates=Object.assign({},DEF.rates,out.rates||{});
       out.specialBonus=Object.assign({},DEF.specialBonus,out.specialBonus||{});
+      // stageChange・rates.strongChance は 10/14 追加。無い旧データは0で補完する。
+      out.stageChange=Object.assign({},DEF.stageChange,out.stageChange||{});
       out.bbScreens=Object.assign({},DEF.bbScreens,out.bbScreens||{});
       out.artScreens=Object.assign({},DEF.artScreens,out.artScreens||{});
       out.rbChars=Object.assign({},DEF.rbChars,out.rbChars||{});
       out.edLamp=Object.assign({},DEF.edLamp,out.edLamp||{});
       out.over=Object.assign({},DEF.over,out.over||{});
       Object.keys(out.counts||{}).forEach(k=>{out.counts[k]=Math.max(0,Number(out.counts[k])||0);});
-      ['weakCz','strongCz'].forEach(id=>{
+      ['weakCz','strongCz','strongChance'].forEach(id=>{
         out.rates[id+'r']=Math.max(0,Number(out.rates[id+'r'])||0);
         out.rates[id+'w']=Math.max(0,Number(out.rates[id+'w'])||0);
         if(out.rates[id+'w']>out.rates[id+'r'])out.rates[id+'r']=out.rates[id+'w'];
       });
-      ['specialBonus','bbScreens','artScreens','rbChars','edLamp','over'].forEach(group=>{
+      ['specialBonus','stageChange','bbScreens','artScreens','rbChars','edLamp','over'].forEach(group=>{
         Object.keys(out[group]||{}).forEach(k=>{out[group][k]=Math.max(0,Number(out[group][k])||0);});
       });
       return out;

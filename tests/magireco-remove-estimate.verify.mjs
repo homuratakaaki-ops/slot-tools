@@ -50,12 +50,12 @@ const tracked=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,'
 // toaru2の説明文・参照クエリと9機種のヘッダー区切り記号を修正したため除外。
 // kanokari は設定推測タブ追加（docs/specs/kanokari-estimate-v01.md）のため除外。
 // ricorico は 10/14 の解析更新（弱リコリス目の変換高確記録の追加ほか）のため除外。
-// garei_zero_re は 10/14 の解析更新（ステージチェンジ演出・強チャンス目CZ）のため除外。テスト版は検収中だけ居る。
+// garei_zero_re は 10/14 の解析更新（ステージチェンジ演出・強チャンス目CZ）のため除外。
 const changed=['magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js','tenten-checker.html','checker-data/tenten.js','takoslot-checker.html','checker-data/takoslot.js','paripi-checker.html','checker-data/paripi.js',
   'checker-data/toaru2.js','toaru2-checker.html',
   'checker-data/kanokari.js','kanokari-checker.html',
   'checker-data/ricorico.js','ricorico-checker.html',
-  'checker-data/garei_zero_re.js','garei-zero-re-checker.html','checker-data/garei_zero_re-test.js','garei-zero-re-test-checker.html',
+  'checker-data/garei_zero_re.js','garei-zero-re-checker.html',
   'enen2-checker.html','kabaneri2-checker.html','karakuri2-checker.html','otome5-checker.html',
   'sao2-checker.html','taktop-checker.html','yajikita-checker.html','yoshimune-checker.html'];
 for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);
