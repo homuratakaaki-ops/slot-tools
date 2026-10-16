@@ -2,7 +2,7 @@
 // 喰霊-零-Re 10/14 解析更新のブラウザ検証（headless Chrome / CDP）。
 // 新6行（ステージチェンジ4行・強チャンス目CZの当選/ハズレ）の加算・取消・減算・再読込、旧データの実読み込み、
 // テスト版の保存キーが本番と別であること、360/390/412px のはみ出しとタップ領域、示唆・入力タブと詳細カードのPNG。
-// PAGE=/garei-zero-re-checker.html KEY=garei-zero-re-checker-v1 CFG=garei_zero_re で本番ページも検証できる。
+// 既定は本番ページ。検収中は PAGE=/garei-zero-re-test-checker.html KEY=garei-zero-re-checker-v1-test CFG=garei_zero_re-test でテスト版を検証する。
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -12,9 +12,9 @@ import {spawn,execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
-const PAGE=process.env.PAGE||'/garei-zero-re-test-checker.html';
-const KEY=process.env.KEY||'garei-zero-re-checker-v1-test';
-const CFG=process.env.CFG||'garei_zero_re-test';
+const PAGE=process.env.PAGE||'/garei-zero-re-checker.html';
+const KEY=process.env.KEY||'garei-zero-re-checker-v1';
+const CFG=process.env.CFG||'garei_zero_re';
 const PROD_KEY='garei-zero-re-checker-v1';
 const BASE='d4ba7cf';  // 本件直前の main
 const STAGE=['hakuei','ranguren','kaguraYomi','kaguraYomiKuda'];

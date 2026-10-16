@@ -292,7 +292,7 @@ RB中のキャラ紹介が全15パターン判明し、エンディング中の�
 - [~] 強チェリーCZの設定4を .315→.314 に転記修正（出典 31.4%）
 - [~] 入力タブの強チェリーCZの直後に「強チャンス目からのCZ当選」（`rates.strongChance`・通常滞在時のみ）。設定1〜6＝10.2／10.2／11.3／12.7／13.7／14.5%（出典「超自然災害モード関連」の通常滞在時の表）を設定推測の二項に使う。弱チャンス目（1.9〜2.7%）は設定差が小さいため追加しない。参照タブに当選率の節が無いため参照は追記しない
 - [~] テンプレ・詳細カードに両項目を追加。カード下段サマリーは不変。旧データは新キーを0で補完（mergeKeys・normalizeState）。`?v=20261014`・ガイド追随・NEW欄1行（最古の 10/4 モンハンを削除）
-- [~] 検収用テスト版 `garei-zero-re-test-checker.html`＋`checker-data/garei_zero_re-test.js`（保存キー `garei-zero-re-checker-v1-test`・noindex・導線なし）。マージ時に削除する
+- [~] 検収用テスト版 `garei-zero-re-test-checker.html`＋`checker-data/garei_zero_re-test.js`（保存キー `garei-zero-re-checker-v1-test`・noindex・導線なし）を main 3d6a0e9 で公開。このPRのマージで削除する
 - 検証：`tests/garei-1014.verify.mjs`（出典の表を独立に転記して突き合わせ・設定推測・保存互換・テスト版の差分が2行だけ）と `tests/garei-1014.browser.mjs`（加算／減算／取消／再読込・本番キー不変・360/390/412px・詳細カード）。garei をバイト固定している5本のテストは除外に追加
 
 

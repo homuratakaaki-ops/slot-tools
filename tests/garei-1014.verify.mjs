@@ -110,19 +110,23 @@ const strip=s=>s.replace('強チャンス目CZ▶−\n','');
 assert.equal(strip(c.template(ctx(clone(migrated)))),old.template(ctx(oldS)));ok();
 
 // ---- 5. 本番ページ・テスト版・ガイド・NEW欄 ----
-const prod=read('garei-zero-re-checker.html'),test=read('garei-zero-re-test-checker.html');
+const prod=read('garei-zero-re-checker.html');
 assert.ok(prod.includes('<script src="checker-data/garei_zero_re.js?v=20261014"></script>'));ok();
+// テスト版（§9-108）は検収中だけ居る。マージで削除されたあとはこの節を飛ばす。
+if(fs.existsSync(path.join(root,'garei-zero-re-test-checker.html'))){
+const test=read('garei-zero-re-test-checker.html');
 assert.ok(test.includes('<meta name="robots" content="noindex,nofollow">'));
 assert.ok(test.includes('<script src="checker-data/garei_zero_re-test.js?v=20261014-test"></script>'));
 assert.ok(test.includes('CheckerEngine.mount(CheckerConfigs["garei_zero_re-test"]);'));ok();
 const tdata=read('checker-data/garei_zero_re-test.js'),pdata=read('checker-data/garei_zero_re.js');
 assert.equal(tdata.replace('window.CheckerConfigs["garei_zero_re-test"]={','window.CheckerConfigs.garei_zero_re={').replace("storageKey:'garei-zero-re-checker-v1-test'","storageKey:'garei-zero-re-checker-v1'"),pdata);ok();
+}
 for(const p of ['index.html','checkers.html','sitemap.xml','garei-zero-re-guide.html','garei-zero-re-checker.html'])assert.ok(!read(p).includes('garei-zero-re-test'),p+' に導線なし');ok();
 const guide=read('garei-zero-re-guide.html');
 assert.ok(guide.includes('<h3>ステージチェンジ演出</h3>')&&guide.includes('<h3>強チャンス目からのCZ当選</h3>'));
 assert.ok(guide.includes('<td>ステージチェンジ演出、BB終了画面'));ok();
 const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0].match(/<p>.*?<\/p>/g);
 assert.equal(news.length,8);assert.ok(news[0].includes('garei-zero-re-checker.html')&&news[0].includes('喰霊-零-Re ステージチェンジ演出・強チャンス目CZ当選率を追加'));ok();
-for(const p of ['checker-data/garei_zero_re.js','checker-data/garei_zero_re-test.js','garei-zero-re-checker.html','garei-zero-re-test-checker.html','garei-zero-re-guide.html','index.html'])assert.ok(!read(p).includes('\r'),p+' LF');ok();
+for(const p of ['checker-data/garei_zero_re.js','garei-zero-re-checker.html','garei-zero-re-guide.html','index.html'])assert.ok(!read(p).includes('\r'),p+' LF');ok();
 
 console.log(`PASS garei-1014: ${checks} checks`);
