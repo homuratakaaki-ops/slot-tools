@@ -77,5 +77,6 @@ console.log('PASS ricorico/toaru2 templates: six exact outputs vs 3be5e98');
 // toaru2.js は獲得枚数表示の誤った説明文を削除したため除外。
 // kanokari.js は設定推測タブ追加（docs/specs/kanokari-estimate-v01.md）のため除外。
 // ricorico.js は 10/14 の解析更新のため除外（テンプレは上で新規1行以外を比較済み）。
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),before(file));
+// garei_zero_re.js は 10/14 の解析更新のため除外（tests/garei-1014.verify.mjs で検証）。テスト版も除外。
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','garei_zero_re-test.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),before(file));
 console.log('PASS both common files and all other machine definitions byte-identical vs 3be5e98');
