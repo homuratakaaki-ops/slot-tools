@@ -15,6 +15,10 @@ const read=p=>fs.readFileSync(new URL(p,root),'utf8');
 const load=src=>{const box={window:{},document:{getElementById:()=>null},setTimeout:()=>0};vm.runInNewContext(src,box);return box.window.CheckerConfigs.mhsunbreak;};
 const config=load(read('checker-data/mhsunbreak.js'));
 const clone=v=>JSON.parse(JSON.stringify(v));
+// 旧実装には旧4キー、新実装にはbzBase＋履歴。同じ集計のfixtureで出力を比較する。
+const legacyState=S=>{const out=clone(S);if(out.bzBase){Object.assign(out,clone((config).totals(S)));delete out.bzBase;}return out;};
+const comparable=S=>JSON.stringify(canonical(legacyState(S)));
+function canonical(v){return Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;}
 const cloneOrNull=v=>v===null?null:clone(v);   // 機種データは別の vm で読むので、比べる前に素の値に直す
 const ctx=S=>({S,mode:1,pct:(n,d)=>`${n}/${d}`,nanaCreditText:k=>k==='card'?'テンプレ：鈴白なな様（@nana_szsr）':'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 let checks=0;
@@ -220,14 +224,14 @@ const DATA={
   unknownStart:{atLog:{sessions:[sess([bz('t1'),bz('t2'),bz('t3'),bz('t4'),bz('t5'),bz('t6'),{t:'eye',c:'bahari'}],{known:false},false)]}},
   sessionMax:{atLog:{sessions:Array.from({length:55},(_,i)=>sess([bz('t'+((i%7)+1)),bz('t'+((i%6)+1),'win')],null,true))}}
 };
-const totals=S=>clone({bzT1:S.bzT1,bzT2:S.bzT2,questN1:S.questN1,questN2:S.questN2,
+const totals=S=>clone({...Object.fromEntries(['bzT1','bzT2','questN1','questN2'].map(k=>[k,legacyState(S)[k]])),
   czType:S.czType,cycle:S.cycle,bz:S.bz,hits:S.hits,games:S.games,counts:S.counts});
 const cardJson=(cfg,S)=>clone({blocks:cfg.card.blocks(ctx(S)),chart:cfg.card.chart(ctx(S)),
   bottom:cfg.card.bottom(ctx(S)),detail:cfg.card.detail(ctx(S))});
 // この改修で足した「次のBZ」と、あとで足した参考％（pct・注記3行目）を落としてから比べる
 const dropNext=model=>{const m=clone(model);m.rows.forEach(r=>{delete r.nextBz;delete r.pct;});m.note=m.note.slice(0,2);return m;};
 const sameOutputs=(name,was,now)=>{
-  assert.deepEqual(Buffer.from(JSON.stringify(now)),Buffer.from(JSON.stringify(was)),name+': normalizeState のバイト列が一致しない');
+  assert.deepEqual(Buffer.from(comparable(now)),Buffer.from(comparable(was)),name+': normalizeState のバイト列が一致しない');
   assert.deepEqual(totals(now),totals(was),name+': 集計が一致しない');
   for(const key of ['template','compactTemplate'])
     assert.deepEqual(Buffer.from(config[key](ctx(now))),Buffer.from(before[key](ctx(was))),name+': '+key+' が一致しない');
@@ -238,7 +242,7 @@ const sameOutputs=(name,was,now)=>{
 test('h. 保存データ6通りが改修前（'+BASE+'）と一致（足すのは今のAT間の nextBz だけ）',()=>{
   let added=0;
   for(const [name,data] of Object.entries(DATA)){
-    const was=before.normalizeState(clone(data)),now=config.normalizeState(clone(data));
+    const now=config.normalizeState(clone(data)),was=before.normalizeState(legacyState(now));
     sameOutputs(name,was,now);
     const rows=config.scenarioModel(now).rows;
     const withNext=rows.filter(r=>Object.prototype.hasOwnProperty.call(r,'nextBz'));

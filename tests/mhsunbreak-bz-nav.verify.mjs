@@ -17,6 +17,10 @@ const load=src=>{const box={window:{},document:{getElementById:()=>null},setTime
 const show=ref=>execFileSync('git',['-c','safe.directory='+repo,'show',ref],{encoding:'utf8',maxBuffer:1<<26});
 const config=load(read('checker-data/mhsunbreak.js'));
 const clone=v=>JSON.parse(JSON.stringify(v));
+// 旧実装には旧4キー、新実装にはbzBase＋履歴。同じ集計のfixtureで出力を比較する。
+const legacyState=S=>{const out=clone(S);if(out.bzBase){Object.assign(out,clone((config).totals(S)));delete out.bzBase;}return out;};
+const comparable=S=>JSON.stringify(canonical(legacyState(S)));
+function canonical(v){return Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;}
 const ctx=S=>({S,mode:1,pct:(n,d)=>`${n}/${d}`,nanaCreditText:k=>k==='card'?'テンプレ：鈴白なな様（@nana_szsr）':'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 const page=(S,mode)=>config.pages(Object.assign(ctx(S),{mode:mode===undefined?1:mode,crow:()=>''}),()=>'')[2]();
 const act=(S,name,ds,mode)=>config.actions[name](Object.assign(ctx(S),{mode:mode===undefined?1:mode}),ds||{});
@@ -83,13 +87,13 @@ const ICONS={
   t7:['AT','＋G','＋G','＋G','＋G','＋G','＋G','＋G','＋G','＋G']
 };
 const btnsOf=html=>[...html.matchAll(/<button[^>]*class="pos-btn[^"]*"[^>]*>[^<]*<\/button>/g)].map(m=>m[0]);
-test('3. 結果アイコン11ボタンの色がテーブルの帯色と一致（入力フォーム側・6テーブル）',()=>{
+test('3. 結果アイコン12ボタンの色がテーブルの帯色と一致（入力フォーム側・6テーブル）',()=>{
   let n=0;
   for(const id of ['t1','t2','t3','t4','t5','t6']){
     const S=fresh();
     assert.equal(act(S,'bzPick',{q:id}),false);
     const btns=btnsOf(page(S));
-    assert.equal(btns.length,11,id+': 11ボタンでない');
+    assert.equal(btns.length,12,id+': 12ボタンでない');
     ICONS[id].forEach((name,i)=>{
       const b=btns[i];
       assert.ok(b.includes('data-pos="'+(i+1)+'"'),id+' 位置'+(i+1)+': 並びが違う');
@@ -99,8 +103,8 @@ test('3. 結果アイコン11ボタンの色がテーブルの帯色と一致（
       n++;
     });
     // ［未記録で進む］には色を付けない
-    assert.ok(!btns[10].includes('--c:'),id+': 未記録に色が付いている');
-    assert.ok(btns[10].includes('>未記録で進む<'));
+    assert.ok(!btns[11].includes('--c:'),id+': 未記録に色が付いている');
+    assert.ok(btns[11].includes('>未記録で進む<'));
   }
   assert.equal(n,60);
   // ⑦は結果アイコンを出さない（位置1 AT を自動で入れる）
@@ -116,14 +120,14 @@ test('3. 経過カードの詳細側も同じ色（7テーブル×10＝70）',()
     assert.ok(act(S,'bzQuest',{d:'bzT1',n:'questN1',q:id,r:id==='t7'?'win':'miss'}));
     if(id==='t7')act(S,'bzPosOpen',{});
     const btns=btnsOf(page(S));
-    assert.equal(btns.length,11,id+': 11ボタンでない');
+    assert.equal(btns.length,12,id+': 12ボタンでない');
     ICONS[id].forEach((name,i)=>{
       assert.ok(btns[i].includes('data-action="bzPos"'),id+': 詳細側のボタンでない');
       assert.ok(btns[i].includes('style="--c:'+COLOR[name]+'"'),id+' 位置'+(i+1)+'（'+name+'）: 色が違う');
       assert.ok(btns[i].includes('>'+(i+1)+'：'+name+'<'));
       n++;
     });
-    assert.ok(!btns[10].includes('--c:'),id+': ［未記録］に色が付いている');
+    assert.ok(!btns[11].includes('--c:'),id+': ［未記録］に色が付いている');
   }
   assert.equal(n,70);
 });
@@ -169,13 +173,13 @@ const DATA={
   unknownStart:{atLog:{sessions:[sess([bz('t1'),bz('t2'),bz('t3'),bz('t4'),bz('t5'),bz('t6'),{t:'eye',c:'bahari'}],{known:false},false)]}},
   sessionMax:{atLog:{sessions:Array.from({length:55},(_,i)=>sess([bz('t'+((i%7)+1)),bz('t'+((i%6)+1),'win')],null,true))}}
 };
-const totals=S=>clone({bzT1:S.bzT1,bzT2:S.bzT2,questN1:S.questN1,questN2:S.questN2,
+const totals=S=>clone({...Object.fromEntries(['bzT1','bzT2','questN1','questN2'].map(k=>[k,legacyState(S)[k]])),
   czType:S.czType,cycle:S.cycle,bz:S.bz,hits:S.hits,games:S.games,counts:S.counts});
 const cardJson=(cfg,S)=>clone({blocks:cfg.card.blocks(ctx(S)),chart:cfg.card.chart(ctx(S)),
   bottom:cfg.card.bottom(ctx(S)),detail:cfg.card.detail(ctx(S))});
 const dropPct=model=>{const m=clone(model);m.rows.forEach(r=>{delete r.pct;});m.note=m.note.slice(0,2);return m;};
 const sameOutputs=(name,was,now)=>{
-  assert.deepEqual(Buffer.from(JSON.stringify(now)),Buffer.from(JSON.stringify(was)),name+': normalizeState のバイト列が一致しない');
+  assert.deepEqual(Buffer.from(comparable(now)),Buffer.from(comparable(was)),name+': normalizeState のバイト列が一致しない');
   assert.deepEqual(totals(now),totals(was),name+': 集計が一致しない');
   for(const key of ['template','compactTemplate'])
     assert.deepEqual(Buffer.from(config[key](ctx(now))),Buffer.from(before[key](ctx(was))),name+': '+key+' が一致しない');
@@ -185,7 +189,7 @@ const sameOutputs=(name,was,now)=>{
 };
 test('4. 保存データ6通りが改修前（'+BASE+'）と一致',()=>{
   for(const [name,data] of Object.entries(DATA))
-    sameOutputs(name,before.normalizeState(clone(data)),config.normalizeState(clone(data)));
+    {const now=config.normalizeState(clone(data));sameOutputs(name,before.normalizeState(legacyState(now)),now);}
 });
 
 test('4. 操作列（ジャンプを挟んでも）改修前と一致',()=>{

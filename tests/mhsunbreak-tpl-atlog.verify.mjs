@@ -24,6 +24,10 @@ const baseline=(()=>{
   return box.window.CheckerConfigs.mhsunbreak;
 })();
 const clone=v=>JSON.parse(JSON.stringify(v));
+// 旧実装には旧4キー、新実装にはbzBase＋履歴。同じ集計のfixtureで出力を比較する。
+const legacyState=S=>{const out=clone(S);if(out.bzBase){Object.assign(out,clone((load().config).totals(S)));delete out.bzBase;}return out;};
+const comparable=S=>JSON.stringify(canonical(legacyState(S)));
+function canonical(v){return Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;}
 const ctx=S=>({S,mode:1,pct:(n,d)=>`${n}/${d}`,nanaCreditText:k=>k==='card'?'テンプレ：鈴白なな様（@nana_szsr）':'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 const bytes=(a,b,m)=>assert.deepEqual(Buffer.from(a),Buffer.from(b),m);
 const block=text=>{const parts=text.split('■AT間メモ\n');return parts[1]===undefined?null:parts[1].split('\n\nby slot-tools.jp')[0];};
@@ -60,7 +64,7 @@ test('指示の例と同じ操作で、出力が例とバイト一致する',()=
 test('空のAT間メモは 0078fc9 の出力とバイト一致（本文は v04）',()=>{
   const {config}=load();
   const S=clone(config.defaults);
-  bytes(config.template(ctx(clone(S))),baseline.template(ctx(clone(S))));
+  bytes(config.template(ctx(clone(S))),baseline.template(ctx(legacyState(S))));
   let section='';
   const filled=v04.split('\n').map(line=>{if(line.startsWith('■'))section=line;return line.replace(/▶︎ $/,'▶︎ '+(section==='■クエスト成功率'?'0/0':'0回'));}).join('\n');
   bytes(config.template(ctx(clone(S))).split('_______\n\n')[1].split('\n\nby slot-tools.jp')[0],filled);
@@ -73,7 +77,7 @@ test('チェックOFF なら イベントがあっても 0078fc9 の出力とバ
   off.actions.bzQuest(ctx(S),{d:'bzT1',q:'t3',r:'miss'});
   off.actions.atEvent(ctx(S),{t:'eye',c:'bahari'});
   assert.ok(S.atLog.sessions[0].events.length>0);
-  bytes(off.template(ctx(clone(S))),baseline.template(ctx(clone(S))));
+  bytes(off.template(ctx(clone(S))),baseline.template(ctx(legacyState(S))));
   assert.equal(block(off.template(ctx(clone(S)))),null);
   // 明示ON・既定（キーなし）はどちらも出す
   for(const prefs of [{tplAtLog:true},undefined]){
@@ -168,9 +172,9 @@ test('チェックの切り替えは別キーだけを書き、記録のキー�
 
 test('保存データ・集計・カードは 0078fc9 と同じ',()=>{
   const {config}=load();
-  assert.equal(JSON.stringify(config.defaults),JSON.stringify(baseline.defaults));
+  assert.equal(comparable(config.defaults),comparable(baseline.defaults));
   // vm の箱が違うと prototype が違うので、比較は JSON で行う
-  assert.equal(JSON.stringify(config.mergeKeys),JSON.stringify(baseline.mergeKeys));
+  assert.equal(JSON.stringify(config.mergeKeys),JSON.stringify(baseline.mergeKeys.filter(k=>!['bzT1','bzT2','questN1','questN2'].includes(k)).concat('bzBase')));
   assert.equal(config.storageKey,baseline.storageKey);
   const raws=[null,{},{games:3,hits:[300]},
     {bzT1:{blue:2,raizex:1},questN1:{blue:1},questN:{blue:1},iconPending:['qBlue'],iconLog:[{icons:['rai'],group:'bzT1',quest:'raizex',result:'win'}]},
@@ -181,7 +185,7 @@ test('保存データ・集計・カードは 0078fc9 と同じ',()=>{
     const a=baseline.normalizeState(Object.assign(clone(baseline.defaults),clone(raw)||{}),clone(raw));
     const b=config.normalizeState(Object.assign(clone(config.defaults),clone(raw)||{}),clone(raw));
     assert.equal(b.atLog.schemaVersion,2,'schemaVersion: '+JSON.stringify(raw));
-    assert.equal(JSON.stringify(stripSchema(b)),JSON.stringify(stripSchema(a)),'normalizeState: '+JSON.stringify(raw));
+    assert.equal(comparable(stripSchema(b)),comparable(stripSchema(a)),'normalizeState: '+JSON.stringify(raw));
   }
   const S=clone(config.defaults);
   S.hits=[300,520];S.cycle.c1=2;S.atEnd.jay=1;S.trophy.gold=1;

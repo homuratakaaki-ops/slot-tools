@@ -14,14 +14,14 @@ const test=(name,fn)=>{fn();checks++;console.log('PASS '+name);};
 test('1. 新しい順番で1→位置3→失敗が1件になる',()=>{
  const S=fresh(),before=JSON.stringify(S);assert.equal(act(S,'bzPick',{q:'t1'}),false);assert.equal(JSON.stringify(S),before);assert.equal(act(S,'bzPickPos',{pos:'3'}),false);assert.equal(JSON.stringify(S),before);assert.equal(typeof quest(S),'string');
  const events=S.atLog.sessions[0].events;assert.deepEqual(clone(events),[{t:'bz',table:'t1',r:'miss',pos:3}]);assert.equal(JSON.stringify(events[0]),'{"t":"bz","table":"t1","r":"miss","pos":3}');
- assert.equal(S.bzT1.t1,1);assert.equal(S.questN1.t1,0);assert.equal(S.atLog.sessions.length,1);
+ assert.equal(config.totals(S).bzT1.t1,1);assert.equal(config.totals(S).questN1.t1,0);assert.equal(S.atLog.sessions.length,1);
  const first=JSON.stringify(config.normalizeState(clone(S)));assert.equal(JSON.stringify(config.normalizeState(JSON.parse(first))),first);
  const html=page(S);assert.ok(html.includes('記録しました：BZ1回目 ① 青スタート 失敗'));assert.ok(!html.includes('class="t-btn on"'));
  // 記録直後の詳細は選択済みを表示する。次の入力入口だけは未選択。
  assert.ok(!html.slice(html.indexOf('<div class="rec-h">')).includes('選択済み：'));
 });
 test('2. 未記録で進むではposを付けない',()=>{const S=fresh();act(S,'bzPick',{q:'t1'});act(S,'bzPickPos',{pos:''});assert.ok(page(S).includes('選択済み：未記録'));assert.ok(page(S).includes('data-action="bzPickPosOpen"'));quest(S);assert.deepEqual(clone(S.atLog.sessions[0].events),[{t:'bz',table:'t1',r:'miss'}]);});
-test('3. 結果アイコンを選んだら一覧が閉じる',()=>{const S=fresh();act(S,'bzPick',{q:'t1'});assert.equal(count(page(S),'data-action="bzPickPos"'),11);act(S,'bzPickPos',{pos:'3'});let h=page(S);assert.equal(count(h,'data-action="bzPickPos"'),0);assert.ok(h.includes('選択済み：3個目・黄'));assert.equal(count(h,'data-action="bzPickPosOpen"'),1);act(S,'bzPickPosOpen');h=page(S);assert.equal(count(h,'data-action="bzPickPos"'),11);assert.equal(count(h,'data-pos="3" aria-pressed="true"'),1);});
+test('3. 結果アイコンを選んだら一覧が閉じる',()=>{const S=fresh();act(S,'bzPick',{q:'t1'});assert.equal(count(page(S),'data-action="bzPickPos"'),12);act(S,'bzPickPos',{pos:'3'});let h=page(S);assert.equal(count(h,'data-action="bzPickPos"'),0);assert.ok(h.includes('選択済み：3個目・黄'));assert.equal(count(h,'data-action="bzPickPosOpen"'),1);act(S,'bzPickPosOpen');h=page(S);assert.equal(count(h,'data-action="bzPickPos"'),12);assert.equal(count(h,'data-pos="3" aria-pressed="true"'),1);});
 test('4. テーブル再選択で前の位置と詳細を消す',()=>{const S=fresh();act(S,'bzPick',{q:'t1'});act(S,'bzPickPos',{pos:'3'});quest(S);assert.ok(page(S).includes('<div class="bz-sub">結果アイコン</div>'));act(S,'bzPick',{q:'t2'});const h=page(S);assert.ok(!h.includes('<div class="bz-sub">結果アイコン</div>'));const picker=h.match(/<div class="pos-pick">([\s\S]*?)<\/div>/)[1];assert.ok(!picker.includes('QUEST青'));assert.ok(!h.includes('data-pos="3" aria-pressed="true"'));});
 test('5. テーブル⑦は位置1を自動記録',()=>{const S=fresh();act(S,'bzPick',{q:'t7'});const h=page(S);assert.ok(h.includes('位置1 AT を自動で記録します'));assert.equal(count(h,'data-action="bzPickPos"'),0);assert.equal(count(h,'data-action="bzQuest"'),1);quest(S,'t7','bzT1','win');assert.equal(S.atLog.sessions[0].events[0].pos,1);});
 test('6. シナリオ候補の4通りとカード計算',()=>{

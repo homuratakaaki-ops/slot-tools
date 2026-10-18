@@ -12,6 +12,10 @@ const load=src=>{const box={window:{}};vm.runInNewContext(src,box);return box.wi
 const config=load(source);
 const baseline=load(execFileSync('git',['-c','safe.directory='+decodeURIComponent(root.pathname).replace(/^\//,''),'show','b280977:checker-data/mhsunbreak.js'],{encoding:'utf8',maxBuffer:1<<26}));
 const clone=v=>JSON.parse(JSON.stringify(v));
+// 旧実装には旧4キー、新実装にはbzBase＋履歴。同じ集計のfixtureで出力を比較する。
+const legacyState=S=>{const out=clone(S);if(out.bzBase){Object.assign(out,clone((config).totals(S)));delete out.bzBase;}return out;};
+const comparable=S=>JSON.stringify(canonical(legacyState(S)));
+function canonical(v){return Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;}
 const ctx=S=>({S,mode:1,pct:(n,d)=>`${n}/${d}`,nanaCreditText:k=>k==='card'?'テンプレ：鈴白なな様（@nana_szsr）':'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 const ALL=['A','B','C','D','E','F','G','H','I'];
 let checks=0;
@@ -115,7 +119,7 @@ test('カードの中身（行・テーブル集計・注記）',()=>{
     {start:{known:true,prior:0},events:[bz('t3','miss'),eye('bahari'),{t:'fuku',r:'win'}],closed:true},
     {start:{known:true,prior:0},events:[bz('t1','miss')],closed:false}
   ]};
-  S.bzT1.t3=1;S.bzT2.t1=2;S.questN2.t1=1;
+  S.bzBase.bzT2.t1=1;S.bzBase.questN2.t1=1;
   config.normalizeState(S);
   const m=clone(config.scenarioModel(S));
   assert.deepEqual(m.rows.map(r=>r.label),['AT間1','AT間2']);
@@ -136,8 +140,8 @@ test('カードの中身（行・テーブル集計・注記）',()=>{
 });
 
 test('保存データ・集計・テンプレ・既存カードは b280977 と同じ',()=>{
-  assert.equal(JSON.stringify(config.defaults),JSON.stringify(baseline.defaults));
-  assert.equal(JSON.stringify(config.mergeKeys),JSON.stringify(baseline.mergeKeys));
+  assert.equal(JSON.stringify(config.defaults),JSON.stringify(Object.fromEntries(Object.entries(baseline.defaults).flatMap(([k,v])=>k==='bzT1'?[['bzBase',Object.fromEntries(['bzT1','bzT2','questN1','questN2'].map(key=>[key,baseline.defaults[key]]))]]:['bzT2','questN1','questN2'].includes(k)?[]:[[k,v]]))));
+  assert.equal(JSON.stringify(config.mergeKeys),JSON.stringify(baseline.mergeKeys.filter(k=>!['bzT1','bzT2','questN1','questN2'].includes(k)).concat('bzBase')));
   assert.equal(config.storageKey,baseline.storageKey);
   const raws=[null,{},{bzT1:{t1:2},questN1:{t1:1}},
     {bzT1:{blue:3},questN:{blue:1},iconLog:[{icons:['rai'],group:'bzT1',quest:'raizex',result:'win'}]},
@@ -148,13 +152,13 @@ test('保存データ・集計・テンプレ・既存カードは b280977 と�
     const a=baseline.normalizeState(Object.assign(clone(baseline.defaults),clone(raw)||{}),clone(raw));
     const b=config.normalizeState(Object.assign(clone(config.defaults),clone(raw)||{}),clone(raw));
     assert.equal(b.atLog.schemaVersion,2,JSON.stringify(raw));
-    assert.equal(JSON.stringify(stripSchema(b)),JSON.stringify(stripSchema(a)),JSON.stringify(raw));
+    assert.equal(comparable(stripSchema(b)),comparable(stripSchema(a)),JSON.stringify(raw));
   }
   const S=clone(config.defaults);
   S.hits=[300,520];S.atEnd.jay=1;S.trophy.gold=1;S.cycle.c1=2;
   config.actions.bzQuest(ctx(S),{d:'bzT1',q:'t3',r:'miss'});
   config.actions.atEvent(ctx(S),{t:'eye',c:'bahari'});
-  for(const key of ['template','compactTemplate'])assert.deepEqual(Buffer.from(config[key](ctx(clone(S)))),Buffer.from(baseline[key](ctx(clone(S)))),key);
+  for(const key of ['template','compactTemplate'])assert.deepEqual(Buffer.from(config[key](ctx(clone(S)))),Buffer.from(baseline[key](ctx(legacyState(S)))),key);
   const card=c=>JSON.stringify(Object.fromEntries(['blocks','chart','bottom','detail'].map(k=>[k,c.card[k](ctx(clone(S)))])));
   assert.equal(card(config),card(baseline));
   // カードタブは engine のカードの後ろに自分の節を足すだけ

@@ -412,6 +412,7 @@ try{
     if(d&&await frame(`return !!d.querySelector('[data-action="bzGroup"][data-d="${d}"]');`))await click(`[data-action="bzGroup"][data-d="${d}"]`);
     await click(`[data-action="bzQuest"][data-q="${table}"][data-r="${r}"]`);
   };
+  const mhTotals=(saved)=>frame('return w.CheckerConfigs.mhsunbreak.totals('+(saved?JSON.stringify(saved):'w.__checkerApp.getState()')+');');
   const calcLine=()=>frame(`const e=d.querySelector('.calc');return e?e.textContent:null;`);
   // 今のAT間の記録は「経過」の横並びカード。読み上げ名はログ1行と同じ文字列
   const atRows=()=>frame(`return [...d.querySelectorAll('.ev-card')].map(e=>e.getAttribute('aria-label'));`);
@@ -426,7 +427,7 @@ try{
   assert.equal(await frame(`return d.querySelectorAll('[data-action="bzGroup"]').length;`),0);
   assert.equal(await frame(`return d.querySelector('.now-cell:nth-child(2) b').textContent;`),'BZ2回目');
   assert.equal(await frame(`return d.querySelectorAll('[data-action="atStart"]').length;`),0);
-  await click('#undoBtn');assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await state()).bzT1.t1,0);
+  await click('#undoBtn');assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await mhTotals()).bzT1.t1,0);
   pass('MH AT log BZ1/H, correct group lock and atomic undo of count plus event');
   // 画面だけの操作（選択・開閉）は取消の履歴に積まない
   await atQuest('t1','miss');
@@ -434,7 +435,7 @@ try{
   await click('[data-k=totals]');await click('[data-k=totals]');
   await click('[data-action="atOpen"][data-index="0"]');
   await click('#undoBtn');
-  assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await state()).bzT1.t1,0);
+  assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await mhTotals()).bzT1.t1,0);
   pass('MH 画面だけの操作は取消に積まれない（1回でBZの記録が戻る）');
   await atClick('fuku','[data-r="miss"]');await atQuest('t2');
   assert.deepEqual(await atRows(),['福引 失敗','BZ1回目 ② 黄スタート 失敗']);
@@ -446,14 +447,14 @@ try{
   await click('[data-action="atOpen"][data-index="3"]');await click('[data-action="atDel"][data-index="3"]');
   assert.equal(atCurrent(await state()).events.length,4);
   assert.equal(await eyeNow(),'ジェイ（白）：シナリオB以上濃厚');
-  assert.deepEqual((await state()).bzT1,beforeDelete.bzT1);
+  assert.deepEqual((await mhTotals()).bzT1,(await mhTotals(beforeDelete)).bzT1);
   await click('#undoBtn');assert.deepEqual(await state(),beforeDelete);
   pass('MH AT log strongest eye, row deletion and deletion undo');
   await click('#modeBtn');
   assert.equal(await frame(`return [...d.querySelectorAll('[data-action="atEvent"]')].every(e=>e.disabled);`),true);
   await atClick('otherAt');assert.deepEqual(await state(),beforeDelete);
-  await atQuest('t2');assert.equal((await state()).bzT1.t2,0);assert.deepEqual((await state()).atLog,beforeDelete.atLog);
-  await click('#undoBtn');await click('#modeBtn');assert.deepEqual(await state(),beforeDelete);
+  await atQuest('t2');assert.deepEqual(await mhTotals(),await mhTotals(beforeDelete));assert.deepEqual((await state()).atLog,beforeDelete.atLog);
+  await click('#modeBtn');assert.deepEqual(await state(),beforeDelete);
   pass('MH AT log minus only changes count and disables event recording');
   await atClick('fuku','[data-r="win"]');
   assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await state()).atLog.sessions[0].closed,true);
@@ -594,7 +595,7 @@ try{
       minHeight:Math.min(...b.map(e=>e.getBoundingClientRect().height)),
       clipped:b.filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.textContent.trim()),
       first:b[0].textContent.trim(),last:b[b.length-1].textContent.trim()};`);
-    assert.equal(pos.n,11,'結果アイコンは位置1〜10＋未記録の11ボタン');
+    assert.equal(pos.n,12,'結果アイコンは位置1〜11＋未記録の12ボタン');
     assert.ok(pos.minHeight>=48,width+'px pos button below 48px: '+pos.minHeight);
     assert.deepEqual(pos.clipped,[],width+'px 結果アイコンの文字が切れている');
     assert.equal(pos.first,'1：'+POS_ICONS.t6);
@@ -620,14 +621,14 @@ try{
     assert.deepEqual((await state()).atLog.sessions[0].events[1],{t:'lamp',c:'red'});
     assert.ok((await frame(`return [...d.querySelectorAll('.ev-card')].map(e=>e.getAttribute('aria-label'));`)).includes('ランプ 赤'));
     // 差し込み：1件目の前にセリフを入れる。集計は動かない
-    const totalsBefore=JSON.stringify((await state()).bzT1);
+    const totalsBefore=JSON.stringify((await mhTotals()).bzT1);
     await click('.ev-card[data-index="0"]');
     await click('[data-action="atInsert"][data-index="0"]');
     assert.ok(await frame(`return !!d.querySelector('.insert-bar');`),'差し込み待ちの表示が無い');
     assert.equal(await frame(`return d.querySelector('.calc').textContent.trim();`),'→ 1回目に計上（BZ1回目）');
     await click('[data-action="atEvent"][data-t="serif"][data-c="s3"]');
     assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['serif','bz','lamp']);
-    assert.equal(JSON.stringify((await state()).bzT1),totalsBefore,'差し込みで集計が動いた');
+    assert.equal(JSON.stringify((await mhTotals()).bzT1),totalsBefore,'差し込みで集計が動いた');
     await click('#undoBtn');
     assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['bz','lamp']);
     await measure('mhsunbreak-ext-records-'+width);
@@ -698,20 +699,28 @@ try{
     await clear('mhsunbreak');await tab(2);
     if(key==='bzT2')await click('[data-action="atStart"][data-prior="1"]');
     await atQuest(id,'win');
-    let s=await state();assert.equal(s[key][id],1,key+' '+id);assert.equal(s[nKeyOf(key)][id],1);
+    let s=await state();assert.equal((await mhTotals(s))[key][id],1,key+' '+id);assert.equal((await mhTotals(s))[nKeyOf(key)][id],1);
     assert.ok((await frame('return d.getElementById("feed").textContent;')).includes(key==='bzT1'?'1回目':'2回目以降'));
-    await click('#modeBtn');   // 減算モード：訂正は「集計」の中のボタン
+    const history=await state();await click('#modeBtn');
+    assert.equal(await frame(`return d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="win"]').disabled;`),true);
+    await questClick(key,id,true);assert.deepEqual(await state(),history);
+    await evaluate(`localStorage.setItem('mhsunbreak-checker-v1',JSON.stringify(${JSON.stringify({[key]:{[id]:1},[nKeyOf(key)]:{[id]:1}})}));`);
+    await load('mhsunbreak');await tab(2);await click('#modeBtn');
     if(id!=='t7')assert.equal(await frame(`const b=d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="miss"]');return b.disabled&&b.getAttribute('aria-disabled')==='true';`),true);
-    await questClick(key,id,true);s=await state();assert.equal(s[key][id],0);assert.equal(s[nKeyOf(key)][id],0);
-    await click('#undoBtn');s=await state();assert.equal(s[key][id],1);assert.equal(s[nKeyOf(key)][id],1);
+    await questClick(key,id,true);s=await state();assert.equal((await mhTotals(s))[key][id],0);assert.equal((await mhTotals(s))[nKeyOf(key)][id],0);
+    await click('#undoBtn');s=await state();assert.equal((await mhTotals(s))[key][id],1);assert.equal((await mhTotals(s))[nKeyOf(key)][id],1);
     await click('#modeBtn');
     if(id!=='t7'){
       await clear('mhsunbreak');await tab(2);
       if(key==='bzT2')await click('[data-action="atStart"][data-prior="1"]');
       await atQuest(id,'miss');
-      await click('#modeBtn');
+      const history=await state();await click('#modeBtn');
+      assert.equal(await frame(`return d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="miss"]').disabled;`),true);
+      await questClick(key,id,false);assert.deepEqual(await state(),history);
+      await evaluate(`localStorage.setItem('mhsunbreak-checker-v1',JSON.stringify(${JSON.stringify({[key]:{[id]:1}})}));`);
+      await load('mhsunbreak');await tab(2);await click('#modeBtn');
       assert.equal(await frame(`return d.querySelector('[data-action="bzQuest"][data-d="${key}"][data-q="${id}"][data-r="miss"]').disabled;`),false);
-      await questClick(key,id,false);assert.equal((await state())[key][id],0);
+      await questClick(key,id,false);assert.equal((await mhTotals())[key][id],0);
       await click('#modeBtn');
     }
   }
@@ -734,11 +743,11 @@ try{
   assert.equal(changes.length,4);assert.deepEqual(changes.map(x=>x.after.trim().split('▶︎ ')[1]),['2回','1回','1/2','1/1']);
   pass('MH v02 exactly four requested template lines',changes);
   // 新しい順番では最後の操作が「③成功」。取消でそれだけが戻る
-  await click('#undoBtn');let undone=await state();assert.equal(undone.bzT1.t3,1);assert.equal(undone.questN1.t3,0);assert.equal(undone.bzT2.t7,1);assert.equal(undone.questN2.t7,1);
+  await click('#undoBtn');let undone=await state();assert.equal((await mhTotals(undone)).bzT1.t3,1);assert.equal((await mhTotals(undone)).questN1.t3,0);assert.equal((await mhTotals(undone)).bzT2.t7,1);assert.equal((await mhTotals(undone)).questN2.t7,1);
   await tab(2);await atQuest('t3','win');await tab(0);await reset();
-  for(const key of ['bzT1','bzT2','questN1','questN2'])assert.ok(Object.values((await state())[key]).every(v=>v===0));
-  await click('#undoBtn');for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await state())[key],bzState[key]);
-  await load('mhsunbreak');for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await state())[key],bzState[key]);
+  for(const key of ['bzT1','bzT2','questN1','questN2'])assert.ok(Object.values((await mhTotals())[key]).every(v=>v===0));
+  await click('#undoBtn');for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await mhTotals())[key],(await mhTotals(bzState))[key]);
+  await load('mhsunbreak');for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await mhTotals())[key],(await mhTotals(bzState))[key]);
   pass('MH v02 reset/undo and persisted reload preserve all four BZ groups');
   for(const width of [360,390]){
     await load('mhsunbreak',width,530);await tab(2);await measure('mhsunbreak-bz-v02-'+width);
@@ -761,9 +770,9 @@ try{
   await atQuest('t3','win');
   const migratedIcons=await state();
   for(const key of ['iconLog','iconPending','questN'])assert.ok(!Object.hasOwn(migratedIcons,key));
-  for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual(Object.keys(migratedIcons[key]),questIds);
+  for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual(Object.keys((await mhTotals(migratedIcons))[key]),questIds);
   await load('mhsunbreak');await tab(2);
-  for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await state())[key],migratedIcons[key]);
+  for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual((await mhTotals())[key],(await mhTotals(migratedIcons))[key]);
   await tab(3);assert.ok(!(await copy()).includes('■BZ配列メモ'));
   assert.deepEqual(await frame('return w.__errors;'),[]);
   pass('MH legacy icon save: seven migrated, three indeterminate skipped, saved reload idempotent');

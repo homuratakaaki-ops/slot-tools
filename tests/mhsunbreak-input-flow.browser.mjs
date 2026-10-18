@@ -138,7 +138,7 @@ try{
   await click('[data-action="bzQuest"][data-r="miss"]');
   assert.deepEqual((await state()).atLog.sessions[0].events,[{t:'bz',table:'t3',r:'miss',pos:3}]);
   assert.equal(await frame('return d.querySelectorAll(".saved-note").length;'),1);assert.equal(await frame('return d.querySelectorAll(".t-btn.on").length;'),0);
-  await click('#undoBtn');assert.deepEqual((await state()).atLog.sessions[0].events,[]);assert.equal((await state()).bzT1.t3,0);
+  await click('#undoBtn');assert.deepEqual((await state()).atLog.sessions[0].events,[]);assert.equal((await frame('return w.CheckerConfigs.mhsunbreak.totals(w.__checkerApp.getState());')).bzT1.t3,0);
   pass('one production undo restores event and aggregate');
   assert.deepEqual(await frame('return w.__errors;'),[]);assert.deepEqual(errors,[]);pass('all browser console errors = 0');
   console.log('PASS '+results.filter(r=>r.status==='PASS').length+' browser checks');

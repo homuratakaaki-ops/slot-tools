@@ -61,12 +61,13 @@ for(const id of ['ricorico','toaru2','mhsunbreak']){
     const S=clone(b.defaults);let index=0;
     if(mode!=='zero'){
       S.games=1000;
-      for(const v of Object.values(S))if(v&&typeof v==='object'&&!Array.isArray(v))for(const k of Object.keys(v))if(typeof v[k]==='number')v[k]=mode==='all'?1:index++%3;
+      for(const v of Object.values(S.bzBase?Object.assign({},S,S.bzBase):S))if(v&&typeof v==='object'&&!Array.isArray(v))for(const k of Object.keys(v))if(typeof v[k]==='number')v[k]=mode==='all'?1:index++%3;
       // 合算の成功数は従来の questN と同じ値に保ち、1回目に入るだけ入れて残りを2回目以降に回す。
-      if(id==='mhsunbreak')for(const key of Object.keys(S.questN1)){const t=Math.min(S.questN1[key],S.bzT1[key]+S.bzT2[key]);S.questN1[key]=Math.min(t,S.bzT1[key]);S.questN2[key]=t-S.questN1[key];}
+      if(id==='mhsunbreak')for(const key of Object.keys(S.bzBase.questN1)){const t=Math.min(S.bzBase.questN1[key],S.bzBase.bzT1[key]+S.bzBase.bzT2[key]);S.bzBase.questN1[key]=Math.min(t,S.bzBase.bzT1[key]);S.bzBase.questN2[key]=t-S.bzBase.questN1[key];}
       if(S.bz)for(const k of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[k+'D']=Math.max(S.bz[k+'D'],S.bz[k+'N']);
     }
-    const old=a.template(ctx(clone(S))),now=b.template(ctx(clone(S)));
+    const previous=clone(S);if(id==='mhsunbreak'){Object.assign(previous,clone(b.totals(S)));delete previous.bzBase;}
+    const old=a.template(ctx(previous)),now=b.template(ctx(clone(S)));
     const legacyNow=id==='ricorico'?dropWeakLyco(now):id==='mhsunbreak'?now.replace(/■BZテーブル1回目[\s\S]*?(?=■レア役からのBZ当選率)/,''):now;
     if(id==='mhsunbreak'&&mode!=='zero'){
       // Only the authorized tool header may change; compare every other byte.

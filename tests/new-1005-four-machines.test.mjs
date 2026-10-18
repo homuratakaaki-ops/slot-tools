@@ -90,7 +90,7 @@ test('HTML contract: original CSS apart from specified nav count, public links a
     // 設定判別カウンターにはUIバージョン文字列を出さない（AGENTS 作業規約4）。
     assert.doesNotMatch(html.match(/<header\b[^>]*>[\s\S]*?<\/header>/)[0],/\bUI\s/,id);
     assert.ok(html.includes('checker-engine.js?v=20260924'));
-    assert.ok(html.includes('checker-data/'+id+'.js?v='+({mhsunbreak:'20261013',juuou:'20261004-2',tenten:'20261004-4',paripi:'20261014'}[id])+'"'));
+    assert.ok(html.includes('checker-data/'+id+'.js?v='+({mhsunbreak:'20261018',juuou:'20261004-2',tenten:'20261004-4',paripi:'20261014'}[id])+'"'));
     assert.ok(!html.includes('\r')&&!js.includes('\r'));
     assert.equal(configs[id].template,configs[id].compactTemplate);
     if(id==='juuou')assert.ok(!html.includes('設定3')&&!js.includes('設定3'));
@@ -119,12 +119,12 @@ test('MH template bytes match the golden files in zero, mixed and fully populate
     const S=clone(c.defaults);let index=0;
     if(mode!=='zero'){
       S.games=1000;
-      for(const value of Object.values(S))if(value&&typeof value==='object'&&!Array.isArray(value)){
+      for(const value of Object.values(S.bzBase?Object.assign({},S,S.bzBase):S))if(value&&typeof value==='object'&&!Array.isArray(value)){
         for(const key of Object.keys(value))if(typeof value[key]==='number')value[key]=mode==='all'?1:index++%3;
       }
       for(const key of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[key+'D']=Math.max(S.bz[key+'D'],S.bz[key+'N']);
       // 合算の成功数は従来の questN と同じ値に保ち、1回目に入るだけ入れて残りを2回目以降に回す。
-      for(const id of Object.keys(S.questN1)){const t=Math.min(S.questN1[id],S.bzT1[id]+S.bzT2[id]);S.questN1[id]=Math.min(t,S.bzT1[id]);S.questN2[id]=t-S.questN1[id];}
+      for(const id of Object.keys(S.bzBase.questN1)){const t=Math.min(S.bzBase.questN1[id],S.bzBase.bzT1[id]+S.bzBase.bzT2[id]);S.bzBase.questN1[id]=Math.min(t,S.bzBase.bzT1[id]);S.bzBase.questN2[id]=t-S.bzBase.questN1[id];}
     }
     const actual=Buffer.from(c.template(context(c,S)));
     assert.deepEqual(actual,Buffer.from(read('tests/fixtures/mhsunbreak-'+mode+'-template.txt')),mode);
@@ -136,7 +136,7 @@ test('MH legacy icon logs migrate without any memo output or actions',()=>{
   const c=configs.mhsunbreak,S=clone(c.defaults);
   S.iconLog=[{icons:['rai'],group:'bzT1',quest:'blue',result:'win'}];
   const out=c.normalizeState(S);
-  assert.equal(out.bzT1.t3,1);assert.equal(out.questN1.t3,1);
+  assert.equal(c.totals(out).bzT1.t3,1);assert.equal(c.totals(out).questN1.t3,1);
   assert.ok(!Object.hasOwn(out,'iconLog'));
   for(const text of [read('checker-data/mhsunbreak.js'),read('docs/specs/mhsunbreak-nana-template-v04.txt'),c.template(context(c,out))])assert.ok(!text.includes('■BZ配列メモ'));
   for(const action of ['bzIconAdd','bzIconBack','bzIconClear','bzIconDel','bzIconCopy'])assert.ok(!Object.hasOwn(c.actions,action));
