@@ -141,6 +141,8 @@ try{
     await click('[data-action="atEvent"][data-t="fuku"][data-r="win"]');
     await click('[data-action="atEvent"][data-t="otherAt"]');
     assert.equal((await state()).atLog.sessions.length,4);assert.equal(await sum(),1);
+    // 条件5: 福引・BZ以外ATはBZの回数に入らない。次のBZは新しいAT間の1回目に計上される
+    await record('t3','miss');assert.deepEqual((await displayed())[2],['0/1','0/0']);assert.equal(await sum(),2);
   });
   await check('06 reload migration and real double-confirm reset/undo',async()=>{
     await fresh(old);await record('t3');const before=await totals();await load(machine);await tab(2);assert.deepEqual(await totals(),before);
@@ -169,6 +171,59 @@ try{
     assert.match(await frame('return d.querySelector(".ev-pos").textContent;'),/11 猛焔一閃/);await shot('history-position-11','.ev-pos');
     assert.match(await frame('return d.querySelector(".pos-done").textContent;'),/11個目・猛焔一閃/);
     await click('[data-action="bzPick"][data-q="t7"]');assert.equal(await frame('return d.querySelectorAll("[data-action=bzPickPos][data-pos=\\"11\\"]").length;'),0);
+  });
+  // ネネ依頼（10/18）の確認条件1〜8との突き合わせで足した分。3・5・6・7 は 01・05・06・07 が受け持つ。
+  // 履歴から数え直した集計（base は別に足す）。画面の表がこれと一致すれば「履歴と集計のズレが無い」
+  const fromHistory=()=>frame(`const S=w.__checkerApp.getState(),T=w.__config.totals(S),out={};
+    for(const k of ['bzT1','bzT2','questN1','questN2'])out[k]=Object.fromEntries(Object.keys(T[k]).map(id=>[id,T[k][id]-S.bzBase[k][id]]));
+    const D={bzT1:{},bzT2:{}},N={questN1:{},questN2:{}};
+    for(const s of S.atLog.sessions){let no=s.start.known?s.start.prior:null;for(const e of s.events){if(e.t!=='bz')continue;if(no!==null)no++;
+      const g=no===null?e.g:(no===1?'bzT1':'bzT2');if(!g)continue;D[g][e.table]=(D[g][e.table]||0)+1;
+      if(e.r==='win'){const nk=g==='bzT1'?'questN1':'questN2';N[nk][e.table]=(N[nk][e.table]||0)+1;}}}
+    const same=k=>Object.keys(out[k]).every(id=>out[k][id]===((D[k]||N[k])[id]||0));
+    return ['bzT1','bzT2','questN1','questN2'].every(same);`);
+  await check('10 条件1: 初回／以後 × 成功・失敗の件数と成功数（複数のAT間）',async()=>{
+    await fresh();
+    await record('t1','miss');await record('t3','miss');await record('t2','win');   // AT間1: BZ1=①× BZ2=③× BZ3=②○
+    await record('t3','win');                                                    // AT間2: BZ1=③○
+    await record('t4','miss');await record('t3','miss');                         // AT間3: BZ1=④× BZ2=③×
+    const rows=await displayed();
+    assert.deepEqual(rows[0],['0/1','0/0']);assert.deepEqual(rows[1],['0/0','1/1']);
+    assert.deepEqual(rows[2],['1/1','0/2']);assert.deepEqual(rows[3],['0/1','0/0']);
+    assert.equal(await fromHistory(),true);
+  });
+  await check('11 条件2: 削除→取消→再登録→取消で履歴と集計がずれない',async()=>{
+    await fresh();await record('t1','miss');await record('t3','miss');
+    const two=await displayed(),events=()=>state().then(S=>S.atLog.sessions.flatMap(s=>s.events).length);
+    await remove(0);assert.equal(await events(),1);assert.deepEqual((await displayed())[2],['0/1','0/0']);assert.equal(await fromHistory(),true);
+    await click('#undoBtn');assert.equal(await events(),2);assert.deepEqual(await displayed(),two);assert.equal(await fromHistory(),true);
+    await remove(1);await record('t5','miss');assert.equal(await events(),2);assert.deepEqual((await displayed())[4],['0/0','0/1']);assert.equal(await fromHistory(),true);
+    await click('#undoBtn');assert.equal(await events(),1);assert.equal(await sum(),1);assert.equal(await fromHistory(),true);
+  });
+  await check('12 条件4: 途中への追加・先頭と途中の削除で初回／以後の内訳が一致',async()=>{
+    await fresh();await record('t3','miss');await record('t4','miss');await record('t5','miss');   // ③④⑤
+    await click('[data-action="atOpen"][data-index="1"]');await click('[data-action="atInsert"][data-index="1"]');await record('t2','miss');   // ③②④⑤
+    let S=await state();assert.deepEqual(S.atLog.sessions[0].events.map(e=>e.table),['t3','t2','t4','t5']);
+    let rows=await displayed();assert.deepEqual(rows[2],['0/1','0/0']);assert.deepEqual(rows[1],['0/0','0/1']);assert.equal(await fromHistory(),true);
+    await remove(0);rows=await displayed();   // ②④⑤：②が1回目に繰り上がる
+    assert.deepEqual(rows[1],['0/1','0/0']);assert.deepEqual(rows[2],['0/0','0/0']);assert.deepEqual(rows[3],['0/0','0/1']);assert.equal(await fromHistory(),true);
+    await remove(1);rows=await displayed();   // ②⑤
+    assert.deepEqual(rows[3],['0/0','0/0']);assert.deepEqual(rows[4],['0/0','0/1']);assert.equal(await sum(),2);assert.equal(await fromHistory(),true);
+  });
+  await check('13 条件8: 上部集計・シナリオカード・テンプレの同じ対象の数値が一致',async()=>{
+    await fresh(old);await record('t3','miss');await record('t2','win');await record('t1','win');await click('[data-action="bzPick"][data-q="t7"]');await click('[data-action="bzQuest"][data-r="win"]');
+    const rows=await displayed(),S=await state();
+    const card=await frame('return w.__config.scenarioModel(w.__checkerApp.getState()).tables;');
+    const tpl=await frame('return w.__checkerApp.tplText();');
+    const section=head=>{const lines=tpl.split('\n'),i=lines.findIndex(l=>l.startsWith(head));return lines.slice(i+1,i+8).map(l=>l.split('▶︎ ')[1]);};
+    const t1=section('■BZテーブル1回目'),t2=section('■BZテーブル2回目以降'),rate=section('■クエスト成功率');
+    rows.forEach(([a,b],i)=>{
+      const [n1,d1]=a.split('/').map(Number),[n2,d2]=b.split('/').map(Number);
+      assert.equal(t1[i],d1+'回','テンプレ1回目 '+i);assert.equal(t2[i],d2+'回','テンプレ2回目以降 '+i);
+      assert.equal(rate[i],(n1+n2)+'/'+(d1+d2),'テンプレ成功率 '+i);
+      assert.deepEqual([card[i].hit,card[i].count],[n1+n2,d1+d2],'シナリオカード '+i);
+    });
+    assert.deepEqual(rows[0],['1/36','0/0']);assert.equal(S.atLog.sessions.length>=36,true);
   });
   assert.deepEqual(await frame('return w.__errors;'),[]);assert.deepEqual(errors,[]);
 }catch(e){results.push({name:'browser acceptance',status:'FAIL',detail:e.stack,cause:String(e.cause||'')});console.error(e.stack,e.cause||'');process.exitCode=1;}

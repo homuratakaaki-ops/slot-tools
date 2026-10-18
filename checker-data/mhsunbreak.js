@@ -964,7 +964,7 @@
     return `<div class="bz-sub">結果アイコン</div><div class="pos-pick">${
       icons.map((name,i)=>btn(i+1,`${i+1}：${name}`,`位置${i+1} ${name}`,e.pos===i+1,iconColor(name))).join('')
     }${btn(11,'11：猛焔一閃（AT）','位置11 猛焔一閃',e.pos===11,iconColor(IC_MOU),e.r!=='win')}${btn('','未記録','結果アイコン 未記録',!e.pos)}</div>
-      <div class="hint">ブレイクゾーンの結果が、並んだアイコンの何個目で出たかを記録します。押さなくてもかまいません。11個目は猛焔一閃（AT）です。押すと成功として記録されます。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>`;
+      <div class="hint">ブレイクゾーンの結果が、並んだアイコンの何個目で出たかを記録します。押さなくてもかまいません。11個目は猛焔一閃（AT）です。成功の記録にだけ付けられます。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>`;
   }
   function inputPosPicker(table){
     if(table==='t7')return '<div class="pos-fixed">位置1 AT を自動で記録します</div>';
