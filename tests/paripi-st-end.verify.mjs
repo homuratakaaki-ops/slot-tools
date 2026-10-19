@@ -76,7 +76,8 @@ const mhOnly='.pick-row .pick-table-label,.pick-row .pick-result-label{display:i
 assert.equal(style(read('mhsunbreak-checker.html')).split(mhOnly).length-1,1);
 assert.equal(style(checker),style(read('mhsunbreak-checker.html')).replace(mhOnly,''));
 const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
-assert.equal(list.match(/class="checker-main" href="([^"]+)/)[1],'paripi-checker.html');
+// 新機種は一覧の先頭に入るので、先頭固定ではなく掲載されていることを見る。
+assert.equal([...list.matchAll(/class="checker-main" href="paripi-checker.html"/g)].length,1);
 assert.ok(list.includes('href="paripi-guide.html">使い方</a>'));
 const map=read('sitemap.xml');for(const kind of ['checker','guide']){const marker=`<loc>https://slot-tools.jp/paripi-${kind}.html</loc>\n    <lastmod>2026-10-05</lastmod>`;assert.equal(map.split(marker).length-1,1);assert.ok(map.indexOf(marker)<map.indexOf('<loc>https://slot-tools.jp/counter-howto.html'));}
 const newsSection=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
