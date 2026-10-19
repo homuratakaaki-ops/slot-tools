@@ -295,6 +295,11 @@ RB中のキャラ紹介が全15パターン判明し、エンディング中の�
 - [~] 検収用テスト版 `garei-zero-re-test-checker.html`＋`checker-data/garei_zero_re-test.js`（保存キー `garei-zero-re-checker-v1-test`・noindex・導線なし）を main 3d6a0e9 で公開。このPRのマージで削除する
 - 検証：`tests/garei-1014.verify.mjs`（出典の表を独立に転記して突き合わせ・設定推測・保存互換・テスト版の差分が2行だけ）と `tests/garei-1014.browser.mjs`（加算／減算／取消／再読込・本番キー不変・360/390/412px・詳細カード）。garei をバイト固定している5本のテストは除外に追加
 
+## L 魔法少女にあこがれて 設定判別カウンター 新規（2026-10-19・ちょんぼりすた様 10/19 更新分）
+
+- [~] `mahoako-checker.html`＋`checker-data/mahoako.js`（保存キー `mahoako-checker-v1`）＋`mahoako-guide.html`。仕様書は `docs/specs/mahoako-checker-v01.md`。5タブ（入力／示唆／設定推測／参照／カード）。設定推測は CZ確率（二項）・CZ種別3種（多項）・確定演出と枚数表示・RB特殊キャラ・ヴァーツの除外17件。AT初当り（ボーナス契機／ボーナス以外／契機不明）は CZ の結果と連動するため表示のみ。奇数・偶数・高設定の期待度UPは記録のみ。各示唆セクションに「不明」行を置き、割合の母数から外す。ED隠しPUSH（全色調査中）・百合MAX・小役CZ・規定G数・AT終了画面・会話・ステージチェンジ・アクションは採用しない（理由は仕様書）
+- [ ] ネネ検収・夢爽実機の間は noindex のまま main に置く（導線なし）。検収OK後に index.html の機種一覧・NEW欄1行・noindex 外しを同じPRに足してマージ
+
 
 ---
 
