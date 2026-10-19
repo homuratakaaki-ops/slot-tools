@@ -126,7 +126,12 @@ const guide=read('garei-zero-re-guide.html');
 assert.ok(guide.includes('<h3>ステージチェンジ演出</h3>')&&guide.includes('<h3>強チャンス目からのCZ当選</h3>'));
 assert.ok(guide.includes('<td>ステージチェンジ演出、BB終了画面'));ok();
 const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0].match(/<p>.*?<\/p>/g);
-assert.equal(news.length,8);assert.ok(news[0].includes('garei-zero-re-checker.html')&&news[0].includes('喰霊-零-Re ステージチェンジ演出・強チャンス目CZ当選率を追加'));ok();
+// NEW欄は後の更新で並びが変わり、8行上限で押し出されもするため、位置と在否は問わない。
+// 載っている間は1行だけで、書式が「M/D｜<a href="garei-zero-re-checker.html">喰霊-零-Re …</a>」であることを見る。
+assert.equal(news.length,8);
+const gareiNews=news.filter(p=>p.includes('喰霊-零-Re ステージチェンジ演出・強チャンス目CZ当選率を追加'));
+assert.ok(gareiNews.length<=1);
+for(const p of gareiNews)assert.match(p,/^<p>1?[0-9]\/[0-9]{1,2}｜<a href="garei-zero-re-checker\.html">喰霊-零-Re ステージチェンジ演出・強チャンス目CZ当選率を追加<\/a><\/p>$/);ok();
 for(const p of ['checker-data/garei_zero_re.js','garei-zero-re-checker.html','garei-zero-re-guide.html','index.html'])assert.ok(!read(p).includes('\r'),p+' LF');ok();
 
 console.log(`PASS garei-1014: ${checks} checks`);
