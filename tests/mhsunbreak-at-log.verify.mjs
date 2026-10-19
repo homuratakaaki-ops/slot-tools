@@ -31,7 +31,7 @@ test('default open AT interval; atLog excluded from numeric merge',()=>{
   assert.equal(buttons(S).filter(b=>b.includes('aria-pressed="true"')&&b.includes('class="at-btn on"')).length,1);
 });
 test('BZ1 table1 failure counts and shows H; group advances',()=>{
-  const S=fresh();assert.notEqual(bz(S),false);assert.equal(S.bzT1.t1,1);assert.equal(S.questN1.t1,0);
+  const S=fresh();assert.notEqual(bz(S),false);assert.equal(config.totals(S).bzT1.t1,1);assert.equal(config.totals(S).questN1.t1,0);
   equal(current(S).events,[{t:'bz',table:'t1',r:'miss'}]);
   assert.deepEqual(cards(S),['BZ1回目 ① 青スタート 失敗']);
   assert.match(html(S),/シナリオH濃厚：3回目のBZでAT濃厚/);
@@ -85,20 +85,20 @@ test('start remains editable until first BZ; invalid choices rejected',()=>{
   bz(S,'t2','miss','bzT2');assert.doesNotMatch(html(S),/data-action="atStart"/);
   const before=clone(S);assert.equal(action(S,'atStart',{known:'false'}),false);equal(S,before);
 });
-test('delete only current memo; recompute numbering, strongest hint and H',()=>{
+test('delete synchronizes totals; recompute numbering, strongest hint and H',()=>{
   const S=fresh();bz(S);bz(S,'t2','miss','bzT2');event(S,'eye','jay');event(S,'eye','bahari');
   action(S,'atDel',{index:'3'});assert.equal(topEye(S),'ジェイ（白）');
-  action(S,'atDel',{index:'0'});assert.equal(S.bzT1.t1,1);assert.equal(S.bzT2.t2,1);
+  action(S,'atDel',{index:'0'});assert.equal(config.totals(S).bzT1.t1,0);assert.equal(config.totals(S).bzT1.t2,1);assert.equal(config.totals(S).bzT2.t2,0);
   assert.ok(cards(S).includes('BZ1回目 ② 黄スタート 失敗'));assert.doesNotMatch(html(S),/シナリオH濃厚/);
   for(const index of ['-1','99','1.5','oops','',undefined])assert.equal(action(S,'atDel',{index}),false);
 });
 test('minus changes only aggregates, leaves memo; atEvent buttons and handler disabled',()=>{
-  const S=fresh();bz(S);const log=clone(S.atLog);
-  assert.notEqual(bz(S,'t1','miss','bzT1',-1),false);equal(S.atLog,log);assert.equal(S.bzT1.t1,0);
-  assert.ok(group(S,'bzT1',-1).filter(b=>b.includes('data-r="win"')).every(b=>!b.includes('disabled')));
+  const S=fresh();bz(S,'t2');S.bzBase.bzT1.t1=1;const log=clone(S.atLog);
+  assert.notEqual(bz(S,'t1','miss','bzT1',-1),false);equal(S.atLog,log);assert.equal(config.totals(S).bzT1.t1,0);
+  assert.ok(group(S,'bzT1',-1).filter(b=>b.includes('data-r="win"')).every(b=>b.includes('disabled')));
   assert.ok(buttons(S,-1).filter(b=>b.includes('data-action="atEvent"')).every(b=>b.includes('disabled')));
-  assert.match(html(S,-1),/減算モードでは記録できません。回数の訂正は下の「集計」の中のボタンで行います。/);
-  assert.match(html(S),/テーブル別の回数は減算モードで直してください（集計の中のボタン）。/);
+  assert.match(html(S,-1),/減算モードでは記録できません。履歴の訂正は経過の［削除］、履歴のない累計分の訂正は下の「集計」の中のボタンで行います。/);
+  assert.match(html(S),/［削除］でこの行が消え、テーブル別の回数も一緒に減ります。/);
   assert.equal(action(S,'atEvent',{t:'otherAt'},-1),false);equal(S.atLog,log);
 });
 test('invalid events are no-ops',()=>{

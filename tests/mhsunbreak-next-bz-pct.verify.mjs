@@ -17,6 +17,10 @@ const read=p=>fs.readFileSync(new URL(p,root),'utf8');
 const load=src=>{const box={window:{},document:{getElementById:()=>null},setTimeout:()=>0};vm.runInNewContext(src,box);return box.window.CheckerConfigs.mhsunbreak;};
 const config=load(read('checker-data/mhsunbreak.js'));
 const clone=v=>JSON.parse(JSON.stringify(v));
+// 旧実装には旧4キー、新実装にはbzBase＋履歴。同じ集計のfixtureで出力を比較する。
+const legacyState=S=>{const out=clone(S);if(out.bzBase){Object.assign(out,clone((config).totals(S)));delete out.bzBase;}return out;};
+const comparable=S=>JSON.stringify(canonical(legacyState(S)));
+function canonical(v){return Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;}
 const ctx=S=>({S,mode:1,pct:(n,d)=>`${n}/${d}`,nanaCreditText:k=>k==='card'?'テンプレ：鈴白なな様（@nana_szsr）':'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 const BASE='ca87216';   // 改修前の main（PR #45 のマージ）
 let checks=0;
@@ -325,17 +329,23 @@ const DATA={
   unknownStart:{atLog:{sessions:[sess([bz('t1'),bz('t2'),bz('t3'),bz('t4'),bz('t5'),bz('t6'),{t:'eye',c:'bahari'}],{known:false},false)]}},
   sessionMax:{atLog:{sessions:Array.from({length:55},(_,i)=>sess([bz('t'+((i%7)+1)),bz('t'+((i%6)+1),'win')],null,true))}}
 };
-const totals=S=>clone({bzT1:S.bzT1,bzT2:S.bzT2,questN1:S.questN1,questN2:S.questN2,
+const totals=S=>clone({...Object.fromEntries(['bzT1','bzT2','questN1','questN2'].map(k=>[k,legacyState(S)[k]])),
   czType:S.czType,cycle:S.cycle,bz:S.bz,hits:S.hits,games:S.games,counts:S.counts});
 const cardJson=(cfg,S)=>clone({blocks:cfg.card.blocks(ctx(S)),chart:cfg.card.chart(ctx(S)),
   bottom:cfg.card.bottom(ctx(S)),detail:cfg.card.detail(ctx(S))});
+// 今回明示された集計同期の説明だけを揃える。候補・参考％・表の値は除外しない。
+const ledgerHtml=h=>h
+  .replaceAll('11個目はどのテーブルでも猛焔一閃なので置いていません。','11個目は猛焔一閃（AT）です。押すと成功として記録されます。')
+  .replaceAll('［削除］はこのAT間のメモの行だけを消します。テーブル別の回数は減算モードで直してください（集計の中のボタン）。','［削除］でこの行が消え、テーブル別の回数も一緒に減ります。')
+  .replaceAll('回数の訂正は減算モードに切り替えると、この中にボタンが出ます。','履歴の訂正は経過の［削除］で行います。履歴のない累計分は減算モードに切り替えると、この中に訂正ボタンが出ます。')
+  .replace(/<div class="hint">うち履歴なし：[^<]*<\/div>/g,'');
 const stripNext=html=>html.replace(/<div class="at-next">.*?<\/div>/,'<div class="at-next">[NEXT]</div>');
 
 test('g. 保存データ6通りが改修前（'+BASE+'）と一致（変わるのは画面の「次のBZ」1行だけ）',()=>{
   let changed=0;
   for(const [name,data] of Object.entries(DATA)){
-    const was=before.normalizeState(clone(data)),now=config.normalizeState(clone(data));
-    assert.deepEqual(Buffer.from(JSON.stringify(now)),Buffer.from(JSON.stringify(was)),name+': normalizeState のバイト列が一致しない');
+    const now=config.normalizeState(clone(data)),was=before.normalizeState(legacyState(now));
+    assert.deepEqual(Buffer.from(comparable(now)),Buffer.from(comparable(was)),name+': normalizeState のバイト列が一致しない');
     assert.deepEqual(totals(now),totals(was),name+': 集計が一致しない');
     for(const key of ['template','compactTemplate'])
       assert.deepEqual(Buffer.from(config[key](ctx(now))),Buffer.from(before[key](ctx(was))),name+': '+key+' が一致しない');
@@ -344,7 +354,7 @@ test('g. 保存データ6通りが改修前（'+BASE+'）と一致（変わる�
     // 画面は「次のBZ」の1行以外が1文字も変わらない
     const a=page(before,was),b=page(config,now);
     const stripMode=h=>h.replace(/<button[^>]*data-action="fukuMode"[^>]*>.*?<\/button>\s*<div class="hint">.*?<\/div>/s,'').replace(/\s*\.fuku-toggle\{[^}]*\}\.fuku-toggle\[aria-checked="true"\]\{[^}]*\}/,'');
-    assert.equal(stripMode(stripNext(b)).replace(/\s+/g,' '),stripMode(stripNext(a)).replace(/\s+/g,' '),name+': 画面が次のBZ・福引切替以外で変わった');
+    assert.equal(ledgerHtml(stripMode(stripNext(b))).replace(/\s+/g,' '),ledgerHtml(stripMode(stripNext(a))).replace(/\s+/g,' '),name+': 画面が次のBZ・福引切替以外で変わった');
     const wasLine=(a.match(LINE)||[])[1]||'',nowLine=(b.match(LINE)||[])[1]||'';
     if(wasLine!==nowLine){changed++;assert.ok(nowLine.includes('%')&&wasLine.includes('レベル '),name+': 変わり方がレベル→％でない');}
   }

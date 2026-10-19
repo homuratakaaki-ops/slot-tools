@@ -136,7 +136,7 @@
     ['s3','次回BZレベルHI以上濃厚','重要なクエスト'],
     ['s4','次回BZレベルSP濃厚','珍しい依頼']
   ];
-  // BZのアイコン標準配列（位置1〜10）。11個目は全テーブル共通で「猛焔一閃」なので位置に置かない。
+  // BZのアイコン標準配列（位置1〜10）。11個目は配列外で全テーブル共通の「猛焔一閃」として扱う。
   // 出典: https://1geki.jp/slot/l_mh_sun/48/ ・ https://chonborista.com/slot/enta-slot/264514/
   // （2026/10/10 に両者を再照合し、7テーブルとも一致を確認した）
   const IC_QB='QUEST青',IC_QY='QUEST黄',IC_RA='ライゼクス',IC_SE='セルレギオス',
@@ -151,13 +151,14 @@
     t7:[IC_AT,IC_G,IC_G,IC_G,IC_G,IC_G,IC_G,IC_G,IC_G,IC_G]
   };
   // 経過カード・シナリオカードの狭い場所で使う短い名前
-  const ICON_SHORT={[IC_QB]:'青',[IC_QY]:'黄',[IC_RA]:'ライ',[IC_SE]:'セル',
+  const IC_MOU='猛焔一閃';
+  const ICON_SHORT={[IC_MOU]:'猛焔一閃',[IC_QB]:'青',[IC_QY]:'黄',[IC_RA]:'ライ',[IC_SE]:'セル',
                     [IC_OR]:'オロ',[IC_TE]:'テオ',[IC_AT]:'AT',[IC_G]:'＋G'};
   // 結果アイコンの色。テーブル①〜⑦の帯色をそのまま使い、色の表は二重に持たない。
   // ＋G だけはどのテーブルでも共通の出目なので中立色（--muted と同じ灰）にする。
   // 色は見分けの補助で、番号と名前の文字は必ず残す（§9-85）。
   const ICON_NEUTRAL='#9a90a8';
-  const ICON_COLORS={[IC_QB]:TABLE_COLORS.t1,[IC_QY]:TABLE_COLORS.t2,[IC_RA]:TABLE_COLORS.t3,[IC_SE]:TABLE_COLORS.t4,
+  const ICON_COLORS={[IC_MOU]:TABLE_COLORS.t7,[IC_QB]:TABLE_COLORS.t1,[IC_QY]:TABLE_COLORS.t2,[IC_RA]:TABLE_COLORS.t3,[IC_SE]:TABLE_COLORS.t4,
                      [IC_OR]:TABLE_COLORS.t5,[IC_TE]:TABLE_COLORS.t6,[IC_AT]:TABLE_COLORS.t7,[IC_G]:ICON_NEUTRAL};
   const iconColor=name=>ICON_COLORS[name]||ICON_NEUTRAL;
   // BZ終了時のPUSHで光るサイドランプ。色だけを記録する。
@@ -191,7 +192,7 @@
   const newAtSession=()=>({start:{known:true,prior:0},events:[],closed:false});
   // 画面に出せる出来事の種類。ここに無い種類は捨てずに持つだけにする（表示も集計もしない）。
   const EVENT_TYPES=['bz','fuku','eye','serif','otherAt','lamp'];
-  const ICON_POS_MAX=10;
+  const ICON_POS_MAX=11;
   const AT_SCHEMA=2;   // atLog の版数。無ければ 1 とみなす（表示には使わない）
   // 読み込みは前方互換にする。知らない種類の出来事も、知らない項目（キー）も捨てない。
   // 将来の版・テスト版で足した記録を、この版が開いただけで消してしまわないため。
@@ -203,8 +204,9 @@
       // BZ番号と集計の整合を壊すので、table・r が壊れている件だけは現行どおり捨てる
       if(!TABLES.some(c=>c[0]===e.table)||['win','miss'].indexOf(e.r)<0)return null;
       const pos=Math.trunc(Number(e.pos));
-      if(Number.isInteger(pos)&&pos>=1&&pos<=ICON_POS_MAX)out.pos=pos;
-      else delete out.pos;   // 1〜10 でない pos は項目ごと落とす（出来事そのものは残す）
+      if(Number.isInteger(pos)&&pos>=1&&pos<=ICON_POS_MAX&&(pos!==11||e.r==='win'))out.pos=pos;
+      else delete out.pos;   // 不正な位置は項目ごと落とす（出来事そのものは残す）
+      if(e.g!=='bzT1'&&e.g!=='bzT2')delete out.g;
       return out;
     }
     if(e.t==='fuku')return ['win','miss'].indexOf(e.r)>=0?out:null;
@@ -213,17 +215,18 @@
     // lamp は集計にもBZ番号にも使わないので、知らない色でも捨てずに残す（表示だけしない）
     return out;   // otherAt / lamp
   }
-  function normalizeAtLog(log){
+  function normalizeAtLog(log,dropped=[]){
     const src=log&&typeof log==='object'&&!Array.isArray(log)?log:{};
     // Object.assign はもとのキー順を保つので、2回目以降の正規化でJSONのバイト列が動かない。
     // キーの順が変わる書き方にしないこと（保存の冪等が崩れる）。
-    const sessions=(Array.isArray(src.sessions)?src.sessions:[]).filter(s=>s&&typeof s==='object'&&!Array.isArray(s)).slice(-AT_SESSION_MAX).map(s=>Object.assign({},s,{
+    const sessions=(Array.isArray(src.sessions)?src.sessions:[]).filter(s=>s&&typeof s==='object'&&!Array.isArray(s)).map(s=>Object.assign({},s,{
       start:s.start&&s.start.known===true?{known:true,prior:Math.max(0,Math.min(AT_PRIOR_MAX,Math.trunc(Number(s.start.prior)||0)))}:{known:false},
       events:(Array.isArray(s.events)?s.events:[]).map(normalizeAtEvent).filter(Boolean).slice(0,AT_EVENT_MAX),
       closed:s.closed===true
     }));
     if(!sessions.length||sessions[sessions.length-1].closed)sessions.push(newAtSession());
     const out=Object.assign({},src);
+    dropped.push(...sessions.slice(0,Math.max(0,sessions.length-AT_SESSION_MAX)));
     out.sessions=sessions.slice(-AT_SESSION_MAX);
     out.schemaVersion=AT_SCHEMA;
     return out;
@@ -260,7 +263,10 @@
       if(closesAt(event)){
         session.closed=true;
         S.atLog.sessions.push(newAtSession());
-        if(S.atLog.sessions.length>AT_SESSION_MAX)S.atLog.sessions.shift();
+        if(S.atLog.sessions.length>AT_SESSION_MAX){
+          addBase(S.bzBase,derived({atLog:{sessions:[S.atLog.sessions[0]]}}));
+          S.atLog.sessions.shift();
+        }
       }
       return true;
     }
@@ -300,8 +306,8 @@
     if(e.t==='otherAt')return 'BZ以外でAT当選';
     return '記録（この版では表示できません）';   // 防御。shownEvent を通らないので通常は呼ばれない
   }
-  // 結果アイコン（位置1〜10）。pos を持つ bz のときだけ文字列を返す。
-  function posIcon(e){return e&&e.t==='bz'&&e.pos?(TABLE_ICONS[e.table]||[])[e.pos-1]||'':'';}
+  // 結果アイコン（位置1〜11）。pos を持つ bz のときだけ文字列を返す。
+  function posIcon(e){return e&&e.t==='bz'&&e.pos?(e.pos===11?IC_MOU:(TABLE_ICONS[e.table]||[])[e.pos-1]||''):'';}
   function atEventAction(ctx,ds){
     savedNote=null;
     if(ctx.mode<0||ds.t==='bz')return false;
@@ -610,7 +616,7 @@
       // 次のBZは今のAT間にだけ。出すものが無いAT間では、改修前とまったく同じ形になるようキーを足さない
       ...(nextBz?{nextBz}:{})
     };});
-    const tables=TABLES.map(c=>({mark:c[1],color:c[4],hit:questHit(S,c[0]),count:questD(S,c[0])}));
+    const T=totals(S),tables=TABLES.map(c=>({mark:c[1],color:c[4],hit:questHit(S,c[0],T),count:questD(S,c[0],T)}));
     return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。',fukuIncluded()?'候補は福引を含む仮説と解析表に基づいて絞っています。':'候補は解析の表から確実に言えるものだけで絞っています。','％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません']};
   }
   // 幅1080の2枚目のカード。engine の描画には触らず、自分のキャンバスにだけ描く。
@@ -907,7 +913,7 @@
     const shown=shownCount(history);
     const detail=e?`<div class="cgrid"><div class="crow at-row"><div class="lbl"><div class="nm">${atEventText(history,openEvent)}</div></div>${view.closed?'':`<button type="button" class="cycle-btn" data-action="atDel" data-index="${openEvent}">削除</button>`}</div></div>
       ${e.t==='bz'?posPicker(e,openEvent,minus):''}
-      ${insertShifted?'<div class="hint">集計の計上先は変わりません。</div>':''}
+      ${insertShifted?'<div class="hint">後ろのBZの番号が変わり、集計の計上先も自動で移ります。</div>':''}
       ${view.closed?'':`<div class="at-pick one"><button type="button" class="at-btn" data-action="atInsert" data-index="${openEvent}"${insertBefore===openEvent?' disabled aria-disabled="true"':''}>このカードの前に追加</button></div>`}`:'';
     const start=!session.start.known?'不明':session.start.prior?'途中から '+session.start.prior+'回':'リセット後・AT後から';
     return `<section class="sec"><div class="now-box"><div class="now-h">現在の状況</div>
@@ -925,7 +931,7 @@
       ${shown?`<div class="ev-scroll" id="evScroll"><div class="ev-track">${history.events.map((e,i)=>eventCard(history,i)).join('')}</div></div>`:'<div class="hint">まだありません。下の「ここから記録」から押してください。</div>'}
       <div class="now-last${shown?'':' none'}">最新：${shown?atEventText(history,history.events.map((e,i)=>shownEvent(e)?i:-1).filter(i=>i>=0).pop()):'まだありません'}</div>
       ${detail}
-      ${shown?`<div class="hint">カードを押すと内容${view.closed?'と結果アイコン':'・結果アイコン・［削除］'}が出ます。${view.closed?'このAT間はAT当選で終わっています。次の記録をするまで結果アイコンを押せます（訂正は「↩ 取消」で行います）。':'［削除］はこのAT間のメモの行だけを消します。テーブル別の回数は減算モードで直してください（集計の中のボタン）。'}</div>`:''}
+      ${shown?`<div class="hint">カードを押すと内容${view.closed?'と結果アイコン':'・結果アイコン・［削除］'}が出ます。${view.closed?'このAT間はAT当選で終わっています。次の記録をするまで結果アイコンを押せます（訂正は「↩ 取消」で行います）。':'［削除］でこの行が消え、テーブル別の回数も一緒に減ります。'}</div>`:''}
 
     </div></section>`;
   }
@@ -949,27 +955,27 @@
     if(e.t==='lamp')return `${open} style="--c:${LAMP_COLORS[e.c]}" aria-label="${label}"><b>ﾗﾝﾌﾟ</b><i>${LAMP_NAMES[e.c]}</i></button>`;
     return `${open} aria-label="${label}"><b>BZ以外</b><i>でAT当選</i></button>`;
   }
-  // 結果アイコンの位置（1〜10）。成功・失敗どちらでも任意。11個目は全テーブル猛焔一閃なので置かない。
+  // 結果アイコンの位置（1〜11）。11個目は成功時のみ選べる。
   function posPicker(e,index,minus){
     const icons=TABLE_ICONS[e.table]||[];
     const dis=minus?' disabled aria-disabled="true"':'';
     if(e.pos&&!posEditOpen)return `<div class="bz-sub">結果アイコン</div><div class="pos-done"><div class="nm" style="color:${iconColor(posIcon(e))}">選択済み：${e.pos}個目・${ICON_SHORT[posIcon(e)]}</div><button type="button" class="cycle-btn" data-action="bzPosOpen"${dis}>変更</button></div>`;
-    const btn=(pos,text,label,on,color)=>`<button type="button" class="pos-btn${on?' on':''}" data-action="bzPos" data-index="${index}" data-pos="${pos}" aria-pressed="${!!on}" aria-label="${label}"${color?` style="--c:${color}"`:''}${dis}>${text}</button>`;
+    const btn=(pos,text,label,on,color,blocked=false)=>`<button type="button" class="pos-btn${on?' on':''}" data-action="bzPos" data-index="${index}" data-pos="${pos}" aria-pressed="${!!on}" aria-label="${label}"${color?` style="--c:${color}"`:''}${dis||(blocked?' disabled aria-disabled="true"':'')}>${text}</button>`;
     return `<div class="bz-sub">結果アイコン</div><div class="pos-pick">${
       icons.map((name,i)=>btn(i+1,`${i+1}：${name}`,`位置${i+1} ${name}`,e.pos===i+1,iconColor(name))).join('')
-    }${btn('','未記録','結果アイコン 未記録',!e.pos)}</div>
-      <div class="hint">ブレイクゾーンの結果が、並んだアイコンの何個目で出たかを記録します。押さなくてもかまいません。11個目はどのテーブルでも猛焔一閃なので置いていません。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>`;
+    }${btn(11,'11：猛焔一閃（AT）','位置11 猛焔一閃',e.pos===11,iconColor(IC_MOU),e.r!=='win')}${btn('','未記録','結果アイコン 未記録',!e.pos)}</div>
+      <div class="hint">ブレイクゾーンの結果が、並んだアイコンの何個目で出たかを記録します。押さなくてもかまいません。11個目は猛焔一閃（AT）です。成功の記録にだけ付けられます。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>`;
   }
   function inputPosPicker(table){
     if(table==='t7')return '<div class="pos-fixed">位置1 AT を自動で記録します</div>';
     if(!pickPosOpen){
-      const name=pickPos===null?'':TABLE_ICONS[table][pickPos-1];
+      const name=pickPos===null?'':posIcon({t:'bz',table,pos:pickPos});
       const done=pickPos===null?'未記録':pickPos+'個目・'+ICON_SHORT[name];
       const tint=pickPos===null?'':' style="color:'+iconColor(name)+'"';
       return '<div class="pos-done"><div class="nm"'+tint+'>選択済み：'+done+'</div><button type="button" class="cycle-btn" data-action="bzPickPosOpen">変更</button></div>';
     }
-    const btn=(pos,name)=>'<button type="button" class="pos-btn'+(pickPos===pos?' on':'')+'" data-action="bzPickPos" data-pos="'+pos+'" aria-pressed="'+(pickPos===pos)+'" aria-label="'+(pos===''?'結果アイコン 未記録で進む':'位置'+pos+' '+name)+'"'+(name?' style="--c:'+iconColor(name)+'"':'')+'>'+(pos===''?'未記録で進む':pos+'：'+name)+'</button>';
-    return '<div class="pos-pick">'+TABLE_ICONS[table].map((name,i)=>btn(i+1,name)).join('')+btn('','')+'</div>';
+    const btn=(pos,name)=>'<button type="button" class="pos-btn'+(pickPos===pos?' on':'')+'" data-action="bzPickPos" data-pos="'+pos+'" aria-pressed="'+(pickPos===pos)+'" aria-label="'+(pos===''?'結果アイコン 未記録で進む':'位置'+pos+' '+name+(pos===11?' 成功として記録':''))+'"'+(name?' style="--c:'+iconColor(name)+'"':'')+'>'+(pos===''?'未記録で進む':pos+'：'+name+(pos===11?'（AT）':''))+'</button>';
+    return '<div class="pos-pick">'+TABLE_ICONS[table].map((name,i)=>btn(i+1,name)).join('')+btn(11,IC_MOU)+btn('','')+'</div>';
   }
   // BZ入口（1 テーブル → 2 結果アイコン → 3 成功/失敗）
   function inputSection(ctx){
@@ -987,11 +993,11 @@
       ${savedNote?`<div class="saved-note">${savedNote}</div>`:''}
       <div class="step-h">1. スタートのテーブル</div>
       <div class="t-pick">${TABLES.map(pickBtn).join('')}</div>
-      ${minus?'<div class="hint">減算モードでは記録できません。回数の訂正は下の「集計」の中のボタンで行います。</div>':`
+      ${minus?'<div class="hint">減算モードでは記録できません。履歴の訂正は経過の［削除］、履歴のない累計分の訂正は下の「集計」の中のボタンで行います。</div>':`
       ${known?`<div class="mn calc">→ ${group==='bzT1'?'1回目':'2回目以降'}に計上（BZ${no}回目）</div>`:`<div class="bz-sub">どちらに計上するか</div><div class="at-pick">${BZ_GROUPS.map(([dKey,,title])=>`<button type="button" class="at-btn${pickGroup===dKey?' on':''}" data-action="bzGroup" data-d="${dKey}" aria-pressed="${pickGroup===dKey}">${title}</button>`).join('')}</div>`}
       ${picked?`<div class="pick-sum">選んだテーブル：${TABLE_NAMES[picked]}（${no===null?'BZ番号なし':'BZ'+no+'回目'}）</div><div class="step-h">2. 結果アイコン（任意）</div>${inputPosPicker(picked)}<div class="step-h">3. 成功／失敗</div>`:''}
-      <div class="crow pick-row"><div class="lbl"><div class="nm">${picked?`<span class="pick-table-label">${TABLE_NAMES[picked]}</span>${pickPos!==null?` <span class="pick-result-label" style="color:${iconColor(TABLE_ICONS[picked][pickPos-1])}">・ 結果 ${pickPos}個目 ${ICON_SHORT[TABLE_ICONS[picked][pickPos-1]]}</span>`:''}`:'テーブルを選んでください'}</div></div><div class="cycle-actions">${resultBtns}</div></div>`}
-      <div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。1でテーブル、2で結果アイコン（押さなくてもかまいません）、3で［成功］［失敗］の順に押します。BZとその後のクエストが終わってから、ATに当選したかで押してください。テーブル⑦はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（リセット後を含む）最初のブレイクゾーン、2回目以降はそれ以外で、開始が分かっているときは次のBZ番号から自動で決まります。据え置きの朝一は前日のAT間の続きなので、開始では［途中から］を選んでください。設定差は公表されていません。記録してサンプルを集める項目です。結果アイコンは、ブレイクゾーンの結果が並んだアイコンの何個目で出たかの記録です。11個目はどのテーブルでも猛焔一閃なので置いていません。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>
+      <div class="crow pick-row"><div class="lbl"><div class="nm">${picked?`<span class="pick-table-label">${TABLE_NAMES[picked]}</span>${pickPos!==null?` <span class="pick-result-label" style="color:${iconColor(posIcon({t:'bz',table:picked,pos:pickPos}))}">・ 結果 ${pickPos}個目 ${ICON_SHORT[posIcon({t:'bz',table:picked,pos:pickPos})]}</span>`:''}`:'テーブルを選んでください'}</div></div><div class="cycle-actions">${resultBtns}</div></div>`}
+      <div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。1でテーブル、2で結果アイコン（押さなくてもかまいません）、3で［成功］［失敗］の順に押します。BZとその後のクエストが終わってから、ATに当選したかで押してください。テーブル⑦はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（リセット後を含む）最初のブレイクゾーン、2回目以降はそれ以外で、開始が分かっているときは次のBZ番号から自動で決まります。据え置きの朝一は前日のAT間の続きなので、開始では［途中から］を選んでください。設定差は公表されていません。記録してサンプルを集める項目です。結果アイコンは、ブレイクゾーンの結果が並んだアイコンの何個目で出たかの記録です。11個目は猛焔一閃（AT）です。押すと成功として記録されます。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>
     </div>`;
   }
   // 4. 補助（必要なときだけ開く）
@@ -1030,27 +1036,28 @@
     </section>`;
   }
   function totalsSection(ctx){
-    const S=ctx.S,minus=ctx.mode<0;
+    const S=ctx.S,T=totals(S),minus=ctx.mode<0;
     const rows=TABLES.map(([id,mark,short])=>`<div class="sum-row" style="--c:${TABLE_COLORS[id]}" aria-label="${TABLE_READS[id]}">
-      <b>${mark}</b><span class="sum-name">${short}</span><span>${n(S.questN1,id)}/${n(S.bzT1,id)}</span><span>${n(S.questN2,id)}/${n(S.bzT2,id)}</span><span class="sum-total">${ctx.pct(questHit(S,id),questD(S,id))}</span>
+      <b>${mark}</b><span class="sum-name">${short}</span><span>${n(T.questN1,id)}/${n(T.bzT1,id)}</span><span>${n(T.questN2,id)}/${n(T.bzT2,id)}</span><span class="sum-total">${ctx.pct(questHit(S,id,T),questD(S,id,T))}</span>
     </div>`).join('');
     const fix=minus?BZ_GROUPS.map(([dKey,nKey,title])=>`
       <div class="bz-sub">${title}</div>
       <div class="cgrid">${TABLES.map(([id])=>{
-        const hit=n(S[nKey],id),d=n(S[dKey],id);
+        const hit=n(S.bzBase[nKey],id),d=n(S.bzBase[dKey],id);
         const label=title+' '+TABLE_READS[id];
         const disabled=d<=hit?' disabled aria-disabled="true"':'';
         return `<div class="crow quest-row" style="--c:${TABLE_COLORS[id]}">
           <div class="lbl"><div class="nm">${TABLE_NAMES[id]}</div><div class="pct">${ctx.pct(hit,d)}</div></div>
           <div class="cycle-actions">
-            <button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${dKey}" data-n="${nKey}" data-q="${id}" data-r="win" data-label="${label} 成功" aria-label="${label} 成功">${id==='t7'?'＋':'成功'}</button>
+            <button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${dKey}" data-n="${nKey}" data-q="${id}" data-r="win" data-label="${label} 成功" aria-label="${label} 成功"${hit<=0?' disabled aria-disabled="true"':''}>${id==='t7'?'＋':'成功'}</button>
             ${id==='t7'?'':`<button type="button" class="cycle-btn" data-action="bzQuest" data-d="${dKey}" data-q="${id}" data-r="miss" data-label="${label} 失敗" aria-label="${label} 失敗"${disabled}>失敗</button>`}
           </div>
         </div>`;
       }).join('')}</div>`).join(''):'';
     const body=`<div class="sum-head"><b>T</b><span class="sum-name">テーブル</span><span>1回目</span><span>2回目以降</span><span class="sum-total">合算</span></div>
       ${rows}
-      ${minus?`<div class="hint">減算モードです。下のボタンで、そのグループの回数と成功数を1つ戻します（AT間メモは変わりません）。</div>${fix}`:'<div class="hint">テンプレに出る成功率は合算（1回目＋2回目以降）です。回数の訂正は減算モードに切り替えると、この中にボタンが出ます。</div>'}`;
+      ${BZ_GROUPS.some(([d])=>total(TABLES,S.bzBase[d])>0)?`<div class="hint">うち履歴なし：${BZ_GROUPS.map(([d,n,title])=>title+' '+total(TABLES,S.bzBase[d])+'回（成功'+total(TABLES,S.bzBase[n])+'）').join('／')}</div>`:''}
+      ${minus?`<div class="hint">減算モードは履歴のない累計分だけを減らします。AT間メモにある記録は、経過の［削除］で直してください。</div>${fix}`:'<div class="hint">テンプレに出る成功率は合算（1回目＋2回目以降）です。履歴の訂正は経過の［削除］で行います。履歴のない累計分は減算モードに切り替えると、この中に訂正ボタンが出ます。</div>'}`;
     return foldSection('totals','集計','テーブル別の成功／回数',body,minus);
   }
   function pastSection(ctx){
@@ -1074,11 +1081,12 @@
     const S=ctx.S,[dKey,nKey,title]=group,id=ds.q;
     const keys=ds.r==='win'?[dKey,nKey]:[dKey];
     if(ctx.mode<0){
-      if(keys.some(key=>n(S[key],id)<=0)||(ds.r==='miss'&&n(S[dKey],id)<=n(S[nKey],id)))return false;
-      keys.forEach(key=>{S[key][id]--;});
+      if(keys.some(key=>n(S.bzBase[key],id)<=0)||(ds.r==='miss'&&n(S.bzBase[dKey],id)<=n(S.bzBase[nKey],id)))return false;
+      keys.forEach(key=>{S.bzBase[key][id]--;});
     }else{
       // テーブル⑦はAT濃厚で、結果アイコンは必ず位置1（配列の1個目がAT）なので既定で入れる
       const event={t:'bz',table:id,r:ds.r};
+      if(!currentAt(S).start.known)event.g=dKey;
       if(id==='t7')event.pos=1;
       else if(Number.isInteger(pickPos)&&pickPos>=1&&pickPos<=ICON_POS_MAX)event.pos=pickPos;
       const session=currentAt(S);
@@ -1086,7 +1094,6 @@
       // 差し込み中はAT間を閉じる出来事を受け付けない（台帳 S02）。記録せず断りだけ出す
       if(at!==null&&closesAt(event))return rejectInsert();
       if(!atGroupAllowed(S,dKey)||!addAtEvent(S,event,at))return false;
-      keys.forEach(key=>{S[key][id]=n(S[key],id)+1;});
       pickTable=null; pickPos=null; pickPosOpen=true;
       savedNote='記録しました：'+atEventText(session,index);
       afterRecord(S,event,at,index);
@@ -1096,23 +1103,49 @@
   // questN1 / questN2 は、そのグループのテーブル別のBZ成功（AT当選）数。
   // BZのグループ: [回数キー, 成功キー, 見出し]
   const BZ_GROUPS=[['bzT1','questN1','1回目'],['bzT2','questN2','2回目以降']];
-  function questD(S,id){return n(S.bzT1,id)+n(S.bzT2,id);}
+  const BASE_KEYS=['bzT1','bzT2','questN1','questN2'];
+  function emptyBase(){return Object.fromEntries(BASE_KEYS.map(k=>[k,zero(TABLES)]));}
+  function addBase(base,extra){BASE_KEYS.forEach(k=>TABLES.forEach(([id])=>{base[k][id]+=n(extra[k],id);}));return base;}
+  function derived(S){
+    const out=emptyBase();
+    for(const session of S.atLog.sessions)session.events.forEach((e,i)=>{
+      if(e.t!=='bz'||!TABLES.some(([id])=>id===e.table))return;
+      const d=session.start.known?(bzNoAt(session,i)===1?'bzT1':'bzT2'):e.g;
+      if(d!=='bzT1'&&d!=='bzT2')return;
+      out[d][e.table]++;
+      if(e.r==='win'||e.table==='t7')out[d==='bzT1'?'questN1':'questN2'][e.table]++;
+    });
+    return out;
+  }
+  function totals(S){return addBase(addBase(emptyBase(),S.bzBase||{}),derived(S));}
+  function questD(S,id,T=totals(S)){return n(T.bzT1,id)+n(T.bzT2,id);}
   // テンプレ・合算表示はグループをまたいだ合計を使う（出力はv02から不変）
-  function questHit(S,id){return n(S.questN1,id)+n(S.questN2,id);}
+  function questHit(S,id,T=totals(S)){return n(T.questN1,id)+n(T.questN2,id);}
   const zero=arr=>Object.fromEntries(arr.map(c=>[c[0],0]));
   // AT間（AT終了〜次のAT当選）ごとのメモ。順番を残すだけで、確率計算には使わない。
-  const DEF={games:0,hits:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null,bzT1:zero(TABLES),bzT2:zero(TABLES),questN1:zero(TABLES),questN2:zero(TABLES),atLog:{sessions:[newAtSession()]}};
-  const MERGE_KEYS=['counts','bz','cycle','czType',...GROUPS.map(g=>g[0]),'bzT1','bzT2','questN1','questN2'];
+  const DEF={games:0,hits:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null,bzBase:emptyBase(),atLog:{sessions:[newAtSession()]}};
+  const MERGE_KEYS=['counts','bz','cycle','czType',...GROUPS.map(g=>g[0]),'bzBase'];
   function total(arr,state){return arr.reduce((a,c)=>a+n(state,c[0]),0);}
   function czTotal(S){return total(CZ_TYPE,S.czType);}
   function normalizeState(out,src=out){
     backupPreExt();   // 拡張前の控え。保存し直すと schemaVersion が付くので実質1回だけ動く
-    out.atLog=normalizeAtLog(out.atLog);
+    src=src&&typeof src==='object'?src:{};
+    const migrate=!(src.bzBase&&typeof src.bzBase==='object'&&!Array.isArray(src.bzBase));
+    const dropped=[];
+    out.atLog=normalizeAtLog(out.atLog,dropped);
+    const keptDerived=derived(out);
+    const base=emptyBase();
+    BASE_KEYS.forEach(k=>TABLES.forEach(([id])=>{
+      const value=n(migrate?src[k]:src.bzBase[k],id);
+      base[k][id]=Math.max(0,(Number.isFinite(value)?Math.trunc(value):0)-(migrate?keptDerived[k][id]:0));
+    }));
+    // 旧累計から保持する履歴だけを引く。旧形式では破棄分は残差に含まれる。
+    if(!migrate&&dropped.length)addBase(base,derived({atLog:{sessions:dropped}}));
+    out.bzBase=base;
     out.games=Math.max(0,Number(out.games)||0);
     out.hits=Array.isArray(out.hits)?out.hits.map(v=>Math.max(0,parseInt(v,10)||0)).filter(v=>v>0):[];
-    MERGE_KEYS.forEach(key=>{
-      const tableKey=BZ_GROUPS.some(([dKey,nKey])=>key===dKey||key===nKey);
-      out[key]=tableKey?Object.fromEntries(TABLES.map(([id])=>[id,n(out[key],id)])):Object.assign({},DEF[key],out[key]||{});
+    MERGE_KEYS.filter(key=>key!=='bzBase').forEach(key=>{
+      out[key]=Object.assign({},DEF[key],out[key]||{});
       Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
     });
     BZ.forEach(c=>{out.bz[c[0]+'N']=Math.min(out.bz[c[0]+'N'],out.bz[c[0]+'D']);});
@@ -1121,16 +1154,17 @@
       const first=row.icons[0];
       if(!Object.prototype.hasOwnProperty.call(LEGACY_FIRST_ICON,first))continue;
       const id=LEGACY_FIRST_ICON[first],nKey=row.group==='bzT1'?'questN1':'questN2';
-      out[row.group][id]++;
-      if(id==='t7'||row.result==='win'||row.quest==='at')out[nKey][id]++;
+      out.bzBase[row.group][id]++;
+      if(id==='t7'||row.result==='win'||row.quest==='at')out.bzBase[nKey][id]++;
     }
     delete out.iconLog;
     delete out.iconPending;
     delete out.questN;
     // n≦d をグループごとに保つ（§9-87）
     BZ_GROUPS.forEach(([dKey,nKey])=>{
-      TABLES.forEach(([id])=>{out[nKey][id]=Math.min(n(out[nKey],id),n(out[dKey],id));});
+      TABLES.forEach(([id])=>{out.bzBase[nKey][id]=Math.min(n(out.bzBase[nKey],id),n(out.bzBase[dKey],id));});
     });
+    BASE_KEYS.forEach(k=>{delete out[k];});
     return out;
   }
   function pageInput(ctx){const S=ctx.S;return hitSection(S)+`
@@ -1289,12 +1323,12 @@
     return hit?`確定 ${hit.label}(${tierText(hit.sub)}) ×${hit.value}`:'確定演出 なし';
   }
   function shown(title,arr,state){const hits=arr.filter(c=>n(state,c[0])>0).map(c=>(c[4]||c[1])+'×'+n(state,c[0]));return title+' '+(hits.length?hits.join('・'):'—');}
-  function tplText(ctx){const S=ctx.S,g=hitSum(S),e=S.atEnd;
+  function tplText(ctx){const S=ctx.S,T=totals(S),g=hitSum(S),e=S.atEnd;
     // 正本の空白・異体字セレクタ・改行を保持し、56箇所の値だけ置換する。
     const values=[
-      ...TABLES.map(c=>n(S.bzT1,c[0])+'回'),
-      ...TABLES.map(c=>n(S.bzT2,c[0])+'回'),
-      ...TABLES.map(c=>questHit(S,c[0])+'/'+questD(S,c[0])),
+      ...TABLES.map(c=>n(T.bzT1,c[0])+'回'),
+      ...TABLES.map(c=>n(T.bzT2,c[0])+'回'),
+      ...TABLES.map(c=>questHit(S,c[0],T)+'/'+questD(S,c[0],T)),
       ...BZ.map(c=>n(S.bz,c[0]+'N')+'/'+n(S.bz,c[0]+'D')),
       ...CYCLE.map(c=>n(S.cycle,c[0])+'回'),
       ...CZ_TYPE.map(c=>n(S.czType,c[0])+'回'),
@@ -1320,7 +1354,7 @@
     ...GROUPS.map(g=>({title:g[1],items:detailItems(g[2],S[g[0]])}))
   ];}
   window.CheckerConfigs.mhsunbreak={
-    uiV2:true,nanaCollab:true,storageKey:STORAGE_KEY,defaults:DEF,mergeKeys:MERGE_KEYS,sourceUrl:SOURCE,normalizeState,
+    uiV2:true,nanaCollab:true,storageKey:STORAGE_KEY,defaults:DEF,mergeKeys:MERGE_KEYS,sourceUrl:SOURCE,normalizeState,totals,
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
     // BZシナリオカードの内容（engine は読まない。検証で中身を固定するために出しておく）
     scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,nextBzPct:nextBzLevelPct,
@@ -1345,6 +1379,12 @@
         const pos=ds.pos===''?null:Number(ds.pos);
         if(pos!==null&&(!Number.isInteger(pos)||pos<1||pos>ICON_POS_MAX))return false;
         pickPos=pos; pickPosOpen=false;
+        if(pos===11){
+          const group=nextBzTarget(ctx.S).group,nKey=group==='bzT1'?'questN1':'questN2';
+          const result=bzQuestAction(ctx,{d:group,n:nKey,q:pickTable,r:'win'});
+          if(result===false){pickPos=null;pickPosOpen=true;}
+          return result;
+        }
         return rerender();
       },
       bzPickPosOpen:ctx=>{
@@ -1438,7 +1478,7 @@
           insertShifted=false;
           return head+'未記録';
         }
-        if(!Number.isInteger(pos)||pos<1||pos>ICON_POS_MAX)return false;
+        if(!Number.isInteger(pos)||pos<1||pos>ICON_POS_MAX||(pos===11&&e.r!=='win'))return false;
         e.pos=pos;
         posEditOpen=false;
         insertShifted=false;

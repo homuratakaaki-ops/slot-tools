@@ -172,7 +172,7 @@ try{
   assert.deepEqual(await state(),saved,'ジャンプで保存が変わった');
   await click('#undoBtn');
   assert.deepEqual((await state()).atLog.sessions[0].events,[],'取消1回で記録が戻らない（ジャンプが履歴に積まれている）');
-  assert.equal((await state()).bzT1.t3,0);
+  assert.equal((await frame('return w.CheckerConfigs.mhsunbreak.totals(w.__checkerApp.getState());')).bzT1.t3,0);
   pass('jumps touch neither the save nor the undo history');
 
   // ===== 4. 結果アイコンの帯色（実際に描かれた色）=====
@@ -190,7 +190,7 @@ try{
     const got=await frame(`return [...d.querySelectorAll('.pos-btn')].map(e=>({text:e.textContent,
       band:w.getComputedStyle(e).borderLeftColor,color:w.getComputedStyle(e).color,
       bandWidth:w.getComputedStyle(e).borderLeftWidth,height:+e.getBoundingClientRect().height.toFixed(1)}));`);
-    assert.equal(got.length,11,id+': 11ボタンでない');
+    assert.equal(got.length,12,id+': 12ボタンでない');
     icons.forEach((name,i)=>{
       assert.equal(got[i].band,RGB[COLOR[name]],`${id} 位置${i+1}（${name}）: 帯色が違う`);
       assert.equal(got[i].color,RGB[COLOR[name]],`${id} 位置${i+1}（${name}）: 文字色が違う`);

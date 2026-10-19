@@ -41,6 +41,10 @@ const plainText=(()=>{
 })();
 
 const clone=v=>JSON.parse(JSON.stringify(v));
+// 旧実装には旧4キー、新実装にはbzBase＋履歴。同じ集計のfixtureで出力を比較する。
+const legacyState=S=>{const out=clone(S);if(out.bzBase){Object.assign(out,clone((after).totals(S)));delete out.bzBase;}return out;};
+const comparable=S=>JSON.stringify(canonical(legacyState(S)));
+function canonical(v){return Array.isArray(v)?v.map(canonical):v&&typeof v==='object'?Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])):v;}
 const ctx=S=>({S,mode:1,pct:(n,d)=>`${n}/${d}`,nanaCreditText:k=>k==='card'?'テンプレ：鈴白なな様（@nana_szsr）':'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 let checks=0;
 const test=(name,fn)=>{fn();checks++;console.log('PASS '+name);};
@@ -111,7 +115,7 @@ const cardJson=(config,S)=>clone({
   detail:config.card.detail(ctx(S))
 });
 const totals=S=>clone({
-  bzT1:S.bzT1,bzT2:S.bzT2,questN1:S.questN1,questN2:S.questN2,
+  ...Object.fromEntries(['bzT1','bzT2','questN1','questN2'].map(k=>[k,legacyState(S)[k]])),
   czType:S.czType,cycle:S.cycle,bz:S.bz,hits:S.hits,games:S.games,counts:S.counts
 });
 const stripSchema=S=>{const c=clone(S);if(c.atLog)delete c.atLog.schemaVersion;return c;};
@@ -133,10 +137,10 @@ let s01Fixed=0;
 
 test('a. 6通りが改修前（'+BASE+'）と一致（例外は atLog.schemaVersion と、台帳 S01 で直したH表示だけ）',()=>{
   for(const [name,data] of Object.entries(DATA)){
-    const was=before.normalizeState(clone(data));
     const now=after.normalizeState(clone(data));
+    const was=before.normalizeState(legacyState(now));
     assert.equal(now.atLog.schemaVersion,2,name+': schemaVersion が 2 でない');
-    assert.deepEqual(stripSchema(now),stripSchema(was),name+': normalizeState が一致しない');
+    assert.equal(comparable(stripSchema(now)),comparable(stripSchema(was)),name+': normalizeState が一致しない');
     assert.deepEqual(totals(now),totals(was),name+': 集計値が一致しない');
     assert.deepEqual(cardJson(after,now),cardJson(before,was),name+': カードJSONが一致しない');
     const tplWas=before.template(ctx(was)),tplNow=after.template(ctx(now));
@@ -232,7 +236,7 @@ test('e. 旧版の normalize では pos と lamp だけが落ち、他は一致�
     eye('jay'),bz('t3','miss',{pos:4}),lamp('red'),serif('s3'),bz('t5','win',{pos:1})
   ],{known:true,prior:0},true)]}};
   const now=after.normalizeState(clone(data));
-  const old=before.normalizeState(clone(now));
+  const old=before.normalizeState(legacyState(now));
   const oldEv=old.atLog.sessions[0].events;
   // ランプが1件落ちる
   assert.equal(oldEv.length,4);
@@ -243,7 +247,7 @@ test('e. 旧版の normalize では pos と lamp だけが落ち、他は一致�
   stripped.atLog.sessions=stripped.atLog.sessions.map(s=>Object.assign({},s,{
     events:s.events.filter(e=>e.t!=='lamp').map(e=>{const c=Object.assign({},e);delete c.pos;return c;})
   }));
-  assert.deepEqual(stripSchema(before.normalizeState(clone(stripped))),clone(old));
+  assert.deepEqual(stripSchema(before.normalizeState(legacyState(stripped))),clone(old));
   // 集計は動かない
   assert.deepEqual(totals(old),totals(now));
 });
@@ -333,8 +337,8 @@ test('g. 差し込みで順序が直り、BZ番号は数え直し、集計は動
   assert.ok(act(S3,'bzQuest',{d:'bzT1',n:'questN1',q:'t3',r:'miss'}));
   assert.equal(act(S3,'atInsert',{index:'0'}),false);
   assert.ok(act(S3,'bzQuest',{d:'bzT1',n:'questN1',q:'t2',r:'miss'}));
-  assert.equal(S3.bzT1.t2,1,'差し込んだBZが1回目に入っていない');
-  assert.equal(S3.bzT2.t2,0);
+  assert.equal(after.totals(S3).bzT1.t2,1,'差し込んだBZが1回目に入っていない');
+  assert.equal(after.totals(S3).bzT2.t2,0);
   assert.deepEqual(clone(S3.atLog.sessions[0].events).map(e=>e.table),['t2','t3']);
 });
 
@@ -443,7 +447,7 @@ test('S01. ①失敗→取消でH表示が消える',()=>{
   assert.ok(act(S,'bzQuest',{d:'bzT1',n:'questN1',q:'t1',r:'miss'}));
   assert.ok(page(S).includes('シナリオH濃厚'));
   // 「↩ 取消」は engine が状態を巻き戻して normalizeState をかけ直す
-  S.atLog.sessions[0].events=[];S.bzT1.t1=0;
+  S.atLog.sessions[0].events=[];S.bzBase.bzT1.t1=0;
   after.normalizeState(S);
   assert.ok(!page(S).includes('シナリオH濃厚'),'取消後もH濃厚が残っている');
   assert.ok(!page(S).includes('該当なし'),'記録が無いのに該当なしが出ている');

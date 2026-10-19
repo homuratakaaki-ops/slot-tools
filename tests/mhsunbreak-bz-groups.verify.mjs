@@ -9,7 +9,7 @@ const read=p=>fs.readFileSync(new URL(p,new URL('../',import.meta.url)),'utf8');
 const load=source=>{const x={window:{}};vm.runInNewContext(source,x);return x.window.CheckerConfigs.mhsunbreak;};
 const config=load(read('checker-data/mhsunbreak.js'));
 const clone=x=>JSON.parse(JSON.stringify(x));
-const ids=Object.keys(config.defaults.questN1);
+const ids=Object.keys(config.defaults.bzBase.questN1);
 const ctx=(S,mode=1)=>({S,mode,pct:(n,d)=>n+'/'+d+' '+(d?Math.round(n/d*100)+'%':'—'),nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 const html=(S,mode=1)=>config.pages(ctx(S,mode),()=> '')[2]();
 const sectionByTitle=(S,title)=>{
@@ -27,7 +27,7 @@ const t3=S=>sumRow(S,2);
 // Exercise the paths declared by the generated button; production clicks are
 // covered separately by new-1005-four-machines.browser.mjs.
 function tap(S,key,id,success){
-  S.atLog.sessions[0].start={known:false};
+  S.atLog.sessions.at(-1).start={known:false};
   const nKey=key==='bzT1'?'questN1':'questN2';
   const paths=key+'.'+id+(success?','+nKey+'.'+id:'');
   // 画面の手順どおり：計上先を選ぶ → テーブルを選ぶ → 結果を押す
@@ -40,18 +40,18 @@ function tap(S,key,id,success){
   assert.ok(button.includes('data-d="'+key+'"'),paths+' の計上先: '+button);
   assert.doesNotMatch(button,/disabled/);
   const d=button.match(/data-d="([^"]+)"/)[1],q=button.match(/data-q="([^"]+)"/)[1];
-  S[d][q]++;
-  if(button.includes('data-r="win"'))S[d==='bzT1'?'questN1':'questN2'][q]++;
+  assert.notEqual(config.actions.bzQuest(ctx(S),{d,q,r:success?'win':'miss'}),false);
 }
 let count=0;
 function test(name,fn){fn();count++;console.log('PASS '+name);}
 
 test('group independence and read-only seven-row aggregate',()=>{
   const S=clone(config.defaults);tap(S,'bzT1','t3',true);tap(S,'bzT1','t3',false);
-  assert.deepEqual([S.questN1.t3,S.bzT1.t3,S.questN2.t3,S.bzT2.t3],[1,2,0,0]);
+  assert.deepEqual([config.totals(S).questN1.t3,config.totals(S).bzT1.t3,config.totals(S).questN2.t3,config.totals(S).bzT2.t3],[1,2,0,0]);
   assert.deepEqual(t3(S),['1/2','0/0','1/2 50%']);
   tap(S,'bzT2','t3',true);
   assert.deepEqual(t3(S),['1/2','1/1','2/3 67%']);
+  config.actions.bzPick(ctx(S),{q:'t3'});
   const page=html(S);
   assert.equal((page.match(/class="sum-row"/g)||[]).length,7);
   // 加算モードでは集計に入力ボタンを置かない（入力は「BZを記録」の1組だけ）
@@ -63,7 +63,7 @@ test('group independence and read-only seven-row aggregate',()=>{
   assert.equal((minus.match(/class="crow quest-row"/g)||[]).length,14);
   assert.equal((minus.match(/data-action="bzQuest"/g)||[]).length,26);
 });
-test('one success changes exactly five state paths including AT log',()=>{
+test('one success changes only three AT log paths',()=>{
   const S=clone(config.defaults);S.atLog.sessions[0].start={known:false};
   const before=clone(S);config.actions.bzQuest(ctx(S),{d:'bzT1',q:'t3',r:'win'});
   function diff(a,b,p=''){return Object.keys({...a,...b}).flatMap(k=>{
@@ -73,14 +73,14 @@ test('one success changes exactly five state paths including AT log',()=>{
   });}
   const paths=diff(before,S).sort();
   console.log('Measured success delta paths: '+paths.join(', '));
-  assert.deepEqual(paths,['atLog.sessions.0.closed','atLog.sessions.0.events.0','atLog.sessions.1','bzT1.t3','questN1.t3']);
+  assert.deepEqual(paths,['atLog.sessions.0.closed','atLog.sessions.0.events.0','atLog.sessions.1']);
 });
 test('per-group clamp and minus failure guard',()=>{
   const S=clone(config.defaults);
-  for(const id of ids){S.bzT1[id]=2;S.bzT2[id]=3;S.questN1[id]=9;S.questN2[id]=9;}
+  for(const id of ids){S.bzBase.bzT1[id]=2;S.bzBase.bzT2[id]=3;S.bzBase.questN1[id]=9;S.bzBase.questN2[id]=9;}
   config.normalizeState(S);
-  for(const id of ids){assert.equal(S.questN1[id],2);assert.equal(S.questN2[id],3);}
-  S.bzT2.t3=4;
+  for(const id of ids){assert.equal(config.totals(S).questN1[id],2);assert.equal(config.totals(S).questN2[id],3);}
+  S.bzBase.bzT2.t3=4;
   // 減算モードの訂正ボタンは「集計」の中にある
   const buttons=[...html(S,-1).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]);
   const failure=key=>buttons.find(b=>b.includes('data-d="'+key+'"')&&b.includes('data-q="t3"')&&b.includes('data-r="miss"'));
@@ -90,21 +90,21 @@ test('per-group clamp and minus failure guard',()=>{
 test('legacy icon migration counts seven tables, skips three and is idempotent',()=>{
   const first=['qBlue','qYellow','rai','sel','oro','teo','rush','gold','blaze','unknown'];
   const oldIds=['blue','yellow','raizex','serregios','oromidro','teo','at'];
-  const src=clone(config.defaults);
+  const src=clone(config.defaults);delete src.bzBase;
   for(const key of ['bzT1','bzT2','questN1','questN2'])src[key]=Object.fromEntries(oldIds.map(id=>[id,99]));
   src.questN={blue:99};src.iconPending=['rai'];
   src.iconLog=first.map((icon,i)=>({icons:[icon],group:i%2?'bzT2':'bzT1',result:i%2?'win':'miss',quest:i===4?'at':'blue'}));
   for(const direct of [false,true]){
     const input=clone(src);
     const out=direct?config.normalizeState(input):config.normalizeState({...clone(config.defaults),...input},input);
-    for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual(Object.keys(out[key]),ids);
+    for(const key of ['bzT1','bzT2','questN1','questN2'])assert.deepEqual(Object.keys(config.totals(out)[key]),ids);
     ids.forEach((id,i)=>{
       const group=i%2?'bzT2':'bzT1',other=i%2?'bzT1':'bzT2',nKey=i%2?'questN2':'questN1';
-      assert.equal(out[group][id],1);assert.equal(out[other][id],0);
-      assert.equal(out[nKey][id],i%2||i===4||i===6?1:0);
-      assert.equal(out[i%2?'questN1':'questN2'][id],0);
+      assert.equal(config.totals(out)[group][id],1);assert.equal(config.totals(out)[other][id],0);
+      assert.equal(config.totals(out)[nKey][id],i%2||i===4||i===6?1:0);
+      assert.equal(config.totals(out)[i%2?'questN1':'questN2'][id],0);
     });
-    assert.equal(Object.values(out.bzT1).concat(Object.values(out.bzT2)).reduce((a,b)=>a+b,0),7);
+    assert.equal(Object.values(config.totals(out).bzT1).concat(Object.values(config.totals(out).bzT2)).reduce((a,b)=>a+b,0),7);
     for(const key of ['iconLog','iconPending','questN'])assert.ok(!Object.hasOwn(out,key));
     assert.deepEqual(clone(config.normalizeState(clone(out))),clone(out));
   }
@@ -121,15 +121,14 @@ test('template buffers equal 006e842 for zero and all table rows',()=>{
     const S=clone(config.defaults),previous=clone(old.defaults);
     if(filled)ids.forEach((id,i)=>{
       const oldId=Object.keys(old.defaults.bzT1)[i];
-      S.bzT1[id]=previous.bzT1[oldId]=i+2;S.bzT2[id]=previous.bzT2[oldId]=i+3;
-      S.questN1[id]=i+1;S.questN2[id]=2;previous.questN[oldId]=i+3;
+      S.bzBase.bzT1[id]=previous.bzT1[oldId]=i+2;S.bzBase.bzT2[id]=previous.bzT2[oldId]=i+3;
+      S.bzBase.questN1[id]=i+1;S.bzBase.questN2[id]=2;previous.questN[oldId]=i+3;
     });
     assert.deepEqual(Buffer.from(config.template(ctx(S))),Buffer.from(old.template(ctx(previous))));
   }
 });
 test('all 28 checker headers omit UI version labels and use the ・ separator',()=>{
-  // mhsunbreak-test-checker.html は検収用のテスト版（§9-108）。公開物の数には入れない。
-  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html')&&p!=='mhsunbreak-test-checker.html');
+  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html'));
   assert.equal(files.length,28);
   for(const file of files){
     const headers=[...read(file).matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>/g)];
@@ -147,13 +146,13 @@ test('f48130f template differs only by removed memo heading; card JSON identical
     const S=clone(config.defaults);
     if(filled){
       S.hits=[100,200,300,400];
-      for(const key of config.mergeKeys||[])if(S[key]&&typeof S[key]==='object')Object.keys(S[key]).forEach((id,i)=>{S[key][id]=i+2;});
+      for(const key of (config.mergeKeys||[]).filter(k=>k!=='bzBase'))if(S[key]&&typeof S[key]==='object')Object.keys(S[key]).forEach((id,i)=>{S[key][id]=i+2;});
       ids.forEach((quest,i)=>{
-        S.bzT1[quest]=i+2;S.bzT2[quest]=i+3;S.questN1[quest]=1;S.questN2[quest]=2;
+        S.bzBase.bzT1[quest]=i+2;S.bzBase.bzT2[quest]=i+3;S.bzBase.questN1[quest]=1;S.bzBase.questN2[quest]=2;
       });
     }
     const previous=clone(S);
-    for(const key of ['bzT1','bzT2','questN1','questN2'])previous[key]=Object.fromEntries(Object.keys(old.defaults[key]).map((id,i)=>[id,S[key][ids[i]]]));
+    for(const key of ['bzT1','bzT2','questN1','questN2'])previous[key]=Object.fromEntries(Object.keys(old.defaults[key]).map((id,i)=>[id,config.totals(S)[key][ids[i]]]));
     for(const key of ['template','compactTemplate'])assert.deepEqual(Buffer.from(config[key](ctx(clone(S)))),Buffer.from(old[key](ctx(clone(previous))).replace('■BZ配列メモ\n\n','')));
     assert.equal(JSON.stringify(card(config,clone(S))),JSON.stringify(card(old,clone(previous))));
   }
