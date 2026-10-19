@@ -128,7 +128,13 @@ check('normalize: missing/default/invalid/fractional/future/idempotent',()=>{
   for(const key of c.mergeKeys)for(const id of Object.keys(c.defaults[key]))assert.ok(Number.isInteger(a[key][id])&&a[key][id]>=0);
   assert.deepEqual(clone(c.normalizeState({})),clone(c.defaults));
 });
-check('HTML shell, source, noindex, guide, LF, syntax',()=>{
+check('HTML shell, source, public routes, guide, LF, syntax',()=>{
+  const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
+  assert.equal(list.match(/class="checker-main" href="([^"]+)/)[1],'mahoako-checker.html');
+  assert.ok(list.includes('<a class="checker-main" href="mahoako-checker.html">L 魔法少女にあこがれて</a><a class="checker-guide" href="mahoako-guide.html">使い方</a>'));
+  for(const p of ['mahoako-checker.html','mahoako-guide.html'])assert.ok(read('sitemap.xml').includes('<loc>https://slot-tools.jp/'+p+'</loc>\n    <lastmod>2026-10-19</lastmod>'),p);
+  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];
+  assert.equal((news.match(/<p>/g)||[]).length,8);assert.equal(news.split('｜<a href="mahoako-checker.html">L 魔法少女にあこがれて 設定判別カウンターを公開</a>').length,2);
   assert.equal(c.storageKey,'mahoako-checker-v1');assert.equal(c.uiV2,true);assert.equal(c.nanaCollab,false);
   assert.equal(c.sourceUrl,'https://chonborista.com/slot/newgin-slot/264698/');
   const html=read('mahoako-checker.html'),guide=read('mahoako-guide.html');
@@ -138,14 +144,14 @@ check('HTML shell, source, noindex, guide, LF, syntax',()=>{
   assert.equal(guide.match(/<style>[\s\S]*?<\/style>/)[0],read('garei-zero-re-guide.html').match(/<style>[\s\S]*?<\/style>/)[0]);
   const tmp=fs.mkdtempSync(path.join(os.tmpdir(),'mahoako-syntax-'));
   for(const [i,p] of ['mahoako-checker.html','mahoako-guide.html'].entries()){
-    const src=read(p);assert.ok(src.includes('<meta name="robots" content="noindex,nofollow">'));
+    // 2026-10-19 検収OKで公開（noindex 外し）。
+    const src=read(p);assert.ok(!/<meta name="robots"/.test(src));
     assert.ok(src.includes(`href="https://slot-tools.jp/${p}"`));assert.ok(src.includes(`content="https://slot-tools.jp/${p}"`));
     assert.ok(!src.includes('\r'));
     for(const [j,m] of [...src.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)].entries())if(!/\bsrc=/.test(m[1])){
       const f=path.join(tmp,`${i}-${j}.mjs`);fs.writeFileSync(f,m[2]);execFileSync(process.execPath,['--check',f]);
     }
   }
-  for(const p of ['index.html','checkers.html','sitemap.xml'])assert.ok(!read(p).includes('mahoako'));
   assert.ok(!read('checker-data/mahoako.js').includes('\r'));
   assert.doesNotMatch(read('checker-data/mahoako.js'),/\(\?<([=!])/);
   assert.doesNotMatch(pages(fresh())[3](),/設定差なし/);

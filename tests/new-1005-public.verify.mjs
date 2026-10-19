@@ -14,7 +14,9 @@ const bytes=(a,b)=>assert.deepEqual(Buffer.from(a),Buffer.from(b));
 const ids=['mhsunbreak','tenten'];
 const style=s=>s.match(/<style>([\s\S]*?)<\/style>/)[1];
 const list=read('checkers.html').split('<div class="section-label">スマスロ・AT機</div>')[1];
-assert.deepEqual([...list.matchAll(/class="checker-main" href="([^"]+)/g)].slice(1,3).map(m=>m[1]),ids.map(id=>id+'-checker.html'));
+// 新機種は一覧の先頭に入るので、位置ではなく2機種が連続して並ぶことを見る。
+const hrefs=[...list.matchAll(/class="checker-main" href="([^"]+)/g)].map(m=>m[1]);
+assert.deepEqual(hrefs.slice(hrefs.indexOf(ids[0]+'-checker.html'),hrefs.indexOf(ids[0]+'-checker.html')+2),ids.map(id=>id+'-checker.html'));
 for(const id of ids){
   const guide=read(id+'-guide.html'),html=read(id+'-checker.html');
   assert.equal(style(guide),style(read('tonski-guide.html')));

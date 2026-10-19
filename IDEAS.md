@@ -297,8 +297,8 @@ RB中のキャラ紹介が全15パターン判明し、エンディング中の�
 
 ## L 魔法少女にあこがれて 設定判別カウンター 新規（2026-10-19・ちょんぼりすた様 10/19 更新分）
 
-- [~] `mahoako-checker.html`＋`checker-data/mahoako.js`（保存キー `mahoako-checker-v1`）＋`mahoako-guide.html`。仕様書は `docs/specs/mahoako-checker-v01.md`。5タブ（入力／示唆／設定推測／参照／カード）。設定推測は CZ確率（二項）・CZ種別3種（多項）・確定演出と枚数表示・RB特殊キャラ・ヴァーツの除外17件。AT初当り（ボーナス契機／ボーナス以外／契機不明）は CZ の結果と連動するため表示のみ。奇数・偶数・高設定の期待度UPは記録のみ。各示唆セクションに「不明」行を置き、割合の母数から外す。ED隠しPUSH（全色調査中）・百合MAX・小役CZ・規定G数・AT終了画面・会話・ステージチェンジ・アクションは採用しない（理由は仕様書）
-- [ ] ネネ検収・夢爽実機の間は noindex のまま main に置く（導線なし）。検収OK後に index.html の機種一覧・NEW欄1行・noindex 外しを同じPRに足してマージ
+- [x] `mahoako-checker.html`＋`checker-data/mahoako.js`（保存キー `mahoako-checker-v1`）＋`mahoako-guide.html`。仕様書は `docs/specs/mahoako-checker-v01.md`。5タブ（入力／示唆／設定推測／参照／カード）。設定推測は CZ確率（二項）・CZ種別3種（多項）・確定演出と枚数表示・RB特殊キャラ・ヴァーツの除外17件。AT初当り（ボーナス契機／ボーナス以外／契機不明）は CZ の結果と連動するため表示のみ。奇数・偶数・高設定の期待度UPは記録のみ。各示唆セクションに「不明」行を置き、割合の母数から外す。ED隠しPUSH（全色調査中）・百合MAX・小役CZ・規定G数・AT終了画面・会話・ステージチェンジ・アクションは採用しない（理由は仕様書）
+- [x] ネネ検収・夢爽実機の間は noindex のまま main に置く（導線なし）。検収OK（ネネ①〜⑦・夢爽実機）後、checkers.html 先頭・sitemap（checker・guide）・NEW欄1行（10/19）・noindex 外し（checker・guide）を同じPRに足してマージ（2026-10-19 公開）
 
 
 ---
