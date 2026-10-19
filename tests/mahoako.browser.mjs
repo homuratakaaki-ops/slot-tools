@@ -87,7 +87,7 @@ try{
     window.__errors=[];window.__texts={};window.confirm=()=>true;window.alert=()=>{};window.prompt=()=>null;
     addEventListener('error',e=>window.__errors.push(e.message));addEventListener('unhandledrejection',e=>window.__errors.push(String(e.reason)));
     const original=CanvasRenderingContext2D.prototype.fillText;
-    CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...args){(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y});return original.call(this,text,x,y,...args);};
+    CanvasRenderingContext2D.prototype.fillText=function(text,x,y,...args){(window.__texts[this.canvas.id]??=[]).push({text:String(text),x,y,w:this.measureText(String(text)).width,font:this.font});return original.call(this,text,x,y,...args);};
   `});
   await load();
   // 全行を実ボタンから入力。保存・取消・減算・リロードまでを確認する。
@@ -127,10 +127,41 @@ try{
   sparse.czType.unknown=70;sparse.rbThird.sista=1;
   await seed(sparse);await tab(4);await click('#detailBtn');await pause(250);
   const detail=await canvas('detailCanvas','detail-card'),summary=await canvas('cardCanvas','summary-card');
-  for(const title of ['カウント系','CZ種別','ボーナス終了画面','ギンちゃんトロフィー','獲得枚数表示','RB中のキャラ紹介（構成）','RB中のキャラ紹介（3人目）','RB中のキャラ紹介（出現）','パネルアタックのキャラ','SMボーナスのエピソード'])assert.ok(detail.texts.some(t=>t.text.includes(title)),title);
+  // 詳細カードの見出しはカード専用の短名（画面側は長い表示名のまま）。
+  for(const title of ['カウント系','CZ種別','終了画面','トロフィー','獲得枚数','RB構成','RB 3人目','RB出現','パネル','SMボーナス'])assert.ok(detail.texts.some(t=>t.text===title),title);
   assert.ok(detail.texts.some(t=>t.text.includes('種別不明 ×70')&&!t.text.includes('%')));
   assert.ok(detail.texts.some(t=>t.text.includes('シスタギガント ×1')&&!t.text.includes('%')));
   assert.ok(summary.texts.some(t=>t.text.includes('パネル以上')));assert.deepEqual(await run('return window.__errors;'),[]);pass('detail PNG / summary PNG / all sections / pixels');
+  // 全セクション記録済みで、長い行（RB構成・RB 3人目・SMB）を右列（x=560〜）に置く状態。
+  // single-*: 右列に1件だけのセクション＝1行表示（見出しの右に値）。multi-*: 見出し＋項目行。
+  const front={counts:{cz:30,atBonus:3,atOther:10,atUnknown:1},czType:{tm:20,pa:9,ve:1,unknown:5},bbScreens:{s09:1,s10:1,s11:1},trophy:{bronze:1,rainbow:1},over:{o555:1,o666:1}};
+  const wide=[
+    ['detail-card-single-a',25,{...front,rbTeam:{tres2:1},rbThird:{rivalEno:1},rbFlag:{venarita:1},panel:{magenta:1},smb:{ep3:1}},['RB構成','RB 3人目','RB出現','パネル','SMボーナス']],
+    ['detail-card-single-b',25,{...front,rbTeam:{eno2:1},rbThird:{rivalTres:1},rbFlag:{vatz:1},panel:{sulfa:1},smb:{ep2:1}},['RB構成','RB 3人目','RB出現','パネル','SMボーナス']],
+    ['detail-card-single-c',25,{...front,rbTeam:{eno3:1},rbThird:{baeze2:1},rbFlag:{unknown:1},panel:{azur:1},smb:{ep1:1}},['RB構成','RB 3人目','RB出現','パネル','SMボーナス']],
+    ['detail-card-single-d',27,{counts:{cz:30,atBonus:3,atOther:10,atUnknown:1},czType:{tm:20,pa:9,ve:1,unknown:5},bbScreens:{s01:1,s02:1,s03:1,s04:1,s05:1,s06:1,s07:1,s08:1,s09:1},trophy:{rainbow:1},over:{o666:1},rbTeam:{tres2:1},rbThird:{rivalTres:1},rbFlag:{venarita:1},panel:{magenta:1},smb:{ep3:1}},['トロフィー','獲得枚数','RB構成','RB 3人目','RB出現','パネル','SMボーナス']],
+    ['detail-card-multi-smb',24,{counts:{cz:30,atOther:10},czType:{tm:20,pa:10},bbScreens:{s01:1,s02:1},trophy:{bronze:1},over:{o456:1},rbTeam:{eno2:1,tres2:1},rbThird:{rivalTres:1,rivalEno:1,baeze2:1},rbFlag:{venarita:1},panel:{azur:1},smb:{ep1:1,ep2:1,ep3:1}},['悪の女幹部 ×1','逆境アズール ×1','やっぱり魔法少女 ×1']],
+    ['detail-card-multi-rb',30,{counts:{cz:30,atBonus:3,atOther:10,atUnknown:1},czType:{tm:20,pa:9,ve:1},bbScreens:{s01:1,s02:1,s03:1},trophy:{bronze:1,silver:1},over:{o456:1,o555:1},rbTeam:{eno3:1},rbThird:{rivalTres:1,rivalEno:1,baeze2:1},rbFlag:{venarita:1},panel:{azur:1},smb:{ep1:1,ep2:1,ep3:1}},['3人目トレス（エノ2人） ×1','3人目エノ（トレス2人） ×1','ベーゼ第二形態 ×1','悪の女幹部 ×1']]
+  ];
+  // ヘッドレスはM PLUS 1pを読めず代替フォントで細く描くため、全角1em・半角0.6emの見積もりでも判定する。
+  // 見出し（x=70/560）は固定サイズ、項目・1行表示の値は縮小後の最小18pxで見積もる（実フォントで縮んでも収まる条件）。
+  const px=t=>parseFloat(t.font.match(/(\d+(?:\.\d+)?)px/)[1]);
+  const em=t=>[...t.text].reduce((a,ch)=>a+(ch.codePointAt(0)<0x2000?.6:1),0)*(t.x===70||t.x===560?px(t):18);
+  for(const [name,rowCount,rec,rightRows] of wide){
+    const S=await run('return structuredClone(CheckerConfigs.mahoako.defaults);');S.currentGames=8000;
+    for(const [key,vals] of Object.entries(rec))Object.assign(S[key],vals);
+    await seed(S);await tab(4);await click('#detailBtn');await pause(250);
+    assert.equal(await run('return w.__checkerApp._detailRows().length;'),rowCount,name);
+    const card=await canvas('detailCanvas',name);
+    const body=card.texts.filter(t=>t.y>=330&&t.y<=910);
+    assert.ok(body.length>=rowCount,name);
+    for(const t of body){
+      const right=t.x===88||t.x===578?t.x+420:1010;
+      assert.ok(t.x+t.w<=right&&t.x+em(t)<=right,name+' '+JSON.stringify({...t,em:em(t),right}));
+    }
+    for(const label of rightRows)assert.ok(body.some(t=>t.x>=560&&t.text.startsWith(label)),name+' '+label);
+  }
+  assert.deepEqual(await run('return window.__errors;'),[]);pass('detail card 24-30 rows: right-column inline and item rows within 1010px / 420px (measured + em estimate)');
   for(const width of [360,390,412]){await load(width,'/mahoako-guide.html');assert.equal(await run('return d.documentElement.scrollWidth-d.documentElement.clientWidth;'),0);}
   pass('guide 3 widths');assert.deepEqual(errors,[]);
 }catch(e){console.error(e.stack);process.exitCode=1;}

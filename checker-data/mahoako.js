@@ -79,6 +79,13 @@
   ];
   const GROUPS={czType:CZ_TYPE,bbScreens:BB_SCREENS,trophy:TROPHY,over:OVER,rbTeam:RB_TEAM,rbThird:RB_THIRD,rbFlag:RB_FLAG,panel:PANEL,smb:SMB};
   const TITLES={czType:'CZ種別',bbScreens:'ボーナス終了画面',trophy:'ギンちゃんトロフィー',over:'獲得枚数表示',rbTeam:'RB中のキャラ紹介（構成）',rbThird:'RB中のキャラ紹介（3人目）',rbFlag:'RB中のキャラ紹介（出現）',panel:'パネルアタックのキャラ',smb:'SMボーナスのエピソード'};
+  // 詳細カード専用の短い見出し・行名（右列の1行表示が1010pxを越えないため）。画面・hint・テンプレは上の表示名のまま。
+  const DETAIL_TITLES={czType:'CZ種別',bbScreens:'終了画面',trophy:'トロフィー',over:'獲得枚数',rbTeam:'RB構成',rbThird:'RB 3人目',rbFlag:'RB出現',panel:'パネル',smb:'SMボーナス'};
+  const DETAIL_LABELS={
+    rbTeam:{eno3:'エノ3人',tres3:'トレス3人',eno2:'エノ2人＋1人',tres2:'トレス2人＋1人'},
+    rbThird:{rivalTres:'3人目トレス（エノ2人）',rivalEno:'3人目エノ（トレス2人）',baeze2:'ベーゼ第二形態'},
+    smb:{ep1:'悪の女幹部',ep2:'逆境アズール',ep3:'やっぱり魔法少女'}
+  };
   const HINTS={
     counts:'CZ回数は契機を問わず突入した回数。CZ種別は種別が分かったCZだけ押し、分からなければ種別不明。AT初当りは初当りのみ（継続・引き戻し・上位移行は数えない）。ボーナス契機とそれ以外を分けます。',
     bbScreens:'番号はちょんぼりすたの掲載順です。枠の色だけで判断せず、絵柄で見分けてください。',
@@ -197,7 +204,7 @@
   function detail(ctx){
     const S=ctx.S,g=freeGames(S);
     return [{title:'カウント系',items:COUNTS.map(c=>({label:c[1],value:n(S.counts,c[0]),hot:!!c[3],text:c[1]+' ×'+n(S.counts,c[0])+' '+oneIn(n(S.counts,c[0]),g),show:n(S.counts,c[0])>0}))},
-      ...Object.entries(GROUPS).map(([key,arr])=>({title:TITLES[key],percent:hasPercent(key),...(hasPercent(key)?{denominator:knownTotal(S,key)}:{}),items:arr.map(c=>({label:c[1],value:n(S[key],c[0]),hot:!!c[3],...(c[0]==='unknown'?{text:c[1]+' ×'+n(S[key],c[0]),show:n(S[key],c[0])>0}:{})}))}))];
+      ...Object.entries(GROUPS).map(([key,arr])=>({title:DETAIL_TITLES[key]||TITLES[key],percent:hasPercent(key),...(hasPercent(key)?{denominator:knownTotal(S,key)}:{}),items:arr.map(c=>({label:(DETAIL_LABELS[key]||{})[c[0]]||c[1],value:n(S[key],c[0]),hot:!!c[3],...(c[0]==='unknown'?{text:c[1]+' ×'+n(S[key],c[0]),show:n(S[key],c[0])>0}:{})}))}))];
   }
   function summary(S,key,label,predicate){
     const hits=GROUPS[key].filter(c=>c[0]!=='unknown'&&(!predicate||predicate(c))&&n(S[key],c[0])>0);

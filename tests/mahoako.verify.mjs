@@ -63,7 +63,8 @@ check('contradiction: 246 + 555 + vatz leaves 6; 2-only conflict',()=>{
   S.currentGames=1;S.counts.cz=2;
   assert.equal(bayes(S).r.contradiction,true);assert.match(pages(S)[2](),/記録に矛盾があります（示唆の見間違いの可能性）/);
 });
-const percentGroups={czType:'CZ種別',bbScreens:'ボーナス終了画面',trophy:'ギンちゃんトロフィー',over:'獲得枚数表示',panel:'パネルアタックのキャラ',smb:'SMボーナスのエピソード'};
+// 詳細カードの見出しはカード専用の短名（2026-10-19 ネネ検収⑦）。
+const percentGroups={czType:'CZ種別',bbScreens:'終了画面',trophy:'トロフィー',over:'獲得枚数',panel:'パネル',smb:'SMボーナス'};
 for(const [key,title] of Object.entries(percentGroups))check('known denominator '+key,()=>{
   const S=fresh(),ids=Object.keys(S[key]).filter(k=>k!=='unknown');S[key][ids[0]]=2;S[key][ids[1]]=1;S[key].unknown=9;S[key].future=500;
   const html=pages(S)[key==='czType'?0:1]();
@@ -100,7 +101,12 @@ check('template/detail cover every section and nonzero row',()=>{
   const S=fresh();S.currentGames=8000;
   for(const key of c.mergeKeys)for(const id of Object.keys(S[key]))S[key][id]=1;
   const t=c.template(ctx(S)),detail=c.card.detail(ctx(S));assert.equal(detail.length,10);
-  for(const sec of detail){assert.ok(t.includes('■'+sec.title),sec.title);for(const item of sec.items)assert.ok(t.includes(item.label+'▶'),item.label);}
+  // テンプレは画面の表示名、詳細カードは短名。並び順を揃え、短名は対応表で元の表示名へ戻して照合する。
+  const screenTitles=['カウント系','CZ種別','ボーナス終了画面','ギンちゃんトロフィー','獲得枚数表示','RB中のキャラ紹介（構成）','RB中のキャラ紹介（3人目）','RB中のキャラ紹介（出現）','パネルアタックのキャラ','SMボーナスのエピソード'];
+  assert.equal(JSON.stringify(detail.map(sec=>sec.title)),JSON.stringify(['カウント系','CZ種別','終了画面','トロフィー','獲得枚数','RB構成','RB 3人目','RB出現','パネル','SMボーナス']));
+  const longName={'エノ3人':'エノルミータ3人','トレス3人':'トレスマジア3人','エノ2人＋1人':'エノルミータ2人＋1人','トレス2人＋1人':'トレスマジア2人＋1人','3人目トレス（エノ2人）':'3人目トレスマジア（エノルミータ2人のとき）','3人目エノ（トレス2人）':'3人目エノルミータ（トレスマジア2人のとき）','ベーゼ第二形態':'マジアベーゼ第二形態','悪の女幹部':'悪の女幹部、誕生！？','やっぱり魔法少女':'やっぱり魔法少女にあこがれて'};
+  detail.forEach((sec,i)=>{assert.ok(t.includes('■'+screenTitles[i]),screenTitles[i]);for(const item of sec.items){assert.ok(t.includes((longName[item.label]||item.label)+'▶'),item.label);}});
+  assert.ok(!t.includes('■SMボーナス\n')&&!t.includes('悪の女幹部▶'));
   assert.ok(t.startsWith('設定判別メモ｜L 魔法少女にあこがれて'));
   assert.ok(t.endsWith('by slot-tools.jp\n解析出典:ちょんぼりすた様'));assert.equal(c.compactTemplate(ctx(S)),t);
   assert.ok(!c.template(ctx(fresh())).includes('■'));
