@@ -52,7 +52,7 @@ check('CZ 30/8000 + tm20/pa10: independent likelihood',()=>{
 check('empty / unknown-only / qualitative hints / negative G',()=>{
   const S=fresh();assert.equal(bayes(S).r.empty,true);
   for(const group of c.mergeKeys)if('unknown' in S[group])S[group].unknown=10;
-  S.bbScreens.s04=7;S.rbThird.rival=5;S.rbFlag.venarita=2;S.panel.magenta=8;S.smb.ep3=9;
+  S.bbScreens.s04=7;S.rbThird.rivalTres=5;S.rbFlag.venarita=2;S.panel.magenta=8;S.smb.ep3=9;
   assert.equal(bayes(S).r.empty,true);S.startGames=100;S.currentGames=50;
   assert.equal(bayes(S).spec.binomial.length,0);assert.match(pages(S)[0](),/下回っています/);
 });
@@ -79,6 +79,18 @@ for(const [key,title] of Object.entries(percentGroups))check('known denominator 
 check('RB: three groups, labels, no percentages',()=>{
   const S=fresh();
   assert.deepEqual(Object.keys(S.rbTeam),['eno3','tres3','eno2','tres2','unknown']);
+  assert.deepEqual(Object.keys(S.rbThird),['loco','rubel','sista','lord','baeze2','rivalTres','rivalEno','unknown']);
+  const rbHtml=pages(S)[1]();
+  for(const [id,name,mean] of [
+    ['rbTeam.eno3','エノルミータ3人','奇数設定 期待度UP'],['rbTeam.tres3','トレスマジア3人','偶数設定 期待度UP'],
+    ['rbTeam.eno2','エノルミータ2人＋1人','3人目で示唆が決まる'],['rbTeam.tres2','トレスマジア2人＋1人','3人目で示唆が決まる'],
+    ['rbThird.loco','ロコムジカ','2人側の奇偶 期待度UP＋高設定 期待度UP（弱）'],['rbThird.rubel','ルベルブルーメ','2人側の奇偶 期待度UP＋高設定 期待度UP（弱）'],
+    ['rbThird.sista','シスタギガント','2人側の奇偶 期待度UP＋設定2以上濃厚'],['rbThird.lord','ロードエノルメ','2人側の奇偶 期待度UP＋設定3以上濃厚'],
+    ['rbThird.baeze2','マジアベーゼ第二形態','2人側の奇偶 期待度UP＋設定5以上濃厚'],
+    ['rbThird.rivalTres','3人目トレスマジア（エノルミータ2人のとき）','偶数設定 期待度UP＋高設定 期待度UP（強）'],
+    ['rbThird.rivalEno','3人目エノルミータ（トレスマジア2人のとき）','奇数設定 期待度UP＋高設定 期待度UP（強）']
+  ]){const seg=rbHtml.split(`data-c="${id}"`)[1];assert.ok(seg&&seg.includes(`>${name}<`)&&seg.includes(`>${mean}<`),id);}
+  assert.ok(rbHtml.includes('2人＋1人のときの奇数・偶数は、2人側のチームで見ます（エノルミータ2人＝奇数、トレスマジア2人＝偶数）。3人目が相手チームのときだけ逆になります。'));
   for(const key of ['rbTeam','rbThird','rbFlag'])for(const id of Object.keys(S[key]))S[key][id]=1;
   const html=pages(S)[1]();
   for(const key of ['rbTeam','rbThird','rbFlag'])for(const id of Object.keys(S[key]))assert.equal(html.split(`data-c="${key}.${id}"`)[1].split('</div>')[0].match(/class="pct">(.*?)<\/span>/)[1],'');
