@@ -176,6 +176,14 @@
   let fukuMode=null;
   const fukuIncluded=()=>fukuMode===null?prefs().includeFuku===true:fukuMode;
   const fukuModeText=()=> '予測の前提：福引を'+(fukuIncluded()?'含む（仮説）':'含まない');
+  // 設定1参考％の表示は設定示唆とは独立した手動モード。記録とは別の prefs に保存。
+  let scenarioPctView=null;
+  const p1PctShown=()=>scenarioPctView===null?prefs().scenarioPctMode!=='candidates':scenarioPctView;
+  function setP1PctShown(on){
+    scenarioPctView=!!on;
+    const s=store();
+    try{if(s)s.setItem(PREFS_KEY,JSON.stringify(Object.assign(prefs(),{scenarioPctMode:on?'p1':'candidates'})));}catch(e){}
+  }
   const scenarioKnown=s=>s.start.known===true&&(!fukuIncluded()||s.start.prior===0);
   const scenarioCounts=e=>e.t==='bz'||(fukuIncluded()&&e.t==='fuku');
   const scenarioNextNo=s=>scenarioKnown(s)?s.start.prior+s.events.filter(scenarioCounts).length+1:null;
@@ -505,7 +513,7 @@
   // （銅・銀・金・紅葉柄・虹／ヒノエ&ミノト・全員集合・エンタライオン／222・456・555・666枚 OVER）と、
   // 設定2・4・6濃厚の 246枚 OVER（rank 2）が対象。新しい入力項目は作らず、既存の記録から導く。
   function setting1Denied(S){return allCert(S).some(c=>c.rank>=2&&c.value>0);}
-  // 候補ごとの参考％。出さないときは null（開始不明／候補0件／候補1件／設定1否定あり）。
+  // 候補ごとの参考％。表示モードが「候補のみ」、開始不明、候補0件／1件なら null。
   // pct は四捨五入した整数。四捨五入で0になる候補も候補から消さず、text を「1%未満」にする。
   function fukuPastSp(session){
     if(!fukuIncluded()||!scenarioKnown(session)||!session.events.some(e=>e.t==='fuku'))return false;
@@ -514,7 +522,7 @@
   }
   function scenarioPct(S,session){
     if(!session||!scenarioKnown(session)||fukuPastSp(session))return null;
-    if(setting1Denied(S))return null;
+    if(!p1PctShown())return null;
     const candidates=scenarioCandidates(session);
     if(candidates.length<2)return null;
     const weights=candidates.map(name=>scenarioWeight(name,session));
@@ -551,7 +559,7 @@
   // ===== 次のBZのレベル別の参考％（設定1基準）=====
   // 候補ごとの参考％（scenarioPct と同じ重み）を、次のBZ番号 no のレベルごとに足すだけ。
   // 絞り込み（scenarioCandidates）・レベルとテーブルの並べ方（nextBzOf）・重み（scenarioWeight）は変えない。
-  // 出す条件は scenarioPct とまったく同じ（開始不明／候補0件／候補1件／設定1否定ありでは null）。
+  // 出す条件は scenarioPct と同じ（候補のみモードでは参考％非表示）。
   // no が解析表の範囲外（8回目以降）のときは、重みに使える表が無いので null。
   // no 回目が表の「−」になるシナリオ（H・I）の％は、どのレベルにも足さない。
   // そのため候補にそれが残っているあいだは、レベルの合計が100%に届かない（丸めと同じ扱い）。
@@ -617,7 +625,7 @@
       ...(nextBz?{nextBz}:{})
     };});
     const T=totals(S),tables=TABLES.map(c=>({mark:c[1],color:c[4],hit:questHit(S,c[0],T),count:questD(S,c[0],T)}));
-    return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。',fukuIncluded()?'候補は福引を含む仮説と解析表に基づいて絞っています。':'候補は解析の表から確実に言えるものだけで絞っています。','％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません']};
+    return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。',fukuIncluded()?'候補は福引を含む仮説と解析表に基づいて絞っています。':'候補は解析の表から確実に言えるものだけで絞っています。',p1PctShown()?'％は設定1の場合の参考値。設定1否定時も実際の設定確率ではありません。':'候補のみモード：参考％は非表示。候補の絞り込み条件は同じです。']};
   }
   // 幅1080の2枚目のカード。engine の描画には触らず、自分のキャンバスにだけ描く。
   // 高さは「固定部（見出し・テーブル別の成績）＋AT間の行×行数＋注記＋クレジット」で決まる。
@@ -925,6 +933,13 @@
       ${eye?`<div class="now-note" style="color:${eye[4]}">${eye[3]}</div>`:''}
       <button type="button" class="act plain fuku-toggle" data-action="fukuMode" role="checkbox" aria-checked="${fukuIncluded()}" aria-label="福引をシナリオの回数に含める">${fukuIncluded()?'☑':'☐'} 福引をシナリオの回数に含める</button>
       <div class="hint">${fukuModeText()}。扱いは未確認です。チェックで候補・参考％・次回予測を切り替えます。</div>
+      <div class="scenario-mode-title">シナリオ推測の表示</div>
+      <div class="scenario-mode-row" role="group" aria-label="シナリオ推測の表示">
+        <button type="button" class="scenario-mode-btn${p1PctShown()?' on':''}" data-action="scenarioPctMode" data-value="p1" aria-pressed="${p1PctShown()}">設定1基準％</button>
+        <button type="button" class="scenario-mode-btn${!p1PctShown()?' on':''}" data-action="scenarioPctMode" data-value="candidates" aria-pressed="${!p1PctShown()}">候補のみ</button>
+      </div>
+      <div class="hint">設定1基準％は公表の設定1選択率による参考値です。候補のみでは％を隠します。どちらも候補の絞り込みは同じです。</div>
+      ${p1PctShown()&&setting1Denied(S)?'<div class="hint scenario-mode-warning">⚠ 設定1否定の記録があります。表示中の％は設定1の場合の参考値で、実際の設定の確率ではありません。</div>':''}
       ${scenarioLine(session,S)}
       ${nextBzLine(session,S)}
       <div class="now-sub">${view.closed?'経過（直前のAT間・AT当選で終了）':'経過（古い順。右が最新）'}</div>
@@ -1201,6 +1216,11 @@
 .now-box{border:2px solid #2f5d72;background:linear-gradient(180deg,#131a22,#0f1319);border-radius:12px;padding:10px 10px 12px}
 .now-h{font-size:19px;font-weight:800;color:var(--cyan);letter-spacing:.04em;margin-bottom:8px}
 .now-sub{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.06em;margin:10px 0 6px}
+.scenario-mode-title{font-size:12px;font-weight:800;color:var(--txt);margin:10px 0 5px}
+.scenario-mode-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin-bottom:6px}
+.scenario-mode-btn{min-width:0;min-height:44px;padding:8px 5px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--muted);font:inherit;font-size:13px;font-weight:800}
+.scenario-mode-btn.on{border-color:var(--cyan);background:rgba(111,216,255,.14);color:var(--cyan)}
+.scenario-mode-warning{color:var(--gold)}
 .now-last{font-size:13px;font-weight:700;margin-top:6px;overflow-wrap:anywhere}
 .now-last.none{color:var(--muted);font-weight:500}
 /* ここから記録（入力する所） */
@@ -1360,6 +1380,15 @@
     scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,nextBzPct:nextBzLevelPct,
     actions:{
       fukuMode:()=>{savedNote=null;setFukuIncluded(!fukuIncluded());if(scenarioReady)scenarioReady=false;return rerender();},
+      scenarioPctMode:(ctx,ds)=>{
+        savedNote=null;
+        if(ds.value!=='p1'&&ds.value!=='candidates')return false;
+        const on=ds.value==='p1';
+        if(p1PctShown()===on)return false;
+        setP1PctShown(on);
+        // 作成済みのシナリオカードも新しい表示で再描画する。
+        return rerender();
+      },
       bzQuest:bzQuestAction,
       // 記録のキーには書かない。テンプレに入れるかだけを別キーに持つ。
       tplAtLog:()=>{savedNote=null;const on=!tplAtLogOn();setTplAtLog(on);return 'AT間メモをテンプレに'+(on?'入れます':'入れません');},
