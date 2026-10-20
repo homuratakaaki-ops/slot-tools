@@ -171,6 +171,7 @@
   ];
   const LAMP_NAMES=Object.fromEntries(LAMPS.map(c=>[c[0],c[1]]));
   const LAMP_COLORS=Object.fromEntries(LAMPS.map(c=>[c[0],c[2]]));
+  const SUBMARINE_NAMES={cross:'同乗未確認（旧記録）',with_garuku:'ガルク同乗あり',without_garuku:'ガルク同乗なし'};
   // BZ実回数は福引を含めない。シナリオの進行回数だけ利用者が仮説を切り替える。
   // 初期値は従来どおり除外。設定は記録と別の prefs に保存する。
   let fukuMode=null;
@@ -210,7 +211,7 @@
   const AT_PRIOR_MAX=6;      // ［途中から：既にBZ n回］の n の上限
   const newAtSession=()=>({start:{known:true,prior:0},events:[],closed:false});
   // 画面に出せる出来事の種類。ここに無い種類は捨てずに持つだけにする（表示も集計もしない）。
-  const EVENT_TYPES=['bz','fuku','eye','serif','otherAt','lamp'];
+  const EVENT_TYPES=['bz','fuku','eye','serif','otherAt','lamp','submarine'];
   const ICON_POS_MAX=11;
   const AT_SCHEMA=2;   // atLog の版数。無ければ 1 とみなす（表示には使わない）
   // 読み込みは前方互換にする。知らない種類の出来事も、知らない項目（キー）も捨てない。
@@ -231,6 +232,7 @@
     if(e.t==='fuku')return ['win','miss'].indexOf(e.r)>=0?out:null;
     if(e.t==='eye')return EYE.some(c=>c[0]===e.c)?out:null;
     if(e.t==='serif')return SERIF.some(c=>c[0]===e.c)?out:null;
+    if(e.t==='submarine')return Object.prototype.hasOwnProperty.call(SUBMARINE_NAMES,e.c)?out:null;
     // lamp は集計にもBZ番号にも使わないので、知らない色でも捨てずに残す（表示だけしない）
     return out;   // otherAt / lamp
   }
@@ -309,6 +311,7 @@
   function shownEvent(e){
     if(!e||typeof e.t!=='string')return false;
     if(e.t==='lamp')return Object.prototype.hasOwnProperty.call(LAMP_NAMES,e.c);
+    if(e.t==='submarine')return Object.prototype.hasOwnProperty.call(SUBMARINE_NAMES,e.c);
     return EVENT_TYPES.indexOf(e.t)>=0;
   }
   const shownCount=session=>session.events.filter(shownEvent).length;
@@ -322,6 +325,7 @@
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `アイキャッチ ${c[1]}（${c[2]}）${c[3]}`;}
     if(e.t==='serif')return 'セリフ '+SERIF.find(c=>c[0]===e.c)[1];
     if(e.t==='lamp')return 'ランプ '+LAMP_NAMES[e.c];
+    if(e.t==='submarine')return '潜水艇 '+SUBMARINE_NAMES[e.c];
     if(e.t==='otherAt')return 'BZ以外でAT当選';
     return '記録（この版では表示できません）';   // 防御。shownEvent を通らないので通常は呼ばれない
   }
@@ -955,7 +959,8 @@
       ${eye?`<div class="now-note" style="color:${eye[4]}">${eye[3]}</div>`:''}
       <button type="button" class="act plain fuku-toggle" data-action="fukuMode" role="checkbox" aria-checked="${fukuIncluded()}" aria-label="福引をシナリオの回数に含める">${fukuIncluded()?'☑':'☐'} 福引をシナリオの回数に含める</button>
       <div class="hint">${fukuModeText()}。扱いは未確認です。チェックで候補・参考％・次回予測を切り替えます。</div>
-      ${pctModePicker(S)}
+      ${(()=>{try{return store()?.getItem('mhsunbreak-checker-v1-bztransfer-backup')?'<div class="hint"><a href="mhsunbreak-bz-import.html" style="color:#9ce2ff">直前の引き継ぎを確認・取り消す ↗</a></div>':''}catch(e){return ''}})()}
+            ${pctModePicker(S)}
       ${scenarioLine(session,S)}
       ${nextBzLine(session,S)}
       <div class="now-sub">${view.closed?'経過（直前のAT間・AT当選で終了）':'経過（古い順。右が最新）'}</div>
@@ -984,6 +989,7 @@
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `${open} style="--c:${c[4]}" aria-label="${label}"><b>アイキャッチ</b><i>${c[1]}（${c[2]}）</i><small>${c[3]}</small></button>`;}
     if(e.t==='serif'){const c=SERIF.find(c=>c[0]===e.c);return `${open} aria-label="${label}"><b>セリフ</b><i>「${c[2]}」</i><small>${c[1]}</small></button>`;}
     if(e.t==='lamp')return `${open} style="--c:${LAMP_COLORS[e.c]}" aria-label="${label}"><b>ﾗﾝﾌﾟ</b><i>${LAMP_NAMES[e.c]}</i></button>`;
+    if(e.t==='submarine')return `${open} style="--c:${e.c==='with_garuku'?'#83caff':'#9a90a8'}" aria-label="${label}"><b>潜水艇</b><i>${SUBMARINE_NAMES[e.c]}</i></button>`;
     return `${open} aria-label="${label}"><b>BZ以外</b><i>でAT当選</i></button>`;
   }
   // 結果アイコンの位置（1〜11）。11個目は成功時のみ選べる。
@@ -1038,7 +1044,7 @@
   }
   // 入口の並びは実戦の流れに合わせる（§9-69）。BZ → 終了時PUSHのランプ → 示唆 → 福引 → そのほか。
   // 見出し直下のジャンプ列から各入口へ飛べる（画面だけの操作。保存にも取消にも触れない）。
-  const JUMP=[['bz','BZ'],['lamp','ランプ'],['eye','アイキャッチ'],['serif','セリフ'],['fuku','福引']];
+  const JUMP=[['bz','BZ'],['lamp','ランプ'],['eye','アイキャッチ'],['serif','セリフ'],['fuku','福引'],['submarine','潜水艇']];
   const ENTRY_IDS=Object.fromEntries(JUMP.map(c=>[c[0],'ent-'+c[0]]));
   function jumpRow(){
     return `<div class="jump-row">${JUMP.map(([k,label])=>
@@ -1053,6 +1059,7 @@
     const serifBody=`<div class="at-pick">${SERIF.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="serif" data-c="${c[0]}" aria-label="セリフ 「${c[2]}」 ${c[1]}"${disabled}><b>「${c[2]}」</b><small>${c[1]}</small></button>`).join('')}</div>`;
     const fukuBody=`<div class="at-pick">${['win','miss'].map(r=>`<button type="button" class="at-btn" data-action="atEvent" data-t="fuku" data-r="${r}" aria-label="アイルー福引 ${r==='win'?'成功':'失敗'}"${disabled}>${r==='win'?'成功':'失敗'}</button>`).join('')}</div>`;
     const lampBody=`<div class="at-pick lamp-pick">${LAMPS.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="lamp" data-c="${c[0]}" style="--c:${c[2]}" aria-label="サイドランプ ${c[1]}"${disabled}><b>${c[1]}</b></button>`).join('')}</div>`;
+    const submarineBody=`<div class="at-pick"><button type="button" class="at-btn" data-action="atEvent" data-t="submarine" data-c="with_garuku"${disabled}>ガルク同乗あり</button><button type="button" class="at-btn" data-action="atEvent" data-t="submarine" data-c="without_garuku"${disabled}>ガルク同乗なし</button></div>`;
     const otherBody=`<div class="at-pick one"><button type="button" class="at-btn" data-action="atEvent" data-t="otherAt"${disabled}>BZ以外でAT</button></div>`;
     return `<section class="sec"><div class="rec-h">ここから記録</div>
       ${jumpRow()}
@@ -1062,6 +1069,7 @@
       ${entry('eye','アイキャッチ（ステージチェンジ）',eyeBody,'アイキャッチはステージチェンジで出ます。滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。')}
       ${entry('serif','チッチェのセリフ',serifBody,'ボタンにセリフの見分けどころを併記しています。示唆は次回のBZレベルについてのものです。')}
       ${entry('fuku','アイルー福引',fukuBody,'福引の成功はこのAT間を閉じます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。')}
+      ${entry('submarine','オトモ潜水艇の横切り',submarineBody,'ガルク同乗の有無を記録します。BZ番号・シナリオ参考％への影響なし。')}
       ${entry('','そのほか',otherBody,'押すとそのAT間を閉じて次のAT間を始めます。BZの成功・福引の成功も同じようにAT間を閉じます。')}
       <div class="hint">減算モードではアイキャッチ・セリフ・福引・ランプ・［BZ以外でAT］は記録できません。設定推測には使いません。出典は一撃様です。</div>
     </section>`;
