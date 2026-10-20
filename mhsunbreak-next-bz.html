@@ -167,6 +167,8 @@
 .compact-method{font-size:12px;color:var(--muted);margin:15px 0 2px;border-top:1px solid var(--line);padding:10px 0 0}
 .compact-footer{line-height:1.7;margin-top:14px}
 .fukutsu-unknown a{color:var(--cyan)}
+
+.transfer-section{border:1px solid #555073;background:#241f35;border-radius:11px;padding:13px;margin:14px 0}.transfer-action{width:100%;min-height:48px;font:inherit;font-size:14px;font-weight:800;color:#171420;background:#bde8f6;border:0;border-radius:8px;cursor:pointer}.transfer-help{font-size:12px;color:#beb2ce;margin:9px 0 0;line-height:1.5}
 </style>
 </head>
 <body>
@@ -273,6 +275,11 @@
  <details class="data-panel"><summary>候補シナリオと設定1基準の参考％</summary><div id="candidates"></div></details>
 </section>
 <p class="source compact-footer">設定1の公表解析を用いた参考値です。実際の当選確率・期待差枚・利益を保証しません。<a href="mhsunbreak-next-bz-guide.html">使い方・計算条件・未対応の仕様はこちら ↗</a></p>
+<section class="transfer-section" aria-label="設定判別カウンターへの記録引き継ぎ">
+  <button id="startTransfer" type="button" class="transfer-action">設定判別カウンターへ記録を引き継ぐ ↗</button>
+  <p class="transfer-help">引き継ぐ内容を確認してから追加します。既存記録は自動で上書きしません。</p>
+  <p id="transferStatus" class="err" role="status"></p>
+</section>
 <details class="data-panel"><summary>関連ツール</summary><p class="source"><a href="https://slot-tools.jp/mhsunbreak-checker.html" target="_blank" rel="noopener noreferrer">サンブレイク設定判別カウンター ↗</a>（下のボタンから記録を引き継げます）</p></details>
 <section class="card" aria-label="設定判別カウンターへの記録引き継ぎ">
  <h2>③ 記録を設定判別カウンターへ</h2>
@@ -540,8 +547,23 @@
   window.location.href='mhsunbreak-checker.html?bzHandoff=1';
  });
  updateSignalTabs();
+
+ // Transfer is staged separately; this page does not write to the setting-checker storage.
+ $('startTransfer').addEventListener('click',()=>{
+  const msg=$('transferStatus');msg.textContent='';
+  if(!history.length){msg.textContent='履歴を1件以上入力してから引き継いでください。';return}
+  const payload={version:1,source:'mhsunbreak-next-bz',id:String(Date.now())+'-'+String(Math.random()).slice(2),
+   createdAt:Date.now(),includeFuku,events:history.map(e=>({...e}))};
+  try{
+   const key='mhsunbreak-next-bz-transfer-v1';
+   localStorage.setItem(key,JSON.stringify(payload));
+   if(localStorage.getItem(key)!==JSON.stringify(payload))throw new Error('検証失敗');
+   location.assign('mhsunbreak-bz-import.html');
+  }catch(e){msg.textContent='引き継ぎの準備に失敗しました。ブラウザの保存設定を確認してください。'}
+ });
  render();
 })();
+
 </script>
 </body>
 </html>
