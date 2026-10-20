@@ -159,3 +159,20 @@ test('mobile layouts and draft history persist at 320, 360, 390, 412 pixels',asy
 });
 
 test('production checker storage is untouched after preview transfer',async()=>{const {page,context,errors}=await pageFor();try{const sentinel='{"real":42}';await seed(page,null);await page.evaluate(s=>localStorage.setItem('mhsunbreak-checker-v1',s),sentinel);await table(page,3);await transfer(page);await page.locator('#apply').click();assert.equal(await page.evaluate(()=>localStorage.getItem('mhsunbreak-checker-v1')),sentinel);assert.equal(JSON.parse(await current(page)).atLog.sessions[0].events.length,1);assert.deepEqual(errors,[])}finally{await context.close()}});
+
+test('public GitHub Pages preview is HTTP 200 with correct markers and local links',async()=>{
+ const root='https://slot-tools.jp/preview/mhsunbreak-bz-20261020/';
+ for(const [path,marker] of [
+  ['index.html','本番の記録とは分離'],
+  ['mhsunbreak-next-bz.html','テスト版'],
+  ['mhsunbreak-bz-import.html','テスト版'],
+  ['mhsunbreak-checker.html','テスト版'],
+  ['checker-data/mhsunbreak.js','mhsunbreak-bz-preview-20261020-checker-v1'],
+  ['checker-engine.js','CheckerEngine']
+ ]){
+  const response=await fetch(root+path+'?stage-smoke=20261020',{signal:AbortSignal.timeout(15000),cache:'no-store'});
+  assert.equal(response.status,200,root+path+' returned '+response.status);
+  const body=await response.text();
+  assert.ok(body.includes(marker),'missing preview marker in '+path);
+ }
+});
