@@ -51,7 +51,7 @@
 .edit-choice:focus-visible{outline:2px solid #fff;outline-offset:2px}
 .edit-panel-note{margin:9px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
 @media(max-width:360px){.history-actions{gap:3px}.history-actions .tiny-btn{min-width:40px;padding:5px}}
-/* v3.5: one optional fuku toggle + one fukutsu choice. */
+/* v3.5: optional fuku counting and conditional fukutsu calculation. */
 .controls-block{border-top:1px solid var(--line);margin-top:13px;padding-top:13px}
 .controls-h{font-size:14px;font-weight:850;margin:0 0 8px;color:#faf5ff}
 .fuku-toggle{display:flex;align-items:center;gap:10px;min-height:48px;cursor:pointer;font-weight:750;font-size:13px}
@@ -77,6 +77,29 @@
 .edit-choice[data-fuku]{color:#ffe0a6;border-color:#ba9052;background:#392a1a}
 .edit-choice[data-fuku][aria-pressed="true"]{background:#704821}
 @media(max-width:340px){.fukutsu-options{gap:3px}.fukutsu-choice{font-size:11px}.history li .history-note{font-size:9px}}
+
+/* v3.6: keep Fuku input with the six table buttons; status is visible beside the checkbox. */
+.fuku-inline-btn{display:block;width:100%;margin:-5px 0 9px;min-height:51px;text-align:left;padding-left:14px;font-size:14px}
+.fuku-settings{margin-top:0;padding-top:9px}
+.fuku-toggle{display:flex;align-items:center;flex-wrap:nowrap;gap:10px;padding:4px 0}
+.fuku-toggle>span{flex:1 1 130px;min-width:0}
+.fuku-state{color:#f7da94;font-size:12px;white-space:nowrap;padding:4px 7px;background:#3d3020;border-radius:6px}
+.fuku-state.off{color:#c7c1d0;background:#353040}
+.history-toolbar{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.history-toolbar-actions{display:flex;align-items:center;gap:5px;flex-wrap:nowrap;max-width:100%}
+.history-toolbar-actions .tiny-btn{white-space:nowrap;min-height:43px;padding:6px 8px;font-size:11px}
+.restore-btn{color:#ffe0a6;border-color:#987946}
+.fukutsu-choice[data-fukutsu="blue"]{color:#86c6ff;border-color:#5287bc;background:#1c324d}
+.fukutsu-choice[data-fukutsu="green"]{color:#a1e9b9;border-color:#47865b;background:#1a382b}
+.fukutsu-choice[data-fukutsu="red"]{color:#ffacb4;border-color:#b65c70;background:#4a2632}
+.fukutsu-choice[data-fukutsu="blue"] input{accent-color:#6bb7ff}
+.fukutsu-choice[data-fukutsu="green"] input{accent-color:#80dca1}
+.fukutsu-choice[data-fukutsu="red"] input{accent-color:#ff8c9c}
+.fukutsu-choice:has(input:checked){box-shadow:0 0 0 2px currentColor inset;background-color:rgba(255,255,255,.08)}
+.fukutsu-choice:has(input:disabled){opacity:.36;cursor:not-allowed;filter:grayscale(.45);box-shadow:none}
+.fukutsu-first-note{font-size:12px;color:#f4d69f;margin:3px 0 10px}
+.fukutsu-first-note[hidden]{display:none}
+@media(max-width:360px){.history-toolbar{justify-content:flex-end}.history-toolbar-actions{gap:4px}.history-toolbar-actions .tiny-btn{font-size:10.5px;padding:6px 7px}}
 </style>
 </head>
 <body>
@@ -95,16 +118,15 @@
   <button type="button" class="table-button" data-table="5"><span class="button-title"><span class="num">⑤</span> テーブル5</span><span class="button-sub">オロミドロ亜種から開始</span></button>
   <button type="button" class="table-button" data-table="6"><span class="button-title"><span class="num">⑥</span> テーブル6</span><span class="button-sub">テオ・テスカトルから開始</span></button>
  </div>
- <div class="controls-block" aria-label="アイルー福引の設定">
-  <div class="controls-h">アイルー福引の扱い</div>
-  <label class="fuku-toggle"><input type="checkbox" id="includeFuku">福引をBZ回数に含める（仮説）</label>
-  <p class="fuku-info" id="fukuModeText">チェックなし：福引は履歴に残してもBZ回数に含めません。</p>
-  <button class="fuku-btn" type="button" id="addFuku">＋ アイルー福引を履歴に追加</button>
+ <button class="fuku-btn fuku-inline-btn" type="button" id="addFuku">＋ アイルー福引を履歴に追加</button>
+ <div class="controls-block fuku-settings" aria-label="アイルー福引の設定">
+  <div class="controls-h">アイルー福引の回数扱い</div>
+  <label class="fuku-toggle" for="includeFuku"><input type="checkbox" id="includeFuku" checked><strong id="fukuModeText" class="fuku-state">BZ回数に含めています</strong></label>
  </div>
  <ul class="history" id="history"></ul>
  <div class="edit-panel" id="editPanel" hidden aria-live="polite"></div>
  <p class="inline-notice">※アイルー福引の計上方法は未解析です。ON／OFFの両方を参考比較してください。</p>
- <div class="row-flex"><span class="smallprint">⑦ ATは当選濃厚のため、失敗履歴に入力しません。</span><span><button type="button" class="tiny-btn" id="undo">1回戻す</button> <button type="button" class="tiny-btn" id="reset">最初から</button></span></div>
+ <div class="history-toolbar"><span class="smallprint">⑦ ATは当選濃厚のため、失敗履歴に入力しません。</span><div class="history-toolbar-actions"><button type="button" class="tiny-btn" id="undo">1回戻す</button><button type="button" class="tiny-btn" id="reset">最初から</button><button type="button" class="tiny-btn restore-btn" id="restore" disabled>元に戻す</button></div></div>
  <p role="status" class="err" id="error"></p>
 </section>
 <section class="card" aria-labelledby="resultTitle" aria-live="polite">
@@ -116,11 +138,12 @@
  <div class="controls-block">
   <div class="controls-h">不屈アイコン</div>
   <div class="fukutsu-options" role="group" aria-label="不屈の色を選択">
-   <label class="fukutsu-choice"><input type="radio" name="fukutsu" value="none" checked>なし</label>
-   <label class="fukutsu-choice"><input type="radio" name="fukutsu" value="blue">青</label>
-   <label class="fukutsu-choice"><input type="radio" name="fukutsu" value="green">緑</label>
-   <label class="fukutsu-choice"><input type="radio" name="fukutsu" value="red">赤</label>
+   <label class="fukutsu-choice" data-fukutsu="none"><input type="radio" name="fukutsu" value="none" checked>なし</label>
+   <label class="fukutsu-choice" data-fukutsu="blue"><input type="radio" name="fukutsu" value="blue">青</label>
+   <label class="fukutsu-choice" data-fukutsu="green"><input type="radio" name="fukutsu" value="green">緑</label>
+   <label class="fukutsu-choice" data-fukutsu="red"><input type="radio" name="fukutsu" value="red">赤</label>
   </div>
+  <p class="fukutsu-first-note" id="fukutsuFirstNote" hidden>AT後1回目のBZは不屈アイコンなし。青・緑・赤は選択できません。</p>
   <div class="fukutsu-result" id="fukutsuResult" aria-live="polite"></div>
  </div>
  <h2 style="margin-top:25px">次回のBZレベル振り分け</h2>
@@ -130,7 +153,7 @@
  <details class="data-panel"><summary>候補シナリオと設定1基準の参考％</summary><div id="candidates"></div></details>
 </section>
 <p class="source">計算の出典：<a href="https://1geki.jp/slot/l_mh_sun/48/" target="_blank" rel="noopener noreferrer">一撃：BZテーブル・シナリオ解析</a>。既存カウンターと同じ公開解析表・重み付け手順を使用しています。</p>
-<p class="source">前提：AT間のBZ失敗履歴とアイルー福引のみを入力対象とします。福引を回数に含める処理は仮説です。途中のアイキャッチ、チッチェのセリフはまだ反映していません。記録したBZの成功によってAT間が終了した場合は、履歴を初期化してください。選択率に設定差があり、設定1以外の確率は未公表です。不屈別の条件付き試算は、CZ中の抽選仕様に仮定を置き、QUEST青・黄の個別成功率が不明なためテーブル③〜⑦に限定しています。<b>参考値は期待差枚や利益保証ではありません。</b></p>
+<p class="source">前提：AT間のBZ失敗履歴とアイルー福引のみを入力対象とします。福引を回数に含めるかは未解析のため、チェック切替で仮定を比較してください。初回BZに不屈アイコンはありません。途中のアイキャッチ、チッチェのセリフはまだ反映していません。記録したBZの成功によってAT間が終了した場合は、履歴を初期化してください。選択率に設定差があり、設定1以外の確率は未公表です。不屈別の条件付き試算は、CZ中の抽選仕様に仮定を置き、QUEST青・黄の個別成功率が不明なためテーブル③〜⑦に限定しています。<b>参考値は期待差枚や利益保証ではありません。</b></p>
 <details class="data-panel"><summary>関連ツール</summary><p class="source"><a href="https://slot-tools.jp/mhsunbreak-checker.html" target="_blank" rel="noopener noreferrer">サンブレイク設定判別カウンター ↗</a>（入力履歴の自動連携はしません）</p></details>
 </main>
 <script>
@@ -159,9 +182,23 @@
  const START_NAMES=TABLE_NAMES.map((name,i)=>`テーブル${i+1}（${name}から開始）`);
  const TABLE_EXPECT=[19.4,28.7,49.5,63.6,78.2,90.2,100];
  const history=[]; // {type:"bz",table:1..6} or {type:"fuku"}
- let includeFuku=false;
+ let includeFuku=true;
  let fukutsu="none";
  let editingIndex=null; // null: closed; otherwise index of the row being compared
+ const undoStack=[];
+ const cloneHistory=()=>history.map(e=>({...e}));
+ const snapshot=()=>({history:cloneHistory(),includeFuku,fukutsu});
+ function saveUndo(){undoStack.push(snapshot());if(undoStack.length>40)undoStack.shift()}
+ function restorePrevious(){
+  if(!undoStack.length)return;
+  const saved=undoStack.pop();
+  history.splice(0,history.length,...saved.history.map(e=>({...e})));
+  includeFuku=saved.includeFuku;
+  fukutsu=saved.fukutsu;
+  editingIndex=null;
+  $('includeFuku').checked=includeFuku;
+  render();
+ }
  const $=id=>document.getElementById(id);
  const P=(n)=>n<0.05&&n>0?'0.1%未満':n.toFixed(n<1?2:1)+'%';
  const pctFmt=n=>Number.isFinite(n)?n.toFixed(1)+'%':'算出不可';
@@ -232,7 +269,14 @@
   const steps=history.reduce((n,e)=>n+((e.type==='bz'||(e.type==='fuku'&&includeFuku))?1:0),0);
   $('nextLabel').textContent='次は'+(steps+1)+'回目相当';
   $('status').textContent=history.length?`AT後の履歴${history.length}件／次は${steps+1}回目相当`:'AT後1回目のBZ（履歴なし）';
-  $('fukuModeText').textContent=includeFuku?'チェックあり：福引1件をテーブル不明のCZ1回として数える仮説です。':'チェックなし：福引は履歴に残してもBZ回数に含めません。';
+  $('fukuModeText').textContent=includeFuku?'BZ回数に含めています':'BZ回数に含めていません';
+  $('fukuModeText').classList.toggle('off',!includeFuku);
+  $('restore').disabled=undoStack.length===0;
+  // 福引の計上数とは無関係に、実際のBZが1回もないときは不屈初回なし固定。
+  const hasPriorBZ=history.some(e=>e.type==='bz');
+  if(!hasPriorBZ)fukutsu='none';
+  document.querySelectorAll('input[name="fukutsu"]').forEach(r=>{r.disabled=!hasPriorBZ&&r.value!=='none';r.checked=r.value===fukutsu});
+  $('fukutsuFirstNote').hidden=hasPriorBZ;
   let counted=0;
   $('history').innerHTML=history.map((e,i)=>{
    const counts=e.type==='bz'||(e.type==='fuku'&&includeFuku);
@@ -243,14 +287,14 @@
    return `<li data-type="${e.type}" ${fuku?'':`data-table="${e.table}"`}><span class="history-main"><span class="history-no">${num}</span><span class="history-table">${name}</span>${details}</span><span class="history-actions"><button class="tiny-btn" data-edit="${i}" type="button" aria-label="履歴${i+1}件目を変更">変更</button><button class="tiny-btn" data-remove="${i}" type="button" aria-label="履歴${i+1}件目を削除">削除</button></span></li>`;
   }).join('')||'<li class="empty">まだ履歴がありません。設定1の初回平均を表示中。</li>';
   $('history').querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.edit);editingIndex=editingIndex===i?null:i;render()}));
-  $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{history.splice(Number(b.dataset.remove),1);editingIndex=null;render()}));
+  $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{saveUndo();history.splice(Number(b.dataset.remove),1);editingIndex=null;render()}));
   const panel=$('editPanel');
   if(editingIndex!==null&&editingIndex>=0&&editingIndex<history.length){
    const i=editingIndex;
    panel.hidden=false;
    panel.innerHTML=`<div class="edit-panel-head"><div class="edit-panel-title">履歴${i+1}件目の種類・開始テーブルを変更</div><button type="button" class="tiny-btn" id="closeEdit">閉じる</button></div><div class="edit-grid" role="group" aria-label="履歴${i+1}件目の変更先">${Array.from({length:6},(_,k)=>`<button type="button" class="edit-choice" data-choice="${k+1}" data-table="${k+1}" aria-pressed="${history[i].type==='bz'&&history[i].table===k+1}">テーブル${k+1}</button>`).join('')}<button class="edit-choice" data-fuku="true" data-choice="fuku" type="button" aria-pressed="${history[i].type==='fuku'}">アイルー福引</button></div><p class="edit-panel-note">ここだけ変更します。後ろの履歴は残り、結果は即再計算されます。</p>`;
    panel.querySelector('#closeEdit').addEventListener('click',()=>{editingIndex=null;render()});
-   panel.querySelectorAll('[data-choice]').forEach(b=>b.addEventListener('click',()=>{const v=b.dataset.choice;history[i]=v==='fuku'?{type:'fuku'}:{type:'bz',table:Number(v)};render();const same=panel.querySelector(`[data-choice="${v}"]`);if(same)same.focus({preventScroll:true})}));
+   panel.querySelectorAll('[data-choice]').forEach(b=>b.addEventListener('click',()=>{const v=b.dataset.choice;const next=v==='fuku'?{type:'fuku'}:{type:'bz',table:Number(v)};if(history[i].type!==next.type||history[i].table!==next.table){saveUndo();history[i]=next}render();const same=panel.querySelector(`[data-choice="${v}"]`);if(same)same.focus({preventScroll:true})}));
   }else{editingIndex=null;panel.hidden=true;panel.replaceChildren()}
   const countedMax=steps>=6;
   document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(btn=>btn.disabled=countedMax||history.length>=12);
@@ -279,12 +323,13 @@
    `設定1のシナリオ選択率 × 観測した開始テーブルの選択率で重み付け。福引は${includeFuku?'回数に含める仮説':'回数に含めない'}として次回のBZレベルを集計。`:
    '履歴なし：設定1のシナリオA〜Iの1回目BZレベルを加重計算。初回平均は次回の固定値ではありません。';
  }
- document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(b=>b.addEventListener('click',()=>{if(history.length<12){history.push({type:'bz',table:Number(b.dataset.table)});editingIndex=null;render()}}));
- $('undo').addEventListener('click',()=>{if(history.length){history.pop();editingIndex=null;render()}});
- $('addFuku').addEventListener('click',()=>{if(history.length<12){history.push({type:'fuku'});editingIndex=null;render()}});
- $('includeFuku').addEventListener('change',e=>{includeFuku=e.target.checked;editingIndex=null;render()});
- document.querySelectorAll('input[name="fukutsu"]').forEach(r=>r.addEventListener('change',e=>{fukutsu=e.target.value;render()}));
- $('reset').addEventListener('click',()=>{history.length=0;editingIndex=null;render()});
+ document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(b=>b.addEventListener('click',()=>{if(!b.disabled&&history.length<12){saveUndo();history.push({type:'bz',table:Number(b.dataset.table)});editingIndex=null;render()}}));
+ $('undo').addEventListener('click',()=>{if(history.length){saveUndo();history.pop();editingIndex=null;render()}});
+ $('addFuku').addEventListener('click',()=>{if(!$('addFuku').disabled&&history.length<12){saveUndo();history.push({type:'fuku'});editingIndex=null;render()}});
+ $('includeFuku').addEventListener('change',e=>{saveUndo();includeFuku=e.target.checked;editingIndex=null;render()});
+ document.querySelectorAll('input[name="fukutsu"]').forEach(r=>r.addEventListener('change',e=>{if(e.target.disabled)return;if(fukutsu!==e.target.value){saveUndo();fukutsu=e.target.value}render()}));
+ $('reset').addEventListener('click',()=>{if(history.length){saveUndo();history.length=0;editingIndex=null;render()}});
+ $('restore').addEventListener('click',restorePrevious);
  render();
 })();
 </script>
