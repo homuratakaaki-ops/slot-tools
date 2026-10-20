@@ -13,7 +13,7 @@ button{font:inherit;cursor:pointer;border-radius:8px;min-height:44px;padding:10p
 </style></head><body><main>
 <p><a href="mhsunbreak-next-bz.html">← 次回BZ予測ツールに戻る</a></p>
 <h1>設定判別カウンターへの記録引き継ぎ</h1>
-<p>この画面で内容を確認するまでは、カウンターの記録は変更されません。</p>
+<p>この画面で内容を確認するまでは、カウンターの記録は変更されません。</p><p class="warn">設定判別カウンターを別タブで開いている場合は、そのタブを閉じるか再読み込みしてください。</p>
 <div class="warn"><b>既存データを保護します。</b><p>現在のAT間が空、または引き継ぎ履歴と先頭から一致する場合だけ追加します。異なる記録があれば停止します。</p></div>
 <section class="card"><h2>引き継ぐ記録</h2><p>途中のBZ・福引は、次のBZ・福引が続いているため自動的に「失敗」です。最後のBZ・福引だけ実際の「失敗／成功」を選んでください。</p><div id="rows"></div><p id="count" class="small"></p><p class="small">※BZ・福引の成功はAT当選として扱います。成功はそのAT間の最後の記録にしてください。成功後の演出などは、次のAT間として記録してください。</p></section>
 <section class="card"><h2>既存記録との照合</h2><strong id="diff">確認中</strong><p id="info"></p>
@@ -23,7 +23,7 @@ button{font:inherit;cursor:pointer;border-radius:8px;min-height:44px;padding:10p
 <p id="message" class="err" role="status"></p>
 <section id="after" class="card" hidden><h2 class="ok">引き継ぎ完了</h2><p>転送前のバックアップを保持しています。</p>
 <div class="actions"><a href="mhsunbreak-checker.html">設定判別カウンターを開く →</a><button type="button" id="rollback" class="secondary">この引き継ぎを取り消す</button></div>
-<p class="small">取り消しは、その後にカウンターのデータを変更していない場合だけ実行できます。</p></section>
+<p class="small">取り消しは、その後にカウンターのデータを変更していない場合だけ実行できます。開いたままの古いカウンタータブは閉じるか再読み込みしてください。</p></section>
 </main><script>
 (()=>{
 'use strict';
@@ -66,6 +66,8 @@ function plan(raw,events){
  const list=S.atLog.sessions,session=list[list.length-1];
  if(!session||session.closed||session.start?.known!==true||session.start.prior!==0||!Array.isArray(session.events))throw Error('現在のAT間は「AT後から開始」で、まだ終了していない必要があります。');
  if(!Array.isArray(S._bzTransferIds))S._bzTransferIds=[];
+ if(!Array.isArray(S._bzClosedSourceIds))S._bzClosedSourceIds=[];
+ if(S._bzClosedSourceIds.includes(pending.sessionId))throw Error('このAT間は既に成功として引き継ぎ済みです。次のAT間は予測ツールで「最初から」を押して記録してください。');
  if(S._bzTransferIds.includes(pending.id))throw Error('この転送は実行済みです。');
  if(session.events.length>events.length||!session.events.every((e,i)=>same(e,events[i])))throw Error('既存のAT間と記録の先頭が一致しません。重複防止のため追加を停止します。');
  const next=events.slice(session.events.length);
@@ -73,7 +75,10 @@ function plan(raw,events){
  if(session.events.length+next.length>200)throw Error('AT間の最大記録件数を超えます。');
  if(winAt>=0&&list.length>=50)throw Error('AT間保存上限に達しています。');
  session.events.push(...next);
- if(winAt>=0){session.closed=true;list.push({start:{known:true,prior:0},events:[],closed:false})}
+ if(winAt>=0){
+  session.closed=true;S._bzClosedSourceIds.push(pending.sessionId);
+  list.push({start:{known:true,prior:0},events:[],closed:false});
+ }
  S.atLog.schemaVersion=2;
  S._bzTransferIds=[...S._bzTransferIds.slice(-19),pending.id];
  return {S,next,prefix:session.events.length-next.length};
@@ -92,6 +97,7 @@ function init(){
   const p=JSON.parse(localStorage.getItem(TRANSFER)),now=Date.now();
   if(!p||p.version!==1||p.source!=='mhsunbreak-next-bz'||typeof p.id!=='string'||p.id.length>100
    ||!Number.isFinite(p.createdAt)||p.createdAt>now+60000||now-p.createdAt>86400000
+   ||typeof p.sessionId!=='string'||p.sessionId.length<6||p.sessionId.length>100
    ||!Array.isArray(p.events)||p.events.length<1||p.events.length>60||!p.events.every(valid))throw Error('転送データがありません。または期限切れ・形式不正です。');
   pending=p;rawAtOpen=localStorage.getItem(CHECKER);
   const root=$('rows');

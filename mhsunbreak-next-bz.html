@@ -321,8 +321,10 @@
  let editingIndex=null; // null: closed; otherwise index of the row being compared
  const undoStack=[];
  let activeSignal=null; // Only one of the four cue sections is visible at a time
+ const newSessionId=()=>Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+ let sessionId=newSessionId();
  const cloneHistory=()=>history.map(e=>({...e}));
- const snapshot=()=>({history:cloneHistory(),includeFuku,fukutsu});
+ const snapshot=()=>({history:cloneHistory(),includeFuku,fukutsu,sessionId});
  function saveUndo(){undoStack.push(snapshot());if(undoStack.length>40)undoStack.shift()}
  function restorePrevious(){
   if(!undoStack.length)return;
@@ -330,6 +332,7 @@
   history.splice(0,history.length,...saved.history.map(e=>({...e})));
   includeFuku=saved.includeFuku;
   fukutsu=saved.fukutsu;
+  sessionId=saved.sessionId;
   editingIndex=null;
   $('includeFuku').checked=includeFuku;
   render();
@@ -349,6 +352,7 @@
    const d=JSON.parse(raw);
    if(d&&d.version===1&&Array.isArray(d.history)&&d.history.length<=60&&d.history.every(validEvent)){
     history.push(...d.history.map(e=>({...e})));
+    if(typeof d.sessionId==='string'&&d.sessionId.length>=6&&d.sessionId.length<=100)sessionId=d.sessionId;
     includeFuku=d.includeFuku!==false;
     fukutsu=['none','blue','green','red'].includes(d.fukutsu)?d.fukutsu:'none';
     $('includeFuku').checked=includeFuku;
@@ -356,7 +360,7 @@
   }
  }catch(e){}
  function saveDraft(){
-  try{localStorage.setItem(DRAFT_STORAGE,JSON.stringify({version:1,history,includeFuku,fukutsu}));}catch(e){}
+  try{localStorage.setItem(DRAFT_STORAGE,JSON.stringify({version:1,history,includeFuku,fukutsu,sessionId}));}catch(e){}
  }
 
  const P=(n)=>n<0.05&&n>0?'0.1%未満':n.toFixed(n<1?2:1)+'%';
@@ -476,7 +480,7 @@
    return `<li data-type="${e.type}" ${signal?`data-code="${e.code}"`:fuku?'':`data-table="${e.table}"`}><span class="history-main"><span class="history-no">${num}</span><span class="history-table">${name}</span>${details}</span><span class="history-actions">${signal?'':`<button class="tiny-btn" data-edit="${i}" type="button" aria-label="履歴${i+1}件目を変更">変更</button>`}<button class="tiny-btn" data-remove="${i}" type="button" aria-label="履歴${i+1}件目を削除">削除</button></span></li>`;
   }).join('')||'<li class="empty">まだ履歴がありません。設定1の初回平均を表示中。</li>';
   $('history').querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.edit);editingIndex=editingIndex===i?null:i;render()}));
-  $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{saveUndo();history.splice(Number(b.dataset.remove),1);editingIndex=null;render()}));
+  $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{saveUndo();history.splice(Number(b.dataset.remove),1);if(!history.length)sessionId=newSessionId();editingIndex=null;render()}));
   const panel=$('editPanel');
   if(editingIndex!==null&&editingIndex>=0&&editingIndex<history.length){
    const i=editingIndex;
@@ -513,7 +517,7 @@
    '履歴なし：設定1のシナリオA〜Iの1回目BZレベルを加重計算。初回平均は次回の固定値ではありません。';
  }
  document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(b=>b.addEventListener('click',()=>{if(!b.disabled&&history.length<60){saveUndo();history.push({type:'bz',table:Number(b.dataset.table)});editingIndex=null;render()}}));
- $('undo').addEventListener('click',()=>{if(history.length){saveUndo();history.pop();editingIndex=null;render()}});
+ $('undo').addEventListener('click',()=>{if(history.length){saveUndo();history.pop();if(!history.length)sessionId=newSessionId();editingIndex=null;render()}});
  $('addFuku').addEventListener('click',()=>{if(!$('addFuku').disabled&&history.length<60){saveUndo();history.push({type:'fuku'});editingIndex=null;render()}});
  $('includeFuku').addEventListener('change',e=>{saveUndo();includeFuku=e.target.checked;editingIndex=null;render()});
  document.querySelectorAll('input[name="fukutsu"]').forEach(r=>r.addEventListener('change',e=>{if(e.target.disabled)return;if(fukutsu!==e.target.value){saveUndo();fukutsu=e.target.value}render()}));
@@ -522,7 +526,7 @@
   if(history.length>=60)return;
   saveUndo();history.push({type:b.dataset.signal,code:b.dataset.code});editingIndex=null;activeSignal=null;updateSignalTabs();render();
  }));
- $('reset').addEventListener('click',()=>{if(history.length){saveUndo();history.length=0;editingIndex=null;render()}});
+ $('reset').addEventListener('click',()=>{if(history.length){saveUndo();history.length=0;sessionId=newSessionId();editingIndex=null;render()}});
  $('restore').addEventListener('click',restorePrevious);
  updateSignalTabs();
 
@@ -531,7 +535,7 @@
   const msg=$('transferStatus');msg.textContent='';
   if(!history.length){msg.textContent='履歴を1件以上入力してから引き継いでください。';return}
   const payload={version:1,source:'mhsunbreak-next-bz',id:String(Date.now())+'-'+String(Math.random()).slice(2),
-   createdAt:Date.now(),includeFuku,events:history.map(e=>({...e}))};
+   createdAt:Date.now(),includeFuku,sessionId,events:history.map(e=>({...e}))};
   try{
    const key='mhsunbreak-next-bz-transfer-v1';
    localStorage.setItem(key,JSON.stringify(payload));

@@ -238,3 +238,45 @@ test('result selector targets the last BZ even if there are no BZ/Fuku after it'
   assert.deepEqual(errors,[]);
  }finally{await context.close()}
 });
+
+test('a successful BZ transfer cannot be resent to the next empty AT',async()=>{
+ const {page,context,errors}=await pageFor();
+ try{
+  await seed(page,null);await table(page,3);await transfer(page);await outcome(page,0,'win');
+  await page.locator('#apply').click();
+  const first=await current(page);
+  assert.equal(JSON.parse(first)._bzClosedSourceIds.length,1);
+  await page.goto(base+'mhsunbreak-next-bz.html');await transfer(page);await outcome(page,0,'win');
+  assert.equal(await page.locator('#apply').isDisabled(),true);
+  assert.match(await page.locator('#info').innerText(),/既に成功として引き継ぎ済み/);
+  assert.equal(await current(page),first);assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+});
+test('reset opens a distinct AT even with identical BZ table history',async()=>{
+ const {page,context,errors}=await pageFor();
+ try{
+  await seed(page,null);await table(page,3);await transfer(page);await outcome(page,0,'win');
+  await page.locator('#apply').click();
+  await page.goto(base+'mhsunbreak-next-bz.html');await page.locator('#reset').click();
+  await table(page,3);await transfer(page);await outcome(page,0,'win');
+  assert.equal(await page.locator('#apply').isEnabled(),true);
+  await page.locator('#apply').click();
+  const state=JSON.parse(await current(page));
+  assert.equal(state.atLog.sessions.length,3);
+  assert.equal(state._bzClosedSourceIds.length,2);
+  assert.notEqual(state._bzClosedSourceIds[0],state._bzClosedSourceIds[1]);
+  assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+});
+test('stale checker instance does not overwrite another tab import',async()=>{
+ const {page,context,errors}=await pageFor();let oldTab;
+ try{
+  await seed(page,null);
+  oldTab=await context.newPage();await oldTab.goto(base+'mhsunbreak-checker.html');
+  await table(page,3);await transfer(page);await outcome(page,0,'miss');await page.locator('#apply').click();
+  const actual=await current(page);
+  await oldTab.evaluate(()=>window.__checkerApp?.setState({hits:[999]})).catch(()=>{});
+  assert.equal(await current(page),actual);
+  assert.deepEqual(errors,[]);
+ }finally{await oldTab?.close();await context.close()}
+});

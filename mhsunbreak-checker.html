@@ -71,6 +71,31 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 2
 <div class="toast" id="toast"></div>
 <script src="checker-engine.js?v=20260924"></script>
 <script src="checker-data/mhsunbreak.js?v=20261020-import"></script>
-<script>CheckerEngine.mount(CheckerConfigs.mhsunbreak);</script>
+<script>
+(()=>{
+ 'use strict';
+ // Guard only the Sunbreak checker. Shared checker-engine.js remains unchanged.
+ const KEY='mhsunbreak-checker-v1',store=window.localStorage;
+ let trusted=store.getItem(KEY),reloading=false;
+ function refreshIfStale(event){
+  if(reloading||store.getItem(KEY)===trusted)return false;
+  event?.preventDefault?.();event?.stopImmediatePropagation?.();
+  reloading=true;window.location.reload();return true;
+ }
+ const safeStore={
+  getItem:key=>store.getItem(key),
+  setItem(key,val){
+   if(key===KEY&&refreshIfStale())throw Error('別タブで記録更新');
+   store.setItem(key,val);if(key===KEY)trusted=String(val);
+  },
+  removeItem:key=>store.removeItem(key)
+ };
+ for(const name of ['pointerdown','click','keydown'])document.addEventListener(name,refreshIfStale,true);
+ window.addEventListener('focus',()=>refreshIfStale());
+ window.addEventListener('storage',event=>{if(event.key===KEY)refreshIfStale()});
+ const app=CheckerEngine.createApp(CheckerConfigs.mhsunbreak,{localStorage:safeStore});
+ window.__checkerApp=app;app.mount();
+})();
+</script>
 </body>
 </html>
