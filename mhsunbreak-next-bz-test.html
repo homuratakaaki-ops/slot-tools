@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>【テスト版】サンブレイク 次回BZレベル予測 v3.3</title>
+<title>【テスト版】サンブレイク 次回BZレベル予測 v3.4</title>
 <meta name="robots" content="noindex,nofollow,noarchive">
 <style>
 :root{color-scheme:dark;--bg:#100f18;--surface:#1c1a29;--panel:#252133;--line:#3b354d;--ink:#faf5ff;--muted:#baaeca;--accent:#ff5aa8;--cyan:#8ddbf5;--gold:#ffd586;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
@@ -11,12 +11,12 @@
 @media(max-width:470px){.card{padding:13px}.button-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.measure{grid-template-columns:49px 1fr 65px;gap:7px}.table-button{font-size:12px;padding:10px 5px;min-height:67px}.table-button .button-sub{font-size:10px}}
 
 /* v3.3: input colours are identical to their corresponding history colours. */
-.table-button[data-table="1"],.history li[data-table="1"]{--table-rgb:119,202,255}
-.table-button[data-table="2"],.history li[data-table="2"]{--table-rgb:255,222,115}
-.table-button[data-table="3"],.history li[data-table="3"]{--table-rgb:132,223,164}
-.table-button[data-table="4"],.history li[data-table="4"]{--table-rgb:255,168,119}
-.table-button[data-table="5"],.history li[data-table="5"]{--table-rgb:255,140,166}
-.table-button[data-table="6"],.history li[data-table="6"]{--table-rgb:193,164,255}
+.table-button[data-table="1"],.history li[data-table="1"],.edit-choice[data-table="1"]{--table-rgb:119,202,255}
+.table-button[data-table="2"],.history li[data-table="2"],.edit-choice[data-table="2"]{--table-rgb:255,222,115}
+.table-button[data-table="3"],.history li[data-table="3"],.edit-choice[data-table="3"]{--table-rgb:132,223,164}
+.table-button[data-table="4"],.history li[data-table="4"],.edit-choice[data-table="4"]{--table-rgb:255,168,119}
+.table-button[data-table="5"],.history li[data-table="5"],.edit-choice[data-table="5"]{--table-rgb:255,140,166}
+.table-button[data-table="6"],.history li[data-table="6"],.edit-choice[data-table="6"]{--table-rgb:193,164,255}
 .table-button[data-table]{background:rgba(var(--table-rgb),.11);border:1.5px solid rgba(var(--table-rgb),.65);box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)}
 .table-button[data-table] .button-title,.table-button[data-table] .num{color:rgb(var(--table-rgb))}
 .table-button[data-table] .button-sub{color:#e8e4ec}
@@ -30,16 +30,30 @@
 .metric-detail{font-size:12px;color:var(--muted);line-height:1.6}
 .inline-notice{font-size:12px;color:#f2d6a4;margin:2px 0 12px;line-height:1.6}
 @media(max-width:360px){.table-button .button-sub{white-space:nowrap;letter-spacing:-.35px;font-size:10px}.history li{font-size:12px}.history li .history-main{gap:5px}.history li .tiny-btn{min-width:42px;padding:5px 6px}}
+
+/* v3.4: change a past table in place without losing later history. */
+.history-actions{display:flex;align-items:center;justify-content:flex-end;gap:5px;flex:none}
+.history-actions .tiny-btn{min-width:42px}
+.edit-panel{margin:10px 0 12px;padding:12px;background:#241f32;border:1px solid #65506e;border-radius:10px}
+.edit-panel[hidden]{display:none}
+.edit-panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.edit-panel-title{font-size:13px;font-weight:850;color:#faf5ff}
+.edit-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px}
+.edit-choice{cursor:pointer;min-height:43px;padding:8px 5px;border-radius:8px;background:rgba(var(--table-rgb),.10);border:1px solid rgba(var(--table-rgb),.65);color:rgb(var(--table-rgb));font:inherit;font-size:12px;font-weight:800;white-space:nowrap}
+.edit-choice[aria-pressed="true"]{background:rgba(var(--table-rgb),.30);border-width:2px}
+.edit-choice:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.edit-panel-note{margin:9px 0 0;color:var(--muted);font-size:11px;line-height:1.5}
+@media(max-width:360px){.history-actions{gap:3px}.history-actions .tiny-btn{min-width:40px;padding:5px}}
 </style>
 </head>
 <body>
 <main>
-<div class="eyebrow">非本番テスト版 / v3.3</div>
+<div class="eyebrow">非本番テスト版 / v3.4</div>
 <h1>次回BZレベル予測</h1>
 <p class="sub">スマスロ モンスターハンターライズ：サンブレイク。<br>今までのBZ開始テーブルから、次回のLOW・MID・HI・SPを推定します。</p>
 <section class="card" aria-labelledby="historyTitle">
  <div class="row-flex"><h2 id="historyTitle">① これまでに失敗したBZを入力</h2><span class="badge" id="nextLabel">次は1回目</span></div>
- <p class="sub">AT後1回目から順番に、<b>失敗したBZの開始テーブル（最初のアイコン）</b>を押してください。<b>最後に止まったアイコンではありません。</b>途中からの不明な履歴は飛ばせません。</p>
+ <p class="sub">AT後1回目から順番に、<b>失敗したBZの開始テーブル（最初のアイコン）</b>を押してください。<b>最後に止まったアイコンではありません。</b>最初のテーブルが不明な場合は仮に入力し、履歴の「変更」で別の可能性を比較できます。途中の履歴は飛ばせません。</p>
  <div class="button-grid" id="tableButtons" role="group" aria-label="失敗したBZの開始テーブルを追加">
   <button type="button" class="table-button" data-table="1"><span class="button-title"><span class="num">①</span> テーブル1</span><span class="button-sub">QUEST青から開始</span></button>
   <button type="button" class="table-button" data-table="2"><span class="button-title"><span class="num">②</span> テーブル2</span><span class="button-sub">QUEST黄から開始</span></button>
@@ -49,6 +63,7 @@
   <button type="button" class="table-button" data-table="6"><span class="button-title"><span class="num">⑥</span> テーブル6</span><span class="button-sub">テオ・テスカトルから開始</span></button>
  </div>
  <ul class="history" id="history"></ul>
+ <div class="edit-panel" id="editPanel" hidden aria-live="polite"></div>
  <p class="inline-notice">※アイルー福引は今回の予測に含めていません。</p>
  <div class="row-flex"><span class="smallprint">⑦ ATは当選濃厚のため、失敗履歴に入力しません。</span><span><button type="button" class="tiny-btn" id="undo">1回戻す</button> <button type="button" class="tiny-btn" id="reset">最初から</button></span></div>
  <p role="status" class="err" id="error"></p>
@@ -95,6 +110,7 @@
  const START_NAMES=TABLE_NAMES.map((name,i)=>`テーブル${i+1}（${name}から開始）`);
  const TABLE_EXPECT=[19.4,28.7,49.5,63.6,78.2,90.2,100];
  const history=[];
+ let editingIndex=null; // null: closed; otherwise index of the row being compared
  const $=id=>document.getElementById(id);
  const P=(n)=>n<0.05&&n>0?'0.1%未満':n.toFixed(n<1?2:1)+'%';
  const pctFmt=n=>Number.isFinite(n)?n.toFixed(1)+'%':'算出不可';
@@ -136,10 +152,20 @@
  function render(){
   $('nextLabel').textContent='次は'+(history.length+1)+'回目';
   $('status').textContent=history.length?'AT後'+(history.length+1)+'回目のBZ（失敗'+history.length+'回後）':'AT後1回目のBZ（履歴なし）';
-  $('history').innerHTML=history.map((num,i)=>`<li data-table="${num}"><span class="history-main"><span class="history-no">${i+1}回目</span><span class="history-table">テーブル${num}</span></span><button class="tiny-btn" data-remove="${i}" type="button">削除</button></li>`).join('')||'<li class="empty">まだBZ履歴がありません。設定1の初回平均を表示中。</li>';
-  $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{history.splice(Number(b.dataset.remove),1);render()}));
+  $('history').innerHTML=history.map((num,i)=>`<li data-table="${num}"><span class="history-main"><span class="history-no">${i+1}回目</span><span class="history-table">テーブル${num}</span></span><span class="history-actions"><button class="tiny-btn" data-edit="${i}" type="button" aria-label="${i+1}回目の開始テーブルを変更">変更</button><button class="tiny-btn" data-remove="${i}" type="button" aria-label="${i+1}回目を削除">削除</button></span></li>`).join('')||'<li class="empty">まだBZ履歴がありません。設定1の初回平均を表示中。</li>';
+  $('history').querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.edit);editingIndex=editingIndex===i?null:i;render()}));
+  $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{history.splice(Number(b.dataset.remove),1);editingIndex=null;render()}));
+  const panel=$('editPanel');
+  if(editingIndex!==null&&editingIndex>=0&&editingIndex<history.length){
+   const i=editingIndex;
+   panel.hidden=false;
+   panel.innerHTML=`<div class="edit-panel-head"><div class="edit-panel-title">${i+1}回目の開始テーブルを変更</div><button type="button" class="tiny-btn" id="closeEdit">閉じる</button></div><div class="edit-grid" role="group" aria-label="${i+1}回目の変更先テーブル">${Array.from({length:6},(_,k)=>`<button type="button" class="edit-choice" data-choice="${k+1}" data-table="${k+1}" aria-pressed="${history[i]===k+1}">テーブル${k+1}</button>`).join('')}</div><p class="edit-panel-note">タップするたびに次回予測を再計算します。後ろの履歴は残ります。推測で入れたテーブルは仮定として比較してください。</p>`;
+   panel.querySelector('#closeEdit').addEventListener('click',()=>{editingIndex=null;render()});
+   panel.querySelectorAll('[data-choice]').forEach(b=>b.addEventListener('click',()=>{history[i]=Number(b.dataset.choice);render();const same=panel.querySelector(`[data-choice="${history[i]}"]`);if(same)same.focus({preventScroll:true})}));
+  }else{editingIndex=null;panel.hidden=true;panel.replaceChildren()}
+
   const disabled=history.length>=6;
-  document.querySelectorAll('[data-table]').forEach(btn=>btn.disabled=disabled);
+  document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(btn=>btn.disabled=disabled);
   $('undo').disabled=history.length===0;
   $('reset').disabled=history.length===0;
   const result=compute(history);
@@ -157,9 +183,9 @@
    `設定1のシナリオ選択率 × 記録したテーブルの選択確率で候補を重み付けし、次のBZレベルを集計。${warn}`:
    '履歴なし：設定1のシナリオA〜Iの1回目BZレベルを加重計算。初回平均は次回の固定値ではありません。';
  }
- document.querySelectorAll('[data-table]').forEach(b=>b.addEventListener('click',()=>{if(history.length<6){history.push(Number(b.dataset.table));render()}}));
- $('undo').addEventListener('click',()=>{if(history.length){history.pop();render()}});
- $('reset').addEventListener('click',()=>{history.length=0;render()});
+ document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(b=>b.addEventListener('click',()=>{if(history.length<6){history.push(Number(b.dataset.table));editingIndex=null;render()}}));
+ $('undo').addEventListener('click',()=>{if(history.length){history.pop();editingIndex=null;render()}});
+ $('reset').addEventListener('click',()=>{history.length=0;editingIndex=null;render()});
  render();
 })();
 </script>
