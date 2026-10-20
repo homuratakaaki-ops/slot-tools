@@ -78,7 +78,7 @@
 .edit-choice[data-fuku][aria-pressed="true"]{background:#704821}
 @media(max-width:340px){.fukutsu-options{gap:3px}.fukutsu-choice{font-size:11px}.history li .history-note{font-size:9px}}
 
-/* v3.6: keep Fuku input with the six table buttons; status is visible beside the checkbox. */
+/* v3.8: recorded cues and memos, retained Fuku input area. */
 .fuku-inline-btn{display:block;width:100%;margin:-5px 0 9px;min-height:51px;text-align:left;padding-left:14px;font-size:14px}
 .fuku-settings{margin-top:0;padding-top:9px}
 .fuku-toggle{display:flex;align-items:center;flex-wrap:nowrap;gap:10px;padding:4px 0}
@@ -100,16 +100,84 @@
 .fukutsu-first-note{font-size:12px;color:#f4d69f;margin:3px 0 10px}
 .fukutsu-first-note[hidden]{display:none}
 @media(max-width:360px){.history-toolbar{justify-content:flex-end}.history-toolbar-actions{gap:4px}.history-toolbar-actions .tiny-btn{font-size:10.5px;padding:6px 7px}}
+
+/* v3.7: Optional records share the same ordered event log, without guessing rates. */
+.signal-section{margin:12px 0;border-top:1px solid var(--line);padding-top:12px}
+.signal-section>summary{cursor:pointer;font-size:14px;font-weight:800;color:var(--cyan);padding:7px 0}
+.signal-section h3{font-size:13px;margin:12px 0 5px}
+.signal-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.signal-options button{border:1px solid #62536f;background:#252033;border-radius:9px;padding:11px 7px;color:#f6edf8;font:inherit;font-size:11px;font-weight:700;min-height:45px;line-height:1.35;cursor:pointer}
+.signal-options button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.signal-options .subtle{color:var(--muted);font-size:10px;display:block}
+.history li[data-type="serif"],.history li[data-type="eye"],.history li[data-type="lamp"],.history li[data-type="submarine"]{border-left:3px solid #8ddbf5;padding-left:7px}
+.history li .history-table{white-space:normal;line-height:1.35}
+@media(max-width:360px){.history li .history-main{flex:1;min-width:0;overflow-wrap:anywhere}.signal-options button{font-size:11px}}
+
+/* v3.8: four compact colour-coded tabs and one open selection panel. */
+.signal-section{margin:13px 0 10px;padding:13px 0 0;border-top:1px solid var(--line)}
+.signal-title{font-size:14px;font-weight:850;color:#f0eafa;margin:0 0 4px}
+.signal-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:11px 0 0}
+.signal-tab{--tab:#8ddbf5;display:flex;align-items:center;justify-content:center;min-height:49px;padding:9px 7px;color:var(--tab);font:inherit;font-size:12px;font-weight:800;line-height:1.35;cursor:pointer;border:1.5px solid var(--tab);border-radius:10px;background:#241f30;white-space:nowrap}
+.signal-tab[data-tab="serif"]{--tab:#dbb4fa;background:#2b203c}
+.signal-tab[data-tab="eye"]{--tab:#91d8a7;background:#1e3029}
+.signal-tab[data-tab="lamp"]{--tab:#f0b478;background:#382b24}
+.signal-tab[data-tab="submarine"]{--tab:#88cfff;background:#203041}
+.signal-tab[aria-selected="true"]{box-shadow:inset 0 0 0 2px var(--tab);filter:brightness(1.18)}
+.signal-tab:focus-visible{outline:3px solid #fff;outline-offset:2px}
+.signal-panel{padding:12px 9px;margin:9px 0 2px;border:1px solid #534a66;border-radius:10px;background:#231e30}
+.signal-panel[hidden]{display:none}
+.signal-panel-heading{font-size:13px;font-weight:800;margin-bottom:9px;color:#eae2f8}
+.signal-panel .signal-options button{min-height:49px}
+@media(max-width:345px){.signal-tabs{gap:6px}.signal-tab{font-size:11px;letter-spacing:-.2px;padding:7px 4px}}
+
+/* v3.9: indication colours reflect each actual eye-catch / PUSH choice. */
+.signal-options button[data-signal="eye"],.signal-options button[data-signal="lamp"],.signal-options button[data-signal="submarine"]{
+ color:var(--cue,#e9e4ef);border:1.5px solid var(--cue,#766c80);background:var(--cue-bg,#292530);
+}
+.signal-options button[data-signal="eye"]:focus-visible,.signal-options button[data-signal="lamp"]:focus-visible,.signal-options button[data-signal="submarine"]:focus-visible{
+ outline:2px solid var(--cue,#fff);outline-offset:2px;
+}
+.history li[data-type="eye"],.history li[data-type="lamp"],.history li[data-type="submarine"]{border-left:4px solid var(--cue,#8ddbf5)}
+.history li[data-type="eye"] .history-table,.history li[data-type="lamp"] .history-table,.history li[data-type="submarine"] .history-table{color:var(--cue,#e9e4ef)}
+.signal-options button[data-signal="submarine"] .subtle{color:inherit;opacity:.78}
+/* Rainbow PUSH is multicoloured while its text stays legible. */
+.signal-options button[data-signal="lamp"][data-code="rainbow"]{
+ background:linear-gradient(120deg,#3e2b55,#254e51,#51412a);color:#fff0b6;border-color:#ffd88b;
+}
+.signal-options button[data-signal="eye"][data-code="jay"],.history li[data-type="eye"][data-code="jay"]{--cue:#f2eef5;--cue-bg:#343039}
+.signal-options button[data-signal="eye"][data-code="luchika"],.history li[data-type="eye"][data-code="luchika"]{--cue:#83caff;--cue-bg:#1e344b}
+.signal-options button[data-signal="eye"][data-code="fiorene"],.history li[data-type="eye"][data-code="fiorene"]{--cue:#ffe881;--cue-bg:#41371e}
+.signal-options button[data-signal="eye"][data-code="bahari"],.history li[data-type="eye"][data-code="bahari"]{--cue:#a9e6ad;--cue-bg:#213c30}
+.signal-options button[data-signal="eye"][data-code="galeas"],.history li[data-type="eye"][data-code="galeas"]{--cue:#ff9b9b;--cue-bg:#482632}
+.signal-options button[data-signal="eye"][data-code="chiche"],.history li[data-type="eye"][data-code="chiche"]{--cue:#cbb4ff;--cue-bg:#332745}
+.signal-options button[data-signal="lamp"][data-code="white"],.history li[data-type="lamp"][data-code="white"]{--cue:#f2eef5;--cue-bg:#343039}
+.signal-options button[data-signal="lamp"][data-code="blue"],.history li[data-type="lamp"][data-code="blue"]{--cue:#83caff;--cue-bg:#1e344b}
+.signal-options button[data-signal="lamp"][data-code="yellow"],.history li[data-type="lamp"][data-code="yellow"]{--cue:#ffe881;--cue-bg:#41371e}
+.signal-options button[data-signal="lamp"][data-code="green"],.history li[data-type="lamp"][data-code="green"]{--cue:#a9e6ad;--cue-bg:#213c30}
+.signal-options button[data-signal="lamp"][data-code="red"],.history li[data-type="lamp"][data-code="red"]{--cue:#ff9b9b;--cue-bg:#482632}
+.signal-options button[data-signal="lamp"][data-code="purple"],.history li[data-type="lamp"][data-code="purple"]{--cue:#cbb4ff;--cue-bg:#332745}
+.signal-options button[data-signal="lamp"][data-code="rainbow"],.history li[data-type="lamp"][data-code="rainbow"]{--cue:#ffe6a0;--cue-bg:#44344e}
+.signal-options button[data-signal="lamp"][data-code="other"],.history li[data-type="lamp"][data-code="other"]{--cue:#d2c9da;--cue-bg:#33303c}
+.signal-options button[data-signal="submarine"][data-code="with_garuku"],.history li[data-type="submarine"][data-code="with_garuku"]{--cue:#8bcfff;--cue-bg:#1c3c53}
+.signal-options button[data-signal="submarine"][data-code="without_garuku"],.history li[data-type="submarine"][data-code="without_garuku"]{--cue:#d0cfda;--cue-bg:#34333d}
+.signal-options button[data-signal="submarine"][data-code="cross"],.history li[data-type="submarine"][data-code="cross"]{--cue:#b5b8c7;--cue-bg:#30313a}
+
+.quick-guide{margin:4px 0 10px}.quick-guide a{display:inline-flex;align-items:center;gap:6px;padding:8px 12px;border:1px solid #716088;border-radius:9px;text-decoration:none;color:#aee6ff;font-size:13px;font-weight:800;background:#242134}
+.quick-guide a:focus-visible,.compact-method a:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.compact-method{font-size:12px;color:var(--muted);margin:15px 0 2px;border-top:1px solid var(--line);padding:10px 0 0}
+.compact-footer{line-height:1.7;margin-top:14px}
+.fukutsu-unknown a{color:var(--cyan)}
 </style>
 </head>
 <body>
 <main>
 <div class="eyebrow">スロット稼働ノート / 無料ツール</div>
 <h1>次回BZレベル予測</h1>
-<p class="sub">スマスロ モンスターハンターライズ：サンブレイク。<br>今までのBZ開始テーブルから、次回のLOW・MID・HI・SPを推定します。</p>
+<nav class="quick-guide" aria-label="ガイドへのリンク"><a href="mhsunbreak-next-bz-guide.html">📖 使い方・計算条件を確認</a></nav>
+<p class="sub">BZの開始テーブルから、次回のレベルと参考AT当選期待度を予測します。</p>
 <section class="card" aria-labelledby="historyTitle">
  <div class="row-flex"><h2 id="historyTitle">① これまでに失敗したBZを入力</h2><span class="badge" id="nextLabel">次は1回目</span></div>
- <p class="sub">AT後1回目から順番に、<b>失敗したBZの開始テーブル（最初のアイコン）</b>を押してください。<b>最後に止まったアイコンではありません。</b>最初のテーブルが不明な場合は仮に入力し、履歴の「変更」で別の可能性を比較できます。途中の履歴は飛ばせません。</p>
+ <p class="sub"><b>失敗したBZの「最初のアイコン」</b>を順番に入力（最後に止まったアイコンではありません）。</p>
  <div class="button-grid" id="tableButtons" role="group" aria-label="失敗したBZの開始テーブルを追加">
   <button type="button" class="table-button" data-table="1"><span class="button-title"><span class="num">①</span> テーブル1</span><span class="button-sub">QUEST青から開始</span></button>
   <button type="button" class="table-button" data-table="2"><span class="button-title"><span class="num">②</span> テーブル2</span><span class="button-sub">QUEST黄から開始</span></button>
@@ -123,18 +191,70 @@
   <div class="controls-h">アイルー福引の回数扱い</div>
   <label class="fuku-toggle" for="includeFuku"><input type="checkbox" id="includeFuku" checked><strong id="fukuModeText" class="fuku-state">BZ回数に含めています</strong></label>
  </div>
+
+ <div class="signal-section" id="signals">
+  <div class="signal-title">示唆・演出を追加</div>
+  
+  <div class="signal-tabs" role="tablist" aria-label="記録する演出を選択">
+   <button type="button" class="signal-tab" data-tab="serif" aria-selected="false" aria-controls="signal-serf" role="tab">チッチェのセリフ</button>
+   <button type="button" class="signal-tab" data-tab="eye" aria-selected="false" aria-controls="signal-eye" role="tab">アイキャッチ</button>
+   <button type="button" class="signal-tab" data-tab="lamp" aria-selected="false" aria-controls="signal-lamp" role="tab">BZ終了PUSH</button>
+   <button type="button" class="signal-tab" data-tab="submarine" aria-selected="false" aria-controls="signal-submarine" role="tab">オトモ潜水艇</button>
+  </div>
+  <div id="signal-serf" class="signal-panel" data-panel="serif" role="tabpanel" hidden>
+   <div class="signal-panel-heading">チッチェのセリフ</div>
+   <div class="signal-options" role="group" aria-label="チッチェのセリフ">
+    <button type="button" data-signal="serif" data-code="s1">どちらのクエスト<span class="subtle">HI以上期待度UP（弱）・記録のみ</span></button>
+    <button type="button" data-signal="serif" data-code="s2">おすすめしたいクエスト<span class="subtle">HI以上期待度UP（強）・記録のみ</span></button>
+    <button type="button" data-signal="serif" data-code="s3">重要なクエスト<span class="subtle">HI以上濃厚（HI・SP）</span></button>
+    <button type="button" data-signal="serif" data-code="s4">珍しい依頼<span class="subtle">SP濃厚</span></button>
+   </div>
+  </div>
+  <div id="signal-eye" class="signal-panel" data-panel="eye" role="tabpanel" hidden>
+   <div class="signal-panel-heading">アイキャッチ（ステージチェンジ）</div>
+   <div class="signal-options" role="group" aria-label="アイキャッチ">
+    <button type="button" data-signal="eye" data-code="jay">ジェイ（白）</button>
+    <button type="button" data-signal="eye" data-code="luchika">ルーチカ（青）</button>
+    <button type="button" data-signal="eye" data-code="fiorene">フィオレーネ（黄）</button>
+    <button type="button" data-signal="eye" data-code="bahari">バハリ（緑）</button>
+    <button type="button" data-signal="eye" data-code="galeas">ガレアス（赤）</button>
+    <button type="button" data-signal="eye" data-code="chiche">チッチェ（紫）</button>
+   </div>
+  </div>
+  <div id="signal-lamp" class="signal-panel" data-panel="lamp" role="tabpanel" hidden>
+   <div class="signal-panel-heading">BZ終了時PUSH・サイドランプ</div>
+   
+   <div class="signal-options" role="group" aria-label="PUSHランプ">
+    <button type="button" data-signal="lamp" data-code="white">白</button>
+    <button type="button" data-signal="lamp" data-code="blue">青</button>
+    <button type="button" data-signal="lamp" data-code="yellow">黄</button>
+    <button type="button" data-signal="lamp" data-code="green">緑</button>
+    <button type="button" data-signal="lamp" data-code="red">赤</button>
+    <button type="button" data-signal="lamp" data-code="purple">紫</button>
+    <button type="button" data-signal="lamp" data-code="rainbow">虹</button>
+    <button type="button" data-signal="lamp" data-code="other">その他</button>
+   </div>
+  </div>
+  <div id="signal-submarine" class="signal-panel" data-panel="submarine" role="tabpanel" hidden>
+   <div class="signal-panel-heading">オトモ潜水艇の横切り</div>
+   <div class="signal-options" role="group" aria-label="ガルク同乗の有無">
+    <button type="button" data-signal="submarine" data-code="with_garuku">ガルク同乗あり<span class="subtle">発生メモのみ</span></button>
+    <button type="button" data-signal="submarine" data-code="without_garuku">ガルク同乗なし<span class="subtle">発生メモのみ</span></button>
+   </div>
+  </div>
+ </div>
  <ul class="history" id="history"></ul>
  <div class="edit-panel" id="editPanel" hidden aria-live="polite"></div>
- <p class="inline-notice">※アイルー福引の計上方法は未解析です。ON／OFFの両方を参考比較してください。</p>
- <div class="history-toolbar"><span class="smallprint">⑦ ATは当選濃厚のため、失敗履歴に入力しません。</span><div class="history-toolbar-actions"><button type="button" class="tiny-btn" id="undo">1回戻す</button><button type="button" class="tiny-btn" id="reset">最初から</button><button type="button" class="tiny-btn restore-btn" id="restore" disabled>元に戻す</button></div></div>
+ <p class="inline-notice">※福引を回数に含めるかは未確定。チェックを切り替えて比較できます。</p>
+ <div class="history-toolbar"><span class="smallprint">⑦（AT）は失敗履歴に入力しません。</span><div class="history-toolbar-actions"><button type="button" class="tiny-btn" id="undo">1回戻す</button><button type="button" class="tiny-btn" id="reset">最初から</button><button type="button" class="tiny-btn restore-btn" id="restore" disabled>元に戻す</button></div></div>
  <p role="status" class="err" id="error"></p>
 </section>
 <section class="card" aria-labelledby="resultTitle" aria-live="polite">
  <h2 id="resultTitle">② 次回BZの推定</h2>
  <div class="sub" id="status"></div>
- <div class="metric-label">次回BZの参考AT当選期待度</div>
+  <div class="metric-label" id="atMetricTitle">次回BZの参考AT当選期待度（設定1基準）</div>
  <div class="metric" id="mean">39.6%</div>
- <div class="metric-detail">設定1基準・公表テーブルAT期待度の加重平均（不屈の選択は反映しない）</div>
+ <div class="metric-detail" id="meanDetail">設定1基準の参考値・不屈は別枠で表示</div>
  <div class="controls-block">
   <div class="controls-h">不屈アイコン</div>
   <div class="fukutsu-options" role="group" aria-label="不屈の色を選択">
@@ -143,18 +263,17 @@
    <label class="fukutsu-choice" data-fukutsu="green"><input type="radio" name="fukutsu" value="green">緑</label>
    <label class="fukutsu-choice" data-fukutsu="red"><input type="radio" name="fukutsu" value="red">赤</label>
   </div>
-  <p class="fukutsu-first-note" id="fukutsuFirstNote" hidden>AT後1回目のBZは不屈アイコンなし。青・緑・赤は選択できません。</p>
+  <p class="fukutsu-first-note" id="fukutsuFirstNote" hidden>初回BZには不屈アイコンがありません。</p>
   <div class="fukutsu-result" id="fukutsuResult" aria-live="polite"></div>
  </div>
  <h2 style="margin-top:25px">次回のBZレベル振り分け</h2>
  <div id="levelBars"></div>
- <div class="note" id="note">履歴なし：設定1のシナリオ初回選択率から計算しています。</div>
+ <div id="note" hidden aria-hidden="true"></div><p class="compact-method">計算の前提・詳しい数値は <a href="mhsunbreak-next-bz-guide.html#calculation">計算ガイド</a> を参照。</p>
  <details class="data-panel"><summary>計算の内訳（テーブル別の期待度）</summary><table><thead><tr><th>テーブル</th><th>次回選択率</th><th>公表AT期待度</th></tr></thead><tbody id="tableBreakdown"></tbody></table></details>
  <details class="data-panel"><summary>候補シナリオと設定1基準の参考％</summary><div id="candidates"></div></details>
 </section>
-<p class="source">計算の出典：<a href="https://1geki.jp/slot/l_mh_sun/48/" target="_blank" rel="noopener noreferrer">一撃：BZテーブル・シナリオ解析</a>。既存カウンターと同じ公開解析表・重み付け手順を使用しています。</p>
-<p class="source">前提：AT間のBZ失敗履歴とアイルー福引のみを入力対象とします。福引を回数に含めるかは未解析のため、チェック切替で仮定を比較してください。初回BZに不屈アイコンはありません。途中のアイキャッチ、チッチェのセリフはまだ反映していません。記録したBZの成功によってAT間が終了した場合は、履歴を初期化してください。選択率に設定差があり、設定1以外の確率は未公表です。不屈別の条件付き試算は、CZ中の抽選仕様に仮定を置き、QUEST青・黄の個別成功率が不明なためテーブル③〜⑦に限定しています。<b>参考値は期待差枚や利益保証ではありません。</b></p>
-<details class="data-panel"><summary>関連ツール</summary><p class="source"><a href="https://slot-tools.jp/mhsunbreak-checker.html" target="_blank" rel="noopener noreferrer">サンブレイク設定判別カウンター ↗</a>（入力履歴の自動連携はしません）</p></details>
+<p class="source compact-footer">設定1の公表解析を用いた参考値です。実際の当選確率・期待差枚・利益を保証しません。<a href="mhsunbreak-next-bz-guide.html">使い方・計算条件・未対応の仕様はこちら ↗</a></p>
+<details class="data-panel"><summary>関連ツール</summary><p class="source"><a href="https://slot-tools.jp/mhsunbreak-checker.html" target="_blank" rel="noopener noreferrer">サンブレイク設定判別カウンター ↗</a>（記録引き継ぎは設計中。現在は未対応）</p></details>
 </main>
 <script>
 (function(){
@@ -181,11 +300,20 @@
  const TABLE_NAMES=['QUEST青','QUEST黄','ライゼクス','セルレギオス','オロミドロ亜種','テオ・テスカトル','AT'];
  const START_NAMES=TABLE_NAMES.map((name,i)=>`テーブル${i+1}（${name}から開始）`);
  const TABLE_EXPECT=[19.4,28.7,49.5,63.6,78.2,90.2,100];
- const history=[]; // {type:"bz",table:1..6} or {type:"fuku"}
+ const history=[]; // ordered events: BZ, fuku, serif, eye, lamp, submarine
+ const EYE_MIN={jay:'B',luchika:'C',fiorene:'D',bahari:'E',galeas:'F',chiche:'G'};
+ const SERIF_ALLOWED={s3:['HI','SP'],s4:['SP']};
+ const SIGNAL_LABELS={
+  serif:{s1:'チッチェ：どちらのクエスト',s2:'チッチェ：おすすめのクエスト',s3:'チッチェ：重要なクエスト',s4:'チッチェ：珍しい依頼'},
+  eye:{jay:'アイキャッチ：ジェイ',luchika:'アイキャッチ：ルーチカ',fiorene:'アイキャッチ：フィオレーネ',bahari:'アイキャッチ：バハリ',galeas:'アイキャッチ：ガレアス',chiche:'アイキャッチ：チッチェ'},
+  lamp:{white:'PUSH：白',blue:'PUSH：青',yellow:'PUSH：黄',green:'PUSH：緑',red:'PUSH：赤',purple:'PUSH：紫',rainbow:'PUSH：虹',other:'PUSH：その他'},
+  submarine:{cross:'オトモ潜水艇の横切り（同乗未確認・旧記録）',with_garuku:'オトモ潜水艇：ガルク同乗あり',without_garuku:'オトモ潜水艇：ガルク同乗なし'}
+ };
  let includeFuku=true;
  let fukutsu="none";
  let editingIndex=null; // null: closed; otherwise index of the row being compared
  const undoStack=[];
+ let activeSignal=null; // Only one of the four cue sections is visible at a time
  const cloneHistory=()=>history.map(e=>({...e}));
  const snapshot=()=>({history:cloneHistory(),includeFuku,fukutsu});
  function saveUndo(){undoStack.push(snapshot());if(undoStack.length>40)undoStack.shift()}
@@ -200,6 +328,30 @@
   render();
  }
  const $=id=>document.getElementById(id);
+ // A dedicated draft key, never the existing checker storage key.
+ const DRAFT_STORAGE='mhsunbreak-next-bz-recording-v1'; // Separate from setting-checker data
+ const VALID_CODES=Object.fromEntries(Object.entries(SIGNAL_LABELS).map(([type,codes])=>[type,Object.keys(codes)]));
+ const validEvent=e=>e&&typeof e==='object'&&(
+  (e.type==='bz'&&Number.isInteger(e.table)&&e.table>=1&&e.table<=6)||
+  e.type==='fuku'||
+  (Array.isArray(VALID_CODES[e.type])&&VALID_CODES[e.type].includes(e.code))
+ );
+ try{
+  const raw=localStorage.getItem(DRAFT_STORAGE);
+  if(raw){
+   const d=JSON.parse(raw);
+   if(d&&d.version===1&&Array.isArray(d.history)&&d.history.length<=60&&d.history.every(validEvent)){
+    history.push(...d.history.map(e=>({...e})));
+    includeFuku=d.includeFuku!==false;
+    fukutsu=['none','blue','green','red'].includes(d.fukutsu)?d.fukutsu:'none';
+    $('includeFuku').checked=includeFuku;
+   }
+  }
+ }catch(e){}
+ function saveDraft(){
+  try{localStorage.setItem(DRAFT_STORAGE,JSON.stringify({version:1,history,includeFuku,fukutsu}));}catch(e){}
+ }
+
  const P=(n)=>n<0.05&&n>0?'0.1%未満':n.toFixed(n<1?2:1)+'%';
  const pctFmt=n=>Number.isFinite(n)?n.toFixed(1)+'%':'算出不可';
  const tableProb=(level,num)=>(TABLE_SHARE[num-1][level]||0);
@@ -223,7 +375,28 @@
   if(stepCount>6)return {status:'over'};
   for(const [name,seq,prior] of SCENARIOS){
    let w=prior,no=0;
-   for(const e of events){
+   for(let idx=0;idx<events.length;idx++){
+    const e=events[idx];
+    // Eye-catch: a scenario floor, preserving H/I as in the existing checker.
+    if(e.type==='eye'){
+     const min=EYE_MIN[e.code];
+     if(min && !(name>=min || name==='H' || name==='I')){w=0;break}
+     continue;
+    }
+    // The two HI-up cues have no published numerical multiplier.
+    if(e.type==='serif'){
+     const allowed=SERIF_ALLOWED[e.code];
+     if(allowed){
+      // If a counted Fuku interrupts the cue before the next actual BZ,
+      // whether the cue carries over is unknown. Do not narrow.
+      const beforeNextBZ=events.slice(idx+1);
+      const nextBZ=beforeNextBZ.findIndex(x=>x.type==='bz');
+      const crossed=mode&&beforeNextBZ.slice(0,nextBZ<0?undefined:nextBZ).some(x=>x.type==='fuku');
+      if(!crossed && !allowed.includes(seq[no])){w=0;break}
+     }
+     continue;
+    }
+    if(e.type==='lamp'||e.type==='submarine')continue;
     if(e.type==='fuku'){
      if(!mode)continue;
      // A fuku is a consumed position of unknown table, not a random observed table.
@@ -265,6 +438,13 @@
  }
  // Read-only hooks for reproducible test scripts, not data import from the checker.
  window.NextBZPrototype={compute,tableProb,levelTableWeights,fukutsuReport};
+ function updateSignalTabs(){
+  document.querySelectorAll('.signal-tab[data-tab]').forEach(b=>{
+   const on=b.dataset.tab===activeSignal;
+   b.setAttribute('aria-selected',String(on));
+  });
+  document.querySelectorAll('.signal-panel[data-panel]').forEach(panel=>{panel.hidden=panel.dataset.panel!==activeSignal});
+ }
  function render(){
   const steps=history.reduce((n,e)=>n+((e.type==='bz'||(e.type==='fuku'&&includeFuku))?1:0),0);
   $('nextLabel').textContent='次は'+(steps+1)+'回目相当';
@@ -275,16 +455,18 @@
   // 福引の計上数とは無関係に、実際のBZが1回もないときは不屈初回なし固定。
   const hasPriorBZ=history.some(e=>e.type==='bz');
   if(!hasPriorBZ)fukutsu='none';
+  saveDraft();
   document.querySelectorAll('input[name="fukutsu"]').forEach(r=>{r.disabled=!hasPriorBZ&&r.value!=='none';r.checked=r.value===fukutsu});
   $('fukutsuFirstNote').hidden=hasPriorBZ;
   let counted=0;
   $('history').innerHTML=history.map((e,i)=>{
    const counts=e.type==='bz'||(e.type==='fuku'&&includeFuku);
    if(counts)counted++;
-   const fuku=e.type==='fuku',name=fuku?'アイルー福引':`テーブル${e.table}`;
-   const num=counts?`${counted}回目`:'対象外';
+   const fuku=e.type==='fuku',signal=['serif','eye','lamp','submarine'].includes(e.type);
+   const name=signal?(SIGNAL_LABELS[e.type]||{})[e.code]||'メモ':fuku?'アイルー福引':`テーブル${e.table}`;
+   const num=signal?'メモ':counts?`${counted}回目`:'対象外';
    const details=''; // 対象外のバッジで計上しないことを表示する
-   return `<li data-type="${e.type}" ${fuku?'':`data-table="${e.table}"`}><span class="history-main"><span class="history-no">${num}</span><span class="history-table">${name}</span>${details}</span><span class="history-actions"><button class="tiny-btn" data-edit="${i}" type="button" aria-label="履歴${i+1}件目を変更">変更</button><button class="tiny-btn" data-remove="${i}" type="button" aria-label="履歴${i+1}件目を削除">削除</button></span></li>`;
+   return `<li data-type="${e.type}" ${signal?`data-code="${e.code}"`:fuku?'':`data-table="${e.table}"`}><span class="history-main"><span class="history-no">${num}</span><span class="history-table">${name}</span>${details}</span><span class="history-actions">${signal?'':`<button class="tiny-btn" data-edit="${i}" type="button" aria-label="履歴${i+1}件目を変更">変更</button>`}<button class="tiny-btn" data-remove="${i}" type="button" aria-label="履歴${i+1}件目を削除">削除</button></span></li>`;
   }).join('')||'<li class="empty">まだ履歴がありません。設定1の初回平均を表示中。</li>';
   $('history').querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.edit);editingIndex=editingIndex===i?null:i;render()}));
   $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{saveUndo();history.splice(Number(b.dataset.remove),1);editingIndex=null;render()}));
@@ -297,8 +479,8 @@
    panel.querySelectorAll('[data-choice]').forEach(b=>b.addEventListener('click',()=>{const v=b.dataset.choice;const next=v==='fuku'?{type:'fuku'}:{type:'bz',table:Number(v)};if(history[i].type!==next.type||history[i].table!==next.table){saveUndo();history[i]=next}render();const same=panel.querySelector(`[data-choice="${v}"]`);if(same)same.focus({preventScroll:true})}));
   }else{editingIndex=null;panel.hidden=true;panel.replaceChildren()}
   const countedMax=steps>=6;
-  document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(btn=>btn.disabled=countedMax||history.length>=12);
-  $('addFuku').disabled=(includeFuku&&countedMax)||history.length>=12;
+  document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(btn=>btn.disabled=countedMax||history.length>=60);
+  $('addFuku').disabled=(includeFuku&&countedMax)||history.length>=60;
   $('undo').disabled=history.length===0;
   $('reset').disabled=history.length===0;
   const result=compute(history);
@@ -313,12 +495,12 @@
   $('mean').textContent=pctFmt(result.at);
   $('levelBars').innerHTML=LEVELS.map(l=>`<div class="measure"><div class="name">${l}</div><div class="bar-track"><div class="bar" style="width:${Math.min(100,result.share[l])}%"></div></div><div class="value">${P(result.share[l])}</div></div>`).join('');
   $('tableBreakdown').innerHTML=result.tables.map((p,i)=>`<tr><td>${START_NAMES[i]}</td><td>${P(p)}</td><td>${pctFmt(TABLE_EXPECT[i])}</td></tr>`).join('');
-  $('candidates').innerHTML=result.survivors.sort((a,b)=>b.pct-a.pct).map(sc=>`<div class="row-flex" style="border-bottom:1px solid var(--line);padding:7px 0;font-size:13px"><span>シナリオ${sc.name}</span><b>${P(sc.pct)}</b></div>`).join('');
+  $('candidates').innerHTML=result.survivors.slice().sort((a,b)=>b.pct-a.pct).map(sc=>`<div class="row-flex" style="border-bottom:1px solid var(--line);padding:7px 0;font-size:13px"><span>シナリオ${sc.name}</span><b>${P(sc.pct)}</b></div>`).join('');
   const rpt=fukutsuReport(result,fukutsu);
   const colors={none:'なし',blue:'青',green:'緑',red:'赤'};
   fukutsuEl.innerHTML=rpt?
-   `<div class="sub">不屈${colors[fukutsu]}・条件付き試算（テーブル③〜⑦に限る）</div><strong>${pctFmt(rpt.conditional)}</strong><div class="metric-detail">対象テーブルの選択率：${P(rpt.selectionMass)}／全体のうち未算定①②：${P(rpt.unknownMass)}</div><p class="fukutsu-unknown">①②はQUEST青・黄の個別成功率が未公表。ここに表示した数字は③〜⑦が選ばれた場合の平均で、次回BZ全体の期待度ではありません。</p>`:
-   '<p class="fukutsu-unknown">テーブル③〜⑦が選ばれないため、不屈別の条件付き試算は算出できません。</p>';
+   `<div class="sub">不屈${colors[fukutsu]}・③〜⑦の条件付き試算</div><strong>${pctFmt(rpt.conditional)}</strong><div class="metric-detail">対象③〜⑦：${P(rpt.selectionMass)}／未算定①②：${P(rpt.unknownMass)}</div><p class="fukutsu-unknown">※③〜⑦だけの条件付き試算。BZ全体の期待度ではありません。<a href="mhsunbreak-next-bz-guide.html#fukutsu">詳しい条件</a></p>`:
+   '<p class="fukutsu-unknown">③〜⑦が対象外のため算出不可。</p>';
   $('note').textContent=history.length?
    `設定1のシナリオ選択率 × 観測した開始テーブルの選択率で重み付け。福引は${includeFuku?'回数に含める仮説':'回数に含めない'}として次回のBZレベルを集計。`:
    '履歴なし：設定1のシナリオA〜Iの1回目BZレベルを加重計算。初回平均は次回の固定値ではありません。';
@@ -328,8 +510,14 @@
  $('addFuku').addEventListener('click',()=>{if(!$('addFuku').disabled&&history.length<12){saveUndo();history.push({type:'fuku'});editingIndex=null;render()}});
  $('includeFuku').addEventListener('change',e=>{saveUndo();includeFuku=e.target.checked;editingIndex=null;render()});
  document.querySelectorAll('input[name="fukutsu"]').forEach(r=>r.addEventListener('change',e=>{if(e.target.disabled)return;if(fukutsu!==e.target.value){saveUndo();fukutsu=e.target.value}render()}));
+ document.querySelectorAll('.signal-tab[data-tab]').forEach(b=>b.addEventListener('click',()=>{activeSignal=activeSignal===b.dataset.tab?null:b.dataset.tab;updateSignalTabs()}));
+ document.querySelectorAll('[data-signal]').forEach(b=>b.addEventListener('click',()=>{
+  if(history.length>=60)return;
+  saveUndo();history.push({type:b.dataset.signal,code:b.dataset.code});editingIndex=null;activeSignal=null;updateSignalTabs();render();
+ }));
  $('reset').addEventListener('click',()=>{if(history.length){saveUndo();history.length=0;editingIndex=null;render()}});
  $('restore').addEventListener('click',restorePrevious);
+ updateSignalTabs();
  render();
 })();
 </script>
