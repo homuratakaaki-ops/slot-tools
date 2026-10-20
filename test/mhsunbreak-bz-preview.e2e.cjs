@@ -197,3 +197,16 @@ test('BZ success followed by another event is rejected; manual-entry link opens 
 });
 
 test('production checker storage is untouched after preview transfer',async()=>{const {page,context,errors}=await pageFor();try{const sentinel='{"real":42}';await seed(page,null);await page.evaluate(s=>localStorage.setItem('mhsunbreak-checker-v1',s),sentinel);await table(page,3);await transfer(page);await page.locator('select[data-result="0"]').selectOption('miss');await page.locator('#apply').click();assert.equal(await page.evaluate(()=>localStorage.getItem('mhsunbreak-checker-v1')),sentinel);assert.equal(JSON.parse(await current(page)).atLog.sessions[0].events.length,1);assert.deepEqual(errors,[])}finally{await context.close()}});
+
+test('public mobile preview serves revised BZ outcome and manual fallback',async()=>{
+ const root='https://slot-tools.jp/preview/mhsunbreak-bz-20261020/';
+ for(const [p,markers] of [
+ ['index.html',['BZと福引をそれぞれ','手入力できます']],
+ ['mhsunbreak-bz-import.html',['data-result','manualFallback','BZまたは福引の成功後','テスト版','mhsunbreak-bz-preview-20261020-checker-v1']]
+ ]){
+  const response=await fetch(root+p+'?v=20261020-bz-win',{signal:AbortSignal.timeout(20000),cache:'no-store'});
+  assert.equal(response.status,200,root+p+': status '+response.status);
+  const source=await response.text();
+  for(const marker of markers)assert.ok(source.includes(marker),p+': marker missing: '+marker);
+ }
+});
