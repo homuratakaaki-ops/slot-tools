@@ -52,6 +52,9 @@ async function transfer(page){
  await page.locator('#startTransfer').click();
  await page.waitForURL('**/mhsunbreak-bz-import.html');
 }
+async function outcome(page,index,result='miss'){
+ await page.locator('select[data-result="'+index+'"]').selectOption(result);
+}
 function initialState(events=[]){return {hits:[135,213],counts:{at:2},bzBase:{},atLog:{schemaVersion:2,sessions:[{start:{known:true,prior:0},events,closed:false}]}}}
 test('real links, stage-only, fuku selection, saved checker, reload, rollback',async()=>{
  const {page,context,errors}=await pageFor();
@@ -70,7 +73,7 @@ test('real links, stage-only, fuku selection, saved checker, reload, rollback',a
   await transfer(page);
   assert.equal(await page.locator('#apply').isDisabled(),true,'fuku must have manual result');
   assert.equal(await current(page),original,'preview must not write');
-  await page.locator('select[data-fuku="2"]').selectOption('miss');
+  await outcome(page,0);await outcome(page,2,'miss');
   assert.equal(await page.locator('#apply').isEnabled(),true);
   await page.locator('#apply').click();
   assert.equal(await page.locator('#after').isVisible(),true);
@@ -98,6 +101,7 @@ test('conflicting existing AT history blocks transfer and preserves bytes',async
  try{
   const raw=JSON.stringify(initialState([{t:'bz',table:'t2',r:'miss'}]));
   await seed(page,raw);await table(page,3);await transfer(page);
+  await outcome(page,0);
   assert.equal(await page.locator('#apply').isDisabled(),true);
   assert.match(await page.locator('#info').innerText(),/一致しません/);
   assert.equal(await current(page),raw);
@@ -108,10 +112,12 @@ test('second transfer with new ID cannot duplicate the same history',async()=>{
  const {page,context,errors}=await pageFor();
  try{
   await seed(page,null);await table(page);await transfer(page);
+  await outcome(page,0);
   await page.locator('#apply').click();
   assert.equal(JSON.parse(await current(page)).atLog.sessions[0].events.length,1);
   await page.goto(base+'mhsunbreak-next-bz.html');
   await transfer(page);
+  await outcome(page,0);
   assert.equal(await page.locator('#apply').isDisabled(),true);
   assert.match(await page.locator('#info').innerText(),/すべて記録済み/);
   assert.equal(JSON.parse(await current(page)).atLog.sessions[0].events.length,1);
@@ -123,6 +129,7 @@ test('legacy cumulative counter records fail closed without data mutation',async
  try{
   const raw=JSON.stringify({bzT1:{t3:8},atLog:{schemaVersion:1,sessions:[{start:{known:true,prior:0},events:[],closed:false}]}});
   await seed(page,raw);await table(page);await transfer(page);
+  await outcome(page,0);
   assert.equal(await page.locator('#apply').isDisabled(),true);
   assert.match(await page.locator('#info').innerText(),/旧形式のBZ累計/);
   assert.equal(await current(page),raw);assert.deepEqual(errors,[]);
@@ -132,7 +139,7 @@ test('Fuku success closes AT interval; no extra event allowed afterward',async()
  const {page,context,errors}=await pageFor();
  try{
   await seed(page,null);await table(page);await page.locator('#addFuku').click();
-  await transfer(page);await page.locator('select[data-fuku="1"]').selectOption('win');
+  await transfer(page);await outcome(page,0);await outcome(page,1,'win');
   await page.locator('#apply').click();
   const logs=JSON.parse(await current(page)).atLog.sessions;
   assert.equal(logs.length,2);assert.equal(logs[0].closed,true);
@@ -156,4 +163,35 @@ test('mobile layouts and draft history persist at 320, 360, 390, 412 pixels',asy
    assert.deepEqual(errors,[],'browser exceptions at '+width);
   }finally{await context.close()}
  }
+});
+
+test('BZ success is selectable, saved as win, and closes the AT interval',async()=>{
+ const {page,context,errors}=await pageFor();
+ try{
+  await seed(page,null);await table(page,3);await transfer(page);
+  assert.equal(await page.locator('#apply').isDisabled(),true,'BZ result is required');
+  await outcome(page,0,'win');
+  assert.equal(await page.locator('#apply').isEnabled(),true);
+  await page.locator('#apply').click();
+  const state=JSON.parse(await current(page));
+  assert.equal(state.atLog.sessions.length,2);
+  assert.deepEqual(state.atLog.sessions[0].events,[{t:'bz',table:'t3',r:'win'}]);
+  assert.equal(state.atLog.sessions[0].closed,true);
+  assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+});
+test('BZ success followed by another event is rejected; manual-entry link opens checker',async()=>{
+ const {page,context,errors}=await pageFor();
+ try{
+  await seed(page,null);await table(page,3);await page.locator('#addFuku').click();
+  await transfer(page);await outcome(page,0,'win');await outcome(page,1,'miss');
+  assert.equal(await page.locator('#apply').isDisabled(),true);
+  assert.match(await page.locator('#info').innerText(),/成功後に記録/);
+  assert.equal(await current(page),null);
+  const fallback=page.locator('#manualFallback a[href="mhsunbreak-checker.html"]');
+  assert.equal(await fallback.isVisible(),true);
+  await fallback.click();await page.waitForURL('**/mhsunbreak-checker.html');
+  assert.equal(await current(page),null);
+  assert.deepEqual(errors,[]);
+ }finally{await context.close()}
 });
