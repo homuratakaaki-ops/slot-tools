@@ -199,7 +199,7 @@
   const AT_PRIOR_MAX=6;      // ［途中から：既にBZ n回］の n の上限
   const newAtSession=()=>({start:{known:true,prior:0},events:[],closed:false});
   // 画面に出せる出来事の種類。ここに無い種類は捨てずに持つだけにする（表示も集計もしない）。
-  const EVENT_TYPES=['bz','fuku','eye','serif','otherAt','lamp'];
+  const EVENT_TYPES=['bz','fuku','eye','serif','otherAt','lamp','submarine'];
   const ICON_POS_MAX=11;
   const AT_SCHEMA=2;   // atLog の版数。無ければ 1 とみなす（表示には使わない）
   // 読み込みは前方互換にする。知らない種類の出来事も、知らない項目（キー）も捨てない。
@@ -220,6 +220,7 @@
     if(e.t==='fuku')return ['win','miss'].indexOf(e.r)>=0?out:null;
     if(e.t==='eye')return EYE.some(c=>c[0]===e.c)?out:null;
     if(e.t==='serif')return SERIF.some(c=>c[0]===e.c)?out:null;
+    if(e.t==='submarine')return ['with_garuku','without_garuku','cross'].includes(e.c)?out:null;
     // lamp は集計にもBZ番号にも使わないので、知らない色でも捨てずに残す（表示だけしない）
     return out;   // otherAt / lamp
   }
@@ -311,6 +312,7 @@
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `アイキャッチ ${c[1]}（${c[2]}）${c[3]}`;}
     if(e.t==='serif')return 'セリフ '+SERIF.find(c=>c[0]===e.c)[1];
     if(e.t==='lamp')return 'ランプ '+LAMP_NAMES[e.c];
+    if(e.t==='submarine')return 'オトモ潜水艇 '+({with_garuku:'ガルク同乗あり',without_garuku:'ガルク同乗なし',cross:'同乗未確認'}[e.c]||'記録');
     if(e.t==='otherAt')return 'BZ以外でAT当選';
     return '記録（この版では表示できません）';   // 防御。shownEvent を通らないので通常は呼ばれない
   }
@@ -968,6 +970,7 @@
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `${open} style="--c:${c[4]}" aria-label="${label}"><b>アイキャッチ</b><i>${c[1]}（${c[2]}）</i><small>${c[3]}</small></button>`;}
     if(e.t==='serif'){const c=SERIF.find(c=>c[0]===e.c);return `${open} aria-label="${label}"><b>セリフ</b><i>「${c[2]}」</i><small>${c[1]}</small></button>`;}
     if(e.t==='lamp')return `${open} style="--c:${LAMP_COLORS[e.c]}" aria-label="${label}"><b>ﾗﾝﾌﾟ</b><i>${LAMP_NAMES[e.c]}</i></button>`;
+    if(e.t==='submarine')return `${open} style="--c:${e.c==='with_garuku'?'#83caff':'#9a90a8'}" aria-label="${label}"><b>潜水艇</b><i>${e.c==='with_garuku'?'ガルク同乗あり':e.c==='without_garuku'?'ガルク同乗なし':'同乗未確認'}</i></button>`;
     return `${open} aria-label="${label}"><b>BZ以外</b><i>でAT当選</i></button>`;
   }
   // 結果アイコンの位置（1〜11）。11個目は成功時のみ選べる。
@@ -1211,6 +1214,7 @@
     <div class="cgrid">${arr.map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
     <div class="hint">${hint}</div>
   </section>`).join('');}
+
   function pageBZ(ctx){return `<style>${ND_STYLE}
 /* 現在の状況（読む所。入力と見た目で分ける） */
 .now-box{border:2px solid #2f5d72;background:linear-gradient(180deg,#131a22,#0f1319);border-radius:12px;padding:10px 10px 12px}
