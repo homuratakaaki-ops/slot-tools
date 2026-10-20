@@ -199,7 +199,7 @@
   const AT_PRIOR_MAX=6;      // ［途中から：既にBZ n回］の n の上限
   const newAtSession=()=>({start:{known:true,prior:0},events:[],closed:false});
   // 画面に出せる出来事の種類。ここに無い種類は捨てずに持つだけにする（表示も集計もしない）。
-  const EVENT_TYPES=['bz','fuku','eye','serif','otherAt','lamp'];
+  const EVENT_TYPES=['bz','fuku','eye','serif','otherAt','lamp','submarine'];
   const ICON_POS_MAX=11;
   const AT_SCHEMA=2;   // atLog の版数。無ければ 1 とみなす（表示には使わない）
   // 読み込みは前方互換にする。知らない種類の出来事も、知らない項目（キー）も捨てない。
@@ -220,6 +220,7 @@
     if(e.t==='fuku')return ['win','miss'].indexOf(e.r)>=0?out:null;
     if(e.t==='eye')return EYE.some(c=>c[0]===e.c)?out:null;
     if(e.t==='serif')return SERIF.some(c=>c[0]===e.c)?out:null;
+    if(e.t==='submarine')return ['with_garuku','without_garuku','cross'].includes(e.c)?out:null;
     // lamp は集計にもBZ番号にも使わないので、知らない色でも捨てずに残す（表示だけしない）
     return out;   // otherAt / lamp
   }
@@ -311,6 +312,7 @@
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `アイキャッチ ${c[1]}（${c[2]}）${c[3]}`;}
     if(e.t==='serif')return 'セリフ '+SERIF.find(c=>c[0]===e.c)[1];
     if(e.t==='lamp')return 'ランプ '+LAMP_NAMES[e.c];
+    if(e.t==='submarine')return 'オトモ潜水艇 '+({with_garuku:'ガルク同乗あり',without_garuku:'ガルク同乗なし',cross:'同乗未確認'}[e.c]||'記録');
     if(e.t==='otherAt')return 'BZ以外でAT当選';
     return '記録（この版では表示できません）';   // 防御。shownEvent を通らないので通常は呼ばれない
   }
@@ -968,6 +970,7 @@
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `${open} style="--c:${c[4]}" aria-label="${label}"><b>アイキャッチ</b><i>${c[1]}（${c[2]}）</i><small>${c[3]}</small></button>`;}
     if(e.t==='serif'){const c=SERIF.find(c=>c[0]===e.c);return `${open} aria-label="${label}"><b>セリフ</b><i>「${c[2]}」</i><small>${c[1]}</small></button>`;}
     if(e.t==='lamp')return `${open} style="--c:${LAMP_COLORS[e.c]}" aria-label="${label}"><b>ﾗﾝﾌﾟ</b><i>${LAMP_NAMES[e.c]}</i></button>`;
+    if(e.t==='submarine')return `${open} style="--c:${e.c==='with_garuku'?'#83caff':'#9a90a8'}" aria-label="${label}"><b>潜水艇</b><i>${e.c==='with_garuku'?'ガルク同乗あり':e.c==='without_garuku'?'ガルク同乗なし':'同乗未確認'}</i></button>`;
     return `${open} aria-label="${label}"><b>BZ以外</b><i>でAT当選</i></button>`;
   }
   // 結果アイコンの位置（1〜11）。11個目は成功時のみ選べる。
@@ -1211,6 +1214,120 @@
     <div class="cgrid">${arr.map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
     <div class="hint">${hint}</div>
   </section>`).join('');}
+
+  // v1 handoff: never write to the checker data except in the explicitly approved custom action.
+  const HANDOFF_KEY='mhsunbreak-bz-transfer-v1';
+  let handoffError='';
+  const H_CODES={serif:['s1','s2','s3','s4'],eye:['jay','luchika','fiorene','bahari','galeas','chiche'],lamp:['white','blue','yellow','green','red','purple','rainbow','other'],submarine:['cross','with_garuku','without_garuku']};
+  function pendingHandoff(){
+    const storage=store();if(!storage)return null;
+    try{
+      const raw=storage.getItem(HANDOFF_KEY);
+      if(!raw||raw.length>16000)return null;
+      const p=JSON.parse(raw),time=Date.now();
+      if(!p||p.version!==1||typeof p.id!=='string'||!/^[-a-z0-9]{10,70}$/i.test(p.id)||
+        !Number.isFinite(p.createdAt)||p.createdAt>time+60000||p.createdAt<time-7*86400000||
+        !Array.isArray(p.events)||p.events.length<1||p.events.length>60)return null;
+      if(!p.events.every(e=>e&&typeof e==='object'&&!Array.isArray(e)&&(
+        (e.t==='bz'&&/^t[1-6]$/.test(e.table)&&e.r==='miss')||
+        (e.t==='fuku'&&(e.r===null||e.r===undefined))||
+        (Array.isArray(H_CODES[e.t])&&H_CODES[e.t].includes(e.c))
+      )))return null;
+      return p;
+    }catch(e){return null;}
+  }
+  const handoffApplied=(S,id)=>S.atLog.sessions.some(s=>s.events.some(e=>e.handoffId===id));
+  const handoffName=e=>{
+    if(e.t==='bz')return 'BZ テーブル'+e.table.slice(1)+'（失敗）';
+    if(e.t==='fuku')return 'アイルー福引（結果を選択）';
+    if(e.t==='serif')return 'チッチェ '+SERIF.find(v=>v[0]===e.c)[2];
+    if(e.t==='eye')return 'アイキャッチ '+EYE.find(v=>v[0]===e.c)[1];
+    if(e.t==='lamp')return 'PUSH '+LAMP_NAMES[e.c];
+    return 'オトモ潜水艇 '+({with_garuku:'ガルク同乗あり',without_garuku:'ガルク同乗なし',cross:'同乗未確認'}[e.c]);
+  };
+  function handoffPanel(S){
+    const p=pendingHandoff();if(!p)return '';
+    const applied=handoffApplied(S,p.id);
+    const session=currentAt(S),status=applied?'取り込み済みです。同じ記録は重複追加しません。':
+      session.start.known!==true||session.start.prior!==0?'カウンターの現在のAT間が「途中から」になっています。誤計上を防ぐため取り込みできません。':
+      '以下の内容を確認し、問題なければ「記録を追加」を押してください。';
+    const items=p.events.map((e,i)=>{
+      const f=e.t==='fuku'?'<select data-handoff-fuku="'+i+'" aria-label="福引'+(i+1)+'件目の結果"><option value="">結果を選ぶ</option><option value="miss">失敗</option><option value="win">成功</option></select>':'';
+      return '<li>'+ (i+1)+'. '+handoffName(e)+f+'</li>';
+    }).join('');
+    return '<section class="sec handoff-box" style="border:2px solid var(--cyan);background:var(--panel2);border-radius:12px;padding:12px;margin-bottom:15px">'+
+      '<div class="rec-h" style="color:var(--cyan)">次回BZツールから記録を引き継ぐ</div>'+
+      '<p class="hint">'+status+'</p>'+
+      '<ol style="font-size:12px;line-height:1.9;padding-left:20px;margin:10px 0">'+items+'</ol>'+
+      '<p class="hint">引き継ぎは現在のAT間へ追加します。保存済みの終了画面・過去のAT間は変更しません。開始状態と既存履歴が食い違うと取り込みを止めます。福引の回数計上設定は転送しません。</p>'+
+      (handoffError?'<p role="alert" class="hint" style="color:var(--gold)">'+handoffError+'</p>':'')+
+      (applied?'':'<button class="act gold" style="width:100%;margin-top:9px" data-action="bzHandoffAccept" type="button">内容を確認して記録を追加</button>')+
+      '<button class="act plain" style="width:100%;margin-top:8px" data-action="bzHandoffDismiss" type="button">引き継ぎ待ちを破棄</button></section>';
+  }
+  function handoffAccept(ctx){
+    const p=pendingHandoff();if(!p)return false;
+    if(handoffApplied(ctx.S,p.id)){handoffError='この記録は取り込み済みです。';return rerender();}
+    const session=currentAt(ctx.S);
+    if(ctx.mode<0||session.closed||session.start.known!==true||session.start.prior!==0){
+      handoffError='現在のAT間の開始条件が合いません。手動で開始条件を確認してください。';return rerender();
+    }
+    let mapped=[];
+    for(let i=0;i<p.events.length;i++){
+      const e=p.events[i];
+      if(e.t==='fuku'){
+        const sel=document.querySelector('[data-handoff-fuku="'+i+'"]');
+        const result=sel&&sel.value;
+        if(result!=='win'&&result!=='miss'){
+          handoffError='アイルー福引の成功・失敗を選んでください。';return rerender();
+        }
+        mapped.push({t:'fuku',r:result});
+      }else{
+        const raw=e.t==='bz'?{t:'bz',table:e.table,r:'miss'}:{t:e.t,c:e.c};
+        const normalized=normalizeAtEvent(raw);
+        if(!normalized||!shownEvent(normalized)){
+          handoffError='未対応の記録が含まれています。';return rerender();
+        }
+        mapped.push(normalized);
+      }
+    }
+    if(mapped.some((e,i)=>closesAt(e)&&i<mapped.length-1)){
+      handoffError='福引成功後にも記録があります。AT間を区切ってから引き継いでください。';return rerender();
+    }
+    const existing=session.events;
+    if(existing.length>mapped.length){
+      handoffError='現在のAT間に別の記録があります。自動で重ねず取り込みを停止しました。';return rerender();
+    }
+    const match=(a,b)=>a.t===b.t&&(a.t==='bz'?a.table===b.table&&a.r===b.r:
+      a.t==='fuku'?a.r===b.r:a.c===b.c);
+    for(let i=0;i<existing.length;i++){
+      if(!match(existing[i],mapped[i])){
+        handoffError='現在のAT間の履歴と転送内容が一致しません。重複・順序を確認してください。';return rerender();
+      }
+    }
+    const added=mapped.slice(existing.length);
+    if(!added.length){handoffError='同じ内容が既にあります。二重登録しません。';return rerender();}
+    if(existing.length+added.length>AT_EVENT_MAX){
+      handoffError='1区間の記録上限を超えています。';return rerender();
+    }
+    const storage=store();
+    if(!storage){handoffError='バックアップ保存に使う領域がありません。';return rerender();}
+    try{
+      const key=STORAGE_KEY+'-handoff-backup-'+p.id;
+      if(storage.getItem(key)===null)storage.setItem(key,JSON.stringify(ctx.S));
+    }catch(e){handoffError='バックアップを作れないため取り込みを停止しました。';return rerender();}
+    for(const event of added){
+      const item=Object.assign({},event,{handoffId:p.id});
+      if(!addAtEvent(ctx.S,item,null))return false;
+    }
+    handoffError='';
+    return 'BZツールから'+added.length+'件を引き継ぎました（↩取消可能）';
+  }
+  function handoffDismiss(){
+    try{const st=store();if(st)st.removeItem(HANDOFF_KEY);}catch(e){}
+    handoffError='';
+    return rerender();
+  }
+
   function pageBZ(ctx){return `<style>${ND_STYLE}
 /* 現在の状況（読む所。入力と見た目で分ける） */
 .now-box{border:2px solid #2f5d72;background:linear-gradient(180deg,#131a22,#0f1319);border-radius:12px;padding:10px 10px 12px}
@@ -1326,7 +1443,7 @@
     details.bz-fold>summary .sub{font-size:10px;font-weight:500;color:var(--muted);letter-spacing:0}
     details.bz-fold>*:not(summary){padding:0 12px 12px}
   .fuku-toggle{width:100%;min-height:44px;font-size:13px;text-align:left;margin-top:8px}.fuku-toggle[aria-checked="true"]{border-color:var(--cyan);color:var(--cyan)}
-  </style>`+nowSection(ctx)+recordSection(ctx)+totalsSection(ctx)+pastSection(ctx)+prefsSection();}
+  </style>`+handoffPanel(ctx.S)+nowSection(ctx)+recordSection(ctx)+totalsSection(ctx)+pastSection(ctx)+prefsSection();}
   // サブラベルだけを段位表記の出典にする。強さの判定には数値rankを使う。
   function tierText(sub){
     const m=String(sub||'').match(/設定([0-9・]+(?:以上)?)濃厚/);
@@ -1379,6 +1496,7 @@
     // BZシナリオカードの内容（engine は読まない。検証で中身を固定するために出しておく）
     scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,nextBzPct:nextBzLevelPct,
     actions:{
+      bzHandoffAccept:handoffAccept,bzHandoffDismiss:handoffDismiss,
       fukuMode:()=>{savedNote=null;setFukuIncluded(!fukuIncluded());if(scenarioReady)scenarioReady=false;return rerender();},
       scenarioPctMode:(ctx,ds)=>{
         savedNote=null;
