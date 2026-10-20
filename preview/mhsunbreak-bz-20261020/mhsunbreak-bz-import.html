@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="ja"><head><meta name="robots" content="noindex,nofollow,noarchive"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>サンブレイク｜記録引き継ぎの確認</title><meta name="robots" content="noindex,nofollow,noarchive">
+<style>
+:root{color-scheme:dark;font-family:system-ui,"Noto Sans JP",sans-serif}*{box-sizing:border-box}
+body{background:#120f1b;color:#f3edf8;margin:0;padding:18px 12px 60px;line-height:1.6}main{max-width:680px;margin:auto}
+h1{font-size:22px}h2{font-size:16px;margin:6px 0 12px}p{font-size:13px;color:#c9bdd3}a{color:#9ce2ff}
+.card{border:1px solid #59516a;border-radius:11px;background:#241f32;margin:14px 0;padding:13px}
+.warn{padding:12px;background:#352a30;border-left:4px solid #f0c785}.line{display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid #463d50;padding:8px 0;font-size:13px}
+.line span{overflow-wrap:anywhere}select{background:#171525;color:#fff;border:1px solid #b7a7cb;border-radius:6px;min-height:42px;padding:8px}
+button{font:inherit;cursor:pointer;border-radius:8px;min-height:44px;padding:10px 13px}button:disabled{opacity:.45;cursor:not-allowed}.primary{background:#b4e8fa;color:#191425;border:0;width:100%;font-weight:800}.secondary{background:#362b43;color:#faf4ff;border:1px solid #8f7da0}
+.actions{display:flex;gap:9px;flex-wrap:wrap}.ok{color:#a4e8ba}.err{color:#ffd69b;white-space:pre-wrap}.small{font-size:12px}
+</style></head><body><div role="note" style="box-sizing:border-box;padding:11px 14px;background:#17374b;border:2px solid #9fe4ff;color:#fff;font:700 14px/1.5 system-ui;text-align:center">🧪 テスト版｜正式版と記録を分離｜<a style="color:#fff" href="index.html">テスト案内</a></div><main>
+<p><a href="mhsunbreak-next-bz.html">← 次回BZ予測ツールに戻る</a></p>
+<h1>設定判別カウンターへの記録引き継ぎ</h1>
+<p>この画面で内容を確認するまでは、カウンターの記録は変更されません。</p>
+<div class="warn"><b>既存データを保護します。</b><p>現在のAT間が空、または引き継ぎ履歴と先頭から一致する場合だけ追加します。異なる記録があれば停止します。</p></div>
+<section class="card"><h2>引き継ぐ記録</h2><p>BZとアイルー福引は、実際の結果を「失敗／成功」から選んでください。未選択のままでは追加できません。</p><div id="rows"></div><p id="count" class="small"></p><p class="small">※BZ・福引の成功はAT当選として扱います。成功はそのAT間の最後の記録にしてください。成功後の演出などは、次のAT間として記録してください。</p></section>
+<section class="card"><h2>既存記録との照合</h2><strong id="diff">確認中</strong><p id="info"></p>
+<p class="small">不屈の現在色・福引の回数計上チェックは記録イベントではないため転送しません。潜水艇はカウンター側に表示対応が必要です。</p></section>
+<section class="card" id="manualFallback" aria-label="引き継ぎできないとき"><h2>引き継ぎできないとき</h2><p>今の記録は変更せずに、設定判別カウンターへ移動して手入力できます。BZタブから入力してください。自動転送は行いません。</p><a href="mhsunbreak-checker.html" class="secondary" style="display:block;text-align:center;text-decoration:none;font-weight:800;padding:13px">設定判別カウンターへ移動して手入力 →</a></section>
+<button type="button" id="apply" class="primary" disabled>確認した内容を追加する</button>
+<p id="message" class="err" role="status"></p>
+<section id="after" class="card" hidden><h2 class="ok">引き継ぎ完了</h2><p>転送前のバックアップを保持しています。</p>
+<div class="actions"><a href="mhsunbreak-checker.html">設定判別カウンターを開く →</a><button type="button" id="rollback" class="secondary">この引き継ぎを取り消す</button></div>
+<p class="small">取り消しは、その後にカウンターのデータを変更していない場合だけ実行できます。</p></section>
+</main><script>
+(()=>{
+'use strict';
+const TRANSFER='mhsunbreak-bz-preview-20261020-transfer-v1',CHECKER='mhsunbreak-bz-preview-20261020-checker-v1',BACKUP='mhsunbreak-bz-preview-20261020-checker-v1-bztransfer-backup';
+const $=id=>document.getElementById(id), message=t=>$('message').textContent=t;
+const codes={eye:['jay','luchika','fiorene','bahari','galeas','chiche'],serif:['s1','s2','s3','s4'],lamp:['white','blue','yellow','green','red','purple','rainbow','other'],submarine:['cross','with_garuku','without_garuku']};
+const label={eye:['ジェイ','ルーチカ','フィオレーネ','バハリ','ガレアス','チッチェ'],serif:['どちらのクエスト','おすすめしたいクエスト','重要なクエスト','珍しい依頼'],lamp:['白','青','黄','緑','赤','紫','虹','その他'],submarine:['同乗未確認','ガルク同乗あり','ガルク同乗なし']};
+const valid=e=>e&&typeof e==='object'&&!Array.isArray(e)&&((e.type==='bz'&&Number.isInteger(e.table)&&e.table>=1&&e.table<=6)||e.type==='fuku'||(codes[e.type]&&codes[e.type].includes(e.code)));
+let pending=null,rawAtOpen=null,applied=false;
+const same=(a,b)=>a.t===b.t&&(a.t==='bz'?a.table===b.table&&a.r===b.r:a.t==='fuku'?a.r===b.r:a.c===b.c);
+function eventsToImport(){
+ const results=Object.fromEntries([...document.querySelectorAll('[data-result]')].map(x=>[Number(x.dataset.result),x.value]));
+ return pending.events.map((e,i)=>{
+  if(e.type==='bz'||e.type==='fuku'){
+   const r=results[i];
+   if(!['win','miss'].includes(r))throw Error('すべてのBZ・福引について成功・失敗を選択してください。');
+   return e.type==='bz'?{t:'bz',table:'t'+e.table,r}:{t:'fuku',r};
+  }
+  return {t:e.type,c:e.code};
+ });
+}
+function plan(raw,events){
+ const winAt=events.findIndex(e=>(e.t==='bz'||e.t==='fuku')&&e.r==='win');
+ if(winAt>=0&&winAt!==events.length-1)throw Error('BZまたは福引の成功後に記録があります。AT間を分けてください。');
+ const S=raw?JSON.parse(raw):{};
+ if(!S||typeof S!=='object'||Array.isArray(S))throw Error('カウンター保存形式が不正です。');
+ // 旧形式の累計と転送後の履歴を混同すると既存回数が減るため、安全に停止する。
+ const hasBase=S.bzBase&&typeof S.bzBase==='object'&&!Array.isArray(S.bzBase);
+ if(!hasBase&&['bzT1','bzT2','questN1','questN2'].some(k=>S[k]&&typeof S[k]==='object'&&Object.values(S[k]).some(v=>Number(v)>0)))
+  throw Error('旧形式のBZ累計があるため、自動転送を停止しました。記録を保護するため、この画面では変更しません。');
+ if(!S.atLog)S.atLog={schemaVersion:2,sessions:[{start:{known:true,prior:0},events:[],closed:false}]};
+ if(!Array.isArray(S.atLog.sessions)||!S.atLog.sessions.length)throw Error('既存のAT間履歴形式が不明です。');
+ const list=S.atLog.sessions,session=list[list.length-1];
+ if(!session||session.closed||session.start?.known!==true||session.start.prior!==0||!Array.isArray(session.events))throw Error('現在のAT間は「AT後から開始」で、まだ終了していない必要があります。');
+ if(!Array.isArray(S._bzTransferIds))S._bzTransferIds=[];
+ if(S._bzTransferIds.includes(pending.id))throw Error('この転送は実行済みです。');
+ if(session.events.length>events.length||!session.events.every((e,i)=>same(e,events[i])))throw Error('既存のAT間と記録の先頭が一致しません。重複防止のため追加を停止します。');
+ const next=events.slice(session.events.length);
+ if(!next.length)throw Error('すべて記録済みです。新たに追加するものはありません。');
+ if(session.events.length+next.length>200)throw Error('AT間の最大記録件数を超えます。');
+ if(winAt>=0&&list.length>=50)throw Error('AT間保存上限に達しています。');
+ session.events.push(...next);
+ if(winAt>=0){session.closed=true;list.push({start:{known:true,prior:0},events:[],closed:false})}
+ S.atLog.schemaVersion=2;
+ S._bzTransferIds=[...S._bzTransferIds.slice(-19),pending.id];
+ return {S,next,prefix:session.events.length-next.length};
+}
+function check(){
+ if(!pending||applied)return;
+ try{
+  const p=plan(localStorage.getItem(CHECKER),eventsToImport());
+  $('diff').className='ok';$('diff').textContent=p.next.length+'件を追加できます';
+  $('info').textContent='既存の先頭'+p.prefix+'件を変更せず、続き'+p.next.length+'件だけ追加します。';
+  $('apply').disabled=false;message('');
+ }catch(e){$('diff').className='err';$('diff').textContent='要確認';$('info').textContent=e.message;$('apply').disabled=true}
+}
+function init(){
+ try{
+  const p=JSON.parse(localStorage.getItem(TRANSFER)),now=Date.now();
+  if(!p||p.version!==1||p.source!=='mhsunbreak-next-bz'||typeof p.id!=='string'||p.id.length>100
+   ||!Number.isFinite(p.createdAt)||p.createdAt>now+60000||now-p.createdAt>86400000
+   ||!Array.isArray(p.events)||p.events.length<1||p.events.length>60||!p.events.every(valid))throw Error('転送データがありません。または期限切れ・形式不正です。');
+  pending=p;rawAtOpen=localStorage.getItem(CHECKER);
+  const root=$('rows');
+  p.events.forEach((e,i)=>{
+   const line=document.createElement('div');line.className='line';
+   const title=document.createElement('span');
+   title.textContent=(i+1)+'. '+(e.type==='bz'?'BZテーブル'+e.table:e.type==='fuku'?'アイルー福引':({serif:'チッチェ',eye:'アイキャッチ',lamp:'PUSH',submarine:'潜水艇'}[e.type])+'：'+label[e.type][codes[e.type].indexOf(e.code)]);
+   line.append(title);
+   if(e.type==='bz'||e.type==='fuku'){
+    const select=document.createElement('select');select.dataset.result=String(i);select.setAttribute('aria-label',(e.type==='bz'?'BZ':'福引')+(i+1)+'の結果');
+    [['','結果を選択'],['miss','失敗'],['win','成功']].forEach(([value,text])=>{const o=document.createElement('option');o.value=value;o.textContent=text;select.append(o)});
+    select.addEventListener('change',check);line.append(select);
+   }
+   root.append(line);
+  });
+  $('count').textContent=p.events.length+'件を確認してください。';check();
+ }catch(e){
+  // Returning from the checker after a successful import must still allow rollback.
+  try{
+   const b=JSON.parse(localStorage.getItem(BACKUP));
+   if(b&&b.version===1&&typeof b.id==='string'&&localStorage.getItem(CHECKER)===b.afterRaw){
+    pending={id:b.id};applied=true;$('after').hidden=false;
+    $('diff').className='ok';$('diff').textContent='前回の引き継ぎが完了しています';
+    $('info').textContent='バックアップから今回の転送前に戻せます。';
+    message('');return;
+   }
+  }catch(_){}
+  message(e.message||'転送データの読込に失敗');$('diff').textContent='転送できません';
+ }
+}
+$('apply').addEventListener('click',()=>{
+ if(!pending||applied)return;
+ let backup=null;
+ try{
+  const current=localStorage.getItem(CHECKER);
+  if(current!==rawAtOpen)throw Error('別のタブで保存データが変わりました。再度開いて確認してください。');
+  const p=plan(current,eventsToImport()),next=JSON.stringify(p.S);
+  backup={version:1,id:pending.id,beforeRaw:current,afterRaw:next,createdAt:Date.now()};
+  localStorage.setItem(BACKUP,JSON.stringify(backup));
+  if(localStorage.getItem(BACKUP)!==JSON.stringify(backup))throw Error('バックアップを確認できません');
+  localStorage.setItem(CHECKER,next);
+  if(localStorage.getItem(CHECKER)!==next)throw Error('カウンター保存データを確認できません');
+  localStorage.removeItem(TRANSFER);applied=true;
+  $('apply').disabled=true;$('after').hidden=false;$('diff').textContent=p.next.length+'件追加しました';message('');
+ }catch(e){
+  if(backup&&localStorage.getItem(CHECKER)===backup.afterRaw){
+   try{if(backup.beforeRaw===null)localStorage.removeItem(CHECKER);else localStorage.setItem(CHECKER,backup.beforeRaw)}catch(_){}
+  }
+  message('引き継ぎ未完了：'+e.message);
+ }
+});
+$('rollback').addEventListener('click',()=>{
+ try{
+  const b=JSON.parse(localStorage.getItem(BACKUP));
+  if(!b||b.id!==pending.id||localStorage.getItem(CHECKER)!==b.afterRaw)throw Error('その後の変更があるため自動復元できません。');
+  if(b.beforeRaw===null)localStorage.removeItem(CHECKER);else localStorage.setItem(CHECKER,b.beforeRaw);
+  localStorage.removeItem(BACKUP);$('after').hidden=true;message('転送前の記録に戻しました。');
+ }catch(e){message('復元できません：'+e.message)}
+});
+init();
+})();
+</script></body></html>
