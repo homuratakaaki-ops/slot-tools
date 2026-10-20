@@ -3,17 +3,38 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>【テスト版】サンブレイク 次回BZレベル予測 v3.2</title>
+<title>【テスト版】サンブレイク 次回BZレベル予測 v3.3</title>
 <meta name="robots" content="noindex,nofollow,noarchive">
 <style>
 :root{color-scheme:dark;--bg:#100f18;--surface:#1c1a29;--panel:#252133;--line:#3b354d;--ink:#faf5ff;--muted:#baaeca;--accent:#ff5aa8;--cyan:#8ddbf5;--gold:#ffd586;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
 *{box-sizing:border-box}body{background:var(--bg);color:var(--ink);margin:0;padding:18px 12px 55px;line-height:1.5}main{max-width:760px;margin:auto}h1{font-size:clamp(24px,4.2vw,31px);margin:6px 0}h2{font-size:17px;margin:0 0 11px}p{margin:6px 0 12px}a{color:var(--cyan)}.eyebrow{color:var(--accent);font-size:12px;font-weight:800;letter-spacing:.10em}.sub{color:var(--muted);font-size:13px}.card{border:1px solid var(--line);border-radius:15px;background:var(--surface);padding:17px;margin:15px 0}.row-flex{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.button-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:13px 0}.table-button{font-family:inherit;cursor:pointer;background:var(--panel);border:1px solid #60526f;border-radius:10px;color:var(--ink);padding:13px 6px;font-size:13px;font-weight:700;min-height:56px}.table-button:hover,.table-button:focus-visible{border-color:var(--accent);outline:none}.table-button .num{color:var(--gold);font-size:15px}.table-button .button-title{display:block;font-weight:800;white-space:nowrap}.table-button .button-sub{display:block;color:var(--muted);font-size:11px;font-weight:650;margin-top:3px;line-height:1.35}.table-button:disabled{opacity:.3;cursor:not-allowed}.history{margin:10px 0;list-style:none;padding:0;display:grid;gap:7px}.history li{display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--panel);padding:8px 12px;border-radius:9px;font-size:13px}.muted{color:var(--muted)}.tiny-btn{color:var(--cyan);background:transparent;font:inherit;font-size:12px;font-weight:700;cursor:pointer;border:1px solid #4a415f;border-radius:7px;padding:7px 10px;min-height:36px}.tiny-btn:disabled{opacity:.4;cursor:not-allowed}.badge{display:inline-block;font-size:12px;font-weight:750;color:var(--gold);background:#453823;border-radius:7px;padding:4px 9px}.metric{font-size:clamp(33px,7vw,46px);font-weight:850;font-variant-numeric:tabular-nums;color:#b9e8fc;line-height:1.2;margin:8px 0 3px}.measure{display:grid;grid-template-columns:55px 1fr 70px;align-items:center;gap:10px;padding:7px 0}.name{font-size:13px;font-weight:800}.bar-track{height:11px;background:#353042;border-radius:999px;overflow:hidden}.bar{height:100%;background:#64addc;border-radius:999px}.measure:nth-child(2) .bar{background:#c181e0}.measure:nth-child(3) .bar{background:#f1ad67}.measure:nth-child(4) .bar{background:#e86b92}.value{text-align:right;font-size:13px;font-variant-numeric:tabular-nums}.note{background:#272333;border-left:3px solid var(--gold);font-size:12px;line-height:1.7;border-radius:5px;padding:11px;margin:13px 0;color:#ddd4e6}.data-panel{margin-top:13px;border-top:1px solid var(--line);padding-top:12px}.data-panel summary{font-size:13px;color:var(--cyan);font-weight:700;cursor:pointer;padding:5px 0}.data-panel table{border-collapse:collapse;width:100%;font-size:12px;font-variant-numeric:tabular-nums;margin-top:9px}.data-panel th,.data-panel td{padding:8px;border-bottom:1px solid var(--line);text-align:right}.data-panel th:first-child,.data-panel td:first-child{text-align:left}.source{font-size:12px;color:var(--muted)}.empty{background:#252133;border-radius:9px;padding:12px;color:var(--muted);font-size:13px}.smallprint{font-size:11px;color:#aba0be}.err{font-weight:650;color:#ffd586;font-size:13px}.green{color:#b5e5ca}.helper{margin-bottom:0;font-size:12px;color:var(--muted)}
 @media(max-width:470px){.card{padding:13px}.button-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.measure{grid-template-columns:49px 1fr 65px;gap:7px}.table-button{font-size:12px;padding:10px 5px;min-height:67px}.table-button .button-sub{font-size:10px}}
+
+/* v3.3: input colours are identical to their corresponding history colours. */
+.table-button[data-table="1"],.history li[data-table="1"]{--table-rgb:119,202,255}
+.table-button[data-table="2"],.history li[data-table="2"]{--table-rgb:255,222,115}
+.table-button[data-table="3"],.history li[data-table="3"]{--table-rgb:132,223,164}
+.table-button[data-table="4"],.history li[data-table="4"]{--table-rgb:255,168,119}
+.table-button[data-table="5"],.history li[data-table="5"]{--table-rgb:255,140,166}
+.table-button[data-table="6"],.history li[data-table="6"]{--table-rgb:193,164,255}
+.table-button[data-table]{background:rgba(var(--table-rgb),.11);border:1.5px solid rgba(var(--table-rgb),.65);box-shadow:inset 0 0 0 1px rgba(0,0,0,.1)}
+.table-button[data-table] .button-title,.table-button[data-table] .num{color:rgb(var(--table-rgb))}
+.table-button[data-table] .button-sub{color:#e8e4ec}
+.table-button[data-table]:focus-visible{outline:2px solid rgb(var(--table-rgb));outline-offset:2px}
+.history li[data-table]{padding:6px 8px;background:rgba(var(--table-rgb),.085);border:1px solid rgba(var(--table-rgb),.36);border-left:4px solid rgb(var(--table-rgb));flex-wrap:nowrap;min-width:0;gap:6px}
+.history li .history-main{display:flex;align-items:center;gap:8px;min-width:0;white-space:nowrap}
+.history li .history-no{color:rgb(var(--table-rgb));font-weight:800;white-space:nowrap}
+.history li .history-table{color:rgb(var(--table-rgb));font-weight:800;white-space:nowrap}
+.history li .tiny-btn{flex:none;min-width:48px;min-height:33px;padding:5px 8px;font-size:11px}
+.metric-label{font-size:16px;font-weight:850;color:#f8f3fe;line-height:1.5;margin:14px 0 0}
+.metric-detail{font-size:12px;color:var(--muted);line-height:1.6}
+.inline-notice{font-size:12px;color:#f2d6a4;margin:2px 0 12px;line-height:1.6}
+@media(max-width:360px){.table-button .button-sub{white-space:nowrap;letter-spacing:-.35px;font-size:10px}.history li{font-size:12px}.history li .history-main{gap:5px}.history li .tiny-btn{min-width:42px;padding:5px 6px}}
 </style>
 </head>
 <body>
 <main>
-<div class="eyebrow">非本番テスト版 / v3.2</div>
+<div class="eyebrow">非本番テスト版 / v3.3</div>
 <h1>次回BZレベル予測</h1>
 <p class="sub">スマスロ モンスターハンターライズ：サンブレイク。<br>今までのBZ開始テーブルから、次回のLOW・MID・HI・SPを推定します。</p>
 <section class="card" aria-labelledby="historyTitle">
@@ -28,14 +49,16 @@
   <button type="button" class="table-button" data-table="6"><span class="button-title"><span class="num">⑥</span> テーブル6</span><span class="button-sub">テオ・テスカトルから開始</span></button>
  </div>
  <ul class="history" id="history"></ul>
+ <p class="inline-notice">※アイルー福引は今回の予測に含めていません。</p>
  <div class="row-flex"><span class="smallprint">⑦ ATは当選濃厚のため、失敗履歴に入力しません。</span><span><button type="button" class="tiny-btn" id="undo">1回戻す</button> <button type="button" class="tiny-btn" id="reset">最初から</button></span></div>
  <p role="status" class="err" id="error"></p>
 </section>
 <section class="card" aria-labelledby="resultTitle" aria-live="polite">
  <h2 id="resultTitle">② 次回BZの推定</h2>
  <div class="sub" id="status"></div>
+ <div class="metric-label">次回BZの参考AT当選期待度</div>
  <div class="metric" id="mean">39.6%</div>
- <div class="sub">次回BZの参考AT当選期待度（設定1基準・公表テーブル期待度の加重平均）</div>
+ <div class="metric-detail">設定1基準・公表テーブルAT期待度の加重平均</div>
  <h2 style="margin-top:25px">次回のBZレベル振り分け</h2>
  <div id="levelBars"></div>
  <div class="note" id="note">履歴なし：設定1のシナリオ初回選択率から計算しています。</div>
@@ -43,7 +66,7 @@
  <details class="data-panel"><summary>候補シナリオと設定1基準の参考％</summary><div id="candidates"></div></details>
 </section>
 <p class="source">計算の出典：<a href="https://1geki.jp/slot/l_mh_sun/48/" target="_blank" rel="noopener noreferrer">一撃：BZテーブル・シナリオ解析</a>。既存カウンターと同じ公開解析表・重み付け手順を使用しています。</p>
-<p class="source">前提：AT間のBZ失敗履歴のみ。途中のアイルー福引、アイキャッチ、チッチェのセリフはまだ反映していません。記録したBZの成功によってAT間が終了した場合は、履歴を初期化してください。選択率に設定差があり、設定1以外の確率は未公表です。不屈・CZ中の小役などは今回の参考AT期待度に反映していません。<b>参考値は期待差枚や利益保証ではありません。</b></p>
+<p class="source">前提：AT間のBZ失敗履歴のみ。途中のアイキャッチ、チッチェのセリフはまだ反映していません。記録したBZの成功によってAT間が終了した場合は、履歴を初期化してください。選択率に設定差があり、設定1以外の確率は未公表です。不屈・CZ中の小役などは今回の参考AT期待度に反映していません。<b>参考値は期待差枚や利益保証ではありません。</b></p>
 <details class="data-panel"><summary>関連ツール</summary><p class="source"><a href="https://slot-tools.jp/mhsunbreak-checker.html" target="_blank" rel="noopener noreferrer">サンブレイク設定判別カウンター ↗</a>（入力履歴の自動連携はしません）</p></details>
 </main>
 <script>
@@ -113,7 +136,7 @@
  function render(){
   $('nextLabel').textContent='次は'+(history.length+1)+'回目';
   $('status').textContent=history.length?'AT後'+(history.length+1)+'回目のBZ（失敗'+history.length+'回後）':'AT後1回目のBZ（履歴なし）';
-  $('history').innerHTML=history.map((num,i)=>`<li><span>${i+1}回目：<b>${START_NAMES[num-1]}</b>　<span class="muted">失敗</span></span><button class="tiny-btn" data-remove="${i}" type="button">削除</button></li>`).join('')||'<li class="empty">まだBZ履歴がありません。設定1の初回平均を表示中。</li>';
+  $('history').innerHTML=history.map((num,i)=>`<li data-table="${num}"><span class="history-main"><span class="history-no">${i+1}回目</span><span class="history-table">テーブル${num}</span></span><button class="tiny-btn" data-remove="${i}" type="button">削除</button></li>`).join('')||'<li class="empty">まだBZ履歴がありません。設定1の初回平均を表示中。</li>';
   $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{history.splice(Number(b.dataset.remove),1);render()}));
   const disabled=history.length>=6;
   document.querySelectorAll('[data-table]').forEach(btn=>btn.disabled=disabled);
