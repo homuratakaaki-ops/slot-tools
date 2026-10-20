@@ -183,7 +183,7 @@ test('BZ success is selectable, saved as win, and closes the AT interval',async(
 test('BZ success followed by another event is rejected; manual-entry link opens checker',async()=>{
  const {page,context,errors}=await pageFor();
  try{
-  await seed(page,null);await table(page,3);await page.locator('#addFuku').click();
+  await seed(page,null);await table(page,3);
   await page.locator('.signal-tab[data-tab="eye"]').click();
   await page.locator('button[data-signal="eye"][data-code="jay"]').click();
   await transfer(page);await outcome(page,0,'win');
