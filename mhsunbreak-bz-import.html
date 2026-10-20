@@ -46,6 +46,10 @@ function plan(raw,events){
  if(winAt>=0&&winAt!==events.length-1)throw Error('福引成功の後に記録があります。AT間を分けてください。');
  const S=raw?JSON.parse(raw):{};
  if(!S||typeof S!=='object'||Array.isArray(S))throw Error('カウンター保存形式が不正です。');
+ // 旧形式の累計と転送後の履歴を混同すると既存回数が減るため、安全に停止する。
+ const hasBase=S.bzBase&&typeof S.bzBase==='object'&&!Array.isArray(S.bzBase);
+ if(!hasBase&&['bzT1','bzT2','questN1','questN2'].some(k=>S[k]&&typeof S[k]==='object'&&Object.values(S[k]).some(v=>Number(v)>0)))
+  throw Error('旧形式のBZ累計があるため、自動転送を停止しました。記録を保護するため、この画面では変更しません。');
  if(!S.atLog)S.atLog={schemaVersion:2,sessions:[{start:{known:true,prior:0},events:[],closed:false}]};
  if(!Array.isArray(S.atLog.sessions)||!S.atLog.sessions.length)throw Error('既存のAT間履歴形式が不明です。');
  const list=S.atLog.sessions,session=list[list.length-1];

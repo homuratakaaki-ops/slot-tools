@@ -512,9 +512,9 @@
    `設定1のシナリオ選択率 × 観測した開始テーブルの選択率で重み付け。福引は${includeFuku?'回数に含める仮説':'回数に含めない'}として次回のBZレベルを集計。`:
    '履歴なし：設定1のシナリオA〜Iの1回目BZレベルを加重計算。初回平均は次回の固定値ではありません。';
  }
- document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(b=>b.addEventListener('click',()=>{if(!b.disabled&&history.length<12){saveUndo();history.push({type:'bz',table:Number(b.dataset.table)});editingIndex=null;render()}}));
+ document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(b=>b.addEventListener('click',()=>{if(!b.disabled&&history.length<60){saveUndo();history.push({type:'bz',table:Number(b.dataset.table)});editingIndex=null;render()}}));
  $('undo').addEventListener('click',()=>{if(history.length){saveUndo();history.pop();editingIndex=null;render()}});
- $('addFuku').addEventListener('click',()=>{if(!$('addFuku').disabled&&history.length<12){saveUndo();history.push({type:'fuku'});editingIndex=null;render()}});
+ $('addFuku').addEventListener('click',()=>{if(!$('addFuku').disabled&&history.length<60){saveUndo();history.push({type:'fuku'});editingIndex=null;render()}});
  $('includeFuku').addEventListener('change',e=>{saveUndo();includeFuku=e.target.checked;editingIndex=null;render()});
  document.querySelectorAll('input[name="fukutsu"]').forEach(r=>r.addEventListener('change',e=>{if(e.target.disabled)return;if(fukutsu!==e.target.value){saveUndo();fukutsu=e.target.value}render()}));
  document.querySelectorAll('.signal-tab[data-tab]').forEach(b=>b.addEventListener('click',()=>{activeSignal=activeSignal===b.dataset.tab?null:b.dataset.tab;updateSignalTabs()}));

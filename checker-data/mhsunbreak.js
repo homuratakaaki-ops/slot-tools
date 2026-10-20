@@ -171,6 +171,7 @@
   ];
   const LAMP_NAMES=Object.fromEntries(LAMPS.map(c=>[c[0],c[1]]));
   const LAMP_COLORS=Object.fromEntries(LAMPS.map(c=>[c[0],c[2]]));
+  const SUBMARINE_NAMES={cross:'同乗未確認（旧記録）',with_garuku:'ガルク同乗あり',without_garuku:'ガルク同乗なし'};
   // BZ実回数は福引を含めない。シナリオの進行回数だけ利用者が仮説を切り替える。
   // 初期値は従来どおり除外。設定は記録と別の prefs に保存する。
   let fukuMode=null;
@@ -186,12 +187,31 @@
     const s=store();
     try{if(s)s.setItem(PREFS_KEY,JSON.stringify(Object.assign(prefs(),{includeFuku:fukuMode})));}catch(e){}
   }
+  // シナリオ参考％の表示モード（夢爽決定 2026/10/20）。記録とは別の prefs に保存し、既定は 'auto'。
+  //   auto：設定1否定の記録があれば％を出さない（従来どおり）
+  //   p1：設定1否定があっても％を出す（警告付き）
+  //   candidates：常に％を出さない
+  // 候補の絞り込みはどのモードでも変えない。不正値・未設定は 'auto'。
+  const PCT_MODES=['auto','p1','candidates'];
+  let pctMode=null;
+  const scenarioPctMode=()=>{const m=pctMode===null?prefs().scenarioPctMode:pctMode;return PCT_MODES.indexOf(m)>=0?m:'auto';};
+  function setScenarioPctMode(mode){
+    pctMode=PCT_MODES.indexOf(mode)>=0?mode:'auto';
+    const s=store();
+    try{if(s)s.setItem(PREFS_KEY,JSON.stringify(Object.assign(prefs(),{scenarioPctMode:pctMode})));}catch(e){}
+  }
+  const PCT_DENIED_WARNING='⚠ 設定1否定の記録があります。表示中の％は設定1の場合の参考値で、実際の設定の確率ではありません。';
+  const PCT_MODE_NOTES={
+    auto:'％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません',
+    p1:'％は設定1の場合の参考値。設定1否定時も実際の設定の確率ではありません',
+    candidates:'候補のみ：参考％は非表示。候補の絞り込み条件は同じです'
+  };
   const AT_SESSION_MAX=50;   // AT間の保存上限。超えたら古い順に捨てる
   const AT_EVENT_MAX=200;    // 1つのAT間に入るイベントの上限（防御。超えたら追加しない）
   const AT_PRIOR_MAX=6;      // ［途中から：既にBZ n回］の n の上限
   const newAtSession=()=>({start:{known:true,prior:0},events:[],closed:false});
   // 画面に出せる出来事の種類。ここに無い種類は捨てずに持つだけにする（表示も集計もしない）。
-  const EVENT_TYPES=['bz','fuku','eye','serif','otherAt','lamp'];
+  const EVENT_TYPES=['bz','fuku','eye','serif','otherAt','lamp','submarine'];
   const ICON_POS_MAX=11;
   const AT_SCHEMA=2;   // atLog の版数。無ければ 1 とみなす（表示には使わない）
   // 読み込みは前方互換にする。知らない種類の出来事も、知らない項目（キー）も捨てない。
@@ -212,6 +232,7 @@
     if(e.t==='fuku')return ['win','miss'].indexOf(e.r)>=0?out:null;
     if(e.t==='eye')return EYE.some(c=>c[0]===e.c)?out:null;
     if(e.t==='serif')return SERIF.some(c=>c[0]===e.c)?out:null;
+    if(e.t==='submarine')return Object.prototype.hasOwnProperty.call(SUBMARINE_NAMES,e.c)?out:null;
     // lamp は集計にもBZ番号にも使わないので、知らない色でも捨てずに残す（表示だけしない）
     return out;   // otherAt / lamp
   }
@@ -290,6 +311,7 @@
   function shownEvent(e){
     if(!e||typeof e.t!=='string')return false;
     if(e.t==='lamp')return Object.prototype.hasOwnProperty.call(LAMP_NAMES,e.c);
+    if(e.t==='submarine')return Object.prototype.hasOwnProperty.call(SUBMARINE_NAMES,e.c);
     return EVENT_TYPES.indexOf(e.t)>=0;
   }
   const shownCount=session=>session.events.filter(shownEvent).length;
@@ -303,6 +325,7 @@
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `アイキャッチ ${c[1]}（${c[2]}）${c[3]}`;}
     if(e.t==='serif')return 'セリフ '+SERIF.find(c=>c[0]===e.c)[1];
     if(e.t==='lamp')return 'ランプ '+LAMP_NAMES[e.c];
+    if(e.t==='submarine')return '潜水艇 '+SUBMARINE_NAMES[e.c];
     if(e.t==='otherAt')return 'BZ以外でAT当選';
     return '記録（この版では表示できません）';   // 防御。shownEvent を通らないので通常は呼ばれない
   }
@@ -505,7 +528,8 @@
   // （銅・銀・金・紅葉柄・虹／ヒノエ&ミノト・全員集合・エンタライオン／222・456・555・666枚 OVER）と、
   // 設定2・4・6濃厚の 246枚 OVER（rank 2）が対象。新しい入力項目は作らず、既存の記録から導く。
   function setting1Denied(S){return allCert(S).some(c=>c.rank>=2&&c.value>0);}
-  // 候補ごとの参考％。出さないときは null（開始不明／候補0件／候補1件／設定1否定あり）。
+  // 候補ごとの参考％。出さないときは null（開始不明／候補0件／候補1件／福引SP／表示モードによる非表示）。
+  // 表示モード：auto は設定1否定ありで非表示、p1 は否定があっても出す、candidates は常に非表示。
   // pct は四捨五入した整数。四捨五入で0になる候補も候補から消さず、text を「1%未満」にする。
   function fukuPastSp(session){
     if(!fukuIncluded()||!scenarioKnown(session)||!session.events.some(e=>e.t==='fuku'))return false;
@@ -514,7 +538,8 @@
   }
   function scenarioPct(S,session){
     if(!session||!scenarioKnown(session)||fukuPastSp(session))return null;
-    if(setting1Denied(S))return null;
+    const mode=scenarioPctMode();
+    if(mode==='candidates'||(mode==='auto'&&setting1Denied(S)))return null;
     const candidates=scenarioCandidates(session);
     if(candidates.length<2)return null;
     const weights=candidates.map(name=>scenarioWeight(name,session));
@@ -551,7 +576,7 @@
   // ===== 次のBZのレベル別の参考％（設定1基準）=====
   // 候補ごとの参考％（scenarioPct と同じ重み）を、次のBZ番号 no のレベルごとに足すだけ。
   // 絞り込み（scenarioCandidates）・レベルとテーブルの並べ方（nextBzOf）・重み（scenarioWeight）は変えない。
-  // 出す条件は scenarioPct とまったく同じ（開始不明／候補0件／候補1件／設定1否定ありでは null）。
+  // 出す条件は scenarioPct とまったく同じ（開始不明／候補0件／候補1件／表示モードによる非表示では null）。
   // no が解析表の範囲外（8回目以降）のときは、重みに使える表が無いので null。
   // no 回目が表の「−」になるシナリオ（H・I）の％は、どのレベルにも足さない。
   // そのため候補にそれが残っているあいだは、レベルの合計が100%に届かない（丸めと同じ扱い）。
@@ -617,7 +642,7 @@
       ...(nextBz?{nextBz}:{})
     };});
     const T=totals(S),tables=TABLES.map(c=>({mark:c[1],color:c[4],hit:questHit(S,c[0],T),count:questD(S,c[0],T)}));
-    return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。',fukuIncluded()?'候補は福引を含む仮説と解析表に基づいて絞っています。':'候補は解析の表から確実に言えるものだけで絞っています。','％は設定1の選択率に基づく参考値。設定1否定が出ると表示しません']};
+    return {rows,tables,note:['シナリオ選択率には設定差があるとされています（数値は設定1のみ公表）。',fukuIncluded()?'候補は福引を含む仮説と解析表に基づいて絞っています。':'候補は解析の表から確実に言えるものだけで絞っています。',PCT_MODE_NOTES[scenarioPctMode()]]};
   }
   // 幅1080の2枚目のカード。engine の描画には触らず、自分のキャンバスにだけ描く。
   // 高さは「固定部（見出し・テーブル別の成績）＋AT間の行×行数＋注記＋クレジット」で決まる。
@@ -897,6 +922,15 @@
     return `<div class="entry-h">このAT間の開始</div><div class="at-pick">${startButton(true,0,'リセット後・AT後から')}${Array.from({length:AT_PRIOR_MAX},(_,i)=>startButton(true,i+1,'既にBZ'+(i+1)+'回')).join('')}${startButton(false,0,'途中から：不明')}</div>
       <div class="hint">据え置きの朝一は前日のAT間の続きなので、［途中から］を選んでください。シナリオは設定変更時とAT終了時に選ばれます。</div>`;
   }
+  // シナリオ参考％の表示モード。押しても記録・取消の履歴には触れない（福引の切替と同じ扱い）。
+  function pctModePicker(S){
+    const mode=scenarioPctMode();
+    const btn=(value,label)=>`<button type="button" class="pct-mode-btn${mode===value?' on':''}" data-action="scenarioPctMode" data-value="${value}" aria-pressed="${mode===value}">${label}</button>`;
+    return `<div class="pct-mode-title">シナリオ参考％の表示</div>
+      <div class="pct-mode-row" role="group" aria-label="シナリオ参考％の表示">${btn('auto','自動')}${btn('p1','設定1基準％')}${btn('candidates','候補のみ')}</div>
+      <div class="hint">自動は、設定1否定の記録が出ると％を隠します。設定1基準％は否定があっても％を出します（警告付き）。候補のみは％を出しません。どれを選んでも候補の絞り込みは同じです。</div>
+      ${mode==='p1'&&setting1Denied(S)?'<div class="hint pct-mode-warning">'+PCT_DENIED_WARNING+'</div>':''}`;
+  }
   // 1. このAT間（常時表示・短く）
   function nowSection(ctx){
     const S=ctx.S,session=currentAt(S),no=nextBzNo(session),eye=strongestEye(session);
@@ -925,6 +959,8 @@
       ${eye?`<div class="now-note" style="color:${eye[4]}">${eye[3]}</div>`:''}
       <button type="button" class="act plain fuku-toggle" data-action="fukuMode" role="checkbox" aria-checked="${fukuIncluded()}" aria-label="福引をシナリオの回数に含める">${fukuIncluded()?'☑':'☐'} 福引をシナリオの回数に含める</button>
       <div class="hint">${fukuModeText()}。扱いは未確認です。チェックで候補・参考％・次回予測を切り替えます。</div>
+      ${(()=>{try{return store()?.getItem('mhsunbreak-checker-v1-bztransfer-backup')?'<div class="hint"><a href="mhsunbreak-bz-import.html" style="color:#9ce2ff">直前の引き継ぎを確認・取り消す ↗</a></div>':''}catch(e){return ''}})()}
+            ${pctModePicker(S)}
       ${scenarioLine(session,S)}
       ${nextBzLine(session,S)}
       <div class="now-sub">${view.closed?'経過（直前のAT間・AT当選で終了）':'経過（古い順。右が最新）'}</div>
@@ -953,6 +989,7 @@
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `${open} style="--c:${c[4]}" aria-label="${label}"><b>アイキャッチ</b><i>${c[1]}（${c[2]}）</i><small>${c[3]}</small></button>`;}
     if(e.t==='serif'){const c=SERIF.find(c=>c[0]===e.c);return `${open} aria-label="${label}"><b>セリフ</b><i>「${c[2]}」</i><small>${c[1]}</small></button>`;}
     if(e.t==='lamp')return `${open} style="--c:${LAMP_COLORS[e.c]}" aria-label="${label}"><b>ﾗﾝﾌﾟ</b><i>${LAMP_NAMES[e.c]}</i></button>`;
+    if(e.t==='submarine')return `${open} style="--c:${e.c==='with_garuku'?'#83caff':'#9a90a8'}" aria-label="${label}"><b>潜水艇</b><i>${SUBMARINE_NAMES[e.c]}</i></button>`;
     return `${open} aria-label="${label}"><b>BZ以外</b><i>でAT当選</i></button>`;
   }
   // 結果アイコンの位置（1〜11）。11個目は成功時のみ選べる。
@@ -1007,7 +1044,7 @@
   }
   // 入口の並びは実戦の流れに合わせる（§9-69）。BZ → 終了時PUSHのランプ → 示唆 → 福引 → そのほか。
   // 見出し直下のジャンプ列から各入口へ飛べる（画面だけの操作。保存にも取消にも触れない）。
-  const JUMP=[['bz','BZ'],['lamp','ランプ'],['eye','アイキャッチ'],['serif','セリフ'],['fuku','福引']];
+  const JUMP=[['bz','BZ'],['lamp','ランプ'],['eye','アイキャッチ'],['serif','セリフ'],['fuku','福引'],['submarine','潜水艇']];
   const ENTRY_IDS=Object.fromEntries(JUMP.map(c=>[c[0],'ent-'+c[0]]));
   function jumpRow(){
     return `<div class="jump-row">${JUMP.map(([k,label])=>
@@ -1022,6 +1059,7 @@
     const serifBody=`<div class="at-pick">${SERIF.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="serif" data-c="${c[0]}" aria-label="セリフ 「${c[2]}」 ${c[1]}"${disabled}><b>「${c[2]}」</b><small>${c[1]}</small></button>`).join('')}</div>`;
     const fukuBody=`<div class="at-pick">${['win','miss'].map(r=>`<button type="button" class="at-btn" data-action="atEvent" data-t="fuku" data-r="${r}" aria-label="アイルー福引 ${r==='win'?'成功':'失敗'}"${disabled}>${r==='win'?'成功':'失敗'}</button>`).join('')}</div>`;
     const lampBody=`<div class="at-pick lamp-pick">${LAMPS.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="lamp" data-c="${c[0]}" style="--c:${c[2]}" aria-label="サイドランプ ${c[1]}"${disabled}><b>${c[1]}</b></button>`).join('')}</div>`;
+    const submarineBody=`<div class="at-pick"><button type="button" class="at-btn" data-action="atEvent" data-t="submarine" data-c="with_garuku"${disabled}>ガルク同乗あり</button><button type="button" class="at-btn" data-action="atEvent" data-t="submarine" data-c="without_garuku"${disabled}>ガルク同乗なし</button></div>`;
     const otherBody=`<div class="at-pick one"><button type="button" class="at-btn" data-action="atEvent" data-t="otherAt"${disabled}>BZ以外でAT</button></div>`;
     return `<section class="sec"><div class="rec-h">ここから記録</div>
       ${jumpRow()}
@@ -1031,6 +1069,7 @@
       ${entry('eye','アイキャッチ（ステージチェンジ）',eyeBody,'アイキャッチはステージチェンジで出ます。滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。')}
       ${entry('serif','チッチェのセリフ',serifBody,'ボタンにセリフの見分けどころを併記しています。示唆は次回のBZレベルについてのものです。')}
       ${entry('fuku','アイルー福引',fukuBody,'福引の成功はこのAT間を閉じます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。')}
+      ${entry('submarine','オトモ潜水艇の横切り',submarineBody,'ガルク同乗の有無を記録します。BZ番号・シナリオ参考％への影響なし。')}
       ${entry('','そのほか',otherBody,'押すとそのAT間を閉じて次のAT間を始めます。BZの成功・福引の成功も同じようにAT間を閉じます。')}
       <div class="hint">減算モードではアイキャッチ・セリフ・福引・ランプ・［BZ以外でAT］は記録できません。設定推測には使いません。出典は一撃様です。</div>
     </section>`;
@@ -1201,6 +1240,11 @@
 .now-box{border:2px solid #2f5d72;background:linear-gradient(180deg,#131a22,#0f1319);border-radius:12px;padding:10px 10px 12px}
 .now-h{font-size:19px;font-weight:800;color:var(--cyan);letter-spacing:.04em;margin-bottom:8px}
 .now-sub{font-size:11px;font-weight:800;color:var(--muted);letter-spacing:.06em;margin:10px 0 6px}
+.pct-mode-title{font-size:12px;font-weight:800;color:var(--txt);margin:10px 0 5px}
+.pct-mode-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-bottom:6px}
+.pct-mode-btn{min-width:0;min-height:44px;padding:8px 4px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--muted);font:inherit;font-size:13px;font-weight:800}
+.pct-mode-btn.on{border-color:var(--cyan);background:rgba(111,216,255,.14);color:var(--cyan)}
+.pct-mode-warning{color:var(--gold)}
 .now-last{font-size:13px;font-weight:700;margin-top:6px;overflow-wrap:anywhere}
 .now-last.none{color:var(--muted);font-weight:500}
 /* ここから記録（入力する所） */
@@ -1360,6 +1404,14 @@
     scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,nextBzPct:nextBzLevelPct,
     actions:{
       fukuMode:()=>{savedNote=null;setFukuIncluded(!fukuIncluded());if(scenarioReady)scenarioReady=false;return rerender();},
+      // 参考％の表示モード。prefs にだけ書き、記録と取消の履歴には触れない。
+      // 作成済みのBZシナリオカードは、新しいモードの％と注記で描き直す。
+      scenarioPctMode:(ctx,ds)=>{
+        savedNote=null;
+        if(PCT_MODES.indexOf(ds&&ds.value)<0||ds.value===scenarioPctMode())return false;
+        setScenarioPctMode(ds.value);
+        return rerender();
+      },
       bzQuest:bzQuestAction,
       // 記録のキーには書かない。テンプレに入れるかだけを別キーに持つ。
       tplAtLog:()=>{savedNote=null;const on=!tplAtLogOn();setTplAtLog(on);return 'AT間メモをテンプレに'+(on?'入れます':'入れません');},
