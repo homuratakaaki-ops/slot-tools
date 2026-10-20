@@ -201,7 +201,7 @@ test('production checker storage is untouched after preview transfer',async()=>{
 test('public mobile preview serves revised BZ outcome and manual fallback',async()=>{
  const root='https://slot-tools.jp/preview/mhsunbreak-bz-20261020/';
  for(const [p,markers] of [
- ['index.html',['BZと福引をそれぞれ','手入力できます']],
+ ['index.html',['BZと福引をそれぞれ','直接入力できます']],
  ['mhsunbreak-bz-import.html',['data-result','manualFallback','BZまたは福引の成功後','テスト版','mhsunbreak-bz-preview-20261020-checker-v1']]
  ]){
   const response=await fetch(root+p+'?v=20261020-bz-win',{signal:AbortSignal.timeout(20000),cache:'no-store'});
