@@ -524,12 +524,6 @@
  }));
  $('reset').addEventListener('click',()=>{if(history.length){saveUndo();history.length=0;editingIndex=null;render()}});
  $('restore').addEventListener('click',restorePrevious);
-  if(events.some(e=>!e)){$('transferStatus').textContent='引き継げない記録があります。';return;}
-  const bundle={version:1,id:String(Date.now())+'-'+Math.random().toString(36).slice(2,10),createdAt:Date.now(),includeFuku,events};
-  try{localStorage.setItem(HANDOFF_KEY,JSON.stringify(bundle));}
-  catch(e){$('transferStatus').textContent='一時保存に失敗しました。ブラウザの保存設定を確認してください。';return;}
-  window.location.href='mhsunbreak-checker.html?bzHandoff=1';
- });
  updateSignalTabs();
 
  // Transfer is staged separately; this page does not write to the setting-checker storage.
