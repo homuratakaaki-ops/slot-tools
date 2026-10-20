@@ -281,12 +281,6 @@
   <p id="transferStatus" class="err" role="status"></p>
 </section>
 <details class="data-panel"><summary>関連ツール</summary><p class="source"><a href="https://slot-tools.jp/mhsunbreak-checker.html" target="_blank" rel="noopener noreferrer">サンブレイク設定判別カウンター ↗</a>（下のボタンから記録を引き継げます）</p></details>
-<section class="card" aria-label="設定判別カウンターへの記録引き継ぎ">
- <h2>③ 記録を設定判別カウンターへ</h2>
- <p class="sub">記録を渡して、カウンター側で確認してから追加できます。既存の記録は自動で書き換えません。</p>
- <button type="button" class="table-button" id="transferToChecker" style="width:100%;color:var(--cyan);border-color:var(--cyan)">設定判別カウンターで引き継ぎ内容を確認 →</button>
- <p class="helper" id="transferStatus" role="status">福引の成功・失敗は引き継ぎ先で選択。福引の回数計上設定は引き継ぎません。</p>
-</section>
 </main>
 <script>
 (function(){
@@ -343,7 +337,6 @@
  const $=id=>document.getElementById(id);
  // A dedicated draft key, never the existing checker storage key.
  const DRAFT_STORAGE='mhsunbreak-next-bz-recording-v1'; // Separate from setting-checker data
- const HANDOFF_KEY='mhsunbreak-bz-transfer-v1'; // Pending only; checker storage remains untouched
  const VALID_CODES=Object.fromEntries(Object.entries(SIGNAL_LABELS).map(([type,codes])=>[type,Object.keys(codes)]));
  const validEvent=e=>e&&typeof e==='object'&&(
   (e.type==='bz'&&Number.isInteger(e.table)&&e.table>=1&&e.table<=6)||
@@ -531,15 +524,6 @@
  }));
  $('reset').addEventListener('click',()=>{if(history.length){saveUndo();history.length=0;editingIndex=null;render()}});
  $('restore').addEventListener('click',restorePrevious);
- $('transferToChecker').addEventListener('click',()=>{
-  if(history.length===0){$('transferStatus').textContent='まだ送る記録がありません。';return;}
-  if(history.length>60){$('transferStatus').textContent='記録が多すぎます。';return;}
-  const events=history.map(e=>{
-   if(e.type==='bz')return {t:'bz',table:'t'+e.table,r:'miss'};
-   if(e.type==='fuku')return {t:'fuku',r:null};
-   if(['serif','eye','lamp','submarine'].includes(e.type))return {t:e.type,c:e.code};
-   return null;
-  });
   if(events.some(e=>!e)){$('transferStatus').textContent='引き継げない記録があります。';return;}
   const bundle={version:1,id:String(Date.now())+'-'+Math.random().toString(36).slice(2,10),createdAt:Date.now(),includeFuku,events};
   try{localStorage.setItem(HANDOFF_KEY,JSON.stringify(bundle));}
