@@ -240,3 +240,17 @@ test('result selector targets the last BZ even if there are no BZ/Fuku after it'
 });
 
 test('production checker storage is untouched after preview transfer',async()=>{const {page,context,errors}=await pageFor();try{const sentinel='{"real":42}';await seed(page,null);await page.evaluate(s=>localStorage.setItem('mhsunbreak-checker-v1',s),sentinel);await table(page,3);await transfer(page);await page.locator('select[data-result="0"]').selectOption('miss');await page.locator('#apply').click();assert.equal(await page.evaluate(()=>localStorage.getItem('mhsunbreak-checker-v1')),sentinel);assert.equal(JSON.parse(await current(page)).atLog.sessions[0].events.length,1);assert.deepEqual(errors,[])}finally{await context.close()}});
+
+test('public mobile preview serves newest last-only result selector',async()=>{
+ const root='https://slot-tools.jp/preview/mhsunbreak-bz-20261020/';
+ for(const [p,markers] of [
+ ['index.html',['最後の福引1件だけ','失敗']],
+ ['mhsunbreak-bz-import.html',['失敗（自動）','lastOpportunityIndex','i===finalIndex', 'mhsunbreak-bz-preview-20261020-checker-v1']],
+ ['mhsunbreak-next-bz-guide.html',['最後の1件だけ','テスト版']]
+ ]){
+  const response=await fetch(root+p+'?v=20261020-last-cz',{signal:AbortSignal.timeout(20000),cache:'no-store'});
+  assert.equal(response.status,200,root+p+' returned '+response.status);
+  const body=await response.text();
+  for(const marker of markers)assert.ok(body.includes(marker),p+' missing '+marker);
+ }
+});
