@@ -15,7 +15,7 @@ button{font:inherit;cursor:pointer;border-radius:8px;min-height:44px;padding:10p
 <h1>設定判別カウンターへの記録引き継ぎ</h1>
 <p>この画面で内容を確認するまでは、カウンターの記録は変更されません。</p>
 <div class="warn"><b>既存データを保護します。</b><p>現在のAT間が空、または引き継ぎ履歴と先頭から一致する場合だけ追加します。異なる記録があれば停止します。</p></div>
-<section class="card"><h2>引き継ぐ記録</h2><p>BZとアイルー福引は、実際の結果を「失敗／成功」から選んでください。未選択のままでは追加できません。</p><div id="rows"></div><p id="count" class="small"></p><p class="small">※BZ・福引の成功はAT当選として扱います。成功はそのAT間の最後の記録にしてください。成功後の演出などは、次のAT間として記録してください。</p></section>
+<section class="card"><h2>引き継ぐ記録</h2><p>途中のBZ・福引は、次のBZ・福引が続いているため自動的に「失敗」です。最後のBZ・福引だけ実際の「失敗／成功」を選んでください。</p><div id="rows"></div><p id="count" class="small"></p><p class="small">※BZ・福引の成功はAT当選として扱います。成功はそのAT間の最後の記録にしてください。成功後の演出などは、次のAT間として記録してください。</p></section>
 <section class="card"><h2>既存記録との照合</h2><strong id="diff">確認中</strong><p id="info"></p>
 <p class="small">不屈の現在色・福引の回数計上チェックは記録イベントではないため転送しません。潜水艇はカウンター側に表示対応が必要です。</p></section>
 <section class="card" id="manualFallback" aria-label="引き継ぎできないとき"><h2>引き継ぎできないとき</h2><p>今の記録は変更せずに、設定判別カウンターへ移動して手入力できます。BZタブから入力してください。自動転送は行いません。</p><a href="mhsunbreak-checker.html" class="secondary" style="display:block;text-align:center;text-decoration:none;font-weight:800;padding:13px">設定判別カウンターへ移動して手入力 →</a></section>
@@ -34,12 +34,19 @@ const label={eye:['ジェイ','ルーチカ','フィオレーネ','バハリ','�
 const valid=e=>e&&typeof e==='object'&&!Array.isArray(e)&&((e.type==='bz'&&Number.isInteger(e.table)&&e.table>=1&&e.table<=6)||e.type==='fuku'||(codes[e.type]&&codes[e.type].includes(e.code)));
 let pending=null,rawAtOpen=null,applied=false;
 const same=(a,b)=>a.t===b.t&&(a.t==='bz'?a.table===b.table&&a.r===b.r:a.t==='fuku'?a.r===b.r:a.c===b.c);
+const isOpportunity=e=>e.type==='bz'||e.type==='fuku';
+const lastOpportunityIndex=events=>{
+ for(let i=events.length-1;i>=0;i--)if(isOpportunity(events[i]))return i;
+ return -1;
+};
 function eventsToImport(){
- const results=Object.fromEntries([...document.querySelectorAll('[data-result]')].map(x=>[Number(x.dataset.result),x.value]));
+ const finalIndex=lastOpportunityIndex(pending.events);
+ const finalSelect=finalIndex<0?null:document.querySelector('[data-result="'+finalIndex+'"]');
+ const result=finalSelect?.value;
+ if(finalIndex>=0&&!['win','miss'].includes(result))throw Error('最後のBZ・福引だけ成功／失敗を選択してください。');
  return pending.events.map((e,i)=>{
-  if(e.type==='bz'||e.type==='fuku'){
-   const r=results[i];
-   if(!['win','miss'].includes(r))throw Error('すべてのBZ・福引について成功・失敗を選択してください。');
+  if(isOpportunity(e)){
+   const r=i===finalIndex?result:'miss';
    return e.type==='bz'?{t:'bz',table:'t'+e.table,r}:{t:'fuku',r};
   }
   return {t:e.type,c:e.code};
@@ -88,19 +95,24 @@ function init(){
    ||!Array.isArray(p.events)||p.events.length<1||p.events.length>60||!p.events.every(valid))throw Error('転送データがありません。または期限切れ・形式不正です。');
   pending=p;rawAtOpen=localStorage.getItem(CHECKER);
   const root=$('rows');
+  const finalIndex=lastOpportunityIndex(p.events);
   p.events.forEach((e,i)=>{
    const line=document.createElement('div');line.className='line';
    const title=document.createElement('span');
    title.textContent=(i+1)+'. '+(e.type==='bz'?'BZテーブル'+e.table:e.type==='fuku'?'アイルー福引':({serif:'チッチェ',eye:'アイキャッチ',lamp:'PUSH',submarine:'潜水艇'}[e.type])+'：'+label[e.type][codes[e.type].indexOf(e.code)]);
    line.append(title);
-   if(e.type==='bz'||e.type==='fuku'){
-    const select=document.createElement('select');select.dataset.result=String(i);select.setAttribute('aria-label',(e.type==='bz'?'BZ':'福引')+(i+1)+'の結果');
-    [['','結果を選択'],['miss','失敗'],['win','成功']].forEach(([value,text])=>{const o=document.createElement('option');o.value=value;o.textContent=text;select.append(o)});
-    select.addEventListener('change',check);line.append(select);
+   if(isOpportunity(e)){
+    if(i===finalIndex){
+     const select=document.createElement('select');select.dataset.result=String(i);select.setAttribute('aria-label','最後の'+(e.type==='bz'?'BZ':'福引')+'の結果');
+     [['','結果を選択'],['miss','失敗'],['win','成功']].forEach(([value,text])=>{const o=document.createElement('option');o.value=value;o.textContent=text;select.append(o)});
+     select.addEventListener('change',check);line.append(select);
+    }else{
+     const fixed=document.createElement('span');fixed.className='small';fixed.textContent='失敗（自動）';fixed.setAttribute('aria-label','後続のBZ・福引があるため失敗として記録');line.append(fixed);
+    }
    }
    root.append(line);
   });
-  $('count').textContent=p.events.length+'件を確認してください。';check();
+  $('count').textContent=p.events.length+'件中、結果の選択は'+(finalIndex>=0?'最後の1件だけです。':'不要です（示唆・演出メモのみ）。');check();
  }catch(e){
   // Returning from the checker after a successful import must still allow rollback.
   try{

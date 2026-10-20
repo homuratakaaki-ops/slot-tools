@@ -73,7 +73,7 @@ test('real links, stage-only, fuku selection, saved checker, reload, rollback',a
   await transfer(page);
   assert.equal(await page.locator('#apply').isDisabled(),true,'fuku must have manual result');
   assert.equal(await current(page),original,'preview must not write');
-  await outcome(page,0);await outcome(page,2,'miss');
+  await outcome(page,2,'miss');
   assert.equal(await page.locator('#apply').isEnabled(),true);
   await page.locator('#apply').click();
   assert.equal(await page.locator('#after').isVisible(),true);
@@ -139,7 +139,7 @@ test('Fuku success closes AT interval; no extra event allowed afterward',async()
  const {page,context,errors}=await pageFor();
  try{
   await seed(page,null);await table(page);await page.locator('#addFuku').click();
-  await transfer(page);await outcome(page,0);await outcome(page,1,'win');
+  await transfer(page);await outcome(page,1,'win');
   await page.locator('#apply').click();
   const logs=JSON.parse(await current(page)).atLog.sessions;
   assert.equal(logs.length,2);assert.equal(logs[0].closed,true);
@@ -184,7 +184,9 @@ test('BZ success followed by another event is rejected; manual-entry link opens 
  const {page,context,errors}=await pageFor();
  try{
   await seed(page,null);await table(page,3);await page.locator('#addFuku').click();
-  await transfer(page);await outcome(page,0,'win');await outcome(page,1,'miss');
+  await page.locator('.signal-tab[data-tab="eye"]').click();
+  await page.locator('button[data-signal="eye"][data-code="jay"]').click();
+  await transfer(page);await outcome(page,0,'win');
   assert.equal(await page.locator('#apply').isDisabled(),true);
   assert.match(await page.locator('#info').innerText(),/成功後に記録/);
   assert.equal(await current(page),null);
@@ -192,6 +194,47 @@ test('BZ success followed by another event is rejected; manual-entry link opens 
   assert.equal(await fallback.isVisible(),true);
   await fallback.click();await page.waitForURL('**/mhsunbreak-checker.html');
   assert.equal(await current(page),null);
+  assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+});
+
+test('only last BZ/Fuku allows result choice; earlier BZ/Fuku become automatic misses',async()=>{
+ const {page,context,errors}=await pageFor();
+ try{
+  await seed(page,null);
+  await table(page,3);
+  await page.locator('#addFuku').click();
+  await table(page,4);
+  await transfer(page);
+  const selects=page.locator('select[data-result]');
+  assert.equal(await selects.count(),1);
+  assert.equal(await selects.first().getAttribute('data-result'),'2');
+  assert.equal(await page.locator('#rows span').filter({hasText:'失敗（自動）'}).count(),2);
+  assert.equal(await page.locator('#apply').isDisabled(),true);
+  await outcome(page,2,'win');await page.locator('#apply').click();
+  const sessions=JSON.parse(await current(page)).atLog.sessions;
+  assert.equal(sessions.length,2);
+  assert.deepEqual(sessions[0].events,[
+   {t:'bz',table:'t3',r:'miss'},
+   {t:'fuku',r:'miss'},
+   {t:'bz',table:'t4',r:'win'}
+  ]);
+  assert.equal(sessions[0].closed,true);
+  assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+});
+test('result selector targets the last BZ even if there are no BZ/Fuku after it',async()=>{
+ const {page,context,errors}=await pageFor();
+ try{
+  await seed(page,null);await table(page,3);
+  await page.locator('.signal-tab[data-tab="eye"]').click();
+  await page.locator('button[data-signal="eye"][data-code="jay"]').click();
+  await table(page,4);await transfer(page);
+  assert.equal(await page.locator('select[data-result]').count(),1);
+  assert.equal(await page.locator('select[data-result]').first().getAttribute('data-result'),'2');
+  assert.equal(await page.locator('#rows span').filter({hasText:'失敗（自動）'}).count(),1);
+  await outcome(page,2,'miss');await page.locator('#apply').click();
+  assert.equal(JSON.parse(await current(page)).atLog.sessions[0].events[0].r,'miss');
   assert.deepEqual(errors,[]);
  }finally{await context.close()}
 });
