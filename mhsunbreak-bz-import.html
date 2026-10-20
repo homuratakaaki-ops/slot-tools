@@ -93,7 +93,19 @@ function init(){
    root.append(line);
   });
   $('count').textContent=p.events.length+'件を確認してください。';check();
- }catch(e){message(e.message||'転送データの読込に失敗');$('diff').textContent='転送できません'}
+ }catch(e){
+  // Returning from the checker after a successful import must still allow rollback.
+  try{
+   const b=JSON.parse(localStorage.getItem(BACKUP));
+   if(b&&b.version===1&&typeof b.id==='string'&&localStorage.getItem(CHECKER)===b.afterRaw){
+    pending={id:b.id};applied=true;$('after').hidden=false;
+    $('diff').className='ok';$('diff').textContent='前回の引き継ぎが完了しています';
+    $('info').textContent='バックアップから今回の転送前に戻せます。';
+    message('');return;
+   }
+  }catch(_){}
+  message(e.message||'転送データの読込に失敗');$('diff').textContent='転送できません';
+ }
 }
 $('apply').addEventListener('click',()=>{
  if(!pending||applied)return;
