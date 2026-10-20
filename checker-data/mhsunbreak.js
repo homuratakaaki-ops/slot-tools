@@ -959,7 +959,8 @@
       ${eye?`<div class="now-note" style="color:${eye[4]}">${eye[3]}</div>`:''}
       <button type="button" class="act plain fuku-toggle" data-action="fukuMode" role="checkbox" aria-checked="${fukuIncluded()}" aria-label="福引をシナリオの回数に含める">${fukuIncluded()?'☑':'☐'} 福引をシナリオの回数に含める</button>
       <div class="hint">${fukuModeText()}。扱いは未確認です。チェックで候補・参考％・次回予測を切り替えます。</div>
-      ${pctModePicker(S)}
+      ${(()=>{try{return store()?.getItem('mhsunbreak-checker-v1-bztransfer-backup')?'<div class="hint"><a href="mhsunbreak-bz-import.html" style="color:#9ce2ff">直前の引き継ぎを確認・取り消す ↗</a></div>':''}catch(e){return ''}})()}
+            ${pctModePicker(S)}
       ${scenarioLine(session,S)}
       ${nextBzLine(session,S)}
       <div class="now-sub">${view.closed?'経過（直前のAT間・AT当選で終了）':'経過（古い順。右が最新）'}</div>
