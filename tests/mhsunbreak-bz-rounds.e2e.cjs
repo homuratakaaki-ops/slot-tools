@@ -45,6 +45,7 @@ async function seed(page,events,extra={}){
 test('one horizontal frame per BZ, pending target, multiple cues, filling upper row and colour correction',async()=>{
  const {page,context,errors}=await checker();
  assert.equal(await page.locator('.bz-round').count(),1);assert.equal(await page.locator('#ent-lamp').count(),0);assert.equal(await page.locator('.jump-btn[data-k="lamp"]').count(),0);
+ assert.equal(await page.locator('.bz-round[aria-current="step"] .round-current').innerText(),'▶ 今ここ・待機中');
  await page.locator('[data-action="bzPick"][data-q="t3"]').click();
  await page.locator('[data-action="bzPickPos"][data-pos="4"]').click();
  await page.locator('[data-action="bzFailure"]').click();await page.locator('[data-action="lampChoose"][data-c="green"]').click();
@@ -52,12 +53,14 @@ test('one horizontal frame per BZ, pending target, multiple cues, filling upper 
  const target=page.locator('.bz-round[data-round="2"]');
  assert.equal(await page.locator('.bz-round').count(),2);assert.match(await target.innerText(),/待機中/);assert.match(await target.innerText(),/ランプ 緑/);assert.match(await target.innerText(),/重要なクエスト/);
  assert.match(await page.locator('.bz-round[data-round="1"]').innerText(),/結果：4/);
+ assert.equal(await page.locator('.bz-round[data-round="1"] .round-current').count(),0);assert.equal(await target.getAttribute('aria-current'),'step');
  const before=await appState(page);assert.equal(before.atLog.sessions[0].events.length,3);assert.equal(before.untouched,undefined);
  const candidates=await page.locator('.at-sc.cand').innerText();assert.match(candidates,/C/);assert.doesNotMatch(candidates,/H/);
  await target.locator('.round-lamps [data-action="atOpen"]').click();await page.locator('[data-action="lampEdit"]').click();await page.locator('[data-action="lampChoose"][data-c="unknown"]').click();
  assert.match(await target.innerText(),/ランプ 不明/);assert.equal((await appState(page)).atLog.sessions[0].events.length,3);
  await fail(page,'t3','unknown');assert.equal(await page.locator('.bz-round').count(),3);assert.equal(await target.locator('.round-empty').count(),0);assert.match(await target.innerText(),/重要なクエスト/);
- if(process.env.PROOF_DIR){await page.locator('#main').evaluate(e=>e.scrollTop=0);await page.locator('#evScroll').evaluate(e=>e.scrollLeft=0);await page.screenshot({path:path.join(process.env.PROOF_DIR,'bz-rounds.png')});}
+ assert.equal(await target.getAttribute('aria-current'),null);assert.equal(await page.locator('.round-current').count(),1);assert.equal(await page.locator('.bz-round[data-round="3"]').getAttribute('aria-current'),'step');
+ if(process.env.PROOF_DIR){await page.locator('#main').evaluate(e=>e.scrollTop=0);await page.locator('#evScroll').evaluate(e=>e.scrollLeft=e.scrollWidth);await page.screenshot({path:path.join(process.env.PROOF_DIR,'bz-rounds.png')});}
  await assertIsolation(page);assert.deepEqual(errors,[]);await context.close();
 });
 test('compulsory five choices, durable pending failure on reload, explicit unknown, and two-step Undo',async()=>{
@@ -81,6 +84,7 @@ test('Fuku failure asks for a colour; success closes interval without a pending 
  assert.equal(await page.locator('.bz-round').count(),2);assert.equal(await page.locator('.bz-round[data-round="2"] .round-lamps button').count(),2);
  await page.locator('[data-action="bzPick"][data-q="t7"]').click();await page.locator('[data-action="bzQuest"][data-r="win"]').click();
  assert.equal(await page.locator('#lampDialog').count(),0);assert.equal(await page.locator('.bz-round.waiting').count(),0);
+ assert.equal(await page.locator('.round-current').count(),0);
  const S=await appState(page);assert.equal(S.atLog.sessions.length,2);assert.equal(S.atLog.sessions[0].closed,true);
  const lamp=page.locator('.bz-round[data-round="2"] .round-lamps [data-index="3"]');await lamp.click();await page.locator('[data-action="lampEdit"]').click();await page.locator('[data-action="lampChoose"][data-c="unknown"]').click();
  assert.equal((await appState(page)).atLog.sessions[0].events[3].c,'unknown');
