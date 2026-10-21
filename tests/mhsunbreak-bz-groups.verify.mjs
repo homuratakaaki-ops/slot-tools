@@ -35,7 +35,7 @@ function tap(S,key,id,success){
   config.actions.bzPick(ctx(S),{q:id});
   // bzPick は押すたびに入／切が変わる。切れていたらもう一度押す
   if(!/data-action="bzQuest"/.test(html(S)))config.actions.bzPick(ctx(S),{q:id});
-  const button=[...html(S).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]).find(b=>b.includes('data-action="bzQuest"')&&b.includes('data-q="'+id+'"')&&b.includes('data-r="'+(success?'win':'miss')+'"'));
+  const button=[...html(S).matchAll(/<button\b[^>]*>/g)].map(m=>m[0]).find(b=>b.includes('data-action="'+(success?'bzQuest':'bzFailure')+'"')&&b.includes('data-q="'+id+'"')&&b.includes('data-r="'+(success?'win':'miss')+'"'));
   assert.ok(button,paths);
   assert.ok(button.includes('data-d="'+key+'"'),paths+' の計上先: '+button);
   assert.doesNotMatch(button,/disabled/);
@@ -56,7 +56,7 @@ test('group independence and read-only seven-row aggregate',()=>{
   assert.equal((page.match(/class="sum-row"/g)||[]).length,7);
   // 加算モードでは集計に入力ボタンを置かない（入力は「BZを記録」の1組だけ）
   assert.equal((page.match(/class="crow quest-row"/g)||[]).length,0);
-  assert.equal((page.match(/data-action="bzQuest"/g)||[]).length,2);
+  assert.equal((page.match(/data-action="(?:bzQuest|bzFailure)"/g)||[]).length,2);
   assert.ok(page.includes('テンプレに出る成功率は合算（1回目＋2回目以降）です。'));
   // 減算モードにすると、グループ別の訂正ボタンが集計の中に出る
   const minus=html(S,-1);

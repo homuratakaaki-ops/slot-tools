@@ -161,16 +161,19 @@
   const ICON_COLORS={[IC_MOU]:TABLE_COLORS.t7,[IC_QB]:TABLE_COLORS.t1,[IC_QY]:TABLE_COLORS.t2,[IC_RA]:TABLE_COLORS.t3,[IC_SE]:TABLE_COLORS.t4,
                      [IC_OR]:TABLE_COLORS.t5,[IC_TE]:TABLE_COLORS.t6,[IC_AT]:TABLE_COLORS.t7,[IC_G]:ICON_NEUTRAL};
   const iconColor=name=>ICON_COLORS[name]||ICON_NEUTRAL;
-  // BZ終了時のPUSHで光るサイドランプ。色だけを記録する。
-  // 出典にも色の一覧・色別の示唆は無いため（2026/10/10 時点）、意味は書かない（§9-104）。
-  // 色は画面の見分け用で、実機の色そのものを名乗るものではない。
+  // 通常時のクエスト・福引失敗後PUSH。ちょんぼりすた様 2026/10/21更新。
+  // 旧記録は押した契機が不明なので、timing付きの新規入力だけ推測に使う。
   const LAMPS=[
     ['white','白','#f2eef5'],['blue','青','#83caff'],['yellow','黄','#ffe881'],
     ['green','緑','#a9e6ad'],['red','赤','#ff9b9b'],['purple','紫','#cbb4ff'],
-    ['rainbow','虹','#ffc94d'],['other','その他','#9a90a8']
+    ['rainbow','虹','#ffc94d'],['other','その他','#9a90a8'],['unknown','不明','#9a90a8']
   ];
   const LAMP_NAMES=Object.fromEntries(LAMPS.map(c=>[c[0],c[1]]));
   const LAMP_COLORS=Object.fromEntries(LAMPS.map(c=>[c[0],c[2]]));
+  const FAILURE_TIMING='quest-fuku-failure';
+  const FAILURE_LAMPS={blue:'デフォルト',yellow:'次回HI以上の期待度UP',green:'次回HI以上濃厚',red:'次回SP濃厚',unknown:'未確認・見忘れ'};
+  const LAMP_LEVELS={green:['HI','SP'],red:['SP']};
+  const failureLamp=e=>e&&e.timing===FAILURE_TIMING&&Object.prototype.hasOwnProperty.call(FAILURE_LAMPS,e.c);
   const SUBMARINE_NAMES={cross:'同乗未確認（旧記録）',with_garuku:'ガルク同乗あり',without_garuku:'ガルク同乗なし'};
   // BZ実回数は福引を含めない。シナリオの進行回数だけ利用者が仮説を切り替える。
   // 初期値は従来どおり除外。設定は記録と別の prefs に保存する。
@@ -324,7 +327,7 @@
     if(e.t==='fuku')return '福引 '+(e.r==='win'?'成功':'失敗');
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `アイキャッチ ${c[1]}（${c[2]}）${c[3]}`;}
     if(e.t==='serif')return 'セリフ '+SERIF.find(c=>c[0]===e.c)[1];
-    if(e.t==='lamp')return 'ランプ '+LAMP_NAMES[e.c];
+    if(e.t==='lamp')return failureLamp(e)?'失敗後PUSH '+LAMP_NAMES[e.c]+'（'+FAILURE_LAMPS[e.c]+'）':'ランプ '+LAMP_NAMES[e.c];
     if(e.t==='submarine')return '潜水艇 '+SUBMARINE_NAMES[e.c];
     if(e.t==='otherAt')return 'BZ以外でAT当選';
     return '記録（この版では表示できません）';   // 防御。shownEvent を通らないので通常は呼ばれない
@@ -339,6 +342,7 @@
     const src={t:ds.t};
     if(ds.c!==undefined)src.c=ds.c;
     if(ds.r!==undefined)src.r=ds.r;
+    if(ds.t==='lamp'&&ds.timing===FAILURE_TIMING)src.timing=FAILURE_TIMING;
     const event=normalizeAtEvent(src);
     if(!event||!shownEvent(event))return false;
     const session=currentAt(ctx.S),at=insertTarget(ctx.S);
@@ -356,7 +360,12 @@
     const index=Number(ds.index),session=view.session;
     if(ds.index===undefined||ds.index===''||!Number.isInteger(index)||index<0||index>=session.events.length)return false;
     const label=atEventText(session,index);
+    const removed=session.events[index];
+    // 新しい失敗入力で自動作成したランプは、元の失敗とひと組で訂正・削除する。
+    // 旧記録や、後から単独入力されたランプは巻き込まない。
+    if(removed.t==='lamp'&&removed.autoFailureId)return false;
     session.events.splice(index,1);
+    if(removed.failureInputId)session.events=session.events.filter(e=>!(e.t==='lamp'&&e.autoFailureId===removed.failureInputId));
     openEvent=null;insertBefore=null;insertShifted=false;insertRejected=false;
     return label+' を削除';
   }
@@ -498,10 +507,11 @@
         const min=EYE_MIN[e.c];
         keep=keep.filter(name=>name>=min||name==='H'||name==='I');
       }
-      // 次回BZを指すセリフの後に福引が挟まる場合、示唆の引継ぎは未確認なので絞らない。
-      const nextBz=e.t==='serif'?session.events.findIndex((ev,i)=>i>index&&ev.t==='bz'):-1;
-      const serifCrossesFuku=e.t==='serif'&&fukuIncluded()&&session.events.slice(index+1,nextBz<0?undefined:nextBz).some(ev=>ev.t==='fuku');
-      if(known&&e.t==='serif'&&SERIF_LEVELS[e.c]&&!serifCrossesFuku)narrow(no,SERIF_LEVELS[e.c]);
+      // 次回BZの示唆。計上対象の福引を挟む場合の持ち越しは未確認なので絞らない。
+      const allowed=e.t==='serif'?SERIF_LEVELS[e.c]:e.t==='lamp'&&failureLamp(e)?LAMP_LEVELS[e.c]:null;
+      const nextBz=allowed?session.events.findIndex((ev,i)=>i>index&&ev.t==='bz'):-1;
+      const crossesFuku=allowed&&fukuIncluded()&&session.events.slice(index+1,nextBz<0?undefined:nextBz).some(ev=>ev.t==='fuku');
+      if(known&&allowed&&!crossesFuku)narrow(no,allowed);
       if(known&&e.t==='bz')narrow(no,TABLE_LEVELS[e.table]||[]);
       if(scenarioCounts(e))count++;
     }
@@ -945,10 +955,11 @@
     if(insertBefore!==null&&(view.closed||!history.events[insertBefore])){insertBefore=null;insertRejected=false;}
     const e=openEvent===null?null:history.events[openEvent];
     const shown=shownCount(history);
-    const detail=e?`<div class="cgrid"><div class="crow at-row"><div class="lbl"><div class="nm">${atEventText(history,openEvent)}</div></div>${view.closed?'':`<button type="button" class="cycle-btn" data-action="atDel" data-index="${openEvent}">削除</button>`}</div></div>
+    const detail=e?`<div class="cgrid"><div class="crow at-row"><div class="lbl"><div class="nm">${atEventText(history,openEvent)}</div></div>${view.closed||e.t==='lamp'&&e.autoFailureId?'':`<button type="button" class="cycle-btn" data-action="atDel" data-index="${openEvent}">${e.failureInputId?'失敗とランプを削除':'削除'}</button>`}</div></div>
       ${e.t==='bz'?posPicker(e,openEvent,minus):''}
+      ${e.t==='lamp'?`<button type="button" class="act plain" data-action="lampEdit" data-session="${view.index}" data-index="${openEvent}"${minus?' disabled':''}>ランプの色を訂正</button>`:''}
       ${insertShifted?'<div class="hint">後ろのBZの番号が変わり、集計の計上先も自動で移ります。</div>':''}
-      ${view.closed?'':`<div class="at-pick one"><button type="button" class="at-btn" data-action="atInsert" data-index="${openEvent}"${insertBefore===openEvent?' disabled aria-disabled="true"':''}>このカードの前に追加</button></div>`}`:'';
+      ${view.closed?'':`<div class="at-pick one"><button type="button" class="at-btn" data-action="atInsert" data-index="${openEvent}"${insertBefore===openEvent?' disabled aria-disabled="true"':''}>この記録の前に追加</button></div>`}`:'';
     const start=!session.start.known?'不明':session.start.prior?'途中から '+session.start.prior+'回':'リセット後・AT後から';
     return `<section class="sec"><div class="now-box"><div class="now-h">現在の状況</div>
       <div class="now-grid">
@@ -963,15 +974,106 @@
             ${pctModePicker(S)}
       ${scenarioLine(session,S)}
       ${nextBzLine(session,S)}
-      <div class="now-sub">${view.closed?'経過（直前のAT間・AT当選で終了）':'経過（古い順。右が最新）'}</div>
-      ${shown?`<div class="ev-scroll" id="evScroll"><div class="ev-track">${history.events.map((e,i)=>eventCard(history,i)).join('')}</div></div>`:'<div class="hint">まだありません。下の「ここから記録」から押してください。</div>'}
+      <div class="now-sub">${view.closed?'BZごとの経過（直前のAT間・AT当選で終了）':'BZごとの経過（右が次回）'}</div>
+      ${roundHistory(history,view.closed)}
       <div class="now-last${shown?'':' none'}">最新：${shown?atEventText(history,history.events.map((e,i)=>shownEvent(e)?i:-1).filter(i=>i>=0).pop()):'まだありません'}</div>
       ${detail}
       ${shown?`<div class="hint">カードを押すと内容${view.closed?'と結果アイコン':'・結果アイコン・［削除］'}が出ます。${view.closed?'このAT間はAT当選で終わっています。次の記録をするまで結果アイコンを押せます（訂正は「↩ 取消」で行います）。':'［削除］でこの行が消え、テーブル別の回数も一緒に減ります。'}</div>`:''}
 
     </div></section>`;
   }
-  // 2. 経過（横並び。古い順に左→右）
+  // 表示専用の索引。保存eventsは並べ替えず、各ボタンは元の添字を保持する。
+  function bzRoundModel(session,closed=session.closed){
+    const rounds=[],other=[];
+    session.events.forEach((e,index)=>{
+      if(e.t==='bz')rounds.push({index,no:bzNoAt(session,index),ordinal:rounds.length+1,lamps:[],serifs:[]});
+    });
+    if(!closed)rounds.push({index:null,no:nextBzNo(session),ordinal:rounds.length+1,lamps:[],serifs:[]});
+    session.events.forEach((e,index)=>{
+      if(e.t==='bz'||!shownEvent(e))return;
+      const isCue=e.t==='serif'||e.t==='lamp'&&failureLamp(e);
+      const target=isCue?rounds.find(r=>r.index===null||r.index>index):null;
+      const end=target&&target.index!==null?target.index:session.events.length;
+      const crosses=isCue&&fukuIncluded()&&session.events.slice(index+1,end).some(ev=>ev.t==='fuku');
+      if(target&&!crosses){target[e.t==='lamp'?'lamps':'serifs'].push(index);return;}
+      other.push({index,reason:e.t==='lamp'&&!failureLamp(e)?'旧記録・対象未確認':crosses?'福引を挟んだため対象未確認':isCue?'対象BZ未到来':'その他の記録'});
+    });
+    return {rounds,other};
+  }
+  function roundHistory(session,closed){
+    const model=bzRoundModel(session,closed);
+    const cue=(index)=>{
+      const e=session.events[index],lamp=e.t==='lamp';
+      const content=lamp?`<b>ランプ ${LAMP_NAMES[e.c]}</b><small>${FAILURE_LAMPS[e.c]}</small>`:`<small>「${SERIF.find(c=>c[0]===e.c)[2]}」</small><small>${SERIF.find(c=>c[0]===e.c)[1]}</small>`;
+      return `<button type="button" class="round-cue${openEvent===index?' on':''}${insertBefore===index?' target':''}" data-action="atOpen" data-index="${index}" style="--c:${lamp?LAMP_COLORS[e.c]:'var(--muted)'}" aria-label="${atEventText(session,index)}">${content}</button>`;
+    };
+    const cards=model.rounds.map(r=>{
+      const pending=r.index===null;
+      const title=r.no===null?'記録したBZ '+r.ordinal+'件目':'BZ'+r.no+'回目';
+      const color=pending?'var(--cyan)':TABLE_COLORS[session.events[r.index].table];
+      return `<div class="bz-round${pending?' waiting':''}" data-round="${r.ordinal}" style="--round-color:${color}">
+        ${pending?`<div class="round-empty"><b>${title}・待機中</b><span>テーブル：—</span><span>結果：—</span></div>`:eventCard(session,r.index)}
+        <div class="round-lamps">${r.lamps.length?r.lamps.map(cue).join(''):'<div class="round-none">ランプ：記録なし</div>'}</div>
+        <div class="round-serifs">${r.serifs.map(cue).join('')}</div>
+      </div>`;
+    }).join('');
+    const others=model.other.length?`<details class="round-other"><summary>対象未確認・その他の記録（${model.other.length}件）</summary><div class="round-other-items">${model.other.map(({index,reason})=>`<button type="button" class="round-cue${openEvent===index?' on':''}${insertBefore===index?' target':''}" data-action="atOpen" data-index="${index}" aria-label="${atEventText(session,index)}"><b>${atEventText(session,index)}</b><small>${reason}</small></button>`).join('')}</div></details>`:'';
+    return (cards?`<div class="ev-scroll" id="evScroll"><div class="ev-track">${cards}</div></div>`:'')+others;
+  }
+
+  let editingLamp=null;
+  const failureInputId=()=>Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+  function pendingLamp(S){
+    for(let s=0;s<S.atLog.sessions.length;s++){
+      const index=S.atLog.sessions[s].events.findIndex(e=>e.t==='lamp'&&failureLamp(e)&&e.pendingChoice===true);
+      if(index>=0)return {session:s,index};
+    }
+    return null;
+  }
+  function failureWithLamp(ctx,ds,fuku=false){
+    if(ctx.mode<0||pendingLamp(ctx.S))return false;
+    const session=currentAt(ctx.S),at=insertTarget(ctx.S),index=at===null?session.events.length:at;
+    if(session.events.length>AT_EVENT_MAX-2)return false;
+    const msg=fuku?atEventAction(ctx,{t:'fuku',r:'miss'}):bzQuestAction(ctx,Object.assign({},ds,{r:'miss'}));
+    if(msg===false)return false;
+    const id=failureInputId();
+    session.events[index].failureInputId=id;
+    session.events.splice(index+1,0,{t:'lamp',c:'unknown',timing:FAILURE_TIMING,autoFailureId:id,pendingChoice:true});
+    openEvent=index+1;editingLamp=null;
+    return msg+'・ランプを選択';
+  }
+  function lampDialog(ctx){
+    const pending=pendingLamp(ctx.S),target=pending||editingLamp;
+    if(!target)return '';
+    const session=ctx.S.atLog.sessions[target.session],e=session&&session.events[target.index];
+    if(!e||e.t!=='lamp'||!shownEvent(e)){editingLamp=null;return '';}
+    if(typeof setTimeout==='function')setTimeout(()=>{
+      const box=typeof document!=='undefined'&&document.getElementById('lampDialog');
+      if(!box)return;
+      const buttons=Array.from(box.querySelectorAll('button'));
+      if(buttons[0])buttons[0].focus({preventScroll:true});
+      box.onkeydown=ev=>{
+        if(ev.key==='Escape')ev.preventDefault();
+        if(ev.key!=='Tab'||!buttons.length)return;
+        if(ev.shiftKey&&document.activeElement===buttons[0]){ev.preventDefault();buttons[buttons.length-1].focus();}
+        else if(!ev.shiftKey&&document.activeElement===buttons[buttons.length-1]){ev.preventDefault();buttons[0].focus();}
+      };
+    },0);
+    return `<style>
+      .lamp-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:12px;overscroll-behavior:contain}
+      .lamp-dialog{width:min(440px,100%);max-height:90dvh;overflow:auto;background:var(--panel,#171220);color:var(--txt,#f2eef5);border:2px solid var(--cyan,#6fd8ff);border-radius:14px;padding:16px;font-family:var(--body,sans-serif)}
+      .lamp-dialog h2{font-size:19px;margin:0 0 10px}.lamp-dialog p{font-size:13px;line-height:1.6;margin:8px 0 12px}
+      .lamp-options{display:grid;grid-template-columns:1fr 1fr;gap:8px}.lamp-options button{min-height:56px;padding:10px 8px;border:1px solid var(--line,#53465f);border-left:4px solid var(--c);border-radius:9px;background:var(--panel2,#261e33);color:var(--txt,#f2eef5);font:inherit;text-align:left}
+      .lamp-options button b{display:block;color:var(--c);font-size:16px}.lamp-options button small{display:block;font-size:12px;line-height:1.4}.lamp-options button:last-child{grid-column:1/-1}
+      .lamp-cancel{width:100%;min-height:44px;margin-top:12px;border:1px solid var(--line,#53465f);border-radius:9px;background:none;color:var(--txt,#f2eef5);font:inherit;font-size:13px}
+    </style><div class="lamp-overlay"><section class="lamp-dialog" id="lampDialog" role="dialog" aria-modal="true" aria-labelledby="lampDialogTitle">
+      <h2 id="lampDialogTitle">${pending?'失敗後のランプを選択':'ランプの色を訂正'}</h2>
+      <p>${failureLamp(e)?'通常時のクエスト・福引失敗後にPUSH。見忘れた場合は「不明」を選んでください。':'旧記録の色を訂正します。押した契機は未確認のまま保持し、推測には使いません。'}</p>
+      <div class="lamp-options">${Object.keys(FAILURE_LAMPS).map(c=>`<button type="button" data-action="lampChoose" data-session="${target.session}" data-index="${target.index}" data-c="${c}" style="--c:${LAMP_COLORS[c]}" aria-label="ランプ ${LAMP_NAMES[c]} ${FAILURE_LAMPS[c]}"><b>${LAMP_NAMES[c]}</b><small>${FAILURE_LAMPS[c]}</small></button>`).join('')}</div>
+      ${pending?'<button type="button" class="lamp-cancel" data-action="cancelFailure">この失敗の記録を取り消す</button>':'<button type="button" class="lamp-cancel" data-action="lampEditClose">変更せず戻る</button>'}
+    </section></div>`;
+  }
+  // 2. BZ上段（古い順に左→右）。下段の示唆はroundHistoryが対象回へ置く。
   function eventCard(session,index){
     const e=session.events[index];
     // 知らない種類・知らない色は描かない。添字（data-index）は実際の位置のままにする
@@ -988,7 +1090,7 @@
     if(e.t==='fuku')return `${open} aria-label="${label}"><b>福引</b><i>アイルー</i><em>${e.r==='win'?'○成功':'×失敗'}</em></button>`;
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `${open} style="--c:${c[4]}" aria-label="${label}"><b>アイキャッチ</b><i>${c[1]}（${c[2]}）</i><small>${c[3]}</small></button>`;}
     if(e.t==='serif'){const c=SERIF.find(c=>c[0]===e.c);return `${open} aria-label="${label}"><b>セリフ</b><i>「${c[2]}」</i><small>${c[1]}</small></button>`;}
-    if(e.t==='lamp')return `${open} style="--c:${LAMP_COLORS[e.c]}" aria-label="${label}"><b>ﾗﾝﾌﾟ</b><i>${LAMP_NAMES[e.c]}</i></button>`;
+    if(e.t==='lamp')return `${open} style="--c:${LAMP_COLORS[e.c]}" aria-label="${label}"><b>${failureLamp(e)?'失敗後PUSH':'ﾗﾝﾌﾟ'}</b><i>${LAMP_NAMES[e.c]}</i>${failureLamp(e)?'<small>'+FAILURE_LAMPS[e.c]+'</small>':''}</button>`;
     if(e.t==='submarine')return `${open} style="--c:${e.c==='with_garuku'?'#83caff':'#9a90a8'}" aria-label="${label}"><b>潜水艇</b><i>${SUBMARINE_NAMES[e.c]}</i></button>`;
     return `${open} aria-label="${label}"><b>BZ以外</b><i>でAT当選</i></button>`;
   }
@@ -1024,7 +1126,7 @@
     const insertBar=target.at===null?'':`<div class="crow insert-bar"><div class="lbl"><div class="nm">差し込み待ち</div><div class="mn">このカードの前に1件だけ入ります</div></div><button type="button" class="cycle-btn" data-action="atInsertCancel">やめる</button></div>${insertRejected?`<div class="hint insert-warn">${INSERT_REJECT_TEXT}</div>`:''}`;
     const picked=pickTable&&TABLES.some(c=>c[0]===pickTable)?pickTable:null;
     const pickBtn=([id,mark,short])=>`<button type="button" class="t-btn${picked===id?' on':''}" data-action="bzPick" data-q="${id}" style="--c:${TABLE_COLORS[id]}" aria-pressed="${picked===id}" aria-label="テーブル${id.slice(1)} ${short}"${minus?' disabled aria-disabled="true"':''}><b>${mark}</b><small>${short}</small></button>`;
-    const resultBtns=picked?`<button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${group}" data-n="${nKey}" data-q="${picked}" data-r="win" aria-label="${TABLE_READS[picked]} 成功">${picked==='t7'?'＋':'成功'}</button>${picked==='t7'?'':`<button type="button" class="cycle-btn" data-action="bzQuest" data-d="${group}" data-q="${picked}" data-r="miss" aria-label="${TABLE_READS[picked]} 失敗">失敗</button>`}`:'';
+    const resultBtns=picked?`<button type="button" class="cycle-btn win" data-action="bzQuest" data-d="${group}" data-n="${nKey}" data-q="${picked}" data-r="win" aria-label="${TABLE_READS[picked]} 成功">${picked==='t7'?'＋':'成功'}</button>${picked==='t7'?'':`<button type="button" class="cycle-btn" data-action="bzFailure" data-d="${group}" data-q="${picked}" data-r="miss" aria-label="${TABLE_READS[picked]} 失敗">失敗</button>`}`:'';
     return `<div class="entry" id="ent-bz"><div class="entry-h">BZ（ブレイクゾーン）</div>
       ${insertBar}
       ${savedNote?`<div class="saved-note">${savedNote}</div>`:''}
@@ -1044,7 +1146,7 @@
   }
   // 入口の並びは実戦の流れに合わせる（§9-69）。BZ → 終了時PUSHのランプ → 示唆 → 福引 → そのほか。
   // 見出し直下のジャンプ列から各入口へ飛べる（画面だけの操作。保存にも取消にも触れない）。
-  const JUMP=[['bz','BZ'],['lamp','ランプ'],['eye','アイキャッチ'],['serif','セリフ'],['fuku','福引'],['submarine','潜水艇']];
+  const JUMP=[['bz','BZ'],['eye','アイキャッチ'],['serif','セリフ'],['fuku','福引'],['submarine','潜水艇']];
   const ENTRY_IDS=Object.fromEntries(JUMP.map(c=>[c[0],'ent-'+c[0]]));
   function jumpRow(){
     return `<div class="jump-row">${JUMP.map(([k,label])=>
@@ -1057,21 +1159,19 @@
     const disabled=ctx.mode<0?' disabled aria-disabled="true"':'';
     const eyeBody=`<div class="at-pick">${EYE.map(c=>`<button type="button" class="at-btn eye" data-action="atEvent" data-t="eye" data-c="${c[0]}" style="--c:${c[4]}"${disabled}><b>${c[1]}（${c[2]}）</b><small>${c[3]}</small></button>`).join('')}</div>`;
     const serifBody=`<div class="at-pick">${SERIF.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="serif" data-c="${c[0]}" aria-label="セリフ 「${c[2]}」 ${c[1]}"${disabled}><b>「${c[2]}」</b><small>${c[1]}</small></button>`).join('')}</div>`;
-    const fukuBody=`<div class="at-pick">${['win','miss'].map(r=>`<button type="button" class="at-btn" data-action="atEvent" data-t="fuku" data-r="${r}" aria-label="アイルー福引 ${r==='win'?'成功':'失敗'}"${disabled}>${r==='win'?'成功':'失敗'}</button>`).join('')}</div>`;
-    const lampBody=`<div class="at-pick lamp-pick">${LAMPS.map(c=>`<button type="button" class="at-btn" data-action="atEvent" data-t="lamp" data-c="${c[0]}" style="--c:${c[2]}" aria-label="サイドランプ ${c[1]}"${disabled}><b>${c[1]}</b></button>`).join('')}</div>`;
+    const fukuBody=`<div class="at-pick">${['win','miss'].map(r=>`<button type="button" class="at-btn" data-action="${r==='miss'?'fukuFailure':'atEvent'}" data-t="fuku" data-r="${r}" aria-label="アイルー福引 ${r==='win'?'成功':'失敗'}"${disabled}>${r==='win'?'成功':'失敗'}</button>`).join('')}</div>`;
     const submarineBody=`<div class="at-pick"><button type="button" class="at-btn" data-action="atEvent" data-t="submarine" data-c="with_garuku"${disabled}>ガルク同乗あり</button><button type="button" class="at-btn" data-action="atEvent" data-t="submarine" data-c="without_garuku"${disabled}>ガルク同乗なし</button></div>`;
     const otherBody=`<div class="at-pick one"><button type="button" class="at-btn" data-action="atEvent" data-t="otherAt"${disabled}>BZ以外でAT</button></div>`;
     return `<section class="sec"><div class="rec-h">ここから記録</div>
       ${jumpRow()}
       ${canAtStart(ctx.S)?`<div class="entry">${startPicker(ctx)}</div>`:''}
       ${inputSection(ctx)}
-      ${entry('lamp','BZ終了時PUSH ランプ',lampBody,'解析が出るまで色だけ記録します。')}
       ${entry('eye','アイキャッチ（ステージチェンジ）',eyeBody,'アイキャッチはステージチェンジで出ます。滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。')}
       ${entry('serif','チッチェのセリフ',serifBody,'ボタンにセリフの見分けどころを併記しています。示唆は次回のBZレベルについてのものです。')}
       ${entry('fuku','アイルー福引',fukuBody,'福引の成功はこのAT間を閉じます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。')}
       ${entry('submarine','オトモ潜水艇の横切り',submarineBody,'ガルク同乗の有無を記録します。BZ番号・シナリオ参考％への影響なし。')}
       ${entry('','そのほか',otherBody,'押すとそのAT間を閉じて次のAT間を始めます。BZの成功・福引の成功も同じようにAT間を閉じます。')}
-      <div class="hint">減算モードではアイキャッチ・セリフ・福引・ランプ・［BZ以外でAT］は記録できません。設定推測には使いません。出典は一撃様です。</div>
+      <div class="hint">失敗を押すとランプ5択が開きます。訂正は履歴のランプを押してください。減算モードでは示唆・福引は記録できません。設定自体の推測には使いません。出典：一撃様・ちょんぼりすた様（PUSHは2026/10/21確認）。</div>
     </section>`;
   }
   function totalsSection(ctx){
@@ -1303,6 +1403,18 @@
     /* 経過（横並び） */
     .ev-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
     .ev-track{display:flex;gap:6px;width:max-content}
+    .bz-round{flex:none;width:154px;border:1px solid var(--line);border-top:4px solid var(--round-color);border-radius:10px;background:var(--panel);padding:6px}
+    .bz-round.waiting{border-color:#406577;border-top-color:var(--cyan)}
+    .bz-round .ev-card{width:100%;border-left:0;padding:4px;min-height:96px}
+    .round-empty{min-height:96px;padding:4px;display:grid;gap:5px;font-size:13px;color:var(--muted)}
+    .round-empty b{color:var(--cyan);font-size:14px}.round-empty span{display:block}
+    .round-cue{display:block;width:100%;min-height:48px;padding:7px 5px;margin-top:4px;border:1px solid var(--line);border-left:3px solid var(--c,var(--muted));border-radius:7px;background:var(--panel2);color:var(--txt);font:inherit;text-align:left;overflow-wrap:anywhere}
+    .round-cue b{display:block;font-size:13px;color:var(--c,var(--txt))}.round-cue small{display:block;font-size:12px;line-height:1.4;color:var(--muted)}
+    .round-cue.on{border-color:var(--pink-dim)}.round-cue.target{border-style:dashed;border-color:var(--cyan)}
+    .round-none{padding:6px 4px;font-size:11px;color:var(--muted)}.round-lamps{border-top:1px solid var(--line)}
+    .round-other{margin-top:8px;font-size:12px}.round-other summary{min-height:44px;display:flex;align-items:center;color:var(--cyan);cursor:pointer}
+    .round-other-items{display:grid;gap:4px}
+
     .ev-card{flex:none;width:96px;min-height:92px;padding:6px;border:1px solid var(--line);border-left:4px solid var(--c,var(--line));border-radius:10px;background:var(--panel);color:var(--txt);font:inherit;text-align:left}
     .ev-card b{display:block;font-size:14px;font-weight:800;line-height:1.25}
     .ev-card i{display:block;font-style:normal;font-size:14px;font-weight:800;color:var(--c,var(--txt));line-height:1.25}
@@ -1319,7 +1431,7 @@
     .pos-btn.on{border-color:var(--pink-dim);border-left-color:var(--c,var(--pink-dim));background:rgba(255,61,143,.14);color:var(--pink)}
     .pos-btn:disabled{opacity:.4}
     .at-pick.one{grid-template-columns:1fr}
-    .at-pick.lamp-pick{grid-template-columns:repeat(4,minmax(0,1fr))}
+    .at-pick.lamp-pick{grid-template-columns:repeat(2,minmax(0,1fr))}
     .lamp-pick .at-btn{min-height:48px;border-left:4px solid var(--c,var(--line))}
     .lamp-pick .at-btn b{font-size:14px;color:var(--c,var(--txt))}
     .insert-bar{border-color:var(--cyan);margin-bottom:8px}
@@ -1401,8 +1513,36 @@
     uiV2:true,nanaCollab:true,storageKey:STORAGE_KEY,defaults:DEF,mergeKeys:MERGE_KEYS,sourceUrl:SOURCE,normalizeState,totals,
     share:{title:TITLE+' 設定判別メモ',hashtags:TAGS},
     // BZシナリオカードの内容（engine は読まない。検証で中身を固定するために出しておく）
-    scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,nextBzPct:nextBzLevelPct,
+    scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,nextBzPct:nextBzLevelPct,roundModel:bzRoundModel,
     actions:{
+      bzFailure:(ctx,ds)=>failureWithLamp(ctx,ds),
+      fukuFailure:(ctx,ds)=>failureWithLamp(ctx,ds,true),
+      lampEdit:(ctx,ds)=>{
+        if(ctx.mode<0||pendingLamp(ctx.S))return false;
+        const s=Number(ds.session),index=Number(ds.index),session=ctx.S.atLog.sessions[s];
+        if(!session||!Number.isInteger(index)||!session.events[index]||session.events[index].t!=='lamp')return false;
+        editingLamp={session:s,index};return rerender();
+      },
+      lampEditClose:()=>{editingLamp=null;return rerender();},
+      lampChoose:(ctx,ds)=>{
+        if(ctx.mode<0||!Object.prototype.hasOwnProperty.call(FAILURE_LAMPS,ds.c))return false;
+        const s=Number(ds.session),index=Number(ds.index),session=ctx.S.atLog.sessions[s],e=session&&session.events[index];
+        const pending=pendingLamp(ctx.S),target=pending||editingLamp;
+        if(!target||target.session!==s||target.index!==index||!e||e.t!=='lamp')return false;
+        e.c=ds.c;delete e.pendingChoice;editingLamp=null;
+        if(historyView(ctx.S).index===s)openEvent=index;
+        return 'ランプ '+LAMP_NAMES[e.c]+' を記録';
+      },
+      cancelFailure:ctx=>{
+        const pending=pendingLamp(ctx.S);
+        if(!pending)return false;
+        const session=ctx.S.atLog.sessions[pending.session],lamp=session.events[pending.index];
+        const source=session.events.findIndex(e=>e.failureInputId&&e.failureInputId===lamp.autoFailureId&&e.r==='miss'&&['bz','fuku'].includes(e.t));
+        if(source<0)return false;
+        session.events=session.events.filter((e,i)=>i!==source&&i!==pending.index);
+        editingLamp=null;openEvent=null;insertBefore=null;
+        return '失敗とランプの入力を取り消し';
+      },
       fukuMode:()=>{savedNote=null;setFukuIncluded(!fukuIncluded());if(scenarioReady)scenarioReady=false;return rerender();},
       // 参考％の表示モード。prefs にだけ書き、記録と取消の履歴には触れない。
       // 作成済みのBZシナリオカードは、新しいモードの％と注記で描き直す。
@@ -1553,7 +1693,7 @@
         return `AT当選 ${v}G を削除`;
       }
     },
-    pages:(ctx,pageCard)=>{syncGames(ctx.S);return [()=>pageInput(ctx),()=>pageShisa(ctx),()=>pageBZ(ctx),()=>pageCard()+scenarioSection(ctx)];},template:tplText,compactTemplate:tplText,
+    pages:(ctx,pageCard)=>{syncGames(ctx.S);return [()=>pageInput(ctx)+lampDialog(ctx),()=>pageShisa(ctx)+lampDialog(ctx),()=>pageBZ(ctx)+lampDialog(ctx),()=>pageCard()+scenarioSection(ctx)+lampDialog(ctx)];},template:tplText,compactTemplate:tplText,
     card:{title:TITLE,titleFitMax:680,gameLabel:'通常',footerTags:TAGS,downloadName:'mhsunbreak_check.png',detailDownloadName:'mhsunbreak_check_detail.png',detail,
       blocks:ctx=>[initialBlock(ctx.S,COUNTS[0]),['通常ゲーム数',hitSum(ctx.S)+'G'],['示唆の記録','計'+hintTotal(ctx.S)+'回'],['確定演出','計'+certCount(ctx.S)+'回']],
       chart:ctx=>({title:'示唆分布',x:150,step:160,width:80,items:[2,3,4,5,6].map(r=>({label:r===6?'6':r+'+',value:certTier(ctx.S,r)}))}),

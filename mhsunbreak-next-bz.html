@@ -173,7 +173,7 @@
 </head>
 <body>
 <main>
-<div class="eyebrow">スロット稼働ノート / 無料ツール</div>
+<div class="eyebrow">スロット稼働ノート / 無料ツール · UI 4.2</div>
 <h1>次回BZレベル予測</h1>
 <nav class="quick-guide" aria-label="ガイドへのリンク"><a href="mhsunbreak-next-bz-guide.html">📖 使い方・計算条件を確認</a></nav>
 <p class="sub">BZの開始テーブルから、次回のレベルと参考AT当選期待度を予測します。</p>
@@ -200,7 +200,7 @@
   <div class="signal-tabs" role="tablist" aria-label="記録する演出を選択">
    <button type="button" class="signal-tab" data-tab="serif" aria-selected="false" aria-controls="signal-serf" role="tab">チッチェのセリフ</button>
    <button type="button" class="signal-tab" data-tab="eye" aria-selected="false" aria-controls="signal-eye" role="tab">アイキャッチ</button>
-   <button type="button" class="signal-tab" data-tab="lamp" aria-selected="false" aria-controls="signal-lamp" role="tab">BZ終了PUSH</button>
+   <button type="button" class="signal-tab" data-tab="lamp" aria-selected="false" aria-controls="signal-lamp" role="tab">失敗後PUSH</button>
    <button type="button" class="signal-tab" data-tab="submarine" aria-selected="false" aria-controls="signal-submarine" role="tab">オトモ潜水艇</button>
   </div>
   <div id="signal-serf" class="signal-panel" data-panel="serif" role="tabpanel" hidden>
@@ -224,17 +224,13 @@
    </div>
   </div>
   <div id="signal-lamp" class="signal-panel" data-panel="lamp" role="tabpanel" hidden>
-   <div class="signal-panel-heading">BZ終了時PUSH・サイドランプ</div>
-   
+   <div class="signal-panel-heading">通常時のクエスト・福引失敗後PUSH</div>
+   <p class="helper">失敗後にPUSHを押して確認。青＝デフォルト／黄＝次回HI以上の期待度UP／緑＝次回HI以上濃厚／赤＝次回SP濃厚。黄の補正率は不明です。</p>
    <div class="signal-options" role="group" aria-label="PUSHランプ">
-    <button type="button" data-signal="lamp" data-code="white">白</button>
-    <button type="button" data-signal="lamp" data-code="blue">青</button>
-    <button type="button" data-signal="lamp" data-code="yellow">黄</button>
-    <button type="button" data-signal="lamp" data-code="green">緑</button>
-    <button type="button" data-signal="lamp" data-code="red">赤</button>
-    <button type="button" data-signal="lamp" data-code="purple">紫</button>
-    <button type="button" data-signal="lamp" data-code="rainbow">虹</button>
-    <button type="button" data-signal="lamp" data-code="other">その他</button>
+    <button type="button" data-signal="lamp" data-code="blue">青<br><small>デフォルト</small></button>
+    <button type="button" data-signal="lamp" data-code="yellow">黄<br><small>次回HI以上の期待度UP</small></button>
+    <button type="button" data-signal="lamp" data-code="green">緑<br><small>次回HI以上濃厚</small></button>
+    <button type="button" data-signal="lamp" data-code="red">赤<br><small>次回SP濃厚</small></button>
    </div>
   </div>
   <div id="signal-submarine" class="signal-panel" data-panel="submarine" role="tabpanel" hidden>
@@ -310,10 +306,13 @@
  const history=[]; // ordered events: BZ, fuku, serif, eye, lamp, submarine
  const EYE_MIN={jay:'B',luchika:'C',fiorene:'D',bahari:'E',galeas:'F',chiche:'G'};
  const SERIF_ALLOWED={s3:['HI','SP'],s4:['SP']};
+ const FAILURE_TIMING='quest-fuku-failure';
+ const LAMP_ALLOWED={green:['HI','SP'],red:['SP']};
+ const FAILURE_LABELS={blue:'デフォルト',yellow:'次回HI以上の期待度UP',green:'次回HI以上濃厚',red:'次回SP濃厚'};
  const SIGNAL_LABELS={
   serif:{s1:'チッチェ：どちらのクエスト',s2:'チッチェ：おすすめのクエスト',s3:'チッチェ：重要なクエスト',s4:'チッチェ：珍しい依頼'},
   eye:{jay:'アイキャッチ：ジェイ',luchika:'アイキャッチ：ルーチカ',fiorene:'アイキャッチ：フィオレーネ',bahari:'アイキャッチ：バハリ',galeas:'アイキャッチ：ガレアス',chiche:'アイキャッチ：チッチェ'},
-  lamp:{white:'PUSH：白',blue:'PUSH：青',yellow:'PUSH：黄',green:'PUSH：緑',red:'PUSH：赤',purple:'PUSH：紫',rainbow:'PUSH：虹',other:'PUSH：その他'},
+  lamp:{white:'PUSH：白',blue:'PUSH：青',yellow:'PUSH：黄',green:'PUSH：緑',red:'PUSH：赤',purple:'PUSH：紫',rainbow:'PUSH：虹',other:'PUSH：その他',unknown:'PUSH：不明'},
   submarine:{cross:'オトモ潜水艇の横切り（同乗未確認・旧記録）',with_garuku:'オトモ潜水艇：ガルク同乗あり',without_garuku:'オトモ潜水艇：ガルク同乗なし'}
  };
  let includeFuku=true;
@@ -395,8 +394,8 @@
      continue;
     }
     // The two HI-up cues have no published numerical multiplier.
-    if(e.type==='serif'){
-     const allowed=SERIF_ALLOWED[e.code];
+    if(e.type==='serif'||e.type==='lamp'){
+     const allowed=e.type==='serif'?SERIF_ALLOWED[e.code]:e.timing===FAILURE_TIMING?LAMP_ALLOWED[e.code]:null;
      if(allowed){
       // If a counted Fuku interrupts the cue before the next actual BZ,
       // whether the cue carries over is unknown. Do not narrow.
@@ -474,7 +473,7 @@
    const counts=e.type==='bz'||(e.type==='fuku'&&includeFuku);
    if(counts)counted++;
    const fuku=e.type==='fuku',signal=['serif','eye','lamp','submarine'].includes(e.type);
-   const name=signal?(SIGNAL_LABELS[e.type]||{})[e.code]||'メモ':fuku?'アイルー福引':`テーブル${e.table}`;
+   const name=e.type==='lamp'&&e.timing===FAILURE_TIMING&&FAILURE_LABELS[e.code]?'失敗後PUSH：'+SIGNAL_LABELS.lamp[e.code].split('：')[1]+'（'+FAILURE_LABELS[e.code]+'）':signal?(SIGNAL_LABELS[e.type]||{})[e.code]||'メモ':fuku?'アイルー福引':`テーブル${e.table}`;
    const num=signal?'メモ':counts?`${counted}回目`:'対象外';
    const details=''; // 対象外のバッジで計上しないことを表示する
    return `<li data-type="${e.type}" ${signal?`data-code="${e.code}"`:fuku?'':`data-table="${e.table}"`}><span class="history-main"><span class="history-no">${num}</span><span class="history-table">${name}</span>${details}</span><span class="history-actions">${signal?'':`<button class="tiny-btn" data-edit="${i}" type="button" aria-label="履歴${i+1}件目を変更">変更</button>`}<button class="tiny-btn" data-remove="${i}" type="button" aria-label="履歴${i+1}件目を削除">削除</button></span></li>`;
@@ -524,7 +523,7 @@
  document.querySelectorAll('.signal-tab[data-tab]').forEach(b=>b.addEventListener('click',()=>{activeSignal=activeSignal===b.dataset.tab?null:b.dataset.tab;updateSignalTabs()}));
  document.querySelectorAll('[data-signal]').forEach(b=>b.addEventListener('click',()=>{
   if(history.length>=60)return;
-  saveUndo();history.push({type:b.dataset.signal,code:b.dataset.code});editingIndex=null;activeSignal=null;updateSignalTabs();render();
+  saveUndo();history.push({type:b.dataset.signal,code:b.dataset.code,...(b.dataset.signal==='lamp'?{timing:FAILURE_TIMING}:{})});editingIndex=null;activeSignal=null;updateSignalTabs();render();
  }));
  $('reset').addEventListener('click',()=>{if(history.length){saveUndo();history.length=0;sessionId=newSessionId();editingIndex=null;render()}});
  $('restore').addEventListener('click',restorePrevious);
