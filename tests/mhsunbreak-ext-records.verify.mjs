@@ -356,16 +356,16 @@ test('g2. 差し込み中は、入る位置のBZ番号と計上先を画面に�
 });
 
 // ===== §8-h ランプ =====
-test('h. ランプ8色が経過カードとシナリオカードに出て、テンプレは変わらない',()=>{
+test('h. 旧ランプ8色を保持し常設入力は削除、テンプレは不変',()=>{
   const names=['白','青','黄','緑','赤','紫','虹','その他'];
   const keys=['white','blue','yellow','green','red','purple','rainbow','other'];
   const S=after.normalizeState({atLog:{sessions:[sess(keys.map(lamp),{known:true,prior:0},false)]}});
   const html=page(S);
   names.forEach((name,i)=>{
     assert.ok(html.includes(`aria-label="ランプ ${name}"`),name+': 経過カードに出ていない');
-    assert.ok(html.includes(`data-t="lamp" data-c="${keys[i]}"`),name+': 記録ボタンが無い');
+    assert.equal(html.includes(`data-t="lamp" data-c="${keys[i]}"`),false,name+': 公表4色だけを入力');
   });
-  assert.ok(html.includes('解析が出るまで色だけ記録します。'));
+  assert.ok(html.includes('旧記録・対象未確認'));
   const flow=after.scenarioModel(S).rows[0].flow;
   assert.deepEqual(clone(flow).map(f=>f.lamp),names);
   // テンプレには出ない（ランプだけのAT間は見出しの1行だけ）
