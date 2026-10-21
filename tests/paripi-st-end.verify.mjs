@@ -113,7 +113,8 @@ for(const name of ['gameSection'])assert.equal(source.match(new RegExp('  functi
 // mhsunbreak.js は 10/9 のBZテーブル方式（夢爽決定）で変更済み。
 // kanokari.js（PR #49 設定推測）・ricorico.js（PR #50 解析更新）・garei_zero_re.js（10/14 解析更新）も変更済み。テスト版（*-test.js）は検収中だけ居る。
 // tenten.js は 10/21 のリールロック記録追加（tests/tenten-1021.verify.mjs で検証）で変更済み。
-for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&!f.endsWith('-test.js')&&!['paripi.js','mhsunbreak.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','tenten.js'].includes(f)).map(f=>'checker-data/'+f)])assert.equal(read(p),baseline(p),p+' unchanged');
+// mogumogu.js は 10/21 のED中の巻物・CZ種別の内訳の追加（tests/mogumogu-1021.verify.mjs で検証）で変更済み。
+for(const p of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(path.join(root,'checker-data')).filter(f=>f.endsWith('.js')&&!f.endsWith('-test.js')&&!['paripi.js','mhsunbreak.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','tenten.js','mogumogu.js'].includes(f)).map(f=>'checker-data/'+f)])assert.equal(read(p),baseline(p),p+' unchanged');
 for(const p of ['checker-data/paripi.js','paripi-checker.html','paripi-guide.html','checkers.html','sitemap.xml','index.html','docs/ARCHITECTURE.md','tests/paripi-st-end.verify.mjs','tests/new-1005-four-machines.test.mjs','tests/new-1005-public.verify.mjs','tests/new-1005-four-machines.browser.mjs'])assert.ok(!read(p).includes('\r'),p+' LF');
 console.log('PASS input HTML / blocks / chart bytes vs c914173; common files and all other machine data unchanged; LF');
 
