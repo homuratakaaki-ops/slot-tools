@@ -78,9 +78,10 @@ main{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:12px 12px 2
  const KEY='mhsunbreak-checker-v1',store=window.localStorage;
  let trusted=store.getItem(KEY),reloading=false;
  function refreshIfStale(event){
-  if(reloading||store.getItem(KEY)===trusted)return false;
+  // Keep writes blocked until navigation replaces this stale document.
+  if(!reloading&&store.getItem(KEY)===trusted)return false;
   event?.preventDefault?.();event?.stopImmediatePropagation?.();
-  reloading=true;window.location.reload();return true;
+  if(!reloading){reloading=true;window.location.reload();}return true;
  }
  const safeStore={
   getItem:key=>store.getItem(key),

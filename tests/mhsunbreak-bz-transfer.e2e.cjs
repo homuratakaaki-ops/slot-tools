@@ -270,14 +270,32 @@ test('reset opens a distinct AT even with identical BZ table history',async()=>{
  }finally{await context.close()}
 });
 test('stale checker instance does not overwrite another tab import',async()=>{
- const {page,context,errors}=await pageFor();let oldTab;
+ const {page,context,errors}=await pageFor();let oldTab,releaseReload;
  try{
   await seed(page,null);
   oldTab=await context.newPage();await oldTab.goto(base+'mhsunbreak-checker.html');
+  // Hold the reload response so the save is guaranteed to run in the stale document.
+  // Without this, CI may evaluate either the old app or its replacement after navigation.
+  const heldReload=new Promise(resolve=>{releaseReload=resolve;});
+  await oldTab.route(base+'mhsunbreak-checker.html',async route=>{await heldReload;await route.continue();});
+  const reloadRequested=oldTab.waitForRequest(r=>r.isNavigationRequest()&&r.url()===base+'mhsunbreak-checker.html');
+  let reportAttempt;
+  const attemptedWrite=new Promise(resolve=>{reportAttempt=resolve;});
+  await oldTab.exposeFunction('__reportStaleWrite',reportAttempt);
+  await oldTab.evaluate(key=>{
+   window.addEventListener('storage',event=>{
+    if(event.key!==key)return;
+    window.__checkerApp.setState({hits:[999]});
+    window.__reportStaleWrite({imported:event.newValue,hits:window.__checkerApp.getState().hits});
+   });
+  },checkerKey);
   await table(page,3);await transfer(page);await outcome(page,0,'miss');await page.locator('#apply').click();
-  const actual=await current(page);
-  await oldTab.evaluate(()=>window.__checkerApp?.setState({hits:[999]})).catch(()=>{});
-  assert.equal(await current(page),actual);
+  const attempt=await attemptedWrite;
+  await reloadRequested;
+  assert.deepEqual(attempt.hits,[999],'the stale app attempted a write after the guard began reloading');
+  assert.equal(await current(page),attempt.imported);
+  const loaded=oldTab.waitForEvent('load');releaseReload();await loaded;
+  assert.deepEqual(await oldTab.evaluate(()=>window.__checkerApp.getState().atLog.sessions[0].events),[{t:'bz',table:'t3',r:'miss'}]);
   assert.deepEqual(errors,[]);
- }finally{await oldTab?.close();await context.close()}
+ }finally{releaseReload?.();await oldTab?.close();await context.close()}
 });
