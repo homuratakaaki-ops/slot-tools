@@ -42,7 +42,8 @@ const sources=read('checker-data/magireco.js');
 assert.ok(!/bayesSpec|bayesResult|bayesPct|bayesExcludedSettings|bayesUnder4|bayesExcludeSummary|bayesExclusions|pageBayes|denomProbs|EPISODE_PROBS|CZ_SOURCE|DENOMS|const SETTINGS|exclude:/.test(sources));
 assert.ok(sources.includes('const MITAMA_PROBS='));
 assert.ok(!read('magireco-checker.html').includes('checker-bayes.js'));
-const tracked=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,''),'ls-files','*-checker.html','checker-data/*.js','checker-engine.js','checker-bayes.js'],{cwd:root,encoding:'utf8'}).trim().split('\n');
+// preview/ は本番の過去版とのバイト比較の対象外。
+const tracked=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,''),'ls-files','*-checker.html','checker-data/*.js','checker-engine.js','checker-bayes.js'],{cwd:root,encoding:'utf8'}).trim().split('\n').filter(file=>!file.startsWith('preview/'));
 // MH v02 has its own exhaustive 3be5e98 comparison in mhsunbreak-template-v02.verify.mjs.
 // tenten は断定表現・獲得枚数表示の修正で変更済み。
 // takoslot-checker.html and checker-data/takoslot.js were changed by the current wording correction.
