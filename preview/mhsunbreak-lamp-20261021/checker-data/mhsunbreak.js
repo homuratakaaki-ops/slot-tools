@@ -1011,8 +1011,8 @@
       const pending=r.index===null;
       const title=r.no===null?'記録したBZ '+r.ordinal+'件目':'BZ'+r.no+'回目';
       const color=pending?'var(--cyan)':TABLE_COLORS[session.events[r.index].table];
-      return `<div class="bz-round${pending?' waiting':''}" data-round="${r.ordinal}" style="--round-color:${color}">
-        ${pending?`<div class="round-empty"><b>${title}・待機中</b><span>テーブル：—</span><span>結果：—</span></div>`:eventCard(session,r.index)}
+      return `<div class="bz-round${pending?' waiting':''}" data-round="${r.ordinal}"${pending?' aria-current="step"':''} style="--round-color:${color}">
+        ${pending?`<div class="round-empty"><span class="round-current">▶ 今ここ・待機中</span><b>${title}</b><span>テーブル：—</span><span>結果：—</span></div>`:eventCard(session,r.index)}
         <div class="round-lamps">${r.lamps.length?r.lamps.map(cue).join(''):'<div class="round-none">ランプ：記録なし</div>'}</div>
         <div class="round-serifs">${r.serifs.map(cue).join('')}</div>
       </div>`;
@@ -1404,10 +1404,11 @@
     .ev-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px}
     .ev-track{display:flex;gap:6px;width:max-content}
     .bz-round{flex:none;width:154px;border:1px solid var(--line);border-top:4px solid var(--round-color);border-radius:10px;background:var(--panel);padding:6px}
-    .bz-round.waiting{border-color:#406577;border-top-color:var(--cyan)}
+    .bz-round.waiting{border-color:var(--cyan);background:linear-gradient(rgba(0,229,255,.09),rgba(0,229,255,.03)),var(--panel);box-shadow:0 0 0 1px var(--cyan) inset}
     .bz-round .ev-card{width:100%;border-left:0;padding:4px;min-height:96px}
     .round-empty{min-height:96px;padding:4px;display:grid;gap:5px;font-size:13px;color:var(--muted)}
     .round-empty b{color:var(--cyan);font-size:14px}.round-empty span{display:block}
+    .round-empty .round-current{padding:3px 5px;border-radius:5px;background:var(--cyan);color:#08232b;font-size:12px;font-weight:800;line-height:1.4;white-space:nowrap}
     .round-cue{display:block;width:100%;min-height:48px;padding:7px 5px;margin-top:4px;border:1px solid var(--line);border-left:3px solid var(--c,var(--muted));border-radius:7px;background:var(--panel2);color:var(--txt);font:inherit;text-align:left;overflow-wrap:anywhere}
     .round-cue b{display:block;font-size:13px;color:var(--c,var(--txt))}.round-cue small{display:block;font-size:12px;line-height:1.4;color:var(--muted)}
     .round-cue.on{border-color:var(--pink-dim)}.round-cue.target{border-style:dashed;border-color:var(--cyan)}
