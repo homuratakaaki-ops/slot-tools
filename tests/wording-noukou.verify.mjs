@@ -6,7 +6,8 @@ import {execFileSync} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
 const root=fileURLToPath(new URL('../',import.meta.url));
-const files=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,''),'ls-files','-z','checker-data','*-checker.html','*-guide.html'],{cwd:root,encoding:'utf8'}).split('\0').filter(Boolean);
+// preview/ は一時的な検収コピー。本番規約の検査対象とは分離する。
+const files=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,''),'ls-files','-z','checker-data','*-checker.html','*-guide.html'],{cwd:root,encoding:'utf8'}).split('\0').filter(Boolean).filter(file=>!file.startsWith('preview/'));
 const allowed=[
   ['aobuta-guide.html','当選が確定する成立役は判別材料にならないため'],
   ['checker-data/aobuta.js','当選が確定する小役は判別材料にならないため'],

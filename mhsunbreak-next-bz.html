@@ -1,16 +1,16 @@
 <!doctype html>
 <html lang="ja">
-<head><meta name="robots" content="noindex,nofollow,noarchive">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>モンハンサンブレイク 次回BZレベル予測ツール｜スロット稼働ノート</title>
 <meta name="description" content="スマスロ モンハンサンブレイクの次回BZレベル（LOW・MID・HI・SP）とAT当選期待度の参考値を、これまでのBZ開始テーブル履歴から予測する無料ツール。履歴を変更して比較できます。">
-
+<link rel="canonical" href="https://slot-tools.jp/mhsunbreak-next-bz.html">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="スロット稼働ノート">
 <meta property="og:title" content="モンハンサンブレイク 次回BZレベル予測ツール">
 <meta property="og:description" content="BZ開始テーブルの履歴から次回のレベル振り分けと参考AT当選期待度を予測。">
-
+<meta property="og:url" content="https://slot-tools.jp/mhsunbreak-next-bz.html">
 <meta name="theme-color" content="#100f18">
 <style>
 :root{color-scheme:dark;--bg:#100f18;--surface:#1c1a29;--panel:#252133;--line:#3b354d;--ink:#faf5ff;--muted:#baaeca;--accent:#ff5aa8;--cyan:#8ddbf5;--gold:#ffd586;font-family:system-ui,-apple-system,"Noto Sans JP",sans-serif}
@@ -171,9 +171,9 @@
 .transfer-section{border:1px solid #555073;background:#241f35;border-radius:11px;padding:13px;margin:14px 0}.transfer-action{width:100%;min-height:48px;font:inherit;font-size:14px;font-weight:800;color:#171420;background:#bde8f6;border:0;border-radius:8px;cursor:pointer}.transfer-help{font-size:12px;color:#beb2ce;margin:9px 0 0;line-height:1.5}
 </style>
 </head>
-<body><div role="note" style="box-sizing:border-box;padding:11px 14px;background:#17374b;border:2px solid #9fe4ff;color:#fff;font:700 14px/1.5 system-ui;text-align:center">🧪 テスト版｜正式版と記録を分離｜<a style="color:#fff" href="index.html">テスト案内</a></div>
+<body>
 <main>
-<div class="eyebrow">スロット稼働ノート / 無料ツール</div>
+<div class="eyebrow">スロット稼働ノート / 無料ツール · UI 4.2</div>
 <h1>次回BZレベル予測</h1>
 <nav class="quick-guide" aria-label="ガイドへのリンク"><a href="mhsunbreak-next-bz-guide.html">📖 使い方・計算条件を確認</a></nav>
 <p class="sub">BZの開始テーブルから、次回のレベルと参考AT当選期待度を予測します。</p>
@@ -200,7 +200,7 @@
   <div class="signal-tabs" role="tablist" aria-label="記録する演出を選択">
    <button type="button" class="signal-tab" data-tab="serif" aria-selected="false" aria-controls="signal-serf" role="tab">チッチェのセリフ</button>
    <button type="button" class="signal-tab" data-tab="eye" aria-selected="false" aria-controls="signal-eye" role="tab">アイキャッチ</button>
-   <button type="button" class="signal-tab" data-tab="lamp" aria-selected="false" aria-controls="signal-lamp" role="tab">BZ終了PUSH</button>
+   <button type="button" class="signal-tab" data-tab="lamp" aria-selected="false" aria-controls="signal-lamp" role="tab">失敗後PUSH</button>
    <button type="button" class="signal-tab" data-tab="submarine" aria-selected="false" aria-controls="signal-submarine" role="tab">オトモ潜水艇</button>
   </div>
   <div id="signal-serf" class="signal-panel" data-panel="serif" role="tabpanel" hidden>
@@ -224,17 +224,13 @@
    </div>
   </div>
   <div id="signal-lamp" class="signal-panel" data-panel="lamp" role="tabpanel" hidden>
-   <div class="signal-panel-heading">BZ終了時PUSH・サイドランプ</div>
-   
+   <div class="signal-panel-heading">通常時のクエスト・福引失敗後PUSH</div>
+   <p class="helper">失敗後にPUSHを押して確認。青＝デフォルト／黄＝次回HI以上の期待度UP／緑＝次回HI以上濃厚／赤＝次回SP濃厚。黄の補正率は不明です。</p>
    <div class="signal-options" role="group" aria-label="PUSHランプ">
-    <button type="button" data-signal="lamp" data-code="white">白</button>
-    <button type="button" data-signal="lamp" data-code="blue">青</button>
-    <button type="button" data-signal="lamp" data-code="yellow">黄</button>
-    <button type="button" data-signal="lamp" data-code="green">緑</button>
-    <button type="button" data-signal="lamp" data-code="red">赤</button>
-    <button type="button" data-signal="lamp" data-code="purple">紫</button>
-    <button type="button" data-signal="lamp" data-code="rainbow">虹</button>
-    <button type="button" data-signal="lamp" data-code="other">その他</button>
+    <button type="button" data-signal="lamp" data-code="blue">青<br><small>デフォルト</small></button>
+    <button type="button" data-signal="lamp" data-code="yellow">黄<br><small>次回HI以上の期待度UP</small></button>
+    <button type="button" data-signal="lamp" data-code="green">緑<br><small>次回HI以上濃厚</small></button>
+    <button type="button" data-signal="lamp" data-code="red">赤<br><small>次回SP濃厚</small></button>
    </div>
   </div>
   <div id="signal-submarine" class="signal-panel" data-panel="submarine" role="tabpanel" hidden>
@@ -280,7 +276,7 @@
   <p class="transfer-help">引き継ぐ内容を確認してから追加します。既存記録は自動で上書きしません。</p>
   <p id="transferStatus" class="err" role="status"></p>
 </section>
-<details class="data-panel"><summary>関連ツール</summary><p class="source"><a href="mhsunbreak-checker.html" >サンブレイク設定判別カウンター ↗</a>（下のボタンから記録を引き継げます）</p></details>
+<details class="data-panel"><summary>関連ツール・無料実戦記事</summary><p class="source"><a href="mhsunbreak-checker.html">サンブレイク設定判別カウンター ↗</a>（上のボタンから記録を引き継げます）</p><p class="source"><a href="mhsunbreak-at-runout.html">AT6連続駆け抜け後の実戦考察（無料記事） ↗</a>（実戦で観測したことと、未確認の優遇仮説を区別して紹介）</p></details>
 </main>
 <script>
 (function(){
@@ -310,10 +306,13 @@
  const history=[]; // ordered events: BZ, fuku, serif, eye, lamp, submarine
  const EYE_MIN={jay:'B',luchika:'C',fiorene:'D',bahari:'E',galeas:'F',chiche:'G'};
  const SERIF_ALLOWED={s3:['HI','SP'],s4:['SP']};
+ const FAILURE_TIMING='quest-fuku-failure';
+ const LAMP_ALLOWED={green:['HI','SP'],red:['SP']};
+ const FAILURE_LABELS={blue:'デフォルト',yellow:'次回HI以上の期待度UP',green:'次回HI以上濃厚',red:'次回SP濃厚'};
  const SIGNAL_LABELS={
   serif:{s1:'チッチェ：どちらのクエスト',s2:'チッチェ：おすすめのクエスト',s3:'チッチェ：重要なクエスト',s4:'チッチェ：珍しい依頼'},
   eye:{jay:'アイキャッチ：ジェイ',luchika:'アイキャッチ：ルーチカ',fiorene:'アイキャッチ：フィオレーネ',bahari:'アイキャッチ：バハリ',galeas:'アイキャッチ：ガレアス',chiche:'アイキャッチ：チッチェ'},
-  lamp:{white:'PUSH：白',blue:'PUSH：青',yellow:'PUSH：黄',green:'PUSH：緑',red:'PUSH：赤',purple:'PUSH：紫',rainbow:'PUSH：虹',other:'PUSH：その他'},
+  lamp:{white:'PUSH：白',blue:'PUSH：青',yellow:'PUSH：黄',green:'PUSH：緑',red:'PUSH：赤',purple:'PUSH：紫',rainbow:'PUSH：虹',other:'PUSH：その他',unknown:'PUSH：不明'},
   submarine:{cross:'オトモ潜水艇の横切り（同乗未確認・旧記録）',with_garuku:'オトモ潜水艇：ガルク同乗あり',without_garuku:'オトモ潜水艇：ガルク同乗なし'}
  };
  let includeFuku=true;
@@ -321,8 +320,10 @@
  let editingIndex=null; // null: closed; otherwise index of the row being compared
  const undoStack=[];
  let activeSignal=null; // Only one of the four cue sections is visible at a time
+ const newSessionId=()=>Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
+ let sessionId=newSessionId();
  const cloneHistory=()=>history.map(e=>({...e}));
- const snapshot=()=>({history:cloneHistory(),includeFuku,fukutsu});
+ const snapshot=()=>({history:cloneHistory(),includeFuku,fukutsu,sessionId});
  function saveUndo(){undoStack.push(snapshot());if(undoStack.length>40)undoStack.shift()}
  function restorePrevious(){
   if(!undoStack.length)return;
@@ -330,13 +331,14 @@
   history.splice(0,history.length,...saved.history.map(e=>({...e})));
   includeFuku=saved.includeFuku;
   fukutsu=saved.fukutsu;
+  sessionId=saved.sessionId;
   editingIndex=null;
   $('includeFuku').checked=includeFuku;
   render();
  }
  const $=id=>document.getElementById(id);
  // A dedicated draft key, never the existing checker storage key.
- const DRAFT_STORAGE='mhsunbreak-bz-preview-20261020-recording-v1'; // Separate from setting-checker data
+ const DRAFT_STORAGE='mhsunbreak-next-bz-recording-v1'; // Separate from setting-checker data
  const VALID_CODES=Object.fromEntries(Object.entries(SIGNAL_LABELS).map(([type,codes])=>[type,Object.keys(codes)]));
  const validEvent=e=>e&&typeof e==='object'&&(
   (e.type==='bz'&&Number.isInteger(e.table)&&e.table>=1&&e.table<=6)||
@@ -349,6 +351,7 @@
    const d=JSON.parse(raw);
    if(d&&d.version===1&&Array.isArray(d.history)&&d.history.length<=60&&d.history.every(validEvent)){
     history.push(...d.history.map(e=>({...e})));
+    if(typeof d.sessionId==='string'&&d.sessionId.length>=6&&d.sessionId.length<=100)sessionId=d.sessionId;
     includeFuku=d.includeFuku!==false;
     fukutsu=['none','blue','green','red'].includes(d.fukutsu)?d.fukutsu:'none';
     $('includeFuku').checked=includeFuku;
@@ -356,7 +359,7 @@
   }
  }catch(e){}
  function saveDraft(){
-  try{localStorage.setItem(DRAFT_STORAGE,JSON.stringify({version:1,history,includeFuku,fukutsu}));}catch(e){}
+  try{localStorage.setItem(DRAFT_STORAGE,JSON.stringify({version:1,history,includeFuku,fukutsu,sessionId}));}catch(e){}
  }
 
  const P=(n)=>n<0.05&&n>0?'0.1%未満':n.toFixed(n<1?2:1)+'%';
@@ -391,8 +394,8 @@
      continue;
     }
     // The two HI-up cues have no published numerical multiplier.
-    if(e.type==='serif'){
-     const allowed=SERIF_ALLOWED[e.code];
+    if(e.type==='serif'||e.type==='lamp'){
+     const allowed=e.type==='serif'?SERIF_ALLOWED[e.code]:e.timing===FAILURE_TIMING?LAMP_ALLOWED[e.code]:null;
      if(allowed){
       // If a counted Fuku interrupts the cue before the next actual BZ,
       // whether the cue carries over is unknown. Do not narrow.
@@ -470,13 +473,13 @@
    const counts=e.type==='bz'||(e.type==='fuku'&&includeFuku);
    if(counts)counted++;
    const fuku=e.type==='fuku',signal=['serif','eye','lamp','submarine'].includes(e.type);
-   const name=signal?(SIGNAL_LABELS[e.type]||{})[e.code]||'メモ':fuku?'アイルー福引':`テーブル${e.table}`;
+   const name=e.type==='lamp'&&e.timing===FAILURE_TIMING&&FAILURE_LABELS[e.code]?'失敗後PUSH：'+SIGNAL_LABELS.lamp[e.code].split('：')[1]+'（'+FAILURE_LABELS[e.code]+'）':signal?(SIGNAL_LABELS[e.type]||{})[e.code]||'メモ':fuku?'アイルー福引':`テーブル${e.table}`;
    const num=signal?'メモ':counts?`${counted}回目`:'対象外';
    const details=''; // 対象外のバッジで計上しないことを表示する
    return `<li data-type="${e.type}" ${signal?`data-code="${e.code}"`:fuku?'':`data-table="${e.table}"`}><span class="history-main"><span class="history-no">${num}</span><span class="history-table">${name}</span>${details}</span><span class="history-actions">${signal?'':`<button class="tiny-btn" data-edit="${i}" type="button" aria-label="履歴${i+1}件目を変更">変更</button>`}<button class="tiny-btn" data-remove="${i}" type="button" aria-label="履歴${i+1}件目を削除">削除</button></span></li>`;
   }).join('')||'<li class="empty">まだ履歴がありません。設定1の初回平均を表示中。</li>';
   $('history').querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.edit);editingIndex=editingIndex===i?null:i;render()}));
-  $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{saveUndo();history.splice(Number(b.dataset.remove),1);editingIndex=null;render()}));
+  $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{saveUndo();history.splice(Number(b.dataset.remove),1);if(!history.length)sessionId=newSessionId();editingIndex=null;render()}));
   const panel=$('editPanel');
   if(editingIndex!==null&&editingIndex>=0&&editingIndex<history.length){
    const i=editingIndex;
@@ -513,16 +516,16 @@
    '履歴なし：設定1のシナリオA〜Iの1回目BZレベルを加重計算。初回平均は次回の固定値ではありません。';
  }
  document.querySelectorAll('#tableButtons .table-button[data-table]').forEach(b=>b.addEventListener('click',()=>{if(!b.disabled&&history.length<60){saveUndo();history.push({type:'bz',table:Number(b.dataset.table)});editingIndex=null;render()}}));
- $('undo').addEventListener('click',()=>{if(history.length){saveUndo();history.pop();editingIndex=null;render()}});
+ $('undo').addEventListener('click',()=>{if(history.length){saveUndo();history.pop();if(!history.length)sessionId=newSessionId();editingIndex=null;render()}});
  $('addFuku').addEventListener('click',()=>{if(!$('addFuku').disabled&&history.length<60){saveUndo();history.push({type:'fuku'});editingIndex=null;render()}});
  $('includeFuku').addEventListener('change',e=>{saveUndo();includeFuku=e.target.checked;editingIndex=null;render()});
  document.querySelectorAll('input[name="fukutsu"]').forEach(r=>r.addEventListener('change',e=>{if(e.target.disabled)return;if(fukutsu!==e.target.value){saveUndo();fukutsu=e.target.value}render()}));
  document.querySelectorAll('.signal-tab[data-tab]').forEach(b=>b.addEventListener('click',()=>{activeSignal=activeSignal===b.dataset.tab?null:b.dataset.tab;updateSignalTabs()}));
  document.querySelectorAll('[data-signal]').forEach(b=>b.addEventListener('click',()=>{
   if(history.length>=60)return;
-  saveUndo();history.push({type:b.dataset.signal,code:b.dataset.code});editingIndex=null;activeSignal=null;updateSignalTabs();render();
+  saveUndo();history.push({type:b.dataset.signal,code:b.dataset.code,...(b.dataset.signal==='lamp'?{timing:FAILURE_TIMING}:{})});editingIndex=null;activeSignal=null;updateSignalTabs();render();
  }));
- $('reset').addEventListener('click',()=>{if(history.length){saveUndo();history.length=0;editingIndex=null;render()}});
+ $('reset').addEventListener('click',()=>{if(history.length){saveUndo();history.length=0;sessionId=newSessionId();editingIndex=null;render()}});
  $('restore').addEventListener('click',restorePrevious);
  updateSignalTabs();
 
@@ -531,9 +534,9 @@
   const msg=$('transferStatus');msg.textContent='';
   if(!history.length){msg.textContent='履歴を1件以上入力してから引き継いでください。';return}
   const payload={version:1,source:'mhsunbreak-next-bz',id:String(Date.now())+'-'+String(Math.random()).slice(2),
-   createdAt:Date.now(),includeFuku,events:history.map(e=>({...e}))};
+   createdAt:Date.now(),includeFuku,sessionId,events:history.map(e=>({...e}))};
   try{
-   const key='mhsunbreak-bz-preview-20261020-transfer-v1';
+   const key='mhsunbreak-next-bz-transfer-v1';
    localStorage.setItem(key,JSON.stringify(payload));
    if(localStorage.getItem(key)!==JSON.stringify(payload))throw new Error('検証失敗');
    location.assign('mhsunbreak-bz-import.html');

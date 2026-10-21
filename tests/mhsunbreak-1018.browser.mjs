@@ -49,7 +49,19 @@ async function evaluate(expression){
 }
 const frame=code=>evaluate(`(async()=>{const w=document.getElementById('frame').contentWindow;const d=w.document;${code}})()`);
 const state=()=>frame('return w.__checkerApp.getState();');
-const click=selector=>frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+// 記録経路は実ボタン→必須ランプ選択。見忘れの明示値「不明」を選ぶ。
+const click=async selector=>{
+ await frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+ if(/data-action="(?:bzFailure|fukuFailure)"/.test(selector)){
+  assert.equal(await frame('return !!d.getElementById("lampDialog");'),true,'失敗時の必須ランプ選択');
+  await frame(`d.querySelector('[data-action="lampChoose"][data-c="unknown"]').click();`);
+ }
+};
+// この既存試験が扱う「記録1件の取消」を、色のUndo→失敗そのものの取消へ写像する。
+async function undoRecord(){
+ await click('#undoBtn');
+ if(await frame('return !!d.getElementById("lampDialog");'))await click('[data-action="cancelFailure"]');
+}
 async function tab(index){await click(`#nav [data-p="${index}"]`);await pause(60);}
 async function load(id,width=390,height=740){
   await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/'+page)};})`);
@@ -107,9 +119,9 @@ try{
   }
   async function record(table='t1',result='miss'){
     await click(`[data-action="bzPick"][data-q="${table}"]`);
-    await click(`[data-action="bzQuest"][data-r="${result}"]`);
+    await click(`[data-action="${result==='miss'?'bzFailure':'bzQuest'}"][data-r="${result}"]`);
   }
-  async function remove(index){if(!await frame(`return !!d.querySelector('[data-action="atDel"][data-index="${index}"]');`))await click(`[data-action="atOpen"][data-index="${index}"]`);await click(`[data-action="atDel"][data-index="${index}"]`);}
+  async function remove(ordinal){const index=await frame(`return w.__checkerApp.getState().atLog.sessions.at(-1).events.map((e,i)=>e.t==='bz'?i:-1).filter(i=>i>=0)[${ordinal}];`);if(!await frame(`return !!d.querySelector('[data-action="atDel"][data-index="${index}"]');`))await click(`[data-action="atOpen"][data-index="${index}"]`);await click(`[data-action="atDel"][data-index="${index}"]`);}
   async function shot(name,selector){
     await frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('screenshot target missing');el.scrollIntoView({block:'center'});`);
     await pause(100);
@@ -129,7 +141,7 @@ try{
     await shot('totals-with-base','.bz-fold:has([data-k="totals"]) > .hint');
   });
   await check('03 insertion moves original first BZ to later group',async()=>{
-    await fresh();await record('t3');await click('[data-action="atInsert"][data-index="0"]');await record('t2');
+    await fresh();await record('t3');await click('[data-action="atOpen"][data-index="0"]');await click('[data-action="atInsert"][data-index="0"]');await record('t2');
     const rows=await displayed();assert.deepEqual(rows[1],['0/1','0/0']);assert.deepEqual(rows[2],['0/0','0/1']);
   });
   await check('04 unknown start records chosen group and deletes',async()=>{
@@ -146,14 +158,14 @@ try{
   });
   await check('06 reload migration and real double-confirm reset/undo',async()=>{
     await fresh(old);await record('t3');const before=await totals();await load(machine);await tab(2);assert.deepEqual(await totals(),before);
-    await tab(0);await reset();await tab(2);assert.equal(await sum(),0);await click('#undoBtn');assert.deepEqual(await totals(),before);
+    await tab(0);await reset();await tab(2);assert.equal(await sum(),0);await undoRecord();assert.deepEqual(await totals(),before);
   });
   await check('07 rapid double tap failure and position 11 produce one event',async()=>{
     for(const pos11 of [false,true]){
       await fresh();await click('[data-action="bzPick"][data-q="t3"]');
-      const selector=pos11?'[data-action="bzPickPos"][data-pos="11"]':'[data-action="bzQuest"][data-r="miss"]';
+      const selector=pos11?'[data-action="bzPickPos"][data-pos="11"]':'[data-action="bzFailure"][data-r="miss"]';
       await frame(`const el=d.querySelector(${JSON.stringify(selector)});el.click();el.click();`);
-      assert.equal((await state()).atLog.sessions.flatMap(s=>s.events).length,1);assert.equal(await sum(),1);
+      if(!pos11){assert.equal(await frame('return !!d.getElementById("lampDialog");'),true);await click('[data-action="lampChoose"][data-c="unknown"]');}assert.equal((await state()).atLog.sessions.flatMap(s=>s.events).filter(e=>e.t==='bz').length,1);assert.equal((await state()).atLog.sessions.flatMap(s=>s.events).length,pos11?1:2);assert.equal(await sum(),1);
     }
   });
   await check('08 subtraction enables only base and leaves history unchanged',async()=>{
@@ -194,16 +206,16 @@ try{
   });
   await check('11 条件2: 削除→取消→再登録→取消で履歴と集計がずれない',async()=>{
     await fresh();await record('t1','miss');await record('t3','miss');
-    const two=await displayed(),events=()=>state().then(S=>S.atLog.sessions.flatMap(s=>s.events).length);
+    const two=await displayed(),events=()=>state().then(S=>S.atLog.sessions.flatMap(s=>s.events).filter(e=>e.t==='bz').length);
     await remove(0);assert.equal(await events(),1);assert.deepEqual((await displayed())[2],['0/1','0/0']);assert.equal(await fromHistory(),true);
-    await click('#undoBtn');assert.equal(await events(),2);assert.deepEqual(await displayed(),two);assert.equal(await fromHistory(),true);
+    await undoRecord();assert.equal(await events(),2);assert.deepEqual(await displayed(),two);assert.equal(await fromHistory(),true);
     await remove(1);await record('t5','miss');assert.equal(await events(),2);assert.deepEqual((await displayed())[4],['0/0','0/1']);assert.equal(await fromHistory(),true);
-    await click('#undoBtn');assert.equal(await events(),1);assert.equal(await sum(),1);assert.equal(await fromHistory(),true);
+    await undoRecord();assert.equal(await events(),1);assert.equal(await sum(),1);assert.equal(await fromHistory(),true);
   });
   await check('12 条件4: 途中への追加・先頭と途中の削除で初回／以後の内訳が一致',async()=>{
     await fresh();await record('t3','miss');await record('t4','miss');await record('t5','miss');   // ③④⑤
-    await click('[data-action="atOpen"][data-index="1"]');await click('[data-action="atInsert"][data-index="1"]');await record('t2','miss');   // ③②④⑤
-    let S=await state();assert.deepEqual(S.atLog.sessions[0].events.map(e=>e.table),['t3','t2','t4','t5']);
+    await click('[data-action="atOpen"][data-index="2"]');await click('[data-action="atInsert"][data-index="2"]');await record('t2','miss');   // ③②④⑤
+    let S=await state();assert.deepEqual(S.atLog.sessions[0].events.filter(e=>e.t==='bz').map(e=>e.table),['t3','t2','t4','t5']);
     let rows=await displayed();assert.deepEqual(rows[2],['0/1','0/0']);assert.deepEqual(rows[1],['0/0','0/1']);assert.equal(await fromHistory(),true);
     await remove(0);rows=await displayed();   // ②④⑤：②が1回目に繰り上がる
     assert.deepEqual(rows[1],['0/1','0/0']);assert.deepEqual(rows[2],['0/0','0/0']);assert.deepEqual(rows[3],['0/0','0/1']);assert.equal(await fromHistory(),true);

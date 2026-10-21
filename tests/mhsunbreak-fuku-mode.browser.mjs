@@ -47,7 +47,19 @@ async function evaluate(expression){
 }
 const frame=code=>evaluate(`(async()=>{const w=document.getElementById('frame').contentWindow;const d=w.document;${code}})()`);
 const state=()=>frame('return JSON.parse(w.localStorage.getItem(w.__key));');
-const click=selector=>frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+// 記録経路は実ボタン→必須ランプ選択。見忘れの明示値「不明」を選ぶ。
+const click=async selector=>{
+ await frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+ if(/data-action="(?:bzFailure|fukuFailure)"/.test(selector)){
+  assert.equal(await frame('return !!d.getElementById("lampDialog");'),true,'失敗時の必須ランプ選択');
+  await frame(`d.querySelector('[data-action="lampChoose"][data-c="unknown"]').click();`);
+ }
+};
+// この既存試験が扱う「記録1件の取消」を、色のUndo→失敗そのものの取消へ写像する。
+async function undoRecord(){
+ await click('#undoBtn');
+ if(await frame('return !!d.getElementById("lampDialog");'))await click('[data-action="cancelFailure"]');
+}
 async function tab(index){await click(`#nav [data-p="${index}"]`);await pause(60);}
 async function load(id,width=390,height=740){
   await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/'+id+'-checker.html')};})`);
@@ -129,8 +141,8 @@ try{
   for(const width of [360,390,412]){
     await evaluate(`localStorage.clear();`);await load('mhsunbreak',width,530);await tab(2);
     assert.equal(await frame(`return d.querySelector('${toggle}').getAttribute('aria-checked');`),'false');
-    await click('[data-action="bzPick"][data-q="t2"]');await click('[data-action="bzPickPos"][data-pos=""]');await click('[data-action="bzQuest"][data-r="miss"]');
-    await click('[data-action="atEvent"][data-t="fuku"][data-r="miss"]');
+    await click('[data-action="bzPick"][data-q="t2"]');await click('[data-action="bzPickPos"][data-pos=""]');await click('[data-action="bzFailure"][data-r="miss"]');
+    await click('[data-action="fukuFailure"]');
     const before=JSON.stringify(await state());
     assert.match(await frame('return d.querySelector(".at-next").textContent;'),/2回目/);
     await click(toggle);
@@ -142,9 +154,9 @@ try{
     await load('mhsunbreak',width,530);await tab(2);
     assert.equal(await frame(`return d.querySelector('${toggle}').getAttribute('aria-checked');`),'true');
     assert.equal(JSON.stringify(await state()),before);
-    await click('#undoBtn'); // Reload clears the recording undo stack; switch must remain selected.
+    await undoRecord(); // Reload clears the recording undo stack; switch must remain selected.
     assert.equal(await frame(`return d.querySelector('${toggle}').getAttribute('aria-checked');`),'true');
-    await click('[data-action="atEvent"][data-t="fuku"][data-r="miss"]');await click('#undoBtn');
+    await click('[data-action="fukuFailure"]');await undoRecord();
     assert.equal(JSON.stringify(await state()),before);
     assert.equal(await frame(`return d.querySelector('${toggle}').getAttribute('aria-checked');`),'true');
     await tab(3);await click('[data-action="scenarioCard"]');await pause(120);

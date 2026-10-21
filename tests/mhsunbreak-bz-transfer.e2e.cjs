@@ -9,9 +9,9 @@ const { chromium } = require('playwright');
 const ROOT=path.resolve(__dirname,'..');
 const MIMES={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8'};
 let server,browser,base;
-const checkerKey='mhsunbreak-bz-preview-20261020-checker-v1';
-const sourceKey='mhsunbreak-bz-preview-20261020-recording-v1';
-const backupKey='mhsunbreak-bz-preview-20261020-checker-v1-bztransfer-backup';
+const checkerKey='mhsunbreak-checker-v1';
+const sourceKey='mhsunbreak-next-bz-recording-v1';
+const backupKey='mhsunbreak-checker-v1-bztransfer-backup';
 before(async()=>{
  server=http.createServer((req,res)=>{
   const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
@@ -21,7 +21,7 @@ before(async()=>{
   fs.createReadStream(file).pipe(res);
  });
  await new Promise(r=>server.listen(0,'127.0.0.1',r));
- base='http://127.0.0.1:'+server.address().port+'/preview/mhsunbreak-bz-20261020/';
+ base='http://127.0.0.1:'+server.address().port+'/';
  browser=await chromium.launch({headless:true,args:['--no-sandbox']});
 });
 after(async()=>{await browser?.close();if(server)await new Promise(r=>server.close(r))});
@@ -239,4 +239,44 @@ test('result selector targets the last BZ even if there are no BZ/Fuku after it'
  }finally{await context.close()}
 });
 
-test('production checker storage is untouched after preview transfer',async()=>{const {page,context,errors}=await pageFor();try{const sentinel='{"real":42}';await seed(page,null);await page.evaluate(s=>localStorage.setItem('mhsunbreak-checker-v1',s),sentinel);await table(page,3);await transfer(page);await page.locator('select[data-result="0"]').selectOption('miss');await page.locator('#apply').click();assert.equal(await page.evaluate(()=>localStorage.getItem('mhsunbreak-checker-v1')),sentinel);assert.equal(JSON.parse(await current(page)).atLog.sessions[0].events.length,1);assert.deepEqual(errors,[])}finally{await context.close()}});
+test('a successful BZ transfer cannot be resent to the next empty AT',async()=>{
+ const {page,context,errors}=await pageFor();
+ try{
+  await seed(page,null);await table(page,3);await transfer(page);await outcome(page,0,'win');
+  await page.locator('#apply').click();
+  const first=await current(page);
+  assert.equal(JSON.parse(first)._bzClosedSourceIds.length,1);
+  await page.goto(base+'mhsunbreak-next-bz.html');await transfer(page);await outcome(page,0,'win');
+  assert.equal(await page.locator('#apply').isDisabled(),true);
+  assert.match(await page.locator('#info').innerText(),/既に成功として引き継ぎ済み/);
+  assert.equal(await current(page),first);assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+});
+test('reset opens a distinct AT even with identical BZ table history',async()=>{
+ const {page,context,errors}=await pageFor();
+ try{
+  await seed(page,null);await table(page,3);await transfer(page);await outcome(page,0,'win');
+  await page.locator('#apply').click();
+  await page.goto(base+'mhsunbreak-next-bz.html');await page.locator('#reset').click();
+  await table(page,3);await transfer(page);await outcome(page,0,'win');
+  assert.equal(await page.locator('#apply').isEnabled(),true);
+  await page.locator('#apply').click();
+  const state=JSON.parse(await current(page));
+  assert.equal(state.atLog.sessions.length,3);
+  assert.equal(state._bzClosedSourceIds.length,2);
+  assert.notEqual(state._bzClosedSourceIds[0],state._bzClosedSourceIds[1]);
+  assert.deepEqual(errors,[]);
+ }finally{await context.close()}
+});
+test('stale checker instance does not overwrite another tab import',async()=>{
+ const {page,context,errors}=await pageFor();let oldTab;
+ try{
+  await seed(page,null);
+  oldTab=await context.newPage();await oldTab.goto(base+'mhsunbreak-checker.html');
+  await table(page,3);await transfer(page);await outcome(page,0,'miss');await page.locator('#apply').click();
+  const actual=await current(page);
+  await oldTab.evaluate(()=>window.__checkerApp?.setState({hits:[999]})).catch(()=>{});
+  assert.equal(await current(page),actual);
+  assert.deepEqual(errors,[]);
+ }finally{await oldTab?.close();await context.close()}
+});
