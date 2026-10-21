@@ -128,8 +128,7 @@ test('template buffers equal 006e842 for zero and all table rows',()=>{
   }
 });
 test('all 29 checker headers omit UI version labels and use the ・ separator',()=>{
-  // mogumogu-test・tonski-test-checker.html は検収用のテスト版（§9-108）。公開物の数には入れない。
-  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html')&&!['mogumogu-test-checker.html','tonski-test-checker.html'].includes(p));
+  const files=fs.readdirSync(root).filter(p=>p.endsWith('-checker.html'));
   assert.equal(files.length,29);
   for(const file of files){
     const headers=[...read(file).matchAll(/<header\b[^>]*>([\s\S]*?)<\/header>/g)];

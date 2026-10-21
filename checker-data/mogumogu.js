@@ -15,7 +15,7 @@
     ['kerai','家来','奇数設定示唆',0,'家'],
     ['taihou','大砲家来','偶数設定示唆',0,'砲'],
     ['ninmogu','忍モグ＆くモ一','高設定示唆(弱)',0,'忍'],
-    ['hime','モグ姫','高設定示唆(弱)',0,'姫'],
+    ['hime','モグ姫','高設定示唆(強)',0,'姫'],
     ['gen','モグ玄(SP非移行)','設定2以上濃厚',2,'玄2'],
     ['genSp','モグ玄(SP移行あり・不明)','SPモード移行か設定2以上',0,'玄?'],
     ['kijou','騎乗モグ玄(SP非移行)','設定3以上濃厚',3,'騎3'],
@@ -36,11 +36,22 @@
     ['rainbow','虹トロフィー','設定6濃厚',6,'虹']
   ];
 
+  // ED中の巻物（ちょんぼりすた 2026-10-16更新／2026-10-21照合）。出現有無型。
+  const SCROLL=[
+    ['blue','青巻物','デフォルト',0,'青'],
+    ['yellow','黄巻物','高設定期待度UP(弱)',0,'黄'],
+    ['green','緑巻物','高設定期待度UP(強)',0,'緑'],
+    ['red','赤巻物','設定2以上濃厚',2,'赤'],
+    ['rainbow','虹巻物','設定6濃厚',6,'虹']
+  ];
+
   const DEF={
     games:0,
     counts:{cz:0,at:0,direct:0},
     screens:Object.fromEntries(AT_END.map(v=>[v[0],0])),
     trophy:Object.fromEntries(TROPHY.map(v=>[v[0],0])),
+    scroll:Object.fromEntries(SCROLL.map(v=>[v[0],0])),
+    czType:{taisen:0,mogura:0},
     img:null,
     iconChoice:null
   };
@@ -77,7 +88,7 @@
   function allCert(S){
     const pick=(arr,state,base)=>arr.filter(c=>c[3]>0)
       .map(c=>({label:c[1],tier:tierText(c),value:n(state,c[0]),rank:c[3],order:base+c[3]}));
-    return [...pick(TROPHY,S.trophy,10),...pick(AT_END,S.screens,20)];
+    return [...pick(TROPHY,S.trophy,10),...pick(SCROLL,S.scroll,15),...pick(AT_END,S.screens,20)];
   }
   function certCount(S){return allCert(S).reduce((a,b)=>a+b.value,0);}
   function bestCert(S){
@@ -88,16 +99,19 @@
   function normalizeState(out){
     out=out||{};
     out.games=Math.max(0,Number(out.games)||0);
-    ['counts','screens','trophy'].forEach(key=>{
+    ['counts','screens','trophy','scroll','czType'].forEach(key=>{
       out[key]=Object.assign({},DEF[key],out[key]||{});
       Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
     });
     return out;
   }
 
+  // 1つの説明に複数の段落を入れる（「説明を見る」を2つ並べないため）。engine は子要素を含む説明を畳まないので、段落は文字の改行で区切る
+  const HINT_PARAS_CSS='<style>.hint-paras .hint-body{white-space:pre-line}</style>';
   function pageHatsu(ctx){
     const S=ctx.S,g=S.games;
-    return `<section class="sec">
+    return `${HINT_PARAS_CSS}
+  <section class="sec">
     <div class="sec-h">通常回転数</div>
     <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
     <div class="hint">通常時のゲーム数を入力してください。確認手段と分母条件が未確認のため、現時点で1/x表示は行いません。</div>
@@ -106,20 +120,24 @@
     <div class="sec-h">初当り<span class="sub">通常 ${g||0}G</span></div>
     <div class="cgrid">
       ${ctx.crow('counts.cz','CZ当選','設1:1/324⇔設6:1/287',0)}
+      ${ctx.crow('czType.taisen','モグモグ大戦','設1:1/354⇔設6:1/324',0)}
+      ${ctx.crow('czType.mogura','モグラ叩き','設1:1/3778⇔設6:1/2507',0)}
       ${ctx.crow('counts.at','AT初当り','設1:1/431⇔設6:1/358',1)}
       ${ctx.crow('counts.direct','AT直撃','設1:1/32252.6（他設定は調査中）',0)}
     </div>
-    <div class="hint">AT直撃は設定1だけ判明しています。設定2以降は調査中のため、回数だけ記録して比較には使わないでください。周期到達時の抽選とは別枠なので、周期非到達で前兆が出たときが該当します。天井や周期からのCZ当選時のAT書き換え（当選率3.1%）は直撃ではありません。</div>
+    <div class="hint hint-paras">AT直撃は設定1だけ判明しています。設定2以降は調査中のため、回数だけ記録して比較には使わないでください。周期到達時の抽選とは別枠なので、周期非到達で前兆が出たときが該当します。天井や周期からのCZ当選時のAT書き換え（当選率3.1%）は直撃ではありません。
+CZの種別が分かったときだけ内訳を押します。合算のCZ当選は従来どおり押してください。モグラ叩きは設定5・6で約1/2510、設定1〜4は1/3101〜1/3778です。</div>
   </section>`;
   }
 
   function pageShisa(ctx){
     const S=ctx.S,scN=total(AT_END,S.screens);
-    return `<section class="sec">
+    return `${HINT_PARAS_CSS}
+  <section class="sec">
     <div class="sec-h">AT終了画面<span class="sub">計${scN}回</span></div>
     <div class="cgrid">${AT_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,v=>ctx.pct(v,scN))).join('')}</div>
-    <div class="hint">SPモードに入らなかった時だけ確定演出の行へ。モグ玄と騎乗モグ玄は、出典が「SPモード1つ以上 or 設定2以上」「SPモード2つ以上 or 設定3以上」の形になっていて、SPモードへの移行の有無で意味が変わります。AT後の挙動まで確認できて、SPモードへ移行しなかった場合だけ「(SP非移行)」の行に記録してください（騎乗はSPモード2つ以上への非移行が条件です）。移行した場合や確認できなかった場合は「(SP移行あり・不明)」の行に記録します。確定演出として数えるのは「(SP非移行)」の行だけです。</div>
-    <div class="hint">終了画面は出るたびに記録します。出典に載っているのは上の8種類です。どれにも当てはまらない画面が出た場合は「その他（上記以外）」に記録すると、判明分の割合が正しく出ます。</div>
+    <div class="hint hint-paras">SPモードに入らなかった時だけ確定演出の行へ。モグ玄と騎乗モグ玄は、出典が「SPモード1つ以上 or 設定2以上」「SPモード2つ以上 or 設定3以上」の形になっていて、SPモードへの移行の有無で意味が変わります。AT後の挙動まで確認できて、SPモードへ移行しなかった場合だけ「(SP非移行)」の行に記録してください（騎乗はSPモード2つ以上への非移行が条件です）。移行した場合や確認できなかった場合は「(SP移行あり・不明)」の行に記録します。確定演出として数えるのは「(SP非移行)」の行だけです。
+終了画面は出るたびに記録します。出典に載っているのは上の8種類です。どれにも当てはまらない画面が出た場合は「その他（上記以外）」に記録すると、判明分の割合が正しく出ます。</div>
   </section>
   <section class="sec">
     <div class="sec-h">くまトロフィー<span class="sub">計${total(TROPHY,S.trophy)}回</span></div>
@@ -127,8 +145,13 @@
     <div class="hint">出た色の行を記録します。AT終了画面とエンディング終了画面に出現する可能性があります。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。</div>
   </section>
   <section class="sec">
+    <div class="sec-h">エンディング中の巻物<span class="sub">計${total(SCROLL,S.scroll)}回</span></div>
+    <div class="cgrid">${SCROLL.map(c=>ctx.crow('scroll.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
+    <div class="hint">エンディング中にレア役が成立すると出る巻物の色を記録します。出典の一覧は青・黄・緑・赤・虹の5色で、赤（設定2以上濃厚）と虹（設定6濃厚）は確定演出として数えます。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。</div>
+  </section>
+  <section class="sec">
     <div class="sec-h">解析待ちの示唆<span class="sub">未実装</span></div>
-    <div class="hint">次の項目はまだ扱っていません。内部モードの移行率（高設定ほど通常Bモード以上に移行しやすいとされる）、AT終了後の制覇ロード引き戻し率（全設定平均 約31%）、エンディング中の1枚絵、モグラ叩き突入抽選の当選率（設定1のみ判明）です。いずれも設定別の数値が揃っていないため、判明後に追加します。詳細はちょんぼりすた様の解析ページをご覧ください。</div>
+    <div class="hint">次の項目はまだ扱っていません。内部モードの移行率（高設定ほど通常Bモード以上に移行しやすいとされる）、AT終了後の制覇ロード引き戻し率（全設定平均 約31%）、モグラ叩き突入抽選の当選率（設定1のみ判明）です。いずれも設定別の数値が揃っていないため、判明後に追加します。詳細はちょんぼりすた様の解析ページをご覧ください。</div>
   </section>`;
   }
 
@@ -145,14 +168,18 @@
   function tplText(ctx){
     const S=ctx.S,g=S.games;
     const cz=n(S.counts,'cz'),at=n(S.counts,'at'),direct=n(S.counts,'direct');
+    const taisen=n(S.czType,'taisen'),mogura=n(S.czType,'mogura');
     let t=`設定判別メモ｜Lモグモグ風林火山 大海戦の巻\n通常 ${g||0}G / CZ${cz}回 / AT${at}回\n_______\n`;
     t+=section('初当り',[
       `CZ当選▶${countLine(cz)}`,
+      taisen+mogura>0?`CZ内訳 モグモグ大戦▶${countLine(taisen)}`:'',
+      taisen+mogura>0?`CZ内訳 モグラ叩き▶${countLine(mogura)}`:'',
       `AT初当り▶${countLine(at)}`,
       `AT直撃▶${countLine(direct)}`
     ]);
     t+=tplSection('AT終了画面',AT_END,S.screens,total(AT_END,S.screens));
     t+=tplSection('くまトロフィー',TROPHY,S.trophy,0);
+    t+=tplSection('エンディング中の巻物',SCROLL,S.scroll,0);
     t+=`\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
     return t;
   }
@@ -162,11 +189,14 @@
     return [
       {title:'初当り',items:[
         detailItem('CZ当選',n(S.counts,'cz'),0),
+        detailItem('モグモグ大戦',n(S.czType,'taisen'),0),
+        detailItem('モグラ叩き',n(S.czType,'mogura'),0),
         detailItem('AT初当り',n(S.counts,'at'),1),
         detailItem('AT直撃',n(S.counts,'direct'),0)
       ]},
       {title:'AT終了画面',items:detailItems(AT_END,S.screens),denominator:total(AT_END,S.screens)},
-      {title:'くまトロフィー',items:detailItems(TROPHY,S.trophy)}
+      {title:'くまトロフィー',items:detailItems(TROPHY,S.trophy)},
+      {title:'エンディング中の巻物',items:detailItems(SCROLL,S.scroll)}
     ];
   }
 
@@ -177,7 +207,7 @@
     nanaCollab:false,
     storageKey:'mogumogu-checker-v1',
     defaults:DEF,
-    mergeKeys:['counts','screens','trophy'],
+    mergeKeys:['counts','screens','trophy','scroll','czType'],
     sourceUrl:'https://chonborista.com/slot/net-slot/263515/',
     normalizeState:normalizeState,
     share:{
@@ -235,7 +265,8 @@
               row(`確定演出 計${certCount(S)}回`,certCount(S),certCount(S)>0,'#ffc94d'),
               row(`終了画面 計${total(AT_END,S.screens)}回`,total(AT_END,S.screens)),
               row(shown('画面',codes(AT_END,S.screens)),total(AT_END,S.screens)),
-              row(shown('トロフィー',codes(TROPHY,S.trophy)),total(TROPHY,S.trophy))
+              row(shown('トロフィー',codes(TROPHY,S.trophy)),total(TROPHY,S.trophy)),
+              row(shown('巻物',codes(SCROLL,S.scroll)),total(SCROLL,S.scroll))
             ]}
           ]
         };
