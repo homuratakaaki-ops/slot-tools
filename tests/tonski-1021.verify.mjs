@@ -76,9 +76,9 @@ check('guide, version and NEW list',()=>{
   assert.equal((news.match(/<p>/g)||[]).length,8);
   assert.ok(news.indexOf('tonski-checker.html')<news.indexOf('tenten-checker.html'));
 });
-check('32768 certainty combinations preserve existing outputs against HEAD',()=>{
+check('32768 certainty combinations preserve existing outputs against 4e98820 (main before this change)',()=>{
   const oldBox={window:{}};
-  vm.runInNewContext(execFileSync('git',['show','HEAD:checker-data/tonski.js'],{encoding:'utf8'}),oldBox);
+  vm.runInNewContext(execFileSync('git',['show','4e98820:checker-data/tonski.js'],{encoding:'utf8'}),oldBox);
   const old=oldBox.window.CheckerConfigs.tonski;
   const keys=[...['set2','set4','set6'].map(k=>['screens',k]),...Object.keys(c.defaults.coins).map(k=>['coins',k]),...Object.keys(c.defaults.atcz).map(k=>['atcz',k]),...['goldWin','rainbowWin'].map(k=>['ed',k])];
   for(let mask=0;mask<2**keys.length;mask++){
