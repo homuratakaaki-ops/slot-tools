@@ -1,0 +1,253 @@
+{
+  "recorded_by": "Nene",
+  "date_jst": "2026-10-21",
+  "base_main": "1cfb564f1bb4b6e8e556d86bdfa40ff7e43ae726",
+  "base_tree": "1a8ea9a5046cf2f01590e62c04b1e33d59fa715e",
+  "old_pr75_head": "ac9b339c51138bb9c275bc83a72a8c1aec4aaae7",
+  "published_pr57_head": "8e3ea5df49ad41d8228d690e904badb188cf1809",
+  "published_pr57_merge": "6ae628a06349fe9ac6bfec59fb8e17e22aee1e4d",
+  "validated_nonreport_files_sha256": "0fa30e979a469f615866d10e5a4ad31f98cbbcb36dea8f40723a5665117bd8c5",
+  "verify": [
+    {
+      "file": "garei-1014.verify.mjs",
+      "rc": 0,
+      "seconds": 0.08
+    },
+    {
+      "file": "kanokari-estimate.verify.mjs",
+      "rc": 0,
+      "seconds": 0.51
+    },
+    {
+      "file": "magireco-remove-estimate.verify.mjs",
+      "rc": 0,
+      "seconds": 0.29
+    },
+    {
+      "file": "mahoako.verify.mjs",
+      "rc": 0,
+      "seconds": 0.25
+    },
+    {
+      "file": "mhsunbreak-1018.verify.mjs",
+      "rc": 0,
+      "seconds": 0.1
+    },
+    {
+      "file": "mhsunbreak-at-log.verify.mjs",
+      "rc": 0,
+      "seconds": 0.14
+    },
+    {
+      "file": "mhsunbreak-bz-groups.verify.mjs",
+      "rc": 0,
+      "seconds": 0.1
+    },
+    {
+      "file": "mhsunbreak-bz-nav.verify.mjs",
+      "rc": 0,
+      "seconds": 0.13
+    },
+    {
+      "file": "mhsunbreak-bz-rounds.verify.mjs",
+      "rc": 0,
+      "seconds": 0.12
+    },
+    {
+      "file": "mhsunbreak-bz-step3-label.verify.mjs",
+      "rc": 0,
+      "seconds": 0.09
+    },
+    {
+      "file": "mhsunbreak-ext-records.verify.mjs",
+      "rc": 0,
+      "seconds": 1.43
+    },
+    {
+      "file": "mhsunbreak-failure-lamp.verify.mjs",
+      "rc": 0,
+      "seconds": 0.92
+    },
+    {
+      "file": "mhsunbreak-fuku-mode.verify.mjs",
+      "rc": 0,
+      "seconds": 1.77
+    },
+    {
+      "file": "mhsunbreak-input-flow.verify.mjs",
+      "rc": 0,
+      "seconds": 0.1
+    },
+    {
+      "file": "mhsunbreak-next-bz-pct.verify.mjs",
+      "rc": 0,
+      "seconds": 1.47
+    },
+    {
+      "file": "mhsunbreak-next-bz.verify.mjs",
+      "rc": 0,
+      "seconds": 0.15
+    },
+    {
+      "file": "mhsunbreak-pct-mode.verify.mjs",
+      "rc": 0,
+      "seconds": 0.12
+    },
+    {
+      "file": "mhsunbreak-scenario-pct.verify.mjs",
+      "rc": 0,
+      "seconds": 0.97
+    },
+    {
+      "file": "mhsunbreak-scenario.verify.mjs",
+      "rc": 0,
+      "seconds": 0.1
+    },
+    {
+      "file": "mhsunbreak-template-v02.verify.mjs",
+      "rc": 0,
+      "seconds": 62.57
+    },
+    {
+      "file": "mhsunbreak-tpl-atlog.verify.mjs",
+      "rc": 0,
+      "seconds": 0.11
+    },
+    {
+      "file": "new-1005-public.verify.mjs",
+      "rc": 0,
+      "seconds": 3.68
+    },
+    {
+      "file": "paripi-1014.verify.mjs",
+      "rc": 0,
+      "seconds": 8.05
+    },
+    {
+      "file": "paripi-nana-template.verify.mjs",
+      "rc": 0,
+      "seconds": 0.49
+    },
+    {
+      "file": "paripi-st-end.verify.mjs",
+      "rc": 0,
+      "seconds": 0.42
+    },
+    {
+      "file": "tenten-1021.verify.mjs",
+      "rc": 0,
+      "seconds": 0.09
+    },
+    {
+      "file": "wording-noukou.verify.mjs",
+      "rc": 0,
+      "seconds": 0.12
+    }
+  ],
+  "browser": [
+    {
+      "file": "garei-1014.browser.mjs",
+      "rc": 0,
+      "seconds": 7.21
+    },
+    {
+      "file": "kanokari-estimate.browser.mjs",
+      "rc": 0,
+      "seconds": 5.82
+    },
+    {
+      "file": "magireco-remove-estimate.browser.mjs",
+      "rc": 0,
+      "seconds": 5.52
+    },
+    {
+      "file": "mahoako.browser.mjs",
+      "rc": 0,
+      "seconds": 10.13
+    },
+    {
+      "file": "mhsunbreak-1018.browser.mjs",
+      "rc": 0,
+      "seconds": 4.82
+    },
+    {
+      "file": "mhsunbreak-bz-nav.browser.mjs",
+      "rc": 0,
+      "seconds": 9.86
+    },
+    {
+      "file": "mhsunbreak-bz-step3-label.browser.mjs",
+      "rc": 0,
+      "seconds": 2.7
+    },
+    {
+      "file": "mhsunbreak-fuku-mode.browser.mjs",
+      "rc": 0,
+      "seconds": 3.68
+    },
+    {
+      "file": "mhsunbreak-input-flow.browser.mjs",
+      "rc": 0,
+      "seconds": 2.46
+    },
+    {
+      "file": "mhsunbreak-pct-mode.browser.mjs",
+      "rc": 0,
+      "seconds": 8.18
+    },
+    {
+      "file": "new-1005-four-machines.browser.mjs",
+      "rc": 0,
+      "seconds": 87.78
+    },
+    {
+      "file": "ricorico-1014.browser.mjs",
+      "rc": 0,
+      "seconds": 5.67
+    },
+    {
+      "file": "tenten-1021.browser.mjs",
+      "rc": 0,
+      "seconds": 5.76
+    },
+    {
+      "file": "wording-noukou.browser.mjs",
+      "rc": 0,
+      "seconds": 46.19
+    }
+  ],
+  "cycle_runs": [
+    {
+      "run": 1,
+      "exit": 0,
+      "seconds": 7.23,
+      "stdout": "✔ checker cycle choices 1..5/unknown are durable, preserve BZ model, and are editable per memo (1092.977092ms)\n✔ checker restores pending selection, traps focus, supports Undo/cancel and keeps legacy fields (735.311868ms)\n✔ predictor cycles are memo-only, durable, editable, and selection Undo reopens the mandatory dialog (1164.415927ms)\n✔ transfer preserves a chosen cycle and raw backup; different-cycle prefix is rejected (441.051257ms)\n✔ old predictor memo stays without a cycle; pending or invalid cycle cannot be transferred (315.016338ms)\n✔ both dialogs fit 320/360/390/412 x 530 screens with six 48px targets (2263.503128ms)\n✔ closed-interval cycle correction and inserted-memo cancellation affect only that memo (786.078677ms)\nℹ tests 7\nℹ suites 0\nℹ pass 7\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 7164.248646\n"
+    },
+    {
+      "run": 2,
+      "exit": 0,
+      "seconds": 6.77,
+      "stdout": "✔ checker cycle choices 1..5/unknown are durable, preserve BZ model, and are editable per memo (1109.900814ms)\n✔ checker restores pending selection, traps focus, supports Undo/cancel and keeps legacy fields (724.92913ms)\n✔ predictor cycles are memo-only, durable, editable, and selection Undo reopens the mandatory dialog (1145.014992ms)\n✔ transfer preserves a chosen cycle and raw backup; different-cycle prefix is rejected (433.31291ms)\n✔ old predictor memo stays without a cycle; pending or invalid cycle cannot be transferred (277.035295ms)\n✔ both dialogs fit 320/360/390/412 x 530 screens with six 48px targets (2023.1088ms)\n✔ closed-interval cycle correction and inserted-memo cancellation affect only that memo (640.101852ms)\nℹ tests 7\nℹ suites 0\nℹ pass 7\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 6711.039922\n"
+    },
+    {
+      "run": 3,
+      "exit": 0,
+      "seconds": 7.59,
+      "stdout": "✔ checker cycle choices 1..5/unknown are durable, preserve BZ model, and are editable per memo (1164.509242ms)\n✔ checker restores pending selection, traps focus, supports Undo/cancel and keeps legacy fields (836.273506ms)\n✔ predictor cycles are memo-only, durable, editable, and selection Undo reopens the mandatory dialog (1358.317945ms)\n✔ transfer preserves a chosen cycle and raw backup; different-cycle prefix is rejected (526.489124ms)\n✔ old predictor memo stays without a cycle; pending or invalid cycle cannot be transferred (314.823691ms)\n✔ both dialogs fit 320/360/390/412 x 530 screens with six 48px targets (2290.188887ms)\n✔ closed-interval cycle correction and inserted-memo cancellation affect only that memo (669.088455ms)\nℹ tests 7\nℹ suites 0\nℹ pass 7\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 7522.433392\n"
+    }
+  ],
+  "related_e2e_log": "✔ one horizontal frame per BZ, pending target, multiple cues, filling upper row and colour correction (1183.746952ms)\n✔ compulsory five choices, durable pending failure on reload, explicit unknown, and two-step Undo (833.491862ms)\n✔ Fuku failure asks for a colour; success closes interval without a pending round or colour prompt (949.51633ms)\n✔ legacy ambiguous lamps remain separate; editing retains legacy timing and unrelated fields (746.273874ms)\n✔ insertion and source deletion keep original indices, linked colour, and Undo intact (853.495104ms)\n✔ real 320/360/390/412px layouts, modal focus loop, no page overflow, five 48px choices (1954.128805ms)\n✔ real links, stage-only, fuku selection, saved checker, reload, rollback (1082.214321ms)\n✔ conflicting existing AT history blocks transfer and preserves bytes (349.560186ms)\n✔ second transfer with new ID cannot duplicate the same history (680.181571ms)\n✔ legacy cumulative counter records fail closed without data mutation (476.876788ms)\n✔ Fuku success closes AT interval; no extra event allowed afterward (516.462478ms)\n✔ mobile layouts and draft history persist at 320, 360, 390, 412 pixels (1241.889508ms)\n✔ BZ success is selectable, saved as win, and closes the AT interval (393.914755ms)\n✔ BZ success followed by another event is rejected; manual-entry link opens checker (562.509417ms)\n✔ only last BZ/Fuku allows result choice; earlier BZ/Fuku become automatic misses (388.795567ms)\n✔ result selector targets the last BZ even if there are no BZ/Fuku after it (431.301155ms)\n✔ a successful BZ transfer cannot be resent to the next empty AT (482.826211ms)\n✔ reset opens a distinct AT even with identical BZ table history (534.072232ms)\n✔ stale checker instance does not overwrite another tab import (379.953482ms)\n✔ real PUSH buttons: yellow has no invented weight; green targets next BZ; reload, delete and Undo (967.67739ms)\n✔ red SP, transfer provenance, checker recalculation, Undo and raw backup restoration (1180.290615ms)\n✔ old lamp provenance is retained and never upgraded during import matching (548.431181ms)\n✔ both rendered pages: 320/360/390/412px, four visible labelled options, no horizontal overflow (2613.810978ms)\nℹ tests 23\nℹ suites 0\nℹ pass 23\nℹ fail 0\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 7956.677423\n",
+  "normal_node_test": {
+    "pass": 32,
+    "fail": 2,
+    "failed_files": [
+      "checker-data/mogumogu-test.js",
+      "checker-data/tonski-test.js"
+    ],
+    "same_on_base_main": true,
+    "baseline_log": "/workspace/scratch/a540bc65f112/run75-baseline/checker-data/mogumogu-test.js:3\n  window.CheckerConfigs=window.CheckerConfigs||{};\n  ^\n\nReferenceError: window is not defined\n    at /workspace/scratch/a540bc65f112/run75-baseline/checker-data/mogumogu-test.js:3:3\n    at Object.<anonymous> (/workspace/scratch/a540bc65f112/run75-baseline/checker-data/mogumogu-test.js:272:3)\n    at Module._compile (node:internal/modules/cjs/loader:1872:14)\n    at Object..js (node:internal/modules/cjs/loader:2003:10)\n    at Module.load (node:internal/modules/cjs/loader:1594:32)\n    at Module._load (node:internal/modules/cjs/loader:1396:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\n    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\n    at node:internal/main/run_main_module:33:47\n\nNode.js v24.19.0\n✖ checker-data/mogumogu-test.js (84.513053ms)\n/workspace/scratch/a540bc65f112/run75-baseline/checker-data/tonski-test.js:3\n  window.CheckerConfigs=window.CheckerConfigs||{};\n  ^\n\nReferenceError: window is not defined\n    at /workspace/scratch/a540bc65f112/run75-baseline/checker-data/tonski-test.js:3:3\n    at Object.<anonymous> (/workspace/scratch/a540bc65f112/run75-baseline/checker-data/tonski-test.js:320:3)\n    at Module._compile (node:internal/modules/cjs/loader:1872:14)\n    at Object..js (node:internal/modules/cjs/loader:2003:10)\n    at Module.load (node:internal/modules/cjs/loader:1594:32)\n    at Module._load (node:internal/modules/cjs/loader:1396:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\n    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\n    at node:internal/main/run_main_module:33:47\n\nNode.js v24.19.0\n✖ checker-data/tonski-test.js (67.459351ms)\n=== マイジャグラーV 判別エンジン検証 ===\n\n■ サニティ: 期待値通りのデータで正解設定が最大事後確率になるか\n  設定1: 推定=設定1 OK\n  設定2: 推定=設定2 OK\n  設定3: 推定=設定3 OK\n  設定4: 推定=設定4 OK\n  設定5: 推定=設定5 OK\n  設定6: 推定=設定6 OK\n\n■ simpleモード / 3000G / 1000試行\n真の設定 | Top-1的中率 | 正解の平均事後確率\n  設定1   |    60.1%   |   31.3%\n  設定2   |    24.3%   |   22.9%\n  設定3   |    15.0%   |   18.8%\n  設定4   |    15.9%   |   18.6%\n  設定5   |    22.7%   |   21.1%\n  設定6   |    63.4%   |   37.3%\n\n■ simpleモード / 8000G / 1000試行\n真の設定 | Top-1的中率 | 正解の平均事後確率\n  設定1   |    62.9%   |   42.4%\n  設定2   |    32.5%   |   28.4%\n  設定3   |    29.8%   |   23.3%\n  設定4   |    28.4%   |   24.3%\n  設定5   |    36.9%   |   27.4%\n  設定6   |    71.4%   |   55.6%\n\n■ detailモード / 8000G / 1000試行\n真の設定 | Top-1的中率 | 正解の平均事後確率\n  設定1   |    64.1%   |   45.1%\n  設定2   |    33.3%   |   30.1%\n  設定3   |    29.9%   |   24.0%\n  設定4   |    38.1%   |   28.0%\n  設定5   |    32.4%   |   28.5%\n  設定6   |    69.6%   |   55.0%\n\n■ 収束性: 真の設定6 / simpleモード (各500試行平均)\nG数    | 設定6の平均事後確率\n1000   | 26.6%\n3000   | 37.5%\n5000   | 46.6%\n8000   | 55.2%\n\n■ 事前分布の影響: 設定4の3000Gデータ(500試行平均)\n  均等: [12.6, 14.9, 17.1, 18.9, 19.1, 17.4]%\n  イベント想定(1:1:1:2:2:3): [9.3, 10.2, 11.2, 22.9, 21.6, 24.9]%\n  通常営業想定(6:3:2:1:0.5:0.5): [34.0, 21.6, 18.6, 11.8, 6.7, 7.4]%\n\n■ 区間分割の不変性: 単一区間 vs 打ち始め前+実戦区間の分割\n  設定1: 最大差=9.55e-15 OK\n  設定2: 最大差=1.17e-14 OK\n  設定3: 最大差=1.55e-15 OK\n  設定4: 最大差=9.24e-15 OK\n  設定5: 最大差=2.55e-15 OK\n  設定6: 最大差=1.70e-14 OK\n\n=== サニティチェック: 全設定OK / 区間分割: 全設定OK ===\n✔ test/verify.mjs (2880.014398ms)\nmoney tests passed\n✔ tests/money.test.mjs (81.112064ms)\nmyhorepo bulk(1台×複数日) tests passed\n✔ tests/myhorepo-bulk-bydate.test.js (85.837848ms)\nmyhorepo import(mylog) tests passed\n✔ tests/myhorepo-import-mylog.test.js (82.79007ms)\nmylog totals tests passed\n✔ tests/mylog-totals.test.mjs (80.1481ms)\nstorage persist failed Error [QuotaExceededError]: quota\n    at localStorage.setItem (evalmachine.<anonymous>:5:23)\n    at persist (nerai-record.html<script>:1855:18)\n    at evalmachine.<anonymous>:1:1\n    at Script.runInContext (node:vm:149:12)\n    at Object.runInContext (node:vm:301:6)\n    at testQuotaExceededLocksProtectionWithoutThrowing (/workspace/scratch/a540bc65f112/run75-baseline/tests/nerai-record-regression.test.js:4384:19)\n    at run (/workspace/scratch/a540bc65f112/run75-baseline/tests/nerai-record-regression.test.js:5656:3)\n    at Object.<anonymous> (/workspace/scratch/a540bc65f112/run75-baseline/tests/nerai-record-regression.test.js:5689:1)\n    at Module._compile (node:internal/modules/cjs/loader:1872:14)\n    at Object..js (node:internal/modules/cjs/loader:2003:10)\nnerai-record regression: PASS\n✔ tests/nerai-record-regression.test.js (7205.421841ms)\nMH template bytes zero: 2230 PASS\nMH template bytes mixed: 2230 PASS\nMH template bytes all: 2230 PASS\n✔ normalization keeps unknown data and clamps invalid n/d on reload (7.542495ms)\n✔ rates use normal games only, with no division for missing games or zero hits (8.716606ms)\n✔ oneL, rank buckets and stable ties are independent of labels and count totals (1.537114ms)\n✔ HTML contract: original CSS apart from specified nav count, public links and LF (2.360478ms)\n✔ MH template preserves original bytes except the 34 blank values and wrapper (0.782543ms)\n✔ v04 template keeps the v04 golden bytes without regex lookbehind (1.211586ms)\n✔ MH template bytes match the golden files in zero, mixed and fully populated states (3.265024ms)\n✔ MH legacy icon logs migrate without any memo output or actions (1.517124ms)\n✔ 配信される *.js / *.html に後読みの正規表現が無い（§9-106） (49.566092ms)\n✔ 検出パターン自体が後読みを拾える（テストが空振りしていないことの確認） (0.203796ms)\nsf6-schema tests passed\n✔ tests/sf6-schema.test.js (75.02783ms)\nIssued values: 48 probabilities (18 EP LV values) + 14 hint rows PASS\n✔ tenten issued facts: 48 probability values and 14 hint definitions (3.819595ms)\n✔ tenten legacy load, unknown keys and all five n/d clamps remain stable (0.814221ms)\n✔ tenten 1024 certainty combinations select numeric rank, stable tie and rank buckets (88.769322ms)\n✔ tenten LV4 aggregates as success, shares CZ denominator and omits rates for empty games (1.658265ms)\n✔ tenten screen percent denominator excludes unknown keys and over has no percent (0.788812ms)\nyutime-calc: OK\n✔ tests/yutime-calc.test.js (20595.471382ms)\nyutime-record redirect page tests passed\n✔ tests/yutime-record.test.js (89.125481ms)\nyutime-v3 tests passed\n✔ S46: 店別下書きは再読込でき、実戦JSON・台・dailyStateに混入しない (11.228998ms)\n✔ S46: 台未指定でも判定可能。不明は両側を算出しラムクリア側を採用 (5.412031ms)\n✔ S46: 参考値なしの台は採用しない。候補変更で台固有の選択だけを戻す (6.833161ms)\n✔ S46: 閉店は前日限定。旧prevInvalidとラムクリアは独立に無効化する (2.733517ms)\n✔ S46: decisionInputsは任意項目として往復し、開始条件との差分だけを添える (3.642198ms)\n✔ S47: 版表示・用語統一・引き継ぎ案内の常時表示 (3.62982ms)\n✔ S47: 画面に出る文字列に旧文言が残っていない (8.032208ms)\n✔ S46: 出所の保存値・判定labelを変えず表示用説明を分離する (4.162318ms)\nℹ tests 34\nℹ suites 0\nℹ pass 32\nℹ fail 2\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 20742.459665\n\n✖ failing tests:\n\ntest at checker-data/mogumogu-test.js:1:1\n✖ checker-data/mogumogu-test.js (84.513053ms)\n  'test failed'\n\ntest at checker-data/tonski-test.js:1:1\n✖ checker-data/tonski-test.js (67.459351ms)\n  'test failed'\n",
+    "new_log": "/workspace/scratch/a540bc65f112/run75-repo/checker-data/mogumogu-test.js:3\n  window.CheckerConfigs=window.CheckerConfigs||{};\n  ^\n\nReferenceError: window is not defined\n    at /workspace/scratch/a540bc65f112/run75-repo/checker-data/mogumogu-test.js:3:3\n    at Object.<anonymous> (/workspace/scratch/a540bc65f112/run75-repo/checker-data/mogumogu-test.js:272:3)\n    at Module._compile (node:internal/modules/cjs/loader:1872:14)\n    at Object..js (node:internal/modules/cjs/loader:2003:10)\n    at Module.load (node:internal/modules/cjs/loader:1594:32)\n    at Module._load (node:internal/modules/cjs/loader:1396:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\n    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\n    at node:internal/main/run_main_module:33:47\n\nNode.js v24.19.0\n✖ checker-data/mogumogu-test.js (87.698279ms)\n/workspace/scratch/a540bc65f112/run75-repo/checker-data/tonski-test.js:3\n  window.CheckerConfigs=window.CheckerConfigs||{};\n  ^\n\nReferenceError: window is not defined\n    at /workspace/scratch/a540bc65f112/run75-repo/checker-data/tonski-test.js:3:3\n    at Object.<anonymous> (/workspace/scratch/a540bc65f112/run75-repo/checker-data/tonski-test.js:320:3)\n    at Module._compile (node:internal/modules/cjs/loader:1872:14)\n    at Object..js (node:internal/modules/cjs/loader:2003:10)\n    at Module.load (node:internal/modules/cjs/loader:1594:32)\n    at Module._load (node:internal/modules/cjs/loader:1396:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\n    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\n    at node:internal/main/run_main_module:33:47\n\nNode.js v24.19.0\n✖ checker-data/tonski-test.js (87.377499ms)\n=== マイジャグラーV 判別エンジン検証 ===\n\n■ サニティ: 期待値通りのデータで正解設定が最大事後確率になるか\n  設定1: 推定=設定1 OK\n  設定2: 推定=設定2 OK\n  設定3: 推定=設定3 OK\n  設定4: 推定=設定4 OK\n  設定5: 推定=設定5 OK\n  設定6: 推定=設定6 OK\n\n■ simpleモード / 3000G / 1000試行\n真の設定 | Top-1的中率 | 正解の平均事後確率\n  設定1   |    55.7%   |   30.4%\n  設定2   |    24.3%   |   22.8%\n  設定3   |    15.3%   |   18.9%\n  設定4   |    19.2%   |   18.8%\n  設定5   |    23.3%   |   21.4%\n  設定6   |    64.1%   |   37.8%\n\n■ simpleモード / 8000G / 1000試行\n真の設定 | Top-1的中率 | 正解の平均事後確率\n  設定1   |    63.5%   |   42.4%\n  設定2   |    32.0%   |   28.9%\n  設定3   |    28.5%   |   22.6%\n  設定4   |    26.2%   |   23.6%\n  設定5   |    33.2%   |   27.3%\n  設定6   |    72.1%   |   55.7%\n\n■ detailモード / 8000G / 1000試行\n真の設定 | Top-1的中率 | 正解の平均事後確率\n  設定1   |    63.2%   |   44.6%\n  設定2   |    35.4%   |   30.0%\n  設定3   |    33.0%   |   24.8%\n  設定4   |    34.8%   |   27.6%\n  設定5   |    36.5%   |   28.2%\n  設定6   |    71.4%   |   56.3%\n\n■ 収束性: 真の設定6 / simpleモード (各500試行平均)\nG数    | 設定6の平均事後確率\n1000   | 26.4%\n3000   | 39.5%\n5000   | 46.5%\n8000   | 57.2%\n\n■ 事前分布の影響: 設定4の3000Gデータ(500試行平均)\n  均等: [12.7, 14.9, 17.3, 19.0, 19.2, 16.9]%\n  イベント想定(1:1:1:2:2:3): [10.1, 10.8, 11.2, 22.3, 20.9, 24.6]%\n  通常営業想定(6:3:2:1:0.5:0.5): [33.3, 21.6, 18.7, 11.9, 6.8, 7.7]%\n\n■ 区間分割の不変性: 単一区間 vs 打ち始め前+実戦区間の分割\n  設定1: 最大差=6.99e-15 OK\n  設定2: 最大差=1.24e-14 OK\n  設定3: 最大差=7.63e-15 OK\n  設定4: 最大差=0.00e+0 OK\n  設定5: 最大差=0.00e+0 OK\n  設定6: 最大差=6.55e-15 OK\n\n=== サニティチェック: 全設定OK / 区間分割: 全設定OK ===\n✔ test/verify.mjs (2520.577823ms)\nmoney tests passed\n✔ tests/money.test.mjs (90.300139ms)\nmyhorepo bulk(1台×複数日) tests passed\n✔ tests/myhorepo-bulk-bydate.test.js (83.785526ms)\nmyhorepo import(mylog) tests passed\n✔ tests/myhorepo-import-mylog.test.js (88.285991ms)\nmylog totals tests passed\n✔ tests/mylog-totals.test.mjs (82.555202ms)\nstorage persist failed Error [QuotaExceededError]: quota\n    at localStorage.setItem (evalmachine.<anonymous>:5:23)\n    at persist (nerai-record.html<script>:1855:18)\n    at evalmachine.<anonymous>:1:1\n    at Script.runInContext (node:vm:149:12)\n    at Object.runInContext (node:vm:301:6)\n    at testQuotaExceededLocksProtectionWithoutThrowing (/workspace/scratch/a540bc65f112/run75-repo/tests/nerai-record-regression.test.js:4384:19)\n    at run (/workspace/scratch/a540bc65f112/run75-repo/tests/nerai-record-regression.test.js:5656:3)\n    at Object.<anonymous> (/workspace/scratch/a540bc65f112/run75-repo/tests/nerai-record-regression.test.js:5689:1)\n    at Module._compile (node:internal/modules/cjs/loader:1872:14)\n    at Object..js (node:internal/modules/cjs/loader:2003:10)\nnerai-record regression: PASS\n✔ tests/nerai-record-regression.test.js (6127.465625ms)\nMH template bytes zero: 2230 PASS\nMH template bytes mixed: 2230 PASS\nMH template bytes all: 2230 PASS\n✔ normalization keeps unknown data and clamps invalid n/d on reload (7.702023ms)\n✔ rates use normal games only, with no division for missing games or zero hits (6.780792ms)\n✔ oneL, rank buckets and stable ties are independent of labels and count totals (1.062222ms)\n✔ HTML contract: original CSS apart from specified nav count, public links and LF (1.556713ms)\n✔ MH template preserves original bytes except the 34 blank values and wrapper (0.482102ms)\n✔ v04 template keeps the v04 golden bytes without regex lookbehind (0.948852ms)\n✔ MH template bytes match the golden files in zero, mixed and fully populated states (1.889802ms)\n✔ MH legacy icon logs migrate without any memo output or actions (1.170795ms)\n✔ 配信される *.js / *.html に後読みの正規表現が無い（§9-106） (35.056667ms)\n✔ 検出パターン自体が後読みを拾える（テストが空振りしていないことの確認） (0.251336ms)\nsf6-schema tests passed\n✔ tests/sf6-schema.test.js (73.80773ms)\nIssued values: 48 probabilities (18 EP LV values) + 14 hint rows PASS\n✔ tenten issued facts: 48 probability values and 14 hint definitions (4.559102ms)\n✔ tenten legacy load, unknown keys and all five n/d clamps remain stable (0.587981ms)\n✔ tenten 1024 certainty combinations select numeric rank, stable tie and rank buckets (88.948942ms)\n✔ tenten LV4 aggregates as success, shares CZ denominator and omits rates for empty games (1.48819ms)\n✔ tenten screen percent denominator excludes unknown keys and over has no percent (2.309801ms)\nyutime-calc: OK\n✔ tests/yutime-calc.test.js (19760.49249ms)\nyutime-record redirect page tests passed\n✔ tests/yutime-record.test.js (76.652314ms)\nyutime-v3 tests passed\n✔ S46: 店別下書きは再読込でき、実戦JSON・台・dailyStateに混入しない (10.561882ms)\n✔ S46: 台未指定でも判定可能。不明は両側を算出しラムクリア側を採用 (4.809038ms)\n✔ S46: 参考値なしの台は採用しない。候補変更で台固有の選択だけを戻す (5.016078ms)\n✔ S46: 閉店は前日限定。旧prevInvalidとラムクリアは独立に無効化する (2.872646ms)\n✔ S46: decisionInputsは任意項目として往復し、開始条件との差分だけを添える (3.539104ms)\n✔ S47: 版表示・用語統一・引き継ぎ案内の常時表示 (3.871744ms)\n✔ S47: 画面に出る文字列に旧文言が残っていない (7.992009ms)\n✔ S46: 出所の保存値・判定labelを変えず表示用説明を分離する (2.751244ms)\nℹ tests 34\nℹ suites 0\nℹ pass 32\nℹ fail 2\nℹ cancelled 0\nℹ skipped 0\nℹ todo 0\nℹ duration_ms 19899.164049\n\n✖ failing tests:\n\ntest at checker-data/mogumogu-test.js:1:1\n✖ checker-data/mogumogu-test.js (87.698279ms)\n  'test failed'\n\ntest at checker-data/tonski-test.js:1:1\n✖ checker-data/tonski-test.js (87.377499ms)\n  'test failed'\n"
+  },
+  "runtime": "Node v24.19.0; installed Chromium headless shell; localhost isolated profiles only",
+  "main_files_outside_scope_byte_preserved": 306
+}

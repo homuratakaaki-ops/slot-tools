@@ -1,3 +1,36 @@
+# PR #75 載せ直し後の自己検証（2026-10-21・ネネ）
+
+- #57のmerge `6ae628a06349fe9ac6bfec59fb8e17e22aee1e4d` と本番4ファイルのHTTP 200・検収headとの全文一致を確認後、最新main `1cfb564f1bb4b6e8e556d86bdfa40ff7e43ae726` を旧#75へ通常mergeした。mainへの書込み、#75のReady化・マージ・公開はしていない。
+- 競合4ファイルは、mainの転生王女追加項目・公式出典を保持して周期メモだけを残した。#73の本体/HTML/ガイド、A′〜Dの回帰テストと旧preview廃止を保持。
+- 参照クエリは `20261021`（YYYYMMDD）、新BZ予測UIは4.4。仕様書に「夢爽の2026-10-21指示による稼働メモ。解析上の新法則ではない」と共有台帳/関連PRを明記。
+
+| 検証 | 結果 |
+|---|---|
+| tests/*.verify.mjs | 27/27 PASS（next-bz-pctを含む） |
+| tests/*.browser.mjs | 14/14 PASS（総合の転生王女1,024通りも完走） |
+| 周期E2E 1回目 | 7/7 PASS・7.23秒 |
+| 周期E2E 2回目 | 7/7 PASS・6.77秒 |
+| 周期E2E 3回目 | 7/7 PASS・7.59秒 |
+| 転送/ランプ/BZ枠 E2E | 23/23 PASS（うち転送13件） |
+| 通常 node --test | 32 PASS / 2 FAIL・最新main単独も同じ2件 |
+| 全設定サニティ・区間分割、構文、diff --check | PASS |
+
+## 残っている条件
+
+- **全スクリプト合格とは判定しない。** 通常node --testがブラウザ用 `checker-data/mogumogu-test.js` と `checker-data/tonski-test.js` をテストと誤認し、window未定義で落ちる。両ファイルは最新mainとバイト一致し、main単独でも同じ32 PASS/2 FAIL。本件で他担当のテスト版を削除・改変したり、テストを除外して緑にしたりしていない。この既存2件は別担当のテスト版整理後に再実行が必要。
+- シオンが旧headで観測した初回の周期E2E失敗は、この環境では再現せず、最終コードで3回連続合格。原因解消を実証したとは称さない。今回、周期処理やテストに推測で待機時間を追加していない。
+- 最初にfull Chromeを指定したbrowser14本とverify中のparipiはDevToolsActivePortが作られず実行前に失敗。インストール済みChromium headless shellへ切り替え、同じ未変更スクリプトを実行して全27/14本を確認した。最初の環境エラーと最終検証を区別する。
+- Android実機は未確認。自己テストをシオンの独立検収に代えない。新headの最終再検収・通常テスト2件の解消確認が残る。
+- 本番反映は#57公開日の翌日（2026-10-22）以降、かつ新headのシオン最終合格後。このPRはDraftのまま。
+
+個別スクリプトの結果、3連続の全ログ、main/更新版の通常テストログは `mhsunbreak-submarine-cycle-validation-20261021.json`。
+検証した本体・テスト等（docs/reportsを除く追跡ファイル）のSHA-256集合digestは `0fa30e979a469f615866d10e5a4ad31f98cbbcb36dea8f40723a5665117bd8c5`。報告追記後も同じ集合であることを確認してGitHubへ保存する。
+WISHLIST更新案：本番反映後に§2へ周期メモの完了を追記（今回は未公開なので更新しない）。
+
+---
+
+## 以下は旧土台での実装記録（履歴として保持）
+
 # 潜水艇周期メモ：ネネの実装・自己テスト
 
 - 対象：PR #57 head `7aefae422910dacd2c2d87f7558f1f039d8524fb` への追加差分。仕様は docs/specs/mhsunbreak-submarine-cycle-v01.md。
