@@ -58,8 +58,6 @@ const changed=['magireco-checker.html','checker-data/magireco.js','mhsunbreak-ch
   'checker-data/ricorico.js','ricorico-checker.html',
   'checker-data/garei_zero_re.js','garei-zero-re-checker.html',
   'checker-data/mahoako.js','mahoako-checker.html',
-  // tenten-test は検収用のテスト版（§9-108）。PRの削除コミットで消える
-  'checker-data/tenten-test.js','tenten-test-checker.html',
   'enen2-checker.html','kabaneri2-checker.html','karakuri2-checker.html','otome5-checker.html',
   'sao2-checker.html','taktop-checker.html','yajikita-checker.html','yoshimune-checker.html'];
 for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);
