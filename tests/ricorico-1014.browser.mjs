@@ -149,7 +149,9 @@ try{
       const baseRows=await frame('return [...d.querySelectorAll(".cycle-row")].map(e=>Math.round(e.getBoundingClientRect().right));');
       await seed(data,PAGE,width);
       const rows=await frame('return [...d.querySelectorAll(".cycle-row")].filter(e=>!e.querySelector("[data-bump-many^=\\"weakLyco\\"]")).map(e=>Math.round(e.getBoundingClientRect().right));');
-      assert.deepEqual(rows,baseRows,'行の右端が旧版と一致');
+      // 説明を行下へ移した150G行は縮む。既存行の件数と旧版を越えない幅を守る。
+      assert.equal(rows.length,baseRows.length);
+      assert.ok(rows.every((right,i)=>right<=baseRows[i]),'行の右端が旧版を越えない');
       const ov=await overflow();
       const taps=await frame(`return [...d.querySelectorAll('${WEAK_WIN},${WEAK_MISS},[data-bump-many="rates.z400r,rates.z400w"],[data-label="400g ハズレ"]')].map(e=>{const r=e.getBoundingClientRect();return [Math.round(r.width),Math.round(r.height)];});`);
       const sub=await frame(`return [...d.querySelectorAll('.cycle-row .row-sub')].map(e=>{const r=e.getBoundingClientRect();const lh=parseFloat(getComputedStyle(e).lineHeight);return [e.textContent,Math.round(r.height/lh),Math.round(r.right)<=Math.round(e.closest('.crow').getBoundingClientRect().right)];});`);

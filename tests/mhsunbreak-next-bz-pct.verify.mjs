@@ -288,7 +288,7 @@ test('f. 文言・規則を二重に持たない',()=>{
 // ===== この改修が保存・集計・テンプレ・カードを変えていないこと =====
 // 比べる相手は改修前の main（ca87216）。保存データ6通りで、normalizeState のバイト列・集計・
 // テンプレv05（通常／収支帳用）・カードJSON・シナリオカードJSON が一致し、
-// 画面のHTMLは「次のBZ」の1行だけが変わることを見る。
+// 以後の承認済みUI変更（入力経路・BZ別履歴・表示モード）は全文比較せず、候補と集計の描画を比較する。
 const show=ref=>execFileSync('git',['-c','safe.directory='+repo,'show',ref],{encoding:'utf8',maxBuffer:1<<26});
 const before=load(show(BASE+':checker-data/mhsunbreak.js'));
 const sess=(events,start,closed)=>({start:start||{known:true,prior:0},events,closed:!!closed});
@@ -333,15 +333,11 @@ const totals=S=>clone({...Object.fromEntries(['bzT1','bzT2','questN1','questN2']
   czType:S.czType,cycle:S.cycle,bz:S.bz,hits:S.hits,games:S.games,counts:S.counts});
 const cardJson=(cfg,S)=>clone({blocks:cfg.card.blocks(ctx(S)),chart:cfg.card.chart(ctx(S)),
   bottom:cfg.card.bottom(ctx(S)),detail:cfg.card.detail(ctx(S))});
-// 今回明示された集計同期の説明だけを揃える。候補・参考％・表の値は除外しない。
-const ledgerHtml=h=>h
-  .replaceAll('11個目はどのテーブルでも猛焔一閃なので置いていません。','11個目は猛焔一閃（AT）です。押すと成功として記録されます。')
-  .replaceAll('［削除］はこのAT間のメモの行だけを消します。テーブル別の回数は減算モードで直してください（集計の中のボタン）。','［削除］でこの行が消え、テーブル別の回数も一緒に減ります。')
-  .replaceAll('回数の訂正は減算モードに切り替えると、この中にボタンが出ます。','履歴の訂正は経過の［削除］で行います。履歴のない累計分は減算モードに切り替えると、この中に訂正ボタンが出ます。')
-  .replace(/<div class="hint">うち履歴なし：[^<]*<\/div>/g,'');
-const stripNext=html=>html.replace(/<div class="at-next">.*?<\/div>/,'<div class="at-next">[NEXT]</div>');
+// 承認済みの入力/履歴再構成を除き、数値を示す候補行と集計行を旧版と厳密に比較する。
+const scenarioRows=h=>[...h.matchAll(/<div class="at-sc(?: [^"]*)?">(.*?)<\/div>/g)].map(m=>m[1]);
+const totalRows=h=>[...h.matchAll(/<div class="sum-row"[^>]*>([\s\S]*?)<\/div>/g)].map(m=>m[1]);
 
-test('g. 保存データ6通りが改修前（'+BASE+'）と一致（変わるのは画面の「次のBZ」1行だけ）',()=>{
+test('g. 保存データ6通りが改修前（'+BASE+'）と一致し、候補・集計の描画も保持',()=>{
   let changed=0;
   for(const [name,data] of Object.entries(DATA)){
     const now=config.normalizeState(clone(data)),was=before.normalizeState(legacyState(now));
@@ -351,12 +347,12 @@ test('g. 保存データ6通りが改修前（'+BASE+'）と一致（変わる�
       assert.deepEqual(Buffer.from(config[key](ctx(now))),Buffer.from(before[key](ctx(was))),name+': '+key+' が一致しない');
     assert.deepEqual(cardJson(config,now),cardJson(before,was),name+': カードJSONが一致しない');
     assert.deepEqual(clone(config.scenarioModel(now)),clone(before.scenarioModel(was)),name+': シナリオカードJSONが一致しない');
-    // 画面は「次のBZ」の1行以外が1文字も変わらない
+    // UI全体の同一性ではなく、今回以後も保持する候補/集計の数値表示を比較する。
     const a=page(before,was),b=page(config,now);
-    // 参考％の表示モード（fix/mhsunbreak-pct-mode）の見出し・3ボタン・説明・CSS も、福引切替と同じく比較から外す
-    const stripPctMode=h=>h.replace(/<div class="pct-mode-title">.*?<\/div>\s*<div class="pct-mode-row"[^>]*>.*?<\/div>\s*<div class="hint">.*?<\/div>\s*(<div class="hint pct-mode-warning">.*?<\/div>)?/s,'').replace(/\s*\.pct-mode-title\{[^}]*\}\s*\.pct-mode-row\{[^}]*\}\s*\.pct-mode-btn\{[^}]*\}\s*\.pct-mode-btn\.on\{[^}]*\}\s*\.pct-mode-warning\{[^}]*\}/,'');
-    const stripMode=h=>stripPctMode(h).replace(/<button[^>]*data-action="fukuMode"[^>]*>.*?<\/button>\s*<div class="hint">.*?<\/div>/s,'').replace(/\s*\.fuku-toggle\{[^}]*\}\.fuku-toggle\[aria-checked="true"\]\{[^}]*\}/,'');
-    assert.equal(ledgerHtml(stripMode(stripNext(b))).replace(/\s+/g,' '),ledgerHtml(stripMode(stripNext(a))).replace(/\s+/g,' '),name+': 画面が次のBZ・福引切替以外で変わった');
+    assert.ok(scenarioRows(a).length>0,name+': 候補の基準行がある');
+    assert.equal(totalRows(a).length,7,name+': 7テーブルの基準行がある');
+    assert.deepEqual(scenarioRows(b),scenarioRows(a),name+': 候補の表示が変わった');
+    assert.deepEqual(totalRows(b),totalRows(a),name+': 集計の描画が変わった');
     const wasLine=(a.match(LINE)||[])[1]||'',nowLine=(b.match(LINE)||[])[1]||'';
     if(wasLine!==nowLine){changed++;assert.ok(nowLine.includes('%')&&wasLine.includes('レベル '),name+': 変わり方がレベル→％でない');}
   }

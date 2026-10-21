@@ -47,7 +47,19 @@ async function evaluate(expression){
 }
 const frame=code=>evaluate(`(async()=>{const w=document.getElementById('frame').contentWindow;const d=w.document;${code}})()`);
 const state=()=>frame('return JSON.parse(w.localStorage.getItem(w.__key));');
-const click=selector=>frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+// 記録経路は実ボタン→必須ランプ選択。見忘れの明示値「不明」を選ぶ。
+const click=async selector=>{
+ await frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+ if(/data-action="(?:bzFailure|fukuFailure)"/.test(selector)){
+  assert.equal(await frame('return !!d.getElementById("lampDialog");'),true,'失敗時の必須ランプ選択');
+  await frame(`d.querySelector('[data-action="lampChoose"][data-c="unknown"]').click();`);
+ }
+};
+// この既存試験が扱う「記録1件の取消」を、色のUndo→失敗そのものの取消へ写像する。
+async function undoRecord(){
+ await click('#undoBtn');
+ if(await frame('return !!d.getElementById("lampDialog");'))await click('[data-action="cancelFailure"]');
+}
 async function tab(index){await click(`#nav [data-p="${index}"]`);await pause(60);}
 async function load(id,width=390,height=740){
   await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/'+id+'-checker.html')};})`);
@@ -135,11 +147,11 @@ try{
   await clear('mhsunbreak');await load('mhsunbreak',390,530);await tab(2);
   await click('[data-action="bzPick"][data-q="t3"]');await click('[data-action="bzPickPos"][data-pos="3"]');
   assert.equal(await frame('return d.querySelectorAll(".pos-pick").length;'),0);assert.equal(await frame('return d.querySelectorAll(".pos-done").length;'),1);
-  await click('[data-action="bzQuest"][data-r="miss"]');
-  assert.deepEqual((await state()).atLog.sessions[0].events,[{t:'bz',table:'t3',r:'miss',pos:3}]);
+  await click('[data-action="bzFailure"][data-r="miss"]');
+  const events=(await state()).atLog.sessions[0].events;assert.equal(events.length,2);assert.deepEqual({t:events[0].t,table:events[0].table,r:events[0].r,pos:events[0].pos},{t:'bz',table:'t3',r:'miss',pos:3});assert.equal(events[1].c,'unknown');assert.equal(events[1].autoFailureId,events[0].failureInputId);
   assert.equal(await frame('return d.querySelectorAll(".saved-note").length;'),1);assert.equal(await frame('return d.querySelectorAll(".t-btn.on").length;'),0);
-  await click('#undoBtn');assert.deepEqual((await state()).atLog.sessions[0].events,[]);assert.equal((await frame('return w.CheckerConfigs.mhsunbreak.totals(w.__checkerApp.getState());')).bzT1.t3,0);
-  pass('one production undo restores event and aggregate');
+  await undoRecord();assert.deepEqual((await state()).atLog.sessions[0].events,[]);assert.equal((await frame('return w.CheckerConfigs.mhsunbreak.totals(w.__checkerApp.getState());')).bzT1.t3,0);
+  pass('colour Undo and failure cancellation restore event and aggregate');
   assert.deepEqual(await frame('return w.__errors;'),[]);assert.deepEqual(errors,[]);pass('all browser console errors = 0');
   console.log('PASS '+results.filter(r=>r.status==='PASS').length+' browser checks');
 }catch(e){results.push({name:'browser acceptance',status:'FAIL',detail:e.stack,cause:String(e.cause||'')});console.error(e.stack,e.cause||'');process.exitCode=1;}

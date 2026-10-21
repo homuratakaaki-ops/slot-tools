@@ -106,5 +106,5 @@ console.log('PASS legacy and explicit-zero/new-key migrations 3, each idempotent
 // kanokari.js は設定推測タブ追加（docs/specs/kanokari-estimate-v01.md）のため除外。
 // ricorico.js は 10/14 の解析更新のため除外（テンプレは上で新規1行以外を比較済み）。
 // garei_zero_re.js は 10/14 の解析更新のため除外（tests/garei-1014.verify.mjs で検証）。
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','tenten-test.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
 console.log('PASS both common files, every other machine data file, unchanged vs 74f8e03; MH golden validated above');

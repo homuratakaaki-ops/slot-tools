@@ -161,7 +161,7 @@
   const ICON_COLORS={[IC_MOU]:TABLE_COLORS.t7,[IC_QB]:TABLE_COLORS.t1,[IC_QY]:TABLE_COLORS.t2,[IC_RA]:TABLE_COLORS.t3,[IC_SE]:TABLE_COLORS.t4,
                      [IC_OR]:TABLE_COLORS.t5,[IC_TE]:TABLE_COLORS.t6,[IC_AT]:TABLE_COLORS.t7,[IC_G]:ICON_NEUTRAL};
   const iconColor=name=>ICON_COLORS[name]||ICON_NEUTRAL;
-  // 通常時のクエスト・福引失敗後PUSH。ちょんぼりすた様 2026/10/21更新。
+  // 通常時のクエスト・福引失敗後PUSH。エンターライズ公式（voice 2026/10/21）。
   // 旧記録は押した契機が不明なので、timing付きの新規入力だけ推測に使う。
   const LAMPS=[
     ['white','白','#f2eef5'],['blue','青','#83caff'],['yellow','黄','#ffe881'],
@@ -1171,7 +1171,7 @@
       ${entry('fuku','アイルー福引',fukuBody,'福引の成功はこのAT間を閉じます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。')}
       ${entry('submarine','オトモ潜水艇の横切り',submarineBody,'ガルク同乗の有無を記録します。BZ番号・シナリオ参考％への影響なし。')}
       ${entry('','そのほか',otherBody,'押すとそのAT間を閉じて次のAT間を始めます。BZの成功・福引の成功も同じようにAT間を閉じます。')}
-      <div class="hint">失敗を押すとランプ5択が開きます。訂正は履歴のランプを押してください。減算モードでは示唆・福引は記録できません。設定自体の推測には使いません。出典：一撃様・ちょんぼりすた様（PUSHは2026/10/21確認）。</div>
+      <div class="hint">失敗を押すとランプ5択が開きます。訂正は履歴のランプを押してください。減算モードでは示唆・福引は記録できません。設定自体の推測には使いません。出典：一撃様・ちょんぼりすた様。失敗後PUSHはエンターライズ公式（voice 2026/10/21）。</div>
     </section>`;
   }
   function totalsSection(ctx){
