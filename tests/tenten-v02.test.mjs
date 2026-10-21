@@ -82,14 +82,14 @@ test('tenten LV4 aggregates as success, shares CZ denominator and omits rates fo
     assert.deepEqual(clone(c.card.blocks(ctx)[1]),games?['CZ 10回','1/100.0']:['CZ','10回']);
     assert.ok(c.template(ctx).includes('成功期待度▶5/10 50%'));
     assert.equal(c.card.bottom(ctx).columns[0].items[4].text,'CZ成功 5/10 50%');
-    assert.equal(c.card.detail(ctx)[1].items.at(-1).text,'成功期待度 5/10 50%');
+    assert.equal(c.card.detail(ctx)[2].items.at(-1).text,'成功期待度 5/10 50%');
     assert.equal(c.template(ctx).includes('1/100.0'),games>0);
   }
 });
 test('tenten screen percent denominator excludes unknown keys and over has no percent',()=>{
   const S=state();S.screens.kokage=1;S.screens.tilty=2;S.screens.future=100;S.over.o1010=1;
-  const detail=c.card.detail({S});assert.equal(detail[4].percent,true);assert.equal(detail[4].denominator,3);assert.equal(detail[5].percent,undefined);
+  const detail=c.card.detail({S});assert.equal(detail[5].percent,true);assert.equal(detail[5].denominator,3);assert.equal(detail[6].percent,undefined);
   const tpl=c.template({S});assert.ok(tpl.includes('木陰の2人▶1回(33%)'));assert.ok(tpl.includes('ティルティ▶2回(67%)'));assert.ok(tpl.includes('1010枚 OVER(5以上)▶1回\n'));
-  const summary=c.card.bottom({S});assert.deepEqual(clone(summary.columns.map(c=>c.items.length)),[5,5]);assert.equal(summary.startY+4*summary.rowGap,896);
+  const summary=c.card.bottom({S});assert.deepEqual(clone(summary.columns.map(c=>c.items.length)),[6,5]);assert.equal(summary.startY+5*summary.rowGap,932);
   assert.deepEqual(clone(summary.columns[1].items.slice(0,3).map(r=>r.text)),['画面 木×1・テ×2','枚数 1010×1','EP LV 1:0/0・2:0/0・3:0/0・4:0']);
 });
