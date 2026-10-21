@@ -7,6 +7,11 @@
   const TAGS="#転天 #設定判別";
   const COUNTS=[["at","AT初当り","設1:1/320.0⇔設6:1/246.4"]];
   const INITIAL_HINT='ATとCZの初当りです。CZの回数はEP LVの記録から自動で合算します。AT初当りは設定1:1/320.0／2:1/314.7／3:1/294.2／4:1/276.9／5:1/260.0／6:1/246.4。CZは設定1:1/171.5／2:1/168.3／3:1/154.9／4:1/147.0／5:1/140.4／6:1/136.0。';
+  const LOCK=[
+    ['lock1','リールロック1段階目','設1:1/1091.4⇔設6:1/1017.2'],
+    ['lock2','リールロック2段階目','設1:1/1359.1⇔設6:1/939.1']
+  ];
+  const LOCK_HINT='通常時のリールロックを段階ごとに記録します。1段階目と2段階目は別々に数えます。3段階目（ロングフリーズ）は発生率が公表されていないため記録欄を置いていません。発生回数は少ないので、設定を読む材料としては補助です。';
   const BONUS_END=[
     ['kokage','木陰の2人','デフォルト',0,'木'],
     ['tilty','ティルティ','偶数設定期待度UP',0,'テ'],
@@ -36,7 +41,7 @@
     ['over','獲得枚数表示',OVER,'出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。']
   ];
   const zero=arr=>Object.fromEntries(arr.map(c=>[c[0],0]));
-  const MERGE_KEYS=['counts','cz','g150','pt','screens','over'];
+  const MERGE_KEYS=['counts','lock','cz','g150','pt','screens','over'];
   function total(arr,state){return arr.reduce((a,c)=>a+n(state,c[0]),0);}
   function screenTotal(S){return total(BONUS_END,S.screens);}
   function czTotal(S){return n(S.cz,'lv1d')+n(S.cz,'lv2d')+n(S.cz,'lv3d')+n(S.cz,'lv4');}
@@ -85,8 +90,14 @@
     <div class="cgrid">${COUNTS.map(c=>ctx.crow('counts.'+c[0],c[1],c[2]+rateSuffix(S.games,n(S.counts,c[0])),false)).join('')}${autoRow('CZ','設1:1/171.5⇔設6:1/136.0'+rateSuffix(S.games,czTotal(S)),czTotal(S))}</div>
     <div class="hint">${INITIAL_HINT}</div>
   </section>`;}
+  function lockSection(ctx){const S=ctx.S;return `<section class="sec">
+    <div class="sec-h">リールロック</div>
+    <div class="cgrid">${LOCK.map(c=>ctx.crow('lock.'+c[0],c[1],c[2]+rateSuffix(S.games,n(S.lock,c[0])),false)).join('')}</div>
+    <div class="hint">${LOCK_HINT}</div>
+  </section>`;}
+  function lockLabel(c){return c[1].replace('リールロック','');}
 
-  const DEF={games:0,counts:{at:0},cz:{lv1d:0,lv1n:0,lv2d:0,lv2n:0,lv3d:0,lv3n:0,lv4:0},g150:{d:0,n:0},pt:{d:0,n:0},screens:zero(BONUS_END),over:zero(OVER),img:null,iconChoice:null};
+  const DEF={games:0,counts:{at:0},lock:zero(LOCK),cz:{lv1d:0,lv1n:0,lv2d:0,lv2n:0,lv3d:0,lv3n:0,lv4:0},g150:{d:0,n:0},pt:{d:0,n:0},screens:zero(BONUS_END),over:zero(OVER),img:null,iconChoice:null};
   function normalizeState(out){
     out.games=Math.max(0,Number(out.games)||0);
     MERGE_KEYS.forEach(key=>{
@@ -97,7 +108,7 @@
     ['g150','pt'].forEach(k=>{out[k].n=Math.min(out[k].n,out[k].d);});
     return out;
   }
-  function pageInput(ctx){const S=ctx.S;return gameSection(S)+initialSection(ctx)+`
+  function pageInput(ctx){const S=ctx.S;return gameSection(S)+initialSection(ctx)+lockSection(ctx)+`
   <style>
     .cycle-row .ct{flex:1;min-width:0}.cycle-row .ct b,.cycle-row .ct small{display:block}
     .cycle-row .ct b{font-size:16px}.cycle-row .ct small{font-size:13px;color:var(--muted)}
@@ -117,10 +128,11 @@
   function pageShisa(ctx){const S=ctx.S;return GROUPS.map(g=>`<section class="sec"><div class="sec-h">${g[1]}<span class="sub">計${total(g[2],S[g[0]])}回</span></div><div class="cgrid">${g[2].map(c=>ctx.crow(g[0]+'.'+c[0],c[1],c[2],c[3]>0,g[0]==='screens'?v=>ctx.pct(v,screenTotal(S)):undefined)).join('')}</div><div class="hint">${g[3]}</div></section>`).join('');}
   function tplRow(c,value,denom){return `${c[1]}${c[3]>0?'('+rankText(c[3])+')':''}▶${value}回${denom>0?'('+Math.round(100*value/denom)+'%)':''}`;}
   function tplText(ctx){const S=ctx.S,g=S.games;
-    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / AT${n(S.counts,'at')}回 / CZ${czTotal(S)}回\n_______\n\n■初当り\nAT初当り▶${countRate(g,n(S.counts,'at'))}\nCZ▶${countRate(g,czTotal(S))}\n\n■CZ最終レベル\n${LEVELS.map(c=>c[1]+'▶'+ratio(n(S.cz,c[0]+'n'),n(S.cz,c[0]+'d'))).join('\n')}\nEP LV4▶${n(S.cz,'lv4')}回\n成功期待度▶${ratio(czWin(S),czTotal(S))}\n\n■150G以内\nCZ以上当選▶${ratio(n(S.g150,'n'),n(S.g150,'d'))}\n\n■ポイントMAX\n報酬▶${ratio(n(S.pt,'n'),n(S.pt,'d'))}\n${GROUPS.map(g=>'\n■'+g[1]+'\n'+g[2].filter(c=>n(S[g[0]],c[0])>0).map(c=>tplRow(c,n(S[g[0]],c[0]),g[0]==='screens'?screenTotal(S):0)).join('\n')).join('\n')}\n\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
+    return `設定判別メモ｜${TITLE}\n通常 ${g||0}G / AT${n(S.counts,'at')}回 / CZ${czTotal(S)}回\n_______\n\n■初当り\nAT初当り▶${countRate(g,n(S.counts,'at'))}\nCZ▶${countRate(g,czTotal(S))}\n\n■リールロック\n${LOCK.map(c=>lockLabel(c)+'▶'+countRate(g,n(S.lock,c[0]))).join('\n')}\n\n■CZ最終レベル\n${LEVELS.map(c=>c[1]+'▶'+ratio(n(S.cz,c[0]+'n'),n(S.cz,c[0]+'d'))).join('\n')}\nEP LV4▶${n(S.cz,'lv4')}回\n成功期待度▶${ratio(czWin(S),czTotal(S))}\n\n■150G以内\nCZ以上当選▶${ratio(n(S.g150,'n'),n(S.g150,'d'))}\n\n■ポイントMAX\n報酬▶${ratio(n(S.pt,'n'),n(S.pt,'d'))}\n${GROUPS.map(g=>'\n■'+g[1]+'\n'+g[2].filter(c=>n(S[g[0]],c[0])>0).map(c=>tplRow(c,n(S[g[0]],c[0]),g[0]==='screens'?screenTotal(S):0)).join('\n')).join('\n')}\n\nby slot-tools.jp\n解析出典:ちょんぼりすた様`;
   }
   function detailRatio(label,win,denom){return {label,value:win,text:label+' '+ratio(win,denom),show:denom>0,hot:false};}
   function detail(ctx){const S=ctx.S;const initial=initialDetail(S);initial.items.push({label:'CZ',value:czTotal(S),text:'CZ '+countRate(S.games,czTotal(S)),show:czTotal(S)>0,hot:false});return [initial,
+    {title:'リールロック',items:LOCK.map(c=>({label:lockLabel(c),value:n(S.lock,c[0]),text:lockLabel(c)+' '+countRate(S.games,n(S.lock,c[0])),show:n(S.lock,c[0])>0,hot:false}))},
     {title:'CZ最終レベル',items:[...LEVELS.map(c=>detailRatio(c[1],n(S.cz,c[0]+'n'),n(S.cz,c[0]+'d'))),{label:'EP LV4',value:n(S.cz,'lv4'),hot:false},detailRatio('成功期待度',czWin(S),czTotal(S))]},
     {title:'150G以内',items:[detailRatio('CZ以上当選',n(S.g150,'n'),n(S.g150,'d'))]},
     {title:'ポイントMAX',items:[detailRatio('報酬',n(S.pt,'n'),n(S.pt,'d'))]},
@@ -142,7 +154,7 @@
       blocks:ctx=>{const S=ctx.S,v=czTotal(S),r=rate(S.games,v);return [initialBlock(S,COUNTS[0]),r?['CZ '+v+'回',r]:['CZ',v+'回'],['通常ゲーム数',(S.games||0)+'G'],['確定演出','計'+certCount(S)+'回']];},
       chart:ctx=>({title:'示唆分布',x:150,step:160,width:80,items:[2,3,4,5,6].map(r=>({label:r===6?'6':r+'+',value:certTier(ctx.S,r)}))}),
       bottom:ctx=>{const S=ctx.S;return {title:'サマリー',startY:752,rowGap:36,fontSize:23,columns:[
-        {x:70,items:[row(bestCert(S),certCount(S),undefined,'#ffc94d'),row('AT初当り '+countRate(S.games,n(S.counts,'at')),n(S.counts,'at')),row('CZ '+countRate(S.games,czTotal(S)),czTotal(S)),row('通常回転 '+(S.games||0)+'G',S.games),row('CZ成功 '+ratio(czWin(S),czTotal(S)),czTotal(S))]},
+        {x:70,items:[row(bestCert(S),certCount(S),undefined,'#ffc94d'),row('AT初当り '+countRate(S.games,n(S.counts,'at')),n(S.counts,'at')),row('CZ '+countRate(S.games,czTotal(S)),czTotal(S)),row('通常回転 '+(S.games||0)+'G',S.games),row('CZ成功 '+ratio(czWin(S),czTotal(S)),czTotal(S)),row('ロック 1段:'+n(S.lock,'lock1')+'・2段:'+n(S.lock,'lock2'),total(LOCK,S.lock))]},
         {x:560,items:[row(shown('画面',codes(BONUS_END,S.screens)),screenTotal(S)),row(shown('枚数',codes(OVER,S.over)),total(OVER,S.over)),row('EP LV '+LEVELS.map(c=>c[0].slice(-1)+':'+n(S.cz,c[0]+'n')+'/'+n(S.cz,c[0]+'d')).join('・')+'・4:'+n(S.cz,'lv4'),czTotal(S)),row('150G以内 '+ratio(n(S.g150,'n'),n(S.g150,'d')),n(S.g150,'d')),row('ポイントMAX '+ratio(n(S.pt,'n'),n(S.pt,'d')),n(S.pt,'d'))]}
       ]};}
     }
