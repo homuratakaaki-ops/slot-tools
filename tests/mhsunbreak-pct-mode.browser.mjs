@@ -49,7 +49,19 @@ const KEY='mhsunbreak-checker-v1',PREFS=KEY+'-prefs';
 const frame=code=>evaluate(`(async()=>{const w=document.getElementById('frame').contentWindow;const d=w.document;${code}})()`);
 const raw=()=>frame(`return w.localStorage.getItem(${JSON.stringify(KEY)});`);
 const prefs=()=>frame(`return JSON.parse(w.localStorage.getItem(${JSON.stringify(PREFS)})||'{}');`);
-const click=selector=>frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+// 記録経路は実ボタン→必須ランプ選択。見忘れの明示値「不明」を選ぶ。
+const click=async selector=>{
+ await frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+ if(/data-action="(?:bzFailure|fukuFailure)"/.test(selector)){
+  assert.equal(await frame('return !!d.getElementById("lampDialog");'),true,'失敗時の必須ランプ選択');
+  await frame(`d.querySelector('[data-action="lampChoose"][data-c="unknown"]').click();`);
+ }
+};
+// この既存試験が扱う「記録1件の取消」を、色のUndo→失敗そのものの取消へ写像する。
+async function undoRecord(){
+ await click('#undoBtn');
+ if(await frame('return !!d.getElementById("lampDialog");'))await click('[data-action="cancelFailure"]');
+}
 async function tab(index){await click(`#nav [data-p="${index}"]`);await pause(60);}
 async function load(width=390,height=740){
   await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/mhsunbreak-checker.html')};})`);
@@ -135,7 +147,7 @@ try{
     await expectPressed('auto');
     assert.equal('scenarioPctMode' in await prefs(),false);
     // BZ1回目 ③ 失敗を実際に押して記録する（候補9つ・％が出る列）
-    await click('[data-action="bzPick"][data-q="t3"]');await click('[data-action="bzPickPos"][data-pos=""]');await click('[data-action="bzQuest"][data-r="miss"]');
+    await click('[data-action="bzPick"][data-q="t3"]');await click('[data-action="bzPickPos"][data-pos=""]');await click('[data-action="bzFailure"][data-r="miss"]');
     let t=await screenText();
     assert.match(t.sc,/^候補（％は設定1の場合）：A 31%/,'否定なし・自動で％が出ていない');
     assert.match(t.next,/^次のBZ（2回目）：LOW /);
@@ -174,12 +186,12 @@ try{
     await load(width);await tab(2);
     await expectPressed('candidates');
     await click('[data-action="scenarioPctMode"][data-value="p1"]');
-    await click('[data-action="bzPick"][data-q="t2"]');await click('[data-action="bzPickPos"][data-pos=""]');await click('[data-action="bzQuest"][data-r="miss"]');
+    await click('[data-action="bzPick"][data-q="t2"]');await click('[data-action="bzPickPos"][data-pos=""]');await click('[data-action="bzFailure"][data-r="miss"]');
     assert.notEqual(await raw(),before);
-    await click('#undoBtn');await pause(40);
+    await undoRecord();await pause(40);
     assert.equal(await raw(),before,'取消でBZの記録が戻らない');
     await expectPressed('p1');
-    await click('#undoBtn');await pause(40);
+    await undoRecord();await pause(40);
     await expectPressed('p1');
     assert.equal(await raw(),before,'2回目の取消で記録が動いた');
     // シナリオカード：作ったあとにモードを切り替えると、注記と％が追随して描き直される

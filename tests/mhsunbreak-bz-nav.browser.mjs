@@ -47,7 +47,19 @@ async function evaluate(expression){
 }
 const frame=code=>evaluate(`(async()=>{const w=document.getElementById('frame').contentWindow;const d=w.document;${code}})()`);
 const state=()=>frame('return JSON.parse(w.localStorage.getItem(w.__key));');
-const click=selector=>frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+// 記録経路は実ボタン→必須ランプ選択。見忘れの明示値「不明」を選ぶ。
+const click=async selector=>{
+ await frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+ if(/data-action="(?:bzFailure|fukuFailure)"/.test(selector)){
+  assert.equal(await frame('return !!d.getElementById("lampDialog");'),true,'失敗時の必須ランプ選択');
+  await frame(`d.querySelector('[data-action="lampChoose"][data-c="unknown"]').click();`);
+ }
+};
+// この既存試験が扱う「記録1件の取消」を、色のUndo→失敗そのものの取消へ写像する。
+async function undoRecord(){
+ await click('#undoBtn');
+ if(await frame('return !!d.getElementById("lampDialog");'))await click('[data-action="cancelFailure"]');
+}
 async function tab(index){await click(`#nav [data-p="${index}"]`);await pause(60);}
 async function load(id,width=390,height=740){
   await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/'+id+'-checker.html')};})`);
@@ -156,7 +168,7 @@ try{
     await pause(700);   // なめらかスクロールの着地を待つ
     const r=await frame(`const main=d.getElementById('main'),el=d.getElementById('${id}');
       return {gap:Math.round(el.getBoundingClientRect().top-main.getBoundingClientRect().top),text:el.querySelector('.entry-h').textContent};`);
-    assert.equal(r.text,{bz:'BZ（ブレイクゾーン）',lamp:eye:'アイキャッチ（ステージチェンジ）',serif:'チッチェのセリフ',fuku:'アイルー福引'}[k],label+': 飛び先の入口が違う');
+    assert.equal(r.text,{bz:'BZ（ブレイクゾーン）',eye:'アイキャッチ（ステージチェンジ）',serif:'チッチェのセリフ',fuku:'アイルー福引'}[k],label+': 飛び先の入口が違う');
     assert.ok(Math.abs(r.gap)<=24,label+': 入口の先頭に揃っていない（gap='+r.gap+'）');
     await pause(400);
     assert.equal(await frame(`return d.querySelector('#${id} .entry-h').classList.contains('flash');`),false,label+': ハイライトが消えない');
@@ -165,12 +177,12 @@ try{
 
   // ===== 3. ジャンプは取消にも保存にも触れない =====
   await clear('mhsunbreak');await tab(2);
-  await click('[data-action="bzPick"][data-q="t3"]');await click('[data-action="bzQuest"][data-r="miss"]');
+  await click('[data-action="bzPick"][data-q="t3"]');await click('[data-action="bzFailure"][data-r="miss"]');
   const saved=await state();
-  assert.equal(saved.atLog.sessions[0].events.length,1);
+  assert.equal(saved.atLog.sessions[0].events.length,2);
   for(const k of ['bz','eye','serif','fuku','submarine'])await click(`[data-action="bzJump"][data-k="${k}"]`);
   assert.deepEqual(await state(),saved,'ジャンプで保存が変わった');
-  await click('#undoBtn');
+  await undoRecord();
   assert.deepEqual((await state()).atLog.sessions[0].events,[],'取消1回で記録が戻らない（ジャンプが履歴に積まれている）');
   assert.equal((await frame('return w.CheckerConfigs.mhsunbreak.totals(w.__checkerApp.getState());')).bzT1.t3,0);
   pass('jumps touch neither the save nor the undo history');
@@ -204,7 +216,7 @@ try{
 
   // ===== 5. なな様のイラスト（画像カードの選択に連動）=====
   await clear('mhsunbreak');await tab(2);
-  await click('[data-action="bzPick"][data-q="t1"]');await click('[data-action="bzQuest"][data-r="miss"]');
+  await click('[data-action="bzPick"][data-q="t1"]');await click('[data-action="bzFailure"][data-r="miss"]');
   await tab(3);
   const drawCard=async()=>{await frame(`w.__drawn={};`);await click('[data-action="scenarioCard"]');await pause(500);
     return frame(`return {drawn:(w.__drawn&&w.__drawn.scenarioCanvas)||0,texts:(w.__texts.scenarioCanvas||[]).map(t=>t.text)};`);};

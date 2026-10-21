@@ -47,7 +47,18 @@ async function evaluate(expression){
 }
 const frame=code=>evaluate(`(async()=>{const w=document.getElementById('frame').contentWindow;const d=w.document;${code}})()`);
 const state=()=>frame('return JSON.parse(w.localStorage.getItem(w.__key));');
-const click=selector=>frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+// 新しい失敗入力は必ず実ランプ選択を通す。既存試験では明示的に不明を選ぶ。
+const click=async selector=>{
+ await frame(`const el=d.querySelector(${JSON.stringify(selector)});if(!el)throw Error('Missing '+${JSON.stringify(selector)});el.click();`);
+ if(/data-action="(?:bzFailure|fukuFailure)"/.test(selector)){
+  assert.equal(await frame('return !!d.getElementById("lampDialog");'),true);
+  await frame(`d.querySelector('[data-action="lampChoose"][data-c="unknown"]').click();`);
+ }
+};
+async function undoRecord(){
+ await click('#undoBtn');
+ if(await frame('return !!d.getElementById("lampDialog");'))await click('[data-action="cancelFailure"]');
+}
 async function tab(index){await click(`#nav [data-p="${index}"]`);await pause(60);}
 async function load(id,width=390,height=740){
   await evaluate(`new Promise(resolve=>{const f=document.getElementById('frame');f.onload=()=>resolve(true);f.style.width='${width}px';f.style.height='${height}px';f.src=${JSON.stringify(origin+'/'+id+'-checker.html')};})`);
@@ -406,16 +417,17 @@ try{
   // 一番強いアイキャッチは「このAT間」の3つ目のセル＋その下の一文に出る
   const eyeNow=()=>frame(`const b=d.querySelector('.now-cell:nth-child(3) b'),n=d.querySelector('.now-note');return n?b.textContent+'：'+n.textContent:b.textContent;`);
   const emptyAt={start:{known:true,prior:0},events:[],closed:false};
-  const atClick=(t,extra='')=>click(`[data-action="atEvent"][data-t="${t}"]${extra}`);
+  const atClick=(t,extra='')=>click(t==='fuku'&&extra.includes('miss')?'[data-action="fukuFailure"][data-r="miss"]':`[data-action="atEvent"][data-t="${t}"]${extra}`);
   const atQuest=async(table='t1',r='miss',d)=>{
     await click(`[data-action="bzPick"][data-q="${table}"]`);
     if(d&&await frame(`return !!d.querySelector('[data-action="bzGroup"][data-d="${d}"]');`))await click(`[data-action="bzGroup"][data-d="${d}"]`);
-    await click(`[data-action="bzQuest"][data-q="${table}"][data-r="${r}"]`);
+    const failure=r==='miss'&&await frame(`return !!d.querySelector('[data-action="bzFailure"]');`);
+    await click(`[data-action="${failure?'bzFailure':'bzQuest'}"][data-q="${table}"][data-r="${r}"]`);
   };
   const mhTotals=(saved)=>frame('return w.CheckerConfigs.mhsunbreak.totals('+(saved?JSON.stringify(saved):'w.__checkerApp.getState()')+');');
   const calcLine=()=>frame(`const e=d.querySelector('.calc');return e?e.textContent:null;`);
   // 今のAT間の記録は「経過」の横並びカード。読み上げ名はログ1行と同じ文字列
-  const atRows=()=>frame(`return [...d.querySelectorAll('.ev-card')].map(e=>e.getAttribute('aria-label'));`);
+  const atRows=()=>frame(`return [...d.querySelectorAll('[data-action=atOpen]')].sort((a,b)=>Number(a.dataset.index)-Number(b.dataset.index)).map(e=>e.getAttribute('aria-label')).filter(t=>/^(BZ|福引)/.test(t));`);
   await clear('mhsunbreak');await tab(2);
   assert.equal(await frame(`return d.querySelectorAll('[data-action="atStart"]').length;`),8);
   assert.equal(await frame(`return d.querySelector('[data-action="atStart"].on').getAttribute('aria-pressed');`),'true');
@@ -427,16 +439,16 @@ try{
   assert.equal(await frame(`return d.querySelectorAll('[data-action="bzGroup"]').length;`),0);
   assert.equal(await frame(`return d.querySelector('.now-cell:nth-child(2) b').textContent;`),'BZ2回目');
   assert.equal(await frame(`return d.querySelectorAll('[data-action="atStart"]').length;`),0);
-  await click('#undoBtn');assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await mhTotals()).bzT1.t1,0);
-  pass('MH AT log BZ1/H, correct group lock and atomic undo of count plus event');
+  await undoRecord();assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await mhTotals()).bzT1.t1,0);
+  pass('MH AT log BZ1/H, correct group lock and colour Undo plus failure cancellation');
   // 画面だけの操作（選択・開閉）は取消の履歴に積まない
   await atQuest('t1','miss');
   await click('[data-action="bzPick"][data-q="t3"]');
   await click('[data-k=totals]');await click('[data-k=totals]');
   await click('[data-action="atOpen"][data-index="0"]');
-  await click('#undoBtn');
+  await undoRecord();
   assert.deepEqual(atCurrent(await state()),emptyAt);assert.equal((await mhTotals()).bzT1.t1,0);
-  pass('MH 画面だけの操作は取消に積まれない（1回でBZの記録が戻る）');
+  pass('MH 画面だけの操作は取消に積まれない（色Undo→失敗取消で戻る）');
   await atClick('fuku','[data-r="miss"]');await atQuest('t2');
   assert.deepEqual(await atRows(),['福引 失敗','BZ1回目 ② 黄スタート 失敗']);
   assert.deepEqual((await state()).czType,{breakzone:0,airou:0});
@@ -444,11 +456,11 @@ try{
   for(const c of ['jay','bahari','jay'])await atClick('eye',`[data-c="${c}"]`);
   assert.equal(await eyeNow(),'バハリ（緑）：シナリオE以上濃厚');
   const beforeDelete=await state();
-  await click('[data-action="atOpen"][data-index="3"]');await click('[data-action="atDel"][data-index="3"]');
-  assert.equal(atCurrent(await state()).events.length,4);
+  await click('[data-action="atOpen"][data-index="5"]');await click('[data-action="atDel"][data-index="5"]');
+  assert.equal(atCurrent(await state()).events.length,6);
   assert.equal(await eyeNow(),'ジェイ（白）：シナリオB以上濃厚');
   assert.deepEqual((await mhTotals()).bzT1,(await mhTotals(beforeDelete)).bzT1);
-  await click('#undoBtn');assert.deepEqual(await state(),beforeDelete);
+  await undoRecord();assert.deepEqual(await state(),beforeDelete);
   pass('MH AT log strongest eye, row deletion and deletion undo');
   await click('#modeBtn');
   assert.equal(await frame(`return [...d.querySelectorAll('[data-action="atEvent"]')].every(e=>e.disabled);`),true);
@@ -465,12 +477,12 @@ try{
   assert.equal(await frame(`return d.querySelectorAll('.at-past [data-action="atDel"]').length;`),0);
   pass('MH AT log fuku win closes interval; folded past retains hints without delete');
   const beforeReset=await state();await tab(0);await reset();assert.deepEqual((await state()).atLog,{sessions:[emptyAt]});
-  await click('#undoBtn');assert.deepEqual((await state()).atLog,beforeReset.atLog);
+  await undoRecord();assert.deepEqual((await state()).atLog,beforeReset.atLog);
   await load('mhsunbreak');assert.deepEqual((await state()).atLog,beforeReset.atLog);
-  await tab(1);await bump('atEnd.jay');await click('#undoBtn');assert.deepEqual((await state()).atLog,beforeReset.atLog);
+  await tab(1);await bump('atEnd.jay');await undoRecord();assert.deepEqual((await state()).atLog,beforeReset.atLog);
   pass('MH AT log reset/undo, reload persistence and unrelated undo preservation');
   await tab(2);await atQuest('t7','win');assert.deepEqual(atCurrent(await state()),emptyAt);
-  assert.equal((await state()).atLog.sessions.length,3);await click('#undoBtn');assert.deepEqual((await state()).atLog,beforeReset.atLog);
+  assert.equal((await state()).atLog.sessions.length,3);await undoRecord();assert.deepEqual((await state()).atLog,beforeReset.atLog);
   await atClick('otherAt');assert.equal((await state()).atLog.sessions.length,3);assert.deepEqual(atCurrent(await state()),emptyAt);
   pass('MH AT log table7 plus and other AT both start fresh intervals');
   await clear('mhsunbreak');await tab(2);await click('[data-action="atStart"][data-prior="2"]');
@@ -480,8 +492,9 @@ try{
   // 候補が2つ以上のときは一覧で出す（3回目がLOWのシナリオはA・C・D）。
   // 参考％（設定1基準）は選択率の比そのまま（32.0 : 14.1 : 12.5 → 55 : 24 : 21）
   assert.equal(await frame(`return d.querySelector('.at-sc').textContent;`),'候補（％は設定1の場合）：A 55% ／ C 24% ／ D 21%');
-  // 取消3回（記録・テーブルの選択・開始の選択。選択は画面だけの状態なので戻すものは無い）
-  await click('#undoBtn');await click('#undoBtn');await click('#undoBtn');assert.deepEqual(atCurrent(await state()).start,{known:true,prior:0});
+  // 記録を取り消しても開始条件は保持する。次の試験は開始を明示的に選び直す。
+  await undoRecord();assert.deepEqual(atCurrent(await state()).start,{known:true,prior:2});
+  await click('[data-action="atStart"][data-prior="0"]');
   await click('[data-action="atStart"][data-known="false"]');
   // 不明のときは計上先の選択ボタンが出る（自動の行は出ない）
   assert.equal(await frame(`return d.querySelectorAll('[data-action="bzGroup"]').length;`),2);
@@ -555,9 +568,9 @@ try{
   }
   for(const width of [360,390]){
     await clear('mhsunbreak',width);await tab(2);await measure('mhsunbreak-at-start-'+width);
-    // 記録が無いときの「経過」は案内の1本だけ（経過は「現在の状況」の中にある）
+    // 記録前も待機BZを表示し、前提と表示モードの説明を置く
     // 1本目は PR #47 で足した「予測の前提：福引を含む／含まない」の注記（チェックの説明）
-    assert.deepEqual(await frame(`return [...d.querySelector('.now-box').querySelectorAll('.hint')].map(e=>e.textContent.slice(0,9));`),['予測の前提：福引を','まだありません。下']);
+    assert.deepEqual(await frame(`return [...d.querySelector('.now-box').querySelectorAll('.hint')].map(e=>e.textContent.slice(0,9));`),['予測の前提：福引を','自動は、設定1否定']);
     await atQuest();for(const c of ['jay','bahari','jay'])await atClick('eye',`[data-c="${c}"]`);
     await atClick('fuku','[data-r="win"]');await atClick('serif','[data-c="s4"]');
     await measure('mhsunbreak-at-log-'+width);
@@ -574,7 +587,7 @@ try{
     await clear('mhsunbreak',width);await tab(2);
     // 上は「現在の状況」（読む所）、下は「ここから記録」（入力する所）の2本立て
     assert.deepEqual(await frame("return [d.querySelector('.now-h').textContent.trim(),d.querySelector('.rec-h').textContent.trim()];"),['現在の状況','ここから記録']);
-    assert.deepEqual(await frame("return [...d.querySelectorAll('.entry-h')].map(e=>e.textContent.trim());"),['このAT間の開始','BZ（ブレイクゾーン）','BZ終了時PUSH ランプ','アイキャッチ（ステージチェンジ）','チッチェのセリフ','アイルー福引','そのほか']);
+    assert.deepEqual(await frame("return [...d.querySelectorAll('.entry-h')].map(e=>e.textContent.trim());"),['このAT間の開始','BZ（ブレイクゾーン）','アイキャッチ（ステージチェンジ）','チッチェのセリフ','アイルー福引','オトモ潜水艇の横切り','そのほか']);
     assert.deepEqual(await frame("return [...d.querySelectorAll('details.bz-fold>summary')].map(e=>e.firstChild.textContent.trim());"),['集計','コピー設定']);
     assert.equal(await frame('return d.querySelectorAll(".t-btn").length;'),7);
     assert.equal(await frame('return d.querySelectorAll(".sum-row").length;'),7);
@@ -584,13 +597,13 @@ try{
     await measure('mhsunbreak-bz-tables-'+width);
     pass('MH table structure '+width,{rows:21,buttons:26,aggregateRows:7});
   }
-  // 追加記録（結果アイコン pos・サイドランプ lamp・過去への差し込み）の実表示。
+  // 追加記録（結果アイコン pos・失敗後PUSH lamp・過去への差し込み）の実表示。
   // 指示書 docs/specs/mhsunbreak-ext-records-v01.md §4・§8-i。
   const POS_ICONS={t1:'QUEST青',t2:'QUEST黄',t3:'ライゼクス',t4:'セルレギオス',t5:'オロミドロ亜種',t6:'テオ・テスカトル',t7:'AT'};
   for(const width of [360,390,412]){
     await clear('mhsunbreak',width);await tab(2);
-    // ⑥ を失敗で記録すると、そのカードの詳細が自動で開く
-    await atQuest('t6','miss');
+    // ⑥の失敗・ランプを記録し、同じBZの上段から結果アイコンを訂正する
+    await atQuest('t6','miss');await click('[data-action="atOpen"][data-index="0"]');
     const pos=await frame(`const b=[...d.querySelectorAll('.pos-btn')];return {n:b.length,
       minHeight:Math.min(...b.map(e=>e.getBoundingClientRect().height)),
       clipped:b.filter(e=>e.scrollWidth>e.clientWidth+1).map(e=>e.textContent.trim()),
@@ -610,16 +623,18 @@ try{
     await click('[data-action="bzPosOpen"]');
     await click('.pos-btn[data-pos="4"]');   // もう一度押すと未記録に戻る
     assert.equal((await state()).atLog.sessions[0].events[0].pos,undefined);
-    await click('#undoBtn');
+    await undoRecord();
     assert.equal((await state()).atLog.sessions[0].events[0].pos,4);
-    // サイドランプ8色
-    const lamp=await frame(`const b=[...d.querySelectorAll('.lamp-pick .at-btn')];return {n:b.length,
-      minHeight:Math.min(...b.map(e=>e.getBoundingClientRect().height)),names:b.map(e=>e.textContent.trim())};`);
-    assert.deepEqual(lamp.names,['白','青','黄','緑','赤','紫','虹','その他']);
+    // 失敗と連動したランプは同じ履歴枠から5択で訂正できる。
+    await click('[data-action="atOpen"][data-index="1"]');await click('[data-action="lampEdit"]');
+    const lamp=await frame(`const b=[...d.querySelectorAll('.lamp-options button')];return {n:b.length,
+      minHeight:Math.min(...b.map(e=>e.getBoundingClientRect().height)),names:b.map(e=>e.querySelector('b').textContent.trim())};`);
+    assert.deepEqual(lamp.names,['青','黄','緑','赤','不明']);
     assert.ok(lamp.minHeight>=48,width+'px lamp button below 48px: '+lamp.minHeight);
-    await click('[data-action="atEvent"][data-t="lamp"][data-c="red"]');
-    assert.deepEqual((await state()).atLog.sessions[0].events[1],{t:'lamp',c:'red'});
-    assert.ok((await frame(`return [...d.querySelectorAll('.ev-card')].map(e=>e.getAttribute('aria-label'));`)).includes('ランプ 赤'));
+    await click('[data-action="lampChoose"][data-c="red"]');
+    assert.equal((await state()).atLog.sessions[0].events[1].c,'red');
+    assert.equal((await state()).atLog.sessions[0].events[1].autoFailureId,(await state()).atLog.sessions[0].events[0].failureInputId);
+    assert.ok((await frame(`return [...d.querySelectorAll('[data-action=atOpen]')].map(e=>e.getAttribute('aria-label'));`)).some(t=>t.startsWith('失敗後PUSH 赤')));
     // 差し込み：1件目の前にセリフを入れる。集計は動かない
     const totalsBefore=JSON.stringify((await mhTotals()).bzT1);
     await click('.ev-card[data-index="0"]');
@@ -629,7 +644,7 @@ try{
     await click('[data-action="atEvent"][data-t="serif"][data-c="s3"]');
     assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['serif','bz','lamp']);
     assert.equal(JSON.stringify((await mhTotals()).bzT1),totalsBefore,'差し込みで集計が動いた');
-    await click('#undoBtn');
+    await undoRecord();
     assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['bz','lamp']);
     await measure('mhsunbreak-ext-records-'+width);
     pass('MH 追加記録 '+width,{posButtons:pos.n,posMinHeight:pos.minHeight,lampMinHeight:lamp.minHeight});
@@ -641,7 +656,7 @@ try{
   assert.ok(await frame(`return d.querySelector('.now-sub').textContent.includes('直前のAT間・AT当選で終了');`));
   assert.equal(await frame(`return d.querySelectorAll('[data-action="atDel"],[data-action="atInsert"]').length;`),0);
   await click('.pos-btn[data-pos="7"]');
-  assert.equal((await state()).atLog.sessions[0].events[1].pos,7);
+  assert.equal((await state()).atLog.sessions[0].events[2].pos,7);
   await click('[data-action="atEvent"][data-t="eye"][data-c="jay"]');
   assert.ok(!await frame(`return d.querySelector('.now-sub').textContent.includes('直前のAT間');`));
   pass('MH AT当選直後の直前AT間と結果アイコン');
@@ -653,9 +668,9 @@ try{
   assert.ok(!await frame(`return d.querySelector('#main').textContent.includes('シナリオH濃厚');`),'①→⑤でH表示が残っている');
   assert.ok(await frame(`return d.querySelector('#main').textContent.includes('該当なし：開始の選び方・記録を確認してください');`),'該当なしの案内が出ない');
   await tab(3);assert.ok(!(await copy()).includes('ｼﾅﾘｵH濃厚'),'テンプレにH表示が残っている');await tab(2);
-  await click('#undoBtn');   // ⑤を取り消すとHに戻る
+  await undoRecord();   // ⑤を取り消すとHに戻る
   assert.ok(await frame(`return d.querySelector('#main').textContent.includes('シナリオH濃厚');`),'取消でH表示が戻らない');
-  await click('#undoBtn');   // ①も取り消すとどちらも消える
+  await click('[data-action="atOpen"][data-index="0"]');await click('[data-action="atDel"][data-index="0"]'); // ①と連動ランプを削除するとどちらも消える
   assert.ok(!await frame(`return /シナリオH濃厚|該当なし/.test(d.querySelector('#main').textContent);`),'記録が無いのに表示が残っている');
   pass('MH S01 H表示は候補がちょうど{H}のときだけ');
   // 台帳 S02: 差し込み中はAT間を閉じる出来事を受け付けない
@@ -667,7 +682,8 @@ try{
   await click('[data-action="atInsert"][data-index="0"]');
   for(const [table,r] of [['t3','win'],['t7','win']]){
     await click(`[data-action="bzPick"][data-q="${table}"]`);
-    await click(`[data-action="bzQuest"][data-q="${table}"][data-r="${r}"]`);
+    const failure=r==='miss'&&await frame(`return !!d.querySelector('[data-action="bzFailure"]');`);
+    await click(`[data-action="${failure?'bzFailure':'bzQuest'}"][data-q="${table}"][data-r="${r}"]`);
     assert.equal(JSON.stringify(await state()),beforeS02,table+' の成功が差し込まれた');
   }
   for(const selector of ['[data-action="atEvent"][data-t="fuku"][data-r="win"]','[data-action="atEvent"][data-t="otherAt"]']){
@@ -678,7 +694,7 @@ try{
   assert.equal((await state()).atLog.sessions.length,1,'AT間が増えた');
   // 失敗・示唆は従来どおり差し込める
   await click('[data-action="atEvent"][data-t="serif"][data-c="s3"]');
-  assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['serif','bz','eye']);
+  assert.deepEqual((await state()).atLog.sessions[0].events.map(e=>e.t),['serif','bz','lamp','eye']);
   assert.ok(!await frame(`return !!d.querySelector('.insert-warn');`),'断りが残っている');
   await measure('mhsunbreak-insert-reject-390');
   pass('MH S02 差し込み中はAT当選系を受け付けない');
@@ -847,11 +863,12 @@ try{
   await tab(0);await games(1000);await bump('counts.at');await bump('cz.lv4');
   for(const [den,num] of pairRows)await click(`[data-bump-many="${den},${num}"]`);
   await tab(2);const tc=await canvas('cardCanvas');const ts=tc.text.filter(t=>[70,560].includes(t.x)&&t.y>=752&&t.y<=936);
-  assert.equal(ts.length,10);assert.deepEqual(ts.filter(t=>t.x===70).map(t=>t.y),[752,788,824,860,896]);assert.deepEqual(ts.filter(t=>t.x===560).map(t=>t.y),[752,788,824,860,896]);
+  // 最新mainのPR #73でロック行が左列末尾（Y932）へ追加済み。
+  assert.equal(ts.length,11);assert.deepEqual(ts.filter(t=>t.x===70).map(t=>t.y),[752,788,824,860,896,932]);assert.deepEqual(ts.filter(t=>t.x===560).map(t=>t.y),[752,788,824,860,896]);
   assert.ok(Math.max(...ts.map(t=>t.y))<=936);assert.ok(ts.every(t=>Number(t.font.match(/([\d.]+)px/)[1])>=16));assert.ok(ts.every(t=>t.right<=(t.x===70?560:1010)));assert.ok(tc.bright>1000);
   saveCanvas('tenten-all-card',tc);await click('#detailBtn');const td=await canvas('detailCanvas');saveCanvas('tenten-all-detail',td);assert.ok(td.bright>1000);
   for(const name of ['木陰の2人','ティルティ','2人の後ろ姿','寝転ぶ2人',...certRows.map(r=>r[1])])assert.ok(td.text.some(t=>t.text.startsWith(name+' ×')),name);
-  pass('tenten all-input summary 5+5 / Y896 / min16px / no overflow / full detail / pixels',{rows:ts,ellipsis:ts.filter(t=>t.text.includes('…')).length});
+  pass('tenten all-input summary 6+5 / Y932 / min16px / no overflow / full detail / pixels',{rows:ts,ellipsis:ts.filter(t=>t.text.includes('…')).length});
   for(const width of [360,390]){await load('tenten',width,530);for(let p=0;p<3;p++){await tab(p);if(p===0){await frame(`const sec=d.querySelector('[data-bump-many="cz.lv1d,cz.lv1n"]').closest('section');sec.querySelector('details summary').click();if(!sec.querySelector('details').open)throw new Error('CZ hint did not expand');`);}await measure('tenten-populated-'+width+'-tab'+p);}}
   // Public guides: follow real links in both directions at actual viewport widths.
   for(const width of [360,390])for(const id of ['mhsunbreak','tenten']){
