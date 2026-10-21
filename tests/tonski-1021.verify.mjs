@@ -18,7 +18,7 @@ check('row position, labels, reference CSS, hint and attributes',()=>{
   assert.ok(h.includes('設1:30.1%</span><wbr><span class="sub-chunk">⇔設6:44.9%'));
   assert.ok(h.includes('data-bump-many="rates.megami333r,rates.megami333w"'));
   assert.ok(h.includes('data-bump="rates.megami333r"'));
-  assert.ok(h.includes('規定333Gに到達したとき、女神の舞へ移行したら当選、しなければハズレで記録します。777G到達時は全設定100%なので記録しません。'));
+  assert.ok(h.includes('規定333Gに到達したとき、女神の舞へ移行したら当選、しなければハズレで記録します。777G到達時は全設定100%なので記録しません。CZ前兆と重なって女神の舞へ移行したか見分けられないときは、当選・ハズレのどちらも押さないでください（ハズレに数えない）。'));
   const rico=read('checker-data/ricorico.js');
   // 名前を1段目に全幅で出す3行だけは ricorico と違う（360pxで名前が1文字ずつ折り返すため。夢爽 10/21 決定）。
   const nameTop=['      .cycle-row{flex-wrap:wrap;row-gap:4px}','      .cycle-row .ct{flex:0 0 100%;min-width:0}','      .cycle-actions{display:flex;gap:6px;margin-left:auto;flex:none}'];
