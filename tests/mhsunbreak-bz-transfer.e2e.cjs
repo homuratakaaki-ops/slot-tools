@@ -64,6 +64,7 @@ test('real links, stage-only, fuku selection, saved checker, reload, rollback',a
   await table(page);
   await page.locator('.signal-tab[data-tab="submarine"]').click();
   await page.locator('button[data-signal="submarine"][data-code="with_garuku"]').click();
+  await page.locator('#replayCycleDialog [data-cycle="3"]').click();
   await page.locator('#addFuku').click();
   const stage=await page.evaluate(({s,c})=>({
    draft:JSON.parse(localStorage.getItem(s)),checker:localStorage.getItem(c)
@@ -81,7 +82,7 @@ test('real links, stage-only, fuku selection, saved checker, reload, rollback',a
   assert.equal(changed.hits.join(','),'135,213');
   assert.deepEqual(changed.atLog.sessions[0].events,[
    {t:'bz',table:'t3',r:'miss'},
-   {t:'submarine',c:'with_garuku'},
+   {t:'submarine',c:'with_garuku',replayCycle:3},
    {t:'fuku',r:'miss'}
   ]);
   assert.equal(await page.evaluate(k=>localStorage.getItem(k),backupKey)!==null,true);

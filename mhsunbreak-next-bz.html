@@ -169,11 +169,18 @@
 .fukutsu-unknown a{color:var(--cyan)}
 
 .transfer-section{border:1px solid #555073;background:#241f35;border-radius:11px;padding:13px;margin:14px 0}.transfer-action{width:100%;min-height:48px;font:inherit;font-size:14px;font-weight:800;color:#171420;background:#bde8f6;border:0;border-radius:8px;cursor:pointer}.transfer-help{font-size:12px;color:#beb2ce;margin:9px 0 0;line-height:1.5}
+
+.replay-cycle-dialog{width:min(440px,calc(100% - 24px));max-height:90dvh;overflow:auto;border:2px solid #8ddbf5;border-radius:14px;padding:16px;background:#171220;color:#f2eef5}
+.replay-cycle-dialog::backdrop{background:rgba(0,0,0,.78)}
+.history li[data-type="submarine"] .history-main{display:block;flex:1;white-space:normal}.history-cycle{display:block;font-size:12px;line-height:1.5;white-space:normal;color:var(--muted)}.history li [data-cycle-edit]{min-height:48px}
+.replay-cycle-dialog h2{font-size:19px;margin:0 0 10px}.replay-cycle-dialog p{font-size:13px;line-height:1.6;margin:8px 0 12px}
+.replay-cycle-options{display:grid;grid-template-columns:1fr 1fr;gap:8px}.replay-cycle-options button{min-height:56px;padding:10px 8px;border:1px solid #53465f;border-radius:9px;background:#261e33;color:inherit;font:inherit;font-size:16px;font-weight:700}
+.replay-cycle-options button[aria-pressed="true"]{border-color:#8ddbf5;color:#8ddbf5}#replayCycleClose{width:100%;min-height:48px;margin-top:12px}
 </style>
 </head>
 <body>
 <main>
-<div class="eyebrow">スロット稼働ノート / 無料ツール · UI 4.2</div>
+<div class="eyebrow">スロット稼働ノート / 無料ツール · UI 4.3</div>
 <h1>次回BZレベル予測</h1>
 <nav class="quick-guide" aria-label="ガイドへのリンク"><a href="mhsunbreak-next-bz-guide.html">📖 使い方・計算条件を確認</a></nav>
 <p class="sub">BZの開始テーブルから、次回のレベルと参考AT当選期待度を予測します。</p>
@@ -236,8 +243,8 @@
   <div id="signal-submarine" class="signal-panel" data-panel="submarine" role="tabpanel" hidden>
    <div class="signal-panel-heading">オトモ潜水艇の横切り</div>
    <div class="signal-options" role="group" aria-label="ガルク同乗の有無">
-    <button type="button" data-signal="submarine" data-code="with_garuku">ガルク同乗あり<span class="subtle">発生メモのみ</span></button>
-    <button type="button" data-signal="submarine" data-code="without_garuku">ガルク同乗なし<span class="subtle">発生メモのみ</span></button>
+    <button type="button" data-signal="submarine" data-code="with_garuku">ガルク同乗あり<span class="subtle">周期も記録</span></button>
+    <button type="button" data-signal="submarine" data-code="without_garuku">ガルク同乗なし<span class="subtle">周期も記録</span></button>
    </div>
   </div>
  </div>
@@ -277,6 +284,12 @@
   <p id="transferStatus" class="err" role="status"></p>
 </section>
 <details class="data-panel"><summary>関連ツール・無料実戦記事</summary><p class="source"><a href="mhsunbreak-checker.html">サンブレイク設定判別カウンター ↗</a>（上のボタンから記録を引き継げます）</p><p class="source"><a href="mhsunbreak-at-runout.html">AT6連続駆け抜け後の実戦考察（無料記事） ↗</a>（実戦で観測したことと、未確認の優遇仮説を区別して紹介）</p></details>
+<dialog id="replayCycleDialog" class="replay-cycle-dialog" aria-labelledby="replayCycleTitle">
+ <h2 id="replayCycleTitle">潜水艇は何周期目に出た？</h2>
+ <p id="replayCycleNote"></p>
+ <div class="replay-cycle-options"><button type="button" data-cycle="1">1周期目</button><button type="button" data-cycle="2">2周期目</button><button type="button" data-cycle="3">3周期目</button><button type="button" data-cycle="4">4周期目</button><button type="button" data-cycle="5">5周期目</button><button type="button" data-cycle="unknown">不明</button></div>
+ <button type="button" id="replayCycleClose" class="tiny-btn">変更せず戻る</button>
+</dialog>
 </main>
 <script>
 (function(){
@@ -317,6 +330,8 @@
  };
  let includeFuku=true;
  let fukutsu="none";
+ let replayCycleEditIndex=null;
+ const replayCycleText=e=>Number.isInteger(e.replayCycle)&&e.replayCycle>=1&&e.replayCycle<=5?"規定リプレイ "+e.replayCycle+"周期目":e.replayCycle==="unknown"?"規定リプレイ 周期不明":"規定リプレイ 周期未記録";
  let editingIndex=null; // null: closed; otherwise index of the row being compared
  const undoStack=[];
  let activeSignal=null; // Only one of the four cue sections is visible at a time
@@ -455,6 +470,16 @@
   });
   document.querySelectorAll('.signal-panel[data-panel]').forEach(panel=>{panel.hidden=panel.dataset.panel!==activeSignal});
  }
+ function renderReplayCycle(){
+  const dialog=$('replayCycleDialog'),pending=history.findIndex(e=>e.type==='submarine'&&e.pendingReplayCycle===true);
+  const index=pending>=0?pending:replayCycleEditIndex,e=history[index];
+  if(!e||e.type!=='submarine'){replayCycleEditIndex=null;if(dialog.open)dialog.close();return;}
+  dialog.dataset.index=String(index);
+  $('replayCycleNote').textContent=(SIGNAL_LABELS.submarine[e.code]||'潜水艇')+'。規定リプレイの周期を選んでください。分からない場合は「不明」で記録できます。';
+  $('replayCycleClose').textContent=pending>=0?'この潜水艇の記録を取り消す':'変更せず戻る';
+  dialog.querySelectorAll('[data-cycle]').forEach(b=>b.setAttribute('aria-pressed',String(!e.pendingReplayCycle&&String(e.replayCycle)===b.dataset.cycle)));
+  if(!dialog.open)dialog.showModal();
+ }
  function render(){
   const steps=history.reduce((n,e)=>n+((e.type==='bz'||(e.type==='fuku'&&includeFuku))?1:0),0);
   $('nextLabel').textContent='次は'+(steps+1)+'回目相当';
@@ -466,6 +491,7 @@
   const hasPriorBZ=history.some(e=>e.type==='bz');
   if(!hasPriorBZ)fukutsu='none';
   saveDraft();
+  renderReplayCycle();
   document.querySelectorAll('input[name="fukutsu"]').forEach(r=>{r.disabled=!hasPriorBZ&&r.value!=='none';r.checked=r.value===fukutsu});
   $('fukutsuFirstNote').hidden=hasPriorBZ;
   let counted=0;
@@ -475,9 +501,10 @@
    const fuku=e.type==='fuku',signal=['serif','eye','lamp','submarine'].includes(e.type);
    const name=e.type==='lamp'&&e.timing===FAILURE_TIMING&&FAILURE_LABELS[e.code]?'失敗後PUSH：'+SIGNAL_LABELS.lamp[e.code].split('：')[1]+'（'+FAILURE_LABELS[e.code]+'）':signal?(SIGNAL_LABELS[e.type]||{})[e.code]||'メモ':fuku?'アイルー福引':`テーブル${e.table}`;
    const num=signal?'メモ':counts?`${counted}回目`:'対象外';
-   const details=''; // 対象外のバッジで計上しないことを表示する
-   return `<li data-type="${e.type}" ${signal?`data-code="${e.code}"`:fuku?'':`data-table="${e.table}"`}><span class="history-main"><span class="history-no">${num}</span><span class="history-table">${name}</span>${details}</span><span class="history-actions">${signal?'':`<button class="tiny-btn" data-edit="${i}" type="button" aria-label="履歴${i+1}件目を変更">変更</button>`}<button class="tiny-btn" data-remove="${i}" type="button" aria-label="履歴${i+1}件目を削除">削除</button></span></li>`;
+   const details=e.type==='submarine'?'<span class="history-cycle">'+replayCycleText(e)+'</span>':''; // 周期は発生メモとしてだけ表示する
+   return `<li data-type="${e.type}" ${signal?`data-code="${e.code}"`:fuku?'':`data-table="${e.table}"`}><span class="history-main"><span class="history-no">${num}</span><span class="history-table">${name}</span>${details}</span><span class="history-actions">${e.type==='submarine'?`<button class="tiny-btn" data-cycle-edit="${i}" type="button" aria-label="履歴${i+1}件目の周期を訂正">周期を訂正</button>`:''}${signal?'':`<button class="tiny-btn" data-edit="${i}" type="button" aria-label="履歴${i+1}件目を変更">変更</button>`}<button class="tiny-btn" data-remove="${i}" type="button" aria-label="履歴${i+1}件目を削除">削除</button></span></li>`;
   }).join('')||'<li class="empty">まだ履歴がありません。設定1の初回平均を表示中。</li>';
+  $('history').querySelectorAll('[data-cycle-edit]').forEach(b=>b.addEventListener('click',()=>{replayCycleEditIndex=Number(b.dataset.cycleEdit);renderReplayCycle()}));
   $('history').querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{const i=Number(b.dataset.edit);editingIndex=editingIndex===i?null:i;render()}));
   $('history').querySelectorAll('[data-remove]').forEach(b=>b.addEventListener('click',()=>{saveUndo();history.splice(Number(b.dataset.remove),1);if(!history.length)sessionId=newSessionId();editingIndex=null;render()}));
   const panel=$('editPanel');
@@ -523,15 +550,29 @@
  document.querySelectorAll('.signal-tab[data-tab]').forEach(b=>b.addEventListener('click',()=>{activeSignal=activeSignal===b.dataset.tab?null:b.dataset.tab;updateSignalTabs()}));
  document.querySelectorAll('[data-signal]').forEach(b=>b.addEventListener('click',()=>{
   if(history.length>=60)return;
-  saveUndo();history.push({type:b.dataset.signal,code:b.dataset.code,...(b.dataset.signal==='lamp'?{timing:FAILURE_TIMING}:{})});editingIndex=null;activeSignal=null;updateSignalTabs();render();
+  saveUndo();history.push({type:b.dataset.signal,code:b.dataset.code,...(b.dataset.signal==='lamp'?{timing:FAILURE_TIMING}:b.dataset.signal==='submarine'?{replayCycle:'unknown',pendingReplayCycle:true}:{})});editingIndex=null;activeSignal=null;updateSignalTabs();render();
  }));
  $('reset').addEventListener('click',()=>{if(history.length){saveUndo();history.length=0;sessionId=newSessionId();editingIndex=null;render()}});
+ $('replayCycleDialog').addEventListener('cancel',e=>e.preventDefault());
+ $('replayCycleDialog').querySelectorAll('[data-cycle]').forEach(b=>b.addEventListener('click',()=>{
+  const e=history[Number($('replayCycleDialog').dataset.index)];if(e?.type!=='submarine')return;
+  const value=b.dataset.cycle==='unknown'?'unknown':Number(b.dataset.cycle);
+  if(value!=='unknown'&&(!Number.isInteger(value)||value<1||value>5))return;
+  if(e.pendingReplayCycle||e.replayCycle!==value){saveUndo();e.replayCycle=value;delete e.pendingReplayCycle;}
+  replayCycleEditIndex=null;render();
+ }));
+ $('replayCycleClose').addEventListener('click',()=>{
+  const index=Number($('replayCycleDialog').dataset.index),e=history[index];
+  if(e?.type==='submarine'&&e.pendingReplayCycle===true){saveUndo();history.splice(index,1);if(!history.length)sessionId=newSessionId();}
+  replayCycleEditIndex=null;render();
+ });
  $('restore').addEventListener('click',restorePrevious);
  updateSignalTabs();
 
  // Transfer is staged separately; this page does not write to the setting-checker storage.
  $('startTransfer').addEventListener('click',()=>{
   const msg=$('transferStatus');msg.textContent='';
+  if(history.some(e=>e.type==='submarine'&&e.pendingReplayCycle===true)){msg.textContent='潜水艇の周期を選んでから引き継いでください。';return}
   if(!history.length){msg.textContent='履歴を1件以上入力してから引き継いでください。';return}
   const payload={version:1,source:'mhsunbreak-next-bz',id:String(Date.now())+'-'+String(Math.random()).slice(2),
    createdAt:Date.now(),includeFuku,sessionId,events:history.map(e=>({...e}))};

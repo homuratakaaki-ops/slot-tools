@@ -175,6 +175,7 @@
   const LAMP_LEVELS={green:['HI','SP'],red:['SP']};
   const failureLamp=e=>e&&e.timing===FAILURE_TIMING&&Object.prototype.hasOwnProperty.call(FAILURE_LAMPS,e.c);
   const SUBMARINE_NAMES={cross:'同乗未確認（旧記録）',with_garuku:'ガルク同乗あり',without_garuku:'ガルク同乗なし'};
+  const replayCycleText=e=>Number.isInteger(e.replayCycle)&&e.replayCycle>=1&&e.replayCycle<=5?'規定リプレイ '+e.replayCycle+'周期目':e.replayCycle==='unknown'?'規定リプレイ 周期不明':'規定リプレイ 周期未記録';
   // BZ実回数は福引を含めない。シナリオの進行回数だけ利用者が仮説を切り替える。
   // 初期値は従来どおり除外。設定は記録と別の prefs に保存する。
   let fukuMode=null;
@@ -328,7 +329,7 @@
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `アイキャッチ ${c[1]}（${c[2]}）${c[3]}`;}
     if(e.t==='serif')return 'セリフ '+SERIF.find(c=>c[0]===e.c)[1];
     if(e.t==='lamp')return failureLamp(e)?'失敗後PUSH '+LAMP_NAMES[e.c]+'（'+FAILURE_LAMPS[e.c]+'）':'ランプ '+LAMP_NAMES[e.c];
-    if(e.t==='submarine')return '潜水艇 '+SUBMARINE_NAMES[e.c];
+    if(e.t==='submarine')return '潜水艇 '+SUBMARINE_NAMES[e.c]+'・'+replayCycleText(e);
     if(e.t==='otherAt')return 'BZ以外でAT当選';
     return '記録（この版では表示できません）';   // 防御。shownEvent を通らないので通常は呼ばれない
   }
@@ -336,13 +337,14 @@
   function posIcon(e){return e&&e.t==='bz'&&e.pos?(e.pos===11?IC_MOU:(TABLE_ICONS[e.table]||[])[e.pos-1]||''):'';}
   function atEventAction(ctx,ds){
     savedNote=null;
-    if(ctx.mode<0||ds.t==='bz')return false;
+    if(ctx.mode<0||ds.t==='bz'||pendingReplayCycle(ctx.S)||pendingLamp(ctx.S))return false;
     // dataset をそのまま渡さない。normalizeAtEvent は知らない項目を残すので、
     // action・index などの画面都合の属性が保存データに混ざってしまう。
     const src={t:ds.t};
     if(ds.c!==undefined)src.c=ds.c;
     if(ds.r!==undefined)src.r=ds.r;
     if(ds.t==='lamp'&&ds.timing===FAILURE_TIMING)src.timing=FAILURE_TIMING;
+    if(ds.t==='submarine'){src.replayCycle='unknown';src.pendingReplayCycle=true;}
     const event=normalizeAtEvent(src);
     if(!event||!shownEvent(event))return false;
     const session=currentAt(ctx.S),at=insertTarget(ctx.S);
@@ -958,6 +960,7 @@
     const detail=e?`<div class="cgrid"><div class="crow at-row"><div class="lbl"><div class="nm">${atEventText(history,openEvent)}</div></div>${view.closed||e.t==='lamp'&&e.autoFailureId?'':`<button type="button" class="cycle-btn" data-action="atDel" data-index="${openEvent}">${e.failureInputId?'失敗とランプを削除':'削除'}</button>`}</div></div>
       ${e.t==='bz'?posPicker(e,openEvent,minus):''}
       ${e.t==='lamp'?`<button type="button" class="act plain" data-action="lampEdit" data-session="${view.index}" data-index="${openEvent}"${minus?' disabled':''}>ランプの色を訂正</button>`:''}
+      ${e.t==='submarine'?`<button type="button" class="act plain" data-action="replayCycleEdit" data-session="${view.index}" data-index="${openEvent}"${minus?' disabled':''}>規定リプレイの周期を訂正</button>`:''}
       ${insertShifted?'<div class="hint">後ろのBZの番号が変わり、集計の計上先も自動で移ります。</div>':''}
       ${view.closed?'':`<div class="at-pick one"><button type="button" class="at-btn" data-action="atInsert" data-index="${openEvent}"${insertBefore===openEvent?' disabled aria-disabled="true"':''}>この記録の前に追加</button></div>`}`:'';
     const start=!session.start.known?'不明':session.start.prior?'途中から '+session.start.prior+'回':'リセット後・AT後から';
@@ -1031,7 +1034,7 @@
     return null;
   }
   function failureWithLamp(ctx,ds,fuku=false){
-    if(ctx.mode<0||pendingLamp(ctx.S))return false;
+    if(ctx.mode<0||pendingLamp(ctx.S)||pendingReplayCycle(ctx.S))return false;
     const session=currentAt(ctx.S),at=insertTarget(ctx.S),index=at===null?session.events.length:at;
     if(session.events.length>AT_EVENT_MAX-2)return false;
     const msg=fuku?atEventAction(ctx,{t:'fuku',r:'miss'}):bzQuestAction(ctx,Object.assign({},ds,{r:'miss'}));
@@ -1074,6 +1077,47 @@
     </section></div>`;
   }
   // 2. BZ上段（古い順に左→右）。下段の示唆はroundHistoryが対象回へ置く。
+  let editingReplayCycle=null;
+  function pendingReplayCycle(S){
+    for(let session=0;session<S.atLog.sessions.length;session++){
+      const index=S.atLog.sessions[session].events.findIndex(e=>e.t==='submarine'&&shownEvent(e)&&e.pendingReplayCycle===true);
+      if(index>=0)return {session,index};
+    }
+    return null;
+  }
+  function replayCycleDialog(ctx){
+    if(pendingLamp(ctx.S)||editingLamp)return '';
+    const pending=pendingReplayCycle(ctx.S),target=pending||editingReplayCycle;
+    if(!target)return '';
+    const e=ctx.S.atLog.sessions[target.session]?.events[target.index];
+    if(!e||e.t!=='submarine'||!shownEvent(e)){editingReplayCycle=null;return '';}
+    if(typeof setTimeout==='function')setTimeout(()=>{
+      const box=typeof document!=='undefined'&&document.getElementById('replayCycleDialog');
+      if(!box)return;
+      const buttons=Array.from(box.querySelectorAll('button'));
+      buttons[0]?.focus({preventScroll:true});
+      box.onkeydown=ev=>{
+        if(ev.key==='Escape')ev.preventDefault();
+        if(ev.key!=='Tab')return;
+        if(ev.shiftKey&&document.activeElement===buttons[0]){ev.preventDefault();buttons.at(-1).focus();}
+        else if(!ev.shiftKey&&document.activeElement===buttons.at(-1)){ev.preventDefault();buttons[0].focus();}
+      };
+    },0);
+    return `<style>
+      .replay-cycle-overlay{position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:12px;overscroll-behavior:contain}
+      .replay-cycle-dialog{width:min(440px,100%);max-height:90dvh;overflow:auto;background:var(--panel,#171220);color:var(--txt,#f2eef5);border:2px solid var(--cyan,#6fd8ff);border-radius:14px;padding:16px;font-family:var(--body,sans-serif)}
+      .replay-cycle-dialog h2{font-size:19px;margin:0 0 10px}.replay-cycle-dialog p{font-size:13px;line-height:1.6;margin:8px 0 12px}
+      .replay-cycle-options{display:grid;grid-template-columns:1fr 1fr;gap:8px}.replay-cycle-options button{min-height:56px;padding:10px 8px;border:1px solid var(--line,#53465f);border-radius:9px;background:var(--panel2,#261e33);color:var(--txt,#f2eef5);font:inherit;font-size:16px;font-weight:700}
+      .replay-cycle-options button[aria-pressed="true"]{border-color:var(--cyan,#6fd8ff);color:var(--cyan,#6fd8ff)}
+      #main .replay-cycle-options button{min-height:56px}
+      .replay-cycle-close{width:100%;min-height:48px;margin-top:12px;border:1px solid var(--line,#53465f);border-radius:9px;background:none;color:inherit;font:inherit;font-size:13px}
+    </style><div class="replay-cycle-overlay"><section class="replay-cycle-dialog" id="replayCycleDialog" role="dialog" aria-modal="true" aria-labelledby="replayCycleTitle">
+      <h2 id="replayCycleTitle">潜水艇は何周期目に出た？</h2>
+      <p>${SUBMARINE_NAMES[e.c]}<br>規定リプレイの周期を選んでください。分からない場合は「不明」で記録できます。</p>
+      <div class="replay-cycle-options">${[1,2,3,4,5,'unknown'].map(value=>`<button type="button" data-action="replayCycleChoose" data-session="${target.session}" data-index="${target.index}" data-cycle="${value}" aria-pressed="${!pending&&e.replayCycle===value}">${value==='unknown'?'不明':value+'周期目'}</button>`).join('')}</div>
+      <button type="button" class="replay-cycle-close" data-action="${pending?'replayCycleCancel':'replayCycleClose'}">${pending?'この潜水艇の記録を取り消す':'変更せず戻る'}</button>
+    </section></div>`;
+  }
   function eventCard(session,index){
     const e=session.events[index];
     // 知らない種類・知らない色は描かない。添字（data-index）は実際の位置のままにする
@@ -1091,7 +1135,7 @@
     if(e.t==='eye'){const c=EYE.find(c=>c[0]===e.c);return `${open} style="--c:${c[4]}" aria-label="${label}"><b>アイキャッチ</b><i>${c[1]}（${c[2]}）</i><small>${c[3]}</small></button>`;}
     if(e.t==='serif'){const c=SERIF.find(c=>c[0]===e.c);return `${open} aria-label="${label}"><b>セリフ</b><i>「${c[2]}」</i><small>${c[1]}</small></button>`;}
     if(e.t==='lamp')return `${open} style="--c:${LAMP_COLORS[e.c]}" aria-label="${label}"><b>${failureLamp(e)?'失敗後PUSH':'ﾗﾝﾌﾟ'}</b><i>${LAMP_NAMES[e.c]}</i>${failureLamp(e)?'<small>'+FAILURE_LAMPS[e.c]+'</small>':''}</button>`;
-    if(e.t==='submarine')return `${open} style="--c:${e.c==='with_garuku'?'#83caff':'#9a90a8'}" aria-label="${label}"><b>潜水艇</b><i>${SUBMARINE_NAMES[e.c]}</i></button>`;
+    if(e.t==='submarine')return `${open} style="--c:${e.c==='with_garuku'?'#83caff':'#9a90a8'}" aria-label="${label}"><b>潜水艇</b><i>${SUBMARINE_NAMES[e.c]}</i><small>${replayCycleText(e)}</small></button>`;
     return `${open} aria-label="${label}"><b>BZ以外</b><i>でAT当選</i></button>`;
   }
   // 結果アイコンの位置（1〜11）。11個目は成功時のみ選べる。
@@ -1169,7 +1213,7 @@
       ${entry('eye','アイキャッチ（ステージチェンジ）',eyeBody,'アイキャッチはステージチェンジで出ます。滞在しているBZシナリオを示唆します（AT終了画面の設定示唆とは別の記録です）。')}
       ${entry('serif','チッチェのセリフ',serifBody,'ボタンにセリフの見分けどころを併記しています。示唆は次回のBZレベルについてのものです。')}
       ${entry('fuku','アイルー福引',fukuBody,'福引の成功はこのAT間を閉じます。BZ番号はブレイクゾーンの当選回数で数え、アイルー福引は数えません。')}
-      ${entry('submarine','オトモ潜水艇の横切り',submarineBody,'ガルク同乗の有無を記録します。BZ番号・シナリオ参考％への影響なし。')}
+      ${entry('submarine','オトモ潜水艇の横切り',submarineBody,'同乗の有無を選ぶと、規定リプレイの1〜5周期目／不明を記録できます。BZ番号・シナリオ参考％への影響なし。')}
       ${entry('','そのほか',otherBody,'押すとそのAT間を閉じて次のAT間を始めます。BZの成功・福引の成功も同じようにAT間を閉じます。')}
       <div class="hint">失敗を押すとランプ5択が開きます。訂正は履歴のランプを押してください。減算モードでは示唆・福引は記録できません。設定自体の推測には使いません。出典：一撃様・ちょんぼりすた様（PUSHは2026/10/21確認）。</div>
     </section>`;
@@ -1516,6 +1560,30 @@
     // BZシナリオカードの内容（engine は読まない。検証で中身を固定するために出しておく）
     scenarioModel:scenarioCardModel,nextBz:nextBzOf,scenarioPct,nextBzPct:nextBzLevelPct,roundModel:bzRoundModel,
     actions:{
+      replayCycleEdit:(ctx,ds)=>{
+        if(ctx.mode<0||pendingLamp(ctx.S)||pendingReplayCycle(ctx.S))return false;
+        const session=Number(ds.session),index=Number(ds.index),e=ctx.S.atLog.sessions[session]?.events[index];
+        if(!e||e.t!=='submarine'||!shownEvent(e))return false;
+        editingReplayCycle={session,index};return rerender();
+      },
+      replayCycleClose:()=>{editingReplayCycle=null;return rerender();},
+      replayCycleChoose:(ctx,ds)=>{
+        if(ctx.mode<0)return false;
+        const value=ds.cycle==='unknown'?'unknown':Number(ds.cycle);
+        if(value!=='unknown'&&(!Number.isInteger(value)||value<1||value>5))return false;
+        const session=Number(ds.session),index=Number(ds.index),target=pendingReplayCycle(ctx.S)||editingReplayCycle,e=ctx.S.atLog.sessions[session]?.events[index];
+        if(!target||target.session!==session||target.index!==index||e?.t!=='submarine')return false;
+        if(!e.pendingReplayCycle&&e.replayCycle===value){editingReplayCycle=null;return rerender();}
+        e.replayCycle=value;delete e.pendingReplayCycle;editingReplayCycle=null;
+        if(historyView(ctx.S).index===session)openEvent=index;
+        return '潜水艇・'+replayCycleText(e)+' を記録';
+      },
+      replayCycleCancel:ctx=>{
+        const target=pendingReplayCycle(ctx.S);if(!target)return false;
+        ctx.S.atLog.sessions[target.session].events.splice(target.index,1);
+        editingReplayCycle=null;openEvent=null;insertBefore=null;
+        return '潜水艇の入力を取り消し';
+      },
       bzFailure:(ctx,ds)=>failureWithLamp(ctx,ds),
       fukuFailure:(ctx,ds)=>failureWithLamp(ctx,ds,true),
       lampEdit:(ctx,ds)=>{
@@ -1694,7 +1762,7 @@
         return `AT当選 ${v}G を削除`;
       }
     },
-    pages:(ctx,pageCard)=>{syncGames(ctx.S);return [()=>pageInput(ctx)+lampDialog(ctx),()=>pageShisa(ctx)+lampDialog(ctx),()=>pageBZ(ctx)+lampDialog(ctx),()=>pageCard()+scenarioSection(ctx)+lampDialog(ctx)];},template:tplText,compactTemplate:tplText,
+    pages:(ctx,pageCard)=>{syncGames(ctx.S);const dialogs=()=>lampDialog(ctx)+replayCycleDialog(ctx);return [()=>pageInput(ctx)+dialogs(),()=>pageShisa(ctx)+dialogs(),()=>pageBZ(ctx)+dialogs(),()=>pageCard()+scenarioSection(ctx)+dialogs()];},template:tplText,compactTemplate:tplText,
     card:{title:TITLE,titleFitMax:680,gameLabel:'通常',footerTags:TAGS,downloadName:'mhsunbreak_check.png',detailDownloadName:'mhsunbreak_check_detail.png',detail,
       blocks:ctx=>[initialBlock(ctx.S,COUNTS[0]),['通常ゲーム数',hitSum(ctx.S)+'G'],['示唆の記録','計'+hintTotal(ctx.S)+'回'],['確定演出','計'+certCount(ctx.S)+'回']],
       chart:ctx=>({title:'示唆分布',x:150,step:160,width:80,items:[2,3,4,5,6].map(r=>({label:r===6?'6':r+'+',value:certTier(ctx.S,r)}))}),
