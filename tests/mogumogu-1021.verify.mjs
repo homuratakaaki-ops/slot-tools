@@ -62,10 +62,10 @@ check('guide values, metadata, NEW 8 rows and cache query',()=>{
   const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];const links=[...news.matchAll(/<p>[^\n]+<\/p>/g)];assert.equal(links.length,8);assert.ok(links[0][0].includes('mogumogu-checker.html'));
 });
 check('existing outputs unchanged except specified additions',()=>{
-  const base=load(execFileSync('git',['show','HEAD:checker-data/mogumogu.js'],{encoding:'utf8'}));const S=state();S.counts.cz=4;S.screens.kerai=3;S.trophy.gold=1;
+  const base=load(execFileSync('git',['show','4e98820:checker-data/mogumogu.js'],{encoding:'utf8'}));const S=state();S.counts.cz=4;S.screens.kerai=3;S.trophy.gold=1;
   assert.equal(c.template({S}),base.template({S}));for(const k of ['blocks','chart'])assert.deepEqual(clone(c.card[k]({S})),clone(base.card[k]({S})));
   const bot=clone(c.card.bottom({S}));bot.columns[1].items.pop();assert.deepEqual(bot,clone(base.card.bottom({S})));
   const d=clone(c.card.detail({S}));d.pop();d[0].items.splice(1,2);assert.deepEqual(d,clone(base.card.detail({S})));
-  const html=read('mogumogu-checker.html'),old=execFileSync('git',['show','HEAD:mogumogu-checker.html'],{encoding:'utf8'});assert.equal(html.match(/checker-engine.js\?v=[^"]+/)[0],old.match(/checker-engine.js\?v=[^"]+/)[0]);
+  const html=read('mogumogu-checker.html'),old=execFileSync('git',['show','4e98820:mogumogu-checker.html'],{encoding:'utf8'});assert.equal(html.match(/checker-engine.js\?v=[^"]+/)[0],old.match(/checker-engine.js\?v=[^"]+/)[0]);
 });
 console.log(`PASS ${checks} verification groups`);
