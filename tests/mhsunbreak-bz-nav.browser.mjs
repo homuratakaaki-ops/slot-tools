@@ -128,7 +128,7 @@ try{
   `});
   await send('Page.navigate',{url:origin+'/harness'});await pause(100);
   // ===== 1. 入口の並びと縦の長さ（360/390/412px）=====
-  const ORDER=['BZ（ブレイクゾーン）','BZ終了時PUSH ランプ','アイキャッチ（ステージチェンジ）','チッチェのセリフ','アイルー福引','そのほか'];
+  const ORDER=['BZ（ブレイクゾーン）','アイキャッチ（ステージチェンジ）','チッチェのセリフ','アイルー福引','オトモ潜水艇の横切り','そのほか'];
   for(const width of [360,390,412]){
     await clear('mhsunbreak');await load('mhsunbreak',width,530);await tab(2);await measure('bz-nav-'+width);
     const m=await frame(`return {width:w.innerWidth,scrollHeight:d.getElementById('main').scrollHeight,
@@ -137,7 +137,7 @@ try{
       jumpRows:new Set([...d.querySelectorAll('.jump-btn')].map(e=>Math.round(e.getBoundingClientRect().top))).size,
       minButtonHeight:Math.min(...[...d.querySelectorAll('header button,#main button,nav button')].filter(e=>e.checkVisibility()).map(e=>e.getBoundingClientRect().height))};`);
     assert.deepEqual(m.entries.slice(1),ORDER,width+'px: 入口の並びが違う');
-    assert.deepEqual(m.jump.map(b=>b.text),['BZ','ランプ','アイキャッチ','セリフ','福引'],width+'px: ジャンプの並びが違う');
+    assert.deepEqual(m.jump.map(b=>b.text),['BZ','アイキャッチ','セリフ','福引','潜水艇'],width+'px: ジャンプの並びが違う');
     assert.ok(m.jump.every(b=>b.height>=44),width+'px: ジャンプが44px未満 '+JSON.stringify(m.jump));
     assert.ok(m.minButtonHeight>=44,width+'px: 44px未満のボタンがある');
     console.log('MEASURE '+JSON.stringify(m));
@@ -148,7 +148,7 @@ try{
 
   // ===== 2. ジャンプが正しい入口に飛び、見出しが一瞬光る =====
   await clear('mhsunbreak');await load('mhsunbreak',390,530);await tab(2);
-  for(const [k,label,id] of [['bz','BZ','ent-bz'],['lamp','ランプ','ent-lamp'],['eye','アイキャッチ','ent-eye'],['serif','セリフ','ent-serif'],['fuku','福引','ent-fuku']]){
+  for(const [k,label,id] of [['bz','BZ','ent-bz'],['eye','アイキャッチ','ent-eye'],['serif','セリフ','ent-serif'],['fuku','福引','ent-fuku']]){
     await frame(`d.getElementById('main').scrollTop=0;`);
     await click(`[data-action="bzJump"][data-k="${k}"]`);
     const flashed=await frame(`return d.querySelector('#${id} .entry-h').classList.contains('flash');`);
@@ -156,7 +156,7 @@ try{
     await pause(700);   // なめらかスクロールの着地を待つ
     const r=await frame(`const main=d.getElementById('main'),el=d.getElementById('${id}');
       return {gap:Math.round(el.getBoundingClientRect().top-main.getBoundingClientRect().top),text:el.querySelector('.entry-h').textContent};`);
-    assert.equal(r.text,{bz:'BZ（ブレイクゾーン）',lamp:'BZ終了時PUSH ランプ',eye:'アイキャッチ（ステージチェンジ）',serif:'チッチェのセリフ',fuku:'アイルー福引'}[k],label+': 飛び先の入口が違う');
+    assert.equal(r.text,{bz:'BZ（ブレイクゾーン）',lamp:eye:'アイキャッチ（ステージチェンジ）',serif:'チッチェのセリフ',fuku:'アイルー福引'}[k],label+': 飛び先の入口が違う');
     assert.ok(Math.abs(r.gap)<=24,label+': 入口の先頭に揃っていない（gap='+r.gap+'）');
     await pause(400);
     assert.equal(await frame(`return d.querySelector('#${id} .entry-h').classList.contains('flash');`),false,label+': ハイライトが消えない');
@@ -168,7 +168,7 @@ try{
   await click('[data-action="bzPick"][data-q="t3"]');await click('[data-action="bzQuest"][data-r="miss"]');
   const saved=await state();
   assert.equal(saved.atLog.sessions[0].events.length,1);
-  for(const k of ['bz','lamp','eye','serif','fuku'])await click(`[data-action="bzJump"][data-k="${k}"]`);
+  for(const k of ['bz','eye','serif','fuku','submarine'])await click(`[data-action="bzJump"][data-k="${k}"]`);
   assert.deepEqual(await state(),saved,'ジャンプで保存が変わった');
   await click('#undoBtn');
   assert.deepEqual((await state()).atLog.sessions[0].events,[],'取消1回で記録が戻らない（ジャンプが履歴に積まれている）');
