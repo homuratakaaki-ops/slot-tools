@@ -59,8 +59,8 @@ const changed=['tonski-checker.html','checker-data/tonski.js','tonski-guide.html
   'checker-data/ricorico.js','ricorico-checker.html',
   'checker-data/garei_zero_re.js','garei-zero-re-checker.html',
   'checker-data/mahoako.js','mahoako-checker.html',
-  // mogumogu-test・tonski-test は検収用のテスト版（§9-108）。PRの削除コミットで消える
-  'checker-data/mogumogu-test.js','mogumogu-test-checker.html','checker-data/tonski-test.js','tonski-test-checker.html',
+  // mogumogu-test は検収用のテスト版（§9-108）。PRの削除コミットで消える
+  'checker-data/mogumogu-test.js','mogumogu-test-checker.html',
   'enen2-checker.html','kabaneri2-checker.html','karakuri2-checker.html','otome5-checker.html',
   'sao2-checker.html','taktop-checker.html','yajikita-checker.html','yoshimune-checker.html'];
 for(const file of tracked.filter(f=>!changed.includes(f)))assert.deepEqual(Buffer.from(read(file)),Buffer.from(baseline(file)),file);
