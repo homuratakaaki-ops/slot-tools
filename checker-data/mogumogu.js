@@ -108,7 +108,8 @@
 
   function pageHatsu(ctx){
     const S=ctx.S,g=S.games;
-    return `<section class="sec">
+    return `<style>.hint-paras .hint-body{white-space:pre-line}</style>
+  <section class="sec">
     <div class="sec-h">通常回転数</div>
     <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
     <div class="hint">通常時のゲーム数を入力してください。確認手段と分母条件が未確認のため、現時点で1/x表示は行いません。</div>
@@ -122,8 +123,8 @@
       ${ctx.crow('counts.at','AT初当り','設1:1/431⇔設6:1/358',1)}
       ${ctx.crow('counts.direct','AT直撃','設1:1/32252.6（他設定は調査中）',0)}
     </div>
-    <div class="hint">CZの種別が分かったときだけ内訳を押します。合算のCZ当選は従来どおり押してください。モグラ叩きは設定5・6で約1/2510、設定1〜4は1/3101〜1/3778です。</div>
-    <div class="hint">AT直撃は設定1だけ判明しています。設定2以降は調査中のため、回数だけ記録して比較には使わないでください。周期到達時の抽選とは別枠なので、周期非到達で前兆が出たときが該当します。天井や周期からのCZ当選時のAT書き換え（当選率3.1%）は直撃ではありません。</div>
+    <div class="hint hint-paras">AT直撃は設定1だけ判明しています。設定2以降は調査中のため、回数だけ記録して比較には使わないでください。周期到達時の抽選とは別枠なので、周期非到達で前兆が出たときが該当します。天井や周期からのCZ当選時のAT書き換え（当選率3.1%）は直撃ではありません。
+CZの種別が分かったときだけ内訳を押します。合算のCZ当選は従来どおり押してください。モグラ叩きは設定5・6で約1/2510、設定1〜4は1/3101〜1/3778です。</div>
   </section>`;
   }
 

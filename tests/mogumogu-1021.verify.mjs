@@ -32,6 +32,13 @@ check('CZ row order, exact subs, no rate/percentage callback or aggregate change
   assert.deepEqual(r.slice(1,3),[['czType.taisen','モグモグ大戦','設1:1/354⇔設6:1/324',0],['czType.mogura','モグラ叩き','設1:1/3778⇔設6:1/2507',0]]);
   c.normalizeState(S);assert.equal(S.counts.cz,7);assert.equal(c.card.chart({S}).items[0].value,7);
 });
+check('first-hit section has one hint: CZ breakdown appended to the AT direct hint as a paragraph',()=>{
+  // 「説明を見る」を2つ並べない（ネネ指摘 10/21）
+  const sec=rows(state(),0).html.split('<div class="sec-h">初当り')[1].split('</section>')[0];
+  assert.equal((sec.match(/class="hint[ "]/g)||[]).length,1);
+  assert.ok(sec.includes('<div class="hint hint-paras">AT直撃は設定1だけ判明しています。'));
+  assert.ok(sec.includes('AT書き換え（当選率3.1%）は直撃ではありません。\nCZの種別が分かったときだけ内訳を押します。合算のCZ当選は従来どおり押してください。モグラ叩きは設定5・6で約1/2510、設定1〜4は1/3101〜1/3778です。</div>'));
+});
 check('legacy missing/null/invalid fields and unknown keys',()=>{
   for(const value of [undefined,null]){const S=c.normalizeState({scroll:value,czType:value});assert.deepEqual(clone(S.scroll),state().scroll);assert.deepEqual(clone(S.czType),state().czType);}
   const S=c.normalizeState({scroll:{blue:-1,yellow:'bad',green:'3',red:null,rainbow:2,future:7},czType:{taisen:'4',mogura:-9,future:8},future:{keep:true}});

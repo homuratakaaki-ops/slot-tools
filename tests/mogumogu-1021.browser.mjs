@@ -135,6 +135,13 @@ try{
     assert.equal(JSON.parse(await raw()).czType.mogura,1);await click('#undoBtn');
     assert.equal(JSON.parse(await raw()).czType.mogura,2);
     await layout('input-'+width);await shot('mogumogu-1021-input-'+width,width,'[data-c="czType.taisen"]');
+    // 初当りの説明は1つの折りたたみ（AT直撃の説明の後ろにCZ内訳の段落。ネネ指摘 10/21）
+    const fold=await frame(`const sec=d.querySelector('[data-c="czType.taisen"]').closest('.sec');const ds=sec.querySelectorAll('details.hint-fold');if(ds.length===1)ds[0].open=true;const b=ds[0]&&ds[0].querySelector('.hint-body');return {hints:sec.querySelectorAll('.hint').length,folds:ds.length,ws:b&&w.getComputedStyle(b).whiteSpace,body:b&&b.textContent,docWidth:d.documentElement.scrollWidth};`);
+    assert.equal(fold.hints,1);assert.equal(fold.folds,1);assert.equal(fold.ws,'pre-line');
+    assert.match(fold.body,/直撃ではありません。\nCZの種別が分かったときだけ内訳を押します。[^]*1\/3778です。$/);
+    assert.ok(fold.docWidth<=width);
+    await shot('mogumogu-1021-hint-open-'+width,width,'[data-c="counts.direct"]');
+    await frame(`d.querySelector('[data-c="czType.taisen"]').closest('.sec').querySelector('details.hint-fold').open=false;`);
     await tab(1);
     for(const [key,n] of [['blue',3],['yellow',1],['green',1],['red',2],['rainbow',1]])for(let i=0;i<n;i++)await click('[data-c="scroll.'+key+'"]');
     await layout('shisa-'+width);await shot('mogumogu-1021-shisa-'+width,width,'[data-c="scroll.blue"]');
