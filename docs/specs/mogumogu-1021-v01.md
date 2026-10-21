@@ -72,8 +72,10 @@
 
 ■ 5c. 初当りの説明を1つにまとめる（ネネ指摘 10/21）
   CZ内訳の hint を別に置くと「説明を見る」が2つ並ぶため、既存の AT直撃の hint の末尾に改行して続け、折りたたみを1つにする。
-  engine は子要素を含む hint を畳まないので改行は文字の改行とし、pageHatsu 冒頭の <style>.hint-paras .hint-body{white-space:pre-line}</style> で段落として見せる。
-  （AT終了画面の「説明を見る」2つは PR以前（4e98820）からの状態で、この作業では触らない）
+  engine は子要素を含む hint を畳まないので改行は文字の改行とし、<style>.hint-paras .hint-body{white-space:pre-line}</style> で段落として見せる。
+  示唆タブの AT終了画面も同じ症状（PR以前の 4e98820 から2つ並んでいた）。夢爽の判断（10/21）で #76 に含め、
+  SPモードの説明の末尾に「終了画面は出るたびに記録します。…」の段落を続けて1つにまとめる。
+  段落の CSS は両ページで使うので HINT_PARAS_CSS にまとめ、pageHatsu と pageShisa の冒頭に置く。
 
 ■ 6. テスト版（§9-108）はツムギが作る。ミコトは作らない。
 

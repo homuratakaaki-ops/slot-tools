@@ -145,6 +145,13 @@ try{
     await tab(1);
     for(const [key,n] of [['blue',3],['yellow',1],['green',1],['red',2],['rainbow',1]])for(let i=0;i<n;i++)await click('[data-c="scroll.'+key+'"]');
     await layout('shisa-'+width);await shot('mogumogu-1021-shisa-'+width,width,'[data-c="scroll.blue"]');
+    // AT終了画面の説明も1つの折りたたみ（SPの説明の後ろに記録の仕方の段落）
+    const endFold=await frame(`const sec=d.querySelector('[data-c="screens.kerai"]').closest('.sec');const ds=sec.querySelectorAll('details.hint-fold');if(ds.length===1)ds[0].open=true;const b=ds[0]&&ds[0].querySelector('.hint-body');return {hints:sec.querySelectorAll('.hint').length,folds:ds.length,ws:b&&w.getComputedStyle(b).whiteSpace,body:b&&b.textContent,docWidth:d.documentElement.scrollWidth};`);
+    assert.equal(endFold.hints,1);assert.equal(endFold.folds,1);assert.equal(endFold.ws,'pre-line');
+    assert.match(endFold.body,/の行だけです。\n終了画面は出るたびに記録します。[^]*割合が正しく出ます。$/);
+    assert.ok(endFold.docWidth<=width);
+    await shot('mogumogu-1021-end-hint-open-'+width,width,'[data-c="screens.zenin"]');
+    await frame(`d.querySelector('[data-c="screens.kerai"]').closest('.sec').querySelector('details.hint-fold').open=false;`);
     assert.equal(await frame(`return [...d.querySelectorAll('[data-c^="scroll."]')].some(e=>e.textContent.includes("%"));`),false);
     const saved=JSON.parse(await raw());assert.deepEqual(saved.scroll,{blue:3,yellow:1,green:1,red:2,rainbow:1});assert.deepEqual(saved.czType,{taisen:3,mogura:2});
     await load(width);await tab(1);

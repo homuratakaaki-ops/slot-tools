@@ -39,6 +39,13 @@ check('first-hit section has one hint: CZ breakdown appended to the AT direct hi
   assert.ok(sec.includes('<div class="hint hint-paras">AT直撃は設定1だけ判明しています。'));
   assert.ok(sec.includes('AT書き換え（当選率3.1%）は直撃ではありません。\nCZの種別が分かったときだけ内訳を押します。合算のCZ当選は従来どおり押してください。モグラ叩きは設定5・6で約1/2510、設定1〜4は1/3101〜1/3778です。</div>'));
 });
+check('AT end screen section has one hint: the record rule follows the SP hint as a paragraph',()=>{
+  // 「説明を見る」を2つ並べない（PR以前からの状態。ネネ指摘 10/21 で #76 に含める）
+  const sec=rows(state(),1).html.split('<div class="sec-h">AT終了画面')[1].split('</section>')[0];
+  assert.equal((sec.match(/class="hint[ "]/g)||[]).length,1);
+  assert.ok(sec.includes('<div class="hint hint-paras">SPモードに入らなかった時だけ確定演出の行へ。'));
+  assert.ok(sec.includes('確定演出として数えるのは「(SP非移行)」の行だけです。\n終了画面は出るたびに記録します。出典に載っているのは上の8種類です。どれにも当てはまらない画面が出た場合は「その他（上記以外）」に記録すると、判明分の割合が正しく出ます。</div>'));
+});
 check('legacy missing/null/invalid fields and unknown keys',()=>{
   for(const value of [undefined,null]){const S=c.normalizeState({scroll:value,czType:value});assert.deepEqual(clone(S.scroll),state().scroll);assert.deepEqual(clone(S.czType),state().czType);}
   const S=c.normalizeState({scroll:{blue:-1,yellow:'bad',green:'3',red:null,rainbow:2,future:7},czType:{taisen:'4',mogura:-9,future:8},future:{keep:true}});

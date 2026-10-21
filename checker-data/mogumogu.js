@@ -106,9 +106,11 @@
     return out;
   }
 
+  // 1つの説明に複数の段落を入れる（「説明を見る」を2つ並べないため）。engine は子要素を含む説明を畳まないので、段落は文字の改行で区切る
+  const HINT_PARAS_CSS='<style>.hint-paras .hint-body{white-space:pre-line}</style>';
   function pageHatsu(ctx){
     const S=ctx.S,g=S.games;
-    return `<style>.hint-paras .hint-body{white-space:pre-line}</style>
+    return `${HINT_PARAS_CSS}
   <section class="sec">
     <div class="sec-h">通常回転数</div>
     <div class="inrow"><label>通常回転数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
@@ -130,11 +132,12 @@ CZの種別が分かったときだけ内訳を押します。合算のCZ当選�
 
   function pageShisa(ctx){
     const S=ctx.S,scN=total(AT_END,S.screens);
-    return `<section class="sec">
+    return `${HINT_PARAS_CSS}
+  <section class="sec">
     <div class="sec-h">AT終了画面<span class="sub">計${scN}回</span></div>
     <div class="cgrid">${AT_END.map(c=>ctx.crow('screens.'+c[0],c[1],c[2],c[3]>0,v=>ctx.pct(v,scN))).join('')}</div>
-    <div class="hint">SPモードに入らなかった時だけ確定演出の行へ。モグ玄と騎乗モグ玄は、出典が「SPモード1つ以上 or 設定2以上」「SPモード2つ以上 or 設定3以上」の形になっていて、SPモードへの移行の有無で意味が変わります。AT後の挙動まで確認できて、SPモードへ移行しなかった場合だけ「(SP非移行)」の行に記録してください（騎乗はSPモード2つ以上への非移行が条件です）。移行した場合や確認できなかった場合は「(SP移行あり・不明)」の行に記録します。確定演出として数えるのは「(SP非移行)」の行だけです。</div>
-    <div class="hint">終了画面は出るたびに記録します。出典に載っているのは上の8種類です。どれにも当てはまらない画面が出た場合は「その他（上記以外）」に記録すると、判明分の割合が正しく出ます。</div>
+    <div class="hint hint-paras">SPモードに入らなかった時だけ確定演出の行へ。モグ玄と騎乗モグ玄は、出典が「SPモード1つ以上 or 設定2以上」「SPモード2つ以上 or 設定3以上」の形になっていて、SPモードへの移行の有無で意味が変わります。AT後の挙動まで確認できて、SPモードへ移行しなかった場合だけ「(SP非移行)」の行に記録してください（騎乗はSPモード2つ以上への非移行が条件です）。移行した場合や確認できなかった場合は「(SP移行あり・不明)」の行に記録します。確定演出として数えるのは「(SP非移行)」の行だけです。
+終了画面は出るたびに記録します。出典に載っているのは上の8種類です。どれにも当てはまらない画面が出た場合は「その他（上記以外）」に記録すると、判明分の割合が正しく出ます。</div>
   </section>
   <section class="sec">
     <div class="sec-h">くまトロフィー<span class="sub">計${total(TROPHY,S.trophy)}回</span></div>
