@@ -74,10 +74,11 @@ for(const id of ['ricorico','toaru2']){
 console.log('PASS ricorico/toaru2 templates: six exact outputs vs 3be5e98');
 // tenten.js and takoslot.js were changed by the current wording correction.
 // mogumogu.js は 10/21 のED中の巻物・CZ種別の内訳の追加で変更済み。
+// tonski.js は 10/21 の333G到達時の女神の舞の記録追加で変更済み。
 // paripi.js は夢爽裁可の ST終了画面追加で変更済み。
 // toaru2.js は獲得枚数表示の誤った説明文を削除したため除外。
 // kanokari.js は設定推測タブ追加（docs/specs/kanokari-estimate-v01.md）のため除外。
 // ricorico.js は 10/14 の解析更新のため除外（テンプレは上で新規1行以外を比較済み）。
 // garei_zero_re.js は 10/14 の解析更新のため除外（tests/garei-1014.verify.mjs で検証）。
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','mogumogu.js','tonski-test.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),before(file));
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('../checker-data/',import.meta.url)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js','mogumogu.js','tonski.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),before(file));
 console.log('PASS both common files and all other machine definitions byte-identical vs 3be5e98');
