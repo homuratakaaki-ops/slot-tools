@@ -52,7 +52,8 @@ const tracked=execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,'
 // ricorico は 10/14 の解析更新（弱リコリス目の変換高確記録の追加ほか）のため除外。
 // garei_zero_re は 10/14 の解析更新（ステージチェンジ演出・強チャンス目CZ）のため除外。
 // mahoako は 10/19 の新規機種（docs/specs/mahoako-checker-v01.md）のため除外。
-const changed=['magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js','tenten-checker.html','checker-data/tenten.js','takoslot-checker.html','checker-data/takoslot.js','paripi-checker.html','checker-data/paripi.js',
+// tonski-checker.html・checker-data/tonski.js・tonski-guide.html は 10/21 の333G到達時の女神の舞の記録追加で変更済み。
+const changed=['tonski-checker.html','checker-data/tonski.js','tonski-guide.html','magireco-checker.html','checker-data/magireco.js','mhsunbreak-checker.html','checker-data/mhsunbreak.js','tenten-checker.html','checker-data/tenten.js','takoslot-checker.html','checker-data/takoslot.js','paripi-checker.html','checker-data/paripi.js',
   'checker-data/toaru2.js','toaru2-checker.html',
   'checker-data/kanokari.js','kanokari-checker.html',
   'checker-data/ricorico.js','ricorico-checker.html',

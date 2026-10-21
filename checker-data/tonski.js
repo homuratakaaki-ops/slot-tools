@@ -2,6 +2,8 @@
   'use strict';
   window.CheckerConfigs=window.CheckerConfigs||{};
 
+  const RATE_PROBS={1:.301,2:.316,3:.332,4:.348,5:.391,6:.449};
+
   const BONUS_END=[
     ['def','デフォルト','設定示唆なし',0,'デ'],
     ['odd','奇数設定示唆','奇数設定期待度UP',0,'奇'],
@@ -37,6 +39,7 @@
 
   const DEF={
     games:0,
+    rates:{megami333r:0,megami333w:0},
     cz:{cz:0,bonus:0},
     screens:Object.fromEntries(BONUS_END.map(v=>[v[0],0])),
     coins:Object.fromEntries(TROPHIES.map(v=>[v[0],0])),
@@ -84,11 +87,76 @@
     return n(S.screens,'highWeak')+n(S.screens,'highStrong')+n(S.ed,'red')+n(S.ed,'purple');
   }
 
+  function rateReach(S,id){return n(S.rates,id+'r');}
+  function rateWin(S,id){return n(S.rates,id+'w');}
+  function ratio(a,b){return b>0?`${a}/${b} ${(100*a/b).toFixed(0)}%`:'-';}
+  function rateText(S,id){return ratio(rateWin(S,id),rateReach(S,id));}
+  // 「設1:xx%⇔設6:yy%」の目安は .ct の中に置くと 360〜390px で数字の途中で折り返すか行幅を押し広げるため、
+  // 行の下に1行で出す（rowSub）。折り返す場合も「⇔」の前だけにする（各半分を1塊にする）。
+  // 「⇔」を含まないサブは .ct の中（ctSub）に出す。作りは ricorico.js の cycleRow と同じ。
+  function isRange(sub){return !!sub&&String(sub).indexOf('⇔')>=0;}
+  function ctSub(sub){return sub&&!isRange(sub)?`<small class="mn">${sub}</small>`:'';}
+  function rowSub(sub){
+    if(!isRange(sub))return '';
+    return `<small class="mn row-sub">${String(sub).split('⇔').map((p,i)=>`<span class="sub-chunk">${i?'⇔':''}${p}</span>`).join('<wbr>')}</small>`;
+  }
+  function cycleRow(ctx,id,name,sub){
+    const S=ctx.S;
+    // 減算モードで「ハズレ」を押すと到達だけが減り、当選回数を下回りうる。
+    // n<=d を壊さないよう、減らせるハズレが残っていない場合はボタンを無効化する。
+    const canMinus=rateReach(S,id)>rateWin(S,id);
+    const missAttrs=ctx.mode<0&&!canMinus?'disabled aria-disabled="true"':`data-bump="rates.${id}r"`;
+    return `<div class="crow cycle-row${isRange(sub)?' has-row-sub':''}">
+      <div class="ct"><b>${name}</b>${ctSub(sub)}</div>
+      <div class="num">${rateWin(S,id)}</div>
+      <div class="pct">${rateText(S,id)}</div>
+      <div class="cycle-actions">
+        <button type="button" class="cycle-btn win" data-bump-many="rates.${id}r,rates.${id}w" data-label="${name} 当選" aria-label="${name} 当選">当選</button>
+        <button type="button" class="cycle-btn" ${missAttrs} data-label="${name} ハズレ" aria-label="${name} ハズレ">ハズレ</button>
+      </div>${rowSub(sub)}
+    </div>`;
+  }
+  function normalizeState(out){
+    const S=Object.assign({},out);
+    const rates=S.rates&&typeof S.rates==='object'&&!Array.isArray(S.rates)?S.rates:{};
+    S.rates=Object.assign({},rates);
+    for(const key of ['megami333r','megami333w']){
+      const v=S.rates[key];
+      const num=(typeof v==='number'||typeof v==='string')?Number(v):NaN;
+      S.rates[key]=Number.isFinite(num)&&num>=0?Math.floor(num):0;
+    }
+    S.rates.megami333w=Math.min(S.rates.megami333w,S.rates.megami333r);
+    return S;
+  }
+
   function pageHatsu(ctx){
     const S=ctx.S,g=S.games;
     const czNow=g&&S.cz.cz?` / 現在 ${rate(g,S.cz.cz)}`:'';
     const bonusNow=g&&S.cz.bonus?` / 現在 ${rate(g,S.cz.bonus)}`:'';
-    return `<section class="sec">
+    return `<style>
+      .cycle-row .num{min-width:38px}
+      /* 名前が長い（333G到達時の女神の舞）ので1段目に全幅で出し、回数・割合・ボタンは2段目に置く。
+         ricorico と同じ1段組みだと 360px で名前の幅が約40pxしか残らず1文字ずつ折り返す（夢爽 10/21 決定）。 */
+      .cycle-row{flex-wrap:wrap;row-gap:4px}
+      .cycle-row .ct{flex:0 0 100%;min-width:0}
+      .cycle-row .ct b,.cycle-row .ct small{display:block}
+      /* 当選／ハズレ行の CSS は ricorico.js の入力タブと同じ寸法にしている。
+         文字サイズは明示して固定する（指定が無いとブラウザ既定 b=16px・small≒13px に依存する）。 */
+      .cycle-row .ct b{font-size:16px}
+      /* サブは .lbl 配下ではないので .crow .lbl .mn の淡色が当たらない。他の行のサブに合わせる。 */
+      .cycle-row .ct small{font-size:13px;color:var(--muted)}
+      /* 目安（⇔あり）は行の下に1行で出す。1段目（名前・数値・ボタン）は目安なしの行と同じ並びのまま。
+         万一折り返す幅でも「設1:xx%」「⇔設6:yy%」を各1塊にして「⇔」の前でだけ折り返す。 */
+      .cycle-row .row-sub{display:block;flex:0 0 100%;font-size:13px;color:var(--muted);line-height:1.3}
+      .cycle-row .row-sub .sub-chunk{white-space:nowrap}
+      .cycle-row .pct{min-width:92px;text-align:right}
+      .cycle-actions{display:flex;gap:6px;margin-left:auto;flex:none}
+      .cycle-btn{height:44px;min-width:54px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.08);color:#fff;font-weight:900;font-size:12px;padding:0 8px;white-space:nowrap;writing-mode:horizontal-tb;line-height:1;display:flex;align-items:center;justify-content:center}
+      .cycle-btn.win{color:#ffc94d}
+      .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
+      .cycle-btn[disabled]{opacity:.4}
+    </style>
+    <section class="sec">
     <div class="sec-h">通常ゲーム数</div>
     <div class="inrow"><label>通常ゲーム数</label><input type="number" inputmode="numeric" id="gIn" value="${g||''}" placeholder="0"></div>
     <div class="hint">e-slot+の通常ゲーム数を入れます。e-slot+（実機メニューの「遊技情報の集計」と連動）の遊技履歴「通常ゲーム数」を入力してください。総ゲーム数ではなく通常ゲーム数を使います（AT中を含まないため確率と直接比較できます）。</div>
@@ -98,8 +166,10 @@
     <div class="cgrid">
       ${ctx.crow('cz.cz','CZ当選',`設1:1/216.7⇔設6:1/189.5${czNow}`,0)}
       ${ctx.crow('cz.bonus','ボーナス初当り',`設1:1/349.3⇔設6:1/247.3${bonusNow}`,1)}
+      ${cycleRow(ctx,'megami333','333G到達時の女神の舞',`設1:${(RATE_PROBS[1]*100).toFixed(1)}%⇔設6:${(RATE_PROBS[6]*100).toFixed(1)}%`)}
     </div>
     <div class="hint">初当りで見るならボーナス初当りを重視。CZよりボーナス初当りの方が設定差が大きいため、初当りで見るならボーナス初当り確率を重視してください。それぞれ通常ゲーム数を分母に1/xを表示します。</div>
+    <div class="hint">規定333Gに到達したとき、女神の舞へ移行したら当選、しなければハズレで記録します。777G到達時は全設定100%なので記録しません。</div>
   </section>`;
   }
   function pageEnd(ctx){
@@ -141,7 +211,8 @@
     let t=`設定判別メモ｜Lとんでもスキルで異世界放浪メシ\n通常 ${g||0}G / CZ${S.cz.cz}回 / ボーナス${S.cz.bonus}回\n_______\n`;
     t+=section('初当り',[
       `CZ当選▶${countLine(S.cz.cz)}（${rate(g,S.cz.cz)}）`,
-      `ボーナス初当り▶${countLine(S.cz.bonus)}（${rate(g,S.cz.bonus)}）`
+      `ボーナス初当り▶${countLine(S.cz.bonus)}（${rate(g,S.cz.bonus)}）`,
+      rateReach(S,'megami333')>0?`333G女神の舞▶${rateText(S,'megami333').replace(' ','（')}）`:null
     ]);
     t+=section('ボーナス終了画面',sum(S.screens)>0?BONUS_END.filter(c=>n(S.screens,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.screens,c[0]))}`):[]);
     t+=section('アリストロフィー',sum(S.coins)>0?TROPHIES.filter(c=>n(S.coins,c[0])>0).map(c=>`${c[1]}▶${countLine(n(S.coins,c[0]))}`):[]);
@@ -155,7 +226,8 @@
     return [
       {title:'初当り',items:[
         detailItem('CZ当選',S.cz.cz,0,S.cz.cz>0?`CZ当選 ×${S.cz.cz}（${rate(g,S.cz.cz)}）`:''),
-        detailItem('ボーナス初当り',S.cz.bonus,0,S.cz.bonus>0?`ボーナス初当り ×${S.cz.bonus}（${rate(g,S.cz.bonus)}）`:'')
+        detailItem('ボーナス初当り',S.cz.bonus,0,S.cz.bonus>0?`ボーナス初当り ×${S.cz.bonus}（${rate(g,S.cz.bonus)}）`:''),
+        detailItem('333G到達時の女神の舞',rateReach(S,'megami333'),0,`333G到達時の女神の舞 ${rateText(S,'megami333')}`)
       ]},
       {title:'ボーナス終了画面',items:detailItems(BONUS_END,S.screens),percent:true},
       {title:'アリストロフィー',items:detailItems(TROPHIES,S.coins)},
@@ -171,7 +243,8 @@
     nanaCollab:false,
     storageKey:'tonski-checker-v1',
     defaults:DEF,
-    mergeKeys:['cz','screens','coins','atcz','ed'],
+    mergeKeys:['cz','screens','coins','atcz','ed','rates'],
+    normalizeState:normalizeState,
     sourceUrl:'https://chonborista.com/slot/konami-slot/260742/',
     share:{
       title:'Lとんでもスキルで異世界放浪メシ 設定判別メモ',
