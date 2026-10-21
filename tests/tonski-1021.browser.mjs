@@ -130,6 +130,13 @@ try{
     assert.deepEqual(JSON.parse(await raw()).rates,{megami333r:10,megami333w:4});
     await layout('input-'+width);
     await shot('tonski-1021-input-'+width,width,'.cycle-row');
+    // 初当りの説明は1つの折りたたみにまとめる（既存の説明の後ろに333Gの段落。ネネ指摘 10/21）
+    const fold=await frame(`const sec=d.querySelector('.cycle-row').closest('.sec');const ds=sec.querySelectorAll('details.hint-fold');if(ds.length===1)ds[0].open=true;const b=ds[0]&&ds[0].querySelector('.hint-body');return {hints:sec.querySelectorAll('.hint').length,folds:ds.length,ws:b&&w.getComputedStyle(b).whiteSpace,body:b&&b.textContent,docWidth:d.documentElement.scrollWidth};`);
+    assert.equal(fold.hints,1);assert.equal(fold.folds,1);assert.equal(fold.ws,'pre-line');
+    assert.match(fold.body,/1\/xを表示します。\n規定333Gに到達したとき[^]*（ハズレに数えない）。$/);
+    assert.ok(fold.docWidth<=width);
+    await shot('tonski-1021-hint-open-'+width,width,'.cycle-row');
+    await frame(`d.querySelector('.cycle-row').closest('.sec').querySelector('details.hint-fold').open=false;`);
     await click('#modeBtn');
     for(let i=0;i<6;i++)await click(miss);
     assert.equal((await rowState()).pct,'4/4 100%');

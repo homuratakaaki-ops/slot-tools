@@ -155,6 +155,7 @@
       .cycle-btn.win{color:#ffc94d}
       .minus .cycle-btn{border-color:rgba(255,91,91,.55);color:#ff9b9b}
       .cycle-btn[disabled]{opacity:.4}
+      .hint-paras .hint-body{white-space:pre-line}
     </style>
     <section class="sec">
     <div class="sec-h">通常ゲーム数</div>
@@ -168,8 +169,8 @@
       ${ctx.crow('cz.bonus','ボーナス初当り',`設1:1/349.3⇔設6:1/247.3${bonusNow}`,1)}
       ${cycleRow(ctx,'megami333','333G到達時の女神の舞',`設1:${(RATE_PROBS[1]*100).toFixed(1)}%⇔設6:${(RATE_PROBS[6]*100).toFixed(1)}%`)}
     </div>
-    <div class="hint">初当りで見るならボーナス初当りを重視。CZよりボーナス初当りの方が設定差が大きいため、初当りで見るならボーナス初当り確率を重視してください。それぞれ通常ゲーム数を分母に1/xを表示します。</div>
-    <div class="hint">規定333Gに到達したとき、女神の舞へ移行したら当選、しなければハズレで記録します。777G到達時は全設定100%なので記録しません。CZ前兆と重なって女神の舞へ移行したか見分けられないときは、当選・ハズレのどちらも押さないでください（ハズレに数えない）。</div>
+    <div class="hint hint-paras">初当りで見るならボーナス初当りを重視。CZよりボーナス初当りの方が設定差が大きいため、初当りで見るならボーナス初当り確率を重視してください。それぞれ通常ゲーム数を分母に1/xを表示します。
+規定333Gに到達したとき、女神の舞へ移行したら当選、しなければハズレで記録します。777G到達時は全設定100%なので記録しません。CZ前兆と重なって女神の舞へ移行したか見分けられないときは、当選・ハズレのどちらも押さないでください（ハズレに数えない）。</div>
   </section>`;
   }
   function pageEnd(ctx){

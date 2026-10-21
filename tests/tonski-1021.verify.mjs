@@ -18,7 +18,10 @@ check('row position, labels, reference CSS, hint and attributes',()=>{
   assert.ok(h.includes('設1:30.1%</span><wbr><span class="sub-chunk">⇔設6:44.9%'));
   assert.ok(h.includes('data-bump-many="rates.megami333r,rates.megami333w"'));
   assert.ok(h.includes('data-bump="rates.megami333r"'));
-  assert.ok(h.includes('規定333Gに到達したとき、女神の舞へ移行したら当選、しなければハズレで記録します。777G到達時は全設定100%なので記録しません。CZ前兆と重なって女神の舞へ移行したか見分けられないときは、当選・ハズレのどちらも押さないでください（ハズレに数えない）。'));
+  assert.ok(h.includes('<div class="hint hint-paras">初当りで見るならボーナス初当りを重視。CZよりボーナス初当りの方が設定差が大きいため、初当りで見るならボーナス初当り確率を重視してください。それぞれ通常ゲーム数を分母に1/xを表示します。\n規定333Gに到達したとき、女神の舞へ移行したら当選、しなければハズレで記録します。777G到達時は全設定100%なので記録しません。CZ前兆と重なって女神の舞へ移行したか見分けられないときは、当選・ハズレのどちらも押さないでください（ハズレに数えない）。</div>'));
+  // 初当りセクションの説明は1つ（「説明を見る」を2つ並べない。ネネ指摘 10/21）
+  const firstHit=h.split('<div class="sec-h">初当り')[1].split('</section>')[0];
+  assert.equal((firstHit.match(/class="hint[ "]/g)||[]).length,1);
   const rico=read('checker-data/ricorico.js');
   // 名前を1段目に全幅で出す3行だけは ricorico と違う（360pxで名前が1文字ずつ折り返すため。夢爽 10/21 決定）。
   const nameTop=['      .cycle-row{flex-wrap:wrap;row-gap:4px}','      .cycle-row .ct{flex:0 0 100%;min-width:0}','      .cycle-actions{display:flex;gap:6px;margin-left:auto;flex:none}'];
