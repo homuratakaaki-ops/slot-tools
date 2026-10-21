@@ -1,0 +1,1239 @@
+(function(){
+  'use strict';
+
+  const DEFAULT_CARD_ICON='assets/toaru2-default-icon.jpg';
+  const NANA_CARD_ICON='../../assets/nana-icon.jpg';
+  const CARD_RIGHT=1010;
+  const BOTTOM_MIN_FONT=16;
+
+  function clone(v){
+    if(typeof structuredClone==='function')return structuredClone(v);
+    return JSON.parse(JSON.stringify(v));
+  }
+  function sumValues(obj){return Object.values(obj||{}).reduce((a,b)=>a+(Number(b)||0),0);}
+  function byPath(obj,path){
+    const p=path.split('.');
+    if(p.length===1)return obj[p[0]];
+    return (obj[p[0]]||{})[p[1]];
+  }
+  function setPath(obj,path,value){
+    const p=path.split('.');
+    if(p.length===1)obj[p[0]]=value;
+    else{
+      if(!obj[p[0]]||typeof obj[p[0]]!=='object')obj[p[0]]={};
+      obj[p[0]][p[1]]=value;
+    }
+  }
+  function roundRect(x,a,b,w,h,r){
+    x.beginPath();
+    x.moveTo(a+r,b);
+    x.arcTo(a+w,b,a+w,b+h,r);
+    x.arcTo(a+w,b+h,a,b+h,r);
+    x.arcTo(a,b+h,a,b,r);
+    x.arcTo(a,b,a+w,b,r);
+    x.closePath();
+  }
+
+  function createApp(config, env){
+    env=env||{};
+    const document=env.document||window.document;
+    const localStorage=env.localStorage||window.localStorage;
+    const navigatorRef=env.navigator||window.navigator;
+    const ImageCtor=env.Image||window.Image;
+    const FileCtor=env.File||window.File;
+    const FileReaderCtor=env.FileReader||window.FileReader;
+    const NANA_COLLAB=!!config.nanaCollab;
+    // 実戦中のUI（タブごとのスクロール位置・説明の折りたたみ・データ操作・44pxのタップ領域・
+    // 入力欄のラベル）。機種データの uiV2:true を付けた機種だけに適用する。
+    // フラグを外せば全機種に広げられる（2026-09-23 はリコリコのみ適用の裁定）。
+    const UI_V2=!!config.uiV2;
+    const DEF=config.defaults;
+    const mergeKeys=config.mergeKeys||['zones','cz','atcz','screens','ed','icons','coins'];
+    const historyRules=config.historyRules||[];
+    let S=load();
+    let hist=[];
+    let mode=1;
+    let cur=0;
+    let resetArm=null;
+    let toastT=null;
+    let cardImg=null;
+    let jumpReturnTop=null;
+    let detailReady=false;
+    // タブごとのスクロール位置と「↑戻る」の戻り先。ページを開いている間だけ持つ（永続化しない）。
+    // 初めて開くタブは未登録＝先頭表示になる。
+    const tabScroll=Object.create(null);
+    const tabJumpReturn=Object.create(null);
+    // タブ切替の復元先。null のときは現在位置を保つ（カウント時の再描画）。
+    let pendingScrollTop=null;
+    // 再描画をまたいで開閉を保つ。データ操作は1つ、説明は本文から作る安定キーで持つ。
+    let dataOpsOpen=false;
+    const hintOpen=Object.create(null);
+
+    function nanaCreditText(kind){
+      if(NANA_COLLAB){
+        if(kind==='card')return 'テンプレ：鈴白なな様（@nana_szsr）';
+        if(kind==='share')return 'ﾃﾝﾌﾟﾚ:@nana_szsr 様';
+        return 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr';
+      }
+      return '';
+    }
+    function shareText(){
+      const lines=[config.share.title];
+      const credit=nanaCreditText('share');
+      if(credit)lines.push(credit);
+      lines.push(config.share.hashtags);
+      return lines.join('\n');
+    }
+    function normalizeState(data){
+      const base=clone(DEF);
+      const src=data&&typeof data==='object'?data:{};
+      const out=Object.assign(base,src);
+      mergeKeys.forEach(key=>{
+        out[key]=Object.assign({},DEF[key]||{},src[key]||{});
+      });
+      // コラボ機種は、端末に自分の画像が保存済みでも起動時の既定をなな様アイコンにする。
+      // 「自分の画像を選ぶ」をその場で押した場合だけ切り替わる（S.img は残すので1タップで戻せる）。
+      if(NANA_COLLAB&&(!src.iconChoice||src.iconChoice==='upload'))out.iconChoice='nana';
+      else if(!src.iconChoice)out.iconChoice=src.img?'upload':defaultIconChoice();
+      (config.arrayDefaults||[]).forEach(rule=>{
+        const list=Array.isArray(src[rule.key])?src[rule.key]:[];
+        const filtered=rule.filter?list.filter(rule.filter):list;
+        out[rule.key]=filtered.slice(rule.max?-rule.max:undefined);
+      });
+      if(typeof config.normalizeState==='function')return config.normalizeState(out,src);
+      return out;
+    }
+    function load(){
+      try{
+        const j=JSON.parse(localStorage.getItem(config.storageKey));
+        return normalizeState(j);
+      }catch(e){
+        return clone(DEF);
+      }
+    }
+    function save(){
+      try{localStorage.setItem(config.storageKey,JSON.stringify(S));}
+      catch(e){toast('保存失敗（容量超過の可能性）');}
+    }
+    function get(path){return byPath(S,path);}
+    function set(path,value){setPath(S,path,value);}
+    function pct(n,d){return d>0?`${n}/${d} ${(100*n/d).toFixed(0)}%`:`${n}/0 —`;}
+    function feed(html){
+      const el=document.getElementById('feed');
+      if(el)el.innerHTML=html;
+    }
+    function toast(m){
+      const t=document.getElementById('toast');
+      if(!t)return;
+      t.textContent=m;
+      t.classList.add('show');
+      clearTimeout(toastT);
+      toastT=setTimeout(()=>t.classList.remove('show'),1800);
+    }
+    function defaultIconChoice(){return NANA_COLLAB?'nana':'default';}
+    function ensureJumpStyle(){
+      if(document.getElementById('checker-jumpnav-style'))return;
+      const st=document.createElement('style');
+      st.id='checker-jumpnav-style';
+      st.textContent=`
+.jump-nav{display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 0 10px;padding-bottom:2px;scrollbar-width:none}
+.jump-nav::-webkit-scrollbar{display:none}
+.jump-nav button{flex:none;font-family:var(--body);min-height:36px;padding:6px 12px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--cyan);font-size:11px;font-weight:800;white-space:nowrap}
+.jump-back{position:fixed;left:12px;bottom:calc(52px + env(safe-area-inset-bottom));z-index:80;min-height:40px;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-family:var(--body);font-size:12px;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,.5)}
+.jump-back[hidden]{display:none}
+`;
+      document.head.appendChild(st);
+    }
+    // uiV2 のUI土台。各HTMLの <style> より後に差し込むので、同一詳細度なら後勝ちで効く。
+    // タップ領域は min-* で底上げするため、既に44px以上ある要素（.act=45px、.srcchip=48px 等）は変わらない。
+    // ジャンプナビ・↑上へは ensureJumpStyle の既定値（36px / 40px・下から52px）をここで上書きする。
+    function ensureUiStyle(){
+      if(document.getElementById('checker-ui-style'))return;
+      const st=document.createElement('style');
+      st.id='checker-ui-style';
+      st.textContent=`
+.jump-nav button{min-height:44px}
+.jump-back{min-height:44px;bottom:calc(54px + env(safe-area-inset-bottom))}
+.crow .plus{min-width:44px;min-height:44px}
+.hd-btn{min-height:44px}
+nav button{min-height:44px}
+#main button{min-height:44px}
+#main input{min-height:44px}
+.hint details.hint-fold{margin-top:2px}
+.hint details.hint-fold>summary{display:inline-flex;align-items:center;min-height:44px;color:var(--cyan);font-weight:700;cursor:pointer;list-style:none}
+.hint details.hint-fold>summary::-webkit-details-marker{display:none}
+.hint details.hint-fold>summary::before{content:'▾ ';margin-right:2px}
+.hint details.hint-fold[open]>summary::before{content:'▴ '}
+.hint details.hint-fold>.hint-body{padding-bottom:2px}
+/* 下端の余白は「↑ 上へ」（fixed・下から98pxまで）がリセットに重ならない高さを確保するため */
+.dataops{margin:18px 0 76px;border:1px solid var(--line);border-radius:10px;background:var(--panel)}
+.dataops>summary{display:flex;align-items:center;min-height:44px;padding:0 12px;font-size:12px;font-weight:800;color:var(--muted);cursor:pointer;list-style:none}
+.dataops>summary::-webkit-details-marker{display:none}
+.dataops>summary::before{content:'▾ ';margin-right:4px}
+.dataops[open]>summary::before{content:'▴ '}
+.dataops-body{padding:0 12px 12px}
+.dataops-body .hint{margin-top:0;margin-bottom:8px}
+#resetBtn.dataops-reset{width:100%;min-height:48px;border-radius:10px;border:1px solid var(--danger);background:rgba(255,92,92,.12);color:var(--danger);font-family:var(--body);font-size:13px;font-weight:800}
+`;
+      document.head.appendChild(st);
+    }
+    // 手動スクロールでも戻れるようにする。下記の閾値より下にいると「↑ 上へ」を出す。
+    // 画面高だけで決めると、可動域が1画面前後しかないタブでは閾値に到達できず
+    // ボタンが一度も出ない（例: リコリコ初当りタブは実機390x844で可動域655px）。
+    // そのため「画面の3/4」と「そのタブの可動域の半分」の小さい方を採り、
+    // 短いタブで出しすぎないよう下限を置く。
+    const BACK_BTN_SCREENS=0.75;
+    const BACK_BTN_MIN_PX=240;
+    function backThreshold(main){
+      const range=Math.max(0,main.scrollHeight-main.clientHeight);
+      return Math.max(BACK_BTN_MIN_PX,Math.min(main.clientHeight*BACK_BTN_SCREENS,range*0.5));
+    }
+    function ensureBackBtn(){
+      let b=document.getElementById('jumpBack');
+      if(b)return b;
+      b=document.createElement('button');
+      b.id='jumpBack';b.type='button';b.className='jump-back';b.hidden=true;
+      b.textContent='↑ 上へ';
+      b.addEventListener('click',()=>{
+        const main=document.getElementById('main');
+        // ジャンプ直後は元の位置へ、手動スクロール時はタブ先頭へ戻る
+        const top=jumpReturnTop!==null?jumpReturnTop:0;
+        jumpReturnTop=null;
+        if(main)main.scrollTo({top,behavior:'smooth'});
+        // ここでは隠さない。閾値を下回った時点でスクロール側の判定が消す
+        updateBackBtn();
+      });
+      document.body.appendChild(b);
+      return b;
+    }
+    function updateBackBtn(){
+      const main=document.getElementById('main');
+      const b=document.getElementById('jumpBack');
+      if(!main||!b)return;
+      const pending=jumpReturnTop!==null;
+      b.hidden=!(pending||main.scrollTop>=backThreshold(main));
+      b.textContent=pending?'↑ 戻る':'↑ 上へ';
+    }
+    function clearJump(){
+      jumpReturnTop=null;
+      const b=document.getElementById('jumpBack');
+      if(b)b.hidden=true;
+    }
+    function bindBackBtnScroll(main){
+      if(!main||main.dataset.backBtnBound)return;
+      main.dataset.backBtnBound='1';
+      main.addEventListener('scroll',updateBackBtn,{passive:true});
+    }
+    function jumpTo(sec){
+      const main=document.getElementById('main');
+      if(!main)return;
+      jumpReturnTop=main.scrollTop;
+      ensureBackBtn();
+      updateBackBtn();
+      const top=main.scrollTop+sec.getBoundingClientRect().top-main.getBoundingClientRect().top;
+      main.scrollTo({top,behavior:'smooth'});
+    }
+    const JUMP_MIN_SECTIONS=3;
+    function buildJumpNav(main){
+      const secs=Array.prototype.filter.call(
+        main.querySelectorAll('section.sec'),s=>s.querySelector('.crow'));
+      if(secs.length<JUMP_MIN_SECTIONS)return;
+      ensureJumpStyle();
+      const nav=document.createElement('div');
+      nav.className='jump-nav';
+      secs.forEach((sec,i)=>{
+        if(!sec.id)sec.id='cjsec'+i;
+        const h=sec.querySelector('.sec-h');
+        let label='';
+        if(h){
+          label=(h.firstChild&&h.firstChild.nodeType===3?h.firstChild.textContent:h.textContent)||'';
+        }
+        label=label.trim()||('セクション'+(i+1));
+        const b=document.createElement('button');
+        b.type='button';
+        b.textContent=label;
+        b.addEventListener('click',ev=>{ev.stopPropagation();jumpTo(sec);});
+        nav.appendChild(b);
+      });
+      main.insertBefore(nav,main.firstChild);
+    }
+
+    // ---- 説明文の折りたたみ ----
+    // 操作に必要な短い先頭文だけを行内に残し、背景・出典・計算の説明を「説明を見る」に畳む。
+    // 先頭から「短い文」が続く範囲を行内に残し、そこから後ろを畳む。閾値は全角の文字数。
+    const HINT_FOLD_MIN=60;    // 全体がこれ未満の説明はそのまま出す
+    const HINT_LEAD_MAX=30;    // 行内に残せる1文の長さ
+    const HINT_LEAD_TOTAL=40;  // 行内に残せる合計
+    const HINT_TAIL_MIN=30;    // 畳む側がこれ未満なら畳まない
+    function hintKey(text){
+      // 再描画をまたいで開閉を保つための安定キー。本文が変わらない限り同じ値になる。
+      let h=0;
+      for(let i=0;i<text.length;i++)h=(h*31+text.charCodeAt(i))|0;
+      return 'h'+(h>>>0).toString(36);
+    }
+    function sentences(text){
+      const out=[];
+      let start=0;
+      for(let i=0;i<text.length;i++){
+        if(text[i]==='。'){out.push(text.slice(start,i+1));start=i+1;}
+      }
+      if(start<text.length)out.push(text.slice(start));
+      return out;
+    }
+    function foldHints(main){
+      main.querySelectorAll('.hint').forEach(el=>{
+        if(el.classList.contains('warn'))return;            // 警告は常に見えるままにする
+        if(el.dataset.fold==='no')return;                   // 機種側で畳まない指定
+        if(el.children.length)return;                       // リンク・強調を含む説明は触らない
+        const raw=el.textContent.trim();
+        // 「⚠」で始まる注意書きは畳まない（.hint.warn と同じ扱い。uiV2の規則）
+        if(raw.charCodeAt(0)===0x26A0)return;
+        if(raw.length<HINT_FOLD_MIN)return;
+        const parts=sentences(raw);
+        let lead='',i=0;
+        for(;i<parts.length;i++){
+          const s=parts[i].trim();
+          if(s.length>HINT_LEAD_MAX)break;
+          if(lead.length+s.length>HINT_LEAD_TOTAL)break;
+          lead+=s;
+        }
+        const tail=parts.slice(i).join('').trim();
+        if(tail.length<HINT_TAIL_MIN)return;
+        const key=hintKey(raw);
+        el.textContent=lead;
+        const d=document.createElement('details');
+        d.className='hint-fold';
+        d.dataset.foldKey=key;
+        if(hintOpen[key])d.open=true;
+        const sm=document.createElement('summary');
+        sm.textContent='説明を見る';
+        const body=document.createElement('div');
+        body.className='hint-body';
+        body.textContent=tail;
+        d.appendChild(sm);
+        d.appendChild(body);
+        el.appendChild(d);
+      });
+    }
+
+    // ---- 数値入力欄のラベル付け ----
+    // 見た目は変えず、label と id を結び付けて読み上げ名を与える。
+    // 名前は「欄グループ（data-field-group）＋小見出し（.gpair-h）＋欄の文字」で組み立てる。
+    function headingText(el){
+      if(!el)return '';
+      const first=el.firstChild;
+      const t=first&&first.nodeType===3?first.textContent:el.textContent;
+      return (t||'').trim();
+    }
+    function labelNumberInputs(main){
+      main.querySelectorAll('.inrow input,.gcell input,input[data-number-key],input[data-state-path]').forEach(inp=>{
+        if(inp.type==='file')return;
+        if(!inp.id){
+          const base=inp.dataset.numberKey||inp.dataset.statePath||'';
+          inp.id=base?'chk-in-'+base.replace(/[^A-Za-z0-9_-]/g,'-'):'chk-in-'+hintKey(inp.outerHTML);
+        }
+        let own='';
+        const wrap=inp.closest('label');
+        if(wrap){
+          own=wrap.textContent.trim();
+          if(!wrap.htmlFor)wrap.htmlFor=inp.id;
+        }else{
+          const prev=inp.previousElementSibling;
+          let lab=prev&&prev.tagName==='LABEL'?prev:null;
+          // 間にボタンが挟まる行（例: 「打ち始めと同じにする」）は直前の兄弟がラベルにならない。
+          // 欄が1つだけの行に限り、その行のラベルを引き当てる。
+          if(!lab){
+            const row=inp.parentElement;
+            if(row&&row.querySelectorAll('input').length===1){
+              const cand=row.querySelector('label');
+              if(cand&&!cand.htmlFor)lab=cand;
+            }
+          }
+          if(lab){
+            own=lab.textContent.trim();
+            if(!lab.htmlFor)lab.htmlFor=inp.id;
+          }
+        }
+        if(inp.getAttribute('aria-label'))return;
+        const group=inp.closest('[data-field-group]');
+        const pair=inp.closest('.gpair');
+        const name=[group?group.dataset.fieldGroup:'',headingText(pair?pair.querySelector('.gpair-h'):null),own]
+          .filter(Boolean).join(' ').trim();
+        if(name)inp.setAttribute('aria-label',name);
+      });
+    }
+
+    // 再描画で作り直す前に、いま開いている折りたたみを控える。
+    // toggle イベントは非同期に飛ぶため、描画直前にDOMから読む方が取りこぼさない。
+    function captureFoldState(main){
+      main.querySelectorAll('details.hint-fold').forEach(d=>{
+        if(d.dataset.foldKey)hintOpen[d.dataset.foldKey]=d.open;
+      });
+      const dops=main.querySelector('#dataOps');
+      if(dops)dataOpsOpen=dops.open;
+    }
+    // ---- データ操作（リセット）----
+    // 実戦中に触れないよう、ヘッダーから外して最初のタブの最下部に畳んで置く。
+    // 2度押しの確認は従来どおり reset() が持つ。再描画をまたいでも飛ばないよう、
+    // 開閉（dataOpsOpen）と確認中の表示（resetArm）をここで復元する。
+    function dataOpsHtml(){
+      return `<details class="dataops" id="dataOps"${dataOpsOpen?' open':''}>
+    <summary>データリセット</summary>
+    <div class="dataops-body">
+      <div class="hint">このページに記録した内容をすべて消します。消したあとでも「↩ 取消」で1回だけ元に戻せます。</div>
+      <button type="button" id="resetBtn" class="dataops-reset">${resetArm?RESET_ARMED_LABEL:RESET_LABEL}</button>
+    </div>
+  </details>`;
+    }
+    function effectiveIconChoice(){
+      if(S.iconChoice==='upload'&&S.img)return 'upload';
+      if(S.iconChoice==='nana'&&NANA_COLLAB)return 'nana';
+      if(S.iconChoice==='default')return 'default';
+      return defaultIconChoice();
+    }
+    function iconSrc(){
+      const choice=effectiveIconChoice();
+      if(choice==='upload')return S.img;
+      if(choice==='nana')return NANA_CARD_ICON;
+      return DEFAULT_CARD_ICON;
+    }
+    function historyRuleFor(path){
+      return historyRules.find(rule=>path.startsWith(rule.prefix));
+    }
+    function bump(path,label){
+      if(mode<0&&get(path)<=0){feed(`${label} は0のため減算できません`);return;}
+      const rule=historyRuleFor(path);
+      let extraAdded=null,extraRemoved=null,extraRemovedIndex=-1;
+      if(rule){
+        if(mode>0){
+          extraAdded=rule.makeEntry(path,label,S);
+          S[rule.stateKey].push(extraAdded);
+          if(rule.max&&S[rule.stateKey].length>rule.max)S[rule.stateKey].shift();
+        }else{
+          extraRemovedIndex=rule.findRemoveIndex(S[rule.stateKey],path,label,S);
+          if(extraRemovedIndex>=0)extraRemoved=S[rule.stateKey].splice(extraRemovedIndex,1)[0];
+        }
+      }
+      set(path,get(path)+mode);
+      hist.push({path,label,delta:mode,extraAdded,extraRemoved,extraRemovedIndex,ruleKey:rule&&rule.stateKey});
+      if(hist.length>50)hist.shift();
+      feed(`<b>${mode<0?'−1':'＋1'}</b> ${label}（累計 ${get(path)}）`);
+      save();
+      renderAll();
+    }
+    function bumpMany(paths,label){
+      const list=(paths||'').split(',').map(s=>s.trim()).filter(Boolean);
+      if(!list.length)return;
+      if(mode<0&&list.some(path=>get(path)<=0)){feed(`${label} は0のため減算できません`);return;}
+      list.forEach(path=>set(path,get(path)+mode));
+      hist.push({multi:list.map(path=>({path,delta:mode})),label});
+      if(hist.length>50)hist.shift();
+      feed(`<b>${mode<0?'−1':'＋1'}</b> ${label}`);
+      save();
+      renderAll();
+    }
+    // ---- 取消の復元範囲 ----
+    // 取消は「その操作が変えたキー」だけを戻す。数値入力欄（data-number-key /
+    // data-state-path）や入力ソースの選択は取消スタックに積まれないため、
+    // 状態全体をスナップショットで戻すと、操作より後に入力した値まで巻き戻っていた。
+    // 操作のあとに書き換えられたキーは現在値のまま残し、触られていないキーだけ戻す。
+    function changedKeys(beforeJson,afterState){
+      const before=JSON.parse(beforeJson);
+      const after=afterState||{};
+      const seen={},out=[];
+      Object.keys(before).concat(Object.keys(after)).forEach(key=>{
+        if(seen[key])return;
+        seen[key]=1;
+        const b=JSON.stringify(before[key]),a=JSON.stringify(after[key]);
+        if(b!==a)out.push({key,before:b,after:a});
+      });
+      return out;
+    }
+    function restoreChanges(changes){
+      (changes||[]).forEach(c=>{
+        // 操作のあとに書き換えられたキーは触らない（入力欄の現在値を守る）
+        if(JSON.stringify(S[c.key])!==c.after)return;
+        if(c.before===undefined)delete S[c.key];
+        else S[c.key]=JSON.parse(c.before);
+      });
+    }
+    function customAction(name,dataset,label){
+      if(!config.actions||typeof config.actions[name]!=='function')return;
+      const before=JSON.stringify(S);
+      const result=config.actions[name](context(),dataset||{});
+      if(result===false)return;
+      const msg=typeof result==='string'?result:(label||name);
+      hist.push({custom:true,changes:changedKeys(before,S),label:msg});
+      if(hist.length>50)hist.shift();
+      feed(`<b>実行</b> ${msg}`);
+      toast(msg);
+      save();
+      renderAll();
+    }
+    function undo(){
+      const a=hist.pop();
+      if(!a){feed('取り消せる操作がありません');return;}
+      if(a.reset){
+        try{restoreChanges(a.changes);}
+        catch(e){feed('復元に失敗しました');return;}
+        feed('<b>復元</b> リセット前の状態に戻しました');
+        save();renderAll();return;
+      }
+      if(a.multi){
+        a.multi.forEach(item=>set(item.path,Math.max(0,get(item.path)-(item.delta||1))));
+        feed(`<b>取消</b> ${a.label}`);
+        save();renderAll();return;
+      }
+      if(a.custom){
+        try{restoreChanges(a.changes);S=normalizeState(S);}
+        catch(e){feed('復元に失敗しました');return;}
+        feed(`<b>取消</b> ${a.label}`);
+        save();renderAll();return;
+      }
+      set(a.path,Math.max(0,get(a.path)-(a.delta||1)));
+      if(a.extraAdded&&a.ruleKey){
+        const rule=historyRules.find(r=>r.stateKey===a.ruleKey);
+        const idx=rule?rule.findUndoAddedIndex(S[a.ruleKey],a.extraAdded):-1;
+        if(idx>=0)S[a.ruleKey].splice(idx,1);
+      }
+      if(a.extraRemoved&&a.ruleKey){
+        const idx=Math.max(0,Math.min(a.extraRemovedIndex,S[a.ruleKey].length));
+        S[a.ruleKey].splice(idx,0,a.extraRemoved);
+        const rule=historyRules.find(r=>r.stateKey===a.ruleKey);
+        if(rule&&rule.max&&S[a.ruleKey].length>rule.max)S[a.ruleKey].shift();
+      }
+      feed(`<b>取消</b> ${a.label}（累計 ${get(a.path)}）`);
+      save();
+      renderAll();
+    }
+    // リセットは2度押しで確定する。1度目で「実行する？」に変わり、3秒で解除される。
+    // 表示名は置き場所で変える（uiV2＝データ操作の中／従来＝ヘッダー）。
+    const RESET_LABEL=UI_V2?'全データをリセット':'リセット';
+    const RESET_ARMED_LABEL='実行する？';
+    function reset(){
+      const b=document.getElementById('resetBtn');
+      if(resetArm){
+        clearTimeout(resetArm);resetArm=null;
+        const snap=JSON.stringify(S);
+        try{localStorage.setItem(config.storageKey+'-bak',snap);}catch(e){}
+        const img=S.img,iconChoice=S.iconChoice;
+        S=clone(DEF);
+        clearJump();
+        S.img=img;
+        S.iconChoice=iconChoice==='upload'&&img?'upload':(iconChoice==='nana'&&NANA_COLLAB?'nana':(iconChoice==='default'?'default':defaultIconChoice()));
+        // 差分は S を書き換えたあとに取る（取消は変わったキーだけを戻す）
+        hist.push({reset:true,changes:changedKeys(snap,S)});
+        if(hist.length>50)hist.shift();
+        if(b)b.textContent=RESET_LABEL;
+        feed('<b>リセット完了</b> 「↩ 取消」で直前の状態に戻せます');
+        save();renderAll();return;
+      }
+      if(b)b.textContent=RESET_ARMED_LABEL;
+      feed('もう一度「実行する？」を押すとリセットします（3秒で解除）');
+      resetArm=setTimeout(()=>{resetArm=null;if(b)b.textContent=RESET_LABEL;feed('リセットを解除しました');},3000);
+    }
+    function crow(path,name,mean,hot,pctFn){
+      const n=get(path);
+      return `<div class="crow" data-c="${path}" data-l="${name}">
+    <div class="lbl"><div class="nm">${name}</div><div class="mn ${hot?'hot':''}">${mean}</div></div>
+    <div class="num">${n}</div>${pctFn?`<div class="pct">${pctFn(n)}</div>`:''}
+    <button class="plus" aria-label="${name}を1回${mode<0?'減算':'追加'}">${mode<0?'−':'＋'}</button></div>`;
+    }
+    function pageCard(){
+      const canDetail=hasDetailItems();
+      if(!canDetail)detailReady=false;
+      return `
+  <div class="cardwrap">
+    <canvas id="cardCanvas" width="1080" height="1080"></canvas>
+    <div class="btnrow">
+      <button class="act" id="shareBtn">Xで共有する</button>
+      <button class="act gold" id="dlBtn">画像を保存</button>
+    </div>
+    <div class="btnrow one" style="margin-top:8px">
+      <button class="act plain" id="detailBtn" type="button" ${canDetail?'':'disabled'}>${canDetail?'詳細カードも作成':'記録が増えると作成できます'}</button>
+    </div>
+    <div id="detailWrap" class="detailwrap" ${detailReady?'':'hidden'}>
+      <canvas id="detailCanvas" width="1080" height="1080"></canvas>
+      <div class="btnrow">
+        <button class="act" id="detailShareBtn">詳細カードを共有</button>
+        <button class="act gold" id="detailDlBtn">詳細カードを保存</button>
+      </div>
+    </div>
+    <div class="icon-choices">
+      <button class="icon-choice" type="button" data-icon-choice="default">slot-tools</button>
+      <button class="icon-choice" type="button" data-icon-choice="nana" ${NANA_COLLAB?'':'hidden'}>鈴白なな様</button>
+      <button class="icon-choice" type="button" data-icon-choice="upload" id="imgBtn">自分の画像を選ぶ</button>
+    </div>
+    <button class="text-btn" id="resetImgBtn" type="button" ${effectiveIconChoice()!=='default'?'':'hidden'}>アイコンをデフォルトに戻す</button>
+    <input type="file" id="imgIn" accept="image/*" style="display:none">
+    <div class="imgnote">※ アイコン枠は空でも生成できます。他者のイラストを使用する場合は、本人および絵師の許可を得たうえで設定してください。</div>
+  </div>
+  <section class="sec" style="margin-top:14px">
+    <div class="sec-h">テキスト出力（テンプレ形式）</div>
+    <textarea id="tpl" readonly></textarea>
+    <div class="btnrow" style="margin-top:8px">
+      <button class="act plain" id="cpBtn">テキストをコピー</button>
+      <button class="act plain" id="cpPlainBtn">収支帳用にコピー</button>
+    </div>
+  </section>`;
+    }
+    function context(){
+      return {
+        S,get,set,pct,crow,sumValues,nanaCreditText,shareText,
+        defaultIconChoice,effectiveIconChoice,mode
+      };
+    }
+    function sourceCredit(){
+      if(config.sourceCreditHtml){
+        return typeof config.sourceCreditHtml==='function'?config.sourceCreditHtml(context()):config.sourceCreditHtml;
+      }
+      return `<div class="credit">示唆内容・解析数値の出典：ちょんぼりすた パチスロ解析様<br>
+より詳しい解析・最新情報は <a href="${config.sourceUrl}" target="_blank" rel="noopener">ちょんぼりすた様の解析ページ</a> をご覧ください。</div>`;
+    }
+    function renderAll(){
+      const main=document.getElementById('main');
+      if(!main)return;
+      if(UI_V2)captureFoldState(main);
+      // タブ切替のときだけ復元先を指定する。カウント等の再描画では今の位置を保つ。
+      const sc=pendingScrollTop!==null?pendingScrollTop:main.scrollTop;
+      pendingScrollTop=null;
+      const pages=config.pages(context(),pageCard);
+      // データ操作（リセット）は最初のタブの最下部だけに置く
+      main.innerHTML=pages[cur]()+sourceCredit()+(UI_V2&&cur===0?dataOpsHtml():'');
+      buildJumpNav(main);
+      if(UI_V2){
+        foldHints(main);
+        labelNumberInputs(main);
+      }
+      main.scrollTop=sc;
+      // ジャンプナビの有無に関わらず「↑ 上へ」は使えるようにする
+      ensureJumpStyle();
+      if(UI_V2)ensureUiStyle();
+      ensureBackBtn();
+      bindBackBtnScroll(main);
+      updateBackBtn();
+      if(UI_V2){
+        // uiV2 のリセットは main の中に描かれるので、描画のたびに繋ぎ直す
+        const resetBtn=document.getElementById('resetBtn');
+        if(resetBtn)resetBtn.addEventListener('click',ev=>{ev.stopPropagation();reset();});
+      }
+      main.querySelectorAll('.crow').forEach(el=>{
+        const plus=el.querySelector('.plus');
+        if(plus)plus.addEventListener('click',ev=>{ev.stopPropagation();bump(el.dataset.c,el.dataset.l);});
+        if(el.dataset.c)el.addEventListener('click',()=>bump(el.dataset.c,el.dataset.l));
+      });
+      main.querySelectorAll('[data-bump-many]').forEach(el=>{
+        el.addEventListener('click',ev=>{
+          ev.stopPropagation();
+          bumpMany(el.dataset.bumpMany,el.dataset.label||el.textContent.trim());
+        });
+      });
+      main.querySelectorAll('[data-bump]').forEach(el=>{
+        el.addEventListener('click',ev=>{
+          ev.stopPropagation();
+          bump(el.dataset.bump,el.dataset.label||el.textContent.trim());
+        });
+      });
+      main.querySelectorAll('[data-action]').forEach(el=>{
+        el.addEventListener('click',ev=>{
+          ev.stopPropagation();
+          customAction(el.dataset.action,el.dataset,el.dataset.label||el.textContent.trim());
+        });
+      });
+      const gIn=document.getElementById('gIn');
+      if(gIn)gIn.addEventListener('change',()=>{S.games=Math.max(0,parseInt(gIn.value)||0);save();renderAll();});
+      main.querySelectorAll('[data-number-key]').forEach(el=>{
+        el.addEventListener('change',()=>{
+          S[el.dataset.numberKey]=Math.max(0,parseInt(el.value)||0);
+          if(el.dataset.numberSetFlag)S[el.dataset.numberSetFlag]=String(el.value||'').trim()?1:0;
+          save();renderAll();
+        });
+      });
+      main.querySelectorAll('[data-copy-number-from][data-copy-number-to]').forEach(el=>{
+        el.addEventListener('click',ev=>{
+          ev.stopPropagation();
+          const from=el.dataset.copyNumberFrom;
+          const to=el.dataset.copyNumberTo;
+          S[to]=Math.max(0,parseInt(S[from])||0);
+          if(el.dataset.copyNumberFlag)S[el.dataset.copyNumberFlag]=1;
+          save();renderAll();
+        });
+      });
+      main.querySelectorAll('[data-state-path]').forEach(el=>{
+        el.addEventListener('change',()=>{
+          const raw=String(el.value||'').trim();
+          if(el.dataset.rateInput==='1'&&raw&&window.CheckerBayes&&!window.CheckerBayes.parseRate(raw)){
+            toast('分母の数値で入力してください');
+            el.value=get(el.dataset.statePath)||'';
+            return;
+          }
+          const value=el.dataset.valueType==='number'?Math.max(0,parseInt(raw)||0):raw;
+          set(el.dataset.statePath,value);
+          save();renderAll();
+        });
+      });
+      if(cur===(config.cardPageIndex!==undefined?config.cardPageIndex:pages.length-1))initCard();
+    }
+    // ---- カード見出し（タイトル＋メタ行）----
+    // タイトルはアイコン円に食い込まない幅まで縮小し、下限でも収まらない場合は2行に折り返す。
+    // 戻り値は1行のときとの高さの差で、呼び出し側は以降の要素のYをこの分だけ下げる。
+    const CARD_ICON_CX=1080-190,CARD_ICON_R=105,CARD_ICON_GAP=24;
+    const TITLE_X=70,TITLE_BASE_Y=172,TITLE_MAX_SIZE=52,TITLE_MIN_SIZE=38,TITLE_MIN_SIZE_2L=34;
+    let lastTitleLayout=null;
+    function titleMaxWidth(){
+      const avail=(CARD_ICON_CX-CARD_ICON_R)-CARD_ICON_GAP-TITLE_X;
+      return config.card.titleFitMax?Math.min(config.card.titleFitMax,avail):avail;
+    }
+    function splitTitle(x,text){
+      // 2行の幅が最も揃う位置で分ける
+      let best=null;
+      for(let i=1;i<text.length;i++){
+        const worst=Math.max(x.measureText(text.slice(0,i)).width,x.measureText(text.slice(i)).width);
+        if(!best||worst<best.worst)best={i,worst};
+      }
+      return best?[text.slice(0,best.i),text.slice(best.i)]:[text];
+    }
+    function drawTitleAndMeta(x){
+      const title=config.card.title,maxWidth=titleMaxWidth();
+      x.fillStyle='#f2eef5';
+      let size=TITLE_MAX_SIZE;
+      x.font='800 '+size+"px 'M PLUS 1p'";
+      while(x.measureText(title).width>maxWidth&&size>TITLE_MIN_SIZE){
+        size-=2;x.font='800 '+size+"px 'M PLUS 1p'";
+      }
+      let lines=[title],extra=0;
+      if(x.measureText(title).width>maxWidth){
+        size=TITLE_MIN_SIZE_2L;x.font='800 '+size+"px 'M PLUS 1p'";
+        lines=splitTitle(x,title);
+        const lh=size+6,y0=TITLE_BASE_Y-lh+18;
+        lines.forEach((line,i)=>x.fillText(line,TITLE_X,y0+i*lh));
+        extra=(y0+(lines.length-1)*lh)-TITLE_BASE_Y;
+      }else{
+        x.fillText(title,TITLE_X,TITLE_BASE_Y);
+      }
+      lastTitleLayout={size,maxWidth,lines,extra,
+        widths:lines.map(line=>x.measureText(line).width)};
+      x.fillStyle='#9a90a8';x.font="500 26px 'M PLUS 1p'";
+      x.fillText(cardMetaText(),TITLE_X,215+extra);
+      return extra;
+    }
+    function drawCardShell(x,headline){
+      const W=1080,H=1080;
+      x.fillStyle='#0a070d';x.fillRect(0,0,W,H);
+      let g=x.createRadialGradient(W/2,H/2,100,W/2,H/2,760);
+      g.addColorStop(0,'rgba(255,61,143,.10)');g.addColorStop(1,'rgba(0,0,0,0)');
+      x.fillStyle=g;x.fillRect(0,0,W,H);
+      x.strokeStyle='#ff3d8f';x.lineWidth=6;x.shadowColor='#ff3d8f';x.shadowBlur=26;
+      roundRect(x,34,34,W-68,H-68,40);x.stroke();x.shadowBlur=0;
+      x.fillStyle='#ff3d8f';x.font="700 30px 'M PLUS 1p'";x.fillText(headline,70,110);
+      const extra=drawTitleAndMeta(x);
+      const cx=W-190,cy=175,r=105;
+      x.save();x.strokeStyle='#ff3d8f';x.lineWidth=8;x.shadowColor='#ff3d8f';x.shadowBlur=22;x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();x.restore();
+      if(cardImg){
+        x.save();x.beginPath();x.arc(cx,cy,r-8,0,7);x.clip();
+        const s=Math.max((r*2-16)/cardImg.width,(r*2-16)/cardImg.height);
+        x.drawImage(cardImg,cx-cardImg.width*s/2,cy-cardImg.height*s/2,cardImg.width*s,cardImg.height*s);x.restore();
+      }else{
+        x.fillStyle='#1f1830';x.beginPath();x.arc(cx,cy,r-8,0,7);x.fill();
+        x.fillStyle='#9a90a8';x.font="700 28px 'M PLUS 1p'";x.textAlign='center';x.fillText('ICON',cx,cy+10);x.textAlign='left';
+      }
+      return extra;
+    }
+    function drawCardFooter(x,W,H){
+      x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";x.fillText('slot-tools.jp',70,H-104);
+      x.fillStyle='#9a90a8';x.font="500 22px 'M PLUS 1p'";x.fillText(config.card.footerTags,300,H-104);
+      const credit=nanaCreditText('card');
+      const line=credit?credit+'／ 解析出典：ちょんぼりすた様':'解析出典：ちょんぼりすた様';
+      x.fillStyle='#9a90a8';x.font="500 21px 'M PLUS 1p'";x.fillText(line,70,H-62);
+    }
+    function cardGameText(){
+      const label=config.card.gameLabel;
+      return label?label+' '+(S.games||0)+'G':(S.games||0)+'G';
+    }
+    function cardMetaText(){
+      const d=new Date();
+      const date=d.getFullYear()+'/'+(d.getMonth()+1)+'/'+d.getDate();
+      if(config.card.metaText)return config.card.metaText(context(),date);
+      return config.card.hideGames?date:date+'  '+cardGameText();
+    }
+    function stampedName(name){
+      const d=new Date();
+      const p=n=>String(n).padStart(2,'0');
+      const ts=d.getFullYear()+p(d.getMonth()+1)+p(d.getDate())+'-'+p(d.getHours())+p(d.getMinutes())+p(d.getSeconds());
+      return String(name||'').replace(/(\.[^.]+)?$/,m=>'_'+ts+(m||''));
+    }
+    function detailSections(){
+      if(!config.card.detail)return [];
+      return (config.card.detail(context())||[]).map(sec=>{
+        const raw=(sec.items||[]).filter(item=>item&&(item.show!==false)&&((item.value||0)>0||item.text));
+        const denominator=Number(sec.denominator)||(
+          sec.percent?raw.reduce((a,item)=>a+(Number(item.value)||0),0):0
+        );
+        return {
+          title:sec.title,
+          priority:Number(sec.priority)||0,
+          items:raw.map(item=>{
+            if(item.text||item.denominator||denominator<=0)return item;
+            return Object.assign({},item,{denominator});
+          })
+        };
+      }).filter(sec=>sec.items.length>0);
+    }
+    function detailValue(item){return Number(item.value)||0;}
+    function detailText(item){
+      if(item.text)return item.text;
+      const denominator=Number(item.denominator)||0;
+      if(denominator>0)return item.label+' ×'+detailValue(item)+' ('+(100*detailValue(item)/denominator).toFixed(0)+'%)';
+      return item.label+' ×'+detailValue(item);
+    }
+    function hasDetailItems(){return detailSections().some(sec=>sec.items.length>0);}
+    function detailRows(sections){
+      const maxRows=40;
+      function prepare(){
+        return sections.map(sec=>({
+          title:sec.title,
+          priority:Number(sec.priority)||0,
+          items:sec.items.map(item=>Object.assign({},item,{_section:sec.title,_text:detailText(item),_value:detailValue(item),_priority:Number(item.priority ?? sec.priority)||0}))
+        })).filter(sec=>sec.items.length>0);
+      }
+      function build(prepared){
+        const rows=[];
+        prepared.forEach(sec=>{
+          if(sec.items.length===1){rows.push({type:'inline',title:sec.title,item:sec.items[0],hot:!!sec.items[0].hot,value:sec.items[0]._value});return;}
+          rows.push({type:'section',title:sec.title,hot:false,value:0});
+          sec.items.forEach(item=>rows.push({type:'item',item,hot:!!item.hot,value:item._value}));
+        });
+        return rows;
+      }
+      function removeOne(prepared,allowHot){
+        const candidates=[];
+        prepared.forEach((sec,si)=>{
+          sec.items.forEach((item,ii)=>{
+            if(!allowHot&&item.hot)return;
+            candidates.push({si,ii,item});
+          });
+        });
+        candidates.sort((a,b)=>(b.item._priority-a.item._priority)||(a.item._value-b.item._value)||(a.item.hot-b.item.hot)||(b.si-a.si)||(b.ii-a.ii));
+        const target=candidates[0];
+        if(!target)return false;
+        prepared[target.si].items.splice(target.ii,1);
+        return true;
+      }
+      let prepared=prepare();
+      let rows=build(prepared);
+      if(rows.length<=maxRows)return rows;
+      let moreCount=0;
+      while(build(prepared).length>maxRows-1&&removeOne(prepared,false))moreCount++;
+      prepared=prepared.filter(sec=>sec.items.length>0);
+      while(build(prepared).length>maxRows-1&&removeOne(prepared,true)){
+        moreCount++;
+        prepared=prepared.filter(sec=>sec.items.length>0);
+      }
+      rows=build(prepared);
+      if(moreCount>0)rows.push({type:'more',text:'ほか '+moreCount+'項目',hot:false,value:0});
+      return rows;
+    }
+    function fitText(x,text,tx,ty,maxWidth,fontSize,color,weight,minSize,ellipsis){
+      const floor=Number(minSize)||18;
+      let size=fontSize;
+      do{x.font=(weight||700)+' '+size+"px 'M PLUS 1p'";size-=1;}
+      while(x.measureText(text).width>maxWidth&&size>=floor);
+      let out=text;
+      if(ellipsis&&x.measureText(out).width>maxWidth){
+        while(out.length>1&&x.measureText(out+'…').width>maxWidth)out=out.slice(0,-1);
+        out+='…';
+      }
+      x.fillStyle=color;x.fillText(out,tx,ty);
+    }
+    // サマリー各行の使用可能幅。右隣の列のxまで（最終列はカード右端1010まで）。
+    function bottomColumnWidth(x0,xs){
+      const next=xs.filter(v=>v>x0).sort((a,b)=>a-b)[0];
+      return (next===undefined?CARD_RIGHT:next)-x0;
+    }
+    function drawDetailCard(){
+      const cv=document.getElementById('detailCanvas');if(!cv)return;
+      const x=cv.getContext('2d');const W=1080,H=1080;
+      // タイトルが2行になった分だけ、以降の要素を下げる
+      const extra=drawCardShell(x,'SETTING CHECK RESULT - DETAIL -');
+      const sections=detailSections();
+      const rows=detailRows(sections);
+      x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText('詳細カウント',70,286+extra);
+      x.strokeStyle='#2c2340';x.lineWidth=2;x.beginPath();x.moveTo(70,306+extra);x.lineTo(1010,306+extra);x.stroke();
+      const colX=[70,560],maxRows=20,rowGap=30,startY=338+extra;
+      rows.forEach((row,i)=>{
+        const col=Math.floor(i/maxRows),slot=i%maxRows,x0=colX[col]||colX[1],y=startY+slot*rowGap;
+        if(row.type==='section'){
+          x.fillStyle='#ff3d8f';x.font="800 22px 'M PLUS 1p'";x.fillText(row.title,x0,y);return;
+        }
+        if(row.type==='inline'){
+          x.fillStyle='#ff3d8f';x.font="800 21px 'M PLUS 1p'";x.fillText(row.title,x0,y);
+          const tx=x0+x.measureText(row.title).width+18;
+          fitText(x,row.item._text,tx,y,1010-tx,22,row.item.hot?'#ffc94d':'#f2eef5',800);return;
+        }
+        if(row.type==='more'){
+          fitText(x,row.text,x0,y,420,22,'#6b6278',800);return;
+        }
+        const color=row.item.hot?'#ffc94d':'#f2eef5';
+        fitText(x,row.item._text,x0+18,y,420,22,color,700);
+        x.fillStyle=color;x.font="700 20px 'M PLUS 1p'";x.fillText('•',x0,y);
+      });
+      drawCardFooter(x,W,H);
+      return rows;
+    }
+    function drawCard(){
+      const cv=document.getElementById('cardCanvas');if(!cv)return;
+      const x=cv.getContext('2d');
+      const W=1080,H=1080;
+      x.fillStyle='#0a070d';x.fillRect(0,0,W,H);
+      let g=x.createRadialGradient(W/2,H/2,100,W/2,H/2,760);
+      g.addColorStop(0,'rgba(255,61,143,.10)');g.addColorStop(1,'rgba(0,0,0,0)');
+      x.fillStyle=g;x.fillRect(0,0,W,H);
+      x.strokeStyle='#ff3d8f';x.lineWidth=6;x.shadowColor='#ff3d8f';x.shadowBlur=26;
+      roundRect(x,34,34,W-68,H-68,40);x.stroke();x.shadowBlur=0;
+      x.fillStyle='#ff3d8f';x.font="700 30px 'M PLUS 1p'";
+      x.fillText('SETTING CHECK RESULT',70,110);
+      // 通常カードも同じ見出し処理を使う（重複していたため同じはみ出しが起きていた）。
+      // 直下のブロック群は y=270 固定で、2行時のメタ行(y=215+extra)と干渉しない。
+      drawTitleAndMeta(x);
+      const cx=W-190,cy=175,r=105;
+      x.save();x.strokeStyle='#ff3d8f';x.lineWidth=8;x.shadowColor='#ff3d8f';x.shadowBlur=22;
+      x.beginPath();x.arc(cx,cy,r,0,7);x.stroke();x.restore();
+      if(cardImg){
+        x.save();x.beginPath();x.arc(cx,cy,r-8,0,7);x.clip();
+        const s=Math.max((r*2-16)/cardImg.width,(r*2-16)/cardImg.height);
+        x.drawImage(cardImg,cx-cardImg.width*s/2,cy-cardImg.height*s/2,cardImg.width*s,cardImg.height*s);
+        x.restore();
+      }else{
+        x.fillStyle='#1f1830';x.beginPath();x.arc(cx,cy,r-8,0,7);x.fill();
+        x.fillStyle='#9a90a8';x.font="700 28px 'M PLUS 1p'";x.textAlign='center';
+        x.fillText('ICON',cx,cy+10);x.textAlign='left';
+      }
+      config.card.blocks(context()).forEach((b,i)=>{
+        const bx=70+i*242,by=270;
+        x.fillStyle='#171220';roundRect(x,bx,by,222,130,18);x.fill();
+        x.strokeStyle='#2c2340';x.lineWidth=2;roundRect(x,bx,by,222,130,18);x.stroke();
+        x.fillStyle='#9a90a8';x.font="700 24px 'M PLUS 1p'";x.fillText(b[0],bx+18,by+42);
+        x.fillStyle='#ffc94d';x.font="34px 'DotGothic16'";x.fillText(b[1],bx+18,by+98);
+      });
+      const chart=config.card.chart(context());
+      x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText(chart.title,70,470);
+      if(chart.type==='percentGroups'){
+        const barMax=100,by=630;
+        x.strokeStyle='#3b314f';x.lineWidth=2;
+        if(chart.dividerX){x.beginPath();x.moveTo(chart.dividerX,495);x.lineTo(chart.dividerX,670);x.stroke();}
+        chart.groups.forEach(group=>{
+          x.fillStyle='#9a90a8';x.font="700 21px 'M PLUS 1p'";x.textAlign='center';
+          x.fillText(group.titleText||`${group.title} ${group.total}回`,group.titleX,500);
+          group.items.forEach((item,i)=>{
+            const bx=group.x+i*group.step;
+            const pct=group.total>0?(item.value/group.total*100):0;
+            const h=Math.round(120*pct/barMax);
+            x.fillStyle='#2c2340';x.fillRect(bx,by-120,group.width,120);
+            if(group.total>0&&item.value>0){
+              x.fillStyle=item.color||group.color||'#ff3d8f';
+              x.shadowColor=x.fillStyle;x.shadowBlur=12;x.fillRect(bx,by-h,group.width,h);x.shadowBlur=0;
+            }else if(group.total===0){
+              x.fillStyle='#46404f';x.fillRect(bx,by-120,group.width,120);
+            }
+            x.fillStyle='#9a90a8';x.font="22px 'DotGothic16'";
+            x.fillText(item.label,bx+group.width/2,by+30);
+            x.fillStyle='#f2eef5';
+            x.fillText(group.total>0?`${pct.toFixed(0)}%`:'-',bx+group.width/2,by-h-8);
+          });
+        });
+        x.textAlign='left';
+      }else{
+      const hasStack=chart.items.some(item=>item.value2!==undefined);
+      if(hasStack){
+        const legend=chart.legend||[{label:'REG',color:'#ff3d8f'},{label:'BIG',color:chart.color2||'#7aa8ff'}];
+        x.font="700 20px 'M PLUS 1p'";
+        legend.forEach((item,i)=>{x.fillStyle=item.color;x.fillText(`■ ${item.label}`,360+i*86,470);});
+      }
+      const max=Math.max(1,Math.max(...chart.items.map(item=>item.value+(item.value2||0))));
+      chart.items.forEach((item,i)=>{
+        const bx=chart.x+i*chart.step,by=630;
+        const v1=item.value||0,v2=item.value2||0,total=v1+v2;
+        const h1=Math.round(120*v1/max),h2=Math.round(120*v2/max),h=h1+h2;
+        x.fillStyle='#2c2340';x.fillRect(bx,by-120,chart.width,120);
+        if(v1>0){x.fillStyle=item.color||'#ff3d8f';x.shadowColor=x.fillStyle;x.shadowBlur=12;x.fillRect(bx,by-h1,chart.width,h1);x.shadowBlur=0;}
+        if(v2>0){x.fillStyle=item.color2||chart.color2||'#7aa8ff';x.shadowColor=x.fillStyle;x.shadowBlur=12;x.fillRect(bx,by-h1-h2,chart.width,h2);x.shadowBlur=0;}
+        x.fillStyle='#9a90a8';x.font="22px 'DotGothic16'";x.textAlign='center';
+        x.fillText(item.label,bx+chart.width/2,by+30);
+        if(total>0){x.fillStyle='#f2eef5';x.fillText(total,bx+chart.width/2,by-h-8);}
+        x.textAlign='left';
+      });
+      }
+      const bottom=config.card.bottom(context());
+      x.fillStyle='#9a90a8';x.font="700 26px 'M PLUS 1p'";x.fillText(bottom.title,70,720);
+      const bottomXs=bottom.columns.map(col=>Number(col.x)||0);
+      bottom.columns.forEach(col=>{
+        const x0=Number(col.x)||0;
+        const maxWidth=bottomColumnWidth(x0,bottomXs);
+        col.items.forEach((item,i)=>{
+          const by=bottom.startY+i*bottom.rowGap;
+          const count=item.value;
+          const active=item.active!==undefined?item.active:count>0;
+          const color=item.color||(active?'#ffc94d':'#6b6278');
+          fitText(x,item.text||`${item.label} ×${count}`,x0,by,maxWidth,bottom.fontSize,color,800,BOTTOM_MIN_FONT,true);
+        });
+      });
+      x.fillStyle='#ff3d8f';x.font="700 26px 'M PLUS 1p'";
+      x.fillText('slot-tools.jp',70,H-104);
+      x.fillStyle='#9a90a8';x.font="500 22px 'M PLUS 1p'";
+      x.fillText(config.card.footerTags,300,H-104);
+      x.fillStyle='#9a90a8';x.font="500 21px 'M PLUS 1p'";
+      const credit=nanaCreditText('card');
+      const line=credit?credit+'／ 解析出典：ちょんぼりすた様':'解析出典：ちょんぼりすた様';
+      x.fillText(line,70,H-62);
+    }
+    function loadCardImg(cb){
+      const primary=iconSrc();
+      const sources=primary===NANA_CARD_ICON?[NANA_CARD_ICON,DEFAULT_CARD_ICON]:[primary];
+      let i=0;
+      const im=new ImageCtor();
+      im.onload=()=>{cardImg=im;cb&&cb();};
+      im.onerror=()=>{i++;if(i<sources.length){im.src=sources[i];return;}cardImg=null;cb&&cb();};
+      im.src=sources[i];
+    }
+    function fontsReady(){
+      return document.fonts&&document.fonts.ready?document.fonts.ready:Promise.resolve();
+    }
+    function initCard(){
+      loadCardImg(()=>fontsReady().then(()=>{drawCard();if(detailReady)drawDetailCard();}));
+      fontsReady().then(()=>{drawCard();if(detailReady)drawDetailCard();});drawCard();
+      const tpl=document.getElementById('tpl');
+      if(tpl)tpl.value=tplText();
+      document.querySelectorAll('.icon-choice').forEach(btn=>{
+        btn.classList.toggle('on',btn.dataset.iconChoice===effectiveIconChoice());
+        btn.onclick=()=>{
+          const choice=btn.dataset.iconChoice;
+          if(choice==='upload'){document.getElementById('imgIn').click();return;}
+          S.iconChoice=choice;
+          S.img=null;
+          save();renderAll();
+        };
+      });
+      const resetImgBtn=document.getElementById('resetImgBtn');
+      if(resetImgBtn){
+        resetImgBtn.hidden=effectiveIconChoice()===defaultIconChoice();
+        resetImgBtn.onclick=()=>{
+          S.iconChoice=defaultIconChoice();S.img=null;save();toast('デフォルト画像に戻しました');renderAll();
+        };
+      }
+      const imgIn=document.getElementById('imgIn');
+      if(imgIn)imgIn.onchange=e=>{
+        const f=e.target.files[0];if(!f)return;
+        const rd=new FileReaderCtor();
+        rd.onload=()=>{
+          const im=new ImageCtor();
+          im.onload=()=>{
+            const c=document.createElement('canvas');const m=512;
+            const s=Math.min(1,m/Math.max(im.width,im.height));
+            c.width=im.width*s;c.height=im.height*s;
+            c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+            S.img=c.toDataURL('image/jpeg',.85);S.iconChoice='upload';save();
+            loadCardImg(()=>{drawCard();if(detailReady)drawDetailCard();});toast('画像を設定しました');
+          };
+          im.src=rd.result;
+        };
+        rd.readAsDataURL(f);
+      };
+      const detailBtn=document.getElementById('detailBtn');
+      if(detailBtn)detailBtn.onclick=()=>{detailReady=true;const w=document.getElementById('detailWrap');if(w)w.hidden=false;drawDetailCard();};
+      const detailDlBtn=document.getElementById('detailDlBtn');
+      if(detailDlBtn)detailDlBtn.onclick=()=>{
+        detailReady=true;drawDetailCard();
+        const a=document.createElement('a');
+        a.download=stampedName(config.card.detailDownloadName||config.card.downloadName.replace(/(\.[^.]+)?$/,'_detail.png'));
+        a.href=document.getElementById('detailCanvas').toDataURL('image/png');
+        a.click();toast('詳細カードを保存しました');
+      };
+      const detailShareBtn=document.getElementById('detailShareBtn');
+      if(detailShareBtn)detailShareBtn.onclick=()=>{
+        detailReady=true;drawDetailCard();
+        document.getElementById('detailCanvas').toBlob(async b=>{
+          const f=new FileCtor([b],stampedName(config.card.detailDownloadName||config.card.downloadName.replace(/(\.[^.]+)?$/,'_detail.png')),{type:'image/png'});
+          if(navigatorRef.canShare&&navigatorRef.canShare({files:[f]})){
+            try{await navigatorRef.share({files:[f],text:shareText()});}catch(e){}
+          }else{toast('この端末は直接共有に非対応。詳細カードを保存してください');}
+        });
+      };
+      const dlBtn=document.getElementById('dlBtn');
+      if(dlBtn)dlBtn.onclick=()=>{
+        const a=document.createElement('a');
+        a.download=stampedName(config.card.downloadName);
+        a.href=document.getElementById('cardCanvas').toDataURL('image/png');
+        a.click();toast('画像を書き出しました');
+      };
+      const shareBtn=document.getElementById('shareBtn');
+      if(shareBtn)shareBtn.onclick=()=>{
+        document.getElementById('cardCanvas').toBlob(async b=>{
+          const f=new FileCtor([b],stampedName(config.card.downloadName),{type:'image/png'});
+          if(navigatorRef.canShare&&navigatorRef.canShare({files:[f]})){
+            try{await navigatorRef.share({files:[f],text:shareText()});}catch(e){}
+          }else{toast('この端末は直接共有に非対応。画像を保存してください');}
+        });
+      };
+      const cpBtn=document.getElementById('cpBtn');
+      if(cpBtn)cpBtn.onclick=async()=>{
+        try{await navigatorRef.clipboard.writeText(tplText());toast('コピーしました');}
+        catch(e){document.getElementById('tpl').select();document.execCommand('copy');toast('コピーしました');}
+      };
+      const cpPlainBtn=document.getElementById('cpPlainBtn');
+      if(cpPlainBtn)cpPlainBtn.onclick=async()=>{
+        const text=plainTplText();
+        try{await navigatorRef.clipboard.writeText(text);toast('収支帳用にコピーしました');}
+        catch(e){
+          // clipboard API が使えない端末向け。#tpl の中身は変換前なので選択できない。
+          // 一時的な textarea に変換後の文字列を入れて選択する。
+          const ta=document.createElement('textarea');
+          ta.value=text;
+          ta.setAttribute('readonly','');
+          ta.style.cssText='position:fixed;top:-1000px;left:0;opacity:0';
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand('copy');
+          ta.remove();
+          toast('収支帳用にコピーしました');
+        }
+      };
+    }
+    function tplText(){return config.template(context());}
+
+    // 収支帳など、絵文字を受け付けない記録先へ貼るためのプレーン版。
+    // 落とすのは異体字セレクタと絵文字だけで、半角カナ・全角スペース・
+    // 記号（⚠ ↔ 等）はそのまま残す。
+    //
+    // 判定に \p{Extended_Pictographic} を使うと ▶(U+25B6) や ⚠(U+26A0) まで
+    // 消えてしまうため、既定で絵文字表示になる文字（Emoji_Presentation）と、
+    // 異体字セレクタ U+FE0F で絵文字表示を明示された文字（❤️ 等）に限る。
+    // U+FE0E はテキスト表示の指定なので、セレクタだけ落として本体を残す（▶︎→▶）。
+    const EMOJI_PRESENTED=/\p{Extended_Pictographic}\uFE0F/gu;
+    const EMOJI_DEFAULT=/[\p{Emoji_Presentation}\p{Emoji_Modifier}\u200D\u20E3]/gu;
+    const VARIATION_SELECTORS=/[\uFE0E\uFE0F]/g;
+    // 絵文字を落としたあとに残る記号のうち、登録先で化けるものを置き換える。
+    // いずれも実機確認で判明したもの。
+    // U+25B6(▶) … 登録先が &#9654; に変換して化けた。U+2192(→) は正常表示。
+    // U+21AA(↪) … 同様に &#8618; に変換して化けた。異体字セレクタ除去後に当てる。
+    // U+301C(波ダッシュ) / U+FF5E(全角チルダ) … 登録先の注意書きに登録不可とあるため予防的に半角へ。
+    // U+2460〜U+2473(①〜⑳) … 「?」に化けたため半角数字へ。⑩以降は2桁になる。
+    const ARROW=/[\u25B6\u21AA]/g;
+    const WAVE=/[\u301C\uFF5E]/g;
+    const CIRCLED=/[\u2460-\u2473]/g;
+    function circledToDigits(ch){return String(ch.codePointAt(0)-0x2460+1);}
+    function plainText(s){
+      return String(s)
+        .replace(EMOJI_PRESENTED,'')
+        .replace(EMOJI_DEFAULT,'')
+        .replace(VARIATION_SELECTORS,'')
+        .replace(ARROW,'\u2192')
+        .replace(WAVE,'~')
+        .replace(CIRCLED,circledToDigits);
+    }
+    function plainTplText(){return plainText(tplText());}
+    function setMode(nextMode){
+      mode=nextMode;
+      if(document.body)document.body.classList.toggle('minus',mode<0);
+      const b=document.getElementById('modeBtn');
+      if(b){
+        b.textContent=mode<0?'−減算':'＋加算';
+        b.classList.toggle('on',mode<0);
+      }
+    }
+    // ---- 数値入力欄の共通挙動（全機種共通）----
+    // フォーカスで既存値を全選択し、そのまま上書き入力できるようにする（0を消す手間をなくす）。
+    // ・focus はバブルしないので capture で拾う。行は再描画のたびに作り直されるため、
+    //   個別バインドではなく document への委譲にする。
+    // ・フォーカス直後の mouseup（モバイルの合成 mouseup 含む）は既定でキャレットを置き、
+    //   選択を解除してしまうので、その1回だけ抑止する。2回目以降のタップでは通常どおり
+    //   キャレットを動かせる。
+    // ・iOS では focus の直後に選択が畳まれることがあるため、同一タスクの直後にもう一度掛け直す。
+    let selectAllBound=false;
+    function isNumInput(t){
+      if(!t||t.tagName!=='INPUT')return false;
+      if(t.type!=='number'&&(!t.getAttribute||t.getAttribute('inputmode')!=='numeric'))return false;
+      return !!(t.closest&&t.closest('#main'));
+    }
+    function selectAllText(t){try{t.select();}catch(e){}}
+    function bindSelectAllOnFocus(){
+      if(selectAllBound)return;
+      selectAllBound=true;
+      document.addEventListener('focus',ev=>{
+        const t=ev.target;
+        if(!isNumInput(t))return;
+        t.dataset.selOnFocus='1';
+        selectAllText(t);
+        setTimeout(()=>{if(document.activeElement===t&&t.dataset.selOnFocus)selectAllText(t);},0);
+      },true);
+      document.addEventListener('mouseup',ev=>{
+        const t=ev.target;
+        if(!isNumInput(t)||!t.dataset.selOnFocus)return;
+        delete t.dataset.selOnFocus;
+        ev.preventDefault();
+        selectAllText(t);
+      },true);
+    }
+    function mount(){
+      bindSelectAllOnFocus();
+      const modeBtn=document.getElementById('modeBtn');
+      if(modeBtn)modeBtn.onclick=()=>{
+        setMode(mode*-1);
+        feed(mode<0?'<b>減算モード</b>：タップで−1します。もう一度押すと加算に戻ります':'加算モードに戻しました');
+        renderAll();
+      };
+      const undoBtn=document.getElementById('undoBtn');
+      if(undoBtn)undoBtn.onclick=undo;
+      // 従来UIのリセットはヘッダー。uiV2 では HTML 側にこのボタンが無く、
+      // renderAll が描くデータ操作の中のボタンに繋ぐ
+      const resetBtn=document.getElementById('resetBtn');
+      if(resetBtn)resetBtn.onclick=reset;
+      const nav=document.getElementById('nav');
+      if(nav)nav.addEventListener('click',e=>{
+        const b=e.target.closest('button');if(!b)return;
+        const next=+b.dataset.p;
+        if(!UI_V2){
+          cur=next;
+          clearJump();
+          document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+          renderAll();
+          return;
+        }
+        if(next===cur)return;
+        // 離れるタブの位置と「↑戻る」の戻り先を控え、開くタブのぶんを復元する。
+        // 初めて開くタブは控えが無いので先頭から表示する。
+        const main=document.getElementById('main');
+        if(main)tabScroll[cur]=main.scrollTop;
+        tabJumpReturn[cur]=jumpReturnTop;
+        cur=next;
+        pendingScrollTop=tabScroll[cur]||0;
+        jumpReturnTop=tabJumpReturn[cur]!==undefined?tabJumpReturn[cur]:null;
+        const back=document.getElementById('jumpBack');
+        if(back)back.hidden=true;
+        document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('on',x===b));
+        renderAll();
+      });
+      renderAll();
+    }
+    function testSetState(next){S=normalizeState(next);save();renderAll();}
+    function testState(){return clone(S);}
+    function testSetMode(next){setMode(next);}
+
+    return {
+      mount,normalizeState,shareText,tplText,plainText,plainTplText,
+      drawCard,drawDetailCard,renderAll,bump,undo,reset,
+      getState:testState,setState:testSetState,setMode:testSetMode,
+      effectiveIconChoice,defaultIconChoice,nanaCreditText,
+      _context:context,_detailRows:()=>detailRows(detailSections()),
+      _titleLayout:()=>lastTitleLayout
+    };
+  }
+
+  function mount(config){
+    const app=createApp(config);
+    window.__checkerApp=app;
+    app.mount();
+    return app;
+  }
+
+  window.CheckerEngine={createApp,mount};
+})();
