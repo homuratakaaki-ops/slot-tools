@@ -31,7 +31,7 @@ const test=(name,fn)=>{fn();checks++;console.log('PASS '+name);};
 const fresh=()=>config.normalizeState({});
 
 // ===== 1. 入口の並び =====
-const ORDER=['BZ（ブレイクゾーン）','BZ終了時PUSH ランプ','アイキャッチ（ステージチェンジ）','チッチェのセリフ','アイルー福引','そのほか'];
+const ORDER=['BZ（ブレイクゾーン）','アイキャッチ（ステージチェンジ）','チッチェのセリフ','アイルー福引','オトモ潜水艇の横切り','そのほか'];
 test('1. 入口の並びが実戦の流れ（BZ → ランプ → アイキャッチ → セリフ → 福引 → そのほか）',()=>{
   const html=page(fresh());
   const heads=[...html.matchAll(/<div class="entry-h">([^<]*)<\/div>/g)].map(m=>m[1]);
@@ -43,12 +43,12 @@ test('1. 入口の並びが実戦の流れ（BZ → ランプ → アイキャ�
   assert.ok(act(S,'bzQuest',{d:'bzT1',n:'questN1',q:'t3',r:'miss'}));
   assert.deepEqual([...page(S).matchAll(/<div class="entry-h">([^<]*)<\/div>/g)].map(m=>m[1]),ORDER);
   // 記録の種類と保存形式は変えていない（ランプは従来どおり atEvent の lamp）
-  assert.ok(page(S).includes('data-action="atEvent" data-t="lamp" data-c="white"'));
+  assert.ok(!page(S).includes('id="ent-lamp"')); // 色は失敗時または履歴訂正から入力する
 });
 
 // ===== 2. ジャンプ列 =====
-const JUMPS=[['bz','BZ','ent-bz'],['lamp','ランプ','ent-lamp'],['eye','アイキャッチ','ent-eye'],
-             ['serif','セリフ','ent-serif'],['fuku','福引','ent-fuku']];
+const JUMPS=[['bz','BZ','ent-bz'],['eye','アイキャッチ','ent-eye'],
+             ['serif','セリフ','ent-serif'],['fuku','福引','ent-fuku'],['submarine','潜水艇','ent-submarine']];
 test('2. ジャンプ5つが「ここから記録」の直下にあり、それぞれの入口に id がある',()=>{
   const html=page(fresh());
   const row=html.match(/<div class="jump-row">([\s\S]*?)<\/div>\s*\n/);
