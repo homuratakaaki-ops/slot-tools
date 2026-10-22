@@ -24,6 +24,12 @@ const baseline=(()=>{
   return box.window.CheckerConfigs.mhsunbreak;
 })();
 const clone=v=>JSON.parse(JSON.stringify(v));
+// 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
+const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+// 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
+const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
+
 // 旧実装には旧4キー、新実装にはbzBase＋履歴。同じ集計のfixtureで出力を比較する。
 const legacyState=S=>{const out=clone(S);if(out.bzBase){Object.assign(out,clone((load().config).totals(S)));delete out.bzBase;}return out;};
 const comparable=S=>JSON.stringify(canonical(legacyState(S)));
@@ -172,9 +178,10 @@ test('チェックの切り替えは別キーだけを書き、記録のキー�
 
 test('保存データ・集計・カードは 0078fc9 と同じ',()=>{
   const {config}=load();
-  assert.equal(comparable(config.defaults),comparable(baseline.defaults));
+  checkAdded(config.defaults);
+  assert.equal(comparable(dropAdded(config.defaults)),comparable(baseline.defaults));
   // vm の箱が違うと prototype が違うので、比較は JSON で行う
-  assert.equal(JSON.stringify(config.mergeKeys),JSON.stringify(baseline.mergeKeys.filter(k=>!['bzT1','bzT2','questN1','questN2'].includes(k)).concat('bzBase')));
+  assert.equal(JSON.stringify(config.mergeKeys.filter(k=>!ADDED_1022.includes(k))),JSON.stringify(baseline.mergeKeys.filter(k=>!['bzT1','bzT2','questN1','questN2'].includes(k)).concat('bzBase')));
   assert.equal(config.storageKey,baseline.storageKey);
   const raws=[null,{},{games:3,hits:[300]},
     {bzT1:{blue:2,raizex:1},questN1:{blue:1},questN:{blue:1},iconPending:['qBlue'],iconLog:[{icons:['rai'],group:'bzT1',quest:'raizex',result:'win'}]},
@@ -185,7 +192,8 @@ test('保存データ・集計・カードは 0078fc9 と同じ',()=>{
     const a=baseline.normalizeState(Object.assign(clone(baseline.defaults),clone(raw)||{}),clone(raw));
     const b=config.normalizeState(Object.assign(clone(config.defaults),clone(raw)||{}),clone(raw));
     assert.equal(b.atLog.schemaVersion,2,'schemaVersion: '+JSON.stringify(raw));
-    assert.equal(comparable(stripSchema(b)),comparable(stripSchema(a)),'normalizeState: '+JSON.stringify(raw));
+    checkAdded(b);
+    assert.equal(comparable(dropAdded(stripSchema(b))),comparable(stripSchema(a)),'normalizeState: '+JSON.stringify(raw));
   }
   const S=clone(config.defaults);
   S.hits=[300,520];S.cycle.c1=2;S.atEnd.jay=1;S.trophy.gold=1;

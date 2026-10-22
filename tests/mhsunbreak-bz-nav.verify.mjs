@@ -17,6 +17,12 @@ const load=src=>{const box={window:{},document:{getElementById:()=>null},setTime
 const show=ref=>execFileSync('git',['-c','safe.directory='+repo,'show',ref],{encoding:'utf8',maxBuffer:1<<26});
 const config=load(read('checker-data/mhsunbreak.js'));
 const clone=v=>JSON.parse(JSON.stringify(v));
+// 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
+const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+// 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
+const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
+
 // 旧実装には旧4キー、新実装にはbzBase＋履歴。同じ集計のfixtureで出力を比較する。
 const legacyState=S=>{const out=clone(S);if(out.bzBase){Object.assign(out,clone((config).totals(S)));delete out.bzBase;}return out;};
 const comparable=S=>JSON.stringify(canonical(legacyState(S)));
@@ -215,7 +221,8 @@ test('4. 操作列（ジャンプを挟んでも）改修前と一致',()=>{
   };
   const a=run(before),b=run(config);
   assert.deepEqual(b.results,a.results,'操作の戻り値（取消のラベル）が一致しない');
-  sameOutputs('操作列',a.S,b.S);
+  checkAdded(b.S);
+  sameOutputs('操作列',a.S,dropAdded(b.S));
 });
 
 // ===== なな様のイラスト（画像カードと同じ扱い）=====

@@ -11,6 +11,12 @@ const read=p=>fs.readFileSync(new URL(p,new URL('../',import.meta.url)),'utf8');
 const before=p=>execFileSync('git',['-c','safe.directory='+root.replace(/[\\/]$/,''),'show','3be5e98:'+p],{encoding:'utf8'});
 const load=(id,s)=>{const x={window:{}};vm.runInNewContext(s,x);return x.window.CheckerConfigs[id];};
 const clone=x=>JSON.parse(JSON.stringify(x));
+// 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
+const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+// 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
+const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
+
 const ctx=S=>({S,nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 const bytes=(a,b)=>assert.deepEqual(Buffer.from(a),Buffer.from(b));
 const original=read('docs/specs/mhsunbreak-nana-template-v02.txt');
@@ -48,7 +54,9 @@ for(const [group,title] of [['atEnd','AT終了画面'],['trophy','エンタト�
   current.card.detail(ctx(clone(current.defaults))).find(s=>s.title===title).items.forEach((item,i)=>{if(item.hot)keys.push([group,Object.keys(current.defaults[group])[i]]);});
 }
 assert.equal(keys.length,18);
-for(const key of ['blocks','chart','detail'])assert.equal(current.card[key].toString(),old.card[key].toString());
+for(const key of ['blocks','chart'])assert.equal(current.card[key].toString(),old.card[key].toString());
+// detail は周期・CZ種別の値を合計（旧＋新しい入力）に替えた2か所だけが違う
+assert.equal(current.card.detail.toString(),old.card.detail.toString().replace('detailItems(CYCLE,S.cycle)','detailItems(CYCLE,cycleWins(S))').replace('detailItems(CZ_TYPE,S.czType)','detailItems(CZ_TYPE,czValues(S))'));
 const S=clone(current.defaults);S.hits=[300,600];S.cycle.c1=2;S.czType.breakzone=3;
 ids.forEach(id=>{S.bzBase.bzT1[id]=4;S.bzBase.bzT2[id]=5;S.bzBase.questN1[id]=4;S.bzBase.questN2[id]=2;});
 const previous=clone(S);delete previous.bzT1;delete previous.bzT2;delete previous.questN1;delete previous.questN2;

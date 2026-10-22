@@ -119,10 +119,12 @@ test('MH template bytes match the golden files in zero, mixed and fully populate
     const S=clone(c.defaults);let index=0;
     if(mode!=='zero'){
       S.games=1000;
-      for(const value of Object.values(S.bzBase?Object.assign({},S,S.bzBase):S))if(value&&typeof value==='object'&&!Array.isArray(value)){
+      // 10/22 に足したキー（周期3種）は旧データには無いので埋めない。控えは旧データを読んだ直後と同じにする
+      for(const [name,value] of Object.entries(S.bzBase?Object.assign({},S,S.bzBase):S))if(!['cycleD','cycleBz','cycleFuku'].includes(name)&&value&&typeof value==='object'&&!Array.isArray(value)){
         for(const key of Object.keys(value))if(typeof value[key]==='number')value[key]=mode==='all'?1:index++%3;
       }
       for(const key of ['weakNormal','weakHigh','weakSuper','strongNormal','strongHigh'])S.bz[key+'D']=Math.max(S.bz[key+'D'],S.bz[key+'N']);
+      S.rareBzBase=Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0);
       // 合算の成功数は従来の questN と同じ値に保ち、1回目に入るだけ入れて残りを2回目以降に回す。
       for(const id of Object.keys(S.bzBase.questN1)){const t=Math.min(S.bzBase.questN1[id],S.bzBase.bzT1[id]+S.bzBase.bzT2[id]);S.bzBase.questN1[id]=Math.min(t,S.bzBase.bzT1[id]);S.bzBase.questN2[id]=t-S.bzBase.questN1[id];}
     }

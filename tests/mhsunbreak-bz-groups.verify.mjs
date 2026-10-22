@@ -9,6 +9,12 @@ const read=p=>fs.readFileSync(new URL(p,new URL('../',import.meta.url)),'utf8');
 const load=source=>{const x={window:{}};vm.runInNewContext(source,x);return x.window.CheckerConfigs.mhsunbreak;};
 const config=load(read('checker-data/mhsunbreak.js'));
 const clone=x=>JSON.parse(JSON.stringify(x));
+// 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
+const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+// 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
+const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
+
 const ids=Object.keys(config.defaults.bzBase.questN1);
 const ctx=(S,mode=1)=>({S,mode,pct:(n,d)=>n+'/'+d+' '+(d?Math.round(n/d*100)+'%':'—'),nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr'});
 const html=(S,mode=1)=>config.pages(ctx(S,mode),()=> '')[2]();
@@ -146,7 +152,9 @@ test('f48130f template differs only by removed memo heading; card JSON identical
     const S=clone(config.defaults);
     if(filled){
       S.hits=[100,200,300,400];
-      for(const key of (config.mergeKeys||[]).filter(k=>k!=='bzBase'))if(S[key]&&typeof S[key]==='object')Object.keys(S[key]).forEach((id,i)=>{S[key][id]=i+2;});
+      for(const key of (config.mergeKeys||[]).filter(k=>k!=='bzBase'&&!ADDED_1022.includes(k)))if(S[key]&&typeof S[key]==='object')Object.keys(S[key]).forEach((id,i)=>{S[key][id]=i+2;});
+      // 旧データを読んだ直後と同じ控え（それまでのレア役BZは旧記録に含まれている扱い）
+      S.rareBzBase=Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0);
       ids.forEach((quest,i)=>{
         S.bzBase.bzT1[quest]=i+2;S.bzBase.bzT2[quest]=i+3;S.bzBase.questN1[quest]=1;S.bzBase.questN2[quest]=2;
       });

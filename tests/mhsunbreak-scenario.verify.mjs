@@ -12,6 +12,12 @@ const load=src=>{const box={window:{}};vm.runInNewContext(src,box);return box.wi
 const config=load(source);
 const baseline=load(execFileSync('git',['-c','safe.directory='+decodeURIComponent(root.pathname).replace(/^\//,''),'show','b280977:checker-data/mhsunbreak.js'],{encoding:'utf8',maxBuffer:1<<26}));
 const clone=v=>JSON.parse(JSON.stringify(v));
+// 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
+const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+// 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
+const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
+
 // 旧実装には旧4キー、新実装にはbzBase＋履歴。同じ集計のfixtureで出力を比較する。
 const legacyState=S=>{const out=clone(S);if(out.bzBase){Object.assign(out,clone((config).totals(S)));delete out.bzBase;}return out;};
 const comparable=S=>JSON.stringify(canonical(legacyState(S)));
@@ -140,8 +146,9 @@ test('カードの中身（行・テーブル集計・注記）',()=>{
 });
 
 test('保存データ・集計・テンプレ・既存カードは b280977 と同じ',()=>{
-  assert.equal(JSON.stringify(config.defaults),JSON.stringify(Object.fromEntries(Object.entries(baseline.defaults).flatMap(([k,v])=>k==='bzT1'?[['bzBase',Object.fromEntries(['bzT1','bzT2','questN1','questN2'].map(key=>[key,baseline.defaults[key]]))]]:['bzT2','questN1','questN2'].includes(k)?[]:[[k,v]]))));
-  assert.equal(JSON.stringify(config.mergeKeys),JSON.stringify(baseline.mergeKeys.filter(k=>!['bzT1','bzT2','questN1','questN2'].includes(k)).concat('bzBase')));
+  checkAdded(config.defaults);
+  assert.equal(JSON.stringify(dropAdded(config.defaults)),JSON.stringify(Object.fromEntries(Object.entries(baseline.defaults).flatMap(([k,v])=>k==='bzT1'?[['bzBase',Object.fromEntries(['bzT1','bzT2','questN1','questN2'].map(key=>[key,baseline.defaults[key]]))]]:['bzT2','questN1','questN2'].includes(k)?[]:[[k,v]]))));
+  assert.equal(JSON.stringify(config.mergeKeys.filter(k=>!ADDED_1022.includes(k))),JSON.stringify(baseline.mergeKeys.filter(k=>!['bzT1','bzT2','questN1','questN2'].includes(k)).concat('bzBase')));
   assert.equal(config.storageKey,baseline.storageKey);
   const raws=[null,{},{bzT1:{t1:2},questN1:{t1:1}},
     {bzT1:{blue:3},questN:{blue:1},iconLog:[{icons:['rai'],group:'bzT1',quest:'raizex',result:'win'}]},
@@ -152,7 +159,8 @@ test('保存データ・集計・テンプレ・既存カードは b280977 と�
     const a=baseline.normalizeState(Object.assign(clone(baseline.defaults),clone(raw)||{}),clone(raw));
     const b=config.normalizeState(Object.assign(clone(config.defaults),clone(raw)||{}),clone(raw));
     assert.equal(b.atLog.schemaVersion,2,JSON.stringify(raw));
-    assert.equal(comparable(stripSchema(b)),comparable(stripSchema(a)),JSON.stringify(raw));
+    checkAdded(b);
+    assert.equal(comparable(dropAdded(stripSchema(b))),comparable(stripSchema(a)),JSON.stringify(raw));
   }
   const S=clone(config.defaults);
   S.hits=[300,520];S.atEnd.jay=1;S.trophy.gold=1;S.cycle.c1=2;
