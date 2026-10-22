@@ -225,6 +225,15 @@ try{
       await openTotals();
       row[tag+'BzTotalsOpen']=await mainHeight();
       if(!before)row.bzLayout=await layout('bz '+width,width);
+      if(!before){
+        // ％（整数）の文字が設定差の文字に重ならないこと。旧データには「1/1 100%」の行がある
+        const qi=await frame(`const box=e=>{const r=d.createRange();r.selectNodeContents(e);return r.getBoundingClientRect();};
+          return [...d.querySelectorAll('.qi-row')].map(row=>{const p=row.querySelector('.qi-pct'),f=row.querySelector('.qi-diff'),a=box(p),b=box(f);
+            return {pct:p.textContent,diff:f.textContent,pctRight:a.right,diffLeft:b.left,gap:b.left-a.right,sameLine:Math.abs(a.top-b.top)<4};});`);
+        assert.ok(qi.some(r=>r.pct==='100%'),'100% の行がない '+JSON.stringify(qi));
+        assert.ok(qi.every(r=>r.gap>=2&&r.sameLine),width+' ％と設定差が重なる '+JSON.stringify(qi));
+        row.qiGap=Math.min(...qi.map(r=>Math.round(r.gap)));
+      }
       if(width===390||width===320){
         await tab(0);row[tag+'InputShot']=await shot(`input-${tag}-${width}`,width);
         await tab(2);await openTotals();row[tag+'BzShot']=await shot(`bz-totals-${tag}-${width}`,width);

@@ -1269,7 +1269,7 @@
     const st=questIconStats(S);
     const rows=QUEST_ICON_DIFF.map(([name,p1,p6])=>{
       const r=st.rows[name];
-      return `<div class="qi-row" style="--c:${iconColor(name)}"><span class="qi-name">${name}</span><span>${r.win}/${r.count}</span><span class="qi-pct">${r.count>0?(100*r.win/r.count).toFixed(1)+'%':'—'}</span><span class="qi-diff">${p1}⇔${p6}</span></div>`;
+      return `<div class="qi-row" style="--c:${iconColor(name)}"><span class="qi-name">${name}</span><span>${r.win}/${r.count}</span><span class="qi-pct">${r.count>0?Math.round(100*r.win/r.count)+'%':'—'}</span><span class="qi-diff">${p1}⇔${p6}</span></div>`;
     }).join('');
     return `<div class="bz-sub qi-title">獲得アイコン別のクエスト成功率</div>
       <div class="qi-head"><span>アイコン</span><span>成功/回数</span><span>％</span><span>設1⇔設6</span></div>
