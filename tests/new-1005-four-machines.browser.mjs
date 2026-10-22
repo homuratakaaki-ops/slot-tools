@@ -15,6 +15,7 @@ const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Applicatio
 const profile=fs.mkdtempSync(path.join(os.tmpdir(),'slot-1005-profile-'));
 const results=[];
 const errors=[];
+const canceledRequests=new Map(),failedInterceptions=[],activeInterceptions=new Set();
 const visualFindings=[];
 const pause=ms=>new Promise(r=>setTimeout(r,ms));
 const server=http.createServer((req,res)=>{
@@ -117,13 +118,18 @@ try{
     if(m.method==='Runtime.exceptionThrown')errors.push(m.params.exceptionDetails);
     if(m.method==='Runtime.consoleAPICalled'&&m.params.type==='error')errors.push(m.params.args);
     if(m.method==='Log.entryAdded'&&m.params.entry.level==='error')errors.push(m.params.entry);
+    if(m.method==='Network.loadingFailed'&&m.params.canceled===true)canceledRequests.set(m.params.requestId,m.params);
     if(m.method==='Fetch.requestPaused'){
       // The local acceptance test is independent of ads, analytics and remote fonts.
       // Keep their URLs/HTML unchanged; record this test-environment limitation.
-      await send('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Access-Control-Allow-Origin',value:'*'},{name:'Content-Type',value:m.params.resourceType==='Stylesheet'?'text/css':'application/javascript'}],body:''}).catch(e=>errors.push(e.message));
+      const task=send('Fetch.fulfillRequest',{requestId:m.params.requestId,responseCode:200,responseHeaders:[{name:'Access-Control-Allow-Origin',value:'*'},{name:'Content-Type',value:m.params.resourceType==='Stylesheet'?'text/css':'application/javascript'}],body:''})
+        .catch(e=>failedInterceptions.push({requestId:m.params.requestId,networkId:m.params.networkId,url:m.params.request.url,error:e.message}));
+      activeInterceptions.add(task);
+      await task;
+      activeInterceptions.delete(task);
     }
   };
-  await send('Page.enable');await send('Runtime.enable');await send('Log.enable');
+  await send('Page.enable');await send('Runtime.enable');await send('Log.enable');await send('Network.enable');
   await send('Fetch.enable',{patterns:[{urlPattern:'https://*'},{urlPattern:'http://www.*'}]});
   await send('Page.addScriptToEvaluateOnNewDocument',{source:`
     window.__errors=[];window.__texts={};window.__clipboard='';
@@ -905,12 +911,21 @@ try{
   await frame(`const e=d.querySelector('[data-number-key="gamesMysloStart"]');e.value='1000';e.dispatchEvent(new w.Event('change',{bubbles:true}));`);
   await tab(1);assert.ok((await copy()).includes('通常 234G'));assert.ok((await copy()).includes('1/58.5'));
   pass('juuou nonzero start uses the difference on card/template');
+  await Promise.all([...activeInterceptions]);
+  // Frame navigation may cancel a remote request before its empty offline response is sent.
+  // Accept only this exact protocol error with a matching Network cancellation; all other failures stay fatal.
+  for(const failure of failedInterceptions){
+    const canceled=canceledRequests.get(failure.networkId);
+    let protocol;try{protocol=JSON.parse(failure.error);}catch{}
+    assert.ok(protocol?.code===-32602&&protocol.message==='Invalid InterceptionId.'&&canceled?.canceled===true&&canceled.errorText==='net::ERR_ABORTED',JSON.stringify({failure,canceled}));
+  }
+  pass('offline interception failures match canceled requests only',{failures:failedInterceptions,cancellations:[...canceledRequests.values()]});
   assert.deepEqual(errors,[]);pass('all browser console errors = 0');
   results.push(...visualFindings);
   if(visualFindings.length){console.error('FAIL n/d label wrapping. See layout measurements and screenshots.');process.exitCode=1;}
 }catch(e){results.push({name:'browser acceptance',status:'FAIL',detail:e.stack,cause:String(e.cause||'')});console.error(e.stack,e.cause||'');process.exitCode=1;}
 finally{
-  fs.writeFileSync(path.join(artifacts,'results.json'),JSON.stringify({results,errors,externalResources:'Ads, analytics and Google Fonts requests fulfilled empty for offline test'},null,2));
+  fs.writeFileSync(path.join(artifacts,'results.json'),JSON.stringify({results,errors,failedInterceptions,canceledRequests:[...canceledRequests.values()],externalResources:'Ads, analytics and Google Fonts requests fulfilled empty for offline test'},null,2));
   console.log('Artifacts: '+artifacts);
   ws?.close();browser?.kill();server.close();
 }

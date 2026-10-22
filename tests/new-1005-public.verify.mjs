@@ -90,9 +90,15 @@ for(let mask=0;mask<2**keys.length;mask++){
   keys.forEach(([group,key],i)=>{S[group][key]=(mask>>i)&1;});
   bytes(a.card.bottom(ctx(S)).columns[0].items[0].text,b.card.bottom(ctx(S)).columns[0].items[0].text);
   bytes(a.template(ctx(S)),b.template(ctx(S)));
-  bytes(JSON.stringify(a.card.detail(ctx(S))),JSON.stringify(b.card.detail(ctx(S))));
+  // #77 adds exactly this zero-count item. Check it explicitly, then compare every legacy byte.
+  const detail=clone(b.card.detail(ctx(S)));
+  assert.equal(detail[0].title,'初当り');
+  assert.equal(detail[0].items.length,3);
+  assert.deepEqual(detail[0].items[2],{label:'333G到達時の女神の舞',value:0,hot:false,text:'333G到達時の女神の舞 -'});
+  detail[0].items.splice(2,1);
+  bytes(JSON.stringify(a.card.detail(ctx(S))),JSON.stringify(detail));
 }
-console.log('PASS tonski all 32768 combinations of 15 certainty items: first line / template / detail bytes');
+console.log('PASS tonski all 32768 combinations of 15 certainty items: first line / template / legacy detail bytes; #77 added item exact');
 const j=config('juuou',read('checker-data/juuou.js'));
 for(const [src,expected] of [[{games:1234,counts:{sc:4}},1234],[{games:1234,gamesMyslo:0,counts:{sc:4}},0],[{games:1234,gamesMyslo:300,gamesMysloStart:100,counts:{sc:4}},200]]){
   const out=j.normalizeState({...clone(j.defaults),...src},src);assert.equal(out.games,expected);assert.equal(out.counts.sc,4);
@@ -106,5 +112,14 @@ console.log('PASS legacy and explicit-zero/new-key migrations 3, each idempotent
 // kanokari.js は設定推測タブ追加（docs/specs/kanokari-estimate-v01.md）のため除外。
 // ricorico.js は 10/14 の解析更新のため除外（テンプレは上で新規1行以外を比較済み）。
 // garei_zero_re.js は 10/14 の解析更新のため除外（tests/garei-1014.verify.mjs で検証）。
-for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js'].includes(f)).map(f=>'checker-data/'+f)])bytes(read(file),hitBaseline(file));
-console.log('PASS both common files, every other machine data file, unchanged vs 74f8e03; MH golden validated above');
+// #76/#77 are now published. Compare these two complete files to their approved heads, not the old 10/4 snapshot.
+// Keep them in the audit rather than excluding changed machine files.
+const approvedData={
+  'checker-data/mogumogu.js':'5b176a4ddd8170d8def74bf13fe085f4ef16e722',
+  'checker-data/tonski.js':'2f9bc4a92b3d98c5b77397b10f006b573bafa922'
+};
+for(const file of ['checker-engine.js','checker-bayes.js',...fs.readdirSync(new URL('checker-data/',root)).filter(f=>f.endsWith('.js')&&!['mhsunbreak.js','magireco.js','tenten.js','takoslot.js','paripi.js','toaru2.js','kanokari.js','ricorico.js','garei_zero_re.js','mahoako.js'].includes(f)).map(f=>'checker-data/'+f)]){
+  const expected=approvedData[file]?execFileSync('git',['show',approvedData[file]+':'+file],{encoding:'utf8'}):hitBaseline(file);
+  bytes(read(file),expected);
+}
+console.log('PASS both common files and every other machine data file: #76/#77 approved heads exact, others vs 74f8e03; MH golden validated above');
