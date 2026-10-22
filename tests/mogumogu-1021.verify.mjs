@@ -73,7 +73,7 @@ check('guide values, metadata, NEW 8 rows and cache query',()=>{
   for(const n of ['青巻物','黄巻物','緑巻物','赤巻物','虹巻物'])assert.ok(g.includes(n));assert.ok(!g.includes('エンディング中の1枚絵'));
   for(const m of g.matchAll(/<meta (?:name="description"|property="og:description") content="([^"]+)"/g)){assert.ok(m[1].includes('巻物')&&m[1].includes('CZ内訳'));}
   assert.ok(read('mogumogu-checker.html').includes('checker-data/mogumogu.js?v=20261021'));
-  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];const links=[...news.matchAll(/<p>[^\n]+<\/p>/g)];assert.equal(links.length,8);assert.ok(links[0][0].includes('mogumogu-checker.html'));
+  const news=read('index.html').split('<div class="section-label">NEW</div>')[1].split('</section>')[0];const links=[...news.matchAll(/<p>[^\n]+<\/p>/g)];assert.equal(links.length,8);assert.ok(links.some(l=>l[0].includes('<a href="mogumogu-checker.html">モグモグ風林火山 ED中の巻物示唆・CZ種別の内訳を追加</a>')));   // 先頭行は後の更新で変わる（10/22 サンブレイク）
 });
 check('existing outputs unchanged except specified additions',()=>{
   const base=load(execFileSync('git',['show','4e98820:checker-data/mogumogu.js'],{encoding:'utf8'}));const S=state();S.counts.cz=4;S.screens.kerai=3;S.trophy.gold=1;
