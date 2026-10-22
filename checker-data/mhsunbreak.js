@@ -1181,6 +1181,7 @@
       ${picked?`<div class="pick-sum">選んだテーブル：${TABLE_NAMES[picked]}（${no===null?'BZ番号なし':'BZ'+no+'回目'}）</div><div class="step-h">2. 結果アイコン（任意）</div>${inputPosPicker(picked)}<div class="step-h">3. 成功／失敗</div>`:''}
       <div class="crow pick-row"><div class="lbl"><div class="nm">${picked?`<span class="pick-table-label">${TABLE_NAMES[picked]}</span>${pickPos!==null?` <span class="pick-result-label" style="color:${iconColor(posIcon({t:'bz',table:picked,pos:pickPos}))}">・ 結果 ${pickPos}個目 ${ICON_SHORT[posIcon({t:'bz',table:picked,pos:pickPos})]}</span>`:''}`:'テーブルを選んでください'}</div></div><div class="cycle-actions">${resultBtns}</div></div>`}
       <div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。1でテーブル、2で結果アイコン（押さなくてもかまいません）、3で［成功］［失敗］の順に押します。BZとその後のクエストが終わってから、ATに当選したかで押してください。テーブル⑦はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（リセット後を含む）最初のブレイクゾーン、2回目以降はそれ以外で、開始が分かっているときは次のBZ番号から自動で決まります。据え置きの朝一は前日のAT間の続きなので、開始では［途中から］を選んでください。設定差は公表されていません。記録してサンプルを集める項目です。結果アイコンは、ブレイクゾーンの結果が並んだアイコンの何個目で出たかの記録です。11個目は猛焔一閃（AT）です。押すと成功として記録されます。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>
+      <div class="hint">猛焔一閃直撃は、BZ完走の11個目とは別の現象です。CZ突入時にいきなり猛焔一閃が発生します。レア役でBZに当選したときに抽選され、弱レア0.4%・強レア1.6%（設定1。設定差あり、他の設定は未公表）。CZ当選時にも0.4%で抽選されます（全設定共通）。専用の記録ボタンはありません。</div>
     </div>`;
   }
   // 4. 補助（必要なときだけ開く）
@@ -1240,7 +1241,8 @@
     const body=`<div class="sum-head"><b>T</b><span class="sum-name">テーブル</span><span>1回目</span><span>2回目以降</span><span class="sum-total">合算</span></div>
       ${rows}
       ${BZ_GROUPS.some(([d])=>total(TABLES,S.bzBase[d])>0)?`<div class="hint">うち履歴なし：${BZ_GROUPS.map(([d,n,title])=>title+' '+total(TABLES,S.bzBase[d])+'回（成功'+total(TABLES,S.bzBase[n])+'）').join('／')}</div>`:''}
-      ${minus?`<div class="hint">減算モードは履歴のない累計分だけを減らします。AT間メモにある記録は、経過の［削除］で直してください。</div>${fix}`:'<div class="hint">テンプレに出る成功率は合算（1回目＋2回目以降）です。履歴の訂正は経過の［削除］で行います。履歴のない累計分は減算モードに切り替えると、この中に訂正ボタンが出ます。</div>'}`;
+      ${minus?`<div class="hint">減算モードは履歴のない累計分だけを減らします。AT間メモにある記録は、経過の［削除］で直してください。</div>${fix}`:'<div class="hint">テンプレに出る成功率は合算（1回目＋2回目以降）です。履歴の訂正は経過の［削除］で行います。履歴のない累計分は減算モードに切り替えると、この中に訂正ボタンが出ます。</div>'}
+      <div class="hint" data-fold="no">参考：アイコンテーブル別のBZ成功期待度（設定1）は ①19.4% ②28.7% ③49.5% ④63.6% ⑤78.2% ⑥90.2% ⑦成功濃厚。他の設定の数値は未公表です。</div>`;
     return foldSection('totals','集計','テーブル別の成功／回数',body,minus);
   }
   function pastSection(ctx){
@@ -1367,12 +1369,12 @@
   <section class="sec">
     <div class="sec-h">規定リプレイ周期</div>
     <div class="cgrid">${CYCLE.map(c=>ctx.crow('cycle.'+c[0],c[1],'',false)).join('')}</div>
-    <div class="hint">CZに当選した周期を記録します。設定差は公表されていません。記録してサンプルを集める項目です。</div>
+    <div class="hint">CZに当選した周期を記録します。設定1の規定周期の振り分けは①〜⑤が各20%で均等です（他の設定は未公表）。記録してサンプルを集める項目です。</div>
   </section>
   <section class="sec">
     <div class="sec-h">CZ種別</div>
     <div class="cgrid">${CZ_TYPE.map(c=>ctx.crow('czType.'+c[0],c[1],'',false,v=>ctx.pct(v,czTotal(S)))).join('')}</div>
-    <div class="hint">当選したCZの種別を記録します。設定差は公表されていません。記録してサンプルを集める項目です。</div>
+    <div class="hint">当選したCZの種別を記録します。規定周期到達時の振り分けはブレイクゾーン80%・アイルー福引20%、福引の期待度は約60%です（いずれも設定1。他の設定は未公表）。このカウンターはレア役契機のBZも含むため、振り分けの数値とそのまま比べることはできません。記録してサンプルを集める項目です。</div>
   </section>`;}
   function pageShisa(ctx){return GROUPS.map(([key,title,arr,hint])=>`<section class="sec">
     <div class="sec-h">${title}<span class="sub">計${total(arr,ctx.S[key])}回</span></div>
