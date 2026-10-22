@@ -3,6 +3,12 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {execFileSync} from 'node:child_process';
 const clone=v=>JSON.parse(JSON.stringify(v));
+// 10/22 設定別解析の反映で足したキー。旧版との比較では、値を確かめてから外す
+const ADDED_1022=['cycleD','cycleBz','cycleFuku','czTenjo','rareBzBase'];
+const dropAdded=S=>{const c=JSON.parse(JSON.stringify(S));if(c&&typeof c==='object')for(const k of ADDED_1022)delete c[k];return c;};
+// 新キーの無いデータを読んだとき：周期3種は0、天井0、控えは読み込み時点のレア役BZ当選数
+const checkAdded=S=>{for(const k of ['cycleD','cycleBz','cycleFuku'])assert.equal(JSON.stringify(S[k]),'{"c1":0,"c2":0,"c3":0,"c4":0,"c5":0}',k);assert.equal(S.czTenjo,0);assert.equal(S.rareBzBase,Object.entries(S.bz).filter(([k])=>k.endsWith('N')).reduce((a,[,v])=>a+v,0),'rareBzBase');};
+
 const src=fs.readFileSync(new URL('../checker-data/mhsunbreak.js',import.meta.url),'utf8');
 function load(code=src,includeFuku=false){const box={window:{localStorage:{getItem:k=>k.endsWith('-prefs')?JSON.stringify({includeFuku}):null,setItem:()=>{}}}};vm.runInNewContext(code,box);return box.window.CheckerConfigs.mhsunbreak;}
 const C=load(),base=load(execFileSync('git',['show','25235c20458ef2bd824def77a27f013bc80a76d6:checker-data/mhsunbreak.js'],{encoding:'utf8',maxBuffer:2e6}));
@@ -45,7 +51,7 @@ test('legacy save, scenario model, totals and template are unchanged; no synthet
  const fixtures=[[],[bz(),{t:'lamp',c:'red'},{t:'serif',c:'s3'}],[bz('t1'),{t:'eye',c:'jay'},bz('t2')],[{t:'fuku',r:'miss'},bz(),{t:'future',deep:{keep:1}}]];
  for(const events of fixtures){
   const raw={atLog:{sessions:[session(events)]},untouched:{x:1}};const a=C.normalizeState(clone(raw)),b=base.normalizeState(clone(raw));
-  assert.equal(JSON.stringify(a),JSON.stringify(b));assert.deepEqual(clone(C.totals(a)),clone(base.totals(b)));assert.deepEqual(clone(C.scenarioModel(a)),clone(base.scenarioModel(b)));
+  checkAdded(a);assert.equal(JSON.stringify(dropAdded(a)),JSON.stringify(b));assert.deepEqual(clone(C.totals(a)),clone(base.totals(b)));assert.deepEqual(clone(C.scenarioModel(a)),clone(base.scenarioModel(b)));
   const ctx=S=>({S,mode:1,nanaCreditText:()=>'',pct:()=>''});assert.equal(C.template(ctx(a)),base.template(ctx(b)));
  }
 });

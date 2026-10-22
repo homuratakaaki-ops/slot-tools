@@ -152,7 +152,7 @@ try{
     if(id==='mhsunbreak'){
       assert.equal(await frame(`return d.querySelector('.sumrow .num').textContent;`),'0');
       assert.equal(await frame(`return d.querySelector('[data-c="counts.at"]');`),null);
-      await bump('cycle.c1'); // Keep detail output nonempty while hit count remains zero.
+      await click('[aria-label="①周期 BZ"]'); // 10/22 から周期は3ボタン。Keep detail output nonempty while hit count remains zero.
     }else{
       await bump(id==='paripi'?'czType.sanka':'counts.'+countKey);
       assert.equal(id==='paripi'?(await state()).czType.sanka:(await state()).counts[countKey],1);
@@ -212,7 +212,7 @@ try{
   }
   // Hit-game acceptance: production input, add/delete, undo, reload and card/copy handlers.
   await clear('mhsunbreak');
-  await bump('cycle.c1'); // Detail cards intentionally do not render for a wholly empty state.
+  await click('[aria-label="①周期 BZ"]'); // 10/22 から周期は3ボタン。Detail cards intentionally do not render for a wholly empty state.
   const hitRows=()=>frame(`return [...d.querySelectorAll('.hit-row')].map(e=>({text:e.querySelector('.nm').textContent,index:Number(e.querySelector('button').dataset.i),visible:e.checkVisibility()}));`);
   async function hitOutputs(count,sum,rate){
     await tab(0);
@@ -371,7 +371,8 @@ try{
     await tab(3);
     const winTemplate=await copy();
     const ratioMatch=[...zero.matchAll(/0\/0/g)][7+bz.indexOf(key)];
-    assert.equal(winTemplate,zero.slice(0,ratioMatch.index)+'1/1'+zero.slice(ratioMatch.index+3));
+    // 10/22 からレア役BZの当選はCZ種別の合計（ブレイクゾーン）にも入る（新規ユーザーは控え0）
+    assert.equal(winTemplate,(zero.slice(0,ratioMatch.index)+'1/1'+zero.slice(ratioMatch.index+3)).replace('ブレイクゾーン▶︎ 0回','ブレイクゾーン▶︎ 1回'));
     await tab(0);
     await click('#modeBtn');
     assert.equal(await frame(`return d.querySelector(${JSON.stringify(selector)}).parentElement.querySelector('button:last-child').disabled;`),true);
@@ -386,24 +387,29 @@ try{
     await click('#undoBtn');
   }
   pass('MH five n/d rows: wins/misses, minus disabled at n=d, undo and template values');
-  for(const key of ['cycle.c1','cycle.c2','cycle.c3','cycle.c4','cycle.c5','czType.breakzone','czType.airou']){
-    await tab(0);await bump(key);await tab(3);
-    assert.equal((await copy()).split('\n').filter((l,i)=>l!==zero.split('\n')[i]).length,1,key);
-    const prefix=key.startsWith('cycle.')?['①','②','③','④','⑤'][Number(key.at(-1))-1]+'周期▶︎ ':key==='czType.breakzone'?'ブレイクゾーン▶︎ ':'アイルー福引　▶︎ ';
-    assert.equal(await copy(),zero.replace(prefix+'0回',prefix+'1回'));
+  // 10/22 から周期は［BZ］［福引］［ハズレ］の3ボタン。ハズレはテンプレを変えず、BZ・福引は周期とCZ種別の合計を1ずつ変える
+  const marks=['①','②','③','④','⑤'];
+  for(const mark of marks)for(const [label,cz] of [['ハズレ',null],['BZ','ブレイクゾーン▶︎ '],['福引','アイルー福引　▶︎ ']]){
+    await tab(0);await click(`[aria-label="${mark}周期 ${label}"]`);await tab(3);
+    const prefix=mark+'周期▶︎ ',expected=cz?zero.replace(prefix+'0回',prefix+'1回').replace(cz+'0回',cz+'1回'):zero;
+    assert.equal((await copy()).split('\n').filter((l,i)=>l!==zero.split('\n')[i]).length,cz?2:0,mark+label);
+    assert.equal(await copy(),expected);
     await click('#undoBtn');
   }
+  await tab(0);await click('[data-c="czTenjo"] .plus');await tab(3);
+  assert.equal(await copy(),zero.replace('ブレイクゾーン▶︎ 0回','ブレイクゾーン▶︎ 1回'));await click('#undoBtn');
   pass('MH cycle/CZ single-input template deltas');
-  await tab(0);await bump('czType.breakzone');await bump('czType.airou');await bump('czType.airou');
-  const percents=await frame(`return [...d.querySelectorAll('[data-c^="czType."] .pct')].map(e=>e.textContent);`);
-  assert.deepEqual(percents,['1/3 33%','2/3 67%']);await tab(3);await click('#detailBtn');
+  await tab(0);await click('[aria-label="①周期 BZ"]');await click('[aria-label="②周期 福引"]');await click('[aria-label="③周期 福引"]');
+  const percents=await frame(`return [...d.querySelectorAll('.cz-row .pct')].map(e=>e.textContent);`);
+  // 規定周期から（BZ・福引）と合計（BZ・福引）
+  assert.deepEqual(percents,['1/3 33%','2/3 67%','1/3 33%','2/3 67%']);await tab(3);await click('#detailBtn');
   const detail=await canvas('detailCanvas');assert.ok(detail.text.some(t=>t.text.includes('ブレイクゾーン ×1 (33%)')));assert.ok(detail.text.some(t=>t.text.includes('アイルー福引 ×2 (67%)')));
   pass('MH CZ denominator matches screen/detail');
   await clear('mhsunbreak');await tab(1);
   for(const g of groups)for(const r of g.rows)await bump(g.key+'.'+r[0]);
   await tab(0);await games(1000);
   for(const key of bz)await click(`[data-bump-many="bz.${key}D,bz.${key}N"]`);
-  for(const key of ['cycle.c1','cycle.c2','cycle.c3','cycle.c4','cycle.c5','czType.breakzone','czType.airou'])await bump(key);
+  for(const [mark,label] of [['①','BZ'],['②','BZ'],['③','BZ'],['④','BZ'],['⑤','福引']])await click(`[aria-label="${mark}周期 ${label}"]`);
   await tab(3);
   const allCard=await canvas('cardCanvas');
   const summary=allCard.text.filter(t=>[70,560].includes(t.x)&&t.y>=752&&t.y<=936);

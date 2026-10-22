@@ -96,6 +96,9 @@
   const BZ=[['weakNormal','弱レア 通常'],['weakHigh','弱レア 高確'],['weakSuper','弱レア 超高確'],['strongNormal','強レア 通常'],['strongHigh','強レア 高確']];
   const CYCLE=[['c1','①周期'],['c2','②周期'],['c3','③周期'],['c4','④周期'],['c5','⑤周期']];
   const CZ_TYPE=[['breakzone','ブレイクゾーン'],['airou','アイルー福引']];
+  // 設定差（出典：一撃 https://1geki.jp/slot/l_mh_sun/0/ 数値等自社調査。CZ出現率・猛焔一閃直撃はななプレスでも同値）
+  // 表示の参考だけに使い、1/x の算出には使わない（分母の区間設計が未了）。
+  const CZ_SETTING_DIFF={breakzone:'設1:1/111.4⇔設6:1/95.8',airou:'設1:1/2290.1⇔設6:1/976.4'};
   const GROUPS=[
     ['atEnd','AT終了画面',AT_END,'AT終了画面が出たら該当の行を記録します。デフォルト画面は解析に示唆の記載がないため項目を置いていません。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。'],
     ['trophy','エンタトロフィー',TROPHY,'AT終了画面で出現します。出た色の行を記録します。出るたびに必ずどれかが選ばれる振り分けではないため、割合は表示しません。'],
@@ -161,6 +164,8 @@
   const ICON_COLORS={[IC_MOU]:TABLE_COLORS.t7,[IC_QB]:TABLE_COLORS.t1,[IC_QY]:TABLE_COLORS.t2,[IC_RA]:TABLE_COLORS.t3,[IC_SE]:TABLE_COLORS.t4,
                      [IC_OR]:TABLE_COLORS.t5,[IC_TE]:TABLE_COLORS.t6,[IC_AT]:TABLE_COLORS.t7,[IC_G]:ICON_NEUTRAL};
   const iconColor=name=>ICON_COLORS[name]||ICON_NEUTRAL;
+  // 獲得アイコン別のクエスト成功期待度 [アイコン, 設定1, 設定6]（出典：一撃 数値等自社調査）
+  const QUEST_ICON_DIFF=[[IC_QB,'0.4%','3.1%'],[IC_QY,'1.6%','7.8%'],[IC_RA,'30.1%','39.8%'],[IC_SE,'44.9%','54.7%'],[IC_OR,'59.8%','69.5%'],[IC_TE,'75.0%','79.7%']];
   // 通常時のクエスト・福引失敗後PUSH。エンターライズ公式（voice 2026/10/21）。
   // 旧記録は押した契機が不明なので、timing付きの新規入力だけ推測に使う。
   const LAMPS=[
@@ -1181,7 +1186,7 @@
       ${picked?`<div class="pick-sum">選んだテーブル：${TABLE_NAMES[picked]}（${no===null?'BZ番号なし':'BZ'+no+'回目'}）</div><div class="step-h">2. 結果アイコン（任意）</div>${inputPosPicker(picked)}<div class="step-h">3. 成功／失敗</div>`:''}
       <div class="crow pick-row"><div class="lbl"><div class="nm">${picked?`<span class="pick-table-label">${TABLE_NAMES[picked]}</span>${pickPos!==null?` <span class="pick-result-label" style="color:${iconColor(posIcon({t:'bz',table:picked,pos:pickPos}))}">・ 結果 ${pickPos}個目 ${ICON_SHORT[posIcon({t:'bz',table:picked,pos:pickPos})]}</span>`:''}`:'テーブルを選んでください'}</div></div><div class="cycle-actions">${resultBtns}</div></div>`}
       <div class="hint">BZ開始時のアイコン1個目でテーブルが決まります。①〜⑦はテーブル1〜7（BZ開始時の1個目のアイコン）です。1でテーブル、2で結果アイコン（押さなくてもかまいません）、3で［成功］［失敗］の順に押します。BZとその後のクエストが終わってから、ATに当選したかで押してください。テーブル⑦はAT濃厚のため［＋］だけを置き、成功として数えます。1回目はAT終了後（リセット後を含む）最初のブレイクゾーン、2回目以降はそれ以外で、開始が分かっているときは次のBZ番号から自動で決まります。据え置きの朝一は前日のAT間の続きなので、開始では［途中から］を選んでください。設定差は公表されていません。記録してサンプルを集める項目です。結果アイコンは、ブレイクゾーンの結果が並んだアイコンの何個目で出たかの記録です。11個目は猛焔一閃（AT）です。押すと成功として記録されます。テーブル別の成功／回数・テンプレ・シナリオの候補には使いません。</div>
-      <div class="hint">猛焔一閃直撃は、BZ完走の11個目とは別の現象です。CZ突入時にいきなり猛焔一閃が発生します。レア役でBZに当選したときに抽選され、弱レア0.4%・強レア1.6%（設定1。設定差あり、他の設定は未公表）。CZ当選時にも0.4%で抽選されます（全設定共通）。専用の記録ボタンはありません。</div>
+      <div class="hint">猛焔一閃直撃は、BZ完走の11個目とは別の現象です。CZ突入時にいきなり猛焔一閃が発生します。レア役でBZに当選したときに抽選され、弱レア0.4%・強レア1.6%（設定1。設定差あり、他の設定は未公表）。CZ当選時にも0.4%で抽選されます（全設定共通）。専用の記録ボタンはありません。出現率は設1:1/16281.7⇔設6:1/4263.1（一撃）。</div>
     </div>`;
   }
   // 4. 補助（必要なときだけ開く）
@@ -1242,8 +1247,34 @@
       ${rows}
       ${BZ_GROUPS.some(([d])=>total(TABLES,S.bzBase[d])>0)?`<div class="hint">うち履歴なし：${BZ_GROUPS.map(([d,n,title])=>title+' '+total(TABLES,S.bzBase[d])+'回（成功'+total(TABLES,S.bzBase[n])+'）').join('／')}</div>`:''}
       ${minus?`<div class="hint">減算モードは履歴のない累計分だけを減らします。AT間メモにある記録は、経過の［削除］で直してください。</div>${fix}`:'<div class="hint">テンプレに出る成功率は合算（1回目＋2回目以降）です。履歴の訂正は経過の［削除］で行います。履歴のない累計分は減算モードに切り替えると、この中に訂正ボタンが出ます。</div>'}
-      <div class="hint" data-fold="no">参考：アイコンテーブル別のBZ成功期待度（設定1）は ①19.4% ②28.7% ③49.5% ④63.6% ⑤78.2% ⑥90.2% ⑦成功濃厚。他の設定の数値は未公表です。</div>`;
+      <div class="hint" data-fold="no">参考：アイコンテーブル別のBZ成功期待度（設定1）は ①19.4% ②28.7% ③49.5% ④63.6% ⑤78.2% ⑥90.2% ⑦成功濃厚。他の設定の数値は未公表です。</div>
+      ${questIconBlock(S)}`;
     return foldSection('totals','集計','テーブル別の成功／回数',body,minus);
+  }
+  // 獲得アイコン別のクエスト成功率。AT間メモのBZ記録のうち、結果アイコンが QUEST・モンスターのものだけを数える。
+  function questIconStats(S){
+    const out=Object.fromEntries(QUEST_ICON_DIFF.map(c=>[c[0],{win:0,count:0}]));
+    let unrecorded=0;
+    for(const session of S.atLog.sessions)for(const e of session.events){
+      if(e.t!=='bz')continue;
+      if(!e.pos){unrecorded++;continue;}
+      const row=out[posIcon(e)];
+      if(!row)continue;
+      row.count++;
+      if(e.r==='win')row.win++;
+    }
+    return {rows:out,unrecorded};
+  }
+  function questIconBlock(S){
+    const st=questIconStats(S);
+    const rows=QUEST_ICON_DIFF.map(([name,p1,p6])=>{
+      const r=st.rows[name];
+      return `<div class="qi-row" style="--c:${iconColor(name)}"><span class="qi-name">${name}</span><span>${r.win}/${r.count}</span><span class="qi-pct">${r.count>0?Math.round(100*r.win/r.count)+'%':'—'}</span><span class="qi-diff">${p1}⇔${p6}</span></div>`;
+    }).join('');
+    return `<div class="bz-sub qi-title">獲得アイコン別のクエスト成功率</div>
+      <div class="qi-head"><span>アイコン</span><span>成功/回数</span><span>％</span><span>設1⇔設6</span></div>
+      ${rows}
+      <div class="hint" data-fold="no">結果アイコン未記録のBZ ${st.unrecorded}件、履歴のない累計分は含みません。</div>`;
   }
   function pastSection(ctx){
     const S=ctx.S,past=S.atLog.sessions.slice(0,-1).filter(s=>s.closed).reverse();
@@ -1308,10 +1339,23 @@
   function questHit(S,id,T=totals(S)){return n(T.questN1,id)+n(T.questN2,id);}
   const zero=arr=>Object.fromEntries(arr.map(c=>[c[0],0]));
   // AT間（AT終了〜次のAT当選）ごとのメモ。順番を残すだけで、確率計算には使わない。
-  const DEF={games:0,hits:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null,bzBase:emptyBase(),atLog:{sessions:[newAtSession()]}};
-  const MERGE_KEYS=['counts','bz','cycle','czType',...GROUPS.map(g=>g[0]),'bzBase'];
+  const DEF={games:0,hits:[],counts:{at:0},bz:Object.fromEntries(BZ.flatMap(c=>[[c[0]+'D',0],[c[0]+'N',0]])),cycle:zero(CYCLE),czType:zero(CZ_TYPE),cycleD:zero(CYCLE),cycleBz:zero(CYCLE),cycleFuku:zero(CYCLE),czTenjo:0,rareBzBase:0,...Object.fromEntries(GROUPS.map(g=>[g[0],zero(g[2])])),img:null,iconChoice:null,bzBase:emptyBase(),atLog:{sessions:[newAtSession()]}};
+  const MERGE_KEYS=['counts','bz','cycle','czType','cycleD','cycleBz','cycleFuku',...GROUPS.map(g=>g[0]),'bzBase'];
   function total(arr,state){return arr.reduce((a,c)=>a+n(state,c[0]),0);}
-  function czTotal(S){return total(CZ_TYPE,S.czType);}
+  // 規定リプレイ周期。cycle は旧記録（種別不明の当選）で、新しい入力では増やさない。
+  // 当選＝旧＋BZ＋福引、到達＝旧＋cycleD（cycleD は新しい入力の到達で、BZ・福引・ハズレのどれでも+1）。
+  function cycleWin(S,c){return n(S.cycle,c)+n(S.cycleBz,c)+n(S.cycleFuku,c);}
+  function cycleReach(S,c){return n(S.cycle,c)+n(S.cycleD,c);}
+  function cycleWins(S){return Object.fromEntries(CYCLE.map(([c])=>[c,cycleWin(S,c)]));}
+  // レア役からのBZ。rareBzBase は移行時点の当選数の控えで、それより前の分は旧記録（czType）に含まれている扱い。
+  function rareBzSum(S){return BZ.reduce((a,c)=>a+n(S.bz,c[0]+'N'),0);}
+  function rareBzNew(S){return Math.max(0,rareBzSum(S)-(Number(S.rareBzBase)||0));}
+  // CZ種別の合計（テンプレ・カード・詳細カードの値）
+  function czValues(S){return {
+    breakzone:n(S.czType,'breakzone')+total(CYCLE,S.cycleBz)+rareBzNew(S)+(Number(S.czTenjo)||0),
+    airou:n(S.czType,'airou')+total(CYCLE,S.cycleFuku)
+  };}
+  function czTotal(S){return total(CZ_TYPE,czValues(S));}
   function normalizeState(out,src=out){
     backupPreExt();   // 拡張前の控え。保存し直すと schemaVersion が付くので実質1回だけ動く
     src=src&&typeof src==='object'?src:{};
@@ -1334,6 +1378,11 @@
       Object.keys(out[key]).forEach(k=>{out[key][k]=Math.max(0,Number(out[key][k])||0);});
     });
     BZ.forEach(c=>{out.bz[c[0]+'N']=Math.min(out.bz[c[0]+'N'],out.bz[c[0]+'D']);});
+    out.czTenjo=Math.max(0,Number(out.czTenjo)||0);
+    // 当選≦到達を保つ。入力では崩れないが、壊れた値は到達側を合わせる（当選はテンプレの値なので減らさない）
+    CYCLE.forEach(([c])=>{out.cycleD[c]=Math.max(out.cycleD[c],out.cycleBz[c]+out.cycleFuku[c]);});
+    // 控えは保存データに数値が無いときだけ、読み込んだ時点の当選数で作る。あれば上書きしない
+    out.rareBzBase=typeof src.rareBzBase==='number'&&Number.isFinite(src.rareBzBase)?Math.max(0,src.rareBzBase):rareBzSum(out);
     for(const row of Array.isArray(src&&src.iconLog)?src.iconLog:[]){
       if(!row||!Array.isArray(row.icons)||!BZ_GROUPS.some(g=>g[0]===row.group))continue;
       const first=row.icons[0];
@@ -1368,14 +1417,57 @@
   </section>
   <section class="sec">
     <div class="sec-h">規定リプレイ周期</div>
-    <div class="cgrid">${CYCLE.map(c=>ctx.crow('cycle.'+c[0],c[1],'',false)).join('')}</div>
-    <div class="hint">CZに当選した周期を記録します。設定1の規定周期の振り分けは①〜⑤が各20%で均等です（他の設定は未公表）。記録してサンプルを集める項目です。</div>
+    <div class="cgrid">${CYCLE.map(c=>cycleRow(ctx,c)).join('')}</div>
+    <div class="hint">規定リプレイ到達ごとに、CZに当選したら種別を、当選しなければハズレを押します。設定1の規定周期の振り分けは①〜⑤が各20%で均等です（他の設定は未公表）。</div>
   </section>
   <section class="sec">
     <div class="sec-h">CZ種別</div>
-    <div class="cgrid">${CZ_TYPE.map(c=>ctx.crow('czType.'+c[0],c[1],'',false,v=>ctx.pct(v,czTotal(S)))).join('')}</div>
-    <div class="hint">当選したCZの種別を記録します。規定周期到達時の振り分けはブレイクゾーン80%・アイルー福引20%、福引の期待度は約60%です（いずれも設定1。他の設定は未公表）。このカウンターはレア役契機のBZも含むため、振り分けの数値とそのまま比べることはできません。記録してサンプルを集める項目です。</div>
+    ${czTypeSection(ctx)}
   </section>`;}
+  // 規定リプレイ周期の1行。［BZ］［福引］［ハズレ］はどれも到達+1。減算は押したボタンのキーだけを1減らす。
+  function cycleRow(ctx,[c,name]){
+    const S=ctx.S,minus=ctx.mode<0,old=n(S.cycle,c),d=n(S.cycleD,c),bz=n(S.cycleBz,c),fuku=n(S.cycleFuku,c);
+    const btn=(cls,attr,ok,label)=>`<button type="button" class="cycle-btn${cls}" ${minus&&!ok?'disabled aria-disabled="true"':attr} data-label="${name} ${label}" aria-label="${name} ${label}">${label}</button>`;
+    // 減算は当選≦到達を崩さないものだけ。ハズレの減算は到達が当選より多いときだけ。
+    const row=`<div class="crow cycle-row cyc3">
+      <div class="ct"><b>${name}</b><small>${ctx.pct(cycleWin(S,c),cycleReach(S,c))}</small>${old>0?`<small class="cyc-old">うち種別未記録 ${old}</small>`:''}</div>
+      <div class="cycle-actions">
+        ${btn(' win',`data-bump-many="cycleD.${c},cycleBz.${c}"`,bz>0,'BZ')}
+        ${btn(' win',`data-bump-many="cycleD.${c},cycleFuku.${c}"`,fuku>0,'福引')}
+        ${btn('',`data-bump="cycleD.${c}"`,d>bz+fuku,'ハズレ')}
+      </div>
+    </div>`;
+    // 旧記録（種別未記録）は減算モードでのみ減らせる
+    const fix=minus&&old>0?`<div class="crow cycle-row cyc-fix"><div class="ct"><small>${name} 種別未記録（旧記録） ${old}</small></div><div class="cycle-actions"><button type="button" class="cycle-btn" data-bump="cycle.${c}" data-label="${name} 種別未記録" aria-label="${name} 種別未記録を1減らす">未記録 −1</button></div></div>`:'';
+    return row+fix;
+  }
+  function czStaticRow(name,value,pctText,sub){
+    return `<div class="crow cz-row"><div class="lbl"><div class="nm">${name}</div>${sub?`<div class="mn">${sub}</div>`:''}</div><div class="num">${value}</div>${pctText!==undefined?`<div class="pct">${pctText}</div>`:''}</div>`;
+  }
+  // CZ種別：契機ごとの内訳と合計。合計がテンプレ・カードの「ブレイクゾーン」「アイルー福引」の値。
+  function czTypeSection(ctx){
+    const S=ctx.S,minus=ctx.mode<0,cyBz=total(CYCLE,S.cycleBz),cyFuku=total(CYCLE,S.cycleFuku),all=czValues(S),allTotal=czTotal(S);
+    const legacy=CZ_TYPE.filter(c=>n(S.czType,c[0])>0).map(c=>minus?ctx.crow('czType.'+c[0],c[1],'',false):czStaticRow(c[1],n(S.czType,c[0]))).join('');
+    return `<style>
+      .cz-row .num{min-width:38px}.cz-row .pct{min-width:92px}.cz-sub{margin-top:12px}
+      .cyc3 .ct small{font-size:12px}.cyc3 .ct small.cyc-old{font-size:11px}
+      #main .cyc3 .cycle-btn,#main .cyc-fix .cycle-btn{height:48px;min-height:48px}
+      .cyc3 .cycle-actions{gap:5px;margin-left:4px}.cyc3 .cycle-btn{min-width:48px;padding:0 6px;font-size:13px}
+      .cyc3 .ct b{font-size:15px}
+    </style>
+    <div class="bz-sub">規定周期から</div>
+    <div class="cgrid">${czStaticRow('ブレイクゾーン',cyBz,ctx.pct(cyBz,cyBz+cyFuku))}${czStaticRow('アイルー福引',cyFuku,ctx.pct(cyFuku,cyBz+cyFuku))}</div>
+    <div class="hint" data-fold="no">規定周期の［BZ］［福引］から自動で数えます。参考：設定1：BZ 80%・福引 20%。</div>
+    <div class="bz-sub cz-sub">レア役から</div>
+    <div class="cgrid">${czStaticRow('ブレイクゾーン',rareBzNew(S))}</div>
+    <div class="hint" data-fold="no">「レア役からのBZ当選」の当選数から自動で数えます。超高確の強レア役（CZ濃厚）は含みません。${(Number(S.rareBzBase)||0)>0?'これより前のレア役BZは旧記録に含まれています。':''}</div>
+    <div class="bz-sub cz-sub">天井（CZ間333G＋α）から</div>
+    <div class="cgrid">${ctx.crow('czTenjo','ブレイクゾーン','',false)}</div>
+    ${legacy?`<div class="bz-sub cz-sub">契機未記録（旧記録）</div><div class="cgrid">${legacy}</div><div class="hint" data-fold="no">契機を分ける前の記録です。増やせません。訂正は減算モードで行います。</div>`:''}
+    <div class="bz-sub cz-sub">合計</div>
+    <div class="cgrid">${CZ_TYPE.map(c=>czStaticRow(c[1],all[c[0]],ctx.pct(all[c[0]],allTotal),CZ_SETTING_DIFF[c[0]])).join('')}</div>
+    <div class="hint">合計がテンプレ・カードの「ブレイクゾーン」「アイルー福引」の値です。規定周期到達時の福引の期待度は約60%です（設定1。他の設定は未公表）。設定差の出典：一撃（数値等自社調査）。</div>`;
+  }
   function pageShisa(ctx){return GROUPS.map(([key,title,arr,hint])=>`<section class="sec">
     <div class="sec-h">${title}<span class="sub">計${total(arr,ctx.S[key])}回</span></div>
     <div class="cgrid">${arr.map(c=>ctx.crow(key+'.'+c[0],c[1],c[2],c[3]>0)).join('')}</div>
@@ -1501,6 +1593,14 @@
     .sum-name{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
     .sum-total{font-family:var(--seg);font-size:12px;color:var(--cyan);text-align:right}
     .sum-head .sum-total{font-family:var(--body)}
+    .qi-title{margin-top:12px}
+    .qi-head,.qi-row{display:grid;grid-template-columns:minmax(0,1fr) 52px 50px 82px;gap:4px;align-items:center;padding:6px 8px;border-radius:10px}
+    .qi-head{font-size:10px;color:var(--muted);font-weight:800}
+    .qi-row{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c,var(--line));margin-bottom:4px;font-size:13px;font-weight:700}
+    .qi-name{color:var(--c,var(--txt));overflow-wrap:anywhere}
+    .qi-pct{font-family:var(--seg);font-size:12px;color:var(--cyan);text-align:right}
+    .qi-diff{font-size:11px;color:var(--muted);text-align:right;white-space:nowrap}
+    .qi-head span:nth-child(n+3){text-align:right}
     details.bz-fold{margin-bottom:12px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);overflow:hidden}
     details.bz-fold>summary{display:flex;align-items:center;gap:8px;min-height:48px;padding:0 12px;cursor:pointer;list-style:none;font-size:12px;font-weight:800;color:var(--gold);letter-spacing:.1em}
     details.bz-fold>summary::-webkit-details-marker{display:none}
@@ -1533,8 +1633,8 @@
       ...TABLES.map(c=>n(T.bzT2,c[0])+'回'),
       ...TABLES.map(c=>questHit(S,c[0],T)+'/'+questD(S,c[0],T)),
       ...BZ.map(c=>n(S.bz,c[0]+'N')+'/'+n(S.bz,c[0]+'D')),
-      ...CYCLE.map(c=>n(S.cycle,c[0])+'回'),
-      ...CZ_TYPE.map(c=>n(S.czType,c[0])+'回'),
+      ...CYCLE.map(c=>cycleWin(S,c[0])+'回'),
+      ...CZ_TYPE.map(c=>n(czValues(S),c[0])+'回'),
       n(e,'rondine')+n(e,'luchika'),n(e,'rondine'),n(e,'luchika'),
       n(e,'jay')+n(e,'arlo')+n(e,'galeas'),n(e,'jay'),n(e,'arlo'),n(e,'galeas'),
       n(e,'fioreneAirou'),n(e,'chicheAirouGaruku'),n(e,'fioreneRondine'),n(e,'jayArloGaleas'),n(e,'hinoeMinoto'),n(e,'zenin'),n(e,'entalion'),
@@ -1552,8 +1652,8 @@
   function detail(ctx){const S=ctx.S;return [
     initialDetail(S),
     {title:'レア役からのBZ当選',items:BZ.map(c=>({label:c[1],value:n(S.bz,c[0]+'N'),text:c[1]+' '+n(S.bz,c[0]+'N')+'/'+n(S.bz,c[0]+'D'),show:n(S.bz,c[0]+'D')>0,hot:false}))},
-    {title:'規定リプレイ周期',items:detailItems(CYCLE,S.cycle)},
-    {title:'CZ種別',items:detailItems(CZ_TYPE,S.czType),percent:true,denominator:czTotal(S)},
+    {title:'規定リプレイ周期',items:detailItems(CYCLE,cycleWins(S))},
+    {title:'CZ種別',items:detailItems(CZ_TYPE,czValues(S)),percent:true,denominator:czTotal(S)},
     ...GROUPS.map(g=>({title:g[1],items:detailItems(g[2],S[g[0]])}))
   ];}
   window.CheckerConfigs.mhsunbreak={
@@ -1773,8 +1873,8 @@
           row(bestCert(S),certCount(S),undefined,'#ffc94d'),
           row('AT初当り '+countRate(hitSum(S),hitCount(S)),hitCount(S)),
           row('通常回転 '+hitSum(S)+'G',hitSum(S)),
-          row(shown('周期',CYCLE,S.cycle),total(CYCLE,S.cycle)),
-          row(shown('CZ',[['breakzone','BZ'],['airou','アイルー']],S.czType),czTotal(S))
+          row(shown('周期',CYCLE,cycleWins(S)),total(CYCLE,cycleWins(S))),
+          row(shown('CZ',[['breakzone','BZ'],['airou','アイルー']],czValues(S)),czTotal(S))
         ]},
         {x:560,items:[
           ...GROUPS.map(g=>row(shown(g[1],g[2],S[g[0]]),total(g[2],S[g[0]]))),
