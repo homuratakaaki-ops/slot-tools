@@ -22,8 +22,9 @@ const defs=[
 ];
 const context=(S,rows=[])=>({S,nanaCreditText:()=> 'ﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr',pct:(n,d)=>`${n}/${d}`,crow:(key,label,sub,hot,pct)=>{rows.push({key,label,sub,hot,ratio:pct?.(S[key.split('.')[0]][key.split('.')[1]])});return `<button>${label}</button><small>${sub}</small>`;}});
 // 10/14 に示唆タブへ「ボーナス獲得枚数」「ED中の1枚絵」を足した（tests/paripi-1014.verify.mjs）。ここでは ST終了画面の12行だけを見る。
+// 10/26 に「イイネ下3桁」9行を足した（tests/paripi-1026.verify.mjs）。
 const guide=read('paripi-guide.html'),allRows=[],html=c.pages(context(state(),allRows),()=> '')[2](),rows=allRows.filter(r=>r.key.startsWith('stEnd.'));
-assert.equal(rows.length,12);assert.equal(allRows.length,12+5+9);
+assert.equal(rows.length,12);assert.equal(allRows.length,12+5+9+9);
 // ED中の1枚絵も「設定2以上濃厚」「画像①」などを使うので、ラベル・画像番号の一意性は ST終了画面のセクション内で見る。
 const stHtml=html.split('<div class="sec-h">ボーナス獲得枚数')[0];assert.notEqual(stHtml,html);
 for(const [i,[key,label,hint,rank,image]] of defs.entries()){
@@ -34,7 +35,7 @@ for(const [i,[key,label,hint,rank,image]] of defs.entries()){
   assert.ok(guide.includes(`<td>${label}</td><td>${hint}</td><td>画像${image}</td>`));
 }
 assert.equal(c.pages(context(state()),()=> '').length,4);
-assert.equal(html.split('class="hint"').length-1,3);
+assert.equal(html.split('class="hint"').length-1,4);
 assert.equal(html.split('画像番号はちょんぼりすたの掲載順です。').length-1,1);
 for(const row of rows)assert.doesNotMatch(row.sub,/ちょんぼりすた/);
 console.log('PASS source match: all 12 labels, hints and image numbers; 5 hot / 7 neutral');
@@ -66,11 +67,11 @@ const legacy=c.normalizeState({games:1000,counts:{cz:3,bonus:2},future:{keep:tru
 assert.deepEqual(clone(legacy.stEnd),clone(c.defaults.stEnd));assert.equal(legacy.counts.cz,3);assert.equal(legacy.games,1000);assert.equal(legacy.future.keep,true);
 const invalid=c.normalizeState({games:-1,counts:{cz:-2,future:8},stEnd:{kanban:-3,s4:'2',future:9},future:{keep:true}});
 assert.equal(invalid.games,0);assert.equal(invalid.counts.cz,0);assert.equal(invalid.counts.future,8);assert.equal(invalid.stEnd.kanban,0);assert.equal(invalid.stEnd.s4,2);assert.equal(invalid.stEnd.future,9);assert.equal(invalid.future.keep,true);
-assert.deepEqual(clone(c.normalizeState(clone(invalid))),clone(invalid));assert.deepEqual(clone(c.mergeKeys),['counts','stEnd','stechen','shiki','rare','czType','bonusOver','edPic']);
+assert.deepEqual(clone(c.normalizeState(clone(invalid))),clone(invalid));assert.deepEqual(clone(c.mergeKeys),['counts','stEnd','stechen','shiki','rare','czType','bonusOver','edPic','iine','shikiRole']);
 console.log('PASS percentages share known-key total; zero games; template omission/header; legacy/unknown/negative/idempotent state');
 const checker=read('paripi-checker.html'),style=s=>s.match(/<style>([\s\S]*?)<\/style>/)[1];
 assert.doesNotMatch(checker,/noindex/);assert.ok(checker.includes('href="paripi-guide.html">使い方</a>'));
-assert.ok(checker.includes('checker-data/paripi.js?v=20261014"'));assert.ok(checker.includes('checker-engine.js?v=20260924'));
+assert.ok(checker.includes('checker-data/paripi.js?v=20261026"'));assert.ok(checker.includes('checker-engine.js?v=20260924'));
 // mhsunbreak は BZ入口の手順3（PR #48）で自機種専用の1行を足した。その1行を除いて共有CSSの一致を見る。
 const mhOnly='.pick-row .pick-table-label,.pick-row .pick-result-label{display:inline-block;white-space:nowrap}\n';
 assert.equal(style(read('mhsunbreak-checker.html')).split(mhOnly).length-1,1);
@@ -173,7 +174,8 @@ if(process.argv.includes('--browser')){
     for(const item of labels.labels.filter(e=>e.kind==='mn'))assert.doesNotMatch(item.text,/ちょんぼりすた/);
     pass('paripi all 12 sublabels and button labels single-line '+width,labels);
     const hint=await frame('const hints=d.querySelectorAll("#main .hint"),h=hints[0],fold=h.querySelector("details.hint-fold");return {count:hints.length,lead:[...h.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent).join(""),tail:fold.querySelector(".hint-body").textContent,summary:fold.querySelector("summary").textContent,open:fold.open};');
-    assert.deepEqual(hint,{count:3,lead:'ST終了時の画面を記録します。',tail:'画面の見分け方はガイドからちょんぼりすたの画像で確認できます。画像番号はちょんぼりすたの掲載順です。',summary:'説明を見る',open:false});
+    // 10/26 にイイネ下3桁の説明が1つ増えた（示唆タブの説明は4つ）
+    assert.deepEqual(hint,{count:4,lead:'ST終了時の画面を記録します。',tail:'画面の見分け方はガイドからちょんぼりすたの画像で確認できます。画像番号はちょんぼりすたの掲載順です。',summary:'説明を見る',open:false});
     assert.equal(hint.lead.length,15);assert.equal(hint.tail.length,50);
     assert.equal(hint.tail.split('画像番号はちょんぼりすたの掲載順です。').length-1,1);
     await click('#main .hint summary');

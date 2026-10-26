@@ -27,30 +27,40 @@ const v02=read('docs/specs/paripi-nana-template-v02.txt');
 assert.ok(v02.startsWith(original));assert.ok(!v02.includes('\r'));
 assert.equal((v02.match(/0\/0/g)||[]).length,12);
 assert.equal((v02.match(/▶︎ *(?=\n|$)/g)||[]).length,15+5+9);
-assert.equal(vm.runInNewContext(source.match(/const TEMPLATE=.*;/)[0]+'TEMPLATE'),v02);
-console.log('PASS 1: v01 bytes/hash/LF/12 fractions/15 blanks; v02 = v01 + 14 blank lines, embedded literal (10 checks)');
-const zero=body(state()),filled=v02.replace(/▶︎ *(?=\n|$)/g,'▶︎ 0回');
+// 10/26 に v03 にした（v02 に ■士気高揚 小役別 3行（0/0）と ■ｲｲﾈ下3桁（出た行のみ・無ければ「なし」）を足しただけ）。
+// v02 の行は v03 の部分列としてそのまま残ることを固定し、出力の比較は v03 で行う。
+const v03=read('docs/specs/paripi-nana-template-v03.txt');
+assert.ok(!v03.includes('\r'));
+assert.equal((v03.match(/0\/0/g)||[]).length,12+3);
+assert.equal((v03.match(/▶︎ *(?=\n|$)/g)||[]).length,15+5+9);
+{const a=v02.split('\n'),b=v03.split('\n');let j=0;const added=[];for(const line of b){if(j<a.length&&line===a[j])j++;else added.push(line);}
+ assert.equal(j,a.length);assert.deepEqual(added,['■士気高揚 小役別','ﾘﾌﾟ/ﾍﾞﾙ▶︎ 0/0','弱ﾁｪ/ｽｲｶ▶︎ 0/0','ﾁｬﾝｽ目▶︎ 0/0','','■ｲｲﾈ下3桁','なし','']);}
+assert.equal(vm.runInNewContext(source.match(/const TEMPLATE=.*;/)[0]+'TEMPLATE'),v03);
+console.log('PASS 1: v01 bytes/hash/LF/12 fractions/15 blanks; v02 = v01 + 14 blank lines; v03 = v02 + 8 lines, embedded literal (16 checks)');
+const zero=body(state()),filled=v03.replace(/▶︎ *(?=\n|$)/g,'▶︎ 0回');
 assert.deepEqual(Buffer.from(zero),Buffer.from(filled));
-assert.ok(zero.startsWith(original.replace(/▶︎ *(?=\n|$)/g,'▶︎ 0回')));
+// v03 で v01 の途中（■士気高揚ゾーンの後）に行が入ったので、v01 部分は先頭一致ではなく行の並びが保たれていることを見る。
+{const want=original.replace(/▶︎ *(?=\n|$)/g,'▶︎ 0回').split('\n');let j=0;for(const line of zero.split('\n'))if(j<want.length&&line===want[j])j++;assert.equal(j,want.length);}
 assert.equal(c.nanaCollab,true);
 assert.ok(c.template(ctx(state())).endsWith('by slot-tools.jp\nﾃﾝﾌﾟﾚ:鈴白なな様 @nana_szsr\n解析出典:ちょんぼりすた様'));
-console.log('PASS 2: zero body exact bytes vs v02 / v01 part unchanged / collaboration/credit (4 checks)');
+console.log('PASS 2: zero body exact bytes vs v03 / v01 part unchanged / collaboration/credit (4 checks)');
 // Independent instruction order, never inferred from implementation defaults.
 const nd=[['stechen','n','d'],['shiki','n109','d109'],['shiki','n209','d209'],
+  ...['rb','wm','ch'].map(k=>['shikiRole',k+'N',k+'D']),
   ...['normal','high','super'].flatMap(s=>['Weak','Melon','Chance'].map(r=>['rare',s+r+'N',s+r+'D']))];
 const keys=[...nd.map(([g,n])=>[g,n]),...['sanka','eiko','sekihei'].map(k=>['czType',k]),
   ...['kanban','blue','yellow','even1','even2','high1','high2','s2','s3','s4','s5','s6'].map(k=>['stEnd',k]),
   ...['o222','o456','o555','o803','o666'].map(k=>['bonusOver',k]),
   ...['even1','even2','high1','high2','s2','s3','s4','s5','s6'].map(k=>['edPic',k])];
 const lines=zero.split('\n'),slotLines=lines.flatMap((s,i)=>/▶︎ (?:0\/0|0回)/.test(s)?[i]:[]);
-assert.equal(slotLines.length,27+5+9);
+assert.equal(slotLines.length,27+3+5+9);
 for(const [i,[g,k]] of keys.entries()){
   const S=state();S[g][k]=1;
   const out=body(S).split('\n'),changed=out.flatMap((s,j)=>s!==lines[j]?[j]:[]);
   assert.deepEqual(changed,[slotLines[i]],g+'.'+k);
-  assert.equal(out[slotLines[i]],lines[slotLines[i]].replace(i<12?'0/0':'0回',i<12?'1/0':'1回'));
+  assert.equal(out[slotLines[i]],lines[slotLines[i]].replace(i<15?'0/0':'0回',i<15?'1/0':'1回'));
 }
-console.log('PASS 3: 41 isolated slots, exact target line and value (82 checks)');
+console.log('PASS 3: 44 isolated slots, exact target line and value (82 checks)');
 const S=state();S.games=2000;S.counts.cz=4;S.czType={sanka:1,eiko:2,sekihei:3};
 assert.equal(c.template(ctx(S)).split('\n')[1],'通常 2000G / CZ10回 1/200.0 / 初当り0回');
 assert.ok(c.pages(ctx(S),()=> '')[0]().includes('CZ 計10回 1/200.0'));
@@ -60,7 +70,7 @@ assert.equal(c.card.chart({S}).items[0].value,10);
 assert.equal(c.card.bottom({S}).columns[0].items[1].text,'CZ 10回 1/200.0');
 assert.equal(c.card.detail({S})[0].items[0].text,'CZ 10回 1/200.0');
 assert.equal(body(S).split('■CZ選択率\n')[1].split('\n\n')[0],'三歌の礼　▶︎ 1回\n英子の試練▶︎ 2回\n石兵八陣　▶︎ 3回');
-const known=clone(S);S.czType.future=800;S.stEnd.future=900;S.bonusOver.future=700;S.edPic.future=600;
+const known=clone(S);S.czType.future=800;S.stEnd.future=900;S.iine.future=500;S.shikiRole.futureN=5;S.shikiRole.futureD=5;S.bonusOver.future=700;S.edPic.future=600;
 assert.equal(c.template(ctx(S)),c.template(ctx(known)));
 for(const key of ['blocks','chart','bottom','detail'])assert.deepEqual(clone(c.card[key]({S})),clone(c.card[key]({S:known})));
 console.log('PASS 4: CZ total/rate on all six surfaces, known-only template/card (13 checks)');
@@ -73,7 +83,7 @@ for(const [g,n,d] of nd){
     assert.deepEqual([bad[g][n],bad[g][d]],[expectedN,expectedD]);
   }
 }
-console.log('PASS 5: 12 pairs clamp/idempotence/negative/fraction/string/nonfinite (84 checks)');
+console.log('PASS 5: 15 pairs clamp/idempotence/negative/fraction/string/nonfinite (105 checks)');
 assert.ok(!source.includes('(?<=')&&!source.includes('(?<!'));
 console.log('PASS 6: no lookbehind (1 check)');
 // engine の折りたたみ（§9-97）で行内の先頭文が消える説明を作らない。
@@ -121,29 +131,29 @@ if(process.argv.includes('--browser')){
     await tab(0);await bump('czType.sanka');await click('#undoBtn');
     S=await state();assert.equal(S[g][nKey],1);assert.equal(S[g][dKey],1);await tab(1);
   }
-  pass('12 n/d pairs: production clicks, feed, Undo, minus at equal/zero/unequal, independent operation');
+  pass('15 n/d pairs: production clicks, feed, Undo, minus at equal/zero/unequal, independent operation');
   await load('paripi');await tab(1);
   const saved=await state();for(const [g,n,d] of pairs){assert.equal(saved[g][n],1);assert.equal(saved[g][d],1);}
   await tab(3);await click('#detailBtn');const detail=await canvas('detailCanvas');
-  assert.ok(detail.bright>1000);assert.equal(detail.text.filter(t=>t.text.endsWith(' 1/1')).length,12);
+  assert.ok(detail.bright>1000);assert.equal(detail.text.filter(t=>t.text.endsWith(' 1/1')).length,15);
   saveCanvas('paripi-normal-detail',detail);
   const normal=await copy(),plain=await copy(true);
   assert.ok(normal.includes('▶︎ 1/1'));assert.ok(plain.includes('→ 1/1'));assert.ok(!/[▶↪\uFE0E\uFE0F]/u.test(plain));
-  pass('12 n/d saved reload, detailed canvas rows/pixels, both production copy buttons');
+  pass('15 n/d saved reload, detailed canvas rows/pixels, both production copy buttons');
   for(const width of [360,390]){
     await load('paripi',width,530);await tab(1);await measure('paripi-nana-'+width);
-    const layout=await frame('return {width:w.innerWidth,scrollWidth:d.documentElement.scrollWidth,mainClient:d.getElementById("main").clientWidth,mainScroll:d.getElementById("main").scrollWidth,tabs:[...d.querySelectorAll("#nav button")].map(e=>e.textContent),rows:[...d.querySelectorAll(".cycle-row")].map(e=>({text:e.querySelector("b").textContent,buttons:[...e.querySelectorAll("button")].map(b=>b.getBoundingClientRect().height)})),hint:d.querySelector("[data-fold=no]").textContent,folded:!!d.querySelector("[data-fold=no] details")};');
+    const layout=await frame('return {width:w.innerWidth,scrollWidth:d.documentElement.scrollWidth,mainClient:d.getElementById("main").clientWidth,mainScroll:d.getElementById("main").scrollWidth,tabs:[...d.querySelectorAll("#nav button")].map(e=>e.textContent),rows:[...d.querySelectorAll(".cycle-row")].map(e=>({text:e.querySelector("b").textContent,buttons:[...e.querySelectorAll("button")].map(b=>b.getBoundingClientRect().height)})),hint:[...d.querySelectorAll("[data-fold=no]")].map(e=>e.textContent).join("|"),folded:!!d.querySelector("[data-fold=no] details")};');
     assert.equal(layout.width,width);assert.ok(layout.scrollWidth<=width);assert.ok(layout.mainScroll<=layout.mainClient,JSON.stringify(layout));
-    assert.deepEqual(layout.tabs,['入力','通常時','示唆','カード']);assert.equal(layout.rows.length,12);
+    assert.deepEqual(layout.tabs,['入力','通常時','示唆','カード']);assert.equal(layout.rows.length,15);
     assert.ok(layout.rows.every(r=>r.buttons.length===2&&r.buttons.every(h=>h>=44)));
     assert.equal(layout.folded,false);assert.ok(layout.hint.includes('115G'));assert.ok(layout.hint.includes('孔明前世'));
     fs.writeFileSync(path.join(artifacts,'paripi-nana-'+width+'-rows.json'),JSON.stringify(layout,null,2));
-    for(let i=0;i<12;i++){
+    for(let i=0;i<15;i++){
       await frame('d.querySelectorAll(".cycle-row")['+i+'].scrollIntoView({block:"center"});');
       const shot=await send('Page.captureScreenshot',{format:'png',clip:{x:0,y:0,width,height:530,scale:1}});
       fs.writeFileSync(path.join(artifacts,'paripi-nana-'+width+'-row'+i+'.png'),Buffer.from(shot.data,'base64'));
     }
-    pass('real viewport '+width+'x530: four tabs, all 12 rows/24 buttons >=44px, no horizontal scroll, unfolded shiki',layout);
+    pass('real viewport '+width+'x530: four tabs, all 15 rows/30 buttons >=44px, no horizontal scroll, unfolded shiki',layout);
     assert.deepEqual(await frame('return w.__errors;'),[]);
   }
   assert.deepEqual(errors,[]);

@@ -31,3 +31,7 @@ desktop.ini
 *.swp
 *.swo
 *~
+
+# --- 作業用の出力 ---
+# スクリーンショット・検証PNGの置き場（CHECKER_ARTIFACTS=scratchpad/<作業名> で出す）。2026/10/27 夢爽の指示で追加。
+scratchpad/
