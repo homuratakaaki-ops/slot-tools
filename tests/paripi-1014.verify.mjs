@@ -66,7 +66,7 @@ assert.ok(guide.includes('なな様テンプレ（v02）'));
 const oldBox={window:{}};vm.runInNewContext(execFileSync('git',['show',BASE+':checker-data/paripi.js'],{cwd:root,encoding:'utf8'}),oldBox);
 const old=oldBox.window.CheckerConfigs.paripi;
 // 10/26 に士気高揚ゾーンの小役別3行＋説明が入り、ｽﾃﾁｪﾝ⑤の説明が平均周期回数に変わった。その2か所を戻すと本件直前と同じ
-const tab1=c.pages(ctx(state()),()=> '')[1](),roleFrom=tab1.indexOf('\n      <div class="cgrid" style="margin-top:6px">'),roleTo=tab1.indexOf('</div>',tab1.indexOf('母数は読み替えません。'))+6;
+const tab1=c.pages(ctx(state()),()=> '')[1](),roleFrom=tab1.indexOf('\n      <div class="cgrid" style="margin-top:6px">'),roleTo=tab1.indexOf('</div>',tab1.indexOf('既存の『突入／なし』とは別の記録です。'))+6;
 assert.ok(roleFrom>0&&roleTo>roleFrom);
 assert.equal((tab1.slice(0,roleFrom)+tab1.slice(roleTo)).replace(/\n *\.role-row[^\n]*/g,'').replace(/<div class="hint" data-fold="no">CZ天井までの平均周期回数[^<]*<\/div>/,'<div class="hint">設定差は公表されていません</div>'),old.pages(ctx(clone(old.defaults)),()=> '')[1]());
 console.log('PASS 1: 出典照合 枚数5・ED9・CZ種別18・150G 6・レア役9、画面の行／ガイドの表、通常時タブは本件（10/26）の追加分を除いて不変');
